@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:preview": "vite build --mode preview",
     "preview": "vite preview",
     "build:gas": "vite build && cp dist/index.html backend/index.html",
     "clasp:login": "clasp login",

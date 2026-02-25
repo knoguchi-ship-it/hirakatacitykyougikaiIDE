@@ -39,6 +39,13 @@ VITE_USE_MOCK=true
 npm run dev
 ```
 
+### 4. Google AI Studio Build Preview 用ビルド
+Google AI Studio の Build Preview でモックアップを確実に表示するため、以下を使用します。
+```bash
+npm run build:preview
+```
+`.env.preview` で `VITE_USE_MOCK=true` を固定しているため、GAS未接続でもUI確認が可能です。
+
 ## GASへのデプロイ (clasp)
 本プロジェクトは `vite-plugin-singlefile` を使用しており、ビルドすると1つの `index.html` にJS/CSSがインライン化されます。
 
