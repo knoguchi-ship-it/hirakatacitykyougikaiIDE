@@ -1,0 +1,14 @@
+# Ignore node_modules and other unnecessary files for GAS
+node_modules/
+.git/
+.env*
+src/
+public/
+docs/
+*.config.ts
+*.json
+!package.json
+!backend/appsscript.json
+
+# We only want to push the backend code and the built index.html
+# Let clasp push everything in the root that isn't ignored.

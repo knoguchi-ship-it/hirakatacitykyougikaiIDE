@@ -1,0 +1,30 @@
+{
+  "name": "copy-of-hirakata-care-manager-system",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "build:gas": "vite build && cp dist/index.html backend/index.html",
+    "clasp:login": "clasp login",
+    "clasp:push": "npm run build:gas && clasp push",
+    "clasp:deploy": "clasp push && clasp deploy"
+  },
+  "dependencies": {
+    "@google/genai": "^1.37.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "recharts": "^3.6.0"
+  },
+  "devDependencies": {
+    "@google/clasp": "^3.2.0",
+    "@types/google-apps-script": "^2.0.8",
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0",
+    "vite-plugin-singlefile": "^2.3.0"
+  }
+}
