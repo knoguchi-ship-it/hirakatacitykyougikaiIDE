@@ -15,6 +15,7 @@ declare const google: {
 export interface ApiClient {
   fetchAllData(): Promise<{ members: Member[], trainings: Training[] }>;
   updateMember(member: Member): Promise<void>;
+  changePassword(loginId: string, currentPassword: string, newPassword: string): Promise<void>;
 }
 
 // --- Mock Implementation (Local Development) ---
@@ -31,6 +32,20 @@ class MockApiClient implements ApiClient {
   async updateMember(member: Member): Promise<void> {
     console.log('[Mock API] updateMember called', member);
     await new Promise(resolve => setTimeout(resolve, 500));
+  }
+
+  async changePassword(loginId: string, currentPassword: string, newPassword: string): Promise<void> {
+    console.log('[Mock API] changePassword called');
+    await new Promise(resolve => setTimeout(resolve, 500));
+    if (!loginId) {
+      throw new Error('ログインIDが取得できませんでした。');
+    }
+    if (currentPassword !== 'demo1234') {
+      throw new Error('現在のパスワードが正しくありません。');
+    }
+    if (newPassword.length < 8) {
+      throw new Error('新しいパスワードは8文字以上で入力してください。');
+    }
   }
 }
 
@@ -85,6 +100,31 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('updateMember', JSON.stringify(member));
+    });
+  }
+
+  async changePassword(loginId: string, currentPassword: string, newPassword: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error('google.script.run is not available.'));
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) {
+              resolve();
+            } else {
+              reject(new Error(parsed.error || 'API Error'));
+            }
+          } catch (e) {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('changePassword', JSON.stringify({ loginId, currentPassword, newPassword }));
     });
   }
 }

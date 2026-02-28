@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Member, MailingPreference, MailDestination, MemberType, PaymentStatus, Staff, StaffRole, Training } from '../types';
 import { AlertTriangleIcon, MailIcon, CheckCircleIcon, BookOpenIcon, UsersIcon, HomeIcon, PlusIcon, TrashIcon, SparklesIcon } from './Icons';
+import { api } from '../services/api';
 
 interface MemberFormProps {
   initialMember: Member;
@@ -17,6 +18,11 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, t
   
   // UX: Loading state for application button
   const [submittingTrainingId, setSubmittingTrainingId] = useState<string | null>(null);
+  const [expandedTrainingId, setExpandedTrainingId] = useState<string | null>(null);
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', nextPassword: '', confirmPassword: '' });
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
 
   const historyRef = useRef<HTMLDivElement>(null); // UX: For auto-scrolling
   
@@ -75,6 +81,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, t
   );
 
   const currentFeeStatus = member.annualFeeHistory[0];
+  const currentLoginId = isBusiness ? (currentStaff?.loginId || member.loginId || '-') : (member.loginId || '-');
   
   // Display name for the training table header
   const trainingTargetName = isBusiness 
@@ -274,6 +281,38 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, t
     alert("登録情報を更新しました。");
   };
 
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passwordForm.currentPassword || !passwordForm.nextPassword || !passwordForm.confirmPassword) {
+      setPasswordError('現在のパスワード・新しいパスワード・確認用をすべて入力してください。');
+      setPasswordSuccess(null);
+      return;
+    }
+    if (passwordForm.nextPassword.length < 8) {
+      setPasswordError('新しいパスワードは8文字以上で入力してください。');
+      setPasswordSuccess(null);
+      return;
+    }
+    if (passwordForm.nextPassword !== passwordForm.confirmPassword) {
+      setPasswordError('新しいパスワードと確認用パスワードが一致しません。');
+      setPasswordSuccess(null);
+      return;
+    }
+
+    try {
+      setPasswordSubmitting(true);
+      await api.changePassword(currentLoginId, passwordForm.currentPassword, passwordForm.nextPassword);
+      setPasswordSuccess('パスワードを変更しました。');
+      setPasswordError(null);
+      setPasswordForm({ currentPassword: '', nextPassword: '', confirmPassword: '' });
+    } catch (err: any) {
+      setPasswordError(err?.message || 'パスワード変更に失敗しました。');
+      setPasswordSuccess(null);
+    } finally {
+      setPasswordSubmitting(false);
+    }
+  };
+
   const getInputClass = (fieldName: string) => {
     const baseClass = "w-full rounded-md shadow-sm border p-2";
     const errorClass = errors[fieldName] 
@@ -339,6 +378,16 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, t
                     <p className="text-xs text-slate-400 mt-1">登録番号: {member.id}</p>
                 </div>
             </div>
+            <div className="flex items-start space-x-3">
+                <div className="bg-sky-50 p-2 rounded-lg text-sky-600">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 12h14M5 7h14M5 17h14"/></svg>
+                </div>
+                <div>
+                    <p className="text-sm text-slate-500 font-bold mb-1">ログインID</p>
+                    <p className="text-lg font-bold text-slate-800 font-mono">{currentLoginId}</p>
+                    <p className="text-xs text-slate-400 mt-1">ログインIDは変更できません</p>
+                </div>
+            </div>
             
             <div className="flex items-start space-x-3">
                 <div className={`p-2 rounded-lg ${currentFeeStatus?.status === PaymentStatus.PAID ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
@@ -356,8 +405,78 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, t
                              </div>
                         ))}
                     </div>
+                    {currentFeeStatus?.status === PaymentStatus.UNPAID && currentFeeStatus.transferAccount && (
+                        <div className="mt-3 p-3 rounded-lg border border-red-200 bg-red-50 text-sm">
+                            <p className="font-bold text-red-700 mb-2">未納のため振込先口座を表示しています</p>
+                            <p className="text-slate-700">銀行名: {currentFeeStatus.transferAccount.bankName}</p>
+                            <p className="text-slate-700">支店名: {currentFeeStatus.transferAccount.branchName}</p>
+                            <p className="text-slate-700">口座種別: {currentFeeStatus.transferAccount.accountType}</p>
+                            <p className="text-slate-700">口座番号: {currentFeeStatus.transferAccount.accountNumber}</p>
+                            <p className="text-slate-700">口座名義: {currentFeeStatus.transferAccount.accountName}</p>
+                            {currentFeeStatus.transferAccount.note && (
+                                <p className="text-xs text-slate-500 mt-2">{currentFeeStatus.transferAccount.note}</p>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="bg-slate-50 px-6 py-4 border-b border-slate-200">
+          <h2 className="text-lg font-bold text-slate-800">認証情報</h2>
+        </div>
+        <div className="p-6">
+          <form onSubmit={handlePasswordChange} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-slate-700 mb-1">ログインID</label>
+              <input type="text" value={currentLoginId} disabled className="w-full rounded-md shadow-sm border p-2 bg-slate-100 text-slate-600 font-mono" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">現在のパスワード</label>
+              <input
+                type="password"
+                value={passwordForm.currentPassword}
+                onChange={(e) => setPasswordForm((prev) => ({ ...prev, currentPassword: e.target.value }))}
+                className="w-full rounded-md shadow-sm border border-slate-300 p-2"
+                autoComplete="current-password"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">新しいパスワード</label>
+              <input
+                type="password"
+                value={passwordForm.nextPassword}
+                onChange={(e) => setPasswordForm((prev) => ({ ...prev, nextPassword: e.target.value }))}
+                className="w-full rounded-md shadow-sm border border-slate-300 p-2"
+                autoComplete="new-password"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">新しいパスワード（確認）</label>
+              <input
+                type="password"
+                value={passwordForm.confirmPassword}
+                onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                className="w-full rounded-md shadow-sm border border-slate-300 p-2"
+                autoComplete="new-password"
+              />
+            </div>
+            <div className="md:col-span-2 flex items-center justify-between">
+              <div>
+                {passwordError && <p className="text-sm text-red-600">{passwordError}</p>}
+                {passwordSuccess && <p className="text-sm text-green-600">{passwordSuccess}</p>}
+              </div>
+              <button
+                type="submit"
+                disabled={passwordSubmitting}
+                className={`px-4 py-2 rounded-lg text-white font-bold ${passwordSubmitting ? 'bg-slate-400' : 'bg-slate-700 hover:bg-slate-800'}`}
+              >
+                {passwordSubmitting ? '変更中...' : 'パスワードを変更'}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
 
@@ -383,12 +502,39 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, t
                                     <span className="text-sm text-slate-500">{training.date} 開催</span>
                                 </div>
                                 <h3 className="font-bold text-slate-800 text-lg mb-1">{training.title}</h3>
+                                {training.summary && (
+                                  <p className="text-sm text-slate-600 mb-2">{training.summary}</p>
+                                )}
                                 <p className="text-sm text-slate-600 flex items-center">
                                     <span className="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded mr-2">
                                         {training.isOnline ? 'オンライン' : '現地'}
                                     </span>
                                     {training.location} (定員 {training.capacity}名)
                                 </p>
+                                <div className="mt-2 flex items-center gap-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedTrainingId((prev) => (prev === training.id ? null : training.id))}
+                                    className="text-sm text-blue-700 hover:text-blue-900 underline"
+                                  >
+                                    {expandedTrainingId === training.id ? '詳細を閉じる' : '詳細を見る'}
+                                  </button>
+                                  {training.guidePdfUrl && (
+                                    <a
+                                      href={training.guidePdfUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-sm text-indigo-700 hover:text-indigo-900 underline"
+                                    >
+                                      案内PDFを見る
+                                    </a>
+                                  )}
+                                </div>
+                                {expandedTrainingId === training.id && training.description && (
+                                  <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded text-sm text-slate-700 max-w-xl">
+                                    {training.description}
+                                  </div>
+                                )}
                             </div>
                             <button 
                                 onClick={() => handleTrainingApply(training.id)}

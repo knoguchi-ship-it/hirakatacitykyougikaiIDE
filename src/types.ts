@@ -20,15 +20,26 @@ export enum PaymentStatus {
   UNPAID = 'UNPAID'
 }
 
+export interface TransferAccountInfo {
+  bankName: string;
+  branchName: string;
+  accountType: '普通' | '当座';
+  accountNumber: string;
+  accountName: string;
+  note?: string;
+}
+
 export interface AnnualFeeRecord {
   year: number;
   status: PaymentStatus;
+  transferAccount?: TransferAccountInfo;
 }
 
 export type StaffRole = 'ADMIN' | 'STAFF';
 
 export interface Staff {
   id: string; // Internal ID for UI keys
+  loginId?: string;
   name: string;
   kana: string;
   email: string; // Individual email
@@ -39,6 +50,7 @@ export interface Staff {
 // Master_Billing & Master_Person merged logic for UI
 export interface Member {
   id: string; // 8-digit registration number
+  loginId?: string;
   
   // Name Split (For Individual: The Person / For Business: The Representative)
   lastName: string;
@@ -84,6 +96,9 @@ export interface Member {
 export interface Training {
   id: string;
   title: string;
+  summary?: string;
+  description?: string;
+  guidePdfUrl?: string;
   date: string;
   capacity: number;
   applicants: number;
