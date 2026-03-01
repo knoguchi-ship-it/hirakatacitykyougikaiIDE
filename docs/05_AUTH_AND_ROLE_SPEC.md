@@ -56,3 +56,65 @@
 4. 会費・研修
 - 未納時のみ振込先表示が出る。
 - 受付中研修の詳細とPDFが閲覧できる。
+
+## 6. 設定済みサービス・権限一覧（2026-02-28時点）
+対象プロジェクト: `uguisu-gas-exec-20260225191000`
+
+### 6.1 GCP API（有効化済み）
+1. `script.googleapis.com`（Apps Script API）
+2. `drive.googleapis.com`（Google Drive API）
+3. `logging.googleapis.com`（Cloud Logging API）
+
+証跡:
+- `docs/assets/gcp-setup-2026-02-28/01_cloud_logging_api_enabled.png`
+- `docs/assets/gcp-setup-2026-02-28/02_apps_script_api_enabled.png`
+- `docs/assets/gcp-setup-2026-02-28/03_drive_api_enabled.png`
+
+### 6.2 Google Auth Platform（OAuth）
+1. 対象ユーザー: `内部（Internal）`
+2. OAuthクライアント（主要）
+- `admin-google-login-web`（種類: ウェブ アプリケーション）
+- JavaScript 生成元: `https://script.google.com`
+3. 既存クライアント
+- `Apps Script`（自動生成）
+- `デスクトップ クライアント: 1`（clasp ログイン用途）
+
+証跡:
+- `docs/assets/gcp-setup-2026-02-28/04_auth_audience_internal.png`
+- `docs/assets/gcp-setup-2026-02-28/05_auth_clients_list.png`
+
+### 6.3 Apps Script 側（高度なサービス）
+1. 高度なサービス: `Drive API` を追加済み
+
+証跡:
+- `docs/assets/gcp-setup-2026-02-28/06_apps_script_drive_service.png`
+
+### 6.4 clasp 認証で要求される主なスコープ
+1. `https://www.googleapis.com/auth/script.projects`
+2. `https://www.googleapis.com/auth/script.deployments`
+3. `https://www.googleapis.com/auth/script.webapp.deploy`
+4. `https://www.googleapis.com/auth/drive.file`
+5. `https://www.googleapis.com/auth/drive.metadata.readonly`
+6. `https://www.googleapis.com/auth/logging.read`
+7. `openid`, `email`, `profile`, `userinfo.email`, `userinfo.profile`
+8. `https://www.googleapis.com/auth/cloud-platform`
+
+## 7. 現在設定状況の確認方法
+1. GCP API確認
+- Google Cloud Console > `API とサービス` > `有効な API とサービス`
+- `Apps Script API / Google Drive API / Cloud Logging API` が Enabled であること
+
+2. OAuth設定確認
+- Google Cloud Console > `Google Auth Platform` > `対象`
+- `内部` になっていること
+- Google Cloud Console > `Google Auth Platform` > `クライアント`
+- `admin-google-login-web` が存在すること
+
+3. Apps Script 高度なサービス確認
+- Apps Script エディタ左ペイン `サービス`
+- `Drive` が表示されること
+
+4. ローカルCLI確認（補助）
+- `gcloud config get-value project` が `uguisu-gas-exec-20260225191000` を返す
+- `gcloud auth list` の ACTIVE が `k.noguchi@uguisunosato.or.jp` である
+- `npx clasp apis` で `drive` が有効表示される
