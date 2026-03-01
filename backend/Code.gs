@@ -217,6 +217,15 @@ var 入力規則定義 = [
   ['T_画面項目権限', 'システムロールコード', 'M_システムロール'],
 ];
 
+var DEMO_TRANSFER_ACCOUNT = {
+  bankName: 'ゆうちょ銀行',
+  branchName: '四〇八支店',
+  accountType: '普通',
+  accountNumber: '1234567',
+  accountName: 'ヒラカタシカイゴシエンセンモンインレンラクキョウギカイ',
+  note: '振込手数料は会員様負担でお願いします。',
+};
+
 function doGet() {
   try {
     initializeSchemaIfNeeded_();
@@ -287,6 +296,50 @@ function getDbInfo() {
   return getDbInfo_();
 }
 
+function getApiDataSnapshot() {
+  return fetchAllDataFromDb_();
+}
+
+function verifySeedData() {
+  var ss = getOrCreateDatabase_();
+  var members = getRowsAsObjects_(ss, 'T_会員').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var staffs = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var auths = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var trainings = getRowsAsObjects_(ss, 'T_研修').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var fees = getRowsAsObjects_(ss, 'T_年会費納入履歴').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+
+  var emailChecks = [];
+  for (var i = 0; i < members.length; i += 1) {
+    if (members[i]['代表メールアドレス']) emailChecks.push(String(members[i]['代表メールアドレス']));
+  }
+  for (var j = 0; j < staffs.length; j += 1) {
+    if (staffs[j]['メールアドレス']) emailChecks.push(String(staffs[j]['メールアドレス']));
+  }
+  for (var k = 0; k < auths.length; k += 1) {
+    if (auths[k]['Googleメール']) emailChecks.push(String(auths[k]['Googleメール']));
+  }
+
+  var distinctEmails = uniqueStrings_(emailChecks);
+  var loginIds = auths
+    .filter(function(a) { return String(a['認証方式'] || '') === 'PASSWORD'; })
+    .map(function(a) { return String(a['ログインID'] || ''); })
+    .filter(function(v) { return !!v; });
+
+  var result = {
+    memberCount: members.length,
+    staffCount: staffs.length,
+    authCount: auths.length,
+    trainingCount: trainings.length,
+    annualFeeCount: fees.length,
+    loginIds: loginIds,
+    distinctEmails: distinctEmails,
+    allEmailsAreNoguchi: distinctEmails.every(function(e) { return e === 'k.noguchi@uguisunosato.or.jp'; }),
+  };
+
+  Logger.log(JSON.stringify(result));
+  return result;
+}
+
 function processApiRequest(action, payload) {
   try {
     var parsedPayload = parsePayload_(payload);
@@ -294,10 +347,7 @@ function processApiRequest(action, payload) {
     if (action === 'fetchAllData') {
       return JSON.stringify({
         success: true,
-        data: {
-          members: [],
-          trainings: [],
-        },
+        data: fetchAllDataFromDb_(),
       });
     }
 
@@ -318,6 +368,10 @@ function processApiRequest(action, payload) {
     if (action === 'changePassword') {
       return JSON.stringify({ success: true, data: changePassword_(parsedPayload) });
     }
+
+    if (action === 'seedDemoData') {
+      return JSON.stringify({ success: true, data: seedDemoData() });
+    }
     return JSON.stringify({ success: true, data: { message: '未実装アクションです' } });
   } catch (error) {
     return JSON.stringify({
@@ -325,6 +379,533 @@ function processApiRequest(action, payload) {
       error: error && error.message ? error.message : String(error),
     });
   }
+}
+
+function seedDemoData() {
+  var ss = getOrCreateDatabase_();
+  initializeSchema_(ss);
+
+  var now = new Date().toISOString();
+  clearTableData_(ss, [
+    'T_会員',
+    'T_事業所職員',
+    'T_認証アカウント',
+    'T_ログイン履歴',
+    'T_管理者Googleホワイトリスト',
+    'T_研修',
+    'T_研修申込',
+    'T_年会費納入履歴',
+  ]);
+
+  appendRowsByHeaders_(ss, 'T_会員', [
+    {
+      会員ID: '12345678',
+      会員種別コード: 'INDIVIDUAL',
+      会員状態コード: 'ACTIVE',
+      姓: '山田',
+      名: '太郎',
+      セイ: 'ヤマダ',
+      メイ: 'タロウ',
+      代表メールアドレス: 'k.noguchi@uguisunosato.or.jp',
+      携帯電話番号: '090-0000-0000',
+      勤務先名: '枚方ケアプランセンター',
+      勤務先郵便番号: '573-0027',
+      勤務先都道府県: '大阪府',
+      勤務先市区町村: '枚方市',
+      勤務先住所: '大垣内町1-1-1',
+      勤務先電話番号: '072-000-0000',
+      勤務先FAX番号: '072-000-0001',
+      自宅郵便番号: '573-0000',
+      自宅都道府県: '大阪府',
+      自宅市区町村: '枚方市',
+      自宅住所: '自宅町1-2-3',
+      発送方法コード: 'EMAIL',
+      郵送先区分コード: 'OFFICE',
+      作成日時: now,
+      更新日時: now,
+      削除フラグ: false,
+    },
+    {
+      会員ID: '87654321',
+      会員種別コード: 'INDIVIDUAL',
+      会員状態コード: 'ACTIVE',
+      姓: '鈴木',
+      名: '花子',
+      セイ: 'スズキ',
+      メイ: 'ハナコ',
+      代表メールアドレス: '',
+      携帯電話番号: '090-1111-1111',
+      勤務先名: '勤務なし',
+      勤務先郵便番号: '',
+      勤務先都道府県: '',
+      勤務先市区町村: '',
+      勤務先住所: '',
+      勤務先電話番号: '',
+      勤務先FAX番号: '',
+      自宅郵便番号: '573-0121',
+      自宅都道府県: '大阪府',
+      自宅市区町村: '枚方市',
+      自宅住所: '津田北町2-2-2',
+      発送方法コード: 'POST',
+      郵送先区分コード: 'HOME',
+      作成日時: now,
+      更新日時: now,
+      削除フラグ: false,
+    },
+    {
+      会員ID: '99999999',
+      会員種別コード: 'BUSINESS',
+      会員状態コード: 'ACTIVE',
+      姓: '佐藤',
+      名: '次郎',
+      セイ: 'サトウ',
+      メイ: 'ジロウ',
+      代表メールアドレス: 'k.noguchi@uguisunosato.or.jp',
+      携帯電話番号: '080-8888-8888',
+      勤務先名: 'ひらかた介護ステーション',
+      勤務先郵便番号: '573-0084',
+      勤務先都道府県: '大阪府',
+      勤務先市区町村: '枚方市',
+      勤務先住所: '香里ケ丘3-3-3',
+      勤務先電話番号: '072-222-2222',
+      勤務先FAX番号: '072-222-2223',
+      自宅郵便番号: '',
+      自宅都道府県: '',
+      自宅市区町村: '',
+      自宅住所: '',
+      発送方法コード: 'EMAIL',
+      郵送先区分コード: 'OFFICE',
+      作成日時: now,
+      更新日時: now,
+      削除フラグ: false,
+    },
+  ]);
+
+  appendRowsByHeaders_(ss, 'T_事業所職員', [
+    {
+      職員ID: 'S1',
+      会員ID: '99999999',
+      氏名: '佐藤 次郎',
+      フリガナ: 'サトウ ジロウ',
+      メールアドレス: 'k.noguchi@uguisunosato.or.jp',
+      職員権限コード: 'ADMIN',
+      職員状態コード: 'ENROLLED',
+      作成日時: now,
+      更新日時: now,
+      削除フラグ: false,
+    },
+    {
+      職員ID: 'S2',
+      会員ID: '99999999',
+      氏名: '田中 三郎',
+      フリガナ: 'タナカ サブロウ',
+      メールアドレス: 'k.noguchi@uguisunosato.or.jp',
+      職員権限コード: 'STAFF',
+      職員状態コード: 'ENROLLED',
+      作成日時: now,
+      更新日時: now,
+      削除フラグ: false,
+    },
+    {
+      職員ID: 'S3',
+      会員ID: '99999999',
+      氏名: '伊藤 四郎',
+      フリガナ: 'イトウ シロウ',
+      メールアドレス: 'k.noguchi@uguisunosato.or.jp',
+      職員権限コード: 'STAFF',
+      職員状態コード: 'ENROLLED',
+      作成日時: now,
+      更新日時: now,
+      削除フラグ: false,
+    },
+  ]);
+
+  seedAuthAccounts_(ss, now);
+
+  appendRowsByHeaders_(ss, 'T_管理者Googleホワイトリスト', [
+    {
+      ホワイトリストID: 'WL-001',
+      GoogleユーザーID: 'demo-google-sub-001',
+      Googleメール: 'k.noguchi@uguisunosato.or.jp',
+      表示名: '運用管理者',
+      紐付け認証ID: 'AUTH-ADMIN-GOOGLE',
+      紐付け会員ID: '99999999',
+      有効フラグ: true,
+      作成日時: now,
+      更新日時: now,
+      削除フラグ: false,
+    },
+  ]);
+
+  appendRowsByHeaders_(ss, 'T_研修', [
+    {
+      研修ID: 'T001',
+      研修名: '令和8年度 介護報酬改定に伴う実務研修',
+      開催日: '2026-02-15',
+      定員: 100,
+      申込者数: 85,
+      開催場所: 'オンライン (Zoom)',
+      開催形式コード: 'ONLINE',
+      研修状態コード: 'OPEN',
+      作成日時: now,
+      更新日時: now,
+      削除フラグ: false,
+    },
+    {
+      研修ID: 'T002',
+      研修名: '認知症ケア実践リーダー研修',
+      開催日: '2026-03-10',
+      定員: 40,
+      申込者数: 40,
+      開催場所: '枚方市市民会館 会議室A',
+      開催形式コード: 'ONSITE',
+      研修状態コード: 'CLOSED',
+      作成日時: now,
+      更新日時: now,
+      削除フラグ: false,
+    },
+  ]);
+
+  appendRowsByHeaders_(ss, 'T_研修申込', [
+    {
+      申込ID: 'AP-001',
+      研修ID: 'T002',
+      会員ID: '12345678',
+      職員ID: '',
+      申込状態コード: 'APPLIED',
+      申込日時: now,
+      取消日時: '',
+      備考: '',
+      作成日時: now,
+      更新日時: now,
+      削除フラグ: false,
+    },
+    {
+      申込ID: 'AP-002',
+      研修ID: 'T001',
+      会員ID: '99999999',
+      職員ID: 'S1',
+      申込状態コード: 'APPLIED',
+      申込日時: now,
+      取消日時: '',
+      備考: '',
+      作成日時: now,
+      更新日時: now,
+      削除フラグ: false,
+    },
+    {
+      申込ID: 'AP-003',
+      研修ID: 'T002',
+      会員ID: '99999999',
+      職員ID: 'S1',
+      申込状態コード: 'APPLIED',
+      申込日時: now,
+      取消日時: '',
+      備考: '',
+      作成日時: now,
+      更新日時: now,
+      削除フラグ: false,
+    },
+    {
+      申込ID: 'AP-004',
+      研修ID: 'T001',
+      会員ID: '99999999',
+      職員ID: 'S2',
+      申込状態コード: 'APPLIED',
+      申込日時: now,
+      取消日時: '',
+      備考: '',
+      作成日時: now,
+      更新日時: now,
+      削除フラグ: false,
+    },
+  ]);
+
+  appendRowsByHeaders_(ss, 'T_年会費納入履歴', [
+    { 年会費履歴ID: 'FY-001', 会員ID: '12345678', 対象年度: 2025, 会費納入状態コード: 'PAID', 納入確認日: '2025-05-01', 金額: 5000, 備考: '', 作成日時: now, 更新日時: now, 削除フラグ: false },
+    { 年会費履歴ID: 'FY-002', 会員ID: '12345678', 対象年度: 2024, 会費納入状態コード: 'PAID', 納入確認日: '2024-05-01', 金額: 5000, 備考: '', 作成日時: now, 更新日時: now, 削除フラグ: false },
+    { 年会費履歴ID: 'FY-003', 会員ID: '87654321', 対象年度: 2025, 会費納入状態コード: 'UNPAID', 納入確認日: '', 金額: 5000, 備考: JSON.stringify(DEMO_TRANSFER_ACCOUNT), 作成日時: now, 更新日時: now, 削除フラグ: false },
+    { 年会費履歴ID: 'FY-004', 会員ID: '87654321', 対象年度: 2024, 会費納入状態コード: 'PAID', 納入確認日: '2024-05-01', 金額: 5000, 備考: '', 作成日時: now, 更新日時: now, 削除フラグ: false },
+    { 年会費履歴ID: 'FY-005', 会員ID: '99999999', 対象年度: 2025, 会費納入状態コード: 'PAID', 納入確認日: '2025-05-01', 金額: 5000, 備考: '', 作成日時: now, 更新日時: now, 削除フラグ: false },
+    { 年会費履歴ID: 'FY-006', 会員ID: '99999999', 対象年度: 2024, 会費納入状態コード: 'PAID', 納入確認日: '2024-05-01', 金額: 5000, 備考: '', 作成日時: now, 更新日時: now, 削除フラグ: false },
+  ]);
+
+  return {
+    message: 'デモデータ投入完了',
+    dbInfo: getDbInfo_(),
+  };
+}
+
+function seedAuthAccounts_(ss, now) {
+  var basePassword = 'demo1234';
+
+  appendRowsByHeaders_(ss, 'T_認証アカウント', [
+    createPasswordAuthRow_('AUTH-I-12345678', 'member-12345678', 'INDIVIDUAL_MEMBER', '12345678', '', basePassword, now),
+    createPasswordAuthRow_('AUTH-I-87654321', 'member-87654321', 'INDIVIDUAL_MEMBER', '87654321', '', basePassword, now),
+    createPasswordAuthRow_('AUTH-B-S1', 'office-99999999-admin', 'BUSINESS_ADMIN', '99999999', 'S1', basePassword, now),
+    createPasswordAuthRow_('AUTH-B-S2', 'office-99999999-s2', 'BUSINESS_MEMBER', '99999999', 'S2', basePassword, now),
+    createPasswordAuthRow_('AUTH-B-S3', 'office-99999999-s3', 'BUSINESS_MEMBER', '99999999', 'S3', basePassword, now),
+    {
+      認証ID: 'AUTH-ADMIN-GOOGLE',
+      認証方式: 'GOOGLE',
+      ログインID: '',
+      パスワードハッシュ: '',
+      パスワードソルト: '',
+      GoogleユーザーID: 'demo-google-sub-001',
+      Googleメール: 'k.noguchi@uguisunosato.or.jp',
+      システムロールコード: 'OFFICE_ADMIN',
+      会員ID: '99999999',
+      職員ID: 'S1',
+      最終ログイン日時: '',
+      パスワード更新日時: '',
+      アカウント有効フラグ: true,
+      ログイン失敗回数: 0,
+      ロック状態: false,
+      作成日時: now,
+      更新日時: now,
+      削除フラグ: false,
+    },
+  ]);
+}
+
+function createPasswordAuthRow_(authId, loginId, roleCode, memberId, staffId, plainPassword, now) {
+  var salt = generateSalt_();
+  return {
+    認証ID: authId,
+    認証方式: 'PASSWORD',
+    ログインID: loginId,
+    パスワードハッシュ: hashPassword_(plainPassword, salt),
+    パスワードソルト: salt,
+    GoogleユーザーID: '',
+    Googleメール: '',
+    システムロールコード: roleCode,
+    会員ID: memberId,
+    職員ID: staffId || '',
+    最終ログイン日時: '',
+    パスワード更新日時: now,
+    アカウント有効フラグ: true,
+    ログイン失敗回数: 0,
+    ロック状態: false,
+    作成日時: now,
+    更新日時: now,
+    削除フラグ: false,
+  };
+}
+
+function fetchAllDataFromDb_() {
+  var ss = getOrCreateDatabase_();
+  var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var staffRows = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var authRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var trainingRows = getRowsAsObjects_(ss, 'T_研修').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var applicationRows = getRowsAsObjects_(ss, 'T_研修申込').filter(function(r) { return !toBoolean_(r['削除フラグ']) && String(r['申込状態コード'] || '') === 'APPLIED'; });
+  var feeRows = getRowsAsObjects_(ss, 'T_年会費納入履歴').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+
+  var loginByMemberId = {};
+  var loginByStaffId = {};
+  for (var i = 0; i < authRows.length; i += 1) {
+    var a = authRows[i];
+    if (String(a['認証方式'] || '') !== 'PASSWORD') continue;
+    if (!toBoolean_(a['アカウント有効フラグ'])) continue;
+    var memberId = String(a['会員ID'] || '');
+    var staffId = String(a['職員ID'] || '');
+    if (staffId) {
+      loginByStaffId[staffId] = String(a['ログインID'] || '');
+    } else if (memberId) {
+      loginByMemberId[memberId] = String(a['ログインID'] || '');
+    }
+  }
+
+  var trainingMeta = {
+    T001: {
+      summary: '介護報酬改定の実務対応ポイントを解説します。',
+      description: '改定内容の要点、請求・記録の実務対応、質疑応答を行います。現場での運用変更点を具体例で確認します。',
+      guidePdfUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+    },
+    T002: {
+      summary: '認知症ケアの実践事例とリーダー育成を扱います。',
+      description: 'ケーススタディを通じて、チームでの支援方針策定と多職種連携を学びます。',
+      guidePdfUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+    },
+  };
+
+  var trainings = trainingRows.map(function(t) {
+    var id = String(t['研修ID'] || '');
+    var meta = trainingMeta[id] || {};
+    return {
+      id: id,
+      title: String(t['研修名'] || ''),
+      summary: meta.summary || '',
+      description: meta.description || '',
+      guidePdfUrl: meta.guidePdfUrl || '',
+      date: String(t['開催日'] || ''),
+      capacity: Number(t['定員'] || 0),
+      applicants: Number(t['申込者数'] || 0),
+      location: String(t['開催場所'] || ''),
+      isOnline: String(t['開催形式コード'] || '') === 'ONLINE',
+      status: String(t['研修状態コード'] || 'CLOSED'),
+    };
+  });
+
+  var applicationsByMember = {};
+  var applicationsByStaff = {};
+  for (var j = 0; j < applicationRows.length; j += 1) {
+    var app = applicationRows[j];
+    var trainingId = String(app['研修ID'] || '');
+    var appMemberId = String(app['会員ID'] || '');
+    var appStaffId = String(app['職員ID'] || '');
+    if (appStaffId) {
+      if (!applicationsByStaff[appStaffId]) applicationsByStaff[appStaffId] = [];
+      applicationsByStaff[appStaffId].push(trainingId);
+    } else if (appMemberId) {
+      if (!applicationsByMember[appMemberId]) applicationsByMember[appMemberId] = [];
+      applicationsByMember[appMemberId].push(trainingId);
+    }
+  }
+
+  var feeByMember = {};
+  for (var k = 0; k < feeRows.length; k += 1) {
+    var f = feeRows[k];
+    var feeMemberId = String(f['会員ID'] || '');
+    if (!feeByMember[feeMemberId]) feeByMember[feeMemberId] = [];
+    var feeItem = {
+      year: Number(f['対象年度'] || 0),
+      status: String(f['会費納入状態コード'] || 'UNPAID'),
+    };
+    if (feeItem.status === 'UNPAID') {
+      feeItem.transferAccount = parseTransferAccount_(f['備考']);
+    }
+    feeByMember[feeMemberId].push(feeItem);
+  }
+
+  var staffByMember = {};
+  for (var s = 0; s < staffRows.length; s += 1) {
+    var st = staffRows[s];
+    var stMemberId = String(st['会員ID'] || '');
+    if (!staffByMember[stMemberId]) staffByMember[stMemberId] = [];
+    var stId = String(st['職員ID'] || '');
+    staffByMember[stMemberId].push({
+      id: stId,
+      loginId: loginByStaffId[stId] || '',
+      name: String(st['氏名'] || ''),
+      kana: String(st['フリガナ'] || ''),
+      email: String(st['メールアドレス'] || ''),
+      role: String(st['職員権限コード'] || 'STAFF'),
+      participatedTrainingIds: uniqueStrings_(applicationsByStaff[stId] || []),
+    });
+  }
+
+  var members = memberRows.map(function(m) {
+    var id = String(m['会員ID'] || '');
+    var type = String(m['会員種別コード'] || 'INDIVIDUAL');
+    var history = (feeByMember[id] || []).sort(function(a, b) { return b.year - a.year; }).slice(0, 2);
+    return {
+      id: id,
+      loginId: loginByMemberId[id] || '',
+      lastName: String(m['姓'] || ''),
+      firstName: String(m['名'] || ''),
+      lastKana: String(m['セイ'] || ''),
+      firstKana: String(m['メイ'] || ''),
+      type: type,
+      staff: type === 'BUSINESS' ? (staffByMember[id] || []) : undefined,
+      officeName: String(m['勤務先名'] || ''),
+      officePostCode: String(m['勤務先郵便番号'] || ''),
+      officePrefecture: String(m['勤務先都道府県'] || ''),
+      officeCity: String(m['勤務先市区町村'] || ''),
+      officeAddressLine: String(m['勤務先住所'] || ''),
+      phone: String(m['勤務先電話番号'] || ''),
+      fax: String(m['勤務先FAX番号'] || ''),
+      homePostCode: String(m['自宅郵便番号'] || ''),
+      homePrefecture: String(m['自宅都道府県'] || ''),
+      homeCity: String(m['自宅市区町村'] || ''),
+      homeAddressLine: String(m['自宅住所'] || ''),
+      mobilePhone: String(m['携帯電話番号'] || ''),
+      mailingPreference: String(m['発送方法コード'] || 'EMAIL'),
+      preferredMailDestination: String(m['郵送先区分コード'] || 'OFFICE'),
+      email: String(m['代表メールアドレス'] || ''),
+      status: String(m['会員状態コード'] || 'ACTIVE'),
+      annualFeeHistory: history,
+      participatedTrainingIds: type === 'BUSINESS' ? [] : uniqueStrings_(applicationsByMember[id] || []),
+    };
+  });
+
+  return {
+    members: members,
+    trainings: trainings,
+  };
+}
+
+function parseTransferAccount_(raw) {
+  if (!raw) return DEMO_TRANSFER_ACCOUNT;
+  var txt = String(raw);
+  try {
+    var parsed = JSON.parse(txt);
+    if (parsed && parsed.bankName && parsed.accountNumber) {
+      return parsed;
+    }
+  } catch (e) {}
+  return DEMO_TRANSFER_ACCOUNT;
+}
+
+function uniqueStrings_(arr) {
+  var out = [];
+  var seen = {};
+  for (var i = 0; i < arr.length; i += 1) {
+    var v = String(arr[i] || '');
+    if (!v || seen[v]) continue;
+    seen[v] = true;
+    out.push(v);
+  }
+  return out;
+}
+
+function clearTableData_(ss, sheetNames) {
+  for (var i = 0; i < sheetNames.length; i += 1) {
+    var sheet = ss.getSheetByName(sheetNames[i]);
+    if (!sheet) continue;
+    var lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clearContent();
+    }
+  }
+}
+
+function appendRowsByHeaders_(ss, sheetName, objectRows) {
+  if (!objectRows || objectRows.length === 0) return;
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet) throw new Error('シートが見つかりません: ' + sheetName);
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var rows = objectRows.map(function(obj) {
+    var row = [];
+    for (var i = 0; i < headers.length; i += 1) {
+      row.push(obj[headers[i]] !== undefined ? obj[headers[i]] : '');
+    }
+    return row;
+  });
+  var startRow = sheet.getLastRow() + 1;
+  var targetRange = sheet.getRange(startRow, 1, rows.length, headers.length);
+  // シード投入時は既存入力規則に阻害されないよう、投入範囲の検証だけ解除してから書き込む。
+  targetRange.clearDataValidations();
+  targetRange.setValues(rows);
+}
+
+function getRowsAsObjects_(ss, sheetName) {
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet) return [];
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 2 || lastCol < 1) return [];
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var values = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  var rows = [];
+  for (var r = 0; r < values.length; r += 1) {
+    var obj = {};
+    for (var c = 0; c < headers.length; c += 1) {
+      obj[headers[c]] = values[r][c];
+    }
+    rows.push(obj);
+  }
+  return rows;
 }
 
 function getDbInfo_() {
