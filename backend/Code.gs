@@ -310,6 +310,83 @@ function getApiDataSnapshot() {
   return fetchAllDataFromDb_();
 }
 
+/**
+ * 管理者Google認証を有効化するセットアップ関数。
+ * 1. ADMIN_GOOGLE_CLIENT_ID を Script Properties に保存する。
+ * 2. T_管理者Googleホワイトリストのデモ用 GoogleユーザーID（プレースホルダ）を
+ *    クリアして、メールアドレスによるフォールバックマッチングを有効にする。
+ *
+ * 使い方:
+ *   npx clasp run setupAdminAuth -- '["YOUR_OAUTH_CLIENT_ID"]'
+ *   例: npx clasp run setupAdminAuth -- '["123456789-abc.apps.googleusercontent.com"]'
+ *
+ * OAuthクライアントIDの確認場所:
+ *   GCP Console > APIとサービス > 認証情報 > admin-google-login-web
+ */
+function setupAdminAuth(clientId) {
+  if (!clientId || typeof clientId !== 'string' || clientId.trim() === '') {
+    throw new Error('clientId が空です。GCP Console から OAuth クライアントIDを取得して渡してください。');
+  }
+
+  var props = PropertiesService.getScriptProperties();
+  props.setProperty(ADMIN_GOOGLE_CLIENT_ID_KEY, clientId.trim());
+
+  // ホワイトリストのデモ用プレースホルダ sub ID をクリア（メール照合フォールバックを有効にする）
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_管理者Googleホワイトリスト');
+  if (sheet && sheet.getLastRow() >= 2) {
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var subColIdx = headers.indexOf('GoogleユーザーID');
+    if (subColIdx >= 0) {
+      var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+      for (var i = 0; i < rows.length; i += 1) {
+        var sub = String(rows[i][subColIdx] || '');
+        // デモ用プレースホルダ（'demo-'で始まる値）のみクリア
+        if (sub.indexOf('demo-') === 0) {
+          sheet.getRange(i + 2, subColIdx + 1).setValue('');
+        }
+      }
+    }
+  }
+
+  return {
+    ok: true,
+    adminGoogleClientIdSet: clientId.trim(),
+    message: 'ADMIN_GOOGLE_CLIENT_ID を設定し、ホワイトリストのデモ sub ID をクリアしました。管理者ログインを有効化するには、GAS を再デプロイしてください。',
+  };
+}
+
+/**
+ * 現在の管理者認証設定を確認する。
+ * 使い方: npx clasp run checkAdminAuthConfig
+ */
+function checkAdminAuthConfig() {
+  var props = PropertiesService.getScriptProperties();
+  var clientId = props.getProperty(ADMIN_GOOGLE_CLIENT_ID_KEY) || '';
+
+  var ss = getOrCreateDatabase_();
+  var wlRows = getRowsAsObjects_(ss, 'T_管理者Googleホワイトリスト').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) && toBoolean_(r['有効フラグ']);
+  });
+
+  var whitelist = wlRows.map(function(r) {
+    return {
+      id: String(r['ホワイトリストID'] || ''),
+      email: String(r['Googleメール'] || ''),
+      googleUserId: String(r['GoogleユーザーID'] || ''),
+      matchMode: String(r['GoogleユーザーID'] || '') ? 'sub' : 'email（フォールバック）',
+      displayName: String(r['表示名'] || ''),
+    };
+  });
+
+  return {
+    adminGoogleClientIdConfigured: clientId !== '',
+    adminGoogleClientId: clientId ? clientId.substring(0, 12) + '...' : '（未設定）',
+    whitelistCount: whitelist.length,
+    whitelist: whitelist,
+  };
+}
+
 function verifySeedData() {
   var ss = getOrCreateDatabase_();
   var members = getRowsAsObjects_(ss, 'T_会員').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
