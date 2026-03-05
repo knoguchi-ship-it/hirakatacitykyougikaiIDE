@@ -10,12 +10,18 @@
 - **事務局ダッシュボード**: 会員統計の可視化、会員データベースの管理
 - **AIアシスト**: Gemini APIを活用した、研修案内メール等の自動生成
 
+## 認証方針
+- 会員機能は **Googleアカウント不要**（ログインID + パスワード）
+- 管理者ページは **Googleアカウント認証** を使用
+- Googleログイン後、`T_管理者Googleホワイトリスト` との照合で管理権限を判定
+- 管理者ログイン中も会員マイページを利用可能（会員ID紐付け前提）
+
 ## 技術スタック
 - **Frontend**: React 19, TypeScript, Vite
 - **Styling**: Tailwind CSS
 - **Charts**: Recharts
 - **AI Integration**: Google Gemini API (`@google/genai`)
-- **Backend (Planned)**: Google Apps Script (GAS) / Spreadsheet or Firebase
+- **Backend**: Google Apps Script (GAS) + Google Spreadsheet
 
 ## 開発環境のセットアップ
 
@@ -50,8 +56,21 @@ npm run build:preview
 本プロジェクトは `vite-plugin-singlefile` を使用しており、ビルドすると1つの `index.html` にJS/CSSがインライン化されます。
 
 1. `npm run clasp:login` でGoogleアカウントにログイン
-2. `.clasp.json.example` を `.clasp.json` にリネームし、`scriptId` を設定
+2. `npm run clasp:setup -- <GAS_SCRIPT_ID>` で `.clasp.json` を生成
 3. `npm run clasp:push` でビルドとGASへのアップロードを実行
+4. 初回のみ `npx clasp deploy -d "initial deploy"` でWebアプリをデプロイ
+
+`clasp:push` は `backend/Code.gs` と `backend/index.html` をGASへ反映します。
+デプロイ後、Apps Script のデプロイ設定画面でアクセス権を用途に合わせて設定してください
+（例: 組織内限定 or 一般公開）。`clasp` からはアクセス範囲を直接指定できません。
+
+### DB(スプレッドシート)初期化
+GAS側にDBシートを自動作成するには、以下を実行します。
+```bash
+npx clasp run setupDatabase
+```
+この関数は Script Properties に `DB_SPREADSHEET_ID` を保存し、`Members` / `Trainings` シートを作成します。
+初回はデモ用データも投入されます。
 
 ## ドキュメント
 詳細な仕様や設計については、`docs/` ディレクトリを参照してください。
@@ -59,3 +78,5 @@ npm run build:preview
 - [アーキテクチャ設計](./docs/02_ARCHITECTURE.md)
 - [データモデル設計](./docs/03_DATA_MODEL.md)
 - [ロードマップ](./docs/04_ROADMAP.md)
+
+- [引き継ぎ書（2026-03-05）](./docs/99_HANDOVER_2026-03-05.md)

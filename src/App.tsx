@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Sidebar from './components/Sidebar';
 import MemberForm from './components/MemberForm';
 import Dashboard from './components/Dashboard';
@@ -8,6 +8,7 @@ import { api } from './services/api';
 
 type Role = 'ADMIN' | 'MEMBER';
 type View = 'profile' | 'admin';
+type AuthTab = 'member' | 'admin';
 type DemoPersona =
   | 'INDIVIDUAL_MEMBER'
   | 'BUSINESS_ADMIN_MEMBER'
@@ -23,6 +24,14 @@ interface LoginIdentity {
   staffRole?: 'ADMIN' | 'STAFF';
 }
 
+declare global {
+  interface Window {
+    google?: any;
+  }
+}
+
+const isMockMode = import.meta.env.DEV || import.meta.env.VITE_USE_MOCK === 'true';
+
 const App: React.FC = () => {
   const [userRole, setUserRole] = useState<Role>('MEMBER');
   const [currentView, setCurrentView] = useState<View>('profile');
@@ -33,13 +42,29 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [initError, setInitError] = useState<string | null>(null);
 
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(isMockMode);
+  const [authTab, setAuthTab] = useState<AuthTab>('member');
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authBusy, setAuthBusy] = useState(false);
+  const [memberLoginId, setMemberLoginId] = useState('');
+  const [memberPassword, setMemberPassword] = useState('');
+  const [adminIdToken, setAdminIdToken] = useState('');
+  const [adminGoogleClientId, setAdminGoogleClientId] = useState('');
+  const [googleScriptReady, setGoogleScriptReady] = useState(false);
+
+  const [selectedIdentityId, setSelectedIdentityId] = useState<string>('');
+
   useEffect(() => {
     const initData = async () => {
       try {
         setIsLoading(true);
-        const { members, trainings } = await api.fetchAllData();
+        const [{ members, trainings }, authConfig] = await Promise.all([
+          api.fetchAllData(),
+          api.getAuthConfig().catch(() => ({ adminGoogleClientId: '' })),
+        ]);
         setMembers(members);
         setTrainings(trainings);
+        setAdminGoogleClientId(authConfig.adminGoogleClientId || '');
       } catch (error) {
         console.error('Initialization failed:', error);
         setInitError('データの読み込みに失敗しました。');
@@ -50,7 +75,21 @@ const App: React.FC = () => {
     initData();
   }, []);
 
-  const [selectedIdentityId, setSelectedIdentityId] = useState<string>('');
+  useEffect(() => {
+    if (isMockMode || !adminGoogleClientId) return;
+    if (document.getElementById('google-gsi-client')) {
+      setGoogleScriptReady(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.id = 'google-gsi-client';
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => setGoogleScriptReady(true);
+    script.onerror = () => setGoogleScriptReady(false);
+    document.head.appendChild(script);
+  }, [adminGoogleClientId]);
 
   const loginIdentities: LoginIdentity[] = useMemo(() => {
     return members.flatMap((member): LoginIdentity[] => {
@@ -94,22 +133,32 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!loginIdentities.length) return;
+
+    if (isMockMode) {
+      if (!selectedIdentityId) {
+        const fallback = findIdentityForPersona(demoPersona) || loginIdentities[0];
+        if (fallback) setSelectedIdentityId(fallback.id);
+        return;
+      }
+      const selected = loginIdentities.find((i) => i.id === selectedIdentityId);
+      if (!selected) {
+        const fallback = findIdentityForPersona(demoPersona) || loginIdentities[0];
+        if (fallback) setSelectedIdentityId(fallback.id);
+        return;
+      }
+      if (!matchesPersona(selected, demoPersona) && demoPersona !== 'SYSTEM_ADMIN') {
+        const fallback = findIdentityForPersona(demoPersona) || loginIdentities[0];
+        if (fallback) setSelectedIdentityId(fallback.id);
+      }
+      return;
+    }
+
     if (!selectedIdentityId) {
-      const fallback = findIdentityForPersona(demoPersona) || loginIdentities[0];
-      if (fallback) setSelectedIdentityId(fallback.id);
+      setSelectedIdentityId(loginIdentities[0].id);
       return;
     }
-
-    const selected = loginIdentities.find((i) => i.id === selectedIdentityId);
-    if (!selected) {
-      const fallback = findIdentityForPersona(demoPersona) || loginIdentities[0];
-      if (fallback) setSelectedIdentityId(fallback.id);
-      return;
-    }
-
-    if (!matchesPersona(selected, demoPersona) && demoPersona !== 'SYSTEM_ADMIN') {
-      const fallback = findIdentityForPersona(demoPersona) || loginIdentities[0];
-      if (fallback) setSelectedIdentityId(fallback.id);
+    if (!loginIdentities.some((i) => i.id === selectedIdentityId)) {
+      setSelectedIdentityId(loginIdentities[0].id);
     }
   }, [demoPersona, loginIdentities, selectedIdentityId]);
 
@@ -128,6 +177,67 @@ const App: React.FC = () => {
     return loginIdentities.filter((identity) => matchesPersona(identity, demoPersona));
   }, [demoPersona, loginIdentities]);
 
+  const applyAuthContext = (ctx: { memberId: string; staffId?: string; canAccessAdminPage: boolean }) => {
+    const targetId = ctx.staffId ? `${ctx.memberId}-${ctx.staffId}` : ctx.memberId;
+    const found = loginIdentities.find((i) => i.id === targetId);
+    setSelectedIdentityId(found ? found.id : (loginIdentities[0]?.id || ''));
+    setUserRole(ctx.canAccessAdminPage ? 'ADMIN' : 'MEMBER');
+    setCurrentView(ctx.canAccessAdminPage ? 'admin' : 'profile');
+    setIsAuthenticated(true);
+    setAuthError(null);
+  };
+
+  const handleMemberLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setAuthBusy(true);
+      setAuthError(null);
+      const result = await api.memberLogin(memberLoginId.trim(), memberPassword);
+      applyAuthContext(result);
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'ログインに失敗しました。');
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const handleAdminGoogleLogin = async (idToken: string) => {
+    try {
+      setAuthBusy(true);
+      setAuthError(null);
+      const result = await api.adminGoogleLogin(idToken);
+      applyAuthContext(result);
+      setUserRole('ADMIN');
+      setCurrentView('admin');
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Google認証に失敗しました。');
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const startGoogleSignIn = () => {
+    if (!adminGoogleClientId) {
+      setAuthError('管理者GoogleログインのクライアントIDが未設定です。');
+      return;
+    }
+    if (!window.google?.accounts?.id) {
+      setAuthError('Google認証ライブラリの読み込みに失敗しました。');
+      return;
+    }
+    window.google.accounts.id.initialize({
+      client_id: adminGoogleClientId,
+      callback: (response: { credential?: string }) => {
+        if (!response?.credential) {
+          setAuthError('Google認証結果を取得できませんでした。');
+          return;
+        }
+        handleAdminGoogleLogin(response.credential);
+      },
+    });
+    window.google.accounts.id.prompt();
+  };
+
   const handleMemberSave = async (updatedMember: Member) => {
     setMembers((prev) => prev.map((m) => (m.id === updatedMember.id ? updatedMember : m)));
     try {
@@ -145,7 +255,6 @@ const App: React.FC = () => {
       setCurrentView('admin');
       return;
     }
-
     setUserRole('MEMBER');
     setCurrentView('profile');
     const target = findIdentityForPersona(persona);
@@ -154,6 +263,15 @@ const App: React.FC = () => {
 
   const handleIdentityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedIdentityId(e.target.value);
+  };
+
+  const logout = () => {
+    setIsAuthenticated(isMockMode);
+    setUserRole('MEMBER');
+    setCurrentView('profile');
+    setAuthTab('member');
+    setAuthError(null);
+    setMemberPassword('');
   };
 
   const renderMemberList = () => (
@@ -195,8 +313,7 @@ const App: React.FC = () => {
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <h2 className="text-2xl font-bold text-slate-800">管理者ページ</h2>
         <p className="text-slate-600 mt-2 leading-relaxed">
-          事務局画面は今後、システム管理者画面と統合します。ここではシステム設定、コンテンツ編集、
-          会費納入状況の管理、会員資格の変更などを一元的に扱う想定です。
+          管理者ログイン時のみ表示されます。会員ページと管理者ページを同一セッションで利用できます。
         </p>
       </div>
       <Dashboard />
@@ -220,6 +337,74 @@ const App: React.FC = () => {
 
     if (initError) {
       return <div className="text-red-500 p-4 border border-red-200 bg-red-50 rounded">{initError}</div>;
+    }
+
+    if (!isAuthenticated) {
+      return (
+        <div className="max-w-lg mx-auto mt-20 bg-white border border-slate-200 shadow-sm rounded-xl p-6">
+          <h1 className="text-xl font-bold text-slate-800 mb-1">ログイン</h1>
+          <p className="text-sm text-slate-600 mb-5">会員はログインID/パスワード、管理者のみGoogle認証を使用します。</p>
+          <div className="flex gap-2 mb-4">
+            <button className={`px-3 py-2 rounded ${authTab === 'member' ? 'bg-slate-800 text-white' : 'bg-slate-100'}`} onClick={() => setAuthTab('member')}>
+              会員ログイン
+            </button>
+            <button className={`px-3 py-2 rounded ${authTab === 'admin' ? 'bg-slate-800 text-white' : 'bg-slate-100'}`} onClick={() => setAuthTab('admin')}>
+              管理者ログイン
+            </button>
+          </div>
+
+          {authTab === 'member' ? (
+            <form className="space-y-3" onSubmit={handleMemberLogin}>
+              <input
+                className="w-full border border-slate-300 rounded px-3 py-2"
+                placeholder="ログインID"
+                value={memberLoginId}
+                onChange={(e) => setMemberLoginId(e.target.value)}
+              />
+              <input
+                className="w-full border border-slate-300 rounded px-3 py-2"
+                type="password"
+                placeholder="パスワード"
+                value={memberPassword}
+                onChange={(e) => setMemberPassword(e.target.value)}
+              />
+              <button className="w-full bg-slate-800 text-white rounded px-3 py-2" disabled={authBusy} type="submit">
+                ログイン
+              </button>
+            </form>
+          ) : (
+            <div className="space-y-3">
+              <button
+                className="w-full bg-slate-800 text-white rounded px-3 py-2 disabled:opacity-50"
+                disabled={authBusy || !googleScriptReady || !adminGoogleClientId}
+                onClick={startGoogleSignIn}
+              >
+                Googleで管理者ログイン
+              </button>
+              {!adminGoogleClientId && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                  `ADMIN_GOOGLE_CLIENT_ID` が未設定です（Script Properties）。
+                </p>
+              )}
+              <details className="text-xs text-slate-600">
+                <summary className="cursor-pointer">IDトークンを直接入力（保守用）</summary>
+                <textarea
+                  className="w-full border border-slate-300 rounded px-2 py-2 mt-2"
+                  placeholder="Google IDトークン"
+                  rows={3}
+                  value={adminIdToken}
+                  onChange={(e) => setAdminIdToken(e.target.value)}
+                />
+                <button className="mt-2 w-full bg-slate-200 rounded px-3 py-2" onClick={() => handleAdminGoogleLogin(adminIdToken)}>
+                  トークンで管理者ログイン
+                </button>
+              </details>
+            </div>
+          )}
+
+          {authError && <div className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2">{authError}</div>}
+        </div>
+      );
     }
 
     if (currentView === 'admin') {
@@ -255,32 +440,42 @@ const App: React.FC = () => {
       />
       <main className="flex-1 p-8 overflow-y-auto relative">
         <div className="absolute top-4 right-8 bg-white p-2 rounded-lg shadow border border-slate-200 z-10 flex space-x-2 items-center">
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2">Demo</span>
-
-          <select
-            className="text-sm border-slate-300 rounded p-1 bg-slate-50"
-            value={demoPersona}
-            onChange={(e) => switchPersona(e.target.value as DemoPersona)}
-          >
-            <option value="INDIVIDUAL_MEMBER">個人会員</option>
-            <option value="BUSINESS_ADMIN_MEMBER">事業所会員（管理者）</option>
-            <option value="BUSINESS_STAFF_MEMBER">事業所会員（メンバー）</option>
-            <option value="SYSTEM_ADMIN">管理者アカウント</option>
-          </select>
-
-          <select
-            className="text-sm border-slate-300 rounded p-1 bg-slate-50 max-w-xl"
-            value={currentIdentity?.id || ''}
-            onChange={handleIdentityChange}
-          >
-            {selectableIdentities.map((identity) => (
-              <option key={identity.id} value={identity.id}>
-                {identity.label}
-              </option>
-            ))}
-          </select>
+          {isMockMode ? (
+            <>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2">Demo</span>
+              <select
+                className="text-sm border-slate-300 rounded p-1 bg-slate-50"
+                value={demoPersona}
+                onChange={(e) => switchPersona(e.target.value as DemoPersona)}
+              >
+                <option value="INDIVIDUAL_MEMBER">個人会員</option>
+                <option value="BUSINESS_ADMIN_MEMBER">事業所会員（管理者）</option>
+                <option value="BUSINESS_STAFF_MEMBER">事業所会員（メンバー）</option>
+                <option value="SYSTEM_ADMIN">管理者アカウント</option>
+              </select>
+              <select
+                className="text-sm border-slate-300 rounded p-1 bg-slate-50 max-w-xl"
+                value={currentIdentity?.id || ''}
+                onChange={handleIdentityChange}
+              >
+                {selectableIdentities.map((identity) => (
+                  <option key={identity.id} value={identity.id}>
+                    {identity.label}
+                  </option>
+                ))}
+              </select>
+            </>
+          ) : (
+            <>
+              <span className="text-xs text-slate-500 px-2">{isAuthenticated ? 'ログイン中' : '未ログイン'}</span>
+              {isAuthenticated && (
+                <button className="text-sm border border-slate-300 rounded px-2 py-1 bg-slate-50" onClick={logout}>
+                  ログアウト
+                </button>
+              )}
+            </>
+          )}
         </div>
-
         <div className="max-w-6xl mx-auto">{renderContent()}</div>
       </main>
     </div>

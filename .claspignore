@@ -9,6 +9,7 @@ docs/
 *.json
 !package.json
 !backend/appsscript.json
+!appsscript.json
 
 # We only want to push the backend code and the built index.html
 # Let clasp push everything in the root that isn't ignored.

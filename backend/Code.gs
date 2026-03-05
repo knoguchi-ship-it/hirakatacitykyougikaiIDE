@@ -2,6 +2,7 @@ var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 var DB_SPREADSHEET_ID_FIXED = '1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs';
 var SCHEMA_INITIALIZED_KEY = 'DB_SCHEMA_INITIALIZED';
+var ADMIN_GOOGLE_CLIENT_ID_KEY = 'ADMIN_GOOGLE_CLIENT_ID';
 
 var マスタ定義 = {
   M_会員種別: ['コード', '名称', '表示順', '有効フラグ'],
@@ -296,6 +297,15 @@ function getDbInfo() {
   return getDbInfo_();
 }
 
+// スコープ不要の疎通確認用。Execution API経路の切り分けに使う。
+function healthCheck() {
+  return {
+    ok: true,
+    timestamp: new Date().toISOString(),
+    scriptId: ScriptApp.getScriptId(),
+  };
+}
+
 function getApiDataSnapshot() {
   return fetchAllDataFromDb_();
 }
@@ -369,6 +379,22 @@ function processApiRequest(action, payload) {
       return JSON.stringify({ success: true, data: changePassword_(parsedPayload) });
     }
 
+    if (action === 'memberLogin') {
+      return JSON.stringify({ success: true, data: memberLogin_(parsedPayload) });
+    }
+
+    if (action === 'adminGoogleLogin') {
+      return JSON.stringify({ success: true, data: adminGoogleLogin_(parsedPayload) });
+    }
+
+    if (action === 'getAuthConfig') {
+      return JSON.stringify({ success: true, data: getAuthConfig_() });
+    }
+
+    if (action === 'sendTrainingReminder') {
+      return JSON.stringify({ success: true, data: sendTrainingReminder_(parsedPayload) });
+    }
+
     if (action === 'seedDemoData') {
       return JSON.stringify({ success: true, data: seedDemoData() });
     }
@@ -379,6 +405,220 @@ function processApiRequest(action, payload) {
       error: error && error.message ? error.message : String(error),
     });
   }
+}
+
+function dryRunTrainingReminder(trainingId) {
+  return sendTrainingReminder_({
+    trainingId: trainingId,
+    dryRun: true,
+  });
+}
+
+function sendTrainingReminderTest(trainingId, to) {
+  return sendTrainingReminder_({
+    trainingId: trainingId,
+    dryRun: false,
+    testRecipient: to,
+  });
+}
+
+function dryRunTrainingReminderT001() {
+  return dryRunTrainingReminder('T001');
+}
+
+function sendTrainingReminderToNoguchiTest() {
+  return sendTrainingReminderTest('T001', 'k.noguchi@uguisunosato.or.jp');
+}
+
+function sendTrainingReminder_(request) {
+  if (!request || !request.trainingId) {
+    throw new Error('trainingId is required');
+  }
+
+  var allData = fetchAllDataFromDb_();
+  var trainingId = String(request.trainingId);
+  var dryRun = request.dryRun !== false;
+  var testRecipient = String(request.testRecipient || '').trim().toLowerCase();
+  var subject = String(request.subject || '');
+  var body = String(request.body || '');
+
+  var training = null;
+  for (var i = 0; i < allData.trainings.length; i += 1) {
+    if (String(allData.trainings[i].id) === trainingId) {
+      training = allData.trainings[i];
+      break;
+    }
+  }
+  if (!training) {
+    throw new Error('Training not found: ' + trainingId);
+  }
+
+  var recipients = collectTrainingRecipients_(allData.members, trainingId);
+  if (testRecipient) {
+    recipients = [{
+      email: testRecipient,
+      name: 'テスト送信先',
+      memberId: '',
+      staffId: '',
+    }];
+  }
+  if (recipients.length === 0) {
+    throw new Error('No email recipients found for training: ' + trainingId);
+  }
+
+  if (!subject) {
+    subject = '【研修リマインド】' + String(training.title || '');
+  }
+  if (!body) {
+    body = buildTrainingReminderBody_(training);
+  }
+
+  var result = {
+    dryRun: dryRun,
+    trainingId: trainingId,
+    trainingTitle: String(training.title || ''),
+    recipientCount: recipients.length,
+    recipients: recipients.map(function(r) {
+      return {
+        email: r.email,
+        name: r.name,
+        memberId: r.memberId,
+        staffId: r.staffId,
+      };
+    }),
+    subject: subject,
+    body: body,
+    sentCount: 0,
+    sentTo: [],
+  };
+
+  if (dryRun) {
+    return result;
+  }
+
+  for (var j = 0; j < recipients.length; j += 1) {
+    var to = recipients[j].email;
+    MailApp.sendEmail({
+      to: to,
+      subject: subject,
+      body: body,
+      name: '枚方市介護支援専門員連絡協議会 事務局',
+    });
+    result.sentTo.push(to);
+    result.sentCount += 1;
+  }
+
+  return result;
+}
+
+function collectTrainingRecipients_(members, trainingId) {
+  var recipients = [];
+  var seen = {};
+
+  function pushRecipient_(email, name, memberId, staffId) {
+    var normalized = String(email || '').trim().toLowerCase();
+    if (!normalized) return;
+    if (seen[normalized]) return;
+    seen[normalized] = true;
+    recipients.push({
+      email: normalized,
+      name: String(name || ''),
+      memberId: String(memberId || ''),
+      staffId: String(staffId || ''),
+    });
+  }
+
+  for (var i = 0; i < members.length; i += 1) {
+    var member = members[i];
+    var memberId = String(member.id || '');
+    var memberType = String(member.type || '');
+
+    if (memberType === 'INDIVIDUAL') {
+      var memberTrainingIds = member.participatedTrainingIds || [];
+      if (memberTrainingIds.indexOf(trainingId) !== -1) {
+        pushRecipient_(member.email, String(member.lastName || '') + ' ' + String(member.firstName || ''), memberId, '');
+      }
+      continue;
+    }
+
+    var staffList = member.staff || [];
+    var matchedStaffCount = 0;
+    for (var j = 0; j < staffList.length; j += 1) {
+      var staff = staffList[j];
+      var staffTrainingIds = staff.participatedTrainingIds || [];
+      if (staffTrainingIds.indexOf(trainingId) === -1) continue;
+      matchedStaffCount += 1;
+      pushRecipient_(staff.email, staff.name, memberId, staff.id);
+    }
+
+    if (matchedStaffCount > 0 && member.email) {
+      pushRecipient_(member.email, member.officeName || '事業所代表', memberId, '');
+    }
+  }
+
+  return recipients;
+}
+
+function buildTrainingReminderBody_(training) {
+  var trainingDate = formatTrainingDate_(training.date);
+  var lines = [];
+  lines.push('会員各位');
+  lines.push('');
+  lines.push('平素よりお世話になっております。');
+  lines.push('枚方市介護支援専門員連絡協議会 事務局です。');
+  lines.push('');
+  lines.push('お申し込み済みの研修が近づいていますので、ご案内いたします。');
+  lines.push('');
+  lines.push('■研修名');
+  lines.push(String(training.title || ''));
+  lines.push('');
+  lines.push('■開催日');
+  lines.push(trainingDate);
+  lines.push('');
+  lines.push('■開催形式');
+  lines.push(training.isOnline ? 'オンライン' : '現地開催');
+  lines.push('');
+  lines.push('■会場');
+  lines.push(String(training.location || ''));
+  lines.push('');
+  if (training.isOnline) {
+    lines.push('当日のZoom IDと資料は本メールの添付、または別途ご案内のURLをご確認ください。');
+  } else {
+    lines.push('当日は公共交通機関のご利用にご協力ください。');
+  }
+  lines.push('');
+  lines.push('何卒よろしくお願いいたします。');
+  lines.push('');
+  lines.push('枚方市介護支援専門員連絡協議会 事務局');
+  return lines.join('\n');
+}
+
+function formatTrainingDate_(rawDate) {
+  if (!rawDate) return '';
+  if (Object.prototype.toString.call(rawDate) === '[object Date]') {
+    return Utilities.formatDate(rawDate, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm');
+  }
+  if (typeof rawDate === 'string') {
+    var parsedDate = new Date(rawDate);
+    if (!isNaN(parsedDate.getTime())) {
+      return Utilities.formatDate(parsedDate, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm');
+    }
+  }
+  return String(rawDate);
+}
+
+function formatDateForApi_(rawDate) {
+  if (!rawDate) return '';
+  if (Object.prototype.toString.call(rawDate) === '[object Date]') {
+    return Utilities.formatDate(rawDate, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm');
+  }
+  if (typeof rawDate === 'string') {
+    var parsedDate = new Date(rawDate);
+    if (!isNaN(parsedDate.getTime())) {
+      return Utilities.formatDate(parsedDate, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm');
+    }
+  }
+  return String(rawDate);
 }
 
 function seedDemoData() {
@@ -738,7 +978,7 @@ function fetchAllDataFromDb_() {
       summary: meta.summary || '',
       description: meta.description || '',
       guidePdfUrl: meta.guidePdfUrl || '',
-      date: String(t['開催日'] || ''),
+      date: formatDateForApi_(t['開催日']),
       capacity: Number(t['定員'] || 0),
       applicants: Number(t['申込者数'] || 0),
       location: String(t['開催場所'] || ''),
@@ -1031,6 +1271,209 @@ function changePassword_(request) {
     loginId: loginId,
     updatedAt: nowIso,
   };
+}
+
+function memberLogin_(request) {
+  if (!request || !request.loginId || !request.password) {
+    throw new Error('ログインIDとパスワードを入力してください。');
+  }
+
+  var loginId = String(request.loginId).trim();
+  var password = String(request.password);
+  var ss = getOrCreateDatabase_();
+  var authSheet = ss.getSheetByName('T_認証アカウント');
+  if (!authSheet) throw new Error('認証アカウントテーブルが見つかりません。');
+
+  var authRowInfo = findRowByColumnValue_(authSheet, 'ログインID', loginId);
+  if (!authRowInfo) {
+    appendLoginHistory_(ss, '', loginId, 'PASSWORD', 'FAILURE', 'ログインID未登録');
+    throw new Error('ログインIDまたはパスワードが正しくありません。');
+  }
+
+  var row = authRowInfo.row;
+  var columns = authRowInfo.columns;
+  requireColumns_(columns, [
+    '認証ID',
+    '認証方式',
+    'パスワードハッシュ',
+    'パスワードソルト',
+    'システムロールコード',
+    '会員ID',
+    '職員ID',
+    'アカウント有効フラグ',
+    'ログイン失敗回数',
+    'ロック状態',
+    '最終ログイン日時',
+    '更新日時',
+  ]);
+
+  var authId = String(row[columns['認証ID']] || '');
+  var authMethod = String(row[columns['認証方式']] || '');
+  var roleCode = String(row[columns['システムロールコード']] || '');
+  var memberId = String(row[columns['会員ID']] || '');
+  var staffId = String(row[columns['職員ID']] || '');
+  var isActive = toBoolean_(row[columns['アカウント有効フラグ']]);
+  var isLocked = toBoolean_(row[columns['ロック状態']]);
+  var failedCount = Number(row[columns['ログイン失敗回数']] || 0);
+  var storedSalt = String(row[columns['パスワードソルト']] || '');
+  var storedHash = String(row[columns['パスワードハッシュ']] || '');
+
+  if (authMethod !== 'PASSWORD') {
+    appendLoginHistory_(ss, authId, loginId, 'PASSWORD', 'FAILURE', '認証方式不一致');
+    throw new Error('このログインIDはパスワード認証に対応していません。');
+  }
+  if (!isActive) {
+    appendLoginHistory_(ss, authId, loginId, 'PASSWORD', 'FAILURE', 'アカウント無効');
+    throw new Error('アカウントが無効です。');
+  }
+  if (isLocked) {
+    appendLoginHistory_(ss, authId, loginId, 'PASSWORD', 'FAILURE', 'アカウントロック');
+    throw new Error('アカウントがロックされています。');
+  }
+  if (!storedSalt || !storedHash) {
+    appendLoginHistory_(ss, authId, loginId, 'PASSWORD', 'FAILURE', 'パスワード未初期化');
+    throw new Error('パスワードが初期化されていません。');
+  }
+
+  var currentHash = hashPassword_(password, storedSalt);
+  if (currentHash !== storedHash) {
+    failedCount += 1;
+    var lockNow = failedCount >= 5;
+    authSheet.getRange(authRowInfo.rowNumber, columns['ログイン失敗回数'] + 1).setValue(failedCount);
+    authSheet.getRange(authRowInfo.rowNumber, columns['ロック状態'] + 1).setValue(lockNow);
+    authSheet.getRange(authRowInfo.rowNumber, columns['更新日時'] + 1).setValue(new Date().toISOString());
+    appendLoginHistory_(ss, authId, loginId, 'PASSWORD', 'FAILURE', 'パスワード不一致');
+    throw new Error('ログインIDまたはパスワードが正しくありません。');
+  }
+
+  var nowIso = new Date().toISOString();
+  authSheet.getRange(authRowInfo.rowNumber, columns['ログイン失敗回数'] + 1).setValue(0);
+  authSheet.getRange(authRowInfo.rowNumber, columns['ロック状態'] + 1).setValue(false);
+  authSheet.getRange(authRowInfo.rowNumber, columns['最終ログイン日時'] + 1).setValue(nowIso);
+  authSheet.getRange(authRowInfo.rowNumber, columns['更新日時'] + 1).setValue(nowIso);
+  appendLoginHistory_(ss, authId, loginId, 'PASSWORD', 'SUCCESS', '会員ログイン成功');
+
+  return {
+    authMethod: 'PASSWORD',
+    loginId: loginId,
+    memberId: memberId,
+    staffId: staffId,
+    roleCode: roleCode,
+    canAccessAdminPage: false,
+    authenticatedAt: nowIso,
+  };
+}
+
+function adminGoogleLogin_(request) {
+  if (!request || !request.idToken) {
+    throw new Error('Google IDトークンが必要です。');
+  }
+
+  var claims = verifyGoogleIdToken_(String(request.idToken));
+  var sub = String(claims.sub || '');
+  var email = String(claims.email || '').toLowerCase();
+  if (!sub) {
+    throw new Error('GoogleトークンからユーザーIDを取得できませんでした。');
+  }
+
+  var ss = getOrCreateDatabase_();
+  var whitelistRows = getRowsAsObjects_(ss, 'T_管理者Googleホワイトリスト').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) && toBoolean_(r['有効フラグ']);
+  });
+
+  var matched = null;
+  for (var i = 0; i < whitelistRows.length; i += 1) {
+    var w = whitelistRows[i];
+    var wSub = String(w['GoogleユーザーID'] || '');
+    var wEmail = String(w['Googleメール'] || '').toLowerCase();
+    if (wSub && wSub === sub) {
+      matched = w;
+      break;
+    }
+    if (!wSub && wEmail && wEmail === email) {
+      matched = w;
+      break;
+    }
+  }
+
+  if (!matched) {
+    appendLoginHistory_(ss, '', email, 'GOOGLE', 'FAILURE', 'ホワイトリスト未登録');
+    throw new Error('管理者権限がありません。');
+  }
+
+  var linkedAuthId = String(matched['紐付け認証ID'] || '');
+  var linkedMemberId = String(matched['紐付け会員ID'] || '');
+  var authRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var linkedAuth = null;
+  for (var j = 0; j < authRows.length; j += 1) {
+    var a = authRows[j];
+    if (linkedAuthId && String(a['認証ID'] || '') === linkedAuthId) {
+      linkedAuth = a;
+      break;
+    }
+    if (!linkedAuthId && String(a['GoogleユーザーID'] || '') === sub) {
+      linkedAuth = a;
+      break;
+    }
+  }
+
+  if (!linkedAuth) {
+    appendLoginHistory_(ss, linkedAuthId, email, 'GOOGLE', 'FAILURE', '紐付け認証ID未整備');
+    throw new Error('管理者の認証紐付けが未設定です。');
+  }
+
+  var authId = String(linkedAuth['認証ID'] || '');
+  var roleCode = String(linkedAuth['システムロールコード'] || '');
+  var memberId = linkedMemberId || String(linkedAuth['会員ID'] || '');
+  var staffId = String(linkedAuth['職員ID'] || '');
+  if (!memberId) {
+    appendLoginHistory_(ss, authId, email, 'GOOGLE', 'FAILURE', '会員ID未紐付け');
+    throw new Error('管理者に会員IDが紐付いていません。');
+  }
+
+  var nowIso = new Date().toISOString();
+  appendLoginHistory_(ss, authId, email, 'GOOGLE', 'SUCCESS', '管理者Googleログイン成功');
+
+  return {
+    authMethod: 'GOOGLE',
+    loginId: email,
+    memberId: memberId,
+    staffId: staffId,
+    roleCode: roleCode,
+    canAccessAdminPage: true,
+    displayName: String(matched['表示名'] || claims.name || ''),
+    authenticatedAt: nowIso,
+  };
+}
+
+function getAuthConfig_() {
+  var scriptProperties = PropertiesService.getScriptProperties();
+  return {
+    adminGoogleClientId: String(scriptProperties.getProperty(ADMIN_GOOGLE_CLIENT_ID_KEY) || ''),
+  };
+}
+
+function verifyGoogleIdToken_(idToken) {
+  var url = 'https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken);
+  var response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+  var code = response.getResponseCode();
+  var body = String(response.getContentText() || '{}');
+  var parsed;
+  try {
+    parsed = JSON.parse(body);
+  } catch (e) {
+    throw new Error('Googleトークン検証レスポンスの解析に失敗しました。');
+  }
+
+  if (code !== 200) {
+    throw new Error('Googleトークン検証に失敗しました。');
+  }
+
+  var allowedAud = String(PropertiesService.getScriptProperties().getProperty(ADMIN_GOOGLE_CLIENT_ID_KEY) || '');
+  if (allowedAud && String(parsed.aud || '') !== allowedAud) {
+    throw new Error('Googleトークンの発行先が不正です。');
+  }
+  return parsed;
 }
 
 function findRowByColumnValue_(sheet, columnName, targetValue) {

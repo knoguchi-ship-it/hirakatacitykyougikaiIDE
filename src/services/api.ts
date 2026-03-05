@@ -16,6 +16,26 @@ export interface ApiClient {
   fetchAllData(): Promise<{ members: Member[], trainings: Training[] }>;
   updateMember(member: Member): Promise<void>;
   changePassword(loginId: string, currentPassword: string, newPassword: string): Promise<void>;
+  memberLogin(loginId: string, password: string): Promise<{
+    authMethod: 'PASSWORD';
+    loginId: string;
+    memberId: string;
+    staffId?: string;
+    roleCode: string;
+    canAccessAdminPage: boolean;
+    authenticatedAt: string;
+  }>;
+  adminGoogleLogin(idToken: string): Promise<{
+    authMethod: 'GOOGLE';
+    loginId: string;
+    memberId: string;
+    staffId?: string;
+    roleCode: string;
+    canAccessAdminPage: boolean;
+    displayName?: string;
+    authenticatedAt: string;
+  }>;
+  getAuthConfig(): Promise<{ adminGoogleClientId: string }>;
 }
 
 // --- Mock Implementation (Local Development) ---
@@ -46,6 +66,60 @@ class MockApiClient implements ApiClient {
     if (newPassword.length < 8) {
       throw new Error('新しいパスワードは8文字以上で入力してください。');
     }
+  }
+
+  async memberLogin(loginId: string, password: string) {
+    await new Promise(resolve => setTimeout(resolve, 400));
+    if (!loginId || !password) {
+      throw new Error('ログインIDとパスワードを入力してください。');
+    }
+    if (password !== 'demo1234') {
+      throw new Error('ログインIDまたはパスワードが正しくありません。');
+    }
+    const all = await this.fetchAllData();
+    const identity = all.members.flatMap(m => {
+      if (m.type === 'INDIVIDUAL') return [{ memberId: m.id, staffId: undefined, loginId: m.loginId || '' }];
+      return (m.staff || []).map(s => ({ memberId: m.id, staffId: s.id, loginId: s.loginId || '' }));
+    }).find(x => x.loginId === loginId);
+    if (!identity) {
+      throw new Error('ログインIDまたはパスワードが正しくありません。');
+    }
+    return {
+      authMethod: 'PASSWORD' as const,
+      loginId,
+      memberId: identity.memberId,
+      staffId: identity.staffId,
+      roleCode: 'MEMBER',
+      canAccessAdminPage: false,
+      authenticatedAt: new Date().toISOString(),
+    };
+  }
+
+  async adminGoogleLogin(idToken: string) {
+    await new Promise(resolve => setTimeout(resolve, 400));
+    if (!idToken) {
+      throw new Error('Google認証に失敗しました。');
+    }
+    const all = await this.fetchAllData();
+    const businessAdmin = all.members.find(m => m.type === 'BUSINESS' && (m.staff || []).some(s => s.role === 'ADMIN'));
+    const adminStaff = businessAdmin?.staff?.find(s => s.role === 'ADMIN');
+    if (!businessAdmin || !adminStaff) {
+      throw new Error('管理者デモユーザーが見つかりません。');
+    }
+    return {
+      authMethod: 'GOOGLE' as const,
+      loginId: 'admin@mock.local',
+      memberId: businessAdmin.id,
+      staffId: adminStaff.id,
+      roleCode: 'OFFICE_ADMIN',
+      canAccessAdminPage: true,
+      displayName: 'Mock Admin',
+      authenticatedAt: new Date().toISOString(),
+    };
+  }
+
+  async getAuthConfig() {
+    return { adminGoogleClientId: '' };
   }
 }
 
@@ -125,6 +199,69 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('changePassword', JSON.stringify({ loginId, currentPassword, newPassword }));
+    });
+  }
+
+  async memberLogin(loginId: string, password: string) {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error('google.script.run is not available.'));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data);
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('memberLogin', JSON.stringify({ loginId, password }));
+    });
+  }
+
+  async adminGoogleLogin(idToken: string) {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error('google.script.run is not available.'));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data);
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('adminGoogleLogin', JSON.stringify({ idToken }));
+    });
+  }
+
+  async getAuthConfig() {
+    return new Promise<{ adminGoogleClientId: string }>((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        resolve({ adminGoogleClientId: '' });
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data || { adminGoogleClientId: '' });
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getAuthConfig', null);
     });
   }
 }
