@@ -3,11 +3,12 @@ import Sidebar from './components/Sidebar';
 import MemberForm from './components/MemberForm';
 import Dashboard from './components/Dashboard';
 import TrainingList from './components/TrainingList';
+import TrainingManagement from './components/TrainingManagement';
 import { Member, MemberType, Training } from './types';
 import { api } from './services/api';
 
 type Role = 'ADMIN' | 'MEMBER';
-type View = 'profile' | 'admin';
+type View = 'profile' | 'admin' | 'training-manage';
 type AuthTab = 'member' | 'admin';
 type DemoPersona =
   | 'INDIVIDUAL_MEMBER'
@@ -50,7 +51,7 @@ const App: React.FC = () => {
   const [memberPassword, setMemberPassword] = useState('');
   const [adminIdToken, setAdminIdToken] = useState('');
   const [adminGoogleClientId, setAdminGoogleClientId] = useState('');
-  const [googleScriptReady, setGoogleScriptReady] = useState(false);
+  const [googleScriptReady] = useState(false); // GIS不使用のため常にfalse（保守用トークン入力の表示判定のみ）
 
   const [selectedIdentityId, setSelectedIdentityId] = useState<string>('');
 
@@ -75,21 +76,21 @@ const App: React.FC = () => {
     initData();
   }, []);
 
-  useEffect(() => {
-    if (isMockMode || !adminGoogleClientId) return;
-    if (document.getElementById('google-gsi-client')) {
-      setGoogleScriptReady(true);
-      return;
+  // GAS セッション経由の管理者ログイン（google.script.run + Session.getActiveUser()）
+  const handleAdminSessionLogin = async () => {
+    try {
+      setAuthBusy(true);
+      setAuthError(null);
+      const result = await api.checkAdminBySession();
+      applyAuthContext(result);
+      setUserRole('ADMIN');
+      setCurrentView('admin');
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Google認証に失敗しました。');
+    } finally {
+      setAuthBusy(false);
     }
-    const script = document.createElement('script');
-    script.id = 'google-gsi-client';
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = () => setGoogleScriptReady(true);
-    script.onerror = () => setGoogleScriptReady(false);
-    document.head.appendChild(script);
-  }, [adminGoogleClientId]);
+  };
 
   const loginIdentities: LoginIdentity[] = useMemo(() => {
     return members.flatMap((member): LoginIdentity[] => {
@@ -216,26 +217,14 @@ const App: React.FC = () => {
     }
   };
 
-  const startGoogleSignIn = () => {
-    if (!adminGoogleClientId) {
-      setAuthError('管理者GoogleログインのクライアントIDが未設定です。');
-      return;
-    }
-    if (!window.google?.accounts?.id) {
-      setAuthError('Google認証ライブラリの読み込みに失敗しました。');
-      return;
-    }
-    window.google.accounts.id.initialize({
-      client_id: adminGoogleClientId,
-      callback: (response: { credential?: string }) => {
-        if (!response?.credential) {
-          setAuthError('Google認証結果を取得できませんでした。');
-          return;
-        }
-        handleAdminGoogleLogin(response.credential);
-      },
+  const handleTrainingSave = async (training: Training): Promise<Training> => {
+    const saved = await api.saveTraining(training);
+    setTrainings((prev) => {
+      const exists = prev.some((t) => t.id === saved.id);
+      if (exists) return prev.map((t) => (t.id === saved.id ? saved : t));
+      return [...prev, saved];
     });
-    window.google.accounts.id.prompt();
+    return saved;
   };
 
   const handleMemberSave = async (updatedMember: Member) => {
@@ -376,10 +365,10 @@ const App: React.FC = () => {
             <div className="space-y-3">
               <button
                 className="w-full bg-slate-800 text-white rounded px-3 py-2 disabled:opacity-50"
-                disabled={authBusy || !googleScriptReady || !adminGoogleClientId}
-                onClick={startGoogleSignIn}
+                disabled={authBusy}
+                onClick={handleAdminSessionLogin}
               >
-                Googleで管理者ログイン
+                Googleアカウントで管理者ログイン
               </button>
               {!adminGoogleClientId && (
                 <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
@@ -414,6 +403,13 @@ const App: React.FC = () => {
       return renderAdminPage();
     }
 
+    if (currentView === 'training-manage') {
+      if (userRole !== 'ADMIN') {
+        return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
+      }
+      return <TrainingManagement trainings={trainings} onSave={handleTrainingSave} />;
+    }
+
     if (!currentUser) {
       return <div className="p-8 text-center text-slate-500">会員データが見つかりません。</div>;
     }
@@ -430,14 +426,16 @@ const App: React.FC = () => {
 
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans">
-      <Sidebar
-        currentView={currentView}
-        onChangeView={(view) => setCurrentView(view as View)}
-        role={userRole}
-        currentUser={currentUser}
-        memberPageTypeLabel={memberPageTypeLabel}
-        showAdminPage={userRole === 'ADMIN'}
-      />
+      {isAuthenticated && (
+        <Sidebar
+          currentView={currentView}
+          onChangeView={(view) => setCurrentView(view as View)}
+          role={userRole}
+          currentUser={currentUser}
+          memberPageTypeLabel={memberPageTypeLabel}
+          showAdminPage={userRole === 'ADMIN'}
+        />
+      )}
       <main className="flex-1 p-8 overflow-y-auto relative">
         <div className="absolute top-4 right-8 bg-white p-2 rounded-lg shadow border border-slate-200 z-10 flex space-x-2 items-center">
           {isMockMode ? (

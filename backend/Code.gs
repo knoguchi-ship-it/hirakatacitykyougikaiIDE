@@ -172,6 +172,15 @@ var テーブル定義 = {
     '開催場所',
     '開催形式コード',
     '研修状態コード',
+    '主催者',
+    '法定外研修フラグ',
+    '研修概要',
+    '研修内容',
+    '費用',
+    '申込開始日',
+    '申込締切日',
+    '講師',
+    '案内状URL',
     '作成日時',
     '更新日時',
     '削除フラグ',
@@ -387,6 +396,46 @@ function checkAdminAuthConfig() {
   };
 }
 
+/**
+ * スクリプトオーナーの Google sub ID とメールアドレスを返す。
+ * WL-001 の GoogleユーザーID を実値に更新するために使用する。
+ * 使い方: npx clasp run getOwnerSubId
+ */
+function getOwnerSubId() {
+  var token = ScriptApp.getOAuthToken();
+  var response = UrlFetchApp.fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: { 'Authorization': 'Bearer ' + token },
+    muteHttpExceptions: true,
+  });
+  if (response.getResponseCode() !== 200) {
+    throw new Error('UserInfo API エラー: ' + response.getContentText());
+  }
+  var info = JSON.parse(response.getContentText());
+  return { sub: info.sub, email: info.email };
+}
+
+/**
+ * ホワイトリストの指定エントリの GoogleユーザーID を更新する。
+ * 使い方: npx clasp run updateWhitelistSub --params '["WL-001","実際のsub値"]'
+ */
+function updateWhitelistSub(whitelistId, sub) {
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_管理者Googleホワイトリスト');
+  if (!sheet) throw new Error('T_管理者Googleホワイトリスト シートが見つかりません。');
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var idColIdx = headers.indexOf('ホワイトリストID');
+  var subColIdx = headers.indexOf('GoogleユーザーID');
+  if (idColIdx < 0 || subColIdx < 0) throw new Error('列が見つかりません。');
+  var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  for (var i = 0; i < rows.length; i += 1) {
+    if (String(rows[i][idColIdx]) === whitelistId) {
+      sheet.getRange(i + 2, subColIdx + 1).setValue(sub);
+      return { ok: true, updated: whitelistId, sub: sub };
+    }
+  }
+  throw new Error('ホワイトリストID が見つかりません: ' + whitelistId);
+}
+
 function verifySeedData() {
   var ss = getOrCreateDatabase_();
   var members = getRowsAsObjects_(ss, 'T_会員').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
@@ -464,6 +513,10 @@ function processApiRequest(action, payload) {
       return JSON.stringify({ success: true, data: adminGoogleLogin_(parsedPayload) });
     }
 
+    if (action === 'checkAdminBySession') {
+      return JSON.stringify({ success: true, data: checkAdminBySession_() });
+    }
+
     if (action === 'getAuthConfig') {
       return JSON.stringify({ success: true, data: getAuthConfig_() });
     }
@@ -475,6 +528,15 @@ function processApiRequest(action, payload) {
     if (action === 'seedDemoData') {
       return JSON.stringify({ success: true, data: seedDemoData() });
     }
+
+    if (action === 'saveTraining') {
+      return JSON.stringify({ success: true, data: saveTraining_(parsedPayload) });
+    }
+
+    if (action === 'uploadTrainingFile') {
+      return JSON.stringify({ success: true, data: uploadTrainingFile_(parsedPayload) });
+    }
+
     return JSON.stringify({ success: true, data: { message: '未実装アクションです' } });
   } catch (error) {
     return JSON.stringify({
@@ -864,6 +926,15 @@ function seedDemoData() {
       開催場所: 'オンライン (Zoom)',
       開催形式コード: 'ONLINE',
       研修状態コード: 'OPEN',
+      主催者: '枚方市介護支援専門員連絡協議会',
+      法定外研修フラグ: false,
+      研修概要: '介護報酬改定の実務対応ポイントを解説します。',
+      研修内容: '改定内容の要点、請求・記録の実務対応、質疑応答を行います。現場での運用変更点を具体例で確認します。',
+      費用: 0,
+      申込開始日: '2026-01-10',
+      申込締切日: '2026-02-10',
+      講師: '厚生労働省 担当官',
+      案内状URL: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
       作成日時: now,
       更新日時: now,
       削除フラグ: false,
@@ -877,6 +948,15 @@ function seedDemoData() {
       開催場所: '枚方市市民会館 会議室A',
       開催形式コード: 'ONSITE',
       研修状態コード: 'CLOSED',
+      主催者: '枚方市介護支援専門員連絡協議会',
+      法定外研修フラグ: true,
+      研修概要: '認知症ケアの実践事例とリーダー育成を扱います。',
+      研修内容: 'ケーススタディを通じて、チームでの支援方針策定と多職種連携を学びます。',
+      費用: 2000,
+      申込開始日: '2026-02-01',
+      申込締切日: '2026-03-01',
+      講師: '田中 一郎 先生',
+      案内状URL: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
       作成日時: now,
       更新日時: now,
       削除フラグ: false,
@@ -1033,34 +1113,25 @@ function fetchAllDataFromDb_() {
     }
   }
 
-  var trainingMeta = {
-    T001: {
-      summary: '介護報酬改定の実務対応ポイントを解説します。',
-      description: '改定内容の要点、請求・記録の実務対応、質疑応答を行います。現場での運用変更点を具体例で確認します。',
-      guidePdfUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    },
-    T002: {
-      summary: '認知症ケアの実践事例とリーダー育成を扱います。',
-      description: 'ケーススタディを通じて、チームでの支援方針策定と多職種連携を学びます。',
-      guidePdfUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    },
-  };
-
   var trainings = trainingRows.map(function(t) {
-    var id = String(t['研修ID'] || '');
-    var meta = trainingMeta[id] || {};
     return {
-      id: id,
+      id: String(t['研修ID'] || ''),
       title: String(t['研修名'] || ''),
-      summary: meta.summary || '',
-      description: meta.description || '',
-      guidePdfUrl: meta.guidePdfUrl || '',
+      summary: String(t['研修概要'] || ''),
+      description: String(t['研修内容'] || ''),
+      guidePdfUrl: String(t['案内状URL'] || ''),
       date: formatDateForApi_(t['開催日']),
       capacity: Number(t['定員'] || 0),
       applicants: Number(t['申込者数'] || 0),
       location: String(t['開催場所'] || ''),
       isOnline: String(t['開催形式コード'] || '') === 'ONLINE',
       status: String(t['研修状態コード'] || 'CLOSED'),
+      organizer: String(t['主催者'] || ''),
+      isNonMandatory: toBoolean_(t['法定外研修フラグ']),
+      fee: Number(t['費用'] || 0),
+      applicationOpenDate: formatDateForApi_(t['申込開始日']),
+      applicationCloseDate: formatDateForApi_(t['申込締切日']),
+      instructor: String(t['講師'] || ''),
     };
   });
 
@@ -1523,6 +1594,72 @@ function adminGoogleLogin_(request) {
   };
 }
 
+/**
+ * google.script.run 経由で呼び出し元の Google セッションを検証し、管理者認証を行う。
+ * Session.getActiveUser() は google.script.run 呼び出し元のメールを返す（Execute as: Me でも）。
+ */
+function checkAdminBySession_() {
+  var email = Session.getActiveUser().getEmail();
+  if (!email) {
+    throw new Error('Googleアカウントでログインされていません。組織のGoogleアカウントでブラウザにログインしてください。');
+  }
+  email = email.toLowerCase();
+
+  var ss = getOrCreateDatabase_();
+  var whitelistRows = getRowsAsObjects_(ss, 'T_管理者Googleホワイトリスト').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) && toBoolean_(r['有効フラグ']);
+  });
+
+  var matched = null;
+  for (var i = 0; i < whitelistRows.length; i += 1) {
+    var w = whitelistRows[i];
+    var wEmail = String(w['Googleメール'] || '').toLowerCase();
+    if (wEmail && wEmail === email) { matched = w; break; }
+  }
+
+  if (!matched) {
+    appendLoginHistory_(ss, '', email, 'GOOGLE', 'FAILURE', 'ホワイトリスト未登録（セッション認証）');
+    throw new Error('管理者権限がありません。');
+  }
+
+  var linkedAuthId = String(matched['紐付け認証ID'] || '');
+  var linkedMemberId = String(matched['紐付け会員ID'] || '');
+  var authRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var linkedAuth = null;
+  for (var j = 0; j < authRows.length; j += 1) {
+    var a = authRows[j];
+    if (linkedAuthId && String(a['認証ID'] || '') === linkedAuthId) { linkedAuth = a; break; }
+  }
+
+  if (!linkedAuth) {
+    appendLoginHistory_(ss, linkedAuthId, email, 'GOOGLE', 'FAILURE', '紐付け認証ID未整備（セッション認証）');
+    throw new Error('管理者の認証紐付けが未設定です。');
+  }
+
+  var authId = String(linkedAuth['認証ID'] || '');
+  var roleCode = String(linkedAuth['システムロールコード'] || '');
+  var memberId = linkedMemberId || String(linkedAuth['会員ID'] || '');
+  var staffId = String(linkedAuth['職員ID'] || '');
+  if (!memberId) {
+    appendLoginHistory_(ss, authId, email, 'GOOGLE', 'FAILURE', '会員ID未紐付け（セッション認証）');
+    throw new Error('管理者に会員IDが紐付いていません。');
+  }
+
+  var nowIso = new Date().toISOString();
+  appendLoginHistory_(ss, authId, email, 'GOOGLE', 'SUCCESS', '管理者セッション認証成功');
+
+  return {
+    authMethod: 'GOOGLE',
+    loginId: email,
+    memberId: memberId,
+    staffId: staffId,
+    roleCode: roleCode,
+    canAccessAdminPage: true,
+    displayName: String(matched['表示名'] || ''),
+    authenticatedAt: nowIso,
+  };
+}
+
 function getAuthConfig_() {
   var scriptProperties = PropertiesService.getScriptProperties();
   return {
@@ -1628,6 +1765,108 @@ function hashPassword_(password, salt) {
     out.push((b < 16 ? '0' : '') + b.toString(16));
   }
   return out.join('');
+}
+
+/**
+ * 研修を新規登録または更新する。
+ * payload.id が空の場合は新規作成、ある場合は既存行を更新する。
+ */
+function saveTraining_(payload) {
+  if (!payload) throw new Error('payload が空です。');
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_研修');
+  if (!sheet) throw new Error('T_研修 シートが見つかりません。');
+
+  var now = new Date().toISOString();
+  var id = String(payload.id || '');
+
+  if (id) {
+    // 既存行を更新
+    var found = findRowByColumnValue_(sheet, '研修ID', id);
+    if (!found) throw new Error('研修ID「' + id + '」が見つかりません。');
+    var cols = found.columns;
+    var row = found.row.slice();
+
+    function setCol(name, value) {
+      var idx = cols[name];
+      if (idx != null) row[idx] = value !== undefined ? value : '';
+    }
+
+    setCol('研修名', payload.title || '');
+    setCol('開催日', payload.date || '');
+    setCol('定員', Number(payload.capacity || 0));
+    setCol('開催場所', payload.location || '');
+    setCol('開催形式コード', payload.isOnline ? 'ONLINE' : 'ONSITE');
+    setCol('研修状態コード', payload.status || 'CLOSED');
+    setCol('主催者', payload.organizer || '');
+    setCol('法定外研修フラグ', payload.isNonMandatory ? true : false);
+    setCol('研修概要', payload.summary || '');
+    setCol('研修内容', payload.description || '');
+    setCol('費用', Number(payload.fee || 0));
+    setCol('申込開始日', payload.applicationOpenDate || '');
+    setCol('申込締切日', payload.applicationCloseDate || '');
+    setCol('講師', payload.instructor || '');
+    setCol('案内状URL', payload.guidePdfUrl || '');
+    setCol('更新日時', now);
+
+    sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+    return payload;
+  }
+
+  // 新規作成
+  var newId = 'T' + Utilities.getUuid().replace(/-/g, '').substring(0, 8).toUpperCase();
+  appendRowsByHeaders_(ss, 'T_研修', [{
+    '研修ID': newId,
+    '研修名': payload.title || '',
+    '開催日': payload.date || '',
+    '定員': Number(payload.capacity || 0),
+    '申込者数': 0,
+    '開催場所': payload.location || '',
+    '開催形式コード': payload.isOnline ? 'ONLINE' : 'ONSITE',
+    '研修状態コード': payload.status || 'OPEN',
+    '主催者': payload.organizer || '',
+    '法定外研修フラグ': payload.isNonMandatory ? true : false,
+    '研修概要': payload.summary || '',
+    '研修内容': payload.description || '',
+    '費用': Number(payload.fee || 0),
+    '申込開始日': payload.applicationOpenDate || '',
+    '申込締切日': payload.applicationCloseDate || '',
+    '講師': payload.instructor || '',
+    '案内状URL': payload.guidePdfUrl || '',
+    '作成日時': now,
+    '更新日時': now,
+    '削除フラグ': false,
+  }]);
+
+  payload.id = newId;
+  return payload;
+}
+
+/**
+ * 研修案内状ファイル（base64）をGoogle Driveにアップロードし、共有URLを返す。
+ * payload: { base64: string, filename: string, mimeType: string }
+ */
+function uploadTrainingFile_(payload) {
+  if (!payload || !payload.base64) throw new Error('ファイルデータが空です。');
+  var filename = payload.filename || 'upload';
+  var mimeType = payload.mimeType || 'application/octet-stream';
+
+  var bytes = Utilities.base64Decode(payload.base64);
+  var blob = Utilities.newBlob(bytes, mimeType, filename);
+
+  var folderName = '研修案内状';
+  var folder;
+  var folders = DriveApp.getFoldersByName(folderName);
+  if (folders.hasNext()) {
+    folder = folders.next();
+  } else {
+    folder = DriveApp.createFolder(folderName);
+  }
+
+  var file = folder.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+  return { url: file.getUrl(), driveFileId: file.getId() };
 }
 
 /**

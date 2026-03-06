@@ -35,7 +35,19 @@ export interface ApiClient {
     displayName?: string;
     authenticatedAt: string;
   }>;
+  checkAdminBySession(): Promise<{
+    authMethod: 'GOOGLE';
+    loginId: string;
+    memberId: string;
+    staffId?: string;
+    roleCode: string;
+    canAccessAdminPage: boolean;
+    displayName?: string;
+    authenticatedAt: string;
+  }>;
   getAuthConfig(): Promise<{ adminGoogleClientId: string }>;
+  saveTraining(training: Training): Promise<Training>;
+  uploadTrainingFile(base64: string, filename: string, mimeType: string): Promise<{ url: string }>;
 }
 
 // --- Mock Implementation (Local Development) ---
@@ -100,6 +112,11 @@ class MockApiClient implements ApiClient {
     if (!idToken) {
       throw new Error('Google認証に失敗しました。');
     }
+    return this.checkAdminBySession();
+  }
+
+  async checkAdminBySession() {
+    await new Promise(resolve => setTimeout(resolve, 400));
     const all = await this.fetchAllData();
     const businessAdmin = all.members.find(m => m.type === 'BUSINESS' && (m.staff || []).some(s => s.role === 'ADMIN'));
     const adminStaff = businessAdmin?.staff?.find(s => s.role === 'ADMIN');
@@ -120,6 +137,21 @@ class MockApiClient implements ApiClient {
 
   async getAuthConfig() {
     return { adminGoogleClientId: '' };
+  }
+
+  async saveTraining(training: Training): Promise<Training> {
+    console.log('[Mock API] saveTraining called', training);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    if (!training.id) {
+      return { ...training, id: 'T' + Date.now().toString(36).toUpperCase() };
+    }
+    return training;
+  }
+
+  async uploadTrainingFile(_base64: string, filename: string, _mimeType: string): Promise<{ url: string }> {
+    console.log('[Mock API] uploadTrainingFile called', filename);
+    await new Promise(resolve => setTimeout(resolve, 800));
+    return { url: 'https://example.com/mock-upload/' + encodeURIComponent(filename) };
   }
 }
 
@@ -244,6 +276,27 @@ class GasApiClient implements ApiClient {
     });
   }
 
+  async checkAdminBySession() {
+    return new Promise<any>((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error('google.script.run is not available.'));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data);
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('checkAdminBySession', null);
+    });
+  }
+
   async getAuthConfig() {
     return new Promise<{ adminGoogleClientId: string }>((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
@@ -262,6 +315,48 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('getAuthConfig', null);
+    });
+  }
+
+  async saveTraining(training: Training): Promise<Training> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error('google.script.run is not available.'));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data);
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('saveTraining', JSON.stringify(training));
+    });
+  }
+
+  async uploadTrainingFile(base64: string, filename: string, mimeType: string): Promise<{ url: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error('google.script.run is not available.'));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data);
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('uploadTrainingFile', JSON.stringify({ base64, filename, mimeType }));
     });
   }
 }

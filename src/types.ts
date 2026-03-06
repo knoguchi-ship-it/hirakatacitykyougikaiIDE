@@ -105,4 +105,10 @@ export interface Training {
   location: string;
   isOnline: boolean;
   status: 'OPEN' | 'CLOSED';
+  organizer?: string;
+  isNonMandatory?: boolean;
+  fee?: number;
+  applicationOpenDate?: string;
+  applicationCloseDate?: string;
+  instructor?: string;
 }
