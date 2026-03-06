@@ -21,6 +21,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const menuItems = [
     { id: 'profile', label: '会員マイページ', icon: <BookOpenIcon className="w-5 h-5" /> },
+    { id: 'training-apply', label: '研修確認・申込', icon: <CalendarIcon className="w-5 h-5" /> },
     ...(showAdminPage
       ? [
           { id: 'admin', label: '管理者ページ', icon: <HomeIcon className="w-5 h-5" /> },

@@ -48,22 +48,27 @@ export interface ApiClient {
   getAuthConfig(): Promise<{ adminGoogleClientId: string }>;
   saveTraining(training: Training): Promise<Training>;
   uploadTrainingFile(base64: string, filename: string, mimeType: string): Promise<{ url: string }>;
+  applyTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ applicationId: string; applicants: number; duplicate?: boolean }>;
 }
 
 // --- Mock Implementation (Local Development) ---
 class MockApiClient implements ApiClient {
+  private members: Member[] = JSON.parse(JSON.stringify(MOCK_MEMBERS));
+  private trainings: Training[] = JSON.parse(JSON.stringify(MOCK_TRAININGS));
+
   async fetchAllData(): Promise<{ members: Member[], trainings: Training[] }> {
     console.log('[Mock API] fetchAllData called');
     await new Promise(resolve => setTimeout(resolve, 800));
     return {
-      members: JSON.parse(JSON.stringify(MOCK_MEMBERS)),
-      trainings: JSON.parse(JSON.stringify(MOCK_TRAININGS))
+      members: JSON.parse(JSON.stringify(this.members)),
+      trainings: JSON.parse(JSON.stringify(this.trainings))
     };
   }
 
   async updateMember(member: Member): Promise<void> {
     console.log('[Mock API] updateMember called', member);
     await new Promise(resolve => setTimeout(resolve, 500));
+    this.members = this.members.map((m) => (m.id === member.id ? JSON.parse(JSON.stringify(member)) : m));
   }
 
   async changePassword(loginId: string, currentPassword: string, newPassword: string): Promise<void> {
@@ -143,8 +148,11 @@ class MockApiClient implements ApiClient {
     console.log('[Mock API] saveTraining called', training);
     await new Promise(resolve => setTimeout(resolve, 500));
     if (!training.id) {
-      return { ...training, id: 'T' + Date.now().toString(36).toUpperCase() };
+      const created = { ...training, id: 'T' + Date.now().toString(36).toUpperCase() };
+      this.trainings = [...this.trainings, created];
+      return created;
     }
+    this.trainings = this.trainings.map((t) => (t.id === training.id ? { ...training } : t));
     return training;
   }
 
@@ -152,6 +160,47 @@ class MockApiClient implements ApiClient {
     console.log('[Mock API] uploadTrainingFile called', filename);
     await new Promise(resolve => setTimeout(resolve, 800));
     return { url: 'https://example.com/mock-upload/' + encodeURIComponent(filename) };
+  }
+
+  async applyTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ applicationId: string; applicants: number; duplicate?: boolean }> {
+    const { trainingId, memberId, staffId } = request;
+    await new Promise(resolve => setTimeout(resolve, 600));
+
+    const training = this.trainings.find((t) => t.id === trainingId);
+    if (!training) {
+      throw new Error('対象研修が見つかりません。');
+    }
+    if (training.status !== 'OPEN') {
+      throw new Error('この研修は受付期間外です。');
+    }
+
+    const member = this.members.find((m) => m.id === memberId);
+    if (!member) {
+      throw new Error('会員情報が見つかりません。');
+    }
+
+    if (staffId) {
+      const staff = (member.staff || []).find((s) => s.id === staffId);
+      if (!staff) {
+        throw new Error('職員情報が見つかりません。');
+      }
+      const ids = new Set(staff.participatedTrainingIds || []);
+      if (ids.has(trainingId)) {
+        return { applicationId: `AP-MOCK-${Date.now()}`, applicants: training.applicants, duplicate: true };
+      }
+      ids.add(trainingId);
+      staff.participatedTrainingIds = Array.from(ids);
+    } else {
+      const ids = new Set(member.participatedTrainingIds || []);
+      if (ids.has(trainingId)) {
+        return { applicationId: `AP-MOCK-${Date.now()}`, applicants: training.applicants, duplicate: true };
+      }
+      ids.add(trainingId);
+      member.participatedTrainingIds = Array.from(ids);
+    }
+
+    training.applicants = (training.applicants || 0) + 1;
+    return { applicationId: `AP-MOCK-${Date.now()}`, applicants: training.applicants };
   }
 }
 
@@ -357,6 +406,27 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('uploadTrainingFile', JSON.stringify({ base64, filename, mimeType }));
+    });
+  }
+
+  async applyTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ applicationId: string; applicants: number; duplicate?: boolean }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error('google.script.run is not available.'));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data);
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('applyTraining', JSON.stringify(request));
     });
   }
 }

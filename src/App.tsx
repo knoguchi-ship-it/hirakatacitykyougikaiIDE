@@ -4,11 +4,12 @@ import MemberForm from './components/MemberForm';
 import Dashboard from './components/Dashboard';
 import TrainingList from './components/TrainingList';
 import TrainingManagement from './components/TrainingManagement';
+import TrainingApply from './components/TrainingApply';
 import { Member, MemberType, Training } from './types';
 import { api } from './services/api';
 
 type Role = 'ADMIN' | 'MEMBER';
-type View = 'profile' | 'admin' | 'training-manage';
+type View = 'profile' | 'training-apply' | 'admin' | 'training-manage';
 type AuthTab = 'member' | 'admin';
 type DemoPersona =
   | 'INDIVIDUAL_MEMBER'
@@ -54,6 +55,12 @@ const App: React.FC = () => {
   const [googleScriptReady] = useState(false); // GIS不使用のため常にfalse（保守用トークン入力の表示判定のみ）
 
   const [selectedIdentityId, setSelectedIdentityId] = useState<string>('');
+
+  const refreshAllData = async () => {
+    const { members, trainings } = await api.fetchAllData();
+    setMembers(members);
+    setTrainings(trainings);
+  };
 
   useEffect(() => {
     const initData = async () => {
@@ -225,6 +232,18 @@ const App: React.FC = () => {
       return [...prev, saved];
     });
     return saved;
+  };
+
+  const handleTrainingApply = async (trainingId: string): Promise<void> => {
+    if (!currentIdentity) {
+      throw new Error('ログイン情報が見つかりません。');
+    }
+    await api.applyTraining({
+      trainingId,
+      memberId: currentIdentity.memberId,
+      staffId: currentIdentity.staffId,
+    });
+    await refreshAllData();
   };
 
   const handleMemberSave = async (updatedMember: Member) => {
@@ -408,6 +427,20 @@ const App: React.FC = () => {
         return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
       }
       return <TrainingManagement trainings={trainings} onSave={handleTrainingSave} />;
+    }
+
+    if (currentView === 'training-apply') {
+      if (!currentUser) {
+        return <div className="p-8 text-center text-slate-500">会員データが見つかりません。</div>;
+      }
+      return (
+        <TrainingApply
+          member={currentUser}
+          activeStaffId={currentIdentity?.staffId}
+          trainings={trainings}
+          onApply={handleTrainingApply}
+        />
+      );
     }
 
     if (!currentUser) {

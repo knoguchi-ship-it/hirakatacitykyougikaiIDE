@@ -538,6 +538,10 @@ function processApiRequest(action, payload) {
       return JSON.stringify({ success: true, data: uploadTrainingFile_(parsedPayload) });
     }
 
+    if (action === 'applyTraining') {
+      return JSON.stringify({ success: true, data: applyTraining_(parsedPayload) });
+    }
+
     return JSON.stringify({ success: true, data: { message: '未実装アクションです' } });
   } catch (error) {
     return JSON.stringify({
@@ -1870,6 +1874,124 @@ function saveTraining_(payload) {
 
   payload.id = newId;
   return payload;
+}
+
+/**
+ * 会員/職員の研修申込を登録する。
+ * - 重複申込を防止
+ * - 受付期間/受付状態/定員を検証
+ * - T_研修申込 へ追記
+ * - T_研修 の申込者数を同期
+ */
+function applyTraining_(payload) {
+  if (!payload) throw new Error('payload が空です。');
+  var trainingId = String(payload.trainingId || '').trim();
+  var memberId = String(payload.memberId || '').trim();
+  var staffId = String(payload.staffId || '').trim();
+  if (!trainingId) throw new Error('trainingId が未指定です。');
+  if (!memberId) throw new Error('memberId が未指定です。');
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var ss = getOrCreateDatabase_();
+    var trainingSheet = ss.getSheetByName('T_研修');
+    if (!trainingSheet) throw new Error('T_研修 シートが見つかりません。');
+
+    var found = findRowByColumnValue_(trainingSheet, '研修ID', trainingId);
+    if (!found) throw new Error('対象研修が見つかりません。');
+    var tCols = found.columns;
+    requireColumns_(tCols, ['研修状態コード', '申込開始日', '申込締切日', '定員', '申込者数']);
+    var tRow = found.row;
+
+    var status = String(tRow[tCols['研修状態コード']] || 'CLOSED');
+    if (status !== 'OPEN') {
+      throw new Error('この研修は受付期間外です。');
+    }
+
+    var now = new Date();
+    var openDate = parseDateOnly_(tRow[tCols['申込開始日']]);
+    var closeDate = parseDateOnly_(tRow[tCols['申込締切日']]);
+    if (openDate && now.getTime() < openDate.getTime()) {
+      throw new Error('申込開始日前のため、まだ申し込めません。');
+    }
+    if (closeDate && now.getTime() > closeDate.getTime()) {
+      throw new Error('申込締切日を過ぎているため、申し込めません。');
+    }
+
+    var applicationRows = getRowsAsObjects_(ss, 'T_研修申込').filter(function(r) {
+      return !toBoolean_(r['削除フラグ']) && String(r['申込状態コード'] || '') === 'APPLIED';
+    });
+    var duplicate = applicationRows.find(function(r) {
+      if (String(r['研修ID'] || '') !== trainingId) return false;
+      if (String(r['会員ID'] || '') !== memberId) return false;
+      return String(r['職員ID'] || '') === staffId;
+    });
+    if (duplicate) {
+      var applicantsCountForDuplicate = applicationRows.filter(function(r) {
+        return String(r['研修ID'] || '') === trainingId;
+      }).length;
+      return {
+        applicationId: String(duplicate['申込ID'] || ''),
+        applicants: applicantsCountForDuplicate,
+        duplicate: true,
+      };
+    }
+
+    var currentApplicants = applicationRows.filter(function(r) {
+      return String(r['研修ID'] || '') === trainingId;
+    }).length;
+    var capacity = Number(tRow[tCols['定員']] || 0);
+    if (capacity > 0 && currentApplicants >= capacity) {
+      throw new Error('定員に達したため、申し込みできません。');
+    }
+
+    var nowIso = now.toISOString();
+    var applicationId = 'AP-' + Utilities.getUuid().replace(/-/g, '').substring(0, 10).toUpperCase();
+    appendRowsByHeaders_(ss, 'T_研修申込', [{
+      '申込ID': applicationId,
+      '研修ID': trainingId,
+      '会員ID': memberId,
+      '職員ID': staffId,
+      '申込状態コード': 'APPLIED',
+      '申込日時': nowIso,
+      'キャンセル日時': '',
+      '備考': '',
+      '作成日時': nowIso,
+      '更新日時': nowIso,
+      '削除フラグ': false,
+    }]);
+
+    var nextApplicants = currentApplicants + 1;
+    trainingSheet.getRange(found.rowNumber, tCols['申込者数'] + 1).setValue(nextApplicants);
+    if (tCols['更新日時'] != null) {
+      trainingSheet.getRange(found.rowNumber, tCols['更新日時'] + 1).setValue(nowIso);
+    }
+    SpreadsheetApp.flush();
+
+    return {
+      applicationId: applicationId,
+      applicants: nextApplicants,
+      duplicate: false,
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function parseDateOnly_(raw) {
+  if (!raw) return null;
+  if (Object.prototype.toString.call(raw) === '[object Date]') {
+    var fromDateObj = new Date(raw.getTime());
+    fromDateObj.setHours(23, 59, 59, 999);
+    return fromDateObj;
+  }
+  var text = String(raw).trim();
+  if (!text) return null;
+  var parsed = new Date(text);
+  if (isNaN(parsed.getTime())) return null;
+  parsed.setHours(23, 59, 59, 999);
+  return parsed;
 }
 
 /**

@@ -90,7 +90,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, t
 
   // --- Action Handlers ---
 
-  const handleTrainingApply = (trainingId: string) => {
+  const handleTrainingApply = async (trainingId: string) => {
       if (submittingTrainingId) return; // Prevent double click
 
       const training = trainings.find(t => t.id === trainingId);
@@ -101,45 +101,41 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, t
         : `「${training.title}」に申し込みますか？`;
 
       if (!window.confirm(confirmMsg)) return;
-
-      // Start loading simulation
       setSubmittingTrainingId(trainingId);
 
-      // Create newMember synchronously based on current state
-      const newMember = { ...member };
+      try {
+        await api.applyTraining({
+          trainingId,
+          memberId: member.id,
+          staffId: isBusiness ? (operatingStaffId || undefined) : undefined,
+        });
 
-      if (isBusiness) {
+        const newMember = { ...member };
+        if (isBusiness) {
           newMember.staff = newMember.staff?.map(s => {
-              if (s.id === operatingStaffId) {
-                  return {
-                      ...s,
-                      participatedTrainingIds: [...(s.participatedTrainingIds || []), trainingId]
-                  };
-              }
-              return s;
+            if (s.id === operatingStaffId) {
+              return {
+                ...s,
+                participatedTrainingIds: [...(s.participatedTrainingIds || []), trainingId]
+              };
+            }
+            return s;
           });
-      } else {
+        } else {
           newMember.participatedTrainingIds = [...(newMember.participatedTrainingIds || []), trainingId];
+        }
+
+        onSave(newMember);
+        setMember(newMember);
+        setSuccessMsg(`「${training.title}」への申し込みが完了しました。`);
+        setTimeout(() => {
+          historyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
+      } catch (err) {
+        alert(err instanceof Error ? err.message : '研修申込に失敗しました。');
+      } finally {
+        setSubmittingTrainingId(null);
       }
-
-      // Simulate API delay (800ms)
-      setTimeout(() => {
-          // 1. Save to Global State (App.tsx)
-          onSave(newMember);
-
-          // 2. Update Local State (Immediate Feedback)
-          // Note: App.tsx will trigger a prop update, which triggers useEffect, 
-          // but setting it here ensures responsiveness.
-          setMember(newMember);
-          
-          setSubmittingTrainingId(null);
-          setSuccessMsg(`「${training.title}」への申し込みが完了しました。`);
-          
-          // Scroll after state update
-          setTimeout(() => {
-              historyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }, 100);
-      }, 800);
   };
 
   const handleMailingChange = (preference: MailingPreference) => {
