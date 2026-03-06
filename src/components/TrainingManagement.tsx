@@ -262,10 +262,9 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
                   <p className="text-xs text-slate-500 mb-3">ON にした項目のみフォームに表示されます。研修タイトル・開催日時・定員・受付状態・開催形式は常に表示されます。</p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {OPTIONAL_FIELD_DEFS.map(({ key, label }) => (
-                      <label key={key} className="flex items-center gap-2 cursor-pointer select-none group">
+                      <label key={key} className="flex items-center gap-2 cursor-pointer select-none group" onClick={() => toggleField(key)}>
                         {/* トグルスイッチ */}
                         <span
-                          onClick={() => toggleField(key)}
                           className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 cursor-pointer ${isFieldOn(key) ? 'bg-primary-600' : 'bg-slate-300'}`}
                         >
                           <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${isFieldOn(key) ? 'translate-x-4' : 'translate-x-0'}`} />
