@@ -79,4 +79,6 @@ npx clasp run setupDatabase
 - [データモデル設計](./docs/03_DATA_MODEL.md)
 - [ロードマップ](./docs/04_ROADMAP.md)
 
+- [引き継ぎ書（2026-03-06 v26）](./docs/99_HANDOVER_2026-03-06_v26.md)
+- [引き継ぎ書（2026-03-06 v24/v25）](./docs/99_HANDOVER_2026-03-06.md)
 - [引き継ぎ書（2026-03-05）](./docs/99_HANDOVER_2026-03-05.md)
