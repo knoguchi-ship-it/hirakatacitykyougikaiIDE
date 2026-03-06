@@ -71,6 +71,8 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
   const normalizeDateTime = (v: string) => {
     if (!v) return '';
     if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v + 'T00:00';
+    // GAS formatDateForApi_ outputs "YYYY-MM-DD HH:mm" (space) — convert to datetime-local format
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(v)) return v.replace(' ', 'T').substring(0, 16);
     return v;
   };
 

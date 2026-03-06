@@ -161,12 +161,13 @@ export const MOCK_TRAININGS: Training[] = [
     summary: '介護報酬改定の実務対応ポイントを解説します。',
     description: '改定内容の要点、請求・記録の実務対応、質疑応答を行います。現場での運用変更点を具体例で確認します。',
     guidePdfUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    date: '2026-02-15',
+    date: '2026-02-15T09:00',
     capacity: 100,
     applicants: 85,
     location: 'オンライン (Zoom)',
     isOnline: true,
-    status: 'OPEN'
+    status: 'OPEN',
+    fees: [{ label: '会員', amount: 0 }, { label: '非会員', amount: 1000 }],
   },
   {
     id: 'T002',
@@ -174,11 +175,12 @@ export const MOCK_TRAININGS: Training[] = [
     summary: '認知症ケアの実践事例とリーダー育成を扱います。',
     description: 'ケーススタディを通じて、チームでの支援方針策定と多職種連携を学びます。',
     guidePdfUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    date: '2026-03-10',
+    date: '2026-03-10T09:00',
     capacity: 40,
     applicants: 40,
     location: '枚方市市民会館 会議室A',
     isOnline: false,
-    status: 'CLOSED'
+    status: 'CLOSED',
+    fees: [{ label: '会員', amount: 2000 }, { label: '非会員', amount: 3000 }],
   }
 ];
