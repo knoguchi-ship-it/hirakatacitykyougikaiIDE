@@ -93,6 +93,42 @@ export interface Member {
   participatedTrainingIds?: string[];
 }
 
+export interface TrainingFee {
+  label: string;   // 例: "会員", "非会員", "学生"
+  amount: number;  // 円
+}
+
+export interface TrainingFieldConfig {
+  organizer: boolean;
+  isNonMandatory: boolean;
+  summary: boolean;
+  description: boolean;
+  location: boolean;
+  instructor: boolean;
+  applicationOpenDate: boolean;
+  applicationCloseDate: boolean;
+  fees: boolean;
+  guidePdfUrl: boolean;
+}
+
+export const DEFAULT_FIELD_CONFIG: TrainingFieldConfig = {
+  organizer: true,
+  isNonMandatory: true,
+  summary: true,
+  description: true,
+  location: true,
+  instructor: true,
+  applicationOpenDate: true,
+  applicationCloseDate: true,
+  fees: true,
+  guidePdfUrl: true,
+};
+
+export const DEFAULT_FEES: TrainingFee[] = [
+  { label: '会員', amount: 0 },
+  { label: '非会員', amount: 0 },
+];
+
 export interface Training {
   id: string;
   title: string;
@@ -107,8 +143,9 @@ export interface Training {
   status: 'OPEN' | 'CLOSED';
   organizer?: string;
   isNonMandatory?: boolean;
-  fee?: number;
+  fees?: TrainingFee[];
   applicationOpenDate?: string;
   applicationCloseDate?: string;
   instructor?: string;
+  fieldConfig?: TrainingFieldConfig;
 }

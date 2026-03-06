@@ -176,11 +176,12 @@ var テーブル定義 = {
     '法定外研修フラグ',
     '研修概要',
     '研修内容',
-    '費用',
+    '費用JSON',
     '申込開始日',
     '申込締切日',
     '講師',
     '案内状URL',
+    '項目設定JSON',
     '作成日時',
     '更新日時',
     '削除フラグ',
@@ -930,11 +931,12 @@ function seedDemoData() {
       法定外研修フラグ: false,
       研修概要: '介護報酬改定の実務対応ポイントを解説します。',
       研修内容: '改定内容の要点、請求・記録の実務対応、質疑応答を行います。現場での運用変更点を具体例で確認します。',
-      費用: 0,
+      費用JSON: JSON.stringify([{ label: '会員', amount: 0 }, { label: '非会員', amount: 1000 }]),
       申込開始日: '2026-01-10',
       申込締切日: '2026-02-10',
       講師: '厚生労働省 担当官',
       案内状URL: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+      項目設定JSON: '',
       作成日時: now,
       更新日時: now,
       削除フラグ: false,
@@ -952,11 +954,12 @@ function seedDemoData() {
       法定外研修フラグ: true,
       研修概要: '認知症ケアの実践事例とリーダー育成を扱います。',
       研修内容: 'ケーススタディを通じて、チームでの支援方針策定と多職種連携を学びます。',
-      費用: 2000,
+      費用JSON: JSON.stringify([{ label: '会員', amount: 2000 }, { label: '非会員', amount: 3000 }]),
       申込開始日: '2026-02-01',
       申込締切日: '2026-03-01',
       講師: '田中 一郎 先生',
       案内状URL: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+      項目設定JSON: '',
       作成日時: now,
       更新日時: now,
       削除フラグ: false,
@@ -1114,6 +1117,30 @@ function fetchAllDataFromDb_() {
   }
 
   var trainings = trainingRows.map(function(t) {
+    // 費用JSON: JSON配列。旧データ(数値文字列)は会員費用として変換
+    var feesRaw = String(t['費用JSON'] || '');
+    var fees = [];
+    if (feesRaw) {
+      try {
+        fees = JSON.parse(feesRaw);
+      } catch (e) {
+        var n = Number(feesRaw);
+        if (!isNaN(n) && n >= 0) {
+          fees = [{ label: '会員', amount: n }];
+        }
+      }
+    }
+    if (!fees || fees.length === 0) {
+      fees = [{ label: '会員', amount: 0 }, { label: '非会員', amount: 0 }];
+    }
+
+    // 項目設定JSON
+    var fieldConfigRaw = String(t['項目設定JSON'] || '');
+    var fieldConfig = null;
+    if (fieldConfigRaw) {
+      try { fieldConfig = JSON.parse(fieldConfigRaw); } catch (e) {}
+    }
+
     return {
       id: String(t['研修ID'] || ''),
       title: String(t['研修名'] || ''),
@@ -1128,10 +1155,11 @@ function fetchAllDataFromDb_() {
       status: String(t['研修状態コード'] || 'CLOSED'),
       organizer: String(t['主催者'] || ''),
       isNonMandatory: toBoolean_(t['法定外研修フラグ']),
-      fee: Number(t['費用'] || 0),
+      fees: fees,
       applicationOpenDate: formatDateForApi_(t['申込開始日']),
       applicationCloseDate: formatDateForApi_(t['申込締切日']),
       instructor: String(t['講師'] || ''),
+      fieldConfig: fieldConfig,
     };
   });
 
@@ -1802,11 +1830,12 @@ function saveTraining_(payload) {
     setCol('法定外研修フラグ', payload.isNonMandatory ? true : false);
     setCol('研修概要', payload.summary || '');
     setCol('研修内容', payload.description || '');
-    setCol('費用', Number(payload.fee || 0));
+    setCol('費用JSON', payload.fees ? JSON.stringify(payload.fees) : '[]');
     setCol('申込開始日', payload.applicationOpenDate || '');
     setCol('申込締切日', payload.applicationCloseDate || '');
     setCol('講師', payload.instructor || '');
     setCol('案内状URL', payload.guidePdfUrl || '');
+    setCol('項目設定JSON', payload.fieldConfig ? JSON.stringify(payload.fieldConfig) : '');
     setCol('更新日時', now);
 
     sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
@@ -1828,11 +1857,12 @@ function saveTraining_(payload) {
     '法定外研修フラグ': payload.isNonMandatory ? true : false,
     '研修概要': payload.summary || '',
     '研修内容': payload.description || '',
-    '費用': Number(payload.fee || 0),
+    '費用JSON': payload.fees ? JSON.stringify(payload.fees) : '[]',
     '申込開始日': payload.applicationOpenDate || '',
     '申込締切日': payload.applicationCloseDate || '',
     '講師': payload.instructor || '',
     '案内状URL': payload.guidePdfUrl || '',
+    '項目設定JSON': payload.fieldConfig ? JSON.stringify(payload.fieldConfig) : '',
     '作成日時': now,
     '更新日時': now,
     '削除フラグ': false,
