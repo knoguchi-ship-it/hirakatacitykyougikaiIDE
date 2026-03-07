@@ -148,4 +148,5 @@ export interface Training {
   applicationCloseDate?: string;
   instructor?: string;
   fieldConfig?: TrainingFieldConfig;
+  cancelAllowed?: boolean;
 }

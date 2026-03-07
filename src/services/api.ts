@@ -49,6 +49,7 @@ export interface ApiClient {
   saveTraining(training: Training): Promise<Training>;
   uploadTrainingFile(base64: string, filename: string, mimeType: string): Promise<{ url: string }>;
   applyTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ applicationId: string; applicants: number; duplicate?: boolean }>;
+  cancelTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ canceled: boolean; applicants: number }>;
 }
 
 // --- Mock Implementation (Local Development) ---
@@ -201,6 +202,41 @@ class MockApiClient implements ApiClient {
 
     training.applicants = (training.applicants || 0) + 1;
     return { applicationId: `AP-MOCK-${Date.now()}`, applicants: training.applicants };
+  }
+
+  async cancelTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ canceled: boolean; applicants: number }> {
+    const { trainingId, memberId, staffId } = request;
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    const training = this.trainings.find((t) => t.id === trainingId);
+    if (!training) throw new Error('対象研修が見つかりません。');
+    if (!training.cancelAllowed) throw new Error('この研修はキャンセルできません。');
+
+    const member = this.members.find((m) => m.id === memberId);
+    if (!member) throw new Error('会員情報が見つかりません。');
+
+    let canceled = false;
+    if (staffId) {
+      const staff = (member.staff || []).find((s) => s.id === staffId);
+      if (!staff) throw new Error('職員情報が見つかりません。');
+      const ids = new Set(staff.participatedTrainingIds || []);
+      if (ids.has(trainingId)) {
+        ids.delete(trainingId);
+        staff.participatedTrainingIds = Array.from(ids);
+        canceled = true;
+      }
+    } else {
+      const ids = new Set(member.participatedTrainingIds || []);
+      if (ids.has(trainingId)) {
+        ids.delete(trainingId);
+        member.participatedTrainingIds = Array.from(ids);
+        canceled = true;
+      }
+    }
+
+    if (!canceled) throw new Error('キャンセル対象の申込が見つかりません。');
+    training.applicants = Math.max(0, (training.applicants || 0) - 1);
+    return { canceled: true, applicants: training.applicants };
   }
 }
 
@@ -427,6 +463,27 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('applyTraining', JSON.stringify(request));
+    });
+  }
+
+  async cancelTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ canceled: boolean; applicants: number }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error('google.script.run is not available.'));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data);
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('cancelTraining', JSON.stringify(request));
     });
   }
 }

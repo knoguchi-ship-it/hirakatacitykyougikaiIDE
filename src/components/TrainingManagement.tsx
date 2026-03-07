@@ -43,6 +43,7 @@ const EMPTY_FORM: Training = {
   status: 'OPEN',
   instructor: '',
   guidePdfUrl: '',
+  cancelAllowed: false,
   fieldConfig: { ...DEFAULT_FIELD_CONFIG },
 };
 
@@ -345,6 +346,20 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
                   <option value="CLOSED">締切</option>
                 </select>
               </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="cancelAllowed"
+                name="cancelAllowed"
+                checked={form.cancelAllowed === true}
+                onChange={handleChange}
+                className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+              />
+              <label htmlFor="cancelAllowed" className="text-sm text-slate-700">
+                この研修は申込キャンセルを許可する
+              </label>
             </div>
 
             {/* ── 費用区分（動的） ── */}

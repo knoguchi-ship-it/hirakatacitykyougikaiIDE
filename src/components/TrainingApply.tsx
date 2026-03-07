@@ -7,6 +7,7 @@ interface TrainingApplyProps {
   activeStaffId?: string;
   trainings: Training[];
   onApply: (trainingId: string) => Promise<void>;
+  onCancel: (trainingId: string) => Promise<void>;
 }
 
 const formatDateTime = (raw: string) => {
@@ -41,11 +42,12 @@ const toPdfPreviewUrl = (url: string): string => {
   return url;
 };
 
-const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, trainings, onApply }) => {
+const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, trainings, onApply, onCancel }) => {
   const [submittingTrainingId, setSubmittingTrainingId] = useState<string | null>(null);
   const [expandedTrainingId, setExpandedTrainingId] = useState<string | null>(null);
   const [selectedHistoryTrainingId, setSelectedHistoryTrainingId] = useState<string | null>(null);
   const [confirmTraining, setConfirmTraining] = useState<Training | null>(null);
+  const [cancelTargetTraining, setCancelTargetTraining] = useState<Training | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -113,6 +115,22 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
       setConfirmTraining(null);
     } catch (error) {
       setErrorMsg(error instanceof Error ? error.message : '研修申込に失敗しました。');
+    } finally {
+      setSubmittingTrainingId(null);
+    }
+  };
+
+  const handleCancelApply = async (training: Training) => {
+    if (submittingTrainingId) return;
+    try {
+      setErrorMsg(null);
+      setSubmittingTrainingId(training.id);
+      await onCancel(training.id);
+      setSuccessMsg(`「${training.title}」の申込をキャンセルしました。`);
+      setCancelTargetTraining(null);
+      setSelectedHistoryTrainingId(null);
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : '研修キャンセルに失敗しました。');
     } finally {
       setSubmittingTrainingId(null);
     }
@@ -286,11 +304,15 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                   <p className="text-xs text-slate-500">会場</p>
                   <p className="text-slate-800">{selectedHistoryTraining.location || '-'}</p>
                 </div>
-              <div>
-                <p className="text-xs text-slate-500">主催者</p>
-                <p className="text-slate-800">{selectedHistoryTraining.organizer || '-'}</p>
+                <div>
+                  <p className="text-xs text-slate-500">主催者</p>
+                  <p className="text-slate-800">{selectedHistoryTraining.organizer || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500">キャンセル可否</p>
+                  <p className="text-slate-800">{selectedHistoryTraining.cancelAllowed ? 'キャンセル可能' : 'キャンセル不可'}</p>
+                </div>
               </div>
-            </div>
               {(selectedHistoryTraining.fees && selectedHistoryTraining.fees.length > 0) && (
                 <div>
                   <p className="text-xs text-slate-500">研修参加費</p>
@@ -339,6 +361,18 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                   <p className="text-sm text-slate-500">この研修にはPDFが添付されていません。</p>
                 )}
               </div>
+              {selectedHistoryTraining.cancelAllowed && (
+                <div className="pt-2 border-t border-slate-200 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setCancelTargetTraining(selectedHistoryTraining)}
+                    disabled={submittingTrainingId !== null}
+                    className="px-4 py-2 rounded-lg border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  >
+                    申込をキャンセルする
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -406,6 +440,35 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                 className="px-4 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:bg-slate-300 disabled:text-slate-500"
               >
                 {submittingTrainingId === confirmTraining.id ? '申込中...' : 'この内容で申し込む'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cancelTargetTraining && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setCancelTargetTraining(null)} />
+          <div className="relative w-full max-w-md bg-white rounded-xl shadow-2xl border border-slate-200 p-6 space-y-4">
+            <h4 className="text-lg font-bold text-slate-900">申込キャンセルの確認</h4>
+            <p className="text-sm text-slate-700">
+              「{cancelTargetTraining.title}」の申込をキャンセルします。よろしいですか？
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setCancelTargetTraining(null)}
+                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
+              >
+                戻る
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCancelApply(cancelTargetTraining)}
+                disabled={submittingTrainingId !== null}
+                className="px-4 py-2 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700 disabled:bg-slate-300 disabled:text-slate-500"
+              >
+                {submittingTrainingId === cancelTargetTraining.id ? 'キャンセル中...' : 'この申込をキャンセル'}
               </button>
             </div>
           </div>

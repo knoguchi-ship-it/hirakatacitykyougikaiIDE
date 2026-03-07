@@ -246,6 +246,18 @@ const App: React.FC = () => {
     await refreshAllData();
   };
 
+  const handleTrainingCancel = async (trainingId: string): Promise<void> => {
+    if (!currentIdentity) {
+      throw new Error('ログイン情報が見つかりません。');
+    }
+    await api.cancelTraining({
+      trainingId,
+      memberId: currentIdentity.memberId,
+      staffId: currentIdentity.staffId,
+    });
+    await refreshAllData();
+  };
+
   const handleMemberSave = async (updatedMember: Member) => {
     setMembers((prev) => prev.map((m) => (m.id === updatedMember.id ? updatedMember : m)));
     try {
@@ -439,6 +451,7 @@ const App: React.FC = () => {
           activeStaffId={currentIdentity?.staffId}
           trainings={trainings}
           onApply={handleTrainingApply}
+          onCancel={handleTrainingCancel}
         />
       );
     }

@@ -542,6 +542,10 @@ function processApiRequest(action, payload) {
       return JSON.stringify({ success: true, data: applyTraining_(parsedPayload) });
     }
 
+    if (action === 'cancelTraining') {
+      return JSON.stringify({ success: true, data: cancelTraining_(parsedPayload) });
+    }
+
     return JSON.stringify({ success: true, data: { message: '未実装アクションです' } });
   } catch (error) {
     return JSON.stringify({
@@ -940,7 +944,7 @@ function seedDemoData() {
       申込締切日: '2026-02-10',
       講師: '厚生労働省 担当官',
       案内状URL: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
-      項目設定JSON: '',
+      項目設定JSON: serializeTrainingOptions_(null, true),
       作成日時: now,
       更新日時: now,
       削除フラグ: false,
@@ -963,7 +967,7 @@ function seedDemoData() {
       申込締切日: '2026-03-01',
       講師: '田中 一郎 先生',
       案内状URL: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
-      項目設定JSON: '',
+      項目設定JSON: serializeTrainingOptions_(null, false),
       作成日時: now,
       更新日時: now,
       削除フラグ: false,
@@ -986,7 +990,7 @@ function seedDemoData() {
       申込締切日: '2026-04-12',
       講師: '中村 友美 先生',
       案内状URL: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
-      項目設定JSON: '',
+      項目設定JSON: serializeTrainingOptions_(null, true),
       作成日時: now,
       更新日時: now,
       削除フラグ: false,
@@ -1009,7 +1013,7 @@ function seedDemoData() {
       申込締切日: '2026-05-02',
       講師: '川口 誠 先生',
       案内状URL: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
-      項目設定JSON: '',
+      項目設定JSON: serializeTrainingOptions_(null, false),
       作成日時: now,
       更新日時: now,
       削除フラグ: false,
@@ -1142,6 +1146,35 @@ function createPasswordAuthRow_(authId, loginId, roleCode, memberId, staffId, pl
   };
 }
 
+function parseTrainingOptions_(raw) {
+  var defaultResult = { fieldConfig: null, cancelAllowed: false };
+  var text = String(raw || '').trim();
+  if (!text) return defaultResult;
+  try {
+    var parsed = JSON.parse(text);
+    if (parsed && parsed.fieldConfig !== undefined) {
+      return {
+        fieldConfig: parsed.fieldConfig || null,
+        cancelAllowed: parsed.cancelAllowed === true,
+      };
+    }
+    // 旧形式（fieldConfigオブジェクトのみ）
+    return {
+      fieldConfig: parsed || null,
+      cancelAllowed: false,
+    };
+  } catch (e) {
+    return defaultResult;
+  }
+}
+
+function serializeTrainingOptions_(fieldConfig, cancelAllowed) {
+  return JSON.stringify({
+    fieldConfig: fieldConfig || null,
+    cancelAllowed: cancelAllowed === true,
+  });
+}
+
 function fetchAllDataFromDb_() {
   var ss = getOrCreateDatabase_();
   var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
@@ -1184,12 +1217,8 @@ function fetchAllDataFromDb_() {
       fees = [{ label: '会員', amount: 0 }, { label: '非会員', amount: 0 }];
     }
 
-    // 項目設定JSON
-    var fieldConfigRaw = String(t['項目設定JSON'] || '');
-    var fieldConfig = null;
-    if (fieldConfigRaw) {
-      try { fieldConfig = JSON.parse(fieldConfigRaw); } catch (e) {}
-    }
+    // 項目設定JSON（旧形式: fieldConfigのみ / 新形式: { fieldConfig, cancelAllowed }）
+    var trainingOptions = parseTrainingOptions_(t['項目設定JSON']);
 
     return {
       id: String(t['研修ID'] || ''),
@@ -1209,7 +1238,8 @@ function fetchAllDataFromDb_() {
       applicationOpenDate: formatDateForApi_(t['申込開始日']),
       applicationCloseDate: formatDateForApi_(t['申込締切日']),
       instructor: String(t['講師'] || ''),
-      fieldConfig: fieldConfig,
+      fieldConfig: trainingOptions.fieldConfig,
+      cancelAllowed: trainingOptions.cancelAllowed,
     };
   });
 
@@ -1885,7 +1915,7 @@ function saveTraining_(payload) {
     setCol('申込締切日', payload.applicationCloseDate || '');
     setCol('講師', payload.instructor || '');
     setCol('案内状URL', payload.guidePdfUrl || '');
-    setCol('項目設定JSON', payload.fieldConfig ? JSON.stringify(payload.fieldConfig) : '');
+    setCol('項目設定JSON', serializeTrainingOptions_(payload.fieldConfig, payload.cancelAllowed));
     setCol('更新日時', now);
 
     sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
@@ -1912,7 +1942,7 @@ function saveTraining_(payload) {
     '申込締切日': payload.applicationCloseDate || '',
     '講師': payload.instructor || '',
     '案内状URL': payload.guidePdfUrl || '',
-    '項目設定JSON': payload.fieldConfig ? JSON.stringify(payload.fieldConfig) : '',
+    '項目設定JSON': serializeTrainingOptions_(payload.fieldConfig, payload.cancelAllowed),
     '作成日時': now,
     '更新日時': now,
     '削除フラグ': false,
@@ -2023,6 +2053,94 @@ function applyTraining_(payload) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * 申込済み研修をキャンセルする。
+ * - 研修側のキャンセル可否設定を検証
+ * - 対象のAPPLIEDレコードをCANCELEDへ更新
+ * - T_研修 の申込者数を再集計
+ */
+function cancelTraining_(payload) {
+  if (!payload) throw new Error('payload が空です。');
+  var trainingId = String(payload.trainingId || '').trim();
+  var memberId = String(payload.memberId || '').trim();
+  var staffId = String(payload.staffId || '').trim();
+  if (!trainingId) throw new Error('trainingId が未指定です。');
+  if (!memberId) throw new Error('memberId が未指定です。');
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var ss = getOrCreateDatabase_();
+    var trainingSheet = ss.getSheetByName('T_研修');
+    if (!trainingSheet) throw new Error('T_研修 シートが見つかりません。');
+
+    var trainingFound = findRowByColumnValue_(trainingSheet, '研修ID', trainingId);
+    if (!trainingFound) throw new Error('対象研修が見つかりません。');
+    if (!isTrainingCancelable_(trainingFound.row, trainingFound.columns)) {
+      throw new Error('この研修はキャンセルできません。');
+    }
+
+    var appSheet = ss.getSheetByName('T_研修申込');
+    if (!appSheet) throw new Error('T_研修申込 シートが見つかりません。');
+    if (appSheet.getLastRow() < 2) throw new Error('キャンセル対象の申込が見つかりません。');
+
+    var headers = appSheet.getRange(1, 1, 1, appSheet.getLastColumn()).getValues()[0];
+    var cols = {};
+    for (var i = 0; i < headers.length; i += 1) cols[headers[i]] = i;
+    requireColumns_(cols, ['研修ID', '会員ID', '職員ID', '申込状態コード', '取消日時', '更新日時', '削除フラグ']);
+
+    var data = appSheet.getRange(2, 1, appSheet.getLastRow() - 1, appSheet.getLastColumn()).getValues();
+    var targetRowNumber = null;
+    for (var r = 0; r < data.length; r += 1) {
+      var row = data[r];
+      var deleted = toBoolean_(row[cols['削除フラグ']]);
+      if (deleted) continue;
+      if (String(row[cols['研修ID']] || '') !== trainingId) continue;
+      if (String(row[cols['会員ID']] || '') !== memberId) continue;
+      if (String(row[cols['職員ID']] || '') !== staffId) continue;
+      if (String(row[cols['申込状態コード']] || '') !== 'APPLIED') continue;
+      targetRowNumber = r + 2;
+      break;
+    }
+    if (!targetRowNumber) throw new Error('キャンセル対象の申込が見つかりません。');
+
+    var nowIso = new Date().toISOString();
+    appSheet.getRange(targetRowNumber, cols['申込状態コード'] + 1).setValue('CANCELED');
+    appSheet.getRange(targetRowNumber, cols['取消日時'] + 1).setValue(nowIso);
+    appSheet.getRange(targetRowNumber, cols['更新日時'] + 1).setValue(nowIso);
+
+    var nextApplicants = countAppliedApplicants_(ss, trainingId);
+    var tCols = trainingFound.columns;
+    if (tCols['申込者数'] != null) {
+      trainingSheet.getRange(trainingFound.rowNumber, tCols['申込者数'] + 1).setValue(nextApplicants);
+    }
+    if (tCols['更新日時'] != null) {
+      trainingSheet.getRange(trainingFound.rowNumber, tCols['更新日時'] + 1).setValue(nowIso);
+    }
+    SpreadsheetApp.flush();
+
+    return { canceled: true, applicants: nextApplicants };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function isTrainingCancelable_(trainingRow, trainingCols) {
+  var idx = trainingCols['項目設定JSON'];
+  if (idx == null) return false;
+  var options = parseTrainingOptions_(trainingRow[idx]);
+  return options.cancelAllowed === true;
+}
+
+function countAppliedApplicants_(ss, trainingId) {
+  var applicationRows = getRowsAsObjects_(ss, 'T_研修申込').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) &&
+      String(r['研修ID'] || '') === String(trainingId) &&
+      String(r['申込状態コード'] || '') === 'APPLIED';
+  });
+  return applicationRows.length;
 }
 
 function parseDateOnly_(raw) {
