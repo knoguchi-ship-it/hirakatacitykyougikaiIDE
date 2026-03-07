@@ -1,4 +1,4 @@
-var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
+﻿var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 var DB_SPREADSHEET_ID_FIXED = '1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs';
 var SCHEMA_INITIALIZED_KEY = 'DB_SCHEMA_INITIALIZED';
@@ -939,7 +939,7 @@ function seedDemoData() {
       申込開始日: '2026-01-10',
       申込締切日: '2026-02-10',
       講師: '厚生労働省 担当官',
-      案内状URL: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+      案内状URL: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
       項目設定JSON: '',
       作成日時: now,
       更新日時: now,
@@ -962,7 +962,7 @@ function seedDemoData() {
       申込開始日: '2026-02-01',
       申込締切日: '2026-03-01',
       講師: '田中 一郎 先生',
-      案内状URL: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+      案内状URL: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
       項目設定JSON: '',
       作成日時: now,
       更新日時: now,
@@ -985,7 +985,7 @@ function seedDemoData() {
       申込開始日: '2026-03-01',
       申込締切日: '2026-04-12',
       講師: '中村 友美 先生',
-      案内状URL: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+      案内状URL: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
       項目設定JSON: '',
       作成日時: now,
       更新日時: now,
@@ -1008,7 +1008,7 @@ function seedDemoData() {
       申込開始日: '2026-03-15',
       申込締切日: '2026-05-02',
       講師: '川口 誠 先生',
-      案内状URL: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+      案内状URL: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
       項目設定JSON: '',
       作成日時: now,
       更新日時: now,

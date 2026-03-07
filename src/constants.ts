@@ -1,4 +1,4 @@
-import { Member, MemberType, MailingPreference, MailDestination, PaymentStatus, Training } from './types';
+﻿import { Member, MemberType, MailingPreference, MailDestination, PaymentStatus, Training } from './types';
 
 const DEFAULT_TRANSFER_ACCOUNT = {
   bankName: 'ゆうちょ銀行',
@@ -160,7 +160,7 @@ export const MOCK_TRAININGS: Training[] = [
     title: '令和8年度 介護報酬改定に伴う実務研修',
     summary: '介護報酬改定の実務対応ポイントを解説します。',
     description: '改定内容の要点、請求・記録の実務対応、質疑応答を行います。現場での運用変更点を具体例で確認します。',
-    guidePdfUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+    guidePdfUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
     date: '2026-02-15T09:00',
     capacity: 100,
     applicants: 85,
@@ -178,7 +178,7 @@ export const MOCK_TRAININGS: Training[] = [
     title: '認知症ケア実践リーダー研修',
     summary: '認知症ケアの実践事例とリーダー育成を扱います。',
     description: 'ケーススタディを通じて、チームでの支援方針策定と多職種連携を学びます。',
-    guidePdfUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+    guidePdfUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
     date: '2026-03-10T09:00',
     capacity: 40,
     applicants: 40,
@@ -196,7 +196,7 @@ export const MOCK_TRAININGS: Training[] = [
     title: 'ケアプラン点検 実践ハンズオン',
     summary: '提出書類の点検観点を実例ベースで学ぶ実践型研修です。',
     description: '事前配布資料のケースに沿って、算定根拠・記録整合性・加算要件を確認します。少人数グループで相互レビューを行います。',
-    guidePdfUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+    guidePdfUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
     date: '2026-04-18T13:30',
     capacity: 60,
     applicants: 18,
@@ -214,7 +214,7 @@ export const MOCK_TRAININGS: Training[] = [
     title: '在宅医療連携アップデート 2026',
     summary: '多職種連携の最新実務と連絡票運用を整理します。',
     description: '訪問診療・訪問看護・薬局・ケアマネの連携フローを、事例とテンプレートで確認します。オンライン参加向け資料も配布します。',
-    guidePdfUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+    guidePdfUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
     date: '2026-05-09T10:00',
     capacity: 120,
     applicants: 45,
