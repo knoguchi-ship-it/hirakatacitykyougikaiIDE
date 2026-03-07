@@ -22,6 +22,16 @@ const formatDateTime = (raw: string) => {
   });
 };
 
+const formatYen = (amount: number) =>
+  new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(amount || 0);
+
+const formatDateOnly = (raw?: string) => {
+  if (!raw) return '-';
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return raw;
+  return d.toLocaleDateString('ja-JP');
+};
+
 const toPdfPreviewUrl = (url: string): string => {
   if (!url) return '';
   if (url.includes('drive.google.com/file/d/')) {
@@ -59,6 +69,18 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
   );
   const selectedPreviewUrl = selectedHistoryTraining?.guidePdfUrl ? toPdfPreviewUrl(selectedHistoryTraining.guidePdfUrl) : '';
 
+  const getMemberFeeAmount = (training: Training): number => {
+    const fees = training.fees || [];
+    if (fees.length === 0) return 0;
+    const exact = fees.find((f) => String(f.label).trim() === '会員');
+    if (exact) return Number(exact.amount || 0);
+    const include = fees.find((f) => String(f.label).includes('会員') && !String(f.label).includes('非会員'));
+    if (include) return Number(include.amount || 0);
+    return Number(fees[0]?.amount || 0);
+  };
+
+  const needsFeeConfirmation = (training: Training) => getMemberFeeAmount(training) > 0;
+
   useEffect(() => {
     if (trainingHistory.length === 0) {
       setSelectedHistoryTrainingId(null);
@@ -70,10 +92,12 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
     }
   }, [trainingHistory, selectedHistoryTrainingId]);
 
-  const hasPaidFee = (training: Training) => (training.fees || []).some((fee) => Number(fee.amount || 0) > 0);
-
   const openApplyConfirm = (training: Training) => {
     if (submittingTrainingId) return;
+    if (!needsFeeConfirmation(training)) {
+      void handleApply(training);
+      return;
+    }
     setConfirmTraining(training);
   };
 
@@ -145,6 +169,9 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                     <p className="text-sm text-slate-600">
                       {training.isOnline ? 'オンライン' : '現地'} / {training.location} / 定員 {training.capacity}名
                     </p>
+                    <p className="text-sm text-slate-700 mt-1">
+                      会員費: {getMemberFeeAmount(training) > 0 ? formatYen(getMemberFeeAmount(training)) : '無料'}
+                    </p>
                     <div className="mt-2 flex items-center gap-3">
                       <button
                         type="button"
@@ -179,7 +206,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                       : (
                         <>
                           <PlusIcon className="w-4 h-4 mr-1" />
-                          {hasPaidFee(training) ? '費用を確認して申し込む' : '申し込む'}
+                          {needsFeeConfirmation(training) ? '費用を確認して申し込む' : '申し込む'}
                         </>
                       )}
                   </button>
@@ -259,11 +286,28 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                   <p className="text-xs text-slate-500">会場</p>
                   <p className="text-slate-800">{selectedHistoryTraining.location || '-'}</p>
                 </div>
-                <div>
-                  <p className="text-xs text-slate-500">主催者</p>
-                  <p className="text-slate-800">{selectedHistoryTraining.organizer || '-'}</p>
-                </div>
+              <div>
+                <p className="text-xs text-slate-500">主催者</p>
+                <p className="text-slate-800">{selectedHistoryTraining.organizer || '-'}</p>
               </div>
+            </div>
+              {(selectedHistoryTraining.fees && selectedHistoryTraining.fees.length > 0) && (
+                <div>
+                  <p className="text-xs text-slate-500">会費（研修費用）</p>
+                  <div className="mt-1 space-y-1 text-sm text-slate-700">
+                    {selectedHistoryTraining.fees.map((fee) => (
+                      <div key={`${selectedHistoryTraining.id}-${fee.label}`} className="flex justify-between border-b border-slate-100 pb-1">
+                        <span>{fee.label}</span>
+                        <span>{formatYen(Number(fee.amount || 0))}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between font-bold text-slate-900 pt-1">
+                      <span>会員費</span>
+                      <span>{getMemberFeeAmount(selectedHistoryTraining) > 0 ? formatYen(getMemberFeeAmount(selectedHistoryTraining)) : '無料'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
               {selectedHistoryTraining.summary && (
                 <div>
                   <p className="text-xs text-slate-500">概要</p>
@@ -316,19 +360,51 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
               {isBusiness && ` 申込名義: ${currentStaff?.name || '未選択'} 様`}
             </p>
 
-            {hasPaidFee(confirmTraining) && (
-              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3">
-                <p className="text-sm font-bold text-amber-900 mb-2">費用が設定されています。内容を確認してください。</p>
-                <div className="space-y-1 text-sm text-amber-900">
-                  {(confirmTraining.fees || []).map((fee) => (
-                    <div key={`${confirmTraining.id}-${fee.label}`} className="flex justify-between">
-                      <span>{fee.label}</span>
-                      <span>¥{Number(fee.amount || 0).toLocaleString()}</span>
-                    </div>
-                  ))}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm border border-slate-200 rounded-lg p-3">
+              <div>
+                <p className="text-xs text-slate-500">開催日時</p>
+                <p className="text-slate-800">{formatDateTime(confirmTraining.date)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">開催形式</p>
+                <p className="text-slate-800">{confirmTraining.isOnline ? 'オンライン' : '現地開催'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">会場</p>
+                <p className="text-slate-800">{confirmTraining.location || '-'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">講師</p>
+                <p className="text-slate-800">{confirmTraining.instructor || '-'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">申込開始日</p>
+                <p className="text-slate-800">{formatDateOnly(confirmTraining.applicationOpenDate)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">申込締切日</p>
+                <p className="text-slate-800">{formatDateOnly(confirmTraining.applicationCloseDate)}</p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-3">
+              <p className="text-sm font-bold text-amber-900 mb-2">会費（研修費用）を確認してください。</p>
+              <div className="space-y-1 text-sm text-amber-900">
+                {(confirmTraining.fees || []).map((fee) => (
+                  <div key={`${confirmTraining.id}-${fee.label}`} className="flex justify-between">
+                    <span>{fee.label}</span>
+                    <span>{formatYen(Number(fee.amount || 0))}</span>
+                  </div>
+                ))}
+                {(!confirmTraining.fees || confirmTraining.fees.length === 0) && (
+                  <p className="text-slate-700">費用設定なし</p>
+                )}
+                <div className="pt-2 mt-2 border-t border-amber-200 font-bold flex justify-between">
+                  <span>あなたの費用（会員）</span>
+                  <span>{getMemberFeeAmount(confirmTraining) > 0 ? formatYen(getMemberFeeAmount(confirmTraining)) : '無料'}</span>
                 </div>
               </div>
-            )}
+            </div>
 
             <div className="flex justify-end gap-2 pt-2">
               <button
