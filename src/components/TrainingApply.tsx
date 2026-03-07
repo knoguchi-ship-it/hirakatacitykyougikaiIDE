@@ -35,6 +35,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
   const [submittingTrainingId, setSubmittingTrainingId] = useState<string | null>(null);
   const [expandedTrainingId, setExpandedTrainingId] = useState<string | null>(null);
   const [selectedHistoryTrainingId, setSelectedHistoryTrainingId] = useState<string | null>(null);
+  const [confirmTraining, setConfirmTraining] = useState<Training | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -69,13 +70,15 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
     }
   }, [trainingHistory, selectedHistoryTrainingId]);
 
+  const hasPaidFee = (training: Training) => (training.fees || []).some((fee) => Number(fee.amount || 0) > 0);
+
+  const openApplyConfirm = (training: Training) => {
+    if (submittingTrainingId) return;
+    setConfirmTraining(training);
+  };
+
   const handleApply = async (training: Training) => {
     if (submittingTrainingId) return;
-
-    const confirmMsg = isBusiness
-      ? `「${training.title}」に\n職員: ${currentStaff?.name || '未選択'} 様の名義で申し込みますか？`
-      : `「${training.title}」に申し込みますか？`;
-    if (!window.confirm(confirmMsg)) return;
 
     try {
       setErrorMsg(null);
@@ -83,6 +86,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
       await onApply(training.id);
       setSuccessMsg(`「${training.title}」への申し込みが完了しました。`);
       setSelectedHistoryTrainingId(training.id);
+      setConfirmTraining(null);
     } catch (error) {
       setErrorMsg(error instanceof Error ? error.message : '研修申込に失敗しました。');
     } finally {
@@ -162,7 +166,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                     )}
                   </div>
                   <button
-                    onClick={() => handleApply(training)}
+                    onClick={() => openApplyConfirm(training)}
                     disabled={submittingTrainingId !== null}
                     className={`whitespace-nowrap font-bold py-2 px-6 rounded-lg shadow-sm transition-all flex items-center ${
                       submittingTrainingId === training.id
@@ -170,7 +174,14 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                         : 'bg-blue-600 hover:bg-blue-700 text-white'
                     }`}
                   >
-                    {submittingTrainingId === training.id ? '処理中...' : (<><PlusIcon className="w-4 h-4 mr-1" />申し込む</>)}
+                    {submittingTrainingId === training.id
+                      ? '処理中...'
+                      : (
+                        <>
+                          <PlusIcon className="w-4 h-4 mr-1" />
+                          {hasPaidFee(training) ? '費用を確認して申し込む' : '申し込む'}
+                        </>
+                      )}
                   </button>
                 </div>
               ))}
@@ -294,6 +305,51 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
           )}
         </div>
       </div>
+
+      {confirmTraining && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmTraining(null)} />
+          <div className="relative w-full max-w-lg bg-white rounded-xl shadow-2xl border border-slate-200 p-6 space-y-4">
+            <h4 className="text-lg font-bold text-slate-900">研修申込の確認</h4>
+            <p className="text-sm text-slate-700">
+              「{confirmTraining.title}」へ申し込みます。
+              {isBusiness && ` 申込名義: ${currentStaff?.name || '未選択'} 様`}
+            </p>
+
+            {hasPaidFee(confirmTraining) && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3">
+                <p className="text-sm font-bold text-amber-900 mb-2">費用が設定されています。内容を確認してください。</p>
+                <div className="space-y-1 text-sm text-amber-900">
+                  {(confirmTraining.fees || []).map((fee) => (
+                    <div key={`${confirmTraining.id}-${fee.label}`} className="flex justify-between">
+                      <span>{fee.label}</span>
+                      <span>¥{Number(fee.amount || 0).toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmTraining(null)}
+                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApply(confirmTraining)}
+                disabled={submittingTrainingId !== null}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:bg-slate-300 disabled:text-slate-500"
+              >
+                {submittingTrainingId === confirmTraining.id ? '申込中...' : 'この内容で申し込む'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
