@@ -1,10 +1,17 @@
 ﻿# デプロイ標準（URL固定運用）
 
-更新日: 2026-03-08
+更新日: 2026-03-09
 
 ## 1. 目的
 - 本番WebアプリURLを固定し、利用者影響を防ぐ。
 - `/exec` の404再発を抑止する。
+- 既存Deployment IDに対するVersion更新を標準化する。
+
+## 1.1 原則
+- 本番更新は「新しいVersionを作成」し、「既存の本番Deployment ID」に適用する。
+- 上記運用では本番URLは変わらない。
+- `New deployment` は原則禁止（URL変更が発生するため）。
+- 例外的に `New deployment` を行うのは、既存IDで `/exec` 復旧不能な場合のみとし、実施時は本書の固定対象を即時更新する。
 
 ## 2. 固定対象
 - 本番Deployment ID: `AKfycbxIvLJAZgFmo4lxSWKtjpfLHcWbpAgctea2j-Enxj6sdsVXBCaateYsjriKKTeoQQGp`
@@ -22,6 +29,7 @@
 ## 4. 禁止事項
 - 本番運用で毎回 `New deployment` を作ること（URLが変わるため）
 - Web app確認なしで `clasp redeploy` のみで完了とすること
+- 本番Deployment IDを事前合意なく変更すること
 
 ## 5. 障害時の標準切り分け
 1. `npx clasp deployments` で本番Deployment IDの存在を確認
