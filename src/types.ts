@@ -149,4 +149,7 @@ export interface Training {
   instructor?: string;
   fieldConfig?: TrainingFieldConfig;
   cancelAllowed?: boolean;
+  inquiryPerson?: string;
+  inquiryContactType?: 'PHONE' | 'EMAIL';
+  inquiryContactValue?: string;
 }

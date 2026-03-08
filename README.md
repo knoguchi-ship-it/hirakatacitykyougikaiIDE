@@ -79,8 +79,20 @@ npx clasp run setupDatabase
 - [データモデル設計](./docs/03_DATA_MODEL.md)
 - [ロードマップ](./docs/04_ROADMAP.md)
 
+- [引き継ぎ書（2026-03-07 v38）](./docs/99_HANDOVER_2026-03-07_v38.md)
+- [引き継ぎ書（2026-03-07 v37）](./docs/99_HANDOVER_2026-03-07_v37.md)
 - [引き継ぎ書（2026-03-06 v29）](./docs/99_HANDOVER_2026-03-06_v29.md)
 - [引き継ぎ書（2026-03-06 v28）](./docs/99_HANDOVER_2026-03-06_v28.md)
 - [引き継ぎ書（2026-03-06 v26）](./docs/99_HANDOVER_2026-03-06_v26.md)
 - [引き継ぎ書（2026-03-06 v24/v25）](./docs/99_HANDOVER_2026-03-06.md)
 - [引き継ぎ書（2026-03-05）](./docs/99_HANDOVER_2026-03-05.md)
+
+## 運用メモ（2026-03-07追加）
+- 本番 `/exec` が 404 の場合は、まず `Manage deployments` で **Web app** デプロイになっているか確認してください。
+- 既定の切り分けは `npx clasp deployments` → `getWebAppEndpointInfo()` → `/exec` 疎通確認の順です。
+- 研修登録/変更では、任意項目のラベル横「非表示」で項目を隠せます（表示設定パネルで再表示可）。
+
+## デプロイ運用の公式ルール（2026-03-08以降）
+- 本番URLは固定運用です。新規Deploymentを毎回作成しません。
+- 手順は `docs/09_DEPLOYMENT_POLICY.md` を唯一の正本として参照してください。
+- SOW要件は `docs/10_SOW.md` に明記しています。

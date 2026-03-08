@@ -52,6 +52,29 @@ export interface ApiClient {
   cancelTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ canceled: boolean; applicants: number }>;
 }
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_PATTERN = /^[0-9+\-() ー−]{6,}$/;
+
+const normalizeInquiryContactForTraining = (training: Training): Training => {
+  const inquiryPerson = String(training.inquiryPerson || '').trim();
+  if (!inquiryPerson) {
+    throw new Error('問い合わせ窓口の担当者を入力してください。');
+  }
+  const contactValue = String(training.inquiryContactValue || '').trim();
+  if (!contactValue) {
+    throw new Error('問い合わせ窓口の連絡先を入力してください。');
+  }
+  if (!EMAIL_PATTERN.test(contactValue) && !PHONE_PATTERN.test(contactValue)) {
+    throw new Error('問い合わせ窓口の連絡先は電話番号またはメールアドレス形式で入力してください。');
+  }
+  return {
+    ...training,
+    inquiryPerson,
+    inquiryContactValue: contactValue,
+    inquiryContactType: EMAIL_PATTERN.test(contactValue) ? 'EMAIL' : 'PHONE',
+  };
+};
+
 // --- Mock Implementation (Local Development) ---
 class MockApiClient implements ApiClient {
   private members: Member[] = JSON.parse(JSON.stringify(MOCK_MEMBERS));
@@ -148,13 +171,14 @@ class MockApiClient implements ApiClient {
   async saveTraining(training: Training): Promise<Training> {
     console.log('[Mock API] saveTraining called', training);
     await new Promise(resolve => setTimeout(resolve, 500));
-    if (!training.id) {
-      const created = { ...training, id: 'T' + Date.now().toString(36).toUpperCase() };
+    const normalized = normalizeInquiryContactForTraining(training);
+    if (!normalized.id) {
+      const created = { ...normalized, id: 'T' + Date.now().toString(36).toUpperCase() };
       this.trainings = [...this.trainings, created];
       return created;
     }
-    this.trainings = this.trainings.map((t) => (t.id === training.id ? { ...training } : t));
-    return training;
+    this.trainings = this.trainings.map((t) => (t.id === normalized.id ? { ...normalized } : t));
+    return normalized;
   }
 
   async uploadTrainingFile(_base64: string, filename: string, _mimeType: string): Promise<{ url: string }> {

@@ -316,8 +316,122 @@ function healthCheck() {
   };
 }
 
+/**
+ * Web App公開状態の確認用。
+ * 404復旧時の一次切り分け（URL誤り / 未公開 / 権限設定ミス）に使う。
+ */
+function getWebAppEndpointInfo() {
+  var service = ScriptApp.getService();
+  return {
+    scriptId: ScriptApp.getScriptId(),
+    webAppUrl: service.getUrl(),
+    serviceEnabled: service.isEnabled(),
+    timestamp: new Date().toISOString(),
+  };
+}
+
 function getApiDataSnapshot() {
   return fetchAllDataFromDb_();
+}
+
+/**
+ * 研修の問い合わせ窓口（担当者/連絡先）欠損を監査する。
+ */
+function auditTrainingInquiryContacts() {
+  var ss = getOrCreateDatabase_();
+  var rows = getRowsAsObjects_(ss, 'T_研修').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']);
+  });
+
+  var missing = [];
+  for (var i = 0; i < rows.length; i += 1) {
+    var r = rows[i];
+    var options = parseTrainingOptions_(r['項目設定JSON']);
+    var person = String(options.inquiryPerson || '').trim();
+    var contact = String(options.inquiryContactValue || '').trim();
+    if (!person || !contact) {
+      missing.push({
+        trainingId: String(r['研修ID'] || ''),
+        title: String(r['研修名'] || ''),
+        inquiryPerson: person,
+        inquiryContactValue: contact,
+      });
+    }
+  }
+
+  return {
+    total: rows.length,
+    missingCount: missing.length,
+    missingTrainings: missing,
+  };
+}
+
+/**
+ * 研修の問い合わせ窓口（担当者/連絡先）未設定データをテスト用既定値で補完する。
+ */
+function backfillTrainingInquiryContacts() {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var ss = getOrCreateDatabase_();
+    var sheet = ss.getSheetByName('T_研修');
+    if (!sheet) throw new Error('T_研修 シートが見つかりません。');
+    if (sheet.getLastRow() < 2) {
+      return { scanned: 0, updated: 0, updatedTrainings: [], message: '研修データがありません。' };
+    }
+
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var cols = {};
+    for (var i = 0; i < headers.length; i += 1) cols[headers[i]] = i;
+    requireColumns_(cols, ['研修ID', '研修名', '項目設定JSON', '更新日時', '削除フラグ']);
+
+    var nowIso = new Date().toISOString();
+    var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+    var updatedTrainings = [];
+    var scanned = 0;
+
+    for (var r = 0; r < rows.length; r += 1) {
+      var row = rows[r];
+      if (toBoolean_(row[cols['削除フラグ']])) continue;
+      scanned += 1;
+
+      var options = parseTrainingOptions_(row[cols['項目設定JSON']]);
+      var person = String(options.inquiryPerson || '').trim();
+      var contact = String(options.inquiryContactValue || '').trim();
+      if (person && contact) continue;
+
+      var nextPerson = person || '事務局';
+      var nextContactValue = contact || 'support@example.com';
+      var nextContactType = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextContactValue) ? 'EMAIL' : 'PHONE';
+
+      row[cols['項目設定JSON']] = serializeTrainingOptions_(
+        options.fieldConfig,
+        options.cancelAllowed,
+        nextPerson,
+        nextContactType,
+        nextContactValue
+      );
+      row[cols['更新日時']] = nowIso;
+
+      sheet.getRange(r + 2, 1, 1, row.length).setValues([row]);
+      updatedTrainings.push({
+        trainingId: String(row[cols['研修ID']] || ''),
+        title: String(row[cols['研修名']] || ''),
+        inquiryPerson: nextPerson,
+        inquiryContactType: nextContactType,
+        inquiryContactValue: nextContactValue,
+      });
+    }
+
+    SpreadsheetApp.flush();
+    return {
+      scanned: scanned,
+      updated: updatedTrainings.length,
+      updatedTrainings: updatedTrainings,
+    };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 /**
@@ -944,7 +1058,7 @@ function seedDemoData() {
       申込締切日: '2026-02-10',
       講師: '厚生労働省 担当官',
       案内状URL: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
-      項目設定JSON: serializeTrainingOptions_(null, true),
+      項目設定JSON: serializeTrainingOptions_(null, true, '事務局 田中', 'EMAIL', 'support@example.com'),
       作成日時: now,
       更新日時: now,
       削除フラグ: false,
@@ -967,7 +1081,7 @@ function seedDemoData() {
       申込締切日: '2026-03-01',
       講師: '田中 一郎 先生',
       案内状URL: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
-      項目設定JSON: serializeTrainingOptions_(null, false),
+      項目設定JSON: serializeTrainingOptions_(null, false, '事務局 佐藤', 'PHONE', '072-000-1234'),
       作成日時: now,
       更新日時: now,
       削除フラグ: false,
@@ -990,7 +1104,7 @@ function seedDemoData() {
       申込締切日: '2026-04-12',
       講師: '中村 友美 先生',
       案内状URL: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
-      項目設定JSON: serializeTrainingOptions_(null, true),
+      項目設定JSON: serializeTrainingOptions_(null, true, '研修担当 中村', 'EMAIL', 'kenshu@example.com'),
       作成日時: now,
       更新日時: now,
       削除フラグ: false,
@@ -1013,7 +1127,7 @@ function seedDemoData() {
       申込締切日: '2026-05-02',
       講師: '川口 誠 先生',
       案内状URL: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
-      項目設定JSON: serializeTrainingOptions_(null, false),
+      項目設定JSON: serializeTrainingOptions_(null, false, '運営窓口 川口', 'PHONE', '072-111-2222'),
       作成日時: now,
       更新日時: now,
       削除フラグ: false,
@@ -1147,7 +1261,13 @@ function createPasswordAuthRow_(authId, loginId, roleCode, memberId, staffId, pl
 }
 
 function parseTrainingOptions_(raw) {
-  var defaultResult = { fieldConfig: null, cancelAllowed: false };
+  var defaultResult = {
+    fieldConfig: null,
+    cancelAllowed: false,
+    inquiryPerson: '',
+    inquiryContactType: 'PHONE',
+    inquiryContactValue: '',
+  };
   var text = String(raw || '').trim();
   if (!text) return defaultResult;
   try {
@@ -1156,23 +1276,48 @@ function parseTrainingOptions_(raw) {
       return {
         fieldConfig: parsed.fieldConfig || null,
         cancelAllowed: parsed.cancelAllowed === true,
+        inquiryPerson: String(parsed.inquiryPerson || ''),
+        inquiryContactType: String(parsed.inquiryContactType || 'PHONE') === 'EMAIL' ? 'EMAIL' : 'PHONE',
+        inquiryContactValue: String(parsed.inquiryContactValue || ''),
       };
     }
     // 旧形式（fieldConfigオブジェクトのみ）
     return {
       fieldConfig: parsed || null,
       cancelAllowed: false,
+      inquiryPerson: '',
+      inquiryContactType: 'PHONE',
+      inquiryContactValue: '',
     };
   } catch (e) {
     return defaultResult;
   }
 }
 
-function serializeTrainingOptions_(fieldConfig, cancelAllowed) {
+function serializeTrainingOptions_(fieldConfig, cancelAllowed, inquiryPerson, inquiryContactType, inquiryContactValue) {
   return JSON.stringify({
     fieldConfig: fieldConfig || null,
     cancelAllowed: cancelAllowed === true,
+    inquiryPerson: String(inquiryPerson || ''),
+    inquiryContactType: String(inquiryContactType || 'PHONE') === 'EMAIL' ? 'EMAIL' : 'PHONE',
+    inquiryContactValue: String(inquiryContactValue || ''),
   });
+}
+
+function normalizeInquiryContact_(inquiryContactValue) {
+  var value = String(inquiryContactValue || '').trim();
+  if (!value) {
+    throw new Error('問い合わせ窓口の連絡先を入力してください。');
+  }
+  var emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  var phonePattern = /^[0-9+\-() ー−]{6,}$/;
+  if (emailPattern.test(value)) {
+    return { type: 'EMAIL', value: value };
+  }
+  if (phonePattern.test(value)) {
+    return { type: 'PHONE', value: value };
+  }
+  throw new Error('問い合わせ窓口の連絡先は電話番号またはメールアドレス形式で入力してください。');
 }
 
 function fetchAllDataFromDb_() {
@@ -1240,6 +1385,9 @@ function fetchAllDataFromDb_() {
       instructor: String(t['講師'] || ''),
       fieldConfig: trainingOptions.fieldConfig,
       cancelAllowed: trainingOptions.cancelAllowed,
+      inquiryPerson: trainingOptions.inquiryPerson,
+      inquiryContactType: trainingOptions.inquiryContactType,
+      inquiryContactValue: trainingOptions.inquiryContactValue,
     };
   });
 
@@ -1881,6 +2029,15 @@ function hashPassword_(password, salt) {
  */
 function saveTraining_(payload) {
   if (!payload) throw new Error('payload が空です。');
+  var inquiryPerson = String(payload.inquiryPerson || '').trim();
+  if (!inquiryPerson) {
+    throw new Error('問い合わせ窓口の担当者を入力してください。');
+  }
+  var normalizedInquiryContact = normalizeInquiryContact_(payload.inquiryContactValue);
+  payload.inquiryPerson = inquiryPerson;
+  payload.inquiryContactType = normalizedInquiryContact.type;
+  payload.inquiryContactValue = normalizedInquiryContact.value;
+
   var ss = getOrCreateDatabase_();
   var sheet = ss.getSheetByName('T_研修');
   if (!sheet) throw new Error('T_研修 シートが見つかりません。');
@@ -1915,7 +2072,13 @@ function saveTraining_(payload) {
     setCol('申込締切日', payload.applicationCloseDate || '');
     setCol('講師', payload.instructor || '');
     setCol('案内状URL', payload.guidePdfUrl || '');
-    setCol('項目設定JSON', serializeTrainingOptions_(payload.fieldConfig, payload.cancelAllowed));
+    setCol('項目設定JSON', serializeTrainingOptions_(
+      payload.fieldConfig,
+      payload.cancelAllowed,
+      payload.inquiryPerson,
+      payload.inquiryContactType,
+      payload.inquiryContactValue
+    ));
     setCol('更新日時', now);
 
     sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
@@ -1942,7 +2105,13 @@ function saveTraining_(payload) {
     '申込締切日': payload.applicationCloseDate || '',
     '講師': payload.instructor || '',
     '案内状URL': payload.guidePdfUrl || '',
-    '項目設定JSON': serializeTrainingOptions_(payload.fieldConfig, payload.cancelAllowed),
+    '項目設定JSON': serializeTrainingOptions_(
+      payload.fieldConfig,
+      payload.cancelAllowed,
+      payload.inquiryPerson,
+      payload.inquiryContactType,
+      payload.inquiryContactValue
+    ),
     '作成日時': now,
     '更新日時': now,
     '削除フラグ': false,

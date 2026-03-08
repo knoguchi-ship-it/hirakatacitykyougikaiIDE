@@ -79,3 +79,11 @@ npx clasp run --nondev healthCheck
 1. `backend/appsscript.json` の `executionApi.access` は `MYSELF`（運用要件に合うか要確認）
 2. `backend/Code.gs` は DB固定ID運用（`DB_SPREADSHEET_ID_FIXED`）になっている
 3. 既存ワークツリーには本件と無関係な変更が混在しているため、コミット時は対象ファイルを限定する
+
+## 6. 追補（2026-03-07: 404再発時の固定チェック）
+- 本番 `/exec` が 404 の場合、以下を必須実施:
+  1. `npx clasp deployments`
+  2. Apps Script UI で Web app デプロイ設定確認（Execute as Me / Anyone）
+  3. `npx clasp run getWebAppEndpointInfo`
+  4. `/exec` 実アクセス
+- `--nondev` が失敗しても、まず Web app の公開設定を確認してから API 経路を確認する。
