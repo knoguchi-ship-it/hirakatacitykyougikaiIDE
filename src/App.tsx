@@ -13,6 +13,7 @@ type View = 'profile' | 'training-apply' | 'admin' | 'training-manage';
 type AuthTab = 'member' | 'admin';
 type DemoPersona =
   | 'INDIVIDUAL_MEMBER'
+  | 'SUPPORT_MEMBER'
   | 'BUSINESS_ADMIN_MEMBER'
   | 'BUSINESS_STAFF_MEMBER'
   | 'SYSTEM_ADMIN';
@@ -52,6 +53,9 @@ const App: React.FC = () => {
   const [memberPassword, setMemberPassword] = useState('');
   const [adminIdToken, setAdminIdToken] = useState('');
   const [adminGoogleClientId, setAdminGoogleClientId] = useState('');
+  const [defaultBusinessStaffLimit, setDefaultBusinessStaffLimit] = useState(10);
+  const [globalLimitInput, setGlobalLimitInput] = useState('10');
+  const [settingsBusy, setSettingsBusy] = useState(false);
   const [googleScriptReady] = useState(false); // GIS不使用のため常にfalse（保守用トークン入力の表示判定のみ）
 
   const [selectedIdentityId, setSelectedIdentityId] = useState<string>('');
@@ -66,13 +70,17 @@ const App: React.FC = () => {
     const initData = async () => {
       try {
         setIsLoading(true);
-        const [{ members, trainings }, authConfig] = await Promise.all([
+        const [{ members, trainings }, authConfig, systemSettings] = await Promise.all([
           api.fetchAllData(),
           api.getAuthConfig().catch(() => ({ adminGoogleClientId: '' })),
+          api.getSystemSettings().catch(() => ({ defaultBusinessStaffLimit: 10 })),
         ]);
         setMembers(members);
         setTrainings(trainings);
         setAdminGoogleClientId(authConfig.adminGoogleClientId || '');
+        const limit = Number(systemSettings.defaultBusinessStaffLimit || 10);
+        setDefaultBusinessStaffLimit(Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 10);
+        setGlobalLimitInput(String(Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 10));
       } catch (error) {
         console.error('Initialization failed:', error);
         setInitError('データの読み込みに失敗しました。');
@@ -101,12 +109,12 @@ const App: React.FC = () => {
 
   const loginIdentities: LoginIdentity[] = useMemo(() => {
     return members.flatMap((member): LoginIdentity[] => {
-      if (member.type === MemberType.INDIVIDUAL) {
+      if (member.type !== MemberType.BUSINESS) {
         return [{
           id: member.id,
-          label: `個人会員: ${member.lastName} ${member.firstName}`,
+          label: `${member.type === MemberType.SUPPORT ? '賛助会員' : '個人会員'}: ${member.lastName} ${member.firstName}`,
           memberId: member.id,
-          type: MemberType.INDIVIDUAL,
+          type: member.type,
         }];
       }
       return (member.staff || []).map((staff) => ({
@@ -124,6 +132,8 @@ const App: React.FC = () => {
     switch (persona) {
       case 'INDIVIDUAL_MEMBER':
         return identity.type === MemberType.INDIVIDUAL;
+      case 'SUPPORT_MEMBER':
+        return identity.type === MemberType.SUPPORT;
       case 'BUSINESS_ADMIN_MEMBER':
         return identity.type === MemberType.BUSINESS && identity.staffRole === 'ADMIN';
       case 'BUSINESS_STAFF_MEMBER':
@@ -176,6 +186,7 @@ const App: React.FC = () => {
   const memberPageTypeLabel = useMemo(() => {
     if (!currentIdentity) return '未選択';
     if (currentIdentity.type === MemberType.INDIVIDUAL) return '個人会員';
+    if (currentIdentity.type === MemberType.SUPPORT) return '賛助会員';
     if (currentIdentity.staffRole === 'ADMIN') return '事業所会員（管理者）';
     return '事業所会員（メンバー）';
   }, [currentIdentity]);
@@ -315,7 +326,7 @@ const App: React.FC = () => {
                   {m.type === MemberType.BUSINESS ? m.officeName : `${m.lastName} ${m.firstName}`}
                 </td>
                 <td className="px-4 py-3 text-sm text-slate-600">
-                  {m.type === MemberType.INDIVIDUAL ? '個人会員' : '事業所会員'}
+                  {m.type === MemberType.BUSINESS ? '事業所会員' : (m.type === MemberType.SUPPORT ? '賛助会員' : '個人会員')}
                 </td>
                 <td className="px-4 py-3 text-sm text-slate-600">
                   {m.annualFeeHistory[0]?.status === 'PAID' ? '納入済' : '未納'}
@@ -337,6 +348,86 @@ const App: React.FC = () => {
         </p>
       </div>
       <Dashboard />
+      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <h3 className="text-lg font-bold text-slate-800 mb-4">事業所会員メンバー上限設定</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end mb-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">全体デフォルト上限</label>
+            <input
+              type="number"
+              min={1}
+              max={200}
+              value={globalLimitInput}
+              onChange={(e) => setGlobalLimitInput(e.target.value)}
+              className="w-full border border-slate-300 rounded px-3 py-2"
+            />
+          </div>
+          <div>
+            <button
+              type="button"
+              disabled={settingsBusy}
+              onClick={async () => {
+                try {
+                  setSettingsBusy(true);
+                  const next = Number(globalLimitInput || 10);
+                  const saved = await api.updateSystemSettings({ defaultBusinessStaffLimit: next });
+                  setDefaultBusinessStaffLimit(saved.defaultBusinessStaffLimit);
+                  setGlobalLimitInput(String(saved.defaultBusinessStaffLimit));
+                  alert('全体上限を更新しました。');
+                } catch (e) {
+                  alert(e instanceof Error ? e.message : '全体上限の更新に失敗しました。');
+                } finally {
+                  setSettingsBusy(false);
+                }
+              }}
+              className="px-4 py-2 rounded bg-slate-800 text-white disabled:opacity-50"
+            >
+              全体設定を保存
+            </button>
+          </div>
+        </div>
+        <div className="space-y-2">
+          {members.filter((m) => m.type === MemberType.BUSINESS).map((m) => {
+            const effective = m.staffLimit ?? defaultBusinessStaffLimit;
+            return (
+              <div key={m.id} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end border border-slate-200 rounded p-3">
+                <div className="md:col-span-2">
+                  <p className="text-sm font-semibold text-slate-800">{m.officeName}</p>
+                  <p className="text-xs text-slate-500">会員ID: {m.id} / 現在有効上限: {effective}</p>
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-600 mb-1">個別上限（空で全体適用）</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={200}
+                    defaultValue={m.staffLimit ?? ''}
+                    className="w-full border border-slate-300 rounded px-2 py-1 text-sm"
+                    onBlur={(e) => {
+                      const raw = e.target.value.trim();
+                      const nextMember: Member = { ...m, staffLimit: raw ? Math.floor(Number(raw)) : undefined };
+                      setMembers((prev) => prev.map((x) => (x.id === m.id ? nextMember : x)));
+                    }}
+                  />
+                </div>
+                <div>
+                  <button
+                    type="button"
+                    className="px-3 py-2 rounded bg-slate-100 hover:bg-slate-200 text-sm"
+                    onClick={async () => {
+                      const target = members.find((x) => x.id === m.id) || m;
+                      await handleMemberSave(target);
+                      alert('事業所個別上限を保存しました。');
+                    }}
+                  >
+                    個別設定を保存
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
       {renderMemberList()}
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <h3 className="text-lg font-bold text-slate-800 mb-4">研修管理</h3>
@@ -464,6 +555,7 @@ const App: React.FC = () => {
       <MemberForm
         initialMember={currentUser}
         activeStaffId={currentIdentity?.staffId}
+        defaultBusinessStaffLimit={defaultBusinessStaffLimit}
         trainings={trainings}
         onSave={handleMemberSave}
       />
@@ -493,6 +585,7 @@ const App: React.FC = () => {
                 onChange={(e) => switchPersona(e.target.value as DemoPersona)}
               >
                 <option value="INDIVIDUAL_MEMBER">個人会員</option>
+                <option value="SUPPORT_MEMBER">賛助会員</option>
                 <option value="BUSINESS_ADMIN_MEMBER">事業所会員（管理者）</option>
                 <option value="BUSINESS_STAFF_MEMBER">事業所会員（メンバー）</option>
                 <option value="SYSTEM_ADMIN">管理者アカウント</option>

@@ -6,11 +6,12 @@ import { api } from '../services/api';
 interface MemberFormProps {
   initialMember: Member;
   activeStaffId?: string; // Optional: Force a specific staff member view
+  defaultBusinessStaffLimit: number;
   trainings: Training[]; // Data from parent (App.tsx)
   onSave: (member: Member) => void;
 }
 
-const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, trainings, onSave }) => {
+const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, defaultBusinessStaffLimit, trainings, onSave }) => {
   const [member, setMember] = useState<Member>(initialMember);
   const [warning, setWarning] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null); // UX: Success feedback
@@ -19,10 +20,12 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, t
   // UX: Loading state for application button
   const [submittingTrainingId, setSubmittingTrainingId] = useState<string | null>(null);
   const [expandedTrainingId, setExpandedTrainingId] = useState<string | null>(null);
-  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', nextPassword: '', confirmPassword: '' });
+  const [passwordForm, setPasswordForm] = useState({ nextPassword: '', confirmPassword: '' });
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [profileEditModalOpen, setProfileEditModalOpen] = useState(false);
 
   const historyRef = useRef<HTMLDivElement>(null); // UX: For auto-scrolling
   
@@ -87,6 +90,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, t
   const trainingTargetName = isBusiness 
     ? (currentStaff?.name ? `${currentStaff.name} 様` : '選択された職員') 
     : 'あなた';
+  const effectiveStaffLimit = isBusiness ? (member.staffLimit ?? defaultBusinessStaffLimit) : 0;
 
   // --- Action Handlers ---
 
@@ -203,6 +207,11 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, t
 
   const addStaff = () => {
     if (isReadOnly) return;
+    const count = (member.staff || []).length;
+    if (isBusiness && count >= effectiveStaffLimit) {
+      alert(`職員数の上限（${effectiveStaffLimit}名）に達しているため追加できません。`);
+      return;
+    }
     const newStaff: Staff = {
         id: `S${Date.now()}`,
         name: '',
@@ -274,13 +283,14 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, t
     }
     setWarning(null);
     onSave(member);
+    setProfileEditModalOpen(false);
     alert("登録情報を更新しました。");
   };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!passwordForm.currentPassword || !passwordForm.nextPassword || !passwordForm.confirmPassword) {
-      setPasswordError('現在のパスワード・新しいパスワード・確認用をすべて入力してください。');
+    if (!passwordForm.nextPassword || !passwordForm.confirmPassword) {
+      setPasswordError('新しいパスワード・確認用をすべて入力してください。');
       setPasswordSuccess(null);
       return;
     }
@@ -297,10 +307,10 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, t
 
     try {
       setPasswordSubmitting(true);
-      await api.changePassword(currentLoginId, passwordForm.currentPassword, passwordForm.nextPassword);
+      await api.changePassword(currentLoginId, passwordForm.nextPassword);
       setPasswordSuccess('パスワードを変更しました。');
       setPasswordError(null);
-      setPasswordForm({ currentPassword: '', nextPassword: '', confirmPassword: '' });
+      setPasswordForm({ nextPassword: '', confirmPassword: '' });
     } catch (err: any) {
       setPasswordError(err?.message || 'パスワード変更に失敗しました。');
       setPasswordSuccess(null);
@@ -369,7 +379,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, t
                 <div>
                     <p className="text-sm text-slate-500 font-bold mb-1">会員種別</p>
                     <p className="text-lg font-bold text-slate-800">
-                        {isBusiness ? '正会員 (事業所)' : '正会員 (個人)'}
+                        {isBusiness ? '正会員 (事業所)' : (member.type === MemberType.SUPPORT ? '賛助会員' : '正会員 (個人)')}
                     </p>
                     <p className="text-xs text-slate-400 mt-1">登録番号: {member.id}</p>
                 </div>
@@ -424,40 +434,10 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, t
           <h2 className="text-lg font-bold text-slate-800">認証情報</h2>
         </div>
         <div className="p-6">
-          <form onSubmit={handlePasswordChange} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-1">ログインID</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">ログインID（介護支援専門員番号 / 賛助会員は9始まり9桁）</label>
               <input type="text" value={currentLoginId} disabled className="w-full rounded-md shadow-sm border p-2 bg-slate-100 text-slate-600 font-mono" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">現在のパスワード</label>
-              <input
-                type="password"
-                value={passwordForm.currentPassword}
-                onChange={(e) => setPasswordForm((prev) => ({ ...prev, currentPassword: e.target.value }))}
-                className="w-full rounded-md shadow-sm border border-slate-300 p-2"
-                autoComplete="current-password"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">新しいパスワード</label>
-              <input
-                type="password"
-                value={passwordForm.nextPassword}
-                onChange={(e) => setPasswordForm((prev) => ({ ...prev, nextPassword: e.target.value }))}
-                className="w-full rounded-md shadow-sm border border-slate-300 p-2"
-                autoComplete="new-password"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">新しいパスワード（確認）</label>
-              <input
-                type="password"
-                value={passwordForm.confirmPassword}
-                onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
-                className="w-full rounded-md shadow-sm border border-slate-300 p-2"
-                autoComplete="new-password"
-              />
             </div>
             <div className="md:col-span-2 flex items-center justify-between">
               <div>
@@ -465,16 +445,57 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, t
                 {passwordSuccess && <p className="text-sm text-green-600">{passwordSuccess}</p>}
               </div>
               <button
-                type="submit"
-                disabled={passwordSubmitting}
-                className={`px-4 py-2 rounded-lg text-white font-bold ${passwordSubmitting ? 'bg-slate-400' : 'bg-slate-700 hover:bg-slate-800'}`}
+                type="button"
+                onClick={() => setPasswordModalOpen(true)}
+                className="px-4 py-2 rounded-lg text-white font-bold bg-slate-700 hover:bg-slate-800"
               >
-                {passwordSubmitting ? '変更中...' : 'パスワードを変更'}
+                パスワード変更（別窓）
               </button>
             </div>
-          </form>
+          </div>
         </div>
       </div>
+
+      {passwordModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setPasswordModalOpen(false)} />
+          <div className="relative w-full max-w-md bg-white rounded-xl shadow-2xl border border-slate-200 p-6">
+            <h3 className="text-lg font-bold text-slate-900 mb-4">パスワード変更</h3>
+            <form onSubmit={handlePasswordChange} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">新しいパスワード</label>
+                <input
+                  type="password"
+                  value={passwordForm.nextPassword}
+                  onChange={(e) => setPasswordForm((prev) => ({ ...prev, nextPassword: e.target.value }))}
+                  className="w-full rounded-md shadow-sm border border-slate-300 p-2"
+                  autoComplete="new-password"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">新しいパスワード（確認）</label>
+                <input
+                  type="password"
+                  value={passwordForm.confirmPassword}
+                  onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                  className="w-full rounded-md shadow-sm border border-slate-300 p-2"
+                  autoComplete="new-password"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" className="px-4 py-2 border rounded-lg" onClick={() => setPasswordModalOpen(false)}>閉じる</button>
+                <button
+                  type="submit"
+                  disabled={passwordSubmitting}
+                  className={`px-4 py-2 rounded-lg text-white font-bold ${passwordSubmitting ? 'bg-slate-400' : 'bg-slate-700 hover:bg-slate-800'}`}
+                >
+                  {passwordSubmitting ? '変更中...' : '変更する'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* NEW: Available Trainings Section */}
       <div className="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden animate-fadeIn">
@@ -619,7 +640,37 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, t
       </div>
 
       {/* 2. Member Profile Form (Renamed to be secondary) */}
-      <div className="bg-white p-8 rounded-xl shadow-md border border-slate-200">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-slate-800">会員情報</h2>
+          <button
+            type="button"
+            onClick={() => setProfileEditModalOpen(true)}
+            className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-bold hover:bg-primary-700"
+          >
+            会員情報を確認・変更（別窓）
+          </button>
+        </div>
+        <div className="p-6 text-sm text-slate-600">
+          会員情報の変更は「会員情報を変更（別窓）」から実施してください。
+          {isBusiness && (
+            <div className="mt-2">
+              現在の所属職員数: {(member.staff || []).length} / 上限 {effectiveStaffLimit} 名
+            </div>
+          )}
+        </div>
+      </div>
+
+      {profileEditModalOpen && (
+      <div className="fixed inset-0 z-50 flex items-start justify-center px-4 py-6 overflow-y-auto">
+        <div className="absolute inset-0 bg-black/40" onClick={() => setProfileEditModalOpen(false)} />
+        <div className="relative w-full max-w-5xl bg-white p-6 rounded-xl shadow-2xl border border-slate-200">
+          <div className="flex items-start justify-between mb-2">
+            <h2 className="text-xl font-bold text-slate-800">会員情報の確認・変更</h2>
+            <button type="button" onClick={() => setProfileEditModalOpen(false)} className="text-slate-500 hover:text-slate-800">閉じる</button>
+          </div>
+          <div className="max-h-[80vh] overflow-y-auto pr-1">
+      <div className="bg-white p-8 rounded-xl border border-slate-200">
         <h2 className="text-xl font-bold text-slate-800 mb-2">会員情報の確認・変更</h2>
         <p className="text-sm text-slate-500 mb-8 pb-4 border-b border-slate-200">
           ご登録内容の確認・変更はこちらから行えます。
@@ -1023,6 +1074,10 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, t
           </div>
         </form>
       </div>
+      </div>
+      </div>
+      </div>
+      )}
     </div>
   );
 };

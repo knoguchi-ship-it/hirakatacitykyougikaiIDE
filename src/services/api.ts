@@ -15,7 +15,9 @@ declare const google: {
 export interface ApiClient {
   fetchAllData(): Promise<{ members: Member[], trainings: Training[] }>;
   updateMember(member: Member): Promise<void>;
-  changePassword(loginId: string, currentPassword: string, newPassword: string): Promise<void>;
+  changePassword(loginId: string, newPassword: string): Promise<void>;
+  getSystemSettings(): Promise<{ defaultBusinessStaffLimit: number }>;
+  updateSystemSettings(settings: { defaultBusinessStaffLimit: number }): Promise<{ defaultBusinessStaffLimit: number }>;
   memberLogin(loginId: string, password: string): Promise<{
     authMethod: 'PASSWORD';
     loginId: string;
@@ -54,8 +56,61 @@ export interface ApiClient {
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_PATTERN = /^[0-9+\-() ー−]{6,}$/;
+const CARE_MANAGER_NO_PATTERN = /^\d{8}$/;
+
+const seedToDigit = (seed: string): string => {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  return String(hash % 100000000).padStart(8, '0');
+};
+
+const buildSupportLoginId = (seed: string): string => `9${seedToDigit(seed)}`;
+
+const resolveLoginIdByRule = (candidate: string | undefined, fallbackSeed: string): string => {
+  const normalized = String(candidate || '').trim();
+  if (CARE_MANAGER_NO_PATTERN.test(normalized)) return normalized;
+  if (/^9\d{8}$/.test(normalized)) return normalized;
+  return buildSupportLoginId(fallbackSeed);
+};
+
+const normalizeMemberLoginIds = (members: Member[]): Member[] =>
+  members.map((member) => {
+    const baseLoginId = resolveLoginIdByRule(member.careManagerNumber || member.loginId || member.id, `member-${member.id}`);
+    if (member.type !== 'BUSINESS') {
+      return { ...member, loginId: baseLoginId };
+    }
+    const normalizedStaff = (member.staff || []).map((staff) => ({
+      ...staff,
+      loginId: resolveLoginIdByRule(staff.careManagerNumber || staff.loginId, `staff-${member.id}-${staff.id}`),
+    }));
+    return { ...member, loginId: baseLoginId, staff: normalizedStaff };
+  });
+
+const deriveTrainingStatusByCloseDate = (applicationCloseDate?: string): 'OPEN' | 'CLOSED' => {
+  const raw = String(applicationCloseDate || '').trim();
+  if (!raw) return 'OPEN';
+  const close = new Date(raw);
+  if (Number.isNaN(close.getTime())) return 'OPEN';
+  close.setHours(23, 59, 59, 999);
+  return Date.now() > close.getTime() ? 'CLOSED' : 'OPEN';
+};
 
 const normalizeInquiryContactForTraining = (training: Training): Training => {
+  const organizer = String(training.organizer || '').trim();
+  if (!organizer) {
+    throw new Error('主催者を入力してください。');
+  }
+  const location = String(training.location || '').trim();
+  if (!location) {
+    throw new Error('開催場所を入力してください。');
+  }
+  const summary = String(training.summary || '').trim();
+  if (!summary) {
+    throw new Error('研修概要を入力してください。');
+  }
+
   const inquiryPerson = String(training.inquiryPerson || '').trim();
   if (!inquiryPerson) {
     throw new Error('問い合わせ窓口の担当者を入力してください。');
@@ -69,6 +124,10 @@ const normalizeInquiryContactForTraining = (training: Training): Training => {
   }
   return {
     ...training,
+    organizer,
+    location,
+    summary,
+    status: deriveTrainingStatusByCloseDate(training.applicationCloseDate),
     inquiryPerson,
     inquiryContactValue: contactValue,
     inquiryContactType: EMAIL_PATTERN.test(contactValue) ? 'EMAIL' : 'PHONE',
@@ -77,8 +136,9 @@ const normalizeInquiryContactForTraining = (training: Training): Training => {
 
 // --- Mock Implementation (Local Development) ---
 class MockApiClient implements ApiClient {
-  private members: Member[] = JSON.parse(JSON.stringify(MOCK_MEMBERS));
+  private members: Member[] = normalizeMemberLoginIds(JSON.parse(JSON.stringify(MOCK_MEMBERS)));
   private trainings: Training[] = JSON.parse(JSON.stringify(MOCK_TRAININGS));
+  private defaultBusinessStaffLimit = 10;
 
   async fetchAllData(): Promise<{ members: Member[], trainings: Training[] }> {
     console.log('[Mock API] fetchAllData called');
@@ -95,18 +155,28 @@ class MockApiClient implements ApiClient {
     this.members = this.members.map((m) => (m.id === member.id ? JSON.parse(JSON.stringify(member)) : m));
   }
 
-  async changePassword(loginId: string, currentPassword: string, newPassword: string): Promise<void> {
+  async changePassword(loginId: string, newPassword: string): Promise<void> {
     console.log('[Mock API] changePassword called');
     await new Promise(resolve => setTimeout(resolve, 500));
     if (!loginId) {
       throw new Error('ログインIDが取得できませんでした。');
     }
-    if (currentPassword !== 'demo1234') {
-      throw new Error('現在のパスワードが正しくありません。');
-    }
     if (newPassword.length < 8) {
       throw new Error('新しいパスワードは8文字以上で入力してください。');
     }
+  }
+
+  async getSystemSettings(): Promise<{ defaultBusinessStaffLimit: number }> {
+    return { defaultBusinessStaffLimit: this.defaultBusinessStaffLimit };
+  }
+
+  async updateSystemSettings(settings: { defaultBusinessStaffLimit: number }): Promise<{ defaultBusinessStaffLimit: number }> {
+    const next = Number(settings.defaultBusinessStaffLimit || 10);
+    if (!Number.isFinite(next) || next < 1 || next > 200) {
+      throw new Error('事業所メンバー上限（全体）は 1〜200 の範囲で設定してください。');
+    }
+    this.defaultBusinessStaffLimit = Math.floor(next);
+    return { defaultBusinessStaffLimit: this.defaultBusinessStaffLimit };
   }
 
   async memberLogin(loginId: string, password: string) {
@@ -119,7 +189,7 @@ class MockApiClient implements ApiClient {
     }
     const all = await this.fetchAllData();
     const identity = all.members.flatMap(m => {
-      if (m.type === 'INDIVIDUAL') return [{ memberId: m.id, staffId: undefined, loginId: m.loginId || '' }];
+      if (m.type !== 'BUSINESS') return [{ memberId: m.id, staffId: undefined, loginId: m.loginId || '' }];
       return (m.staff || []).map(s => ({ memberId: m.id, staffId: s.id, loginId: s.loginId || '' }));
     }).find(x => x.loginId === loginId);
     if (!identity) {
@@ -195,7 +265,7 @@ class MockApiClient implements ApiClient {
     if (!training) {
       throw new Error('対象研修が見つかりません。');
     }
-    if (training.status !== 'OPEN') {
+    if (deriveTrainingStatusByCloseDate(training.applicationCloseDate) !== 'OPEN') {
       throw new Error('この研修は受付期間外です。');
     }
 
@@ -278,7 +348,11 @@ class GasApiClient implements ApiClient {
           try {
             const parsed = JSON.parse(result);
             if (parsed.success) {
-              resolve(parsed.data);
+              const data = parsed.data || { members: [], trainings: [] };
+              resolve({
+                members: normalizeMemberLoginIds(data.members || []),
+                trainings: data.trainings || [],
+              });
             } else {
               reject(new Error(parsed.error || 'API Error'));
             }
@@ -318,7 +392,7 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async changePassword(loginId: string, currentPassword: string, newPassword: string): Promise<void> {
+  async changePassword(loginId: string, newPassword: string): Promise<void> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
         reject(new Error('google.script.run is not available.'));
@@ -339,7 +413,49 @@ class GasApiClient implements ApiClient {
           }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('changePassword', JSON.stringify({ loginId, currentPassword, newPassword }));
+        .processApiRequest('changePassword', JSON.stringify({ loginId, newPassword }));
+    });
+  }
+
+  async getSystemSettings(): Promise<{ defaultBusinessStaffLimit: number }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        resolve({ defaultBusinessStaffLimit: 10 });
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data || { defaultBusinessStaffLimit: 10 });
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getSystemSettings', null);
+    });
+  }
+
+  async updateSystemSettings(settings: { defaultBusinessStaffLimit: number }): Promise<{ defaultBusinessStaffLimit: number }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error('google.script.run is not available.'));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data || { defaultBusinessStaffLimit: 10 });
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('updateSystemSettings', JSON.stringify(settings));
     });
   }
 

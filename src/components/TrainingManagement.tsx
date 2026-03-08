@@ -9,15 +9,12 @@ interface Props {
 }
 
 const OPTIONAL_FIELD_DEFS: { key: keyof TrainingFieldConfig; label: string }[] = [
-  { key: 'organizer', label: '主催者' },
-  { key: 'summary', label: '研修概要' },
   { key: 'description', label: '詳細説明' },
-  { key: 'location', label: '開催場所' },
   { key: 'instructor', label: '講師' },
   { key: 'applicationOpenDate', label: '申込開始日' },
   { key: 'applicationCloseDate', label: '申込締切日' },
   { key: 'fees', label: '研修費用' },
-  { key: 'isNonMandatory', label: '任意研修フラグ' },
+  { key: 'isNonMandatory', label: '法定外研修フラグ' },
   { key: 'guidePdfUrl', label: '案内PDF' },
 ];
 
@@ -204,6 +201,18 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
       setSaveError('開催日時を入力してください。');
       return;
     }
+    if (!String(form.organizer || '').trim()) {
+      setSaveError('主催者を入力してください。');
+      return;
+    }
+    if (!String(form.location || '').trim()) {
+      setSaveError('開催場所を入力してください。');
+      return;
+    }
+    if (!String(form.summary || '').trim()) {
+      setSaveError('研修概要を入力してください。');
+      return;
+    }
 
     const inquiryPerson = String(form.inquiryPerson || '').trim();
     if (!inquiryPerson) {
@@ -342,22 +351,14 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
                 <input className={inputCls} type="datetime-local" name="date" value={form.date} onChange={handleChange} />
               </div>
               <div>
-                {renderFieldHeader('主催者', 'organizer')}
-                {isFieldOn('organizer') ? (
-                  <input className={inputCls} name="organizer" value={form.organizer || ''} onChange={handleChange} />
-                ) : (
-                  renderOffHint()
-                )}
+                <label className="block text-sm font-medium text-slate-700 mb-1">主催者 <span className="text-red-500">*</span></label>
+                <input className={inputCls} name="organizer" value={form.organizer || ''} onChange={handleChange} />
               </div>
             </div>
 
             <div>
-              {renderFieldHeader('研修概要', 'summary')}
-              {isFieldOn('summary') ? (
-                <textarea className={inputCls} name="summary" value={form.summary || ''} onChange={handleChange} rows={2} />
-              ) : (
-                renderOffHint()
-              )}
+              <label className="block text-sm font-medium text-slate-700 mb-1">研修概要 <span className="text-red-500">*</span></label>
+              <textarea className={inputCls} name="summary" value={form.summary || ''} onChange={handleChange} rows={2} />
             </div>
 
             <div>
@@ -371,23 +372,8 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                {renderFieldHeader('開催場所', 'location')}
-                {isFieldOn('location') ? (
-                  <input className={inputCls} name="location" value={form.location} onChange={handleChange} />
-                ) : (
-                  renderOffHint()
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">開催形式 <span className="text-red-500">*</span></label>
-                <select
-                  className={inputCls}
-                  value={form.isOnline ? 'true' : 'false'}
-                  onChange={(e) => setForm((prev) => ({ ...prev, isOnline: e.target.value === 'true' }))}
-                >
-                  <option value="false">会場開催</option>
-                  <option value="true">オンライン</option>
-                </select>
+                <label className="block text-sm font-medium text-slate-700 mb-1">開催場所 <span className="text-red-500">*</span></label>
+                <input className={inputCls} name="location" value={form.location} onChange={handleChange} />
               </div>
             </div>
 
@@ -395,13 +381,6 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">定員 <span className="text-red-500">*</span></label>
                 <input className={inputCls} type="number" min={0} name="capacity" value={form.capacity} onChange={handleChange} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">申込状態 <span className="text-red-500">*</span></label>
-                <select className={inputCls} name="status" value={form.status} onChange={handleChange}>
-                  <option value="OPEN">受付中</option>
-                  <option value="CLOSED">受付終了</option>
-                </select>
               </div>
             </div>
 
@@ -475,7 +454,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
             </div>
 
             <div>
-              {renderFieldHeader('任意研修フラグ', 'isNonMandatory')}
+              {renderFieldHeader('法定外研修フラグ', 'isNonMandatory')}
               {isFieldOn('isNonMandatory') ? (
                 <label className="inline-flex items-center gap-2 text-sm text-slate-700">
                   <input
@@ -486,7 +465,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
                     onChange={handleChange}
                     className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                   />
-                  任意研修として登録する
+                  法定外研修として登録する
                 </label>
               ) : (
                 renderOffHint()

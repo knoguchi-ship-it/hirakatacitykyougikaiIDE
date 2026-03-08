@@ -12,7 +12,8 @@ const DEFAULT_TRANSFER_ACCOUNT = {
 export const MOCK_MEMBERS: Member[] = [
   {
     id: '12345678',
-    loginId: 'member-12345678',
+    loginId: '12345678',
+    careManagerNumber: '12345678',
     lastName: '山田',
     firstName: '太郎',
     lastKana: 'ヤマダ',
@@ -49,7 +50,8 @@ export const MOCK_MEMBERS: Member[] = [
   },
   {
     id: '87654321',
-    loginId: 'member-87654321',
+    loginId: '87654321',
+    careManagerNumber: '87654321',
     lastName: '鈴木',
     firstName: '花子',
     lastKana: 'スズキ',
@@ -85,8 +87,46 @@ export const MOCK_MEMBERS: Member[] = [
     participatedTrainingIds: []
   },
   {
+    id: '934567890',
+    careManagerNumber: '',
+    lastName: '高橋',
+    firstName: '恵',
+    lastKana: 'タカハシ',
+    firstKana: 'メグミ',
+    type: MemberType.SUPPORT,
+
+    // Office
+    officeName: '賛助会員（個人）',
+    officePostCode: '',
+    officePrefecture: '',
+    officeCity: '',
+    officeAddressLine: '',
+    phone: '',
+    fax: '072-333-3333',
+
+    // Home
+    homePostCode: '573-0055',
+    homePrefecture: '大阪府',
+    homeCity: '枚方市',
+    homeAddressLine: '中宮本町1-1',
+    mobilePhone: '090-2222-3333',
+
+    // Settings
+    mailingPreference: MailingPreference.POST,
+    preferredMailDestination: MailDestination.HOME,
+    email: '',
+
+    status: 'ACTIVE',
+    annualFeeHistory: [
+      { year: 2025, status: PaymentStatus.PAID },
+      { year: 2024, status: PaymentStatus.PAID }
+    ],
+    participatedTrainingIds: []
+  },
+  {
     id: '99999999',
-    loginId: 'office-99999999',
+    loginId: '99999999',
+    staffLimit: 10,
     lastName: '佐藤', // Representative
     firstName: '次郎', 
     lastKana: 'サトウ',
@@ -97,7 +137,8 @@ export const MOCK_MEMBERS: Member[] = [
     staff: [
       { 
         id: 'S1', 
-        loginId: 'office-99999999-admin',
+        loginId: '11223344',
+        careManagerNumber: '11223344',
         name: '佐藤 次郎', 
         kana: 'サトウ ジロウ', 
         email: 'sato@hirakata-station.com', 
@@ -106,7 +147,6 @@ export const MOCK_MEMBERS: Member[] = [
       },
       { 
         id: 'S2', 
-        loginId: 'office-99999999-s2',
         name: '田中 三郎', 
         kana: 'タナカ サブロウ', 
         email: 'tanaka@hirakata-station.com', 
@@ -115,7 +155,6 @@ export const MOCK_MEMBERS: Member[] = [
       },
       { 
         id: 'S3', 
-        loginId: 'office-99999999-s3',
         name: '伊藤 四郎', 
         kana: 'イトウ シロウ', 
         email: 'ito@hirakata-station.com', 

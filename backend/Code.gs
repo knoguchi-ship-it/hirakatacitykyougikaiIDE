@@ -3,6 +3,7 @@ var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 var DB_SPREADSHEET_ID_FIXED = '1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs';
 var SCHEMA_INITIALIZED_KEY = 'DB_SCHEMA_INITIALIZED';
 var ADMIN_GOOGLE_CLIENT_ID_KEY = 'ADMIN_GOOGLE_CLIENT_ID';
+var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
 
 var マスタ定義 = {
   M_会員種別: ['コード', '名称', '表示順', '有効フラグ'],
@@ -22,6 +23,7 @@ var マスタ初期値 = {
   M_会員種別: [
     ['INDIVIDUAL', '個人会員', 1, true],
     ['BUSINESS', '事業所会員', 2, true],
+    ['SUPPORT', '賛助会員', 3, true],
   ],
   M_会員状態: [
     ['ACTIVE', '有効', 1, true],
@@ -91,6 +93,7 @@ var テーブル定義 = {
     '自宅住所',
     '発送方法コード',
     '郵送先区分コード',
+    '職員数上限',
     '作成日時',
     '更新日時',
     '削除フラグ',
@@ -605,10 +608,7 @@ function processApiRequest(action, payload) {
     if (action === 'updateMember') {
       return JSON.stringify({
         success: true,
-        data: {
-          updated: true,
-          payload: parsedPayload || null,
-        },
+        data: updateMember_(parsedPayload),
       });
     }
 
@@ -634,6 +634,14 @@ function processApiRequest(action, payload) {
 
     if (action === 'getAuthConfig') {
       return JSON.stringify({ success: true, data: getAuthConfig_() });
+    }
+
+    if (action === 'getSystemSettings') {
+      return JSON.stringify({ success: true, data: getSystemSettings_() });
+    }
+
+    if (action === 'updateSystemSettings') {
+      return JSON.stringify({ success: true, data: updateSystemSettings_(parsedPayload) });
     }
 
     if (action === 'sendTrainingReminder') {
@@ -795,7 +803,7 @@ function collectTrainingRecipients_(members, trainingId) {
     var memberId = String(member.id || '');
     var memberType = String(member.type || '');
 
-    if (memberType === 'INDIVIDUAL') {
+    if (memberType !== 'BUSINESS') {
       var memberTrainingIds = member.participatedTrainingIds || [];
       if (memberTrainingIds.indexOf(trainingId) !== -1) {
         pushRecipient_(member.email, String(member.lastName || '') + ' ' + String(member.firstName || ''), memberId, '');
@@ -923,6 +931,7 @@ function seedDemoData() {
       自宅住所: '自宅町1-2-3',
       発送方法コード: 'EMAIL',
       郵送先区分コード: 'OFFICE',
+      職員数上限: '',
       作成日時: now,
       更新日時: now,
       削除フラグ: false,
@@ -950,6 +959,35 @@ function seedDemoData() {
       自宅住所: '津田北町2-2-2',
       発送方法コード: 'POST',
       郵送先区分コード: 'HOME',
+      職員数上限: '',
+      作成日時: now,
+      更新日時: now,
+      削除フラグ: false,
+    },
+    {
+      会員ID: '934567890',
+      会員種別コード: 'SUPPORT',
+      会員状態コード: 'ACTIVE',
+      姓: '高橋',
+      名: '恵',
+      セイ: 'タカハシ',
+      メイ: 'メグミ',
+      代表メールアドレス: '',
+      携帯電話番号: '090-2222-3333',
+      勤務先名: '賛助会員（個人）',
+      勤務先郵便番号: '',
+      勤務先都道府県: '',
+      勤務先市区町村: '',
+      勤務先住所: '',
+      勤務先電話番号: '',
+      勤務先FAX番号: '072-333-3333',
+      自宅郵便番号: '573-0055',
+      自宅都道府県: '大阪府',
+      自宅市区町村: '枚方市',
+      自宅住所: '中宮本町1-1',
+      発送方法コード: 'POST',
+      郵送先区分コード: 'HOME',
+      職員数上限: '',
       作成日時: now,
       更新日時: now,
       削除フラグ: false,
@@ -977,6 +1015,7 @@ function seedDemoData() {
       自宅住所: '',
       発送方法コード: 'EMAIL',
       郵送先区分コード: 'OFFICE',
+      職員数上限: 10,
       作成日時: now,
       更新日時: now,
       削除フラグ: false,
@@ -1194,6 +1233,8 @@ function seedDemoData() {
     { 年会費履歴ID: 'FY-002', 会員ID: '12345678', 対象年度: 2024, 会費納入状態コード: 'PAID', 納入確認日: '2024-05-01', 金額: 5000, 備考: '', 作成日時: now, 更新日時: now, 削除フラグ: false },
     { 年会費履歴ID: 'FY-003', 会員ID: '87654321', 対象年度: 2025, 会費納入状態コード: 'UNPAID', 納入確認日: '', 金額: 5000, 備考: JSON.stringify(DEMO_TRANSFER_ACCOUNT), 作成日時: now, 更新日時: now, 削除フラグ: false },
     { 年会費履歴ID: 'FY-004', 会員ID: '87654321', 対象年度: 2024, 会費納入状態コード: 'PAID', 納入確認日: '2024-05-01', 金額: 5000, 備考: '', 作成日時: now, 更新日時: now, 削除フラグ: false },
+    { 年会費履歴ID: 'FY-007', 会員ID: '934567890', 対象年度: 2025, 会費納入状態コード: 'PAID', 納入確認日: '2025-05-01', 金額: 5000, 備考: '', 作成日時: now, 更新日時: now, 削除フラグ: false },
+    { 年会費履歴ID: 'FY-008', 会員ID: '934567890', 対象年度: 2024, 会費納入状態コード: 'PAID', 納入確認日: '2024-05-01', 金額: 5000, 備考: '', 作成日時: now, 更新日時: now, 削除フラグ: false },
     { 年会費履歴ID: 'FY-005', 会員ID: '99999999', 対象年度: 2025, 会費納入状態コード: 'PAID', 納入確認日: '2025-05-01', 金額: 5000, 備考: '', 作成日時: now, 更新日時: now, 削除フラグ: false },
     { 年会費履歴ID: 'FY-006', 会員ID: '99999999', 対象年度: 2024, 会費納入状態コード: 'PAID', 納入確認日: '2024-05-01', 金額: 5000, 備考: '', 作成日時: now, 更新日時: now, 削除フラグ: false },
   ]);
@@ -1206,13 +1247,17 @@ function seedDemoData() {
 
 function seedAuthAccounts_(ss, now) {
   var basePassword = 'demo1234';
+  var supportS2 = buildSupportLoginId_('99999999-S2');
+  var supportS3 = buildSupportLoginId_('99999999-S3');
+  var supportMember = buildSupportLoginId_('934567890');
 
   appendRowsByHeaders_(ss, 'T_認証アカウント', [
-    createPasswordAuthRow_('AUTH-I-12345678', 'member-12345678', 'INDIVIDUAL_MEMBER', '12345678', '', basePassword, now),
-    createPasswordAuthRow_('AUTH-I-87654321', 'member-87654321', 'INDIVIDUAL_MEMBER', '87654321', '', basePassword, now),
-    createPasswordAuthRow_('AUTH-B-S1', 'office-99999999-admin', 'BUSINESS_ADMIN', '99999999', 'S1', basePassword, now),
-    createPasswordAuthRow_('AUTH-B-S2', 'office-99999999-s2', 'BUSINESS_MEMBER', '99999999', 'S2', basePassword, now),
-    createPasswordAuthRow_('AUTH-B-S3', 'office-99999999-s3', 'BUSINESS_MEMBER', '99999999', 'S3', basePassword, now),
+    createPasswordAuthRow_('AUTH-I-12345678', '12345678', 'INDIVIDUAL_MEMBER', '12345678', '', basePassword, now),
+    createPasswordAuthRow_('AUTH-I-87654321', '87654321', 'INDIVIDUAL_MEMBER', '87654321', '', basePassword, now),
+    createPasswordAuthRow_('AUTH-S-934567890', supportMember, 'INDIVIDUAL_MEMBER', '934567890', '', basePassword, now),
+    createPasswordAuthRow_('AUTH-B-S1', '11223344', 'BUSINESS_ADMIN', '99999999', 'S1', basePassword, now),
+    createPasswordAuthRow_('AUTH-B-S2', supportS2, 'BUSINESS_MEMBER', '99999999', 'S2', basePassword, now),
+    createPasswordAuthRow_('AUTH-B-S3', supportS3, 'BUSINESS_MEMBER', '99999999', 'S3', basePassword, now),
     {
       認証ID: 'AUTH-ADMIN-GOOGLE',
       認証方式: 'GOOGLE',
@@ -1376,7 +1421,7 @@ function fetchAllDataFromDb_() {
       applicants: Number(t['申込者数'] || 0),
       location: String(t['開催場所'] || ''),
       isOnline: String(t['開催形式コード'] || '') === 'ONLINE',
-      status: String(t['研修状態コード'] || 'CLOSED'),
+      status: deriveTrainingStatusByCloseDate_(t['申込締切日']),
       organizer: String(t['主催者'] || ''),
       isNonMandatory: toBoolean_(t['法定外研修フラグ']),
       fees: fees,
@@ -1466,6 +1511,10 @@ function fetchAllDataFromDb_() {
       mobilePhone: String(m['携帯電話番号'] || ''),
       mailingPreference: String(m['発送方法コード'] || 'EMAIL'),
       preferredMailDestination: String(m['郵送先区分コード'] || 'OFFICE'),
+      staffLimit: (function() {
+        var n = Number(m['職員数上限']);
+        return isFinite(n) && n >= 1 ? Math.floor(n) : undefined;
+      })(),
       email: String(m['代表メールアドレス'] || ''),
       status: String(m['会員状態コード'] || 'ACTIVE'),
       annualFeeHistory: history,
@@ -1578,12 +1627,11 @@ function parsePayload_(payload) {
 }
 
 function changePassword_(request) {
-  if (!request || !request.loginId || !request.currentPassword || !request.newPassword) {
+  if (!request || !request.loginId || !request.newPassword) {
     throw new Error('パスワード変更パラメータが不足しています。');
   }
 
   var loginId = String(request.loginId).trim();
-  var currentPassword = String(request.currentPassword);
   var newPassword = String(request.newPassword);
 
   if (newPassword.length < 8) {
@@ -1633,23 +1681,6 @@ function changePassword_(request) {
   if (!storedSalt || !storedHash) {
     appendLoginHistory_(ss, authId, loginId, 'PASSWORD', 'FAILURE', 'パスワード未初期化');
     throw new Error('パスワードが初期化されていません。管理者へ連絡してください。');
-  }
-
-  var currentHash = hashPassword_(currentPassword, storedSalt);
-  if (currentHash !== storedHash) {
-    failedCount += 1;
-    var lockNow = failedCount >= 5;
-    if (columns['ログイン失敗回数'] != null) {
-      authSheet.getRange(authRowInfo.rowNumber, columns['ログイン失敗回数'] + 1).setValue(failedCount);
-    }
-    if (columns['ロック状態'] != null) {
-      authSheet.getRange(authRowInfo.rowNumber, columns['ロック状態'] + 1).setValue(lockNow);
-    }
-    if (columns['更新日時'] != null) {
-      authSheet.getRange(authRowInfo.rowNumber, columns['更新日時'] + 1).setValue(new Date().toISOString());
-    }
-    appendLoginHistory_(ss, authId, loginId, 'PASSWORD', 'FAILURE', '現在パスワード不一致');
-    throw new Error('現在のパスワードが正しくありません。');
   }
 
   var newSalt = generateSalt_();
@@ -1923,6 +1954,71 @@ function getAuthConfig_() {
   };
 }
 
+function getSystemSettings_() {
+  var scriptProperties = PropertiesService.getScriptProperties();
+  var raw = Number(scriptProperties.getProperty(DEFAULT_BUSINESS_STAFF_LIMIT_KEY) || 10);
+  var value = Math.floor(raw);
+  if (!isFinite(value) || value < 1) value = 10;
+  return {
+    defaultBusinessStaffLimit: value,
+  };
+}
+
+function updateSystemSettings_(request) {
+  if (!request) throw new Error('settings が空です。');
+  var next = Number(request.defaultBusinessStaffLimit || 0);
+  if (!isFinite(next) || next < 1 || next > 200) {
+    throw new Error('事業所メンバー上限（全体）は 1〜200 の範囲で設定してください。');
+  }
+  var scriptProperties = PropertiesService.getScriptProperties();
+  scriptProperties.setProperty(DEFAULT_BUSINESS_STAFF_LIMIT_KEY, String(Math.floor(next)));
+  return getSystemSettings_();
+}
+
+function updateMember_(payload) {
+  if (!payload || !payload.id) throw new Error('会員IDが未指定です。');
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_会員');
+  if (!sheet) throw new Error('T_会員 シートが見つかりません。');
+
+  var found = findRowByColumnValue_(sheet, '会員ID', String(payload.id));
+  if (!found) throw new Error('対象会員が見つかりません。');
+
+  var cols = found.columns;
+  var row = found.row.slice();
+  function setCol(name, value) {
+    var idx = cols[name];
+    if (idx != null) row[idx] = value !== undefined ? value : '';
+  }
+
+  setCol('姓', payload.lastName || '');
+  setCol('名', payload.firstName || '');
+  setCol('セイ', payload.lastKana || '');
+  setCol('メイ', payload.firstKana || '');
+  setCol('代表メールアドレス', payload.email || '');
+  setCol('携帯電話番号', payload.mobilePhone || '');
+  setCol('勤務先名', payload.officeName || '');
+  setCol('勤務先郵便番号', payload.officePostCode || '');
+  setCol('勤務先都道府県', payload.officePrefecture || '');
+  setCol('勤務先市区町村', payload.officeCity || '');
+  setCol('勤務先住所', payload.officeAddressLine || '');
+  setCol('勤務先電話番号', payload.phone || '');
+  setCol('勤務先FAX番号', payload.fax || '');
+  setCol('自宅郵便番号', payload.homePostCode || '');
+  setCol('自宅都道府県', payload.homePrefecture || '');
+  setCol('自宅市区町村', payload.homeCity || '');
+  setCol('自宅住所', payload.homeAddressLine || '');
+  setCol('発送方法コード', payload.mailingPreference || 'EMAIL');
+  setCol('郵送先区分コード', payload.preferredMailDestination || 'OFFICE');
+  if (cols['職員数上限'] != null) {
+    var n = Number(payload.staffLimit);
+    setCol('職員数上限', isFinite(n) && n >= 1 ? Math.floor(n) : '');
+  }
+  setCol('更新日時', new Date().toISOString());
+  sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  return { updated: true, memberId: String(payload.id) };
+}
+
 function verifyGoogleIdToken_(idToken) {
   var url = 'https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken);
   var response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
@@ -2008,6 +2104,17 @@ function generateSalt_() {
   return Utilities.getUuid().replace(/-/g, '');
 }
 
+function buildSupportLoginId_(seed) {
+  var text = String(seed || '');
+  var hash = 0;
+  for (var i = 0; i < text.length; i += 1) {
+    hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
+  }
+  var tail = String(hash % 100000000);
+  while (tail.length < 8) tail = '0' + tail;
+  return '9' + tail;
+}
+
 function hashPassword_(password, salt) {
   var bytes = Utilities.computeDigest(
     Utilities.DigestAlgorithm.SHA_256,
@@ -2029,11 +2136,28 @@ function hashPassword_(password, salt) {
  */
 function saveTraining_(payload) {
   if (!payload) throw new Error('payload が空です。');
+  var organizer = String(payload.organizer || '').trim();
+  if (!organizer) {
+    throw new Error('主催者を入力してください。');
+  }
+  var location = String(payload.location || '').trim();
+  if (!location) {
+    throw new Error('開催場所を入力してください。');
+  }
+  var summary = String(payload.summary || '').trim();
+  if (!summary) {
+    throw new Error('研修概要を入力してください。');
+  }
   var inquiryPerson = String(payload.inquiryPerson || '').trim();
   if (!inquiryPerson) {
     throw new Error('問い合わせ窓口の担当者を入力してください。');
   }
   var normalizedInquiryContact = normalizeInquiryContact_(payload.inquiryContactValue);
+  var derivedStatus = deriveTrainingStatusByCloseDate_(payload.applicationCloseDate);
+  payload.organizer = organizer;
+  payload.location = location;
+  payload.summary = summary;
+  payload.status = derivedStatus;
   payload.inquiryPerson = inquiryPerson;
   payload.inquiryContactType = normalizedInquiryContact.type;
   payload.inquiryContactValue = normalizedInquiryContact.value;
@@ -2062,7 +2186,7 @@ function saveTraining_(payload) {
     setCol('定員', Number(payload.capacity || 0));
     setCol('開催場所', payload.location || '');
     setCol('開催形式コード', payload.isOnline ? 'ONLINE' : 'ONSITE');
-    setCol('研修状態コード', payload.status || 'CLOSED');
+    setCol('研修状態コード', derivedStatus);
     setCol('主催者', payload.organizer || '');
     setCol('法定外研修フラグ', payload.isNonMandatory ? true : false);
     setCol('研修概要', payload.summary || '');
@@ -2095,7 +2219,7 @@ function saveTraining_(payload) {
     '申込者数': 0,
     '開催場所': payload.location || '',
     '開催形式コード': payload.isOnline ? 'ONLINE' : 'ONSITE',
-    '研修状態コード': payload.status || 'OPEN',
+    '研修状態コード': derivedStatus,
     '主催者': payload.organizer || '',
     '法定外研修フラグ': payload.isNonMandatory ? true : false,
     '研修概要': payload.summary || '',
@@ -2146,17 +2270,15 @@ function applyTraining_(payload) {
     var found = findRowByColumnValue_(trainingSheet, '研修ID', trainingId);
     if (!found) throw new Error('対象研修が見つかりません。');
     var tCols = found.columns;
-    requireColumns_(tCols, ['研修状態コード', '申込開始日', '申込締切日', '定員', '申込者数']);
+    requireColumns_(tCols, ['申込開始日', '申込締切日', '定員', '申込者数']);
     var tRow = found.row;
-
-    var status = String(tRow[tCols['研修状態コード']] || 'CLOSED');
-    if (status !== 'OPEN') {
-      throw new Error('この研修は受付期間外です。');
-    }
 
     var now = new Date();
     var openDate = parseDateOnly_(tRow[tCols['申込開始日']]);
     var closeDate = parseDateOnly_(tRow[tCols['申込締切日']]);
+    if (deriveTrainingStatusByCloseDate_(tRow[tCols['申込締切日']]) !== 'OPEN') {
+      throw new Error('この研修は受付期間外です。');
+    }
     if (openDate && now.getTime() < openDate.getTime()) {
       throw new Error('申込開始日前のため、まだ申し込めません。');
     }
@@ -2327,6 +2449,12 @@ function parseDateOnly_(raw) {
   return parsed;
 }
 
+function deriveTrainingStatusByCloseDate_(closeDateRaw) {
+  var closeDate = parseDateOnly_(closeDateRaw);
+  if (!closeDate) return 'OPEN';
+  return new Date().getTime() > closeDate.getTime() ? 'CLOSED' : 'OPEN';
+}
+
 /**
  * 研修案内状ファイル（base64）をGoogle Driveにアップロードし、共有URLを返す。
  * payload: { base64: string, filename: string, mimeType: string }
@@ -2477,6 +2605,22 @@ function writeMasterRows_(sheet, rows) {
   var lastRow = sheet.getLastRow();
   if (lastRow <= 1) {
     sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+    return;
+  }
+  var existing = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  var existingCodes = {};
+  for (var i = 0; i < existing.length; i += 1) {
+    existingCodes[String(existing[i][0] || '')] = true;
+  }
+  var appendRows = [];
+  for (var j = 0; j < rows.length; j += 1) {
+    var code = String(rows[j][0] || '');
+    if (!existingCodes[code]) {
+      appendRows.push(rows[j]);
+    }
+  }
+  if (appendRows.length > 0) {
+    sheet.getRange(lastRow + 1, 1, appendRows.length, rows[0].length).setValues(appendRows);
   }
 }
 

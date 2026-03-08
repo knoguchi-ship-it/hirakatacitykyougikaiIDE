@@ -2,7 +2,8 @@
 
 export enum MemberType {
   INDIVIDUAL = 'INDIVIDUAL',
-  BUSINESS = 'BUSINESS'
+  BUSINESS = 'BUSINESS',
+  SUPPORT = 'SUPPORT'
 }
 
 export enum MailingPreference {
@@ -40,6 +41,7 @@ export type StaffRole = 'ADMIN' | 'STAFF';
 export interface Staff {
   id: string; // Internal ID for UI keys
   loginId?: string;
+  careManagerNumber?: string;
   name: string;
   kana: string;
   email: string; // Individual email
@@ -51,6 +53,8 @@ export interface Staff {
 export interface Member {
   id: string; // 8-digit registration number
   loginId?: string;
+  careManagerNumber?: string;
+  staffLimit?: number;
   
   // Name Split (For Individual: The Person / For Business: The Representative)
   lastName: string;
