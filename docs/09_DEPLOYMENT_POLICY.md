@@ -7,8 +7,8 @@
 - `/exec` の404再発を抑止する。
 
 ## 2. 固定対象
-- 本番Deployment ID: `AKfycbw8epX7Pf29ZBCLp6fWEJtoahCgaB0XRG-3sgqhJ8Mj0gs3KPuaUBrIZfuYUkZdwnED`
-- 本番URL: `https://script.google.com/macros/s/AKfycbw8epX7Pf29ZBCLp6fWEJtoahCgaB0XRG-3sgqhJ8Mj0gs3KPuaUBrIZfuYUkZdwnED/exec`
+- 本番Deployment ID: `AKfycbxIvLJAZgFmo4lxSWKtjpfLHcWbpAgctea2j-Enxj6sdsVXBCaateYsjriKKTeoQQGp`
+- 本番URL: `https://script.google.com/macros/s/AKfycbxIvLJAZgFmo4lxSWKtjpfLHcWbpAgctea2j-Enxj6sdsVXBCaateYsjriKKTeoQQGp/exec`
 
 ## 3. 今後の標準デプロイ手順（必須）
 1. `npm run build:gas`
