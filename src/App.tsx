@@ -563,7 +563,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50 font-sans">
+    <div className="flex h-screen overflow-hidden bg-slate-50 font-sans">
       {isAuthenticated && (
         <Sidebar
           currentView={currentView}
@@ -574,7 +574,7 @@ const App: React.FC = () => {
           showAdminPage={userRole === 'ADMIN'}
         />
       )}
-      <main className="flex-1 p-8 overflow-y-auto relative">
+      <main className="flex-1 min-w-0 p-8 overflow-y-auto relative overscroll-contain">
         <div className="absolute top-4 right-8 bg-white p-2 rounded-lg shadow border border-slate-200 z-10 flex space-x-2 items-center">
           {isMockMode ? (
             <>

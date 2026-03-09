@@ -44,7 +44,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <div className="w-64 bg-slate-900 text-white min-h-screen flex flex-col shadow-xl transition-all duration-300">
+    <aside className="w-64 bg-slate-900 text-white h-screen sticky top-0 flex flex-col shadow-xl transition-all duration-300 overflow-hidden">
       <div className="p-6 border-b border-slate-700">
         <h1 className="text-xl font-bold tracking-tight">
           枚方市
@@ -72,7 +72,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         会員マイページ種別: <span className="text-slate-200">{memberPageTypeLabel}</span>
       </div>
 
-      <nav className="flex-1 p-4 space-y-2">
+      <nav className="flex-1 p-4 space-y-2 overflow-y-auto overscroll-contain">
         {menuItems.map((item) => (
           <button
             key={item.id}
@@ -88,7 +88,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           </button>
         ))}
       </nav>
-    </div>
+    </aside>
   );
 };
 
