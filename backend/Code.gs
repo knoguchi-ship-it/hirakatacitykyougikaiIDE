@@ -4,6 +4,7 @@ var DB_SPREADSHEET_ID_FIXED = '1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs';
 var SCHEMA_INITIALIZED_KEY = 'DB_SCHEMA_INITIALIZED';
 var ADMIN_GOOGLE_CLIENT_ID_KEY = 'ADMIN_GOOGLE_CLIENT_ID';
 var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
+var DB_SCHEMA_VERSION = '2026-03-09-01';
 
 var マスタ定義 = {
   M_会員種別: ['コード', '名称', '表示順', '有効フラグ'],
@@ -97,6 +98,13 @@ var テーブル定義 = {
     '作成日時',
     '更新日時',
     '削除フラグ',
+    '介護支援専門員番号',
+  ],
+  T_システム設定: [
+    '設定キー',
+    '設定値',
+    '説明',
+    '更新日時',
   ],
   T_事業所職員: [
     '職員ID',
@@ -918,6 +926,7 @@ function seedDemoData() {
       メイ: 'タロウ',
       代表メールアドレス: 'k.noguchi@uguisunosato.or.jp',
       携帯電話番号: '090-0000-0000',
+      介護支援専門員番号: '12345678',
       勤務先名: '枚方ケアプランセンター',
       勤務先郵便番号: '573-0027',
       勤務先都道府県: '大阪府',
@@ -946,6 +955,7 @@ function seedDemoData() {
       メイ: 'ハナコ',
       代表メールアドレス: '',
       携帯電話番号: '090-1111-1111',
+      介護支援専門員番号: '87654321',
       勤務先名: '勤務なし',
       勤務先郵便番号: '',
       勤務先都道府県: '',
@@ -974,6 +984,7 @@ function seedDemoData() {
       メイ: 'メグミ',
       代表メールアドレス: '',
       携帯電話番号: '090-2222-3333',
+      介護支援専門員番号: '',
       勤務先名: '賛助会員（個人）',
       勤務先郵便番号: '',
       勤務先都道府県: '',
@@ -1002,6 +1013,7 @@ function seedDemoData() {
       メイ: 'ジロウ',
       代表メールアドレス: 'k.noguchi@uguisunosato.or.jp',
       携帯電話番号: '080-8888-8888',
+      介護支援専門員番号: '933307710',
       勤務先名: 'ひらかた介護ステーション',
       勤務先郵便番号: '573-0084',
       勤務先都道府県: '大阪府',
@@ -1491,6 +1503,7 @@ function fetchAllDataFromDb_() {
     return {
       id: id,
       loginId: loginByMemberId[id] || '',
+      careManagerNumber: String(m['介護支援専門員番号'] || ''),
       lastName: String(m['姓'] || ''),
       firstName: String(m['名'] || ''),
       lastKana: String(m['セイ'] || ''),
@@ -1955,8 +1968,9 @@ function getAuthConfig_() {
 }
 
 function getSystemSettings_() {
-  var scriptProperties = PropertiesService.getScriptProperties();
-  var raw = Number(scriptProperties.getProperty(DEFAULT_BUSINESS_STAFF_LIMIT_KEY) || 10);
+  var ss = getOrCreateDatabase_();
+  initializeSchema_(ss);
+  var raw = Number(getSystemSettingValue_(ss, 'DEFAULT_BUSINESS_STAFF_LIMIT') || 10);
   var value = Math.floor(raw);
   if (!isFinite(value) || value < 1) value = 10;
   return {
@@ -1970,9 +1984,43 @@ function updateSystemSettings_(request) {
   if (!isFinite(next) || next < 1 || next > 200) {
     throw new Error('事業所メンバー上限（全体）は 1〜200 の範囲で設定してください。');
   }
+  var ss = getOrCreateDatabase_();
+  initializeSchema_(ss);
+  upsertSystemSetting_(ss, 'DEFAULT_BUSINESS_STAFF_LIMIT', String(Math.floor(next)), '事業所会員メンバー上限（全体デフォルト）');
+  upsertSystemSetting_(ss, 'DB_SCHEMA_VERSION', DB_SCHEMA_VERSION, 'DBスキーマバージョン');
   var scriptProperties = PropertiesService.getScriptProperties();
-  scriptProperties.setProperty(DEFAULT_BUSINESS_STAFF_LIMIT_KEY, String(Math.floor(next)));
+  scriptProperties.setProperty(DEFAULT_BUSINESS_STAFF_LIMIT_KEY, String(Math.floor(next))); // backward compatibility
   return getSystemSettings_();
+}
+
+function getSystemSettingValue_(ss, key) {
+  var sheet = ss.getSheetByName('T_システム設定');
+  if (!sheet) return '';
+  var found = findRowByColumnValue_(sheet, '設定キー', key);
+  if (!found) return '';
+  var idx = found.columns['設定値'];
+  return idx == null ? '' : String(found.row[idx] || '');
+}
+
+function upsertSystemSetting_(ss, key, value, description) {
+  var sheet = ss.getSheetByName('T_システム設定');
+  if (!sheet) return;
+  var found = findRowByColumnValue_(sheet, '設定キー', key);
+  var now = new Date().toISOString();
+  if (!found) {
+    appendRowsByHeaders_(ss, 'T_システム設定', [{
+      設定キー: key,
+      設定値: value,
+      説明: description || '',
+      更新日時: now,
+    }]);
+    return;
+  }
+  var row = found.row.slice();
+  if (found.columns['設定値'] != null) row[found.columns['設定値']] = value;
+  if (found.columns['説明'] != null) row[found.columns['説明']] = description || '';
+  if (found.columns['更新日時'] != null) row[found.columns['更新日時']] = now;
+  sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
 }
 
 function updateMember_(payload) {
@@ -1986,6 +2034,20 @@ function updateMember_(payload) {
 
   var cols = found.columns;
   var row = found.row.slice();
+  requireColumns_(cols, [
+    '姓', '名', 'セイ', 'メイ',
+    '勤務先名', '勤務先郵便番号', '勤務先都道府県', '勤務先市区町村', '勤務先住所',
+    '勤務先電話番号', '勤務先FAX番号',
+    '自宅郵便番号', '自宅都道府県', '自宅市区町村', '自宅住所',
+    '携帯電話番号', '介護支援専門員番号'
+  ]);
+
+  var memberTypeCode = String(row[cols['会員種別コード']] || payload.type || 'INDIVIDUAL');
+  validateMemberPayload_(payload, memberTypeCode);
+  var sharedMobile = memberTypeCode === 'BUSINESS' && !String(payload.mobilePhone || '').trim()
+    ? String(payload.phone || '')
+    : String(payload.mobilePhone || '');
+
   function setCol(name, value) {
     var idx = cols[name];
     if (idx != null) row[idx] = value !== undefined ? value : '';
@@ -1995,8 +2057,9 @@ function updateMember_(payload) {
   setCol('名', payload.firstName || '');
   setCol('セイ', payload.lastKana || '');
   setCol('メイ', payload.firstKana || '');
+  setCol('介護支援専門員番号', payload.careManagerNumber || '');
   setCol('代表メールアドレス', payload.email || '');
-  setCol('携帯電話番号', payload.mobilePhone || '');
+  setCol('携帯電話番号', sharedMobile);
   setCol('勤務先名', payload.officeName || '');
   setCol('勤務先郵便番号', payload.officePostCode || '');
   setCol('勤務先都道府県', payload.officePrefecture || '');
@@ -2017,6 +2080,54 @@ function updateMember_(payload) {
   setCol('更新日時', new Date().toISOString());
   sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
   return { updated: true, memberId: String(payload.id) };
+}
+
+function validateMemberPayload_(payload, memberTypeCode) {
+  function trim(v) { return String(v || '').trim(); }
+  var isBusiness = memberTypeCode === 'BUSINESS';
+  var isSupport = memberTypeCode === 'SUPPORT';
+
+  if (!trim(payload.lastName)) throw new Error('姓は必須です。');
+  if (!trim(payload.firstName)) throw new Error('名は必須です。');
+  if (!trim(payload.lastKana)) throw new Error('セイは必須です。');
+  if (!trim(payload.firstKana)) throw new Error('メイは必須です。');
+  if (!isSupport && !trim(payload.careManagerNumber)) throw new Error('賛助会員以外は介護支援専門員番号が必須です。');
+
+  if (isBusiness) {
+    if (!trim(payload.mobilePhone) && !trim(payload.phone)) {
+      throw new Error('電話番号（または事業所電話番号）が必須です。');
+    }
+  } else {
+    if (!trim(payload.mobilePhone)) throw new Error('電話番号は必須です。');
+  }
+
+  var hasOfficeAffiliationInput =
+    !!trim(payload.officeName) ||
+    !!trim(payload.officePostCode) ||
+    !!trim(payload.officePrefecture) ||
+    !!trim(payload.officeCity) ||
+    !!trim(payload.officeAddressLine) ||
+    !!trim(payload.phone) ||
+    !!trim(payload.fax);
+  var requireOfficeInfo = isBusiness || hasOfficeAffiliationInput;
+  var requireHomeInfo = !isBusiness;
+
+  if (requireOfficeInfo) {
+    if (!trim(payload.officeName)) throw new Error('事業所情報: 勤務先名は必須です。');
+    if (!trim(payload.officePostCode)) throw new Error('事業所情報: 郵便番号は必須です。');
+    if (!trim(payload.officePrefecture)) throw new Error('事業所情報: 都道府県は必須です。');
+    if (!trim(payload.officeCity)) throw new Error('事業所情報: 市区町村は必須です。');
+    if (!trim(payload.officeAddressLine)) throw new Error('事業所情報: 住所は必須です。');
+    if (!trim(payload.phone)) throw new Error('事業所情報: 電話番号は必須です。');
+    if (!trim(payload.fax)) throw new Error('事業所情報: FAX番号は必須です。');
+  }
+
+  if (requireHomeInfo) {
+    if (!trim(payload.homePostCode)) throw new Error('個人会員は自宅郵便番号が必須です。');
+    if (!trim(payload.homePrefecture)) throw new Error('個人会員は自宅都道府県が必須です。');
+    if (!trim(payload.homeCity)) throw new Error('個人会員は自宅市区町村が必須です。');
+    if (!trim(payload.homeAddressLine)) throw new Error('個人会員は自宅住所が必須です。');
+  }
 }
 
 function verifyGoogleIdToken_(idToken) {
@@ -2523,6 +2634,7 @@ function getOrCreateDatabase_() {
 function initializeSchema_(ss) {
   createMasterSheets_(ss);
   createTableSheets_(ss);
+  ensureSystemSettingsRows_(ss);
   seedPermissionMatrixIfNeeded_(ss);
   applyDataValidationRules_(ss);
   protectHeaderRows_(ss);
@@ -2595,6 +2707,41 @@ function createTableSheets_(ss) {
     var headers = テーブル定義[tableName];
     var sheet = getOrCreateSheet_(ss, tableName);
     writeSheetHeaders_(sheet, headers);
+  }
+}
+
+function ensureSystemSettingsRows_(ss) {
+  var now = new Date().toISOString();
+  var sheet = ss.getSheetByName('T_システム設定');
+  if (!sheet) return;
+
+  var existing = getRowsAsObjects_(ss, 'T_システム設定');
+  var byKey = {};
+  for (var i = 0; i < existing.length; i += 1) {
+    var key = String(existing[i]['設定キー'] || '');
+    if (key) byKey[key] = existing[i];
+  }
+
+  var scriptProperties = PropertiesService.getScriptProperties();
+  var defaultLimit = Number(scriptProperties.getProperty(DEFAULT_BUSINESS_STAFF_LIMIT_KEY) || 10);
+  if (!isFinite(defaultLimit) || defaultLimit < 1) defaultLimit = 10;
+
+  if (!byKey['DEFAULT_BUSINESS_STAFF_LIMIT']) {
+    appendRowsByHeaders_(ss, 'T_システム設定', [{
+      設定キー: 'DEFAULT_BUSINESS_STAFF_LIMIT',
+      設定値: String(Math.floor(defaultLimit)),
+      説明: '事業所会員メンバー上限（全体デフォルト）',
+      更新日時: now,
+    }]);
+  }
+
+  if (!byKey['DB_SCHEMA_VERSION']) {
+    appendRowsByHeaders_(ss, 'T_システム設定', [{
+      設定キー: 'DB_SCHEMA_VERSION',
+      設定値: DB_SCHEMA_VERSION,
+      説明: 'DBスキーマバージョン',
+      更新日時: now,
+    }]);
   }
 }
 

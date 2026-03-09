@@ -237,36 +237,59 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
 
   const validate = () => {
     const newErrors: { [key: string]: string } = {};
+    const isSupportMember = member.type === MemberType.SUPPORT;
+    const hasOfficeAffiliationInput =
+      !!(member.officeName || '').trim() ||
+      !!(member.officePostCode || '').trim() ||
+      !!(member.officePrefecture || '').trim() ||
+      !!(member.officeCity || '').trim() ||
+      !!(member.officeAddressLine || '').trim() ||
+      !!(member.phone || '').trim() ||
+      !!(member.fax || '').trim();
+    const requireOfficeInfo = isBusiness || hasOfficeAffiliationInput;
+    const requireHomeInfo = !isBusiness;
 
     // Basic Validation
-    if (!member.lastName) newErrors.lastName = '必須項目です';
-    if (!member.firstName) newErrors.firstName = '必須項目です';
-    if (!member.officeName) newErrors.officeName = '必須項目です';
-    if (!member.fax) newErrors.fax = '必須項目です';
+    if (!member.lastName?.trim()) newErrors.lastName = '必須項目です';
+    if (!member.firstName?.trim()) newErrors.firstName = '必須項目です';
+    if (!member.lastKana?.trim()) newErrors.lastKana = '必須項目です';
+    if (!member.firstKana?.trim()) newErrors.firstKana = '必須項目です';
+    if (!isSupportMember && !member.careManagerNumber?.trim()) {
+      newErrors.careManagerNumber = '賛助会員以外は必須です';
+    }
+
+    // First-priority contact phone:
+    // - Individual: mobilePhone required
+    // - Business: either mobilePhone or office phone is required (shared phone allowed)
+    if (isBusiness) {
+      if (!member.mobilePhone?.trim() && !member.phone?.trim()) {
+        newErrors.mobilePhone = '電話番号（または事業所電話番号）の入力が必要です';
+      }
+    } else {
+      if (!member.mobilePhone?.trim()) {
+        newErrors.mobilePhone = '電話番号は必須です';
+      }
+    }
     
     if (!isBusiness && member.mailingPreference === MailingPreference.EMAIL && !member.email) {
        newErrors.email = '必須項目です';
     }
 
-    if (isBusiness) {
-        // Business Address is ALWAYS required
+    if (requireOfficeInfo) {
         if (!member.officePostCode) newErrors.officePostCode = '必須です';
         if (!member.officePrefecture) newErrors.officePrefecture = '必須です';
         if (!member.officeCity) newErrors.officeCity = '必須です';
         if (!member.officeAddressLine) newErrors.officeAddressLine = '必須です';
-    } else {
-        // Individual Logic
-        if (member.preferredMailDestination === MailDestination.HOME) {
-            if (!member.homePostCode) newErrors.homePostCode = '郵送先のため必須です';
-            if (!member.homePrefecture) newErrors.homePrefecture = '郵送先のため必須です';
-            if (!member.homeCity) newErrors.homeCity = '郵送先のため必須です';
-            if (!member.homeAddressLine) newErrors.homeAddressLine = '郵送先のため必須です';
-        } else {
-            if (!member.officePostCode) newErrors.officePostCode = '郵送先のため必須です';
-            if (!member.officePrefecture) newErrors.officePrefecture = '郵送先のため必須です';
-            if (!member.officeCity) newErrors.officeCity = '郵送先のため必須です';
-            if (!member.officeAddressLine) newErrors.officeAddressLine = '郵送先のため必須です';
-        }
+        if (!member.officeName?.trim()) newErrors.officeName = '必須項目です';
+        if (!member.phone?.trim()) newErrors.phone = '必須項目です';
+        if (!member.fax?.trim()) newErrors.fax = '必須項目です';
+    }
+
+    if (requireHomeInfo) {
+      if (!member.homePostCode) newErrors.homePostCode = '自宅住所のため必須です';
+      if (!member.homePrefecture) newErrors.homePrefecture = '自宅住所のため必須です';
+      if (!member.homeCity) newErrors.homeCity = '自宅住所のため必須です';
+      if (!member.homeAddressLine) newErrors.homeAddressLine = '自宅住所のため必須です';
     }
 
     setErrors(newErrors);
@@ -715,11 +738,29 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">フリガナ (セイ) (※)</label>
                             <input disabled={isReadOnly} type="text" name="lastKana" value={member.lastKana} onChange={handleChange} className={getInputClass('lastKana')} />
+                            {errors.lastKana && <p className="text-xs text-red-500 mt-1">{errors.lastKana}</p>}
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">フリガナ (メイ) (※)</label>
                             <input disabled={isReadOnly} type="text" name="firstKana" value={member.firstKana} onChange={handleChange} className={getInputClass('firstKana')} />
+                            {errors.firstKana && <p className="text-xs text-red-500 mt-1">{errors.firstKana}</p>}
                         </div>
+                    </div>
+                    <div className="mt-4">
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                            介護支援専門員番号
+                            {member.type !== MemberType.SUPPORT && <span className="text-red-500 ml-1">(※)</span>}
+                        </label>
+                        <input
+                            disabled={isReadOnly}
+                            type="text"
+                            name="careManagerNumber"
+                            value={member.careManagerNumber || ''}
+                            onChange={handleChange}
+                            className={getInputClass('careManagerNumber')}
+                            placeholder={member.type === MemberType.SUPPORT ? '賛助会員は任意' : '賛助会員以外は必須'}
+                        />
+                        {errors.careManagerNumber && <p className="text-xs text-red-500 mt-1">{errors.careManagerNumber}</p>}
                     </div>
                 </div>
 
@@ -852,8 +893,18 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
                     </div>
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">携帯電話番号</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">電話番号 (※)</label>
                     <input disabled={isReadOnly} type="tel" name="mobilePhone" value={member.mobilePhone || ''} onChange={handleChange} className={getInputClass('mobilePhone')} placeholder="090-0000-0000" />
+                    {errors.mobilePhone && <p className="text-xs text-red-500 mt-1">{errors.mobilePhone}</p>}
+                    {isBusiness && !isReadOnly && (
+                      <button
+                        type="button"
+                        className="mt-2 text-xs text-blue-700 underline"
+                        onClick={() => setMember((prev) => ({ ...prev, mobilePhone: prev.phone || '' }))}
+                      >
+                        事業所電話番号を共通利用
+                      </button>
+                    )}
                 </div>
                 </div>
             </div>
@@ -914,6 +965,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">電話番号</label>
                 <input disabled={isReadOnly} type="tel" name="phone" value={member.phone} onChange={handleChange} className={getInputClass('phone')} />
+                {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">FAX番号 (※必須)</label>

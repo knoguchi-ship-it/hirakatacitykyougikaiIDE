@@ -126,6 +126,7 @@ export const MOCK_MEMBERS: Member[] = [
   {
     id: '99999999',
     loginId: '99999999',
+    careManagerNumber: '933307710',
     staffLimit: 10,
     lastName: '佐藤', // Representative
     firstName: '次郎', 
