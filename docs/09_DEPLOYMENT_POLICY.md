@@ -14,8 +14,8 @@
 - 例外的に `New deployment` を行うのは、既存IDで `/exec` 復旧不能な場合のみとし、実施時は本書の固定対象を即時更新する。
 
 ## 2. 固定対象
-- 本番Deployment ID: `AKfycbxIvLJAZgFmo4lxSWKtjpfLHcWbpAgctea2j-Enxj6sdsVXBCaateYsjriKKTeoQQGp`
-- 本番URL: `https://script.google.com/macros/s/AKfycbxIvLJAZgFmo4lxSWKtjpfLHcWbpAgctea2j-Enxj6sdsVXBCaateYsjriKKTeoQQGp/exec`
+- 本番Deployment ID: `AKfycby8Uc8RMNpRrcQIV-DePe3ZzoDMglSnB9EBO5GXzTn3VNyJT1lUBcpEpjiodjqbzCpF`
+- 本番URL: `https://script.google.com/macros/s/AKfycby8Uc8RMNpRrcQIV-DePe3ZzoDMglSnB9EBO5GXzTn3VNyJT1lUBcpEpjiodjqbzCpF/exec`
 
 ## 3. 今後の標準デプロイ手順（必須）
 1. `npm run build:gas`
