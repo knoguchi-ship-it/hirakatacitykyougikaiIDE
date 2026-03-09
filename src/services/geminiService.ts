@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+﻿import { GoogleGenAI } from "@google/genai";
 import { Training } from '../types';
 
 const getClient = () => {
@@ -22,13 +22,11 @@ export const generateTrainingEmail = async (training: Training, recipientName: s
     研修名: ${training.title}
     開催日: ${training.date}
     場所: ${training.location}
-    形式: ${training.isOnline ? 'オンライン' : '現地開催'}
+    開催場所: ${training.location || '-'}
     
     【要件】
     - 件名は分かりやすく簡潔に。
     - 宛名は「${recipientName}」としてください。
-    - オンラインの場合は、「当日のZoom IDと資料は本メールの添付、または以下のURLからご確認ください」という旨を含めてください。
-    - 現地開催の場合は、公共交通機関の利用を促す文言を入れてください。
     - 丁寧でプロフェッショナルなトーンで記述してください。
   `;
 

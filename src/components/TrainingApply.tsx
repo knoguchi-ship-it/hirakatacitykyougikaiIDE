@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { BookOpenIcon, CheckCircleIcon, PlusIcon, SparklesIcon } from './Icons';
 import { Member, MemberType, Training } from '../types';
 
@@ -6,6 +6,7 @@ interface TrainingApplyProps {
   member: Member;
   activeStaffId?: string;
   trainings: Training[];
+  historyLookbackMonths: number;
   onApply: (trainingId: string) => Promise<void>;
   onCancel: (trainingId: string) => Promise<void>;
 }
@@ -33,6 +34,14 @@ const formatDateOnly = (raw?: string) => {
 const formatYen = (amount: number) =>
   new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(amount || 0);
 
+const isWithinLookbackMonths = (raw: string, lookbackMonths: number): boolean => {
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return true;
+  const threshold = new Date();
+  threshold.setMonth(threshold.getMonth() - Math.max(1, Math.floor(lookbackMonths || 18)));
+  return date.getTime() >= threshold.getTime();
+};
+
 const toPdfPreviewUrl = (url: string): string => {
   if (!url) return '';
   if (url.includes('drive.google.com/file/d/')) {
@@ -42,7 +51,7 @@ const toPdfPreviewUrl = (url: string): string => {
   return url;
 };
 
-const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, trainings, onApply, onCancel }) => {
+const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, trainings, historyLookbackMonths, onApply, onCancel }) => {
   const [submittingTrainingId, setSubmittingTrainingId] = useState<string | null>(null);
   const [expandedTrainingId, setExpandedTrainingId] = useState<string | null>(null);
   const [selectedHistoryTrainingId, setSelectedHistoryTrainingId] = useState<string | null>(null);
@@ -61,8 +70,12 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
   );
 
   const trainingHistory = useMemo(
-    () => trainings.filter((t) => participatedIds.includes(t.id)),
-    [trainings, participatedIds],
+    () =>
+      trainings
+        .filter((t) => participatedIds.includes(t.id))
+        .filter((t) => isWithinLookbackMonths(t.date, historyLookbackMonths))
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+    [trainings, participatedIds, historyLookbackMonths],
   );
 
   const selectedHistoryTraining = useMemo(
@@ -181,7 +194,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                     </div>
                     <h4 className="font-bold text-slate-800 text-lg mb-1">{training.title}</h4>
                     {training.summary && <p className="text-sm text-slate-600 mb-2">{training.summary}</p>}
-                    <p className="text-sm text-slate-600">{training.isOnline ? 'オンライン' : '会場'} / {training.location || '-'} / 定員 {training.capacity}名</p>
+                    <p className="text-sm text-slate-600">{training.location || '-'} / 定員 {training.capacity}名</p>
                     <p className="text-sm text-slate-700 mt-1">会員研修費: {getMemberFeeAmount(training) > 0 ? formatYen(getMemberFeeAmount(training)) : '無料'}</p>
 
                     <div className="mt-2 flex items-center gap-3">
@@ -237,6 +250,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
               <BookOpenIcon className="w-5 h-5 mr-2 text-slate-500" />
               申込済み研修
             </h3>
+            <p className="text-xs text-slate-500 mt-1">表示期間: 過去 {historyLookbackMonths} か月</p>
           </div>
           <div className="p-0 overflow-x-auto">
             {trainingHistory.length === 0 ? (
@@ -252,7 +266,11 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                 </thead>
                 <tbody className="bg-white divide-y divide-slate-200">
                   {trainingHistory.map((t) => (
-                    <tr key={t.id} className={selectedHistoryTrainingId === t.id ? 'bg-blue-50/50' : ''}>
+                    <tr
+                      key={t.id}
+                      className={`${selectedHistoryTrainingId === t.id ? 'bg-blue-50/50' : ''} cursor-pointer`}
+                      onClick={() => setSelectedHistoryTrainingId(t.id)}
+                    >
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-500">{formatDateTime(t.date)}</td>
                       <td className="px-4 py-4 text-sm font-medium text-slate-900">{t.title}</td>
                       <td className="px-4 py-4 whitespace-nowrap">
@@ -284,10 +302,6 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                 <div>
                   <p className="text-xs text-slate-500">開催日時</p>
                   <p className="text-slate-800">{formatDateTime(selectedHistoryTraining.date)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">開催形式</p>
-                  <p className="text-slate-800">{selectedHistoryTraining.isOnline ? 'オンライン' : '会場開催'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-500">場所</p>
@@ -389,10 +403,6 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                 <p className="text-slate-800">{formatDateTime(confirmTraining.date)}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-500">開催形式</p>
-                <p className="text-slate-800">{confirmTraining.isOnline ? 'オンライン' : '会場開催'}</p>
-              </div>
-              <div>
                 <p className="text-xs text-slate-500">場所</p>
                 <p className="text-slate-800">{confirmTraining.location || '-'}</p>
               </div>
@@ -458,3 +468,4 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
 };
 
 export default TrainingApply;
+

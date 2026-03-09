@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import Sidebar from './components/Sidebar';
 import MemberForm from './components/MemberForm';
 import Dashboard from './components/Dashboard';
@@ -55,6 +55,8 @@ const App: React.FC = () => {
   const [adminGoogleClientId, setAdminGoogleClientId] = useState('');
   const [defaultBusinessStaffLimit, setDefaultBusinessStaffLimit] = useState(10);
   const [globalLimitInput, setGlobalLimitInput] = useState('10');
+  const [trainingHistoryLookbackMonths, setTrainingHistoryLookbackMonths] = useState(18);
+  const [historyLookbackInput, setHistoryLookbackInput] = useState('18');
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [googleScriptReady] = useState(false); // GIS不使用のため常にfalse（保守用トークン入力の表示判定のみ）
 
@@ -73,14 +75,17 @@ const App: React.FC = () => {
         const [{ members, trainings }, authConfig, systemSettings] = await Promise.all([
           api.fetchAllData(),
           api.getAuthConfig().catch(() => ({ adminGoogleClientId: '' })),
-          api.getSystemSettings().catch(() => ({ defaultBusinessStaffLimit: 10 })),
+          api.getSystemSettings().catch(() => ({ defaultBusinessStaffLimit: 10, trainingHistoryLookbackMonths: 18 })),
         ]);
         setMembers(members);
         setTrainings(trainings);
         setAdminGoogleClientId(authConfig.adminGoogleClientId || '');
         const limit = Number(systemSettings.defaultBusinessStaffLimit || 10);
+        const lookback = Number(systemSettings.trainingHistoryLookbackMonths || 18);
         setDefaultBusinessStaffLimit(Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 10);
         setGlobalLimitInput(String(Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 10));
+        setTrainingHistoryLookbackMonths(Number.isFinite(lookback) && lookback > 0 ? Math.floor(lookback) : 18);
+        setHistoryLookbackInput(String(Number.isFinite(lookback) && lookback > 0 ? Math.floor(lookback) : 18));
       } catch (error) {
         console.error('Initialization failed:', error);
         setInitError('データの読み込みに失敗しました。');
@@ -350,7 +355,7 @@ const App: React.FC = () => {
       <Dashboard />
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <h3 className="text-lg font-bold text-slate-800 mb-4">事業所会員メンバー上限設定</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end mb-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">全体デフォルト上限</label>
             <input
@@ -363,6 +368,17 @@ const App: React.FC = () => {
             />
           </div>
           <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">研修履歴の表示期間（月）</label>
+            <input
+              type="number"
+              min={1}
+              max={60}
+              value={historyLookbackInput}
+              onChange={(e) => setHistoryLookbackInput(e.target.value)}
+              className="w-full border border-slate-300 rounded px-3 py-2"
+            />
+          </div>
+          <div>
             <button
               type="button"
               disabled={settingsBusy}
@@ -370,9 +386,15 @@ const App: React.FC = () => {
                 try {
                   setSettingsBusy(true);
                   const next = Number(globalLimitInput || 10);
-                  const saved = await api.updateSystemSettings({ defaultBusinessStaffLimit: next });
+                  const lookback = Number(historyLookbackInput || 18);
+                  const saved = await api.updateSystemSettings({
+                    defaultBusinessStaffLimit: next,
+                    trainingHistoryLookbackMonths: lookback,
+                  });
                   setDefaultBusinessStaffLimit(saved.defaultBusinessStaffLimit);
                   setGlobalLimitInput(String(saved.defaultBusinessStaffLimit));
+                  setTrainingHistoryLookbackMonths(saved.trainingHistoryLookbackMonths);
+                  setHistoryLookbackInput(String(saved.trainingHistoryLookbackMonths));
                   alert('全体上限を更新しました。');
                 } catch (e) {
                   alert(e instanceof Error ? e.message : '全体上限の更新に失敗しました。');
@@ -541,6 +563,7 @@ const App: React.FC = () => {
           member={currentUser}
           activeStaffId={currentIdentity?.staffId}
           trainings={trainings}
+          historyLookbackMonths={trainingHistoryLookbackMonths}
           onApply={handleTrainingApply}
           onCancel={handleTrainingCancel}
         />
@@ -556,6 +579,7 @@ const App: React.FC = () => {
         initialMember={currentUser}
         activeStaffId={currentIdentity?.staffId}
         defaultBusinessStaffLimit={defaultBusinessStaffLimit}
+        historyLookbackMonths={trainingHistoryLookbackMonths}
         trainings={trainings}
         onSave={handleMemberSave}
       />
@@ -620,3 +644,4 @@ const App: React.FC = () => {
 };
 
 export default App;
+

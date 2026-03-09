@@ -7,11 +7,12 @@ interface MemberFormProps {
   initialMember: Member;
   activeStaffId?: string; // Optional: Force a specific staff member view
   defaultBusinessStaffLimit: number;
+  historyLookbackMonths: number;
   trainings: Training[]; // Data from parent (App.tsx)
   onSave: (member: Member) => void;
 }
 
-const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, defaultBusinessStaffLimit, trainings, onSave }) => {
+const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, defaultBusinessStaffLimit, historyLookbackMonths, trainings, onSave }) => {
   const [member, setMember] = useState<Member>(initialMember);
   const [warning, setWarning] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null); // UX: Success feedback
@@ -20,6 +21,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
   // UX: Loading state for application button
   const [submittingTrainingId, setSubmittingTrainingId] = useState<string | null>(null);
   const [expandedTrainingId, setExpandedTrainingId] = useState<string | null>(null);
+  const [selectedHistoryTrainingId, setSelectedHistoryTrainingId] = useState<string | null>(null);
   const [passwordForm, setPasswordForm] = useState({ nextPassword: '', confirmPassword: '' });
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
@@ -75,8 +77,29 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
   };
   const participatedIds = getParticipatedIds();
 
-  // 2. Filter history based on participated IDs
-  const trainingHistory = trainings.filter(t => participatedIds.includes(t.id));
+  // 2. Filter history based on participated IDs and lookback period
+  const trainingHistory = trainings
+    .filter((t) => participatedIds.includes(t.id))
+    .filter((t) => {
+      const date = new Date(t.date);
+      if (Number.isNaN(date.getTime())) return true;
+      const threshold = new Date();
+      threshold.setMonth(threshold.getMonth() - Math.max(1, Math.floor(historyLookbackMonths || 18)));
+      return date.getTime() >= threshold.getTime();
+    })
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  const selectedHistoryTraining = trainingHistory.find((t) => t.id === selectedHistoryTrainingId) || null;
+
+  useEffect(() => {
+    if (trainingHistory.length === 0) {
+      setSelectedHistoryTrainingId(null);
+      return;
+    }
+    if (!selectedHistoryTrainingId || !trainingHistory.some((t) => t.id === selectedHistoryTrainingId)) {
+      setSelectedHistoryTrainingId(trainingHistory[0].id);
+    }
+  }, [trainingHistory, selectedHistoryTrainingId]);
 
   // 3. Filter NEW available trainings (Open AND Not participated)
   const availableTrainings = trainings.filter(t => 
@@ -185,8 +208,16 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     if (isReadOnly) return;
-    const { name, value } = e.target;
-    setMember(prev => ({ ...prev, [name]: value }));
+    const { name, value, type } = e.target;
+    const nextValue = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
+    setMember(prev => {
+      const next = { ...prev, [name]: nextValue } as Member;
+      if (name === 'status' && nextValue === 'ACTIVE') {
+        next.withdrawnDate = '';
+        next.midYearWithdrawal = false;
+      }
+      return next;
+    });
     if (errors[name]) {
         setErrors(prev => {
             const newErrors = { ...prev };
@@ -197,11 +228,19 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
   };
 
   // Staff Management Logic
-  const handleStaffChange = (id: string, field: keyof Staff, value: string) => {
+  const handleStaffChange = (id: string, field: keyof Staff, value: string | boolean) => {
     if (isReadOnly) return;
     setMember(prev => ({
         ...prev,
-        staff: prev.staff?.map(s => s.id === id ? { ...s, [field]: value } : s)
+        staff: prev.staff?.map(s => {
+          if (s.id !== id) return s;
+          const next = { ...s, [field]: value } as Staff;
+          if (field === 'status' && value === 'ENROLLED') {
+            next.withdrawnDate = '';
+            next.midYearWithdrawal = false;
+          }
+          return next;
+        })
     }));
   };
 
@@ -218,6 +257,9 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
         kana: '',
         email: '',
         role: 'STAFF',
+        status: 'ENROLLED',
+        joinedDate: '',
+        withdrawnDate: '',
         participatedTrainingIds: []
     };
     setMember(prev => ({
@@ -290,6 +332,43 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
       if (!member.homePrefecture) newErrors.homePrefecture = '自宅住所のため必須です';
       if (!member.homeCity) newErrors.homeCity = '自宅住所のため必須です';
       if (!member.homeAddressLine) newErrors.homeAddressLine = '自宅住所のため必須です';
+    }
+
+    const memberJoined = member.joinedDate ? new Date(member.joinedDate) : null;
+    const memberWithdrawn = member.withdrawnDate ? new Date(member.withdrawnDate) : null;
+    if (member.joinedDate && (!memberJoined || Number.isNaN(memberJoined.getTime()))) {
+      newErrors.joinedDate = '有効な日付を入力してください';
+    }
+    if (member.withdrawnDate && (!memberWithdrawn || Number.isNaN(memberWithdrawn.getTime()))) {
+      newErrors.withdrawnDate = '有効な日付を入力してください';
+    }
+    if (memberJoined && memberWithdrawn && memberJoined.getTime() > memberWithdrawn.getTime()) {
+      newErrors.withdrawnDate = '退会日は入会日以降にしてください';
+    }
+    if (member.status === 'WITHDRAWN' && !member.withdrawnDate) {
+      newErrors.withdrawnDate = '退会済みの場合は退会日が必須です';
+    }
+
+    if (isBusiness) {
+      (member.staff || []).forEach((staff, index) => {
+        const prefix = `staff_${index}`;
+        if (!staff.name?.trim()) newErrors[`${prefix}_name`] = '職員氏名は必須です';
+        if (!staff.kana?.trim()) newErrors[`${prefix}_kana`] = '職員フリガナは必須です';
+        const joined = staff.joinedDate ? new Date(staff.joinedDate) : null;
+        const withdrawn = staff.withdrawnDate ? new Date(staff.withdrawnDate) : null;
+        if (staff.joinedDate && (!joined || Number.isNaN(joined.getTime()))) {
+          newErrors[`${prefix}_joinedDate`] = '職員入会日は有効な日付で入力してください';
+        }
+        if (staff.withdrawnDate && (!withdrawn || Number.isNaN(withdrawn.getTime()))) {
+          newErrors[`${prefix}_withdrawnDate`] = '職員退会日は有効な日付で入力してください';
+        }
+        if (joined && withdrawn && joined.getTime() > withdrawn.getTime()) {
+          newErrors[`${prefix}_withdrawnDate`] = '職員退会日は入会日以降にしてください';
+        }
+        if ((staff.status || 'ENROLLED') === 'LEFT' && !staff.withdrawnDate) {
+          newErrors[`${prefix}_withdrawnDate`] = '退職済み職員は退会日が必須です';
+        }
+      });
     }
 
     setErrors(newErrors);
@@ -547,12 +626,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
                                 {training.summary && (
                                   <p className="text-sm text-slate-600 mb-2">{training.summary}</p>
                                 )}
-                                <p className="text-sm text-slate-600 flex items-center">
-                                    <span className="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded mr-2">
-                                        {training.isOnline ? 'オンライン' : '現地'}
-                                    </span>
-                                    {training.location} (定員 {training.capacity}名)
-                                </p>
+                                <p className="text-sm text-slate-600">{training.location} (定員 {training.capacity}名)</p>
                                 <div className="mt-2 flex items-center gap-3">
                                   <button
                                     type="button"
@@ -617,6 +691,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
                 <BookOpenIcon className="w-5 h-5 mr-2 text-slate-500" />
                 研修受講・申込履歴 ({trainingTargetName})
             </h2>
+            <p className="text-xs text-slate-500 mt-1">表示期間: 過去 {historyLookbackMonths} か月</p>
         </div>
         
         {/* Success Feedback Banner */}
@@ -635,18 +710,20 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
                         <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">開催日</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">研修名</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">形式</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">開催場所</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">状態</th>
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-slate-200">
                         {trainingHistory.map(t => (
-                            <tr key={t.id} className={successMsg && t.id === trainingHistory[trainingHistory.length-1].id ? "bg-green-50/50 transition-colors duration-1000" : ""}>
+                            <tr
+                              key={t.id}
+                              className={`cursor-pointer ${selectedHistoryTrainingId === t.id ? 'bg-blue-50/60' : ''} ${successMsg && t.id === trainingHistory[trainingHistory.length-1].id ? 'bg-green-50/50 transition-colors duration-1000' : ''}`}
+                              onClick={() => setSelectedHistoryTrainingId(t.id)}
+                            >
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{t.date}</td>
-                                <td className="px-6 py-4 text-sm font-medium text-slate-900">{t.title}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-                                    {t.isOnline ? 'オンライン' : '現地開催'}
-                                </td>
+                                <td className="px-6 py-4 text-sm font-medium text-slate-900 underline decoration-dotted">{t.title}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{t.location || '-'}</td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
                                         申込済
@@ -662,6 +739,41 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
                 </div>
             )}
         </div>
+        {selectedHistoryTraining && (
+          <div className="border-t border-slate-200 p-6 space-y-3">
+            <h3 className="text-base font-bold text-slate-900">履歴詳細</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-xs text-slate-500">研修名</p>
+                <p className="text-slate-800">{selectedHistoryTraining.title}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">開催日</p>
+                <p className="text-slate-800">{selectedHistoryTraining.date}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">開催場所</p>
+                <p className="text-slate-800">{selectedHistoryTraining.location || '-'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">主催者</p>
+                <p className="text-slate-800">{selectedHistoryTraining.organizer || '-'}</p>
+              </div>
+            </div>
+            {selectedHistoryTraining.summary && (
+              <div>
+                <p className="text-xs text-slate-500">研修概要</p>
+                <p className="text-sm text-slate-700">{selectedHistoryTraining.summary}</p>
+              </div>
+            )}
+            {selectedHistoryTraining.description && (
+              <div>
+                <p className="text-xs text-slate-500">詳細説明</p>
+                <p className="text-sm text-slate-700 whitespace-pre-line">{selectedHistoryTraining.description}</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 2. Member Profile Form (Renamed to be secondary) */}
@@ -762,6 +874,58 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
                         />
                         {errors.careManagerNumber && <p className="text-xs text-red-500 mt-1">{errors.careManagerNumber}</p>}
                     </div>
+                    <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">会員ステータス</label>
+                            <select
+                              disabled={isReadOnly}
+                              name="status"
+                              value={member.status}
+                              onChange={handleChange}
+                              className="w-full border-slate-300 rounded-lg p-2 text-sm"
+                            >
+                              <option value="ACTIVE">有効</option>
+                              <option value="WITHDRAWN">退会</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">入会日</label>
+                            <input
+                              disabled={isReadOnly}
+                              type="date"
+                              name="joinedDate"
+                              value={member.joinedDate || ''}
+                              onChange={handleChange}
+                              className={getInputClass('joinedDate')}
+                            />
+                            {errors.joinedDate && <p className="text-xs text-red-500 mt-1">{errors.joinedDate}</p>}
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">退会日</label>
+                            <input
+                              disabled={isReadOnly}
+                              type="date"
+                              name="withdrawnDate"
+                              value={member.withdrawnDate || ''}
+                              onChange={handleChange}
+                              className={getInputClass('withdrawnDate')}
+                            />
+                            {errors.withdrawnDate && <p className="text-xs text-red-500 mt-1">{errors.withdrawnDate}</p>}
+                        </div>
+                        <div className="md:col-span-3">
+                            <label className="inline-flex items-center gap-2 text-sm text-slate-700 mt-6">
+                              <input
+                                disabled={isReadOnly || member.status !== 'WITHDRAWN'}
+                                type="checkbox"
+                                name="midYearWithdrawal"
+                                checked={member.midYearWithdrawal === true}
+                                onChange={handleChange}
+                                className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                              />
+                              当年度中の中途退会として即時に削除フラグを立てる
+                            </label>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Staff List (Only for Business) */}
@@ -784,7 +948,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
                             {(!member.staff || member.staff.length === 0) && (
                                 <p className="text-xs text-slate-500 text-center py-4">登録されている職員はいません。</p>
                             )}
-                            {member.staff?.map((staff) => (
+                            {member.staff?.map((staff, staffIndex) => (
                                 <div key={staff.id} className="bg-white p-3 rounded shadow-sm border border-slate-200 grid grid-cols-1 md:grid-cols-12 gap-3 items-start md:items-center">
                                     <div className="md:col-span-3">
                                         <label className="block text-xs font-medium text-slate-500">氏名</label>
@@ -796,6 +960,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
                                             className={`w-full text-sm border-slate-200 rounded p-1 ${isReadOnly ? 'bg-slate-100' : ''}`}
                                             placeholder="例: 佐藤 次郎"
                                         />
+                                        {errors[`staff_${staffIndex}_name`] && <p className="text-xs text-red-500 mt-1">{errors[`staff_${staffIndex}_name`]}</p>}
                                     </div>
                                     <div className="md:col-span-3">
                                         <label className="block text-xs font-medium text-slate-500">フリガナ</label>
@@ -807,8 +972,9 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
                                             className={`w-full text-sm border-slate-200 rounded p-1 ${isReadOnly ? 'bg-slate-100' : ''}`}
                                             placeholder="サトウ ジロウ"
                                         />
+                                        {errors[`staff_${staffIndex}_kana`] && <p className="text-xs text-red-500 mt-1">{errors[`staff_${staffIndex}_kana`]}</p>}
                                     </div>
-                                    <div className="md:col-span-3">
+                                    <div className="md:col-span-2">
                                         <label className="block text-xs font-medium text-slate-500">個別メールアドレス</label>
                                         <input 
                                             disabled={isReadOnly}
@@ -818,6 +984,18 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
                                             className={`w-full text-sm border-slate-200 rounded p-1 ${isReadOnly ? 'bg-slate-100' : ''}`}
                                             placeholder="staff@example.com"
                                         />
+                                    </div>
+                                    <div className="md:col-span-1">
+                                        <label className="block text-xs font-medium text-slate-500">状態</label>
+                                        <select
+                                            disabled={isReadOnly}
+                                            value={staff.status || 'ENROLLED'}
+                                            onChange={(e) => handleStaffChange(staff.id, 'status', e.target.value)}
+                                            className={`w-full text-sm border-slate-200 rounded p-1 ${isReadOnly ? 'bg-slate-100' : ''}`}
+                                        >
+                                            <option value="ENROLLED">在籍</option>
+                                            <option value="LEFT">退職</option>
+                                        </select>
                                     </div>
                                     <div className="md:col-span-2">
                                         <label className="block text-xs font-medium text-slate-500">権限</label>
@@ -837,6 +1015,46 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
                                                 <TrashIcon className="w-4 h-4" />
                                             </button>
                                         )}
+                                    </div>
+                                    <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-500">入会日</label>
+                                            <input
+                                              disabled={isReadOnly}
+                                              type="date"
+                                              value={staff.joinedDate || ''}
+                                              onChange={(e) => handleStaffChange(staff.id, 'joinedDate', e.target.value)}
+                                              className={`w-full text-sm border-slate-200 rounded p-1 ${isReadOnly ? 'bg-slate-100' : ''}`}
+                                            />
+                                            {errors[`staff_${staffIndex}_joinedDate`] && (
+                                              <p className="text-xs text-red-500 mt-1">{errors[`staff_${staffIndex}_joinedDate`]}</p>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-500">退会日</label>
+                                            <input
+                                              disabled={isReadOnly}
+                                              type="date"
+                                              value={staff.withdrawnDate || ''}
+                                              onChange={(e) => handleStaffChange(staff.id, 'withdrawnDate', e.target.value)}
+                                              className={`w-full text-sm border-slate-200 rounded p-1 ${isReadOnly ? 'bg-slate-100' : ''}`}
+                                            />
+                                            {errors[`staff_${staffIndex}_withdrawnDate`] && (
+                                              <p className="text-xs text-red-500 mt-1">{errors[`staff_${staffIndex}_withdrawnDate`]}</p>
+                                            )}
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <label className="inline-flex items-center gap-2 text-xs text-slate-700 mt-1">
+                                              <input
+                                                disabled={isReadOnly || (staff.status || 'ENROLLED') !== 'LEFT'}
+                                                type="checkbox"
+                                                checked={staff.midYearWithdrawal === true}
+                                                onChange={(e) => handleStaffChange(staff.id, 'midYearWithdrawal', e.target.checked)}
+                                                className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                                              />
+                                              この職員を当年度中の中途退会として即時に削除フラグ化する
+                                            </label>
+                                        </div>
                                     </div>
                                 </div>
                             ))}
@@ -1138,3 +1356,4 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
 };
 
 export default MemberForm;
+

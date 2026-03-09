@@ -32,7 +32,6 @@ const EMPTY_FORM: Training = {
   applicationOpenDate: '',
   applicationCloseDate: '',
   location: '',
-  isOnline: false,
   status: 'OPEN',
   instructor: '',
   guidePdfUrl: '',

@@ -1,4 +1,4 @@
-import { Member, Training } from '../types';
+﻿import { Member, Training } from '../types';
 import { MOCK_MEMBERS, MOCK_TRAININGS } from '../constants';
 
 // GAS環境で提供される google.script.run の型定義（簡易版）
@@ -16,8 +16,8 @@ export interface ApiClient {
   fetchAllData(): Promise<{ members: Member[], trainings: Training[] }>;
   updateMember(member: Member): Promise<void>;
   changePassword(loginId: string, newPassword: string): Promise<void>;
-  getSystemSettings(): Promise<{ defaultBusinessStaffLimit: number }>;
-  updateSystemSettings(settings: { defaultBusinessStaffLimit: number }): Promise<{ defaultBusinessStaffLimit: number }>;
+  getSystemSettings(): Promise<{ defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }>;
+  updateSystemSettings(settings: { defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }): Promise<{ defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }>;
   memberLogin(loginId: string, password: string): Promise<{
     authMethod: 'PASSWORD';
     loginId: string;
@@ -139,6 +139,7 @@ class MockApiClient implements ApiClient {
   private members: Member[] = normalizeMemberLoginIds(JSON.parse(JSON.stringify(MOCK_MEMBERS)));
   private trainings: Training[] = JSON.parse(JSON.stringify(MOCK_TRAININGS));
   private defaultBusinessStaffLimit = 10;
+  private trainingHistoryLookbackMonths = 18;
 
   async fetchAllData(): Promise<{ members: Member[], trainings: Training[] }> {
     console.log('[Mock API] fetchAllData called');
@@ -166,17 +167,28 @@ class MockApiClient implements ApiClient {
     }
   }
 
-  async getSystemSettings(): Promise<{ defaultBusinessStaffLimit: number }> {
-    return { defaultBusinessStaffLimit: this.defaultBusinessStaffLimit };
+  async getSystemSettings(): Promise<{ defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }> {
+    return {
+      defaultBusinessStaffLimit: this.defaultBusinessStaffLimit,
+      trainingHistoryLookbackMonths: this.trainingHistoryLookbackMonths,
+    };
   }
 
-  async updateSystemSettings(settings: { defaultBusinessStaffLimit: number }): Promise<{ defaultBusinessStaffLimit: number }> {
+  async updateSystemSettings(settings: { defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }): Promise<{ defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }> {
     const next = Number(settings.defaultBusinessStaffLimit || 10);
     if (!Number.isFinite(next) || next < 1 || next > 200) {
       throw new Error('事業所メンバー上限（全体）は 1〜200 の範囲で設定してください。');
     }
+    const lookback = Number(settings.trainingHistoryLookbackMonths || 18);
+    if (!Number.isFinite(lookback) || lookback < 1 || lookback > 60) {
+      throw new Error('履歴表示期間（月）は 1〜60 の範囲で設定してください。');
+    }
     this.defaultBusinessStaffLimit = Math.floor(next);
-    return { defaultBusinessStaffLimit: this.defaultBusinessStaffLimit };
+    this.trainingHistoryLookbackMonths = Math.floor(lookback);
+    return {
+      defaultBusinessStaffLimit: this.defaultBusinessStaffLimit,
+      trainingHistoryLookbackMonths: this.trainingHistoryLookbackMonths,
+    };
   }
 
   async memberLogin(loginId: string, password: string) {
@@ -417,17 +429,17 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async getSystemSettings(): Promise<{ defaultBusinessStaffLimit: number }> {
+  async getSystemSettings(): Promise<{ defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
-        resolve({ defaultBusinessStaffLimit: 10 });
+        resolve({ defaultBusinessStaffLimit: 10, trainingHistoryLookbackMonths: 18 });
         return;
       }
       google.script.run
         .withSuccessHandler((result: string) => {
           try {
             const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data || { defaultBusinessStaffLimit: 10 });
+            if (parsed.success) resolve(parsed.data || { defaultBusinessStaffLimit: 10, trainingHistoryLookbackMonths: 18 });
             else reject(new Error(parsed.error || 'API Error'));
           } catch {
             reject(new Error('Failed to parse response from GAS'));
@@ -438,7 +450,7 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async updateSystemSettings(settings: { defaultBusinessStaffLimit: number }): Promise<{ defaultBusinessStaffLimit: number }> {
+  async updateSystemSettings(settings: { defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }): Promise<{ defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
         reject(new Error('google.script.run is not available.'));
@@ -448,7 +460,7 @@ class GasApiClient implements ApiClient {
         .withSuccessHandler((result: string) => {
           try {
             const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data || { defaultBusinessStaffLimit: 10 });
+            if (parsed.success) resolve(parsed.data || { defaultBusinessStaffLimit: 10, trainingHistoryLookbackMonths: 18 });
             else reject(new Error(parsed.error || 'API Error'));
           } catch {
             reject(new Error('Failed to parse response from GAS'));

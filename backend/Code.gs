@@ -4,7 +4,8 @@ var DB_SPREADSHEET_ID_FIXED = '1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs';
 var SCHEMA_INITIALIZED_KEY = 'DB_SCHEMA_INITIALIZED';
 var ADMIN_GOOGLE_CLIENT_ID_KEY = 'ADMIN_GOOGLE_CLIENT_ID';
 var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
-var DB_SCHEMA_VERSION = '2026-03-09-01';
+var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
+var DB_SCHEMA_VERSION = '2026-03-09-02';
 
 var マスタ定義 = {
   M_会員種別: ['コード', '名称', '表示順', '有効フラグ'],
@@ -14,7 +15,6 @@ var マスタ定義 = {
   M_職員権限: ['コード', '名称', '表示順', '有効フラグ'],
   M_職員状態: ['コード', '名称', '表示順', '有効フラグ'],
   M_システムロール: ['コード', '名称', '表示順', '有効フラグ'],
-  M_開催形式: ['コード', '名称', '表示順', '有効フラグ'],
   M_研修状態: ['コード', '名称', '表示順', '有効フラグ'],
   M_申込状態: ['コード', '名称', '表示順', '有効フラグ'],
   M_会費納入状態: ['コード', '名称', '表示順', '有効フラグ'],
@@ -52,10 +52,6 @@ var マスタ初期値 = {
     ['BUSINESS_ADMIN', '事業所管理者', 3, true],
     ['BUSINESS_MEMBER', '事業所メンバー', 4, true],
   ],
-  M_開催形式: [
-    ['ONLINE', 'オンライン', 1, true],
-    ['ONSITE', '現地', 2, true],
-  ],
   M_研修状態: [
     ['OPEN', '受付中', 1, true],
     ['CLOSED', '受付終了', 2, true],
@@ -75,6 +71,8 @@ var テーブル定義 = {
     '会員ID',
     '会員種別コード',
     '会員状態コード',
+    '入会日',
+    '退会日',
     '姓',
     '名',
     'セイ',
@@ -114,6 +112,8 @@ var テーブル定義 = {
     'メールアドレス',
     '職員権限コード',
     '職員状態コード',
+    '入会日',
+    '退会日',
     '作成日時',
     '更新日時',
     '削除フラグ',
@@ -181,7 +181,6 @@ var テーブル定義 = {
     '定員',
     '申込者数',
     '開催場所',
-    '開催形式コード',
     '研修状態コード',
     '主催者',
     '法定外研修フラグ',
@@ -232,7 +231,6 @@ var 入力規則定義 = [
   ['T_事業所職員', '職員権限コード', 'M_職員権限'],
   ['T_事業所職員', '職員状態コード', 'M_職員状態'],
   ['T_認証アカウント', 'システムロールコード', 'M_システムロール'],
-  ['T_研修', '開催形式コード', 'M_開催形式'],
   ['T_研修', '研修状態コード', 'M_研修状態'],
   ['T_研修申込', '申込状態コード', 'M_申込状態'],
   ['T_年会費納入履歴', '会費納入状態コード', 'M_会費納入状態'],
@@ -605,6 +603,7 @@ function verifySeedData() {
 function processApiRequest(action, payload) {
   try {
     var parsedPayload = parsePayload_(payload);
+    applyWithdrawalDeletionPolicy_();
 
     if (action === 'fetchAllData') {
       return JSON.stringify({
@@ -853,17 +852,10 @@ function buildTrainingReminderBody_(training) {
   lines.push('■開催日');
   lines.push(trainingDate);
   lines.push('');
-  lines.push('■開催形式');
-  lines.push(training.isOnline ? 'オンライン' : '現地開催');
-  lines.push('');
   lines.push('■会場');
   lines.push(String(training.location || ''));
   lines.push('');
-  if (training.isOnline) {
-    lines.push('当日のZoom IDと資料は本メールの添付、または別途ご案内のURLをご確認ください。');
-  } else {
-    lines.push('当日は公共交通機関のご利用にご協力ください。');
-  }
+  lines.push('当日の案内資料と詳細は、配布済みのご案内をご確認ください。');
   lines.push('');
   lines.push('何卒よろしくお願いいたします。');
   lines.push('');
@@ -920,6 +912,8 @@ function seedDemoData() {
       会員ID: '12345678',
       会員種別コード: 'INDIVIDUAL',
       会員状態コード: 'ACTIVE',
+      入会日: '2024-04-01',
+      退会日: '',
       姓: '山田',
       名: '太郎',
       セイ: 'ヤマダ',
@@ -949,6 +943,8 @@ function seedDemoData() {
       会員ID: '87654321',
       会員種別コード: 'INDIVIDUAL',
       会員状態コード: 'ACTIVE',
+      入会日: '2024-04-01',
+      退会日: '',
       姓: '鈴木',
       名: '花子',
       セイ: 'スズキ',
@@ -978,6 +974,8 @@ function seedDemoData() {
       会員ID: '934567890',
       会員種別コード: 'SUPPORT',
       会員状態コード: 'ACTIVE',
+      入会日: '2024-04-01',
+      退会日: '',
       姓: '高橋',
       名: '恵',
       セイ: 'タカハシ',
@@ -1007,6 +1005,8 @@ function seedDemoData() {
       会員ID: '99999999',
       会員種別コード: 'BUSINESS',
       会員状態コード: 'ACTIVE',
+      入会日: '2024-04-01',
+      退会日: '',
       姓: '佐藤',
       名: '次郎',
       セイ: 'サトウ',
@@ -1043,6 +1043,8 @@ function seedDemoData() {
       メールアドレス: 'k.noguchi@uguisunosato.or.jp',
       職員権限コード: 'ADMIN',
       職員状態コード: 'ENROLLED',
+      入会日: '2024-04-01',
+      退会日: '',
       作成日時: now,
       更新日時: now,
       削除フラグ: false,
@@ -1055,6 +1057,8 @@ function seedDemoData() {
       メールアドレス: 'k.noguchi@uguisunosato.or.jp',
       職員権限コード: 'STAFF',
       職員状態コード: 'ENROLLED',
+      入会日: '2024-04-01',
+      退会日: '',
       作成日時: now,
       更新日時: now,
       削除フラグ: false,
@@ -1067,6 +1071,8 @@ function seedDemoData() {
       メールアドレス: 'k.noguchi@uguisunosato.or.jp',
       職員権限コード: 'STAFF',
       職員状態コード: 'ENROLLED',
+      入会日: '2024-04-01',
+      退会日: '',
       作成日時: now,
       更新日時: now,
       削除フラグ: false,
@@ -1098,7 +1104,6 @@ function seedDemoData() {
       定員: 100,
       申込者数: 85,
       開催場所: 'オンライン (Zoom)',
-      開催形式コード: 'ONLINE',
       研修状態コード: 'OPEN',
       主催者: '枚方市介護支援専門員連絡協議会',
       法定外研修フラグ: false,
@@ -1121,7 +1126,6 @@ function seedDemoData() {
       定員: 40,
       申込者数: 40,
       開催場所: '枚方市市民会館 会議室A',
-      開催形式コード: 'ONSITE',
       研修状態コード: 'CLOSED',
       主催者: '枚方市介護支援専門員連絡協議会',
       法定外研修フラグ: true,
@@ -1144,7 +1148,6 @@ function seedDemoData() {
       定員: 60,
       申込者数: 18,
       開催場所: '枚方市総合文化芸術センター 第2会議室',
-      開催形式コード: 'ONSITE',
       研修状態コード: 'OPEN',
       主催者: '枚方市介護支援専門員連絡協議会',
       法定外研修フラグ: false,
@@ -1167,7 +1170,6 @@ function seedDemoData() {
       定員: 120,
       申込者数: 45,
       開催場所: 'オンライン (Zoom)',
-      開催形式コード: 'ONLINE',
       研修状態コード: 'OPEN',
       主催者: '枚方市介護支援専門員連絡協議会',
       法定外研修フラグ: true,
@@ -1432,7 +1434,6 @@ function fetchAllDataFromDb_() {
       capacity: Number(t['定員'] || 0),
       applicants: Number(t['申込者数'] || 0),
       location: String(t['開催場所'] || ''),
-      isOnline: String(t['開催形式コード'] || '') === 'ONLINE',
       status: deriveTrainingStatusByCloseDate_(t['申込締切日']),
       organizer: String(t['主催者'] || ''),
       isNonMandatory: toBoolean_(t['法定外研修フラグ']),
@@ -1492,6 +1493,10 @@ function fetchAllDataFromDb_() {
       kana: String(st['フリガナ'] || ''),
       email: String(st['メールアドレス'] || ''),
       role: String(st['職員権限コード'] || 'STAFF'),
+      status: String(st['職員状態コード'] || 'ENROLLED') === 'LEFT' ? 'LEFT' : 'ENROLLED',
+      joinedDate: String(st['入会日'] || ''),
+      withdrawnDate: String(st['退会日'] || ''),
+      midYearWithdrawal: false,
       participatedTrainingIds: uniqueStrings_(applicationsByStaff[stId] || []),
     });
   }
@@ -1529,7 +1534,10 @@ function fetchAllDataFromDb_() {
         return isFinite(n) && n >= 1 ? Math.floor(n) : undefined;
       })(),
       email: String(m['代表メールアドレス'] || ''),
-      status: String(m['会員状態コード'] || 'ACTIVE'),
+      status: String(m['会員状態コード'] || 'ACTIVE') === 'WITHDRAWN' ? 'WITHDRAWN' : 'ACTIVE',
+      joinedDate: String(m['入会日'] || ''),
+      withdrawnDate: String(m['退会日'] || ''),
+      midYearWithdrawal: false,
       annualFeeHistory: history,
       participatedTrainingIds: type === 'BUSINESS' ? [] : uniqueStrings_(applicationsByMember[id] || []),
     };
@@ -1971,25 +1979,41 @@ function getSystemSettings_() {
   var ss = getOrCreateDatabase_();
   initializeSchema_(ss);
   var raw = Number(getSystemSettingValue_(ss, 'DEFAULT_BUSINESS_STAFF_LIMIT') || 10);
+  var lookbackRaw = Number(getSystemSettingValue_(ss, 'TRAINING_HISTORY_LOOKBACK_MONTHS') || 18);
   var value = Math.floor(raw);
+  var lookback = Math.floor(lookbackRaw);
   if (!isFinite(value) || value < 1) value = 10;
+  if (!isFinite(lookback) || lookback < 1) lookback = 18;
   return {
     defaultBusinessStaffLimit: value,
+    trainingHistoryLookbackMonths: lookback,
   };
 }
 
 function updateSystemSettings_(request) {
   if (!request) throw new Error('settings が空です。');
   var next = Number(request.defaultBusinessStaffLimit || 0);
+  var lookbackRaw = request.trainingHistoryLookbackMonths;
+  var lookback = Number(lookbackRaw);
+  if (lookbackRaw == null || lookbackRaw === '') {
+    var ssForDefault = getOrCreateDatabase_();
+    initializeSchema_(ssForDefault);
+    lookback = Number(getSystemSettingValue_(ssForDefault, 'TRAINING_HISTORY_LOOKBACK_MONTHS') || 18);
+  }
   if (!isFinite(next) || next < 1 || next > 200) {
     throw new Error('事業所メンバー上限（全体）は 1〜200 の範囲で設定してください。');
+  }
+  if (!isFinite(lookback) || lookback < 1 || lookback > 60) {
+    throw new Error('履歴表示期間（月）は 1〜60 の範囲で設定してください。');
   }
   var ss = getOrCreateDatabase_();
   initializeSchema_(ss);
   upsertSystemSetting_(ss, 'DEFAULT_BUSINESS_STAFF_LIMIT', String(Math.floor(next)), '事業所会員メンバー上限（全体デフォルト）');
+  upsertSystemSetting_(ss, 'TRAINING_HISTORY_LOOKBACK_MONTHS', String(Math.floor(lookback)), '研修履歴の表示期間（月）');
   upsertSystemSetting_(ss, 'DB_SCHEMA_VERSION', DB_SCHEMA_VERSION, 'DBスキーマバージョン');
   var scriptProperties = PropertiesService.getScriptProperties();
   scriptProperties.setProperty(DEFAULT_BUSINESS_STAFF_LIMIT_KEY, String(Math.floor(next))); // backward compatibility
+  scriptProperties.setProperty(TRAINING_HISTORY_LOOKBACK_MONTHS_KEY, String(Math.floor(lookback))); // backward compatibility
   return getSystemSettings_();
 }
 
@@ -2049,6 +2073,7 @@ function updateMember_(payload) {
   var cols = found.columns;
   var row = found.row.slice();
   requireColumns_(cols, [
+    '会員状態コード', '入会日', '退会日', '削除フラグ',
     '姓', '名', 'セイ', 'メイ',
     '勤務先名', '勤務先郵便番号', '勤務先都道府県', '勤務先市区町村', '勤務先住所',
     '勤務先電話番号', '勤務先FAX番号',
@@ -2091,6 +2116,10 @@ function updateMember_(payload) {
     mailingPreference: fromPayloadOrCurrent('mailingPreference', String(getCol('発送方法コード') || 'EMAIL')),
     preferredMailDestination: fromPayloadOrCurrent('preferredMailDestination', String(getCol('郵送先区分コード') || 'OFFICE')),
     staffLimit: fromPayloadOrCurrent('staffLimit', getCol('職員数上限')),
+    status: fromPayloadOrCurrent('status', String(getCol('会員状態コード') || 'ACTIVE')),
+    joinedDate: fromPayloadOrCurrent('joinedDate', String(getCol('入会日') || '')),
+    withdrawnDate: fromPayloadOrCurrent('withdrawnDate', String(getCol('退会日') || '')),
+    midYearWithdrawal: fromPayloadOrCurrent('midYearWithdrawal', false),
   };
   validateMemberPayload_(mergedPayload, memberTypeCode);
   var sharedMobile = memberTypeCode === 'BUSINESS' && !String(mergedPayload.mobilePhone || '').trim()
@@ -2106,6 +2135,13 @@ function updateMember_(payload) {
   setCol('名', mergedPayload.firstName || '');
   setCol('セイ', mergedPayload.lastKana || '');
   setCol('メイ', mergedPayload.firstKana || '');
+  var nextStatus = String(mergedPayload.status || 'ACTIVE') === 'WITHDRAWN' ? 'WITHDRAWN' : 'ACTIVE';
+  setCol('会員状態コード', nextStatus);
+  setCol('入会日', normalizeDateInput_(mergedPayload.joinedDate));
+  setCol('退会日', normalizeDateInput_(mergedPayload.withdrawnDate));
+  var immediateDelete = nextStatus === 'WITHDRAWN' &&
+    (mergedPayload.midYearWithdrawal === true || String(mergedPayload.midYearWithdrawal || '').toLowerCase() === 'true');
+  setCol('削除フラグ', immediateDelete);
   setCol('介護支援専門員番号', mergedPayload.careManagerNumber || '');
   setCol('代表メールアドレス', mergedPayload.email || '');
   setCol('携帯電話番号', sharedMobile);
@@ -2128,11 +2164,20 @@ function updateMember_(payload) {
   }
   setCol('更新日時', new Date().toISOString());
   sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  if (hasOwn.call(payload, 'staff')) {
+    syncBusinessStaffRows_(ss, String(payload.id), memberTypeCode, payload.staff || []);
+  }
   return { updated: true, memberId: String(payload.id) };
 }
 
 function validateMemberPayload_(payload, memberTypeCode) {
   function trim(v) { return String(v || '').trim(); }
+  function toDate(v) {
+    var text = trim(v);
+    if (!text) return null;
+    var parsed = new Date(text);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
   var isBusiness = memberTypeCode === 'BUSINESS';
   var isSupport = memberTypeCode === 'SUPPORT';
 
@@ -2177,6 +2222,197 @@ function validateMemberPayload_(payload, memberTypeCode) {
     if (!trim(payload.homeCity)) throw new Error('個人会員は自宅市区町村が必須です。');
     if (!trim(payload.homeAddressLine)) throw new Error('個人会員は自宅住所が必須です。');
   }
+
+  var joined = toDate(payload.joinedDate);
+  var withdrawn = toDate(payload.withdrawnDate);
+  if (trim(payload.joinedDate) && !joined) throw new Error('入会日は有効な日付で入力してください。');
+  if (trim(payload.withdrawnDate) && !withdrawn) throw new Error('退会日は有効な日付で入力してください。');
+  if (joined && withdrawn && joined.getTime() > withdrawn.getTime()) {
+    throw new Error('退会日は入会日以降で入力してください。');
+  }
+  if (String(payload.status || 'ACTIVE') === 'WITHDRAWN' && !trim(payload.withdrawnDate)) {
+    throw new Error('退会済み会員は退会日の入力が必須です。');
+  }
+}
+
+function normalizeDateInput_(value) {
+  var text = String(value || '').trim();
+  if (!text) return '';
+  var parsed = new Date(text);
+  if (isNaN(parsed.getTime())) return '';
+  return Utilities.formatDate(parsed, 'Asia/Tokyo', 'yyyy-MM-dd');
+}
+
+function shouldAutoDeleteOnNextApril_(withdrawnDateRaw, referenceDate) {
+  var normalized = normalizeDateInput_(withdrawnDateRaw);
+  if (!normalized) return false;
+  var parsed = new Date(normalized + 'T00:00:00+09:00');
+  if (isNaN(parsed.getTime())) return false;
+  var threshold = new Date(parsed.getFullYear() + 1, 3, 1, 0, 0, 0, 0); // next year 4/1
+  return referenceDate.getTime() >= threshold.getTime();
+}
+
+function applyWithdrawalDeletionPolicy_() {
+  var ss = getOrCreateDatabase_();
+  var now = new Date();
+
+  markAutoDeletedRows_(ss, 'T_会員', '会員状態コード', 'WITHDRAWN', '退会日');
+  markAutoDeletedRows_(ss, 'T_事業所職員', '職員状態コード', 'LEFT', '退会日');
+
+  function markAutoDeletedRows_(spreadsheet, sheetName, statusCol, withdrawnCode, withdrawnDateCol) {
+    var sheet = spreadsheet.getSheetByName(sheetName);
+    if (!sheet || sheet.getLastRow() < 2) return;
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var cols = {};
+    for (var i = 0; i < headers.length; i += 1) cols[headers[i]] = i;
+    if (cols['削除フラグ'] == null || cols[statusCol] == null || cols[withdrawnDateCol] == null) return;
+
+    var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+    var updates = [];
+    for (var r = 0; r < rows.length; r += 1) {
+      var row = rows[r];
+      if (toBoolean_(row[cols['削除フラグ']])) continue;
+      if (String(row[cols[statusCol]] || '') !== withdrawnCode) continue;
+      if (!shouldAutoDeleteOnNextApril_(row[cols[withdrawnDateCol]], now)) continue;
+      row[cols['削除フラグ']] = true;
+      if (cols['更新日時'] != null) row[cols['更新日時']] = now.toISOString();
+      updates.push({ rowNumber: r + 2, row: row });
+    }
+    for (var u = 0; u < updates.length; u += 1) {
+      sheet.getRange(updates[u].rowNumber, 1, 1, updates[u].row.length).setValues([updates[u].row]);
+    }
+  }
+}
+
+function syncBusinessStaffRows_(ss, memberId, memberTypeCode, staffPayloadList) {
+  var sheet = ss.getSheetByName('T_事業所職員');
+  if (!sheet) return;
+  var nowIso = new Date().toISOString();
+
+  var activeRows = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === String(memberId || '');
+  });
+  var byId = {};
+  for (var i = 0; i < activeRows.length; i += 1) {
+    byId[String(activeRows[i]['職員ID'] || '')] = activeRows[i];
+  }
+
+  if (memberTypeCode !== 'BUSINESS') {
+    for (var k = 0; k < activeRows.length; k += 1) {
+      var st = activeRows[k];
+      upsertStaffRow_(ss, {
+        職員ID: String(st['職員ID'] || ''),
+        会員ID: String(memberId || ''),
+        氏名: String(st['氏名'] || ''),
+        フリガナ: String(st['フリガナ'] || ''),
+        メールアドレス: String(st['メールアドレス'] || ''),
+        職員権限コード: String(st['職員権限コード'] || 'STAFF'),
+        職員状態コード: 'LEFT',
+        入会日: String(st['入会日'] || ''),
+        退会日: normalizeDateInput_(String(st['退会日'] || '')) || Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd'),
+        更新日時: nowIso,
+        削除フラグ: true,
+      });
+    }
+    return;
+  }
+
+  var seen = {};
+  var payloadRows = Array.isArray(staffPayloadList) ? staffPayloadList : [];
+  for (var j = 0; j < payloadRows.length; j += 1) {
+    var payload = payloadRows[j] || {};
+    var staffId = String(payload.id || '').trim();
+    if (!staffId) continue;
+    seen[staffId] = true;
+    var name = String(payload.name || '').trim();
+    var kana = String(payload.kana || '').trim();
+    if (!name) throw new Error('職員氏名は必須です。');
+    if (!kana) throw new Error('職員フリガナは必須です。');
+    var status = String(payload.status || 'ENROLLED') === 'LEFT' ? 'LEFT' : 'ENROLLED';
+    var joined = normalizeDateInput_(payload.joinedDate);
+    var withdrawn = normalizeDateInput_(payload.withdrawnDate);
+    var immediateDelete = status === 'LEFT' &&
+      (payload.midYearWithdrawal === true || String(payload.midYearWithdrawal || '').toLowerCase() === 'true');
+    if (status === 'LEFT' && !withdrawn) throw new Error('退職済み職員は退会日が必須です。');
+    if (joined && withdrawn && new Date(joined).getTime() > new Date(withdrawn).getTime()) {
+      throw new Error('職員の退会日は入会日以降で入力してください。');
+    }
+
+    upsertStaffRow_(ss, {
+      職員ID: staffId,
+      会員ID: String(memberId || ''),
+      氏名: name,
+      フリガナ: kana,
+      メールアドレス: String(payload.email || ''),
+      職員権限コード: String(payload.role || 'STAFF') === 'ADMIN' ? 'ADMIN' : 'STAFF',
+      職員状態コード: status,
+      入会日: joined,
+      退会日: withdrawn,
+      更新日時: nowIso,
+      削除フラグ: immediateDelete,
+    });
+  }
+
+  for (var existingId in byId) {
+    if (!Object.prototype.hasOwnProperty.call(byId, existingId)) continue;
+    if (seen[existingId]) continue;
+    var rowObj = byId[existingId];
+    upsertStaffRow_(ss, {
+      職員ID: existingId,
+      会員ID: String(memberId || ''),
+      氏名: String(rowObj['氏名'] || ''),
+      フリガナ: String(rowObj['フリガナ'] || ''),
+      メールアドレス: String(rowObj['メールアドレス'] || ''),
+      職員権限コード: String(rowObj['職員権限コード'] || 'STAFF'),
+      職員状態コード: 'LEFT',
+      入会日: String(rowObj['入会日'] || ''),
+      退会日: normalizeDateInput_(String(rowObj['退会日'] || '')) || Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd'),
+      更新日時: nowIso,
+      削除フラグ: true,
+    });
+  }
+}
+
+function upsertStaffRow_(ss, rowObject) {
+  var sheet = ss.getSheetByName('T_事業所職員');
+  if (!sheet) return;
+  var found = findRowByColumnValue_(sheet, '職員ID', String(rowObject['職員ID'] || ''));
+  if (!found) {
+    var now = String(rowObject['更新日時'] || new Date().toISOString());
+    appendRowsByHeaders_(ss, 'T_事業所職員', [{
+      職員ID: String(rowObject['職員ID'] || ''),
+      会員ID: String(rowObject['会員ID'] || ''),
+      氏名: String(rowObject['氏名'] || ''),
+      フリガナ: String(rowObject['フリガナ'] || ''),
+      メールアドレス: String(rowObject['メールアドレス'] || ''),
+      職員権限コード: String(rowObject['職員権限コード'] || 'STAFF'),
+      職員状態コード: String(rowObject['職員状態コード'] || 'ENROLLED'),
+      入会日: normalizeDateInput_(rowObject['入会日']),
+      退会日: normalizeDateInput_(rowObject['退会日']),
+      作成日時: now,
+      更新日時: now,
+      削除フラグ: toBoolean_(rowObject['削除フラグ']),
+    }]);
+    return;
+  }
+
+  var row = found.row.slice();
+  var cols = found.columns;
+  function setCol(name, value) {
+    var idx = cols[name];
+    if (idx != null) row[idx] = value !== undefined ? value : '';
+  }
+  setCol('会員ID', String(rowObject['会員ID'] || ''));
+  setCol('氏名', String(rowObject['氏名'] || ''));
+  setCol('フリガナ', String(rowObject['フリガナ'] || ''));
+  setCol('メールアドレス', String(rowObject['メールアドレス'] || ''));
+  setCol('職員権限コード', String(rowObject['職員権限コード'] || 'STAFF'));
+  setCol('職員状態コード', String(rowObject['職員状態コード'] || 'ENROLLED'));
+  setCol('入会日', normalizeDateInput_(rowObject['入会日']));
+  setCol('退会日', normalizeDateInput_(rowObject['退会日']));
+  setCol('更新日時', String(rowObject['更新日時'] || new Date().toISOString()));
+  setCol('削除フラグ', toBoolean_(rowObject['削除フラグ']));
+  sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
 }
 
 function verifyGoogleIdToken_(idToken) {
@@ -2345,7 +2581,6 @@ function saveTraining_(payload) {
     setCol('開催日', payload.date || '');
     setCol('定員', Number(payload.capacity || 0));
     setCol('開催場所', payload.location || '');
-    setCol('開催形式コード', payload.isOnline ? 'ONLINE' : 'ONSITE');
     setCol('研修状態コード', derivedStatus);
     setCol('主催者', payload.organizer || '');
     setCol('法定外研修フラグ', payload.isNonMandatory ? true : false);
@@ -2378,7 +2613,6 @@ function saveTraining_(payload) {
     '定員': Number(payload.capacity || 0),
     '申込者数': 0,
     '開催場所': payload.location || '',
-    '開催形式コード': payload.isOnline ? 'ONLINE' : 'ONSITE',
     '研修状態コード': derivedStatus,
     '主催者': payload.organizer || '',
     '法定外研修フラグ': payload.isNonMandatory ? true : false,
@@ -2683,11 +2917,65 @@ function getOrCreateDatabase_() {
 function initializeSchema_(ss) {
   createMasterSheets_(ss);
   createTableSheets_(ss);
+  normalizeTableColumns_(ss, 'T_会員');
+  normalizeTableColumns_(ss, 'T_事業所職員');
+  normalizeTableColumns_(ss, 'T_研修');
   ensureSystemSettingsRows_(ss);
   seedPermissionMatrixIfNeeded_(ss);
   applyDataValidationRules_(ss);
   protectHeaderRows_(ss);
   cleanupNonSchemaSheets_(ss);
+}
+
+function normalizeTableColumns_(ss, tableName) {
+  var targetHeaders = テーブル定義[tableName];
+  if (!targetHeaders || targetHeaders.length === 0) return;
+
+  var sheet = ss.getSheetByName(tableName);
+  if (!sheet) return;
+  var lastCol = Math.max(1, sheet.getLastColumn());
+  var currentHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+
+  var same = currentHeaders.length === targetHeaders.length;
+  if (same) {
+    for (var i = 0; i < targetHeaders.length; i += 1) {
+      if (String(currentHeaders[i] || '') !== String(targetHeaders[i])) {
+        same = false;
+        break;
+      }
+    }
+  }
+  if (same) return;
+
+  var oldRows = [];
+  if (sheet.getLastRow() > 1) {
+    oldRows = sheet.getRange(2, 1, sheet.getLastRow() - 1, lastCol).getValues();
+  }
+
+  var oldHeaderIndex = {};
+  for (var h = 0; h < currentHeaders.length; h += 1) {
+    oldHeaderIndex[String(currentHeaders[h] || '')] = h;
+  }
+
+  var tempName = '__TMP_' + tableName + '_' + Utilities.getUuid().substring(0, 8);
+  var tempSheet = ss.insertSheet(tempName);
+  tempSheet.getRange(1, 1, 1, targetHeaders.length).setValues([targetHeaders]);
+
+  if (oldRows.length > 0) {
+    var migrated = oldRows.map(function(row) {
+      return targetHeaders.map(function(header) {
+        var idx = oldHeaderIndex[String(header || '')];
+        return idx == null ? '' : row[idx];
+      });
+    });
+    tempSheet.getRange(2, 1, migrated.length, targetHeaders.length).setValues(migrated);
+  }
+
+  var oldIndex = sheet.getIndex();
+  ss.deleteSheet(sheet);
+  tempSheet.setName(tableName);
+  ss.setActiveSheet(tempSheet);
+  ss.moveActiveSheet(oldIndex);
 }
 
 function initializeSchemaIfNeeded_() {
@@ -2773,7 +3061,9 @@ function ensureSystemSettingsRows_(ss) {
 
   var scriptProperties = PropertiesService.getScriptProperties();
   var defaultLimit = Number(scriptProperties.getProperty(DEFAULT_BUSINESS_STAFF_LIMIT_KEY) || 10);
+  var historyLookback = Number(scriptProperties.getProperty(TRAINING_HISTORY_LOOKBACK_MONTHS_KEY) || 18);
   if (!isFinite(defaultLimit) || defaultLimit < 1) defaultLimit = 10;
+  if (!isFinite(historyLookback) || historyLookback < 1) historyLookback = 18;
 
   if (!byKey['DEFAULT_BUSINESS_STAFF_LIMIT']) {
     appendRowsByHeaders_(ss, 'T_システム設定', [{
@@ -2789,6 +3079,15 @@ function ensureSystemSettingsRows_(ss) {
       設定キー: 'DB_SCHEMA_VERSION',
       設定値: DB_SCHEMA_VERSION,
       説明: 'DBスキーマバージョン',
+      更新日時: now,
+    }]);
+  }
+
+  if (!byKey['TRAINING_HISTORY_LOOKBACK_MONTHS']) {
+    appendRowsByHeaders_(ss, 'T_システム設定', [{
+      設定キー: 'TRAINING_HISTORY_LOOKBACK_MONTHS',
+      設定値: String(Math.floor(historyLookback)),
+      説明: '研修履歴の表示期間（月）',
       更新日時: now,
     }]);
   }

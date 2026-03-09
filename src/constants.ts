@@ -42,6 +42,9 @@ export const MOCK_MEMBERS: Member[] = [
     email: 'yamada@example.com',
     
     status: 'ACTIVE',
+    joinedDate: '2024-04-01',
+    withdrawnDate: '',
+    midYearWithdrawal: false,
     annualFeeHistory: [
       { year: 2025, status: PaymentStatus.PAID },
       { year: 2024, status: PaymentStatus.PAID }
@@ -80,6 +83,9 @@ export const MOCK_MEMBERS: Member[] = [
     email: '',
     
     status: 'ACTIVE',
+    joinedDate: '2024-04-01',
+    withdrawnDate: '',
+    midYearWithdrawal: false,
     annualFeeHistory: [
       { year: 2025, status: PaymentStatus.UNPAID, transferAccount: DEFAULT_TRANSFER_ACCOUNT },
       { year: 2024, status: PaymentStatus.PAID }
@@ -117,6 +123,9 @@ export const MOCK_MEMBERS: Member[] = [
     email: '',
 
     status: 'ACTIVE',
+    joinedDate: '2024-04-01',
+    withdrawnDate: '',
+    midYearWithdrawal: false,
     annualFeeHistory: [
       { year: 2025, status: PaymentStatus.PAID },
       { year: 2024, status: PaymentStatus.PAID }
@@ -144,6 +153,10 @@ export const MOCK_MEMBERS: Member[] = [
         kana: 'サトウ ジロウ', 
         email: 'sato@hirakata-station.com', 
         role: 'ADMIN',
+        status: 'ENROLLED',
+        joinedDate: '2024-04-01',
+        withdrawnDate: '',
+        midYearWithdrawal: false,
         participatedTrainingIds: ['T001', 'T002'] // Admin has attended both
       },
       { 
@@ -152,6 +165,10 @@ export const MOCK_MEMBERS: Member[] = [
         kana: 'タナカ サブロウ', 
         email: 'tanaka@hirakata-station.com', 
         role: 'STAFF',
+        status: 'ENROLLED',
+        joinedDate: '2024-04-01',
+        withdrawnDate: '',
+        midYearWithdrawal: false,
         participatedTrainingIds: ['T001'] // Staff attended only T001
       },
       { 
@@ -160,6 +177,10 @@ export const MOCK_MEMBERS: Member[] = [
         kana: 'イトウ シロウ', 
         email: 'ito@hirakata-station.com', 
         role: 'STAFF',
+        status: 'ENROLLED',
+        joinedDate: '2024-04-01',
+        withdrawnDate: '',
+        midYearWithdrawal: false,
         participatedTrainingIds: [] // New staff
       }
     ],
@@ -186,6 +207,9 @@ export const MOCK_MEMBERS: Member[] = [
     email: 'info@hirakata-station.com', // Representative Email
     
     status: 'ACTIVE',
+    joinedDate: '2024-04-01',
+    withdrawnDate: '',
+    midYearWithdrawal: false,
     annualFeeHistory: [
       { year: 2025, status: PaymentStatus.PAID },
       { year: 2024, status: PaymentStatus.PAID }
@@ -205,7 +229,6 @@ export const MOCK_TRAININGS: Training[] = [
     capacity: 100,
     applicants: 85,
     location: 'オンライン (Zoom)',
-    isOnline: true,
     status: 'OPEN',
     cancelAllowed: true,
     inquiryPerson: '事務局 田中',
@@ -227,7 +250,6 @@ export const MOCK_TRAININGS: Training[] = [
     capacity: 40,
     applicants: 40,
     location: '枚方市市民会館 会議室A',
-    isOnline: false,
     status: 'CLOSED',
     cancelAllowed: false,
     inquiryPerson: '事務局 佐藤',
@@ -249,7 +271,6 @@ export const MOCK_TRAININGS: Training[] = [
     capacity: 60,
     applicants: 18,
     location: '枚方市総合文化芸術センター 第2会議室',
-    isOnline: false,
     status: 'OPEN',
     cancelAllowed: true,
     inquiryPerson: '研修担当 中村',
@@ -271,7 +292,6 @@ export const MOCK_TRAININGS: Training[] = [
     capacity: 120,
     applicants: 45,
     location: 'オンライン (Zoom)',
-    isOnline: true,
     status: 'OPEN',
     cancelAllowed: false,
     inquiryPerson: '運営窓口 川口',

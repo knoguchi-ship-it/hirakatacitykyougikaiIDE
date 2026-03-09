@@ -46,6 +46,10 @@ export interface Staff {
   kana: string;
   email: string; // Individual email
   role: StaffRole; // Permission level
+  status?: 'ENROLLED' | 'LEFT';
+  joinedDate?: string;
+  withdrawnDate?: string;
+  midYearWithdrawal?: boolean;
   participatedTrainingIds?: string[]; // Track training per staff
 }
 
@@ -89,6 +93,9 @@ export interface Member {
   email?: string; // Main Contact Email (Rep)
   
   status: 'ACTIVE' | 'WITHDRAWN';
+  joinedDate?: string;
+  withdrawnDate?: string;
+  midYearWithdrawal?: boolean;
   
   // Annual Fee History (Past 2 years)
   annualFeeHistory: AnnualFeeRecord[];
@@ -143,7 +150,6 @@ export interface Training {
   capacity: number;
   applicants: number;
   location: string;
-  isOnline: boolean;
   status: 'OPEN' | 'CLOSED';
   organizer?: string;
   isNonMandatory?: boolean;
