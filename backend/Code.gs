@@ -1503,7 +1503,7 @@ function fetchAllDataFromDb_() {
     return {
       id: id,
       loginId: loginByMemberId[id] || '',
-      careManagerNumber: String(m['介護支援専門員番号'] || ''),
+      careManagerNumber: String(m['介護支援専門員番号'] || loginByMemberId[id] || ''),
       lastName: String(m['姓'] || ''),
       firstName: String(m['名'] || ''),
       lastKana: String(m['セイ'] || ''),
@@ -2023,6 +2023,20 @@ function upsertSystemSetting_(ss, key, value, description) {
   sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
 }
 
+function getAnyPasswordLoginIdByMemberId_(ss, memberId) {
+  var rows = getRowsAsObjects_(ss, 'T_認証アカウント');
+  for (var i = 0; i < rows.length; i += 1) {
+    var r = rows[i];
+    if (toBoolean_(r['削除フラグ'])) continue;
+    if (String(r['認証方式'] || '') !== 'PASSWORD') continue;
+    if (!toBoolean_(r['アカウント有効フラグ'])) continue;
+    if (String(r['会員ID'] || '') !== String(memberId || '')) continue;
+    var loginId = String(r['ログインID'] || '');
+    if (loginId) return loginId;
+  }
+  return '';
+}
+
 function updateMember_(payload) {
   if (!payload || !payload.id) throw new Error('会員IDが未指定です。');
   var ss = getOrCreateDatabase_();
@@ -2043,38 +2057,73 @@ function updateMember_(payload) {
   ]);
 
   var memberTypeCode = String(row[cols['会員種別コード']] || payload.type || 'INDIVIDUAL');
-  validateMemberPayload_(payload, memberTypeCode);
-  var sharedMobile = memberTypeCode === 'BUSINESS' && !String(payload.mobilePhone || '').trim()
-    ? String(payload.phone || '')
-    : String(payload.mobilePhone || '');
+  var hasOwn = Object.prototype.hasOwnProperty;
+  function fromPayloadOrCurrent(key, currentValue) {
+    return hasOwn.call(payload, key) ? payload[key] : currentValue;
+  }
+  function getCol(name) {
+    var idx = cols[name];
+    return idx != null ? row[idx] : '';
+  }
+  var loginIdFallback = String(fromPayloadOrCurrent('loginId', getAnyPasswordLoginIdByMemberId_(ss, String(payload.id))) || '');
+  var careManagerFallback = String(getCol('介護支援専門員番号') || loginIdFallback || '');
+  var mergedPayload = {
+    id: String(payload.id),
+    type: memberTypeCode,
+    lastName: fromPayloadOrCurrent('lastName', String(getCol('姓') || '')),
+    firstName: fromPayloadOrCurrent('firstName', String(getCol('名') || '')),
+    lastKana: fromPayloadOrCurrent('lastKana', String(getCol('セイ') || '')),
+    firstKana: fromPayloadOrCurrent('firstKana', String(getCol('メイ') || '')),
+    careManagerNumber: fromPayloadOrCurrent('careManagerNumber', careManagerFallback),
+    email: fromPayloadOrCurrent('email', String(getCol('代表メールアドレス') || '')),
+    mobilePhone: fromPayloadOrCurrent('mobilePhone', String(getCol('携帯電話番号') || '')),
+    officeName: fromPayloadOrCurrent('officeName', String(getCol('勤務先名') || '')),
+    officePostCode: fromPayloadOrCurrent('officePostCode', String(getCol('勤務先郵便番号') || '')),
+    officePrefecture: fromPayloadOrCurrent('officePrefecture', String(getCol('勤務先都道府県') || '')),
+    officeCity: fromPayloadOrCurrent('officeCity', String(getCol('勤務先市区町村') || '')),
+    officeAddressLine: fromPayloadOrCurrent('officeAddressLine', String(getCol('勤務先住所') || '')),
+    phone: fromPayloadOrCurrent('phone', String(getCol('勤務先電話番号') || '')),
+    fax: fromPayloadOrCurrent('fax', String(getCol('勤務先FAX番号') || '')),
+    homePostCode: fromPayloadOrCurrent('homePostCode', String(getCol('自宅郵便番号') || '')),
+    homePrefecture: fromPayloadOrCurrent('homePrefecture', String(getCol('自宅都道府県') || '')),
+    homeCity: fromPayloadOrCurrent('homeCity', String(getCol('自宅市区町村') || '')),
+    homeAddressLine: fromPayloadOrCurrent('homeAddressLine', String(getCol('自宅住所') || '')),
+    mailingPreference: fromPayloadOrCurrent('mailingPreference', String(getCol('発送方法コード') || 'EMAIL')),
+    preferredMailDestination: fromPayloadOrCurrent('preferredMailDestination', String(getCol('郵送先区分コード') || 'OFFICE')),
+    staffLimit: fromPayloadOrCurrent('staffLimit', getCol('職員数上限')),
+  };
+  validateMemberPayload_(mergedPayload, memberTypeCode);
+  var sharedMobile = memberTypeCode === 'BUSINESS' && !String(mergedPayload.mobilePhone || '').trim()
+    ? String(mergedPayload.phone || '')
+    : String(mergedPayload.mobilePhone || '');
 
   function setCol(name, value) {
     var idx = cols[name];
     if (idx != null) row[idx] = value !== undefined ? value : '';
   }
 
-  setCol('姓', payload.lastName || '');
-  setCol('名', payload.firstName || '');
-  setCol('セイ', payload.lastKana || '');
-  setCol('メイ', payload.firstKana || '');
-  setCol('介護支援専門員番号', payload.careManagerNumber || '');
-  setCol('代表メールアドレス', payload.email || '');
+  setCol('姓', mergedPayload.lastName || '');
+  setCol('名', mergedPayload.firstName || '');
+  setCol('セイ', mergedPayload.lastKana || '');
+  setCol('メイ', mergedPayload.firstKana || '');
+  setCol('介護支援専門員番号', mergedPayload.careManagerNumber || '');
+  setCol('代表メールアドレス', mergedPayload.email || '');
   setCol('携帯電話番号', sharedMobile);
-  setCol('勤務先名', payload.officeName || '');
-  setCol('勤務先郵便番号', payload.officePostCode || '');
-  setCol('勤務先都道府県', payload.officePrefecture || '');
-  setCol('勤務先市区町村', payload.officeCity || '');
-  setCol('勤務先住所', payload.officeAddressLine || '');
-  setCol('勤務先電話番号', payload.phone || '');
-  setCol('勤務先FAX番号', payload.fax || '');
-  setCol('自宅郵便番号', payload.homePostCode || '');
-  setCol('自宅都道府県', payload.homePrefecture || '');
-  setCol('自宅市区町村', payload.homeCity || '');
-  setCol('自宅住所', payload.homeAddressLine || '');
-  setCol('発送方法コード', payload.mailingPreference || 'EMAIL');
-  setCol('郵送先区分コード', payload.preferredMailDestination || 'OFFICE');
+  setCol('勤務先名', mergedPayload.officeName || '');
+  setCol('勤務先郵便番号', mergedPayload.officePostCode || '');
+  setCol('勤務先都道府県', mergedPayload.officePrefecture || '');
+  setCol('勤務先市区町村', mergedPayload.officeCity || '');
+  setCol('勤務先住所', mergedPayload.officeAddressLine || '');
+  setCol('勤務先電話番号', mergedPayload.phone || '');
+  setCol('勤務先FAX番号', mergedPayload.fax || '');
+  setCol('自宅郵便番号', mergedPayload.homePostCode || '');
+  setCol('自宅都道府県', mergedPayload.homePrefecture || '');
+  setCol('自宅市区町村', mergedPayload.homeCity || '');
+  setCol('自宅住所', mergedPayload.homeAddressLine || '');
+  setCol('発送方法コード', mergedPayload.mailingPreference || 'EMAIL');
+  setCol('郵送先区分コード', mergedPayload.preferredMailDestination || 'OFFICE');
   if (cols['職員数上限'] != null) {
-    var n = Number(payload.staffLimit);
+    var n = Number(mergedPayload.staffLimit);
     setCol('職員数上限', isFinite(n) && n >= 1 ? Math.floor(n) : '');
   }
   setCol('更新日時', new Date().toISOString());
