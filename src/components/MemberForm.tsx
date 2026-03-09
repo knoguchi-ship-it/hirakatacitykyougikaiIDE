@@ -447,12 +447,14 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
               <button
                 type="button"
                 onClick={() => setPasswordModalOpen(true)}
-                className="px-4 py-2 rounded-lg text-white font-bold bg-slate-700 hover:bg-slate-800"
+                title="別ウィンドウで開きます"
+                className="px-4 py-2 rounded-lg text-sm font-bold border text-cyan-900 bg-cyan-50 border-cyan-300 hover:bg-cyan-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 after:ml-1 after:content-['↗']"
               >
-                パスワード変更（別窓）
+                パスワード変更
               </button>
             </div>
           </div>
+          <p className="mt-3 text-xs text-cyan-800">↗ アイコン付きボタンは別ウィンドウで開きます。</p>
         </div>
       </div>
 
@@ -646,13 +648,14 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
           <button
             type="button"
             onClick={() => setProfileEditModalOpen(true)}
-            className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-bold hover:bg-primary-700"
+            title="別ウィンドウで開きます"
+            className="px-4 py-2 rounded-lg text-sm font-bold border text-cyan-900 bg-cyan-50 border-cyan-300 hover:bg-cyan-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 after:ml-1 after:content-['↗']"
           >
-            会員情報を確認・変更（別窓）
+            会員情報を確認・変更
           </button>
         </div>
         <div className="p-6 text-sm text-slate-600">
-          会員情報の変更は「会員情報を変更（別窓）」から実施してください。
+          会員情報の変更は「会員情報を変更」から実施してください。
           {isBusiness && (
             <div className="mt-2">
               現在の所属職員数: {(member.staff || []).length} / 上限 {effectiveStaffLimit} 名
