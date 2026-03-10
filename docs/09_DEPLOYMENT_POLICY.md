@@ -1,6 +1,6 @@
 ﻿# デプロイ標準（URL固定運用）
 
-更新日: 2026-03-09
+更新日: 2026-03-10
 
 ## 1. 目的
 - 本番WebアプリURLを固定し、利用者影響を防ぐ。
@@ -14,8 +14,8 @@
 - 例外的に `New deployment` を行うのは、既存IDで `/exec` 復旧不能な場合のみとし、実施時は本書の固定対象を即時更新する。
 
 ## 2. 固定対象
-- 本番Deployment ID: `AKfycby8Uc8RMNpRrcQIV-DePe3ZzoDMglSnB9EBO5GXzTn3VNyJT1lUBcpEpjiodjqbzCpF`
-- 本番URL: `https://script.google.com/macros/s/AKfycby8Uc8RMNpRrcQIV-DePe3ZzoDMglSnB9EBO5GXzTn3VNyJT1lUBcpEpjiodjqbzCpF/exec`
+- 本番Deployment ID: `AKfycbw2QYvMovSCkXtSpGAro1drZqonpXjf_zTpa-ylsUIYZhzrlDgGds7jurGHKuKCY4xU`
+- 本番URL: `https://script.google.com/macros/s/AKfycbw2QYvMovSCkXtSpGAro1drZqonpXjf_zTpa-ylsUIYZhzrlDgGds7jurGHKuKCY4xU/exec`
 
 ## 3. 今後の標準デプロイ手順（必須）
 1. `npm run build:gas`
@@ -36,6 +36,11 @@
 2. Apps Script UIで `Web app` 種別を確認
 3. `curl -I <exec-url>` で 404/403 を判定
 4. 404なら `Manage deployments` で同一IDを編集し再保存
+
+## 5.1 例外実績（2026-03-10）
+- 旧本番ID `AKfycby8Uc8RMNpRrcQIV-DePe3ZzoDMglSnB9EBO5GXzTn3VNyJT1lUBcpEpjiodjqbzCpF` が `実行可能API` 化し、`/exec` が404となった。
+- `Manage deployments` 上で `Web app` 復旧不能だったため、例外として `New deployment` で `Web app` を再発行した。
+- 新IDを本書の固定対象へ反映済み。
 
 ## 6. 公式仕様（参照）
 - Apps Script Deployments: https://developers.google.com/apps-script/concepts/deployments
