@@ -69,3 +69,36 @@ npx clasp run getDbInfo
 ## 8. 補足
 - 既存の履歴文書は `docs/archive/docs_history/` に保存
 - 本書は再開時の最初の確認資料として維持し、更新時は日付を更新する
+
+## 9. 当日運用チェックリスト（実施欄）
+
+### 9.1 開発再開前
+- [ ] `docs/12_ENGINEERING_RULEBOOK.md` を再読した
+- [ ] `docs/10_SOW.md` を再読した
+- [ ] `docs/09_DEPLOYMENT_POLICY.md` を再読した
+- [ ] `npx clasp show-authorized-user` が想定アカウントであることを確認した
+
+### 9.2 変更作業中
+- [ ] DB関連変更は「型/マスタ/シート/API」を同一変更セットで更新した
+- [ ] 管理者=Google認証、会員=ID/パス認証の仕様を崩していない
+- [ ] 変更内容を正本ドキュメントへ追記した
+
+### 9.3 本番反映前
+- [ ] `npm run build:gas` が成功した
+- [ ] `npx clasp push --force` が成功した
+- [ ] `npx clasp version` で新Versionを作成した
+- [ ] `Manage deployments` で本番対象のVersionを確認した
+
+### 9.4 本番反映後
+- [ ] `/exec` を実ブラウザで確認し404でないことを確認した
+- [ ] `npx clasp run healthCheck` が成功した
+- [ ] `npx clasp run getDbInfo` が成功した
+- [ ] 変更内容・確認結果を `HANDOVER.md` か関連正本へ記録した
+
+### 9.5 リリース記録
+- 実施日:
+- 担当者:
+- Gitコミット:
+- 本番Deployment ID:
+- 本番URL:
+- 備考:
