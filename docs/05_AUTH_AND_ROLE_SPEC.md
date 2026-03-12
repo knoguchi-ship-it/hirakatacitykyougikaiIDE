@@ -126,6 +126,7 @@
 6. `https://www.googleapis.com/auth/logging.read`
 7. `openid`, `email`, `profile`, `userinfo.email`, `userinfo.profile`
 8. `https://www.googleapis.com/auth/cloud-platform`
+9. `https://www.googleapis.com/auth/gmail.send`（管理コンソール メール送信機能・2026-03-13追加。`appsscript.json` の `oauthScopes` に追記必要）
 
 ## 8. 公開ポータルのセキュリティ・個人情報保護法対応（2026-03-12 追加）
 

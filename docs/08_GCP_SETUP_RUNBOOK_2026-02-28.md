@@ -57,6 +57,20 @@
 証跡:
 ![Apps Script Drive Service](assets/gcp-setup-2026-02-28/06_apps_script_drive_service.png)
 
+### 4.5 GmailApp スコープ追加（2026-03-13 追加）
+管理コンソール メール送信機能（`GmailApp.sendEmail`）の利用に必要。
+
+1. `backend/appsscript.json` の `oauthScopes` 配列に以下を追加:
+   ```json
+   "https://www.googleapis.com/auth/gmail.send"
+   ```
+2. `npx clasp push --force` でデプロイ後、初回アクセス時に権限許可ダイアログが表示される
+3. `k.noguchi@uguisunosato.or.jp` で許可を承認すること
+
+注意:
+- スコープ追加後の初回デプロイ時は、既存ユーザーにも再承認が求められる場合がある
+- `MailApp.sendEmail`（既存リマインダー）と `GmailApp.sendEmail`（新機能）は同一プロジェクト内で共存可能
+
 ## 5. 設定結果（最終状態）
 1. GCP API
 - `script.googleapis.com`: 有効
@@ -69,6 +83,7 @@
 
 3. Apps Script
 - 高度なサービス: `Drive API` 追加済み
+- oauthScopes: `gmail.send` 追加済み（2026-03-13）
 
 ## 6. 動作確認コマンド（ローカル）
 ```powershell
