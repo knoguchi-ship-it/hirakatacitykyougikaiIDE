@@ -262,7 +262,7 @@
     <div class="badge">AI 人格設定ガイド</div>
     <h1>AI 人格（ペルソナ）設定ガイド<br>Custom GPTs / Gemini Gems / Claude Projects / CLAUDE.md</h1>
     <p>各プラットフォームでの AI 人格固定・行動規範設定の方法を比較・解説します。</p>
-    <div class="meta">作成: 2026-03-12 &nbsp;|&nbsp; 対象: Claude Code / Claude.ai / ChatGPT / Gemini</div>
+    <div class="meta">作成: 2026-03-12 &nbsp;|&nbsp; Web検索検証済: 2026-03-12 &nbsp;|&nbsp; 対象: Claude Code / Claude.ai / ChatGPT / Gemini</div>
   </header>
 
   <!-- ===== TOC ===== -->
@@ -365,7 +365,7 @@
             <td>公開・共有（ストア等）</td>
             <td class="check">✅ GPT Store</td>
             <td class="partial">△ 限定共有</td>
-            <td class="cross">❌（現状）</td>
+            <td class="partial">△ Team/Enterprise のみ</td>
             <td class="check">✅ リポジトリ共有</td>
           </tr>
           <tr>
@@ -385,8 +385,8 @@
           <tr>
             <td>無料で使える</td>
             <td class="partial">△ 有料プラン</td>
-            <td class="partial">△ 有料プラン</td>
-            <td class="partial">△ 有料プラン</td>
+            <td class="check">✅ 無料も可（機能制限あり）</td>
+            <td class="check">✅ 無料も可（5件まで）</td>
             <td class="check">✅ Claude Code内</td>
           </tr>
           <tr>
@@ -469,8 +469,11 @@
 - セキュリティ上問題のあるコードを生成しない</code></pre>
 
       <div class="callout warn">
-        <strong>⚠️ 注意</strong>
-        Instructions は最大 8,000 文字。長すぎると後半が参照されにくくなるため、重要なルールを先頭に書く。
+        <strong>⚠️ 文字数制限（2026年3月確認）</strong>
+        ChatGPT の <strong>Custom Instructions（個人設定）</strong>は 1,500文字/フィールド（ハードリミット）。<br>
+        <strong>Custom GPTs の Instructions</strong> は ~8,000文字がガイドライン（ソフトリミット）。
+        超過分は「Knowledge」ドキュメントに分割する運用が推奨。<br>
+        出典: <a href="https://community.openai.com/t/how-can-i-increase-the-ceiling-for-gpt-instructions-beyond-8000-characters/801867" target="_blank">OpenAI Community</a>
       </div>
     </div>
   </section>
@@ -484,7 +487,7 @@
         <div class="platform-icon icon-google">💎</div>
         <div>
           <h2>Gemini Gems</h2>
-          <div class="subtitle">Gemini Advanced（Google One AI Premium）| gemini.google.com</div>
+          <div class="subtitle">無料〜Gemini Advanced | gemini.google.com（2025年より無料ユーザーにも順次展開）</div>
         </div>
       </div>
 
@@ -529,9 +532,11 @@ Google Apps Script / TypeScript / React を専門とします。
 - 平文パスワードの保存を提案しない</code></pre>
 
       <div class="callout info">
-        <strong>💡 Gems の強み</strong>
-        Google Workspace（Drive / Docs / Gmail）と連携した Gem を作れる。
-        業務ドキュメントを Drive に置いて参照させることができる。
+        <strong>💡 Gems の強み（2025年以降）</strong>
+        ① 特定の Google Docs / Sheets に「アンカー」し、常に最新内容を参照させられる。<br>
+        ② Google Drive と同様の <strong>view / use / edit 権限でチーム共有</strong>が可能（2025年9月〜）。<br>
+        ③ 無料ユーザーにも順次展開中（一部機能はAdvancedのみ）。<br>
+        出典: <a href="https://workspaceupdates.googleblog.com/2025/09/gem-sharing-gemini-app-workspace.html" target="_blank">Google Workspace Updates</a>
       </div>
     </div>
   </section>
@@ -545,7 +550,7 @@ Google Apps Script / TypeScript / React を専門とします。
         <div class="platform-icon icon-claude">🔶</div>
         <div>
           <h2>Claude Projects</h2>
-          <div class="subtitle">Claude Pro / Team / Enterprise | claude.ai</div>
+          <div class="subtitle">無料〜Enterprise | claude.ai（無料は最大5プロジェクト、RAG拡張はPro以上）</div>
         </div>
       </div>
 
@@ -603,9 +608,11 @@ Google Apps Script / TypeScript / React を専門とします。
 - GAS の制約（実行時間・API制限）を考慮する</code></pre>
 
       <div class="callout good">
-        <strong>✅ Claude Projects の強み</strong>
-        会話履歴がプロジェクト単位で保持される。
-        チームメンバーと同じプロジェクトを共有できる（Teamプラン以上）。
+        <strong>✅ Claude Projects の強み（2025年確認）</strong>
+        ① 会話履歴がプロジェクト単位で保持される。<br>
+        ② <strong>無料ユーザーも利用可能（最大5プロジェクト）</strong>。有料プランは RAG で知識ベース容量が最大10倍に自動拡張。<br>
+        ③ Team/Enterprise では <strong>private / view / edit の権限管理付きで共有可能</strong>。<br>
+        出典: <a href="https://support.claude.com/en/articles/9517075-what-are-projects" target="_blank">Claude Help Center</a>
       </div>
     </div>
   </section>
@@ -619,7 +626,7 @@ Google Apps Script / TypeScript / React を専門とします。
         <div class="platform-icon icon-claudemd">📄</div>
         <div>
           <h2>CLAUDE.md</h2>
-          <div class="subtitle">Claude Code（CLI）| プロジェクトルートに配置</div>
+          <div class="subtitle">Claude Code（CLI）| ./CLAUDE.md または ./.claude/CLAUDE.md に配置</div>
         </div>
       </div>
 
@@ -701,6 +708,13 @@ Google Apps Script / TypeScript / React を専門とします。
 - 確認なしで進めてよい作業: [例: ファイル読み書き・コマンド実行]
 - 必ず確認する作業: [例: git push・本番変更・破壊的操作]</code></pre>
 
+      <div class="callout warn">
+        <strong>⚠️ サイレント失敗に注意（重要）</strong>
+        ファイル名が間違っていても警告が出ない（例: <code>claude.md</code> は読み込まれない）。
+        ファイル名は必ず <strong>大文字の CLAUDE.md</strong>。配置先は <code>./CLAUDE.md</code> または <code>./.claude/CLAUDE.md</code> のどちらでも可。<br>
+        サブディレクトリの CLAUDE.md はそのディレクトリ内のファイルを読んだ時に<strong>動的ロード</strong>される。<br>
+        出典: <a href="https://code.claude.com/docs/en/memory" target="_blank">Claude Code Docs - Memory</a>
+      </div>
       <div class="callout good">
         <strong>✅ CLAUDE.md の最大の強み</strong>
         他のプラットフォームと違い、<strong>Git 管理できる</strong>のが最大の差別化点。
@@ -799,8 +813,10 @@ Google Apps Script / TypeScript / React を専門とします。
         <div class="tip-icon">🥇</div>
         <div>
           <strong>重要なルールは先頭に書く</strong><br>
-          LLM は文書の後半ほど参照される確率が下がる傾向がある（Lost in the Middle 問題）。
-          絶対に守らせたいルールは Instructions の冒頭に配置する。
+          LLM は長いコンテキストの<strong>中間部を最も参照しにくい</strong>（先頭と末尾が強い）。
+          「Lost in the Middle」問題として 2023年に発表され、2024年 ACL に採録・2025年 MIT 研究でメカニズムも解明済みの実証済み現象。
+          絶対に守らせたいルールは Instructions の<strong>冒頭</strong>に配置する。<br>
+          出典: <a href="https://aclanthology.org/2024.tacl-1.9/" target="_blank">ACL Anthology 2024</a>
         </div>
       </div>
       <div class="tip">
