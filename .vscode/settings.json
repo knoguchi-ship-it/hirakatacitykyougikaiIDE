@@ -1,0 +1,35 @@
+{
+  // ===================================================
+  // VS Code プロジェクト設定 — 文字化け防止
+  // ===================================================
+
+  // エンコーディング: 常に UTF-8 (BOM なし) を強制
+  "files.encoding": "utf8",
+  "files.autoGuessEncoding": false,
+
+  // 改行コード: LF に統一（.gitattributes と連動）
+  "files.eol": "\n",
+
+  // 保存時の末尾空白削除
+  "files.trimTrailingWhitespace": true,
+
+  // ファイル末尾に改行を追加
+  "files.insertFinalNewline": true,
+
+  // TypeScript / JavaScript の整形
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+
+  // Markdown はエンコーディング強調表示（UTF-8 確認用）
+  "[markdown]": {
+    "files.encoding": "utf8",
+    "editor.wordWrap": "on"
+  }
+}

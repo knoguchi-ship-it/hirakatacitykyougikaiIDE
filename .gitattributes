@@ -1,0 +1,42 @@
+# ===================================================
+# .gitattributes — 文字化け防止設定
+# 目的: コミット時にエンコーディングと改行コードを強制し、
+#       Shift-JIS / BOM 混入による文字化けを防ぐ。
+# ===================================================
+
+# デフォルト: テキストファイルは LF に正規化
+* text=auto eol=lf
+
+# ソースコード
+*.ts   text eol=lf
+*.tsx  text eol=lf
+*.js   text eol=lf
+*.jsx  text eol=lf
+*.gs   text eol=lf
+*.json text eol=lf
+
+# マークアップ・スタイル
+*.html text eol=lf
+*.css  text eol=lf
+
+# ドキュメント
+*.md   text eol=lf
+
+# 設定ファイル
+*.toml text eol=lf
+*.yaml text eol=lf
+*.yml  text eol=lf
+*.env* text eol=lf
+
+# バイナリ（差分・改行変換を完全に無効化）
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.zip  binary
+*.woff binary
+*.woff2 binary
+*.ttf  binary
+*.eot  binary
