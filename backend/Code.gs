@@ -3270,8 +3270,12 @@ function cleanupNonSchemaSheets_(ss) {
     if (ss.getSheets().length <= 1) {
       break;
     }
-    ss.deleteSheet(sheet);
-    deleted.push(name);
+    try {
+      ss.deleteSheet(sheet);
+      deleted.push(name);
+    } catch (e) {
+      // シートが既に削除済みの場合は無視
+    }
   }
   return deleted;
 }
