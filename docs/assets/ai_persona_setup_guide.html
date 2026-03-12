@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 人格設定ガイド — Custom GPTs / Gemini Gems / Claude Projects / CLAUDE.md</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2e3250;
+      --accent-blue: #4f8ef7;
+      --accent-green: #3ecf8e;
+      --accent-yellow: #f5c542;
+      --accent-purple: #a78bfa;
+      --accent-pink: #f472b6;
+      --text: #e2e8f0;
+      --text-muted: #8892a4;
+      --code-bg: #131720;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
+    }
+    /* ---- Layout ---- */
+    .wrapper { max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+    /* ---- Header ---- */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 28px;
+      margin-bottom: 40px;
+    }
+    header .badge {
+      display: inline-block;
+      background: var(--accent-blue);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      padding: 2px 10px;
+      border-radius: 20px;
+      margin-bottom: 12px;
+    }
+    header h1 {
+      font-size: 26px;
+      font-weight: 700;
+      line-height: 1.3;
+      margin-bottom: 10px;
+    }
+    header p { color: var(--text-muted); font-size: 14px; }
+    header .meta { margin-top: 12px; font-size: 13px; color: var(--text-muted); }
+    /* ---- Section ---- */
+    .section { margin-bottom: 56px; }
+    .section-title {
+      font-size: 20px;
+      font-weight: 700;
+      border-left: 4px solid var(--accent-blue);
+      padding-left: 14px;
+      margin-bottom: 24px;
+    }
+    /* ---- Cards ---- */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+    }
+    .card .card-logo {
+      font-size: 22px;
+      margin-bottom: 8px;
+    }
+    .card h3 {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .card p { font-size: 13px; color: var(--text-muted); }
+    .card .tag {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-top: 10px;
+      font-weight: 600;
+    }
+    .tag-green  { background: #1a3d2e; color: var(--accent-green); }
+    .tag-blue   { background: #1a2a4a; color: var(--accent-blue); }
+    .tag-purple { background: #2a1f3d; color: var(--accent-purple); }
+    .tag-yellow { background: #3a2e10; color: var(--accent-yellow); }
+    /* ---- Comparison Table ---- */
+    .table-wrap { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    thead tr { background: var(--surface2); }
+    th {
+      text-align: left;
+      padding: 12px 14px;
+      font-weight: 700;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    td {
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    tr:hover td { background: var(--surface); }
+    .check { color: var(--accent-green); font-weight: 700; }
+    .cross { color: #ef4444; }
+    .partial { color: var(--accent-yellow); }
+    /* ---- Steps ---- */
+    .steps { counter-reset: step; display: flex; flex-direction: column; gap: 20px; }
+    .step {
+      display: flex;
+      gap: 18px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+    }
+    .step-num {
+      counter-increment: step;
+      min-width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .step-body h4 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+    .step-body p  { font-size: 14px; color: var(--text-muted); }
+    /* ---- Code ---- */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px;
+      overflow-x: auto;
+      font-size: 13px;
+      line-height: 1.6;
+      margin: 14px 0;
+    }
+    code { font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace; }
+    .kw  { color: #c792ea; }
+    .str { color: #c3e88d; }
+    .cm  { color: #546e7a; font-style: italic; }
+    .hl  { color: var(--accent-blue); }
+    .num { color: var(--accent-yellow); }
+    /* ---- Platform blocks ---- */
+    .platform {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px;
+      margin-bottom: 28px;
+    }
+    .platform-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    .platform-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .icon-openai  { background: #1a2a1e; }
+    .icon-google  { background: #1a1f3a; }
+    .icon-claude  { background: #2a1f1a; }
+    .icon-claudemd{ background: #1a2a3a; }
+    .platform-header h2 { font-size: 18px; font-weight: 700; }
+    .platform-header .subtitle { font-size: 13px; color: var(--text-muted); }
+    /* ---- Tips ---- */
+    .tips { display: flex; flex-direction: column; gap: 12px; }
+    .tip {
+      display: flex;
+      gap: 12px;
+      background: var(--surface2);
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-size: 14px;
+    }
+    .tip .tip-icon { flex-shrink: 0; font-size: 18px; }
+    /* ---- Callout ---- */
+    .callout {
+      border-left: 4px solid var(--accent-yellow);
+      background: var(--surface2);
+      padding: 14px 18px;
+      border-radius: 0 8px 8px 0;
+      font-size: 14px;
+      margin: 14px 0;
+    }
+    .callout.info  { border-color: var(--accent-blue); }
+    .callout.warn  { border-color: var(--accent-yellow); }
+    .callout.good  { border-color: var(--accent-green); }
+    .callout strong { display: block; margin-bottom: 4px; }
+    /* ---- TOC ---- */
+    .toc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-bottom: 40px;
+    }
+    .toc h3 { font-size: 14px; font-weight: 700; color: var(--text-muted); margin-bottom: 12px; letter-spacing: .05em; }
+    .toc ol { padding-left: 18px; }
+    .toc li { margin-bottom: 6px; font-size: 14px; }
+    .toc a { color: var(--accent-blue); text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+    /* ---- Sample block ---- */
+    .sample-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .06em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    h3 { font-size: 16px; font-weight: 700; margin: 22px 0 12px; }
+    ul, ol { padding-left: 20px; }
+    li { margin-bottom: 6px; font-size: 14px; }
+    a { color: var(--accent-blue); }
+    hr { border: none; border-top: 1px solid var(--border); margin: 36px 0; }
+    footer {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 13px;
+      padding-top: 32px;
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+
+  <!-- ===== HEADER ===== -->
+  <header>
+    <div class="badge">AI 人格設定ガイド</div>
+    <h1>AI 人格（ペルソナ）設定ガイド<br>Custom GPTs / Gemini Gems / Claude Projects / CLAUDE.md</h1>
+    <p>各プラットフォームでの AI 人格固定・行動規範設定の方法を比較・解説します。</p>
+    <div class="meta">作成: 2026-03-12 &nbsp;|&nbsp; 対象: Claude Code / Claude.ai / ChatGPT / Gemini</div>
+  </header>
+
+  <!-- ===== TOC ===== -->
+  <nav class="toc">
+    <h3>目次</h3>
+    <ol>
+      <li><a href="#overview">概念整理 — 人格設定とは何か</a></li>
+      <li><a href="#comparison">プラットフォーム比較表</a></li>
+      <li><a href="#custom-gpts">Custom GPTs（ChatGPT）</a></li>
+      <li><a href="#gemini-gems">Gemini Gems（Gemini Advanced）</a></li>
+      <li><a href="#claude-projects">Claude Projects（Claude.ai）</a></li>
+      <li><a href="#claude-md">CLAUDE.md（Claude Code）← このプロジェクトで採用</a></li>
+      <li><a href="#template">人格定義テンプレート</a></li>
+      <li><a href="#tips">ベストプラクティス</a></li>
+    </ol>
+  </nav>
+
+  <!-- ===== 1. 概念整理 ===== -->
+  <section class="section" id="overview">
+    <div class="section-title">1. 概念整理 — AI 人格設定とは何か</div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-logo">🧠</div>
+        <h3>人格（ペルソナ）定義</h3>
+        <p>AIの役割・名前・専門性・返答スタイルを固定する。</p>
+        <span class="tag tag-blue">Who / How</span>
+      </div>
+      <div class="card">
+        <div class="card-logo">📋</div>
+        <h3>行動規範（ルール）</h3>
+        <p>してよいこと・してはいけないことを明示する。</p>
+        <span class="tag tag-purple">Do / Don't</span>
+      </div>
+      <div class="card">
+        <div class="card-logo">📚</div>
+        <h3>知識ベース</h3>
+        <p>独自ドキュメントを参照させ、専門知識を注入する。</p>
+        <span class="tag tag-green">Knowledge</span>
+      </div>
+      <div class="card">
+        <div class="card-logo">🎯</div>
+        <h3>タスク特化</h3>
+        <p>特定業務に特化させ、毎回の前置き説明を省略する。</p>
+        <span class="tag tag-yellow">Focus</span>
+      </div>
+    </div>
+
+    <div class="callout info">
+      <strong>💡 ポイント</strong>
+      人格設定の本質は「毎回の指示を省略できるデフォルト状態を作ること」。
+      セッションをまたいでも同じ品質・スタイルで応答させるための仕組みです。
+    </div>
+  </section>
+
+  <!-- ===== 2. 比較表 ===== -->
+  <section class="section" id="comparison">
+    <div class="section-title">2. プラットフォーム比較表</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>機能</th>
+            <th>Custom GPTs<br>（ChatGPT）</th>
+            <th>Gemini Gems<br>（Gemini Advanced）</th>
+            <th>Claude Projects<br>（Claude.ai）</th>
+            <th>CLAUDE.md<br>（Claude Code）</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>人格・指示の永続化</td>
+            <td class="check">✅</td>
+            <td class="check">✅</td>
+            <td class="check">✅</td>
+            <td class="check">✅</td>
+          </tr>
+          <tr>
+            <td>ファイルのアップロード</td>
+            <td class="check">✅</td>
+            <td class="check">✅</td>
+            <td class="check">✅</td>
+            <td class="partial">△ docs/ 参照</td>
+          </tr>
+          <tr>
+            <td>会話履歴の保持</td>
+            <td class="check">✅</td>
+            <td class="check">✅</td>
+            <td class="check">✅</td>
+            <td class="cross">❌ セッション単位</td>
+          </tr>
+          <tr>
+            <td>Git 管理・チーム共有</td>
+            <td class="cross">❌</td>
+            <td class="cross">❌</td>
+            <td class="cross">❌</td>
+            <td class="check">✅ 最大の強み</td>
+          </tr>
+          <tr>
+            <td>公開・共有（ストア等）</td>
+            <td class="check">✅ GPT Store</td>
+            <td class="partial">△ 限定共有</td>
+            <td class="cross">❌（現状）</td>
+            <td class="check">✅ リポジトリ共有</td>
+          </tr>
+          <tr>
+            <td>コード実行・ツール連携</td>
+            <td class="check">✅</td>
+            <td class="check">✅</td>
+            <td class="partial">△</td>
+            <td class="check">✅ 最強（CLI統合）</td>
+          </tr>
+          <tr>
+            <td>プロジェクト固有ルール適用</td>
+            <td class="cross">❌</td>
+            <td class="cross">❌</td>
+            <td class="partial">△</td>
+            <td class="check">✅ フォルダ単位</td>
+          </tr>
+          <tr>
+            <td>無料で使える</td>
+            <td class="partial">△ 有料プラン</td>
+            <td class="partial">△ 有料プラン</td>
+            <td class="partial">△ 有料プラン</td>
+            <td class="check">✅ Claude Code内</td>
+          </tr>
+          <tr>
+            <td>セットアップ難易度</td>
+            <td>低（UI操作）</td>
+            <td>低（UI操作）</td>
+            <td>低（UI操作）</td>
+            <td>低（テキスト記述）</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===== 3. Custom GPTs ===== -->
+  <section class="section" id="custom-gpts">
+    <div class="section-title">3. Custom GPTs（ChatGPT）</div>
+
+    <div class="platform">
+      <div class="platform-header">
+        <div class="platform-icon icon-openai">🤖</div>
+        <div>
+          <h2>Custom GPTs</h2>
+          <div class="subtitle">ChatGPT Plus / Team / Enterprise | chat.openai.com</div>
+        </div>
+      </div>
+
+      <h3>作成手順</h3>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num" style="background:#1a2a1e;color:#3ecf8e;">1</div>
+          <div class="step-body">
+            <h4>ChatGPT を開き「GPT を探す」→「＋ 作成」</h4>
+            <p>chat.openai.com にログイン → 左サイドバー「GPT を探す」→ 右上「＋ 作成」ボタン</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num" style="background:#1a2a1e;color:#3ecf8e;">2</div>
+          <div class="step-body">
+            <h4>「Configure」タブで人格を設定</h4>
+            <p>「Create」タブ（会話形式）または「Configure」タブ（直接入力）で設定する。Configure タブが細かく制御できるので推奨。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num" style="background:#1a2a1e;color:#3ecf8e;">3</div>
+          <div class="step-body">
+            <h4>各フィールドを記入</h4>
+            <p>Name（名前）/ Description（説明）/ Instructions（指示）/ Conversation starters（起動フレーズ）/ Knowledge（ファイルアップロード）</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num" style="background:#1a2a1e;color:#3ecf8e;">4</div>
+          <div class="step-body">
+            <h4>保存・公開範囲を設定</h4>
+            <p>「Only me」「Anyone with a link」「Public（GPT Store）」から選択して保存。</p>
+          </div>
+        </div>
+      </div>
+
+      <h3>Instructions（人格定義）の記述例</h3>
+      <div class="sample-label">Instructions フィールドに貼り付けるテキスト</div>
+      <pre><code><span class="cm">## 役割と人格</span>
+あなたは「Takeshi」という名前の熟練シニアエンジニアです。
+経験年数15年、専門はWebシステム設計・セキュリティ・DB設計です。
+
+<span class="cm">## 行動原則</span>
+- 提案には必ず根拠（公式仕様・実績）を示す
+- 代替案とトレードオフを比較提示する
+- 「できない」「負債になる」も正直に伝える
+- 過剰な実装は提案しない（YAGNI原則を守る）
+
+<span class="cm">## 返答スタイル</span>
+- 日本語で回答する
+- 簡潔・箇条書き優先
+- コードブロックには言語タグを付ける
+- 不明点は確認してから進める
+
+<span class="cm">## 禁止事項</span>
+- 根拠なしの断言をしない
+- セキュリティ上問題のあるコードを生成しない</code></pre>
+
+      <div class="callout warn">
+        <strong>⚠️ 注意</strong>
+        Instructions は最大 8,000 文字。長すぎると後半が参照されにくくなるため、重要なルールを先頭に書く。
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 4. Gemini Gems ===== -->
+  <section class="section" id="gemini-gems">
+    <div class="section-title">4. Gemini Gems（Gemini Advanced）</div>
+
+    <div class="platform">
+      <div class="platform-header">
+        <div class="platform-icon icon-google">💎</div>
+        <div>
+          <h2>Gemini Gems</h2>
+          <div class="subtitle">Gemini Advanced（Google One AI Premium）| gemini.google.com</div>
+        </div>
+      </div>
+
+      <h3>作成手順</h3>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num" style="background:#1a1f3a;color:#4f8ef7;">1</div>
+          <div class="step-body">
+            <h4>Gemini にログイン → 左サイドバー「Gem を作成」</h4>
+            <p>gemini.google.com → 左サイドバー下部「Gem マネージャー」→「新しい Gem」ボタン</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num" style="background:#1a1f3a;color:#4f8ef7;">2</div>
+          <div class="step-body">
+            <h4>名前と指示（Instructions）を入力</h4>
+            <p>Gem 名 / 指示（自由記述）/ ファイルアップロード（Google Drive または直接）を設定する。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num" style="background:#1a1f3a;color:#4f8ef7;">3</div>
+          <div class="step-body">
+            <h4>「保存」→ サイドバーから呼び出し</h4>
+            <p>保存すると左サイドバーの「Gems」一覧に表示される。クリックして会話開始。</p>
+          </div>
+        </div>
+      </div>
+
+      <h3>Instructions の記述例</h3>
+      <pre><code><span class="cm"># あなたの役割</span>
+あなたは介護システム開発に特化したシニアエンジニアです。
+Google Apps Script / TypeScript / React を専門とします。
+
+<span class="cm"># 回答ルール</span>
+- 常に日本語で回答する
+- コードは必ずセキュリティを考慮する
+- GAS の制限（実行時間6分・UrlFetchApp制限等）を常に意識する
+- 回答の末尾に「参考資料」セクションを追加する
+
+<span class="cm"># 禁止</span>
+- eval() の使用を提案しない
+- 平文パスワードの保存を提案しない</code></pre>
+
+      <div class="callout info">
+        <strong>💡 Gems の強み</strong>
+        Google Workspace（Drive / Docs / Gmail）と連携した Gem を作れる。
+        業務ドキュメントを Drive に置いて参照させることができる。
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 5. Claude Projects ===== -->
+  <section class="section" id="claude-projects">
+    <div class="section-title">5. Claude Projects（Claude.ai）</div>
+
+    <div class="platform">
+      <div class="platform-header">
+        <div class="platform-icon icon-claude">🔶</div>
+        <div>
+          <h2>Claude Projects</h2>
+          <div class="subtitle">Claude Pro / Team / Enterprise | claude.ai</div>
+        </div>
+      </div>
+
+      <h3>作成手順</h3>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num" style="background:#2a1f1a;color:#f97316;">1</div>
+          <div class="step-body">
+            <h4>claude.ai にログイン → 「Projects」→「New Project」</h4>
+            <p>左サイドバー「Projects」→「+ New project」ボタン。プロジェクト名を設定。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num" style="background:#2a1f1a;color:#f97316;">2</div>
+          <div class="step-body">
+            <h4>「Project instructions」を設定</h4>
+            <p>プロジェクト設定画面の「Instructions」欄に人格・ルールを記述する。ここがシステムプロンプト相当。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num" style="background:#2a1f1a;color:#f97316;">3</div>
+          <div class="step-body">
+            <h4>「Project knowledge」にファイルをアップロード</h4>
+            <p>仕様書・設計書・コードファイルをアップロードすると、そのプロジェクト内の会話で自動参照される。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num" style="background:#2a1f1a;color:#f97316;">4</div>
+          <div class="step-body">
+            <h4>プロジェクト内で会話を開始</h4>
+            <p>プロジェクトに紐づいた会話はすべて同じ設定・知識ベースが適用される。</p>
+          </div>
+        </div>
+      </div>
+
+      <h3>Project instructions の記述例</h3>
+      <pre><code><span class="cm">## あなたのロール</span>
+あなたは枚方市介護支援専門員連絡協議会の会員システム開発担当
+シニアエンジニアです。
+
+<span class="cm">## 技術スタック（必ず遵守）</span>
+- Frontend: React 19 + TypeScript + Vite + Tailwind CSS
+- Backend: Google Apps Script（GAS）
+- DB: Google Spreadsheet
+- メール: MailApp.sendEmail（GmailApp 使用禁止）
+
+<span class="cm">## 絶対ルール</span>
+1. 本番 Deployment ID を事前合意なく変更しない
+2. 認証方式を変更しない（会員=ID/PW、管理者=Google）
+3. 仕様変更時は必ずドキュメントを同時更新する
+
+<span class="cm">## 提案スタイル</span>
+- 根拠となる公式仕様・標準を明示する
+- 代替案とトレードオフを比較する
+- GAS の制約（実行時間・API制限）を考慮する</code></pre>
+
+      <div class="callout good">
+        <strong>✅ Claude Projects の強み</strong>
+        会話履歴がプロジェクト単位で保持される。
+        チームメンバーと同じプロジェクトを共有できる（Teamプラン以上）。
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 6. CLAUDE.md ===== -->
+  <section class="section" id="claude-md">
+    <div class="section-title">6. CLAUDE.md（Claude Code）← このプロジェクトで採用</div>
+
+    <div class="platform">
+      <div class="platform-header">
+        <div class="platform-icon icon-claudemd">📄</div>
+        <div>
+          <h2>CLAUDE.md</h2>
+          <div class="subtitle">Claude Code（CLI）| プロジェクトルートに配置</div>
+        </div>
+      </div>
+
+      <h3>仕組み</h3>
+      <p style="margin-bottom:12px;color:var(--text-muted);font-size:14px;">
+        Claude Code（CLIツール）は起動時にプロジェクトルートの <code>CLAUDE.md</code> を自動読み込みします。
+        これがシステムプロンプト相当として機能し、毎セッション同じ設定が適用されます。
+      </p>
+
+      <h3>ファイル配置</h3>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num" style="background:#1a2a3a;color:#4f8ef7;">1</div>
+          <div class="step-body">
+            <h4>プロジェクトルートに <code>CLAUDE.md</code> を作成</h4>
+            <p>ファイル名は必ず <code>CLAUDE.md</code>（大文字・拡張子 .md）。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num" style="background:#1a2a3a;color:#4f8ef7;">2</div>
+          <div class="step-body">
+            <h4>人格 + ルール + 禁止事項を記述</h4>
+            <p>Markdown 形式で自由に記述。セクション見出しで役割を分けると管理しやすい。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num" style="background:#1a2a3a;color:#4f8ef7;">3</div>
+          <div class="step-body">
+            <h4>Git に commit する</h4>
+            <p>Git で管理することでチーム全員が同じ設定を使えます。<br>
+            <code>git add CLAUDE.md && git commit -m "chore: add CLAUDE.md"</code></p>
+          </div>
+        </div>
+      </div>
+
+      <h3>CLAUDE.md の完全テンプレート</h3>
+      <div class="sample-label">コピーして使えるテンプレート</div>
+      <pre><code><span class="cm"># CLAUDE.md — プロジェクト専用 AI 行動憲法</span>
+<span class="cm"># [プロジェクト名]</span>
+
+<span class="cm">## 1. AI としての人格定義</span>
+
+<span class="cm">### 1.1 役割と名前</span>
+あなたは「[役割名]」として振る舞うシニアエンジニアです。
+専門領域: [技術領域]
+経験: [年数・実績]
+
+<span class="cm">### 1.2 思考スタイル</span>
+- 実装前に設計を考える（think before code）
+- 問題の根本原因を探る（symptom ではなく cause を治す）
+- シンプルな解決策を優先する（KISS / YAGNI 原則）
+- セキュリティを常に第一に考える
+
+<span class="cm">### 1.3 返答スタイル</span>
+- 日本語で回答する
+- 結論を先に、詳細を後に（PREP法）
+- コードブロックには言語タグを付ける
+- 5行以上の説明は箇条書きにする
+
+<span class="cm">## 2. 技術提案の絶対原則</span>
+- 根拠（公式仕様・RFC・標準規格）を必ず明示する
+- 代替案とトレードオフを比較提示する
+- 制約環境での実現可否を判断してから提案する
+- Web 検索で最新情報を取得してから回答する
+
+<span class="cm">## 3. プロジェクト固有ルール</span>
+<span class="cm">### 3.1 技術スタック</span>
+- [使用技術を列記]
+
+<span class="cm">### 3.2 絶対ルール（変更禁止）</span>
+- [ルール1]
+- [ルール2]
+
+<span class="cm">## 4. 禁止事項</span>
+- [禁止1]
+- [禁止2]
+
+<span class="cm">## 5. 作業スタイル</span>
+- 確認なしで進めてよい作業: [例: ファイル読み書き・コマンド実行]
+- 必ず確認する作業: [例: git push・本番変更・破壊的操作]</code></pre>
+
+      <div class="callout good">
+        <strong>✅ CLAUDE.md の最大の強み</strong>
+        他のプラットフォームと違い、<strong>Git 管理できる</strong>のが最大の差別化点。
+        チーム全員が同じ AI 動作を得られ、設定変更の履歴も残る。
+        プロジェクトフォルダ単位で設定が切り替わるため、複数プロジェクトを持っても混在しない。
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 7. テンプレート ===== -->
+  <section class="section" id="template">
+    <div class="section-title">7. 人格定義テンプレート — 記述要素一覧</div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>要素</th>
+            <th>説明</th>
+            <th>記述例</th>
+            <th>重要度</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>役割定義</strong></td>
+            <td>AIの職種・専門領域を明示</td>
+            <td>「シニアSE / セキュリティエンジニア」</td>
+            <td class="check">必須</td>
+          </tr>
+          <tr>
+            <td><strong>思考スタイル</strong></td>
+            <td>問題へのアプローチ方法</td>
+            <td>「根本原因を探る / シンプル解優先」</td>
+            <td class="check">必須</td>
+          </tr>
+          <tr>
+            <td><strong>返答形式</strong></td>
+            <td>文体・長さ・構造の指定</td>
+            <td>「結論先・箇条書き・5行以上で構造化」</td>
+            <td class="check">必須</td>
+          </tr>
+          <tr>
+            <td><strong>根拠提示ルール</strong></td>
+            <td>情報ソースの明示義務</td>
+            <td>「公式仕様 / RFC を一次ソースとする」</td>
+            <td class="check">必須</td>
+          </tr>
+          <tr>
+            <td><strong>技術スタック</strong></td>
+            <td>使用技術の固定</td>
+            <td>「React 19 / GAS / Tailwind CSS」</td>
+            <td class="check">必須</td>
+          </tr>
+          <tr>
+            <td><strong>絶対ルール</strong></td>
+            <td>変更禁止事項の明示</td>
+            <td>「認証方式を変更しない」</td>
+            <td class="check">必須</td>
+          </tr>
+          <tr>
+            <td><strong>禁止事項</strong></td>
+            <td>してはいけない行動</td>
+            <td>「eval() 使用禁止 / 平文PW保存禁止」</td>
+            <td class="check">必須</td>
+          </tr>
+          <tr>
+            <td><strong>確認要否</strong></td>
+            <td>自律実行 vs 確認が必要な作業</td>
+            <td>「git push は必ず確認してから」</td>
+            <td class="partial">推奨</td>
+          </tr>
+          <tr>
+            <td><strong>名前</strong></td>
+            <td>AIに固有名を付ける</td>
+            <td>「Takeshi / Aria」</td>
+            <td class="partial">任意</td>
+          </tr>
+          <tr>
+            <td><strong>トーン</strong></td>
+            <td>敬語/タメ口/英語混じり等</td>
+            <td>「丁寧語・でです調」</td>
+            <td class="partial">任意</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===== 8. ベストプラクティス ===== -->
+  <section class="section" id="tips">
+    <div class="section-title">8. ベストプラクティス</div>
+
+    <div class="tips">
+      <div class="tip">
+        <div class="tip-icon">🥇</div>
+        <div>
+          <strong>重要なルールは先頭に書く</strong><br>
+          LLM は文書の後半ほど参照される確率が下がる傾向がある（Lost in the Middle 問題）。
+          絶対に守らせたいルールは Instructions の冒頭に配置する。
+        </div>
+      </div>
+      <div class="tip">
+        <div class="tip-icon">📏</div>
+        <div>
+          <strong>簡潔に書く（冗長な説明は逆効果）</strong><br>
+          長すぎる Instructions は後半が無視される。1ルール1行を心がけ、
+          詳細は別ファイル（MEMORY.md / docs/）に分けて参照させる。
+        </div>
+      </div>
+      <div class="tip">
+        <div class="tip-icon">🎯</div>
+        <div>
+          <strong>「すること」より「してはいけないこと」を明確に</strong><br>
+          肯定的な指示よりも禁止事項の方が LLM に強く刺さる。
+          セキュリティ上のNGや、プロジェクト固有の制約を禁止事項として明記する。
+        </div>
+      </div>
+      <div class="tip">
+        <div class="tip-icon">🔄</div>
+        <div>
+          <strong>定期的に見直す（陳腐化に注意）</strong><br>
+          プロジェクトが進むにつれてルールも変わる。
+          スプリント終了時・マイルストーン時に CLAUDE.md を更新する習慣を作る。
+        </div>
+      </div>
+      <div class="tip">
+        <div class="tip-icon">🧪</div>
+        <div>
+          <strong>ルールが効いているか定期的にテスト</strong><br>
+          「このルールを意識して[X]をしてください」と問いかけ、
+          期待する行動をするか確認する。効かないルールは表現を変える。
+        </div>
+      </div>
+      <div class="tip">
+        <div class="tip-icon">🔗</div>
+        <div>
+          <strong>CLAUDE.md × MEMORY.md の2層構成が最強</strong><br>
+          <code>CLAUDE.md</code> に「原則・禁止事項・人格」、
+          <code>MEMORY.md</code> に「プロジェクト状態・スキーマ・URL」を分けて管理する。
+          役割が明確になり、どちらも肥大化を防げる。
+        </div>
+      </div>
+    </div>
+
+    <h3 style="margin-top:32px;">プラットフォーム選択指針</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>ユースケース</th><th>推奨プラットフォーム</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>コードを書く・リポジトリで作業する</td>
+            <td><strong>CLAUDE.md（Claude Code）</strong></td>
+          </tr>
+          <tr>
+            <td>チームで同じ AI 設定を共有したい</td>
+            <td><strong>CLAUDE.md（Git 管理）</strong></td>
+          </tr>
+          <tr>
+            <td>会話履歴を長期保持したい</td>
+            <td><strong>Claude Projects</strong></td>
+          </tr>
+          <tr>
+            <td>社内文書（Drive）と連携したい</td>
+            <td><strong>Gemini Gems</strong></td>
+          </tr>
+          <tr>
+            <td>外部に公開・配布したい</td>
+            <td><strong>Custom GPTs（GPT Store）</strong></td>
+          </tr>
+          <tr>
+            <td>アプリに組み込む（API）</td>
+            <td><strong>Claude API / OpenAI API（system prompt）</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <hr>
+
+  <footer>
+    <p>作成: 2026-03-12 &nbsp;|&nbsp; 対象プロジェクト: 枚方市介護支援専門員連絡協議会 会員システム</p>
+    <p style="margin-top:6px;">参考: <a href="https://docs.anthropic.com/ja/docs/claude-code/overview" target="_blank">Claude Code 公式ドキュメント</a> &nbsp;|&nbsp;
+    <a href="https://help.openai.com/en/articles/8554397-creating-a-gpt" target="_blank">Custom GPTs 公式ガイド</a> &nbsp;|&nbsp;
+    <a href="https://support.google.com/gemini/answer/15235997" target="_blank">Gemini Gems 公式ガイド</a></p>
+  </footer>
+
+</div>
+</body>
+</html>
