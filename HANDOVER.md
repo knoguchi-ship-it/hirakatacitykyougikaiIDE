@@ -1,6 +1,6 @@
 ﻿# 引継ぎ書（次担当者向け）
 
-更新日: 2026-03-13（v60 UI実装完了後）
+更新日: 2026-03-13（v62 フリガナ追加後）
 対象: 枚方市介護支援専門員連絡協議会 会員システム
 
 ## 1. 先に必ず読む文書（順番固定）
@@ -37,7 +37,7 @@
 ## 3. 本番デプロイの現状（2026-03-13時点）
 - `clasp` 認証ユーザー: `k.noguchi@uguisunosato.or.jp`
 - デプロイ一覧（抜粋）:
-  - `AKfycbw2QYvMovSCkXtSpGAro1drZqonpXjf_zTpa-ylsUIYZhzrlDgGds7jurGHKuKCY4xU` **@60（最新・本番）**
+  - `AKfycbw2QYvMovSCkXtSpGAro1drZqonpXjf_zTpa-ylsUIYZhzrlDgGds7jurGHKuKCY4xU` **@62（最新・本番）**
   - `AKfycby8Uc8RMNpRrcQIV-DePe3ZzoDMglSnB9EBO5GXzTn3VNyJT1lUBcpEpjiodjqbzCpF` @56（旧）
 - `/exec` 疎通確認（v60）:
   - `AKfycbw2.../exec` → 会員ポータル表示（HTTP 200）
@@ -74,7 +74,8 @@ npx clasp run getDbInfo
 - ドキュメント更新なしで完了扱いにしない
 
 ## 7. 直近の変更履歴（Git）
-- `35b6baa` feat: 研修管理コンソール メール送信UI・申込者一覧・双方向ナビを実装（v60）
+- `(v62)` fix: T_外部申込者 フリガナ列追加（スキーマ・バックエンド・フロントエンド同時整合）
+- `35b6baa` feat: 研修管理コンソール メール送信UI・申込者一覧・双方向ナビを実装（v60/v61）
 - `7d39422` fix: cleanupNonSchemaSheets_ 防御的例外処理追加・rebuildDatabaseSchema 正常完了（v59）
 - `0689653` handover: 当日運用チェックリストを追加
 - `54fe9a1` docs: メール送信機能・管理コンソール連携の仕様追加（GmailApp採用・DR13新規作成）

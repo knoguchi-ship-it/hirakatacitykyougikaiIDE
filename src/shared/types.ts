@@ -30,6 +30,7 @@ export interface ExternalApplicant {
 export interface ExternalApplyPayload {
   trainingId: string;
   name: string;
+  furigana?: string;
   email: string;
   phone: string;
   officeName: string;

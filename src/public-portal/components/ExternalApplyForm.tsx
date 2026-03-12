@@ -10,6 +10,7 @@ interface Props {
 
 const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel }) => {
   const [name, setName] = useState('');
+  const [furigana, setFurigana] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [officeName, setOfficeName] = useState('');
@@ -30,6 +31,7 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel }) =
       const payload: ExternalApplyPayload = {
         trainingId: training.id,
         name,
+        furigana,
         email,
         phone,
         officeName,
@@ -86,6 +88,20 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel }) =
             onChange={(e) => setName(e.target.value)}
             className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="山田 太郎"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            フリガナ
+          </label>
+          <input
+            type="text"
+            maxLength={100}
+            value={furigana}
+            onChange={(e) => setFurigana(e.target.value)}
+            className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="ヤマダ タロウ（任意）"
           />
         </div>
 

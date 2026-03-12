@@ -219,6 +219,7 @@ var テーブル定義 = {
   T_外部申込者: [
     '外部申込者ID',
     '氏名',
+    'フリガナ',
     'メールアドレス',
     '電話番号',
     '事業所名',
@@ -3429,6 +3430,7 @@ function applyTrainingExternal_(payload) {
     return JSON.stringify({ success: false, error: 'invalid_request' });
   }
   var name = String(payload.name || '').trim();
+  var furigana = String(payload.furigana || '').trim();
   var email = String(payload.email || '').trim();
   var phone = String(payload.phone || '').trim();
   var office = String(payload.officeName || '').trim();
@@ -3436,6 +3438,7 @@ function applyTrainingExternal_(payload) {
   var consent = payload.consent;
 
   if (!name || name.length > 100) return JSON.stringify({ success: false, error: '氏名が無効です' });
+  if (furigana.length > 100) return JSON.stringify({ success: false, error: 'フリガナが無効です' });
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) return JSON.stringify({ success: false, error: 'メールアドレスが無効です' });
   if (!phone || !/^[\d\-\+\(\)]+$/.test(phone) || phone.length > 20) return JSON.stringify({ success: false, error: '電話番号が無効です' });
   if (office.length > 100) return JSON.stringify({ success: false, error: '事業所名が無効です' });
@@ -3496,6 +3499,7 @@ function applyTrainingExternal_(payload) {
   var newExternal = {
     '外部申込者ID': externalId,
     '氏名': name,
+    'フリガナ': furigana,
     'メールアドレス': email,
     '電話番号': phone,
     '事業所名': office,
