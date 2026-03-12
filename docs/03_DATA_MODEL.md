@@ -58,6 +58,11 @@
 - 用途: 年会費の納入状態
 - 列: `コード`, `名称`, `表示順`, `有効フラグ`
 
+### 2.11 `M_申込者区分`（2026-03-12 追加）
+- 用途: 研修申込者が会員か非会員かを区別する
+- 列: `コード`, `名称`, `表示順`, `有効フラグ`
+- 初期値: `MEMBER`（会員）, `EXTERNAL`（非会員）
+
 ## 3. テーブル一覧
 
 ### 3.1 `T_会員`
@@ -228,51 +233,67 @@
   - `更新日時`
   - `削除フラグ`
 
-#### `費用JSON` スキーマ
+#### `費用JSON` スキーマ（実装確認済み）
+**型**: `Array<{label: string, amount: number}>`
 ```json
-{
-  "memberFee": 0,
-  "nonMemberFee": 1000,
-  "freeForMember": true
-}
+[
+  { "label": "会員", "amount": 0 },
+  { "label": "非会員", "amount": 1000 }
+]
 ```
+- `label` は任意文字列（UI表示に使用）。
+- `amount` は整数（円）。0 は無料を意味する。
+- 空・null の場合は `[{label:"会員",amount:0},{label:"非会員",amount:0}]` でデフォルト補完される。
+- 旧形式（数値文字列）は `[{label:"会員",amount:N}]` に変換して互換維持。
 
-#### `項目設定JSON` スキーマ
+#### `項目設定JSON` スキーマ（実装確認済み）
+**キーはすべて camelCase（英語）**
 ```json
 {
   "fieldConfig": {
-    "主催者": true,
-    "法定外研修フラグ": false
+    "organizer": true,
+    "isNonMandatory": false,
+    "summary": true,
+    "description": true,
+    "location": true,
+    "instructor": false,
+    "applicationOpenDate": true,
+    "applicationCloseDate": true,
+    "fees": true,
+    "guidePdfUrl": true
   },
   "cancelAllowed": true,
-  "inquiryPerson": "担当者名",
-  "inquiryContactType": "PHONE",
-  "inquiryContactValue": "072-000-0000"
+  "inquiryPerson": "事務局 田中",
+  "inquiryContactType": "EMAIL",
+  "inquiryContactValue": "support@example.com"
 }
 ```
-- `inquiryPerson` は必須。
-- `inquiryContactValue` は必須。
-- `inquiryContactType` は `inquiryContactValue` から自動判定（メールアドレス形式なら `EMAIL`、それ以外は `PHONE`）。
-- 旧形式（`fieldConfig` のみ）データは読込時に互換性解析して補完する。
+- `fieldConfig` の各フラグは `true` = 表示する、`false` = 非表示。`null` の場合はすべて `true`（全表示）。
+- `inquiryPerson`・`inquiryContactValue` は `saveTraining_()` での入力バリデーション対象（必須）。
+- `inquiryContactType`: `'EMAIL'` または `'PHONE'`。
+- 旧形式（`fieldConfig` オブジェクトのみ / `cancelAllowed` なし）は読込時に互換変換される。
 
 ### 3.9 `T_研修申込`
-- 用途: 会員/職員単位の申込履歴（中間テーブル）
+- 用途: 会員・非会員を統合した申込履歴（中間テーブル）
 - 主キー: `申込ID`
 - 外部キー:
   - `研修ID` -> `T_研修.研修ID`
-  - `会員ID` -> `T_会員.会員ID`
-  - `職員ID` -> `T_事業所職員.職員ID`（個人会員は空許容）
+  - `申込者ID` -> `T_会員.会員ID`（`申込者区分=MEMBER`）または `T_外部申込者.外部申込者ID`（`申込者区分=EXTERNAL`）
+  - `職員ID` -> `T_事業所職員.職員ID`（事業所会員職員は設定、それ以外は NULL）
 - 列:
   - `申込ID` (PK)
   - `研修ID` (FK)
-  - `会員ID` (FK)
-  - `職員ID` (FK, NULL可)
+  - `申込者区分コード` (FK -> `M_申込者区分.コード`) ← **追加（2026-03-12）**
+  - `申込者ID` ← **追加（2026-03-12）**: `申込者区分=MEMBER` なら会員ID、`EXTERNAL` なら外部申込者ID
+  - `職員ID` (NULL可) ← 既存。事業所会員の職員申込時のみ設定
   - `申込状態コード` (FK -> `M_申込状態.コード`)
   - `申込日時`
   - `取消日時`
   - `備考`
   - `作成日時`
   - `更新日時`
+- **設計方針（ポリモーフィック）**: `申込者区分コード` + `申込者ID` の組み合わせで申込者を一意に特定する。NULL 列を持たない設計により、統合申込一覧の集計・リマインダー処理を `申込者区分コード` での分岐のみで実現できる。
+- **移行**: 既存レコードには `申込者区分コード=MEMBER`、`申込者ID=会員ID` を設定してマイグレーションする。
   - `削除フラグ`
 
 ### 3.10 `T_年会費納入履歴`
@@ -291,7 +312,23 @@
   - `更新日時`
   - `削除フラグ`
 
-## 3.11 廃止済みテーブル・マスタ
+### 3.11 `T_外部申込者`（2026-03-12 追加）
+- 用途: 公開ポータルから申込した非会員の個人情報
+- 主キー: `外部申込者ID`
+- **個人情報保護法対応**: 収集目的は「研修申込の受付・確認連絡のみ」。保管期間は研修終了日の翌年4月1日まで（`削除フラグ` で管理）。
+- 列:
+  - `外部申込者ID` (PK) — UUID
+  - `氏名` (必須)
+  - `フリガナ` (任意)
+  - `メールアドレス` (必須) — 申込確認メール・本人確認に使用
+  - `電話番号` (任意)
+  - `事業所名` (任意)
+  - `同意日時` — プライバシーポリシー同意を記録
+  - `作成日時`
+  - `更新日時`
+  - `削除フラグ`
+
+## 3.12 廃止済みテーブル・マスタ
 | 名称 | 廃止理由 | 状態 |
 |---|---|---|
 | `M_開催形式` | `T_研修` から `開催形式コード` 列を削除したため不要 | 本番スプレッドシートに残存中（`rebuildDatabaseSchema()` 実行時に削除される） |
@@ -314,8 +351,8 @@
 
 ## 5.1 認証方式の運用（会員ID/PW + 管理者Google）
 - 会員ログインは `ログインID + パスワード` を使用する（Googleログインは使わない）。
-- 管理者ログインは Google アカウントの IDトークン検証で行う。
-- 管理者ログイン可否は `T_管理者Googleホワイトリスト` による許可制とする（GoogleユーザーID優先、メールは補助キー）。
+- 管理者ログインは **セッション認証**（`checkAdminBySession_()` / `Session.getActiveUser()`）を本番標準とする。IDトークン検証（`adminGoogleLogin_()`）は補完的に保持。詳細は `docs/05_AUTH_AND_ROLE_SPEC.md` §2 を参照。
+- 管理者ログイン可否は `T_管理者Googleホワイトリスト` による許可制とする（Googleメールで照合、GoogleユーザーID は補助キー）。
 - `T_認証アカウント.認証方式` は少なくとも `PASSWORD` / `GOOGLE` を保持する。
 - `T_認証アカウント` に `GoogleユーザーID` / `Googleメール` を保持し、監査と突合に利用する。
 - `T_ログイン履歴.認証方式` に実際のログイン方式を記録する。
@@ -338,7 +375,7 @@
 - 実施日: 2026-02-25
 - 実施アカウント: `k.noguchi@uguisunosato.or.jp`
 - 対象スプレッドシート:
-  - 名称: `枚方市介護支援専門員連絡協議会_DB`
+  - 名称: `枚方市ケアマネ協議会_DB`（`backend/Code.gs` の `DB_SPREADSHEET_NAME` 実値）
   - ID: `1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs`
   - URL: `https://docs.google.com/spreadsheets/d/1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs/edit`
 - 実行内容:
