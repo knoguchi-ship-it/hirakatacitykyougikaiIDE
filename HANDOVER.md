@@ -1,6 +1,6 @@
 ﻿# 引継ぎ書（次担当者向け）
 
-更新日: 2026-03-13
+更新日: 2026-03-13（v60 UI実装完了後）
 対象: 枚方市介護支援専門員連絡協議会 会員システム
 
 ## 1. 先に必ず読む文書（順番固定）
@@ -34,14 +34,15 @@
   - 管理コンソール メール送信機能: `GmailApp.sendEmail`（エイリアス・Reply-To対応）
   - `appsscript.json` に `gmail.send` スコープ追加が必要（実装フェーズで対応）
 
-## 3. 本番デプロイの現状（2026-03-11時点）
+## 3. 本番デプロイの現状（2026-03-13時点）
 - `clasp` 認証ユーザー: `k.noguchi@uguisunosato.or.jp`
 - デプロイ一覧（抜粋）:
-  - `AKfycbw2QYvMovSCkXtSpGAro1drZqonpXjf_zTpa-ylsUIYZhzrlDgGds7jurGHKuKCY4xU` @57
-  - `AKfycby8Uc8RMNpRrcQIV-DePe3ZzoDMglSnB9EBO5GXzTn3VNyJT1lUBcpEpjiodjqbzCpF` @56
-- `/exec` 疎通確認:
-  - `AKfycbw2.../exec` -> HTTP 403（認可ありURLとして応答）
-  - `AKfycby8.../exec` -> HTTP 404
+  - `AKfycbw2QYvMovSCkXtSpGAro1drZqonpXjf_zTpa-ylsUIYZhzrlDgGds7jurGHKuKCY4xU` **@60（最新・本番）**
+  - `AKfycby8Uc8RMNpRrcQIV-DePe3ZzoDMglSnB9EBO5GXzTn3VNyJT1lUBcpEpjiodjqbzCpF` @56（旧）
+- `/exec` 疎通確認（v60）:
+  - `AKfycbw2.../exec` → 会員ポータル表示（HTTP 200）
+  - `AKfycbw2.../exec?app=public` → 公開ポータル表示（HTTP 200）
+- DBスキーマ: `rebuildDatabaseSchema` 実行済み（v59） `M_申込者区分`・`T_外部申込者` 反映済み
 
 ## 4. 次担当者の最初の作業
 1. `docs/12_ENGINEERING_RULEBOOK.md` と `docs/09_DEPLOYMENT_POLICY.md` を読み、固定URL運用ルールを確認
@@ -73,10 +74,10 @@ npx clasp run getDbInfo
 - ドキュメント更新なしで完了扱いにしない
 
 ## 7. 直近の変更履歴（Git）
+- `35b6baa` feat: 研修管理コンソール メール送信UI・申込者一覧・双方向ナビを実装（v60）
+- `7d39422` fix: cleanupNonSchemaSheets_ 防御的例外処理追加・rebuildDatabaseSchema 正常完了（v59）
+- `0689653` handover: 当日運用チェックリストを追加
 - `54fe9a1` docs: メール送信機能・管理コンソール連携の仕様追加（GmailApp採用・DR13新規作成）
-- `52388cf` docs: Decision Record追加・索引更新（ルール是正）
-- `6ef9f05` docs: ドキュメント整合性修正・公開ポータル設計追加
-- `b665e3f` chore: 文字化け防止のための .gitattributes と VS Code 設定を追加
 
 ## 8. 補足
 - 既存の履歴文書は `docs/archive/docs_history/` に保存
