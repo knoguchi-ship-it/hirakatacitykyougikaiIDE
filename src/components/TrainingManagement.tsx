@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Training, TrainingFee, TrainingFieldConfig, DEFAULT_FIELD_CONFIG, DEFAULT_FEES } from '../types';
 import { api } from '../services/api';
 import { PlusIcon, TrashIcon } from './Icons';
+import TrainingMailSender from './TrainingMailSender';
 
 interface Props {
   trainings: Training[];
@@ -44,6 +45,8 @@ const EMPTY_FORM: Training = {
 const PHONE_PATTERN = /^[0-9+\-() ]{6,}$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+type PanelView = 'form' | 'mail';
+
 const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
   const [form, setForm] = useState<Training>({ ...EMPTY_FORM });
   const [isNew, setIsNew] = useState(true);
@@ -53,6 +56,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [panelView, setPanelView] = useState<PanelView>('form');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fieldConfig: TrainingFieldConfig = form.fieldConfig ?? { ...DEFAULT_FIELD_CONFIG };
@@ -79,6 +83,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
     setSaveSuccess(false);
     setUploadedFileName('');
     setSettingsOpen(false);
+    setPanelView('form');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -93,6 +98,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
     setSaveError(null);
     setSaveSuccess(false);
     setUploadedFileName('');
+    setPanelView('form');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -304,9 +310,33 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
 
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm">
           <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-            <h3 className="font-semibold text-slate-700 text-sm">{isNew ? '新規研修登録' : `編集: ${form.title || '(未入力)'}`}</h3>
+            <h3 className="font-semibold text-slate-700 text-sm">
+              {panelView === 'mail' ? `メール送信: ${form.title || ''}` : (isNew ? '新規研修登録' : `編集: ${form.title || '(未入力)'}`)}
+            </h3>
+            {!isNew && (
+              <button
+                type="button"
+                onClick={() => setPanelView(panelView === 'form' ? 'mail' : 'form')}
+                className={`text-sm px-3 py-1.5 rounded-lg border font-medium transition-colors ${
+                  panelView === 'mail'
+                    ? 'border-primary-500 bg-primary-50 text-primary-700 hover:bg-primary-100'
+                    : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {panelView === 'mail' ? '← 研修編集に戻る' : '申込者一覧・メール送信'}
+              </button>
+            )}
           </div>
 
+          {panelView === 'mail' && !isNew ? (
+            <div className="p-4">
+              <TrainingMailSender
+                trainingId={form.id}
+                trainingTitle={form.title}
+                onBack={() => setPanelView('form')}
+              />
+            </div>
+          ) : (
           <form onSubmit={handleSubmit} className="p-6 space-y-5">
             <div className="border border-slate-200 rounded-lg overflow-hidden">
               <button
@@ -543,6 +573,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
               </button>
             </div>
           </form>
+          )}
         </div>
       </div>
     </div>

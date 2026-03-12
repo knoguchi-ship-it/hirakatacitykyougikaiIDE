@@ -24,8 +24,8 @@ const Sidebar: React.FC<SidebarProps> = ({
     { id: 'training-apply', label: '研修確認・申込', icon: <CalendarIcon className="w-5 h-5" /> },
     ...(showAdminPage
       ? [
-          { id: 'admin', label: '管理者ページ', icon: <HomeIcon className="w-5 h-5" /> },
-          { id: 'training-manage', label: '研修登録・変更', icon: <CalendarIcon className="w-5 h-5" /> },
+          { id: 'admin', label: '管理コンソール（会員管理）', icon: <HomeIcon className="w-5 h-5" /> },
+          { id: 'training-manage', label: '研修管理コンソール', icon: <CalendarIcon className="w-5 h-5" /> },
         ]
       : []),
   ];

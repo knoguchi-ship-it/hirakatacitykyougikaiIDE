@@ -1,5 +1,18 @@
 ﻿import { Member, Training } from '../types';
+import { TrainingApplicantRow } from '../shared/types';
 import { MOCK_MEMBERS, MOCK_TRAININGS } from '../constants';
+
+export interface TrainingMailPayload {
+  trainingId: string;
+  targetApplyIds: string[];
+  from: string;
+  subject: string;
+  body: string;
+  commonAttachBase64?: string;
+  commonAttachFilename?: string;
+  commonAttachMime?: string;
+  individualFolderUrl?: string;
+}
 
 // GAS環境で提供される google.script.run の型定義（簡易版）
 declare const google: {
@@ -52,6 +65,9 @@ export interface ApiClient {
   uploadTrainingFile(base64: string, filename: string, mimeType: string): Promise<{ url: string }>;
   applyTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ applicationId: string; applicants: number; duplicate?: boolean }>;
   cancelTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ canceled: boolean; applicants: number }>;
+  getTrainingApplicants(trainingId: string): Promise<TrainingApplicantRow[]>;
+  getAdminEmailAliases(): Promise<string[]>;
+  sendTrainingMail(payload: TrainingMailPayload): Promise<{ sent: number; errors: string[] }>;
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -343,6 +359,44 @@ class MockApiClient implements ApiClient {
     if (!canceled) throw new Error('キャンセル対象の申込が見つかりません。');
     training.applicants = Math.max(0, (training.applicants || 0) - 1);
     return { canceled: true, applicants: training.applicants };
+  }
+
+  async getTrainingApplicants(trainingId: string): Promise<TrainingApplicantRow[]> {
+    await new Promise(resolve => setTimeout(resolve, 600));
+    const rows: TrainingApplicantRow[] = [];
+    this.members.forEach((m) => {
+      const ids = m.type === 'BUSINESS'
+        ? (m.staff || []).flatMap((s) => (s.participatedTrainingIds || []).includes(trainingId)
+            ? [{ name: s.name, email: `${s.id}@mock.local`, officeName: m.officeName || '', id: `${m.id}-${s.id}` }]
+            : [])
+        : ((m.participatedTrainingIds || []).includes(trainingId)
+            ? [{ name: `${m.lastName} ${m.firstName}`, email: `${m.id}@mock.local`, officeName: '', id: m.id }]
+            : []);
+      ids.forEach((item, idx) => {
+        rows.push({
+          applyId: `AP-MOCK-${trainingId}-${item.id}-${idx}`,
+          trainingId,
+          applicantType: 'MEMBER',
+          applicantId: item.id,
+          name: item.name,
+          email: item.email,
+          officeName: item.officeName,
+          status: 'APPLIED',
+          applyDate: new Date().toISOString(),
+        });
+      });
+    });
+    return rows;
+  }
+
+  async getAdminEmailAliases(): Promise<string[]> {
+    return ['admin@mock.local', 'training@mock.local'];
+  }
+
+  async sendTrainingMail(payload: TrainingMailPayload): Promise<{ sent: number; errors: string[] }> {
+    console.log('[Mock API] sendTrainingMail', payload);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    return { sent: payload.targetApplyIds.length, errors: [] };
   }
 }
 
@@ -636,6 +690,69 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('cancelTraining', JSON.stringify(request));
+    });
+  }
+
+  async getTrainingApplicants(trainingId: string): Promise<TrainingApplicantRow[]> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error('google.script.run is not available.'));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data || []);
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getTrainingApplicants', JSON.stringify({ trainingId }));
+    });
+  }
+
+  async getAdminEmailAliases(): Promise<string[]> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error('google.script.run is not available.'));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data || []);
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getAdminEmailAliases', null);
+    });
+  }
+
+  async sendTrainingMail(payload: TrainingMailPayload): Promise<{ sent: number; errors: string[] }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error('google.script.run is not available.'));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data);
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('sendTrainingMail', JSON.stringify(payload));
     });
   }
 }
