@@ -18,6 +18,7 @@ var マスタ定義 = {
   M_研修状態: ['コード', '名称', '表示順', '有効フラグ'],
   M_申込状態: ['コード', '名称', '表示順', '有効フラグ'],
   M_会費納入状態: ['コード', '名称', '表示順', '有効フラグ'],
+  M_申込者区分: ['コード', '名称', '表示順', '削除フラグ'],
 };
 
 var マスタ初期値 = {
@@ -63,6 +64,10 @@ var マスタ初期値 = {
   M_会費納入状態: [
     ['PAID', '納入済', 1, true],
     ['UNPAID', '未納', 2, true],
+  ],
+  M_申込者区分: [
+    ['MEMBER', '会員', 1, false],
+    ['EXTERNAL', '非会員', 2, false],
   ],
 };
 
@@ -205,6 +210,19 @@ var テーブル定義 = {
     '申込日時',
     '取消日時',
     '備考',
+    '申込者区分コード',
+    '申込者ID',
+    '作成日時',
+    '更新日時',
+    '削除フラグ',
+  ],
+  T_外部申込者: [
+    '外部申込者ID',
+    '氏名',
+    'メールアドレス',
+    '電話番号',
+    '事業所名',
+    '同意日時',
     '作成日時',
     '更新日時',
     '削除フラグ',
@@ -246,15 +264,17 @@ var DEMO_TRANSFER_ACCOUNT = {
   note: '振込手数料は会員様負担でお願いします。',
 };
 
-function doGet() {
+function doGet(e) {
   try {
     initializeSchemaIfNeeded_();
-  } catch (e) {
+  } catch (ex) {
     // UI表示を優先し、初期化失敗時もWebアプリは返す
   }
-  return HtmlService.createHtmlOutputFromFile('index')
-    .setTitle('枚方市介護支援専門員連絡協議会 会員システム')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  var app = (e && e.parameter && e.parameter.app) || 'member';
+  var allowedApps = { 'member': 'index', 'public': 'index_public' };
+  var file = allowedApps[app] || 'index';
+  return HtmlService.createHtmlOutputFromFile(file)
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 /**
@@ -673,6 +693,30 @@ function processApiRequest(action, payload) {
 
     if (action === 'cancelTraining') {
       return JSON.stringify({ success: true, data: cancelTraining_(parsedPayload) });
+    }
+
+    if (action === 'getPublicTrainings') {
+      return getPublicTrainings_();
+    }
+
+    if (action === 'applyTrainingExternal') {
+      return applyTrainingExternal_(parsedPayload);
+    }
+
+    if (action === 'cancelTrainingExternal') {
+      return cancelTrainingExternal_(parsedPayload);
+    }
+
+    if (action === 'getTrainingApplicants') {
+      return getTrainingApplicants_(parsedPayload);
+    }
+
+    if (action === 'getAdminEmailAliases') {
+      return getAdminEmailAliases_();
+    }
+
+    if (action === 'sendTrainingMail') {
+      return sendTrainingMail_(parsedPayload);
     }
 
     return JSON.stringify({ success: true, data: { message: '未実装アクションです' } });
@@ -3265,4 +3309,380 @@ function getDefinedBuildStatus_() {
     定義外シート一覧: extra,
     注意事項: '認証アカウント等の業務初期データは未定義のため自動作成していません。',
   };
+}
+
+// ─── 低水準ヘルパー（公開ポータル用追加） ───────────────────────────────────
+
+/**
+ * シートの全行をオブジェクト配列として返す（getRowsAsObjects_ のシートオブジェクト版）。
+ */
+function getSheetData_(sheet) {
+  if (!sheet) return [];
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 2 || lastCol < 1) return [];
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var values = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  var rows = [];
+  for (var r = 0; r < values.length; r += 1) {
+    var obj = {};
+    for (var c = 0; c < headers.length; c += 1) {
+      obj[headers[c]] = values[r][c];
+    }
+    rows.push(obj);
+  }
+  return rows;
+}
+
+/**
+ * シートにオブジェクト1行を追記する（cols順で値をマッピング）。
+ */
+function appendRow_(sheet, cols, obj) {
+  var row = cols.map(function(c) {
+    var v = obj[c];
+    return (v === undefined || v === null) ? '' : v;
+  });
+  sheet.appendRow(row);
+}
+
+/**
+ * keyColumn が keyValue と一致する行の指定フィールドを更新する。
+ */
+function updateRowByKey_(sheet, cols, keyColumn, keyValue, updates) {
+  if (sheet.getLastRow() < 2) return;
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var colIndex = {};
+  for (var i = 0; i < headers.length; i += 1) {
+    colIndex[headers[i]] = i;
+  }
+  var keyIdx = colIndex[keyColumn];
+  if (keyIdx == null) return;
+  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  for (var r = 0; r < data.length; r += 1) {
+    if (String(data[r][keyIdx] || '') === String(keyValue)) {
+      var updateKeys = Object.keys(updates);
+      for (var k = 0; k < updateKeys.length; k += 1) {
+        var col = updateKeys[k];
+        var idx = colIndex[col];
+        if (idx != null) {
+          sheet.getRange(r + 2, idx + 1).setValue(updates[col]);
+        }
+      }
+      return;
+    }
+  }
+}
+
+// ─── 申込者数ヘルパー ────────────────────────────────────────────────────────
+
+function updateTrainingApplicantCount_(db, trainingId) {
+  var applySheet = db.getSheetByName('T_研修申込');
+  var applyRows = getSheetData_(applySheet);
+  var count = applyRows.filter(function(r) {
+    return String(r['研修ID'] || '') === trainingId &&
+      String(r['申込状態コード'] || '') !== '取消' &&
+      String(r['申込状態コード'] || '') !== 'CANCELED' &&
+      !toBoolean_(r['削除フラグ']);
+  }).length;
+  var trainingSheet = db.getSheetByName('T_研修');
+  updateRowByKey_(trainingSheet, テーブル定義.T_研修, '研修ID', trainingId, { '申込者数': count, '更新日時': new Date().toISOString() });
+}
+
+// ─── 公開ポータル API ─────────────────────────────────────────────────────────
+
+function getPublicTrainings_() {
+  var db = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var sheet = db.getSheetByName('T_研修');
+  var rows = getSheetData_(sheet);
+  var result = rows.filter(function(r) {
+    var status = deriveTrainingStatusByCloseDate_(r['申込締切日']);
+    return status === 'OPEN' && !toBoolean_(r['削除フラグ']);
+  }).map(function(r) {
+    return {
+      id: String(r['研修ID'] || ''),
+      name: String(r['研修名'] || ''),
+      date: formatDateForApi_(r['開催日']),
+      capacity: Number(r['定員'] || 0),
+      applicantCount: Number(r['申込者数'] || 0),
+      location: String(r['開催場所'] || ''),
+      summary: String(r['研修概要'] || ''),
+      content: String(r['研修内容'] || ''),
+      cost: String(r['費用JSON'] || ''),
+      startDate: formatDateForApi_(r['申込開始日']),
+      endDate: formatDateForApi_(r['申込締切日']),
+      instructor: String(r['講師'] || ''),
+      fileUrl: String(r['案内状URL'] || ''),
+      fieldConfig: String(r['項目設定JSON'] || ''),
+    };
+  });
+  return JSON.stringify({ success: true, data: result });
+}
+
+function applyTrainingExternal_(payload) {
+  if (!payload) return JSON.stringify({ success: false, error: 'invalid_request' });
+  // Honeypot チェック
+  if (payload.honeypot) {
+    return JSON.stringify({ success: false, error: 'invalid_request' });
+  }
+  var name = String(payload.name || '').trim();
+  var email = String(payload.email || '').trim();
+  var phone = String(payload.phone || '').trim();
+  var office = String(payload.officeName || '').trim();
+  var trainingId = String(payload.trainingId || '').trim();
+  var consent = payload.consent;
+
+  if (!name || name.length > 100) return JSON.stringify({ success: false, error: '氏名が無効です' });
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) return JSON.stringify({ success: false, error: 'メールアドレスが無効です' });
+  if (!phone || !/^[\d\-\+\(\)]+$/.test(phone) || phone.length > 20) return JSON.stringify({ success: false, error: '電話番号が無効です' });
+  if (office.length > 100) return JSON.stringify({ success: false, error: '事業所名が無効です' });
+  if (!trainingId) return JSON.stringify({ success: false, error: '研修IDが無効です' });
+  if (!consent) return JSON.stringify({ success: false, error: 'プライバシーポリシーへの同意が必要です' });
+
+  var db = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var trainingSheet = db.getSheetByName('T_研修');
+  var trainingRows = getSheetData_(trainingSheet);
+  var training = null;
+  for (var i = 0; i < trainingRows.length; i += 1) {
+    if (String(trainingRows[i]['研修ID'] || '') === trainingId && !toBoolean_(trainingRows[i]['削除フラグ'])) {
+      training = trainingRows[i];
+      break;
+    }
+  }
+
+  if (!training) return JSON.stringify({ success: false, error: '研修が見つかりません' });
+
+  var status = deriveTrainingStatusByCloseDate_(training['申込締切日']);
+  if (status !== 'OPEN') return JSON.stringify({ success: false, error: '申込受付期間外です' });
+
+  var now = new Date();
+  if (training['申込開始日'] && new Date(training['申込開始日']) > now) return JSON.stringify({ success: false, error: '申込受付前です' });
+  if (training['申込締切日'] && new Date(training['申込締切日']) < now) return JSON.stringify({ success: false, error: '申込締切済みです' });
+
+  if (training['定員'] && Number(training['申込者数']) >= Number(training['定員'])) {
+    return JSON.stringify({ success: false, error: '定員に達しています' });
+  }
+
+  var applySheet = db.getSheetByName('T_研修申込');
+  var applyRows = getSheetData_(applySheet);
+
+  var externalSheet = db.getSheetByName('T_外部申込者');
+  var externalRows = getSheetData_(externalSheet);
+
+  var existingExternal = null;
+  for (var j = 0; j < externalRows.length; j += 1) {
+    if (String(externalRows[j]['メールアドレス'] || '') === email && !toBoolean_(externalRows[j]['削除フラグ'])) {
+      existingExternal = externalRows[j];
+      break;
+    }
+  }
+  if (existingExternal) {
+    for (var k = 0; k < applyRows.length; k += 1) {
+      var ar = applyRows[k];
+      if (String(ar['研修ID'] || '') === trainingId &&
+          String(ar['申込者区分コード'] || '') === 'EXTERNAL' &&
+          String(ar['申込者ID'] || '') === String(existingExternal['外部申込者ID'] || '') &&
+          !toBoolean_(ar['削除フラグ'])) {
+        return JSON.stringify({ success: false, error: '既に申込済みです' });
+      }
+    }
+  }
+
+  var nowStr = new Date().toISOString();
+  var externalId = Utilities.getUuid();
+  var newExternal = {
+    '外部申込者ID': externalId,
+    '氏名': name,
+    'メールアドレス': email,
+    '電話番号': phone,
+    '事業所名': office,
+    '同意日時': nowStr,
+    '作成日時': nowStr,
+    '更新日時': nowStr,
+    '削除フラグ': false,
+  };
+  appendRow_(externalSheet, テーブル定義.T_外部申込者, newExternal);
+
+  var applyId = Utilities.getUuid();
+  var applyColsAll = テーブル定義.T_研修申込;
+  var newApply = {};
+  for (var m = 0; m < applyColsAll.length; m += 1) { newApply[applyColsAll[m]] = ''; }
+  newApply['申込ID'] = applyId;
+  newApply['研修ID'] = trainingId;
+  newApply['申込者区分コード'] = 'EXTERNAL';
+  newApply['申込者ID'] = externalId;
+  newApply['申込状態コード'] = '申込済';
+  newApply['申込日時'] = nowStr;
+  newApply['作成日時'] = nowStr;
+  newApply['更新日時'] = nowStr;
+  newApply['削除フラグ'] = false;
+  appendRow_(applySheet, applyColsAll, newApply);
+
+  updateTrainingApplicantCount_(db, trainingId);
+
+  try {
+    MailApp.sendEmail({
+      to: email,
+      subject: '【研修申込確認】' + String(training['研修名'] || ''),
+      body: name + ' 様\n\n以下の研修へお申込いただきありがとうございます。\n\n研修名: ' + String(training['研修名'] || '') + '\n開催日: ' + formatDateForApi_(training['開催日']) + '\n\n申込IDは以下の通りです。取消の際に必要ですので保管してください。\n申込ID: ' + applyId + '\n\n何かご不明な点は主催者までお問い合わせください。',
+    });
+  } catch (e) {
+    Logger.log('申込確認メール送信失敗: ' + e.message);
+  }
+
+  return JSON.stringify({ success: true, data: { applyId: applyId } });
+}
+
+function cancelTrainingExternal_(payload) {
+  if (!payload) return JSON.stringify({ success: false, error: 'パラメータが不足しています' });
+  var applyId = String(payload.applyId || '').trim();
+  var email = String(payload.email || '').trim();
+
+  if (!applyId || !email) return JSON.stringify({ success: false, error: 'パラメータが不足しています' });
+
+  var db = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var applySheet = db.getSheetByName('T_研修申込');
+  var applyRows = getSheetData_(applySheet);
+
+  var apply = null;
+  for (var i = 0; i < applyRows.length; i += 1) {
+    var r = applyRows[i];
+    if (String(r['申込ID'] || '') === applyId &&
+        String(r['申込者区分コード'] || '') === 'EXTERNAL' &&
+        !toBoolean_(r['削除フラグ'])) {
+      apply = r;
+      break;
+    }
+  }
+  if (!apply) return JSON.stringify({ success: false, error: '申込が見つかりません' });
+
+  var externalSheet = db.getSheetByName('T_外部申込者');
+  var externalRows = getSheetData_(externalSheet);
+  var external = null;
+  for (var j = 0; j < externalRows.length; j += 1) {
+    var er = externalRows[j];
+    if (String(er['外部申込者ID'] || '') === String(apply['申込者ID'] || '') && !toBoolean_(er['削除フラグ'])) {
+      external = er;
+      break;
+    }
+  }
+  if (!external || String(external['メールアドレス'] || '') !== email) {
+    return JSON.stringify({ success: false, error: 'メールアドレスが一致しません' });
+  }
+
+  var nowStr = new Date().toISOString();
+  updateRowByKey_(applySheet, テーブル定義.T_研修申込, '申込ID', applyId, { '申込状態コード': '取消', '更新日時': nowStr });
+  updateTrainingApplicantCount_(db, String(apply['研修ID'] || ''));
+
+  return JSON.stringify({ success: true });
+}
+
+function getTrainingApplicants_(payload) {
+  if (!checkAdminBySession_()) return JSON.stringify({ success: false, error: 'unauthorized' });
+  if (!payload) return JSON.stringify({ success: false, error: 'trainingId required' });
+  var trainingId = String(payload.trainingId || '').trim();
+  if (!trainingId) return JSON.stringify({ success: false, error: 'trainingId required' });
+
+  var db = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var applySheet = db.getSheetByName('T_研修申込');
+  var applyRows = getSheetData_(applySheet).filter(function(r) {
+    return String(r['研修ID'] || '') === trainingId && !toBoolean_(r['削除フラグ']);
+  });
+
+  var memberSheet = db.getSheetByName('T_会員');
+  var memberRows = getSheetData_(memberSheet);
+  var memberMap = {};
+  memberRows.forEach(function(r) { memberMap[String(r['会員ID'] || '')] = r; });
+
+  var externalSheet = db.getSheetByName('T_外部申込者');
+  var externalRows = getSheetData_(externalSheet);
+  var externalMap = {};
+  externalRows.forEach(function(r) { externalMap[String(r['外部申込者ID'] || '')] = r; });
+
+  var result = applyRows.map(function(r) {
+    var isMember = String(r['申込者区分コード'] || '') === 'MEMBER';
+    var applicantId = String(r['申込者ID'] || '') || String(r['会員ID'] || '');
+    var info = isMember ? memberMap[applicantId] : externalMap[applicantId];
+    var memberName = info ? (String(info['姓'] || '') + ' ' + String(info['名'] || '')).trim() : '';
+    return {
+      applyId: String(r['申込ID'] || ''),
+      trainingId: String(r['研修ID'] || ''),
+      applicantType: String(r['申込者区分コード'] || 'MEMBER'),
+      applicantId: applicantId,
+      name: info ? (isMember ? (memberName || String(info['氏名'] || '')) : String(info['氏名'] || '')) : '(不明)',
+      email: info ? (isMember ? String(info['代表メールアドレス'] || '') : String(info['メールアドレス'] || '')) : '',
+      officeName: info ? (isMember ? String(info['勤務先名'] || '') : String(info['事業所名'] || '')) : '',
+      status: String(r['申込状態コード'] || ''),
+      applyDate: String(r['申込日時'] || ''),
+    };
+  });
+
+  return JSON.stringify({ success: true, data: result });
+}
+
+function getAdminEmailAliases_() {
+  if (!checkAdminBySession_()) return JSON.stringify({ success: false, error: 'unauthorized' });
+  var aliases = GmailApp.getAliases();
+  var ownerEmail = Session.getEffectiveUser().getEmail();
+  var all = [ownerEmail].concat(aliases);
+  return JSON.stringify({ success: true, data: all });
+}
+
+function sendTrainingMail_(payload) {
+  if (!checkAdminBySession_()) return JSON.stringify({ success: false, error: 'unauthorized' });
+  if (!payload) return JSON.stringify({ success: false, error: 'パラメータが不足しています' });
+  var from = String(payload.from || '').trim();
+  var subject = String(payload.subject || '').trim();
+  var body = String(payload.body || '').trim();
+  var recipients = payload.recipients;
+  var attachments = payload.attachments || [];
+  var driveFileIds = payload.driveFileIds || {};
+
+  if (!subject || !body || !recipients || !recipients.length) {
+    return JSON.stringify({ success: false, error: 'パラメータが不足しています' });
+  }
+
+  var replyTo = Session.getActiveUser().getEmail();
+  var ownerEmail = Session.getEffectiveUser().getEmail();
+  var validAliases = [ownerEmail].concat(GmailApp.getAliases());
+  var fromFound = false;
+  for (var a = 0; a < validAliases.length; a += 1) {
+    if (validAliases[a] === from) { fromFound = true; break; }
+  }
+  if (!from || !fromFound) from = ownerEmail;
+
+  var commonAttachments = attachments.map(function(att) {
+    var bytes = Utilities.base64Decode(att.base64);
+    return Utilities.newBlob(bytes, att.mimeType, att.name);
+  });
+
+  var errors = [];
+  for (var i = 0; i < recipients.length; i += 1) {
+    var rec = recipients[i];
+    try {
+      var personalSubject = subject.replace(/\{\{氏名\}\}/g, rec.name).replace(/\{\{事業所名\}\}/g, rec.officeName || '');
+      var personalBody = body.replace(/\{\{氏名\}\}/g, rec.name).replace(/\{\{事業所名\}\}/g, rec.officeName || '');
+      var allAttachments = commonAttachments.slice();
+      if (driveFileIds[rec.applyId]) {
+        try {
+          var file = DriveApp.getFileById(driveFileIds[rec.applyId]);
+          allAttachments.push(file.getBlob());
+        } catch (fe) {
+          Logger.log('個別添付取得失敗: ' + rec.applyId + ' ' + fe.message);
+        }
+      }
+      GmailApp.sendEmail(rec.email, personalSubject, personalBody, {
+        from: from,
+        replyTo: replyTo,
+        attachments: allAttachments,
+        name: '枚方市介護支援専門員連絡協議会',
+      });
+    } catch (e) {
+      errors.push({ applyId: rec.applyId, error: e.message });
+    }
+  }
+
+  if (errors.length > 0) {
+    return JSON.stringify({ success: false, data: { errors: errors } });
+  }
+  return JSON.stringify({ success: true });
 }
