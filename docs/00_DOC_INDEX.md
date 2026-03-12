@@ -1,6 +1,6 @@
 ﻿# ドキュメント索引（現行）
 
-更新日: 2026-03-13
+更新日: 2026-03-13（2回目）
 
 ## 現行の正本
 - `README.md`
@@ -17,6 +17,7 @@
 - `docs/10_SOW.md`                ← 今後の統一仕様/品質保証
 - `docs/11_WITHDRAWAL_DELETION_POLICY.md` ← 退会日/削除フラグ運用仕様
 - `docs/12_ENGINEERING_RULEBOOK.md` ← 絶対ルール基準（最上位）
+- `docs/13_DECISION_RECORD_MAIL_CONSOLE_2026-03-13.md` ← メール送信機能・管理コンソール連携の設計決定記録
 
 ## 履歴資料（参照のみ）
 - `docs/archive/docs_history/*`

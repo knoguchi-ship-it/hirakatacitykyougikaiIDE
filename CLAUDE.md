@@ -103,5 +103,5 @@
 
 - Frontend: React 19 + TypeScript + Vite + Tailwind CSS
 - Backend: Google Apps Script (GAS) + Google Spreadsheet
-- メール: `MailApp.sendEmail`（GmailApp 不使用）
+- メール: `MailApp.sendEmail`（既存リマインダー） / `GmailApp.sendEmail`（管理コンソール メール送信機能・エイリアス対応）
 - 詳細: `memory/MEMORY.md` 参照

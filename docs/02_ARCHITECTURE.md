@@ -39,9 +39,14 @@
   - 事務局スタッフが直接閲覧・編集・バックアップを行うことが容易。
 
 ### 2.4 メール配信・通知
-- **技術**: **MailApp (`MailApp.sendEmail`)** ※GmailApp は使用しない
-  - 研修リマインダー等の送信をGAS組込みの `MailApp.sendEmail` で実行する。
+- **既存リマインダー**: `MailApp.sendEmail`（変更なし）
+  - 研修リマインダー等の定期送信に使用。
   - ドライランは API/CLI 実行のみ（UIボタンは実装しない）。
+- **管理コンソール メール送信機能**: `GmailApp.sendEmail`（2026-03-13 追加）
+  - 研修申込者への一斉・個別メール送信に使用。
+  - `from` オプションでスクリプトオーナーの Gmail エイリアスを選択可能（`GmailApp.getAliases()` で取得）。
+  - `replyTo` オプションにログイン中管理者のメールアドレス（`Session.getActiveUser().getEmail()`）を自動設定。
+  - 必要追加スコープ: `https://www.googleapis.com/auth/gmail.send`（`appsscript.json` の `oauthScopes` に追記必要）。
 
 ## 3. ディレクトリ構成
 
@@ -138,6 +143,8 @@ build: {
 | `applyTrainingExternal` | 非会員研修申込（`T_外部申込者` 作成 + `T_研修申込` 追加） | 不要（公開） |
 | `cancelTrainingExternal` | 非会員申込取消（申込ID + 登録メール一致で本人確認） | 不要（公開） |
 | `getTrainingApplicants` | 申込者一覧（会員・非会員統合ビュー） | 管理者 |
+| `getAdminEmailAliases` | スクリプトオーナーの Gmail エイリアス一覧取得（`GmailApp.getAliases()`） | 管理者 |
+| `sendTrainingMail` | 研修申込者への一斉・個別メール送信（GmailApp使用、添付・差し込み対応） | 管理者 |
 
 ## 6. 認証・認可アーキテクチャ
 
