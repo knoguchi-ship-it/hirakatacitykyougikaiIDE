@@ -1,6 +1,6 @@
 ﻿# 引継ぎ書（次担当者向け）
 
-更新日: 2026-03-13（v67 メール送信バグ修正・Z-21〜Z-27 全テスト PASS）
+更新日: 2026-03-13（v69 URL分離完了・2 Deployment 固定運用開始）
 対象: 枚方市介護支援専門員連絡協議会 会員システム
 
 ## 1. 先に必ず読む文書（順番固定）
@@ -41,8 +41,8 @@
 
 | 用途 | Deployment ID | 現在バージョン | 状態 |
 |---|---|---|---|
-| 会員マイページ | `AKfycbzmnp5s0ulA9gWZuNUevcJirKXhpBU7mtwJLQDNb5dx1zEgdRZoEJweEPJlKOo4-AZa` | @68 | 本番・有効 |
-| 公開ポータル | `[未発行]` | — | Apps Script UI で新規作成が必要 |
+| 会員マイページ | `AKfycbzmnp5s0ulA9gWZuNUevcJirKXhpBU7mtwJLQDNb5dx1zEgdRZoEJweEPJlKOo4-AZa` | @69 | 本番・有効 |
+| 公開ポータル | `AKfycbz7YRgNXIYyHTvE9OJGq1h6g-5W94LsfNLYReTTWTdlfcLhQFaG9CM2Ro_i9AJ7eWwl` | @69 | 本番・有効（2026-03-13 発行） |
 
 - 廃止済み: `AKfycbw2...`（API Executable に変換）、`AKfycby8...`（旧）
 - DBスキーマ: `rebuildDatabaseSchema` 実行済み（v59） `M_申込者区分`・`T_外部申込者` 反映済み

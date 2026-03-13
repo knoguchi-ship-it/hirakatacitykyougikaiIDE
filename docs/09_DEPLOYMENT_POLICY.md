@@ -17,9 +17,9 @@
 | 用途 | Deployment ID | 本番 URL | 備考 |
 |---|---|---|---|
 | **会員マイページ** | `AKfycbzmnp5s0ulA9gWZuNUevcJirKXhpBU7mtwJLQDNb5dx1zEgdRZoEJweEPJlKOo4-AZa` | `.../exec` | デフォルト（?app=member） |
-| **公開ポータル** | `[未発行]` | `.../exec?app=public` | Apps Script UI で新規作成後にここへ記入 |
+| **公開ポータル** | `AKfycbz7YRgNXIYyHTvE9OJGq1h6g-5W94LsfNLYReTTWTdlfcLhQFaG9CM2Ro_i9AJ7eWwl` | `.../exec?app=public` | 2026-03-13 発行 |
 
-> **公開ポータル Deployment ID 発行手順は §3.2 を参照。**
+> 両 Deployment とも **@69** で同期済み（2026-03-13）。
 
 ---
 
