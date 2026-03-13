@@ -35,12 +35,16 @@
   - `appsscript.json` スコープ: `script.send_mail`（`mail.google.com` 不要）
 
 ## 3. 本番デプロイの現状（2026-03-13時点）
+
 - `clasp` 認証ユーザー: `k.noguchi@uguisunosato.or.jp`
-- デプロイ一覧（抜粋）:
-  - `AKfycbzmnp5s0ulA9gWZuNUevcJirKXhpBU7mtwJLQDNb5dx1zEgdRZoEJweEPJlKOo4-AZa` **@67（最新・本番）** ← v63例外運用で新規発行・v65〜v67適用済み
-  - `AKfycbw2QYvMovSCkXtSpGAro1drZqonpXjf_zTpa-ylsUIYZhzrlDgGds7jurGHKuKCY4xU` @62（旧・API Executable に変換済み・廃止）
-  - `AKfycby8Uc8RMNpRrcQIV-DePe3ZzoDMglSnB9EBO5GXzTn3VNyJT1lUBcpEpjiodjqbzCpF` @56（旧）
-- `/exec` 疎通確認（v63）: 要確認（本番反映後にブラウザ確認必須）
+- **2 Deployment 固定運用** （詳細: `docs/09_DEPLOYMENT_POLICY.md`）
+
+| 用途 | Deployment ID | 現在バージョン | 状態 |
+|---|---|---|---|
+| 会員マイページ | `AKfycbzmnp5s0ulA9gWZuNUevcJirKXhpBU7mtwJLQDNb5dx1zEgdRZoEJweEPJlKOo4-AZa` | @68 | 本番・有効 |
+| 公開ポータル | `[未発行]` | — | Apps Script UI で新規作成が必要 |
+
+- 廃止済み: `AKfycbw2...`（API Executable に変換）、`AKfycby8...`（旧）
 - DBスキーマ: `rebuildDatabaseSchema` 実行済み（v59） `M_申込者区分`・`T_外部申込者` 反映済み
 
 ## 4. 次担当者の最初の作業
@@ -120,10 +124,16 @@ npx clasp run getDbInfo
 - [ ] `npm run build:gas` が成功した
 - [ ] `npx clasp push --force` が成功した
 - [ ] `npx clasp version` で新Versionを作成した
-- [ ] `Manage deployments` で本番対象のVersionを確認した
+- [ ] `npx clasp deployments` で両 Deployment ID が存在することを確認した
 
-### 9.4 本番反映後
-- [ ] `/exec` を実ブラウザで確認し404でないことを確認した
+### 9.4 本番反映（Manage deployments UI — 必ず2回実施）
+- [ ] **会員マイページ** Deployment ID を最新 Version に更新した
+- [ ] **公開ポータル** Deployment ID を最新 Version に更新した
+- [ ] `npx clasp deployments` で両 ID の `@N` が一致していることを確認した
+
+### 9.5 本番反映後
+- [ ] 会員マイページ `/exec` を実ブラウザで確認し 404 でないことを確認した
+- [ ] 公開ポータル `/exec?app=public` を実ブラウザで確認し 404 でないことを確認した
 - [ ] `npx clasp run healthCheck` が成功した
 - [ ] `npx clasp run getDbInfo` が成功した
 - [ ] 変更内容・確認結果を `HANDOVER.md` か関連正本へ記録した

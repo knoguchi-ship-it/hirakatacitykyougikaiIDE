@@ -626,6 +626,22 @@ function processApiRequest(action, payload) {
     var parsedPayload = parsePayload_(payload);
     applyWithdrawalDeletionPolicy_();
 
+    // ── アクセス制御（二重防御）────────────────────────────────
+    // 管理者専用アクションは processApiRequest レベルで早期リジェクト。
+    // 各関数内の checkAdminBySession_() チェックと合わせて二重防御とする。
+    // 公開ポータル URL（?app=public）からこれらのアクションを呼んでも
+    // 必ず unauthorized で返るため、URL 分離の信頼性を担保する。
+    var ADMIN_REQUIRED_ACTIONS = [
+      'getDbInfo', 'getSystemSettings', 'updateSystemSettings',
+      'sendTrainingReminder', 'seedDemoData', 'saveTraining',
+      'uploadTrainingFile', 'getTrainingApplicants',
+      'getAdminEmailAliases', 'sendTrainingMail',
+    ];
+    if (ADMIN_REQUIRED_ACTIONS.indexOf(action) !== -1 && !checkAdminBySession_()) {
+      return JSON.stringify({ success: false, error: 'unauthorized' });
+    }
+    // ─────────────────────────────────────────────────────────
+
     if (action === 'fetchAllData') {
       return JSON.stringify({
         success: true,

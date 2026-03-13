@@ -30,8 +30,10 @@
 ## 2. プロジェクト絶対ルール（`docs/12_ENGINEERING_RULEBOOK.md` 要点）
 
 ### 2.1 デプロイ
-- 本番URLは固定運用（Deployment ID固定）。`New deployment` は障害時の例外のみ。
-- 固定 Deployment ID: `AKfycbzmnp5s0ulA9gWZuNUevcJirKXhpBU7mtwJLQDNb5dx1zEgdRZoEJweEPJlKOo4-AZa`
+- 本番 URL は 2 Deployment ID 固定運用。`New deployment` は障害時の例外のみ。
+- 会員マイページ ID: `AKfycbzmnp5s0ulA9gWZuNUevcJirKXhpBU7mtwJLQDNb5dx1zEgdRZoEJweEPJlKOo4-AZa`
+- 公開ポータル ID: `[未発行 — Apps Script UI で発行後に更新すること]`
+- リリース時は **両 ID を同時に同一バージョンへ更新する**（片方だけ更新禁止）。
 - デプロイ前に必ず `docs/09_DEPLOYMENT_POLICY.md` と `docs/10_SOW.md` を再確認。
 
 ### 2.2 認証（変更禁止）
