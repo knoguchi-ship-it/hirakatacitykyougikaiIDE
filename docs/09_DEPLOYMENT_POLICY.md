@@ -19,7 +19,7 @@
 | **会員マイページ** | `AKfycbzmnp5s0ulA9gWZuNUevcJirKXhpBU7mtwJLQDNb5dx1zEgdRZoEJweEPJlKOo4-AZa` | `.../exec` | デフォルト（?app=member） |
 | **公開ポータル** | `AKfycbz7YRgNXIYyHTvE9OJGq1h6g-5W94LsfNLYReTTWTdlfcLhQFaG9CM2Ro_i9AJ7eWwl` | `.../exec?app=public` | 2026-03-13 発行 |
 
-> 両 Deployment とも **@69** で同期済み（2026-03-13）。
+> 両 Deployment とも **@74** で同期済み（2026-03-13）。
 
 ---
 
