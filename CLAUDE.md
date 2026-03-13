@@ -31,7 +31,7 @@
 
 ### 2.1 デプロイ
 - 本番URLは固定運用（Deployment ID固定）。`New deployment` は障害時の例外のみ。
-- 固定 Deployment ID: `AKfycbw2QYvMovSCkXtSpGAro1drZqonpXjf_zTpa-ylsUIYZhzrlDgGds7jurGHKuKCY4xU`
+- 固定 Deployment ID: `AKfycbzmnp5s0ulA9gWZuNUevcJirKXhpBU7mtwJLQDNb5dx1zEgdRZoEJweEPJlKOo4-AZa`
 - デプロイ前に必ず `docs/09_DEPLOYMENT_POLICY.md` と `docs/10_SOW.md` を再確認。
 
 ### 2.2 認証（変更禁止）
@@ -103,5 +103,5 @@
 
 - Frontend: React 19 + TypeScript + Vite + Tailwind CSS
 - Backend: Google Apps Script (GAS) + Google Spreadsheet
-- メール: `MailApp.sendEmail`（既存リマインダー） / `GmailApp.sendEmail`（管理コンソール メール送信機能・エイリアス対応）
+- メール: `MailApp.sendEmail`（リマインダー・管理コンソール メール送信機能、GmailApp は使用しない）
 - 詳細: `memory/MEMORY.md` 参照

@@ -1,6 +1,6 @@
 ﻿# 引継ぎ書（次担当者向け）
 
-更新日: 2026-03-13（v62 フリガナ追加後）
+更新日: 2026-03-13（v67 メール送信バグ修正・Z-21〜Z-27 全テスト PASS）
 対象: 枚方市介護支援専門員連絡協議会 会員システム
 
 ## 1. 先に必ず読む文書（順番固定）
@@ -29,19 +29,18 @@
 - 管理コンソール連携（2026-03-13 追加）:
   - 会員管理コンソール ⇄ 研修管理コンソール 双方向ナビゲーション（再認証不要）
   - `T_管理者Googleホワイトリスト` 登録アカウントが両コンソールに同一権限でアクセス可
-- メール送信（2026-03-13 追加）:
-  - 既存リマインダー: `MailApp.sendEmail`（変更なし）
-  - 管理コンソール メール送信機能: `GmailApp.sendEmail`（エイリアス・Reply-To対応）
-  - `appsscript.json` に `gmail.send` スコープ追加が必要（実装フェーズで対応）
+- メール送信（2026-03-13 確定）:
+  - リマインダー・管理コンソール メール送信機能: `MailApp.sendEmail`（統一）
+  - `GmailApp` は使用しない（GAS Web App OAuth制約のため）
+  - `appsscript.json` スコープ: `script.send_mail`（`mail.google.com` 不要）
 
 ## 3. 本番デプロイの現状（2026-03-13時点）
 - `clasp` 認証ユーザー: `k.noguchi@uguisunosato.or.jp`
 - デプロイ一覧（抜粋）:
-  - `AKfycbw2QYvMovSCkXtSpGAro1drZqonpXjf_zTpa-ylsUIYZhzrlDgGds7jurGHKuKCY4xU` **@62（最新・本番）**
+  - `AKfycbzmnp5s0ulA9gWZuNUevcJirKXhpBU7mtwJLQDNb5dx1zEgdRZoEJweEPJlKOo4-AZa` **@67（最新・本番）** ← v63例外運用で新規発行・v65〜v67適用済み
+  - `AKfycbw2QYvMovSCkXtSpGAro1drZqonpXjf_zTpa-ylsUIYZhzrlDgGds7jurGHKuKCY4xU` @62（旧・API Executable に変換済み・廃止）
   - `AKfycby8Uc8RMNpRrcQIV-DePe3ZzoDMglSnB9EBO5GXzTn3VNyJT1lUBcpEpjiodjqbzCpF` @56（旧）
-- `/exec` 疎通確認（v60）:
-  - `AKfycbw2.../exec` → 会員ポータル表示（HTTP 200）
-  - `AKfycbw2.../exec?app=public` → 公開ポータル表示（HTTP 200）
+- `/exec` 疎通確認（v63）: 要確認（本番反映後にブラウザ確認必須）
 - DBスキーマ: `rebuildDatabaseSchema` 実行済み（v59） `M_申込者区分`・`T_外部申込者` 反映済み
 
 ## 4. 次担当者の最初の作業
@@ -74,11 +73,13 @@ npx clasp run getDbInfo
 - ドキュメント更新なしで完了扱いにしない
 
 ## 7. 直近の変更履歴（Git）
+- `(v67)` fix: sendTrainingMail_ の戻り値に data: { sent, errors } を追加（B-02）
+- `(v66)` fix: sendTrainingMail_ が targetApplyIds+trainingId から DB参照でrecipients構築（B-01）
+- `(v65)` fix: GmailApp.getAliases() を try-catch でラップ、MailApp.sendEmail() に切替、mail.google.com スコープ削除（B-03）
+- `(v63)` fix: clasp deploy変換による Web App→API Executable 問題を例外運用で復旧（New deployment・新固定ID発行）
 - `(v62)` fix: T_外部申込者 フリガナ列追加（スキーマ・バックエンド・フロントエンド同時整合）
 - `35b6baa` feat: 研修管理コンソール メール送信UI・申込者一覧・双方向ナビを実装（v60/v61）
 - `7d39422` fix: cleanupNonSchemaSheets_ 防御的例外処理追加・rebuildDatabaseSchema 正常完了（v59）
-- `0689653` handover: 当日運用チェックリストを追加
-- `54fe9a1` docs: メール送信機能・管理コンソール連携の仕様追加（GmailApp採用・DR13新規作成）
 
 ## 8. 補足
 - 既存の履歴文書は `docs/archive/docs_history/` に保存

@@ -3629,8 +3629,13 @@ function getTrainingApplicants_(payload) {
 
 function getAdminEmailAliases_() {
   if (!checkAdminBySession_()) return JSON.stringify({ success: false, error: 'unauthorized' });
-  var aliases = GmailApp.getAliases();
   var ownerEmail = Session.getEffectiveUser().getEmail();
+  var aliases = [];
+  try {
+    aliases = GmailApp.getAliases();
+  } catch (e) {
+    // gmail.send スコープ不足時はオーナーメールのみ返す
+  }
   var all = [ownerEmail].concat(aliases);
   return JSON.stringify({ success: true, data: all });
 }
@@ -3641,17 +3646,65 @@ function sendTrainingMail_(payload) {
   var from = String(payload.from || '').trim();
   var subject = String(payload.subject || '').trim();
   var body = String(payload.body || '').trim();
-  var recipients = payload.recipients;
   var attachments = payload.attachments || [];
   var driveFileIds = payload.driveFileIds || {};
 
-  if (!subject || !body || !recipients || !recipients.length) {
+  if (!subject || !body) {
     return JSON.stringify({ success: false, error: 'パラメータが不足しています' });
+  }
+
+  // targetApplyIds + trainingId から recipients を組み立てる
+  var trainingId = String(payload.trainingId || '').trim();
+  var targetApplyIds = payload.targetApplyIds;
+  var recipients = payload.recipients; // 後方互換（直接渡す場合）
+
+  if (!recipients || !recipients.length) {
+    if (!trainingId || !targetApplyIds || !targetApplyIds.length) {
+      return JSON.stringify({ success: false, error: 'パラメータが不足しています' });
+    }
+    var db = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+    var applySheet = db.getSheetByName('T_研修申込');
+    var applyRows = getSheetData_(applySheet).filter(function(r) {
+      return String(r['研修ID'] || '') === trainingId && !toBoolean_(r['削除フラグ']);
+    });
+    var memberSheet = db.getSheetByName('T_会員');
+    var memberMap = {};
+    getSheetData_(memberSheet).forEach(function(r) { memberMap[String(r['会員ID'] || '')] = r; });
+    var externalSheet = db.getSheetByName('T_外部申込者');
+    var externalMap = {};
+    getSheetData_(externalSheet).forEach(function(r) { externalMap[String(r['外部申込者ID'] || '')] = r; });
+
+    var targetSet = {};
+    targetApplyIds.forEach(function(id) { targetSet[String(id)] = true; });
+
+    recipients = applyRows
+      .filter(function(r) { return targetSet[String(r['申込ID'] || '')]; })
+      .map(function(r) {
+        var isMember = String(r['申込者区分コード'] || '') === 'MEMBER';
+        var applicantId = String(r['申込者ID'] || '') || String(r['会員ID'] || '');
+        var info = isMember ? memberMap[applicantId] : externalMap[applicantId];
+        var memberName = info ? (String(info['姓'] || '') + ' ' + String(info['名'] || '')).trim() : '';
+        return {
+          applyId: String(r['申込ID'] || ''),
+          name: info ? (isMember ? (memberName || String(info['氏名'] || '')) : String(info['氏名'] || '')) : '(不明)',
+          email: info ? (isMember ? String(info['代表メールアドレス'] || '') : String(info['メールアドレス'] || '')) : '',
+          officeName: info ? (isMember ? String(info['勤務先名'] || '') : String(info['事業所名'] || '')) : '',
+        };
+      });
+  }
+
+  if (!recipients.length) {
+    return JSON.stringify({ success: false, error: '送信対象者が見つかりません' });
   }
 
   var replyTo = Session.getActiveUser().getEmail();
   var ownerEmail = Session.getEffectiveUser().getEmail();
-  var validAliases = [ownerEmail].concat(GmailApp.getAliases());
+  var validAliases = [ownerEmail];
+  try {
+    validAliases = validAliases.concat(GmailApp.getAliases());
+  } catch (e) {
+    // gmail スコープ未承認時はオーナーメールのみ
+  }
   var fromFound = false;
   for (var a = 0; a < validAliases.length; a += 1) {
     if (validAliases[a] === from) { fromFound = true; break; }
@@ -3678,8 +3731,7 @@ function sendTrainingMail_(payload) {
           Logger.log('個別添付取得失敗: ' + rec.applyId + ' ' + fe.message);
         }
       }
-      GmailApp.sendEmail(rec.email, personalSubject, personalBody, {
-        from: from,
+      MailApp.sendEmail(rec.email, personalSubject, personalBody, {
         replyTo: replyTo,
         attachments: allAttachments,
         name: '枚方市介護支援専門員連絡協議会',
@@ -3689,8 +3741,9 @@ function sendTrainingMail_(payload) {
     }
   }
 
-  if (errors.length > 0) {
-    return JSON.stringify({ success: false, data: { errors: errors } });
+  var sentCount = recipients.length - errors.length;
+  if (errors.length > 0 && sentCount === 0) {
+    return JSON.stringify({ success: false, error: errors[0].error, data: { sent: 0, errors: errors.map(function(e) { return e.error; }) } });
   }
-  return JSON.stringify({ success: true });
+  return JSON.stringify({ success: true, data: { sent: sentCount, errors: errors.map(function(e) { return e.error; }) } });
 }

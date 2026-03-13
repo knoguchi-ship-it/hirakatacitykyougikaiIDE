@@ -1,6 +1,6 @@
 ﻿# デプロイ標準（URL固定運用）
 
-更新日: 2026-03-10
+更新日: 2026-03-13
 
 ## 1. 目的
 - 本番WebアプリURLを固定し、利用者影響を防ぐ。
@@ -14,8 +14,8 @@
 - 例外的に `New deployment` を行うのは、既存IDで `/exec` 復旧不能な場合のみとし、実施時は本書の固定対象を即時更新する。
 
 ## 2. 固定対象
-- 本番Deployment ID: `AKfycbw2QYvMovSCkXtSpGAro1drZqonpXjf_zTpa-ylsUIYZhzrlDgGds7jurGHKuKCY4xU`
-- 本番URL: `https://script.google.com/macros/s/AKfycbw2QYvMovSCkXtSpGAro1drZqonpXjf_zTpa-ylsUIYZhzrlDgGds7jurGHKuKCY4xU/exec`
+- 本番Deployment ID: `AKfycbzmnp5s0ulA9gWZuNUevcJirKXhpBU7mtwJLQDNb5dx1zEgdRZoEJweEPJlKOo4-AZa`
+- 本番URL: `https://script.google.com/macros/s/AKfycbzmnp5s0ulA9gWZuNUevcJirKXhpBU7mtwJLQDNb5dx1zEgdRZoEJweEPJlKOo4-AZa/exec`
 
 ## 3. 今後の標準デプロイ手順（必須）
 1. `npm run build:gas`
@@ -41,6 +41,12 @@
 - 旧本番ID `AKfycby8Uc8RMNpRrcQIV-DePe3ZzoDMglSnB9EBO5GXzTn3VNyJT1lUBcpEpjiodjqbzCpF` が `実行可能API` 化し、`/exec` が404となった。
 - `Manage deployments` 上で `Web app` 復旧不能だったため、例外として `New deployment` で `Web app` を再発行した。
 - 新IDを本書の固定対象へ反映済み。
+
+## 5.2 例外実績（2026-03-13）
+- `clasp deploy --deploymentId` コマンドを繰り返し実行したことで、固定ID `AKfycbw2QYvMovSCkXtSpGAro1drZqonpXjf_zTpa-ylsUIYZhzrlDgGds7jurGHKuKCY4xU` のデプロイタイプが `Web app` → `実行可能 API` に変換され `/exec` が404となった。
+- `Manage deployments` では種別変更不可のため、例外として `New deployment`（ウェブアプリ・v63）を実施した。
+- 新ID `AKfycbzmnp5s0ulA9gWZuNUevcJirKXhpBU7mtwJLQDNb5dx1zEgdRZoEJweEPJlKOo4-AZa` を本書・CLAUDE.md・HANDOVER.md へ反映済み。
+- **教訓**: `clasp deploy --deploymentId` は Web App を `実行可能 API` に変換する既知の問題あり。使用禁止。本番更新は必ず `Manage deployments` UI から実施すること。
 
 ## 6. 公式仕様（参照）
 - Apps Script Deployments: https://developers.google.com/apps-script/concepts/deployments
