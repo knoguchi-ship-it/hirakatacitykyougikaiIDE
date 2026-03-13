@@ -183,6 +183,7 @@ var テーブル定義 = {
     '研修ID',
     '研修名',
     '開催日',
+    '開催終了時刻',
     '定員',
     '申込者数',
     '開催場所',
@@ -952,6 +953,28 @@ function formatDateForApi_(rawDate) {
   return String(rawDate);
 }
 
+/** 時刻セル（HH:mm）を文字列で返す。Date型もシート上の時刻セルも正しく処理する */
+function formatTimeOnly_(val) {
+  if (!val) return '';
+  if (Object.prototype.toString.call(val) === '[object Date]') {
+    return Utilities.formatDate(val, 'Asia/Tokyo', 'HH:mm');
+  }
+  var s = String(val).trim();
+  if (/^\d{2}:\d{2}$/.test(s)) return s;
+  if (/^\d{1,2}:\d{2}$/.test(s)) {
+    var parts = s.split(':');
+    return ('0' + parts[0]).slice(-2) + ':' + parts[1];
+  }
+  return '';
+}
+
+/** DBスプレッドシートのタイムゾーンをAsia/Tokyoに設定する（一度だけ実行）*/
+function setSpreadsheetTimezone() {
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  ss.setSpreadsheetTimeZone('Asia/Tokyo');
+  Logger.log('スプレッドシートのタイムゾーンを Asia/Tokyo に設定しました。現在: ' + ss.getSpreadsheetTimeZone());
+}
+
 function seedDemoData() {
   var ss = getOrCreateDatabase_();
   initializeSchema_(ss);
@@ -1161,9 +1184,10 @@ function seedDemoData() {
     {
       研修ID: 'T001',
       研修名: '令和8年度 介護報酬改定に伴う実務研修',
-      開催日: '2026-02-15',
+      開催日: Utilities.parseDate('2026-04-15 10:00', 'Asia/Tokyo', 'yyyy-MM-dd HH:mm'),
+      開催終了時刻: '12:00',
       定員: 100,
-      申込者数: 85,
+      申込者数: 12,
       開催場所: 'オンライン (Zoom)',
       研修状態コード: 'OPEN',
       主催者: '枚方市介護支援専門員連絡協議会',
@@ -1171,8 +1195,8 @@ function seedDemoData() {
       研修概要: '介護報酬改定の実務対応ポイントを解説します。',
       研修内容: '改定内容の要点、請求・記録の実務対応、質疑応答を行います。現場での運用変更点を具体例で確認します。',
       費用JSON: JSON.stringify([{ label: '会員', amount: 0 }, { label: '非会員', amount: 1000 }]),
-      申込開始日: '2026-01-10',
-      申込締切日: '2026-02-10',
+      申込開始日: '2026-03-01',
+      申込締切日: '2026-04-10',
       講師: '厚生労働省 担当官',
       案内状URL: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
       項目設定JSON: serializeTrainingOptions_(null, true, '事務局 田中', 'EMAIL', 'support@example.com'),
@@ -1183,18 +1207,19 @@ function seedDemoData() {
     {
       研修ID: 'T002',
       研修名: '認知症ケア実践リーダー研修',
-      開催日: '2026-03-10',
+      開催日: Utilities.parseDate('2026-05-10 13:00', 'Asia/Tokyo', 'yyyy-MM-dd HH:mm'),
+      開催終了時刻: '17:00',
       定員: 40,
       申込者数: 40,
       開催場所: '枚方市市民会館 会議室A',
-      研修状態コード: 'CLOSED',
+      研修状態コード: 'OPEN',
       主催者: '枚方市介護支援専門員連絡協議会',
       法定外研修フラグ: true,
       研修概要: '認知症ケアの実践事例とリーダー育成を扱います。',
       研修内容: 'ケーススタディを通じて、チームでの支援方針策定と多職種連携を学びます。',
       費用JSON: JSON.stringify([{ label: '会員', amount: 2000 }, { label: '非会員', amount: 3000 }]),
-      申込開始日: '2026-02-01',
-      申込締切日: '2026-03-01',
+      申込開始日: '2026-03-15',
+      申込締切日: '2026-04-25',
       講師: '田中 一郎 先生',
       案内状URL: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
       項目設定JSON: serializeTrainingOptions_(null, false, '事務局 佐藤', 'PHONE', '072-000-1234'),
@@ -1205,7 +1230,8 @@ function seedDemoData() {
     {
       研修ID: 'T003',
       研修名: 'ケアプラン点検 実践ハンズオン',
-      開催日: '2026-04-18',
+      開催日: Utilities.parseDate('2026-05-23 10:00', 'Asia/Tokyo', 'yyyy-MM-dd HH:mm'),
+      開催終了時刻: '16:00',
       定員: 60,
       申込者数: 18,
       開催場所: '枚方市総合文化芸術センター 第2会議室',
@@ -1215,8 +1241,8 @@ function seedDemoData() {
       研修概要: '提出書類の点検観点を実例ベースで学ぶ実践型研修です。',
       研修内容: '事前配布資料のケースに沿って、算定根拠・記録整合性・加算要件を確認します。少人数グループで相互レビューを行います。',
       費用JSON: JSON.stringify([{ label: '会員', amount: 1000 }, { label: '非会員', amount: 4000 }]),
-      申込開始日: '2026-03-01',
-      申込締切日: '2026-04-12',
+      申込開始日: '2026-03-20',
+      申込締切日: '2026-05-16',
       講師: '中村 友美 先生',
       案内状URL: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
       項目設定JSON: serializeTrainingOptions_(null, true, '研修担当 中村', 'EMAIL', 'kenshu@example.com'),
@@ -1227,7 +1253,8 @@ function seedDemoData() {
     {
       研修ID: 'T004',
       研修名: '在宅医療連携アップデート 2026',
-      開催日: '2026-05-09',
+      開催日: Utilities.parseDate('2026-06-06 14:00', 'Asia/Tokyo', 'yyyy-MM-dd HH:mm'),
+      開催終了時刻: '16:30',
       定員: 120,
       申込者数: 45,
       開催場所: 'オンライン (Zoom)',
@@ -1237,8 +1264,8 @@ function seedDemoData() {
       研修概要: '多職種連携の最新実務と連絡票運用を整理します。',
       研修内容: '訪問診療・訪問看護・薬局・ケアマネの連携フローを、事例とテンプレートで確認します。オンライン参加向け資料も配布します。',
       費用JSON: JSON.stringify([{ label: '会員', amount: 0 }, { label: '非会員', amount: 2000 }]),
-      申込開始日: '2026-03-15',
-      申込締切日: '2026-05-02',
+      申込開始日: '2026-03-20',
+      申込締切日: '2026-05-30',
       講師: '川口 誠 先生',
       案内状URL: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
       項目設定JSON: serializeTrainingOptions_(null, false, '運営窓口 川口', 'PHONE', '072-111-2222'),
@@ -1492,6 +1519,7 @@ function fetchAllDataFromDb_() {
       description: String(t['研修内容'] || ''),
       guidePdfUrl: String(t['案内状URL'] || ''),
       date: formatDateForApi_(t['開催日']),
+      endTime: String(t['開催終了時刻'] || ''),
       capacity: Number(t['定員'] || 0),
       applicants: Number(t['申込者数'] || 0),
       location: String(t['開催場所'] || ''),
@@ -2640,6 +2668,7 @@ function saveTraining_(payload) {
 
     setCol('研修名', payload.title || '');
     setCol('開催日', payload.date || '');
+    setCol('開催終了時刻', payload.endTime || '');
     setCol('定員', Number(payload.capacity || 0));
     setCol('開催場所', payload.location || '');
     setCol('研修状態コード', derivedStatus);
@@ -2671,6 +2700,7 @@ function saveTraining_(payload) {
     '研修ID': newId,
     '研修名': payload.title || '',
     '開催日': payload.date || '',
+    '開催終了時刻': payload.endTime || '',
     '定員': Number(payload.capacity || 0),
     '申込者数': 0,
     '開催場所': payload.location || '',
@@ -3423,8 +3453,8 @@ function getPublicTrainings_() {
       id: String(r['研修ID'] || ''),
       name: String(r['研修名'] || ''),
       date: formatDateForApi_(r['開催日']),
+      endTime: formatTimeOnly_(r['開催終了時刻']),
       capacity: Number(r['定員'] || 0),
-      applicantCount: Number(r['申込者数'] || 0),
       location: String(r['開催場所'] || ''),
       summary: String(r['研修概要'] || ''),
       content: String(r['研修内容'] || ''),
@@ -3433,6 +3463,7 @@ function getPublicTrainings_() {
       endDate: formatDateForApi_(r['申込締切日']),
       instructor: String(r['講師'] || ''),
       fileUrl: String(r['案内状URL'] || ''),
+      organizer: String(r['主催者'] || ''),
       fieldConfig: String(r['項目設定JSON'] || ''),
     };
   });
