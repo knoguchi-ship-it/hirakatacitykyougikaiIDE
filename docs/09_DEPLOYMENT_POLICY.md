@@ -1,6 +1,6 @@
-# デプロイ標準（2 Deployment 固定運用）
+﻿# デプロイ標準（2 Deployment 固定運用）
 
-更新日: 2026-03-13
+更新日: 2026-03-18
 
 ---
 
@@ -16,14 +16,39 @@
 
 | 用途 | Deployment ID | 本番 URL | 備考 |
 |---|---|---|---|
-| **会員マイページ** | `AKfycbzmnp5s0ulA9gWZuNUevcJirKXhpBU7mtwJLQDNb5dx1zEgdRZoEJweEPJlKOo4-AZa` | `.../exec` | デフォルト（?app=member） |
-| **公開ポータル** | `AKfycbz7YRgNXIYyHTvE9OJGq1h6g-5W94LsfNLYReTTWTdlfcLhQFaG9CM2Ro_i9AJ7eWwl` | `.../exec?app=public` | 2026-03-13 発行 |
+| **会員マイページ** | `AKfycbycE2_ythCYSPwmPxvyfRzNLhWM7J1cX41TA2wjYgZgdI-P2uknYfQGh3AHrecCQ1Gk` | `.../exec` | 2026-03-15 Web app 再発行（現行固定） |
+| **公開ポータル** | `AKfycbxKoni2vBdvRbQWR6NyrroPHyNmElJNkJ5OTNOJMQ0k0z-Ae-oGeclrN3kxsE9yIXVr` | `.../exec?app=public` | 2026-03-15 Web app 再発行（現行固定） |
 
-> 両 Deployment とも **@74** で同期済み（2026-03-13）。
+> 両 Deployment とも **@100** で同期済み（2026-03-18）。
+> `npx clasp deployments` の表示名が Apps Script UI の `Manage deployments` の表示と食い違うことがあるため、固定IDの最終確認は Apps Script UI を正とする。
 
 ---
 
 ## 3. デプロイ手順
+
+### 3.0 事前チェック（毎回必須）
+
+```bash
+# 0-1. 作業ブランチ/差分確認
+git status --short
+
+# 0-2. ローカル静的確認
+npm run typecheck
+npm run build
+npm run build:gas
+
+# 0-3. 認証アカウント確認
+npx clasp show-authorized-user
+
+# 0-4. 既存 Deployment 状態確認
+npx clasp deployments
+```
+
+事前チェックの判定:
+- `npx clasp show-authorized-user` が運用アカウントを示していること。
+- `npx clasp deployments` で固定 2 Deployment ID が存在すること。
+- ローカルの `typecheck / build / build:gas` が成功していること。
+- この時点で異常がある場合、先に `docs/17_ROOT_CAUSE_ERROR_RESPONSE_PLAYBOOK.md` に従って切り分ける。デプロイを先行しない。
 
 ### 3.1 通常リリース（バージョン更新）
 
@@ -66,6 +91,17 @@ npx clasp run getDbInfo
 
 **上記 1〜6 が全て成功して初めて「本番完了」とする。**
 
+### 3.1.1 完了判定チェックリスト（毎回必須）
+
+- [ ] `npx clasp deployments` で固定 2 Deployment ID がともに同一 Version を指している
+- [ ] Apps Script UI の `Manage deployments` で固定 2 Deployment ID がともに `Web app` である
+- [ ] `/exec` が 404 でない
+- [ ] `/exec?app=public` が 404 でない
+- [ ] `npx clasp run healthCheck` が成功
+- [ ] `npx clasp run getDbInfo` が成功
+- [ ] 実ブラウザで会員側 / 公開側の最低 1 画面ずつ表示確認済み
+- [ ] `HANDOVER.md` / `docs/14_TEST_SPEC_2026-03-13_v75.md` / 必要な正本を更新済み
+
 ---
 
 ### 3.2 公開ポータル Deployment ID 初回発行手順（一回限り）
@@ -97,6 +133,16 @@ npx clasp run getDbInfo
 
 ## 5. 障害時の切り分け手順
 
+### 5.0 よくある再発パターンと最初の確認先
+
+| 症状 | 最初に確認するもの | 主な原因 |
+|---|---|---|
+| `/exec` が 404 | Apps Script UI `Manage deployments` | `Web app` が消えている / 別 Version を参照 |
+| `clasp run` が失敗 | `npx clasp show-authorized-user` / `docs/16_INCIDENT_clasp_run_permission_2026-03-14.md` | OAuth 認証崩れ / 組織ポリシー |
+| `npx clasp deployments` と UI 表示が噛み合わない | Apps Script UI `Manage deployments` | CLI 表示名と UI 表示名の不一致 |
+| デプロイ後に片系だけ古い | 固定 2 Deployment ID の Version | 会員側/公開側の片方だけ更新 |
+| ドキュメント更新後に文字化け | エディタ保存時の UTF-8 形式 | 文字コード/BOM 不一致 |
+
 ### 5.1 /exec が 404 の場合
 
 ```bash
@@ -126,11 +172,28 @@ Deploy > Manage deployments > 該当 ID を確認
 ### 2026-03-10（旧 ID 廃止）
 - 旧本番 ID が `実行可能 API` 化し `/exec` が 404 となった。
 - 標準復旧不能のため `New deployment` で再発行。
-- 新 ID: `AKfycbzmnp5s0ulA9gWZuNUevcJirKXhpBU7mtwJLQDNb5dx1zEgdRZoEJweEPJlKOo4-AZa`（会員マイページ）
+- 新 ID: `AKfycbycE2_ythCYSPwmPxvyfRzNLhWM7J1cX41TA2wjYgZgdI-P2uknYfQGh3AHrecCQ1Gk`（会員マイページ）
 
 ### 2026-03-13（clasp deploy --deploymentId 問題）
 - `clasp deploy --deploymentId` 繰り返しで Web App → `実行可能 API` に変換された。
 - **教訓**: `clasp deploy --deploymentId` 使用禁止。本番更新は必ず `Manage deployments` UI から。
+
+### 2026-03-15（固定2 Deployment の Version 同期漏れ予防）
+- `npx clasp version` 後にコードは上がっていても、固定 2 Deployment ID が旧 Version のまま残ることがある。
+- **教訓**: `clasp version` 完了だけでは本番反映完了にしない。必ず Apps Script UI の `Manage deployments` で固定 2 Deployment ID を同じ Version へ更新し、`npx clasp deployments` と実ブラウザで再確認する。
+
+### 2026-03-15（ドキュメント更新時の文字化け）
+- PowerShell/ツール経由の書き戻しで UTF-8 形式が崩れると、日本語の正本ドキュメントが文字化けすることがある。
+- **教訓**: ドキュメント更新後は UTF-8 で再読込して確認し、文字化けが出た場合はその場で修正する。正本更新未確認のまま完了扱いにしない。
+
+### 2026-03-14（公開取消不具合の緊急修正）
+- 公開取消時に `申込状態コード` の入力規則違反エラーを確認。
+- `cancelTrainingExternal_` のステータス書込値を `取消` から `CANCELED` に修正。
+- `@76` を作成し、固定2 Deployment ID を同時に `@76` へ更新。
+
+### 2026-03-14（申込状態コード整合修正）
+- 公開申込の新規書込で `申込状態コード` が表示文言 `申込済` になっていたため、コード値 `APPLIED` に修正。
+- `@77` を作成し、固定2 Deployment ID を同時に `@77` へ更新。
 
 ---
 

@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>学習補足資料 | Node.js と npm の基礎</title>
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --panel: #fffdf8;
+      --ink: #1f2937;
+      --muted: #5b6575;
+      --line: #d8cfbf;
+      --accent: #0f766e;
+      --accent-soft: #d9f3ef;
+      --warm: #8b5e34;
+      --shadow: 0 18px 40px rgba(31, 41, 55, 0.08);
+      --radius: 20px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, #efe6d7 0, transparent 28%),
+        linear-gradient(180deg, #f8f4ec 0%, var(--bg) 100%);
+    }
+
+    .wrap {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 32px 20px 56px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, rgba(15, 118, 110, 0.95), rgba(24, 94, 146, 0.95));
+      color: white;
+      border-radius: 28px;
+      padding: 36px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero h1 {
+      margin: 0 0 12px;
+      font-size: clamp(2rem, 4vw, 3.2rem);
+      line-height: 1.1;
+    }
+
+    .hero p {
+      margin: 0;
+      max-width: 760px;
+      line-height: 1.8;
+      color: rgba(255, 255, 255, 0.92);
+    }
+
+    .note {
+      margin-top: 18px;
+      display: inline-block;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.14);
+      font-size: 0.92rem;
+    }
+
+    .section {
+      margin-top: 28px;
+    }
+
+    .section h2 {
+      font-size: 1.2rem;
+      margin-bottom: 12px;
+      color: var(--warm);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 18px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 22px;
+      box-shadow: var(--shadow);
+    }
+
+    .card .num {
+      display: inline-flex;
+      width: 36px;
+      height: 36px;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+
+    .card h3 {
+      margin: 0 0 10px;
+      font-size: 1.18rem;
+    }
+
+    .card p {
+      margin: 0 0 18px;
+      line-height: 1.75;
+      color: var(--muted);
+    }
+
+    .card a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    .legend {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 22px;
+      line-height: 1.8;
+      box-shadow: var(--shadow);
+    }
+
+    .legend strong {
+      color: var(--accent);
+    }
+
+    @media (max-width: 720px) {
+      .hero { padding: 28px 22px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>Node.js 学習補足資料</h1>
+      <p>
+        このフォルダはプロジェクト本体の仕様書ではなく、今後の学習用に分離した補足資料です。
+        内容は、このリポジトリの実態と一般的な技術知識に基づいて、誇張せずに整理しています。
+      </p>
+      <div class="note">分類: 補足資料 / 学習用 / 正本ドキュメントではない</div>
+    </section>
+
+    <section class="section">
+      <h2>資料一覧</h2>
+      <div class="grid">
+        <article class="card">
+          <div class="num">1</div>
+          <h3>Node.js と npm の違い</h3>
+          <p>
+            Node.js は何か、npm は何か、両者の役割を分けて理解するための資料です。
+            「実行環境」と「管理ツール」の違いを扱います。
+          </p>
+          <a href="./01_nodejs_and_npm.html">資料を開く</a>
+        </article>
+
+        <article class="card">
+          <div class="num">2</div>
+          <h3>Node.js とブラウザ JavaScript の違い</h3>
+          <p>
+            同じ JavaScript でも、どこで動くかによって何ができるかが変わります。
+            ブラウザ API と Node.js API の違いを整理しています。
+          </p>
+          <a href="./02_nodejs_and_browser_javascript.html">資料を開く</a>
+        </article>
+
+        <article class="card">
+          <div class="num">3</div>
+          <h3>この案件で Node.js がしていること</h3>
+          <p>
+            このリポジトリの `package.json`、Vite、ビルドスクリプトに基づいて、
+            Node.js が具体的に何を担当しているかを整理した資料です。
+          </p>
+          <a href="./03_nodejs_in_this_project.html">資料を開く</a>
+        </article>
+
+        <article class="card">
+          <div class="num">4</div>
+          <h3>TypeScript 入門</h3>
+          <p>
+            JavaScript との違い、型を付ける意味、この案件で TypeScript が何を守っているかを整理した資料です。
+          </p>
+          <a href="./04_typescript_intro.html">資料を開く</a>
+        </article>
+
+        <article class="card">
+          <div class="num">5</div>
+          <h3>GAS・ブラウザ・Node.js の関係</h3>
+          <p>
+            この案件で「どこで何が動くのか」を見分けるための資料です。
+            開発時と本番時の流れを分けて説明しています。
+          </p>
+          <a href="./05_gas_browser_nodejs_relationship.html">資料を開く</a>
+        </article>
+
+        <article class="card">
+          <div class="num">6</div>
+          <h3>Node.js・npm・Vite の関係図</h3>
+          <p>
+            Node.js と npm と Vite がどうつながっているかを、1枚の図で整理した資料です。
+            誤解しやすい「Node.js とローカルサーバーの違い」を扱います。
+          </p>
+          <a href="./06_nodejs_npm_vite_relationship.html">資料を開く</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="legend">
+        <strong>補足:</strong>
+        これらの資料は学習用です。運用判断や本番手順は
+        `HANDOVER.md`、`docs/12_ENGINEERING_RULEBOOK.md`、`docs/10_SOW.md`、`docs/09_DEPLOYMENT_POLICY.md`
+        を正本として参照してください。
+      </div>
+    </section>
+  </div>
+</body>
+</html>

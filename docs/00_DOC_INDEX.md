@@ -1,6 +1,6 @@
 ﻿# ドキュメント索引（現行）
 
-更新日: 2026-03-14
+更新日: 2026-03-18
 
 ## 現行の正本
 - `README.md`
@@ -22,10 +22,21 @@
 - `docs/15_INCIDENT_LOG_2026-03-14_v76.md` ← v75で発生した公開取消障害の原因/修正/再発防止記録
 - `docs/16_INCIDENT_clasp_run_permission_2026-03-14.md` ← `clasp run` 実行権限エラー（403/404）の解析記録
 - `docs/17_ROOT_CAUSE_ERROR_RESPONSE_PLAYBOOK.md` ← 根本エラー対応書（RCA運用標準）
+- `docs/18_DECISION_RECORD_ANNUAL_FEE_CONSOLE_2026-03-15.md` ← 年会費管理コンソール・監査ログ追加の設計決定記録
+- `docs/19_DECISION_RECORD_PUBLIC_PORTAL_APPLICATION_INTEGRATION_2026-03-17.md` ← 公開ポータルへの新規入会統合の決定記録
 
 ## 履歴資料（参照のみ）
 - `docs/archive/docs_history/*`
 - `docs/archive/obsolete/*`
+
+## 補足資料（学習用・正本ではない）
+- `docs/learning/index.html`
+- `docs/learning/01_nodejs_and_npm.html`
+- `docs/learning/02_nodejs_and_browser_javascript.html`
+- `docs/learning/03_nodejs_in_this_project.html`
+- `docs/learning/04_typescript_intro.html`
+- `docs/learning/05_gas_browser_nodejs_relationship.html`
+- `docs/learning/06_nodejs_npm_vite_relationship.html`
 
 ## 運用ルール
 - 実装変更時は、正本ドキュメントを同時更新する。

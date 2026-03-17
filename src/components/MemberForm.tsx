@@ -22,7 +22,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
   const [submittingTrainingId, setSubmittingTrainingId] = useState<string | null>(null);
   const [expandedTrainingId, setExpandedTrainingId] = useState<string | null>(null);
   const [selectedHistoryTrainingId, setSelectedHistoryTrainingId] = useState<string | null>(null);
-  const [passwordForm, setPasswordForm] = useState({ nextPassword: '', confirmPassword: '' });
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', nextPassword: '', confirmPassword: '' });
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
@@ -391,6 +391,11 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!passwordForm.currentPassword) {
+      setPasswordError('現在のパスワードを入力してください。');
+      setPasswordSuccess(null);
+      return;
+    }
     if (!passwordForm.nextPassword || !passwordForm.confirmPassword) {
       setPasswordError('新しいパスワード・確認用をすべて入力してください。');
       setPasswordSuccess(null);
@@ -409,10 +414,10 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
 
     try {
       setPasswordSubmitting(true);
-      await api.changePassword(currentLoginId, passwordForm.nextPassword);
+      await api.changePassword(currentLoginId, passwordForm.currentPassword, passwordForm.nextPassword);
       setPasswordSuccess('パスワードを変更しました。');
       setPasswordError(null);
-      setPasswordForm({ nextPassword: '', confirmPassword: '' });
+      setPasswordForm({ currentPassword: '', nextPassword: '', confirmPassword: '' });
     } catch (err: any) {
       setPasswordError(err?.message || 'パスワード変更に失敗しました。');
       setPasswordSuccess(null);
@@ -566,6 +571,16 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
           <div className="relative w-full max-w-md bg-white rounded-xl shadow-2xl border border-slate-200 p-6">
             <h3 className="text-lg font-bold text-slate-900 mb-4">パスワード変更</h3>
             <form onSubmit={handlePasswordChange} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">現在のパスワード</label>
+                <input
+                  type="password"
+                  value={passwordForm.currentPassword}
+                  onChange={(e) => setPasswordForm((prev) => ({ ...prev, currentPassword: e.target.value }))}
+                  className="w-full rounded-md shadow-sm border border-slate-300 p-2"
+                  autoComplete="current-password"
+                />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">新しいパスワード</label>
                 <input

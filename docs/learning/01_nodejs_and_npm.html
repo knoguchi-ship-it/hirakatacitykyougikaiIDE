@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Node.js と npm の違い</title>
+  <style>
+    :root {
+      --bg: #f7f8fb;
+      --panel: #ffffff;
+      --ink: #1f2937;
+      --muted: #5b6575;
+      --line: #dbe2ec;
+      --accent: #0f766e;
+      --accent-2: #2563eb;
+      --soft: #ecfdf5;
+      --soft-2: #eff6ff;
+      --shadow: 0 14px 36px rgba(15, 23, 42, 0.08);
+      --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+      background:
+        linear-gradient(180deg, rgba(37, 99, 235, 0.06), transparent 20%),
+        var(--bg);
+      color: var(--ink);
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 18px 48px; }
+    .topbar a { color: var(--accent-2); text-decoration: none; font-weight: 700; }
+    .hero, .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+    }
+    .hero { padding: 30px; margin-top: 12px; }
+    .hero h1 { margin: 0 0 10px; font-size: clamp(2rem, 4vw, 3rem); }
+    .hero p { margin: 0; color: var(--muted); line-height: 1.8; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
+    .panel { padding: 22px; }
+    .badge {
+      display: inline-block; padding: 6px 10px; border-radius: 999px;
+      font-size: 0.85rem; font-weight: 700; margin-bottom: 10px;
+    }
+    .node { background: var(--soft); color: var(--accent); }
+    .npm { background: var(--soft-2); color: var(--accent-2); }
+    h2 { margin: 0 0 10px; font-size: 1.3rem; }
+    p, li { line-height: 1.8; color: var(--muted); }
+    ul { margin: 0; padding-left: 1.2rem; }
+    .compare {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: 200px 1fr 1fr;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      overflow: hidden;
+      background: white;
+      box-shadow: var(--shadow);
+    }
+    .cell {
+      padding: 14px 16px;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      line-height: 1.7;
+    }
+    .head { font-weight: 700; background: #f8fafc; color: var(--ink); }
+    .rowhead { background: #f8fafc; font-weight: 700; color: var(--ink); }
+    .highlight {
+      margin-top: 18px; padding: 18px 20px; border-radius: 18px;
+      background: linear-gradient(135deg, #0f766e, #2563eb); color: white;
+    }
+    .highlight p { color: rgba(255, 255, 255, 0.93); margin: 0; }
+    code {
+      background: #eef2f7; padding: 2px 6px; border-radius: 6px;
+      font-family: Consolas, monospace; color: #0f172a;
+    }
+    @media (max-width: 860px) {
+      .grid { grid-template-columns: 1fr; }
+      .compare { grid-template-columns: 1fr; }
+      .cell { border-right: none; }
+      .rowhead { border-top: 1px solid var(--line); }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a href="./index.html">← 学習資料一覧へ戻る</a></div>
+
+    <section class="hero">
+      <h1>Node.js と npm の違い</h1>
+      <p>
+        この2つは一緒に語られがちですが、役割は同じではありません。
+        短く言うと、<strong>Node.js は JavaScript を実行する環境</strong>、
+        <strong>npm はパッケージ管理とコマンド実行の仕組み</strong>です。
+      </p>
+    </section>
+
+    <section class="grid">
+      <article class="panel">
+        <div class="badge node">Node.js</div>
+        <h2>Node.js とは</h2>
+        <p>
+          ブラウザの外で JavaScript を動かすための実行環境です。
+          JavaScript のコードを、Windows や macOS などの OS 上で動かせます。
+        </p>
+        <ul>
+          <li>JavaScript を実行する</li>
+          <li>ファイルを読む、書く</li>
+          <li>他のプログラムを起動する</li>
+          <li>開発用ツールを動かす</li>
+        </ul>
+      </article>
+
+      <article class="panel">
+        <div class="badge npm">npm</div>
+        <h2>npm とは</h2>
+        <p>
+          Node.js まわりのライブラリを入れたり、プロジェクトで決めた作業コマンドを実行したりする仕組みです。
+          一般に Node.js と一緒に使います。
+        </p>
+        <ul>
+          <li>依存ライブラリをインストールする</li>
+          <li>バージョンを固定しやすくする</li>
+          <li><code>npm run build</code> のように定型作業を実行する</li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="compare" aria-label="Node.js と npm の比較">
+      <div class="cell head">観点</div>
+      <div class="cell head">Node.js</div>
+      <div class="cell head">npm</div>
+
+      <div class="cell rowhead">役割</div>
+      <div class="cell">JavaScript を実行する</div>
+      <div class="cell">ライブラリ管理と作業コマンド実行</div>
+
+      <div class="cell rowhead">例えると</div>
+      <div class="cell">エンジン</div>
+      <div class="cell">工具箱と作業手順書</div>
+
+      <div class="cell rowhead">代表例</div>
+      <div class="cell"><code>node script.js</code></div>
+      <div class="cell"><code>npm install</code>, <code>npm run build</code></div>
+
+      <div class="cell rowhead">この案件での使い方</div>
+      <div class="cell">Vite や TypeScript、ビルドスクリプトを動かす土台</div>
+      <div class="cell"><code>package.json</code> に定義した作業を呼ぶ</div>
+    </section>
+
+    <section class="highlight">
+      <p>
+        正確に言うと、「Node.js はローカルで JavaScript を動かすためのツール」という理解は大筋で正しいです。
+        ただしより正確には、「JavaScript をブラウザ外で実行する環境」が Node.js です。
+        npm はその上で使う管理・実行の仕組みです。
+      </p>
+    </section>
+
+    <section class="panel" style="margin-top:18px;">
+      <div class="badge node">重要な補足</div>
+      <h2>Node.js 自体が必ずローカルサーバーになるわけではない</h2>
+      <p>
+        ここが誤解されやすい点です。Node.js は「JavaScript を実行する環境」ですが、
+        <strong>Node.js を入れただけで自動的にローカルサーバーが立つわけではありません</strong>。
+      </p>
+      <ul>
+        <li><code>node sample.js</code> なら、単に JavaScript の処理を1回実行して終わることがあります。</li>
+        <li>ローカルサーバーになるのは、<strong>Node.js 上でサーバー用プログラムを動かしたとき</strong>です。</li>
+        <li>この案件では、その代表例が <code>npm run dev</code> で起動する Vite 開発サーバーです。</li>
+      </ul>
+      <p>
+        つまり、あなたの理解を正確に言い直すと、
+        「Node.js は JavaScript をローカルで動かす実行環境であり、
+        その上で Vite などの開発用サーバーを動かすことで、ブラウザ確認ができることがある」
+        となります。
+      </p>
+    </section>
+  </div>
+</body>
+</html>

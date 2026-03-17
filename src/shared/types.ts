@@ -5,8 +5,8 @@ export interface PublicTraining {
   id: string;
   name: string;
   date: string;
+  endTime: string;
   capacity: number;
-  applicantCount: number;
   location: string;
   summary: string;
   content: string;
@@ -15,6 +15,7 @@ export interface PublicTraining {
   endDate: string;
   instructor: string;
   fileUrl: string;
+  organizer: string;
   fieldConfig: string;
 }
 

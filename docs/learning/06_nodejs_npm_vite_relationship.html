@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Node.js・npm・Vite の関係</title>
+  <style>
+    :root {
+      --bg: #f7f8f5;
+      --panel: #fffefb;
+      --ink: #17212b;
+      --muted: #52606d;
+      --line: #d6ddd5;
+      --node: #166534;
+      --node-soft: #dcfce7;
+      --npm: #b91c1c;
+      --npm-soft: #fee2e2;
+      --vite: #7c3aed;
+      --vite-soft: #f3e8ff;
+      --browser: #1d4ed8;
+      --browser-soft: #dbeafe;
+      --shadow: 0 18px 38px rgba(23, 33, 43, 0.08);
+      --radius: 20px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(22, 101, 52, 0.08), transparent 22%),
+        radial-gradient(circle at top right, rgba(124, 58, 237, 0.08), transparent 22%),
+        var(--bg);
+    }
+
+    .wrap {
+      max-width: 1140px;
+      margin: 0 auto;
+      padding: 24px 18px 54px;
+    }
+
+    .topbar a {
+      color: var(--vite);
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    .hero, .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero {
+      padding: 32px;
+      margin-top: 12px;
+    }
+
+    .hero h1 {
+      margin: 0 0 10px;
+      font-size: clamp(2rem, 4vw, 3rem);
+    }
+
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.8;
+    }
+
+    .diagram {
+      margin-top: 20px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 18px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr;
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .box {
+      border-radius: 20px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      background: white;
+    }
+
+    .node { background: linear-gradient(180deg, #f9fffb, var(--node-soft)); }
+    .npm { background: linear-gradient(180deg, #fffafa, var(--npm-soft)); }
+    .vite { background: linear-gradient(180deg, #fcfaff, var(--vite-soft)); }
+    .browser { background: linear-gradient(180deg, #fbfdff, var(--browser-soft)); }
+
+    .box h2 {
+      margin: 0 0 8px;
+      font-size: 1.2rem;
+    }
+
+    .box p, .box li {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.8;
+    }
+
+    .box ul {
+      margin: 10px 0 0;
+      padding-left: 1.2rem;
+    }
+
+    .arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      color: #94a3b8;
+      font-weight: 700;
+    }
+
+    .legend {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .tag {
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      font-size: 0.95rem;
+      line-height: 1.7;
+      background: white;
+      box-shadow: var(--shadow);
+    }
+
+    .summary {
+      margin-top: 18px;
+      padding: 20px 22px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, #166534, #7c3aed);
+      color: white;
+      box-shadow: var(--shadow);
+    }
+
+    .summary p {
+      margin: 0;
+      line-height: 1.9;
+      color: rgba(255, 255, 255, 0.94);
+    }
+
+    code {
+      background: rgba(255, 255, 255, 0.7);
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-family: Consolas, monospace;
+      color: #0f172a;
+    }
+
+    @media (max-width: 980px) {
+      .row {
+        grid-template-columns: 1fr;
+      }
+      .arrow {
+        transform: rotate(90deg);
+        min-height: 32px;
+      }
+      .legend {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .legend {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a href="./index.html">← 学習資料一覧へ戻る</a></div>
+
+    <section class="hero">
+      <h1>Node.js・npm・Vite の関係</h1>
+      <p>
+        この3つは一緒に使われることが多いですが、同じ役割ではありません。
+        まずは「土台」「命令の窓口」「開発ツール」という3段階で分けて考えると理解しやすくなります。
+      </p>
+    </section>
+
+    <section class="diagram">
+      <div class="row">
+        <article class="box node">
+          <h2>Node.js</h2>
+          <p>JavaScript をブラウザ外で実行する環境です。</p>
+          <ul>
+            <li>土台になる</li>
+            <li>Vite や TypeScript を動かせる</li>
+            <li>それ自体が必ずサーバーになるわけではない</li>
+          </ul>
+        </article>
+
+        <div class="arrow">→</div>
+
+        <article class="box npm">
+          <h2>npm</h2>
+          <p>Node.js 上でライブラリ管理やコマンド実行を行う仕組みです。</p>
+          <ul>
+            <li><code>npm install</code> で依存関係を入れる</li>
+            <li><code>npm run dev</code> で定義済みコマンドを呼ぶ</li>
+            <li>Node.js の上で使う</li>
+          </ul>
+        </article>
+
+        <div class="arrow">→</div>
+
+        <article class="box vite">
+          <h2>Vite</h2>
+          <p>Node.js 上で動くフロントエンド開発ツールです。</p>
+          <ul>
+            <li>開発サーバーを立てる</li>
+            <li>React / TypeScript をビルドする</li>
+            <li>ブラウザへ配布するコードをまとめる</li>
+          </ul>
+        </article>
+      </div>
+
+      <div class="row">
+        <article class="box browser" style="grid-column: 1 / -1;">
+          <h2>ブラウザ</h2>
+          <p>
+            Vite が提供するローカルサーバーや、GAS の本番 URL にアクセスして、
+            実際に画面を表示する場所です。React の画面が見えるのは最終的にブラウザです。
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <section class="legend">
+      <div class="tag"><strong>Node.js</strong><br>実行環境</div>
+      <div class="tag"><strong>npm</strong><br>管理と実行の窓口</div>
+      <div class="tag"><strong>Vite</strong><br>開発サーバーとビルドツール</div>
+      <div class="tag"><strong>ブラウザ</strong><br>画面を実際に見る場所</div>
+    </section>
+
+    <section class="summary">
+      <p>
+        正確な理解としては、<strong>Node.js がローカルサーバーそのものなのではなく、
+        Node.js の上で Vite が動き、その Vite がローカルサーバーを提供する</strong>、です。
+        そしてブラウザは、そのローカルサーバーにアクセスして画面を表示します。
+      </p>
+    </section>
+  </div>
+</body>
+</html>

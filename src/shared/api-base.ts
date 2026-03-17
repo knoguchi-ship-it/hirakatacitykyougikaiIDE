@@ -4,8 +4,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 declare const google: any;
 
+const GAS_RUNTIME_REQUIRED_MESSAGE =
+  'この画面は Google Apps Script Web アプリ上でのみ利用できます。ローカルのモック運用は廃止しました。';
+
 export function callApi<T>(action: string, payload?: unknown): Promise<T> {
   return new Promise((resolve, reject) => {
+    if (typeof google === 'undefined' || !google.script?.run) {
+      reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+      return;
+    }
     google.script.run
       .withSuccessHandler((result: string) => {
         try {

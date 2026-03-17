@@ -23,6 +23,7 @@ const EMPTY_FORM: Training = {
   id: '',
   title: '',
   date: '',
+  endTime: '',
   organizer: '',
   isNonMandatory: false,
   summary: '',
@@ -376,9 +377,15 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">開催日時 <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">開催日時（開始） <span className="text-red-500">*</span></label>
                 <input className={inputCls} type="datetime-local" name="date" value={form.date} onChange={handleChange} />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">終了時刻</label>
+                <input className={inputCls} type="time" name="endTime" value={form.endTime || ''} onChange={handleChange} placeholder="例: 12:00" />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">主催者 <span className="text-red-500">*</span></label>
                 <input className={inputCls} name="organizer" value={form.organizer || ''} onChange={handleChange} />

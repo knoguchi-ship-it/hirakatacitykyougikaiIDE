@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>この案件で Node.js がしていること</title>
+  <style>
+    :root {
+      --bg: #f6f7f4;
+      --panel: #fffefb;
+      --ink: #18212b;
+      --muted: #55606f;
+      --line: #d7ddd3;
+      --accent: #166534;
+      --accent-soft: #dcfce7;
+      --accent-2: #92400e;
+      --accent-2-soft: #fef3c7;
+      --shadow: 0 16px 36px rgba(24, 33, 43, 0.08);
+      --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(22, 101, 52, 0.08), transparent 24%),
+        linear-gradient(180deg, #fbfbf8 0%, var(--bg) 100%);
+    }
+    .wrap { max-width: 1120px; margin: 0 auto; padding: 24px 18px 48px; }
+    .topbar a { color: var(--accent); text-decoration: none; font-weight: 700; }
+    .hero, .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+    }
+    .hero { padding: 30px; margin-top: 12px; }
+    .hero h1 { margin: 0 0 10px; font-size: clamp(2rem, 4vw, 3rem); }
+    .hero p { margin: 0; color: var(--muted); line-height: 1.8; }
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-top: 18px;
+    }
+    .step {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+    }
+    .step .num {
+      display: inline-flex;
+      width: 34px; height: 34px;
+      align-items: center; justify-content: center;
+      border-radius: 10px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .step h2 { margin: 0 0 8px; font-size: 1.05rem; }
+    .step p { margin: 0; color: var(--muted); line-height: 1.7; }
+    .two {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px;
+    }
+    .panel { padding: 22px; }
+    h3 { margin: 0 0 10px; font-size: 1.2rem; }
+    p, li { color: var(--muted); line-height: 1.8; }
+    ul { margin: 0; padding-left: 1.2rem; }
+    code {
+      background: #eef2f7;
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-family: Consolas, monospace;
+      color: #0f172a;
+    }
+    .callout {
+      margin-top: 18px;
+      padding: 18px 20px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, #166534, #92400e);
+      color: white;
+      box-shadow: var(--shadow);
+    }
+    .callout p { margin: 0; color: rgba(255, 255, 255, 0.92); }
+    .list {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+    .item {
+      background: white;
+      border: 1px solid var(--line);
+      border-left: 6px solid var(--accent);
+      border-radius: 14px;
+      padding: 16px 18px;
+      box-shadow: var(--shadow);
+    }
+    .item strong { color: var(--ink); }
+    .warn {
+      border-left-color: var(--accent-2);
+      background: #fffdf9;
+    }
+    @media (max-width: 900px) {
+      .flow { grid-template-columns: 1fr 1fr; }
+      .two { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .flow { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a href="./index.html">← 学習資料一覧へ戻る</a></div>
+
+    <section class="hero">
+      <h1>この案件で Node.js がしていること</h1>
+      <p>
+        この案件では、Node.js は本番アプリの表示基盤ではありません。
+        本番でユーザーに画面を見せるのはブラウザと Google Apps Script です。
+        Node.js はその前段で、ビルド・型チェック・作業コマンド実行を担当しています。
+      </p>
+    </section>
+
+    <section class="flow">
+      <article class="step">
+        <div class="num">1</div>
+        <h2>依存関係を入れる</h2>
+        <p><code>npm install</code> で React、Vite、TypeScript などを使えるようにします。</p>
+      </article>
+      <article class="step">
+        <div class="num">2</div>
+        <h2>型チェックする</h2>
+        <p><code>npm run typecheck</code> で TypeScript の整合性を確認します。</p>
+      </article>
+      <article class="step">
+        <div class="num">3</div>
+        <h2>画面をビルドする</h2>
+        <p><code>npm run build</code> や <code>npm run build:gas</code> で配布用HTMLを作ります。</p>
+      </article>
+      <article class="step">
+        <div class="num">4</div>
+        <h2>GAS へ渡す準備をする</h2>
+        <p>生成したHTMLを <code>backend/index.html</code> などに配置し、Apps Script 側へ反映します。</p>
+      </article>
+    </section>
+
+    <section class="panel" style="margin-top:18px;">
+      <h3>誤解しやすい点: Node.js とローカルサーバーは同義ではない</h3>
+      <p>
+        この案件では <code>npm run dev</code> を使うとローカルでブラウザ確認できますが、
+        それは <strong>Node.js 自体が画面を出している</strong>のではなく、
+        <strong>Node.js 上で Vite 開発サーバーが動いている</strong>からです。
+      </p>
+      <ul>
+        <li>Node.js: JavaScript をブラウザ外で動かす実行環境</li>
+        <li>Vite: Node.js 上で動く開発ツール。開発サーバー機能も持つ</li>
+        <li>ブラウザ: 実際に画面を描画し、React のコードを実行する場所</li>
+      </ul>
+      <p>
+        つまり流れは、
+        <code>Node.js が Vite を動かす</code> → <code>Vite がローカルサーバーを提供する</code> →
+        <code>ブラウザがそこへアクセスして画面を見る</code>
+        です。
+      </p>
+    </section>
+
+    <section class="two">
+      <article class="panel">
+        <h3>実際に Node.js が関わるファイル</h3>
+        <ul>
+          <li><code>package.json</code>: 実行コマンド定義</li>
+          <li><code>scripts/build-all.mjs</code>: 会員/公開ポータルの順次ビルド</li>
+          <li><code>scripts/build-gas.mjs</code>: ビルド成果物を GAS 用にコピー</li>
+          <li><code>vite.config.ts</code>: Vite ビルド設定</li>
+          <li><code>tsconfig.json</code>: TypeScript 設定</li>
+        </ul>
+      </article>
+
+      <article class="panel">
+        <h3>Node.js が直接やっていないこと</h3>
+        <ul>
+          <li>本番ユーザー向け画面の配信</li>
+          <li>Google Apps Script の API 実行そのもの</li>
+          <li>Spreadsheet を本番 DB として操作すること</li>
+          <li>管理者認証や会員認証の本番判定</li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="list">
+      <div class="item">
+        <strong><code>npm run typecheck</code></strong><br>
+        Node.js 上で TypeScript コンパイラを動かし、コードの型の矛盾を検出します。
+      </div>
+      <div class="item">
+        <strong><code>npm run build</code></strong><br>
+        Node.js 上で Vite を動かし、React と TypeScript のコードをブラウザで動く形にまとめます。
+      </div>
+      <div class="item">
+        <strong><code>npm run build:gas</code></strong><br>
+        Node.js 上で会員ポータルと公開ポータルの HTML を生成し、GAS 配置用ファイルへコピーします。
+      </div>
+      <div class="item warn">
+        <strong>重要な事実</strong><br>
+        この案件では、Node.js がないとローカルのビルドや型チェックは困難ですが、
+        Node.js だけでは本番動作確認は完結しません。最終確認は GAS 上で行う必要があります。
+      </div>
+    </section>
+
+    <section class="callout">
+      <p>
+        つまりこの案件における Node.js は、「本番の心臓部」ではなく「開発と出荷準備の作業台」です。
+        コードを整え、まとめ、GAS に渡す準備をする役割を担っています。
+      </p>
+    </section>
+  </div>
+</body>
+</html>

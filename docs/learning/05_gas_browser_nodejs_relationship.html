@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GAS・ブラウザ・Node.js の関係</title>
+  <style>
+    :root {
+      --bg: #f8faf7;
+      --panel: #ffffff;
+      --ink: #17212b;
+      --muted: #52606d;
+      --line: #d9e1d8;
+      --accent: #166534;
+      --accent-soft: #dcfce7;
+      --accent-2: #1d4ed8;
+      --accent-2-soft: #dbeafe;
+      --accent-3: #92400e;
+      --accent-3-soft: #fef3c7;
+      --shadow: 0 16px 34px rgba(23, 33, 43, 0.08);
+      --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+      background: linear-gradient(180deg, rgba(22, 101, 52, 0.06), transparent 18%), var(--bg);
+      color: var(--ink);
+    }
+    .wrap { max-width: 1120px; margin: 0 auto; padding: 24px 18px 48px; }
+    .topbar a { color: var(--accent); text-decoration: none; font-weight: 700; }
+    .hero, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 24px; box-shadow: var(--shadow); }
+    .hero { padding: 30px; margin-top: 12px; }
+    .hero h1 { margin: 0 0 10px; font-size: clamp(2rem, 4vw, 3rem); }
+    .hero p, .panel p, .panel li { line-height: 1.8; color: var(--muted); }
+    .stack { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 18px; }
+    .layer { border-radius: 18px; padding: 18px 20px; background: white; border: 1px solid var(--line); box-shadow: var(--shadow); }
+    .layer h2 { margin: 0 0 8px; font-size: 1.15rem; }
+    .gas { border-left: 8px solid var(--accent); background: #fbfefb; }
+    .browser { border-left: 8px solid var(--accent-2); background: #fbfdff; }
+    .node { border-left: 8px solid var(--accent-3); background: #fffdfa; }
+    .flow { margin-top: 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .panel { padding: 22px; }
+    .tag { display: inline-block; padding: 6px 10px; border-radius: 999px; font-size: 0.84rem; font-weight: 700; margin-bottom: 10px; }
+    .dev { background: var(--accent-3-soft); color: var(--accent-3); }
+    .prod { background: var(--accent-soft); color: var(--accent); }
+    @media (max-width: 860px) {
+      .flow { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a href="./index.html">← 学習資料一覧へ戻る</a></div>
+
+    <section class="hero">
+      <h1>GAS・ブラウザ・Node.js の関係</h1>
+      <p>
+        この案件では、3つの場所で役割が分かれています。
+        どこで何が動くかを切り分けると、トラブルの原因も追いやすくなります。
+      </p>
+    </section>
+
+    <section class="stack">
+      <div class="layer node">
+        <h2>Node.js</h2>
+        <p>ローカルで Vite、TypeScript、ビルドスクリプトを動かす。開発と出荷準備の担当。</p>
+      </div>
+      <div class="layer browser">
+        <h2>ブラウザ</h2>
+        <p>React の画面を実際に表示し、ユーザーの操作を受ける。見える部分の担当。</p>
+      </div>
+      <div class="layer gas">
+        <h2>Google Apps Script (GAS)</h2>
+        <p>HTML を返し、API を実行し、Spreadsheet を本番データとして読む/書く。本番バックエンド担当。</p>
+      </div>
+    </section>
+
+    <section class="flow">
+      <article class="panel">
+        <div class="tag dev">開発時</div>
+        <p>
+          Node.js が Vite を動かす → Vite 開発サーバーがローカル URL を提供する →
+          ブラウザがその URL にアクセスして画面を表示する。
+        </p>
+        <p>
+          ただしこの案件では、最終的な認証・API・権限・DB 整合の確認は GAS 上で必要です。
+        </p>
+      </article>
+
+      <article class="panel">
+        <div class="tag prod">本番時</div>
+        <p>
+          Node.js でビルドした HTML を GAS に置く → ブラウザが GAS の Web アプリ URL にアクセスする →
+          画面から <code>google.script.run</code> 経由で GAS API を呼ぶ。
+        </p>
+      </article>
+    </section>
+  </div>
+</body>
+</html>

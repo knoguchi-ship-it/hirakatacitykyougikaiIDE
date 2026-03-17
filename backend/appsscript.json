@@ -19,6 +19,6 @@
     "https://www.googleapis.com/auth/cloud-platform"
   ],
   "executionApi": {
-    "access": "MYSELF"
+    "access": "DOMAIN"
   }
 }

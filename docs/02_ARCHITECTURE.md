@@ -1,4 +1,4 @@
-# アーキテクチャ設計書
+﻿# アーキテクチャ設計書
 
 ## 1. システム全体構成 (Google Workspace for Nonprofits 構成)
 本システムは、ランニングコストを抑えるため、外部のレンタルサーバーやクラウドデータベースを使用せず、**Google Workspace for Nonprofits (GWNP)** の標準機能のみで構築する。
@@ -23,6 +23,11 @@
 - **技術**: React 19, TypeScript, Vite, Tailwind CSS
 - **ホスティング**: **Google Apps Script (HTML Service)**
   - Viteのビルド設定(`vite-plugin-singlefile`等)を用いて、JSとCSSをインライン化した単一の `index.html` を生成し、GASのWebアプリとしてデプロイ・配信する。レンタルサーバーは不要。
+- **管理コンソール構成**:
+  - 会員管理コンソール
+  - 年会費管理コンソール
+  - 研修管理コンソール
+  - いずれも同一の管理者認証判定で保護する。
 
 ### 2.2 バックエンド (API)
 - **技術**: **Google Apps Script (GAS)**
@@ -50,69 +55,58 @@
 
 ## 3. ディレクトリ構成
 
-### 3.1 現行（会員ポータルのみ）
+### 3.1 現行構成（2026-03-15 時点）
 ```text
 /
 ├── src/
-│   ├── components/      # UIコンポーネント
-│   ├── services/        # 外部通信ロジック (api.ts, geminiService.ts)
-│   ├── types.ts         # TypeScript型定義
-│   ├── constants.ts     # モックデータ定義 (開発用)
-│   ├── App.tsx          # ルートコンポーネント、グローバルState管理
-│   └── index.tsx        # エントリポイント
-├── backend/             # GASバックエンド用コード (Code.gs 等)
-├── docs/                # ドキュメント群
-├── index.html           # HTMLテンプレート
-└── vite.config.ts       # Viteビルド設定 (単一ファイル出力設定を追加済み)
-```
-
-### 3.2 公開ポータル追加後（設計）
-```text
-/
-├── src/
-│   ├── shared/                    # 【新設】両ポータル共通
+│   ├── components/              # 会員マイページ用 UI コンポーネント
+│   ├── public-portal/           # 公開ポータル用 React ソース
 │   │   ├── components/
-│   │   │   └── TrainingForm.tsx   # 研修登録フォーム（唯一の正本）
-│   │   ├── types.ts               # 共通型定義（現 types.ts から移動）
-│   │   └── api-base.ts            # processApiRequest 共通ラッパー
-│   ├── member-portal/             # 【移動】現行アプリ
-│   │   ├── components/
-│   │   ├── services/
 │   │   ├── App.tsx
 │   │   └── index.tsx
-│   └── public-portal/             # 【新設】公開ポータル
-│       ├── components/
-│       │   ├── PublicTrainingList.tsx
-│       │   └── ExternalApplyForm.tsx
-│       ├── App.tsx
-│       └── index.tsx
-├── backend/
-├── docs/
-├── index.html           # 会員ポータル用エントリ
-├── index_public.html    # 【新設】公開ポータル用エントリ
-└── vite.config.ts       # マルチエントリポイント設定へ更新
+│   ├── services/                # 会員マイページ側 API / AI 連携
+│   ├── shared/                  # 共通型定義・API ラッパー
+│   │   ├── api-base.ts
+│   │   └── types.ts
+│   ├── App.tsx                  # 会員マイページ ルート
+│   ├── index.tsx                # 会員マイページ エントリポイント
+│   └── types.ts                 # 会員マイページ側型定義
+├── backend/                     # GAS バックエンド / デプロイ成果物
+│   ├── Code.gs
+│   ├── appsscript.json
+│   ├── index.html
+│   └── index_public.html
+├── scripts/                     # build / GAS 反映補助
+├── docs/                        # 正本ドキュメント
+├── index.html                   # 会員ポータル用エントリ
+├── index_public.html            # 公開ポータル用エントリ
+└── vite.config.ts               # Vite 設定
 ```
 
-**`vite.config.ts` マルチエントリ設定（予定）:**
-```typescript
-resolve: { alias: { '@shared': resolve(__dirname, 'src/shared') } },
-build: {
-  rollupOptions: {
-    input: {
-      member: resolve(__dirname, 'index.html'),
-      public: resolve(__dirname, 'index_public.html'),
-    }
-  }
-}
-```
-> `vite-plugin-singlefile` はマルチエントリに対応済み。各 HTML は独立した自己完結バンドルとなり、共有コードは両バンドルに重複して含まれる（GAS デプロイモデルの制約上許容）。`tsconfig.json` の `paths` も `@shared` を追加する。
+### 3.2 ビルド戦略
+- Vite は `VITE_APP` 環境変数でビルド対象を切り替える。
+  - 未設定または `member`: `index.html` → `dist/index.html`
+  - `public`: `index_public.html` → `dist-public/index_public.html`
+- `scripts/build-all.mjs` は会員ポータルと公開ポータルを順番にビルドする。
+- `scripts/build-gas.mjs` は両ポータルをビルド後、`backend/index.html` と `backend/index_public.html` にコピーする。
+- `vite-plugin-singlefile` により、各 HTML は JS/CSS を内包した自己完結ファイルになる。
 
 ## 4. 状態管理 (State Management)
 - **Source of Truth**: `App.tsx` 内のグローバルステート（`members`, `trainings` 等）。
 - **データフロー**:
-  1. 初期マウント時に `google.script.run.processApiRequest('fetchAllData', ...)` を呼び出し、スプレッドシートの全データを一括取得。
-  2. 取得したデータを `App.tsx` のステートに格納し、Props として子コンポーネントへ伝播。
-  3. 変更時は `processApiRequest(action, payload)` を呼び出してスプレッドシートを更新し、レスポンス後にローカルのステートを同期する。
+  1. 未認証時は `getAuthConfig` だけを取得し、ログイン画面を先に表示する。
+  2. 管理者ログイン直後の管理トップは `getAdminDashboardData` と `getSystemSettings` を優先し、集計・一覧サマリーだけを先に表示する。
+  3. 研修管理コンソールは `getTrainingManagementData` で研修一覧だけを先に読み込み、研修詳細編集に不要な会員データ読込を避ける。
+  4. `profile` / `training-apply` は会員単位の軽量 API `getMemberPortalData` を呼び出し、対象会員の情報と研修一覧だけを取得する。
+  5. 管理者が会員詳細編集など全件データを必要とする画面へ進んだ時点で `fetchAllData` を呼び出す。
+  6. 取得したデータを `App.tsx` のステートに格納し、Props として子コンポーネントへ伝播する。
+  7. 変更時は `processApiRequest(action, payload)` を呼び出してスプレッドシートを更新し、レスポンス後に必要なローカルステートとキャッシュを同期する。
+- **年会費管理コンソール**:
+  - 会員マイページ向けの `annualFeeHistory` は過去2年の簡易表示に限定する。
+  - 管理者向けの年会費一覧・監査履歴は専用 API で取得する。
+  - 年度選択時は対象年度の一覧だけを取得し、不要な全年度データの転送を避ける。
+  - 一覧の各行で `納入状況 / 納入確認日 / 備考` を直接編集し、その行単位で保存する。
+  - 金額は `M_会員種別` の `年会費金額` を参照し、画面入力では変更させない。
 - **API通信プロトコル**: `google.script.run.processApiRequest(action, JSON.stringify(payload))`
   - レスポンスは JSON 文字列 `{"success": bool, "data": any}` または `{"success": false, "error": string}`。
   - `doPost` は使用しない（`google.script.run` でのみ通信）。
@@ -124,10 +118,13 @@ build: {
 | action | 役割 | 主な権限 |
 |---|---|---|
 | `fetchAllData` | 全データ一括取得（会員・研修・ユーザー情報） | 全員 |
+| `getAdminDashboardData` | 管理トップ用の軽量集計・会員一覧サマリー・研修サマリー取得 | 管理者 |
+| `getTrainingManagementData` | 研修管理コンソール用の研修一覧取得 | 管理者 |
+| `getMemberPortalData` | 会員マイページ/研修申込画面用の対象会員データ取得 | 会員/管理者 |
 | `memberLogin` | 会員ログイン（ID + PW） | 未認証 |
 | `adminGoogleLogin` | 管理者 Google ログイン（IDトークン方式） | 未認証 |
 | `checkAdminBySession` | 管理者 Google ログイン（セッション方式・本番標準） | 未認証 |
-| `changePassword` | パスワード変更（⚠️ 現在PW検証なし — 要改修） | 会員 |
+| `changePassword` | パスワード変更（現在PW照合あり） | 会員 |
 | `updateMember` | 会員情報更新 | 会員/管理者 |
 | `saveTraining` | 研修の新規登録・更新 | 管理者 |
 | `uploadTrainingFile` | 研修案内状（PDF）のアップロード → Drive保存 → URL返却 | 管理者 |
@@ -137,11 +134,15 @@ build: {
 | `getAuthConfig` | 管理者 Google Client ID 等の認証設定取得 | 全員 |
 | `getSystemSettings` | システム設定取得（職員数上限・研修履歴参照期間） | 管理者 |
 | `updateSystemSettings` | システム設定更新 | 管理者 |
+| `getAnnualFeeAdminData` | 年会費管理コンソール用の対象年度一覧・監査履歴取得 | 管理者 |
+| `saveAnnualFeeRecord` | 年会費レコードの新規登録・更新 | 管理者 |
 | `getDbInfo` | DB接続情報・スキーマ確認 | 管理者/CLI |
 | `seedDemoData` | デモデータ投入 | CLI のみ |
+| `seedPerformanceTestData` | 負荷試験用データ投入（既存 LT... 系のみ置換） | CLI のみ |
 | `getPublicTrainings` | 公開ポータル用：受付中研修一覧取得 | 不要（公開） |
 | `applyTrainingExternal` | 非会員研修申込（`T_外部申込者` 作成 + `T_研修申込` 追加） | 不要（公開） |
 | `cancelTrainingExternal` | 非会員申込取消（申込ID + 登録メール一致で本人確認） | 不要（公開） |
+| `submitMemberApplication` | 公開ポータル用：新規入会申込（個人/事業所/賛助） | 不要（公開） |
 | `getTrainingApplicants` | 申込者一覧（会員・非会員統合ビュー） | 管理者 |
 | `getAdminEmailAliases` | スクリプトオーナーの Gmail エイリアス一覧取得（`GmailApp.getAliases()`） | 管理者 |
 | `sendTrainingMail` | 研修申込者への一斉・個別メール送信（GmailApp使用、添付・差し込み対応） | 管理者 |
@@ -151,7 +152,7 @@ build: {
 ### 5.1 会員認証
 - 会員は `T_認証アカウント` の `認証方式=PASSWORD` で認証する。
 - `ログインID` は表示のみ、パスワードはハッシュ比較で検証する。
-- パスワード変更APIは「現在PW照合 -> 新PW保存（ハッシュ）」で処理する。
+- パスワード変更は `currentPassword` を必須入力とし、`changePassword_()`（GAS）で現在PWハッシュ照合後に更新する。
 
 ### 5.2 管理者認証
 - **方式A（本番標準）: セッション認証**
@@ -168,14 +169,30 @@ build: {
 ### 5.3 認可
 - 管理者ログイン時は `管理者ページ` と `会員マイページ` の両方を表示可能にする。
 - 会員マイページは3種類（個人会員 / 事業所会員管理者 / 事業所会員メンバー）として表示制御する。
+- 年会費管理コンソールは管理者ログイン時のみ表示し、会員ログインでは導線を出さない。
 
-## 7. 公開ポータル構成（2026-03-12 設計確定）
+## 6.1 年会費管理アーキテクチャ（2026-03-15 追加）
+- 元データ: `T_年会費納入履歴`
+- 監査データ: `T_年会費更新履歴`
+- 金額マスタ: `M_会員種別.年会費金額`
+- 一意性: `会員ID + 対象年度` の組み合わせで論理的に一意とする。
+- 表示方式:
+  - 対象年度ごとに全会員を 1 行ずつ表示する。
+  - 当該年度レコードが未作成の会員は、未保存の仮想行として表示し、そのまま保存時に新規作成する。
+- 更新方式:
+  - `processApiRequest` の管理者判定で認可し、年会費処理関数では不要な再認証を避ける。
+  - GAS 側で `会員ID + 対象年度` の重複を検査する。
+  - 更新時は `LockService` により同時更新競合を抑止する。
+  - 年会費一覧は対象年度単位で構築し、キャッシュで短時間再利用する。
+  - 更新後は監査ログを `T_年会費更新履歴` に追記する。
+
+## 7. 公開ポータル構成（2026-03-17 更新）
 
 ### 7.1 URL 構成
 | URL | 役割 |
 |-----|------|
 | `.../exec` | 会員ポータル（現行・ログイン必須） |
-| `.../exec?app=public` | 公開ポータル（新設・ログイン不要） |
+| `.../exec?app=public` | 「枚方市介護支援専門員連絡協議会お申込みポータル」（ログイン不要） |
 
 ### 7.2 doGet ルーティング
 ```javascript
@@ -192,9 +209,11 @@ function doGet(e) {
 ### 7.3 公開ポータルの機能範囲
 | 機能 | 認証 | 対象 |
 |------|------|------|
+| 初期画面で「研修申込」または「新規入会申込」を選択 | 不要 | 全員 |
 | 受付中研修一覧の閲覧 | 不要 | 全員 |
 | 非会員として研修申込 | 不要（氏名・メール等入力） | 非会員 |
 | 非会員申込の取消 | 申込ID + 登録メール一致 | 非会員本人 |
+| 新規入会申込（個人/事業所/賛助） | 不要 | 全員 |
 | 研修の新規登録・編集 | 管理者 Google 認証 | 管理者のみ |
 
 ### 7.4 個人情報保護法対応（公開フォーム必須事項）

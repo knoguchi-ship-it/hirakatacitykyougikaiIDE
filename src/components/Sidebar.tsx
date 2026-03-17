@@ -1,5 +1,5 @@
 ﻿import React from 'react';
-import { BookOpenIcon, HomeIcon, CalendarIcon } from './Icons';
+import { BookOpenIcon, HomeIcon, CalendarIcon, SettingsIcon } from './Icons';
 import { Member, MemberType } from '../types';
 
 interface SidebarProps {
@@ -25,7 +25,9 @@ const Sidebar: React.FC<SidebarProps> = ({
     ...(showAdminPage
       ? [
           { id: 'admin', label: '管理コンソール（会員管理）', icon: <HomeIcon className="w-5 h-5" /> },
+          { id: 'annual-fee-manage', label: '年会費管理コンソール', icon: <HomeIcon className="w-5 h-5" /> },
           { id: 'training-manage', label: '研修管理コンソール', icon: <CalendarIcon className="w-5 h-5" /> },
+          { id: 'admin-settings', label: '設定', icon: <SettingsIcon className="w-5 h-5" /> },
         ]
       : []),
   ];
@@ -93,3 +95,5 @@ const Sidebar: React.FC<SidebarProps> = ({
 };
 
 export default Sidebar;
+
+

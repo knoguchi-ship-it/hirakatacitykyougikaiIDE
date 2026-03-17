@@ -31,12 +31,86 @@ export interface TransferAccountInfo {
 }
 
 export interface AnnualFeeRecord {
+  id?: string;
   year: number;
   status: PaymentStatus;
+  confirmedDate?: string;
+  amount?: number;
+  note?: string;
+  updatedAt?: string;
   transferAccount?: TransferAccountInfo;
 }
 
-export type StaffRole = 'ADMIN' | 'STAFF';
+export interface AnnualFeeAdminRecord {
+  id: string;
+  exists: boolean;
+  memberId: string;
+  memberType: MemberType;
+  displayName: string;
+  year: number;
+  status: PaymentStatus;
+  confirmedDate?: string;
+  amount: number;
+  note: string;
+  updatedAt?: string;
+}
+
+export interface AnnualFeeAuditLog {
+  id: string;
+  annualFeeRecordId: string;
+  memberId: string;
+  displayName: string;
+  year: number;
+  action: 'CREATE' | 'UPDATE';
+  actorEmail: string;
+  executedAt: string;
+  beforeJson: string;
+  afterJson: string;
+}
+
+export interface AnnualFeeAdminData {
+  selectedYear: number;
+  records: AnnualFeeAdminRecord[];
+  years: number[];
+  auditLogs: AnnualFeeAuditLog[];
+}
+
+export interface AdminDashboardMemberRow {
+  memberId: string;
+  displayName: string;
+  memberType: MemberType;
+  latestFeeStatus: PaymentStatus;
+  trainingCount: number;
+  joinedDate: string;
+  status: 'ACTIVE' | 'WITHDRAWN';
+}
+
+export interface AdminDashboardTrainingRow {
+  trainingId: string;
+  title: string;
+  date: string;
+  status: 'OPEN' | 'CLOSED';
+  applicants: number;
+  capacity: number;
+}
+
+export interface AdminDashboardData {
+  memberCount: number;
+  individualCount: number;
+  businessCount: number;
+  businessStaffCount: number;
+  currentYearJoinedCount: number;
+  currentYearWithdrawnCount: number;
+  paidCount: number;
+  unpaidCount: number;
+  emailCount: number;
+  postCount: number;
+  openTrainingCount: number;
+  memberRows: AdminDashboardMemberRow[];
+  trainingRows: AdminDashboardTrainingRow[];
+}
+
+export type StaffRole = 'REPRESENTATIVE' | 'ADMIN' | 'STAFF';
 
 export interface Staff {
   id: string; // Internal ID for UI keys
@@ -73,6 +147,7 @@ export interface Member {
   
   // Office Info
   officeName: string; // Mandatory (Common Matter 2)
+  officeNumber?: string; // 事業所番号（事業所会員のみ必須）
   officePostCode: string;
   officePrefecture: string;
   officeCity: string;
@@ -147,6 +222,7 @@ export interface Training {
   description?: string;
   guidePdfUrl?: string;
   date: string;
+  endTime?: string;
   capacity: number;
   applicants: number;
   location: string;

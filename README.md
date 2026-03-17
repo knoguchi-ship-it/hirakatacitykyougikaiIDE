@@ -1,4 +1,4 @@
-# 枚方市介護支援専門員連絡協議会 会員管理システム
+﻿# 枚方市介護支援専門員連絡協議会 会員管理システム
 
 ## プロジェクト概要
 本プロジェクトは、枚方市介護支援専門員連絡協議会の会員管理、研修申込、および年会費管理を効率化するためのWebアプリケーションです。
@@ -23,6 +23,22 @@
 - **AI Integration**: Google Gemini API (`@google/genai`)
 - **Backend**: Google Apps Script (GAS) + Google Spreadsheet
 
+## 作業開始前の確認順
+作業を始める前に、以下をこの順で確認してください。
+
+グランドルール:
+- 技術選定・仕様提案・運用判断の前に、必ず Web 検索で最新の一次ソースを確認し、根拠を示してください。
+- 技術選定・仕様提案では、ベストプラクティスを模索し、この案件に適した案として提案してください。
+- 外部ベストプラクティスと案件正本が衝突する場合は、案件正本を優先し、差分を記録してください。
+
+1. `HANDOVER.md`
+2. `docs/12_ENGINEERING_RULEBOOK.md`
+3. `docs/10_SOW.md`
+4. `docs/09_DEPLOYMENT_POLICY.md`
+5. `docs/17_ROOT_CAUSE_ERROR_RESPONSE_PLAYBOOK.md`
+
+デプロイ、認証、DB整合、障害対応の判断は上記を正本とします。`README.md` は入口案内であり、運用判断の最上位ではありません。ただし、技術選定と仕様提案では Web 検索による最新確認、ベストプラクティスの模索、根拠提示を必須とします。
+
 ## 開発環境のセットアップ
 
 ### 1. 依存関係のインストール
@@ -35,9 +51,6 @@ npm install
 ```env
 # 必須: Gemini APIキー (AI機能用)
 GEMINI_API_KEY=your_gemini_api_key_here
-
-# 任意: ローカル開発時にモックデータを使用するかどうか (true にするとGASと通信せずモックを使用します)
-VITE_USE_MOCK=true
 ```
 
 ### 3. 開発サーバーの起動
@@ -45,24 +58,35 @@ VITE_USE_MOCK=true
 npm run dev
 ```
 
-### 4. Google AI Studio Build Preview 用ビルド
-Google AI Studio の Build Preview でモックアップを確実に表示するため、以下を使用します。
+### 4. ローカル検証
+```bash
+npm run typecheck
+npm run build
+```
+
+`npm run build` は会員ポータルと公開ポータルの両方をビルドします。ローカルでは UI の疑似動作確認を行わず、構文・型・ビルド成立の確認に限定します。
+
+### 5. Build Preview 用ビルド
+Google AI Studio の静的確認が必要な場合のみ、以下を使用します。
 ```bash
 npm run build:preview
 ```
-`.env.preview` で `VITE_USE_MOCK=true` を固定しているため、GAS未接続でもUI確認が可能です。
+このビルドは見た目確認用です。動作確認は GAS 上で行います。
 
 ## GASへのデプロイ (clasp)
 本プロジェクトは `vite-plugin-singlefile` を使用しており、ビルドすると1つの `index.html` にJS/CSSがインライン化されます。
 
 1. `npm run clasp:login` でGoogleアカウントにログイン
 2. `npm run clasp:setup -- <GAS_SCRIPT_ID>` で `.clasp.json` を生成
-3. `npm run clasp:push` でビルドとGASへのアップロードを実行
-4. 初回のみ `npx clasp deploy -d "initial deploy"` でWebアプリをデプロイ
+3. `npm run build:gas` で GAS 組み込み用HTMLを生成
+4. `cd backend && npx clasp push --force` でコードを反映
+5. `cd backend && npx clasp version "<release note>"` で新Versionを作成
+6. Apps Script UI の `Manage deployments` で、固定2 Deployment ID を同じVersionへ更新
 
-`clasp:push` は `backend/Code.gs` と `backend/index.html` をGASへ反映します。
-デプロイ後、Apps Script のデプロイ設定画面でアクセス権を用途に合わせて設定してください
-（例: 組織内限定 or 一般公開）。`clasp` からはアクセス範囲を直接指定できません。
+重要:
+- `clasp deploy --deploymentId` は使用禁止です。
+- 本番運用は固定2 Deployment ID を同時更新します。
+- 正式な手順と禁止事項は `docs/09_DEPLOYMENT_POLICY.md` を参照してください。
 
 ### DB(スプレッドシート)初期化
 GAS側にDBシートを自動作成するには、以下を実行します。
@@ -73,19 +97,15 @@ npx clasp run setupDatabase
 初回はデモ用データも投入されます。
 
 ## ドキュメント
-詳細な仕様や設計については、`docs/` ディレクトリを参照してください。
-- [要件定義書 (PRD)](./docs/01_PRD.md)
-- [アーキテクチャ設計](./docs/02_ARCHITECTURE.md)
-- [データモデル設計](./docs/03_DATA_MODEL.md)
-- [ロードマップ](./docs/04_ROADMAP.md)
+現行の正本一覧は `docs/00_DOC_INDEX.md` を参照してください。特に以下が重要です。
 
-- [引き継ぎ書（2026-03-07 v38）](./docs/99_HANDOVER_2026-03-07_v38.md)
-- [引き継ぎ書（2026-03-07 v37）](./docs/99_HANDOVER_2026-03-07_v37.md)
-- [引き継ぎ書（2026-03-06 v29）](./docs/99_HANDOVER_2026-03-06_v29.md)
-- [引き継ぎ書（2026-03-06 v28）](./docs/99_HANDOVER_2026-03-06_v28.md)
-- [引き継ぎ書（2026-03-06 v26）](./docs/99_HANDOVER_2026-03-06_v26.md)
-- [引き継ぎ書（2026-03-06 v24/v25）](./docs/99_HANDOVER_2026-03-06.md)
-- [引き継ぎ書（2026-03-05）](./docs/99_HANDOVER_2026-03-05.md)
+- `HANDOVER.md`
+- `docs/12_ENGINEERING_RULEBOOK.md`
+- `docs/10_SOW.md`
+- `docs/09_DEPLOYMENT_POLICY.md`
+- `docs/05_AUTH_AND_ROLE_SPEC.md`
+- `docs/04_DB_OPERATION_RUNBOOK.md`
+- `docs/03_DATA_MODEL.md`
 
 ## 運用メモ（2026-03-07追加）
 - 本番 `/exec` が 404 の場合は、まず `Manage deployments` で **Web app** デプロイになっているか確認してください。
@@ -96,3 +116,14 @@ npx clasp run setupDatabase
 - 本番URLは固定運用です。新規Deploymentを毎回作成しません。
 - 手順は `docs/09_DEPLOYMENT_POLICY.md` を唯一の正本として参照してください。
 - SOW要件は `docs/10_SOW.md` に明記しています。
+
+## オンライン前提の開発フロー
+1. `HANDOVER.md` と `docs/12_ENGINEERING_RULEBOOK.md` を再読する。
+2. `cd backend && npx clasp show-authorized-user` で運用アカウントを確認する。
+3. `npx clasp run healthCheck` と `npx clasp run getDbInfo` を実行し、オンライン疎通を確認する。
+4. 実装変更を行う。
+5. `npm run typecheck` と `npm run build` でローカル静的検証を行う。
+6. `npm run build:gas` → `cd backend && npx clasp push --force` → `npx clasp version "..."` を実行する。
+7. Apps Script UI の `Manage deployments` で固定2 Deployment ID を同一Versionへ更新する。
+8. 実ブラウザで `/exec` と `/exec?app=public` を確認し、最後に `npx clasp run healthCheck` を再実行する。
+9. `HANDOVER.md` と関連正本を更新する。

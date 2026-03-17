@@ -1,6 +1,7 @@
 ﻿import { Member, Training } from '../types';
 import { TrainingApplicantRow } from '../shared/types';
-import { MOCK_MEMBERS, MOCK_TRAININGS } from '../constants';
+import { AdminDashboardData } from '../types';
+import { AnnualFeeAdminData, AnnualFeeAdminRecord } from '../types';
 
 export interface TrainingMailPayload {
   trainingId: string;
@@ -12,6 +13,27 @@ export interface TrainingMailPayload {
   commonAttachFilename?: string;
   commonAttachMime?: string;
   individualFolderUrl?: string;
+}
+
+export interface MemberLoginResult {
+  authMethod: 'PASSWORD';
+  loginId: string;
+  memberId: string;
+  staffId?: string;
+  roleCode: string;
+  canAccessAdminPage: boolean;
+  authenticatedAt: string;
+}
+
+export interface AdminLoginResult {
+  authMethod: 'GOOGLE';
+  loginId: string;
+  memberId: string;
+  staffId?: string;
+  roleCode: string;
+  canAccessAdminPage: boolean;
+  displayName?: string;
+  authenticatedAt: string;
 }
 
 // GAS環境で提供される google.script.run の型定義（簡易版）
@@ -27,39 +49,33 @@ declare const google: {
 
 export interface ApiClient {
   fetchAllData(): Promise<{ members: Member[], trainings: Training[] }>;
+  getMemberPortalData(memberId: string): Promise<{ members: Member[], trainings: Training[] }>;
+  getAdminDashboardData(): Promise<AdminDashboardData>;
+  getTrainingManagementData(): Promise<Training[]>;
   updateMember(member: Member): Promise<void>;
-  changePassword(loginId: string, newPassword: string): Promise<void>;
+  changePassword(loginId: string, currentPassword: string, newPassword: string): Promise<void>;
   getSystemSettings(): Promise<{ defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }>;
   updateSystemSettings(settings: { defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }): Promise<{ defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }>;
-  memberLogin(loginId: string, password: string): Promise<{
-    authMethod: 'PASSWORD';
-    loginId: string;
+  getAnnualFeeAdminData(year?: number): Promise<AnnualFeeAdminData>;
+  saveAnnualFeeRecord(record: {
+    id?: string;
     memberId: string;
-    staffId?: string;
-    roleCode: string;
-    canAccessAdminPage: boolean;
-    authenticatedAt: string;
-  }>;
-  adminGoogleLogin(idToken: string): Promise<{
-    authMethod: 'GOOGLE';
-    loginId: string;
+    year: number;
+    status: 'PAID' | 'UNPAID';
+    confirmedDate?: string;
+    note?: string;
+  }): Promise<AnnualFeeAdminRecord>;
+  saveAnnualFeeRecordsBatch(records: Array<{
+    id?: string;
     memberId: string;
-    staffId?: string;
-    roleCode: string;
-    canAccessAdminPage: boolean;
-    displayName?: string;
-    authenticatedAt: string;
-  }>;
-  checkAdminBySession(): Promise<{
-    authMethod: 'GOOGLE';
-    loginId: string;
-    memberId: string;
-    staffId?: string;
-    roleCode: string;
-    canAccessAdminPage: boolean;
-    displayName?: string;
-    authenticatedAt: string;
-  }>;
+    year: number;
+    status: 'PAID' | 'UNPAID';
+    confirmedDate?: string;
+    note?: string;
+  }>): Promise<AnnualFeeAdminRecord[]>;
+  memberLogin(loginId: string, password: string): Promise<MemberLoginResult>;
+  adminGoogleLogin(idToken: string): Promise<AdminLoginResult>;
+  checkAdminBySession(): Promise<AdminLoginResult>;
   getAuthConfig(): Promise<{ adminGoogleClientId: string }>;
   saveTraining(training: Training): Promise<Training>;
   uploadTrainingFile(base64: string, filename: string, mimeType: string): Promise<{ url: string }>;
@@ -68,6 +84,9 @@ export interface ApiClient {
   getTrainingApplicants(trainingId: string): Promise<TrainingApplicantRow[]>;
   getAdminEmailAliases(): Promise<string[]>;
   sendTrainingMail(payload: TrainingMailPayload): Promise<{ sent: number; errors: string[] }>;
+  createMember(payload: Partial<Member> & { type: string }): Promise<{ created: boolean; memberId: string; loginId: string; defaultPassword: string }>;
+  withdrawMember(memberId: string, withdrawnDate?: string, midYearWithdrawal?: boolean): Promise<{ withdrawn: boolean; memberId: string; withdrawnDate: string }>;
+  submitMemberApplication(payload: any): Promise<any>;
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -150,262 +169,14 @@ const normalizeInquiryContactForTraining = (training: Training): Training => {
   };
 };
 
-// --- Mock Implementation (Local Development) ---
-class MockApiClient implements ApiClient {
-  private members: Member[] = normalizeMemberLoginIds(JSON.parse(JSON.stringify(MOCK_MEMBERS)));
-  private trainings: Training[] = JSON.parse(JSON.stringify(MOCK_TRAININGS));
-  private defaultBusinessStaffLimit = 10;
-  private trainingHistoryLookbackMonths = 18;
-
-  async fetchAllData(): Promise<{ members: Member[], trainings: Training[] }> {
-    console.log('[Mock API] fetchAllData called');
-    await new Promise(resolve => setTimeout(resolve, 800));
-    return {
-      members: JSON.parse(JSON.stringify(this.members)),
-      trainings: JSON.parse(JSON.stringify(this.trainings))
-    };
-  }
-
-  async updateMember(member: Member): Promise<void> {
-    console.log('[Mock API] updateMember called', member);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    this.members = this.members.map((m) => (m.id === member.id ? JSON.parse(JSON.stringify(member)) : m));
-  }
-
-  async changePassword(loginId: string, newPassword: string): Promise<void> {
-    console.log('[Mock API] changePassword called');
-    await new Promise(resolve => setTimeout(resolve, 500));
-    if (!loginId) {
-      throw new Error('ログインIDが取得できませんでした。');
-    }
-    if (newPassword.length < 8) {
-      throw new Error('新しいパスワードは8文字以上で入力してください。');
-    }
-  }
-
-  async getSystemSettings(): Promise<{ defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }> {
-    return {
-      defaultBusinessStaffLimit: this.defaultBusinessStaffLimit,
-      trainingHistoryLookbackMonths: this.trainingHistoryLookbackMonths,
-    };
-  }
-
-  async updateSystemSettings(settings: { defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }): Promise<{ defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }> {
-    const next = Number(settings.defaultBusinessStaffLimit || 10);
-    if (!Number.isFinite(next) || next < 1 || next > 200) {
-      throw new Error('事業所メンバー上限（全体）は 1〜200 の範囲で設定してください。');
-    }
-    const lookback = Number(settings.trainingHistoryLookbackMonths || 18);
-    if (!Number.isFinite(lookback) || lookback < 1 || lookback > 60) {
-      throw new Error('履歴表示期間（月）は 1〜60 の範囲で設定してください。');
-    }
-    this.defaultBusinessStaffLimit = Math.floor(next);
-    this.trainingHistoryLookbackMonths = Math.floor(lookback);
-    return {
-      defaultBusinessStaffLimit: this.defaultBusinessStaffLimit,
-      trainingHistoryLookbackMonths: this.trainingHistoryLookbackMonths,
-    };
-  }
-
-  async memberLogin(loginId: string, password: string) {
-    await new Promise(resolve => setTimeout(resolve, 400));
-    if (!loginId || !password) {
-      throw new Error('ログインIDとパスワードを入力してください。');
-    }
-    if (password !== 'demo1234') {
-      throw new Error('ログインIDまたはパスワードが正しくありません。');
-    }
-    const all = await this.fetchAllData();
-    const identity = all.members.flatMap(m => {
-      if (m.type !== 'BUSINESS') return [{ memberId: m.id, staffId: undefined, loginId: m.loginId || '' }];
-      return (m.staff || []).map(s => ({ memberId: m.id, staffId: s.id, loginId: s.loginId || '' }));
-    }).find(x => x.loginId === loginId);
-    if (!identity) {
-      throw new Error('ログインIDまたはパスワードが正しくありません。');
-    }
-    return {
-      authMethod: 'PASSWORD' as const,
-      loginId,
-      memberId: identity.memberId,
-      staffId: identity.staffId,
-      roleCode: 'MEMBER',
-      canAccessAdminPage: false,
-      authenticatedAt: new Date().toISOString(),
-    };
-  }
-
-  async adminGoogleLogin(idToken: string) {
-    await new Promise(resolve => setTimeout(resolve, 400));
-    if (!idToken) {
-      throw new Error('Google認証に失敗しました。');
-    }
-    return this.checkAdminBySession();
-  }
-
-  async checkAdminBySession() {
-    await new Promise(resolve => setTimeout(resolve, 400));
-    const all = await this.fetchAllData();
-    const businessAdmin = all.members.find(m => m.type === 'BUSINESS' && (m.staff || []).some(s => s.role === 'ADMIN'));
-    const adminStaff = businessAdmin?.staff?.find(s => s.role === 'ADMIN');
-    if (!businessAdmin || !adminStaff) {
-      throw new Error('管理者デモユーザーが見つかりません。');
-    }
-    return {
-      authMethod: 'GOOGLE' as const,
-      loginId: 'admin@mock.local',
-      memberId: businessAdmin.id,
-      staffId: adminStaff.id,
-      roleCode: 'OFFICE_ADMIN',
-      canAccessAdminPage: true,
-      displayName: 'Mock Admin',
-      authenticatedAt: new Date().toISOString(),
-    };
-  }
-
-  async getAuthConfig() {
-    return { adminGoogleClientId: '' };
-  }
-
-  async saveTraining(training: Training): Promise<Training> {
-    console.log('[Mock API] saveTraining called', training);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    const normalized = normalizeInquiryContactForTraining(training);
-    if (!normalized.id) {
-      const created = { ...normalized, id: 'T' + Date.now().toString(36).toUpperCase() };
-      this.trainings = [...this.trainings, created];
-      return created;
-    }
-    this.trainings = this.trainings.map((t) => (t.id === normalized.id ? { ...normalized } : t));
-    return normalized;
-  }
-
-  async uploadTrainingFile(_base64: string, filename: string, _mimeType: string): Promise<{ url: string }> {
-    console.log('[Mock API] uploadTrainingFile called', filename);
-    await new Promise(resolve => setTimeout(resolve, 800));
-    return { url: 'https://example.com/mock-upload/' + encodeURIComponent(filename) };
-  }
-
-  async applyTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ applicationId: string; applicants: number; duplicate?: boolean }> {
-    const { trainingId, memberId, staffId } = request;
-    await new Promise(resolve => setTimeout(resolve, 600));
-
-    const training = this.trainings.find((t) => t.id === trainingId);
-    if (!training) {
-      throw new Error('対象研修が見つかりません。');
-    }
-    if (deriveTrainingStatusByCloseDate(training.applicationCloseDate) !== 'OPEN') {
-      throw new Error('この研修は受付期間外です。');
-    }
-
-    const member = this.members.find((m) => m.id === memberId);
-    if (!member) {
-      throw new Error('会員情報が見つかりません。');
-    }
-
-    if (staffId) {
-      const staff = (member.staff || []).find((s) => s.id === staffId);
-      if (!staff) {
-        throw new Error('職員情報が見つかりません。');
-      }
-      const ids = new Set(staff.participatedTrainingIds || []);
-      if (ids.has(trainingId)) {
-        return { applicationId: `AP-MOCK-${Date.now()}`, applicants: training.applicants, duplicate: true };
-      }
-      ids.add(trainingId);
-      staff.participatedTrainingIds = Array.from(ids);
-    } else {
-      const ids = new Set(member.participatedTrainingIds || []);
-      if (ids.has(trainingId)) {
-        return { applicationId: `AP-MOCK-${Date.now()}`, applicants: training.applicants, duplicate: true };
-      }
-      ids.add(trainingId);
-      member.participatedTrainingIds = Array.from(ids);
-    }
-
-    training.applicants = (training.applicants || 0) + 1;
-    return { applicationId: `AP-MOCK-${Date.now()}`, applicants: training.applicants };
-  }
-
-  async cancelTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ canceled: boolean; applicants: number }> {
-    const { trainingId, memberId, staffId } = request;
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    const training = this.trainings.find((t) => t.id === trainingId);
-    if (!training) throw new Error('対象研修が見つかりません。');
-    if (!training.cancelAllowed) throw new Error('この研修はキャンセルできません。');
-
-    const member = this.members.find((m) => m.id === memberId);
-    if (!member) throw new Error('会員情報が見つかりません。');
-
-    let canceled = false;
-    if (staffId) {
-      const staff = (member.staff || []).find((s) => s.id === staffId);
-      if (!staff) throw new Error('職員情報が見つかりません。');
-      const ids = new Set(staff.participatedTrainingIds || []);
-      if (ids.has(trainingId)) {
-        ids.delete(trainingId);
-        staff.participatedTrainingIds = Array.from(ids);
-        canceled = true;
-      }
-    } else {
-      const ids = new Set(member.participatedTrainingIds || []);
-      if (ids.has(trainingId)) {
-        ids.delete(trainingId);
-        member.participatedTrainingIds = Array.from(ids);
-        canceled = true;
-      }
-    }
-
-    if (!canceled) throw new Error('キャンセル対象の申込が見つかりません。');
-    training.applicants = Math.max(0, (training.applicants || 0) - 1);
-    return { canceled: true, applicants: training.applicants };
-  }
-
-  async getTrainingApplicants(trainingId: string): Promise<TrainingApplicantRow[]> {
-    await new Promise(resolve => setTimeout(resolve, 600));
-    const rows: TrainingApplicantRow[] = [];
-    this.members.forEach((m) => {
-      const ids = m.type === 'BUSINESS'
-        ? (m.staff || []).flatMap((s) => (s.participatedTrainingIds || []).includes(trainingId)
-            ? [{ name: s.name, email: `${s.id}@mock.local`, officeName: m.officeName || '', id: `${m.id}-${s.id}` }]
-            : [])
-        : ((m.participatedTrainingIds || []).includes(trainingId)
-            ? [{ name: `${m.lastName} ${m.firstName}`, email: `${m.id}@mock.local`, officeName: '', id: m.id }]
-            : []);
-      ids.forEach((item, idx) => {
-        rows.push({
-          applyId: `AP-MOCK-${trainingId}-${item.id}-${idx}`,
-          trainingId,
-          applicantType: 'MEMBER',
-          applicantId: item.id,
-          name: item.name,
-          email: item.email,
-          officeName: item.officeName,
-          status: 'APPLIED',
-          applyDate: new Date().toISOString(),
-        });
-      });
-    });
-    return rows;
-  }
-
-  async getAdminEmailAliases(): Promise<string[]> {
-    return ['admin@mock.local', 'training@mock.local'];
-  }
-
-  async sendTrainingMail(payload: TrainingMailPayload): Promise<{ sent: number; errors: string[] }> {
-    console.log('[Mock API] sendTrainingMail', payload);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    return { sent: payload.targetApplyIds.length, errors: [] };
-  }
-}
+const GAS_RUNTIME_REQUIRED_MESSAGE = 'この画面は Google Apps Script Web アプリ上でのみ利用できます。ローカルのモック運用は廃止しました。';
 
 // --- GAS Implementation (Production) ---
 class GasApiClient implements ApiClient {
   async fetchAllData(): Promise<{ members: Member[], trainings: Training[] }> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
-        reject(new Error('google.script.run is not available. Are you running this in GAS?'));
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
         return;
       }
       
@@ -433,10 +204,98 @@ class GasApiClient implements ApiClient {
     });
   }
 
+  async getMemberPortalData(memberId: string): Promise<{ members: Member[], trainings: Training[] }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) {
+              const data = parsed.data || { members: [], trainings: [] };
+              resolve({
+                members: normalizeMemberLoginIds(data.members || []),
+                trainings: data.trainings || [],
+              });
+            } else {
+              reject(new Error(parsed.error || 'API Error'));
+            }
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getMemberPortalData', JSON.stringify({ memberId }));
+    });
+  }
+
+  async getAdminDashboardData(): Promise<AdminDashboardData> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) {
+              resolve(parsed.data || {
+                memberCount: 0,
+                paidCount: 0,
+                unpaidCount: 0,
+                emailCount: 0,
+                postCount: 0,
+                openTrainingCount: 0,
+                memberRows: [],
+                trainingRows: [],
+              });
+            } else {
+              reject(new Error(parsed.error || 'API Error'));
+            }
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getAdminDashboardData', null);
+    });
+  }
+
+  async getTrainingManagementData(): Promise<Training[]> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) {
+              resolve(parsed.data || []);
+            } else {
+              reject(new Error(parsed.error || 'API Error'));
+            }
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getTrainingManagementData', null);
+    });
+  }
+
   async updateMember(member: Member): Promise<void> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
-        reject(new Error('google.script.run is not available.'));
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
         return;
       }
 
@@ -458,10 +317,10 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async changePassword(loginId: string, newPassword: string): Promise<void> {
+  async changePassword(loginId: string, currentPassword: string, newPassword: string): Promise<void> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
-        reject(new Error('google.script.run is not available.'));
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
         return;
       }
 
@@ -479,14 +338,14 @@ class GasApiClient implements ApiClient {
           }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('changePassword', JSON.stringify({ loginId, newPassword }));
+        .processApiRequest('changePassword', JSON.stringify({ loginId, currentPassword, newPassword }));
     });
   }
 
   async getSystemSettings(): Promise<{ defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
-        resolve({ defaultBusinessStaffLimit: 10, trainingHistoryLookbackMonths: 18 });
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
         return;
       }
       google.script.run
@@ -507,7 +366,7 @@ class GasApiClient implements ApiClient {
   async updateSystemSettings(settings: { defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }): Promise<{ defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
-        reject(new Error('google.script.run is not available.'));
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
         return;
       }
       google.script.run
@@ -525,10 +384,96 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async memberLogin(loginId: string, password: string) {
+  async getAnnualFeeAdminData(year?: number): Promise<AnnualFeeAdminData> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
-        reject(new Error('google.script.run is not available.'));
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) {
+              resolve(parsed.data || { selectedYear: new Date().getFullYear(), records: [], years: [], auditLogs: [] });
+            } else {
+              reject(new Error(parsed.error || 'API Error'));
+            }
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getAnnualFeeAdminData', JSON.stringify({ year }));
+    });
+  }
+
+  async saveAnnualFeeRecord(record: {
+    id?: string;
+    memberId: string;
+    year: number;
+    status: 'PAID' | 'UNPAID';
+    confirmedDate?: string;
+    note?: string;
+  }): Promise<AnnualFeeAdminRecord> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) {
+              resolve(parsed.data);
+            } else {
+              reject(new Error(parsed.error || 'API Error'));
+            }
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('saveAnnualFeeRecord', JSON.stringify(record));
+    });
+  }
+
+  async saveAnnualFeeRecordsBatch(records: Array<{
+    id?: string;
+    memberId: string;
+    year: number;
+    status: 'PAID' | 'UNPAID';
+    confirmedDate?: string;
+    note?: string;
+  }>): Promise<AnnualFeeAdminRecord[]> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) {
+              resolve(parsed.data);
+            } else {
+              reject(new Error(parsed.error || 'API Error'));
+            }
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('saveAnnualFeeRecordsBatch', JSON.stringify({ records }));
+    });
+  }
+
+  async memberLogin(loginId: string, password: string): Promise<MemberLoginResult> {
+    return new Promise<MemberLoginResult>((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
         return;
       }
       google.script.run
@@ -546,10 +491,10 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async adminGoogleLogin(idToken: string) {
-    return new Promise((resolve, reject) => {
+  async adminGoogleLogin(idToken: string): Promise<AdminLoginResult> {
+    return new Promise<AdminLoginResult>((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
-        reject(new Error('google.script.run is not available.'));
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
         return;
       }
       google.script.run
@@ -567,10 +512,10 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async checkAdminBySession() {
-    return new Promise<any>((resolve, reject) => {
+  async checkAdminBySession(): Promise<AdminLoginResult> {
+    return new Promise<AdminLoginResult>((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
-        reject(new Error('google.script.run is not available.'));
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
         return;
       }
       google.script.run
@@ -591,7 +536,7 @@ class GasApiClient implements ApiClient {
   async getAuthConfig() {
     return new Promise<{ adminGoogleClientId: string }>((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
-        resolve({ adminGoogleClientId: '' });
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
         return;
       }
       google.script.run
@@ -612,7 +557,7 @@ class GasApiClient implements ApiClient {
   async saveTraining(training: Training): Promise<Training> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
-        reject(new Error('google.script.run is not available.'));
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
         return;
       }
       google.script.run
@@ -633,7 +578,7 @@ class GasApiClient implements ApiClient {
   async uploadTrainingFile(base64: string, filename: string, mimeType: string): Promise<{ url: string }> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
-        reject(new Error('google.script.run is not available.'));
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
         return;
       }
       google.script.run
@@ -654,7 +599,7 @@ class GasApiClient implements ApiClient {
   async applyTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ applicationId: string; applicants: number; duplicate?: boolean }> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
-        reject(new Error('google.script.run is not available.'));
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
         return;
       }
       google.script.run
@@ -675,7 +620,7 @@ class GasApiClient implements ApiClient {
   async cancelTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ canceled: boolean; applicants: number }> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
-        reject(new Error('google.script.run is not available.'));
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
         return;
       }
       google.script.run
@@ -696,7 +641,7 @@ class GasApiClient implements ApiClient {
   async getTrainingApplicants(trainingId: string): Promise<TrainingApplicantRow[]> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
-        reject(new Error('google.script.run is not available.'));
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
         return;
       }
       google.script.run
@@ -717,7 +662,7 @@ class GasApiClient implements ApiClient {
   async getAdminEmailAliases(): Promise<string[]> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
-        reject(new Error('google.script.run is not available.'));
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
         return;
       }
       google.script.run
@@ -738,7 +683,7 @@ class GasApiClient implements ApiClient {
   async sendTrainingMail(payload: TrainingMailPayload): Promise<{ sent: number; errors: string[] }> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
-        reject(new Error('google.script.run is not available.'));
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
         return;
       }
       google.script.run
@@ -755,10 +700,73 @@ class GasApiClient implements ApiClient {
         .processApiRequest('sendTrainingMail', JSON.stringify(payload));
     });
   }
+
+  async createMember(payload: Partial<Member> & { type: string }): Promise<{ created: boolean; memberId: string; loginId: string; defaultPassword: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data);
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('createMember', JSON.stringify(payload));
+    });
+  }
+
+  async submitMemberApplication(payload: any): Promise<any> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data);
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('submitMemberApplication', JSON.stringify(payload));
+    });
+  }
+
+  async withdrawMember(memberId: string, withdrawnDate?: string, midYearWithdrawal?: boolean): Promise<{ withdrawn: boolean; memberId: string; withdrawnDate: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data);
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('withdrawMember', JSON.stringify({ memberId, withdrawnDate, midYearWithdrawal }));
+    });
+  }
 }
 
-// 開発環境（Viteのローカルサーバー）か、本番環境（GAS）かを判定してクライアントを切り替える
-// import.meta.env.DEV が true の場合、または google.script が存在しない場合はモックを使用
-const isDev = import.meta.env.DEV || import.meta.env.VITE_USE_MOCK === 'true' || typeof google === 'undefined';
+// API クライアントは GAS 実行環境専用とする。
+// ローカルモック運用は廃止したため、常に GAS クライアントを使用する。
+export const api: ApiClient = new GasApiClient();
 
-export const api: ApiClient = isDev ? new MockApiClient() : new GasApiClient();
+

@@ -31,8 +31,8 @@
 
 ### 2.1 デプロイ
 - 本番 URL は 2 Deployment ID 固定運用。`New deployment` は障害時の例外のみ。
-- 会員マイページ ID: `AKfycbzmnp5s0ulA9gWZuNUevcJirKXhpBU7mtwJLQDNb5dx1zEgdRZoEJweEPJlKOo4-AZa`
-- 公開ポータル ID: `AKfycbz7YRgNXIYyHTvE9OJGq1h6g-5W94LsfNLYReTTWTdlfcLhQFaG9CM2Ro_i9AJ7eWwl`
+- 会員マイページ ID: `AKfycbycE2_ythCYSPwmPxvyfRzNLhWM7J1cX41TA2wjYgZgdI-P2uknYfQGh3AHrecCQ1Gk`
+- 公開ポータル ID: `AKfycbxKoni2vBdvRbQWR6NyrroPHyNmElJNkJ5OTNOJMQ0k0z-Ae-oGeclrN3kxsE9yIXVr`
 - リリース時は **両 ID を同時に同一バージョンへ更新する**（片方だけ更新禁止）。
 - デプロイ前に必ず `docs/09_DEPLOYMENT_POLICY.md` と `docs/10_SOW.md` を再確認。
 
@@ -105,5 +105,7 @@
 
 - Frontend: React 19 + TypeScript + Vite + Tailwind CSS
 - Backend: Google Apps Script (GAS) + Google Spreadsheet
-- メール: `MailApp.sendEmail`（リマインダー・管理コンソール メール送信機能、GmailApp は使用しない）
-- 詳細: `memory/MEMORY.md` 参照
+- メール:
+  - 既存リマインダー: `MailApp.sendEmail`
+  - 管理コンソールの一斉/個別送信: `GmailApp.sendEmail`
+- 詳細は `HANDOVER.md` と `docs/00_DOC_INDEX.md` を参照

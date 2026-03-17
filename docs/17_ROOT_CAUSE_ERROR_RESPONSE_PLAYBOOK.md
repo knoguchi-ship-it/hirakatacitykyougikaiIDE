@@ -58,6 +58,28 @@
 - 運用手順への反映
 - 次回復旧のショート手順化
 
+## 4.1 再発パターン別ショートパス
+### A. デプロイ後に `/exec` が 404
+1. `npx clasp deployments` を確認する。
+2. Apps Script UI の `Manage deployments` で固定 Deployment ID を開き、`Web app` のままか確認する。
+3. 固定 2 Deployment ID が同一 Version を指しているか確認する。
+4. `Web app` が消えている場合のみ、`docs/09_DEPLOYMENT_POLICY.md` §5.2 の例外手順へ進む。
+
+### B. `clasp run` が失敗
+1. `npx clasp show-authorized-user` で運用アカウントか確認する。
+2. `docs/16_INCIDENT_clasp_run_permission_2026-03-14.md` の復旧手順で再認証する。
+3. `npx clasp run healthCheck` と `npx clasp run getDbInfo` を再確認する。
+
+### C. デプロイは成功したが片系だけ古い
+1. Apps Script UI の `Manage deployments` を開く。
+2. 会員側 / 公開側の固定 2 Deployment ID が同じ Version か確認する。
+3. 片方だけ古い場合、古い側だけを直すのではなく、固定 2 本を同じ Version で再確認する。
+
+### D. ドキュメント更新後に文字化け
+1. 更新した正本を UTF-8 で再読込する。
+2. 文字化けがある場合、その場で保存形式を修正して再保存する。
+3. 文字化けのままコミット/引継ぎしない。
+
 ## 5. 記録テンプレート
 ### 5.1 事象
 - 日時:
@@ -89,6 +111,11 @@
 - 手順変更:
 - 監視/チェック追加:
 - ドキュメント更新:
+
+### 5.7 完了条件（再発防止込み）
+- 原因が「コード」「設定」「運用」のどれかに分類されていること。
+- 同じ障害を次回 1 回目の確認で避けられるよう、手順書へ予防チェックが追加されていること。
+- `HANDOVER.md` または正本ドキュメントに、次担当者向けの短い判断基準が残っていること。
 
 ## 6. 既知事例
 - 公開取消障害: `docs/15_INCIDENT_LOG_2026-03-14_v76.md`

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "node scripts/build-all.mjs",
+    "typecheck": "tsc --noEmit",
     "build:member": "vite build",
     "build:public": "node -e \"process.env.VITE_APP='public'\" && vite build",
     "build:preview": "vite build --mode preview",
@@ -14,7 +15,7 @@
     "clasp:setup": "powershell -ExecutionPolicy Bypass -File scripts/setup-clasp.ps1",
     "clasp:login": "clasp login",
     "clasp:push": "npm run build:gas && clasp push",
-    "clasp:deploy": "clasp push && clasp deploy"
+    "clasp:deploy": "node -e \"console.error('ERROR: clasp deploy is prohibited. Use Manage Deployments UI after clasp version. See docs/09_DEPLOYMENT_POLICY.md.'); process.exit(1)\""
   },
   "dependencies": {
     "@google/genai": "^1.37.0",
