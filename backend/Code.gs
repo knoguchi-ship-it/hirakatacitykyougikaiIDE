@@ -33,7 +33,8 @@ var マスタ初期値 = {
   ],
   M_会員状態: [
     ['ACTIVE', '有効', 1, true],
-    ['WITHDRAWN', '退会', 2, true],
+    ['WITHDRAWAL_SCHEDULED', '退会予定', 2, true],
+    ['WITHDRAWN', '退会', 3, true],
   ],
   M_発送方法: [
     ['EMAIL', 'メール', 1, true],
@@ -802,6 +803,15 @@ function processApiRequest(action, payload) {
 
     if (action === 'sendTrainingMail') {
       return sendTrainingMail_(parsedPayload);
+    }
+
+    // ── 会員セルフサービス（管理者認証不要・パスワード再認証必須）──
+    if (action === 'withdrawSelf') {
+      return JSON.stringify({ success: true, data: withdrawSelf_(parsedPayload) });
+    }
+
+    if (action === 'cancelWithdrawalSelf') {
+      return JSON.stringify({ success: true, data: cancelWithdrawalSelf_(parsedPayload) });
     }
 
     return JSON.stringify({ success: true, data: { message: '未実装アクションです' } });
@@ -2152,8 +2162,8 @@ function mapMembersForApi_(memberRows, staffRows, authRows, applicationRows, fee
       email: String(st['メールアドレス'] || ''),
       role: String(st['職員権限コード'] || 'STAFF'),
       status: String(st['職員状態コード'] || 'ENROLLED') === 'LEFT' ? 'LEFT' : 'ENROLLED',
-      joinedDate: String(st['入会日'] || ''),
-      withdrawnDate: String(st['退会日'] || ''),
+      joinedDate: normalizeDateInput_(st['入会日']),
+      withdrawnDate: normalizeDateInput_(st['退会日']),
       midYearWithdrawal: false,
       participatedTrainingIds: uniqueStrings_(applicationsByStaff[stId] || []),
     });
@@ -2192,9 +2202,14 @@ function mapMembersForApi_(memberRows, staffRows, authRows, applicationRows, fee
         return isFinite(n) && n >= 1 ? Math.floor(n) : undefined;
       })(),
       email: String(m['代表メールアドレス'] || ''),
-      status: String(m['会員状態コード'] || 'ACTIVE') === 'WITHDRAWN' ? 'WITHDRAWN' : 'ACTIVE',
-      joinedDate: String(m['入会日'] || ''),
-      withdrawnDate: String(m['退会日'] || ''),
+      status: (function() {
+        var s = String(m['会員状態コード'] || 'ACTIVE');
+        if (s === 'WITHDRAWN') return 'WITHDRAWN';
+        if (s === 'WITHDRAWAL_SCHEDULED') return 'WITHDRAWAL_SCHEDULED';
+        return 'ACTIVE';
+      })(),
+      joinedDate: normalizeDateInput_(m['入会日']),
+      withdrawnDate: normalizeDateInput_(m['退会日']),
       midYearWithdrawal: false,
       annualFeeHistory: history,
       participatedTrainingIds: type === 'BUSINESS' ? [] : uniqueStrings_(applicationsByMember[id] || []),
@@ -3814,6 +3829,163 @@ function withdrawMember_(payload) {
   return { withdrawn: true, memberId: String(payload.memberId), withdrawnDate: withdrawnDate };
 }
 
+// ── 会員セルフ退会申請（年度末退会予約）──────────────────────
+// パスワード再認証 → 会員状態を WITHDRAWAL_SCHEDULED に変更 → 退会日を年度末(3/31)に設定
+// アカウントは無効化しない（年度末までログイン可能）
+function withdrawSelf_(payload) {
+  if (!payload || !payload.loginId || !payload.password || !payload.memberId) {
+    throw new Error('退会申請に必要な情報が不足しています。');
+  }
+
+  var loginId = String(payload.loginId).trim();
+  var password = String(payload.password);
+  var memberId = String(payload.memberId).trim();
+
+  // ── パスワード再認証（changePassword_ と同パターン）──
+  var ss = getOrCreateDatabase_();
+  var authSheet = ss.getSheetByName('T_認証アカウント');
+  if (!authSheet) throw new Error('認証アカウントテーブルが見つかりません。');
+
+  var authRowInfo = findRowByColumnValue_(authSheet, 'ログインID', loginId);
+  if (!authRowInfo) throw new Error('認証情報が見つかりません。');
+
+  var authRow = authRowInfo.row;
+  var authCols = authRowInfo.columns;
+  var authMemberId = String(authRow[authCols['会員ID']] || '');
+  if (authMemberId !== memberId) throw new Error('認証情報と会員IDが一致しません。');
+
+  if (!toBoolean_(authRow[authCols['アカウント有効フラグ']])) throw new Error('アカウントが無効です。');
+  if (toBoolean_(authRow[authCols['ロック状態']])) throw new Error('アカウントがロックされています。');
+
+  var storedSalt = String(authRow[authCols['パスワードソルト']] || '');
+  var storedHash = String(authRow[authCols['パスワードハッシュ']] || '');
+  if (!storedSalt || !storedHash) throw new Error('パスワードが初期化されていません。');
+
+  var inputHash = hashPassword_(password, storedSalt);
+  if (inputHash !== storedHash) throw new Error('パスワードが正しくありません。');
+
+  // ── 事業所会員の代表者チェック ──
+  var memberSheet = ss.getSheetByName('T_会員');
+  if (!memberSheet) throw new Error('T_会員 シートが見つかりません。');
+
+  var memberFound = findRowByColumnValue_(memberSheet, '会員ID', memberId);
+  if (!memberFound) throw new Error('対象会員が見つかりません。');
+
+  var mCols = memberFound.columns;
+  var mRow = memberFound.row.slice();
+  var memberType = String(mRow[mCols['会員種別コード']] || '');
+  var currentStatus = String(mRow[mCols['会員状態コード']] || 'ACTIVE');
+
+  if (currentStatus === 'WITHDRAWN') throw new Error('この会員は既に退会済みです。');
+  if (currentStatus === 'WITHDRAWAL_SCHEDULED') throw new Error('既に退会申請済みです。');
+
+  // 事業所会員の場合、代表者のみ退会申請可能
+  if (memberType === 'BUSINESS') {
+    var staffId = String(authRow[authCols['職員ID']] || '');
+    if (staffId) {
+      var staffSheet = ss.getSheetByName('T_事業所職員');
+      if (staffSheet) {
+        var staffFound = findRowByColumnValue_(staffSheet, '職員ID', staffId);
+        if (staffFound) {
+          var staffRole = String(staffFound.row[staffFound.columns['職員権限コード']] || '');
+          if (staffRole !== 'REPRESENTATIVE') {
+            throw new Error('事業所の退会申請は代表者のみ実行できます。');
+          }
+        }
+      }
+    }
+  }
+
+  // ── 年度末日を計算（日本会計年度: 4月〜3月）──
+  var now = new Date();
+  var jstNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
+  var year = jstNow.getFullYear();
+  var month = jstNow.getMonth() + 1; // 1-12
+  var fiscalYearEndYear = month >= 4 ? year + 1 : year;
+  var withdrawnDate = fiscalYearEndYear + '-03-31';
+
+  // ── T_会員 更新 ──
+  mRow[mCols['会員状態コード']] = 'WITHDRAWAL_SCHEDULED';
+  mRow[mCols['退会日']] = withdrawnDate;
+  mRow[mCols['更新日時']] = new Date().toISOString();
+
+  memberSheet.getRange(memberFound.rowNumber, 1, 1, mRow.length).setValues([mRow]);
+  clearAllDataCache_();
+  clearAdminDashboardCache_();
+  clearTrainingManagementCache_();
+
+  return {
+    scheduled: true,
+    memberId: memberId,
+    withdrawnDate: withdrawnDate,
+  };
+}
+
+// ── 退会申請取り消し（年度末前のセルフ取り消し）──────────────
+// パスワード再認証 → WITHDRAWAL_SCHEDULED を ACTIVE に戻す → 退会日クリア
+function cancelWithdrawalSelf_(payload) {
+  if (!payload || !payload.loginId || !payload.password || !payload.memberId) {
+    throw new Error('取り消しに必要な情報が不足しています。');
+  }
+
+  var loginId = String(payload.loginId).trim();
+  var password = String(payload.password);
+  var memberId = String(payload.memberId).trim();
+
+  // ── パスワード再認証 ──
+  var ss = getOrCreateDatabase_();
+  var authSheet = ss.getSheetByName('T_認証アカウント');
+  if (!authSheet) throw new Error('認証アカウントテーブルが見つかりません。');
+
+  var authRowInfo = findRowByColumnValue_(authSheet, 'ログインID', loginId);
+  if (!authRowInfo) throw new Error('認証情報が見つかりません。');
+
+  var authRow = authRowInfo.row;
+  var authCols = authRowInfo.columns;
+  var authMemberId = String(authRow[authCols['会員ID']] || '');
+  if (authMemberId !== memberId) throw new Error('認証情報と会員IDが一致しません。');
+
+  if (!toBoolean_(authRow[authCols['アカウント有効フラグ']])) throw new Error('アカウントが無効です。');
+  if (toBoolean_(authRow[authCols['ロック状態']])) throw new Error('アカウントがロックされています。');
+
+  var storedSalt = String(authRow[authCols['パスワードソルト']] || '');
+  var storedHash = String(authRow[authCols['パスワードハッシュ']] || '');
+  if (!storedSalt || !storedHash) throw new Error('パスワードが初期化されていません。');
+
+  var inputHash = hashPassword_(password, storedSalt);
+  if (inputHash !== storedHash) throw new Error('パスワードが正しくありません。');
+
+  // ── 会員状態チェック ──
+  var memberSheet = ss.getSheetByName('T_会員');
+  if (!memberSheet) throw new Error('T_会員 シートが見つかりません。');
+
+  var memberFound = findRowByColumnValue_(memberSheet, '会員ID', memberId);
+  if (!memberFound) throw new Error('対象会員が見つかりません。');
+
+  var mCols = memberFound.columns;
+  var mRow = memberFound.row.slice();
+  var currentStatus = String(mRow[mCols['会員状態コード']] || 'ACTIVE');
+
+  if (currentStatus !== 'WITHDRAWAL_SCHEDULED') {
+    throw new Error('退会申請中ではありません。');
+  }
+
+  // ── T_会員 更新（ACTIVE に戻す）──
+  mRow[mCols['会員状態コード']] = 'ACTIVE';
+  mRow[mCols['退会日']] = '';
+  mRow[mCols['更新日時']] = new Date().toISOString();
+
+  memberSheet.getRange(memberFound.rowNumber, 1, 1, mRow.length).setValues([mRow]);
+  clearAllDataCache_();
+  clearAdminDashboardCache_();
+  clearTrainingManagementCache_();
+
+  return {
+    canceled: true,
+    memberId: memberId,
+  };
+}
+
 function updateMember_(payload) {
   if (!payload || !payload.id) throw new Error('会員IDが未指定です。');
   var adminSession = checkAdminBySession_();
@@ -3892,7 +4064,8 @@ function updateMember_(payload) {
   setCol('名', mergedPayload.firstName || '');
   setCol('セイ', mergedPayload.lastKana || '');
   setCol('メイ', mergedPayload.firstKana || '');
-  var nextStatus = String(mergedPayload.status || 'ACTIVE') === 'WITHDRAWN' ? 'WITHDRAWN' : 'ACTIVE';
+  var rawStatus = String(mergedPayload.status || 'ACTIVE');
+  var nextStatus = rawStatus === 'WITHDRAWN' ? 'WITHDRAWN' : rawStatus === 'WITHDRAWAL_SCHEDULED' ? 'WITHDRAWAL_SCHEDULED' : 'ACTIVE';
   setCol('会員状態コード', nextStatus);
   setCol('入会日', normalizeDateInput_(mergedPayload.joinedDate));
   setCol('退会日', normalizeDateInput_(mergedPayload.withdrawnDate));
@@ -3990,8 +4163,9 @@ function validateMemberPayload_(payload, memberTypeCode) {
   if (joined && withdrawn && joined.getTime() > withdrawn.getTime()) {
     throw new Error('退会日は入会日以降で入力してください。');
   }
-  if (String(payload.status || 'ACTIVE') === 'WITHDRAWN' && !trim(payload.withdrawnDate)) {
-    throw new Error('退会済み会員は退会日の入力が必須です。');
+  var payloadStatus = String(payload.status || 'ACTIVE');
+  if ((payloadStatus === 'WITHDRAWN' || payloadStatus === 'WITHDRAWAL_SCHEDULED') && !trim(payload.withdrawnDate)) {
+    throw new Error('退会済み・退会予定の会員は退会日の入力が必須です。');
   }
 }
 
@@ -4150,6 +4324,10 @@ function applyWithdrawalDeletionPolicy_() {
   var ss = getOrCreateDatabase_();
   var now = new Date();
 
+  // ── Phase 1: 退会予定 → 退会確定（退会日を過ぎた WITHDRAWAL_SCHEDULED を WITHDRAWN に）──
+  promoteScheduledWithdrawals_(ss, now);
+
+  // ── Phase 2: 退会済みの削除フラグ付与（既存ロジック）──
   markAutoDeletedRows_(ss, 'T_会員', '会員状態コード', 'WITHDRAWN', '退会日');
   markAutoDeletedRows_(ss, 'T_事業所職員', '職員状態コード', 'LEFT', '退会日');
 
@@ -4175,6 +4353,63 @@ function applyWithdrawalDeletionPolicy_() {
     for (var u = 0; u < updates.length; u += 1) {
       sheet.getRange(updates[u].rowNumber, 1, 1, updates[u].row.length).setValues([updates[u].row]);
     }
+  }
+}
+
+// 退会予定日を過ぎた WITHDRAWAL_SCHEDULED を WITHDRAWN に昇格 + 認証アカウント無効化
+function promoteScheduledWithdrawals_(ss, now) {
+  var memberSheet = ss.getSheetByName('T_会員');
+  if (!memberSheet || memberSheet.getLastRow() < 2) return;
+
+  var headers = memberSheet.getRange(1, 1, 1, memberSheet.getLastColumn()).getValues()[0];
+  var cols = {};
+  for (var i = 0; i < headers.length; i += 1) cols[headers[i]] = i;
+  if (cols['会員状態コード'] == null || cols['退会日'] == null) return;
+
+  var todayStr = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy-MM-dd');
+  var rows = memberSheet.getRange(2, 1, memberSheet.getLastRow() - 1, memberSheet.getLastColumn()).getValues();
+  var memberUpdates = [];
+  var withdrawnMemberIds = [];
+
+  for (var r = 0; r < rows.length; r += 1) {
+    var row = rows[r];
+    if (toBoolean_(row[cols['削除フラグ']])) continue;
+    if (String(row[cols['会員状態コード']] || '') !== 'WITHDRAWAL_SCHEDULED') continue;
+
+    var withdrawnDate = normalizeDateInput_(row[cols['退会日']]);
+    if (!withdrawnDate || withdrawnDate > todayStr) continue;
+
+    // 退会日を過ぎている → WITHDRAWN に確定
+    row[cols['会員状態コード']] = 'WITHDRAWN';
+    row[cols['更新日時']] = now.toISOString();
+    memberUpdates.push({ rowNumber: r + 2, row: row });
+    withdrawnMemberIds.push(String(row[cols['会員ID']] || ''));
+  }
+
+  for (var u = 0; u < memberUpdates.length; u += 1) {
+    memberSheet.getRange(memberUpdates[u].rowNumber, 1, 1, memberUpdates[u].row.length).setValues([memberUpdates[u].row]);
+  }
+
+  // 対象会員の認証アカウントを無効化
+  if (withdrawnMemberIds.length === 0) return;
+  var authSheet = ss.getSheetByName('T_認証アカウント');
+  if (!authSheet || authSheet.getLastRow() < 2) return;
+
+  var authHeaders = authSheet.getRange(1, 1, 1, authSheet.getLastColumn()).getValues()[0];
+  var authCols = {};
+  for (var j = 0; j < authHeaders.length; j += 1) authCols[authHeaders[j]] = j;
+  if (authCols['会員ID'] == null || authCols['アカウント有効フラグ'] == null) return;
+
+  var authRows = authSheet.getRange(2, 1, authSheet.getLastRow() - 1, authSheet.getLastColumn()).getValues();
+  for (var a = 0; a < authRows.length; a += 1) {
+    var authRow = authRows[a];
+    var authMemberId = String(authRow[authCols['会員ID']] || '');
+    if (withdrawnMemberIds.indexOf(authMemberId) === -1) continue;
+    if (!toBoolean_(authRow[authCols['アカウント有効フラグ']])) continue;
+
+    authRow[authCols['アカウント有効フラグ']] = false;
+    if (authCols['更新日時'] != null) authRow[authCols['更新日時']] = now.toISOString();
+    authSheet.getRange(a + 2, 1, 1, authRow.length).setValues([authRow]);
   }
 }
 

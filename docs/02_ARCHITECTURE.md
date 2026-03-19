@@ -143,6 +143,8 @@
 | `applyTrainingExternal` | 非会員研修申込（`T_外部申込者` 作成 + `T_研修申込` 追加） | 不要（公開） |
 | `cancelTrainingExternal` | 非会員申込取消（申込ID + 登録メール一致で本人確認） | 不要（公開） |
 | `submitMemberApplication` | 公開ポータル用：新規入会申込（個人/事業所/賛助） | 不要（公開） |
+| `withdrawSelf` | 会員自身の退会申請（年度末退会予約） | 会員 |
+| `cancelWithdrawalSelf` | 退会予約の取消 | 会員 |
 | `getTrainingApplicants` | 申込者一覧（会員・非会員統合ビュー） | 管理者 |
 | `getAdminEmailAliases` | スクリプトオーナーの Gmail エイリアス一覧取得（`GmailApp.getAliases()`） | 管理者 |
 | `sendTrainingMail` | 研修申込者への一斉・個別メール送信（GmailApp使用、添付・差し込み対応） | 管理者 |

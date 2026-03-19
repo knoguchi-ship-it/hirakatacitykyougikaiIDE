@@ -86,6 +86,8 @@ export interface ApiClient {
   sendTrainingMail(payload: TrainingMailPayload): Promise<{ sent: number; errors: string[] }>;
   createMember(payload: Partial<Member> & { type: string }): Promise<{ created: boolean; memberId: string; loginId: string; defaultPassword: string }>;
   withdrawMember(memberId: string, withdrawnDate?: string, midYearWithdrawal?: boolean): Promise<{ withdrawn: boolean; memberId: string; withdrawnDate: string }>;
+  withdrawSelf(loginId: string, password: string, memberId: string): Promise<{ scheduled: boolean; memberId: string; withdrawnDate: string }>;
+  cancelWithdrawalSelf(loginId: string, password: string, memberId: string): Promise<{ canceled: boolean; memberId: string }>;
   submitMemberApplication(payload: any): Promise<any>;
 }
 
@@ -761,6 +763,48 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('withdrawMember', JSON.stringify({ memberId, withdrawnDate, midYearWithdrawal }));
+    });
+  }
+
+  async withdrawSelf(loginId: string, password: string, memberId: string): Promise<{ scheduled: boolean; memberId: string; withdrawnDate: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data);
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('withdrawSelf', JSON.stringify({ loginId, password, memberId }));
+    });
+  }
+
+  async cancelWithdrawalSelf(loginId: string, password: string, memberId: string): Promise<{ canceled: boolean; memberId: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data);
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('cancelWithdrawalSelf', JSON.stringify({ loginId, password, memberId }));
     });
   }
 }

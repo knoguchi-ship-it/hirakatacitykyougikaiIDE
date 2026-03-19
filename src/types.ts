@@ -82,7 +82,7 @@ export interface AdminDashboardMemberRow {
   latestFeeStatus: PaymentStatus;
   trainingCount: number;
   joinedDate: string;
-  status: 'ACTIVE' | 'WITHDRAWN';
+  status: 'ACTIVE' | 'WITHDRAWAL_SCHEDULED' | 'WITHDRAWN';
 }
 
 export interface AdminDashboardTrainingRow {
@@ -167,7 +167,7 @@ export interface Member {
   preferredMailDestination: MailDestination; // For mandatory physical mail (3x/year)
   email?: string; // Main Contact Email (Rep)
   
-  status: 'ACTIVE' | 'WITHDRAWN';
+  status: 'ACTIVE' | 'WITHDRAWAL_SCHEDULED' | 'WITHDRAWN';
   joinedDate?: string;
   withdrawnDate?: string;
   midYearWithdrawal?: boolean;

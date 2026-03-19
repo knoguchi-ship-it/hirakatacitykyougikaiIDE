@@ -5,14 +5,17 @@ import { api } from '../services/api';
 
 interface MemberFormProps {
   initialMember: Member;
-  activeStaffId?: string; // Optional: Force a specific staff member view
+  activeStaffId?: string;
+  activeStaffRole?: StaffRole;
+  loginId?: string;
   defaultBusinessStaffLimit: number;
   historyLookbackMonths: number;
-  trainings: Training[]; // Data from parent (App.tsx)
+  trainings: Training[];
   onSave: (member: Member) => void;
+  onLogout?: () => void;
 }
 
-const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, defaultBusinessStaffLimit, historyLookbackMonths, trainings, onSave }) => {
+const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, activeStaffRole, loginId, defaultBusinessStaffLimit, historyLookbackMonths, trainings, onSave, onLogout }) => {
   const [member, setMember] = useState<Member>(initialMember);
   const [warning, setWarning] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null); // UX: Success feedback
@@ -28,6 +31,13 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [profileEditModalOpen, setProfileEditModalOpen] = useState(false);
+  const [withdrawalPassword, setWithdrawalPassword] = useState('');
+  const [withdrawalError, setWithdrawalError] = useState<string | null>(null);
+  const [withdrawalSubmitting, setWithdrawalSubmitting] = useState(false);
+  const [withdrawalConfirmOpen, setWithdrawalConfirmOpen] = useState(false);
+  const [cancelWithdrawalPassword, setCancelWithdrawalPassword] = useState('');
+  const [cancelWithdrawalError, setCancelWithdrawalError] = useState<string | null>(null);
+  const [cancelWithdrawalSubmitting, setCancelWithdrawalSubmitting] = useState(false);
 
   const historyRef = useRef<HTMLDivElement>(null); // UX: For auto-scrolling
   
@@ -474,8 +484,8 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
                 <UsersIcon className="w-5 h-5 mr-2 text-slate-500" />
                 現在の会員ステータス
             </h2>
-            <span className={`px-3 py-1 rounded-full text-xs font-bold ${member.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                {member.status === 'ACTIVE' ? '有効会員' : '退会済み'}
+            <span className={`px-3 py-1 rounded-full text-xs font-bold ${member.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : member.status === 'WITHDRAWAL_SCHEDULED' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'}`}>
+                {member.status === 'ACTIVE' ? '有効会員' : member.status === 'WITHDRAWAL_SCHEDULED' ? '退会予定' : '退会済み'}
             </span>
         </div>
         <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -900,6 +910,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
                               className="w-full border-slate-300 rounded-lg p-2 text-sm"
                             >
                               <option value="ACTIVE">有効</option>
+                              <option value="WITHDRAWAL_SCHEDULED">退会予定</option>
                               <option value="WITHDRAWN">退会</option>
                             </select>
                         </div>
@@ -1361,10 +1372,228 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, d
             )}
           </div>
         </form>
+
+        {/* ── 退会手続きセクション ── */}
+        {loginId && member.status !== 'WITHDRAWN' && (!isBusiness || activeStaffRole === 'REPRESENTATIVE') && (
+          <WithdrawalSection
+            member={member}
+            loginId={loginId}
+            withdrawalPassword={withdrawalPassword}
+            setWithdrawalPassword={setWithdrawalPassword}
+            withdrawalError={withdrawalError}
+            setWithdrawalError={setWithdrawalError}
+            withdrawalSubmitting={withdrawalSubmitting}
+            setWithdrawalSubmitting={setWithdrawalSubmitting}
+            withdrawalConfirmOpen={withdrawalConfirmOpen}
+            setWithdrawalConfirmOpen={setWithdrawalConfirmOpen}
+            cancelWithdrawalPassword={cancelWithdrawalPassword}
+            setCancelWithdrawalPassword={setCancelWithdrawalPassword}
+            cancelWithdrawalError={cancelWithdrawalError}
+            setCancelWithdrawalError={setCancelWithdrawalError}
+            cancelWithdrawalSubmitting={cancelWithdrawalSubmitting}
+            setCancelWithdrawalSubmitting={setCancelWithdrawalSubmitting}
+            onWithdrawalComplete={(updatedMember) => {
+              setMember(updatedMember);
+              setSuccessMsg(updatedMember.status === 'WITHDRAWAL_SCHEDULED' ? '退会申請を受け付けました。' : null);
+            }}
+            onCancelComplete={(updatedMember) => {
+              setMember(updatedMember);
+              setSuccessMsg('退会申請を取り消しました。');
+            }}
+          />
+        )}
+
       </div>
       </div>
       </div>
       </div>
+      )}
+    </div>
+  );
+};
+
+// ── 退会手続きセクション（サブコンポーネント）──────────────────
+interface WithdrawalSectionProps {
+  member: Member;
+  loginId: string;
+  withdrawalPassword: string;
+  setWithdrawalPassword: (v: string) => void;
+  withdrawalError: string | null;
+  setWithdrawalError: (v: string | null) => void;
+  withdrawalSubmitting: boolean;
+  setWithdrawalSubmitting: (v: boolean) => void;
+  withdrawalConfirmOpen: boolean;
+  setWithdrawalConfirmOpen: (v: boolean) => void;
+  cancelWithdrawalPassword: string;
+  setCancelWithdrawalPassword: (v: string) => void;
+  cancelWithdrawalError: string | null;
+  setCancelWithdrawalError: (v: string | null) => void;
+  cancelWithdrawalSubmitting: boolean;
+  setCancelWithdrawalSubmitting: (v: boolean) => void;
+  onWithdrawalComplete: (member: Member) => void;
+  onCancelComplete: (member: Member) => void;
+}
+
+const getFiscalYearEndLabel = (): string => {
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const year = now.getFullYear();
+  const endYear = month >= 4 ? year + 1 : year;
+  return `${endYear}年3月31日`;
+};
+
+const WithdrawalSection: React.FC<WithdrawalSectionProps> = (props) => {
+  const {
+    member, loginId,
+    withdrawalPassword, setWithdrawalPassword,
+    withdrawalError, setWithdrawalError,
+    withdrawalSubmitting, setWithdrawalSubmitting,
+    withdrawalConfirmOpen, setWithdrawalConfirmOpen,
+    cancelWithdrawalPassword, setCancelWithdrawalPassword,
+    cancelWithdrawalError, setCancelWithdrawalError,
+    cancelWithdrawalSubmitting, setCancelWithdrawalSubmitting,
+    onWithdrawalComplete, onCancelComplete,
+  } = props;
+
+  const fiscalYearEnd = getFiscalYearEndLabel();
+  const isScheduled = member.status === 'WITHDRAWAL_SCHEDULED';
+
+  const handleWithdrawSelf = async () => {
+    if (!withdrawalPassword) {
+      setWithdrawalError('パスワードを入力してください。');
+      return;
+    }
+    try {
+      setWithdrawalSubmitting(true);
+      setWithdrawalError(null);
+      const result = await api.withdrawSelf(loginId, withdrawalPassword, member.id);
+      setWithdrawalPassword('');
+      setWithdrawalConfirmOpen(false);
+      onWithdrawalComplete({
+        ...member,
+        status: 'WITHDRAWAL_SCHEDULED',
+        withdrawnDate: result.withdrawnDate,
+      });
+    } catch (e) {
+      setWithdrawalError(e instanceof Error ? e.message : '退会申請に失敗しました。');
+    } finally {
+      setWithdrawalSubmitting(false);
+    }
+  };
+
+  const handleCancelWithdrawal = async () => {
+    if (!cancelWithdrawalPassword) {
+      setCancelWithdrawalError('パスワードを入力してください。');
+      return;
+    }
+    try {
+      setCancelWithdrawalSubmitting(true);
+      setCancelWithdrawalError(null);
+      await api.cancelWithdrawalSelf(loginId, cancelWithdrawalPassword, member.id);
+      setCancelWithdrawalPassword('');
+      onCancelComplete({
+        ...member,
+        status: 'ACTIVE',
+        withdrawnDate: undefined,
+      });
+    } catch (e) {
+      setCancelWithdrawalError(e instanceof Error ? e.message : '取り消しに失敗しました。');
+    } finally {
+      setCancelWithdrawalSubmitting(false);
+    }
+  };
+
+  if (isScheduled) {
+    return (
+      <div className="mt-8 border-2 border-amber-300 bg-amber-50 rounded-xl p-6">
+        <h3 className="text-lg font-bold text-amber-800 mb-2">退会予定</h3>
+        <p className="text-sm text-amber-700 mb-4">
+          <strong>{member.withdrawnDate?.replace(/-/g, '/')}</strong> をもって退会となります。
+          退会日までは引き続きマイページをご利用いただけます。
+        </p>
+        <div className="bg-white rounded-lg p-4 border border-amber-200">
+          <p className="text-sm font-medium text-slate-700 mb-3">退会申請を取り消す場合は、パスワードを入力してください。</p>
+          <div className="flex items-end gap-3">
+            <div className="flex-1">
+              <input
+                type="password"
+                placeholder="現在のパスワード"
+                value={cancelWithdrawalPassword}
+                onChange={(e) => { setCancelWithdrawalPassword(e.target.value); setCancelWithdrawalError(null); }}
+                className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                disabled={cancelWithdrawalSubmitting}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleCancelWithdrawal}
+              disabled={cancelWithdrawalSubmitting || !cancelWithdrawalPassword}
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold rounded disabled:opacity-50"
+            >
+              {cancelWithdrawalSubmitting ? '処理中...' : '退会を取り消す'}
+            </button>
+          </div>
+          {cancelWithdrawalError && <p className="mt-2 text-sm text-red-600">{cancelWithdrawalError}</p>}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-8 border border-slate-200 rounded-xl p-6">
+      <h3 className="text-lg font-bold text-slate-800 mb-2">退会手続き</h3>
+      <div className="text-sm text-slate-600 space-y-1 mb-4">
+        <p>退会を申請すると、<strong>{fiscalYearEnd}</strong>（年度末）をもって退会となります。</p>
+        <p>退会日までは引き続きマイページへのログイン・研修申込等をご利用いただけます。</p>
+        <p>退会日を過ぎるとログインできなくなり、翌年度以降にデータが削除されます。</p>
+        {member.type === MemberType.BUSINESS && (
+          <p className="text-amber-700 font-medium">事業所全体の退会となります。所属する全職員がログインできなくなります。</p>
+        )}
+      </div>
+
+      {!withdrawalConfirmOpen ? (
+        <button
+          type="button"
+          onClick={() => { setWithdrawalConfirmOpen(true); setWithdrawalError(null); setWithdrawalPassword(''); }}
+          className="px-4 py-2 border border-red-300 text-red-600 text-sm font-bold rounded hover:bg-red-50"
+        >
+          退会を申請する
+        </button>
+      ) : (
+        <div className="bg-red-50 rounded-lg p-4 border border-red-200">
+          <p className="text-sm font-medium text-red-800 mb-1">本当に退会を申請しますか？</p>
+          <p className="text-xs text-red-600 mb-3">{fiscalYearEnd} をもって退会となります。年度末までは取り消し可能です。</p>
+          <div className="flex items-end gap-3">
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-slate-600 mb-1">確認のためパスワードを入力</label>
+              <input
+                type="password"
+                placeholder="現在のパスワード"
+                value={withdrawalPassword}
+                onChange={(e) => { setWithdrawalPassword(e.target.value); setWithdrawalError(null); }}
+                className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                disabled={withdrawalSubmitting}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleWithdrawSelf}
+              disabled={withdrawalSubmitting || !withdrawalPassword}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded disabled:opacity-50"
+            >
+              {withdrawalSubmitting ? '処理中...' : '退会を申請する'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setWithdrawalConfirmOpen(false); setWithdrawalError(null); setWithdrawalPassword(''); }}
+              disabled={withdrawalSubmitting}
+              className="px-4 py-2 border border-slate-300 text-slate-600 text-sm rounded hover:bg-slate-50"
+            >
+              キャンセル
+            </button>
+          </div>
+          {withdrawalError && <p className="mt-2 text-sm text-red-600">{withdrawalError}</p>}
+        </div>
       )}
     </div>
   );

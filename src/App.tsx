@@ -12,7 +12,7 @@ type Role = 'ADMIN' | 'MEMBER';
 type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'member-detail' | 'admin-settings';
 type AuthTab = 'member' | 'admin';
 type MemberListFilter = 'ALL' | MemberType;
-type MemberStatusFilter = 'ALL' | 'ACTIVE' | 'WITHDRAWN';
+type MemberStatusFilter = 'ALL' | 'ACTIVE' | 'WITHDRAWAL_SCHEDULED' | 'WITHDRAWN';
 type MemberSortKey = 'memberId' | 'displayName' | 'memberType' | 'trainingCount' | 'tenure' | 'status';
 type MemberSortDir = 'asc' | 'desc';
 const DEFAULT_MEMBER_PAGE_SIZE = 50;
@@ -672,6 +672,7 @@ const App: React.FC = () => {
           <select className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={memberListStatusFilter} onChange={(e) => setMemberListStatusFilter(e.target.value as MemberStatusFilter)}>
             <option value="ALL">全状態</option>
             <option value="ACTIVE">在籍中</option>
+            <option value="WITHDRAWAL_SCHEDULED">退会予定</option>
             <option value="WITHDRAWN">退会済</option>
           </select>
         </div>
@@ -770,7 +771,7 @@ const App: React.FC = () => {
                 <td className="px-4 py-3 text-sm"><span className={`px-2 py-0.5 rounded text-xs font-medium ${member.memberType === MemberType.BUSINESS ? 'bg-indigo-100 text-indigo-700' : member.memberType === MemberType.SUPPORT ? 'bg-pink-100 text-pink-700' : 'text-slate-600'}`}>{memberTypeLabel(member.memberType)}</span></td>
                 <td className="px-4 py-3 text-sm text-slate-600 text-center">{member.trainingCount}</td>
                 <td className="px-4 py-3 text-sm text-slate-600">{member.joinedDate ? `${computeTenure(member.joinedDate)}年` : '-'}</td>
-                <td className="px-4 py-3 text-sm">{member.status === 'WITHDRAWN' ? <span className="text-red-500">退会済</span> : <span className="text-green-600">在籍中</span>}</td>
+                <td className="px-4 py-3 text-sm">{member.status === 'WITHDRAWN' ? <span className="text-red-500">退会済</span> : member.status === 'WITHDRAWAL_SCHEDULED' ? <span className="text-amber-600">退会予定</span> : <span className="text-green-600">在籍中</span>}</td>
                 <td className="px-4 py-3 text-sm" onClick={(e) => e.stopPropagation()}>
                   {member.status === 'ACTIVE' && (
                     <button
@@ -1155,10 +1156,13 @@ const App: React.FC = () => {
       <MemberForm
         initialMember={currentUser}
         activeStaffId={currentIdentity?.staffId}
+        activeStaffRole={currentIdentity?.staffRole}
+        loginId={memberLoginId}
         defaultBusinessStaffLimit={defaultBusinessStaffLimit}
         historyLookbackMonths={trainingHistoryLookbackMonths}
         trainings={trainings}
         onSave={handleMemberSave}
+        onLogout={logout}
       />
     );
   };

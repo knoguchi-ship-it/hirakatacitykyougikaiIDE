@@ -199,6 +199,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, onBack, o
             <label className={labelClass}>会員状態</label>
             <select className={fieldClass} value={form.status || 'ACTIVE'} onChange={e => set('status', e.target.value)}>
               <option value="ACTIVE">在籍中</option>
+              <option value="WITHDRAWAL_SCHEDULED">退会予定</option>
               <option value="WITHDRAWN">退会済</option>
             </select>
           </div>
@@ -208,7 +209,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, onBack, o
           </div>
           <div>
             <label className={labelClass}>退会日</label>
-            <input className={fieldClass} type="date" value={form.withdrawnDate || ''} onChange={e => set('withdrawnDate', e.target.value)} disabled={form.status !== 'WITHDRAWN'} />
+            <input className={fieldClass} type="date" value={form.withdrawnDate || ''} onChange={e => set('withdrawnDate', e.target.value)} disabled={form.status !== 'WITHDRAWN' && form.status !== 'WITHDRAWAL_SCHEDULED'} />
           </div>
         </div>
       </div>

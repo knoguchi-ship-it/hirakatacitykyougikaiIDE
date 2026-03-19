@@ -1,6 +1,6 @@
 ﻿# 引継ぎ書（次担当者向け）
 
-更新日: **2026-03-19（ClaudeCode 引継ぎ準備完了 / main `38b7da7` push 済み）**
+更新日: **2026-03-19（v104 退会機能実装完了）**
 対象: 枚方市介護支援専門員連絡協議会 会員システム
 
 ---
@@ -47,7 +47,7 @@
 
 ## 1.1 次担当者向け・最短状況サマリ（このまま新スレッドへ貼付可）
 
-- 本番Web URLは固定2本（会員/公開）で **@100 同期済み**。
+- 本番Web URLは固定2本（会員/公開）で **@104 同期済み**。
 - `main` は **`38b7da7` を push 済み**、`git status --short` は空。
 - `clasp run` 障害は、既定OAuthクライアントが組織でブロックされたことが原因。
 - 復旧済み手順:
@@ -62,7 +62,7 @@
 ## 1.2 この時点の引き継ぎポイント
 
 - スレッドを切っても問題ない状態まで、正本と引き継ぎは同期済み。
-- 現在の本番固定 Deployment は会員/公開ともに **@100**。
+- 現在の本番固定 Deployment は会員/公開ともに **@104**。
 - 公開ポータルは 2026-03-19 に実ブラウザで再表示確認済み。
 - 負荷試験用データは投入済み。`seedPerformanceTestData()` により、`個人会員 300名 / 事業所会員 30件 / 事業所職員 205名 / 認証 505件 / 年会費 660件 / 申込 378件` の状態で検証している。
 - 直近の性能改善は反映済み。
@@ -87,6 +87,10 @@
   - 新規入会を管理コンソールから削除し、公開ポータルへ移設
   - `submitMemberApplication` を公開 API 化し、ログイン不要で新規入会申込可能に変更
   - `updateMember_` に代表者権限制約のバックエンド強制を実装
+- v104 で退会機能（年度末退会予約方式）を実装。
+  - 会員マイページから退会申請・取消が可能
+  - `WITHDRAWAL_SCHEDULED` 状態で年度末まで保留、自動昇格で `WITHDRAWN` に遷移
+  - 事業所会員は代表者のみ退会申請可能、パスワード再認証必須
 - 未実装: 会員一括編集（`updateMembersBatch_`）は提案済み・未実装。
 - 次の主作業は **会員一括編集（`updateMembersBatch_`）** および **UI/UX 継続改善**。
 - Claude Code への次指示は `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` に整理済み。
@@ -124,13 +128,25 @@
 
 | 用途 | Deployment ID | 現在 Version | URL |
 |---|---|---|---|
-| **会員マイページ** | `AKfycbycE2_ythCYSPwmPxvyfRzNLhWM7J1cX41TA2wjYgZgdI-P2uknYfQGh3AHrecCQ1Gk` | **@100** | `.../exec` |
-| **公開ポータル** | `AKfycbxKoni2vBdvRbQWR6NyrroPHyNmElJNkJ5OTNOJMQ0k0z-Ae-oGeclrN3kxsE9yIXVr` | **@100** | `.../exec?app=public` |
+| **会員マイページ** | `AKfycbycE2_ythCYSPwmPxvyfRzNLhWM7J1cX41TA2wjYgZgdI-P2uknYfQGh3AHrecCQ1Gk` | **@104** | `.../exec` |
+| **公開ポータル** | `AKfycbxKoni2vBdvRbQWR6NyrroPHyNmElJNkJ5OTNOJMQ0k0z-Ae-oGeclrN3kxsE9yIXVr` | **@104** | `.../exec?app=public` |
 
 > **鉄則**: 2 つの Deployment ID は常に同一バージョンへ同時更新。片方だけ更新禁止。
 > `npx clasp deployments` では表示名が実UIの `Manage deployments` と一致しないことがある。最終判断は Apps Script UI の固定2 Deployment を正とする。
 
-### 3.2 最新リリース（v100）の変更内容
+### 3.2 最新リリース（v104）の変更内容
+
+#### v104（退会機能: 年度末退会予約方式の実装）
+- 会員マイページに退会セクションを追加。会員自身が退会申請・取消を実行可能
+- 年度末退会予約方式（`WITHDRAWAL_SCHEDULED`）: 退会申請すると年度末（3/31）まで退会予定状態、年度末経過後に自動的に退会確定
+- 退会予定中もログイン・サービス利用が可能（`T_認証アカウント.アカウント有効フラグ` は変更しない）
+- 退会予定中に会員自身で退会取消が可能（管理者介入不要）
+- 事業所会員は代表者（REPRESENTATIVE）のみが退会申請可能
+- パスワード再認証による本人確認を必須化（OWASP準拠）
+- 会員状態バッジ: 在籍中（緑）/ 退会予定（橙）/ 退会済（赤）の3状態表示
+- バックエンド: `withdrawSelf_()`, `cancelWithdrawalSelf_()`, `promoteScheduledWithdrawals_()` を追加
+- 日付フォーマット修正: `mapMembersForApi_` の入会日・退会日を `normalizeDateInput_()` に統一（Date オブジェクトの文字列化バグ修正）
+- v101〜v103 で発見・修正されたバグ: フロントエンドビルド成果物のバックエンドコピー漏れ、Date 表示フォーマット不正
 
 #### v100（公開ポータル統合・公開入会導線・代表者権限制約実装）
 - 公開ポータルの名称を「枚方市介護支援専門員連絡協議会お申込みポータル」に変更
@@ -531,6 +547,7 @@ Googleアカウントでアクセス
 
 | バージョン | 内容 |
 |---|---|
+| **v104** | 退会機能（年度末退会予約方式）: 会員マイページから退会申請・取消、WITHDRAWAL_SCHEDULED 3状態管理、代表者権限制約、パスワード再認証、日付フォーマット修正 |
 | **v100** | 公開ポータルを「お申込みポータル」に再編し、トップ画面に「研修申込」「新規入会申込」を追加。新規入会を公開ポータルへ統合し、`submitMemberApplication` を公開化。`updateMember_` に代表者権限制約のバックエンド強制を実装 |
 | **v99** | 入会申込フォーム統合（個人/事業所/賛助3種別マルチステップウィザード）、事業所職員3段階権限（代表者/管理者/メンバー）、認証レコード書込バグ修正、T_会員に事業所番号列・T_事業所職員に介護支援専門員番号列追加 |
 | **v98** | cache.put 100KB超過対策（4箇所try-catch）、管理コンソール15〜20秒正常表示に復旧 |
@@ -550,7 +567,15 @@ Googleアカウントでアクセス
 
 ## 14. リリース記録（最新）
 
-### 14.0 v100
+### 14.0 v104
+
+- **実施日**: 2026-03-19
+- **担当者**: Claude Code (claude-opus-4-6)
+- **公開ポータル ID**: `AKfycbxKoni2...IXVr` → @104
+- **会員マイページ ID**: `AKfycbycE2_...1Gk` → @104
+- **備考**: 退会機能（年度末退会予約方式）を実装。会員マイページに退会セクションを追加し、`withdrawSelf_()` / `cancelWithdrawalSelf_()` / `promoteScheduledWithdrawals_()` をバックエンドに実装。会員状態を ACTIVE / WITHDRAWAL_SCHEDULED / WITHDRAWN の3状態管理に拡張。事業所会員は代表者のみ退会申請可能、パスワード再認証必須。`mapMembersForApi_` の日付フォーマットを `normalizeDateInput_()` に統一。v101〜v103 でフロントエンドビルドコピー漏れと Date 表示バグを修正。MCP Playwright で全ライフサイクル（申請→バッジ確認→取消→復帰）を検証済み。
+
+### 14.0a v100
 
 - **実施日**: 2026-03-18
 - **担当者**: Codex (GPT-5)
