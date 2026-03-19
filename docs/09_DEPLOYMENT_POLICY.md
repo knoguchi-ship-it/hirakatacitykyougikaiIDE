@@ -1,6 +1,6 @@
 ﻿# デプロイ標準（2 Deployment 固定運用）
 
-更新日: 2026-03-18
+更新日: 2026-03-20
 
 ---
 
@@ -19,7 +19,7 @@
 | **会員マイページ** | `AKfycbycE2_ythCYSPwmPxvyfRzNLhWM7J1cX41TA2wjYgZgdI-P2uknYfQGh3AHrecCQ1Gk` | `.../exec` | 2026-03-15 Web app 再発行（現行固定） |
 | **公開ポータル** | `AKfycbxKoni2vBdvRbQWR6NyrroPHyNmElJNkJ5OTNOJMQ0k0z-Ae-oGeclrN3kxsE9yIXVr` | `.../exec?app=public` | 2026-03-15 Web app 再発行（現行固定） |
 
-> 両 Deployment とも **@100** で同期済み（2026-03-18）。
+> 両 Deployment とも **@105** で同期済み（2026-03-20）。
 > `npx clasp deployments` の表示名が Apps Script UI の `Manage deployments` の表示と食い違うことがあるため、固定IDの最終確認は Apps Script UI を正とする。
 
 ---

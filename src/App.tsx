@@ -618,9 +618,11 @@ const App: React.FC = () => {
   const handleMemberSave = async (updatedMember: Member) => {
     setMembers((prev) => prev.map((m) => (m.id === updatedMember.id ? updatedMember : m)));
     try {
-      await api.updateMember(updatedMember);
       if (userRole === 'ADMIN') {
+        await api.updateMember(updatedMember);
         loadAdminDashboardData({ force: true }).catch(() => undefined);
+      } else {
+        await api.updateMemberSelf(updatedMember, memberLoginId);
       }
     } catch (e) {
       console.error('Sync failed:', e);
@@ -1158,6 +1160,7 @@ const App: React.FC = () => {
         activeStaffId={currentIdentity?.staffId}
         activeStaffRole={currentIdentity?.staffRole}
         loginId={memberLoginId}
+        isAdmin={userRole === 'ADMIN'}
         defaultBusinessStaffLimit={defaultBusinessStaffLimit}
         historyLookbackMonths={trainingHistoryLookbackMonths}
         trainings={trainings}

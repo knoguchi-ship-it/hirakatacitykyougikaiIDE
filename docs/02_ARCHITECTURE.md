@@ -125,7 +125,8 @@
 | `adminGoogleLogin` | 管理者 Google ログイン（IDトークン方式） | 未認証 |
 | `checkAdminBySession` | 管理者 Google ログイン（セッション方式・本番標準） | 未認証 |
 | `changePassword` | パスワード変更（現在PW照合あり） | 会員 |
-| `updateMember` | 会員情報更新 | 会員/管理者 |
+| `updateMember` | 会員情報更新（全フィールド） | 管理者 |
+| `updateMemberSelf` | 会員自身のプロフィール更新（サーバーサイド allowlist フィルタ、loginId→会員ID照合） | 会員 |
 | `saveTraining` | 研修の新規登録・更新 | 管理者 |
 | `uploadTrainingFile` | 研修案内状（PDF）のアップロード → Drive保存 → URL返却 | 管理者 |
 | `applyTraining` | 研修申込 | 会員 |

@@ -1,6 +1,6 @@
 ﻿# 引継ぎ書（次担当者向け）
 
-更新日: **2026-03-19（v104 退会機能実装完了）**
+更新日: **2026-03-20（v105 フィールドレベルアクセス制御実装）**
 対象: 枚方市介護支援専門員連絡協議会 会員システム
 
 ---
@@ -47,8 +47,8 @@
 
 ## 1.1 次担当者向け・最短状況サマリ（このまま新スレッドへ貼付可）
 
-- 本番Web URLは固定2本（会員/公開）で **@104 同期済み**。
-- `main` は **`38b7da7` を push 済み**、`git status --short` は空。
+- 本番Web URLは固定2本（会員/公開）で **@105 同期済み**。
+- `main` は最新コミットを push 済み、`git status --short` は空。
 - `clasp run` 障害は、既定OAuthクライアントが組織でブロックされたことが原因。
 - 復旧済み手順:
   - `npx clasp logout`
@@ -62,7 +62,7 @@
 ## 1.2 この時点の引き継ぎポイント
 
 - スレッドを切っても問題ない状態まで、正本と引き継ぎは同期済み。
-- 現在の本番固定 Deployment は会員/公開ともに **@104**。
+- 現在の本番固定 Deployment は会員/公開ともに **@105**。
 - 公開ポータルは 2026-03-19 に実ブラウザで再表示確認済み。
 - 負荷試験用データは投入済み。`seedPerformanceTestData()` により、`個人会員 300名 / 事業所会員 30件 / 事業所職員 205名 / 認証 505件 / 年会費 660件 / 申込 378件` の状態で検証している。
 - 直近の性能改善は反映済み。
@@ -91,6 +91,10 @@
   - 会員マイページから退会申請・取消が可能
   - `WITHDRAWAL_SCHEDULED` 状態で年度末まで保留、自動昇格で `WITHDRAWN` に遷移
   - 事業所会員は代表者のみ退会申請可能、パスワード再認証必須
+- v105 でフィールドレベルアクセス制御を実装（OWASP A01/CWE-915 準拠）。
+  - サーバーサイド allowlist による Mass Assignment 防止（`updateMemberSelf_`）
+  - 会員マイページの管理者専用フィールド（入会日・退会日・会員状態・年度中退会）を非活性化
+  - `updateMember` は管理者専用（`ADMIN_REQUIRED_ACTIONS`）、会員は `updateMemberSelf` を使用
 - 未実装: 会員一括編集（`updateMembersBatch_`）は提案済み・未実装。
 - 次の主作業は **会員一括編集（`updateMembersBatch_`）** および **UI/UX 継続改善**。
 - Claude Code への次指示は `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` に整理済み。
@@ -128,13 +132,22 @@
 
 | 用途 | Deployment ID | 現在 Version | URL |
 |---|---|---|---|
-| **会員マイページ** | `AKfycbycE2_ythCYSPwmPxvyfRzNLhWM7J1cX41TA2wjYgZgdI-P2uknYfQGh3AHrecCQ1Gk` | **@104** | `.../exec` |
-| **公開ポータル** | `AKfycbxKoni2vBdvRbQWR6NyrroPHyNmElJNkJ5OTNOJMQ0k0z-Ae-oGeclrN3kxsE9yIXVr` | **@104** | `.../exec?app=public` |
+| **会員マイページ** | `AKfycbycE2_ythCYSPwmPxvyfRzNLhWM7J1cX41TA2wjYgZgdI-P2uknYfQGh3AHrecCQ1Gk` | **@105** | `.../exec` |
+| **公開ポータル** | `AKfycbxKoni2vBdvRbQWR6NyrroPHyNmElJNkJ5OTNOJMQ0k0z-Ae-oGeclrN3kxsE9yIXVr` | **@105** | `.../exec?app=public` |
 
 > **鉄則**: 2 つの Deployment ID は常に同一バージョンへ同時更新。片方だけ更新禁止。
 > `npx clasp deployments` では表示名が実UIの `Manage deployments` と一致しないことがある。最終判断は Apps Script UI の固定2 Deployment を正とする。
 
-### 3.2 最新リリース（v104）の変更内容
+### 3.2 最新リリース（v105）の変更内容
+
+#### v105（フィールドレベルアクセス制御: OWASP A01/CWE-915 準拠）
+- サーバーサイドフィールド allowlist パターンによる Mass Assignment 防止
+- `updateMemberSelf_()` 新設: loginId→会員ID照合（なりすまし防止）+ allowlist フィルタ後に `updateMember_()` へ委譲
+- `MEMBER_WRITABLE_FIELDS_` / `MEMBER_WRITABLE_STAFF_FIELDS_` をサーバー側定数として定義
+- `updateMember_()` に `skipAdminCheck` パラメータを追加（`updateMemberSelf_` 内部呼び出し用）
+- フロントエンド: `isAdmin` prop で管理者専用フィールド（入会日・退会日・会員状態・年度中退会チェックボックス・職員状態）を非活性化
+- `isReadOnly` 判定に REPRESENTATIVE ロールを追加（事業所代表者も編集可能に修正）
+- API クライアント: `updateMemberSelf()` メソッド追加、`handleMemberSave` でロール別 API 選択
 
 #### v104（退会機能: 年度末退会予約方式の実装）
 - 会員マイページに退会セクションを追加。会員自身が退会申請・取消を実行可能
@@ -547,6 +560,7 @@ Googleアカウントでアクセス
 
 | バージョン | 内容 |
 |---|---|
+| **v105** | フィールドレベルアクセス制御（OWASP A01/CWE-915）: `updateMemberSelf_` サーバーサイド allowlist、loginId→会員ID照合、管理者専用フィールド非活性化、REPRESENTATIVE 編集権限修正 |
 | **v104** | 退会機能（年度末退会予約方式）: 会員マイページから退会申請・取消、WITHDRAWAL_SCHEDULED 3状態管理、代表者権限制約、パスワード再認証、日付フォーマット修正 |
 | **v100** | 公開ポータルを「お申込みポータル」に再編し、トップ画面に「研修申込」「新規入会申込」を追加。新規入会を公開ポータルへ統合し、`submitMemberApplication` を公開化。`updateMember_` に代表者権限制約のバックエンド強制を実装 |
 | **v99** | 入会申込フォーム統合（個人/事業所/賛助3種別マルチステップウィザード）、事業所職員3段階権限（代表者/管理者/メンバー）、認証レコード書込バグ修正、T_会員に事業所番号列・T_事業所職員に介護支援専門員番号列追加 |
@@ -567,7 +581,15 @@ Googleアカウントでアクセス
 
 ## 14. リリース記録（最新）
 
-### 14.0 v104
+### 14.0 v105
+
+- **実施日**: 2026-03-20
+- **担当者**: Claude Code (claude-opus-4-6)
+- **公開ポータル ID**: `AKfycbxKoni2...IXVr` → @105
+- **会員マイページ ID**: `AKfycbycE2_...1Gk` → @105
+- **備考**: フィールドレベルアクセス制御を実装（OWASP A01 Broken Access Control / CWE-915 Mass Assignment 対策）。サーバーサイドに `MEMBER_WRITABLE_FIELDS_` / `MEMBER_WRITABLE_STAFF_FIELDS_` allowlist を定義し、`updateMemberSelf_()` で loginId→会員ID照合（なりすまし防止）後、allowlist でペイロードをフィルタして `updateMember_()` に委譲。`updateMember` は `ADMIN_REQUIRED_ACTIONS` に所属（管理者専用）、`updateMemberSelf` は非管理者アクション。フロントエンドでは `isAdmin` prop で管理者専用フィールド（入会日・退会日・会員状態・年度中退会・職員状態）を disabled 化。`isReadOnly` に REPRESENTATIVE を追加して事業所代表者の編集権限を修正。MCP Playwright で両 Deployment @105 同期確認済み。
+
+### 14.0a v104
 
 - **実施日**: 2026-03-19
 - **担当者**: Claude Code (claude-opus-4-6)

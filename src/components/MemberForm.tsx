@@ -8,6 +8,7 @@ interface MemberFormProps {
   activeStaffId?: string;
   activeStaffRole?: StaffRole;
   loginId?: string;
+  isAdmin?: boolean;
   defaultBusinessStaffLimit: number;
   historyLookbackMonths: number;
   trainings: Training[];
@@ -15,7 +16,7 @@ interface MemberFormProps {
   onLogout?: () => void;
 }
 
-const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, activeStaffRole, loginId, defaultBusinessStaffLimit, historyLookbackMonths, trainings, onSave, onLogout }) => {
+const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, activeStaffRole, loginId, isAdmin, defaultBusinessStaffLimit, historyLookbackMonths, trainings, onSave, onLogout }) => {
   const [member, setMember] = useState<Member>(initialMember);
   const [warning, setWarning] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null); // UX: Success feedback
@@ -73,7 +74,10 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
 
   // Determine Permissions
   const currentStaff = isBusiness ? member.staff?.find(s => s.id === operatingStaffId) : null;
-  const isReadOnly = isBusiness ? currentStaff?.role !== 'ADMIN' : false;
+  // REPRESENTATIVE・ADMIN は編集可、STAFF は閲覧のみ
+  const isReadOnly = isBusiness ? (currentStaff?.role !== 'ADMIN' && currentStaff?.role !== 'REPRESENTATIVE') : false;
+  // 管理者専用フィールド（ステータス・入退会日・削除フラグ）は会員マイページでは常に無効
+  const isAdminField = !isAdmin;
 
   // --- Logic for Trainings ---
   
@@ -903,41 +907,43 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">会員ステータス</label>
                             <select
-                              disabled={isReadOnly}
+                              disabled={isReadOnly || isAdminField}
                               name="status"
                               value={member.status}
                               onChange={handleChange}
-                              className="w-full border-slate-300 rounded-lg p-2 text-sm"
+                              className={`w-full border-slate-300 rounded-lg p-2 text-sm ${isAdminField ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`}
                             >
                               <option value="ACTIVE">有効</option>
                               <option value="WITHDRAWAL_SCHEDULED">退会予定</option>
                               <option value="WITHDRAWN">退会</option>
                             </select>
+                            {isAdminField && <p className="text-xs text-slate-400 mt-1">管理者のみ変更可</p>}
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">入会日</label>
                             <input
-                              disabled={isReadOnly}
+                              disabled={isReadOnly || isAdminField}
                               type="date"
                               name="joinedDate"
                               value={member.joinedDate || ''}
                               onChange={handleChange}
-                              className={getInputClass('joinedDate')}
+                              className={isAdminField ? 'w-full rounded-md shadow-sm border p-2 bg-slate-100 text-slate-500 cursor-not-allowed border-slate-300' : getInputClass('joinedDate')}
                             />
                             {errors.joinedDate && <p className="text-xs text-red-500 mt-1">{errors.joinedDate}</p>}
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">退会日</label>
                             <input
-                              disabled={isReadOnly}
+                              disabled={isReadOnly || isAdminField}
                               type="date"
                               name="withdrawnDate"
                               value={member.withdrawnDate || ''}
                               onChange={handleChange}
-                              className={getInputClass('withdrawnDate')}
+                              className={isAdminField ? 'w-full rounded-md shadow-sm border p-2 bg-slate-100 text-slate-500 cursor-not-allowed border-slate-300' : getInputClass('withdrawnDate')}
                             />
                             {errors.withdrawnDate && <p className="text-xs text-red-500 mt-1">{errors.withdrawnDate}</p>}
                         </div>
+                        {isAdmin && (
                         <div className="md:col-span-3">
                             <label className="inline-flex items-center gap-2 text-sm text-slate-700 mt-6">
                               <input
@@ -951,6 +957,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                               当年度中の中途退会として即時に削除フラグを立てる
                             </label>
                         </div>
+                        )}
                     </div>
                 </div>
 
@@ -1014,10 +1021,10 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                     <div className="md:col-span-1">
                                         <label className="block text-xs font-medium text-slate-500">状態</label>
                                         <select
-                                            disabled={isReadOnly}
+                                            disabled={isReadOnly || isAdminField}
                                             value={staff.status || 'ENROLLED'}
                                             onChange={(e) => handleStaffChange(staff.id, 'status', e.target.value)}
-                                            className={`w-full text-sm border-slate-200 rounded p-1 ${isReadOnly ? 'bg-slate-100' : ''}`}
+                                            className={`w-full text-sm border-slate-200 rounded p-1 ${(isReadOnly || isAdminField) ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`}
                                         >
                                             <option value="ENROLLED">在籍</option>
                                             <option value="LEFT">退職</option>
@@ -1046,11 +1053,11 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                         <div>
                                             <label className="block text-xs font-medium text-slate-500">入会日</label>
                                             <input
-                                              disabled={isReadOnly}
+                                              disabled={isReadOnly || isAdminField}
                                               type="date"
                                               value={staff.joinedDate || ''}
                                               onChange={(e) => handleStaffChange(staff.id, 'joinedDate', e.target.value)}
-                                              className={`w-full text-sm border-slate-200 rounded p-1 ${isReadOnly ? 'bg-slate-100' : ''}`}
+                                              className={`w-full text-sm border-slate-200 rounded p-1 ${(isReadOnly || isAdminField) ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`}
                                             />
                                             {errors[`staff_${staffIndex}_joinedDate`] && (
                                               <p className="text-xs text-red-500 mt-1">{errors[`staff_${staffIndex}_joinedDate`]}</p>
@@ -1059,16 +1066,17 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                         <div>
                                             <label className="block text-xs font-medium text-slate-500">退会日</label>
                                             <input
-                                              disabled={isReadOnly}
+                                              disabled={isReadOnly || isAdminField}
                                               type="date"
                                               value={staff.withdrawnDate || ''}
                                               onChange={(e) => handleStaffChange(staff.id, 'withdrawnDate', e.target.value)}
-                                              className={`w-full text-sm border-slate-200 rounded p-1 ${isReadOnly ? 'bg-slate-100' : ''}`}
+                                              className={`w-full text-sm border-slate-200 rounded p-1 ${(isReadOnly || isAdminField) ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`}
                                             />
                                             {errors[`staff_${staffIndex}_withdrawnDate`] && (
                                               <p className="text-xs text-red-500 mt-1">{errors[`staff_${staffIndex}_withdrawnDate`]}</p>
                                             )}
                                         </div>
+                                        {isAdmin && (
                                         <div className="md:col-span-2">
                                             <label className="inline-flex items-center gap-2 text-xs text-slate-700 mt-1">
                                               <input
@@ -1081,6 +1089,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                               この職員を当年度中の中途退会として即時に削除フラグ化する
                                             </label>
                                         </div>
+                                        )}
                                     </div>
                                 </div>
                             ))}

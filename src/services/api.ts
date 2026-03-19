@@ -53,6 +53,7 @@ export interface ApiClient {
   getAdminDashboardData(): Promise<AdminDashboardData>;
   getTrainingManagementData(): Promise<Training[]>;
   updateMember(member: Member): Promise<void>;
+  updateMemberSelf(member: Member, loginId: string): Promise<void>;
   changePassword(loginId: string, currentPassword: string, newPassword: string): Promise<void>;
   getSystemSettings(): Promise<{ defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }>;
   updateSystemSettings(settings: { defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }): Promise<{ defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }>;
@@ -316,6 +317,31 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('updateMember', JSON.stringify(member));
+    });
+  }
+
+  async updateMemberSelf(member: Member, loginId: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) {
+              resolve();
+            } else {
+              reject(new Error(parsed.error || 'API Error'));
+            }
+          } catch (e) {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('updateMemberSelf', JSON.stringify({ ...member, loginId }));
     });
   }
 

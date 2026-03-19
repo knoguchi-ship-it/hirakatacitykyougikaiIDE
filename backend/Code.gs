@@ -717,6 +717,10 @@ function processApiRequest(action, payload) {
       return JSON.stringify({ success: true, data: getDbInfo_() });
     }
 
+    if (action === 'updateMemberSelf') {
+      return JSON.stringify({ success: true, data: updateMemberSelf_(parsedPayload) });
+    }
+
     if (action === 'changePassword') {
       return JSON.stringify({ success: true, data: changePassword_(parsedPayload) });
     }
@@ -3986,9 +3990,66 @@ function cancelWithdrawalSelf_(payload) {
   };
 }
 
-function updateMember_(payload) {
+// ── 会員セルフサービス更新（OWASP Mass Assignment 対策）──────────────
+// 根拠: OWASP Top 10 A01 / ASVS V4.1.2 / CWE-915
+// サーバーサイド allowlist でフィールドをフィルタし、管理者専用フィールドへの
+// クライアント側からの書き換えを防止する。
+var MEMBER_WRITABLE_FIELDS_ = [
+  'lastName','firstName','lastKana','firstKana','careManagerNumber',
+  'homePostCode','homePrefecture','homeCity','homeAddressLine','mobilePhone',
+  'officeName','officeNumber','officePostCode','officePrefecture',
+  'officeCity','officeAddressLine','phone','fax',
+  'email','mailingPreference','preferredMailDestination',
+];
+var MEMBER_WRITABLE_STAFF_FIELDS_ = [
+  'id','name','kana','email','role',
+];
+
+function updateMemberSelf_(payload) {
+  if (!payload || !payload.loginId) throw new Error('認証情報が不足しています。');
+  if (!payload.id) throw new Error('会員IDが未指定です。');
+
+  // 1. loginId → 会員ID の照合（なりすまし防止）
+  var ss = getOrCreateDatabase_();
+  var authSheet = ss.getSheetByName('T_認証アカウント');
+  if (!authSheet) throw new Error('認証テーブルが見つかりません。');
+  var authRow = findRowByColumnValue_(authSheet, 'ログインID', String(payload.loginId).trim());
+  if (!authRow) throw new Error('認証情報が不正です。');
+  var authMemberId = String(authRow.row[authRow.columns['会員ID']] || '');
+  if (authMemberId !== String(payload.id)) {
+    throw new Error('他の会員のデータは更新できません。');
+  }
+
+  // 2. payload をサーバーサイド allowlist でフィルタ
+  var sanitized = { id: payload.id, type: payload.type };
+  for (var i = 0; i < MEMBER_WRITABLE_FIELDS_.length; i++) {
+    var key = MEMBER_WRITABLE_FIELDS_[i];
+    if (Object.prototype.hasOwnProperty.call(payload, key)) {
+      sanitized[key] = payload[key];
+    }
+  }
+
+  // 3. 職員データもフィルタ（管理者専用フィールドを除去）
+  if (Object.prototype.hasOwnProperty.call(payload, 'staff') && Array.isArray(payload.staff)) {
+    sanitized.staff = payload.staff.map(function(s) {
+      var filtered = {};
+      for (var j = 0; j < MEMBER_WRITABLE_STAFF_FIELDS_.length; j++) {
+        var sKey = MEMBER_WRITABLE_STAFF_FIELDS_[j];
+        if (Object.prototype.hasOwnProperty.call(s, sKey)) {
+          filtered[sKey] = s[sKey];
+        }
+      }
+      return filtered;
+    });
+  }
+
+  // 4. 既存の updateMember_ に委譲（skipAdminCheck=true）
+  return updateMember_(sanitized, true);
+}
+
+function updateMember_(payload, skipAdminCheck) {
   if (!payload || !payload.id) throw new Error('会員IDが未指定です。');
-  var adminSession = checkAdminBySession_();
+  var adminSession = skipAdminCheck ? null : checkAdminBySession_();
   var ss = getOrCreateDatabase_();
   var sheet = ss.getSheetByName('T_会員');
   if (!sheet) throw new Error('T_会員 シートが見つかりません。');
