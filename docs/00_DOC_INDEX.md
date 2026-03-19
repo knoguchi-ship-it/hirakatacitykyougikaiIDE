@@ -1,6 +1,6 @@
 ﻿# ドキュメント索引（現行）
 
-更新日: 2026-03-18
+更新日: 2026-03-19
 
 ## 現行の正本
 - `README.md`
@@ -24,6 +24,7 @@
 - `docs/17_ROOT_CAUSE_ERROR_RESPONSE_PLAYBOOK.md` ← 根本エラー対応書（RCA運用標準）
 - `docs/18_DECISION_RECORD_ANNUAL_FEE_CONSOLE_2026-03-15.md` ← 年会費管理コンソール・監査ログ追加の設計決定記録
 - `docs/19_DECISION_RECORD_PUBLIC_PORTAL_APPLICATION_INTEGRATION_2026-03-17.md` ← 公開ポータルへの新規入会統合の決定記録
+- `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` ← ClaudeCode 向け次作業指示書
 
 ## 履歴資料（参照のみ）
 - `docs/archive/docs_history/*`
