@@ -25,6 +25,8 @@
 - `docs/18_DECISION_RECORD_ANNUAL_FEE_CONSOLE_2026-03-15.md` ← 年会費管理コンソール・監査ログ追加の設計決定記録
 - `docs/19_DECISION_RECORD_PUBLIC_PORTAL_APPLICATION_INTEGRATION_2026-03-17.md` ← 公開ポータルへの新規入会統合の決定記録
 - `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` ← ClaudeCode 向け次作業指示書
+- `docs/21_IMPL_SPEC_FIELD_ACCESS_CONTROL_v106.md` ← v106 フィールドレベルアクセス制御拡張の実装仕様書
+- `docs/22_TEST_SPEC_v106_FIELD_ACCESS_CONTROL.md` ← v106 テスト仕様書（バックエンド10項目+フロントエンド12項目+回帰10項目）
 
 ## 履歴資料（参照のみ）
 - `docs/archive/docs_history/*`

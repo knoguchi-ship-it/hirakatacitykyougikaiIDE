@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Member, MailingPreference, MailDestination, MemberType, PaymentStatus, Staff, StaffRole, Training } from '../types';
-import { AlertTriangleIcon, MailIcon, CheckCircleIcon, BookOpenIcon, UsersIcon, HomeIcon, PlusIcon, TrashIcon, SparklesIcon } from './Icons';
+import { AlertTriangleIcon, MailIcon, CheckCircleIcon, BookOpenIcon, UsersIcon, HomeIcon, PlusIcon, SparklesIcon } from './Icons';
 import { api } from '../services/api';
+import StaffTrainingView from './StaffTrainingView';
 
 interface MemberFormProps {
   initialMember: Member;
@@ -39,6 +40,8 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
   const [cancelWithdrawalPassword, setCancelWithdrawalPassword] = useState('');
   const [cancelWithdrawalError, setCancelWithdrawalError] = useState<string | null>(null);
   const [cancelWithdrawalSubmitting, setCancelWithdrawalSubmitting] = useState(false);
+  // v106: 職員別研修モーダル
+  const [trainingViewStaffId, setTrainingViewStaffId] = useState<string | null>(null);
 
   const historyRef = useRef<HTMLDivElement>(null); // UX: For auto-scrolling
   
@@ -467,7 +470,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
             >
                 {member.staff.map(s => (
                     <option key={s.id} value={s.id}>
-                        {s.name} {s.role === 'ADMIN' ? '(管理者)' : '(一般)'}
+                        {s.name} {s.role === 'REPRESENTATIVE' ? '(代表者)' : s.role === 'ADMIN' ? '(管理者)' : '(一般)'}
                     </option>
                 ))}
             </select>
@@ -893,14 +896,15 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                             {member.type !== MemberType.SUPPORT && <span className="text-red-500 ml-1">(※)</span>}
                         </label>
                         <input
-                            disabled={isReadOnly}
+                            disabled={true}
                             type="text"
                             name="careManagerNumber"
                             value={member.careManagerNumber || ''}
                             onChange={handleChange}
-                            className={getInputClass('careManagerNumber')}
+                            className="w-full rounded-md shadow-sm border p-2 bg-slate-100 text-slate-500 cursor-not-allowed border-slate-300"
                             placeholder={member.type === MemberType.SUPPORT ? '賛助会員は任意' : '賛助会員以外は必須'}
                         />
+                        {!isAdmin && <p className="text-xs text-slate-400 mt-1">変更はログインIDと連動するため管理者にお問い合わせください</p>}
                         {errors.careManagerNumber && <p className="text-xs text-red-500 mt-1">{errors.careManagerNumber}</p>}
                     </div>
                     <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -931,33 +935,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                             />
                             {errors.joinedDate && <p className="text-xs text-red-500 mt-1">{errors.joinedDate}</p>}
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">退会日</label>
-                            <input
-                              disabled={isReadOnly || isAdminField}
-                              type="date"
-                              name="withdrawnDate"
-                              value={member.withdrawnDate || ''}
-                              onChange={handleChange}
-                              className={isAdminField ? 'w-full rounded-md shadow-sm border p-2 bg-slate-100 text-slate-500 cursor-not-allowed border-slate-300' : getInputClass('withdrawnDate')}
-                            />
-                            {errors.withdrawnDate && <p className="text-xs text-red-500 mt-1">{errors.withdrawnDate}</p>}
-                        </div>
-                        {isAdmin && (
-                        <div className="md:col-span-3">
-                            <label className="inline-flex items-center gap-2 text-sm text-slate-700 mt-6">
-                              <input
-                                disabled={isReadOnly || member.status !== 'WITHDRAWN'}
-                                type="checkbox"
-                                name="midYearWithdrawal"
-                                checked={member.midYearWithdrawal === true}
-                                onChange={handleChange}
-                                className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                              />
-                              当年度中の中途退会として即時に削除フラグを立てる
-                            </label>
-                        </div>
-                        )}
+                        {/* v106: 退会日・年度中退会は非表示（バックエンド自動管理） */}
                     </div>
                 </div>
 
@@ -981,50 +959,55 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                             {(!member.staff || member.staff.length === 0) && (
                                 <p className="text-xs text-slate-500 text-center py-4">登録されている職員はいません。</p>
                             )}
-                            {member.staff?.map((staff, staffIndex) => (
-                                <div key={staff.id} className="bg-white p-3 rounded shadow-sm border border-slate-200 grid grid-cols-1 md:grid-cols-12 gap-3 items-start md:items-center">
+                            {member.staff?.map((staff, staffIndex) => {
+                                // v106: STAFF ロールは自分の行の氏名・フリガナ・メールのみ編集可
+                                const isOwnStaff = staff.id === operatingStaffId;
+                                const isStaffSelfEditable = currentStaff?.role === 'STAFF' && isOwnStaff;
+                                const nameDisabled = isReadOnly && !isStaffSelfEditable;
+                                return (
+                                <div key={staff.id} className={`bg-white p-3 rounded shadow-sm border ${isOwnStaff && currentStaff?.role === 'STAFF' ? 'border-primary-300 ring-1 ring-primary-200' : 'border-slate-200'} grid grid-cols-1 md:grid-cols-12 gap-3 items-start md:items-center`}>
                                     <div className="md:col-span-3">
                                         <label className="block text-xs font-medium text-slate-500">氏名</label>
-                                        <input 
-                                            disabled={isReadOnly}
-                                            type="text" 
-                                            value={staff.name} 
+                                        <input
+                                            disabled={nameDisabled}
+                                            type="text"
+                                            value={staff.name}
                                             onChange={(e) => handleStaffChange(staff.id, 'name', e.target.value)}
-                                            className={`w-full text-sm border-slate-200 rounded p-1 ${isReadOnly ? 'bg-slate-100' : ''}`}
+                                            className={`w-full text-sm border-slate-200 rounded p-1 ${nameDisabled ? 'bg-slate-100' : ''}`}
                                             placeholder="例: 佐藤 次郎"
                                         />
                                         {errors[`staff_${staffIndex}_name`] && <p className="text-xs text-red-500 mt-1">{errors[`staff_${staffIndex}_name`]}</p>}
                                     </div>
                                     <div className="md:col-span-3">
                                         <label className="block text-xs font-medium text-slate-500">フリガナ</label>
-                                        <input 
-                                            disabled={isReadOnly}
-                                            type="text" 
-                                            value={staff.kana} 
+                                        <input
+                                            disabled={nameDisabled}
+                                            type="text"
+                                            value={staff.kana}
                                             onChange={(e) => handleStaffChange(staff.id, 'kana', e.target.value)}
-                                            className={`w-full text-sm border-slate-200 rounded p-1 ${isReadOnly ? 'bg-slate-100' : ''}`}
+                                            className={`w-full text-sm border-slate-200 rounded p-1 ${nameDisabled ? 'bg-slate-100' : ''}`}
                                             placeholder="サトウ ジロウ"
                                         />
                                         {errors[`staff_${staffIndex}_kana`] && <p className="text-xs text-red-500 mt-1">{errors[`staff_${staffIndex}_kana`]}</p>}
                                     </div>
                                     <div className="md:col-span-2">
                                         <label className="block text-xs font-medium text-slate-500">個別メールアドレス</label>
-                                        <input 
-                                            disabled={isReadOnly}
-                                            type="email" 
-                                            value={staff.email} 
+                                        <input
+                                            disabled={nameDisabled}
+                                            type="email"
+                                            value={staff.email}
                                             onChange={(e) => handleStaffChange(staff.id, 'email', e.target.value)}
-                                            className={`w-full text-sm border-slate-200 rounded p-1 ${isReadOnly ? 'bg-slate-100' : ''}`}
+                                            className={`w-full text-sm border-slate-200 rounded p-1 ${nameDisabled ? 'bg-slate-100' : ''}`}
                                             placeholder="staff@example.com"
                                         />
                                     </div>
                                     <div className="md:col-span-1">
                                         <label className="block text-xs font-medium text-slate-500">状態</label>
                                         <select
-                                            disabled={isReadOnly || isAdminField}
+                                            disabled={isReadOnly}
                                             value={staff.status || 'ENROLLED'}
                                             onChange={(e) => handleStaffChange(staff.id, 'status', e.target.value)}
-                                            className={`w-full text-sm border-slate-200 rounded p-1 ${(isReadOnly || isAdminField) ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`}
+                                            className={`w-full text-sm border-slate-200 rounded p-1 ${isReadOnly ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`}
                                         >
                                             <option value="ENROLLED">在籍</option>
                                             <option value="LEFT">退職</option>
@@ -1033,69 +1016,57 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                     <div className="md:col-span-2">
                                         <label className="block text-xs font-medium text-slate-500">権限</label>
                                         <select
-                                            disabled={isReadOnly}
+                                            disabled={isReadOnly || currentStaff?.role !== 'REPRESENTATIVE'}
                                             value={staff.role}
                                             onChange={(e) => handleStaffChange(staff.id, 'role', e.target.value as StaffRole)}
-                                            className={`w-full text-sm border-slate-200 rounded p-1 ${isReadOnly ? 'bg-slate-100' : ''}`}
+                                            className={`w-full text-sm border-slate-200 rounded p-1 ${(isReadOnly || currentStaff?.role !== 'REPRESENTATIVE') ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`}
                                         >
                                             <option value="ADMIN">管理者</option>
                                             <option value="STAFF">一般</option>
                                         </select>
+                                        {currentStaff?.role !== 'REPRESENTATIVE' && !isReadOnly && <p className="text-xs text-slate-400 mt-1">権限変更は代表者のみ</p>}
                                     </div>
-                                    <div className="md:col-span-1 text-right pt-4 md:pt-0">
-                                        {!isReadOnly && (
-                                            <button type="button" onClick={() => removeStaff(staff.id)} className="text-red-400 hover:text-red-600 p-1">
-                                                <TrashIcon className="w-4 h-4" />
-                                            </button>
-                                        )}
-                                    </div>
+                                    {/* v106: 削除ボタン廃止 — 退職ステータスで運用 */}
                                     <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-3">
                                         <div>
-                                            <label className="block text-xs font-medium text-slate-500">入会日</label>
+                                            <label className="block text-xs font-medium text-slate-500">登録日</label>
                                             <input
-                                              disabled={isReadOnly || isAdminField}
+                                              disabled={true}
                                               type="date"
                                               value={staff.joinedDate || ''}
-                                              onChange={(e) => handleStaffChange(staff.id, 'joinedDate', e.target.value)}
-                                              className={`w-full text-sm border-slate-200 rounded p-1 ${(isReadOnly || isAdminField) ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`}
+                                              className="w-full text-sm border-slate-200 rounded p-1 bg-slate-100 text-slate-500 cursor-not-allowed"
                                             />
-                                            {errors[`staff_${staffIndex}_joinedDate`] && (
-                                              <p className="text-xs text-red-500 mt-1">{errors[`staff_${staffIndex}_joinedDate`]}</p>
-                                            )}
                                         </div>
-                                        <div>
-                                            <label className="block text-xs font-medium text-slate-500">退会日</label>
-                                            <input
-                                              disabled={isReadOnly || isAdminField}
-                                              type="date"
-                                              value={staff.withdrawnDate || ''}
-                                              onChange={(e) => handleStaffChange(staff.id, 'withdrawnDate', e.target.value)}
-                                              className={`w-full text-sm border-slate-200 rounded p-1 ${(isReadOnly || isAdminField) ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`}
-                                            />
-                                            {errors[`staff_${staffIndex}_withdrawnDate`] && (
-                                              <p className="text-xs text-red-500 mt-1">{errors[`staff_${staffIndex}_withdrawnDate`]}</p>
-                                            )}
-                                        </div>
-                                        {isAdmin && (
-                                        <div className="md:col-span-2">
-                                            <label className="inline-flex items-center gap-2 text-xs text-slate-700 mt-1">
-                                              <input
-                                                disabled={isReadOnly || (staff.status || 'ENROLLED') !== 'LEFT'}
-                                                type="checkbox"
-                                                checked={staff.midYearWithdrawal === true}
-                                                onChange={(e) => handleStaffChange(staff.id, 'midYearWithdrawal', e.target.checked)}
-                                                className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                                              />
-                                              この職員を当年度中の中途退会として即時に削除フラグ化する
-                                            </label>
-                                        </div>
+                                        {/* v106: 退職日・年度中退会は非表示（バックエンド自動管理） */}
+                                        {staff.status === 'LEFT' && staff.withdrawnDate && (
+                                          <div>
+                                            <label className="block text-xs font-medium text-slate-500">退職日</label>
+                                            <span className="block text-sm text-slate-600 p-1">{staff.withdrawnDate}</span>
+                                          </div>
+                                        )}
+                                        {/* v106: 職員別研修リンク */}
+                                        {(currentStaff?.role !== 'STAFF' || isOwnStaff) && staff.status !== 'LEFT' && (
+                                          <div className="md:col-span-2 flex items-end">
+                                            <button
+                                              type="button"
+                                              onClick={() => setTrainingViewStaffId(staff.id)}
+                                              className="text-xs text-blue-600 hover:text-blue-800 underline flex items-center"
+                                            >
+                                              <BookOpenIcon className="w-3 h-3 mr-1" />
+                                              研修申込を表示
+                                              {(staff.participatedTrainingIds?.length ?? 0) > 0 && (
+                                                <span className="ml-1 bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full text-xs">{staff.participatedTrainingIds!.length}</span>
+                                              )}
+                                            </button>
+                                          </div>
                                         )}
                                     </div>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                         <p className="text-xs text-slate-500 mt-2">
-                            ※管理者は情報の編集・職員の追加削除が可能です。一般は閲覧のみ可能です。
+                            ※代表者・管理者は情報の編集・職員の追加が可能です。一般は自分の氏名・フリガナ・メールアドレスのみ編集可能です。
                         </p>
                     </div>
                 )}
@@ -1180,8 +1151,9 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                   事業所名 (※) 
                   {!isBusiness && <span className="text-xs text-red-500 ml-2">勤務していない場合は「勤務なし」と入力</span>}
                 </label>
-                <input disabled={isReadOnly} type="text" name="officeName" value={member.officeName} onChange={handleChange} className={getInputClass('officeName')} />
+                <input disabled={isReadOnly || isBusiness} type="text" name="officeName" value={member.officeName} onChange={handleChange} className={isBusiness ? 'w-full rounded-md shadow-sm border p-2 bg-slate-100 text-slate-500 cursor-not-allowed border-slate-300' : getInputClass('officeName')} />
                 {errors.officeName && <p className="text-xs text-red-500 mt-1">{errors.officeName}</p>}
+                {isBusiness && !isAdmin && <p className="text-xs text-slate-400 mt-1">変更をご希望の場合はお問い合わせください</p>}
               </div>
 
                <div>
@@ -1374,7 +1346,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
           </div>
 
           <div className="pt-6 border-t border-slate-200 flex justify-end">
-            {!isReadOnly && (
+            {(!isReadOnly || (currentStaff?.role === 'STAFF' && isBusiness)) && (
                 <button type="submit" className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 px-12 rounded-lg shadow-lg transform transition hover:-translate-y-0.5 text-lg">
                 変更を保存する
                 </button>
@@ -1383,7 +1355,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
         </form>
 
         {/* ── 退会手続きセクション ── */}
-        {loginId && member.status !== 'WITHDRAWN' && (!isBusiness || activeStaffRole === 'REPRESENTATIVE') && (
+        {loginId && member.status !== 'WITHDRAWN' && (!isBusiness || currentStaff?.role === 'REPRESENTATIVE') && (
           <WithdrawalSection
             member={member}
             loginId={loginId}
@@ -1417,6 +1389,32 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
       </div>
       </div>
       )}
+
+      {/* v106: 職員別研修モーダル */}
+      {isBusiness && trainingViewStaffId && (() => {
+        const targetStaff = member.staff?.find(s => s.id === trainingViewStaffId);
+        if (!targetStaff) return null;
+        const canOp = currentStaff?.role === 'REPRESENTATIVE' || currentStaff?.role === 'ADMIN' ||
+          (currentStaff?.role === 'STAFF' && targetStaff.id === operatingStaffId);
+        return (
+          <StaffTrainingView
+            staff={targetStaff}
+            memberId={member.id}
+            trainings={trainings}
+            canOperate={canOp}
+            historyLookbackMonths={historyLookbackMonths}
+            onClose={() => setTrainingViewStaffId(null)}
+            onUpdate={(staffId, newIds) => {
+              const newMember = { ...member };
+              newMember.staff = newMember.staff?.map(s =>
+                s.id === staffId ? { ...s, participatedTrainingIds: newIds } : s
+              );
+              setMember(newMember);
+              onSave(newMember);
+            }}
+          />
+        );
+      })()}
     </div>
   );
 };

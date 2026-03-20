@@ -1206,7 +1206,7 @@ function seedDemoData() {
       氏名: '佐藤 次郎',
       フリガナ: 'サトウ ジロウ',
       メールアドレス: 'k.noguchi@uguisunosato.or.jp',
-      職員権限コード: 'ADMIN',
+      職員権限コード: 'REPRESENTATIVE',
       職員状態コード: 'ENROLLED',
       入会日: '2024-04-01',
       退会日: '',
@@ -1220,7 +1220,7 @@ function seedDemoData() {
       氏名: '田中 三郎',
       フリガナ: 'タナカ サブロウ',
       メールアドレス: 'k.noguchi@uguisunosato.or.jp',
-      職員権限コード: 'STAFF',
+      職員権限コード: 'ADMIN',
       職員状態コード: 'ENROLLED',
       入会日: '2024-04-01',
       退会日: '',
@@ -2152,9 +2152,19 @@ function mapMembersForApi_(memberRows, staffRows, authRows, applicationRows, fee
     feeByMember[feeMemberId].push(feeItem);
   }
 
+  // v106: 退職者の年度フィルタ — 翌年度（4/1〜）から非表示
+  var currentFiscalYearStart = getFiscalYearStart_(new Date());
   var staffByMember = {};
   for (var s = 0; s < staffRows.length; s += 1) {
     var st = staffRows[s];
+    var stStatus = String(st['職員状態コード'] || 'ENROLLED') === 'LEFT' ? 'LEFT' : 'ENROLLED';
+    // v106: 退職済み職員で退職日が今年度開始より前なら非表示（データは保持）
+    if (stStatus === 'LEFT') {
+      var stWithdrawn = normalizeDateInput_(st['退会日']);
+      if (stWithdrawn && new Date(stWithdrawn + 'T00:00:00+09:00') < currentFiscalYearStart) {
+        continue;
+      }
+    }
     var stMemberId = String(st['会員ID'] || '');
     if (!staffByMember[stMemberId]) staffByMember[stMemberId] = [];
     var stId = String(st['職員ID'] || '');
@@ -2165,7 +2175,7 @@ function mapMembersForApi_(memberRows, staffRows, authRows, applicationRows, fee
       kana: String(st['フリガナ'] || ''),
       email: String(st['メールアドレス'] || ''),
       role: String(st['職員権限コード'] || 'STAFF'),
-      status: String(st['職員状態コード'] || 'ENROLLED') === 'LEFT' ? 'LEFT' : 'ENROLLED',
+      status: stStatus,
       joinedDate: normalizeDateInput_(st['入会日']),
       withdrawnDate: normalizeDateInput_(st['退会日']),
       midYearWithdrawal: false,
@@ -3995,21 +4005,21 @@ function cancelWithdrawalSelf_(payload) {
 // サーバーサイド allowlist でフィールドをフィルタし、管理者専用フィールドへの
 // クライアント側からの書き換えを防止する。
 var MEMBER_WRITABLE_FIELDS_ = [
-  'lastName','firstName','lastKana','firstKana','careManagerNumber',
+  'lastName','firstName','lastKana','firstKana',
   'homePostCode','homePrefecture','homeCity','homeAddressLine','mobilePhone',
-  'officeName','officeNumber','officePostCode','officePrefecture',
-  'officeCity','officeAddressLine','phone','fax',
+  'officePostCode','officePrefecture','officeCity','officeAddressLine','phone','fax',
   'email','mailingPreference','preferredMailDestination',
 ];
-var MEMBER_WRITABLE_STAFF_FIELDS_ = [
-  'id','name','kana','email','role',
-];
+// v106: NIST RBAC — ロール別職員フィールド allowlist
+var STAFF_WRITABLE_FIELDS_REPRESENTATIVE_ = ['id','name','kana','email','status','role'];
+var STAFF_WRITABLE_FIELDS_ADMIN_ = ['id','name','kana','email','status'];
+var STAFF_WRITABLE_FIELDS_SELF_ = ['id','name','kana','email'];
 
 function updateMemberSelf_(payload) {
   if (!payload || !payload.loginId) throw new Error('認証情報が不足しています。');
   if (!payload.id) throw new Error('会員IDが未指定です。');
 
-  // 1. loginId → 会員ID の照合（なりすまし防止）
+  // 1. loginId → 会員ID の照合（なりすまし防止）+ 職員ロール判定
   var ss = getOrCreateDatabase_();
   var authSheet = ss.getSheetByName('T_認証アカウント');
   if (!authSheet) throw new Error('認証テーブルが見つかりません。');
@@ -4020,27 +4030,101 @@ function updateMemberSelf_(payload) {
     throw new Error('他の会員のデータは更新できません。');
   }
 
-  // 2. payload をサーバーサイド allowlist でフィルタ
-  var sanitized = { id: payload.id, type: payload.type };
-  for (var i = 0; i < MEMBER_WRITABLE_FIELDS_.length; i++) {
-    var key = MEMBER_WRITABLE_FIELDS_[i];
-    if (Object.prototype.hasOwnProperty.call(payload, key)) {
-      sanitized[key] = payload[key];
+  // v106: 呼び出し元の職員ロールを判定（NIST RBAC）
+  var callerStaffId = String(authRow.row[authRow.columns['職員ID']] || '').trim();
+  var callerStaffRole = '';
+  if (callerStaffId) {
+    var staffSheet = ss.getSheetByName('T_事業所職員');
+    if (staffSheet) {
+      var staffFound = findRowByColumnValue_(staffSheet, '職員ID', callerStaffId);
+      if (staffFound) {
+        callerStaffRole = String(staffFound.row[staffFound.columns['職員権限コード']] || 'STAFF');
+      }
     }
   }
 
-  // 3. 職員データもフィルタ（管理者専用フィールドを除去）
+  // 2. payload をサーバーサイド allowlist でフィルタ
+  var sanitized = { id: payload.id, type: payload.type };
+
+  // v106: STAFF ロールは会員基本情報・事業所情報を変更不可
+  if (callerStaffRole !== 'STAFF') {
+    for (var i = 0; i < MEMBER_WRITABLE_FIELDS_.length; i++) {
+      var key = MEMBER_WRITABLE_FIELDS_[i];
+      if (Object.prototype.hasOwnProperty.call(payload, key)) {
+        sanitized[key] = payload[key];
+      }
+    }
+  }
+
+  // 3. 職員データをロール別 allowlist でフィルタ（OWASP A01 / CWE-915）
   if (Object.prototype.hasOwnProperty.call(payload, 'staff') && Array.isArray(payload.staff)) {
-    sanitized.staff = payload.staff.map(function(s) {
-      var filtered = {};
-      for (var j = 0; j < MEMBER_WRITABLE_STAFF_FIELDS_.length; j++) {
-        var sKey = MEMBER_WRITABLE_STAFF_FIELDS_[j];
-        if (Object.prototype.hasOwnProperty.call(s, sKey)) {
-          filtered[sKey] = s[sKey];
+    var staffAllowlist;
+    if (callerStaffRole === 'REPRESENTATIVE') {
+      staffAllowlist = STAFF_WRITABLE_FIELDS_REPRESENTATIVE_;
+    } else if (callerStaffRole === 'ADMIN') {
+      staffAllowlist = STAFF_WRITABLE_FIELDS_ADMIN_;
+    } else if (callerStaffRole === 'STAFF') {
+      staffAllowlist = STAFF_WRITABLE_FIELDS_SELF_;
+    } else {
+      // 個人会員・賛助会員には職員データなし — サイレントに除去
+      staffAllowlist = null;
+    }
+
+    if (staffAllowlist) {
+      // v106: ペイロードの職員データを allowlist でフィルタ
+      var filteredPayloadStaff = {};
+      for (var p = 0; p < payload.staff.length; p++) {
+        var s = payload.staff[p];
+        // v106: STAFF は自分の職員IDのみ編集可（なりすまし防止）
+        if (callerStaffRole === 'STAFF') {
+          var targetStaffId = String(s.id || '').trim();
+          if (targetStaffId !== callerStaffId) {
+            throw new Error('他の職員のデータは更新できません。');
+          }
+        }
+        var filtered = {};
+        for (var j = 0; j < staffAllowlist.length; j++) {
+          var sKey = staffAllowlist[j];
+          if (Object.prototype.hasOwnProperty.call(s, sKey)) {
+            filtered[sKey] = s[sKey];
+          }
+        }
+        if (filtered.id) filteredPayloadStaff[filtered.id] = filtered;
+      }
+
+      // v106: DB上の全職員リストを取得し、ペイロードの変更をマージ
+      // syncBusinessStaffRows_ は「送信されなかった職員を削除」するため、
+      // 部分送信（STAFF自己編集等）でも全員分のデータを渡す必要がある
+      var currentStaffRows = getBusinessStaffRowsByMember_(ss, String(payload.id || ''));
+      sanitized.staff = currentStaffRows.map(function(row) {
+        var sid = String(row['職員ID'] || '');
+        var base = {
+          id: sid,
+          name: String(row['氏名'] || ''),
+          kana: String(row['フリガナ'] || ''),
+          email: String(row['メールアドレス'] || ''),
+          role: String(row['職員権限コード'] || 'STAFF'),
+          status: String(row['職員状態コード'] || 'ENROLLED'),
+        };
+        // ペイロードに含まれる職員はフィルタ済みの変更をマージ
+        if (filteredPayloadStaff[sid]) {
+          var changes = filteredPayloadStaff[sid];
+          for (var ck in changes) {
+            if (Object.prototype.hasOwnProperty.call(changes, ck) && ck !== 'id') {
+              base[ck] = changes[ck];
+            }
+          }
+          delete filteredPayloadStaff[sid];
+        }
+        return base;
+      });
+      // ペイロードに新規職員が含まれている場合（REPRESENTATIVEの追加操作）
+      for (var newId in filteredPayloadStaff) {
+        if (Object.prototype.hasOwnProperty.call(filteredPayloadStaff, newId)) {
+          sanitized.staff.push(filteredPayloadStaff[newId]);
         }
       }
-      return filtered;
-    });
+    }
   }
 
   // 4. 既存の updateMember_ に委譲（skipAdminCheck=true）
@@ -4247,15 +4331,23 @@ function shouldAutoDeleteOnNextApril_(withdrawnDateRaw, referenceDate) {
   return referenceDate.getTime() >= threshold.getTime();
 }
 
+// v106: 年度開始日ユーティリティ（日本の会計年度: 4月1日〜翌年3月31日）
+function getFiscalYearStart_(referenceDate) {
+  var d = referenceDate || new Date();
+  var year = d.getFullYear();
+  var month = d.getMonth(); // 0-based: 0=Jan, 3=Apr
+  // 1〜3月は前年度
+  if (month < 3) year -= 1;
+  return new Date(year, 3, 1, 0, 0, 0, 0); // 4月1日 00:00:00
+}
+
 function normalizeBusinessStaffRole_(value) {
   var role = String(value || 'STAFF');
   return ['REPRESENTATIVE', 'ADMIN', 'STAFF'].indexOf(role) !== -1 ? role : 'STAFF';
 }
 
 function getBusinessStaffRowsByMember_(ss, memberId) {
-  var sheet = ss.getSheetByName('T_事業所職員');
-  if (!sheet) return [];
-  return getRowsAsObjects_(sheet).filter(function(row) {
+  return getRowsAsObjects_(ss, 'T_事業所職員').filter(function(row) {
     return !toBoolean_(row['削除フラグ']) && String(row['会員ID'] || '') === String(memberId || '');
   });
 }
@@ -4539,13 +4631,16 @@ function syncBusinessStaffRows_(ss, memberId, memberTypeCode, staffPayloadList) 
     if (!name) throw new Error('職員氏名は必須です。');
     if (!kana) throw new Error('職員フリガナは必須です。');
     var status = String(payload.status || 'ENROLLED') === 'LEFT' ? 'LEFT' : 'ENROLLED';
-    var joined = normalizeDateInput_(payload.joinedDate);
-    var withdrawn = normalizeDateInput_(payload.withdrawnDate);
-    var immediateDelete = status === 'LEFT' &&
-      (payload.midYearWithdrawal === true || String(payload.midYearWithdrawal || '').toLowerCase() === 'true');
-    if (status === 'LEFT' && !withdrawn) throw new Error('退職済み職員は退会日が必須です。');
-    if (joined && withdrawn && new Date(joined).getTime() > new Date(withdrawn).getTime()) {
-      throw new Error('職員の退会日は入会日以降で入力してください。');
+    // v106: 既存レコードから現行ステータスと日付を取得
+    var existing = byId[staffId];
+    var prevStatus = existing ? String(existing['職員状態コード'] || 'ENROLLED') : 'ENROLLED';
+    var joined = normalizeDateInput_(payload.joinedDate)
+      || (existing ? normalizeDateInput_(existing['入会日']) : '');
+    // v106: 退職日はバックエンドで自動記録（フロントエンドからの送信は無視）
+    var withdrawn = (existing ? normalizeDateInput_(existing['退会日']) : '') || '';
+    if (status === 'LEFT' && prevStatus !== 'LEFT' && !withdrawn) {
+      // ENROLLED→LEFT 遷移時に退職日を自動セット
+      withdrawn = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
     }
 
     upsertStaffRow_(ss, {
@@ -4559,7 +4654,7 @@ function syncBusinessStaffRows_(ss, memberId, memberTypeCode, staffPayloadList) 
       入会日: joined,
       退会日: withdrawn,
       更新日時: nowIso,
-      削除フラグ: immediateDelete,
+      削除フラグ: false,
     });
   }
 
@@ -4597,7 +4692,8 @@ function upsertStaffRow_(ss, rowObject) {
       メールアドレス: String(rowObject['メールアドレス'] || ''),
       職員権限コード: String(rowObject['職員権限コード'] || 'STAFF'),
       職員状態コード: String(rowObject['職員状態コード'] || 'ENROLLED'),
-      入会日: normalizeDateInput_(rowObject['入会日']),
+      // v106: 新規作成時は登録日を自動セット（フロントエンド値より優先）
+      入会日: normalizeDateInput_(rowObject['入会日']) || Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd'),
       退会日: normalizeDateInput_(rowObject['退会日']),
       作成日時: now,
       更新日時: now,
@@ -6108,3 +6204,4 @@ function sendTrainingMail_(payload) {
   }
   return JSON.stringify({ success: true, data: { sent: sentCount, errors: errors.map(function(e) { return e.error; }) } });
 }
+
