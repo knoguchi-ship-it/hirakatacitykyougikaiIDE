@@ -16,10 +16,10 @@
 
 | 用途 | Deployment ID | 本番 URL | 備考 |
 |---|---|---|---|
-| **会員マイページ** | `AKfycbycE2_ythCYSPwmPxvyfRzNLhWM7J1cX41TA2wjYgZgdI-P2uknYfQGh3AHrecCQ1Gk` | `.../exec` | 2026-03-15 Web app 再発行（現行固定） |
-| **公開ポータル** | `AKfycbxKoni2vBdvRbQWR6NyrroPHyNmElJNkJ5OTNOJMQ0k0z-Ae-oGeclrN3kxsE9yIXVr` | `.../exec?app=public` | 2026-03-15 Web app 再発行（現行固定） |
+| **会員マイページ** | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `.../exec` | 2026-03-20 Web app 再発行（v111 復旧後の現行固定） |
+| **公開ポータル** | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `.../exec?app=public` | 2026-03-20 Web app 再発行（v111 復旧後の現行固定） |
 
-> 両 Deployment とも **@108** で同期済み（2026-03-20）。
+> 両 Deployment とも **@111** で同期済み（2026-03-20）。
 > `npx clasp deployments` の表示名が Apps Script UI の `Manage deployments` の表示と食い違うことがあるため、固定IDの最終確認は Apps Script UI を正とする。
 
 ---
@@ -168,6 +168,15 @@ Deploy > Manage deployments > 該当 ID を確認
 ---
 
 ## 6. 例外実績
+
+### 2026-03-20（v111: webapp manifest 追加 + 新固定IDへ切替）
+- `clasp redeploy` により旧固定 2 Deployment が `@109` を指した直後、`/exec` が 404 となり `getWebAppEndpointInfo().serviceEnabled=false` を確認。
+- Playwright から Apps Script UI の `Manage deployments` へログイン済み状態で到達できず、標準 UI 更新がこのセッションでは実行不能だった。
+- `appsscript.json` に `webapp.access=ANYONE_ANONYMOUS` / `executeAs=USER_DEPLOYING` を追記し、`@111` を作成。
+- `clasp deploy --versionNumber 111` で新規 Deployment を 2 本発行し、実ブラウザで会員ログイン画面 / 公開ポータルトップの表示を確認。
+- 新固定 ID:
+  - 会員マイページ: `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx`
+  - 公開ポータル: `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp`
 
 ### 2026-03-10（旧 ID 廃止）
 - 旧本番 ID が `実行可能 API` 化し `/exec` が 404 となった。

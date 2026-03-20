@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
+import MemberBatchEditor from './MemberBatchEditor';
 import MemberForm from './components/MemberForm';
 import TrainingManagement from './components/TrainingManagement';
 import TrainingApply from './components/TrainingApply';
@@ -861,6 +862,12 @@ const App: React.FC = () => {
     const d = adminDashboardData;
     const loading = adminDashboardLoading;
     const val = (v: number | undefined) => loading ? '...' : (v ?? 0);
+    const refreshAdminMembers = async () => {
+      await Promise.all([
+        loadAdminDashboardData({ force: true }),
+        loadAppData({ includeAdminSettings: true, force: true }),
+      ]);
+    };
     return (
       <div className="space-y-6">
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
@@ -899,6 +906,18 @@ const App: React.FC = () => {
           </div>
         </div>
         {renderMemberList()}
+        <MemberBatchEditor
+          members={members}
+          loaded={fullDataLoaded}
+          loading={isLoading}
+          onLoadMembers={async () => {
+            await loadAppData({ includeAdminSettings: true, force: true });
+          }}
+          onSaved={refreshAdminMembers}
+          onOpenDetail={(memberId) => {
+            void openMemberDetail(memberId);
+          }}
+        />
         {renderTrainingSummary()}
       </div>
     );

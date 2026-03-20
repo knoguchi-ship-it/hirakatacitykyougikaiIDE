@@ -657,7 +657,7 @@ function processApiRequest(action, payload) {
       'uploadTrainingFile', 'getTrainingApplicants',
       'getAdminEmailAliases', 'sendTrainingMail',
       'getAdminDashboardData', 'getTrainingManagementData', 'getMemberPortalData',
-      'updateMember',
+      'updateMember', 'updateMembersBatch',
       'createMember', 'withdrawMember',
       'getAnnualFeeAdminData', 'saveAnnualFeeRecord', 'saveAnnualFeeRecordsBatch',
     ];
@@ -698,6 +698,13 @@ function processApiRequest(action, payload) {
       return JSON.stringify({
         success: true,
         data: updateMember_(parsedPayload),
+      });
+    }
+
+    if (action === 'updateMembersBatch') {
+      return JSON.stringify({
+        success: true,
+        data: updateMembersBatch_(parsedPayload),
       });
     }
 
@@ -4010,10 +4017,59 @@ var MEMBER_WRITABLE_FIELDS_ = [
   'officePostCode','officePrefecture','officeCity','officeAddressLine','phone','fax',
   'email','mailingPreference','preferredMailDestination',
 ];
+var ADMIN_BATCH_WRITABLE_FIELDS_ = [
+  'id',
+  'email', 'mailingPreference', 'preferredMailDestination',
+  'status', 'joinedDate', 'withdrawnDate',
+];
 // v106: NIST RBAC — ロール別職員フィールド allowlist
 var STAFF_WRITABLE_FIELDS_REPRESENTATIVE_ = ['id','name','kana','email','status','role'];
 var STAFF_WRITABLE_FIELDS_ADMIN_ = ['id','name','kana','email','status'];
 var STAFF_WRITABLE_FIELDS_SELF_ = ['id','name','kana','email'];
+
+function sanitizeAdminBatchMemberPayload_(payload) {
+  if (!payload || !payload.id) throw new Error('会員IDが未指定です。');
+  var sanitized = { id: String(payload.id) };
+  for (var i = 0; i < ADMIN_BATCH_WRITABLE_FIELDS_.length; i += 1) {
+    var key = ADMIN_BATCH_WRITABLE_FIELDS_[i];
+    if (key !== 'id' && Object.prototype.hasOwnProperty.call(payload, key)) {
+      sanitized[key] = payload[key];
+    }
+  }
+  return sanitized;
+}
+
+function updateMembersBatch_(payload) {
+  if (!payload || !Array.isArray(payload.records) || payload.records.length === 0) {
+    throw new Error('保存対象の会員データがありません。');
+  }
+  if (payload.records.length > 100) {
+    throw new Error('会員一括編集は最大100件までです。');
+  }
+
+  var adminSession = checkAdminBySession_();
+  var ss = getOrCreateDatabase_();
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var results = [];
+    for (var i = 0; i < payload.records.length; i += 1) {
+      var sanitized = sanitizeAdminBatchMemberPayload_(payload.records[i]);
+      results.push(updateMember_(sanitized, {
+        skipAdminCheck: true,
+        adminSession: adminSession,
+        ss: ss,
+        skipCacheClear: true,
+      }));
+    }
+    clearAllDataCache_();
+    clearAdminDashboardCache_();
+    clearTrainingManagementCache_();
+    return results;
+  } finally {
+    lock.releaseLock();
+  }
+}
 
 function updateMemberSelf_(payload) {
   if (!payload || !payload.loginId) throw new Error('認証情報が不足しています。');
@@ -4131,10 +4187,26 @@ function updateMemberSelf_(payload) {
   return updateMember_(sanitized, true);
 }
 
-function updateMember_(payload, skipAdminCheck) {
+function updateMember_(payload, options) {
   if (!payload || !payload.id) throw new Error('会員IDが未指定です。');
-  var adminSession = skipAdminCheck ? null : checkAdminBySession_();
-  var ss = getOrCreateDatabase_();
+  var skipAdminCheck = false;
+  var adminSession = null;
+  var ss = null;
+  var skipCacheClear = false;
+  if (typeof options === 'boolean') {
+    skipAdminCheck = options;
+  } else if (options && typeof options === 'object') {
+    skipAdminCheck = options.skipAdminCheck === true;
+    adminSession = options.adminSession || null;
+    ss = options.ss || null;
+    skipCacheClear = options.skipCacheClear === true;
+  }
+  if (!adminSession && !skipAdminCheck) {
+    adminSession = checkAdminBySession_();
+  }
+  if (!ss) {
+    ss = getOrCreateDatabase_();
+  }
   var sheet = ss.getSheetByName('T_会員');
   if (!sheet) throw new Error('T_会員 シートが見つかりません。');
 
@@ -4242,9 +4314,11 @@ function updateMember_(payload, skipAdminCheck) {
   if (hasOwn.call(payload, 'staff')) {
     syncBusinessStaffRows_(ss, String(payload.id), memberTypeCode, payload.staff || []);
   }
-  clearAllDataCache_();
-  clearAdminDashboardCache_();
-  clearTrainingManagementCache_();
+  if (!skipCacheClear) {
+    clearAllDataCache_();
+    clearAdminDashboardCache_();
+    clearTrainingManagementCache_();
+  }
   return { updated: true, memberId: String(payload.id) };
 }
 
@@ -6204,4 +6278,3 @@ function sendTrainingMail_(payload) {
   }
   return JSON.stringify({ success: true, data: { sent: sentCount, errors: errors.map(function(e) { return e.error; }) } });
 }
-

@@ -17,7 +17,7 @@
 | 参照順序 | `HANDOVER.md` → `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` → `docs/12_ENGINEERING_RULEBOOK.md` の順で確認 |
 | ブラウザ自動化 | Playwright/MCP は利用可。ただし Apps Script の `Manage deployments` は最終的に UI 確認が必要 |
 | デプロイ方法 | `clasp push` + `clasp version` の後、固定 2 Deployment を同一 Version に揃えること |
-| Git 状態 | `main` の最新コミットは `1f43c0f`（v106 テスト完了・@108 デプロイ済み）。**GitHub push は未実施** — 次担当者は `git push origin main` を実行すること |
+| Git 状態 | `main` は v111 デプロイ反映済みの作業中。コミット/Push 状態は作業終了時点の `git log -1 --oneline` を正とすること |
 | 作業ツリー | **クリーン**。`Dust/` は不要ファイル退避用で `.gitignore` 済み |
 | 作業ディレクトリ | `C:\VSCode\CloudePL\hirakatacitykyougikaiIDE`（Windows） |
 | シェル | PowerShell（必要に応じて bash 互換コマンドも可） |
@@ -47,9 +47,9 @@
 
 ## 1.1 次担当者向け・最短状況サマリ（このまま新スレッドへ貼付可）
 
-- 本番Web URLは固定2本（会員/公開）で **@108 同期済み**（v106 フィールドレベルアクセス制御拡張）。
+- 本番Web URLは固定2本（会員/公開）で **@111 同期済み**。
 - テスト結果: バックエンド B-01〜B-10 全10件 PASS、フロントエンド F-01〜F-12 全11件 PASS + 1 SKIP、デプロイチェック D-01〜D-11 全11件 PASS。テスト仕様書: `docs/22_TEST_SPEC_v106_FIELD_ACCESS_CONTROL.md`。
-- `main` 最新コミット `1f43c0f`、`git status --short` は空。**GitHub push 未実施** — 次担当者は最初に `git push origin main` を実行すること。
+- `main` には v111（会員一括編集初版 + webapp manifest 復旧）が反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` と `git status --short` を正とすること。
 - `clasp run` 障害は、既定OAuthクライアントが組織でブロックされたことが原因。
 - 復旧済み手順:
   - `npx clasp logout`
@@ -63,7 +63,8 @@
 ## 1.2 この時点の引き継ぎポイント
 
 - スレッドを切っても問題ない状態まで、正本と引き継ぎは同期済み。
-- 現在の本番固定 Deployment は会員/公開ともに **@108**。
+- 現在の本番固定 Deployment は会員/公開ともに **@111**。
+- 2026-03-20 に `clasp redeploy` 後 `/exec` が 404 化したため、`appsscript.json` へ `webapp` manifest を追加し、新規 Deployment 2 本へ固定 ID を切り替えて復旧済み。
 - 公開ポータルは 2026-03-20 に MCP Playwright で再表示確認済み。
 - 負荷試験用データは投入済み。`seedPerformanceTestData()` により、`個人会員 300名 / 事業所会員 30件 / 事業所職員 205名 / 認証 505件 / 年会費 660件 / 申込 378件` の状態で検証している。
 - 直近の性能改善は反映済み。
@@ -109,8 +110,8 @@
   - STAFF 自己編集UI（自分の行のみハイライト+編集可）
   - 職員別研修モーダル新設（`StaffTrainingView.tsx`）
   - 仕様書: `docs/21_IMPL_SPEC_FIELD_ACCESS_CONTROL_v106.md`
-- 未実装: 会員一括編集（`updateMembersBatch_`）は提案済み・未実装。
-- 次の主作業は **会員一括編集（`updateMembersBatch_`）** および **UI/UX 継続改善**。
+- 会員一括編集（`updateMembersBatch_`）の初版を実装済み。管理トップに一括編集パネルを追加し、代表メール・発送方法・郵送先・会員状態・入退会日を最大100件まで一括保存可能。
+- 次の主作業は **管理コンソール UI/UX 継続改善** および **必要に応じた一括編集対象項目の拡張**。
 - Claude Code への次指示は `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` に整理済み。
 - ただし修正後は毎回、`docs/09_DEPLOYMENT_POLICY.md` の事前チェック/完了判定に従って再確認すること。
 - 2026-03-19 時点で **不要ファイルは `Dust/` に退避済み**。記録用スクリーンショット（`v98-*`）のみリポジトリ管理対象。
@@ -146,8 +147,8 @@
 
 | 用途 | Deployment ID | 現在 Version | URL |
 |---|---|---|---|
-| **会員マイページ** | `AKfycbycE2_ythCYSPwmPxvyfRzNLhWM7J1cX41TA2wjYgZgdI-P2uknYfQGh3AHrecCQ1Gk` | **@108** | `.../exec` |
-| **公開ポータル** | `AKfycbxKoni2vBdvRbQWR6NyrroPHyNmElJNkJ5OTNOJMQ0k0z-Ae-oGeclrN3kxsE9yIXVr` | **@108** | `.../exec?app=public` |
+| **会員マイページ** | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@111** | `.../exec` |
+| **公開ポータル** | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@111** | `.../exec?app=public` |
 
 > **鉄則**: 2 つの Deployment ID は常に同一バージョンへ同時更新。片方だけ更新禁止。
 > `npx clasp deployments` では表示名が実UIの `Manage deployments` と一致しないことがある。最終判断は Apps Script UI の固定2 Deployment を正とする。
@@ -384,8 +385,8 @@ npx clasp run healthCheck
 npx clasp run getDbInfo
 
 # ブラウザ確認（手動）
-# 公開ポータル: https://script.google.com/macros/s/AKfycbxKoni2vBdvRbQWR6NyrroPHyNmElJNkJ5OTNOJMQ0k0z-Ae-oGeclrN3kxsE9yIXVr/exec?app=public
-# 会員マイページ: https://script.google.com/macros/s/AKfycbycE2_ythCYSPwmPxvyfRzNLhWM7J1cX41TA2wjYgZgdI-P2uknYfQGh3AHrecCQ1Gk/exec
+# 公開ポータル: https://script.google.com/macros/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec?app=public
+# 会員マイページ: https://script.google.com/macros/s/AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx/exec
 ```
 
 ### 6.3 繰り返し起きやすい問題
@@ -612,7 +613,16 @@ Googleアカウントでアクセス
 
 ## 14. リリース記録（最新）
 
-### 14.0 v106→v108
+### 14.0 v111
+
+- **実施日**: 2026-03-20
+- **担当者**: Codex (GPT-5)
+- **公開ポータル ID**: `AKfycbxyuUXg...7Zp` → @111
+- **会員マイページ ID**: `AKfycbywpWoY...bQx` → @111
+- **備考**: 管理トップに会員一括編集パネルを追加。代表メール・発送方法・郵送先・会員状態・入退会日を最大100件まで一括保存可能。バックエンドに `updateMembersBatch_` を追加し、allowlist で対象項目を制限。あわせて `appsscript.json` に `webapp.access=ANYONE_ANONYMOUS` / `executeAs=USER_DEPLOYING` を追記。`clasp redeploy` 後に旧固定 Deployment の `/exec` が 404 となったため、新規 Deployment を 2 本発行して固定 ID を切り替えて復旧。
+- **検証結果**: `npm run typecheck` / `npm run build` / `npm run build:gas` 成功。`npx clasp run healthCheck` / `npx clasp run getDbInfo` 成功。Playwright で会員マイページのログイン画面表示、公開ポータルトップ表示を確認。
+
+### 14.0a v106→v108
 
 - **実施日**: 2026-03-20
 - **担当者**: Claude Code (claude-opus-4-6)

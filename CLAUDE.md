@@ -31,8 +31,8 @@
 
 ### 2.1 デプロイ
 - 本番 URL は 2 Deployment ID 固定運用。`New deployment` は障害時の例外のみ。
-- 会員マイページ ID: `AKfycbycE2_ythCYSPwmPxvyfRzNLhWM7J1cX41TA2wjYgZgdI-P2uknYfQGh3AHrecCQ1Gk`
-- 公開ポータル ID: `AKfycbxKoni2vBdvRbQWR6NyrroPHyNmElJNkJ5OTNOJMQ0k0z-Ae-oGeclrN3kxsE9yIXVr`
+- 会員マイページ ID: `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx`
+- 公開ポータル ID: `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp`
 - リリース時は **両 ID を同時に同一バージョンへ更新する**（片方だけ更新禁止）。
 - デプロイ前に必ず `docs/09_DEPLOYMENT_POLICY.md` と `docs/10_SOW.md` を再確認。
 
