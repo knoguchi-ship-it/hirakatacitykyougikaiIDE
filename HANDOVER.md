@@ -17,7 +17,7 @@
 | 参照順序 | `HANDOVER.md` → `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` → `docs/12_ENGINEERING_RULEBOOK.md` の順で確認 |
 | ブラウザ自動化 | Playwright/MCP は利用可。ただし Apps Script の `Manage deployments` は最終的に UI 確認が必要 |
 | デプロイ方法 | `clasp push` + `clasp version` の後、固定 2 Deployment を同一 Version に揃えること |
-| Git 状態 | `main` の最新コミットは `6cf30b8`。GitHub push 済み |
+| Git 状態 | `main` の最新コミットは `1f43c0f`（v106 テスト完了・@108 デプロイ済み）。**GitHub push は未実施** — 次担当者は `git push origin main` を実行すること |
 | 作業ツリー | **クリーン**。`Dust/` は不要ファイル退避用で `.gitignore` 済み |
 | 作業ディレクトリ | `C:\VSCode\CloudePL\hirakatacitykyougikaiIDE`（Windows） |
 | シェル | PowerShell（必要に応じて bash 互換コマンドも可） |
@@ -47,8 +47,9 @@
 
 ## 1.1 次担当者向け・最短状況サマリ（このまま新スレッドへ貼付可）
 
-- 本番Web URLは固定2本（会員/公開）で **@108 同期済み**（v106 フィールドレベルアクセス制御拡張、バックエンドテスト全10件 PASS）。
-- `main` は最新コミットを push 済み、`git status --short` は空。
+- 本番Web URLは固定2本（会員/公開）で **@108 同期済み**（v106 フィールドレベルアクセス制御拡張）。
+- テスト結果: バックエンド B-01〜B-10 全10件 PASS、フロントエンド F-01〜F-12 全11件 PASS + 1 SKIP、デプロイチェック D-01〜D-11 全11件 PASS。テスト仕様書: `docs/22_TEST_SPEC_v106_FIELD_ACCESS_CONTROL.md`。
+- `main` 最新コミット `1f43c0f`、`git status --short` は空。**GitHub push 未実施** — 次担当者は最初に `git push origin main` を実行すること。
 - `clasp run` 障害は、既定OAuthクライアントが組織でブロックされたことが原因。
 - 復旧済み手順:
   - `npx clasp logout`
@@ -145,13 +146,29 @@
 
 | 用途 | Deployment ID | 現在 Version | URL |
 |---|---|---|---|
-| **会員マイページ** | `AKfycbycE2_ythCYSPwmPxvyfRzNLhWM7J1cX41TA2wjYgZgdI-P2uknYfQGh3AHrecCQ1Gk` | **@105** | `.../exec` |
-| **公開ポータル** | `AKfycbxKoni2vBdvRbQWR6NyrroPHyNmElJNkJ5OTNOJMQ0k0z-Ae-oGeclrN3kxsE9yIXVr` | **@105** | `.../exec?app=public` |
+| **会員マイページ** | `AKfycbycE2_ythCYSPwmPxvyfRzNLhWM7J1cX41TA2wjYgZgdI-P2uknYfQGh3AHrecCQ1Gk` | **@108** | `.../exec` |
+| **公開ポータル** | `AKfycbxKoni2vBdvRbQWR6NyrroPHyNmElJNkJ5OTNOJMQ0k0z-Ae-oGeclrN3kxsE9yIXVr` | **@108** | `.../exec?app=public` |
 
 > **鉄則**: 2 つの Deployment ID は常に同一バージョンへ同時更新。片方だけ更新禁止。
 > `npx clasp deployments` では表示名が実UIの `Manage deployments` と一致しないことがある。最終判断は Apps Script UI の固定2 Deployment を正とする。
 
-### 3.2 最新リリース（v105）の変更内容
+### 3.2 最新リリース（v106→v108）の変更内容
+
+#### v106→v108（フィールドレベルアクセス制御拡張: NIST RBAC モデル準拠）
+- v105 のフィールドレベルアクセス制御を NIST RBAC モデルに拡張
+- ロール別職員 allowlist 新設（REPRESENTATIVE / ADMIN / STAFF の3段階）
+- `careManagerNumber` / `officeName` / `officeNumber` を会員 allowlist から除外
+- STAFF は自分の氏名・フリガナ・メールのみ変更可（他者データ変更拒否）
+- 退職日の自動記録（`ENROLLED→LEFT` 遷移時）、登録日の自動記録（新規職員作成時）
+- 退職者の年度フィルタ（翌年度4/1からAPI応答に含めない、データは保持）
+- 職員削除ボタン廃止（退職ステータスで運用）
+- 退会日・年度中退会フィールドをフロントエンドから除去
+- 権限変更は代表者のみ、状態変更は代表者・管理者のみ
+- 職員別研修モーダル新設（`StaffTrainingView.tsx`）
+- v108 で F-05 バグ修正: `activeStaffRole` prop → `currentStaff?.role` state（デモ用操作ユーザー切替の追従修正）
+- 操作ユーザーラベルに「(代表者)」表示を追加
+- 仕様書: `docs/21_IMPL_SPEC_FIELD_ACCESS_CONTROL_v106.md`
+- テスト仕様書: `docs/22_TEST_SPEC_v106_FIELD_ACCESS_CONTROL.md`
 
 #### v105（フィールドレベルアクセス制御: OWASP A01/CWE-915 準拠）
 - サーバーサイドフィールド allowlist パターンによる Mass Assignment 防止
@@ -415,7 +432,8 @@ hirakatacitykyougikaiIDE/
 │   └── index_public.html   # 公開ポータル HTML（ビルド成果物）
 ├── src/
 │   ├── components/         # 会員マイページ用コンポーネント
-│   │   └── application/    # 入会申込フォーム（MemberApplicationForm, types）
+│   │   ├── application/    # 入会申込フォーム（MemberApplicationForm, types）
+│   │   └── StaffTrainingView.tsx  # v106: 職員別研修申込モーダル
 │   ├── public-portal/      # 公開ポータル React ソース
 │   ├── services/           # 会員マイページ側 API / 外部連携
 │   ├── shared/             # 共通型定義・API ユーティリティ
@@ -572,6 +590,7 @@ Googleアカウントでアクセス
 
 | バージョン | 内容 |
 |---|---|
+| **v106→v108** | フィールドレベルアクセス制御拡張（NIST RBAC）: ロール別職員allowlist、STAFF自己編集、退職日/登録日自動記録、退職者年度フィルタ、職員別研修モーダル、ADMIN権限コンボdisabled修正（v108）、REPRESENTATIVEラベル追加 |
 | **v105** | フィールドレベルアクセス制御（OWASP A01/CWE-915）: `updateMemberSelf_` サーバーサイド allowlist、loginId→会員ID照合、管理者専用フィールド非活性化、REPRESENTATIVE 編集権限修正 |
 | **v104** | 退会機能（年度末退会予約方式）: 会員マイページから退会申請・取消、WITHDRAWAL_SCHEDULED 3状態管理、代表者権限制約、パスワード再認証、日付フォーマット修正 |
 | **v100** | 公開ポータルを「お申込みポータル」に再編し、トップ画面に「研修申込」「新規入会申込」を追加。新規入会を公開ポータルへ統合し、`submitMemberApplication` を公開化。`updateMember_` に代表者権限制約のバックエンド強制を実装 |
@@ -593,7 +612,17 @@ Googleアカウントでアクセス
 
 ## 14. リリース記録（最新）
 
-### 14.0 v105
+### 14.0 v106→v108
+
+- **実施日**: 2026-03-20
+- **担当者**: Claude Code (claude-opus-4-6)
+- **公開ポータル ID**: `AKfycbxKoni2...IXVr` → @108
+- **会員マイページ ID**: `AKfycbycE2_...1Gk` → @108
+- **備考**: v105 のフィールドレベルアクセス制御を NIST RBAC モデルに拡張。ロール別職員 allowlist 新設（REPRESENTATIVE/ADMIN/STAFF 3段階）。`careManagerNumber`/`officeName`/`officeNumber` を会員 allowlist から除外。STAFF は自分の氏名・フリガナ・メールのみ変更可。退職日/登録日の自動記録。退職者の年度フィルタ。職員削除ボタン廃止（退職ステータスで運用）。退会日・年度中退会フィールドをフロントエンドから除去。職員別研修モーダル（`StaffTrainingView.tsx`）新設。v108 で F-05 バグ修正（`activeStaffRole` prop → `currentStaff?.role` state）および REPRESENTATIVE ラベル追加。
+- **テスト結果**: バックエンド B-01〜B-10 全10件 PASS、フロントエンド F-01〜F-12 全11件 PASS + 1 SKIP（賛助会員テストデータなし）、デプロイチェック D-01〜D-11 全11件 PASS。回帰テスト R-01〜R-02, R-07〜R-08 PASS（本番データ影響のある R-03〜R-06, R-09〜R-10 は PENDING）。テスト仕様書: `docs/22_TEST_SPEC_v106_FIELD_ACCESS_CONTROL.md`。
+- **Git コミット**: `1f43c0f` on `main`（**GitHub push 未実施**）
+
+### 14.0a v105
 
 - **実施日**: 2026-03-20
 - **担当者**: Claude Code (claude-opus-4-6)
