@@ -100,7 +100,7 @@ npx clasp run getDbInfo
 - [ ] `npx clasp run healthCheck` が成功
 - [ ] `npx clasp run getDbInfo` が成功
 - [ ] 実ブラウザで会員側 / 公開側の最低 1 画面ずつ表示確認済み
-- [ ] `HANDOVER.md` / `docs/14_TEST_SPEC_2026-03-13_v75.md` / 必要な正本を更新済み
+- [ ] `HANDOVER.md` / 必要な正本ドキュメントを更新済み
 
 ---
 

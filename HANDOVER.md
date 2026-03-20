@@ -17,7 +17,7 @@
 | 参照順序 | `HANDOVER.md` → `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` → `docs/12_ENGINEERING_RULEBOOK.md` の順で確認 |
 | ブラウザ自動化 | Playwright/MCP は利用可。ただし Apps Script の `Manage deployments` は最終的に UI 確認が必要 |
 | デプロイ方法 | `clasp push` + `clasp version` の後、固定 2 Deployment を同一 Version に揃えること |
-| Git 状態 | `main` の最新コミットは `38b7da7`。GitHub push 済み |
+| Git 状態 | `main` の最新コミットは `6cf30b8`。GitHub push 済み |
 | 作業ツリー | **クリーン**。`Dust/` は不要ファイル退避用で `.gitignore` 済み |
 | 作業ディレクトリ | `C:\VSCode\CloudePL\hirakatacitykyougikaiIDE`（Windows） |
 | シェル | PowerShell（必要に応じて bash 互換コマンドも可） |
@@ -63,7 +63,7 @@
 
 - スレッドを切っても問題ない状態まで、正本と引き継ぎは同期済み。
 - 現在の本番固定 Deployment は会員/公開ともに **@105**。
-- 公開ポータルは 2026-03-19 に実ブラウザで再表示確認済み。
+- 公開ポータルは 2026-03-20 に MCP Playwright で再表示確認済み。
 - 負荷試験用データは投入済み。`seedPerformanceTestData()` により、`個人会員 300名 / 事業所会員 30件 / 事業所職員 205名 / 認証 505件 / 年会費 660件 / 申込 378件` の状態で検証している。
 - 直近の性能改善は反映済み。
   - 管理トップ: 軽量 API 化 + 50件デフォルトページング
@@ -126,7 +126,7 @@
 
 ---
 
-## 3. 本番デプロイの現状（2026-03-19 引継ぎ時点）
+## 3. 本番デプロイの現状（2026-03-20 引継ぎ時点）
 
 ### 3.1 固定 Deployment ID（**絶対に変更禁止**）
 
@@ -185,7 +185,6 @@
 - `CacheService.put()` が 100KB を超えると `引数が大きすぎます: value` エラーで alert が発生し、データ返却不能になる問題を修正
 - 4箇所の `cache.put()` を try-catch で防御（`fetchAllDataFromDb_`, `getAdminDashboardData_`, `getTrainingManagementData_`, `getAnnualFeeData_`）
 - v97 の 36.9 秒エラー → v98 で 15〜20 秒正常表示に改善
-- 全テスト PASS（P0: 5件 / P1: 10件、`docs/14_TEST_SPEC_2026-03-13_v75.md` §17 参照）
 
 #### v97（管理コンソール（会員管理）全面リニューアル）
 - ダッシュボード6カード（総会員数/個人/事業所/メンバー/今年度入会/退会）
@@ -588,6 +587,7 @@ Googleアカウントでアクセス
 - **公開ポータル ID**: `AKfycbxKoni2...IXVr` → @105
 - **会員マイページ ID**: `AKfycbycE2_...1Gk` → @105
 - **備考**: フィールドレベルアクセス制御を実装（OWASP A01 Broken Access Control / CWE-915 Mass Assignment 対策）。サーバーサイドに `MEMBER_WRITABLE_FIELDS_` / `MEMBER_WRITABLE_STAFF_FIELDS_` allowlist を定義し、`updateMemberSelf_()` で loginId→会員ID照合（なりすまし防止）後、allowlist でペイロードをフィルタして `updateMember_()` に委譲。`updateMember` は `ADMIN_REQUIRED_ACTIONS` に所属（管理者専用）、`updateMemberSelf` は非管理者アクション。フロントエンドでは `isAdmin` prop で管理者専用フィールド（入会日・退会日・会員状態・年度中退会・職員状態）を disabled 化。`isReadOnly` に REPRESENTATIVE を追加して事業所代表者の編集権限を修正。MCP Playwright で両 Deployment @105 同期確認済み。
+- **MCP テスト結果**: 管理者ビュー（全フィールド編集可）、個人会員ビュー（管理者専用フィールド disabled + 年度途中退会非表示）、事業所一般職員ビュー（全フィールド disabled + 閲覧専用モードアラート）の3パターン全て PASS。
 
 ### 14.0a v104
 
@@ -669,59 +669,4 @@ Googleアカウントでアクセス
 - **会員マイページ ID**: `AKfycbycE2_...1Gk` → @92
 - **備考**: 研修管理コンソールを軽量 API `getTrainingManagementData` へ切替。Playwright MCP 実測で管理トップまで約 4.5 秒、研修管理コンソールまで約 3.5 秒を確認。
 
-### 14.5 v91
-
-- **実施日**: 2026-03-15
-- **担当者**: Codex (GPT-5)
-- **公開ポータル ID**: `AKfycbxKoni2...IXVr` → @91
-- **会員マイページ ID**: `AKfycbycE2_...1Gk` → @91
-- **備考**: 管理トップの初回表示を軽量 API + 遅延読込へ変更。Playwright MCP 実測で管理者ログイン開始から管理トップの集計・一覧表示まで約 5.9 秒を確認。
-
-### 14.6 v90
-
-- **実施日**: 2026-03-15
-- **担当者**: Codex (GPT-5)
-- **公開ポータル ID**: `AKfycbxKoni2...IXVr` → @90
-- **会員マイページ ID**: `AKfycbycE2_...1Gk` → @90
-- **備考**: ログイン前ロード停止、`fetchAllData` 短期キャッシュ、退会自動削除ポリシーの日次化を反映。Playwright MCP でログイン画面表示・管理者ログイン・年会費一覧表示を再確認。
-
-### 14.7 v89
-
-- **実施日**: 2026-03-15
-- **担当者**: Codex (GPT-5)
-- **公開ポータル ID**: `AKfycbxKoni2...IXVr` → @89
-- **会員マイページ ID**: `AKfycbycE2_...1Gk` → @89
-- **備考**: `clasp redeploy` 後に旧固定IDが API executable 化していたため、Playwright MCP で Web アプリ Deployment を再作成。年会費一覧直編集・会員種別固定金額・公開/会員URL復旧まで確認。
-
-### 14.8 v84
-
-- **実施日**: 2026-03-15
-- **担当者**: Codex (GPT-5)
-- **公開ポータル ID**: `AKfycbz7...eWwl` → @84
-- **会員マイページ ID**: `AKfycbzm...AZa` → @84
-- **備考**: 年会費管理コンソールを一覧直編集 + 会員種別固定金額に変更。Playwright MCP で固定2 Deployment の `@84` 同期と画面表示確認を実施。
-
-### 14.9 v83
-
-- **実施日**: 2026-03-15
-- **担当者**: Codex (GPT-5)
-- **公開ポータル ID**: `AKfycbz7...eWwl` → @83
-- **会員マイページ ID**: `AKfycbzm...AZa` → @83
-- **備考**: 年会費管理コンソールと監査ログを追加。Playwright MCP で固定2 Deployment の `@83` 同期と画面表示確認を実施。
-
-### 14.10 v76
-
-- **実施日**: 2026-03-14
-- **担当者**: Codex (GPT-5)
-- **公開ポータル ID**: `AKfycbz7...eWwl` → @76
-- **会員マイページ ID**: `AKfycbzm...AZa` → @76
-- **備考**: 公開取消時の入力規則違反を解消。詳細は `docs/15_INCIDENT_LOG_2026-03-14_v76.md`。
-
-### 14.11 v74
-
-- **実施日**: 2026-03-13
-- **担当者**: Claude Code (claude-sonnet-4-6)
-- **Git コミット**: `0f2edc5`
-- **公開ポータル ID**: `AKfycbz7...eWwl` → @74
-- **会員マイページ ID**: `AKfycbzm...AZa` → @74
-- **備考**: DBタイムゾーン修正。本番で `令和8年4月15日 10:00〜12:00` など正常表示を確認。
+> v91 以前のリリース記録は `git log` を参照。v89 で旧 Deployment ID 廃止 → 現行固定 ID に移行。v74 で DB タイムゾーン修正。
