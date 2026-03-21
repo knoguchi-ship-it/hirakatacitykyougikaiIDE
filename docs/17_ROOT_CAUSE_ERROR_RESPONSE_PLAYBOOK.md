@@ -4,13 +4,13 @@
 
 ## 0. 作業開始時の必読（強制）
 - 以下を読了してから作業開始すること:
-  - `CLAUDE.md`
-  - `docs/12_ENGINEERING_RULEBOOK.md`
+  - `GLOBAL_GROUND_RULES/CLAUDE.md`
+  - `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
   - `docs/10_SOW.md`
   - `docs/09_DEPLOYMENT_POLICY.md`
   - 直近インシデント（`docs/15_*`, `docs/16_*`）
 - 読了確認の記録（作業ログ先頭に残す）:
-  - `READ-CHECK: CLAUDE.md / 12 / 10 / 09 / latest incidents`
+  - `READ-CHECK: GLOBAL_GROUND_RULES / 10 / 09 / latest incidents`
 
 ## 1. 目的
 - 単発修正で終わらせず、再発防止まで含めてエラー対応を標準化する。

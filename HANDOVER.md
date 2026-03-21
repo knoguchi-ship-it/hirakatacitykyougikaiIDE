@@ -14,7 +14,7 @@
 
 | 項目 | 内容 |
 |------|------|
-| 参照順序 | `HANDOVER.md` → `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` → `docs/12_ENGINEERING_RULEBOOK.md` の順で確認 |
+| 参照順序 | `HANDOVER.md` → `GLOBAL_GROUND_RULES/CLAUDE.md` → `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md` → `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` の順で確認 |
 | ブラウザ自動化 | Playwright/MCP は利用可。ただし Apps Script の `Manage deployments` は最終的に UI 確認が必要 |
 | デプロイ方法 | `clasp push` + `clasp version` の後、固定 2 Deployment を同一 Version に揃えること |
 | Git 状態 | `main` は v111 デプロイ反映済みの作業中。コミット/Push 状態は作業終了時点の `git log -1 --oneline` を正とすること |
@@ -32,14 +32,15 @@
 - 根拠提示のない提案は、実装着手や完了判断の根拠にしないこと。
 - 外部ベストプラクティスと案件正本が衝突した場合は、案件正本を優先し、差分を記録すること。
 
-1. `docs/12_ENGINEERING_RULEBOOK.md`（**最上位ルール**。ここが全ての基準）
-2. `docs/10_SOW.md`（スコープ・品質保証）
-3. `docs/09_DEPLOYMENT_POLICY.md`（本番デプロイ標準・禁止事項）
-4. `docs/17_ROOT_CAUSE_ERROR_RESPONSE_PLAYBOOK.md`（根本エラー対応の標準）
-5. `docs/16_INCIDENT_clasp_run_permission_2026-03-14.md`（`clasp run` 障害の実例）
-6. `docs/05_AUTH_AND_ROLE_SPEC.md`（認証/権限仕様・変更禁止）
-7. `docs/04_DB_OPERATION_RUNBOOK.md`（DB運用）
-8. `docs/03_DATA_MODEL.md`（スキーマ定義）
+1. `GLOBAL_GROUND_RULES/CLAUDE.md`（常設ルールの入口）
+2. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`（**この案件の最上位グランドルール**）
+3. `docs/10_SOW.md`（スコープ・品質保証）
+4. `docs/09_DEPLOYMENT_POLICY.md`（本番デプロイ標準・禁止事項）
+5. `docs/17_ROOT_CAUSE_ERROR_RESPONSE_PLAYBOOK.md`（根本エラー対応の標準）
+6. `docs/16_INCIDENT_clasp_run_permission_2026-03-14.md`（`clasp run` 障害の実例）
+7. `docs/05_AUTH_AND_ROLE_SPEC.md`（認証/権限仕様・変更禁止）
+8. `docs/04_DB_OPERATION_RUNBOOK.md`（DB運用）
+9. `docs/03_DATA_MODEL.md`（スキーマ定義）
 
 > 矛盾が生じたら上位文書を正とし、下位文書を即日修正する。
 
@@ -424,7 +425,7 @@ npx clasp run getDbInfo
 
 ```
 hirakatacitykyougikaiIDE/
-├── CLAUDE.md               # AI エージェント向け憲法（このファイルは保持する）
+├── CLAUDE.md               # GLOBAL_GROUND_RULES への互換入口（独自ルールは持たせない）
 ├── HANDOVER.md             # 本書
 ├── backend/
 │   ├── Code.gs             # GAS バックエンド全体（単一ファイル）
@@ -553,7 +554,8 @@ Googleアカウントでアクセス
 
 ### 12.1 再開前
 
-- [ ] `docs/12_ENGINEERING_RULEBOOK.md` を再読した
+- [ ] `GLOBAL_GROUND_RULES/CLAUDE.md` を再読した
+- [ ] `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md` を再読した
 - [ ] `docs/09_DEPLOYMENT_POLICY.md` を再読した
 - [ ] `cd backend && npx clasp show-authorized-user` が `k.noguchi@uguisunosato.or.jp` であることを確認した
 - [ ] `npx clasp run healthCheck` が成功した

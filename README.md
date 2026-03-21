@@ -32,10 +32,11 @@
 - 外部ベストプラクティスと案件正本が衝突する場合は、案件正本を優先し、差分を記録してください。
 
 1. `HANDOVER.md`
-2. `docs/12_ENGINEERING_RULEBOOK.md`
-3. `docs/10_SOW.md`
-4. `docs/09_DEPLOYMENT_POLICY.md`
-5. `docs/17_ROOT_CAUSE_ERROR_RESPONSE_PLAYBOOK.md`
+2. `GLOBAL_GROUND_RULES/CLAUDE.md`
+3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
+4. `docs/10_SOW.md`
+5. `docs/09_DEPLOYMENT_POLICY.md`
+6. `docs/17_ROOT_CAUSE_ERROR_RESPONSE_PLAYBOOK.md`
 
 デプロイ、認証、DB整合、障害対応の判断は上記を正本とします。`README.md` は入口案内であり、運用判断の最上位ではありません。ただし、技術選定と仕様提案では Web 検索による最新確認、ベストプラクティスの模索、根拠提示を必須とします。
 
@@ -100,7 +101,8 @@ npx clasp run setupDatabase
 現行の正本一覧は `docs/00_DOC_INDEX.md` を参照してください。特に以下が重要です。
 
 - `HANDOVER.md`
-- `docs/12_ENGINEERING_RULEBOOK.md`
+- `GLOBAL_GROUND_RULES/CLAUDE.md`
+- `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 - `docs/10_SOW.md`
 - `docs/09_DEPLOYMENT_POLICY.md`
 - `docs/05_AUTH_AND_ROLE_SPEC.md`
@@ -118,7 +120,7 @@ npx clasp run setupDatabase
 - SOW要件は `docs/10_SOW.md` に明記しています。
 
 ## オンライン前提の開発フロー
-1. `HANDOVER.md` と `docs/12_ENGINEERING_RULEBOOK.md` を再読する。
+1. `HANDOVER.md`、`GLOBAL_GROUND_RULES/CLAUDE.md`、`GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md` を再読する。
 2. `cd backend && npx clasp show-authorized-user` で運用アカウントを確認する。
 3. `npx clasp run healthCheck` と `npx clasp run getDbInfo` を実行し、オンライン疎通を確認する。
 4. 実装変更を行う。
