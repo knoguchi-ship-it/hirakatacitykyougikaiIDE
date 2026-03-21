@@ -1,6 +1,6 @@
 ﻿# 引継ぎ書（次担当者向け）
 
-更新日: **2026-03-21（v112 会員ログイン不具合修正）**
+更新日: **2026-03-21（v113 新規入会申込フォーム改善）**
 対象: 枚方市介護支援専門員連絡協議会 会員システム
 
 ---
@@ -17,7 +17,7 @@
 | 参照順序 | `HANDOVER.md` → `GLOBAL_GROUND_RULES/CLAUDE.md` → `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md` → `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` の順で確認 |
 | ブラウザ自動化 | Playwright/MCP は利用可。ただし Apps Script の `Manage deployments` は最終的に UI 確認が必要 |
 | デプロイ方法 | `clasp push` + `clasp version` の後、固定 2 Deployment を同一 Version に揃えること |
-| Git 状態 | `main` は v112 デプロイ反映済みの作業中。コミット/Push 状態は作業終了時点の `git log -1 --oneline` を正とすること |
+| Git 状態 | `main` は v113 デプロイ反映済みの作業中。コミット/Push 状態は作業終了時点の `git log -1 --oneline` を正とすること |
 | 作業ツリー | **クリーン**。`Dust/` は不要ファイル退避用で `.gitignore` 済み |
 | 作業ディレクトリ | `C:\VSCode\CloudePL\hirakatacitykyougikaiIDE`（Windows） |
 | シェル | PowerShell（必要に応じて bash 互換コマンドも可） |
@@ -48,9 +48,9 @@
 
 ## 1.1 次担当者向け・最短状況サマリ（このまま新スレッドへ貼付可）
 
-- 本番Web URLは固定2本（会員/公開）で **@112 同期済み**。
+- 本番Web URLは固定2本（会員/公開）で **@113 同期済み**。
 - テスト結果: バックエンド B-01〜B-10 全10件 PASS、フロントエンド F-01〜F-12 全11件 PASS + 1 SKIP、デプロイチェック D-01〜D-11 全11件 PASS。テスト仕様書: `docs/22_TEST_SPEC_v106_FIELD_ACCESS_CONTROL.md`。
-- `main` には v112（会員ログイン不具合修正）が反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` と `git status --short` を正とすること。
+- `main` には v113（新規入会申込フォーム改善）が反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` と `git status --short` を正とすること。
 - `clasp run` 障害は、既定OAuthクライアントが組織でブロックされたことが原因。
 - 復旧済み手順:
   - `npx clasp logout`
@@ -64,7 +64,7 @@
 ## 1.2 この時点の引き継ぎポイント
 
 - スレッドを切っても問題ない状態まで、正本と引き継ぎは同期済み。
-- 現在の本番固定 Deployment は会員/公開ともに **@112**。
+- 現在の本番固定 Deployment は会員/公開ともに **@113**。
 - 2026-03-20 に `clasp redeploy` 後 `/exec` が 404 化したため、`appsscript.json` へ `webapp` manifest を追加し、新規 Deployment 2 本へ固定 ID を切り替えて復旧済み。
 - 公開ポータルは 2026-03-20 に MCP Playwright で再表示確認済み。
 - 負荷試験用データは投入済み。`seedPerformanceTestData()` により、`個人会員 300名 / 事業所会員 30件 / 事業所職員 205名 / 認証 505件 / 年会費 660件 / 申込 378件` の状態で検証している。
@@ -148,8 +148,8 @@
 
 | 用途 | Deployment ID | 現在 Version | URL |
 |---|---|---|---|
-| **会員マイページ** | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@112** | `.../exec` |
-| **公開ポータル** | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@112** | `.../exec?app=public` |
+| **会員マイページ** | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@113** | `.../exec` |
+| **公開ポータル** | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@113** | `.../exec?app=public` |
 
 > **鉄則**: 2 つの Deployment ID は常に同一バージョンへ同時更新。片方だけ更新禁止。
 > `npx clasp deployments` では表示名が実UIの `Manage deployments` と一致しないことがある。最終判断は Apps Script UI の固定2 Deployment を正とする。
@@ -614,6 +614,15 @@ Googleアカウントでアクセス
 ---
 
 ## 14. リリース記録（最新）
+
+### 14.0 v113
+
+- **実施日**: 2026-03-21
+- **担当者**: Codex (GPT-5)
+- **公開ポータル ID**: `AKfycbxyuUXg...7Zp` → @113
+- **会員マイページ ID**: `AKfycbywpWoY...bQx` → @113
+- **備考**: 新規入会申込フォームを改善。フリガナはカタカナ必須、郵便番号は `123-4567`、事業所番号は数字のみ、電話番号は数字とハイフン、介護支援専門員番号は 8 桁数字で検証するように変更。事業所会員申込では事業所情報の初期値を `大阪府` / `枚方市` / `573-` に設定し、職員登録フォームを 3 名初期表示へ変更。
+- **検証結果**: `npm run typecheck` / `npm run build` / `npm run build:gas` 成功。`npx clasp run healthCheck` / `npx clasp run getDbInfo` 成功。Playwright で公開ポータルの新規入会申込画面を表示し、事業所会員フォームの初期値反映を確認。
 
 ### 14.0 v112
 

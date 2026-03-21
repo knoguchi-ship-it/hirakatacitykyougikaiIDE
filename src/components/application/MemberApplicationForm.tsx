@@ -30,6 +30,15 @@ function getStepLabels(type: ApplicationMemberType | ''): string[] {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CARE_MANAGER_RE = /^\d{8}$/;
+const KATAKANA_RE = /^[ァ-ヶー－・\s　]+$/u;
+const DIGITS_RE = /^\d+$/;
+const POST_CODE_RE = /^\d{3}-\d{4}$/;
+const PHONE_RE = /^[0-9-]+$/;
+const BUSINESS_OFFICE_DEFAULTS = {
+  officePostCode: '573-',
+  officePrefecture: '大阪府',
+  officeCity: '枚方市',
+};
 const PREFECTURES = [
   '北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県',
   '茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県',
@@ -41,6 +50,47 @@ const PREFECTURES = [
 ];
 
 // ─── バリデーション ───────────────────────────────────
+function createDefaultBusinessStaff(): ApplicationStaffEntry[] {
+  return [
+    { ...EMPTY_STAFF_ENTRY(), role: 'REPRESENTATIVE' },
+    EMPTY_STAFF_ENTRY(),
+    EMPTY_STAFF_ENTRY(),
+  ];
+}
+
+function createBusinessFormData(): ApplicationFormData {
+  return {
+    ...INITIAL_FORM_DATA,
+    memberType: 'BUSINESS',
+    ...BUSINESS_OFFICE_DEFAULTS,
+    staff: createDefaultBusinessStaff(),
+  };
+}
+
+function validateKanaValue(value: string, key: string, label: string, errs: ValidationErrors) {
+  const trimmed = value.trim();
+  if (!trimmed) return;
+  if (!KATAKANA_RE.test(trimmed)) errs[key] = `${label}はカタカナで入力してください。`;
+}
+
+function validateDigitsValue(value: string, key: string, label: string, errs: ValidationErrors) {
+  const trimmed = value.trim();
+  if (!trimmed) return;
+  if (!DIGITS_RE.test(trimmed)) errs[key] = `${label}は数字で入力してください。`;
+}
+
+function validatePostCodeValue(value: string, key: string, errs: ValidationErrors) {
+  const trimmed = value.trim();
+  if (!trimmed) return;
+  if (!POST_CODE_RE.test(trimmed)) errs[key] = '郵便番号は 123-4567 形式で入力してください。';
+}
+
+function validatePhoneValue(value: string, key: string, label: string, errs: ValidationErrors) {
+  const trimmed = value.trim();
+  if (!trimmed) return;
+  if (!PHONE_RE.test(trimmed)) errs[key] = `${label}は数字とハイフンで入力してください。`;
+}
+
 function validateStep(step: number, form: ApplicationFormData): ValidationErrors {
   const errs: ValidationErrors = {};
   const t = form.memberType;
@@ -68,6 +118,8 @@ function validatePersonalInfo(form: ApplicationFormData, errs: ValidationErrors)
   if (!form.firstName.trim()) errs.firstName = '名は必須です。';
   if (!form.lastKana.trim()) errs.lastKana = 'セイは必須です。';
   if (!form.firstKana.trim()) errs.firstKana = 'メイは必須です。';
+  validateKanaValue(form.lastKana, 'lastKana', 'セイ', errs);
+  validateKanaValue(form.firstKana, 'firstKana', 'メイ', errs);
   if (form.memberType === 'INDIVIDUAL') {
     if (!form.careManagerNumber.trim()) errs.careManagerNumber = '介護支援専門員番号は必須です。';
     else if (!CARE_MANAGER_RE.test(form.careManagerNumber.trim())) errs.careManagerNumber = '8桁の数字で入力してください。';
@@ -98,6 +150,11 @@ function validateAddress(form: ApplicationFormData, errs: ValidationErrors): Val
     if (!form.homeCity.trim()) errs.homeCity = '市区町村は必須です。';
     if (!form.homeAddressLine.trim()) errs.homeAddressLine = '住所は必須です。';
   }
+  validatePostCodeValue(form.officePostCode, 'officePostCode', errs);
+  validatePhoneValue(form.phone, 'phone', '電話番号', errs);
+  validatePhoneValue(form.fax, 'fax', 'FAX番号', errs);
+  validatePostCodeValue(form.homePostCode, 'homePostCode', errs);
+  validatePhoneValue(form.mobilePhone, 'mobilePhone', '携帯電話番号', errs);
   return errs;
 }
 
@@ -123,6 +180,10 @@ function validateBusinessOffice(form: ApplicationFormData, errs: ValidationError
   if (!form.officeCity.trim()) errs.officeCity = '市区町村は必須です。';
   if (!form.officeAddressLine.trim()) errs.officeAddressLine = '住所は必須です。';
   if (!form.phone.trim()) errs.phone = '電話番号は必須です。';
+  validateDigitsValue(form.officeNumber, 'officeNumber', '事業所番号', errs);
+  validatePostCodeValue(form.officePostCode, 'officePostCode', errs);
+  validatePhoneValue(form.phone, 'phone', '電話番号', errs);
+  validatePhoneValue(form.fax, 'fax', 'FAX番号', errs);
   return errs;
 }
 
@@ -143,6 +204,8 @@ function validateBusinessStaff(form: ApplicationFormData, errs: ValidationErrors
     if (!s.firstName.trim()) errs[prefix + 'firstName'] = '名は必須です。';
     if (!s.lastKana.trim()) errs[prefix + 'lastKana'] = 'セイは必須です。';
     if (!s.firstKana.trim()) errs[prefix + 'firstKana'] = 'メイは必須です。';
+    validateKanaValue(s.lastKana, prefix + 'lastKana', 'セイ', errs);
+    validateKanaValue(s.firstKana, prefix + 'firstKana', 'メイ', errs);
     if (!s.careManagerNumber.trim()) errs[prefix + 'careManagerNumber'] = '介護支援専門員番号は必須です。';
     else if (!CARE_MANAGER_RE.test(s.careManagerNumber.trim())) errs[prefix + 'careManagerNumber'] = '8桁の数字で入力してください。';
     else if (cmNums.has(s.careManagerNumber.trim())) errs[prefix + 'careManagerNumber'] = '他の職員と重複しています。';
@@ -226,7 +289,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
     setErrors({});
     // 事業所の場合、Step1(種別)→Step1(事業所情報)に進むとき職員が空なら1名追加
     if (form.memberType === 'BUSINESS' && step === 1 && form.staff.length === 0) {
-      setForm(prev => ({ ...prev, staff: [{ ...EMPTY_STAFF_ENTRY(), role: 'REPRESENTATIVE' }] }));
+      setForm(prev => ({ ...prev, staff: createDefaultBusinessStaff() }));
     }
     setStep(prev => Math.min(prev + 1, totalSteps - 1));
   };
@@ -238,11 +301,15 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
   };
 
   const handleSelectType = (t: ApplicationMemberType) => {
-    setForm(prev => ({
-      ...INITIAL_FORM_DATA,
-      memberType: t,
-      staff: t === 'BUSINESS' ? [{ ...EMPTY_STAFF_ENTRY(), role: 'REPRESENTATIVE' }] : [],
-    }));
+    setForm(
+      t === 'BUSINESS'
+        ? createBusinessFormData()
+        : {
+            ...INITIAL_FORM_DATA,
+            memberType: t,
+            staff: [],
+          },
+    );
     setErrors({});
     setStep(1);
   };
@@ -366,7 +433,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
             {form.memberType === 'INDIVIDUAL' && (
               <div className="md:col-span-2">
                 <label className={labelClass}>介護支援専門員番号（8桁）{requiredBadge}</label>
-                <input className={fieldClass} value={form.careManagerNumber} onChange={e => set('careManagerNumber', e.target.value)} placeholder="例: 12345678" maxLength={8} />
+                <input className={fieldClass} inputMode="numeric" value={form.careManagerNumber} onChange={e => set('careManagerNumber', e.target.value)} placeholder="例: 12345678" maxLength={8} />
                 <p className="text-xs text-slate-400 mt-1">この番号がログインIDとなります。</p>
                 {errors.careManagerNumber && <p className={errorClass}>{errors.careManagerNumber}</p>}
               </div>
@@ -518,12 +585,12 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
             </div>
             <div>
               <label className={labelClass}>事業所番号{requiredBadge}</label>
-              <input className={fieldClass} value={form.officeNumber} onChange={e => set('officeNumber', e.target.value)} placeholder="例: 2770100001" />
+              <input className={fieldClass} inputMode="numeric" value={form.officeNumber} onChange={e => set('officeNumber', e.target.value)} placeholder="例: 2770100001" />
               {errors.officeNumber && <p className={errorClass}>{errors.officeNumber}</p>}
             </div>
             <div>
               <label className={labelClass}>郵便番号{requiredBadge}</label>
-              <input className={fieldClass} value={form.officePostCode} onChange={e => set('officePostCode', e.target.value)} placeholder="例: 573-0000" />
+              <input className={fieldClass} inputMode="numeric" value={form.officePostCode} onChange={e => set('officePostCode', e.target.value)} placeholder="例: 573-0000" maxLength={8} />
               {errors.officePostCode && <p className={errorClass}>{errors.officePostCode}</p>}
             </div>
             <div>
@@ -617,7 +684,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
                 </div>
                 <div>
                   <label className={labelClass}>介護支援専門員番号（8桁）{requiredBadge}</label>
-                  <input className={fieldClass} value={s.careManagerNumber} onChange={e => updateStaff(i, 'careManagerNumber', e.target.value)} maxLength={8} />
+                  <input className={fieldClass} inputMode="numeric" value={s.careManagerNumber} onChange={e => updateStaff(i, 'careManagerNumber', e.target.value)} maxLength={8} />
                   <p className="text-xs text-slate-400 mt-0.5">この番号がログインIDとなります。</p>
                   {errors[`staff_${i}_careManagerNumber`] && <p className={errorClass}>{errors[`staff_${i}_careManagerNumber`]}</p>}
                 </div>
