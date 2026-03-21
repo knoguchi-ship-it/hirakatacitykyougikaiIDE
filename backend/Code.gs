@@ -656,7 +656,7 @@ function processApiRequest(action, payload) {
       'sendTrainingReminder', 'seedDemoData', 'saveTraining',
       'uploadTrainingFile', 'getTrainingApplicants',
       'getAdminEmailAliases', 'sendTrainingMail',
-      'getAdminDashboardData', 'getTrainingManagementData', 'getMemberPortalData',
+      'getAdminDashboardData', 'getTrainingManagementData',
       'updateMember', 'updateMembersBatch',
       'createMember', 'withdrawMember',
       'getAnnualFeeAdminData', 'saveAnnualFeeRecord', 'saveAnnualFeeRecordsBatch',
