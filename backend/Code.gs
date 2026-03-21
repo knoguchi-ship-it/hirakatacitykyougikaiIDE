@@ -3457,6 +3457,48 @@ function getAnyPasswordLoginIdByMemberId_(ss, memberId) {
   return '';
 }
 
+function clearUnusedIndividualApplicationAddressDefaults_(payload, memberTypeCode) {
+  if (!payload || memberTypeCode !== 'INDIVIDUAL') return payload;
+
+  function trimValue(value) {
+    return String(value || '').trim();
+  }
+
+  var defaultPostCode = '573-';
+  var defaultPrefecture = '大阪府';
+  var defaultCity = '枚方市';
+
+  var hasOfficeInput =
+    !!trimValue(payload.officeName) ||
+    !!trimValue(payload.officeAddressLine) ||
+    !!trimValue(payload.phone) ||
+    !!trimValue(payload.fax) ||
+    (trimValue(payload.officePostCode) && trimValue(payload.officePostCode) !== defaultPostCode) ||
+    (trimValue(payload.officePrefecture) && trimValue(payload.officePrefecture) !== defaultPrefecture) ||
+    (trimValue(payload.officeCity) && trimValue(payload.officeCity) !== defaultCity);
+
+  var hasHomeInput =
+    !!trimValue(payload.homeAddressLine) ||
+    !!trimValue(payload.mobilePhone) ||
+    (trimValue(payload.homePostCode) && trimValue(payload.homePostCode) !== defaultPostCode) ||
+    (trimValue(payload.homePrefecture) && trimValue(payload.homePrefecture) !== defaultPrefecture) ||
+    (trimValue(payload.homeCity) && trimValue(payload.homeCity) !== defaultCity);
+
+  if (!hasOfficeInput) {
+    payload.officePostCode = '';
+    payload.officePrefecture = '';
+    payload.officeCity = '';
+  }
+
+  if (!hasHomeInput) {
+    payload.homePostCode = '';
+    payload.homePrefecture = '';
+    payload.homeCity = '';
+  }
+
+  return payload;
+}
+
 // ── 入会処理 ──────────────────────────────────────────
 function createMember_(payload) {
   if (!payload) throw new Error('ペイロードが空です。');
@@ -3464,6 +3506,7 @@ function createMember_(payload) {
   if (['INDIVIDUAL', 'BUSINESS', 'SUPPORT'].indexOf(memberTypeCode) === -1) {
     throw new Error('会員種別が不正です: ' + memberTypeCode);
   }
+  payload = clearUnusedIndividualApplicationAddressDefaults_(payload, memberTypeCode);
   validateMemberPayload_(payload, memberTypeCode);
 
   var ss = getOrCreateDatabase_();
@@ -3573,6 +3616,7 @@ function submitMemberApplication_(payload) {
   if (['INDIVIDUAL', 'BUSINESS', 'SUPPORT'].indexOf(memberTypeCode) === -1) {
     throw new Error('会員種別が不正です: ' + memberTypeCode);
   }
+  payload = clearUnusedIndividualApplicationAddressDefaults_(payload, memberTypeCode);
 
   var ss = getOrCreateDatabase_();
   var now = new Date().toISOString();

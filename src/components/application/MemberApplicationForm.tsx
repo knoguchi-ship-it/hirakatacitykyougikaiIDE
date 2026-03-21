@@ -39,6 +39,11 @@ const BUSINESS_OFFICE_DEFAULTS = {
   officePrefecture: '大阪府',
   officeCity: '枚方市',
 };
+const INDIVIDUAL_ADDRESS_DEFAULTS = {
+  postCode: '573-',
+  prefecture: '大阪府',
+  city: '枚方市',
+};
 const PREFECTURES = [
   '北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県',
   '茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県',
@@ -65,6 +70,81 @@ function createBusinessFormData(): ApplicationFormData {
     ...BUSINESS_OFFICE_DEFAULTS,
     staff: createDefaultBusinessStaff(),
   };
+}
+
+function createIndividualFormData(): ApplicationFormData {
+  return {
+    ...INITIAL_FORM_DATA,
+    memberType: 'INDIVIDUAL',
+    officePostCode: INDIVIDUAL_ADDRESS_DEFAULTS.postCode,
+    officePrefecture: INDIVIDUAL_ADDRESS_DEFAULTS.prefecture,
+    officeCity: INDIVIDUAL_ADDRESS_DEFAULTS.city,
+    homePostCode: INDIVIDUAL_ADDRESS_DEFAULTS.postCode,
+    homePrefecture: INDIVIDUAL_ADDRESS_DEFAULTS.prefecture,
+    homeCity: INDIVIDUAL_ADDRESS_DEFAULTS.city,
+  };
+}
+
+function hasMeaningfulIndividualOfficeInput(form: ApplicationFormData): boolean {
+  return !!(
+    form.officeName.trim() ||
+    form.officeAddressLine.trim() ||
+    form.phone.trim() ||
+    form.fax.trim() ||
+    (form.officePostCode.trim() && form.officePostCode.trim() !== INDIVIDUAL_ADDRESS_DEFAULTS.postCode) ||
+    (form.officePrefecture.trim() && form.officePrefecture.trim() !== INDIVIDUAL_ADDRESS_DEFAULTS.prefecture) ||
+    (form.officeCity.trim() && form.officeCity.trim() !== INDIVIDUAL_ADDRESS_DEFAULTS.city)
+  );
+}
+
+function hasMeaningfulIndividualHomeInput(form: ApplicationFormData): boolean {
+  return !!(
+    form.homeAddressLine.trim() ||
+    form.mobilePhone.trim() ||
+    (form.homePostCode.trim() && form.homePostCode.trim() !== INDIVIDUAL_ADDRESS_DEFAULTS.postCode) ||
+    (form.homePrefecture.trim() && form.homePrefecture.trim() !== INDIVIDUAL_ADDRESS_DEFAULTS.prefecture) ||
+    (form.homeCity.trim() && form.homeCity.trim() !== INDIVIDUAL_ADDRESS_DEFAULTS.city)
+  );
+}
+
+function hasOfficeAddressInput(form: ApplicationFormData): boolean {
+  if (form.memberType === 'INDIVIDUAL') return hasMeaningfulIndividualOfficeInput(form);
+  return !!(
+    form.officeName.trim() ||
+    form.officePostCode.trim() ||
+    form.officePrefecture.trim() ||
+    form.officeCity.trim() ||
+    form.officeAddressLine.trim() ||
+    form.phone.trim() ||
+    form.fax.trim()
+  );
+}
+
+function hasHomeAddressInput(form: ApplicationFormData): boolean {
+  if (form.memberType === 'INDIVIDUAL') return hasMeaningfulIndividualHomeInput(form);
+  return !!(
+    form.homePostCode.trim() ||
+    form.homePrefecture.trim() ||
+    form.homeCity.trim() ||
+    form.homeAddressLine.trim() ||
+    form.mobilePhone.trim()
+  );
+}
+
+function stripUnusedIndividualAddressDefaults(form: ApplicationFormData): ApplicationFormData {
+  if (form.memberType !== 'INDIVIDUAL') return form;
+  const next = { ...form };
+  if (!hasMeaningfulIndividualOfficeInput(form)) {
+    next.officePostCode = '';
+    next.officePrefecture = '';
+    next.officeCity = '';
+  }
+  if (!hasMeaningfulIndividualHomeInput(form)) {
+    next.homePostCode = '';
+    next.homePrefecture = '';
+    next.homeCity = '';
+  }
+  return next;
 }
 
 function validateKanaValue(value: string, key: string, label: string, errs: ValidationErrors) {
@@ -128,10 +208,8 @@ function validatePersonalInfo(form: ApplicationFormData, errs: ValidationErrors)
 }
 
 function validateAddress(form: ApplicationFormData, errs: ValidationErrors): ValidationErrors {
-  const hasOffice = !!(form.officeName.trim() || form.officePostCode.trim() || form.officePrefecture.trim() ||
-    form.officeCity.trim() || form.officeAddressLine.trim() || form.phone.trim());
-  const hasHome = !!(form.homePostCode.trim() || form.homePrefecture.trim() ||
-    form.homeCity.trim() || form.homeAddressLine.trim());
+  const hasOffice = hasOfficeAddressInput(form);
+  const hasHome = hasHomeAddressInput(form);
 
   if (!hasOffice && !hasHome) {
     errs._address = '勤務先または自宅のどちらか一方は必須です。';
@@ -143,18 +221,18 @@ function validateAddress(form: ApplicationFormData, errs: ValidationErrors): Val
     if (!form.officeCity.trim()) errs.officeCity = '市区町村は必須です。';
     if (!form.officeAddressLine.trim()) errs.officeAddressLine = '住所は必須です。';
     if (!form.phone.trim()) errs.phone = '電話番号は必須です。';
+    validatePostCodeValue(form.officePostCode, 'officePostCode', errs);
+    validatePhoneValue(form.phone, 'phone', '電話番号', errs);
+    validatePhoneValue(form.fax, 'fax', 'FAX番号', errs);
   }
   if (hasHome) {
     if (!form.homePostCode.trim()) errs.homePostCode = '郵便番号は必須です。';
     if (!form.homePrefecture.trim()) errs.homePrefecture = '都道府県は必須です。';
     if (!form.homeCity.trim()) errs.homeCity = '市区町村は必須です。';
     if (!form.homeAddressLine.trim()) errs.homeAddressLine = '住所は必須です。';
+    validatePostCodeValue(form.homePostCode, 'homePostCode', errs);
+    validatePhoneValue(form.mobilePhone, 'mobilePhone', '携帯電話番号', errs);
   }
-  validatePostCodeValue(form.officePostCode, 'officePostCode', errs);
-  validatePhoneValue(form.phone, 'phone', '電話番号', errs);
-  validatePhoneValue(form.fax, 'fax', 'FAX番号', errs);
-  validatePostCodeValue(form.homePostCode, 'homePostCode', errs);
-  validatePhoneValue(form.mobilePhone, 'mobilePhone', '携帯電話番号', errs);
   return errs;
 }
 
@@ -304,6 +382,8 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
     setForm(
       t === 'BUSINESS'
         ? createBusinessFormData()
+        : t === 'INDIVIDUAL'
+          ? createIndividualFormData()
         : {
             ...INITIAL_FORM_DATA,
             memberType: t,
@@ -320,7 +400,8 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const res = await api.submitMemberApplication(form as any);
+      const submitPayload = stripUnusedIndividualAddressDefaults(form);
+      const res = await api.submitMemberApplication(submitPayload as any);
       setResult(res);
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : '申込処理に失敗しました。');
@@ -445,8 +526,8 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
 
     // ── 個人 / 賛助: Step 2 = 住所情報 ──────────────────────
     if (form.memberType !== 'BUSINESS' && step === 2) {
-      const hasOffice = !!(form.officeName.trim() || form.officePostCode.trim() || form.officeCity.trim());
-      const hasHome = !!(form.homePostCode.trim() || form.homeCity.trim());
+      const hasOffice = hasOfficeAddressInput(form);
+      const hasHome = hasHomeAddressInput(form);
       return (
         <div className="space-y-6">
           <h3 className="text-lg font-bold text-slate-800">住所情報</h3>
@@ -536,8 +617,8 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
 
     // ── 個人 / 賛助: Step 3 = 連絡設定 ──────────────────────
     if (form.memberType !== 'BUSINESS' && step === 3) {
-      const hasOffice = !!form.officeName.trim();
-      const hasHome = !!form.homePostCode.trim();
+      const hasOffice = hasOfficeAddressInput(form);
+      const hasHome = hasHomeAddressInput(form);
       return (
         <div className="space-y-6">
           <h3 className="text-lg font-bold text-slate-800">連絡設定</h3>
@@ -745,7 +826,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
             </div>
           )}
 
-          {form.memberType !== 'BUSINESS' && form.homePostCode.trim() && (
+          {form.memberType !== 'BUSINESS' && hasHomeAddressInput(form) && (
             <div className="bg-white p-5 rounded-xl border border-slate-200 space-y-3">
               <h4 className="font-bold text-slate-700">自宅情報</h4>
               <div className="grid grid-cols-2 gap-2 text-sm">
