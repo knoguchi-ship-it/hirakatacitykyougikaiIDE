@@ -1,4 +1,4 @@
-﻿import { Member, Training } from '../types';
+﻿import { Member, Training, AdminPermissionLevel } from '../types';
 import { TrainingApplicantRow } from '../shared/types';
 import { AdminDashboardData, AdminPermissionData, AnnualFeeAdminData, AnnualFeeAdminRecord } from '../types';
 
@@ -31,6 +31,7 @@ export interface AdminLoginResult {
   staffId?: string;
   roleCode: string;
   canAccessAdminPage: boolean;
+  adminPermissionLevel?: AdminPermissionLevel;
   displayName?: string;
   authenticatedAt: string;
 }
@@ -75,16 +76,13 @@ export interface ApiClient {
     note?: string;
   }>): Promise<AnnualFeeAdminRecord[]>;
   memberLogin(loginId: string, password: string): Promise<MemberLoginResult>;
-  adminGoogleLogin(idToken: string): Promise<AdminLoginResult>;
   checkAdminBySession(): Promise<AdminLoginResult>;
-  getAuthConfig(): Promise<{ adminGoogleClientId: string }>;
   getAdminPermissionData(): Promise<AdminPermissionData>;
   saveAdminPermission(payload: {
     id?: string;
-    googleUserId?: string;
     googleEmail: string;
-    displayName?: string;
     linkedAuthId: string;
+    permissionLevel: AdminPermissionLevel;
     enabled: boolean;
   }): Promise<void>;
   deleteAdminPermission(id: string): Promise<void>;
@@ -554,27 +552,6 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async adminGoogleLogin(idToken: string): Promise<AdminLoginResult> {
-    return new Promise<AdminLoginResult>((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data);
-            else reject(new Error(parsed.error || 'API Error'));
-          } catch {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('adminGoogleLogin', JSON.stringify({ idToken }));
-    });
-  }
-
   async checkAdminBySession(): Promise<AdminLoginResult> {
     return new Promise<AdminLoginResult>((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
@@ -593,27 +570,6 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('checkAdminBySession', null);
-    });
-  }
-
-  async getAuthConfig() {
-    return new Promise<{ adminGoogleClientId: string }>((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data || { adminGoogleClientId: '' });
-            else reject(new Error(parsed.error || 'API Error'));
-          } catch {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getAuthConfig', null);
     });
   }
 
@@ -643,10 +599,9 @@ class GasApiClient implements ApiClient {
 
   async saveAdminPermission(payload: {
     id?: string;
-    googleUserId?: string;
     googleEmail: string;
-    displayName?: string;
     linkedAuthId: string;
+    permissionLevel: AdminPermissionLevel;
     enabled: boolean;
   }): Promise<void> {
     return new Promise((resolve, reject) => {

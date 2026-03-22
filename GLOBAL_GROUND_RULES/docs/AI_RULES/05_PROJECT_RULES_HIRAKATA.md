@@ -55,15 +55,28 @@
 - `T_研修申込` は `申込者区分コード` + `申込者ID` のポリモーフィック設計を維持する。
 
 ### デプロイ
-- 本番 URL は固定 2 Deployment ID 運用とする。
+- 本番 URL は固定 2 Deployment ID 運用とする。URL は絶対に変えてはならない。
 - 会員マイページ Deployment ID:
   - `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx`
 - 公開ポータル Deployment ID:
   - `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp`
 - 2 つの Deployment は常に同一 Version へ同時更新する。片方だけ更新しない。
-- デプロイ前に `docs/09_DEPLOYMENT_POLICY.md` と `docs/10_SOW.md` を再確認する。
-- `clasp deploy --deploymentId` は使わない。
+- デプロイ前に `docs/09_DEPLOYMENT_POLICY.md` を必ず再確認する。
+
+#### デプロイ時の正しい手順（厳守）
+1. `npm run build:gas` → `npx clasp push` → `npx clasp version "説明"` でバージョンを作成
+2. **Apps Script UI**（`Manage deployments`）で固定 2 Deployment ID の Version を手動更新
+3. `npx clasp deployments` で固定 2 ID が同一 Version であることを確認
+4. `/exec` と `/exec?app=public` の疎通確認
+- ステップ 2 は Apps Script の Web UI でしか実行できない。CLI では代替不可。
+- AI エージェントが単独でデプロイ完了できないことを認識し、ステップ 2 はユーザーに依頼する。
+
+#### デプロイ禁止事項（絶対禁止）
+- **`clasp deploy`（全形式）は禁止。** フラグの有無を問わず、`clasp deploy` は新しい Deployment ID を生成するか、既存の Web App を API Executable に変換する。どちらもURLが変わるか機能が壊れる。
+- `clasp deploy -V <version>` も禁止（新 ID 生成される）。
+- `clasp deploy --deploymentId` も禁止（Web App → API Executable 変換リスク）。
 - `clasp redeploy` だけで本番完了扱いにしない。
+- 本番 Deployment ID を事前合意なく変更しない。
 - `/exec` または `/exec?app=public` が 404 のまま完了扱いにしない。
 - 本番反映後は `/exec` と `/exec?app=public` の疎通確認結果を記録する。
 

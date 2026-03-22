@@ -120,9 +120,10 @@ export interface AdminPermissionIdentityOption {
   label: string;
 }
 
+export type AdminPermissionLevel = 'MASTER' | 'ADMIN' | 'TRAINING_MANAGER' | 'TRAINING_REGISTRAR' | 'GENERAL';
+
 export interface AdminPermissionEntry {
   id: string;
-  googleUserId: string;
   googleEmail: string;
   displayName: string;
   linkedAuthId: string;
@@ -130,14 +131,18 @@ export interface AdminPermissionEntry {
   linkedStaffId?: string;
   linkedRoleCode: string;
   linkedIdentityLabel: string;
+  permissionLevel: AdminPermissionLevel;
   enabled: boolean;
   updatedAt: string;
+  updatedByEmail?: string;
+  updatedByAt?: string;
 }
 
 export interface AdminPermissionData {
   entries: AdminPermissionEntry[];
   identityOptions: AdminPermissionIdentityOption[];
   currentSessionEmail: string;
+  currentSessionPermissionLevel: AdminPermissionLevel;
 }
 
 export type StaffRole = 'REPRESENTATIVE' | 'ADMIN' | 'STAFF';
@@ -268,4 +273,5 @@ export interface Training {
   inquiryPerson?: string;
   inquiryContactType?: 'PHONE' | 'EMAIL';
   inquiryContactValue?: string;
+  registrarEmail?: string;
 }

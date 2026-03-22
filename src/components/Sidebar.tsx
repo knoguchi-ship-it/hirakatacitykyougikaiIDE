@@ -1,6 +1,6 @@
 import React from 'react';
 import { BookOpenIcon, HomeIcon, CalendarIcon, SettingsIcon } from './Icons';
-import { Member, MemberType } from '../types';
+import { Member, MemberType, AdminPermissionLevel } from '../types';
 
 interface SidebarProps {
   currentView: string;
@@ -9,6 +9,7 @@ interface SidebarProps {
   currentUser?: Member;
   memberPageTypeLabel: string;
   showAdminPage: boolean;
+  adminPermissionLevel?: AdminPermissionLevel | null;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -18,11 +19,15 @@ const Sidebar: React.FC<SidebarProps> = ({
   currentUser,
   memberPageTypeLabel,
   showAdminPage,
+  adminPermissionLevel,
 }) => {
+  const isFullAdmin = adminPermissionLevel === 'MASTER' || adminPermissionLevel === 'ADMIN';
+  const isTrainingOnly = adminPermissionLevel === 'TRAINING_MANAGER' || adminPermissionLevel === 'TRAINING_REGISTRAR';
+
   const menuItems = [
     { id: 'profile', label: '会員マイページ', icon: <BookOpenIcon className="w-5 h-5" /> },
     { id: 'training-apply', label: '研修受講の申込み', icon: <CalendarIcon className="w-5 h-5" /> },
-    ...(showAdminPage
+    ...(showAdminPage && isFullAdmin
       ? [
           { id: 'admin', label: '管理コンソール（会員管理）', icon: <HomeIcon className="w-5 h-5" /> },
           { id: 'annual-fee-manage', label: '年会費管理コンソール', icon: <HomeIcon className="w-5 h-5" /> },
@@ -31,7 +36,19 @@ const Sidebar: React.FC<SidebarProps> = ({
           { id: 'admin-settings', label: 'システム設定', icon: <SettingsIcon className="w-5 h-5" /> },
         ]
       : []),
+    ...(showAdminPage && isTrainingOnly
+      ? [
+          { id: 'training-manage', label: '研修管理コンソール', icon: <CalendarIcon className="w-5 h-5" /> },
+        ]
+      : []),
   ];
+
+  const permissionLabel = (level?: AdminPermissionLevel | null) => {
+    const map: Record<string, string> = {
+      MASTER: 'マスター', ADMIN: '管理者', TRAINING_MANAGER: '研修管理者', TRAINING_REGISTRAR: '研修登録者', GENERAL: '一般',
+    };
+    return level ? map[level] || '' : '';
+  };
 
   const getUserDisplayName = () => {
     if (currentUser) return `${currentUser.lastName} ${currentUser.firstName}`.trim();
@@ -40,6 +57,11 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const getUserDisplayDetail = () => {
+    if (role === 'ADMIN' && adminPermissionLevel) {
+      const label = permissionLabel(adminPermissionLevel);
+      if (currentUser) return `${memberPageTypeLabel} / ${label}`;
+      return label;
+    }
     if (currentUser?.type === MemberType.BUSINESS) return memberPageTypeLabel;
     if (currentUser?.type === MemberType.INDIVIDUAL) return memberPageTypeLabel;
     if (currentUser?.type === MemberType.SUPPORT) return memberPageTypeLabel;

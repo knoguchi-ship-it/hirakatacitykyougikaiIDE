@@ -4,12 +4,11 @@ var DB_SPREADSHEET_ID_FIXED = '1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs';
 var SCHEMA_INITIALIZED_KEY = 'DB_SCHEMA_INITIALIZED';
 var SCHEMA_INITIALIZED_VERSION_KEY = 'DB_SCHEMA_INITIALIZED_VERSION';
 var WITHDRAWAL_POLICY_LAST_APPLIED_DATE_KEY = 'WITHDRAWAL_POLICY_LAST_APPLIED_DATE';
-var ADMIN_GOOGLE_CLIENT_ID_KEY = 'ADMIN_GOOGLE_CLIENT_ID';
 var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
 var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var ALL_DATA_CACHE_TTL_SECONDS = 120;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 120;
-var DB_SCHEMA_VERSION = '2026-03-15-02';
+var DB_SCHEMA_VERSION = '2026-03-22-01';
 
 var マスタ定義 = {
   M_会員種別: ['コード', '名称', '表示順', '有効フラグ', '年会費金額'],
@@ -23,6 +22,7 @@ var マスタ定義 = {
   M_申込状態: ['コード', '名称', '表示順', '有効フラグ'],
   M_会費納入状態: ['コード', '名称', '表示順', '有効フラグ'],
   M_申込者区分: ['コード', '名称', '表示順', '削除フラグ'],
+  M_管理者権限: ['コード', '名称', '表示順', '有効フラグ'],
 };
 
 var マスタ初期値 = {
@@ -74,6 +74,13 @@ var マスタ初期値 = {
   M_申込者区分: [
     ['MEMBER', '会員', 1, false],
     ['EXTERNAL', '非会員', 2, false],
+  ],
+  M_管理者権限: [
+    ['MASTER', 'マスター', 1, true],
+    ['ADMIN', '管理者', 2, true],
+    ['TRAINING_MANAGER', '研修管理者', 3, true],
+    ['TRAINING_REGISTRAR', '研修登録者', 4, true],
+    ['GENERAL', '一般', 5, true],
   ],
 };
 
@@ -164,12 +171,13 @@ var テーブル定義 = {
   ],
   T_管理者Googleホワイトリスト: [
     'ホワイトリストID',
-    'GoogleユーザーID',
     'Googleメール',
-    '表示名',
     '紐付け認証ID',
     '紐付け会員ID',
+    '権限コード',
     '有効フラグ',
+    '変更者メール',
+    '変更日時',
     '作成日時',
     '更新日時',
     '削除フラグ',
@@ -206,6 +214,7 @@ var テーブル定義 = {
     '講師',
     '案内状URL',
     '項目設定JSON',
+    '登録者メール',
     '作成日時',
     '更新日時',
     '削除フラグ',
@@ -274,6 +283,7 @@ var 入力規則定義 = [
   ['T_研修申込', '申込状態コード', 'M_申込状態'],
   ['T_年会費納入履歴', '会費納入状態コード', 'M_会費納入状態'],
   ['T_画面項目権限', 'システムロールコード', 'M_システムロール'],
+  ['T_管理者Googleホワイトリスト', '権限コード', 'M_管理者権限'],
 ];
 
 var DEMO_TRANSFER_ACCOUNT = {
@@ -325,6 +335,98 @@ function rebuildDatabaseSchema() {
       return sheet.getName();
     }),
   };
+}
+
+/**
+ * 既存ホワイトリストの権限コードをマイグレーションする。
+ * k.noguchi@uguisunosato.or.jp → MASTER、他 → ADMIN。
+ * 使い方: npx clasp run migrateAdminPermissions
+ */
+function migrateAdminPermissions() {
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_管理者Googleホワイトリスト');
+  if (!sheet || sheet.getLastRow() < 2) return { message: '対象なし' };
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var permColIdx = headers.indexOf('権限コード');
+  var emailColIdx = headers.indexOf('Googleメール');
+  var changerColIdx = headers.indexOf('変更者メール');
+  var changeTimeColIdx = headers.indexOf('変更日時');
+  if (permColIdx < 0 || emailColIdx < 0) return { message: '権限コード列またはGoogleメール列が見つかりません。rebuildDatabaseSchema を先に実行してください。' };
+  var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  var now = new Date().toISOString();
+  var updated = [];
+  for (var i = 0; i < rows.length; i += 1) {
+    var currentPerm = String(rows[i][permColIdx] || '').trim();
+    if (!currentPerm) {
+      var rowEmail = String(rows[i][emailColIdx] || '').toLowerCase();
+      var newPerm = rowEmail === 'k.noguchi@uguisunosato.or.jp' ? 'MASTER' : 'ADMIN';
+      sheet.getRange(i + 2, permColIdx + 1).setValue(newPerm);
+      if (changerColIdx >= 0) sheet.getRange(i + 2, changerColIdx + 1).setValue('system-migration');
+      if (changeTimeColIdx >= 0) sheet.getRange(i + 2, changeTimeColIdx + 1).setValue(now);
+      updated.push({ email: rowEmail, perm: newPerm });
+    }
+  }
+  return { migrated: updated.length, details: updated };
+}
+
+/**
+ * ホワイトリストのデータ列ズレを修復する（v118 スキーマ移行用）。
+ * writeSheetHeaders_ がヘッダーだけ上書きしデータ行を移動しなかったため、
+ * 旧列位置のデータを新列位置にリマップする。
+ * 使い方: npx clasp run repairWhitelistData
+ */
+function repairWhitelistData() {
+  // 旧スキーマ列順 (10列):
+  // 0:ホワイトリストID, 1:GoogleユーザーID, 2:Googleメール, 3:表示名,
+  // 4:紐付け認証ID, 5:紐付け会員ID, 6:有効フラグ, 7:作成日時, 8:更新日時, 9:削除フラグ
+  //
+  // 新スキーマ列順 (11列):
+  // 0:ホワイトリストID, 1:Googleメール, 2:紐付け認証ID, 3:紐付け会員ID,
+  // 4:権限コード, 5:有効フラグ, 6:変更者メール, 7:変更日時, 8:作成日時, 9:更新日時, 10:削除フラグ
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_管理者Googleホワイトリスト');
+  if (!sheet || sheet.getLastRow() < 2) return { message: '対象なし' };
+  var lastCol = Math.max(1, sheet.getLastColumn());
+  var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, lastCol).getValues();
+  var now = new Date().toISOString();
+  var repaired = [];
+  for (var i = 0; i < rows.length; i += 1) {
+    var old = rows[i];
+    // 旧列位置からデータを取り出し
+    var wlId       = String(old[0] || '');
+    var oldEmail    = String(old[2] || '');  // 旧col2 = Googleメール
+    var oldAuthId   = String(old[4] || '');  // 旧col4 = 紐付け認証ID
+    var oldMemberId = String(old[5] || '');  // 旧col5 = 紐付け会員ID
+    var oldEnabled  = old[6];                // 旧col6 = 有効フラグ
+    var oldCreated  = String(old[7] || '');  // 旧col7 = 作成日時
+    var oldUpdated  = String(old[8] || '');  // 旧col8 = 更新日時
+    var oldDeleted  = old[9];                // 旧col9 = 削除フラグ
+    // ヒューリスティック: 旧データかどうかを判定（col1 が @ を含まないか数字のみなら旧データ）
+    var col1Val = String(old[1] || '');
+    var looksLikeOldLayout = col1Val && !col1Val.includes('@');
+    if (!looksLikeOldLayout) {
+      // 既に新スキーマに見える → スキップ
+      continue;
+    }
+    var permCode = oldEmail.toLowerCase() === 'k.noguchi@uguisunosato.or.jp' ? 'MASTER' : 'ADMIN';
+    // 新スキーマ列順でデータを書き込み (11列)
+    var newRow = [
+      wlId,         // 0: ホワイトリストID
+      oldEmail,     // 1: Googleメール
+      oldAuthId,    // 2: 紐付け認証ID
+      oldMemberId,  // 3: 紐付け会員ID
+      permCode,     // 4: 権限コード
+      oldEnabled,   // 5: 有効フラグ
+      'system-repair', // 6: 変更者メール
+      now,          // 7: 変更日時
+      oldCreated,   // 8: 作成日時
+      oldUpdated,   // 9: 更新日時
+      oldDeleted,   // 10: 削除フラグ
+    ];
+    sheet.getRange(i + 2, 1, 1, newRow.length).setValues([newRow]);
+    repaired.push({ wlId: wlId, email: oldEmail, perm: permCode });
+  }
+  return { repaired: repaired.length, details: repaired };
 }
 
 /**
@@ -484,122 +586,7 @@ function backfillTrainingInquiryContacts() {
   }
 }
 
-/**
- * 管理者Google認証を有効化するセットアップ関数。
- * 1. ADMIN_GOOGLE_CLIENT_ID を Script Properties に保存する。
- * 2. T_管理者Googleホワイトリストのデモ用 GoogleユーザーID（プレースホルダ）を
- *    クリアして、メールアドレスによるフォールバックマッチングを有効にする。
- *
- * 使い方:
- *   npx clasp run setupAdminAuth -- '["YOUR_OAUTH_CLIENT_ID"]'
- *   例: npx clasp run setupAdminAuth -- '["123456789-abc.apps.googleusercontent.com"]'
- *
- * OAuthクライアントIDの確認場所:
- *   GCP Console > APIとサービス > 認証情報 > admin-google-login-web
- */
-function setupAdminAuth(clientId) {
-  if (!clientId || typeof clientId !== 'string' || clientId.trim() === '') {
-    throw new Error('clientId が空です。GCP Console から OAuth クライアントIDを取得して渡してください。');
-  }
 
-  var props = PropertiesService.getScriptProperties();
-  props.setProperty(ADMIN_GOOGLE_CLIENT_ID_KEY, clientId.trim());
-
-  // ホワイトリストのデモ用プレースホルダ sub ID をクリア（メール照合フォールバックを有効にする）
-  var ss = getOrCreateDatabase_();
-  var sheet = ss.getSheetByName('T_管理者Googleホワイトリスト');
-  if (sheet && sheet.getLastRow() >= 2) {
-    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    var subColIdx = headers.indexOf('GoogleユーザーID');
-    if (subColIdx >= 0) {
-      var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
-      for (var i = 0; i < rows.length; i += 1) {
-        var sub = String(rows[i][subColIdx] || '');
-        // デモ用プレースホルダ（'demo-'で始まる値）のみクリア
-        if (sub.indexOf('demo-') === 0) {
-          sheet.getRange(i + 2, subColIdx + 1).setValue('');
-        }
-      }
-    }
-  }
-
-  return {
-    ok: true,
-    adminGoogleClientIdSet: clientId.trim(),
-    message: 'ADMIN_GOOGLE_CLIENT_ID を設定し、ホワイトリストのデモ sub ID をクリアしました。管理者ログインを有効化するには、GAS を再デプロイしてください。',
-  };
-}
-
-/**
- * 現在の管理者認証設定を確認する。
- * 使い方: npx clasp run checkAdminAuthConfig
- */
-function checkAdminAuthConfig() {
-  var props = PropertiesService.getScriptProperties();
-  var clientId = props.getProperty(ADMIN_GOOGLE_CLIENT_ID_KEY) || '';
-
-  var ss = getOrCreateDatabase_();
-  var wlRows = getRowsAsObjects_(ss, 'T_管理者Googleホワイトリスト').filter(function(r) {
-    return !toBoolean_(r['削除フラグ']) && toBoolean_(r['有効フラグ']);
-  });
-
-  var whitelist = wlRows.map(function(r) {
-    return {
-      id: String(r['ホワイトリストID'] || ''),
-      email: String(r['Googleメール'] || ''),
-      googleUserId: String(r['GoogleユーザーID'] || ''),
-      matchMode: String(r['GoogleユーザーID'] || '') ? 'sub' : 'email（フォールバック）',
-      displayName: String(r['表示名'] || ''),
-    };
-  });
-
-  return {
-    adminGoogleClientIdConfigured: clientId !== '',
-    adminGoogleClientId: clientId ? clientId.substring(0, 12) + '...' : '（未設定）',
-    whitelistCount: whitelist.length,
-    whitelist: whitelist,
-  };
-}
-
-/**
- * スクリプトオーナーの Google sub ID とメールアドレスを返す。
- * WL-001 の GoogleユーザーID を実値に更新するために使用する。
- * 使い方: npx clasp run getOwnerSubId
- */
-function getOwnerSubId() {
-  var token = ScriptApp.getOAuthToken();
-  var response = UrlFetchApp.fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-    headers: { 'Authorization': 'Bearer ' + token },
-    muteHttpExceptions: true,
-  });
-  if (response.getResponseCode() !== 200) {
-    throw new Error('UserInfo API エラー: ' + response.getContentText());
-  }
-  var info = JSON.parse(response.getContentText());
-  return { sub: info.sub, email: info.email };
-}
-
-/**
- * ホワイトリストの指定エントリの GoogleユーザーID を更新する。
- * 使い方: npx clasp run updateWhitelistSub --params '["WL-001","実際のsub値"]'
- */
-function updateWhitelistSub(whitelistId, sub) {
-  var ss = getOrCreateDatabase_();
-  var sheet = ss.getSheetByName('T_管理者Googleホワイトリスト');
-  if (!sheet) throw new Error('T_管理者Googleホワイトリスト シートが見つかりません。');
-  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  var idColIdx = headers.indexOf('ホワイトリストID');
-  var subColIdx = headers.indexOf('GoogleユーザーID');
-  if (idColIdx < 0 || subColIdx < 0) throw new Error('列が見つかりません。');
-  var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
-  for (var i = 0; i < rows.length; i += 1) {
-    if (String(rows[i][idColIdx]) === whitelistId) {
-      sheet.getRange(i + 2, subColIdx + 1).setValue(sub);
-      return { ok: true, updated: whitelistId, sub: sub };
-    }
-  }
-  throw new Error('ホワイトリストID が見つかりません: ' + whitelistId);
-}
 
 function verifySeedData() {
   var ss = getOrCreateDatabase_();
@@ -643,27 +630,51 @@ function verifySeedData() {
 
 function processApiRequest(action, payload) {
   try {
-    var parsedPayload = parsePayload_(payload);
+    var parsedPayload = parsePayload_(payload) || {};
     applyWithdrawalDeletionPolicyIfNeeded_();
 
-    // ── アクセス制御（二重防御）────────────────────────────────
-    // 管理者専用アクションは processApiRequest レベルで早期リジェクト。
-    // 各関数内の checkAdminBySession_() チェックと合わせて二重防御とする。
+    // ── アクセス制御（権限マップ方式）────────────────────────────
+    // アクションごとに許可される管理者権限レベルを定義する。
     // 公開ポータル URL（?app=public）からこれらのアクションを呼んでも
     // 必ず unauthorized で返るため、URL 分離の信頼性を担保する。
-  var ADMIN_REQUIRED_ACTIONS = [
-      'getDbInfo', 'getSystemSettings', 'updateSystemSettings',
-      'getAdminPermissionData', 'saveAdminPermission', 'deleteAdminPermission',
-      'sendTrainingReminder', 'seedDemoData', 'saveTraining',
-      'uploadTrainingFile', 'getTrainingApplicants',
-      'getAdminEmailAliases', 'sendTrainingMail',
-      'getAdminDashboardData', 'getTrainingManagementData',
-      'updateMember', 'updateMembersBatch',
-      'createMember', 'withdrawMember',
-      'getAnnualFeeAdminData', 'saveAnnualFeeRecord', 'saveAnnualFeeRecordsBatch',
-    ];
-    if (ADMIN_REQUIRED_ACTIONS.indexOf(action) !== -1 && !checkAdminBySession_()) {
-      return JSON.stringify({ success: false, error: 'unauthorized' });
+    var ADMIN_ACTION_PERMISSIONS = {
+      // MASTER/ADMIN のみ
+      'getDbInfo': ['MASTER','ADMIN'],
+      'getSystemSettings': ['MASTER','ADMIN'],
+      'updateSystemSettings': ['MASTER','ADMIN'],
+      'getAdminPermissionData': ['MASTER','ADMIN'],
+      'saveAdminPermission': ['MASTER','ADMIN'],
+      'deleteAdminPermission': ['MASTER','ADMIN'],
+      'seedDemoData': ['MASTER'],
+      'getAdminDashboardData': ['MASTER','ADMIN'],
+      'updateMember': ['MASTER','ADMIN'],
+      'updateMembersBatch': ['MASTER','ADMIN'],
+      'createMember': ['MASTER','ADMIN'],
+      'withdrawMember': ['MASTER','ADMIN'],
+      'getAnnualFeeAdminData': ['MASTER','ADMIN'],
+      'saveAnnualFeeRecord': ['MASTER','ADMIN'],
+      'saveAnnualFeeRecordsBatch': ['MASTER','ADMIN'],
+      // 研修関連（TRAINING_MANAGER/REGISTRAR もアクセス可）
+      'saveTraining': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
+      'uploadTrainingFile': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
+      'getTrainingManagementData': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
+      'getTrainingApplicants': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
+      'sendTrainingReminder': ['MASTER','ADMIN','TRAINING_MANAGER'],
+      'getAdminEmailAliases': ['MASTER','ADMIN','TRAINING_MANAGER'],
+      'sendTrainingMail': ['MASTER','ADMIN','TRAINING_MANAGER'],
+    };
+    var requiredPerms = ADMIN_ACTION_PERMISSIONS[action];
+    if (requiredPerms) {
+      var sessionResult = checkAdminBySession_();
+      if (!sessionResult) {
+        return JSON.stringify({ success: false, error: 'unauthorized' });
+      }
+      var permLevel = String(sessionResult.adminPermissionLevel || 'ADMIN');
+      if (requiredPerms.indexOf(permLevel) === -1) {
+        return JSON.stringify({ success: false, error: 'insufficient_permission' });
+      }
+      // 下流関数でセッション情報を利用可能にする
+      parsedPayload.__adminSession = sessionResult;
     }
     // ─────────────────────────────────────────────────────────
 
@@ -737,16 +748,8 @@ function processApiRequest(action, payload) {
       return JSON.stringify({ success: true, data: memberLogin_(parsedPayload) });
     }
 
-    if (action === 'adminGoogleLogin') {
-      return JSON.stringify({ success: true, data: adminGoogleLogin_(parsedPayload) });
-    }
-
     if (action === 'checkAdminBySession') {
       return JSON.stringify({ success: true, data: checkAdminBySession_() });
-    }
-
-    if (action === 'getAuthConfig') {
-      return JSON.stringify({ success: true, data: getAuthConfig_() });
     }
 
     if (action === 'getSystemSettings') {
@@ -758,7 +761,7 @@ function processApiRequest(action, payload) {
     }
 
     if (action === 'getAdminPermissionData') {
-      return JSON.stringify({ success: true, data: getAdminPermissionData_() });
+      return JSON.stringify({ success: true, data: getAdminPermissionData_(parsedPayload.__adminSession) });
     }
 
     if (action === 'saveAdminPermission') {
@@ -1269,12 +1272,13 @@ function seedDemoData() {
   appendRowsByHeaders_(ss, 'T_管理者Googleホワイトリスト', [
     {
       ホワイトリストID: 'WL-001',
-      GoogleユーザーID: 'demo-google-sub-001',
       Googleメール: 'k.noguchi@uguisunosato.or.jp',
-      表示名: '運用管理者',
       紐付け認証ID: 'AUTH-ADMIN-GOOGLE',
       紐付け会員ID: '99999999',
+      権限コード: 'MASTER',
       有効フラグ: true,
+      変更者メール: 'k.noguchi@uguisunosato.or.jp',
+      変更日時: now,
       作成日時: now,
       更新日時: now,
       削除フラグ: false,
@@ -2789,91 +2793,25 @@ function memberLogin_(request) {
   };
 }
 
-function adminGoogleLogin_(request) {
-  if (!request || !request.idToken) {
-    throw new Error('Google IDトークンが必要です。');
-  }
 
-  var claims = verifyGoogleIdToken_(String(request.idToken));
-  var sub = String(claims.sub || '');
-  var email = String(claims.email || '').toLowerCase();
-  if (!sub) {
-    throw new Error('GoogleトークンからユーザーIDを取得できませんでした。');
-  }
-
-  var ss = getOrCreateDatabase_();
-  var whitelistRows = getRowsAsObjects_(ss, 'T_管理者Googleホワイトリスト').filter(function(r) {
-    return !toBoolean_(r['削除フラグ']) && toBoolean_(r['有効フラグ']);
-  });
-
-  var matched = null;
-  for (var i = 0; i < whitelistRows.length; i += 1) {
-    var w = whitelistRows[i];
-    var wSub = String(w['GoogleユーザーID'] || '');
-    var wEmail = String(w['Googleメール'] || '').toLowerCase();
-    if (wSub && wSub === sub) {
-      matched = w;
-      break;
-    }
-    if (!wSub && wEmail && wEmail === email) {
-      matched = w;
-      break;
-    }
-  }
-
-  if (!matched) {
-    appendLoginHistory_(ss, '', email, 'GOOGLE', 'FAILURE', 'ホワイトリスト未登録');
-    throw new Error('管理者権限がありません。');
-  }
-
-  var linkedAuthId = String(matched['紐付け認証ID'] || '');
-  var linkedMemberId = String(matched['紐付け会員ID'] || '');
-  var authRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
-  var linkedAuth = null;
-  for (var j = 0; j < authRows.length; j += 1) {
-    var a = authRows[j];
-    if (linkedAuthId && String(a['認証ID'] || '') === linkedAuthId) {
-      linkedAuth = a;
-      break;
-    }
-    if (!linkedAuthId && String(a['GoogleユーザーID'] || '') === sub) {
-      linkedAuth = a;
-      break;
-    }
-  }
-
-  if (!linkedAuth) {
-    appendLoginHistory_(ss, linkedAuthId, email, 'GOOGLE', 'FAILURE', '紐付け認証ID未整備');
-    throw new Error('管理者の認証紐付けが未設定です。');
-  }
-
-  var authId = String(linkedAuth['認証ID'] || '');
-  var roleCode = String(linkedAuth['システムロールコード'] || '');
-  var memberId = linkedMemberId || String(linkedAuth['会員ID'] || '');
-  var staffId = String(linkedAuth['職員ID'] || '');
-  if (!memberId) {
-    appendLoginHistory_(ss, authId, email, 'GOOGLE', 'FAILURE', '会員ID未紐付け');
-    throw new Error('管理者に会員IDが紐付いていません。');
-  }
-
-  var nowIso = new Date().toISOString();
-  appendLoginHistory_(ss, authId, email, 'GOOGLE', 'SUCCESS', '管理者Googleログイン成功');
-
-  return {
-    authMethod: 'GOOGLE',
-    loginId: email,
-    memberId: memberId,
-    staffId: staffId,
-    roleCode: roleCode,
-    canAccessAdminPage: true,
-    displayName: String(matched['表示名'] || claims.name || ''),
-    authenticatedAt: nowIso,
+/**
+ * 管理者権限コードを日本語ラベルに変換する。
+ */
+function mapAdminPermissionLabel_(permCode) {
+  var map = {
+    'MASTER': 'マスター',
+    'ADMIN': '管理者',
+    'TRAINING_MANAGER': '研修管理者',
+    'TRAINING_REGISTRAR': '研修登録者',
+    'GENERAL': '一般',
   };
+  return map[permCode] || permCode;
 }
 
 /**
  * google.script.run 経由で呼び出し元の Google セッションを検証し、管理者認証を行う。
  * Session.getActiveUser() は google.script.run 呼び出し元のメールを返す（Execute as: Me でも）。
+ * 権限コードに応じた adminPermissionLevel を返す。
  */
 function checkAdminBySession_() {
   var email = Session.getActiveUser().getEmail();
@@ -2899,6 +2837,15 @@ function checkAdminBySession_() {
     throw new Error('管理者権限がありません。');
   }
 
+  // 権限コード取得（空欄は既存データ互換で ADMIN）
+  var permCode = String(matched['権限コード'] || '') || 'ADMIN';
+
+  // GENERAL 権限は管理者ログイン不可
+  if (permCode === 'GENERAL') {
+    appendLoginHistory_(ss, '', email, 'GOOGLE', 'FAILURE', '一般権限のため管理者ログイン不可');
+    throw new Error('管理者権限が無効です。会員ログイン（ID/パスワード）をご利用ください。');
+  }
+
   var linkedAuthId = String(matched['紐付け認証ID'] || '');
   var linkedMemberId = String(matched['紐付け会員ID'] || '');
   var authRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
@@ -2922,8 +2869,17 @@ function checkAdminBySession_() {
     throw new Error('管理者に会員IDが紐付いていません。');
   }
 
+  // 表示名を会員名 + 権限ラベルから自動導出
+  var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var memberRow = null;
+  for (var k = 0; k < memberRows.length; k += 1) {
+    if (String(memberRows[k]['会員ID'] || '') === memberId) { memberRow = memberRows[k]; break; }
+  }
+  var memberName = memberRow ? (String(memberRow['姓'] || '') + ' ' + String(memberRow['名'] || '')).trim() : '';
+  var derivedDisplayName = memberName ? memberName + '（' + mapAdminPermissionLabel_(permCode) + '）' : mapAdminPermissionLabel_(permCode);
+
   var nowIso = new Date().toISOString();
-  appendLoginHistory_(ss, authId, email, 'GOOGLE', 'SUCCESS', '管理者セッション認証成功');
+  appendLoginHistory_(ss, authId, email, 'GOOGLE', 'SUCCESS', '管理者セッション認証成功（' + permCode + '）');
 
   return {
     authMethod: 'GOOGLE',
@@ -2932,15 +2888,9 @@ function checkAdminBySession_() {
     staffId: staffId,
     roleCode: roleCode,
     canAccessAdminPage: true,
-    displayName: String(matched['表示名'] || ''),
+    adminPermissionLevel: permCode,
+    displayName: derivedDisplayName,
     authenticatedAt: nowIso,
-  };
-}
-
-function getAuthConfig_() {
-  var scriptProperties = PropertiesService.getScriptProperties();
-  return {
-    adminGoogleClientId: String(scriptProperties.getProperty(ADMIN_GOOGLE_CLIENT_ID_KEY) || ''),
   };
 }
 
@@ -2986,13 +2936,22 @@ function updateSystemSettings_(request) {
   return getSystemSettings_();
 }
 
-function getAdminPermissionData_() {
+function getAdminPermissionData_(callerSession) {
   var ss = getOrCreateDatabase_();
   initializeSchemaIfNeeded_(ss);
+  var callerEmail = '';
+  var callerPermLevel = 'ADMIN';
+  if (callerSession) {
+    callerEmail = String(callerSession.loginId || '');
+    callerPermLevel = String(callerSession.adminPermissionLevel || 'ADMIN');
+  } else {
+    callerEmail = String(Session.getActiveUser().getEmail() || '').toLowerCase();
+  }
   return {
     entries: getAdminPermissionEntries_(ss),
     identityOptions: getAdminPermissionIdentityOptions_(ss),
-    currentSessionEmail: String(Session.getActiveUser().getEmail() || '').toLowerCase(),
+    currentSessionEmail: callerEmail,
+    currentSessionPermissionLevel: callerPermLevel,
   };
 }
 
@@ -3002,6 +2961,11 @@ function saveAdminPermission_(payload) {
   var ss = getOrCreateDatabase_();
   initializeSchemaIfNeeded_(ss);
 
+  // 呼出元セッション情報
+  var callerSession = payload.__adminSession || null;
+  var callerEmail = callerSession ? String(callerSession.loginId || '') : String(Session.getActiveUser().getEmail() || '').toLowerCase();
+  var callerPerm = callerSession ? String(callerSession.adminPermissionLevel || 'ADMIN') : 'ADMIN';
+
   var normalizedEmail = String(payload.googleEmail || '').trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
     throw new Error('Googleメールアドレスの形式が不正です。');
@@ -3009,6 +2973,13 @@ function saveAdminPermission_(payload) {
 
   var linkedAuthId = String(payload.linkedAuthId || '').trim();
   if (!linkedAuthId) throw new Error('紐付け認証IDは必須です。');
+
+  // 権限コード検証
+  var validPerms = ['MASTER', 'ADMIN', 'TRAINING_MANAGER', 'TRAINING_REGISTRAR', 'GENERAL'];
+  var permissionLevel = String(payload.permissionLevel || 'ADMIN').trim();
+  if (validPerms.indexOf(permissionLevel) === -1) {
+    throw new Error('無効な権限コードです: ' + permissionLevel);
+  }
 
   var authSheet = ss.getSheetByName('T_認証アカウント');
   if (!authSheet) throw new Error('T_認証アカウント シートが見つかりません。');
@@ -3031,33 +3002,56 @@ function saveAdminPermission_(payload) {
   var rows = getRowsAsObjects_(ss, 'T_管理者Googleホワイトリスト').filter(function(row) {
     return !toBoolean_(row['削除フラグ']);
   });
+
+  // メール重複チェック
   for (var i = 0; i < rows.length; i += 1) {
     var rowId = String(rows[i]['ホワイトリストID'] || '');
     var rowEmail = String(rows[i]['Googleメール'] || '').trim().toLowerCase();
     if (rowEmail && rowEmail === normalizedEmail && rowId !== id) {
       throw new Error('同じ Googleメールアドレスは既に登録されています。');
     }
-    var rowGoogleUserId = String(rows[i]['GoogleユーザーID'] || '').trim();
-    var nextGoogleUserId = String(payload.googleUserId || '').trim();
-    if (nextGoogleUserId && rowGoogleUserId === nextGoogleUserId && rowId !== id) {
-      throw new Error('同じ GoogleユーザーID は既に登録されています。');
+  }
+
+  // 権限制約チェック
+  if (existing) {
+    var existingPerm = String(existing.row[existing.columns['権限コード']] || '') || 'ADMIN';
+    // ADMIN は MASTER レコードを編集できない
+    if (callerPerm === 'ADMIN' && existingPerm === 'MASTER') {
+      throw new Error('管理者権限ではマスター権限のレコードを編集できません。');
+    }
+    // ADMIN は自分の権限を変更できない
+    var existingEmail = String(existing.row[existing.columns['Googleメール']] || '').toLowerCase();
+    if (callerPerm === 'ADMIN' && callerEmail === existingEmail && permissionLevel !== existingPerm) {
+      throw new Error('管理者権限では自分の権限レベルを変更できません。');
     }
   }
 
-  var displayName = String(payload.displayName || '').trim();
-  if (!displayName) {
-    displayName = normalizedEmail;
+  // 最後のマスター保護
+  if (existing) {
+    var existingPermForMaster = String(existing.row[existing.columns['権限コード']] || '') || 'ADMIN';
+    if (existingPermForMaster === 'MASTER' && permissionLevel !== 'MASTER') {
+      var masterCount = 0;
+      for (var m = 0; m < rows.length; m += 1) {
+        if (String(rows[m]['権限コード'] || '') === 'MASTER' && toBoolean_(rows[m]['有効フラグ'])) {
+          masterCount += 1;
+        }
+      }
+      if (masterCount <= 1) {
+        throw new Error('最後のマスター権限者の権限を変更することはできません。');
+      }
+    }
   }
 
   var nowIso = new Date().toISOString();
   var nextRow = {
     ホワイトリストID: id || ('WL-' + Utilities.getUuid().slice(0, 8)),
-    GoogleユーザーID: String(payload.googleUserId || '').trim(),
     Googleメール: normalizedEmail,
-    表示名: displayName,
     紐付け認証ID: linkedAuthId,
     紐付け会員ID: linkedMemberId,
+    権限コード: permissionLevel,
     有効フラグ: payload.enabled !== false,
+    変更者メール: callerEmail,
+    変更日時: nowIso,
     作成日時: existing ? String(existing.row[existing.columns['作成日時']] || nowIso) : nowIso,
     更新日時: nowIso,
     削除フラグ: false,
@@ -3090,10 +3084,32 @@ function deleteAdminPermission_(payload) {
   var found = findRowByColumnValue_(sheet, 'ホワイトリストID', id);
   if (!found) throw new Error('削除対象の管理者権限が見つかりません。');
 
+  // 最後のマスター保護
+  var targetPerm = String(found.row[found.columns['権限コード']] || '') || 'ADMIN';
+  if (targetPerm === 'MASTER') {
+    var allRows = getRowsAsObjects_(ss, 'T_管理者Googleホワイトリスト').filter(function(r) {
+      return !toBoolean_(r['削除フラグ']) && toBoolean_(r['有効フラグ']);
+    });
+    var masterCount = 0;
+    for (var i = 0; i < allRows.length; i += 1) {
+      if (String(allRows[i]['権限コード'] || '') === 'MASTER') masterCount += 1;
+    }
+    if (masterCount <= 1) {
+      throw new Error('最後のマスター権限者を削除することはできません。');
+    }
+  }
+
+  // 呼出元セッション情報で変更ログを記録
+  var callerSession = payload.__adminSession || null;
+  var callerEmail = callerSession ? String(callerSession.loginId || '') : String(Session.getActiveUser().getEmail() || '').toLowerCase();
+  var nowIso = new Date().toISOString();
+
   var row = found.row.slice();
   row[found.columns['有効フラグ']] = false;
-  row[found.columns['更新日時']] = new Date().toISOString();
+  row[found.columns['更新日時']] = nowIso;
   row[found.columns['削除フラグ']] = true;
+  if (found.columns['変更者メール'] != null) row[found.columns['変更者メール']] = callerEmail;
+  if (found.columns['変更日時'] != null) row[found.columns['変更日時']] = nowIso;
   sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
   return { deleted: true, id: id };
 }
@@ -3122,18 +3138,25 @@ function getAdminPermissionEntries_(ss) {
       var linkedAuth = authMap[linkedAuthId];
       var linkedMemberId = String(row['紐付け会員ID'] || (linkedAuth && linkedAuth['会員ID']) || '');
       var linkedStaffId = String((linkedAuth && linkedAuth['職員ID']) || '');
+      var permLevel = String(row['権限コード'] || '') || 'ADMIN';
+      // 表示名を会員名 + 権限ラベルから自動導出
+      var memberRow = memberMap[linkedMemberId];
+      var memberName = memberRow ? (String(memberRow['姓'] || '') + ' ' + String(memberRow['名'] || '')).trim() : '';
+      var derivedDisplayName = memberName ? memberName + '（' + mapAdminPermissionLabel_(permLevel) + '）' : mapAdminPermissionLabel_(permLevel);
       return {
         id: String(row['ホワイトリストID'] || ''),
-        googleUserId: String(row['GoogleユーザーID'] || ''),
         googleEmail: String(row['Googleメール'] || '').trim().toLowerCase(),
-        displayName: String(row['表示名'] || ''),
+        displayName: derivedDisplayName,
         linkedAuthId: linkedAuthId,
         linkedMemberId: linkedMemberId,
         linkedStaffId: linkedStaffId,
         linkedRoleCode: String((linkedAuth && linkedAuth['システムロールコード']) || ''),
         linkedIdentityLabel: buildAdminPermissionIdentityLabel_(memberMap[linkedMemberId], staffMap[linkedStaffId], linkedAuth),
+        permissionLevel: permLevel,
         enabled: toBoolean_(row['有効フラグ']),
         updatedAt: String(row['更新日時'] || ''),
+        updatedByEmail: String(row['変更者メール'] || ''),
+        updatedByAt: String(row['変更日時'] || ''),
       };
     })
     .sort(function(a, b) {
@@ -5068,28 +5091,6 @@ function upsertStaffRow_(ss, rowObject) {
   sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
 }
 
-function verifyGoogleIdToken_(idToken) {
-  var url = 'https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken);
-  var response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-  var code = response.getResponseCode();
-  var body = String(response.getContentText() || '{}');
-  var parsed;
-  try {
-    parsed = JSON.parse(body);
-  } catch (e) {
-    throw new Error('Googleトークン検証レスポンスの解析に失敗しました。');
-  }
-
-  if (code !== 200) {
-    throw new Error('Googleトークン検証に失敗しました。');
-  }
-
-  var allowedAud = String(PropertiesService.getScriptProperties().getProperty(ADMIN_GOOGLE_CLIENT_ID_KEY) || '');
-  if (allowedAud && String(parsed.aud || '') !== allowedAud) {
-    throw new Error('Googleトークンの発行先が不正です。');
-  }
-  return parsed;
-}
 
 function findRowByColumnValue_(sheet, columnName, targetValue) {
   if (sheet.getLastRow() < 2) {
@@ -5260,6 +5261,11 @@ function saveTraining_(payload) {
   payload.inquiryContactType = normalizedInquiryContact.type;
   payload.inquiryContactValue = normalizedInquiryContact.value;
 
+  // 管理者セッション情報
+  var adminSession = payload.__adminSession || null;
+  var adminEmail = adminSession ? String(adminSession.loginId || '') : '';
+  var adminPerm = adminSession ? String(adminSession.adminPermissionLevel || '') : '';
+
   var ss = getOrCreateDatabase_();
   var sheet = ss.getSheetByName('T_研修');
   if (!sheet) throw new Error('T_研修 シートが見つかりません。');
@@ -5273,6 +5279,14 @@ function saveTraining_(payload) {
     if (!found) throw new Error('研修ID「' + id + '」が見つかりません。');
     var cols = found.columns;
     var row = found.row.slice();
+
+    // TRAINING_REGISTRAR は自分が登録した研修のみ編集可
+    if (adminPerm === 'TRAINING_REGISTRAR') {
+      var registrarEmail = String(cols['登録者メール'] != null ? row[cols['登録者メール']] : '' || '').trim().toLowerCase();
+      if (!registrarEmail || registrarEmail !== adminEmail.toLowerCase()) {
+        throw new Error('研修登録者は自身が登録した研修のみ編集可能です。');
+      }
+    }
 
     function setCol(name, value) {
       var idx = cols[name];
@@ -5337,6 +5351,7 @@ function saveTraining_(payload) {
       payload.inquiryContactType,
       payload.inquiryContactValue
     ),
+    '登録者メール': adminEmail,
     '作成日時': now,
     '更新日時': now,
     '削除フラグ': false,
@@ -5710,6 +5725,10 @@ function initializeSchema_(ss) {
   normalizeTableColumns_(ss, 'T_研修');
   normalizeTableColumns_(ss, 'T_年会費納入履歴');
   normalizeTableColumns_(ss, 'T_年会費更新履歴');
+  normalizeTableColumns_(ss, 'T_管理者Googleホワイトリスト');
+  normalizeTableColumns_(ss, 'T_認証アカウント');
+  normalizeTableColumns_(ss, 'T_ログイン履歴');
+  normalizeTableColumns_(ss, 'T_研修申込');
   ensureSystemSettingsRows_(ss);
   seedPermissionMatrixIfNeeded_(ss);
   applyDataValidationRules_(ss);

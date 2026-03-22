@@ -6,7 +6,7 @@ import TrainingManagement from './components/TrainingManagement';
 import TrainingApply from './components/TrainingApply';
 import AnnualFeeManagement from './components/AnnualFeeManagement';
 import MemberDetailAdmin from './components/MemberDetailAdmin';
-import { AdminDashboardData, AdminDashboardMemberRow, AdminPermissionData, Member, MemberType, Training } from './types';
+import { AdminDashboardData, AdminDashboardMemberRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, Training } from './types';
 import { api } from './services/api';
 
 type Role = 'ADMIN' | 'MEMBER';
@@ -73,20 +73,20 @@ const App: React.FC = () => {
   const [adminPermissionLoading, setAdminPermissionLoading] = useState(false);
   const [adminPermissionError, setAdminPermissionError] = useState<string | null>(null);
   const [adminPermissionQuery, setAdminPermissionQuery] = useState('');
+  const [newPermissionIdentitySearch, setNewPermissionIdentitySearch] = useState('');
   const [adminPermissionDrafts, setAdminPermissionDrafts] = useState<Record<string, {
-    googleUserId: string;
     googleEmail: string;
-    displayName: string;
     linkedAuthId: string;
+    permissionLevel: AdminPermissionLevel;
     enabled: boolean;
   }>>({});
   const [newAdminPermission, setNewAdminPermission] = useState({
-    googleUserId: '',
     googleEmail: '',
-    displayName: '',
     linkedAuthId: '',
+    permissionLevel: 'ADMIN' as AdminPermissionLevel,
     enabled: true,
   });
+  const [adminPermissionLevel, setAdminPermissionLevel] = useState<AdminPermissionLevel | null>(null);
   const [systemSettingsLoaded, setSystemSettingsLoaded] = useState(false);
   const appDataRequestRef = useRef<Promise<{ members: Member[]; trainings: Training[] }> | null>(null);
   const memberPortalRequestRef = useRef<Promise<{ members: Member[]; trainings: Training[] }> | null>(null);
@@ -100,8 +100,6 @@ const App: React.FC = () => {
   const [authBusy, setAuthBusy] = useState(false);
   const [memberLoginId, setMemberLoginId] = useState('');
   const [memberPassword, setMemberPassword] = useState('');
-  const [adminIdToken, setAdminIdToken] = useState('');
-  const [adminGoogleClientId, setAdminGoogleClientId] = useState('');
   const [defaultBusinessStaffLimit, setDefaultBusinessStaffLimit] = useState(10);
   const [globalLimitInput, setGlobalLimitInput] = useState('10');
   const [trainingHistoryLookbackMonths, setTrainingHistoryLookbackMonths] = useState(18);
@@ -335,18 +333,16 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const next: Record<string, {
-      googleUserId: string;
       googleEmail: string;
-      displayName: string;
       linkedAuthId: string;
+      permissionLevel: AdminPermissionLevel;
       enabled: boolean;
     }> = {};
     (adminPermissionData?.entries || []).forEach((entry) => {
       next[entry.id] = {
-        googleUserId: entry.googleUserId || '',
         googleEmail: entry.googleEmail || '',
-        displayName: entry.displayName || '',
         linkedAuthId: entry.linkedAuthId || '',
+        permissionLevel: entry.permissionLevel || 'ADMIN',
         enabled: entry.enabled,
       };
     });
@@ -371,23 +367,6 @@ const App: React.FC = () => {
     await Promise.all(tasks);
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    api.getAuthConfig()
-      .then((authConfig) => {
-        if (!cancelled) {
-          setAdminGoogleClientId(authConfig.adminGoogleClientId || '');
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setAdminGoogleClientId('');
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -589,14 +568,24 @@ const App: React.FC = () => {
   };
 
   const applyAuthContext = (
-    ctx: { memberId: string; staffId?: string; canAccessAdminPage: boolean },
+    ctx: { memberId: string; staffId?: string; canAccessAdminPage: boolean; adminPermissionLevel?: AdminPermissionLevel },
     availableMembers: Member[] = members,
   ) => {
     const identities = buildLoginIdentities(availableMembers);
     setAuthenticatedContext({ memberId: ctx.memberId, staffId: ctx.staffId });
     setSelectedIdentityId(resolveIdentityId(ctx, identities));
-    setUserRole(ctx.canAccessAdminPage ? 'ADMIN' : 'MEMBER');
-    setCurrentView(ctx.canAccessAdminPage ? 'admin' : 'profile');
+    const permLevel = ctx.adminPermissionLevel || null;
+    setAdminPermissionLevel(permLevel);
+    if (permLevel === 'GENERAL' || !ctx.canAccessAdminPage) {
+      setUserRole('MEMBER');
+      setCurrentView('profile');
+    } else if (permLevel === 'TRAINING_MANAGER' || permLevel === 'TRAINING_REGISTRAR') {
+      setUserRole('ADMIN');
+      setCurrentView('training-manage');
+    } else {
+      setUserRole('ADMIN');
+      setCurrentView('admin');
+    }
     setIsAuthenticated(true);
     setAuthError(null);
   };
@@ -641,29 +630,6 @@ const App: React.FC = () => {
     }
   };
 
-  const handleAdminGoogleLogin = async (idToken: string) => {
-    try {
-      setAuthBusy(true);
-      setAuthError(null);
-      const result = await api.adminGoogleLogin(idToken);
-      setFullDataLoaded(false);
-      setMemberPortalLoaded(false);
-      setMembers([]);
-      setTrainings([]);
-      setAdminDashboardData(null);
-      setTrainingManagementLoaded(false);
-      setTrainingManagementError(null);
-      setAdminPermissionData(null);
-      setAdminPermissionError(null);
-      setSystemSettingsLoaded(false);
-      const loaded = await loadMemberPortalData(result.memberId, { force: true });
-      applyAuthContext(result, loaded.members);
-    } catch (error) {
-      setAuthError(error instanceof Error ? error.message : 'Google認証に失敗しました。');
-    } finally {
-      setAuthBusy(false);
-    }
-  };
 
   const handleTrainingSave = async (training: Training): Promise<Training> => {
     const saved = await api.saveTraining(training);
@@ -739,12 +705,12 @@ const App: React.FC = () => {
     setAdminPermissionQuery('');
     setAdminPermissionDrafts({});
     setNewAdminPermission({
-      googleUserId: '',
       googleEmail: '',
-      displayName: '',
       linkedAuthId: '',
+      permissionLevel: 'ADMIN' as AdminPermissionLevel,
       enabled: true,
     });
+    setAdminPermissionLevel(null);
     setSystemSettingsLoaded(false);
   };
 
@@ -755,10 +721,11 @@ const App: React.FC = () => {
   };
 
   const filteredAdminPermissions = useMemo(() => {
+    const all = (adminPermissionData?.entries || []).filter((e) => e.permissionLevel !== 'GENERAL');
     const normalized = adminPermissionQuery.trim().toLowerCase();
-    if (!normalized) return adminPermissionData?.entries || [];
-    return (adminPermissionData?.entries || []).filter((entry) =>
-      [entry.googleEmail, entry.displayName, entry.linkedIdentityLabel, entry.linkedRoleCode]
+    if (!normalized) return all;
+    return all.filter((entry) =>
+      [entry.googleEmail, entry.displayName, entry.linkedIdentityLabel, entry.linkedRoleCode, entry.permissionLevel]
         .join(' ')
         .toLowerCase()
         .includes(normalized)
@@ -770,15 +737,14 @@ const App: React.FC = () => {
 
   const updateAdminPermissionDraft = (
     id: string,
-    patch: Partial<{ googleUserId: string; googleEmail: string; displayName: string; linkedAuthId: string; enabled: boolean }>,
+    patch: Partial<{ googleEmail: string; linkedAuthId: string; permissionLevel: AdminPermissionLevel; enabled: boolean }>,
   ) => {
     setAdminPermissionDrafts((prev) => ({
       ...prev,
       [id]: {
-        googleUserId: '',
         googleEmail: '',
-        displayName: '',
         linkedAuthId: '',
+        permissionLevel: 'ADMIN' as AdminPermissionLevel,
         enabled: true,
         ...(prev[id] || {}),
         ...patch,
@@ -788,10 +754,9 @@ const App: React.FC = () => {
 
   const saveAdminPermission = async (payload: {
     id?: string;
-    googleUserId?: string;
     googleEmail: string;
-    displayName?: string;
     linkedAuthId: string;
+    permissionLevel: AdminPermissionLevel;
     enabled: boolean;
   }) => {
     await api.saveAdminPermission(payload);
@@ -803,6 +768,31 @@ const App: React.FC = () => {
     await loadAdminPermissionData({ force: true });
   };
 
+  const permissionLevelLabel = (level: AdminPermissionLevel) => {
+    const map: Record<AdminPermissionLevel, string> = {
+      MASTER: 'マスター', ADMIN: '管理者', TRAINING_MANAGER: '研修管理者', TRAINING_REGISTRAR: '研修登録者', GENERAL: '一般',
+    };
+    return map[level] || level;
+  };
+
+  const permissionLevelOptions: AdminPermissionLevel[] = ['MASTER', 'ADMIN', 'TRAINING_MANAGER', 'TRAINING_REGISTRAR', 'GENERAL'];
+
+  const filterIdentityOptions = (query: string) => {
+    const opts = adminPermissionData?.identityOptions || [];
+    if (!query.trim()) return opts;
+    const q = query.trim().toLowerCase();
+    return opts.filter((o) =>
+      [o.label, o.loginId, o.memberId, o.staffId || ''].join(' ').toLowerCase().includes(q)
+    );
+  };
+
+  const isEntryEditable = (entry: AdminPermissionEntry) => {
+    if (adminPermissionLevel === 'MASTER') return true;
+    if (entry.permissionLevel === 'MASTER') return false;
+    if (entry.googleEmail === adminPermissionData?.currentSessionEmail) return false;
+    return true;
+  };
+
   const renderSystemPermissionPage = () => (
     <div className="space-y-6">
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
@@ -810,14 +800,15 @@ const App: React.FC = () => {
           <div>
             <h2 className="text-2xl font-bold text-slate-800">管理コンソール（システム権限）</h2>
             <p className="text-slate-600 mt-2 leading-relaxed">
-              管理者ログインに使う Google アカウントと、管理者ログイン後に表示する会員・職員の紐付けを管理します。
+              管理者ログインに使う Google アカウントと、紐づく会員アカウント・権限を管理します。
             </p>
             <p className="text-xs text-slate-500 mt-2">
-              認証可否は Google メールとホワイトリストで判定し、表示対象は紐付け認証IDから解決します。
+              表示名は紐づく会員名と権限から自動で導出されます。
             </p>
           </div>
           <div className="text-xs text-slate-500 md:text-right">
-            <div>現在の Google セッション: {adminPermissionData?.currentSessionEmail || '未取得'}</div>
+            <div>セッション: {adminPermissionData?.currentSessionEmail || '未取得'}</div>
+            <div>権限: {adminPermissionLevel ? permissionLevelLabel(adminPermissionLevel) : '-'}</div>
             <button
               type="button"
               className="mt-2 px-3 py-2 rounded border border-slate-300 bg-white hover:bg-slate-50 text-slate-700"
@@ -835,7 +826,7 @@ const App: React.FC = () => {
 
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <h3 className="text-lg font-bold text-slate-800 mb-4">管理者権限を追加</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Googleメールアドレス</label>
             <input
@@ -847,33 +838,50 @@ const App: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">表示名</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">紐づく会員アカウント</label>
             <input
-              value={newAdminPermission.displayName}
-              onChange={(e) => setNewAdminPermission((prev) => ({ ...prev, displayName: e.target.value }))}
+              type="text"
+              value={newPermissionIdentitySearch}
+              onChange={(e) => {
+                setNewPermissionIdentitySearch(e.target.value);
+                setNewAdminPermission((prev) => ({ ...prev, linkedAuthId: '' }));
+              }}
               className="w-full border border-slate-300 rounded px-3 py-2"
-              placeholder="運用管理者"
+              placeholder="名前・ログインID・会員IDで検索"
             />
+            {newPermissionIdentitySearch.trim() && !newAdminPermission.linkedAuthId && (
+              <div className="mt-1 max-h-40 overflow-y-auto border border-slate-200 rounded bg-white shadow-sm">
+                {filterIdentityOptions(newPermissionIdentitySearch).map((option) => (
+                  <button
+                    key={option.authId}
+                    type="button"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 border-b border-slate-100 last:border-b-0"
+                    onClick={() => {
+                      setNewAdminPermission((prev) => ({ ...prev, linkedAuthId: option.authId }));
+                      setNewPermissionIdentitySearch(option.label);
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+                {filterIdentityOptions(newPermissionIdentitySearch).length === 0 && (
+                  <p className="px-3 py-2 text-xs text-slate-500">該当なし</p>
+                )}
+              </div>
+            )}
+            {newAdminPermission.linkedAuthId && (
+              <p className="text-xs text-green-700 mt-1">選択済: {adminPermissionOptionLabel(newAdminPermission.linkedAuthId)}</p>
+            )}
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">GoogleユーザーID</label>
-            <input
-              value={newAdminPermission.googleUserId}
-              onChange={(e) => setNewAdminPermission((prev) => ({ ...prev, googleUserId: e.target.value }))}
-              className="w-full border border-slate-300 rounded px-3 py-2"
-              placeholder="任意。IDトークン照合用の sub"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">表示対象の会員/職員</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">権限</label>
             <select
-              value={newAdminPermission.linkedAuthId}
-              onChange={(e) => setNewAdminPermission((prev) => ({ ...prev, linkedAuthId: e.target.value }))}
+              value={newAdminPermission.permissionLevel}
+              onChange={(e) => setNewAdminPermission((prev) => ({ ...prev, permissionLevel: e.target.value as AdminPermissionLevel }))}
               className="w-full border border-slate-300 rounded px-3 py-2"
             >
-              <option value="">紐付け先を選択してください</option>
-              {(adminPermissionData?.identityOptions || []).map((option) => (
-                <option key={option.authId} value={option.authId}>{option.label}</option>
+              {permissionLevelOptions.map((level) => (
+                <option key={level} value={level}>{permissionLevelLabel(level)}</option>
               ))}
             </select>
           </div>
@@ -894,19 +902,18 @@ const App: React.FC = () => {
             onClick={async () => {
               try {
                 await saveAdminPermission({
-                  googleUserId: newAdminPermission.googleUserId.trim() || undefined,
                   googleEmail: newAdminPermission.googleEmail.trim(),
-                  displayName: newAdminPermission.displayName.trim() || undefined,
                   linkedAuthId: newAdminPermission.linkedAuthId,
+                  permissionLevel: newAdminPermission.permissionLevel,
                   enabled: newAdminPermission.enabled,
                 });
                 setNewAdminPermission({
-                  googleUserId: '',
                   googleEmail: '',
-                  displayName: '',
                   linkedAuthId: '',
+                  permissionLevel: 'ADMIN' as AdminPermissionLevel,
                   enabled: true,
                 });
+                setNewPermissionIdentitySearch('');
                 alert('管理者権限を追加しました。');
               } catch (error) {
                 alert(error instanceof Error ? error.message : '管理者権限の追加に失敗しました。');
@@ -922,13 +929,13 @@ const App: React.FC = () => {
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
           <div>
             <h3 className="text-lg font-bold text-slate-800">登録済み管理者アカウント</h3>
-            <p className="text-sm text-slate-600 mt-1">無効化・紐付け変更・削除をここで行います。</p>
+            <p className="text-sm text-slate-600 mt-1">権限の変更・紐付け変更・削除をここで行います。</p>
           </div>
           <input
             value={adminPermissionQuery}
             onChange={(e) => setAdminPermissionQuery(e.target.value)}
             className="w-full md:w-80 border border-slate-300 rounded px-3 py-2"
-            placeholder="Googleメール・表示名・紐付け先で検索"
+            placeholder="Googleメール・紐付け先・権限で検索"
           />
         </div>
         {adminPermissionLoading && !adminPermissionData && (
@@ -940,117 +947,124 @@ const App: React.FC = () => {
         <div className="space-y-3">
           {filteredAdminPermissions.map((entry) => {
             const draft = adminPermissionDrafts[entry.id] || {
-              googleUserId: entry.googleUserId || '',
               googleEmail: entry.googleEmail || '',
-              displayName: entry.displayName || '',
               linkedAuthId: entry.linkedAuthId || '',
+              permissionLevel: entry.permissionLevel || 'ADMIN',
               enabled: entry.enabled,
             };
+            const editable = isEntryEditable(entry);
             return (
-              <div key={entry.id} className="border border-slate-200 rounded-xl p-4 space-y-4">
+              <div key={entry.id} className={`border rounded-xl p-4 space-y-4 ${editable ? 'border-slate-200' : 'border-slate-100 bg-slate-50'}`}>
                 <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                   <div>
                     <p className="text-sm font-semibold text-slate-800">{entry.googleEmail}</p>
+                    <p className="text-xs text-slate-600 mt-1">{entry.displayName || '(表示名未解決)'}</p>
                     <p className="text-xs text-slate-500 mt-1">
-                      現在の紐付け: {entry.linkedIdentityLabel || '未設定'} / 更新日時: {entry.updatedAt || '-'}
+                      紐付け: {entry.linkedIdentityLabel || '未設定'} / 権限: {permissionLevelLabel(entry.permissionLevel)}
                     </p>
+                    {(entry.updatedByEmail || entry.updatedByAt) && (
+                      <p className="text-xs text-slate-400 mt-1">
+                        変更者: {entry.updatedByEmail || '-'} / 変更日時: {entry.updatedByAt || '-'}
+                      </p>
+                    )}
                   </div>
                   <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${draft.enabled ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
                     {draft.enabled ? '有効' : '無効'}
                   </span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Googleメールアドレス</label>
-                    <input
-                      type="email"
-                      value={draft.googleEmail}
-                      onChange={(e) => updateAdminPermissionDraft(entry.id, { googleEmail: e.target.value })}
-                      className="w-full border border-slate-300 rounded px-3 py-2"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">表示名</label>
-                    <input
-                      value={draft.displayName}
-                      onChange={(e) => updateAdminPermissionDraft(entry.id, { displayName: e.target.value })}
-                      className="w-full border border-slate-300 rounded px-3 py-2"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">GoogleユーザーID</label>
-                    <input
-                      value={draft.googleUserId}
-                      onChange={(e) => updateAdminPermissionDraft(entry.id, { googleUserId: e.target.value })}
-                      className="w-full border border-slate-300 rounded px-3 py-2"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">表示対象の会員/職員</label>
-                    <select
-                      value={draft.linkedAuthId}
-                      onChange={(e) => updateAdminPermissionDraft(entry.id, { linkedAuthId: e.target.value })}
-                      className="w-full border border-slate-300 rounded px-3 py-2"
-                    >
-                      <option value="">紐付け先を選択してください</option>
-                      {(adminPermissionData?.identityOptions || []).map((option) => (
-                        <option key={option.authId} value={option.authId}>{option.label}</option>
-                      ))}
-                    </select>
-                    {draft.linkedAuthId && (
-                      <p className="text-xs text-slate-500 mt-1">選択中: {adminPermissionOptionLabel(draft.linkedAuthId)}</p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={draft.enabled}
-                      onChange={(e) => updateAdminPermissionDraft(entry.id, { enabled: e.target.checked })}
-                    />
-                    有効にする
-                  </label>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      className="px-4 py-2 rounded bg-slate-800 text-white disabled:opacity-50"
-                      disabled={!draft.googleEmail.trim() || !draft.linkedAuthId}
-                      onClick={async () => {
-                        try {
-                          await saveAdminPermission({
-                            id: entry.id,
-                            googleUserId: draft.googleUserId.trim() || undefined,
-                            googleEmail: draft.googleEmail.trim(),
-                            displayName: draft.displayName.trim() || undefined,
-                            linkedAuthId: draft.linkedAuthId,
-                            enabled: draft.enabled,
-                          });
-                          alert('管理者権限を更新しました。');
-                        } catch (error) {
-                          alert(error instanceof Error ? error.message : '管理者権限の更新に失敗しました。');
-                        }
-                      }}
-                    >
-                      変更を保存
-                    </button>
-                    <button
-                      type="button"
-                      className="px-4 py-2 rounded border border-red-300 text-red-700 bg-red-50"
-                      onClick={async () => {
-                        if (!confirm(`管理者権限 ${entry.googleEmail} を削除しますか？`)) return;
-                        try {
-                          await deleteAdminPermission(entry.id);
-                          alert('管理者権限を削除しました。');
-                        } catch (error) {
-                          alert(error instanceof Error ? error.message : '管理者権限の削除に失敗しました。');
-                        }
-                      }}
-                    >
-                      削除
-                    </button>
-                  </div>
-                </div>
+                {!editable && (
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                    {entry.permissionLevel === 'MASTER' ? 'マスター権限のレコードは編集できません。' : 'ご自身のレコードの権限は変更できません。'}
+                  </p>
+                )}
+                {editable && (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Googleメールアドレス</label>
+                        <input
+                          type="email"
+                          value={draft.googleEmail}
+                          onChange={(e) => updateAdminPermissionDraft(entry.id, { googleEmail: e.target.value })}
+                          className="w-full border border-slate-300 rounded px-3 py-2"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">紐づく会員アカウント</label>
+                        <select
+                          value={draft.linkedAuthId}
+                          onChange={(e) => updateAdminPermissionDraft(entry.id, { linkedAuthId: e.target.value })}
+                          className="w-full border border-slate-300 rounded px-3 py-2"
+                        >
+                          <option value="">紐付け先を選択してください</option>
+                          {(adminPermissionData?.identityOptions || []).map((option) => (
+                            <option key={option.authId} value={option.authId}>{option.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">権限</label>
+                        <select
+                          value={draft.permissionLevel}
+                          onChange={(e) => updateAdminPermissionDraft(entry.id, { permissionLevel: e.target.value as AdminPermissionLevel })}
+                          className="w-full border border-slate-300 rounded px-3 py-2"
+                        >
+                          {permissionLevelOptions.map((level) => (
+                            <option key={level} value={level}>{permissionLevelLabel(level)}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={draft.enabled}
+                          onChange={(e) => updateAdminPermissionDraft(entry.id, { enabled: e.target.checked })}
+                        />
+                        有効にする
+                      </label>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          className="px-4 py-2 rounded bg-slate-800 text-white disabled:opacity-50"
+                          disabled={!draft.googleEmail.trim() || !draft.linkedAuthId}
+                          onClick={async () => {
+                            try {
+                              await saveAdminPermission({
+                                id: entry.id,
+                                googleEmail: draft.googleEmail.trim(),
+                                linkedAuthId: draft.linkedAuthId,
+                                permissionLevel: draft.permissionLevel,
+                                enabled: draft.enabled,
+                              });
+                              alert('管理者権限を更新しました。');
+                            } catch (error) {
+                              alert(error instanceof Error ? error.message : '管理者権限の更新に失敗しました。');
+                            }
+                          }}
+                        >
+                          変更を保存
+                        </button>
+                        <button
+                          type="button"
+                          className="px-4 py-2 rounded border border-red-300 text-red-700 bg-red-50"
+                          onClick={async () => {
+                            if (!confirm(`管理者権限 ${entry.googleEmail} を削除しますか？`)) return;
+                            try {
+                              await deleteAdminPermission(entry.id);
+                              alert('管理者権限を削除しました。');
+                            } catch (error) {
+                              alert(error instanceof Error ? error.message : '管理者権限の削除に失敗しました。');
+                            }
+                          }}
+                        >
+                          削除
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             );
           })}
@@ -1368,24 +1382,6 @@ const App: React.FC = () => {
               >
                 Googleアカウントで管理者ログイン
               </button>
-              {!adminGoogleClientId && (
-                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
-                  `ADMIN_GOOGLE_CLIENT_ID` が未設定です（Script Properties）。
-                </p>
-              )}
-              <details className="text-xs text-slate-600">
-                <summary className="cursor-pointer">IDトークンを直接入力（保守用）</summary>
-                <textarea
-                  className="w-full border border-slate-300 rounded px-2 py-2 mt-2"
-                  placeholder="Google IDトークン"
-                  rows={3}
-                  value={adminIdToken}
-                  onChange={(e) => setAdminIdToken(e.target.value)}
-                />
-                <button className="mt-2 w-full bg-slate-200 rounded px-3 py-2" onClick={() => handleAdminGoogleLogin(adminIdToken)}>
-                  トークンで管理者ログイン
-                </button>
-              </details>
             </div>
           )}
 
@@ -1417,14 +1413,14 @@ const App: React.FC = () => {
     }
 
     if (currentView === 'admin') {
-      if (userRole !== 'ADMIN') {
+      if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
         return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
       }
       return renderAdminPage();
     }
 
     if (currentView === 'member-detail') {
-      if (userRole !== 'ADMIN') {
+      if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
         return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
       }
       return (
@@ -1440,7 +1436,7 @@ const App: React.FC = () => {
     }
 
     if (currentView === 'admin-settings') {
-      if (userRole !== 'ADMIN') {
+      if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
         return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
       }
       return (
@@ -1531,21 +1527,21 @@ const App: React.FC = () => {
     }
 
     if (currentView === 'system-permissions') {
-      if (userRole !== 'ADMIN') {
+      if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
         return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
       }
       return renderSystemPermissionPage();
     }
 
     if (currentView === 'annual-fee-manage') {
-      if (userRole !== 'ADMIN') {
+      if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
         return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
       }
       return <AnnualFeeManagement onChanged={refreshAllData} />;
     }
 
     if (currentView === 'training-manage') {
-      if (userRole !== 'ADMIN') {
+      if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN', 'TRAINING_MANAGER', 'TRAINING_REGISTRAR'].includes(adminPermissionLevel || '')) {
         return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
       }
       if (trainingManagementLoading && !trainingManagementLoaded) {
@@ -1608,6 +1604,7 @@ const App: React.FC = () => {
           currentUser={currentUser}
           memberPageTypeLabel={memberPageTypeLabel}
           showAdminPage={userRole === 'ADMIN'}
+          adminPermissionLevel={adminPermissionLevel}
         />
       )}
       <main className="flex-1 min-w-0 p-8 overflow-y-auto relative overscroll-contain">
