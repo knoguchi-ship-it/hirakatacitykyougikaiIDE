@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { BookOpenIcon, HomeIcon, CalendarIcon, SettingsIcon } from './Icons';
 import { Member, MemberType } from '../types';
 
@@ -21,27 +21,29 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const menuItems = [
     { id: 'profile', label: '会員マイページ', icon: <BookOpenIcon className="w-5 h-5" /> },
-    { id: 'training-apply', label: '研修確認・申込', icon: <CalendarIcon className="w-5 h-5" /> },
+    { id: 'training-apply', label: '研修受講の申込み', icon: <CalendarIcon className="w-5 h-5" /> },
     ...(showAdminPage
       ? [
           { id: 'admin', label: '管理コンソール（会員管理）', icon: <HomeIcon className="w-5 h-5" /> },
           { id: 'annual-fee-manage', label: '年会費管理コンソール', icon: <HomeIcon className="w-5 h-5" /> },
           { id: 'training-manage', label: '研修管理コンソール', icon: <CalendarIcon className="w-5 h-5" /> },
-          { id: 'admin-settings', label: '設定', icon: <SettingsIcon className="w-5 h-5" /> },
+          { id: 'system-permissions', label: '管理コンソール（システム権限）', icon: <SettingsIcon className="w-5 h-5" /> },
+          { id: 'admin-settings', label: 'システム設定', icon: <SettingsIcon className="w-5 h-5" /> },
         ]
       : []),
   ];
 
   const getUserDisplayName = () => {
+    if (currentUser) return `${currentUser.lastName} ${currentUser.firstName}`.trim();
     if (role === 'ADMIN') return 'システム管理者';
-    if (currentUser) return `${currentUser.lastName} ${currentUser.firstName}`;
     return 'ゲスト';
   };
 
   const getUserDisplayDetail = () => {
-    if (role === 'ADMIN') return '管理者権限アカウント';
     if (currentUser?.type === MemberType.BUSINESS) return memberPageTypeLabel;
     if (currentUser?.type === MemberType.INDIVIDUAL) return memberPageTypeLabel;
+    if (currentUser?.type === MemberType.SUPPORT) return memberPageTypeLabel;
+    if (role === 'ADMIN') return '管理者権限アカウント';
     return '';
   };
 
@@ -95,5 +97,3 @@ const Sidebar: React.FC<SidebarProps> = ({
 };
 
 export default Sidebar;
-
-

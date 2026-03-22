@@ -1,6 +1,6 @@
-﻿# 引継ぎ書（次担当者向け）
+# 引継ぎ書（次担当者向け）
 
-更新日: **2026-03-22（v115 個人会員住所デフォルト改善の補正）**
+更新日: **2026-03-22（v116 管理者権限コンソールと管理者表示名連携）**
 対象: 枚方市介護支援専門員連絡協議会 会員システム
 
 ---
@@ -17,7 +17,7 @@
 | 参照順序 | `HANDOVER.md` → `GLOBAL_GROUND_RULES/CLAUDE.md` → `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md` → `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` の順で確認 |
 | ブラウザ自動化 | Playwright/MCP は利用可。ただし Apps Script の `Manage deployments` は最終的に UI 確認が必要 |
 | デプロイ方法 | `clasp push` + `clasp version` の後、固定 2 Deployment を同一 Version に揃えること |
-| Git 状態 | `main` は v115 デプロイ反映済みの作業中。コミット/Push 状態は作業終了時点の `git log -1 --oneline` を正とすること |
+| Git 状態 | `main` は v116 デプロイ反映済みの作業中。コミット/Push 状態は作業終了時点の `git log -1 --oneline` を正とすること |
 | 作業ツリー | **クリーン**。`Dust/` は不要ファイル退避用で `.gitignore` 済み |
 | 作業ディレクトリ | `C:\VSCode\CloudePL\hirakatacitykyougikaiIDE`（Windows） |
 | シェル | PowerShell（必要に応じて bash 互換コマンドも可） |
@@ -48,9 +48,9 @@
 
 ## 1.1 次担当者向け・最短状況サマリ（このまま新スレッドへ貼付可）
 
-- 本番Web URLは固定2本（会員/公開）で **@115 同期済み**。
+- 本番Web URLは固定2本（会員/公開）で **@116 同期済み**。
 - テスト結果: バックエンド B-01〜B-10 全10件 PASS、フロントエンド F-01〜F-12 全11件 PASS + 1 SKIP、デプロイチェック D-01〜D-11 全11件 PASS。テスト仕様書: `docs/22_TEST_SPEC_v106_FIELD_ACCESS_CONTROL.md`。
-- `main` には v115（個人会員住所デフォルト改善の補正）が反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` と `git status --short` を正とすること。
+- `main` には v116（管理者権限コンソールと管理者表示名連携）が反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` と `git status --short` を正とすること。
 - Playwright MCP で `browserType.launchPersistentContext` や Chrome profile lock が出た場合は、認証仕様やコード不具合を先に疑わず、対象ブラウザの再起動と browser/context/page の再取得を先に行うこと。
 - `clasp run` 障害は、既定OAuthクライアントが組織でブロックされたことが原因。
 - 復旧済み手順:
@@ -65,7 +65,7 @@
 ## 1.2 この時点の引き継ぎポイント
 
 - スレッドを切っても問題ない状態まで、正本と引き継ぎは同期済み。
-- 現在の本番固定 Deployment は会員/公開ともに **@115**。
+- 現在の本番固定 Deployment は会員/公開ともに **@116**。
 - 2026-03-20 に `clasp redeploy` 後 `/exec` が 404 化したため、`appsscript.json` へ `webapp` manifest を追加し、新規 Deployment 2 本へ固定 ID を切り替えて復旧済み。
 - 公開ポータルは 2026-03-20 に MCP Playwright で再表示確認済み。
 - 負荷試験用データは投入済み。`seedPerformanceTestData()` により、`個人会員 300名 / 事業所会員 30件 / 事業所職員 205名 / 認証 505件 / 年会費 660件 / 申込 378件` の状態で検証している。
@@ -117,6 +117,9 @@
 - Claude Code への次指示は `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` に整理済み。
 - ただし修正後は毎回、`docs/09_DEPLOYMENT_POLICY.md` の事前チェック/完了判定に従って再確認すること。
 - 2026-03-19 時点で **不要ファイルは `Dust/` に退避済み**。記録用スクリーンショット（`v98-*`）のみリポジトリ管理対象。
+- v116 で `T_管理者Googleホワイトリスト` を運用正本とする `管理コンソール（システム権限）` を追加。Googleメール / GoogleユーザーID / 表示名 / 紐付け認証ID / 有効フラグの追加・更新・削除が可能。
+- v116 で管理者ログイン後の左メニュー表示名を、ホワイトリストに紐付く会員・職員情報ベースに変更。紐付け未解決時のみ `システム管理者` を表示する。
+- 2026-03-22 の Playwright 確認では、公開ポータル `@116` 表示と個人会員ログイン成功を確認。管理者ログイン画面の到達も確認したが、この Playwright セッションでは Google セッション未取得のため管理者ログイン完了までは未確認。
 
 ---
 
@@ -149,8 +152,8 @@
 
 | 用途 | Deployment ID | 現在 Version | URL |
 |---|---|---|---|
-| **会員マイページ** | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@115** | `.../exec` |
-| **公開ポータル** | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@115** | `.../exec?app=public` |
+| **会員マイページ** | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@116** | `.../exec` |
+| **公開ポータル** | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@116** | `.../exec?app=public` |
 
 > **鉄則**: 2 つの Deployment ID は常に同一バージョンへ同時更新。片方だけ更新禁止。
 > `npx clasp deployments` では表示名が実UIの `Manage deployments` と一致しないことがある。最終判断は Apps Script UI の固定2 Deployment を正とする。
@@ -616,7 +619,16 @@ Googleアカウントでアクセス
 
 ## 14. リリース記録（最新）
 
-### 14.0 v115
+### 14.0 v116
+
+- **実施日**: 2026-03-22
+- **担当者**: Codex (GPT-5)
+- **公開ポータル ID**: `AKfycbxyuUXg...7Zp` → @116
+- **会員マイページ ID**: `AKfycbywpWoY...bQx` → @116
+- **備考**: `T_管理者Googleホワイトリスト` を運用正本とする `管理コンソール（システム権限）` を追加。Googleメール / GoogleユーザーID / 表示名 / 紐付け認証ID / 有効フラグを管理画面から追加・更新・削除できるようにし、管理者ログイン後の左メニュー表示名もホワイトリストに紐付く会員・職員情報ベースへ変更。紐付け未解決時のみ `システム管理者` を表示する。
+- **検証結果**: `npm run typecheck` / `npm run build` / `npm run build:gas` 成功。`npx clasp run healthCheck` / `npx clasp run getDbInfo` 成功。Playwright で公開ポータル `@116` 表示と個人会員ログイン成功を確認。管理者ログイン画面到達も確認したが、この Playwright セッションでは Google セッション未取得のため管理者ログイン完了までは未確認。
+
+### 14.1 v115
 
 - **実施日**: 2026-03-22
 - **担当者**: Codex (GPT-5)

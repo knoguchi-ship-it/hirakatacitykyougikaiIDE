@@ -110,6 +110,36 @@ export interface AdminDashboardData {
   trainingRows: AdminDashboardTrainingRow[];
 }
 
+export interface AdminPermissionIdentityOption {
+  authId: string;
+  authMethod: 'PASSWORD' | 'GOOGLE';
+  loginId: string;
+  memberId: string;
+  staffId?: string;
+  roleCode: string;
+  label: string;
+}
+
+export interface AdminPermissionEntry {
+  id: string;
+  googleUserId: string;
+  googleEmail: string;
+  displayName: string;
+  linkedAuthId: string;
+  linkedMemberId: string;
+  linkedStaffId?: string;
+  linkedRoleCode: string;
+  linkedIdentityLabel: string;
+  enabled: boolean;
+  updatedAt: string;
+}
+
+export interface AdminPermissionData {
+  entries: AdminPermissionEntry[];
+  identityOptions: AdminPermissionIdentityOption[];
+  currentSessionEmail: string;
+}
+
 export type StaffRole = 'REPRESENTATIVE' | 'ADMIN' | 'STAFF';
 
 export interface Staff {

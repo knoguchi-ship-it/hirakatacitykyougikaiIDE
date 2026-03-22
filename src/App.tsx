@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import MemberBatchEditor from './MemberBatchEditor';
 import MemberForm from './components/MemberForm';
@@ -6,11 +6,11 @@ import TrainingManagement from './components/TrainingManagement';
 import TrainingApply from './components/TrainingApply';
 import AnnualFeeManagement from './components/AnnualFeeManagement';
 import MemberDetailAdmin from './components/MemberDetailAdmin';
-import { AdminDashboardData, AdminDashboardMemberRow, Member, MemberType, Training } from './types';
+import { AdminDashboardData, AdminDashboardMemberRow, AdminPermissionData, Member, MemberType, Training } from './types';
 import { api } from './services/api';
 
 type Role = 'ADMIN' | 'MEMBER';
-type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'member-detail' | 'admin-settings';
+type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'member-detail' | 'system-permissions' | 'admin-settings';
 type AuthTab = 'member' | 'admin';
 type MemberListFilter = 'ALL' | MemberType;
 type MemberStatusFilter = 'ALL' | 'ACTIVE' | 'WITHDRAWAL_SCHEDULED' | 'WITHDRAWN';
@@ -69,11 +69,30 @@ const App: React.FC = () => {
   const [trainingManagementLoaded, setTrainingManagementLoaded] = useState(false);
   const [trainingManagementLoading, setTrainingManagementLoading] = useState(false);
   const [trainingManagementError, setTrainingManagementError] = useState<string | null>(null);
+  const [adminPermissionData, setAdminPermissionData] = useState<AdminPermissionData | null>(null);
+  const [adminPermissionLoading, setAdminPermissionLoading] = useState(false);
+  const [adminPermissionError, setAdminPermissionError] = useState<string | null>(null);
+  const [adminPermissionQuery, setAdminPermissionQuery] = useState('');
+  const [adminPermissionDrafts, setAdminPermissionDrafts] = useState<Record<string, {
+    googleUserId: string;
+    googleEmail: string;
+    displayName: string;
+    linkedAuthId: string;
+    enabled: boolean;
+  }>>({});
+  const [newAdminPermission, setNewAdminPermission] = useState({
+    googleUserId: '',
+    googleEmail: '',
+    displayName: '',
+    linkedAuthId: '',
+    enabled: true,
+  });
   const [systemSettingsLoaded, setSystemSettingsLoaded] = useState(false);
   const appDataRequestRef = useRef<Promise<{ members: Member[]; trainings: Training[] }> | null>(null);
   const memberPortalRequestRef = useRef<Promise<{ members: Member[]; trainings: Training[] }> | null>(null);
   const adminDashboardRequestRef = useRef<Promise<AdminDashboardData> | null>(null);
   const trainingManagementRequestRef = useRef<Promise<Training[]> | null>(null);
+  const adminPermissionRequestRef = useRef<Promise<AdminPermissionData> | null>(null);
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [authTab, setAuthTab] = useState<AuthTab>('member');
@@ -269,6 +288,40 @@ const App: React.FC = () => {
     }
   };
 
+  const loadAdminPermissionData = async (
+    options: { force?: boolean } = {},
+  ): Promise<AdminPermissionData> => {
+    const { force = false } = options;
+    if (!force && adminPermissionRequestRef.current) {
+      return adminPermissionRequestRef.current;
+    }
+
+    const request = (async () => {
+      try {
+        setAdminPermissionLoading(true);
+        setAdminPermissionError(null);
+        const next = await api.getAdminPermissionData();
+        setAdminPermissionData(next);
+        return next;
+      } catch (error) {
+        console.error('Admin permission initialization failed:', error);
+        setAdminPermissionError(error instanceof Error ? error.message : 'システム権限データの読み込みに失敗しました。');
+        throw error;
+      } finally {
+        setAdminPermissionLoading(false);
+      }
+    })();
+
+    adminPermissionRequestRef.current = request;
+    try {
+      return await request;
+    } finally {
+      if (adminPermissionRequestRef.current === request) {
+        adminPermissionRequestRef.current = null;
+      }
+    }
+  };
+
   const loadSystemSettings = async (force = false) => {
     if (systemSettingsLoaded && !force) {
       return;
@@ -279,6 +332,26 @@ const App: React.FC = () => {
     }));
     applySystemSettings(settings);
   };
+
+  useEffect(() => {
+    const next: Record<string, {
+      googleUserId: string;
+      googleEmail: string;
+      displayName: string;
+      linkedAuthId: string;
+      enabled: boolean;
+    }> = {};
+    (adminPermissionData?.entries || []).forEach((entry) => {
+      next[entry.id] = {
+        googleUserId: entry.googleUserId || '',
+        googleEmail: entry.googleEmail || '',
+        displayName: entry.displayName || '',
+        linkedAuthId: entry.linkedAuthId || '',
+        enabled: entry.enabled,
+      };
+    });
+    setAdminPermissionDrafts(next);
+  }, [adminPermissionData]);
 
   const refreshAllData = async () => {
     const tasks: Promise<unknown>[] = [];
@@ -345,6 +418,11 @@ const App: React.FC = () => {
 
     if (userRole === 'ADMIN' && currentView === 'admin-settings') {
       loadSystemSettings(false).catch(() => undefined);
+      return;
+    }
+
+    if (userRole === 'ADMIN' && currentView === 'system-permissions') {
+      loadAdminPermissionData().catch(() => undefined);
       return;
     }
 
@@ -493,11 +571,13 @@ const App: React.FC = () => {
 
   const memberPageTypeLabel = useMemo(() => {
     if (!currentIdentity) return '未選択';
-    if (currentIdentity.type === MemberType.INDIVIDUAL) return '個人会員';
-    if (currentIdentity.type === MemberType.SUPPORT) return '賛助会員';
-    if (currentIdentity.staffRole === 'ADMIN') return '事業所会員（管理者）';
-    return '事業所会員（メンバー）';
-  }, [currentIdentity]);
+    let label = '個人会員';
+    if (currentIdentity.type === MemberType.SUPPORT) label = '賛助会員';
+    if (currentIdentity.type === MemberType.BUSINESS) {
+      label = currentIdentity.staffRole === 'ADMIN' ? '事業所会員（管理者）' : '事業所会員（メンバー）';
+    }
+    return userRole === 'ADMIN' ? `${label} / 管理者権限` : label;
+  }, [currentIdentity, userRole]);
 
   const resolveIdentityId = (
     ctx: { memberId: string; staffId?: string; canAccessAdminPage: boolean },
@@ -534,8 +614,11 @@ const App: React.FC = () => {
       setAdminDashboardData(null);
       setTrainingManagementLoaded(false);
       setTrainingManagementError(null);
+      setAdminPermissionData(null);
+      setAdminPermissionError(null);
       setSystemSettingsLoaded(false);
-      applyAuthContext(result, []);
+      const loaded = await loadMemberPortalData(result.memberId, { force: true });
+      applyAuthContext(result, loaded.members);
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : 'Google認証に失敗しました。');
     } finally {
@@ -570,8 +653,11 @@ const App: React.FC = () => {
       setAdminDashboardData(null);
       setTrainingManagementLoaded(false);
       setTrainingManagementError(null);
+      setAdminPermissionData(null);
+      setAdminPermissionError(null);
       setSystemSettingsLoaded(false);
-      applyAuthContext(result, []);
+      const loaded = await loadMemberPortalData(result.memberId, { force: true });
+      applyAuthContext(result, loaded.members);
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : 'Google認証に失敗しました。');
     } finally {
@@ -648,6 +734,17 @@ const App: React.FC = () => {
     setAdminDashboardError(null);
     setTrainingManagementLoaded(false);
     setTrainingManagementError(null);
+    setAdminPermissionData(null);
+    setAdminPermissionError(null);
+    setAdminPermissionQuery('');
+    setAdminPermissionDrafts({});
+    setNewAdminPermission({
+      googleUserId: '',
+      googleEmail: '',
+      displayName: '',
+      linkedAuthId: '',
+      enabled: true,
+    });
     setSystemSettingsLoaded(false);
   };
 
@@ -656,6 +753,311 @@ const App: React.FC = () => {
     if (type === MemberType.SUPPORT) return '賛助会員';
     return '個人会員';
   };
+
+  const filteredAdminPermissions = useMemo(() => {
+    const normalized = adminPermissionQuery.trim().toLowerCase();
+    if (!normalized) return adminPermissionData?.entries || [];
+    return (adminPermissionData?.entries || []).filter((entry) =>
+      [entry.googleEmail, entry.displayName, entry.linkedIdentityLabel, entry.linkedRoleCode]
+        .join(' ')
+        .toLowerCase()
+        .includes(normalized)
+    );
+  }, [adminPermissionData, adminPermissionQuery]);
+
+  const adminPermissionOptionLabel = (authId: string) =>
+    adminPermissionData?.identityOptions.find((option) => option.authId === authId)?.label || '';
+
+  const updateAdminPermissionDraft = (
+    id: string,
+    patch: Partial<{ googleUserId: string; googleEmail: string; displayName: string; linkedAuthId: string; enabled: boolean }>,
+  ) => {
+    setAdminPermissionDrafts((prev) => ({
+      ...prev,
+      [id]: {
+        googleUserId: '',
+        googleEmail: '',
+        displayName: '',
+        linkedAuthId: '',
+        enabled: true,
+        ...(prev[id] || {}),
+        ...patch,
+      },
+    }));
+  };
+
+  const saveAdminPermission = async (payload: {
+    id?: string;
+    googleUserId?: string;
+    googleEmail: string;
+    displayName?: string;
+    linkedAuthId: string;
+    enabled: boolean;
+  }) => {
+    await api.saveAdminPermission(payload);
+    await loadAdminPermissionData({ force: true });
+  };
+
+  const deleteAdminPermission = async (id: string) => {
+    await api.deleteAdminPermission(id);
+    await loadAdminPermissionData({ force: true });
+  };
+
+  const renderSystemPermissionPage = () => (
+    <div className="space-y-6">
+      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800">管理コンソール（システム権限）</h2>
+            <p className="text-slate-600 mt-2 leading-relaxed">
+              管理者ログインに使う Google アカウントと、管理者ログイン後に表示する会員・職員の紐付けを管理します。
+            </p>
+            <p className="text-xs text-slate-500 mt-2">
+              認証可否は Google メールとホワイトリストで判定し、表示対象は紐付け認証IDから解決します。
+            </p>
+          </div>
+          <div className="text-xs text-slate-500 md:text-right">
+            <div>現在の Google セッション: {adminPermissionData?.currentSessionEmail || '未取得'}</div>
+            <button
+              type="button"
+              className="mt-2 px-3 py-2 rounded border border-slate-300 bg-white hover:bg-slate-50 text-slate-700"
+              onClick={() => loadAdminPermissionData({ force: true }).catch(() => undefined)}
+            >
+              再読み込み
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {adminPermissionError && (
+        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">{adminPermissionError}</div>
+      )}
+
+      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <h3 className="text-lg font-bold text-slate-800 mb-4">管理者権限を追加</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Googleメールアドレス</label>
+            <input
+              type="email"
+              value={newAdminPermission.googleEmail}
+              onChange={(e) => setNewAdminPermission((prev) => ({ ...prev, googleEmail: e.target.value }))}
+              className="w-full border border-slate-300 rounded px-3 py-2"
+              placeholder="admin@example.com"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">表示名</label>
+            <input
+              value={newAdminPermission.displayName}
+              onChange={(e) => setNewAdminPermission((prev) => ({ ...prev, displayName: e.target.value }))}
+              className="w-full border border-slate-300 rounded px-3 py-2"
+              placeholder="運用管理者"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">GoogleユーザーID</label>
+            <input
+              value={newAdminPermission.googleUserId}
+              onChange={(e) => setNewAdminPermission((prev) => ({ ...prev, googleUserId: e.target.value }))}
+              className="w-full border border-slate-300 rounded px-3 py-2"
+              placeholder="任意。IDトークン照合用の sub"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">表示対象の会員/職員</label>
+            <select
+              value={newAdminPermission.linkedAuthId}
+              onChange={(e) => setNewAdminPermission((prev) => ({ ...prev, linkedAuthId: e.target.value }))}
+              className="w-full border border-slate-300 rounded px-3 py-2"
+            >
+              <option value="">紐付け先を選択してください</option>
+              {(adminPermissionData?.identityOptions || []).map((option) => (
+                <option key={option.authId} value={option.authId}>{option.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="mt-4 flex items-center justify-between gap-4">
+          <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={newAdminPermission.enabled}
+              onChange={(e) => setNewAdminPermission((prev) => ({ ...prev, enabled: e.target.checked }))}
+            />
+            有効にする
+          </label>
+          <button
+            type="button"
+            className="px-4 py-2 rounded bg-slate-800 text-white disabled:opacity-50"
+            disabled={!newAdminPermission.googleEmail.trim() || !newAdminPermission.linkedAuthId}
+            onClick={async () => {
+              try {
+                await saveAdminPermission({
+                  googleUserId: newAdminPermission.googleUserId.trim() || undefined,
+                  googleEmail: newAdminPermission.googleEmail.trim(),
+                  displayName: newAdminPermission.displayName.trim() || undefined,
+                  linkedAuthId: newAdminPermission.linkedAuthId,
+                  enabled: newAdminPermission.enabled,
+                });
+                setNewAdminPermission({
+                  googleUserId: '',
+                  googleEmail: '',
+                  displayName: '',
+                  linkedAuthId: '',
+                  enabled: true,
+                });
+                alert('管理者権限を追加しました。');
+              } catch (error) {
+                alert(error instanceof Error ? error.message : '管理者権限の追加に失敗しました。');
+              }
+            }}
+          >
+            管理者権限を追加
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-bold text-slate-800">登録済み管理者アカウント</h3>
+            <p className="text-sm text-slate-600 mt-1">無効化・紐付け変更・削除をここで行います。</p>
+          </div>
+          <input
+            value={adminPermissionQuery}
+            onChange={(e) => setAdminPermissionQuery(e.target.value)}
+            className="w-full md:w-80 border border-slate-300 rounded px-3 py-2"
+            placeholder="Googleメール・表示名・紐付け先で検索"
+          />
+        </div>
+        {adminPermissionLoading && !adminPermissionData && (
+          <p className="text-sm text-slate-500">システム権限データを読み込み中です...</p>
+        )}
+        {!adminPermissionLoading && filteredAdminPermissions.length === 0 && (
+          <p className="text-sm text-slate-500">表示できる管理者アカウントがありません。</p>
+        )}
+        <div className="space-y-3">
+          {filteredAdminPermissions.map((entry) => {
+            const draft = adminPermissionDrafts[entry.id] || {
+              googleUserId: entry.googleUserId || '',
+              googleEmail: entry.googleEmail || '',
+              displayName: entry.displayName || '',
+              linkedAuthId: entry.linkedAuthId || '',
+              enabled: entry.enabled,
+            };
+            return (
+              <div key={entry.id} className="border border-slate-200 rounded-xl p-4 space-y-4">
+                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">{entry.googleEmail}</p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      現在の紐付け: {entry.linkedIdentityLabel || '未設定'} / 更新日時: {entry.updatedAt || '-'}
+                    </p>
+                  </div>
+                  <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${draft.enabled ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
+                    {draft.enabled ? '有効' : '無効'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Googleメールアドレス</label>
+                    <input
+                      type="email"
+                      value={draft.googleEmail}
+                      onChange={(e) => updateAdminPermissionDraft(entry.id, { googleEmail: e.target.value })}
+                      className="w-full border border-slate-300 rounded px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">表示名</label>
+                    <input
+                      value={draft.displayName}
+                      onChange={(e) => updateAdminPermissionDraft(entry.id, { displayName: e.target.value })}
+                      className="w-full border border-slate-300 rounded px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">GoogleユーザーID</label>
+                    <input
+                      value={draft.googleUserId}
+                      onChange={(e) => updateAdminPermissionDraft(entry.id, { googleUserId: e.target.value })}
+                      className="w-full border border-slate-300 rounded px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">表示対象の会員/職員</label>
+                    <select
+                      value={draft.linkedAuthId}
+                      onChange={(e) => updateAdminPermissionDraft(entry.id, { linkedAuthId: e.target.value })}
+                      className="w-full border border-slate-300 rounded px-3 py-2"
+                    >
+                      <option value="">紐付け先を選択してください</option>
+                      {(adminPermissionData?.identityOptions || []).map((option) => (
+                        <option key={option.authId} value={option.authId}>{option.label}</option>
+                      ))}
+                    </select>
+                    {draft.linkedAuthId && (
+                      <p className="text-xs text-slate-500 mt-1">選択中: {adminPermissionOptionLabel(draft.linkedAuthId)}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={draft.enabled}
+                      onChange={(e) => updateAdminPermissionDraft(entry.id, { enabled: e.target.checked })}
+                    />
+                    有効にする
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className="px-4 py-2 rounded bg-slate-800 text-white disabled:opacity-50"
+                      disabled={!draft.googleEmail.trim() || !draft.linkedAuthId}
+                      onClick={async () => {
+                        try {
+                          await saveAdminPermission({
+                            id: entry.id,
+                            googleUserId: draft.googleUserId.trim() || undefined,
+                            googleEmail: draft.googleEmail.trim(),
+                            displayName: draft.displayName.trim() || undefined,
+                            linkedAuthId: draft.linkedAuthId,
+                            enabled: draft.enabled,
+                          });
+                          alert('管理者権限を更新しました。');
+                        } catch (error) {
+                          alert(error instanceof Error ? error.message : '管理者権限の更新に失敗しました。');
+                        }
+                      }}
+                    >
+                      変更を保存
+                    </button>
+                    <button
+                      type="button"
+                      className="px-4 py-2 rounded border border-red-300 text-red-700 bg-red-50"
+                      onClick={async () => {
+                        if (!confirm(`管理者権限 ${entry.googleEmail} を削除しますか？`)) return;
+                        try {
+                          await deleteAdminPermission(entry.id);
+                          alert('管理者権限を削除しました。');
+                        } catch (error) {
+                          alert(error instanceof Error ? error.message : '管理者権限の削除に失敗しました。');
+                        }
+                      }}
+                    >
+                      削除
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
 
   const renderMemberList = () => (
     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mt-6">
@@ -1126,6 +1528,13 @@ const App: React.FC = () => {
           </div>
         </div>
       );
+    }
+
+    if (currentView === 'system-permissions') {
+      if (userRole !== 'ADMIN') {
+        return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
+      }
+      return renderSystemPermissionPage();
     }
 
     if (currentView === 'annual-fee-manage') {

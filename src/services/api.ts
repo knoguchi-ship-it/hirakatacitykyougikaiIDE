@@ -1,7 +1,6 @@
 ﻿import { Member, Training } from '../types';
 import { TrainingApplicantRow } from '../shared/types';
-import { AdminDashboardData } from '../types';
-import { AnnualFeeAdminData, AnnualFeeAdminRecord } from '../types';
+import { AdminDashboardData, AdminPermissionData, AnnualFeeAdminData, AnnualFeeAdminRecord } from '../types';
 
 export interface TrainingMailPayload {
   trainingId: string;
@@ -79,6 +78,16 @@ export interface ApiClient {
   adminGoogleLogin(idToken: string): Promise<AdminLoginResult>;
   checkAdminBySession(): Promise<AdminLoginResult>;
   getAuthConfig(): Promise<{ adminGoogleClientId: string }>;
+  getAdminPermissionData(): Promise<AdminPermissionData>;
+  saveAdminPermission(payload: {
+    id?: string;
+    googleUserId?: string;
+    googleEmail: string;
+    displayName?: string;
+    linkedAuthId: string;
+    enabled: boolean;
+  }): Promise<void>;
+  deleteAdminPermission(id: string): Promise<void>;
   saveTraining(training: Training): Promise<Training>;
   uploadTrainingFile(base64: string, filename: string, mimeType: string): Promise<{ url: string }>;
   applyTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ applicationId: string; applicants: number; duplicate?: boolean }>;
@@ -605,6 +614,79 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('getAuthConfig', null);
+    });
+  }
+
+  async getAdminPermissionData(): Promise<AdminPermissionData> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) {
+              resolve(parsed.data || { entries: [], identityOptions: [], currentSessionEmail: '' });
+            } else {
+              reject(new Error(parsed.error || 'API Error'));
+            }
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getAdminPermissionData', null);
+    });
+  }
+
+  async saveAdminPermission(payload: {
+    id?: string;
+    googleUserId?: string;
+    googleEmail: string;
+    displayName?: string;
+    linkedAuthId: string;
+    enabled: boolean;
+  }): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve();
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('saveAdminPermission', JSON.stringify(payload));
+    });
+  }
+
+  async deleteAdminPermission(id: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve();
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('deleteAdminPermission', JSON.stringify({ id }));
     });
   }
 

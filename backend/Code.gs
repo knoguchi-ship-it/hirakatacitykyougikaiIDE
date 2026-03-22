@@ -653,6 +653,7 @@ function processApiRequest(action, payload) {
     // 必ず unauthorized で返るため、URL 分離の信頼性を担保する。
   var ADMIN_REQUIRED_ACTIONS = [
       'getDbInfo', 'getSystemSettings', 'updateSystemSettings',
+      'getAdminPermissionData', 'saveAdminPermission', 'deleteAdminPermission',
       'sendTrainingReminder', 'seedDemoData', 'saveTraining',
       'uploadTrainingFile', 'getTrainingApplicants',
       'getAdminEmailAliases', 'sendTrainingMail',
@@ -754,6 +755,18 @@ function processApiRequest(action, payload) {
 
     if (action === 'updateSystemSettings') {
       return JSON.stringify({ success: true, data: updateSystemSettings_(parsedPayload) });
+    }
+
+    if (action === 'getAdminPermissionData') {
+      return JSON.stringify({ success: true, data: getAdminPermissionData_() });
+    }
+
+    if (action === 'saveAdminPermission') {
+      return JSON.stringify({ success: true, data: saveAdminPermission_(parsedPayload) });
+    }
+
+    if (action === 'deleteAdminPermission') {
+      return JSON.stringify({ success: true, data: deleteAdminPermission_(parsedPayload) });
     }
 
     if (action === 'getAnnualFeeAdminData') {
@@ -2971,6 +2984,235 @@ function updateSystemSettings_(request) {
   scriptProperties.setProperty(DEFAULT_BUSINESS_STAFF_LIMIT_KEY, String(Math.floor(next))); // backward compatibility
   scriptProperties.setProperty(TRAINING_HISTORY_LOOKBACK_MONTHS_KEY, String(Math.floor(lookback))); // backward compatibility
   return getSystemSettings_();
+}
+
+function getAdminPermissionData_() {
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  return {
+    entries: getAdminPermissionEntries_(ss),
+    identityOptions: getAdminPermissionIdentityOptions_(ss),
+    currentSessionEmail: String(Session.getActiveUser().getEmail() || '').toLowerCase(),
+  };
+}
+
+function saveAdminPermission_(payload) {
+  if (!payload) throw new Error('権限データが空です。');
+
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+
+  var normalizedEmail = String(payload.googleEmail || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    throw new Error('Googleメールアドレスの形式が不正です。');
+  }
+
+  var linkedAuthId = String(payload.linkedAuthId || '').trim();
+  if (!linkedAuthId) throw new Error('紐付け認証IDは必須です。');
+
+  var authSheet = ss.getSheetByName('T_認証アカウント');
+  if (!authSheet) throw new Error('T_認証アカウント シートが見つかりません。');
+  var linkedAuth = findRowByColumnValue_(authSheet, '認証ID', linkedAuthId);
+  if (!linkedAuth || toBoolean_(linkedAuth.row[linkedAuth.columns['削除フラグ']])) {
+    throw new Error('紐付け認証ID が見つかりません。');
+  }
+  if (!toBoolean_(linkedAuth.row[linkedAuth.columns['アカウント有効フラグ']])) {
+    throw new Error('紐付け先の認証アカウントが無効です。');
+  }
+
+  var linkedMemberId = String(linkedAuth.row[linkedAuth.columns['会員ID']] || '').trim();
+  if (!linkedMemberId) throw new Error('紐付け先の認証アカウントに会員IDがありません。');
+
+  var sheet = ss.getSheetByName('T_管理者Googleホワイトリスト');
+  if (!sheet) throw new Error('T_管理者Googleホワイトリスト シートが見つかりません。');
+  var id = String(payload.id || '').trim();
+  var existing = id ? findRowByColumnValue_(sheet, 'ホワイトリストID', id) : null;
+
+  var rows = getRowsAsObjects_(ss, 'T_管理者Googleホワイトリスト').filter(function(row) {
+    return !toBoolean_(row['削除フラグ']);
+  });
+  for (var i = 0; i < rows.length; i += 1) {
+    var rowId = String(rows[i]['ホワイトリストID'] || '');
+    var rowEmail = String(rows[i]['Googleメール'] || '').trim().toLowerCase();
+    if (rowEmail && rowEmail === normalizedEmail && rowId !== id) {
+      throw new Error('同じ Googleメールアドレスは既に登録されています。');
+    }
+    var rowGoogleUserId = String(rows[i]['GoogleユーザーID'] || '').trim();
+    var nextGoogleUserId = String(payload.googleUserId || '').trim();
+    if (nextGoogleUserId && rowGoogleUserId === nextGoogleUserId && rowId !== id) {
+      throw new Error('同じ GoogleユーザーID は既に登録されています。');
+    }
+  }
+
+  var displayName = String(payload.displayName || '').trim();
+  if (!displayName) {
+    displayName = normalizedEmail;
+  }
+
+  var nowIso = new Date().toISOString();
+  var nextRow = {
+    ホワイトリストID: id || ('WL-' + Utilities.getUuid().slice(0, 8)),
+    GoogleユーザーID: String(payload.googleUserId || '').trim(),
+    Googleメール: normalizedEmail,
+    表示名: displayName,
+    紐付け認証ID: linkedAuthId,
+    紐付け会員ID: linkedMemberId,
+    有効フラグ: payload.enabled !== false,
+    作成日時: existing ? String(existing.row[existing.columns['作成日時']] || nowIso) : nowIso,
+    更新日時: nowIso,
+    削除フラグ: false,
+  };
+
+  if (existing) {
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var updatedRow = existing.row.slice();
+    for (var h = 0; h < headers.length; h += 1) {
+      if (Object.prototype.hasOwnProperty.call(nextRow, headers[h])) {
+        updatedRow[h] = nextRow[headers[h]];
+      }
+    }
+    sheet.getRange(existing.rowNumber, 1, 1, updatedRow.length).setValues([updatedRow]);
+  } else {
+    appendRowsByHeaders_(ss, 'T_管理者Googleホワイトリスト', [nextRow]);
+  }
+
+  return { saved: true, id: nextRow['ホワイトリストID'] };
+}
+
+function deleteAdminPermission_(payload) {
+  var id = String(payload && payload.id || '').trim();
+  if (!id) throw new Error('ホワイトリストID が未指定です。');
+
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  var sheet = ss.getSheetByName('T_管理者Googleホワイトリスト');
+  if (!sheet) throw new Error('T_管理者Googleホワイトリスト シートが見つかりません。');
+  var found = findRowByColumnValue_(sheet, 'ホワイトリストID', id);
+  if (!found) throw new Error('削除対象の管理者権限が見つかりません。');
+
+  var row = found.row.slice();
+  row[found.columns['有効フラグ']] = false;
+  row[found.columns['更新日時']] = new Date().toISOString();
+  row[found.columns['削除フラグ']] = true;
+  sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  return { deleted: true, id: id };
+}
+
+function getAdminPermissionEntries_(ss) {
+  var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(row) { return !toBoolean_(row['削除フラグ']); });
+  var staffRows = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(row) { return !toBoolean_(row['削除フラグ']); });
+  var authRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(row) { return !toBoolean_(row['削除フラグ']); });
+  var memberMap = {};
+  var staffMap = {};
+  var authMap = {};
+  for (var i = 0; i < memberRows.length; i += 1) {
+    memberMap[String(memberRows[i]['会員ID'] || '')] = memberRows[i];
+  }
+  for (var j = 0; j < staffRows.length; j += 1) {
+    staffMap[String(staffRows[j]['職員ID'] || '')] = staffRows[j];
+  }
+  for (var k = 0; k < authRows.length; k += 1) {
+    authMap[String(authRows[k]['認証ID'] || '')] = authRows[k];
+  }
+
+  return getRowsAsObjects_(ss, 'T_管理者Googleホワイトリスト')
+    .filter(function(row) { return !toBoolean_(row['削除フラグ']); })
+    .map(function(row) {
+      var linkedAuthId = String(row['紐付け認証ID'] || '');
+      var linkedAuth = authMap[linkedAuthId];
+      var linkedMemberId = String(row['紐付け会員ID'] || (linkedAuth && linkedAuth['会員ID']) || '');
+      var linkedStaffId = String((linkedAuth && linkedAuth['職員ID']) || '');
+      return {
+        id: String(row['ホワイトリストID'] || ''),
+        googleUserId: String(row['GoogleユーザーID'] || ''),
+        googleEmail: String(row['Googleメール'] || '').trim().toLowerCase(),
+        displayName: String(row['表示名'] || ''),
+        linkedAuthId: linkedAuthId,
+        linkedMemberId: linkedMemberId,
+        linkedStaffId: linkedStaffId,
+        linkedRoleCode: String((linkedAuth && linkedAuth['システムロールコード']) || ''),
+        linkedIdentityLabel: buildAdminPermissionIdentityLabel_(memberMap[linkedMemberId], staffMap[linkedStaffId], linkedAuth),
+        enabled: toBoolean_(row['有効フラグ']),
+        updatedAt: String(row['更新日時'] || ''),
+      };
+    })
+    .sort(function(a, b) {
+      return String(a.googleEmail || '').localeCompare(String(b.googleEmail || ''));
+    });
+}
+
+function getAdminPermissionIdentityOptions_(ss) {
+  var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(row) { return !toBoolean_(row['削除フラグ']); });
+  var staffRows = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(row) { return !toBoolean_(row['削除フラグ']); });
+  var authRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(row) {
+    return !toBoolean_(row['削除フラグ']) && toBoolean_(row['アカウント有効フラグ']);
+  });
+  var memberMap = {};
+  var staffMap = {};
+  for (var i = 0; i < memberRows.length; i += 1) {
+    memberMap[String(memberRows[i]['会員ID'] || '')] = memberRows[i];
+  }
+  for (var j = 0; j < staffRows.length; j += 1) {
+    staffMap[String(staffRows[j]['職員ID'] || '')] = staffRows[j];
+  }
+
+  var deduped = {};
+  for (var k = 0; k < authRows.length; k += 1) {
+    var auth = authRows[k];
+    var memberId = String(auth['会員ID'] || '').trim();
+    if (!memberId) continue;
+    var staffId = String(auth['職員ID'] || '').trim();
+    var authMethod = String(auth['認証方式'] || 'PASSWORD');
+    var key = memberId + '::' + staffId;
+    if (!deduped[key] || (String(deduped[key]['認証方式'] || '') !== 'PASSWORD' && authMethod === 'PASSWORD')) {
+      deduped[key] = auth;
+    }
+  }
+
+  var options = [];
+  var keys = Object.keys(deduped);
+  for (var m = 0; m < keys.length; m += 1) {
+    var authRow = deduped[keys[m]];
+    var optionMemberId = String(authRow['会員ID'] || '');
+    var optionStaffId = String(authRow['職員ID'] || '');
+    options.push({
+      authId: String(authRow['認証ID'] || ''),
+      authMethod: String(authRow['認証方式'] || 'PASSWORD'),
+      loginId: String(authRow['ログインID'] || ''),
+      memberId: optionMemberId,
+      staffId: optionStaffId,
+      roleCode: String(authRow['システムロールコード'] || ''),
+      label: buildAdminPermissionIdentityLabel_(memberMap[optionMemberId], staffMap[optionStaffId], authRow),
+    });
+  }
+  options.sort(function(a, b) {
+    return String(a.label || '').localeCompare(String(b.label || ''));
+  });
+  return options;
+}
+
+function buildAdminPermissionIdentityLabel_(memberRow, staffRow, authRow) {
+  if (!authRow) return '紐付け先不明';
+  var base = buildAnnualFeeDisplayName_(memberRow);
+  if (staffRow) {
+    base = base + ' - ' + String(staffRow['氏名'] || '');
+  }
+  var suffix = [];
+  var roleCode = String(authRow['システムロールコード'] || '');
+  if (roleCode) suffix.push(mapSystemRoleLabel_(roleCode));
+  var loginId = String(authRow['ログインID'] || '');
+  if (loginId) suffix.push('ログインID: ' + loginId);
+  return suffix.length ? base + ' (' + suffix.join(' / ') + ')' : base;
+}
+
+function mapSystemRoleLabel_(roleCode) {
+  switch (String(roleCode || '')) {
+    case 'OFFICE_ADMIN': return '事務局管理者';
+    case 'INDIVIDUAL_MEMBER': return '個人会員';
+    case 'BUSINESS_ADMIN': return '事業所管理者';
+    case 'BUSINESS_MEMBER': return '事業所メンバー';
+    default: return String(roleCode || '');
+  }
 }
 
 function resolveAnnualFeeSelectedYear_(ss, payload) {
