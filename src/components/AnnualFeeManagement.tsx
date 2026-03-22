@@ -170,6 +170,8 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
   const [sortKey, setSortKey] = useState<SortKey>('displayName');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [dateErrors, setDateErrors] = useState<Record<string, string>>({});
+  const [rawDateTexts, setRawDateTexts] = useState<Record<string, string>>({});
+  const [failedKeys, setFailedKeys] = useState<Set<string> | null>(null);
 
   /* ── メッセージ自動消去 ── */
   useEffect(() => {
@@ -180,9 +182,10 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
 
   useEffect(() => {
     if (!error) return;
+    if (failedKeys) return;
     const t = setTimeout(() => setError(null), MESSAGE_AUTO_CLEAR_MS * 2);
     return () => clearTimeout(t);
-  }, [error]);
+  }, [error, failedKeys]);
 
   const load = useCallback(async (year?: number) => {
     setLoading(true);
@@ -192,6 +195,9 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
       setData(next);
       setSelectedYear(next.selectedYear);
       setEditableRows(buildEditableRows(next.records));
+      setRawDateTexts({});
+      setDateErrors({});
+      setFailedKeys(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : '年会費データの読み込みに失敗しました。');
     } finally {
@@ -227,6 +233,16 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
       });
       return next;
     });
+    setRawDateTexts((prev) => {
+      const next = { ...prev };
+      savedArr.forEach((r) => { delete next[buildRowKey(r)]; });
+      return next;
+    });
+    setDateErrors((prev) => {
+      const next = { ...prev };
+      savedArr.forEach((r) => { delete next[buildRowKey(r)]; });
+      return next;
+    });
   }, []);
 
   /* ── ソート ── */
@@ -244,6 +260,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
   const filteredRecords = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return data.records.filter((record) => {
+      if (failedKeys && !failedKeys.has(buildRowKey(record))) return false;
       if (statusFilter !== 'ALL' && record.status !== statusFilter) return false;
       if (memberTypeFilter !== 'ALL' && record.memberType !== memberTypeFilter) return false;
       if (!normalizedQuery) return true;
@@ -252,7 +269,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
         .toLowerCase()
         .includes(normalizedQuery);
     });
-  }, [data.records, statusFilter, memberTypeFilter, query]);
+  }, [data.records, statusFilter, memberTypeFilter, query, failedKeys]);
 
   const sortedRecords = useMemo(() => {
     const sorted = [...filteredRecords];
@@ -295,6 +312,10 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
   }, [selectedYear, statusFilter, memberTypeFilter, query, pageSize, sortKey, sortDir]);
 
   useEffect(() => {
+    setFailedKeys(null);
+  }, [statusFilter, memberTypeFilter, query]);
+
+  useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
@@ -311,9 +332,9 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
     return data.records.filter((record) => {
       const key = buildRowKey(record);
       const draft = editableRows[key];
-      return draft && isDirty(record, draft);
+      return (draft && isDirty(record, draft)) || rawDateTexts[key] !== undefined;
     });
-  }, [data.records, editableRows]);
+  }, [data.records, editableRows, rawDateTexts]);
 
   const updateDraft = (record: AnnualFeeAdminRecord, patch: Partial<EditableRow>) => {
     const key = buildRowKey(record);
@@ -340,13 +361,27 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
       note: record.note || '',
     };
 
-    if (draft.status === PaymentStatus.PAID && !draft.confirmedDate) {
-      setError('納入済にする場合は納入確認日を入力してください。');
-      setSuccess(null);
-      return;
+    // Resolve confirmedDate from raw text if user typed something
+    let finalDate = draft.confirmedDate;
+    const raw = rawDateTexts[key];
+    if (raw !== undefined) {
+      const trimmed = raw.trim();
+      if (!trimmed) {
+        finalDate = '';
+      } else {
+        const parsed = parseSlashDate(raw);
+        if (parsed === null) {
+          setDateErrors((prev) => ({ ...prev, [key]: '日付は YYYY/MM/DD 形式で入力してください' }));
+          setError(`${record.displayName}: 日付は YYYY/MM/DD 形式で入力してください`);
+          setSuccess(null);
+          return;
+        }
+        finalDate = parsed;
+      }
     }
-    if (dateErrors[key]) {
-      setError(`${record.displayName}: ${dateErrors[key]}`);
+
+    if (draft.status === PaymentStatus.PAID && !finalDate) {
+      setError(`${record.displayName}: 納入済にする場合は納入確認日を入力してください。`);
       setSuccess(null);
       return;
     }
@@ -360,7 +395,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
         memberId: record.memberId,
         year: record.year,
         status: draft.status,
-        confirmedDate: draft.status === PaymentStatus.PAID ? draft.confirmedDate : '',
+        confirmedDate: draft.status === PaymentStatus.PAID ? finalDate : '',
         note: draft.note,
       });
       applyOptimisticUpdate(saved);
@@ -377,25 +412,73 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
     }
   };
 
-  /* ── 一括保存 ── */
+  /* ── 一括保存（Partial Success: 正常分のみ保存、エラー分はスキップ） ── */
   const handleBatchSave = async () => {
     const targets = allDirtyRecords;
     if (targets.length === 0) return;
 
-    const invalidTarget = targets.find((record) => {
+    // Validate all targets — separate valid/invalid
+    const validPayloads: Array<{
+      id?: string;
+      memberId: string;
+      year: number;
+      status: 'PAID' | 'UNPAID';
+      confirmedDate: string;
+      note: string;
+    }> = [];
+    const newInvalidKeys = new Set<string>();
+    const newDateErrors: Record<string, string> = {};
+
+    for (const record of targets) {
       const key = buildRowKey(record);
-      const draft = editableRows[key];
-      return draft && draft.status === PaymentStatus.PAID && !draft.confirmedDate;
-    });
-    if (invalidTarget) {
-      setError(`${invalidTarget.displayName}: 納入済にする場合は納入確認日を入力してください。`);
-      setSuccess(null);
-      return;
+      const draft = editableRows[key] || {
+        id: record.id,
+        status: record.status,
+        confirmedDate: record.confirmedDate || '',
+        note: record.note || '',
+      };
+
+      let finalDate = draft.confirmedDate;
+      const raw = rawDateTexts[key];
+      if (raw !== undefined) {
+        const trimmed = raw.trim();
+        if (!trimmed) {
+          finalDate = '';
+        } else {
+          const parsed = parseSlashDate(raw);
+          if (parsed === null) {
+            newInvalidKeys.add(key);
+            newDateErrors[key] = '日付は YYYY/MM/DD 形式で入力してください';
+            continue;
+          }
+          finalDate = parsed;
+        }
+      }
+
+      if (draft.status === PaymentStatus.PAID && !finalDate) {
+        newInvalidKeys.add(key);
+        newDateErrors[key] = '納入済にする場合は納入確認日を入力してください';
+        continue;
+      }
+
+      validPayloads.push({
+        id: record.exists ? draft.id || undefined : undefined,
+        memberId: record.memberId,
+        year: record.year,
+        status: draft.status as 'PAID' | 'UNPAID',
+        confirmedDate: draft.status === PaymentStatus.PAID ? finalDate : '',
+        note: draft.note,
+      });
     }
-    const dateErrorTarget = targets.find((record) => dateErrors[buildRowKey(record)]);
-    if (dateErrorTarget) {
-      setError(`${dateErrorTarget.displayName}: ${dateErrors[buildRowKey(dateErrorTarget)]}`);
+
+    if (Object.keys(newDateErrors).length > 0) {
+      setDateErrors((prev) => ({ ...prev, ...newDateErrors }));
+    }
+
+    if (validPayloads.length === 0) {
+      setError(`${newInvalidKeys.size} 件すべてにエラーがあります。修正してから保存してください。`);
       setSuccess(null);
+      setFailedKeys(newInvalidKeys);
       return;
     }
 
@@ -403,26 +486,21 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
     setError(null);
     setSuccess(null);
     try {
-      const payloads = targets.map((record) => {
-        const key = buildRowKey(record);
-        const draft = editableRows[key]!;
-        return {
-          id: record.exists ? draft.id || undefined : undefined,
-          memberId: record.memberId,
-          year: record.year,
-          status: draft.status as 'PAID' | 'UNPAID',
-          confirmedDate: draft.status === PaymentStatus.PAID ? draft.confirmedDate : '',
-          note: draft.note,
-        };
-      });
-      const savedRecords = await api.saveAnnualFeeRecordsBatch(payloads);
+      const savedRecords = await api.saveAnnualFeeRecordsBatch(validPayloads);
       applyOptimisticUpdate(savedRecords);
       if (onChanged) {
         void Promise.resolve(onChanged()).catch((err) => {
           console.error('Failed to refresh dashboard data after batch save:', err);
         });
       }
-      setSuccess(`${savedRecords.length} 件の年会費情報を一括保存しました。`);
+      if (newInvalidKeys.size > 0) {
+        setSuccess(`${savedRecords.length} 件を保存しました。`);
+        setError(`${newInvalidKeys.size} 件はエラーのため保存できませんでした。`);
+        setFailedKeys(newInvalidKeys);
+      } else {
+        setSuccess(`${savedRecords.length} 件の年会費情報を一括保存しました。`);
+        setFailedKeys(null);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : '一括保存に失敗しました。');
     } finally {
@@ -456,6 +534,18 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
         <div className="flex items-center justify-between text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-4 py-3">
           <span>{success}</span>
           <button type="button" onClick={() => setSuccess(null)} className="text-emerald-400 hover:text-emerald-600 text-lg leading-none">&times;</button>
+        </div>
+      )}
+      {failedKeys && (
+        <div className="flex items-center justify-between text-amber-800 bg-amber-50 border border-amber-300 rounded px-4 py-3">
+          <span>保存できなかったレコード（{failedKeys.size} 件）を表示しています。</span>
+          <button
+            type="button"
+            onClick={() => { setFailedKeys(null); setError(null); }}
+            className="px-3 py-1.5 rounded text-sm font-medium bg-amber-200 hover:bg-amber-300 text-amber-900 transition-colors whitespace-nowrap"
+          >
+            全件表示に戻す
+          </button>
         </div>
       )}
 
@@ -613,7 +703,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
                     note: record.note || '',
                   };
                   const isSaving = savingKey === key;
-                  const dirty = isDirty(record, draft);
+                  const dirty = isDirty(record, draft) || rawDateTexts[key] !== undefined;
                   const stripe = idx % 2 === 1 ? 'bg-slate-50/60' : 'bg-white';
                   return (
                     <tr key={key} className={`${stripe} hover:bg-blue-50/40 transition-colors`}>
@@ -634,10 +724,17 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
                           className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-sm"
                           value={draft.status}
                           disabled={isBusy}
-                          onChange={(e) => updateDraft(record, {
-                            status: e.target.value as PaymentStatus,
-                            confirmedDate: e.target.value === PaymentStatus.UNPAID ? '' : draft.confirmedDate,
-                          })}
+                          onChange={(e) => {
+                            const newStatus = e.target.value as PaymentStatus;
+                            updateDraft(record, {
+                              status: newStatus,
+                              confirmedDate: newStatus === PaymentStatus.UNPAID ? '' : draft.confirmedDate,
+                            });
+                            if (newStatus === PaymentStatus.UNPAID) {
+                              setRawDateTexts((prev) => { const next = { ...prev }; delete next[key]; return next; });
+                              setDateErrors((prev) => { const next = { ...prev }; delete next[key]; return next; });
+                            }
+                          }}
                         >
                           <option value={PaymentStatus.UNPAID}>未納</option>
                           <option value={PaymentStatus.PAID}>納入済</option>
@@ -650,18 +747,36 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
                             className={`flex-1 min-w-0 border rounded px-2 py-1.5 text-sm disabled:bg-slate-100 disabled:text-slate-400 ${
                               dateErrors[key] ? 'border-red-400 bg-red-50' : 'border-slate-300'
                             }`}
-                            value={toSlashDate(draft.confirmedDate)}
+                            value={rawDateTexts[key] !== undefined ? rawDateTexts[key] : toSlashDate(draft.confirmedDate)}
                             disabled={draft.status !== PaymentStatus.PAID || isBusy}
                             placeholder="YYYY/MM/DD"
                             onChange={(e) => {
                               const raw = e.target.value;
+                              setRawDateTexts((prev) => ({ ...prev, [key]: raw }));
+                              // Reward Early: エラー表示中なら修正を即座に検知して解除
+                              if (dateErrors[key]) {
+                                const parsed = parseSlashDate(raw);
+                                if (parsed !== null) {
+                                  setDateErrors((prev) => { const next = { ...prev }; delete next[key]; return next; });
+                                  updateDraft(record, { confirmedDate: parsed });
+                                }
+                              }
+                            }}
+                            onBlur={(e) => {
+                              const raw = e.target.value.trim();
+                              if (!raw) {
+                                setDateErrors((prev) => { const next = { ...prev }; delete next[key]; return next; });
+                                updateDraft(record, { confirmedDate: '' });
+                                return;
+                              }
                               const parsed = parseSlashDate(raw);
                               if (parsed === null) {
+                                // Punish Late: フォーカスを離れた時のみエラー表示
                                 setDateErrors((prev) => ({ ...prev, [key]: '日付は YYYY/MM/DD 形式で入力してください' }));
-                                updateDraft(record, { confirmedDate: '' });
                               } else {
                                 setDateErrors((prev) => { const next = { ...prev }; delete next[key]; return next; });
                                 updateDraft(record, { confirmedDate: parsed });
+                                setRawDateTexts((prev) => { const next = { ...prev }; delete next[key]; return next; });
                               }
                             }}
                           />
@@ -682,6 +797,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
                               title="カレンダーから選択"
                               onChange={(e) => {
                                 setDateErrors((prev) => { const next = { ...prev }; delete next[key]; return next; });
+                                setRawDateTexts((prev) => { const next = { ...prev }; delete next[key]; return next; });
                                 updateDraft(record, { confirmedDate: e.target.value });
                               }}
                             />
