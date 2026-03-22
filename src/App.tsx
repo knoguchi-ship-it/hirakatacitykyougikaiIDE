@@ -73,7 +73,12 @@ const App: React.FC = () => {
   const [adminPermissionLoading, setAdminPermissionLoading] = useState(false);
   const [adminPermissionError, setAdminPermissionError] = useState<string | null>(null);
   const [adminPermissionQuery, setAdminPermissionQuery] = useState('');
+  const [adminPermissionFilterLevel, setAdminPermissionFilterLevel] = useState<AdminPermissionLevel | 'ALL'>('ALL');
+  const [adminPermissionSortKey, setAdminPermissionSortKey] = useState<'googleEmail' | 'permissionLevel' | 'updatedByAt'>('permissionLevel');
+  const [adminPermissionSortDir, setAdminPermissionSortDir] = useState<'asc' | 'desc'>('asc');
+  const [editingPermissionId, setEditingPermissionId] = useState<string | null>(null);
   const [newPermissionIdentitySearch, setNewPermissionIdentitySearch] = useState('');
+  const [editPermissionIdentitySearches, setEditPermissionIdentitySearches] = useState<Record<string, string>>({});
   const [adminPermissionDrafts, setAdminPermissionDrafts] = useState<Record<string, {
     googleEmail: string;
     linkedAuthId: string;
@@ -721,16 +726,33 @@ const App: React.FC = () => {
   };
 
   const filteredAdminPermissions = useMemo(() => {
-    const all = (adminPermissionData?.entries || []).filter((e) => e.permissionLevel !== 'GENERAL');
+    let list = (adminPermissionData?.entries || []).filter((e) => e.permissionLevel !== 'GENERAL');
+    if (adminPermissionFilterLevel !== 'ALL') {
+      list = list.filter((e) => e.permissionLevel === adminPermissionFilterLevel);
+    }
     const normalized = adminPermissionQuery.trim().toLowerCase();
-    if (!normalized) return all;
-    return all.filter((entry) =>
-      [entry.googleEmail, entry.displayName, entry.linkedIdentityLabel, entry.linkedRoleCode, entry.permissionLevel]
-        .join(' ')
-        .toLowerCase()
-        .includes(normalized)
-    );
-  }, [adminPermissionData, adminPermissionQuery]);
+    if (normalized) {
+      list = list.filter((entry) =>
+        [entry.googleEmail, entry.displayName, entry.linkedIdentityLabel, entry.linkedRoleCode, entry.permissionLevel]
+          .join(' ')
+          .toLowerCase()
+          .includes(normalized)
+      );
+    }
+    const permOrder: Record<string, number> = { MASTER: 1, ADMIN: 2, TRAINING_MANAGER: 3, TRAINING_REGISTRAR: 4, GENERAL: 5 };
+    const sorted = [...list].sort((a, b) => {
+      let cmp = 0;
+      if (adminPermissionSortKey === 'googleEmail') {
+        cmp = (a.googleEmail || '').localeCompare(b.googleEmail || '');
+      } else if (adminPermissionSortKey === 'permissionLevel') {
+        cmp = (permOrder[a.permissionLevel] || 9) - (permOrder[b.permissionLevel] || 9);
+      } else if (adminPermissionSortKey === 'updatedByAt') {
+        cmp = (a.updatedByAt || '').localeCompare(b.updatedByAt || '');
+      }
+      return adminPermissionSortDir === 'asc' ? cmp : -cmp;
+    });
+    return sorted;
+  }, [adminPermissionData, adminPermissionQuery, adminPermissionFilterLevel, adminPermissionSortKey, adminPermissionSortDir]);
 
   const adminPermissionOptionLabel = (authId: string) =>
     adminPermissionData?.identityOptions.find((option) => option.authId === authId)?.label || '';
@@ -926,17 +948,55 @@ const App: React.FC = () => {
       </div>
 
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
-          <div>
-            <h3 className="text-lg font-bold text-slate-800">登録済み管理者アカウント</h3>
-            <p className="text-sm text-slate-600 mt-1">権限の変更・紐付け変更・削除をここで行います。</p>
+        <div className="flex flex-col gap-3 mb-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-slate-800">登録済み管理者アカウント</h3>
+              <p className="text-sm text-slate-600 mt-1">
+                {filteredAdminPermissions.length} 件{adminPermissionFilterLevel !== 'ALL' || adminPermissionQuery.trim() ? '（絞り込み中）' : ''}
+              </p>
+            </div>
+            <input
+              value={adminPermissionQuery}
+              onChange={(e) => setAdminPermissionQuery(e.target.value)}
+              className="w-full md:w-64 border border-slate-300 rounded px-3 py-2 text-sm"
+              placeholder="メール・表示名・紐付け先で検索"
+            />
           </div>
-          <input
-            value={adminPermissionQuery}
-            onChange={(e) => setAdminPermissionQuery(e.target.value)}
-            className="w-full md:w-80 border border-slate-300 rounded px-3 py-2"
-            placeholder="Googleメール・紐付け先・権限で検索"
-          />
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-slate-600 whitespace-nowrap">権限</label>
+              <select
+                value={adminPermissionFilterLevel}
+                onChange={(e) => setAdminPermissionFilterLevel(e.target.value as AdminPermissionLevel | 'ALL')}
+                className="border border-slate-300 rounded px-2 py-1 text-sm"
+              >
+                <option value="ALL">すべて</option>
+                {permissionLevelOptions.filter((l) => l !== 'GENERAL').map((level) => (
+                  <option key={level} value={level}>{permissionLevelLabel(level)}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-slate-600 whitespace-nowrap">並び順</label>
+              <select
+                value={adminPermissionSortKey}
+                onChange={(e) => setAdminPermissionSortKey(e.target.value as 'googleEmail' | 'permissionLevel' | 'updatedByAt')}
+                className="border border-slate-300 rounded px-2 py-1 text-sm"
+              >
+                <option value="permissionLevel">権限</option>
+                <option value="googleEmail">メールアドレス</option>
+                <option value="updatedByAt">変更日時</option>
+              </select>
+              <button
+                type="button"
+                className="px-2 py-1 border border-slate-300 rounded text-xs hover:bg-slate-50"
+                onClick={() => setAdminPermissionSortDir((d) => d === 'asc' ? 'desc' : 'asc')}
+              >
+                {adminPermissionSortDir === 'asc' ? '昇順' : '降順'}
+              </button>
+            </div>
+          </div>
         </div>
         {adminPermissionLoading && !adminPermissionData && (
           <p className="text-sm text-slate-500">システム権限データを読み込み中です...</p>
@@ -944,131 +1004,212 @@ const App: React.FC = () => {
         {!adminPermissionLoading && filteredAdminPermissions.length === 0 && (
           <p className="text-sm text-slate-500">表示できる管理者アカウントがありません。</p>
         )}
-        <div className="space-y-3">
-          {filteredAdminPermissions.map((entry) => {
-            const draft = adminPermissionDrafts[entry.id] || {
-              googleEmail: entry.googleEmail || '',
-              linkedAuthId: entry.linkedAuthId || '',
-              permissionLevel: entry.permissionLevel || 'ADMIN',
-              enabled: entry.enabled,
-            };
-            const editable = isEntryEditable(entry);
-            return (
-              <div key={entry.id} className={`border rounded-xl p-4 space-y-4 ${editable ? 'border-slate-200' : 'border-slate-100 bg-slate-50'}`}>
-                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">{entry.googleEmail}</p>
-                    <p className="text-xs text-slate-600 mt-1">{entry.displayName || '(表示名未解決)'}</p>
-                    <p className="text-xs text-slate-500 mt-1">
-                      紐付け: {entry.linkedIdentityLabel || '未設定'} / 権限: {permissionLevelLabel(entry.permissionLevel)}
-                    </p>
-                    {(entry.updatedByEmail || entry.updatedByAt) && (
-                      <p className="text-xs text-slate-400 mt-1">
-                        変更者: {entry.updatedByEmail || '-'} / 変更日時: {entry.updatedByAt || '-'}
-                      </p>
-                    )}
-                  </div>
-                  <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${draft.enabled ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
-                    {draft.enabled ? '有効' : '無効'}
-                  </span>
-                </div>
-                {!editable && (
-                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
-                    {entry.permissionLevel === 'MASTER' ? 'マスター権限のレコードは編集できません。' : 'ご自身のレコードの権限は変更できません。'}
-                  </p>
-                )}
-                {editable && (
-                  <>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Googleメールアドレス</label>
-                        <input
-                          type="email"
-                          value={draft.googleEmail}
-                          onChange={(e) => updateAdminPermissionDraft(entry.id, { googleEmail: e.target.value })}
-                          className="w-full border border-slate-300 rounded px-3 py-2"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">紐づく会員アカウント</label>
-                        <select
-                          value={draft.linkedAuthId}
-                          onChange={(e) => updateAdminPermissionDraft(entry.id, { linkedAuthId: e.target.value })}
-                          className="w-full border border-slate-300 rounded px-3 py-2"
-                        >
-                          <option value="">紐付け先を選択してください</option>
-                          {(adminPermissionData?.identityOptions || []).map((option) => (
-                            <option key={option.authId} value={option.authId}>{option.label}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">権限</label>
-                        <select
-                          value={draft.permissionLevel}
-                          onChange={(e) => updateAdminPermissionDraft(entry.id, { permissionLevel: e.target.value as AdminPermissionLevel })}
-                          className="w-full border border-slate-300 rounded px-3 py-2"
-                        >
-                          {permissionLevelOptions.map((level) => (
-                            <option key={level} value={level}>{permissionLevelLabel(level)}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={draft.enabled}
-                          onChange={(e) => updateAdminPermissionDraft(entry.id, { enabled: e.target.checked })}
-                        />
-                        有効にする
-                      </label>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          className="px-4 py-2 rounded bg-slate-800 text-white disabled:opacity-50"
-                          disabled={!draft.googleEmail.trim() || !draft.linkedAuthId}
-                          onClick={async () => {
-                            try {
-                              await saveAdminPermission({
-                                id: entry.id,
-                                googleEmail: draft.googleEmail.trim(),
-                                linkedAuthId: draft.linkedAuthId,
-                                permissionLevel: draft.permissionLevel,
-                                enabled: draft.enabled,
-                              });
-                              alert('管理者権限を更新しました。');
-                            } catch (error) {
-                              alert(error instanceof Error ? error.message : '管理者権限の更新に失敗しました。');
-                            }
-                          }}
-                        >
-                          変更を保存
-                        </button>
-                        <button
-                          type="button"
-                          className="px-4 py-2 rounded border border-red-300 text-red-700 bg-red-50"
-                          onClick={async () => {
-                            if (!confirm(`管理者権限 ${entry.googleEmail} を削除しますか？`)) return;
-                            try {
-                              await deleteAdminPermission(entry.id);
-                              alert('管理者権限を削除しました。');
-                            } catch (error) {
-                              alert(error instanceof Error ? error.message : '管理者権限の削除に失敗しました。');
-                            }
-                          }}
-                        >
-                          削除
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        {filteredAdminPermissions.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="bg-slate-50 text-left text-xs text-slate-600 uppercase tracking-wider">
+                  <th className="px-3 py-2 border-b border-slate-200">Googleメール</th>
+                  <th className="px-3 py-2 border-b border-slate-200">表示名</th>
+                  <th className="px-3 py-2 border-b border-slate-200">紐付け先</th>
+                  <th className="px-3 py-2 border-b border-slate-200">権限</th>
+                  <th className="px-3 py-2 border-b border-slate-200">状態</th>
+                  <th className="px-3 py-2 border-b border-slate-200">変更者</th>
+                  <th className="px-3 py-2 border-b border-slate-200">変更日時</th>
+                  <th className="px-3 py-2 border-b border-slate-200">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredAdminPermissions.map((entry) => {
+                  const editable = isEntryEditable(entry);
+                  const isEditing = editingPermissionId === entry.id;
+                  const draft = adminPermissionDrafts[entry.id] || {
+                    googleEmail: entry.googleEmail || '',
+                    linkedAuthId: entry.linkedAuthId || '',
+                    permissionLevel: entry.permissionLevel || 'ADMIN',
+                    enabled: entry.enabled,
+                  };
+                  const editSearch = editPermissionIdentitySearches[entry.id] ?? '';
+                  const permBadgeColor: Record<string, string> = {
+                    MASTER: 'bg-purple-100 text-purple-700',
+                    ADMIN: 'bg-blue-100 text-blue-700',
+                    TRAINING_MANAGER: 'bg-teal-100 text-teal-700',
+                    TRAINING_REGISTRAR: 'bg-cyan-100 text-cyan-700',
+                    GENERAL: 'bg-slate-100 text-slate-600',
+                  };
+                  return (
+                    <React.Fragment key={entry.id}>
+                      <tr className={`border-b border-slate-100 ${isEditing ? 'bg-blue-50' : 'hover:bg-slate-50'}`}>
+                        <td className="px-3 py-2 font-medium text-slate-800 whitespace-nowrap">{entry.googleEmail}</td>
+                        <td className="px-3 py-2 text-slate-600">{entry.displayName || '(未解決)'}</td>
+                        <td className="px-3 py-2 text-slate-600 text-xs">{entry.linkedIdentityLabel || '未設定'}</td>
+                        <td className="px-3 py-2">
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${permBadgeColor[entry.permissionLevel] || 'bg-slate-100 text-slate-600'}`}>
+                            {permissionLevelLabel(entry.permissionLevel)}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${entry.enabled ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {entry.enabled ? '有効' : '無効'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-xs text-slate-500">{entry.updatedByEmail || '-'}</td>
+                        <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{entry.updatedByAt || '-'}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          {editable && !isEditing && (
+                            <button
+                              type="button"
+                              className="px-3 py-1 text-xs rounded border border-slate-300 bg-white hover:bg-slate-50 text-slate-700"
+                              onClick={() => {
+                                setEditingPermissionId(entry.id);
+                                setEditPermissionIdentitySearches((prev) => ({ ...prev, [entry.id]: '' }));
+                                updateAdminPermissionDraft(entry.id, {
+                                  googleEmail: entry.googleEmail || '',
+                                  linkedAuthId: entry.linkedAuthId || '',
+                                  permissionLevel: entry.permissionLevel || 'ADMIN',
+                                  enabled: entry.enabled,
+                                });
+                              }}
+                            >
+                              編集
+                            </button>
+                          )}
+                          {isEditing && (
+                            <button
+                              type="button"
+                              className="px-3 py-1 text-xs rounded border border-slate-300 bg-white hover:bg-slate-50 text-slate-700"
+                              onClick={() => setEditingPermissionId(null)}
+                            >
+                              閉じる
+                            </button>
+                          )}
+                          {!editable && (
+                            <span className="text-xs text-slate-400">-</span>
+                          )}
+                        </td>
+                      </tr>
+                      {isEditing && editable && (
+                        <tr className="bg-blue-50 border-b border-slate-200">
+                          <td colSpan={8} className="px-4 py-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Googleメールアドレス</label>
+                                <input
+                                  type="email"
+                                  value={draft.googleEmail}
+                                  onChange={(e) => updateAdminPermissionDraft(entry.id, { googleEmail: e.target.value })}
+                                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                                />
+                              </div>
+                              <div className="relative">
+                                <label className="block text-sm font-medium text-slate-700 mb-1">紐づく会員アカウント</label>
+                                <input
+                                  type="text"
+                                  value={editSearch || (draft.linkedAuthId ? adminPermissionOptionLabel(draft.linkedAuthId) : '')}
+                                  onChange={(e) => {
+                                    setEditPermissionIdentitySearches((prev) => ({ ...prev, [entry.id]: e.target.value }));
+                                    updateAdminPermissionDraft(entry.id, { linkedAuthId: '' });
+                                  }}
+                                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                                  placeholder="名前・ログインID・会員IDで検索"
+                                />
+                                {editSearch.trim() && !draft.linkedAuthId && (
+                                  <div className="absolute z-10 mt-1 w-full max-h-40 overflow-y-auto border border-slate-200 rounded bg-white shadow-lg">
+                                    {filterIdentityOptions(editSearch).map((option) => (
+                                      <button
+                                        key={option.authId}
+                                        type="button"
+                                        className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 border-b border-slate-100 last:border-b-0"
+                                        onClick={() => {
+                                          updateAdminPermissionDraft(entry.id, { linkedAuthId: option.authId });
+                                          setEditPermissionIdentitySearches((prev) => ({ ...prev, [entry.id]: '' }));
+                                        }}
+                                      >
+                                        {option.label}
+                                      </button>
+                                    ))}
+                                    {filterIdentityOptions(editSearch).length === 0 && (
+                                      <p className="px-3 py-2 text-xs text-slate-500">該当なし</p>
+                                    )}
+                                  </div>
+                                )}
+                                {draft.linkedAuthId && (
+                                  <p className="text-xs text-green-700 mt-1">選択済: {adminPermissionOptionLabel(draft.linkedAuthId)}</p>
+                                )}
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">権限</label>
+                                <select
+                                  value={draft.permissionLevel}
+                                  onChange={(e) => updateAdminPermissionDraft(entry.id, { permissionLevel: e.target.value as AdminPermissionLevel })}
+                                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                                >
+                                  {permissionLevelOptions.map((level) => (
+                                    <option key={level} value={level}>{permissionLevelLabel(level)}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mt-4">
+                              <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                                <input
+                                  type="checkbox"
+                                  checked={draft.enabled}
+                                  onChange={(e) => updateAdminPermissionDraft(entry.id, { enabled: e.target.checked })}
+                                />
+                                有効にする
+                              </label>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  className="px-4 py-2 rounded bg-slate-800 text-white text-sm disabled:opacity-50"
+                                  disabled={!draft.googleEmail.trim() || !draft.linkedAuthId}
+                                  onClick={async () => {
+                                    try {
+                                      await saveAdminPermission({
+                                        id: entry.id,
+                                        googleEmail: draft.googleEmail.trim(),
+                                        linkedAuthId: draft.linkedAuthId,
+                                        permissionLevel: draft.permissionLevel,
+                                        enabled: draft.enabled,
+                                      });
+                                      setEditingPermissionId(null);
+                                      alert('管理者権限を更新しました。');
+                                    } catch (error) {
+                                      alert(error instanceof Error ? error.message : '管理者権限の更新に失敗しました。');
+                                    }
+                                  }}
+                                >
+                                  変更を保存
+                                </button>
+                                <button
+                                  type="button"
+                                  className="px-4 py-2 rounded border border-red-300 text-red-700 bg-red-50 text-sm"
+                                  onClick={async () => {
+                                    if (!confirm(`管理者権限 ${entry.googleEmail} を削除しますか？`)) return;
+                                    try {
+                                      await deleteAdminPermission(entry.id);
+                                      setEditingPermissionId(null);
+                                      alert('管理者権限を削除しました。');
+                                    } catch (error) {
+                                      alert(error instanceof Error ? error.message : '管理者権限の削除に失敗しました。');
+                                    }
+                                  }}
+                                >
+                                  削除
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
