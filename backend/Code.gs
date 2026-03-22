@@ -1,4 +1,4 @@
-﻿var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
+var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 var DB_SPREADSHEET_ID_FIXED = '1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs';
 var SCHEMA_INITIALIZED_KEY = 'DB_SCHEMA_INITIALIZED';
@@ -3156,25 +3156,12 @@ function getAdminPermissionIdentityOptions_(ss) {
     staffMap[String(staffRows[j]['職員ID'] || '')] = staffRows[j];
   }
 
-  var deduped = {};
-  for (var k = 0; k < authRows.length; k += 1) {
-    var auth = authRows[k];
-    var memberId = String(auth['会員ID'] || '').trim();
-    if (!memberId) continue;
-    var staffId = String(auth['職員ID'] || '').trim();
-    var authMethod = String(auth['認証方式'] || 'PASSWORD');
-    var key = memberId + '::' + staffId;
-    if (!deduped[key] || (String(deduped[key]['認証方式'] || '') !== 'PASSWORD' && authMethod === 'PASSWORD')) {
-      deduped[key] = auth;
-    }
-  }
-
   var options = [];
-  var keys = Object.keys(deduped);
-  for (var m = 0; m < keys.length; m += 1) {
-    var authRow = deduped[keys[m]];
-    var optionMemberId = String(authRow['会員ID'] || '');
-    var optionStaffId = String(authRow['職員ID'] || '');
+  for (var k = 0; k < authRows.length; k += 1) {
+    var authRow = authRows[k];
+    var optionMemberId = String(authRow['会員ID'] || '').trim();
+    if (!optionMemberId) continue;
+    var optionStaffId = String(authRow['職員ID'] || '').trim();
     options.push({
       authId: String(authRow['認証ID'] || ''),
       authMethod: String(authRow['認証方式'] || 'PASSWORD'),
