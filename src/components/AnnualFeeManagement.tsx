@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../services/api';
 import { AnnualFeeAdminData, AnnualFeeAdminRecord, MemberType, PaymentStatus } from '../types';
 
@@ -170,7 +170,6 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
   const [sortKey, setSortKey] = useState<SortKey>('displayName');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [dateErrors, setDateErrors] = useState<Record<string, string>>({});
-  const datePickerRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   /* ── メッセージ自動消去 ── */
   useEffect(() => {
@@ -666,33 +665,27 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
                               }
                             }}
                           />
-                          <input
-                            type="date"
-                            className="sr-only"
-                            ref={(el) => { datePickerRefs.current[key] = el; }}
-                            tabIndex={-1}
-                            value={draft.confirmedDate}
-                            onChange={(e) => {
-                              setDateErrors((prev) => { const next = { ...prev }; delete next[key]; return next; });
-                              updateDraft(record, { confirmedDate: e.target.value });
-                            }}
-                          />
-                          <button
-                            type="button"
-                            disabled={draft.status !== PaymentStatus.PAID || isBusy}
-                            className="p-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-default text-slate-500"
-                            title="カレンダーから選択"
-                            onClick={() => {
-                              const picker = datePickerRefs.current[key];
-                              if (picker && 'showPicker' in picker) {
-                                try { (picker as HTMLInputElement).showPicker(); } catch { /* unsupported */ }
-                              }
-                            }}
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                          </button>
+                          <div className="relative inline-flex items-center">
+                            <div className="p-1.5 rounded border border-slate-300 bg-white text-slate-500 disabled:opacity-40"
+                              style={draft.status !== PaymentStatus.PAID || isBusy ? { opacity: 0.4, cursor: 'default' } : {}}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                            </div>
+                            <input
+                              type="date"
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                              style={draft.status !== PaymentStatus.PAID || isBusy ? { pointerEvents: 'none' } : {}}
+                              tabIndex={-1}
+                              value={draft.confirmedDate}
+                              title="カレンダーから選択"
+                              onChange={(e) => {
+                                setDateErrors((prev) => { const next = { ...prev }; delete next[key]; return next; });
+                                updateDraft(record, { confirmedDate: e.target.value });
+                              }}
+                            />
+                          </div>
                         </div>
                         {dateErrors[key] && (
                           <p className="text-xs text-red-500 mt-0.5">{dateErrors[key]}</p>
