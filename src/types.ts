@@ -63,6 +63,7 @@ export interface AnnualFeeAuditLog {
   year: number;
   action: 'CREATE' | 'UPDATE';
   actorEmail: string;
+  actorDisplayName?: string;
   executedAt: string;
   beforeJson: string;
   afterJson: string;

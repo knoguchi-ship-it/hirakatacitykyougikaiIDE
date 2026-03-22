@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../services/api';
 import { AnnualFeeAdminData, AnnualFeeAdminRecord, MemberType, PaymentStatus } from '../types';
 
@@ -22,6 +22,28 @@ type SortDir = 'asc' | 'desc';
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 const CURRENT_YEAR = new Date().getFullYear();
 const MESSAGE_AUTO_CLEAR_MS = 4000;
+
+/** YYYY-MM-DD → YYYY/MM/DD 表示変換 */
+const toSlashDate = (isoDate: string): string => {
+  if (!isoDate) return '';
+  return isoDate.replace(/-/g, '/');
+};
+
+/** YYYY/M/D or YYYY/MM/DD → YYYY-MM-DD 内部変換。不正値は null */
+const parseSlashDate = (input: string): string | null => {
+  const trimmed = input.trim();
+  if (!trimmed) return '';
+  const match = trimmed.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+  if (!match) return null;
+  const [, ys, ms, ds] = match;
+  const y = Number(ys), m = Number(ms), d = Number(ds);
+  if (m < 1 || m > 12 || d < 1 || d > 31) return null;
+  const date = new Date(y, m - 1, d);
+  if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) return null;
+  const mm = String(m).padStart(2, '0');
+  const dd = String(d).padStart(2, '0');
+  return `${ys}-${mm}-${dd}`;
+};
 
 const createEmptyData = (): AnnualFeeAdminData => ({
   selectedYear: CURRENT_YEAR,
@@ -147,6 +169,8 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
   const [editableRows, setEditableRows] = useState<Record<string, EditableRow>>({});
   const [sortKey, setSortKey] = useState<SortKey>('displayName');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [dateErrors, setDateErrors] = useState<Record<string, string>>({});
+  const datePickerRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   /* ── メッセージ自動消去 ── */
   useEffect(() => {
@@ -322,6 +346,11 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
       setSuccess(null);
       return;
     }
+    if (dateErrors[key]) {
+      setError(`${record.displayName}: ${dateErrors[key]}`);
+      setSuccess(null);
+      return;
+    }
 
     setSavingKey(key);
     setError(null);
@@ -361,6 +390,12 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
     });
     if (invalidTarget) {
       setError(`${invalidTarget.displayName}: 納入済にする場合は納入確認日を入力してください。`);
+      setSuccess(null);
+      return;
+    }
+    const dateErrorTarget = targets.find((record) => dateErrors[buildRowKey(record)]);
+    if (dateErrorTarget) {
+      setError(`${dateErrorTarget.displayName}: ${dateErrors[buildRowKey(dateErrorTarget)]}`);
       setSuccess(null);
       return;
     }
@@ -610,13 +645,58 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
                         </select>
                       </td>
                       <td className="px-3 py-2.5 text-sm align-top">
-                        <input
-                          type="date"
-                          className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm disabled:bg-slate-100 disabled:text-slate-400"
-                          value={draft.confirmedDate}
-                          disabled={draft.status !== PaymentStatus.PAID || isBusy}
-                          onChange={(e) => updateDraft(record, { confirmedDate: e.target.value })}
-                        />
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="text"
+                            className={`flex-1 min-w-0 border rounded px-2 py-1.5 text-sm disabled:bg-slate-100 disabled:text-slate-400 ${
+                              dateErrors[key] ? 'border-red-400 bg-red-50' : 'border-slate-300'
+                            }`}
+                            value={toSlashDate(draft.confirmedDate)}
+                            disabled={draft.status !== PaymentStatus.PAID || isBusy}
+                            placeholder="YYYY/MM/DD"
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              const parsed = parseSlashDate(raw);
+                              if (parsed === null) {
+                                setDateErrors((prev) => ({ ...prev, [key]: '日付は YYYY/MM/DD 形式で入力してください' }));
+                                updateDraft(record, { confirmedDate: '' });
+                              } else {
+                                setDateErrors((prev) => { const next = { ...prev }; delete next[key]; return next; });
+                                updateDraft(record, { confirmedDate: parsed });
+                              }
+                            }}
+                          />
+                          <input
+                            type="date"
+                            className="sr-only"
+                            ref={(el) => { datePickerRefs.current[key] = el; }}
+                            tabIndex={-1}
+                            value={draft.confirmedDate}
+                            onChange={(e) => {
+                              setDateErrors((prev) => { const next = { ...prev }; delete next[key]; return next; });
+                              updateDraft(record, { confirmedDate: e.target.value });
+                            }}
+                          />
+                          <button
+                            type="button"
+                            disabled={draft.status !== PaymentStatus.PAID || isBusy}
+                            className="p-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-default text-slate-500"
+                            title="カレンダーから選択"
+                            onClick={() => {
+                              const picker = datePickerRefs.current[key];
+                              if (picker && 'showPicker' in picker) {
+                                try { (picker as HTMLInputElement).showPicker(); } catch { /* unsupported */ }
+                              }
+                            }}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          </button>
+                        </div>
+                        {dateErrors[key] && (
+                          <p className="text-xs text-red-500 mt-0.5">{dateErrors[key]}</p>
+                        )}
                       </td>
                       <td className="px-3 py-2.5 text-sm align-top">
                         <input
@@ -708,7 +788,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
                       <div className="text-xs text-slate-400">{log.memberId}</div>
                     </td>
                     <td className="px-3 py-2 text-sm text-slate-700 tabular-nums">{log.year}</td>
-                    <td className="px-3 py-2 text-sm text-slate-700">{log.actorEmail}</td>
+                    <td className="px-3 py-2 text-sm text-slate-700">{log.actorDisplayName || log.actorEmail}</td>
                   </tr>
                 ))}
               </tbody>

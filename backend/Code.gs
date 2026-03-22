@@ -3225,6 +3225,12 @@ function mapSystemRoleLabel_(roleCode) {
   }
 }
 
+function getCurrentFiscalYear_() {
+  var now = new Date();
+  var month = now.getMonth() + 1;
+  return month >= 4 ? now.getFullYear() : now.getFullYear() - 1;
+}
+
 function resolveAnnualFeeSelectedYear_(ss, payload) {
   var requestedYear = Number(payload && payload.year || 0);
   if (isFinite(requestedYear) && requestedYear >= 2000 && requestedYear <= 2100) {
@@ -3236,7 +3242,7 @@ function resolveAnnualFeeSelectedYear_(ss, payload) {
   var years = feeRows.map(function(row) { return Number(row['対象年度'] || 0); })
     .filter(function(year) { return !!year; })
     .sort(function(a, b) { return b - a; });
-  return years[0] || new Date().getFullYear();
+  return years[0] || getCurrentFiscalYear_();
 }
 
 function getAnnualFeeAdminData_(payload) {
@@ -3265,11 +3271,13 @@ function getAnnualFeeAdminData_(payload) {
     memberMap[String(member['会員ID'] || '')] = member;
   }
 
+  var currentFiscalYear = getCurrentFiscalYear_();
   var years = feeRows.map(function(row) { return Number(row['対象年度'] || 0); })
     .filter(function(year) { return !!year; })
-    .filter(function(year, idx, arr) { return arr.indexOf(year) === idx; })
-    .sort(function(a, b) { return b - a; });
-  if (years.indexOf(selectedYear) === -1) years.unshift(selectedYear);
+    .filter(function(year, idx, arr) { return arr.indexOf(year) === idx; });
+  if (years.indexOf(currentFiscalYear) === -1) years.push(currentFiscalYear);
+  if (years.indexOf(selectedYear) === -1) years.push(selectedYear);
+  years.sort(function(a, b) { return b - a; });
 
   var feeByMemberYear = {};
   for (var feeIdx = 0; feeIdx < feeRows.length; feeIdx += 1) {
@@ -3286,8 +3294,9 @@ function getAnnualFeeAdminData_(payload) {
     return String(a.displayName || '').localeCompare(String(b.displayName || ''));
   });
 
+  var actorNameMap = buildActorDisplayNameMap_(ss, memberMap);
   var auditLogs = auditRows.map(function(row) {
-    return mapAnnualFeeAuditLog_(row, memberMap[String(row['会員ID'] || '')]);
+    return mapAnnualFeeAuditLog_(row, memberMap[String(row['会員ID'] || '')], actorNameMap);
   }).sort(function(a, b) {
     return String(b.executedAt || '').localeCompare(String(a.executedAt || ''));
   }).slice(0, 20);
@@ -3621,7 +3630,8 @@ function mapAnnualFeeAdminRecord_(rowObj, memberRow, selectedYear, amountMap) {
   };
 }
 
-function mapAnnualFeeAuditLog_(rowObj, memberRow) {
+function mapAnnualFeeAuditLog_(rowObj, memberRow, actorNameMap) {
+  var email = String(rowObj['実行者メール'] || '').toLowerCase();
   return {
     id: String(rowObj['年会費更新履歴ID'] || ''),
     annualFeeRecordId: String(rowObj['年会費履歴ID'] || ''),
@@ -3629,11 +3639,35 @@ function mapAnnualFeeAuditLog_(rowObj, memberRow) {
     displayName: buildAnnualFeeDisplayName_(memberRow),
     year: Number(rowObj['対象年度'] || 0),
     action: String(rowObj['操作種別'] || 'UPDATE'),
-    actorEmail: String(rowObj['実行者メール'] || ''),
+    actorEmail: email,
+    actorDisplayName: (actorNameMap && actorNameMap[email]) || '',
     executedAt: String(rowObj['実行日時'] || ''),
     beforeJson: String(rowObj['更新前JSON'] || ''),
     afterJson: String(rowObj['更新後JSON'] || ''),
   };
+}
+
+function buildActorDisplayNameMap_(ss, memberMap) {
+  var wlRows = getRowsAsObjects_(ss, 'T_管理者Googleホワイトリスト').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']);
+  });
+  var result = {};
+  for (var i = 0; i < wlRows.length; i += 1) {
+    var wl = wlRows[i];
+    var email = String(wl['Googleメール'] || '').toLowerCase();
+    if (!email) continue;
+    var memberId = String(wl['紐付け会員ID'] || '');
+    var member = memberId ? memberMap[memberId] : null;
+    if (member) {
+      var fullName = (String(member['姓'] || '') + ' ' + String(member['名'] || '')).trim();
+      if (fullName) {
+        result[email] = fullName;
+        continue;
+      }
+    }
+    result[email] = email;
+  }
+  return result;
 }
 
 function getAnnualFeeAmountMap_(ss) {
