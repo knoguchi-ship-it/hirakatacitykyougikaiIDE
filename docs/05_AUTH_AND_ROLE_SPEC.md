@@ -592,6 +592,67 @@ GAS の制約（外部 JS サービス利用不可）のため以下の実装可
 - **重複申込チェック**: 同一メールアドレス + 同一研修 ID の重複申込を `applyTrainingExternal_()` でサーバー側検出・拒否
 - **申込期間チェック**: 期間外申込はサーバー側で拒否
 
+## 6.5 除籍・退会・会員種別変更（v125）
+
+### 除籍（事業所職員の事業所からの除外）
+- API: `removeStaffFromOffice_(payload)` — `{ memberId, staffId }`
+- 処理: T_事業所職員の状態=LEFT, 退会日=今日 + T_認証アカウントの有効フラグ=false
+- 制約: 代表者（REPRESENTATIVE）の除籍は拒否。先に代表者変更が必要
+- 権限: MASTER, ADMIN
+
+### 退会（会員全体の退会処理）
+- API: `withdrawMember_(payload)` — 既存を拡張
+- 処理: T_会員 status=WITHDRAWN + 関連する T_認証アカウント の有効フラグ=false
+- 事業所会員の場合: 全職員の認証アカウントも無効化
+- 権限: MASTER, ADMIN
+
+### 予約退会（v126 事業所会員向け）
+- API: `scheduleWithdrawMember_(payload)` — `{ memberId }`
+- 処理: T_会員 status=WITHDRAWAL_SCHEDULED, 退会日=翌年度4/1（`getNextFiscalYearStart_()` で算出）
+- 年度末（3/31）までは退会キャンセル可能
+- API: `cancelScheduledWithdraw_(payload)` — `{ memberId }`
+- 処理: status→ACTIVE に復帰、退会日をクリア
+- 退会日到達後: `promoteScheduledWithdrawals_()` が自動で WITHDRAWN に昇格 + 認証無効化
+- 権限: MASTER, ADMIN
+- 根拠: 年会費制（年度4月〜3月）のため、退会しても年度末まで会員資格を保持（Maxio/Stripe Scheduled Cancellation パターン準拠）
+
+### 職員個別更新（v126）
+- API: `updateStaff_(payload)` — `{ staffId, memberId, name?, kana?, email?, careManagerNumber?, role?, joinedDate? }`
+- 処理: T_事業所職員の該当行を allowlist のみ更新
+- 制約: memberId が一致しない場合は拒否（セキュリティ）、status 変更は不可（除籍/転換 API に委譲）
+- 代表者（REPRESENTATIVE）の権限変更は不可
+- 権限: MASTER, ADMIN
+
+### アカウント保持方針
+- 除籍/退会後もアカウントレコードは削除しない（有効フラグ=false でログイン不可）
+- 管理者が会員種別変更で再有効化可能
+
+### 会員種別変更（シームレス転換）
+- API: `convertMemberType_(payload)`
+- 権限: MASTER, ADMIN
+
+**事業所職員 → 個人会員** (`STAFF_TO_INDIVIDUAL`):
+1. T_会員に INDIVIDUAL レコード新規作成（職員の氏名・メール・介護支援専門員番号を転記）
+2. T_事業所職員: 状態=LEFT, 退会日=今日, 削除フラグ=true
+3. T_認証アカウント: 会員ID→新ID, 職員ID→クリア, 有効フラグ=true（再有効化）
+4. T_研修申込: 該当職員の申込の会員ID/職員IDを新IDに更新（研修履歴継続）
+5. 代表者の場合: `newRepresentativeStaffId` で後任を REPRESENTATIVE に昇格（必須）
+
+**個人会員 → 事業所職員** (`INDIVIDUAL_TO_STAFF`):
+1. T_事業所職員にレコード新規作成（会員の氏名・メール・介護支援専門員番号を転記）
+2. T_認証アカウント: 会員ID→事業所ID, 職員ID→新ID, 有効フラグ=true（再有効化）
+3. T_研修申込: 該当会員の申込の会員ID/職員IDを更新
+4. T_会員: 状態=WITHDRAWN, 退会日=今日
+5. 事業所の職員数上限チェック
+
+**データ整合性**:
+| 項目 | 判断 | 理由 |
+|------|------|------|
+| 年会費レコード | 移行しない | 年度単位で事業所/個人で別管理 |
+| 研修申込レコード | 移行する | 個人の研修履歴の連続性を維持 |
+| 認証アカウント | 更新（再作成しない） | PW・ログインID・履歴を保持 |
+| 代表者制約 | 転換時に後任必須 | BUSINESS は常に REPRESENTATIVE 1名 |
+
 ## 7. 現在設定状況の確認方法
 1. GCP API確認
 - Google Cloud Console > `API とサービス` > `有効な API とサービス`

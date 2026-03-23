@@ -651,6 +651,13 @@ function processApiRequest(action, payload) {
       'updateMembersBatch': ['MASTER','ADMIN'],
       'createMember': ['MASTER','ADMIN'],
       'withdrawMember': ['MASTER','ADMIN'],
+      'scheduleWithdrawMember': ['MASTER','ADMIN'],
+      'cancelScheduledWithdraw': ['MASTER','ADMIN'],
+      'removeStaffFromOffice': ['MASTER','ADMIN'],
+      'updateStaff': ['MASTER','ADMIN'],
+      'getAdminPersonList': ['MASTER','ADMIN'],
+      'updatePersonsBatch': ['MASTER','ADMIN'],
+      'convertMemberType': ['MASTER','ADMIN'],
       'getAnnualFeeAdminData': ['MASTER','ADMIN'],
       'saveAnnualFeeRecord': ['MASTER','ADMIN'],
       'saveAnnualFeeRecordsBatch': ['MASTER','ADMIN'],
@@ -726,6 +733,34 @@ function processApiRequest(action, payload) {
 
     if (action === 'withdrawMember') {
       return JSON.stringify({ success: true, data: withdrawMember_(parsedPayload) });
+    }
+
+    if (action === 'removeStaffFromOffice') {
+      return JSON.stringify({ success: true, data: removeStaffFromOffice_(parsedPayload) });
+    }
+
+    if (action === 'getAdminPersonList') {
+      return JSON.stringify({ success: true, data: getAdminPersonList_() });
+    }
+
+    if (action === 'updatePersonsBatch') {
+      return JSON.stringify({ success: true, data: updatePersonsBatch_(parsedPayload) });
+    }
+
+    if (action === 'convertMemberType') {
+      return JSON.stringify({ success: true, data: convertMemberType_(parsedPayload) });
+    }
+
+    if (action === 'scheduleWithdrawMember') {
+      return JSON.stringify({ success: true, data: scheduleWithdrawMember_(parsedPayload) });
+    }
+
+    if (action === 'cancelScheduledWithdraw') {
+      return JSON.stringify({ success: true, data: cancelScheduledWithdraw_(parsedPayload) });
+    }
+
+    if (action === 'updateStaff') {
+      return JSON.stringify({ success: true, data: updateStaff_(parsedPayload) });
     }
 
     if (action === 'submitMemberApplication') {
@@ -4174,10 +4209,529 @@ function withdrawMember_(payload) {
   row[cols['更新日時']] = new Date().toISOString();
 
   sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+
+  // v125: 退会時に関連する T_認証アカウント の有効フラグも false にする
+  disableAuthAccountsByMemberId_(ss, String(payload.memberId));
+
   clearAllDataCache_();
   clearAdminDashboardCache_();
   clearTrainingManagementCache_();
   return { withdrawn: true, memberId: String(payload.memberId), withdrawnDate: withdrawnDate };
+}
+
+// ── 事業所職員の除籍処理 ──────────────────────────────────────
+// T_事業所職員の状態を LEFT に変更し、T_認証アカウントの有効フラグを false にする
+function removeStaffFromOffice_(payload) {
+  if (!payload || !payload.memberId || !payload.staffId) {
+    throw new Error('会員IDまたは職員IDが未指定です。');
+  }
+  var ss = getOrCreateDatabase_();
+  var staffSheet = ss.getSheetByName('T_事業所職員');
+  if (!staffSheet) throw new Error('T_事業所職員 シートが見つかりません。');
+
+  var staffFound = findRowByColumnValue_(staffSheet, '職員ID', String(payload.staffId));
+  if (!staffFound) throw new Error('対象職員が見つかりません。');
+
+  var sCols = staffFound.columns;
+  var sRow = staffFound.row.slice();
+
+  // 所属事業所の一致確認
+  if (String(sRow[sCols['会員ID']] || '') !== String(payload.memberId)) {
+    throw new Error('職員IDと会員IDが一致しません。');
+  }
+
+  // 既に除籍済みチェック
+  if (String(sRow[sCols['職員状態コード']] || '') === 'LEFT') {
+    throw new Error('この職員は既に除籍済みです。');
+  }
+
+  // 代表者は除籍不可（先に代表者変更が必要）
+  if (String(sRow[sCols['職員権限コード']] || '') === 'REPRESENTATIVE') {
+    throw new Error('代表者は除籍できません。先に代表者を変更してください。');
+  }
+
+  var nowIso = new Date().toISOString();
+  var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+
+  sRow[sCols['職員状態コード']] = 'LEFT';
+  sRow[sCols['退会日']] = today;
+  sRow[sCols['更新日時']] = nowIso;
+  staffSheet.getRange(staffFound.rowNumber, 1, 1, sRow.length).setValues([sRow]);
+
+  // T_認証アカウントの有効フラグを false にする
+  disableAuthAccountsByStaffId_(ss, String(payload.staffId));
+
+  clearAllDataCache_();
+  clearAdminDashboardCache_();
+  clearTrainingManagementCache_();
+  return {
+    removed: true,
+    memberId: String(payload.memberId),
+    staffId: String(payload.staffId),
+    withdrawnDate: today,
+  };
+}
+
+// ── 会員IDに紐づく全認証アカウントの有効フラグを false にする ──
+function disableAuthAccountsByMemberId_(ss, memberId) {
+  var authSheet = ss.getSheetByName('T_認証アカウント');
+  if (!authSheet || authSheet.getLastRow() < 2) return;
+  var headers = authSheet.getRange(1, 1, 1, authSheet.getLastColumn()).getValues()[0];
+  var cols = {};
+  for (var i = 0; i < headers.length; i++) cols[headers[i]] = i;
+  if (cols['会員ID'] == null || cols['アカウント有効フラグ'] == null) return;
+
+  var data = authSheet.getRange(2, 1, authSheet.getLastRow() - 1, authSheet.getLastColumn()).getValues();
+  for (var r = 0; r < data.length; r++) {
+    if (String(data[r][cols['会員ID']] || '') === memberId) {
+      data[r][cols['アカウント有効フラグ']] = false;
+      data[r][cols['更新日時']] = new Date().toISOString();
+      authSheet.getRange(r + 2, 1, 1, data[r].length).setValues([data[r]]);
+    }
+  }
+}
+
+// ── 職員IDに紐づく認証アカウントの有効フラグを false にする ──
+function disableAuthAccountsByStaffId_(ss, staffId) {
+  var authSheet = ss.getSheetByName('T_認証アカウント');
+  if (!authSheet || authSheet.getLastRow() < 2) return;
+  var headers = authSheet.getRange(1, 1, 1, authSheet.getLastColumn()).getValues()[0];
+  var cols = {};
+  for (var i = 0; i < headers.length; i++) cols[headers[i]] = i;
+  if (cols['職員ID'] == null || cols['アカウント有効フラグ'] == null) return;
+
+  var data = authSheet.getRange(2, 1, authSheet.getLastRow() - 1, authSheet.getLastColumn()).getValues();
+  for (var r = 0; r < data.length; r++) {
+    if (String(data[r][cols['職員ID']] || '') === staffId) {
+      data[r][cols['アカウント有効フラグ']] = false;
+      data[r][cols['更新日時']] = new Date().toISOString();
+      authSheet.getRange(r + 2, 1, 1, data[r].length).setValues([data[r]]);
+    }
+  }
+}
+
+// ── v126: 事業所会員の予約退会（Scheduled Cancellation）──
+// 翌年度4/1に退会を予約する。退会日まではサービス完全利用可能。
+function scheduleWithdrawMember_(payload) {
+  if (!payload || !payload.memberId) throw new Error('会員IDが未指定です。');
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_会員');
+  if (!sheet) throw new Error('T_会員 シートが見つかりません。');
+
+  var found = findRowByColumnValue_(sheet, '会員ID', String(payload.memberId));
+  if (!found) throw new Error('対象会員が見つかりません。');
+
+  var cols = found.columns;
+  var row = found.row.slice();
+
+  var currentStatus = String(row[cols['会員状態コード']] || 'ACTIVE');
+  if (currentStatus === 'WITHDRAWN') throw new Error('この会員は既に退会済みです。');
+  if (currentStatus === 'WITHDRAWAL_SCHEDULED') throw new Error('この会員は既に退会予定です。');
+
+  // 翌年度4/1を算出
+  var nextFyStart = getNextFiscalYearStart_(new Date());
+  var withdrawnDate = Utilities.formatDate(nextFyStart, 'Asia/Tokyo', 'yyyy-MM-dd');
+
+  row[cols['会員状態コード']] = 'WITHDRAWAL_SCHEDULED';
+  row[cols['退会日']] = withdrawnDate;
+  row[cols['更新日時']] = new Date().toISOString();
+  sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+
+  // 注: アカウントは無効化しない（退会日まで利用可能）
+  clearAllDataCache_();
+  clearAdminDashboardCache_();
+  clearTrainingManagementCache_();
+  return {
+    scheduled: true,
+    memberId: String(payload.memberId),
+    withdrawnDate: withdrawnDate,
+  };
+}
+
+// ── v126: 予約退会のキャンセル ──
+function cancelScheduledWithdraw_(payload) {
+  if (!payload || !payload.memberId) throw new Error('会員IDが未指定です。');
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_会員');
+  if (!sheet) throw new Error('T_会員 シートが見つかりません。');
+
+  var found = findRowByColumnValue_(sheet, '会員ID', String(payload.memberId));
+  if (!found) throw new Error('対象会員が見つかりません。');
+
+  var cols = found.columns;
+  var row = found.row.slice();
+
+  var currentStatus = String(row[cols['会員状態コード']] || 'ACTIVE');
+  if (currentStatus !== 'WITHDRAWAL_SCHEDULED') throw new Error('この会員は退会予定ではありません。');
+
+  row[cols['会員状態コード']] = 'ACTIVE';
+  row[cols['退会日']] = '';
+  row[cols['更新日時']] = new Date().toISOString();
+  sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+
+  clearAllDataCache_();
+  clearAdminDashboardCache_();
+  clearTrainingManagementCache_();
+  return { cancelled: true, memberId: String(payload.memberId) };
+}
+
+// ── v126: 職員個別更新 ──
+// 職員の基本情報を個別に更新する（状態変更は除籍/転換APIに委譲）
+function updateStaff_(payload) {
+  if (!payload || !payload.staffId) throw new Error('職員IDが未指定です。');
+  var ss = getOrCreateDatabase_();
+  var staffSheet = ss.getSheetByName('T_事業所職員');
+  if (!staffSheet) throw new Error('T_事業所職員 シートが見つかりません。');
+
+  var found = findRowByColumnValue_(staffSheet, '職員ID', String(payload.staffId));
+  if (!found) throw new Error('対象職員が見つかりません。');
+
+  var cols = found.columns;
+  var row = found.row.slice();
+
+  // 所属事業所の一致確認（セキュリティ）
+  if (payload.memberId && String(row[cols['会員ID']] || '') !== String(payload.memberId)) {
+    throw new Error('職員IDと会員IDが一致しません。');
+  }
+
+  // 更新可能フィールド（Allowlist）
+  var nowIso = new Date().toISOString();
+  if (payload.name != null && String(payload.name).trim()) {
+    row[cols['氏名']] = String(payload.name).trim();
+  }
+  if (payload.kana != null && String(payload.kana).trim()) {
+    row[cols['フリガナ']] = String(payload.kana).trim();
+  }
+  if (payload.email != null) {
+    row[cols['メールアドレス']] = String(payload.email).trim();
+  }
+  if (payload.careManagerNumber != null) {
+    row[cols['介護支援専門員番号']] = String(payload.careManagerNumber).trim();
+  }
+  if (payload.role != null) {
+    var newRole = normalizeBusinessStaffRole_(payload.role);
+    var currentRole = String(row[cols['職員権限コード']] || 'STAFF');
+    // 代表者への昇格/降格は他の職員に影響するため、ここでは単純な更新のみ
+    // 代表者変更の整合性はフロントエンド側で制御（代表者が1名であること等）
+    row[cols['職員権限コード']] = newRole;
+  }
+  if (payload.joinedDate != null) {
+    var normalized = normalizeDateInput_(payload.joinedDate);
+    if (normalized) row[cols['入会日']] = normalized;
+  }
+  row[cols['更新日時']] = nowIso;
+  staffSheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+
+  // 認証アカウントのメールアドレスも同期（職員メールが変更された場合）
+  // Note: 認証アカウントのメールは別管理のため、ここでは職員テーブルのみ更新
+
+  clearAllDataCache_();
+  clearAdminDashboardCache_();
+  clearTrainingManagementCache_();
+  return {
+    updated: true,
+    staffId: String(payload.staffId),
+    memberId: String(row[cols['会員ID']] || ''),
+  };
+}
+
+// ── v126: 翌年度の4月1日を返す ──
+function getNextFiscalYearStart_(referenceDate) {
+  var fyStart = getFiscalYearStart_(referenceDate);
+  return new Date(fyStart.getFullYear() + 1, 3, 1, 0, 0, 0, 0);
+}
+
+// ── v125: 会員種別変更（個人↔事業所メンバーのシームレス転換）──
+function convertMemberType_(payload) {
+  if (!payload || !payload.direction) throw new Error('direction が未指定です。');
+  var direction = String(payload.direction);
+
+  var ss = getOrCreateDatabase_();
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    if (direction === 'STAFF_TO_INDIVIDUAL') {
+      return convertStaffToIndividual_(ss, payload);
+    } else if (direction === 'INDIVIDUAL_TO_STAFF') {
+      return convertIndividualToStaff_(ss, payload);
+    } else {
+      throw new Error('不明な direction: ' + direction);
+    }
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function convertStaffToIndividual_(ss, payload) {
+  var sourceMemberId = String(payload.sourceMemberId || '');
+  var sourceStaffId = String(payload.sourceStaffId || '');
+  if (!sourceMemberId || !sourceStaffId) throw new Error('sourceMemberId / sourceStaffId は必須です。');
+
+  // 1. 事業所の存在確認
+  var memberSheet = ss.getSheetByName('T_会員');
+  if (!memberSheet) throw new Error('T_会員 シートが見つかりません。');
+  var officeFound = findRowByColumnValue_(memberSheet, '会員ID', sourceMemberId);
+  if (!officeFound) throw new Error('事業所 ' + sourceMemberId + ' が見つかりません。');
+  var officeRow = officeFound.row;
+  var officeCols = officeFound.columns;
+  if (String(officeRow[officeCols['会員種別コード']] || '') !== 'BUSINESS') {
+    throw new Error('会員 ' + sourceMemberId + ' は事業所会員ではありません。');
+  }
+
+  // 2. 職員の存在確認
+  var staffSheet = ss.getSheetByName('T_事業所職員');
+  if (!staffSheet) throw new Error('T_事業所職員 シートが見つかりません。');
+  var staffFound = findRowByColumnValue_(staffSheet, '職員ID', sourceStaffId);
+  if (!staffFound) throw new Error('職員 ' + sourceStaffId + ' が見つかりません。');
+  var sRow = staffFound.row;
+  var sCols = staffFound.columns;
+  if (String(sRow[sCols['会員ID']] || '') !== sourceMemberId) {
+    throw new Error('職員は指定の事業所に所属していません。');
+  }
+
+  // 3. 代表者チェック
+  var isRepresentative = String(sRow[sCols['職員権限コード']] || '') === 'REPRESENTATIVE';
+  if (isRepresentative) {
+    var newRepStaffId = String(payload.newRepresentativeStaffId || '').trim();
+    if (!newRepStaffId) throw new Error('代表者を転換する場合は後任代表者（newRepresentativeStaffId）を指定してください。');
+    if (newRepStaffId === sourceStaffId) throw new Error('後任代表者は自分以外を指定してください。');
+    var newRepFound = findRowByColumnValue_(staffSheet, '職員ID', newRepStaffId);
+    if (!newRepFound) throw new Error('後任代表者 ' + newRepStaffId + ' が見つかりません。');
+    if (String(newRepFound.row[newRepFound.columns['会員ID']] || '') !== sourceMemberId) {
+      throw new Error('後任代表者は同じ事業所の職員でなければなりません。');
+    }
+    if (String(newRepFound.row[newRepFound.columns['職員状態コード']] || '') === 'LEFT') {
+      throw new Error('後任代表者は在籍中の職員でなければなりません。');
+    }
+    // 後任を REPRESENTATIVE に昇格
+    var nrRow = newRepFound.row.slice();
+    nrRow[newRepFound.columns['職員権限コード']] = 'REPRESENTATIVE';
+    nrRow[newRepFound.columns['更新日時']] = new Date().toISOString();
+    staffSheet.getRange(newRepFound.rowNumber, 1, 1, nrRow.length).setValues([nrRow]);
+  }
+
+  // 4. 職員情報を取得（氏名を分割）
+  var staffName = String(sRow[sCols['氏名']] || '');
+  var staffKana = String(sRow[sCols['フリガナ']] || '');
+  var staffEmail = String(sRow[sCols['メールアドレス'] || ''] || '');
+  var staffCareNum = String(sRow[sCols['介護支援専門員番号']] || '');
+  // 氏名を姓名に分割（スペース区切り）
+  var nameParts = staffName.split(/[\s　]+/);
+  var lastName = nameParts[0] || staffName;
+  var firstName = nameParts.slice(1).join(' ') || '';
+  var kanaParts = staffKana.split(/[\s　]+/);
+  var lastKana = kanaParts[0] || staffKana;
+  var firstKana = kanaParts.slice(1).join(' ') || '';
+
+  // 5. 新しい個人会員レコード作成
+  var newMemberId = generateMemberId_();
+  while (findRowByColumnValue_(memberSheet, '会員ID', newMemberId)) {
+    newMemberId = generateMemberId_();
+  }
+  var now = new Date().toISOString();
+  var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+  var columns = テーブル定義.T_会員;
+  var newRow = columns.map(function(col) {
+    switch (col) {
+      case '会員ID': return newMemberId;
+      case '会員種別コード': return 'INDIVIDUAL';
+      case '会員状態コード': return 'ACTIVE';
+      case '入会日': return today;
+      case '退会日': return '';
+      case '姓': return lastName;
+      case '名': return firstName;
+      case 'セイ': return lastKana;
+      case 'メイ': return firstKana;
+      case '代表メールアドレス': return staffEmail;
+      case '介護支援専門員番号': return staffCareNum;
+      case '作成日時': return now;
+      case '更新日時': return now;
+      case '削除フラグ': return false;
+      default: return '';
+    }
+  });
+  memberSheet.appendRow(newRow);
+
+  // 6. T_事業所職員を LEFT + 削除フラグ
+  var updStaffRow = sRow.slice();
+  updStaffRow[sCols['職員状態コード']] = 'LEFT';
+  updStaffRow[sCols['退会日']] = today;
+  updStaffRow[sCols['削除フラグ']] = true;
+  updStaffRow[sCols['更新日時']] = now;
+  staffSheet.getRange(staffFound.rowNumber, 1, 1, updStaffRow.length).setValues([updStaffRow]);
+
+  // 7. T_認証アカウント: 会員ID→新ID, 職員ID→クリア, 有効フラグ=true
+  var authSheet = ss.getSheetByName('T_認証アカウント');
+  if (authSheet && authSheet.getLastRow() >= 2) {
+    var aHeaders = authSheet.getRange(1, 1, 1, authSheet.getLastColumn()).getValues()[0];
+    var aCols = {};
+    for (var ai = 0; ai < aHeaders.length; ai++) aCols[aHeaders[ai]] = ai;
+    var aData = authSheet.getRange(2, 1, authSheet.getLastRow() - 1, authSheet.getLastColumn()).getValues();
+    for (var ar = 0; ar < aData.length; ar++) {
+      if (String(aData[ar][aCols['職員ID']] || '') === sourceStaffId) {
+        aData[ar][aCols['会員ID']] = newMemberId;
+        aData[ar][aCols['職員ID']] = '';
+        aData[ar][aCols['システムロールコード']] = 'INDIVIDUAL_MEMBER';
+        aData[ar][aCols['アカウント有効フラグ']] = true;
+        aData[ar][aCols['更新日時']] = now;
+        authSheet.getRange(ar + 2, 1, 1, aData[ar].length).setValues([aData[ar]]);
+      }
+    }
+  }
+
+  // 8. T_研修申込: 該当職員の申込を新会員IDに更新
+  migrateTrainingApplications_(ss, sourceMemberId, sourceStaffId, newMemberId, '');
+
+  clearAllDataCache_();
+  clearAdminDashboardCache_();
+  clearTrainingManagementCache_();
+
+  return {
+    converted: true,
+    direction: 'STAFF_TO_INDIVIDUAL',
+    newMemberId: newMemberId,
+    sourceStaffId: sourceStaffId,
+  };
+}
+
+function convertIndividualToStaff_(ss, payload) {
+  var sourceMemberId = String(payload.sourceMemberId || '');
+  var targetOfficeMemberId = String(payload.targetOfficeMemberId || '');
+  var staffRole = String(payload.staffRole || 'STAFF');
+  if (!sourceMemberId) throw new Error('sourceMemberId は必須です。');
+  if (!targetOfficeMemberId) throw new Error('targetOfficeMemberId は必須です。');
+  if (['ADMIN', 'STAFF'].indexOf(staffRole) === -1) staffRole = 'STAFF';
+
+  // 1. 個人会員の存在確認
+  var memberSheet = ss.getSheetByName('T_会員');
+  if (!memberSheet) throw new Error('T_会員 シートが見つかりません。');
+  var srcFound = findRowByColumnValue_(memberSheet, '会員ID', sourceMemberId);
+  if (!srcFound) throw new Error('会員 ' + sourceMemberId + ' が見つかりません。');
+  var srcRow = srcFound.row;
+  var srcCols = srcFound.columns;
+  var srcType = String(srcRow[srcCols['会員種別コード']] || '');
+  if (srcType !== 'INDIVIDUAL' && srcType !== 'SUPPORT') {
+    throw new Error('事業所会員を別の事業所に転籍する機能は未対応です。');
+  }
+
+  // 2. 転籍先事業所の存在確認
+  var officeFound = findRowByColumnValue_(memberSheet, '会員ID', targetOfficeMemberId);
+  if (!officeFound) throw new Error('事業所 ' + targetOfficeMemberId + ' が見つかりません。');
+  if (String(officeFound.row[officeFound.columns['会員種別コード']] || '') !== 'BUSINESS') {
+    throw new Error('転籍先 ' + targetOfficeMemberId + ' は事業所会員ではありません。');
+  }
+  if (String(officeFound.row[officeFound.columns['会員状態コード']] || '') === 'WITHDRAWN') {
+    throw new Error('転籍先の事業所は退会済みです。');
+  }
+
+  // 3. 事業所の職員数上限チェック
+  var currentStaff = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === targetOfficeMemberId
+      && String(r['職員状態コード'] || '') === 'ENROLLED';
+  });
+  var staffLimit = Number(officeFound.row[officeFound.columns['職員数上限']] || 50);
+  if (currentStaff.length >= staffLimit) {
+    throw new Error('転籍先の事業所は職員数上限（' + staffLimit + '名）に達しています。');
+  }
+
+  // 4. 新しい職員レコード作成
+  var newStaffId = 'S' + Date.now();
+  var now = new Date().toISOString();
+  var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+  var staffName = (String(srcRow[srcCols['姓']] || '') + ' ' + String(srcRow[srcCols['名']] || '')).trim();
+  var staffKana = (String(srcRow[srcCols['セイ']] || '') + ' ' + String(srcRow[srcCols['メイ']] || '')).trim();
+  var staffEmail = String(srcRow[srcCols['代表メールアドレス']] || '');
+  var staffCareNum = String(srcRow[srcCols['介護支援専門員番号']] || '');
+
+  appendRowsByHeaders_(ss, 'T_事業所職員', [{
+    職員ID: newStaffId,
+    会員ID: targetOfficeMemberId,
+    氏名: staffName,
+    フリガナ: staffKana,
+    メールアドレス: staffEmail,
+    職員権限コード: staffRole,
+    職員状態コード: 'ENROLLED',
+    入会日: today,
+    退会日: '',
+    介護支援専門員番号: staffCareNum,
+    作成日時: now,
+    更新日時: now,
+    削除フラグ: false,
+  }]);
+
+  // 5. T_認証アカウント: 会員ID→事業所ID, 職員ID→新ID, 有効フラグ=true
+  var authSheet = ss.getSheetByName('T_認証アカウント');
+  if (authSheet && authSheet.getLastRow() >= 2) {
+    var aHeaders = authSheet.getRange(1, 1, 1, authSheet.getLastColumn()).getValues()[0];
+    var aCols = {};
+    for (var ai = 0; ai < aHeaders.length; ai++) aCols[aHeaders[ai]] = ai;
+    var aData = authSheet.getRange(2, 1, authSheet.getLastRow() - 1, authSheet.getLastColumn()).getValues();
+    for (var ar = 0; ar < aData.length; ar++) {
+      var aAuthMemberId = String(aData[ar][aCols['会員ID']] || '').trim();
+      var aAuthStaffId = String(aData[ar][aCols['職員ID']] || '').trim();
+      if (aAuthMemberId === sourceMemberId && !aAuthStaffId) {
+        aData[ar][aCols['会員ID']] = targetOfficeMemberId;
+        aData[ar][aCols['職員ID']] = newStaffId;
+        aData[ar][aCols['システムロールコード']] = staffRole === 'ADMIN' ? 'BUSINESS_ADMIN' : 'BUSINESS_MEMBER';
+        aData[ar][aCols['アカウント有効フラグ']] = true;
+        aData[ar][aCols['更新日時']] = now;
+        authSheet.getRange(ar + 2, 1, 1, aData[ar].length).setValues([aData[ar]]);
+      }
+    }
+  }
+
+  // 6. 元の個人会員を退会
+  var updSrcRow = srcRow.slice();
+  updSrcRow[srcCols['会員状態コード']] = 'WITHDRAWN';
+  updSrcRow[srcCols['退会日']] = today;
+  updSrcRow[srcCols['更新日時']] = now;
+  memberSheet.getRange(srcFound.rowNumber, 1, 1, updSrcRow.length).setValues([updSrcRow]);
+
+  // 7. T_研修申込: 会員ID→事業所ID, 職員ID→新ID
+  migrateTrainingApplications_(ss, sourceMemberId, '', targetOfficeMemberId, newStaffId);
+
+  clearAllDataCache_();
+  clearAdminDashboardCache_();
+  clearTrainingManagementCache_();
+
+  return {
+    converted: true,
+    direction: 'INDIVIDUAL_TO_STAFF',
+    newStaffId: newStaffId,
+    targetOfficeMemberId: targetOfficeMemberId,
+    sourceMemberId: sourceMemberId,
+  };
+}
+
+// ── 研修申込の会員ID/職員IDを移行する ──
+function migrateTrainingApplications_(ss, oldMemberId, oldStaffId, newMemberId, newStaffId) {
+  var appSheet = ss.getSheetByName('T_研修申込');
+  if (!appSheet || appSheet.getLastRow() < 2) return;
+  var headers = appSheet.getRange(1, 1, 1, appSheet.getLastColumn()).getValues()[0];
+  var cols = {};
+  for (var i = 0; i < headers.length; i++) cols[headers[i]] = i;
+  if (cols['会員ID'] == null) return;
+
+  var data = appSheet.getRange(2, 1, appSheet.getLastRow() - 1, appSheet.getLastColumn()).getValues();
+  var now = new Date().toISOString();
+  for (var r = 0; r < data.length; r++) {
+    var appMemberId = String(data[r][cols['会員ID']] || '');
+    var appStaffId = cols['職員ID'] != null ? String(data[r][cols['職員ID']] || '') : '';
+    var match = false;
+    if (oldStaffId) {
+      // 職員IDで一致判定（事業所職員→個人変換の場合）
+      match = appStaffId === oldStaffId && appMemberId === oldMemberId;
+    } else {
+      // 会員IDで一致判定（個人→事業所職員変換の場合）
+      match = appMemberId === oldMemberId && !appStaffId;
+    }
+    if (match) {
+      data[r][cols['会員ID']] = newMemberId;
+      if (cols['職員ID'] != null) data[r][cols['職員ID']] = newStaffId;
+      if (cols['更新日時'] != null) data[r][cols['更新日時']] = now;
+      appSheet.getRange(r + 2, 1, 1, data[r].length).setValues([data[r]]);
+    }
+  }
 }
 
 // ── 会員セルフ退会申請（年度末退会予約）──────────────────────
@@ -4392,6 +4946,211 @@ function updateMembersBatch_(payload) {
         skipCacheClear: true,
       }));
     }
+    clearAllDataCache_();
+    clearAdminDashboardCache_();
+    clearTrainingManagementCache_();
+    return results;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// ── v125: フラット人物リスト取得（個人会員+事業所職員を混合） ──
+function getAdminPersonList_() {
+  var ss = getOrCreateDatabase_();
+  var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']);
+  });
+  var staffRows = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']);
+  });
+  var authRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']);
+  });
+
+  // 事業所名のルックアップ（会員ID→事業所名）
+  var officeNameByMemberId = {};
+  for (var mi = 0; mi < memberRows.length; mi++) {
+    var m = memberRows[mi];
+    if (String(m['会員種別コード'] || '') === 'BUSINESS') {
+      officeNameByMemberId[String(m['会員ID'] || '')] = String(m['勤務先名'] || '');
+    }
+  }
+
+  // 認証アカウントの有効フラグルックアップ
+  // 個人会員: 会員IDで引く（職員ID空）、職員: 職員IDで引く
+  var authByMemberId = {};
+  var authByStaffId = {};
+  for (var ai = 0; ai < authRows.length; ai++) {
+    var auth = authRows[ai];
+    var aStaffId = String(auth['職員ID'] || '').trim();
+    var aMemberId = String(auth['会員ID'] || '').trim();
+    if (aStaffId) {
+      authByStaffId[aStaffId] = toBoolean_(auth['アカウント有効フラグ']);
+    } else if (aMemberId) {
+      authByMemberId[aMemberId] = toBoolean_(auth['アカウント有効フラグ']);
+    }
+  }
+
+  var persons = [];
+
+  // 個人会員・賛助会員
+  for (var i = 0; i < memberRows.length; i++) {
+    var member = memberRows[i];
+    var memberType = String(member['会員種別コード'] || 'INDIVIDUAL');
+    if (memberType === 'BUSINESS') continue; // 事業所エンティティ自体はスキップ
+    var memberId = String(member['会員ID'] || '');
+    persons.push({
+      personKey: memberId,
+      personType: memberType === 'SUPPORT' ? 'SUPPORT' : 'INDIVIDUAL',
+      displayName: (String(member['姓'] || '') + ' ' + String(member['名'] || '')).trim() || memberId,
+      kana: (String(member['セイ'] || '') + ' ' + String(member['メイ'] || '')).trim(),
+      email: String(member['代表メールアドレス'] || ''),
+      officeName: String(member['勤務先名'] || ''),
+      memberId: memberId,
+      staffId: null,
+      status: String(member['会員状態コード'] || 'ACTIVE'),
+      joinedDate: normalizeDateInput_(member['入会日']),
+      withdrawnDate: normalizeDateInput_(member['退会日']),
+      mailingPreference: String(member['発送方法コード'] || 'EMAIL'),
+      preferredMailDestination: String(member['郵送先区分コード'] || 'OFFICE'),
+      staffRole: null,
+      careManagerNumber: String(member['介護支援専門員番号'] || ''),
+      accountEnabled: authByMemberId[memberId] !== undefined ? authByMemberId[memberId] : true,
+    });
+  }
+
+  // 事業所職員
+  for (var j = 0; j < staffRows.length; j++) {
+    var staff = staffRows[j];
+    var staffMemberId = String(staff['会員ID'] || '');
+    var staffId = String(staff['職員ID'] || '');
+    persons.push({
+      personKey: staffMemberId + ':' + staffId,
+      personType: 'OFFICE_STAFF',
+      displayName: String(staff['氏名'] || ''),
+      kana: String(staff['フリガナ'] || ''),
+      email: String(staff['メールアドレス'] || ''),
+      officeName: officeNameByMemberId[staffMemberId] || '',
+      memberId: staffMemberId,
+      staffId: staffId,
+      status: String(staff['職員状態コード'] || 'ENROLLED'),
+      joinedDate: normalizeDateInput_(staff['入会日']),
+      withdrawnDate: normalizeDateInput_(staff['退会日']),
+      mailingPreference: '',
+      preferredMailDestination: '',
+      staffRole: String(staff['職員権限コード'] || 'STAFF'),
+      careManagerNumber: String(staff['介護支援専門員番号'] || ''),
+      accountEnabled: authByStaffId[staffId] !== undefined ? authByStaffId[staffId] : true,
+    });
+  }
+
+  persons.sort(function(a, b) {
+    return String(a.displayName || '').localeCompare(String(b.displayName || ''));
+  });
+
+  return { persons: persons };
+}
+
+// ── v125: フラット人物の一括更新 ──
+var ADMIN_BATCH_PERSON_WRITABLE_INDIVIDUAL_ = [
+  'email', 'mailingPreference', 'preferredMailDestination',
+  'status', 'joinedDate', 'withdrawnDate',
+];
+var ADMIN_BATCH_PERSON_WRITABLE_STAFF_ = [
+  'email', 'status', 'joinedDate', 'withdrawnDate',
+];
+
+function updatePersonsBatch_(payload) {
+  if (!payload || !Array.isArray(payload.records) || payload.records.length === 0) {
+    throw new Error('保存対象のデータがありません。');
+  }
+  if (payload.records.length > 100) {
+    throw new Error('一括編集は最大100件までです。');
+  }
+
+  var adminSession = checkAdminBySession_();
+  var ss = getOrCreateDatabase_();
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var results = [];
+    for (var i = 0; i < payload.records.length; i++) {
+      var rec = payload.records[i];
+      if (!rec || !rec.personKey || !rec.personType) {
+        throw new Error('レコード ' + (i + 1) + ': personKey または personType が未指定です。');
+      }
+      var personType = String(rec.personType);
+
+      if (personType === 'INDIVIDUAL' || personType === 'SUPPORT') {
+        // T_会員 を更新
+        var memberSanitized = { id: String(rec.memberId || rec.personKey) };
+        for (var mi = 0; mi < ADMIN_BATCH_PERSON_WRITABLE_INDIVIDUAL_.length; mi++) {
+          var mk = ADMIN_BATCH_PERSON_WRITABLE_INDIVIDUAL_[mi];
+          if (Object.prototype.hasOwnProperty.call(rec, mk)) {
+            memberSanitized[mk] = rec[mk];
+          }
+        }
+        results.push(updateMember_(memberSanitized, {
+          skipAdminCheck: true,
+          adminSession: adminSession,
+          ss: ss,
+          skipCacheClear: true,
+        }));
+
+        // status を WITHDRAWN にした場合、認証アカウントも無効化
+        if (String(rec.status) === 'WITHDRAWN') {
+          disableAuthAccountsByMemberId_(ss, memberSanitized.id);
+        }
+
+      } else if (personType === 'OFFICE_STAFF') {
+        // T_事業所職員 を更新
+        var staffId = String(rec.staffId || '');
+        if (!staffId) throw new Error('レコード ' + (i + 1) + ': staffId が未指定です。');
+
+        var staffSheet = ss.getSheetByName('T_事業所職員');
+        if (!staffSheet) throw new Error('T_事業所職員 シートが見つかりません。');
+        var staffFound = findRowByColumnValue_(staffSheet, '職員ID', staffId);
+        if (!staffFound) throw new Error('レコード ' + (i + 1) + ': 職員ID ' + staffId + ' が見つかりません。');
+
+        var sCols = staffFound.columns;
+        var sRow = staffFound.row.slice();
+        var nowIso = new Date().toISOString();
+
+        // Allowlist でフィルタして更新
+        for (var si = 0; si < ADMIN_BATCH_PERSON_WRITABLE_STAFF_.length; si++) {
+          var sk = ADMIN_BATCH_PERSON_WRITABLE_STAFF_[si];
+          if (!Object.prototype.hasOwnProperty.call(rec, sk)) continue;
+
+          if (sk === 'email' && sCols['メールアドレス'] != null) {
+            sRow[sCols['メールアドレス']] = String(rec.email || '');
+          } else if (sk === 'status' && sCols['職員状態コード'] != null) {
+            var newStatus = String(rec.status || 'ENROLLED');
+            if (newStatus !== 'ENROLLED' && newStatus !== 'LEFT') newStatus = 'ENROLLED';
+            sRow[sCols['職員状態コード']] = newStatus;
+            // LEFT にした場合は退会日を自動セット + 認証アカウント無効化
+            if (newStatus === 'LEFT') {
+              if (!normalizeDateInput_(sRow[sCols['退会日']])) {
+                sRow[sCols['退会日']] = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+              }
+              disableAuthAccountsByStaffId_(ss, staffId);
+            }
+          } else if (sk === 'joinedDate' && sCols['入会日'] != null) {
+            sRow[sCols['入会日']] = normalizeDateInput_(rec.joinedDate) || '';
+          } else if (sk === 'withdrawnDate' && sCols['退会日'] != null) {
+            sRow[sCols['退会日']] = normalizeDateInput_(rec.withdrawnDate) || '';
+          }
+        }
+
+        sRow[sCols['更新日時']] = nowIso;
+        staffSheet.getRange(staffFound.rowNumber, 1, 1, sRow.length).setValues([sRow]);
+        results.push({ updated: true, staffId: staffId });
+
+      } else {
+        throw new Error('レコード ' + (i + 1) + ': 不明な personType: ' + personType);
+      }
+    }
+
     clearAllDataCache_();
     clearAdminDashboardCache_();
     clearTrainingManagementCache_();

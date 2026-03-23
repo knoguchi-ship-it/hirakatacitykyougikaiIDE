@@ -1,4 +1,4 @@
-﻿import { Member, Training, AdminPermissionLevel } from '../types';
+﻿import { Member, Training, AdminPermissionLevel, AdminPersonRow, ConvertMemberTypePayload, ConvertMemberTypeResult } from '../types';
 import { TrainingApplicantRow } from '../shared/types';
 import { AdminDashboardData, AdminPermissionData, AnnualFeeAdminData, AnnualFeeAdminRecord } from '../types';
 
@@ -98,6 +98,15 @@ export interface ApiClient {
   withdrawSelf(loginId: string, password: string, memberId: string): Promise<{ scheduled: boolean; memberId: string; withdrawnDate: string }>;
   cancelWithdrawalSelf(loginId: string, password: string, memberId: string): Promise<{ canceled: boolean; memberId: string }>;
   submitMemberApplication(payload: any): Promise<any>;
+  // v125: 除籍・フラット人物リスト・種別変更
+  removeStaffFromOffice(memberId: string, staffId: string): Promise<{ removed: boolean; staffId: string }>;
+  getAdminPersonList(): Promise<{ persons: AdminPersonRow[] }>;
+  updatePersonsBatch(records: Array<Record<string, any>>): Promise<Array<Record<string, any>>>;
+  convertMemberType(payload: ConvertMemberTypePayload): Promise<ConvertMemberTypeResult>;
+  // v126: 予約退会・キャンセル・職員個別更新
+  scheduleWithdrawMember(memberId: string): Promise<{ scheduled: boolean; memberId: string; withdrawnDate: string }>;
+  cancelScheduledWithdraw(memberId: string): Promise<{ cancelled: boolean; memberId: string }>;
+  updateStaff(payload: { staffId: string; memberId: string; name?: string; kana?: string; email?: string; careManagerNumber?: string; role?: string; joinedDate?: string }): Promise<{ updated: boolean; staffId: string; memberId: string }>;
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -894,6 +903,104 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('cancelWithdrawalSelf', JSON.stringify({ loginId, password, memberId }));
+    });
+  }
+
+  // v125: 事業所職員の除籍
+  async removeStaffFromOffice(memberId: string, staffId: string): Promise<{ removed: boolean; staffId: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('removeStaffFromOffice', JSON.stringify({ memberId, staffId }));
+    });
+  }
+
+  // v125: フラット人物リスト取得
+  async getAdminPersonList(): Promise<{ persons: AdminPersonRow[] }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getAdminPersonList', JSON.stringify({}));
+    });
+  }
+
+  // v125: フラット人物一括更新
+  async updatePersonsBatch(records: Array<Record<string, any>>): Promise<Array<Record<string, any>>> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('updatePersonsBatch', JSON.stringify({ records }));
+    });
+  }
+
+  // v125: 会員種別変更
+  async convertMemberType(payload: ConvertMemberTypePayload): Promise<ConvertMemberTypeResult> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('convertMemberType', JSON.stringify(payload));
+    });
+  }
+
+  // v126: 事業所会員の予約退会
+  async scheduleWithdrawMember(memberId: string): Promise<{ scheduled: boolean; memberId: string; withdrawnDate: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('scheduleWithdrawMember', JSON.stringify({ memberId }));
+    });
+  }
+
+  // v126: 予約退会キャンセル
+  async cancelScheduledWithdraw(memberId: string): Promise<{ cancelled: boolean; memberId: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('cancelScheduledWithdraw', JSON.stringify({ memberId }));
+    });
+  }
+
+  // v126: 職員個別更新
+  async updateStaff(payload: { staffId: string; memberId: string; name?: string; kana?: string; email?: string; careManagerNumber?: string; role?: string; joinedDate?: string }): Promise<{ updated: boolean; staffId: string; memberId: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('updateStaff', JSON.stringify(payload));
     });
   }
 }

@@ -1,6 +1,6 @@
 # 引継ぎ書（次担当者向け）
 
-更新日: **2026-03-22（v117 管理者権限コンソール候補保持修正）**
+更新日: **2026-03-23（v126 事業所会員詳細編集画面改善: 必須バリデーション + 連絡設定 + 予約退会 + 職員Drilldown）**
 対象: 枚方市介護支援専門員連絡協議会 会員システム
 
 ---
@@ -17,7 +17,7 @@
 | 参照順序 | `HANDOVER.md` → `GLOBAL_GROUND_RULES/CLAUDE.md` → `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md` → `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` の順で確認 |
 | ブラウザ自動化 | Playwright/MCP は利用可。ただし Apps Script の `Manage deployments` は最終的に UI 確認が必要 |
 | デプロイ方法 | `clasp push` + `clasp version` の後、固定 2 Deployment を同一 Version に揃えること |
-| Git 状態 | `main` は v117 デプロイ反映済みの作業中。コミット/Push 状態は作業終了時点の `git log -1 --oneline` を正とすること |
+| Git 状態 | `main` は v124 デプロイ反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` を正とすること |
 | 作業ツリー | **クリーン**。`Dust/` は不要ファイル退避用で `.gitignore` 済み |
 | 作業ディレクトリ | `C:\VSCode\CloudePL\hirakatacitykyougikaiIDE`（Windows） |
 | シェル | PowerShell（必要に応じて bash 互換コマンドも可） |
@@ -48,9 +48,10 @@
 
 ## 1.1 次担当者向け・最短状況サマリ（このまま新スレッドへ貼付可）
 
-- 本番Web URLは固定2本（会員/公開）で **@117 同期済み**。
-- テスト結果: バックエンド B-01〜B-10 全10件 PASS、フロントエンド F-01〜F-12 全11件 PASS + 1 SKIP、デプロイチェック D-01〜D-11 全11件 PASS。テスト仕様書: `docs/22_TEST_SPEC_v106_FIELD_ACCESS_CONTROL.md`。
-- `main` には v117（管理者権限コンソール候補保持修正）が反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` と `git status --short` を正とすること。
+- 本番Web URLは固定2本（会員/公開）で **@126 同期済み**。
+- v118 で 5 段階権限モデル（MASTER/ADMIN/TRAINING_MANAGER/TRAINING_REGISTRAR/GENERAL）を本番導入済み。IDトークン検証コードは全削除済み。
+- v122〜v124 で年会費管理コンソールを大幅改善（年度自動追加、日付テキスト貼付、Reward Early/Punish Late バリデーション、Partial Success 一括保存）。
+- `main` には v124 が反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` と `git status --short` を正とすること。
 - Playwright MCP で `browserType.launchPersistentContext` や Chrome profile lock が出た場合は、認証仕様やコード不具合を先に疑わず、対象ブラウザの再起動と browser/context/page の再取得を先に行うこと。
 - `clasp run` 障害は、既定OAuthクライアントが組織でブロックされたことが原因。
 - 復旧済み手順:
@@ -65,7 +66,7 @@
 ## 1.2 この時点の引き継ぎポイント
 
 - スレッドを切っても問題ない状態まで、正本と引き継ぎは同期済み。
-- 現在の本番固定 Deployment は会員/公開ともに **@117**。
+- 現在の本番固定 Deployment は会員/公開ともに **@126**。
 - 2026-03-20 に `clasp redeploy` 後 `/exec` が 404 化したため、`appsscript.json` へ `webapp` manifest を追加し、新規 Deployment 2 本へ固定 ID を切り替えて復旧済み。
 - 公開ポータルは 2026-03-20 に MCP Playwright で再表示確認済み。
 - 負荷試験用データは投入済み。`seedPerformanceTestData()` により、`個人会員 300名 / 事業所会員 30件 / 事業所職員 205名 / 認証 505件 / 年会費 660件 / 申込 378件` の状態で検証している。
@@ -113,7 +114,13 @@
   - 職員別研修モーダル新設（`StaffTrainingView.tsx`）
   - 仕様書: `docs/21_IMPL_SPEC_FIELD_ACCESS_CONTROL_v106.md`
 - 会員一括編集（`updateMembersBatch_`）の初版を実装済み。管理トップに一括編集パネルを追加し、代表メール・発送方法・郵送先・会員状態・入退会日を最大100件まで一括保存可能。
-- 次の主作業は **管理コンソール UI/UX 継続改善** および **必要に応じた一括編集対象項目の拡張**。
+- v118〜v124 で 5 段階権限モデル導入、年会費コンソール大幅改善（バリデーション・Partial Success 一括保存）が完了。
+- v125 で管理コンソール会員管理を大幅改善。
+  - 会員一覧の操作列を削除し、編集画面に退会/除籍/転換アクションを集約
+  - 一括編集をフラット人物リスト化（個人会員+賛助会員+事業所職員を人物単位で表示）
+  - 会員種別変更（個人会員⇔事業所メンバー）のシームレス転換機能
+  - 除籍/退会後もアカウントを保持（有効フラグ=false）し、管理者がいつでも転換で再有効化可能
+- 次の主作業は **管理コンソール UI/UX 継続改善** および **必要に応じた機能追加**。
 - Claude Code への次指示は `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` に整理済み。
 - ただし修正後は毎回、`docs/09_DEPLOYMENT_POLICY.md` の事前チェック/完了判定に従って再確認すること。
 - 2026-03-19 時点で **不要ファイルは `Dust/` に退避済み**。記録用スクリーンショット（`v98-*`）のみリポジトリ管理対象。
@@ -152,13 +159,45 @@
 
 | 用途 | Deployment ID | 現在 Version | URL |
 |---|---|---|---|
-| **会員マイページ** | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@117** | `.../exec` |
-| **公開ポータル** | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@117** | `.../exec?app=public` |
+| **会員マイページ** | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@124** | `.../exec` |
+| **公開ポータル** | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@124** | `.../exec?app=public` |
 
 > **鉄則**: 2 つの Deployment ID は常に同一バージョンへ同時更新。片方だけ更新禁止。
 > `npx clasp deployments` では表示名が実UIの `Manage deployments` と一致しないことがある。最終判断は Apps Script UI の固定2 Deployment を正とする。
 
-### 3.2 最新リリース（v106→v108）の変更内容
+### 3.2 最新リリース（v118〜v124）の変更内容
+
+#### v124（年会費バリデーション改善: Reward Early/Punish Late + Partial Success batch save）
+- 日付入力: テキスト入力中はエラー非表示（Punish Late = blur 時のみ検証）、修正したら即座にエラー解除（Reward Early）
+- 個別保存: 日付エラー時はエラーメッセージ表示のみ、保存をブロックしない
+- 一括保存: Partial Success パターン — 有効なレコードのみ保存、無効なレコードはスキップ（Google AIP-234 2025 準拠）
+- 一括保存で失敗があった場合、失敗レコードのみに自動フィルタ＋解除バナー表示
+- `rawDateTexts` state で入力中テキストと確定済み `confirmedDate` を分離管理
+
+#### v123（カレンダーピッカー修正: GAS sandboxed iframe 対応）
+- GAS の sandboxed iframe で `showPicker()` が `NotAllowedError` をスローする問題を修正
+- カレンダーアイコンに透明な `type="date"` input をオーバーレイする方式に変更
+
+#### v122（年会費コンソール改善: 年度自動追加・日付テキスト貼付・変更者表示）
+- 新年度になると自動的に当年度の年会費レコードを一括追加
+- 納入確認日をテキスト入力可能に（YYYY/MM/DD 形式、スラッシュ自動補完）
+- 監査ログに変更者の表示名を追加
+- `parseSlashDate()` / `toSlashDate()` ユーティリティ関数追加
+
+#### v121（管理者一覧テーブル: ソート・フィルタ・テーブルビュー）
+- 管理コンソール（システム権限）の管理者一覧をテーブルビューに変更
+- 権限レベル・有効フラグでのフィルタ、Googleメール・表示名でのソートを追加
+
+#### v118〜v120（5 段階権限モデル導入: MASTER/ADMIN/TRAINING_MANAGER/TRAINING_REGISTRAR/GENERAL）
+- `M_管理者権限` マスタ追加、`T_管理者Googleホワイトリスト` スキーマ刷新（GoogleユーザーID・表示名 廃止、権限コード・変更者メール・変更日時 追加）
+- `checkAdminBySession_()` が `adminPermissionLevel` を返却、`processApiRequest()` で action ごとに権限マップ判定
+- 最後のマスター保護（MASTER が 0 名になる変更を拒否）
+- ADMIN は MASTER レコード編集不可、自分の権限変更不可
+- TRAINING_REGISTRAR は自分が登録者の研修のみ編集可
+- GENERAL は管理者ログイン不可（会員マイページのみ利用）
+- IDトークン検証コード（`verifyGoogleIdToken_`、`adminGoogleLogin_`、GIS 関連 UI）を全削除
+- フロントエンド: 権限レベルに応じたメニュー表示制御、システム権限画面を 3 フィールド（メール・検索付き会員・権限ドロップダウン）に簡素化
+- DB_SCHEMA_VERSION: `2026-03-22-01`
 
 #### v106→v108（フィールドレベルアクセス制御拡張: NIST RBAC モデル準拠）
 - v105 のフィールドレベルアクセス制御を NIST RBAC モデルに拡張
@@ -439,6 +478,8 @@ hirakatacitykyougikaiIDE/
 ├── src/
 │   ├── components/         # 会員マイページ用コンポーネント
 │   │   ├── application/    # 入会申込フォーム（MemberApplicationForm, types）
+│   │   ├── AnnualFeeManagement.tsx  # 年会費管理コンソール（v96〜v124）
+│   │   ├── Sidebar.tsx     # サイドバー（権限別メニュー表示）
 │   │   └── StaffTrainingView.tsx  # v106: 職員別研修申込モーダル
 │   ├── public-portal/      # 公開ポータル React ソース
 │   ├── services/           # 会員マイページ側 API / 外部連携
@@ -474,12 +515,12 @@ hirakatacitykyougikaiIDE/
 | `T_会員` | `事業所番号` | 事業所会員の事業所番号 |
 | `T_事業所職員` | `介護支援専門員番号` | 職員の介護支援専門員番号（8桁、ログインIDとしても使用） |
 
-### 8.3 T_研修 の列順（DB_SCHEMA_VERSION = 2026-03-15-02）
+### 8.3 T_研修 の列順（DB_SCHEMA_VERSION = 2026-03-22-01）
 
 ```
 研修ID, 研修名, 開催日, 開催終了時刻, 定員, 申込者数, 開催場所, 研修状態コード,
 主催者, 法定外研修フラグ, 研修概要, 研修内容, 費用JSON,
-申込開始日, 申込締切日, 講師, 案内状URL, 項目設定JSON,
+申込開始日, 申込締切日, 講師, 案内状URL, 項目設定JSON, 登録者メール,
 作成日時, 更新日時, 削除フラグ
 ```
 
@@ -514,8 +555,9 @@ Googleアカウントでアクセス
 → 一致すれば管理者セッション確立
 ```
 
-- WL-001 登録アカウント: `k.noguchi@uguisunosato.or.jp`（sub: `110446186080909614640`）
-- **GIS（Google Identity Services）は廃止**（GAS iframe sandbox では OAuth 不可）
+- WL-001 登録アカウント: `k.noguchi@uguisunosato.or.jp`（権限コード: `MASTER`）
+- **GIS（Google Identity Services）は v118 で廃止**（GAS iframe sandbox では OAuth 不可。IDトークン検証コードも全削除済み）
+- 5 段階権限モデル: MASTER / ADMIN / TRAINING_MANAGER / TRAINING_REGISTRAR / GENERAL
 
 ---
 
@@ -527,7 +569,7 @@ Googleアカウントでアクセス
 |---|------|--------|
 | S-02 | パスワードハッシュが SHA-256 単回（OWASP 2025 は Argon2id 推奨。GAS 制約で移行困難） | 中 |
 | S-03 | ログインロック解除が DB 直接編集のみ（管理画面に unlock 機能が必要） | 中 |
-| S-04 | IDトークン直入力 UI（保守用）が本番でも表示される（環境変数フラグで非表示化推奨） | 低 |
+| ~~S-04~~ | ~~IDトークン直入力 UI~~ → **v118 で解消**（IDトークン検証コードごと全削除済み） | — |
 
 > S-01（パスワード変更時の現在PW未検証）は解消済み（フロントエンド入力必須 + バックエンド照合実装）。
 
@@ -597,6 +639,13 @@ Googleアカウントでアクセス
 
 | バージョン | 内容 |
 |---|---|
+| **v126** | 事業所会員詳細編集画面改善: WCAG 2.2準拠必須バリデーション（FAX以外全必須）、連絡設定見直し（メール配信希望/不要、郵送先区分自動OFFICE固定）、予約退会（翌年度4/1無効化+キャンセル可）、職員Master-Detail Drilldown（StaffDetailAdmin新設） |
+| **v125** | 管理コンソール会員管理改善: 操作列削除→編集画面集約、退会/除籍アクション、フラット人物リスト一括編集（`getAdminPersonList_`/`updatePersonsBatch_`）、会員種別変更（`convertMemberType_`: 個人⇔事業所職員双方向）、除籍後アカウント保持+転換再有効化 |
+| **v124** | 年会費バリデーション改善: Reward Early/Punish Late（blur 時のみエラー、修正で即解除）、Partial Success 一括保存（Google AIP-234）、失敗レコード自動フィルタ |
+| **v123** | カレンダーピッカー修正: GAS sandboxed iframe で `showPicker()` が使えない問題を透明 overlay で回避 |
+| **v122** | 年会費コンソール改善: 年度自動追加、日付テキスト貼付（YYYY/MM/DD スラッシュ自動補完）、変更者表示名追加 |
+| **v121** | 管理者一覧テーブルビュー: ソート・フィルタ対応 |
+| **v118〜v120** | 5 段階権限モデル導入（MASTER/ADMIN/TRAINING_MANAGER/TRAINING_REGISTRAR/GENERAL）、IDトークン検証コード全削除、M_管理者権限マスタ追加、T_管理者Googleホワイトリスト スキーマ刷新 |
 | **v106→v108** | フィールドレベルアクセス制御拡張（NIST RBAC）: ロール別職員allowlist、STAFF自己編集、退職日/登録日自動記録、退職者年度フィルタ、職員別研修モーダル、ADMIN権限コンボdisabled修正（v108）、REPRESENTATIVEラベル追加 |
 | **v105** | フィールドレベルアクセス制御（OWASP A01/CWE-915）: `updateMemberSelf_` サーバーサイド allowlist、loginId→会員ID照合、管理者専用フィールド非活性化、REPRESENTATIVE 編集権限修正 |
 | **v104** | 退会機能（年度末退会予約方式）: 会員マイページから退会申請・取消、WITHDRAWAL_SCHEDULED 3状態管理、代表者権限制約、パスワード再認証、日付フォーマット修正 |
@@ -618,6 +667,62 @@ Googleアカウントでアクセス
 ---
 
 ## 14. リリース記録（最新）
+
+### 14.0 v126
+
+- **実施日**: 2026-03-23
+- **担当者**: Claude Code (claude-opus-4-6)
+- **備考**: 事業所会員詳細編集画面の4要件改善。(1) 勤務先情報のFAX番号以外を全て必須入力化（WCAG 2.2準拠: `aria-required`/`aria-invalid`/`aria-describedby`、blur時バリデーション、`*`マーク `aria-hidden`、エラーはアイコン+テキスト）。(2) 連絡設定の見直し — メールアドレス必須、発送方法を「メール配信を希望する/希望しない」に変更（DB: EMAIL/POST）、郵送先区分は事業所会員で非表示（保存時OFFICE固定）。(3) 会員アクション — 即時退会を予約退会に変更。`scheduleWithdrawMember_` で翌年度4/1に退会予約（`getNextFiscalYearStart_` で算出）、年度末前なら `cancelScheduledWithdraw_` でキャンセル可。`promoteScheduledWithdrawals_` が退会日到達時に自動適用。(4) 事業所職員一覧から職員詳細編集画面（StaffDetailAdmin）へのMaster-Detail Drilldown遷移。`updateStaff_` APIで職員個別更新（氏名/カナ/メール/介護支援専門員番号/権限/入会日）。
+- **検証結果**: `npm run typecheck` / `npm run build` / `npm run build:gas` 成功。
+- **変更ファイル**: `backend/Code.gs`, `src/App.tsx`, `src/components/MemberDetailAdmin.tsx`, `src/components/StaffDetailAdmin.tsx`(新規), `src/services/api.ts`
+
+### 14.0 v125
+
+- **実施日**: 2026-03-23
+- **担当者**: Claude Code (claude-opus-4-6)
+- **備考**: 管理コンソール会員管理の大幅改善。(1) 会員一覧の操作列を削除し、編集画面（MemberDetailAdmin）に退会/除籍/転換アクションを集約。(2) 一括編集（MemberBatchEditor）をフラット人物リスト化 — 個人会員・賛助会員・事業所職員を人物単位で表示・編集。新API `getAdminPersonList_`/`updatePersonsBatch_` で T_会員 と T_事業所職員 を統合取得。(3) 会員種別変更 `convertMemberType_` で個人会員⇔事業所メンバーの双方向転換を実装。転換時に T_認証アカウント を付け替え（再作成しない）、T_研修申込 を移行して研修履歴を維持、年会費レコードは移行しない。(4) 除籍 `removeStaffFromOffice_` で事業所職員を除籍（代表者は拒否）、退会 `withdrawMember_` 拡張で認証アカウントも自動無効化。除籍/退会後もアカウントは保持（有効フラグ=false）し、管理者が転換で再有効化可能。
+- **検証結果**: `npm run typecheck` / `npm run build` / `npm run build:gas` 成功。
+- **変更ファイル**: `backend/Code.gs`, `src/App.tsx`, `src/components/MemberDetailAdmin.tsx`, `src/MemberBatchEditor.tsx`, `src/types.ts`, `src/services/api.ts`
+
+### 14.0 v124
+
+- **実施日**: 2026-03-22
+- **担当者**: Claude Code (claude-opus-4-6)
+- **公開ポータル ID**: `AKfycbxyuUXg...7Zp` → @124
+- **会員マイページ ID**: `AKfycbywpWoY...bQx` → @124
+- **備考**: 年会費管理コンソールの日付バリデーション改善。Reward Early/Punish Late パターン（NNG/Smashing Magazine/a11yblog 2026-02 準拠）で入力中はエラー非表示、blur 時のみ検証、修正で即解除。一括保存は Partial Success パターン（Google AIP-234 2025 準拠）で有効レコードのみ保存、無効レコードはスキップ。失敗レコードの自動フィルタ＋解除バナー。
+- **検証結果**: `npm run typecheck` / `npm run build` / `npm run build:gas` 成功。`npx clasp push --force` / `npx clasp version` 成功。Apps Script UI で両 Deployment @124 同期確認。`npx clasp deployments` で @124 一致確認。
+- **Git コミット**: `58c27ed` on `main`
+
+### 14.0 v123
+
+- **実施日**: 2026-03-22
+- **担当者**: Claude Code (claude-opus-4-6)
+- **公開ポータル ID**: `AKfycbxyuUXg...7Zp` → @123
+- **会員マイページ ID**: `AKfycbywpWoY...bQx` → @123
+- **備考**: 年会費管理コンソールのカレンダーボタンが GAS の sandboxed iframe で動作しない問題を修正。`showPicker()` API が `NotAllowedError` をスローするため、カレンダーアイコンに透明な `type="date"` input をオーバーレイする方式に変更。
+- **検証結果**: Playwright MCP でカレンダーアイコンクリック時にネイティブ日付ピッカーが表示されることを確認。
+- **Git コミット**: `308b064` on `main`
+
+### 14.0 v122
+
+- **実施日**: 2026-03-22
+- **担当者**: Claude Code (claude-opus-4-6)
+- **公開ポータル ID**: `AKfycbxyuUXg...7Zp` → @122
+- **会員マイページ ID**: `AKfycbywpWoY...bQx` → @122
+- **備考**: 年会費管理コンソール改善。(1) 新年度になると自動的に当年度の年会費レコードを一括追加、(2) 納入確認日をテキスト入力可能に（YYYY/MM/DD 形式、スラッシュ自動補完 `parseSlashDate()`）、(3) 監査ログに変更者の表示名を追加（`actorDisplayName`）。
+- **検証結果**: `npm run typecheck` / `npm run build` / `npm run build:gas` 成功。Apps Script UI で両 Deployment @122 同期確認。
+- **Git コミット**: `0e87277` on `main`
+
+### 14.0 v118〜v121
+
+- **実施日**: 2026-03-22
+- **担当者**: Claude Code (claude-opus-4-6)
+- **公開ポータル ID**: `AKfycbxyuUXg...7Zp` → @120（v121 は管理者一覧UI改善のみ）
+- **会員マイページ ID**: `AKfycbywpWoY...bQx` → @120
+- **備考**: 5 段階権限モデル（MASTER/ADMIN/TRAINING_MANAGER/TRAINING_REGISTRAR/GENERAL）を導入。IDトークン検証コードを全削除（`verifyGoogleIdToken_`、`adminGoogleLogin_`、GIS UI）。`M_管理者権限` マスタ追加。`T_管理者Googleホワイトリスト` スキーマ刷新（GoogleユーザーID・表示名を廃止し、権限コード・変更者メール・変更日時を追加）。最後のマスター保護、ADMIN→MASTER 編集制限、TRAINING_REGISTRAR は自分の研修のみ編集可。v119 で列正規化バグ修正、v121 で管理者一覧テーブルビュー（ソート・フィルタ）追加。DB_SCHEMA_VERSION: `2026-03-22-01`。
+- **検証結果**: `npm run typecheck` / `npm run build` / `npm run build:gas` 成功。`npx clasp run healthCheck` / `npx clasp run getDbInfo` 成功。Playwright で MASTER 権限での管理者ログイン、権限別メニュー表示、システム権限画面の 3 フィールド UI を確認。
+- **Git コミット**: `4284462`〜`ae8e4ab` on `main`
 
 ### 14.0 v117
 

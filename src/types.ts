@@ -215,6 +215,48 @@ export interface Member {
   participatedTrainingIds?: string[];
 }
 
+// v125: フラット人物リスト（管理コンソール一括編集用）
+export type AdminPersonType = 'INDIVIDUAL' | 'SUPPORT' | 'OFFICE_STAFF';
+
+export interface AdminPersonRow {
+  personKey: string;
+  personType: AdminPersonType;
+  displayName: string;
+  kana: string;
+  email: string;
+  officeName: string;
+  memberId: string;
+  staffId: string | null;
+  status: string;
+  joinedDate: string;
+  withdrawnDate: string;
+  mailingPreference: string;
+  preferredMailDestination: string;
+  staffRole: string | null;
+  careManagerNumber: string;
+  accountEnabled: boolean;
+}
+
+// v125: 会員種別変更
+export interface ConvertMemberTypePayload {
+  direction: 'STAFF_TO_INDIVIDUAL' | 'INDIVIDUAL_TO_STAFF';
+  sourceMemberId: string;
+  sourceStaffId?: string;
+  targetOfficeMemberId?: string;
+  staffRole?: 'ADMIN' | 'STAFF';
+  newRepresentativeStaffId?: string;
+}
+
+export interface ConvertMemberTypeResult {
+  converted: boolean;
+  direction: string;
+  newMemberId?: string;
+  newStaffId?: string;
+  sourceStaffId?: string;
+  sourceMemberId?: string;
+  targetOfficeMemberId?: string;
+}
+
 export interface TrainingFee {
   label: string;   // 例: "会員", "非会員", "学生"
   amount: number;  // 円

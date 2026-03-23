@@ -6,11 +6,12 @@ import TrainingManagement from './components/TrainingManagement';
 import TrainingApply from './components/TrainingApply';
 import AnnualFeeManagement from './components/AnnualFeeManagement';
 import MemberDetailAdmin from './components/MemberDetailAdmin';
+import StaffDetailAdmin from './components/StaffDetailAdmin';
 import { AdminDashboardData, AdminDashboardMemberRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, Training } from './types';
 import { api } from './services/api';
 
 type Role = 'ADMIN' | 'MEMBER';
-type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'member-detail' | 'system-permissions' | 'admin-settings';
+type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings';
 type AuthTab = 'member' | 'admin';
 type MemberListFilter = 'ALL' | MemberType;
 type MemberStatusFilter = 'ALL' | 'ACTIVE' | 'WITHDRAWAL_SCHEDULED' | 'WITHDRAWN';
@@ -119,6 +120,7 @@ const App: React.FC = () => {
   const [memberSortKey, setMemberSortKey] = useState<MemberSortKey>('displayName');
   const [memberSortDir, setMemberSortDir] = useState<MemberSortDir>('asc');
   const [selectedMemberForDetail, setSelectedMemberForDetail] = useState<Member | undefined>(undefined);
+  const [selectedStaffForDetail, setSelectedStaffForDetail] = useState<{ memberId: string; staffId: string } | null>(null);
   const [withdrawingMemberId, setWithdrawingMemberId] = useState<string | null>(null);
 
   const [selectedIdentityId, setSelectedIdentityId] = useState<string>('');
@@ -396,7 +398,7 @@ const App: React.FC = () => {
       loadSystemSettings(false).catch(() => undefined);
     }
 
-    if (currentView === 'annual-fee-manage' || currentView === 'member-detail') {
+    if (currentView === 'annual-fee-manage' || currentView === 'member-detail' || currentView === 'staff-detail') {
       return;
     }
 
@@ -1320,7 +1322,6 @@ const App: React.FC = () => {
               <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 cursor-pointer select-none" onClick={() => toggleMemberSort('trainingCount')}>研修参加数<MemberSortIndicator sortKey="trainingCount" /></th>
               <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 cursor-pointer select-none" onClick={() => toggleMemberSort('tenure')}>継続年数<MemberSortIndicator sortKey="tenure" /></th>
               <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 cursor-pointer select-none" onClick={() => toggleMemberSort('status')}>状態<MemberSortIndicator sortKey="status" /></th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">操作</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-slate-200">
@@ -1332,17 +1333,6 @@ const App: React.FC = () => {
                 <td className="px-4 py-3 text-sm text-slate-600 text-center">{member.trainingCount}</td>
                 <td className="px-4 py-3 text-sm text-slate-600">{member.joinedDate ? `${computeTenure(member.joinedDate)}年` : '-'}</td>
                 <td className="px-4 py-3 text-sm">{member.status === 'WITHDRAWN' ? <span className="text-red-500">退会済</span> : member.status === 'WITHDRAWAL_SCHEDULED' ? <span className="text-amber-600">退会予定</span> : <span className="text-green-600">在籍中</span>}</td>
-                <td className="px-4 py-3 text-sm" onClick={(e) => e.stopPropagation()}>
-                  {member.status === 'ACTIVE' && (
-                    <button
-                      onClick={() => handleWithdrawMember(member.memberId)}
-                      disabled={withdrawingMemberId === member.memberId}
-                      className="px-2 py-1 rounded border border-red-300 text-red-600 text-xs hover:bg-red-50 disabled:opacity-50"
-                    >
-                      {withdrawingMemberId === member.memberId ? '処理中...' : '退会'}
-                    </button>
-                  )}
-                </td>
               </tr>
             ))}
           </tbody>
@@ -1464,13 +1454,6 @@ const App: React.FC = () => {
         </div>
         {renderMemberList()}
         <MemberBatchEditor
-          members={members}
-          loaded={fullDataLoaded}
-          loading={isLoading}
-          onLoadMembers={async () => {
-            await loadAppData({ includeAdminSettings: true, force: true });
-          }}
-          onSaved={refreshAdminMembers}
           onOpenDetail={(memberId) => {
             void openMemberDetail(memberId);
           }}
@@ -1567,7 +1550,37 @@ const App: React.FC = () => {
       return (
         <MemberDetailAdmin
           member={selectedMemberForDetail}
+          businessMembers={adminMemberRows.filter(r => r.memberType === MemberType.BUSINESS)}
           onBack={() => setCurrentView('admin')}
+          onSaved={() => {
+            loadAdminDashboardData({ force: true }).catch(() => undefined);
+            if (fullDataLoaded) loadAppData({ includeAdminSettings: true, force: true }).catch(() => undefined);
+          }}
+          onOpenStaffDetail={(mId, sId) => {
+            setSelectedStaffForDetail({ memberId: mId, staffId: sId });
+            setCurrentView('staff-detail');
+          }}
+        />
+      );
+    }
+
+    if (currentView === 'staff-detail') {
+      if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
+        return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
+      }
+      const parentMember = selectedStaffForDetail
+        ? members.find(m => m.id === selectedStaffForDetail.memberId)
+        : undefined;
+      const targetStaff = parentMember?.staff?.find(s => s.id === selectedStaffForDetail?.staffId);
+      return (
+        <StaffDetailAdmin
+          staff={targetStaff}
+          memberId={selectedStaffForDetail?.memberId || ''}
+          officeName={parentMember?.officeName || ''}
+          onBack={() => {
+            setSelectedStaffForDetail(null);
+            setCurrentView('member-detail');
+          }}
           onSaved={() => {
             loadAdminDashboardData({ force: true }).catch(() => undefined);
             if (fullDataLoaded) loadAppData({ includeAdminSettings: true, force: true }).catch(() => undefined);
