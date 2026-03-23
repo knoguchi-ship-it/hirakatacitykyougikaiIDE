@@ -1,6 +1,6 @@
 # 引継ぎ書（次担当者向け）
 
-更新日: **2026-03-23（v126 事業所会員詳細編集画面改善: 必須バリデーション + 連絡設定 + 予約退会 + 職員Drilldown）**
+更新日: **2026-03-23（v127 職員詳細画面改善: 介護支援専門員番号必須化 + role/status ドロップダウン + 最終代表者自動退会）**
 対象: 枚方市介護支援専門員連絡協議会 会員システム
 
 ---
@@ -48,7 +48,7 @@
 
 ## 1.1 次担当者向け・最短状況サマリ（このまま新スレッドへ貼付可）
 
-- 本番Web URLは固定2本（会員/公開）で **@126 同期済み**。
+- 本番Web URLは固定2本（会員/公開）で **@127 同期済み**。
 - v118 で 5 段階権限モデル（MASTER/ADMIN/TRAINING_MANAGER/TRAINING_REGISTRAR/GENERAL）を本番導入済み。IDトークン検証コードは全削除済み。
 - v122〜v124 で年会費管理コンソールを大幅改善（年度自動追加、日付テキスト貼付、Reward Early/Punish Late バリデーション、Partial Success 一括保存）。
 - `main` には v124 が反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` と `git status --short` を正とすること。
@@ -639,6 +639,7 @@ Googleアカウントでアクセス
 
 | バージョン | 内容 |
 |---|---|
+| **v127** | 職員詳細画面改善: 介護支援専門員番号必須化（事業所職員+個人会員、賛助会員のみ任意）、職員ID表示削除、職員権限/会員状態ドロップダウン化（REPRESENTATIVE変更可）、除籍日表示、`updateStaff_` にstatus allowlist追加+認証アカウント連動、`convertStaffToIndividual_` 最終代表者自動退会 |
 | **v126** | 事業所会員詳細編集画面改善: WCAG 2.2準拠必須バリデーション（FAX以外全必須）、連絡設定見直し（メール配信希望/不要、郵送先区分自動OFFICE固定）、予約退会（翌年度4/1無効化+キャンセル可）、職員Master-Detail Drilldown（StaffDetailAdmin新設） |
 | **v125** | 管理コンソール会員管理改善: 操作列削除→編集画面集約、退会/除籍アクション、フラット人物リスト一括編集（`getAdminPersonList_`/`updatePersonsBatch_`）、会員種別変更（`convertMemberType_`: 個人⇔事業所職員双方向）、除籍後アカウント保持+転換再有効化 |
 | **v124** | 年会費バリデーション改善: Reward Early/Punish Late（blur 時のみエラー、修正で即解除）、Partial Success 一括保存（Google AIP-234）、失敗レコード自動フィルタ |
@@ -667,6 +668,22 @@ Googleアカウントでアクセス
 ---
 
 ## 14. リリース記録（最新）
+
+### 14.0 v127
+
+- **実施日**: 2026-03-23
+- **担当者**: Claude Code (claude-opus-4-6)
+- **変更概要**: 職員詳細画面改善 — 介護支援専門員番号必須化、role/status ドロップダウン化、最終代表者自動退会
+- **主な変更**:
+  - `updateStaff_()`: status を allowlist に追加。LEFT→認証アカウント無効化、ENROLLED→再有効化。REPRESENTATIVE降格時の在籍職員チェック
+  - `convertStaffToIndividual_()`: 最後の在籍職員（代表者）が転換する場合、事業所を自動退会（WITHDRAWN）。`officeWithdrawn: true` を返却
+  - `enableAuthAccountsByStaffId_()`: 新設。認証アカウント再有効化ヘルパー
+  - `StaffDetailAdmin.tsx`: 職員ID表示削除、介護支援専門員番号必須化（バリデーション+RequiredMark）、職員権限ドロップダウン（REPRESENTATIVE変更可）、会員状態ドロップダウン（確認ダイアログ付き）、除籍日表示
+  - `MemberDetailAdmin.tsx`: 個人会員の介護支援専門員番号必須化、転換モーダルで最後の1名時に後任選択非表示+自動退会メッセージ
+  - `api.ts`: updateStaff payload に `status` 追加
+- **検証結果**: `npm run typecheck` / `npm run build` / `npm run build:gas` 成功。`clasp push` + `healthCheck` 成功。Version 127 作成済み
+- **変更ファイル**: `backend/Code.gs`, `src/components/StaffDetailAdmin.tsx`, `src/components/MemberDetailAdmin.tsx`, `src/services/api.ts`
+- **デプロイ状態**: 両Deployment @127 同期済み（2026-03-23 MCP Playwright にて更新）
 
 ### 14.0 v126
 

@@ -34,6 +34,11 @@ const roleOptions: { value: StaffRole; label: string }[] = [
   { value: 'STAFF', label: '一般職員' },
 ];
 
+const statusOptions: { value: string; label: string }[] = [
+  { value: 'ENROLLED', label: '在籍' },
+  { value: 'LEFT', label: '除籍' },
+];
+
 const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, officeName, onBack, onSaved }) => {
   if (!staff) {
     return (
@@ -50,6 +55,7 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
     email: staff.email || '',
     careManagerNumber: staff.careManagerNumber || '',
     role: staff.role || 'STAFF' as StaffRole,
+    status: staff.status || 'ENROLLED',
     joinedDate: staff.joinedDate || '',
   });
   const [saving, setSaving] = useState(false);
@@ -57,11 +63,13 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [statusConfirmPending, setStatusConfirmPending] = useState<string | null>(null);
 
   const requiredFields: Record<string, string> = {
     name: '氏名',
     kana: 'フリガナ',
     email: 'メールアドレス',
+    careManagerNumber: '介護支援専門員番号',
   };
 
   const set = (key: string, value: string) => setForm(prev => ({ ...prev, [key]: value }));
@@ -91,7 +99,6 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
       const err = validateField(key, (form as any)[key] || '');
       if (err) { errors[key] = err; valid = false; }
     }
-    // email format check even if not required
     const emailErr = validateField('email', form.email);
     if (emailErr) { errors['email'] = emailErr; valid = false; }
     allTouched['email'] = true;
@@ -99,6 +106,22 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
     setTouched(prev => ({ ...prev, ...allTouched }));
     setValidationErrors(prev => ({ ...prev, ...errors }));
     return valid;
+  };
+
+  const handleStatusChange = (newStatus: string) => {
+    if (newStatus === form.status) return;
+    setStatusConfirmPending(newStatus);
+  };
+
+  const confirmStatusChange = () => {
+    if (statusConfirmPending) {
+      set('status', statusConfirmPending);
+      setStatusConfirmPending(null);
+    }
+  };
+
+  const cancelStatusChange = () => {
+    setStatusConfirmPending(null);
   };
 
   const handleSave = async () => {
@@ -118,6 +141,7 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
         email: form.email.trim(),
         careManagerNumber: form.careManagerNumber.trim(),
         role: form.role,
+        status: form.status,
         joinedDate: form.joinedDate,
       });
       setSuccessMsg('保存しました');
@@ -129,11 +153,11 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
     }
   };
 
-  const isLeft = staff.status === 'LEFT';
-  const fieldClass = (hasError?: boolean) =>
-    `w-full border rounded px-3 py-2 text-sm ${hasError ? 'border-red-500 bg-red-50' : 'border-slate-300'} focus:outline-none focus:ring-2 focus:ring-blue-400`;
+  const isLeft = form.status === 'LEFT';
+  const fieldClass = (hasErr?: boolean) =>
+    `w-full border rounded px-3 py-2 text-sm ${hasErr ? 'border-red-500 bg-red-50' : 'border-slate-300'} focus:outline-none focus:ring-2 focus:ring-blue-400`;
   const readOnlyClass = 'w-full border border-slate-200 bg-slate-100 rounded px-3 py-2 text-sm text-slate-500';
-  const hasError = (key: string) => touched[key] && !!validationErrors[key];
+  const hasErr = (key: string) => touched[key] && !!validationErrors[key];
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
@@ -157,22 +181,47 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
             <label className="block text-sm font-medium text-slate-700 mb-1">所属事業所</label>
             <input className={readOnlyClass} value={officeName} disabled readOnly />
           </div>
+          {/* 職員権限（ドロップダウン） */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">職員ID</label>
-            <input className={readOnlyClass} value={staff.id} disabled readOnly />
+            <label htmlFor="staff-role" className="block text-sm font-medium text-slate-700 mb-1">
+              職員権限
+            </label>
+            <select
+              id="staff-role"
+              className={fieldClass()}
+              value={form.role}
+              onChange={e => set('role', e.target.value)}
+            >
+              {roleOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            {form.role !== staff.role && staff.role === 'REPRESENTATIVE' && (
+              <p className="mt-1 text-xs text-amber-600">
+                代表者を変更すると、他の在籍職員から新しい代表者を選ぶ必要があります。
+              </p>
+            )}
           </div>
+          {/* 会員状態（ドロップダウン） */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">状態</label>
-            <input
-              className={readOnlyClass}
-              value={isLeft ? '退職' : '在籍'}
-              disabled
-              readOnly
-            />
+            <label htmlFor="staff-status" className="block text-sm font-medium text-slate-700 mb-1">
+              会員状態
+            </label>
+            <select
+              id="staff-status"
+              className={fieldClass()}
+              value={form.status}
+              onChange={e => handleStatusChange(e.target.value)}
+            >
+              {statusOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
           </div>
-          {staff.withdrawnDate && (
+          {/* 除籍日（LEFT かつ withdrawnDate がある場合のみ表示） */}
+          {staff.status === 'LEFT' && staff.withdrawnDate && (
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">退職日</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">除籍日</label>
               <input className={readOnlyClass} value={staff.withdrawnDate} disabled readOnly />
             </div>
           )}
@@ -183,8 +232,34 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
       {isLeft && (
         <div className="bg-amber-50 border border-amber-300 rounded-lg p-4" role="status">
           <p className="text-sm text-amber-800 font-medium">
-            この職員は退職済みです。編集内容は保存できますが、アカウントは無効化されています。
+            この職員は除籍済みです。編集内容は保存できますが、アカウントは無効化されています。
           </p>
+        </div>
+      )}
+
+      {/* Status change confirmation dialog */}
+      {statusConfirmPending && (
+        <div className="bg-white border-2 border-blue-300 rounded-lg p-4 shadow-md" role="alertdialog" aria-labelledby="status-confirm-title">
+          <h4 id="status-confirm-title" className="font-bold text-slate-800 mb-2">状態変更の確認</h4>
+          <p className="text-sm text-slate-600 mb-4">
+            {statusConfirmPending === 'LEFT'
+              ? 'この職員を除籍しますか？ログインアカウントは無効化されます。'
+              : 'この職員を在籍に復帰させますか？ログインアカウントが再有効化されます。'}
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={confirmStatusChange}
+              className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            >
+              {statusConfirmPending === 'LEFT' ? '除籍する' : '復帰する'}
+            </button>
+            <button
+              onClick={cancelStatusChange}
+              className="px-4 py-2 bg-slate-200 text-slate-700 text-sm rounded-lg hover:bg-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-400"
+            >
+              キャンセル
+            </button>
+          </div>
         </div>
       )}
 
@@ -199,13 +274,13 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
             </label>
             <input
               id="staff-name"
-              className={fieldClass(hasError('name'))}
+              className={fieldClass(hasErr('name'))}
               value={form.name}
               onChange={e => set('name', e.target.value)}
               onBlur={() => handleBlur('name')}
               aria-required="true"
-              aria-invalid={hasError('name')}
-              aria-describedby={hasError('name') ? 'err-name' : undefined}
+              aria-invalid={hasErr('name')}
+              aria-describedby={hasErr('name') ? 'err-name' : undefined}
             />
             <FieldError id="err-name" message={touched['name'] ? validationErrors['name'] || '' : ''} />
           </div>
@@ -216,13 +291,13 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
             </label>
             <input
               id="staff-kana"
-              className={fieldClass(hasError('kana'))}
+              className={fieldClass(hasErr('kana'))}
               value={form.kana}
               onChange={e => set('kana', e.target.value)}
               onBlur={() => handleBlur('kana')}
               aria-required="true"
-              aria-invalid={hasError('kana')}
-              aria-describedby={hasError('kana') ? 'err-kana' : undefined}
+              aria-invalid={hasErr('kana')}
+              aria-describedby={hasErr('kana') ? 'err-kana' : undefined}
             />
             <FieldError id="err-kana" message={touched['kana'] ? validationErrors['kana'] || '' : ''} />
           </div>
@@ -234,47 +309,32 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
             <input
               id="staff-email"
               type="email"
-              className={fieldClass(hasError('email'))}
+              className={fieldClass(hasErr('email'))}
               value={form.email}
               onChange={e => set('email', e.target.value)}
               onBlur={() => handleBlur('email')}
               aria-required="true"
-              aria-invalid={hasError('email')}
-              aria-describedby={hasError('email') ? 'err-email' : undefined}
+              aria-invalid={hasErr('email')}
+              aria-describedby={hasErr('email') ? 'err-email' : undefined}
             />
             <FieldError id="err-email" message={touched['email'] ? validationErrors['email'] || '' : ''} />
           </div>
-          {/* 介護支援専門員番号 */}
+          {/* 介護支援専門員番号（必須） */}
           <div>
             <label htmlFor="staff-cm" className="block text-sm font-medium text-slate-700 mb-1">
-              介護支援専門員番号
+              介護支援専門員番号<RequiredMark />
             </label>
             <input
               id="staff-cm"
-              className={fieldClass()}
+              className={fieldClass(hasErr('careManagerNumber'))}
               value={form.careManagerNumber}
               onChange={e => set('careManagerNumber', e.target.value)}
+              onBlur={() => handleBlur('careManagerNumber')}
+              aria-required="true"
+              aria-invalid={hasErr('careManagerNumber')}
+              aria-describedby={hasErr('careManagerNumber') ? 'err-cm' : undefined}
             />
-          </div>
-          {/* 職員権限 */}
-          <div>
-            <label htmlFor="staff-role" className="block text-sm font-medium text-slate-700 mb-1">
-              職員権限
-            </label>
-            <select
-              id="staff-role"
-              className={fieldClass()}
-              value={form.role}
-              onChange={e => set('role', e.target.value)}
-              disabled={staff.role === 'REPRESENTATIVE'}
-            >
-              {roleOptions.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-            {staff.role === 'REPRESENTATIVE' && (
-              <p className="mt-1 text-xs text-slate-500">代表者の権限変更はできません。先に別の代表者を指定してください。</p>
-            )}
+            <FieldError id="err-cm" message={touched['careManagerNumber'] ? validationErrors['careManagerNumber'] || '' : ''} />
           </div>
           {/* 入会日 */}
           <div>

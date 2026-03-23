@@ -616,12 +616,28 @@ GAS の制約（外部 JS サービス利用不可）のため以下の実装可
 - 権限: MASTER, ADMIN
 - 根拠: 年会費制（年度4月〜3月）のため、退会しても年度末まで会員資格を保持（Maxio/Stripe Scheduled Cancellation パターン準拠）
 
-### 職員個別更新（v126）
-- API: `updateStaff_(payload)` — `{ staffId, memberId, name?, kana?, email?, careManagerNumber?, role?, joinedDate? }`
+### 職員個別更新（v127 拡張）
+- API: `updateStaff_(payload)` — `{ staffId, memberId, name?, kana?, email?, careManagerNumber?, role?, status?, joinedDate? }`
 - 処理: T_事業所職員の該当行を allowlist のみ更新
-- 制約: memberId が一致しない場合は拒否（セキュリティ）、status 変更は不可（除籍/転換 API に委譲）
-- 代表者（REPRESENTATIVE）の権限変更は不可
+- v127 追加: `status` を allowlist に追加（ENROLLED / LEFT のみ）
+  - LEFT に変更 → 退会日=今日、認証アカウント無効化（`disableAuthAccountsByStaffId_`）
+  - ENROLLED に復帰 → 退会日クリア、認証アカウント再有効化（`enableAuthAccountsByStaffId_`）
+- role 変更: REPRESENTATIVE から降格する場合、同事業所に他の ENROLLED 職員がいない場合は拒否（個人会員転換を使用）
+- 制約: memberId が一致しない場合は拒否（セキュリティ）
 - 権限: MASTER, ADMIN
+
+### 最終代表者の自動退会（v127）
+- `convertStaffToIndividual_` の代表者チェックブロックを拡張
+- 同事業所に他の ENROLLED 職員がいない場合（最後の1名）:
+  - `newRepresentativeStaffId` は不要
+  - T_会員の当該事業所を `status=WITHDRAWN`, `退会日=今日` に自動変更
+  - 返却値に `officeWithdrawn: true` を追加
+- 他に ENROLLED 職員がいる場合: 従来通り後任代表者必須
+
+### 介護支援専門員番号の必須化（v127）
+- 事業所会員メンバー（代表者/管理者/メンバー）: **必須**（StaffDetailAdmin）
+- 個人会員: **必須**（MemberDetailAdmin）
+- 賛助会員: **任意**
 
 ### アカウント保持方針
 - 除籍/退会後もアカウントレコードは削除しない（有効フラグ=false でログイン不可）

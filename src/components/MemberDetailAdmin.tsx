@@ -56,10 +56,18 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     email: 'メールアドレス',
   };
 
+  // v127: 個人会員の介護支援専門員番号必須（賛助会員は任意）
+  const isIndividual = form.type === MemberType.INDIVIDUAL;
+  const individualRequiredFields: Record<string, string> = {
+    careManagerNumber: '介護支援専門員番号',
+  };
+
   const validateField = (key: string, value: string): string => {
-    if (!isBusiness) return '';
-    if (businessRequiredFields[key] && !value.trim()) {
+    if (isBusiness && businessRequiredFields[key] && !value.trim()) {
       return `${businessRequiredFields[key]}は必須です`;
+    }
+    if (isIndividual && individualRequiredFields[key] && !value.trim()) {
+      return `${individualRequiredFields[key]}は必須です`;
     }
     if (key === 'officePostCode' && value.trim() && !/^\d{3}-?\d{4}$/.test(value.trim())) {
       return '郵便番号の形式が正しくありません（例: 573-0084）';
@@ -74,13 +82,21 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
   };
 
   const validateAllRequired = (): boolean => {
-    if (!isBusiness) return true;
     const errors: Record<string, string> = {};
     const allTouched: Record<string, boolean> = {};
-    for (const key of Object.keys(businessRequiredFields)) {
-      const err = validateField(key, String(form[key] || ''));
-      if (err) errors[key] = err;
-      allTouched[key] = true;
+    if (isBusiness) {
+      for (const key of Object.keys(businessRequiredFields)) {
+        const err = validateField(key, String(form[key] || ''));
+        if (err) errors[key] = err;
+        allTouched[key] = true;
+      }
+    }
+    if (isIndividual) {
+      for (const key of Object.keys(individualRequiredFields)) {
+        const err = validateField(key, String(form[key] || ''));
+        if (err) errors[key] = err;
+        allTouched[key] = true;
+      }
     }
     setValidationErrors(errors);
     setTouched(prev => ({ ...prev, ...allTouched }));
@@ -238,13 +254,23 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     }
   };
 
-  // ── 事業所職員→個人会員転換 ──
+  // ── 事業所職員→個人会員転換（v127: 最後の1名は自動退会）──
   const handleConvertToIndividual = async () => {
     if (!convertSourceStaffId) return;
-    const staff = (form.staff as Staff[])?.find(s => s.id === convertSourceStaffId);
+    const allStaff = (form.staff as Staff[]) || [];
+    const staff = allStaff.find(s => s.id === convertSourceStaffId);
     const isRep = staff?.role === 'REPRESENTATIVE';
-    if (isRep && !convertNewRepStaffId) { setError('代表者を転換する場合は後任代表者を選択してください。'); return; }
-    if (!confirm(`${staff?.name || ''} を個人会員として独立させます。事業所からは除籍されます。よろしいですか？`)) return;
+    const otherEnrolled = allStaff.filter(s => s.id !== convertSourceStaffId && s.status !== 'LEFT');
+    const isLastEnrolled = isRep && otherEnrolled.length === 0;
+
+    if (isRep && !isLastEnrolled && !convertNewRepStaffId) {
+      setError('代表者を転換する場合は後任代表者を選択してください。');
+      return;
+    }
+    const confirmMsg = isLastEnrolled
+      ? `${staff?.name || ''} は事業所の最後の在籍職員です。個人会員に転換すると、事業所は自動的に退会扱いになります。よろしいですか？`
+      : `${staff?.name || ''} を個人会員として独立させます。事業所からは除籍されます。よろしいですか？`;
+    if (!confirm(confirmMsg)) return;
     try {
       setActionLoading('convertToIndividual');
       setError(null);
@@ -252,10 +278,11 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
         direction: 'STAFF_TO_INDIVIDUAL',
         sourceMemberId: String(form.id),
         sourceStaffId: convertSourceStaffId,
-        ...(isRep && convertNewRepStaffId ? { newRepresentativeStaffId: convertNewRepStaffId } : {}),
+        ...(isRep && !isLastEnrolled && convertNewRepStaffId ? { newRepresentativeStaffId: convertNewRepStaffId } : {}),
       };
-      await api.convertMemberType(payload);
-      setSuccessMsg(`${staff?.name || ''} を個人会員に転換しました。`);
+      const result = await api.convertMemberType(payload);
+      const officeMsg = (result as any).officeWithdrawn ? '（事業所は退会しました）' : '';
+      setSuccessMsg(`${staff?.name || ''} を個人会員に転換しました。${officeMsg}`);
       setShowConvertToIndividualModal(false);
       onSaved();
       onBack();
@@ -283,7 +310,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
   const convertSourceStaff = staffList.find(s => s.id === convertSourceStaffId);
   const isConvertSourceRep = convertSourceStaff?.role === 'REPRESENTATIVE';
 
-  const isRequired = (key: string) => isBusiness && !!businessRequiredFields[key];
+  const isRequired = (key: string) => (isBusiness && !!businessRequiredFields[key]) || (isIndividual && !!individualRequiredFields[key]);
 
   return (
     <div className="space-y-6">
@@ -338,8 +365,19 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
             <input className={fieldClass()} value={form.firstKana || ''} onChange={e => set('firstKana', e.target.value)} />
           </div>
           <div>
-            <label className={labelClass}>介護支援専門員番号</label>
-            <input className={fieldClass()} value={form.careManagerNumber || ''} onChange={e => set('careManagerNumber', e.target.value)} />
+            <label className={labelClass}>介護支援専門員番号{isIndividual && <span aria-hidden="true" className="text-red-500 ml-0.5">*</span>}</label>
+            <input
+              className={fieldClass(isIndividual ? 'careManagerNumber' : undefined)}
+              value={form.careManagerNumber || ''}
+              onChange={e => set('careManagerNumber', e.target.value)}
+              onBlur={isIndividual ? () => handleBlur('careManagerNumber') : undefined}
+              aria-required={isIndividual || undefined}
+              aria-invalid={isIndividual && touched['careManagerNumber'] && !!validationErrors['careManagerNumber'] || undefined}
+              aria-describedby={isIndividual && touched['careManagerNumber'] && validationErrors['careManagerNumber'] ? 'err-careManagerNumber' : undefined}
+            />
+            {isIndividual && touched['careManagerNumber'] && validationErrors['careManagerNumber'] && (
+              <p id="err-careManagerNumber" role="alert" className="mt-1 text-sm text-red-600">{validationErrors['careManagerNumber']}</p>
+            )}
           </div>
         </div>
       </div>
@@ -731,43 +769,56 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
         </div>
       )}
 
-      {/* ── 転換モーダル: 事業所職員→個人 ── */}
-      {showConvertToIndividualModal && convertSourceStaff && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md space-y-4">
-            <h3 className="text-lg font-bold text-slate-800">個人会員に転換</h3>
-            <p className="text-sm text-slate-600">
-              {convertSourceStaff.name} を個人会員として独立させます。事業所からは除籍され、新しい会員IDが発行されます。
-            </p>
-            {isConvertSourceRep && (
-              <div>
-                <label className={labelClass}>後任の代表者（必須）</label>
-                <select className={fieldClass()} value={convertNewRepStaffId} onChange={e => setConvertNewRepStaffId(e.target.value)}>
-                  <option value="">-- 選択してください --</option>
-                  {enrolledStaff
-                    .filter(s => s.id !== convertSourceStaffId)
-                    .map(s => (
+      {/* ── 転換モーダル: 事業所職員→個人（v127: 最後の1名は自動退会）── */}
+      {showConvertToIndividualModal && convertSourceStaff && (() => {
+        const otherEnrolledInModal = enrolledStaff.filter(s => s.id !== convertSourceStaffId);
+        const isLastEnrolledInModal = isConvertSourceRep && otherEnrolledInModal.length === 0;
+        return (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md space-y-4">
+              <h3 className="text-lg font-bold text-slate-800">個人会員に転換</h3>
+              {isLastEnrolledInModal ? (
+                <div className="bg-amber-50 border border-amber-300 rounded-lg p-3">
+                  <p className="text-sm text-amber-800 font-medium">
+                    {convertSourceStaff.name} は事業所の最後の在籍職員です。
+                  </p>
+                  <p className="text-sm text-amber-700 mt-1">
+                    個人会員に転換すると、事業所は自動的に退会扱いになります。
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-slate-600">
+                  {convertSourceStaff.name} を個人会員として独立させます。事業所からは除籍され、新しい会員IDが発行されます。
+                </p>
+              )}
+              {isConvertSourceRep && !isLastEnrolledInModal && (
+                <div>
+                  <label className={labelClass}>後任の代表者（必須）</label>
+                  <select className={fieldClass()} value={convertNewRepStaffId} onChange={e => setConvertNewRepStaffId(e.target.value)}>
+                    <option value="">-- 選択してください --</option>
+                    {otherEnrolledInModal.map(s => (
                       <option key={s.id} value={s.id}>{s.name} ({roleLabel(s.role)})</option>
                     ))}
-                </select>
-                <p className="text-xs text-amber-600 mt-1">代表者を転換するため、後任の代表者を指定する必要があります。</p>
+                  </select>
+                  <p className="text-xs text-amber-600 mt-1">代表者を転換するため、後任の代表者を指定する必要があります。</p>
+                </div>
+              )}
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={handleConvertToIndividual}
+                  disabled={actionLoading === 'convertToIndividual'}
+                  className="px-4 py-2 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 disabled:opacity-50"
+                >
+                  {actionLoading === 'convertToIndividual' ? '処理中...' : '個人会員に転換'}
+                </button>
+                <button onClick={() => setShowConvertToIndividualModal(false)} className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50">
+                  キャンセル
+                </button>
               </div>
-            )}
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={handleConvertToIndividual}
-                disabled={actionLoading === 'convertToIndividual'}
-                className="px-4 py-2 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 disabled:opacity-50"
-              >
-                {actionLoading === 'convertToIndividual' ? '処理中...' : '個人会員に転換'}
-              </button>
-              <button onClick={() => setShowConvertToIndividualModal(false)} className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50">
-                キャンセル
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };

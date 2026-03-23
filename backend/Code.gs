@@ -4310,6 +4310,25 @@ function disableAuthAccountsByStaffId_(ss, staffId) {
   }
 }
 
+// ── v127: 職員IDに紐づく認証アカウントの有効フラグを true に復旧する ──
+function enableAuthAccountsByStaffId_(ss, staffId) {
+  var authSheet = ss.getSheetByName('T_認証アカウント');
+  if (!authSheet || authSheet.getLastRow() < 2) return;
+  var headers = authSheet.getRange(1, 1, 1, authSheet.getLastColumn()).getValues()[0];
+  var cols = {};
+  for (var i = 0; i < headers.length; i++) cols[headers[i]] = i;
+  if (cols['職員ID'] == null || cols['アカウント有効フラグ'] == null) return;
+
+  var data = authSheet.getRange(2, 1, authSheet.getLastRow() - 1, authSheet.getLastColumn()).getValues();
+  for (var r = 0; r < data.length; r++) {
+    if (String(data[r][cols['職員ID']] || '') === staffId) {
+      data[r][cols['アカウント有効フラグ']] = true;
+      data[r][cols['更新日時']] = new Date().toISOString();
+      authSheet.getRange(r + 2, 1, 1, data[r].length).setValues([data[r]]);
+    }
+  }
+}
+
 // ── v126: 事業所会員の予約退会（Scheduled Cancellation）──
 // 翌年度4/1に退会を予約する。退会日まではサービス完全利用可能。
 function scheduleWithdrawMember_(payload) {
@@ -4375,8 +4394,7 @@ function cancelScheduledWithdraw_(payload) {
   return { cancelled: true, memberId: String(payload.memberId) };
 }
 
-// ── v126: 職員個別更新 ──
-// 職員の基本情報を個別に更新する（状態変更は除籍/転換APIに委譲）
+// ── v127: 職員個別更新（status/role 変更対応拡張）──
 function updateStaff_(payload) {
   if (!payload || !payload.staffId) throw new Error('職員IDが未指定です。');
   var ss = getOrCreateDatabase_();
@@ -4390,12 +4408,14 @@ function updateStaff_(payload) {
   var row = found.row.slice();
 
   // 所属事業所の一致確認（セキュリティ）
-  if (payload.memberId && String(row[cols['会員ID']] || '') !== String(payload.memberId)) {
+  var memberId = String(row[cols['会員ID']] || '');
+  if (payload.memberId && memberId !== String(payload.memberId)) {
     throw new Error('職員IDと会員IDが一致しません。');
   }
 
   // 更新可能フィールド（Allowlist）
   var nowIso = new Date().toISOString();
+  var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
   if (payload.name != null && String(payload.name).trim()) {
     row[cols['氏名']] = String(payload.name).trim();
   }
@@ -4408,13 +4428,48 @@ function updateStaff_(payload) {
   if (payload.careManagerNumber != null) {
     row[cols['介護支援専門員番号']] = String(payload.careManagerNumber).trim();
   }
+
+  // ── role 変更 ──
+  var currentRole = String(row[cols['職員権限コード']] || 'STAFF');
   if (payload.role != null) {
     var newRole = normalizeBusinessStaffRole_(payload.role);
-    var currentRole = String(row[cols['職員権限コード']] || 'STAFF');
-    // 代表者への昇格/降格は他の職員に影響するため、ここでは単純な更新のみ
-    // 代表者変更の整合性はフロントエンド側で制御（代表者が1名であること等）
-    row[cols['職員権限コード']] = newRole;
+    if (newRole !== currentRole) {
+      // REPRESENTATIVE から降格する場合: 同事業所に他の ENROLLED 職員が必要
+      if (currentRole === 'REPRESENTATIVE' && newRole !== 'REPRESENTATIVE') {
+        var allStaff = staffSheet.getRange(2, 1, staffSheet.getLastRow() - 1, staffSheet.getLastColumn()).getValues();
+        var enrolledOthers = allStaff.filter(function(r) {
+          return String(r[cols['会員ID']] || '') === memberId
+            && String(r[cols['職員ID']] || '') !== String(payload.staffId)
+            && String(r[cols['職員状態コード']] || '') === 'ENROLLED';
+        });
+        if (enrolledOthers.length === 0) {
+          throw new Error('在籍職員が自分のみのため、代表者の権限変更はできません。個人会員への転換をご利用ください。');
+        }
+      }
+      row[cols['職員権限コード']] = newRole;
+    }
   }
+
+  // ── status 変更（v127 追加）──
+  var currentStatus = String(row[cols['職員状態コード']] || 'ENROLLED');
+  var statusChanged = false;
+  if (payload.status != null) {
+    var newStatus = String(payload.status).trim();
+    if (['ENROLLED', 'LEFT'].indexOf(newStatus) === -1) {
+      throw new Error('職員状態は ENROLLED または LEFT のみ指定可能です。');
+    }
+    if (newStatus !== currentStatus) {
+      row[cols['職員状態コード']] = newStatus;
+      statusChanged = true;
+      if (newStatus === 'LEFT') {
+        row[cols['退会日']] = today;
+      } else {
+        // ENROLLED に復帰 → 退会日クリア
+        row[cols['退会日']] = '';
+      }
+    }
+  }
+
   if (payload.joinedDate != null) {
     var normalized = normalizeDateInput_(payload.joinedDate);
     if (normalized) row[cols['入会日']] = normalized;
@@ -4422,8 +4477,15 @@ function updateStaff_(payload) {
   row[cols['更新日時']] = nowIso;
   staffSheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
 
-  // 認証アカウントのメールアドレスも同期（職員メールが変更された場合）
-  // Note: 認証アカウントのメールは別管理のため、ここでは職員テーブルのみ更新
+  // ── status 変更時の認証アカウント連動 ──
+  if (statusChanged) {
+    var newStatus2 = String(row[cols['職員状態コード']]);
+    if (newStatus2 === 'LEFT') {
+      disableAuthAccountsByStaffId_(ss, String(payload.staffId));
+    } else {
+      enableAuthAccountsByStaffId_(ss, String(payload.staffId));
+    }
+  }
 
   clearAllDataCache_();
   clearAdminDashboardCache_();
@@ -4431,7 +4493,9 @@ function updateStaff_(payload) {
   return {
     updated: true,
     staffId: String(payload.staffId),
-    memberId: String(row[cols['会員ID']] || ''),
+    memberId: memberId,
+    status: String(row[cols['職員状態コード']] || ''),
+    role: String(row[cols['職員権限コード']] || ''),
   };
 }
 
@@ -4489,25 +4553,46 @@ function convertStaffToIndividual_(ss, payload) {
     throw new Error('職員は指定の事業所に所属していません。');
   }
 
-  // 3. 代表者チェック
+  // 3. 代表者チェック（v127: 最後の1名の場合は事業所自動退会）
   var isRepresentative = String(sRow[sCols['職員権限コード']] || '') === 'REPRESENTATIVE';
+  var officeWithdrawn = false;
   if (isRepresentative) {
-    var newRepStaffId = String(payload.newRepresentativeStaffId || '').trim();
-    if (!newRepStaffId) throw new Error('代表者を転換する場合は後任代表者（newRepresentativeStaffId）を指定してください。');
-    if (newRepStaffId === sourceStaffId) throw new Error('後任代表者は自分以外を指定してください。');
-    var newRepFound = findRowByColumnValue_(staffSheet, '職員ID', newRepStaffId);
-    if (!newRepFound) throw new Error('後任代表者 ' + newRepStaffId + ' が見つかりません。');
-    if (String(newRepFound.row[newRepFound.columns['会員ID']] || '') !== sourceMemberId) {
-      throw new Error('後任代表者は同じ事業所の職員でなければなりません。');
+    // 同事業所の他の ENROLLED 職員を確認
+    var allStaffData = staffSheet.getRange(2, 1, staffSheet.getLastRow() - 1, staffSheet.getLastColumn()).getValues();
+    var enrolledOthers = allStaffData.filter(function(r) {
+      return String(r[sCols['会員ID']] || '') === sourceMemberId
+        && String(r[sCols['職員ID']] || '') !== sourceStaffId
+        && String(r[sCols['職員状態コード']] || '') === 'ENROLLED';
+    });
+
+    if (enrolledOthers.length === 0) {
+      // 最後の1名 → 事業所を自動退会
+      var offRow = officeRow.slice();
+      offRow[officeCols['会員状態コード']] = 'WITHDRAWN';
+      offRow[officeCols['退会日']] = today;
+      offRow[officeCols['更新日時']] = now;
+      memberSheet.getRange(officeFound.rowNumber, 1, 1, offRow.length).setValues([offRow]);
+      officeWithdrawn = true;
+      // newRepresentativeStaffId 不要
+    } else {
+      // 他に在籍職員がいる → 後任代表者必須
+      var newRepStaffId = String(payload.newRepresentativeStaffId || '').trim();
+      if (!newRepStaffId) throw new Error('他の在籍職員がいるため、後任代表者の指定が必要です。');
+      if (newRepStaffId === sourceStaffId) throw new Error('後任代表者は自分以外を指定してください。');
+      var newRepFound = findRowByColumnValue_(staffSheet, '職員ID', newRepStaffId);
+      if (!newRepFound) throw new Error('後任代表者 ' + newRepStaffId + ' が見つかりません。');
+      if (String(newRepFound.row[newRepFound.columns['会員ID']] || '') !== sourceMemberId) {
+        throw new Error('後任代表者は同じ事業所の職員でなければなりません。');
+      }
+      if (String(newRepFound.row[newRepFound.columns['職員状態コード']] || '') === 'LEFT') {
+        throw new Error('後任代表者は在籍中の職員でなければなりません。');
+      }
+      // 後任を REPRESENTATIVE に昇格
+      var nrRow = newRepFound.row.slice();
+      nrRow[newRepFound.columns['職員権限コード']] = 'REPRESENTATIVE';
+      nrRow[newRepFound.columns['更新日時']] = new Date().toISOString();
+      staffSheet.getRange(newRepFound.rowNumber, 1, 1, nrRow.length).setValues([nrRow]);
     }
-    if (String(newRepFound.row[newRepFound.columns['職員状態コード']] || '') === 'LEFT') {
-      throw new Error('後任代表者は在籍中の職員でなければなりません。');
-    }
-    // 後任を REPRESENTATIVE に昇格
-    var nrRow = newRepFound.row.slice();
-    nrRow[newRepFound.columns['職員権限コード']] = 'REPRESENTATIVE';
-    nrRow[newRepFound.columns['更新日時']] = new Date().toISOString();
-    staffSheet.getRange(newRepFound.rowNumber, 1, 1, nrRow.length).setValues([nrRow]);
   }
 
   // 4. 職員情報を取得（氏名を分割）
@@ -4591,6 +4676,7 @@ function convertStaffToIndividual_(ss, payload) {
     direction: 'STAFF_TO_INDIVIDUAL',
     newMemberId: newMemberId,
     sourceStaffId: sourceStaffId,
+    officeWithdrawn: officeWithdrawn,
   };
 }
 
