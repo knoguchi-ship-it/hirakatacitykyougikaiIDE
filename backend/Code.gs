@@ -8,7 +8,7 @@ var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
 var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var ALL_DATA_CACHE_TTL_SECONDS = 120;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 120;
-var DB_SCHEMA_VERSION = '2026-03-22-01';
+var DB_SCHEMA_VERSION = '2026-03-24-01';
 
 var マスタ定義 = {
   M_会員種別: ['コード', '名称', '表示順', '有効フラグ', '年会費金額'],
@@ -91,6 +91,7 @@ var テーブル定義 = {
     '会員状態コード',
     '入会日',
     '退会日',
+    '退会処理日',
     '姓',
     '名',
     'セイ',
@@ -7448,4 +7449,986 @@ function sendTrainingMail_(payload) {
     return JSON.stringify({ success: false, error: errors[0].error, data: { sent: 0, errors: errors.map(function(e) { return e.error; }) } });
   }
   return JSON.stringify({ success: true, data: { sent: sentCount, errors: errors.map(function(e) { return e.error; }) } });
+}
+
+// ============================================================
+// 名簿移行関数群 (v128)
+// ソース: ★会員名簿 スプレッドシート → 2025年度シート
+// ============================================================
+
+var ROSTER_SOURCE_SPREADSHEET_ID = '1aNKUc-lsJbc-whDY2SWRQW6I_npYnPloTurnyoQxGPQ';
+var ROSTER_SOURCE_SHEET_NAME = '2025年度';
+var ROSTER_SOUKAI_DATE_2024 = '2024-05-24';
+var ROSTER_SOUKAI_DATE_2025 = '2025-05-23';
+var MIGRATION_TARGET_TABLES = ['T_会員', 'T_事業所職員', 'T_認証アカウント', 'T_年会費納入履歴', 'T_年会費更新履歴', 'T_ログイン履歴'];
+
+/**
+ * Phase 1: 移行前バックアップ
+ * 対象テーブルの全データを _BAK_yyyyMMdd シートに退避する。
+ */
+function backupBeforeMigration_() {
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var suffix = '_BAK_' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd_HHmmss');
+  var backed = [];
+
+  for (var i = 0; i < MIGRATION_TARGET_TABLES.length; i++) {
+    var tableName = MIGRATION_TARGET_TABLES[i];
+    var src = ss.getSheetByName(tableName);
+    if (!src || src.getLastRow() < 1) continue;
+    var copy = src.copyTo(ss);
+    copy.setName(tableName + suffix);
+    backed.push(tableName + suffix);
+  }
+
+  Logger.log('バックアップ完了: ' + backed.join(', '));
+  return { suffix: suffix, tables: backed };
+}
+
+/**
+ * Phase 2: 移行対象テーブルのデータ行を削除（ヘッダー保持）
+ */
+function clearMigrationTargets_() {
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var cleared = [];
+
+  for (var i = 0; i < MIGRATION_TARGET_TABLES.length; i++) {
+    var tableName = MIGRATION_TARGET_TABLES[i];
+    var sheet = ss.getSheetByName(tableName);
+    if (!sheet) continue;
+    var lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      sheet.deleteRows(2, lastRow - 1);
+      cleared.push(tableName + ' (' + (lastRow - 1) + '行削除)');
+    }
+  }
+
+  Logger.log('クリア完了: ' + cleared.join(', '));
+  return cleared;
+}
+
+/**
+ * ロールバック: バックアップシートからデータを復元する
+ */
+function rollbackMigration_(backupSuffix) {
+  if (!backupSuffix) throw new Error('backupSuffix が必要です');
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var restored = [];
+
+  for (var i = 0; i < MIGRATION_TARGET_TABLES.length; i++) {
+    var tableName = MIGRATION_TARGET_TABLES[i];
+    var bakSheet = ss.getSheetByName(tableName + backupSuffix);
+    if (!bakSheet) continue;
+
+    var target = ss.getSheetByName(tableName);
+    if (!target) continue;
+
+    // 既存データ行を削除
+    if (target.getLastRow() > 1) {
+      target.deleteRows(2, target.getLastRow() - 1);
+    }
+
+    // バックアップからデータ行をコピー
+    if (bakSheet.getLastRow() > 1) {
+      var data = bakSheet.getRange(2, 1, bakSheet.getLastRow() - 1, bakSheet.getLastColumn()).getValues();
+      target.getRange(2, 1, data.length, data[0].length).setValues(data);
+    }
+
+    restored.push(tableName);
+  }
+
+  Logger.log('ロールバック完了: ' + restored.join(', '));
+  return restored;
+}
+
+// ── ソース読み取りとパース ──
+
+/**
+ * ソーススプレッドシートから名簿データを読み取る（読み取り専用）
+ */
+function readRosterSource_() {
+  var srcSs = SpreadsheetApp.openById(ROSTER_SOURCE_SPREADSHEET_ID);
+  var sheet = srcSs.getSheetByName(ROSTER_SOURCE_SHEET_NAME);
+  if (!sheet) throw new Error('シート "' + ROSTER_SOURCE_SHEET_NAME + '" が見つかりません');
+
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 2) throw new Error('データ行がありません');
+
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+
+  // ヘッダーインデックスマップ
+  var colMap = {};
+  var headerNames = ['2024年', '2025年・個', '2025年・事', '会員', '', '備　考', 'LINE', '発送', '郵送先', 'ルアド',
+    '勤　務　先', '氏名', 'CM番号', 'ﾌﾘｶﾞﾅ', '郵便番号', '連絡先住所', '住所②', '', '連絡先電話番号', '連絡先ＦＡＸ', 'その他連絡先'];
+  // インデックスベースでマッピング（ヘッダー名が日本語で完全一致しない場合に備えて位置ベース）
+  colMap.fee2024 = 0;     // A: 2024年
+  colMap.feeIndiv2025 = 1; // B: 2025年・個
+  colMap.feeBiz2025 = 2;   // C: 2025年・事
+  colMap.memberType = 3;   // D: 会員
+  colMap.statusEvent = 4;  // E: (入会/退会/変更)
+  colMap.remarks = 5;      // F: 備考
+  colMap.line = 6;         // G: LINE
+  colMap.delivery = 7;     // H: 発送
+  colMap.mailDest = 8;     // I: 郵送先
+  colMap.email = 9;        // J: ルアド
+  colMap.workplace = 10;   // K: 勤務先
+  colMap.name = 11;        // L: 氏名
+  colMap.cmNumber = 12;    // M: CM番号
+  colMap.furigana = 13;    // N: フリガナ
+  colMap.postalCode = 14;  // O: 郵便番号
+  colMap.address1 = 15;    // P: 連絡先住所
+  colMap.address2 = 16;    // Q: 住所②
+  // R: 数式列（スキップ）
+  colMap.phone = 18;       // S: 連絡先電話番号
+  colMap.fax = 19;         // T: 連絡先FAX
+  colMap.otherContact = 20; // U: その他連絡先
+
+  return { data: data, colMap: colMap, rowCount: data.length };
+}
+
+/**
+ * フリガナが漢字かどうかを判定する
+ * カタカナ・ひらがな・半角英数・スペース・記号以外が含まれていれば漢字と判定
+ */
+function isKanjiFurigana_(text) {
+  if (!text) return false;
+  var s = String(text).trim();
+  if (!s) return false;
+  // カタカナ(全角)、ひらがな、半角カナ、半角英数、スペース、記号のみならfalse
+  var katakanaHiraganaPattern = /^[\u30A0-\u30FF\u3040-\u309F\uFF65-\uFF9F\u0020-\u007E\u3000\u00A0\uFF01-\uFF5E\s]+$/;
+  return !katakanaHiraganaPattern.test(s);
+}
+
+/**
+ * 住所から都道府県を抽出する
+ */
+function parseAddress_(rawAddress) {
+  var addr = String(rawAddress || '').trim();
+  if (!addr) return { prefecture: '', city: '', street: '' };
+
+  var prefecture = '';
+  var rest = addr;
+
+  // 都道府県パターン
+  var prefMatch = addr.match(/^(北海道|東京都|(?:京都|大阪)府|.{2,3}県)/);
+  if (prefMatch) {
+    prefecture = prefMatch[1];
+    rest = addr.substring(prefecture.length);
+  }
+
+  // 市区町村抽出
+  var city = '';
+  // 政令指定都市の区を含むパターン
+  var cityMatch = rest.match(/^(.+?[市郡])(.+?[区町村])?/);
+  if (cityMatch) {
+    city = cityMatch[1] + (cityMatch[2] || '');
+    // 「市」で終わる場合、そこまで
+    var simpleCity = rest.match(/^(.+?市)/);
+    if (simpleCity) {
+      city = simpleCity[1];
+      rest = rest.substring(city.length);
+    } else if (cityMatch) {
+      city = cityMatch[0];
+      rest = rest.substring(city.length);
+    }
+  }
+
+  // 都道府県が未検出の場合、市名から推定
+  if (!prefecture && city) {
+    if (/^(枚方市|交野市|寝屋川市|門真市|守口市|四條畷市|大東市|東大阪市|八尾市|堺市|高槻市|茨木市|摂津市|吹田市|豊中市|池田市|箕面市)/.test(city)) {
+      prefecture = '大阪府';
+    } else if (/^(八幡市|京田辺市|木津川市|宇治市|城陽市|長岡京市|向日市|福知山市)/.test(city)) {
+      prefecture = '京都府';
+    } else if (/^(奈良市|生駒市|大和郡山市)/.test(city)) {
+      prefecture = '奈良県';
+    } else if (/^(神戸市|西宮市|尼崎市|芦屋市|宝塚市)/.test(city)) {
+      prefecture = '兵庫県';
+    }
+  }
+
+  return { prefecture: prefecture, city: city, street: rest.trim() };
+}
+
+/**
+ * 氏名を姓と名に分割する（全角・半角スペース対応）
+ */
+function splitName_(fullName) {
+  var s = String(fullName || '').trim();
+  if (!s) return { last: '', first: '' };
+  // 全角スペース、半角スペースで分割
+  var parts = s.split(/[\s\u3000]+/);
+  if (parts.length >= 2) {
+    return { last: parts[0], first: parts.slice(1).join(' ') };
+  }
+  return { last: s, first: '' };
+}
+
+/**
+ * 日付セル値を YYYY-MM-DD に正規化する
+ */
+function normalizeRosterDate_(val) {
+  if (!val) return '';
+  if (val instanceof Date) {
+    if (isNaN(val.getTime())) return '';
+    return Utilities.formatDate(val, 'Asia/Tokyo', 'yyyy-MM-dd');
+  }
+  var s = String(val).trim();
+  if (!s) return '';
+  // YYYY/MM/DD or YYYY-MM-DD
+  var m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (m) {
+    return m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
+  }
+  return '';
+}
+
+/**
+ * 退会処理日から退会日（年度末）を算出する
+ * 4月〜3月を1年度とし、処理日が属する年度の3/31を返す
+ */
+function calcFiscalYearEnd_(processDateStr) {
+  if (!processDateStr) return '';
+  var d = new Date(processDateStr);
+  if (isNaN(d.getTime())) return '';
+  var year = d.getFullYear();
+  var month = d.getMonth() + 1; // 1-12
+  // 4月以降 → 翌年3/31、1-3月 → 当年3/31
+  var fyEndYear = month >= 4 ? year + 1 : year;
+  return fyEndYear + '-03-31';
+}
+
+/**
+ * ランダムパスワードを生成する（8文字、英数字）
+ */
+function generateRandomPassword_() {
+  var chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  var pw = '';
+  for (var i = 0; i < 10; i++) {
+    pw += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return pw;
+}
+
+/**
+ * CM番号がない場合の9桁ログインID自動生成（先頭9 + 8桁ランダム）
+ */
+function generateAutoLoginId_(existingIds) {
+  var maxAttempts = 1000;
+  for (var i = 0; i < maxAttempts; i++) {
+    var id = '9' + String(Math.floor(Math.random() * 100000000)).padStart(8, '0');
+    if (existingIds.indexOf(id) === -1) return id;
+  }
+  throw new Error('ログインID自動生成に失敗（重複回避上限超過）');
+}
+
+// ── メイン移行関数 ──
+
+/**
+ * 名簿移行メイン関数
+ * @param {Object} options - { dryRun: true/false }
+ * @returns {Object} 移行結果
+ */
+function migrateRoster2025_(options) {
+  var dryRun = options && options.dryRun !== false;
+  var now = new Date().toISOString();
+
+  // ── ソース読み取り ──
+  var source = readRosterSource_();
+  var data = source.data;
+  var col = source.colMap;
+
+  var log = [];
+  var warnings = [];
+  var errors = [];
+  var stats = {
+    totalRows: data.length,
+    skippedChange: 0,
+    skippedEmpty: 0,
+    individualMembers: 0,
+    businessGroups: 0,
+    businessStaff: 0,
+    withdrawnMembers: 0,
+    kanjiFurigana: 0,
+    authAccounts: 0,
+    annualFeeRecords: 0,
+    autoLoginIds: 0,
+  };
+
+  // ── データ解析: 行分類 ──
+  var individualRows = [];
+  var businessRowsByOffice = {};
+
+  for (var i = 0; i < data.length; i++) {
+    var row = data[i];
+    var memberType = String(row[col.memberType] || '').trim();
+    var statusEvent = String(row[col.statusEvent] || '').trim();
+    var name = String(row[col.name] || '').trim();
+    var furigana = String(row[col.furigana] || '').trim();
+
+    // 空行スキップ
+    if (!memberType) {
+      stats.skippedEmpty++;
+      continue;
+    }
+
+    // E=変更はスキップ
+    if (statusEvent === '変更') {
+      stats.skippedChange++;
+      log.push('行' + (i + 2) + ': E=変更 → スキップ');
+      continue;
+    }
+
+    // フリガナ漢字判定 → 退会者
+    var isKanjiInFurigana = isKanjiFurigana_(furigana);
+    if (isKanjiInFurigana) {
+      stats.kanjiFurigana++;
+      log.push('行' + (i + 2) + ': フリガナに漢字 "' + furigana + '" → 退会者として登録、フリガナなし');
+    }
+
+    var rowData = {
+      sourceRow: i + 2,
+      memberType: memberType,
+      statusEvent: statusEvent,
+      isWithdrawn: statusEvent === '退会' || isKanjiInFurigana,
+      isNewEntry: statusEvent === '入会',
+      isKanjiInFurigana: isKanjiInFurigana,
+      // 名前: フリガナが漢字の場合はフリガナから、通常はL列から
+      rawName: isKanjiInFurigana && !name ? furigana : name,
+      rawFurigana: isKanjiInFurigana ? '' : furigana,
+      rawEmail: String(row[col.email] || '').trim(),
+      rawWorkplace: String(row[col.workplace] || '').trim(),
+      rawCmNumber: String(row[col.cmNumber] || '').trim().replace(/[^0-9]/g, ''),
+      rawPostalCode: String(row[col.postalCode] || '').trim(),
+      rawAddress1: String(row[col.address1] || '').trim(),
+      rawAddress2: String(row[col.address2] || '').trim(),
+      rawPhone: String(row[col.phone] || '').trim(),
+      rawFax: String(row[col.fax] || '').trim(),
+      rawOtherContact: String(row[col.otherContact] || '').trim(),
+      rawMailDest: String(row[col.mailDest] || '').trim(),
+      rawRemarks: String(row[col.remarks] || '').trim(),
+      rawRemarksDate: normalizeRosterDate_(row[col.remarks]),
+      rawFee2024: row[col.fee2024],
+      rawFeeIndiv2025: row[col.feeIndiv2025],
+      rawFeeBiz2025: row[col.feeBiz2025],
+    };
+
+    if (memberType === '個人') {
+      individualRows.push(rowData);
+    } else if (memberType === '事業所') {
+      var officeName = rowData.rawWorkplace || '不明事業所_行' + rowData.sourceRow;
+      if (!businessRowsByOffice[officeName]) {
+        businessRowsByOffice[officeName] = [];
+      }
+      businessRowsByOffice[officeName].push(rowData);
+    } else {
+      warnings.push('行' + (i + 2) + ': 不明な会員種別 "' + memberType + '"');
+    }
+  }
+
+  // ── 移行レコード生成 ──
+  var memberRecords = [];
+  var staffRecords = [];
+  var authRecords = [];
+  var feeRecords = [];
+  var allLoginIds = [];
+  var credentialsList = []; // ログインID/パスワード一覧（メール送信用）
+
+  // ── 個人会員 ──
+  for (var idx = 0; idx < individualRows.length; idx++) {
+    var r = individualRows[idx];
+    var memberId = generateMemberId_();
+    var nameParts = splitName_(r.rawName);
+    var kanaParts = splitName_(r.rawFurigana);
+    var addr = parseAddress_(r.rawAddress1);
+    var isMailDestHome = r.rawMailDest === '自宅' || r.rawMailDest === '' || r.rawMailDest === 'ー';
+    var isMailDestOffice = r.rawMailDest === '所属先' || r.rawMailDest === '所属先';
+
+    // 退会日計算
+    var withdrawnDate = '';
+    var withdrawnProcessDate = '';
+    if (r.isWithdrawn) {
+      withdrawnProcessDate = r.rawRemarksDate || '';
+      withdrawnDate = withdrawnProcessDate ? calcFiscalYearEnd_(withdrawnProcessDate) : '';
+      stats.withdrawnMembers++;
+    }
+
+    // 入会日
+    var joinedDate = '';
+    if (r.isNewEntry && r.rawRemarksDate) {
+      joinedDate = r.rawRemarksDate;
+    }
+
+    var member = {
+      会員ID: memberId,
+      会員種別コード: 'INDIVIDUAL',
+      会員状態コード: r.isWithdrawn ? 'WITHDRAWN' : 'ACTIVE',
+      入会日: joinedDate,
+      退会日: withdrawnDate,
+      退会処理日: withdrawnProcessDate,
+      姓: nameParts.last,
+      名: nameParts.first,
+      セイ: kanaParts.last,
+      メイ: kanaParts.first,
+      代表メールアドレス: r.rawEmail,
+      携帯電話番号: r.rawOtherContact,
+      勤務先名: (r.rawWorkplace === 'ー' || r.rawWorkplace === '一' || r.rawWorkplace === '-') ? '' : r.rawWorkplace,
+      勤務先郵便番号: isMailDestOffice ? r.rawPostalCode : '',
+      勤務先都道府県: isMailDestOffice ? addr.prefecture : '',
+      勤務先市区町村: isMailDestOffice ? addr.city : '',
+      勤務先住所: isMailDestOffice ? (addr.street + (r.rawAddress2 ? ' ' + r.rawAddress2 : '')) : '',
+      勤務先電話番号: r.rawPhone,
+      勤務先FAX番号: r.rawFax,
+      自宅郵便番号: isMailDestHome ? r.rawPostalCode : '',
+      自宅都道府県: isMailDestHome ? addr.prefecture : '',
+      自宅市区町村: isMailDestHome ? addr.city : '',
+      自宅住所: isMailDestHome ? (addr.street + (r.rawAddress2 ? ' ' + r.rawAddress2 : '')) : '',
+      発送方法コード: r.rawEmail ? 'EMAIL' : 'POST',
+      郵送先区分コード: isMailDestOffice ? 'OFFICE' : 'HOME',
+      職員数上限: '',
+      作成日時: now,
+      更新日時: now,
+      削除フラグ: false,
+      介護支援専門員番号: r.rawCmNumber,
+      事業所番号: '',
+    };
+    memberRecords.push(member);
+    stats.individualMembers++;
+
+    // 認証アカウント（CM番号重複時は自動ID発番）
+    var loginId = r.rawCmNumber && allLoginIds.indexOf(r.rawCmNumber) < 0
+      ? r.rawCmNumber : generateAutoLoginId_(allLoginIds);
+    if (!r.rawCmNumber || r.rawCmNumber !== loginId) stats.autoLoginIds++;
+    allLoginIds.push(loginId);
+    var plainPassword = generateRandomPassword_();
+    var salt = generateSalt_();
+    var hashed = hashPassword_(plainPassword, salt);
+
+    authRecords.push({
+      認証ID: Utilities.getUuid(),
+      認証方式: 'PASSWORD',
+      ログインID: loginId,
+      パスワードハッシュ: hashed,
+      パスワードソルト: salt,
+      GoogleユーザーID: '',
+      Googleメール: '',
+      システムロールコード: 'INDIVIDUAL_MEMBER',
+      会員ID: memberId,
+      職員ID: '',
+      最終ログイン日時: '',
+      パスワード更新日時: '',
+      アカウント有効フラグ: r.isWithdrawn ? false : true,
+      ログイン失敗回数: 0,
+      ロック状態: false,
+      作成日時: now,
+      更新日時: now,
+      削除フラグ: false,
+    });
+    stats.authAccounts++;
+
+    credentialsList.push({
+      name: r.rawName,
+      loginId: loginId,
+      password: plainPassword,
+      email: r.rawEmail,
+      memberType: '個人',
+      memberId: memberId,
+    });
+
+    // 年会費（2024年度）
+    var fee2024Raw = r.rawFee2024;
+    var fee2024Date = '';
+    if (fee2024Raw) {
+      var s2024 = String(fee2024Raw).trim();
+      if (s2024 === '総会') {
+        fee2024Date = ROSTER_SOUKAI_DATE_2024;
+      } else {
+        fee2024Date = normalizeRosterDate_(fee2024Raw);
+      }
+    }
+    if (fee2024Date || fee2024Raw) {
+      feeRecords.push({
+        年会費履歴ID: Utilities.getUuid(),
+        会員ID: memberId,
+        対象年度: 2024,
+        会費納入状態コード: fee2024Date ? 'PAID' : 'UNPAID',
+        納入確認日: fee2024Date,
+        金額: 3000,
+        備考: String(fee2024Raw).trim() === '総会' ? '総会にて納入' : '',
+        作成日時: now,
+        更新日時: now,
+        削除フラグ: false,
+      });
+      stats.annualFeeRecords++;
+    }
+
+    // 年会費（2025年度・個人）
+    var fee2025Raw = r.rawFeeIndiv2025;
+    var fee2025Date = '';
+    if (fee2025Raw) {
+      var s2025 = String(fee2025Raw).trim();
+      if (s2025 === '総会') {
+        fee2025Date = ROSTER_SOUKAI_DATE_2025;
+      } else {
+        fee2025Date = normalizeRosterDate_(fee2025Raw);
+      }
+    }
+    if (fee2025Date || fee2025Raw) {
+      feeRecords.push({
+        年会費履歴ID: Utilities.getUuid(),
+        会員ID: memberId,
+        対象年度: 2025,
+        会費納入状態コード: fee2025Date ? 'PAID' : 'UNPAID',
+        納入確認日: fee2025Date,
+        金額: 3000,
+        備考: String(fee2025Raw).trim() === '総会' ? '総会にて納入' : '',
+        作成日時: now,
+        更新日時: now,
+        削除フラグ: false,
+      });
+      stats.annualFeeRecords++;
+    }
+  }
+
+  // ── 事業所会員 ──
+  var officeNames = Object.keys(businessRowsByOffice);
+  for (var oi = 0; oi < officeNames.length; oi++) {
+    var officeName = officeNames[oi];
+    var staffList = businessRowsByOffice[officeName];
+    var memberId = generateMemberId_();
+
+    // 代表者判定: 郵送先=所属先の職員。いなければ先頭
+    var repIndex = 0;
+    for (var si = 0; si < staffList.length; si++) {
+      if (staffList[si].rawMailDest === '所属先') {
+        repIndex = si;
+        break;
+      }
+    }
+    var rep = staffList[repIndex];
+    var repNameParts = splitName_(rep.rawName);
+    var repKanaParts = splitName_(rep.rawFurigana);
+
+    // 住所は事業所共通（最初に郵便番号がある行を採用）
+    var officePostal = '';
+    var officeAddr1 = '';
+    var officeAddr2 = '';
+    var officePhone = '';
+    var officeFax = '';
+    for (var ai = 0; ai < staffList.length; ai++) {
+      if (staffList[ai].rawPostalCode && !officePostal) {
+        officePostal = staffList[ai].rawPostalCode;
+        officeAddr1 = staffList[ai].rawAddress1;
+        officeAddr2 = staffList[ai].rawAddress2;
+      }
+      if (staffList[ai].rawPhone && !officePhone) officePhone = staffList[ai].rawPhone;
+      if (staffList[ai].rawFax && !officeFax) officeFax = staffList[ai].rawFax;
+    }
+    var officeAddr = parseAddress_(officeAddr1);
+
+    // 事業所の退会判定
+    var officeWithdrawn = staffList.every(function(s) { return s.isWithdrawn; });
+    var officeNewEntry = staffList.some(function(s) { return s.isNewEntry; });
+    var officeJoinedDate = '';
+    var officeWithdrawnDate = '';
+    var officeWithdrawnProcessDate = '';
+    if (officeNewEntry) {
+      for (var ni = 0; ni < staffList.length; ni++) {
+        if (staffList[ni].isNewEntry && staffList[ni].rawRemarksDate) {
+          officeJoinedDate = staffList[ni].rawRemarksDate;
+          break;
+        }
+      }
+    }
+    if (officeWithdrawn) {
+      stats.withdrawnMembers++;
+      for (var wi = 0; wi < staffList.length; wi++) {
+        if (staffList[wi].rawRemarksDate) {
+          officeWithdrawnProcessDate = staffList[wi].rawRemarksDate;
+          officeWithdrawnDate = calcFiscalYearEnd_(officeWithdrawnProcessDate);
+          break;
+        }
+      }
+    }
+
+    var member = {
+      会員ID: memberId,
+      会員種別コード: 'BUSINESS',
+      会員状態コード: officeWithdrawn ? 'WITHDRAWN' : 'ACTIVE',
+      入会日: officeJoinedDate,
+      退会日: officeWithdrawnDate,
+      退会処理日: officeWithdrawnProcessDate,
+      姓: repNameParts.last,
+      名: repNameParts.first,
+      セイ: repKanaParts.last,
+      メイ: repKanaParts.first,
+      代表メールアドレス: rep.rawEmail,
+      携帯電話番号: '',
+      勤務先名: officeName,
+      勤務先郵便番号: officePostal,
+      勤務先都道府県: officeAddr.prefecture,
+      勤務先市区町村: officeAddr.city,
+      勤務先住所: officeAddr.street + (officeAddr2 ? ' ' + officeAddr2 : ''),
+      勤務先電話番号: officePhone,
+      勤務先FAX番号: officeFax,
+      自宅郵便番号: '',
+      自宅都道府県: '',
+      自宅市区町村: '',
+      自宅住所: '',
+      発送方法コード: rep.rawEmail ? 'EMAIL' : 'POST',
+      郵送先区分コード: 'OFFICE',
+      職員数上限: '',
+      作成日時: now,
+      更新日時: now,
+      削除フラグ: false,
+      介護支援専門員番号: '',
+      事業所番号: '',
+    };
+    memberRecords.push(member);
+    stats.businessGroups++;
+
+    // 年会費（事業所: 2024年度）
+    var bizFee2024Raw = rep.rawFee2024;
+    var bizFee2024Date = '';
+    if (bizFee2024Raw) {
+      var bs2024 = String(bizFee2024Raw).trim();
+      if (bs2024 === '総会') bizFee2024Date = ROSTER_SOUKAI_DATE_2024;
+      else bizFee2024Date = normalizeRosterDate_(bizFee2024Raw);
+    }
+    if (bizFee2024Date || bizFee2024Raw) {
+      feeRecords.push({
+        年会費履歴ID: Utilities.getUuid(),
+        会員ID: memberId,
+        対象年度: 2024,
+        会費納入状態コード: bizFee2024Date ? 'PAID' : 'UNPAID',
+        納入確認日: bizFee2024Date,
+        金額: 8000,
+        備考: String(bizFee2024Raw).trim() === '総会' ? '総会にて納入' : '',
+        作成日時: now,
+        更新日時: now,
+        削除フラグ: false,
+      });
+      stats.annualFeeRecords++;
+    }
+
+    // 年会費（事業所: 2025年度）
+    var bizFee2025Raw = rep.rawFeeBiz2025;
+    if (!bizFee2025Raw) {
+      // 代表者にない場合、グループ内で探す
+      for (var bfi = 0; bfi < staffList.length; bfi++) {
+        if (staffList[bfi].rawFeeBiz2025) {
+          bizFee2025Raw = staffList[bfi].rawFeeBiz2025;
+          break;
+        }
+      }
+    }
+    var bizFee2025Date = '';
+    if (bizFee2025Raw) {
+      var bs2025 = String(bizFee2025Raw).trim();
+      if (bs2025 === '総会') bizFee2025Date = ROSTER_SOUKAI_DATE_2025;
+      else bizFee2025Date = normalizeRosterDate_(bizFee2025Raw);
+    }
+    if (bizFee2025Date || bizFee2025Raw) {
+      feeRecords.push({
+        年会費履歴ID: Utilities.getUuid(),
+        会員ID: memberId,
+        対象年度: 2025,
+        会費納入状態コード: bizFee2025Date ? 'PAID' : 'UNPAID',
+        納入確認日: bizFee2025Date,
+        金額: 8000,
+        備考: String(bizFee2025Raw).trim() === '総会' ? '総会にて納入' : '',
+        作成日時: now,
+        更新日時: now,
+        削除フラグ: false,
+      });
+      stats.annualFeeRecords++;
+    }
+
+    // ── 職員レコード ──
+    for (var si2 = 0; si2 < staffList.length; si2++) {
+      var st = staffList[si2];
+      var staffId = Utilities.getUuid();
+      var stNameParts = splitName_(st.rawName);
+      var isRep = si2 === repIndex;
+
+      staffRecords.push({
+        職員ID: staffId,
+        会員ID: memberId,
+        氏名: st.rawName,
+        フリガナ: st.rawFurigana,
+        メールアドレス: st.rawEmail,
+        職員権限コード: isRep ? 'REPRESENTATIVE' : 'STAFF',
+        職員状態コード: 'ENROLLED',
+        入会日: st.isNewEntry && st.rawRemarksDate ? st.rawRemarksDate : '',
+        退会日: '',
+        介護支援専門員番号: st.rawCmNumber,
+        作成日時: now,
+        更新日時: now,
+        削除フラグ: false,
+      });
+      stats.businessStaff++;
+
+      // 認証アカウント（CM番号重複時は自動ID発番）
+      var stLoginId = st.rawCmNumber && allLoginIds.indexOf(st.rawCmNumber) < 0
+        ? st.rawCmNumber : generateAutoLoginId_(allLoginIds);
+      if (!st.rawCmNumber || st.rawCmNumber !== stLoginId) stats.autoLoginIds++;
+      allLoginIds.push(stLoginId);
+      var stPassword = generateRandomPassword_();
+      var stSalt = generateSalt_();
+      var stHashed = hashPassword_(stPassword, stSalt);
+
+      authRecords.push({
+        認証ID: Utilities.getUuid(),
+        認証方式: 'PASSWORD',
+        ログインID: stLoginId,
+        パスワードハッシュ: stHashed,
+        パスワードソルト: stSalt,
+        GoogleユーザーID: '',
+        Googleメール: '',
+        システムロールコード: isRep ? 'BUSINESS_ADMIN' : 'BUSINESS_MEMBER',
+        会員ID: memberId,
+        職員ID: staffId,
+        最終ログイン日時: '',
+        パスワード更新日時: '',
+        アカウント有効フラグ: officeWithdrawn ? false : true,
+        ログイン失敗回数: 0,
+        ロック状態: false,
+        作成日時: now,
+        更新日時: now,
+        削除フラグ: false,
+      });
+      stats.authAccounts++;
+
+      credentialsList.push({
+        name: st.rawName,
+        loginId: stLoginId,
+        password: stPassword,
+        email: st.rawEmail,
+        memberType: '事業所(' + officeName + ')',
+        memberId: memberId,
+      });
+    }
+  }
+
+  // ── ドライラン結果 or 本番書き込み ──
+  var result = {
+    dryRun: dryRun,
+    stats: stats,
+    memberCount: memberRecords.length,
+    staffCount: staffRecords.length,
+    authCount: authRecords.length,
+    feeCount: feeRecords.length,
+    warnings: warnings,
+    errors: errors,
+    log: log,
+  };
+
+  if (dryRun) {
+    Logger.log('=== ドライラン結果 ===');
+    Logger.log(JSON.stringify(stats, null, 2));
+    Logger.log('警告: ' + warnings.length + '件');
+    Logger.log('ログ: ' + log.length + '件');
+    result.credentialsSample = credentialsList.slice(0, 5);
+    return result;
+  }
+
+  // ── 本番書き込み ──
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+
+  // データ入力規則を一時クリア（setAllowInvalid(false) が書き込みを阻害するため）
+  var targetTableNames = ['T_会員', 'T_事業所職員', 'T_認証アカウント', 'T_年会費納入履歴'];
+  for (var ti = 0; ti < targetTableNames.length; ti++) {
+    var tSheet = ss.getSheetByName(targetTableNames[ti]);
+    if (tSheet && tSheet.getMaxRows() > 1) {
+      tSheet.getRange(2, 1, tSheet.getMaxRows() - 1, tSheet.getMaxColumns()).clearDataValidations();
+    }
+  }
+
+  // T_会員
+  var memberCols = テーブル定義.T_会員;
+  var memberData = memberRecords.map(function(rec) {
+    return memberCols.map(function(colName) {
+      return rec[colName] !== undefined ? rec[colName] : '';
+    });
+  });
+  if (memberData.length > 0) {
+    var memberSheet = ss.getSheetByName('T_会員');
+    memberSheet.getRange(2, 1, memberData.length, memberData[0].length).setValues(memberData);
+  }
+
+  // T_事業所職員
+  var staffCols = テーブル定義.T_事業所職員;
+  var staffData = staffRecords.map(function(rec) {
+    return staffCols.map(function(colName) {
+      return rec[colName] !== undefined ? rec[colName] : '';
+    });
+  });
+  if (staffData.length > 0) {
+    var staffSheet = ss.getSheetByName('T_事業所職員');
+    staffSheet.getRange(2, 1, staffData.length, staffData[0].length).setValues(staffData);
+  }
+
+  // T_認証アカウント
+  var authCols = テーブル定義.T_認証アカウント;
+  var authData = authRecords.map(function(rec) {
+    return authCols.map(function(colName) {
+      return rec[colName] !== undefined ? rec[colName] : '';
+    });
+  });
+  if (authData.length > 0) {
+    var authSheet = ss.getSheetByName('T_認証アカウント');
+    authSheet.getRange(2, 1, authData.length, authData[0].length).setValues(authData);
+  }
+
+  // T_年会費納入履歴
+  var feeCols = テーブル定義.T_年会費納入履歴;
+  var feeData = feeRecords.map(function(rec) {
+    return feeCols.map(function(colName) {
+      return rec[colName] !== undefined ? rec[colName] : '';
+    });
+  });
+  if (feeData.length > 0) {
+    var feeSheet = ss.getSheetByName('T_年会費納入履歴');
+    feeSheet.getRange(2, 1, feeData.length, feeData[0].length).setValues(feeData);
+  }
+
+  // 認証情報をスプレッドシートに記録（一時シート）
+  var credSheet = ss.getSheetByName('_CREDENTIALS_TEMP');
+  if (!credSheet) {
+    credSheet = ss.insertSheet('_CREDENTIALS_TEMP');
+  } else if (credSheet.getLastRow() > 0) {
+    credSheet.clear();
+  }
+  credSheet.appendRow(['氏名', 'ログインID', '初期パスワード', 'メール', '会員種別', '会員ID']);
+  var credRows = credentialsList.map(function(c) {
+    return [c.name, c.loginId, c.password, c.email, c.memberType, c.memberId];
+  });
+  if (credRows.length > 0) {
+    credSheet.getRange(2, 1, credRows.length, credRows[0].length).setValues(credRows);
+  }
+
+  // データ入力規則を再適用
+  applyDataValidationRules_(ss);
+
+  clearAllDataCache_();
+  Logger.log('=== 本番書き込み完了 ===');
+  Logger.log(JSON.stringify(stats, null, 2));
+
+  result.credentialsSheetName = '_CREDENTIALS_TEMP';
+  return result;
+}
+
+/**
+ * Phase 5: 移行結果の検証
+ */
+function verifyMigration_() {
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var results = [];
+
+  // T_会員
+  var memberSheet = ss.getSheetByName('T_会員');
+  var memberCount = memberSheet ? memberSheet.getLastRow() - 1 : 0;
+  results.push('T_会員: ' + memberCount + '件');
+
+  // T_事業所職員
+  var staffSheet = ss.getSheetByName('T_事業所職員');
+  var staffCount = staffSheet ? staffSheet.getLastRow() - 1 : 0;
+  results.push('T_事業所職員: ' + staffCount + '件');
+
+  // T_認証アカウント
+  var authSheet = ss.getSheetByName('T_認証アカウント');
+  var authCount = authSheet ? authSheet.getLastRow() - 1 : 0;
+  results.push('T_認証アカウント: ' + authCount + '件');
+
+  // T_年会費納入履歴
+  var feeSheet = ss.getSheetByName('T_年会費納入履歴');
+  var feeCount = feeSheet ? feeSheet.getLastRow() - 1 : 0;
+  results.push('T_年会費納入履歴: ' + feeCount + '件');
+
+  // 参照整合性チェック
+  var integrityErrors = [];
+
+  if (memberSheet && memberCount > 0) {
+    var mHeaders = memberSheet.getRange(1, 1, 1, memberSheet.getLastColumn()).getValues()[0];
+    var mIdCol = mHeaders.indexOf('会員ID');
+    var mData = memberSheet.getRange(2, 1, memberCount, memberSheet.getLastColumn()).getValues();
+    var memberIds = {};
+    for (var mi = 0; mi < mData.length; mi++) {
+      var mid = String(mData[mi][mIdCol] || '');
+      if (memberIds[mid]) integrityErrors.push('T_会員: 会員ID重複 "' + mid + '"');
+      memberIds[mid] = true;
+    }
+
+    // 職員の会員ID参照チェック
+    if (staffSheet && staffCount > 0) {
+      var sHeaders = staffSheet.getRange(1, 1, 1, staffSheet.getLastColumn()).getValues()[0];
+      var sMemberIdCol = sHeaders.indexOf('会員ID');
+      var sData = staffSheet.getRange(2, 1, staffCount, staffSheet.getLastColumn()).getValues();
+      for (var si = 0; si < sData.length; si++) {
+        var sMid = String(sData[si][sMemberIdCol] || '');
+        if (!memberIds[sMid]) integrityErrors.push('T_事業所職員行' + (si + 2) + ': 会員ID "' + sMid + '" がT_会員に存在しない');
+      }
+    }
+
+    // 認証の会員ID参照チェック
+    if (authSheet && authCount > 0) {
+      var aHeaders = authSheet.getRange(1, 1, 1, authSheet.getLastColumn()).getValues()[0];
+      var aMemberIdCol = aHeaders.indexOf('会員ID');
+      var aLoginIdCol = aHeaders.indexOf('ログインID');
+      var aData = authSheet.getRange(2, 1, authCount, authSheet.getLastColumn()).getValues();
+      var loginIds = {};
+      for (var ai = 0; ai < aData.length; ai++) {
+        var aMid = String(aData[ai][aMemberIdCol] || '');
+        if (!memberIds[aMid]) integrityErrors.push('T_認証アカウント行' + (ai + 2) + ': 会員ID "' + aMid + '" がT_会員に存在しない');
+        var aLid = String(aData[ai][aLoginIdCol] || '');
+        if (loginIds[aLid]) integrityErrors.push('T_認証アカウント: ログインID重複 "' + aLid + '"');
+        loginIds[aLid] = true;
+      }
+    }
+
+    // 年会費の会員ID参照チェック
+    if (feeSheet && feeCount > 0) {
+      var fHeaders = feeSheet.getRange(1, 1, 1, feeSheet.getLastColumn()).getValues()[0];
+      var fMemberIdCol = fHeaders.indexOf('会員ID');
+      var fData = feeSheet.getRange(2, 1, feeCount, feeSheet.getLastColumn()).getValues();
+      for (var fi = 0; fi < fData.length; fi++) {
+        var fMid = String(fData[fi][fMemberIdCol] || '');
+        if (!memberIds[fMid]) integrityErrors.push('T_年会費行' + (fi + 2) + ': 会員ID "' + fMid + '" がT_会員に存在しない');
+      }
+    }
+  }
+
+  var summary = {
+    counts: results,
+    integrityErrors: integrityErrors,
+    integrityOk: integrityErrors.length === 0,
+  };
+
+  Logger.log('=== 検証結果 ===');
+  Logger.log(results.join('\n'));
+  if (integrityErrors.length > 0) {
+    Logger.log('整合性エラー: ' + integrityErrors.length + '件');
+    for (var ei = 0; ei < integrityErrors.length; ei++) Logger.log('  ' + integrityErrors[ei]);
+  } else {
+    Logger.log('参照整合性: OK');
+  }
+
+  return summary;
+}
+
+// ── CLI エントリポイント（clasp run 用） ──
+
+function dryRunMigration() {
+  return migrateRoster2025_({ dryRun: true });
+}
+
+function executeMigration() {
+  var backup = backupBeforeMigration_();
+  Logger.log('バックアップ: ' + backup.suffix);
+  clearMigrationTargets_();
+  var result = migrateRoster2025_({ dryRun: false });
+  var verify = verifyMigration_();
+  result.verification = verify;
+  result.backupSuffix = backup.suffix;
+  return result;
 }

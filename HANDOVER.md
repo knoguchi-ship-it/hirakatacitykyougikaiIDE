@@ -1,13 +1,12 @@
 # 引継ぎ書（次担当者向け）
 
-更新日: **2026-03-23（v127 職員詳細画面改善: 介護支援専門員番号必須化 + role/status ドロップダウン + 最終代表者自動退会）**
+更新日: **2026-03-24（v128 名簿データ移行: ★会員名簿2025年度 → 本番DB一括移行）**
 対象: 枚方市介護支援専門員連絡協議会 会員システム
 
 ---
 
 ## ⚠️ Claude Code 引継ぎ担当者へ — 最初に必読
 
-本書は **Codex（OpenAI）→ Claude Code** への引継ぎ用に更新した。
 次担当者は、まず本書と `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` を読み、現在の本番状態と次作業の境界を把握してから着手すること。
 
 ### Claude Code 向け引継ぎ注意事項
@@ -17,7 +16,7 @@
 | 参照順序 | `HANDOVER.md` → `GLOBAL_GROUND_RULES/CLAUDE.md` → `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md` → `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` の順で確認 |
 | ブラウザ自動化 | Playwright/MCP は利用可。ただし Apps Script の `Manage deployments` は最終的に UI 確認が必要 |
 | デプロイ方法 | `clasp push` + `clasp version` の後、固定 2 Deployment を同一 Version に揃えること |
-| Git 状態 | `main` は v124 デプロイ反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` を正とすること |
+| Git 状態 | `main` は v127 デプロイ反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` を正とすること |
 | 作業ツリー | **クリーン**。`Dust/` は不要ファイル退避用で `.gitignore` 済み |
 | 作業ディレクトリ | `C:\VSCode\CloudePL\hirakatacitykyougikaiIDE`（Windows） |
 | シェル | PowerShell（必要に応じて bash 互換コマンドも可） |
@@ -48,17 +47,19 @@
 
 ## 1.1 次担当者向け・最短状況サマリ（このまま新スレッドへ貼付可）
 
-- 本番Web URLは固定2本（会員/公開）で **@127 同期済み**。
-- v118 で 5 段階権限モデル（MASTER/ADMIN/TRAINING_MANAGER/TRAINING_REGISTRAR/GENERAL）を本番導入済み。IDトークン検証コードは全削除済み。
-- v122〜v124 で年会費管理コンソールを大幅改善（年度自動追加、日付テキスト貼付、Reward Early/Punish Late バリデーション、Partial Success 一括保存）。
-- `main` には v124 が反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` と `git status --short` を正とすること。
+- 本番Web URLは固定2本（会員/公開）で **@127 同期済み**（2026-03-23）。
+- `main` には v127 が反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` と `git status --short` を正とすること。
+- **v128（データ移行・未デプロイ）**: ★会員名簿（2025年度）から本番DBへのデータ一括移行。T_会員205件（個人174+事業所31）、T_事業所職員133件、T_認証アカウント307件、T_年会費納入履歴330件。T_会員に`退会処理日`列を追加。バックアップ `_BAK_20260324_132929`。認証情報 `_CREDENTIALS_TEMP` シートに記録。
+- **v127**: 職員詳細画面改善。介護支援専門員番号を事業所職員・個人会員で必須化（賛助会員のみ任意）。職員権限/会員状態をドロップダウン化。`updateStaff_` にstatus変更+認証アカウント連動を追加。最終代表者が個人会員に転換する場合、事業所を自動退会する処理を実装。
+- **v126**: 事業所会員詳細編集画面改善。WCAG 2.2 準拠バリデーション（FAX以外全必須）、連絡設定見直し（メール配信希望/不要）、予約退会（翌年度4/1無効化+キャンセル可）、職員Master-Detail Drilldown（StaffDetailAdmin新設）。
+- **v125**: 管理コンソール会員管理を全面改善。操作列削除→編集画面に退会/除籍/転換アクション集約。フラット人物リスト一括編集（個人+賛助+職員を人物単位で表示）。会員種別変更（個人⇔事業所職員の双方向転換）。除籍後もアカウント保持し、管理者がいつでも転換で再有効化可能。
+- **v118〜v124**: 5段階権限モデル導入、年会費コンソール大幅改善（年度自動追加、日付テキスト貼付、Reward Early/Punish Late バリデーション、Partial Success 一括保存）。
 - Playwright MCP で `browserType.launchPersistentContext` や Chrome profile lock が出た場合は、認証仕様やコード不具合を先に疑わず、対象ブラウザの再起動と browser/context/page の再取得を先に行うこと。
 - `clasp run` 障害は、既定OAuthクライアントが組織でブロックされたことが原因。
 - 復旧済み手順:
   - `npx clasp logout`
   - `npx clasp login --creds .tmp/oauth-client-uguisu-gas-exec.json --use-project-scopes --no-localhost`
   - `npx clasp run healthCheck` 成功、`npx clasp run getDbInfo` 成功を確認済み。
-- 追加費用: この復旧対応自体では **発生なし**。
 - 参照:
   - `docs/16_INCIDENT_clasp_run_permission_2026-03-14.md`
   - `docs/17_ROOT_CAUSE_ERROR_RESPONSE_PLAYBOOK.md`
@@ -66,10 +67,13 @@
 ## 1.2 この時点の引き継ぎポイント
 
 - スレッドを切っても問題ない状態まで、正本と引き継ぎは同期済み。
-- 現在の本番固定 Deployment は会員/公開ともに **@126**。
+- 現在の本番固定 Deployment は会員/公開ともに **@127**。
+- **v128（データ移行）は `clasp push` 済みだが、本番 Deployment は未更新**。Deployment 更新する場合は `clasp version` → Apps Script UI で固定 2 Deployment の Version を手動更新すること。
+- v128 で本番 DB に名簿データを移行済み（T_会員205件・T_事業所職員133件・T_認証アカウント307件・T_年会費330件）。テストデータは上書き済み。
+- 認証情報（ログインID/初期パスワード）は DB スプレッドシートの `_CREDENTIALS_TEMP` シートに記録済み。会員への通知前にシートを確認すること。
+- バックアップシート `_BAK_20260324_132929` で移行前の状態に `rollbackMigration_('_BAK_20260324_132929')` でロールバック可能。
 - 2026-03-20 に `clasp redeploy` 後 `/exec` が 404 化したため、`appsscript.json` へ `webapp` manifest を追加し、新規 Deployment 2 本へ固定 ID を切り替えて復旧済み。
 - 公開ポータルは 2026-03-20 に MCP Playwright で再表示確認済み。
-- 負荷試験用データは投入済み。`seedPerformanceTestData()` により、`個人会員 300名 / 事業所会員 30件 / 事業所職員 205名 / 認証 505件 / 年会費 660件 / 申込 378件` の状態で検証している。
 - 直近の性能改善は反映済み。
   - 管理トップ: 軽量 API 化 + 50件デフォルトページング
   - 年会費管理: 対象年度取得の軽量化 + 25/50/100件切替 + ページング + 一括保存
@@ -115,18 +119,17 @@
   - 仕様書: `docs/21_IMPL_SPEC_FIELD_ACCESS_CONTROL_v106.md`
 - 会員一括編集（`updateMembersBatch_`）の初版を実装済み。管理トップに一括編集パネルを追加し、代表メール・発送方法・郵送先・会員状態・入退会日を最大100件まで一括保存可能。
 - v118〜v124 で 5 段階権限モデル導入、年会費コンソール大幅改善（バリデーション・Partial Success 一括保存）が完了。
-- v125 で管理コンソール会員管理を大幅改善。
-  - 会員一覧の操作列を削除し、編集画面に退会/除籍/転換アクションを集約
-  - 一括編集をフラット人物リスト化（個人会員+賛助会員+事業所職員を人物単位で表示）
-  - 会員種別変更（個人会員⇔事業所メンバー）のシームレス転換機能
-  - 除籍/退会後もアカウントを保持（有効フラグ=false）し、管理者がいつでも転換で再有効化可能
+- v125 で管理コンソール会員管理を大幅改善（操作列削除→編集画面集約、フラット人物リスト一括編集、会員種別変更シームレス転換）。
+- v126 で事業所会員詳細編集画面を改善（WCAG 2.2準拠必須バリデーション、予約退会、職員Master-Detail Drilldown）。
+- v127 で職員詳細画面を改善（介護支援専門員番号必須化、role/statusドロップダウン、最終代表者自動退会）。
+- v128（データ移行）で ★会員名簿2025年度シートから本番DBへ一括移行。T_会員に`退会処理日`列を追加。移行関数 `migrateRoster2025_` / `executeMigration` / `dryRunMigration` / `verifyMigration_` / `backupBeforeMigration_` / `rollbackMigration_` を実装。
 - 次の主作業は **管理コンソール UI/UX 継続改善** および **必要に応じた機能追加**。
 - Claude Code への次指示は `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` に整理済み。
 - ただし修正後は毎回、`docs/09_DEPLOYMENT_POLICY.md` の事前チェック/完了判定に従って再確認すること。
 - 2026-03-19 時点で **不要ファイルは `Dust/` に退避済み**。記録用スクリーンショット（`v98-*`）のみリポジトリ管理対象。
 - v116 で `T_管理者Googleホワイトリスト` を運用正本とする `管理コンソール（システム権限）` を追加。Googleメール / GoogleユーザーID / 表示名 / 紐付け認証ID / 有効フラグの追加・更新・削除が可能。
 - v116 で管理者ログイン後の左メニュー表示名を、ホワイトリストに紐付く会員・職員情報ベースに変更。紐付け未解決時のみ `システム管理者` を表示する。
-- 2026-03-22 の Playwright 確認では、公開ポータル `@116` 表示と個人会員ログイン成功を確認。管理者ログイン画面の到達も確認したが、この Playwright セッションでは Google セッション未取得のため管理者ログイン完了までは未確認。
+- 2026-03-23 の Playwright 確認では、会員マイページ・公開ポータルともに `@127` デプロイ更新を MCP Playwright で実施完了。`healthCheck` も成功。
 
 ---
 
@@ -153,19 +156,51 @@
 
 ---
 
-## 3. 本番デプロイの現状（2026-03-20 引継ぎ時点）
+## 3. 本番デプロイの現状（2026-03-23 引継ぎ時点）
 
 ### 3.1 固定 Deployment ID（**絶対に変更禁止**）
 
 | 用途 | Deployment ID | 現在 Version | URL |
 |---|---|---|---|
-| **会員マイページ** | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@124** | `.../exec` |
-| **公開ポータル** | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@124** | `.../exec?app=public` |
+| **会員マイページ** | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@127** | `.../exec` |
+| **公開ポータル** | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@127** | `.../exec?app=public` |
 
 > **鉄則**: 2 つの Deployment ID は常に同一バージョンへ同時更新。片方だけ更新禁止。
 > `npx clasp deployments` では表示名が実UIの `Manage deployments` と一致しないことがある。最終判断は Apps Script UI の固定2 Deployment を正とする。
 
-### 3.2 最新リリース（v118〜v124）の変更内容
+### 3.2 最新リリース（v118〜v128）の変更内容
+
+#### v128（データ移行: ★会員名簿2025年度 → 本番DB一括移行）
+- ソース: ★会員名簿スプレッドシート（ID: `1aNKUc-lsJbc-whDY2SWRQW6I_npYnPloTurnyoQxGPQ`）の `2025年度` シート（326データ行・21列）
+- T_会員に `退会処理日` 列を追加（退会手続き実施日。退会日は年度末3/31を自動計算）
+- 移行結果: T_会員 205件（個人174+事業所31）、T_事業所職員 133件、T_認証アカウント 307件、T_年会費納入履歴 330件
+- フリガナ欄に漢字が入っている19名を退会者として自動判定（退会処理日=備考欄の日付、退会日=当該年度末）
+- E列=変更の19行はスキップ（変更前の旧情報）
+- ログインID: 介護支援専門員番号を使用。番号なしの場合は9始まり9桁の自動ID（26件）。CM番号重複2件は自動ID発番で解決
+- 認証情報（ログインID/初期パスワード）は `_CREDENTIALS_TEMP` シートに記録
+- バックアップ: `_BAK_20260324_132929` サフィックスで4テーブルのバックアップシートを保持
+- 移行関数: `dryRunMigration()` / `executeMigration()` / `verifyMigration_()` / `backupBeforeMigration_()` / `rollbackMigration_(suffix)` を実装
+
+#### v127（職員詳細画面改善: 介護支援専門員番号必須化 + role/status ドロップダウン + 最終代表者自動退会）
+- 介護支援専門員番号を事業所職員・個人会員で必須化（賛助会員のみ任意）
+- StaffDetailAdmin: 職員ID表示削除、職員権限ドロップダウン化（REPRESENTATIVE変更可）、会員状態ドロップダウン化（確認ダイアログ付き）、除籍日表示
+- MemberDetailAdmin: 個人会員の介護支援専門員番号必須化（バリデーション+RequiredMark）
+- `updateStaff_()`: status を allowlist に追加。LEFT→認証アカウント無効化、ENROLLED→再有効化（`enableAuthAccountsByStaffId_` 新設）。REPRESENTATIVE降格時の在籍職員チェック
+- `convertStaffToIndividual_()`: 最後の在籍職員（代表者）が転換する場合、事業所を自動退会（WITHDRAWN）。`officeWithdrawn: true` を返却
+- MemberDetailAdmin 転換モーダル: 最後の1名時に後任選択非表示+自動退会メッセージ表示
+
+#### v126（事業所会員詳細編集画面改善: 必須バリデーション + 予約退会 + 職員Drilldown）
+- WCAG 2.2 準拠必須バリデーション（FAX以外全必須: `aria-required`/`aria-invalid`/`aria-describedby`、blur時バリデーション）
+- 連絡設定見直し: メール配信「希望する/希望しない」（DB: EMAIL/POST）、郵送先区分は事業所会員で非表示（保存時OFFICE固定）
+- 予約退会: `scheduleWithdrawMember_` で翌年度4/1に退会予約、年度末前なら `cancelScheduledWithdraw_` でキャンセル可
+- 職員Master-Detail Drilldown: StaffDetailAdmin 新設。事業所職員一覧から職員詳細編集画面に遷移
+- `updateStaff_` API: 職員個別更新（氏名/カナ/メール/介護支援専門員番号/権限/入会日）
+
+#### v125（管理コンソール会員管理改善: 操作列削除 + フラット一括編集 + 会員種別変更）
+- 会員一覧の操作列を削除し、編集画面に退会/除籍/転換アクションを集約
+- フラット人物リスト一括編集（個人+賛助+事業所職員を人物単位で表示）: `getAdminPersonList_` / `updatePersonsBatch_`
+- 会員種別変更（個人⇔事業所職員の双方向転換）: `convertMemberType_`（`convertStaffToIndividual_` / `convertIndividualToStaff_`）
+- 除籍後もアカウント保持（有効フラグ=false）し、管理者がいつでも転換で再有効化可能
 
 #### v124（年会費バリデーション改善: Reward Early/Punish Late + Partial Success batch save）
 - 日付入力: テキスト入力中はエラー非表示（Punish Late = blur 時のみ検証）、修正したら即座にエラー解除（Reward Early）
@@ -197,7 +232,7 @@
 - GENERAL は管理者ログイン不可（会員マイページのみ利用）
 - IDトークン検証コード（`verifyGoogleIdToken_`、`adminGoogleLogin_`、GIS 関連 UI）を全削除
 - フロントエンド: 権限レベルに応じたメニュー表示制御、システム権限画面を 3 フィールド（メール・検索付き会員・権限ドロップダウン）に簡素化
-- DB_SCHEMA_VERSION: `2026-03-22-01`
+- DB_SCHEMA_VERSION: `2026-03-24-01`
 
 #### v106→v108（フィールドレベルアクセス制御拡張: NIST RBAC モデル準拠）
 - v105 のフィールドレベルアクセス制御を NIST RBAC モデルに拡張
@@ -479,11 +514,14 @@ hirakatacitykyougikaiIDE/
 │   ├── components/         # 会員マイページ用コンポーネント
 │   │   ├── application/    # 入会申込フォーム（MemberApplicationForm, types）
 │   │   ├── AnnualFeeManagement.tsx  # 年会費管理コンソール（v96〜v124）
+│   │   ├── MemberDetailAdmin.tsx   # 会員詳細編集（退会/除籍/転換アクション含む）
 │   │   ├── Sidebar.tsx     # サイドバー（権限別メニュー表示）
-│   │   └── StaffTrainingView.tsx  # v106: 職員別研修申込モーダル
+│   │   ├── StaffDetailAdmin.tsx    # 職員詳細編集（v126〜v127: role/status/介護支援専門員番号）
+│   │   └── StaffTrainingView.tsx   # v106: 職員別研修申込モーダル
 │   ├── public-portal/      # 公開ポータル React ソース
 │   ├── services/           # 会員マイページ側 API / 外部連携
 │   ├── shared/             # 共通型定義・API ユーティリティ
+│   ├── MemberBatchEditor.tsx # フラット人物リスト一括編集（v125）
 │   ├── App.tsx             # 会員マイページ ルート
 │   └── index.tsx           # 会員マイページ エントリポイント
 ├── docs/                   # 正本ドキュメント群
@@ -515,7 +553,7 @@ hirakatacitykyougikaiIDE/
 | `T_会員` | `事業所番号` | 事業所会員の事業所番号 |
 | `T_事業所職員` | `介護支援専門員番号` | 職員の介護支援専門員番号（8桁、ログインIDとしても使用） |
 
-### 8.3 T_研修 の列順（DB_SCHEMA_VERSION = 2026-03-22-01）
+### 8.3 T_研修 の列順（DB_SCHEMA_VERSION = 2026-03-24-01）
 
 ```
 研修ID, 研修名, 開催日, 開催終了時刻, 定員, 申込者数, 開催場所, 研修状態コード,
@@ -639,6 +677,7 @@ Googleアカウントでアクセス
 
 | バージョン | 内容 |
 |---|---|
+| **v128** | データ移行: ★会員名簿2025年度→本番DB一括移行。T_会員205件（個人174+事業所31）、T_事業所職員133件、T_認証アカウント307件、T_年会費330件。T_会員に`退会処理日`列追加。フリガナ漢字19名退会判定。CM番号重複は自動ID発番。`_CREDENTIALS_TEMP`シートに認証情報記録 |
 | **v127** | 職員詳細画面改善: 介護支援専門員番号必須化（事業所職員+個人会員、賛助会員のみ任意）、職員ID表示削除、職員権限/会員状態ドロップダウン化（REPRESENTATIVE変更可）、除籍日表示、`updateStaff_` にstatus allowlist追加+認証アカウント連動、`convertStaffToIndividual_` 最終代表者自動退会 |
 | **v126** | 事業所会員詳細編集画面改善: WCAG 2.2準拠必須バリデーション（FAX以外全必須）、連絡設定見直し（メール配信希望/不要、郵送先区分自動OFFICE固定）、予約退会（翌年度4/1無効化+キャンセル可）、職員Master-Detail Drilldown（StaffDetailAdmin新設） |
 | **v125** | 管理コンソール会員管理改善: 操作列削除→編集画面集約、退会/除籍アクション、フラット人物リスト一括編集（`getAdminPersonList_`/`updatePersonsBatch_`）、会員種別変更（`convertMemberType_`: 個人⇔事業所職員双方向）、除籍後アカウント保持+転換再有効化 |
@@ -737,7 +776,7 @@ Googleアカウントでアクセス
 - **担当者**: Claude Code (claude-opus-4-6)
 - **公開ポータル ID**: `AKfycbxyuUXg...7Zp` → @120（v121 は管理者一覧UI改善のみ）
 - **会員マイページ ID**: `AKfycbywpWoY...bQx` → @120
-- **備考**: 5 段階権限モデル（MASTER/ADMIN/TRAINING_MANAGER/TRAINING_REGISTRAR/GENERAL）を導入。IDトークン検証コードを全削除（`verifyGoogleIdToken_`、`adminGoogleLogin_`、GIS UI）。`M_管理者権限` マスタ追加。`T_管理者Googleホワイトリスト` スキーマ刷新（GoogleユーザーID・表示名を廃止し、権限コード・変更者メール・変更日時を追加）。最後のマスター保護、ADMIN→MASTER 編集制限、TRAINING_REGISTRAR は自分の研修のみ編集可。v119 で列正規化バグ修正、v121 で管理者一覧テーブルビュー（ソート・フィルタ）追加。DB_SCHEMA_VERSION: `2026-03-22-01`。
+- **備考**: 5 段階権限モデル（MASTER/ADMIN/TRAINING_MANAGER/TRAINING_REGISTRAR/GENERAL）を導入。IDトークン検証コードを全削除（`verifyGoogleIdToken_`、`adminGoogleLogin_`、GIS UI）。`M_管理者権限` マスタ追加。`T_管理者Googleホワイトリスト` スキーマ刷新（GoogleユーザーID・表示名を廃止し、権限コード・変更者メール・変更日時を追加）。最後のマスター保護、ADMIN→MASTER 編集制限、TRAINING_REGISTRAR は自分の研修のみ編集可。v119 で列正規化バグ修正、v121 で管理者一覧テーブルビュー（ソート・フィルタ）追加。DB_SCHEMA_VERSION: `2026-03-24-01`。
 - **検証結果**: `npm run typecheck` / `npm run build` / `npm run build:gas` 成功。`npx clasp run healthCheck` / `npx clasp run getDbInfo` 成功。Playwright で MASTER 権限での管理者ログイン、権限別メニュー表示、システム権限画面の 3 フィールド UI を確認。
 - **Git コミット**: `4284462`〜`ae8e4ab` on `main`
 
