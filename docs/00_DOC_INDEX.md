@@ -1,6 +1,6 @@
 ﻿# ドキュメント索引（現行）
 
-更新日: 2026-03-21
+更新日: 2026-03-25
 
 ## 現行の正本
 - `README.md`
@@ -34,6 +34,10 @@
 - `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` ← ClaudeCode 向け次作業指示書
 - `docs/21_IMPL_SPEC_FIELD_ACCESS_CONTROL_v106.md` ← v106 フィールドレベルアクセス制御拡張の実装仕様書
 - `docs/22_TEST_SPEC_v106_FIELD_ACCESS_CONTROL.md` ← v106 テスト仕様書（バックエンド10項目+フロントエンド12項目+回帰10項目）
+- `docs/23_MIGRATION_HANDOVER_v128.md` ← v128 名簿データ移行の引継ぎ・解析記録
+- `docs/24_TABLE_DESIGN_MIGRATION_v128_REDO_2026-03-25.md` ← v128 再移行専用テーブル設計書
+- `docs/25_SOW_MIGRATION_v128_REDO_2026-03-25.md` ← v128 再移行専用 SOW
+- `docs/26_BROWSER_AUDIT_COLUMN_MAPPING_HANDOVER_2026-03-25.md` ← 2026-03-25 ブラウザ実機監査メモ（pre-repair の監査記録）
 
 ## 履歴資料（参照のみ）
 - `docs/archive/docs_history/*`

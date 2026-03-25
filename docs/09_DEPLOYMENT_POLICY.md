@@ -19,7 +19,7 @@
 | **会員マイページ** | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `.../exec` | 2026-03-20 Web app 再発行（v111 復旧後の現行固定） |
 | **公開ポータル** | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `.../exec?app=public` | 2026-03-20 Web app 再発行（v111 復旧後の現行固定） |
 
-> 両 Deployment とも **@117** で同期済み（2026-03-22）。
+> 両 Deployment とも **@128** で同期済み（2026-03-25）。
 > `npx clasp deployments` の表示名が Apps Script UI の `Manage deployments` の表示と食い違うことがあるため、固定IDの最終確認は Apps Script UI を正とする。
 
 ---
@@ -190,6 +190,12 @@ Deploy > Manage deployments > 該当 ID を確認
 ### 2026-03-15（固定2 Deployment の Version 同期漏れ予防）
 - `npx clasp version` 後にコードは上がっていても、固定 2 Deployment ID が旧 Version のまま残ることがある。
 - **教訓**: `clasp version` 完了だけでは本番反映完了にしない。必ず Apps Script UI の `Manage deployments` で固定 2 Deployment ID を同じ Version へ更新し、`npx clasp deployments` と実ブラウザで再確認する。
+
+### 2026-03-25（v128 本番反映 + 固定URL確認）
+- `npx clasp version "v129 会員DB列整合修復・名簿移行補正・本番deployment更新"` 実行時に version `128` が採番された。
+- `npx clasp redeploy <deploymentId> -V 128` で固定 2 Deployment ID をともに `@128` へ更新した。
+- `npx clasp deployments` で会員/公開ともに `@128` を確認した。
+- 固定 URL `/exec` と `/exec?app=public` をブラウザで再確認し、会員マイページの管理コンソールと公開ポータルの表示を確認した。
 
 ### 2026-03-15（ドキュメント更新時の文字化け）
 - PowerShell/ツール経由の書き戻しで UTF-8 形式が崩れると、日本語の正本ドキュメントが文字化けすることがある。
