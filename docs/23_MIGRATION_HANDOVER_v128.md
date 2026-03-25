@@ -2,7 +2,7 @@
 
 作成日: 2026-03-25
 対象バージョン: v128（コミット `0651721`）
-ステータス: **2026-03-25 再移行・DB補正・年会費査収・本番deployment反映済み / 件数・参照整合性OK / migration provenance未収束**
+ステータス: **2026-03-26 provenance収束・外部バックアップ化・本番反映済み / 件数・参照整合性OK**
 
 ---
 
@@ -42,10 +42,11 @@
 - `sourceCoverage`: 384 / 384 = `ok`
 - `verification.integrityOk = true`
 - `verification.integrityErrors = []`
-- 2026-03-25 時点の live DB 再確認では `reconcileMigrationWithSource.ok = false`
-- `reconcileMigrationWithSource.mappedRowCount = 0`
-- `reconcileMigrationWithSource.mismatchCount = 384`
-- `getDbInfo` のシート一覧に `_MIGRATION_SUMMARY` / `_MIGRATION_MAP` / `_MIGRATION_SKIPPED` / `_CREDENTIALS_TEMP` は現存しない
+- 2026-03-26 再確認では `dryRunMigration()` 実行後に `_MIGRATION_SUMMARY` / `_MIGRATION_MAP` / `_MIGRATION_SKIPPED` を live DB へ再生成済み
+- `reconcileMigrationWithSource.ok = true`
+- `reconcileMigrationWithSource.mappedRowCount = 326`
+- `reconcileMigrationWithSource.mismatchCount = 0`
+- `getDbInfo` のシート一覧に `_MIGRATION_SUMMARY` / `_MIGRATION_MAP` / `_MIGRATION_SKIPPED` は現存、`_CREDENTIALS_TEMP` は現存しない
 
 ### 2026-03-25 DB補正結果
 - 実行関数: `repairRosterMigrationDataJson`
@@ -75,9 +76,8 @@
 - `expectedAmountTotal = 1336000`
 
 ### ロールバック手段
-- バックアップシート: `_BAK_20260324_132929`
-- ロールバック関数: `rollbackMigration_('_BAK_20260324_132929')`
-- 2026-03-26 以降の `backupBeforeMigration_()` は live DB 内 `_BAK_*` に加えて外部バックアップスプレッドシートも生成する
+- 2026-03-26 時点で live DB 内 `_BAK_*` は削除済み
+- 2026-03-26 以降の `backupBeforeMigration_()` は外部バックアップスプレッドシートを正式退避先とする
 - 最新外部バックアップ: `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA`
 - 外部バックアップ URL: `https://docs.google.com/spreadsheets/d/11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA/edit`
 - 外部バックアップからの復元関数: `rollbackMigrationFromBackupSpreadsheet_('11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA')`
@@ -182,7 +182,7 @@
 
 ### Step 1: 現行データのロールバック
 ```bash
-npx clasp run rollbackMigration_ --params '["_BAK_20260324_132929"]'
+npx clasp run rollbackMigrationFromBackupSpreadsheet_ --params '["11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA"]'
 ```
 
 ### Step 2: 移行コードの修正
@@ -292,9 +292,7 @@ Sources:
 
 ## 9. 結論
 
-v128 の移行は、2026-03-24 実行結果では **`変更` 行未採用により件数不足** だったが、2026-03-25 に runId `20260325T120805-35e3927e` で再移行し、その後 `repairRosterMigrationDataJson` で個人会員 158 件の `介護支援専門員番号`、`repairAnnualFeeAgainstSourceJson` で事業所会員の 2024 年度会費 3 件を補正した。現在は件数・参照整合性・年会費査収・固定URL動作は正常だが、`_MIGRATION_*` 監査シートが live DB に現存せず、`reconcileMigrationWithSource` は未収束である。次担当者は以下の優先順で対応すること:
+v128 の移行は、2026-03-24 実行結果では **`変更` 行未採用により件数不足** だったが、2026-03-25 に runId `20260325T120805-35e3927e` で再移行し、その後 `repairRosterMigrationDataJson` で個人会員 158 件の `介護支援専門員番号`、`repairAnnualFeeAgainstSourceJson` で事業所会員の 2024 年度会費 3 件を補正した。2026-03-26 には `dryRunMigration()` で `_MIGRATION_*` を live DB に再生成し、`reconcileMigrationWithSource.ok=true`、`auditMigrationConsistencyAgainstSourceJson.ok=true` まで収束した。現在は件数・参照整合性・年会費査収・migration provenance・固定URL動作が正常で、正式バックアップは外部スプレッドシート `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA` とする。次担当者が着手するなら残課題は以下のみ:
 
-1. **最優先**: `dryRunMigration()` を再実行し、`_MIGRATION_SUMMARY` / `_MIGRATION_MAP` / `_MIGRATION_SKIPPED` を live DB に再生成できるか確認する
-2. **高優先**: `reconcileMigrationWithSource` を再実行し、`mappedRowCount > 0` かつ `ok=true` まで provenance を収束させる
-3. **中優先**: T_事業所職員の姓名分離スキーマ変更
-4. **中優先**: `_CREDENTIALS_TEMP` の再生成要否と認証通知手順を整理する
+1. **中優先**: T_事業所職員の姓名分離スキーマ変更
+2. **中優先**: `_CREDENTIALS_TEMP` の再生成要否と認証通知手順を整理する

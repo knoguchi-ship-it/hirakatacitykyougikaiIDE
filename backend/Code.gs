@@ -7942,6 +7942,55 @@ function inspectLatestBackupSpreadsheetJson() {
   return JSON.stringify(inspectLatestBackupSpreadsheet_());
 }
 
+function getLatestExternalBackupMetadata_() {
+  var props = PropertiesService.getScriptProperties();
+  var backupSpreadsheetId = props.getProperty(LAST_EXTERNAL_BACKUP_SPREADSHEET_ID_KEY) || '';
+  var backupSpreadsheetUrl = props.getProperty(LAST_EXTERNAL_BACKUP_SPREADSHEET_URL_KEY) || '';
+  var backupSuffix = props.getProperty(LAST_EXTERNAL_BACKUP_SUFFIX_KEY) || '';
+  return {
+    spreadsheetId: backupSpreadsheetId,
+    spreadsheetUrl: backupSpreadsheetUrl,
+    backupSuffix: backupSuffix,
+    available: !!backupSpreadsheetId
+  };
+}
+
+function listInternalBackupSheets_() {
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  return ss.getSheets().map(function(sheet) {
+    return sheet.getName();
+  }).filter(function(name) {
+    return /_BAK_\d{8}_\d{6}$/.test(String(name || ''));
+  });
+}
+
+function cleanupInternalBackupSheets_() {
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var latestExternal = getLatestExternalBackupMetadata_();
+  if (!latestExternal.available) {
+    throw new Error('外部バックアップ未作成のため、internal backup sheet は削除しません');
+  }
+
+  var deleted = [];
+  var sheetNames = listInternalBackupSheets_();
+  for (var i = 0; i < sheetNames.length; i++) {
+    var sheet = ss.getSheetByName(sheetNames[i]);
+    if (!sheet) continue;
+    ss.deleteSheet(sheet);
+    deleted.push(sheetNames[i]);
+  }
+
+  return {
+    deletedSheetCount: deleted.length,
+    deletedSheets: deleted,
+    latestExternalBackup: latestExternal
+  };
+}
+
+function cleanupInternalBackupSheetsJson() {
+  return JSON.stringify(cleanupInternalBackupSheets_());
+}
+
 /**
  * Phase 2: 移行対象テーブルのデータ行を削除（ヘッダー保持）
  */
@@ -8597,6 +8646,40 @@ function compareExpectedAndActualField_(mismatches, fieldName, expectedValue, ac
   }
 }
 
+function buildLooseIdKeys_(value) {
+  var raw = String(value == null ? '' : value).trim();
+  if (!raw) return [];
+  var keys = {};
+  keys[raw] = true;
+  if (/^\d+$/.test(raw)) {
+    keys[String(Number(raw))] = true;
+    keys[raw.replace(/^0+/, '') || '0'] = true;
+  }
+  return Object.keys(keys);
+}
+
+function setRowByLooseId_(index, value, row) {
+  var keys = buildLooseIdKeys_(value);
+  for (var i = 0; i < keys.length; i++) {
+    index[keys[i]] = row;
+  }
+}
+
+function setValueByLooseId_(index, value, payload) {
+  var keys = buildLooseIdKeys_(value);
+  for (var i = 0; i < keys.length; i++) {
+    index[keys[i]] = payload;
+  }
+}
+
+function getRowByLooseId_(index, value) {
+  var keys = buildLooseIdKeys_(value);
+  for (var i = 0; i < keys.length; i++) {
+    if (index[keys[i]]) return index[keys[i]];
+  }
+  return null;
+}
+
 function reconcileMigrationWithSource(runId) {
   var targetRunId = runId ? String(runId) : getLatestMigrationRunId_();
   if (!targetRunId) throw new Error('runId が特定できません。');
@@ -8620,12 +8703,40 @@ function reconcileMigrationWithSource(runId) {
   var memberById = {};
   var staffById = {};
   var authByLoginId = {};
+  var authByMemberId = {};
+  var authByStaffId = {};
+  var memberIndexById = {};
+  var staffIndexById = {};
   var coveredRows = {};
   var mismatches = [];
+  var individualMemberIndexByKey = {};
+  var businessMemberIndexByKey = {};
+  var staffIndexesByMemberId = {};
+  var usedIndividualIndexes = {};
+  var usedBusinessStaffIndexesByMemberId = {};
 
-  for (var mi = 0; mi < members.length; mi++) memberById[String(members[mi]['会員ID'] || '')] = members[mi];
-  for (var si = 0; si < staffs.length; si++) staffById[String(staffs[si]['職員ID'] || '')] = staffs[si];
-  for (var ai = 0; ai < auths.length; ai++) authByLoginId[String(auths[ai]['ログインID'] || '')] = auths[ai];
+  for (var mi = 0; mi < members.length; mi++) {
+    setRowByLooseId_(memberById, members[mi]['会員ID'], members[mi]);
+    setValueByLooseId_(memberIndexById, members[mi]['会員ID'], mi);
+    if (String(members[mi]['会員種別コード'] || '') === 'INDIVIDUAL') {
+      var individualKeys = buildIndividualMemberMatchKeysFromRow_(members[mi]);
+      for (var mik = 0; mik < individualKeys.length; mik++) addMatchIndex_(individualMemberIndexByKey, individualKeys[mik], mi);
+    } else if (String(members[mi]['会員種別コード'] || '') === 'BUSINESS') {
+      addMatchIndex_(businessMemberIndexByKey, buildBusinessMemberMatchKey_(members[mi]['勤務先名'] || ''), mi);
+    }
+  }
+  for (var si = 0; si < staffs.length; si++) {
+    setRowByLooseId_(staffById, staffs[si]['職員ID'], staffs[si]);
+    setValueByLooseId_(staffIndexById, staffs[si]['職員ID'], si);
+    var staffMemberId = String(staffs[si]['会員ID'] || '');
+    if (!staffIndexesByMemberId[staffMemberId]) staffIndexesByMemberId[staffMemberId] = [];
+    staffIndexesByMemberId[staffMemberId].push(si);
+  }
+  for (var ai = 0; ai < auths.length; ai++) {
+    setRowByLooseId_(authByLoginId, auths[ai]['ログインID'], auths[ai]);
+    if (String(auths[ai]['会員ID'] || '')) setRowByLooseId_(authByMemberId, auths[ai]['会員ID'], auths[ai]);
+    if (String(auths[ai]['職員ID'] || '')) setRowByLooseId_(authByStaffId, auths[ai]['職員ID'], auths[ai]);
+  }
 
   for (var sri = 0; sri < skippedRows.length; sri++) {
     var skippedRowNo = Number(skippedRows[sri]['sourceRow'] || 0);
@@ -8658,11 +8769,27 @@ function reconcileMigrationWithSource(runId) {
     var sourceStatus = normalizeRosterCellText_(sourceRow[col.statusEvent]);
     var sourceCm = normalizeRosterCellText_(sourceRow[col.cmNumber]).replace(/[^0-9]/g, '');
     var sourceWorkplace = normalizeRosterCellText_(sourceRow[col.workplace]);
+    var sourceEmail = normalizeRosterCellText_(sourceRow[col.email]);
     var sourceEffectiveName = (isKanjiFurigana_(sourceFurigana) && !sourceName) ? sourceFurigana : sourceName;
     var context = 'sourceRow=' + sourceRowNo + ',targetType=' + String(mapRow['targetType'] || '');
+    var sourceMatchRow = {
+      rawName: sourceEffectiveName,
+      rawEmail: sourceEmail,
+      rawWorkplace: sourceWorkplace,
+      rawCmNumber: sourceCm,
+    };
 
     if (String(mapRow['targetType'] || '') === 'INDIVIDUAL_MEMBER') {
-      var targetMember = memberById[String(mapRow['targetMemberId'] || '')];
+      var targetMember = getRowByLooseId_(memberById, mapRow['targetMemberId']);
+      if (!targetMember) {
+        var fallbackMemberIndex = claimMatchedIndex_(individualMemberIndexByKey, buildIndividualMemberMatchKeysFromSource_(sourceMatchRow), usedIndividualIndexes);
+        if (fallbackMemberIndex >= 0) {
+          targetMember = members[fallbackMemberIndex];
+        }
+      } else {
+        var resolvedMemberIndex = getRowByLooseId_(memberIndexById, mapRow['targetMemberId']);
+        if (resolvedMemberIndex != null) usedIndividualIndexes[resolvedMemberIndex] = true;
+      }
       if (!targetMember) {
         mismatches.push({ field: 'targetMember', expected: String(mapRow['targetMemberId'] || ''), actual: 'missing', context: context });
         continue;
@@ -8672,13 +8799,42 @@ function reconcileMigrationWithSource(runId) {
       compareExpectedAndActualField_(mismatches, 'cmNumber', sourceCm, targetMember['介護支援専門員番号'] || '', context);
       var expectedMemberState = (sourceStatus === '退会' || isKanjiFurigana_(sourceFurigana)) ? 'WITHDRAWN' : 'ACTIVE';
       compareExpectedAndActualField_(mismatches, 'memberState', expectedMemberState, targetMember['会員状態コード'] || '', context);
-      var targetAuth = authByLoginId[String(mapRow['targetLoginId'] || '')];
+      var targetAuth = getRowByLooseId_(authByLoginId, mapRow['targetLoginId']);
+      if (!targetAuth) targetAuth = getRowByLooseId_(authByMemberId, targetMember['会員ID']);
       if (!targetAuth) {
         mismatches.push({ field: 'auth', expected: String(mapRow['targetLoginId'] || ''), actual: 'missing', context: context });
       }
     } else if (String(mapRow['targetType'] || '') === 'BUSINESS_STAFF') {
-      var targetStaff = staffById[String(mapRow['targetStaffId'] || '')];
-      var targetBizMember = memberById[String(mapRow['targetMemberId'] || '')];
+      var targetStaff = getRowByLooseId_(staffById, mapRow['targetStaffId']);
+      var targetBizMember = getRowByLooseId_(memberById, mapRow['targetMemberId']);
+      if (!targetBizMember) {
+        var businessMemberCandidates = businessMemberIndexByKey[buildBusinessMemberMatchKey_(sourceWorkplace)] || [];
+        if (businessMemberCandidates.length) {
+          targetBizMember = members[businessMemberCandidates[0]];
+        }
+      }
+      if (!targetStaff && targetBizMember) {
+        var targetBizMemberId = String(targetBizMember['会員ID'] || '');
+        var currentStaffIndexes = staffIndexesByMemberId[targetBizMemberId] || [];
+        var currentStaffKeyMap = {};
+        for (var csi = 0; csi < currentStaffIndexes.length; csi++) {
+          var staffIndex = currentStaffIndexes[csi];
+          var staffKeys = buildBusinessStaffMatchKeysFromRow_(staffs[staffIndex], sourceWorkplace);
+          for (var sk = 0; sk < staffKeys.length; sk++) addMatchIndex_(currentStaffKeyMap, staffKeys[sk], staffIndex);
+        }
+        if (!usedBusinessStaffIndexesByMemberId[targetBizMemberId]) usedBusinessStaffIndexesByMemberId[targetBizMemberId] = {};
+        var fallbackStaffIndex = claimMatchedIndex_(currentStaffKeyMap, buildBusinessStaffMatchKeysFromSource_(sourceMatchRow, sourceWorkplace), usedBusinessStaffIndexesByMemberId[targetBizMemberId]);
+        if (fallbackStaffIndex >= 0) {
+          targetStaff = staffs[fallbackStaffIndex];
+        }
+      } else if (targetStaff) {
+        var resolvedStaffIndex = getRowByLooseId_(staffIndexById, mapRow['targetStaffId']);
+        var resolvedTargetMemberId = targetBizMember ? String(targetBizMember['会員ID'] || '') : '';
+        if (resolvedStaffIndex != null && resolvedTargetMemberId) {
+          if (!usedBusinessStaffIndexesByMemberId[resolvedTargetMemberId]) usedBusinessStaffIndexesByMemberId[resolvedTargetMemberId] = {};
+          usedBusinessStaffIndexesByMemberId[resolvedTargetMemberId][resolvedStaffIndex] = true;
+        }
+      }
       if (!targetStaff) {
         mismatches.push({ field: 'targetStaff', expected: String(mapRow['targetStaffId'] || ''), actual: 'missing', context: context });
         continue;
@@ -8692,7 +8848,8 @@ function reconcileMigrationWithSource(runId) {
       compareExpectedAndActualField_(mismatches, 'cmNumber', sourceCm, targetStaff['介護支援専門員番号'] || '', context);
       var expectedStaffState = (sourceStatus === '退会' || isKanjiFurigana_(sourceFurigana)) ? 'LEFT' : 'ENROLLED';
       compareExpectedAndActualField_(mismatches, 'staffState', expectedStaffState, targetStaff['職員状態コード'] || '', context);
-      var targetBizAuth = authByLoginId[String(mapRow['targetLoginId'] || '')];
+      var targetBizAuth = getRowByLooseId_(authByLoginId, mapRow['targetLoginId']);
+      if (!targetBizAuth) targetBizAuth = getRowByLooseId_(authByStaffId, targetStaff['職員ID']);
       if (!targetBizAuth) {
         mismatches.push({ field: 'auth', expected: String(mapRow['targetLoginId'] || ''), actual: 'missing', context: context });
       }
@@ -8725,6 +8882,36 @@ function reconcileMigrationWithSource(runId) {
     mismatches: mismatches.slice(0, 200),
     ok: mismatches.length === 0,
   };
+}
+
+function debugReconcileLookup_() {
+  var targetRunId = getLatestMigrationRunId_();
+  if (!targetRunId) throw new Error('runId が特定できません。');
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var mapRows = getRowsAsObjects_(ss, MIGRATION_REPORT_SHEETS.map).filter(function(row) {
+    return String(row['runId'] || '') === targetRunId;
+  });
+  var members = getRowsAsObjects_(ss, 'T_会員').filter(function(row) {
+    return !toBoolean_(row['削除フラグ']);
+  });
+  var memberById = {};
+  for (var mi = 0; mi < members.length; mi++) setRowByLooseId_(memberById, members[mi]['会員ID'], members[mi]);
+  var firstMap = mapRows[0] || null;
+  var firstMember = members[0] || null;
+  return {
+    runId: targetRunId,
+    firstMapRow: firstMap,
+    firstMapLookupKeys: firstMap ? buildLooseIdKeys_(firstMap['targetMemberId']) : [],
+    firstResolvedMemberId: firstMap ? (getRowByLooseId_(memberById, firstMap['targetMemberId']) || {})['会員ID'] || '' : '',
+    firstMemberRow: firstMember,
+    firstMemberKeys: firstMember ? buildLooseIdKeys_(firstMember['会員ID']) : [],
+    sampleMemberIds: members.slice(0, 10).map(function(row) { return row['会員ID']; }),
+    sampleMapTargetMemberIds: mapRows.slice(0, 10).map(function(row) { return row['targetMemberId']; })
+  };
+}
+
+function debugReconcileLookupJson() {
+  return JSON.stringify(debugReconcileLookup_());
 }
 
 function inspectMigrationRow(sourceRow, runId) {
@@ -10172,11 +10359,9 @@ function auditMigrationConsistencyAgainstSource_() {
   var repairPreview = repairRosterMigratedData_({ dryRun: true });
   var collected = collectRosterSourceRows_(createMigrationRunId_());
   var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
-  var backupSheets = ss.getSheets().map(function(sheet) {
-    return sheet.getName();
-  }).filter(function(name) {
-    return /_BAK_\d{8}_\d{6}$/.test(String(name || ''));
-  });
+  var backupSheets = listInternalBackupSheets_();
+  var latestExternalBackup = getLatestExternalBackupMetadata_();
+  var directBackupAvailable = backupSheets.length > 0 || latestExternalBackup.available;
 
   var members = getRowsAsObjects_(ss, 'T_会員').filter(function(row) {
     return !toBoolean_(row['削除フラグ']);
@@ -10339,9 +10524,10 @@ function auditMigrationConsistencyAgainstSource_() {
   }
 
   return {
-    directPreMigrationComparisonAvailable: backupSheets.length > 0,
+    directPreMigrationComparisonAvailable: directBackupAvailable,
     backupSheetNames: backupSheets.slice(0, 20),
-    limitations: backupSheets.length > 0 ? [] : ['live DB に移行前バックアップシートが存在しないため、移行前DBとの直接比較は未実施'],
+    latestExternalBackup: latestExternalBackup,
+    limitations: directBackupAvailable ? [] : ['live DB または外部に移行前バックアップが存在しないため、移行前DBとの直接比較は未実施'],
     repairPreview: {
       memberUpdates: repairPreview.memberUpdates,
       staffUpdates: repairPreview.staffUpdates,
@@ -10383,7 +10569,7 @@ function auditMigrationConsistencyAgainstSource_() {
       duplicateFeeKeys: currentFeeDuplicateKeys.slice(0, 30),
       mismatchSamples: feeMismatches.slice(0, 30),
     },
-    ok: backupSheets.length > 0 &&
+    ok: directBackupAvailable &&
       repairPreview.memberUpdates === 0 &&
       repairPreview.staffUpdates === 0 &&
       repairPreview.authUpdates === 0 &&
