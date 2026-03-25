@@ -1,6 +1,11 @@
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 var DB_SPREADSHEET_ID_FIXED = '1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs';
+var DB_BACKUP_SPREADSHEET_NAME_PREFIX = '枚方市ケアマネ協議会_DB_Backup';
+var DB_BACKUP_MANIFEST_SHEET = '_BACKUP_MANIFEST';
+var LAST_EXTERNAL_BACKUP_SPREADSHEET_ID_KEY = 'LAST_EXTERNAL_BACKUP_SPREADSHEET_ID';
+var LAST_EXTERNAL_BACKUP_SPREADSHEET_URL_KEY = 'LAST_EXTERNAL_BACKUP_SPREADSHEET_URL';
+var LAST_EXTERNAL_BACKUP_SUFFIX_KEY = 'LAST_EXTERNAL_BACKUP_SUFFIX';
 var SCHEMA_INITIALIZED_KEY = 'DB_SCHEMA_INITIALIZED';
 var SCHEMA_INITIALIZED_VERSION_KEY = 'DB_SCHEMA_INITIALIZED_VERSION';
 var WITHDRAWAL_POLICY_LAST_APPLIED_DATE_KEY = 'WITHDRAWAL_POLICY_LAST_APPLIED_DATE';
@@ -7775,12 +7780,15 @@ var MIGRATION_LOCK_WAIT_MS = 30000;
 
 /**
  * Phase 1: 移行前バックアップ
- * 対象テーブルの全データを _BAK_yyyyMMdd シートに退避する。
+ * 対象テーブルの全データを _BAK_yyyyMMdd シートに退避し、
+ * 同じスナップショットを別スプレッドシートにも保存する。
  */
 function backupBeforeMigration_() {
   var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
   var suffix = '_BAK_' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd_HHmmss');
   var backed = [];
+  var externalBackup = createExternalBackupSpreadsheet_(ss, suffix);
+  var externalBacked = [];
 
   for (var i = 0; i < MIGRATION_TARGET_TABLES.length; i++) {
     var tableName = MIGRATION_TARGET_TABLES[i];
@@ -7789,10 +7797,149 @@ function backupBeforeMigration_() {
     var copy = src.copyTo(ss);
     copy.setName(tableName + suffix);
     backed.push(tableName + suffix);
+
+    var externalCopy = src.copyTo(externalBackup.spreadsheet);
+    externalCopy.setName(tableName);
+    externalBacked.push({
+      tableName: tableName,
+      rowCount: src.getLastRow(),
+      columnCount: src.getLastColumn()
+    });
   }
 
+  finalizeExternalBackupSpreadsheet_(externalBackup.spreadsheet, ss, suffix, backed, externalBacked);
+  var props = PropertiesService.getScriptProperties();
+  props.setProperty(LAST_EXTERNAL_BACKUP_SPREADSHEET_ID_KEY, externalBackup.spreadsheet.getId());
+  props.setProperty(LAST_EXTERNAL_BACKUP_SPREADSHEET_URL_KEY, externalBackup.spreadsheet.getUrl());
+  props.setProperty(LAST_EXTERNAL_BACKUP_SUFFIX_KEY, suffix);
   Logger.log('バックアップ完了: ' + backed.join(', '));
-  return { suffix: suffix, tables: backed };
+  Logger.log('外部バックアップ: ' + externalBackup.spreadsheet.getUrl());
+  return {
+    suffix: suffix,
+    tables: backed,
+    externalSpreadsheetId: externalBackup.spreadsheet.getId(),
+    externalSpreadsheetUrl: externalBackup.spreadsheet.getUrl(),
+    externalTables: externalBacked.map(function(item) { return item.tableName; })
+  };
+}
+
+function createExternalBackupSpreadsheet_(sourceSpreadsheet, suffix) {
+  var backupName = DB_BACKUP_SPREADSHEET_NAME_PREFIX + suffix.replace(/^_/, '_');
+  var backupSpreadsheet = SpreadsheetApp.create(backupName);
+  var manifest = backupSpreadsheet.getSheets()[0];
+  manifest.setName(DB_BACKUP_MANIFEST_SHEET);
+  manifest.clear();
+  manifest.getRange(1, 1, 1, 5).setValues([['section', 'key', 'value', 'rowCount', 'columnCount']]);
+  manifest.getRange(2, 1, 5, 5).setValues([
+    ['meta', 'createdAt', Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss'), '', ''],
+    ['meta', 'sourceSpreadsheetId', sourceSpreadsheet.getId(), '', ''],
+    ['meta', 'sourceSpreadsheetName', sourceSpreadsheet.getName(), '', ''],
+    ['meta', 'backupSuffix', suffix, '', ''],
+    ['meta', 'backupSpreadsheetId', backupSpreadsheet.getId(), '', '']
+  ]);
+  return { spreadsheet: backupSpreadsheet };
+}
+
+function finalizeExternalBackupSpreadsheet_(backupSpreadsheet, sourceSpreadsheet, suffix, internalTables, externalTables) {
+  var manifest = backupSpreadsheet.getSheetByName(DB_BACKUP_MANIFEST_SHEET);
+  if (!manifest) {
+    manifest = backupSpreadsheet.insertSheet(DB_BACKUP_MANIFEST_SHEET, 0);
+    manifest.getRange(1, 1, 1, 5).setValues([['section', 'key', 'value', 'rowCount', 'columnCount']]);
+  }
+
+  var rows = [
+    ['meta', 'backupSpreadsheetUrl', backupSpreadsheet.getUrl(), '', ''],
+    ['meta', 'tableCount', String(externalTables.length), '', ''],
+    ['meta', 'internalBackupSheets', internalTables.join(','), '', ''],
+    ['meta', 'sourceSpreadsheetUrl', sourceSpreadsheet.getUrl(), '', '']
+  ];
+
+  for (var i = 0; i < externalTables.length; i++) {
+    rows.push([
+      'table',
+      externalTables[i].tableName,
+      externalTables[i].tableName + suffix,
+      externalTables[i].rowCount,
+      externalTables[i].columnCount
+    ]);
+  }
+
+  manifest.getRange(manifest.getLastRow() + 1, 1, rows.length, 5).setValues(rows);
+}
+
+function rollbackMigrationFromBackupSpreadsheet_(backupSpreadsheetId) {
+  if (!backupSpreadsheetId) throw new Error('backupSpreadsheetId が必要です');
+  var targetSs = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var backupSs = SpreadsheetApp.openById(backupSpreadsheetId);
+  var restored = [];
+
+  for (var i = 0; i < MIGRATION_TARGET_TABLES.length; i++) {
+    var tableName = MIGRATION_TARGET_TABLES[i];
+    var backupSheet = backupSs.getSheetByName(tableName);
+    var targetSheet = targetSs.getSheetByName(tableName);
+    if (!backupSheet || !targetSheet) continue;
+
+    var backupHeaders = backupSheet.getRange(1, 1, 1, backupSheet.getLastColumn()).getValues()[0];
+    var targetHeaders = targetSheet.getRange(1, 1, 1, targetSheet.getLastColumn()).getValues()[0];
+    if (backupHeaders.join('\t') !== targetHeaders.join('\t')) {
+      throw new Error('ヘッダー不一致のため復元中止: ' + tableName);
+    }
+
+    if (targetSheet.getLastRow() > 1) {
+      targetSheet.deleteRows(2, targetSheet.getLastRow() - 1);
+    }
+
+    if (backupSheet.getLastRow() > 1) {
+      var values = backupSheet.getRange(2, 1, backupSheet.getLastRow() - 1, backupSheet.getLastColumn()).getValues();
+      targetSheet.getRange(2, 1, values.length, values[0].length).setValues(values);
+    }
+
+    restored.push(tableName);
+  }
+
+  Logger.log('外部バックアップからロールバック完了: ' + restored.join(', '));
+  return {
+    backupSpreadsheetId: backupSpreadsheetId,
+    backupSpreadsheetUrl: backupSs.getUrl(),
+    restoredTables: restored
+  };
+}
+
+function rollbackMigrationFromBackupSpreadsheetJson(backupSpreadsheetId) {
+  return JSON.stringify(rollbackMigrationFromBackupSpreadsheet_(backupSpreadsheetId));
+}
+
+function inspectBackupSpreadsheet_(backupSpreadsheetId) {
+  if (!backupSpreadsheetId) throw new Error('backupSpreadsheetId が必要です');
+  var ss = SpreadsheetApp.openById(backupSpreadsheetId);
+  var manifest = ss.getSheetByName(DB_BACKUP_MANIFEST_SHEET);
+  return {
+    spreadsheetId: ss.getId(),
+    spreadsheetUrl: ss.getUrl(),
+    spreadsheetName: ss.getName(),
+    sheetNames: ss.getSheets().map(function(sheet) { return sheet.getName(); }),
+    manifestPreview: manifest
+      ? manifest.getRange(1, 1, Math.min(manifest.getLastRow(), 12), Math.min(manifest.getLastColumn(), 5)).getValues()
+      : []
+  };
+}
+
+function inspectBackupSpreadsheetJson(backupSpreadsheetId) {
+  return JSON.stringify(inspectBackupSpreadsheet_(backupSpreadsheetId));
+}
+
+function inspectLatestBackupSpreadsheet_() {
+  var props = PropertiesService.getScriptProperties();
+  var backupSpreadsheetId = props.getProperty(LAST_EXTERNAL_BACKUP_SPREADSHEET_ID_KEY);
+  if (!backupSpreadsheetId) throw new Error('最新の外部バックアップIDが記録されていません');
+  var summary = inspectBackupSpreadsheet_(backupSpreadsheetId);
+  summary.backupSuffix = props.getProperty(LAST_EXTERNAL_BACKUP_SUFFIX_KEY) || '';
+  summary.recordedBackupSpreadsheetUrl = props.getProperty(LAST_EXTERNAL_BACKUP_SPREADSHEET_URL_KEY) || '';
+  return summary;
+}
+
+function inspectLatestBackupSpreadsheetJson() {
+  return JSON.stringify(inspectLatestBackupSpreadsheet_());
 }
 
 /**

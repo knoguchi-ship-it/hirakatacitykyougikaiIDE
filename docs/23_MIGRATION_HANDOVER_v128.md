@@ -77,6 +77,10 @@
 ### ロールバック手段
 - バックアップシート: `_BAK_20260324_132929`
 - ロールバック関数: `rollbackMigration_('_BAK_20260324_132929')`
+- 2026-03-26 以降の `backupBeforeMigration_()` は live DB 内 `_BAK_*` に加えて外部バックアップスプレッドシートも生成する
+- 最新外部バックアップ: `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA`
+- 外部バックアップ URL: `https://docs.google.com/spreadsheets/d/11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA/edit`
+- 外部バックアップからの復元関数: `rollbackMigrationFromBackupSpreadsheet_('11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA')`
 - **修正移行を再実行する前にロールバックを推奨**
 
 ---
