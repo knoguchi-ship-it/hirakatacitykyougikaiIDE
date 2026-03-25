@@ -2,7 +2,7 @@
 
 作成日: 2026-03-25
 対象バージョン: v128（コミット `0651721`）
-ステータス: **2026-03-25 再移行・DB補正・本番deployment反映済み / 件数・参照整合性OK / migration provenance未収束**
+ステータス: **2026-03-25 再移行・DB補正・年会費査収・本番deployment反映済み / 件数・参照整合性OK / migration provenance未収束**
 
 ---
 
@@ -57,6 +57,22 @@
 - 補正後 `remainingPreview.memberUpdates = 0`
 - `auditCurrentIntegrityJson.integrityOk = true`
 - 固定 deployment 2本は `@128` へ更新済み。固定 URL で会員マイページ/公開ポータルを確認済み
+
+### 2026-03-25 年会費査収結果
+- 実行関数: `repairAnnualFeeAgainstSourceJson`
+- backupSuffix: `_BAK_20260325_200151`
+- 補正対象: 事業所会員の 2024 年度会費 3 件
+- 追加キー: `40131545|2024` / `375881|2024` / `4539021|2024`
+- source 根拠: `あやせケアサポート` row 34 = `総会`、`エルケア株式会社エルケアひらかたケアプランセンター` row 43 = `2025-03-30T15:00:00.000Z`、`ケアプランセンターうぐいすの里` rows 73/74/75 = `総会`
+- 査収後 `auditMigrationConsistencyAgainstSourceJson.ok = true`
+- `currentFees = 347`
+- `expectedFees = 347`
+- `feeAudit.missingFeeCount = 0`
+- `feeAudit.extraFeeCount = 0`
+- `feeAudit.duplicateFeeKeyCount = 0`
+- `feeAudit.mismatchCount = 0`
+- `currentAmountTotal = 1336000`
+- `expectedAmountTotal = 1336000`
 
 ### ロールバック手段
 - バックアップシート: `_BAK_20260324_132929`
@@ -272,7 +288,7 @@ Sources:
 
 ## 9. 結論
 
-v128 の移行は、2026-03-24 実行結果では **`変更` 行未採用により件数不足** だったが、2026-03-25 に runId `20260325T120805-35e3927e` で再移行し、その後 `repairRosterMigrationDataJson` で個人会員 158 件の `介護支援専門員番号` を補正した。現在は件数・参照整合性・固定URL動作は正常だが、`_MIGRATION_*` 監査シートが live DB に現存せず、`reconcileMigrationWithSource` は未収束である。次担当者は以下の優先順で対応すること:
+v128 の移行は、2026-03-24 実行結果では **`変更` 行未採用により件数不足** だったが、2026-03-25 に runId `20260325T120805-35e3927e` で再移行し、その後 `repairRosterMigrationDataJson` で個人会員 158 件の `介護支援専門員番号`、`repairAnnualFeeAgainstSourceJson` で事業所会員の 2024 年度会費 3 件を補正した。現在は件数・参照整合性・年会費査収・固定URL動作は正常だが、`_MIGRATION_*` 監査シートが live DB に現存せず、`reconcileMigrationWithSource` は未収束である。次担当者は以下の優先順で対応すること:
 
 1. **最優先**: `dryRunMigration()` を再実行し、`_MIGRATION_SUMMARY` / `_MIGRATION_MAP` / `_MIGRATION_SKIPPED` を live DB に再生成できるか確認する
 2. **高優先**: `reconcileMigrationWithSource` を再実行し、`mappedRowCount > 0` かつ `ok=true` まで provenance を収束させる

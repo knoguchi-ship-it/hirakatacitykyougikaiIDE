@@ -9950,6 +9950,539 @@ function previewRosterMigrationRepairJson() {
   return JSON.stringify(previewRosterMigrationRepair());
 }
 
+function buildExpectedMigrationFeeEntryForAudit_(memberId, year, rawValue, amount, soukaiDate, sourceRows) {
+  if (rawValue === null || rawValue === undefined || String(rawValue).trim() === '') return null;
+  var rawText = String(rawValue).trim();
+  var confirmedDate = rawText === '総会' ? soukaiDate : normalizeRosterDate_(rawValue);
+  return {
+    key: String(memberId || '') + '|' + String(year || ''),
+    memberId: String(memberId || ''),
+    year: Number(year || 0),
+    status: confirmedDate ? 'PAID' : 'UNPAID',
+    confirmedDate: confirmedDate,
+    amount: Number(amount || 0),
+    note: rawText === '総会' ? '総会にて納入' : '',
+    sourceRows: sourceRows || [],
+    rawValue: rawText,
+  };
+}
+
+function normalizeFeeAuditComparableValue_(field, value) {
+  if (field === 'year' || field === 'amount') return String(Number(value || 0));
+  if (field === 'confirmedDate') return normalizeDateInput_(value) || normalizeRosterDate_(value) || '';
+  return normalizeRosterCellText_(value);
+}
+
+function compareFeeAuditField_(mismatches, field, expectedValue, actualValue, context) {
+  if (normalizeFeeAuditComparableValue_(field, expectedValue) !== normalizeFeeAuditComparableValue_(field, actualValue)) {
+    mismatches.push({
+      field: field,
+      expected: expectedValue === undefined || expectedValue === null ? '' : expectedValue,
+      actual: actualValue === undefined || actualValue === null ? '' : actualValue,
+      context: context,
+    });
+  }
+}
+
+function classifyFeeSourceRawValue_(rawValue) {
+  var text = normalizeRosterCellText_(rawValue);
+  if (!text || isPlaceholderRosterValue_(text)) return { present: false, score: 0, status: 'EMPTY', text: text };
+  if (text === '総会') return { present: true, score: 300, status: 'PAID', text: text };
+  if (normalizeRosterDate_(text)) return { present: true, score: 200, status: 'PAID', text: text };
+  return { present: true, score: 100, status: 'UNPAID', text: text };
+}
+
+function findFirstBusinessFeeRawValue_(staffList, fieldName) {
+  var best = null;
+  for (var i = 0; i < staffList.length; i++) {
+    var rawValue = staffList[i] && staffList[i][fieldName];
+    var classified = classifyFeeSourceRawValue_(rawValue);
+    if (!classified.present) continue;
+    var candidate = {
+        rawValue: rawValue,
+        sourceRows: staffList[i].sourceRows || [],
+        staffName: staffList[i].rawName || '',
+        score: classified.score,
+        status: classified.status,
+      };
+    if (!best || candidate.score > best.score) {
+      best = candidate;
+    }
+  }
+  if (best) {
+    return {
+      rawValue: best.rawValue,
+      sourceRows: best.sourceRows,
+      staffName: best.staffName,
+      score: best.score,
+      status: best.status,
+    };
+  }
+  return null;
+}
+
+function auditMigrationConsistencyAgainstSource_() {
+  var repairPreview = repairRosterMigratedData_({ dryRun: true });
+  var collected = collectRosterSourceRows_(createMigrationRunId_());
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var backupSheets = ss.getSheets().map(function(sheet) {
+    return sheet.getName();
+  }).filter(function(name) {
+    return /_BAK_\d{8}_\d{6}$/.test(String(name || ''));
+  });
+
+  var members = getRowsAsObjects_(ss, 'T_会員').filter(function(row) {
+    return !toBoolean_(row['削除フラグ']);
+  });
+  var staffs = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(row) {
+    return !toBoolean_(row['削除フラグ']);
+  });
+  var fees = getRowsAsObjects_(ss, 'T_年会費納入履歴').filter(function(row) {
+    return !toBoolean_(row['削除フラグ']);
+  });
+
+  var individualMemberIndexByKey = {};
+  var businessMemberIndexByKey = {};
+  var staffIndexesByMemberId = {};
+  var usedMemberIndexes = {};
+  var usedStaffIndexes = {};
+  var expectedFees = [];
+  var feeMismatches = [];
+  var extraMembers = [];
+  var extraStaffs = [];
+  var ambiguousBusinessMembers = [];
+
+  for (var mi = 0; mi < members.length; mi++) {
+    var memberType = String(members[mi]['会員種別コード'] || '');
+    if (memberType === 'INDIVIDUAL') {
+      var individualKeys = buildIndividualMemberMatchKeysFromRow_(members[mi]);
+      for (var mik = 0; mik < individualKeys.length; mik++) addMatchIndex_(individualMemberIndexByKey, individualKeys[mik], mi);
+    } else if (memberType === 'BUSINESS') {
+      addMatchIndex_(businessMemberIndexByKey, buildBusinessMemberMatchKey_(members[mi]['勤務先名'] || ''), mi);
+    }
+  }
+  for (var si = 0; si < staffs.length; si++) {
+    var staffMemberId = String(staffs[si]['会員ID'] || '');
+    if (!staffIndexesByMemberId[staffMemberId]) staffIndexesByMemberId[staffMemberId] = [];
+    staffIndexesByMemberId[staffMemberId].push(si);
+  }
+
+  var usedIndividualIndexes = {};
+  for (var ir = 0; ir < collected.individualRows.length; ir++) {
+    var sourceIndividual = collected.individualRows[ir];
+    var memberIndex = claimMatchedIndex_(individualMemberIndexByKey, buildIndividualMemberMatchKeysFromSource_(sourceIndividual), usedIndividualIndexes);
+    if (memberIndex < 0) continue;
+    usedMemberIndexes[memberIndex] = true;
+    var individualMemberId = String(members[memberIndex]['会員ID'] || '');
+    var fee2024 = buildExpectedMigrationFeeEntryForAudit_(individualMemberId, 2024, sourceIndividual.rawFee2024, 3000, ROSTER_SOUKAI_DATE_2024, sourceIndividual.sourceRows);
+    var fee2025 = buildExpectedMigrationFeeEntryForAudit_(individualMemberId, 2025, sourceIndividual.rawFeeIndiv2025, 3000, ROSTER_SOUKAI_DATE_2025, sourceIndividual.sourceRows);
+    if (fee2024) expectedFees.push(fee2024);
+    if (fee2025) expectedFees.push(fee2025);
+  }
+
+  var officeNames = Object.keys(collected.businessRowsByOffice);
+  for (var oi = 0; oi < officeNames.length; oi++) {
+    var officeName = officeNames[oi];
+    var businessMemberCandidates = businessMemberIndexByKey[buildBusinessMemberMatchKey_(officeName)] || [];
+    if (businessMemberCandidates.length > 1) {
+      ambiguousBusinessMembers.push({
+        officeName: officeName,
+        memberIds: businessMemberCandidates.map(function(index) {
+          return String(members[index]['会員ID'] || '');
+        }),
+      });
+    }
+    if (!businessMemberCandidates.length) continue;
+
+    var businessMemberIndex = businessMemberCandidates[0];
+    usedMemberIndexes[businessMemberIndex] = true;
+    var businessMemberId = String(members[businessMemberIndex]['会員ID'] || '');
+    var staffList = collected.businessRowsByOffice[officeName];
+    var businessProjection = buildBusinessMigrationMemberRecord_(staffList, businessMemberId, new Date().toISOString(), officeName);
+    var rep = businessProjection.context.rep;
+    var bizFee2024 = findFirstBusinessFeeRawValue_(staffList, 'rawFee2024');
+    var repFee2024 = buildExpectedMigrationFeeEntryForAudit_(businessMemberId, 2024, bizFee2024 ? bizFee2024.rawValue : '', 8000, ROSTER_SOUKAI_DATE_2024, bizFee2024 ? bizFee2024.sourceRows : (rep.sourceRows || []));
+    if (repFee2024) expectedFees.push(repFee2024);
+
+    var bizFee2025 = findFirstBusinessFeeRawValue_(staffList, 'rawFeeBiz2025');
+    var repFee2025 = buildExpectedMigrationFeeEntryForAudit_(businessMemberId, 2025, bizFee2025 ? bizFee2025.rawValue : '', 8000, ROSTER_SOUKAI_DATE_2025, bizFee2025 ? bizFee2025.sourceRows : (rep.sourceRows || []));
+    if (repFee2025) expectedFees.push(repFee2025);
+
+    var currentStaffIndexes = staffIndexesByMemberId[businessMemberId] || [];
+    var currentStaffKeyMap = {};
+    for (var csi = 0; csi < currentStaffIndexes.length; csi++) {
+      var currentStaffIndex = currentStaffIndexes[csi];
+      var staffKeys = buildBusinessStaffMatchKeysFromRow_(staffs[currentStaffIndex], officeName);
+      for (var sk = 0; sk < staffKeys.length; sk++) addMatchIndex_(currentStaffKeyMap, staffKeys[sk], currentStaffIndex);
+    }
+    var usedOfficeStaffIndexes = {};
+    for (var bs = 0; bs < staffList.length; bs++) {
+      var sourceStaff = staffList[bs];
+      var targetStaffIndex = claimMatchedIndex_(currentStaffKeyMap, buildBusinessStaffMatchKeysFromSource_(sourceStaff, officeName), usedOfficeStaffIndexes);
+      if (targetStaffIndex >= 0) usedStaffIndexes[targetStaffIndex] = true;
+    }
+  }
+
+  for (var em = 0; em < members.length; em++) {
+    if (usedMemberIndexes[em]) continue;
+    extraMembers.push({
+      memberId: String(members[em]['会員ID'] || ''),
+      memberType: String(members[em]['会員種別コード'] || ''),
+      name: [members[em]['姓'] || '', members[em]['名'] || ''].join(' ').trim(),
+      officeName: String(members[em]['勤務先名'] || ''),
+    });
+  }
+  for (var es = 0; es < staffs.length; es++) {
+    if (usedStaffIndexes[es]) continue;
+    extraStaffs.push({
+      staffId: String(staffs[es]['職員ID'] || ''),
+      memberId: String(staffs[es]['会員ID'] || ''),
+      name: String(staffs[es]['職員名'] || ''),
+    });
+  }
+
+  var currentFeeByKey = {};
+  var currentFeeDuplicateKeys = [];
+  var currentFeeAmountTotal = 0;
+  for (var fi = 0; fi < fees.length; fi++) {
+    var feeKey = String(fees[fi]['会員ID'] || '') + '|' + String(fees[fi]['対象年度'] || '');
+    currentFeeAmountTotal += Number(fees[fi]['金額'] || 0);
+    if (currentFeeByKey[feeKey]) {
+      currentFeeDuplicateKeys.push(feeKey);
+      continue;
+    }
+    currentFeeByKey[feeKey] = fees[fi];
+  }
+
+  var expectedFeeByKey = {};
+  var expectedFeeAmountTotal = 0;
+  for (var ef = 0; ef < expectedFees.length; ef++) {
+    expectedFeeByKey[expectedFees[ef].key] = expectedFees[ef];
+    expectedFeeAmountTotal += Number(expectedFees[ef].amount || 0);
+  }
+
+  var missingFeeKeys = [];
+  var extraFeeKeys = [];
+  var expectedFeeKeys = Object.keys(expectedFeeByKey);
+  for (var eki = 0; eki < expectedFeeKeys.length; eki++) {
+    var expectedKey = expectedFeeKeys[eki];
+    var expectedFee = expectedFeeByKey[expectedKey];
+    var currentFee = currentFeeByKey[expectedKey];
+    if (!currentFee) {
+      missingFeeKeys.push(expectedKey);
+      if (feeMismatches.length < 30) {
+        feeMismatches.push({
+          field: 'feeRow',
+          expected: 'present',
+          actual: 'missing',
+          context: 'memberId=' + expectedFee.memberId + ',year=' + expectedFee.year + ',sourceRows=' + expectedFee.sourceRows.join(','),
+        });
+      }
+      continue;
+    }
+    compareFeeAuditField_(feeMismatches, 'status', expectedFee.status, currentFee['会費納入状態コード'], 'memberId=' + expectedFee.memberId + ',year=' + expectedFee.year);
+    compareFeeAuditField_(feeMismatches, 'confirmedDate', expectedFee.confirmedDate, currentFee['納入確認日'], 'memberId=' + expectedFee.memberId + ',year=' + expectedFee.year);
+    compareFeeAuditField_(feeMismatches, 'amount', expectedFee.amount, currentFee['金額'], 'memberId=' + expectedFee.memberId + ',year=' + expectedFee.year);
+    compareFeeAuditField_(feeMismatches, 'note', expectedFee.note, currentFee['備考'], 'memberId=' + expectedFee.memberId + ',year=' + expectedFee.year);
+  }
+
+  var currentFeeKeys = Object.keys(currentFeeByKey);
+  for (var cki = 0; cki < currentFeeKeys.length; cki++) {
+    if (!expectedFeeByKey[currentFeeKeys[cki]]) extraFeeKeys.push(currentFeeKeys[cki]);
+  }
+
+  return {
+    directPreMigrationComparisonAvailable: backupSheets.length > 0,
+    backupSheetNames: backupSheets.slice(0, 20),
+    limitations: backupSheets.length > 0 ? [] : ['live DB に移行前バックアップシートが存在しないため、移行前DBとの直接比較は未実施'],
+    repairPreview: {
+      memberUpdates: repairPreview.memberUpdates,
+      staffUpdates: repairPreview.staffUpdates,
+      authUpdates: repairPreview.authUpdates,
+      unmatchedIndividuals: repairPreview.unmatchedIndividuals.length,
+      unmatchedBusinessMembers: repairPreview.unmatchedBusinessMembers.length,
+      unmatchedBusinessStaff: repairPreview.unmatchedBusinessStaff.length,
+      sampleCount: (repairPreview.samples || []).length,
+      samples: (repairPreview.samples || []).slice(0, 20),
+    },
+    counts: {
+      sourceIndividuals: collected.individualRows.length,
+      sourceBusinessMembers: officeNames.length,
+      sourceBusinessStaff: officeNames.reduce(function(total, office) {
+        return total + collected.businessRowsByOffice[office].length;
+      }, 0),
+      currentMembers: members.length,
+      currentStaffs: staffs.length,
+      currentFees: fees.length,
+      expectedFees: expectedFees.length,
+    },
+    sourceMapping: {
+      extraCurrentMembers: extraMembers.length,
+      extraCurrentStaffs: extraStaffs.length,
+      ambiguousBusinessMembers: ambiguousBusinessMembers.length,
+      extraMemberSamples: extraMembers.slice(0, 20),
+      extraStaffSamples: extraStaffs.slice(0, 20),
+      ambiguousBusinessMemberSamples: ambiguousBusinessMembers.slice(0, 20),
+    },
+    feeAudit: {
+      missingFeeCount: missingFeeKeys.length,
+      extraFeeCount: extraFeeKeys.length,
+      duplicateFeeKeyCount: currentFeeDuplicateKeys.length,
+      mismatchCount: feeMismatches.length,
+      expectedAmountTotal: expectedFeeAmountTotal,
+      currentAmountTotal: currentFeeAmountTotal,
+      missingFeeKeys: missingFeeKeys.slice(0, 30),
+      extraFeeKeys: extraFeeKeys.slice(0, 30),
+      duplicateFeeKeys: currentFeeDuplicateKeys.slice(0, 30),
+      mismatchSamples: feeMismatches.slice(0, 30),
+    },
+    ok: backupSheets.length > 0 &&
+      repairPreview.memberUpdates === 0 &&
+      repairPreview.staffUpdates === 0 &&
+      repairPreview.authUpdates === 0 &&
+      repairPreview.unmatchedIndividuals.length === 0 &&
+      repairPreview.unmatchedBusinessMembers.length === 0 &&
+      repairPreview.unmatchedBusinessStaff.length === 0 &&
+      extraMembers.length === 0 &&
+      extraStaffs.length === 0 &&
+      ambiguousBusinessMembers.length === 0 &&
+      missingFeeKeys.length === 0 &&
+      extraFeeKeys.length === 0 &&
+      currentFeeDuplicateKeys.length === 0 &&
+      feeMismatches.length === 0,
+  };
+}
+
+function auditMigrationConsistencyAgainstSourceJson() {
+  return JSON.stringify(auditMigrationConsistencyAgainstSource_());
+}
+
+function buildExpectedAnnualFeeEntriesAgainstCurrentMembers_() {
+  var collected = collectRosterSourceRows_(createMigrationRunId_());
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var members = getRowsAsObjects_(ss, 'T_会員').filter(function(row) {
+    return !toBoolean_(row['削除フラグ']);
+  });
+  var individualMemberIndexByKey = {};
+  var businessMemberIndexByKey = {};
+  var expectedFees = [];
+  var mappingIssues = {
+    unmatchedIndividuals: [],
+    unmatchedBusinessMembers: [],
+    ambiguousBusinessMembers: [],
+  };
+
+  for (var mi = 0; mi < members.length; mi++) {
+    var memberType = String(members[mi]['会員種別コード'] || '');
+    if (memberType === 'INDIVIDUAL') {
+      var individualKeys = buildIndividualMemberMatchKeysFromRow_(members[mi]);
+      for (var mik = 0; mik < individualKeys.length; mik++) addMatchIndex_(individualMemberIndexByKey, individualKeys[mik], mi);
+    } else if (memberType === 'BUSINESS') {
+      addMatchIndex_(businessMemberIndexByKey, buildBusinessMemberMatchKey_(members[mi]['勤務先名'] || ''), mi);
+    }
+  }
+
+  var usedIndividualIndexes = {};
+  for (var ir = 0; ir < collected.individualRows.length; ir++) {
+    var sourceIndividual = collected.individualRows[ir];
+    var memberIndex = claimMatchedIndex_(individualMemberIndexByKey, buildIndividualMemberMatchKeysFromSource_(sourceIndividual), usedIndividualIndexes);
+    if (memberIndex < 0) {
+      mappingIssues.unmatchedIndividuals.push({
+        sourceRows: sourceIndividual.sourceRows,
+        name: sourceIndividual.rawName,
+        cmNumber: sourceIndividual.rawCmNumber,
+      });
+      continue;
+    }
+    var individualMemberId = String(members[memberIndex]['会員ID'] || '');
+    var fee2024 = buildExpectedMigrationFeeEntryForAudit_(individualMemberId, 2024, sourceIndividual.rawFee2024, 3000, ROSTER_SOUKAI_DATE_2024, sourceIndividual.sourceRows);
+    var fee2025 = buildExpectedMigrationFeeEntryForAudit_(individualMemberId, 2025, sourceIndividual.rawFeeIndiv2025, 3000, ROSTER_SOUKAI_DATE_2025, sourceIndividual.sourceRows);
+    if (fee2024) expectedFees.push(fee2024);
+    if (fee2025) expectedFees.push(fee2025);
+  }
+
+  var officeNames = Object.keys(collected.businessRowsByOffice);
+  for (var oi = 0; oi < officeNames.length; oi++) {
+    var officeName = officeNames[oi];
+    var businessMemberCandidates = businessMemberIndexByKey[buildBusinessMemberMatchKey_(officeName)] || [];
+    if (businessMemberCandidates.length > 1) {
+      mappingIssues.ambiguousBusinessMembers.push({
+        officeName: officeName,
+        memberIds: businessMemberCandidates.map(function(index) {
+          return String(members[index]['会員ID'] || '');
+        }),
+      });
+    }
+    if (!businessMemberCandidates.length) {
+      mappingIssues.unmatchedBusinessMembers.push({ officeName: officeName });
+      continue;
+    }
+    var businessMemberId = String(members[businessMemberCandidates[0]]['会員ID'] || '');
+    var staffList = collected.businessRowsByOffice[officeName];
+    var bizFee2024 = findFirstBusinessFeeRawValue_(staffList, 'rawFee2024');
+    var bizFee2025 = findFirstBusinessFeeRawValue_(staffList, 'rawFeeBiz2025');
+    var fee2024Biz = buildExpectedMigrationFeeEntryForAudit_(businessMemberId, 2024, bizFee2024 ? bizFee2024.rawValue : '', 8000, ROSTER_SOUKAI_DATE_2024, bizFee2024 ? bizFee2024.sourceRows : []);
+    var fee2025Biz = buildExpectedMigrationFeeEntryForAudit_(businessMemberId, 2025, bizFee2025 ? bizFee2025.rawValue : '', 8000, ROSTER_SOUKAI_DATE_2025, bizFee2025 ? bizFee2025.sourceRows : []);
+    if (fee2024Biz) expectedFees.push(fee2024Biz);
+    if (fee2025Biz) expectedFees.push(fee2025Biz);
+  }
+
+  return {
+    expectedFees: expectedFees,
+    mappingIssues: mappingIssues,
+  };
+}
+
+function repairAnnualFeeRowsAgainstSource_(options) {
+  var dryRun = !(options && options.dryRun === false);
+  var expected = buildExpectedAnnualFeeEntriesAgainstCurrentMembers_();
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var feeSheet = ss.getSheetByName('T_年会費納入履歴');
+  if (!feeSheet) throw new Error('T_年会費納入履歴 が見つかりません。');
+
+  var headers = feeSheet.getRange(1, 1, 1, feeSheet.getLastColumn()).getValues()[0];
+  var cols = {};
+  for (var hi = 0; hi < headers.length; hi++) cols[headers[hi]] = hi;
+  var feeData = feeSheet.getLastRow() > 1 ? feeSheet.getRange(2, 1, feeSheet.getLastRow() - 1, feeSheet.getLastColumn()).getValues() : [];
+  var currentFeeByKey = {};
+  for (var fi = 0; fi < feeData.length; fi++) {
+    if (toBoolean_(feeData[fi][cols['削除フラグ']])) continue;
+    var key = String(feeData[fi][cols['会員ID']] || '') + '|' + String(feeData[fi][cols['対象年度']] || '');
+    if (currentFeeByKey[key] == null) currentFeeByKey[key] = fi;
+  }
+
+  var now = new Date().toISOString();
+  var summary = {
+    dryRun: dryRun,
+    inserted: 0,
+    updated: 0,
+    samples: [],
+    mappingIssues: {
+      unmatchedIndividuals: expected.mappingIssues.unmatchedIndividuals.length,
+      unmatchedBusinessMembers: expected.mappingIssues.unmatchedBusinessMembers.length,
+      ambiguousBusinessMembers: expected.mappingIssues.ambiguousBusinessMembers.length,
+    },
+  };
+
+  for (var ei = 0; ei < expected.expectedFees.length; ei++) {
+    var expectedFee = expected.expectedFees[ei];
+    var rowIndex = currentFeeByKey[expectedFee.key];
+    if (rowIndex == null) {
+      var newRow = headers.map(function() { return ''; });
+      newRow[cols['年会費履歴ID']] = Utilities.getUuid();
+      newRow[cols['会員ID']] = expectedFee.memberId;
+      newRow[cols['対象年度']] = expectedFee.year;
+      newRow[cols['会費納入状態コード']] = expectedFee.status;
+      newRow[cols['納入確認日']] = expectedFee.confirmedDate;
+      newRow[cols['金額']] = expectedFee.amount;
+      newRow[cols['備考']] = expectedFee.note;
+      if (cols['作成日時'] != null) newRow[cols['作成日時']] = now;
+      if (cols['更新日時'] != null) newRow[cols['更新日時']] = now;
+      if (cols['削除フラグ'] != null) newRow[cols['削除フラグ']] = false;
+      feeData.push(newRow);
+      currentFeeByKey[expectedFee.key] = feeData.length - 1;
+      summary.inserted++;
+      if (summary.samples.length < 20) summary.samples.push({ type: 'INSERT', key: expectedFee.key, sourceRows: expectedFee.sourceRows });
+      continue;
+    }
+
+    var row = feeData[rowIndex];
+    var changedFields = [];
+    if (normalizeFeeAuditComparableValue_('status', row[cols['会費納入状態コード']]) !== normalizeFeeAuditComparableValue_('status', expectedFee.status)) {
+      row[cols['会費納入状態コード']] = expectedFee.status;
+      changedFields.push('会費納入状態コード');
+    }
+    if (normalizeFeeAuditComparableValue_('confirmedDate', row[cols['納入確認日']]) !== normalizeFeeAuditComparableValue_('confirmedDate', expectedFee.confirmedDate)) {
+      row[cols['納入確認日']] = expectedFee.confirmedDate;
+      changedFields.push('納入確認日');
+    }
+    if (normalizeFeeAuditComparableValue_('amount', row[cols['金額']]) !== normalizeFeeAuditComparableValue_('amount', expectedFee.amount)) {
+      row[cols['金額']] = expectedFee.amount;
+      changedFields.push('金額');
+    }
+    if (normalizeFeeAuditComparableValue_('note', row[cols['備考']]) !== normalizeFeeAuditComparableValue_('note', expectedFee.note)) {
+      row[cols['備考']] = expectedFee.note;
+      changedFields.push('備考');
+    }
+    if (changedFields.length) {
+      if (cols['更新日時'] != null) row[cols['更新日時']] = now;
+      summary.updated++;
+      if (summary.samples.length < 20) summary.samples.push({ type: 'UPDATE', key: expectedFee.key, fields: changedFields, sourceRows: expectedFee.sourceRows });
+    }
+  }
+
+  if (dryRun) return summary;
+
+  summary.backup = backupBeforeMigration_();
+  if (feeSheet.getLastRow() > 1) {
+    feeSheet.getRange(2, 1, feeSheet.getLastRow() - 1, feeSheet.getLastColumn()).clearContent();
+  }
+  if (feeData.length) {
+    feeSheet.getRange(2, 1, feeData.length, feeData[0].length).setValues(feeData);
+  }
+  clearAllDataCache_();
+  clearAdminDashboardCache_();
+  summary.remainingAudit = auditMigrationConsistencyAgainstSource_();
+  return summary;
+}
+
+function previewAnnualFeeRepairAgainstSourceJson() {
+  return JSON.stringify(repairAnnualFeeRowsAgainstSource_({ dryRun: true }));
+}
+
+function repairAnnualFeeAgainstSourceJson() {
+  return JSON.stringify(repairAnnualFeeRowsAgainstSource_({ dryRun: false }));
+}
+
+function inspectBusinessOfficeFeeSource_(officeName) {
+  var targetOfficeName = String(officeName || '').trim();
+  if (!targetOfficeName) throw new Error('officeName is required.');
+  var collected = collectRosterSourceRows_(createMigrationRunId_());
+  var staffList = collected.businessRowsByOffice[targetOfficeName];
+  if (!staffList || !staffList.length) {
+    return { officeName: targetOfficeName, found: false };
+  }
+  return {
+    officeName: targetOfficeName,
+    found: true,
+    entries: staffList.map(function(staff) {
+      return {
+        sourceRows: staff.sourceRows || [],
+        name: staff.rawName || '',
+        rawFee2024: staff.rawFee2024 || '',
+        rawFeeBiz2025: staff.rawFeeBiz2025 || '',
+        rawMailDest: staff.rawMailDest || '',
+        rawEmail: staff.rawEmail || '',
+      };
+    }),
+  };
+}
+
+function inspectBusinessOfficeFeeSourceJson(officeName) {
+  return JSON.stringify(inspectBusinessOfficeFeeSource_(officeName));
+}
+
+function inspectBusinessFeeSourceByMemberId_(memberId) {
+  var targetMemberId = String(memberId || '').trim();
+  if (!targetMemberId) throw new Error('memberId is required.');
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(row) {
+    return !toBoolean_(row['削除フラグ']) && String(row['会員ID'] || '') === targetMemberId;
+  });
+  if (!memberRows.length) {
+    return { memberId: targetMemberId, found: false };
+  }
+  var officeName = String(memberRows[0]['勤務先名'] || '');
+  var sourceInfo = inspectBusinessOfficeFeeSource_(officeName);
+  sourceInfo.memberId = targetMemberId;
+  sourceInfo.memberName = [memberRows[0]['姓'] || '', memberRows[0]['名'] || ''].join(' ').trim();
+  return sourceInfo;
+}
+
+function inspectBusinessFeeSourceByMemberIdJson(memberId) {
+  return JSON.stringify(inspectBusinessFeeSourceByMemberId_(memberId));
+}
+
 function backupMigrationTargets() {
   return backupBeforeMigration_();
 }
