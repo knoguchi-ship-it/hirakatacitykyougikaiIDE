@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Staff, StaffRole } from '../types';
 import { api } from '../services/api';
 
@@ -10,12 +10,10 @@ interface StaffDetailAdminProps {
   onSaved: () => void;
 }
 
-// WCAG: aria-hidden の必須マーク
 const RequiredMark: React.FC = () => (
   <span aria-hidden="true" className="text-red-500 ml-0.5">*</span>
 );
 
-// WCAG: role="alert" のエラーメッセージ
 const FieldError: React.FC<{ id: string; message: string }> = ({ id, message }) => {
   if (!message) return null;
   return (
@@ -39,6 +37,13 @@ const statusOptions: { value: string; label: string }[] = [
   { value: 'LEFT', label: '除籍' },
 ];
 
+const joinNameParts = (lastName: string, firstName: string) => {
+  const last = lastName.trim();
+  const first = firstName.trim();
+  if (last && first) return `${last} ${first}`;
+  return last || first;
+};
+
 const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, officeName, onBack, onSaved }) => {
   if (!staff) {
     return (
@@ -50,8 +55,10 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
   }
 
   const [form, setForm] = useState({
-    name: staff.name || '',
-    kana: staff.kana || '',
+    lastName: staff.lastName || '',
+    firstName: staff.firstName || '',
+    lastKana: staff.lastKana || '',
+    firstKana: staff.firstKana || '',
     email: staff.email || '',
     careManagerNumber: staff.careManagerNumber || '',
     role: staff.role || 'STAFF' as StaffRole,
@@ -66,8 +73,10 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
   const [statusConfirmPending, setStatusConfirmPending] = useState<string | null>(null);
 
   const requiredFields: Record<string, string> = {
-    name: '氏名',
-    kana: 'フリガナ',
+    lastName: '姓',
+    firstName: '名',
+    lastKana: 'セイ',
+    firstKana: 'メイ',
     email: 'メールアドレス',
     careManagerNumber: '介護支援専門員番号',
   };
@@ -86,7 +95,7 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
 
   const handleBlur = (key: string) => {
     setTouched(prev => ({ ...prev, [key]: true }));
-    const err = validateField(key, (form as any)[key] || '');
+    const err = validateField(key, (form as Record<string, string>)[key] || '');
     setValidationErrors(prev => ({ ...prev, [key]: err }));
   };
 
@@ -96,15 +105,15 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
     let valid = true;
     for (const key of Object.keys(requiredFields)) {
       allTouched[key] = true;
-      const err = validateField(key, (form as any)[key] || '');
-      if (err) { errors[key] = err; valid = false; }
+      const err = validateField(key, (form as Record<string, string>)[key] || '');
+      if (err) {
+        errors[key] = err;
+        valid = false;
+      }
     }
-    const emailErr = validateField('email', form.email);
-    if (emailErr) { errors['email'] = emailErr; valid = false; }
-    allTouched['email'] = true;
 
     setTouched(prev => ({ ...prev, ...allTouched }));
-    setValidationErrors(prev => ({ ...prev, ...errors }));
+    setValidationErrors(errors);
     return valid;
   };
 
@@ -136,8 +145,12 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
       await api.updateStaff({
         staffId: staff.id,
         memberId,
-        name: form.name.trim(),
-        kana: form.kana.trim(),
+        lastName: form.lastName.trim(),
+        firstName: form.firstName.trim(),
+        lastKana: form.lastKana.trim(),
+        firstKana: form.firstKana.trim(),
+        name: joinNameParts(form.lastName, form.firstName),
+        kana: joinNameParts(form.lastKana, form.firstKana),
         email: form.email.trim(),
         careManagerNumber: form.careManagerNumber.trim(),
         role: form.role,
@@ -161,7 +174,6 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
-      {/* Back navigation */}
       <nav aria-label="パンくず">
         <button
           onClick={onBack}
@@ -173,7 +185,6 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
 
       <h2 className="text-2xl font-bold text-slate-800">職員詳細編集</h2>
 
-      {/* Read-only info */}
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <h3 className="text-lg font-bold text-slate-800 mb-4">所属情報</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -181,7 +192,6 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
             <label className="block text-sm font-medium text-slate-700 mb-1">所属事業所</label>
             <input className={readOnlyClass} value={officeName} disabled readOnly />
           </div>
-          {/* 職員権限（ドロップダウン） */}
           <div>
             <label htmlFor="staff-role" className="block text-sm font-medium text-slate-700 mb-1">
               職員権限
@@ -202,7 +212,6 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
               </p>
             )}
           </div>
-          {/* 会員状態（ドロップダウン） */}
           <div>
             <label htmlFor="staff-status" className="block text-sm font-medium text-slate-700 mb-1">
               会員状態
@@ -218,7 +227,6 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
               ))}
             </select>
           </div>
-          {/* 除籍日（LEFT かつ withdrawnDate がある場合のみ表示） */}
           {staff.status === 'LEFT' && staff.withdrawnDate && (
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">除籍日</label>
@@ -228,7 +236,6 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
         </div>
       </div>
 
-      {/* LEFT banner */}
       {isLeft && (
         <div className="bg-amber-50 border border-amber-300 rounded-lg p-4" role="status">
           <p className="text-sm text-amber-800 font-medium">
@@ -237,7 +244,6 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
         </div>
       )}
 
-      {/* Status change confirmation dialog */}
       {statusConfirmPending && (
         <div className="bg-white border-2 border-blue-300 rounded-lg p-4 shadow-md" role="alertdialog" aria-labelledby="status-confirm-title">
           <h4 id="status-confirm-title" className="font-bold text-slate-800 mb-2">状態変更の確認</h4>
@@ -263,45 +269,73 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
         </div>
       )}
 
-      {/* Editable fields */}
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <h3 className="text-lg font-bold text-slate-800 mb-4">基本情報</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* 氏名 */}
           <div>
-            <label htmlFor="staff-name" className="block text-sm font-medium text-slate-700 mb-1">
-              氏名<RequiredMark />
+            <label htmlFor="staff-last-name" className="block text-sm font-medium text-slate-700 mb-1">
+              姓<RequiredMark />
             </label>
             <input
-              id="staff-name"
-              className={fieldClass(hasErr('name'))}
-              value={form.name}
-              onChange={e => set('name', e.target.value)}
-              onBlur={() => handleBlur('name')}
+              id="staff-last-name"
+              className={fieldClass(hasErr('lastName'))}
+              value={form.lastName}
+              onChange={e => set('lastName', e.target.value)}
+              onBlur={() => handleBlur('lastName')}
               aria-required="true"
-              aria-invalid={hasErr('name')}
-              aria-describedby={hasErr('name') ? 'err-name' : undefined}
+              aria-invalid={hasErr('lastName')}
+              aria-describedby={hasErr('lastName') ? 'err-last-name' : undefined}
             />
-            <FieldError id="err-name" message={touched['name'] ? validationErrors['name'] || '' : ''} />
+            <FieldError id="err-last-name" message={touched['lastName'] ? validationErrors['lastName'] || '' : ''} />
           </div>
-          {/* フリガナ */}
           <div>
-            <label htmlFor="staff-kana" className="block text-sm font-medium text-slate-700 mb-1">
-              フリガナ<RequiredMark />
+            <label htmlFor="staff-first-name" className="block text-sm font-medium text-slate-700 mb-1">
+              名<RequiredMark />
             </label>
             <input
-              id="staff-kana"
-              className={fieldClass(hasErr('kana'))}
-              value={form.kana}
-              onChange={e => set('kana', e.target.value)}
-              onBlur={() => handleBlur('kana')}
+              id="staff-first-name"
+              className={fieldClass(hasErr('firstName'))}
+              value={form.firstName}
+              onChange={e => set('firstName', e.target.value)}
+              onBlur={() => handleBlur('firstName')}
               aria-required="true"
-              aria-invalid={hasErr('kana')}
-              aria-describedby={hasErr('kana') ? 'err-kana' : undefined}
+              aria-invalid={hasErr('firstName')}
+              aria-describedby={hasErr('firstName') ? 'err-first-name' : undefined}
             />
-            <FieldError id="err-kana" message={touched['kana'] ? validationErrors['kana'] || '' : ''} />
+            <FieldError id="err-first-name" message={touched['firstName'] ? validationErrors['firstName'] || '' : ''} />
           </div>
-          {/* メールアドレス */}
+          <div>
+            <label htmlFor="staff-last-kana" className="block text-sm font-medium text-slate-700 mb-1">
+              セイ<RequiredMark />
+            </label>
+            <input
+              id="staff-last-kana"
+              className={fieldClass(hasErr('lastKana'))}
+              value={form.lastKana}
+              onChange={e => set('lastKana', e.target.value)}
+              onBlur={() => handleBlur('lastKana')}
+              aria-required="true"
+              aria-invalid={hasErr('lastKana')}
+              aria-describedby={hasErr('lastKana') ? 'err-last-kana' : undefined}
+            />
+            <FieldError id="err-last-kana" message={touched['lastKana'] ? validationErrors['lastKana'] || '' : ''} />
+          </div>
+          <div>
+            <label htmlFor="staff-first-kana" className="block text-sm font-medium text-slate-700 mb-1">
+              メイ<RequiredMark />
+            </label>
+            <input
+              id="staff-first-kana"
+              className={fieldClass(hasErr('firstKana'))}
+              value={form.firstKana}
+              onChange={e => set('firstKana', e.target.value)}
+              onBlur={() => handleBlur('firstKana')}
+              aria-required="true"
+              aria-invalid={hasErr('firstKana')}
+              aria-describedby={hasErr('firstKana') ? 'err-first-kana' : undefined}
+            />
+            <FieldError id="err-first-kana" message={touched['firstKana'] ? validationErrors['firstKana'] || '' : ''} />
+          </div>
           <div>
             <label htmlFor="staff-email" className="block text-sm font-medium text-slate-700 mb-1">
               メールアドレス<RequiredMark />
@@ -317,9 +351,8 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
               aria-invalid={hasErr('email')}
               aria-describedby={hasErr('email') ? 'err-email' : undefined}
             />
-            <FieldError id="err-email" message={touched['email'] ? validationErrors['email'] || '' : ''} />
+            <FieldError id="err-email" message={touched.email ? validationErrors.email || '' : ''} />
           </div>
-          {/* 介護支援専門員番号（必須） */}
           <div>
             <label htmlFor="staff-cm" className="block text-sm font-medium text-slate-700 mb-1">
               介護支援専門員番号<RequiredMark />
@@ -334,9 +367,8 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
               aria-invalid={hasErr('careManagerNumber')}
               aria-describedby={hasErr('careManagerNumber') ? 'err-cm' : undefined}
             />
-            <FieldError id="err-cm" message={touched['careManagerNumber'] ? validationErrors['careManagerNumber'] || '' : ''} />
+            <FieldError id="err-cm" message={touched.careManagerNumber ? validationErrors.careManagerNumber || '' : ''} />
           </div>
-          {/* 入会日 */}
           <div>
             <label htmlFor="staff-joined" className="block text-sm font-medium text-slate-700 mb-1">
               入会日
@@ -352,7 +384,6 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
         </div>
       </div>
 
-      {/* Messages */}
       {error && (
         <div className="bg-red-50 border border-red-300 rounded-lg p-4" role="alert">
           <p className="text-sm text-red-700">{error}</p>
@@ -364,7 +395,6 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
         </div>
       )}
 
-      {/* Save */}
       <div className="flex justify-end">
         <button
           onClick={handleSave}

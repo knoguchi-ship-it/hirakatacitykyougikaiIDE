@@ -13,7 +13,7 @@ var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
 var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var ALL_DATA_CACHE_TTL_SECONDS = 120;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 120;
-var DB_SCHEMA_VERSION = '2026-03-24-01';
+var DB_SCHEMA_VERSION = '2026-03-26-03';
 
 var マスタ定義 = {
   M_会員種別: ['コード', '名称', '表示順', '有効フラグ', '年会費金額'],
@@ -132,6 +132,10 @@ var テーブル定義 = {
   T_事業所職員: [
     '職員ID',
     '会員ID',
+    '姓',
+    '名',
+    'セイ',
+    'メイ',
     '氏名',
     'フリガナ',
     'メールアドレス',
@@ -342,6 +346,44 @@ function rebuildDatabaseSchema() {
       return sheet.getName();
     }),
   };
+}
+
+function ensureBusinessStaffNameColumnsPatched_(ss) {
+  var sheet = ss.getSheetByName('T_事業所職員');
+  if (!sheet) throw new Error('T_事業所職員 が見つかりません。');
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  if (headers.indexOf('姓') >= 0 && headers.indexOf('名') >= 0 && headers.indexOf('セイ') >= 0 && headers.indexOf('メイ') >= 0) {
+    sheet.getRange(2, 3, Math.max(sheet.getMaxRows() - 1, 1), 6).clearDataValidations();
+    return { inserted: false, headerCount: headers.length };
+  }
+
+  var memberIdIndex = headers.indexOf('会員ID');
+  var nameIndex = headers.indexOf('氏名');
+  if (memberIdIndex !== 1 || nameIndex !== 2) {
+    throw new Error('T_事業所職員 の列順が想定外です。手動確認が必要です。');
+  }
+
+  sheet.insertColumnsAfter(memberIdIndex + 1, 4);
+  sheet.getRange(1, memberIdIndex + 2, 1, 4).setValues([['姓', '名', 'セイ', 'メイ']]);
+  sheet.getRange(2, 3, Math.max(sheet.getMaxRows() - 1, 1), 6).clearDataValidations();
+  return { inserted: true, headerCount: sheet.getLastColumn() };
+}
+
+function applyStaffNameSchemaPatch() {
+  var ss = getOrCreateDatabase_();
+  var patchResult = ensureBusinessStaffNameColumnsPatched_(ss);
+  var backfill = backfillBusinessStaffNameColumns_(ss);
+  markSchemaInitialized_();
+  return {
+    applied: true,
+    table: 'T_事業所職員',
+    patch: patchResult,
+    backfill: backfill,
+  };
+}
+
+function applyStaffNameSchemaPatchJson() {
+  return JSON.stringify(applyStaffNameSchemaPatch());
 }
 
 /**
@@ -2017,6 +2059,334 @@ function createPasswordAuthRow_(authId, loginId, roleCode, memberId, staffId, pl
   };
 }
 
+function getCredentialsTempHeaders_() {
+  return [
+    '氏名',
+    'ログインID',
+    '初期パスワード',
+    'メール',
+    '会員種別',
+    '会員ID',
+    '職員ID',
+    '認証ID',
+    '通知対象種別',
+    'パスワード状態',
+    'アカウント有効',
+    '通知状況',
+    '通知日時',
+    '再発行日時',
+    '更新日時',
+    '備考',
+  ];
+}
+
+function resolveMemberTypeLabel_(memberTypeCode) {
+  switch (String(memberTypeCode || '')) {
+    case 'INDIVIDUAL': return '個人会員';
+    case 'BUSINESS': return '事業所会員';
+    case 'SUPPORT': return '賛助会員';
+    default: return String(memberTypeCode || '');
+  }
+}
+
+function generateCredentialTempPassword_() {
+  var alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  var bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, Utilities.getUuid() + ':' + new Date().getTime());
+  var chars = [];
+  for (var i = 0; i < 12; i += 1) {
+    var idx = Math.abs(bytes[i % bytes.length]) % alphabet.length;
+    chars.push(alphabet.charAt(idx));
+  }
+  return chars.join('');
+}
+
+function buildCredentialsTempRows_(ss, plainPasswordByAuthId, options) {
+  var authRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(row) {
+    return !toBoolean_(row['削除フラグ']) && String(row['認証方式'] || '') === 'PASSWORD';
+  });
+  var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(row) {
+    return !toBoolean_(row['削除フラグ']);
+  });
+  var staffRows = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(row) {
+    return !toBoolean_(row['削除フラグ']);
+  });
+
+  var memberById = {};
+  var staffById = {};
+  for (var i = 0; i < memberRows.length; i += 1) {
+    memberById[String(memberRows[i]['会員ID'] || '')] = memberRows[i];
+  }
+  for (var j = 0; j < staffRows.length; j += 1) {
+    staffById[String(staffRows[j]['職員ID'] || '')] = staffRows[j];
+  }
+
+  var existingLedger = {};
+  var ledgerSheet = ss.getSheetByName('_CREDENTIALS_TEMP');
+  if (ledgerSheet && ledgerSheet.getLastRow() >= 2) {
+    var existingRows = getRowsAsObjects_(ss, '_CREDENTIALS_TEMP');
+    for (var k = 0; k < existingRows.length; k += 1) {
+      var authId = String(existingRows[k]['認証ID'] || '');
+      if (authId) existingLedger[authId] = existingRows[k];
+    }
+  }
+
+  var rows = [];
+  var missingLinks = [];
+  var nowIso = String((options && options.updatedAt) || new Date().toISOString());
+  var reissuedAt = String((options && options.reissuedAt) || '');
+
+  for (var a = 0; a < authRows.length; a += 1) {
+    var auth = authRows[a];
+    var authIdValue = String(auth['認証ID'] || '');
+    var memberId = String(auth['会員ID'] || '');
+    var staffId = String(auth['職員ID'] || '');
+    var member = memberById[memberId] || null;
+    var staff = staffId ? (staffById[staffId] || null) : null;
+    var nameFields = staff ? normalizeStaffNameFields_(staff) : null;
+    var plainPassword = plainPasswordByAuthId && plainPasswordByAuthId[authIdValue] ? String(plainPasswordByAuthId[authIdValue]) : '';
+    var existing = existingLedger[authIdValue] || {};
+    var memberTypeCode = member ? String(member['会員種別コード'] || '') : '';
+    var memberDisplayName = member
+      ? (joinHumanNameParts_(member['姓'], member['名']) || String(member['事業所名'] || ''))
+      : '';
+    var displayName = staff ? nameFields.name : memberDisplayName;
+    var email = staff
+      ? (String(staff['メールアドレス'] || '').trim() || String((member && member['代表メールアドレス']) || '').trim())
+      : String((member && member['代表メールアドレス']) || '').trim();
+
+    if (!member || (staffId && !staff)) {
+      missingLinks.push({
+        authId: authIdValue,
+        loginId: String(auth['ログインID'] || ''),
+        memberId: memberId,
+        staffId: staffId,
+      });
+    }
+
+    rows.push({
+      氏名: displayName,
+      ログインID: String(auth['ログインID'] || ''),
+      初期パスワード: plainPassword,
+      メール: email,
+      会員種別: resolveMemberTypeLabel_(memberTypeCode),
+      会員ID: memberId,
+      職員ID: staffId,
+      認証ID: authIdValue,
+      通知対象種別: staff ? 'STAFF' : 'MEMBER',
+      パスワード状態: plainPassword ? 'REISSUED' : 'HASH_ONLY',
+      アカウント有効: toBoolean_(auth['アカウント有効フラグ']) ? 'true' : 'false',
+      通知状況: plainPassword ? '' : String(existing['通知状況'] || ''),
+      通知日時: plainPassword ? '' : String(existing['通知日時'] || ''),
+      再発行日時: plainPassword ? reissuedAt : '',
+      更新日時: nowIso,
+      備考: String(existing['備考'] || ''),
+    });
+  }
+
+  rows.sort(function(a, b) {
+    var aKey = [a['会員種別'], a['氏名'], a['ログインID']].join('|');
+    var bKey = [b['会員種別'], b['氏名'], b['ログインID']].join('|');
+    return aKey < bKey ? -1 : aKey > bKey ? 1 : 0;
+  });
+
+  return {
+    headers: getCredentialsTempHeaders_(),
+    rows: rows,
+    missingLinks: missingLinks,
+  };
+}
+
+function rebuildCredentialsTempSheet_(ss, plainPasswordByAuthId, options) {
+  var targetSs = ss || getOrCreateDatabase_();
+  var build = buildCredentialsTempRows_(targetSs, plainPasswordByAuthId || {}, options || {});
+  writeObjectRowsToSheet_(targetSs, '_CREDENTIALS_TEMP', build.headers, build.rows);
+  return {
+    sheetName: '_CREDENTIALS_TEMP',
+    rowCount: build.rows.length,
+    missingLinkCount: build.missingLinks.length,
+    missingLinks: build.missingLinks,
+    passwordStateCounts: summarizeByKey_(build.rows, 'パスワード状態'),
+  };
+}
+
+function parseCredentialReissueOptions_(options) {
+  if (!options) return {};
+  if (typeof options === 'string') {
+    var text = String(options).trim();
+    if (!text) return {};
+    return JSON.parse(text);
+  }
+  return options;
+}
+
+function resolveCredentialReissueTargets_(authRows, options) {
+  var opts = parseCredentialReissueOptions_(options);
+  var authIdSet = makeLookupSet_(opts.authIds);
+  var memberIdSet = makeLookupSet_(opts.memberIds);
+  var staffIdSet = makeLookupSet_(opts.staffIds);
+  var loginIdSet = makeLookupSet_(opts.loginIds);
+  var hasScope = Object.keys(authIdSet).length || Object.keys(memberIdSet).length || Object.keys(staffIdSet).length || Object.keys(loginIdSet).length;
+  if (!hasScope && opts.confirmAll !== true) {
+    throw new Error('全件再発行は confirmAll=true が必要です。');
+  }
+  return authRows.filter(function(auth) {
+    if (String(auth['認証方式'] || '') !== 'PASSWORD') return false;
+    if (toBoolean_(auth['削除フラグ'])) return false;
+    if (opts.activeOnly !== false && !toBoolean_(auth['アカウント有効フラグ'])) return false;
+    if (!hasScope) return true;
+    var authId = String(auth['認証ID'] || '');
+    var memberId = String(auth['会員ID'] || '');
+    var staffId = String(auth['職員ID'] || '');
+    var loginId = String(auth['ログインID'] || '');
+    return !!(authIdSet[authId] || memberIdSet[memberId] || staffIdSet[staffId] || loginIdSet[loginId]);
+  });
+}
+
+function makeLookupSet_(values) {
+  var set = {};
+  var items = Array.isArray(values) ? values : [];
+  for (var i = 0; i < items.length; i += 1) {
+    var key = String(items[i] || '').trim();
+    if (key) set[key] = true;
+  }
+  return set;
+}
+
+function summarizeByKey_(rows, key) {
+  var summary = {};
+  for (var i = 0; i < rows.length; i += 1) {
+    var value = String(rows[i][key] || '');
+    summary[value] = (summary[value] || 0) + 1;
+  }
+  return summary;
+}
+
+function rebuildCredentialsTemp() {
+  var ss = getOrCreateDatabase_();
+  return rebuildCredentialsTempSheet_(ss, {}, { updatedAt: new Date().toISOString() });
+}
+
+function rebuildCredentialsTempJson() {
+  return JSON.stringify(rebuildCredentialsTemp());
+}
+
+function inspectCredentialsTemp_() {
+  var ss = getOrCreateDatabase_();
+  var rows = getRowsAsObjects_(ss, '_CREDENTIALS_TEMP');
+  return {
+    exists: !!ss.getSheetByName('_CREDENTIALS_TEMP'),
+    rowCount: rows.length,
+    passwordStateCounts: summarizeByKey_(rows, 'パスワード状態'),
+    notificationStatusCounts: summarizeByKey_(rows, '通知状況'),
+    blankPasswordCount: rows.filter(function(row) {
+      return !String(row['初期パスワード'] || '').trim();
+    }).length,
+    sample: rows.slice(0, 5),
+  };
+}
+
+function inspectCredentialsTempJson() {
+  return JSON.stringify(inspectCredentialsTemp_());
+}
+
+function previewCredentialPasswordReissue(options) {
+  var ss = getOrCreateDatabase_();
+  var authRows = getRowsAsObjects_(ss, 'T_認証アカウント');
+  var targets = resolveCredentialReissueTargets_(authRows, options);
+  return {
+    targetCount: targets.length,
+    targets: targets.slice(0, 20).map(function(row) {
+      return {
+        authId: String(row['認証ID'] || ''),
+        loginId: String(row['ログインID'] || ''),
+        memberId: String(row['会員ID'] || ''),
+        staffId: String(row['職員ID'] || ''),
+      };
+    }),
+  };
+}
+
+function previewCredentialPasswordReissueJson(options) {
+  return JSON.stringify(previewCredentialPasswordReissue(options));
+}
+
+function previewAllActiveCredentialPasswordReissue() {
+  return previewCredentialPasswordReissue({ confirmAll: true, activeOnly: true });
+}
+
+function previewAllActiveCredentialPasswordReissueJson() {
+  return JSON.stringify(previewAllActiveCredentialPasswordReissue());
+}
+
+function reissueCredentialPasswords(options) {
+  var parsedOptions = parseCredentialReissueOptions_(options);
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_認証アカウント');
+  if (!sheet || sheet.getLastRow() < 2) throw new Error('T_認証アカウント が見つかりません。');
+
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var cols = {};
+  for (var i = 0; i < headers.length; i += 1) cols[headers[i]] = i;
+  requireColumns_(cols, ['認証ID', '認証方式', 'ログインID', 'パスワードハッシュ', 'パスワードソルト', 'パスワード更新日時', 'アカウント有効フラグ', 'ログイン失敗回数', 'ロック状態', '更新日時', '削除フラグ']);
+
+  var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  var authObjects = rows.map(function(row) {
+    var obj = {};
+    for (var h = 0; h < headers.length; h += 1) obj[headers[h]] = row[h];
+    return obj;
+  });
+  var targets = resolveCredentialReissueTargets_(authObjects, parsedOptions);
+  var targetByAuthId = {};
+  for (var t = 0; t < targets.length; t += 1) targetByAuthId[String(targets[t]['認証ID'] || '')] = true;
+
+  var nowIso = new Date().toISOString();
+  var plainPasswordByAuthId = {};
+  var updated = 0;
+  for (var r = 0; r < rows.length; r += 1) {
+    var authId = String(rows[r][cols['認証ID']] || '');
+    if (!targetByAuthId[authId]) continue;
+    var plainPassword = generateCredentialTempPassword_();
+    var salt = generateSalt_();
+    rows[r][cols['パスワードハッシュ']] = hashPassword_(plainPassword, salt);
+    rows[r][cols['パスワードソルト']] = salt;
+    rows[r][cols['パスワード更新日時']] = nowIso;
+    rows[r][cols['アカウント有効フラグ']] = true;
+    rows[r][cols['ログイン失敗回数']] = 0;
+    rows[r][cols['ロック状態']] = false;
+    rows[r][cols['更新日時']] = nowIso;
+    plainPasswordByAuthId[authId] = plainPassword;
+    updated += 1;
+  }
+
+  if (updated > 0) {
+    sheet.getRange(2, 1, rows.length, sheet.getLastColumn()).setValues(rows);
+  }
+
+  var ledgerResult = rebuildCredentialsTempSheet_(ss, plainPasswordByAuthId, {
+    updatedAt: nowIso,
+    reissuedAt: nowIso,
+  });
+  clearAllDataCache_();
+  return {
+    updatedAuthCount: updated,
+    credentialsSheet: ledgerResult.sheetName,
+    credentialsRowCount: ledgerResult.rowCount,
+    missingLinkCount: ledgerResult.missingLinkCount,
+  };
+}
+
+function reissueCredentialPasswordsJson(options) {
+  return JSON.stringify(reissueCredentialPasswords(options));
+}
+
+function reissueAllActiveCredentialPasswords() {
+  return reissueCredentialPasswords({ confirmAll: true, activeOnly: true });
+}
+
+function reissueAllActiveCredentialPasswordsJson() {
+  return JSON.stringify(reissueAllActiveCredentialPasswords());
+}
+
 function parseTrainingOptions_(raw) {
   var defaultResult = {
     fieldConfig: null,
@@ -2227,6 +2597,7 @@ function mapMembersForApi_(memberRows, staffRows, authRows, applicationRows, fee
   var staffByMember = {};
   for (var s = 0; s < staffRows.length; s += 1) {
     var st = staffRows[s];
+    var staffNameFields = normalizeStaffNameFields_(st);
     var stStatus = String(st['職員状態コード'] || 'ENROLLED') === 'LEFT' ? 'LEFT' : 'ENROLLED';
     // v106: 退職済み職員で退職日が今年度開始より前なら非表示（データは保持）
     if (stStatus === 'LEFT') {
@@ -2241,8 +2612,12 @@ function mapMembersForApi_(memberRows, staffRows, authRows, applicationRows, fee
     staffByMember[stMemberId].push({
       id: stId,
       loginId: loginByStaffId[stId] || '',
-      name: String(st['氏名'] || ''),
-      kana: String(st['フリガナ'] || ''),
+      lastName: staffNameFields.lastName,
+      firstName: staffNameFields.firstName,
+      lastKana: staffNameFields.lastKana,
+      firstKana: staffNameFields.firstKana,
+      name: staffNameFields.name,
+      kana: staffNameFields.kana,
       email: String(st['メールアドレス'] || ''),
       role: String(st['職員権限コード'] || 'STAFF'),
       status: stStatus,
@@ -4027,8 +4402,8 @@ function submitMemberApplication_(payload) {
     for (var i = 0; i < staffList.length; i++) {
       var s = staffList[i];
       var staffId = Utilities.getUuid().substring(0, 8);
-      var staffName = String(s.lastName || '') + ' ' + String(s.firstName || '');
-      var staffKana = String(s.lastKana || '') + ' ' + String(s.firstKana || '');
+      var staffName = joinHumanNameParts_(s.lastName, s.firstName);
+      var staffKana = joinHumanNameParts_(s.lastKana, s.firstKana);
       var cmNumber = String(s.careManagerNumber || '').trim();
       var staffEmail = String(s.email || '').trim();
       var staffRole = String(s.role || 'STAFF');
@@ -4044,6 +4419,10 @@ function submitMemberApplication_(payload) {
           switch (col) {
             case '職員ID': return staffId;
             case '会員ID': return memberId;
+            case '姓': return String(s.lastName || '').trim();
+            case '名': return String(s.firstName || '').trim();
+            case 'セイ': return String(s.lastKana || '').trim();
+            case 'メイ': return String(s.firstKana || '').trim();
             case '氏名': return staffName.trim();
             case 'フリガナ': return staffKana.trim();
             case 'メールアドレス': return staffEmail;
@@ -4425,11 +4804,30 @@ function updateStaff_(payload) {
   // 更新可能フィールド（Allowlist）
   var nowIso = new Date().toISOString();
   var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
-  if (payload.name != null && String(payload.name).trim()) {
-    row[cols['氏名']] = String(payload.name).trim();
-  }
-  if (payload.kana != null && String(payload.kana).trim()) {
-    row[cols['フリガナ']] = String(payload.kana).trim();
+  var hasStaffNamePayload =
+    payload.name != null ||
+    payload.kana != null ||
+    payload.lastName != null ||
+    payload.firstName != null ||
+    payload.lastKana != null ||
+    payload.firstKana != null;
+  if (hasStaffNamePayload) {
+    var normalizedStaffNames = normalizeStaffNameFields_({
+      姓: payload.lastName != null ? payload.lastName : (cols['姓'] != null ? row[cols['姓']] : ''),
+      名: payload.firstName != null ? payload.firstName : (cols['名'] != null ? row[cols['名']] : ''),
+      セイ: payload.lastKana != null ? payload.lastKana : (cols['セイ'] != null ? row[cols['セイ']] : ''),
+      メイ: payload.firstKana != null ? payload.firstKana : (cols['メイ'] != null ? row[cols['メイ']] : ''),
+      氏名: payload.name != null ? payload.name : row[cols['氏名']],
+      フリガナ: payload.kana != null ? payload.kana : row[cols['フリガナ']],
+    });
+    if (!normalizedStaffNames.name) throw new Error('職員氏名は必須です。');
+    if (!normalizedStaffNames.kana) throw new Error('職員フリガナは必須です。');
+    if (cols['姓'] != null) row[cols['姓']] = normalizedStaffNames.lastName;
+    if (cols['名'] != null) row[cols['名']] = normalizedStaffNames.firstName;
+    if (cols['セイ'] != null) row[cols['セイ']] = normalizedStaffNames.lastKana;
+    if (cols['メイ'] != null) row[cols['メイ']] = normalizedStaffNames.firstKana;
+    row[cols['氏名']] = normalizedStaffNames.name;
+    row[cols['フリガナ']] = normalizedStaffNames.kana;
   }
   if (payload.email != null) {
     row[cols['メールアドレス']] = String(payload.email).trim();
@@ -4605,17 +5003,22 @@ function convertStaffToIndividual_(ss, payload) {
   }
 
   // 4. 職員情報を取得（氏名を分割）
-  var staffName = String(sRow[sCols['氏名']] || '');
-  var staffKana = String(sRow[sCols['フリガナ']] || '');
+  var staffNameFields = normalizeStaffNameFields_({
+    姓: sCols['姓'] != null ? sRow[sCols['姓']] : '',
+    名: sCols['名'] != null ? sRow[sCols['名']] : '',
+    セイ: sCols['セイ'] != null ? sRow[sCols['セイ']] : '',
+    メイ: sCols['メイ'] != null ? sRow[sCols['メイ']] : '',
+    氏名: sRow[sCols['氏名']],
+    フリガナ: sRow[sCols['フリガナ']],
+  });
+  var staffName = staffNameFields.name;
+  var staffKana = staffNameFields.kana;
   var staffEmail = String(sRow[sCols['メールアドレス'] || ''] || '');
   var staffCareNum = String(sRow[sCols['介護支援専門員番号']] || '');
-  // 氏名を姓名に分割（スペース区切り）
-  var nameParts = staffName.split(/[\s　]+/);
-  var lastName = nameParts[0] || staffName;
-  var firstName = nameParts.slice(1).join(' ') || '';
-  var kanaParts = staffKana.split(/[\s　]+/);
-  var lastKana = kanaParts[0] || staffKana;
-  var firstKana = kanaParts.slice(1).join(' ') || '';
+  var lastName = staffNameFields.lastName;
+  var firstName = staffNameFields.firstName;
+  var lastKana = staffNameFields.lastKana;
+  var firstKana = staffNameFields.firstKana;
 
   // 5. 新しい個人会員レコード作成
   var newMemberId = generateMemberId_();
@@ -4741,6 +5144,10 @@ function convertIndividualToStaff_(ss, payload) {
   appendRowsByHeaders_(ss, 'T_事業所職員', [{
     職員ID: newStaffId,
     会員ID: targetOfficeMemberId,
+    姓: String(srcRow[srcCols['姓']] || ''),
+    名: String(srcRow[srcCols['名']] || ''),
+    セイ: String(srcRow[srcCols['セイ']] || ''),
+    メイ: String(srcRow[srcCols['メイ']] || ''),
     氏名: staffName,
     フリガナ: staffKana,
     メールアドレス: staffEmail,
@@ -5860,11 +6267,15 @@ function syncBusinessStaffRows_(ss, memberId, memberTypeCode, staffPayloadList) 
   if (memberTypeCode !== 'BUSINESS') {
     for (var k = 0; k < activeRows.length; k += 1) {
       var st = activeRows[k];
-      upsertStaffRow_(ss, {
-        職員ID: String(st['職員ID'] || ''),
-        会員ID: String(memberId || ''),
-        氏名: String(st['氏名'] || ''),
-        フリガナ: String(st['フリガナ'] || ''),
+        upsertStaffRow_(ss, {
+          職員ID: String(st['職員ID'] || ''),
+          会員ID: String(memberId || ''),
+          姓: String(st['姓'] || ''),
+          名: String(st['名'] || ''),
+          セイ: String(st['セイ'] || ''),
+          メイ: String(st['メイ'] || ''),
+          氏名: String(st['氏名'] || ''),
+          フリガナ: String(st['フリガナ'] || ''),
         メールアドレス: String(st['メールアドレス'] || ''),
         職員権限コード: String(st['職員権限コード'] || 'STAFF'),
         職員状態コード: 'LEFT',
@@ -5884,13 +6295,21 @@ function syncBusinessStaffRows_(ss, memberId, memberTypeCode, staffPayloadList) 
     var staffId = String(payload.id || '').trim();
     if (!staffId) continue;
     seen[staffId] = true;
-    var name = String(payload.name || '').trim();
-    var kana = String(payload.kana || '').trim();
+    var existing = byId[staffId];
+    var normalizedStaffNames = normalizeStaffNameFields_({
+      姓: payload.lastName != null ? payload.lastName : (existing ? existing['姓'] : ''),
+      名: payload.firstName != null ? payload.firstName : (existing ? existing['名'] : ''),
+      セイ: payload.lastKana != null ? payload.lastKana : (existing ? existing['セイ'] : ''),
+      メイ: payload.firstKana != null ? payload.firstKana : (existing ? existing['メイ'] : ''),
+      氏名: payload.name != null ? payload.name : (existing ? existing['氏名'] : ''),
+      フリガナ: payload.kana != null ? payload.kana : (existing ? existing['フリガナ'] : ''),
+    });
+    var name = normalizedStaffNames.name;
+    var kana = normalizedStaffNames.kana;
     if (!name) throw new Error('職員氏名は必須です。');
     if (!kana) throw new Error('職員フリガナは必須です。');
     var status = String(payload.status || 'ENROLLED') === 'LEFT' ? 'LEFT' : 'ENROLLED';
     // v106: 既存レコードから現行ステータスと日付を取得
-    var existing = byId[staffId];
     var prevStatus = existing ? String(existing['職員状態コード'] || 'ENROLLED') : 'ENROLLED';
     var joined = normalizeDateInput_(payload.joinedDate)
       || (existing ? normalizeDateInput_(existing['入会日']) : '');
@@ -5904,6 +6323,10 @@ function syncBusinessStaffRows_(ss, memberId, memberTypeCode, staffPayloadList) 
     upsertStaffRow_(ss, {
       職員ID: staffId,
       会員ID: String(memberId || ''),
+      姓: normalizedStaffNames.lastName,
+      名: normalizedStaffNames.firstName,
+      セイ: normalizedStaffNames.lastKana,
+      メイ: normalizedStaffNames.firstKana,
       氏名: name,
       フリガナ: kana,
       メールアドレス: String(payload.email || ''),
@@ -5923,6 +6346,10 @@ function syncBusinessStaffRows_(ss, memberId, memberTypeCode, staffPayloadList) 
     upsertStaffRow_(ss, {
       職員ID: existingId,
       会員ID: String(memberId || ''),
+      姓: String(rowObj['姓'] || ''),
+      名: String(rowObj['名'] || ''),
+      セイ: String(rowObj['セイ'] || ''),
+      メイ: String(rowObj['メイ'] || ''),
       氏名: String(rowObj['氏名'] || ''),
       フリガナ: String(rowObj['フリガナ'] || ''),
       メールアドレス: String(rowObj['メールアドレス'] || ''),
@@ -5939,14 +6366,19 @@ function syncBusinessStaffRows_(ss, memberId, memberTypeCode, staffPayloadList) 
 function upsertStaffRow_(ss, rowObject) {
   var sheet = ss.getSheetByName('T_事業所職員');
   if (!sheet) return;
+  var normalizedNameFields = normalizeStaffNameFields_(rowObject);
   var found = findRowByColumnValue_(sheet, '職員ID', String(rowObject['職員ID'] || ''));
   if (!found) {
     var now = String(rowObject['更新日時'] || new Date().toISOString());
     appendRowsByHeaders_(ss, 'T_事業所職員', [{
       職員ID: String(rowObject['職員ID'] || ''),
       会員ID: String(rowObject['会員ID'] || ''),
-      氏名: String(rowObject['氏名'] || ''),
-      フリガナ: String(rowObject['フリガナ'] || ''),
+      姓: normalizedNameFields.lastName,
+      名: normalizedNameFields.firstName,
+      セイ: normalizedNameFields.lastKana,
+      メイ: normalizedNameFields.firstKana,
+      氏名: normalizedNameFields.name,
+      フリガナ: normalizedNameFields.kana,
       メールアドレス: String(rowObject['メールアドレス'] || ''),
       職員権限コード: String(rowObject['職員権限コード'] || 'STAFF'),
       職員状態コード: String(rowObject['職員状態コード'] || 'ENROLLED'),
@@ -5967,8 +6399,12 @@ function upsertStaffRow_(ss, rowObject) {
     if (idx != null) row[idx] = value !== undefined ? value : '';
   }
   setCol('会員ID', String(rowObject['会員ID'] || ''));
-  setCol('氏名', String(rowObject['氏名'] || ''));
-  setCol('フリガナ', String(rowObject['フリガナ'] || ''));
+  setCol('姓', normalizedNameFields.lastName);
+  setCol('名', normalizedNameFields.firstName);
+  setCol('セイ', normalizedNameFields.lastKana);
+  setCol('メイ', normalizedNameFields.firstKana);
+  setCol('氏名', normalizedNameFields.name);
+  setCol('フリガナ', normalizedNameFields.kana);
   setCol('メールアドレス', String(rowObject['メールアドレス'] || ''));
   setCol('職員権限コード', String(rowObject['職員権限コード'] || 'STAFF'));
   setCol('職員状態コード', String(rowObject['職員状態コード'] || 'ENROLLED'));
@@ -6926,6 +7362,7 @@ function initializeSchema_(ss) {
   applyDataValidationRules_(ss);
   protectHeaderRows_(ss);
   cleanupNonSchemaSheets_(ss);
+  backfillBusinessStaffNameColumns_(ss);
 }
 
 function normalizeTableColumns_(ss, tableName) {
@@ -7192,11 +7629,11 @@ function applyDataValidationRules_(ss) {
       continue;
     }
 
-    var masterCodeRange = masterSheet.getRange(2, 1, masterLastRow - 1, 1);
-    var validation = SpreadsheetApp.newDataValidation()
-      .requireValueInRange(masterCodeRange, true)
-      .setAllowInvalid(false)
-      .build();
+      var masterCodeRange = masterSheet.getRange(2, 1, masterLastRow - 1, 1);
+      var validation = SpreadsheetApp.newDataValidation()
+        .requireValueInRange(masterCodeRange, true)
+        .setAllowInvalid(true)
+        .build();
 
     tableSheet
       .getRange(2, columnIndex, Math.max(tableSheet.getMaxRows() - 1, 1), 1)
@@ -7243,6 +7680,10 @@ function cleanupNonSchemaSheets_(ss) {
   for (var i = 0; i < schemaNames.length; i += 1) {
     allowed[schemaNames[i]] = true;
   }
+  allowed['_CREDENTIALS_TEMP'] = true;
+  allowed[MIGRATION_REPORT_SHEETS.summary] = true;
+  allowed[MIGRATION_REPORT_SHEETS.map] = true;
+  allowed[MIGRATION_REPORT_SHEETS.skipped] = true;
 
   var sheets = ss.getSheets();
   var deleted = [];
@@ -7909,6 +8350,47 @@ function rollbackMigrationFromBackupSpreadsheetJson(backupSpreadsheetId) {
   return JSON.stringify(rollbackMigrationFromBackupSpreadsheet_(backupSpreadsheetId));
 }
 
+function restoreSheetFromBackupSpreadsheet_(backupSpreadsheetId, sheetName) {
+  if (!backupSpreadsheetId) throw new Error('backupSpreadsheetId が必要です');
+  if (!sheetName) throw new Error('sheetName が必要です');
+  var targetSs = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var backupSs = SpreadsheetApp.openById(backupSpreadsheetId);
+  var backupSheet = backupSs.getSheetByName(sheetName);
+  if (!backupSheet) throw new Error('バックアップにシートがありません: ' + sheetName);
+
+  var targetSheet = targetSs.getSheetByName(sheetName);
+  var insertIndex = targetSheet ? targetSheet.getIndex() : targetSs.getSheets().length;
+  var tempName = '__RESTORE_' + sheetName + '_' + Utilities.getUuid().substring(0, 8);
+  var copied = backupSheet.copyTo(targetSs).setName(tempName);
+  targetSs.setActiveSheet(copied);
+  targetSs.moveActiveSheet(insertIndex);
+  if (targetSheet) {
+    targetSs.deleteSheet(targetSheet);
+  }
+  copied.setName(sheetName);
+  return {
+    backupSpreadsheetId: backupSpreadsheetId,
+    backupSpreadsheetUrl: backupSs.getUrl(),
+    restoredSheet: sheetName,
+    rowCount: Math.max(copied.getLastRow() - 1, 0),
+    columnCount: copied.getLastColumn(),
+  };
+}
+
+function restoreBusinessStaffFromBackupSpreadsheetJson(backupSpreadsheetId) {
+  return JSON.stringify(restoreSheetFromBackupSpreadsheet_(backupSpreadsheetId, 'T_事業所職員'));
+}
+
+function restoreBusinessStaffFromLatestBackupJson() {
+  var latest = inspectLatestBackupSpreadsheet_();
+  if (!latest.available) throw new Error('利用可能な外部バックアップがありません。');
+  return restoreBusinessStaffFromBackupSpreadsheetJson(latest.spreadsheetId);
+}
+
+function restoreBusinessStaffFromVerifiedBackupJson() {
+  return restoreBusinessStaffFromBackupSpreadsheetJson('11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA');
+}
+
 function inspectBackupSpreadsheet_(backupSpreadsheetId) {
   if (!backupSpreadsheetId) throw new Error('backupSpreadsheetId が必要です');
   var ss = SpreadsheetApp.openById(backupSpreadsheetId);
@@ -8513,11 +8995,17 @@ function buildBusinessMigrationStaffRecord_(staffRow, memberId, staffId, isRepre
   if (staffRow.isWithdrawn) {
     withdrawnDate = staffRow.rawRemarksDate || staffRow.rawJoinedDate || context.officeWithdrawnDate || '';
   }
+  var nameParts = splitName_(normalizeRosterCellText_(staffRow.rawName));
+  var kanaParts = splitName_(normalizeRosterCellText_(staffRow.rawFurigana));
   return {
     職員ID: staffId,
     会員ID: memberId,
-    氏名: normalizeRosterCellText_(staffRow.rawName),
-    フリガナ: normalizeRosterCellText_(staffRow.rawFurigana),
+    姓: nameParts.last,
+    名: nameParts.first,
+    セイ: kanaParts.last,
+    メイ: kanaParts.first,
+    氏名: joinHumanNameParts_(nameParts.last, nameParts.first),
+    フリガナ: joinHumanNameParts_(kanaParts.last, kanaParts.first),
     メールアドレス: normalizeRosterCellText_(staffRow.rawEmail),
     職員権限コード: isRepresentative ? 'REPRESENTATIVE' : 'STAFF',
     職員状態コード: staffRow.isWithdrawn ? 'LEFT' : 'ENROLLED',
@@ -9321,12 +9809,138 @@ function parseAddress_(rawAddress) {
 function splitName_(fullName) {
   var s = String(fullName || '').trim();
   if (!s) return { last: '', first: '' };
-  // 全角スペース、半角スペースで分割
   var parts = s.split(/[\s\u3000]+/);
   if (parts.length >= 2) {
     return { last: parts[0], first: parts.slice(1).join(' ') };
   }
   return { last: s, first: '' };
+}
+
+function joinHumanNameParts_(lastName, firstName) {
+  var last = String(lastName || '').trim();
+  var first = String(firstName || '').trim();
+  if (last && first) return last + ' ' + first;
+  return last || first;
+}
+
+function normalizeStaffNameFields_(rowLike) {
+  var lastName = String((rowLike && rowLike['姓']) || '').trim();
+  var firstName = String((rowLike && rowLike['名']) || '').trim();
+  var lastKana = String((rowLike && rowLike['セイ']) || '').trim();
+  var firstKana = String((rowLike && rowLike['メイ']) || '').trim();
+  var fullName = String((rowLike && rowLike['氏名']) || '').trim();
+  var fullKana = String((rowLike && rowLike['フリガナ']) || '').trim();
+
+  if (!lastName && !firstName && fullName) {
+    var nameParts = splitName_(fullName);
+    lastName = nameParts.last;
+    firstName = nameParts.first;
+  }
+  if (!lastKana && !firstKana && fullKana) {
+    var kanaParts = splitName_(fullKana);
+    lastKana = kanaParts.last;
+    firstKana = kanaParts.first;
+  }
+
+  if (lastName || firstName) {
+    fullName = joinHumanNameParts_(lastName, firstName);
+  } else if (fullName) {
+    var fallbackNameParts = splitName_(fullName);
+    lastName = fallbackNameParts.last;
+    firstName = fallbackNameParts.first;
+    fullName = joinHumanNameParts_(lastName, firstName);
+  }
+
+  if (lastKana || firstKana) {
+    fullKana = joinHumanNameParts_(lastKana, firstKana);
+  } else if (fullKana) {
+    var fallbackKanaParts = splitName_(fullKana);
+    lastKana = fallbackKanaParts.last;
+    firstKana = fallbackKanaParts.first;
+    fullKana = joinHumanNameParts_(lastKana, firstKana);
+  }
+
+  return {
+    lastName: lastName,
+    firstName: firstName,
+    lastKana: lastKana,
+    firstKana: firstKana,
+    name: fullName,
+    kana: fullKana,
+  };
+}
+
+function backfillBusinessStaffNameColumns_(ss) {
+  var targetSs = ss || getOrCreateDatabase_();
+  var sheet = targetSs.getSheetByName('T_事業所職員');
+  if (!sheet || sheet.getLastRow() < 2) {
+    return { scanned: 0, updated: 0 };
+  }
+
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var cols = {};
+  for (var i = 0; i < headers.length; i += 1) cols[headers[i]] = i;
+  requireColumns_(cols, ['氏名', 'フリガナ', '更新日時']);
+
+  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  var updated = 0;
+  var nowIso = new Date().toISOString();
+  var nextLastNames = [];
+  var nextFirstNames = [];
+  var nextLastKanas = [];
+  var nextFirstKanas = [];
+  var nextNames = [];
+  var nextKanas = [];
+  var nextUpdatedAt = [];
+
+  for (var r = 0; r < data.length; r += 1) {
+    var row = data[r];
+    var normalized = normalizeStaffNameFields_({
+      姓: cols['姓'] != null ? row[cols['姓']] : '',
+      名: cols['名'] != null ? row[cols['名']] : '',
+      セイ: cols['セイ'] != null ? row[cols['セイ']] : '',
+      メイ: cols['メイ'] != null ? row[cols['メイ']] : '',
+      氏名: row[cols['氏名']],
+      フリガナ: row[cols['フリガナ']],
+    });
+    nextLastNames.push([normalized.lastName]);
+    nextFirstNames.push([normalized.firstName]);
+    nextLastKanas.push([normalized.lastKana]);
+    nextFirstKanas.push([normalized.firstKana]);
+    nextNames.push([normalized.name]);
+    nextKanas.push([normalized.kana]);
+    var changed = false;
+    function wouldChange(name, value) {
+      var idx = cols[name];
+      if (idx == null) return false;
+      return String(row[idx] || '') !== String(value || '');
+    }
+    if (wouldChange('姓', normalized.lastName)) changed = true;
+    if (wouldChange('名', normalized.firstName)) changed = true;
+    if (wouldChange('セイ', normalized.lastKana)) changed = true;
+    if (wouldChange('メイ', normalized.firstKana)) changed = true;
+    if (wouldChange('氏名', normalized.name)) changed = true;
+    if (wouldChange('フリガナ', normalized.kana)) changed = true;
+    nextUpdatedAt.push([changed ? nowIso : String(row[cols['更新日時']] || '')]);
+    if (changed) {
+      updated += 1;
+    }
+  }
+
+  if (updated > 0) {
+    if (cols['姓'] != null) sheet.getRange(2, cols['姓'] + 1, data.length, 1).setValues(nextLastNames);
+    if (cols['名'] != null) sheet.getRange(2, cols['名'] + 1, data.length, 1).setValues(nextFirstNames);
+    if (cols['セイ'] != null) sheet.getRange(2, cols['セイ'] + 1, data.length, 1).setValues(nextLastKanas);
+    if (cols['メイ'] != null) sheet.getRange(2, cols['メイ'] + 1, data.length, 1).setValues(nextFirstKanas);
+    sheet.getRange(2, cols['氏名'] + 1, data.length, 1).setValues(nextNames);
+    sheet.getRange(2, cols['フリガナ'] + 1, data.length, 1).setValues(nextKanas);
+    sheet.getRange(2, cols['更新日時'] + 1, data.length, 1).setValues(nextUpdatedAt);
+  }
+  return { scanned: data.length, updated: updated };
+}
+
+function backfillBusinessStaffNameColumnsJson() {
+  return JSON.stringify(backfillBusinessStaffNameColumns_());
 }
 
 /**
@@ -10081,6 +10695,7 @@ function repairRosterMigratedData_(options) {
     '削除フラグ', '介護支援専門員番号', '事業所番号'
   ];
   var staffFieldNames = [
+    '姓', '名', 'セイ', 'メイ',
     '氏名', 'フリガナ', 'メールアドレス',
     '職員権限コード', '職員状態コード',
     '入会日', '退会日', '介護支援専門員番号',
@@ -10886,6 +11501,22 @@ function debugMemberRowRaw(memberId) {
 
 function debugMemberRowRawJson(memberId) {
   return JSON.stringify(debugMemberRowRaw(memberId));
+}
+
+function debugStaffRowRaw(staffId) {
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var staffRows = getRowsAsObjects_(ss, 'T_事業所職員');
+  return staffRows.filter(function(row) {
+    return String(row['職員ID'] || '') === String(staffId || '');
+  })[0] || null;
+}
+
+function debugStaffRowRawJson(staffId) {
+  return JSON.stringify(debugStaffRowRaw(staffId));
+}
+
+function debugSampleBusinessStaffRowRawJson() {
+  return debugStaffRowRawJson('48140703-ba30-4629-ab5d-01fa449fd0bb');
 }
 
 function repairRosterMigrationData() {

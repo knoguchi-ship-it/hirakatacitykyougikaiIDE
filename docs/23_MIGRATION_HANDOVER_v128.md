@@ -2,7 +2,7 @@
 
 作成日: 2026-03-25
 対象バージョン: v128（コミット `0651721`）
-ステータス: **2026-03-26 provenance収束・外部バックアップ化・本番反映済み / 件数・参照整合性OK**
+ステータス: **2026-03-26 provenance収束・外部バックアップ化・職員姓名分離・認証台帳再生成・本番@130反映済み / 件数・参照整合性OK**
 
 ---
 
@@ -46,7 +46,7 @@
 - `reconcileMigrationWithSource.ok = true`
 - `reconcileMigrationWithSource.mappedRowCount = 326`
 - `reconcileMigrationWithSource.mismatchCount = 0`
-- `getDbInfo` のシート一覧に `_MIGRATION_SUMMARY` / `_MIGRATION_MAP` / `_MIGRATION_SKIPPED` は現存、`_CREDENTIALS_TEMP` は現存しない
+- `getDbInfo` のシート一覧に `_MIGRATION_SUMMARY` / `_MIGRATION_MAP` / `_MIGRATION_SKIPPED` / `_CREDENTIALS_TEMP` は現存
 
 ### 2026-03-25 DB補正結果
 - 実行関数: `repairRosterMigrationDataJson`
@@ -57,7 +57,7 @@
 - 補正対象: 個人会員の `介護支援専門員番号`
 - 補正後 `remainingPreview.memberUpdates = 0`
 - `auditCurrentIntegrityJson.integrityOk = true`
-- 固定 deployment 2本は `@128` へ更新済み。固定 URL で会員マイページ/公開ポータルを確認済み
+- 固定 deployment 2本は 2026-03-26 に `@130` へ更新済み。`npx clasp deployments` で会員/公開ともに `@130` を確認済み
 
 ### 2026-03-25 年会費査収結果
 - 実行関数: `repairAnnualFeeAgainstSourceJson`
@@ -78,10 +78,11 @@
 ### ロールバック手段
 - 2026-03-26 時点で live DB 内 `_BAK_*` は削除済み
 - 2026-03-26 以降の `backupBeforeMigration_()` は外部バックアップスプレッドシートを正式退避先とする
-- 最新外部バックアップ: `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA`
-- 外部バックアップ URL: `https://docs.google.com/spreadsheets/d/11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA/edit`
-- 外部バックアップからの復元関数: `rollbackMigrationFromBackupSpreadsheet_('11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA')`
-- **修正移行を再実行する前にロールバックを推奨**
+- 最新 safety backup: `1U6HTUUAaNfZ3mDPQfdppCfJtsyTzpacMgOM_WKEUEhg`
+- safety backup URL: `https://docs.google.com/spreadsheets/d/1U6HTUUAaNfZ3mDPQfdppCfJtsyTzpacMgOM_WKEUEhg/edit`
+- 検証済み復元元: `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA`
+- 復元関数: `rollbackMigrationFromBackupSpreadsheet_('<backupSpreadsheetId>')`
+- **修正移行を再実行する前に外部バックアップからのロールバックを推奨**
 
 ---
 
@@ -118,9 +119,9 @@
 2. まずは単独レコードとして採用し、`_MIGRATION_MAP` に `変更行を最新値として採用` を残す
 3. 将来、同一人物の旧行との機械的ペアリング根拠が揃った場合のみ、自動マージを追加する
 
-### 問題3: T_事業所職員の氏名カラム設計不整合
+### 対応済み3: T_事業所職員の氏名カラム設計不整合
 
-**症状**: T_事業所職員は `氏名` 1カラムにフルネーム（例: "野口　健太"）を格納。一方、T_会員は `姓` + `名` の2カラムに分割。テーブル間で名前の持ち方が不統一。
+**旧症状**: T_事業所職員は `氏名` 1カラムにフルネーム（例: "野口　健太"）を格納。一方、T_会員は `姓` + `名` の2カラムに分割。テーブル間で名前の持ち方が不統一。
 
 **原因分析**:
 - T_事業所職員のスキーマ（`テーブル定義.T_事業所職員`）が元から `氏名` 単一カラム設計
@@ -132,11 +133,11 @@
 - 日本語名は漢字・フリガナの両方で姓名分離が推奨される
 - 単一氏名カラムは表示用としては便利だが、構造化データとしては不十分
 
-**修正方針**:
-1. T_事業所職員に `姓`, `名`, `セイ`, `メイ` の4カラムを追加する（T_会員と統一）
-2. 既存の `氏名` カラムは後方互換のため当面保持し、`姓`+`名` から自動生成する運用に切り替える
-3. `フリガナ` も同様に `セイ`+`メイ` に分離する
-4. `テーブル定義.T_事業所職員` と `docs/03_DATA_MODEL.md` を同時更新する
+**対応結果（2026-03-26）**:
+1. `T_事業所職員` に `姓`, `名`, `セイ`, `メイ` を追加済み
+2. live 147 件を backfill 済み。`debugSampleBusinessStaffRowRawJson` でも `姓=三井 / 名=泰代 / セイ=ﾐﾂｲ / メイ=ﾔｽﾖ` を確認
+3. `氏名` / `フリガナ` は後方互換の合成値として保持し、保存時に同期する
+4. `docs/03_DATA_MODEL.md` と `updateStaff_` の payload 仕様も更新済み
 
 ### 問題4: ソース↔ターゲット突合レポートの不在
 
@@ -189,7 +190,7 @@ npx clasp run rollbackMigrationFromBackupSpreadsheet_ --params '["11vgpc0CvCny85
 1. 空行スキップ条件を修正（D列空でもL列に氏名があれば処理）
 2. E=変更行を一律スキップせず、単独レコードとして採用
 3. `_MIGRATION_SUMMARY` / `_MIGRATION_MAP` / `_MIGRATION_SKIPPED` を出力
-4. （任意）T_事業所職員スキーマの姓名分離
+4. `previewAllActiveCredentialPasswordReissueJson()` で通知対象件数を確認し、通知実施判断時のみ `reissueAllActiveCredentialPasswordsJson()` を使う
 
 ### Step 3: ドライラン → 突合確認 → 本番実行
 ```bash
@@ -285,14 +286,14 @@ Sources:
 | ドキュメント | v128反映状態 | 修正移行後に再更新が必要か |
 |-------------|-------------|-------------------------|
 | `HANDOVER.md` | v128記載済み | はい（移行結果の数値更新） |
-| `docs/03_DATA_MODEL.md` | 退会処理日追加済み | はい（姓名分離する場合） |
+| `docs/03_DATA_MODEL.md` | 退会処理日追加済み・職員姓名分離追記済み | いいえ |
 | `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md` | DB_SCHEMA_VERSION更新済み | はい（スキーマ変更する場合） |
 
 ---
 
 ## 9. 結論
 
-v128 の移行は、2026-03-24 実行結果では **`変更` 行未採用により件数不足** だったが、2026-03-25 に runId `20260325T120805-35e3927e` で再移行し、その後 `repairRosterMigrationDataJson` で個人会員 158 件の `介護支援専門員番号`、`repairAnnualFeeAgainstSourceJson` で事業所会員の 2024 年度会費 3 件を補正した。2026-03-26 には `dryRunMigration()` で `_MIGRATION_*` を live DB に再生成し、`reconcileMigrationWithSource.ok=true`、`auditMigrationConsistencyAgainstSourceJson.ok=true` まで収束した。現在は件数・参照整合性・年会費査収・migration provenance・固定URL動作が正常で、正式バックアップは外部スプレッドシート `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA` とする。次担当者が着手するなら残課題は以下のみ:
+v128 の移行は、2026-03-24 実行結果では **`変更` 行未採用により件数不足** だったが、2026-03-25 に runId `20260325T120805-35e3927e` で再移行し、その後 `repairRosterMigrationDataJson` で個人会員 158 件の `介護支援専門員番号`、`repairAnnualFeeAgainstSourceJson` で事業所会員の 2024 年度会費 3 件を補正した。2026-03-26 には `dryRunMigration()` で `_MIGRATION_*` を live DB に再生成し、`reconcileMigrationWithSource.ok=true`、`auditMigrationConsistencyAgainstSourceJson.ok=true` まで収束した。現在は件数・参照整合性・年会費査収・migration provenance・固定 deployment `@130` が正常で、最新 safety backup は `1U6HTUUAaNfZ3mDPQfdppCfJtsyTzpacMgOM_WKEUEhg`、検証済み復元元は `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA` とする。次担当者が着手するなら残課題は以下のみ:
 
-1. **中優先**: T_事業所職員の姓名分離スキーマ変更
-2. **中優先**: `_CREDENTIALS_TEMP` の再生成要否と認証通知手順を整理する
+1. **中優先**: `_CREDENTIALS_TEMP` を使った認証通知の実施判断と通知オペレーションの実行
+2. **低優先**: Playwright の Chrome profile lock 解消後に fixed `@130` URL の目視再確認

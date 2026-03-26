@@ -617,14 +617,38 @@ GAS の制約（外部 JS サービス利用不可）のため以下の実装可
 - 根拠: 年会費制（年度4月〜3月）のため、退会しても年度末まで会員資格を保持（Maxio/Stripe Scheduled Cancellation パターン準拠）
 
 ### 職員個別更新（v127 拡張）
-- API: `updateStaff_(payload)` — `{ staffId, memberId, name?, kana?, email?, careManagerNumber?, role?, status?, joinedDate? }`
+- API: `updateStaff_(payload)` — `{ staffId, memberId, lastName?, firstName?, lastKana?, firstKana?, name?, kana?, email?, careManagerNumber?, role?, status?, joinedDate? }`
 - 処理: T_事業所職員の該当行を allowlist のみ更新
+- 2026-03-26 以降は `lastName` / `firstName` / `lastKana` / `firstKana` を正として保存し、`name` / `kana` は後方互換の合成値として同期する
 - v127 追加: `status` を allowlist に追加（ENROLLED / LEFT のみ）
   - LEFT に変更 → 退会日=今日、認証アカウント無効化（`disableAuthAccountsByStaffId_`）
   - ENROLLED に復帰 → 退会日クリア、認証アカウント再有効化（`enableAuthAccountsByStaffId_`）
 - role 変更: REPRESENTATIVE から降格する場合、同事業所に他の ENROLLED 職員がいない場合は拒否（個人会員転換を使用）
 - 制約: memberId が一致しない場合は拒否（セキュリティ）
 - 権限: MASTER, ADMIN
+
+## 6.1 認証台帳と初期パスワード運用（2026-03-26）
+
+- 台帳シート: `_CREDENTIALS_TEMP`
+- 目的: PASSWORD 方式アカウントの通知対象一覧、再発行履歴、通知状況の運用記録
+- live の再生成関数: `rebuildCredentialsTemp()` / `rebuildCredentialsTempJson()`
+- live の確認関数: `inspectCredentialsTempJson()`
+- live の再発行関数: `previewCredentialPasswordReissueJson(options)` / `reissueCredentialPasswordsJson(options)`
+- PowerShell 向け no-arg ラッパー: `previewAllActiveCredentialPasswordReissueJson()` / `reissueAllActiveCredentialPasswordsJson()`
+
+### 運用原則
+
+- `rebuildCredentialsTemp*` は**非破壊**。既存ハッシュから平文を復元せず、`初期パスワード` は空欄、`パスワード状態=HASH_ONLY` として台帳だけを再構築する。
+- `reissueCredentialPasswords*` は**破壊的**。対象アカウントのパスワードハッシュを新規生成値へ置き換え、`_CREDENTIALS_TEMP` に再発行後の平文を出力する。
+- したがって、会員通知は `reissueCredentialPasswords*` 実行前に開始してはならない。
+- 2026-03-26 時点の live `_CREDENTIALS_TEMP` は 326 行、`missingLinkCount=0`、`パスワード状態=HASH_ONLY: 326`。
+
+### 通知開始前の必須手順
+
+1. `previewCredentialPasswordReissueJson(...)` で対象件数と対象範囲を確認する。
+2. 承認後に `reissueCredentialPasswordsJson(...)` を実行する。
+3. `inspectCredentialsTempJson()` で `REISSUED` 件数、通知対象、空欄の有無を確認する。
+4. その後に `_CREDENTIALS_TEMP` を根拠として通知処理を開始する。
 
 ### 最終代表者の自動退会（v127）
 - `convertStaffToIndividual_` の代表者チェックブロックを拡張

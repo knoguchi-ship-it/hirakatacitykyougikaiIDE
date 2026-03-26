@@ -152,6 +152,10 @@ export interface Staff {
   id: string; // Internal ID for UI keys
   loginId?: string;
   careManagerNumber?: string;
+  lastName?: string;
+  firstName?: string;
+  lastKana?: string;
+  firstKana?: string;
   name: string;
   kana: string;
   email: string; // Individual email

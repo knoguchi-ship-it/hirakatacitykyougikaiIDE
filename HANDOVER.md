@@ -1,6 +1,6 @@
 # 引継ぎ書（次担当者向け）
 
-更新日: **2026-03-25（v128 本番deployment更新・DB補正を反映）**
+更新日: **2026-03-26（v128 provenance収束・職員姓名分離・認証台帳再生成を反映）**
 対象: 枚方市介護支援専門員連絡協議会 会員システム
 
 ---
@@ -47,9 +47,9 @@
 
 ## 1.1 次担当者向け・最短状況サマリ（このまま新スレッドへ貼付可）
 
-- 本番Web URLは固定2本（会員/公開）で **@128 同期済み**（2026-03-25）。
+- 本番Web URLは固定2本（会員/公開）で **@130 同期済み**（2026-03-26）。
 - `main` には v127 が反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` と `git status --short` を正とすること。
-- **v128（データ移行・deployment反映済み）**: 2026-03-24 実行時は ★会員名簿（2025年度）から本番DBへ T_会員205件（個人174+事業所31）、T_事業所職員133件、T_認証アカウント307件、T_年会費納入履歴330件を移行。2026-03-25 に再移行を実施し、最終的に T_会員211件（個人179+事業所32）、T_事業所職員147件、T_認証アカウント326件、T_年会費347件へ修正。runId `20260325T120805-35e3927e`、backupSuffix `_BAK_20260325_120805`。その後 `repairRosterMigrationDataJson` を実行し、個人会員158件の `介護支援専門員番号` を live DB へ補正、backupSuffix `_BAK_20260325_182904`、`remainingPreview.memberUpdates=0` を確認。続けて `repairAnnualFeeAgainstSourceJson` を実行し、事業所会員の 2024 年度会費 3 件（`40131545|2024`、`375881|2024`、`4539021|2024`）を source 支払欄基準で補正、backupSuffix `_BAK_20260325_200151`、`feeAudit.missing=0 / extra=0 / duplicate=0 / mismatch=0`、`currentFees=347 / expectedFees=347`、`currentAmountTotal=1336000 / expectedAmountTotal=1336000` を確認。2026-03-26 に `dryRunMigration()` で `_MIGRATION_*` を live DB へ再生成し、`reconcileMigrationWithSource.ok=true`（`mappedRowCount=326`, `mismatchCount=0`）まで provenance を収束させた。`backupBeforeMigration_()` は別スプレッドシートへ同一スナップショットを保存し、live 内 `_BAK_*` は削除済み。正式バックアップは `suffix=_BAK_20260326_063239`、`spreadsheetId=11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA`。固定 deployment 2本は 2026-03-25 に `@128` へ更新し、固定URLで会員/公開ポータルの実画面確認を完了。
+- **v128（データ移行・deployment反映済み）**: 2026-03-24 実行時は ★会員名簿（2025年度）から本番DBへ T_会員205件（個人174+事業所31）、T_事業所職員133件、T_認証アカウント307件、T_年会費納入履歴330件を移行。2026-03-25 に再移行を実施し、最終的に T_会員211件（個人179+事業所32）、T_事業所職員147件、T_認証アカウント326件、T_年会費347件へ修正。runId `20260325T120805-35e3927e`、backupSuffix `_BAK_20260325_120805`。その後 `repairRosterMigrationDataJson` を実行し、個人会員158件の `介護支援専門員番号` を live DB へ補正、backupSuffix `_BAK_20260325_182904`、`remainingPreview.memberUpdates=0` を確認。続けて `repairAnnualFeeAgainstSourceJson` を実行し、事業所会員の 2024 年度会費 3 件（`40131545|2024`、`375881|2024`、`4539021|2024`）を source 支払欄基準で補正、backupSuffix `_BAK_20260325_200151`、`feeAudit.missing=0 / extra=0 / duplicate=0 / mismatch=0`、`currentFees=347 / expectedFees=347`、`currentAmountTotal=1336000 / expectedAmountTotal=1336000` を確認。2026-03-26 に `dryRunMigration()` で `_MIGRATION_*` を live DB へ再生成し、`reconcileMigrationWithSource.ok=true`（`mappedRowCount=326`, `mismatchCount=0`）まで provenance を収束。続けて `T_事業所職員` に `姓/名/セイ/メイ` を追加し 147 件を backfill、`_CREDENTIALS_TEMP` を 326 件で再生成して `missingLinkCount=0`、`HASH_ONLY=326` を確認した。`backupBeforeMigration_()` は別スプレッドシートへ同一スナップショットを保存し、live 内 `_BAK_*` は削除済み。検証済み外部バックアップは `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA`、本作業開始前の安全退避は `1U6HTUUAaNfZ3mDPQfdppCfJtsyTzpacMgOM_WKEUEhg`。固定 deployment 2本は 2026-03-26 に最終 `@130` へ更新済み。
 - **v127**: 職員詳細画面改善。介護支援専門員番号を事業所職員・個人会員で必須化（賛助会員のみ任意）。職員権限/会員状態をドロップダウン化。`updateStaff_` にstatus変更+認証アカウント連動を追加。最終代表者が個人会員に転換する場合、事業所を自動退会する処理を実装。
 - **v126**: 事業所会員詳細編集画面改善。WCAG 2.2 準拠バリデーション（FAX以外全必須）、連絡設定見直し（メール配信希望/不要）、予約退会（翌年度4/1無効化+キャンセル可）、職員Master-Detail Drilldown（StaffDetailAdmin新設）。
 - **v125**: 管理コンソール会員管理を全面改善。操作列削除→編集画面に退会/除籍/転換アクション集約。フラット人物リスト一括編集（個人+賛助+職員を人物単位で表示）。会員種別変更（個人⇔事業所職員の双方向転換）。除籍後もアカウント保持し、管理者がいつでも転換で再有効化可能。
@@ -67,8 +67,8 @@
 ## 1.2 この時点の引き継ぎポイント
 
 - スレッドを切っても問題ない状態まで、正本と引き継ぎは同期済み。
-- 現在の本番固定 Deployment は会員/公開ともに **@128**。
-- **v128 は `clasp push`・version作成・固定2 deployment 更新まで完了**。`npx clasp deployments` では会員/公開ともに `@128`。
+- 現在の本番固定 Deployment は会員/公開ともに **@130**。
+- **本番固定 deployment は `clasp push`・version作成・固定2 deployment 更新まで完了**。`npx clasp deployments` では会員/公開ともに `@130`。
 - **v128 再移行は 2026-03-25 に実行済み。次担当者は `docs/23_MIGRATION_HANDOVER_v128.md` と実行結果を参照すること。**
   - runId `20260325T120805-35e3927e`
   - `sourceCoverage=384/384`
@@ -78,14 +78,14 @@
   - `repairRosterMigrationDataJson` 実行で個人会員 158 件の `介護支援専門員番号` を補正済み
   - `repairAnnualFeeAgainstSourceJson` 実行で事業所会員の 2024 年度会費 3 件を補正済み（backupSuffix `_BAK_20260325_200151`）
   - `auditMigrationConsistencyAgainstSourceJson.ok=true`、`currentFees=347 / expectedFees=347`
-  - 2026-03-26 以降の `backupBeforeMigration_()` は別スプレッドシート退避を正とする。最新外部バックアップ: `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA`
+  - 2026-03-26 以降の `backupBeforeMigration_()` は別スプレッドシート退避を正とする。最新 safety backup は `1U6HTUUAaNfZ3mDPQfdppCfJtsyTzpacMgOM_WKEUEhg`、検証済み復元元は `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA`
   - `reconcileMigrationWithSource.ok=true`、`mappedRowCount=326`、`mismatchCount=0`
-  - `getDbInfo` のシート一覧に `_MIGRATION_SUMMARY` / `_MIGRATION_MAP` / `_MIGRATION_SKIPPED` は現存、live 内 `_BAK_*` は削除済み、`_CREDENTIALS_TEMP` は現存しない
-  - T_事業所職員の氏名カラムが姓名未分離である点は継続課題
+  - `getDbInfo` のシート一覧に `_MIGRATION_SUMMARY` / `_MIGRATION_MAP` / `_MIGRATION_SKIPPED` / `_CREDENTIALS_TEMP` は現存、live 内 `_BAK_*` は削除済み
+  - `T_事業所職員` の姓名分離カラム（`姓/名/セイ/メイ`）は live へ反映済み。`氏名/フリガナ` は後方互換の合成値として保持
 - 再移行の実行条件と監査基準は `docs/24_TABLE_DESIGN_MIGRATION_v128_REDO_2026-03-25.md` と `docs/25_SOW_MIGRATION_v128_REDO_2026-03-25.md` を正とする。
-- v128 で本番 DB を再移行済み（2026-03-25 最終実測値: T_会員211件・T_事業所職員147件・T_認証アカウント326件・T_年会費347件）。その後、個人会員 158 件の `介護支援専門員番号` と事業所会員 3 件の 2024 年度年会費を source 基準で補正済み。2026-03-26 に `_MIGRATION_*` を再生成し provenance 監査も収束済み。正式バックアップは外部スプレッドシート `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA`（`https://docs.google.com/spreadsheets/d/11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA/edit`）で、live 内 `_BAK_*` は削除済み。旧状態へ戻す必要がある場合は `rollbackMigrationFromBackupSpreadsheet_('11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA')` を使用する。
-- 認証情報（ログインID/初期パスワード）は `_CREDENTIALS_TEMP` を前提に扱わないこと。**現時点の live DB には `_CREDENTIALS_TEMP` が存在しないため、会員通知は再生成手順確定まで保留**。
-- live 内 `_BAK_*` は 2026-03-26 に削除済み。ロールバックは外部バックアップ `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA` と `rollbackMigrationFromBackupSpreadsheet_()` を使用する。
+- v128 で本番 DB を再移行済み（2026-03-25 最終実測値: T_会員211件・T_事業所職員147件・T_認証アカウント326件・T_年会費347件）。その後、個人会員 158 件の `介護支援専門員番号` と事業所会員 3 件の 2024 年度年会費を source 基準で補正済み。2026-03-26 に `_MIGRATION_*` を再生成し provenance 監査も収束済み。最新 safety backup は外部スプレッドシート `1U6HTUUAaNfZ3mDPQfdppCfJtsyTzpacMgOM_WKEUEhg`（`https://docs.google.com/spreadsheets/d/1U6HTUUAaNfZ3mDPQfdppCfJtsyTzpacMgOM_WKEUEhg/edit`）、検証済み復元元は `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA`。live 内 `_BAK_*` は削除済み。旧状態へ戻す必要がある場合は `rollbackMigrationFromBackupSpreadsheet_('<backupSpreadsheetId>')` を使用する。
+- 認証情報（ログインID/初期パスワード）は `_CREDENTIALS_TEMP` を正本の運用台帳として扱うこと。**2026-03-26 時点の live DB には `_CREDENTIALS_TEMP` が 326 行存在するが、全件 `HASH_ONLY` のため、会員通知は `reissueCredentialPasswords*` 実行まで保留**。
+- live 内 `_BAK_*` は 2026-03-26 に削除済み。ロールバックは外部バックアップ `1U6HTUUAaNfZ3mDPQfdppCfJtsyTzpacMgOM_WKEUEhg` または検証済み復元元 `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA` と `rollbackMigrationFromBackupSpreadsheet_()` を使用する。
 - 2026-03-20 に `clasp redeploy` 後 `/exec` が 404 化したため、`appsscript.json` へ `webapp` manifest を追加し、新規 Deployment 2 本へ固定 ID を切り替えて復旧済み。
 - 公開ポータルは 2026-03-20 に MCP Playwright で再表示確認済み。
 - 直近の性能改善は反映済み。
@@ -137,13 +137,13 @@
 - v126 で事業所会員詳細編集画面を改善（WCAG 2.2準拠必須バリデーション、予約退会、職員Master-Detail Drilldown）。
 - v127 で職員詳細画面を改善（介護支援専門員番号必須化、role/statusドロップダウン、最終代表者自動退会）。
 - v128（データ移行）で ★会員名簿2025年度シートから本番DBへ一括移行。T_会員に`退会処理日`列を追加。移行関数 `migrateRoster2025_` / `executeMigration` / `dryRunMigration` / `verifyMigration_` / `backupBeforeMigration_` / `rollbackMigration_` を実装。
-- 次の主作業は **管理コンソール UI/UX 継続改善** および **必要に応じた機能追加**。
+- 次の主作業は **認証通知の運用実行判断** と **必要に応じた UI/UX 継続改善**。
 - Claude Code への次指示は `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` に整理済み。
 - ただし修正後は毎回、`docs/09_DEPLOYMENT_POLICY.md` の事前チェック/完了判定に従って再確認すること。
 - 2026-03-19 時点で **不要ファイルは `Dust/` に退避済み**。記録用スクリーンショット（`v98-*`）のみリポジトリ管理対象。
 - v116 で `T_管理者Googleホワイトリスト` を運用正本とする `管理コンソール（システム権限）` を追加。Googleメール / GoogleユーザーID / 表示名 / 紐付け認証ID / 有効フラグの追加・更新・削除が可能。
 - v116 で管理者ログイン後の左メニュー表示名を、ホワイトリストに紐付く会員・職員情報ベースに変更。紐付け未解決時のみ `システム管理者` を表示する。
-- 2026-03-25 の Playwright 確認では、会員マイページ・公開ポータルともに固定 `@128` URL で実画面表示を確認。会員マイページでは管理コンソール（会員管理）の集計 `211 / 179 / 32 / 147` を確認し、公開ポータルはトップ表示と受付中研修 4 件を確認。`healthCheck` も成功。
+- 2026-03-26 時点で固定 deployment は `@130`。`npx clasp deployments` で会員/公開ともに `@130` を確認し、`healthCheck` も成功。Playwright はローカル Chrome profile lock のため今回の最終目視確認では使わず、固定 URL の疎通確認は CLI と deployment 実測で代替した。
 
 ---
 
@@ -176,8 +176,8 @@
 
 | 用途 | Deployment ID | 現在 Version | URL |
 |---|---|---|---|
-| **会員マイページ** | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@128** | `.../exec` |
-| **公開ポータル** | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@128** | `.../exec?app=public` |
+| **会員マイページ** | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@130** | `.../exec` |
+| **公開ポータル** | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@130** | `.../exec?app=public` |
 
 > **鉄則**: 2 つの Deployment ID は常に同一バージョンへ同時更新。片方だけ更新禁止。
 > `npx clasp deployments` では表示名が実UIの `Manage deployments` と一致しないことがある。最終判断は Apps Script UI の固定2 Deployment を正とする。
@@ -192,8 +192,8 @@
 - フリガナ欄に漢字が入っている19名を退会者として自動判定（退会処理日=備考欄の日付、退会日=当該年度末）
 - `E=変更` の19行は修正版 dry-run では単独レコードとして採用（`changeRowsStandalone=19`）
 - ログインID: 介護支援専門員番号を使用。番号なしの場合は9始まり9桁の自動ID（26件）。CM番号重複2件は自動ID発番で解決
-- 認証情報（ログインID/初期パスワード）は `_CREDENTIALS_TEMP` 再生成手順が未収束のため、通知前に再確認が必要
-- バックアップ: 2026-03-26 以降の正式退避先は外部バックアップスプレッドシート `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA`。live 内 `_BAK_*` は削除済み
+- 認証情報（ログインID/初期パスワード）は `_CREDENTIALS_TEMP` を正本運用台帳として扱う。2026-03-26 時点では `HASH_ONLY=326` なので、通知前に `previewAllActiveCredentialPasswordReissueJson` または `reissueCredentialPasswords*` の実行判断が必要
+- バックアップ: 2026-03-26 以降の正式退避先は外部バックアップスプレッドシート。最新 safety backup は `1U6HTUUAaNfZ3mDPQfdppCfJtsyTzpacMgOM_WKEUEhg`、検証済み復元元は `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA`。live 内 `_BAK_*` は削除済み
 - 移行関数: `dryRunMigration()` / `executeMigration()` / `verifyMigration_()` / `backupBeforeMigration_()` / `rollbackMigration_(suffix)` / `rollbackMigrationFromBackupSpreadsheet_(backupSpreadsheetId)` を実装。`_MIGRATION_SUMMARY` / `_MIGRATION_MAP` / `_MIGRATION_SKIPPED` 出力対応済み
 
 #### v127（職員詳細画面改善: 介護支援専門員番号必須化 + role/status ドロップダウン + 最終代表者自動退会）
@@ -209,7 +209,7 @@
 - 連絡設定見直し: メール配信「希望する/希望しない」（DB: EMAIL/POST）、郵送先区分は事業所会員で非表示（保存時OFFICE固定）
 - 予約退会: `scheduleWithdrawMember_` で翌年度4/1に退会予約、年度末前なら `cancelScheduledWithdraw_` でキャンセル可
 - 職員Master-Detail Drilldown: StaffDetailAdmin 新設。事業所職員一覧から職員詳細編集画面に遷移
-- `updateStaff_` API: 職員個別更新（氏名/カナ/メール/介護支援専門員番号/権限/入会日）
+- `updateStaff_` API: 職員個別更新（`lastName/firstName/lastKana/firstKana` を正とし、`name/kana` は後方互換の合成値として同期）
 
 #### v125（管理コンソール会員管理改善: 操作列削除 + フラット一括編集 + 会員種別変更）
 - 会員一覧の操作列を削除し、編集画面に退会/除籍/転換アクションを集約
@@ -692,7 +692,7 @@ Googleアカウントでアクセス
 
 | バージョン | 内容 |
 |---|---|
-| **v128** | データ移行: ★会員名簿2025年度→本番DB一括移行。2026-03-24 実行時は T_会員205件（個人174+事業所31）、T_事業所職員133件、T_認証アカウント307件、T_年会費330件。2026-03-25 に再移行を実行し、T_会員211件（個人179+事業所32）、T_事業所職員147件、T_認証アカウント326件、T_年会費347件へ修正。続けて `repairRosterMigrationDataJson` で個人会員158件の `介護支援専門員番号` を補正し、`repairAnnualFeeAgainstSourceJson` で事業所会員の 2024 年度会費 3 件を補正。2026-03-26 に `dryRunMigration()` で `_MIGRATION_*` を再生成し、`reconcileMigrationWithSource.ok=true`・`mismatchCount=0` まで収束。正式バックアップは外部スプレッドシート `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA`、live 内 `_BAK_*` は削除済み。固定 deployment 2本は `@128`。T_会員に`退会処理日`列追加。フリガナ漢字19名退会判定。CM番号重複は先頭1桁振り番付き9桁ログインIDで採番 |
+| **v128-v130** | データ移行: ★会員名簿2025年度→本番DB一括移行。2026-03-24 実行時は T_会員205件（個人174+事業所31）、T_事業所職員133件、T_認証アカウント307件、T_年会費330件。2026-03-25 に再移行を実行し、T_会員211件（個人179+事業所32）、T_事業所職員147件、T_認証アカウント326件、T_年会費347件へ修正。続けて `repairRosterMigrationDataJson` で個人会員158件の `介護支援専門員番号` を補正し、`repairAnnualFeeAgainstSourceJson` で事業所会員の 2024 年度会費 3 件を補正。2026-03-26 に `dryRunMigration()` で `_MIGRATION_*` を再生成し、`reconcileMigrationWithSource.ok=true`・`mismatchCount=0` まで収束。さらに `T_事業所職員` に `姓/名/セイ/メイ` を追加して 147 件を backfill、`_CREDENTIALS_TEMP` を 326 件で再生成。正式外部バックアップは `1U6HTUUAaNfZ3mDPQfdppCfJtsyTzpacMgOM_WKEUEhg`、検証済み復元元は `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA`。live 内 `_BAK_*` は削除済み。固定 deployment 2本は `@130` |
 | **v127** | 職員詳細画面改善: 介護支援専門員番号必須化（事業所職員+個人会員、賛助会員のみ任意）、職員ID表示削除、職員権限/会員状態ドロップダウン化（REPRESENTATIVE変更可）、除籍日表示、`updateStaff_` にstatus allowlist追加+認証アカウント連動、`convertStaffToIndividual_` 最終代表者自動退会 |
 | **v126** | 事業所会員詳細編集画面改善: WCAG 2.2準拠必須バリデーション（FAX以外全必須）、連絡設定見直し（メール配信希望/不要、郵送先区分自動OFFICE固定）、予約退会（翌年度4/1無効化+キャンセル可）、職員Master-Detail Drilldown（StaffDetailAdmin新設） |
 | **v125** | 管理コンソール会員管理改善: 操作列削除→編集画面集約、退会/除籍アクション、フラット人物リスト一括編集（`getAdminPersonList_`/`updatePersonsBatch_`）、会員種別変更（`convertMemberType_`: 個人⇔事業所職員双方向）、除籍後アカウント保持+転換再有効化 |
@@ -737,13 +737,13 @@ Googleアカウントでアクセス
   - `api.ts`: updateStaff payload に `status` 追加
 - **検証結果**: `npm run typecheck` / `npm run build` / `npm run build:gas` 成功。`clasp push` + `healthCheck` 成功。Version 127 作成済み
 - **変更ファイル**: `backend/Code.gs`, `src/components/StaffDetailAdmin.tsx`, `src/components/MemberDetailAdmin.tsx`, `src/services/api.ts`
-- **デプロイ状態**: 両Deployment @128 同期済み（2026-03-25 固定URL実画面確認済み）
+- **デプロイ状態**: 両Deployment @130 同期済み（2026-03-26 `npx clasp deployments` 確認済み）
 
 ### 14.0 v126
 
 - **実施日**: 2026-03-23
 - **担当者**: Claude Code (claude-opus-4-6)
-- **備考**: 事業所会員詳細編集画面の4要件改善。(1) 勤務先情報のFAX番号以外を全て必須入力化（WCAG 2.2準拠: `aria-required`/`aria-invalid`/`aria-describedby`、blur時バリデーション、`*`マーク `aria-hidden`、エラーはアイコン+テキスト）。(2) 連絡設定の見直し — メールアドレス必須、発送方法を「メール配信を希望する/希望しない」に変更（DB: EMAIL/POST）、郵送先区分は事業所会員で非表示（保存時OFFICE固定）。(3) 会員アクション — 即時退会を予約退会に変更。`scheduleWithdrawMember_` で翌年度4/1に退会予約（`getNextFiscalYearStart_` で算出）、年度末前なら `cancelScheduledWithdraw_` でキャンセル可。`promoteScheduledWithdrawals_` が退会日到達時に自動適用。(4) 事業所職員一覧から職員詳細編集画面（StaffDetailAdmin）へのMaster-Detail Drilldown遷移。`updateStaff_` APIで職員個別更新（氏名/カナ/メール/介護支援専門員番号/権限/入会日）。
+- **備考**: 事業所会員詳細編集画面の4要件改善に加え、2026-03-26 時点の `StaffDetailAdmin` は `姓/名/セイ/メイ` を直接編集する。`updateStaff_` API は split-name を正とし、`氏名/フリガナ` は後方互換の合成値として同期する。
 - **検証結果**: `npm run typecheck` / `npm run build` / `npm run build:gas` 成功。
 - **変更ファイル**: `backend/Code.gs`, `src/App.tsx`, `src/components/MemberDetailAdmin.tsx`, `src/components/StaffDetailAdmin.tsx`(新規), `src/services/api.ts`
 

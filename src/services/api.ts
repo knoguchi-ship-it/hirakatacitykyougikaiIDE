@@ -106,7 +106,7 @@ export interface ApiClient {
   // v126: 予約退会・キャンセル・職員個別更新
   scheduleWithdrawMember(memberId: string): Promise<{ scheduled: boolean; memberId: string; withdrawnDate: string }>;
   cancelScheduledWithdraw(memberId: string): Promise<{ cancelled: boolean; memberId: string }>;
-  updateStaff(payload: { staffId: string; memberId: string; name?: string; kana?: string; email?: string; careManagerNumber?: string; role?: string; status?: string; joinedDate?: string }): Promise<{ updated: boolean; staffId: string; memberId: string; status?: string; role?: string }>;
+  updateStaff(payload: { staffId: string; memberId: string; lastName?: string; firstName?: string; lastKana?: string; firstKana?: string; name?: string; kana?: string; email?: string; careManagerNumber?: string; role?: string; status?: string; joinedDate?: string }): Promise<{ updated: boolean; staffId: string; memberId: string; status?: string; role?: string }>;
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -991,7 +991,7 @@ class GasApiClient implements ApiClient {
   }
 
   // v127: 職員個別更新（status 対応追加）
-  async updateStaff(payload: { staffId: string; memberId: string; name?: string; kana?: string; email?: string; careManagerNumber?: string; role?: string; status?: string; joinedDate?: string }): Promise<{ updated: boolean; staffId: string; memberId: string; status?: string; role?: string }> {
+  async updateStaff(payload: { staffId: string; memberId: string; lastName?: string; firstName?: string; lastKana?: string; firstKana?: string; name?: string; kana?: string; email?: string; careManagerNumber?: string; role?: string; status?: string; joinedDate?: string }): Promise<{ updated: boolean; staffId: string; memberId: string; status?: string; role?: string }> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
       google.script.run
