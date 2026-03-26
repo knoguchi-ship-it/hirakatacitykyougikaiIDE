@@ -12001,6 +12001,185 @@ function listMembersWithoutJoinedDateJson() {
 }
 
 /**
+ * T_事業所職員の入会日をソース V列から補正する（dry-run）
+ * マッチ方式: ソースK列(勤務先) = T_会員.勤務先名 AND 職員の姓がソースL列(氏名)に含まれる
+ * 呼び出し: clasp run repairStaffJoinedDateFromSourceJson
+ */
+function repairStaffJoinedDateFromSourceJson() {
+  return JSON.stringify(repairStaffJoinedDateFromSource_(true));
+}
+
+function executeRepairStaffJoinedDateFromSourceJson() {
+  return JSON.stringify(repairStaffJoinedDateFromSource_(false));
+}
+
+function repairStaffJoinedDateFromSource_(dryRun) {
+  var source = readRosterSource_();
+  var data = source.data;
+  var col = source.colMap;
+
+  // ソースから事業所行を抽出
+  // 名前は L列(氏名) を優先、空なら N列(フリガナ欄に漢字名が入るケース) をフォールバック
+  var sourceEntries = [];
+  for (var i = 0; i < data.length; i++) {
+    var row = data[i];
+    var workplace = normalizeRosterCellText_(row[col.workplace]);
+    if (!workplace) continue;
+    var sourceName = normalizeRosterCellText_(row[col.name]);
+    if (!sourceName) {
+      sourceName = normalizeRosterCellText_(row[col.furigana]);
+    }
+    if (!sourceName) continue;
+    var vDate = col.joinedDate >= 0 ? normalizeRosterDate_(row[col.joinedDate]) : '';
+    sourceEntries.push({
+      workplaceKey: normalizeRosterKeyText_(workplace),
+      workplaceRaw: workplace,
+      sourceName: sourceName,
+      sourceNameKey: normalizeRosterKeyText_(sourceName),
+      joinedDate: vDate,
+      sourceRow: i + 2,
+    });
+  }
+
+  // DB読み込み
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+
+  // T_会員: 会員ID → 勤務先名マップ（事業所会員のみ）
+  var memberRows = getRowsAsObjects_(ss, 'T_会員');
+  var memberOfficeMap = {};  // 会員ID → 勤務先名(正規化キー)
+  var memberOfficeRaw = {};  // 会員ID → 勤務先名(生値)
+  for (var mi = 0; mi < memberRows.length; mi++) {
+    var m = memberRows[mi];
+    if (String(m['会員種別コード'] || '') !== 'BUSINESS') continue;
+    var mId = String(m['会員ID'] == null ? '' : m['会員ID']).trim();
+    var office = String(m['勤務先名'] || '').trim();
+    if (mId && office) {
+      memberOfficeMap[mId] = normalizeRosterKeyText_(office);
+      memberOfficeRaw[mId] = office;
+    }
+  }
+
+  // T_事業所職員を読み込み
+  var staffSheet = ss.getSheetByName('T_事業所職員');
+  var lastRow = staffSheet.getLastRow();
+  var lastCol = staffSheet.getLastColumn();
+  var headers = staffSheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var staffData = lastRow > 1 ? staffSheet.getRange(2, 1, lastRow - 1, lastCol).getValues() : [];
+
+  var colIdx = {};
+  for (var hi = 0; hi < headers.length; hi++) colIdx[headers[hi]] = hi;
+  var staffIdCol = colIdx['職員ID'];
+  var joinedCol = colIdx['入会日'];
+  var updatedAtCol = colIdx['更新日時'];
+  var lastNameCol = colIdx['姓'];
+  var nameCol = colIdx['氏名'];
+  var memberIdCol = colIdx['会員ID'];
+
+  var updates = [];
+  var alreadyHasDate = 0;
+  var noMapping = [];
+  var now = new Date().toISOString();
+
+  for (var ri = 0; ri < staffData.length; ri++) {
+    var sId = String(staffData[ri][staffIdCol] || '').trim();
+    if (!sId) continue;
+
+    var currentJoined = staffData[ri][joinedCol];
+    var currentJoinedStr = '';
+    if (currentJoined instanceof Date) {
+      currentJoinedStr = isNaN(currentJoined.getTime()) ? '' : Utilities.formatDate(currentJoined, 'Asia/Tokyo', 'yyyy-MM-dd');
+    } else {
+      currentJoinedStr = normalizeRosterDate_(currentJoined);
+    }
+
+    // 既に入会日がある場合はスキップ
+    if (currentJoinedStr) {
+      alreadyHasDate++;
+      continue;
+    }
+
+    var staffMemberId = String(staffData[ri][memberIdCol] || '').trim();
+    var staffLastName = String(staffData[ri][lastNameCol] || '').trim();
+    var staffFullName = String(staffData[ri][nameCol] || '').trim();
+    var officeKey = memberOfficeMap[staffMemberId] || '';
+
+    // 姓が空なら氏名から姓を抽出（スペース区切りの先頭）
+    if (!staffLastName && staffFullName) {
+      var parts = staffFullName.split(/[\s\u3000]+/);
+      staffLastName = parts[0] || '';
+    }
+
+    if (!officeKey || !staffLastName) {
+      noMapping.push({
+        staffId: sId,
+        name: staffFullName,
+        reason: !officeKey ? 'no_office' : 'no_lastName',
+      });
+      continue;
+    }
+
+    // ソースから一致を探す: 事業所名一致 AND 姓がソース名(L列 or N列)に含まれる
+    var matched = null;
+    var lastNameKey = normalizeRosterKeyText_(staffLastName);
+    for (var si = 0; si < sourceEntries.length; si++) {
+      var se = sourceEntries[si];
+      if (se.workplaceKey !== officeKey) continue;
+      if (se.sourceNameKey.indexOf(lastNameKey) === -1) continue;
+      matched = se;
+      break;
+    }
+
+    if (!matched) {
+      noMapping.push({
+        staffId: sId,
+        name: staffFullName,
+        officeName: memberOfficeRaw[staffMemberId] || '',
+        lastName: staffLastName,
+        reason: 'no_source_match',
+      });
+      continue;
+    }
+
+    // ソースV列が空の場合はデフォルト日付を適用
+    if (!matched.joinedDate) {
+      matched = { workplaceKey: matched.workplaceKey, workplaceRaw: matched.workplaceRaw, sourceName: matched.sourceName, sourceNameKey: matched.sourceNameKey, joinedDate: '2025-12-31', sourceRow: matched.sourceRow };
+    }
+
+    updates.push({
+      rowIndex: ri,
+      staffId: sId,
+      memberId: staffMemberId,
+      name: staffFullName,
+      officeName: memberOfficeRaw[staffMemberId] || '',
+      matchedSourceName: matched.sourceName,
+      matchedSourceRow: matched.sourceRow,
+      oldJoinedDate: '(blank)',
+      newJoinedDate: matched.joinedDate,
+    });
+  }
+
+  if (!dryRun && updates.length > 0) {
+    for (var ui = 0; ui < updates.length; ui++) {
+      var u = updates[ui];
+      staffData[u.rowIndex][joinedCol] = u.newJoinedDate;
+      staffData[u.rowIndex][updatedAtCol] = now;
+    }
+    staffSheet.getRange(2, 1, staffData.length, staffData[0].length).setValues(staffData);
+  }
+
+  return {
+    dryRun: dryRun,
+    sourceEntriesWithWorkplace: sourceEntries.length,
+    totalStaff: staffData.length,
+    alreadyHasDate: alreadyHasDate,
+    noMappingCount: noMapping.length,
+    updatedCount: updates.length,
+    updates: dryRun ? updates : updates.map(function(u) { return { staffId: u.staffId, name: u.name, newJoinedDate: u.newJoinedDate }; }),
+    noMapping: dryRun ? noMapping : [],
+  };
+}
+
+/**
  * 事業所会員の個人属性フィールドをブランクに補正する（dry-run 対応）
  * 対象: 姓/名/セイ/メイ/介護支援専門員番号/発送方法コード/郵送先区分コード
  * 呼び出し: clasp run repairBusinessMemberFieldsJson
