@@ -1,6 +1,6 @@
 # 引継ぎ書（次担当者向け）
 
-更新日: **2026-03-26（v128 provenance収束・職員姓名分離・認証台帳再生成を反映）**
+更新日: **2026-03-26（v131 管理コンソール年度対応・事業所会員基本情報整理・入会日補正を反映）**
 対象: 枚方市介護支援専門員連絡協議会 会員システム
 
 ---
@@ -47,9 +47,14 @@
 
 ## 1.1 次担当者向け・最短状況サマリ（このまま新スレッドへ貼付可）
 
-- 本番Web URLは固定2本（会員/公開）で **@130 同期済み**（2026-03-26）。
-- `main` には v127 が反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` と `git status --short` を正とすること。
+- 本番Web URLは固定2本（会員/公開）で **@131 同期済み**（2026-03-26）。
+- `main` には v131 が反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` と `git status --short` を正とすること。
 - **v128（データ移行・deployment反映済み）**: 2026-03-24 実行時は ★会員名簿（2025年度）から本番DBへ T_会員205件（個人174+事業所31）、T_事業所職員133件、T_認証アカウント307件、T_年会費納入履歴330件を移行。2026-03-25 に再移行を実施し、最終的に T_会員211件（個人179+事業所32）、T_事業所職員147件、T_認証アカウント326件、T_年会費347件へ修正。runId `20260325T120805-35e3927e`、backupSuffix `_BAK_20260325_120805`。その後 `repairRosterMigrationDataJson` を実行し、個人会員158件の `介護支援専門員番号` を live DB へ補正、backupSuffix `_BAK_20260325_182904`、`remainingPreview.memberUpdates=0` を確認。続けて `repairAnnualFeeAgainstSourceJson` を実行し、事業所会員の 2024 年度会費 3 件（`40131545|2024`、`375881|2024`、`4539021|2024`）を source 支払欄基準で補正、backupSuffix `_BAK_20260325_200151`、`feeAudit.missing=0 / extra=0 / duplicate=0 / mismatch=0`、`currentFees=347 / expectedFees=347`、`currentAmountTotal=1336000 / expectedAmountTotal=1336000` を確認。2026-03-26 に `dryRunMigration()` で `_MIGRATION_*` を live DB へ再生成し、`reconcileMigrationWithSource.ok=true`（`mappedRowCount=326`, `mismatchCount=0`）まで provenance を収束。続けて `T_事業所職員` に `姓/名/セイ/メイ` を追加し 147 件を backfill、`_CREDENTIALS_TEMP` を 326 件で再生成して `missingLinkCount=0`、`HASH_ONLY=326` を確認した。`backupBeforeMigration_()` は別スプレッドシートへ同一スナップショットを保存し、live 内 `_BAK_*` は削除済み。検証済み外部バックアップは `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA`、本作業開始前の安全退避は `1U6HTUUAaNfZ3mDPQfdppCfJtsyTzpacMgOM_WKEUEhg`。固定 deployment 2本は 2026-03-26 に最終 `@130` へ更新済み。
+- **v131**: 管理コンソール年度対応・事業所会員基本情報整理・入会日補正。
+  - ダッシュボード「今年度入会数/退会数」を会計年度（4/1〜翌3/31）ベースに修正。ラベルに「2025年度 入会数」等と年度名を表示。
+  - 事業所会員の姓/名/セイ/メイ/介護支援専門員番号/発送方法コード/郵送先区分コードをブランク運用化。DB補正済み（32件）、`updateMember_()` に制約追加、MemberDetailAdmin UI で非表示。
+  - ソース V列の入会日を live DB へ補正（163件更新、174件→入会日あり）。入会日不明 37 件は `docs/28_UNKNOWN_JOINED_DATE_MEMBERS_v131.md` にリスト化。
+  - 仕様書: `docs/27_IMPL_SPEC_ADMIN_DASHBOARD_AND_OFFICE_MEMBER_v131.md`
 - **v127**: 職員詳細画面改善。介護支援専門員番号を事業所職員・個人会員で必須化（賛助会員のみ任意）。職員権限/会員状態をドロップダウン化。`updateStaff_` にstatus変更+認証アカウント連動を追加。最終代表者が個人会員に転換する場合、事業所を自動退会する処理を実装。
 - **v126**: 事業所会員詳細編集画面改善。WCAG 2.2 準拠バリデーション（FAX以外全必須）、連絡設定見直し（メール配信希望/不要）、予約退会（翌年度4/1無効化+キャンセル可）、職員Master-Detail Drilldown（StaffDetailAdmin新設）。
 - **v125**: 管理コンソール会員管理を全面改善。操作列削除→編集画面に退会/除籍/転換アクション集約。フラット人物リスト一括編集（個人+賛助+職員を人物単位で表示）。会員種別変更（個人⇔事業所職員の双方向転換）。除籍後もアカウント保持し、管理者がいつでも転換で再有効化可能。
@@ -67,8 +72,8 @@
 ## 1.2 この時点の引き継ぎポイント
 
 - スレッドを切っても問題ない状態まで、正本と引き継ぎは同期済み。
-- 現在の本番固定 Deployment は会員/公開ともに **@130**。
-- **本番固定 deployment は `clasp push`・version作成・固定2 deployment 更新まで完了**。`npx clasp deployments` では会員/公開ともに `@130`。
+- 現在の本番固定 Deployment は会員/公開ともに **@131**。
+- **本番固定 deployment は `clasp push`・version作成・固定2 deployment 更新まで完了**。`npx clasp deployments` では会員/公開ともに `@131`。
 - **v128 再移行は 2026-03-25 に実行済み。次担当者は `docs/23_MIGRATION_HANDOVER_v128.md` と実行結果を参照すること。**
   - runId `20260325T120805-35e3927e`
   - `sourceCoverage=384/384`
@@ -93,7 +98,7 @@
   - 年会費管理: 対象年度取得の軽量化 + 25/50/100件切替 + ページング + 一括保存
   - 研修管理: `getTrainingManagementData` による軽量読込
 - v97 で管理コンソール（会員管理）を全面リニューアル。
-  - ダッシュボード6カード化（総会員数/個人会員数/事業所会員数/事業所会員メンバー数/今年度入会数/今年度退会数）
+  - ダッシュボード6カード化（総会員数/個人会員数/事業所会員数/事業所会員メンバー数/年度入会数/年度退会数）※v131で会計年度対応済み
   - 多条件検索（会員種別/会員状態/入会年度/キーワード）+ フィルターチップUI
   - 全カラムソート（会員番号/氏名/種別/研修参加数/継続年数/状態）
   - 行クリックで会員詳細編集画面に遷移（MemberDetailAdmin）

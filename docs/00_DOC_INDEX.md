@@ -1,6 +1,6 @@
 ﻿# ドキュメント索引（現行）
 
-更新日: 2026-03-25
+更新日: 2026-03-26
 
 ## 現行の正本
 - `README.md`
@@ -38,6 +38,8 @@
 - `docs/24_TABLE_DESIGN_MIGRATION_v128_REDO_2026-03-25.md` ← v128 再移行専用テーブル設計書
 - `docs/25_SOW_MIGRATION_v128_REDO_2026-03-25.md` ← v128 再移行専用 SOW
 - `docs/26_BROWSER_AUDIT_COLUMN_MAPPING_HANDOVER_2026-03-25.md` ← 2026-03-25 ブラウザ実機監査メモ（pre-repair の監査記録）
+- `docs/27_IMPL_SPEC_ADMIN_DASHBOARD_AND_OFFICE_MEMBER_v131.md` ← v131 管理コンソール年度対応・事業所会員基本情報整理・入会日補正の実装仕様書
+- `docs/28_UNKNOWN_JOINED_DATE_MEMBERS_v131.md` ← v131 入会日不明会員リスト（37件・手動確認用）
 
 ## 履歴資料（参照のみ）
 - `docs/archive/docs_history/*`

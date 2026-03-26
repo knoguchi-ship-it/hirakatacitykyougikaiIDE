@@ -2758,9 +2758,11 @@ function getAdminDashboardData_() {
     }
   }
 
-  // 研修申込データから会員別の今年度参加数を集計
+  // 研修申込データから会員別の今年度参加数を集計（会計年度 4/1〜翌3/31）
   var applicationRows = getTrainingApplicationRows_(ss, { appliedOnly: true });
-  var currentYear = new Date().getFullYear();
+  var currentFiscalYear = getCurrentFiscalYear_();
+  var fyStart = new Date(currentFiscalYear, 3, 1);      // 4月1日
+  var fyEnd   = new Date(currentFiscalYear + 1, 2, 31); // 翌3月31日
   var trainingDateMap = {};
   for (var tIdx = 0; tIdx < trainingRows.length; tIdx += 1) {
     var tr = trainingRows[tIdx];
@@ -2772,8 +2774,8 @@ function getAdminDashboardData_() {
     var tId = String(app['研修ID'] || '');
     var tDate = trainingDateMap[tId] || '';
     if (tDate) {
-      var tYear = new Date(tDate).getFullYear();
-      if (tYear !== currentYear) continue;
+      var td = new Date(tDate);
+      if (td < fyStart || td > fyEnd) continue;
     }
     var appMemberId = getMemberIdFromApplication_(app);
     if (appMemberId) {
@@ -2805,12 +2807,12 @@ function getAdminDashboardData_() {
 
     if (joinedDateRaw) {
       var jd = new Date(joinedDateRaw);
-      if (!isNaN(jd.getTime()) && jd.getFullYear() === currentYear) currentYearJoinedCount += 1;
+      if (!isNaN(jd.getTime()) && jd >= fyStart && jd <= fyEnd) currentYearJoinedCount += 1;
     }
     var withdrawnDateRaw = String(member['退会日'] || '');
     if (withdrawnDateRaw && memberStatus === 'WITHDRAWN') {
       var wd = new Date(withdrawnDateRaw);
-      if (!isNaN(wd.getTime()) && wd.getFullYear() === currentYear) currentYearWithdrawnCount += 1;
+      if (!isNaN(wd.getTime()) && wd >= fyStart && wd <= fyEnd) currentYearWithdrawnCount += 1;
     }
 
     return {
@@ -2844,6 +2846,8 @@ function getAdminDashboardData_() {
     individualCount: individualCount,
     businessCount: businessCount,
     businessStaffCount: businessStaffCount,
+    currentFiscalYear: currentFiscalYear,
+    currentFiscalYearLabel: currentFiscalYear + '年度',
     currentYearJoinedCount: currentYearJoinedCount,
     currentYearWithdrawnCount: currentYearWithdrawnCount,
     paidCount: memberSummaries.filter(function(member) { return member.latestFeeStatus === 'PAID'; }).length,
@@ -5900,6 +5904,16 @@ function updateMember_(payload, options) {
     var n = Number(mergedPayload.staffLimit);
     setCol('職員数上限', isFinite(n) && n >= 1 ? Math.floor(n) : '');
   }
+  // v131: 事業所会員は姓/名/セイ/メイ/介護支援専門員番号/発送方法/郵送先区分をブランク強制
+  if (memberTypeCode === 'BUSINESS') {
+    setCol('姓', '');
+    setCol('名', '');
+    setCol('セイ', '');
+    setCol('メイ', '');
+    setCol('介護支援専門員番号', '');
+    setCol('発送方法コード', '');
+    setCol('郵送先区分コード', '');
+  }
   setCol('更新日時', new Date().toISOString());
   sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
   if (hasOwn.call(payload, 'staff')) {
@@ -5924,11 +5938,14 @@ function validateMemberPayload_(payload, memberTypeCode) {
   var isBusiness = memberTypeCode === 'BUSINESS';
   var isSupport = memberTypeCode === 'SUPPORT';
 
-  if (!trim(payload.lastName)) throw new Error('姓は必須です。');
-  if (!trim(payload.firstName)) throw new Error('名は必須です。');
-  if (!trim(payload.lastKana)) throw new Error('セイは必須です。');
-  if (!trim(payload.firstKana)) throw new Error('メイは必須です。');
-  if (!isSupport && !trim(payload.careManagerNumber)) throw new Error('賛助会員以外は介護支援専門員番号が必須です。');
+  // 事業所会員は姓/名/セイ/メイ/介護支援専門員番号をブランク運用（v131）
+  if (!isBusiness) {
+    if (!trim(payload.lastName)) throw new Error('姓は必須です。');
+    if (!trim(payload.firstName)) throw new Error('名は必須です。');
+    if (!trim(payload.lastKana)) throw new Error('セイは必須です。');
+    if (!trim(payload.firstKana)) throw new Error('メイは必須です。');
+    if (!isSupport && !trim(payload.careManagerNumber)) throw new Error('賛助会員以外は介護支援専門員番号が必須です。');
+  }
 
   if (isBusiness) {
     if (!trim(payload.mobilePhone) && !trim(payload.phone)) {
@@ -11785,4 +11802,285 @@ function executeMigration() {
   } finally {
     lock.releaseLock();
   }
+}
+
+// ── v131 補正関数 ──
+
+/**
+ * ソース V列の入会日を _MIGRATION_MAP 経由で T_会員.入会日 に補正する（dry-run 対応）
+ * 呼び出し: clasp run repairJoinedDateFromSourceJson
+ */
+function repairJoinedDateFromSourceJson() {
+  return JSON.stringify(repairJoinedDateFromSource_(true));
+}
+
+function executeRepairJoinedDateFromSourceJson() {
+  return JSON.stringify(repairJoinedDateFromSource_(false));
+}
+
+function repairJoinedDateFromSource_(dryRun) {
+  var source = readRosterSource_();
+  var data = source.data;
+  var col = source.colMap;
+
+  // ソースからCM番号→入会日、勤務先→最古の入会日のマップを構築
+  var cmDateMap = {};       // CM番号 → 入会日（個人会員用）
+  var officeNameDateMap = {}; // 勤務先名 → 最古の入会日（事業所会員用）
+  var sourceWithDate = 0;
+  var sourceWithoutDate = 0;
+
+  for (var i = 0; i < data.length; i++) {
+    var row = data[i];
+    var name = String(row[col.name] || '').trim();
+    if (!name) continue;
+    var vDate = col.joinedDate >= 0 ? normalizeRosterDate_(row[col.joinedDate]) : '';
+    if (!vDate) { sourceWithoutDate++; continue; }
+    sourceWithDate++;
+
+    var cmNumber = normalizeRosterCellText_(row[col.cmNumber]);
+    var workplace = normalizeRosterCellText_(row[col.workplace]);
+    var memberType = normalizeRosterCellText_(row[col.memberType]);
+
+    // CM番号マップ（個人会員・事業所職員とも登録）
+    if (cmNumber) {
+      var cmKeys = buildLooseIdKeys_(cmNumber);
+      for (var ck = 0; ck < cmKeys.length; ck++) {
+        if (!cmDateMap[cmKeys[ck]] || vDate < cmDateMap[cmKeys[ck]]) {
+          cmDateMap[cmKeys[ck]] = vDate;
+        }
+      }
+    }
+
+    // 勤務先マップ（事業所会員用: 同一勤務先の最古の日付）
+    if (memberType === '事業所' && workplace) {
+      var wpKey = normalizeRosterKeyText_(workplace);
+      if (!officeNameDateMap[wpKey] || vDate < officeNameDateMap[wpKey]) {
+        officeNameDateMap[wpKey] = vDate;
+      }
+    }
+  }
+
+  // T_会員を読み込み、更新対象を特定
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var memberSheet = ss.getSheetByName('T_会員');
+  var lastRow = memberSheet.getLastRow();
+  var lastCol = memberSheet.getLastColumn();
+  var headers = memberSheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var memberData = lastRow > 1 ? memberSheet.getRange(2, 1, lastRow - 1, lastCol).getValues() : [];
+
+  var colIdx = {};
+  for (var hi = 0; hi < headers.length; hi++) colIdx[headers[hi]] = hi;
+  var idCol = colIdx['会員ID'];
+  var joinedCol = colIdx['入会日'];
+  var updatedAtCol = colIdx['更新日時'];
+  var typeCol = colIdx['会員種別コード'];
+  var cmCol = colIdx['介護支援専門員番号'];
+  var officeNameCol = colIdx['勤務先名'];
+
+  var updates = [];
+  var alreadyCorrect = 0;
+  var noMapping = 0;
+  var now = new Date().toISOString();
+
+  for (var ri = 0; ri < memberData.length; ri++) {
+    var mId = String(memberData[ri][idCol] == null ? '' : memberData[ri][idCol]).trim();
+    var currentJoined = memberData[ri][joinedCol];
+    var currentJoinedStr = '';
+    if (currentJoined instanceof Date) {
+      currentJoinedStr = isNaN(currentJoined.getTime()) ? '' : Utilities.formatDate(currentJoined, 'Asia/Tokyo', 'yyyy-MM-dd');
+    } else {
+      currentJoinedStr = normalizeRosterDate_(currentJoined);
+    }
+    var memberType = String(memberData[ri][typeCol] || '').trim();
+    var cmNum = String(memberData[ri][cmCol] == null ? '' : memberData[ri][cmCol]).trim();
+    var officeName = String(memberData[ri][officeNameCol] || '').trim();
+
+    var newDate = null;
+    var matchMethod = '';
+
+    if (memberType === 'BUSINESS') {
+      // 事業所会員: 勤務先名でマッチ
+      if (officeName) {
+        var wpKey2 = normalizeRosterKeyText_(officeName);
+        if (officeNameDateMap[wpKey2]) {
+          newDate = officeNameDateMap[wpKey2];
+          matchMethod = 'officeName';
+        }
+      }
+    } else {
+      // 個人・賛助: CM番号でマッチ
+      if (cmNum) {
+        var cmKeys2 = buildLooseIdKeys_(cmNum);
+        for (var ck2 = 0; ck2 < cmKeys2.length; ck2++) {
+          if (cmDateMap[cmKeys2[ck2]]) {
+            newDate = cmDateMap[cmKeys2[ck2]];
+            matchMethod = 'cmNumber';
+            break;
+          }
+        }
+      }
+    }
+
+    if (!newDate) {
+      noMapping++;
+      continue;
+    }
+
+    if (currentJoinedStr && currentJoinedStr === newDate) {
+      alreadyCorrect++;
+      continue;
+    }
+
+    updates.push({
+      rowIndex: ri,
+      memberId: mId,
+      memberType: memberType,
+      matchMethod: matchMethod,
+      matchKey: matchMethod === 'officeName' ? officeName : cmNum,
+      oldJoinedDate: currentJoinedStr || '(blank)',
+      newJoinedDate: newDate,
+    });
+  }
+
+  if (!dryRun && updates.length > 0) {
+    for (var ui = 0; ui < updates.length; ui++) {
+      var u = updates[ui];
+      memberData[u.rowIndex][joinedCol] = u.newJoinedDate;
+      memberData[u.rowIndex][updatedAtCol] = now;
+    }
+    memberSheet.getRange(2, 1, memberData.length, memberData[0].length).setValues(memberData);
+  }
+
+  return {
+    dryRun: dryRun,
+    sourceDateCount: sourceWithDate,
+    sourceNoDateCount: sourceWithoutDate,
+    cmDateMapSize: Object.keys(cmDateMap).length,
+    officeNameDateMapSize: Object.keys(officeNameDateMap).length,
+    totalMembers: memberData.length,
+    alreadyCorrect: alreadyCorrect,
+    noMappingFound: noMapping,
+    updatedCount: updates.length,
+    updates: dryRun ? updates : updates.map(function(u) { return { memberId: u.memberId, newJoinedDate: u.newJoinedDate }; }),
+  };
+}
+
+/**
+ * 入会日が不明な会員のリストを返す
+ */
+function listMembersWithoutJoinedDateJson() {
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var members = getRowsAsObjects_(ss, 'T_会員').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']);
+  });
+  var result = [];
+  for (var i = 0; i < members.length; i++) {
+    var m = members[i];
+    var joined = m['入会日'];
+    var joinedStr = '';
+    if (joined instanceof Date) {
+      joinedStr = isNaN(joined.getTime()) ? '' : Utilities.formatDate(joined, 'Asia/Tokyo', 'yyyy-MM-dd');
+    } else {
+      joinedStr = String(joined || '').trim();
+    }
+    if (!joinedStr) {
+      var memberType = String(m['会員種別コード'] || '');
+      var name = (String(m['姓'] || '') + '　' + String(m['名'] || '')).trim();
+      if (!name || name === '　') name = String(m['勤務先名'] || '(不明)');
+      result.push({
+        memberId: String(m['会員ID'] == null ? '' : m['会員ID']),
+        memberType: memberType,
+        name: name,
+        officeName: String(m['勤務先名'] || ''),
+        cmNumber: String(m['介護支援専門員番号'] == null ? '' : m['介護支援専門員番号']),
+        status: String(m['会員状態コード'] || ''),
+      });
+    }
+  }
+  return JSON.stringify({ count: result.length, members: result });
+}
+
+/**
+ * 事業所会員の個人属性フィールドをブランクに補正する（dry-run 対応）
+ * 対象: 姓/名/セイ/メイ/介護支援専門員番号/発送方法コード/郵送先区分コード
+ * 呼び出し: clasp run repairBusinessMemberFieldsJson
+ */
+function repairBusinessMemberFieldsJson() {
+  return JSON.stringify(repairBusinessMemberFields_(true));
+}
+
+function executeRepairBusinessMemberFieldsJson() {
+  return JSON.stringify(repairBusinessMemberFields_(false));
+}
+
+function repairBusinessMemberFields_(dryRun) {
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var sheet = ss.getSheetByName('T_会員');
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var data = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, lastCol).getValues() : [];
+
+  var colIdx = {};
+  for (var hi = 0; hi < headers.length; hi++) colIdx[headers[hi]] = hi;
+
+  var blankFields = ['姓', '名', 'セイ', 'メイ', '介護支援専門員番号', '発送方法コード', '郵送先区分コード'];
+  var typeCol = colIdx['会員種別コード'];
+  var deleteCol = colIdx['削除フラグ'];
+  var updatedAtCol = colIdx['更新日時'];
+  var idCol = colIdx['会員ID'];
+  var now = new Date().toISOString();
+
+  var updates = [];
+
+  for (var ri = 0; ri < data.length; ri++) {
+    var memberType = String(data[ri][typeCol] || '').trim();
+    if (memberType !== 'BUSINESS') continue;
+    if (toBoolean_(data[ri][deleteCol])) continue;
+
+    var changes = [];
+    for (var fi = 0; fi < blankFields.length; fi++) {
+      var fieldName = blankFields[fi];
+      var ci = colIdx[fieldName];
+      if (ci == null) continue;
+      var currentVal = String(data[ri][ci] || '').trim();
+      if (currentVal) {
+        changes.push({ field: fieldName, oldValue: currentVal });
+      }
+    }
+
+    if (changes.length > 0) {
+      updates.push({
+        rowIndex: ri,
+        memberId: String(data[ri][idCol] || ''),
+        changes: changes,
+      });
+    }
+  }
+
+  if (!dryRun && updates.length > 0) {
+    for (var ui = 0; ui < updates.length; ui++) {
+      var u = updates[ui];
+      for (var ci2 = 0; ci2 < u.changes.length; ci2++) {
+        var fieldIdx = colIdx[u.changes[ci2].field];
+        data[u.rowIndex][fieldIdx] = '';
+      }
+      data[u.rowIndex][updatedAtCol] = now;
+    }
+    sheet.getRange(2, 1, data.length, data[0].length).setValues(data);
+  }
+
+  var totalBusiness = data.filter(function(r) {
+    return String(r[typeCol] || '').trim() === 'BUSINESS' && !toBoolean_(r[deleteCol]);
+  }).length;
+
+  return {
+    dryRun: dryRun,
+    totalBusinessMembers: totalBusiness,
+    membersWithNonBlankFields: updates.length,
+    membersAlreadyClean: totalBusiness - updates.length,
+    updates: updates.map(function(u) {
+      return { memberId: u.memberId, changes: u.changes };
+    }),
+  };
 }

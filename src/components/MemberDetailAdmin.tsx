@@ -348,37 +348,42 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
               <option value="SUPPORT">賛助会員</option>
             </select>
           </div>
-          <div>
-            <label className={labelClass}>姓</label>
-            <input className={fieldClass()} value={form.lastName || ''} onChange={e => set('lastName', e.target.value)} />
-          </div>
-          <div>
-            <label className={labelClass}>名</label>
-            <input className={fieldClass()} value={form.firstName || ''} onChange={e => set('firstName', e.target.value)} />
-          </div>
-          <div>
-            <label className={labelClass}>セイ</label>
-            <input className={fieldClass()} value={form.lastKana || ''} onChange={e => set('lastKana', e.target.value)} />
-          </div>
-          <div>
-            <label className={labelClass}>メイ</label>
-            <input className={fieldClass()} value={form.firstKana || ''} onChange={e => set('firstKana', e.target.value)} />
-          </div>
-          <div>
-            <label className={labelClass}>介護支援専門員番号{isIndividual && <span aria-hidden="true" className="text-red-500 ml-0.5">*</span>}</label>
-            <input
-              className={fieldClass(isIndividual ? 'careManagerNumber' : undefined)}
-              value={form.careManagerNumber || ''}
-              onChange={e => set('careManagerNumber', e.target.value)}
-              onBlur={isIndividual ? () => handleBlur('careManagerNumber') : undefined}
-              aria-required={isIndividual || undefined}
-              aria-invalid={isIndividual && touched['careManagerNumber'] && !!validationErrors['careManagerNumber'] || undefined}
-              aria-describedby={isIndividual && touched['careManagerNumber'] && validationErrors['careManagerNumber'] ? 'err-careManagerNumber' : undefined}
-            />
-            {isIndividual && touched['careManagerNumber'] && validationErrors['careManagerNumber'] && (
-              <p id="err-careManagerNumber" role="alert" className="mt-1 text-sm text-red-600">{validationErrors['careManagerNumber']}</p>
-            )}
-          </div>
+          {/* v131: 事業所会員は姓/名/セイ/メイ/介護支援専門員番号を非表示 */}
+          {!isBusiness && (
+            <>
+              <div>
+                <label className={labelClass}>姓</label>
+                <input className={fieldClass()} value={form.lastName || ''} onChange={e => set('lastName', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelClass}>名</label>
+                <input className={fieldClass()} value={form.firstName || ''} onChange={e => set('firstName', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelClass}>セイ</label>
+                <input className={fieldClass()} value={form.lastKana || ''} onChange={e => set('lastKana', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelClass}>メイ</label>
+                <input className={fieldClass()} value={form.firstKana || ''} onChange={e => set('firstKana', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelClass}>介護支援専門員番号{isIndividual && <span aria-hidden="true" className="text-red-500 ml-0.5">*</span>}</label>
+                <input
+                  className={fieldClass(isIndividual ? 'careManagerNumber' : undefined)}
+                  value={form.careManagerNumber || ''}
+                  onChange={e => set('careManagerNumber', e.target.value)}
+                  onBlur={isIndividual ? () => handleBlur('careManagerNumber') : undefined}
+                  aria-required={isIndividual || undefined}
+                  aria-invalid={isIndividual && touched['careManagerNumber'] && !!validationErrors['careManagerNumber'] || undefined}
+                  aria-describedby={isIndividual && touched['careManagerNumber'] && validationErrors['careManagerNumber'] ? 'err-careManagerNumber' : undefined}
+                />
+                {isIndividual && touched['careManagerNumber'] && validationErrors['careManagerNumber'] && (
+                  <p id="err-careManagerNumber" role="alert" className="mt-1 text-sm text-red-600">{validationErrors['careManagerNumber']}</p>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -522,7 +527,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       {/* 連絡設定 */}
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <h3 className="text-lg font-bold text-slate-800 mb-4">連絡設定</h3>
-        <div className={`grid grid-cols-1 ${isBusiness ? 'md:grid-cols-2' : 'md:grid-cols-3'} gap-4`}>
+        <div className={`grid grid-cols-1 ${isBusiness ? 'md:grid-cols-1' : 'md:grid-cols-3'} gap-4`}>
           <div>
             <label className={labelClass}>メールアドレス{isBusiness && <RequiredMark />}</label>
             <input
@@ -537,31 +542,24 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
             />
             <FieldError fieldKey="email" />
           </div>
-          <div>
-            <label className={labelClass}>発送方法</label>
-            <select className={fieldClass()} value={form.mailingPreference || 'EMAIL'} onChange={e => set('mailingPreference', e.target.value)}>
-              {isBusiness ? (
-                <>
-                  <option value="EMAIL">メール配信を希望する</option>
-                  <option value="POST">メール配信を希望しない</option>
-                </>
-              ) : (
-                <>
+          {/* v131: 事業所会員は発送方法/郵送先区分をブランク運用 — 非表示 */}
+          {!isBusiness && (
+            <>
+              <div>
+                <label className={labelClass}>発送方法</label>
+                <select className={fieldClass()} value={form.mailingPreference || 'EMAIL'} onChange={e => set('mailingPreference', e.target.value)}>
                   <option value="EMAIL">メール配信</option>
                   <option value="POST">郵送希望</option>
-                </>
-              )}
-            </select>
-          </div>
-          {/* 郵送先区分: 事業所会員は非表示（固定OFFICE） */}
-          {!isBusiness && (
-            <div>
-              <label className={labelClass}>郵送先区分</label>
-              <select className={fieldClass()} value={form.preferredMailDestination || 'OFFICE'} onChange={e => set('preferredMailDestination', e.target.value)}>
-                <option value="OFFICE">勤務先</option>
-                <option value="HOME">自宅</option>
-              </select>
-            </div>
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>郵送先区分</label>
+                <select className={fieldClass()} value={form.preferredMailDestination || 'OFFICE'} onChange={e => set('preferredMailDestination', e.target.value)}>
+                  <option value="OFFICE">勤務先</option>
+                  <option value="HOME">自宅</option>
+                </select>
+              </div>
+            </>
           )}
         </div>
       </div>

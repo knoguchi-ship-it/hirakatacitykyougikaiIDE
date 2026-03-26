@@ -1444,11 +1444,11 @@ const App: React.FC = () => {
             <p className="text-2xl font-bold text-purple-600">{val(d?.businessStaffCount)}</p>
           </div>
           <div className="rounded-xl border border-slate-200 p-5 bg-white">
-            <p className="text-xs text-slate-500 mb-1">今年度入会数</p>
+            <p className="text-xs text-slate-500 mb-1">{d?.currentFiscalYearLabel || '今年度'} 入会数</p>
             <p className="text-2xl font-bold text-green-600">{val(d?.currentYearJoinedCount)}</p>
           </div>
           <div className="rounded-xl border border-slate-200 p-5 bg-white">
-            <p className="text-xs text-slate-500 mb-1">今年度退会数</p>
+            <p className="text-xs text-slate-500 mb-1">{d?.currentFiscalYearLabel || '今年度'} 退会数</p>
             <p className="text-2xl font-bold text-red-500">{val(d?.currentYearWithdrawnCount)}</p>
           </div>
         </div>

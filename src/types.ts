@@ -100,6 +100,8 @@ export interface AdminDashboardData {
   individualCount: number;
   businessCount: number;
   businessStaffCount: number;
+  currentFiscalYear: number;
+  currentFiscalYearLabel: string;
   currentYearJoinedCount: number;
   currentYearWithdrawnCount: number;
   paidCount: number;
