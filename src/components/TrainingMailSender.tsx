@@ -203,7 +203,7 @@ const TrainingMailSender: React.FC<Props> = ({ trainingId, trainingTitle, onBack
         {/* 申込者一覧 */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-            <h3 className="font-semibold text-slate-700 text-sm">
+            <h3 className="text-lg font-bold text-slate-800">
               申込者一覧
               <span className="ml-2 text-slate-400 font-normal text-xs">
                 {effectiveTargets.length} / {applicants.length} 名選択中
@@ -243,7 +243,7 @@ const TrainingMailSender: React.FC<Props> = ({ trainingId, trainingTitle, onBack
                       <td className="px-3 py-2 font-medium text-slate-800">{row.name}</td>
                       <td className="px-3 py-2 text-slate-600 text-xs">{row.officeName || '—'}</td>
                       <td className="px-3 py-2">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${row.applicantType === 'MEMBER' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${row.applicantType === 'MEMBER' ? 'bg-primary-100 text-primary-700' : 'bg-orange-100 text-orange-700'}`}>
                           {row.applicantType === 'MEMBER' ? '会員' : '非会員'}
                         </span>
                       </td>
@@ -262,7 +262,7 @@ const TrainingMailSender: React.FC<Props> = ({ trainingId, trainingTitle, onBack
         {/* 送信フォーム */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
           <div className="p-4 border-b border-slate-100">
-            <h3 className="font-semibold text-slate-700 text-sm">メール作成</h3>
+            <h3 className="text-lg font-bold text-slate-800">メール作成</h3>
           </div>
           <div className="p-5 space-y-4">
             {/* 送信元 */}

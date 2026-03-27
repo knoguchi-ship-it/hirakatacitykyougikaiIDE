@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Member, MemberType, Staff, AdminDashboardMemberRow, ConvertMemberTypePayload } from '../types';
 import { api } from '../services/api';
 
@@ -10,13 +10,16 @@ interface MemberDetailAdminProps {
   onSaved: () => void;
   /** v126: 職員詳細へのDrilldown遷移 */
   onOpenStaffDetail?: (memberId: string, staffId: string) => void;
+  /** 職員詳細からの保存成功トースト */
+  staffSaveToast?: string | null;
+  onDismissStaffSaveToast?: () => void;
 }
 
-const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessMembers, onBack, onSaved, onOpenStaffDetail }) => {
+const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessMembers, onBack, onSaved, onOpenStaffDetail, staffSaveToast, onDismissStaffSaveToast }) => {
   if (!member) {
     return (
       <div className="p-6">
-        <button onClick={onBack} className="text-sm text-blue-600 hover:underline">&larr; 会員一覧に戻る</button>
+        <button onClick={onBack} className="text-sm text-primary-600 hover:underline">&larr; 会員一覧に戻る</button>
         <p className="mt-4 text-slate-500">会員が選択されていません。</p>
       </div>
     );
@@ -30,6 +33,14 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
   // v126: blur バリデーション用 touched 状態
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+
+  // 職員保存トーストの自動消去
+  useEffect(() => {
+    if (staffSaveToast) {
+      const timer = setTimeout(() => onDismissStaffSaveToast?.(), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [staffSaveToast]);
 
   // 転籍モーダル状態
   const [showConvertToStaffModal, setShowConvertToStaffModal] = useState(false);
@@ -305,6 +316,54 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     return 'メンバー';
   };
 
+  // ── インライン職員更新（区分・状態の即時保存） ──
+  const [inlineSaving, setInlineSaving] = useState<Record<string, boolean>>({});
+
+  const handleInlineStaffUpdate = async (staff: Staff, field: 'role' | 'status', newValue: string) => {
+    if ((field === 'role' && newValue === staff.role) || (field === 'status' && newValue === staff.status)) return;
+
+    // 状態変更は確認ダイアログ
+    if (field === 'status') {
+      const msg = newValue === 'LEFT'
+        ? `${staff.name} を除籍しますか？ログインアカウントは無効化されます。`
+        : `${staff.name} を在籍に復帰しますか？ログインアカウントが再有効化されます。`;
+      if (!confirm(msg)) return;
+    }
+
+    const saveKey = `${staff.id}-${field}`;
+    setInlineSaving(prev => ({ ...prev, [saveKey]: true }));
+    try {
+      await api.updateStaff({
+        staffId: staff.id,
+        memberId: String(form.id),
+        lastName: staff.lastName || '',
+        firstName: staff.firstName || '',
+        lastKana: staff.lastKana || '',
+        firstKana: staff.firstKana || '',
+        name: staff.name || '',
+        kana: staff.kana || '',
+        email: staff.email || '',
+        careManagerNumber: staff.careManagerNumber || '',
+        role: field === 'role' ? newValue : staff.role,
+        status: field === 'status' ? newValue : staff.status,
+        joinedDate: staff.joinedDate || '',
+        mailingPreference: staff.mailingPreference || 'YES',
+      });
+      // 楽観的UI更新: ローカル state を即反映
+      setForm(prev => ({
+        ...prev,
+        staff: ((prev.staff as Staff[]) || []).map(s =>
+          s.id === staff.id ? { ...s, [field]: newValue } : s
+        ),
+      }));
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : `${staff.name}の更新に失敗しました。`);
+    } finally {
+      setInlineSaving(prev => ({ ...prev, [saveKey]: false }));
+    }
+  };
+
   const staffList = (form.staff as Staff[]) || [];
   const enrolledStaff = staffList.filter(s => s.status !== 'LEFT');
   const convertSourceStaff = staffList.find(s => s.id === convertSourceStaffId);
@@ -315,11 +374,17 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <button onClick={onBack} className="text-sm text-blue-600 hover:underline">&larr; 会員一覧に戻る</button>
+        <button onClick={onBack} className="text-sm text-primary-600 hover:underline">&larr; 会員一覧に戻る</button>
         <h2 className="text-2xl font-bold text-slate-800">会員詳細編集</h2>
         <span className="text-sm text-slate-500">会員ID: {form.id}</span>
       </div>
 
+      {staffSaveToast && (
+        <div className="bg-green-50 border border-green-300 rounded-lg p-3 flex items-center justify-between transition-opacity" role="status">
+          <p className="text-sm text-green-700 font-medium">{staffSaveToast}</p>
+          <button onClick={() => onDismissStaffSaveToast?.()} className="text-green-500 hover:text-green-700 ml-4" aria-label="閉じる">&times;</button>
+        </div>
+      )}
       {error && <div className="bg-red-50 border border-red-200 rounded p-3 text-sm text-red-700">{error}</div>}
       {successMsg && <div className="bg-green-50 border border-green-200 rounded p-3 text-sm text-green-700">{successMsg}</div>}
 
@@ -524,45 +589,41 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
         </div>
       )}
 
-      {/* 連絡設定 */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-        <h3 className="text-lg font-bold text-slate-800 mb-4">連絡設定</h3>
-        <div className={`grid grid-cols-1 ${isBusiness ? 'md:grid-cols-1' : 'md:grid-cols-3'} gap-4`}>
-          <div>
-            <label className={labelClass}>メールアドレス{isBusiness && <RequiredMark />}</label>
-            <input
-              className={fieldClass('email')}
-              type="email"
-              value={form.email || ''}
-              onChange={e => set('email', e.target.value)}
-              onBlur={() => handleBlur('email')}
-              aria-required={isBusiness}
-              aria-invalid={isBusiness && touched.email && !!validationErrors.email}
-              aria-describedby={validationErrors.email ? 'err-email' : undefined}
-            />
-            <FieldError fieldKey="email" />
+      {/* 連絡設定 — 事業所会員はセクション全体を非表示（v133） */}
+      {!isBusiness && (
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <h3 className="text-lg font-bold text-slate-800 mb-4">連絡設定</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className={labelClass}>メールアドレス</label>
+              <input
+                className={fieldClass('email')}
+                type="email"
+                value={form.email || ''}
+                onChange={e => set('email', e.target.value)}
+                onBlur={() => handleBlur('email')}
+                aria-invalid={touched.email && !!validationErrors.email}
+                aria-describedby={validationErrors.email ? 'err-email' : undefined}
+              />
+              <FieldError fieldKey="email" />
+            </div>
+            <div>
+              <label className={labelClass}>発送方法</label>
+              <select className={fieldClass()} value={form.mailingPreference || 'EMAIL'} onChange={e => set('mailingPreference', e.target.value)}>
+                <option value="EMAIL">メール配信</option>
+                <option value="POST">郵送希望</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>郵送先区分</label>
+              <select className={fieldClass()} value={form.preferredMailDestination || 'OFFICE'} onChange={e => set('preferredMailDestination', e.target.value)}>
+                <option value="OFFICE">勤務先</option>
+                <option value="HOME">自宅</option>
+              </select>
+            </div>
           </div>
-          {/* v131: 事業所会員は発送方法/郵送先区分をブランク運用 — 非表示 */}
-          {!isBusiness && (
-            <>
-              <div>
-                <label className={labelClass}>発送方法</label>
-                <select className={fieldClass()} value={form.mailingPreference || 'EMAIL'} onChange={e => set('mailingPreference', e.target.value)}>
-                  <option value="EMAIL">メール配信</option>
-                  <option value="POST">郵送希望</option>
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>郵送先区分</label>
-                <select className={fieldClass()} value={form.preferredMailDestination || 'OFFICE'} onChange={e => set('preferredMailDestination', e.target.value)}>
-                  <option value="OFFICE">勤務先</option>
-                  <option value="HOME">自宅</option>
-                </select>
-              </div>
-            </>
-          )}
         </div>
-      </div>
+      )}
 
       {/* ステータス */}
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
@@ -609,13 +670,40 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                   <td className="px-4 py-2 text-sm">{s.name}</td>
                   <td className="px-4 py-2 text-sm text-slate-500">{s.kana}</td>
                   <td className="px-4 py-2 text-sm text-slate-500">{s.email}</td>
-                  <td className="px-4 py-2 text-sm">{roleLabel(s.role)}</td>
-                  <td className="px-4 py-2 text-sm">{s.status === 'LEFT' ? <span className="text-red-500">退職</span> : <span className="text-green-600">在籍</span>}</td>
+                  <td className="px-4 py-2 text-sm">
+                    <select
+                      value={s.role}
+                      onChange={e => handleInlineStaffUpdate(s, 'role', e.target.value)}
+                      disabled={!!inlineSaving[`${s.id}-role`]}
+                      className="border border-slate-300 rounded px-2 py-1 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:outline-none disabled:opacity-50"
+                      aria-label={`${s.name} の区分`}
+                    >
+                      <option value="REPRESENTATIVE">代表者</option>
+                      <option value="ADMIN">管理者</option>
+                      <option value="STAFF">メンバー</option>
+                    </select>
+                    {inlineSaving[`${s.id}-role`] && <span className="ml-1 text-xs text-primary-500">保存中...</span>}
+                  </td>
+                  <td className="px-4 py-2 text-sm">
+                    <select
+                      value={s.status}
+                      onChange={e => handleInlineStaffUpdate(s, 'status', e.target.value)}
+                      disabled={!!inlineSaving[`${s.id}-status`]}
+                      className={`border rounded px-2 py-1 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:outline-none disabled:opacity-50 ${
+                        s.status === 'LEFT' ? 'border-red-300 text-red-600' : 'border-green-300 text-green-700'
+                      }`}
+                      aria-label={`${s.name} の状態`}
+                    >
+                      <option value="ENROLLED">在籍</option>
+                      <option value="LEFT">除籍</option>
+                    </select>
+                    {inlineSaving[`${s.id}-status`] && <span className="ml-1 text-xs text-primary-500">保存中...</span>}
+                  </td>
                   <td className="px-4 py-2 text-sm space-x-2">
                     {onOpenStaffDetail && (
                       <button
                         onClick={() => onOpenStaffDetail(String(form.id), s.id)}
-                        className="px-2 py-1 rounded border border-blue-300 text-blue-600 text-xs hover:bg-blue-50"
+                        className="px-2 py-1 rounded border border-primary-500 text-primary-600 text-xs hover:bg-primary-50"
                       >
                         詳細
                       </button>
@@ -648,7 +736,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
         <button
           onClick={handleSave}
           disabled={saving}
-          className="px-6 py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
+          className="px-6 py-3 rounded-lg bg-primary-600 text-white font-medium hover:bg-primary-700 disabled:opacity-50"
         >
           {saving ? '保存中...' : '保存'}
         </button>

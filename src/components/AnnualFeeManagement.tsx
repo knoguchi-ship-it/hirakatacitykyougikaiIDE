@@ -657,7 +657,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
                 type="button"
                 disabled={isBusy}
                 onClick={() => void handleBatchSave()}
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
               >
                 {batchSaving ? '一括保存中...' : `変更をまとめて保存（${allDirtyRecords.length} 件）`}
               </button>
@@ -706,7 +706,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
                   const dirty = isDirty(record, draft) || rawDateTexts[key] !== undefined;
                   const stripe = idx % 2 === 1 ? 'bg-slate-50/60' : 'bg-white';
                   return (
-                    <tr key={key} className={`${stripe} hover:bg-blue-50/40 transition-colors`}>
+                    <tr key={key} className={`${stripe} hover:bg-primary-50/40 transition-colors`}>
                       <td className="px-3 py-2.5 text-sm text-slate-900 align-top">
                         <div className="font-medium">{record.displayName}</div>
                         <div className="text-xs text-slate-400 tabular-nums">{record.memberId}</div>
@@ -850,7 +850,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
                   type="button"
                   disabled={isBusy}
                   onClick={() => void handleBatchSave()}
-                  className="px-3 py-1.5 rounded text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  className="px-3 py-1.5 rounded text-xs font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
                 >
                   {batchSaving ? '保存中...' : `まとめて保存（${allDirtyRecords.length} 件）`}
                 </button>
@@ -887,7 +887,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged }) => {
                     <td className="px-3 py-2 text-sm text-slate-700 tabular-nums">{formatDateTimeDisplay(log.executedAt)}</td>
                     <td className="px-3 py-2 text-sm">
                       <span className={`inline-block text-xs font-medium rounded px-1.5 py-0.5 ${
-                        log.action === 'CREATE' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'
+                        log.action === 'CREATE' ? 'bg-primary-50 text-primary-700' : 'bg-amber-50 text-amber-700'
                       }`}>
                         {log.action === 'CREATE' ? '新規' : '更新'}
                       </span>

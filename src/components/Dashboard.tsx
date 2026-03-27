@@ -32,7 +32,7 @@ const Dashboard: React.FC<DashboardProps> = ({ members, trainings }) => {
               <p className="text-sm text-slate-500 mb-1">総会員数</p>
               <h3 className="text-3xl font-bold text-slate-800">{members.length}</h3>
             </div>
-            <div className="p-3 bg-blue-50 rounded-full text-blue-600">
+            <div className="p-3 bg-primary-50 rounded-full text-primary-600">
               <UsersIcon />
             </div>
           </div>

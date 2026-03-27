@@ -286,7 +286,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-slate-100">
-            <h3 className="font-semibold text-slate-700 text-sm">研修一覧</h3>
+            <h3 className="text-lg font-bold text-slate-800">研修一覧</h3>
           </div>
           <ul className="divide-y divide-slate-100 max-h-[640px] overflow-y-auto">
             {trainings.length === 0 && (
@@ -311,7 +311,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
 
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm">
           <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-            <h3 className="font-semibold text-slate-700 text-sm">
+            <h3 className="text-lg font-bold text-slate-800">
               {panelView === 'mail' ? `メール送信: ${form.title || ''}` : (isNew ? '新規研修登録' : `編集: ${form.title || '(未入力)'}`)}
             </h3>
             {!isNew && (

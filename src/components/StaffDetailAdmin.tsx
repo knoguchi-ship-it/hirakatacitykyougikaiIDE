@@ -48,7 +48,7 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
   if (!staff) {
     return (
       <div className="p-6">
-        <button onClick={onBack} className="text-sm text-blue-600 hover:underline">&larr; 事業所詳細に戻る</button>
+        <button onClick={onBack} className="text-sm text-primary-600 hover:underline">&larr; 事業所詳細に戻る</button>
         <p className="mt-4 text-slate-500">職員が選択されていません。</p>
       </div>
     );
@@ -64,10 +64,10 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
     role: staff.role || 'STAFF' as StaffRole,
     status: staff.status || 'ENROLLED',
     joinedDate: staff.joinedDate || '',
+    mailingPreference: staff.mailingPreference || 'YES',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [statusConfirmPending, setStatusConfirmPending] = useState<string | null>(null);
@@ -135,7 +135,6 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
 
   const handleSave = async () => {
     setError(null);
-    setSuccessMsg(null);
     if (!validateAll()) {
       setError('入力エラーがあります。各項目を確認してください。');
       return;
@@ -156,9 +155,10 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
         role: form.role,
         status: form.status,
         joinedDate: form.joinedDate,
+        mailingPreference: form.mailingPreference,
       });
-      setSuccessMsg('保存しました');
       onSaved();
+      onBack();
     } catch (e) {
       setError(e instanceof Error ? e.message : '保存に失敗しました');
     } finally {
@@ -168,7 +168,7 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
 
   const isLeft = form.status === 'LEFT';
   const fieldClass = (hasErr?: boolean) =>
-    `w-full border rounded px-3 py-2 text-sm ${hasErr ? 'border-red-500 bg-red-50' : 'border-slate-300'} focus:outline-none focus:ring-2 focus:ring-blue-400`;
+    `w-full border rounded px-3 py-2 text-sm ${hasErr ? 'border-red-500 bg-red-50' : 'border-slate-300'} focus:outline-none focus:ring-2 focus:ring-primary-500`;
   const readOnlyClass = 'w-full border border-slate-200 bg-slate-100 rounded px-3 py-2 text-sm text-slate-500';
   const hasErr = (key: string) => touched[key] && !!validationErrors[key];
 
@@ -177,7 +177,7 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
       <nav aria-label="パンくず">
         <button
           onClick={onBack}
-          className="text-sm text-blue-600 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-400 rounded"
+          className="text-sm text-primary-600 hover:underline focus:outline-none focus:ring-2 focus:ring-primary-500 rounded"
         >
           &larr; 事業所詳細に戻る
         </button>
@@ -245,7 +245,7 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
       )}
 
       {statusConfirmPending && (
-        <div className="bg-white border-2 border-blue-300 rounded-lg p-4 shadow-md" role="alertdialog" aria-labelledby="status-confirm-title">
+        <div className="bg-white border-2 border-primary-500 rounded-lg p-4 shadow-md" role="alertdialog" aria-labelledby="status-confirm-title">
           <h4 id="status-confirm-title" className="font-bold text-slate-800 mb-2">状態変更の確認</h4>
           <p className="text-sm text-slate-600 mb-4">
             {statusConfirmPending === 'LEFT'
@@ -255,7 +255,7 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
           <div className="flex gap-3">
             <button
               onClick={confirmStatusChange}
-              className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               {statusConfirmPending === 'LEFT' ? '除籍する' : '復帰する'}
             </button>
@@ -384,22 +384,42 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
         </div>
       </div>
 
+      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <h3 className="text-lg font-bold text-slate-800 mb-4">メールの配信</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="staff-mailing-pref" className="block text-sm font-medium text-slate-700 mb-1">
+              メール配信希望<RequiredMark />
+            </label>
+            <select
+              id="staff-mailing-pref"
+              className={fieldClass()}
+              value={form.mailingPreference}
+              onChange={e => set('mailingPreference', e.target.value)}
+              aria-required="true"
+            >
+              <option value="YES">希望する</option>
+              <option value="NO">希望しない</option>
+            </select>
+            <p className="mt-1 text-xs text-slate-500">
+              研修案内等のメール配信を希望するかどうかを選択してください。
+            </p>
+          </div>
+        </div>
+      </div>
+
       {error && (
         <div className="bg-red-50 border border-red-300 rounded-lg p-4" role="alert">
           <p className="text-sm text-red-700">{error}</p>
         </div>
       )}
-      {successMsg && (
-        <div className="bg-green-50 border border-green-300 rounded-lg p-4" role="status">
-          <p className="text-sm text-green-700">{successMsg}</p>
-        </div>
-      )}
+
 
       <div className="flex justify-end">
         <button
           onClick={handleSave}
           disabled={saving}
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
+          className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50"
         >
           {saving ? '保存中...' : '保存'}
         </button>

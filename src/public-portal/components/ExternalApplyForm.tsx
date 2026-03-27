@@ -53,7 +53,7 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel }) =
       <h2 className="text-xl font-semibold mb-1">研修申込</h2>
       <p className="text-sm text-gray-600 mb-4">{training.name}</p>
 
-      <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4 text-sm text-blue-800">
+      <div className="bg-primary-50 border border-primary-100 rounded p-3 mb-4 text-sm text-primary-900">
         収集した個人情報は研修申込の受付・確認連絡のみに使用します。第三者への提供は行いません。
       </div>
 
@@ -86,7 +86,7 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel }) =
             maxLength={100}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             placeholder="山田 太郎"
           />
         </div>
@@ -100,7 +100,7 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel }) =
             maxLength={100}
             value={furigana}
             onChange={(e) => setFurigana(e.target.value)}
-            className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             placeholder="ヤマダ タロウ（任意）"
           />
         </div>
@@ -115,7 +115,7 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel }) =
             maxLength={254}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             placeholder="example@example.com"
           />
         </div>
@@ -130,7 +130,7 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel }) =
             maxLength={20}
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             placeholder="072-000-0000"
           />
         </div>
@@ -144,7 +144,7 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel }) =
             maxLength={100}
             value={officeName}
             onChange={(e) => setOfficeName(e.target.value)}
-            className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             placeholder="（任意）"
           />
         </div>
@@ -175,7 +175,7 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel }) =
           <button
             type="submit"
             disabled={busy}
-            className="flex-1 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            className="flex-1 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
           >
             {busy ? '送信中...' : '申込する'}
           </button>

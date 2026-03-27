@@ -86,9 +86,9 @@ const StaffTrainingView: React.FC<StaffTrainingViewProps> = ({
         className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-blue-100 flex justify-between items-center sticky top-0 z-10">
-          <h2 className="text-lg font-bold text-blue-900 flex items-center">
-            <BookOpenIcon className="w-5 h-5 mr-2 text-blue-600" />
+        <div className="bg-gradient-to-r from-primary-50 to-indigo-50 px-6 py-4 border-b border-primary-100 flex justify-between items-center sticky top-0 z-10">
+          <h2 className="text-lg font-bold text-primary-900 flex items-center">
+            <BookOpenIcon className="w-5 h-5 mr-2 text-primary-600" />
             {staff.name} 様の研修
           </h2>
           <button
@@ -112,7 +112,7 @@ const StaffTrainingView: React.FC<StaffTrainingViewProps> = ({
           <h3 className="font-bold text-sm text-slate-800 mb-3 flex items-center">
             <SparklesIcon className="w-4 h-4 mr-1 text-yellow-500" />
             申し込み可能な研修
-            <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{availableTrainings.length}件</span>
+            <span className="ml-2 text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">{availableTrainings.length}件</span>
           </h3>
           {availableTrainings.length > 0 ? (
             <div className="space-y-3">
@@ -156,7 +156,7 @@ const StaffTrainingView: React.FC<StaffTrainingViewProps> = ({
                 return (
                   <div key={t.id} className="border border-slate-200 rounded-lg p-3 flex justify-between items-center">
                     <div>
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded mr-2 ${isOpen ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded mr-2 ${isOpen ? 'bg-primary-100 text-primary-700' : 'bg-slate-100 text-slate-500'}`}>
                         {isOpen ? '申込済' : '終了'}
                       </span>
                       <span className="text-sm text-slate-500">{t.date}</span>

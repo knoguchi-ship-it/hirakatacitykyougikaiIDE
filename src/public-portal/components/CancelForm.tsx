@@ -38,7 +38,7 @@ const CancelForm: React.FC<Props> = ({ onCancel }) => {
           </p>
           <button
             onClick={onCancel}
-            className="px-6 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors"
+            className="px-6 py-2 bg-primary-600 text-white text-sm font-medium rounded hover:bg-primary-700 transition-colors"
           >
             研修一覧に戻る
           </button>
@@ -71,7 +71,7 @@ const CancelForm: React.FC<Props> = ({ onCancel }) => {
             required
             value={applyId}
             onChange={(e) => setApplyId(e.target.value)}
-            className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             placeholder="申込確認メールに記載のID"
           />
         </div>
@@ -85,7 +85,7 @@ const CancelForm: React.FC<Props> = ({ onCancel }) => {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             placeholder="申込時に入力したメールアドレス"
           />
         </div>

@@ -165,6 +165,7 @@ export interface Staff {
   status?: 'ENROLLED' | 'LEFT';
   joinedDate?: string;
   withdrawnDate?: string;
+  mailingPreference?: string; // メール配信希望コード: YES | NO
   midYearWithdrawal?: boolean;
   participatedTrainingIds?: string[]; // Track training per staff
 }

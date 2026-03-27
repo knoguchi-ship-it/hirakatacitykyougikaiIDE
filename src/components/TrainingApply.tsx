@@ -172,12 +172,12 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
       )}
 
       <div className="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-blue-100 flex justify-between items-center">
-          <h3 className="text-lg font-bold text-blue-900 flex items-center">
+        <div className="bg-gradient-to-r from-primary-50 to-indigo-50 px-6 py-4 border-b border-primary-100 flex justify-between items-center">
+          <h3 className="text-lg font-bold text-primary-900 flex items-center">
             <SparklesIcon className="w-5 h-5 mr-2 text-yellow-500" />
             受付中の研修
           </h3>
-          <span className="text-xs font-medium bg-white text-blue-700 px-3 py-1 rounded-full border border-blue-100">申込可能: {availableTrainings.length} 件</span>
+          <span className="text-xs font-medium bg-white text-primary-700 px-3 py-1 rounded-full border border-primary-100">申込可能: {availableTrainings.length} 件</span>
         </div>
 
         <div className="p-6">
@@ -201,7 +201,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                       <button
                         type="button"
                         onClick={() => setExpandedTrainingId((prev) => (prev === training.id ? null : training.id))}
-                        className="text-sm text-blue-700 hover:text-blue-900 underline"
+                        className="text-sm text-primary-700 hover:text-primary-900 underline"
                       >
                         {expandedTrainingId === training.id ? '詳細を閉じる' : '詳細を見る'}
                       </button>
@@ -224,7 +224,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                     onClick={() => openApplyConfirm(training)}
                     disabled={submittingTrainingId !== null}
                     className={`whitespace-nowrap font-bold py-2 px-6 rounded-lg shadow-sm flex items-center ${
-                      submittingTrainingId === training.id ? 'bg-slate-300 text-slate-500 cursor-wait' : 'bg-blue-600 hover:bg-blue-700 text-white'
+                      submittingTrainingId === training.id ? 'bg-slate-300 text-slate-500 cursor-wait' : 'bg-primary-600 hover:bg-primary-700 text-white'
                     }`}
                   >
                     {submittingTrainingId === training.id ? (
@@ -268,13 +268,13 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                   {trainingHistory.map((t) => (
                     <tr
                       key={t.id}
-                      className={`${selectedHistoryTrainingId === t.id ? 'bg-blue-50/50' : ''} cursor-pointer`}
+                      className={`${selectedHistoryTrainingId === t.id ? 'bg-primary-50/50' : ''} cursor-pointer`}
                       onClick={() => setSelectedHistoryTrainingId(t.id)}
                     >
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-500">{formatDateTime(t.date)}</td>
                       <td className="px-4 py-4 text-sm font-medium text-slate-900">{t.title}</td>
                       <td className="px-4 py-4 whitespace-nowrap">
-                        <button type="button" onClick={() => setSelectedHistoryTrainingId(t.id)} className="text-sm text-blue-700 hover:text-blue-900 underline">詳細を見る</button>
+                        <button type="button" onClick={() => setSelectedHistoryTrainingId(t.id)} className="text-sm text-primary-700 hover:text-primary-900 underline">詳細を見る</button>
                       </td>
                     </tr>
                   ))}
@@ -356,7 +356,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                 <p className="text-xs text-slate-500 mb-2">添付PDF</p>
                 {selectedHistoryTraining.guidePdfUrl ? (
                   <div className="space-y-2">
-                    <a href={selectedHistoryTraining.guidePdfUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-700 hover:text-blue-900 underline">別タブでPDFを開く</a>
+                    <a href={selectedHistoryTraining.guidePdfUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary-700 hover:text-primary-900 underline">別タブでPDFを開く</a>
                     <iframe
                       title={`pdf-preview-${selectedHistoryTraining.id}`}
                       src={selectedPreviewUrl}
@@ -434,7 +434,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                 type="button"
                 onClick={() => handleApply(confirmTraining)}
                 disabled={submittingTrainingId !== null}
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:bg-slate-300 disabled:text-slate-500"
+                className="px-4 py-2 rounded-lg bg-primary-600 text-white font-bold hover:bg-primary-700 disabled:bg-slate-300 disabled:text-slate-500"
               >
                 {submittingTrainingId === confirmTraining.id ? '申込中...' : 'この内容で申込'}
               </button>

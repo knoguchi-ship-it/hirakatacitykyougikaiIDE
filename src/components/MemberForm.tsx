@@ -635,12 +635,12 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
 
       {/* NEW: Available Trainings Section */}
       <div className="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden animate-fadeIn">
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-blue-100 flex justify-between items-center">
-            <h2 className="text-lg font-bold text-blue-900 flex items-center">
+        <div className="bg-gradient-to-r from-primary-50 to-indigo-50 px-6 py-4 border-b border-primary-100 flex justify-between items-center">
+            <h2 className="text-lg font-bold text-primary-900 flex items-center">
                 <SparklesIcon className="w-5 h-5 mr-2 text-yellow-500" />
                 現在受付中の研修
             </h2>
-            <span className="text-xs font-medium bg-white text-blue-700 px-3 py-1 rounded-full border border-blue-100 shadow-sm">
+            <span className="text-xs font-medium bg-white text-primary-700 px-3 py-1 rounded-full border border-primary-100 shadow-sm">
                 申し込み可能: {availableTrainings.length}件
             </span>
         </div>
@@ -663,7 +663,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                   <button
                                     type="button"
                                     onClick={() => setExpandedTrainingId((prev) => (prev === training.id ? null : training.id))}
-                                    className="text-sm text-blue-700 hover:text-blue-900 underline"
+                                    className="text-sm text-primary-700 hover:text-primary-900 underline"
                                   >
                                     {expandedTrainingId === training.id ? '詳細を閉じる' : '詳細を見る'}
                                   </button>
@@ -690,7 +690,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                 className={`whitespace-nowrap font-bold py-2 px-6 rounded-lg shadow-sm transition-all flex items-center ${
                                   submittingTrainingId === training.id 
                                     ? 'bg-slate-300 text-slate-500 cursor-wait' 
-                                    : 'bg-blue-600 hover:bg-blue-700 hover:-translate-y-0.5 text-white'
+                                    : 'bg-primary-600 hover:bg-primary-700 hover:-translate-y-0.5 text-white'
                                 }`}
                             >
                                 {submittingTrainingId === training.id ? (
@@ -750,7 +750,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                         {trainingHistory.map(t => (
                             <tr
                               key={t.id}
-                              className={`cursor-pointer ${selectedHistoryTrainingId === t.id ? 'bg-blue-50/60' : ''} ${successMsg && t.id === trainingHistory[trainingHistory.length-1].id ? 'bg-green-50/50 transition-colors duration-1000' : ''}`}
+                              className={`cursor-pointer ${selectedHistoryTrainingId === t.id ? 'bg-primary-50/60' : ''} ${successMsg && t.id === trainingHistory[trainingHistory.length-1].id ? 'bg-green-50/50 transition-colors duration-1000' : ''}`}
                               onClick={() => setSelectedHistoryTrainingId(t.id)}
                             >
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{t.date}</td>
@@ -773,7 +773,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
         </div>
         {selectedHistoryTraining && (
           <div className="border-t border-slate-200 p-6 space-y-3">
-            <h3 className="text-base font-bold text-slate-900">履歴詳細</h3>
+            <h3 className="text-lg font-bold text-slate-800">履歴詳細</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <div>
                 <p className="text-xs text-slate-500">研修名</p>
@@ -857,7 +857,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
           
           {/* Section 1: Basic Info */}
           <div>
-            <h3 className="text-lg font-bold text-slate-700 mb-4 flex items-center border-b pb-2">
+            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center border-b pb-2">
               <span className="w-6 h-6 bg-slate-200 text-slate-700 rounded-full flex items-center justify-center mr-2 text-sm font-bold">1</span>
               {isBusiness ? '代表者情報・所属職員' : '基本情報'}
             </h3>
@@ -1050,12 +1050,12 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                             <button
                                               type="button"
                                               onClick={() => setTrainingViewStaffId(staff.id)}
-                                              className="text-xs text-blue-600 hover:text-blue-800 underline flex items-center"
+                                              className="text-xs text-primary-600 hover:text-primary-900 underline flex items-center"
                                             >
                                               <BookOpenIcon className="w-3 h-3 mr-1" />
                                               研修申込を表示
                                               {(staff.participatedTrainingIds?.length ?? 0) > 0 && (
-                                                <span className="ml-1 bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full text-xs">{staff.participatedTrainingIds!.length}</span>
+                                                <span className="ml-1 bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded-full text-xs">{staff.participatedTrainingIds!.length}</span>
                                               )}
                                             </button>
                                           </div>
@@ -1076,7 +1076,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
           {/* Section 2: Home Info (Individual Only) */}
           {!isBusiness && (
             <div>
-                <h3 className="text-lg font-bold text-slate-700 mb-4 flex items-center border-b pb-2">
+                <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center border-b pb-2">
                 <span className="w-6 h-6 bg-slate-200 text-slate-700 rounded-full flex items-center justify-center mr-2 text-sm font-bold">2</span>
                 自宅情報・個人連絡先
                 {member.preferredMailDestination === MailDestination.HOME && (
@@ -1123,7 +1123,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                     {isBusiness && !isReadOnly && (
                       <button
                         type="button"
-                        className="mt-2 text-xs text-blue-700 underline"
+                        className="mt-2 text-xs text-primary-700 underline"
                         onClick={() => setMember((prev) => ({ ...prev, mobilePhone: prev.phone || '' }))}
                       >
                         事業所電話番号を共通利用
@@ -1136,7 +1136,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
 
           {/* Section 3: Office Info (For Business: Main Info) */}
           <div>
-            <h3 className="text-lg font-bold text-slate-700 mb-4 flex items-center border-b pb-2">
+            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center border-b pb-2">
               <span className="w-6 h-6 bg-slate-200 text-slate-700 rounded-full flex items-center justify-center mr-2 text-sm font-bold">{isBusiness ? '2' : '3'}</span>
               勤務先情報
               {(isBusiness || member.preferredMailDestination === MailDestination.OFFICE) && (
@@ -1202,7 +1202,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
 
           {/* Section 4: Mailing & Settings */}
           <div>
-            <h3 className="text-lg font-bold text-slate-700 mb-4 flex items-center border-b pb-2">
+            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center border-b pb-2">
               <span className="w-6 h-6 bg-slate-200 text-slate-700 rounded-full flex items-center justify-center mr-2 text-sm font-bold">{isBusiness ? '3' : '4'}</span>
               発送・通信設定
             </h3>
@@ -1282,8 +1282,8 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                       </div>
                       
                       {member.mailingPreference === MailingPreference.EMAIL && (
-                        <div className="mt-4 bg-blue-50 p-6 rounded-lg border border-blue-100 animate-fadeIn">
-                          <label className="block text-sm font-bold text-blue-900 mb-1">メールアドレス (※必須)</label>
+                        <div className="mt-4 bg-primary-50 p-6 rounded-lg border border-primary-100 animate-fadeIn">
+                          <label className="block text-sm font-bold text-primary-900 mb-1">メールアドレス (※必須)</label>
                           <input
                             disabled={isReadOnly}
                             type="email"

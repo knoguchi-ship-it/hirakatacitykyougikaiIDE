@@ -303,7 +303,7 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
               type="button"
               disabled={isBusy}
               onClick={() => void handleSaveBatch()}
-              className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+              className="px-4 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50"
             >
               {batchSaving ? '一括保存中...' : `変更をまとめて保存（${dirtyPersons.length} 件）`}
             </button>
@@ -379,9 +379,9 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
           <div className="text-xs text-slate-500">抽出件数</div>
           <div className="mt-1 text-xl font-semibold text-slate-800">{filteredSummary.total}</div>
         </div>
-        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
-          <div className="text-xs text-blue-700">未保存変更</div>
-          <div className="mt-1 text-xl font-semibold text-blue-800">{filteredSummary.dirty}</div>
+        <div className="rounded-lg border border-primary-100 bg-primary-50 px-4 py-3">
+          <div className="text-xs text-primary-700">未保存変更</div>
+          <div className="mt-1 text-xl font-semibold text-primary-900">{filteredSummary.dirty}</div>
         </div>
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
           <div className="text-xs text-emerald-700">在籍中</div>
@@ -432,7 +432,7 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
                 const stripe = index % 2 === 1 ? 'bg-slate-50/60' : 'bg-white';
                 const isOfficeStaff = isStaff(person);
                 return (
-                  <tr key={person.personKey} className={`${stripe} ${dirty ? 'ring-1 ring-inset ring-blue-100' : ''}`}>
+                  <tr key={person.personKey} className={`${stripe} ${dirty ? 'ring-1 ring-inset ring-primary-100' : ''}`}>
                     <td className="px-3 py-2.5 text-sm align-top">
                       <div className="font-medium text-slate-900">{person.displayName}</div>
                       <div className="text-xs text-slate-400">

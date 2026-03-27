@@ -121,6 +121,7 @@ const App: React.FC = () => {
   const [memberSortDir, setMemberSortDir] = useState<MemberSortDir>('asc');
   const [selectedMemberForDetail, setSelectedMemberForDetail] = useState<Member | undefined>(undefined);
   const [selectedStaffForDetail, setSelectedStaffForDetail] = useState<{ memberId: string; staffId: string } | null>(null);
+  const [staffSaveToast, setStaffSaveToast] = useState<string | null>(null);
   const [withdrawingMemberId, setWithdrawingMemberId] = useState<string | null>(null);
 
   const [selectedIdentityId, setSelectedIdentityId] = useState<string>('');
@@ -511,7 +512,7 @@ const App: React.FC = () => {
 
   const MemberSortIndicator: React.FC<{ sortKey: MemberSortKey }> = ({ sortKey }) => {
     if (memberSortKey !== sortKey) return <span className="text-slate-300 ml-1">&#8693;</span>;
-    return <span className="text-blue-600 ml-1">{memberSortDir === 'asc' ? '\u25B2' : '\u25BC'}</span>;
+    return <span className="text-primary-600 ml-1">{memberSortDir === 'asc' ? '\u25B2' : '\u25BC'}</span>;
   };
 
   const handleWithdrawMember = async (memberId: string) => {
@@ -529,11 +530,9 @@ const App: React.FC = () => {
 
   const openMemberDetail = async (memberId: string) => {
     try {
-      if (!fullDataLoaded) {
-        await loadAppData({ includeAdminSettings: true, force: true });
-      }
-      const allMembers = members.length > 0 ? members : (await loadAppData({ includeAdminSettings: true, force: true })).members;
-      const found = allMembers.find(m => m.id === memberId);
+      // loadAppData の戻り値を直接使用する（React state は次レンダーまで反映されないため）
+      const { members: freshMembers } = await loadAppData({ includeAdminSettings: true, force: true });
+      const found = freshMembers.find(m => m.id === memberId);
       if (!found) {
         alert('会員データの取得に失敗しました。');
         return;
@@ -1034,14 +1033,14 @@ const App: React.FC = () => {
                   const editSearch = editPermissionIdentitySearches[entry.id] ?? '';
                   const permBadgeColor: Record<string, string> = {
                     MASTER: 'bg-purple-100 text-purple-700',
-                    ADMIN: 'bg-blue-100 text-blue-700',
+                    ADMIN: 'bg-primary-100 text-primary-700',
                     TRAINING_MANAGER: 'bg-teal-100 text-teal-700',
                     TRAINING_REGISTRAR: 'bg-cyan-100 text-cyan-700',
                     GENERAL: 'bg-slate-100 text-slate-600',
                   };
                   return (
                     <React.Fragment key={entry.id}>
-                      <tr className={`border-b border-slate-100 ${isEditing ? 'bg-blue-50' : 'hover:bg-slate-50'}`}>
+                      <tr className={`border-b border-slate-100 ${isEditing ? 'bg-primary-50' : 'hover:bg-slate-50'}`}>
                         <td className="px-3 py-2 font-medium text-slate-800 whitespace-nowrap">{entry.googleEmail}</td>
                         <td className="px-3 py-2 text-slate-600">{entry.displayName || '(未解決)'}</td>
                         <td className="px-3 py-2 text-slate-600 text-xs">{entry.linkedIdentityLabel || '未設定'}</td>
@@ -1091,7 +1090,7 @@ const App: React.FC = () => {
                         </td>
                       </tr>
                       {isEditing && editable && (
-                        <tr className="bg-blue-50 border-b border-slate-200">
+                        <tr className="bg-primary-50 border-b border-slate-200">
                           <td colSpan={8} className="px-4 py-4">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div>
@@ -1264,27 +1263,27 @@ const App: React.FC = () => {
         <div className="flex flex-wrap gap-2 mb-4">
           <span className="text-xs text-slate-500">適用中:</span>
           {memberListFilter !== 'ALL' && (
-            <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded-full">
+            <span className="inline-flex items-center gap-1 bg-primary-50 text-primary-700 text-xs px-2 py-1 rounded-full">
               {memberTypeLabel(memberListFilter)}
-              <button onClick={() => setMemberListFilter('ALL')} className="hover:text-blue-900">&times;</button>
+              <button onClick={() => setMemberListFilter('ALL')} className="hover:text-primary-900">&times;</button>
             </span>
           )}
           {memberListStatusFilter !== 'ALL' && (
-            <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded-full">
+            <span className="inline-flex items-center gap-1 bg-primary-50 text-primary-700 text-xs px-2 py-1 rounded-full">
               {memberListStatusFilter === 'ACTIVE' ? '在籍中' : '退会済'}
-              <button onClick={() => setMemberListStatusFilter('ALL')} className="hover:text-blue-900">&times;</button>
+              <button onClick={() => setMemberListStatusFilter('ALL')} className="hover:text-primary-900">&times;</button>
             </span>
           )}
           {memberListJoinedYearFilter !== 'ALL' && (
-            <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded-full">
+            <span className="inline-flex items-center gap-1 bg-primary-50 text-primary-700 text-xs px-2 py-1 rounded-full">
               {memberListJoinedYearFilter}年入会
-              <button onClick={() => setMemberListJoinedYearFilter('ALL')} className="hover:text-blue-900">&times;</button>
+              <button onClick={() => setMemberListJoinedYearFilter('ALL')} className="hover:text-primary-900">&times;</button>
             </span>
           )}
           {memberListQuery && (
-            <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded-full">
+            <span className="inline-flex items-center gap-1 bg-primary-50 text-primary-700 text-xs px-2 py-1 rounded-full">
               &quot;{memberListQuery}&quot;
-              <button onClick={() => setMemberListQuery('')} className="hover:text-blue-900">&times;</button>
+              <button onClick={() => setMemberListQuery('')} className="hover:text-primary-900">&times;</button>
             </span>
           )}
         </div>
@@ -1433,7 +1432,7 @@ const App: React.FC = () => {
           </div>
           <div className="rounded-xl border border-slate-200 p-5 bg-white">
             <p className="text-xs text-slate-500 mb-1">個人会員数</p>
-            <p className="text-2xl font-bold text-blue-600">{val(d?.individualCount)}</p>
+            <p className="text-2xl font-bold text-primary-600">{val(d?.individualCount)}</p>
           </div>
           <div className="rounded-xl border border-slate-200 p-5 bg-white">
             <p className="text-xs text-slate-500 mb-1">事業所会員数</p>
@@ -1552,14 +1551,25 @@ const App: React.FC = () => {
           member={selectedMemberForDetail}
           businessMembers={adminMemberRows.filter(r => r.memberType === MemberType.BUSINESS)}
           onBack={() => setCurrentView('admin')}
-          onSaved={() => {
+          onSaved={async () => {
             loadAdminDashboardData({ force: true }).catch(() => undefined);
-            if (fullDataLoaded) loadAppData({ includeAdminSettings: true, force: true }).catch(() => undefined);
+            if (fullDataLoaded) {
+              try {
+                const { members: fresh } = await loadAppData({ includeAdminSettings: true, force: true });
+                if (selectedMemberForDetail) {
+                  const updated = fresh.find(m => m.id === selectedMemberForDetail.id);
+                  if (updated) setSelectedMemberForDetail(updated);
+                }
+              } catch { /* ignore */ }
+            }
           }}
           onOpenStaffDetail={(mId, sId) => {
+            setStaffSaveToast(null);
             setSelectedStaffForDetail({ memberId: mId, staffId: sId });
             setCurrentView('staff-detail');
           }}
+          staffSaveToast={staffSaveToast}
+          onDismissStaffSaveToast={() => setStaffSaveToast(null)}
         />
       );
     }
@@ -1582,6 +1592,7 @@ const App: React.FC = () => {
             setCurrentView('member-detail');
           }}
           onSaved={() => {
+            setStaffSaveToast('職員情報を保存しました');
             loadAdminDashboardData({ force: true }).catch(() => undefined);
             if (fullDataLoaded) loadAppData({ includeAdminSettings: true, force: true }).catch(() => undefined);
           }}

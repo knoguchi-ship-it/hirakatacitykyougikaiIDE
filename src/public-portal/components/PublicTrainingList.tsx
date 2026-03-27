@@ -164,7 +164,7 @@ const PublicTrainingList: React.FC<Props> = ({ trainings, onApply }) => {
                 {inquiry.value && (
                   <span className="ml-2">
                     {inquiry.type === 'EMAIL' ? (
-                      <a href={`mailto:${inquiry.value}`} className="text-blue-600 underline">{inquiry.value}</a>
+                      <a href={`mailto:${inquiry.value}`} className="text-primary-600 underline">{inquiry.value}</a>
                     ) : (
                       inquiry.value
                     )}
@@ -181,7 +181,7 @@ const PublicTrainingList: React.FC<Props> = ({ trainings, onApply }) => {
                     href={t.fileUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-sm text-blue-600 underline hover:text-blue-800"
+                    className="inline-flex items-center gap-1 text-sm text-primary-600 underline hover:text-primary-900"
                   >
                     <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
@@ -193,7 +193,7 @@ const PublicTrainingList: React.FC<Props> = ({ trainings, onApply }) => {
               <button
                 onClick={() => onApply(t)}
                 disabled={isFull}
-                className="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                className="px-5 py-2 bg-primary-600 text-white text-sm font-medium rounded hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
               >
                 {isFull ? '満員' : '申込する'}
               </button>

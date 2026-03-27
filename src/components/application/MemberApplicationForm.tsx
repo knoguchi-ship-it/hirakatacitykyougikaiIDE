@@ -421,23 +421,23 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
           <h2 className="text-2xl font-bold text-slate-800">入会申込が完了しました</h2>
           <p className="text-slate-600">会員番号: <span className="font-mono font-bold text-lg">{result.memberId}</span></p>
           {form.memberType !== 'BUSINESS' && result.loginId && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
-              <p className="text-sm text-blue-800 font-medium mb-2">ログイン情報</p>
+            <div className="bg-primary-50 border border-primary-100 rounded-lg p-4 text-left">
+              <p className="text-sm text-primary-900 font-medium mb-2">ログイン情報</p>
               <p className="text-sm">ログインID: <span className="font-mono font-bold">{result.loginId}</span></p>
-              <p className="text-sm text-blue-600 mt-1">初期パスワードは登録メールアドレスに送信しました。</p>
+              <p className="text-sm text-primary-600 mt-1">初期パスワードは登録メールアドレスに送信しました。</p>
             </div>
           )}
           {form.memberType === 'BUSINESS' && result.staffCredentials && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
-              <p className="text-sm text-blue-800 font-medium mb-2">職員ログイン情報</p>
+            <div className="bg-primary-50 border border-primary-100 rounded-lg p-4 text-left">
+              <p className="text-sm text-primary-900 font-medium mb-2">職員ログイン情報</p>
               {result.staffCredentials.map((sc, i) => (
                 <p key={i} className="text-sm">{sc.name}: <span className="font-mono">{sc.loginId}</span> → {sc.email}</p>
               ))}
-              <p className="text-sm text-blue-600 mt-2">各職員のメールアドレスにログイン情報を送信しました。</p>
+              <p className="text-sm text-primary-600 mt-2">各職員のメールアドレスにログイン情報を送信しました。</p>
             </div>
           )}
           <div className="flex gap-3 justify-center pt-4">
-            <button onClick={() => { onComplete(); }} className="px-6 py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700">
+            <button onClick={() => { onComplete(); }} className="px-6 py-3 rounded-lg bg-primary-600 text-white font-medium hover:bg-primary-700">
               {completeLabel}
             </button>
           </div>
@@ -446,7 +446,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
     );
   }
 
-  const fieldClass = 'w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors';
+  const fieldClass = 'w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors';
   const labelClass = 'block text-xs font-medium text-slate-600 mb-1';
   const errorClass = 'text-xs text-red-600 mt-1';
   const requiredBadge = <span className="text-red-500 ml-0.5">*</span>;
@@ -472,7 +472,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
                 key={item.type}
                 onClick={() => handleSelectType(item.type)}
                 className={`p-6 rounded-xl border-2 text-left transition-all hover:shadow-md ${
-                  form.memberType === item.type ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-blue-300'
+                  form.memberType === item.type ? 'border-primary-500 bg-primary-50' : 'border-slate-200 hover:border-primary-500'
                 }`}
               >
                 <div className="text-3xl mb-3">{item.icon}</div>
@@ -715,7 +715,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
               <h3 className="text-lg font-bold text-slate-800">職員登録</h3>
               <p className="text-sm text-slate-500 mt-1">最低1名の登録が必要です。代表者は必ず1名指定してください。</p>
             </div>
-            <button onClick={addStaff} className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700" disabled={form.staff.length >= 10}>
+            <button onClick={addStaff} className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700" disabled={form.staff.length >= 10}>
               + 職員追加
             </button>
           </div>
@@ -728,7 +728,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-slate-700">職員 {i + 1}</span>
                   {s.role === 'REPRESENTATIVE' && <span className="px-2 py-0.5 text-xs font-bold bg-amber-100 text-amber-700 rounded">代表者</span>}
-                  {s.role === 'ADMIN' && <span className="px-2 py-0.5 text-xs font-bold bg-blue-100 text-blue-700 rounded">管理者</span>}
+                  {s.role === 'ADMIN' && <span className="px-2 py-0.5 text-xs font-bold bg-primary-100 text-primary-700 rounded">管理者</span>}
                 </div>
                 {form.staff.length > 1 && (
                   <button onClick={() => removeStaff(i)} className="text-xs text-red-500 hover:text-red-700">削除</button>
@@ -884,7 +884,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
     <div className="max-w-3xl mx-auto py-8 px-4 space-y-6">
       {/* ヘッダー */}
       <div className="flex items-center gap-4">
-        <button onClick={handleBack} className="text-sm text-blue-600 hover:underline">&larr; {step === 0 ? backLabel : '前のステップ'}</button>
+        <button onClick={handleBack} className="text-sm text-primary-600 hover:underline">&larr; {step === 0 ? backLabel : '前のステップ'}</button>
         <h2 className="text-2xl font-bold text-slate-800">{title}</h2>
       </div>
 
@@ -893,15 +893,15 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
         <div className="flex items-center gap-1">
           {stepLabels.map((label, i) => (
             <React.Fragment key={i}>
-              <div className={`flex items-center gap-1.5 ${i <= step ? 'text-blue-600' : 'text-slate-400'}`}>
+              <div className={`flex items-center gap-1.5 ${i <= step ? 'text-primary-600' : 'text-slate-400'}`}>
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 ${
-                  i < step ? 'bg-blue-600 text-white border-blue-600' :
-                  i === step ? 'border-blue-600 text-blue-600' :
+                  i < step ? 'bg-primary-600 text-white border-primary-600' :
+                  i === step ? 'border-primary-600 text-primary-600' :
                   'border-slate-300 text-slate-400'
                 }`}>{i + 1}</div>
                 <span className="text-xs font-medium hidden sm:inline">{label}</span>
               </div>
-              {i < stepLabels.length - 1 && <div className={`flex-1 h-0.5 ${i < step ? 'bg-blue-600' : 'bg-slate-200'}`} />}
+              {i < stepLabels.length - 1 && <div className={`flex-1 h-0.5 ${i < step ? 'bg-primary-600' : 'bg-slate-200'}`} />}
             </React.Fragment>
           ))}
         </div>
@@ -919,7 +919,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
             前へ
           </button>
           {step < totalSteps - 1 ? (
-            <button onClick={handleNext} className="px-6 py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700">
+            <button onClick={handleNext} className="px-6 py-3 rounded-lg bg-primary-600 text-white font-medium hover:bg-primary-700">
               次へ
             </button>
           ) : (
