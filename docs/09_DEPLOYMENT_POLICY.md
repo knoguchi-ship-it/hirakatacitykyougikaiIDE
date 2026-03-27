@@ -1,6 +1,6 @@
 # デプロイ標準（2 Deployment 固定運用）
 
-更新日: 2026-03-26
+更新日: 2026-03-28
 
 ---
 
@@ -19,7 +19,7 @@
 | **会員マイページ** | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `.../exec` | 2026-03-20 Web app 再発行（v111 復旧後の現行固定） |
 | **公開ポータル** | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `.../exec?app=public` | 2026-03-20 Web app 再発行（v111 復旧後の現行固定） |
 
-> 両 Deployment とも **@130** で同期済み（2026-03-26）。
+> 両 Deployment とも **@142** で同期済み（2026-03-28）。
 > `npx clasp deployments` の表示名が Apps Script UI の `Manage deployments` の表示と食い違うことがあるため、固定IDの最終確認は Apps Script UI を正とする。
 
 ---
@@ -217,3 +217,10 @@ Deploy > Manage deployments > 該当 ID を確認
 - Apps Script Deployments: https://developers.google.com/apps-script/concepts/deployments
 - Apps Script Versions: https://developers.google.com/apps-script/guides/versions
 - clasp: https://developers.google.com/apps-script/guides/clasp
+### 2026-03-28（v142 年会費管理コンソール改善反映）
+- `npx clasp version "v142: annual fee console eligibility, dashboard, and save UX"` で version `142` を採番した。
+- `npx clasp redeploy <memberDeploymentId> -V 142 -d "会員メニュー (prod) v142 annual fee console"` を実行し、会員メニュー固定 Deployment を `@142` へ更新した。
+- `npx clasp redeploy <publicDeploymentId> -V 142 -d "公開ポータル (prod) v142 annual fee console"` を実行し、公開ポータル固定 Deployment を `@142` へ更新した。
+- `npx clasp deployments` で両 Deployment が `@142` かつ説明名が `会員メニュー (prod) ...` / `公開ポータル (prod) ...` に分かれていることを確認した。
+- `npx clasp run getDbInfo` 成功を確認した。
+- Playwright で会員 URL はログイン画面、公開 URL は公開ポータルトップ、Apps Script UI `Manage deployments` は両方とも `Web app`・Version 142・説明名更新済みであることを確認した。

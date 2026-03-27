@@ -43,6 +43,9 @@
 - `docs/29_IMPL_SPEC_INLINE_STAFF_EDIT_v136_v140.md` ← v136-v140 権限階層修正・インライン職員編集・サイレントリロードの実装仕様書
 - `docs/30_TEST_SPEC_v136_v140_INLINE_STAFF_EDIT.md` ← v136-v140 テスト仕様書（権限3項目+インライン5項目+サイレントリロード4項目+初回読込2項目+ビルド3項目+デプロイ11項目+回帰11項目）
 
+## 運用テンプレート
+- `docs/31_HANDOVER_TASK_TEMPLATE.md` ← 引継ぎ task の書式テンプレート（現況の正本ではない）
+
 ## 履歴資料（参照のみ）
 - `docs/archive/docs_history/*`
 - `docs/archive/obsolete/*`

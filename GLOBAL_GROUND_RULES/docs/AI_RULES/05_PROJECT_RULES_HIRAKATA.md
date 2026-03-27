@@ -6,9 +6,9 @@
 - この案件で判断に迷った場合は、まずこの文書と現行正本を照合する。
 
 ## 最初に読む順序
-1. `GLOBAL_GROUND_RULES/CLAUDE.md`
-2. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
-3. `HANDOVER.md`
+1. `HANDOVER.md`
+2. `GLOBAL_GROUND_RULES/CLAUDE.md`
+3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 4. `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`
 5. `docs/09_DEPLOYMENT_POLICY.md`
 6. `docs/10_SOW.md`
@@ -90,6 +90,11 @@
 - ドキュメント更新なしで仕様変更を完了扱いにしない。
 - 旧ルール文書は `Dust/` に退避し、現行ルールは `GLOBAL_GROUND_RULES/` を参照する。
 
+### 引継ぎ
+- 現在状態の正本は `HANDOVER.md`、`docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`、必要時のみ `docs/30_TEST_SPEC_v136_v140_INLINE_STAFF_EDIT.md` セクション8に限定する。
+- 残件 task は `docs/31_HANDOVER_TASK_TEMPLATE.md` の書式で起票し、少なくとも `対象ケースID`、`対象 deployment/version`、`前提ログイン`、`期待する正本データ`、`終了条件`、`evidence` を埋める。
+- `docs/31_HANDOVER_TASK_TEMPLATE.md` は書式専用であり、進捗や現況の正本として使わない。
+
 ## 再開時の標準確認
 ```bash
 git status --short
@@ -134,11 +139,11 @@ npx clasp run getDbInfo
 
 ## 現在の確定運用状態
 - ブランチ: `main`
-- 本番反映（固定 Deployment）: `@140`（2026-03-27 両 Deployment 同期済み）
-- 5 段階権限モデル（v118〜v120）、年会費コンソール改善（v122〜v124）、管理コンソール会員管理改善（v125）、事業所会員詳細編集改善（v126）、職員詳細画面改善（v127）、データ移行（v128）、年度対応・事業所整理（v131）、入会日補正（v132）、メール配信希望（v133）、careManagerNumber修正・連絡設定非表示（v135）、権限階層修正・インライン職員編集・サイレントリロード（v136〜v140）が反映済み
+- 本番反映（固定 Deployment）: `@142`（2026-03-28 両 Deployment 同期済み）
+- 5 段階権限モデル（v118〜v120）、年会費コンソール改善（v122〜v124）、管理コンソール会員管理改善（v125）、事業所会員詳細編集改善（v126）、職員詳細画面改善（v127）、データ移行（v128）、年度対応・事業所整理（v131）、入会日補正（v132）、メール配信希望（v133）、careManagerNumber修正・連絡設定非表示（v135）、権限階層修正・インライン職員編集・サイレントリロード（v136〜v140）、`selectedMemberForDetail` の ID 派生化による `S-04` 修正（v141）が反映済み
 - DB_SCHEMA_VERSION: `2026-03-27-01`（T_事業所職員にメール配信希望コード追加）
 - 次の優先タスク:
-  1. **v136-v140 テスト実施**（テスト仕様書 `docs/30_TEST_SPEC_v136_v140_INLINE_STAFF_EDIT.md` 参照）
+  1. **v136-v140 残件再検証の回収**（`P-03`, `I-04`, `D-02`, `R-03`, `R-05`, `R-07`, `R-08`, `R-09` と Apps Script UI `Manage deployments` の最終確認）
   2. 管理コンソール UI/UX の継続改善
   3. 必要に応じて会員一括編集対象項目の拡張
   4. 必要に応じて公開ポータルの文言、導線改善

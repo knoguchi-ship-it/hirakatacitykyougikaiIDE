@@ -275,46 +275,54 @@
 3. テストで変更したデータは**必ず元に戻す**
 4. Playwright MCP 使用時は Chrome プロファイルロックに注意（ブラウザ再起動で解消）
 
-### 実施日: （次担当者が記入）
+### 実施日: 2026-03-27
+
+実施メモ:
+
+- `git status --short` はクリーンではなかった。差分は `HANDOVER.md`, `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` の更新と既存未追跡ファイル（`.playwright-mcp/`, `tmp_sheet_exports/`, `tmp_api_snapshot.json`, `tmp_fetchAllData.json`, `t_member_check.png`, `t_staff_check.png`）。
+- `npx clasp show-authorized-user` は `k.noguchi@uguisunosato.or.jp` を確認。
+- Playwright MCP で管理者セッションを開始し、途中で `Transport closed` により継続不能になったため、後半は Playwright CLI と shell 検証へ切替。
+- テストで変更したデータは最終的に復旧済み。**野口 健太の区分は「管理者」へ戻した**。`友田 善隆` の状態は「在籍」のまま。`村田 富美子` の区分は「メンバー」に復旧。
+- 追試（2026-03-27, `@141` fixed deployment）: `selectedMemberForDetail` を ID 派生へ再構成した修正を本番 deployment へ反映し、`S-04` を再試験。`村田 富美子` を `一般職員→管理者` に保存後、`← 事業所詳細に戻る` 直後の会員詳細一覧で即時反映を確認。最後に `メンバー` へ復旧。
 
 | テストID | 結果 | 備考 |
 |----------|------|------|
-| P-01 | | |
-| P-02 | | |
-| P-03 | | |
-| I-01 | | |
-| I-02 | | |
-| I-03 | | |
-| I-04 | | |
-| I-05 | | |
-| S-01 | | |
-| S-02 | | |
-| S-03 | | |
-| S-04 | | |
-| L-01 | | |
-| L-02 | | |
-| B-01 | | |
-| B-02 | | |
-| B-03 | | |
-| D-01 | | |
-| D-02 | | |
-| D-03 | | |
-| D-04 | | |
-| D-05 | | |
-| D-06 | | |
-| D-07 | | |
-| D-08 | | |
-| D-09 | | |
-| D-10 | | |
-| D-11 | | |
-| R-01 | | |
-| R-02 | | |
-| R-03 | | |
-| R-04 | | |
-| R-05 | | |
-| R-06 | | |
-| R-07 | | |
-| R-08 | | |
-| R-09 | | |
-| R-10 | | |
-| R-11 | | |
+| P-01 | PASS | Playwright MCP で 4539021 の会員詳細を表示。サイドバーは「管理者権限 / マスター」、会員詳細画面も正常表示。 |
+| P-02 | PASS | Playwright MCP で StaffDetailAdmin を表示。編集可能フィールドを確認。 |
+| P-03 | FAIL | Playwright MCP の `Transport closed` 後、Playwright CLI では組織 Google セッションを引き継げず、実画面で `システム設定` まで再検証できなかった。 |
+| I-01 | PASS | 会員詳細の職員一覧に「区分」列、3択ドロップダウン、`aria-label=\"《氏名》 の区分\"` を確認。 |
+| I-02 | PASS | 会員詳細の職員一覧に「状態」列、2択ドロップダウン、`aria-label=\"《氏名》 の状態\"` を確認。 |
+| I-03 | PASS | `村田 富美子` をメンバー→管理者へ変更。ローディングスピナーなし、confirm なし、背景リフレッシュ後も保持。後でメンバーへ復旧。 |
+| I-04 | FAIL | confirm 文言検証中に Playwright MCP セッションが落ち、キャンセル→確定→在籍復旧の一連を MCP 条件で完走できなかった。実データ変更は未発生。 |
+| I-05 | PASS | 代表者は「除籍」なし、在籍中の管理者/メンバーは「詳細/除籍/個人会員に転換」あり、除籍済みは「除籍」なしを確認。 |
+| S-01 | PASS | インライン区分変更時に全画面ローディング「データを読み込み中です...」は出ず、会員詳細画面に留まった。 |
+| S-02 | PASS | `野口 健太` を管理者→メンバーへ変更後、約 6 秒でサイドバーが「事業所会員（メンバー）」へ更新。システム権限表示は「管理者権限 / マスター」のまま。最後に管理者へ復旧。 |
+| S-03 | PASS | 背景リフレッシュ後も変更済みドロップダウン値が保持され、他フィールドもリセットされなかった。 |
+| S-04 | PASS | 初回 `@140` では FAIL だったが、構造修正を `@141` として fixed deployment へ反映後に再試験し、`村田 富美子` を `一般職員→管理者` に保存して `← 事業所詳細に戻る` 直後の会員詳細一覧で即時反映を確認。最後に `メンバー` へ復旧。 |
+| L-01 | PASS | 会員一覧の 4539021 行クリック時に初回ローディング表示後、会員詳細と職員一覧が正常表示。 |
+| L-02 | PASS | 初回表示時のコンソールエラー 0 件、赤いエラーバナーなし。 |
+| B-01 | PASS | `npm run build` 成功。`dist/index.html` と `dist-public/index_public.html` を生成。 |
+| B-02 | PASS | `backend/index.html` へコピー後、`silent` キーワードを確認。 |
+| B-03 | PASS | `npm run typecheck` 成功。 |
+| D-01 | PASS | `npx clasp deployments` で固定 2 Deployment とも `@140` を確認。 |
+| D-02 | FAIL | Apps Script UI `Manage deployments` は今回のセッションで再確認できなかった。CLI では `@140` は確認済み。 |
+| D-03 | PASS | 会員側 `/exec` は Playwright 実ブラウザ表示成功。`curl -I` でも 404 ではなく 403 応答。 |
+| D-04 | PASS | 公開側 `/exec?app=public` は Playwright CLI 実ブラウザ表示成功。`curl -I` でも 404 ではなく 403 応答。 |
+| D-05 | PASS | `npx clasp run healthCheck` 成功。 |
+| D-06 | PASS | `npx clasp run getDbInfo` 成功。 |
+| D-07 | PASS | 実ブラウザで会員側の管理コンソール／会員詳細を表示確認。 |
+| D-08 | PASS | 実ブラウザで公開ポータルのトップと研修一覧を表示確認。 |
+| D-09 | PASS | `HANDOVER.md` 更新済み。 |
+| D-10 | PASS | `docs/29_IMPL_SPEC_INLINE_STAFF_EDIT_v136_v140.md` 存在確認。 |
+| D-11 | PASS | `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` 更新済み。 |
+| R-01 | PASS | Google 管理者ログイン成功、管理コンソール表示を確認。 |
+| R-02 | PASS | 管理コンソール会員一覧で `1 - 50 件を表示 / 全 200 件`、ページング `1 / 4` を確認。 |
+| R-03 | FAIL | 個人会員詳細の再検証前に Playwright MCP セッションが落ち、管理者セッションを復元できなかった。 |
+| R-04 | PASS | 事業所会員 4539021 の勤務先情報・職員一覧を正常表示。 |
+| R-05 | FAIL | 事業所会員基本情報の保存回帰は今回未実施。 |
+| R-06 | PASS | StaffDetailAdmin 表示・保存トースト・会員詳細への即時反映まで `@141` で正常。 |
+| R-07 | FAIL | 管理コンソール（システム権限）は今回未再検証。 |
+| R-08 | FAIL | 年会費管理コンソールは今回未再検証。 |
+| R-09 | FAIL | 研修管理コンソールは今回未再検証。 |
+| R-10 | PASS | 公開ポータルトップで「研修を申し込む」「新規入会を申し込む」を確認。 |
+| R-11 | PASS | 公開ポータルの研修一覧で受付中研修 4 件を確認。 |
