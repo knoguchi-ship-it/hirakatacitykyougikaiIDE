@@ -49,7 +49,7 @@
 
 - 本番Web URLは固定2本（会員/公開）で **@142 同期済み**（2026-03-28）。
 - `main` には v142 が反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` と `git status --short` を正とすること。
-- `docs/30_TEST_SPEC_v136_v140_INLINE_STAFF_EDIT.md` の **39 テストケース**はセクション 8 まで記録済み。次担当者の最優先タスクは、初回 FAIL/未再検証扱いの残件（`P-03`, `I-04`, `D-02`, `R-03`, `R-05`, `R-07`, `R-08`, `R-09`）の回収と、Apps Script UI `Manage deployments` の最終確認である。
+- `docs/30_TEST_SPEC_v136_v140_INLINE_STAFF_EDIT.md` の **39 テストケース**はセクション 8 まで記録済み。次担当者の最優先タスクは、初回 FAIL/未再検証扱いの残件（`P-03`, `I-04`, `D-02`, `R-03`, `R-05`, `R-07`, `R-08`, `R-09`）の回収と、Apps Script UI `Manage deployments` の最終確認である。実行 task は `docs/32_HANDOVER_TASK_v142_RETEST_AND_DEPLOYMENT_CONFIRM.md` を正本補助として使うこと。
 - **v128（データ移行・deployment反映済み）**: 2026-03-24 実行時は ★会員名簿（2025年度）から本番DBへ T_会員205件（個人174+事業所31）、T_事業所職員133件、T_認証アカウント307件、T_年会費納入履歴330件を移行。2026-03-25 に再移行を実施し、最終的に T_会員211件（個人179+事業所32）、T_事業所職員147件、T_認証アカウント326件、T_年会費347件へ修正。runId `20260325T120805-35e3927e`、backupSuffix `_BAK_20260325_120805`。その後 `repairRosterMigrationDataJson` を実行し、個人会員158件の `介護支援専門員番号` を live DB へ補正、backupSuffix `_BAK_20260325_182904`、`remainingPreview.memberUpdates=0` を確認。続けて `repairAnnualFeeAgainstSourceJson` を実行し、事業所会員の 2024 年度会費 3 件（`40131545|2024`、`375881|2024`、`4539021|2024`）を source 支払欄基準で補正、backupSuffix `_BAK_20260325_200151`、`feeAudit.missing=0 / extra=0 / duplicate=0 / mismatch=0`、`currentFees=347 / expectedFees=347`、`currentAmountTotal=1336000 / expectedAmountTotal=1336000` を確認。2026-03-26 に `dryRunMigration()` で `_MIGRATION_*` を live DB へ再生成し、`reconcileMigrationWithSource.ok=true`（`mappedRowCount=326`, `mismatchCount=0`）まで provenance を収束。続けて `T_事業所職員` に `姓/名/セイ/メイ` を追加し 147 件を backfill、`_CREDENTIALS_TEMP` を 326 件で再生成して `missingLinkCount=0`、`HASH_ONLY=326` を確認した。`backupBeforeMigration_()` は別スプレッドシートへ同一スナップショットを保存し、live 内 `_BAK_*` は削除済み。検証済み外部バックアップは `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA`、本作業開始前の安全退避は `1U6HTUUAaNfZ3mDPQfdppCfJtsyTzpacMgOM_WKEUEhg`。固定 deployment 2本は 2026-03-26 に最終 `@130` へ更新済み。
 - **v141（deployment反映済み）**: `selectedMemberForDetail` を ID 派生 state に再構成し、`StaffDetailAdmin` 保存後に会員詳細一覧へ即時反映されない `S-04` を修正。
   - 2026-03-27 に fixed deployment 2本を `@141` へ更新し、本番会員 URL で `S-04` を再試験。`村田 富美子` を `STAFF -> ADMIN -> STAFF` と往復し、`← 事業所詳細に戻る` 直後の一覧で即時反映を確認。最終状態は `メンバー` に復旧。
@@ -68,7 +68,7 @@
 - **今回の引継ぎは必要**。残件は `Apps Script UI Manage deployments` の手動確認と、組織 Google セッション前提のブラウザ再検証が含まれるため、コード差分だけでは完了判定できない。
 - **single source of truth** は 3 つに限定する。`HANDOVER.md`、`docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`、`docs/30_TEST_SPEC_v136_v140_INLINE_STAFF_EDIT.md` セクション8 以外に状態を分散させない。
 - **残件は task 単位で持つ**。各 task には少なくとも `対象ケースID`、`対象 deployment/version`、`前提ログイン`、`期待する正本データ`、`終了条件` を明記する。
-- **task の書式は固定する**。新規 task は `docs/31_HANDOVER_TASK_TEMPLATE.md` を複製して起票し、テンプレート自体には現況を書き込まない。
+- **task の書式は固定する**。新規 task は `docs/31_HANDOVER_TASK_TEMPLATE.md` を複製して起票し、テンプレート自体には現況を書き込まない。現行の起票済み task は `docs/32_HANDOVER_TASK_v142_RETEST_AND_DEPLOYMENT_CONFIRM.md`。
 - **evidence-first で更新する**。作業後は会話で済ませず、絶対日付、deployment version、PASS/FAIL、復旧確認を即時に文書へ追記する。
 - **変更は pipeline 経由で扱う**。Google Cloud 運用標準に合わせ、反映は `build -> push -> version -> fixed deployment 同期` の順で行い、途中結果を本番完了扱いにしない。
 - **権限と例外は最小化する**。Google Cloud の least privilege 原則どおり、認証・デプロイ・UI確認の責務を分け、例外運用が出たら文書へ理由を残す。

@@ -80,6 +80,9 @@ npx clasp run getDbInfo
 7. `R-08`
 8. `R-09`
 
+補助 task:
+- `docs/32_HANDOVER_TASK_v142_RETEST_AND_DEPLOYMENT_CONFIRM.md` を使用し、残ケース 8 件と fixed deployment 現況確認を一体で処理する。
+
 ### テスト手順
 
 1. `docs/30_TEST_SPEC_v136_v140_INLINE_STAFF_EDIT.md` のセクション8を読む

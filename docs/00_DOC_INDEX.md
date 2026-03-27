@@ -1,6 +1,6 @@
 ﻿# ドキュメント索引（現行）
 
-更新日: 2026-03-27
+更新日: 2026-03-28
 
 ## 現行の正本
 - `README.md`
@@ -45,6 +45,9 @@
 
 ## 運用テンプレート
 - `docs/31_HANDOVER_TASK_TEMPLATE.md` ← 引継ぎ task の書式テンプレート（現況の正本ではない）
+
+## 進行中の引継ぎ task
+- `docs/32_HANDOVER_TASK_v142_RETEST_AND_DEPLOYMENT_CONFIRM.md` ← v142 の残ケース 8 件再検証と fixed deployment 確認用 task
 
 ## 履歴資料（参照のみ）
 - `docs/archive/docs_history/*`
