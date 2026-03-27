@@ -69,11 +69,30 @@ export interface AnnualFeeAuditLog {
   afterJson: string;
 }
 
+export interface AnnualFeeAdminSummaryByType {
+  memberType: MemberType;
+  eligibleCount: number;
+  paidCount: number;
+  unpaidCount: number;
+  paidAmount: number;
+  unpaidAmount: number;
+}
+
+export interface AnnualFeeAdminSummary {
+  eligibleCount: number;
+  paidCount: number;
+  unpaidCount: number;
+  paidAmount: number;
+  unpaidAmount: number;
+  memberTypeBreakdown: AnnualFeeAdminSummaryByType[];
+}
+
 export interface AnnualFeeAdminData {
   selectedYear: number;
   records: AnnualFeeAdminRecord[];
   years: number[];
   auditLogs: AnnualFeeAuditLog[];
+  summary: AnnualFeeAdminSummary;
 }
 
 export interface AdminDashboardMemberRow {

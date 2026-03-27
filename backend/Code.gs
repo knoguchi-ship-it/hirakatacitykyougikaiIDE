@@ -2462,6 +2462,7 @@ function getTrainingManagementCacheKey_() {
 
 function clearAllDataCache_() {
   CacheService.getScriptCache().remove(getAllDataCacheKey_());
+  clearRecentAnnualFeeAdminCaches_();
 }
 
 function clearAdminDashboardCache_() {
@@ -3657,6 +3658,122 @@ function getCurrentFiscalYear_() {
   return month >= 4 ? now.getFullYear() : now.getFullYear() - 1;
 }
 
+function getAnnualFeeFiscalYearPreviousEndDate_(fiscalYear) {
+  return String(Number(fiscalYear || 0)) + '-03-31';
+}
+
+function getAnnualFeeFiscalYearEndDate_(fiscalYear) {
+  return String(Number(fiscalYear || 0) + 1) + '-03-31';
+}
+
+function isAnnualFeeEligibleMemberForYear_(memberRow, fiscalYear) {
+  if (!memberRow) return false;
+  if (toBoolean_(memberRow['削除フラグ'])) return false;
+
+  var normalizedYear = Number(fiscalYear || 0);
+  if (!isFinite(normalizedYear) || normalizedYear < 2000 || normalizedYear > 2100) return false;
+
+  var memberStatus = String(memberRow['会員状態コード'] || 'ACTIVE');
+  var withdrawnDate = normalizeDateInput_(memberRow['退会日']);
+  var joinedDate = normalizeDateInput_(memberRow['入会日']);
+  var previousFiscalYearEnd = getAnnualFeeFiscalYearPreviousEndDate_(normalizedYear);
+  var fiscalYearEnd = getAnnualFeeFiscalYearEndDate_(normalizedYear);
+
+  if (withdrawnDate && withdrawnDate <= previousFiscalYearEnd) return false;
+  if (!withdrawnDate && memberStatus === 'WITHDRAWN') return false;
+  if (joinedDate && joinedDate > fiscalYearEnd) return false;
+
+  return true;
+}
+
+function buildAnnualFeeIneligibleMessage_(memberRow, fiscalYear) {
+  var year = Number(fiscalYear || 0);
+  var displayName = buildAnnualFeeDisplayName_(memberRow);
+  var withdrawnDate = normalizeDateInput_(memberRow && memberRow['退会日']);
+  var joinedDate = normalizeDateInput_(memberRow && memberRow['入会日']);
+  var previousFiscalYearEnd = getAnnualFeeFiscalYearPreviousEndDate_(year);
+  var fiscalYearEnd = getAnnualFeeFiscalYearEndDate_(year);
+
+  if (withdrawnDate && withdrawnDate <= previousFiscalYearEnd) {
+    return displayName + ' は対象年度 ' + year + ' の年会費対象外です。退会日 ' + withdrawnDate + ' が前年度末 ' + previousFiscalYearEnd + ' 以前です。';
+  }
+  if (!withdrawnDate && String(memberRow && memberRow['会員状態コード'] || 'ACTIVE') === 'WITHDRAWN') {
+    return displayName + ' は対象年度 ' + year + ' の年会費対象外です。退会済みですが退会日が未設定です。';
+  }
+  if (joinedDate && joinedDate > fiscalYearEnd) {
+    return displayName + ' は対象年度 ' + year + ' の年会費対象外です。入会日 ' + joinedDate + ' が年度末 ' + fiscalYearEnd + ' より後です。';
+  }
+  return displayName + ' は対象年度 ' + year + ' の年会費対象外です。';
+}
+
+function assertAnnualFeeEligibleMemberForYear_(memberRow, fiscalYear) {
+  if (!isAnnualFeeEligibleMemberForYear_(memberRow, fiscalYear)) {
+    throw new Error(buildAnnualFeeIneligibleMessage_(memberRow, fiscalYear));
+  }
+}
+
+function createAnnualFeeAdminSummaryByType_(memberType) {
+  return {
+    memberType: memberType,
+    eligibleCount: 0,
+    paidCount: 0,
+    unpaidCount: 0,
+    paidAmount: 0,
+    unpaidAmount: 0,
+  };
+}
+
+function buildAnnualFeeAdminSummary_(records) {
+  var byType = {
+    INDIVIDUAL: createAnnualFeeAdminSummaryByType_('INDIVIDUAL'),
+    BUSINESS: createAnnualFeeAdminSummaryByType_('BUSINESS'),
+    SUPPORT: createAnnualFeeAdminSummaryByType_('SUPPORT'),
+  };
+  var summary = {
+    eligibleCount: 0,
+    paidCount: 0,
+    unpaidCount: 0,
+    paidAmount: 0,
+    unpaidAmount: 0,
+    memberTypeBreakdown: [
+      byType.INDIVIDUAL,
+      byType.BUSINESS,
+      byType.SUPPORT,
+    ],
+  };
+
+  for (var i = 0; i < (records || []).length; i += 1) {
+    var record = records[i];
+    var bucket = byType[String(record.memberType || 'INDIVIDUAL')] || byType.INDIVIDUAL;
+    var amount = Number(record.amount || 0);
+    var isPaid = String(record.status || 'UNPAID') === 'PAID';
+
+    summary.eligibleCount += 1;
+    bucket.eligibleCount += 1;
+
+    if (isPaid) {
+      summary.paidCount += 1;
+      summary.paidAmount += amount;
+      bucket.paidCount += 1;
+      bucket.paidAmount += amount;
+    } else {
+      summary.unpaidCount += 1;
+      summary.unpaidAmount += amount;
+      bucket.unpaidCount += 1;
+      bucket.unpaidAmount += amount;
+    }
+  }
+
+  return summary;
+}
+
+function clearRecentAnnualFeeAdminCaches_() {
+  var currentFiscalYear = getCurrentFiscalYear_();
+  for (var year = currentFiscalYear - 2; year <= currentFiscalYear + 1; year += 1) {
+    clearAnnualFeeAdminCache_(year);
+  }
+}
+
 function resolveAnnualFeeSelectedYear_(ss, payload) {
   var requestedYear = Number(payload && payload.year || 0);
   if (isFinite(requestedYear) && requestedYear >= 2000 && requestedYear <= 2100) {
@@ -3683,7 +3800,7 @@ function getAnnualFeeAdminData_(payload) {
   }
 
   var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(r) {
-    return !toBoolean_(r['削除フラグ']);
+    return isAnnualFeeEligibleMemberForYear_(r, selectedYear);
   });
   var feeRows = getRowsAsObjects_(ss, 'T_年会費納入履歴').filter(function(r) {
     return !toBoolean_(r['削除フラグ']);
@@ -3732,6 +3849,7 @@ function getAnnualFeeAdminData_(payload) {
     records: records,
     years: years,
     auditLogs: auditLogs,
+    summary: buildAnnualFeeAdminSummary_(records),
   };
   try {
     cache.put(cacheKey, JSON.stringify(result), ANNUAL_FEE_CACHE_TTL_SECONDS);
@@ -3752,6 +3870,7 @@ function saveAnnualFeeRecord_(payload) {
     throw new Error('対象会員が見つかりません。');
   }
   var memberRowObj = annualFeeMemberObject_(memberFound.row, memberFound.columns);
+  assertAnnualFeeEligibleMemberForYear_(memberRowObj, request.year);
   var amountMap = getAnnualFeeAmountMap_(ss);
   var resolvedAmount = resolveAnnualFeeAmount_(memberRowObj, amountMap, 0);
   var actorEmail = String(Session.getActiveUser().getEmail() || '').toLowerCase();
@@ -3869,6 +3988,7 @@ function saveAnnualFeeRecordsBatch_(payload) {
         throw new Error('対象会員 ' + request.memberId + ' が見つかりません。');
       }
       var memberRowObj = annualFeeMemberObject_(memberFound.row, memberFound.columns);
+      assertAnnualFeeEligibleMemberForYear_(memberRowObj, request.year);
       var resolvedAmount = resolveAnnualFeeAmount_(memberRowObj, amountMap, 0);
       var target = null;
       for (var fi = 0; fi < feeData.length; fi += 1) {

@@ -13,6 +13,7 @@ import { api } from './services/api';
 type Role = 'ADMIN' | 'MEMBER';
 type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings';
 type AuthTab = 'member' | 'admin';
+type PendingAnnualFeeAction = { type: 'view'; view: View } | { type: 'logout' } | null;
 type MemberListFilter = 'ALL' | MemberType;
 type MemberStatusFilter = 'ALL' | 'ACTIVE' | 'WITHDRAWAL_SCHEDULED' | 'WITHDRAWN';
 type MemberSortKey = 'memberId' | 'displayName' | 'memberType' | 'trainingCount' | 'tenure' | 'status';
@@ -57,6 +58,8 @@ const buildLoginIdentities = (members: Member[]): LoginIdentity[] =>
 const App: React.FC = () => {
   const [userRole, setUserRole] = useState<Role>('MEMBER');
   const [currentView, setCurrentView] = useState<View>('profile');
+  const [annualFeeHasUnsavedChanges, setAnnualFeeHasUnsavedChanges] = useState(false);
+  const [pendingAnnualFeeAction, setPendingAnnualFeeAction] = useState<PendingAnnualFeeAction>(null);
 
   const [members, setMembers] = useState<Member[]>([]);
   const [trainings, setTrainings] = useState<Training[]>([]);
@@ -94,6 +97,7 @@ const App: React.FC = () => {
   });
   const [adminPermissionLevel, setAdminPermissionLevel] = useState<AdminPermissionLevel | null>(null);
   const [systemSettingsLoaded, setSystemSettingsLoaded] = useState(false);
+  const annualFeeLeaveDialogRef = useRef<HTMLDialogElement | null>(null);
   const appDataRequestRef = useRef<Promise<{ members: Member[]; trainings: Training[] }> | null>(null);
   const memberPortalRequestRef = useRef<Promise<{ members: Member[]; trainings: Training[] }> | null>(null);
   const adminDashboardRequestRef = useRef<Promise<AdminDashboardData> | null>(null);
@@ -119,7 +123,7 @@ const App: React.FC = () => {
   const [memberListPageSize, setMemberListPageSize] = useState(DEFAULT_MEMBER_PAGE_SIZE);
   const [memberSortKey, setMemberSortKey] = useState<MemberSortKey>('displayName');
   const [memberSortDir, setMemberSortDir] = useState<MemberSortDir>('asc');
-  const [selectedMemberForDetail, setSelectedMemberForDetail] = useState<Member | undefined>(undefined);
+  const [selectedMemberForDetailId, setSelectedMemberForDetailId] = useState<string | null>(null);
   const [selectedStaffForDetail, setSelectedStaffForDetail] = useState<{ memberId: string; staffId: string } | null>(null);
   const [staffSaveToast, setStaffSaveToast] = useState<string | null>(null);
   const [withdrawingMemberId, setWithdrawingMemberId] = useState<string | null>(null);
@@ -537,7 +541,7 @@ const App: React.FC = () => {
         alert('会員データの取得に失敗しました。');
         return;
       }
-      setSelectedMemberForDetail(found);
+      setSelectedMemberForDetailId(found.id);
       setCurrentView('member-detail');
     } catch (e) {
       alert(e instanceof Error ? e.message : '会員データの読み込みに失敗しました。');
@@ -563,6 +567,10 @@ const App: React.FC = () => {
     }
     return userRole === 'ADMIN' ? `${label} / 管理者権限` : label;
   }, [currentIdentity, userRole]);
+
+  const selectedMemberForDetail = selectedMemberForDetailId
+    ? members.find(m => m.id === selectedMemberForDetailId)
+    : undefined;
 
   const resolveIdentityId = (
     ctx: { memberId: string; staffId?: string; canAccessAdminPage: boolean },
@@ -693,11 +701,16 @@ const App: React.FC = () => {
     setIsAuthenticated(false);
     setUserRole('MEMBER');
     setCurrentView('profile');
+    setAnnualFeeHasUnsavedChanges(false);
+    setPendingAnnualFeeAction(null);
     setAuthTab('member');
     setAuthError(null);
     setMemberPassword('');
     setSelectedIdentityId('');
     setAuthenticatedContext(null);
+    setSelectedMemberForDetailId(null);
+    setSelectedStaffForDetail(null);
+    setStaffSaveToast(null);
     setMembers([]);
     setTrainings([]);
     setFullDataLoaded(false);
@@ -718,6 +731,49 @@ const App: React.FC = () => {
     });
     setAdminPermissionLevel(null);
     setSystemSettingsLoaded(false);
+  };
+
+  useEffect(() => {
+    const dialog = annualFeeLeaveDialogRef.current;
+    if (!dialog) return;
+    if (!pendingAnnualFeeAction) {
+      if (dialog.open) dialog.close();
+      return;
+    }
+    if (!dialog.open) dialog.showModal();
+  }, [pendingAnnualFeeAction]);
+
+  const handleViewChange = (view: string) => {
+    const nextView = view as View;
+    if (currentView === 'annual-fee-manage' && annualFeeHasUnsavedChanges && nextView !== currentView) {
+      setPendingAnnualFeeAction({ type: 'view', view: nextView });
+      return;
+    }
+    setCurrentView(nextView);
+  };
+
+  const handleLogoutClick = () => {
+    if (currentView === 'annual-fee-manage' && annualFeeHasUnsavedChanges) {
+      setPendingAnnualFeeAction({ type: 'logout' });
+      return;
+    }
+    logout();
+  };
+
+  const cancelPendingAnnualFeeAction = () => {
+    setPendingAnnualFeeAction(null);
+  };
+
+  const confirmPendingAnnualFeeAction = () => {
+    const action = pendingAnnualFeeAction;
+    setPendingAnnualFeeAction(null);
+    setAnnualFeeHasUnsavedChanges(false);
+    if (!action) return;
+    if (action.type === 'view') {
+      setCurrentView(action.view);
+      return;
+    }
+    logout();
   };
 
   const memberTypeLabel = (type: string) => {
@@ -1546,23 +1602,25 @@ const App: React.FC = () => {
       if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
         return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
       }
+      if (!selectedMemberForDetail) {
+        return <div className="text-red-500 p-4">会員データが見つかりません。</div>;
+      }
       return (
         <MemberDetailAdmin
           member={selectedMemberForDetail}
           businessMembers={adminMemberRows.filter(r => r.memberType === MemberType.BUSINESS)}
-          onBack={() => setCurrentView('admin')}
+          onBack={() => {
+            setSelectedStaffForDetail(null);
+            setSelectedMemberForDetailId(null);
+            setCurrentView('admin');
+          }}
           onSaved={async () => {
             loadAdminDashboardData({ force: true }).catch(() => undefined);
-            try {
-              const { members: fresh } = await loadAppData({ force: true, silent: true });
-              if (selectedMemberForDetail) {
-                const updated = fresh.find(m => m.id === selectedMemberForDetail.id);
-                if (updated) setSelectedMemberForDetail(updated);
-              }
-            } catch { /* ignore */ }
+            loadAppData({ force: true, silent: true }).catch(() => undefined);
           }}
           onOpenStaffDetail={(mId, sId) => {
             setStaffSaveToast(null);
+            setSelectedMemberForDetailId(mId);
             setSelectedStaffForDetail({ memberId: mId, staffId: sId });
             setCurrentView('staff-detail');
           }}
@@ -1589,10 +1647,14 @@ const App: React.FC = () => {
             setSelectedStaffForDetail(null);
             setCurrentView('member-detail');
           }}
-          onSaved={() => {
+          onSaved={async () => {
             setStaffSaveToast('職員情報を保存しました');
             loadAdminDashboardData({ force: true }).catch(() => undefined);
-            loadAppData({ force: true, silent: true }).catch(() => undefined);
+            try {
+              await loadAppData({ force: true, silent: true });
+            } catch {
+              // Keep the current detail view visible even if the background refresh fails.
+            }
           }}
         />
       );
@@ -1700,7 +1762,7 @@ const App: React.FC = () => {
       if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
         return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
       }
-      return <AnnualFeeManagement onChanged={refreshAllData} />;
+      return <AnnualFeeManagement onChanged={refreshAllData} onDirtyChange={setAnnualFeeHasUnsavedChanges} />;
     }
 
     if (currentView === 'training-manage') {
@@ -1762,7 +1824,7 @@ const App: React.FC = () => {
       {isAuthenticated && (
         <Sidebar
           currentView={currentView}
-          onChangeView={(view) => setCurrentView(view as View)}
+          onChangeView={handleViewChange}
           role={userRole}
           currentUser={currentUser}
           memberPageTypeLabel={memberPageTypeLabel}
@@ -1775,13 +1837,47 @@ const App: React.FC = () => {
           <>
             <span className="text-xs text-slate-500 px-2">{isAuthenticated ? 'ログイン中' : '未ログイン'}</span>
             {isAuthenticated && (
-              <button className="text-sm border border-slate-300 rounded px-2 py-1 bg-slate-50" onClick={logout}>
+              <button className="text-sm border border-slate-300 rounded px-2 py-1 bg-slate-50" onClick={handleLogoutClick}>
                 ログアウト
               </button>
             )}
           </>
         </div>
         <div className="max-w-6xl mx-auto">{renderContent()}</div>
+        <dialog
+          ref={annualFeeLeaveDialogRef}
+          onClose={() => {
+            if (pendingAnnualFeeAction && annualFeeLeaveDialogRef.current?.returnValue !== 'confirm') {
+              setPendingAnnualFeeAction(null);
+            }
+          }}
+          className="w-full max-w-md rounded-2xl border border-slate-200 p-0 shadow-2xl backdrop:bg-slate-900/30"
+        >
+          <div className="p-6 space-y-4">
+            <div>
+              <h3 className="text-lg font-bold text-slate-800">未保存の変更があります</h3>
+              <p className="mt-2 text-sm text-slate-600 leading-relaxed">
+                年会費一覧の変更が保存されていません。このまま移動すると未保存の入力は破棄されます。
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={cancelPendingAnnualFeeAction}
+                className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={confirmPendingAnnualFeeAction}
+                className="px-4 py-2 rounded-lg bg-amber-600 text-white hover:bg-amber-700"
+              >
+                破棄して移動
+              </button>
+            </div>
+          </div>
+        </dialog>
       </main>
     </div>
   );

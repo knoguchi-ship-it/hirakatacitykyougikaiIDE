@@ -465,7 +465,7 @@ class GasApiClient implements ApiClient {
           try {
             const parsed = JSON.parse(result);
             if (parsed.success) {
-              resolve(parsed.data || { selectedYear: new Date().getFullYear(), records: [], years: [], auditLogs: [] });
+              resolve(parsed.data || { selectedYear: new Date().getFullYear(), records: [], years: [], auditLogs: [], summary: { eligibleCount: 0, paidCount: 0, unpaidCount: 0, paidAmount: 0, unpaidAmount: 0, memberTypeBreakdown: [] } });
             } else {
               reject(new Error(parsed.error || 'API Error'));
             }
