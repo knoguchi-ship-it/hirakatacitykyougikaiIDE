@@ -1,6 +1,6 @@
 # 引継ぎ書（次担当者向け）
 
-更新日: **2026-03-27（v135 職員メール配信希望・careManagerNumber修正・連絡設定非表示を反映）**
+更新日: **2026-03-27（v140 インライン職員編集のローディングフラッシュ修正を反映）**
 対象: 枚方市介護支援専門員連絡協議会 会員システム
 
 ---
@@ -47,9 +47,14 @@
 
 ## 1.1 次担当者向け・最短状況サマリ（このまま新スレッドへ貼付可）
 
-- 本番Web URLは固定2本（会員/公開）で **@135 同期済み**（2026-03-27）。
-- `main` には v135 が反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` と `git status --short` を正とすること。
+- 本番Web URLは固定2本（会員/公開）で **@140 同期済み**（2026-03-27）。
+- `main` には v140 が反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` と `git status --short` を正とすること。
 - **v128（データ移行・deployment反映済み）**: 2026-03-24 実行時は ★会員名簿（2025年度）から本番DBへ T_会員205件（個人174+事業所31）、T_事業所職員133件、T_認証アカウント307件、T_年会費納入履歴330件を移行。2026-03-25 に再移行を実施し、最終的に T_会員211件（個人179+事業所32）、T_事業所職員147件、T_認証アカウント326件、T_年会費347件へ修正。runId `20260325T120805-35e3927e`、backupSuffix `_BAK_20260325_120805`。その後 `repairRosterMigrationDataJson` を実行し、個人会員158件の `介護支援専門員番号` を live DB へ補正、backupSuffix `_BAK_20260325_182904`、`remainingPreview.memberUpdates=0` を確認。続けて `repairAnnualFeeAgainstSourceJson` を実行し、事業所会員の 2024 年度会費 3 件（`40131545|2024`、`375881|2024`、`4539021|2024`）を source 支払欄基準で補正、backupSuffix `_BAK_20260325_200151`、`feeAudit.missing=0 / extra=0 / duplicate=0 / mismatch=0`、`currentFees=347 / expectedFees=347`、`currentAmountTotal=1336000 / expectedAmountTotal=1336000` を確認。2026-03-26 に `dryRunMigration()` で `_MIGRATION_*` を live DB へ再生成し、`reconcileMigrationWithSource.ok=true`（`mappedRowCount=326`, `mismatchCount=0`）まで provenance を収束。続けて `T_事業所職員` に `姓/名/セイ/メイ` を追加し 147 件を backfill、`_CREDENTIALS_TEMP` を 326 件で再生成して `missingLinkCount=0`、`HASH_ONLY=326` を確認した。`backupBeforeMigration_()` は別スプレッドシートへ同一スナップショットを保存し、live 内 `_BAK_*` は削除済み。検証済み外部バックアップは `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA`、本作業開始前の安全退避は `1U6HTUUAaNfZ3mDPQfdppCfJtsyTzpacMgOM_WKEUEhg`。固定 deployment 2本は 2026-03-26 に最終 `@130` へ更新済み。
+- **v140（deployment反映済み）**: インライン職員編集時のローディングフラッシュ修正。
+  - `loadAppData` に `silent` オプションを追加。`silent: true` の場合 `setIsLoading`/`setInitError` をスキップし、MemberDetailAdmin のアンマウントを防止。
+  - MemberDetailAdmin に `useEffect(() => setForm({...member}), [member])` を追加し、props 変更時にフォームを再同期。
+  - v136-v137 で追加した権限階層修正（MASTER/ADMIN がメンバー権限で上書きされる問題）・職員一覧インラインドロップダウン（区分/状態）も含む。
+  - Playwright MCP で本番検証済み: ドロップダウン変更→ローディングスピナー非表示→即座にDB保存→サイドバー権限表示も更新。
 - **v135（deployment反映済み）**: mapMembersForApi_() で careManagerNumber が欠落していた修正 + 事業所会員の連絡設定セクション非表示。
   - `mapMembersForApi_()` に `careManagerNumber: String(st['介護支援専門員番号'] || '')` を追加。職員詳細画面で介護支援専門員番号が空白表示されていた原因（fetchAllPersonsForAdmin_ にはあったが mapMembersForApi_ に欠落）。
   - MemberDetailAdmin の連絡設定（メールアドレス/発送方法/郵送先区分）セクションを事業所会員で非表示化（`!isBusiness` で囲み）。
