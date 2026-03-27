@@ -1,6 +1,6 @@
 ﻿# ドキュメント索引（現行）
 
-更新日: 2026-03-26
+更新日: 2026-03-27
 
 ## 現行の正本
 - `README.md`
@@ -40,6 +40,8 @@
 - `docs/26_BROWSER_AUDIT_COLUMN_MAPPING_HANDOVER_2026-03-25.md` ← 2026-03-25 ブラウザ実機監査メモ（pre-repair の監査記録）
 - `docs/27_IMPL_SPEC_ADMIN_DASHBOARD_AND_OFFICE_MEMBER_v131.md` ← v131 管理コンソール年度対応・事業所会員基本情報整理・入会日補正の実装仕様書
 - `docs/28_UNKNOWN_JOINED_DATE_MEMBERS_v131.md` ← v131 入会日不明会員リスト（37件・手動確認用）
+- `docs/29_IMPL_SPEC_INLINE_STAFF_EDIT_v136_v140.md` ← v136-v140 権限階層修正・インライン職員編集・サイレントリロードの実装仕様書
+- `docs/30_TEST_SPEC_v136_v140_INLINE_STAFF_EDIT.md` ← v136-v140 テスト仕様書（権限3項目+インライン5項目+サイレントリロード4項目+初回読込2項目+ビルド3項目+デプロイ11項目+回帰11項目）
 
 ## 履歴資料（参照のみ）
 - `docs/archive/docs_history/*`
