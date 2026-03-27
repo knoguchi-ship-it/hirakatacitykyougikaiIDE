@@ -34,6 +34,11 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
+  // member props が変更されたら form を再同期（インライン編集後のリロード対応）
+  useEffect(() => {
+    setForm({ ...member });
+  }, [member]);
+
   // 職員保存トーストの自動消去
   useEffect(() => {
     if (staffSaveToast) {

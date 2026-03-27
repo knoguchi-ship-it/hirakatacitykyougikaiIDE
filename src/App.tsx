@@ -140,17 +140,17 @@ const App: React.FC = () => {
   };
 
   const loadAppData = async (
-    options: { includeAdminSettings?: boolean; force?: boolean } = {},
+    options: { includeAdminSettings?: boolean; force?: boolean; silent?: boolean } = {},
   ): Promise<{ members: Member[]; trainings: Training[] }> => {
-    const { includeAdminSettings = false, force = false } = options;
+    const { includeAdminSettings = false, force = false, silent = false } = options;
     if (!force && appDataRequestRef.current) {
       return appDataRequestRef.current;
     }
 
     const request = (async () => {
       try {
-        setIsLoading(true);
-        setInitError(null);
+        if (!silent) setIsLoading(true);
+        if (!silent) setInitError(null);
         const [{ members: nextMembers, trainings: nextTrainings }, systemSettings] = await Promise.all([
           api.fetchAllData(),
           includeAdminSettings
@@ -171,7 +171,7 @@ const App: React.FC = () => {
         setInitError(error instanceof Error ? error.message : 'データの読み込みに失敗しました。');
         throw error;
       } finally {
-        setIsLoading(false);
+        if (!silent) setIsLoading(false);
       }
     })();
 
@@ -1553,15 +1553,13 @@ const App: React.FC = () => {
           onBack={() => setCurrentView('admin')}
           onSaved={async () => {
             loadAdminDashboardData({ force: true }).catch(() => undefined);
-            if (fullDataLoaded) {
-              try {
-                const { members: fresh } = await loadAppData({ includeAdminSettings: true, force: true });
-                if (selectedMemberForDetail) {
-                  const updated = fresh.find(m => m.id === selectedMemberForDetail.id);
-                  if (updated) setSelectedMemberForDetail(updated);
-                }
-              } catch { /* ignore */ }
-            }
+            try {
+              const { members: fresh } = await loadAppData({ force: true, silent: true });
+              if (selectedMemberForDetail) {
+                const updated = fresh.find(m => m.id === selectedMemberForDetail.id);
+                if (updated) setSelectedMemberForDetail(updated);
+              }
+            } catch { /* ignore */ }
           }}
           onOpenStaffDetail={(mId, sId) => {
             setStaffSaveToast(null);
@@ -1594,7 +1592,7 @@ const App: React.FC = () => {
           onSaved={() => {
             setStaffSaveToast('職員情報を保存しました');
             loadAdminDashboardData({ force: true }).catch(() => undefined);
-            if (fullDataLoaded) loadAppData({ includeAdminSettings: true, force: true }).catch(() => undefined);
+            loadAppData({ force: true, silent: true }).catch(() => undefined);
           }}
         />
       );
