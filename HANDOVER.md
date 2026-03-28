@@ -1,6 +1,6 @@
 # 引継ぎ書（次担当者向け）
 
-更新日: **2026-03-28（v144 反映済み。管理者フィールド編集オーバーライド + ダッシュボード在籍会員のみカウント。固定2 Deployment を @144 同期済み）**
+更新日: **2026-03-28（v144 反映済み。管理者フィールド編集オーバーライド + ダッシュボード在籍会員のみカウント。固定2 Deployment を @144 同期済み。v136-v140 テスト全 39 ケース PASS 完了）**
 対象: 枚方市介護支援専門員連絡協議会 会員システム
 
 ---
@@ -49,7 +49,7 @@
 
 - 本番Web URLは固定2本（会員/公開）で **@144 同期済み**（2026-03-28）。
 - `main` には v144 が反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` と `git status --short` を正とすること。
-- `docs/30_TEST_SPEC_v136_v140_INLINE_STAFF_EDIT.md` の **39 テストケース**はセクション 8 まで記録済み。次担当者の最優先タスクは、初回 FAIL/未再検証扱いの残件（`P-03`, `I-04`, `D-02`, `R-03`, `R-05`, `R-07`, `R-08`, `R-09`）の回収と、Apps Script UI `Manage deployments` の最終確認である。実行 task は `docs/32_HANDOVER_TASK_v142_RETEST_AND_DEPLOYMENT_CONFIRM.md` を正本補助として使うこと。
+- `docs/30_TEST_SPEC_v136_v140_INLINE_STAFF_EDIT.md` の **39 テストケース全 PASS**（2026-03-28 追試完了）。初回（2026-03-27）FAIL 9 件は全て Playwright MCP セッション切断が原因であり、コード不具合ではなかった。追試（2026-03-28, @144）で残 8 ケース（`P-03`, `I-04`, `D-02`, `R-03`, `R-05`, `R-07`, `R-08`, `R-09`）を全て PASS。Apps Script UI「デプロイを管理」で固定 2 Deployment の Version 144 / ウェブアプリを目視確認済み。
 - **v128（データ移行・deployment反映済み）**: 2026-03-24 実行時は ★会員名簿（2025年度）から本番DBへ T_会員205件（個人174+事業所31）、T_事業所職員133件、T_認証アカウント307件、T_年会費納入履歴330件を移行。2026-03-25 に再移行を実施し、最終的に T_会員211件（個人179+事業所32）、T_事業所職員147件、T_認証アカウント326件、T_年会費347件へ修正。runId `20260325T120805-35e3927e`、backupSuffix `_BAK_20260325_120805`。その後 `repairRosterMigrationDataJson` を実行し、個人会員158件の `介護支援専門員番号` を live DB へ補正、backupSuffix `_BAK_20260325_182904`、`remainingPreview.memberUpdates=0` を確認。続けて `repairAnnualFeeAgainstSourceJson` を実行し、事業所会員の 2024 年度会費 3 件（`40131545|2024`、`375881|2024`、`4539021|2024`）を source 支払欄基準で補正、backupSuffix `_BAK_20260325_200151`、`feeAudit.missing=0 / extra=0 / duplicate=0 / mismatch=0`、`currentFees=347 / expectedFees=347`、`currentAmountTotal=1336000 / expectedAmountTotal=1336000` を確認。2026-03-26 に `dryRunMigration()` で `_MIGRATION_*` を live DB へ再生成し、`reconcileMigrationWithSource.ok=true`（`mappedRowCount=326`, `mismatchCount=0`）まで provenance を収束。続けて `T_事業所職員` に `姓/名/セイ/メイ` を追加し 147 件を backfill、`_CREDENTIALS_TEMP` を 326 件で再生成して `missingLinkCount=0`、`HASH_ONLY=326` を確認した。`backupBeforeMigration_()` は別スプレッドシートへ同一スナップショットを保存し、live 内 `_BAK_*` は削除済み。検証済み外部バックアップは `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA`、本作業開始前の安全退避は `1U6HTUUAaNfZ3mDPQfdppCfJtsyTzpacMgOM_WKEUEhg`。固定 deployment 2本は 2026-03-26 に最終 `@130` へ更新済み。
 - **v144（deployment反映済み）**: ダッシュボードカード KPI を在籍会員のみカウントに修正。
   - `getAdminDashboardData_()` で ACTIVE + WITHDRAWAL_SCHEDULED のみ集計（WITHDRAWN 除外）。
@@ -122,8 +122,9 @@
 ## 1.2 この時点の引き継ぎポイント
 
 - スレッドを切っても問題ない状態まで、正本と引き継ぎは同期済み。
-- 現在の本番固定 Deployment は会員/公開ともに **@142**。
-- **本番固定 deployment は `clasp push`・version作成・固定2 deployment 更新まで完了**。`npx clasp deployments` では会員/公開ともに `@142`。
+- 現在の本番固定 Deployment は会員/公開ともに **@144**。
+- **本番固定 deployment は `clasp push`・version作成・固定2 deployment 更新まで完了**。`npx clasp deployments` では会員/公開ともに `@144`。
+- **v136-v140 テスト全 39 ケース PASS 完了**（2026-03-28）。残件なし。
 - **v128 再移行は 2026-03-25 に実行済み。次担当者は `docs/23_MIGRATION_HANDOVER_v128.md` と実行結果を参照すること。**
   - runId `20260325T120805-35e3927e`
   - `sourceCoverage=384/384`

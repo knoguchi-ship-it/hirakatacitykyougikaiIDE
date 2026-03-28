@@ -7,8 +7,8 @@
 ### Task: v136-v140 残ケース再検証（@v144 上）
 
 - 対象ケースID: `P-03`, `I-04`, `D-02`, `R-03`, `R-05`, `R-07`, `R-08`, `R-09`
-- owner:
-- status: `todo`
+- owner: Claude Code + Playwright MCP
+- status: `done`
 - 対象 deployment/version:
   - 会員メニュー fixed deployment `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` -> `@144`
   - 公開ポータル fixed deployment `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` -> `@144`
@@ -58,18 +58,18 @@
 5. 必要なら build, push, version, redeploy を同一セッションで行い、再度 evidence を取り直す。
 
 #### evidence
-- 日付:
-- 実施者:
-- deployment/version:
-- PASS/FAIL:
-- ブラウザ確認結果:
-- テストケース反映先:
-- データ復旧:
+- 日付: 2026-03-28
+- 実施者: Claude Code + Playwright MCP
+- deployment/version: 固定 2 Deployment `@144`（会員メニュー + 公開ポータル）
+- PASS/FAIL: 全 8 ケース **PASS**（P-03, I-04, D-02, R-03, R-05, R-07, R-08, R-09）
+- ブラウザ確認結果: Apps Script UI「デプロイを管理」で両 Deployment とも Version 144 / ウェブアプリ / 正しい ID を目視確認
+- テストケース反映先: `docs/30_TEST_SPEC_v136_v140_INLINE_STAFF_EDIT.md` セクション 8（追試 2026-03-28 サブセクション追加済み）
+- データ復旧: 友田 善隆→在籍に復旧済み、野口 健太→管理者のまま（変更なし）、事業所番号 4539021→入力済み（空欄復旧不可、バリデーション制約）
 
 #### 終了条件
-- [ ] 対象 8 ケースの PASS/FAIL が `docs/30_TEST_SPEC_v136_v140_INLINE_STAFF_EDIT.md` に記録されている
-- [ ] `HANDOVER.md` の最優先タスク欄が最新状態に更新されている
-- [ ] fixed deployment 2 本の現況が `@144` もしくは更新後の同一 version に揃っている
+- [x] 対象 8 ケースの PASS/FAIL が `docs/30_TEST_SPEC_v136_v140_INLINE_STAFF_EDIT.md` に記録されている
+- [x] `HANDOVER.md` の最優先タスク欄が最新状態に更新されている
+- [x] fixed deployment 2 本の現況が `@144` もしくは更新後の同一 version に揃っている
 - [ ] 変更があれば GitHub に push 済みである
 
 #### 引継ぎメモ
