@@ -565,8 +565,8 @@ const App: React.FC = () => {
     if (currentIdentity.type === MemberType.BUSINESS) {
       label = currentIdentity.staffRole === 'ADMIN' ? '事業所会員（管理者）' : '事業所会員（メンバー）';
     }
-    return userRole === 'ADMIN' ? `${label} / 管理者権限` : label;
-  }, [currentIdentity, userRole]);
+    return label;
+  }, [currentIdentity]);
 
   const selectedMemberForDetail = selectedMemberForDetailId
     ? members.find(m => m.id === selectedMemberForDetailId)
@@ -1762,7 +1762,7 @@ const App: React.FC = () => {
       if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
         return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
       }
-      return <AnnualFeeManagement onChanged={refreshAllData} onDirtyChange={setAnnualFeeHasUnsavedChanges} />;
+      return <AnnualFeeManagement onChanged={refreshAllData} onDirtyChange={setAnnualFeeHasUnsavedChanges} onOpenMember={(memberId) => { setSelectedMemberForDetailId(memberId); setCurrentView('member-detail'); }} />;
     }
 
     if (currentView === 'training-manage') {
@@ -1827,6 +1827,11 @@ const App: React.FC = () => {
           onChangeView={handleViewChange}
           role={userRole}
           currentUser={currentUser}
+          currentStaffName={
+            currentIdentity?.staffId && currentUser?.staff
+              ? (currentUser.staff.find(s => s.id === currentIdentity.staffId)?.name || '')
+              : ''
+          }
           memberPageTypeLabel={memberPageTypeLabel}
           showAdminPage={userRole === 'ADMIN'}
           adminPermissionLevel={adminPermissionLevel}

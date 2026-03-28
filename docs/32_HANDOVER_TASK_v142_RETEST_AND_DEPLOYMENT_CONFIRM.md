@@ -70,7 +70,7 @@
 - [x] 対象 8 ケースの PASS/FAIL が `docs/30_TEST_SPEC_v136_v140_INLINE_STAFF_EDIT.md` に記録されている
 - [x] `HANDOVER.md` の最優先タスク欄が最新状態に更新されている
 - [x] fixed deployment 2 本の現況が `@144` もしくは更新後の同一 version に揃っている
-- [ ] 変更があれば GitHub に push 済みである
+- [x] 変更があれば GitHub に push 済みである（`7d4c7dc`）
 
 #### 引継ぎメモ
 - v143/v144 の実装・デプロイ・基本テストは 2026-03-28 セッションで完了済み。

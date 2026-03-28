@@ -7,6 +7,7 @@ interface SidebarProps {
   onChangeView: (view: string) => void;
   role: 'ADMIN' | 'MEMBER';
   currentUser?: Member;
+  currentStaffName?: string;
   memberPageTypeLabel: string;
   showAdminPage: boolean;
   adminPermissionLevel?: AdminPermissionLevel | null;
@@ -17,6 +18,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onChangeView,
   role,
   currentUser,
+  currentStaffName,
   memberPageTypeLabel,
   showAdminPage,
   adminPermissionLevel,
@@ -51,6 +53,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const getUserDisplayName = () => {
+    if (currentStaffName) return currentStaffName;
     if (currentUser) return `${currentUser.lastName} ${currentUser.firstName}`.trim();
     if (role === 'ADMIN') return 'システム管理者';
     return 'ゲスト';
@@ -58,9 +61,9 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const getUserDisplayDetail = () => {
     if (role === 'ADMIN' && adminPermissionLevel) {
-      const label = permissionLabel(adminPermissionLevel);
-      if (currentUser) return `${memberPageTypeLabel} / ${label}`;
-      return label;
+      const pLabel = permissionLabel(adminPermissionLevel);
+      if (currentUser) return `${memberPageTypeLabel} / 管理者権限: ${pLabel}`;
+      return `管理者権限: ${pLabel}`;
     }
     if (currentUser?.type === MemberType.BUSINESS) return memberPageTypeLabel;
     if (currentUser?.type === MemberType.INDIVIDUAL) return memberPageTypeLabel;

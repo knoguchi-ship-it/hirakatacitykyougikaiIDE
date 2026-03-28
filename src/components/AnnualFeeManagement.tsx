@@ -12,6 +12,7 @@ import {
 interface Props {
   onChanged?: () => Promise<void> | void;
   onDirtyChange?: (dirty: boolean) => void;
+  onOpenMember?: (memberId: string) => void;
 }
 
 type StatusFilter = 'ALL' | PaymentStatus;
@@ -223,7 +224,7 @@ const Pagination: React.FC<{
   </div>
 );
 
-const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange }) => {
+const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpenMember }) => {
   const [data, setData] = useState<AnnualFeeAdminData>(createEmptyData);
   const [loading, setLoading] = useState(true);
   const [batchSaving, setBatchSaving] = useState(false);
@@ -788,8 +789,21 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange }) => {
                     return (
                       <tr key={key} className={`${dirty ? 'bg-amber-50/50' : stripe} hover:bg-primary-50/40 transition-colors`}>
                         <td className="px-3 py-2.5 text-sm text-slate-900 align-top">
-                          <div className="font-medium">{record.displayName}</div>
-                          <div className="text-xs text-slate-400 tabular-nums">{record.memberId}</div>
+                          {onOpenMember ? (
+                            <button
+                              type="button"
+                              className="text-left hover:text-primary-600 hover:underline transition-colors"
+                              onClick={() => onOpenMember(record.memberId)}
+                            >
+                              <div className="font-medium">{record.displayName}</div>
+                              <div className="text-xs text-slate-400 tabular-nums">{record.memberId}</div>
+                            </button>
+                          ) : (
+                            <>
+                              <div className="font-medium">{record.displayName}</div>
+                              <div className="text-xs text-slate-400 tabular-nums">{record.memberId}</div>
+                            </>
+                          )}
                         </td>
                         <td className="px-3 py-2.5 text-sm align-top">
                           <span className={`inline-block text-xs font-medium rounded-full px-2 py-0.5 ${memberTypeBadge(record.memberType)}`}>

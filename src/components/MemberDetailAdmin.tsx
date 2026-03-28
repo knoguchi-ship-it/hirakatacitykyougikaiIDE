@@ -80,6 +80,8 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
 
   const validateField = (key: string, value: string): string => {
     if (isBusiness && businessRequiredFields[key] && !value.trim()) {
+      const originalValue = String((member as any)[key] || '').trim();
+      if (!originalValue) return '';
       return `${businessRequiredFields[key]}は必須です`;
     }
     if (isIndividual && individualRequiredFields[key] && !value.trim()) {
@@ -374,7 +376,13 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
   const convertSourceStaff = staffList.find(s => s.id === convertSourceStaffId);
   const isConvertSourceRep = convertSourceStaff?.role === 'REPRESENTATIVE';
 
-  const isRequired = (key: string) => (isBusiness && !!businessRequiredFields[key]) || (isIndividual && !!individualRequiredFields[key]);
+  const isRequired = (key: string) => {
+    if (isBusiness && businessRequiredFields[key]) {
+      const originalValue = String((member as any)[key] || '').trim();
+      return !!originalValue;
+    }
+    return isIndividual && !!individualRequiredFields[key];
+  };
 
   return (
     <div className="space-y-6">
