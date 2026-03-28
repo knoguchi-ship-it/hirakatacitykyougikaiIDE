@@ -118,7 +118,7 @@ const App: React.FC = () => {
   const [memberListQuery, setMemberListQuery] = useState('');
   const [memberListFilter, setMemberListFilter] = useState<MemberListFilter>('ALL');
   const [memberListStatusFilter, setMemberListStatusFilter] = useState<MemberStatusFilter>('ACTIVE');
-  const [memberListJoinedYearFilter, setMemberListJoinedYearFilter] = useState<string>('ALL');
+  const [memberListFiscalYearFilter, setMemberListFiscalYearFilter] = useState<string>('ALL');
   const [memberListPage, setMemberListPage] = useState(1);
   const [memberListPageSize, setMemberListPageSize] = useState(DEFAULT_MEMBER_PAGE_SIZE);
   const [memberSortKey, setMemberSortKey] = useState<MemberSortKey>('displayName');
@@ -458,9 +458,17 @@ const App: React.FC = () => {
     return adminMemberRows.filter((member) => {
       if (memberListFilter !== 'ALL' && member.memberType !== memberListFilter) return false;
       if (memberListStatusFilter !== 'ALL' && member.status !== memberListStatusFilter) return false;
-      if (memberListJoinedYearFilter !== 'ALL') {
-        const jYear = member.joinedDate ? new Date(member.joinedDate).getFullYear() : 0;
-        if (String(jYear) !== memberListJoinedYearFilter) return false;
+      if (memberListFiscalYearFilter !== 'ALL') {
+        const fy = Number(memberListFiscalYearFilter);
+        const fyStart = new Date(fy, 3, 1);      // 4月1日
+        const fyEnd = new Date(fy + 1, 2, 31);   // 翌3月31日
+        const joined = member.joinedDate ? new Date(member.joinedDate) : null;
+        if (!joined || isNaN(joined.getTime()) || joined > fyEnd) return false;
+        // 退会済みの場合、退会日が年度開始前なら除外
+        if (member.status === 'WITHDRAWN' && member.withdrawnDate) {
+          const wd = new Date(member.withdrawnDate);
+          if (!isNaN(wd.getTime()) && wd < fyStart) return false;
+        }
       }
       if (!normalizedQuery) return true;
       return [member.memberId, member.displayName]
@@ -468,7 +476,7 @@ const App: React.FC = () => {
         .toLowerCase()
         .includes(normalizedQuery);
     });
-  }, [adminMemberRows, memberListFilter, memberListStatusFilter, memberListJoinedYearFilter, memberListQuery]);
+  }, [adminMemberRows, memberListFilter, memberListStatusFilter, memberListFiscalYearFilter, memberListQuery]);
 
   const sortedAdminMemberRows = useMemo(() => {
     const rows = [...filteredAdminMemberRows];
@@ -493,16 +501,25 @@ const App: React.FC = () => {
     return sortedAdminMemberRows.slice(start, start + memberListPageSize);
   }, [sortedAdminMemberRows, memberListPage, memberListPageSize]);
 
-  const availableJoinedYears = useMemo(() => {
-    const years = new Set<number>();
+  const availableFiscalYears = useMemo(() => {
+    // 会計年度（4月〜翌3月）の範囲を算出
+    const toFiscalYear = (d: Date) => d.getMonth() < 3 ? d.getFullYear() - 1 : d.getFullYear();
+    let minFY = Infinity;
     adminMemberRows.forEach(m => {
       if (m.joinedDate) {
-        const y = new Date(m.joinedDate).getFullYear();
-        if (!isNaN(y)) years.add(y);
+        const d = new Date(m.joinedDate);
+        if (!isNaN(d.getTime())) {
+          const fy = toFiscalYear(d);
+          if (fy < minFY) minFY = fy;
+        }
       }
     });
-    return Array.from(years).sort((a, b) => b - a);
-  }, [adminMemberRows]);
+    const currentFY = adminDashboardData?.currentFiscalYear ?? toFiscalYear(new Date());
+    if (!isFinite(minFY)) return [currentFY];
+    const years: number[] = [];
+    for (let y = currentFY; y >= minFY; y--) years.push(y);
+    return years;
+  }, [adminMemberRows, adminDashboardData]);
 
   const toggleMemberSort = useCallback((key: MemberSortKey) => {
     if (memberSortKey === key) {
@@ -550,7 +567,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     setMemberListPage(1);
-  }, [memberListFilter, memberListStatusFilter, memberListJoinedYearFilter, memberListQuery, memberListPageSize]);
+  }, [memberListFilter, memberListStatusFilter, memberListFiscalYearFilter, memberListQuery, memberListPageSize]);
 
   useEffect(() => {
     if (memberListPage > memberListTotalPages) {
@@ -1294,10 +1311,10 @@ const App: React.FC = () => {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">入会年度</label>
-          <select className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={memberListJoinedYearFilter} onChange={(e) => setMemberListJoinedYearFilter(e.target.value)}>
+          <label className="block text-xs font-medium text-slate-600 mb-1">対象年度</label>
+          <select className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={memberListFiscalYearFilter} onChange={(e) => setMemberListFiscalYearFilter(e.target.value)}>
             <option value="ALL">全年度</option>
-            {availableJoinedYears.map(y => <option key={y} value={String(y)}>{y}</option>)}
+            {availableFiscalYears.map(y => <option key={y} value={String(y)}>{y}年度</option>)}
           </select>
         </div>
         <div className="min-w-[240px]">
@@ -1315,7 +1332,7 @@ const App: React.FC = () => {
       </div>
 
       {/* フィルタチップ */}
-      {(memberListFilter !== 'ALL' || memberListStatusFilter !== 'ALL' || memberListJoinedYearFilter !== 'ALL' || memberListQuery) && (
+      {(memberListFilter !== 'ALL' || memberListStatusFilter !== 'ALL' || memberListFiscalYearFilter !== 'ALL' || memberListQuery) && (
         <div className="flex flex-wrap gap-2 mb-4">
           <span className="text-xs text-slate-500">適用中:</span>
           {memberListFilter !== 'ALL' && (
@@ -1330,10 +1347,10 @@ const App: React.FC = () => {
               <button onClick={() => setMemberListStatusFilter('ALL')} className="hover:text-primary-900">&times;</button>
             </span>
           )}
-          {memberListJoinedYearFilter !== 'ALL' && (
+          {memberListFiscalYearFilter !== 'ALL' && (
             <span className="inline-flex items-center gap-1 bg-primary-50 text-primary-700 text-xs px-2 py-1 rounded-full">
-              {memberListJoinedYearFilter}年入会
-              <button onClick={() => setMemberListJoinedYearFilter('ALL')} className="hover:text-primary-900">&times;</button>
+              {memberListFiscalYearFilter}年度
+              <button onClick={() => setMemberListFiscalYearFilter('ALL')} className="hover:text-primary-900">&times;</button>
             </span>
           )}
           {memberListQuery && (
@@ -1524,47 +1541,49 @@ const App: React.FC = () => {
         <div className="max-w-lg mx-auto mt-20 bg-white border border-slate-200 shadow-sm rounded-xl p-6">
           <h1 className="text-xl font-bold text-slate-800 mb-1">ログイン</h1>
           <p className="text-sm text-slate-600 mb-5">会員はログインID/パスワード、管理者のみGoogle認証を使用します。</p>
-          <div className="flex gap-2 mb-4">
-            <button className={`px-3 py-2 rounded ${authTab === 'member' ? 'bg-slate-800 text-white' : 'bg-slate-100'}`} onClick={() => setAuthTab('member')}>
-              会員ログイン
-            </button>
-            <button className={`px-3 py-2 rounded ${authTab === 'admin' ? 'bg-slate-800 text-white' : 'bg-slate-100'}`} onClick={() => setAuthTab('admin')}>
-              管理者ログイン
-            </button>
-          </div>
-
-          {authTab === 'member' ? (
-            <form className="space-y-3" onSubmit={handleMemberLogin}>
-              <input
-                className="w-full border border-slate-300 rounded px-3 py-2"
-                placeholder="ログインID"
-                value={memberLoginId}
-                onChange={(e) => setMemberLoginId(e.target.value)}
-              />
-              <input
-                className="w-full border border-slate-300 rounded px-3 py-2"
-                type="password"
-                placeholder="パスワード"
-                value={memberPassword}
-                onChange={(e) => setMemberPassword(e.target.value)}
-              />
-              <button className="w-full bg-slate-800 text-white rounded px-3 py-2" disabled={authBusy} type="submit">
-                ログイン
+          <fieldset disabled={authBusy} className={authBusy ? 'opacity-60' : ''}>
+            <div className="flex gap-2 mb-4">
+              <button type="button" className={`px-3 py-2 rounded ${authTab === 'member' ? 'bg-slate-800 text-white' : 'bg-slate-100'}`} onClick={() => setAuthTab('member')}>
+                会員ログイン
               </button>
-            </form>
-          ) : (
-            <div className="space-y-3">
-              <button
-                className="w-full bg-slate-800 text-white rounded px-3 py-2 disabled:opacity-50"
-                disabled={authBusy}
-                onClick={handleAdminSessionLogin}
-              >
-                Googleアカウントで管理者ログイン
+              <button type="button" className={`px-3 py-2 rounded ${authTab === 'admin' ? 'bg-slate-800 text-white' : 'bg-slate-100'}`} onClick={() => setAuthTab('admin')}>
+                管理者ログイン
               </button>
             </div>
-          )}
 
-          {authError && <div className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2">{authError}</div>}
+            {authTab === 'member' ? (
+              <form className="space-y-3" onSubmit={handleMemberLogin}>
+                <input
+                  className="w-full border border-slate-300 rounded px-3 py-2"
+                  placeholder="ログインID"
+                  value={memberLoginId}
+                  onChange={(e) => setMemberLoginId(e.target.value)}
+                />
+                <input
+                  className="w-full border border-slate-300 rounded px-3 py-2"
+                  type="password"
+                  placeholder="パスワード"
+                  value={memberPassword}
+                  onChange={(e) => setMemberPassword(e.target.value)}
+                />
+                <button className="w-full bg-slate-800 text-white rounded px-3 py-2 flex items-center justify-center gap-2 disabled:opacity-50" type="submit">
+                  {authBusy ? (<><span className="animate-spin inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>ログイン中...</>) : 'ログイン'}
+                </button>
+              </form>
+            ) : (
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  className="w-full bg-slate-800 text-white rounded px-3 py-2 flex items-center justify-center gap-2 disabled:opacity-50"
+                  onClick={handleAdminSessionLogin}
+                >
+                  {authBusy ? (<><span className="animate-spin inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>認証中...</>) : 'Googleアカウントで管理者ログイン'}
+                </button>
+              </div>
+            )}
+          </fieldset>
+          {authBusy && <p className="mt-3 text-sm text-slate-500 text-center" role="status" aria-live="assertive">認証処理を実行しています...</p>}
+          {authError && <div className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2" role="alert">{authError}</div>}
         </div>
       );
     }

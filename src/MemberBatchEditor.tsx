@@ -551,6 +551,18 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
               })}
             </tbody>
           </table>
+          {dirtyPersons.length > 0 && (
+            <div className="flex justify-end mt-4">
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={() => void handleSaveBatch()}
+                className="px-4 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50"
+              >
+                {batchSaving ? '一括保存中...' : `変更をまとめて保存（${dirtyPersons.length} 件）`}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

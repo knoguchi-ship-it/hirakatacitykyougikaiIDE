@@ -2855,6 +2855,7 @@ function getAdminDashboardData_() {
       trainingCount: trainingCountByMember[memberId] || 0,
       joinedDate: normalizeDateInput_(joinedDateRaw),
       status: memberStatus,
+      withdrawnDate: normalizeDateInput_(withdrawnDateRaw),
     };
   }).sort(function(a, b) {
     return String(a.displayName || '').localeCompare(String(b.displayName || ''));
@@ -4969,6 +4970,8 @@ function updateStaff_(payload) {
   // 更新可能フィールド（Allowlist）
   var nowIso = new Date().toISOString();
   var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+  // v147: 除籍済み職員は氏名・フリガナ必須チェックをスキップ
+  var staffCurrentStatus = String(row[cols['職員状態コード']] || 'ENROLLED');
   var hasStaffNamePayload =
     payload.name != null ||
     payload.kana != null ||
@@ -4985,8 +4988,10 @@ function updateStaff_(payload) {
       氏名: payload.name != null ? payload.name : row[cols['氏名']],
       フリガナ: payload.kana != null ? payload.kana : row[cols['フリガナ']],
     });
-    if (!normalizedStaffNames.name) throw new Error('職員氏名は必須です。');
-    if (!normalizedStaffNames.kana) throw new Error('職員フリガナは必須です。');
+    if (staffCurrentStatus !== 'LEFT') {
+      if (!normalizedStaffNames.name) throw new Error('職員氏名は必須です。');
+      if (!normalizedStaffNames.kana) throw new Error('職員フリガナは必須です。');
+    }
     if (cols['姓'] != null) row[cols['姓']] = normalizedStaffNames.lastName;
     if (cols['名'] != null) row[cols['名']] = normalizedStaffNames.firstName;
     if (cols['セイ'] != null) row[cols['セイ']] = normalizedStaffNames.lastKana;
@@ -6073,7 +6078,9 @@ function updateMember_(payload, options) {
 
   var memberTypeCode = String(row[cols['会員種別コード']] || payload.type || 'INDIVIDUAL');
   var hasOwn = Object.prototype.hasOwnProperty;
-  if (memberTypeCode === 'BUSINESS' && Object.prototype.hasOwnProperty.call(payload, 'staff')) {
+  // v147: 退会済み事業所会員は代表者バリデーションをスキップ（代表者なしでも情報更新可能）
+  var currentMemberStatus = String(row[cols['会員状態コード']] || 'ACTIVE');
+  if (memberTypeCode === 'BUSINESS' && currentMemberStatus !== 'WITHDRAWN' && Object.prototype.hasOwnProperty.call(payload, 'staff')) {
     validateBusinessStaffRoleTransition_(ss, String(payload.id), payload.staff, adminSession);
   }
   function fromPayloadOrCurrent(key, currentValue) {
@@ -6115,7 +6122,7 @@ function updateMember_(payload, options) {
     withdrawalProcessDate: fromPayloadOrCurrent('withdrawalProcessDate', String(getCol('退会処理日') || '')),
     midYearWithdrawal: fromPayloadOrCurrent('midYearWithdrawal', false),
   };
-  validateMemberPayload_(mergedPayload, memberTypeCode);
+  validateMemberPayload_(mergedPayload, memberTypeCode, currentMemberStatus);
   var sharedMobile = memberTypeCode === 'BUSINESS' && !String(mergedPayload.mobilePhone || '').trim()
     ? String(mergedPayload.phone || '')
     : String(mergedPayload.mobilePhone || '');
@@ -6218,7 +6225,7 @@ function updateMember_(payload, options) {
   return { updated: true, memberId: String(payload.id) };
 }
 
-function validateMemberPayload_(payload, memberTypeCode) {
+function validateMemberPayload_(payload, memberTypeCode, currentMemberStatus) {
   function trim(v) { return String(v || '').trim(); }
   function toDate(v) {
     var text = trim(v);
@@ -6228,9 +6235,11 @@ function validateMemberPayload_(payload, memberTypeCode) {
   }
   var isBusiness = memberTypeCode === 'BUSINESS';
   var isSupport = memberTypeCode === 'SUPPORT';
+  // v147: 退会済み会員は必須フィールドチェックをスキップ（全会員種別共通）
+  var isWithdrawn = String(currentMemberStatus || payload.status || 'ACTIVE') === 'WITHDRAWN';
 
   // 事業所会員は姓/名/セイ/メイ/介護支援専門員番号をブランク運用（v131）
-  if (!isBusiness) {
+  if (!isBusiness && !isWithdrawn) {
     if (!trim(payload.lastName)) throw new Error('姓は必須です。');
     if (!trim(payload.firstName)) throw new Error('名は必須です。');
     if (!trim(payload.lastKana)) throw new Error('セイは必須です。');
@@ -6238,12 +6247,14 @@ function validateMemberPayload_(payload, memberTypeCode) {
     if (!isSupport && !trim(payload.careManagerNumber)) throw new Error('賛助会員以外は介護支援専門員番号が必須です。');
   }
 
-  if (isBusiness) {
-    if (!trim(payload.mobilePhone) && !trim(payload.phone)) {
-      throw new Error('電話番号（または事業所電話番号）が必須です。');
+  if (!isWithdrawn) {
+    if (isBusiness) {
+      if (!trim(payload.mobilePhone) && !trim(payload.phone)) {
+        throw new Error('電話番号（または事業所電話番号）が必須です。');
+      }
+    } else {
+      if (!trim(payload.mobilePhone)) throw new Error('電話番号は必須です。');
     }
-  } else {
-    if (!trim(payload.mobilePhone)) throw new Error('電話番号は必須です。');
   }
 
   var hasOfficeAffiliationInput =
@@ -6254,8 +6265,8 @@ function validateMemberPayload_(payload, memberTypeCode) {
     !!trim(payload.officeAddressLine) ||
     !!trim(payload.phone) ||
     !!trim(payload.fax);
-  var requireOfficeInfo = isBusiness || hasOfficeAffiliationInput;
-  var requireHomeInfo = !isBusiness;
+  var requireOfficeInfo = !isWithdrawn && (isBusiness || hasOfficeAffiliationInput);
+  var requireHomeInfo = !isWithdrawn && !isBusiness;
 
   if (requireOfficeInfo) {
     if (!trim(payload.officeName)) throw new Error('事業所情報: 勤務先名は必須です。');
@@ -6274,6 +6285,7 @@ function validateMemberPayload_(payload, memberTypeCode) {
     if (!trim(payload.homeAddressLine)) throw new Error('個人会員は自宅住所が必須です。');
   }
 
+  // 日付形式と順序チェックはステータスに関係なく維持
   var joined = toDate(payload.joinedDate);
   var withdrawn = toDate(payload.withdrawnDate);
   if (trim(payload.joinedDate) && !joined) throw new Error('入会日は有効な日付で入力してください。');
@@ -6614,9 +6626,12 @@ function syncBusinessStaffRows_(ss, memberId, memberTypeCode, staffPayloadList) 
     });
     var name = normalizedStaffNames.name;
     var kana = normalizedStaffNames.kana;
-    if (!name) throw new Error('職員氏名は必須です。');
-    if (!kana) throw new Error('職員フリガナは必須です。');
     var status = String(payload.status || 'ENROLLED') === 'LEFT' ? 'LEFT' : 'ENROLLED';
+    // v147: 除籍済み職員は氏名・フリガナ必須チェックをスキップ
+    if (status !== 'LEFT') {
+      if (!name) throw new Error('職員氏名は必須です。');
+      if (!kana) throw new Error('職員フリガナは必須です。');
+    }
     // v106: 既存レコードから現行ステータスと日付を取得
     var prevStatus = existing ? String(existing['職員状態コード'] || 'ENROLLED') : 'ENROLLED';
     var joined = normalizeDateInput_(payload.joinedDate)

@@ -103,6 +103,7 @@ export interface AdminDashboardMemberRow {
   trainingCount: number;
   joinedDate: string;
   status: 'ACTIVE' | 'WITHDRAWAL_SCHEDULED' | 'WITHDRAWN';
+  withdrawnDate?: string;
 }
 
 export interface AdminDashboardTrainingRow {
