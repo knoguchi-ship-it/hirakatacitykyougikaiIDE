@@ -1,6 +1,6 @@
 # 引継ぎ書（次担当者向け）
 
-更新日: **2026-03-28（v145 作成済み。事業所番号32件投入 + 年会費コンソール→会員詳細ナビ + サイドバー職員名・権限表示修正 + 空白フィールドバリデーション緩和。固定2 Deployment を @145 へ要更新。v136-v140 テスト全 39 ケース PASS 完了）**
+更新日: **2026-03-28（v145 反映済み。事業所番号32件投入 + 年会費コンソール→会員詳細ナビ + サイドバー職員名・権限表示修正 + 空白フィールドバリデーション緩和。固定2 Deployment を @145 同期済み。v136-v140 テスト全 39 ケース PASS 完了）**
 対象: 枚方市介護支援専門員連絡協議会 会員システム
 
 ---
@@ -47,11 +47,11 @@
 
 ## 1.1 次担当者向け・最短状況サマリ（このまま新スレッドへ貼付可）
 
-- 本番Web URLは固定2本（会員/公開）。v145 作成済み、**固定 deployment を @145 へ要更新**（2026-03-28）。
+- 本番Web URLは固定2本（会員/公開）で **@145 同期済み**（2026-03-28）。
 - `main` には v145 が反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` と `git status --short` を正とすること。
 - `docs/30_TEST_SPEC_v136_v140_INLINE_STAFF_EDIT.md` の **39 テストケース全 PASS**（2026-03-28 追試完了）。初回（2026-03-27）FAIL 9 件は全て Playwright MCP セッション切断が原因であり、コード不具合ではなかった。追試（2026-03-28, @144）で残 8 ケース（`P-03`, `I-04`, `D-02`, `R-03`, `R-05`, `R-07`, `R-08`, `R-09`）を全て PASS。Apps Script UI「デプロイを管理」で固定 2 Deployment の Version 144 / ウェブアプリを目視確認済み。
 - **v128（データ移行・deployment反映済み）**: 2026-03-24 実行時は ★会員名簿（2025年度）から本番DBへ T_会員205件（個人174+事業所31）、T_事業所職員133件、T_認証アカウント307件、T_年会費納入履歴330件を移行。2026-03-25 に再移行を実施し、最終的に T_会員211件（個人179+事業所32）、T_事業所職員147件、T_認証アカウント326件、T_年会費347件へ修正。runId `20260325T120805-35e3927e`、backupSuffix `_BAK_20260325_120805`。その後 `repairRosterMigrationDataJson` を実行し、個人会員158件の `介護支援専門員番号` を live DB へ補正、backupSuffix `_BAK_20260325_182904`、`remainingPreview.memberUpdates=0` を確認。続けて `repairAnnualFeeAgainstSourceJson` を実行し、事業所会員の 2024 年度会費 3 件（`40131545|2024`、`375881|2024`、`4539021|2024`）を source 支払欄基準で補正、backupSuffix `_BAK_20260325_200151`、`feeAudit.missing=0 / extra=0 / duplicate=0 / mismatch=0`、`currentFees=347 / expectedFees=347`、`currentAmountTotal=1336000 / expectedAmountTotal=1336000` を確認。2026-03-26 に `dryRunMigration()` で `_MIGRATION_*` を live DB へ再生成し、`reconcileMigrationWithSource.ok=true`（`mappedRowCount=326`, `mismatchCount=0`）まで provenance を収束。続けて `T_事業所職員` に `姓/名/セイ/メイ` を追加し 147 件を backfill、`_CREDENTIALS_TEMP` を 326 件で再生成して `missingLinkCount=0`、`HASH_ONLY=326` を確認した。`backupBeforeMigration_()` は別スプレッドシートへ同一スナップショットを保存し、live 内 `_BAK_*` は削除済み。検証済み外部バックアップは `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA`、本作業開始前の安全退避は `1U6HTUUAaNfZ3mDPQfdppCfJtsyTzpacMgOM_WKEUEhg`。固定 deployment 2本は 2026-03-26 に最終 `@130` へ更新済み。
-- **v145（clasp push + version作成済み・deployment要更新）**: UI改善4件。
+- **v145（deployment反映済み）**: UI改善4件。
   - 事業所番号: 大阪府介護保険事業所台帳より32件の事業所番号を本番DBへ投入済み。
   - 年会費コンソール→会員詳細ナビ: 年会費一覧の会員名クリックで会員詳細編集画面へ遷移。
   - サイドバー職員名表示: 事業所メンバーログイン時に紐づき職員の氏名を表示（従来は事業所代表者名が表示されていた）。
@@ -128,7 +128,7 @@
 ## 1.2 この時点の引き継ぎポイント
 
 - スレッドを切っても問題ない状態まで、正本と引き継ぎは同期済み。
-- 現在の本番固定 Deployment は会員/公開ともに **@144**。v145 は `clasp push` + `clasp version` 済み、**固定 deployment の @145 更新が必要**。
+- 現在の本番固定 Deployment は会員/公開ともに **@145**（2026-03-28 同期済み）。
 - **v136-v140 テスト全 39 ケース PASS 完了**（2026-03-28）。残件なし。
 - **v128 再移行は 2026-03-25 に実行済み。次担当者は `docs/23_MIGRATION_HANDOVER_v128.md` と実行結果を参照すること。**
   - runId `20260325T120805-35e3927e`
@@ -198,13 +198,13 @@
 - v126 で事業所会員詳細編集画面を改善（WCAG 2.2準拠必須バリデーション、予約退会、職員Master-Detail Drilldown）。
 - v127 で職員詳細画面を改善（介護支援専門員番号必須化、role/statusドロップダウン、最終代表者自動退会）。
 - v128（データ移行）で ★会員名簿2025年度シートから本番DBへ一括移行。T_会員に`退会処理日`列を追加。移行関数 `migrateRoster2025_` / `executeMigration` / `dryRunMigration` / `verifyMigration_` / `backupBeforeMigration_` / `rollbackMigration_` を実装。
-- v136-v140 テスト全 39 ケース PASS 完了（2026-03-28）。次の主作業は **v145 の固定 deployment @145 更新と本番検証**。
+- v136-v140 テスト全 39 ケース PASS 完了（2026-03-28）。v145 は固定 deployment @145 同期済み。
 - Claude Code への次指示は `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` に整理済み。
 - ただし修正後は毎回、`docs/09_DEPLOYMENT_POLICY.md` の事前チェック/完了判定に従って再確認すること。
 - 2026-03-19 時点で **不要ファイルは `Dust/` に退避済み**。記録用スクリーンショット（`v98-*`）のみリポジトリ管理対象。
 - v116 で `T_管理者Googleホワイトリスト` を運用正本とする `管理コンソール（システム権限）` を追加。Googleメール / GoogleユーザーID / 表示名 / 紐付け認証ID / 有効フラグの追加・更新・削除が可能。
 - v116 で管理者ログイン後の左メニュー表示名を、ホワイトリストに紐付く会員・職員情報ベースに変更。紐付け未解決時のみ `システム管理者` を表示する。
-- 2026-03-28 時点で固定 deployment は `@144`。v145 は `clasp push` + `clasp version 'v145'` まで完了済み。固定 2 Deployment を Apps Script UI `Manage deployments` で @145 に更新すること。
+- 2026-03-28 時点で固定 deployment は `@145`。Apps Script UI `Manage deployments` で会員メニュー/公開ポータルともに Version 145 を確認済み。
 
 ---
 
@@ -237,8 +237,8 @@
 
 | 用途 | Deployment ID | 現在 Version | URL |
 |---|---|---|---|
-| **会員マイページ** | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@144**（@145 へ要更新） | `.../exec` |
-| **公開ポータル** | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@144**（@145 へ要更新） | `.../exec?app=public` |
+| **会員マイページ** | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@145** | `.../exec` |
+| **公開ポータル** | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@145** | `.../exec?app=public` |
 
 > **鉄則**: 2 つの Deployment ID は常に同一バージョンへ同時更新。片方だけ更新禁止。
 > `npx clasp deployments` では表示名が実UIの `Manage deployments` と一致しないことがある。最終判断は Apps Script UI の固定2 Deployment を正とする。
