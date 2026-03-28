@@ -1482,20 +1482,20 @@ const App: React.FC = () => {
           <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">{adminDashboardError}</div>
         )}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          <div className="rounded-xl border border-slate-200 p-5 bg-white">
-            <p className="text-xs text-slate-500 mb-1">総会員数</p>
-            <p className="text-2xl font-bold text-slate-800">{val(d?.memberCount)}</p>
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+            <p className="text-xs text-emerald-700 font-medium mb-1">在籍会員数</p>
+            <p className="text-2xl font-bold text-emerald-800">{val(d?.memberCount)}</p>
           </div>
           <div className="rounded-xl border border-slate-200 p-5 bg-white">
-            <p className="text-xs text-slate-500 mb-1">個人会員数</p>
+            <p className="text-xs text-slate-500 mb-1">個人会員（在籍）</p>
             <p className="text-2xl font-bold text-primary-600">{val(d?.individualCount)}</p>
           </div>
           <div className="rounded-xl border border-slate-200 p-5 bg-white">
-            <p className="text-xs text-slate-500 mb-1">事業所会員数</p>
+            <p className="text-xs text-slate-500 mb-1">事業所会員（在籍）</p>
             <p className="text-2xl font-bold text-indigo-600">{val(d?.businessCount)}</p>
           </div>
           <div className="rounded-xl border border-slate-200 p-5 bg-white">
-            <p className="text-xs text-slate-500 mb-1">事業所会員メンバー数</p>
+            <p className="text-xs text-slate-500 mb-1">事業所職員（在籍）</p>
             <p className="text-2xl font-bold text-purple-600">{val(d?.businessStaffCount)}</p>
           </div>
           <div className="rounded-xl border border-slate-200 p-5 bg-white">

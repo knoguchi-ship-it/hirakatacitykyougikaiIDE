@@ -280,6 +280,18 @@ var テーブル定義 = {
     '実行者メール',
     '実行日時',
   ],
+  // v143: 管理者操作の監査ログ（append-only）
+  T_監査ログ: [
+    '監査ログID',
+    '操作日時',
+    '操作者メール',
+    '操作種別',
+    '対象テーブル',
+    '対象レコードID',
+    'フィールド名',
+    '旧値',
+    '新値',
+  ],
 };
 
 var 入力規則定義 = [
@@ -764,9 +776,12 @@ function processApiRequest(action, payload) {
     }
 
     if (action === 'updateMember') {
+      // v143: 管理者用 allowlist でサニタイズしてから委譲
+      var sanitizedMemberPayload = sanitizeAdminMemberPayload_(parsedPayload);
+      sanitizedMemberPayload.__adminSession = parsedPayload.__adminSession;
       return JSON.stringify({
         success: true,
-        data: updateMember_(parsedPayload),
+        data: updateMember_(sanitizedMemberPayload),
       });
     }
 
@@ -2673,6 +2688,7 @@ function mapMembersForApi_(memberRows, staffRows, authRows, applicationRows, fee
       })(),
       joinedDate: normalizeDateInput_(m['入会日']),
       withdrawnDate: normalizeDateInput_(m['退会日']),
+      withdrawalProcessDate: normalizeDateInput_(m['退会処理日']),
       midYearWithdrawal: false,
       annualFeeHistory: history,
       participatedTrainingIds: type === 'BUSINESS' ? [] : uniqueStrings_(applicationsByMember[id] || []),
@@ -2787,15 +2803,21 @@ function getAdminDashboardData_() {
     }
   }
 
-  // 事業所職員データ
+  // 事業所職員データ — v143: カラム名を正しい「職員状態コード」に修正
   var staffRows = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) {
-    return !toBoolean_(r['削除フラグ']) && String(r['在籍状態コード'] || 'ENROLLED') === 'ENROLLED';
+    return !toBoolean_(r['削除フラグ']);
   });
-  var businessStaffCount = staffRows.length;
+  // v143: 在籍中（ENROLLED）の職員のみカウント
+  var businessStaffCount = staffRows.filter(function(r) {
+    return String(r['職員状態コード'] || 'ENROLLED') === 'ENROLLED';
+  }).length;
 
   // 会員種別別カウント・入退会集計
+  // v143: アクティブ会員（ACTIVE / WITHDRAWAL_SCHEDULED）のみカウント
+  //       WITHDRAWN は年度退会数で別途集計
   var individualCount = 0;
   var businessCount = 0;
+  var activeMemberCount = 0;
   var currentYearJoinedCount = 0;
   var currentYearWithdrawnCount = 0;
 
@@ -2806,8 +2828,13 @@ function getAdminDashboardData_() {
     var latestFee = latestFeeByMember[memberId];
     var joinedDateRaw = String(member['入会日'] || '');
 
-    if (memberType === 'INDIVIDUAL' || memberType === 'SUPPORT') individualCount += 1;
-    if (memberType === 'BUSINESS') businessCount += 1;
+    // v143: アクティブ（在籍中 + 退会予定）のみカード表示数に加算
+    var isActive = memberStatus === 'ACTIVE' || memberStatus === 'WITHDRAWAL_SCHEDULED';
+    if (isActive) {
+      activeMemberCount += 1;
+      if (memberType === 'INDIVIDUAL' || memberType === 'SUPPORT') individualCount += 1;
+      if (memberType === 'BUSINESS') businessCount += 1;
+    }
 
     if (joinedDateRaw) {
       var jd = new Date(joinedDateRaw);
@@ -2845,8 +2872,16 @@ function getAdminDashboardData_() {
     return String(b.date || '').localeCompare(String(a.date || ''));
   });
 
+  // v143: アクティブ会員のみを母数とするサマリ
+  var activeSummaries = memberSummaries.filter(function(m) {
+    return m.status === 'ACTIVE' || m.status === 'WITHDRAWAL_SCHEDULED';
+  });
+  var activeMembers = memberRows.filter(function(m) {
+    var s = String(m['会員状態コード'] || 'ACTIVE');
+    return s === 'ACTIVE' || s === 'WITHDRAWAL_SCHEDULED';
+  });
   var result = {
-    memberCount: memberRows.length,
+    memberCount: activeMemberCount,
     individualCount: individualCount,
     businessCount: businessCount,
     businessStaffCount: businessStaffCount,
@@ -2854,10 +2889,10 @@ function getAdminDashboardData_() {
     currentFiscalYearLabel: currentFiscalYear + '年度',
     currentYearJoinedCount: currentYearJoinedCount,
     currentYearWithdrawnCount: currentYearWithdrawnCount,
-    paidCount: memberSummaries.filter(function(member) { return member.latestFeeStatus === 'PAID'; }).length,
-    unpaidCount: memberSummaries.filter(function(member) { return member.latestFeeStatus !== 'PAID'; }).length,
-    emailCount: memberRows.filter(function(member) { return String(member['発送方法コード'] || 'EMAIL') === 'EMAIL'; }).length,
-    postCount: memberRows.filter(function(member) { return String(member['発送方法コード'] || 'EMAIL') === 'POST'; }).length,
+    paidCount: activeSummaries.filter(function(member) { return member.latestFeeStatus === 'PAID'; }).length,
+    unpaidCount: activeSummaries.filter(function(member) { return member.latestFeeStatus !== 'PAID'; }).length,
+    emailCount: activeMembers.filter(function(member) { return String(member['発送方法コード'] || 'EMAIL') === 'EMAIL'; }).length,
+    postCount: activeMembers.filter(function(member) { return String(member['発送方法コード'] || 'EMAIL') === 'POST'; }).length,
     openTrainingCount: trainingSummaries.filter(function(training) { return training.status === 'OPEN'; }).length,
     memberRows: memberSummaries,
     trainingRows: trainingSummaries,
@@ -5555,6 +5590,22 @@ var ADMIN_BATCH_WRITABLE_FIELDS_ = [
   'email', 'mailingPreference', 'preferredMailDestination',
   'status', 'joinedDate', 'withdrawnDate',
 ];
+// v143: NIST RBAC — MASTER/ADMIN が会員詳細画面で編集可能なフィールド
+// MEMBER_WRITABLE_FIELDS_ の上位互換 + 管理者専用フィールド
+var ADMIN_MEMBER_WRITABLE_FIELDS_ = [
+  // 会員セルフサービスでも編集可能なフィールド
+  'lastName','firstName','lastKana','firstKana',
+  'homePostCode','homePrefecture','homeCity','homeAddressLine','mobilePhone',
+  'officePostCode','officePrefecture','officeCity','officeAddressLine','phone','fax',
+  'email','mailingPreference','preferredMailDestination',
+  // 管理者専用フィールド（ADMIN_ONLY_EDIT 層）
+  'status','joinedDate','withdrawnDate','withdrawalProcessDate','midYearWithdrawal',
+  'careManagerNumber','officeName','officeNumber','staffLimit',
+];
+// v143: 管理者編集で監査ログ対象となるフィールド（ADMIN_ONLY_EDIT 層）
+var ADMIN_AUDIT_FIELDS_ = [
+  'status','joinedDate','withdrawnDate','withdrawalProcessDate','midYearWithdrawal',
+];
 // v106: NIST RBAC — ロール別職員フィールド allowlist
 var STAFF_WRITABLE_FIELDS_REPRESENTATIVE_ = ['id','name','kana','email','status','role'];
 var STAFF_WRITABLE_FIELDS_ADMIN_ = ['id','name','kana','email','status'];
@@ -5570,6 +5621,46 @@ function sanitizeAdminBatchMemberPayload_(payload) {
     }
   }
   return sanitized;
+}
+
+// v143: 管理者会員詳細編集用サニタイズ — ADMIN_MEMBER_WRITABLE_FIELDS_ でフィルタ
+function sanitizeAdminMemberPayload_(payload) {
+  if (!payload || !payload.id) throw new Error('会員IDが未指定です。');
+  var sanitized = { id: String(payload.id), type: payload.type };
+  var hasOwn = Object.prototype.hasOwnProperty;
+  for (var i = 0; i < ADMIN_MEMBER_WRITABLE_FIELDS_.length; i += 1) {
+    var key = ADMIN_MEMBER_WRITABLE_FIELDS_[i];
+    if (hasOwn.call(payload, key)) {
+      sanitized[key] = payload[key];
+    }
+  }
+  // staff 配列はそのまま透過（syncBusinessStaffRows_ が処理）
+  if (hasOwn.call(payload, 'staff')) {
+    sanitized.staff = payload.staff;
+  }
+  return sanitized;
+}
+
+// v143: 監査ログ追記 — ADMIN_AUDIT_FIELDS_ の変更を T_監査ログ に記録
+function appendAdminAuditLog_(ss, adminEmail, memberId, changes) {
+  if (!changes || changes.length === 0) return;
+  var sheet = ss.getSheetByName('T_監査ログ');
+  if (!sheet) return; // スキーマ未反映時はサイレントスキップ
+  var now = new Date().toISOString();
+  for (var i = 0; i < changes.length; i++) {
+    var c = changes[i];
+    sheet.appendRow([
+      Utilities.getUuid(),   // 監査ログID
+      now,                   // 操作日時
+      adminEmail || '',      // 操作者メール
+      'ADMIN_EDIT',          // 操作種別
+      'T_会員',              // 対象テーブル
+      String(memberId),      // 対象レコードID
+      c.field,               // フィールド名
+      String(c.oldValue),    // 旧値
+      String(c.newValue),    // 新値
+    ]);
+  }
 }
 
 function updateMembersBatch_(payload) {
@@ -6003,12 +6094,19 @@ function updateMember_(payload, options) {
     status: fromPayloadOrCurrent('status', String(getCol('会員状態コード') || 'ACTIVE')),
     joinedDate: fromPayloadOrCurrent('joinedDate', String(getCol('入会日') || '')),
     withdrawnDate: fromPayloadOrCurrent('withdrawnDate', String(getCol('退会日') || '')),
+    withdrawalProcessDate: fromPayloadOrCurrent('withdrawalProcessDate', String(getCol('退会処理日') || '')),
     midYearWithdrawal: fromPayloadOrCurrent('midYearWithdrawal', false),
   };
   validateMemberPayload_(mergedPayload, memberTypeCode);
   var sharedMobile = memberTypeCode === 'BUSINESS' && !String(mergedPayload.mobilePhone || '').trim()
     ? String(mergedPayload.phone || '')
     : String(mergedPayload.mobilePhone || '');
+
+  // v143: 監査ログ用 — 変更前の値を記録
+  var prevStatus = String(getCol('会員状態コード') || 'ACTIVE');
+  var prevJoinedDate = String(normalizeDateInput_(getCol('入会日')) || '');
+  var prevWithdrawnDate = String(normalizeDateInput_(getCol('退会日')) || '');
+  var prevWithdrawalProcessDate = String(normalizeDateInput_(getCol('退会処理日')) || '');
 
   function setCol(name, value) {
     var idx = cols[name];
@@ -6019,11 +6117,20 @@ function updateMember_(payload, options) {
   setCol('名', mergedPayload.firstName || '');
   setCol('セイ', mergedPayload.lastKana || '');
   setCol('メイ', mergedPayload.firstKana || '');
+  // v143: MASTER/ADMIN は全有効ステータスへ遷移可能（復旧・強制退会を含む）
   var rawStatus = String(mergedPayload.status || 'ACTIVE');
-  var nextStatus = rawStatus === 'WITHDRAWN' ? 'WITHDRAWN' : rawStatus === 'WITHDRAWAL_SCHEDULED' ? 'WITHDRAWAL_SCHEDULED' : 'ACTIVE';
+  var VALID_MEMBER_STATUSES = ['ACTIVE', 'WITHDRAWAL_SCHEDULED', 'WITHDRAWN'];
+  if (VALID_MEMBER_STATUSES.indexOf(rawStatus) === -1) {
+    throw new Error('無効な会員状態コードです: ' + rawStatus);
+  }
+  var nextStatus = rawStatus;
   setCol('会員状態コード', nextStatus);
   setCol('入会日', normalizeDateInput_(mergedPayload.joinedDate));
   setCol('退会日', normalizeDateInput_(mergedPayload.withdrawnDate));
+  // v143: 退会処理日の保存
+  if (cols['退会処理日'] != null) {
+    setCol('退会処理日', normalizeDateInput_(mergedPayload.withdrawalProcessDate));
+  }
   var immediateDelete = nextStatus === 'WITHDRAWN' &&
     (mergedPayload.midYearWithdrawal === true || String(mergedPayload.midYearWithdrawal || '').toLowerCase() === 'true');
   setCol('削除フラグ', immediateDelete);
@@ -6062,6 +6169,29 @@ function updateMember_(payload, options) {
   if (hasOwn.call(payload, 'staff')) {
     syncBusinessStaffRows_(ss, String(payload.id), memberTypeCode, payload.staff || []);
   }
+
+  // v143: 管理者操作の監査ログ出力
+  var effectiveAdminSession = adminSession || (payload.__adminSession || null);
+  if (effectiveAdminSession && effectiveAdminSession.email) {
+    var auditChanges = [];
+    var newJoinedDate = String(normalizeDateInput_(mergedPayload.joinedDate) || '');
+    var newWithdrawnDate = String(normalizeDateInput_(mergedPayload.withdrawnDate) || '');
+    var newWithdrawalProcessDate = String(normalizeDateInput_(mergedPayload.withdrawalProcessDate) || '');
+    if (nextStatus !== prevStatus) {
+      auditChanges.push({ field: '会員状態コード', oldValue: prevStatus, newValue: nextStatus });
+    }
+    if (newJoinedDate !== prevJoinedDate) {
+      auditChanges.push({ field: '入会日', oldValue: prevJoinedDate, newValue: newJoinedDate });
+    }
+    if (newWithdrawnDate !== prevWithdrawnDate) {
+      auditChanges.push({ field: '退会日', oldValue: prevWithdrawnDate, newValue: newWithdrawnDate });
+    }
+    if (newWithdrawalProcessDate !== prevWithdrawalProcessDate) {
+      auditChanges.push({ field: '退会処理日', oldValue: prevWithdrawalProcessDate, newValue: newWithdrawalProcessDate });
+    }
+    appendAdminAuditLog_(ss, effectiveAdminSession.email, payload.id, auditChanges);
+  }
+
   if (!skipCacheClear) {
     clearAllDataCache_();
     clearAdminDashboardCache_();
@@ -7519,6 +7649,7 @@ function initializeSchema_(ss) {
   normalizeTableColumns_(ss, 'T_認証アカウント');
   normalizeTableColumns_(ss, 'T_ログイン履歴');
   normalizeTableColumns_(ss, 'T_研修申込');
+  normalizeTableColumns_(ss, 'T_監査ログ');
   ensureSystemSettingsRows_(ss);
   seedPermissionMatrixIfNeeded_(ss);
   applyDataValidationRules_(ss);

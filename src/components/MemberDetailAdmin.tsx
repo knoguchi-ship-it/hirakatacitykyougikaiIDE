@@ -633,15 +633,14 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       {/* ステータス */}
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <h3 className="text-lg font-bold text-slate-800 mb-4">ステータス</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label className={labelClass}>会員状態</label>
-            <select className={fieldClass()} value={form.status || 'ACTIVE'} onChange={e => set('status', e.target.value)} disabled={isBusiness}>
+            <select className={fieldClass()} value={form.status || 'ACTIVE'} onChange={e => set('status', e.target.value)}>
               <option value="ACTIVE">在籍中</option>
               <option value="WITHDRAWAL_SCHEDULED">退会予定</option>
               <option value="WITHDRAWN">退会済</option>
             </select>
-            {isBusiness && <p className="text-xs text-slate-400 mt-1">事業所会員の状態変更は会員アクションから行います</p>}
           </div>
           <div>
             <label className={labelClass}>入会日</label>
@@ -649,7 +648,11 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
           </div>
           <div>
             <label className={labelClass}>退会日</label>
-            <input className={fieldClass()} type="date" value={form.withdrawnDate || ''} disabled readOnly />
+            <input className={fieldClass()} type="date" value={form.withdrawnDate || ''} onChange={e => set('withdrawnDate', e.target.value)} />
+          </div>
+          <div>
+            <label className={labelClass}>退会処理日</label>
+            <input className={fieldClass()} type="date" value={form.withdrawalProcessDate || ''} onChange={e => set('withdrawalProcessDate', e.target.value)} />
           </div>
         </div>
       </div>

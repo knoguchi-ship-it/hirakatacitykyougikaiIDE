@@ -1,6 +1,6 @@
 # 引継ぎ書（次担当者向け）
 
-更新日: **2026-03-28（v142 反映済み。年会費管理コンソール改善を本番反映し、固定2 Deployment を同期済み）**
+更新日: **2026-03-28（v144 反映済み。管理者フィールド編集オーバーライド + ダッシュボード在籍会員のみカウント。固定2 Deployment を @144 同期済み）**
 対象: 枚方市介護支援専門員連絡協議会 会員システム
 
 ---
@@ -47,10 +47,23 @@
 
 ## 1.1 次担当者向け・最短状況サマリ（このまま新スレッドへ貼付可）
 
-- 本番Web URLは固定2本（会員/公開）で **@142 同期済み**（2026-03-28）。
-- `main` には v142 が反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` と `git status --short` を正とすること。
+- 本番Web URLは固定2本（会員/公開）で **@144 同期済み**（2026-03-28）。
+- `main` には v144 が反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` と `git status --short` を正とすること。
 - `docs/30_TEST_SPEC_v136_v140_INLINE_STAFF_EDIT.md` の **39 テストケース**はセクション 8 まで記録済み。次担当者の最優先タスクは、初回 FAIL/未再検証扱いの残件（`P-03`, `I-04`, `D-02`, `R-03`, `R-05`, `R-07`, `R-08`, `R-09`）の回収と、Apps Script UI `Manage deployments` の最終確認である。実行 task は `docs/32_HANDOVER_TASK_v142_RETEST_AND_DEPLOYMENT_CONFIRM.md` を正本補助として使うこと。
 - **v128（データ移行・deployment反映済み）**: 2026-03-24 実行時は ★会員名簿（2025年度）から本番DBへ T_会員205件（個人174+事業所31）、T_事業所職員133件、T_認証アカウント307件、T_年会費納入履歴330件を移行。2026-03-25 に再移行を実施し、最終的に T_会員211件（個人179+事業所32）、T_事業所職員147件、T_認証アカウント326件、T_年会費347件へ修正。runId `20260325T120805-35e3927e`、backupSuffix `_BAK_20260325_120805`。その後 `repairRosterMigrationDataJson` を実行し、個人会員158件の `介護支援専門員番号` を live DB へ補正、backupSuffix `_BAK_20260325_182904`、`remainingPreview.memberUpdates=0` を確認。続けて `repairAnnualFeeAgainstSourceJson` を実行し、事業所会員の 2024 年度会費 3 件（`40131545|2024`、`375881|2024`、`4539021|2024`）を source 支払欄基準で補正、backupSuffix `_BAK_20260325_200151`、`feeAudit.missing=0 / extra=0 / duplicate=0 / mismatch=0`、`currentFees=347 / expectedFees=347`、`currentAmountTotal=1336000 / expectedAmountTotal=1336000` を確認。2026-03-26 に `dryRunMigration()` で `_MIGRATION_*` を live DB へ再生成し、`reconcileMigrationWithSource.ok=true`（`mappedRowCount=326`, `mismatchCount=0`）まで provenance を収束。続けて `T_事業所職員` に `姓/名/セイ/メイ` を追加し 147 件を backfill、`_CREDENTIALS_TEMP` を 326 件で再生成して `missingLinkCount=0`、`HASH_ONLY=326` を確認した。`backupBeforeMigration_()` は別スプレッドシートへ同一スナップショットを保存し、live 内 `_BAK_*` は削除済み。検証済み外部バックアップは `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA`、本作業開始前の安全退避は `1U6HTUUAaNfZ3mDPQfdppCfJtsyTzpacMgOM_WKEUEhg`。固定 deployment 2本は 2026-03-26 に最終 `@130` へ更新済み。
+- **v144（deployment反映済み）**: ダッシュボードカード KPI を在籍会員のみカウントに修正。
+  - `getAdminDashboardData_()` で ACTIVE + WITHDRAWAL_SCHEDULED のみ集計（WITHDRAWN 除外）。
+  - `T_事業所職員` のカラム名バグ修正: `在籍状態コード`（不存在）→ `職員状態コード`（正）。全職員が ENROLLED 扱いで退職者もカウントされていた問題を解消。
+  - カードラベル変更: 「総会員数」→「在籍会員数」、「個人会員数」→「個人会員（在籍）」、「事業所会員数」→「事業所会員（在籍）」、「事業所会員メンバー数」→「事業所職員（在籍）」。
+  - 2026-03-28 Playwright MCP テスト済み: 在籍会員数=200, 個人=170, 事業所=30, 職員=135。
+- **v143（deployment反映済み）**: 管理者フィールド編集オーバーライド + 監査ログ。
+  - MASTER/ADMIN 権限で会員の status, joinedDate, withdrawnDate, withdrawalProcessDate, careManagerNumber 等を編集可能に。
+  - NIST RBAC 3 層モデル: MEMBER_SELF_EDIT / ADMIN_ONLY_EDIT / SYSTEM_MANAGED。
+  - OWASP A01 対策: `sanitizeAdminMemberPayload_()` で admin 用ホワイトリスト `ADMIN_MEMBER_WRITABLE_FIELDS_` を適用。
+  - `T_監査ログ` テーブル追加（append-only）: admin 編集時に変更前後を記録。
+  - フロントエンド: 退会日の `disabled readOnly` 解除、事業所会員の会員状態 `disabled` 解除、退会処理日フィールド追加。
+  - ステータス遷移: WITHDRAWN→ACTIVE 復旧を許可（`VALID_MEMBER_STATUSES` 検証に変更）。
+  - 2026-03-28 Playwright MCP テスト済み: 事業所/個人とも全フィールド編集可能を確認。
 - **v141（deployment反映済み）**: `selectedMemberForDetail` を ID 派生 state に再構成し、`StaffDetailAdmin` 保存後に会員詳細一覧へ即時反映されない `S-04` を修正。
   - 2026-03-27 に fixed deployment 2本を `@141` へ更新し、本番会員 URL で `S-04` を再試験。`村田 富美子` を `STAFF -> ADMIN -> STAFF` と往復し、`← 事業所詳細に戻る` 直後の一覧で即時反映を確認。最終状態は `メンバー` に復旧。
 - **v140（deployment反映済み）**: インライン職員編集時のローディングフラッシュ修正。

@@ -232,6 +232,7 @@ export interface Member {
   status: 'ACTIVE' | 'WITHDRAWAL_SCHEDULED' | 'WITHDRAWN';
   joinedDate?: string;
   withdrawnDate?: string;
+  withdrawalProcessDate?: string;
   midYearWithdrawal?: boolean;
   
   // Annual Fee History (Past 2 years)
