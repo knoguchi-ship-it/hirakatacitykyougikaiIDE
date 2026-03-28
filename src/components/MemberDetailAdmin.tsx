@@ -340,7 +340,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     const saveKey = `${staff.id}-${field}`;
     setInlineSaving(prev => ({ ...prev, [saveKey]: true }));
     try {
-      await api.updateStaff({
+      const result = await api.updateStaff({
         staffId: staff.id,
         memberId: String(form.id),
         lastName: staff.lastName || '',
@@ -356,11 +356,16 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
         joinedDate: staff.joinedDate || '',
         mailingPreference: staff.mailingPreference || 'YES',
       });
-      // 楽観的UI更新: ローカル state を即反映
+      // サーバー応答を反映（除籍時の権限強制降格を即時反映）
       setForm(prev => ({
         ...prev,
         staff: ((prev.staff as Staff[]) || []).map(s =>
-          s.id === staff.id ? { ...s, [field]: newValue } : s
+          s.id === staff.id ? {
+            ...s,
+            [field]: newValue,
+            ...(result.role != null ? { role: result.role } : {}),
+            ...(result.status != null ? { status: result.status } : {}),
+          } : s
         ),
       }));
       onSaved();
@@ -690,7 +695,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                     <select
                       value={s.role}
                       onChange={e => handleInlineStaffUpdate(s, 'role', e.target.value)}
-                      disabled={!!inlineSaving[`${s.id}-role`]}
+                      disabled={!!inlineSaving[`${s.id}-role`] || s.status === 'LEFT'}
                       className="border border-slate-300 rounded px-2 py-1 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:outline-none disabled:opacity-50"
                       aria-label={`${s.name} の区分`}
                     >

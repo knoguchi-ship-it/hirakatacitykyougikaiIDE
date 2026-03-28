@@ -1,6 +1,6 @@
 # 引継ぎ書（次担当者向け）
 
-更新日: **2026-03-28（v145 反映済み。事業所番号32件投入 + 年会費コンソール→会員詳細ナビ + サイドバー職員名・権限表示修正 + 空白フィールドバリデーション緩和。固定2 Deployment を @145 同期済み。v136-v140 テスト全 39 ケース PASS 完了）**
+更新日: **2026-03-28（v146 反映済み。事業所番号APIマッピング修正 + 除籍時権限強制降格（OWASP A01準拠）。固定2 Deployment を @146 同期済み）**
 対象: 枚方市介護支援専門員連絡協議会 会員システム
 
 ---
@@ -47,16 +47,23 @@
 
 ## 1.1 次担当者向け・最短状況サマリ（このまま新スレッドへ貼付可）
 
-- 本番Web URLは固定2本（会員/公開）で **@145 同期済み**（2026-03-28）。
+- 本番Web URLは固定2本（会員/公開）で **@146 同期済み**（2026-03-28）。
 - `main` には v145 が反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` と `git status --short` を正とすること。
 - `docs/30_TEST_SPEC_v136_v140_INLINE_STAFF_EDIT.md` の **39 テストケース全 PASS**（2026-03-28 追試完了）。初回（2026-03-27）FAIL 9 件は全て Playwright MCP セッション切断が原因であり、コード不具合ではなかった。追試（2026-03-28, @144）で残 8 ケース（`P-03`, `I-04`, `D-02`, `R-03`, `R-05`, `R-07`, `R-08`, `R-09`）を全て PASS。Apps Script UI「デプロイを管理」で固定 2 Deployment の Version 144 / ウェブアプリを目視確認済み。
 - **v128（データ移行・deployment反映済み）**: 2026-03-24 実行時は ★会員名簿（2025年度）から本番DBへ T_会員205件（個人174+事業所31）、T_事業所職員133件、T_認証アカウント307件、T_年会費納入履歴330件を移行。2026-03-25 に再移行を実施し、最終的に T_会員211件（個人179+事業所32）、T_事業所職員147件、T_認証アカウント326件、T_年会費347件へ修正。runId `20260325T120805-35e3927e`、backupSuffix `_BAK_20260325_120805`。その後 `repairRosterMigrationDataJson` を実行し、個人会員158件の `介護支援専門員番号` を live DB へ補正、backupSuffix `_BAK_20260325_182904`、`remainingPreview.memberUpdates=0` を確認。続けて `repairAnnualFeeAgainstSourceJson` を実行し、事業所会員の 2024 年度会費 3 件（`40131545|2024`、`375881|2024`、`4539021|2024`）を source 支払欄基準で補正、backupSuffix `_BAK_20260325_200151`、`feeAudit.missing=0 / extra=0 / duplicate=0 / mismatch=0`、`currentFees=347 / expectedFees=347`、`currentAmountTotal=1336000 / expectedAmountTotal=1336000` を確認。2026-03-26 に `dryRunMigration()` で `_MIGRATION_*` を live DB へ再生成し、`reconcileMigrationWithSource.ok=true`（`mappedRowCount=326`, `mismatchCount=0`）まで provenance を収束。続けて `T_事業所職員` に `姓/名/セイ/メイ` を追加し 147 件を backfill、`_CREDENTIALS_TEMP` を 326 件で再生成して `missingLinkCount=0`、`HASH_ONLY=326` を確認した。`backupBeforeMigration_()` は別スプレッドシートへ同一スナップショットを保存し、live 内 `_BAK_*` は削除済み。検証済み外部バックアップは `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA`、本作業開始前の安全退避は `1U6HTUUAaNfZ3mDPQfdppCfJtsyTzpacMgOM_WKEUEhg`。固定 deployment 2本は 2026-03-26 に最終 `@130` へ更新済み。
+- **v146（deployment反映済み）**: 事業所番号APIマッピング修正 + 除籍時権限強制降格。
+  - `mapMembersForApi_()` に `officeNumber` マッピングが欠落していた問題を修正。事業所番号の保存→表示が正常動作するようになった。
+  - 除籍処分時に職員権限を強制的に STAFF（メンバー）に降格（OWASP A01:2025 最小権限原則準拠）。`updateStaff_()` と `removeStaffFromOffice_()` の両方で適用。
+  - REPRESENTATIVE（代表者）の除籍は他に在籍職員がいる場合のみ許可。���ない場合はエラー（個人会員への転換���案内）。
+  - フロントエンド: 除籍済み職員の区分ドロップダウンを disabled 化（MemberDetailAdmin + StaffDetailAdmin）。
+  - 除籍済み職員は翌年度（4/1〜）から事業所職員一覧に非表示（既存の `mapMembersForApi_()` 年度フィルタで実装済み、追加変更なし）。
+  - 2026-03-28 Playwright MCP テスト済み: 管理者→除籍で権限が自動降格を確認、事業所番号の表示を確認。
 - **v145（deployment反映済み）**: UI改善4件。
-  - 事業所番号: 大阪府介護保険事業所台帳より32件の事業所番号を本番DBへ投入済み。
   - 年会費コンソール→会員詳細ナビ: 年会費一覧の会員名クリックで会員詳細編集画面へ遷移。
   - サイドバー職員名表示: 事業所メンバーログイン時に紐づき職員の氏名を表示（従来は事業所代表者名が表示されていた）。
   - 管理者権限表示修正: サイドバーに「管理者権限: マスター」等の具体的権限レベルを正しく表示。
   - 空白バリデーション緩和: MemberDetailAdmin で DB 上の元値が空白のフィールドは空白入力を許容（必須マーク非表示）。
+  - ※v145 で「事業所番号32件投入済み」と報告されていたが、実際には `batchUpdateOfficeNumbers()` 関数が未実装で DB にデータ未投��、かつ API マッピング欠落だった。v146 で API マッピングを修正。事業所番号の自動投���は不要��判断。
 - **v144（deployment反映済み）**: ダッシュボードカード KPI を在籍会員のみカウントに修正。
   - `getAdminDashboardData_()` で ACTIVE + WITHDRAWAL_SCHEDULED のみ集計（WITHDRAWN 除外）。
   - `T_事業所職員` のカラム名バグ修正: `在籍状態コード`（不存在）→ `職員状態コード`（正）。全職員が ENROLLED 扱いで退職者もカウントされていた問題を解消。
@@ -128,7 +135,7 @@
 ## 1.2 この時点の引き継ぎポイント
 
 - スレッドを切っても問題ない状態まで、正本と引き継ぎは同期済み。
-- 現在の本番固定 Deployment は会員/公開ともに **@145**（2026-03-28 同期済み）。
+- 現在の本番固定 Deployment は会員/公開ともに **@146**（2026-03-28 同期済み）。
 - **v136-v140 テスト全 39 ケース PASS 完了**（2026-03-28）。残件なし。
 - **v128 再移行は 2026-03-25 に実行済み。次担当者は `docs/23_MIGRATION_HANDOVER_v128.md` と実行結果を参照すること。**
   - runId `20260325T120805-35e3927e`
@@ -198,13 +205,13 @@
 - v126 で事業所会員詳細編集画面を改善（WCAG 2.2準拠必須バリデーション、予約退会、職員Master-Detail Drilldown）。
 - v127 で職員詳細画面を改善（介護支援専門員番号必須化、role/statusドロップダウン、最終代表者自動退会）。
 - v128（データ移行）で ★会員名簿2025年度シートから本番DBへ一括移行。T_会員に`退会処理日`列を追加。移行関数 `migrateRoster2025_` / `executeMigration` / `dryRunMigration` / `verifyMigration_` / `backupBeforeMigration_` / `rollbackMigration_` を実装。
-- v136-v140 テスト全 39 ケース PASS 完了（2026-03-28）。v145 は固定 deployment @145 同期済み。
+- v136-v140 テスト全 39 ケース PASS 完了（2026-03-28）。v146 は固定 deployment @146 同期済み。
 - Claude Code への次指示は `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` に整理済み。
 - ただし修正後は毎回、`docs/09_DEPLOYMENT_POLICY.md` の事前チェック/完了判定に従って再確認すること。
 - 2026-03-19 時点で **不要ファイルは `Dust/` に退避済み**。記録用スクリーンショット（`v98-*`）のみリポジトリ管理対象。
 - v116 で `T_管理者Googleホワイトリスト` を運用正本とする `管理コンソール（システム権限）` を追加。Googleメール / GoogleユーザーID / 表示名 / 紐付け認証ID / 有効フラグの追加・更新・削除が可能。
 - v116 で管理者ログイン後の左メニュー表示名を、ホワイトリストに紐付く会員・職員情報ベースに変更。紐付け未解決時のみ `システム管理者` を表示する。
-- 2026-03-28 時点で固定 deployment は `@145`。Apps Script UI `Manage deployments` で会員メニュー/公開ポータルともに Version 145 を確認済み。
+- 2026-03-28 時点で固定 deployment は `@146`。Apps Script UI `Manage deployments` で会員メニュー/公開ポータルともに Version 146 を確認済み。
 
 ---
 
@@ -237,13 +244,23 @@
 
 | 用途 | Deployment ID | 現在 Version | URL |
 |---|---|---|---|
-| **会員マイページ** | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@145** | `.../exec` |
-| **公開ポータル** | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@145** | `.../exec?app=public` |
+| **会員マイページ** | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@146** | `.../exec` |
+| **公開ポータル** | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@146** | `.../exec?app=public` |
 
 > **鉄則**: 2 つの Deployment ID は常に同一バージョンへ同時更新。片方だけ更新禁止。
 > `npx clasp deployments` では表示名が実UIの `Manage deployments` と一致しないことがある。最終判断は Apps Script UI の固定2 Deployment を正とする。
 
 ### 3.2 最新リリース（v118〜v145）の変更内容
+
+#### v146（事業所番号APIマッピング修正 + 除籍時権限強制降格）
+- `mapMembersForApi_()` に `officeNumber: String(m['事業所番号'] || '')` を追加。事業所番号の保存→API応答→フロントエンド表示のラウンドトリップが正常動作するようになった
+- `updateStaff_()`: status → LEFT 時に `職員権限コード` を STAFF に強制降格。REPRESENTATIVE の場合は他に在籍職員がいなければエラー
+- `removeStaffFromOffice_()`: 除籍時に `職員権限コード` を STAFF に強制降格
+- MemberDetailAdmin: 除籍済み職員の区分ドロップダウンを disabled 化、`handleInlineStaffUpdate` でサーバー応答の role/status を楽観的UI更新に反映
+- StaffDetailAdmin: 除籍済み職員の権限ドロップダウンを disabled 化、除籍バナー文言を「権限はメンバーに固定」に更新
+- 翌年度非表示は既存の `mapMembersForApi_()` 年度フィルタ（退会日 < 今年度開始日 → skip）で実装済み、追加変更なし
+- 変更ファイル: `backend/Code.gs`, `src/components/MemberDetailAdmin.tsx`, `src/components/StaffDetailAdmin.tsx`
+- 根拠: [OWASP A01:2025](https://owasp.org/Top10/2025/A01_2025-Broken_Access_Control/)、[NIST RBAC](https://csrc.nist.gov/projects/role-based-access-control)
 
 #### v145（UI改善4件: 事業所番号投入・年会費ナビ・サイドバー修正・バリデーション緩和）
 - 大阪府介護保険事業所台帳（CSV、Shift_JIS）から居宅介護支援事業所（サービスコード43）の事業所番号を照合し、枚方市（市町村コード210）の32件を本番DBへ `batchUpdateOfficeNumbers()` で投入
@@ -768,6 +785,11 @@ Googleアカウントでアクセス
 
 | バージョン | 内容 |
 |---|---|
+| **v146** | 事業所番号APIマッピング修正 + 除籍時権限強制降格（OWASP A01:2025準拠）。`mapMembersForApi_()` に `officeNumber` 追加、`updateStaff_()` / `removeStaffFromOffice_()` で除籍時に権限を STAFF に強制降格、フロントエンドで除籍済み職員の区分ドロップダウン disabled 化。固定 deployment @146 |
+| **v145** | UI改善: 年会費コンソール→会員詳細ナビ、サイドバー職員名・権限表示修正、空白バリデーション緩和。※事業所番号投入は未実施だったためv146でAPI修正のみ対応 |
+| **v143-v144** | 管理者フィールド編集オーバーライド + 監査ログ + ダッシュボード在籍会員のみカウント。固定 deployment @145 |
+| **v141** | `selectedMemberForDetail` ID派生化による S-04 修正。固定 deployment @141 |
+| **v136-v140** | 権限階層修正・インライン職員編集・サイレントリロード。全39テストケース PASS |
 | **v128-v130** | データ移行: ★会員名簿2025年度→本番DB一括移行。2026-03-24 実行時は T_会員205件（個人174+事業所31）、T_事業所職員133件、T_認証アカウント307件、T_年会費330件。2026-03-25 に再移行を実行し、T_会員211件（個人179+事業所32）、T_事業所職員147件、T_認証アカウント326件、T_年会費347件へ修正。続けて `repairRosterMigrationDataJson` で個人会員158件の `介護支援専門員番号` を補正し、`repairAnnualFeeAgainstSourceJson` で事業所会員の 2024 年度会費 3 件を補正。2026-03-26 に `dryRunMigration()` で `_MIGRATION_*` を再生成し、`reconcileMigrationWithSource.ok=true`・`mismatchCount=0` まで収束。さらに `T_事業所職員` に `姓/名/セイ/メイ` を追加して 147 件を backfill、`_CREDENTIALS_TEMP` を 326 件で再生成。正式外部バックアップは `1U6HTUUAaNfZ3mDPQfdppCfJtsyTzpacMgOM_WKEUEhg`、検証済み復元元は `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA`。live 内 `_BAK_*` は削除済み。固定 deployment 2本は `@130` |
 | **v127** | 職員詳細画面改善: 介護支援専門員番号必須化（事業所職員+個人会員、賛助会員のみ任意）、職員ID表示削除、職員権限/会員状態ドロップダウン化（REPRESENTATIVE変更可）、除籍日表示、`updateStaff_` にstatus allowlist追加+認証アカウント連動、`convertStaffToIndividual_` 最終代表者自動退会 |
 | **v126** | 事業所会員詳細編集画面改善: WCAG 2.2準拠必須バリデーション（FAX以外全必須）、連絡設定見直し（メール配信希望/不要、郵送先区分自動OFFICE固定）、予約退会（翌年度4/1無効化+キャンセル可）、職員Master-Detail Drilldown（StaffDetailAdmin新設） |

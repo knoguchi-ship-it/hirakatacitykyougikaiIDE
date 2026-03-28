@@ -201,6 +201,7 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
               className={fieldClass()}
               value={form.role}
               onChange={e => set('role', e.target.value)}
+              disabled={isLeft}
             >
               {roleOptions.map(opt => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -239,7 +240,7 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
       {isLeft && (
         <div className="bg-amber-50 border border-amber-300 rounded-lg p-4" role="status">
           <p className="text-sm text-amber-800 font-medium">
-            この職員は除籍済みです。編集内容は保存できますが、アカウントは無効化されています。
+            この職員は除籍済みです。権限はメンバーに固定されており、アカウントは無効化されています。
           </p>
         </div>
       )}

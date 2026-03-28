@@ -2662,6 +2662,7 @@ function mapMembersForApi_(memberRows, staffRows, authRows, applicationRows, fee
       type: type,
       staff: type === 'BUSINESS' ? (staffByMember[id] || []) : undefined,
       officeName: String(m['勤務先名'] || ''),
+      officeNumber: String(m['事業所番号'] || ''),
       officePostCode: String(m['勤務先郵便番号'] || ''),
       officePrefecture: String(m['勤務先都道府県'] || ''),
       officeCity: String(m['勤務先市区町村'] || ''),
@@ -4806,6 +4807,7 @@ function removeStaffFromOffice_(payload) {
 
   sRow[sCols['職員状態コード']] = 'LEFT';
   sRow[sCols['退会日']] = today;
+  sRow[sCols['職員権限コード']] = 'STAFF';
   sRow[sCols['更新日時']] = nowIso;
   staffSheet.getRange(staffFound.rowNumber, 1, 1, sRow.length).setValues([sRow]);
 
@@ -5047,6 +5049,22 @@ function updateStaff_(payload) {
       statusChanged = true;
       if (newStatus === 'LEFT') {
         row[cols['退会日']] = today;
+        // v146: 除籍処分 → 権限を強制的にSTAFFに降格（OWASP A01 最小権限原則）
+        var roleAtExpulsion = String(row[cols['職員権限コード']] || 'STAFF');
+        if (roleAtExpulsion !== 'STAFF') {
+          if (roleAtExpulsion === 'REPRESENTATIVE') {
+            var allStaffForDemotion = staffSheet.getRange(2, 1, staffSheet.getLastRow() - 1, staffSheet.getLastColumn()).getValues();
+            var enrolledOthersForDemotion = allStaffForDemotion.filter(function(r) {
+              return String(r[cols['会員ID']] || '') === memberId
+                && String(r[cols['職員ID']] || '') !== String(payload.staffId)
+                && String(r[cols['職員状態コード']] || '') === 'ENROLLED';
+            });
+            if (enrolledOthersForDemotion.length === 0) {
+              throw new Error('在籍職員が自分のみのため、除籍できません。個人会員への転換をご利用ください。');
+            }
+          }
+          row[cols['職員権限コード']] = 'STAFF';
+        }
       } else {
         // ENROLLED に復帰 → 退会日クリア
         row[cols['退会日']] = '';
