@@ -49,6 +49,9 @@
 ## 進行中の引継ぎ task
 - `docs/32_HANDOVER_TASK_v142_RETEST_AND_DEPLOYMENT_CONFIRM.md` ← v142 の残ケース 8 件再検証と fixed deployment 確認用 task
 
+## 将来計画
+- `docs/32_GCP_MIGRATION_SPEC.md` ← GCP プラットフォーム移行仕様書（Firebase Hosting + Cloud Run + Firestore + Firebase Auth）
+
 ## 履歴資料（参照のみ）
 - `docs/archive/docs_history/*`
 - `docs/archive/obsolete/*`
