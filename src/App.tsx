@@ -389,8 +389,21 @@ const App: React.FC = () => {
     const activeMemberId = activeIdentity?.memberId || authenticatedContext?.memberId;
 
     if (userRole === 'ADMIN' && currentView === 'admin') {
-      loadAdminDashboardData().catch(() => undefined);
-      loadSystemSettings(false).catch(() => undefined);
+      // v150: 統合APIで1回のround-tripでdashboard+settingsを取得
+      (async () => {
+        try {
+          setAdminDashboardLoading(true);
+          setAdminDashboardError(null);
+          const { dashboard, settings } = await api.getAdminInitData();
+          setAdminDashboardData(dashboard);
+          applySystemSettings(settings);
+        } catch (error) {
+          console.error('Admin init failed:', error);
+          setAdminDashboardError(error instanceof Error ? error.message : '管理コンソールの読み込みに失敗しました。');
+        } finally {
+          setAdminDashboardLoading(false);
+        }
+      })();
       return;
     }
 
@@ -621,24 +634,24 @@ const App: React.FC = () => {
     setAuthError(null);
   };
 
-  // GAS セッション経由の管理者ログイン（google.script.run + Session.getActiveUser()）
+  // v150: GAS セッション経由の管理者ログイン（統合API: 認証+ポータルデータを1回のround-tripで取得）
   const handleAdminSessionLogin = async () => {
     try {
       setAuthBusy(true);
       setAuthError(null);
-      const result = await api.checkAdminBySession();
+      const { auth, portal } = await api.adminLoginWithData();
       setFullDataLoaded(false);
       setMemberPortalLoaded(false);
-      setMembers([]);
-      setTrainings([]);
+      setMembers(portal.members);
+      setTrainings(portal.trainings);
+      setMemberPortalLoaded(true);
       setAdminDashboardData(null);
       setTrainingManagementLoaded(false);
       setTrainingManagementError(null);
       setAdminPermissionData(null);
       setAdminPermissionError(null);
       setSystemSettingsLoaded(false);
-      const loaded = await loadMemberPortalData(result.memberId, { force: true });
-      applyAuthContext(result, loaded.members);
+      applyAuthContext(auth, portal.members);
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : 'Google認証に失敗しました。');
     } finally {
@@ -646,14 +659,17 @@ const App: React.FC = () => {
     }
   };
 
+  // v150: 会員ログイン（統合API: 認証+ポータルデータを1回のround-tripで取得）
   const handleMemberLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       setAuthBusy(true);
       setAuthError(null);
-      const result = await api.memberLogin(memberLoginId.trim(), memberPassword);
-      const loaded = await loadMemberPortalData(result.memberId, { force: true });
-      applyAuthContext(result, loaded.members);
+      const { auth, portal } = await api.memberLoginWithData(memberLoginId.trim(), memberPassword);
+      setMembers(portal.members);
+      setTrainings(portal.trainings);
+      setMemberPortalLoaded(true);
+      applyAuthContext(auth, portal.members);
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : 'ログインに失敗しました。');
     } finally {
@@ -1410,7 +1426,13 @@ const App: React.FC = () => {
           </tbody>
         </table>
       </div>
-      {adminDashboardLoading && <p className="mt-4 text-sm text-slate-500">会員一覧を読み込み中です...</p>}
+      {adminDashboardLoading && (
+        <div className="mt-4 space-y-3 animate-pulse">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-10 bg-slate-100 rounded"></div>
+          ))}
+        </div>
+      )}
       {!adminDashboardLoading && !adminDashboardData?.memberRows.length && <p className="mt-4 text-sm text-slate-500">表示できる会員データがありません。</p>}
 
       {/* 下部ページネーション */}
@@ -1469,7 +1491,11 @@ const App: React.FC = () => {
         </table>
       </div>
       {adminDashboardLoading && (
-        <p className="mt-4 text-sm text-slate-500">研修サマリーを読み込み中です...</p>
+        <div className="mt-4 space-y-3 animate-pulse">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-10 bg-slate-100 rounded"></div>
+          ))}
+        </div>
       )}
       {!adminDashboardLoading && !adminDashboardData?.trainingRows.length && (
         <p className="mt-4 text-sm text-slate-500">表示できる研修データがありません。</p>
@@ -1590,9 +1616,26 @@ const App: React.FC = () => {
 
     if (isLoading) {
       return (
-        <div className="flex flex-col items-center justify-center h-64 text-slate-500">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-500 mb-4"></div>
-          <p>データを読み込み中です...</p>
+        <div className="space-y-6 animate-pulse" role="status" aria-live="polite" aria-label="データを読み込み中です">
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <div className="h-7 bg-slate-200 rounded w-48 mb-4"></div>
+            <div className="h-4 bg-slate-200 rounded w-72 mb-6"></div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="h-20 bg-slate-100 rounded-lg"></div>
+              <div className="h-20 bg-slate-100 rounded-lg"></div>
+              <div className="h-20 bg-slate-100 rounded-lg"></div>
+            </div>
+          </div>
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <div className="h-5 bg-slate-200 rounded w-32 mb-4"></div>
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="flex gap-4 mb-3">
+                <div className="h-4 bg-slate-100 rounded w-20"></div>
+                <div className="h-4 bg-slate-100 rounded w-40"></div>
+                <div className="h-4 bg-slate-100 rounded w-24"></div>
+              </div>
+            ))}
+          </div>
         </div>
       );
     }

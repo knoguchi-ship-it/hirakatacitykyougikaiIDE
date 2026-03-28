@@ -287,6 +287,31 @@ class GasApiClient implements ApiClient {
     });
   }
 
+  // v150: 管理者初期データ統合API（1回のround-tripでdashboard+settingsを取得）
+  async getAdminInitData(): Promise<{ dashboard: AdminDashboardData; settings: { defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number } }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) {
+              resolve(parsed.data);
+            } else {
+              reject(new Error(parsed.error || 'API Error'));
+            }
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getAdminInitData', null);
+    });
+  }
+
   async getTrainingManagementData(): Promise<Training[]> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
@@ -561,6 +586,20 @@ class GasApiClient implements ApiClient {
     });
   }
 
+  // v150: ログイン+ポータルデータ統合API
+  async memberLoginWithData(loginId: string, password: string): Promise<{ auth: MemberLoginResult; portal: { members: Member[]; trainings: Training[] } }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const parsed = JSON.parse(result); if (parsed.success) resolve(parsed.data); else reject(new Error(parsed.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('memberLoginWithData', JSON.stringify({ loginId, password }));
+    });
+  }
+
   async checkAdminBySession(): Promise<AdminLoginResult> {
     return new Promise<AdminLoginResult>((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
@@ -579,6 +618,20 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('checkAdminBySession', null);
+    });
+  }
+
+  // v150: 管理者ログイン+ポータルデータ統合API
+  async adminLoginWithData(): Promise<{ auth: AdminLoginResult; portal: { members: Member[]; trainings: Training[] } }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const parsed = JSON.parse(result); if (parsed.success) resolve(parsed.data); else reject(new Error(parsed.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('adminLoginWithData', null);
     });
   }
 

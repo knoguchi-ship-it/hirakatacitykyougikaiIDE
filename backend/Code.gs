@@ -11,8 +11,8 @@ var SCHEMA_INITIALIZED_VERSION_KEY = 'DB_SCHEMA_INITIALIZED_VERSION';
 var WITHDRAWAL_POLICY_LAST_APPLIED_DATE_KEY = 'WITHDRAWAL_POLICY_LAST_APPLIED_DATE';
 var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
 var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
-var ALL_DATA_CACHE_TTL_SECONDS = 120;
-var ANNUAL_FEE_CACHE_TTL_SECONDS = 120;
+var ALL_DATA_CACHE_TTL_SECONDS = 300;
+var ANNUAL_FEE_CACHE_TTL_SECONDS = 300;
 var DB_SCHEMA_VERSION = '2026-03-26-03';
 
 var マスタ定義 = {
@@ -693,7 +693,6 @@ function verifySeedData() {
 function processApiRequest(action, payload) {
   try {
     var parsedPayload = parsePayload_(payload) || {};
-    applyWithdrawalDeletionPolicyIfNeeded_();
 
     // ── アクセス制御（権限マップ方式）────────────────────────────
     // アクションごとに許可される管理者権限レベルを定義する。
@@ -709,6 +708,7 @@ function processApiRequest(action, payload) {
       'deleteAdminPermission': ['MASTER','ADMIN'],
       'seedDemoData': ['MASTER'],
       'getAdminDashboardData': ['MASTER','ADMIN'],
+      'getAdminInitData': ['MASTER','ADMIN'],
       'updateMember': ['MASTER','ADMIN'],
       'updateMembersBatch': ['MASTER','ADMIN'],
       'createMember': ['MASTER','ADMIN'],
@@ -758,6 +758,17 @@ function processApiRequest(action, payload) {
       return JSON.stringify({
         success: true,
         data: getAdminDashboardData_(),
+      });
+    }
+
+    // v150: 管理者初期データ統合API（dashboard + settings を1回のround-tripで返す）
+    if (action === 'getAdminInitData') {
+      return JSON.stringify({
+        success: true,
+        data: {
+          dashboard: getAdminDashboardData_(),
+          settings: getSystemSettings_(),
+        },
       });
     }
 
@@ -848,8 +859,22 @@ function processApiRequest(action, payload) {
       return JSON.stringify({ success: true, data: memberLogin_(parsedPayload) });
     }
 
+    // v150: ログイン+ポータルデータ統合API（round-trip削減）
+    if (action === 'memberLoginWithData') {
+      var loginResult = memberLogin_(parsedPayload);
+      var portalData = getMemberPortalData_({ memberId: loginResult.memberId });
+      return JSON.stringify({ success: true, data: { auth: loginResult, portal: portalData } });
+    }
+
     if (action === 'checkAdminBySession') {
       return JSON.stringify({ success: true, data: checkAdminBySession_() });
+    }
+
+    // v150: 管理者ログイン+ポータルデータ統合API（round-trip削減）
+    if (action === 'adminLoginWithData') {
+      var adminResult = checkAdminBySession_();
+      var adminPortalData = getMemberPortalData_({ memberId: adminResult.memberId });
+      return JSON.stringify({ success: true, data: { auth: adminResult, portal: adminPortalData } });
     }
 
     if (action === 'getSystemSettings') {
@@ -2475,32 +2500,81 @@ function getTrainingManagementCacheKey_() {
   return 'trainingManagement:' + DB_SCHEMA_VERSION;
 }
 
+// v150: CacheService チャンキング（100KB上限対応、putAll/getAll バッチ操作）
+var CACHE_CHUNK_SIZE = 90000; // 90KB safety margin
+
+function putChunkedCache_(cache, key, data, ttl) {
+  var json = JSON.stringify(data);
+  if (json.length <= CACHE_CHUNK_SIZE) {
+    cache.put(key, json, ttl);
+    cache.put(key + ':chunks', '0', ttl);
+    return;
+  }
+  var keysToStore = {};
+  var chunkCount = 0;
+  for (var i = 0; i < json.length; i += CACHE_CHUNK_SIZE) {
+    keysToStore[key + ':' + chunkCount] = json.substring(i, i + CACHE_CHUNK_SIZE);
+    chunkCount++;
+  }
+  keysToStore[key + ':chunks'] = String(chunkCount);
+  cache.putAll(keysToStore, ttl);
+}
+
+function getChunkedCache_(cache, key) {
+  var chunkCount = cache.get(key + ':chunks');
+  if (chunkCount === null) return null;
+  var n = parseInt(chunkCount, 10);
+  if (n === 0) {
+    var single = cache.get(key);
+    return single ? JSON.parse(single) : null;
+  }
+  var keys = [];
+  for (var i = 0; i < n; i++) keys.push(key + ':' + i);
+  var all = cache.getAll(keys);
+  var json = '';
+  for (var j = 0; j < n; j++) {
+    var chunk = all[key + ':' + j];
+    if (!chunk) return null; // 部分的なキャッシュ失効
+    json += chunk;
+  }
+  return JSON.parse(json);
+}
+
+function removeChunkedCache_(cache, key) {
+  var chunkCount = cache.get(key + ':chunks');
+  cache.remove(key);
+  cache.remove(key + ':chunks');
+  if (chunkCount !== null) {
+    var n = parseInt(chunkCount, 10);
+    for (var i = 0; i < n; i++) cache.remove(key + ':' + i);
+  }
+}
+
 function clearAllDataCache_() {
-  CacheService.getScriptCache().remove(getAllDataCacheKey_());
+  var cache = CacheService.getScriptCache();
+  removeChunkedCache_(cache, getAllDataCacheKey_());
   clearRecentAnnualFeeAdminCaches_();
 }
 
 function clearAdminDashboardCache_() {
-  CacheService.getScriptCache().remove(getAdminDashboardCacheKey_());
+  removeChunkedCache_(CacheService.getScriptCache(), getAdminDashboardCacheKey_());
 }
 
 function clearTrainingManagementCache_() {
-  CacheService.getScriptCache().remove(getTrainingManagementCacheKey_());
+  removeChunkedCache_(CacheService.getScriptCache(), getTrainingManagementCacheKey_());
 }
 
 function fetchAllDataFromDb_() {
   var cache = CacheService.getScriptCache();
   var cacheKey = getAllDataCacheKey_();
-  var cached = cache.get(cacheKey);
-  if (cached) {
-    return JSON.parse(cached);
-  }
+  var cached = getChunkedCache_(cache, cacheKey);
+  if (cached) return cached;
 
   var result = fetchAllDataFromDbFresh_();
   try {
-    cache.put(cacheKey, JSON.stringify(result), ALL_DATA_CACHE_TTL_SECONDS);
+    putChunkedCache_(cache, cacheKey, result, ALL_DATA_CACHE_TTL_SECONDS);
   } catch (e) {
-    Logger.log('fetchAllDataFromDb_ cache.put skipped: ' + e.message);
+    Logger.log('fetchAllDataFromDb_ cache skipped: ' + e.message);
   }
   return result;
 }
@@ -2747,7 +2821,7 @@ function mapTrainingRowsForApi_(trainingRows) {
 function getAdminDashboardData_() {
   var cache = CacheService.getScriptCache();
   var cacheKey = getAdminDashboardCacheKey_();
-  var cached = cache.get(cacheKey);
+  var cached = getChunkedCache_(cache, cacheKey);
   if (cached) {
     return JSON.parse(cached);
   }
@@ -2901,10 +2975,9 @@ function getAdminDashboardData_() {
   };
 
   try {
-    cache.put(cacheKey, JSON.stringify(result), ALL_DATA_CACHE_TTL_SECONDS);
+    putChunkedCache_(cache, cacheKey, result, ALL_DATA_CACHE_TTL_SECONDS);
   } catch (e) {
-    // CacheService の 100KB 上限を超える場合は静かにスキップ
-    Logger.log('getAdminDashboardData_ cache.put skipped: ' + e.message);
+    Logger.log('getAdminDashboardData_ cache skipped: ' + e.message);
   }
   return result;
 }
@@ -2912,10 +2985,8 @@ function getAdminDashboardData_() {
 function getTrainingManagementData_() {
   var cache = CacheService.getScriptCache();
   var cacheKey = getTrainingManagementCacheKey_();
-  var cached = cache.get(cacheKey);
-  if (cached) {
-    return JSON.parse(cached);
-  }
+  var cached = getChunkedCache_(cache, cacheKey);
+  if (cached) return cached;
 
   var ss = getOrCreateDatabase_();
   initializeSchemaIfNeeded_(ss);
@@ -2928,9 +2999,9 @@ function getTrainingManagementData_() {
   });
 
   try {
-    cache.put(cacheKey, JSON.stringify(trainings), ALL_DATA_CACHE_TTL_SECONDS);
+    putChunkedCache_(cache, cacheKey, trainings, ALL_DATA_CACHE_TTL_SECONDS);
   } catch (e) {
-    Logger.log('getTrainingManagementData_ cache.put skipped: ' + e.message);
+    Logger.log('getTrainingManagementData_ cache skipped: ' + e.message);
   }
   return trainings;
 }
@@ -3831,10 +3902,8 @@ function getAnnualFeeAdminData_(payload) {
   var selectedYear = resolveAnnualFeeSelectedYear_(ss, payload);
   var cache = CacheService.getScriptCache();
   var cacheKey = getAnnualFeeAdminCacheKey_(selectedYear);
-  var cached = cache.get(cacheKey);
-  if (cached) {
-    return JSON.parse(cached);
-  }
+  var cached = getChunkedCache_(cache, cacheKey);
+  if (cached) return cached;
 
   var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(r) {
     return isAnnualFeeEligibleMemberForYear_(r, selectedYear);
@@ -3889,9 +3958,9 @@ function getAnnualFeeAdminData_(payload) {
     summary: buildAnnualFeeAdminSummary_(records),
   };
   try {
-    cache.put(cacheKey, JSON.stringify(result), ANNUAL_FEE_CACHE_TTL_SECONDS);
+    putChunkedCache_(cache, cacheKey, result, ANNUAL_FEE_CACHE_TTL_SECONDS);
   } catch (e) {
-    Logger.log('getAnnualFeeData_ cache.put skipped: ' + e.message);
+    Logger.log('getAnnualFeeData_ cache skipped: ' + e.message);
   }
   return result;
 }
@@ -4278,8 +4347,7 @@ function getAnnualFeeAdminCacheKey_(year) {
 }
 
 function clearAnnualFeeAdminCache_(year) {
-  var cache = CacheService.getScriptCache();
-  cache.remove(getAnnualFeeAdminCacheKey_(year));
+  removeChunkedCache_(CacheService.getScriptCache(), getAnnualFeeAdminCacheKey_(year));
 }
 
 function getSystemSettingValue_(ss, key) {
@@ -6571,6 +6639,34 @@ function applyWithdrawalDeletionPolicyIfNeeded_() {
   }
 }
 
+// v150: 日次トリガーで退会削除ポリシーを実行（ホットパスから除外）
+function dailyWithdrawalPolicyTrigger() {
+  applyWithdrawalDeletionPolicyIfNeeded_();
+}
+
+// v150: ウォームアップトリガー（コールドスタート軽減）
+function warmUp() {
+  CacheService.getScriptCache().get('warmup');
+}
+
+// v150: トリガー一括セットアップ（手動で1回実行）
+function setupScheduledTriggers() {
+  // 既存トリガーをクリア
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    var name = triggers[i].getHandlerFunction();
+    if (name === 'dailyWithdrawalPolicyTrigger' || name === 'warmUp') {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  // 日次 退会削除ポリシー（毎日 02:00-03:00 JST）
+  ScriptApp.newTrigger('dailyWithdrawalPolicyTrigger')
+    .timeBased().everyDays(1).atHour(2).create();
+  // 5分間隔 ウォームアップ（営業時間帯のコールドスタート軽減）
+  ScriptApp.newTrigger('warmUp')
+    .timeBased().everyMinutes(5).create();
+}
+
 function syncBusinessStaffRows_(ss, memberId, memberTypeCode, staffPayloadList) {
   var sheet = ss.getSheetByName('T_事業所職員');
   if (!sheet) return;
@@ -7748,10 +7844,13 @@ function markSchemaInitialized_() {
   props.setProperty(SCHEMA_INITIALIZED_VERSION_KEY, DB_SCHEMA_VERSION);
 }
 
+var _schemaChecked = false; // v150: インメモリフラグで同一実行コンテキスト内の重複PropertiesService呼び出しをスキップ
 function initializeSchemaIfNeeded_(ss) {
+  if (_schemaChecked) return;
   var props = PropertiesService.getScriptProperties();
   if (props.getProperty(SCHEMA_INITIALIZED_KEY) === 'true' &&
       props.getProperty(SCHEMA_INITIALIZED_VERSION_KEY) === DB_SCHEMA_VERSION) {
+    _schemaChecked = true;
     return;
   }
 
@@ -7765,6 +7864,7 @@ function initializeSchemaIfNeeded_(ss) {
     var targetSs = ss || getOrCreateDatabase_();
     initializeSchema_(targetSs);
     markSchemaInitialized_();
+    _schemaChecked = true;
   } finally {
     lock.releaseLock();
   }
