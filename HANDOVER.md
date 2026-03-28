@@ -16,7 +16,7 @@
 | 参照順序 | `HANDOVER.md` → `GLOBAL_GROUND_RULES/CLAUDE.md` → `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md` → `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` の順で確認 |
 | ブラウザ自動化 | Playwright/MCP は利用可。ただし Apps Script の `Manage deployments` は最終的に UI 確認が必要 |
 | デプロイ方法 | `clasp push` + `clasp version` の後、固定 2 Deployment を同一 Version に揃えること |
-| Git 状態 | `main` は v141 反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` を正とすること |
+| Git 状態 | `main` は v144 反映済み（`5c26dfc`）。コミット/Push 状態は作業終了時点の `git log -1 --oneline` を正とすること |
 | 作業ツリー | 再開時に必ず `git status --short` を確認すること。現時点では未追跡ファイル（`.playwright-mcp/`, `tmp_sheet_exports/`, `tmp_api_snapshot.json`, `tmp_fetchAllData.json`, `t_member_check.png`, `t_staff_check.png`）がある |
 | 作業ディレクトリ | `C:\VSCode\CloudePL\hirakatacitykyougikaiIDE`（Windows） |
 | シェル | PowerShell（必要に応じて bash 互換コマンドも可） |
