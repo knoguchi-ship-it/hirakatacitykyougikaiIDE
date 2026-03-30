@@ -1,6 +1,6 @@
 ﻿# 引継ぎ書（次担当者向け）
 
-更新日: **2026-03-30（v152 反映済み。v147: 対象年度フィルタ+一括編集下部ボタン+退会済み事業所バリデーション緩和、v148: 退会済み全会員種別の必須項目緩和、v149: ログインUX改善、v150: キャッシュチャンク+複合API+スケルトン画面、v151: ダッシュボードキャッシュ二重パースバグ修正、v152: 年会費一括保存の前年度末退会処理追加。固定 Deployment は @153 同期済み）**
+更新日: **2026-03-30（v154 反映済み。v147: 対象年度フィルタ+一括編集下部ボタン+退会済み事業所バリデーション緩和、v148: 退会済み全会員種別の必須項目緩和、v149: ログインUX改善、v150: キャッシュチャンク+複合API+スケルトン画面、v151: ダッシュボードキャッシュ二重パースバグ修正、v152: 年会費一括保存の前年度末退会処理追加、v153: Tailwind CDN 廃止、v154: 会員管理ダッシュボードを今年度+一覧フィルタ連動へ統一。固定 Deployment は @154 同期済み）**
 対象: 枚方市介護支援専門員連絡協議会 会員システム
 
 ---
@@ -47,11 +47,13 @@
 
 ## 1.1 次担当者向け・最短状況サマリ（このまま新スレッドへ貼付可）
 
-- 本番Web URLは固定2本（会員/公開）で **Version 152 作成済み、固定 Deployment は @153 同期済み**（2026-03-30）。
-- `main` には v145 が反映済み。v147〜v153 は未コミット。コミット/Push 状態は作業終了時点の `git log -1 --oneline` と `git status --short` を正とすること。
+- 本番Web URLは固定2本（会員/公開）で **Version 154 作成済み、固定 Deployment は @154 同期済み**（2026-03-30）。
+- `main` には v145 が反映済み。v147〜v154 は未コミット。コミット/Push 状態は作業終了時点の `git log -1 --oneline` と `git status --short` を正とすること。
 - `docs/30_TEST_SPEC_v136_v140_INLINE_STAFF_EDIT.md` の **39 テストケース全 PASS**（2026-03-28 追試完了）。初回（2026-03-27）FAIL 9 件は全て Playwright MCP セッション切断が原因であり、コード不具合ではなかった。追試（2026-03-28, @144）で残 8 ケース（`P-03`, `I-04`, `D-02`, `R-03`, `R-05`, `R-07`, `R-08`, `R-09`）を全て PASS。Apps Script UI「デプロイを管理」で固定 2 Deployment の Version 144 / ウェブアプリを目視確認済み。
 - **v128（データ移行・deployment反映済み）**: 2026-03-24 実行時は ★会員名簿（2025年度）から本番DBへ T_会員205件（個人174+事業所31）、T_事業所職員133件、T_認証アカウント307件、T_年会費納入履歴330件を移行。2026-03-25 に再移行を実施し、最終的に T_会員211件（個人179+事業所32）、T_事業所職員147件、T_認証アカウント326件、T_年会費347件へ修正。runId `20260325T120805-35e3927e`、backupSuffix `_BAK_20260325_120805`。その後 `repairRosterMigrationDataJson` を実行し、個人会員158件の `介護支援専門員番号` を live DB へ補正、backupSuffix `_BAK_20260325_182904`、`remainingPreview.memberUpdates=0` を確認。続けて `repairAnnualFeeAgainstSourceJson` を実行し、事業所会員の 2024 年度会費 3 件（`40131545|2024`、`375881|2024`、`4539021|2024`）を source 支払欄基準で補正、backupSuffix `_BAK_20260325_200151`、`feeAudit.missing=0 / extra=0 / duplicate=0 / mismatch=0`、`currentFees=347 / expectedFees=347`、`currentAmountTotal=1336000 / expectedAmountTotal=1336000` を確認。2026-03-26 に `dryRunMigration()` で `_MIGRATION_*` を live DB へ再生成し、`reconcileMigrationWithSource.ok=true`（`mappedRowCount=326`, `mismatchCount=0`）まで provenance を収束。続けて `T_事業所職員` に `姓/名/セイ/メイ` を追加し 147 件を backfill、`_CREDENTIALS_TEMP` を 326 件で再生成して `missingLinkCount=0`、`HASH_ONLY=326` を確認した。`backupBeforeMigration_()` は別スプレッドシートへ同一スナップショットを保存し、live 内 `_BAK_*` は削除済み。検証済み外部バックアップは `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA`、本作業開始前の安全退避は `1U6HTUUAaNfZ3mDPQfdppCfJtsyTzpacMgOM_WKEUEhg`。固定 deployment 2本は 2026-03-26 に最終 `@130` へ更新済み。
-- **v153（deployment反映済み）**: 年会費一覧の一括保存にドラフト専用 `前年度末退会` を追加し、保存時に `T_会員` へ前年度末退会処理を反映。対象年度の年会費レコードがあれば論理削除し、今年度の未納対象から除外。`T_年会費納入履歴.会費納入状態コード` には `WITHDRAW` を永続化しない。
+- **v154（deployment反映済み）**: 管理コンソール（会員管理）のダッシュボードを今年度基準へ統一し、会員一覧の対象年度・会員種別・会員状態・キーワード検索と連動するように修正。対象年度フィルタ初期値は今年度。
+- **v153（deployment反映済み）**: Tailwind CDN を廃止し、ビルド済み CSS を単一HTMLへ内包する構成へ変更。
+- **v152（deployment反映済み）**: 年会費一覧の一括保存にドラフト専用 `前年度末退会` を追加し、保存時に `T_会員` へ前年度末退会処理を反映。対象年度の年会費レコードがあれば論理削除し、今年度の未納対象から除外。`T_年会費納入履歴.会費納入状態コード` には `WITHDRAW` を永続化しない。
 - **v151（deployment反映済み）**: `getAdminDashboardData_()` のキャッシュ二重パースバグ修正。
   - v150 で `getChunkedCache_()` に変更した際、戻り値が既にパース済みオブジェクトなのに `JSON.parse(cached)` が残っていた。`[object Object] is not valid JSON` エラーの原因。
   - 修正: `if (cached) return cached;` に統一（他の3関数は既に正しかった）。
@@ -165,8 +167,8 @@
 ## 1.2 この時点の引き継ぎポイント
 
 - スレッドを切っても問題ない状態まで、正本と引き継ぎは同期済み。
-- 現在の GAS Version は **153**。固定 Deployment 2本はともに @153 同期済み。
-- v147〜v153 のコードは clasp push 済みだが Git 未コミット。次担当者はコミットから着手すること。
+- 現在の GAS Version は **154**。固定 Deployment 2本はともに @154 同期済み。
+- v147〜v154 のコードは clasp push 済みだが Git 未コミット。次担当者はコミットから着手すること。
 - **v136-v140 テスト全 39 ケース PASS 完了**（2026-03-28）。残件なし。
 - **v128 再移行は 2026-03-25 に実行済み。次担当者は `docs/23_MIGRATION_HANDOVER_v128.md` と実行結果を参照すること。**
   - runId `20260325T120805-35e3927e`
@@ -235,13 +237,13 @@
 - v125 で管理コンソール会員管理を大幅改善（操作列削除→編集画面集約、フラット人物リスト一括編集、会員種別変更シームレス転換）。
 - v126 で事業所会員詳細編集画面を改善（WCAG 2.2準拠必須バリデーション、予約退会、職員Master-Detail Drilldown）。
 - v127 で職員詳細画面を改善（介護支援専門員番号必須化、role/statusドロップダウン、最終代表者自動退会）。
-- v136-v140 テスト全 39 ケース PASS 完了（2026-03-28）。v153 は Version 作成・固定 deployment @153 同期まで完了。
+- v136-v140 テスト全 39 ケース PASS 完了（2026-03-28）。v154 は Version 作成・固定 deployment @154 同期まで完了。
 - **将来計画**: `docs/33_GCP_MIGRATION_SPEC.md` に GCP プラットフォーム移行仕様書を作成済み（Firebase Hosting + Cloud Run + Firestore + Firebase Auth）。現行 GAS 規模では GCP 無料枠内（$0/月）で運用可能。
 - Claude Code への次指示は `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` に整理済み。
 - ただし修正後は毎回、`docs/09_DEPLOYMENT_POLICY.md` の事前チェック/完了判定に従って再確認すること。
 - 2026-03-19 時点で **不要ファイルは `Dust/` に退避済み**。記録用スクリーンショット（`v98-*`）のみリポジトリ管理対象。
 - v116 で `T_管理者Googleホワイトリスト` を運用正本とする `管理コンソール（システム権限）` を追加。Googleメール / GoogleユーザーID / 表示名 / 紐付け認証ID / 有効フラグの追加・更新・削除が可能。
-- 2026-03-30 時点で GAS Version 153 作成済み。固定 deployment は会員メニュー/公開ポータルともに @153 へ同期済み。
+- 2026-03-30 時点で GAS Version 154 作成済み。固定 deployment は会員メニュー/公開ポータルともに @154 へ同期済み。
 - v150 の `setupScheduledTriggers` は Apps Script エディタで手動実行が必要（日次退会ポリシー + キャッシュウォームアップトリガーを設定する関数）。
 
 ---

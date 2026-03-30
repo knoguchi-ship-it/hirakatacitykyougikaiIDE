@@ -19,6 +19,8 @@ type MemberStatusFilter = 'ALL' | 'ACTIVE' | 'WITHDRAWAL_SCHEDULED' | 'WITHDRAWN
 type MemberSortKey = 'memberId' | 'displayName' | 'memberType' | 'trainingCount' | 'tenure' | 'status';
 type MemberSortDir = 'asc' | 'desc';
 const DEFAULT_MEMBER_PAGE_SIZE = 50;
+const getFiscalYearForDate = (date: Date) => (date.getMonth() < 3 ? date.getFullYear() - 1 : date.getFullYear());
+const DEFAULT_MEMBER_FISCAL_YEAR_FILTER = String(getFiscalYearForDate(new Date()));
 
 interface LoginIdentity {
   id: string;
@@ -118,7 +120,7 @@ const App: React.FC = () => {
   const [memberListQuery, setMemberListQuery] = useState('');
   const [memberListFilter, setMemberListFilter] = useState<MemberListFilter>('ALL');
   const [memberListStatusFilter, setMemberListStatusFilter] = useState<MemberStatusFilter>('ACTIVE');
-  const [memberListFiscalYearFilter, setMemberListFiscalYearFilter] = useState<string>('ALL');
+  const [memberListFiscalYearFilter, setMemberListFiscalYearFilter] = useState<string>(DEFAULT_MEMBER_FISCAL_YEAR_FILTER);
   const [memberListPage, setMemberListPage] = useState(1);
   const [memberListPageSize, setMemberListPageSize] = useState(DEFAULT_MEMBER_PAGE_SIZE);
   const [memberSortKey, setMemberSortKey] = useState<MemberSortKey>('displayName');
@@ -513,6 +515,87 @@ const App: React.FC = () => {
     const start = (memberListPage - 1) * memberListPageSize;
     return sortedAdminMemberRows.slice(start, start + memberListPageSize);
   }, [sortedAdminMemberRows, memberListPage, memberListPageSize]);
+
+  const effectiveDashboardFiscalYear = useMemo(() => {
+    if (memberListFiscalYearFilter !== 'ALL') {
+      const fiscalYear = Number(memberListFiscalYearFilter);
+      if (Number.isFinite(fiscalYear)) return fiscalYear;
+    }
+    return adminDashboardData?.currentFiscalYear ?? getFiscalYearForDate(new Date());
+  }, [adminDashboardData, memberListFiscalYearFilter]);
+
+  const filteredDashboardBusinessStaffCount = useMemo(() => {
+    const fyStart = new Date(effectiveDashboardFiscalYear, 3, 1);
+    const fyEnd = new Date(effectiveDashboardFiscalYear + 1, 2, 31);
+    const visibleBusinessIds = new Set(
+      filteredAdminMemberRows
+        .filter((member) => member.memberType === MemberType.BUSINESS)
+        .map((member) => member.memberId),
+    );
+
+    if (visibleBusinessIds.size === 0) return 0;
+
+    return members.reduce((count, member) => {
+      if (member.type !== MemberType.BUSINESS || !visibleBusinessIds.has(member.id)) return count;
+      const matchedStaff = (member.staff || []).filter((staff) => {
+        const joined = staff.joinedDate ? new Date(staff.joinedDate) : null;
+        if (!joined || Number.isNaN(joined.getTime()) || joined > fyEnd) return false;
+
+        if (memberListStatusFilter === 'WITHDRAWAL_SCHEDULED') return false;
+        if (memberListStatusFilter === 'ACTIVE' && staff.status !== 'ENROLLED') return false;
+        if (memberListStatusFilter === 'WITHDRAWN' && staff.status !== 'LEFT') return false;
+
+        if (staff.status === 'LEFT' && staff.withdrawnDate) {
+          const withdrawn = new Date(staff.withdrawnDate);
+          if (!Number.isNaN(withdrawn.getTime()) && withdrawn < fyStart) return false;
+        }
+        return true;
+      });
+      return count + matchedStaff.length;
+    }, 0);
+  }, [effectiveDashboardFiscalYear, filteredAdminMemberRows, memberListStatusFilter, members]);
+
+  const filteredDashboardMetrics = useMemo(() => {
+    const fyStart = new Date(effectiveDashboardFiscalYear, 3, 1);
+    const fyEnd = new Date(effectiveDashboardFiscalYear + 1, 2, 31);
+
+    const joinedCount = filteredAdminMemberRows.filter((member) => {
+      if (!member.joinedDate) return false;
+      const joined = new Date(member.joinedDate);
+      return !Number.isNaN(joined.getTime()) && joined >= fyStart && joined <= fyEnd;
+    }).length;
+
+    const withdrawnCount = filteredAdminMemberRows.filter((member) => {
+      if (member.status !== 'WITHDRAWN' || !member.withdrawnDate) return false;
+      const withdrawn = new Date(member.withdrawnDate);
+      return !Number.isNaN(withdrawn.getTime()) && withdrawn >= fyStart && withdrawn <= fyEnd;
+    }).length;
+
+    return {
+      memberCount: filteredAdminMemberRows.length,
+      individualCount: filteredAdminMemberRows.filter((member) =>
+        member.memberType === MemberType.INDIVIDUAL || member.memberType === MemberType.SUPPORT,
+      ).length,
+      businessCount: filteredAdminMemberRows.filter((member) => member.memberType === MemberType.BUSINESS).length,
+      businessStaffCount: filteredDashboardBusinessStaffCount,
+      currentYearJoinedCount: joinedCount,
+      currentYearWithdrawnCount: withdrawnCount,
+      fiscalYearLabel: `${effectiveDashboardFiscalYear}年度`,
+      hasFilteredView:
+        memberListFilter !== 'ALL' ||
+        memberListStatusFilter !== 'ALL' ||
+        memberListFiscalYearFilter !== 'ALL' ||
+        memberListQuery.trim().length > 0,
+    };
+  }, [
+    effectiveDashboardFiscalYear,
+    filteredAdminMemberRows,
+    filteredDashboardBusinessStaffCount,
+    memberListFilter,
+    memberListFiscalYearFilter,
+    memberListQuery,
+    memberListStatusFilter,
+  ]);
 
   const availableFiscalYears = useMemo(() => {
     // 会計年度（4月〜翌3月）の範囲を算出
@@ -1504,7 +1587,7 @@ const App: React.FC = () => {
   );
 
   const renderAdminPage = () => {
-    const d = adminDashboardData;
+    const d = filteredDashboardMetrics;
     const loading = adminDashboardLoading;
     const val = (v: number | undefined) => loading ? '...' : (v ?? 0);
     const refreshAdminMembers = async () => {
@@ -1520,33 +1603,37 @@ const App: React.FC = () => {
           <p className="text-slate-600 mt-2 leading-relaxed">
             会員の入会・退会・編集を管理します。年会費は年会費管理コンソールで管理します。
           </p>
+          <p className="text-sm text-slate-500 mt-3">
+            ダッシュボードの数値は会員一覧の抽出条件と連動します。基準年度は <span className="font-medium text-slate-700">{d.fiscalYearLabel}</span> です。
+            {d.hasFilteredView ? ' 現在は絞り込み結果を表示しています。' : ' 現在は今年度の全件を表示しています。'}
+          </p>
         </div>
         {adminDashboardError && (
           <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">{adminDashboardError}</div>
         )}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
-            <p className="text-xs text-emerald-700 font-medium mb-1">在籍会員数</p>
+            <p className="text-xs text-emerald-700 font-medium mb-1">{d.fiscalYearLabel} 対象会員数</p>
             <p className="text-2xl font-bold text-emerald-800">{val(d?.memberCount)}</p>
           </div>
           <div className="rounded-xl border border-slate-200 p-5 bg-white">
-            <p className="text-xs text-slate-500 mb-1">個人会員（在籍）</p>
+            <p className="text-xs text-slate-500 mb-1">{d.fiscalYearLabel} 個人会員</p>
             <p className="text-2xl font-bold text-primary-600">{val(d?.individualCount)}</p>
           </div>
           <div className="rounded-xl border border-slate-200 p-5 bg-white">
-            <p className="text-xs text-slate-500 mb-1">事業所会員（在籍）</p>
+            <p className="text-xs text-slate-500 mb-1">{d.fiscalYearLabel} 事業所会員</p>
             <p className="text-2xl font-bold text-indigo-600">{val(d?.businessCount)}</p>
           </div>
           <div className="rounded-xl border border-slate-200 p-5 bg-white">
-            <p className="text-xs text-slate-500 mb-1">事業所職員（在籍）</p>
+            <p className="text-xs text-slate-500 mb-1">{d.fiscalYearLabel} 事業所職員</p>
             <p className="text-2xl font-bold text-purple-600">{val(d?.businessStaffCount)}</p>
           </div>
           <div className="rounded-xl border border-slate-200 p-5 bg-white">
-            <p className="text-xs text-slate-500 mb-1">{d?.currentFiscalYearLabel || '今年度'} 入会数</p>
+            <p className="text-xs text-slate-500 mb-1">{d.fiscalYearLabel} 入会数</p>
             <p className="text-2xl font-bold text-green-600">{val(d?.currentYearJoinedCount)}</p>
           </div>
           <div className="rounded-xl border border-slate-200 p-5 bg-white">
-            <p className="text-xs text-slate-500 mb-1">{d?.currentFiscalYearLabel || '今年度'} 退会数</p>
+            <p className="text-xs text-slate-500 mb-1">{d.fiscalYearLabel} 退会数</p>
             <p className="text-2xl font-bold text-red-500">{val(d?.currentYearWithdrawnCount)}</p>
           </div>
         </div>
