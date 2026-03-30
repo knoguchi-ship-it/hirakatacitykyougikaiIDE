@@ -38,7 +38,7 @@
   - データ通信はすべて `google.script.run.processApiRequest(action, payload)` を経由する（`doPost` は未使用）。
   - 認証は以下の2系統を提供する。
     - 会員向け: `ログインID + パスワード` 認証（Googleログインは使わない）
-    - 管理者向け: **セッション認証**（`checkAdminBySession_` / `Session.getActiveUser()`）を標準とする。IDトークン検証（`adminGoogleLogin_`）は補完的に保持。
+    - 管理者向け: **セッション認証**（`checkAdminBySession_` / `Session.getActiveUser()`）のみ。IDトークン検証（`adminGoogleLogin_`）は v118 で廃止済み。
 
 ### 2.3 データベース
 - **技術**: **Google スプレッドシート**
@@ -57,7 +57,7 @@
 
 ## 3. ディレクトリ構成
 
-### 3.1 現行構成（2026-03-15 時点）
+### 3.1 現行構成（2026-03-29 時点）
 ```text
 /
 ├── src/
@@ -114,6 +114,15 @@
 - **API通信プロトコル**: `google.script.run.processApiRequest(action, JSON.stringify(payload))`
   - レスポンスは JSON 文字列 `{"success": bool, "data": any}` または `{"success": false, "error": string}`。
   - `doPost` は使用しない（`google.script.run` でのみ通信）。
+- **キャッシュ戦略（v150）**:
+  - `CacheService.getScriptCache()` で API レスポンスを TTL 300 秒でキャッシュする。
+  - 100KB 超のレスポンスは `putChunkedCache_` / `getChunkedCache_` でチャンク分割（90KB/chunk）して格納する。
+  - `warmUp()` トリガー関数でキャッシュをプリウォームできる。
+- **複合 API（v150）**: ログイン直後の round-trip を削減するため、以下の統合 API を提供する。
+  - `getAdminInitData`: ダッシュボード + 設定を 1 回で返す
+  - `memberLoginWithData`: 会員認証 + ポータルデータを 1 回で返す
+  - `adminLoginWithData`: 管理者認証 + ポータルデータを 1 回で返す
+- **スケルトン UI（v150）**: ローディング中に骨格表示（WCAG 2.2 準拠）を行い、体感速度を改善する。
 
 ## 5. API アクション一覧（`processApiRequest` ルーティング）
 
@@ -122,61 +131,71 @@
 | action | 役割 | 主な権限 |
 |---|---|---|
 | `fetchAllData` | 全データ一括取得（会員・研修・ユーザー情報） | 全員 |
-| `getAdminDashboardData` | 管理トップ用の軽量集計・会員一覧サマリー・研修サマリー取得 | 管理者 |
-| `getTrainingManagementData` | 研修管理コンソール用の研修一覧取得 | 管理者 |
+| `getAdminDashboardData` | 管理トップ用の軽量集計・会員一覧サマリー・研修サマリー取得 | MASTER/ADMIN |
+| `getAdminInitData` | 管理者初期データ統合API（dashboard + settings を1回で返す）(v150) | MASTER/ADMIN |
+| `getTrainingManagementData` | 研修管理コンソール用の研修一覧取得 | 管理者（研修権限含む） |
 | `getMemberPortalData` | 会員マイページ/研修申込画面用の対象会員データ取得 | 会員/管理者 |
 | `memberLogin` | 会員ログイン（ID + PW） | 未認証 |
-| `adminGoogleLogin` | 管理者 Google ログイン（IDトークン方式） | 未認証 |
+| `memberLoginWithData` | 会員ログイン+ポータルデータ統合API（round-trip削減）(v150) | 未認証 |
 | `checkAdminBySession` | 管理者 Google ログイン（セッション方式・本番標準） | 未認証 |
+| `adminLoginWithData` | 管理者ログイン+ポータルデータ統合API（round-trip削減）(v150) | 未認証 |
 | `changePassword` | パスワード変更（現在PW照合あり） | 会員 |
-| `updateMember` | 会員情報更新（全フィールド） | 管理者 |
+| `updateMember` | 会員情報更新（管理者用 allowlist でサニタイズ）(v143) | MASTER/ADMIN |
+| `updateMembersBatch` | 会員一括更新（最大100件） | MASTER/ADMIN |
 | `updateMemberSelf` | 会員自身のプロフィール更新（サーバーサイド allowlist フィルタ、loginId→会員ID照合） | 会員 |
-| `saveTraining` | 研修の新規登録・更新 | 管理者 |
-| `uploadTrainingFile` | 研修案内状（PDF）のアップロード → Drive保存 → URL返却 | 管理者 |
+| `createMember` | 入会処理（会員+認証レコード作成） | MASTER/ADMIN |
+| `withdrawMember` | 退会処理（管理者操作） | MASTER/ADMIN |
+| `scheduleWithdrawMember` | 退会予約（翌年度4/1に退会） | MASTER/ADMIN |
+| `cancelScheduledWithdraw` | 退会予約の取消（管理者操作） | MASTER/ADMIN |
+| `updateStaff` | 職員個別更新（権限・状態・氏名等） | MASTER/ADMIN |
+| `removeStaffFromOffice` | 職員除籍（認証アカウント無効化連動） | MASTER/ADMIN |
+| `getAdminPersonList` | フラット人物リスト取得（個人+賛助+職員を人物単位で表示） | MASTER/ADMIN |
+| `updatePersonsBatch` | 人物一括更新 | MASTER/ADMIN |
+| `convertMemberType` | 会員種別変更（個人⇔事業所職員の双方向転換） | MASTER/ADMIN |
+| `saveTraining` | 研修の新規登録・更新 | 管理者（研修権限含む） |
+| `uploadTrainingFile` | 研修案内状（PDF）のアップロード → Drive保存 → URL返却 | 管理者（研修権限含む） |
 | `applyTraining` | 研修申込 | 会員 |
 | `cancelTraining` | 研修申込取消 | 会員 |
-| `sendTrainingReminder` | 研修リマインダーメール送信（ドライラン対応） | 管理者/CLI |
-| `getAuthConfig` | 管理者 Google Client ID 等の認証設定取得 | 全員 |
-| `getSystemSettings` | システム設定取得（職員数上限・研修履歴参照期間） | 管理者 |
-| `getAdminPermissionData` | システム権限コンソール用のホワイトリスト一覧・紐付け候補取得 | 管理者 |
-| `saveAdminPermission` | 管理者Googleホワイトリストの追加・更新 | 管理者 |
-| `deleteAdminPermission` | 管理者Googleホワイトリストの削除（論理削除） | 管理者 |
-| `updateSystemSettings` | システム設定更新 | 管理者 |
-| `getAnnualFeeAdminData` | 年会費管理コンソール用の対象年度一覧・監査履歴取得 | 管理者 |
-| `saveAnnualFeeRecord` | 年会費レコードの新規登録・更新 | 管理者 |
-| `getDbInfo` | DB接続情報・スキーマ確認 | 管理者/CLI |
-| `seedDemoData` | デモデータ投入 | CLI のみ |
-| `seedPerformanceTestData` | 負荷試験用データ投入（既存 LT... 系のみ置換） | CLI のみ |
+| `sendTrainingReminder` | 研修リマインダーメール送信（ドライラン対応） | MASTER/ADMIN/TRAINING_MANAGER |
+| `getTrainingApplicants` | 申込者一覧（会員・非会員統合ビュー） | 管理者（研修権限含む） |
+| `getAdminEmailAliases` | スクリプトオーナーの Gmail エイリアス一覧取得（`GmailApp.getAliases()`） | MASTER/ADMIN/TRAINING_MANAGER |
+| `sendTrainingMail` | 研修申込者への一斉・個別メール送信（GmailApp使用、添付・差し込み対応） | MASTER/ADMIN/TRAINING_MANAGER |
+| `getSystemSettings` | システム設定取得（職員数上限・研修履歴参照期間） | MASTER/ADMIN |
+| `updateSystemSettings` | システム設定更新 | MASTER/ADMIN |
+| `getAdminPermissionData` | システム権限コンソール用のホワイトリスト一覧・紐付け候補取得 | MASTER/ADMIN |
+| `saveAdminPermission` | 管理者Googleホワイトリストの追加・更新 | MASTER/ADMIN |
+| `deleteAdminPermission` | 管理者Googleホワイトリストの削除（論理削除） | MASTER/ADMIN |
+| `getAnnualFeeAdminData` | 年会費管理コンソール用の対象年度一覧・監査履歴取得 | MASTER/ADMIN |
+| `saveAnnualFeeRecord` | 年会費レコードの新規登録・更新 | MASTER/ADMIN |
+| `saveAnnualFeeRecordsBatch` | 年会費一括保存（Partial Success 対応）(v124) | MASTER/ADMIN |
+| `getDbInfo` | DB接続情報・スキーマ確認 | MASTER/ADMIN |
+| `seedDemoData` | デモデータ投入 | MASTER |
 | `getPublicTrainings` | 公開ポータル用：受付中研修一覧取得 | 不要（公開） |
 | `applyTrainingExternal` | 非会員研修申込（`T_外部申込者` 作成 + `T_研修申込` 追加） | 不要（公開） |
 | `cancelTrainingExternal` | 非会員申込取消（申込ID + 登録メール一致で本人確認） | 不要（公開） |
 | `submitMemberApplication` | 公開ポータル用：新規入会申込（個人/事業所/賛助） | 不要（公開） |
 | `withdrawSelf` | 会員自身の退会申請（年度末退会予約） | 会員 |
 | `cancelWithdrawalSelf` | 退会予約の取消 | 会員 |
-| `getTrainingApplicants` | 申込者一覧（会員・非会員統合ビュー） | 管理者 |
-| `getAdminEmailAliases` | スクリプトオーナーの Gmail エイリアス一覧取得（`GmailApp.getAliases()`） | 管理者 |
-| `sendTrainingMail` | 研修申込者への一斉・個別メール送信（GmailApp使用、添付・差し込み対応） | 管理者 |
 
 ## 6. 認証・認可アーキテクチャ
 
-### 5.1 会員認証
+### 6.1 会員認証
 - 会員は `T_認証アカウント` の `認証方式=PASSWORD` で認証する。
 - `ログインID` は表示のみ、パスワードはハッシュ比較で検証する。
 - パスワード変更は `currentPassword` を必須入力とし、`changePassword_()`（GAS）で現在PWハッシュ照合後に更新する。
 
-### 5.2 管理者認証
+### 6.2 管理者認証
 - **方式A（本番標準）: セッション認証**
   - フロントエンドは `google.script.run.processApiRequest('checkAdminBySession', ...)` を呼び出す。
   - GAS サーバー側で `Session.getActiveUser().getEmail()` により呼び出し元のブラウザ Google セッションのメールアドレスを取得する。
   - 取得したメールを `T_管理者Googleホワイトリスト` のメール列と突合し、`有効フラグ=true` のレコードが存在すれば認証成功。
   - **採用理由**: GAS Web App は `script.googleusercontent.com` ドメインに埋め込まれるため、OAuth ポップアップ（GIS: Google Identity Services）が Same-Origin 制限で開けない。`google.script.run` の呼び出し元セッションを利用するこの方式が唯一の安定した手段。
-- **方式B（補完/レガシー互換）: IDトークン検証**
-  - フロントエンドが Google Sign-In で取得した ID トークンを `adminGoogleLogin_()` に渡す。
-  - GAS 内で `verifyGoogleIdToken_()` を呼び出し、Google の公開鍵で署名を検証する。
-  - 検証済み `sub`（GoogleユーザーID）または `email` でホワイトリスト照合する。
+- **方式B（v118 で廃止済み）: IDトークン検証**
+  - ~~フロントエンドが Google Sign-In で取得した ID トークンを `adminGoogleLogin_()` に渡す方式。~~
+  - v118 で GIS（Google Identity Services）が GAS iframe sandbox origin では動作しないことが確定し、廃止。`processApiRequest` のルーティングからも削除済み。
 - **共通の紐付け検証**: ホワイトリスト照合後、`紐付け認証ID` → `T_認証アカウント`、`紐付け会員ID` → `T_会員` の整合性を確認し、不整合は拒否する。
 
-### 5.3 認可
+### 6.3 認可
 - 管理者ログイン時は `管理者ページ` と `会員マイページ` の両方を表示可能にする。
 - 管理者ログイン後の左メニュー表示名は、`T_管理者Googleホワイトリスト` に紐付く `T_認証アカウント` / `T_会員` / `T_事業所職員` から解決した会員・職員名を優先表示する。
 - 会員マイページは3種類（個人会員 / 事業所会員管理者 / 事業所会員メンバー）として表示制御する。

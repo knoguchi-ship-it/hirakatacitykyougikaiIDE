@@ -2822,9 +2822,7 @@ function getAdminDashboardData_() {
   var cache = CacheService.getScriptCache();
   var cacheKey = getAdminDashboardCacheKey_();
   var cached = getChunkedCache_(cache, cacheKey);
-  if (cached) {
-    return JSON.parse(cached);
-  }
+  if (cached) return cached;
 
   var ss = getOrCreateDatabase_();
   initializeSchemaIfNeeded_(ss);
@@ -4062,7 +4060,7 @@ function saveAnnualFeeRecordsBatch_(payload) {
   }
   var requests = [];
   for (var i = 0; i < payload.records.length; i += 1) {
-    requests.push(validateAnnualFeePayload_(payload.records[i]));
+    requests.push(validateAnnualFeeBatchPayload_(payload.records[i]));
   }
   var ss = getOrCreateDatabase_();
   initializeSchemaIfNeeded_(ss);
@@ -4084,6 +4082,7 @@ function saveAnnualFeeRecordsBatch_(payload) {
       : [];
     var nowIso = new Date().toISOString();
     var results = [];
+    var withdrawnMemberIds = [];
     var auditRows = [];
     var updatedSheetRows = [];
     var appendRows = [];
@@ -4113,6 +4112,48 @@ function saveAnnualFeeRecordsBatch_(payload) {
         }
       }
       var beforeRecord = target ? annualFeeSheetRowToObject_(target.row, cols) : null;
+      if (request.status === 'WITHDRAW') {
+        var withdrawnDate = getAnnualFeeFiscalYearPreviousEndDate_(request.year);
+        var withdrawalProcessDate = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+        updateMember_({
+          id: request.memberId,
+          status: 'WITHDRAWN',
+          withdrawnDate: withdrawnDate,
+          withdrawalProcessDate: withdrawalProcessDate,
+          midYearWithdrawal: false,
+        }, {
+          skipAdminCheck: true,
+          adminSession: { email: actorEmail },
+          ss: ss,
+          skipCacheClear: true,
+        });
+        disableAuthAccountsByMemberId_(ss, request.memberId);
+        if (target) {
+          var withdrawnRow = target.row.slice();
+          withdrawnRow[cols['更新日時']] = nowIso;
+          withdrawnRow[cols['削除フラグ']] = true;
+          updatedSheetRows.push({ rowNumber: target.rowNumber, data: withdrawnRow });
+          feeData[target.rowNumber - 2] = withdrawnRow;
+        }
+        auditRows.push({
+          年会費更新履歴ID: Utilities.getUuid(),
+          年会費履歴ID: target ? String(target.row[cols['年会費履歴ID']] || '') : '',
+          会員ID: request.memberId,
+          対象年度: request.year,
+          操作種別: 'WITHDRAW',
+          更新前JSON: beforeRecord ? JSON.stringify(beforeRecord) : '',
+          更新後JSON: JSON.stringify({
+            memberStatus: 'WITHDRAWN',
+            withdrawnDate: withdrawnDate,
+            withdrawalProcessDate: withdrawalProcessDate,
+            annualFeeRecordDeleted: !!target,
+          }),
+          実行者メール: actorEmail,
+          実行日時: nowIso,
+        });
+        withdrawnMemberIds.push(request.memberId);
+        continue;
+      }
       var recordId = target ? String(target.row[cols['年会費履歴ID']] || '') : Utilities.getUuid();
       var nextRow = target ? target.row.slice() : new Array(Object.keys(cols).length).fill('');
       nextRow[cols['年会費履歴ID']] = recordId;
@@ -4166,7 +4207,7 @@ function saveAnnualFeeRecordsBatch_(payload) {
     clearAllDataCache_();
     clearAdminDashboardCache_();
     clearTrainingManagementCache_();
-    return results;
+    return { savedRecords: results, withdrawnMemberIds: withdrawnMemberIds };
   } finally {
     lock.releaseLock();
   }
@@ -4203,6 +4244,41 @@ function validateAnnualFeePayload_(payload) {
     year: Math.floor(year),
     status: status,
     confirmedDate: confirmedDate,
+    note: note,
+  };
+}
+
+function validateAnnualFeeBatchPayload_(payload) {
+  if (!payload) throw new Error('年会費データが空です。');
+  var memberId = String(payload.memberId || '').trim();
+  if (!memberId) throw new Error('会員IDが未指定です。');
+
+  var year = Number(payload.year || 0);
+  if (!isFinite(year) || year < 2000 || year > 2100) {
+    throw new Error('対象年度は 2000〜2100 の範囲で入力してください。');
+  }
+
+  var status = String(payload.status || 'UNPAID');
+  if (status !== 'PAID' && status !== 'UNPAID' && status !== 'WITHDRAW') {
+    throw new Error('会費納入状態が不正です。');
+  }
+
+  var confirmedDate = normalizeDateInput_(payload.confirmedDate);
+  if (status === 'PAID' && !confirmedDate) {
+    throw new Error('納入済にする場合は納入確認日を入力してください。');
+  }
+
+  var note = String(payload.note || '');
+  if (note.length > 2000) {
+    throw new Error('備考は 2000 文字以内で入力してください。');
+  }
+
+  return {
+    id: String(payload.id || '').trim(),
+    memberId: memberId,
+    year: Math.floor(year),
+    status: status,
+    confirmedDate: status === 'PAID' ? confirmedDate : '',
     note: note,
   };
 }
@@ -6304,7 +6380,7 @@ function validateMemberPayload_(payload, memberTypeCode, currentMemberStatus) {
   var isBusiness = memberTypeCode === 'BUSINESS';
   var isSupport = memberTypeCode === 'SUPPORT';
   // v147: 退会済み会員は必須フィールドチェックをスキップ（全会員種別共通）
-  var isWithdrawn = String(currentMemberStatus || payload.status || 'ACTIVE') === 'WITHDRAWN';
+  var isWithdrawn = String(payload.status || currentMemberStatus || 'ACTIVE') === 'WITHDRAWN';
 
   // 事業所会員は姓/名/セイ/メイ/介護支援専門員番号をブランク運用（v131）
   if (!isBusiness && !isWithdrawn) {

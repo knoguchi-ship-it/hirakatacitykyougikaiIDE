@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../services/api';
 import {
   AnnualFeeAdminData,
@@ -16,13 +16,21 @@ interface Props {
 }
 
 type StatusFilter = 'ALL' | PaymentStatus;
+
 type MemberTypeFilter = 'ALL' | MemberType;
 
+type AnnualFeeDraftStatus = PaymentStatus | 'WITHDRAW';
+
 type EditableRow = {
+
   id: string;
-  status: PaymentStatus;
+
+  status: AnnualFeeDraftStatus;
+
   confirmedDate: string;
+
   note: string;
+
 };
 
 type SortKey = 'displayName' | 'memberType' | 'status' | 'confirmedDate' | 'note';
@@ -30,7 +38,10 @@ type SortDir = 'asc' | 'desc';
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 const CURRENT_YEAR = new Date().getFullYear();
+
 const MESSAGE_AUTO_CLEAR_MS = 4000;
+
+const WITHDRAW_ACTION = 'WITHDRAW' as const;
 const MEMBER_TYPES = [MemberType.INDIVIDUAL, MemberType.BUSINESS, MemberType.SUPPORT] as const;
 const MEMBER_TYPE_ORDER: Record<MemberType, number> = {
   [MemberType.INDIVIDUAL]: 0,
@@ -457,12 +468,13 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
       id?: string;
       memberId: string;
       year: number;
-      status: 'PAID' | 'UNPAID';
+      status: 'PAID' | 'UNPAID' | 'WITHDRAW';
       confirmedDate: string;
       note: string;
     }> = [];
     const invalidKeys = new Set<string>();
     const nextDateErrors: Record<string, string> = {};
+    const withdrawTargets: AnnualFeeAdminRecord[] = [];
 
     for (const record of targets) {
       const key = buildRowKey(record);
@@ -496,6 +508,10 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
         continue;
       }
 
+      if (draft.status === WITHDRAW_ACTION) {
+        withdrawTargets.push(record);
+      }
+
       validPayloads.push({
         id: record.exists ? draft.id || undefined : undefined,
         memberId: record.memberId,
@@ -517,23 +533,44 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
       return;
     }
 
+    if (withdrawTargets.length > 0) {
+      const previewNames = withdrawTargets.slice(0, 5).map((record) => `- ${record.displayName} (${record.memberId})`).join('\n');
+      const moreLabel = withdrawTargets.length > 5 ? `\n- 他 ${withdrawTargets.length - 5} 件` : '';
+      const confirmed = window.confirm(
+        `以下 ${withdrawTargets.length} 件を前年度末退会として処理します。\n` +
+        `対象年度 ${selectedYear} の年会費対象外になり、前年度末日が退会日に設定されます。\n\n` +
+        `${previewNames}${moreLabel}\n\n続行しますか？`,
+      );
+      if (!confirmed) return;
+    }
+
     setBatchSaving(true);
     setError(null);
     setSuccess(null);
     try {
-      const savedRecords = await api.saveAnnualFeeRecordsBatch(validPayloads);
-      applyOptimisticUpdate(savedRecords);
+      const result = await api.saveAnnualFeeRecordsBatch(validPayloads);
+      await load(selectedYear);
       if (onChanged) {
         void Promise.resolve(onChanged()).catch((refreshError) => {
           console.error('Failed to refresh dashboard data after annual fee batch save:', refreshError);
         });
       }
+      const withdrawCount = result.withdrawnMemberIds.length;
+      const savedCount = result.savedRecords.length;
       if (invalidKeys.size > 0) {
-        setSuccess(`${savedRecords.length}件を保存しました。`);
+        setSuccess(
+          withdrawCount > 0
+            ? `${savedCount}件を保存し、${withdrawCount}件を前年度末退会として処理しました。`
+            : `${savedCount}件を保存しました。`,
+        );
         setError(`${invalidKeys.size}件は入力エラーのため未保存です。`);
         setFailedKeys(invalidKeys);
       } else {
-        setSuccess(`${savedRecords.length}件の変更を保存しました。`);
+        setSuccess(
+          withdrawCount > 0
+            ? `${savedCount}件を保存し、${withdrawCount}件を前年度末退会として処理しました。`
+            : `${savedCount}件の変更を保存しました。`,
+        );
         setFailedKeys(null);
       }
     } catch (e) {
@@ -576,6 +613,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
           <p className="text-slate-600 mt-2 leading-relaxed">
             対象年度の支払対象会員を一覧表示します。退会年月日が前年度末以前の会員は対象外です。
             レコード未作成の会員も「未納」として扱い、保存時に当該年度のレコードを新規作成します。
+            「前年度末退会」は年会費状態として保存せず、会員側に退会処理を行います。
           </p>
         </div>
 
@@ -764,7 +802,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
                       種別<SortIndicator active={sortKey === 'memberType'} dir={sortDir} />
                     </th>
                     <th className={thClass} onClick={() => toggleSort('status')}>
-                      納入状況<SortIndicator active={sortKey === 'status'} dir={sortDir} />
+                      年度処理<SortIndicator active={sortKey === 'status'} dir={sortDir} />
                     </th>
                     <th className={thClass} onClick={() => toggleSort('confirmedDate')}>
                       入金日<SortIndicator active={sortKey === 'confirmedDate'} dir={sortDir} />
@@ -816,12 +854,12 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
                             value={draft.status}
                             disabled={isBusy}
                             onChange={(e) => {
-                              const newStatus = e.target.value as PaymentStatus;
+                              const newStatus = e.target.value as AnnualFeeDraftStatus;
                               updateDraft(record, {
                                 status: newStatus,
-                                confirmedDate: newStatus === PaymentStatus.UNPAID ? '' : draft.confirmedDate,
+                                confirmedDate: newStatus !== PaymentStatus.PAID ? '' : draft.confirmedDate,
                               });
-                              if (newStatus === PaymentStatus.UNPAID) {
+                              if (newStatus !== PaymentStatus.PAID) {
                                 setRawDateTexts((prev) => {
                                   const next = { ...prev };
                                   delete next[key];
@@ -837,7 +875,13 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
                           >
                             <option value={PaymentStatus.UNPAID}>未納</option>
                             <option value={PaymentStatus.PAID}>納入済み</option>
+                            <option value={WITHDRAW_ACTION}>前年度末退会</option>
                           </select>
+                          {draft.status === WITHDRAW_ACTION && (
+                            <p className="mt-1 text-xs text-rose-700">
+                              保存時に会員を前年度末退会として処理し、この年度の年会費対象外にします。
+                            </p>
+                          )}
                         </td>
                         <td className="px-3 py-2.5 text-sm align-top">
                           <div className="flex items-center gap-1">
@@ -993,9 +1037,13 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
                       <td className="px-3 py-2 text-sm text-slate-700 tabular-nums">{formatDateTimeDisplay(log.executedAt)}</td>
                       <td className="px-3 py-2 text-sm">
                         <span className={`inline-block text-xs font-medium rounded px-1.5 py-0.5 ${
-                          log.action === 'CREATE' ? 'bg-primary-50 text-primary-700' : 'bg-amber-50 text-amber-700'
-                        }`}>
-                          {log.action === 'CREATE' ? '新規' : '更新'}
+                          log.action === 'CREATE'
+                            ? 'bg-primary-50 text-primary-700'
+                            : log.action === 'WITHDRAW'
+                              ? 'bg-rose-50 text-rose-700'
+                              : 'bg-amber-50 text-amber-700'
+                       }`}>
+                          {log.action === 'CREATE' ? '新規' : log.action === 'WITHDRAW' ? '退会処理' : '更新'}
                         </span>
                       </td>
                       <td className="px-3 py-2 text-sm text-slate-900">

@@ -1,6 +1,6 @@
 ﻿# ドキュメント索引（現行）
 
-更新日: 2026-03-28
+更新日: 2026-03-29
 
 ## 現行の正本
 - `README.md`
@@ -46,11 +46,14 @@
 ## 運用テンプレート
 - `docs/31_HANDOVER_TASK_TEMPLATE.md` ← 引継ぎ task の書式テンプレート（現況の正本ではない）
 
-## 進行中の引継ぎ task
-- `docs/32_HANDOVER_TASK_v142_RETEST_AND_DEPLOYMENT_CONFIRM.md` ← v142 の残ケース 8 件再検証と fixed deployment 確認用 task
+## 完了済みの引継ぎ task
+- `docs/32_HANDOVER_TASK_v142_RETEST_AND_DEPLOYMENT_CONFIRM.md` ← v142 の残ケース 8 件再検証と fixed deployment 確認用 task（**全件完了 2026-03-28**）
 
 ## 将来計画
-- `docs/32_GCP_MIGRATION_SPEC.md` ← GCP プラットフォーム移行仕様書（Firebase Hosting + Cloud Run + Firestore + Firebase Auth）
+- `docs/33_GCP_MIGRATION_SPEC.md` ← GCP プラットフォーム移行仕様書（Firebase Hosting + Cloud Run + Firestore + Firebase Auth）
+
+## 開発運用
+- `docs/34_DEVELOPMENT_OPERATING_MODEL_2026-03-30.md` ← 開発再開時の役割分担、task 管理、本番完了条件をまとめた運用正本
 
 ## 履歴資料（参照のみ）
 - `docs/archive/docs_history/*`
@@ -64,6 +67,7 @@
 - `docs/learning/04_typescript_intro.html`
 - `docs/learning/05_gas_browser_nodejs_relationship.html`
 - `docs/learning/06_nodejs_npm_vite_relationship.html`
+- `docs/learning/07_system_overview_v151.html`
 
 ## 運用ルール
 - 実装変更時は、正本ドキュメントを同時更新する。

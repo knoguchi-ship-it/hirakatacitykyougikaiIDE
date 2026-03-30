@@ -1,4 +1,4 @@
-﻿import { Member, Training, AdminPermissionLevel, AdminPersonRow, ConvertMemberTypePayload, ConvertMemberTypeResult } from '../types';
+import { Member, Training, AdminPermissionLevel, AdminPersonRow, ConvertMemberTypePayload, ConvertMemberTypeResult } from '../types';
 import { TrainingApplicantRow } from '../shared/types';
 import { AdminDashboardData, AdminPermissionData, AnnualFeeAdminData, AnnualFeeAdminRecord } from '../types';
 
@@ -51,6 +51,9 @@ export interface ApiClient {
   fetchAllData(): Promise<{ members: Member[], trainings: Training[] }>;
   getMemberPortalData(memberId: string): Promise<{ members: Member[], trainings: Training[] }>;
   getAdminDashboardData(): Promise<AdminDashboardData>;
+  getAdminInitData(): Promise<{ dashboard: AdminDashboardData; settings: { defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number } }>;
+  adminLoginWithData(): Promise<{ auth: AdminLoginResult; portal: { members: Member[]; trainings: Training[] } }>;
+  memberLoginWithData(loginId: string, password: string): Promise<{ auth: MemberLoginResult; portal: { members: Member[]; trainings: Training[] } }>;
   getTrainingManagementData(): Promise<Training[]>;
   updateMember(member: Member): Promise<void>;
   updateMembersBatch(members: Array<Partial<Member> & Pick<Member, 'id'>>): Promise<Array<{ updated: boolean; memberId: string }>>;
@@ -71,10 +74,10 @@ export interface ApiClient {
     id?: string;
     memberId: string;
     year: number;
-    status: 'PAID' | 'UNPAID';
+    status: 'PAID' | 'UNPAID' | 'WITHDRAW';
     confirmedDate?: string;
     note?: string;
-  }>): Promise<AnnualFeeAdminRecord[]>;
+  }>): Promise<{ savedRecords: AnnualFeeAdminRecord[]; withdrawnMemberIds: string[] }>;
   memberLogin(loginId: string, password: string): Promise<MemberLoginResult>;
   checkAdminBySession(): Promise<AdminLoginResult>;
   getAdminPermissionData(): Promise<AdminPermissionData>;
@@ -538,10 +541,10 @@ class GasApiClient implements ApiClient {
     id?: string;
     memberId: string;
     year: number;
-    status: 'PAID' | 'UNPAID';
+    status: 'PAID' | 'UNPAID' | 'WITHDRAW';
     confirmedDate?: string;
     note?: string;
-  }>): Promise<AnnualFeeAdminRecord[]> {
+  }>): Promise<{ savedRecords: AnnualFeeAdminRecord[]; withdrawnMemberIds: string[] }> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
         reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));

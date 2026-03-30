@@ -61,7 +61,7 @@ export interface AnnualFeeAuditLog {
   memberId: string;
   displayName: string;
   year: number;
-  action: 'CREATE' | 'UPDATE';
+  action: 'CREATE' | 'UPDATE' | 'WITHDRAW';
   actorEmail: string;
   actorDisplayName?: string;
   executedAt: string;

@@ -1,6 +1,6 @@
-# 引継ぎ書（次担当者向け）
+﻿# 引継ぎ書（次担当者向け）
 
-更新日: **2026-03-28（v146 反映済み。事業所番号APIマッピング修正 + 除籍時権限強制降格（OWASP A01準拠）。固定2 Deployment を @146 同期済み）**
+更新日: **2026-03-30（v152 反映済み。v147: 対象年度フィルタ+一括編集下部ボタン+退会済み事業所バリデーション緩和、v148: 退会済み全会員種別の必須項目緩和、v149: ログインUX改善、v150: キャッシュチャンク+複合API+スケルトン画面、v151: ダッシュボードキャッシュ二重パースバグ修正、v152: 年会費一括保存の前年度末退会処理追加。固定 Deployment は @153 同期済み）**
 対象: 枚方市介護支援専門員連絡協議会 会員システム
 
 ---
@@ -47,10 +47,39 @@
 
 ## 1.1 次担当者向け・最短状況サマリ（このまま新スレッドへ貼付可）
 
-- 本番Web URLは固定2本（会員/公開）で **@146 同期済み**（2026-03-28）。
-- `main` には v145 が反映済み。コミット/Push 状態は作業終了時点の `git log -1 --oneline` と `git status --short` を正とすること。
+- 本番Web URLは固定2本（会員/公開）で **Version 152 作成済み、固定 Deployment は @153 同期済み**（2026-03-30）。
+- `main` には v145 が反映済み。v147〜v153 は未コミット。コミット/Push 状態は作業終了時点の `git log -1 --oneline` と `git status --short` を正とすること。
 - `docs/30_TEST_SPEC_v136_v140_INLINE_STAFF_EDIT.md` の **39 テストケース全 PASS**（2026-03-28 追試完了）。初回（2026-03-27）FAIL 9 件は全て Playwright MCP セッション切断が原因であり、コード不具合ではなかった。追試（2026-03-28, @144）で残 8 ケース（`P-03`, `I-04`, `D-02`, `R-03`, `R-05`, `R-07`, `R-08`, `R-09`）を全て PASS。Apps Script UI「デプロイを管理」で固定 2 Deployment の Version 144 / ウェブアプリを目視確認済み。
 - **v128（データ移行・deployment反映済み）**: 2026-03-24 実行時は ★会員名簿（2025年度）から本番DBへ T_会員205件（個人174+事業所31）、T_事業所職員133件、T_認証アカウント307件、T_年会費納入履歴330件を移行。2026-03-25 に再移行を実施し、最終的に T_会員211件（個人179+事業所32）、T_事業所職員147件、T_認証アカウント326件、T_年会費347件へ修正。runId `20260325T120805-35e3927e`、backupSuffix `_BAK_20260325_120805`。その後 `repairRosterMigrationDataJson` を実行し、個人会員158件の `介護支援専門員番号` を live DB へ補正、backupSuffix `_BAK_20260325_182904`、`remainingPreview.memberUpdates=0` を確認。続けて `repairAnnualFeeAgainstSourceJson` を実行し、事業所会員の 2024 年度会費 3 件（`40131545|2024`、`375881|2024`、`4539021|2024`）を source 支払欄基準で補正、backupSuffix `_BAK_20260325_200151`、`feeAudit.missing=0 / extra=0 / duplicate=0 / mismatch=0`、`currentFees=347 / expectedFees=347`、`currentAmountTotal=1336000 / expectedAmountTotal=1336000` を確認。2026-03-26 に `dryRunMigration()` で `_MIGRATION_*` を live DB へ再生成し、`reconcileMigrationWithSource.ok=true`（`mappedRowCount=326`, `mismatchCount=0`）まで provenance を収束。続けて `T_事業所職員` に `姓/名/セイ/メイ` を追加し 147 件を backfill、`_CREDENTIALS_TEMP` を 326 件で再生成して `missingLinkCount=0`、`HASH_ONLY=326` を確認した。`backupBeforeMigration_()` は別スプレッドシートへ同一スナップショットを保存し、live 内 `_BAK_*` は削除済み。検証済み外部バックアップは `11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA`、本作業開始前の安全退避は `1U6HTUUAaNfZ3mDPQfdppCfJtsyTzpacMgOM_WKEUEhg`。固定 deployment 2本は 2026-03-26 に最終 `@130` へ更新済み。
+- **v153（deployment反映済み）**: 年会費一覧の一括保存にドラフト専用 `前年度末退会` を追加し、保存時に `T_会員` へ前年度末退会処理を反映。対象年度の年会費レコードがあれば論理削除し、今年度の未納対象から除外。`T_年会費納入履歴.会費納入状態コード` には `WITHDRAW` を永続化しない。
+- **v151（deployment反映済み）**: `getAdminDashboardData_()` のキャッシュ二重パースバグ修正。
+  - v150 で `getChunkedCache_()` に変更した際、戻り値が既にパース済みオブジェクトなのに `JSON.parse(cached)` が残っていた。`[object Object] is not valid JSON` エラーの原因。
+  - 修正: `if (cached) return cached;` に統一（他の3関数は既に正しかった）。
+- **v150（deployment反映済み）**: パフォーマンス最適化。
+  - CacheService チャンク分割（90KB/chunk、`putChunkedCache_`/`getChunkedCache_`/`removeChunkedCache_`）で 100KB 超レスポンス対応。
+  - 複合 API 3 本追加: `getAdminInitData`（ダッシュボード+設定）、`memberLoginWithData`（認証+ポータル）、`adminLoginWithData`（管理者認証+ポータル）。google.script.run 呼び出し回数を削減。
+  - スケルトンスクリーン導入（ローディング中の骨格表示、WCAG 2.2 準拠）。
+  - `applyWithdrawalDeletionPolicyIfNeeded_()` を `processApiRequest()` から分離し、日次トリガー `dailyWithdrawalPolicyTrigger()` へ移動。
+  - `warmUp()` トリガー関数追加（CacheService プリウォーム）。`setupScheduledTriggers()` で日次トリガー設定可能。
+  - キャッシュ TTL を 120秒 → 300秒に延長。
+  - **注意**: `setupScheduledTriggers` は Apps Script エディタで手動実行が必要。
+- **v149（deployment反映済み）**: ログインUX改善。
+  - `<fieldset disabled>` でフォーム全体を無効化（送信中の二重操作防止）。
+  - ボタンにスピナー表示（`animate-spin`）。
+  - `aria-live="polite"` でスクリーンリーダー対応のステータスメッセージ。
+  - エラーメッセージに `role="alert"` 追加。
+- **v148（deployment反映済み）**: 退会済み全会員種別の必須項目緩和。
+  - `validateMemberPayload_()` に第3引数 `currentMemberStatus` を追加。WITHDRAWN 時は氏名・フリガナ・電話番号・住所・事業所情報を必須から除外。
+  - `updateStaff_()`: 除籍済み（LEFT）職員の氏名・フリガナバリデーションをスキップ。
+  - `syncBusinessStaffRows_()`: 同上。
+  - 個人会員・事業所会員・賛助会員の全種別で退会済み時に空欄保存可能。
+- **v147（deployment反映済み）**: 対象年度フィルタ + 一括編集下部ボタン + 退会済み事業所バリデーション緩和。
+  - 会員一覧の「入会年度」→「対象年度」フィルタ変更。会計年度（4/1〜3/31）境界でフィルタリング。
+  - `availableFiscalYears` で最古入会年度〜当年度の連番生成。
+  - 退会済み会員は withdrawnDate 基準で年度帰属判定（joined <= fyEnd AND (not WITHDRAWN or withdrawn >= fyStart)）。
+  - `getAdminDashboardData_()` に `withdrawnDate` フィールド追加。`AdminDashboardMemberRow` 型にも追加。
+  - `MemberBatchEditor.tsx` テーブル下部に一括保存ボタン追加。
+  - 退会済み事業所会員の代表者バリデーション（`validateBusinessStaffRoleTransition_()`）スキップ。
 - **v146（deployment反映済み）**: 事業所番号APIマッピング修正 + 除籍時権限強制降格。
   - `mapMembersForApi_()` に `officeNumber` マッピングが欠落していた問題を修正。事業所番号の保存→表示が正常動作するようになった。
   - 除籍処分時に職員権限を強制的に STAFF（メンバー）に降格（OWASP A01:2025 最小権限原則準拠）。`updateStaff_()` と `removeStaffFromOffice_()` の両方で適用。
@@ -91,6 +120,7 @@
 ## 1.2 引継ぎ体制の標準
 
 - 本節は 2026-03-27 時点の Google SRE / GitHub Docs の公開ガイダンスを参照し、手動本番検証を含むこの案件向けに具体化した運用標準である。
+- 開発再開時の役割分担、task 管理、本番完了条件は `docs/34_DEVELOPMENT_OPERATING_MODEL_2026-03-30.md` を入口として扱う。
 - **今回の引継ぎは必要**。残件は `Apps Script UI Manage deployments` の手動確認と、組織 Google セッション前提のブラウザ再検証が含まれるため、コード差分だけでは完了判定できない。
 - **single source of truth** は 3 つに限定する。`HANDOVER.md`、`docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`、`docs/30_TEST_SPEC_v136_v140_INLINE_STAFF_EDIT.md` セクション8 以外に状態を分散させない。
 - **残件は task 単位で持つ**。各 task には少なくとも `対象ケースID`、`対象 deployment/version`、`前提ログイン`、`期待する正本データ`、`終了条件` を明記する。
@@ -135,7 +165,8 @@
 ## 1.2 この時点の引き継ぎポイント
 
 - スレッドを切っても問題ない状態まで、正本と引き継ぎは同期済み。
-- 現在の本番固定 Deployment は会員/公開ともに **@146**（2026-03-28 同期済み）。
+- 現在の GAS Version は **153**。固定 Deployment 2本はともに @153 同期済み。
+- v147〜v153 のコードは clasp push 済みだが Git 未コミット。次担当者はコミットから着手すること。
 - **v136-v140 テスト全 39 ケース PASS 完了**（2026-03-28）。残件なし。
 - **v128 再移行は 2026-03-25 に実行済み。次担当者は `docs/23_MIGRATION_HANDOVER_v128.md` と実行結果を参照すること。**
   - runId `20260325T120805-35e3927e`
@@ -204,14 +235,14 @@
 - v125 で管理コンソール会員管理を大幅改善（操作列削除→編集画面集約、フラット人物リスト一括編集、会員種別変更シームレス転換）。
 - v126 で事業所会員詳細編集画面を改善（WCAG 2.2準拠必須バリデーション、予約退会、職員Master-Detail Drilldown）。
 - v127 で職員詳細画面を改善（介護支援専門員番号必須化、role/statusドロップダウン、最終代表者自動退会）。
-- v128（データ移行）で ★会員名簿2025年度シートから本番DBへ一括移行。T_会員に`退会処理日`列を追加。移行関数 `migrateRoster2025_` / `executeMigration` / `dryRunMigration` / `verifyMigration_` / `backupBeforeMigration_` / `rollbackMigration_` を実装。
-- v136-v140 テスト全 39 ケース PASS 完了（2026-03-28）。v146 は固定 deployment @146 同期済み。
+- v136-v140 テスト全 39 ケース PASS 完了（2026-03-28）。v153 は Version 作成・固定 deployment @153 同期まで完了。
+- **将来計画**: `docs/33_GCP_MIGRATION_SPEC.md` に GCP プラットフォーム移行仕様書を作成済み（Firebase Hosting + Cloud Run + Firestore + Firebase Auth）。現行 GAS 規模では GCP 無料枠内（$0/月）で運用可能。
 - Claude Code への次指示は `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` に整理済み。
 - ただし修正後は毎回、`docs/09_DEPLOYMENT_POLICY.md` の事前チェック/完了判定に従って再確認すること。
 - 2026-03-19 時点で **不要ファイルは `Dust/` に退避済み**。記録用スクリーンショット（`v98-*`）のみリポジトリ管理対象。
 - v116 で `T_管理者Googleホワイトリスト` を運用正本とする `管理コンソール（システム権限）` を追加。Googleメール / GoogleユーザーID / 表示名 / 紐付け認証ID / 有効フラグの追加・更新・削除が可能。
-- v116 で管理者ログイン後の左メニュー表示名を、ホワイトリストに紐付く会員・職員情報ベースに変更。紐付け未解決時のみ `システム管理者` を表示する。
-- 2026-03-28 時点で固定 deployment は `@146`。Apps Script UI `Manage deployments` で会員メニュー/公開ポータルともに Version 146 を確認済み。
+- 2026-03-30 時点で GAS Version 153 作成済み。固定 deployment は会員メニュー/公開ポータルともに @153 へ同期済み。
+- v150 の `setupScheduledTriggers` は Apps Script エディタで手動実行が必要（日次退会ポリシー + キャッシュウォームアップトリガーを設定する関数）。
 
 ---
 
@@ -1056,3 +1087,4 @@ Googleアカウントでアクセス
 - **備考**: 研修管理コンソールを軽量 API `getTrainingManagementData` へ切替。Playwright MCP 実測で管理トップまで約 4.5 秒、研修管理コンソールまで約 3.5 秒を確認。
 
 > v91 以前のリリース記録は `git log` を参照。v89 で旧 Deployment ID 廃止 → 現行固定 ID に移行。v74 で DB タイムゾーン修正。
+

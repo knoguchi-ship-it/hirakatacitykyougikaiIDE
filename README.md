@@ -101,6 +101,7 @@ npx clasp run setupDatabase
 現行の正本一覧は `docs/00_DOC_INDEX.md` を参照してください。特に以下が重要です。
 
 - `HANDOVER.md`
+- `docs/34_DEVELOPMENT_OPERATING_MODEL_2026-03-30.md`
 - `GLOBAL_GROUND_RULES/CLAUDE.md`
 - `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 - `docs/10_SOW.md`
@@ -121,11 +122,12 @@ npx clasp run setupDatabase
 
 ## オンライン前提の開発フロー
 1. `HANDOVER.md`、`GLOBAL_GROUND_RULES/CLAUDE.md`、`GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md` を再読する。
-2. `cd backend && npx clasp show-authorized-user` で運用アカウントを確認する。
-3. `npx clasp run healthCheck` と `npx clasp run getDbInfo` を実行し、オンライン疎通を確認する。
-4. 実装変更を行う。
-5. `npm run typecheck` と `npm run build` でローカル静的検証を行う。
-6. `npm run build:gas` → `cd backend && npx clasp push --force` → `npx clasp version "..."` を実行する。
-7. Apps Script UI の `Manage deployments` で固定2 Deployment ID を同一Versionへ更新する。
-8. 実ブラウザで `/exec` と `/exec?app=public` を確認し、最後に `npx clasp run healthCheck` を再実行する。
-9. `HANDOVER.md` と関連正本を更新する。
+2. `docs/34_DEVELOPMENT_OPERATING_MODEL_2026-03-30.md` で役割分担と完了条件を確認する。
+3. `cd backend && npx clasp show-authorized-user` で運用アカウントを確認する。
+4. `npx clasp run healthCheck` と `npx clasp run getDbInfo` を実行し、オンライン疎通を確認する。
+5. 実装変更を行う。
+6. `npm run typecheck` と `npm run build` でローカル静的検証を行う。
+7. `npm run build:gas` → `cd backend && npx clasp push --force` → `npx clasp version "..."` を実行する。
+8. Apps Script UI の `Manage deployments` で固定2 Deployment ID を同一Versionへ更新する。
+9. 実ブラウザで `/exec` と `/exec?app=public` を確認し、最後に `npx clasp run healthCheck` を再実行する。
+10. `HANDOVER.md` と関連正本を更新する。
