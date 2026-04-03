@@ -5775,7 +5775,7 @@ var ADMIN_AUDIT_FIELDS_ = [
 ];
 // v106: NIST RBAC — ロール別職員フィールド allowlist
 var STAFF_WRITABLE_FIELDS_REPRESENTATIVE_ = ['id','name','kana','email','status','role'];
-var STAFF_WRITABLE_FIELDS_ADMIN_ = ['id','name','kana','email','status'];
+var STAFF_WRITABLE_FIELDS_ADMIN_ = ['id','name','kana','email','status','role']; // v167: ADMIN can change roles of others (not self, not REPRESENTATIVE)
 var STAFF_WRITABLE_FIELDS_SELF_ = ['id','name','kana','email'];
 
 function sanitizeAdminBatchMemberPayload_(payload) {
@@ -6142,6 +6142,11 @@ function updateMemberSelf_(payload) {
           }
         }
         if (filtered.id) filteredPayloadStaff[filtered.id] = filtered;
+      }
+
+      // v167: ADMIN が自身の role を変更しようとした場合、role フィールドをストリップする
+      if (callerStaffRole === 'ADMIN' && callerStaffId && filteredPayloadStaff[callerStaffId]) {
+        delete filteredPayloadStaff[callerStaffId]['role'];
       }
 
       // v106: DB上の全職員リストを取得し、ペイロードの変更をマージ

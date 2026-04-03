@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { Member, MailingPreference, MailDestination, MemberType, PaymentStatus, Staff, StaffRole, Training } from '../types';
 import { AlertTriangleIcon, MailIcon, CheckCircleIcon, BookOpenIcon, UsersIcon, HomeIcon, PlusIcon, SparklesIcon } from './Icons';
 import { api } from '../services/api';
@@ -50,8 +50,8 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
 
   const isBusiness = member.type === MemberType.BUSINESS;
 
-  // Demo Logic: Operating User (Simulating logged-in staff for Business accounts)
-  // If activeStaffId is passed (from App demo switcher), use it. 
+  // Active staff context for business-member views
+  // If activeStaffId is provided from the current session context, use it.
   // Otherwise default to the first staff.
   const [operatingStaffId, setOperatingStaffId] = useState<string | null>(
     activeStaffId || (isBusiness && member.staff && member.staff.length > 0 ? member.staff[0].id : null)
@@ -77,10 +77,42 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
 
   // Determine Permissions
   const currentStaff = isBusiness ? member.staff?.find(s => s.id === operatingStaffId) : null;
+  const representativeStaff = isBusiness ? (member.staff?.find(s => s.role === 'REPRESENTATIVE') || null) : null;
+  const representativeProfile = isBusiness
+    ? {
+        lastName: representativeStaff?.lastName || member.lastName || '',
+        firstName: representativeStaff?.firstName || member.firstName || '',
+        lastKana: representativeStaff?.lastKana || member.lastKana || '',
+        firstKana: representativeStaff?.firstKana || member.firstKana || '',
+        careManagerNumber: representativeStaff?.careManagerNumber || member.careManagerNumber || '',
+      }
+    : {
+        lastName: member.lastName || '',
+        firstName: member.firstName || '',
+        lastKana: member.lastKana || '',
+        firstKana: member.firstKana || '',
+        careManagerNumber: member.careManagerNumber || '',
+      };
+  const buildFullName = (lastName?: string, firstName?: string, fallback?: string) => {
+    const joined = `${lastName || ''} ${firstName || ''}`.trim();
+    return joined || fallback || '';
+  };
+  const syncBusinessRepresentativeSnapshot = (target: Member): Member => {
+    if (target.type !== MemberType.BUSINESS) return target;
+    const rep = target.staff?.find((staff) => staff.role === 'REPRESENTATIVE');
+    if (!rep) return target;
+    return {
+      ...target,
+      lastName: rep.lastName || target.lastName || '',
+      firstName: rep.firstName || target.firstName || '',
+      lastKana: rep.lastKana || target.lastKana || '',
+      firstKana: rep.firstKana || target.firstKana || '',
+      careManagerNumber: rep.careManagerNumber || target.careManagerNumber || '',
+    };
+  };
   // REPRESENTATIVE・ADMIN は編集可、STAFF は閲覧のみ
   const isReadOnly = isBusiness ? (currentStaff?.role !== 'ADMIN' && currentStaff?.role !== 'REPRESENTATIVE') : false;
-  // 管理者専用フィールド（ステータス・入退会日・削除フラグ）は会員マイページでは常に無効
-  const isAdminField = !isAdmin;
+
 
   // --- Logic for Trainings ---
   
@@ -125,6 +157,16 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
 
   const currentFeeStatus = member.annualFeeHistory[0];
   const currentLoginId = isBusiness ? (currentStaff?.loginId || member.loginId || '-') : (member.loginId || '-');
+  const memberStatusLabel = member.status === 'ACTIVE'
+    ? '有効会員'
+    : member.status === 'WITHDRAWAL_SCHEDULED'
+      ? '退会予定'
+      : '退会済み';
+  const memberStatusDescription = member.status === 'ACTIVE'
+    ? '現在ご利用中の会員資格です。'
+    : member.status === 'WITHDRAWAL_SCHEDULED'
+      ? '退会予定として受け付け済みです。'
+      : '退会手続きが完了しています。';
   
   // Display name for the training table header
   const trainingTargetName = isBusiness 
@@ -244,6 +286,37 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
     }
   };
 
+  const handleRepresentativeFieldChange = (field: 'lastName' | 'firstName' | 'lastKana' | 'firstKana', value: string) => {
+    if (!isBusiness || isReadOnly) return;
+    const representativeId = representativeStaff?.id;
+    if (!representativeId) return;
+    setMember(prev => {
+      const nextStaff = prev.staff?.map(s => {
+        if (s.id !== representativeId) return s;
+        const next = { ...s, [field]: value } as Staff;
+        next.name = buildFullName(
+          field === 'lastName' ? value : next.lastName,
+          field === 'firstName' ? value : next.firstName,
+          next.name
+        );
+        next.kana = buildFullName(
+          field === 'lastKana' ? value : next.lastKana,
+          field === 'firstKana' ? value : next.firstKana,
+          next.kana
+        );
+        return next;
+      });
+      return syncBusinessRepresentativeSnapshot({ ...prev, staff: nextStaff });
+    });
+    if (errors[field]) {
+      setErrors(prev => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+  };
+
   // Staff Management Logic
   const handleStaffChange = (id: string, field: keyof Staff, value: string | boolean) => {
     if (isReadOnly) return;
@@ -309,11 +382,11 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
     const requireHomeInfo = !isBusiness;
 
     // Basic Validation
-    if (!member.lastName?.trim()) newErrors.lastName = '必須項目です';
-    if (!member.firstName?.trim()) newErrors.firstName = '必須項目です';
-    if (!member.lastKana?.trim()) newErrors.lastKana = '必須項目です';
-    if (!member.firstKana?.trim()) newErrors.firstKana = '必須項目です';
-    if (!isSupportMember && !member.careManagerNumber?.trim()) {
+    if (!representativeProfile.lastName?.trim()) newErrors.lastName = '必須項目です';
+    if (!representativeProfile.firstName?.trim()) newErrors.firstName = '必須項目です';
+    if (!representativeProfile.lastKana?.trim()) newErrors.lastKana = '必須項目です';
+    if (!representativeProfile.firstKana?.trim()) newErrors.firstKana = '必須項目です';
+    if (!isSupportMember && !representativeProfile.careManagerNumber?.trim()) {
       newErrors.careManagerNumber = '賛助会員以外は必須です';
     }
 
@@ -340,6 +413,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
         if (!member.officeCity) newErrors.officeCity = '必須です';
         if (!member.officeAddressLine) newErrors.officeAddressLine = '必須です';
         if (!member.officeName?.trim()) newErrors.officeName = '必須項目です';
+        if (isBusiness && !member.officeNumber?.trim()) newErrors.officeNumber = '必須項目です';
         if (!member.phone?.trim()) newErrors.phone = '必須項目です';
         if (!member.fax?.trim()) newErrors.fax = '必須項目です';
     }
@@ -401,7 +475,33 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
         return;
     }
     setWarning(null);
-    onSave(member);
+    const officeNameText = (member.officeName || '').trim();
+    const noOfficeAffiliation = !isBusiness && (officeNameText === '' || officeNameText === '勤務なし');
+    const normalizedMemberBase = noOfficeAffiliation
+      ? {
+          ...member,
+          officeName: '',
+          officeNumber: '',
+          officePostCode: '',
+          officePrefecture: '',
+          officeCity: '',
+          officeAddressLine: '',
+          phone: '',
+          fax: '',
+          preferredMailDestination:
+            member.preferredMailDestination === MailDestination.OFFICE
+              ? MailDestination.HOME
+              : member.preferredMailDestination,
+        }
+      : member;
+    const normalizedMember = isBusiness
+      ? syncBusinessRepresentativeSnapshot({
+          ...normalizedMemberBase,
+          preferredMailDestination: MailDestination.OFFICE,
+        })
+      : normalizedMemberBase;
+    setMember(normalizedMember);
+    onSave(normalizedMember);
     setProfileEditModalOpen(false);
     alert("登録情報を更新しました。");
   };
@@ -455,27 +555,6 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
-
-      {/* Demo: Operating Staff Switcher for Business Members */}
-      {isBusiness && member.staff && (
-        <div className={`bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-center justify-between shadow-sm transition-all ${isReadOnly ? 'opacity-75' : ''}`}>
-            <div className="flex items-center space-x-2">
-                <UsersIcon className="text-yellow-600 w-5 h-5"/>
-                <span className="text-sm font-bold text-yellow-800">操作ユーザー選択 (デモ用):</span>
-            </div>
-            <select 
-                className="bg-white border border-yellow-300 text-slate-700 text-sm rounded-md px-3 py-1.5 focus:ring-2 focus:ring-yellow-500"
-                value={operatingStaffId || ''}
-                onChange={(e) => setOperatingStaffId(e.target.value)}
-            >
-                {member.staff.map(s => (
-                    <option key={s.id} value={s.id}>
-                        {s.name} {s.role === 'REPRESENTATIVE' ? '(代表者)' : s.role === 'ADMIN' ? '(管理者)' : '(一般)'}
-                    </option>
-                ))}
-            </select>
-        </div>
-      )}
 
       {isReadOnly && (
           <div className="bg-slate-100 border border-slate-300 text-slate-600 px-4 py-3 rounded relative" role="alert">
@@ -865,28 +944,28 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
             <div className="pl-8 space-y-8">
                 {/* Representative Name */}
                 <div>
-                    {isBusiness && <h4 className="font-bold text-sm text-slate-800 mb-2">代表者（または主たる連絡先担当者）</h4>}
+                    {isBusiness && <h4 className="font-bold text-sm text-slate-800 mb-2">代表者情報</h4>}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">氏 (姓) (※)</label>
-                            <input disabled={isReadOnly} type="text" name="lastName" value={member.lastName} onChange={handleChange} className={getInputClass('lastName')} />
+                            <input disabled={isReadOnly} type="text" name="lastName" value={representativeProfile.lastName} onChange={isBusiness ? (e) => handleRepresentativeFieldChange('lastName', e.target.value) : handleChange} className={getInputClass('lastName')} />
                             {errors.lastName && <p className="text-xs text-red-500 mt-1">{errors.lastName}</p>}
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">名 (名) (※)</label>
-                            <input disabled={isReadOnly} type="text" name="firstName" value={member.firstName} onChange={handleChange} className={getInputClass('firstName')} />
+                            <input disabled={isReadOnly} type="text" name="firstName" value={representativeProfile.firstName} onChange={isBusiness ? (e) => handleRepresentativeFieldChange('firstName', e.target.value) : handleChange} className={getInputClass('firstName')} />
                             {errors.firstName && <p className="text-xs text-red-500 mt-1">{errors.firstName}</p>}
                         </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">フリガナ (セイ) (※)</label>
-                            <input disabled={isReadOnly} type="text" name="lastKana" value={member.lastKana} onChange={handleChange} className={getInputClass('lastKana')} />
+                            <input disabled={isReadOnly} type="text" name="lastKana" value={representativeProfile.lastKana} onChange={isBusiness ? (e) => handleRepresentativeFieldChange('lastKana', e.target.value) : handleChange} className={getInputClass('lastKana')} />
                             {errors.lastKana && <p className="text-xs text-red-500 mt-1">{errors.lastKana}</p>}
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">フリガナ (メイ) (※)</label>
-                            <input disabled={isReadOnly} type="text" name="firstKana" value={member.firstKana} onChange={handleChange} className={getInputClass('firstKana')} />
+                            <input disabled={isReadOnly} type="text" name="firstKana" value={representativeProfile.firstKana} onChange={isBusiness ? (e) => handleRepresentativeFieldChange('firstKana', e.target.value) : handleChange} className={getInputClass('firstKana')} />
                             {errors.firstKana && <p className="text-xs text-red-500 mt-1">{errors.firstKana}</p>}
                         </div>
                     </div>
@@ -899,7 +978,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                             disabled={true}
                             type="text"
                             name="careManagerNumber"
-                            value={member.careManagerNumber || ''}
+                            value={representativeProfile.careManagerNumber || ''}
                             onChange={handleChange}
                             className="w-full rounded-md shadow-sm border p-2 bg-slate-100 text-slate-500 cursor-not-allowed border-slate-300"
                             placeholder={member.type === MemberType.SUPPORT ? '賛助会員は任意' : '賛助会員以外は必須'}
@@ -907,37 +986,39 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                         {!isAdmin && <p className="text-xs text-slate-400 mt-1">変更はログインIDと連動するため管理者にお問い合わせください</p>}
                         {errors.careManagerNumber && <p className="text-xs text-red-500 mt-1">{errors.careManagerNumber}</p>}
                     </div>
-                    <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {isAdmin && (
+                      <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">会員ステータス</label>
-                            <select
-                              disabled={isReadOnly || isAdminField}
-                              name="status"
-                              value={member.status}
-                              onChange={handleChange}
-                              className={`w-full border-slate-300 rounded-lg p-2 text-sm ${isAdminField ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`}
-                            >
-                              <option value="ACTIVE">有効</option>
-                              <option value="WITHDRAWAL_SCHEDULED">退会予定</option>
-                              <option value="WITHDRAWN">退会</option>
-                            </select>
-                            {isAdminField && <p className="text-xs text-slate-400 mt-1">管理者のみ変更可</p>}
+                          <label className="block text-sm font-medium text-slate-700 mb-1">会員ステータス</label>
+                          <select
+                            disabled={isReadOnly}
+                            name="status"
+                            value={member.status}
+                            onChange={handleChange}
+                            className="w-full border-slate-300 rounded-lg p-2 text-sm"
+                          >
+                            <option value="ACTIVE">有効</option>
+                            <option value="WITHDRAWAL_SCHEDULED">退会予定</option>
+                            <option value="WITHDRAWN">退会</option>
+                          </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">入会日</label>
-                            <input
-                              disabled={isReadOnly || isAdminField}
-                              type="date"
-                              name="joinedDate"
-                              value={member.joinedDate || ''}
-                              onChange={handleChange}
-                              className={isAdminField ? 'w-full rounded-md shadow-sm border p-2 bg-slate-100 text-slate-500 cursor-not-allowed border-slate-300' : getInputClass('joinedDate')}
-                            />
-                            {errors.joinedDate && <p className="text-xs text-red-500 mt-1">{errors.joinedDate}</p>}
+                          <label className="block text-sm font-medium text-slate-700 mb-1">入会日</label>
+                          <input
+                            disabled={isReadOnly}
+                            type="date"
+                            name="joinedDate"
+                            value={member.joinedDate || ""}
+                            onChange={handleChange}
+                            className={getInputClass('joinedDate')}
+                          />
+                          {errors.joinedDate && <p className="text-xs text-red-500 mt-1">{errors.joinedDate}</p>}
                         </div>
+                        {/* v106: ????????????????????????? */}
+                      </div>
+                    )}
                         {/* v106: 退会日・年度中退会は非表示（バックエンド自動管理） */}
                     </div>
-                </div>
 
                 {/* Staff List (Only for Business) */}
                 {isBusiness && (
@@ -962,8 +1043,14 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                             {member.staff?.map((staff, staffIndex) => {
                                 // v106: STAFF ロールは自分の行の氏名・フリガナ・メールのみ編集可
                                 const isOwnStaff = staff.id === operatingStaffId;
+                                const isRepresentativeRow = staff.role === 'REPRESENTATIVE';
                                 const isStaffSelfEditable = currentStaff?.role === 'STAFF' && isOwnStaff;
-                                const nameDisabled = isReadOnly && !isStaffSelfEditable;
+                                const nameDisabled = (isReadOnly && !isStaffSelfEditable) || isRepresentativeRow;
+                                // v167: ADMIN はロール変更可（代表者行・自分行を除く）
+                                const canEditThisRole = !isReadOnly && (
+                                  currentStaff?.role === 'REPRESENTATIVE' ||
+                                  (currentStaff?.role === 'ADMIN' && !isRepresentativeRow && !isOwnStaff)
+                                );
                                 return (
                                 <div key={staff.id} className={`bg-white p-3 rounded shadow-sm border ${isOwnStaff && currentStaff?.role === 'STAFF' ? 'border-primary-300 ring-1 ring-primary-200' : 'border-slate-200'} grid grid-cols-1 md:grid-cols-12 gap-3 items-start md:items-center`}>
                                     <div className="md:col-span-3">
@@ -977,6 +1064,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                             placeholder="例: 佐藤 次郎"
                                         />
                                         {errors[`staff_${staffIndex}_name`] && <p className="text-xs text-red-500 mt-1">{errors[`staff_${staffIndex}_name`]}</p>}
+                                        {isRepresentativeRow && <p className="text-xs text-slate-400 mt-1">代表者情報から自動反映されます</p>}
                                     </div>
                                     <div className="md:col-span-3">
                                         <label className="block text-xs font-medium text-slate-500">フリガナ</label>
@@ -989,6 +1077,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                             placeholder="サトウ ジロウ"
                                         />
                                         {errors[`staff_${staffIndex}_kana`] && <p className="text-xs text-red-500 mt-1">{errors[`staff_${staffIndex}_kana`]}</p>}
+                                        {isRepresentativeRow && <p className="text-xs text-slate-400 mt-1">代表者情報から自動反映されます</p>}
                                     </div>
                                     <div className="md:col-span-2">
                                         <label className="block text-xs font-medium text-slate-500">個別メールアドレス</label>
@@ -1016,15 +1105,19 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                     <div className="md:col-span-2">
                                         <label className="block text-xs font-medium text-slate-500">権限</label>
                                         <select
-                                            disabled={isReadOnly || currentStaff?.role !== 'REPRESENTATIVE'}
+                                            disabled={!canEditThisRole}
                                             value={staff.role}
                                             onChange={(e) => handleStaffChange(staff.id, 'role', e.target.value as StaffRole)}
-                                            className={`w-full text-sm border-slate-200 rounded p-1 ${(isReadOnly || currentStaff?.role !== 'REPRESENTATIVE') ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`}
+                                            className={`w-full text-sm border-slate-200 rounded p-1 ${!canEditThisRole ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`}
                                         >
                                             <option value="ADMIN">管理者</option>
                                             <option value="STAFF">一般</option>
                                         </select>
-                                        {currentStaff?.role !== 'REPRESENTATIVE' && !isReadOnly && <p className="text-xs text-slate-400 mt-1">権限変更は代表者のみ</p>}
+                                        {!canEditThisRole && !isReadOnly && currentStaff?.role === 'ADMIN' && (
+                                          <p className="text-xs text-slate-400 mt-1">
+                                            {isRepresentativeRow ? '代表者の権限は変更できません' : '自身の権限は変更できません'}
+                                          </p>
+                                        )}
                                     </div>
                                     {/* v106: 削除ボタン廃止 — 退職ステータスで運用 */}
                                     <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1133,12 +1226,11 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                 </div>
             </div>
           )}
-
           {/* Section 3: Office Info (For Business: Main Info) */}
           <div>
             <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center border-b pb-2">
               <span className="w-6 h-6 bg-slate-200 text-slate-700 rounded-full flex items-center justify-center mr-2 text-sm font-bold">{isBusiness ? '2' : '3'}</span>
-              勤務先情報
+              {isBusiness ? '事業所情報' : '勤務先情報'}
               {(isBusiness || member.preferredMailDestination === MailDestination.OFFICE) && (
                   <span className="ml-3 text-xs bg-primary-100 text-primary-700 px-2 py-1 rounded font-bold">
                     現在、郵送先に指定されています (住所必須)
@@ -1148,13 +1240,21 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
             <div className="pl-8 grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  事業所名 (※) 
-                  {!isBusiness && <span className="text-xs text-red-500 ml-2">勤務していない場合は「勤務なし」と入力</span>}
+                  {isBusiness ? '事業所名' : '事業所名 (※)'} 
+                  {!isBusiness && <span className="text-xs text-red-500 ml-2">空白または「勤務なし」の場合は未勤務として扱います</span>}
                 </label>
-                <input disabled={isReadOnly || isBusiness} type="text" name="officeName" value={member.officeName} onChange={handleChange} className={isBusiness ? 'w-full rounded-md shadow-sm border p-2 bg-slate-100 text-slate-500 cursor-not-allowed border-slate-300' : getInputClass('officeName')} />
+                <input disabled={isReadOnly} type="text" name="officeName" value={member.officeName} onChange={handleChange} className={getInputClass('officeName')} />
                 {errors.officeName && <p className="text-xs text-red-500 mt-1">{errors.officeName}</p>}
-                {isBusiness && !isAdmin && <p className="text-xs text-slate-400 mt-1">変更をご希望の場合はお問い合わせください</p>}
+                {isBusiness && <p className="text-xs text-slate-500 mt-1">事業所会員では、この情報が会員情報の正本として扱われます。</p>}
               </div>
+
+              {isBusiness && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">事業所番号 <span className="text-red-500">(※)</span></label>
+                  <input disabled={isReadOnly} type="text" name="officeNumber" value={member.officeNumber || ""} onChange={handleChange} className={getInputClass('officeNumber')} placeholder="0000000000" />
+                  {errors.officeNumber && <p className="text-xs text-red-500 mt-1">{errors.officeNumber}</p>}
+                </div>
+              )}
 
                <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -1204,7 +1304,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
           <div>
             <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center border-b pb-2">
               <span className="w-6 h-6 bg-slate-200 text-slate-700 rounded-full flex items-center justify-center mr-2 text-sm font-bold">{isBusiness ? '3' : '4'}</span>
-              発送・通信設定
+              {isBusiness ? '発送・通知ルール' : '発送・通信設定'}
             </h3>
             
             <div className="pl-8 space-y-8">
@@ -1225,7 +1325,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                              <div>
                                 <p className="font-bold text-slate-800">事業所宛に1通送付</p>
                                 <p className="text-sm text-slate-600">
-                                    総会資料などの定期発送物は、上記「勤務先情報」の住所へ一括で送付されます。
+                                    総会資料などの定期発送物は、上記「事業所情報」の住所へ一括で送付されます。
                                 </p>
                              </div>
                         </div>
@@ -1238,7 +1338,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                              <div>
                                 <p className="font-bold text-slate-800">各職員へ個別配信</p>
                                 <p className="text-sm text-slate-600">
-                                    研修案内などの連絡は、上記「所属職員一覧」に登録された各メールアドレスへ個別に配信されます。
+                                    研修案内などの連絡は、所属職員一覧に登録された各メールアドレスへ個別に配信されます。
                                 </p>
                              </div>
                         </div>
@@ -1288,7 +1388,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                             disabled={isReadOnly}
                             type="email"
                             name="email"
-                            value={member.email || ''}
+                            value={member.email || ""}
                             onChange={handleChange}
                             className={getInputClass('email')}
                             placeholder="user@example.com"
@@ -1346,7 +1446,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
           </div>
 
           <div className="pt-6 border-t border-slate-200 flex justify-end">
-            {(!isReadOnly || (currentStaff?.role === 'STAFF' && isBusiness)) && (
+            {!isReadOnly && (
                 <button type="submit" className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 px-12 rounded-lg shadow-lg transform transition hover:-translate-y-0.5 text-lg">
                 変更を保存する
                 </button>
