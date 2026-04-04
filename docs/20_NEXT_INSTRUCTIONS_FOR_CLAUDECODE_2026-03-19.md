@@ -2,17 +2,17 @@
 
 
 
-Updated: 2026-04-04
+Updated: 2026-04-05
 
-Production: `v168` / fixed deployments `@168` (v169 pushed, deployments not yet updated)
+Production: `v170` / fixed deployments `@170`
 
 
 
 ## 1. Current State You Need To Know
 
-- Production is `v168`.
+- Production is `v170`.
 
-- Both fixed deployments point to `@168`.
+- Both fixed deployments point to `@170`.
 
 - Demo login accounts, mock member routes, and the in-app demo selector are retired.
 
@@ -32,13 +32,17 @@ Production: `v168` / fixed deployments `@168` (v169 pushed, deployments not yet 
 
 3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 
-4. `docs/09_DEPLOYMENT_POLICY.md`
+4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
 
-5. `docs/05_AUTH_AND_ROLE_SPEC.md`
+5. `docs/45_RELEASE_STATE_v170_2026-04-04.md`
 
-6. `docs/04_DB_OPERATION_RUNBOOK.md`
+6. `docs/09_DEPLOYMENT_POLICY.md`
 
-7. `docs/03_DATA_MODEL.md`
+7. `docs/05_AUTH_AND_ROLE_SPEC.md`
+
+8. `docs/04_DB_OPERATION_RUNBOOK.md`
+
+9. `docs/03_DATA_MODEL.md`
 
 
 
@@ -68,13 +72,15 @@ Expected:
 
 - health checks succeed
 
-- both fixed deployments point to `@168`
+- both fixed deployments point to `@170`
 
 
 
 ## 4. Working Rules
 
 - Use a document-driven workflow.
+
+- Follow `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md` for start checks, completion criteria, and handover updates.
 
 - Verify the current source docs before changing behavior.
 
@@ -133,12 +139,12 @@ If you deploy, also follow `docs/09_DEPLOYMENT_POLICY.md` for:
 
 ## 7. Next Required Action
 
-- v168 deployed. Both fixed deployments confirmed at `@168`.
+- v170 deployed. Both fixed deployments confirmed at `@170`.
 
 - v167 tests all PASS — see `docs/41_TEST_SPEC_v167_BUSINESS_ADMIN_ROLE_CHANGE.md`.
 
-- **DB RESTORED (2026-04-04)**: Production data restored from 2026-03-26 external backup. WL-001 repaired. Demo accounts added (DEMO-IND-001, DEMO-IND-002, DEMO-BIZ-001). See `HANDOVER.md` §7 for details.
+- **DB STATUS (2026-04-04)**: The same-day recovery attempt was rolled back by the user. Treat the current production DB as the reconciled baseline.
 
-- **KNOWN ISSUE**: T_事業所職員 has pre-existing data quality issues (corrupted name/role columns for some staff). Admin login and member list work. If needed, restore from Google Spreadsheet version history for a cleaner state.
+- If you perform any DB-changing operation, record the backup point, rollback path, and post-change verification in the same turn.
 
-- **PENDING**: User decision on admin console FY filter default — see `docs/42_SPEC_AUDIT_ADMIN_CONSOLE_2026-04-04.md` §3.
+- Admin console FY filter default is `全期間`, and year-specific counts must use status at the selected fiscal-year timepoint rather than current withdrawn state.

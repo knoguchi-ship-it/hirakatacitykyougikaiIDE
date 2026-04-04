@@ -1,8 +1,8 @@
 # 仕様監査レポート: 管理コンソール表示異常と仕様乖離
 
 作成日: 2026-04-04
-対象バージョン: v168
-ステータス: `要対応` (2件 CRITICAL / 2件 SPEC CHANGE / 1件 UNDEFINED)
+対象バージョン: v170
+ステータス: `対応済み・記録用`
 
 ---
 
@@ -51,12 +51,12 @@ T_年会費納入履歴
 `seedDemoData` がどのテーブルを削除するか記載したドキュメントが **存在しない**。
 `docs/04_DB_OPERATION_RUNBOOK.md` にも警告なし。
 
-### 対応方針
+### 対応結果
 
-1. **データ復旧**: スプレッドシートの版歴（Google スプレッドシートの変更履歴）から本番データを復元する。
-2. **ホワイトリスト再設定**: 管理コンソール「システム権限」で k.noguchi のホワイトリストを正しい本番会員 ID に更新する。
-3. **ドキュメント整備**: `docs/04_DB_OPERATION_RUNBOOK.md` に `seedDemoData` は本番 DB 破壊的操作である旨を明記する（→ CRITICAL-2 文書化タスク）。
-4. **コード側の防護**: `seedDemoData` の冒頭に本番 DB チェック（`DB_SPREADSHEET_ID_FIXED` と既知のデモ用 ID との照合）または実行確認プロンプトを追加することを検討する。
+1. 同日中にユーザーが DB 復旧作業をロールバックし、現時点の本番 DB は整合済み状態へ戻した。
+2. 以後の本番 DB 基準は、2026-04-04 ロールバック後の状態とする。
+3. `docs/04_DB_OPERATION_RUNBOOK.md` に `seedDemoData` の破壊的スコープと事前バックアップ必須を追記した。
+4. コード側の追加防護は別タスク候補として残す。
 
 ---
 
@@ -73,9 +73,9 @@ T_年会費納入履歴
 
 また、権限チェックにより `seedDemoData` は `MASTER` 権限を持つ管理者のみ実行可能（Code.gs 行 709）だが、これがデモ・テスト専用であることも明示されていない。
 
-### 対応方針
+### 対応結果
 
-`docs/04_DB_OPERATION_RUNBOOK.md` に以下のセクションを追加する：
+`docs/04_DB_OPERATION_RUNBOOK.md` に危険操作セクションを追加し、`seedDemoData()` が本番固定 DB を破壊する操作であることを明記した。
 
 ```
 ## 危険操作リスト
@@ -140,11 +140,11 @@ if (memberListFiscalYearFilter !== 'ALL') {
 - `docs/01_PRD.md` にも未記載
 - この変更が仕様として意図されたものか、バグかが判断できない状態
 
-### 確認事項
+### 確認結果
 
-この変更は意図した仕様変更か否か？（ユーザーへの確認が必要）
-- **仕様変更が意図したものの場合**: `docs/02_ARCHITECTURE.md` に会計年度フィルタの動作を追記する
-- **意図しない変更の場合**: デフォルト値を `'ALL'` に戻し、コミットを差し戻す
+ユーザー確認後、既定値は `ALL`、年度指定時は「当該年度時点の在籍状態」で判定する仕様に確定した。
+- `src/App.tsx` を修正済み
+- `docs/02_ARCHITECTURE.md` に仕様反映済み
 
 ---
 
@@ -158,11 +158,11 @@ if (memberListFiscalYearFilter !== 'ALL') {
 Production is `v166` and both fixed deployments are at `@166`.
 ```
 
-実際の本番は `v168` / `@168`。
+監査実施時点の本番は `v168` / `@168` だった。
 
-### 対応
+### 対応結果
 
-`05_PROJECT_RULES_HIRAKATA.md` の Operating Assumptions セクションを v168 に更新する（→ 本ドキュメント作成後すぐに修正）。
+`05_PROJECT_RULES_HIRAKATA.md` の Operating Assumptions を `v170 / @170` に更新した。
 
 ---
 
@@ -179,37 +179,30 @@ Production is `v166` and both fixed deployments are at `@166`.
 | ダッシュボード数値とフィルタの連動 | 未定義 | フロントエンド再計算で連動 |
 | 「全件表示」に戻す手段 | 未定義 | ドロップダウンで 'ALL' を選択 |
 
-### 対応
+### 対応結果
 
-`docs/02_ARCHITECTURE.md` §2.1 管理コンソール構成に会計年度フィルタの仕様を追記する（ただし #3 の確認後に行う）。
+`docs/02_ARCHITECTURE.md` §2.1 に会計年度フィルタの仕様を追記済み。
 
 ---
 
 ## 6. 対応優先度
 
-| 優先度 | 番号 | 作業 | 担当 |
-|--------|------|------|------|
-| 今すぐ | CRITICAL-1 | スプレッドシート版歴から本番データ復元 | **ユーザー（手動）** |
-| 今すぐ | CRITICAL-1 | ホワイトリスト `紐付け会員ID` を本番の正しい値に修正 | **ユーザー確認 → ClaudeCode 実行** |
-| 今すぐ | SPEC CHANGE-2 | `05_PROJECT_RULES_HIRAKATA.md` の v166 → v168 修正 | ClaudeCode |
-| 確認後 | SPEC CHANGE-1 | FY フィルタ初期値を `'ALL'` に戻すか仕様化するか決める | **ユーザー判断** |
-| 確認後 | CRITICAL-2 | `docs/04_DB_OPERATION_RUNBOOK.md` に seedDemoData 警告追記 | ClaudeCode |
-| 確認後 | UNDEFINED | `docs/02_ARCHITECTURE.md` に FY フィルタ仕様追記 | ClaudeCode |
+| 状態 | 番号 | 結果 | 担当 |
+|------|------|------|------|
+| 完了 | CRITICAL-1 | ユーザーが DB ロールバックを実施し、本番 DB を整合済み状態に復元 | ユーザー |
+| 完了 | SPEC CHANGE-2 | `05_PROJECT_RULES_HIRAKATA.md` を `v170 / @170` に更新 | ClaudeCode |
+| 完了 | SPEC CHANGE-1 | FY フィルタ既定値を `ALL` とし、年度時点判定へ修正 | ClaudeCode |
+| 完了 | CRITICAL-2 | `docs/04_DB_OPERATION_RUNBOOK.md` に seedDemoData 警告追記 | ClaudeCode |
+| 完了 | UNDEFINED | `docs/02_ARCHITECTURE.md` に FY フィルタ仕様追記 | ClaudeCode |
 
 ---
 
-## 7. ユーザーへの確認事項
+## 7. クローズ時点の結論
 
-以下の 2 点を確認してください。
-
-### Q1（CRITICAL-1 対応）
-スプレッドシート `1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs` の変更履歴（Google スプレッドシート → ファイル → 変更履歴）に、2026-04-03 以前のバックアップが残っていますか？
-
-### Q2（SPEC CHANGE-1 対応）
-管理コンソールの会員一覧・ダッシュボードの初期表示は、以下のどちらが正しい仕様ですか？
-
-- **A**: デフォルト「全件表示 (ALL)」— 以前の動作（コミット `2c3a223` 以前）
-- **B**: デフォルト「現在の会計年度で絞り込み」— 現在の動作
+- DB 影響はユーザーによるロールバックで解消済み。
+- FY フィルタ仕様は `ALL` 既定、年度指定時は在籍時点判定で確定。
+- ダッシュボード `ALL` 時のヘッダーは `全期間` 表示で確定。
+- 本文書は監査記録として残し、現在の運用前提は `HANDOVER.md` と関連正本を参照する。
 
 ---
 
@@ -221,4 +214,4 @@ Production is `v166` and both fixed deployments are at `@166`.
 | `backend/Code.gs` | `getAdminDashboardData_()` 行 2821 — 全会員を返す（フィルタなし） |
 | `src/App.tsx` | `memberListFiscalYearFilter` 行 123、`filteredAdminMemberRows` 行 471-494 |
 | `src/App.tsx` | `filteredDashboardMetrics` 行 519+、`renderAdminPage` 行 1587 |
-| `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md` | Current Operating Assumptions（v166 と記載） |
+| `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md` | Current Operating Assumptions（監査時点では v166 と記載） |

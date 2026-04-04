@@ -18,9 +18,88 @@ type MemberListFilter = 'ALL' | MemberType;
 type MemberStatusFilter = 'ALL' | 'ACTIVE' | 'WITHDRAWAL_SCHEDULED' | 'WITHDRAWN';
 type MemberSortKey = 'memberId' | 'displayName' | 'memberType' | 'trainingCount' | 'tenure' | 'status';
 type MemberSortDir = 'asc' | 'desc';
+type DisplayMemberStatus = Exclude<MemberStatusFilter, 'ALL'>;
 const DEFAULT_MEMBER_PAGE_SIZE = 50;
 const getFiscalYearForDate = (date: Date) => (date.getMonth() < 3 ? date.getFullYear() - 1 : date.getFullYear());
-const DEFAULT_MEMBER_FISCAL_YEAR_FILTER = String(getFiscalYearForDate(new Date()));
+const DEFAULT_MEMBER_FISCAL_YEAR_FILTER = 'ALL';
+
+const parseDateString = (value?: string): Date | null => {
+  const text = String(value || '').trim();
+  if (!text) return null;
+
+  const ymdMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (ymdMatch) {
+    const [, y, m, d] = ymdMatch;
+    const parsed = new Date(Number(y), Number(m) - 1, Number(d), 12, 0, 0, 0);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate(), 12, 0, 0, 0);
+};
+
+const getFiscalYearBounds = (fiscalYear: number) => ({
+  start: new Date(fiscalYear, 3, 1, 12, 0, 0, 0),
+  end: new Date(fiscalYear + 1, 2, 31, 12, 0, 0, 0),
+});
+
+const getMemberStatusAtFiscalYear = (
+  member: AdminDashboardMemberRow,
+  fiscalYear: number | null,
+  currentFiscalYear: number,
+): DisplayMemberStatus | null => {
+  if (fiscalYear === null) return member.status;
+
+  const joined = parseDateString(member.joinedDate);
+  if (!joined) return null;
+
+  const { start, end } = getFiscalYearBounds(fiscalYear);
+  if (joined > end) return null;
+
+  const withdrawn = parseDateString(member.withdrawnDate);
+  if (withdrawn) {
+    if (withdrawn < start) return null;
+    if (withdrawn <= end) return 'WITHDRAWN';
+  }
+
+  if (member.status === 'WITHDRAWAL_SCHEDULED' && fiscalYear >= currentFiscalYear) {
+    return 'WITHDRAWAL_SCHEDULED';
+  }
+
+  if (member.status === 'WITHDRAWN' && !withdrawn) {
+    return 'WITHDRAWN';
+  }
+
+  return 'ACTIVE';
+};
+
+const getStaffStatusAtFiscalYear = (
+  staff: NonNullable<Member['staff']>[number],
+  fiscalYear: number | null,
+  currentFiscalYear: number,
+): 'ENROLLED' | 'LEFT' | null => {
+  if (fiscalYear === null) return staff.status === 'LEFT' ? 'LEFT' : 'ENROLLED';
+
+  const joined = parseDateString(staff.joinedDate);
+  if (!joined) return null;
+
+  const { start, end } = getFiscalYearBounds(fiscalYear);
+  if (joined > end) return null;
+
+  const withdrawn = parseDateString(staff.withdrawnDate);
+  if (withdrawn) {
+    if (withdrawn < start) return null;
+    if (withdrawn <= end) return 'LEFT';
+  }
+
+  if (staff.status === 'LEFT' && !withdrawn) {
+    return 'LEFT';
+  }
+
+  return 'ENROLLED';
+};
 
 interface LoginIdentity {
   id: string;
@@ -49,7 +128,7 @@ const buildLoginIdentities = (members: Member[]): LoginIdentity[] =>
     }
     return (member.staff || []).map((staff) => ({
       id: `${member.id}-${staff.id}`,
-      label: `事業所会員: ${member.officeName} - ${staff.name} (${staff.role === 'ADMIN' ? '管理者' : 'メンバー'})`,
+      label: `事業所会員: ${member.officeName} - ${staff.name} (${staff.role === 'REPRESENTATIVE' ? '代表者' : staff.role === 'ADMIN' ? '管理者' : 'メンバー'})`,
       memberId: member.id,
       staffId: staff.id,
       staffRole: staff.role,
@@ -459,11 +538,19 @@ const App: React.FC = () => {
   const currentIdentity = loginIdentities.find((i) => i.id === selectedIdentityId) || loginIdentities[0];
   const currentUser = currentIdentity ? members.find((m) => m.id === currentIdentity.memberId) : undefined;
   const adminMemberRows = adminDashboardData?.memberRows || [];
+  const currentFiscalYear = adminDashboardData?.currentFiscalYear ?? getFiscalYearForDate(new Date());
+  const selectedFiscalYear = useMemo(() => {
+    if (memberListFiscalYearFilter === 'ALL') return null;
+    const fiscalYear = Number(memberListFiscalYearFilter);
+    return Number.isFinite(fiscalYear) ? fiscalYear : null;
+  }, [memberListFiscalYearFilter]);
+  const getDisplayMemberStatus = useCallback((member: AdminDashboardMemberRow) => (
+    getMemberStatusAtFiscalYear(member, selectedFiscalYear, currentFiscalYear)
+  ), [currentFiscalYear, selectedFiscalYear]);
 
   const computeTenure = useCallback((joinedDate: string): number => {
-    if (!joinedDate) return 0;
-    const joined = new Date(joinedDate);
-    if (isNaN(joined.getTime())) return 0;
+    const joined = parseDateString(joinedDate);
+    if (!joined) return 0;
     const now = new Date();
     return Math.floor((now.getTime() - joined.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
   }, []);
@@ -472,26 +559,16 @@ const App: React.FC = () => {
     const normalizedQuery = memberListQuery.trim().toLowerCase();
     return adminMemberRows.filter((member) => {
       if (memberListFilter !== 'ALL' && member.memberType !== memberListFilter) return false;
-      if (memberListStatusFilter !== 'ALL' && member.status !== memberListStatusFilter) return false;
-      if (memberListFiscalYearFilter !== 'ALL') {
-        const fy = Number(memberListFiscalYearFilter);
-        const fyStart = new Date(fy, 3, 1);      // 4月1日
-        const fyEnd = new Date(fy + 1, 2, 31);   // 翌3月31日
-        const joined = member.joinedDate ? new Date(member.joinedDate) : null;
-        if (!joined || isNaN(joined.getTime()) || joined > fyEnd) return false;
-        // 退会済みの場合、退会日が年度開始前なら除外
-        if (member.status === 'WITHDRAWN' && member.withdrawnDate) {
-          const wd = new Date(member.withdrawnDate);
-          if (!isNaN(wd.getTime()) && wd < fyStart) return false;
-        }
-      }
+      const displayStatus = getMemberStatusAtFiscalYear(member, selectedFiscalYear, currentFiscalYear);
+      if (selectedFiscalYear !== null && !displayStatus) return false;
+      if (memberListStatusFilter !== 'ALL' && displayStatus !== memberListStatusFilter) return false;
       if (!normalizedQuery) return true;
       return [member.memberId, member.displayName]
         .join(' ')
         .toLowerCase()
         .includes(normalizedQuery);
     });
-  }, [adminMemberRows, memberListFilter, memberListStatusFilter, memberListFiscalYearFilter, memberListQuery]);
+  }, [adminMemberRows, currentFiscalYear, memberListFilter, memberListQuery, memberListStatusFilter, selectedFiscalYear]);
 
   const sortedAdminMemberRows = useMemo(() => {
     const rows = [...filteredAdminMemberRows];
@@ -503,12 +580,12 @@ const App: React.FC = () => {
         case 'memberType': return dir * a.memberType.localeCompare(b.memberType);
         case 'trainingCount': return dir * (a.trainingCount - b.trainingCount);
         case 'tenure': return dir * (computeTenure(a.joinedDate) - computeTenure(b.joinedDate));
-        case 'status': return dir * a.status.localeCompare(b.status);
+        case 'status': return dir * (getDisplayMemberStatus(a) || a.status).localeCompare(getDisplayMemberStatus(b) || b.status);
         default: return 0;
       }
     });
     return rows;
-  }, [filteredAdminMemberRows, memberSortKey, memberSortDir, computeTenure]);
+  }, [computeTenure, filteredAdminMemberRows, getDisplayMemberStatus, memberSortDir, memberSortKey]);
 
   const memberListTotalPages = Math.max(1, Math.ceil(sortedAdminMemberRows.length / memberListPageSize));
   const pagedAdminMemberRows = useMemo(() => {
@@ -516,17 +593,7 @@ const App: React.FC = () => {
     return sortedAdminMemberRows.slice(start, start + memberListPageSize);
   }, [sortedAdminMemberRows, memberListPage, memberListPageSize]);
 
-  const effectiveDashboardFiscalYear = useMemo(() => {
-    if (memberListFiscalYearFilter !== 'ALL') {
-      const fiscalYear = Number(memberListFiscalYearFilter);
-      if (Number.isFinite(fiscalYear)) return fiscalYear;
-    }
-    return adminDashboardData?.currentFiscalYear ?? getFiscalYearForDate(new Date());
-  }, [adminDashboardData, memberListFiscalYearFilter]);
-
   const filteredDashboardBusinessStaffCount = useMemo(() => {
-    const fyStart = new Date(effectiveDashboardFiscalYear, 3, 1);
-    const fyEnd = new Date(effectiveDashboardFiscalYear + 1, 2, 31);
     const visibleBusinessIds = new Set(
       filteredAdminMemberRows
         .filter((member) => member.memberType === MemberType.BUSINESS)
@@ -538,37 +605,32 @@ const App: React.FC = () => {
     return members.reduce((count, member) => {
       if (member.type !== MemberType.BUSINESS || !visibleBusinessIds.has(member.id)) return count;
       const matchedStaff = (member.staff || []).filter((staff) => {
-        const joined = staff.joinedDate ? new Date(staff.joinedDate) : null;
-        if (!joined || Number.isNaN(joined.getTime()) || joined > fyEnd) return false;
-
+        const displayStatus = getStaffStatusAtFiscalYear(staff, selectedFiscalYear, currentFiscalYear);
+        if (!displayStatus) return false;
         if (memberListStatusFilter === 'WITHDRAWAL_SCHEDULED') return false;
-        if (memberListStatusFilter === 'ACTIVE' && staff.status !== 'ENROLLED') return false;
-        if (memberListStatusFilter === 'WITHDRAWN' && staff.status !== 'LEFT') return false;
-
-        if (staff.status === 'LEFT' && staff.withdrawnDate) {
-          const withdrawn = new Date(staff.withdrawnDate);
-          if (!Number.isNaN(withdrawn.getTime()) && withdrawn < fyStart) return false;
-        }
+        if (memberListStatusFilter === 'ACTIVE' && displayStatus !== 'ENROLLED') return false;
+        if (memberListStatusFilter === 'WITHDRAWN' && displayStatus !== 'LEFT') return false;
         return true;
       });
       return count + matchedStaff.length;
     }, 0);
-  }, [effectiveDashboardFiscalYear, filteredAdminMemberRows, memberListStatusFilter, members]);
+  }, [currentFiscalYear, filteredAdminMemberRows, memberListStatusFilter, members, selectedFiscalYear]);
 
   const filteredDashboardMetrics = useMemo(() => {
-    const fyStart = new Date(effectiveDashboardFiscalYear, 3, 1);
-    const fyEnd = new Date(effectiveDashboardFiscalYear + 1, 2, 31);
-
     const joinedCount = filteredAdminMemberRows.filter((member) => {
-      if (!member.joinedDate) return false;
-      const joined = new Date(member.joinedDate);
-      return !Number.isNaN(joined.getTime()) && joined >= fyStart && joined <= fyEnd;
+      const joined = parseDateString(member.joinedDate);
+      if (!joined) return false;
+      if (selectedFiscalYear === null) return true;
+      const { start, end } = getFiscalYearBounds(selectedFiscalYear);
+      return joined >= start && joined <= end;
     }).length;
 
     const withdrawnCount = filteredAdminMemberRows.filter((member) => {
-      if (member.status !== 'WITHDRAWN' || !member.withdrawnDate) return false;
-      const withdrawn = new Date(member.withdrawnDate);
-      return !Number.isNaN(withdrawn.getTime()) && withdrawn >= fyStart && withdrawn <= fyEnd;
+      const withdrawn = parseDateString(member.withdrawnDate);
+      if (!withdrawn) return false;
+      if (selectedFiscalYear === null) return true;
+      const { start, end } = getFiscalYearBounds(selectedFiscalYear);
+      return withdrawn >= start && withdrawn <= end;
     }).length;
 
     return {
@@ -580,7 +642,7 @@ const App: React.FC = () => {
       businessStaffCount: filteredDashboardBusinessStaffCount,
       currentYearJoinedCount: joinedCount,
       currentYearWithdrawnCount: withdrawnCount,
-      fiscalYearLabel: `${effectiveDashboardFiscalYear}年度`,
+      fiscalYearLabel: selectedFiscalYear === null ? '全期間' : `${selectedFiscalYear}年度`,
       hasFilteredView:
         memberListFilter !== 'ALL' ||
         memberListStatusFilter !== 'ALL' ||
@@ -588,13 +650,13 @@ const App: React.FC = () => {
         memberListQuery.trim().length > 0,
     };
   }, [
-    effectiveDashboardFiscalYear,
     filteredAdminMemberRows,
     filteredDashboardBusinessStaffCount,
     memberListFilter,
     memberListFiscalYearFilter,
     memberListQuery,
     memberListStatusFilter,
+    selectedFiscalYear,
   ]);
 
   const availableFiscalYears = useMemo(() => {
@@ -603,19 +665,18 @@ const App: React.FC = () => {
     let minFY = Infinity;
     adminMemberRows.forEach(m => {
       if (m.joinedDate) {
-        const d = new Date(m.joinedDate);
-        if (!isNaN(d.getTime())) {
+        const d = parseDateString(m.joinedDate);
+        if (d) {
           const fy = toFiscalYear(d);
           if (fy < minFY) minFY = fy;
         }
       }
     });
-    const currentFY = adminDashboardData?.currentFiscalYear ?? toFiscalYear(new Date());
-    if (!isFinite(minFY)) return [currentFY];
+    if (!isFinite(minFY)) return [currentFiscalYear];
     const years: number[] = [];
-    for (let y = currentFY; y >= minFY; y--) years.push(y);
+    for (let y = currentFiscalYear; y >= minFY; y--) years.push(y);
     return years;
-  }, [adminMemberRows, adminDashboardData]);
+  }, [adminMemberRows, currentFiscalYear]);
 
   const toggleMemberSort = useCallback((key: MemberSortKey) => {
     if (memberSortKey === key) {
@@ -676,7 +737,7 @@ const App: React.FC = () => {
     let label = '個人会員';
     if (currentIdentity.type === MemberType.SUPPORT) label = '賛助会員';
     if (currentIdentity.type === MemberType.BUSINESS) {
-      label = currentIdentity.staffRole === 'ADMIN' ? '事業所会員（管理者）' : '事業所会員（メンバー）';
+      label = currentIdentity.staffRole === 'REPRESENTATIVE' ? '事業所会員（代表者）' : currentIdentity.staffRole === 'ADMIN' ? '事業所会員（管理者）' : '事業所会員（メンバー）';
     }
     return label;
   }, [currentIdentity]);
@@ -1503,7 +1564,14 @@ const App: React.FC = () => {
                 <td className="px-4 py-3 text-sm"><span className={`px-2 py-0.5 rounded text-xs font-medium ${member.memberType === MemberType.BUSINESS ? 'bg-indigo-100 text-indigo-700' : member.memberType === MemberType.SUPPORT ? 'bg-pink-100 text-pink-700' : 'text-slate-600'}`}>{memberTypeLabel(member.memberType)}</span></td>
                 <td className="px-4 py-3 text-sm text-slate-600 text-center">{member.trainingCount}</td>
                 <td className="px-4 py-3 text-sm text-slate-600">{member.joinedDate ? `${computeTenure(member.joinedDate)}年` : '-'}</td>
-                <td className="px-4 py-3 text-sm">{member.status === 'WITHDRAWN' ? <span className="text-red-500">退会済</span> : member.status === 'WITHDRAWAL_SCHEDULED' ? <span className="text-amber-600">退会予定</span> : <span className="text-green-600">在籍中</span>}</td>
+                <td className="px-4 py-3 text-sm">{(() => {
+                  const displayStatus = getDisplayMemberStatus(member) || member.status;
+                  return displayStatus === 'WITHDRAWN'
+                    ? <span className="text-red-500">退会済</span>
+                    : displayStatus === 'WITHDRAWAL_SCHEDULED'
+                      ? <span className="text-amber-600">退会予定</span>
+                      : <span className="text-green-600">在籍中</span>;
+                })()}</td>
               </tr>
             ))}
           </tbody>
@@ -1605,7 +1673,7 @@ const App: React.FC = () => {
           </p>
           <p className="text-sm text-slate-500 mt-3">
             ダッシュボードの数値は会員一覧の抽出条件と連動します。基準年度は <span className="font-medium text-slate-700">{d.fiscalYearLabel}</span> です。
-            {d.hasFilteredView ? ' 現在は絞り込み結果を表示しています。' : ' 現在は今年度の全件を表示しています。'}
+            {d.hasFilteredView ? ' 現在は絞り込み結果を表示しています。' : d.fiscalYearLabel === '全期間' ? ' 現在は全期間の全件を表示しています。' : ' 現在は当該年度の全件を表示しています。'}
           </p>
         </div>
         {adminDashboardError && (
@@ -1984,19 +2052,10 @@ const App: React.FC = () => {
           memberPageTypeLabel={memberPageTypeLabel}
           showAdminPage={userRole === 'ADMIN'}
           adminPermissionLevel={adminPermissionLevel}
+          onLogout={handleLogoutClick}
         />
       )}
       <main className="flex-1 min-w-0 p-8 overflow-y-auto relative overscroll-contain">
-                <div className="absolute top-4 right-8 bg-white p-2 rounded-lg shadow border border-slate-200 z-10 flex space-x-2 items-center">
-          <>
-            <span className="text-xs text-slate-500 px-2">{isAuthenticated ? 'ログイン中' : '未ログイン'}</span>
-            {isAuthenticated && (
-              <button className="text-sm border border-slate-300 rounded px-2 py-1 bg-slate-50" onClick={handleLogoutClick}>
-                ログアウト
-              </button>
-            )}
-          </>
-        </div>
         <div className="max-w-6xl mx-auto">{renderContent()}</div>
         <dialog
           ref={annualFeeLeaveDialogRef}
@@ -2038,3 +2097,4 @@ const App: React.FC = () => {
 };
 
 export default App;
+

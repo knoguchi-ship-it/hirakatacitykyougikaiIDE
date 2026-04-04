@@ -41,13 +41,14 @@ When a local project rule is needed, treat this file as the project-level source
 - A release is complete only after `build -> push -> version -> fixed deployment sync -> verification -> document update`.
 
 ## Current Operating Assumptions
-- Production is `v168` and both fixed deployments are at `@168`.
+- Production is `v170` and both fixed deployments are at `@170`.
 - Demo login flows, mock member routes, and the on-screen demo selector are retired.
 - For business members, `representative info` is derived from `staff.role='REPRESENTATIVE'`.
 - For business members, `office info` is canonical and `officeNumber` is required.
 - For business members, delivery and notification behavior is fixed-rule display only.
 - Business `ADMIN` may change STAFF<->ADMIN roles for others, but not own role, REPRESENTATIVE row, or assign REPRESENTATIVE (v167).
 - `seedDemoData` is a DESTRUCTIVE operation that wipes all production DB tables. Never run against the production spreadsheet without a full backup.
+- The production DB baseline was rolled back and reconciled on 2026-04-04. Treat that post-rollback state as canonical unless a newer documented DB operation supersedes it.
 
 ## Minimum Resume Checks
 ```bash

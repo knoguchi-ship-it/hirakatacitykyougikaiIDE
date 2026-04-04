@@ -34,9 +34,10 @@
 1. `HANDOVER.md`
 2. `GLOBAL_GROUND_RULES/CLAUDE.md`
 3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
-4. `docs/10_SOW.md`
-5. `docs/09_DEPLOYMENT_POLICY.md`
-6. `docs/17_ROOT_CAUSE_ERROR_RESPONSE_PLAYBOOK.md`
+4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
+5. `docs/10_SOW.md`
+6. `docs/09_DEPLOYMENT_POLICY.md`
+7. `docs/17_ROOT_CAUSE_ERROR_RESPONSE_PLAYBOOK.md`
 
 デプロイ、認証、DB整合、障害対応の判断は上記を正本とします。`README.md` は入口案内であり、運用判断の最上位ではありません。ただし、技術選定と仕様提案では Web 検索による最新確認、ベストプラクティスの模索、根拠提示を必須とします。
 
@@ -101,6 +102,7 @@ npx clasp run setupDatabase
 現行の正本一覧は `docs/00_DOC_INDEX.md` を参照してください。特に以下が重要です。
 
 - `HANDOVER.md`
+- `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
 - `docs/34_DEVELOPMENT_OPERATING_MODEL_2026-03-30.md`
 - `GLOBAL_GROUND_RULES/CLAUDE.md`
 - `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
