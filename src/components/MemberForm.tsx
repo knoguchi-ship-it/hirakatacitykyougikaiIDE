@@ -112,6 +112,12 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
   };
   // REPRESENTATIVE・ADMIN は編集可、STAFF は閲覧のみ
   const isReadOnly = isBusiness ? (currentStaff?.role !== 'ADMIN' && currentStaff?.role !== 'REPRESENTATIVE') : false;
+  const isBusinessStaffSelfMode = isBusiness && currentStaff?.role === 'STAFF';
+  const canStaffSelfEditField = (staffId: string, field: keyof Staff) => (
+    isBusinessStaffSelfMode &&
+    staffId === operatingStaffId &&
+    (field === 'name' || field === 'kana' || field === 'email')
+  );
 
 
   // --- Logic for Trainings ---
@@ -319,7 +325,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
 
   // Staff Management Logic
   const handleStaffChange = (id: string, field: keyof Staff, value: string | boolean) => {
-    if (isReadOnly) return;
+    if (isReadOnly && !canStaffSelfEditField(id, field)) return;
     setMember(prev => ({
         ...prev,
         staff: prev.staff?.map(s => {
@@ -369,6 +375,14 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
 
   const validate = () => {
     const newErrors: { [key: string]: string } = {};
+
+    if (isBusinessStaffSelfMode) {
+      const ownStaff = member.staff?.find((staff) => staff.id === operatingStaffId);
+      if (!ownStaff?.name?.trim()) newErrors.staff_self_name = '氏名は必須です';
+      if (!ownStaff?.kana?.trim()) newErrors.staff_self_kana = 'フリガナは必須です';
+      setErrors(newErrors);
+      return Object.keys(newErrors).length === 0;
+    }
     const isSupportMember = member.type === MemberType.SUPPORT;
     const hasOfficeAffiliationInput =
       !!(member.officeName || '').trim() ||
@@ -468,7 +482,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (isReadOnly) return;
+    if (isReadOnly && !isBusinessStaffSelfMode) return;
     if (!validate()) {
         setWarning("入力内容に不備があります。赤枠の項目を確認し、必須事項を入力してください。");
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -556,10 +570,16 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
   return (
     <div className="max-w-4xl mx-auto space-y-8">
 
-      {isReadOnly && (
+      {isReadOnly && !isBusinessStaffSelfMode && (
           <div className="bg-slate-100 border border-slate-300 text-slate-600 px-4 py-3 rounded relative" role="alert">
             <strong className="font-bold">閲覧専用モード: </strong>
             <span className="block sm:inline">現在のユーザーには編集権限がありません。情報の閲覧のみ可能です。</span>
+          </div>
+      )}
+      {isBusinessStaffSelfMode && (
+          <div className="bg-primary-50 border border-primary-200 text-primary-900 px-4 py-3 rounded relative" role="status">
+            <strong className="font-bold">一部編集モード: </strong>
+            <span className="block sm:inline">一般職員は自分の氏名・フリガナ・メールアドレスのみ更新できます。</span>
           </div>
       )}
       
@@ -1063,7 +1083,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                             className={`w-full text-sm border-slate-200 rounded p-1 ${nameDisabled ? 'bg-slate-100' : ''}`}
                                             placeholder="例: 佐藤 次郎"
                                         />
-                                        {errors[`staff_${staffIndex}_name`] && <p className="text-xs text-red-500 mt-1">{errors[`staff_${staffIndex}_name`]}</p>}
+                                        {(errors[`staff_${staffIndex}_name`] || (isOwnStaff ? errors.staff_self_name : '')) && <p className="text-xs text-red-500 mt-1">{errors[`staff_${staffIndex}_name`] || errors.staff_self_name}</p>}
                                         {isRepresentativeRow && <p className="text-xs text-slate-400 mt-1">代表者情報から自動反映されます</p>}
                                     </div>
                                     <div className="md:col-span-3">
@@ -1076,7 +1096,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                             className={`w-full text-sm border-slate-200 rounded p-1 ${nameDisabled ? 'bg-slate-100' : ''}`}
                                             placeholder="サトウ ジロウ"
                                         />
-                                        {errors[`staff_${staffIndex}_kana`] && <p className="text-xs text-red-500 mt-1">{errors[`staff_${staffIndex}_kana`]}</p>}
+                                        {(errors[`staff_${staffIndex}_kana`] || (isOwnStaff ? errors.staff_self_kana : '')) && <p className="text-xs text-red-500 mt-1">{errors[`staff_${staffIndex}_kana`] || errors.staff_self_kana}</p>}
                                         {isRepresentativeRow && <p className="text-xs text-slate-400 mt-1">代表者情報から自動反映されます</p>}
                                     </div>
                                     <div className="md:col-span-2">
@@ -1446,7 +1466,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
           </div>
 
           <div className="pt-6 border-t border-slate-200 flex justify-end">
-            {!isReadOnly && (
+            {(!isReadOnly || isBusinessStaffSelfMode) && (
                 <button type="submit" className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 px-12 rounded-lg shadow-lg transform transition hover:-translate-y-0.5 text-lg">
                 変更を保存する
                 </button>
