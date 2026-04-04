@@ -200,10 +200,14 @@ Expected:
 
 - `seedDemoData()` and other mock/demo runtime paths must not be reintroduced.
 
+- **CRITICAL**: `seedDemoData` was executed on 2026-04-03 against the production spreadsheet during Playwright UI testing. Production DB tables (T_会員, T_事業所職員, T_認証アカウント, T_管理者Googleホワイトリスト, etc.) were wiped and replaced with demo data. Data recovery requires restoring from Google Spreadsheet version history.
+
 
 
 ## 7. Next Required Action
 
-- v168 deployed and verified (`npx clasp deployments` confirmed both fixed deployments at `@168`).
+- v168 deployed and verified. All v167 tests (T-UI-01 through T-UI-05, T-BE-01, T-BE-02) PASS — see `docs/41_TEST_SPEC_v167_BUSINESS_ADMIN_ROLE_CHANGE.md`.
 
-- UI/API tests (T-UI-01 through T-UI-05, T-BE-01, T-BE-02) in progress — see `docs/41_TEST_SPEC_v167_BUSINESS_ADMIN_ROLE_CHANGE.md`.
+- **CRITICAL OPEN**: Restore production data from spreadsheet version history (before 2026-04-03). See `docs/42_SPEC_AUDIT_ADMIN_CONSOLE_2026-04-04.md` for full audit report.
+
+- **PENDING USER DECISION**: Admin console FY filter default (`'ALL'` vs current FY) — see `docs/42_SPEC_AUDIT_ADMIN_CONSOLE_2026-04-04.md` §3.

@@ -135,4 +135,8 @@ If you deploy, also follow `docs/09_DEPLOYMENT_POLICY.md` for:
 
 - v168 deployed. Both fixed deployments confirmed at `@168`.
 
-- UI/API tests in progress — see `docs/41_TEST_SPEC_v167_BUSINESS_ADMIN_ROLE_CHANGE.md`.
+- v167 tests all PASS — see `docs/41_TEST_SPEC_v167_BUSINESS_ADMIN_ROLE_CHANGE.md`.
+
+- **CRITICAL**: `seedDemoData` was run 2026-04-03 and wiped production DB. Restore from Google Spreadsheet version history before resuming normal operations. See `docs/42_SPEC_AUDIT_ADMIN_CONSOLE_2026-04-04.md`.
+
+- **PENDING**: User decision on admin console FY filter default and other open items in the spec audit.
