@@ -2,9 +2,9 @@
 
 
 
-Updated: 2026-04-03
+Updated: 2026-04-04
 
-Production: `v168` / fixed deployments `@168`
+Production: `v168` / fixed deployments `@168` (v169 pushed, deployments not yet updated)
 
 
 
@@ -137,6 +137,8 @@ If you deploy, also follow `docs/09_DEPLOYMENT_POLICY.md` for:
 
 - v167 tests all PASS — see `docs/41_TEST_SPEC_v167_BUSINESS_ADMIN_ROLE_CHANGE.md`.
 
-- **CRITICAL**: `seedDemoData` was run 2026-04-03 and wiped production DB. Restore from Google Spreadsheet version history before resuming normal operations. See `docs/42_SPEC_AUDIT_ADMIN_CONSOLE_2026-04-04.md`.
+- **DB RESTORED (2026-04-04)**: Production data restored from 2026-03-26 external backup. WL-001 repaired. Demo accounts added (DEMO-IND-001, DEMO-IND-002, DEMO-BIZ-001). See `HANDOVER.md` §7 for details.
 
-- **PENDING**: User decision on admin console FY filter default and other open items in the spec audit.
+- **KNOWN ISSUE**: T_事業所職員 has pre-existing data quality issues (corrupted name/role columns for some staff). Admin login and member list work. If needed, restore from Google Spreadsheet version history for a cleaner state.
+
+- **PENDING**: User decision on admin console FY filter default — see `docs/42_SPEC_AUDIT_ADMIN_CONSOLE_2026-04-04.md` §3.

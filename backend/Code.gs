@@ -3085,6 +3085,12 @@ function appendRowsByHeaders_(ss, sheetName, objectRows) {
     return row;
   });
   var startRow = sheet.getLastRow() + 1;
+  // シートの最大行数を超える場合は行を追加する（restoreSheetFromBackupSpreadsheet_ で復元したシートは行数が固定のため）
+  var neededRows = startRow + rows.length - 1;
+  var maxRow = sheet.getMaxRows();
+  if (neededRows > maxRow) {
+    sheet.insertRowsAfter(maxRow, neededRows - maxRow);
+  }
   var targetRange = sheet.getRange(startRow, 1, rows.length, headers.length);
   // シード投入時は既存入力規則に阻害されないよう、投入範囲の検証だけ解除してから書き込む。
   targetRange.clearDataValidations();
@@ -8896,6 +8902,297 @@ function restoreBusinessStaffFromLatestBackupJson() {
 
 function restoreBusinessStaffFromVerifiedBackupJson() {
   return restoreBusinessStaffFromBackupSpreadsheetJson('11vgpc0CvCny85QZwapV0gr-YqK5CCl17pRPK-fH0ZKA');
+}
+
+function restoreTableFromBackupSpreadsheetJson(backupSpreadsheetId, sheetName) {
+  return JSON.stringify(restoreSheetFromBackupSpreadsheet_(backupSpreadsheetId, sheetName));
+}
+
+function getBackupSheetHeadersJson(backupSpreadsheetId, sheetName) {
+  if (!backupSpreadsheetId) throw new Error('backupSpreadsheetId が必要です');
+  if (!sheetName) throw new Error('sheetName が必要です');
+  var ss = SpreadsheetApp.openById(backupSpreadsheetId);
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet) throw new Error('シートが見つかりません: ' + sheetName);
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  return JSON.stringify({ sheetName: sheetName, columnCount: sheet.getLastColumn(), headers: headers });
+}
+
+function findMemberByNameJson(lastName) {
+  var ss = getOrCreateDatabase_();
+  var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var matches = memberRows.filter(function(r) {
+    return String(r['姓'] || '').indexOf(lastName) >= 0 || String(r['氏名'] || '').indexOf(lastName) >= 0;
+  });
+  return JSON.stringify(matches.map(function(m) {
+    return { 会員ID: m['会員ID'], 姓: m['姓'], 名: m['名'], 代表メールアドレス: m['代表メールアドレス'], 会員種別コード: m['会員種別コード'], 会員状態コード: m['会員状態コード'] };
+  }));
+}
+
+/**
+ * デモアカウントを追加する（append-only, 本番データを削除しない）。
+ * 既に存在する場合はスキップする。
+ * 名前には [デモ] プレフィックスを付け、本番データと区別できるようにする。
+ */
+function provisionDemoAccountsJson() {
+  var ss = getOrCreateDatabase_();
+  var now = new Date().toISOString();
+
+  function makeSalt() { return generateSalt_(); }
+  function makeHash(pw, salt) { return hashPassword_(pw, salt); }
+
+  var demoPw = 'demo1234';
+
+  var existingMembers = getRowsAsObjects_(ss, 'T_会員').map(function(r) { return String(r['会員ID'] || ''); });
+  var existingMemberSet = {};
+  existingMembers.forEach(function(id) { existingMemberSet[id] = true; });
+
+  var existingAuth = getRowsAsObjects_(ss, 'T_認証アカウント').map(function(r) { return String(r['ログインID'] || ''); });
+  var existingAuthSet = {};
+  existingAuth.forEach(function(id) { existingAuthSet[id] = true; });
+
+  var results = [];
+
+  // 1. 個人会員 [デモ] 山田 太郎
+  if (!existingMemberSet['DEMO-IND-001']) {
+    appendRowsByHeaders_(ss, 'T_会員', [{
+      会員ID: 'DEMO-IND-001', 会員種別コード: 'INDIVIDUAL', 会員状態コード: 'ACTIVE',
+      入会日: '2024-04-01', 退会日: '', 退会処理日: '',
+      姓: '[デモ]山田', 名: '太郎', セイ: 'デモ ヤマダ', メイ: 'タロウ',
+      代表メールアドレス: 'demo-ind-001@example.invalid', 携帯電話番号: '',
+      勤務先名: '[デモ]枚方ケアプランセンター', 勤務先郵便番号: '573-0027',
+      勤務先都道府県: '大阪府', 勤務先市区町村: '枚方市', 勤務先住所: '[デモ]大垣内町1-1-1',
+      勤務先電話番号: '072-000-0000', 勤務先FAX番号: '', 自宅郵便番号: '',
+      自宅都道府県: '', 自宅市区町村: '', 自宅住所: '',
+      発送方法コード: 'EMAIL', 郵送先区分コード: 'OFFICE', 職員数上限: '',
+      作成日時: now, 更新日時: now, 削除フラグ: false, 介護支援専門員番号: 'DEMO001', 事業所番号: '',
+    }]);
+    results.push({ action: 'added', table: 'T_会員', id: 'DEMO-IND-001' });
+  } else {
+    results.push({ action: 'skipped', table: 'T_会員', id: 'DEMO-IND-001', reason: 'already exists' });
+  }
+  if (!existingAuthSet['demo-ind-001']) {
+    var s1 = makeSalt();
+    appendRowsByHeaders_(ss, 'T_認証アカウント', [{
+      認証ID: Utilities.getUuid(), 認証方式: 'PASSWORD', ログインID: 'demo-ind-001',
+      パスワードハッシュ: makeHash(demoPw, s1), パスワードソルト: s1, GoogleユーザーID: '', Googleメール: '',
+      システムロールコード: 'INDIVIDUAL_MEMBER', 会員ID: 'DEMO-IND-001', 職員ID: '',
+      最終ログイン日時: '', パスワード更新日時: '', アカウント有効フラグ: true,
+      ログイン失敗回数: 0, ロック状態: false, 作成日時: now, 更新日時: now, 削除フラグ: false,
+    }]);
+    results.push({ action: 'added', table: 'T_認証アカウント', loginId: 'demo-ind-001' });
+  } else {
+    results.push({ action: 'skipped', table: 'T_認証アカウント', loginId: 'demo-ind-001', reason: 'already exists' });
+  }
+
+  // 2. 個人会員 [デモ] 鈴木 花子
+  if (!existingMemberSet['DEMO-IND-002']) {
+    appendRowsByHeaders_(ss, 'T_会員', [{
+      会員ID: 'DEMO-IND-002', 会員種別コード: 'INDIVIDUAL', 会員状態コード: 'ACTIVE',
+      入会日: '2024-04-01', 退会日: '', 退会処理日: '',
+      姓: '[デモ]鈴木', 名: '花子', セイ: 'デモ スズキ', メイ: 'ハナコ',
+      代表メールアドレス: 'demo-ind-002@example.invalid', 携帯電話番号: '',
+      勤務先名: '[デモ]花子ケアプラン', 勤務先郵便番号: '573-0027',
+      勤務先都道府県: '大阪府', 勤務先市区町村: '枚方市', 勤務先住所: '[デモ]渚西2-2-2',
+      勤務先電話番号: '072-000-0001', 勤務先FAX番号: '', 自宅郵便番号: '',
+      自宅都道府県: '', 自宅市区町村: '', 自宅住所: '',
+      発送方法コード: 'EMAIL', 郵送先区分コード: 'OFFICE', 職員数上限: '',
+      作成日時: now, 更新日時: now, 削除フラグ: false, 介護支援専門員番号: 'DEMO002', 事業所番号: '',
+    }]);
+    results.push({ action: 'added', table: 'T_会員', id: 'DEMO-IND-002' });
+  } else {
+    results.push({ action: 'skipped', table: 'T_会員', id: 'DEMO-IND-002', reason: 'already exists' });
+  }
+  if (!existingAuthSet['demo-ind-002']) {
+    var s2 = makeSalt();
+    appendRowsByHeaders_(ss, 'T_認証アカウント', [{
+      認証ID: Utilities.getUuid(), 認証方式: 'PASSWORD', ログインID: 'demo-ind-002',
+      パスワードハッシュ: makeHash(demoPw, s2), パスワードソルト: s2, GoogleユーザーID: '', Googleメール: '',
+      システムロールコード: 'INDIVIDUAL_MEMBER', 会員ID: 'DEMO-IND-002', 職員ID: '',
+      最終ログイン日時: '', パスワード更新日時: '', アカウント有効フラグ: true,
+      ログイン失敗回数: 0, ロック状態: false, 作成日時: now, 更新日時: now, 削除フラグ: false,
+    }]);
+    results.push({ action: 'added', table: 'T_認証アカウント', loginId: 'demo-ind-002' });
+  } else {
+    results.push({ action: 'skipped', table: 'T_認証アカウント', loginId: 'demo-ind-002', reason: 'already exists' });
+  }
+
+  // 3. 事業所会員 [デモ] 代表者 + 管理者 + 一般職員
+  if (!existingMemberSet['DEMO-BIZ-001']) {
+    appendRowsByHeaders_(ss, 'T_会員', [{
+      会員ID: 'DEMO-BIZ-001', 会員種別コード: 'BUSINESS', 会員状態コード: 'ACTIVE',
+      入会日: '2024-04-01', 退会日: '', 退会処理日: '',
+      姓: '[デモ]佐藤', 名: '次郎', セイ: 'デモ サトウ', メイ: 'ジロウ',
+      代表メールアドレス: 'demo-biz@example.invalid', 携帯電話番号: '',
+      勤務先名: '[デモ]ひらかた介護ステーション', 勤務先郵便番号: '573-0084',
+      勤務先都道府県: '大阪府', 勤務先市区町村: '枚方市', 勤務先住所: '[デモ]香里ケ丘3-3-3',
+      勤務先電話番号: '072-222-2222', 勤務先FAX番号: '', 自宅郵便番号: '',
+      自宅都道府県: '', 自宅市区町村: '', 自宅住所: '',
+      発送方法コード: 'EMAIL', 郵送先区分コード: 'OFFICE', 職員数上限: 10,
+      作成日時: now, 更新日時: now, 削除フラグ: false, 介護支援専門員番号: 'DEMO999', 事業所番号: 'DEMO00001',
+    }]);
+    results.push({ action: 'added', table: 'T_会員', id: 'DEMO-BIZ-001' });
+  } else {
+    results.push({ action: 'skipped', table: 'T_会員', id: 'DEMO-BIZ-001', reason: 'already exists' });
+  }
+
+  var demoStaffDefs = [
+    { staffId: 'DEMO-S-REP', loginId: 'demo-biz-rep', role: 'REPRESENTATIVE', systemRole: 'BUSINESS_ADMIN', 姓: '[デモ]佐藤', 名: '次郎（代表）', セイ: 'デモ サトウ', メイ: 'ジロウ' },
+    { staffId: 'DEMO-S-ADM', loginId: 'demo-biz-adm', role: 'ADMIN', systemRole: 'BUSINESS_ADMIN', 姓: '[デモ]田中', 名: '三郎（管理者）', セイ: 'デモ タナカ', メイ: 'サブロウ' },
+    { staffId: 'DEMO-S-STF', loginId: 'demo-biz-stf', role: 'STAFF', systemRole: 'BUSINESS_MEMBER', 姓: '[デモ]伊藤', 名: '四郎（一般）', セイ: 'デモ イトウ', メイ: 'シロウ' },
+  ];
+
+  var existingStaff = getRowsAsObjects_(ss, 'T_事業所職員').map(function(r) { return String(r['職員ID'] || ''); });
+  var existingStaffSet = {};
+  existingStaff.forEach(function(id) { existingStaffSet[id] = true; });
+
+  demoStaffDefs.forEach(function(def) {
+    if (!existingStaffSet[def.staffId]) {
+      appendRowsByHeaders_(ss, 'T_事業所職員', [{
+        職員ID: def.staffId, 会員ID: 'DEMO-BIZ-001',
+        姓: def.姓, 名: def.名, セイ: def.セイ, メイ: def.メイ,
+        氏名: def.姓 + ' ' + def.名, フリガナ: def.セイ + ' ' + def.メイ,
+        メールアドレス: '', 職員権限コード: def.role, 職員状態コード: 'ENROLLED',
+        入会日: '2024-04-01', 退会日: '', 介護支援専門員番号: '', メール配信希望コード: 'YES',
+        作成日時: now, 更新日時: now, 削除フラグ: false,
+      }]);
+      results.push({ action: 'added', table: 'T_事業所職員', staffId: def.staffId });
+    } else {
+      results.push({ action: 'skipped', table: 'T_事業所職員', staffId: def.staffId, reason: 'already exists' });
+    }
+    if (!existingAuthSet[def.loginId]) {
+      var salt = makeSalt();
+      appendRowsByHeaders_(ss, 'T_認証アカウント', [{
+        認証ID: Utilities.getUuid(), 認証方式: 'PASSWORD', ログインID: def.loginId,
+        パスワードハッシュ: makeHash(demoPw, salt), パスワードソルト: salt, GoogleユーザーID: '', Googleメール: '',
+        システムロールコード: def.systemRole, 会員ID: 'DEMO-BIZ-001', 職員ID: def.staffId,
+        最終ログイン日時: '', パスワード更新日時: '', アカウント有効フラグ: true,
+        ログイン失敗回数: 0, ロック状態: false, 作成日時: now, 更新日時: now, 削除フラグ: false,
+      }]);
+      results.push({ action: 'added', table: 'T_認証アカウント', loginId: def.loginId });
+    } else {
+      results.push({ action: 'skipped', table: 'T_認証アカウント', loginId: def.loginId, reason: 'already exists' });
+    }
+  });
+
+  clearAllDataCache_();
+  return JSON.stringify({ ok: true, results: results });
+}
+
+function repairWL001LinkageJson(linkedAuthId, linkedMemberId) {
+  // Repairs the WL-001 whitelist entry after a seedDemoData incident.
+  // Should only be called by an authorized operator via clasp run.
+  if (!linkedAuthId) throw new Error('linkedAuthId が必要です');
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_管理者Googleホワイトリスト');
+  if (!sheet) throw new Error('T_管理者Googleホワイトリスト シートが見つかりません');
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var colIdx = {};
+  headers.forEach(function(h, i) { colIdx[h] = i; });
+  if (sheet.getLastRow() < 2) throw new Error('データ行がありません');
+  var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  var wl001Row = -1;
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i][colIdx['ホワイトリストID']] || '') === 'WL-001') { wl001Row = i; break; }
+  }
+  if (wl001Row < 0) throw new Error('WL-001 が見つかりません');
+  var now = new Date().toISOString();
+  if (colIdx['紐付け認証ID'] !== undefined) sheet.getRange(wl001Row + 2, colIdx['紐付け認証ID'] + 1).setValue(linkedAuthId);
+  if (colIdx['紐付け会員ID'] !== undefined && linkedMemberId) sheet.getRange(wl001Row + 2, colIdx['紐付け会員ID'] + 1).setValue(linkedMemberId);
+  if (colIdx['変更者メール'] !== undefined) sheet.getRange(wl001Row + 2, colIdx['変更者メール'] + 1).setValue('system-repair');
+  if (colIdx['変更日時'] !== undefined) sheet.getRange(wl001Row + 2, colIdx['変更日時'] + 1).setValue(now);
+  if (colIdx['更新日時'] !== undefined) sheet.getRange(wl001Row + 2, colIdx['更新日時'] + 1).setValue(now);
+  return JSON.stringify({ ok: true, wl001Row: wl001Row, linkedAuthId: linkedAuthId, linkedMemberId: linkedMemberId });
+}
+
+function listStaffByMemberIdJson(memberId) {
+  var ss = getOrCreateDatabase_();
+  var staffRows = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) { return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === String(memberId); });
+  var authRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) { return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === String(memberId); });
+  var authByStaffId = {};
+  authRows.forEach(function(a) { if (a['職員ID']) authByStaffId[String(a['職員ID'])] = a; });
+  return JSON.stringify(staffRows.map(function(s) {
+    var auth = authByStaffId[String(s['職員ID'] || '')];
+    return {
+      職員ID: s['職員ID'], 姓: s['姓'], 名: s['名'], 氏名: s['氏名'],
+      職員権限コード: s['職員権限コード'], メールアドレス: s['メールアドレス'],
+      介護支援専門員番号: s['介護支援専門員番号'],
+      authId: auth ? String(auth['認証ID']) : null,
+      loginId: auth ? String(auth['ログインID']) : null,
+      systemRole: auth ? String(auth['システムロールコード']) : null,
+    };
+  }));
+}
+
+function findAuthByMemberIdJson(memberId) {
+  var ss = getOrCreateDatabase_();
+  var authRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var memberMatch = memberRows.filter(function(r) { return String(r['会員ID'] || '') === String(memberId); });
+  var authMatch = authRows.filter(function(r) { return String(r['会員ID'] || '') === String(memberId); });
+  return JSON.stringify({
+    memberId: memberId,
+    memberFound: memberMatch.map(function(m) { return { 会員ID: m['会員ID'], 姓: m['姓'], 名: m['名'], 会員種別コード: m['会員種別コード'], 会員状態コード: m['会員状態コード'] }; }),
+    authFound: authMatch.map(function(a) { return { 認証ID: a['認証ID'], 認証方式: a['認証方式'], ログインID: a['ログインID'], システムロールコード: a['システムロールコード'] }; }),
+  });
+}
+
+function findMemberByEmailJson(email) {
+  var ss = getOrCreateDatabase_();
+  var normalizedEmail = String(email || '').toLowerCase().trim();
+  var authRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var memberMap = {};
+  for (var i = 0; i < memberRows.length; i++) memberMap[String(memberRows[i]['会員ID'] || '')] = memberRows[i];
+
+  var matchedAuths = authRows.filter(function(r) {
+    return String(r['Googleメール'] || '').toLowerCase() === normalizedEmail ||
+           String(r['ログインID'] || '').toLowerCase() === normalizedEmail;
+  });
+  var matchedMembers = memberRows.filter(function(r) {
+    return String(r['代表メールアドレス'] || '').toLowerCase() === normalizedEmail;
+  });
+  var authResults = matchedAuths.map(function(a) {
+    var mem = memberMap[String(a['会員ID'] || '')] || null;
+    return {
+      source: 'T_認証アカウント',
+      authId: String(a['認証ID'] || ''),
+      authMethod: String(a['認証方式'] || ''),
+      loginId: String(a['ログインID'] || ''),
+      googleEmail: String(a['Googleメール'] || ''),
+      systemRole: String(a['システムロールコード'] || ''),
+      memberId: String(a['会員ID'] || ''),
+      staffId: String(a['職員ID'] || ''),
+      memberName: mem ? (String(mem['姓'] || '') + ' ' + String(mem['名'] || '')).trim() : '',
+    };
+  });
+  var memberResults = matchedMembers.map(function(m) {
+    return {
+      source: 'T_会員',
+      memberId: String(m['会員ID'] || ''),
+      memberName: (String(m['姓'] || '') + ' ' + String(m['名'] || '')).trim(),
+      memberType: String(m['会員種別コード'] || ''),
+      email: String(m['代表メールアドレス'] || ''),
+      status: String(m['会員状態コード'] || ''),
+    };
+  });
+  var staffRows = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var matchedStaff = staffRows.filter(function(r) {
+    return String(r['メールアドレス'] || '').toLowerCase() === normalizedEmail;
+  });
+  var staffResults = matchedStaff.map(function(s) {
+    var mem = memberMap[String(s['会員ID'] || '')] || null;
+    return {
+      source: 'T_事業所職員',
+      staffId: String(s['職員ID'] || ''),
+      memberId: String(s['会員ID'] || ''),
+      staffName: (String(s['姓'] || '') + ' ' + String(s['名'] || '') || String(s['氏名'] || '')).trim(),
+      role: String(s['職員権限コード'] || ''),
+      email: String(s['メールアドレス'] || ''),
+      memberName: mem ? (String(mem['姓'] || '') + ' ' + String(mem['名'] || '')).trim() : '',
+    };
+  });
+  return JSON.stringify({ email: email, authResults: authResults, memberResults: memberResults, staffResults: staffResults });
 }
 
 function inspectBackupSpreadsheet_(backupSpreadsheetId) {

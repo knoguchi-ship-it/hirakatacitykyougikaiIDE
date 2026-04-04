@@ -2,9 +2,9 @@
 
 
 
-Updated: 2026-04-03
+Updated: 2026-04-04
 
-Production: `v168` / fixed deployments `@168`
+Production: `v168` / fixed deployments `@168` (v169 pushed but deployments not yet updated)
 
 Project: Hirakata care manager association member system
 
@@ -105,6 +105,15 @@ Project: Hirakata care manager association member system
 
 
 ## 4. Recent Releases
+
+### v169 (built 2026-04-04, pushed but deployments not yet updated)
+
+- DB restoration from 2026-03-26 external backup: T_会員, T_事業所職員, T_認証アカウント, T_年会費納入履歴, T_年会費更新履歴, T_ログイン履歴.
+- Schema normalization: T_事業所職員 upgraded from 17→18 cols (added `メール配信希望コード` via `normalizeTableColumns_`).
+- WL-001 repaired: 紐付け認証ID=46faa199-2fa1-4b61-8854-f1a442b3ce65 (野口 健太), 紐付け会員ID=4539021.
+- Demo accounts provisioned (append-only, no production data affected): DEMO-IND-001, DEMO-IND-002, DEMO-BIZ-001 with `[デモ]` prefix.
+- Fixed `appendRowsByHeaders_` to handle sheets restored via `copyTo` (insertRowsAfter when needed).
+- Added helper functions: `restoreTableFromBackupSpreadsheetJson`, `getBackupSheetHeadersJson`, `repairWL001LinkageJson`, `provisionDemoAccountsJson`, etc.
 
 ### v168 (built 2026-04-03, deployed 2026-04-03)
 
@@ -208,6 +217,12 @@ Expected:
 
 - v168 deployed and verified. All v167 tests (T-UI-01 through T-UI-05, T-BE-01, T-BE-02) PASS — see `docs/41_TEST_SPEC_v167_BUSINESS_ADMIN_ROLE_CHANGE.md`.
 
-- **CRITICAL OPEN**: Restore production data from spreadsheet version history (before 2026-04-03). See `docs/42_SPEC_AUDIT_ADMIN_CONSOLE_2026-04-04.md` for full audit report.
+- **DB RESTORATION COMPLETED (2026-04-04)**: Production data restored from 2026-03-26 external backup. Tables restored: T_会員 (212 rows), T_事業所職員 (147 rows, schema normalized to 18 cols), T_認証アカウント (326 rows), T_年会費納入履歴 (347 rows), T_年会費更新履歴 (0 rows), T_ログイン履歴 (55 rows). WL-001 repaired (紐付け認証ID=46faa199..., 紐付け会員ID=4539021).
+
+- **KNOWN ISSUE**: T_事業所職員 data quality — some staff records have corrupted 姓/名/セイ/メイ/職員権限コード/職員状態コード columns (pre-existing issue from 2026-03-26 backup, not introduced by restoration). Admin login and member list work correctly.
+
+- **DEMO ACCOUNTS ADDED**: See `docs/43_DEMO_ACCOUNTS.md` for credentials. Member IDs: DEMO-IND-001, DEMO-IND-002, DEMO-BIZ-001. All names prefixed with `[デモ]`.
 
 - **PENDING USER DECISION**: Admin console FY filter default (`'ALL'` vs current FY) — see `docs/42_SPEC_AUDIT_ADMIN_CONSOLE_2026-04-04.md` §3.
+
+- **OPTIONAL**: Update fixed deployments to v169 (contains helper functions + appendRowsByHeaders_ fix). Not critical — production data is already correct.
