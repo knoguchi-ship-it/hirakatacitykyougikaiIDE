@@ -5,6 +5,50 @@
 
 ---
 
+## [2026-04-03] seedDemoData による本番 DB 全データ消失
+
+### 症状
+- 管理コンソールの会員一覧に表示されるデータが激減した
+- `T_管理者Googleホワイトリスト` の `紐付け会員ID` がデモ値（`99999999`）になった
+- 本番会員・職員・研修申込・年会費データがすべてデモデータに置き換えられた
+
+### 原因
+- Playwright UI テストのデータ準備として `npx clasp run seedDemoData` を実行した
+- `seedDemoData` は 8 テーブルを全削除してデモデータで再構築する破壊的関数
+- 実行前に「本番 DB の全削除が起きる」旨の説明と許可確認を行わなかった
+- `20_SECURITY_APPROVALS.md` の「データ更新は要承認」ルールは存在したが、「全削除」の重大性が明示されていなかった
+
+### 削除されたテーブル
+`T_会員` / `T_事業所職員` / `T_認証アカウント` / `T_ログイン履歴` / `T_管理者Googleホワイトリスト` / `T_研修` / `T_研修申込` / `T_年会費納入履歴`
+
+### 切り分け
+- 管理コンソールのコード不具合ではない
+- フロントエンドのフィルタ設定変更でもない（FY フィルタは別問題）
+- GAS の API 自体は正常動作している
+
+### 復旧方針
+Google スプレッドシートの版歴（ファイル → 変更履歴）から 2026-04-03 以前のバージョンを復元する。
+
+### 復旧手順
+1. スプレッドシート `1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs` を開く
+2. ファイル → 変更履歴 → 変更履歴を表示 で 2026-04-03 以前のバージョンを特定する
+3. 対象バージョンを「この版を復元」で復元する
+4. 復元後、管理コンソールでホワイトリスト `WL-001` の `紐付け会員ID` を正しい本番会員 ID に確認・修正する
+5. `npx clasp run healthCheck` と `npx clasp run getDbInfo` で疎通確認する
+
+### 再発防止
+- `20_SECURITY_APPROVALS.md` に「DB 全削除・全更新の特別ルール」を追加済み（2026-04-04）
+- `05_PROJECT_RULES_HIRAKATA.md` に `seedDemoData` は本番 DB 破壊的操作である旨を追記済み
+- テスト前に必ずスプレッドシートの版歴バックアップが取れることを確認すること
+
+### 関連情報
+- 関連ファイル: `docs/42_SPEC_AUDIT_ADMIN_CONSOLE_2026-04-04.md`, `GLOBAL_GROUND_RULES/docs/AI_RULES/20_SECURITY_APPROVALS.md`
+- 関連Issue/PR: コミット `599ba72`
+- 関連ADR: —
+- 一次ソース: `backend/Code.gs` `seedDemoData()` 行 1207
+
+---
+
 ## [2026-03-22] Playwright MCP / `browserType.launchPersistentContext`
 ### 症状
 - Playwright MCP のブラウザ起動に失敗する
