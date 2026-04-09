@@ -32,7 +32,7 @@
 - 外部ベストプラクティスと案件正本が衝突する場合は、案件正本を優先し、差分を記録してください。
 
 1. `HANDOVER.md`
-2. `GLOBAL_GROUND_RULES/CLAUDE.md`
+2. `AGENTS.md`
 3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
 5. `docs/10_SOW.md`
@@ -104,7 +104,7 @@ npx clasp run setupDatabase
 - `HANDOVER.md`
 - `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
 - `docs/34_DEVELOPMENT_OPERATING_MODEL_2026-03-30.md`
-- `GLOBAL_GROUND_RULES/CLAUDE.md`
+- `AGENTS.md`
 - `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 - `docs/10_SOW.md`
 - `docs/09_DEPLOYMENT_POLICY.md`
@@ -123,7 +123,7 @@ npx clasp run setupDatabase
 - SOW要件は `docs/10_SOW.md` に明記しています。
 
 ## オンライン前提の開発フロー
-1. `HANDOVER.md`、`GLOBAL_GROUND_RULES/CLAUDE.md`、`GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md` を再読する。
+1. `HANDOVER.md`、`AGENTS.md`、`GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md` を再読する。
 2. `docs/34_DEVELOPMENT_OPERATING_MODEL_2026-03-30.md` で役割分担と完了条件を確認する。
 3. `cd backend && npx clasp show-authorized-user` で運用アカウントを確認する。
 4. `npx clasp run healthCheck` と `npx clasp run getDbInfo` を実行し、オンライン疎通を確認する。

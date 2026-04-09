@@ -7,49 +7,63 @@ import TrainingMailSender from './TrainingMailSender';
 interface Props {
   trainings: Training[];
   onSave: (training: Training) => Promise<Training>;
+  defaultFieldConfig?: TrainingFieldConfig | null;
 }
 
-const OPTIONAL_FIELD_DEFS: { key: keyof TrainingFieldConfig; label: string }[] = [
+// 法定外研修フラグは常時表示のため除外
+export const TRAINING_OPTIONAL_FIELD_DEFS: { key: keyof TrainingFieldConfig; label: string }[] = [
   { key: 'description', label: '詳細説明' },
   { key: 'instructor', label: '講師' },
   { key: 'applicationOpenDate', label: '申込開始日' },
   { key: 'applicationCloseDate', label: '申込締切日' },
   { key: 'fees', label: '研修費用' },
-  { key: 'isNonMandatory', label: '法定外研修フラグ' },
   { key: 'guidePdfUrl', label: '案内PDF' },
 ];
 
-const EMPTY_FORM: Training = {
-  id: '',
-  title: '',
-  date: '',
-  endTime: '',
-  organizer: '',
-  isNonMandatory: false,
-  summary: '',
-  description: '',
-  capacity: 0,
-  applicants: 0,
-  fees: DEFAULT_FEES.map((f) => ({ ...f })),
-  applicationOpenDate: '',
-  applicationCloseDate: '',
-  location: '',
-  status: 'OPEN',
-  instructor: '',
-  guidePdfUrl: '',
-  cancelAllowed: false,
-  inquiryPerson: '',
-  inquiryContactValue: '',
-  fieldConfig: { ...DEFAULT_FIELD_CONFIG },
+const toDateString = (d: Date) => d.toISOString().slice(0, 10);
+const getDefaultDates = () => {
+  const today = new Date();
+  const nextMonth = new Date(today);
+  nextMonth.setMonth(nextMonth.getMonth() + 1);
+  return { open: toDateString(today), close: toDateString(nextMonth) };
 };
 
-const PHONE_PATTERN = /^[0-9+\-() ]{6,}$/;
+const buildEmptyForm = (fieldConfig: TrainingFieldConfig): Training => {
+  const { open, close } = getDefaultDates();
+  return {
+    id: '',
+    title: '',
+    date: '',
+    endTime: '',
+    organizer: '',
+    isNonMandatory: false,
+    summary: '',
+    description: '',
+    capacity: 0,
+    applicants: 0,
+    fees: DEFAULT_FEES.map((f) => ({ ...f })),
+    applicationOpenDate: fieldConfig.applicationOpenDate !== false ? open : '',
+    applicationCloseDate: fieldConfig.applicationCloseDate !== false ? close : '',
+    location: '',
+    status: 'OPEN',
+    instructor: '',
+    guidePdfUrl: '',
+    cancelAllowed: false,
+    inquiryPerson: '',
+    inquiryPhone: '',
+    inquiryEmail: '',
+    fieldConfig: { ...fieldConfig },
+  };
+};
+
+const PHONE_PATTERN = /^[0-9+\-() ー−]{6,}$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type PanelView = 'form' | 'mail';
 
-const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
-  const [form, setForm] = useState<Training>({ ...EMPTY_FORM });
+const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldConfig }) => {
+  const effectiveDefault = defaultFieldConfig ?? DEFAULT_FIELD_CONFIG;
+  const [form, setForm] = useState<Training>(() => buildEmptyForm(effectiveDefault));
   const [isNew, setIsNew] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -60,13 +74,13 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
   const [panelView, setPanelView] = useState<PanelView>('form');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const fieldConfig: TrainingFieldConfig = form.fieldConfig ?? { ...DEFAULT_FIELD_CONFIG };
+  const fieldConfig: TrainingFieldConfig = form.fieldConfig ?? { ...effectiveDefault };
   const isFieldOn = (key: keyof TrainingFieldConfig) => fieldConfig[key] !== false;
 
   const toggleField = (key: keyof TrainingFieldConfig) => {
     setForm((prev) => ({
       ...prev,
-      fieldConfig: { ...(prev.fieldConfig ?? DEFAULT_FIELD_CONFIG), [key]: !isFieldOn(key) },
+      fieldConfig: { ...(prev.fieldConfig ?? effectiveDefault), [key]: !isFieldOn(key) },
     }));
   };
 
@@ -78,7 +92,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
   };
 
   const startNew = () => {
-    setForm({ ...EMPTY_FORM, fees: DEFAULT_FEES.map((f) => ({ ...f })), fieldConfig: { ...DEFAULT_FIELD_CONFIG } });
+    setForm(buildEmptyForm(effectiveDefault));
     setIsNew(true);
     setSaveError(null);
     setSaveSuccess(false);
@@ -93,7 +107,10 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
       ...training,
       date: normalizeDateTime(training.date),
       fees: training.fees && training.fees.length > 0 ? training.fees : DEFAULT_FEES.map((f) => ({ ...f })),
-      fieldConfig: training.fieldConfig ?? { ...DEFAULT_FIELD_CONFIG },
+      fieldConfig: training.fieldConfig ?? { ...effectiveDefault },
+      // 旧データ後方互換: inquiryPhone/Email が未設定なら inquiryContactValue から復元
+      inquiryPhone: training.inquiryPhone || (training.inquiryContactType === 'PHONE' ? (training.inquiryContactValue || '') : ''),
+      inquiryEmail: training.inquiryEmail || (training.inquiryContactType === 'EMAIL' ? (training.inquiryContactValue || '') : ''),
     });
     setIsNew(false);
     setSaveError(null);
@@ -226,14 +243,18 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
       return;
     }
 
-    const inquiryContactValue = String(form.inquiryContactValue || '').trim();
-    if (!inquiryContactValue) {
-      setSaveError('問い合わせ窓口の連絡先を入力してください。');
+    const inquiryPhone = String(form.inquiryPhone || '').trim();
+    const inquiryEmail = String(form.inquiryEmail || '').trim();
+    if (!inquiryPhone && !inquiryEmail) {
+      setSaveError('問い合わせ窓口の電話番号またはメールアドレスを入力してください（どちらか必須）。');
       return;
     }
-
-    if (!EMAIL_PATTERN.test(inquiryContactValue) && !PHONE_PATTERN.test(inquiryContactValue)) {
-      setSaveError('連絡先は電話番号またはメールアドレス形式で入力してください。');
+    if (inquiryPhone && !PHONE_PATTERN.test(inquiryPhone)) {
+      setSaveError('電話番号の形式が正しくありません。');
+      return;
+    }
+    if (inquiryEmail && !EMAIL_PATTERN.test(inquiryEmail)) {
+      setSaveError('メールアドレスの形式が正しくありません。');
       return;
     }
 
@@ -242,6 +263,10 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
       return;
     }
 
+    // 後方互換: inquiryContactValue には電話優先で1件格納
+    const primaryContact = inquiryPhone || inquiryEmail;
+    const primaryType = inquiryPhone ? 'PHONE' : 'EMAIL';
+
     setSaving(true);
     setSaveError(null);
     setSaveSuccess(false);
@@ -249,8 +274,10 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
       const saved = await onSave({
         ...form,
         inquiryPerson,
-        inquiryContactValue,
-        inquiryContactType: EMAIL_PATTERN.test(inquiryContactValue) ? 'EMAIL' : 'PHONE',
+        inquiryPhone,
+        inquiryEmail,
+        inquiryContactValue: primaryContact,
+        inquiryContactType: primaryType,
       });
       setForm({ ...saved, date: normalizeDateTime(saved.date) });
       setIsNew(false);
@@ -347,14 +374,14 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
               >
                 <span>表示項目設定（任意項目）</span>
                 <span className="text-xs text-slate-500">
-                  {OPTIONAL_FIELD_DEFS.filter((f) => isFieldOn(f.key)).length}/{OPTIONAL_FIELD_DEFS.length}
+                  {TRAINING_OPTIONAL_FIELD_DEFS.filter((f) => isFieldOn(f.key)).length}/{TRAINING_OPTIONAL_FIELD_DEFS.length}
                 </span>
               </button>
               {settingsOpen && (
                 <div className="px-4 py-4 border-t border-slate-200 bg-white">
                   <p className="text-xs text-slate-500 mb-3">各項目の表示状態は「表示中/非表示中」スイッチ、または以下一覧から切り替えできます。</p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {OPTIONAL_FIELD_DEFS.map(({ key, label }) => (
+                    {TRAINING_OPTIONAL_FIELD_DEFS.map(({ key, label }) => (
                       <label key={key} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
                         <input
                           type="checkbox"
@@ -368,6 +395,20 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
                   </div>
                 </div>
               )}
+            </div>
+
+            <div>
+              <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  id="isNonMandatory"
+                  name="isNonMandatory"
+                  checked={form.isNonMandatory || false}
+                  onChange={handleChange}
+                  className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                />
+                法定外研修として登録する
+              </label>
             </div>
 
             <div>
@@ -457,7 +498,9 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
                   </button>
                 </div>
               ) : (
-                renderOffHint()
+                <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-3 py-2 mt-1">
+                  参加費無料として申込者に表示されます。費用を設定する場合はスイッチをONにしてください。
+                </p>
               )}
             </div>
 
@@ -484,25 +527,6 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
               {renderFieldHeader('講師', 'instructor')}
               {isFieldOn('instructor') ? (
                 <input className={inputCls} name="instructor" value={form.instructor || ''} onChange={handleChange} />
-              ) : (
-                renderOffHint()
-              )}
-            </div>
-
-            <div>
-              {renderFieldHeader('法定外研修フラグ', 'isNonMandatory')}
-              {isFieldOn('isNonMandatory') ? (
-                <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-                  <input
-                    type="checkbox"
-                    id="isNonMandatory"
-                    name="isNonMandatory"
-                    checked={form.isNonMandatory || false}
-                    onChange={handleChange}
-                    className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                  />
-                  法定外研修として登録する
-                </label>
               ) : (
                 renderOffHint()
               )}
@@ -556,14 +580,25 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave }) => {
               <label htmlFor="cancelAllowed" className="text-sm text-slate-700">この研修は申込キャンセルを許可する</label>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border border-slate-200 rounded-lg p-4 bg-slate-50">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">問い合わせ窓口 担当者 <span className="text-red-500">*</span></label>
-                <input className={inputCls} name="inquiryPerson" value={form.inquiryPerson || ''} onChange={handleChange} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">問い合わせ窓口 連絡先 <span className="text-red-500">*</span></label>
-                <input className={inputCls} name="inquiryContactValue" value={form.inquiryContactValue || ''} onChange={handleChange} placeholder="072-000-0000 / support@example.com" />
+            <div className="border border-slate-200 rounded-lg p-4 bg-slate-50 space-y-3">
+              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">問い合わせ窓口</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">担当者 <span className="text-red-500">*</span></label>
+                  <input className={inputCls} name="inquiryPerson" value={form.inquiryPerson || ''} onChange={handleChange} placeholder="例: 事務局 田中" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    電話番号 <span className="text-slate-400 text-xs">（どちらか必須）</span>
+                  </label>
+                  <input className={inputCls} type="tel" name="inquiryPhone" value={form.inquiryPhone || ''} onChange={handleChange} placeholder="072-000-0000" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    メールアドレス <span className="text-slate-400 text-xs">（どちらか必須）</span>
+                  </label>
+                  <input className={inputCls} type="email" name="inquiryEmail" value={form.inquiryEmail || ''} onChange={handleChange} placeholder="support@example.com" />
+                </div>
               </div>
             </div>
 

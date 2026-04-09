@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { PublicTraining } from '../shared/types';
 import { callApi } from '../shared/api-base';
 import MemberApplicationForm from '../components/application/MemberApplicationForm';
@@ -21,6 +21,28 @@ const PublicApp: React.FC = () => {
   const [completedApplyId, setCompletedApplyId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState('');
+  const mainRef = useRef<HTMLElement>(null);
+  const isFirstRender = useRef(true);
+
+  const viewTitles: Record<View, string> = {
+    'home': 'ポータルトップ',
+    'training-list': '研修一覧',
+    'training-apply': '研修申込',
+    'training-cancel': '申込取消',
+    'training-complete': '申込完了',
+    'member-application': '新規入会申込',
+  };
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    mainRef.current?.focus();
+    setAnnouncement(viewTitles[view]);
+    document.title = `${viewTitles[view]} | 枚方市介護支援専門員連絡協議会`;
+  }, [view]);
 
   useEffect(() => {
     const load = async () => {
@@ -168,6 +190,12 @@ const PublicApp: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f8fbff_0%,#eef5f7_45%,#f8fafc_100%)]">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-sky-700 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white focus:shadow-lg"
+      >
+        メインコンテンツへスキップ
+      </a>
       <header className="border-b border-slate-200 bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-5">
           <div>
@@ -186,7 +214,9 @@ const PublicApp: React.FC = () => {
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-8">
+      <div aria-live="polite" aria-atomic="true" className="sr-only">{announcement}</div>
+
+      <main ref={mainRef} id="main-content" tabIndex={-1} className="mx-auto max-w-5xl px-4 py-8 outline-none">
         {view === 'home' && renderHome()}
 
         {view === 'training-list' && renderTrainingList()}
@@ -245,6 +275,17 @@ const PublicApp: React.FC = () => {
           />
         )}
       </main>
+
+      <footer className="border-t border-slate-200 bg-white/80 backdrop-blur">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4">
+          <p className="text-xs text-slate-500">
+            &copy; 枚方市介護支援専門員連絡協議会
+          </p>
+          <p className="text-xs text-slate-500">
+            プライバシーポリシーは本サイトに掲載しています。
+          </p>
+        </div>
+      </footer>
     </div>
   );
 };

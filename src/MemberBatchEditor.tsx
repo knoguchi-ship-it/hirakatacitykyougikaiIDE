@@ -434,12 +434,31 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
                 return (
                   <tr key={person.personKey} className={`${stripe} ${dirty ? 'ring-1 ring-inset ring-primary-100' : ''}`}>
                     <td className="px-3 py-2.5 text-sm align-top">
-                      <div className="font-medium text-slate-900">{person.displayName}</div>
-                      <div className="text-xs text-slate-400">
-                        {isOfficeStaff ? person.officeName : person.memberId}
-                      </div>
-                      {isOfficeStaff && person.staffRole && (
-                        <div className="text-xs text-slate-400">{person.staffRole === 'REPRESENTATIVE' ? '代表者' : person.staffRole === 'ADMIN' ? '管理者' : 'メンバー'}</div>
+                      {onOpenDetail ? (
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={() => onOpenDetail(person.memberId)}
+                          className="text-left disabled:opacity-50"
+                        >
+                          <div className="font-medium text-primary-700 hover:underline">{person.displayName}</div>
+                          <div className="text-xs text-slate-400">
+                            {isOfficeStaff ? person.officeName : person.memberId}
+                          </div>
+                          {isOfficeStaff && person.staffRole && (
+                            <div className="text-xs text-slate-400">{person.staffRole === 'REPRESENTATIVE' ? '代表者' : person.staffRole === 'ADMIN' ? '管理者' : 'メンバー'}</div>
+                          )}
+                        </button>
+                      ) : (
+                        <>
+                          <div className="font-medium text-slate-900">{person.displayName}</div>
+                          <div className="text-xs text-slate-400">
+                            {isOfficeStaff ? person.officeName : person.memberId}
+                          </div>
+                          {isOfficeStaff && person.staffRole && (
+                            <div className="text-xs text-slate-400">{person.staffRole === 'REPRESENTATIVE' ? '代表者' : person.staffRole === 'ADMIN' ? '管理者' : 'メンバー'}</div>
+                          )}
+                        </>
                       )}
                     </td>
                     <td className="px-3 py-2.5 text-sm align-top">
@@ -493,10 +512,19 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
                         disabled={isBusy}
                         onChange={(e) => {
                           const nextStatus = e.target.value;
-                          updateDraft(person.personKey, {
-                            status: nextStatus,
-                            withdrawnDate: (nextStatus === 'ACTIVE' || nextStatus === 'ENROLLED') ? '' : draft.withdrawnDate,
-                          });
+                          const today = new Date();
+                          const currentFY = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
+                          const todayStr = today.toISOString().slice(0, 10);
+                          const patch: Partial<EditablePerson> = { status: nextStatus };
+                          if (nextStatus === 'WITHDRAWN' || nextStatus === 'LEFT') {
+                            patch.withdrawnDate = `${currentFY}-03-31`; // 前年度末
+                          } else if (nextStatus === 'WITHDRAWAL_SCHEDULED') {
+                            patch.withdrawnDate = `${currentFY + 1}-03-31`; // 今年度末
+                          } else if (nextStatus === 'ACTIVE' || nextStatus === 'ENROLLED') {
+                            patch.withdrawnDate = '';
+                            patch.joinedDate = todayStr; // 入力日当日
+                          }
+                          updateDraft(person.personKey, patch);
                         }}
                       >
                         {statusOptions(person.personType, draft.status).map((opt) => (

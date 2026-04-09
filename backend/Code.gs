@@ -11,8 +11,8 @@ var SCHEMA_INITIALIZED_VERSION_KEY = 'DB_SCHEMA_INITIALIZED_VERSION';
 var WITHDRAWAL_POLICY_LAST_APPLIED_DATE_KEY = 'WITHDRAWAL_POLICY_LAST_APPLIED_DATE';
 var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
 var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
-var ALL_DATA_CACHE_TTL_SECONDS = 300;
-var ANNUAL_FEE_CACHE_TTL_SECONDS = 300;
+var ALL_DATA_CACHE_TTL_SECONDS = 600;
+var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
 var DB_SCHEMA_VERSION = '2026-03-26-03';
 
 var マスタ定義 = {
@@ -731,6 +731,8 @@ function processApiRequest(action, payload) {
       'sendTrainingReminder': ['MASTER','ADMIN','TRAINING_MANAGER'],
       'getAdminEmailAliases': ['MASTER','ADMIN','TRAINING_MANAGER'],
       'sendTrainingMail': ['MASTER','ADMIN','TRAINING_MANAGER'],
+      // v188: AI案内メール生成（GASサーバー側でGemini APIを呼ぶ）
+      'generateTrainingEmail': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
     };
     var requiredPerms = ADMIN_ACTION_PERMISSIONS[action];
     if (requiredPerms) {
@@ -955,6 +957,11 @@ function processApiRequest(action, payload) {
 
     if (action === 'sendTrainingMail') {
       return sendTrainingMail_(parsedPayload);
+    }
+
+    // v188: Gemini AI案内メール生成（APIキーはScriptPropertiesで管理、フロントに露出しない）
+    if (action === 'generateTrainingEmail') {
+      return JSON.stringify({ success: true, data: generateTrainingEmailWithAI_(parsedPayload) });
     }
 
     // ── 会員セルフサービス（管理者認証不要・パスワード再認証必須）──
@@ -2435,18 +2442,31 @@ function parseTrainingOptions_(raw) {
     inquiryPerson: '',
     inquiryContactType: 'PHONE',
     inquiryContactValue: '',
+    inquiryPhone: '',
+    inquiryEmail: '',
   };
   var text = String(raw || '').trim();
   if (!text) return defaultResult;
   try {
     var parsed = JSON.parse(text);
     if (parsed && parsed.fieldConfig !== undefined) {
+      var contactType = String(parsed.inquiryContactType || 'PHONE') === 'EMAIL' ? 'EMAIL' : 'PHONE';
+      var contactValue = String(parsed.inquiryContactValue || '');
+      // 新フィールド優先、なければ旧フィールドから復元（後方互換）
+      var phone = String(parsed.inquiryPhone || '');
+      var email = String(parsed.inquiryEmail || '');
+      if (!phone && !email) {
+        if (contactType === 'PHONE') { phone = contactValue; }
+        else { email = contactValue; }
+      }
       return {
         fieldConfig: parsed.fieldConfig || null,
         cancelAllowed: parsed.cancelAllowed === true,
         inquiryPerson: String(parsed.inquiryPerson || ''),
-        inquiryContactType: String(parsed.inquiryContactType || 'PHONE') === 'EMAIL' ? 'EMAIL' : 'PHONE',
-        inquiryContactValue: String(parsed.inquiryContactValue || ''),
+        inquiryContactType: contactType,
+        inquiryContactValue: contactValue,
+        inquiryPhone: phone,
+        inquiryEmail: email,
       };
     }
     // 旧形式（fieldConfigオブジェクトのみ）
@@ -2456,22 +2476,56 @@ function parseTrainingOptions_(raw) {
       inquiryPerson: '',
       inquiryContactType: 'PHONE',
       inquiryContactValue: '',
+      inquiryPhone: '',
+      inquiryEmail: '',
     };
   } catch (e) {
     return defaultResult;
   }
 }
 
-function serializeTrainingOptions_(fieldConfig, cancelAllowed, inquiryPerson, inquiryContactType, inquiryContactValue) {
+function serializeTrainingOptions_(fieldConfig, cancelAllowed, inquiryPerson, inquiryContactType, inquiryContactValue, inquiryPhone, inquiryEmail) {
   return JSON.stringify({
     fieldConfig: fieldConfig || null,
     cancelAllowed: cancelAllowed === true,
     inquiryPerson: String(inquiryPerson || ''),
     inquiryContactType: String(inquiryContactType || 'PHONE') === 'EMAIL' ? 'EMAIL' : 'PHONE',
     inquiryContactValue: String(inquiryContactValue || ''),
+    inquiryPhone: String(inquiryPhone || ''),
+    inquiryEmail: String(inquiryEmail || ''),
   });
 }
 
+function normalizeInquiryContacts_(phone, email, legacyValue) {
+  var p = String(phone || '').trim();
+  var e = String(email || '').trim();
+  // 新フィールドが両方空の場合は旧フィールドにフォールバック
+  if (!p && !e) {
+    var legacy = String(legacyValue || '').trim();
+    if (legacy) {
+      var emailPat = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (emailPat.test(legacy)) { e = legacy; }
+      else { p = legacy; }
+    }
+  }
+  if (!p && !e) {
+    throw new Error('問い合わせ窓口の電話番号またはメールアドレスを入力してください。');
+  }
+  var phonePat = /^[0-9+\-() ー−]{6,}$/;
+  var emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (p && !phonePat.test(p)) {
+    throw new Error('電話番号の形式が正しくありません: ' + p);
+  }
+  if (e && !emailPattern.test(e)) {
+    throw new Error('メールアドレスの形式が正しくありません: ' + e);
+  }
+  // 後方互換: inquiryContactValue には電話優先で1件格納
+  var primaryValue = p || e;
+  var primaryType = p ? 'PHONE' : 'EMAIL';
+  return { phone: p, email: e, primaryType: primaryType, primaryValue: primaryValue };
+}
+
+// 旧関数（後方互換、seed/test コード向け）
 function normalizeInquiryContact_(inquiryContactValue) {
   var value = String(inquiryContactValue || '').trim();
   if (!value) {
@@ -2589,7 +2643,7 @@ function fetchAllDataFromDbFresh_() {
   var feeRows = getRowsAsObjects_(ss, 'T_年会費納入履歴').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
   var memberTypeFeeMap = getAnnualFeeAmountMap_(ss);
   return {
-    members: mapMembersForApi_(memberRows, staffRows, authRows, applicationRows, feeRows, memberTypeFeeMap),
+    members: mapMembersForApi_(ss, memberRows, staffRows, authRows, applicationRows, feeRows, memberTypeFeeMap),
     trainings: mapTrainingRowsForApi_(trainingRows),
   };
 }
@@ -2613,20 +2667,36 @@ function getMemberPortalData_(payload) {
   var authRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) {
     return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
   });
-  var trainingRows = getRowsAsObjects_(ss, 'T_研修').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
   var applicationRows = getTrainingApplicationRows_(ss, { appliedOnly: true, memberId: memberId });
+  // B-01: 申し込み済み研修IDセットを事前構築し、全件スキャンを回避する
+  var appliedIdSet = {};
+  for (var ai = 0; ai < applicationRows.length; ai++) {
+    appliedIdSet[String(applicationRows[ai]['研修ID'] || '')] = true;
+  }
+  var nowTs = Date.now();
+  var trainingRows = getRowsAsObjects_(ss, 'T_研修').filter(function(r) {
+    if (toBoolean_(r['削除フラグ'])) return false;
+    // 申し込み済みは必ず含める（履歴表示のため）
+    if (appliedIdSet[String(r['研修ID'] || '')]) return true;
+    // キャンセル済みは除外
+    if (String(r['研修状態コード'] || '') === 'CANCELLED') return false;
+    // 過去の研修（開催日が今日より前）は除外（申し込み対象外のため不要）
+    var dateStr = String(r['開催日'] || '').replace(/\//g, '-').split('T')[0];
+    if (!dateStr) return true; // 開催日未設定は含める
+    return new Date(dateStr + 'T23:59:59+09:00').getTime() >= nowTs;
+  });
   var feeRows = getRowsAsObjects_(ss, 'T_年会費納入履歴').filter(function(r) {
     return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
   });
   var memberTypeFeeMap = getAnnualFeeAmountMap_(ss);
 
   return {
-    members: mapMembersForApi_(memberRows, staffRows, authRows, applicationRows, feeRows, memberTypeFeeMap),
+    members: mapMembersForApi_(ss, memberRows, staffRows, authRows, applicationRows, feeRows, memberTypeFeeMap),
     trainings: mapTrainingRowsForApi_(trainingRows),
   };
 }
 
-function mapMembersForApi_(memberRows, staffRows, authRows, applicationRows, feeRows, memberTypeFeeMap) {
+function mapMembersForApi_(ss, memberRows, staffRows, authRows, applicationRows, feeRows, memberTypeFeeMap) {
   var memberMap = {};
   for (var memberIdx = 0; memberIdx < memberRows.length; memberIdx += 1) {
     memberMap[String(memberRows[memberIdx]['会員ID'] || '')] = memberRows[memberIdx];
@@ -2664,6 +2734,7 @@ function mapMembersForApi_(memberRows, staffRows, authRows, applicationRows, fee
   }
 
   var feeByMember = {};
+  var annualFeeTransferAccount = getAnnualFeeTransferAccountSetting_(ss);
   for (var k = 0; k < feeRows.length; k += 1) {
     var f = feeRows[k];
     var feeMemberId = String(f['会員ID'] || '');
@@ -2678,7 +2749,7 @@ function mapMembersForApi_(memberRows, staffRows, authRows, applicationRows, fee
       updatedAt: String(f['更新日時'] || ''),
     };
     if (feeItem.status === 'UNPAID') {
-      feeItem.transferAccount = parseTransferAccount_(f['備考']);
+      feeItem.transferAccount = parseTransferAccount_(f['備考'], annualFeeTransferAccount);
     }
     feeByMember[feeMemberId].push(feeItem);
   }
@@ -2724,7 +2795,7 @@ function mapMembersForApi_(memberRows, staffRows, authRows, applicationRows, fee
   return memberRows.map(function(m) {
     var id = String(m['会員ID'] || '');
     var type = String(m['会員種別コード'] || 'INDIVIDUAL');
-    var history = (feeByMember[id] || []).sort(function(a, b) { return b.year - a.year; }).slice(0, 2);
+    var history = buildMemberAnnualFeeHistory_(m, feeByMember[id] || [], memberTypeFeeMap);
     return {
       id: id,
       loginId: loginByMemberId[id] || '',
@@ -2814,6 +2885,8 @@ function mapTrainingRowsForApi_(trainingRows) {
       inquiryPerson: trainingOptions.inquiryPerson,
       inquiryContactType: trainingOptions.inquiryContactType,
       inquiryContactValue: trainingOptions.inquiryContactValue,
+      inquiryPhone: trainingOptions.inquiryPhone,
+      inquiryEmail: trainingOptions.inquiryEmail,
     };
   });
 }
@@ -2884,6 +2957,15 @@ function getAdminDashboardData_() {
   var businessStaffCount = staffRows.filter(function(r) {
     return String(r['職員状態コード'] || 'ENROLLED') === 'ENROLLED';
   }).length;
+  // 事業所別在籍職員数マップ（フィルタ連動ダッシュボード用）
+  var enrolledStaffCountByMember = {};
+  for (var siIdx = 0; siIdx < staffRows.length; siIdx += 1) {
+    var sr = staffRows[siIdx];
+    if (String(sr['職員状態コード'] || 'ENROLLED') !== 'ENROLLED') continue;
+    var smid = String(sr['会員ID'] || '');
+    if (!smid) continue;
+    enrolledStaffCountByMember[smid] = (enrolledStaffCountByMember[smid] || 0) + 1;
+  }
 
   // 会員種別別カウント・入退会集計
   // v143: アクティブ会員（ACTIVE / WITHDRAWAL_SCHEDULED）のみカウント
@@ -2928,6 +3010,7 @@ function getAdminDashboardData_() {
       joinedDate: normalizeDateInput_(joinedDateRaw),
       status: memberStatus,
       withdrawnDate: normalizeDateInput_(withdrawnDateRaw),
+      enrolledStaffCount: memberType === 'BUSINESS' ? (enrolledStaffCountByMember[memberId] || 0) : undefined,
     };
   }).sort(function(a, b) {
     return String(a.displayName || '').localeCompare(String(b.displayName || ''));
@@ -3004,8 +3087,9 @@ function getTrainingManagementData_() {
   return trainings;
 }
 
-function parseTransferAccount_(raw) {
-  if (!raw) return DEMO_TRANSFER_ACCOUNT;
+function parseTransferAccount_(raw, fallback) {
+  var defaultAccount = fallback || DEMO_TRANSFER_ACCOUNT;
+  if (!raw) return defaultAccount;
   var txt = String(raw);
   try {
     var parsed = JSON.parse(txt);
@@ -3013,7 +3097,46 @@ function parseTransferAccount_(raw) {
       return parsed;
     }
   } catch (e) {}
+  return defaultAccount;
+}
+
+function getAnnualFeeTransferAccountSetting_(ss) {
+  var raw = getSystemSettingValue_(ss, 'ANNUAL_FEE_TRANSFER_ACCOUNT');
+  if (!raw) return DEMO_TRANSFER_ACCOUNT;
+  try {
+    var parsed = JSON.parse(String(raw));
+    if (parsed && parsed.bankName && parsed.accountNumber && parsed.accountName) {
+      return {
+        bankName: String(parsed.bankName || ''),
+        branchName: String(parsed.branchName || ''),
+        accountType: String(parsed.accountType || '普通') === '当座' ? '当座' : '普通',
+        accountNumber: String(parsed.accountNumber || ''),
+        accountName: String(parsed.accountName || ''),
+        note: String(parsed.note || ''),
+      };
+    }
+  } catch (e) {}
   return DEMO_TRANSFER_ACCOUNT;
+}
+
+function validateAnnualFeeTransferAccount_(account) {
+  if (!account) throw new Error('年会費の振込先が未設定です。');
+  var normalized = {
+    bankName: String(account.bankName || '').trim(),
+    branchName: String(account.branchName || '').trim(),
+    accountType: String(account.accountType || '普通') === '当座' ? '当座' : '普通',
+    accountNumber: String(account.accountNumber || '').trim(),
+    accountName: String(account.accountName || '').trim(),
+    note: String(account.note || '').trim(),
+  };
+  if (!normalized.bankName) throw new Error('年会費の振込先の銀行名は必須です。');
+  if (!normalized.branchName) throw new Error('年会費の振込先の支店名は必須です。');
+  if (!normalized.accountNumber) throw new Error('年会費の振込先の口座番号は必須です。');
+  if (!normalized.accountName) throw new Error('年会費の振込先の口座名義は必須です。');
+  if (normalized.bankName.length > 100 || normalized.branchName.length > 100 || normalized.accountName.length > 150 || normalized.note.length > 500) {
+    throw new Error('年会費の振込先情報が長すぎます。');
+  }
+  return normalized;
 }
 
 function uniqueStrings_(arr) {
@@ -3438,13 +3561,26 @@ function getSystemSettings_() {
   initializeSchemaIfNeeded_(ss);
   var raw = Number(getSystemSettingValue_(ss, 'DEFAULT_BUSINESS_STAFF_LIMIT') || 10);
   var lookbackRaw = Number(getSystemSettingValue_(ss, 'TRAINING_HISTORY_LOOKBACK_MONTHS') || 18);
+  var guidanceRaw = getSystemSettingValue_(ss, 'ANNUAL_FEE_PAYMENT_GUIDANCE');
+  var transferAccount = getAnnualFeeTransferAccountSetting_(ss);
   var value = Math.floor(raw);
   var lookback = Math.floor(lookbackRaw);
+  var guidance = guidanceRaw == null
+    ? '年会費が未納の場合は、下記の振込先をご確認のうえお手続きください。\n振込名義は会員番号と氏名を記載してください。'
+    : String(guidanceRaw);
   if (!isFinite(value) || value < 1) value = 10;
   if (!isFinite(lookback) || lookback < 1) lookback = 18;
+  var trainingDefaultFieldConfigRaw = getSystemSettingValue_(ss, 'TRAINING_DEFAULT_FIELD_CONFIG');
+  var trainingDefaultFieldConfig = null;
+  if (trainingDefaultFieldConfigRaw) {
+    try { trainingDefaultFieldConfig = JSON.parse(trainingDefaultFieldConfigRaw); } catch (e) {}
+  }
   return {
     defaultBusinessStaffLimit: value,
     trainingHistoryLookbackMonths: lookback,
+    annualFeePaymentGuidance: guidance,
+    annualFeeTransferAccount: transferAccount,
+    trainingDefaultFieldConfig: trainingDefaultFieldConfig,
   };
 }
 
@@ -3453,6 +3589,8 @@ function updateSystemSettings_(request) {
   var next = Number(request.defaultBusinessStaffLimit || 0);
   var lookbackRaw = request.trainingHistoryLookbackMonths;
   var lookback = Number(lookbackRaw);
+  var guidance = request.annualFeePaymentGuidance == null ? '' : String(request.annualFeePaymentGuidance);
+  var transferAccount = validateAnnualFeeTransferAccount_(request.annualFeeTransferAccount);
   if (lookbackRaw == null || lookbackRaw === '') {
     var ssForDefault = getOrCreateDatabase_();
     initializeSchema_(ssForDefault);
@@ -3464,11 +3602,19 @@ function updateSystemSettings_(request) {
   if (!isFinite(lookback) || lookback < 1 || lookback > 60) {
     throw new Error('履歴表示期間（月）は 1〜60 の範囲で設定してください。');
   }
+  if (guidance.length > 2000) {
+    throw new Error('年会費の納入案内は 2000 文字以内で設定してください。');
+  }
   var ss = getOrCreateDatabase_();
   initializeSchemaIfNeeded_(ss);
   upsertSystemSetting_(ss, 'DEFAULT_BUSINESS_STAFF_LIMIT', String(Math.floor(next)), '事業所会員メンバー上限（全体デフォルト）');
   upsertSystemSetting_(ss, 'TRAINING_HISTORY_LOOKBACK_MONTHS', String(Math.floor(lookback)), '研修履歴の表示期間（月）');
+  upsertSystemSetting_(ss, 'ANNUAL_FEE_PAYMENT_GUIDANCE', guidance, '年会費未納時の会員向け納入案内');
+  upsertSystemSetting_(ss, 'ANNUAL_FEE_TRANSFER_ACCOUNT', JSON.stringify(transferAccount), '年会費未納時の共通振込先');
   upsertSystemSetting_(ss, 'DB_SCHEMA_VERSION', DB_SCHEMA_VERSION, 'DBスキーマバージョン');
+  if (request.trainingDefaultFieldConfig != null) {
+    upsertSystemSetting_(ss, 'TRAINING_DEFAULT_FIELD_CONFIG', JSON.stringify(request.trainingDefaultFieldConfig), '研修フォームのデフォルト表示項目設定');
+  }
   var scriptProperties = PropertiesService.getScriptProperties();
   scriptProperties.setProperty(DEFAULT_BUSINESS_STAFF_LIMIT_KEY, String(Math.floor(next))); // backward compatibility
   scriptProperties.setProperty(TRAINING_HISTORY_LOOKBACK_MONTHS_KEY, String(Math.floor(lookback))); // backward compatibility
@@ -3778,6 +3924,30 @@ function getAnnualFeeFiscalYearEndDate_(fiscalYear) {
   return String(Number(fiscalYear || 0) + 1) + '-03-31';
 }
 
+function buildMemberAnnualFeeHistory_(memberRow, feeHistory, memberTypeFeeMap) {
+  var history = Array.isArray(feeHistory) ? feeHistory.slice() : [];
+  var currentFiscalYear = getCurrentFiscalYear_();
+  var hasCurrentFiscalYear = history.some(function(record) {
+    return Number(record && record.year || 0) === currentFiscalYear;
+  });
+
+  if (!hasCurrentFiscalYear && isAnnualFeeEligibleMemberForYear_(memberRow, currentFiscalYear)) {
+    history.push({
+      id: '',
+      year: currentFiscalYear,
+      status: 'UNPAID',
+      confirmedDate: '',
+      amount: resolveAnnualFeeAmount_(memberRow, memberTypeFeeMap, 0),
+      note: '',
+      updatedAt: '',
+    });
+  }
+
+  return history
+    .sort(function(a, b) { return Number(b.year || 0) - Number(a.year || 0); })
+    .slice(0, 2);
+}
+
 function isAnnualFeeEligibleMemberForYear_(memberRow, fiscalYear) {
   if (!memberRow) return false;
   if (toBoolean_(memberRow['削除フラグ'])) return false;
@@ -3891,13 +4061,10 @@ function resolveAnnualFeeSelectedYear_(ss, payload) {
   if (isFinite(requestedYear) && requestedYear >= 2000 && requestedYear <= 2100) {
     return Math.floor(requestedYear);
   }
-  var feeRows = getRowsAsObjects_(ss, 'T_年会費納入履歴').filter(function(r) {
-    return !toBoolean_(r['削除フラグ']);
-  });
-  var years = feeRows.map(function(row) { return Number(row['対象年度'] || 0); })
-    .filter(function(year) { return !!year; })
-    .sort(function(a, b) { return b - a; });
-  return years[0] || getCurrentFiscalYear_();
+  // year未指定時は現在の会計年度を返す。
+  // 旧実装ではDBの最新レコード年度を返していたが、新年度開始直後にレコードがない場合に
+  // 前年度が表示されるバグが発生するため、常に getCurrentFiscalYear_() を基準とする。
+  return getCurrentFiscalYear_();
 }
 
 function getAnnualFeeAdminData_(payload) {
@@ -5784,6 +5951,46 @@ var STAFF_WRITABLE_FIELDS_REPRESENTATIVE_ = ['id','name','kana','email','status'
 var STAFF_WRITABLE_FIELDS_ADMIN_ = ['id','name','kana','email','status','role']; // v167: ADMIN can change roles of others (not self, not REPRESENTATIVE)
 var STAFF_WRITABLE_FIELDS_SELF_ = ['id','name','kana','email'];
 
+function buildSelfServiceBusinessStaffSnapshot_(row) {
+  row = row || {};
+  var lastName = String(row['姓'] || '');
+  var firstName = String(row['名'] || '');
+  var lastKana = String(row['セイ'] || '');
+  var firstKana = String(row['メイ'] || '');
+  return {
+    id: String(row['職員ID'] || ''),
+    lastName: lastName,
+    firstName: firstName,
+    lastKana: lastKana,
+    firstKana: firstKana,
+    name: String(row['氏名'] || [lastName, firstName].join(' ').trim() || ''),
+    kana: String(row['フリガナ'] || [lastKana, firstKana].join(' ').trim() || ''),
+    email: String(row['メールアドレス'] || ''),
+    role: String(row['職員権限コード'] || 'STAFF'),
+    status: String(row['職員状態コード'] || 'ENROLLED'),
+    joinedDate: normalizeDateInput_(row['入会日']),
+    withdrawnDate: normalizeDateInput_(row['退会日'])
+  };
+}
+
+function mergeSelfServiceBusinessStaffPayload_(base, incoming, allowedFields) {
+  var result = {};
+  var source = incoming || {};
+  for (var key in base) {
+    if (Object.prototype.hasOwnProperty.call(base, key)) {
+      result[key] = base[key];
+    }
+  }
+  for (var i = 0; i < allowedFields.length; i += 1) {
+    var field = allowedFields[i];
+    if (field === 'id') continue;
+    if (Object.prototype.hasOwnProperty.call(source, field)) {
+      result[field] = source[field];
+    }
+  }
+  return result;
+}
+
 function sanitizeAdminBatchMemberPayload_(payload) {
   if (!payload || !payload.id) throw new Error('会員IDが未指定です。');
   var sanitized = { id: String(payload.id) };
@@ -6114,84 +6321,119 @@ function updateMemberSelf_(payload) {
     }
   }
 
-  // 3. 職員データをロール別 allowlist でフィルタ（OWASP A01 / CWE-915）
+  // 3. 職員データをロール別に制御しつつ、送信されなかった既存行は保持する
   if (Object.prototype.hasOwnProperty.call(payload, 'staff') && Array.isArray(payload.staff)) {
-    var staffAllowlist;
-    if (callerStaffRole === 'REPRESENTATIVE') {
-      staffAllowlist = STAFF_WRITABLE_FIELDS_REPRESENTATIVE_;
-    } else if (callerStaffRole === 'ADMIN') {
-      staffAllowlist = STAFF_WRITABLE_FIELDS_ADMIN_;
-    } else if (callerStaffRole === 'STAFF') {
-      staffAllowlist = STAFF_WRITABLE_FIELDS_SELF_;
-    } else {
-      // 個人会員・賛助会員には職員データなし — サイレントに除去
-      staffAllowlist = null;
+    var currentStaffRows = getBusinessStaffRowsByMember_(ss, String(payload.id || ''));
+    var currentStaffById = {};
+    for (var csr = 0; csr < currentStaffRows.length; csr += 1) {
+      var currentStaffRow = currentStaffRows[csr] || {};
+      var currentStaffRowId = String(currentStaffRow['職員ID'] || '').trim();
+      if (!currentStaffRowId) continue;
+      currentStaffById[currentStaffRowId] = buildSelfServiceBusinessStaffSnapshot_(currentStaffRow);
     }
 
-    if (staffAllowlist) {
-      // v106: ペイロードの職員データを allowlist でフィルタ
-      var filteredPayloadStaff = {};
-      for (var p = 0; p < payload.staff.length; p++) {
-        var s = payload.staff[p];
-        // v106: STAFF は自分の職員IDのみ編集可（なりすまし防止）
-        if (callerStaffRole === 'STAFF') {
-          var targetStaffId = String(s.id || '').trim();
-          if (targetStaffId !== callerStaffId) {
-            throw new Error('他の職員のデータは更新できません。');
-          }
+    var submittedStaff = payload.staff.map(function(s) {
+      return {
+        id: String(s.id || ''),
+        lastName: String(s.lastName || ''),
+        firstName: String(s.firstName || ''),
+        lastKana: String(s.lastKana || ''),
+        firstKana: String(s.firstKana || ''),
+        name: String(s.name || ''),
+        kana: String(s.kana || ''),
+        email: String(s.email || ''),
+        role: String(s.role || ''),
+        status: String(s.status || ''),
+      };
+    });
+
+    var normalizedStaff = [];
+
+    if (callerStaffRole === 'STAFF') {
+      if (!currentStaffById[callerStaffId]) {
+        throw new Error('自身の職員データが見つかりません。');
+      }
+      var ownSubmittedStaff = null;
+      for (var ssi = 0; ssi < submittedStaff.length; ssi += 1) {
+        if (submittedStaff[ssi].id === callerStaffId) {
+          ownSubmittedStaff = submittedStaff[ssi];
+          break;
         }
-        var filtered = {};
-        for (var j = 0; j < staffAllowlist.length; j++) {
-          var sKey = staffAllowlist[j];
-          if (Object.prototype.hasOwnProperty.call(s, sKey)) {
-            filtered[sKey] = s[sKey];
-          }
+      }
+      if (!ownSubmittedStaff) {
+        throw new Error('他の職員のデータは更新できません。');
+      }
+      for (var currentStaffId in currentStaffById) {
+        if (!Object.prototype.hasOwnProperty.call(currentStaffById, currentStaffId)) continue;
+        var currentSnapshot = currentStaffById[currentStaffId];
+        if (currentStaffId === callerStaffId) {
+          normalizedStaff.push(mergeSelfServiceBusinessStaffPayload_(currentSnapshot, ownSubmittedStaff, STAFF_WRITABLE_FIELDS_SELF_));
+        } else {
+          normalizedStaff.push(currentSnapshot);
         }
-        if (filtered.id) filteredPayloadStaff[filtered.id] = filtered;
+      }
+    } else if (callerStaffRole === 'ADMIN' || callerStaffRole === 'REPRESENTATIVE') {
+      for (var submittedIndex = 0; submittedIndex < submittedStaff.length; submittedIndex += 1) {
+        var submitted = submittedStaff[submittedIndex];
+        if (!submitted.id) continue;
+        var currentSnapshotById = currentStaffById[submitted.id] || null;
+        var currentRole = currentSnapshotById ? normalizeBusinessStaffRole_(currentSnapshotById.role) : '';
+
+        if (callerStaffRole === 'ADMIN' && currentRole === 'REPRESENTATIVE') {
+          normalizedStaff.push(currentSnapshotById);
+          continue;
+        }
+
+        if (callerStaffRole === 'REPRESENTATIVE' && submitted.id === callerStaffId) {
+          normalizedStaff.push(mergeSelfServiceBusinessStaffPayload_(
+            currentSnapshotById || submitted,
+            submitted,
+            STAFF_WRITABLE_FIELDS_SELF_
+          ));
+          continue;
+        }
+
+        if (callerStaffRole === 'ADMIN' && submitted.id === callerStaffId) {
+          normalizedStaff.push(mergeSelfServiceBusinessStaffPayload_(
+            currentSnapshotById || submitted,
+            submitted,
+            ['id','name','kana','email','status']
+          ));
+          continue;
+        }
+
+        normalizedStaff.push(submitted);
       }
 
-      // v167: ADMIN が自身の role を変更しようとした場合、role フィールドをストリップする
-      if (callerStaffRole === 'ADMIN' && callerStaffId && filteredPayloadStaff[callerStaffId]) {
-        delete filteredPayloadStaff[callerStaffId]['role'];
-      }
-
-      // v106: DB上の全職員リストを取得し、ペイロードの変更をマージ
-      // syncBusinessStaffRows_ は「送信されなかった職員を削除」するため、
-      // 部分送信（STAFF自己編集等）でも全員分のデータを渡す必要がある
-      var currentStaffRows = getBusinessStaffRowsByMember_(ss, String(payload.id || ''));
-      sanitized.staff = currentStaffRows.map(function(row) {
-        var sid = String(row['職員ID'] || '');
-        var base = {
-          id: sid,
-          name: String(row['氏名'] || ''),
-          kana: String(row['フリガナ'] || ''),
-          email: String(row['メールアドレス'] || ''),
-          role: String(row['職員権限コード'] || 'STAFF'),
-          status: String(row['職員状態コード'] || 'ENROLLED'),
-        };
-        // ペイロードに含まれる職員はフィルタ済みの変更をマージ
-        if (filteredPayloadStaff[sid]) {
-          var changes = filteredPayloadStaff[sid];
-          for (var ck in changes) {
-            if (Object.prototype.hasOwnProperty.call(changes, ck) && ck !== 'id') {
-              base[ck] = changes[ck];
-            }
+      for (var existingStaffId in currentStaffById) {
+        if (!Object.prototype.hasOwnProperty.call(currentStaffById, existingStaffId)) continue;
+        var alreadyIncluded = false;
+        for (var ni = 0; ni < normalizedStaff.length; ni += 1) {
+          if (normalizedStaff[ni].id === existingStaffId) {
+            alreadyIncluded = true;
+            break;
           }
-          delete filteredPayloadStaff[sid];
         }
-        return base;
-      });
-      // ペイロードに新規職員が含まれている場合（REPRESENTATIVEの追加操作）
-      for (var newId in filteredPayloadStaff) {
-        if (Object.prototype.hasOwnProperty.call(filteredPayloadStaff, newId)) {
-          sanitized.staff.push(filteredPayloadStaff[newId]);
+        if (!alreadyIncluded) {
+          normalizedStaff.push(currentStaffById[existingStaffId]);
         }
       }
+    }
+
+    if (normalizedStaff.length > 0) {
+      sanitized.staff = normalizedStaff;
     }
   }
 
   // 4. 既存の updateMember_ に委譲（skipAdminCheck=true）
-  return updateMember_(sanitized, true);
+  return updateMember_(sanitized, {
+    skipAdminCheck: true,
+    ss: ss,
+    adminSession: callerStaffId ? {
+      staffId: callerStaffId,
+      roleCode: callerStaffRole
+    } : null
+  });
 }
 
 function updateMember_(payload, options) {
@@ -6732,8 +6974,15 @@ function dailyWithdrawalPolicyTrigger() {
 }
 
 // v150: ウォームアップトリガー（コールドスタート軽減）
+// v188: SpreadsheetApp接続確立 + キャッシュ投入でV8ランタイムとDBを同時に温める
 function warmUp() {
-  CacheService.getScriptCache().get('warmup');
+  try {
+    SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+    fetchAllDataFromDb_();
+    Logger.log('warmUp: ok');
+  } catch (e) {
+    Logger.log('warmUp error: ' + e.message);
+  }
 }
 
 // v150: トリガー一括セットアップ（手動で1回実行）
@@ -7083,15 +7332,17 @@ function saveTraining_(payload) {
   if (!inquiryPerson) {
     throw new Error('問い合わせ窓口の担当者を入力してください。');
   }
-  var normalizedInquiryContact = normalizeInquiryContact_(payload.inquiryContactValue);
+  var normalizedContact = normalizeInquiryContacts_(payload.inquiryPhone, payload.inquiryEmail, payload.inquiryContactValue);
   var derivedStatus = deriveTrainingStatusByCloseDate_(payload.applicationCloseDate);
   payload.organizer = organizer;
   payload.location = location;
   payload.summary = summary;
   payload.status = derivedStatus;
   payload.inquiryPerson = inquiryPerson;
-  payload.inquiryContactType = normalizedInquiryContact.type;
-  payload.inquiryContactValue = normalizedInquiryContact.value;
+  payload.inquiryPhone = normalizedContact.phone;
+  payload.inquiryEmail = normalizedContact.email;
+  payload.inquiryContactType = normalizedContact.primaryType;
+  payload.inquiryContactValue = normalizedContact.primaryValue;
 
   // 管理者セッション情報
   var adminSession = payload.__adminSession || null;
@@ -7145,7 +7396,9 @@ function saveTraining_(payload) {
       payload.cancelAllowed,
       payload.inquiryPerson,
       payload.inquiryContactType,
-      payload.inquiryContactValue
+      payload.inquiryContactValue,
+      payload.inquiryPhone,
+      payload.inquiryEmail
     ));
     setCol('更新日時', now);
 
@@ -7181,7 +7434,9 @@ function saveTraining_(payload) {
       payload.cancelAllowed,
       payload.inquiryPerson,
       payload.inquiryContactType,
-      payload.inquiryContactValue
+      payload.inquiryContactValue,
+      payload.inquiryPhone,
+      payload.inquiryEmail
     ),
     '登録者メール': adminEmail,
     '作成日時': now,
@@ -8041,6 +8296,8 @@ function ensureSystemSettingsRows_(ss) {
   var scriptProperties = PropertiesService.getScriptProperties();
   var defaultLimit = Number(scriptProperties.getProperty(DEFAULT_BUSINESS_STAFF_LIMIT_KEY) || 10);
   var historyLookback = Number(scriptProperties.getProperty(TRAINING_HISTORY_LOOKBACK_MONTHS_KEY) || 18);
+  var defaultAnnualFeeGuidance = '年会費が未納の場合は、下記の振込先をご確認のうえお手続きください。\n振込名義は会員番号と氏名を記載してください。';
+  var defaultAnnualFeeTransferAccount = JSON.stringify(DEMO_TRANSFER_ACCOUNT);
   if (!isFinite(defaultLimit) || defaultLimit < 1) defaultLimit = 10;
   if (!isFinite(historyLookback) || historyLookback < 1) historyLookback = 18;
 
@@ -8067,6 +8324,24 @@ function ensureSystemSettingsRows_(ss) {
       設定キー: 'TRAINING_HISTORY_LOOKBACK_MONTHS',
       設定値: String(Math.floor(historyLookback)),
       説明: '研修履歴の表示期間（月）',
+      更新日時: now,
+    }]);
+  }
+
+  if (!byKey['ANNUAL_FEE_PAYMENT_GUIDANCE']) {
+    appendRowsByHeaders_(ss, 'T_システム設定', [{
+      設定キー: 'ANNUAL_FEE_PAYMENT_GUIDANCE',
+      設定値: defaultAnnualFeeGuidance,
+      説明: '年会費未納時の会員向け納入案内',
+      更新日時: now,
+    }]);
+  }
+
+  if (!byKey['ANNUAL_FEE_TRANSFER_ACCOUNT']) {
+    appendRowsByHeaders_(ss, 'T_システム設定', [{
+      設定キー: 'ANNUAL_FEE_TRANSFER_ACCOUNT',
+      設定値: defaultAnnualFeeTransferAccount,
+      説明: '年会費未納時の共通振込先',
       更新日時: now,
     }]);
   }
@@ -13235,3 +13510,55 @@ function repairBusinessMemberFields_(dryRun) {
   };
 }
 
+// v188: Gemini API を GAS サーバー側で呼び出す（APIキーはScriptPropertiesで管理）
+// フロントエンドに @google/genai を含めず、APIキーも露出しない設計。
+function generateTrainingEmailWithAI_(payload) {
+  var apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
+  if (!apiKey) {
+    return { ok: false, text: 'GEMINI_API_KEY がScript Propertiesに設定されていません。' };
+  }
+
+  var training = payload.training || {};
+  var recipientName = String(payload.recipientName || '会員各位');
+
+  var prompt = 'あなたは枚方市介護支援専門員連絡協議会の事務局スタッフです。\n' +
+    '以下の研修に参加申し込みをした会員に向けて、開催3日前のリマインドメールを作成してください。\n\n' +
+    '【研修情報】\n' +
+    '研修名: ' + String(training.title || '') + '\n' +
+    '開催日: ' + String(training.date || '') + '\n' +
+    '場所: ' + String(training.location || '-') + '\n\n' +
+    '【要件】\n' +
+    '- 件名は分かりやすく簡潔に。\n' +
+    '- 宛名は「' + recipientName + '」としてください。\n' +
+    '- 丁寧でプロフェッショナルなトーンで記述してください。';
+
+  var url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey;
+  var requestBody = JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }]
+  });
+
+  try {
+    var response = UrlFetchApp.fetch(url, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: requestBody,
+      muteHttpExceptions: true,
+    });
+    var statusCode = response.getResponseCode();
+    if (statusCode !== 200) {
+      Logger.log('generateTrainingEmailWithAI_: Gemini API error ' + statusCode + ': ' + response.getContentText());
+      return { ok: false, text: 'Gemini API エラー (HTTP ' + statusCode + ')' };
+    }
+    var json = JSON.parse(response.getContentText());
+    var text = json.candidates &&
+               json.candidates[0] &&
+               json.candidates[0].content &&
+               json.candidates[0].content.parts &&
+               json.candidates[0].content.parts[0] &&
+               json.candidates[0].content.parts[0].text;
+    return { ok: true, text: text || 'メールの生成に失敗しました。' };
+  } catch (e) {
+    Logger.log('generateTrainingEmailWithAI_: ' + e.message);
+    return { ok: false, text: 'エラーが発生しました: ' + e.message };
+  }
+}

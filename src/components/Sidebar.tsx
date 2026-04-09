@@ -5,6 +5,7 @@ import { Member, MemberType, AdminPermissionLevel } from '../types';
 interface SidebarProps {
   currentView: string;
   onChangeView: (view: string) => void;
+  onLogout: () => void;
   role: 'ADMIN' | 'MEMBER';
   currentUser?: Member;
   currentStaffName?: string;
@@ -16,6 +17,7 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({
   currentView,
   onChangeView,
+  onLogout,
   role,
   currentUser,
   currentStaffName,
@@ -47,7 +49,11 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const permissionLabel = (level?: AdminPermissionLevel | null) => {
     const map: Record<string, string> = {
-      MASTER: 'マスター', ADMIN: '管理者', TRAINING_MANAGER: '研修管理者', TRAINING_REGISTRAR: '研修登録者', GENERAL: '一般',
+      MASTER: 'マスター',
+      ADMIN: '管理者',
+      TRAINING_MANAGER: '研修管理者',
+      TRAINING_REGISTRAR: '研修登録者',
+      GENERAL: '一般',
     };
     return level ? map[level] || '' : '';
   };
@@ -95,6 +101,13 @@ const Sidebar: React.FC<SidebarProps> = ({
             <p className="text-xs text-slate-400 truncate">{getUserDisplayDetail()}</p>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={onLogout}
+          className="mt-4 w-full rounded-lg border border-slate-600 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-100 transition-colors hover:bg-slate-700"
+        >
+          ログアウト
+        </button>
       </div>
 
       <div className="px-4 pt-4 text-xs text-slate-400">

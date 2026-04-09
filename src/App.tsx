@@ -7,7 +7,8 @@ import TrainingApply from './components/TrainingApply';
 import AnnualFeeManagement from './components/AnnualFeeManagement';
 import MemberDetailAdmin from './components/MemberDetailAdmin';
 import StaffDetailAdmin from './components/StaffDetailAdmin';
-import { AdminDashboardData, AdminDashboardMemberRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, Training } from './types';
+import { AdminDashboardData, AdminDashboardMemberRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, SystemSettings, Training, TrainingFieldConfig, DEFAULT_FIELD_CONFIG } from './types';
+import { TRAINING_OPTIONAL_FIELD_DEFS } from './components/TrainingManagement';
 import { api } from './services/api';
 
 type Role = 'ADMIN' | 'MEMBER';
@@ -21,7 +22,8 @@ type MemberSortDir = 'asc' | 'desc';
 type DisplayMemberStatus = Exclude<MemberStatusFilter, 'ALL'>;
 const DEFAULT_MEMBER_PAGE_SIZE = 50;
 const getFiscalYearForDate = (date: Date) => (date.getMonth() < 3 ? date.getFullYear() - 1 : date.getFullYear());
-const DEFAULT_MEMBER_FISCAL_YEAR_FILTER = 'ALL';
+const DEFAULT_MEMBER_FISCAL_YEAR_FILTER = getFiscalYearForDate(new Date()).toString();
+const DEFAULT_MEMBER_STATUS_FILTER: MemberStatusFilter = 'ACTIVE';
 
 const parseDateString = (value?: string): Date | null => {
   const text = String(value || '').trim();
@@ -195,10 +197,24 @@ const App: React.FC = () => {
   const [globalLimitInput, setGlobalLimitInput] = useState('10');
   const [trainingHistoryLookbackMonths, setTrainingHistoryLookbackMonths] = useState(18);
   const [historyLookbackInput, setHistoryLookbackInput] = useState('18');
+  const [annualFeePaymentGuidance, setAnnualFeePaymentGuidance] = useState('');
+  const [annualFeePaymentGuidanceInput, setAnnualFeePaymentGuidanceInput] = useState('');
+  const emptyAnnualFeeTransferAccount: SystemSettings['annualFeeTransferAccount'] = {
+    bankName: '',
+    branchName: '',
+    accountType: '普通',
+    accountNumber: '',
+    accountName: '',
+    note: '',
+  };
+  const [annualFeeTransferAccount, setAnnualFeeTransferAccount] = useState<SystemSettings['annualFeeTransferAccount']>(emptyAnnualFeeTransferAccount);
+  const [annualFeeTransferAccountInput, setAnnualFeeTransferAccountInput] = useState<SystemSettings['annualFeeTransferAccount']>(emptyAnnualFeeTransferAccount);
+  const [trainingDefaultFieldConfig, setTrainingDefaultFieldConfig] = useState<TrainingFieldConfig>({ ...DEFAULT_FIELD_CONFIG });
+  const [trainingDefaultFieldConfigInput, setTrainingDefaultFieldConfigInput] = useState<TrainingFieldConfig>({ ...DEFAULT_FIELD_CONFIG });
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [memberListQuery, setMemberListQuery] = useState('');
   const [memberListFilter, setMemberListFilter] = useState<MemberListFilter>('ALL');
-  const [memberListStatusFilter, setMemberListStatusFilter] = useState<MemberStatusFilter>('ACTIVE');
+  const [memberListStatusFilter, setMemberListStatusFilter] = useState<MemberStatusFilter>(DEFAULT_MEMBER_STATUS_FILTER);
   const [memberListFiscalYearFilter, setMemberListFiscalYearFilter] = useState<string>(DEFAULT_MEMBER_FISCAL_YEAR_FILTER);
   const [memberListPage, setMemberListPage] = useState(1);
   const [memberListPageSize, setMemberListPageSize] = useState(DEFAULT_MEMBER_PAGE_SIZE);
@@ -212,15 +228,24 @@ const App: React.FC = () => {
   const [selectedIdentityId, setSelectedIdentityId] = useState<string>('');
   const [authenticatedContext, setAuthenticatedContext] = useState<{ memberId: string; staffId?: string } | null>(null);
 
-  const applySystemSettings = (systemSettings: { defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }) => {
+  const applySystemSettings = (systemSettings: SystemSettings) => {
     const limit = Number(systemSettings.defaultBusinessStaffLimit || 10);
     const lookback = Number(systemSettings.trainingHistoryLookbackMonths || 18);
+    const guidance = String(systemSettings.annualFeePaymentGuidance || '');
+    const transferAccount = systemSettings.annualFeeTransferAccount || emptyAnnualFeeTransferAccount;
     const normalizedLimit = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 10;
     const normalizedLookback = Number.isFinite(lookback) && lookback > 0 ? Math.floor(lookback) : 18;
     setDefaultBusinessStaffLimit(normalizedLimit);
     setGlobalLimitInput(String(normalizedLimit));
     setTrainingHistoryLookbackMonths(normalizedLookback);
     setHistoryLookbackInput(String(normalizedLookback));
+    setAnnualFeePaymentGuidance(guidance);
+    setAnnualFeePaymentGuidanceInput(guidance);
+    setAnnualFeeTransferAccount(transferAccount);
+    setAnnualFeeTransferAccountInput(transferAccount);
+    const tdfConfig = systemSettings.trainingDefaultFieldConfig ?? { ...DEFAULT_FIELD_CONFIG };
+    setTrainingDefaultFieldConfig(tdfConfig);
+    setTrainingDefaultFieldConfigInput(tdfConfig);
     setSystemSettingsLoaded(true);
   };
 
@@ -239,7 +264,7 @@ const App: React.FC = () => {
         const [{ members: nextMembers, trainings: nextTrainings }, systemSettings] = await Promise.all([
           api.fetchAllData(),
           includeAdminSettings
-            ? api.getSystemSettings().catch(() => ({ defaultBusinessStaffLimit: 10, trainingHistoryLookbackMonths: 18 }))
+            ? api.getSystemSettings().catch(() => ({ defaultBusinessStaffLimit: 10, trainingHistoryLookbackMonths: 18, annualFeePaymentGuidance: '', annualFeeTransferAccount: emptyAnnualFeeTransferAccount }))
             : Promise.resolve(null),
         ]);
         setMembers(nextMembers);
@@ -420,6 +445,8 @@ const App: React.FC = () => {
     const settings = await api.getSystemSettings().catch(() => ({
       defaultBusinessStaffLimit: 10,
       trainingHistoryLookbackMonths: 18,
+      annualFeePaymentGuidance: '',
+      annualFeeTransferAccount: emptyAnnualFeeTransferAccount,
     }));
     applySystemSettings(settings);
   };
@@ -594,27 +621,10 @@ const App: React.FC = () => {
   }, [sortedAdminMemberRows, memberListPage, memberListPageSize]);
 
   const filteredDashboardBusinessStaffCount = useMemo(() => {
-    const visibleBusinessIds = new Set(
-      filteredAdminMemberRows
-        .filter((member) => member.memberType === MemberType.BUSINESS)
-        .map((member) => member.memberId),
-    );
-
-    if (visibleBusinessIds.size === 0) return 0;
-
-    return members.reduce((count, member) => {
-      if (member.type !== MemberType.BUSINESS || !visibleBusinessIds.has(member.id)) return count;
-      const matchedStaff = (member.staff || []).filter((staff) => {
-        const displayStatus = getStaffStatusAtFiscalYear(staff, selectedFiscalYear, currentFiscalYear);
-        if (!displayStatus) return false;
-        if (memberListStatusFilter === 'WITHDRAWAL_SCHEDULED') return false;
-        if (memberListStatusFilter === 'ACTIVE' && displayStatus !== 'ENROLLED') return false;
-        if (memberListStatusFilter === 'WITHDRAWN' && displayStatus !== 'LEFT') return false;
-        return true;
-      });
-      return count + matchedStaff.length;
-    }, 0);
-  }, [currentFiscalYear, filteredAdminMemberRows, memberListStatusFilter, members, selectedFiscalYear]);
+    return filteredAdminMemberRows
+      .filter((member) => member.memberType === MemberType.BUSINESS)
+      .reduce((sum, member) => sum + (member.enrolledStaffCount ?? 0), 0);
+  }, [filteredAdminMemberRows]);
 
   const filteredDashboardMetrics = useMemo(() => {
     const joinedCount = filteredAdminMemberRows.filter((member) => {
@@ -645,8 +655,8 @@ const App: React.FC = () => {
       fiscalYearLabel: selectedFiscalYear === null ? '全期間' : `${selectedFiscalYear}年度`,
       hasFilteredView:
         memberListFilter !== 'ALL' ||
-        memberListStatusFilter !== 'ALL' ||
-        memberListFiscalYearFilter !== 'ALL' ||
+        memberListStatusFilter !== DEFAULT_MEMBER_STATUS_FILTER ||
+        memberListFiscalYearFilter !== DEFAULT_MEMBER_FISCAL_YEAR_FILTER ||
         memberListQuery.trim().length > 0,
     };
   }, [
@@ -708,7 +718,13 @@ const App: React.FC = () => {
 
   const openMemberDetail = async (memberId: string) => {
     try {
-      // loadAppData の戻り値を直接使用する（React state は次レンダーまで反映されないため）
+      // B-05: fullDataLoaded かつ members state に対象が存在する場合は再取得しない
+      // （React state は次レンダーまで反映されないため、state 参照は同期的に行う）
+      if (fullDataLoaded && members.find(m => m.id === memberId)) {
+        setSelectedMemberForDetailId(memberId);
+        setCurrentView('member-detail');
+        return;
+      }
       const { members: freshMembers } = await loadAppData({ includeAdminSettings: true, force: true });
       const found = freshMembers.find(m => m.id === memberId);
       if (!found) {
@@ -1886,7 +1902,7 @@ const App: React.FC = () => {
           <h2 className="text-2xl font-bold text-slate-800">設定</h2>
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
             <h3 className="text-lg font-bold text-slate-800 mb-4">事業所会員メンバー上限設定</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">全体デフォルト上限</label>
                 <input type="number" min={1} max={200} value={globalLimitInput} onChange={(e) => setGlobalLimitInput(e.target.value)} className="w-full border border-slate-300 rounded px-3 py-2" />
@@ -1895,33 +1911,103 @@ const App: React.FC = () => {
                 <label className="block text-sm font-medium text-slate-700 mb-1">研修履歴の表示期間（月）</label>
                 <input type="number" min={1} max={60} value={historyLookbackInput} onChange={(e) => setHistoryLookbackInput(e.target.value)} className="w-full border border-slate-300 rounded px-3 py-2" />
               </div>
-              <div>
-                <button
-                  type="button"
-                  disabled={settingsBusy || !systemSettingsLoaded}
-                  onClick={async () => {
-                    try {
-                      setSettingsBusy(true);
-                      const saved = await api.updateSystemSettings({
-                        defaultBusinessStaffLimit: Number(globalLimitInput || 10),
-                        trainingHistoryLookbackMonths: Number(historyLookbackInput || 18),
-                      });
-                      setDefaultBusinessStaffLimit(saved.defaultBusinessStaffLimit);
-                      setGlobalLimitInput(String(saved.defaultBusinessStaffLimit));
-                      setTrainingHistoryLookbackMonths(saved.trainingHistoryLookbackMonths);
-                      setHistoryLookbackInput(String(saved.trainingHistoryLookbackMonths));
-                      alert('設定を保存しました。');
-                    } catch (e) {
-                      alert(e instanceof Error ? e.message : '設定の保存に失敗しました。');
-                    } finally {
-                      setSettingsBusy(false);
-                    }
-                  }}
-                  className="px-4 py-2 rounded bg-slate-800 text-white disabled:opacity-50"
-                >全体設定を保存</button>
-              </div>
             </div>
             {!systemSettingsLoaded && <p className="text-sm text-slate-500">システム設定を読み込み中です...</p>}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-slate-700 mb-1">年会費の納入案内</label>
+              <textarea
+                value={annualFeePaymentGuidanceInput}
+                onChange={(e) => setAnnualFeePaymentGuidanceInput(e.target.value)}
+                rows={5}
+                className="w-full border border-slate-300 rounded px-3 py-2"
+                placeholder={'例:\n年会費が未納の場合は、下記口座へお振り込みください。\n振込名義は会員番号と氏名を記載してください。'}
+              />
+              <p className="mt-2 text-sm text-slate-600">
+                会員マイページで未納会員にだけ表示する共通案内です。改行はそのまま反映されます。
+              </p>
+            </div>
+            <div className="mb-4 border border-slate-200 rounded-lg p-4">
+              <h4 className="text-sm font-semibold text-slate-800 mb-3">年会費の共通振込先</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">銀行名</label>
+                  <input
+                    type="text"
+                    value={annualFeeTransferAccountInput.bankName}
+                    onChange={(e) => setAnnualFeeTransferAccountInput((prev) => ({ ...prev, bankName: e.target.value }))}
+                    className="w-full border border-slate-300 rounded px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">支店名</label>
+                  <input
+                    type="text"
+                    value={annualFeeTransferAccountInput.branchName}
+                    onChange={(e) => setAnnualFeeTransferAccountInput((prev) => ({ ...prev, branchName: e.target.value }))}
+                    className="w-full border border-slate-300 rounded px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">口座種別</label>
+                  <select
+                    value={annualFeeTransferAccountInput.accountType}
+                    onChange={(e) => setAnnualFeeTransferAccountInput((prev) => ({ ...prev, accountType: e.target.value as '普通' | '当座' }))}
+                    className="w-full border border-slate-300 rounded px-3 py-2"
+                  >
+                    <option value="普通">普通</option>
+                    <option value="当座">当座</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">口座番号</label>
+                  <input
+                    type="text"
+                    value={annualFeeTransferAccountInput.accountNumber}
+                    onChange={(e) => setAnnualFeeTransferAccountInput((prev) => ({ ...prev, accountNumber: e.target.value }))}
+                    className="w-full border border-slate-300 rounded px-3 py-2"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">口座名義</label>
+                  <input
+                    type="text"
+                    value={annualFeeTransferAccountInput.accountName}
+                    onChange={(e) => setAnnualFeeTransferAccountInput((prev) => ({ ...prev, accountName: e.target.value }))}
+                    className="w-full border border-slate-300 rounded px-3 py-2"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">補足</label>
+                  <textarea
+                    value={annualFeeTransferAccountInput.note || ''}
+                    onChange={(e) => setAnnualFeeTransferAccountInput((prev) => ({ ...prev, note: e.target.value }))}
+                    rows={3}
+                    className="w-full border border-slate-300 rounded px-3 py-2"
+                    placeholder="例: 振込手数料は会員負担です。"
+                  />
+                </div>
+              </div>
+              <p className="mt-2 text-sm text-slate-600">
+                `T_システム設定.ANNUAL_FEE_TRANSFER_ACCOUNT` に保存され、未納会員の納入方法表示に利用されます。
+              </p>
+            </div>
+            <div className="mt-4 border-t border-slate-200 pt-4">
+              <h4 className="text-sm font-semibold text-slate-800 mb-1">研修フォーム　項目表示デフォルト設定</h4>
+              <p className="text-sm text-slate-600 mb-3">新規研修登録時に表示する項目のデフォルトを設定します。研修ごとに個別変更可能です。</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {TRAINING_OPTIONAL_FIELD_DEFS.map(({ key, label }) => (
+                  <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={trainingDefaultFieldConfigInput[key] !== false}
+                      onChange={(e) => setTrainingDefaultFieldConfigInput((prev) => ({ ...prev, [key]: e.target.checked }))}
+                      className="accent-primary-600"
+                    />
+                    <span className="text-sm text-slate-700">{label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
             <div className="mt-4 border-t border-slate-200 pt-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
@@ -1964,6 +2050,42 @@ const App: React.FC = () => {
               )}
             </div>
           </div>
+          <div className="sticky bottom-0 z-10 bg-white border-t-2 border-primary-500 shadow-[0_-4px_16px_rgba(0,0,0,0.10)] flex items-center justify-between px-6 py-3 rounded-b-xl">
+            <p className="text-sm text-slate-500">全ての設定はこのボタンで一括保存されます</p>
+            <button
+              type="button"
+              disabled={settingsBusy || !systemSettingsLoaded}
+              onClick={async () => {
+                try {
+                  setSettingsBusy(true);
+                  const saved = await api.updateSystemSettings({
+                    defaultBusinessStaffLimit: Number(globalLimitInput || 10),
+                    trainingHistoryLookbackMonths: Number(historyLookbackInput || 18),
+                    annualFeePaymentGuidance: annualFeePaymentGuidanceInput,
+                    annualFeeTransferAccount: annualFeeTransferAccountInput,
+                    trainingDefaultFieldConfig: trainingDefaultFieldConfigInput,
+                  });
+                  setDefaultBusinessStaffLimit(saved.defaultBusinessStaffLimit);
+                  setGlobalLimitInput(String(saved.defaultBusinessStaffLimit));
+                  setTrainingHistoryLookbackMonths(saved.trainingHistoryLookbackMonths);
+                  setHistoryLookbackInput(String(saved.trainingHistoryLookbackMonths));
+                  setAnnualFeePaymentGuidance(saved.annualFeePaymentGuidance);
+                  setAnnualFeePaymentGuidanceInput(saved.annualFeePaymentGuidance);
+                  setAnnualFeeTransferAccount(saved.annualFeeTransferAccount);
+                  setAnnualFeeTransferAccountInput(saved.annualFeeTransferAccount);
+                  const tdfSaved = saved.trainingDefaultFieldConfig ?? { ...DEFAULT_FIELD_CONFIG };
+                  setTrainingDefaultFieldConfig(tdfSaved);
+                  setTrainingDefaultFieldConfigInput(tdfSaved);
+                  alert('設定を保存しました。');
+                } catch (e) {
+                  alert(e instanceof Error ? e.message : '設定の保存に失敗しました。');
+                } finally {
+                  setSettingsBusy(false);
+                }
+              }}
+              className="px-8 py-2.5 rounded-lg bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white font-semibold text-base disabled:opacity-50 transition-colors shadow-sm"
+            >{settingsBusy ? '保存中...' : '設定を保存'}</button>
+          </div>
         </div>
       );
     }
@@ -1997,7 +2119,7 @@ const App: React.FC = () => {
       if (trainingManagementError && !trainingManagementLoaded) {
         return <div className="text-red-500 p-4 border border-red-200 bg-red-50 rounded">{trainingManagementError}</div>;
       }
-      return <TrainingManagement trainings={trainings} onSave={handleTrainingSave} />;
+      return <TrainingManagement trainings={trainings} onSave={handleTrainingSave} defaultFieldConfig={trainingDefaultFieldConfig} />;
     }
 
     if (currentView === 'training-apply') {
@@ -2029,6 +2151,8 @@ const App: React.FC = () => {
         isAdmin={userRole === 'ADMIN'}
         defaultBusinessStaffLimit={defaultBusinessStaffLimit}
         historyLookbackMonths={trainingHistoryLookbackMonths}
+        annualFeePaymentGuidance={annualFeePaymentGuidance}
+        annualFeeTransferAccount={annualFeeTransferAccount}
         trainings={trainings}
         onSave={handleMemberSave}
         onLogout={logout}

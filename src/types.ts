@@ -41,6 +41,14 @@ export interface AnnualFeeRecord {
   transferAccount?: TransferAccountInfo;
 }
 
+export interface SystemSettings {
+  defaultBusinessStaffLimit: number;
+  trainingHistoryLookbackMonths: number;
+  annualFeePaymentGuidance: string;
+  annualFeeTransferAccount: TransferAccountInfo;
+  trainingDefaultFieldConfig?: TrainingFieldConfig | null;
+}
+
 export interface AnnualFeeAdminRecord {
   id: string;
   exists: boolean;
@@ -104,6 +112,7 @@ export interface AdminDashboardMemberRow {
   joinedDate: string;
   status: 'ACTIVE' | 'WITHDRAWAL_SCHEDULED' | 'WITHDRAWN';
   withdrawnDate?: string;
+  enrolledStaffCount?: number; // BUSINESS type only: number of ENROLLED staff in this organization
 }
 
 export interface AdminDashboardTrainingRow {
@@ -344,5 +353,7 @@ export interface Training {
   inquiryPerson?: string;
   inquiryContactType?: 'PHONE' | 'EMAIL';
   inquiryContactValue?: string;
+  inquiryPhone?: string;
+  inquiryEmail?: string;
   registrarEmail?: string;
 }

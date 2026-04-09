@@ -1,0 +1,46 @@
+# GitHub Pages へ docs/learning/ のみをデプロイするワークフロー
+# URL: https://knoguchi-ship-it.github.io/hirakatacitykyougikaiIDE/
+#
+# docs/ 全体ではなく learning/ だけを公開することで、
+# デプロイポリシー・認証情報等の機密ドキュメントが外部に露出しない。
+
+name: Deploy Learning Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/learning/**'
+  workflow_dispatch: # 手動実行も可能
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload docs/learning as Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/learning
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

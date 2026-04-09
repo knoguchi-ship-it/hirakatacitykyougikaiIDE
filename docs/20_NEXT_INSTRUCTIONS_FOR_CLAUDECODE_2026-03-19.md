@@ -2,17 +2,17 @@
 
 
 
-Updated: 2026-04-05
+Updated: 2026-04-06
 
-Production: `v170` / fixed deployments `@170`
+Production: `v171` / fixed deployments `@171`
 
 
 
 ## 1. Current State You Need To Know
 
-- Production is `v170`.
+- Production is `v171`.
 
-- Both fixed deployments point to `@170`.
+- Both fixed deployments point to `@171`.
 
 - Demo login accounts, mock member routes, and the in-app demo selector are retired.
 
@@ -28,13 +28,13 @@ Production: `v170` / fixed deployments `@170`
 
 1. `HANDOVER.md`
 
-2. `GLOBAL_GROUND_RULES/CLAUDE.md`
+2. `AGENTS.md`
 
 3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 
 4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
 
-5. `docs/45_RELEASE_STATE_v170_2026-04-04.md`
+5. `docs/46_RELEASE_STATE_v171_2026-04-06.md`
 
 6. `docs/09_DEPLOYMENT_POLICY.md`
 
@@ -72,7 +72,7 @@ Expected:
 
 - health checks succeed
 
-- both fixed deployments point to `@170`
+- both fixed deployments point to `@171`
 
 
 
@@ -139,7 +139,11 @@ If you deploy, also follow `docs/09_DEPLOYMENT_POLICY.md` for:
 
 ## 7. Next Required Action
 
-- v170 deployed. Both fixed deployments confirmed at `@170`.
+- v171 deployed. Both fixed deployments confirmed at `@171`.
+
+- Business member representative info is editable only by the `REPRESENTATIVE`本人. `ADMIN` is read-only for that section.
+
+- In the member portal, business-member `status` and `joinedDate` are display-only. If status is `WITHDRAWAL_SCHEDULED`, show the scheduled withdrawal date.
 
 - v167 tests all PASS — see `docs/41_TEST_SPEC_v167_BUSINESS_ADMIN_ROLE_CHANGE.md`.
 

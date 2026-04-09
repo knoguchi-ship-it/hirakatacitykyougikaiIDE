@@ -1,0 +1,1697 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GAS パフォーマンス最適化・認証キャッシュ・HTML圧縮 — 技術解説 v193</title>
+<style>
+  /* ===== RESET & BASE ===== */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3250;
+    --accent: #6c8aff;
+    --accent2: #4ecdc4;
+    --accent3: #ff6b9d;
+    --accent4: #ffd166;
+    --text: #e8eaf6;
+    --text-muted: #8892b0;
+    --text-bright: #ccd6f6;
+    --green: #64ffda;
+    --orange: #ffb347;
+    --red: #ff6b6b;
+    --code-bg: #141824;
+    --radius: 12px;
+    --radius-sm: 6px;
+  }
+  html { font-size: 16px; scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+    line-height: 1.8;
+    min-height: 100vh;
+  }
+
+  /* ===== LAYOUT ===== */
+  .layout { display: flex; min-height: 100vh; }
+  nav.sidebar {
+    width: 260px;
+    min-width: 260px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 24px 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    font-size: 0.85rem;
+  }
+  nav.sidebar .nav-title {
+    padding: 0 20px 16px;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
+  }
+  nav.sidebar a {
+    display: block;
+    padding: 7px 20px;
+    color: var(--text-muted);
+    text-decoration: none;
+    border-left: 3px solid transparent;
+    transition: all 0.2s;
+    font-size: 0.82rem;
+  }
+  nav.sidebar a:hover, nav.sidebar a.active {
+    color: var(--accent);
+    border-left-color: var(--accent);
+    background: rgba(108,138,255,0.08);
+  }
+  nav.sidebar .nav-section {
+    padding: 12px 20px 4px;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent2);
+    font-weight: 700;
+  }
+  main { flex: 1; padding: 48px 64px; max-width: 960px; }
+
+  /* ===== TYPOGRAPHY ===== */
+  h1 { font-size: 2rem; font-weight: 800; color: var(--text-bright); margin-bottom: 8px; }
+  h2 {
+    font-size: 1.4rem; font-weight: 700; color: var(--accent);
+    margin: 56px 0 20px; padding-bottom: 10px;
+    border-bottom: 2px solid var(--border);
+  }
+  h3 { font-size: 1.1rem; font-weight: 700; color: var(--accent2); margin: 32px 0 12px; }
+  h4 { font-size: 0.95rem; font-weight: 700; color: var(--accent4); margin: 20px 0 8px; }
+  p { margin-bottom: 14px; color: var(--text); }
+  ul, ol { padding-left: 24px; margin-bottom: 14px; }
+  li { margin-bottom: 6px; }
+  strong { color: var(--text-bright); }
+  a { color: var(--accent); }
+
+  .lead {
+    font-size: 1.05rem; color: var(--text-bright); margin-bottom: 32px;
+    padding: 20px 24px; background: var(--surface2);
+    border-left: 4px solid var(--accent); border-radius: var(--radius-sm);
+  }
+  .meta {
+    display: flex; gap: 16px; flex-wrap: wrap;
+    margin-bottom: 40px; font-size: 0.82rem; color: var(--text-muted);
+  }
+  .meta span { display: flex; align-items: center; gap: 6px; }
+  .badge {
+    display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700;
+  }
+  .badge-blue { background: rgba(108,138,255,0.2); color: var(--accent); }
+  .badge-green { background: rgba(100,255,218,0.15); color: var(--green); }
+  .badge-orange { background: rgba(255,179,71,0.2); color: var(--orange); }
+  .badge-red { background: rgba(255,107,107,0.2); color: var(--red); }
+
+  /* ===== CODE ===== */
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 20px;
+    overflow-x: auto;
+    margin: 16px 0 24px;
+    font-size: 0.85rem;
+    line-height: 1.65;
+  }
+  code {
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', 'Monaco', monospace;
+  }
+  p code, li code, td code {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 7px;
+    font-size: 0.83em;
+    color: var(--accent2);
+  }
+  /* Syntax highlight classes */
+  .kw { color: #c792ea; } /* keyword */
+  .fn { color: #82aaff; } /* function */
+  .st { color: #c3e88d; } /* string */
+  .cm { color: #546e7a; font-style: italic; } /* comment */
+  .nm { color: #f78c6c; } /* number */
+  .bi { color: #ffcb6b; } /* built-in */
+  .op { color: #89ddff; } /* operator/symbol */
+  .ty { color: #ffcb6b; } /* type */
+  .prop { color: #b2ccd6; } /* property */
+
+  /* ===== CALLOUT BOXES ===== */
+  .callout {
+    border-radius: var(--radius-sm);
+    padding: 16px 20px;
+    margin: 20px 0;
+    border-left: 4px solid;
+    font-size: 0.92rem;
+  }
+  .callout-info { border-color: var(--accent); background: rgba(108,138,255,0.08); }
+  .callout-tip { border-color: var(--green); background: rgba(100,255,218,0.06); }
+  .callout-warn { border-color: var(--orange); background: rgba(255,179,71,0.08); }
+  .callout-danger { border-color: var(--red); background: rgba(255,107,107,0.08); }
+  .callout-title { font-weight: 700; margin-bottom: 6px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .callout-info .callout-title { color: var(--accent); }
+  .callout-tip .callout-title { color: var(--green); }
+  .callout-warn .callout-title { color: var(--orange); }
+  .callout-danger .callout-title { color: var(--red); }
+
+  /* ===== TABLES ===== */
+  .table-wrap { overflow-x: auto; margin: 16px 0 24px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th {
+    background: var(--surface2); color: var(--accent);
+    padding: 10px 14px; text-align: left; font-weight: 700;
+    border: 1px solid var(--border);
+  }
+  td { padding: 9px 14px; border: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+  tr:hover td { background: rgba(108,138,255,0.05); }
+
+  /* ===== DIAGRAM / FLOWCHART ===== */
+  .diagram {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin: 20px 0 28px;
+    overflow-x: auto;
+  }
+  .flow {
+    display: flex; align-items: center; gap: 0; flex-wrap: wrap;
+    justify-content: center; gap: 4px;
+  }
+  .flow-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 8px 16px;
+    font-size: 0.82rem; text-align: center;
+    min-width: 100px;
+  }
+  .flow-arrow { color: var(--accent); font-size: 1.2rem; padding: 0 4px; }
+  .flow-box.highlight { border-color: var(--accent); background: rgba(108,138,255,0.12); color: var(--accent); font-weight: 700; }
+  .flow-box.success { border-color: var(--green); background: rgba(100,255,218,0.08); color: var(--green); }
+  .flow-box.warn { border-color: var(--orange); background: rgba(255,179,71,0.08); color: var(--orange); }
+  .flow-box.danger { border-color: var(--red); background: rgba(255,107,107,0.08); color: var(--red); }
+
+  .timeline {
+    position: relative;
+    padding-left: 32px;
+    margin: 20px 0;
+  }
+  .timeline::before {
+    content: ''; position: absolute; left: 12px; top: 0; bottom: 0;
+    width: 2px; background: var(--border);
+  }
+  .timeline-item { position: relative; margin-bottom: 20px; }
+  .timeline-item::before {
+    content: ''; position: absolute; left: -27px; top: 5px;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent); border: 2px solid var(--bg);
+  }
+  .timeline-item.done::before { background: var(--green); }
+  .timeline-item.fail::before { background: var(--red); }
+  .timeline-label { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 2px; }
+  .timeline-title { font-weight: 700; color: var(--text-bright); }
+  .timeline-desc { font-size: 0.88rem; color: var(--text); }
+
+  /* ===== CARDS ===== */
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin: 20px 0; }
+  .card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+  .card-icon { font-size: 1.6rem; margin-bottom: 10px; }
+  .card-title { font-weight: 700; color: var(--text-bright); margin-bottom: 6px; font-size: 0.95rem; }
+  .card-desc { font-size: 0.83rem; color: var(--text-muted); line-height: 1.6; }
+
+  /* ===== PERF METER ===== */
+  .perf-bar-wrap { margin: 8px 0; }
+  .perf-label { display: flex; justify-content: space-between; font-size: 0.82rem; color: var(--text-muted); margin-bottom: 4px; }
+  .perf-bar { height: 10px; border-radius: 5px; background: var(--border); overflow: hidden; }
+  .perf-fill { height: 100%; border-radius: 5px; transition: width 1s; }
+  .perf-fill.bad { background: var(--red); }
+  .perf-fill.ok { background: var(--orange); }
+  .perf-fill.good { background: var(--green); }
+
+  /* ===== STEP LIST ===== */
+  .steps { counter-reset: steps; list-style: none; padding: 0; }
+  .steps li {
+    counter-increment: steps;
+    display: flex; gap: 16px; margin-bottom: 16px;
+    padding: 14px 16px;
+    background: var(--surface2); border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+  }
+  .steps li::before {
+    content: counter(steps);
+    min-width: 28px; height: 28px;
+    background: var(--accent); color: #fff;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 0.8rem; font-weight: 700; flex-shrink: 0;
+  }
+
+  /* ===== COMPARE ===== */
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+  .compare-box { border-radius: var(--radius-sm); padding: 16px; border: 1px solid; }
+  .compare-before { border-color: var(--red); background: rgba(255,107,107,0.05); }
+  .compare-after  { border-color: var(--green); background: rgba(100,255,218,0.05); }
+  .compare-label { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 8px; }
+  .compare-before .compare-label { color: var(--red); }
+  .compare-after  .compare-label { color: var(--green); }
+  @media (max-width: 700px) {
+    .compare { grid-template-columns: 1fr; }
+    nav.sidebar { display: none; }
+    main { padding: 24px 20px; }
+  }
+
+  /* ===== TERM DEFINITION ===== */
+  .term { border-bottom: 1px dashed var(--accent); cursor: help; }
+  .def-block {
+    background: var(--surface2); border: 1px solid var(--accent);
+    border-radius: var(--radius-sm); padding: 12px 16px;
+    margin: 8px 0 16px; font-size: 0.87rem;
+  }
+  .def-block .def-term { font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+
+  /* ===== TOC PROGRESS ===== */
+  .progress-bar {
+    position: fixed; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    z-index: 9999; transform-origin: left;
+  }
+
+  /* ===== PRINT ===== */
+  @media print {
+    nav.sidebar { display: none; }
+    main { padding: 0; }
+    .progress-bar { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progressBar"></div>
+
+<div class="layout">
+
+<!-- ===== SIDEBAR NAV ===== -->
+<nav class="sidebar">
+  <div class="nav-title">技術解説 v193</div>
+
+  <div class="nav-section">はじめに</div>
+  <a href="#overview">1. システム全体像</a>
+  <a href="#bottleneck">2. ボトルネックの全体像</a>
+
+  <div class="nav-section">GAS 基盤技術</div>
+  <a href="#gas-runtime">3. V8 ランタイムとコールドスタート</a>
+  <a href="#gas-quota">4. GAS の制約・クォータ</a>
+  <a href="#spreadsheet-api">5. Spreadsheet API とバッチ処理</a>
+
+  <div class="nav-section">キャッシュ戦略</div>
+  <a href="#cache-service">6. CacheService の仕組み</a>
+  <a href="#cache-impl">7. 管理者認証キャッシュ（v193）</a>
+
+  <div class="nav-section">HTML 圧縮</div>
+  <a href="#compression">8. deflate-raw 圧縮とは</a>
+  <a href="#decompression-stream">9. DecompressionStream API</a>
+  <a href="#csp">10. GAS CSP と unsafe-eval</a>
+  <a href="#compress-impl">11. 圧縮実装（v191）</a>
+
+  <div class="nav-section">認証設計</div>
+  <a href="#auth-flow">12. 管理者認証フロー</a>
+  <a href="#session-api">13. Session.getActiveUser()</a>
+
+  <div class="nav-section">実装詳細</div>
+  <a href="#v191-v193">14. v191〜v193 変更サマリー</a>
+  <a href="#remaining">15. 残課題 B-02</a>
+  <a href="#sources">参考文献</a>
+</nav>
+
+<!-- ===== MAIN CONTENT ===== -->
+<main>
+
+<h1>GAS パフォーマンス最適化・<br>認証キャッシュ・HTML 圧縮</h1>
+<div class="meta">
+  <span><span class="badge badge-blue">v193</span></span>
+  <span>作成日: 2026-04-10</span>
+  <span>対象: 枚方市介護支援専門員連絡協議会 会員システム</span>
+</div>
+<p class="lead">
+  このドキュメントは、Google Apps Script (GAS) ベースの会員システムに対して実施した
+  パフォーマンス最適化・HTML 圧縮・管理者認証キャッシュの技術的な仕組みを、
+  専門用語の解説を交えながら体系的に説明します。
+  「なぜ遅いのか」「何をどう改善したのか」を根本から理解することを目的とします。
+</p>
+
+<!-- ============================================================ -->
+<h2 id="overview">1. システム全体像</h2>
+
+<p>このシステムは、サーバー・フレームワーク・CDN を一切使わず、<strong>Google のインフラだけ</strong>で動作しています。</p>
+
+<div class="diagram">
+  <div style="text-align:center; margin-bottom:16px; font-size:0.85rem; color:var(--text-muted)">システム構成図</div>
+  <div class="flow" style="flex-direction:column; gap:12px;">
+    <div style="display:flex; gap:8px; justify-content:center; align-items:center;">
+      <div class="flow-box" style="background:rgba(108,138,255,0.1); border-color:var(--accent);">
+        👤 利用者のブラウザ<br><small>Chrome / Edge</small>
+      </div>
+    </div>
+    <div style="text-align:center; color:var(--text-muted); font-size:0.8rem;">HTTPS リクエスト / google.script.run</div>
+    <div style="display:flex; gap:16px; justify-content:center; flex-wrap:wrap;">
+      <div class="flow-box" style="border-color:var(--accent2); background:rgba(78,205,196,0.08);">
+        🏗️ Google Apps Script<br><small>V8 ランタイム上で実行</small><br><small>doGet() → HTML 配信</small><br><small>google.script.run → API</small>
+      </div>
+      <div class="flow-box" style="border-color:var(--accent4); background:rgba(255,209,102,0.08);">
+        📊 Google Spreadsheet<br><small>データベースとして使用</small><br><small>T_会員, T_研修, T_認証...</small>
+      </div>
+      <div class="flow-box" style="border-color:var(--accent3); background:rgba(255,107,157,0.08);">
+        🚀 CacheService<br><small>一時キャッシュ</small><br><small>TTL: 最大 6 時間</small>
+      </div>
+    </div>
+    <div style="text-align:center; color:var(--text-muted); font-size:0.8rem;">HTML 返却（index.html / index_public.html）</div>
+    <div style="display:flex; gap:16px; justify-content:center; flex-wrap:wrap;">
+      <div class="flow-box" style="border-color:var(--green); background:rgba(100,255,218,0.08);">
+        ⚛️ React 19 + TypeScript<br><small>vite-plugin-singlefile</small><br><small>HTML 内に JS/CSS をインライン化</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="callout callout-info">
+  <div class="callout-title">ポイント</div>
+  通常の Web アプリは「サーバー → CDN → ブラウザ」という経路で高速配信します。
+  GAS ではこの CDN が存在せず、毎回 GAS サーバーが HTML を動的生成して返します。
+  これが「GAS は遅い」と言われる根本原因の一つです。
+</div>
+
+<div class="card-grid">
+  <div class="card">
+    <div class="card-icon">📦</div>
+    <div class="card-title">vite-plugin-singlefile</div>
+    <div class="card-desc">React アプリの JS・CSS・画像をすべて 1 つの HTML ファイルに埋め込むツール。GAS は外部ファイル参照が制限されるため必須。</div>
+  </div>
+  <div class="card">
+    <div class="card-icon">🔄</div>
+    <div class="card-title">google.script.run</div>
+    <div class="card-desc">ブラウザ側 JavaScript から GAS サーバー関数を非同期呼び出しする専用 API。REST API の代わりとして機能する。</div>
+  </div>
+  <div class="card">
+    <div class="card-icon">🗄️</div>
+    <div class="card-title">Spreadsheet = DB</div>
+    <div class="card-desc">Google スプレッドシートを RDB 代わりに使用。JOIN や INDEX は存在せず、全行読み込み後に JavaScript でフィルタ処理する。</div>
+  </div>
+  <div class="card">
+    <div class="card-icon">⚡</div>
+    <div class="card-title">CacheService</div>
+    <div class="card-desc">GAS 組み込みのキャッシュ機能。スプレッドシートの読み込み結果を一時保存し、繰り返しアクセスを高速化する。</div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="bottleneck">2. ボトルネックの全体像</h2>
+
+<p>Playwright（ブラウザ自動操作ツール）を使って実測した結果、以下のことが判明しました：</p>
+
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>処理フェーズ</th>
+    <th>計測値（実測）</th>
+    <th>原因</th>
+    <th>改善策</th>
+  </tr>
+  <tr>
+    <td>GAS <code>doGet()</code> TTFB</td>
+    <td><span class="badge badge-orange">2,300〜3,800 ms</span></td>
+    <td>コールドスタート + HTML 生成</td>
+    <td>ウォームアップ / HTML 圧縮</td>
+  </tr>
+  <tr>
+    <td>HTML ダウンロード</td>
+    <td><span class="badge badge-green">256〜404 ms</span></td>
+    <td>HTML サイズ（元 522 kB）</td>
+    <td>圧縮で 206 kB に削減（v191）</td>
+  </tr>
+  <tr>
+    <td>会員ログイン API</td>
+    <td><span class="badge badge-orange">2,500〜5,400 ms</span></td>
+    <td>Spreadsheet 複数シート読み込み</td>
+    <td>CacheService キャッシュ（v188）</td>
+  </tr>
+  <tr>
+    <td>管理者ログイン API（改善前）</td>
+    <td><span class="badge badge-red">〜25,900 ms</span></td>
+    <td>コールドスタート + 3 シート直読み</td>
+    <td>認証分離（v192）+ キャッシュ（v193）</td>
+  </tr>
+  <tr>
+    <td>管理者ログイン API（改善後・ウォーム）</td>
+    <td><span class="badge badge-green">〜1,000〜2,000 ms</span></td>
+    <td>—</td>
+    <td>CacheService キャッシュヒット</td>
+  </tr>
+</table>
+</div>
+
+<p><strong>TTFB</strong>（Time To First Byte）とは、ブラウザがリクエストを送ってからサーバーが最初の 1 バイトを返すまでの時間です。この値が大きいほど「サーバーの処理が遅い」ことを意味します。</p>
+
+<div class="perf-bar-wrap">
+  <div class="perf-label"><span>GAS doGet() TTFB（コールドスタート）</span><span>3,800 ms</span></div>
+  <div class="perf-bar"><div class="perf-fill bad" style="width:76%"></div></div>
+</div>
+<div class="perf-bar-wrap">
+  <div class="perf-label"><span>GAS doGet() TTFB（ウォーム）</span><span>2,300 ms</span></div>
+  <div class="perf-bar"><div class="perf-fill ok" style="width:46%"></div></div>
+</div>
+<div class="perf-bar-wrap">
+  <div class="perf-label"><span>管理者ログイン（v191 以前・コールド）</span><span>25,900 ms</span></div>
+  <div class="perf-bar"><div class="perf-fill bad" style="width:100%"></div></div>
+</div>
+<div class="perf-bar-wrap">
+  <div class="perf-label"><span>管理者ログイン（v193・ウォーム・キャッシュヒット）</span><span>〜1,500 ms</span></div>
+  <div class="perf-bar"><div class="perf-fill good" style="width:30%"></div></div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="gas-runtime">3. V8 ランタイムとコールドスタート</h2>
+
+<h3>V8 ランタイムとは？</h3>
+<p>
+  <strong>V8</strong> は Google Chrome ブラウザと Node.js が使っている JavaScript 実行エンジンです。
+  GAS は 2020 年に従来の「Rhino」エンジンから V8 へ移行しました。
+  これにより <code>Arrow Function</code>・<code>async/await</code>・<code>Spread Operator</code> など
+  モダンな JavaScript が使えるようになりました。
+</p>
+
+<div class="callout callout-warn">
+  <div class="callout-title">重要: 2026年1月31日に Rhino は廃止</div>
+  Google は 2025年2月20日に Rhino ランタイムを非推奨とし、
+  2026年1月31日以降は Rhino スクリプトの実行が停止されることを発表しました。
+  このシステムはすでに V8 移行済みのため問題ありません。
+</div>
+
+<h3>コールドスタートの仕組み</h3>
+<p>
+  GAS の実行環境（コンテナ）は、一定時間（目安: 数分〜数十分）使用されないと<strong>破棄</strong>されます。
+  次のリクエストが来たとき、GAS は新しいコンテナを立ち上げ、
+  V8 エンジンを初期化してスクリプトを読み込み直す必要があります。
+  この「再起動」の時間を <strong>コールドスタート</strong> と呼びます。
+</p>
+
+<div class="diagram">
+  <div style="text-align:center; margin-bottom:12px; font-size:0.85rem; color:var(--text-muted)">コールドスタート vs ウォームスタート</div>
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+    <div>
+      <div style="text-align:center; color:var(--red); font-weight:700; margin-bottom:8px; font-size:0.85rem;">❄️ コールドスタート（初回・長時間後）</div>
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-label">0 ms</div>
+          <div class="timeline-title">リクエスト受信</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-label">0〜3,000 ms</div>
+          <div class="timeline-title">V8 コンテナ起動</div>
+          <div class="timeline-desc">JVM/V8 エンジン初期化</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-label">3,000〜8,000 ms</div>
+          <div class="timeline-title">スクリプト読み込み</div>
+          <div class="timeline-desc">Code.gs（9,000行+）のパース・コンパイル</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-label">8,000〜20,000 ms</div>
+          <div class="timeline-title">関数実行</div>
+          <div class="timeline-desc">Spreadsheet 読み込み等</div>
+        </div>
+        <div class="timeline-item done">
+          <div class="timeline-label">〜25,000 ms</div>
+          <div class="timeline-title">レスポンス返却</div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div style="text-align:center; color:var(--green); font-weight:700; margin-bottom:8px; font-size:0.85rem;">🔥 ウォームスタート（継続利用中）</div>
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-label">0 ms</div>
+          <div class="timeline-title">リクエスト受信</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-label">0〜500 ms</div>
+          <div class="timeline-title">既存コンテナを再利用</div>
+          <div class="timeline-desc">V8 コンテナが生存中</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-label">500〜1,500 ms</div>
+          <div class="timeline-title">関数実行（キャッシュヒット）</div>
+          <div class="timeline-desc">CacheService から即座に取得</div>
+        </div>
+        <div class="timeline-item done">
+          <div class="timeline-label">〜2,000 ms</div>
+          <div class="timeline-title">レスポンス返却</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3>ウォームアップ戦略（実装済み: v188）</h3>
+<p>
+  GAS の「時間ベーストリガー」を使って、<code>warmUp()</code> 関数を 5〜10 分おきに自動実行します。
+  これにより、誰もアクセスしていない時間帯でもコンテナを生かし続け、
+  次の実際のアクセス時にコールドスタートを避けます。
+</p>
+
+<pre><code><span class="cm">// backend/Code.gs — warmUp 関数（v188 改善済み）</span>
+<span class="kw">function</span> <span class="fn">warmUp</span>() {
+  <span class="cm">// Spreadsheet に接続し、全データをキャッシュに格納する</span>
+  <span class="cm">// これにより V8 コンテナが生存し続け、次のアクセス時のコールドスタートを防ぐ</span>
+  <span class="fn">fetchAllDataFromDb_</span>(); <span class="cm">// キャッシュへの格納も含む</span>
+}
+</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="gas-quota">4. GAS の制約・クォータ</h2>
+
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>制約項目</th>
+    <th>値</th>
+    <th>本システムへの影響</th>
+  </tr>
+  <tr>
+    <td>スクリプト最大実行時間</td>
+    <td>6 分</td>
+    <td>管理者コンソールの全データ取得が長時間かかると超過リスク</td>
+  </tr>
+  <tr>
+    <td>CacheService 1エントリ上限</td>
+    <td>100 KB</td>
+    <td>全データ（176会員）は 100 KB 超のため「チャンキング」で分割保存</td>
+  </tr>
+  <tr>
+    <td>CacheService キャッシュ最大数</td>
+    <td>1,000 エントリ</td>
+    <td>チャンクを複数エントリに分けて保存する方式で対応</td>
+  </tr>
+  <tr>
+    <td>CacheService 最大 TTL</td>
+    <td>6 時間（21,600 秒）</td>
+    <td>本システムは 600 秒（10分）を設定</td>
+  </tr>
+  <tr>
+    <td>Spreadsheet 1回の読み込みコスト</td>
+    <td>数百 ms〜1 秒</td>
+    <td>6 シートを順次読むと 3〜6 秒かかる</td>
+  </tr>
+  <tr>
+    <td>GAS フロントエンド配信</td>
+    <td>CDN なし・毎回動的生成</td>
+    <td>HTML 圧縮で転送量を削減することが有効</td>
+  </tr>
+</table>
+</div>
+
+<div class="callout callout-info">
+  <div class="callout-title">チャンキング（Chunking）とは</div>
+  大きなデータを小さなブロック（チャンク）に分けて保存・送受信する手法。
+  CacheService の 100 KB 制限を超えるデータは、複数のキーに分割して保存し、
+  読み取り時に結合して元のデータに戻します。
+  本システムでは <code>putChunkedCache_</code> / <code>getChunkedCache_</code> 関数で実装しています。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="spreadsheet-api">5. Spreadsheet API とバッチ処理</h2>
+
+<h3>なぜ Spreadsheet 読み込みが遅いのか</h3>
+<p>
+  スプレッドシートへのアクセスは、GAS から見るとリモートの Web API を呼び出すのと同等です。
+  <strong>1回の操作につき数百 ms のラウンドトリップが発生</strong>します。
+</p>
+
+<div class="compare">
+  <div class="compare-box compare-before">
+    <div class="compare-label">❌ 遅いパターン（セル単位）</div>
+    <pre style="font-size:0.78rem; margin:0;"><code><span class="cm">// 100行 × 10列 = 1,000回の API 呼び出し</span>
+<span class="kw">for</span> (<span class="kw">var</span> i = <span class="nm">1</span>; i &lt;= <span class="nm">100</span>; i++) {
+  <span class="kw">var</span> val = sheet.<span class="fn">getRange</span>(i, <span class="nm">1</span>).<span class="fn">getValue</span>();
+  <span class="cm">// ↑ 毎回 API 呼び出し = 超遅い</span>
+}</code></pre>
+  </div>
+  <div class="compare-box compare-after">
+    <div class="compare-label">✅ 速いパターン（一括取得）</div>
+    <pre style="font-size:0.78rem; margin:0;"><code><span class="cm">// 1回の API 呼び出しで全取得</span>
+<span class="kw">var</span> values = sheet
+  .<span class="fn">getRange</span>(<span class="nm">1</span>, <span class="nm">1</span>, sheet.<span class="fn">getLastRow</span>(), sheet.<span class="fn">getLastColumn</span>())
+  .<span class="fn">getValues</span>(); <span class="cm">// ← 1回だけ</span>
+<span class="cm">// JavaScript 上で処理</span>
+values.<span class="fn">forEach</span>(<span class="kw">function</span>(row) { <span class="cm">/* ... */</span> });</code></pre>
+  </div>
+</div>
+
+<p>Google の公式ベンチマークでは、<code>getValues()</code> の一括取得は <code>getValue()</code> の単セル取得と比べて <strong>20倍以上高速</strong>になる場合があります。</p>
+
+<h3>本システムの実装パターン</h3>
+<pre><code><span class="cm">// backend/Code.gs — getRowsAsObjects_ (ヘルパー関数)</span>
+<span class="cm">// シート全体を1回で読み込み、オブジェクト配列に変換する</span>
+<span class="kw">function</span> <span class="fn">getRowsAsObjects_</span>(ss, sheetName) {
+  <span class="kw">var</span> sheet = ss.<span class="fn">getSheetByName</span>(sheetName);
+  <span class="kw">if</span> (!sheet) <span class="kw">return</span> [];
+
+  <span class="kw">var</span> lastRow = sheet.<span class="fn">getLastRow</span>();
+  <span class="kw">var</span> lastCol = sheet.<span class="fn">getLastColumn</span>();
+  <span class="kw">if</span> (lastRow &lt; <span class="nm">2</span>) <span class="kw">return</span> [];
+
+  <span class="cm">// ✅ 全データを1回で取得（A1:最終列 の範囲）</span>
+  <span class="kw">var</span> values = sheet
+    .<span class="fn">getRange</span>(<span class="nm">1</span>, <span class="nm">1</span>, lastRow, lastCol)
+    .<span class="fn">getValues</span>();
+
+  <span class="kw">var</span> headers = values[<span class="nm">0</span>]; <span class="cm">// 1行目がヘッダー</span>
+  <span class="kw">var</span> rows = [];
+  <span class="kw">for</span> (<span class="kw">var</span> i = <span class="nm">1</span>; i &lt; values.length; i++) {
+    <span class="kw">var</span> obj = {};
+    <span class="kw">for</span> (<span class="kw">var</span> j = <span class="nm">0</span>; j &lt; headers.length; j++) {
+      obj[headers[j]] = values[i][j];
+    }
+    rows.<span class="fn">push</span>(obj);
+  }
+  <span class="kw">return</span> rows;
+}
+</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="cache-service">6. CacheService の仕組み</h2>
+
+<h3>CacheService とは</h3>
+<p>
+  GAS が提供する組み込みの<strong>インメモリキャッシュ</strong>機能です。
+  スプレッドシート等のデータを一時的に保存し、次の呼び出し時に高速に取得できます。
+</p>
+
+<div class="callout callout-tip">
+  <div class="callout-title">インメモリキャッシュ（In-Memory Cache）とは</div>
+  「メモリ上（RAM）に保存されたデータ」のこと。ディスク（HDD/SSD）やネットワーク越しの読み込みより
+  圧倒的に高速（10〜1,000倍）です。ただしサーバー再起動や一定時間経過で消えます。
+  Redis・Memcached などが業界標準のインメモリキャッシュシステムです。
+</div>
+
+<h3>3 種類のキャッシュスコープ</h3>
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>メソッド</th>
+    <th>スコープ</th>
+    <th>用途</th>
+    <th>本システムでの使用</th>
+  </tr>
+  <tr>
+    <td><code>getScriptCache()</code></td>
+    <td>スクリプト全体で共有<br>（全ユーザー共通）</td>
+    <td>全ユーザー共通のマスターデータ</td>
+    <td>✅ 会員データ全体・管理者ホワイトリスト</td>
+  </tr>
+  <tr>
+    <td><code>getUserCache()</code></td>
+    <td>ログインユーザー個人</td>
+    <td>ユーザー固有のセッション情報</td>
+    <td>現在未使用</td>
+  </tr>
+  <tr>
+    <td><code>getDocumentCache()</code></td>
+    <td>特定ドキュメント内</td>
+    <td>Sheets・Docs に紐付いたデータ</td>
+    <td>現在未使用</td>
+  </tr>
+</table>
+</div>
+
+<h3>基本的な使い方</h3>
+<pre><code><span class="kw">var</span> cache = <span class="bi">CacheService</span>.<span class="fn">getScriptCache</span>();
+
+<span class="cm">// ① 保存（put）</span>
+<span class="cm">// キー, 値（文字列のみ）, TTL（秒）</span>
+cache.<span class="fn">put</span>(<span class="st">'my_key'</span>, <span class="bi">JSON</span>.<span class="fn">stringify</span>(data), <span class="nm">300</span>); <span class="cm">// 5分間保持</span>
+
+<span class="cm">// ② 取得（get）— null が返ればキャッシュ切れ</span>
+<span class="kw">var</span> cached = cache.<span class="fn">get</span>(<span class="st">'my_key'</span>);
+<span class="kw">if</span> (cached) {
+  <span class="kw">return</span> <span class="bi">JSON</span>.<span class="fn">parse</span>(cached); <span class="cm">// キャッシュヒット → 高速</span>
+} <span class="kw">else</span> {
+  <span class="cm">// キャッシュミス → Spreadsheet から読み込み</span>
+  <span class="kw">var</span> data = <span class="fn">readFromSpreadsheet_</span>();
+  cache.<span class="fn">put</span>(<span class="st">'my_key'</span>, <span class="bi">JSON</span>.<span class="fn">stringify</span>(data), <span class="nm">300</span>);
+  <span class="kw">return</span> data;
+}
+
+<span class="cm">// ③ 削除（remove）— データが更新されたとき</span>
+cache.<span class="fn">remove</span>(<span class="st">'my_key'</span>);
+</code></pre>
+
+<h3>キャッシュの制約と注意点</h3>
+<div class="callout callout-warn">
+  <div class="callout-title">重要な制限</div>
+  <ul style="margin:0;">
+    <li><strong>1エントリ最大 100 KB</strong> — 大きなデータは「チャンキング」で分割保存が必要</li>
+    <li><strong>最大 1,000 エントリ</strong> — キャッシュ満杯時は古いエントリ約 10% が自動削除</li>
+    <li><strong>文字列のみ保存可</strong> — オブジェクトは <code>JSON.stringify()</code> で変換が必要</li>
+    <li><strong>TTL は最大 6 時間</strong>（21,600 秒）</li>
+    <li><strong>保証されない</strong> — GAS はキャッシュをいつでも強制削除する権利を持つ（メモリ圧迫時など）</li>
+  </ul>
+</div>
+
+<div class="callout callout-tip">
+  <div class="callout-title">キャッシュ戦略のパターン: Cache-Aside（キャッシュアサイド）</div>
+  本システムで使っているパターン。「まずキャッシュを確認 → ミスなら直接取得して保存」という流れ。
+  Redis などでも標準的に使われる<strong>業界定番のキャッシュ戦略</strong>です。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="cache-impl">7. 管理者認証キャッシュ（v193）</h2>
+
+<h3>なぜ管理者ログインが遅かったか</h3>
+<p>
+  v192 以前の <code>checkAdminBySession_()</code> は、ログインするたびに
+  Spreadsheet から 3 つのシートを直接読み込んでいました。
+</p>
+
+<div class="flow" style="margin: 16px 0;">
+  <div class="flow-box warn">管理者がログインボタン押下</div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-box">google.script.run<br><small>checkAdminBySession</small></div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-box danger">T_管理者ホワイトリスト<br>読み込み <small>〜500ms</small></div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-box danger">T_認証アカウント<br>読み込み <small>〜500ms</small></div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-box danger">T_会員<br>読み込み <small>〜1,000ms</small></div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-box danger">ログイン履歴書き込み<br><small>〜300ms</small></div>
+</div>
+
+<h3>v193 での改善</h3>
+<p>ホワイトリストと認証アカウントを CacheService にキャッシュすることで、2 回目以降の呼び出しを高速化：</p>
+
+<pre><code><span class="cm">// backend/Code.gs — checkAdminBySession_（v193 改善版）</span>
+<span class="kw">function</span> <span class="fn">checkAdminBySession_</span>() {
+  <span class="cm">// ① ブラウザで GAS を表示しているユーザーのメールを取得</span>
+  <span class="kw">var</span> email = <span class="bi">Session</span>.<span class="fn">getActiveUser</span>().<span class="fn">getEmail</span>();
+  <span class="kw">if</span> (!email) <span class="kw">throw new</span> <span class="bi">Error</span>(<span class="st">'Googleアカウントでログインされていません。'</span>);
+  email = email.<span class="fn">toLowerCase</span>();
+
+  <span class="kw">var</span> ss = <span class="fn">getOrCreateDatabase_</span>();
+  <span class="kw">var</span> cache = <span class="bi">CacheService</span>.<span class="fn">getScriptCache</span>();
+
+  <span class="cm">// ② ホワイトリストをキャッシュから取得（なければ Spreadsheet から読む）</span>
+  <span class="kw">var</span> whitelistRows;
+  <span class="kw">var</span> cachedWL = cache.<span class="fn">get</span>(<span class="st">'admin_wl_v1'</span>);
+  <span class="kw">if</span> (cachedWL) {
+    <span class="kw">try</span> { whitelistRows = <span class="bi">JSON</span>.<span class="fn">parse</span>(cachedWL); } <span class="kw">catch</span>(e) { whitelistRows = <span class="kw">null</span>; }
+  }
+  <span class="kw">if</span> (!whitelistRows) {
+    <span class="cm">// キャッシュミス → Spreadsheet から読み込んでキャッシュに保存</span>
+    whitelistRows = <span class="fn">getRowsAsObjects_</span>(ss, <span class="st">'T_管理者Googleホワイトリスト'</span>);
+    <span class="kw">try</span> { cache.<span class="fn">put</span>(<span class="st">'admin_wl_v1'</span>, <span class="bi">JSON</span>.<span class="fn">stringify</span>(whitelistRows), <span class="nm">300</span>); } <span class="kw">catch</span>(e) {}
+  }
+
+  <span class="cm">// ③ メールアドレスでホワイトリストを照合...</span>
+  <span class="cm">// ④ 認証アカウントも同様にキャッシュを活用</span>
+
+  <span class="cm">// ⑤ 会員名は fetchAllDataFromDb_() のキャッシュから取得（既に存在する場合）</span>
+  <span class="kw">var</span> cachedAllData = <span class="fn">getChunkedCache_</span>(cache, <span class="fn">getAllDataCacheKey_</span>());
+  <span class="kw">if</span> (cachedAllData &amp;&amp; cachedAllData.members) {
+    <span class="cm">// キャッシュからメンバー名を取得 → T_会員シート読み込み不要</span>
+    <span class="kw">for</span> (<span class="kw">var</span> i = <span class="nm">0</span>; i &lt; cachedAllData.members.length; i++) {
+      <span class="kw">if</span> (cachedAllData.members[i].id === memberId) {
+        memberName = cachedAllData.members[i].lastName + <span class="st">' '</span> + cachedAllData.members[i].firstName;
+        <span class="kw">break</span>;
+      }
+    }
+  }
+  <span class="cm">// キャッシュがない場合だけ Spreadsheet を直接読む（フォールバック）</span>
+}
+</code></pre>
+
+<h3>キャッシュ無効化（Cache Invalidation）</h3>
+<p>
+  <strong>キャッシュ無効化</strong>とは、データが更新されたときに古いキャッシュを削除し、
+  次回アクセス時に最新データを読み直させる仕組みです。
+  「キャッシュの整合性」を保つために不可欠です。
+</p>
+
+<pre><code><span class="cm">// saveAdminPermission_: 管理者ホワイトリストを変更した後にキャッシュを削除</span>
+<span class="kw">function</span> <span class="fn">saveAdminPermission_</span>(payload) {
+  <span class="cm">// ... ホワイトリストの保存処理 ...</span>
+
+  <span class="cm">// ✅ データが変わったのでキャッシュを即時無効化</span>
+  <span class="kw">try</span> { <span class="bi">CacheService</span>.<span class="fn">getScriptCache</span>().<span class="fn">remove</span>(<span class="st">'admin_wl_v1'</span>); } <span class="kw">catch</span>(e) {}
+  <span class="kw">return</span> { saved: <span class="kw">true</span> };
+}
+</code></pre>
+
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>キャッシュキー</th>
+    <th>保存内容</th>
+    <th>TTL</th>
+    <th>無効化タイミング</th>
+  </tr>
+  <tr>
+    <td><code>admin_wl_v1</code></td>
+    <td>T_管理者Googleホワイトリスト 全行</td>
+    <td>300秒（5分）</td>
+    <td>save/delete 時に即時</td>
+  </tr>
+  <tr>
+    <td><code>admin_auth_v1</code></td>
+    <td>T_認証アカウント 全行</td>
+    <td>300秒（5分）</td>
+    <td>TTL 自然失効（変更が稀なため）</td>
+  </tr>
+  <tr>
+    <td><code>getAllDataCacheKey()</code></td>
+    <td>全会員データ（API 形式）</td>
+    <td>600秒（10分）</td>
+    <td>会員データ更新時に即時</td>
+  </tr>
+</table>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="compression">8. deflate-raw 圧縮とは</h2>
+
+<h3>データ圧縮の基本</h3>
+<p>
+  <strong>データ圧縮</strong>とは、データのパターンや繰り返しを利用してファイルサイズを小さくする技術です。
+  JavaScript コードは文字列・キーワードの繰り返しが多いため、圧縮効率が高く、
+  <strong>60〜80% 削減</strong>できることがあります。
+</p>
+
+<div class="callout callout-info">
+  <div class="callout-title">DEFLATE アルゴリズム</div>
+  ZIP・gzip・PNG などで使われている業界標準の圧縮アルゴリズム（1993年策定）。
+  <strong>LZ77</strong>（繰り返しパターンを辞書化）と <strong>Huffman 符号</strong>（出現頻度の高い文字を短いビット列で表現）を組み合わせています。
+  現在も最も広く使われている可逆圧縮アルゴリズムの一つです。
+</div>
+
+<h3>圧縮フォーマットの種類</h3>
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>フォーマット</th>
+    <th>ヘッダー</th>
+    <th>チェックサム</th>
+    <th>用途</th>
+    <th>ブラウザ API</th>
+  </tr>
+  <tr>
+    <td><code>deflate</code></td>
+    <td>あり（zlib）</td>
+    <td>Adler-32</td>
+    <td>HTTP コンテンツ圧縮</td>
+    <td><code>DecompressionStream('deflate')</code></td>
+  </tr>
+  <tr>
+    <td><code>gzip</code></td>
+    <td>あり（gzip）</td>
+    <td>CRC-32</td>
+    <td>HTTP gzip 転送</td>
+    <td><code>DecompressionStream('gzip')</code></td>
+  </tr>
+  <tr>
+    <td><code>deflate-raw</code></td>
+    <td>なし</td>
+    <td>なし</td>
+    <td>埋め込みデータ・カスタム用途</td>
+    <td><code>DecompressionStream('deflate-raw')</code></td>
+  </tr>
+</table>
+</div>
+
+<p>
+  本システムでは <strong>deflate-raw</strong> を使用しています。
+  ヘッダーもチェックサムもないため、ペイロードを最小化できます。
+  ブラウザの <code>DecompressionStream</code> API が natively サポートしているため、
+  展開処理を追加ライブラリなしで実現できます。
+</p>
+
+<h3>Base64 エンコードとは</h3>
+<p>
+  圧縮後のバイナリデータ（0〜255 の数値の列）は、HTML や JavaScript 文字列の中に直接埋め込めません。
+  <strong>Base64</strong> は 3 バイトを 4 文字の ASCII に変換するエンコード方式で、
+  バイナリを安全にテキストとして扱えるようにします。
+</p>
+
+<div class="diagram">
+  <div style="text-align:center; margin-bottom:12px; font-size:0.85rem; color:var(--text-muted)">Build 時の圧縮フロー（scripts/compress-html.mjs）</div>
+  <div class="flow">
+    <div class="flow-box">
+      📄 index.html<br><small>522 kB</small><br><small>（JS インライン済み）</small>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">
+      🔍 <code>&lt;script type="module"&gt;</code><br><small>を抽出</small><br><small>456 kB の JavaScript</small>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box highlight">
+      🗜️ deflate-raw<br><small>zlib.deflateRawSync</small><br><small>456 kB → 114 kB</small>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">
+      🔤 Base64 エンコード<br><small>114 kB → 152 kB</small><br><small>（バイナリ→テキスト化）</small>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box success">
+      📄 新 index.html<br><small>206 kB（-60%）</small><br><small>（&lt;script data&gt;に格納）</small>
+    </div>
+  </div>
+</div>
+
+<pre><code><span class="cm">// scripts/compress-html.mjs — ビルド時圧縮スクリプト（Node.js）</span>
+<span class="kw">import</span> fs <span class="kw">from</span> <span class="st">'fs'</span>;
+<span class="kw">import</span> zlib <span class="kw">from</span> <span class="st">'zlib'</span>;
+
+<span class="kw">function</span> <span class="fn">compressHtmlFile</span>(inputPath) {
+  <span class="kw">const</span> html = fs.<span class="fn">readFileSync</span>(inputPath, <span class="st">'utf8'</span>);
+
+  <span class="cm">// vite-plugin-singlefile が生成した &lt;script type="module" crossorigin&gt; を抽出</span>
+  <span class="kw">const</span> scriptRegex = <span class="op">/</span>&lt;script type=<span class="st">"module"</span> crossorigin&gt;([\s\S]*?)&lt;\/script&gt;<span class="op">/</span>;
+  <span class="kw">const</span> match = html.<span class="fn">match</span>(scriptRegex);
+  <span class="kw">if</span> (!match) <span class="kw">return</span>; <span class="cm">// 対象なし</span>
+
+  <span class="kw">const</span> scriptContent = match[<span class="nm">1</span>];
+  <span class="kw">const</span> scriptBytes = <span class="bi">Buffer</span>.<span class="fn">from</span>(scriptContent, <span class="st">'utf8'</span>);
+
+  <span class="cm">// ① deflate-raw で最高圧縮（Z_BEST_COMPRESSION = レベル9）</span>
+  <span class="kw">const</span> compressed = zlib.<span class="fn">deflateRawSync</span>(scriptBytes, {
+    level: zlib.constants.Z_BEST_COMPRESSION
+  });
+
+  <span class="cm">// ② Base64 エンコード（バイナリ → ASCII テキスト）</span>
+  <span class="kw">const</span> encoded = compressed.<span class="fn">toString</span>(<span class="st">'base64'</span>);
+
+  <span class="cm">// ③ HTML に埋め込む形式を生成</span>
+  <span class="kw">const</span> decompressor =
+    <span class="st">`&lt;script id="__app_data__" type="application/octet-stream"&gt;</span><span class="op">${</span>encoded<span class="op">}</span><span class="st">&lt;/script&gt;\n`</span> +
+    <span class="st">`&lt;script&gt;\n(async function(){\n`</span> +
+    <span class="st">`  // ブラウザ側でデコード・展開・実行\n`</span> +
+    <span class="st">`  var d=document.getElementById('__app_data__').textContent.trim();\n`</span> +
+    <span class="st">`  var b=atob(d),n=new Uint8Array(b.length);\n`</span> +
+    <span class="st">`  for(var i=0;i&lt;b.length;i++)n[i]=b.charCodeAt(i);\n`</span> +
+    <span class="st">`  var t=await new Response(new Response(n).body.pipeThrough(new DecompressionStream('deflate-raw'))).text();\n`</span> +
+    <span class="st">`  new Function(t)();\n`</span> +
+    <span class="st">`})();\n&lt;/script&gt;`</span>;
+
+  <span class="kw">const</span> newHtml = html.<span class="fn">replace</span>(scriptRegex, decompressor);
+  fs.<span class="fn">writeFileSync</span>(inputPath, newHtml, <span class="st">'utf8'</span>);
+}
+</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="decompression-stream">9. DecompressionStream API</h2>
+
+<h3>Web Streams API とは</h3>
+<p>
+  <strong>Web Streams API</strong> は、データを「ストリーム（連続した流れ）」として処理するブラウザ標準 API です。
+  大きなデータを一度にメモリに展開せず、チャンクごとに処理できます。
+</p>
+
+<div class="card-grid">
+  <div class="card">
+    <div class="card-icon">📥</div>
+    <div class="card-title">ReadableStream</div>
+    <div class="card-desc">読み取り元。ファイル・ネットワーク・バイナリデータなどをストリームとして扱う。</div>
+  </div>
+  <div class="card">
+    <div class="card-icon">⚙️</div>
+    <div class="card-title">TransformStream</div>
+    <div class="card-desc">変換処理。入力ストリームを変換して出力する。DecompressionStream もこれを実装。</div>
+  </div>
+  <div class="card">
+    <div class="card-icon">📤</div>
+    <div class="card-title">WritableStream</div>
+    <div class="card-desc">書き込み先。データの最終出力先を定義する。</div>
+  </div>
+</div>
+
+<h3>ブラウザ実行時の展開フロー</h3>
+<div class="diagram">
+  <div style="text-align:center; margin-bottom:12px; font-size:0.85rem; color:var(--text-muted)">ブラウザ側の実行時展開フロー</div>
+  <div class="flow" style="flex-direction:column; gap:8px; align-items:flex-start; max-width:600px; margin:0 auto;">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div class="flow-box" style="min-width:180px;">
+        <code>atob(base64)</code><br>
+        <small>Base64 → バイナリ文字列</small>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div style="font-size:0.8rem; color:var(--text-muted);">Base64 デコード（ブラウザ組み込み）</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div class="flow-box" style="min-width:180px;">
+        <code>new Uint8Array()</code><br>
+        <small>バイナリ文字列 → 数値配列</small>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div style="font-size:0.8rem; color:var(--text-muted);">JavaScript のバイト配列に変換</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div class="flow-box highlight" style="min-width:180px;">
+        <code>new Response(n).body</code><br>
+        <small>バイト配列 → ReadableStream</small>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div style="font-size:0.8rem; color:var(--text-muted);">Fetch API の Response でストリーム化</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div class="flow-box highlight" style="min-width:180px;">
+        <code>.pipeThrough(DecompressionStream('deflate-raw'))</code><br>
+        <small>圧縮データを展開</small>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div style="font-size:0.8rem; color:var(--text-muted);">TransformStream として動作</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div class="flow-box success" style="min-width:180px;">
+        <code>new Response(...).text()</code><br>
+        <small>ストリーム → 文字列</small>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div style="font-size:0.8rem; color:var(--text-muted);">元の JavaScript コードが復元</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div class="flow-box success" style="min-width:180px;">
+        <code>new Function(t)()</code><br>
+        <small>文字列をコードとして実行</small>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div style="font-size:0.8rem; color:var(--text-muted);">React アプリが起動</div>
+    </div>
+  </div>
+</div>
+
+<pre><code><span class="cm">// ブラウザ側の実行時デコンプレッサー（HTML に埋め込まれる）</span>
+(<span class="kw">async function</span>(){
+  <span class="cm">// ① data 属性の script タグから Base64 テキストを取得</span>
+  <span class="kw">var</span> d = document.<span class="fn">getElementById</span>(<span class="st">'__app_data__'</span>).textContent.<span class="fn">trim</span>();
+
+  <span class="cm">// ② Base64 → バイナリ文字列 → Uint8Array（バイト配列）に変換</span>
+  <span class="kw">var</span> b = <span class="fn">atob</span>(d), n = <span class="kw">new</span> <span class="ty">Uint8Array</span>(b.length);
+  <span class="kw">for</span> (<span class="kw">var</span> i = <span class="nm">0</span>; i &lt; b.length; i++) n[i] = b.<span class="fn">charCodeAt</span>(i);
+
+  <span class="cm">// ③ Uint8Array → ReadableStream（Fetch API の Response 経由）</span>
+  <span class="cm">// ④ pipeThrough で DecompressionStream（deflate-raw で展開）</span>
+  <span class="cm">// ⑤ 展開後のストリームを text() で文字列化</span>
+  <span class="kw">var</span> t = <span class="kw">await new</span> <span class="ty">Response</span>(
+    <span class="kw">new</span> <span class="ty">Response</span>(n).body.<span class="fn">pipeThrough</span>(<span class="kw">new</span> <span class="ty">DecompressionStream</span>(<span class="st">'deflate-raw'</span>))
+  ).<span class="fn">text</span>();
+
+  <span class="cm">// ⑥ 展開された JavaScript コードを実行</span>
+  <span class="kw">new</span> <span class="ty">Function</span>(t)();
+})();
+</code></pre>
+
+<h3>ブラウザ対応状況（2026年4月時点）</h3>
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>API</th>
+    <th>Chrome</th>
+    <th>Firefox</th>
+    <th>Safari</th>
+    <th>Edge</th>
+    <th>対応開始</th>
+  </tr>
+  <tr>
+    <td><code>DecompressionStream</code></td>
+    <td>✅ 80+</td>
+    <td>✅ 113+</td>
+    <td>✅ 16.4+</td>
+    <td>✅ 80+</td>
+    <td>Chrome 80（2020年3月）</td>
+  </tr>
+  <tr>
+    <td><code>deflate-raw</code> 指定</td>
+    <td>✅ 103+</td>
+    <td>✅ 113+</td>
+    <td>✅ 16.4+</td>
+    <td>✅ 103+</td>
+    <td>Chrome 103（2022年6月）</td>
+  </tr>
+  <tr>
+    <td><code>ReadableStream.pipeThrough()</code></td>
+    <td>✅ 59+</td>
+    <td>✅ 102+</td>
+    <td>✅ 10.1+</td>
+    <td>✅ 79+</td>
+    <td>Chrome 59（2017年）</td>
+  </tr>
+  <tr>
+    <td><code>new Function()</code></td>
+    <td>✅ 全バージョン</td>
+    <td>✅ 全バージョン</td>
+    <td>✅ 全バージョン</td>
+    <td>✅ 全バージョン</td>
+    <td>JavaScript 標準</td>
+  </tr>
+</table>
+</div>
+<p>GAS は Google Chrome ブラウザで使用されることが前提のため、Chrome 103+ サポートがあれば十分です。</p>
+
+<!-- ============================================================ -->
+<h2 id="csp">10. GAS CSP と unsafe-eval</h2>
+
+<h3>CSP（Content Security Policy）とは</h3>
+<p>
+  <strong>CSP</strong>（コンテンツセキュリティポリシー）は、Web サイトが「どのリソース・スクリプトの実行を許可するか」を宣言するセキュリティ仕様です。
+  HTTP レスポンスヘッダーや <code>&lt;meta&gt;</code> タグで設定します。
+  XSS（クロスサイトスクリプティング）攻撃を防ぐために設計されています。
+</p>
+
+<div class="callout callout-info">
+  <div class="callout-title">XSS（Cross-Site Scripting）とは</div>
+  悪意のあるスクリプトを Web ページに注入して、他のユーザーのブラウザで実行させる攻撃手法。
+  CSP の <code>script-src</code> ディレクティブで実行を許可するスクリプトの出所を制限することで防ぎます。
+</div>
+
+<h3>GAS の CSP 設定と制約</h3>
+<p>
+  GAS の HTML Service は <code>script.googleusercontent.com</code> 上の iframe 内で動作します。
+  この iframe には以下の CSP が自動的に適用されます：
+</p>
+
+<pre><code><span class="cm">/* GAS HTML Service が自動付与する CSP（概略）*/</span>
+<span class="prop">Content-Security-Policy:</span>
+  <span class="prop">default-src</span> <span class="st">'self'</span> https:;
+  <span class="prop">script-src</span> <span class="st">'self'</span> <span class="st">'unsafe-inline'</span> <span class="st">'unsafe-eval'</span> https:;
+  <span class="prop">object-src</span> <span class="st">'none'</span>;
+</code></pre>
+
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>CSP ディレクティブ</th>
+    <th>意味</th>
+    <th>GAS での状況</th>
+  </tr>
+  <tr>
+    <td><code>'unsafe-inline'</code></td>
+    <td>HTML 内の <code>&lt;script&gt;</code> タグや <code>onclick=""</code> を許可</td>
+    <td>✅ 許可（GAS は HTML 内スクリプトを多用）</td>
+  </tr>
+  <tr>
+    <td><code>'unsafe-eval'</code></td>
+    <td><code>eval()</code>・<code>new Function()</code> などの文字列→コード変換を許可</td>
+    <td>✅ 許可（React の一部実装が使用）</td>
+  </tr>
+  <tr>
+    <td><code>blob:</code> URI</td>
+    <td><code>URL.createObjectURL(blob)</code> からの読み込みを許可</td>
+    <td>❌ <strong>ブロック</strong>（v189 失敗の原因）</td>
+  </tr>
+  <tr>
+    <td><code>data:</code> URI</td>
+    <td><code>data:text/javascript,...</code> からの読み込みを許可</td>
+    <td>❌ ブロック</td>
+  </tr>
+</table>
+</div>
+
+<h3>v189 の失敗と v191 の解決</h3>
+<div class="compare">
+  <div class="compare-box compare-before">
+    <div class="compare-label">❌ v189 の失敗アプローチ（blob: URI）</div>
+    <p style="font-size:0.85rem;">
+      <code>vite-plugin-singlefile-compression</code> は展開した JS を
+      <code>URL.createObjectURL(blob)</code> で Blob URL を作成し、
+      <code>import(blobURL)</code> で動的インポートしていました。
+    </p>
+    <pre style="font-size:0.77rem; margin:0;"><code><span class="cm">// GAS CSP がブロック！</span>
+<span class="kw">const</span> blob = <span class="kw">new</span> <span class="ty">Blob</span>([jsCode], {type: <span class="st">'text/javascript'</span>});
+<span class="kw">const</span> url = <span class="bi">URL</span>.<span class="fn">createObjectURL</span>(blob);
+<span class="kw">import</span>(url); <span class="cm">// ← blob: スキームはブロック</span></code></pre>
+    <p style="font-size:0.82rem; color:var(--red); margin-top:8px;">結果: 画面真っ白（Console エラー）</p>
+  </div>
+  <div class="compare-box compare-after">
+    <div class="compare-label">✅ v191 の解決アプローチ（new Function）</div>
+    <p style="font-size:0.85rem;">
+      <code>new Function(code)()</code> は JS の文字列をそのままコードとして実行します。
+      GAS の CSP に <code>'unsafe-eval'</code> が含まれているため、これは<strong>許可</strong>されます。
+    </p>
+    <pre style="font-size:0.77rem; margin:0;"><code><span class="cm">// GAS CSP が許可！（unsafe-eval あり）</span>
+<span class="kw">var</span> t = <span class="kw">await</span> <span class="cm">/* 展開した JS 文字列 */</span>;
+<span class="kw">new</span> <span class="ty">Function</span>(t)(); <span class="cm">// ← unsafe-eval で許可</span></code></pre>
+    <p style="font-size:0.82rem; color:var(--green); margin-top:8px;">結果: 正常動作（-60% 圧縮達成）</p>
+  </div>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">セキュリティについての注意</div>
+  <code>new Function()</code> や <code>eval()</code> は一般的に「危険な機能」として避けるべきとされています。
+  ただし本システムでは「<strong>自分でビルドした JavaScript コードを自分で実行する</strong>」ことが目的で、
+  外部からの入力をコードとして実行しているわけではありません。
+  GAS 側のビルドプロセス（<code>npm run build:gas</code>）で生成した信頼済みのコードのみを使用しているため、セキュリティリスクはありません。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="compress-impl">11. 圧縮実装の詳細（v191）</h2>
+
+<h3>ビルドパイプライン全体</h3>
+
+<div class="diagram">
+  <div style="text-align:center; margin-bottom:12px; font-size:0.85rem; color:var(--text-muted)">npm run build:gas の処理フロー</div>
+  <ol class="steps">
+    <li>
+      <div>
+        <strong><code>npx vite build</code>（会員ポータル）</strong><br>
+        <small>React + TypeScript → <code>dist/index.html</code>（JS/CSS インライン済み、522 kB）</small>
+      </div>
+    </li>
+    <li>
+      <div>
+        <strong><code>npx vite build</code>（公開ポータル）</strong><br>
+        <small>環境変数 <code>VITE_APP=public</code> → <code>dist-public/index_public.html</code>（317 kB）</small>
+      </div>
+    </li>
+    <li>
+      <div>
+        <strong><code>node scripts/compress-html.mjs</code></strong><br>
+        <small>両 HTML の <code>&lt;script type="module"&gt;</code> を deflate-raw + base64 に変換<br>
+        member: 522 kB → 206 kB（-60%）　public: 317 kB → 150 kB（-53%）</small>
+      </div>
+    </li>
+    <li>
+      <div>
+        <strong>backend/ にコピー</strong><br>
+        <small><code>dist/index.html → backend/index.html</code><br>
+        <code>dist-public/index_public.html → backend/index_public.html</code></small>
+      </div>
+    </li>
+    <li>
+      <div>
+        <strong><code>npx clasp push --force</code></strong><br>
+        <small>4 ファイル（Code.gs, appsscript.json, index.html, index_public.html）を GAS にアップロード</small>
+      </div>
+    </li>
+  </ol>
+</div>
+
+<h3>圧縮効果の測定</h3>
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>指標</th>
+    <th>v190 以前</th>
+    <th>v191 以降</th>
+    <th>改善率</th>
+  </tr>
+  <tr>
+    <td>member portal HTML サイズ</td>
+    <td>522 kB</td>
+    <td>206 kB</td>
+    <td><span class="badge badge-green">-60%</span></td>
+  </tr>
+  <tr>
+    <td>public portal HTML サイズ</td>
+    <td>317 kB</td>
+    <td>150 kB</td>
+    <td><span class="badge badge-green">-53%</span></td>
+  </tr>
+  <tr>
+    <td>member JS（deflate 後）</td>
+    <td>—</td>
+    <td>114 kB</td>
+    <td>元 456 kB から <span class="badge badge-green">-75%</span></td>
+  </tr>
+  <tr>
+    <td>HTML ダウンロード時間（推定）</td>
+    <td>〜400 ms</td>
+    <td>〜160 ms</td>
+    <td>〜240 ms 削減</td>
+  </tr>
+</table>
+</div>
+
+<div class="callout callout-tip">
+  <div class="callout-title">なぜ圧縮しても gzip 転送量と同じくらいになるのか</div>
+  通常の Web サーバーは HTTP レスポンスを gzip 圧縮して送信します（ブラウザが自動展開）。
+  GAS はサーバー側 gzip を行わないため、「ビルド時に圧縮済みの HTML」を送ることが
+  通常の gzip 転送と同等の効果を生みます。
+  <strong>raw HTML サイズの削減 = 実際のダウンロード量の削減</strong>に直結します。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="auth-flow">12. 管理者認証フロー</h2>
+
+<h3>なぜ Google ログインを使わないのか</h3>
+<p>
+  通常の Web アプリでは <strong>Google Identity Services（GIS）</strong> を使って
+  「Google でログイン」ボタンを実装できます。
+  しかし GAS の HTML Service は <code>script.googleusercontent.com</code> の iframe 上で動作するため、
+  OAuth 2.0 の認証フローで必要な「正規のオリジン（Origin）への POST」ができません。
+</p>
+
+<div class="def-block">
+  <div class="def-term">オリジン（Origin）とは</div>
+  <code>プロトコル://ホスト:ポート</code> の組み合わせ。
+  例: <code>https://example.com:443</code>。ブラウザのセキュリティポリシーは「同一オリジン」を基準に動作します。
+  GAS は <code>https://script.googleusercontent.com</code> というオリジンで動作するため、
+  OAuth コールバック URL として登録できません。
+</div>
+
+<h3>Session.getActiveUser() を使った解決策</h3>
+<p>
+  <code>google.script.run</code> 経由で GAS 関数を呼び出すと、
+  <strong>GAS サーバー側で呼び出したユーザーの Google アカウントのメールアドレスを取得</strong>できます。
+  これが <code>Session.getActiveUser().getEmail()</code> です。
+</p>
+
+<div class="callout callout-info">
+  <div class="callout-title">Session.getActiveUser() の動作条件</div>
+  <ul style="margin:0;">
+    <li>Apps Script の実行設定が <strong>"Execute as: Me"</strong> であること</li>
+    <li>呼び出しユーザーが <strong>同一の Google Workspace ドメイン</strong> のアカウントであること（またはスクリプト所有者と同組織）</li>
+    <li><code>google.script.run</code> 経由で呼び出されていること（<code>doGet</code> 内では空文字になる）</li>
+  </ul>
+  これらの条件が満たされないと、空文字列が返されます。
+</div>
+
+<div class="diagram">
+  <div style="text-align:center; margin-bottom:12px; font-size:0.85rem; color:var(--text-muted)">管理者ログインフロー（v193）</div>
+  <div class="flow" style="flex-direction:column; gap:8px; max-width:600px; margin:0 auto;">
+    <div class="flow-box" style="width:100%; text-align:left; padding:12px 16px;">
+      <strong>① ブラウザ</strong>: 「Googleアカウントで管理者ログイン」ボタン押下
+    </div>
+    <div style="text-align:center; color:var(--text-muted); font-size:0.8rem;">google.script.run.withSuccessHandler().checkAdminBySession()</div>
+    <div class="flow-box highlight" style="width:100%; text-align:left; padding:12px 16px;">
+      <strong>② GAS サーバー</strong>: <code>Session.getActiveUser().getEmail()</code><br>
+      <small>→ ブラウザにログインしている Google アカウントのメールを取得</small>
+    </div>
+    <div style="text-align:center; color:var(--text-muted); font-size:0.8rem;">CacheService 確認（admin_wl_v1）</div>
+    <div class="flow-box" style="width:100%; text-align:left; padding:12px 16px;">
+      <strong>③ キャッシュ確認</strong>: <code>T_管理者Googleホワイトリスト</code> をキャッシュまたは Spreadsheet から取得
+    </div>
+    <div style="text-align:center; color:var(--text-muted); font-size:0.8rem;">メールアドレスで照合</div>
+    <div class="flow-box" style="width:100%; text-align:left; padding:12px 16px;">
+      <strong>④ ホワイトリスト照合</strong>: メールアドレスが登録済みか確認<br>
+      <small>→ 未登録なら「管理者権限がありません」エラー</small>
+    </div>
+    <div class="flow-box success" style="width:100%; text-align:left; padding:12px 16px;">
+      <strong>⑤ 認証成功</strong>: 権限コード（MASTER/ADMIN 等）・会員ID・displayName を返却<br>
+      <small>→ App.tsx に反映、管理者コンソールを表示</small>
+    </div>
+  </div>
+</div>
+
+<h3>v192 の改善: 認証とデータ取得の分離</h3>
+<p>
+  v192 以前は「管理者ログイン」ボタンを押すと、
+  認証（checkAdminBySession_）と全会員データの取得（getMemberPortalData_）を
+  <strong>1回の API 呼び出し</strong>でまとめて実行していました。
+</p>
+
+<div class="compare">
+  <div class="compare-box compare-before">
+    <div class="compare-label">❌ v192 以前（一括処理）</div>
+    <pre style="font-size:0.78rem; margin:0;"><code><span class="cm">// 認証 + 全データ取得 = 超遅い</span>
+<span class="kw">if</span> (action === <span class="st">'adminLoginWithData'</span>) {
+  <span class="kw">var</span> auth = <span class="fn">checkAdminBySession_</span>();
+  <span class="kw">var</span> portal = <span class="fn">getMemberPortalData_</span>({
+    memberId: auth.memberId
+  });
+  <span class="kw">return</span> { auth, portal };
+  <span class="cm">// → 両方で約15〜18秒かかる</span>
+}</code></pre>
+  </div>
+  <div class="compare-box compare-after">
+    <div class="compare-label">✅ v192 以降（分離処理）</div>
+    <pre style="font-size:0.78rem; margin:0;"><code><span class="cm">// 認証のみ → 速い</span>
+<span class="kw">if</span> (action === <span class="st">'checkAdminBySession'</span>) {
+  <span class="kw">var</span> auth = <span class="fn">checkAdminBySession_</span>();
+  <span class="kw">return</span> { auth };
+  <span class="cm">// → 認証のみで高速化</span>
+}
+<span class="cm">// 会員データは各ページ遷移時に必要になって取得</span></code></pre>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="session-api">13. Session.getActiveUser() の注意点</h2>
+
+<h3>空文字が返るケース</h3>
+<p>Google の公式ドキュメント（2025年12月更新）によると、以下の場合に空文字列が返されます：</p>
+<ul>
+  <li>スクリプト実行設定が「ユーザーとして実行（Anyone）」の場合</li>
+  <li>呼び出しユーザーが組織外の Google アカウントの場合（セキュリティポリシーによる）</li>
+  <li>匿名アクセス（ログインしていないユーザー）</li>
+  <li><code>doGet()</code> など、ユーザー認証なしに実行されるコンテキスト</li>
+</ul>
+
+<div class="callout callout-tip">
+  <div class="callout-title">本システムの設定</div>
+  <code>backend/appsscript.json</code> の設定:
+  <ul style="margin:4px 0 0;">
+    <li><strong>execute as</strong>: <code>USER_DEPLOYING</code>（スクリプト所有者として実行）</li>
+    <li><strong>access</strong>: <code>DOMAIN</code>（同一 Google Workspace ドメインのユーザー）</li>
+  </ul>
+  この設定により <code>Session.getActiveUser()</code> が正しくメールを返せます。
+</div>
+
+<h3>セキュリティ設計の原則</h3>
+<pre><code><span class="cm">// 管理者認証の核心部分</span>
+<span class="kw">function</span> <span class="fn">checkAdminBySession_</span>() {
+  <span class="cm">// GAS サーバー側でセッションからメールを取得（クライアントからの入力に依存しない）</span>
+  <span class="kw">var</span> email = <span class="bi">Session</span>.<span class="fn">getActiveUser</span>().<span class="fn">getEmail</span>();
+
+  <span class="cm">// ✅ セキュリティポイント:</span>
+  <span class="cm">// メールアドレスはブラウザからの入力ではなく、GASが直接Google SSO から取得</span>
+  <span class="cm">// → 偽装・なりすましが不可能</span>
+
+  <span class="cm">// ホワイトリストに存在するか確認（データベースが正本）</span>
+  <span class="kw">var</span> matched = whitelistRows.<span class="fn">find</span>(<span class="kw">function</span>(w) {
+    <span class="kw">return</span> w[<span class="st">'Googleメール'</span>].<span class="fn">toLowerCase</span>() === email;
+  });
+
+  <span class="kw">if</span> (!matched) {
+    <span class="cm">// ✅ ログインを記録して例外（攻撃の試みも記録に残る）</span>
+    <span class="fn">appendLoginHistory_</span>(ss, <span class="st">''</span>, email, <span class="st">'GOOGLE'</span>, <span class="st">'FAILURE'</span>, <span class="st">'ホワイトリスト未登録'</span>);
+    <span class="kw">throw new</span> <span class="bi">Error</span>(<span class="st">'管理者権限がありません。'</span>);
+  }
+}
+</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="v191-v193">14. v191〜v193 変更サマリー</h2>
+
+<div class="timeline">
+  <div class="timeline-item fail">
+    <div class="timeline-label">2026-04-09 — v189</div>
+    <div class="timeline-title">vite-plugin-singlefile-compression 導入 → 失敗</div>
+    <div class="timeline-desc">
+      <code>blob:</code> URI 動的インポートが GAS CSP でブロック。画面真っ白。v190 で即時復旧。
+    </div>
+  </div>
+  <div class="timeline-item done">
+    <div class="timeline-label">2026-04-09 — v191</div>
+    <div class="timeline-title">カスタム deflate-raw + base64 圧縮 実装</div>
+    <div class="timeline-desc">
+      <code>scripts/compress-html.mjs</code> 新設。<code>new Function()</code> で GAS CSP 互換を実現。
+      member 522 kB → 206 kB (-60%)、public 317 kB → 150 kB (-53%)。
+    </div>
+  </div>
+  <div class="timeline-item done">
+    <div class="timeline-label">2026-04-09 — v192</div>
+    <div class="timeline-title">管理者ログインを認証のみに分離</div>
+    <div class="timeline-desc">
+      <code>adminLoginWithData</code>（認証 + 全データ取得）→ <code>checkAdminBySession</code>（認証のみ）。
+      会員データは各ページ遷移時に遅延取得。Playwright で正常動作を確認。
+    </div>
+  </div>
+  <div class="timeline-item done">
+    <div class="timeline-label">2026-04-09 — v193</div>
+    <div class="timeline-title">管理者認証に CacheService キャッシュを追加</div>
+    <div class="timeline-desc">
+      ホワイトリスト（<code>admin_wl_v1</code>）・認証アカウント（<code>admin_auth_v1</code>）を
+      5分間キャッシュ。ウォームインスタンスでの管理者ログインが大幅高速化。
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="remaining">15. 残課題: B-02 — fetchAllDataFromDbFresh_ 最適化</h2>
+
+<h3>現在の課題</h3>
+<p>
+  <code>fetchAllDataFromDbFresh_()</code> は、キャッシュミス時（コールドスタート直後、または 10 分経過後）に
+  6 つのシートを順次読み込みます。各シートの読み込みには <code>getLastRow()</code>・<code>getLastColumn()</code>・<code>getValues()</code>
+  の 3 回の API 呼び出しが必要なため、合計 <strong>18 回</strong>の Spreadsheet API 呼び出しが発生します。
+</p>
+
+<pre><code><span class="cm">// 現在の実装（6シート × 3API = 18回の API 呼び出し）</span>
+<span class="kw">function</span> <span class="fn">fetchAllDataFromDbFresh_</span>() {
+  <span class="kw">var</span> ss = <span class="fn">getOrCreateDatabase_</span>();
+
+  <span class="cm">// ↓ 各 getRowsAsObjects_ で getLastRow + getLastCol + getValues = 3回</span>
+  <span class="kw">var</span> memberRows   = <span class="fn">getRowsAsObjects_</span>(ss, <span class="st">'T_会員'</span>);          <span class="cm">// API 3回</span>
+  <span class="kw">var</span> staffRows    = <span class="fn">getRowsAsObjects_</span>(ss, <span class="st">'T_事業所職員'</span>);      <span class="cm">// API 3回</span>
+  <span class="kw">var</span> authRows     = <span class="fn">getRowsAsObjects_</span>(ss, <span class="st">'T_認証アカウント'</span>);  <span class="cm">// API 3回</span>
+  <span class="kw">var</span> trainingRows = <span class="fn">getRowsAsObjects_</span>(ss, <span class="st">'T_研修'</span>);           <span class="cm">// API 3回</span>
+  <span class="kw">var</span> applicationRows = <span class="fn">getTrainingApplicationRows_</span>(ss, ...); <span class="cm">// API 3回</span>
+  <span class="kw">var</span> feeRows      = <span class="fn">getRowsAsObjects_</span>(ss, <span class="st">'T_年会費納入履歴'</span>);  <span class="cm">// API 3回</span>
+  <span class="cm">// 合計: 18回の API 呼び出し</span>
+}
+</code></pre>
+
+<h3>改善案</h3>
+<pre><code><span class="cm">// 改善案: ss.getSheets() で全シートを一括取得してキャッシュ</span>
+<span class="kw">function</span> <span class="fn">fetchAllDataFromDbFresh_Optimized</span>() {
+  <span class="kw">var</span> ss = <span class="fn">getOrCreateDatabase_</span>();
+
+  <span class="cm">// ✅ 全シートを一括取得（getSheets = 1回の API 呼び出し）</span>
+  <span class="kw">var</span> allSheets = {};
+  ss.<span class="fn">getSheets</span>().<span class="fn">forEach</span>(<span class="kw">function</span>(sheet) {
+    allSheets[sheet.<span class="fn">getName</span>()] = sheet;
+  });
+
+  <span class="cm">// getSheetByName の代わりに allSheets から直接参照</span>
+  <span class="kw">var</span> memberRows = <span class="fn">getRowsFromSheet_</span>(allSheets[<span class="st">'T_会員'</span>]);
+  <span class="cm">// ... 以下同様 ...</span>
+
+  <span class="cm">// 期待効果: 18回 → 7回 前後の API 呼び出しに削減</span>
+  <span class="cm">// 推定改善: 2〜4秒の短縮（キャッシュミス時）</span>
+}
+</code></pre>
+
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>最適化項目</th>
+    <th>現状</th>
+    <th>改善後（推定）</th>
+    <th>効果</th>
+  </tr>
+  <tr>
+    <td>Spreadsheet API 呼び出し回数</td>
+    <td>18 回</td>
+    <td>7〜8 回</td>
+    <td>-55%</td>
+  </tr>
+  <tr>
+    <td>キャッシュミス時の読み込み時間</td>
+    <td>5〜10 秒</td>
+    <td>3〜5 秒（推定）</td>
+    <td>-2〜4 秒</td>
+  </tr>
+</table>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="sources">参考文献</h2>
+
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>ドキュメント</th>
+    <th>内容</th>
+  </tr>
+  <tr>
+    <td><a href="https://developers.google.com/apps-script/guides/support/best-practices" target="_blank">GAS Best Practices</a></td>
+    <td>Google 公式: GAS パフォーマンス最適化のベストプラクティス</td>
+  </tr>
+  <tr>
+    <td><a href="https://developers.google.com/apps-script/reference/cache" target="_blank">Cache Service 公式リファレンス</a></td>
+    <td>GAS CacheService の全 API ドキュメント</td>
+  </tr>
+  <tr>
+    <td><a href="https://developer.mozilla.org/en-US/docs/Web/API/DecompressionStream" target="_blank">DecompressionStream — MDN Web Docs</a></td>
+    <td>Web 標準の DecompressionStream API リファレンス</td>
+  </tr>
+  <tr>
+    <td><a href="https://developer.mozilla.org/en-US/docs/Web/API/Compression_Streams_API" target="_blank">Compression Streams API — MDN</a></td>
+    <td>ブラウザ標準の圧縮/展開 Streams API 概要</td>
+  </tr>
+  <tr>
+    <td><a href="https://compression.spec.whatwg.org/" target="_blank">Compression Standard — WHATWG</a></td>
+    <td>Web 圧縮ストリームの標準仕様（deflate, deflate-raw, gzip）</td>
+  </tr>
+  <tr>
+    <td><a href="https://developers.google.com/apps-script/guides/html/restrictions" target="_blank">GAS HTML Service Restrictions</a></td>
+    <td>GAS HTML Service の CSP・制約の公式ドキュメント</td>
+  </tr>
+  <tr>
+    <td><a href="https://developers.google.com/apps-script/guides/v8-runtime" target="_blank">V8 Runtime Overview</a></td>
+    <td>GAS V8 ランタイムの概要と有効化手順</td>
+  </tr>
+  <tr>
+    <td><a href="https://developers.google.com/apps-script/reference/base/session" target="_blank">Class Session — GAS リファレンス</a></td>
+    <td>Session.getActiveUser() の動作条件と制限</td>
+  </tr>
+  <tr>
+    <td><a href="https://caniuse.com/mdn-api_decompressionstream_decompressionstream_deflate-raw" target="_blank">Can I Use: deflate-raw</a></td>
+    <td>deflate-raw のブラウザ対応状況</td>
+  </tr>
+  <tr>
+    <td><a href="https://justin.poehnelt.com/posts/exploring-apps-script-cacheservice-limits/" target="_blank">CacheService 非公式ドキュメント（Poehnelt）</a></td>
+    <td>CacheService の制限・エビクションポリシーの詳細調査</td>
+  </tr>
+  <tr>
+    <td><a href="https://web.dev/articles/csp" target="_blank">Content Security Policy — web.dev</a></td>
+    <td>CSP の仕組みと設定方法（Google 作成）</td>
+  </tr>
+</table>
+</div>
+
+<div style="margin-top: 60px; padding: 20px 24px; background: var(--surface2); border-radius: var(--radius); border: 1px solid var(--border); font-size: 0.82rem; color: var(--text-muted);">
+  作成: 2026-04-10　対象システム: 枚方市介護支援専門員連絡協議会 会員システム v193<br>
+  本資料は学習・引継ぎ目的で作成。技術仕様は参考文献リンクの公式ドキュメントで最新情報を確認してください。
+</div>
+
+</main>
+</div>
+
+<script>
+// ===== スクロールプログレスバー =====
+window.addEventListener('scroll', function() {
+  var scrolled = document.documentElement.scrollTop;
+  var total = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+  var progress = (scrolled / total) * 100;
+  document.getElementById('progressBar').style.transform = 'scaleX(' + (progress / 100) + ')';
+});
+
+// ===== サイドバー アクティブリンク =====
+var sections = document.querySelectorAll('h2[id]');
+var navLinks = document.querySelectorAll('nav.sidebar a');
+
+var observer = new IntersectionObserver(function(entries) {
+  entries.forEach(function(entry) {
+    if (entry.isIntersecting) {
+      navLinks.forEach(function(link) {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === '#' + entry.target.id) {
+          link.classList.add('active');
+        }
+      });
+    }
+  });
+}, { rootMargin: '-20% 0px -70% 0px' });
+
+sections.forEach(function(sec) { observer.observe(sec); });
+</script>
+
+</body>
+</html>

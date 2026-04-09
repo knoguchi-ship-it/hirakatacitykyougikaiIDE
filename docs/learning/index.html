@@ -211,12 +211,39 @@
 
         <article class="card">
           <div class="num">7</div>
-          <h3>システム全体像（v151）</h3>
+          <h3>システム全体像（v154）</h3>
           <p>
             技術スタック、認証フロー、管理コンソール構成、API一覧、デプロイ構成、
             DB テーブル構成を1ページで俯瞰する資料です。
           </p>
-          <a href="./07_system_overview_v151.html">資料を開く</a>
+          <a href="./08_system_overview_v154.html">資料を開く</a>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <div style="display:flex; gap:20px; flex-wrap:wrap;">
+        <article style="flex:1; min-width:280px;">
+          <div class="num">09</div>
+          <h3>GAS パフォーマンス最適化・認証キャッシュ・HTML圧縮（v193）</h3>
+          <p>
+            コールドスタート・CacheService・deflate-raw+base64 圧縮・DecompressionStream API・
+            GAS CSP 制約・管理者認証フローを専門用語の解説付きで体系的にまとめた技術解説資料です。
+            v191〜v193 の実装を題材にしています。
+          </p>
+          <a href="./09_performance_and_caching_v193.html">資料を開く</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>履歴版</h2>
+      <div class="grid">
+        <article class="card">
+          <div class="num">-</div>
+          <h3>システム全体像（v151）</h3>
+          <p>v151 時点のスナップショットです。最新版は上記 v154 を参照してください。</p>
+          <a href="./07_system_overview_v151.html">履歴版を開く</a>
         </article>
       </div>
     </section>
@@ -225,7 +252,7 @@
       <div class="legend">
         <strong>補足:</strong>
         これらの資料は学習用です。運用判断や本番手順は
-        `HANDOVER.md`、`GLOBAL_GROUND_RULES/CLAUDE.md`、`GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`、`docs/10_SOW.md`、`docs/09_DEPLOYMENT_POLICY.md`
+        `HANDOVER.md`、`AGENTS.md`、`GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`、`docs/10_SOW.md`、`docs/09_DEPLOYMENT_POLICY.md`
         を正本として参照してください。
       </div>
     </section>

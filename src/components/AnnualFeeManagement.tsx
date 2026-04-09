@@ -37,7 +37,8 @@ type SortKey = 'displayName' | 'memberType' | 'status' | 'confirmedDate' | 'note
 type SortDir = 'asc' | 'desc';
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
-const CURRENT_YEAR = new Date().getFullYear();
+// 会計年度は4月始まり: 1〜3月は前年度を指す
+const CURRENT_YEAR = (() => { const d = new Date(); return d.getMonth() < 3 ? d.getFullYear() - 1 : d.getFullYear(); })();
 
 const MESSAGE_AUTO_CLEAR_MS = 4000;
 
@@ -242,13 +243,13 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [selectedYear, setSelectedYear] = useState<number>(CURRENT_YEAR);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('UNPAID');
   const [memberTypeFilter, setMemberTypeFilter] = useState<MemberTypeFilter>('ALL');
   const [query, setQuery] = useState('');
   const [pageSize, setPageSize] = useState<number>(50);
   const [currentPage, setCurrentPage] = useState(1);
   const [editableRows, setEditableRows] = useState<Record<string, EditableRow>>({});
-  const [sortKey, setSortKey] = useState<SortKey>('displayName');
+  const [sortKey, setSortKey] = useState<SortKey>('status');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [dateErrors, setDateErrors] = useState<Record<string, string>>({});
   const [rawDateTexts, setRawDateTexts] = useState<Record<string, string>>({});
@@ -380,9 +381,11 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
         case 'memberType':
           comparison = (MEMBER_TYPE_ORDER[a.memberType] ?? 9) - (MEMBER_TYPE_ORDER[b.memberType] ?? 9);
           break;
-        case 'status':
-          comparison = a.status.localeCompare(b.status);
+        case 'status': {
+          const statusOrder: Record<string, number> = { UNPAID: 0, PAID: 1, WITHDRAW: 2 };
+          comparison = (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9);
           break;
+        }
         case 'confirmedDate':
           comparison = (a.confirmedDate || '').localeCompare(b.confirmedDate || '');
           break;
@@ -855,21 +858,15 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
                             disabled={isBusy}
                             onChange={(e) => {
                               const newStatus = e.target.value as AnnualFeeDraftStatus;
-                              updateDraft(record, {
-                                status: newStatus,
-                                confirmedDate: newStatus !== PaymentStatus.PAID ? '' : draft.confirmedDate,
-                              });
-                              if (newStatus !== PaymentStatus.PAID) {
-                                setRawDateTexts((prev) => {
-                                  const next = { ...prev };
-                                  delete next[key];
-                                  return next;
-                                });
-                                setDateErrors((prev) => {
-                                  const next = { ...prev };
-                                  delete next[key];
-                                  return next;
-                                });
+                              if (newStatus === PaymentStatus.PAID) {
+                                const todayIso = new Date().toISOString().slice(0, 10);
+                                updateDraft(record, { status: newStatus, confirmedDate: todayIso });
+                                setRawDateTexts((prev) => ({ ...prev, [key]: toSlashDate(todayIso) }));
+                                setDateErrors((prev) => { const next = { ...prev }; delete next[key]; return next; });
+                              } else {
+                                updateDraft(record, { status: newStatus, confirmedDate: '' });
+                                setRawDateTexts((prev) => { const next = { ...prev }; delete next[key]; return next; });
+                                setDateErrors((prev) => { const next = { ...prev }; delete next[key]; return next; });
                               }
                             }}
                           >
@@ -1063,6 +1060,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
 
       <dialog
         ref={yearChangeDialogRef}
+        aria-labelledby="year-change-dialog-title"
         onClose={() => {
           if (pendingYearChange !== null && yearChangeDialogRef.current?.returnValue !== 'confirm') {
             setPendingYearChange(null);
@@ -1072,7 +1070,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
       >
         <div className="p-6 space-y-4">
           <div>
-            <h3 className="text-lg font-bold text-slate-800">未保存の変更があります</h3>
+            <h3 id="year-change-dialog-title" className="text-lg font-bold text-slate-800">未保存の変更があります</h3>
             <p className="mt-2 text-sm text-slate-600 leading-relaxed">
               保存していない変更が {allDirtyRecords.length} 件あります。このまま年度を切り替えると破棄されます。
             </p>

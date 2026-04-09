@@ -1,6 +1,6 @@
 # 開発再開運用体制
 
-更新日: 2026-03-30
+更新日: 2026-03-31
 対象: 枚方市介護支援専門員連絡協議会 会員システム
 位置づけ: 開発再開時の実務体制を 1 枚で確認するための運用正本
 
@@ -38,7 +38,7 @@
 ## 3. 再開時の参照順
 
 1. `HANDOVER.md`
-2. `GLOBAL_GROUND_RULES/CLAUDE.md`
+2. `AGENTS.md`
 3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 4. `docs/34_DEVELOPMENT_OPERATING_MODEL_2026-03-30.md`
 5. `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`
@@ -52,8 +52,9 @@
 
 - 開発ブランチは `main` を基準とする。
 - 本番固定 Deployment は 2 本構成を維持する。
-- GAS Version 151 は作成済みだが、固定 Deployment の `@151` 同期は未完了で、ユーザー作業待ちである。
-- v147-v151 は `clasp push` 済みで Git 未コミットである。
+- GAS Version 154 作成済み。固定 Deployment 2 本は `@154` 同期済み（2026-03-30）。
+- v154 まで Git コミット済み（`5a75085`）。
+- 2026-03-31 時点の未完了 handover task は `docs/38_HANDOVER_TASK_v155_PRIVACY_AND_DEPLOYMENT_CONFIRM.md` を実行 task として扱い、完了結果は `HANDOVER.md` と `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` に転記する。
 - 本番完了判定には Apps Script UI の `Manage deployments` 確認と実ブラウザ確認が必須である。
 
 ---
@@ -105,6 +106,7 @@
 
 - 手動確認を伴う作業は、必ず task 単位で持つ。
 - task 書式は `docs/31_HANDOVER_TASK_TEMPLATE.md` を使う。
+- 未完了 task が存在する場合は、`HANDOVER.md` だけでなく task 文書の `status / evidence / 終了条件` まで更新してから引き継ぐ。
 - 少なくとも以下を埋める。
   - `対象ケースID`
   - `owner`
@@ -148,8 +150,6 @@ task を作らずに口頭やチャットだけで引き継がない。
 
 ## 10. 現時点の残課題
 
-- 固定 Deployment の `@151` 同期
-- v147-v151 の Git 整理とコミット
 - 継続改善タスクの task 化
   - 管理コンソール UI/UX 改善
   - 会員一括編集対象項目の拡張検討

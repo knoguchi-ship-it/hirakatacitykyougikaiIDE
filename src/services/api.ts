@@ -1,4 +1,4 @@
-import { Member, Training, AdminPermissionLevel, AdminPersonRow, ConvertMemberTypePayload, ConvertMemberTypeResult } from '../types';
+import { Member, Training, AdminPermissionLevel, AdminPersonRow, ConvertMemberTypePayload, ConvertMemberTypeResult, SystemSettings } from '../types';
 import { TrainingApplicantRow } from '../shared/types';
 import { AdminDashboardData, AdminPermissionData, AnnualFeeAdminData, AnnualFeeAdminRecord } from '../types';
 
@@ -51,7 +51,7 @@ export interface ApiClient {
   fetchAllData(): Promise<{ members: Member[], trainings: Training[] }>;
   getMemberPortalData(memberId: string): Promise<{ members: Member[], trainings: Training[] }>;
   getAdminDashboardData(): Promise<AdminDashboardData>;
-  getAdminInitData(): Promise<{ dashboard: AdminDashboardData; settings: { defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number } }>;
+  getAdminInitData(): Promise<{ dashboard: AdminDashboardData; settings: SystemSettings }>;
   adminLoginWithData(): Promise<{ auth: AdminLoginResult; portal: { members: Member[]; trainings: Training[] } }>;
   memberLoginWithData(loginId: string, password: string): Promise<{ auth: MemberLoginResult; portal: { members: Member[]; trainings: Training[] } }>;
   getTrainingManagementData(): Promise<Training[]>;
@@ -59,8 +59,8 @@ export interface ApiClient {
   updateMembersBatch(members: Array<Partial<Member> & Pick<Member, 'id'>>): Promise<Array<{ updated: boolean; memberId: string }>>;
   updateMemberSelf(member: Member, loginId: string): Promise<void>;
   changePassword(loginId: string, currentPassword: string, newPassword: string): Promise<void>;
-  getSystemSettings(): Promise<{ defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }>;
-  updateSystemSettings(settings: { defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }): Promise<{ defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }>;
+  getSystemSettings(): Promise<SystemSettings>;
+  updateSystemSettings(settings: SystemSettings): Promise<SystemSettings>;
   getAnnualFeeAdminData(year?: number): Promise<AnnualFeeAdminData>;
   saveAnnualFeeRecord(record: {
     id?: string;
@@ -110,6 +110,8 @@ export interface ApiClient {
   scheduleWithdrawMember(memberId: string): Promise<{ scheduled: boolean; memberId: string; withdrawnDate: string }>;
   cancelScheduledWithdraw(memberId: string): Promise<{ cancelled: boolean; memberId: string }>;
   updateStaff(payload: { staffId: string; memberId: string; lastName?: string; firstName?: string; lastKana?: string; firstKana?: string; name?: string; kana?: string; email?: string; careManagerNumber?: string; role?: string; status?: string; joinedDate?: string; mailingPreference?: string }): Promise<{ updated: boolean; staffId: string; memberId: string; status?: string; role?: string }>;
+  // v188: AI案内メール生成（GASサーバー側でGemini APIを呼ぶ）
+  generateTrainingEmail(payload: { training: Training; recipientName?: string }): Promise<{ ok: boolean; text: string }>;
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -291,7 +293,7 @@ class GasApiClient implements ApiClient {
   }
 
   // v150: 管理者初期データ統合API（1回のround-tripでdashboard+settingsを取得）
-  async getAdminInitData(): Promise<{ dashboard: AdminDashboardData; settings: { defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number } }> {
+  async getAdminInitData(): Promise<{ dashboard: AdminDashboardData; settings: SystemSettings }> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
         reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
@@ -440,7 +442,7 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async getSystemSettings(): Promise<{ defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }> {
+  async getSystemSettings(): Promise<SystemSettings> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
         reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
@@ -450,7 +452,7 @@ class GasApiClient implements ApiClient {
         .withSuccessHandler((result: string) => {
           try {
             const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data || { defaultBusinessStaffLimit: 10, trainingHistoryLookbackMonths: 18 });
+            if (parsed.success) resolve(parsed.data || { defaultBusinessStaffLimit: 10, trainingHistoryLookbackMonths: 18, annualFeePaymentGuidance: '' });
             else reject(new Error(parsed.error || 'API Error'));
           } catch {
             reject(new Error('Failed to parse response from GAS'));
@@ -461,7 +463,7 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async updateSystemSettings(settings: { defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }): Promise<{ defaultBusinessStaffLimit: number; trainingHistoryLookbackMonths: number }> {
+  async updateSystemSettings(settings: SystemSettings): Promise<SystemSettings> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
         reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
@@ -471,7 +473,7 @@ class GasApiClient implements ApiClient {
         .withSuccessHandler((result: string) => {
           try {
             const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data || { defaultBusinessStaffLimit: 10, trainingHistoryLookbackMonths: 18 });
+            if (parsed.success) resolve(parsed.data || { defaultBusinessStaffLimit: 10, trainingHistoryLookbackMonths: 18, annualFeePaymentGuidance: '' });
             else reject(new Error(parsed.error || 'API Error'));
           } catch {
             reject(new Error('Failed to parse response from GAS'));
@@ -1057,6 +1059,20 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('updateStaff', JSON.stringify(payload));
+    });
+  }
+
+  // v188: AI案内メール生成（GASサーバー側でGemini APIを呼ぶ）
+  async generateTrainingEmail(payload: { training: Training; recipientName?: string }): Promise<{ ok: boolean; text: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('generateTrainingEmail', JSON.stringify(payload));
     });
   }
 }

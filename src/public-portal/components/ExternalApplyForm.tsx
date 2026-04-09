@@ -22,7 +22,7 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel }) =
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!consent) {
-      setError('プライバシーポリシーへの同意が必要です。');
+      setError('個人情報の取り扱いへの同意が必要です。');
       return;
     }
     setBusy(true);
@@ -55,6 +55,7 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel }) =
 
       <div className="bg-primary-50 border border-primary-100 rounded p-3 mb-4 text-sm text-primary-900">
         収集した個人情報は研修申込の受付・確認連絡のみに使用します。第三者への提供は行いません。
+        詳細は本サイトに掲載しているプライバシーポリシーを参照してください。
       </div>
 
       {error && (

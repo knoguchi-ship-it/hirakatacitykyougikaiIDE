@@ -85,6 +85,8 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       return `${businessRequiredFields[key]}は必須です`;
     }
     if (isIndividual && individualRequiredFields[key] && !value.trim()) {
+      const originalValue = String((member as any)[key] || '').trim();
+      if (!originalValue) return '';
       return `${individualRequiredFields[key]}は必須です`;
     }
     if (key === 'officePostCode' && value.trim() && !/^\d{3}-?\d{4}$/.test(value.trim())) {

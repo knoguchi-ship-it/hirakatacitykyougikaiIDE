@@ -1,5 +1,5 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
-import { Member, MailingPreference, MailDestination, MemberType, PaymentStatus, Staff, StaffRole, Training } from '../types';
+﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Member, MailingPreference, MailDestination, MemberType, PaymentStatus, Staff, StaffRole, Training, TransferAccountInfo } from '../types';
 import { AlertTriangleIcon, MailIcon, CheckCircleIcon, BookOpenIcon, UsersIcon, HomeIcon, PlusIcon, SparklesIcon } from './Icons';
 import { api } from '../services/api';
 import StaffTrainingView from './StaffTrainingView';
@@ -12,12 +12,14 @@ interface MemberFormProps {
   isAdmin?: boolean;
   defaultBusinessStaffLimit: number;
   historyLookbackMonths: number;
+  annualFeePaymentGuidance: string;
+  annualFeeTransferAccount: TransferAccountInfo;
   trainings: Training[];
   onSave: (member: Member) => void;
   onLogout?: () => void;
 }
 
-const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, activeStaffRole, loginId, isAdmin, defaultBusinessStaffLimit, historyLookbackMonths, trainings, onSave, onLogout }) => {
+const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, activeStaffRole, loginId, isAdmin, defaultBusinessStaffLimit, historyLookbackMonths, annualFeePaymentGuidance, annualFeeTransferAccount, trainings, onSave, onLogout }) => {
   const [member, setMember] = useState<Member>(initialMember);
   const [warning, setWarning] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null); // UX: Success feedback
@@ -33,6 +35,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [profileEditModalOpen, setProfileEditModalOpen] = useState(false);
+  const [annualFeeGuideOpen, setAnnualFeeGuideOpen] = useState(false);
   const [withdrawalPassword, setWithdrawalPassword] = useState('');
   const [withdrawalError, setWithdrawalError] = useState<string | null>(null);
   const [withdrawalSubmitting, setWithdrawalSubmitting] = useState(false);
@@ -78,6 +81,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
   // Determine Permissions
   const currentStaff = isBusiness ? member.staff?.find(s => s.id === operatingStaffId) : null;
   const representativeStaff = isBusiness ? (member.staff?.find(s => s.role === 'REPRESENTATIVE') || null) : null;
+  const isRepresentativeOperator = isBusiness && currentStaff?.role === 'REPRESENTATIVE' && currentStaff?.id === representativeStaff?.id;
   const representativeProfile = isBusiness
     ? {
         lastName: representativeStaff?.lastName || member.lastName || '',
@@ -112,6 +116,8 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
   };
   // REPRESENTATIVE・ADMIN は編集可、STAFF は閲覧のみ
   const isReadOnly = isBusiness ? (currentStaff?.role !== 'ADMIN' && currentStaff?.role !== 'REPRESENTATIVE') : false;
+  const canEditRepresentativeFields = isBusiness ? isRepresentativeOperator : !isReadOnly;
+  const canEditBusinessOfficeFields = isBusiness ? isRepresentativeOperator : !isReadOnly;
   const isBusinessStaffSelfMode = isBusiness && currentStaff?.role === 'STAFF';
   const canStaffSelfEditField = (staffId: string, field: keyof Staff) => (
     isBusinessStaffSelfMode &&
@@ -119,6 +125,44 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
     (field === 'name' || field === 'kana' || field === 'email')
   );
 
+  // データ移行期対応: 初期値が空の必須フィールドは空白を許容する
+  const initiallyEmptyFields = useMemo(() => {
+    const empty = new Set<string>();
+    const m = initialMember;
+    const repStaff = m.type === MemberType.BUSINESS ? (m.staff?.find(s => s.role === 'REPRESENTATIVE') ?? null) : null;
+    if (!String(repStaff?.lastName || m.lastName || '').trim()) empty.add('lastName');
+    if (!String(repStaff?.firstName || m.firstName || '').trim()) empty.add('firstName');
+    if (!String(repStaff?.lastKana || m.lastKana || '').trim()) empty.add('lastKana');
+    if (!String(repStaff?.firstKana || m.firstKana || '').trim()) empty.add('firstKana');
+    if (!String(repStaff?.careManagerNumber || m.careManagerNumber || '').trim()) empty.add('careManagerNumber');
+    if (!String(m.mobilePhone || '').trim()) empty.add('mobilePhone');
+    if (!String(m.email || '').trim()) empty.add('email');
+    if (!String(m.officePostCode || '').trim()) empty.add('officePostCode');
+    if (!String(m.officePrefecture || '').trim()) empty.add('officePrefecture');
+    if (!String(m.officeCity || '').trim()) empty.add('officeCity');
+    if (!String(m.officeAddressLine || '').trim()) empty.add('officeAddressLine');
+    if (!String(m.officeName || '').trim()) empty.add('officeName');
+    if (!String(m.officeNumber || '').trim()) empty.add('officeNumber');
+    if (!String(m.phone || '').trim()) empty.add('phone');
+    if (!String(m.fax || '').trim()) empty.add('fax');
+    if (!String(m.homePostCode || '').trim()) empty.add('homePostCode');
+    if (!String(m.homePrefecture || '').trim()) empty.add('homePrefecture');
+    if (!String(m.homeCity || '').trim()) empty.add('homeCity');
+    if (!String(m.homeAddressLine || '').trim()) empty.add('homeAddressLine');
+    return empty;
+  }, [initialMember]);
+
+  // 職員ごとの初期空フィールド（staff.id → Set<'name'|'kana'>）
+  const initiallyEmptyStaffFields = useMemo(() => {
+    const map: Record<string, Set<string>> = {};
+    (initialMember.staff || []).forEach(staff => {
+      const empty = new Set<string>();
+      if (!String(staff.name || '').trim()) empty.add('name');
+      if (!String(staff.kana || '').trim()) empty.add('kana');
+      if (empty.size > 0) map[staff.id] = empty;
+    });
+    return map;
+  }, [initialMember]);
 
   // --- Logic for Trainings ---
   
@@ -162,7 +206,17 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
   );
 
   const currentFeeStatus = member.annualFeeHistory[0];
+  const displayedTransferAccount = currentFeeStatus?.transferAccount || annualFeeTransferAccount;
+  const annualFeeGuideId = `annual-fee-guide-${member.id}`;
+  const annualFeeGuidanceText = String(annualFeePaymentGuidance || '').trim();
+  const hasAnnualFeeGuidance = Boolean(annualFeeGuidanceText || displayedTransferAccount);
   const currentLoginId = isBusiness ? (currentStaff?.loginId || member.loginId || '-') : (member.loginId || '-');
+  const currentDisplayName = isBusiness
+    ? (currentStaff?.name || buildFullName(representativeProfile.lastName, representativeProfile.firstName, member.officeName))
+    : buildFullName(member.lastName, member.firstName, member.id);
+  useEffect(() => {
+    setAnnualFeeGuideOpen(false);
+  }, [member.id, currentFeeStatus?.year, currentFeeStatus?.status]);
   const memberStatusLabel = member.status === 'ACTIVE'
     ? '有効会員'
     : member.status === 'WITHDRAWAL_SCHEDULED'
@@ -171,7 +225,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
   const memberStatusDescription = member.status === 'ACTIVE'
     ? '現在ご利用中の会員資格です。'
     : member.status === 'WITHDRAWAL_SCHEDULED'
-      ? '退会予定として受け付け済みです。'
+      ? `退会予定として受け付け済みです。${member.withdrawnDate ? `${member.withdrawnDate} に退会予定です。` : ''}`
       : '退会手続きが完了しています。';
   
   // Display name for the training table header
@@ -378,8 +432,9 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
 
     if (isBusinessStaffSelfMode) {
       const ownStaff = member.staff?.find((staff) => staff.id === operatingStaffId);
-      if (!ownStaff?.name?.trim()) newErrors.staff_self_name = '氏名は必須です';
-      if (!ownStaff?.kana?.trim()) newErrors.staff_self_kana = 'フリガナは必須です';
+      const ownStaffInitialEmpty = initiallyEmptyStaffFields[operatingStaffId ?? ''] ?? new Set<string>();
+      if (!ownStaff?.name?.trim() && !ownStaffInitialEmpty.has('name')) newErrors.staff_self_name = '氏名は必須です';
+      if (!ownStaff?.kana?.trim() && !ownStaffInitialEmpty.has('kana')) newErrors.staff_self_kana = 'フリガナは必須です';
       setErrors(newErrors);
       return Object.keys(newErrors).length === 0;
     }
@@ -395,12 +450,12 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
     const requireOfficeInfo = isBusiness || hasOfficeAffiliationInput;
     const requireHomeInfo = !isBusiness;
 
-    // Basic Validation
-    if (!representativeProfile.lastName?.trim()) newErrors.lastName = '必須項目です';
-    if (!representativeProfile.firstName?.trim()) newErrors.firstName = '必須項目です';
-    if (!representativeProfile.lastKana?.trim()) newErrors.lastKana = '必須項目です';
-    if (!representativeProfile.firstKana?.trim()) newErrors.firstKana = '必須項目です';
-    if (!isSupportMember && !representativeProfile.careManagerNumber?.trim()) {
+    // Basic Validation（データ移行期: 初期値が空のフィールドは空を許容）
+    if (!representativeProfile.lastName?.trim() && !initiallyEmptyFields.has('lastName')) newErrors.lastName = '必須項目です';
+    if (!representativeProfile.firstName?.trim() && !initiallyEmptyFields.has('firstName')) newErrors.firstName = '必須項目です';
+    if (!representativeProfile.lastKana?.trim() && !initiallyEmptyFields.has('lastKana')) newErrors.lastKana = '必須項目です';
+    if (!representativeProfile.firstKana?.trim() && !initiallyEmptyFields.has('firstKana')) newErrors.firstKana = '必須項目です';
+    if (!isSupportMember && !representativeProfile.careManagerNumber?.trim() && !initiallyEmptyFields.has('careManagerNumber')) {
       newErrors.careManagerNumber = '賛助会員以外は必須です';
     }
 
@@ -408,35 +463,37 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
     // - Individual: mobilePhone required
     // - Business: either mobilePhone or office phone is required (shared phone allowed)
     if (isBusiness) {
-      if (!member.mobilePhone?.trim() && !member.phone?.trim()) {
+      if (!member.mobilePhone?.trim() && !member.phone?.trim() &&
+          !initiallyEmptyFields.has('mobilePhone')) {
         newErrors.mobilePhone = '電話番号（または事業所電話番号）の入力が必要です';
       }
     } else {
-      if (!member.mobilePhone?.trim()) {
+      if (!member.mobilePhone?.trim() && !initiallyEmptyFields.has('mobilePhone')) {
         newErrors.mobilePhone = '電話番号は必須です';
       }
     }
-    
-    if (!isBusiness && member.mailingPreference === MailingPreference.EMAIL && !member.email) {
+
+    if (!isBusiness && member.mailingPreference === MailingPreference.EMAIL && !member.email &&
+        !initiallyEmptyFields.has('email')) {
        newErrors.email = '必須項目です';
     }
 
     if (requireOfficeInfo) {
-        if (!member.officePostCode) newErrors.officePostCode = '必須です';
-        if (!member.officePrefecture) newErrors.officePrefecture = '必須です';
-        if (!member.officeCity) newErrors.officeCity = '必須です';
-        if (!member.officeAddressLine) newErrors.officeAddressLine = '必須です';
-        if (!member.officeName?.trim()) newErrors.officeName = '必須項目です';
-        if (isBusiness && !member.officeNumber?.trim()) newErrors.officeNumber = '必須項目です';
-        if (!member.phone?.trim()) newErrors.phone = '必須項目です';
-        if (!member.fax?.trim()) newErrors.fax = '必須項目です';
+        if (!member.officePostCode && !initiallyEmptyFields.has('officePostCode')) newErrors.officePostCode = '必須です';
+        if (!member.officePrefecture && !initiallyEmptyFields.has('officePrefecture')) newErrors.officePrefecture = '必須です';
+        if (!member.officeCity && !initiallyEmptyFields.has('officeCity')) newErrors.officeCity = '必須です';
+        if (!member.officeAddressLine && !initiallyEmptyFields.has('officeAddressLine')) newErrors.officeAddressLine = '必須です';
+        if (!member.officeName?.trim() && !initiallyEmptyFields.has('officeName')) newErrors.officeName = '必須項目です';
+        if (isBusiness && !member.officeNumber?.trim() && !initiallyEmptyFields.has('officeNumber')) newErrors.officeNumber = '必須項目です';
+        if (!member.phone?.trim() && !initiallyEmptyFields.has('phone')) newErrors.phone = '必須項目です';
+        if (!member.fax?.trim() && !initiallyEmptyFields.has('fax')) newErrors.fax = '必須項目です';
     }
 
     if (requireHomeInfo) {
-      if (!member.homePostCode) newErrors.homePostCode = '自宅住所のため必須です';
-      if (!member.homePrefecture) newErrors.homePrefecture = '自宅住所のため必須です';
-      if (!member.homeCity) newErrors.homeCity = '自宅住所のため必須です';
-      if (!member.homeAddressLine) newErrors.homeAddressLine = '自宅住所のため必須です';
+      if (!member.homePostCode && !initiallyEmptyFields.has('homePostCode')) newErrors.homePostCode = '自宅住所のため必須です';
+      if (!member.homePrefecture && !initiallyEmptyFields.has('homePrefecture')) newErrors.homePrefecture = '自宅住所のため必須です';
+      if (!member.homeCity && !initiallyEmptyFields.has('homeCity')) newErrors.homeCity = '自宅住所のため必須です';
+      if (!member.homeAddressLine && !initiallyEmptyFields.has('homeAddressLine')) newErrors.homeAddressLine = '自宅住所のため必須です';
     }
 
     const memberJoined = member.joinedDate ? new Date(member.joinedDate) : null;
@@ -457,8 +514,9 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
     if (isBusiness) {
       (member.staff || []).forEach((staff, index) => {
         const prefix = `staff_${index}`;
-        if (!staff.name?.trim()) newErrors[`${prefix}_name`] = '職員氏名は必須です';
-        if (!staff.kana?.trim()) newErrors[`${prefix}_kana`] = '職員フリガナは必須です';
+        const staffInitiallyEmpty = initiallyEmptyStaffFields[staff.id] ?? new Set<string>();
+        if (!staff.name?.trim() && !staffInitiallyEmpty.has('name')) newErrors[`${prefix}_name`] = '職員氏名は必須です';
+        if (!staff.kana?.trim() && !staffInitiallyEmpty.has('kana')) newErrors[`${prefix}_kana`] = '職員フリガナは必須です';
         const joined = staff.joinedDate ? new Date(staff.joinedDate) : null;
         const withdrawn = staff.withdrawnDate ? new Date(staff.withdrawnDate) : null;
         if (staff.joinedDate && (!joined || Number.isNaN(joined.getTime()))) {
@@ -557,31 +615,20 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
     }
   };
 
-  const getInputClass = (fieldName: string) => {
+  const getInputClass = (fieldName: string, disabled = false) => {
     const baseClass = "w-full rounded-md shadow-sm border p-2";
     const errorClass = errors[fieldName] 
         ? 'border-red-500 bg-red-50 focus:border-red-500 focus:ring-red-500' 
         : 'border-slate-300 focus:border-primary-500 focus:ring-primary-500';
-    const readOnlyClass = isReadOnly ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : '';
+    const readOnlyClass = (isReadOnly || disabled) ? 'bg-slate-100 text-slate-600 border-slate-300 cursor-not-allowed opacity-100 disabled:bg-slate-100 disabled:text-slate-600 disabled:border-slate-300' : '';
     
     return `${baseClass} ${errorClass} ${readOnlyClass}`;
   };
 
+  const readOnlyDisplayClass = "w-full min-h-[42px] rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-700 flex items-center";
+
   return (
     <div className="max-w-4xl mx-auto space-y-8">
-
-      {isReadOnly && !isBusinessStaffSelfMode && (
-          <div className="bg-slate-100 border border-slate-300 text-slate-600 px-4 py-3 rounded relative" role="alert">
-            <strong className="font-bold">閲覧専用モード: </strong>
-            <span className="block sm:inline">現在のユーザーには編集権限がありません。情報の閲覧のみ可能です。</span>
-          </div>
-      )}
-      {isBusinessStaffSelfMode && (
-          <div className="bg-primary-50 border border-primary-200 text-primary-900 px-4 py-3 rounded relative" role="status">
-            <strong className="font-bold">一部編集モード: </strong>
-            <span className="block sm:inline">一般職員は自分の氏名・フリガナ・メールアドレスのみ更新できます。</span>
-          </div>
-      )}
       
       {/* 1. Member Status Summary Card */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -612,6 +659,21 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 12h14M5 7h14M5 17h14"/></svg>
                 </div>
                 <div>
+                    <p className="text-sm text-slate-500 font-bold mb-1">氏名</p>
+                    <p className="text-lg font-bold text-slate-800">{currentDisplayName}</p>
+                    {isBusiness && currentStaff?.role && (
+                        <p className="text-xs text-slate-400 mt-1">
+                            {currentStaff.role === 'REPRESENTATIVE' ? '代表者' : currentStaff.role === 'ADMIN' ? '管理者' : 'メンバー'}
+                        </p>
+                    )}
+                </div>
+            </div>
+
+            <div className="flex items-start space-x-3">
+                <div className="bg-sky-50 p-2 rounded-lg text-sky-600">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 12h14M5 7h14M5 17h14"/></svg>
+                </div>
+                <div>
                     <p className="text-sm text-slate-500 font-bold mb-1">ログインID</p>
                     <p className="text-lg font-bold text-slate-800 font-mono">{currentLoginId}</p>
                     <p className="text-xs text-slate-400 mt-1">ログインIDは変更できません</p>
@@ -623,30 +685,85 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                    {currentFeeStatus?.status === PaymentStatus.PAID ? <CheckCircleIcon className="w-6 h-6" /> : <AlertTriangleIcon className="w-6 h-6" />}
                 </div>
                 <div className="flex-1">
-                    <p className="text-sm text-slate-500 font-bold mb-1">年会費納入状況 (過去2年)</p>
+                    <p className="text-sm text-slate-500 font-bold mb-1">年会費納入状況</p>
+                    {currentFeeStatus && (
+                        <div className={`mb-3 rounded-xl border px-4 py-3 ${currentFeeStatus.status === PaymentStatus.PAID ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${currentFeeStatus.status === PaymentStatus.PAID ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'}`}>
+                                    {currentFeeStatus.status === PaymentStatus.PAID ? '納入済み' : '未納'}
+                                </span>
+                                <p className={`text-sm font-medium ${currentFeeStatus.status === PaymentStatus.PAID ? 'text-green-900' : 'text-red-900'}`}>
+                                    {currentFeeStatus.year}年度
+                                    {currentFeeStatus.status === PaymentStatus.PAID
+                                      ? `${currentFeeStatus.confirmedDate ? `は ${currentFeeStatus.confirmedDate} に納入確認済みです。` : 'は納入確認済みです。'}`
+                                      : 'はまだ納入確認ができていません。'}
+                                </p>
+                            </div>
+                            {currentFeeStatus.status === PaymentStatus.UNPAID && hasAnnualFeeGuidance && (
+                                <div className="mt-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setAnnualFeeGuideOpen((prev) => !prev)}
+                                        aria-expanded={annualFeeGuideOpen}
+                                        aria-controls={annualFeeGuideId}
+                                        className="inline-flex items-center rounded-lg border border-red-300 bg-white px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500"
+                                    >
+                                        {annualFeeGuideOpen ? '納入方法を閉じる' : '納入方法を見る'}
+                                    </button>
+                                    {annualFeeGuideOpen && (
+                                        <div id={annualFeeGuideId} className="mt-3 space-y-3 rounded-lg border border-red-200 bg-white p-4 text-sm text-slate-700">
+                                            {annualFeeGuidanceText && (
+                                                <div>
+                                                    <p className="font-bold text-slate-900">納入案内</p>
+                                                    <p className="mt-1 whitespace-pre-line">{annualFeeGuidanceText}</p>
+                                                </div>
+                                            )}
+                                            {displayedTransferAccount && (
+                                                <div>
+                                                    <p className="font-bold text-slate-900">振込先</p>
+                                                    <dl className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                                        <div>
+                                                            <dt className="text-xs text-slate-500">銀行名</dt>
+                                                            <dd>{displayedTransferAccount.bankName}</dd>
+                                                        </div>
+                                                        <div>
+                                                            <dt className="text-xs text-slate-500">支店名</dt>
+                                                            <dd>{displayedTransferAccount.branchName}</dd>
+                                                        </div>
+                                                        <div>
+                                                            <dt className="text-xs text-slate-500">口座種別</dt>
+                                                            <dd>{displayedTransferAccount.accountType}</dd>
+                                                        </div>
+                                                        <div>
+                                                            <dt className="text-xs text-slate-500">口座番号</dt>
+                                                            <dd>{displayedTransferAccount.accountNumber}</dd>
+                                                        </div>
+                                                        <div className="sm:col-span-2">
+                                                            <dt className="text-xs text-slate-500">口座名義</dt>
+                                                            <dd>{displayedTransferAccount.accountName}</dd>
+                                                        </div>
+                                                    </dl>
+                                                    {displayedTransferAccount.note && (
+                                                        <p className="mt-2 text-xs text-slate-500 whitespace-pre-line">{displayedTransferAccount.note}</p>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
                     <div className="space-y-2">
                         {member.annualFeeHistory.map((record) => (
-                             <div key={record.year} className="flex justify-between items-center text-sm border-b border-slate-100 pb-1 last:border-0">
-                                <span className="text-slate-600">{record.year}年度</span>
-                                <span className={`font-bold ${record.status === PaymentStatus.PAID ? 'text-green-700' : 'text-red-500'}`}>
+                             <div key={record.year} className="flex justify-between items-center rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                <span className="text-slate-700">{record.year}年度</span>
+                                <span className={`font-bold ${record.status === PaymentStatus.PAID ? 'text-green-700' : 'text-red-600'}`}>
                                     {record.status === PaymentStatus.PAID ? '納入済み' : '未納'}
                                 </span>
                              </div>
                         ))}
                     </div>
-                    {currentFeeStatus?.status === PaymentStatus.UNPAID && currentFeeStatus.transferAccount && (
-                        <div className="mt-3 p-3 rounded-lg border border-red-200 bg-red-50 text-sm">
-                            <p className="font-bold text-red-700 mb-2">未納のため振込先口座を表示しています</p>
-                            <p className="text-slate-700">銀行名: {currentFeeStatus.transferAccount.bankName}</p>
-                            <p className="text-slate-700">支店名: {currentFeeStatus.transferAccount.branchName}</p>
-                            <p className="text-slate-700">口座種別: {currentFeeStatus.transferAccount.accountType}</p>
-                            <p className="text-slate-700">口座番号: {currentFeeStatus.transferAccount.accountNumber}</p>
-                            <p className="text-slate-700">口座名義: {currentFeeStatus.transferAccount.accountName}</p>
-                            {currentFeeStatus.transferAccount.note && (
-                                <p className="text-xs text-slate-500 mt-2">{currentFeeStatus.transferAccount.note}</p>
-                            )}
-                        </div>
-                    )}
                 </div>
             </div>
         </div>
@@ -968,24 +1085,24 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">氏 (姓) (※)</label>
-                            <input disabled={isReadOnly} type="text" name="lastName" value={representativeProfile.lastName} onChange={isBusiness ? (e) => handleRepresentativeFieldChange('lastName', e.target.value) : handleChange} className={getInputClass('lastName')} />
+                            <input disabled={isBusiness ? !canEditRepresentativeFields : isReadOnly} type="text" name="lastName" value={representativeProfile.lastName} onChange={isBusiness ? (e) => handleRepresentativeFieldChange('lastName', e.target.value) : handleChange} className={getInputClass('lastName', isBusiness ? !canEditRepresentativeFields : isReadOnly)} />
                             {errors.lastName && <p className="text-xs text-red-500 mt-1">{errors.lastName}</p>}
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">名 (名) (※)</label>
-                            <input disabled={isReadOnly} type="text" name="firstName" value={representativeProfile.firstName} onChange={isBusiness ? (e) => handleRepresentativeFieldChange('firstName', e.target.value) : handleChange} className={getInputClass('firstName')} />
+                            <input disabled={isBusiness ? !canEditRepresentativeFields : isReadOnly} type="text" name="firstName" value={representativeProfile.firstName} onChange={isBusiness ? (e) => handleRepresentativeFieldChange('firstName', e.target.value) : handleChange} className={getInputClass('firstName', isBusiness ? !canEditRepresentativeFields : isReadOnly)} />
                             {errors.firstName && <p className="text-xs text-red-500 mt-1">{errors.firstName}</p>}
                         </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">フリガナ (セイ) (※)</label>
-                            <input disabled={isReadOnly} type="text" name="lastKana" value={representativeProfile.lastKana} onChange={isBusiness ? (e) => handleRepresentativeFieldChange('lastKana', e.target.value) : handleChange} className={getInputClass('lastKana')} />
+                            <input disabled={isBusiness ? !canEditRepresentativeFields : isReadOnly} type="text" name="lastKana" value={representativeProfile.lastKana} onChange={isBusiness ? (e) => handleRepresentativeFieldChange('lastKana', e.target.value) : handleChange} className={getInputClass('lastKana', isBusiness ? !canEditRepresentativeFields : isReadOnly)} />
                             {errors.lastKana && <p className="text-xs text-red-500 mt-1">{errors.lastKana}</p>}
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">フリガナ (メイ) (※)</label>
-                            <input disabled={isReadOnly} type="text" name="firstKana" value={representativeProfile.firstKana} onChange={isBusiness ? (e) => handleRepresentativeFieldChange('firstKana', e.target.value) : handleChange} className={getInputClass('firstKana')} />
+                            <input disabled={isBusiness ? !canEditRepresentativeFields : isReadOnly} type="text" name="firstKana" value={representativeProfile.firstKana} onChange={isBusiness ? (e) => handleRepresentativeFieldChange('firstKana', e.target.value) : handleChange} className={getInputClass('firstKana', isBusiness ? !canEditRepresentativeFields : isReadOnly)} />
                             {errors.firstKana && <p className="text-xs text-red-500 mt-1">{errors.firstKana}</p>}
                         </div>
                     </div>
@@ -1003,38 +1120,39 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                             className="w-full rounded-md shadow-sm border p-2 bg-slate-100 text-slate-500 cursor-not-allowed border-slate-300"
                             placeholder={member.type === MemberType.SUPPORT ? '賛助会員は任意' : '賛助会員以外は必須'}
                         />
-                        {!isAdmin && <p className="text-xs text-slate-400 mt-1">変更はログインIDと連動するため管理者にお問い合わせください</p>}
+                        {!isAdmin && <p className="text-xs text-slate-400 mt-1">ログインIDと連動しているため、この画面では変更できません。</p>}
                         {errors.careManagerNumber && <p className="text-xs text-red-500 mt-1">{errors.careManagerNumber}</p>}
                     </div>
-                    {isAdmin && (
-                      <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">会員ステータス</label>
-                          <select
-                            disabled={isReadOnly}
-                            name="status"
-                            value={member.status}
-                            onChange={handleChange}
-                            className="w-full border-slate-300 rounded-lg p-2 text-sm"
-                          >
-                            <option value="ACTIVE">有効</option>
-                            <option value="WITHDRAWAL_SCHEDULED">退会予定</option>
-                            <option value="WITHDRAWN">退会</option>
-                          </select>
+                    {isBusiness && !canEditRepresentativeFields && (
+                      <p className="mt-3 text-xs text-slate-500">
+                        代表者情報は代表者本人のみ変更できます。
+                      </p>
+                    )}
+                    {isBusiness && (
+                      <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="mb-4">
+                          <h5 className="text-sm font-bold text-slate-800">確認のみできる項目</h5>
+                          <p className="mt-1 text-xs text-slate-500">
+                            会員ステータスと入会日は、この画面では確認のみできます。
+                          </p>
                         </div>
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">入会日</label>
-                          <input
-                            disabled={isReadOnly}
-                            type="date"
-                            name="joinedDate"
-                            value={member.joinedDate || ""}
-                            onChange={handleChange}
-                            className={getInputClass('joinedDate')}
-                          />
-                          {errors.joinedDate && <p className="text-xs text-red-500 mt-1">{errors.joinedDate}</p>}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">会員ステータス</label>
+                            <div aria-readonly="true" className={readOnlyDisplayClass}>
+                              {memberStatusLabel}
+                            </div>
+                            <p className="text-xs text-slate-500 mt-1">この画面では変更できません。</p>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">入会日</label>
+                            <div aria-readonly="true" className={readOnlyDisplayClass}>
+                              {member.joinedDate || '未設定'}
+                            </div>
+                            <p className="text-xs text-slate-500 mt-1">この画面では変更できません。</p>
+                            {errors.joinedDate && <p className="text-xs text-red-500 mt-1">{errors.joinedDate}</p>}
+                          </div>
                         </div>
-                        {/* v106: ????????????????????????? */}
                       </div>
                     )}
                         {/* v106: 退会日・年度中退会は非表示（バックエンド自動管理） */}
@@ -1066,8 +1184,9 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                 const isRepresentativeRow = staff.role === 'REPRESENTATIVE';
                                 const isStaffSelfEditable = currentStaff?.role === 'STAFF' && isOwnStaff;
                                 const nameDisabled = (isReadOnly && !isStaffSelfEditable) || isRepresentativeRow;
+                                const canEditThisStatus = !isReadOnly && !isRepresentativeRow;
                                 // v167: ADMIN はロール変更可（代表者行・自分行を除く）
-                                const canEditThisRole = !isReadOnly && (
+                                const canEditThisRole = !isReadOnly && !isRepresentativeRow && (
                                   currentStaff?.role === 'REPRESENTATIVE' ||
                                   (currentStaff?.role === 'ADMIN' && !isRepresentativeRow && !isOwnStaff)
                                 );
@@ -1113,14 +1232,17 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                     <div className="md:col-span-1">
                                         <label className="block text-xs font-medium text-slate-500">状態</label>
                                         <select
-                                            disabled={isReadOnly}
+                                            disabled={!canEditThisStatus}
                                             value={staff.status || 'ENROLLED'}
                                             onChange={(e) => handleStaffChange(staff.id, 'status', e.target.value)}
-                                            className={`w-full text-sm border-slate-200 rounded p-1 ${isReadOnly ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`}
+                                            className={`w-full text-sm border-slate-200 rounded p-1 ${!canEditThisStatus ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`}
                                         >
                                             <option value="ENROLLED">在籍</option>
                                             <option value="LEFT">退職</option>
                                         </select>
+                                        {isRepresentativeRow && (
+                                          <p className="text-xs text-slate-400 mt-1">代表者の状態変更はこの画面から行えません</p>
+                                        )}
                                     </div>
                                     <div className="md:col-span-2">
                                         <label className="block text-xs font-medium text-slate-500">権限</label>
@@ -1257,21 +1379,25 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                   </span>
               )}
             </h3>
+            {isBusiness && !canEditBusinessOfficeFields && (
+              <div className="ml-8 mb-4 rounded-lg border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-600">
+                事業所情報の変更は代表者のみ可能です。現在は閲覧専用で表示しています。
+              </div>
+            )}
             <div className="pl-8 grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   {isBusiness ? '事業所名' : '事業所名 (※)'} 
                   {!isBusiness && <span className="text-xs text-red-500 ml-2">空白または「勤務なし」の場合は未勤務として扱います</span>}
                 </label>
-                <input disabled={isReadOnly} type="text" name="officeName" value={member.officeName} onChange={handleChange} className={getInputClass('officeName')} />
+                <input disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="text" name="officeName" value={member.officeName} onChange={handleChange} className={getInputClass('officeName', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} />
                 {errors.officeName && <p className="text-xs text-red-500 mt-1">{errors.officeName}</p>}
-                {isBusiness && <p className="text-xs text-slate-500 mt-1">事業所会員では、この情報が会員情報の正本として扱われます。</p>}
               </div>
 
               {isBusiness && (
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">事業所番号 <span className="text-red-500">(※)</span></label>
-                  <input disabled={isReadOnly} type="text" name="officeNumber" value={member.officeNumber || ""} onChange={handleChange} className={getInputClass('officeNumber')} placeholder="0000000000" />
+                  <input disabled={!canEditBusinessOfficeFields} type="text" name="officeNumber" value={member.officeNumber || ""} onChange={handleChange} className={getInputClass('officeNumber', !canEditBusinessOfficeFields)} placeholder="0000000000" />
                   {errors.officeNumber && <p className="text-xs text-red-500 mt-1">{errors.officeNumber}</p>}
                 </div>
               )}
@@ -1280,7 +1406,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     郵便番号 {(isBusiness || member.preferredMailDestination === MailDestination.OFFICE) && <span className="text-red-500">(※)</span>}
                   </label>
-                  <input disabled={isReadOnly} type="text" name="officePostCode" value={member.officePostCode} onChange={handleChange} className={getInputClass('officePostCode')} placeholder="000-0000" />
+                  <input disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="text" name="officePostCode" value={member.officePostCode} onChange={handleChange} className={getInputClass('officePostCode', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} placeholder="000-0000" />
                   {errors.officePostCode && <p className="text-xs text-red-500 mt-1">{errors.officePostCode}</p>}
                </div>
                <div className="md:col-span-2 grid grid-cols-2 gap-4">
@@ -1288,33 +1414,33 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                     <label className="block text-sm font-medium text-slate-700 mb-1">
                         都道府県 {(isBusiness || member.preferredMailDestination === MailDestination.OFFICE) && <span className="text-red-500">(※)</span>}
                     </label>
-                    <input disabled={isReadOnly} type="text" name="officePrefecture" value={member.officePrefecture} onChange={handleChange} className={getInputClass('officePrefecture')} />
+                    <input disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="text" name="officePrefecture" value={member.officePrefecture} onChange={handleChange} className={getInputClass('officePrefecture', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} />
                     {errors.officePrefecture && <p className="text-xs text-red-500 mt-1">{errors.officePrefecture}</p>}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
                         市区町村 {(isBusiness || member.preferredMailDestination === MailDestination.OFFICE) && <span className="text-red-500">(※)</span>}
                     </label>
-                    <input disabled={isReadOnly} type="text" name="officeCity" value={member.officeCity} onChange={handleChange} className={getInputClass('officeCity')} />
+                    <input disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="text" name="officeCity" value={member.officeCity} onChange={handleChange} className={getInputClass('officeCity', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} />
                     {errors.officeCity && <p className="text-xs text-red-500 mt-1">{errors.officeCity}</p>}
                   </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-slate-700 mb-1">
                         番地・建物名 {(isBusiness || member.preferredMailDestination === MailDestination.OFFICE) && <span className="text-red-500">(※)</span>}
                     </label>
-                    <input disabled={isReadOnly} type="text" name="officeAddressLine" value={member.officeAddressLine} onChange={handleChange} className={getInputClass('officeAddressLine')} />
+                    <input disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="text" name="officeAddressLine" value={member.officeAddressLine} onChange={handleChange} className={getInputClass('officeAddressLine', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} />
                     {errors.officeAddressLine && <p className="text-xs text-red-500 mt-1">{errors.officeAddressLine}</p>}
                   </div>
                </div>
               
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">電話番号</label>
-                <input disabled={isReadOnly} type="tel" name="phone" value={member.phone} onChange={handleChange} className={getInputClass('phone')} />
+                <input disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="tel" name="phone" value={member.phone} onChange={handleChange} className={getInputClass('phone', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} />
                 {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">FAX番号 (※必須)</label>
-                <input disabled={isReadOnly} type="tel" name="fax" value={member.fax} onChange={handleChange} className={getInputClass('fax')} placeholder="緊急連絡用に必須です" />
+                <input disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="tel" name="fax" value={member.fax} onChange={handleChange} className={getInputClass('fax', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} placeholder="緊急連絡用に必須です" />
                 {errors.fax && <p className="text-xs text-red-500 mt-1">{errors.fax}</p>}
               </div>
             </div>

@@ -1,6 +1,6 @@
 # 開発引継ぎ・運用プレイブック
 
-更新日: 2026-04-05
+更新日: 2026-04-08
 目的: 担当者が変わっても、同じ入口・同じ完了条件・同じ証跡で開発を継続できる状態を維持する。
 
 ## 1. この文書の役割
@@ -21,7 +21,7 @@
 ## 3. 作業開始チェック
 1. `git status --short` で既存差分を把握する。
 2. `HANDOVER.md` を読み、本番 version と pending を確認する。
-3. `GLOBAL_GROUND_RULES/CLAUDE.md` と案件ルールを読む。
+3. `AGENTS.md` と案件ルールを読む。
 4. 対象機能の正本を読む。
 5. 必要なら task 個票を作成する。
 6. オンライン作業前は `npx clasp show-authorized-user`、`npx clasp run healthCheck`、`npx clasp run getDbInfo` を実行する。
@@ -48,7 +48,8 @@
 ### 本番反映完了
 - `npx clasp push --force`
 - `npx clasp version "<release note>"`
-- Apps Script UI の `Manage deployments` で fixed deployment 2 本を同一 version に更新
+- `npx clasp redeploy <memberDeploymentId> --versionNumber <version> --description "<release note>"`
+- `npx clasp redeploy <publicDeploymentId> --versionNumber <version> --description "<release note>"`
 - `npx clasp deployments --json` で反映確認
 - 必要な `/exec` 実ブラウザ確認
 
@@ -70,7 +71,7 @@
 ## 8. 引継ぎメモの書き方
 - 「何をしたか」より先に「今どの状態か」を書く。
 - 相対表現ではなく `2026-04-04` のような絶対日付を使う。
-- `デプロイした` だけで終わらせず、`fixed deployment が @170` のように version まで書く。
+- `デプロイした` だけで終わらせず、`fixed deployment が @171` のように version まで書く。
 - 未了項目は「次担当者の最初の一手」がそのまま行動できる粒度で書く。
 
 ## 9. 新しい task を切る条件
@@ -81,6 +82,7 @@
 
 ## 10. この案件の運用禁止事項
 - `clasp deploy --deploymentId` を使わない。
+- Apps Script UI の `Manage deployments` 手更新を通常リリースの標準経路にしない。
 - fixed deployment を片方だけ更新しない。
 - 本番データ確認なしに demo seed や mock 経路を持ち込まない。
 - 正本未更新のまま handover 完了扱いにしない。

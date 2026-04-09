@@ -18,10 +18,8 @@
     "clasp:deploy": "node -e \"console.error('ERROR: clasp deploy is prohibited. Use Manage Deployments UI after clasp version. See docs/09_DEPLOYMENT_POLICY.md.'); process.exit(1)\""
   },
   "dependencies": {
-    "@google/genai": "^1.37.0",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "recharts": "^3.6.0"
+    "react-dom": "^19.2.3"
   },
   "devDependencies": {
     "@google/clasp": "^3.2.0",

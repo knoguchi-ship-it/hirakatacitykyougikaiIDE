@@ -81,10 +81,19 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
     careManagerNumber: '介護支援専門員番号',
   };
 
+  // データ移行期対応: 編集画面を開いた時点で空だった必須フィールドは空のまま保存を許容する。
+  // すでにデータが入っていたフィールドを空にした場合は従来通りエラーとする。
+  const initiallyEmptyRequired = new Set(
+    Object.keys(requiredFields).filter(
+      key => !String((staff as Record<string, unknown>)[key] || '').trim()
+    )
+  );
+
   const set = (key: string, value: string) => setForm(prev => ({ ...prev, [key]: value }));
 
   const validateField = (key: string, value: string): string => {
     if (key in requiredFields && !value.trim()) {
+      if (initiallyEmptyRequired.has(key)) return ''; // 初期値が空のフィールドは空を許容
       return `${requiredFields[key]}は必須です`;
     }
     if (key === 'email' && value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())) {
