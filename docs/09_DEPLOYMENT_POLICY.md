@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-04-09
-Production: `v187` / fixed deployments `@187`
+Updated: 2026-04-10
+Production: `v196` / fixed deployments `@196`
 
 ## 1. Purpose
 
@@ -17,7 +17,7 @@ Production: `v187` / fixed deployments `@187`
 | Member portal | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `/exec` |
 | Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `/exec?app=public` |
 
-Both fixed deployments currently point to `@187`.
+Both fixed deployments currently point to `@196`.
 
 ## 3. Standard Release Steps
 
@@ -102,6 +102,70 @@ Also verify the runtime in a real browser when the change affects user flows.
 - Do not leave corrupted source documents in place.
 
 ## 7. Current Recorded State
+
+### 2026-04-10 `v196`
+
+- Version `196` created: Phase 3 PDF名簿出力コンソール（RosterExport）完了。SOW（Phase 1〜3）全フェーズ完了。
+- GAS: `getMembersForRoster_` / `generateRosterZip_` 追加。テンプレートSS一時コピー → `_DATA`シート書き込み → flush() → UrlFetchApp PDF → Utilities.zip → Drive保存 → URL返却。
+- Frontend: `src/components/RosterExport.tsx` 新規作成、Sidebar/App.tsx ルーティング追加。
+- Both fixed deployments synced to `@196` with `npx clasp redeploy`.
+- `npm run typecheck`, `npm run build:gas`, `npx clasp run healthCheck` passed.
+
+### 2026-04-10 `v195`
+
+- Version `195` created: Phase 2 会員一括メール送信コンソール（BulkMailSender）完了。
+- GAS: `getMembersForBulkMail_` / `sendBulkMemberMail_` / `getEmailSendLog_` 追加。
+  - INDIVIDUAL/SUPPORT: T_会員.代表メールアドレス。BUSINESS: T_事業所職員（メール配信希望コード ≠ 'NO'）。
+  - GmailApp.sendEmail（from エイリアス）+ Drive自動添付（姓名部分一致）+ T_メール送信ログ記録。
+  - getEmailSendLog_: EMAIL_LOG_VIEWER_ROLE 動的権限チェック。
+- Frontend: `src/components/BulkMailSender.tsx` 新規作成、Sidebar/App.tsx ルーティング追加。
+- Both fixed deployments synced to `@195` with `npx clasp redeploy`.
+- `npm run typecheck`, `npm run build:gas`, `npx clasp run healthCheck` passed.
+
+### 2026-04-10 `v194`
+
+- Version `194` created: Phase 1 基盤整備完了。
+- OAuthスコープ追加: `gmail.send`（GmailApp エイリアス送信）、`drive`（Drive フルアクセス）。**本番管理者の再認証が発生**。
+- T_メール送信ログ シート新設（9列）。T_システム設定 3キー追加（ROSTER_TEMPLATE_SS_ID / BULK_MAIL_AUTO_ATTACH_FOLDER_ID / EMAIL_LOG_VIEWER_ROLE）。
+- `updateSystemSettings_` にキー別権限チェック追加（EMAIL_LOG_VIEWER_ROLE は MASTER のみ変更可）。
+- Both fixed deployments synced to `@194` with `npx clasp redeploy`.
+- `npm run typecheck`, `npm run build:gas`, `npx clasp run healthCheck` passed.
+
+### 2026-04-09 `v193`
+
+- Version `193` created with admin auth caching: `checkAdminBySession_()` caches whitelist and auth rows in `CacheService.getScriptCache()` (TTL 300s) to speed up warm-instance admin logins.
+- Fixed deployment whitelist cache invalidated on save/delete of admin permissions.
+- Both fixed deployments synced to `@193` with `npx clasp redeploy`.
+- `npm run typecheck`, `npm run build:gas`, `npx clasp run healthCheck` passed.
+
+### 2026-04-09 `v192`
+
+- Version `192` created: admin login changed from `adminLoginWithData` to `checkAdminBySession` only (auth without full data load).
+- Both fixed deployments synced to `@192` with `npx clasp redeploy`.
+- `npm run typecheck`, `npm run build:gas`, `npx clasp run healthCheck` passed.
+
+### 2026-04-09 `v191`
+
+- Version `191` created with custom deflate-raw+base64 HTML compression (`scripts/compress-html.mjs`).
+- Both fixed deployments synced to `@191` with `npx clasp redeploy`.
+- `npm run typecheck`, `npm run build:gas`, `npx clasp run healthCheck` passed.
+- member portal: 522 kB → 206 kB (-59.6%). public portal: 317 kB → 150 kB (-51.7%).
+- GAS CSP compatible: uses new Function() instead of import(blob:).
+
+### 2026-04-09 `v190`
+
+- Reverted to `vite-plugin-singlefile` (v189 caused blank screen — GAS CSP blocked blob: import).
+
+### 2026-04-09 `v189` (FAILED — immediate rollback)
+
+- `vite-plugin-singlefile-compression` caused blank screen: GAS CSP blocks `import(blob:)`.
+- Rolled back via v190 within same session.
+
+### 2026-04-09 `v188`
+
+- Version `188` created with performance improvements (Phase 1-2): B-01/B-03/B-04 backend, B-05/B-06 frontend, Terser minification, Gemini AI moved to GAS.
+- Both fixed deployments synced to `@188` with `npx clasp redeploy`.
+- `npm run typecheck`, `npm run build:gas`, `npx clasp run healthCheck` passed.
 
 ### 2026-04-09 `v185`
 

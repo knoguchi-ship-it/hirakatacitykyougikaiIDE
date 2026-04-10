@@ -27,6 +27,8 @@
   - 会員管理コンソール
   - 年会費管理コンソール
   - 研修管理コンソール
+  - 一括メール送信コンソール（v195追加・MASTER/ADMIN限定）
+  - 名簿出力コンソール（v196追加・MASTER/ADMIN限定）
   - システム権限コンソール
   - システム設定
   - いずれも同一の管理者認証判定で保護する。
@@ -52,11 +54,21 @@
 - **既存リマインダー**: `MailApp.sendEmail`（変更なし）
   - 研修リマインダー等の定期送信に使用。
   - ドライランは API/CLI 実行のみ（UIボタンは実装しない）。
-- **管理コンソール メール送信機能**: `GmailApp.sendEmail`（2026-03-13 追加）
+- **管理コンソール メール送信機能（研修申込者向け）**: `GmailApp.sendEmail`（2026-03-13 追加）
   - 研修申込者への一斉・個別メール送信に使用。
   - `from` オプションでスクリプトオーナーの Gmail エイリアスを選択可能（`GmailApp.getAliases()` で取得）。
   - `replyTo` オプションにログイン中管理者のメールアドレス（`Session.getActiveUser().getEmail()`）を自動設定。
-  - 必要追加スコープ: `https://www.googleapis.com/auth/gmail.send`（`appsscript.json` の `oauthScopes` に追記必要）。
+  - 必要追加スコープ: `https://www.googleapis.com/auth/gmail.send`（`appsscript.json` の `oauthScopes` に追記）。
+- **会員一括メール送信機能（v195 追加）**: `GmailApp.sendEmail`
+  - 会員（個人/賛助/事業所職員）への一斉メール送信。`BulkMailSender.tsx` コンソール経由。
+  - INDIVIDUAL/SUPPORT: T_会員.代表メールアドレス宛。BUSINESS: T_事業所職員（メール配信希望コード ≠ 'NO'）。
+  - Drive自動添付（フォルダID設定時）: ファイル名に `姓名`（スペースなし）が含まれるファイルを自動照合。
+  - 送信結果を `T_メール送信ログ` に記録（個人情報は記録しない）。閲覧権限は `EMAIL_LOG_VIEWER_ROLE` で動的制御。
+- **PDF名簿出力機能（v196 追加）**: `UrlFetchApp` + `SpreadsheetApp`
+  - テンプレートスプレッドシート（`ROSTER_TEMPLATE_SS_ID`）を一時コピーし、`_DATA` シートにデータ充填 → flush() → UrlFetchApp でPDF blob取得。
+  - 全対象のPDFを `Utilities.zip()` でZIP化 → DriveApp.createFile → DLリンク返却。
+  - 上限50件（6分制限対策）。事業所会員は REPRESENTATIVE→ADMIN→STAFF 順で職員一覧をPDF内展開。
+  - スコープ: `https://www.googleapis.com/auth/drive`（v194 で追加済み）。
 
 ## 3. ディレクトリ構成
 
@@ -172,6 +184,11 @@
 | `saveAnnualFeeRecord` | 年会費レコードの新規登録・更新 | MASTER/ADMIN |
 | `saveAnnualFeeRecordsBatch` | 年会費一括保存（Partial Success 対応）(v124) | MASTER/ADMIN |
 | `getDbInfo` | DB接続情報・スキーマ確認 | MASTER/ADMIN |
+| `getMembersForBulkMail` | 会員一括メール用宛先一覧取得（フィルタ付き）(v195) | MASTER/ADMIN |
+| `sendBulkMemberMail` | 会員一括メール送信 + T_メール送信ログ記録 (v195) | MASTER/ADMIN |
+| `getEmailSendLog` | メール送信ログ取得（EMAIL_LOG_VIEWER_ROLE 動的権限チェック）(v195) | 設定依存 |
+| `getMembersForRoster` | PDF名簿出力用対象一覧取得（フィルタ付き）(v196) | MASTER/ADMIN |
+| `generateRosterZip` | テンプレートSS → PDF → ZIP生成 → DriveURL返却 (v196) | MASTER/ADMIN |
 | `getPublicTrainings` | 公開ポータル用：受付中研修一覧取得 | 不要（公開） |
 | `applyTrainingExternal` | 非会員研修申込（`T_外部申込者` 作成 + `T_研修申込` 追加） | 不要（公開） |
 | `cancelTrainingExternal` | 非会員申込取消（申込ID + 登録メール一致で本人確認） | 不要（公開） |

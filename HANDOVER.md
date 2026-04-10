@@ -11,16 +11,17 @@
 2. `AGENTS.md`
 3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-5. `docs/63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md` ← **全フェーズ完了（Phase 1〜3）**
-6. `docs/62_RELEASE_STATE_v193_2026-04-09.md` ← **v193 base**
-7. `docs/61_RELEASE_STATE_v191_2026-04-09.md`（v191 HTML圧縮）
-8. `docs/60_RELEASE_STATE_v189_2026-04-09.md`（v189失敗・v190復旧記録）
-9. `docs/59_RELEASE_STATE_v188_2026-04-09.md`（v188 Phase 1-2 パフォーマンス改善）
-10. `docs/58_NEXT_TASK_PERFORMANCE_2026-04-09.md`（Phase 3 B-02 が残課題）
-10. `docs/09_DEPLOYMENT_POLICY.md`
-11. `docs/05_AUTH_AND_ROLE_SPEC.md`
-12. `docs/04_DB_OPERATION_RUNBOOK.md`
-13. `docs/03_DATA_MODEL.md`
+5. `docs/64_RELEASE_STATE_v194_v196_2026-04-10.md` ← **v196 current**（PDF名簿・一括メール SOW完了）
+6. `docs/63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md` ← **全フェーズ完了（Phase 1〜3）**
+7. `docs/62_RELEASE_STATE_v193_2026-04-09.md` ← v193 base
+8. `docs/61_RELEASE_STATE_v191_2026-04-09.md`（v191 HTML圧縮）
+9. `docs/60_RELEASE_STATE_v189_2026-04-09.md`（v189失敗・v190復旧記録）
+10. `docs/59_RELEASE_STATE_v188_2026-04-09.md`（v188 Phase 1-2 パフォーマンス改善）
+11. `docs/58_NEXT_TASK_PERFORMANCE_2026-04-09.md`（B-02 未着手・残課題）
+12. `docs/09_DEPLOYMENT_POLICY.md`
+13. `docs/05_AUTH_AND_ROLE_SPEC.md`
+14. `docs/04_DB_OPERATION_RUNBOOK.md`
+15. `docs/03_DATA_MODEL.md`
 
 ## 2. 現在の引継ぎ結論
 - 開発の入口は `HANDOVER.md`、運用手順の正本は `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`。
@@ -285,13 +286,15 @@
 - `updateMemberSelf_` の欠落初期化不具合を修正。
 - テスト仕様は `docs/41_TEST_SPEC_v167_BUSINESS_ADMIN_ROLE_CHANGE.md` を参照。
 
-## 5. 現時点の注意事項（v194 更新）
-- fixed deployment 2 本は `@194` を向いている。
-- **v194 リリース後、本番管理者（k.noguchi@uguisunosato.or.jp）は次回 /exec アクセス時に gmail.send + drive の同意画面が表示される。** 必ず承認すること。承認後は healthCheck で疎通確認。
+## 5. 現時点の注意事項（v196 更新）
+- fixed deployment 2 本は `@196` を向いている。
+- **v194 リリース済みのため、本番管理者（k.noguchi@uguisunosato.or.jp）は次回 /exec アクセス時に gmail.send + drive の同意画面が表示される。** 未承認の場合は必ず承認すること。
+- **名簿出力コンソール（RosterExport）使用前提条件**: システム設定画面で `ROSTER_TEMPLATE_SS_ID`（テンプレートスプレッドシートID）を登録すること。未登録時は「テンプレートSS IDがシステム設定に登録されていません」と表示される。
+- **一括メール送信（BulkMailSender）使用前提条件**: Drive自動添付を使う場合は `BULK_MAIL_AUTO_ATTACH_FOLDER_ID`（DriveフォルダID）を登録すること。
 - データ移行期バリデーション緩和は全主要編集フォーム（StaffDetailAdmin / MemberForm / MemberDetailAdmin）に適用完了。
-- バリデーション緩和は「初回ロード時に空だったフィールド」のみが対象。保存後に再度フォームを開くと、そのフィールドは埋まっているため通常の必須チェックに戻る。
 - GAS キャッシュ（TTL 600 秒）が切れるまで旧データが表示される場合がある。
 - AI 案内メール機能（「AI案内メール作成」ボタン）は GEMINI_API_KEY が Script Properties に設定されていないと動作しない。
+- **残課題**: `docs/58_NEXT_TASK_PERFORMANCE_2026-04-09.md` の B-02（`fetchAllDataFromDbFresh_` 最適化）は未着手。
 
 ## 6. 再開時チェック
 ```bash
@@ -303,15 +306,16 @@ npx clasp deployments --json
 ```
 
 期待値:
-- authorized user が運用アカウント
+- authorized user が運用アカウント（k.noguchi@uguisunosato.or.jp）
 - health check が成功
-- fixed deployment 2 本が `@193`
+- fixed deployment 2 本が `@196`
 
 ## 7. 次担当者の最初の一手
 1. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md` の「作業開始チェック」を実施する。
-2. `docs/63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md` §12「実装フェーズ」のチェックボックスで未完了タスクを確認する。
-3. Phase 1 が未着手の場合は Phase 1（基盤整備）から開始する。
-4. 変更後は `HANDOVER.md` と関連正本を同ターンで更新する。
+2. 本番管理者が未承認の場合、`/exec` にアクセスして gmail.send + drive の同意画面を承認する。
+3. 名簿出力コンソールを使う場合は、システム設定でテンプレートSSのIDを登録する。
+4. 残課題 B-02（パフォーマンス）に着手する場合は `docs/58_NEXT_TASK_PERFORMANCE_2026-04-09.md` を参照する。
+5. 変更後は `HANDOVER.md` と関連正本を同ターンで更新する。
 
 ## 8. 引継ぎ体制メモ
 - 入口は `HANDOVER.md`、日次運用は `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`、固定記録は `HANDOVER.md` に記載された最新の release state 文書を参照する。

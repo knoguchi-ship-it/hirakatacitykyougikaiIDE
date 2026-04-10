@@ -1,6 +1,6 @@
 # Document Index
 
-Updated: 2026-04-09
+Updated: 2026-04-10 (v196)
 
 ## 1. Entry Sources Of Truth
 - `HANDOVER.md`
@@ -48,15 +48,23 @@ Updated: 2026-04-09
 - `docs/55_RELEASE_STATE_v179_v185_2026-04-09.md`
 - `docs/56_RELEASE_STATE_v186_2026-04-09.md`
 - `docs/57_RELEASE_STATE_v187_2026-04-09.md`
+- `docs/58_NEXT_TASK_PERFORMANCE_2026-04-09.md`（Phase 1-2 完了・Phase 3 B-02 残課題）
+- `docs/59_RELEASE_STATE_v188_2026-04-09.md`
+- `docs/60_RELEASE_STATE_v189_2026-04-09.md`（v189 失敗・v190 復旧）
+- `docs/61_RELEASE_STATE_v191_2026-04-09.md`（HTML 圧縮 deflate-raw+base64）
+- `docs/62_RELEASE_STATE_v193_2026-04-09.md`（管理者認証キャッシュ）
+- `docs/64_RELEASE_STATE_v194_v196_2026-04-10.md` ← **v196 current**（PDF名簿出力 & 会員一括メール SOW完了）
 
 ## 4. Handover Tasks
 - template: `docs/31_HANDOVER_TASK_TEMPLATE.md`
-- **active（次タスク）**: `docs/58_NEXT_TASK_PERFORMANCE_2026-04-09.md` ← 読み込み・書き込み速度改善
+- **active（残課題）**: `docs/58_NEXT_TASK_PERFORMANCE_2026-04-09.md` ← B-02 (`fetchAllDataFromDbFresh_` 最適化) 未着手
 - active: `docs/40_HANDOVER_TASK_BUSINESS_ADMIN_ROLE_CHANGE_RULE.md`
-- active: `docs/54_HANDOVER_TASK_v177_BROWSER_CONFIRM_2026-04-09.md`（v187 実機確認に読み替え）
+- active: `docs/54_HANDOVER_TASK_v177_BROWSER_CONFIRM_2026-04-09.md`（v196 実機確認に読み替え）
 - completed: `docs/32_HANDOVER_TASK_v142_RETEST_AND_DEPLOYMENT_CONFIRM.md`
 - completed: `docs/38_HANDOVER_TASK_v155_PRIVACY_AND_DEPLOYMENT_CONFIRM.md`
 - completed: `docs/53_HANDOVER_TASK_v177_ALIGNMENT_AUDIT_2026-04-08.md`
+
+- `docs/63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md` ← **全フェーズ完了（Phase 1〜3）**（PDF名簿出力 & 会員一括メール）
 
 ## 5. Major Decision And Spec Records
 - `docs/06_DECISION_RECORD_AUTH_2026-02-28.md`
