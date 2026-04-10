@@ -5,6 +5,7 @@ import MemberForm from './components/MemberForm';
 import TrainingManagement from './components/TrainingManagement';
 import TrainingApply from './components/TrainingApply';
 import AnnualFeeManagement from './components/AnnualFeeManagement';
+import BulkMailSender from './components/BulkMailSender';
 import MemberDetailAdmin from './components/MemberDetailAdmin';
 import StaffDetailAdmin from './components/StaffDetailAdmin';
 import { AdminDashboardData, AdminDashboardMemberRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, SystemSettings, Training, TrainingFieldConfig, DEFAULT_FIELD_CONFIG } from './types';
@@ -12,7 +13,7 @@ import { TRAINING_OPTIONAL_FIELD_DEFS } from './components/TrainingManagement';
 import { api } from './services/api';
 
 type Role = 'ADMIN' | 'MEMBER';
-type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings';
+type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings';
 type AuthTab = 'member' | 'admin';
 type PendingAnnualFeeAction = { type: 'view'; view: View } | { type: 'logout' } | null;
 type MemberListFilter = 'ALL' | MemberType;
@@ -212,6 +213,10 @@ const App: React.FC = () => {
   const [trainingDefaultFieldConfig, setTrainingDefaultFieldConfig] = useState<TrainingFieldConfig>({ ...DEFAULT_FIELD_CONFIG });
   const [trainingDefaultFieldConfigInput, setTrainingDefaultFieldConfigInput] = useState<TrainingFieldConfig>({ ...DEFAULT_FIELD_CONFIG });
   const [settingsBusy, setSettingsBusy] = useState(false);
+  // v194: PDF名簿出力 & 一括メール送信設定
+  const [rosterTemplateSsIdInput, setRosterTemplateSsIdInput] = useState('');
+  const [bulkMailAutoAttachFolderIdInput, setBulkMailAutoAttachFolderIdInput] = useState('');
+  const [emailLogViewerRoleInput, setEmailLogViewerRoleInput] = useState('MASTER');
   const [memberListQuery, setMemberListQuery] = useState('');
   const [memberListFilter, setMemberListFilter] = useState<MemberListFilter>('ALL');
   const [memberListStatusFilter, setMemberListStatusFilter] = useState<MemberStatusFilter>(DEFAULT_MEMBER_STATUS_FILTER);
@@ -246,6 +251,10 @@ const App: React.FC = () => {
     const tdfConfig = systemSettings.trainingDefaultFieldConfig ?? { ...DEFAULT_FIELD_CONFIG };
     setTrainingDefaultFieldConfig(tdfConfig);
     setTrainingDefaultFieldConfigInput(tdfConfig);
+    // v194
+    setRosterTemplateSsIdInput(systemSettings.rosterTemplateSsId ?? '');
+    setBulkMailAutoAttachFolderIdInput(systemSettings.bulkMailAutoAttachFolderId ?? '');
+    setEmailLogViewerRoleInput(systemSettings.emailLogViewerRole ?? 'MASTER');
     setSystemSettingsLoaded(true);
   };
 
@@ -528,7 +537,7 @@ const App: React.FC = () => {
       return;
     }
 
-    if (userRole === 'ADMIN' && currentView === 'admin-settings') {
+    if (userRole === 'ADMIN' && (currentView === 'admin-settings' || currentView === 'bulk-mail')) {
       loadSystemSettings(false).catch(() => undefined);
       return;
     }
@@ -794,24 +803,24 @@ const App: React.FC = () => {
     setAuthError(null);
   };
 
-  // v150: GAS セッション経由の管理者ログイン（統合API: 認証+ポータルデータを1回のround-tripで取得）
+  // v192: 管理者ログインをセッション認証のみに分離（getMemberPortalData_ を呼ばない）
+  // adminLoginWithData は checkAdminBySession + getMemberPortalData を1呼び出しで実行していたため
+  // 管理者ログインに 15〜18 秒かかっていた。checkAdminBySession のみに変更し即時遷移。
+  // 管理コンソールのデータは遷移後に loadAppData() が別途ロードする。
   const handleAdminSessionLogin = async () => {
     try {
       setAuthBusy(true);
       setAuthError(null);
-      const { auth, portal } = await api.adminLoginWithData();
+      const auth = await api.checkAdminBySession();
       setFullDataLoaded(false);
       setMemberPortalLoaded(false);
-      setMembers(portal.members);
-      setTrainings(portal.trainings);
-      setMemberPortalLoaded(true);
       setAdminDashboardData(null);
       setTrainingManagementLoaded(false);
       setTrainingManagementError(null);
       setAdminPermissionData(null);
       setAdminPermissionError(null);
       setSystemSettingsLoaded(false);
-      applyAuthContext(auth, portal.members);
+      applyAuthContext(auth, []);
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : 'Google認証に失敗しました。');
     } finally {
@@ -2008,6 +2017,46 @@ const App: React.FC = () => {
                 ))}
               </div>
             </div>
+            {/* v194: PDF名簿出力 & 一括メール送信設定 */}
+            <div className="mt-4 border-t border-slate-200 pt-4 space-y-4">
+              <h4 className="text-sm font-semibold text-slate-800">名簿出力・一括メール送信設定</h4>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">名簿テンプレートスプレッドシートID</label>
+                <input
+                  type="text"
+                  value={rosterTemplateSsIdInput}
+                  onChange={(e) => setRosterTemplateSsIdInput(e.target.value)}
+                  className="w-full border border-slate-300 rounded px-3 py-2 font-mono text-sm"
+                  placeholder="スプレッドシートID（URLの /d/〜/edit の部分）"
+                />
+                <p className="mt-1 text-xs text-slate-500">PDF名簿出力で使用するテンプレートSSのIDを入力してください。</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">一括メール 個別自動添付フォルダID</label>
+                <input
+                  type="text"
+                  value={bulkMailAutoAttachFolderIdInput}
+                  onChange={(e) => setBulkMailAutoAttachFolderIdInput(e.target.value)}
+                  className="w-full border border-slate-300 rounded px-3 py-2 font-mono text-sm"
+                  placeholder="DriveフォルダID（URLの /folders/〜 の部分）"
+                />
+                <p className="mt-1 text-xs text-slate-500">ファイル名に姓名（スペースなし）が含まれるファイルを受信者へ自動添付します。</p>
+              </div>
+              {adminPermissionLevel === 'MASTER' && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">メール送信ログ閲覧権限</label>
+                  <select
+                    value={emailLogViewerRoleInput}
+                    onChange={(e) => setEmailLogViewerRoleInput(e.target.value)}
+                    className="border border-slate-300 rounded px-3 py-2 text-sm"
+                  >
+                    <option value="MASTER">マスターのみ</option>
+                    <option value="MASTER,ADMIN">マスター・管理者</option>
+                  </select>
+                  <p className="mt-1 text-xs text-slate-500">この設定はマスター権限のみ変更できます。</p>
+                </div>
+              )}
+            </div>
             <div className="mt-4 border-t border-slate-200 pt-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
@@ -2064,6 +2113,9 @@ const App: React.FC = () => {
                     annualFeePaymentGuidance: annualFeePaymentGuidanceInput,
                     annualFeeTransferAccount: annualFeeTransferAccountInput,
                     trainingDefaultFieldConfig: trainingDefaultFieldConfigInput,
+                    rosterTemplateSsId: rosterTemplateSsIdInput,
+                    bulkMailAutoAttachFolderId: bulkMailAutoAttachFolderIdInput,
+                    emailLogViewerRole: emailLogViewerRoleInput,
                   });
                   setDefaultBusinessStaffLimit(saved.defaultBusinessStaffLimit);
                   setGlobalLimitInput(String(saved.defaultBusinessStaffLimit));
@@ -2076,6 +2128,9 @@ const App: React.FC = () => {
                   const tdfSaved = saved.trainingDefaultFieldConfig ?? { ...DEFAULT_FIELD_CONFIG };
                   setTrainingDefaultFieldConfig(tdfSaved);
                   setTrainingDefaultFieldConfigInput(tdfSaved);
+                  setRosterTemplateSsIdInput(saved.rosterTemplateSsId ?? '');
+                  setBulkMailAutoAttachFolderIdInput(saved.bulkMailAutoAttachFolderId ?? '');
+                  setEmailLogViewerRoleInput(saved.emailLogViewerRole ?? 'MASTER');
                   alert('設定を保存しました。');
                 } catch (e) {
                   alert(e instanceof Error ? e.message : '設定の保存に失敗しました。');
@@ -2120,6 +2175,28 @@ const App: React.FC = () => {
         return <div className="text-red-500 p-4 border border-red-200 bg-red-50 rounded">{trainingManagementError}</div>;
       }
       return <TrainingManagement trainings={trainings} onSave={handleTrainingSave} defaultFieldConfig={trainingDefaultFieldConfig} />;
+    }
+
+    if (currentView === 'bulk-mail') {
+      if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
+        return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
+      }
+      const bulkMailSettings = {
+        defaultBusinessStaffLimit: defaultBusinessStaffLimit,
+        trainingHistoryLookbackMonths: trainingHistoryLookbackMonths,
+        annualFeePaymentGuidance: annualFeePaymentGuidance,
+        annualFeeTransferAccount: annualFeeTransferAccount,
+        rosterTemplateSsId: rosterTemplateSsIdInput,
+        bulkMailAutoAttachFolderId: bulkMailAutoAttachFolderIdInput,
+        emailLogViewerRole: emailLogViewerRoleInput,
+      };
+      return (
+        <BulkMailSender
+          api={api}
+          settings={bulkMailSettings}
+          adminPermissionLevel={adminPermissionLevel}
+        />
+      );
     }
 
     if (currentView === 'training-apply') {

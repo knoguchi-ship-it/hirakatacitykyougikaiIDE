@@ -47,6 +47,10 @@ export interface SystemSettings {
   annualFeePaymentGuidance: string;
   annualFeeTransferAccount: TransferAccountInfo;
   trainingDefaultFieldConfig?: TrainingFieldConfig | null;
+  // v194: PDF名簿出力 & 一括メール送信設定
+  rosterTemplateSsId?: string;
+  bulkMailAutoAttachFolderId?: string;
+  emailLogViewerRole?: string;
 }
 
 export interface AnnualFeeAdminRecord {

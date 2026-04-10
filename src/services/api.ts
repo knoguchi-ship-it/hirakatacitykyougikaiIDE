@@ -1,5 +1,5 @@
 import { Member, Training, AdminPermissionLevel, AdminPersonRow, ConvertMemberTypePayload, ConvertMemberTypeResult, SystemSettings } from '../types';
-import { TrainingApplicantRow } from '../shared/types';
+import { TrainingApplicantRow, BulkMailRecipient, EmailSendLog } from '../shared/types';
 import { AdminDashboardData, AdminPermissionData, AnnualFeeAdminData, AnnualFeeAdminRecord } from '../types';
 
 export interface TrainingMailPayload {
@@ -112,6 +112,29 @@ export interface ApiClient {
   updateStaff(payload: { staffId: string; memberId: string; lastName?: string; firstName?: string; lastKana?: string; firstKana?: string; name?: string; kana?: string; email?: string; careManagerNumber?: string; role?: string; status?: string; joinedDate?: string; mailingPreference?: string }): Promise<{ updated: boolean; staffId: string; memberId: string; status?: string; role?: string }>;
   // v188: AI案内メール生成（GASサーバー側でGemini APIを呼ぶ）
   generateTrainingEmail(payload: { training: Training; recipientName?: string }): Promise<{ ok: boolean; text: string }>;
+  // v194: 会員一括メール送信
+  getMembersForBulkMail(payload: {
+    memberTypes?: string[];
+    memberStatus?: string;
+    staffStatus?: string;
+    mailingFilter?: string;
+    excludeNoEmail?: boolean;
+  }): Promise<BulkMailRecipient[]>;
+  sendBulkMemberMail(payload: {
+    recipientKeys: string[];
+    from: string;
+    subject: string;
+    body: string;
+    commonAttachments?: Array<{ name: string; mimeType: string; base64: string }>;
+    individualAttachments?: Record<string, { name: string; mimeType: string; base64: string }>;
+    useAutoAttach?: boolean;
+    memberTypes?: string[];
+    memberStatus?: string;
+    staffStatus?: string;
+    mailingFilter?: string;
+    excludeNoEmail?: boolean;
+  }): Promise<{ sent: number; total: number; errors: string[]; autoAttachMissed: string[]; logId: string }>;
+  getEmailSendLog(): Promise<EmailSendLog[]>;
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1073,6 +1096,65 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('generateTrainingEmail', JSON.stringify(payload));
+    });
+  }
+
+  // v194: 会員一括メール送信
+  async getMembersForBulkMail(payload: {
+    memberTypes?: string[];
+    memberStatus?: string;
+    staffStatus?: string;
+    mailingFilter?: string;
+    excludeNoEmail?: boolean;
+  }): Promise<BulkMailRecipient[]> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getMembersForBulkMail', JSON.stringify(payload));
+    });
+  }
+
+  async sendBulkMemberMail(payload: {
+    recipientKeys: string[];
+    from: string;
+    subject: string;
+    body: string;
+    commonAttachments?: Array<{ name: string; mimeType: string; base64: string }>;
+    individualAttachments?: Record<string, { name: string; mimeType: string; base64: string }>;
+    useAutoAttach?: boolean;
+    memberTypes?: string[];
+    memberStatus?: string;
+    staffStatus?: string;
+    mailingFilter?: string;
+    excludeNoEmail?: boolean;
+  }): Promise<{ sent: number; total: number; errors: string[]; autoAttachMissed: string[]; logId: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('sendBulkMemberMail', JSON.stringify(payload));
+    });
+  }
+
+  async getEmailSendLog(): Promise<EmailSendLog[]> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getEmailSendLog', JSON.stringify({}));
     });
   }
 }

@@ -50,3 +50,31 @@ export interface TrainingApplicantRow {
   status: string;
   applyDate: string;
 }
+
+// v194: 会員一括メール送信
+export interface BulkMailRecipient {
+  recipientKey: string;       // INDIVIDUAL/SUPPORT: memberId, BUSINESS: staffId
+  memberType: 'INDIVIDUAL' | 'BUSINESS' | 'SUPPORT';
+  memberId: string;           // 親会員ID（BUSINESS staff の場合は事業所の会員ID）
+  staffId: string | null;
+  lastName: string;
+  firstName: string;
+  name: string;               // 姓名（スペースなし、Drive照合キー）
+  displayName: string;        // 姓 + ' ' + 名（表示用）
+  email: string;
+  officeName: string;
+  memberStatus: string;
+  staffStatus: string | null;
+  mailingOptOut: boolean;     // メール配信希望コード='NO' の場合 true
+}
+
+export interface EmailSendLog {
+  logId: string;
+  sentAt: string;
+  senderEmail: string;
+  subjectTemplate: string;
+  totalCount: number;
+  successCount: number;
+  errorCount: number;
+  sendType: string;
+}

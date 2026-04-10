@@ -13,7 +13,7 @@ var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
 var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
-var DB_SCHEMA_VERSION = '2026-03-26-03';
+var DB_SCHEMA_VERSION = '2026-04-10-01';
 
 var マスタ定義 = {
   M_会員種別: ['コード', '名称', '表示順', '有効フラグ', '年会費金額'],
@@ -280,6 +280,18 @@ var テーブル定義 = {
     '実行者メール',
     '実行日時',
   ],
+  // v194: メール一括送信ログ（append-only。個人メールアドレス・本文は記録しない）
+  T_メール送信ログ: [
+    'ログID',
+    '送信日時',
+    '送信者メール',
+    '件名テンプレート',
+    '宛先数',
+    '成功数',
+    'エラー数',
+    '送信種別',
+    '削除フラグ',
+  ],
   // v143: 管理者操作の監査ログ（append-only）
   T_監査ログ: [
     '監査ログID',
@@ -531,6 +543,64 @@ function healthCheck() {
 }
 
 /**
+ * v194 Phase 1: T_システム設定 に3新設定キーを追加する（ワンタイム実行）
+ * 実行: npx clasp run insertSystemSettingKeysForV194
+ */
+function insertSystemSettingKeysForV194() {
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var now = new Date().toISOString();
+  var existing = getRowsAsObjects_(ss, 'T_システム設定');
+  var byKey = {};
+  existing.forEach(function(r) {
+    var k = String(r['設定キー'] || '');
+    if (k) byKey[k] = true;
+  });
+  var newKeys = [
+    { key: 'ROSTER_TEMPLATE_SS_ID', value: '', desc: '名簿テンプレートスプレッドシートID' },
+    { key: 'BULK_MAIL_AUTO_ATTACH_FOLDER_ID', value: '', desc: '一括メール個別自動添付DriveフォルダID' },
+    { key: 'EMAIL_LOG_VIEWER_ROLE', value: 'MASTER', desc: 'メール送信ログ閲覧権限（MASTER / MASTER,ADMIN）' },
+  ];
+  var added = [];
+  newKeys.forEach(function(item) {
+    if (!byKey[item.key]) {
+      appendRowsByHeaders_(ss, 'T_システム設定', [{
+        設定キー: item.key,
+        設定値: item.value,
+        説明: item.desc,
+        更新日時: now,
+      }]);
+      added.push(item.key);
+    }
+  });
+  return { added: added, skipped: newKeys.map(function(i) { return i.key; }).filter(function(k) { return !added.includes(k); }) };
+}
+
+/**
+ * v194 Phase 1: T_メール送信ログ シートを DB に新設する（ワンタイム実行）
+ * 実行: npx clasp run createEmailLogSheet
+ */
+function createEmailLogSheet() {
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var sheetName = 'T_メール送信ログ';
+  var existing = ss.getSheetByName(sheetName);
+  if (existing) {
+    return { status: 'already_exists', sheet: sheetName };
+  }
+  var headers = テーブル定義[sheetName];
+  if (!headers) {
+    return { status: 'error', message: 'テーブル定義に ' + sheetName + ' が見つかりません' };
+  }
+  var sheet = ss.insertSheet(sheetName);
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.getRange(1, 1, 1, headers.length)
+    .setBackground('#4a86e8')
+    .setFontColor('#ffffff')
+    .setFontWeight('bold');
+  sheet.setFrozenRows(1);
+  return { status: 'created', sheet: sheetName, columns: headers.length };
+}
+
+/**
  * Web App公開状態の確認用。
  * 404復旧時の一次切り分け（URL誤り / 未公開 / 権限設定ミス）に使う。
  */
@@ -733,6 +803,12 @@ function processApiRequest(action, payload) {
       'sendTrainingMail': ['MASTER','ADMIN','TRAINING_MANAGER'],
       // v188: AI案内メール生成（GASサーバー側でGemini APIを呼ぶ）
       'generateTrainingEmail': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
+      // v194: PDF名簿出力 & 会員一括メール送信
+      'getMembersForRoster': ['MASTER','ADMIN'],
+      'generateRosterZip': ['MASTER','ADMIN'],
+      'getMembersForBulkMail': ['MASTER','ADMIN'],
+      'sendBulkMemberMail': ['MASTER','ADMIN'],
+      'getEmailSendLog': ['MASTER','ADMIN'],
     };
     var requiredPerms = ADMIN_ACTION_PERMISSIONS[action];
     if (requiredPerms) {
@@ -884,7 +960,10 @@ function processApiRequest(action, payload) {
     }
 
     if (action === 'updateSystemSettings') {
-      return JSON.stringify({ success: true, data: updateSystemSettings_(parsedPayload) });
+      var settingsPermLevel = parsedPayload.__adminSession
+        ? String(parsedPayload.__adminSession.adminPermissionLevel || 'ADMIN')
+        : 'ADMIN';
+      return JSON.stringify({ success: true, data: updateSystemSettings_(parsedPayload, settingsPermLevel) });
     }
 
     if (action === 'getAdminPermissionData') {
@@ -962,6 +1041,19 @@ function processApiRequest(action, payload) {
     // v188: Gemini AI案内メール生成（APIキーはScriptPropertiesで管理、フロントに露出しない）
     if (action === 'generateTrainingEmail') {
       return JSON.stringify({ success: true, data: generateTrainingEmailWithAI_(parsedPayload) });
+    }
+
+    // v194: 会員一括メール送信
+    if (action === 'getMembersForBulkMail') {
+      return JSON.stringify({ success: true, data: getMembersForBulkMail_(parsedPayload) });
+    }
+
+    if (action === 'sendBulkMemberMail') {
+      return JSON.stringify({ success: true, data: sendBulkMemberMail_(parsedPayload) });
+    }
+
+    if (action === 'getEmailSendLog') {
+      return JSON.stringify({ success: true, data: getEmailSendLog_(parsedPayload) });
     }
 
     // ── 会員セルフサービス（管理者認証不要・パスワード再認証必須）──
@@ -3483,7 +3575,19 @@ function checkAdminBySession_() {
   email = email.toLowerCase();
 
   var ss = getOrCreateDatabase_();
-  var whitelistRows = getRowsAsObjects_(ss, 'T_管理者Googleホワイトリスト').filter(function(r) {
+  var cache = CacheService.getScriptCache();
+
+  // ホワイトリストをキャッシュ（5分）— 小テーブルで変更が稀なためスクリプトキャッシュで安全
+  var whitelistRows;
+  var cachedWL = cache.get('admin_wl_v1');
+  if (cachedWL) {
+    try { whitelistRows = JSON.parse(cachedWL); } catch (e) { whitelistRows = null; }
+  }
+  if (!whitelistRows) {
+    whitelistRows = getRowsAsObjects_(ss, 'T_管理者Googleホワイトリスト');
+    try { cache.put('admin_wl_v1', JSON.stringify(whitelistRows), 300); } catch (e) {}
+  }
+  whitelistRows = whitelistRows.filter(function(r) {
     return !toBoolean_(r['削除フラグ']) && toBoolean_(r['有効フラグ']);
   });
 
@@ -3510,7 +3614,18 @@ function checkAdminBySession_() {
 
   var linkedAuthId = String(matched['紐付け認証ID'] || '');
   var linkedMemberId = String(matched['紐付け会員ID'] || '');
-  var authRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+
+  // 認証アカウントをキャッシュ（5分）
+  var authRows;
+  var cachedAuth = cache.get('admin_auth_v1');
+  if (cachedAuth) {
+    try { authRows = JSON.parse(cachedAuth); } catch (e) { authRows = null; }
+  }
+  if (!authRows) {
+    authRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+    try { cache.put('admin_auth_v1', JSON.stringify(authRows), 300); } catch (e) {}
+  }
+
   var linkedAuth = null;
   for (var j = 0; j < authRows.length; j += 1) {
     var a = authRows[j];
@@ -3531,13 +3646,27 @@ function checkAdminBySession_() {
     throw new Error('管理者に会員IDが紐付いていません。');
   }
 
-  // 表示名を会員名 + 権限ラベルから自動導出
-  var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
-  var memberRow = null;
-  for (var k = 0; k < memberRows.length; k += 1) {
-    if (String(memberRows[k]['会員ID'] || '') === memberId) { memberRow = memberRows[k]; break; }
+  // 表示名: fetchAllDataFromDb_ キャッシュを優先利用（T_会員の直接読み込みを回避）
+  var memberName = '';
+  var cachedAllData = getChunkedCache_(cache, getAllDataCacheKey_());
+  if (cachedAllData && cachedAllData.members) {
+    for (var ci = 0; ci < cachedAllData.members.length; ci += 1) {
+      if (cachedAllData.members[ci].id === memberId) {
+        memberName = ((cachedAllData.members[ci].lastName || '') + ' ' + (cachedAllData.members[ci].firstName || '')).trim();
+        break;
+      }
+    }
   }
-  var memberName = memberRow ? (String(memberRow['姓'] || '') + ' ' + String(memberRow['名'] || '')).trim() : '';
+  if (!memberName) {
+    // キャッシュにない場合は直接読み込み
+    var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+    for (var k = 0; k < memberRows.length; k += 1) {
+      if (String(memberRows[k]['会員ID'] || '') === memberId) {
+        memberName = (String(memberRows[k]['姓'] || '') + ' ' + String(memberRows[k]['名'] || '')).trim();
+        break;
+      }
+    }
+  }
   var derivedDisplayName = memberName ? memberName + '（' + mapAdminPermissionLabel_(permCode) + '）' : mapAdminPermissionLabel_(permCode);
 
   var nowIso = new Date().toISOString();
@@ -3575,17 +3704,41 @@ function getSystemSettings_() {
   if (trainingDefaultFieldConfigRaw) {
     try { trainingDefaultFieldConfig = JSON.parse(trainingDefaultFieldConfigRaw); } catch (e) {}
   }
+  // v194: PDF名簿出力 & 一括メール設定
+  var rosterTemplateSsId = String(getSystemSettingValue_(ss, 'ROSTER_TEMPLATE_SS_ID') || '');
+  var bulkMailAutoAttachFolderId = String(getSystemSettingValue_(ss, 'BULK_MAIL_AUTO_ATTACH_FOLDER_ID') || '');
+  var emailLogViewerRole = String(getSystemSettingValue_(ss, 'EMAIL_LOG_VIEWER_ROLE') || 'MASTER');
   return {
     defaultBusinessStaffLimit: value,
     trainingHistoryLookbackMonths: lookback,
     annualFeePaymentGuidance: guidance,
     annualFeeTransferAccount: transferAccount,
     trainingDefaultFieldConfig: trainingDefaultFieldConfig,
+    rosterTemplateSsId: rosterTemplateSsId,
+    bulkMailAutoAttachFolderId: bulkMailAutoAttachFolderId,
+    emailLogViewerRole: emailLogViewerRole,
   };
 }
 
-function updateSystemSettings_(request) {
+// MASTER のみ変更可能な設定キー（v194）
+var MASTER_ONLY_SETTING_KEYS = ['EMAIL_LOG_VIEWER_ROLE'];
+
+// T_システム設定のスネークアッパーケースキーを camelCase に変換する
+// 例: 'EMAIL_LOG_VIEWER_ROLE' → 'emailLogViewerRole'
+function convertSettingKeyToCamel_(key) {
+  return key.toLowerCase().replace(/_([a-z])/g, function(_, c) { return c.toUpperCase(); });
+}
+
+function updateSystemSettings_(request, callerPermLevel) {
   if (!request) throw new Error('settings が空です。');
+  // MASTER 限定キーのチェック
+  var effectivePermLevel = callerPermLevel || 'ADMIN';
+  var masterOnlyRequested = MASTER_ONLY_SETTING_KEYS.some(function(k) {
+    return request[convertSettingKeyToCamel_(k)] !== undefined;
+  });
+  if (masterOnlyRequested && effectivePermLevel !== 'MASTER') {
+    throw new Error('この設定はマスター権限のみ変更できます。');
+  }
   var next = Number(request.defaultBusinessStaffLimit || 0);
   var lookbackRaw = request.trainingHistoryLookbackMonths;
   var lookback = Number(lookbackRaw);
@@ -3614,6 +3767,20 @@ function updateSystemSettings_(request) {
   upsertSystemSetting_(ss, 'DB_SCHEMA_VERSION', DB_SCHEMA_VERSION, 'DBスキーマバージョン');
   if (request.trainingDefaultFieldConfig != null) {
     upsertSystemSetting_(ss, 'TRAINING_DEFAULT_FIELD_CONFIG', JSON.stringify(request.trainingDefaultFieldConfig), '研修フォームのデフォルト表示項目設定');
+  }
+  // v194: PDF名簿出力 & 一括メール設定（MASTER/ADMIN 共通可変）
+  if (request.rosterTemplateSsId != null) {
+    upsertSystemSetting_(ss, 'ROSTER_TEMPLATE_SS_ID', String(request.rosterTemplateSsId).trim(), '名簿テンプレートスプレッドシートID');
+  }
+  if (request.bulkMailAutoAttachFolderId != null) {
+    upsertSystemSetting_(ss, 'BULK_MAIL_AUTO_ATTACH_FOLDER_ID', String(request.bulkMailAutoAttachFolderId).trim(), '一括メール個別自動添付DriveフォルダID');
+  }
+  // v194: MASTER のみ変更可能
+  if (request.emailLogViewerRole != null && effectivePermLevel === 'MASTER') {
+    var allowedRoles = ['MASTER', 'MASTER,ADMIN'];
+    var roleVal = String(request.emailLogViewerRole).trim();
+    if (allowedRoles.indexOf(roleVal) < 0) roleVal = 'MASTER';
+    upsertSystemSetting_(ss, 'EMAIL_LOG_VIEWER_ROLE', roleVal, 'メール送信ログ閲覧権限');
   }
   var scriptProperties = PropertiesService.getScriptProperties();
   scriptProperties.setProperty(DEFAULT_BUSINESS_STAFF_LIMIT_KEY, String(Math.floor(next))); // backward compatibility
@@ -3755,6 +3922,8 @@ function saveAdminPermission_(payload) {
     appendRowsByHeaders_(ss, 'T_管理者Googleホワイトリスト', [nextRow]);
   }
 
+  // ホワイトリスト変更時はキャッシュを無効化
+  try { CacheService.getScriptCache().remove('admin_wl_v1'); } catch (e) {}
   return { saved: true, id: nextRow['ホワイトリストID'] };
 }
 
@@ -3796,6 +3965,8 @@ function deleteAdminPermission_(payload) {
   if (found.columns['変更者メール'] != null) row[found.columns['変更者メール']] = callerEmail;
   if (found.columns['変更日時'] != null) row[found.columns['変更日時']] = nowIso;
   sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  // ホワイトリスト変更時はキャッシュを無効化
+  try { CacheService.getScriptCache().remove('admin_wl_v1'); } catch (e) {}
   return { deleted: true, id: id };
 }
 
@@ -8342,6 +8513,31 @@ function ensureSystemSettingsRows_(ss) {
       設定キー: 'ANNUAL_FEE_TRANSFER_ACCOUNT',
       設定値: defaultAnnualFeeTransferAccount,
       説明: '年会費未納時の共通振込先',
+      更新日時: now,
+    }]);
+  }
+  // v194: PDF名簿出力 & 一括メール設定
+  if (!byKey['ROSTER_TEMPLATE_SS_ID']) {
+    appendRowsByHeaders_(ss, 'T_システム設定', [{
+      設定キー: 'ROSTER_TEMPLATE_SS_ID',
+      設定値: '',
+      説明: '名簿テンプレートスプレッドシートID',
+      更新日時: now,
+    }]);
+  }
+  if (!byKey['BULK_MAIL_AUTO_ATTACH_FOLDER_ID']) {
+    appendRowsByHeaders_(ss, 'T_システム設定', [{
+      設定キー: 'BULK_MAIL_AUTO_ATTACH_FOLDER_ID',
+      設定値: '',
+      説明: '一括メール個別自動添付DriveフォルダID',
+      更新日時: now,
+    }]);
+  }
+  if (!byKey['EMAIL_LOG_VIEWER_ROLE']) {
+    appendRowsByHeaders_(ss, 'T_システム設定', [{
+      設定キー: 'EMAIL_LOG_VIEWER_ROLE',
+      設定値: 'MASTER',
+      説明: 'メール送信ログ閲覧権限（MASTER / MASTER,ADMIN）',
       更新日時: now,
     }]);
   }
@@ -13561,4 +13757,335 @@ function generateTrainingEmailWithAI_(payload) {
     Logger.log('generateTrainingEmailWithAI_: ' + e.message);
     return { ok: false, text: 'エラーが発生しました: ' + e.message };
   }
+}
+
+// ============================================================
+// v194 Phase 2: 会員一括メール送信
+// ============================================================
+
+/**
+ * 一括メール宛先一覧を取得する。
+ * INDIVIDUAL / SUPPORT: T_会員.代表メールアドレス
+ * BUSINESS: T_事業所職員（ENROLLED + メール配信希望コード ≠ 'NO'）
+ *
+ * payload:
+ *   memberTypes?    – ['INDIVIDUAL','BUSINESS','SUPPORT']  デフォルト全種別
+ *   memberStatus?   – 'ACTIVE' | 'ALL'  (T_会員.会員状態コード)   デフォルト 'ACTIVE'
+ *   staffStatus?    – 'ENROLLED' | 'ALL' (T_事業所職員.職員状態コード) デフォルト 'ENROLLED'
+ *   mailingFilter?  – 'OPT_IN' | 'ALL'  (メール配信希望コード)    デフォルト 'OPT_IN'
+ *   excludeNoEmail? – true: メール未登録除外（デフォルト true）
+ */
+function getMembersForBulkMail_(payload) {
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var p = payload || {};
+  var memberTypes   = p.memberTypes   || ['INDIVIDUAL', 'BUSINESS', 'SUPPORT'];
+  var memberStatus  = String(p.memberStatus  || 'ACTIVE');
+  var staffStatus   = String(p.staffStatus   || 'ENROLLED');
+  var mailingFilter = String(p.mailingFilter || 'OPT_IN');
+  var excludeNoEmail = p.excludeNoEmail !== false;
+
+  var memberSheet = ss.getSheetByName('T_会員');
+  var staffSheet  = ss.getSheetByName('T_事業所職員');
+  var members     = getSheetData_(memberSheet);
+  var staffRows   = getSheetData_(staffSheet);
+
+  // 事業所会員マップ（会員ID → 会員行）
+  var bizMemberMap = {};
+  members.forEach(function(m) {
+    if (String(m['会員種別コード'] || '') === 'BUSINESS' && !toBoolean_(m['削除フラグ'])) {
+      bizMemberMap[String(m['会員ID'] || '')] = m;
+    }
+  });
+
+  var results = [];
+
+  // ── 個人会員 / 賛助会員 ──────────────────────────────────────
+  members.forEach(function(m) {
+    if (toBoolean_(m['削除フラグ'])) return;
+    var mtype = String(m['会員種別コード'] || '');
+    if (mtype !== 'INDIVIDUAL' && mtype !== 'SUPPORT') return;
+    if (memberTypes.indexOf(mtype) < 0) return;
+    var status = String(m['会員状態コード'] || '');
+    if (memberStatus === 'ACTIVE' && status !== 'ACTIVE') return;
+
+    var lastName   = String(m['姓']  || '').trim();
+    var firstName  = String(m['名']  || '').trim();
+    var name       = lastName + firstName;
+    var displayName = (lastName + ' ' + firstName).trim() || name;
+    var email      = String(m['代表メールアドレス'] || '').trim();
+    if (excludeNoEmail && !email) return;
+
+    results.push({
+      recipientKey: String(m['会員ID'] || ''),
+      memberType:   mtype,
+      memberId:     String(m['会員ID'] || ''),
+      staffId:      null,
+      lastName:     lastName,
+      firstName:    firstName,
+      name:         name,
+      displayName:  displayName,
+      email:        email,
+      officeName:   String(m['勤務先名'] || '').trim(),
+      memberStatus: status,
+      staffStatus:  null,
+      mailingOptOut: false,
+    });
+  });
+
+  // ── 事業所職員 ──────────────────────────────────────────────
+  if (memberTypes.indexOf('BUSINESS') >= 0) {
+    staffRows.forEach(function(s) {
+      if (toBoolean_(s['削除フラグ'])) return;
+      var sStatus = String(s['職員状態コード'] || '');
+      if (staffStatus === 'ENROLLED' && sStatus !== 'ENROLLED') return;
+
+      var parentMemberId = String(s['会員ID'] || '');
+      var parent = bizMemberMap[parentMemberId];
+      if (!parent) return;
+
+      // 親会員の在籍状態チェック
+      if (memberStatus === 'ACTIVE' && String(parent['会員状態コード'] || '') !== 'ACTIVE') return;
+
+      var mailingCode = String(s['メール配信希望コード'] || '').trim().toUpperCase();
+      var isOptOut    = mailingCode === 'NO';
+      if (mailingFilter === 'OPT_IN' && isOptOut) return;
+
+      var lastName   = String(s['姓']  || '').trim();
+      var firstName  = String(s['名']  || '').trim();
+      var name       = lastName + firstName || String(s['氏名'] || '').trim();
+      var displayName = (lastName + ' ' + firstName).trim() || name;
+      var email      = String(s['メールアドレス'] || '').trim();
+      if (excludeNoEmail && !email) return;
+
+      results.push({
+        recipientKey:  String(s['職員ID'] || ''),
+        memberType:    'BUSINESS',
+        memberId:      parentMemberId,
+        staffId:       String(s['職員ID'] || ''),
+        lastName:      lastName,
+        firstName:     firstName,
+        name:          name,
+        displayName:   displayName,
+        email:         email,
+        officeName:    String(parent['勤務先名'] || '').trim(),
+        memberStatus:  String(parent['会員状態コード'] || ''),
+        staffStatus:   sStatus,
+        mailingOptOut: isOptOut,
+      });
+    });
+  }
+
+  return results;
+}
+
+/**
+ * 会員一括メール送信。
+ * payload:
+ *   recipientKeys: string[]              – 送信対象の recipientKey リスト
+ *   from: string                         – 送信元メールアドレス（エイリアス含む）
+ *   subject: string                      – 件名テンプレート（{{氏名}} {{事業所名}} {{会員番号}}）
+ *   body: string                         – 本文テンプレート
+ *   commonAttachments?: Array<{name, mimeType, base64}>
+ *   individualAttachments?: Record<recipientKey, {name, mimeType, base64}>
+ *   useAutoAttach?: boolean              – Drive自動添付を使用するか（デフォルト true）
+ *   memberTypes?, memberStatus?, staffStatus?, mailingFilter?, excludeNoEmail?
+ *     └── バックエンド側でも再フィルタ（セキュリティ担保）
+ */
+function sendBulkMemberMail_(payload) {
+  if (!payload) throw new Error('パラメータが不足しています。');
+
+  var recipientKeys = payload.recipientKeys;
+  if (!recipientKeys || !recipientKeys.length) throw new Error('宛先が選択されていません。');
+
+  var subject = String(payload.subject || '').trim();
+  var body    = String(payload.body    || '').trim();
+  if (!subject || !body) throw new Error('件名と本文は必須です。');
+
+  // ── 送信元エイリアス検証 ──────────────────────────────────────
+  var ownerEmail    = Session.getEffectiveUser().getEmail();
+  var validAliases  = [ownerEmail];
+  try { validAliases = validAliases.concat(GmailApp.getAliases()); } catch (e) {}
+  var from = String(payload.from || '').trim();
+  if (!from || validAliases.indexOf(from) < 0) from = ownerEmail;
+
+  // ── 全宛先リストを再取得（セキュリティ: フロント送信値を信用しない） ──
+  var filterPayload = {
+    memberTypes:    payload.memberTypes    || ['INDIVIDUAL', 'BUSINESS', 'SUPPORT'],
+    memberStatus:   payload.memberStatus   || 'ACTIVE',
+    staffStatus:    payload.staffStatus    || 'ENROLLED',
+    mailingFilter:  'ALL',  // 送信時は全員対象（フロント側で絞り込み済みキーを送る）
+    excludeNoEmail: false,  // キーで絞るのでここでは除外しない
+  };
+  var allRecipients = getMembersForBulkMail_(filterPayload);
+
+  var keySet = {};
+  recipientKeys.forEach(function(k) { keySet[String(k)] = true; });
+  var targetRecipients = allRecipients.filter(function(r) {
+    return keySet[String(r.recipientKey)];
+  });
+  if (!targetRecipients.length) throw new Error('送信対象が見つかりませんでした。');
+
+  // ── 共通添付ファイル ──────────────────────────────────────────
+  var commonAttachments = (payload.commonAttachments || []).map(function(att) {
+    var bytes = Utilities.base64Decode(att.base64);
+    return Utilities.newBlob(bytes, att.mimeType, att.name);
+  });
+
+  // ── Drive 自動添付マップ構築 ──────────────────────────────────
+  var autoAttachMap = {};  // filename → DriveFile
+  var useAutoAttach = payload.useAutoAttach !== false;
+  var folderId = '';
+  if (useAutoAttach) {
+    var settingsSs = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+    folderId = String(getSystemSettingValue_(settingsSs, 'BULK_MAIL_AUTO_ATTACH_FOLDER_ID') || '').trim();
+    if (folderId) {
+      try {
+        var folder = DriveApp.getFolderById(folderId);
+        var fileIter = folder.getFiles();
+        while (fileIter.hasNext()) {
+          var f = fileIter.next();
+          autoAttachMap[f.getName()] = f;
+        }
+      } catch (fe) {
+        Logger.log('sendBulkMemberMail_: Drive自動添付フォルダ取得失敗: ' + fe.message);
+      }
+    }
+  }
+
+  // ── 送信ループ ────────────────────────────────────────────────
+  var errors          = [];
+  var autoAttachMissed = [];
+  var sentCount       = 0;
+  var fileNames       = Object.keys(autoAttachMap);
+  var indvAttachMap   = payload.individualAttachments || {};
+
+  for (var i = 0; i < targetRecipients.length; i += 1) {
+    var rec = targetRecipients[i];
+    if (!rec.email) {
+      errors.push({ recipientKey: rec.recipientKey, displayName: rec.displayName, error: 'メールアドレス未登録' });
+      continue;
+    }
+
+    try {
+      // 差し込みタグ置換
+      var personalSubject = subject
+        .replace(/\{\{氏名\}\}/g,   rec.displayName)
+        .replace(/\{\{事業所名\}\}/g, rec.officeName || '')
+        .replace(/\{\{会員番号\}\}/g, rec.memberId   || '');
+      var personalBody = body
+        .replace(/\{\{氏名\}\}/g,   rec.displayName)
+        .replace(/\{\{事業所名\}\}/g, rec.officeName || '')
+        .replace(/\{\{会員番号\}\}/g, rec.memberId   || '');
+
+      var allAttachments = commonAttachments.slice();
+
+      // Drive 自動添付（姓名部分一致、先頭1件）
+      if (useAutoAttach && folderId && rec.name) {
+        var matchedFile = null;
+        for (var j = 0; j < fileNames.length; j += 1) {
+          if (fileNames[j].indexOf(rec.name) >= 0) {
+            matchedFile = autoAttachMap[fileNames[j]];
+            break;
+          }
+        }
+        if (matchedFile) {
+          try { allAttachments.push(matchedFile.getBlob()); } catch (be) {
+            Logger.log('自動添付 blob 取得失敗: ' + rec.name + ': ' + be.message);
+          }
+        } else {
+          autoAttachMissed.push(rec.displayName);
+        }
+      }
+
+      // 個人追加添付
+      var indvAtt = indvAttachMap[String(rec.recipientKey)];
+      if (indvAtt) {
+        var indvBytes = Utilities.base64Decode(indvAtt.base64);
+        allAttachments.push(Utilities.newBlob(indvBytes, indvAtt.mimeType, indvAtt.name));
+      }
+
+      GmailApp.sendEmail(rec.email, personalSubject, personalBody, {
+        from:        from,
+        replyTo:     from,
+        name:        '枚方市介護支援専門員連絡協議会',
+        attachments: allAttachments,
+      });
+      sentCount += 1;
+    } catch (e) {
+      errors.push({ recipientKey: rec.recipientKey, displayName: rec.displayName, error: e.message });
+    }
+  }
+
+  // ── T_メール送信ログ記録（append-only、個人情報なし） ────────────
+  var logId = Utilities.getUuid();
+  var now   = new Date().toISOString();
+  try {
+    var logSs    = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+    var logSheet = logSs.getSheetByName('T_メール送信ログ');
+    if (logSheet) {
+      appendRowsByHeaders_(logSheet, [{
+        'ログID':       logId,
+        '送信日時':     now,
+        '送信者メール': from,
+        '件名テンプレート': subject.substring(0, 200),
+        '宛先数':       targetRecipients.length,
+        '成功数':       sentCount,
+        'エラー数':     errors.length,
+        '送信種別':     'BULK_MEMBER',
+        '削除フラグ':   false,
+      }]);
+    }
+  } catch (le) {
+    Logger.log('sendBulkMemberMail_: ログ記録失敗: ' + le.message);
+  }
+
+  return {
+    sent:             sentCount,
+    total:            targetRecipients.length,
+    errors:           errors.map(function(e) { return e.displayName + ': ' + e.error; }),
+    autoAttachMissed: autoAttachMissed,
+    logId:            logId,
+  };
+}
+
+/**
+ * メール送信ログ取得。
+ * 閲覧権限は T_システム設定.EMAIL_LOG_VIEWER_ROLE で動的チェック。
+ * 設定値: 'MASTER' または 'MASTER,ADMIN' のどちらか。
+ */
+function getEmailSendLog_(payload) {
+  var p = payload || {};
+  var callerPermLevel = String(
+    (p.__adminSession && p.__adminSession.adminPermissionLevel) || 'ADMIN'
+  );
+
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var viewerRole = String(getSystemSettingValue_(ss, 'EMAIL_LOG_VIEWER_ROLE') || 'MASTER').trim();
+  var allowedRoles = viewerRole.split(',').map(function(r) { return r.trim(); });
+  if (allowedRoles.indexOf(callerPermLevel) < 0) {
+    throw new Error('メール送信ログの閲覧権限がありません。（権限: ' + callerPermLevel + '）');
+  }
+
+  var logSheet = ss.getSheetByName('T_メール送信ログ');
+  if (!logSheet || logSheet.getLastRow() < 2) return [];
+
+  var rows = getSheetData_(logSheet).filter(function(r) {
+    return !toBoolean_(r['削除フラグ']);
+  });
+  rows.sort(function(a, b) {
+    return String(b['送信日時'] || '').localeCompare(String(a['送信日時'] || ''));
+  });
+
+  return rows.map(function(r) {
+    return {
+      logId:           String(r['ログID']       || ''),
+      sentAt:          String(r['送信日時']      || ''),
+      senderEmail:     String(r['送信者メール']  || ''),
+      subjectTemplate: String(r['件名テンプレート'] || ''),
+      totalCount:      Number(r['宛先数']   || 0),
+      successCount:    Number(r['成功数']   || 0),
+      errorCount:      Number(r['エラー数'] || 0),
+      sendType:        String(r['送信種別'] || ''),
+    };
+  });
 }
