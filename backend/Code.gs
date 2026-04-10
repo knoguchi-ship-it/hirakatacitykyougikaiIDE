@@ -1043,6 +1043,15 @@ function processApiRequest(action, payload) {
       return JSON.stringify({ success: true, data: generateTrainingEmailWithAI_(parsedPayload) });
     }
 
+    // v194: PDF名簿出力
+    if (action === 'getMembersForRoster') {
+      return JSON.stringify({ success: true, data: getMembersForRoster_(parsedPayload) });
+    }
+
+    if (action === 'generateRosterZip') {
+      return JSON.stringify({ success: true, data: generateRosterZip_(parsedPayload) });
+    }
+
     // v194: 会員一括メール送信
     if (action === 'getMembersForBulkMail') {
       return JSON.stringify({ success: true, data: getMembersForBulkMail_(parsedPayload) });
@@ -14088,4 +14097,362 @@ function getEmailSendLog_(payload) {
       sendType:        String(r['送信種別'] || ''),
     };
   });
+}
+
+// ============================================================
+// v196 Phase 3: PDF名簿出力
+// ============================================================
+
+/**
+ * PDF名簿出力用: 対象会員一覧を取得する。
+ * 年会費ステータスは T_会員(BUSINESS) ベースで判定。
+ *
+ * payload:
+ *   memberTypes?    – ['INDIVIDUAL','BUSINESS','SUPPORT'] デフォルト全種別
+ *   memberStatus?   – 'ACTIVE' | 'INCLUDING_SCHEDULED' | 'ALL'  デフォルト 'ACTIVE'
+ *   annualFeeStatus? – 'ALL' | 'PAID' | 'UNPAID'              デフォルト 'ALL'
+ *   year?           – 対象年度（省略時は当年度）
+ */
+function getMembersForRoster_(payload) {
+  var p = payload || {};
+  var memberTypes    = p.memberTypes    || ['INDIVIDUAL', 'BUSINESS', 'SUPPORT'];
+  var memberStatus   = String(p.memberStatus   || 'ACTIVE');
+  var annualFeeStatus = String(p.annualFeeStatus || 'ALL');
+
+  // 当年度算出（日本会計年度: 4月始まり）
+  var now = new Date();
+  var currentFY = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  var year = Number(p.year || 0);
+  if (!year || !isFinite(year)) year = currentFY;
+
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var memberSheet = ss.getSheetByName('T_会員');
+  var staffSheet  = ss.getSheetByName('T_事業所職員');
+  var feeSheet    = ss.getSheetByName('T_年会費納入履歴');
+
+  var members  = getSheetData_(memberSheet);
+  var staffRows = staffSheet  ? getSheetData_(staffSheet)  : [];
+  var feeRows   = feeSheet    ? getSheetData_(feeSheet)    : [];
+
+  // 年会費マップ: 会員ID → 状態コード（対象年度のみ）
+  var feeMap = {};
+  feeRows.forEach(function(r) {
+    if (toBoolean_(r['削除フラグ'])) return;
+    if (Number(r['対象年度'] || 0) !== year) return;
+    var mid = String(r['会員ID'] || '');
+    if (mid) feeMap[mid] = String(r['会費納入状態コード'] || 'UNPAID');
+  });
+
+  // 在籍職員数マップ: 会員ID → 在籍数
+  var staffCountMap = {};
+  staffRows.forEach(function(s) {
+    if (toBoolean_(s['削除フラグ'])) return;
+    if (String(s['職員状態コード'] || '') !== 'ENROLLED') return;
+    var mid = String(s['会員ID'] || '');
+    staffCountMap[mid] = (staffCountMap[mid] || 0) + 1;
+  });
+
+  var results = [];
+
+  members.forEach(function(m) {
+    if (toBoolean_(m['削除フラグ'])) return;
+    var mtype = String(m['会員種別コード'] || '');
+    if (memberTypes.indexOf(mtype) < 0) return;
+
+    var status = String(m['会員状態コード'] || '');
+    if (memberStatus === 'ACTIVE' && status !== 'ACTIVE') return;
+    if (memberStatus === 'INCLUDING_SCHEDULED' &&
+        status !== 'ACTIVE' && status !== 'WITHDRAWAL_SCHEDULED') return;
+    // 'ALL' → フィルタなし
+
+    var memberId  = String(m['会員ID'] || '');
+    var feeStatus = feeMap[memberId] || 'NONE'; // NONE = 当年度の記録なし
+
+    if (annualFeeStatus === 'PAID'   && feeStatus !== 'PAID') return;
+    // UNPAID: UNPAID と NONE（記録なし = 未納扱い）を含む
+    if (annualFeeStatus === 'UNPAID' && feeStatus === 'PAID') return;
+
+    var lastName  = String(m['姓'] || '').trim();
+    var firstName = String(m['名'] || '').trim();
+    var displayName = (lastName + ' ' + firstName).trim() ||
+                      String(m['代表メールアドレス'] || memberId);
+    var kana = (String(m['セイ'] || '') + ' ' + String(m['メイ'] || '')).trim();
+
+    results.push({
+      memberId:          memberId,
+      memberType:        mtype,
+      displayName:       displayName,
+      kana:              kana,
+      officeName:        String(m['勤務先名'] || '').trim(),
+      memberStatus:      status,
+      joinedDate:        String(m['入会日'] || ''),
+      annualFeeStatus:   feeStatus,
+      annualFeeYear:     year,
+      enrolledStaffCount: mtype === 'BUSINESS' ? (staffCountMap[memberId] || 0) : undefined,
+    });
+  });
+
+  return results;
+}
+
+/**
+ * PDF名簿出力: 選択会員のPDFをZIPで生成してDriveに保存し、ダウンロードURLを返す。
+ *
+ * テンプレートSS規約:
+ *   - T_システム設定.ROSTER_TEMPLATE_SS_ID に登録されたスプレッドシートを使用。
+ *   - コードは自動的に「_DATA」シート（非表示）を作成・管理する。
+ *   - 表示シートは「_DATA」シートのセルを数式で参照する構成にする。
+ *
+ * _DATAシート構造:
+ *   行1: 会員レコードのヘッダ（列A〜W）
+ *   行2: 会員レコード値
+ *   行3: （空行）
+ *   行4: 在籍職員ヘッダ（BUSINESS用）
+ *   行5〜: 在籍職員データ
+ *
+ * payload:
+ *   memberIds: string[]  – 対象会員IDリスト（最大 ROSTER_PDF_MAX_BATCH 件）
+ *   year?:     number    – 年会費表示の対象年度（省略時は当年度）
+ */
+function generateRosterZip_(payload) {
+  var ROSTER_PDF_MAX_BATCH = 50;
+  var p = payload || {};
+  var memberIds = p.memberIds || [];
+  if (!memberIds.length) throw new Error('対象が選択されていません。');
+  if (memberIds.length > ROSTER_PDF_MAX_BATCH) {
+    throw new Error('一度に処理できるのは最大 ' + ROSTER_PDF_MAX_BATCH +
+      ' 件です。選択を絞り込んでください。');
+  }
+
+  // 年度
+  var now = new Date();
+  var currentFY = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  var year = Number(p.year || 0);
+  if (!year || !isFinite(year)) year = currentFY;
+
+  // テンプレートSS ID 取得
+  var dbSs = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var templateId = String(getSystemSettingValue_(dbSs, 'ROSTER_TEMPLATE_SS_ID') || '').trim();
+  if (!templateId) {
+    throw new Error(
+      '名簿テンプレートSSが未設定です。システム設定 > ROSTER_TEMPLATE_SS_ID を登録してください。'
+    );
+  }
+
+  // DBデータ収集
+  var memberSheet = dbSs.getSheetByName('T_会員');
+  var staffSheet  = dbSs.getSheetByName('T_事業所職員');
+  var feeSheet    = dbSs.getSheetByName('T_年会費納入履歴');
+
+  var memberMap = {};
+  getSheetData_(memberSheet).forEach(function(m) {
+    memberMap[String(m['会員ID'] || '')] = m;
+  });
+
+  var staffByMember = {};
+  (staffSheet ? getSheetData_(staffSheet) : []).forEach(function(s) {
+    if (toBoolean_(s['削除フラグ'])) return;
+    var mid = String(s['会員ID'] || '');
+    if (!staffByMember[mid]) staffByMember[mid] = [];
+    staffByMember[mid].push(s);
+  });
+
+  var feeMap = {};
+  (feeSheet ? getSheetData_(feeSheet) : []).forEach(function(r) {
+    if (toBoolean_(r['削除フラグ'])) return;
+    if (Number(r['対象年度'] || 0) !== year) return;
+    var mid = String(r['会員ID'] || '');
+    if (mid) feeMap[mid] = String(r['会費納入状態コード'] || 'UNPAID');
+  });
+
+  // テンプレートSSをコピー（1回だけ）
+  var tempSsId;
+  try {
+    var templateFile = DriveApp.getFileById(templateId);
+    var tmpFile = templateFile.makeCopy(
+      '_ROSTER_TMP_' + Utilities.getUuid().substring(0, 8)
+    );
+    tempSsId = tmpFile.getId();
+  } catch (e) {
+    throw new Error('テンプレートSSのコピーに失敗しました: ' + e.message);
+  }
+
+  var tempSs = SpreadsheetApp.openById(tempSsId);
+
+  // _DATA シート確保（非表示）
+  var dataSheet = tempSs.getSheetByName('_DATA');
+  if (!dataSheet) {
+    dataSheet = tempSs.insertSheet('_DATA');
+  }
+  dataSheet.hideSheet();
+
+  // 表示シート確認（_DATA 以外の非表示でないシート）
+  var displaySheets = tempSs.getSheets().filter(function(s) {
+    return s.getName() !== '_DATA' && !s.isSheetHidden();
+  });
+  if (displaySheets.length === 0) {
+    try { DriveApp.getFileById(tempSsId).setTrashed(true); } catch (ce) {}
+    throw new Error(
+      'テンプレートSSに表示用シートがありません。' +
+      '「_DATA」以外の表示シートを1枚以上追加してください。'
+    );
+  }
+
+  // _DATA ヘッダ定義（固定・ドキュメント化）
+  var MEMBER_HEADERS = [
+    '会員番号', '会員種別', '姓', '名', 'フリガナ姓', 'フリガナ名',
+    '勤務先名', '事業所番号', '勤務先郵便番号', '勤務先都道府県', '勤務先市区町村', '勤務先住所',
+    '勤務先電話', '勤務先FAX', '自宅郵便番号', '自宅都道府県', '自宅市区町村', '自宅住所',
+    'メールアドレス', '入会日', '年会費状態', '年会費年度', '介護支援専門員番号',
+  ];
+  var STAFF_HEADERS = [
+    '職員番号', '職員権限', '姓', '名', 'フリガナ姓', 'フリガナ名',
+    'メールアドレス', '入会日', '職員状態',
+  ];
+
+  var oauthToken = ScriptApp.getOAuthToken();
+  var pdfBaseUrl =
+    'https://docs.google.com/spreadsheets/d/' + tempSsId +
+    '/export?format=pdf' +
+    '&size=a4&portrait=true&fitw=true' +
+    '&sheetnames=false&printtitle=false' +
+    '&pagenumbers=false&gridlines=false&fzr=false';
+
+  var blobs  = [];
+  var errors = [];
+
+  for (var i = 0; i < memberIds.length; i += 1) {
+    var memberId = String(memberIds[i]);
+    var member   = memberMap[memberId];
+    if (!member) {
+      errors.push(memberId + ': 会員データなし');
+      continue;
+    }
+
+    try {
+      var mtype = String(member['会員種別コード'] || '');
+      var enrolledStaff = [];
+      if (mtype === 'BUSINESS') {
+        enrolledStaff = (staffByMember[memberId] || []).filter(function(s) {
+          return String(s['職員状態コード'] || '') === 'ENROLLED';
+        });
+        // 役職順: REPRESENTATIVE → ADMIN → STAFF
+        var roleOrder = { REPRESENTATIVE: 0, ADMIN: 1, STAFF: 2 };
+        enrolledStaff.sort(function(a, b) {
+          return (roleOrder[a['職員権限コード']] || 9) - (roleOrder[b['職員権限コード']] || 9);
+        });
+      }
+
+      // _DATA シートをクリアして書き込み
+      dataSheet.clearContents();
+
+      // 行1: 会員ヘッダ
+      dataSheet.getRange(1, 1, 1, MEMBER_HEADERS.length).setValues([MEMBER_HEADERS]);
+
+      // 行2: 会員データ
+      var memberRow = [
+        memberId,
+        mtype,
+        String(member['姓'] || ''),
+        String(member['名'] || ''),
+        String(member['セイ'] || ''),
+        String(member['メイ'] || ''),
+        String(member['勤務先名'] || ''),
+        String(member['事業所番号'] || ''),
+        String(member['勤務先郵便番号'] || ''),
+        String(member['勤務先都道府県'] || ''),
+        String(member['勤務先市区町村'] || ''),
+        String(member['勤務先住所'] || ''),
+        String(member['勤務先電話番号'] || ''),
+        String(member['勤務先FAX番号'] || ''),
+        String(member['自宅郵便番号'] || ''),
+        String(member['自宅都道府県'] || ''),
+        String(member['自宅市区町村'] || ''),
+        String(member['自宅住所'] || ''),
+        String(member['代表メールアドレス'] || ''),
+        String(member['入会日'] || ''),
+        feeMap[memberId] || 'NONE',
+        year,
+        String(member['介護支援専門員番号'] || ''),
+      ];
+      dataSheet.getRange(2, 1, 1, memberRow.length).setValues([memberRow]);
+
+      // 行4〜: 在籍職員データ（BUSINESS のみ）
+      if (enrolledStaff.length > 0) {
+        dataSheet.getRange(4, 1, 1, STAFF_HEADERS.length).setValues([STAFF_HEADERS]);
+        var staffData = enrolledStaff.map(function(s) {
+          return [
+            String(s['職員ID'] || ''),
+            String(s['職員権限コード'] || ''),
+            String(s['姓'] || ''),
+            String(s['名'] || ''),
+            String(s['セイ'] || ''),
+            String(s['メイ'] || ''),
+            String(s['メールアドレス'] || ''),
+            String(s['入会日'] || ''),
+            String(s['職員状態コード'] || ''),
+          ];
+        });
+        dataSheet.getRange(5, 1, staffData.length, STAFF_HEADERS.length)
+          .setValues(staffData);
+      }
+
+      // フラッシュ（数式再計算を確実にトリガー）
+      SpreadsheetApp.flush();
+      // 表示シートを1セル読み込んで再計算を確定させる
+      if (displaySheets[0].getLastRow() > 0 && displaySheets[0].getLastColumn() > 0) {
+        displaySheets[0].getRange(1, 1).getValue();
+      }
+
+      // PDF エクスポート
+      var response = UrlFetchApp.fetch(pdfBaseUrl, {
+        headers: { Authorization: 'Bearer ' + oauthToken },
+        muteHttpExceptions: true,
+      });
+
+      if (response.getResponseCode() !== 200) {
+        throw new Error('PDF エクスポート失敗 (HTTP ' + response.getResponseCode() + ')');
+      }
+
+      var lastName  = String(member['姓'] || '').trim();
+      var firstName = String(member['名'] || '').trim();
+      var officeName = String(member['勤務先名'] || '').trim().substring(0, 20);
+      var pdfName = memberId + '_' + (lastName + firstName || officeName || '名前なし') + '.pdf';
+      blobs.push(response.getBlob().setName(pdfName));
+
+    } catch (memberError) {
+      errors.push(
+        String(member['姓'] || '') + String(member['名'] || '') +
+        '（' + memberId + '）: ' + memberError.message
+      );
+    }
+  }
+
+  // 一時コピーを削除（成否に関わらず）
+  try { DriveApp.getFileById(tempSsId).setTrashed(true); } catch (ce) {
+    Logger.log('generateRosterZip_: 一時コピー削除失敗: ' + ce.message);
+  }
+
+  if (blobs.length === 0) {
+    var errMsg = errors.length
+      ? 'PDF の生成に失敗しました: ' + errors.join(' / ')
+      : 'PDF の生成に失敗しました（原因不明）';
+    throw new Error(errMsg);
+  }
+
+  // ZIP 作成
+  var zipName = '名簿_' + year + '年度_' + blobs.length + '件.zip';
+  var zipBlob = Utilities.zip(blobs, zipName);
+
+  // Drive に一時保存
+  var zipFile = DriveApp.createFile(zipBlob);
+  var downloadUrl = 'https://drive.google.com/uc?export=download&id=' + zipFile.getId();
+
+  return {
+    downloadUrl: downloadUrl,
+    fileId:      zipFile.getId(),
+    zipName:     zipName,
+    count:       blobs.length,
+    errors:      errors,
+  };
 }

@@ -6,6 +6,7 @@ import TrainingManagement from './components/TrainingManagement';
 import TrainingApply from './components/TrainingApply';
 import AnnualFeeManagement from './components/AnnualFeeManagement';
 import BulkMailSender from './components/BulkMailSender';
+import RosterExport from './components/RosterExport';
 import MemberDetailAdmin from './components/MemberDetailAdmin';
 import StaffDetailAdmin from './components/StaffDetailAdmin';
 import { AdminDashboardData, AdminDashboardMemberRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, SystemSettings, Training, TrainingFieldConfig, DEFAULT_FIELD_CONFIG } from './types';
@@ -13,7 +14,7 @@ import { TRAINING_OPTIONAL_FIELD_DEFS } from './components/TrainingManagement';
 import { api } from './services/api';
 
 type Role = 'ADMIN' | 'MEMBER';
-type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings';
+type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'roster-export' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings';
 type AuthTab = 'member' | 'admin';
 type PendingAnnualFeeAction = { type: 'view'; view: View } | { type: 'logout' } | null;
 type MemberListFilter = 'ALL' | MemberType;
@@ -537,7 +538,7 @@ const App: React.FC = () => {
       return;
     }
 
-    if (userRole === 'ADMIN' && (currentView === 'admin-settings' || currentView === 'bulk-mail')) {
+    if (userRole === 'ADMIN' && (currentView === 'admin-settings' || currentView === 'bulk-mail' || currentView === 'roster-export')) {
       loadSystemSettings(false).catch(() => undefined);
       return;
     }
@@ -2195,6 +2196,21 @@ const App: React.FC = () => {
           api={api}
           settings={bulkMailSettings}
           adminPermissionLevel={adminPermissionLevel}
+        />
+      );
+    }
+
+    if (currentView === 'roster-export') {
+      if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
+        return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
+      }
+      const rosterSettings = {
+        rosterTemplateSsId: rosterTemplateSsIdInput,
+      };
+      return (
+        <RosterExport
+          api={api}
+          settings={rosterSettings}
         />
       );
     }

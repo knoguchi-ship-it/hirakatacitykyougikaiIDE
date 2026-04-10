@@ -2,8 +2,8 @@
 
 作成日: 2026-04-10
 最終更新: 2026-04-10
-ステータス: **Phase 2 完了・Phase 3 未着手**
-現行本番: v195（Phase 2 完了）
+ステータス: **Phase 1 〜 Phase 3 全フェーズ完了**
+現行本番: v196（Phase 3 完了）
 参照先: `docs/10_SOW.md`（親SOW）、`docs/02_ARCHITECTURE.md`、`docs/03_DATA_MODEL.md`
 
 ---
@@ -257,27 +257,31 @@ T_会員 (BUSINESS)
 - [x] `npm run typecheck` / `npm run build:gas` PASS
 - [x] リリース: v195（両 deployment @195 確認済み）
 
-### Phase 3: PDF名簿出力コンソール（テンプレートSS準備後）
+### Phase 3: PDF名簿出力コンソール ✅ 完了（v196 / 2026-04-10）
 
 **前提条件**: `ROSTER_TEMPLATE_SS_ID` がシステム設定に登録済みであること
 
-- [ ] GAS: `getMembersForRoster_` 実装
+- [x] GAS: `getMembersForRoster_` 実装
   - T_会員（全種別）をフィルタして返却
   - 事業所会員は在籍職員数を付加（PDF内容の予告表示用）
-  - 年会費ステータスは T_会員(BUSINESS) ベース
-- [ ] GAS: `generateRosterZip_` 実装
-  - テンプレートSSを一時コピー
-  - 種別ごとにデータ充填 → `SpreadsheetApp.flush()` → `UrlFetchApp` でPDF blob取得
+  - 年会費ステータスは T_会員(BUSINESS) ベース（NONE = 未納扱い）
+- [x] GAS: `generateRosterZip_` 実装
+  - テンプレートSSを一時コピー（バッチ1件につき1コピー）
+  - `_DATA` シート（非表示）にヘッダ+データを書き込み → `SpreadsheetApp.flush()` → セル読み取りで数式強制再計算 → `UrlFetchApp` でPDF blob取得
   - 全blob → `Utilities.zip()` → Drive 一時保存 → DL URL 返却
-  - タイムアウト対策: 対象50件超の場合は分割処理（ユーザーに分割指示を表示）
+  - タイムアウト対策: 対象50件超は前面警告（分割操作をユーザーに促す）
   - 一時コピーは処理後即削除
-- [ ] フロントエンド: `RosterExport.tsx` 実装
-  - フィルタパネル
-  - 対象一覧（会員種別タブ切り替え＋チェックボックス）
-  - ZIP生成中のプログレス表示
-  - ダウンロードリンク表示
-- [ ] `npm run typecheck` / `npm run build:gas` PASS
-- [ ] リリース: v196（または後続版）
+  - 職員ソート順: REPRESENTATIVE → ADMIN → STAFF（在籍のみ）
+- [x] フロントエンド: `RosterExport.tsx` 実装
+  - フィルタパネル（種別チェック・在籍状態・年会費ステータス・年度）
+  - 対象一覧（チェックボックス・null=全選択パターン・種別ごと全選択・50件超警告）
+  - ZIP生成スピナー（所要時間目安表示）
+  - ダウンロードリンク・エラー一覧表示
+  - `_DATA` シート列マッピングのインラインガイド表示
+- [x] `Sidebar.tsx`「名簿出力コンソール」メニュー追加（isFullAdmin・bulk-mailの次）
+- [x] `App.tsx` `'roster-export'` view ルーティング追加
+- [x] `npm run typecheck` / `npm run build:gas` PASS
+- [x] リリース: v196（両 deployment @196 確認済み）
 
 ---
 

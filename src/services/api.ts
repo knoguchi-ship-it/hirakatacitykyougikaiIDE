@@ -1,5 +1,5 @@
 import { Member, Training, AdminPermissionLevel, AdminPersonRow, ConvertMemberTypePayload, ConvertMemberTypeResult, SystemSettings } from '../types';
-import { TrainingApplicantRow, BulkMailRecipient, EmailSendLog } from '../shared/types';
+import { TrainingApplicantRow, BulkMailRecipient, EmailSendLog, RosterTarget } from '../shared/types';
 import { AdminDashboardData, AdminPermissionData, AnnualFeeAdminData, AnnualFeeAdminRecord } from '../types';
 
 export interface TrainingMailPayload {
@@ -112,6 +112,17 @@ export interface ApiClient {
   updateStaff(payload: { staffId: string; memberId: string; lastName?: string; firstName?: string; lastKana?: string; firstKana?: string; name?: string; kana?: string; email?: string; careManagerNumber?: string; role?: string; status?: string; joinedDate?: string; mailingPreference?: string }): Promise<{ updated: boolean; staffId: string; memberId: string; status?: string; role?: string }>;
   // v188: AI案内メール生成（GASサーバー側でGemini APIを呼ぶ）
   generateTrainingEmail(payload: { training: Training; recipientName?: string }): Promise<{ ok: boolean; text: string }>;
+  // v196: PDF名簿出力
+  getMembersForRoster(payload: {
+    memberTypes?: string[];
+    memberStatus?: string;
+    annualFeeStatus?: string;
+    year?: number;
+  }): Promise<RosterTarget[]>;
+  generateRosterZip(payload: {
+    memberIds: string[];
+    year?: number;
+  }): Promise<{ downloadUrl: string; fileId: string; zipName: string; count: number; errors: string[] }>;
   // v194: 会員一括メール送信
   getMembersForBulkMail(payload: {
     memberTypes?: string[];
@@ -1096,6 +1107,41 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('generateTrainingEmail', JSON.stringify(payload));
+    });
+  }
+
+  // v196: PDF名簿出力
+  async getMembersForRoster(payload: {
+    memberTypes?: string[];
+    memberStatus?: string;
+    annualFeeStatus?: string;
+    year?: number;
+  }): Promise<RosterTarget[]> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getMembersForRoster', JSON.stringify(payload));
+    });
+  }
+
+  async generateRosterZip(payload: {
+    memberIds: string[];
+    year?: number;
+  }): Promise<{ downloadUrl: string; fileId: string; zipName: string; count: number; errors: string[] }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('generateRosterZip', JSON.stringify(payload));
     });
   }
 

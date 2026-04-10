@@ -51,6 +51,20 @@ export interface TrainingApplicantRow {
   applyDate: string;
 }
 
+// v196: PDF名簿出力
+export interface RosterTarget {
+  memberId: string;
+  memberType: 'INDIVIDUAL' | 'BUSINESS' | 'SUPPORT';
+  displayName: string;
+  kana: string;
+  officeName: string;
+  memberStatus: string;
+  joinedDate: string;
+  annualFeeStatus: 'PAID' | 'UNPAID' | 'NONE';
+  annualFeeYear: number;
+  enrolledStaffCount?: number; // BUSINESS のみ
+}
+
 // v194: 会員一括メール送信
 export interface BulkMailRecipient {
   recipientKey: string;       // INDIVIDUAL/SUPPORT: memberId, BUSINESS: staffId

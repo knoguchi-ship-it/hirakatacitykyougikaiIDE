@@ -1,17 +1,17 @@
 # 開発引継ぎ
 
 更新日: 2026-04-10
-現行本番: `v195`
-固定 deployment: member `@195` / public `@195`
-補足: v195 Phase 2 完了。会員一括メール送信コンソール（BulkMailSender）実装。GAS: getMembersForBulkMail_ / sendBulkMemberMail_ / getEmailSendLog_ 追加。フロント: 宛先フィルタ・チェックボックス一覧・差し込みメールエディタ・エイリアス選択・Drive自動添付・送信結果・送信ログ閲覧。
-次期開発: Phase 3（PDF名簿出力コンソール）→ `docs/63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md` §12 Phase 3
+現行本番: `v196`
+固定 deployment: member `@196` / public `@196`
+補足: v196 Phase 3 完了。PDF名簿出力コンソール（RosterExport）実装。GAS: getMembersForRoster_ / generateRosterZip_ 追加。フロント: フィルタ・チェックボックス一覧・ZIP生成・DLリンク。全フェーズ（Phase 1〜3）完了。
+次期開発: なし（SOW完了）→ `docs/63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md`
 
 ## 1. 最初に読むもの
 1. `HANDOVER.md`
 2. `AGENTS.md`
 3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-5. `docs/63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md` ← **Phase 2 完了・Phase 3（PDF名簿出力）未着手**
+5. `docs/63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md` ← **全フェーズ完了（Phase 1〜3）**
 6. `docs/62_RELEASE_STATE_v193_2026-04-09.md` ← **v193 base**
 7. `docs/61_RELEASE_STATE_v191_2026-04-09.md`（v191 HTML圧縮）
 8. `docs/60_RELEASE_STATE_v189_2026-04-09.md`（v189失敗・v190復旧記録）
@@ -31,7 +31,7 @@
 
 ## 3. 現在の本番状態
 - ブランチ運用の基準は `main`。
-- 両 fixed deployment は `@195` を向いている。
+- 両 fixed deployment は `@196` を向いている。
 - fixed deployment の標準同期方法は `npx clasp redeploy`。Apps Script UI `Manage deployments` は障害復旧時の補助手段に限定する。
 - member portal は sidebar logout を採用済み。
 - デモログイン、mock member route、画面内 demo selector は廃止済み。
@@ -42,6 +42,20 @@
 - フロントエンド HTML 圧縮: deflate-raw + base64（`scripts/compress-html.mjs`）。member 206 kB / public 150 kB。
 
 ## 4. 直近の重要履歴
+### v196
+- 2026-04-10 Phase 3（PDF名簿出力コンソール）完了。SOW全フェーズ完了。
+- **GAS backend**: `getMembersForRoster_` / `generateRosterZip_` 実装
+  - `getMembersForRoster_`: T_会員フィルタ（種別・在籍状態・年会費ステータス）、BUSINESS は在籍職員数を付加
+  - `generateRosterZip_`: テンプレートSS一時コピー→`_DATA`シート書き込み→flush()→PDF→Utilities.zip→Drive保存→URL返却
+  - 職員ソート: REPRESENTATIVE→ADMIN→STAFF、最大50件超は警告のみ（分割はユーザー操作）
+- **フロントエンド**: `src/components/RosterExport.tsx` 新規作成
+  - フィルタパネル（種別チェック・在籍状態・年会費ステータス・年度）
+  - 対象一覧（チェックボックス・null=全選択パターン・種別ごと全選択・50件超overLimit警告）
+  - ZIP生成スピナー・DLリンク・エラー一覧・`_DATA`シート列マッピングインラインガイド
+- **Sidebar**: 「名簿出力コンソール」メニュー追加（bulk-mailの次、isFullAdmin）
+- **App.tsx**: `'roster-export'` view ルーティング追加
+- `npm run typecheck`、`npm run build:gas`、`npx clasp run healthCheck` 通過。
+
 ### v195
 - 2026-04-10 Phase 2（会員一括メール送信コンソール）完了。
 - **GAS backend**: `getMembersForBulkMail_` / `sendBulkMemberMail_` / `getEmailSendLog_` 実装
