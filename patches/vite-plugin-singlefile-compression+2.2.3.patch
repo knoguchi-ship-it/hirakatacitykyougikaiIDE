@@ -1,0 +1,13 @@
+diff --git a/node_modules/vite-plugin-singlefile-compression/dist/index.js b/node_modules/vite-plugin-singlefile-compression/dist/index.js
+index 48f5777..524ce38 100644
+--- a/node_modules/vite-plugin-singlefile-compression/dist/index.js
++++ b/node_modules/vite-plugin-singlefile-compression/dist/index.js
+@@ -171,7 +171,7 @@ function setConfig(opt, config, env) {
+ 	build.cssCodeSplit ??= false;
+ 	build.assetsInlineLimit ??= () => true;
+ 	build.modulePreload ?? build.polyfillModulePreload ?? (build.modulePreload = { polyfill: false });
+-	if (this.meta.rolldownVersion) {
++	if (this?.meta?.rolldownVersion) {
+ 		const rolldownOptions = build.rolldownOptions ?? build.rollupOptions ?? (build.rolldownOptions = {});
+ 		for (const output of [rolldownOptions.output ??= {}].flat(1)) output.codeSplitting ?? output.inlineDynamicImports ?? (output.codeSplitting = false);
+ 	} else {

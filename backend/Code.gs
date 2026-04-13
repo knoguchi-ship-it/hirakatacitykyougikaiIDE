@@ -557,6 +557,7 @@ function insertSystemSettingKeysForV194() {
   });
   var newKeys = [
     { key: 'ROSTER_TEMPLATE_SS_ID', value: '', desc: '名簿テンプレートスプレッドシートID' },
+    { key: 'REMINDER_TEMPLATE_SS_ID', value: '', desc: '催促用紙テンプレートスプレッドシートID' },
     { key: 'BULK_MAIL_AUTO_ATTACH_FOLDER_ID', value: '', desc: '一括メール個別自動添付DriveフォルダID' },
     { key: 'EMAIL_LOG_VIEWER_ROLE', value: 'MASTER', desc: 'メール送信ログ閲覧権限（MASTER / MASTER,ADMIN）' },
   ];
@@ -806,6 +807,7 @@ function processApiRequest(action, payload) {
       // v194: PDF名簿出力 & 会員一括メール送信
       'getMembersForRoster': ['MASTER','ADMIN'],
       'generateRosterZip': ['MASTER','ADMIN'],
+      'validateTemplateSpreadsheet': ['MASTER','ADMIN'],
       'getMembersForBulkMail': ['MASTER','ADMIN'],
       'sendBulkMemberMail': ['MASTER','ADMIN'],
       'getEmailSendLog': ['MASTER','ADMIN'],
@@ -1050,6 +1052,10 @@ function processApiRequest(action, payload) {
 
     if (action === 'generateRosterZip') {
       return JSON.stringify({ success: true, data: generateRosterZip_(parsedPayload) });
+    }
+
+    if (action === 'validateTemplateSpreadsheet') {
+      return JSON.stringify({ success: true, data: validateTemplateSpreadsheet_(parsedPayload) });
     }
 
     // v194: 会員一括メール送信
@@ -3715,6 +3721,7 @@ function getSystemSettings_() {
   }
   // v194: PDF名簿出力 & 一括メール設定
   var rosterTemplateSsId = String(getSystemSettingValue_(ss, 'ROSTER_TEMPLATE_SS_ID') || '');
+  var reminderTemplateSsId = String(getSystemSettingValue_(ss, 'REMINDER_TEMPLATE_SS_ID') || '');
   var bulkMailAutoAttachFolderId = String(getSystemSettingValue_(ss, 'BULK_MAIL_AUTO_ATTACH_FOLDER_ID') || '');
   var emailLogViewerRole = String(getSystemSettingValue_(ss, 'EMAIL_LOG_VIEWER_ROLE') || 'MASTER');
   return {
@@ -3724,6 +3731,7 @@ function getSystemSettings_() {
     annualFeeTransferAccount: transferAccount,
     trainingDefaultFieldConfig: trainingDefaultFieldConfig,
     rosterTemplateSsId: rosterTemplateSsId,
+    reminderTemplateSsId: reminderTemplateSsId,
     bulkMailAutoAttachFolderId: bulkMailAutoAttachFolderId,
     emailLogViewerRole: emailLogViewerRole,
   };
@@ -3779,7 +3787,10 @@ function updateSystemSettings_(request, callerPermLevel) {
   }
   // v194: PDF名簿出力 & 一括メール設定（MASTER/ADMIN 共通可変）
   if (request.rosterTemplateSsId != null) {
-    upsertSystemSetting_(ss, 'ROSTER_TEMPLATE_SS_ID', String(request.rosterTemplateSsId).trim(), '名簿テンプレートスプレッドシートID');
+    upsertSystemSetting_(ss, 'ROSTER_TEMPLATE_SS_ID', normalizeSpreadsheetIdInput_(request.rosterTemplateSsId), '名簿テンプレートスプレッドシートID');
+  }
+  if (request.reminderTemplateSsId != null) {
+    upsertSystemSetting_(ss, 'REMINDER_TEMPLATE_SS_ID', normalizeSpreadsheetIdInput_(request.reminderTemplateSsId), '催促用紙テンプレートスプレッドシートID');
   }
   if (request.bulkMailAutoAttachFolderId != null) {
     upsertSystemSetting_(ss, 'BULK_MAIL_AUTO_ATTACH_FOLDER_ID', String(request.bulkMailAutoAttachFolderId).trim(), '一括メール個別自動添付DriveフォルダID');
@@ -3795,6 +3806,157 @@ function updateSystemSettings_(request, callerPermLevel) {
   scriptProperties.setProperty(DEFAULT_BUSINESS_STAFF_LIMIT_KEY, String(Math.floor(next))); // backward compatibility
   scriptProperties.setProperty(TRAINING_HISTORY_LOOKBACK_MONTHS_KEY, String(Math.floor(lookback))); // backward compatibility
   return getSystemSettings_();
+}
+
+function normalizeSpreadsheetIdInput_(rawValue) {
+  var text = String(rawValue || '').trim();
+  if (!text) return '';
+  var match = text.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  if (match && match[1]) return match[1];
+  return text;
+}
+
+function buildTemplateValidationCheck_(key, label, status, detail) {
+  return { key: key, label: label, status: status, detail: detail };
+}
+
+function getTemplateSheetsByRule_(ss, kind) {
+  var result = { personal: [], business: [], metadataMatched: 0 };
+  ss.getSheets().forEach(function(sheet) {
+    var name = sheet.getName();
+    var metadata = getTemplateSheetMetadataMap_(sheet);
+    var family = String(metadata.HKC_TEMPLATE_FAMILY || '').toUpperCase();
+    var target = String(metadata.HKC_TEMPLATE_TARGET || '').toUpperCase();
+    var matchedByMetadata = false;
+
+    if (kind === 'ROSTER' && family === 'ROSTER') {
+      matchedByMetadata = true;
+      if (target === 'PERSONAL_SUPPORT') result.personal.push(sheet);
+      if (target === 'BUSINESS') result.business.push(sheet);
+    }
+    if (kind === 'REMINDER' && family === 'REMINDER') {
+      matchedByMetadata = true;
+      if (target === 'PERSONAL_SUPPORT') result.personal.push(sheet);
+      if (target === 'BUSINESS') result.business.push(sheet);
+    }
+    if (matchedByMetadata) {
+      result.metadataMatched += 1;
+      return;
+    }
+
+    if (kind === 'ROSTER') {
+      if (name.indexOf('P_') === 0) result.personal.push(sheet);
+      if (name.indexOf('B_') === 0) result.business.push(sheet);
+      return;
+    }
+
+    if (name.indexOf('R_P_') === 0) result.personal.push(sheet);
+    if (name.indexOf('R_B_') === 0) result.business.push(sheet);
+  });
+  return result;
+}
+
+function summarizeTemplateValidationStatus_(checks) {
+  for (var i = 0; i < checks.length; i += 1) {
+    if (checks[i].status === 'fail') return 'fail';
+  }
+  for (var j = 0; j < checks.length; j += 1) {
+    if (checks[j].status === 'warn') return 'warn';
+  }
+  return 'pass';
+}
+
+function validateTemplateSpreadsheet_(payload) {
+  var kind = String(payload && payload.kind || 'ROSTER').toUpperCase() === 'REMINDER' ? 'REMINDER' : 'ROSTER';
+  var spreadsheetId = normalizeSpreadsheetIdInput_(payload && payload.spreadsheetId);
+  if (!spreadsheetId) {
+    throw new Error((kind === 'ROSTER' ? '名簿' : '催促状') + 'テンプレートのスプレッドシートIDまたはURLを入力してください。');
+  }
+
+  var ss = SpreadsheetApp.openById(spreadsheetId);
+  var grouped = getTemplateSheetsByRule_(ss, kind);
+  var visibleSheets = ss.getSheets().filter(function(sheet) { return !sheet.isSheetHidden(); }).map(function(sheet) { return sheet.getName(); });
+  var hiddenSheets = ss.getSheets().filter(function(sheet) { return sheet.isSheetHidden(); }).map(function(sheet) { return sheet.getName(); });
+  var dataSheet = kind === 'ROSTER' ? getRosterTemplateDataSheet_(ss) : ss.getSheetByName('_DATA_REMINDER');
+  var checks = [];
+
+  checks.push(buildTemplateValidationCheck_('open', 'テンプレートファイルにアクセスできる', 'pass', 'スプレッドシートを開けました。'));
+  checks.push(buildTemplateValidationCheck_(
+    'data-sheet',
+    kind === 'ROSTER' ? 'データシートがある' : '催促状データシートがある',
+    dataSheet ? 'pass' : 'fail',
+    dataSheet
+      ? ('使用データシート: ' + dataSheet.getName())
+      : (kind === 'ROSTER' ? '`_DATA_ROSTER` または `_DATA` が必要です。' : '`_DATA_REMINDER` が必要です。')
+  ));
+  checks.push(buildTemplateValidationCheck_(
+    'personal',
+    kind === 'ROSTER' ? '個人・賛助向けの用紙がある' : '個人・賛助向けの催促状がある',
+    grouped.personal.length > 0 ? 'pass' : 'fail',
+    grouped.personal.length > 0
+      ? grouped.personal.map(function(sheet) { return sheet.getName(); }).join(', ')
+      : (kind === 'ROSTER' ? '`P_` シート群または metadata が必要です。' : '`R_P_` シート群または metadata が必要です。')
+  ));
+  checks.push(buildTemplateValidationCheck_(
+    'business',
+    kind === 'ROSTER' ? '事業所向けの用紙がある' : '事業所向けの催促状がある',
+    grouped.business.length > 0 ? 'pass' : 'fail',
+    grouped.business.length > 0
+      ? grouped.business.map(function(sheet) { return sheet.getName(); }).join(', ')
+      : (kind === 'ROSTER' ? '`B_` シート群または metadata が必要です。' : '`R_B_` シート群または metadata が必要です。')
+  ));
+  checks.push(buildTemplateValidationCheck_(
+    'metadata',
+    '分類ルール',
+    grouped.metadataMatched > 0 ? 'pass' : 'warn',
+    grouped.metadataMatched > 0
+      ? 'developer metadata が設定されています。'
+      : '現在はシート名の規約で判定します。新規テンプレートでは metadata 設定を推奨します。'
+  ));
+  checks.push(buildTemplateValidationCheck_(
+    'guide',
+    '運用ガイドシート',
+    ss.getSheetByName('_GUIDE') ? 'pass' : 'warn',
+    ss.getSheetByName('_GUIDE') ? '`_GUIDE` シートがあります。' : '運用担当者向けに `_GUIDE` シートの追加を推奨します。'
+  ));
+  checks.push(buildTemplateValidationCheck_(
+    'hidden-data',
+    'システムシートの非表示',
+    !dataSheet ? 'info' : (dataSheet.isSheetHidden() ? 'pass' : 'warn'),
+    !dataSheet ? 'データシート未検出のため未判定です。' : (dataSheet.isSheetHidden() ? 'hidden で管理されています。' : '実運用では hidden を推奨します。')
+  ));
+
+  var recommendedActions = [];
+  if (!dataSheet) {
+    recommendedActions.push(kind === 'ROSTER' ? '`_DATA_ROSTER` を追加する' : '`_DATA_REMINDER` を追加する');
+  }
+  if (grouped.personal.length === 0) {
+    recommendedActions.push(kind === 'ROSTER' ? '`P_01_会員基本` を追加する' : '`R_P_01_催促状` を追加する');
+  }
+  if (grouped.business.length === 0) {
+    recommendedActions.push(kind === 'ROSTER' ? '`B_01_会員基本` を追加する' : '`R_B_01_催促状` を追加する');
+  }
+  if (grouped.metadataMatched === 0) {
+    recommendedActions.push('新規テンプレートでは developer metadata を設定する');
+  }
+  if (!ss.getSheetByName('_GUIDE')) {
+    recommendedActions.push('運用担当者向けの `_GUIDE` シートを追加する');
+  }
+  if (recommendedActions.length === 0) {
+    recommendedActions.push('このまま利用できます。印刷シートだけを編集し、hidden シートは保護してください。');
+  }
+
+  return {
+    kind: kind,
+    spreadsheetId: spreadsheetId,
+    spreadsheetUrl: ss.getUrl(),
+    spreadsheetName: ss.getName(),
+    summaryStatus: summarizeTemplateValidationStatus_(checks),
+    visibleSheets: visibleSheets,
+    hiddenSheets: hiddenSheets,
+    checks: checks,
+    recommendedActions: recommendedActions,
+  };
 }
 
 function getAdminPermissionData_(callerSession) {
@@ -8531,6 +8693,14 @@ function ensureSystemSettingsRows_(ss) {
       設定キー: 'ROSTER_TEMPLATE_SS_ID',
       設定値: '',
       説明: '名簿テンプレートスプレッドシートID',
+      更新日時: now,
+    }]);
+  }
+  if (!byKey['REMINDER_TEMPLATE_SS_ID']) {
+    appendRowsByHeaders_(ss, 'T_システム設定', [{
+      設定キー: 'REMINDER_TEMPLATE_SS_ID',
+      設定値: '',
+      説明: '催促用紙テンプレートスプレッドシートID',
       更新日時: now,
     }]);
   }
@@ -14280,23 +14450,20 @@ function generateRosterZip_(payload) {
   var tempSs = SpreadsheetApp.openById(tempSsId);
 
   // _DATA シート確保（非表示）
-  var dataSheet = tempSs.getSheetByName('_DATA');
-  if (!dataSheet) {
-    dataSheet = tempSs.insertSheet('_DATA');
-  }
+  var dataSheet = ensureRosterTemplateDataSheet_(tempSs);
   dataSheet.hideSheet();
 
-  // 表示シート確認（_DATA 以外の非表示でないシート）
-  var displaySheets = tempSs.getSheets().filter(function(s) {
-    return s.getName() !== '_DATA' && !s.isSheetHidden();
+  var templateSheets = tempSs.getSheets().filter(function(s) {
+    return s.getName() !== '_DATA' && s.getName() !== '_GUIDE';
   });
-  if (displaySheets.length === 0) {
+  if (templateSheets.length === 0) {
     try { DriveApp.getFileById(tempSsId).setTrashed(true); } catch (ce) {}
     throw new Error(
       'テンプレートSSに表示用シートがありません。' +
-      '「_DATA」以外の表示シートを1枚以上追加してください。'
+      '「P_」または「B_」で始まる表示シートを1枚以上追加してください。'
     );
   }
+  var originalSheetVisibility = captureRosterSheetVisibility_(tempSs);
 
   // _DATA ヘッダ定義（固定・ドキュメント化）
   var MEMBER_HEADERS = [
@@ -14397,6 +14564,8 @@ function generateRosterZip_(payload) {
           .setValues(staffData);
       }
 
+      var displaySheets = selectRosterDisplaySheetsV2_(tempSs, mtype);
+
       // フラッシュ（数式再計算を確実にトリガー）
       SpreadsheetApp.flush();
       // 表示シートを1セル読み込んで再計算を確定させる
@@ -14428,6 +14597,8 @@ function generateRosterZip_(payload) {
     }
   }
 
+  restoreRosterSheetVisibility_(tempSs, originalSheetVisibility);
+
   // 一時コピーを削除（成否に関わらず）
   try { DriveApp.getFileById(tempSsId).setTrashed(true); } catch (ce) {
     Logger.log('generateRosterZip_: 一時コピー削除失敗: ' + ce.message);
@@ -14454,5 +14625,824 @@ function generateRosterZip_(payload) {
     zipName:     zipName,
     count:       blobs.length,
     errors:      errors,
+  };
+}
+
+function resolveRosterTemplatePrefix_(memberType) {
+  return String(memberType || '') === 'BUSINESS' ? 'B_' : 'P_';
+}
+
+function resolveRosterTemplateTarget_(memberType) {
+  return String(memberType || '') === 'BUSINESS' ? 'BUSINESS' : 'PERSONAL_SUPPORT';
+}
+
+function captureRosterSheetVisibility_(ss) {
+  return ss.getSheets().map(function(sheet) {
+    return {
+      name: sheet.getName(),
+      hidden: sheet.isSheetHidden(),
+    };
+  });
+}
+
+function restoreRosterSheetVisibility_(ss, visibilitySnapshot) {
+  if (!visibilitySnapshot || !visibilitySnapshot.length) return;
+  visibilitySnapshot.forEach(function(item) {
+    var sheet = ss.getSheetByName(item.name);
+    if (!sheet) return;
+    if (item.hidden) {
+      if (!sheet.isSheetHidden()) sheet.hideSheet();
+    } else if (sheet.isSheetHidden()) {
+      sheet.showSheet();
+    }
+  });
+}
+
+function isTemplateInternalSheet_(sheetName) {
+  return String(sheetName || '').indexOf('_') === 0;
+}
+
+function getTemplateSheetMetadataMap_(sheet) {
+  var map = {};
+  var metadata = sheet.getDeveloperMetadata ? sheet.getDeveloperMetadata() : [];
+  metadata.forEach(function(item) {
+    map[item.getKey()] = item.getValue();
+  });
+  return map;
+}
+
+function getRosterTemplateDataSheet_(ss) {
+  return ss.getSheetByName('_DATA_ROSTER') || ss.getSheetByName('_DATA');
+}
+
+function ensureRosterTemplateDataSheet_(ss) {
+  var sheet = getRosterTemplateDataSheet_(ss);
+  if (sheet) return sheet;
+  return ss.insertSheet('_DATA_ROSTER');
+}
+
+function applyRosterSheetVisibility_(ss, targetSheets) {
+  var allowed = {};
+  targetSheets.forEach(function(sheet) {
+    allowed[sheet.getName()] = true;
+    if (sheet.isSheetHidden()) sheet.showSheet();
+  });
+
+  ss.getSheets().forEach(function(sheet) {
+    var name = sheet.getName();
+    if (isTemplateInternalSheet_(name)) {
+      if (!sheet.isSheetHidden()) sheet.hideSheet();
+      return;
+    }
+    if (!allowed[name] && !sheet.isSheetHidden()) {
+      sheet.hideSheet();
+    }
+  });
+
+  return targetSheets;
+}
+
+function selectRosterDisplaySheets_(ss, prefix) {
+  var targetSheets = ss.getSheets().filter(function(sheet) {
+    return sheet.getName().indexOf(prefix) === 0;
+  });
+  if (!targetSheets.length) {
+    throw new Error(
+      'テンプレートSSに ' + prefix + ' で始まる表示シートがありません。例: ' +
+      prefix + '01_会員基本'
+    );
+  }
+
+  targetSheets.forEach(function(sheet) {
+    if (sheet.isSheetHidden()) sheet.showSheet();
+  });
+
+  ss.getSheets().forEach(function(sheet) {
+    var name = sheet.getName();
+    if (name === '_DATA' || name === '_GUIDE') {
+      if (!sheet.isSheetHidden()) sheet.hideSheet();
+      return;
+    }
+    if (name.indexOf(prefix) !== 0 && !sheet.isSheetHidden()) {
+      sheet.hideSheet();
+    }
+  });
+
+  return targetSheets;
+}
+
+/**
+ * 名簿テンプレートのサンプルスプレッドシートを作成する。
+ * - 実運用に流用できるよう、_DATA のサンプルデータと表示シートの参照数式をあらかじめ設定する。
+ * - 作成後に返す spreadsheetId を T_システム設定.ROSTER_TEMPLATE_SS_ID に登録すれば、
+ *   そのまま名簿出力テンプレートとして利用できる。
+ */
+function createRosterTemplateExample() {
+  var MEMBER_HEADERS = [
+    '会員番号', '会員種別', '姓', '名', 'フリガナ姓', 'フリガナ名',
+    '勤務先名', '事業所番号', '勤務先郵便番号', '勤務先都道府県', '勤務先市区町村', '勤務先住所',
+    '勤務先電話', '勤務先FAX', '自宅郵便番号', '自宅都道府県', '自宅市区町村', '自宅住所',
+    'メールアドレス', '入会日', '年会費状態', '年会費年度', '介護支援専門員番号'
+  ];
+  var STAFF_HEADERS = [
+    '職員番号', '職員権限', '姓', '名', 'フリガナ姓', 'フリガナ名',
+    'メールアドレス', '入会日', '職員状態'
+  ];
+  var REMINDER_HEADERS = [
+    '会員番号', '会員種別', '宛名', '敬称', '氏名', '事業所名',
+    '郵便番号', '都道府県', '市区町村', '住所', '年度', '請求金額',
+    '年会費状態', '発行日', '支払期限', '銀行名', '支店名', '口座種別',
+    '口座番号', '口座名義', '案内文', '備考'
+  ];
+
+  var ss = SpreadsheetApp.create('帳票テンプレート例_名簿_督促_v196_2026-04-11');
+  var personalRosterSheet = ss.getSheets()[0];
+  personalRosterSheet.setName('P_01_会員基本');
+  var businessRosterSheet = ss.insertSheet('B_01_会員基本');
+  var businessStaffSheet = ss.insertSheet('B_02_事業所職員');
+  var personalReminderSheet = ss.insertSheet('R_P_01_催促状');
+  var businessReminderSheet = ss.insertSheet('R_B_01_催促状');
+  var businessReminderGuideSheet = ss.insertSheet('R_B_02_振込案内');
+  var rosterDataSheet = ss.insertSheet('_DATA_ROSTER');
+  var reminderDataSheet = ss.insertSheet('_DATA_REMINDER');
+  var guideSheet = ss.insertSheet('_GUIDE');
+
+  setupRosterTemplateMemberSheet_(
+    personalRosterSheet,
+    '個人会員 / 賛助会員テンプレート',
+    '印刷対象。INDIVIDUAL / SUPPORT はこの P_ シート群だけが PDF 化されます。',
+    '_DATA_ROSTER'
+  );
+  setupRosterTemplateMemberSheet_(
+    businessRosterSheet,
+    '事業所会員テンプレート: 基本情報',
+    '印刷対象。BUSINESS はこの B_ シート群だけが PDF 化されます。',
+    '_DATA_ROSTER'
+  );
+  setupRosterTemplateStaffSheet_(businessStaffSheet, '_DATA_ROSTER');
+  setupReminderTemplateSheet_(
+    personalReminderSheet,
+    '個人会員 / 賛助会員 催促状',
+    '未納者向け催促状テンプレート。個人会員と賛助会員で共通利用します。',
+    '_DATA_REMINDER'
+  );
+  setupReminderTemplateSheet_(
+    businessReminderSheet,
+    '事業所会員 催促状',
+    '未納の事業所会員向け催促状テンプレートです。',
+    '_DATA_REMINDER'
+  );
+  setupReminderGuideSheet_(businessReminderGuideSheet, '_DATA_REMINDER');
+  setupRosterTemplateDataSheet_(rosterDataSheet, MEMBER_HEADERS, STAFF_HEADERS);
+  setupReminderTemplateDataSheet_(reminderDataSheet, REMINDER_HEADERS);
+  setupRosterTemplateGuideSheet_(guideSheet);
+
+  setTemplateSheetMetadata_(personalRosterSheet, 'ROSTER', 'PERSONAL_SUPPORT', '_DATA_ROSTER', 10);
+  setTemplateSheetMetadata_(businessRosterSheet, 'ROSTER', 'BUSINESS', '_DATA_ROSTER', 10);
+  setTemplateSheetMetadata_(businessStaffSheet, 'ROSTER', 'BUSINESS', '_DATA_ROSTER', 20);
+  setTemplateSheetMetadata_(personalReminderSheet, 'REMINDER', 'PERSONAL_SUPPORT', '_DATA_REMINDER', 10);
+  setTemplateSheetMetadata_(businessReminderSheet, 'REMINDER', 'BUSINESS', '_DATA_REMINDER', 10);
+  setTemplateSheetMetadata_(businessReminderGuideSheet, 'REMINDER', 'BUSINESS', '_DATA_REMINDER', 20);
+
+  rosterDataSheet.hideSheet();
+  reminderDataSheet.hideSheet();
+  guideSheet.hideSheet();
+
+  return {
+    spreadsheetId: ss.getId(),
+    spreadsheetUrl: ss.getUrl(),
+    visibleSheets: [
+      'P_01_会員基本',
+      'B_01_会員基本',
+      'B_02_事業所職員',
+      'R_P_01_催促状',
+      'R_B_01_催促状',
+      'R_B_02_振込案内'
+    ],
+    hiddenSheets: ['_DATA_ROSTER', '_DATA_REMINDER', '_GUIDE'],
+    note:
+      '名簿と催促用紙を同居させたテンプレート例です。必要に応じて ROSTER_TEMPLATE_SS_ID と REMINDER_TEMPLATE_SS_ID に同じ spreadsheetId を登録してください。',
+  };
+}
+
+function setupRosterTemplateMemberSheet_(sheet, title, description, dataSheetName) {
+  sheet.clear();
+  sheet.setColumnWidths(1, 1, 18);
+  sheet.setColumnWidths(2, 1, 34);
+  sheet.setColumnWidths(3, 1, 18);
+  sheet.setRowHeights(1, 24, 28);
+
+  sheet.getRange('A1:C1').merge();
+  sheet.getRange('A1').setValue(title || '名簿テンプレート例: 会員基本').setFontSize(16).setFontWeight('bold');
+  sheet.getRange('A2:C2').merge();
+  sheet.getRange('A2').setValue(
+    description || '印刷対象ページ1。_DATA シートの Row2 を参照して単票を組み立てます。'
+  ).setFontColor('#475569');
+
+  var labels = [
+    ['会員番号', '=IFERROR(' + dataSheetName + '!A2,"")'],
+    ['会員種別', '=IFERROR(' + dataSheetName + '!B2,"")'],
+    ['氏名', '=IFERROR(TRIM(' + dataSheetName + '!C2&" "&' + dataSheetName + '!D2),"")'],
+    ['フリガナ', '=IFERROR(TRIM(' + dataSheetName + '!E2&" "&' + dataSheetName + '!F2),"")'],
+    ['メールアドレス', '=IFERROR(' + dataSheetName + '!S2,"")'],
+    ['入会日', '=IFERROR(' + dataSheetName + '!T2,"")'],
+    ['年会費状態', '=IFERROR(' + dataSheetName + '!U2,"")'],
+    ['年会費年度', '=IFERROR(' + dataSheetName + '!V2,"")'],
+    ['介護支援専門員番号', '=IFERROR(' + dataSheetName + '!W2,"")'],
+    ['事業所名', '=IFERROR(' + dataSheetName + '!G2,"")'],
+    ['事業所番号', '=IFERROR(' + dataSheetName + '!H2,"")'],
+    ['勤務先郵便番号', '=IFERROR(' + dataSheetName + '!I2,"")'],
+    ['勤務先住所', '=IFERROR(TEXTJOIN("",TRUE,' + dataSheetName + '!J2,' + dataSheetName + '!K2,' + dataSheetName + '!L2),"")'],
+    ['勤務先電話', '=IFERROR(' + dataSheetName + '!M2,"")'],
+    ['勤務先FAX', '=IFERROR(' + dataSheetName + '!N2,"")'],
+    ['自宅郵便番号', '=IFERROR(' + dataSheetName + '!O2,"")'],
+    ['自宅住所', '=IFERROR(TEXTJOIN("",TRUE,' + dataSheetName + '!P2,' + dataSheetName + '!Q2,' + dataSheetName + '!R2),"")'],
+  ];
+
+  sheet.getRange(4, 1, labels.length, 2).setValues(labels);
+  sheet.getRange(4, 1, labels.length, 1).setFontWeight('bold').setBackground('#E2E8F0');
+  sheet.getRange(4, 2, labels.length, 1).setBackground('#F8FAFC').setWrap(true);
+  sheet.getRange(4, 1, labels.length, 2).setBorder(true, true, true, true, true, true);
+
+  sheet.getRange('A23:C24').merge();
+  sheet.getRange('A23').setValue(
+    '使い方: 実運用ではコードが ' + dataSheetName + ' を上書きします。表示シートはそのセル参照だけで構成してください。'
+  ).setWrap(true).setFontColor('#334155');
+
+  sheet.setFrozenRows(3);
+}
+
+function setupRosterTemplateStaffSheet_(sheet, dataSheetName) {
+  sheet.clear();
+  sheet.setColumnWidths(1, 9, 140);
+  sheet.setColumnWidth(7, 220);
+
+  sheet.getRange('A1:I1').merge();
+  sheet.getRange('A1').setValue('事業所会員テンプレート: 在籍職員一覧').setFontSize(16).setFontWeight('bold');
+  sheet.getRange('A2:I2').merge();
+  sheet.getRange('A2').setValue('印刷対象ページ2。BUSINESS 会員のときだけ _DATA Row5 以降に在籍職員が入ります。').setFontColor('#475569');
+
+  sheet.getRange('A4:I4').setValues([[
+    '職員番号', '職員権限', '姓', '名', 'フリガナ姓', 'フリガナ名', 'メールアドレス', '入会日', '職員状態'
+  ]]);
+  sheet.getRange('A4:I4').setFontWeight('bold').setBackground('#E2E8F0');
+  sheet.getRange('A5').setFormula('=ARRAYFORMULA(IFERROR(' + dataSheetName + '!A5:A54,""))');
+  sheet.getRange('B5').setFormula('=ARRAYFORMULA(IFERROR(' + dataSheetName + '!B5:B54,""))');
+  sheet.getRange('C5').setFormula('=ARRAYFORMULA(IFERROR(' + dataSheetName + '!C5:C54,""))');
+  sheet.getRange('D5').setFormula('=ARRAYFORMULA(IFERROR(' + dataSheetName + '!D5:D54,""))');
+  sheet.getRange('E5').setFormula('=ARRAYFORMULA(IFERROR(' + dataSheetName + '!E5:E54,""))');
+  sheet.getRange('F5').setFormula('=ARRAYFORMULA(IFERROR(' + dataSheetName + '!F5:F54,""))');
+  sheet.getRange('G5').setFormula('=ARRAYFORMULA(IFERROR(' + dataSheetName + '!G5:G54,""))');
+  sheet.getRange('H5').setFormula('=ARRAYFORMULA(IFERROR(' + dataSheetName + '!H5:H54,""))');
+  sheet.getRange('I5').setFormula('=ARRAYFORMULA(IFERROR(' + dataSheetName + '!I5:I54,""))');
+  sheet.getRange('A4:I20').setBorder(true, true, true, true, true, true);
+  sheet.getRange('A5:I20').setBackground('#F8FAFC');
+  sheet.setFrozenRows(4);
+}
+
+function setupRosterTemplateDataSheet_(sheet, memberHeaders, staffHeaders) {
+  sheet.clear();
+  sheet.setColumnWidths(1, memberHeaders.length, 140);
+
+  var sampleMemberRow = [
+    'BIZ-0001', 'BUSINESS', '野口', '健太', 'ノグチ', 'ケンタ',
+    'うぐいす居宅介護支援事業所', '2712400001', '573-0001', '大阪府', '枚方市', '中宮北町1-1',
+    '072-000-1111', '072-000-2222', '573-0022', '大阪府', '枚方市', '禁野本町1-1-1',
+    'k.noguchi@example.com', '2024-04-01', 'PAID', '2026', '27123456'
+  ];
+  var sampleStaffRows = [
+    ['STF-001', 'REPRESENTATIVE', '野口', '健太', 'ノグチ', 'ケンタ', 'k.noguchi@example.com', '2024-04-01', 'ENROLLED'],
+    ['STF-002', 'ADMIN', '山田', '花子', 'ヤマダ', 'ハナコ', 'hanako.yamada@example.com', '2024-04-10', 'ENROLLED'],
+    ['STF-003', 'STAFF', '田中', '一郎', 'タナカ', 'イチロウ', 'ichiro.tanaka@example.com', '2024-05-01', 'ENROLLED']
+  ];
+
+  sheet.getRange(1, 1, 1, memberHeaders.length).setValues([memberHeaders]).setFontWeight('bold').setBackground('#DBEAFE');
+  sheet.getRange(2, 1, 1, sampleMemberRow.length).setValues([sampleMemberRow]);
+  sheet.getRange(4, 1, 1, staffHeaders.length).setValues([staffHeaders]).setFontWeight('bold').setBackground('#FDE68A');
+  sheet.getRange(5, 1, sampleStaffRows.length, staffHeaders.length).setValues(sampleStaffRows);
+  sheet.getRange('A1:W8').setBorder(true, true, true, true, true, true);
+}
+
+function setupReminderTemplateDataSheet_(sheet, reminderHeaders) {
+  sheet.clear();
+  sheet.setColumnWidths(1, reminderHeaders.length, 150);
+  var sampleReminderRow = [[
+    'IND-0001', 'INDIVIDUAL', '野口 健太 様', '様', '野口 健太', '',
+    '573-0022', '大阪府', '枚方市', '禁野本町1-1-1', '2026', 3000,
+    'UNPAID', '2026-04-11', '2026-05-31', '三井住友銀行', '枚方支店', '普通',
+    '1234567', 'ヒラカタシカイゴシエンセンモンインレンラクキョウギカイ', '年会費が未納となっております。ご確認のうえお手続きをお願いいたします。', ''
+  ]];
+  sheet.getRange(1, 1, 1, reminderHeaders.length).setValues([reminderHeaders]).setFontWeight('bold').setBackground('#FECACA');
+  sheet.getRange(2, 1, 1, reminderHeaders.length).setValues(sampleReminderRow);
+  sheet.getRange(1, 1, 2, reminderHeaders.length).setBorder(true, true, true, true, true, true);
+}
+
+function setupReminderTemplateSheet_(sheet, title, description, dataSheetName) {
+  sheet.clear();
+  sheet.setColumnWidths(1, 1, 22);
+  sheet.setColumnWidths(2, 1, 42);
+  sheet.setColumnWidths(3, 1, 24);
+
+  sheet.getRange('A1:C1').merge();
+  sheet.getRange('A1').setValue(title).setFontSize(16).setFontWeight('bold');
+  sheet.getRange('A2:C2').merge();
+  sheet.getRange('A2').setValue(description).setFontColor('#475569');
+
+  var labels = [
+    ['宛名', '=IFERROR(' + dataSheetName + '!C2,"")'],
+    ['年度', '=IFERROR(' + dataSheetName + '!K2,"")'],
+    ['請求金額', '=IFERROR(' + dataSheetName + '!L2,"")'],
+    ['年会費状態', '=IFERROR(' + dataSheetName + '!M2,"")'],
+    ['発行日', '=IFERROR(' + dataSheetName + '!N2,"")'],
+    ['支払期限', '=IFERROR(' + dataSheetName + '!O2,"")'],
+    ['郵便番号', '=IFERROR(' + dataSheetName + '!G2,"")'],
+    ['住所', '=IFERROR(TEXTJOIN("",TRUE,' + dataSheetName + '!H2,' + dataSheetName + '!I2,' + dataSheetName + '!J2),"")'],
+    ['案内文', '=IFERROR(' + dataSheetName + '!U2,"")']
+  ];
+  sheet.getRange(4, 1, labels.length, 2).setValues(labels);
+  sheet.getRange(4, 1, labels.length, 1).setFontWeight('bold').setBackground('#FEE2E2');
+  sheet.getRange(4, 2, labels.length, 1).setBackground('#FFF7ED').setWrap(true);
+  sheet.getRange(4, 1, labels.length, 2).setBorder(true, true, true, true, true, true);
+}
+
+function setupReminderGuideSheet_(sheet, dataSheetName) {
+  sheet.clear();
+  sheet.setColumnWidths(1, 2, 320);
+  sheet.getRange('A1:B1').merge();
+  sheet.getRange('A1').setValue('事業所向け振込案内テンプレート').setFontSize(16).setFontWeight('bold');
+  sheet.getRange('A3:B3').setValues([['項目', '参照式例']]).setFontWeight('bold').setBackground('#E2E8F0');
+  sheet.getRange(4, 1, 6, 2).setValues([
+    ['銀行名', '=IFERROR(' + dataSheetName + '!P2,"")'],
+    ['支店名', '=IFERROR(' + dataSheetName + '!Q2,"")'],
+    ['口座種別', '=IFERROR(' + dataSheetName + '!R2,"")'],
+    ['口座番号', '=IFERROR(' + dataSheetName + '!S2,"")'],
+    ['口座名義', '=IFERROR(' + dataSheetName + '!T2,"")'],
+    ['備考', '=IFERROR(' + dataSheetName + '!V2,"")']
+  ]);
+  sheet.getRange('A3:B9').setBorder(true, true, true, true, true, true);
+  sheet.getRange('A4:B9').setWrap(true);
+}
+
+function setupRosterTemplateGuideSheet_(sheet) {
+  sheet.clear();
+  sheet.setColumnWidths(1, 2, 340);
+  sheet.getRange('A1:B1').merge();
+  sheet.getRange('A1').setValue('名簿テンプレートガイド').setFontSize(16).setFontWeight('bold');
+  sheet.getRange('A3:B3').setValues([['項目', '内容']]).setFontWeight('bold').setBackground('#E2E8F0');
+  sheet.getRange(4, 1, 12, 2).setValues([
+    ['推奨表示シート', 'P_01_会員基本 / B_01_会員基本 / B_02_事業所職員 / R_P_01_催促状 / R_B_01_催促状 / R_B_02_振込案内'],
+    ['名簿テンプレート切替', 'INDIVIDUAL / SUPPORT は P_ で始まるシート、BUSINESS は B_ で始まるシートを出力'],
+    ['催促テンプレート切替', 'INDIVIDUAL / SUPPORT は R_P_ で始まるシート、BUSINESS は R_B_ で始まるシートを出力'],
+    ['隠しシート', '_DATA_ROSTER / _DATA_REMINDER / _GUIDE'],
+    ['名簿データ配置', '_DATA_ROSTER Row1=ヘッダ / Row2=値 / Row4=職員ヘッダ / Row5以降=職員'],
+    ['催促データ配置', '_DATA_REMINDER Row1=ヘッダ / Row2=値'],
+    ['会員基本の参照方法', '例: =IFERROR(_DATA_ROSTER!A2,"")'],
+    ['職員一覧の参照方法', '例: =ARRAYFORMULA(IFERROR(_DATA_ROSTER!A5:A54,""))'],
+    ['催促状の参照方法', '例: =IFERROR(_DATA_REMINDER!C2,"")'],
+    ['metadata 付与', 'サンプル作成時に FAMILY / TARGET / DATA_SHEET / ORDER を自動設定'],
+    ['運用手順', '完成後に spreadsheetId を ROSTER_TEMPLATE_SS_ID / REMINDER_TEMPLATE_SS_ID に登録'],
+    ['注意', '表示シートは対応するデータシートの値だけを参照し、手入力値は置かない']
+  ]);
+  sheet.getRange('A3:B15').setBorder(true, true, true, true, true, true);
+  sheet.getRange('A4:B15').setWrap(true);
+}
+
+function setTemplateSheetMetadata_(sheet, family, target, dataSheetName, order) {
+  sheet.addDeveloperMetadata('HKC_TEMPLATE_FAMILY', family);
+  sheet.addDeveloperMetadata('HKC_TEMPLATE_TARGET', target);
+  sheet.addDeveloperMetadata('HKC_TEMPLATE_DATA_SHEET', dataSheetName);
+  sheet.addDeveloperMetadata('HKC_TEMPLATE_ORDER', String(order));
+}
+
+// 2026-04-11: metadata 優先・prefix 後方互換のテンプレート解決と、
+// 名簿/催促状同居テンプレート例を後方互換を壊さず上書き定義する。
+function selectRosterDisplaySheets_(ss, memberType) {
+  var target = resolveRosterTemplateTarget_(memberType);
+  var metadataSheets = ss.getSheets()
+    .map(function(sheet) {
+      return {
+        sheet: sheet,
+        meta: getTemplateSheetMetadataMap_(sheet),
+      };
+    })
+    .filter(function(item) {
+      return item.meta.HKC_TEMPLATE_FAMILY === 'ROSTER' &&
+        item.meta.HKC_TEMPLATE_TARGET === target;
+    })
+    .sort(function(a, b) {
+      var orderA = Number(a.meta.HKC_TEMPLATE_ORDER || 0);
+      var orderB = Number(b.meta.HKC_TEMPLATE_ORDER || 0);
+      if (orderA !== orderB) return orderA - orderB;
+      if (a.sheet.getName() === b.sheet.getName()) return 0;
+      return a.sheet.getName() < b.sheet.getName() ? -1 : 1;
+    })
+    .map(function(item) { return item.sheet; });
+
+  if (metadataSheets.length) {
+    return applyRosterSheetVisibility_(ss, metadataSheets);
+  }
+
+  var prefix = resolveRosterTemplatePrefix_(memberType);
+  var prefixSheets = ss.getSheets().filter(function(sheet) {
+    return sheet.getName().indexOf(prefix) === 0;
+  });
+  if (!prefixSheets.length) {
+    throw new Error(
+      'テンプレートSSに対象シートがありません。memberType=' + memberType +
+      ' / target=' + target + ' / prefix=' + prefix
+    );
+  }
+  return applyRosterSheetVisibility_(ss, prefixSheets);
+}
+
+function createRosterTemplateExample() {
+  var MEMBER_HEADERS = [
+    '会員番号', '会員種別', '姓', '名', 'フリガナ姓', 'フリガナ名',
+    '事業所名', '事業所番号', '事業所郵便番号', '事業所都道府県', '事業所市区町村', '事業所住所',
+    '事業所電話', '事業所FAX', '自宅郵便番号', '自宅都道府県', '自宅市区町村', '自宅住所',
+    'メールアドレス', '入会日', '年会費状態', '年会費年度', '介護支援専門員番号'
+  ];
+  var STAFF_HEADERS = [
+    '職員番号', '職員権限', '姓', '名', 'フリガナ姓', 'フリガナ名',
+    'メールアドレス', '入会日', '職員状態'
+  ];
+  var REMINDER_HEADERS = [
+    '会員番号', '会員種別', '宛名', '敬称', '氏名', '事業所名',
+    '郵便番号', '都道府県', '市区町村', '住所', '年度', '請求金額',
+    '年会費状態', '発行日', '支払期限', '銀行名', '支店名', '口座種別',
+    '口座番号', '口座名義', '案内文', '備考'
+  ];
+
+  var ss = SpreadsheetApp.create('帳票テンプレート例_名簿_督促_v196_2026-04-11');
+  var personalRosterSheet = ss.getSheets()[0];
+  personalRosterSheet.setName('P_01_会員基本');
+  var businessRosterSheet = ss.insertSheet('B_01_会員基本');
+  var businessStaffSheet = ss.insertSheet('B_02_事業所職員');
+  var personalReminderSheet = ss.insertSheet('R_P_01_催促状');
+  var businessReminderSheet = ss.insertSheet('R_B_01_催促状');
+  var businessReminderGuideSheet = ss.insertSheet('R_B_02_振込案内');
+  var rosterDataSheet = ss.insertSheet('_DATA_ROSTER');
+  var reminderDataSheet = ss.insertSheet('_DATA_REMINDER');
+  var guideSheet = ss.insertSheet('_GUIDE');
+
+  setupRosterTemplateMemberSheet_(personalRosterSheet, '個人会員 / 賛助会員テンプレート', 'INDIVIDUAL / SUPPORT の会員に使う名簿テンプレートです。', '_DATA_ROSTER');
+  setupRosterTemplateMemberSheet_(businessRosterSheet, '事業所会員テンプレート', 'BUSINESS の会員に使う基本情報テンプレートです。', '_DATA_ROSTER');
+  setupRosterTemplateStaffSheet_(businessStaffSheet, '_DATA_ROSTER');
+  setupReminderTemplateSheet_(personalReminderSheet, '個人会員 / 賛助会員 催促状', '未納者向けの催促状です。個人会員と賛助会員で共用します。', '_DATA_REMINDER');
+  setupReminderTemplateSheet_(businessReminderSheet, '事業所会員 催促状', '未納の事業所会員向け催促状です。', '_DATA_REMINDER');
+  setupReminderGuideSheet_(businessReminderGuideSheet, '_DATA_REMINDER');
+  setupRosterTemplateDataSheet_(rosterDataSheet, MEMBER_HEADERS, STAFF_HEADERS);
+  setupReminderTemplateDataSheet_(reminderDataSheet, REMINDER_HEADERS);
+  setupRosterTemplateGuideSheet_(guideSheet);
+
+  setTemplateSheetMetadata_(personalRosterSheet, 'ROSTER', 'PERSONAL_SUPPORT', '_DATA_ROSTER', 10);
+  setTemplateSheetMetadata_(businessRosterSheet, 'ROSTER', 'BUSINESS', '_DATA_ROSTER', 10);
+  setTemplateSheetMetadata_(businessStaffSheet, 'ROSTER', 'BUSINESS', '_DATA_ROSTER', 20);
+  setTemplateSheetMetadata_(personalReminderSheet, 'REMINDER', 'PERSONAL_SUPPORT', '_DATA_REMINDER', 10);
+  setTemplateSheetMetadata_(businessReminderSheet, 'REMINDER', 'BUSINESS', '_DATA_REMINDER', 10);
+  setTemplateSheetMetadata_(businessReminderGuideSheet, 'REMINDER', 'BUSINESS', '_DATA_REMINDER', 20);
+
+  rosterDataSheet.hideSheet();
+  reminderDataSheet.hideSheet();
+  guideSheet.hideSheet();
+
+  return {
+    spreadsheetId: ss.getId(),
+    spreadsheetUrl: ss.getUrl(),
+    visibleSheets: [
+      'P_01_会員基本',
+      'B_01_会員基本',
+      'B_02_事業所職員',
+      'R_P_01_催促状',
+      'R_B_01_催促状',
+      'R_B_02_振込案内'
+    ],
+    hiddenSheets: ['_DATA_ROSTER', '_DATA_REMINDER', '_GUIDE'],
+    note: '名簿と催促状を同居させたテンプレート例です。必要に応じて ROSTER_TEMPLATE_SS_ID と REMINDER_TEMPLATE_SS_ID に同じ spreadsheetId を登録してください。',
+  };
+}
+
+function setupRosterTemplateMemberSheet_(sheet, title, description, dataSheetName) {
+  sheet.clear();
+  sheet.setColumnWidths(1, 1, 22);
+  sheet.setColumnWidths(2, 1, 42);
+  sheet.setColumnWidths(3, 1, 22);
+  sheet.setRowHeights(1, 24, 28);
+
+  sheet.getRange('A1:C1').merge();
+  sheet.getRange('A1').setValue(title || '名簿テンプレート').setFontSize(16).setFontWeight('bold');
+  sheet.getRange('A2:C2').merge();
+  sheet.getRange('A2').setValue(description || ('表示シートは ' + dataSheetName + ' の Row2 を数式参照してください。')).setFontColor('#475569');
+
+  var labels = [
+    ['会員番号', '=IFERROR(' + dataSheetName + '!A2,"")'],
+    ['会員種別', '=IFERROR(' + dataSheetName + '!B2,"")'],
+    ['氏名', '=IFERROR(TRIM(' + dataSheetName + '!C2&" "&' + dataSheetName + '!D2),"")'],
+    ['フリガナ', '=IFERROR(TRIM(' + dataSheetName + '!E2&" "&' + dataSheetName + '!F2),"")'],
+    ['メールアドレス', '=IFERROR(' + dataSheetName + '!S2,"")'],
+    ['入会日', '=IFERROR(' + dataSheetName + '!T2,"")'],
+    ['年会費状態', '=IFERROR(' + dataSheetName + '!U2,"")'],
+    ['年会費年度', '=IFERROR(' + dataSheetName + '!V2,"")'],
+    ['介護支援専門員番号', '=IFERROR(' + dataSheetName + '!W2,"")'],
+    ['事業所名', '=IFERROR(' + dataSheetName + '!G2,"")'],
+    ['事業所番号', '=IFERROR(' + dataSheetName + '!H2,"")'],
+    ['事業所郵便番号', '=IFERROR(' + dataSheetName + '!I2,"")'],
+    ['事業所住所', '=IFERROR(TEXTJOIN("",TRUE,' + dataSheetName + '!J2,' + dataSheetName + '!K2,' + dataSheetName + '!L2),"")'],
+    ['事業所電話', '=IFERROR(' + dataSheetName + '!M2,"")'],
+    ['事業所FAX', '=IFERROR(' + dataSheetName + '!N2,"")'],
+    ['自宅郵便番号', '=IFERROR(' + dataSheetName + '!O2,"")'],
+    ['自宅住所', '=IFERROR(TEXTJOIN("",TRUE,' + dataSheetName + '!P2,' + dataSheetName + '!Q2,' + dataSheetName + '!R2),"")']
+  ];
+
+  sheet.getRange(4, 1, labels.length, 2).setValues(labels);
+  sheet.getRange(4, 1, labels.length, 1).setFontWeight('bold').setBackground('#E2E8F0');
+  sheet.getRange(4, 2, labels.length, 1).setBackground('#F8FAFC').setWrap(true);
+  sheet.getRange(4, 1, labels.length, 2).setBorder(true, true, true, true, true, true);
+  sheet.getRange('A23:C24').merge();
+  sheet.getRange('A23').setValue('表示シートには手入力せず、' + dataSheetName + ' を参照する数式だけを置いてください。').setWrap(true).setFontColor('#334155');
+  sheet.setFrozenRows(3);
+}
+
+function setupRosterTemplateStaffSheet_(sheet, dataSheetName) {
+  sheet.clear();
+  sheet.setColumnWidths(1, 9, 140);
+  sheet.setColumnWidth(7, 220);
+  sheet.getRange('A1:I1').merge();
+  sheet.getRange('A1').setValue('事業所会員テンプレート 在籍職員一覧').setFontSize(16).setFontWeight('bold');
+  sheet.getRange('A2:I2').merge();
+  sheet.getRange('A2').setValue('BUSINESS 会員のみ、' + dataSheetName + ' の Row5 以降に職員一覧が入ります。').setFontColor('#475569');
+  sheet.getRange('A4:I4').setValues([[
+    '職員番号', '職員権限', '姓', '名', 'フリガナ姓', 'フリガナ名', 'メールアドレス', '入会日', '職員状態'
+  ]]);
+  sheet.getRange('A4:I4').setFontWeight('bold').setBackground('#E2E8F0');
+  sheet.getRange('A5').setFormula('=ARRAYFORMULA(IFERROR(' + dataSheetName + '!A5:A54,""))');
+  sheet.getRange('B5').setFormula('=ARRAYFORMULA(IFERROR(' + dataSheetName + '!B5:B54,""))');
+  sheet.getRange('C5').setFormula('=ARRAYFORMULA(IFERROR(' + dataSheetName + '!C5:C54,""))');
+  sheet.getRange('D5').setFormula('=ARRAYFORMULA(IFERROR(' + dataSheetName + '!D5:D54,""))');
+  sheet.getRange('E5').setFormula('=ARRAYFORMULA(IFERROR(' + dataSheetName + '!E5:E54,""))');
+  sheet.getRange('F5').setFormula('=ARRAYFORMULA(IFERROR(' + dataSheetName + '!F5:F54,""))');
+  sheet.getRange('G5').setFormula('=ARRAYFORMULA(IFERROR(' + dataSheetName + '!G5:G54,""))');
+  sheet.getRange('H5').setFormula('=ARRAYFORMULA(IFERROR(' + dataSheetName + '!H5:H54,""))');
+  sheet.getRange('I5').setFormula('=ARRAYFORMULA(IFERROR(' + dataSheetName + '!I5:I54,""))');
+  sheet.getRange('A4:I20').setBorder(true, true, true, true, true, true);
+  sheet.getRange('A5:I20').setBackground('#F8FAFC');
+  sheet.setFrozenRows(4);
+}
+
+function setupRosterTemplateDataSheet_(sheet, memberHeaders, staffHeaders) {
+  sheet.clear();
+  sheet.setColumnWidths(1, memberHeaders.length, 140);
+
+  var sampleMemberRow = [
+    'BIZ-0001', 'BUSINESS', '野口', '健太', 'ノグチ', 'ケンタ',
+    'うぐいす介護支援事業所', '2712400001', '573-0001', '大阪府', '枚方市', '中宮北町1-1',
+    '072-000-1111', '072-000-2222', '573-0022', '大阪府', '寝屋川市', '池田本町1-1-1',
+    'k.noguchi@example.com', '2024-04-01', 'PAID', '2026', '27123456'
+  ];
+  var sampleStaffRows = [
+    ['STF-001', 'REPRESENTATIVE', '野口', '健太', 'ノグチ', 'ケンタ', 'k.noguchi@example.com', '2024-04-01', 'ENROLLED'],
+    ['STF-002', 'ADMIN', '山田', '花子', 'ヤマダ', 'ハナコ', 'hanako.yamada@example.com', '2024-04-10', 'ENROLLED'],
+    ['STF-003', 'STAFF', '田中', '一郎', 'タナカ', 'イチロウ', 'ichiro.tanaka@example.com', '2024-05-01', 'ENROLLED']
+  ];
+
+  sheet.getRange(1, 1, 1, memberHeaders.length).setValues([memberHeaders]).setFontWeight('bold').setBackground('#DBEAFE');
+  sheet.getRange(2, 1, 1, sampleMemberRow.length).setValues([sampleMemberRow]);
+  sheet.getRange(4, 1, 1, staffHeaders.length).setValues([staffHeaders]).setFontWeight('bold').setBackground('#FDE68A');
+  sheet.getRange(5, 1, sampleStaffRows.length, staffHeaders.length).setValues(sampleStaffRows);
+  sheet.getRange(1, 1, 8, memberHeaders.length).setBorder(true, true, true, true, true, true);
+}
+
+function setupReminderTemplateDataSheet_(sheet, reminderHeaders) {
+  sheet.clear();
+  sheet.setColumnWidths(1, reminderHeaders.length, 150);
+  var sampleReminderRow = [[
+    'IND-0001', 'INDIVIDUAL', '野口 健太 様', '様', '野口 健太', '',
+    '573-0022', '大阪府', '寝屋川市', '池田本町1-1-1', '2026', 3000,
+    'UNPAID', '2026-04-11', '2026-05-31', '枚方信用金庫', '本店', '普通',
+    '1234567', 'ヒラカタカイゴシエンセンモンインレンラクキョウ',
+    '年会費が未納となっております。ご案内の口座へお振り込みください。', ''
+  ]];
+  sheet.getRange(1, 1, 1, reminderHeaders.length).setValues([reminderHeaders]).setFontWeight('bold').setBackground('#FECACA');
+  sheet.getRange(2, 1, 1, reminderHeaders.length).setValues(sampleReminderRow);
+  sheet.getRange(1, 1, 2, reminderHeaders.length).setBorder(true, true, true, true, true, true);
+}
+
+function setupReminderTemplateSheet_(sheet, title, description, dataSheetName) {
+  sheet.clear();
+  sheet.setColumnWidths(1, 1, 22);
+  sheet.setColumnWidths(2, 1, 42);
+  sheet.setColumnWidths(3, 1, 24);
+  sheet.getRange('A1:C1').merge();
+  sheet.getRange('A1').setValue(title).setFontSize(16).setFontWeight('bold');
+  sheet.getRange('A2:C2').merge();
+  sheet.getRange('A2').setValue(description).setFontColor('#475569');
+
+  var labels = [
+    ['宛名', '=IFERROR(' + dataSheetName + '!C2,"")'],
+    ['年度', '=IFERROR(' + dataSheetName + '!K2,"")'],
+    ['請求金額', '=IFERROR(' + dataSheetName + '!L2,"")'],
+    ['年会費状態', '=IFERROR(' + dataSheetName + '!M2,"")'],
+    ['発行日', '=IFERROR(' + dataSheetName + '!N2,"")'],
+    ['支払期限', '=IFERROR(' + dataSheetName + '!O2,"")'],
+    ['郵便番号', '=IFERROR(' + dataSheetName + '!G2,"")'],
+    ['住所', '=IFERROR(TEXTJOIN("",TRUE,' + dataSheetName + '!H2,' + dataSheetName + '!I2,' + dataSheetName + '!J2),"")'],
+    ['案内文', '=IFERROR(' + dataSheetName + '!U2,"")']
+  ];
+
+  sheet.getRange(4, 1, labels.length, 2).setValues(labels);
+  sheet.getRange(4, 1, labels.length, 1).setFontWeight('bold').setBackground('#FEE2E2');
+  sheet.getRange(4, 2, labels.length, 1).setBackground('#FFF7ED').setWrap(true);
+  sheet.getRange(4, 1, labels.length, 2).setBorder(true, true, true, true, true, true);
+}
+
+function setupReminderGuideSheet_(sheet, dataSheetName) {
+  sheet.clear();
+  sheet.setColumnWidths(1, 2, 320);
+  sheet.getRange('A1:B1').merge();
+  sheet.getRange('A1').setValue('事業所向け振込案内テンプレート').setFontSize(16).setFontWeight('bold');
+  sheet.getRange('A3:B3').setValues([['項目', '参照式']]).setFontWeight('bold').setBackground('#E2E8F0');
+  sheet.getRange(4, 1, 6, 2).setValues([
+    ['銀行名', '=IFERROR(' + dataSheetName + '!P2,"")'],
+    ['支店名', '=IFERROR(' + dataSheetName + '!Q2,"")'],
+    ['口座種別', '=IFERROR(' + dataSheetName + '!R2,"")'],
+    ['口座番号', '=IFERROR(' + dataSheetName + '!S2,"")'],
+    ['口座名義', '=IFERROR(' + dataSheetName + '!T2,"")'],
+    ['備考', '=IFERROR(' + dataSheetName + '!V2,"")']
+  ]);
+  sheet.getRange('A3:B9').setBorder(true, true, true, true, true, true);
+  sheet.getRange('A4:B9').setWrap(true);
+}
+
+function setupRosterTemplateGuideSheet_(sheet) {
+  sheet.clear();
+  sheet.setColumnWidths(1, 2, 340);
+  sheet.getRange('A1:B1').merge();
+  sheet.getRange('A1').setValue('帳票テンプレートガイド').setFontSize(16).setFontWeight('bold');
+  sheet.getRange('A3:B3').setValues([['項目', '内容']]).setFontWeight('bold').setBackground('#E2E8F0');
+  sheet.getRange(4, 1, 12, 2).setValues([
+    ['表示シート', 'P_01_会員基本 / B_01_会員基本 / B_02_事業所職員 / R_P_01_催促状 / R_B_01_催促状 / R_B_02_振込案内'],
+    ['名簿テンプレート選択', 'metadata: FAMILY=ROSTER, TARGET=PERSONAL_SUPPORT or BUSINESS。metadata が無い既存帳票は P_ / B_ prefix で後方互換。'],
+    ['催促テンプレート選択', '催促状実装時は FAMILY=REMINDER, TARGET=PERSONAL_SUPPORT or BUSINESS を使う前提。'],
+    ['隠しシート', '_DATA_ROSTER / _DATA_REMINDER / _GUIDE'],
+    ['名簿データ配置', '_DATA_ROSTER Row1=ヘッダ / Row2=値 / Row4=職員ヘッダ / Row5以降=職員'],
+    ['催促データ配置', '_DATA_REMINDER Row1=ヘッダ / Row2=値'],
+    ['会員基本の参照方法', '例: =IFERROR(_DATA_ROSTER!A2,"")'],
+    ['職員一覧の参照方法', '例: =ARRAYFORMULA(IFERROR(_DATA_ROSTER!A5:A54,""))'],
+    ['催促状の参照方法', '例: =IFERROR(_DATA_REMINDER!C2,"")'],
+    ['metadata キー', 'HKC_TEMPLATE_FAMILY / HKC_TEMPLATE_TARGET / HKC_TEMPLATE_DATA_SHEET / HKC_TEMPLATE_ORDER'],
+    ['設定反映', '完成後に spreadsheetId を ROSTER_TEMPLATE_SS_ID / REMINDER_TEMPLATE_SS_ID に登録'],
+    ['注意', '表示シートには手入力しない。帳票実行時に hidden data sheet のサンプル値は上書きされる。']
+  ]);
+  sheet.getRange('A3:B15').setBorder(true, true, true, true, true, true);
+  sheet.getRange('A4:B15').setWrap(true);
+}
+
+function selectRosterDisplaySheetsV2_(ss, memberType) {
+  var target = String(memberType || '') === 'BUSINESS' ? 'BUSINESS' : 'PERSONAL_SUPPORT';
+  var metadataSheets = ss.getSheets()
+    .map(function(sheet) {
+      var meta = getTemplateSheetMetadataMap_(sheet);
+      return { sheet: sheet, meta: meta };
+    })
+    .filter(function(item) {
+      return item.meta.HKC_TEMPLATE_FAMILY === 'ROSTER' &&
+        item.meta.HKC_TEMPLATE_TARGET === target;
+    })
+    .sort(function(a, b) {
+      return Number(a.meta.HKC_TEMPLATE_ORDER || 0) - Number(b.meta.HKC_TEMPLATE_ORDER || 0);
+    })
+    .map(function(item) { return item.sheet; });
+
+  if (metadataSheets.length) {
+    return applyRosterSheetVisibility_(ss, metadataSheets);
+  }
+
+  var prefix = String(memberType || '') === 'BUSINESS' ? 'B_' : 'P_';
+  var prefixSheets = ss.getSheets().filter(function(sheet) {
+    return sheet.getName().indexOf(prefix) === 0;
+  });
+  if (!prefixSheets.length) {
+    throw new Error('名簿テンプレートの対象シートが見つかりません。memberType=' + memberType);
+  }
+  return applyRosterSheetVisibility_(ss, prefixSheets);
+}
+
+function createRosterReminderTemplateExample() {
+  var ss = SpreadsheetApp.create('帳票テンプレート例_名簿_督促_v196_2026-04-11');
+  var pSheet = ss.getSheets()[0];
+  pSheet.setName('P_01_会員基本');
+  var bSheet = ss.insertSheet('B_01_会員基本');
+  var staffSheet = ss.insertSheet('B_02_事業所職員');
+  var rpSheet = ss.insertSheet('R_P_01_催促状');
+  var rbSheet = ss.insertSheet('R_B_01_催促状');
+  var bankSheet = ss.insertSheet('R_B_02_振込案内');
+  var rosterData = ss.insertSheet('_DATA_ROSTER');
+  var reminderData = ss.insertSheet('_DATA_REMINDER');
+  var guide = ss.insertSheet('_GUIDE');
+
+  var memberHeaders = [[
+    '会員番号', '会員種別', '姓', '名', 'フリガナ姓', 'フリガナ名',
+    '事業所名', '事業所番号', '事業所郵便番号', '事業所都道府県', '事業所市区町村', '事業所住所',
+    '事業所電話', '事業所FAX', '自宅郵便番号', '自宅都道府県', '自宅市区町村', '自宅住所',
+    'メールアドレス', '入会日', '年会費状態', '年会費年度', '介護支援専門員番号'
+  ]];
+  var memberRow = [[
+    'BIZ-0001', 'BUSINESS', '野口', '健太', 'ノグチ', 'ケンタ',
+    'うぐいす介護支援事業所', '2712400001', '573-0001', '大阪府', '枚方市', '中宮北町1-1',
+    '072-000-1111', '072-000-2222', '573-0022', '大阪府', '寝屋川市', '池田本町1-1-1',
+    'k.noguchi@example.com', '2024-04-01', 'PAID', '2026', '27123456'
+  ]];
+  var staffHeaders = [['職員番号', '職員権限', '姓', '名', 'フリガナ姓', 'フリガナ名', 'メールアドレス', '入会日', '職員状態']];
+  var staffRows = [
+    ['STF-001', 'REPRESENTATIVE', '野口', '健太', 'ノグチ', 'ケンタ', 'k.noguchi@example.com', '2024-04-01', 'ENROLLED'],
+    ['STF-002', 'ADMIN', '山田', '花子', 'ヤマダ', 'ハナコ', 'hanako.yamada@example.com', '2024-04-10', 'ENROLLED'],
+    ['STF-003', 'STAFF', '田中', '一郎', 'タナカ', 'イチロウ', 'ichiro.tanaka@example.com', '2024-05-01', 'ENROLLED']
+  ];
+  var reminderHeaders = [[
+    '会員番号', '会員種別', '宛名', '敬称', '氏名', '事業所名', '郵便番号', '都道府県', '市区町村',
+    '住所', '年度', '請求金額', '年会費状態', '発行日', '支払期限', '銀行名', '支店名', '口座種別', '口座番号', '口座名義', '案内文', '備考'
+  ]];
+  var reminderRow = [[
+    'IND-0001', 'INDIVIDUAL', '野口 健太 様', '様', '野口 健太', '', '573-0022', '大阪府', '寝屋川市',
+    '池田本町1-1-1', '2026', 3000, 'UNPAID', '2026-04-11', '2026-05-31', '枚方信用金庫', '本店', '普通', '1234567',
+    'ヒラカタカイゴシエンセンモンインレンラクキョウ', '年会費が未納となっております。ご案内の口座へお振り込みください。', ''
+  ]];
+
+  rosterData.getRange(1, 1, 1, memberHeaders[0].length).setValues(memberHeaders);
+  rosterData.getRange(2, 1, 1, memberRow[0].length).setValues(memberRow);
+  rosterData.getRange(4, 1, 1, staffHeaders[0].length).setValues(staffHeaders);
+  rosterData.getRange(5, 1, staffRows.length, staffHeaders[0].length).setValues(staffRows);
+  reminderData.getRange(1, 1, 1, reminderHeaders[0].length).setValues(reminderHeaders);
+  reminderData.getRange(2, 1, 1, reminderRow[0].length).setValues(reminderRow);
+
+  pSheet.getRange('A1').setValue('個人会員 / 賛助会員テンプレート');
+  pSheet.getRange('A3').setValue('会員番号');
+  pSheet.getRange('B3').setFormula('=IFERROR(_DATA_ROSTER!A2,"")');
+  pSheet.getRange('A4').setValue('氏名');
+  pSheet.getRange('B4').setFormula('=IFERROR(TRIM(_DATA_ROSTER!C2&" "&_DATA_ROSTER!D2),"")');
+
+  bSheet.getRange('A1').setValue('事業所会員テンプレート');
+  bSheet.getRange('A3').setValue('事業所名');
+  bSheet.getRange('B3').setFormula('=IFERROR(_DATA_ROSTER!G2,"")');
+  bSheet.getRange('A4').setValue('年会費状態');
+  bSheet.getRange('B4').setFormula('=IFERROR(_DATA_ROSTER!U2,"")');
+
+  staffSheet.getRange('A1:I1').setValues([['職員番号', '職員権限', '姓', '名', 'フリガナ姓', 'フリガナ名', 'メールアドレス', '入会日', '職員状態']]);
+  staffSheet.getRange('A2').setFormula('=ARRAYFORMULA(IFERROR(_DATA_ROSTER!A5:A54,""))');
+  staffSheet.getRange('B2').setFormula('=ARRAYFORMULA(IFERROR(_DATA_ROSTER!B5:B54,""))');
+  staffSheet.getRange('C2').setFormula('=ARRAYFORMULA(IFERROR(_DATA_ROSTER!C5:C54,""))');
+  staffSheet.getRange('D2').setFormula('=ARRAYFORMULA(IFERROR(_DATA_ROSTER!D5:D54,""))');
+  staffSheet.getRange('E2').setFormula('=ARRAYFORMULA(IFERROR(_DATA_ROSTER!E5:E54,""))');
+  staffSheet.getRange('F2').setFormula('=ARRAYFORMULA(IFERROR(_DATA_ROSTER!F5:F54,""))');
+  staffSheet.getRange('G2').setFormula('=ARRAYFORMULA(IFERROR(_DATA_ROSTER!G5:G54,""))');
+  staffSheet.getRange('H2').setFormula('=ARRAYFORMULA(IFERROR(_DATA_ROSTER!H5:H54,""))');
+  staffSheet.getRange('I2').setFormula('=ARRAYFORMULA(IFERROR(_DATA_ROSTER!I5:I54,""))');
+
+  rpSheet.getRange('A1').setValue('個人会員 / 賛助会員 催促状');
+  rpSheet.getRange('A3').setValue('宛名');
+  rpSheet.getRange('B3').setFormula('=IFERROR(_DATA_REMINDER!C2,"")');
+  rpSheet.getRange('A4').setValue('請求金額');
+  rpSheet.getRange('B4').setFormula('=IFERROR(_DATA_REMINDER!L2,"")');
+
+  rbSheet.getRange('A1').setValue('事業所会員 催促状');
+  rbSheet.getRange('A3').setValue('宛名');
+  rbSheet.getRange('B3').setFormula('=IFERROR(_DATA_REMINDER!C2,"")');
+  rbSheet.getRange('A4').setValue('住所');
+  rbSheet.getRange('B4').setFormula('=IFERROR(TEXTJOIN("",TRUE,_DATA_REMINDER!H2,_DATA_REMINDER!I2,_DATA_REMINDER!J2),"")');
+
+  bankSheet.getRange('A1').setValue('振込案内');
+  bankSheet.getRange('A3').setValue('銀行名');
+  bankSheet.getRange('B3').setFormula('=IFERROR(_DATA_REMINDER!P2,"")');
+  bankSheet.getRange('A4').setValue('口座番号');
+  bankSheet.getRange('B4').setFormula('=IFERROR(_DATA_REMINDER!S2,"")');
+
+  guide.getRange('A1:B1').setValues([['項目', '内容']]);
+  guide.getRange('A2:B8').setValues([
+    ['表示シート', 'P_01_会員基本 / B_01_会員基本 / B_02_事業所職員 / R_P_01_催促状 / R_B_01_催促状 / R_B_02_振込案内'],
+    ['隠しシート', '_DATA_ROSTER / _DATA_REMINDER / _GUIDE'],
+    ['名簿参照例', '=IFERROR(_DATA_ROSTER!A2,"")'],
+    ['催促参照例', '=IFERROR(_DATA_REMINDER!C2,"")'],
+    ['metadata', 'HKC_TEMPLATE_FAMILY / HKC_TEMPLATE_TARGET / HKC_TEMPLATE_DATA_SHEET / HKC_TEMPLATE_ORDER'],
+    ['設定', 'ROSTER_TEMPLATE_SS_ID / REMINDER_TEMPLATE_SS_ID に同じIDを登録可'],
+    ['注意', '表示シートは手入力せず hidden data sheet を参照する']
+  ]);
+
+  setTemplateSheetMetadata_(pSheet, 'ROSTER', 'PERSONAL_SUPPORT', '_DATA_ROSTER', 10);
+  setTemplateSheetMetadata_(bSheet, 'ROSTER', 'BUSINESS', '_DATA_ROSTER', 10);
+  setTemplateSheetMetadata_(staffSheet, 'ROSTER', 'BUSINESS', '_DATA_ROSTER', 20);
+  setTemplateSheetMetadata_(rpSheet, 'REMINDER', 'PERSONAL_SUPPORT', '_DATA_REMINDER', 10);
+  setTemplateSheetMetadata_(rbSheet, 'REMINDER', 'BUSINESS', '_DATA_REMINDER', 10);
+  setTemplateSheetMetadata_(bankSheet, 'REMINDER', 'BUSINESS', '_DATA_REMINDER', 20);
+
+  rosterData.hideSheet();
+  reminderData.hideSheet();
+  guide.hideSheet();
+
+  return {
+    spreadsheetId: ss.getId(),
+    spreadsheetUrl: ss.getUrl(),
+    visibleSheets: ['P_01_会員基本', 'B_01_会員基本', 'B_02_事業所職員', 'R_P_01_催促状', 'R_B_01_催促状', 'R_B_02_振込案内'],
+    hiddenSheets: ['_DATA_ROSTER', '_DATA_REMINDER', '_GUIDE'],
+    note: '名簿と催促状を同居させたテンプレート例です。ROSTER_TEMPLATE_SS_ID と REMINDER_TEMPLATE_SS_ID に同じ ID を設定できます。',
   };
 }

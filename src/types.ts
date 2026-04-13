@@ -49,6 +49,7 @@ export interface SystemSettings {
   trainingDefaultFieldConfig?: TrainingFieldConfig | null;
   // v194: PDF名簿出力 & 一括メール送信設定
   rosterTemplateSsId?: string;
+  reminderTemplateSsId?: string;
   bulkMailAutoAttachFolderId?: string;
   emailLogViewerRole?: string;
 }

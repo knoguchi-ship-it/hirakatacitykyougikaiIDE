@@ -25,11 +25,16 @@ function run(cmd, env = {}) {
 
 // 会員ポータル
 run('npx vite build', {});
-copyFileSync(join(root, 'dist', 'index.html'), join(backendDir, 'index.html'));
-console.log('Copied dist/index.html → backend/index.html');
 
 // 公開ポータル
 run('npx vite build', { VITE_APP: 'public' });
+
+// 圧縮: deflate-raw + base64 でインライン JS を圧縮（new Function() で実行、GAS CSP 互換）
+run('node scripts/compress-html.mjs', {});
+
+copyFileSync(join(root, 'dist', 'index.html'), join(backendDir, 'index.html'));
+console.log('Copied dist/index.html → backend/index.html');
+
 copyFileSync(join(root, 'dist-public', 'index_public.html'), join(backendDir, 'index_public.html'));
 console.log('Copied dist-public/index_public.html → backend/index_public.html');
 

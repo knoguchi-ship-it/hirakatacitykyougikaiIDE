@@ -30,11 +30,21 @@ export default defineConfig(({ mode }) => {
       build: isPublic
         ? {
             outDir: 'dist-public',
+            minify: 'terser',
+            terserOptions: {
+              compress: { passes: 2, drop_console: false, pure_funcs: [] },
+              mangle: { toplevel: false },
+            },
             rollupOptions: {
               input: path.resolve(__dirname, 'index_public.html'),
             },
           }
         : {
+            minify: 'terser',
+            terserOptions: {
+              compress: { passes: 2, drop_console: false, pure_funcs: [] },
+              mangle: { toplevel: false },
+            },
             rollupOptions: {
               input: path.resolve(__dirname, 'index.html'),
             },

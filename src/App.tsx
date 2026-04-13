@@ -7,6 +7,8 @@ import TrainingApply from './components/TrainingApply';
 import AnnualFeeManagement from './components/AnnualFeeManagement';
 import BulkMailSender from './components/BulkMailSender';
 import RosterExport from './components/RosterExport';
+import TemplateHelpPage from './components/TemplateHelpPage';
+import TemplateValidationPanel from './components/TemplateValidationPanel';
 import MemberDetailAdmin from './components/MemberDetailAdmin';
 import StaffDetailAdmin from './components/StaffDetailAdmin';
 import { AdminDashboardData, AdminDashboardMemberRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, SystemSettings, Training, TrainingFieldConfig, DEFAULT_FIELD_CONFIG } from './types';
@@ -14,7 +16,7 @@ import { TRAINING_OPTIONAL_FIELD_DEFS } from './components/TrainingManagement';
 import { api } from './services/api';
 
 type Role = 'ADMIN' | 'MEMBER';
-type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'roster-export' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings';
+type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'roster-export' | 'template-help' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings';
 type AuthTab = 'member' | 'admin';
 type PendingAnnualFeeAction = { type: 'view'; view: View } | { type: 'logout' } | null;
 type MemberListFilter = 'ALL' | MemberType;
@@ -216,6 +218,7 @@ const App: React.FC = () => {
   const [settingsBusy, setSettingsBusy] = useState(false);
   // v194: PDF名簿出力 & 一括メール送信設定
   const [rosterTemplateSsIdInput, setRosterTemplateSsIdInput] = useState('');
+  const [reminderTemplateSsIdInput, setReminderTemplateSsIdInput] = useState('');
   const [bulkMailAutoAttachFolderIdInput, setBulkMailAutoAttachFolderIdInput] = useState('');
   const [emailLogViewerRoleInput, setEmailLogViewerRoleInput] = useState('MASTER');
   const [memberListQuery, setMemberListQuery] = useState('');
@@ -254,6 +257,7 @@ const App: React.FC = () => {
     setTrainingDefaultFieldConfigInput(tdfConfig);
     // v194
     setRosterTemplateSsIdInput(systemSettings.rosterTemplateSsId ?? '');
+    setReminderTemplateSsIdInput(systemSettings.reminderTemplateSsId ?? '');
     setBulkMailAutoAttachFolderIdInput(systemSettings.bulkMailAutoAttachFolderId ?? '');
     setEmailLogViewerRoleInput(systemSettings.emailLogViewerRole ?? 'MASTER');
     setSystemSettingsLoaded(true);
@@ -1903,6 +1907,18 @@ const App: React.FC = () => {
       );
     }
 
+    if (currentView === 'template-help') {
+      if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
+        return <div className="text-red-500 p-4">管理コンソールへのアクセス権限がありません。</div>;
+      }
+      return (
+        <TemplateHelpPage
+          onBack={() => setCurrentView('roster-export')}
+          onOpenSettings={() => setCurrentView('admin-settings')}
+        />
+      );
+    }
+
     if (currentView === 'admin-settings') {
       if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
         return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
@@ -2019,6 +2035,14 @@ const App: React.FC = () => {
               </div>
             </div>
             {/* v194: PDF名簿出力 & 一括メール送信設定 */}
+            <TemplateValidationPanel
+              api={api}
+              rosterTemplateSsId={rosterTemplateSsIdInput}
+              reminderTemplateSsId={reminderTemplateSsIdInput}
+              onRosterTemplateChange={setRosterTemplateSsIdInput}
+              onReminderTemplateChange={setReminderTemplateSsIdInput}
+              onOpenHelp={() => setCurrentView('template-help')}
+            />
             <div className="mt-4 border-t border-slate-200 pt-4 space-y-4">
               <h4 className="text-sm font-semibold text-slate-800">名簿出力・一括メール送信設定</h4>
               <div>
@@ -2034,6 +2058,17 @@ const App: React.FC = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">一括メール 個別自動添付フォルダID</label>
+                <input
+                  type="text"
+                  value={reminderTemplateSsIdInput}
+                  onChange={(e) => setReminderTemplateSsIdInput(e.target.value)}
+                  className="w-full border border-slate-300 rounded px-3 py-2 font-mono text-sm"
+                  placeholder="スプレッドシートID（名簿と同じIDでも可）"
+                />
+                <p className="mt-1 text-xs text-slate-500">未納者向け催促用紙で使用するテンプレートSSのIDです。同じブックを使う場合は名簿と同じIDを設定できます。</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">一括メール自動添付DriveフォルダID</label>
                 <input
                   type="text"
                   value={bulkMailAutoAttachFolderIdInput}
@@ -2115,6 +2150,7 @@ const App: React.FC = () => {
                     annualFeeTransferAccount: annualFeeTransferAccountInput,
                     trainingDefaultFieldConfig: trainingDefaultFieldConfigInput,
                     rosterTemplateSsId: rosterTemplateSsIdInput,
+                    reminderTemplateSsId: reminderTemplateSsIdInput,
                     bulkMailAutoAttachFolderId: bulkMailAutoAttachFolderIdInput,
                     emailLogViewerRole: emailLogViewerRoleInput,
                   });
@@ -2130,6 +2166,7 @@ const App: React.FC = () => {
                   setTrainingDefaultFieldConfig(tdfSaved);
                   setTrainingDefaultFieldConfigInput(tdfSaved);
                   setRosterTemplateSsIdInput(saved.rosterTemplateSsId ?? '');
+                  setReminderTemplateSsIdInput(saved.reminderTemplateSsId ?? '');
                   setBulkMailAutoAttachFolderIdInput(saved.bulkMailAutoAttachFolderId ?? '');
                   setEmailLogViewerRoleInput(saved.emailLogViewerRole ?? 'MASTER');
                   alert('設定を保存しました。');
@@ -2211,6 +2248,8 @@ const App: React.FC = () => {
         <RosterExport
           api={api}
           settings={rosterSettings}
+          onOpenHelp={() => setCurrentView('template-help')}
+          onOpenSettings={() => setCurrentView('admin-settings')}
         />
       );
     }
@@ -2314,4 +2353,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-

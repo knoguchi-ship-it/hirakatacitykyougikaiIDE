@@ -92,3 +92,25 @@ export interface EmailSendLog {
   errorCount: number;
   sendType: string;
 }
+
+export type TemplateValidationKind = 'ROSTER' | 'REMINDER';
+export type TemplateValidationStatus = 'pass' | 'warn' | 'fail' | 'info';
+
+export interface TemplateValidationCheck {
+  key: string;
+  label: string;
+  status: TemplateValidationStatus;
+  detail: string;
+}
+
+export interface TemplateValidationResult {
+  kind: TemplateValidationKind;
+  spreadsheetId: string;
+  spreadsheetUrl: string;
+  spreadsheetName: string;
+  summaryStatus: 'pass' | 'warn' | 'fail';
+  visibleSheets: string[];
+  hiddenSheets: string[];
+  checks: TemplateValidationCheck[];
+  recommendedActions: string[];
+}

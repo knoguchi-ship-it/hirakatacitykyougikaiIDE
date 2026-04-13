@@ -1,5 +1,5 @@
 import { Member, Training, AdminPermissionLevel, AdminPersonRow, ConvertMemberTypePayload, ConvertMemberTypeResult, SystemSettings } from '../types';
-import { TrainingApplicantRow, BulkMailRecipient, EmailSendLog, RosterTarget } from '../shared/types';
+import { TrainingApplicantRow, BulkMailRecipient, EmailSendLog, RosterTarget, TemplateValidationResult, TemplateValidationKind } from '../shared/types';
 import { AdminDashboardData, AdminPermissionData, AnnualFeeAdminData, AnnualFeeAdminRecord } from '../types';
 
 export interface TrainingMailPayload {
@@ -146,6 +146,10 @@ export interface ApiClient {
     excludeNoEmail?: boolean;
   }): Promise<{ sent: number; total: number; errors: string[]; autoAttachMissed: string[]; logId: string }>;
   getEmailSendLog(): Promise<EmailSendLog[]>;
+  validateTemplateSpreadsheet(payload: {
+    spreadsheetId: string;
+    kind: TemplateValidationKind;
+  }): Promise<TemplateValidationResult>;
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -515,6 +519,30 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('updateSystemSettings', JSON.stringify(settings));
+    });
+  }
+
+  async validateTemplateSpreadsheet(payload: {
+    spreadsheetId: string;
+    kind: TemplateValidationKind;
+  }): Promise<TemplateValidationResult> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data);
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('validateTemplateSpreadsheet', JSON.stringify(payload));
     });
   }
 
@@ -1208,5 +1236,4 @@ class GasApiClient implements ApiClient {
 // API クライアントは GAS 実行環境専用とする。
 // ローカルモック運用は廃止したため、常に GAS クライアントを使用する。
 export const api: ApiClient = new GasApiClient();
-
 
