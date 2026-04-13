@@ -19,23 +19,22 @@
 10. `docs/68_RELEASE_STATE_v198_2026-04-12.md`（v198 record）
 11. `docs/67_RELEASE_STATE_v197_2026-04-11.md`（v197 record）
 12. `docs/64_RELEASE_STATE_v194_v196_2026-04-10.md`（v194-v196 record）
-6. `docs/63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md` ← **全フェーズ完了（Phase 1〜3）**
-7. `docs/62_RELEASE_STATE_v193_2026-04-09.md` ← v193 base
-8. `docs/61_RELEASE_STATE_v191_2026-04-09.md`（v191 HTML圧縮）
-9. `docs/60_RELEASE_STATE_v189_2026-04-09.md`（v189失敗・v190復旧記録）
-10. `docs/59_RELEASE_STATE_v188_2026-04-09.md`（v188 Phase 1-2 パフォーマンス改善）
-11. `docs/58_NEXT_TASK_PERFORMANCE_2026-04-09.md`（B-02 未着手・残課題）
-12. `docs/09_DEPLOYMENT_POLICY.md`
-13. `docs/05_AUTH_AND_ROLE_SPEC.md`
-14. `docs/04_DB_OPERATION_RUNBOOK.md`
-15. `docs/03_DATA_MODEL.md`
+13. `docs/63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md` ← **全フェーズ完了（Phase 1〜3）**
+14. `docs/62_RELEASE_STATE_v193_2026-04-09.md` ← v193 base
+15. `docs/61_RELEASE_STATE_v191_2026-04-09.md`（v191 HTML圧縮）
+16. `docs/60_RELEASE_STATE_v189_2026-04-09.md`（v189失敗・v190復旧記録）
+17. `docs/59_RELEASE_STATE_v188_2026-04-09.md`（v188 Phase 1-2 パフォーマンス改善）
+18. `docs/58_NEXT_TASK_PERFORMANCE_2026-04-09.md`（B-02 未着手・残課題）
+19. `docs/09_DEPLOYMENT_POLICY.md`
+20. `docs/05_AUTH_AND_ROLE_SPEC.md`
+21. `docs/04_DB_OPERATION_RUNBOOK.md`
+22. `docs/03_DATA_MODEL.md`
 
 ## 2. 現在の引継ぎ結論
 - 開発の入口は `HANDOVER.md`、運用手順の正本は `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`。
 - 本番状態の判断は `HANDOVER.md`、作業の進め方と完了条件は `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md` に記録する。
 - 最新の release state 文書は `HANDOVER.md` の「最初に読むもの」に記載されたものを参照する。
 - task 単位の個票は `docs/31_HANDOVER_TASK_TEMPLATE.md` を複製して管理する。
-- 既存 worktree には無関係な差分がある。明示指示なしに revert しない。
 - 2026-04-10 の引継ぎ確認ログは `docs/65_HANDOVER_TASK_DEV_SETUP_2026-04-10.md` を参照する。
 
 ## 3. 現在の本番状態
@@ -294,7 +293,7 @@
 - `updateMemberSelf_` の欠落初期化不具合を修正。
 - テスト仕様は `docs/41_TEST_SPEC_v167_BUSINESS_ADMIN_ROLE_CHANGE.md` を参照。
 
-## 5. 現時点の注意事項（v200 更新）
+## 5. 現時点の注意事項（v203 更新）
 - fixed deployment 2 本は `@203` を向いている。
 - **v194 リリース済みのため、本番管理者（k.noguchi@uguisunosato.or.jp）は次回 /exec アクセス時に gmail.send + drive の同意画面が表示される。** 未承認の場合は必ず承認すること。
 - **名簿出力コンソール（RosterExport）使用前提条件**: システム設定画面で `ROSTER_TEMPLATE_SS_ID`（テンプレートスプレッドシートID）を登録すること。未登録時は「テンプレートSS IDがシステム設定に登録されていません」と表示される。

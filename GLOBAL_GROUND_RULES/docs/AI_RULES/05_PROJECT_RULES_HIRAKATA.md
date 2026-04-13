@@ -1,24 +1,19 @@
 # 05_PROJECT_RULES_HIRAKATA
 
-更新日: 2026-04-08
+更新日: 2026-04-14
 
 ## 目的
 - この文書は、枚方市介護支援専門員連絡協議会 会員システムにおける案件固有ルールの正本である。
 - グローバルルールと外部標準を前提にしつつ、この案件で絶対に崩してはいけない運用固定値を定義する。
 
 ## 最初に読む順序
-1. `HANDOVER.md`
-2. `AGENTS.md`
-3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
-4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-5. `HANDOVER.md` に記載された最新の release state 文書
-6. `docs/09_DEPLOYMENT_POLICY.md`
-7. `docs/10_SOW.md`
-8. `docs/17_ROOT_CAUSE_ERROR_RESPONSE_PLAYBOOK.md`
-9. `docs/05_AUTH_AND_ROLE_SPEC.md`
-10. `docs/04_DB_OPERATION_RUNBOOK.md`
-11. `docs/03_DATA_MODEL.md`
-12. `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`
+> **読み込み順序の正本は `AGENTS.md §2` を参照すること。**
+> この文書はセッション開始時点で既に読み込み済みのはずなので、以下は補足参照のみ。
+
+補足: この案件で追加で参照する文書（`AGENTS.md §2` の順序に含まれないもの）:
+- `docs/10_SOW.md` — スコープ定義と受入条件
+- `docs/17_ROOT_CAUSE_ERROR_RESPONSE_PLAYBOOK.md` — 障害復旧プレイブック
+- `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` — 補足状態サマリ（HANDOVER.md を正本とする）
 
 ## この案件の判断原則
 - 技術、法務、セキュリティ、運用の推奨を行う前に、必要なら最新の一次ソースを確認する。

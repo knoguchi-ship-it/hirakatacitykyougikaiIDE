@@ -26,6 +26,7 @@
 12. `docs/05_AUTH_AND_ROLE_SPEC.md`
 13. `docs/04_DB_OPERATION_RUNBOOK.md`
 14. `docs/03_DATA_MODEL.md`
+15. `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`（補足状態サマリ。正本は `HANDOVER.md`）
 
 ## 3. 行動原則
 - まず関連ファイルだけを読む。推測で壊さない。
