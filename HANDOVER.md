@@ -1,9 +1,9 @@
 # 開発引継ぎ
 
-更新日: 2026-04-10
-現行本番: `v196`
-固定 deployment: member `@196` / public `@196`
-補足: v196 Phase 3 完了。PDF名簿出力コンソール（RosterExport）実装。GAS: getMembersForRoster_ / generateRosterZip_ 追加。フロント: フィルタ・チェックボックス一覧・ZIP生成・DLリンク。全フェーズ（Phase 1〜3）完了。
+更新日: 2026-04-13
+現行本番: `v203`
+固定 deployment: member `@203` / public `@203`
+補足: v203 で「はじめての方へ」の説明文を利用者向けの文言へ調整。
 次期開発: なし（SOW完了）→ `docs/63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md`
 
 ## 1. 最初に読むもの
@@ -11,7 +11,14 @@
 2. `AGENTS.md`
 3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-5. `docs/64_RELEASE_STATE_v194_v196_2026-04-10.md` ← **v196 current**（PDF名簿・一括メール SOW完了）
+5. `docs/73_RELEASE_STATE_v203_2026-04-13.md` ← **v203 current**（user-facing quick-start intro copy）
+6. `docs/72_RELEASE_STATE_v202_2026-04-13.md`（v202 record）
+7. `docs/71_RELEASE_STATE_v201_2026-04-13.md`（v201 record）
+8. `docs/70_RELEASE_STATE_v200_2026-04-12.md`（v200 record）
+9. `docs/69_RELEASE_STATE_v199_2026-04-12.md`（v199 record）
+10. `docs/68_RELEASE_STATE_v198_2026-04-12.md`（v198 record）
+11. `docs/67_RELEASE_STATE_v197_2026-04-11.md`（v197 record）
+12. `docs/64_RELEASE_STATE_v194_v196_2026-04-10.md`（v194-v196 record）
 6. `docs/63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md` ← **全フェーズ完了（Phase 1〜3）**
 7. `docs/62_RELEASE_STATE_v193_2026-04-09.md` ← v193 base
 8. `docs/61_RELEASE_STATE_v191_2026-04-09.md`（v191 HTML圧縮）
@@ -29,10 +36,11 @@
 - 最新の release state 文書は `HANDOVER.md` の「最初に読むもの」に記載されたものを参照する。
 - task 単位の個票は `docs/31_HANDOVER_TASK_TEMPLATE.md` を複製して管理する。
 - 既存 worktree には無関係な差分がある。明示指示なしに revert しない。
+- 2026-04-10 の引継ぎ確認ログは `docs/65_HANDOVER_TASK_DEV_SETUP_2026-04-10.md` を参照する。
 
 ## 3. 現在の本番状態
 - ブランチ運用の基準は `main`。
-- 両 fixed deployment は `@196` を向いている。
+- 両 fixed deployment は `@203` を向いている。
 - fixed deployment の標準同期方法は `npx clasp redeploy`。Apps Script UI `Manage deployments` は障害復旧時の補助手段に限定する。
 - member portal は sidebar logout を採用済み。
 - デモログイン、mock member route、画面内 demo selector は廃止済み。
@@ -286,8 +294,8 @@
 - `updateMemberSelf_` の欠落初期化不具合を修正。
 - テスト仕様は `docs/41_TEST_SPEC_v167_BUSINESS_ADMIN_ROLE_CHANGE.md` を参照。
 
-## 5. 現時点の注意事項（v196 更新）
-- fixed deployment 2 本は `@196` を向いている。
+## 5. 現時点の注意事項（v200 更新）
+- fixed deployment 2 本は `@203` を向いている。
 - **v194 リリース済みのため、本番管理者（k.noguchi@uguisunosato.or.jp）は次回 /exec アクセス時に gmail.send + drive の同意画面が表示される。** 未承認の場合は必ず承認すること。
 - **名簿出力コンソール（RosterExport）使用前提条件**: システム設定画面で `ROSTER_TEMPLATE_SS_ID`（テンプレートスプレッドシートID）を登録すること。未登録時は「テンプレートSS IDがシステム設定に登録されていません」と表示される。
 - **一括メール送信（BulkMailSender）使用前提条件**: Drive自動添付を使う場合は `BULK_MAIL_AUTO_ATTACH_FOLDER_ID`（DriveフォルダID）を登録すること。
@@ -308,7 +316,14 @@ npx clasp deployments --json
 期待値:
 - authorized user が運用アカウント（k.noguchi@uguisunosato.or.jp）
 - health check が成功
-- fixed deployment 2 本が `@196`
+- fixed deployment 2 本が `@203`
+- `getDbInfo` が本番固定 DB `1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs` を返す
+
+2026-04-14 確認結果:
+- `npx clasp show-authorized-user` → `k.noguchi@uguisunosato.or.jp`
+- `npx clasp run healthCheck` → `ok: true`（`2026-04-13T21:27:37.606Z`）
+- `npx clasp deployments --json` → member/public ともに `versionNumber: 203`
+- `npx clasp run getDbInfo` → DB ID `1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs`
 
 ## 7. 次担当者の最初の一手
 1. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md` の「作業開始チェック」を実施する。
@@ -321,3 +336,4 @@ npx clasp deployments --json
 - 入口は `HANDOVER.md`、日次運用は `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`、固定記録は `HANDOVER.md` に記載された最新の release state 文書を参照する。
 - グランドルール入口は `AGENTS.md` のみ。`CLAUDE.md` は `AGENTS.md` へつなぐ互換入口としてのみ保持する。
 - 新規 task は現行テンプレート `docs/31_HANDOVER_TASK_TEMPLATE.md` を複製して起票する。
+- push や deploy 前は `git diff` でスコープを確認してからファイル単位でステージングすること。

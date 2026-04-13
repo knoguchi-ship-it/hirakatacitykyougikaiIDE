@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>システム全体像 | 枚方市介護支援専門員連絡協議会 会員システム（v154）</title>
+  <style>
+    :root {
+      --bg: #f5f6f8;
+      --panel: #ffffff;
+      --ink: #1a202c;
+      --muted: #4a5568;
+      --line: #e2e8f0;
+      --accent: #2b6cb0;
+      --accent-soft: #ebf4ff;
+      --accent-2: #2f855a;
+      --accent-2-soft: #f0fff4;
+      --accent-3: #9b2c2c;
+      --accent-3-soft: #fff5f5;
+      --accent-4: #744210;
+      --accent-4-soft: #fffff0;
+      --shadow: 0 4px 24px rgba(0,0,0,0.06);
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+      color: var(--ink);
+      background: linear-gradient(180deg, #edf2f7 0%, var(--bg) 100%);
+      line-height: 1.7;
+    }
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 28px 20px 60px; }
+    .topbar a { color: var(--accent); text-decoration: none; font-weight: 700; font-size: 0.95rem; }
+
+    /* Hero */
+    .hero {
+      background: linear-gradient(135deg, #2b6cb0, #2f855a);
+      color: white;
+      border-radius: 24px;
+      padding: 36px;
+      box-shadow: var(--shadow);
+      margin-top: 12px;
+    }
+    .hero h1 { font-size: clamp(1.6rem, 3.5vw, 2.6rem); margin-bottom: 10px; }
+    .hero p { color: rgba(255,255,255,0.9); max-width: 800px; }
+    .hero .badge {
+      display: inline-block; margin-top: 14px;
+      background: rgba(255,255,255,0.18); padding: 6px 14px;
+      border-radius: 999px; font-size: 0.88rem; font-weight: 600;
+    }
+
+    /* Section */
+    .section { margin-top: 32px; }
+    .section > h2 {
+      font-size: 1.3rem; color: var(--accent);
+      border-left: 5px solid var(--accent); padding-left: 12px;
+      margin-bottom: 16px;
+    }
+
+    /* Cards */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .card {
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: var(--radius); padding: 20px;
+      box-shadow: var(--shadow);
+    }
+    .card h3 { font-size: 1.05rem; margin-bottom: 8px; }
+    .card p, .card li { color: var(--muted); font-size: 0.93rem; }
+    .card ul { padding-left: 1.1rem; }
+
+    /* Layer */
+    .layer {
+      background: var(--panel); border-radius: var(--radius);
+      padding: 20px; box-shadow: var(--shadow);
+      border-left: 6px solid var(--accent);
+    }
+    .layer.green { border-left-color: var(--accent-2); }
+    .layer.red { border-left-color: var(--accent-3); }
+    .layer.amber { border-left-color: var(--accent-4); }
+
+    /* Flow diagram */
+    .flow-diagram {
+      display: flex; align-items: center; justify-content: center;
+      gap: 0; flex-wrap: wrap; margin: 18px 0;
+    }
+    .flow-box {
+      background: var(--panel); border: 2px solid var(--accent);
+      border-radius: 12px; padding: 14px 18px; text-align: center;
+      font-weight: 600; font-size: 0.92rem; min-width: 140px;
+    }
+    .flow-box.green { border-color: var(--accent-2); color: var(--accent-2); }
+    .flow-box.amber { border-color: var(--accent-4); color: var(--accent-4); }
+    .flow-arrow {
+      font-size: 1.4rem; color: var(--muted); padding: 0 8px;
+      display: flex; align-items: center;
+    }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+    th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--line); }
+    th { background: #f7fafc; font-weight: 700; color: var(--ink); }
+    td { color: var(--muted); }
+    td code {
+      background: #edf2f7; padding: 2px 6px; border-radius: 4px;
+      font-family: Consolas, monospace; font-size: 0.88rem; color: var(--ink);
+    }
+
+    /* Callout */
+    .callout {
+      background: var(--accent-soft); border-radius: var(--radius);
+      padding: 18px 20px; margin-top: 16px;
+    }
+    .callout.warn { background: var(--accent-3-soft); }
+    .callout strong { color: var(--ink); }
+    .callout p { color: var(--muted); margin: 0; }
+
+    /* Status */
+    .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+    .status-item {
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: 12px; padding: 16px;
+    }
+    .status-item .label { font-size: 0.82rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .status-item .value { font-size: 1.1rem; font-weight: 700; margin-top: 4px; }
+    .status-item .value.ok { color: var(--accent-2); }
+    .status-item .value.pending { color: var(--accent-4); }
+
+    /* Footer */
+    .footer {
+      margin-top: 40px; padding-top: 20px;
+      border-top: 1px solid var(--line);
+      font-size: 0.85rem; color: var(--muted); text-align: center;
+    }
+
+    @media (max-width: 900px) {
+      .grid-3, .grid-4 { grid-template-columns: 1fr 1fr; }
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .grid-3, .grid-4 { grid-template-columns: 1fr; }
+      .flow-diagram { flex-direction: column; }
+      .flow-arrow { transform: rotate(90deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a href="./index.html">&larr; 学習資料一覧へ戻る</a></div>
+
+    <section class="hero">
+      <h1>システム全体像</h1>
+      <p>
+        枚方市介護支援専門員連絡協議会 会員システムの現在のアーキテクチャ、機能構成、認証フロー、デプロイ状態を俯瞰する資料です。
+      </p>
+      <div class="badge">v154 | 2026-03-30 時点 | 補足資料（正本ではない）</div>
+    </section>
+
+    <!-- ===== 1. 技術スタック ===== -->
+    <section class="section">
+      <h2>1. 技術スタック</h2>
+      <div class="grid-4">
+        <div class="card">
+          <h3>Frontend</h3>
+          <p>React 19 + TypeScript + Vite + Tailwind CSS</p>
+          <p>SPA を GAS HTML Service で配信</p>
+        </div>
+        <div class="card">
+          <h3>Backend</h3>
+          <p>Google Apps Script (GAS)</p>
+          <p><code>processApiRequest</code> で全 API をルーティング</p>
+        </div>
+        <div class="card">
+          <h3>Database</h3>
+          <p>Google Spreadsheet</p>
+          <p>テーブル単位でシート分割</p>
+        </div>
+        <div class="card">
+          <h3>Infra</h3>
+          <p>Google Workspace for Nonprofits</p>
+          <p>外部サーバー不使用・無料運用</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 2. システム構成図 ===== -->
+    <section class="section">
+      <h2>2. システム構成図</h2>
+      <div class="flow-diagram">
+        <div class="flow-box">ブラウザ<br><small>React SPA</small></div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box green">GAS Web App<br><small>processApiRequest</small></div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box amber">Google Spreadsheet<br><small>DB</small></div>
+      </div>
+      <div class="grid-2" style="margin-top:14px;">
+        <div class="layer">
+          <h3>会員マイページ</h3>
+          <p><code>.../exec</code> で配信。ログイン ID + パスワード認証。プロフィール編集、研修申込、退会申請、パスワード変更を提供。</p>
+        </div>
+        <div class="layer green">
+          <h3>公開ポータル</h3>
+          <p><code>.../exec?app=public</code> で配信。認証不要。研修申込（非会員）、新規入会申込を提供。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 3. 管理コンソール ===== -->
+    <section class="section">
+      <h2>3. 管理コンソール（5機能）</h2>
+      <div class="grid-3">
+        <div class="card">
+          <h3>会員管理</h3>
+          <ul>
+            <li>ダッシュボード（今年度基準 KPI・一覧フィルタ連動）</li>
+            <li>会員詳細編集（個人/事業所/賛助）</li>
+            <li>職員 Master-Detail Drilldown</li>
+            <li>一括編集（フラット人物リスト）</li>
+            <li>入会/退会/除籍/種別変更</li>
+            <li>対象年度フィルタ（会計年度ベース）</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>年会費管理</h3>
+          <ul>
+            <li>年度別一覧（25/50/100件切替）</li>
+            <li>個別保存 + 一括保存</li>
+            <li>前年度末退会（ドラフト専用）</li>
+            <li>Reward Early / Punish Late バリデーション</li>
+            <li>監査履歴（T_年会費更新履歴）</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>研修管理</h3>
+          <ul>
+            <li>研修の新規登録・編集</li>
+            <li>申込者一覧（会員+非会員統合）</li>
+            <li>一斉/個別メール送信</li>
+            <li>リマインダーメール</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>システム権限</h3>
+          <ul>
+            <li>管理者 Google ホワイトリスト管理</li>
+            <li>5段階権限モデル</li>
+            <li>MASTER / ADMIN / TRAINING_MANAGER / TRAINING_REGISTRAR / GENERAL</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>システム設定</h3>
+          <ul>
+            <li>職員数上限</li>
+            <li>研修履歴参照期間</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 4. 認証フロー ===== -->
+    <section class="section">
+      <h2>4. 認証アーキテクチャ</h2>
+      <div class="grid-2">
+        <div class="layer">
+          <h3>会員認証</h3>
+          <p>ログイン ID + パスワード（SHA-256 ハッシュ）で認証。</p>
+          <p><code>T_認証アカウント</code> テーブルを照合。Google ログインは不使用。</p>
+          <div class="flow-diagram" style="margin-top:12px;">
+            <div class="flow-box" style="font-size:0.82rem;">ID + PW 入力</div>
+            <div class="flow-arrow">&rarr;</div>
+            <div class="flow-box green" style="font-size:0.82rem;">memberLogin_<br>ハッシュ照合</div>
+            <div class="flow-arrow">&rarr;</div>
+            <div class="flow-box amber" style="font-size:0.82rem;">会員マイページ表示</div>
+          </div>
+        </div>
+        <div class="layer green">
+          <h3>管理者認証（セッション方式）</h3>
+          <p><code>Session.getActiveUser().getEmail()</code> で Google メールを取得し、<code>T_管理者Googleホワイトリスト</code> と照合。</p>
+          <p>GAS iframe sandbox では OAuth ポップアップが動作しないため、セッション認証が唯一の安定方式。</p>
+          <div class="flow-diagram" style="margin-top:12px;">
+            <div class="flow-box" style="font-size:0.82rem;">ボタン1クリック</div>
+            <div class="flow-arrow">&rarr;</div>
+            <div class="flow-box green" style="font-size:0.82rem;">checkAdminBySession_<br>メール照合</div>
+            <div class="flow-arrow">&rarr;</div>
+            <div class="flow-box amber" style="font-size:0.82rem;">管理コンソール表示</div>
+          </div>
+        </div>
+      </div>
+      <div class="callout" style="margin-top:14px;">
+        <p><strong>注:</strong> IDトークン検証方式（<code>adminGoogleLogin_</code>）は v118 で廃止済み。GIS が GAS iframe sandbox origin で動作しないことが確定したため。</p>
+      </div>
+    </section>
+
+    <!-- ===== 5. API 概要 ===== -->
+    <section class="section">
+      <h2>5. API アクション概要（全46アクション）</h2>
+      <div class="card" style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr><th>カテゴリ</th><th>主なアクション</th><th>権限</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>データ取得</strong></td>
+              <td><code>fetchAllData</code>, <code>getAdminDashboardData</code>, <code>getAdminInitData</code>(v150), <code>getMemberPortalData</code>, <code>getTrainingManagementData</code></td>
+              <td>管理者 / 会員</td>
+            </tr>
+            <tr>
+              <td><strong>認証</strong></td>
+              <td><code>memberLogin</code>, <code>memberLoginWithData</code>(v150), <code>checkAdminBySession</code>, <code>adminLoginWithData</code>(v150), <code>changePassword</code></td>
+              <td>未認証 / 会員</td>
+            </tr>
+            <tr>
+              <td><strong>会員管理</strong></td>
+              <td><code>updateMember</code>, <code>updateMembersBatch</code>, <code>updateMemberSelf</code>, <code>createMember</code>, <code>withdrawMember</code>, <code>scheduleWithdrawMember</code>, <code>cancelScheduledWithdraw</code></td>
+              <td>MASTER/ADMIN / 会員</td>
+            </tr>
+            <tr>
+              <td><strong>職員管理</strong></td>
+              <td><code>updateStaff</code>, <code>removeStaffFromOffice</code>, <code>getAdminPersonList</code>, <code>updatePersonsBatch</code>, <code>convertMemberType</code></td>
+              <td>MASTER/ADMIN</td>
+            </tr>
+            <tr>
+              <td><strong>研修</strong></td>
+              <td><code>saveTraining</code>, <code>uploadTrainingFile</code>, <code>applyTraining</code>, <code>cancelTraining</code>, <code>sendTrainingReminder</code>, <code>sendTrainingMail</code></td>
+              <td>管理者 / 会員</td>
+            </tr>
+            <tr>
+              <td><strong>年会費</strong></td>
+              <td><code>getAnnualFeeAdminData</code>, <code>saveAnnualFeeRecord</code>, <code>saveAnnualFeeRecordsBatch</code></td>
+              <td>MASTER/ADMIN</td>
+            </tr>
+            <tr>
+              <td><strong>公開ポータル</strong></td>
+              <td><code>getPublicTrainings</code>, <code>applyTrainingExternal</code>, <code>cancelTrainingExternal</code>, <code>submitMemberApplication</code></td>
+              <td>認証不要</td>
+            </tr>
+            <tr>
+              <td><strong>会員セルフ</strong></td>
+              <td><code>withdrawSelf</code>, <code>cancelWithdrawalSelf</code></td>
+              <td>会員</td>
+            </tr>
+            <tr>
+              <td><strong>システム</strong></td>
+              <td><code>getSystemSettings</code>, <code>updateSystemSettings</code>, <code>getAdminPermissionData</code>, <code>saveAdminPermission</code>, <code>deleteAdminPermission</code>, <code>getDbInfo</code>, <code>seedDemoData</code></td>
+              <td>MASTER/ADMIN</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== 6. デプロイ構成 ===== -->
+    <section class="section">
+      <h2>6. デプロイ構成</h2>
+      <div class="grid-2">
+        <div class="layer">
+          <h3>会員マイページ</h3>
+          <p><code>.../exec</code></p>
+          <p>固定 Deployment ID で運用。URL 変更禁止。</p>
+        </div>
+        <div class="layer green">
+          <h3>公開ポータル</h3>
+          <p><code>.../exec?app=public</code></p>
+          <p>固定 Deployment ID で運用。URL 変更禁止。</p>
+        </div>
+      </div>
+      <div class="callout warn" style="margin-top:14px;">
+        <p><strong>禁止:</strong> <code>clasp deploy</code>（全形式）は使用禁止。固定 Deployment の Version 更新は Apps Script UI の「Manage deployments」でのみ行う。</p>
+      </div>
+      <div class="flow-diagram" style="margin-top:18px;">
+        <div class="flow-box" style="font-size:0.82rem;">npm run build:gas</div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box" style="font-size:0.82rem;">clasp push</div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box" style="font-size:0.82rem;">clasp version</div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box green" style="font-size:0.82rem;">Apps Script UI<br>Version 更新</div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box amber" style="font-size:0.82rem;">疎通確認</div>
+      </div>
+    </section>
+
+    <!-- ===== 7. パフォーマンス最適化 ===== -->
+    <section class="section">
+      <h2>7. パフォーマンス最適化（v150）</h2>
+      <div class="grid-3">
+        <div class="card">
+          <h3>キャッシュチャンク分割</h3>
+          <p>CacheService で 100KB 超レスポンスを 90KB/chunk に分割格納。TTL 300 秒。</p>
+        </div>
+        <div class="card">
+          <h3>複合 API</h3>
+          <p>ログイン直後の round-trip を削減する統合 API 3 本（<code>getAdminInitData</code>, <code>memberLoginWithData</code>, <code>adminLoginWithData</code>）。</p>
+        </div>
+        <div class="card">
+          <h3>スケルトン UI</h3>
+          <p>ローディング中に骨格表示（WCAG 2.2 準拠）。体感速度を改善。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 8. v151-v154 の主な変更 ===== -->
+    <section class="section">
+      <h2>8. v151-v154 の主な変更</h2>
+      <div class="grid-2">
+        <div class="card">
+          <h3>v152: 年会費一括保存の前年度末退会</h3>
+          <p>ドラフト専用「前年度末退会」を追加。保存時に T_会員 へ前年度末退会処理を反映し、対象年度の年会費レコードを論理削除。</p>
+        </div>
+        <div class="card">
+          <h3>v153: Tailwind CDN 廃止</h3>
+          <p>ビルド済み CSS を単一 HTML へ内包する構成に変更。CDN 依存を排除。</p>
+        </div>
+        <div class="card">
+          <h3>v154: ダッシュボード今年度統一</h3>
+          <p>会員管理ダッシュボードを今年度基準へ統一し、会員一覧の対象年度・会員種別・会員状態・キーワード検索と連動。</p>
+        </div>
+        <div class="card">
+          <h3>v151: キャッシュ二重パースバグ修正</h3>
+          <p><code>getAdminDashboardData_()</code> のキャッシュ取得で、パース済みオブジェクトを再度 <code>JSON.parse</code> していた問題を修正。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 9. 現在のステータス ===== -->
+    <section class="section">
+      <h2>9. 現在のステータス（2026-03-30）</h2>
+      <div class="status-grid">
+        <div class="status-item">
+          <div class="label">GAS Version</div>
+          <div class="value ok">154（作成済み）</div>
+        </div>
+        <div class="status-item">
+          <div class="label">固定 Deployment</div>
+          <div class="value ok">@154 同期済み</div>
+        </div>
+        <div class="status-item">
+          <div class="label">DB レコード数</div>
+          <div class="value">会員 211 / 職員 147 / 認証 326 / 年会費 347</div>
+        </div>
+        <div class="status-item">
+          <div class="label">テスト</div>
+          <div class="value ok">v136-v140 全 39 ケース PASS</div>
+        </div>
+        <div class="status-item">
+          <div class="label">Git</div>
+          <div class="value ok">main ブランチ v154 コミット済み</div>
+        </div>
+        <div class="status-item">
+          <div class="label">clasp 認証</div>
+          <div class="value ok">k.noguchi@uguisunosato.or.jp</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 10. DB テーブル構成 ===== -->
+    <section class="section">
+      <h2>10. DB テーブル構成</h2>
+      <div class="card" style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr><th>テーブル名</th><th>役割</th><th>主キー</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>T_会員</code></td><td>個人・事業所・賛助会員の基本情報</td><td>会員ID</td></tr>
+            <tr><td><code>T_事業所職員</code></td><td>事業所に所属する職員情報</td><td>職員ID</td></tr>
+            <tr><td><code>T_認証アカウント</code></td><td>ログイン ID / パスワードハッシュ / Google 連携</td><td>認証ID</td></tr>
+            <tr><td><code>T_研修</code></td><td>研修マスタ（開催日・定員・費用等）</td><td>研修ID</td></tr>
+            <tr><td><code>T_研修申込</code></td><td>会員・非会員の研修申込レコード</td><td>申込ID</td></tr>
+            <tr><td><code>T_外部申込者</code></td><td>非会員（公開ポータル経由）の申込者情報</td><td>外部申込者ID</td></tr>
+            <tr><td><code>T_年会費納入履歴</code></td><td>会員ID + 年度ごとの納入状況</td><td>会員ID + 対象年度</td></tr>
+            <tr><td><code>T_年会費更新履歴</code></td><td>年会費変更の監査ログ</td><td>自動採番</td></tr>
+            <tr><td><code>T_監査ログ</code></td><td>管理者編集の変更前後記録（append-only）</td><td>自動採番</td></tr>
+            <tr><td><code>T_管理者Googleホワイトリスト</code></td><td>管理者認証用のメール照合テーブル</td><td>レコードID</td></tr>
+            <tr><td><code>M_会員種別</code></td><td>会員種別マスタ（年会費金額含む）</td><td>種別コード</td></tr>
+            <tr><td><code>M_システム設定</code></td><td>職員数上限・研修履歴参照期間等</td><td>設定キー</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="footer">
+      <p>
+        この資料は学習・概覧用です。正本は <code>HANDOVER.md</code>、<code>docs/02_ARCHITECTURE.md</code>、<code>docs/03_DATA_MODEL.md</code> を参照してください。
+      </p>
+      <p>作成: 2026-03-30 | v154 時点</p>
+    </div>
+  </div>
+</body>
+</html>

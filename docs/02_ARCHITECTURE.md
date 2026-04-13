@@ -65,7 +65,7 @@
   - Drive自動添付（フォルダID設定時）: ファイル名に `姓名`（スペースなし）が含まれるファイルを自動照合。
   - 送信結果を `T_メール送信ログ` に記録（個人情報は記録しない）。閲覧権限は `EMAIL_LOG_VIEWER_ROLE` で動的制御。
 - **PDF名簿出力機能（v196 追加）**: `UrlFetchApp` + `SpreadsheetApp`
-  - テンプレートスプレッドシート（`ROSTER_TEMPLATE_SS_ID`）を一時コピーし、`_DATA` シートにデータ充填 → flush() → UrlFetchApp でPDF blob取得。
+  - テンプレートスプレッドシート（`ROSTER_TEMPLATE_SS_ID`）を一時コピーし、`_DATA_ROSTER`（後方互換で `_DATA`）にデータ充填 → flush() → UrlFetchApp でPDF blob取得。
   - 全対象のPDFを `Utilities.zip()` でZIP化 → DriveApp.createFile → DLリンク返却。
   - 上限50件（6分制限対策）。事業所会員は REPRESENTATIVE→ADMIN→STAFF 順で職員一覧をPDF内展開。
   - スコープ: `https://www.googleapis.com/auth/drive`（v194 で追加済み）。

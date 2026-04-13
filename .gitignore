@@ -31,3 +31,10 @@ dist-ssr
 Dust/
 dist-public
 backend/Code.js
+
+# Screenshot / evidence images (binary, not source — keep out of git)
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp

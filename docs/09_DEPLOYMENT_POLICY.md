@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-04-10
-Production: `v196` / fixed deployments `@196`
+Updated: 2026-04-13
+Production: `v203` / fixed deployments `@203`
 
 ## 1. Purpose
 
@@ -17,7 +17,7 @@ Production: `v196` / fixed deployments `@196`
 | Member portal | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `/exec` |
 | Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `/exec?app=public` |
 
-Both fixed deployments currently point to `@196`.
+Both fixed deployments currently point to `@203`.
 
 ## 3. Standard Release Steps
 
@@ -102,6 +102,61 @@ Also verify the runtime in a real browser when the change affects user flows.
 - Do not leave corrupted source documents in place.
 
 ## 7. Current Recorded State
+
+### 2026-04-11 `v197`
+
+- Version `197` created: template help dialog + roster/reminder co-located template support.
+- Both fixed deployments were synced to `@197` with `npx clasp redeploy`.
+- Verification passed: `npm run typecheck`, `npm run build`, `npm run build:gas`, `npx clasp deployments --json`, `npx clasp run healthCheck`, `npx clasp run getDbInfo`.
+- Real-browser UI interaction was attempted via local Vite + Playwright, but Playwright launch was blocked by an existing Chrome profile/session conflict in this environment.
+
+### 2026-04-12 `v198`
+
+- Version `198` created: dedicated template help page + template validation before save.
+- Both fixed deployments were synced to `@198` with `npx clasp redeploy`.
+- Verification passed: `npm run typecheck`, `npm run build`, `npm run build:gas`, `npx clasp deployments --json`, `npx clasp run healthCheck`, `npx clasp run getDbInfo`.
+- Playwright browser verification was attempted, but browser launch was blocked by an existing Chrome profile/session conflict in this environment.
+
+### 2026-04-12 `v199`
+
+- Version `199` created: add direct sample-template link to the dedicated help page.
+- Both fixed deployments were synced to `@199` with `npx clasp redeploy`.
+- Verification passed: `npm run build:gas`, `npx clasp deployments --json`, `npx clasp run healthCheck`, `npx clasp run getDbInfo`.
+
+### 2026-04-12 `v200`
+
+- Version `200` created: rewrite the template help page in plainer Japanese for non-technical operators.
+- Both fixed deployments were synced to `@200` with `npx clasp redeploy`.
+- Verification passed: `npm run typecheck`, `npm run build`, `npm run build:gas`, `npx clasp deployments --json`, `npx clasp run healthCheck`, `npx clasp run getDbInfo`.
+- Real-browser verification was intentionally skipped because the operator explicitly requested not to use Playwright MCP.
+
+### 2026-04-13 `v201`
+
+- Version `201` created: plain-language cleanup for the remaining template-help sections.
+- Both fixed deployments were synced to `@201` with `npx clasp redeploy`.
+- Verification passed: `npm run typecheck`, `npm run build`, `npm run build:gas`, `npx clasp deployments --json`, `npx clasp run healthCheck`, `npx clasp run getDbInfo`.
+- Real-browser verification was not performed in this release.
+
+### 2026-04-13 `v202`
+
+- Version `202` created: removed the redundant top-right help button on the roster export page.
+- Both fixed deployments were synced to `@202` with `npx clasp redeploy`.
+- Verification passed: `npm run typecheck`, `npm run build`, `npm run build:gas`, `npx clasp deployments --json`, `npx clasp run healthCheck`, `npx clasp run getDbInfo`.
+- Real-browser verification was intentionally skipped by operator instruction.
+
+### 2026-04-13 `v203`
+
+- Version `203` created: replaced the quick-start intro sentence with user-facing wording.
+- Both fixed deployments were synced to `@203` with `npx clasp redeploy`.
+- Verification passed: `npm run typecheck`, `npm run build`, `npm run build:gas`, `npx clasp deployments --json`, `npx clasp run healthCheck`, `npx clasp run getDbInfo`.
+- Real-browser verification was intentionally skipped by operator instruction.
+
+### 2026-04-11 HEAD-only (pre-release record)
+
+- Workspace HEAD adds `REMINDER_TEMPLATE_SS_ID` and a co-located roster/reminder spreadsheet template example.
+- Workspace HEAD changes roster template resolution to prefer developer metadata and keep `P_` / `B_` prefix fallback.
+- Workspace HEAD changes roster data-sheet resolution to prefer `_DATA_ROSTER` and keep `_DATA` fallback.
+- These changes were later released as `v197`.
 
 ### 2026-04-10 `v196`
 
