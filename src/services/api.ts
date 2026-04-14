@@ -112,17 +112,26 @@ export interface ApiClient {
   updateStaff(payload: { staffId: string; memberId: string; lastName?: string; firstName?: string; lastKana?: string; firstKana?: string; name?: string; kana?: string; email?: string; careManagerNumber?: string; role?: string; status?: string; joinedDate?: string; mailingPreference?: string }): Promise<{ updated: boolean; staffId: string; memberId: string; status?: string; role?: string }>;
   // v188: AI案内メール生成（GASサーバー側でGemini APIを呼ぶ）
   generateTrainingEmail(payload: { training: Training; recipientName?: string }): Promise<{ ok: boolean; text: string }>;
-  // v196: PDF名簿出力
+  // v196: PDF名簿出力（対象取得）
   getMembersForRoster(payload: {
     memberTypes?: string[];
     memberStatus?: string;
     annualFeeStatus?: string;
     year?: number;
   }): Promise<RosterTarget[]>;
-  generateRosterZip(payload: {
+  // v205: チャンク分割 PDF 出力 API（1000件対応）
+  initRosterExport(payload: { year: number }): Promise<{ folderId: string }>;
+  processRosterChunk(payload: {
+    folderId: string;
+    chunkIndex: number;
     memberIds: string[];
-    year?: number;
-  }): Promise<{ downloadUrl: string; fileId: string; zipName: string; count: number; errors: string[] }>;
+    year: number;
+  }): Promise<{ ok: boolean; count?: number; errors?: string[] }>;
+  finalizeRosterExport(payload: {
+    folderId: string;
+    year: number;
+  }): Promise<{ downloadUrl: string; fileId: string; zipName: string; count: number }>;
+  cleanupRosterExport(payload: { folderId: string }): Promise<{ ok: boolean }>;
   // v194: 会員一括メール送信
   getMembersForBulkMail(payload: {
     memberTypes?: string[];
@@ -1138,7 +1147,7 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  // v196: PDF名簿出力
+  // v196: PDF名簿出力（対象取得）
   async getMembersForRoster(payload: {
     memberTypes?: string[];
     memberStatus?: string;
@@ -1157,10 +1166,8 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async generateRosterZip(payload: {
-    memberIds: string[];
-    year?: number;
-  }): Promise<{ downloadUrl: string; fileId: string; zipName: string; count: number; errors: string[] }> {
+  // v205: チャンク分割 PDF 出力 API（1000件対応）
+  async initRosterExport(payload: { year: number }): Promise<{ folderId: string }> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
       google.script.run
@@ -1169,7 +1176,54 @@ class GasApiClient implements ApiClient {
           catch { reject(new Error('Failed to parse response from GAS')); }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('generateRosterZip', JSON.stringify(payload));
+        .processApiRequest('initRosterExport', JSON.stringify(payload));
+    });
+  }
+
+  async processRosterChunk(payload: {
+    folderId: string;
+    chunkIndex: number;
+    memberIds: string[];
+    year: number;
+  }): Promise<{ ok: boolean; count?: number; errors?: string[] }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('processRosterChunk', JSON.stringify(payload));
+    });
+  }
+
+  async finalizeRosterExport(payload: {
+    folderId: string;
+    year: number;
+  }): Promise<{ downloadUrl: string; fileId: string; zipName: string; count: number }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('finalizeRosterExport', JSON.stringify(payload));
+    });
+  }
+
+  async cleanupRosterExport(payload: { folderId: string }): Promise<{ ok: boolean }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('cleanupRosterExport', JSON.stringify(payload));
     });
   }
 

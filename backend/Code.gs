@@ -1045,13 +1045,23 @@ function processApiRequest(action, payload) {
       return JSON.stringify({ success: true, data: generateTrainingEmailWithAI_(parsedPayload) });
     }
 
-    // v194: PDF名簿出力
+    // v194: PDF名簿出力（対象取得）
     if (action === 'getMembersForRoster') {
       return JSON.stringify({ success: true, data: getMembersForRoster_(parsedPayload) });
     }
 
-    if (action === 'generateRosterZip') {
-      return JSON.stringify({ success: true, data: generateRosterZip_(parsedPayload) });
+    // v205: チャンク分割 PDF 出力 API（1000件対応・all-or-nothing + リトライ）
+    if (action === 'initRosterExport') {
+      return JSON.stringify({ success: true, data: initRosterExport_(parsedPayload) });
+    }
+    if (action === 'processRosterChunk') {
+      return JSON.stringify({ success: true, data: processRosterChunk_(parsedPayload) });
+    }
+    if (action === 'finalizeRosterExport') {
+      return JSON.stringify({ success: true, data: finalizeRosterExport_(parsedPayload) });
+    }
+    if (action === 'cleanupRosterExport') {
+      return JSON.stringify({ success: true, data: cleanupRosterExport_(parsedPayload) });
     }
 
     if (action === 'validateTemplateSpreadsheet') {
@@ -14366,53 +14376,66 @@ function getMembersForRoster_(payload) {
 }
 
 /**
- * PDF名簿出力: 選択会員のPDFをZIPで生成してDriveに保存し、ダウンロードURLを返す。
+ * PDF名簿出力 v205: 1000件対応アーキテクチャ
  *
- * テンプレートSS規約:
- *   - T_システム設定.ROSTER_TEMPLATE_SS_ID に登録されたスプレッドシートを使用。
- *   - コードは自動的に「_DATA」シート（非表示）を作成・管理する。
- *   - 表示シートは「_DATA」シートのセルを数式で参照する構成にする。
+ * フロントエンドが CHUNK_SIZE=250 件ずつ分割し、順次 processRosterChunk_ を呼ぶ。
+ * 各チャンク内で PARALLEL_BATCH=15 本の temp SS + UrlFetchApp.fetchAll() で並列 PDF 取得。
+ * 失敗分は最大 MAX_RETRY=2 回リトライ。全成功のみ部分 ZIP を Drive 一時フォルダへ保存。
+ * 全チャンク完了後に finalizeRosterExport_ で部分 ZIP を統合して最終 ZIP を生成。
+ * all-or-nothing: いずれかのチャンクで失敗が残った場合は ZIP を出力しない。
  *
- * _DATAシート構造:
- *   行1: 会員レコードのヘッダ（列A〜W）
- *   行2: 会員レコード値
- *   行3: （空行）
- *   行4: 在籍職員ヘッダ（BUSINESS用）
- *   行5〜: 在籍職員データ
+ * GAS 6分制限 vs 件数試算:
+ *   250件/チャンク、PARALLEL_BATCH=15 → ceil(250/15)=17バッチ x ~10s ≈ 3分 (余裕あり)
+ *   1000件 = 4チャンク x ~3分 ≈ 計12分（GASは1回あたり6分以内に収まる）
+ *   finalizeRosterExport_ (unzip+rezip) ≈ 30秒
  *
- * payload:
- *   memberIds: string[]  – 対象会員IDリスト（件数上限なし）
- *   year?:     number    – 年会費表示の対象年度（省略時は当年度）
- *
- * v204: 50件ハード上限を廃止。複数 temp SS + UrlFetchApp.fetchAll() による並列 PDF 取得へ変更。
- *   PARALLEL_BATCH 本の一時 SS を使い回してバッチ処理することで GAS 6分制限内で全件処理できる。
- *   1バッチ PARALLEL_BATCH 件を並列 fetchAll → 実測 ~8s/バッチ × 約14バッチ ≈ 2〜3分（203件想定）。
+ * 注意: 会員データなし（memberMap に存在しない ID）は恒久失敗として扱いリトライしない。
  */
-function generateRosterZip_(payload) {
-  // v204: 並列 PDF 取得のバッチサイズ（同時 temp SS 数）
-  var PARALLEL_BATCH = 10;
 
-  var p = payload || {};
-  var memberIds = p.memberIds || [];
-  if (!memberIds.length) throw new Error('対象が選択されていません。');
-  // 件数上限チェックは廃止 — バッチ並列処理で全件対応
+/**
+ * v205: PDF 出力ジョブ初期化。Drive に一時フォルダを作成して folderId を返す。
+ */
+function initRosterExport_(payload) {
+  var folder = DriveApp.createFolder(
+    '_ROSTER_JOB_' + Utilities.getUuid().substring(0, 12)
+  );
+  return { folderId: folder.getId() };
+}
 
-  // 年度
+/**
+ * v205: チャンク単位の PDF 生成（all-or-nothing + リトライ）。
+ *
+ * - 内部で最大 MAX_RETRY 回リトライ（transient HTTP エラー対策）。
+ * - 全成功: chunk_{chunkIndex}.zip を folderId フォルダに保存 → { ok: true, count }
+ * - 失敗残存: { ok: false, errors[] } (ZIP 保存なし。フロント側が cleanupRosterExport_ を呼ぶ)
+ *
+ * payload: { folderId, chunkIndex, memberIds[], year }
+ */
+function processRosterChunk_(payload) {
+  var p          = payload || {};
+  var folderId   = String(p.folderId   || '');
+  var chunkIndex = Number(p.chunkIndex || 0);
+  var memberIds  = p.memberIds         || [];
+  var year       = Number(p.year       || 0);
+  var MAX_RETRY  = 2;
+  var PARALLEL_BATCH = 15;
+
+  if (!folderId)         throw new Error('folderId が指定されていません。');
+  if (!memberIds.length) return { ok: true, count: 0 };
+
   var now = new Date();
   var currentFY = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-  var year = Number(p.year || 0);
   if (!year || !isFinite(year)) year = currentFY;
 
-  // テンプレートSS ID 取得
   var dbSs = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
   var templateId = String(getSystemSettingValue_(dbSs, 'ROSTER_TEMPLATE_SS_ID') || '').trim();
   if (!templateId) {
-    throw new Error(
-      '名簿テンプレートSSが未設定です。システム設定 > ROSTER_TEMPLATE_SS_ID を登録してください。'
-    );
+    throw new Error('名簿テンプレートSSが未設定です。システム設定 > ROSTER_TEMPLATE_SS_ID を登録してください。');
   }
+  var templateFile;
+  try { templateFile = DriveApp.getFileById(templateId); }
+  catch (e) { throw new Error('テンプレートSSの取得に失敗しました: ' + e.message); }
 
-  // DBデータ収集
   var memberSheet = dbSs.getSheetByName('T_会員');
   var staffSheet  = dbSs.getSheetByName('T_事業所職員');
   var feeSheet    = dbSs.getSheetByName('T_年会費納入履歴');
@@ -14421,7 +14444,6 @@ function generateRosterZip_(payload) {
   getSheetData_(memberSheet).forEach(function(m) {
     memberMap[String(m['会員ID'] || '')] = m;
   });
-
   var staffByMember = {};
   (staffSheet ? getSheetData_(staffSheet) : []).forEach(function(s) {
     if (toBoolean_(s['削除フラグ'])) return;
@@ -14429,7 +14451,6 @@ function generateRosterZip_(payload) {
     if (!staffByMember[mid]) staffByMember[mid] = [];
     staffByMember[mid].push(s);
   });
-
   var feeMap = {};
   (feeSheet ? getSheetData_(feeSheet) : []).forEach(function(r) {
     if (toBoolean_(r['削除フラグ'])) return;
@@ -14438,7 +14459,101 @@ function generateRosterZip_(payload) {
     if (mid) feeMap[mid] = String(r['会費納入状態コード'] || 'UNPAID');
   });
 
-  // _DATA ヘッダ定義（固定・ドキュメント化）
+  var remainingIds = memberIds.slice();
+  var allBlobs     = [];
+  var finalErrors  = [];
+
+  for (var attempt = 0; attempt <= MAX_RETRY; attempt++) {
+    if (remainingIds.length === 0) break;
+    if (attempt > 0) Utilities.sleep(2000);
+    var result = generatePdfsForIds_(
+      remainingIds, templateFile, memberMap, staffByMember, feeMap, year, PARALLEL_BATCH
+    );
+    allBlobs     = allBlobs.concat(result.blobs);
+    remainingIds = result.failedIds;
+    finalErrors  = result.errors;
+  }
+
+  if (remainingIds.length > 0) {
+    return { ok: false, errors: finalErrors };
+  }
+
+  var zipBlob = Utilities.zip(allBlobs, 'chunk_' + chunkIndex + '.zip');
+  DriveApp.getFolderById(folderId).createFile(zipBlob);
+  return { ok: true, count: allBlobs.length };
+}
+
+/**
+ * v205: 全チャンクの部分 ZIP を統合して最終 ZIP を生成。
+ * payload: { folderId, year }
+ */
+function finalizeRosterExport_(payload) {
+  var p        = payload || {};
+  var folderId = String(p.folderId || '');
+  var year     = Number(p.year    || 0);
+
+  if (!folderId) throw new Error('folderId が指定されていません。');
+
+  var folder = DriveApp.getFolderById(folderId);
+  var files  = folder.getFiles();
+
+  var allBlobs = [];
+  while (files.hasNext()) {
+    var file = files.next();
+    try {
+      var unzipped = Utilities.unzip(file.getBlob());
+      unzipped.forEach(function(b) { allBlobs.push(b); });
+    } catch (e) {
+      Logger.log('finalizeRosterExport_: unzip 失敗: ' + file.getName() + ': ' + e.message);
+    }
+  }
+
+  if (allBlobs.length === 0) {
+    throw new Error('統合する PDF がありません。チャンク処理が完了していない可能性があります。');
+  }
+
+  var now = new Date();
+  var currentFY = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  if (!year || !isFinite(year)) year = currentFY;
+
+  var zipName = '名簿_' + year + '年度_' + allBlobs.length + '件.zip';
+  var zipBlob = Utilities.zip(allBlobs, zipName);
+  var zipFile = DriveApp.createFile(zipBlob);
+  var downloadUrl = 'https://drive.google.com/uc?export=download&id=' + zipFile.getId();
+
+  try { folder.setTrashed(true); } catch (ce) {
+    Logger.log('finalizeRosterExport_: temp folder 削除失敗: ' + ce.message);
+  }
+
+  return {
+    downloadUrl: downloadUrl,
+    fileId:      zipFile.getId(),
+    zipName:     zipName,
+    count:       allBlobs.length,
+  };
+}
+
+/**
+ * v205: エラー・中断時の一時フォルダクリーンアップ。
+ * payload: { folderId }
+ */
+function cleanupRosterExport_(payload) {
+  var folderId = String((payload || {}).folderId || '');
+  if (!folderId) return { ok: true };
+  try { DriveApp.getFolderById(folderId).setTrashed(true); }
+  catch (e) { Logger.log('cleanupRosterExport_: ' + e.message); }
+  return { ok: true };
+}
+
+/**
+ * v205: PDF 生成コアヘルパー（processRosterChunk_ から呼ばれる）。
+ * memberIds を会員種別でソートし、parallelBatch 本の temp SS + UrlFetchApp.fetchAll() で並列 PDF 取得。
+ * returns { blobs: Blob[], failedIds: string[], errors: string[] }
+ *
+ * failedIds: HTTP エラー会員 ID のみ（リトライ対象）。
+ *            会員データなしは errors のみ（リトライ不要なので failedIds に入れない）。
+ */
+function generatePdfsForIds_(memberIds, templateFile, memberMap, staffByMember, feeMap, year, parallelBatch) {
   var MEMBER_HEADERS = [
     '会員番号', '会員種別', '姓', '名', 'フリガナ姓', 'フリガナ名',
     '勤務先名', '事業所番号', '勤務先郵便番号', '勤務先都道府県', '勤務先市区町村', '勤務先住所',
@@ -14449,32 +14564,20 @@ function generateRosterZip_(payload) {
     '職員番号', '職員権限', '姓', '名', 'フリガナ姓', 'フリガナ名',
     'メールアドレス', '入会日', '職員状態',
   ];
-
   var roleOrder = { REPRESENTATIVE: 0, ADMIN: 1, STAFF: 2 };
 
-  // v204: memberIds を会員種別ごとに並べ替え
-  // → 各 temp SS が同じ種別を担当し続けるため showSheet/hideSheet 呼び出し回数を最小化
   var memberTypeOf = {};
   memberIds.forEach(function(id) {
     var m = memberMap[String(id)];
     memberTypeOf[String(id)] = m ? String(m['会員種別コード'] || '') : '';
   });
-  var sortedMemberIds = memberIds.slice().sort(function(a, b) {
+  var sortedIds = memberIds.slice().sort(function(a, b) {
     var ta = memberTypeOf[String(a)] || '';
     var tb = memberTypeOf[String(b)] || '';
     return ta < tb ? -1 : ta > tb ? 1 : 0;
   });
 
-  // テンプレートファイル取得
-  var templateFile;
-  try {
-    templateFile = DriveApp.getFileById(templateId);
-  } catch (e) {
-    throw new Error('テンプレートSSの取得に失敗しました: ' + e.message);
-  }
-
-  // v204: PARALLEL_BATCH 本の temp SS を一括作成（使い回し）
-  var actualBatch = Math.min(PARALLEL_BATCH, sortedMemberIds.length);
+  var actualBatch  = Math.min(parallelBatch, sortedIds.length);
   var tempContexts = [];
   for (var ti = 0; ti < actualBatch; ti++) {
     try {
@@ -14483,18 +14586,15 @@ function generateRosterZip_(payload) {
       );
       var tmpSs = SpreadsheetApp.openById(tmpFile.getId());
 
-      // テンプレートシートの存在確認（最初の 1 本のみ）
       if (ti === 0) {
         var visibleSheets = tmpSs.getSheets().filter(function(s) {
           return !s.isSheetHidden() && !isTemplateInternalSheet_(s.getName());
         });
         if (visibleSheets.length === 0) {
           try { DriveApp.getFileById(tmpFile.getId()).setTrashed(true); } catch (ce) {}
-          // 残りのループも回す前にクリーンアップして throw
-          tempContexts = [];
           throw new Error(
             'テンプレートSSに表示用シートがありません。' +
-            '「P_」または「B_」で始まる表示シートを1枚以上追加してください。'
+            '「P_」または「B_」で始まるシートを1枚以上追加してください。'
           );
         }
       }
@@ -14505,35 +14605,30 @@ function generateRosterZip_(payload) {
         ss:        tmpSs,
         dataSheet: tmpDataSheet,
         fileId:    tmpFile.getId(),
-        lastType:  null, // 前回処理した会員種別（visibility 変更の最小化用）
+        lastType:  null,
       });
     } catch (e) {
-      // 1 本目の throw はそのまま上位へ
-      if (ti === 0 && e.message.indexOf('テンプレートSS') !== -1) {
-        throw e;
-      }
-      Logger.log('generateRosterZip_: temp SS ' + ti + ' 作成失敗: ' + e.message);
+      if (ti === 0) throw e;
+      Logger.log('generatePdfsForIds_: temp SS ' + ti + ' 作成失敗: ' + e.message);
     }
   }
 
   if (tempContexts.length === 0) {
     throw new Error('テンプレートSSのコピーに失敗しました。Drive の容量・権限・ID を確認してください。');
   }
-  actualBatch = tempContexts.length; // 作成できた分だけ使用
+  actualBatch = tempContexts.length;
 
   var oauthToken = ScriptApp.getOAuthToken();
-  var blobs  = [];
-  var errors = [];
+  var blobs     = [];
+  var failedIds = [];
+  var errors    = [];
 
-  // v204: バッチループ（PARALLEL_BATCH 件ずつ処理 → fetchAll で並列 PDF 取得）
-  for (var batchStart = 0; batchStart < sortedMemberIds.length; batchStart += actualBatch) {
-    var batchIds = sortedMemberIds.slice(batchStart, batchStart + actualBatch);
-    var batchSize = batchIds.length;
+  for (var batchStart = 0; batchStart < sortedIds.length; batchStart += actualBatch) {
+    var batchIds  = sortedIds.slice(batchStart, batchStart + actualBatch);
+    var requests  = [];
+    var batchMeta = [];
 
-    var requests  = []; // UrlFetchApp.fetchAll 用リクエスト配列（有効分のみ）
-    var batchMeta = []; // 各リクエストに対応するメタ情報
-
-    for (var j = 0; j < batchSize; j++) {
+    for (var j = 0; j < batchIds.length; j++) {
       var ctx      = tempContexts[j];
       var memberId = String(batchIds[j]);
       var member   = memberMap[memberId];
@@ -14554,33 +14649,21 @@ function generateRosterZip_(payload) {
         });
       }
 
-      // _DATA シートをクリアして書き込み（GAS バッファに積む）
       var dataSheet = ctx.dataSheet;
       dataSheet.clearContents();
       dataSheet.getRange(1, 1, 1, MEMBER_HEADERS.length).setValues([MEMBER_HEADERS]);
       dataSheet.getRange(2, 1, 1, MEMBER_HEADERS.length).setValues([[
-        memberId,
-        mtype,
-        String(member['姓'] || ''),
-        String(member['名'] || ''),
-        String(member['セイ'] || ''),
-        String(member['メイ'] || ''),
-        String(member['勤務先名'] || ''),
-        String(member['事業所番号'] || ''),
-        String(member['勤務先郵便番号'] || ''),
-        String(member['勤務先都道府県'] || ''),
-        String(member['勤務先市区町村'] || ''),
-        String(member['勤務先住所'] || ''),
-        String(member['勤務先電話番号'] || ''),
-        String(member['勤務先FAX番号'] || ''),
-        String(member['自宅郵便番号'] || ''),
-        String(member['自宅都道府県'] || ''),
-        String(member['自宅市区町村'] || ''),
-        String(member['自宅住所'] || ''),
-        String(member['代表メールアドレス'] || ''),
-        String(member['入会日'] || ''),
-        feeMap[memberId] || 'NONE',
-        year,
+        memberId, mtype,
+        String(member['姓'] || ''), String(member['名'] || ''),
+        String(member['セイ'] || ''), String(member['メイ'] || ''),
+        String(member['勤務先名'] || ''), String(member['事業所番号'] || ''),
+        String(member['勤務先郵便番号'] || ''), String(member['勤務先都道府県'] || ''),
+        String(member['勤務先市区町村'] || ''), String(member['勤務先住所'] || ''),
+        String(member['勤務先電話番号'] || ''), String(member['勤務先FAX番号'] || ''),
+        String(member['自宅郵便番号'] || ''), String(member['自宅都道府県'] || ''),
+        String(member['自宅市区町村'] || ''), String(member['自宅住所'] || ''),
+        String(member['代表メールアドレス'] || ''), String(member['入会日'] || ''),
+        feeMap[memberId] || 'NONE', year,
         String(member['介護支援専門員番号'] || ''),
       ]]);
       if (enrolledStaff.length > 0) {
@@ -14588,20 +14671,15 @@ function generateRosterZip_(payload) {
         dataSheet.getRange(5, 1, enrolledStaff.length, STAFF_HEADERS.length)
           .setValues(enrolledStaff.map(function(s) {
             return [
-              String(s['職員ID'] || ''),
-              String(s['職員権限コード'] || ''),
-              String(s['姓'] || ''),
-              String(s['名'] || ''),
-              String(s['セイ'] || ''),
-              String(s['メイ'] || ''),
-              String(s['メールアドレス'] || ''),
-              String(s['入会日'] || ''),
+              String(s['職員ID'] || ''), String(s['職員権限コード'] || ''),
+              String(s['姓'] || ''), String(s['名'] || ''),
+              String(s['セイ'] || ''), String(s['メイ'] || ''),
+              String(s['メールアドレス'] || ''), String(s['入会日'] || ''),
               String(s['職員状態コード'] || ''),
             ];
           }));
       }
 
-      // 種別が変わった場合のみ表示シート切り替え（API 呼び出しを最小化）
       if (ctx.lastType !== mtype) {
         selectRosterDisplaySheetsV2_(ctx.ss, mtype);
         ctx.lastType = mtype;
@@ -14619,10 +14697,8 @@ function generateRosterZip_(payload) {
 
     if (requests.length === 0) continue;
 
-    // このバッチ全 SS の書き込み・visibility 変更を一括コミット
     SpreadsheetApp.flush();
 
-    // 各 SS の表示シートを 1 セル読んで数式再計算を確定させる
     for (var k = 0; k < batchMeta.length; k++) {
       var ctx = tempContexts[batchMeta[k].ctxIndex];
       var dispSheets = ctx.ss.getSheets().filter(function(s) { return !s.isSheetHidden(); });
@@ -14631,7 +14707,6 @@ function generateRosterZip_(payload) {
       }
     }
 
-    // v204: 全 PDF を並列取得（UrlFetchApp.fetchAll）
     var responses = UrlFetchApp.fetchAll(requests);
 
     for (var k = 0; k < responses.length; k++) {
@@ -14644,45 +14719,23 @@ function generateRosterZip_(payload) {
         var pdfName    = meta.memberId + '_' + (lastName + firstName || officeName || '名前なし') + '.pdf';
         blobs.push(response.getBlob().setName(pdfName));
       } else {
+        failedIds.push(meta.memberId);
         errors.push(
           String(meta.member['姓'] || '') + String(meta.member['名'] || '') +
-          '（' + meta.memberId + '）: PDF エクスポート失敗 (HTTP ' + response.getResponseCode() + ')'
+          '（' + meta.memberId + '）: HTTP ' + response.getResponseCode()
         );
       }
     }
   }
 
-  // 全 temp SS を削除（成否に関わらず）
   tempContexts.forEach(function(ctx) {
     try { DriveApp.getFileById(ctx.fileId).setTrashed(true); } catch (ce) {
-      Logger.log('generateRosterZip_: 一時コピー削除失敗: ' + ce.message);
+      Logger.log('generatePdfsForIds_: cleanup 失敗: ' + ce.message);
     }
   });
 
-  if (blobs.length === 0) {
-    var errMsg = errors.length
-      ? 'PDF の生成に失敗しました: ' + errors.join(' / ')
-      : 'PDF の生成に失敗しました（原因不明）';
-    throw new Error(errMsg);
-  }
-
-  // ZIP 作成
-  var zipName = '名簿_' + year + '年度_' + blobs.length + '件.zip';
-  var zipBlob = Utilities.zip(blobs, zipName);
-
-  // Drive に一時保存
-  var zipFile = DriveApp.createFile(zipBlob);
-  var downloadUrl = 'https://drive.google.com/uc?export=download&id=' + zipFile.getId();
-
-  return {
-    downloadUrl: downloadUrl,
-    fileId:      zipFile.getId(),
-    zipName:     zipName,
-    count:       blobs.length,
-    errors:      errors,
-  };
+  return { blobs: blobs, failedIds: failedIds, errors: errors };
 }
-
 function resolveRosterTemplatePrefix_(memberType) {
   return String(memberType || '') === 'BUSINESS' ? 'B_' : 'P_';
 }

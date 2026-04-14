@@ -65,6 +65,8 @@ const RosterExport: React.FC<RosterExportProps> = ({
   const [selectedIds, setSelectedIds] = useState<Set<string> | null>(null);
   const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set());
 
+  const CHUNK_SIZE = 250; // 1チャンクあたりの会員数（GAS 6分制限 × PARALLEL_BATCH=15 で ~3分/チャンク）
+
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [generateResult, setGenerateResult] = useState<{
@@ -72,7 +74,12 @@ const RosterExport: React.FC<RosterExportProps> = ({
     fileId: string;
     zipName: string;
     count: number;
-    errors: string[];
+  } | null>(null);
+  const [progress, setProgress] = useState<{
+    phase: 'chunks' | 'finalizing';
+    current: number;
+    total: number;
+    processed: number;
   } | null>(null);
 
   const effectiveTargets = useMemo<RosterTarget[]>(() => {
@@ -175,16 +182,49 @@ const RosterExport: React.FC<RosterExportProps> = ({
     setGenerating(true);
     setGenerateError(null);
     setGenerateResult(null);
+    setProgress(null);
+
+    const allIds = effectiveTargets.map((t) => t.memberId);
+    const chunks: string[][] = [];
+    for (let i = 0; i < allIds.length; i += CHUNK_SIZE) {
+      chunks.push(allIds.slice(i, i + CHUNK_SIZE));
+    }
+
+    let folderId = '';
     try {
-      const result = await api.generateRosterZip({
-        memberIds: effectiveTargets.map((target) => target.memberId),
-        year: filterYear,
-      });
-      setGenerateResult(result);
+      // Step 1: ジョブ初期化（Drive 一時フォルダ作成）
+      const init = await api.initRosterExport({ year: filterYear });
+      folderId = init.folderId;
+
+      // Step 2: チャンクごとに PDF 生成（all-or-nothing + リトライ）
+      let processed = 0;
+      for (let i = 0; i < chunks.length; i++) {
+        setProgress({ phase: 'chunks', current: i + 1, total: chunks.length, processed });
+        const result = await api.processRosterChunk({
+          folderId,
+          chunkIndex: i,
+          memberIds: chunks[i],
+          year: filterYear,
+        });
+        if (!result.ok) {
+          // チャンク内でリトライ後も失敗 → クリーンアップして中断
+          await api.cleanupRosterExport({ folderId }).catch(() => {});
+          const errLines = (result.errors ?? []).slice(0, 5).join('\n');
+          const more = (result.errors?.length ?? 0) > 5 ? `\n他 ${(result.errors?.length ?? 0) - 5} 件` : '';
+          throw new Error(`チャンク ${i + 1}/${chunks.length} で失敗しました。\n${errLines}${more}`);
+        }
+        processed += chunks[i].length;
+      }
+
+      // Step 3: 部分 ZIP を統合して最終 ZIP を生成
+      setProgress({ phase: 'finalizing', current: chunks.length, total: chunks.length, processed });
+      const final = await api.finalizeRosterExport({ folderId, year: filterYear });
+      setGenerateResult(final);
     } catch (error) {
       setGenerateError(error instanceof Error ? error.message : 'ZIP 出力に失敗しました。');
     } finally {
       setGenerating(false);
+      setProgress(null);
     }
   };
 
@@ -447,16 +487,45 @@ const RosterExport: React.FC<RosterExportProps> = ({
       )}
 
       {generating && (
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <section className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
           <div className="flex items-center gap-4">
             <div className="h-8 w-8 shrink-0 animate-spin rounded-full border-b-2 border-primary-500"></div>
-            <div>
-              <p className="text-sm font-medium text-slate-700">名簿 PDF を生成しています。</p>
-              <p className="mt-0.5 text-xs text-slate-500">
-                {effectiveTargets.length} 件を並列処理しています。件数が多い場合は数分かかることがあります。処理が完了するまでこの画面を閉じないでください。
-              </p>
+            <div className="flex-1 min-w-0">
+              {progress?.phase === 'finalizing' ? (
+                <>
+                  <p className="text-sm font-medium text-slate-700">ZIP を統合しています...</p>
+                  <p className="mt-0.5 text-xs text-slate-500">全 {progress.processed} 件の PDF を1つの ZIP にまとめています。</p>
+                </>
+              ) : progress ? (
+                <>
+                  <p className="text-sm font-medium text-slate-700">
+                    チャンク {progress.current} / {progress.total} を処理中...
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {progress.processed} 件処理済み / 全 {effectiveTargets.length} 件
+                    {progress.total > 1 && (
+                      <span className="ml-2 text-slate-400">
+                        （{progress.total} チャンクに分割して順次処理します）
+                      </span>
+                    )}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-medium text-slate-700">PDF 出力を開始しています...</p>
+                  <p className="mt-0.5 text-xs text-slate-500">処理が完了するまでこの画面を閉じないでください。</p>
+                </>
+              )}
             </div>
           </div>
+          {progress && progress.total > 0 && (
+            <div className="w-full rounded-full bg-slate-100 h-2">
+              <div
+                className="h-2 rounded-full bg-primary-500 transition-all duration-500"
+                style={{ width: `${Math.round((progress.processed / effectiveTargets.length) * 100)}%` }}
+              />
+            </div>
+          )}
         </section>
       )}
 
@@ -489,16 +558,6 @@ const RosterExport: React.FC<RosterExportProps> = ({
                 ファイルは Google ドライブにも保存されます。不要なファイルは定期的に整理してください。
               </p>
 
-              {generateResult.errors.length > 0 && (
-                <div className="space-y-1 rounded p-3 text-sm text-amber-800 bg-amber-50">
-                  <p className="font-medium">一部の PDF でエラーが発生しました。</p>
-                  <ul className="list-disc list-inside space-y-0.5">
-                    {generateResult.errors.map((error, index) => (
-                      <li key={index}>{error}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
             </>
           )}
         </section>
