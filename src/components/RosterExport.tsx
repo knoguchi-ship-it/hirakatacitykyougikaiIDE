@@ -13,8 +13,6 @@ interface RosterExportProps {
   onOpenSettings: () => void;
 }
 
-const ROSTER_MAX_BATCH = 50;
-
 const MEMBER_TYPE_LABELS: Record<string, string> = {
   INDIVIDUAL: '個人会員',
   BUSINESS: '事業所会員',
@@ -191,7 +189,6 @@ const RosterExport: React.FC<RosterExportProps> = ({
   };
 
   const hasTemplate = Boolean(settings.rosterTemplateSsId);
-  const overLimit = effectiveTargets.length > ROSTER_MAX_BATCH;
 
   return (
     <div className="space-y-6">
@@ -336,11 +333,6 @@ const RosterExport: React.FC<RosterExportProps> = ({
               <span className="text-sm font-semibold text-slate-700">
                 対象: {targets.length}件 / 選択中: {effectiveTargets.length}件
               </span>
-              {overLimit && (
-                <span className="rounded border border-rose-200 bg-rose-50 px-2 py-0.5 text-xs text-rose-700">
-                  一度に出力できる上限は {ROSTER_MAX_BATCH} 件です。
-                </span>
-              )}
             </div>
             <div className="flex flex-wrap gap-2">
               {(['INDIVIDUAL', 'BUSINESS', 'SUPPORT'] as const)
@@ -443,7 +435,7 @@ const RosterExport: React.FC<RosterExportProps> = ({
         <div className="flex flex-wrap items-center gap-4">
           <button
             type="button"
-            disabled={effectiveTargets.length === 0 || overLimit || generating || !hasTemplate}
+            disabled={effectiveTargets.length === 0 || generating || !hasTemplate}
             onClick={handleGenerate}
             className={`${btnCls} bg-primary-600 text-white hover:bg-primary-700`}
           >
@@ -451,7 +443,6 @@ const RosterExport: React.FC<RosterExportProps> = ({
           </button>
           {!hasTemplate && <span className="text-sm text-amber-700">テンプレート設定が必要です。</span>}
           {effectiveTargets.length === 0 && <span className="text-sm text-slate-500">出力対象を選択してください。</span>}
-          {overLimit && <span className="text-sm text-rose-700">{ROSTER_MAX_BATCH}件以下に絞ってください。</span>}
         </div>
       )}
 
@@ -462,7 +453,7 @@ const RosterExport: React.FC<RosterExportProps> = ({
             <div>
               <p className="text-sm font-medium text-slate-700">名簿 PDF を生成しています。</p>
               <p className="mt-0.5 text-xs text-slate-500">
-                {effectiveTargets.length} 件のテンプレートを順次処理しています。件数が多い場合は少し時間がかかります。
+                {effectiveTargets.length} 件を並列処理しています。件数が多い場合は数分かかることがあります。処理が完了するまでこの画面を閉じないでください。
               </p>
             </div>
           </div>
