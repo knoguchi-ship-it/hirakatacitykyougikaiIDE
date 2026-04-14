@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-04-13
-Production: `v203` / fixed deployments `@203`
+Updated: 2026-04-14
+Production: `v204` / fixed deployments `@204`
 
 ## 1. Purpose
 
@@ -17,7 +17,7 @@ Production: `v203` / fixed deployments `@203`
 | Member portal | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `/exec` |
 | Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `/exec?app=public` |
 
-Both fixed deployments currently point to `@203`.
+Both fixed deployments currently point to `@204`.
 
 ## 3. Standard Release Steps
 
@@ -143,6 +143,14 @@ Also verify the runtime in a real browser when the change affects user flows.
 - Both fixed deployments were synced to `@202` with `npx clasp redeploy`.
 - Verification passed: `npm run typecheck`, `npm run build`, `npm run build:gas`, `npx clasp deployments --json`, `npx clasp run healthCheck`, `npx clasp run getDbInfo`.
 - Real-browser verification was intentionally skipped by operator instruction.
+
+### 2026-04-14 `v204`
+
+- Version `204` created: removed the 50-item PDF export limit from roster export console.
+- GAS: `generateRosterZip_` rewritten — PARALLEL_BATCH=10 temp SS copies + `UrlFetchApp.fetchAll()` for parallel PDF generation. Pre-sorts members by type to minimize sheet visibility API calls. Estimated ~2-3 min for 203 members (within GAS 6-min limit).
+- Frontend: removed `ROSTER_MAX_BATCH`, `overLimit` logic, warning badge, and button disable condition from `RosterExport.tsx`.
+- Both fixed deployments were synced to `@204` with `npx clasp redeploy`.
+- Verification passed: `npm run typecheck`, `npm run build:gas`, `npx clasp deployments --json` (both @204).
 
 ### 2026-04-13 `v203`
 

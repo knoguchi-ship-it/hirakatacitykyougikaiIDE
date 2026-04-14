@@ -2,14 +2,14 @@
 
 Updated: 2026-04-14
 
-Production: `v203` / fixed deployments `@203`
+Production: `v204` / fixed deployments `@204`
 
 > **Note**: This document supplements `HANDOVER.md`. `HANDOVER.md` is the primary source of truth.
 > Always read `HANDOVER.md` first.
 
 ## 1. Current State
 
-- Production is `v203`. Both fixed deployments point to `@203`.
+- Production is `v204`. Both fixed deployments point to `@204`.
 - Frontend HTML compressed: member ~206 kB / public ~150 kB (deflate-raw + base64, `scripts/compress-html.mjs`).
 - Admin login uses `checkAdminBySession` (auth only). Member data is loaded lazily on page navigation.
 - Admin whitelist and auth rows are cached in `CacheService.getScriptCache()` (TTL 300s) for faster warm-instance logins.
@@ -33,7 +33,7 @@ Production: `v203` / fixed deployments `@203`
 2. `AGENTS.md`
 3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-5. `docs/73_RELEASE_STATE_v203_2026-04-13.md`
+5. `docs/74_RELEASE_STATE_v204_2026-04-14.md`
 6. `docs/09_DEPLOYMENT_POLICY.md`
 7. `docs/05_AUTH_AND_ROLE_SPEC.md`
 8. `docs/04_DB_OPERATION_RUNBOOK.md`
@@ -52,7 +52,7 @@ npx clasp deployments --json
 Expected:
 - authorized user is `k.noguchi@uguisunosato.or.jp`
 - health checks succeed
-- both fixed deployments point to `@203`
+- both fixed deployments point to `@204`
 - DB ID `1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs`
 
 ## 4. Working Rules
