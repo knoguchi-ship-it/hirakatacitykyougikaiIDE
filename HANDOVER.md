@@ -1,9 +1,9 @@
 # 開発引継ぎ
 
 更新日: 2026-04-14
-現行本番: `v204`
-固定 deployment: member `@204` / public `@204`
-補足: v204 で名簿PDF出力の50件上限を廃止。PARALLEL_BATCH=10 + UrlFetchApp.fetchAll() による並列処理で全件一括出力に対応。
+現行本番: `v205`
+固定 deployment: member `@205` / public `@205`
+補足: v205 でPDF出力を1000件対応アーキテクチャへ刷新。チャンク分割+all-or-nothing+リトライ。
 次期開発: なし（SOW完了）→ `docs/63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md`
 
 ## 1. 最初に読むもの
@@ -11,25 +11,26 @@
 2. `AGENTS.md`
 3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-5. `docs/74_RELEASE_STATE_v204_2026-04-14.md` ← **v204 current**（名簿PDF出力 50件上限廃止・並列バッチ処理）
-6. `docs/73_RELEASE_STATE_v203_2026-04-13.md`（v203 record）
-7. `docs/72_RELEASE_STATE_v202_2026-04-13.md`（v202 record）
-8. `docs/71_RELEASE_STATE_v201_2026-04-13.md`（v201 record）
-9. `docs/70_RELEASE_STATE_v200_2026-04-12.md`（v200 record）
-10. `docs/69_RELEASE_STATE_v199_2026-04-12.md`（v199 record）
-11. `docs/68_RELEASE_STATE_v198_2026-04-12.md`（v198 record）
-12. `docs/67_RELEASE_STATE_v197_2026-04-11.md`（v197 record）
-13. `docs/64_RELEASE_STATE_v194_v196_2026-04-10.md`（v194-v196 record）
-14. `docs/63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md` ← **全フェーズ完了（Phase 1〜3）**
-15. `docs/62_RELEASE_STATE_v193_2026-04-09.md` ← v193 base
-16. `docs/61_RELEASE_STATE_v191_2026-04-09.md`（v191 HTML圧縮）
-17. `docs/60_RELEASE_STATE_v189_2026-04-09.md`（v189失敗・v190復旧記録）
-18. `docs/59_RELEASE_STATE_v188_2026-04-09.md`（v188 Phase 1-2 パフォーマンス改善）
-19. `docs/58_NEXT_TASK_PERFORMANCE_2026-04-09.md`（B-02 未着手・残課題）
-20. `docs/09_DEPLOYMENT_POLICY.md`
-21. `docs/05_AUTH_AND_ROLE_SPEC.md`
-22. `docs/04_DB_OPERATION_RUNBOOK.md`
-23. `docs/03_DATA_MODEL.md`
+5. `docs/75_RELEASE_STATE_v205_2026-04-14.md` ← **v205 current**（PDF出力1000件対応アーキテクチャ）
+6. `docs/74_RELEASE_STATE_v204_2026-04-14.md`（v204 record）
+7. `docs/73_RELEASE_STATE_v203_2026-04-13.md`（v203 record）
+8. `docs/72_RELEASE_STATE_v202_2026-04-13.md`（v202 record）
+9. `docs/71_RELEASE_STATE_v201_2026-04-13.md`（v201 record）
+10. `docs/70_RELEASE_STATE_v200_2026-04-12.md`（v200 record）
+11. `docs/69_RELEASE_STATE_v199_2026-04-12.md`（v199 record）
+12. `docs/68_RELEASE_STATE_v198_2026-04-12.md`（v198 record）
+13. `docs/67_RELEASE_STATE_v197_2026-04-11.md`（v197 record）
+14. `docs/64_RELEASE_STATE_v194_v196_2026-04-10.md`（v194-v196 record）
+15. `docs/63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md` ← **全フェーズ完了（Phase 1〜3）**
+16. `docs/62_RELEASE_STATE_v193_2026-04-09.md` ← v193 base
+17. `docs/61_RELEASE_STATE_v191_2026-04-09.md`（v191 HTML圧縮）
+18. `docs/60_RELEASE_STATE_v189_2026-04-09.md`（v189失敗・v190復旧記録）
+19. `docs/59_RELEASE_STATE_v188_2026-04-09.md`（v188 Phase 1-2 パフォーマンス改善）
+20. `docs/58_NEXT_TASK_PERFORMANCE_2026-04-09.md`（B-02 未着手・残課題）
+21. `docs/09_DEPLOYMENT_POLICY.md`
+22. `docs/05_AUTH_AND_ROLE_SPEC.md`
+23. `docs/04_DB_OPERATION_RUNBOOK.md`
+24. `docs/03_DATA_MODEL.md`
 
 ## 2. 現在の引継ぎ結論
 - 開発の入口は `HANDOVER.md`、運用手順の正本は `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`。
@@ -40,7 +41,7 @@
 
 ## 3. 現在の本番状態
 - ブランチ運用の基準は `main`。
-- 両 fixed deployment は `@204` を向いている。
+- 両 fixed deployment は `@205` を向いている。
 - fixed deployment の標準同期方法は `npx clasp redeploy`。Apps Script UI `Manage deployments` は障害復旧時の補助手段に限定する。
 - member portal は sidebar logout を採用済み。
 - デモログイン、mock member route、画面内 demo selector は廃止済み。
@@ -51,6 +52,22 @@
 - フロントエンド HTML 圧縮: deflate-raw + base64（`scripts/compress-html.mjs`）。member 206 kB / public 150 kB。
 
 ## 4. 直近の重要履歴
+### v205
+- 2026-04-14 PDF出力1000件対応アーキテクチャへ刷新。build:gas / push / version / fixed deployment sync 実施。
+- **GAS backend**: `generateRosterZip_` を5関数に完全分解（chunked + all-or-nothing + retry）
+  - `initRosterExport_`: Drive 一時フォルダ作成（jobId 兼用）
+  - `processRosterChunk_`: 250件/チャンク、PARALLEL_BATCH=15、MAX_RETRY=2リトライ
+  - `finalizeRosterExport_`: 部分ZIP を unzip + rezip で最終1ファイルに統合
+  - `cleanupRosterExport_`: エラー・中断時の一時フォルダ削除
+  - `generatePdfsForIds_`: コアPDF生成ヘルパー（failedIds を返してリトライ制御を上位へ委譲）
+- **フロントエンド**: `RosterExport.tsx` にチャンク分割フロー + プログレスバー追加
+  - CHUNK_SIZE=250 でフロントが分割し processRosterChunk を順次呼ぶ
+  - チャンク進捗バー（現在チャンク/総チャンク + 件数）
+  - all-or-nothing のため部分成功 UI を廃止
+- **api.ts**: `generateRosterZip` 廃止、4新メソッドに置き換え
+- 件数耐性: 203件(現在)=1チャンク ✅ / 500件=2チャンク ✅ / 1000件=4チャンク ✅
+- `npm run typecheck`、`npm run build:gas`、`npx clasp deployments --json`（両 deployment @205）確認済み。
+
 ### v204
 - 2026-04-14 名簿PDF出力の50件上限を廃止。build:gas / push / version / fixed deployment sync 実施。
 - **GAS backend**: `generateRosterZip_` を並列バッチ処理に全面改修
@@ -306,8 +323,8 @@
 - `updateMemberSelf_` の欠落初期化不具合を修正。
 - テスト仕様は `docs/41_TEST_SPEC_v167_BUSINESS_ADMIN_ROLE_CHANGE.md` を参照。
 
-## 5. 現時点の注意事項（v204 更新）
-- fixed deployment 2 本は `@204` を向いている。
+## 5. 現時点の注意事項（v205 更新）
+- fixed deployment 2 本は `@205` を向いている。
 - **v194 リリース済みのため、本番管理者（k.noguchi@uguisunosato.or.jp）は次回 /exec アクセス時に gmail.send + drive の同意画面が表示される。** 未承認の場合は必ず承認すること。
 - **名簿出力コンソール（RosterExport）使用前提条件**: システム設定画面で `ROSTER_TEMPLATE_SS_ID`（テンプレートスプレッドシートID）を登録すること。未登録時は「テンプレートSS IDがシステム設定に登録されていません」と表示される。
 - **一括メール送信（BulkMailSender）使用前提条件**: Drive自動添付を使う場合は `BULK_MAIL_AUTO_ATTACH_FOLDER_ID`（DriveフォルダID）を登録すること。
@@ -328,13 +345,13 @@ npx clasp deployments --json
 期待値:
 - authorized user が運用アカウント（k.noguchi@uguisunosato.or.jp）
 - health check が成功
-- fixed deployment 2 本が `@204`
+- fixed deployment 2 本が `@205`
 - `getDbInfo` が本番固定 DB `1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs` を返す
 
-2026-04-14 確認結果（v204）:
+2026-04-14 確認結果（v205）:
 - `npx clasp show-authorized-user` → `k.noguchi@uguisunosato.or.jp`
 - `npx clasp run healthCheck` → `ok: true`
-- `npx clasp deployments --json` → member/public ともに `versionNumber: 204`
+- `npx clasp deployments --json` → member/public ともに `versionNumber: 205`
 - `npx clasp run getDbInfo` → DB ID `1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs`
 
 ## 7. 次担当者の最初の一手

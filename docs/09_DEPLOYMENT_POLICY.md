@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-04-14
-Production: `v204` / fixed deployments `@204`
+Production: `v205` / fixed deployments `@205`
 
 ## 1. Purpose
 
@@ -17,7 +17,7 @@ Production: `v204` / fixed deployments `@204`
 | Member portal | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `/exec` |
 | Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `/exec?app=public` |
 
-Both fixed deployments currently point to `@204`.
+Both fixed deployments currently point to `@205`.
 
 ## 3. Standard Release Steps
 
@@ -143,6 +143,23 @@ Also verify the runtime in a real browser when the change affects user flows.
 - Both fixed deployments were synced to `@202` with `npx clasp redeploy`.
 - Verification passed: `npm run typecheck`, `npm run build`, `npm run build:gas`, `npx clasp deployments --json`, `npx clasp run healthCheck`, `npx clasp run getDbInfo`.
 - Real-browser verification was intentionally skipped by operator instruction.
+
+### 2026-04-14 `v205`
+
+- Version `205` created: 1000-member scalable architecture for PDF roster export.
+- GAS: `generateRosterZip_` replaced with 5 new functions — chunked, all-or-nothing, with retry.
+  - `initRosterExport_`: creates Drive temp folder (folderId doubles as jobId).
+  - `processRosterChunk_`: processes 250 members, PARALLEL_BATCH=15, MAX_RETRY=2 transient-error retries.
+  - `finalizeRosterExport_`: unzips all partial ZIPs from temp folder, rezips into one final ZIP.
+  - `cleanupRosterExport_`: deletes temp folder on error/abort.
+  - `generatePdfsForIds_`: core PDF generation helper; returns `{blobs, failedIds, errors}` for retry control.
+- Frontend: `RosterExport.tsx` updated with chunked flow + progress bar (chunk N/total, member count).
+  - CHUNK_SIZE=250; frontend splits member IDs and calls processRosterChunk sequentially.
+  - Partial-success UI removed (all-or-nothing guarantee).
+- `api.ts`: `generateRosterZip` removed; 4 new methods added.
+- Capacity: 203 members (1 chunk, ~3 min) ✅ / 500 (2 chunks) ✅ / 1000 (4 chunks, ~12 min total) ✅.
+- Both fixed deployments were synced to `@205` with `npx clasp redeploy`.
+- Verification passed: `npm run typecheck`, `npm run build:gas`, `npx clasp deployments --json` (both @205).
 
 ### 2026-04-14 `v204`
 

@@ -1,6 +1,6 @@
 # Document Index
 
-Updated: 2026-04-14 (v204)
+Updated: 2026-04-14 (v205)
 
 ## 1. Entry Sources Of Truth
 - `HANDOVER.md`
@@ -28,7 +28,8 @@ Updated: 2026-04-14 (v204)
 - `docs/11_WITHDRAWAL_DELETION_POLICY.md`
 
 ## 3. Ops And Incident Docs
-- `docs/74_RELEASE_STATE_v204_2026-04-14.md` - **v204 current** - 名簿PDF出力 50件上限廃止・並列バッチ処理
+- `docs/75_RELEASE_STATE_v205_2026-04-14.md` - **v205 current** - 名簿PDF出力 50件上限廃止・並列バッチ処理
+- `docs/74_RELEASE_STATE_v204_2026-04-14.md` - v204 record - 名簿PDF出力 50件上限廃止・並列バッチ処理
 - `docs/73_RELEASE_STATE_v203_2026-04-13.md` - v203 record - user-facing quick-start intro copy
 - `docs/72_RELEASE_STATE_v202_2026-04-13.md` - v202 record - removed redundant roster help button
 - `docs/71_RELEASE_STATE_v201_2026-04-13.md` - v201 record - plain-language cleanup for remaining template-help sections
