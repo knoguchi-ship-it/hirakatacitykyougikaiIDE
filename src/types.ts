@@ -229,6 +229,7 @@ export interface Member {
   officePrefecture: string;
   officeCity: string;
   officeAddressLine: string;
+  officeAddressLine2?: string; // 建物名・部屋番号（任意）
   phone: string;     // Office Phone
   fax: string;       // Mandatory (Common Matter 1)
 
@@ -237,6 +238,7 @@ export interface Member {
   homePrefecture: string;
   homeCity: string;
   homeAddressLine: string;
+  homeAddressLine2?: string; // 建物名・部屋番号（任意）
   mobilePhone?: string; // Personal/Mobile
 
   // Mailing Logic

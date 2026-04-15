@@ -67,7 +67,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     officePostCode: '郵便番号',
     officePrefecture: '都道府県',
     officeCity: '市区町村',
-    officeAddressLine: '住所',
+    officeAddressLine: '番地',
     phone: '電話番号',
     email: 'メールアドレス',
   };
@@ -548,7 +548,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
             <FieldError fieldKey="officeCity" />
           </div>
           <div>
-            <label className={labelClass}>住所{isRequired('officeAddressLine') && <RequiredMark />}</label>
+            <label className={labelClass}>番地{isRequired('officeAddressLine') && <RequiredMark />}</label>
             <input
               className={fieldClass('officeAddressLine')}
               value={form.officeAddressLine || ''}
@@ -557,8 +557,18 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
               aria-required={isRequired('officeAddressLine')}
               aria-invalid={touched.officeAddressLine && !!validationErrors.officeAddressLine}
               aria-describedby={validationErrors.officeAddressLine ? 'err-officeAddressLine' : undefined}
+              placeholder="例: 1-2-3"
             />
             <FieldError fieldKey="officeAddressLine" />
+          </div>
+          <div>
+            <label className={labelClass}>建物名・部屋番号（任意）</label>
+            <input
+              className={fieldClass()}
+              value={form.officeAddressLine2 || ''}
+              onChange={e => set('officeAddressLine2', e.target.value)}
+              placeholder="例: ○○ビル 3F"
+            />
           </div>
           <div>
             <label className={labelClass}>電話番号{isRequired('phone') && <RequiredMark />}</label>
@@ -598,8 +608,12 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
               <input className={fieldClass()} value={form.homeCity || ''} onChange={e => set('homeCity', e.target.value)} />
             </div>
             <div>
-              <label className={labelClass}>住所</label>
-              <input className={fieldClass()} value={form.homeAddressLine || ''} onChange={e => set('homeAddressLine', e.target.value)} />
+              <label className={labelClass}>番地</label>
+              <input className={fieldClass()} value={form.homeAddressLine || ''} onChange={e => set('homeAddressLine', e.target.value)} placeholder="例: 1-2-3" />
+            </div>
+            <div>
+              <label className={labelClass}>建物名・部屋番号（任意）</label>
+              <input className={fieldClass()} value={form.homeAddressLine2 || ''} onChange={e => set('homeAddressLine2', e.target.value)} placeholder="例: ○○マンション 101号室" />
             </div>
             <div>
               <label className={labelClass}>携帯電話番号</label>

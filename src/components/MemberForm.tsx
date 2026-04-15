@@ -1345,10 +1345,14 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                     </div>
                     <div className="col-span-2">
                         <label className="block text-sm font-medium text-slate-700 mb-1">
-                            番地・建物名 {member.preferredMailDestination === MailDestination.HOME && <span className="text-red-500">(※)</span>}
+                            番地 {member.preferredMailDestination === MailDestination.HOME && <span className="text-red-500">(※)</span>}
                         </label>
-                        <input disabled={isReadOnly} type="text" name="homeAddressLine" value={member.homeAddressLine} onChange={handleChange} className={getInputClass('homeAddressLine')} />
+                        <input disabled={isReadOnly} type="text" name="homeAddressLine" value={member.homeAddressLine} onChange={handleChange} className={getInputClass('homeAddressLine')} placeholder="例: 1-2-3" />
                         {errors.homeAddressLine && <p className="text-xs text-red-500 mt-1">{errors.homeAddressLine}</p>}
+                    </div>
+                    <div className="col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-1">建物名・部屋番号（任意）</label>
+                        <input disabled={isReadOnly} type="text" name="homeAddressLine2" value={member.homeAddressLine2 || ''} onChange={handleChange} className={getInputClass('homeAddressLine2')} placeholder="例: ○○マンション 101号室" />
                     </div>
                 </div>
                 <div>
@@ -1426,10 +1430,14 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                   </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-slate-700 mb-1">
-                        番地・建物名 {(isBusiness || member.preferredMailDestination === MailDestination.OFFICE) && <span className="text-red-500">(※)</span>}
+                        番地 {(isBusiness || member.preferredMailDestination === MailDestination.OFFICE) && <span className="text-red-500">(※)</span>}
                     </label>
-                    <input disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="text" name="officeAddressLine" value={member.officeAddressLine} onChange={handleChange} className={getInputClass('officeAddressLine', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} />
+                    <input disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="text" name="officeAddressLine" value={member.officeAddressLine} onChange={handleChange} className={getInputClass('officeAddressLine', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} placeholder="例: 1-2-3" />
                     {errors.officeAddressLine && <p className="text-xs text-red-500 mt-1">{errors.officeAddressLine}</p>}
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">建物名・部屋番号（任意）</label>
+                    <input disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="text" name="officeAddressLine2" value={member.officeAddressLine2 || ''} onChange={handleChange} className={getInputClass('officeAddressLine2', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} placeholder="例: ○○ビル 3F" />
                   </div>
                </div>
               
