@@ -110,3 +110,19 @@ npx clasp apis
 3. OAuthクライアント作成時のドメインエラー
 - 生成元は `https://script.google.com` のみ設定
 - 許可されないドメインは追加しない
+## 8. 2026-04-15 new domain migration note
+- Current canonical linked GCP project for this system is no longer `uguisu-gas-exec-20260225191000`.
+- Current linked GCP project:
+  - Project ID: `hcmn-member-system-prod`
+  - Project number: `88737175415`
+  - Operational Google account: `k.noguchi@hcm-n.org`
+- Current minimum API set confirmed on the new project:
+  - `script.googleapis.com`
+  - `gmail.googleapis.com`
+  - `logging.googleapis.com`
+- Apps Script project settings were switched to standard GCP project number `88737175415` on 2026-04-15.
+- When `clasp run` fails after domain/project migration, do not rely on the default shared clasp client.
+  Use a project-owned desktop OAuth client and reauthenticate:
+  - create desktop OAuth client `clasp-hcmn-prod`
+  - save credentials locally as `.tmp/oauth-client-hcmn-member-system-prod.json`
+  - run `npx clasp login --creds .tmp/oauth-client-hcmn-member-system-prod.json --use-project-scopes`

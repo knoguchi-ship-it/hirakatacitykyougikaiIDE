@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-04-14
-Production: `v205` / fixed deployments `@205`
+Updated: 2026-04-15
+Production: `v208` / fixed deployments `@208`
 
 ## 1. Purpose
 
@@ -17,7 +17,7 @@ Production: `v205` / fixed deployments `@205`
 | Member portal | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `/exec` |
 | Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `/exec?app=public` |
 
-Both fixed deployments currently point to `@205`.
+Both fixed deployments currently point to `@208`.
 
 ## 3. Standard Release Steps
 
@@ -102,6 +102,33 @@ Also verify the runtime in a real browser when the change affects user flows.
 - Do not leave corrupted source documents in place.
 
 ## 7. Current Recorded State
+
+### 2026-04-15 `v208`
+
+- Version `208` created: 宛名リスト バグ2件修正。
+  - Bug 1: 事業所会員の名前を `姓名` → `勤務先名` に修正。
+  - Bug 2: `SpreadsheetApp.flush()` 追加（xlsx エクスポート前の書き込みバッファフラッシュ漏れ）。
+- Both fixed deployments were synced to `@208` with `npx clasp redeploy`.
+- Verification passed: `npm run typecheck`, `npm run build:gas`, `npx clasp deployments --json` (both @208).
+
+### 2026-04-15 `v207`
+
+- Version `207` created: 宛名リスト Excel 出力コンソール（MailingListExport）追加。
+- GAS: `generateMailingListExcel_()` 新規追加（広報誌発送/お知らせ発送フィルタ、住所解決、xlsx エクスポート）。
+- Frontend: `MailingListExport.tsx` 新規作成、Sidebar / App.tsx に `mailing-list-export` view 追加。
+- Both fixed deployments were synced to `@207` with `npx clasp redeploy`.
+- Verification passed: `npm run typecheck`, `npm run build:gas`, `npx clasp deployments --json` (both @207).
+
+### 2026-04-15 `v206`
+
+- Version `206` created: T_会員 に勤務先住所2・自宅住所2（建物名・部屋番号）列を追加。
+- GAS: `テーブル定義.T_会員` に2列追加、全読み書き関数（fetch/create/submit/update）に対応追加。
+  - `addAddressLine2Columns()` マイグレーション関数追加（冪等・本番DBへの列挿入用）。
+  - OWASP Mass Assignment allowlist に新フィールドを追加。
+- Frontend: `MemberForm.tsx` / `MemberDetailAdmin.tsx` で住所を「番地」と「建物名・部屋番号（任意）」の2フィールドに分割。
+- Both fixed deployments were synced to `@206` with `npx clasp redeploy`.
+- Verification passed: `npm run typecheck`, `npm run build:gas`, `npx clasp deployments --json` (both @206).
+- **本番DB適用**: `npx clasp run addAddressLine2Columns` 実行済み。`T_会員` に `勤務先住所2` / `自宅住所2` を追加済み。
 
 ### 2026-04-11 `v197`
 
@@ -318,3 +345,10 @@ Also verify the runtime in a real browser when the change affects user flows.
 - Verified with `npx clasp deployments --json`.
 - `npm run typecheck`, `npm run build`, `npm run build:gas`, `npx clasp run healthCheck`, and `npx clasp run getDbInfo` passed.
 - This release makes business-office fields representative-only, moves business-member status and joined date into admin-only display blocks, and removes the developer-facing helper text under office name.
+## 2026-04-15 hcm-n.org redeploy note
+- Fixed deployment IDs remain unchanged:
+  - member: `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx`
+  - public: `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp`
+- On 2026-04-15 both fixed deployments were redeployed again to `versionNumber: 208` by `k.noguchi@hcm-n.org`.
+- For a newly switched domain account, `clasp redeploy` may fail with `User has not enabled the Apps Script API`.
+  In that case, enable `Google Apps Script API` at `https://script.google.com/home/usersettings` for the operational Google user, then rerun `npx clasp redeploy`.

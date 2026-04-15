@@ -1,6 +1,6 @@
 # Document Index
 
-Updated: 2026-04-14 (v205)
+Updated: 2026-04-15 (v208)
 
 ## 1. Entry Sources Of Truth
 - `HANDOVER.md`
@@ -28,7 +28,11 @@ Updated: 2026-04-14 (v205)
 - `docs/11_WITHDRAWAL_DELETION_POLICY.md`
 
 ## 3. Ops And Incident Docs
-- `docs/75_RELEASE_STATE_v205_2026-04-14.md` - **v205 current** - 名簿PDF出力 50件上限廃止・並列バッチ処理
+- `docs/79_HANDOVER_2026-04-15.md` - **引継ぎ資料（v208時点）** - 機能・運用・落とし穴まとめ
+- `docs/78_RELEASE_STATE_v208_2026-04-15.md` - **v208 current** - 宛名リスト バグ修正（事業所名・flush）
+- `docs/77_RELEASE_STATE_v207_2026-04-15.md` - v207 record - 宛名リスト Excel 出力コンソール
+- `docs/76_RELEASE_STATE_v206_2026-04-15.md` - v206 record - T_会員 住所2列（建物名）追加
+- `docs/75_RELEASE_STATE_v205_2026-04-14.md` - v205 record - 名簿PDF出力 1000件対応アーキテクチャ
 - `docs/74_RELEASE_STATE_v204_2026-04-14.md` - v204 record - 名簿PDF出力 50件上限廃止・並列バッチ処理
 - `docs/73_RELEASE_STATE_v203_2026-04-13.md` - v203 record - user-facing quick-start intro copy
 - `docs/72_RELEASE_STATE_v202_2026-04-13.md` - v202 record - removed redundant roster help button
@@ -71,6 +75,7 @@ Updated: 2026-04-14 (v205)
 - `docs/31_HANDOVER_TASK_TEMPLATE.md`
 - `docs/17_ROOT_CAUSE_ERROR_RESPONSE_PLAYBOOK.md`
 - `docs/16_INCIDENT_clasp_run_permission_2026-03-14.md`
+- `docs/08_GCP_SETUP_RUNBOOK_2026-02-28.md`
 
 ## 4. Handover Tasks
 - Template: `docs/31_HANDOVER_TASK_TEMPLATE.md`

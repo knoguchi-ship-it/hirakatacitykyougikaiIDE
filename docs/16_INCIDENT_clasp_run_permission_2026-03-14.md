@@ -69,3 +69,17 @@
 ## Temporary operation rule
 - Do not gate release verification only on `clasp run`.
 - Use Web app smoke checks and editor-side function execution as primary runtime checks until `scripts.run` permission is restored.
+## 2026-04-15 follow-up
+- The same recovery pattern was required again during the new-domain migration.
+- New linked GCP project:
+  - Project ID: `hcmn-member-system-prod`
+  - Project number: `88737175415`
+- New operational account:
+  - `k.noguchi@hcm-n.org`
+- Confirmed recovery steps on 2026-04-15:
+  - switch Apps Script standard GCP project to `88737175415`
+  - enable `script.googleapis.com` and `gmail.googleapis.com`
+  - create project-owned desktop OAuth client `clasp-hcmn-prod`
+  - `npx clasp login --creds .tmp/oauth-client-hcmn-member-system-prod.json --use-project-scopes`
+  - `npx clasp run healthCheck` => success
+  - `npx clasp run getDbInfo` => success

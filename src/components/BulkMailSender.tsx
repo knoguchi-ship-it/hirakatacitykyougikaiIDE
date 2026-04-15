@@ -55,6 +55,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
 
   // ── メール本文 ───────────────────────────────────────────────
   const [aliases, setAliases]                   = useState<string[]>([]);
+  const [aliasWarning, setAliasWarning]         = useState<string | null>(null);
   const [from, setFrom]                         = useState('');
   const [subject, setSubject]                   = useState('');
   const [body, setBody]                         = useState('');
@@ -69,6 +70,9 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
     sent: number; total: number; errors: string[]; autoAttachMissed: string[]; logId: string;
   } | null>(null);
   const [sendError, setSendError]               = useState<string | null>(null);
+
+  // ── 宛先表示の追加絞り込み ───────────────────────────────────
+  const [recipientQuery, setRecipientQuery]     = useState('');
 
   // ── 送信ログ ─────────────────────────────────────────────────
   const [logs, setLogs]                         = useState<EmailSendLog[]>([]);
@@ -86,6 +90,25 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
     return recipients.filter(r => selectedIds.has(r.recipientKey));
   }, [recipients, selectedIds, excludedIds]);
 
+  const visibleRecipients = useMemo<BulkMailRecipient[]>(() => {
+    const q = recipientQuery.trim().toLowerCase();
+    if (!q) return recipients;
+    return recipients.filter(r => {
+      const stateLabel = r.memberType === 'BUSINESS'
+        ? (r.staffStatus === 'ENROLLED' ? '在籍' : '退職')
+        : (r.memberStatus === 'ACTIVE' ? '在籍' : r.memberStatus === 'WITHDRAWAL_SCHEDULED' ? '退会予定' : '退会');
+      return [
+        r.displayName,
+        r.email,
+        r.memberId,
+        r.officeName,
+        r.lastName,
+        r.firstName,
+        stateLabel,
+      ].some(value => String(value || '').toLowerCase().includes(q));
+    });
+  }, [recipients, recipientQuery]);
+
   const optOutCount = useMemo(
     () => effectiveTargets.filter(r => r.mailingOptOut).length,
     [effectiveTargets]
@@ -93,11 +116,16 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
 
   // ── エイリアス取得（コンポーネント初期化時） ────────────────
   useEffect(() => {
-    api.getAdminEmailAliases().then(a => {
-      setAliases(a);
-      if (!from && a.length) setFrom(a[0]);
-    }).catch(() => {});
-  }, []);
+    api.getAdminEmailAliases()
+      .then(({ aliases: loadedAliases, warning }) => {
+        setAliases(loadedAliases);
+        setAliasWarning(warning || null);
+        if (!from && loadedAliases.length) setFrom(loadedAliases[0]);
+      })
+      .catch((e: any) => {
+        setAliasWarning(e?.message || '送信元アドレス一覧の取得に失敗しました。');
+      });
+  }, [api]);
 
   // ── 宛先読み込み ─────────────────────────────────────────────
   const loadRecipients = useCallback(async () => {
@@ -105,6 +133,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
     setLoadError(null);
     setHasLoaded(false);
     setRecipients([]);
+    setRecipientQuery('');
     setSelectedIds(null);
     setExcludedIds(new Set());
     setSendResult(null);
@@ -127,8 +156,41 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
   }, [filterTypes, filterMemberStatus, filterStaffStatus, filterMailing, filterNoEmail, api]);
 
   // ── 選択操作 ──────────────────────────────────────────────────
-  const selectAll    = () => { setSelectedIds(null); setExcludedIds(new Set()); };
-  const deselectAll  = () => { setSelectedIds(new Set()); setExcludedIds(new Set()); };
+  const selectVisible = () => {
+    const visibleKeys = visibleRecipients.map(r => r.recipientKey);
+    if (!visibleKeys.length) return;
+    if (selectedIds === null) {
+      setExcludedIds(prev => {
+        const next = new Set(prev);
+        visibleKeys.forEach(key => next.delete(key));
+        return next;
+      });
+      return;
+    }
+    setSelectedIds(prev => {
+      const next = new Set(prev ?? []);
+      visibleKeys.forEach(key => next.add(key));
+      return next;
+    });
+  };
+
+  const deselectVisible = () => {
+    const visibleKeys = visibleRecipients.map(r => r.recipientKey);
+    if (!visibleKeys.length) return;
+    if (selectedIds === null) {
+      setExcludedIds(prev => {
+        const next = new Set(prev);
+        visibleKeys.forEach(key => next.add(key));
+        return next;
+      });
+      return;
+    }
+    setSelectedIds(prev => {
+      const next = new Set(prev ?? []);
+      visibleKeys.forEach(key => next.delete(key));
+      return next;
+    });
+  };
 
   const toggleOne = (key: string) => {
     if (selectedIds === null) {
@@ -331,7 +393,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
           <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-3 flex-wrap">
               <span className="text-sm font-semibold text-slate-700">
-                宛先: {recipients.length}名 / 選択中: {effectiveTargets.length}名
+                宛先: {recipients.length}名 / 表示中: {visibleRecipients.length}名 / 選択中: {effectiveTargets.length}名
               </span>
               {filterMailing === 'ALL' && optOutCount > 0 && (
                 <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
@@ -340,9 +402,20 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
               )}
             </div>
             <div className="flex gap-2">
-              <button type="button" onClick={selectAll}   className={`${btnCls} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50`}>全選択</button>
-              <button type="button" onClick={deselectAll} className={`${btnCls} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50`}>全解除</button>
+              <button type="button" onClick={selectVisible}   className={`${btnCls} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50`}>表示中を全選択</button>
+              <button type="button" onClick={deselectVisible} className={`${btnCls} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50`}>表示中を全解除</button>
             </div>
+          </div>
+
+          <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/70">
+            <label className="block text-sm font-medium text-slate-600 mb-1">人を絞り込む</label>
+            <input
+              type="text"
+              className={inputCls}
+              value={recipientQuery}
+              onChange={e => setRecipientQuery(e.target.value)}
+              placeholder="氏名・メールアドレス・会員番号・事業所名で検索"
+            />
           </div>
 
           <div className="overflow-x-auto max-h-96 overflow-y-auto">
@@ -359,10 +432,10 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {recipients.length === 0 ? (
-                  <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400">対象者がいません。フィルタを変更して再読み込みしてください。</td></tr>
+                {visibleRecipients.length === 0 ? (
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400">{recipients.length === 0 ? '対象者がいません。フィルタを変更して再読み込みしてください。' : '検索条件に一致する対象者がいません。'}</td></tr>
                 ) : (
-                  recipients.map(r => (
+                  visibleRecipients.map(r => (
                     <tr
                       key={r.recipientKey}
                       className={`cursor-pointer transition-colors ${isSelected(r.recipientKey) ? 'bg-primary-50' : 'hover:bg-slate-50'}`}
@@ -428,6 +501,9 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
               {aliases.length === 0 && <option value="">（取得中…）</option>}
             </select>
           </div>
+          {aliasWarning && (
+            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">{aliasWarning}</p>
+          )}
 
           {/* 件名 */}
           <div>
@@ -525,7 +601,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
         <div className="flex items-center gap-4">
           <button
             type="button"
-            disabled={effectiveTargets.length === 0 || !subject.trim() || !body.trim() || sending}
+            disabled={effectiveTargets.length === 0 || !from.trim() || !subject.trim() || !body.trim() || sending}
             onClick={() => setShowConfirm(true)}
             className={`${btnCls} bg-primary-600 text-white hover:bg-primary-700`}
           >

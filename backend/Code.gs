@@ -108,12 +108,14 @@ var テーブル定義 = {
     '勤務先都道府県',
     '勤務先市区町村',
     '勤務先住所',
+    '勤務先住所2',
     '勤務先電話番号',
     '勤務先FAX番号',
     '自宅郵便番号',
     '自宅都道府県',
     '自宅市区町村',
     '自宅住所',
+    '自宅住所2',
     '発送方法コード',
     '郵送先区分コード',
     '職員数上限',
@@ -354,6 +356,51 @@ function setupDatabase() {
   initializeSchema_(ss);
   markSchemaInitialized_();
   return getDbInfo_();
+}
+
+/**
+ * T_会員 に 勤務先住所2 / 自宅住所2 列を追加するマイグレーション。
+ * 既にカラムが存在する場合はスキップする（冪等）。
+ * 実行後は rebuildDatabaseSchema() のヘッダー保護を再適用することを推奨。
+ */
+function addAddressLine2Columns() {
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_会員');
+  if (!sheet) return { error: 'T_会員 シートが見つかりません。' };
+
+  var lastCol = sheet.getLastColumn();
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var results = [];
+
+  // 勤務先住所2 を 勤務先住所 の直後に挿入
+  var officeAddrIdx = headers.indexOf('勤務先住所'); // 0-based
+  if (officeAddrIdx < 0) {
+    return { error: '勤務先住所 列が見つかりません。rebuildDatabaseSchema() を先に実行してください。' };
+  }
+  if (headers.indexOf('勤務先住所2') >= 0) {
+    results.push('勤務先住所2: 既に存在します。スキップ。');
+  } else {
+    sheet.insertColumnAfter(officeAddrIdx + 1); // insertColumnAfter は 1-based
+    sheet.getRange(1, officeAddrIdx + 2).setValue('勤務先住所2');
+    headers.splice(officeAddrIdx + 1, 0, '勤務先住所2'); // ローカルの headers を更新
+    results.push('勤務先住所2: 列 ' + (officeAddrIdx + 2) + ' に追加しました。');
+  }
+
+  // 自宅住所2 を 自宅住所 の直後に挿入（headers は更新済みのものを使う）
+  var homeAddrIdx = headers.indexOf('自宅住所'); // 0-based
+  if (homeAddrIdx < 0) {
+    return { error: '自宅住所 列が見つかりません。rebuildDatabaseSchema() を先に実行してください。', results: results };
+  }
+  if (headers.indexOf('自宅住所2') >= 0) {
+    results.push('自宅住所2: 既に存在します。スキップ。');
+  } else {
+    sheet.insertColumnAfter(homeAddrIdx + 1);
+    sheet.getRange(1, homeAddrIdx + 2).setValue('自宅住所2');
+    results.push('自宅住所2: 列 ' + (homeAddrIdx + 2) + ' に追加しました。');
+  }
+
+  clearAllDataCache_();
+  return { ok: true, results: results };
 }
 
 /**
@@ -1079,6 +1126,11 @@ function processApiRequest(action, payload) {
 
     if (action === 'getEmailSendLog') {
       return JSON.stringify({ success: true, data: getEmailSendLog_(parsedPayload) });
+    }
+
+    // v207: 宛名リスト Excel 出力
+    if (action === 'generateMailingListExcel') {
+      return JSON.stringify({ success: true, data: generateMailingListExcel_(parsedPayload) });
     }
 
     // ── 会員セルフサービス（管理者認証不要・パスワード再認証必須）──
@@ -2929,12 +2981,14 @@ function mapMembersForApi_(ss, memberRows, staffRows, authRows, applicationRows,
       officePrefecture: String(m['勤務先都道府県'] || ''),
       officeCity: String(m['勤務先市区町村'] || ''),
       officeAddressLine: String(m['勤務先住所'] || ''),
+      officeAddressLine2: String(m['勤務先住所2'] || ''),
       phone: String(m['勤務先電話番号'] || ''),
       fax: String(m['勤務先FAX番号'] || ''),
       homePostCode: String(m['自宅郵便番号'] || ''),
       homePrefecture: String(m['自宅都道府県'] || ''),
       homeCity: String(m['自宅市区町村'] || ''),
       homeAddressLine: String(m['自宅住所'] || ''),
+      homeAddressLine2: String(m['自宅住所2'] || ''),
       mobilePhone: String(m['携帯電話番号'] || ''),
       mailingPreference: String(m['発送方法コード'] || 'EMAIL'),
       preferredMailDestination: String(m['郵送先区分コード'] || 'OFFICE'),
@@ -5079,12 +5133,14 @@ function createMember_(payload) {
       case '勤務先都道府県': return String(payload.officePrefecture || '');
       case '勤務先市区町村': return String(payload.officeCity || '');
       case '勤務先住所': return String(payload.officeAddressLine || '');
+      case '勤務先住所2': return String(payload.officeAddressLine2 || '');
       case '勤務先電話番号': return String(payload.phone || '');
       case '勤務先FAX番号': return String(payload.fax || '');
       case '自宅郵便番号': return String(payload.homePostCode || '');
       case '自宅都道府県': return String(payload.homePrefecture || '');
       case '自宅市区町村': return String(payload.homeCity || '');
       case '自宅住所': return String(payload.homeAddressLine || '');
+      case '自宅住所2': return String(payload.homeAddressLine2 || '');
       case '発送方法コード': return String(payload.mailingPreference || 'EMAIL');
       case '郵送先区分コード': return String(payload.preferredMailDestination || 'OFFICE');
       case '職員数上限': return memberTypeCode === 'BUSINESS' ? (Number(payload.staffLimit) || 10) : '';
@@ -5189,12 +5245,14 @@ function submitMemberApplication_(payload) {
       case '勤務先都道府県': return String(payload.officePrefecture || '');
       case '勤務先市区町村': return String(payload.officeCity || '');
       case '勤務先住所': return String(payload.officeAddressLine || '');
+      case '勤務先住所2': return String(payload.officeAddressLine2 || '');
       case '勤務先電話番号': return String(payload.phone || '');
       case '勤務先FAX番号': return String(payload.fax || '');
       case '自宅郵便番号': return String(payload.homePostCode || '');
       case '自宅都道府県': return String(payload.homePrefecture || '');
       case '自宅市区町村': return String(payload.homeCity || '');
       case '自宅住所': return String(payload.homeAddressLine || '');
+      case '自宅住所2': return String(payload.homeAddressLine2 || '');
       case '発送方法コード': return isBusiness ? '' : String(payload.mailingPreference || 'EMAIL');
       case '郵送先区分コード': return isBusiness ? 'OFFICE' : String(payload.preferredMailDestination || 'OFFICE');
       case '職員数上限': return isBusiness ? 10 : '';
@@ -6273,8 +6331,8 @@ function cancelWithdrawalSelf_(payload) {
 // クライアント側からの書き換えを防止する。
 var MEMBER_WRITABLE_FIELDS_ = [
   'lastName','firstName','lastKana','firstKana',
-  'homePostCode','homePrefecture','homeCity','homeAddressLine','mobilePhone',
-  'officePostCode','officePrefecture','officeCity','officeAddressLine','phone','fax',
+  'homePostCode','homePrefecture','homeCity','homeAddressLine','homeAddressLine2','mobilePhone',
+  'officePostCode','officePrefecture','officeCity','officeAddressLine','officeAddressLine2','phone','fax',
   'email','mailingPreference','preferredMailDestination',
 ];
 var ADMIN_BATCH_WRITABLE_FIELDS_ = [
@@ -6287,8 +6345,8 @@ var ADMIN_BATCH_WRITABLE_FIELDS_ = [
 var ADMIN_MEMBER_WRITABLE_FIELDS_ = [
   // 会員セルフサービスでも編集可能なフィールド
   'lastName','firstName','lastKana','firstKana',
-  'homePostCode','homePrefecture','homeCity','homeAddressLine','mobilePhone',
-  'officePostCode','officePrefecture','officeCity','officeAddressLine','phone','fax',
+  'homePostCode','homePrefecture','homeCity','homeAddressLine','homeAddressLine2','mobilePhone',
+  'officePostCode','officePrefecture','officeCity','officeAddressLine','officeAddressLine2','phone','fax',
   'email','mailingPreference','preferredMailDestination',
   // 管理者専用フィールド（ADMIN_ONLY_EDIT 層）
   'status','joinedDate','withdrawnDate','withdrawalProcessDate','midYearWithdrawal',
@@ -6856,12 +6914,14 @@ function updateMember_(payload, options) {
     officePrefecture: fromPayloadOrCurrent('officePrefecture', String(getCol('勤務先都道府県') || '')),
     officeCity: fromPayloadOrCurrent('officeCity', String(getCol('勤務先市区町村') || '')),
     officeAddressLine: fromPayloadOrCurrent('officeAddressLine', String(getCol('勤務先住所') || '')),
+    officeAddressLine2: fromPayloadOrCurrent('officeAddressLine2', String(getCol('勤務先住所2') || '')),
     phone: fromPayloadOrCurrent('phone', String(getCol('勤務先電話番号') || '')),
     fax: fromPayloadOrCurrent('fax', String(getCol('勤務先FAX番号') || '')),
     homePostCode: fromPayloadOrCurrent('homePostCode', String(getCol('自宅郵便番号') || '')),
     homePrefecture: fromPayloadOrCurrent('homePrefecture', String(getCol('自宅都道府県') || '')),
     homeCity: fromPayloadOrCurrent('homeCity', String(getCol('自宅市区町村') || '')),
     homeAddressLine: fromPayloadOrCurrent('homeAddressLine', String(getCol('自宅住所') || '')),
+    homeAddressLine2: fromPayloadOrCurrent('homeAddressLine2', String(getCol('自宅住所2') || '')),
     mailingPreference: fromPayloadOrCurrent('mailingPreference', String(getCol('発送方法コード') || 'EMAIL')),
     preferredMailDestination: fromPayloadOrCurrent('preferredMailDestination', String(getCol('郵送先区分コード') || 'OFFICE')),
     staffLimit: fromPayloadOrCurrent('staffLimit', getCol('職員数上限')),
@@ -6916,12 +6976,14 @@ function updateMember_(payload, options) {
   setCol('勤務先都道府県', mergedPayload.officePrefecture || '');
   setCol('勤務先市区町村', mergedPayload.officeCity || '');
   setCol('勤務先住所', mergedPayload.officeAddressLine || '');
+  setCol('勤務先住所2', mergedPayload.officeAddressLine2 || '');
   setCol('勤務先電話番号', mergedPayload.phone || '');
   setCol('勤務先FAX番号', mergedPayload.fax || '');
   setCol('自宅郵便番号', mergedPayload.homePostCode || '');
   setCol('自宅都道府県', mergedPayload.homePrefecture || '');
   setCol('自宅市区町村', mergedPayload.homeCity || '');
   setCol('自宅住所', mergedPayload.homeAddressLine || '');
+  setCol('自宅住所2', mergedPayload.homeAddressLine2 || '');
   setCol('発送方法コード', mergedPayload.mailingPreference || 'EMAIL');
   setCol('郵送先区分コード', mergedPayload.preferredMailDestination || 'OFFICE');
   if (cols['職員数上限'] != null) {
@@ -9252,14 +9314,103 @@ function getTrainingApplicants_(payload) {
 function getAdminEmailAliases_() {
   if (!checkAdminBySession_()) return JSON.stringify({ success: false, error: 'unauthorized' });
   var ownerEmail = Session.getEffectiveUser().getEmail();
-  var aliases = [];
   try {
-    aliases = GmailApp.getAliases();
+    return JSON.stringify({
+      success: true,
+      data: {
+        aliases: listAvailableSendAsAddresses_(),
+        warning: '',
+      },
+    });
   } catch (e) {
-    // gmail.send スコープ不足時はオーナーメールのみ返す
+    return JSON.stringify({
+      success: true,
+      data: {
+        aliases: [ownerEmail],
+        warning: '送信エイリアスの取得に失敗しました。info アドレスで送るには、管理者が /exec を開いて Gmail 権限を再承認してください。',
+      },
+    });
   }
-  var all = [ownerEmail].concat(aliases);
-  return JSON.stringify({ success: true, data: all });
+}
+
+function buildSendAsPermissionError_(detail) {
+  var suffix = detail ? ' 詳細: ' + detail : '';
+  return '送信エイリアスの利用に必要な Gmail 権限が不足しています。/exec を開いて再承認し、再度お試しください。' + suffix;
+}
+
+function listAvailableSendAsAddresses_() {
+  var ownerEmail = Session.getEffectiveUser().getEmail();
+  var aliases = [ownerEmail];
+  var seen = {};
+  seen[ownerEmail] = true;
+
+  var response = UrlFetchApp.fetch('https://gmail.googleapis.com/gmail/v1/users/me/settings/sendAs', {
+    method: 'get',
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+    muteHttpExceptions: true,
+  });
+
+  var code = response.getResponseCode();
+  if (code !== 200) {
+    var detail = '';
+    try {
+      var errorBody = JSON.parse(response.getContentText() || '{}');
+      detail = String(((errorBody.error || {}).message) || '').trim();
+    } catch (parseError) {}
+    throw new Error(buildSendAsPermissionError_(detail));
+  }
+
+  var body = JSON.parse(response.getContentText() || '{}');
+  var sendAsList = body.sendAs || [];
+  sendAsList.forEach(function(item) {
+    var email = String((item || {}).sendAsEmail || '').trim();
+    if (email && !seen[email]) {
+      seen[email] = true;
+      aliases.push(email);
+    }
+  });
+  return aliases;
+}
+
+function validateRequestedFromAddress_(from, ownerEmail) {
+  var requested = String(from || '').trim();
+  if (!requested) return ownerEmail;
+  if (requested === ownerEmail) return ownerEmail;
+
+  var aliases = listAvailableSendAsAddresses_();
+  if (aliases.indexOf(requested) < 0) {
+    throw new Error('指定した送信元アドレスは、この Gmail アカウントで利用可能な送信エイリアスに登録されていません: ' + requested);
+  }
+  return requested;
+}
+
+function sendEmailWithValidatedFrom_(to, subject, body, options) {
+  var ownerEmail = Session.getEffectiveUser().getEmail();
+  var from = String((options && options.from) || ownerEmail).trim() || ownerEmail;
+  var commonOptions = {
+    replyTo: String((options && options.replyTo) || from || ownerEmail),
+    name: String((options && options.name) || ''),
+    attachments: (options && options.attachments) || [],
+  };
+
+  if (from === ownerEmail) {
+    MailApp.sendEmail({
+      to: to,
+      subject: subject,
+      body: body,
+      replyTo: commonOptions.replyTo,
+      name: commonOptions.name,
+      attachments: commonOptions.attachments,
+    });
+    return;
+  }
+
+  GmailApp.sendEmail(to, subject, body, {
+    from: from,
+    replyTo: commonOptions.replyTo,
+    name: commonOptions.name,
+    attachments: commonOptions.attachments,
+  });
 }
 
 function sendTrainingMail_(payload) {
@@ -9318,19 +9469,9 @@ function sendTrainingMail_(payload) {
     return JSON.stringify({ success: false, error: '送信対象者が見つかりません' });
   }
 
-  var replyTo = Session.getActiveUser().getEmail();
   var ownerEmail = Session.getEffectiveUser().getEmail();
-  var validAliases = [ownerEmail];
-  try {
-    validAliases = validAliases.concat(GmailApp.getAliases());
-  } catch (e) {
-    // gmail スコープ未承認時はオーナーメールのみ
-  }
-  var fromFound = false;
-  for (var a = 0; a < validAliases.length; a += 1) {
-    if (validAliases[a] === from) { fromFound = true; break; }
-  }
-  if (!from || !fromFound) from = ownerEmail;
+  from = validateRequestedFromAddress_(from, ownerEmail);
+  var replyTo = from || ownerEmail;
 
   var commonAttachments = attachments.map(function(att) {
     var bytes = Utilities.base64Decode(att.base64);
@@ -9352,7 +9493,8 @@ function sendTrainingMail_(payload) {
           Logger.log('個別添付取得失敗: ' + rec.applyId + ' ' + fe.message);
         }
       }
-      MailApp.sendEmail(rec.email, personalSubject, personalBody, {
+      sendEmailWithValidatedFrom_(rec.email, personalSubject, personalBody, {
+        from: from,
         replyTo: replyTo,
         attachments: allAttachments,
         name: '枚方市介護支援専門員連絡協議会',
@@ -14068,6 +14210,195 @@ function getMembersForBulkMail_(payload) {
 }
 
 /**
+ * v207: 宛名リスト Excel（.xlsx）出力
+ *
+ * payload: { filterType: 'KOHOUSHI' | 'OSHIRASE' }
+ *   KOHOUSHI: 広報誌発送 — ACTIVE + WITHDRAWAL_SCHEDULED の全会員
+ *   OSHIRASE: お知らせ発送 — 事業所会員全員 + 個人/賛助のうち 発送方法コード='POST'
+ *
+ * 住所解決:
+ *   事業所会員: 勤務先* フィールドを使用
+ *   個人/賛助: 郵送先区分コード が 'HOME' なら 自宅*、それ以外は 勤務先*
+ *
+ * 都道府県: '大阪府' の場合は出力しない（省略）。他府県のみ表示。
+ *
+ * 住所不備: 郵便番号・市区町村・番地のいずれかが空の場合は '住所不備' シートへ。
+ *
+ * 出力シート構成:
+ *   [1] 事業所会員  columns: 名前, 郵便番号, 住所, 建物名
+ *   [2] 個人会員    columns: 名前, 郵便番号, 住所, 建物名, 勤務先名
+ *   [3] 賛助会員    columns: 名前, 郵便番号, 住所, 建物名, 勤務先名
+ *   [4] 住所不備    columns: 名前, 会員種別, 住所不備の項目
+ *
+ * returns: { base64: string, filename: string, counts: { business, individual, support, invalid } }
+ */
+function generateMailingListExcel_(payload) {
+  var p = payload || {};
+  var filterType = String(p.filterType || 'KOHOUSHI'); // 'KOHOUSHI' | 'OSHIRASE'
+
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var memberSheet = ss.getSheetByName('T_会員');
+  var members = getSheetData_(memberSheet);
+
+  var ACTIVE_STATUSES = ['ACTIVE', 'WITHDRAWAL_SCHEDULED'];
+  var HEADERS_BIZ     = ['名前', '郵便番号', '住所', '建物名'];
+  var HEADERS_IND_SUP = ['名前', '郵便番号', '住所', '建物名', '勤務先名'];
+  var HEADERS_INVALID = ['名前', '会員種別', '住所不備の項目'];
+
+  var rowsBiz     = [];
+  var rowsInd     = [];
+  var rowsSup     = [];
+  var rowsInvalid = [];
+
+  members.forEach(function(m) {
+    if (toBoolean_(m['削除フラグ'])) return;
+    var mtype  = String(m['会員種別コード'] || '');
+    var status = String(m['会員状態コード'] || '');
+    if (ACTIVE_STATUSES.indexOf(status) < 0) return;
+
+    // お知らせフィルター: 事業所は全員対象。個人・賛助は 発送方法コード='POST' のみ
+    if (filterType === 'OSHIRASE' && mtype !== 'BUSINESS') {
+      var mailingPref = String(m['発送方法コード'] || 'EMAIL');
+      if (mailingPref !== 'POST') return;
+    }
+
+    // 事業所会員の宛名は勤務先名。個人・賛助は姓名
+    var displayName;
+    if (mtype === 'BUSINESS') {
+      displayName = String(m['勤務先名'] || '').trim();
+    } else {
+      var lastName  = String(m['姓'] || '').trim();
+      var firstName = String(m['名'] || '').trim();
+      displayName   = (lastName + ' ' + firstName).trim();
+    }
+    if (!displayName) displayName = String(m['会員ID'] || '');
+
+    // 住所解決
+    var postCode, prefecture, city, line1, line2;
+    if (mtype === 'BUSINESS') {
+      postCode   = String(m['勤務先郵便番号'] || '').trim();
+      prefecture = String(m['勤務先都道府県'] || '').trim();
+      city       = String(m['勤務先市区町村'] || '').trim();
+      line1      = String(m['勤務先住所']     || '').trim();
+      line2      = String(m['勤務先住所2']    || '').trim();
+    } else {
+      var dest = String(m['郵送先区分コード'] || 'OFFICE');
+      if (dest === 'HOME') {
+        postCode   = String(m['自宅郵便番号'] || '').trim();
+        prefecture = String(m['自宅都道府県'] || '').trim();
+        city       = String(m['自宅市区町村'] || '').trim();
+        line1      = String(m['自宅住所']     || '').trim();
+        line2      = String(m['自宅住所2']    || '').trim();
+      } else {
+        postCode   = String(m['勤務先郵便番号'] || '').trim();
+        prefecture = String(m['勤務先都道府県'] || '').trim();
+        city       = String(m['勤務先市区町村'] || '').trim();
+        line1      = String(m['勤務先住所']     || '').trim();
+        line2      = String(m['勤務先住所2']    || '').trim();
+      }
+    }
+
+    // 住所不備チェック（郵便番号・市区町村・番地のいずれかが空）
+    var invalidItems = [];
+    if (!postCode) invalidItems.push('郵便番号');
+    if (!city)     invalidItems.push('市区町村');
+    if (!line1)    invalidItems.push('番地');
+
+    if (invalidItems.length > 0) {
+      var mtypeLabel = mtype === 'BUSINESS' ? '事業所会員'
+                     : mtype === 'INDIVIDUAL' ? '個人会員' : '賛助会員';
+      rowsInvalid.push([displayName, mtypeLabel, invalidItems.join('、')]);
+      return;
+    }
+
+    // 都道府県: 大阪府は省略、他府県のみ表示
+    var prefDisplay = (prefecture && prefecture !== '大阪府') ? prefecture : '';
+    var address1    = prefDisplay + city + line1;
+    var officeName  = String(m['勤務先名'] || '').trim();
+
+    // 事業所会員: 名前は事業所代表名（姓名）、勤務先名列は不要（事業所ごとの宛先）
+    if (mtype === 'BUSINESS') {
+      rowsBiz.push([displayName, postCode, address1, line2]);
+    } else if (mtype === 'INDIVIDUAL') {
+      rowsInd.push([displayName, postCode, address1, line2, officeName]);
+    } else if (mtype === 'SUPPORT') {
+      rowsSup.push([displayName, postCode, address1, line2, officeName]);
+    }
+  });
+
+  // 一時スプレッドシート作成
+  var dateStr   = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd_HHmmss');
+  var filterLbl = filterType === 'KOHOUSHI' ? '広報誌発送' : 'お知らせ発送';
+  var tempSs    = SpreadsheetApp.create('宛名リスト_' + filterLbl + '_' + dateStr);
+  var tempSsId  = tempSs.getId();
+
+  try {
+    var sheet1 = tempSs.getActiveSheet();
+    sheet1.setName('事業所会員');
+    _fillMailingSheet_(sheet1, HEADERS_BIZ, rowsBiz);
+
+    var sheet2 = tempSs.insertSheet('個人会員');
+    _fillMailingSheet_(sheet2, HEADERS_IND_SUP, rowsInd);
+
+    var sheet3 = tempSs.insertSheet('賛助会員');
+    _fillMailingSheet_(sheet3, HEADERS_IND_SUP, rowsSup);
+
+    var sheet4 = tempSs.insertSheet('住所不備');
+    _fillMailingSheet_(sheet4, HEADERS_INVALID, rowsInvalid);
+
+    // GAS の setValues() 書き込みバッファを強制フラッシュ。
+    // flush() なしでは UrlFetchApp の HTTP エクスポートが古いサーバー状態を返す場合がある。
+    // 特に行数が少ないシート（住所不備など）はバッファが自動フラッシュされず取りこぼされる。
+    SpreadsheetApp.flush();
+
+    // xlsx エクスポート（UrlFetchApp + Bearer token — drive OAuth スコープ使用）
+    var exportUrl = 'https://docs.google.com/spreadsheets/d/' + tempSsId +
+                    '/export?format=xlsx&id=' + tempSsId;
+    var response  = UrlFetchApp.fetch(exportUrl, {
+      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+      muteHttpExceptions: true,
+    });
+
+    if (response.getResponseCode() !== 200) {
+      throw new Error('Excel エクスポート失敗: HTTP ' + response.getResponseCode());
+    }
+
+    var base64   = Utilities.base64Encode(response.getBlob().getBytes());
+    var today    = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+    var filename = '宛名リスト_' + filterLbl + '_' + today + '.xlsx';
+
+    return {
+      base64:   base64,
+      filename: filename,
+      counts: {
+        business:  rowsBiz.length,
+        individual: rowsInd.length,
+        support:   rowsSup.length,
+        invalid:   rowsInvalid.length,
+      },
+    };
+  } finally {
+    // 一時ファイルを必ず削除
+    try { DriveApp.getFileById(tempSsId).setTrashed(true); } catch (e) {}
+  }
+}
+
+/**
+ * 宛名リスト シート書き込みヘルパー
+ * ヘッダー行を太字で書き込み、データ行を追加し、列幅を自動調整する。
+ */
+function _fillMailingSheet_(sheet, headers, rows) {
+  var hRange = sheet.getRange(1, 1, 1, headers.length);
+  hRange.setValues([headers]);
+  hRange.setFontWeight('bold');
+  hRange.setBackground('#E8EAED');
+  if (rows.length > 0) {
+    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+  }
+  sheet.autoResizeColumns(1, headers.length);
+}
+
+/**
  * 会員一括メール送信。
  * payload:
  *   recipientKeys: string[]              – 送信対象の recipientKey リスト
@@ -14091,11 +14422,8 @@ function sendBulkMemberMail_(payload) {
   if (!subject || !body) throw new Error('件名と本文は必須です。');
 
   // ── 送信元エイリアス検証 ──────────────────────────────────────
-  var ownerEmail    = Session.getEffectiveUser().getEmail();
-  var validAliases  = [ownerEmail];
-  try { validAliases = validAliases.concat(GmailApp.getAliases()); } catch (e) {}
-  var from = String(payload.from || '').trim();
-  if (!from || validAliases.indexOf(from) < 0) from = ownerEmail;
+  var ownerEmail = Session.getEffectiveUser().getEmail();
+  var from = validateRequestedFromAddress_(String(payload.from || '').trim(), ownerEmail);
 
   // ── 全宛先リストを再取得（セキュリティ: フロント送信値を信用しない） ──
   var filterPayload = {
@@ -14193,10 +14521,10 @@ function sendBulkMemberMail_(payload) {
         allAttachments.push(Utilities.newBlob(indvBytes, indvAtt.mimeType, indvAtt.name));
       }
 
-      GmailApp.sendEmail(rec.email, personalSubject, personalBody, {
-        from:        from,
-        replyTo:     from,
-        name:        '枚方市介護支援専門員連絡協議会',
+      sendEmailWithValidatedFrom_(rec.email, personalSubject, personalBody, {
+        from: from,
+        replyTo: from,
+        name: '枚方市介護支援専門員連絡協議会',
         attachments: allAttachments,
       });
       sentCount += 1;

@@ -1,15 +1,15 @@
 # Next Instructions For ClaudeCode
 
-Updated: 2026-04-14
+Updated: 2026-04-15
 
-Production: `v205` / fixed deployments `@205`
+Production: `v208` / fixed deployments `@208`
 
 > **Note**: This document supplements `HANDOVER.md`. `HANDOVER.md` is the primary source of truth.
 > Always read `HANDOVER.md` first.
 
 ## 1. Current State
 
-- Production is `v205`. Both fixed deployments point to `@205`.
+- Production is `v208`. Both fixed deployments point to `@208`.
 - Frontend HTML compressed: member ~206 kB / public ~150 kB (deflate-raw + base64, `scripts/compress-html.mjs`).
 - Admin login uses `checkAdminBySession` (auth only). Member data is loaded lazily on page navigation.
 - Admin whitelist and auth rows are cached in `CacheService.getScriptCache()` (TTL 300s) for faster warm-instance logins.
@@ -33,7 +33,7 @@ Production: `v205` / fixed deployments `@205`
 2. `AGENTS.md`
 3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-5. `docs/75_RELEASE_STATE_v205_2026-04-14.md`
+5. `docs/78_RELEASE_STATE_v208_2026-04-15.md`
 6. `docs/09_DEPLOYMENT_POLICY.md`
 7. `docs/05_AUTH_AND_ROLE_SPEC.md`
 8. `docs/04_DB_OPERATION_RUNBOOK.md`
@@ -52,7 +52,7 @@ npx clasp deployments --json
 Expected:
 - authorized user is `k.noguchi@uguisunosato.or.jp`
 - health checks succeed
-- both fixed deployments point to `@205`
+- both fixed deployments point to `@208`
 - DB ID `1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs`
 
 ## 4. Working Rules
@@ -96,3 +96,4 @@ If you deploy, follow `docs/09_DEPLOYMENT_POLICY.md`:
 - **B-02**: `fetchAllDataFromDbFresh_()` batch optimization — reduce Spreadsheet API calls. See `docs/58_NEXT_TASK_PERFORMANCE_2026-04-09.md`.
 - **GEMINI_API_KEY**: Set in Script Properties if AI email feature is needed.
 - **Roster template setup**: Register `ROSTER_TEMPLATE_SS_ID` in system settings before using the export console. Sample template at `11n5T7HZm7fu8Gau7nR57NWBVxpiCqZttg0Yca5t5-T4`.
+- **Mailing list export**: Browser verification of v207 feature (address display, download behavior).
