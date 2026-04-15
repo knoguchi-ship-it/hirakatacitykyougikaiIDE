@@ -16,25 +16,14 @@
 7. `docs/77_RELEASE_STATE_v207_2026-04-15.md`（v207 record）
 8. `docs/76_RELEASE_STATE_v206_2026-04-15.md`（v206 record）
 9. `docs/75_RELEASE_STATE_v205_2026-04-14.md`（v205 record）
-10. `docs/74_RELEASE_STATE_v204_2026-04-14.md`（v204 record）
-11. `docs/73_RELEASE_STATE_v203_2026-04-13.md`（v203 record）
-12. `docs/72_RELEASE_STATE_v202_2026-04-13.md`（v202 record）
-13. `docs/71_RELEASE_STATE_v201_2026-04-13.md`（v201 record）
-14. `docs/70_RELEASE_STATE_v200_2026-04-12.md`（v200 record）
-15. `docs/69_RELEASE_STATE_v199_2026-04-12.md`（v199 record）
-16. `docs/68_RELEASE_STATE_v198_2026-04-12.md`（v198 record）
-17. `docs/67_RELEASE_STATE_v197_2026-04-11.md`（v197 record）
-18. `docs/64_RELEASE_STATE_v194_v196_2026-04-10.md`（v194-v196 record）
-19. `docs/63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md` ← **全フェーズ完了（Phase 1〜3）**
-20. `docs/62_RELEASE_STATE_v193_2026-04-09.md` ← v193 base
-21. `docs/61_RELEASE_STATE_v191_2026-04-09.md`（v191 HTML圧縮）
-22. `docs/60_RELEASE_STATE_v189_2026-04-09.md`（v189失敗・v190復旧記録）
-23. `docs/59_RELEASE_STATE_v188_2026-04-09.md`（v188 Phase 1-2 パフォーマンス改善）
-24. `docs/58_NEXT_TASK_PERFORMANCE_2026-04-09.md`（B-02 未着手・残課題）
-25. `docs/09_DEPLOYMENT_POLICY.md`
-26. `docs/05_AUTH_AND_ROLE_SPEC.md`
-27. `docs/04_DB_OPERATION_RUNBOOK.md`
-27. `docs/03_DATA_MODEL.md`
+10. `docs/63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md` ← **全フェーズ完了（Phase 1〜3）**
+11. `docs/58_NEXT_TASK_PERFORMANCE_2026-04-09.md`（B-02 未着手・残課題）
+12. `docs/09_DEPLOYMENT_POLICY.md`
+13. `docs/05_AUTH_AND_ROLE_SPEC.md`
+14. `docs/04_DB_OPERATION_RUNBOOK.md`
+15. `docs/03_DATA_MODEL.md`
+- v197〜v204 記録: `docs/archive/release_history/`（67〜74）
+- v170〜v196 記録: `docs/archive/release_history/`（45〜66）
 
 ## 2. 現在の引継ぎ結論
 - 開発の入口は `HANDOVER.md`、運用手順の正本は `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`。
