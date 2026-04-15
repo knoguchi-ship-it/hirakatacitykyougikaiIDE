@@ -38,6 +38,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           { id: 'training-manage', label: '研修管理コンソール', icon: <CalendarIcon className="w-5 h-5" /> },
           { id: 'bulk-mail', label: '一括メール送信コンソール', icon: <HomeIcon className="w-5 h-5" /> },
           { id: 'roster-export', label: '名簿出力コンソール', icon: <HomeIcon className="w-5 h-5" /> },
+          { id: 'mailing-list-export', label: '宛名リスト出力コンソール', icon: <HomeIcon className="w-5 h-5" /> },
           { id: 'system-permissions', label: '管理コンソール（システム権限）', icon: <SettingsIcon className="w-5 h-5" /> },
           { id: 'admin-settings', label: 'システム設定', icon: <SettingsIcon className="w-5 h-5" /> },
         ]

@@ -114,3 +114,17 @@ export interface TemplateValidationResult {
   checks: TemplateValidationCheck[];
   recommendedActions: string[];
 }
+
+// v207: 宛名リスト Excel 出力
+export type MailingListFilterType = 'KOHOUSHI' | 'OSHIRASE';
+
+export interface MailingListExcelResult {
+  base64: string;
+  filename: string;
+  counts: {
+    business: number;
+    individual: number;
+    support: number;
+    invalid: number;
+  };
+}

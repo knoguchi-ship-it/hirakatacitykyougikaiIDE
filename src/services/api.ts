@@ -1,5 +1,5 @@
 import { Member, Training, AdminPermissionLevel, AdminPersonRow, ConvertMemberTypePayload, ConvertMemberTypeResult, SystemSettings } from '../types';
-import { TrainingApplicantRow, BulkMailRecipient, EmailSendLog, RosterTarget, TemplateValidationResult, TemplateValidationKind } from '../shared/types';
+import { TrainingApplicantRow, BulkMailRecipient, EmailSendLog, RosterTarget, TemplateValidationResult, TemplateValidationKind, MailingListFilterType, MailingListExcelResult } from '../shared/types';
 import { AdminDashboardData, AdminPermissionData, AnnualFeeAdminData, AnnualFeeAdminRecord } from '../types';
 
 export interface TrainingMailPayload {
@@ -34,6 +34,11 @@ export interface AdminLoginResult {
   adminPermissionLevel?: AdminPermissionLevel;
   displayName?: string;
   authenticatedAt: string;
+}
+
+export interface AdminEmailAliasesResult {
+  aliases: string[];
+  warning?: string;
 }
 
 // GAS環境で提供される google.script.run の型定義（簡易版）
@@ -94,7 +99,7 @@ export interface ApiClient {
   applyTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ applicationId: string; applicants: number; duplicate?: boolean }>;
   cancelTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ canceled: boolean; applicants: number }>;
   getTrainingApplicants(trainingId: string): Promise<TrainingApplicantRow[]>;
-  getAdminEmailAliases(): Promise<string[]>;
+  getAdminEmailAliases(): Promise<AdminEmailAliasesResult>;
   sendTrainingMail(payload: TrainingMailPayload): Promise<{ sent: number; errors: string[] }>;
   createMember(payload: Partial<Member> & { type: string }): Promise<{ created: boolean; memberId: string; loginId: string; defaultPassword: string }>;
   withdrawMember(memberId: string, withdrawnDate?: string, midYearWithdrawal?: boolean): Promise<{ withdrawn: boolean; memberId: string; withdrawnDate: string }>;
@@ -159,6 +164,8 @@ export interface ApiClient {
     spreadsheetId: string;
     kind: TemplateValidationKind;
   }): Promise<TemplateValidationResult>;
+  // v207: 宛名リスト Excel 出力
+  generateMailingListExcel(payload: { filterType: MailingListFilterType }): Promise<MailingListExcelResult>;
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -888,7 +895,7 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async getAdminEmailAliases(): Promise<string[]> {
+  async getAdminEmailAliases(): Promise<AdminEmailAliasesResult> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
         reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
@@ -898,7 +905,7 @@ class GasApiClient implements ApiClient {
         .withSuccessHandler((result: string) => {
           try {
             const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data || []);
+            if (parsed.success) resolve(parsed.data || { aliases: [], warning: '' });
             else reject(new Error(parsed.error || 'API Error'));
           } catch {
             reject(new Error('Failed to parse response from GAS'));
@@ -1285,9 +1292,22 @@ class GasApiClient implements ApiClient {
         .processApiRequest('getEmailSendLog', JSON.stringify({}));
     });
   }
+
+  // v207: 宛名リスト Excel 出力
+  async generateMailingListExcel(payload: { filterType: MailingListFilterType }): Promise<MailingListExcelResult> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('generateMailingListExcel', JSON.stringify(payload));
+    });
+  }
 }
 
 // API クライアントは GAS 実行環境専用とする。
 // ローカルモック運用は廃止したため、常に GAS クライアントを使用する。
 export const api: ApiClient = new GasApiClient();
-

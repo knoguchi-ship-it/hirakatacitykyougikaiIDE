@@ -7,6 +7,7 @@ import TrainingApply from './components/TrainingApply';
 import AnnualFeeManagement from './components/AnnualFeeManagement';
 import BulkMailSender from './components/BulkMailSender';
 import RosterExport from './components/RosterExport';
+import MailingListExport from './components/MailingListExport';
 import TemplateHelpPage from './components/TemplateHelpPage';
 import TemplateValidationPanel from './components/TemplateValidationPanel';
 import MemberDetailAdmin from './components/MemberDetailAdmin';
@@ -16,7 +17,7 @@ import { TRAINING_OPTIONAL_FIELD_DEFS } from './components/TrainingManagement';
 import { api } from './services/api';
 
 type Role = 'ADMIN' | 'MEMBER';
-type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'roster-export' | 'template-help' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings';
+type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'roster-export' | 'mailing-list-export' | 'template-help' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings';
 type AuthTab = 'member' | 'admin';
 type PendingAnnualFeeAction = { type: 'view'; view: View } | { type: 'logout' } | null;
 type MemberListFilter = 'ALL' | MemberType;
@@ -542,7 +543,7 @@ const App: React.FC = () => {
       return;
     }
 
-    if (userRole === 'ADMIN' && (currentView === 'admin-settings' || currentView === 'bulk-mail' || currentView === 'roster-export')) {
+    if (userRole === 'ADMIN' && (currentView === 'admin-settings' || currentView === 'bulk-mail' || currentView === 'roster-export' || currentView === 'mailing-list-export')) {
       loadSystemSettings(false).catch(() => undefined);
       return;
     }
@@ -2252,6 +2253,13 @@ const App: React.FC = () => {
           onOpenSettings={() => setCurrentView('admin-settings')}
         />
       );
+    }
+
+    if (currentView === 'mailing-list-export') {
+      if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
+        return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
+      }
+      return <MailingListExport api={api} />;
     }
 
     if (currentView === 'training-apply') {
