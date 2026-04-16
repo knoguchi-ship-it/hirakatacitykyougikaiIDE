@@ -1,9 +1,9 @@
 # 開発引継ぎ
 
 更新日: 2026-04-16
-現行本番: `v216`
-固定 deployment: member `@216` / public `@216`
-補足: v216 で個人会員編集バリデーション見直しを本番反映。v210〜v215 の変更も継続有効。
+現行本番: `v217`
+固定 deployment: member `@217` / public `@217`
+補足: v217 でブラウザタブ favicon + title カスタマイズを本番反映。v210〜v216 の変更も継続有効。
 
 ## 1. 最初に読むもの
 1. `HANDOVER.md`
@@ -48,6 +48,13 @@
 - **設定保存**: `getSystemSettingMap_` + `batchUpsertSystemSettings_` による 1 パス処理（旧 N+1 解消済み）。
 
 ## 4. 直近の重要履歴
+
+### v217（2026-04-16）
+- ブラウザタブ favicon + title カスタマイズ
+- `doGet()` に `setTitle()` / `setFaviconUrl()` を追加（GAS sandbox では唯一の手段）
+- 会員マイページ: 青背景＋人物アイコン（SVG data URI）/ タイトル `会員マイページ｜枚方市ケアマネ協議会`
+- 公開ポータル: 緑背景＋建物アイコン（SVG data URI）/ タイトル `研修・入会申込ポータル｜枚方市ケアマネ協議会`
+- 外部ホスティング不要・全解像度で鮮明
 
 ### v210〜v214（2026-04-16）
 詳細は `docs/81_RELEASE_STATE_v210-v214_2026-04-16.md` を参照。
@@ -105,9 +112,9 @@
 ---
 v195〜v202、v170〜v193 の詳細は `HANDOVER.md` 旧版（`docs/79_HANDOVER_2026-04-15.md`）または `docs/archive/release_history/` を参照。
 
-## 5. 現時点の注意事項（v216 更新）
+## 5. 現時点の注意事項（v217 更新）
 
-- fixed deployment 2 本は `@216` を向いている。
+- fixed deployment 2 本は `@217` を向いている。
 - **v206 DB 適用済み**: `npx clasp run addAddressLine2Columns` は実行完了。本番 `T_会員` に `勤務先住所2` / `自宅住所2` 列が追加されている。
 - **v194 リリース済みのため、本番管理者（`k.noguchi@hcm-n.org`）は次回 `/exec` アクセス時に `gmail.send + drive` の同意画面が表示される場合がある。** 未承認の場合は必ず承認すること。
 - **名簿出力コンソール（RosterExport）使用前提条件**: システム設定画面で `ROSTER_TEMPLATE_SS_ID`（テンプレートスプレッドシート ID）を登録すること。
@@ -133,11 +140,11 @@ npx clasp deployments --json
 - fixed deployment 2 本が `@216`
 - `getDbInfo` が本番固定 DB `1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs` を返す
 
-2026-04-16 確認結果（v216）:
+2026-04-16 確認結果（v217）:
 - `npx clasp push --force` → 4 files pushed
-- `npx clasp version "v216..."` → version 216 created
-- `npx clasp deployments --json` → member / public ともに `versionNumber: 214`
-- `npm run typecheck` → pass
+- `npx clasp version "v217..."` → version 217 created
+- `npx clasp deployments --json` → member / public ともに `versionNumber: 217`
+- `npm run build:gas` → pass
 
 ## 7. 次担当者（Codex）の最初の一手
 
@@ -186,3 +193,11 @@ npx clasp deployments --json
 - Error handling now includes red field highlights, inline messages, and a top-level error summary with focus navigation.
 - Apps Script save validation now matches the revised office/home/phone rules.
 - Latest release-state reference: `docs/83_RELEASE_STATE_v216_2026-04-16.md`
+
+## 2026-04-16 deployment note (v217)
+- Production release `v217` is now deployed.
+- Fixed deployments are synced as member `@217` / public `@217`.
+- Browser tab favicon and title customized via `setFaviconUrl()` / `setTitle()` in `doGet()`.
+- Member portal: blue background + person icon, title `会員マイページ｜枚方市ケアマネ協議会`.
+- Public portal: green background + building icon, title `研修・入会申込ポータル｜枚方市ケアマネ協議会`.
+- Favicon uses SVG data URI (no external hosting required).
