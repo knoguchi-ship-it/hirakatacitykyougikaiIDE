@@ -3330,9 +3330,13 @@ function getAdminDashboardData_() {
     var withdrawnDateRaw = String(member['退会日'] || '');
 
     // 在籍判定: 入会日が年度末以前 AND (退会日なし OR 退会日が年度開始以降)
-    // 例: 退会日2026-03-31 → 2025年度(4/1/2025〜3/31/2026)は在籍、2026年度(4/1/2026〜)は退会済
-    var jdObj = joinedDateRaw ? new Date(joinedDateRaw + 'T00:00:00') : null;
-    var wdObj = (withdrawnDateRaw && memberStatus === 'WITHDRAWN') ? new Date(withdrawnDateRaw + 'T00:00:00') : null;
+    // normalizeDateInput_ でいったん YYYY-MM-DD に正規化してから +09:00 付きでパースすることで
+    // GAS の Date.toString() 形式や他の形式に依存せずに安全に日付比較できる。
+    var jdNorm = normalizeDateInput_(joinedDateRaw);
+    var jdObj = jdNorm ? new Date(jdNorm + 'T00:00:00+09:00') : null;
+    var wdNorm = (withdrawnDateRaw && memberStatus === 'WITHDRAWN') ? normalizeDateInput_(withdrawnDateRaw) : '';
+    var wdObj = wdNorm ? new Date(wdNorm + 'T00:00:00+09:00') : null;
+    // joinedDate がない会員はデータ不備として在籍扱い（フロントエンドと統一）
     var isInFiscalYear = (!jdObj || jdObj <= fyEnd) && (!wdObj || wdObj >= fyStart);
     if (isInFiscalYear) {
       activeMemberCount += 1;
@@ -3340,13 +3344,11 @@ function getAdminDashboardData_() {
       if (memberType === 'BUSINESS') businessCount += 1;
     }
 
-    if (joinedDateRaw) {
-      var jd = new Date(joinedDateRaw);
-      if (!isNaN(jd.getTime()) && jd >= fyStart && jd <= fyEnd) currentYearJoinedCount += 1;
+    if (jdObj && !isNaN(jdObj.getTime())) {
+      if (jdObj >= fyStart && jdObj <= fyEnd) currentYearJoinedCount += 1;
     }
-    if (withdrawnDateRaw && memberStatus === 'WITHDRAWN') {
-      var wd = new Date(withdrawnDateRaw);
-      if (!isNaN(wd.getTime()) && wd >= fyStart && wd <= fyEnd) currentYearWithdrawnCount += 1;
+    if (wdObj && !isNaN(wdObj.getTime())) {
+      if (wdObj >= fyStart && wdObj <= fyEnd) currentYearWithdrawnCount += 1;
     }
 
     return {

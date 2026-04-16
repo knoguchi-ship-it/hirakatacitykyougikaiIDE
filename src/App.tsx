@@ -60,10 +60,9 @@ const getMemberStatusAtFiscalYear = (
   if (fiscalYear === null) return member.status;
 
   const joined = parseDateString(member.joinedDate);
-  if (!joined) return null;
-
+  // joinedDate が空の会員はデータ不備扱いにせず在籍扱いとする（宛名リストとの整合）
   const { start, end } = getFiscalYearBounds(fiscalYear);
-  if (joined > end) return null;
+  if (joined && joined > end) return null;
 
   const withdrawn = parseDateString(member.withdrawnDate);
   if (withdrawn) {
@@ -90,10 +89,8 @@ const getStaffStatusAtFiscalYear = (
   if (fiscalYear === null) return staff.status === 'LEFT' ? 'LEFT' : 'ENROLLED';
 
   const joined = parseDateString(staff.joinedDate);
-  if (!joined) return null;
-
   const { start, end } = getFiscalYearBounds(fiscalYear);
-  if (joined > end) return null;
+  if (joined && joined > end) return null;
 
   const withdrawn = parseDateString(staff.withdrawnDate);
   if (withdrawn) {
