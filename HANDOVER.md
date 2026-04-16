@@ -1,16 +1,16 @@
 # 開発引継ぎ
 
 更新日: 2026-04-16
-現行本番: `v214`
-固定 deployment: member `@214` / public `@214`
-補足: v210〜v214 で公開ポータルメニュー表示設定・設定保存 N+1 修正・FOIC 修正を実施。
+現行本番: `v216`
+固定 deployment: member `@216` / public `@216`
+補足: v216 で個人会員編集バリデーション見直しを本番反映。v210〜v215 の変更も継続有効。
 
 ## 1. 最初に読むもの
 1. `HANDOVER.md`
 2. `AGENTS.md`
 3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-5. `docs/81_RELEASE_STATE_v210-v214_2026-04-16.md` ← **v214 current**（公開ポータル FOIC 修正・設定保存改善）
+5. `docs/83_RELEASE_STATE_v216_2026-04-16.md` ← **v216 current**（個人会員編集バリデーション見直し）
 6. `docs/80_RELEASE_STATE_v209_2026-04-16.md`（v209 record: 入会時認証情報メール送信制御）
 7. `docs/79_HANDOVER_2026-04-15.md` ← 引継ぎ資料（v208 時点）— 機能一覧・運用・落とし穴まとめ
 8. `docs/78_RELEASE_STATE_v208_2026-04-15.md`（v208 record）
@@ -178,3 +178,11 @@ npx clasp deployments --json
   - member `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx`
   - public `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp`
 - Before `clasp redeploy` under the new domain account, user-level Apps Script setting `Google Apps Script API` had to be enabled at `https://script.google.com/home/usersettings`.
+
+## 2026-04-16 deployment note (v216)
+- Production release `v216` is now deployed.
+- Fixed deployments are synced as member `@216` / public `@216`.
+- Personal-member validation rules were revised in both member portal and admin console.
+- Error handling now includes red field highlights, inline messages, and a top-level error summary with focus navigation.
+- Apps Script save validation now matches the revised office/home/phone rules.
+- Latest release-state reference: `docs/83_RELEASE_STATE_v216_2026-04-16.md`

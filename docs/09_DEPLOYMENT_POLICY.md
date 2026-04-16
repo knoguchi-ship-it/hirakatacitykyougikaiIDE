@@ -356,5 +356,10 @@ Also verify the runtime in a real browser when the change affects user flows.
 ## 2026-04-16 v215 deployment note
 - Admin member-management changes for business staff add/save UX were released as `v215`.
 - Both fixed deployments were synced to `@215`.
+
+## 2026-04-16 v216 deployment note
+- Personal-member edit validation changes were released as `v216`.
+- Both fixed deployments were synced to `@216`.
+- Scope: member portal + admin console validation UX and Apps Script save validation alignment.
 - Verification completed with `npx clasp deployments --json`, `npx clasp run healthCheck`, and `npx clasp run getDbInfo`.
 - Keep the standard release order: `build -> push -> version -> fixed deployment sync -> verification -> document update`.

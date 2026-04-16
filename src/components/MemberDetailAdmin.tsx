@@ -38,6 +38,18 @@ const EDITABLE_MEMBER_FIELDS = [
   'withdrawalProcessDate',
 ] as const;
 
+const HALF_WIDTH_KANA_RE = /^[ｦ-ﾟ\s]+$/u;
+const CARE_MANAGER_RE = /^\d{8}$/;
+const POST_CODE_RE = /^\d{3}-?\d{4}$/;
+const PHONE_RE = /^[0-9-]+$/;
+
+const normalizeKanaInput = (value: string) => value.replace(/[^\uFF66-\uFF9F\s]/gu, '');
+const normalizeCareManagerInput = (value: string) => value.replace(/\D/g, '').slice(0, 8);
+const validateHalfWidthKana = (value: string) => !value.trim() || HALF_WIDTH_KANA_RE.test(value.trim());
+const validateCareManagerNumber = (value: string) => !value.trim() || CARE_MANAGER_RE.test(value.trim());
+const validatePostCode = (value: string) => !value.trim() || POST_CODE_RE.test(value.trim());
+const validatePhone = (value: string) => !value.trim() || PHONE_RE.test(value.trim());
+
 const normalizeEditableStaff = (staff: Partial<EditableStaff> | undefined) => ({
   id: String(staff?.id || ''),
   name: String(staff?.name || '').trim(),
@@ -166,8 +178,20 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
   const [convertSourceStaffId, setConvertSourceStaffId] = useState('');
   const [convertNewRepStaffId, setConvertNewRepStaffId] = useState('');
 
-  const set = (key: string, value: any) => setForm(prev => ({ ...prev, [key]: value }));
+  const set = (key: string, value: any) => {
+    let nextValue = value;
+    if (key === 'lastKana' || key === 'firstKana') {
+      nextValue = normalizeKanaInput(String(value || ''));
+    }
+    if (key === 'careManagerNumber') {
+      nextValue = normalizeCareManagerInput(String(value || ''));
+    }
+    setForm(prev => ({ ...prev, [key]: nextValue }));
+  };
   const isBusiness = form.type === MemberType.BUSINESS;
+  const isSupport = form.type === MemberType.SUPPORT;
+  const isIndividualLike = !isBusiness;
+  const preferredMailDestination = String(form.preferredMailDestination || 'OFFICE');
   const currentSnapshot = useMemo(() => normalizeEditableMember(form), [form]);
   const isDirty = useMemo(() => !snapshotsEqual(currentSnapshot, initialSnapshot), [currentSnapshot, initialSnapshot]);
   const isStaffDirty = useMemo(
@@ -188,24 +212,75 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
   };
 
   // v127: 個人会員の介護支援専門員番号必須（賛助会員は任意）
-  const isIndividual = form.type === MemberType.INDIVIDUAL;
   const individualRequiredFields: Record<string, string> = {
+    lastKana: 'セイ',
+    firstKana: 'メイ',
+    ...(isSupport ? {} : { careManagerNumber: '介護支援専門員番号' }),
+  };
+  const fieldLabels: Record<string, string> = {
+    lastKana: 'セイ',
+    firstKana: 'メイ',
     careManagerNumber: '介護支援専門員番号',
+    officeName: '事業所名',
+    officePostCode: '郵便番号',
+    officePrefecture: '都道府県',
+    officeCity: '市区町村',
+    officeAddressLine: '番地',
+    homePostCode: '郵便番号',
+    homePrefecture: '都道府県',
+    homeCity: '市区町村',
+    homeAddressLine: '番地',
+    phone: '勤務先電話番号',
+    mobilePhone: '携帯電話番号',
+    fax: 'FAX番号',
+  };
+  const getFieldAnchorId = (fieldKey: string) => `admin-member-${fieldKey}`;
+  const focusField = (fieldKey: string) => {
+    if (typeof document === 'undefined') return;
+    const element = document.getElementById(getFieldAnchorId(fieldKey));
+    if (!element) return;
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if ('focus' in element && typeof (element as HTMLElement).focus === 'function') {
+      (element as HTMLElement).focus();
+    }
   };
 
   const validateField = (key: string, value: string): string => {
     if (isBusiness && businessRequiredFields[key] && !value.trim()) {
       const originalValue = String((member as any)[key] || '').trim();
       if (!originalValue) return '';
-      return `${businessRequiredFields[key]}は必須です`;
+      return `${businessRequiredFields[key]}は必須です。`;
     }
-    if (isIndividual && individualRequiredFields[key] && !value.trim()) {
-      const originalValue = String((member as any)[key] || '').trim();
-      if (!originalValue) return '';
-      return `${individualRequiredFields[key]}は必須です`;
+    if (isIndividualLike && individualRequiredFields[key] && !value.trim()) {
+      return `${individualRequiredFields[key]}は必須です。`;
     }
-    if (key === 'officePostCode' && value.trim() && !/^\d{3}-?\d{4}$/.test(value.trim())) {
-      return '郵便番号の形式が正しくありません（例: 573-0084）';
+    if ((key === 'lastKana' || key === 'firstKana') && value.trim() && !validateHalfWidthKana(value)) {
+      return `${fieldLabels[key]}は半角ｶﾅで入力してください。`;
+    }
+    if (key === 'careManagerNumber') {
+      if (!isSupport && !value.trim()) return '介護支援専門員番号は必須です。';
+      if (value.trim() && !validateCareManagerNumber(value)) {
+        return '介護支援専門員番号は8桁の半角数字で入力してください。';
+      }
+    }
+    if (isIndividualLike && preferredMailDestination === 'OFFICE' && key === 'officeName' && !value.trim()) {
+      return '郵送先を勤務先にする場合、事業所名は必須です。';
+    }
+    if (isIndividualLike && preferredMailDestination === 'HOME' && ['homePostCode', 'homePrefecture', 'homeCity', 'homeAddressLine'].includes(key) && !value.trim()) {
+      return `郵送先を自宅にする場合、${fieldLabels[key]}は必須です。`;
+    }
+    if (isIndividualLike && (key === 'phone' || key === 'mobilePhone')) {
+      const officePhone = String(key === 'phone' ? value : form.phone || '').trim();
+      const mobilePhone = String(key === 'mobilePhone' ? value : form.mobilePhone || '').trim();
+      if (!officePhone && !mobilePhone) {
+        return '勤務先電話番号または携帯電話番号のどちらか1つを入力してください。';
+      }
+    }
+    if ((key === 'officePostCode' || key === 'homePostCode') && value.trim() && !validatePostCode(value)) {
+      return '郵便番号は 573-0084 の形式で入力してください。';
+    }
+    if ((key === 'phone' || key === 'mobilePhone' || key === 'fax') && value.trim() && !validatePhone(value)) {
+      return `${fieldLabels[key]}は半角数字とハイフンのみで入力してください。`;
     }
     return '';
   };
@@ -216,7 +291,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     setValidationErrors(prev => ({ ...prev, [key]: err }));
   };
 
-  const validateAllRequired = (): boolean => {
+  const validateAllRequired = (): Record<string, string> => {
     const errors: Record<string, string> = {};
     const allTouched: Record<string, boolean> = {};
     if (isBusiness) {
@@ -226,8 +301,19 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
         allTouched[key] = true;
       }
     }
-    if (isIndividual) {
-      for (const key of Object.keys(individualRequiredFields)) {
+    if (isIndividualLike) {
+      for (const key of [
+        ...Object.keys(individualRequiredFields),
+        'officeName',
+        'officePostCode',
+        'homePostCode',
+        'homePrefecture',
+        'homeCity',
+        'homeAddressLine',
+        'phone',
+        'mobilePhone',
+        'fax',
+      ]) {
         const err = validateField(key, String(form[key] || ''));
         if (err) errors[key] = err;
         allTouched[key] = true;
@@ -235,7 +321,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     }
     setValidationErrors(errors);
     setTouched(prev => ({ ...prev, ...allTouched }));
-    return Object.keys(errors).length === 0;
+    return errors;
   };
 
   // ── フィールド描画ヘルパー ──
@@ -249,6 +335,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
   const labelClass = 'block text-xs font-medium text-slate-600 mb-1';
 
   const RequiredMark = () => <span className="text-red-500 ml-0.5" aria-hidden="true">*</span>;
+  const errorSummaryEntries = Object.entries(validationErrors).filter(([fieldKey, message]) => touched[fieldKey] && !!message);
 
   const FieldError = ({ fieldKey }: { fieldKey: string }) => {
     if (!touched[fieldKey] || !validationErrors[fieldKey]) return null;
@@ -261,8 +348,10 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
   };
 
   const handleSave = async () => {
-    if (!validateAllRequired()) {
-      setError('必須項目を入力してください。');
+    const nextErrors = validateAllRequired();
+    if (Object.keys(nextErrors).length > 0) {
+      focusField(Object.keys(nextErrors)[0]);
+      setError('入力内容を確認し、エラー項目を修正してください。');
       return;
     }
     // 事業所会員は郵送先区分を固定OFFICE
@@ -537,7 +626,14 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       const originalValue = String((member as any)[key] || '').trim();
       return !!originalValue;
     }
-    return isIndividual && !!individualRequiredFields[key];
+    if (!isIndividualLike) return false;
+    if (individualRequiredFields[key]) return true;
+    if (key === 'officeName') return preferredMailDestination === 'OFFICE';
+    if (['homePostCode', 'homePrefecture', 'homeCity', 'homeAddressLine'].includes(key)) {
+      return preferredMailDestination === 'HOME';
+    }
+    if (key === 'phone' || key === 'mobilePhone') return true;
+    return false;
   };
 
   return (
@@ -555,6 +651,20 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
         </div>
       )}
       {error && <div className="bg-red-50 border border-red-200 rounded p-3 text-sm text-red-700">{error}</div>}
+      {errorSummaryEntries.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4" role="alert" aria-live="polite">
+          <p className="text-sm font-semibold text-red-700">修正が必要な項目があります。</p>
+          <ul className="mt-2 space-y-1 text-sm text-red-700">
+            {errorSummaryEntries.map(([fieldKey, message]) => (
+              <li key={fieldKey}>
+                <button type="button" onClick={() => focusField(fieldKey)} className="text-left underline underline-offset-2 hover:text-red-800">
+                  {message}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {successMsg && <div className="bg-green-50 border border-green-200 rounded p-3 text-sm text-green-700">{successMsg}</div>}
 
       {/* 退会予定バナー（事業所会員 WITHDRAWAL_SCHEDULED 時） */}
@@ -595,24 +705,47 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
               </div>
               <div>
                 <label className={labelClass}>セイ</label>
-                <input className={fieldClass()} value={form.lastKana || ''} onChange={e => set('lastKana', e.target.value)} />
+                <input
+                  id={getFieldAnchorId('lastKana')}
+                  className={fieldClass('lastKana')}
+                  value={form.lastKana || ''}
+                  onChange={e => set('lastKana', e.target.value)}
+                  onBlur={() => handleBlur('lastKana')}
+                  aria-required={isRequired('lastKana')}
+                  aria-invalid={touched.lastKana && !!validationErrors.lastKana}
+                  aria-describedby={validationErrors.lastKana ? 'err-lastKana' : undefined}
+                />
+                <FieldError fieldKey="lastKana" />
               </div>
               <div>
                 <label className={labelClass}>メイ</label>
-                <input className={fieldClass()} value={form.firstKana || ''} onChange={e => set('firstKana', e.target.value)} />
+                <input
+                  id={getFieldAnchorId('firstKana')}
+                  className={fieldClass('firstKana')}
+                  value={form.firstKana || ''}
+                  onChange={e => set('firstKana', e.target.value)}
+                  onBlur={() => handleBlur('firstKana')}
+                  aria-required={isRequired('firstKana')}
+                  aria-invalid={touched.firstKana && !!validationErrors.firstKana}
+                  aria-describedby={validationErrors.firstKana ? 'err-firstKana' : undefined}
+                />
+                <FieldError fieldKey="firstKana" />
               </div>
               <div>
-                <label className={labelClass}>介護支援専門員番号{isIndividual && <span aria-hidden="true" className="text-red-500 ml-0.5">*</span>}</label>
+                <label className={labelClass}>介護支援専門員番号{!isSupport && <span aria-hidden="true" className="text-red-500 ml-0.5">*</span>}</label>
                 <input
-                  className={fieldClass(isIndividual ? 'careManagerNumber' : undefined)}
+                  id={getFieldAnchorId('careManagerNumber')}
+                  className={fieldClass('careManagerNumber')}
                   value={form.careManagerNumber || ''}
                   onChange={e => set('careManagerNumber', e.target.value)}
-                  onBlur={isIndividual ? () => handleBlur('careManagerNumber') : undefined}
-                  aria-required={isIndividual || undefined}
-                  aria-invalid={isIndividual && touched['careManagerNumber'] && !!validationErrors['careManagerNumber'] || undefined}
-                  aria-describedby={isIndividual && touched['careManagerNumber'] && validationErrors['careManagerNumber'] ? 'err-careManagerNumber' : undefined}
+                  onBlur={() => handleBlur('careManagerNumber')}
+                  inputMode="numeric"
+                  maxLength={8}
+                  aria-required={!isSupport || undefined}
+                  aria-invalid={touched['careManagerNumber'] && !!validationErrors['careManagerNumber'] || undefined}
+                  aria-describedby={validationErrors['careManagerNumber'] ? 'err-careManagerNumber' : undefined}
                 />
-                {isIndividual && touched['careManagerNumber'] && validationErrors['careManagerNumber'] && (
+                {touched['careManagerNumber'] && validationErrors['careManagerNumber'] && (
                   <p id="err-careManagerNumber" role="alert" className="mt-1 text-sm text-red-600">{validationErrors['careManagerNumber']}</p>
                 )}
               </div>
@@ -631,6 +764,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
           <div className="md:col-span-2">
             <label className={labelClass}>事業所名{isRequired('officeName') && <RequiredMark />}</label>
             <input
+              id={getFieldAnchorId('officeName')}
               className={fieldClass('officeName')}
               value={form.officeName || ''}
               onChange={e => set('officeName', e.target.value)}
@@ -659,10 +793,12 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
           <div>
             <label className={labelClass}>郵便番号{isRequired('officePostCode') && <RequiredMark />}</label>
             <input
+              id={getFieldAnchorId('officePostCode')}
               className={fieldClass('officePostCode')}
               value={form.officePostCode || ''}
               onChange={e => set('officePostCode', e.target.value)}
               onBlur={() => handleBlur('officePostCode')}
+              inputMode="numeric"
               aria-required={isRequired('officePostCode')}
               aria-invalid={touched.officePostCode && !!validationErrors.officePostCode}
               aria-describedby={validationErrors.officePostCode ? 'err-officePostCode' : undefined}
@@ -720,12 +856,14 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
             />
           </div>
           <div>
-            <label className={labelClass}>電話番号{isRequired('phone') && <RequiredMark />}</label>
+            <label className={labelClass}>{isBusiness ? '電話番号' : '勤務先電話番号'}{isRequired('phone') && <RequiredMark />}</label>
             <input
+              id={getFieldAnchorId('phone')}
               className={fieldClass('phone')}
               value={form.phone || ''}
               onChange={e => set('phone', e.target.value)}
               onBlur={() => handleBlur('phone')}
+              inputMode="tel"
               aria-required={isRequired('phone')}
               aria-invalid={touched.phone && !!validationErrors.phone}
               aria-describedby={validationErrors.phone ? 'err-phone' : undefined}
@@ -733,8 +871,18 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
             <FieldError fieldKey="phone" />
           </div>
           <div>
-            <label className={labelClass}>FAX番号</label>
-            <input className={fieldClass()} value={form.fax || ''} onChange={e => set('fax', e.target.value)} />
+            <label className={labelClass}>FAX番号（任意）</label>
+            <input
+              id={getFieldAnchorId('fax')}
+              className={fieldClass('fax')}
+              value={form.fax || ''}
+              onChange={e => set('fax', e.target.value)}
+              onBlur={() => handleBlur('fax')}
+              inputMode="tel"
+              aria-invalid={touched.fax && !!validationErrors.fax}
+              aria-describedby={validationErrors.fax ? 'err-fax' : undefined}
+            />
+            <FieldError fieldKey="fax" />
           </div>
         </div>
       </div>
@@ -745,28 +893,81 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
           <h3 className="text-lg font-bold text-slate-800 mb-4">自宅情報</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className={labelClass}>郵便番号</label>
-              <input className={fieldClass()} value={form.homePostCode || ''} onChange={e => set('homePostCode', e.target.value)} />
+              <label className={labelClass}>郵便番号{isRequired('homePostCode') && <RequiredMark />}</label>
+              <input
+                id={getFieldAnchorId('homePostCode')}
+                className={fieldClass('homePostCode')}
+                value={form.homePostCode || ''}
+                onChange={e => set('homePostCode', e.target.value)}
+                onBlur={() => handleBlur('homePostCode')}
+                inputMode="numeric"
+                aria-required={isRequired('homePostCode')}
+                aria-invalid={touched.homePostCode && !!validationErrors.homePostCode}
+                aria-describedby={validationErrors.homePostCode ? 'err-homePostCode' : undefined}
+              />
+              <FieldError fieldKey="homePostCode" />
             </div>
             <div>
-              <label className={labelClass}>都道府県</label>
-              <input className={fieldClass()} value={form.homePrefecture || ''} onChange={e => set('homePrefecture', e.target.value)} />
+              <label className={labelClass}>都道府県{isRequired('homePrefecture') && <RequiredMark />}</label>
+              <input
+                id={getFieldAnchorId('homePrefecture')}
+                className={fieldClass('homePrefecture')}
+                value={form.homePrefecture || ''}
+                onChange={e => set('homePrefecture', e.target.value)}
+                onBlur={() => handleBlur('homePrefecture')}
+                aria-required={isRequired('homePrefecture')}
+                aria-invalid={touched.homePrefecture && !!validationErrors.homePrefecture}
+                aria-describedby={validationErrors.homePrefecture ? 'err-homePrefecture' : undefined}
+              />
+              <FieldError fieldKey="homePrefecture" />
             </div>
             <div>
-              <label className={labelClass}>市区町村</label>
-              <input className={fieldClass()} value={form.homeCity || ''} onChange={e => set('homeCity', e.target.value)} />
+              <label className={labelClass}>市区町村{isRequired('homeCity') && <RequiredMark />}</label>
+              <input
+                id={getFieldAnchorId('homeCity')}
+                className={fieldClass('homeCity')}
+                value={form.homeCity || ''}
+                onChange={e => set('homeCity', e.target.value)}
+                onBlur={() => handleBlur('homeCity')}
+                aria-required={isRequired('homeCity')}
+                aria-invalid={touched.homeCity && !!validationErrors.homeCity}
+                aria-describedby={validationErrors.homeCity ? 'err-homeCity' : undefined}
+              />
+              <FieldError fieldKey="homeCity" />
             </div>
             <div>
-              <label className={labelClass}>番地</label>
-              <input className={fieldClass()} value={form.homeAddressLine || ''} onChange={e => set('homeAddressLine', e.target.value)} placeholder="例: 1-2-3" />
+              <label className={labelClass}>番地{isRequired('homeAddressLine') && <RequiredMark />}</label>
+              <input
+                id={getFieldAnchorId('homeAddressLine')}
+                className={fieldClass('homeAddressLine')}
+                value={form.homeAddressLine || ''}
+                onChange={e => set('homeAddressLine', e.target.value)}
+                onBlur={() => handleBlur('homeAddressLine')}
+                aria-required={isRequired('homeAddressLine')}
+                aria-invalid={touched.homeAddressLine && !!validationErrors.homeAddressLine}
+                aria-describedby={validationErrors.homeAddressLine ? 'err-homeAddressLine' : undefined}
+                placeholder="例: 1-2-3"
+              />
+              <FieldError fieldKey="homeAddressLine" />
             </div>
             <div>
               <label className={labelClass}>建物名・部屋番号（任意）</label>
               <input className={fieldClass()} value={form.homeAddressLine2 || ''} onChange={e => set('homeAddressLine2', e.target.value)} placeholder="例: ○○マンション 101号室" />
             </div>
             <div>
-              <label className={labelClass}>携帯電話番号</label>
-              <input className={fieldClass()} value={form.mobilePhone || ''} onChange={e => set('mobilePhone', e.target.value)} />
+              <label className={labelClass}>携帯電話番号{isRequired('mobilePhone') && <RequiredMark />}</label>
+              <input
+                id={getFieldAnchorId('mobilePhone')}
+                className={fieldClass('mobilePhone')}
+                value={form.mobilePhone || ''}
+                onChange={e => set('mobilePhone', e.target.value)}
+                onBlur={() => handleBlur('mobilePhone')}
+                inputMode="tel"
+                aria-required={isRequired('mobilePhone')}
+                aria-invalid={touched.mobilePhone && !!validationErrors.mobilePhone}
+                aria-describedby={validationErrors.mobilePhone ? 'err-mobilePhone' : undefined}
+              />
+              <FieldError fieldKey="mobilePhone" />
             </div>
           </div>
         </div>

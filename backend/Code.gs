@@ -7259,6 +7259,8 @@ function updateMember_(payload, options) {
 
 function validateMemberPayload_(payload, memberTypeCode, currentMemberStatus) {
   function trim(v) { return String(v || '').trim(); }
+  function isHalfWidthKana(v) { return /^[ｦ-ﾟ\s]+$/u.test(trim(v)); }
+  function isEightDigits(v) { return /^\d{8}$/.test(trim(v)); }
   function toDate(v) {
     var text = trim(v);
     if (!text) return null;
@@ -7276,16 +7278,20 @@ function validateMemberPayload_(payload, memberTypeCode, currentMemberStatus) {
     if (!trim(payload.firstName)) throw new Error('名は必須です。');
     if (!trim(payload.lastKana)) throw new Error('セイは必須です。');
     if (!trim(payload.firstKana)) throw new Error('メイは必須です。');
+    if (!isHalfWidthKana(payload.lastKana)) throw new Error('セイは半角ｶﾅで入力してください。');
+    if (!isHalfWidthKana(payload.firstKana)) throw new Error('メイは半角ｶﾅで入力してください。');
     if (!isSupport && !trim(payload.careManagerNumber)) throw new Error('賛助会員以外は介護支援専門員番号が必須です。');
+    if (trim(payload.careManagerNumber) && !isEightDigits(payload.careManagerNumber)) {
+      throw new Error('介護支援専門員番号は8桁の半角数字で入力してください。');
+    }
   }
 
   if (!isWithdrawn) {
-    if (isBusiness) {
-      if (!trim(payload.mobilePhone) && !trim(payload.phone)) {
+    if (!trim(payload.mobilePhone) && !trim(payload.phone)) {
+      if (isBusiness) {
         throw new Error('電話番号（または事業所電話番号）が必須です。');
       }
-    } else {
-      if (!trim(payload.mobilePhone)) throw new Error('電話番号は必須です。');
+      throw new Error('勤務先電話番号または携帯電話番号のどちらかを入力してください。');
     }
   }
 
@@ -7297,17 +7303,22 @@ function validateMemberPayload_(payload, memberTypeCode, currentMemberStatus) {
     !!trim(payload.officeAddressLine) ||
     !!trim(payload.phone) ||
     !!trim(payload.fax);
-  var requireOfficeInfo = !isWithdrawn && (isBusiness || hasOfficeAffiliationInput);
-  var requireHomeInfo = !isWithdrawn && !isBusiness;
+  var preferredMailDestination = trim(payload.preferredMailDestination || (isBusiness ? 'OFFICE' : ''));
+  var requireOfficeInfo = !isWithdrawn && (
+    isBusiness ||
+    (!isBusiness && preferredMailDestination === 'OFFICE')
+  );
+  var requireHomeInfo = !isWithdrawn && !isBusiness && preferredMailDestination === 'HOME';
 
   if (requireOfficeInfo) {
     if (!trim(payload.officeName)) throw new Error('事業所情報: 勤務先名は必須です。');
-    if (!trim(payload.officePostCode)) throw new Error('事業所情報: 郵便番号は必須です。');
-    if (!trim(payload.officePrefecture)) throw new Error('事業所情報: 都道府県は必須です。');
-    if (!trim(payload.officeCity)) throw new Error('事業所情報: 市区町村は必須です。');
-    if (!trim(payload.officeAddressLine)) throw new Error('事業所情報: 住所は必須です。');
-    if (!trim(payload.phone)) throw new Error('事業所情報: 電話番号は必須です。');
-    if (!trim(payload.fax)) throw new Error('事業所情報: FAX番号は必須です。');
+    if (isBusiness) {
+      if (!trim(payload.officePostCode)) throw new Error('事業所情報: 郵便番号は必須です。');
+      if (!trim(payload.officePrefecture)) throw new Error('事業所情報: 都道府県は必須です。');
+      if (!trim(payload.officeCity)) throw new Error('事業所情報: 市区町村は必須です。');
+      if (!trim(payload.officeAddressLine)) throw new Error('事業所情報: 住所は必須です。');
+      if (!trim(payload.phone)) throw new Error('事業所情報: 電話番号は必須です。');
+    }
   }
 
   if (requireHomeInfo) {
