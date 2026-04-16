@@ -11374,6 +11374,54 @@ function repairDefaultAdminWhitelistLinkageJson() {
   return JSON.stringify(repairDefaultAdminWhitelistLinkage());
 }
 
+/**
+ * WL-001 の Googleメール を k.noguchi@hcm-n.org に更新する（ワンタイム実行）。
+ * 紐付け認証ID / 紐付け会員ID / MASTER 権限はそのまま維持する。
+ * 実行: npx clasp run updateWL001EmailToHcmN
+ */
+function inspectHcmNAdminWhitelistLinkageJson() {
+  return inspectAdminWhitelistLinkageJson('k.noguchi@hcm-n.org');
+}
+
+function updateWL001EmailToHcmN() {
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_管理者Googleホワイトリスト');
+  if (!sheet) throw new Error('T_管理者Googleホワイトリスト シートが見つかりません。');
+
+  var found = findRowByColumnValue_(sheet, 'ホワイトリストID', 'WL-001');
+  if (!found) throw new Error('WL-001 が見つかりません。');
+
+  var row = found.row.slice();
+  var cols = found.columns;
+
+  var oldEmail = String(row[cols['Googleメール']] || '');
+  var newEmail = 'k.noguchi@hcm-n.org';
+
+  row[cols['Googleメール']] = newEmail;
+  row[cols['変更者メール']] = newEmail;
+  row[cols['変更日時']] = new Date().toISOString();
+  row[cols['更新日時']] = new Date().toISOString();
+
+  sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+
+  // キャッシュを無効化
+  try {
+    var cache = CacheService.getScriptCache();
+    cache.remove('admin_wl_v1');
+    cache.remove('admin_auth_v1');
+  } catch (e) {}
+
+  return {
+    ok: true,
+    wlId: 'WL-001',
+    oldEmail: oldEmail,
+    newEmail: newEmail,
+    linkedAuthId: String(row[cols['紐付け認証ID']] || ''),
+    linkedMemberId: String(row[cols['紐付け会員ID']] || ''),
+    permissionCode: String(row[cols['権限コード']] || ''),
+  };
+}
+
 // ── ソース読み取りとパース ──
 
 /**
