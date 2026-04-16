@@ -1880,7 +1880,10 @@ const App: React.FC = () => {
             setSelectedMemberForDetailId(null);
             setCurrentView('admin');
           }}
-          onSaved={async () => {
+          onSaved={(updatedMember) => {
+            if (updatedMember) {
+              setMembers((prev) => prev.map((member) => (member.id === updatedMember.id ? updatedMember : member)));
+            }
             loadAdminDashboardData({ force: true }).catch(() => undefined);
             loadAppData({ force: true, silent: true }).catch(() => undefined);
           }}

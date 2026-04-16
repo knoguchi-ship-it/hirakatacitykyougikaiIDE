@@ -352,3 +352,8 @@ Also verify the runtime in a real browser when the change affects user flows.
 - On 2026-04-15 both fixed deployments were redeployed again to `versionNumber: 208` by `k.noguchi@hcm-n.org`.
 - For a newly switched domain account, `clasp redeploy` may fail with `User has not enabled the Apps Script API`.
   In that case, enable `Google Apps Script API` at `https://script.google.com/home/usersettings` for the operational Google user, then rerun `npx clasp redeploy`.
+
+## 2026-04-16 local worktree note
+- Admin member-management changes for business staff add/save UX are currently local only.
+- No `push`, `version`, or fixed deployment sync has been executed for that work yet.
+- Keep the standard release order: `build -> push -> version -> fixed deployment sync -> verification -> document update`.

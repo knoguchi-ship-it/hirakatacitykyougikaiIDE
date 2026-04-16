@@ -1,13 +1,117 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Member, MemberType, Staff, AdminDashboardMemberRow, ConvertMemberTypePayload } from '../types';
 import { api } from '../services/api';
+
+type EditableStaff = Staff & { isNew?: boolean };
+type EditableMemberForm = Record<string, any> & { staff?: EditableStaff[] };
+
+const EDITABLE_MEMBER_FIELDS = [
+  'id',
+  'type',
+  'lastName',
+  'firstName',
+  'lastKana',
+  'firstKana',
+  'careManagerNumber',
+  'staffLimit',
+  'officeName',
+  'officeNumber',
+  'officePostCode',
+  'officePrefecture',
+  'officeCity',
+  'officeAddressLine',
+  'officeAddressLine2',
+  'phone',
+  'fax',
+  'homePostCode',
+  'homePrefecture',
+  'homeCity',
+  'homeAddressLine',
+  'homeAddressLine2',
+  'mobilePhone',
+  'mailingPreference',
+  'preferredMailDestination',
+  'email',
+  'status',
+  'joinedDate',
+  'withdrawnDate',
+  'withdrawalProcessDate',
+] as const;
+
+const normalizeEditableStaff = (staff: Partial<EditableStaff> | undefined) => ({
+  id: String(staff?.id || ''),
+  name: String(staff?.name || '').trim(),
+  kana: String(staff?.kana || '').trim(),
+  email: String(staff?.email || '').trim(),
+  role: String(staff?.role || 'STAFF'),
+  status: String(staff?.status || 'ENROLLED'),
+  joinedDate: String(staff?.joinedDate || ''),
+  withdrawnDate: String(staff?.withdrawnDate || ''),
+  careManagerNumber: String(staff?.careManagerNumber || '').trim(),
+  mailingPreference: String(staff?.mailingPreference || 'YES'),
+  lastName: String(staff?.lastName || '').trim(),
+  firstName: String(staff?.firstName || '').trim(),
+  lastKana: String(staff?.lastKana || '').trim(),
+  firstKana: String(staff?.firstKana || '').trim(),
+});
+
+const sanitizeStaffList = (staffList: EditableStaff[] = []): Staff[] =>
+  staffList.map(({ isNew, ...staff }) => ({
+    ...staff,
+    id: String(staff.id || ''),
+    name: String(staff.name || '').trim(),
+    kana: String(staff.kana || '').trim(),
+    email: String(staff.email || '').trim(),
+    careManagerNumber: String(staff.careManagerNumber || '').trim(),
+    lastName: String(staff.lastName || '').trim(),
+    firstName: String(staff.firstName || '').trim(),
+    lastKana: String(staff.lastKana || '').trim(),
+    firstKana: String(staff.firstKana || '').trim(),
+  }));
+
+const normalizeEditableMember = (value: Partial<EditableMemberForm> | undefined) => {
+  const normalized: Record<string, unknown> = {};
+  for (const field of EDITABLE_MEMBER_FIELDS) {
+    normalized[field] = String(value?.[field] ?? '');
+  }
+  normalized.staff = sanitizeStaffList((value?.staff as EditableStaff[] | undefined) || [])
+    .map(normalizeEditableStaff)
+    .sort((a, b) => a.id.localeCompare(b.id));
+  return normalized;
+};
+
+const snapshotsEqual = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
+
+const generateStaffDraftId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `staff-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+};
+
+const createEmptyStaffDraft = (): EditableStaff => ({
+  id: generateStaffDraftId(),
+  name: '',
+  kana: '',
+  email: '',
+  role: 'STAFF',
+  status: 'ENROLLED',
+  joinedDate: new Date().toISOString().slice(0, 10),
+  careManagerNumber: '',
+  mailingPreference: 'YES',
+  lastName: '',
+  firstName: '',
+  lastKana: '',
+  firstKana: '',
+  isNew: true,
+});
 
 interface MemberDetailAdminProps {
   member?: Member;
   /** BUSINESS 事業所のリスト（個人→事業所転籍時の選択用） */
   businessMembers?: AdminDashboardMemberRow[];
   onBack: () => void;
-  onSaved: () => void;
+  onSaved: (updatedMember?: Member) => void;
   /** v126: 職員詳細へのDrilldown遷移 */
   onOpenStaffDetail?: (memberId: string, staffId: string) => void;
   /** 職員詳細からの保存成功トースト */
@@ -25,7 +129,8 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     );
   }
 
-  const [form, setForm] = useState<Record<string, any>>({ ...member });
+  const [form, setForm] = useState<EditableMemberForm>({ ...(member as EditableMemberForm) });
+  const [initialSnapshot, setInitialSnapshot] = useState(() => normalizeEditableMember(member as EditableMemberForm));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -36,7 +141,11 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
 
   // member props が変更されたら form を再同期（インライン編集後のリロード対応）
   useEffect(() => {
-    setForm({ ...member });
+    const nextForm = { ...(member as EditableMemberForm) };
+    setForm(nextForm);
+    setInitialSnapshot(normalizeEditableMember(nextForm));
+    setTouched({});
+    setValidationErrors({});
   }, [member]);
 
   // 職員保存トーストの自動消去
@@ -59,6 +168,12 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
 
   const set = (key: string, value: any) => setForm(prev => ({ ...prev, [key]: value }));
   const isBusiness = form.type === MemberType.BUSINESS;
+  const currentSnapshot = useMemo(() => normalizeEditableMember(form), [form]);
+  const isDirty = useMemo(() => !snapshotsEqual(currentSnapshot, initialSnapshot), [currentSnapshot, initialSnapshot]);
+  const isStaffDirty = useMemo(
+    () => !snapshotsEqual(currentSnapshot.staff, initialSnapshot.staff),
+    [currentSnapshot, initialSnapshot],
+  );
 
   // ── v126: 事業所会員の必須フィールド定義 ──
   const businessRequiredFields: Record<string, string> = {
@@ -151,17 +266,24 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       return;
     }
     // 事業所会員は郵送先区分を固定OFFICE
-    const payload = { ...form };
+    const sanitizedStaff = sanitizeStaffList((form.staff as EditableStaff[]) || []);
+    const nextForm = { ...form, staff: sanitizedStaff } as Member;
+    const payload: EditableMemberForm = { ...nextForm };
     if (isBusiness) {
       payload.preferredMailDestination = 'OFFICE';
+    }
+    if (!isStaffDirty) {
+      delete payload.staff;
     }
     try {
       setSaving(true);
       setError(null);
       setSuccessMsg(null);
       await api.updateMember(payload as Member);
+      setForm(nextForm as EditableMemberForm);
+      setInitialSnapshot(normalizeEditableMember(nextForm as EditableMemberForm));
       setSuccessMsg('会員情報を更新しました。');
-      onSaved();
+      onSaved(nextForm);
     } catch (e) {
       setError(e instanceof Error ? e.message : '保存に失敗しました。');
     } finally {
@@ -359,9 +481,9 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
         mailingPreference: staff.mailingPreference || 'YES',
       });
       // サーバー応答を反映（除籍時の権限強制降格を即時反映）
-      setForm(prev => ({
-        ...prev,
-        staff: ((prev.staff as Staff[]) || []).map(s =>
+      const nextForm = {
+        ...form,
+        staff: ((form.staff as Staff[]) || []).map(s =>
           s.id === staff.id ? {
             ...s,
             [field]: newValue,
@@ -369,8 +491,10 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
             ...(result.status != null ? { status: result.status } : {}),
           } : s
         ),
-      }));
-      onSaved();
+      } as EditableMemberForm;
+      setForm(nextForm);
+      setInitialSnapshot(normalizeEditableMember(nextForm));
+      onSaved({ ...(nextForm as Member), staff: sanitizeStaffList((nextForm.staff as EditableStaff[]) || []) });
     } catch (e) {
       setError(e instanceof Error ? e.message : `${staff.name}の更新に失敗しました。`);
     } finally {
@@ -378,10 +502,35 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     }
   };
 
-  const staffList = (form.staff as Staff[]) || [];
+  const staffList = ((form.staff as EditableStaff[]) || []);
   const enrolledStaff = staffList.filter(s => s.status !== 'LEFT');
   const convertSourceStaff = staffList.find(s => s.id === convertSourceStaffId);
   const isConvertSourceRep = convertSourceStaff?.role === 'REPRESENTATIVE';
+
+  const updateDraftStaff = (staffId: string, patch: Partial<EditableStaff>) => {
+    setForm(prev => ({
+      ...prev,
+      staff: (((prev.staff as EditableStaff[]) || []).map(staff =>
+        staff.id === staffId ? { ...staff, ...patch } : staff
+      )),
+    }));
+  };
+
+  const handleAddStaff = () => {
+    setForm(prev => ({
+      ...prev,
+      staff: [...(((prev.staff as EditableStaff[]) || [])), createEmptyStaffDraft()],
+    }));
+    setSuccessMsg(null);
+    setError(null);
+  };
+
+  const handleRemoveDraftStaff = (staffId: string) => {
+    setForm(prev => ({
+      ...prev,
+      staff: (((prev.staff as EditableStaff[]) || []).filter(staff => staff.id !== staffId)),
+    }));
+  };
 
   const isRequired = (key: string) => {
     if (isBusiness && businessRequiredFields[key]) {
@@ -687,7 +836,81 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       </div>
 
       {/* 事業所職員一覧 */}
-      {isBusiness && staffList.length > 0 && (
+      {isBusiness && (
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-bold text-slate-800">職員追加</h3>
+              <p className="mt-1 text-xs text-slate-500">追加内容は保存ボタンでまとめて反映します。</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleAddStaff}
+              className="px-3 py-2 rounded-lg border border-primary-300 text-primary-700 text-sm font-medium hover:bg-primary-50"
+            >
+              + 職員追加
+            </button>
+          </div>
+          {staffList.filter((staff) => staff.isNew).length > 0 && (
+            <div className="mt-4 space-y-3">
+              {staffList.filter((staff) => staff.isNew).map((staff) => (
+                <div key={staff.id} className="grid grid-cols-1 md:grid-cols-[1.2fr_1.2fr_1.6fr_1fr_1fr_auto] gap-3 rounded-lg border border-slate-200 p-4">
+                  <input
+                    value={staff.name || ''}
+                    onChange={(e) => updateDraftStaff(staff.id, { name: e.target.value })}
+                    className="border border-slate-300 rounded px-3 py-2 text-sm"
+                    placeholder="氏名"
+                  />
+                  <input
+                    value={staff.kana || ''}
+                    onChange={(e) => updateDraftStaff(staff.id, { kana: e.target.value })}
+                    className="border border-slate-300 rounded px-3 py-2 text-sm"
+                    placeholder="カナ"
+                  />
+                  <input
+                    type="email"
+                    value={staff.email || ''}
+                    onChange={(e) => updateDraftStaff(staff.id, { email: e.target.value })}
+                    className="border border-slate-300 rounded px-3 py-2 text-sm"
+                    placeholder="メール"
+                  />
+                  <select
+                    value={staff.role}
+                    onChange={(e) => updateDraftStaff(staff.id, { role: e.target.value as Staff['role'] })}
+                    className="border border-slate-300 rounded px-3 py-2 text-sm bg-white"
+                  >
+                    <option value="REPRESENTATIVE">代表者</option>
+                    <option value="ADMIN">管理者</option>
+                    <option value="STAFF">メンバー</option>
+                  </select>
+                  <select
+                    value={staff.status}
+                    onChange={(e) => updateDraftStaff(staff.id, { status: e.target.value as Staff['status'] })}
+                    className="border border-slate-300 rounded px-3 py-2 text-sm bg-white"
+                  >
+                    <option value="ENROLLED">在籍</option>
+                    <option value="LEFT">除籍</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveDraftStaff(staff.id)}
+                    className="px-3 py-2 rounded border border-slate-300 text-slate-600 text-sm hover:bg-slate-50"
+                  >
+                    取消
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {staffList.length === 0 && (
+            <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+              職員はまだ登録されていません。`+ 職員追加` から追加してください。
+            </div>
+          )}
+        </div>
+      )}
+
+      {isBusiness && staffList.some((staff) => !staff.isNew) && (
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <h3 className="text-lg font-bold text-slate-800 mb-4">事業所職員一覧</h3>
           <table className="min-w-full divide-y divide-slate-200">
@@ -702,7 +925,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {staffList.map((s: Staff, idx: number) => (
+              {staffList.filter((staff) => !staff.isNew).map((s: EditableStaff, idx: number) => (
                 <tr key={s.id || idx} className={s.status === 'LEFT' ? 'bg-slate-50 text-slate-400' : ''}>
                   <td className="px-4 py-2 text-sm">{s.name}</td>
                   <td className="px-4 py-2 text-sm text-slate-500">{s.kana}</td>
@@ -772,10 +995,10 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       <div className="flex gap-3">
         <button
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || !isDirty}
           className="px-6 py-3 rounded-lg bg-primary-600 text-white font-medium hover:bg-primary-700 disabled:opacity-50"
         >
-          {saving ? '保存中...' : '保存'}
+          {saving ? '保存中...' : isDirty ? '保存' : '変更なし'}
         </button>
         <button onClick={onBack} className="px-6 py-3 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50">
           キャンセル
