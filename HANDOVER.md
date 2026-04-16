@@ -1,9 +1,9 @@
 # 開発引継ぎ
 
 更新日: 2026-04-16
-現行本番: `v217`
-固定 deployment: member `@217` / public `@217`
-補足: v217 でブラウザタブ favicon + title カスタマイズを本番反映。v210〜v216 の変更も継続有効。
+現行本番: `v219`
+固定 deployment: member `@219` / public `@219`
+補足: v219 で入会メール マージタグ追加 + テンプレート保存/読み込みを本番反映。v210〜v218 の変更も継続有効。
 
 ## 1. 最初に読むもの
 1. `HANDOVER.md`
@@ -48,6 +48,19 @@
 - **設定保存**: `getSystemSettingMap_` + `batchUpsertSystemSettings_` による 1 パス処理（旧 N+1 解消済み）。
 
 ## 4. 直近の重要履歴
+
+### v218〜v219（2026-04-16）
+
+#### v219 — 入会メール マージタグ追加 + テンプレート管理
+- `{{会員種別}}` / `{{年会費}}` マージタグ追加（M_会員種別から動的解決・年会費は `3,000円` 形式）
+- マージタグをクリックで本文末尾に挿入できるインライン UI
+- テンプレート保存・読み込み・削除機能（T_システム設定 `CREDENTIAL_EMAIL_TEMPLATES` キーに JSON）
+- Backend: `getCredentialEmailTemplates` / `saveCredentialEmailTemplate` / `deleteCredentialEmailTemplate`
+
+#### v218 — favicon PNG data URI テスト（結果: GAS は data URI を全形式拒否と確認）
+- `setFaviconUrl()` は HTTPS 外部 URL のみ対応。Drive 公開共有は組織ポリシーでブロック
+- favicon は断念。`setTitle()` によるタブタイトルのみ有効（v217 から継続）
+- `setupFavicons` 関数はコード内に残留（将来の GCS 対応用）
 
 ### v217（2026-04-16）
 - ブラウザタブ favicon + title カスタマイズ
@@ -112,9 +125,9 @@
 ---
 v195〜v202、v170〜v193 の詳細は `HANDOVER.md` 旧版（`docs/79_HANDOVER_2026-04-15.md`）または `docs/archive/release_history/` を参照。
 
-## 5. 現時点の注意事項（v217 更新）
+## 5. 現時点の注意事項（v219 更新）
 
-- fixed deployment 2 本は `@217` を向いている。
+- fixed deployment 2 本は `@219` を向いている。
 - **v206 DB 適用済み**: `npx clasp run addAddressLine2Columns` は実行完了。本番 `T_会員` に `勤務先住所2` / `自宅住所2` 列が追加されている。
 - **v194 リリース済みのため、本番管理者（`k.noguchi@hcm-n.org`）は次回 `/exec` アクセス時に `gmail.send + drive` の同意画面が表示される場合がある。** 未承認の場合は必ず承認すること。
 - **名簿出力コンソール（RosterExport）使用前提条件**: システム設定画面で `ROSTER_TEMPLATE_SS_ID`（テンプレートスプレッドシート ID）を登録すること。
