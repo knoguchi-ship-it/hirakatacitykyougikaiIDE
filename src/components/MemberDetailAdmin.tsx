@@ -43,7 +43,33 @@ const CARE_MANAGER_RE = /^\d{8}$/;
 const POST_CODE_RE = /^\d{3}-?\d{4}$/;
 const PHONE_RE = /^[0-9-]+$/;
 
-const normalizeKanaInput = (value: string) => value.replace(/[^\uFF66-\uFF9F\s]/gu, '');
+// 全角カナ・ひらがな → 半角カナ変換（保存時に適用）
+const toHalfWidthKana = (value: string): string => {
+  // ひらがな → 全角カナ
+  let s = value.replace(/[\u3041-\u3096]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 0x60));
+  // 全角カナ → 半角カナ
+  const fullToHalf: Record<string, string> = {
+    'ア':'ｱ','イ':'ｲ','ウ':'ｳ','エ':'ｴ','オ':'ｵ',
+    'カ':'ｶ','キ':'ｷ','ク':'ｸ','ケ':'ｹ','コ':'ｺ',
+    'サ':'ｻ','シ':'ｼ','ス':'ｽ','セ':'ｾ','ソ':'ｿ',
+    'タ':'ﾀ','チ':'ﾁ','ツ':'ﾂ','テ':'ﾃ','ト':'ﾄ',
+    'ナ':'ﾅ','ニ':'ﾆ','ヌ':'ﾇ','ネ':'ﾈ','ノ':'ﾉ',
+    'ハ':'ﾊ','ヒ':'ﾋ','フ':'ﾌ','ヘ':'ﾍ','ホ':'ﾎ',
+    'マ':'ﾏ','ミ':'ﾐ','ム':'ﾑ','メ':'ﾒ','モ':'ﾓ',
+    'ヤ':'ﾔ','ユ':'ﾕ','ヨ':'ﾖ',
+    'ラ':'ﾗ','リ':'ﾘ','ル':'ﾙ','レ':'ﾚ','ロ':'ﾛ',
+    'ワ':'ﾜ','ヲ':'ｦ','ン':'ﾝ',
+    'ァ':'ｧ','ィ':'ｨ','ゥ':'ｩ','ェ':'ｪ','ォ':'ｫ',
+    'ッ':'ｯ','ャ':'ｬ','ュ':'ｭ','ョ':'ｮ',
+    'ガ':'ｶﾞ','ギ':'ｷﾞ','グ':'ｸﾞ','ゲ':'ｹﾞ','ゴ':'ｺﾞ',
+    'ザ':'ｻﾞ','ジ':'ｼﾞ','ズ':'ｽﾞ','ゼ':'ｾﾞ','ゾ':'ｿﾞ',
+    'ダ':'ﾀﾞ','ヂ':'ﾁﾞ','ヅ':'ﾂﾞ','デ':'ﾃﾞ','ド':'ﾄﾞ',
+    'バ':'ﾊﾞ','ビ':'ﾋﾞ','ブ':'ﾌﾞ','ベ':'ﾍﾞ','ボ':'ﾎﾞ',
+    'パ':'ﾊﾟ','ピ':'ﾋﾟ','プ':'ﾌﾟ','ペ':'ﾍﾟ','ポ':'ﾎﾟ',
+    'ヴ':'ｳﾞ','ヰ':'ｲ','ヱ':'ｴ','ー':'ｰ','。':'｡','「':'｢','」':'｣','、':'､','・':'･',
+  };
+  return s.replace(/[ァ-ヶー。「」、・]/g, (c) => fullToHalf[c] || c);
+};
 const normalizeCareManagerInput = (value: string) => value.replace(/\D/g, '').slice(0, 8);
 const validateHalfWidthKana = (value: string) => !value.trim() || HALF_WIDTH_KANA_RE.test(value.trim());
 const validateCareManagerNumber = (value: string) => !value.trim() || CARE_MANAGER_RE.test(value.trim());
@@ -180,9 +206,6 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
 
   const set = (key: string, value: any) => {
     let nextValue = value;
-    if (key === 'lastKana' || key === 'firstKana') {
-      nextValue = normalizeKanaInput(String(value || ''));
-    }
     if (key === 'careManagerNumber') {
       nextValue = normalizeCareManagerInput(String(value || ''));
     }
@@ -291,12 +314,13 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     setValidationErrors(prev => ({ ...prev, [key]: err }));
   };
 
-  const validateAllRequired = (): Record<string, string> => {
+  const validateAllRequired = (overrideForm?: Partial<EditableMemberForm>): Record<string, string> => {
+    const src = overrideForm ? { ...form, ...overrideForm } : form;
     const errors: Record<string, string> = {};
     const allTouched: Record<string, boolean> = {};
     if (isBusiness) {
       for (const key of Object.keys(businessRequiredFields)) {
-        const err = validateField(key, String(form[key] || ''));
+        const err = validateField(key, String((src as any)[key] || ''));
         if (err) errors[key] = err;
         allTouched[key] = true;
       }
@@ -314,7 +338,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
         'mobilePhone',
         'fax',
       ]) {
-        const err = validateField(key, String(form[key] || ''));
+        const err = validateField(key, String((src as any)[key] || ''));
         if (err) errors[key] = err;
         allTouched[key] = true;
       }
@@ -348,15 +372,30 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
   };
 
   const handleSave = async () => {
-    const nextErrors = validateAllRequired();
+    // 保存前にセイ・メイを半角カナに変換（全角カナ・ひらがな → 半角カナ）
+    const convertedStaff = form.staff
+      ? (form.staff as any[]).map(s => ({
+          ...s,
+          lastKana: s.lastKana ? toHalfWidthKana(String(s.lastKana)) : s.lastKana,
+          firstKana: s.firstKana ? toHalfWidthKana(String(s.firstKana)) : s.firstKana,
+        }))
+      : form.staff;
+    const convertedForm: EditableMemberForm = {
+      ...form,
+      lastKana: form.lastKana ? toHalfWidthKana(String(form.lastKana)) : form.lastKana,
+      firstKana: form.firstKana ? toHalfWidthKana(String(form.firstKana)) : form.firstKana,
+      staff: convertedStaff as any,
+    };
+    setForm(convertedForm);
+    const nextErrors = validateAllRequired(convertedForm);
     if (Object.keys(nextErrors).length > 0) {
       focusField(Object.keys(nextErrors)[0]);
       setError('入力内容を確認し、エラー項目を修正してください。');
       return;
     }
     // 事業所会員は郵送先区分を固定OFFICE
-    const sanitizedStaff = sanitizeStaffList((form.staff as EditableStaff[]) || []);
-    const nextForm = { ...form, staff: sanitizedStaff } as Member;
+    const sanitizedStaff = sanitizeStaffList((convertedForm.staff as EditableStaff[]) || []);
+    const nextForm = { ...convertedForm, staff: sanitizedStaff } as Member;
     const payload: EditableMemberForm = { ...nextForm };
     if (isBusiness) {
       payload.preferredMailDestination = 'OFFICE';

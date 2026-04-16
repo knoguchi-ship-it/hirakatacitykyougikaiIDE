@@ -3327,9 +3327,14 @@ function getAdminDashboardData_() {
     var latestFee = latestFeeByMember[memberId];
     var joinedDateRaw = String(member['入会日'] || '');
 
-    // v143: アクティブ（在籍中 + 退会予定）のみカード表示数に加算
-    var isActive = memberStatus === 'ACTIVE' || memberStatus === 'WITHDRAWAL_SCHEDULED';
-    if (isActive) {
+    var withdrawnDateRaw = String(member['退会日'] || '');
+
+    // 在籍判定: 入会日が年度末以前 AND (退会日なし OR 退会日が年度開始以降)
+    // 例: 退会日2026-03-31 → 2025年度(4/1/2025〜3/31/2026)は在籍、2026年度(4/1/2026〜)は退会済
+    var jdObj = joinedDateRaw ? new Date(joinedDateRaw + 'T00:00:00') : null;
+    var wdObj = (withdrawnDateRaw && memberStatus === 'WITHDRAWN') ? new Date(withdrawnDateRaw + 'T00:00:00') : null;
+    var isInFiscalYear = (!jdObj || jdObj <= fyEnd) && (!wdObj || wdObj >= fyStart);
+    if (isInFiscalYear) {
       activeMemberCount += 1;
       if (memberType === 'INDIVIDUAL' || memberType === 'SUPPORT') individualCount += 1;
       if (memberType === 'BUSINESS') businessCount += 1;
@@ -3339,7 +3344,6 @@ function getAdminDashboardData_() {
       var jd = new Date(joinedDateRaw);
       if (!isNaN(jd.getTime()) && jd >= fyStart && jd <= fyEnd) currentYearJoinedCount += 1;
     }
-    var withdrawnDateRaw = String(member['退会日'] || '');
     if (withdrawnDateRaw && memberStatus === 'WITHDRAWN') {
       var wd = new Date(withdrawnDateRaw);
       if (!isNaN(wd.getTime()) && wd >= fyStart && wd <= fyEnd) currentYearWithdrawnCount += 1;

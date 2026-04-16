@@ -9,6 +9,32 @@ const CARE_MANAGER_RE = /^\d{8}$/;
 const POST_CODE_RE = /^\d{3}-?\d{4}$/;
 const PHONE_RE = /^[0-9-]+$/;
 
+// 全角カナ・ひらがな → 半角カナ変換（保存時に適用）
+const toHalfWidthKana = (value: string): string => {
+  let s = value.replace(/[\u3041-\u3096]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 0x60));
+  const fullToHalf: Record<string, string> = {
+    'ア':'ｱ','イ':'ｲ','ウ':'ｳ','エ':'ｴ','オ':'ｵ',
+    'カ':'ｶ','キ':'ｷ','ク':'ｸ','ケ':'ｹ','コ':'ｺ',
+    'サ':'ｻ','シ':'ｼ','ス':'ｽ','セ':'ｾ','ソ':'ｿ',
+    'タ':'ﾀ','チ':'ﾁ','ツ':'ﾂ','テ':'ﾃ','ト':'ﾄ',
+    'ナ':'ﾅ','ニ':'ﾆ','ヌ':'ﾇ','ネ':'ﾈ','ノ':'ﾉ',
+    'ハ':'ﾊ','ヒ':'ﾋ','フ':'ﾌ','ヘ':'ﾍ','ホ':'ﾎ',
+    'マ':'ﾏ','ミ':'ﾐ','ム':'ﾑ','メ':'ﾒ','モ':'ﾓ',
+    'ヤ':'ﾔ','ユ':'ﾕ','ヨ':'ﾖ',
+    'ラ':'ﾗ','リ':'ﾘ','ル':'ﾙ','レ':'ﾚ','ロ':'ﾛ',
+    'ワ':'ﾜ','ヲ':'ｦ','ン':'ﾝ',
+    'ァ':'ｧ','ィ':'ｨ','ゥ':'ｩ','ェ':'ｪ','ォ':'ｫ',
+    'ッ':'ｯ','ャ':'ｬ','ュ':'ｭ','ョ':'ｮ',
+    'ガ':'ｶﾞ','ギ':'ｷﾞ','グ':'ｸﾞ','ゲ':'ｹﾞ','ゴ':'ｺﾞ',
+    'ザ':'ｻﾞ','ジ':'ｼﾞ','ズ':'ｽﾞ','ゼ':'ｾﾞ','ゾ':'ｿﾞ',
+    'ダ':'ﾀﾞ','ヂ':'ﾁﾞ','ヅ':'ﾂﾞ','デ':'ﾃﾞ','ド':'ﾄﾞ',
+    'バ':'ﾊﾞ','ビ':'ﾋﾞ','ブ':'ﾌﾞ','ベ':'ﾍﾞ','ボ':'ﾎﾞ',
+    'パ':'ﾊﾟ','ピ':'ﾋﾟ','プ':'ﾌﾟ','ペ':'ﾍﾟ','ポ':'ﾎﾟ',
+    'ヴ':'ｳﾞ','ヰ':'ｲ','ヱ':'ｴ','ー':'ｰ','。':'｡','「':'｢','」':'｣','、':'､','・':'･',
+  };
+  return s.replace(/[ァ-ヶー。「」、・]/g, (c) => fullToHalf[c] || c);
+};
+
 interface MemberFormProps {
   initialMember: Member;
   activeStaffId?: string;
@@ -106,7 +132,6 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
     const joined = `${lastName || ''} ${firstName || ''}`.trim();
     return joined || fallback || '';
   };
-  const normalizeKanaInput = (value: string) => value.replace(/[^\uFF66-\uFF9F\s]/gu, '');
   const normalizeCareManagerInput = (value: string) => value.replace(/\D/g, '').slice(0, 8);
   const validateHalfWidthKana = (value: string) => !value.trim() || HALF_WIDTH_KANA_RE.test(value.trim());
   const validateCareManagerNumber = (value: string) => !value.trim() || CARE_MANAGER_RE.test(value.trim());
@@ -341,9 +366,6 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
     const { name, value, type } = e.target;
     let normalizedValue: string | boolean = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
     if (typeof normalizedValue === 'string') {
-      if (name === 'lastKana' || name === 'firstKana') {
-        normalizedValue = normalizeKanaInput(normalizedValue);
-      }
       if (name === 'careManagerNumber') {
         normalizedValue = normalizeCareManagerInput(normalizedValue);
       }
@@ -369,7 +391,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
     if (!isBusiness || isReadOnly) return;
     const representativeId = representativeStaff?.id;
     if (!representativeId) return;
-    const normalizedValue = field === 'lastKana' || field === 'firstKana' ? normalizeKanaInput(value) : value;
+    const normalizedValue = value;
     setMember(prev => {
       const nextStaff = prev.staff?.map(s => {
         if (s.id !== representativeId) return s;
@@ -447,86 +469,103 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
     }));
   };
 
-  const validate = () => {
+  const validate = (memberOverride?: Member) => {
+    const m = memberOverride ?? member;
+    const repStaff = m.type === MemberType.BUSINESS ? (m.staff?.find(s => s.role === 'REPRESENTATIVE') || null) : null;
+    const repProfile = m.type === MemberType.BUSINESS
+      ? {
+          lastName: repStaff?.lastName || m.lastName || '',
+          firstName: repStaff?.firstName || m.firstName || '',
+          lastKana: repStaff?.lastKana || m.lastKana || '',
+          firstKana: repStaff?.firstKana || m.firstKana || '',
+          careManagerNumber: repStaff?.careManagerNumber || m.careManagerNumber || '',
+        }
+      : {
+          lastName: m.lastName || '',
+          firstName: m.firstName || '',
+          lastKana: m.lastKana || '',
+          firstKana: m.firstKana || '',
+          careManagerNumber: m.careManagerNumber || '',
+        };
     const newErrors: { [key: string]: string } = {};
 
     if (isBusinessStaffSelfMode) {
-      const ownStaff = member.staff?.find((staff) => staff.id === operatingStaffId);
+      const ownStaff = m.staff?.find((staff) => staff.id === operatingStaffId);
       const ownStaffInitialEmpty = initiallyEmptyStaffFields[operatingStaffId ?? ''] ?? new Set<string>();
       if (!ownStaff?.name?.trim() && !ownStaffInitialEmpty.has('name')) newErrors.staff_self_name = '氏名は必須です';
       if (!ownStaff?.kana?.trim() && !ownStaffInitialEmpty.has('kana')) newErrors.staff_self_kana = 'フリガナは必須です';
       setErrors(newErrors);
       return newErrors;
     }
-    const isSupportMember = member.type === MemberType.SUPPORT;
-    const officeDestination = member.preferredMailDestination === MailDestination.OFFICE;
-    const homeDestination = member.preferredMailDestination === MailDestination.HOME;
+    const isSupportMember = m.type === MemberType.SUPPORT;
+    const officeDestination = m.preferredMailDestination === MailDestination.OFFICE;
+    const homeDestination = m.preferredMailDestination === MailDestination.HOME;
 
-    if (!representativeProfile.lastName?.trim()) newErrors.lastName = '必須項目です';
-    if (!representativeProfile.firstName?.trim()) newErrors.firstName = '必須項目です';
-    if (!representativeProfile.lastKana?.trim()) newErrors.lastKana = '必須項目です';
-    else if (!validateHalfWidthKana(representativeProfile.lastKana)) newErrors.lastKana = 'セイは半角ｶﾅで入力してください';
-    if (!representativeProfile.firstKana?.trim()) newErrors.firstKana = '必須項目です';
-    else if (!validateHalfWidthKana(representativeProfile.firstKana)) newErrors.firstKana = 'メイは半角ｶﾅで入力してください';
-    if (!isSupportMember && !representativeProfile.careManagerNumber?.trim()) {
+    if (!repProfile.lastName?.trim()) newErrors.lastName = '必須項目です';
+    if (!repProfile.firstName?.trim()) newErrors.firstName = '必須項目です';
+    if (!repProfile.lastKana?.trim()) newErrors.lastKana = '必須項目です';
+    else if (!validateHalfWidthKana(repProfile.lastKana)) newErrors.lastKana = 'セイは半角ｶﾅで入力してください';
+    if (!repProfile.firstKana?.trim()) newErrors.firstKana = '必須項目です';
+    else if (!validateHalfWidthKana(repProfile.firstKana)) newErrors.firstKana = 'メイは半角ｶﾅで入力してください';
+    if (!isSupportMember && !repProfile.careManagerNumber?.trim()) {
       newErrors.careManagerNumber = '賛助会員以外は必須です';
-    } else if (!validateCareManagerNumber(representativeProfile.careManagerNumber || '')) {
+    } else if (!validateCareManagerNumber(repProfile.careManagerNumber || '')) {
       newErrors.careManagerNumber = '8桁の半角数字で入力してください';
     }
 
-    if (!member.phone?.trim() && !member.mobilePhone?.trim()) {
+    if (!m.phone?.trim() && !m.mobilePhone?.trim()) {
       newErrors.phone = '勤務先電話番号または携帯電話番号のどちらかを入力してください';
       newErrors.mobilePhone = '勤務先電話番号または携帯電話番号のどちらかを入力してください';
     }
 
-    if (!validatePhone(member.phone || '')) newErrors.phone = '電話番号は半角数字とハイフンで入力してください';
-    if (!validatePhone(member.mobilePhone || '')) newErrors.mobilePhone = '携帯電話番号は半角数字とハイフンで入力してください';
-    if (!validatePhone(member.fax || '')) newErrors.fax = 'FAX番号は半角数字とハイフンで入力してください';
+    if (!validatePhone(m.phone || '')) newErrors.phone = '電話番号は半角数字とハイフンで入力してください';
+    if (!validatePhone(m.mobilePhone || '')) newErrors.mobilePhone = '携帯電話番号は半角数字とハイフンで入力してください';
+    if (!validatePhone(m.fax || '')) newErrors.fax = 'FAX番号は半角数字とハイフンで入力してください';
 
-    if (!isBusiness && member.mailingPreference === MailingPreference.EMAIL && !member.email) {
+    if (!isBusiness && m.mailingPreference === MailingPreference.EMAIL && !m.email) {
        newErrors.email = '必須項目です';
     }
 
     if (officeDestination) {
-      if (!member.officeName?.trim()) newErrors.officeName = '勤務先へ郵送する場合は事業所名が必須です';
+      if (!m.officeName?.trim()) newErrors.officeName = '勤務先へ郵送する場合は事業所名が必須です';
     }
     if (homeDestination) {
-      if (!member.homePostCode) newErrors.homePostCode = '自宅へ郵送する場合は必須です';
-      if (!member.homePrefecture) newErrors.homePrefecture = '自宅へ郵送する場合は必須です';
-      if (!member.homeCity) newErrors.homeCity = '自宅へ郵送する場合は必須です';
-      if (!member.homeAddressLine) newErrors.homeAddressLine = '自宅へ郵送する場合は必須です';
+      if (!m.homePostCode) newErrors.homePostCode = '自宅へ郵送する場合は必須です';
+      if (!m.homePrefecture) newErrors.homePrefecture = '自宅へ郵送する場合は必須です';
+      if (!m.homeCity) newErrors.homeCity = '自宅へ郵送する場合は必須です';
+      if (!m.homeAddressLine) newErrors.homeAddressLine = '自宅へ郵送する場合は必須です';
     }
 
     if (isBusiness) {
-      if (!member.officeName?.trim() && !initiallyEmptyFields.has('officeName')) newErrors.officeName = '必須項目です';
-      if (!member.officeNumber?.trim() && !initiallyEmptyFields.has('officeNumber')) newErrors.officeNumber = '必須項目です';
-      if (!member.officePostCode && !initiallyEmptyFields.has('officePostCode')) newErrors.officePostCode = '必須です';
-      if (!member.officePrefecture && !initiallyEmptyFields.has('officePrefecture')) newErrors.officePrefecture = '必須です';
-      if (!member.officeCity && !initiallyEmptyFields.has('officeCity')) newErrors.officeCity = '必須です';
-      if (!member.officeAddressLine && !initiallyEmptyFields.has('officeAddressLine')) newErrors.officeAddressLine = '必須です';
-      if (!member.phone?.trim() && !initiallyEmptyFields.has('phone')) newErrors.phone = '必須項目です';
+      if (!m.officeName?.trim() && !initiallyEmptyFields.has('officeName')) newErrors.officeName = '必須項目です';
+      if (!m.officeNumber?.trim() && !initiallyEmptyFields.has('officeNumber')) newErrors.officeNumber = '必須項目です';
+      if (!m.officePostCode && !initiallyEmptyFields.has('officePostCode')) newErrors.officePostCode = '必須です';
+      if (!m.officePrefecture && !initiallyEmptyFields.has('officePrefecture')) newErrors.officePrefecture = '必須です';
+      if (!m.officeCity && !initiallyEmptyFields.has('officeCity')) newErrors.officeCity = '必須です';
+      if (!m.officeAddressLine && !initiallyEmptyFields.has('officeAddressLine')) newErrors.officeAddressLine = '必須です';
+      if (!m.phone?.trim() && !initiallyEmptyFields.has('phone')) newErrors.phone = '必須項目です';
     }
 
-    if (!validatePostCode(member.officePostCode || '')) newErrors.officePostCode = '郵便番号は 123-4567 形式で入力してください';
-    if (!validatePostCode(member.homePostCode || '')) newErrors.homePostCode = '郵便番号は 123-4567 形式で入力してください';
+    if (!validatePostCode(m.officePostCode || '')) newErrors.officePostCode = '郵便番号は 123-4567 形式で入力してください';
+    if (!validatePostCode(m.homePostCode || '')) newErrors.homePostCode = '郵便番号は 123-4567 形式で入力してください';
 
-    const memberJoined = member.joinedDate ? new Date(member.joinedDate) : null;
-    const memberWithdrawn = member.withdrawnDate ? new Date(member.withdrawnDate) : null;
-    if (member.joinedDate && (!memberJoined || Number.isNaN(memberJoined.getTime()))) {
+    const memberJoined = m.joinedDate ? new Date(m.joinedDate) : null;
+    const memberWithdrawn = m.withdrawnDate ? new Date(m.withdrawnDate) : null;
+    if (m.joinedDate && (!memberJoined || Number.isNaN(memberJoined.getTime()))) {
       newErrors.joinedDate = '有効な日付を入力してください';
     }
-    if (member.withdrawnDate && (!memberWithdrawn || Number.isNaN(memberWithdrawn.getTime()))) {
+    if (m.withdrawnDate && (!memberWithdrawn || Number.isNaN(memberWithdrawn.getTime()))) {
       newErrors.withdrawnDate = '有効な日付を入力してください';
     }
     if (memberJoined && memberWithdrawn && memberJoined.getTime() > memberWithdrawn.getTime()) {
       newErrors.withdrawnDate = '退会日は入会日以降にしてください';
     }
-    if (member.status === 'WITHDRAWN' && !member.withdrawnDate) {
+    if (m.status === 'WITHDRAWN' && !m.withdrawnDate) {
       newErrors.withdrawnDate = '退会済みの場合は退会日が必須です';
     }
 
     if (isBusiness) {
-      (member.staff || []).forEach((staff, index) => {
+      (m.staff || []).forEach((staff, index) => {
         const prefix = `staff_${index}`;
         const staffInitiallyEmpty = initiallyEmptyStaffFields[staff.id] ?? new Set<string>();
         if (!staff.name?.trim() && !staffInitiallyEmpty.has('name')) newErrors[`${prefix}_name`] = '職員氏名は必須です';
@@ -555,7 +594,18 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (isReadOnly && !isBusinessStaffSelfMode) return;
-    const nextErrors = validate();
+    // 保存前にセイ・メイを半角カナに変換（全角カナ・ひらがな → 半角カナ）
+    const kanaConvertedMember: Member = {
+      ...member,
+      lastKana: member.lastKana ? toHalfWidthKana(member.lastKana) : member.lastKana,
+      firstKana: member.firstKana ? toHalfWidthKana(member.firstKana) : member.firstKana,
+      staff: member.staff?.map(s => ({
+        ...s,
+        lastKana: s.lastKana ? toHalfWidthKana(s.lastKana) : s.lastKana,
+        firstKana: s.firstKana ? toHalfWidthKana(s.firstKana) : s.firstKana,
+      })),
+    };
+    const nextErrors = validate(kanaConvertedMember);
     if (Object.keys(nextErrors).length > 0) {
         setWarning("入力内容に不備があります。赤枠の項目を確認し、必須事項を入力してください。");
         const firstErrorField = Object.keys(nextErrors)[0];
@@ -566,11 +616,11 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
         return;
     }
     setWarning(null);
-    const officeNameText = (member.officeName || '').trim();
+    const officeNameText = (kanaConvertedMember.officeName || '').trim();
     const noOfficeAffiliation = !isBusiness && (officeNameText === '' || officeNameText === '勤務なし');
     const normalizedMemberBase = noOfficeAffiliation
       ? {
-          ...member,
+          ...kanaConvertedMember,
           officeName: '',
           officeNumber: '',
           officePostCode: '',
@@ -580,11 +630,11 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
           phone: '',
           fax: '',
           preferredMailDestination:
-            member.preferredMailDestination === MailDestination.OFFICE
+            kanaConvertedMember.preferredMailDestination === MailDestination.OFFICE
               ? MailDestination.HOME
-              : member.preferredMailDestination,
+              : kanaConvertedMember.preferredMailDestination,
         }
-      : member;
+      : kanaConvertedMember;
     const normalizedMember = isBusiness
       ? syncBusinessRepresentativeSnapshot({
           ...normalizedMemberBase,
