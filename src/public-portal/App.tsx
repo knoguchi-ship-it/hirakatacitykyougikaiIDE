@@ -22,6 +22,8 @@ const PublicApp: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
+  const [trainingMenuEnabled, setTrainingMenuEnabled] = useState(true);
+  const [membershipMenuEnabled, setMembershipMenuEnabled] = useState(true);
   const mainRef = useRef<HTMLElement>(null);
   const isFirstRender = useRef(true);
 
@@ -47,11 +49,20 @@ const PublicApp: React.FC = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await callApi<PublicTraining[]>('getPublicTrainings');
-        setTrainings(data ?? []);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        setLoadError(msg || 'データの取得に失敗しました。');
+        const [trainingsData, portalSettings] = await Promise.allSettled([
+          callApi<PublicTraining[]>('getPublicTrainings'),
+          callApi<{ trainingMenuEnabled: boolean; membershipMenuEnabled: boolean }>('getPublicPortalSettings'),
+        ]);
+        if (trainingsData.status === 'fulfilled') {
+          setTrainings(trainingsData.value ?? []);
+        } else {
+          const msg = trainingsData.reason instanceof Error ? trainingsData.reason.message : String(trainingsData.reason);
+          setLoadError(msg || 'データの取得に失敗しました。');
+        }
+        if (portalSettings.status === 'fulfilled' && portalSettings.value) {
+          setTrainingMenuEnabled(portalSettings.value.trainingMenuEnabled !== false);
+          setMembershipMenuEnabled(portalSettings.value.membershipMenuEnabled !== false);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -105,45 +116,57 @@ const PublicApp: React.FC = () => {
         </div>
       </section>
 
-      <section className="grid gap-6 md:grid-cols-2">
-        <button
-          type="button"
-          onClick={handleOpenTrainingList}
-          className="group rounded-[28px] border border-sky-200 bg-[linear-gradient(135deg,#eff6ff_0%,#ffffff_70%)] p-7 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-        >
-          <div className="mb-5 inline-flex rounded-full bg-sky-600 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-white">
-            TRAINING
-          </div>
-          <h3 className="text-2xl font-bold text-slate-900">研修を申し込む</h3>
-          <p className="mt-3 text-sm leading-7 text-slate-600">
-            受付中の研修一覧を確認し、そのまま申込できます。申込後の取消も研修ページから行えます。
-          </p>
-          <div className="mt-6 flex items-center justify-between text-sm">
-            <span className="font-medium text-sky-700">
-              {isLoading ? '研修情報を読み込み中です' : `${trainings.length} 件の受付中研修`}
-            </span>
-            <span className="font-semibold text-slate-900 transition group-hover:translate-x-0.5">進む →</span>
-          </div>
-        </button>
+      {(trainingMenuEnabled || membershipMenuEnabled) ? (
+        <section className={`grid gap-6 ${trainingMenuEnabled && membershipMenuEnabled ? 'md:grid-cols-2' : 'md:grid-cols-1 max-w-xl'}`}>
+          {trainingMenuEnabled && (
+            <button
+              type="button"
+              onClick={handleOpenTrainingList}
+              className="group rounded-[28px] border border-sky-200 bg-[linear-gradient(135deg,#eff6ff_0%,#ffffff_70%)] p-7 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+            >
+              <div className="mb-5 inline-flex rounded-full bg-sky-600 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-white">
+                TRAINING
+              </div>
+              <h3 className="text-2xl font-bold text-slate-900">研修を申し込む</h3>
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                受付中の研修一覧を確認し、そのまま申込できます。申込後の取消も研修ページから行えます。
+              </p>
+              <div className="mt-6 flex items-center justify-between text-sm">
+                <span className="font-medium text-sky-700">
+                  {isLoading ? '研修情報を読み込み中です' : `${trainings.length} 件の受付中研修`}
+                </span>
+                <span className="font-semibold text-slate-900 transition group-hover:translate-x-0.5">進む →</span>
+              </div>
+            </button>
+          )}
 
-        <button
-          type="button"
-          onClick={() => setView('member-application')}
-          className="group rounded-[28px] border border-emerald-200 bg-[linear-gradient(135deg,#ecfdf5_0%,#ffffff_70%)] p-7 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-        >
-          <div className="mb-5 inline-flex rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-white">
-            MEMBERSHIP
-          </div>
-          <h3 className="text-2xl font-bold text-slate-900">新規入会を申し込む</h3>
-          <p className="mt-3 text-sm leading-7 text-slate-600">
-            個人会員、事業所会員、賛助会員の入会申込を受け付けます。登録後のログイン情報はメールで通知します。
-          </p>
-          <div className="mt-6 flex items-center justify-between text-sm">
-            <span className="font-medium text-emerald-700">ログイン不要で申込できます</span>
-            <span className="font-semibold text-slate-900 transition group-hover:translate-x-0.5">進む →</span>
-          </div>
-        </button>
-      </section>
+          {membershipMenuEnabled && (
+            <button
+              type="button"
+              onClick={() => setView('member-application')}
+              className="group rounded-[28px] border border-emerald-200 bg-[linear-gradient(135deg,#ecfdf5_0%,#ffffff_70%)] p-7 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+            >
+              <div className="mb-5 inline-flex rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-white">
+                MEMBERSHIP
+              </div>
+              <h3 className="text-2xl font-bold text-slate-900">新規入会を申し込む</h3>
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                個人会員、事業所会員、賛助会員の入会申込を受け付けます。登録後のログイン情報はメールで通知します。
+              </p>
+              <div className="mt-6 flex items-center justify-between text-sm">
+                <span className="font-medium text-emerald-700">ログイン不要で申込できます</span>
+                <span className="font-semibold text-slate-900 transition group-hover:translate-x-0.5">進む →</span>
+              </div>
+            </button>
+          )}
+        </section>
+      ) : (
+        <section className="rounded-[28px] border border-slate-200 bg-white px-6 py-12 shadow-sm text-center">
+          <p className="text-2xl mb-3">🔧</p>
+          <h3 className="text-lg font-bold text-slate-800">現在準備中です</h3>
+          <p className="mt-2 text-sm text-slate-600">申込受付を一時停止しています。しばらく経ってから再度アクセスしてください。</p>
+        </section>
+      )}
 
       {loadError && (
         <section className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">

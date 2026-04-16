@@ -628,6 +628,38 @@ function insertSystemSettingKeysForV209() {
 }
 
 /**
+ * v210: T_システム設定 に公開ポータルメニュー表示設定キーを追加する（ワンタイム実行）
+ * 実行: npx clasp run insertSystemSettingKeysForV210
+ */
+function insertSystemSettingKeysForV210() {
+  var ss = getOrCreateDatabase_();
+  var now = new Date().toISOString();
+  var existing = getRowsAsObjects_(ss, 'T_システム設定');
+  var byKey = {};
+  existing.forEach(function(row) {
+    var k = String(row['設定キー'] || '');
+    if (k) byKey[k] = true;
+  });
+  var newKeys = [
+    { key: 'PUBLIC_PORTAL_TRAINING_MENU_ENABLED', value: 'true', desc: '公開ポータル：研修申込メニューを表示するか（true / false）' },
+    { key: 'PUBLIC_PORTAL_MEMBERSHIP_MENU_ENABLED', value: 'true', desc: '公開ポータル：入会申込メニューを表示するか（true / false）' },
+  ];
+  var added = [];
+  newKeys.forEach(function(item) {
+    if (!byKey[item.key]) {
+      appendRowsByHeaders_(ss, 'T_システム設定', [{
+        設定キー: item.key,
+        設定値: item.value,
+        説明: item.desc,
+        更新日時: now,
+      }]);
+      added.push(item.key);
+    }
+  });
+  return { added: added, skipped: newKeys.map(function(i) { return i.key; }).filter(function(k) { return added.indexOf(k) < 0; }) };
+}
+
+/**
  * v194 Phase 1: T_システム設定 に3新設定キーを追加する（ワンタイム実行）
  * 実行: npx clasp run insertSystemSettingKeysForV194
  */
@@ -1103,6 +1135,10 @@ function processApiRequest(action, payload) {
 
     if (action === 'getPublicTrainings') {
       return getPublicTrainings_();
+    }
+
+    if (action === 'getPublicPortalSettings') {
+      return getPublicPortalSettings_();
     }
 
     if (action === 'applyTrainingExternal') {
@@ -3833,6 +3869,15 @@ function getSystemSettings_() {
     : String(credentialEmailEnabledRaw) !== 'false';
   var credentialEmailSubject = String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_SUBJECT') || '') || CREDENTIAL_EMAIL_DEFAULT_SUBJECT;
   var credentialEmailBody = String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_BODY') || '') || CREDENTIAL_EMAIL_DEFAULT_BODY;
+  // v210: 公開ポータル メニュー表示設定
+  var trainingMenuEnabledRaw = getSystemSettingValue_(ss, 'PUBLIC_PORTAL_TRAINING_MENU_ENABLED');
+  var publicPortalTrainingMenuEnabled = trainingMenuEnabledRaw === null || trainingMenuEnabledRaw === ''
+    ? true
+    : String(trainingMenuEnabledRaw) !== 'false';
+  var membershipMenuEnabledRaw = getSystemSettingValue_(ss, 'PUBLIC_PORTAL_MEMBERSHIP_MENU_ENABLED');
+  var publicPortalMembershipMenuEnabled = membershipMenuEnabledRaw === null || membershipMenuEnabledRaw === ''
+    ? true
+    : String(membershipMenuEnabledRaw) !== 'false';
   return {
     defaultBusinessStaffLimit: value,
     trainingHistoryLookbackMonths: lookback,
@@ -3846,6 +3891,8 @@ function getSystemSettings_() {
     credentialEmailEnabled: credentialEmailEnabled,
     credentialEmailSubject: credentialEmailSubject,
     credentialEmailBody: credentialEmailBody,
+    publicPortalTrainingMenuEnabled: publicPortalTrainingMenuEnabled,
+    publicPortalMembershipMenuEnabled: publicPortalMembershipMenuEnabled,
   };
 }
 
@@ -3927,6 +3974,13 @@ function updateSystemSettings_(request, callerPermLevel) {
     var bodyVal = String(request.credentialEmailBody);
     if (!bodyVal.trim()) bodyVal = CREDENTIAL_EMAIL_DEFAULT_BODY;
     upsertSystemSetting_(ss, 'CREDENTIAL_EMAIL_BODY', bodyVal, '入会時認証情報メールの本文（マージタグ: {{氏名}} {{ログインID}} {{パスワード}} {{会員マイページURL}}）');
+  }
+  // v210: 公開ポータル メニュー表示設定
+  if (request.publicPortalTrainingMenuEnabled != null) {
+    upsertSystemSetting_(ss, 'PUBLIC_PORTAL_TRAINING_MENU_ENABLED', request.publicPortalTrainingMenuEnabled ? 'true' : 'false', '公開ポータル：研修申込メニューを表示するか');
+  }
+  if (request.publicPortalMembershipMenuEnabled != null) {
+    upsertSystemSetting_(ss, 'PUBLIC_PORTAL_MEMBERSHIP_MENU_ENABLED', request.publicPortalMembershipMenuEnabled ? 'true' : 'false', '公開ポータル：入会申込メニューを表示するか');
   }
   var scriptProperties = PropertiesService.getScriptProperties();
   scriptProperties.setProperty(DEFAULT_BUSINESS_STAFF_LIMIT_KEY, String(Math.floor(next))); // backward compatibility
@@ -9145,6 +9199,26 @@ function updateTrainingApplicantCount_(db, trainingId) {
 }
 
 // ─── 公開ポータル API ─────────────────────────────────────────────────────────
+
+// v210: 公開ポータルの表示設定（認証不要・公開API）
+function getPublicPortalSettings_() {
+  var db = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var trainingMenuEnabledRaw = getSystemSettingValue_(db, 'PUBLIC_PORTAL_TRAINING_MENU_ENABLED');
+  var publicPortalTrainingMenuEnabled = trainingMenuEnabledRaw === null || trainingMenuEnabledRaw === ''
+    ? true
+    : String(trainingMenuEnabledRaw) !== 'false';
+  var membershipMenuEnabledRaw = getSystemSettingValue_(db, 'PUBLIC_PORTAL_MEMBERSHIP_MENU_ENABLED');
+  var publicPortalMembershipMenuEnabled = membershipMenuEnabledRaw === null || membershipMenuEnabledRaw === ''
+    ? true
+    : String(membershipMenuEnabledRaw) !== 'false';
+  return JSON.stringify({
+    success: true,
+    data: {
+      trainingMenuEnabled: publicPortalTrainingMenuEnabled,
+      membershipMenuEnabled: publicPortalMembershipMenuEnabled,
+    }
+  });
+}
 
 function getPublicTrainings_() {
   var db = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);

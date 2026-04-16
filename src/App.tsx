@@ -228,6 +228,9 @@ const App: React.FC = () => {
   const [credentialEmailEnabledInput, setCredentialEmailEnabledInput] = useState(true);
   const [credentialEmailSubjectInput, setCredentialEmailSubjectInput] = useState(CREDENTIAL_EMAIL_DEFAULT_SUBJECT);
   const [credentialEmailBodyInput, setCredentialEmailBodyInput] = useState(CREDENTIAL_EMAIL_DEFAULT_BODY);
+  // v210: 公開ポータル メニュー表示設定
+  const [publicPortalTrainingMenuEnabledInput, setPublicPortalTrainingMenuEnabledInput] = useState(true);
+  const [publicPortalMembershipMenuEnabledInput, setPublicPortalMembershipMenuEnabledInput] = useState(true);
   const [memberListQuery, setMemberListQuery] = useState('');
   const [memberListFilter, setMemberListFilter] = useState<MemberListFilter>('ALL');
   const [memberListStatusFilter, setMemberListStatusFilter] = useState<MemberStatusFilter>(DEFAULT_MEMBER_STATUS_FILTER);
@@ -271,6 +274,9 @@ const App: React.FC = () => {
     setCredentialEmailEnabledInput(systemSettings.credentialEmailEnabled ?? true);
     setCredentialEmailSubjectInput(systemSettings.credentialEmailSubject ?? CREDENTIAL_EMAIL_DEFAULT_SUBJECT);
     setCredentialEmailBodyInput(systemSettings.credentialEmailBody ?? CREDENTIAL_EMAIL_DEFAULT_BODY);
+    // v210
+    setPublicPortalTrainingMenuEnabledInput(systemSettings.publicPortalTrainingMenuEnabled ?? true);
+    setPublicPortalMembershipMenuEnabledInput(systemSettings.publicPortalMembershipMenuEnabled ?? true);
     setSystemSettingsLoaded(true);
   };
 
@@ -2105,6 +2111,58 @@ const App: React.FC = () => {
               )}
             </div>
 
+            {/* v210: 公開ポータル メニュー表示設定 */}
+            <div className="mt-4 border-t border-slate-200 pt-4 space-y-4">
+              <div>
+                <h4 className="text-sm font-semibold text-slate-800 mb-1">公開ポータル メニュー表示設定</h4>
+                <p className="text-sm text-slate-600 mb-3">
+                  公開ポータルのトップページに表示するメニューカードを選択します。
+                  OFF にしたカードは完全に非表示となり、利用者はそのページへ進めません。
+                </p>
+                <div className="space-y-3">
+                  <label className="flex items-center gap-3 cursor-pointer w-fit">
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        className="sr-only"
+                        checked={publicPortalTrainingMenuEnabledInput}
+                        onChange={(e) => setPublicPortalTrainingMenuEnabledInput(e.target.checked)}
+                      />
+                      <div className={`w-11 h-6 rounded-full transition-colors ${publicPortalTrainingMenuEnabledInput ? 'bg-sky-600' : 'bg-slate-300'}`} />
+                      <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${publicPortalTrainingMenuEnabledInput ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                    <span className="text-sm font-medium text-slate-700">
+                      研修申込メニュー（「研修を申し込む」カード）を表示する
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer w-fit">
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        className="sr-only"
+                        checked={publicPortalMembershipMenuEnabledInput}
+                        onChange={(e) => setPublicPortalMembershipMenuEnabledInput(e.target.checked)}
+                      />
+                      <div className={`w-11 h-6 rounded-full transition-colors ${publicPortalMembershipMenuEnabledInput ? 'bg-emerald-600' : 'bg-slate-300'}`} />
+                      <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${publicPortalMembershipMenuEnabledInput ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                    <span className="text-sm font-medium text-slate-700">
+                      入会申込メニュー（「新規入会を申し込む」カード）を表示する
+                    </span>
+                  </label>
+                </div>
+                {(!publicPortalTrainingMenuEnabledInput || !publicPortalMembershipMenuEnabledInput) && (
+                  <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                    {!publicPortalTrainingMenuEnabledInput && !publicPortalMembershipMenuEnabledInput
+                      ? '両メニューが OFF です。公開ポータルには「現在準備中です」と表示されます。'
+                      : !publicPortalTrainingMenuEnabledInput
+                        ? '研修申込メニューが OFF です。公開ポータルに研修申込カードは表示されません。'
+                        : '入会申込メニューが OFF です。公開ポータルに入会申込カードは表示されません。'}
+                  </p>
+                )}
+              </div>
+            </div>
+
             {/* v209: 入会時認証情報メール設定 */}
             <div className="mt-4 border-t border-slate-200 pt-4 space-y-4">
               <div>
@@ -2241,6 +2299,8 @@ const App: React.FC = () => {
                     credentialEmailEnabled: credentialEmailEnabledInput,
                     credentialEmailSubject: credentialEmailSubjectInput,
                     credentialEmailBody: credentialEmailBodyInput,
+                    publicPortalTrainingMenuEnabled: publicPortalTrainingMenuEnabledInput,
+                    publicPortalMembershipMenuEnabled: publicPortalMembershipMenuEnabledInput,
                   });
                   setDefaultBusinessStaffLimit(saved.defaultBusinessStaffLimit);
                   setGlobalLimitInput(String(saved.defaultBusinessStaffLimit));
@@ -2260,6 +2320,8 @@ const App: React.FC = () => {
                   setCredentialEmailEnabledInput(saved.credentialEmailEnabled ?? true);
                   setCredentialEmailSubjectInput(saved.credentialEmailSubject ?? CREDENTIAL_EMAIL_DEFAULT_SUBJECT);
                   setCredentialEmailBodyInput(saved.credentialEmailBody ?? CREDENTIAL_EMAIL_DEFAULT_BODY);
+                  setPublicPortalTrainingMenuEnabledInput(saved.publicPortalTrainingMenuEnabled ?? true);
+                  setPublicPortalMembershipMenuEnabledInput(saved.publicPortalMembershipMenuEnabled ?? true);
                   alert('設定を保存しました。');
                 } catch (e) {
                   alert(e instanceof Error ? e.message : '設定の保存に失敗しました。');

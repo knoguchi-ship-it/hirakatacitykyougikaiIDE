@@ -56,6 +56,9 @@ export interface SystemSettings {
   credentialEmailEnabled?: boolean;
   credentialEmailSubject?: string;
   credentialEmailBody?: string;
+  // v210: 公開ポータル メニュー表示設定
+  publicPortalTrainingMenuEnabled?: boolean;
+  publicPortalMembershipMenuEnabled?: boolean;
 }
 
 export interface AnnualFeeAdminRecord {
