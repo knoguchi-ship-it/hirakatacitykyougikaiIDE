@@ -35,7 +35,7 @@
 
 ## 3. 現在の本番状態
 - ブランチ運用の基準は `main`。
-- 両 fixed deployment は `@214` を向いている。
+- 両 fixed deployment は `@216` を向いている。
 - fixed deployment の標準同期方法は `npx clasp redeploy`。Apps Script UI `Manage deployments` は障害復旧時の補助手段に限定する。
 - member portal は sidebar logout を採用済み。
 - デモログイン、mock member route、画面内 demo selector は廃止済み。
@@ -105,9 +105,9 @@
 ---
 v195〜v202、v170〜v193 の詳細は `HANDOVER.md` 旧版（`docs/79_HANDOVER_2026-04-15.md`）または `docs/archive/release_history/` を参照。
 
-## 5. 現時点の注意事項（v214 更新）
+## 5. 現時点の注意事項（v216 更新）
 
-- fixed deployment 2 本は `@214` を向いている。
+- fixed deployment 2 本は `@216` を向いている。
 - **v206 DB 適用済み**: `npx clasp run addAddressLine2Columns` は実行完了。本番 `T_会員` に `勤務先住所2` / `自宅住所2` 列が追加されている。
 - **v194 リリース済みのため、本番管理者（`k.noguchi@hcm-n.org`）は次回 `/exec` アクセス時に `gmail.send + drive` の同意画面が表示される場合がある。** 未承認の場合は必ず承認すること。
 - **名簿出力コンソール（RosterExport）使用前提条件**: システム設定画面で `ROSTER_TEMPLATE_SS_ID`（テンプレートスプレッドシート ID）を登録すること。
@@ -130,19 +130,19 @@ npx clasp deployments --json
 期待値:
 - authorized user が運用アカウント（`k.noguchi@hcm-n.org`）
 - health check が成功
-- fixed deployment 2 本が `@214`
+- fixed deployment 2 本が `@216`
 - `getDbInfo` が本番固定 DB `1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs` を返す
 
-2026-04-16 確認結果（v214）:
+2026-04-16 確認結果（v216）:
 - `npx clasp push --force` → 4 files pushed
-- `npx clasp version "v214..."` → version 214 created
+- `npx clasp version "v216..."` → version 216 created
 - `npx clasp deployments --json` → member / public ともに `versionNumber: 214`
 - `npm run typecheck` → pass
 
 ## 7. 次担当者（Codex）の最初の一手
 
 1. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md` の「作業開始チェック」を実施する。
-2. 再開時チェック（セクション 6）を実行し、deployment が `@214` であることを確認する。
+2. 再開時チェック（セクション 6）を実行し、deployment が `@216` であることを確認する。
 3. **公開ポータルをブラウザで開き**、設定に応じたカードのみ表示されることを実確認する。
    - Skeleton（`animate-pulse`）→ カード描画の流れが正しいか確認
    - 管理設定でトグルを OFF → 保存 → リロードでカードが消えることを確認
