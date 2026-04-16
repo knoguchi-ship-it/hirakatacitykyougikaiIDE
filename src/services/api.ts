@@ -166,6 +166,10 @@ export interface ApiClient {
   }): Promise<TemplateValidationResult>;
   // v207: 宛名リスト Excel 出力
   generateMailingListExcel(payload: { filterType: MailingListFilterType }): Promise<MailingListExcelResult>;
+  // v219: 入会メール テンプレート管理
+  getCredentialEmailTemplates(): Promise<import('../types').EmailTemplate[]>;
+  saveCredentialEmailTemplate(payload: { id?: string; name: string; subject: string; body: string }): Promise<import('../types').EmailTemplate>;
+  deleteCredentialEmailTemplate(id: string): Promise<{ deletedId: string }>;
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1304,6 +1308,46 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('generateMailingListExcel', JSON.stringify(payload));
+    });
+  }
+
+  // v219: 入会メール テンプレート管理
+  async getCredentialEmailTemplates(): Promise<import('../types').EmailTemplate[]> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getCredentialEmailTemplates', JSON.stringify({}));
+    });
+  }
+
+  async saveCredentialEmailTemplate(payload: { id?: string; name: string; subject: string; body: string }): Promise<import('../types').EmailTemplate> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('saveCredentialEmailTemplate', JSON.stringify(payload));
+    });
+  }
+
+  async deleteCredentialEmailTemplate(id: string): Promise<{ deletedId: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('deleteCredentialEmailTemplate', JSON.stringify({ id }));
     });
   }
 }

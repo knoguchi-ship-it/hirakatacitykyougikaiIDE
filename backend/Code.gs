@@ -353,32 +353,86 @@ function doGet(e) {
     member: '会員マイページ｜枚方市ケアマネ協議会',
     public:  '研修・入会申込ポータル｜枚方市ケアマネ協議会'
   };
+  var title = APP_TITLES[app] || APP_TITLES['member'];
 
-  // SVG data URI ファビコン（外部ホスティング不要・どの解像度でも鮮明）
-  // 会員マイページ: 青背景 + 人物アイコン
-  var FAVICON_MEMBER =
-    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E" +
-    "%3Crect width='32' height='32' rx='6' fill='%231d4ed8'/%3E" +
-    "%3Ccircle cx='16' cy='11' r='5' fill='white'/%3E" +
-    "%3Cpath d='M6 29c0-5.52 4.48-10 10-10s10 4.48 10 10' fill='white'/%3E" +
-    "%3C/svg%3E";
-
-  // 公開ポータル: 緑背景 + 建物アイコン
-  var FAVICON_PUBLIC =
-    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E" +
-    "%3Crect width='32' height='32' rx='6' fill='%23059669'/%3E" +
-    "%3Cpolygon points='16,5 27,15 5,15' fill='white'/%3E" +
-    "%3Crect x='8' y='15' width='16' height='12' fill='white'/%3E" +
-    "%3Crect x='13' y='19' width='6' height='8' fill='%23059669'/%3E" +
-    "%3C/svg%3E";
-
-  var title   = APP_TITLES[app]   || APP_TITLES['member'];
-  var favicon = (app === 'public') ? FAVICON_PUBLIC : FAVICON_MEMBER;
-
-  return HtmlService.createHtmlOutputFromFile(file)
+  var output = HtmlService.createHtmlOutputFromFile(file)
     .setTitle(title)
-    .setFaviconUrl(favicon)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+
+  // ファビコン: PNG data URI を試みる（SVG は非対応だが PNG は受け付ける可能性がある）
+  // Drive ホスト方式は組織ポリシーで公開共有がブロックされるため断念
+  try {
+    // Node.js で生成した 32×32 PNG の base64（青背景+人物 / 緑背景+建物）
+    var MEMBER_PNG_B64 =
+      'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAATUlEQVR42mOQ9btBU8Qwa' +
+      'sGoBUjoPxKgsgX/cQDqWPAfLxi14D8RYDQOaG4BzfMBPXLyaGk6agGpFvynABC24D/FY' +
+      'KB9MGrBaEYjHQEAAxOEvw9kj6UAAAAASUVORK5CYII=';
+    var PUBLIC_PNG_B64 =
+      'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAUUlEQVR42mNgnZZJU8Qwa' +
+      'sHIs+A/xYCwD6hoOs4gopbpA2cBGXaQnIpobgFJdpCZD2huAZF2UJSTaWjB0E9Fw84C' +
+      'MhSMWjBqwdC3YLThRTcLALH0a/3mcrRMAAAAAElFTkSuQmCC';
+    var b64 = (app === 'public') ? PUBLIC_PNG_B64 : MEMBER_PNG_B64;
+    output.setFaviconUrl('data:image/png;base64,' + b64);
+  } catch (ex) {
+    // ファビコン設定失敗はアプリ表示に影響させない
+  }
+
+  return output;
+}
+
+/**
+ * v217: ファビコン PNG を Drive にアップロードして公開し、Script Properties に記録する。
+ *
+ * ★ 実行方法: Apps Script エディタ（script.google.com）でこの関数を選択して「実行」ボタンを押す。
+ *   - clasp run からは DriveApp が動作しないため必ずエディタから実行すること。
+ *   - 初回のみ実行。再実行しても既存 ID をそのまま返す（上書きしない）。
+ *   - 実行後に doGet() が Drive URL を使ってファビコンを設定する。
+ */
+function setupFavicons() {
+  var props = PropertiesService.getScriptProperties();
+  var existingMemberId = props.getProperty('FAVICON_MEMBER_FILE_ID');
+  var existingPublicId = props.getProperty('FAVICON_PUBLIC_FILE_ID');
+  if (existingMemberId && existingPublicId) {
+    return {
+      status: 'already_setup',
+      memberUrl: 'https://drive.google.com/uc?export=view&id=' + existingMemberId,
+      publicUrl: 'https://drive.google.com/uc?export=view&id=' + existingPublicId
+    };
+  }
+
+  // Node.js で生成した 32×32 PNG（青背景+人物 / 緑背景+建物）
+  var MEMBER_PNG_B64 =
+    'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAATUlEQVR42mOQ9btBU8QwasGoBUjoPxKgsgX/cQDqWPAfLxi14D8RY' +
+    'DQOaG4BzfMBPXLyaGk6agGpFvynABC24D/FYKB9MGrBaEYjHQEAAxOEvw9kj6UAAAAASUVORK5CYII=';
+  var PUBLIC_PNG_B64 =
+    'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAUUlEQVR42mNgnZZJU8QwasHIs+A/xYCwD6hoOs4gopbpA2cBGXaQn' +
+    'IpobgFJdpCZD2huAZF2UJSTaWjB0E9Fw84CMhSMWjBqwdC3YLThRTcLALH0a/3mcrRMAAAAAElFTkSuQmCC';
+
+  // Drive フォルダ（既存があれば再利用）
+  var folderName = 'システムFavicon';
+  var folders = DriveApp.getFoldersByName(folderName);
+  var folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
+
+  // PNG ファイル生成・公開
+  function uploadFavicon(b64, filename) {
+    var blob = Utilities.newBlob(Utilities.base64Decode(b64), 'image/png', filename);
+    var file = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    return file.getId();
+  }
+
+  var memberId = uploadFavicon(MEMBER_PNG_B64, 'favicon-member.png');
+  var publicId = uploadFavicon(PUBLIC_PNG_B64, 'favicon-public.png');
+
+  props.setProperty('FAVICON_MEMBER_FILE_ID', memberId);
+  props.setProperty('FAVICON_PUBLIC_FILE_ID', publicId);
+
+  return {
+    status: 'created',
+    memberUrl: 'https://drive.google.com/uc?export=view&id=' + memberId,
+    publicUrl: 'https://drive.google.com/uc?export=view&id=' + publicId,
+    folderUrl: folder.getUrl()
+  };
 }
 
 /**
@@ -958,6 +1012,10 @@ function processApiRequest(action, payload) {
       'getMembersForBulkMail': ['MASTER','ADMIN'],
       'sendBulkMemberMail': ['MASTER','ADMIN'],
       'getEmailSendLog': ['MASTER','ADMIN'],
+      // v219: 入会メール テンプレート管理
+      'getCredentialEmailTemplates': ['MASTER','ADMIN'],
+      'saveCredentialEmailTemplate': ['MASTER','ADMIN'],
+      'deleteCredentialEmailTemplate': ['MASTER','ADMIN'],
     };
     var requiredPerms = ADMIN_ACTION_PERMISSIONS[action];
     if (requiredPerms) {
@@ -1230,6 +1288,17 @@ function processApiRequest(action, payload) {
 
     if (action === 'getEmailSendLog') {
       return JSON.stringify({ success: true, data: getEmailSendLog_(parsedPayload) });
+    }
+
+    // v219: 入会メール テンプレート管理
+    if (action === 'getCredentialEmailTemplates') {
+      return JSON.stringify({ success: true, data: getCredentialEmailTemplates_() });
+    }
+    if (action === 'saveCredentialEmailTemplate') {
+      return JSON.stringify({ success: true, data: saveCredentialEmailTemplate_(parsedPayload) });
+    }
+    if (action === 'deleteCredentialEmailTemplate') {
+      return JSON.stringify({ success: true, data: deleteCredentialEmailTemplate_(parsedPayload) });
     }
 
     // v207: 宛名リスト Excel 出力
@@ -5459,9 +5528,30 @@ function submitMemberApplication_(payload) {
   var credEmailEnabled = credEmailEnabledRaw === '' || credEmailEnabledRaw === null
     ? true
     : String(credEmailEnabledRaw) !== 'false';
+  // v219: 会員種別ラベル・年会費をマージタグ用に解決
+  var memberTypeLabelForEmail = memberTypeCode;
+  var annualFeeForEmail = 0;
+  try {
+    var memberTypeMasterRows = getRowsAsObjects_(ss, 'M_会員種別');
+    var mtRow = null;
+    for (var i = 0; i < memberTypeMasterRows.length; i++) {
+      if (String(memberTypeMasterRows[i]['コード'] || '') === memberTypeCode) {
+        mtRow = memberTypeMasterRows[i];
+        break;
+      }
+    }
+    if (mtRow) {
+      memberTypeLabelForEmail = String(mtRow['名称'] || memberTypeCode);
+      annualFeeForEmail = parseInt(String(mtRow['年会費金額'] || '0'), 10) || 0;
+    }
+  } catch (e) {
+    // マスタ取得失敗はメール送信を止めない
+  }
   var credEmailOpts = {
     subject: String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_SUBJECT') || '') || CREDENTIAL_EMAIL_DEFAULT_SUBJECT,
     body: String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_BODY') || '') || CREDENTIAL_EMAIL_DEFAULT_BODY,
+    memberTypeLabel: memberTypeLabelForEmail,
+    annualFee: annualFeeForEmail,
   };
 
   // 重複チェック
@@ -5699,12 +5789,71 @@ function sendCredentialEmail_(toEmail, loginId, password, memberName, opts) {
   opts = opts || {};
   var subject = (opts.subject && opts.subject.trim()) ? opts.subject : CREDENTIAL_EMAIL_DEFAULT_SUBJECT;
   var bodyTemplate = (opts.body && opts.body.trim()) ? opts.body : CREDENTIAL_EMAIL_DEFAULT_BODY;
+  // v219: 年会費を「3,000円」形式にフォーマット
+  var annualFeeStr = '';
+  if (opts.annualFee) {
+    var feeNum = parseInt(String(opts.annualFee), 10);
+    if (!isNaN(feeNum) && feeNum > 0) {
+      annualFeeStr = feeNum.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '円';
+    }
+  }
   var body = bodyTemplate
     .replace(/\{\{氏名\}\}/g, memberName)
     .replace(/\{\{ログインID\}\}/g, loginId)
     .replace(/\{\{パスワード\}\}/g, password)
-    .replace(/\{\{会員マイページURL\}\}/g, MEMBER_PORTAL_URL);
+    .replace(/\{\{会員マイページURL\}\}/g, MEMBER_PORTAL_URL)
+    .replace(/\{\{会員種別\}\}/g, opts.memberTypeLabel || '')
+    .replace(/\{\{年会費\}\}/g, annualFeeStr);
   MailApp.sendEmail(toEmail, subject, body);
+}
+
+// ── 入会メール テンプレート管理（v219）──────────────────
+// T_システム設定 の CREDENTIAL_EMAIL_TEMPLATES キーに JSON 配列で保存
+// [{id, name, subject, body, savedAt}, ...]
+
+function getCredentialEmailTemplates_() {
+  var ss = getOrCreateDatabase_();
+  var raw = getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_TEMPLATES');
+  if (!raw) return [];
+  try { return JSON.parse(raw); } catch (e) { return []; }
+}
+
+function saveCredentialEmailTemplate_(payload) {
+  if (!payload || !String(payload.name || '').trim()) throw new Error('テンプレート名は必須です。');
+  var ss = getOrCreateDatabase_();
+  var templates = getCredentialEmailTemplates_();
+  var id = payload.id ? String(payload.id) : Utilities.getUuid();
+  var now = new Date().toISOString();
+  var idx = templates.findIndex(function(t) { return t.id === id; });
+  var record = {
+    id: id,
+    name: String(payload.name).trim(),
+    subject: String(payload.subject || ''),
+    body: String(payload.body || ''),
+    savedAt: now,
+  };
+  if (idx >= 0) {
+    templates[idx] = record;
+  } else {
+    templates.push(record);
+  }
+  batchUpsertSystemSettings_(ss, [
+    { key: 'CREDENTIAL_EMAIL_TEMPLATES', value: JSON.stringify(templates), description: '入会メールテンプレート一覧（JSON）' }
+  ]);
+  return record;
+}
+
+function deleteCredentialEmailTemplate_(payload) {
+  if (!payload || !payload.id) throw new Error('テンプレートIDは必須です。');
+  var ss = getOrCreateDatabase_();
+  var templates = getCredentialEmailTemplates_();
+  var before = templates.length;
+  templates = templates.filter(function(t) { return t.id !== String(payload.id); });
+  if (templates.length === before) throw new Error('指定テンプレートが見つかりません。');
+  batchUpsertSystemSettings_(ss, [
+    { key: 'CREDENTIAL_EMAIL_TEMPLATES', value: JSON.stringify(templates), description: '入会メールテンプレート一覧（JSON）' }
+  ]);
+  return { deletedId: payload.id };
 }
 
 function generateMemberId_() {

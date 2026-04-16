@@ -229,6 +229,13 @@ const App: React.FC = () => {
   const [credentialEmailEnabledInput, setCredentialEmailEnabledInput] = useState(true);
   const [credentialEmailSubjectInput, setCredentialEmailSubjectInput] = useState(CREDENTIAL_EMAIL_DEFAULT_SUBJECT);
   const [credentialEmailBodyInput, setCredentialEmailBodyInput] = useState(CREDENTIAL_EMAIL_DEFAULT_BODY);
+  // v219: 入会メール テンプレート管理
+  const [emailTemplates, setEmailTemplates] = useState<import('./types').EmailTemplate[]>([]);
+  const [templateListLoaded, setTemplateListLoaded] = useState(false);
+  const [templateSaveNameInput, setTemplateSaveNameInput] = useState('');
+  const [showTemplateSaveForm, setShowTemplateSaveForm] = useState(false);
+  const [templateSaving, setTemplateSaving] = useState(false);
+  const [templateDeleting, setTemplateDeleting] = useState<string | null>(null);
   // v210: 公開ポータル メニュー表示設定
   const [publicPortalTrainingMenuEnabledInput, setPublicPortalTrainingMenuEnabledInput] = useState(true);
   const [publicPortalMembershipMenuEnabledInput, setPublicPortalMembershipMenuEnabledInput] = useState(true);
@@ -275,6 +282,13 @@ const App: React.FC = () => {
     setCredentialEmailEnabledInput(systemSettings.credentialEmailEnabled ?? true);
     setCredentialEmailSubjectInput(systemSettings.credentialEmailSubject ?? CREDENTIAL_EMAIL_DEFAULT_SUBJECT);
     setCredentialEmailBodyInput(systemSettings.credentialEmailBody ?? CREDENTIAL_EMAIL_DEFAULT_BODY);
+    // v219: テンプレート一覧をバックグラウンド取得（設定ロード時に並行）
+    if (!templateListLoaded) {
+      api.getCredentialEmailTemplates().then(ts => {
+        setEmailTemplates(ts);
+        setTemplateListLoaded(true);
+      }).catch(() => {});
+    }
     // v210
     setPublicPortalTrainingMenuEnabledInput(systemSettings.publicPortalTrainingMenuEnabled ?? true);
     setPublicPortalMembershipMenuEnabledInput(systemSettings.publicPortalMembershipMenuEnabled ?? true);
@@ -2219,10 +2233,27 @@ const App: React.FC = () => {
                 <label className="block text-sm font-medium text-slate-700 mb-1">メール本文</label>
                 <p className="text-xs text-slate-500 mb-2">
                   利用可能なマージタグ：
-                  <code className="bg-slate-100 px-1 rounded mx-0.5">{'{{氏名}}'}</code>
-                  <code className="bg-slate-100 px-1 rounded mx-0.5">{'{{ログインID}}'}</code>
-                  <code className="bg-slate-100 px-1 rounded mx-0.5">{'{{パスワード}}'}</code>
-                  <code className="bg-slate-100 px-1 rounded mx-0.5">{'{{会員マイページURL}}'}</code>
+                  {[
+                    ['{{氏名}}', '会員氏名'],
+                    ['{{ログインID}}', 'ログインID'],
+                    ['{{パスワード}}', '初期パスワード'],
+                    ['{{会員マイページURL}}', '会員マイページURL'],
+                    ['{{会員種別}}', '個人会員・事業所会員など'],
+                    ['{{年会費}}', '3,000円など'],
+                  ].map(([tag, desc]) => (
+                    <span key={tag} className="inline-flex items-center gap-0.5 mx-0.5">
+                      <button
+                        type="button"
+                        title={`クリックで本文に挿入（${desc}）`}
+                        className="bg-slate-100 hover:bg-primary-100 border border-slate-300 px-1 rounded text-xs font-mono transition-colors cursor-pointer"
+                        onClick={() => {
+                          setCredentialEmailBodyInput(prev => prev + tag);
+                          setSettingsIsDirty(true);
+                        }}
+                      >{tag}</button>
+                    </span>
+                  ))}
+                  <span className="text-slate-400 ml-1">（クリックで本文末尾に挿入）</span>
                 </p>
                 <textarea
                   value={credentialEmailBodyInput}
@@ -2231,6 +2262,93 @@ const App: React.FC = () => {
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm font-mono leading-relaxed resize-y"
                   placeholder="メール本文を入力（マージタグを使用可能）"
                 />
+                {/* v219: テンプレート保存・読み込み */}
+                <div className="mt-2 border border-slate-200 rounded-lg p-3 bg-slate-50">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-slate-700">テンプレート管理</span>
+                    <button
+                      type="button"
+                      className="text-xs px-2 py-1 rounded bg-primary-50 border border-primary-300 text-primary-700 hover:bg-primary-100 transition-colors"
+                      onClick={() => { setShowTemplateSaveForm(f => !f); setTemplateSaveNameInput(''); }}
+                    >＋ 現在の内容を保存</button>
+                  </div>
+                  {showTemplateSaveForm && (
+                    <div className="flex gap-2 mb-2">
+                      <input
+                        type="text"
+                        value={templateSaveNameInput}
+                        onChange={e => setTemplateSaveNameInput(e.target.value)}
+                        placeholder="テンプレート名（例：基本テンプレート）"
+                        className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs"
+                        maxLength={50}
+                      />
+                      <button
+                        type="button"
+                        disabled={templateSaving || !templateSaveNameInput.trim()}
+                        className="px-3 py-1 text-xs rounded bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 whitespace-nowrap"
+                        onClick={async () => {
+                          if (!templateSaveNameInput.trim()) return;
+                          setTemplateSaving(true);
+                          try {
+                            const saved = await api.saveCredentialEmailTemplate({
+                              name: templateSaveNameInput.trim(),
+                              subject: credentialEmailSubjectInput,
+                              body: credentialEmailBodyInput,
+                            });
+                            setEmailTemplates(prev => {
+                              const idx = prev.findIndex(t => t.id === saved.id);
+                              return idx >= 0 ? prev.map(t => t.id === saved.id ? saved : t) : [...prev, saved];
+                            });
+                            setShowTemplateSaveForm(false);
+                            setTemplateSaveNameInput('');
+                          } catch { alert('保存に失敗しました'); }
+                          finally { setTemplateSaving(false); }
+                        }}
+                      >{templateSaving ? '保存中…' : '保存'}</button>
+                      <button
+                        type="button"
+                        className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-100"
+                        onClick={() => { setShowTemplateSaveForm(false); setTemplateSaveNameInput(''); }}
+                      >キャンセル</button>
+                    </div>
+                  )}
+                  {emailTemplates.length === 0 ? (
+                    <p className="text-xs text-slate-400">保存済みテンプレートはありません</p>
+                  ) : (
+                    <ul className="space-y-1">
+                      {emailTemplates.map(t => (
+                        <li key={t.id} className="flex items-center gap-2 text-xs border border-slate-200 rounded px-2 py-1.5 bg-white">
+                          <span className="flex-1 font-medium text-slate-700 truncate">{t.name}</span>
+                          <span className="text-slate-400 shrink-0">{t.savedAt.slice(0, 10)}</span>
+                          <button
+                            type="button"
+                            className="px-2 py-0.5 rounded border border-primary-300 text-primary-700 hover:bg-primary-50 whitespace-nowrap"
+                            onClick={() => {
+                              if (!window.confirm(`「${t.name}」を読み込みますか？\n現在の件名・本文が上書きされます。`)) return;
+                              setCredentialEmailSubjectInput(t.subject);
+                              setCredentialEmailBodyInput(t.body);
+                              setSettingsIsDirty(true);
+                            }}
+                          >読み込む</button>
+                          <button
+                            type="button"
+                            disabled={templateDeleting === t.id}
+                            className="px-2 py-0.5 rounded border border-red-300 text-red-600 hover:bg-red-50 whitespace-nowrap disabled:opacity-50"
+                            onClick={async () => {
+                              if (!window.confirm(`「${t.name}」を削除しますか？`)) return;
+                              setTemplateDeleting(t.id);
+                              try {
+                                await api.deleteCredentialEmailTemplate(t.id);
+                                setEmailTemplates(prev => prev.filter(x => x.id !== t.id));
+                              } catch { alert('削除に失敗しました'); }
+                              finally { setTemplateDeleting(null); }
+                            }}
+                          >{templateDeleting === t.id ? '…' : '削除'}</button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
                 <div className="flex justify-end mt-1">
                   <button
                     type="button"

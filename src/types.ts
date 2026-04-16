@@ -41,6 +41,15 @@ export interface AnnualFeeRecord {
   transferAccount?: TransferAccountInfo;
 }
 
+// v219: 入会メールテンプレート
+export interface EmailTemplate {
+  id: string;
+  name: string;
+  subject: string;
+  body: string;
+  savedAt: string;
+}
+
 export interface SystemSettings {
   defaultBusinessStaffLimit: number;
   trainingHistoryLookbackMonths: number;
