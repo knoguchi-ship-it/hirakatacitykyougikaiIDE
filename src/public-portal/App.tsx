@@ -22,8 +22,9 @@ const PublicApp: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
-  const [trainingMenuEnabled, setTrainingMenuEnabled] = useState(true);
-  const [membershipMenuEnabled, setMembershipMenuEnabled] = useState(true);
+  // null = 未確定（ローディング中）。設定確定前は一切描画しない（FOIC防止）
+  const [trainingMenuEnabled, setTrainingMenuEnabled] = useState<boolean | null>(null);
+  const [membershipMenuEnabled, setMembershipMenuEnabled] = useState<boolean | null>(null);
   const mainRef = useRef<HTMLElement>(null);
   const isFirstRender = useRef(true);
 
@@ -59,9 +60,13 @@ const PublicApp: React.FC = () => {
           const msg = trainingsData.reason instanceof Error ? trainingsData.reason.message : String(trainingsData.reason);
           setLoadError(msg || 'データの取得に失敗しました。');
         }
+        // 設定取得成功時は確定値をセット。失敗時はフォールバックとして全表示（fail-open）
         if (portalSettings.status === 'fulfilled' && portalSettings.value) {
           setTrainingMenuEnabled(portalSettings.value.trainingMenuEnabled !== false);
           setMembershipMenuEnabled(portalSettings.value.membershipMenuEnabled !== false);
+        } else {
+          setTrainingMenuEnabled(true);
+          setMembershipMenuEnabled(true);
         }
       } finally {
         setIsLoading(false);
@@ -116,7 +121,26 @@ const PublicApp: React.FC = () => {
         </div>
       </section>
 
-      {(trainingMenuEnabled || membershipMenuEnabled) ? (
+      {/* 設定確定前は Skeleton を表示。設定未確定のまま誤ったカードを瞬間描画しない（FOIC防止） */}
+      {(trainingMenuEnabled === null || membershipMenuEnabled === null) ? (
+        <section className="grid gap-6 md:grid-cols-2" aria-busy="true" aria-label="読み込み中">
+          {[0, 1].map((i) => (
+            <div key={i} className="animate-pulse rounded-[28px] border border-slate-200 bg-white p-7 shadow-sm">
+              <div className="mb-5 h-6 w-24 rounded-full bg-slate-200" />
+              <div className="h-7 w-40 rounded-lg bg-slate-200" />
+              <div className="mt-3 space-y-2">
+                <div className="h-4 w-full rounded bg-slate-100" />
+                <div className="h-4 w-5/6 rounded bg-slate-100" />
+                <div className="h-4 w-4/6 rounded bg-slate-100" />
+              </div>
+              <div className="mt-6 flex items-center justify-between">
+                <div className="h-4 w-32 rounded bg-slate-100" />
+                <div className="h-4 w-14 rounded bg-slate-100" />
+              </div>
+            </div>
+          ))}
+        </section>
+      ) : (trainingMenuEnabled || membershipMenuEnabled) ? (
         <section className={`grid gap-6 ${trainingMenuEnabled && membershipMenuEnabled ? 'md:grid-cols-2' : 'md:grid-cols-1 max-w-xl'}`}>
           {trainingMenuEnabled && (
             <button
@@ -132,9 +156,7 @@ const PublicApp: React.FC = () => {
                 受付中の研修一覧を確認し、そのまま申込できます。申込後の取消も研修ページから行えます。
               </p>
               <div className="mt-6 flex items-center justify-between text-sm">
-                <span className="font-medium text-sky-700">
-                  {isLoading ? '研修情報を読み込み中です' : `${trainings.length} 件の受付中研修`}
-                </span>
+                <span className="font-medium text-sky-700">{`${trainings.length} 件の受付中研修`}</span>
                 <span className="font-semibold text-slate-900 transition group-hover:translate-x-0.5">進む →</span>
               </div>
             </button>

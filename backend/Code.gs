@@ -9294,12 +9294,13 @@ function updateTrainingApplicantCount_(db, trainingId) {
 // v210: 公開ポータルの表示設定（認証不要・公開API）
 function getPublicPortalSettings_() {
   var db = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
-  var trainingMenuEnabledRaw = getSystemSettingValue_(db, 'PUBLIC_PORTAL_TRAINING_MENU_ENABLED');
-  var publicPortalTrainingMenuEnabled = trainingMenuEnabledRaw === null || trainingMenuEnabledRaw === ''
+  var map = getSystemSettingMap_(db);
+  var trainingMenuEnabledRaw = map['PUBLIC_PORTAL_TRAINING_MENU_ENABLED'];
+  var publicPortalTrainingMenuEnabled = trainingMenuEnabledRaw === undefined || trainingMenuEnabledRaw === ''
     ? true
     : String(trainingMenuEnabledRaw) !== 'false';
-  var membershipMenuEnabledRaw = getSystemSettingValue_(db, 'PUBLIC_PORTAL_MEMBERSHIP_MENU_ENABLED');
-  var publicPortalMembershipMenuEnabled = membershipMenuEnabledRaw === null || membershipMenuEnabledRaw === ''
+  var membershipMenuEnabledRaw = map['PUBLIC_PORTAL_MEMBERSHIP_MENU_ENABLED'];
+  var publicPortalMembershipMenuEnabled = membershipMenuEnabledRaw === undefined || membershipMenuEnabledRaw === ''
     ? true
     : String(membershipMenuEnabledRaw) !== 'false';
   return JSON.stringify({

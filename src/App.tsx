@@ -217,6 +217,7 @@ const App: React.FC = () => {
   const [trainingDefaultFieldConfig, setTrainingDefaultFieldConfig] = useState<TrainingFieldConfig>({ ...DEFAULT_FIELD_CONFIG });
   const [trainingDefaultFieldConfigInput, setTrainingDefaultFieldConfigInput] = useState<TrainingFieldConfig>({ ...DEFAULT_FIELD_CONFIG });
   const [settingsBusy, setSettingsBusy] = useState(false);
+  const [settingsIsDirty, setSettingsIsDirty] = useState(false);
   // v194: PDF名簿出力 & 一括メール送信設定
   const [rosterTemplateSsIdInput, setRosterTemplateSsIdInput] = useState('');
   const [reminderTemplateSsIdInput, setReminderTemplateSsIdInput] = useState('');
@@ -277,6 +278,7 @@ const App: React.FC = () => {
     // v210
     setPublicPortalTrainingMenuEnabledInput(systemSettings.publicPortalTrainingMenuEnabled ?? true);
     setPublicPortalMembershipMenuEnabledInput(systemSettings.publicPortalMembershipMenuEnabled ?? true);
+    setSettingsIsDirty(false);
     setSystemSettingsLoaded(true);
   };
 
@@ -1948,11 +1950,11 @@ const App: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">全体デフォルト上限</label>
-                <input type="number" min={1} max={200} value={globalLimitInput} onChange={(e) => setGlobalLimitInput(e.target.value)} className="w-full border border-slate-300 rounded px-3 py-2" />
+                <input type="number" min={1} max={200} value={globalLimitInput} onChange={(e) => { setGlobalLimitInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">研修履歴の表示期間（月）</label>
-                <input type="number" min={1} max={60} value={historyLookbackInput} onChange={(e) => setHistoryLookbackInput(e.target.value)} className="w-full border border-slate-300 rounded px-3 py-2" />
+                <input type="number" min={1} max={60} value={historyLookbackInput} onChange={(e) => { setHistoryLookbackInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" />
               </div>
             </div>
             {!systemSettingsLoaded && <p className="text-sm text-slate-500">システム設定を読み込み中です...</p>}
@@ -1960,7 +1962,7 @@ const App: React.FC = () => {
               <label className="block text-sm font-medium text-slate-700 mb-1">年会費の納入案内</label>
               <textarea
                 value={annualFeePaymentGuidanceInput}
-                onChange={(e) => setAnnualFeePaymentGuidanceInput(e.target.value)}
+                onChange={(e) => { setAnnualFeePaymentGuidanceInput(e.target.value); setSettingsIsDirty(true); }}
                 rows={5}
                 className="w-full border border-slate-300 rounded px-3 py-2"
                 placeholder={'例:\n年会費が未納の場合は、下記口座へお振り込みください。\n振込名義は会員番号と氏名を記載してください。'}
@@ -1977,7 +1979,7 @@ const App: React.FC = () => {
                   <input
                     type="text"
                     value={annualFeeTransferAccountInput.bankName}
-                    onChange={(e) => setAnnualFeeTransferAccountInput((prev) => ({ ...prev, bankName: e.target.value }))}
+                    onChange={(e) => { setAnnualFeeTransferAccountInput((prev) => ({ ...prev, bankName: e.target.value })); setSettingsIsDirty(true); }}
                     className="w-full border border-slate-300 rounded px-3 py-2"
                   />
                 </div>
@@ -1986,7 +1988,7 @@ const App: React.FC = () => {
                   <input
                     type="text"
                     value={annualFeeTransferAccountInput.branchName}
-                    onChange={(e) => setAnnualFeeTransferAccountInput((prev) => ({ ...prev, branchName: e.target.value }))}
+                    onChange={(e) => { setAnnualFeeTransferAccountInput((prev) => ({ ...prev, branchName: e.target.value })); setSettingsIsDirty(true); }}
                     className="w-full border border-slate-300 rounded px-3 py-2"
                   />
                 </div>
@@ -1994,7 +1996,7 @@ const App: React.FC = () => {
                   <label className="block text-sm font-medium text-slate-700 mb-1">口座種別</label>
                   <select
                     value={annualFeeTransferAccountInput.accountType}
-                    onChange={(e) => setAnnualFeeTransferAccountInput((prev) => ({ ...prev, accountType: e.target.value as '普通' | '当座' }))}
+                    onChange={(e) => { setAnnualFeeTransferAccountInput((prev) => ({ ...prev, accountType: e.target.value as '普通' | '当座' })); setSettingsIsDirty(true); }}
                     className="w-full border border-slate-300 rounded px-3 py-2"
                   >
                     <option value="普通">普通</option>
@@ -2006,7 +2008,7 @@ const App: React.FC = () => {
                   <input
                     type="text"
                     value={annualFeeTransferAccountInput.accountNumber}
-                    onChange={(e) => setAnnualFeeTransferAccountInput((prev) => ({ ...prev, accountNumber: e.target.value }))}
+                    onChange={(e) => { setAnnualFeeTransferAccountInput((prev) => ({ ...prev, accountNumber: e.target.value })); setSettingsIsDirty(true); }}
                     className="w-full border border-slate-300 rounded px-3 py-2"
                   />
                 </div>
@@ -2015,7 +2017,7 @@ const App: React.FC = () => {
                   <input
                     type="text"
                     value={annualFeeTransferAccountInput.accountName}
-                    onChange={(e) => setAnnualFeeTransferAccountInput((prev) => ({ ...prev, accountName: e.target.value }))}
+                    onChange={(e) => { setAnnualFeeTransferAccountInput((prev) => ({ ...prev, accountName: e.target.value })); setSettingsIsDirty(true); }}
                     className="w-full border border-slate-300 rounded px-3 py-2"
                   />
                 </div>
@@ -2023,7 +2025,7 @@ const App: React.FC = () => {
                   <label className="block text-sm font-medium text-slate-700 mb-1">補足</label>
                   <textarea
                     value={annualFeeTransferAccountInput.note || ''}
-                    onChange={(e) => setAnnualFeeTransferAccountInput((prev) => ({ ...prev, note: e.target.value }))}
+                    onChange={(e) => { setAnnualFeeTransferAccountInput((prev) => ({ ...prev, note: e.target.value })); setSettingsIsDirty(true); }}
                     rows={3}
                     className="w-full border border-slate-300 rounded px-3 py-2"
                     placeholder="例: 振込手数料は会員負担です。"
@@ -2043,7 +2045,7 @@ const App: React.FC = () => {
                     <input
                       type="checkbox"
                       checked={trainingDefaultFieldConfigInput[key] !== false}
-                      onChange={(e) => setTrainingDefaultFieldConfigInput((prev) => ({ ...prev, [key]: e.target.checked }))}
+                      onChange={(e) => { setTrainingDefaultFieldConfigInput((prev) => ({ ...prev, [key]: e.target.checked })); setSettingsIsDirty(true); }}
                       className="accent-primary-600"
                     />
                     <span className="text-sm text-slate-700">{label}</span>
@@ -2056,8 +2058,8 @@ const App: React.FC = () => {
               api={api}
               rosterTemplateSsId={rosterTemplateSsIdInput}
               reminderTemplateSsId={reminderTemplateSsIdInput}
-              onRosterTemplateChange={setRosterTemplateSsIdInput}
-              onReminderTemplateChange={setReminderTemplateSsIdInput}
+              onRosterTemplateChange={(v) => { setRosterTemplateSsIdInput(v); setSettingsIsDirty(true); }}
+              onReminderTemplateChange={(v) => { setReminderTemplateSsIdInput(v); setSettingsIsDirty(true); }}
               onOpenHelp={() => setCurrentView('template-help')}
             />
             <div className="mt-4 border-t border-slate-200 pt-4 space-y-4">
@@ -2067,7 +2069,7 @@ const App: React.FC = () => {
                 <input
                   type="text"
                   value={rosterTemplateSsIdInput}
-                  onChange={(e) => setRosterTemplateSsIdInput(e.target.value)}
+                  onChange={(e) => { setRosterTemplateSsIdInput(e.target.value); setSettingsIsDirty(true); }}
                   className="w-full border border-slate-300 rounded px-3 py-2 font-mono text-sm"
                   placeholder="スプレッドシートID（URLの /d/〜/edit の部分）"
                 />
@@ -2078,7 +2080,7 @@ const App: React.FC = () => {
                 <input
                   type="text"
                   value={reminderTemplateSsIdInput}
-                  onChange={(e) => setReminderTemplateSsIdInput(e.target.value)}
+                  onChange={(e) => { setReminderTemplateSsIdInput(e.target.value); setSettingsIsDirty(true); }}
                   className="w-full border border-slate-300 rounded px-3 py-2 font-mono text-sm"
                   placeholder="スプレッドシートID（名簿と同じIDでも可）"
                 />
@@ -2089,7 +2091,7 @@ const App: React.FC = () => {
                 <input
                   type="text"
                   value={bulkMailAutoAttachFolderIdInput}
-                  onChange={(e) => setBulkMailAutoAttachFolderIdInput(e.target.value)}
+                  onChange={(e) => { setBulkMailAutoAttachFolderIdInput(e.target.value); setSettingsIsDirty(true); }}
                   className="w-full border border-slate-300 rounded px-3 py-2 font-mono text-sm"
                   placeholder="DriveフォルダID（URLの /folders/〜 の部分）"
                 />
@@ -2100,7 +2102,7 @@ const App: React.FC = () => {
                   <label className="block text-sm font-medium text-slate-700 mb-1">メール送信ログ閲覧権限</label>
                   <select
                     value={emailLogViewerRoleInput}
-                    onChange={(e) => setEmailLogViewerRoleInput(e.target.value)}
+                    onChange={(e) => { setEmailLogViewerRoleInput(e.target.value); setSettingsIsDirty(true); }}
                     className="border border-slate-300 rounded px-3 py-2 text-sm"
                   >
                     <option value="MASTER">マスターのみ</option>
@@ -2126,7 +2128,7 @@ const App: React.FC = () => {
                         type="checkbox"
                         className="sr-only"
                         checked={publicPortalTrainingMenuEnabledInput}
-                        onChange={(e) => setPublicPortalTrainingMenuEnabledInput(e.target.checked)}
+                        onChange={(e) => { setPublicPortalTrainingMenuEnabledInput(e.target.checked); setSettingsIsDirty(true); }}
                       />
                       <div className={`w-11 h-6 rounded-full transition-colors ${publicPortalTrainingMenuEnabledInput ? 'bg-sky-600' : 'bg-slate-300'}`} />
                       <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${publicPortalTrainingMenuEnabledInput ? 'translate-x-5' : 'translate-x-0'}`} />
@@ -2141,7 +2143,7 @@ const App: React.FC = () => {
                         type="checkbox"
                         className="sr-only"
                         checked={publicPortalMembershipMenuEnabledInput}
-                        onChange={(e) => setPublicPortalMembershipMenuEnabledInput(e.target.checked)}
+                        onChange={(e) => { setPublicPortalMembershipMenuEnabledInput(e.target.checked); setSettingsIsDirty(true); }}
                       />
                       <div className={`w-11 h-6 rounded-full transition-colors ${publicPortalMembershipMenuEnabledInput ? 'bg-emerald-600' : 'bg-slate-300'}`} />
                       <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${publicPortalMembershipMenuEnabledInput ? 'translate-x-5' : 'translate-x-0'}`} />
@@ -2177,7 +2179,7 @@ const App: React.FC = () => {
                       type="checkbox"
                       className="sr-only"
                       checked={credentialEmailEnabledInput}
-                      onChange={(e) => setCredentialEmailEnabledInput(e.target.checked)}
+                      onChange={(e) => { setCredentialEmailEnabledInput(e.target.checked); setSettingsIsDirty(true); }}
                     />
                     <div className={`w-11 h-6 rounded-full transition-colors ${credentialEmailEnabledInput ? 'bg-primary-600' : 'bg-slate-300'}`} />
                     <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${credentialEmailEnabledInput ? 'translate-x-5' : 'translate-x-0'}`} />
@@ -2199,13 +2201,13 @@ const App: React.FC = () => {
                   <input
                     type="text"
                     value={credentialEmailSubjectInput}
-                    onChange={(e) => setCredentialEmailSubjectInput(e.target.value)}
+                    onChange={(e) => { setCredentialEmailSubjectInput(e.target.value); setSettingsIsDirty(true); }}
                     className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm"
                     placeholder="メール件名を入力"
                   />
                   <button
                     type="button"
-                    onClick={() => setCredentialEmailSubjectInput(CREDENTIAL_EMAIL_DEFAULT_SUBJECT)}
+                    onClick={() => { setCredentialEmailSubjectInput(CREDENTIAL_EMAIL_DEFAULT_SUBJECT); setSettingsIsDirty(true); }}
                     className="px-2 py-2 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 whitespace-nowrap"
                   >デフォルトに戻す</button>
                 </div>
@@ -2221,7 +2223,7 @@ const App: React.FC = () => {
                 </p>
                 <textarea
                   value={credentialEmailBodyInput}
-                  onChange={(e) => setCredentialEmailBodyInput(e.target.value)}
+                  onChange={(e) => { setCredentialEmailBodyInput(e.target.value); setSettingsIsDirty(true); }}
                   rows={12}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm font-mono leading-relaxed resize-y"
                   placeholder="メール本文を入力（マージタグを使用可能）"
@@ -2229,7 +2231,7 @@ const App: React.FC = () => {
                 <div className="flex justify-end mt-1">
                   <button
                     type="button"
-                    onClick={() => setCredentialEmailBodyInput(CREDENTIAL_EMAIL_DEFAULT_BODY)}
+                    onClick={() => { setCredentialEmailBodyInput(CREDENTIAL_EMAIL_DEFAULT_BODY); setSettingsIsDirty(true); }}
                     className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50"
                   >デフォルトに戻す</button>
                 </div>
@@ -2282,7 +2284,7 @@ const App: React.FC = () => {
             <p className="text-sm text-slate-500">全ての設定はこのボタンで一括保存されます</p>
             <button
               type="button"
-              disabled={settingsBusy || !systemSettingsLoaded}
+              disabled={settingsBusy || !systemSettingsLoaded || !settingsIsDirty}
               onClick={async () => {
                 try {
                   setSettingsBusy(true);
@@ -2322,6 +2324,7 @@ const App: React.FC = () => {
                   setCredentialEmailBodyInput(saved.credentialEmailBody ?? CREDENTIAL_EMAIL_DEFAULT_BODY);
                   setPublicPortalTrainingMenuEnabledInput(saved.publicPortalTrainingMenuEnabled ?? true);
                   setPublicPortalMembershipMenuEnabledInput(saved.publicPortalMembershipMenuEnabled ?? true);
+                  setSettingsIsDirty(false);
                   alert('設定を保存しました。');
                 } catch (e) {
                   alert(e instanceof Error ? e.message : '設定の保存に失敗しました。');
@@ -2330,7 +2333,7 @@ const App: React.FC = () => {
                 }
               }}
               className="px-8 py-2.5 rounded-lg bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white font-semibold text-base disabled:opacity-50 transition-colors shadow-sm"
-            >{settingsBusy ? '保存中...' : '設定を保存'}</button>
+            >{settingsBusy ? '保存中...' : settingsIsDirty ? '設定を保存' : '変更なし'}</button>
           </div>
         </div>
       );
