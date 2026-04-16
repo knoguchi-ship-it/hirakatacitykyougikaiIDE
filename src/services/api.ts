@@ -170,6 +170,10 @@ export interface ApiClient {
   getCredentialEmailTemplates(): Promise<import('../types').EmailTemplate[]>;
   saveCredentialEmailTemplate(payload: { id?: string; name: string; subject: string; body: string }): Promise<import('../types').EmailTemplate>;
   deleteCredentialEmailTemplate(id: string): Promise<{ deletedId: string }>;
+  // v224: 一括メール テンプレート管理
+  getBulkMailTemplates(): Promise<import('../types').EmailTemplate[]>;
+  saveBulkMailTemplate(payload: { id?: string; name: string; subject: string; body: string }): Promise<import('../types').EmailTemplate>;
+  deleteBulkMailTemplate(id: string): Promise<{ deletedId: string }>;
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1348,6 +1352,46 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('deleteCredentialEmailTemplate', JSON.stringify({ id }));
+    });
+  }
+
+  // v224: 一括メール テンプレート管理
+  async getBulkMailTemplates(): Promise<import('../types').EmailTemplate[]> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getBulkMailTemplates', JSON.stringify({}));
+    });
+  }
+
+  async saveBulkMailTemplate(payload: { id?: string; name: string; subject: string; body: string }): Promise<import('../types').EmailTemplate> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('saveBulkMailTemplate', JSON.stringify(payload));
+    });
+  }
+
+  async deleteBulkMailTemplate(id: string): Promise<{ deletedId: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('deleteBulkMailTemplate', JSON.stringify({ id }));
     });
   }
 }

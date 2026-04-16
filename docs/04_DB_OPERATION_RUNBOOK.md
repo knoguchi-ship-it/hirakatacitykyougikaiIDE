@@ -109,7 +109,7 @@ npx clasp run seedPerformanceTestData
   - `T_年会費更新履歴` に `操作種別 / 実行者メール / 実行日時 / 更新前JSON / 更新後JSON` が記録されること
 
 ## 6. 注意事項
-- 運用アカウントは `k.noguchi@uguisunosato.or.jp` のみ使用する。
+- 運用アカウントは `k.noguchi@hcm-n.org` を正とする。
 - 定義外シートを保持したい場合は、関数実行前に要件へ反映（`マスタ定義`/`テーブル定義` へ追加）する。
 
 ## 6.1 危険操作リスト

@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-04-16
-Production: `v209` / fixed deployments `@209`
+Updated: 2026-04-17
+Production: `v226` / fixed deployments `@226`
 
 ## 1. Purpose
 
@@ -17,7 +17,7 @@ Production: `v209` / fixed deployments `@209`
 | Member portal | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `/exec` |
 | Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `/exec?app=public` |
 
-Both fixed deployments currently point to `@209`.
+Both fixed deployments currently point to `@226`.
 
 ## 3. Standard Release Steps
 
@@ -102,6 +102,30 @@ Also verify the runtime in a real browser when the change affects user flows.
 - Do not leave corrupted source documents in place.
 
 ## 7. Current Recorded State
+
+### 2026-04-16 `v222`
+
+- Version `222` created: 公開ポータル入会申込フォームの事前案内追加。
+- member/public の両 fixed deployment を `npx clasp redeploy` で `@222` に同期。
+- Verification passed: `npm run typecheck`, `npm run build`, `npm run build:gas`, `npx clasp deployments --json`, `npx clasp run healthCheck`, `npx clasp run getDbInfo`.
+
+### 2026-04-16 `v224`
+
+- Version `224` created: bulk mail templates + auto attach default off.
+- member/public の両 fixed deployment を `npx clasp redeploy` で `@224` に同期。
+- Verification passed: `npm run typecheck`, `npm run build`, `npm run build:gas`, `npx clasp deployments --json`, `npx clasp run healthCheck`, `npx clasp run getDbInfo`.
+
+### 2026-04-16 `v223`
+
+- Version `223` created: 公開ポータル入会前案内のダイアログ化 + 定款リンク追加。
+- member/public の両 fixed deployment を `npx clasp redeploy` で `@223` に同期。
+- Verification passed: `npm run typecheck`, `npm run build`, `npm run build:gas`, `npx clasp deployments --json`, `npx clasp run healthCheck`, `npx clasp run getDbInfo`.
+
+### 2026-04-16 `v221`
+
+- Version `221` created: 年度集計 joinedDate 空会員の除外バグ修正。
+- `npx clasp deployments --json` confirmed both fixed deployments at `@221`.
+- Verification passed: `npm run build:gas`, `npx tsc --noEmit`, `npx clasp run healthCheck`, `npx clasp run getDbInfo`.
 
 ### 2026-04-15 `v208`
 
@@ -363,3 +387,14 @@ Also verify the runtime in a real browser when the change affects user flows.
 - Scope: member portal + admin console validation UX and Apps Script save validation alignment.
 - Verification completed with `npx clasp deployments --json`, `npx clasp run healthCheck`, and `npx clasp run getDbInfo`.
 - Keep the standard release order: `build -> push -> version -> fixed deployment sync -> verification -> document update`.
+
+## 2026-04-17 v225 deployment note
+- Public membership transition rules, public notice dialog, and bulk-mail template management were released as `v225`.
+- Both fixed deployments were synced to `@225`.
+- Verification completed with `npm run typecheck`, `npm run build`, `npm run build:gas`, `npx clasp deployments --json`, `npx clasp run healthCheck`, and `npx clasp run getDbInfo`.
+
+## 2026-04-17 v226 deployment note
+- Individual/support member application form Step 2 redesigned and Step 3 removed (frontend-only change) released as `v226`.
+- Both fixed deployments were synced to `@226`.
+- Verification: `npm run typecheck` ✅, `npm run build:gas` ✅, `npx clasp deployments --json` ✅ (both @226).
+- `npx clasp run healthCheck` blocked by known project-scoped OAuth issue — re-run at next session start using `.tmp/oauth-client-hcmn-member-system-prod.json --use-project-scopes --no-localhost`.

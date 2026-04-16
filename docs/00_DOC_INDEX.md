@@ -1,6 +1,6 @@
 # Document Index
 
-Updated: 2026-04-16 (v208 — docs reorganized)
+Updated: 2026-04-17 (v225)
 
 ## 1. Entry Sources Of Truth
 - `HANDOVER.md`
@@ -29,9 +29,16 @@ Updated: 2026-04-16 (v208 — docs reorganized)
 
 ## 3. Ops And Incident Docs
 
-### 現行リリース記録（v205〜v208）
-- `docs/79_HANDOVER_2026-04-15.md` - **引継ぎ資料（v208時点）** - 機能・運用・落とし穴まとめ
-- `docs/78_RELEASE_STATE_v208_2026-04-15.md` - **v208 current** - 宛名リスト バグ修正（事業所名・flush）
+### 現行リリース記録（v205〜v225）
+- `docs/88_RELEASE_STATE_v225_2026-04-17.md` - **v225 current** - 公開入会申込の遷移ルール実装 + 重要事項ダイアログ + 一括メールテンプレート保存
+- `docs/87_RELEASE_STATE_v224_2026-04-16.md` - v224 record - 一括メール送信テンプレート保存 + Drive 自動添付既定 OFF
+- `docs/86_RELEASE_STATE_v223_2026-04-16.md` - v223 record - 公開ポータル入会前案内ダイアログ + 定款リンク
+- `docs/85_RELEASE_STATE_v222_2026-04-16.md` - v222 record - 公開ポータル入会前案内追加
+- `docs/84_RELEASE_STATE_v221_2026-04-16.md` - v221 record - joinedDate 空会員の年度除外バグ修正
+- `docs/83_RELEASE_STATE_v216_2026-04-16.md` - v216 record - 個人会員編集バリデーション見直し
+- `docs/80_RELEASE_STATE_v209_2026-04-16.md` - v209 record - 入会時認証情報メール送信制御
+- `docs/79_HANDOVER_2026-04-15.md` - 引継ぎ資料（v208時点） - 機能・運用・落とし穴まとめ
+- `docs/78_RELEASE_STATE_v208_2026-04-15.md` - v208 record - 宛名リスト バグ修正（事業所名・flush）
 - `docs/77_RELEASE_STATE_v207_2026-04-15.md` - v207 record - 宛名リスト Excel 出力コンソール
 - `docs/76_RELEASE_STATE_v206_2026-04-15.md` - v206 record - T_会員 住所2列（建物名）追加
 - `docs/75_RELEASE_STATE_v205_2026-04-14.md` - v205 record - 名簿PDF出力 1000件対応アーキテクチャ
@@ -51,6 +58,7 @@ Updated: 2026-04-16 (v208 — docs reorganized)
 
 ## 4. Handover Tasks
 - Template: `docs/31_HANDOVER_TASK_TEMPLATE.md`
+- Latest completed task handover: `docs/archive/historical/89_HANDOVER_TASK_v225_PUBLIC_MEMBERSHIP_TRANSITIONS_2026-04-17.md`
 - 完了済みタスク記録: `docs/archive/historical/`
 
 ## 5. Decision Records (ADR)

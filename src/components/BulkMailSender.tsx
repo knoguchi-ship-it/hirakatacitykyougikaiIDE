@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { AdminPermissionLevel, SystemSettings } from '../types';
 import { BulkMailRecipient, EmailSendLog } from '../shared/types';
 import { ApiClient } from '../services/api';
+import type { EmailTemplate } from '../types';
 
 interface BulkMailSenderProps {
   api: ApiClient;
@@ -60,8 +61,13 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
   const [subject, setSubject]                   = useState('');
   const [body, setBody]                         = useState('');
   const [commonAttachments, setCommonAttachments] = useState<AttachmentBlob[]>([]);
-  const [useAutoAttach, setUseAutoAttach]       = useState(true);
+  const [useAutoAttach, setUseAutoAttach]       = useState(false);
   const [indvAttachments, setIndvAttachments]   = useState<Record<string, AttachmentBlob>>({});
+  const [templates, setTemplates]               = useState<EmailTemplate[]>([]);
+  const [showTemplateSaveForm, setShowTemplateSaveForm] = useState(false);
+  const [templateSaveNameInput, setTemplateSaveNameInput] = useState('');
+  const [templateSaving, setTemplateSaving]     = useState(false);
+  const [templateDeleting, setTemplateDeleting] = useState<string | null>(null);
 
   // ── 確認・送信 ───────────────────────────────────────────────
   const [showConfirm, setShowConfirm]           = useState(false);
@@ -125,6 +131,12 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
       .catch((e: any) => {
         setAliasWarning(e?.message || '送信元アドレス一覧の取得に失敗しました。');
       });
+  }, [api]);
+
+  useEffect(() => {
+    api.getBulkMailTemplates()
+      .then(setTemplates)
+      .catch(() => {});
   }, [api]);
 
   // ── 宛先読み込み ─────────────────────────────────────────────
@@ -548,6 +560,98 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
               onChange={e => setBody(e.target.value)}
               placeholder={`{{氏名}} 様\n\nいつもお世話になっております。\n枚方市介護支援専門員連絡協議会です。\n\n【会員番号: {{会員番号}}】\n【事業所: {{事業所名}}】`}
             />
+          </div>
+
+          <div className="border border-slate-200 rounded-lg p-3 bg-slate-50">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-slate-700">テンプレート管理</span>
+              <button
+                type="button"
+                className="text-xs px-2 py-1 rounded bg-primary-50 border border-primary-300 text-primary-700 hover:bg-primary-100 transition-colors"
+                onClick={() => { setShowTemplateSaveForm(f => !f); setTemplateSaveNameInput(''); }}
+              >＋ 現在の内容を保存</button>
+            </div>
+            {showTemplateSaveForm && (
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  value={templateSaveNameInput}
+                  onChange={e => setTemplateSaveNameInput(e.target.value)}
+                  placeholder="テンプレート名（例：定例案内）"
+                  className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs"
+                  maxLength={50}
+                />
+                <button
+                  type="button"
+                  disabled={templateSaving || !templateSaveNameInput.trim()}
+                  className="px-3 py-1 text-xs rounded bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 whitespace-nowrap"
+                  onClick={async () => {
+                    if (!templateSaveNameInput.trim()) return;
+                    setTemplateSaving(true);
+                    try {
+                      const saved = await api.saveBulkMailTemplate({
+                        name: templateSaveNameInput.trim(),
+                        subject,
+                        body,
+                      });
+                      setTemplates(prev => {
+                        const idx = prev.findIndex(t => t.id === saved.id);
+                        return idx >= 0 ? prev.map(t => t.id === saved.id ? saved : t) : [...prev, saved];
+                      });
+                      setShowTemplateSaveForm(false);
+                      setTemplateSaveNameInput('');
+                    } catch {
+                      alert('テンプレートの保存に失敗しました。');
+                    } finally {
+                      setTemplateSaving(false);
+                    }
+                  }}
+                >{templateSaving ? '保存中…' : '保存'}</button>
+                <button
+                  type="button"
+                  className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-100"
+                  onClick={() => { setShowTemplateSaveForm(false); setTemplateSaveNameInput(''); }}
+                >キャンセル</button>
+              </div>
+            )}
+            {templates.length === 0 ? (
+              <p className="text-xs text-slate-400">保存済みテンプレートはありません</p>
+            ) : (
+              <ul className="space-y-1">
+                {templates.map(t => (
+                  <li key={t.id} className="flex items-center gap-2 text-xs border border-slate-200 rounded px-2 py-1.5 bg-white">
+                    <span className="flex-1 font-medium text-slate-700 truncate">{t.name}</span>
+                    <span className="text-slate-400 shrink-0">{t.savedAt.slice(0, 10)}</span>
+                    <button
+                      type="button"
+                      className="px-2 py-0.5 rounded border border-primary-300 text-primary-700 hover:bg-primary-50 whitespace-nowrap"
+                      onClick={() => {
+                        if (!window.confirm(`「${t.name}」を読み込みますか？\n現在の件名・本文が上書きされます。`)) return;
+                        setSubject(t.subject);
+                        setBody(t.body);
+                      }}
+                    >読み込む</button>
+                    <button
+                      type="button"
+                      disabled={templateDeleting === t.id}
+                      className="px-2 py-0.5 rounded border border-red-300 text-red-600 hover:bg-red-50 whitespace-nowrap disabled:opacity-50"
+                      onClick={async () => {
+                        if (!window.confirm(`「${t.name}」を削除しますか？`)) return;
+                        setTemplateDeleting(t.id);
+                        try {
+                          await api.deleteBulkMailTemplate(t.id);
+                          setTemplates(prev => prev.filter(x => x.id !== t.id));
+                        } catch {
+                          alert('テンプレートの削除に失敗しました。');
+                        } finally {
+                          setTemplateDeleting(null);
+                        }
+                      }}
+                    >{templateDeleting === t.id ? '…' : '削除'}</button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {/* 共通添付 */}

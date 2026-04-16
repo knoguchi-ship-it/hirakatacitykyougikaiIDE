@@ -66,6 +66,8 @@ export interface ApplicationResult {
     email: string;
   }>; // 事業所の場合
   emailsSent: number;
+  converted?: boolean;
+  transitionSummary?: string[];
 }
 
 /** バリデーションエラーマップ */
