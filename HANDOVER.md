@@ -1,9 +1,9 @@
 # 開発引継ぎ
 
-更新日: 2026-04-15
-現行本番: `v208`
-固定 deployment: member `@208` / public `@208`
-補足: v208 で宛名リスト2バグ修正（事業所会員の名前→勤務先名、住所不備シートのflush漏れ）。v207 で宛名リスト Excel 出力コンソール追加。
+更新日: 2026-04-16
+現行本番: `v209`
+固定 deployment: member `@209` / public `@209`
+補足: v209 で入会時認証情報メール送信制御・本文カスタマイズ機能を追加。
 次期開発: なし（SOW完了）→ `docs/63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md`
 
 ## 1. 最初に読むもの
@@ -11,11 +11,12 @@
 2. `AGENTS.md`
 3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-5. `docs/79_HANDOVER_2026-04-15.md` ← **引継ぎ資料（v208時点）** — 機能一覧・運用・落とし穴まとめ
-6. `docs/78_RELEASE_STATE_v208_2026-04-15.md` ← **v208 current**（宛名リスト バグ修正）
-7. `docs/77_RELEASE_STATE_v207_2026-04-15.md`（v207 record）
-8. `docs/76_RELEASE_STATE_v206_2026-04-15.md`（v206 record）
-9. `docs/75_RELEASE_STATE_v205_2026-04-14.md`（v205 record）
+5. `docs/80_RELEASE_STATE_v209_2026-04-16.md` ← **v209 current**（入会時認証情報メール送信制御）
+6. `docs/79_HANDOVER_2026-04-15.md` ← 引継ぎ資料（v208時点）— 機能一覧・運用・落とし穴まとめ
+7. `docs/78_RELEASE_STATE_v208_2026-04-15.md`（v208 record）
+8. `docs/77_RELEASE_STATE_v207_2026-04-15.md`（v207 record）
+9. `docs/76_RELEASE_STATE_v206_2026-04-15.md`（v206 record）
+10. `docs/75_RELEASE_STATE_v205_2026-04-14.md`（v205 record）
 10. `docs/63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md` ← **全フェーズ完了（Phase 1〜3）**
 11. `docs/58_NEXT_TASK_PERFORMANCE_2026-04-09.md`（B-02 未着手・残課題）
 12. `docs/09_DEPLOYMENT_POLICY.md`
@@ -351,7 +352,7 @@
 - テスト仕様は `docs/41_TEST_SPEC_v167_BUSINESS_ADMIN_ROLE_CHANGE.md` を参照。
 
 ## 5. 現時点の注意事項（v208 更新）
-- fixed deployment 2 本は `@208` を向いている。
+- fixed deployment 2 本は `@209` を向いている。
 - **v206 DB 適用済み**: `npx clasp run addAddressLine2Columns` は実行完了。本番 `T_会員` に `勤務先住所2` / `自宅住所2` 列が追加されている。
 - **v194 リリース済みのため、本番管理者（k.noguchi@uguisunosato.or.jp）は次回 /exec アクセス時に gmail.send + drive の同意画面が表示される。** 未承認の場合は必ず承認すること。
 - **名簿出力コンソール（RosterExport）使用前提条件**: システム設定画面で `ROSTER_TEMPLATE_SS_ID`（テンプレートスプレッドシートID）を登録すること。未登録時は「テンプレートSS IDがシステム設定に登録されていません」と表示される。

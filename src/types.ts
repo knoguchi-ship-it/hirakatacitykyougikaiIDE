@@ -52,6 +52,10 @@ export interface SystemSettings {
   reminderTemplateSsId?: string;
   bulkMailAutoAttachFolderId?: string;
   emailLogViewerRole?: string;
+  // v209: 入会時認証情報メール設定
+  credentialEmailEnabled?: boolean;
+  credentialEmailSubject?: string;
+  credentialEmailBody?: string;
 }
 
 export interface AnnualFeeAdminRecord {

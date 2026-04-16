@@ -222,6 +222,12 @@ const App: React.FC = () => {
   const [reminderTemplateSsIdInput, setReminderTemplateSsIdInput] = useState('');
   const [bulkMailAutoAttachFolderIdInput, setBulkMailAutoAttachFolderIdInput] = useState('');
   const [emailLogViewerRoleInput, setEmailLogViewerRoleInput] = useState('MASTER');
+  // v209: 入会時認証情報メール設定
+  const CREDENTIAL_EMAIL_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】会員登録完了のお知らせ';
+  const CREDENTIAL_EMAIL_DEFAULT_BODY = '{{氏名}} 様\n\n会員登録が完了しました。\n以下のログイン情報で会員マイページにアクセスできます。\n\nログインID: {{ログインID}}\n初期パスワード: {{パスワード}}\n\n会員マイページURL:\n{{会員マイページURL}}\n\n初回ログイン後、パスワードの変更をお勧めします。\n\n※このメールに心当たりがない場合は、お手数ですが削除してください。\n─────────────────────────────\n枚方市介護支援専門員連絡協議会\n';
+  const [credentialEmailEnabledInput, setCredentialEmailEnabledInput] = useState(true);
+  const [credentialEmailSubjectInput, setCredentialEmailSubjectInput] = useState(CREDENTIAL_EMAIL_DEFAULT_SUBJECT);
+  const [credentialEmailBodyInput, setCredentialEmailBodyInput] = useState(CREDENTIAL_EMAIL_DEFAULT_BODY);
   const [memberListQuery, setMemberListQuery] = useState('');
   const [memberListFilter, setMemberListFilter] = useState<MemberListFilter>('ALL');
   const [memberListStatusFilter, setMemberListStatusFilter] = useState<MemberStatusFilter>(DEFAULT_MEMBER_STATUS_FILTER);
@@ -261,6 +267,10 @@ const App: React.FC = () => {
     setReminderTemplateSsIdInput(systemSettings.reminderTemplateSsId ?? '');
     setBulkMailAutoAttachFolderIdInput(systemSettings.bulkMailAutoAttachFolderId ?? '');
     setEmailLogViewerRoleInput(systemSettings.emailLogViewerRole ?? 'MASTER');
+    // v209
+    setCredentialEmailEnabledInput(systemSettings.credentialEmailEnabled ?? true);
+    setCredentialEmailSubjectInput(systemSettings.credentialEmailSubject ?? CREDENTIAL_EMAIL_DEFAULT_SUBJECT);
+    setCredentialEmailBodyInput(systemSettings.credentialEmailBody ?? CREDENTIAL_EMAIL_DEFAULT_BODY);
     setSystemSettingsLoaded(true);
   };
 
@@ -2094,6 +2104,80 @@ const App: React.FC = () => {
                 </div>
               )}
             </div>
+
+            {/* v209: 入会時認証情報メール設定 */}
+            <div className="mt-4 border-t border-slate-200 pt-4 space-y-4">
+              <div>
+                <h4 className="text-sm font-semibold text-slate-800 mb-1">入会時ログイン情報メール設定</h4>
+                <p className="text-sm text-slate-600 mb-3">
+                  公開ポータルから入会申込があった際に、ログインID・初期パスワードを自動送信するかどうかを設定します。
+                  会員マイページの準備が整うまで送信しない場合はOFFにしてください。
+                </p>
+                <label className="flex items-center gap-3 cursor-pointer w-fit">
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={credentialEmailEnabledInput}
+                      onChange={(e) => setCredentialEmailEnabledInput(e.target.checked)}
+                    />
+                    <div className={`w-11 h-6 rounded-full transition-colors ${credentialEmailEnabledInput ? 'bg-primary-600' : 'bg-slate-300'}`} />
+                    <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${credentialEmailEnabledInput ? 'translate-x-5' : 'translate-x-0'}`} />
+                  </div>
+                  <span className="text-sm font-medium text-slate-700">
+                    {credentialEmailEnabledInput ? '入会後すぐにログイン情報を送信する（ON）' : '送信しない（OFF）— 管理者が手動で通知してください'}
+                  </span>
+                </label>
+                {!credentialEmailEnabledInput && (
+                  <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                    現在 OFF です。入会申込完了後、ログイン情報メールは送信されません。
+                    準備が整ったら ON に戻してください。
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">メール件名</label>
+                <div className="flex gap-2 items-start">
+                  <input
+                    type="text"
+                    value={credentialEmailSubjectInput}
+                    onChange={(e) => setCredentialEmailSubjectInput(e.target.value)}
+                    className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm"
+                    placeholder="メール件名を入力"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setCredentialEmailSubjectInput(CREDENTIAL_EMAIL_DEFAULT_SUBJECT)}
+                    className="px-2 py-2 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 whitespace-nowrap"
+                  >デフォルトに戻す</button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">メール本文</label>
+                <p className="text-xs text-slate-500 mb-2">
+                  利用可能なマージタグ：
+                  <code className="bg-slate-100 px-1 rounded mx-0.5">{'{{氏名}}'}</code>
+                  <code className="bg-slate-100 px-1 rounded mx-0.5">{'{{ログインID}}'}</code>
+                  <code className="bg-slate-100 px-1 rounded mx-0.5">{'{{パスワード}}'}</code>
+                  <code className="bg-slate-100 px-1 rounded mx-0.5">{'{{会員マイページURL}}'}</code>
+                </p>
+                <textarea
+                  value={credentialEmailBodyInput}
+                  onChange={(e) => setCredentialEmailBodyInput(e.target.value)}
+                  rows={12}
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm font-mono leading-relaxed resize-y"
+                  placeholder="メール本文を入力（マージタグを使用可能）"
+                />
+                <div className="flex justify-end mt-1">
+                  <button
+                    type="button"
+                    onClick={() => setCredentialEmailBodyInput(CREDENTIAL_EMAIL_DEFAULT_BODY)}
+                    className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50"
+                  >デフォルトに戻す</button>
+                </div>
+              </div>
+            </div>
+
             <div className="mt-4 border-t border-slate-200 pt-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
@@ -2154,6 +2238,9 @@ const App: React.FC = () => {
                     reminderTemplateSsId: reminderTemplateSsIdInput,
                     bulkMailAutoAttachFolderId: bulkMailAutoAttachFolderIdInput,
                     emailLogViewerRole: emailLogViewerRoleInput,
+                    credentialEmailEnabled: credentialEmailEnabledInput,
+                    credentialEmailSubject: credentialEmailSubjectInput,
+                    credentialEmailBody: credentialEmailBodyInput,
                   });
                   setDefaultBusinessStaffLimit(saved.defaultBusinessStaffLimit);
                   setGlobalLimitInput(String(saved.defaultBusinessStaffLimit));
@@ -2170,6 +2257,9 @@ const App: React.FC = () => {
                   setReminderTemplateSsIdInput(saved.reminderTemplateSsId ?? '');
                   setBulkMailAutoAttachFolderIdInput(saved.bulkMailAutoAttachFolderId ?? '');
                   setEmailLogViewerRoleInput(saved.emailLogViewerRole ?? 'MASTER');
+                  setCredentialEmailEnabledInput(saved.credentialEmailEnabled ?? true);
+                  setCredentialEmailSubjectInput(saved.credentialEmailSubject ?? CREDENTIAL_EMAIL_DEFAULT_SUBJECT);
+                  setCredentialEmailBodyInput(saved.credentialEmailBody ?? CREDENTIAL_EMAIL_DEFAULT_BODY);
                   alert('設定を保存しました。');
                 } catch (e) {
                   alert(e instanceof Error ? e.message : '設定の保存に失敗しました。');

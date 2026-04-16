@@ -15,6 +15,11 @@ var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
 var DB_SCHEMA_VERSION = '2026-04-10-01';
 
+// v209: 入会時認証情報メールのデフォルト設定
+var MEMBER_PORTAL_URL = 'https://script.google.com/macros/s/AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx/exec';
+var CREDENTIAL_EMAIL_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】会員登録完了のお知らせ';
+var CREDENTIAL_EMAIL_DEFAULT_BODY = '{{氏名}} 様\n\n会員登録が完了しました。\n以下のログイン情報で会員マイページにアクセスできます。\n\nログインID: {{ログインID}}\n初期パスワード: {{パスワード}}\n\n会員マイページURL:\n{{会員マイページURL}}\n\n初回ログイン後、パスワードの変更をお勧めします。\n\n※このメールに心当たりがない場合は、お手数ですが削除してください。\n─────────────────────────────\n枚方市介護支援専門員連絡協議会\n';
+
 var マスタ定義 = {
   M_会員種別: ['コード', '名称', '表示順', '有効フラグ', '年会費金額'],
   M_会員状態: ['コード', '名称', '表示順', '有効フラグ'],
@@ -587,6 +592,39 @@ function healthCheck() {
     timestamp: new Date().toISOString(),
     scriptId: ScriptApp.getScriptId(),
   };
+}
+
+/**
+ * v209: T_システム設定 に認証情報メール設定キーを追加する（ワンタイム実行）
+ * 実行: npx clasp run insertSystemSettingKeysForV209
+ */
+function insertSystemSettingKeysForV209() {
+  var ss = getOrCreateDatabase_();
+  var now = new Date().toISOString();
+  var existing = getRowsAsObjects_(ss, 'T_システム設定');
+  var byKey = {};
+  existing.forEach(function(row) {
+    var k = String(row['設定キー'] || '');
+    if (k) byKey[k] = true;
+  });
+  var newKeys = [
+    { key: 'CREDENTIAL_EMAIL_ENABLED', value: 'true', desc: '入会申込時にログイン情報メールを送信するか（true / false）' },
+    { key: 'CREDENTIAL_EMAIL_SUBJECT', value: CREDENTIAL_EMAIL_DEFAULT_SUBJECT, desc: '入会時認証情報メールの件名' },
+    { key: 'CREDENTIAL_EMAIL_BODY', value: CREDENTIAL_EMAIL_DEFAULT_BODY, desc: '入会時認証情報メールの本文（マージタグ: {{氏名}} {{ログインID}} {{パスワード}} {{会員マイページURL}}）' },
+  ];
+  var added = [];
+  newKeys.forEach(function(item) {
+    if (!byKey[item.key]) {
+      appendRowsByHeaders_(ss, 'T_システム設定', [{
+        設定キー: item.key,
+        設定値: item.value,
+        説明: item.desc,
+        更新日時: now,
+      }]);
+      added.push(item.key);
+    }
+  });
+  return { added: added, skipped: newKeys.map(function(i) { return i.key; }).filter(function(k) { return added.indexOf(k) < 0; }) };
 }
 
 /**
@@ -3788,6 +3826,13 @@ function getSystemSettings_() {
   var reminderTemplateSsId = String(getSystemSettingValue_(ss, 'REMINDER_TEMPLATE_SS_ID') || '');
   var bulkMailAutoAttachFolderId = String(getSystemSettingValue_(ss, 'BULK_MAIL_AUTO_ATTACH_FOLDER_ID') || '');
   var emailLogViewerRole = String(getSystemSettingValue_(ss, 'EMAIL_LOG_VIEWER_ROLE') || 'MASTER');
+  // v209: 入会時認証情報メール設定
+  var credentialEmailEnabledRaw = getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_ENABLED');
+  var credentialEmailEnabled = credentialEmailEnabledRaw === '' || credentialEmailEnabledRaw === null
+    ? true
+    : String(credentialEmailEnabledRaw) !== 'false';
+  var credentialEmailSubject = String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_SUBJECT') || '') || CREDENTIAL_EMAIL_DEFAULT_SUBJECT;
+  var credentialEmailBody = String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_BODY') || '') || CREDENTIAL_EMAIL_DEFAULT_BODY;
   return {
     defaultBusinessStaffLimit: value,
     trainingHistoryLookbackMonths: lookback,
@@ -3798,6 +3843,9 @@ function getSystemSettings_() {
     reminderTemplateSsId: reminderTemplateSsId,
     bulkMailAutoAttachFolderId: bulkMailAutoAttachFolderId,
     emailLogViewerRole: emailLogViewerRole,
+    credentialEmailEnabled: credentialEmailEnabled,
+    credentialEmailSubject: credentialEmailSubject,
+    credentialEmailBody: credentialEmailBody,
   };
 }
 
@@ -3865,6 +3913,20 @@ function updateSystemSettings_(request, callerPermLevel) {
     var roleVal = String(request.emailLogViewerRole).trim();
     if (allowedRoles.indexOf(roleVal) < 0) roleVal = 'MASTER';
     upsertSystemSetting_(ss, 'EMAIL_LOG_VIEWER_ROLE', roleVal, 'メール送信ログ閲覧権限');
+  }
+  // v209: 入会時認証情報メール設定（MASTER/ADMIN 共通可変）
+  if (request.credentialEmailEnabled != null) {
+    upsertSystemSetting_(ss, 'CREDENTIAL_EMAIL_ENABLED', request.credentialEmailEnabled ? 'true' : 'false', '入会申込時にログイン情報メールを送信するか');
+  }
+  if (request.credentialEmailSubject != null) {
+    var subj = String(request.credentialEmailSubject).trim();
+    if (!subj) subj = CREDENTIAL_EMAIL_DEFAULT_SUBJECT;
+    upsertSystemSetting_(ss, 'CREDENTIAL_EMAIL_SUBJECT', subj, '入会時認証情報メールの件名');
+  }
+  if (request.credentialEmailBody != null) {
+    var bodyVal = String(request.credentialEmailBody);
+    if (!bodyVal.trim()) bodyVal = CREDENTIAL_EMAIL_DEFAULT_BODY;
+    upsertSystemSetting_(ss, 'CREDENTIAL_EMAIL_BODY', bodyVal, '入会時認証情報メールの本文（マージタグ: {{氏名}} {{ログインID}} {{パスワード}} {{会員マイページURL}}）');
   }
   var scriptProperties = PropertiesService.getScriptProperties();
   scriptProperties.setProperty(DEFAULT_BUSINESS_STAFF_LIMIT_KEY, String(Math.floor(next))); // backward compatibility
@@ -5217,6 +5279,16 @@ function submitMemberApplication_(payload) {
   var joinedDate = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
   var memberId = generateMemberId_();
 
+  // v209: 認証情報メール設定を一度だけ読み込む
+  var credEmailEnabledRaw = getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_ENABLED');
+  var credEmailEnabled = credEmailEnabledRaw === '' || credEmailEnabledRaw === null
+    ? true
+    : String(credEmailEnabledRaw) !== 'false';
+  var credEmailOpts = {
+    subject: String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_SUBJECT') || '') || CREDENTIAL_EMAIL_DEFAULT_SUBJECT,
+    body: String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_BODY') || '') || CREDENTIAL_EMAIL_DEFAULT_BODY,
+  };
+
   // 重複チェック
   var memberSheet = ss.getSheetByName('T_会員');
   if (!memberSheet) throw new Error('T_会員 シートが見つかりません。');
@@ -5365,12 +5437,14 @@ function submitMemberApplication_(payload) {
         authSheet.appendRow(authRow);
       }
 
-      // メール送信
-      try {
-        sendCredentialEmail_(staffEmail, loginId, defaultPassword, staffName.trim());
-        result.emailsSent++;
-      } catch (e) {
-        Logger.log('sendCredentialEmail_ failed for ' + staffEmail + ': ' + e.message);
+      // メール送信（v209: credEmailEnabled が false の場合はスキップ）
+      if (credEmailEnabled) {
+        try {
+          sendCredentialEmail_(staffEmail, loginId, defaultPassword, staffName.trim(), credEmailOpts);
+          result.emailsSent++;
+        } catch (e) {
+          Logger.log('sendCredentialEmail_ failed for ' + staffEmail + ': ' + e.message);
+        }
       }
 
       staffCredentials.push({
@@ -5421,12 +5495,12 @@ function submitMemberApplication_(payload) {
 
     result.loginId = loginId;
 
-    // メール送信
+    // メール送信（v209: credEmailEnabled が false の場合はスキップ）
     var email = String(payload.email || '').trim();
-    if (email) {
+    if (email && credEmailEnabled) {
       try {
         var memberName = String(payload.lastName || '') + ' ' + String(payload.firstName || '');
-        sendCredentialEmail_(email, loginId, defaultPassword, memberName.trim());
+        sendCredentialEmail_(email, loginId, defaultPassword, memberName.trim(), credEmailOpts);
         result.emailsSent++;
       } catch (e) {
         Logger.log('sendCredentialEmail_ failed for ' + email + ': ' + e.message);
@@ -5440,19 +5514,21 @@ function submitMemberApplication_(payload) {
 }
 
 // ── ログイン情報メール送信 ──────────────────────────────────
-function sendCredentialEmail_(toEmail, loginId, password, memberName) {
-  var memberUrl = 'https://script.google.com/macros/s/AKfycbycE2_ythCYSPwmPxvyfRzNLhWM7J1cX41TA2wjYgZgdI-P2uknYfQGh3AHrecCQ1Gk/exec';
-  var subject = '【枚方市介護支援専門員連絡協議会】会員登録完了のお知らせ';
-  var body = memberName + ' 様\n\n'
-    + '会員登録が完了しました。\n'
-    + '以下のログイン情報で会員マイページにアクセスできます。\n\n'
-    + 'ログインID: ' + loginId + '\n'
-    + '初期パスワード: ' + password + '\n\n'
-    + '会員マイページURL:\n' + memberUrl + '\n\n'
-    + '初回ログイン後、パスワードの変更をお勧めします。\n\n'
-    + '※このメールに心当たりがない場合は、お手数ですが削除してください。\n'
-    + '─────────────────────────────\n'
-    + '枚方市介護支援専門員連絡協議会\n';
+/**
+ * 入会時認証情報メールを送信する。
+ * opts.subject / opts.body にマージタグを含むテンプレートを渡す。
+ * 利用可能マージタグ: {{氏名}} {{ログインID}} {{パスワード}} {{会員マイページURL}}
+ * opts を省略した場合はデフォルトテンプレートを使用する。
+ */
+function sendCredentialEmail_(toEmail, loginId, password, memberName, opts) {
+  opts = opts || {};
+  var subject = (opts.subject && opts.subject.trim()) ? opts.subject : CREDENTIAL_EMAIL_DEFAULT_SUBJECT;
+  var bodyTemplate = (opts.body && opts.body.trim()) ? opts.body : CREDENTIAL_EMAIL_DEFAULT_BODY;
+  var body = bodyTemplate
+    .replace(/\{\{氏名\}\}/g, memberName)
+    .replace(/\{\{ログインID\}\}/g, loginId)
+    .replace(/\{\{パスワード\}\}/g, password)
+    .replace(/\{\{会員マイページURL\}\}/g, MEMBER_PORTAL_URL);
   MailApp.sendEmail(toEmail, subject, body);
 }
 
