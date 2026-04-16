@@ -162,13 +162,14 @@ npx clasp deployments --json
 - Current linked GCP project number is `88737175415`.
 - Apps Script project settings were switched from old project number `995586177540` to `88737175415` on 2026-04-15.
 
-## 2026-04-16 local implementation note
-- Added local-only changes for the admin member-management detail page so business members can add new staff rows before saving.
-- Save is now enabled only when the detail form is dirty; unchanged state renders `変更なし`.
-- After detail save, the app now updates local `members` state first and then refreshes in the background.
-- Normal business-member saves now omit `payload.staff` when the staff list is unchanged, reducing unnecessary staff sync work.
-- As of 2026-04-16, these changes are not yet pushed, versioned, or redeployed.
-- Latest release-state reference after production rollout: `docs/82_RELEASE_STATE_v215_2026-04-16.md`
+## 2026-04-16 deployment note
+- Production release `v215` is now deployed.
+- Fixed deployments are synced as member `@215` / public `@215`.
+- Added admin member-management changes so business members can add new staff rows before saving.
+- Save is enabled only when the detail form is dirty; unchanged state renders `変更なし`.
+- After detail save, the app updates local `members` state first and then refreshes in the background.
+- Normal business-member saves omit `payload.staff` when the staff list is unchanged, reducing unnecessary staff sync work.
+- Latest release-state reference: `docs/82_RELEASE_STATE_v215_2026-04-16.md`
 - `gcloud auth list` active account, `gcloud config get-value project`, `npx clasp show-authorized-user`, `npx clasp run healthCheck`, and `npx clasp run getDbInfo` were reverified on 2026-04-15 under `k.noguchi@hcm-n.org`.
 - Required enabled APIs on the new GCP project for current operation: `script.googleapis.com`, `gmail.googleapis.com`.
 - `.clasp.json` now points to `projectId: hcmn-member-system-prod`.

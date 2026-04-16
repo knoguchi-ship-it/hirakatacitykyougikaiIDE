@@ -353,7 +353,8 @@ Also verify the runtime in a real browser when the change affects user flows.
 - For a newly switched domain account, `clasp redeploy` may fail with `User has not enabled the Apps Script API`.
   In that case, enable `Google Apps Script API` at `https://script.google.com/home/usersettings` for the operational Google user, then rerun `npx clasp redeploy`.
 
-## 2026-04-16 local worktree note
-- Admin member-management changes for business staff add/save UX are currently local only.
-- No `push`, `version`, or fixed deployment sync has been executed for that work yet.
+## 2026-04-16 v215 deployment note
+- Admin member-management changes for business staff add/save UX were released as `v215`.
+- Both fixed deployments were synced to `@215`.
+- Verification completed with `npx clasp deployments --json`, `npx clasp run healthCheck`, and `npx clasp run getDbInfo`.
 - Keep the standard release order: `build -> push -> version -> fixed deployment sync -> verification -> document update`.
