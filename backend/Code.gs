@@ -347,7 +347,37 @@ function doGet(e) {
   var app = (e && e.parameter && e.parameter.app) || 'member';
   var allowedApps = { 'member': 'index', 'public': 'index_public' };
   var file = allowedApps[app] || 'index';
+
+  // ブラウザタブ用タイトル（GAS sandbox では setTitle が唯一の手段）
+  var APP_TITLES = {
+    member: '会員マイページ｜枚方市ケアマネ協議会',
+    public:  '研修・入会申込ポータル｜枚方市ケアマネ協議会'
+  };
+
+  // SVG data URI ファビコン（外部ホスティング不要・どの解像度でも鮮明）
+  // 会員マイページ: 青背景 + 人物アイコン
+  var FAVICON_MEMBER =
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E" +
+    "%3Crect width='32' height='32' rx='6' fill='%231d4ed8'/%3E" +
+    "%3Ccircle cx='16' cy='11' r='5' fill='white'/%3E" +
+    "%3Cpath d='M6 29c0-5.52 4.48-10 10-10s10 4.48 10 10' fill='white'/%3E" +
+    "%3C/svg%3E";
+
+  // 公開ポータル: 緑背景 + 建物アイコン
+  var FAVICON_PUBLIC =
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E" +
+    "%3Crect width='32' height='32' rx='6' fill='%23059669'/%3E" +
+    "%3Cpolygon points='16,5 27,15 5,15' fill='white'/%3E" +
+    "%3Crect x='8' y='15' width='16' height='12' fill='white'/%3E" +
+    "%3Crect x='13' y='19' width='6' height='8' fill='%23059669'/%3E" +
+    "%3C/svg%3E";
+
+  var title   = APP_TITLES[app]   || APP_TITLES['member'];
+  var favicon = (app === 'public') ? FAVICON_PUBLIC : FAVICON_MEMBER;
+
   return HtmlService.createHtmlOutputFromFile(file)
+    .setTitle(title)
+    .setFaviconUrl(favicon)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
