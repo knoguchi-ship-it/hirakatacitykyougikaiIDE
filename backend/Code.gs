@@ -3841,10 +3841,29 @@ function checkAdminBySession_() {
 function getSystemSettings_() {
   var ss = getOrCreateDatabase_();
   initializeSchemaIfNeeded_(ss);
-  var raw = Number(getSystemSettingValue_(ss, 'DEFAULT_BUSINESS_STAFF_LIMIT') || 10);
-  var lookbackRaw = Number(getSystemSettingValue_(ss, 'TRAINING_HISTORY_LOOKBACK_MONTHS') || 18);
-  var guidanceRaw = getSystemSettingValue_(ss, 'ANNUAL_FEE_PAYMENT_GUIDANCE');
-  var transferAccount = getAnnualFeeTransferAccountSetting_(ss);
+  // 全設定を1回の読み込みで取得（N+1問題を解消）
+  var m = getSystemSettingMap_(ss);
+  var raw = Number(m['DEFAULT_BUSINESS_STAFF_LIMIT'] || 10);
+  var lookbackRaw = Number(m['TRAINING_HISTORY_LOOKBACK_MONTHS'] || 18);
+  var guidanceRaw = m['ANNUAL_FEE_PAYMENT_GUIDANCE'];
+  // 振込先設定をマップから直接パース
+  var transferAccount = DEMO_TRANSFER_ACCOUNT;
+  var transferRaw = m['ANNUAL_FEE_TRANSFER_ACCOUNT'];
+  if (transferRaw) {
+    try {
+      var tParsed = JSON.parse(String(transferRaw));
+      if (tParsed && tParsed.bankName && tParsed.accountNumber && tParsed.accountName) {
+        transferAccount = {
+          bankName: String(tParsed.bankName || ''),
+          branchName: String(tParsed.branchName || ''),
+          accountType: String(tParsed.accountType || '普通') === '当座' ? '当座' : '普通',
+          accountNumber: String(tParsed.accountNumber || ''),
+          accountName: String(tParsed.accountName || ''),
+          note: String(tParsed.note || ''),
+        };
+      }
+    } catch (e) {}
+  }
   var value = Math.floor(raw);
   var lookback = Math.floor(lookbackRaw);
   var guidance = guidanceRaw == null
@@ -3852,30 +3871,30 @@ function getSystemSettings_() {
     : String(guidanceRaw);
   if (!isFinite(value) || value < 1) value = 10;
   if (!isFinite(lookback) || lookback < 1) lookback = 18;
-  var trainingDefaultFieldConfigRaw = getSystemSettingValue_(ss, 'TRAINING_DEFAULT_FIELD_CONFIG');
   var trainingDefaultFieldConfig = null;
+  var trainingDefaultFieldConfigRaw = m['TRAINING_DEFAULT_FIELD_CONFIG'];
   if (trainingDefaultFieldConfigRaw) {
     try { trainingDefaultFieldConfig = JSON.parse(trainingDefaultFieldConfigRaw); } catch (e) {}
   }
   // v194: PDF名簿出力 & 一括メール設定
-  var rosterTemplateSsId = String(getSystemSettingValue_(ss, 'ROSTER_TEMPLATE_SS_ID') || '');
-  var reminderTemplateSsId = String(getSystemSettingValue_(ss, 'REMINDER_TEMPLATE_SS_ID') || '');
-  var bulkMailAutoAttachFolderId = String(getSystemSettingValue_(ss, 'BULK_MAIL_AUTO_ATTACH_FOLDER_ID') || '');
-  var emailLogViewerRole = String(getSystemSettingValue_(ss, 'EMAIL_LOG_VIEWER_ROLE') || 'MASTER');
+  var rosterTemplateSsId = String(m['ROSTER_TEMPLATE_SS_ID'] || '');
+  var reminderTemplateSsId = String(m['REMINDER_TEMPLATE_SS_ID'] || '');
+  var bulkMailAutoAttachFolderId = String(m['BULK_MAIL_AUTO_ATTACH_FOLDER_ID'] || '');
+  var emailLogViewerRole = String(m['EMAIL_LOG_VIEWER_ROLE'] || 'MASTER');
   // v209: 入会時認証情報メール設定
-  var credentialEmailEnabledRaw = getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_ENABLED');
+  var credentialEmailEnabledRaw = m['CREDENTIAL_EMAIL_ENABLED'];
   var credentialEmailEnabled = credentialEmailEnabledRaw === '' || credentialEmailEnabledRaw === null
     ? true
     : String(credentialEmailEnabledRaw) !== 'false';
-  var credentialEmailSubject = String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_SUBJECT') || '') || CREDENTIAL_EMAIL_DEFAULT_SUBJECT;
-  var credentialEmailBody = String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_BODY') || '') || CREDENTIAL_EMAIL_DEFAULT_BODY;
+  var credentialEmailSubject = String(m['CREDENTIAL_EMAIL_SUBJECT'] || '') || CREDENTIAL_EMAIL_DEFAULT_SUBJECT;
+  var credentialEmailBody = String(m['CREDENTIAL_EMAIL_BODY'] || '') || CREDENTIAL_EMAIL_DEFAULT_BODY;
   // v210: 公開ポータル メニュー表示設定
-  var trainingMenuEnabledRaw = getSystemSettingValue_(ss, 'PUBLIC_PORTAL_TRAINING_MENU_ENABLED');
-  var publicPortalTrainingMenuEnabled = trainingMenuEnabledRaw === null || trainingMenuEnabledRaw === ''
+  var trainingMenuEnabledRaw = m['PUBLIC_PORTAL_TRAINING_MENU_ENABLED'];
+  var publicPortalTrainingMenuEnabled = !trainingMenuEnabledRaw
     ? true
     : String(trainingMenuEnabledRaw) !== 'false';
-  var membershipMenuEnabledRaw = getSystemSettingValue_(ss, 'PUBLIC_PORTAL_MEMBERSHIP_MENU_ENABLED');
-  var publicPortalMembershipMenuEnabled = membershipMenuEnabledRaw === null || membershipMenuEnabledRaw === ''
+  var membershipMenuEnabledRaw = m['PUBLIC_PORTAL_MEMBERSHIP_MENU_ENABLED'];
+  var publicPortalMembershipMenuEnabled = !membershipMenuEnabledRaw
     ? true
     : String(membershipMenuEnabledRaw) !== 'false';
   return {
@@ -3936,52 +3955,56 @@ function updateSystemSettings_(request, callerPermLevel) {
   }
   var ss = getOrCreateDatabase_();
   initializeSchemaIfNeeded_(ss);
-  upsertSystemSetting_(ss, 'DEFAULT_BUSINESS_STAFF_LIMIT', String(Math.floor(next)), '事業所会員メンバー上限（全体デフォルト）');
-  upsertSystemSetting_(ss, 'TRAINING_HISTORY_LOOKBACK_MONTHS', String(Math.floor(lookback)), '研修履歴の表示期間（月）');
-  upsertSystemSetting_(ss, 'ANNUAL_FEE_PAYMENT_GUIDANCE', guidance, '年会費未納時の会員向け納入案内');
-  upsertSystemSetting_(ss, 'ANNUAL_FEE_TRANSFER_ACCOUNT', JSON.stringify(transferAccount), '年会費未納時の共通振込先');
-  upsertSystemSetting_(ss, 'DB_SCHEMA_VERSION', DB_SCHEMA_VERSION, 'DBスキーマバージョン');
+  // 全更新を1配列に収集し batchUpsertSystemSettings_ で一括書き込み（N+1問題解消）
+  var updates = [
+    { key: 'DEFAULT_BUSINESS_STAFF_LIMIT', value: String(Math.floor(next)), description: '事業所会員メンバー上限（全体デフォルト）' },
+    { key: 'TRAINING_HISTORY_LOOKBACK_MONTHS', value: String(Math.floor(lookback)), description: '研修履歴の表示期間（月）' },
+    { key: 'ANNUAL_FEE_PAYMENT_GUIDANCE', value: guidance, description: '年会費未納時の会員向け納入案内' },
+    { key: 'ANNUAL_FEE_TRANSFER_ACCOUNT', value: JSON.stringify(transferAccount), description: '年会費未納時の共通振込先' },
+    { key: 'DB_SCHEMA_VERSION', value: DB_SCHEMA_VERSION, description: 'DBスキーマバージョン' },
+  ];
   if (request.trainingDefaultFieldConfig != null) {
-    upsertSystemSetting_(ss, 'TRAINING_DEFAULT_FIELD_CONFIG', JSON.stringify(request.trainingDefaultFieldConfig), '研修フォームのデフォルト表示項目設定');
+    updates.push({ key: 'TRAINING_DEFAULT_FIELD_CONFIG', value: JSON.stringify(request.trainingDefaultFieldConfig), description: '研修フォームのデフォルト表示項目設定' });
   }
   // v194: PDF名簿出力 & 一括メール設定（MASTER/ADMIN 共通可変）
   if (request.rosterTemplateSsId != null) {
-    upsertSystemSetting_(ss, 'ROSTER_TEMPLATE_SS_ID', normalizeSpreadsheetIdInput_(request.rosterTemplateSsId), '名簿テンプレートスプレッドシートID');
+    updates.push({ key: 'ROSTER_TEMPLATE_SS_ID', value: normalizeSpreadsheetIdInput_(request.rosterTemplateSsId), description: '名簿テンプレートスプレッドシートID' });
   }
   if (request.reminderTemplateSsId != null) {
-    upsertSystemSetting_(ss, 'REMINDER_TEMPLATE_SS_ID', normalizeSpreadsheetIdInput_(request.reminderTemplateSsId), '催促用紙テンプレートスプレッドシートID');
+    updates.push({ key: 'REMINDER_TEMPLATE_SS_ID', value: normalizeSpreadsheetIdInput_(request.reminderTemplateSsId), description: '催促用紙テンプレートスプレッドシートID' });
   }
   if (request.bulkMailAutoAttachFolderId != null) {
-    upsertSystemSetting_(ss, 'BULK_MAIL_AUTO_ATTACH_FOLDER_ID', String(request.bulkMailAutoAttachFolderId).trim(), '一括メール個別自動添付DriveフォルダID');
+    updates.push({ key: 'BULK_MAIL_AUTO_ATTACH_FOLDER_ID', value: String(request.bulkMailAutoAttachFolderId).trim(), description: '一括メール個別自動添付DriveフォルダID' });
   }
   // v194: MASTER のみ変更可能
   if (request.emailLogViewerRole != null && effectivePermLevel === 'MASTER') {
     var allowedRoles = ['MASTER', 'MASTER,ADMIN'];
     var roleVal = String(request.emailLogViewerRole).trim();
     if (allowedRoles.indexOf(roleVal) < 0) roleVal = 'MASTER';
-    upsertSystemSetting_(ss, 'EMAIL_LOG_VIEWER_ROLE', roleVal, 'メール送信ログ閲覧権限');
+    updates.push({ key: 'EMAIL_LOG_VIEWER_ROLE', value: roleVal, description: 'メール送信ログ閲覧権限' });
   }
   // v209: 入会時認証情報メール設定（MASTER/ADMIN 共通可変）
   if (request.credentialEmailEnabled != null) {
-    upsertSystemSetting_(ss, 'CREDENTIAL_EMAIL_ENABLED', request.credentialEmailEnabled ? 'true' : 'false', '入会申込時にログイン情報メールを送信するか');
+    updates.push({ key: 'CREDENTIAL_EMAIL_ENABLED', value: request.credentialEmailEnabled ? 'true' : 'false', description: '入会申込時にログイン情報メールを送信するか' });
   }
   if (request.credentialEmailSubject != null) {
     var subj = String(request.credentialEmailSubject).trim();
     if (!subj) subj = CREDENTIAL_EMAIL_DEFAULT_SUBJECT;
-    upsertSystemSetting_(ss, 'CREDENTIAL_EMAIL_SUBJECT', subj, '入会時認証情報メールの件名');
+    updates.push({ key: 'CREDENTIAL_EMAIL_SUBJECT', value: subj, description: '入会時認証情報メールの件名' });
   }
   if (request.credentialEmailBody != null) {
     var bodyVal = String(request.credentialEmailBody);
     if (!bodyVal.trim()) bodyVal = CREDENTIAL_EMAIL_DEFAULT_BODY;
-    upsertSystemSetting_(ss, 'CREDENTIAL_EMAIL_BODY', bodyVal, '入会時認証情報メールの本文（マージタグ: {{氏名}} {{ログインID}} {{パスワード}} {{会員マイページURL}}）');
+    updates.push({ key: 'CREDENTIAL_EMAIL_BODY', value: bodyVal, description: '入会時認証情報メールの本文（マージタグ: {{氏名}} {{ログインID}} {{パスワード}} {{会員マイページURL}}）' });
   }
   // v210: 公開ポータル メニュー表示設定
   if (request.publicPortalTrainingMenuEnabled != null) {
-    upsertSystemSetting_(ss, 'PUBLIC_PORTAL_TRAINING_MENU_ENABLED', request.publicPortalTrainingMenuEnabled ? 'true' : 'false', '公開ポータル：研修申込メニューを表示するか');
+    updates.push({ key: 'PUBLIC_PORTAL_TRAINING_MENU_ENABLED', value: request.publicPortalTrainingMenuEnabled ? 'true' : 'false', description: '公開ポータル：研修申込メニューを表示するか' });
   }
   if (request.publicPortalMembershipMenuEnabled != null) {
-    upsertSystemSetting_(ss, 'PUBLIC_PORTAL_MEMBERSHIP_MENU_ENABLED', request.publicPortalMembershipMenuEnabled ? 'true' : 'false', '公開ポータル：入会申込メニューを表示するか');
+    updates.push({ key: 'PUBLIC_PORTAL_MEMBERSHIP_MENU_ENABLED', value: request.publicPortalMembershipMenuEnabled ? 'true' : 'false', description: '公開ポータル：入会申込メニューを表示するか' });
   }
+  batchUpsertSystemSettings_(ss, updates);
   var scriptProperties = PropertiesService.getScriptProperties();
   scriptProperties.setProperty(DEFAULT_BUSINESS_STAFF_LIMIT_KEY, String(Math.floor(next))); // backward compatibility
   scriptProperties.setProperty(TRAINING_HISTORY_LOOKBACK_MONTHS_KEY, String(Math.floor(lookback))); // backward compatibility
@@ -5128,6 +5151,74 @@ function getSystemSettingValue_(ss, key) {
   if (!found) return '';
   var idx = found.columns['設定値'];
   return idx == null ? '' : String(found.row[idx] || '');
+}
+
+// T_システム設定を1回の読み込みで全設定を {key: value} マップとして返す（N+1回避）
+function getSystemSettingMap_(ss) {
+  var rows = getRowsAsObjects_(ss, 'T_システム設定');
+  var map = {};
+  for (var i = 0; i < rows.length; i++) {
+    var k = String(rows[i]['設定キー'] || '');
+    if (!k) continue;
+    var v = rows[i]['設定値'];
+    map[k] = (v === null || v === undefined) ? '' : String(v);
+  }
+  return map;
+}
+
+// 複数の設定を一括書き込み：読み2回＋書き1回で完結（N+1問題を解消）
+function batchUpsertSystemSettings_(ss, updates) {
+  if (!updates || updates.length === 0) return;
+  var sheet = ss.getSheetByName('T_システム設定');
+  if (!sheet) return;
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastCol < 1) return;
+  var headerValues = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var columns = {};
+  for (var i = 0; i < headerValues.length; i++) {
+    columns[String(headerValues[i] || '')] = i;
+  }
+  var keyCol = columns['設定キー'];
+  var valueCol = columns['設定値'];
+  var descCol = columns['説明'];
+  var updatedAtCol = columns['更新日時'];
+  if (keyCol === undefined) return;
+  var data = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, lastCol).getValues() : [];
+  // key → row index マップ
+  var keyToIndex = {};
+  for (var r = 0; r < data.length; r++) {
+    var k = String(data[r][keyCol] || '');
+    if (k) keyToIndex[k] = r;
+  }
+  var now = new Date().toISOString();
+  var modified = false;
+  var toAppend = [];
+  for (var u = 0; u < updates.length; u++) {
+    var upd = updates[u];
+    if (keyToIndex[upd.key] !== undefined) {
+      var ri = keyToIndex[upd.key];
+      if (valueCol !== undefined) data[ri][valueCol] = upd.value;
+      if (descCol !== undefined) data[ri][descCol] = upd.description || '';
+      if (updatedAtCol !== undefined) data[ri][updatedAtCol] = now;
+      modified = true;
+    } else {
+      toAppend.push(upd);
+    }
+  }
+  // 変更行を一括書き戻し（1回の setValues）
+  if (modified && data.length > 0) {
+    sheet.getRange(2, 1, data.length, lastCol).setValues(data);
+  }
+  // 新規行はアペンド
+  for (var ap = 0; ap < toAppend.length; ap++) {
+    appendRowsByHeaders_(ss, 'T_システム設定', [{
+      '設定キー': toAppend[ap].key,
+      '設定値': toAppend[ap].value,
+      '説明': toAppend[ap].description || '',
+      '更新日時': now,
+    }]);
+  }
 }
 
 function upsertSystemSetting_(ss, key, value, description) {
