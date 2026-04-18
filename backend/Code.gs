@@ -7139,6 +7139,20 @@ function convertStaffToIndividual_(ss, payload) {
   var now = new Date().toISOString();
   var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
 
+  // 2.5. 介護支援専門員番号を先取得して事前チェック（DB変更前）
+  var staffCareNumPre = String(sRow[sCols['介護支援専門員番号']] || '').trim();
+  if (staffCareNumPre) {
+    var otherEnrolledSameCM = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) {
+      return !toBoolean_(r['削除フラグ'])
+        && String(r['介護支援専門員番号'] || '').trim() === staffCareNumPre
+        && String(r['職員状態コード'] || '') === 'ENROLLED'
+        && String(r['職員ID'] || '') !== sourceStaffId;
+    });
+    if (otherEnrolledSameCM.length > 0) {
+      throw new Error('介護支援専門員番号 ' + staffCareNumPre + ' の在籍職員が他事業所に存在します（職員ID: ' + otherEnrolledSameCM.map(function(r) { return String(r['職員ID'] || ''); }).join(', ') + '）。重複を解消してから再度お試しください。');
+    }
+  }
+
   // 3. 代表者チェック（v127: 最後の1名の場合は事業所自動退会）
   var isRepresentative = String(sRow[sCols['職員権限コード']] || '') === 'REPRESENTATIVE';
   var officeWithdrawn = false;
@@ -7199,32 +7213,69 @@ function convertStaffToIndividual_(ss, payload) {
   var lastKana = staffNameFields.lastKana;
   var firstKana = staffNameFields.firstKana;
 
-  // 5. 新しい個人会員レコード作成
-  var newMemberId = generateMemberId_();
-  while (findRowByColumnValue_(memberSheet, '会員ID', newMemberId)) {
-    newMemberId = generateMemberId_();
-  }
-  var columns = テーブル定義.T_会員;
-  var newRow = columns.map(function(col) {
-    switch (col) {
-      case '会員ID': return newMemberId;
-      case '会員種別コード': return 'INDIVIDUAL';
-      case '会員状態コード': return 'ACTIVE';
-      case '入会日': return today;
-      case '退会日': return '';
-      case '姓': return lastName;
-      case '名': return firstName;
-      case 'セイ': return lastKana;
-      case 'メイ': return firstKana;
-      case '代表メールアドレス': return staffEmail;
-      case '介護支援専門員番号': return staffCareNum;
-      case '作成日時': return now;
-      case '更新日時': return now;
-      case '削除フラグ': return false;
-      default: return '';
+  // 5. 個人会員レコード: 同一CM番号の既存 WITHDRAWN 行を再活性化、なければ新規作成
+  // 再活性化により往復変換でのレコード蓄積を防ぎ、年会費履歴を自動継承する。
+  var newMemberId;
+  var reuseFound = null;
+  if (staffCareNum) {
+    var memberCandidates = getRowsAsObjects_(ss, 'T_会員').filter(function(r) {
+      return !toBoolean_(r['削除フラグ'])
+        && String(r['介護支援専門員番号'] || '').trim() === staffCareNum
+        && String(r['会員種別コード'] || '') !== 'BUSINESS'
+        && String(r['会員状態コード'] || '') === 'WITHDRAWN';
+    });
+    memberCandidates.sort(function(a, b) {
+      // 退会日が最も新しい行を優先
+      var da = String(a['退会日'] || a['更新日時'] || '');
+      var db = String(b['退会日'] || b['更新日時'] || '');
+      return da > db ? -1 : 1;
+    });
+    if (memberCandidates.length > 0) {
+      reuseFound = findRowByColumnValue_(memberSheet, '会員ID', String(memberCandidates[0]['会員ID'] || ''));
     }
-  });
-  memberSheet.appendRow(newRow);
+  }
+  if (reuseFound) {
+    // 既存行を再活性化（入会日=再入会日、氏名・メールを職員情報で更新）
+    newMemberId = String(reuseFound.row[reuseFound.columns['会員ID']] || '');
+    var updMemberRow = reuseFound.row.slice();
+    updMemberRow[reuseFound.columns['会員状態コード']] = 'ACTIVE';
+    updMemberRow[reuseFound.columns['入会日']] = today;
+    updMemberRow[reuseFound.columns['退会日']] = '';
+    if (reuseFound.columns['姓'] != null) updMemberRow[reuseFound.columns['姓']] = lastName;
+    if (reuseFound.columns['名'] != null) updMemberRow[reuseFound.columns['名']] = firstName;
+    if (reuseFound.columns['セイ'] != null) updMemberRow[reuseFound.columns['セイ']] = lastKana;
+    if (reuseFound.columns['メイ'] != null) updMemberRow[reuseFound.columns['メイ']] = firstKana;
+    if (reuseFound.columns['代表メールアドレス'] != null) updMemberRow[reuseFound.columns['代表メールアドレス']] = staffEmail;
+    updMemberRow[reuseFound.columns['更新日時']] = now;
+    memberSheet.getRange(reuseFound.rowNumber, 1, 1, updMemberRow.length).setValues([updMemberRow]);
+  } else {
+    // 初回変換 or CM番号なし → 新規作成
+    newMemberId = generateMemberId_();
+    while (findRowByColumnValue_(memberSheet, '会員ID', newMemberId)) {
+      newMemberId = generateMemberId_();
+    }
+    var columns = テーブル定義.T_会員;
+    var newRow = columns.map(function(col) {
+      switch (col) {
+        case '会員ID': return newMemberId;
+        case '会員種別コード': return 'INDIVIDUAL';
+        case '会員状態コード': return 'ACTIVE';
+        case '入会日': return today;
+        case '退会日': return '';
+        case '姓': return lastName;
+        case '名': return firstName;
+        case 'セイ': return lastKana;
+        case 'メイ': return firstKana;
+        case '代表メールアドレス': return staffEmail;
+        case '介護支援専門員番号': return staffCareNum;
+        case '作成日時': return now;
+        case '更新日時': return now;
+        case '削除フラグ': return false;
+        default: return '';
+      }
+    });
+    memberSheet.appendRow(newRow);
+  }
 
   // 6. T_事業所職員を LEFT + 削除フラグ
   var updStaffRow = sRow.slice();
@@ -7246,7 +7297,7 @@ function convertStaffToIndividual_(ss, payload) {
 
   // 8. T_研修申込: 該当職員の申込を新会員IDに更新
   migrateTrainingApplications_(ss, sourceMemberId, sourceStaffId, newMemberId, '');
-  assertSingleActiveAffiliationByCareManager_(ss, staffCareNum, '事業所会員メンバー→個人会員変換');
+  // post-check は廃止: 再活性化パターン + 事前チェック（step 2.5）で整合性を保証するため不要
 
   clearAllDataCache_();
   clearAdminDashboardCache_();
@@ -7343,8 +7394,8 @@ function convertIndividualToStaff_(ss, payload) {
     }
   }
 
-  // 4. 新しい職員レコード作成
-  var newStaffId = 'S' + Date.now();
+  // 4. 職員レコード: 同一CM番号 × 同一事業所の既存 LEFT 行を再活性化、なければ新規作成
+  // 再活性化により往復変換でのレコード蓄積を防ぐ。
   var now = new Date().toISOString();
   var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
   var staffName = (String(srcRow[srcCols['姓']] || '') + ' ' + String(srcRow[srcCols['名']] || '')).trim();
@@ -7352,26 +7403,70 @@ function convertIndividualToStaff_(ss, payload) {
   var staffEmail = String(srcRow[srcCols['代表メールアドレス']] || '');
   var staffCareNum = srcCareNum; // step 3.5 で確定済み
 
-  appendRowsByHeaders_(ss, 'T_事業所職員', [{
-    職員ID: newStaffId,
-    会員ID: targetOfficeMemberId,
-    姓: String(srcRow[srcCols['姓']] || ''),
-    名: String(srcRow[srcCols['名']] || ''),
-    セイ: String(srcRow[srcCols['セイ']] || ''),
-    メイ: String(srcRow[srcCols['メイ']] || ''),
-    氏名: staffName,
-    フリガナ: staffKana,
-    メールアドレス: staffEmail,
-    職員権限コード: staffRole,
-    職員状態コード: 'ENROLLED',
-    入会日: today,
-    退会日: '',
-    介護支援専門員番号: staffCareNum,
-    メール配信希望コード: 'YES',
-    作成日時: now,
-    更新日時: now,
-    削除フラグ: false,
-  }]);
+  var staffSheet = ss.getSheetByName('T_事業所職員');
+  if (!staffSheet) throw new Error('T_事業所職員 シートが見つかりません。');
+
+  var newStaffId;
+  var reuseStaffFound = null;
+  if (staffCareNum) {
+    // 削除フラグ=true の LEFT 行も再活性化対象（変換時に削除フラグが付くため）
+    var staffCandidates = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) {
+      return String(r['会員ID'] || '') === targetOfficeMemberId
+        && String(r['介護支援専門員番号'] || '').trim() === staffCareNum
+        && String(r['職員状態コード'] || '') === 'LEFT';
+    });
+    staffCandidates.sort(function(a, b) {
+      var da = String(a['退会日'] || a['更新日時'] || '');
+      var db = String(b['退会日'] || b['更新日時'] || '');
+      return da > db ? -1 : 1;
+    });
+    if (staffCandidates.length > 0) {
+      reuseStaffFound = findRowByColumnValue_(staffSheet, '職員ID', String(staffCandidates[0]['職員ID'] || ''));
+    }
+  }
+  if (reuseStaffFound) {
+    // 既存行を再活性化（入会日=再入会日、権限・氏名・メール・CM番号を更新）
+    newStaffId = String(reuseStaffFound.row[reuseStaffFound.columns['職員ID']] || '');
+    var updStaff = reuseStaffFound.row.slice();
+    updStaff[reuseStaffFound.columns['職員状態コード']] = 'ENROLLED';
+    updStaff[reuseStaffFound.columns['入会日']] = today;
+    updStaff[reuseStaffFound.columns['退会日']] = '';
+    updStaff[reuseStaffFound.columns['削除フラグ']] = false;
+    updStaff[reuseStaffFound.columns['職員権限コード']] = staffRole;
+    if (reuseStaffFound.columns['姓'] != null) updStaff[reuseStaffFound.columns['姓']] = String(srcRow[srcCols['姓']] || '');
+    if (reuseStaffFound.columns['名'] != null) updStaff[reuseStaffFound.columns['名']] = String(srcRow[srcCols['名']] || '');
+    if (reuseStaffFound.columns['セイ'] != null) updStaff[reuseStaffFound.columns['セイ']] = String(srcRow[srcCols['セイ']] || '');
+    if (reuseStaffFound.columns['メイ'] != null) updStaff[reuseStaffFound.columns['メイ']] = String(srcRow[srcCols['メイ']] || '');
+    if (reuseStaffFound.columns['氏名'] != null) updStaff[reuseStaffFound.columns['氏名']] = staffName;
+    if (reuseStaffFound.columns['フリガナ'] != null) updStaff[reuseStaffFound.columns['フリガナ']] = staffKana;
+    if (reuseStaffFound.columns['メールアドレス'] != null) updStaff[reuseStaffFound.columns['メールアドレス']] = staffEmail;
+    if (reuseStaffFound.columns['介護支援専門員番号'] != null) updStaff[reuseStaffFound.columns['介護支援専門員番号']] = staffCareNum;
+    updStaff[reuseStaffFound.columns['更新日時']] = now;
+    staffSheet.getRange(reuseStaffFound.rowNumber, 1, 1, updStaff.length).setValues([updStaff]);
+  } else {
+    // 初回転籍 or CM番号なし → 新規作成
+    newStaffId = 'S' + Date.now();
+    appendRowsByHeaders_(ss, 'T_事業所職員', [{
+      職員ID: newStaffId,
+      会員ID: targetOfficeMemberId,
+      姓: String(srcRow[srcCols['姓']] || ''),
+      名: String(srcRow[srcCols['名']] || ''),
+      セイ: String(srcRow[srcCols['セイ']] || ''),
+      メイ: String(srcRow[srcCols['メイ']] || ''),
+      氏名: staffName,
+      フリガナ: staffKana,
+      メールアドレス: staffEmail,
+      職員権限コード: staffRole,
+      職員状態コード: 'ENROLLED',
+      入会日: today,
+      退会日: '',
+      介護支援専門員番号: staffCareNum,
+      メール配信希望コード: 'YES',
+      作成日時: now,
+      更新日時: now,
+      削除フラグ: false,
+    }]);
+  }
 
   // 5. T_認証アカウント: 会員ID→事業所ID, 職員ID→新ID, 有効フラグ=true
   var targetRoleCode = staffRole === 'STAFF' ? 'BUSINESS_MEMBER' : 'BUSINESS_ADMIN';

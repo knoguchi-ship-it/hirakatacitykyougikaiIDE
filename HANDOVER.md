@@ -1,11 +1,27 @@
 # 開発引継ぎ
 
 更新日: 2026-04-18
-現行本番: `v237`（GAS version 237）
-固定 deployment: member `@237` / public `@237`
-補足: v237 で転籍ドロップダウンに検索フィルタ追加・会員CM番号重複修復APIを追加。v236 で個人→事業所転換機能の強化（既存会員転籍・職員追加フォームの CM 番号必須化・賛助会員転籍時 CM 番号入力対応）。v235 でセッションアンカーを loginId に変更しロール変換後のマイページ表示不整合を修正。
+現行本番: `v238`（GAS version 238）
+固定 deployment: member `@238` / public `@238`
+補足: v238 で会員種別変換に再活性化パターン導入（往復変換によるレコード蓄積を根絶）。v237 で転籍ドロップダウン検索フィルタ追加・CM番号重複修復API追加。v236 で個人→事業所転換機能強化。
 
-## 0. v237 本番稼働中
+## 0. v238 本番稼働中
+
+### v238 — 会員種別変換に再活性化パターン導入（2026-04-18 リリース済み）
+- **設計変更**: STAFF→INDIVIDUAL 変換で「同一CM番号の既存 WITHDRAWN 行を再活性化」に変更。新規 appendRow は初回のみ。
+- **設計変更**: INDIVIDUAL→STAFF 変換で「同一CM番号 × 同一事業所の既存 LEFT 行を再活性化」に変更。新規 appendRowsByHeaders は初回のみ。
+- **効果**: 何度往復しても T_会員・T_事業所職員 の行が増えない。入会日は再活性化日（today）で更新。
+- **年会費継承**: T_年会費納入履歴 は memberId を参照するため、memberId 再利用により支払い済み履歴が自動継承される（コード変更不要）。
+- **事前チェック追加**: STAFF→INDIVIDUAL 変換に step 2.5 を追加（他事業所に同CM番号の ENROLLED 職員がいる場合はエラー）。INDIVIDUAL→STAFF の pre-check と対称化。
+- **post-check 廃止**: `assertSingleActiveAffiliationByCareManager_`（変換後アサート）を STAFF→INDIVIDUAL からも削除。事前チェックに一本化。
+- Verification:
+  - `npm run build:gas` ✅
+  - `npx clasp push --force` ✅（4 files pushed）
+  - `npx clasp version` ✅（version 238 created）
+  - `npx clasp deployments --json` ✅（member + public ともに versionNumber: 238）
+  - 実ブラウザ確認 → 操作者側で実施すること
+
+---
 
 ### v237 — 転籍ドロップダウン検索フィルタ追加・会員CM番号重複修復（2026-04-18 リリース済み）
 - **UX改善**: 「既存個人会員を転籍モーダル」のドロップダウンに検索テキスト入力欄を追加。名前・会員番号でリアルタイムフィルタリング可能に（150件超の会員一覧から選択できない問題を解消）。
