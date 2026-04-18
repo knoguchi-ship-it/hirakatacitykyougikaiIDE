@@ -3,11 +3,21 @@ import { Member, MailingPreference, MailDestination, MemberType, PaymentStatus, 
 import { AlertTriangleIcon, MailIcon, CheckCircleIcon, BookOpenIcon, UsersIcon, HomeIcon, PlusIcon, SparklesIcon } from './Icons';
 import { api } from '../services/api';
 import StaffTrainingView from './StaffTrainingView';
+import PostalCodeInput from './PostalCodeInput';
 
 const HALF_WIDTH_KANA_RE = /^[ｦ-ﾟ\s]+$/u;
 const CARE_MANAGER_RE = /^\d{8}$/;
 const POST_CODE_RE = /^\d{3}-?\d{4}$/;
 const PHONE_RE = /^[0-9-]+$/;
+const hasTransferAccountInfo = (account?: TransferAccountInfo | null): account is TransferAccountInfo => {
+  if (!account) return false;
+  return Boolean(
+    String(account.bankName || '').trim() &&
+    String(account.branchName || '').trim() &&
+    String(account.accountNumber || '').trim() &&
+    String(account.accountName || '').trim(),
+  );
+};
 
 // 全角カナ・ひらがな → 半角カナ変換（保存時に適用）
 const toHalfWidthKana = (value: string): string => {
@@ -242,7 +252,11 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
   );
 
   const currentFeeStatus = member.annualFeeHistory[0];
-  const displayedTransferAccount = currentFeeStatus?.transferAccount || annualFeeTransferAccount;
+  const displayedTransferAccount = hasTransferAccountInfo(currentFeeStatus?.transferAccount)
+    ? currentFeeStatus.transferAccount
+    : hasTransferAccountInfo(annualFeeTransferAccount)
+      ? annualFeeTransferAccount
+      : null;
   const annualFeeGuideId = `annual-fee-guide-${member.id}`;
   const annualFeeGuidanceText = String(annualFeePaymentGuidance || '').trim();
   const hasAnnualFeeGuidance = Boolean(annualFeeGuidanceText || displayedTransferAccount);
@@ -384,6 +398,18 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
             delete newErrors[name];
             return newErrors;
         });
+    }
+  };
+
+  const handlePostalCodeChange = (field: 'officePostCode' | 'homePostCode', value: string) => {
+    if (isReadOnly) return;
+    setMember(prev => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors(prev => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
     }
   };
 
@@ -1418,7 +1444,15 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                     <label className="block text-sm font-medium text-slate-700 mb-1">
                         郵便番号 {member.preferredMailDestination === MailDestination.HOME && <span className="text-red-500">(※)</span>}
                     </label>
-                    <input id={getFieldAnchorId('homePostCode')} disabled={isReadOnly} type="text" name="homePostCode" value={member.homePostCode} onChange={handleChange} className={getInputClass('homePostCode')} placeholder="000-0000" />
+                    <PostalCodeInput
+                      id={getFieldAnchorId('homePostCode')}
+                      value={member.homePostCode}
+                      onChange={(value) => handlePostalCodeChange('homePostCode', value)}
+                      disabled={isReadOnly}
+                      required={member.preferredMailDestination === MailDestination.HOME}
+                      invalid={!!errors.homePostCode}
+                      inputClassName={getInputClass('homePostCode')}
+                    />
                     {errors.homePostCode && <p className="text-xs text-red-500 mt-1">{errors.homePostCode}</p>}
                 </div>
                 <div className="md:col-span-2 grid grid-cols-2 gap-4">
@@ -1503,7 +1537,15 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     郵便番号 {(isBusiness || member.preferredMailDestination === MailDestination.OFFICE) && <span className="text-red-500">(※)</span>}
                   </label>
-                  <input id={getFieldAnchorId('officePostCode')} disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="text" name="officePostCode" value={member.officePostCode} onChange={handleChange} className={getInputClass('officePostCode', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} placeholder="000-0000" />
+                  <PostalCodeInput
+                    id={getFieldAnchorId('officePostCode')}
+                    value={member.officePostCode}
+                    onChange={(value) => handlePostalCodeChange('officePostCode', value)}
+                    disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly}
+                    required={isBusiness || member.preferredMailDestination === MailDestination.OFFICE}
+                    invalid={!!errors.officePostCode}
+                    inputClassName={getInputClass('officePostCode', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)}
+                  />
                   {errors.officePostCode && <p className="text-xs text-red-500 mt-1">{errors.officePostCode}</p>}
                </div>
                <div className="md:col-span-2 grid grid-cols-2 gap-4">

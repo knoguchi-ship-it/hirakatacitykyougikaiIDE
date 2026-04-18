@@ -1,6 +1,6 @@
 # 開発引継ぎ・運用プレイブック
 
-更新日: 2026-04-08
+更新日: 2026-04-17
 目的: 担当者が変わっても、同じ入口・同じ完了条件・同じ証跡で開発を継続できる状態を維持する。
 
 ## 1. この文書の役割
@@ -17,6 +17,7 @@
 補足:
 - 小規模作業では 1 人が複数役割を兼務してよい。
 - 兼務しても、判断・実装・確認の区切りは記録上分ける。
+- 既定では、実ブラウザ確認の操作者は人間側とし、AI / agent はコード上の検証、Apps Script 実行系コマンド確認、エラー調査を担当する。
 
 ## 3. 作業開始チェック
 1. `git status --short` で既存差分を把握する。
@@ -24,7 +25,7 @@
 3. `AGENTS.md` と案件ルールを読む。
 4. 対象機能の正本を読む。
 5. 必要なら task 個票を作成する。
-6. オンライン作業前は `npx clasp show-authorized-user`、`npx clasp run healthCheck`、`npx clasp run getDbInfo` を実行する。
+6. オンライン作業前は `npx clasp show-authorized-user`、`npx clasp run healthCheck`、`npx clasp run getDbInfo` を、最初から承認済みの安定経路で実行する。
 
 ## 4. 作業中ルール
 - 仕様変更前に、対応する正本の記述有無を確認する。
@@ -47,11 +48,15 @@
 
 ### 本番反映完了
 - `npx clasp push --force`
-- `npx clasp version "<release note>"`
-- `npx clasp redeploy <memberDeploymentId> --versionNumber <version> --description "<release note>"`
-- `npx clasp redeploy <publicDeploymentId> --versionNumber <version> --description "<release note>"`
-- `npx clasp deployments --json` で反映確認
+- `npx clasp version "<release note>"` を最初から承認済みの安定経路で実行
+- `npx clasp redeploy <memberDeploymentId> --versionNumber <version> --description "<release note>"` を最初から承認済みの安定経路で実行
+- `npx clasp redeploy <publicDeploymentId> --versionNumber <version> --description "<release note>"` を最初から承認済みの安定経路で実行
+- `npx clasp deployments --json` を最初から承認済みの安定経路で実行し反映確認
 - 必要な `/exec` 実ブラウザ確認
+
+補足:
+- 実ブラウザ確認は既定で操作者が実施する。
+- AI / agent は、実ブラウザ未確認でもコード上で確認できた範囲、発生していないエラー、残る確認ポイントを明記して引き継ぐ。
 
 ## 6. 記録の更新順
 1. task 個票を更新する。

@@ -1,6 +1,6 @@
 # Document Index
 
-Updated: 2026-04-17 (v225)
+Updated: 2026-04-17 (v231)
 
 ## 1. Entry Sources Of Truth
 - `HANDOVER.md`
@@ -29,8 +29,14 @@ Updated: 2026-04-17 (v225)
 
 ## 3. Ops And Incident Docs
 
-### 現行リリース記録（v205〜v225）
-- `docs/88_RELEASE_STATE_v225_2026-04-17.md` - **v225 current** - 公開入会申込の遷移ルール実装 + 重要事項ダイアログ + 一括メールテンプレート保存
+### 現行リリース記録（v205〜v231）
+- `docs/94_RELEASE_STATE_v231_2026-04-17.md` - **v231 current** - 郵便番号入力標準化 + 参照専用表示 + 年会費連続年度表示
+- `docs/93_RELEASE_STATE_v230_2026-04-17.md` - v230 record - current principal 解決 + 会員種別再遷移整合修正
+- `docs/92_RELEASE_STATE_v229_2026-04-17.md` - v229 record - 会員マイページ年会費履歴 + 振込先フォールバック修正
+- `docs/91_RELEASE_STATE_v228_2026-04-17.md` - v228 record - 公開入会申込 完了画面制御 + 住所入力改善
+- `docs/90_RELEASE_STATE_v227_2026-04-17.md` - v227 record - 公開ポータル文言設定対応
+- `docs/89_RELEASE_STATE_v226_2026-04-17.md` - v226 record - 入会申込フォーム 住所・連絡情報ステップ統合
+- `docs/88_RELEASE_STATE_v225_2026-04-17.md` - v225 record - 公開入会申込の遷移ルール実装 + 重要事項ダイアログ + 一括メールテンプレート保存
 - `docs/87_RELEASE_STATE_v224_2026-04-16.md` - v224 record - 一括メール送信テンプレート保存 + Drive 自動添付既定 OFF
 - `docs/86_RELEASE_STATE_v223_2026-04-16.md` - v223 record - 公開ポータル入会前案内ダイアログ + 定款リンク
 - `docs/85_RELEASE_STATE_v222_2026-04-16.md` - v222 record - 公開ポータル入会前案内追加

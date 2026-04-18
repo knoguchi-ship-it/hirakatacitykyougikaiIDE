@@ -9,6 +9,7 @@ import {
 } from './types';
 import type { ApplicationMemberType } from './types';
 import { api } from '../../services/api';
+import PostalCodeInput from '../PostalCodeInput';
 
 interface MemberApplicationFormProps {
   onBack: () => void;
@@ -16,6 +17,8 @@ interface MemberApplicationFormProps {
   title?: string;
   backLabel?: string;
   completeLabel?: string;
+  showCompletionLoginInfo?: boolean;
+  credentialEmailEnabled?: boolean;
 }
 
 const STEPS_INDIVIDUAL = ['会員種別', '基本情報', '住所・連絡情報', '入力確認'];
@@ -98,10 +101,8 @@ function createIndividualFormData(): ApplicationFormData {
   return {
     ...INITIAL_FORM_DATA,
     memberType: 'INDIVIDUAL',
-    officePostCode: INDIVIDUAL_ADDRESS_DEFAULTS.postCode,
     officePrefecture: INDIVIDUAL_ADDRESS_DEFAULTS.prefecture,
     officeCity: INDIVIDUAL_ADDRESS_DEFAULTS.city,
-    homePostCode: INDIVIDUAL_ADDRESS_DEFAULTS.postCode,
     homePrefecture: INDIVIDUAL_ADDRESS_DEFAULTS.prefecture,
     homeCity: INDIVIDUAL_ADDRESS_DEFAULTS.city,
   };
@@ -200,6 +201,7 @@ function validateAddressAndContact(form: ApplicationFormData, errs: ValidationEr
 
   // 選択した郵送先の住所を必須チェック
   if (dest === 'OFFICE') {
+    if (!form.officeName.trim()) errs.officeName = '勤務先を郵送先にする場合は事業所名を入力してください。';
     if (!form.officePostCode.trim()) errs.officePostCode = '郵便番号は必須です。';
     if (!form.officePrefecture.trim()) errs.officePrefecture = '都道府県は必須です。';
     if (!form.officeCity.trim()) errs.officeCity = '市区町村は必須です。';
@@ -291,6 +293,8 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
   title = '入会申込',
   backLabel = '戻る',
   completeLabel = '閉じる',
+  showCompletionLoginInfo = true,
+  credentialEmailEnabled = true,
 }) => {
   const [form, setForm] = useState<ApplicationFormData>({ ...INITIAL_FORM_DATA });
   const [step, setStep] = useState(0);
@@ -320,6 +324,17 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
       delete next[key as string];
       // 電話番号複合エラーをクリア
       if (key === 'phone' || key === 'mobilePhone') delete next._phone;
+      if (key === 'preferredMailDestination') {
+        delete next.officeName;
+        delete next.officePostCode;
+        delete next.officePrefecture;
+        delete next.officeCity;
+        delete next.officeAddressLine;
+        delete next.homePostCode;
+        delete next.homePrefecture;
+        delete next.homeCity;
+        delete next.homeAddressLine;
+      }
       return next;
     });
   }, []);
@@ -411,6 +426,16 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
 
   // ─── 完了画面 ────────────────────────────────────────
   if (result) {
+    const isBusinessCompletion = form.memberType === 'BUSINESS';
+    const showLoginInfoCard = showCompletionLoginInfo && (
+      (!isBusinessCompletion && !!result.loginId) ||
+      (isBusinessCompletion && !!result.staffCredentials?.length)
+    );
+    const loginInfoNotice = credentialEmailEnabled
+      ? (isBusinessCompletion
+        ? '各職員のメールアドレスにログイン情報を送信しました。'
+        : 'ログイン情報は登録メールアドレスに送信しました。')
+      : 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。';
     return (
       <div className="max-w-2xl mx-auto py-12 px-4">
         <div className="bg-white rounded-2xl shadow-lg p-8 text-center space-y-6">
@@ -429,20 +454,42 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
               </div>
             </div>
           )}
-          {form.memberType !== 'BUSINESS' && result.loginId && (
+          <div className="bg-sky-50 border border-sky-100 rounded-lg p-4 text-left">
+            <p className="text-sm text-sky-900 font-medium mb-2">今後のご案内</p>
+            <div className="space-y-1 text-sm text-sky-800">
+              <p>{loginInfoNotice}</p>
+              <p>年会費や振込先などのご案内は、登録メールアドレスをご確認ください。</p>
+              <p>申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。</p>
+            </div>
+          </div>
+          {!isBusinessCompletion && showLoginInfoCard && result.loginId && (
             <div className="bg-primary-50 border border-primary-100 rounded-lg p-4 text-left">
               <p className="text-sm text-primary-900 font-medium mb-2">ログイン情報</p>
               <p className="text-sm">ログインID: <span className="font-mono font-bold">{result.loginId}</span></p>
-              <p className="text-sm text-primary-600 mt-1">初期パスワードは登録メールアドレスに送信しました。</p>
+              <p className="text-sm text-primary-600 mt-1">
+                {credentialEmailEnabled ? '初期パスワードは登録メールアドレスに送信しました。' : '初期パスワードは現在送信していません。公開準備後にご案内します。'}
+              </p>
             </div>
           )}
-          {form.memberType === 'BUSINESS' && result.staffCredentials && (
+          {!showLoginInfoCard && ((isBusinessCompletion && !!result.staffCredentials?.length) || (!isBusinessCompletion && !!result.loginId)) && (
+            <div className="bg-primary-50 border border-primary-100 rounded-lg p-4 text-left">
+              <p className="text-sm text-primary-900 font-medium mb-2">ログイン情報</p>
+              <p className="text-sm text-primary-700">
+                {credentialEmailEnabled
+                  ? 'ログイン情報は画面に表示していません。登録済みのメールをご確認ください。'
+                  : 'ログイン情報は画面に表示していません。会員ページ公開時にご案内します。'}
+              </p>
+            </div>
+          )}
+          {isBusinessCompletion && showLoginInfoCard && result.staffCredentials && (
             <div className="bg-primary-50 border border-primary-100 rounded-lg p-4 text-left">
               <p className="text-sm text-primary-900 font-medium mb-2">職員ログイン情報</p>
               {result.staffCredentials.map((sc, i) => (
                 <p key={i} className="text-sm">{sc.name}: <span className="font-mono">{sc.loginId}</span> → {sc.email}</p>
               ))}
-              <p className="text-sm text-primary-600 mt-2">各職員のメールアドレスにログイン情報を送信しました。</p>
+              <p className="text-sm text-primary-600 mt-2">
+                {credentialEmailEnabled ? '各職員のメールアドレスにログイン情報を送信しました。' : 'ログイン情報メールは現在送信していません。公開準備後にご案内します。'}
+              </p>
             </div>
           )}
           <div className="flex gap-3 justify-center pt-4">
@@ -694,6 +741,26 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
             <h3 className="text-lg font-bold text-slate-800">住所・連絡情報</h3>
             <p className="text-sm text-slate-500 mt-1">郵送先を選択し、選択した住所を必ず入力してください。</p>
           </div>
+          <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+            <div>
+              <h4 className="font-semibold text-slate-700">🏢 勤務先・所属情報</h4>
+              <p className="text-sm text-slate-500 mt-1">勤務先を郵送先にする場合、この事業所名を送付先名として使用します。</p>
+            </div>
+            <div>
+              <label className={labelClass}>
+                事業所名{isOfficeDest ? requiredBadge : optionalBadge}
+              </label>
+              <input
+                className={fieldClass}
+                value={form.officeName}
+                onChange={e => set('officeName', e.target.value)}
+                placeholder="例: ひらかた介護ステーション"
+                aria-required={isOfficeDest}
+                aria-invalid={!!errors.officeName}
+              />
+              {errors.officeName && <p className={errorClass} role="alert">{errors.officeName}</p>}
+            </div>
+          </div>
 
           {/* ── 郵送先選択 ── */}
           <div>
@@ -750,33 +817,34 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
               }
             </div>
             <div className="space-y-4">
-              {/* 事業所名: 任意（常に表示） */}
-              <div>
-                <label className={labelClass}>
-                  事業所名{optionalBadge}
-                </label>
-                <input
-                  className={fieldClass}
-                  value={form.officeName}
-                  onChange={e => set('officeName', e.target.value)}
-                  placeholder="例: ひらかた居宅介護支援事業所"
-                  aria-label="勤務先事業所名（任意）"
-                />
-              </div>
+              {isOfficeDest && (
+                <div className="rounded-xl border border-slate-300 bg-slate-100 px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-600">
+                      参照専用
+                    </span>
+                    <span className="text-sm font-semibold text-slate-700">送付先事業所名</span>
+                  </div>
+                  <div className="mt-2 rounded-lg border border-slate-300 bg-slate-200/70 px-3 py-2 text-sm text-slate-700">
+                    {form.officeName.trim() || '勤務先・所属情報で入力した内容がここに表示されます。'}
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">
+                    送付先事業所名は上の「勤務先・所属情報」で入力してください。
+                  </p>
+                </div>
+              )}
               {/* 郵便番号・都道府県 */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>
                     郵便番号{isOfficeDest ? requiredBadge : optionalBadge}
                   </label>
-                  <input
-                    className={fieldClass}
+                  <PostalCodeInput
                     value={form.officePostCode}
-                    onChange={e => set('officePostCode', e.target.value)}
-                    placeholder="例: 573-0000"
-                    inputMode="numeric"
-                    aria-required={isOfficeDest}
-                    aria-invalid={!!errors.officePostCode}
+                    onChange={value => set('officePostCode', value)}
+                    required={isOfficeDest}
+                    invalid={!!errors.officePostCode}
+                    inputClassName={fieldClass}
                   />
                   {errors.officePostCode && <p className={errorClass} role="alert">{errors.officePostCode}</p>}
                 </div>
@@ -847,14 +915,12 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
                 <label className={labelClass}>
                   郵便番号{isHomeDest ? requiredBadge : optionalBadge}
                 </label>
-                <input
-                  className={fieldClass}
+                <PostalCodeInput
                   value={form.homePostCode}
-                  onChange={e => set('homePostCode', e.target.value)}
-                  placeholder="例: 573-0000"
-                  inputMode="numeric"
-                  aria-required={isHomeDest}
-                  aria-invalid={!!errors.homePostCode}
+                  onChange={value => set('homePostCode', value)}
+                  required={isHomeDest}
+                  invalid={!!errors.homePostCode}
+                  inputClassName={fieldClass}
                 />
                 {errors.homePostCode && <p className={errorClass} role="alert">{errors.homePostCode}</p>}
               </div>
@@ -1046,7 +1112,13 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
             </div>
             <div>
               <label className={labelClass}>郵便番号{requiredBadge}</label>
-              <input className={fieldClass} inputMode="numeric" value={form.officePostCode} onChange={e => set('officePostCode', e.target.value)} placeholder="例: 573-0000" maxLength={8} />
+              <PostalCodeInput
+                value={form.officePostCode}
+                onChange={value => set('officePostCode', value)}
+                required
+                invalid={!!errors.officePostCode}
+                inputClassName={fieldClass}
+              />
               {errors.officePostCode && <p className={errorClass}>{errors.officePostCode}</p>}
             </div>
             <div>
@@ -1194,7 +1266,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
           {(hasOfficeAddress || form.officeName.trim() || form.memberType === 'BUSINESS') && (
             <div className="bg-white p-5 rounded-xl border border-slate-200 space-y-3">
               <h4 className="font-bold text-slate-700">
-                {form.memberType === 'BUSINESS' ? '事業所情報' : '勤務先情報'}
+                {form.memberType === 'BUSINESS' ? '事業所情報' : '勤務先・所属情報'}
                 {form.memberType !== 'BUSINESS' && form.preferredMailDestination === 'OFFICE' && (
                   <span className="ml-2 text-xs font-normal text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full">郵送先</span>
                 )}
@@ -1202,7 +1274,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                 {form.officeName.trim() && <div><span className="text-slate-500">事業所名:</span> {form.officeName}</div>}
                 {form.officeNumber && <div><span className="text-slate-500">事業所番号:</span> {form.officeNumber}</div>}
-                {hasOfficeAddress && <div className="sm:col-span-2"><span className="text-slate-500">住所:</span> 〒{form.officePostCode} {form.officePrefecture}{form.officeCity}{form.officeAddressLine}</div>}
+                {hasOfficeAddress && <div className="sm:col-span-2"><span className="text-slate-500">{form.memberType === 'BUSINESS' ? '住所:' : '勤務先住所:'}</span> 〒{form.officePostCode} {form.officePrefecture}{form.officeCity}{form.officeAddressLine}</div>}
                 {form.phone && <div><span className="text-slate-500">電話:</span> {form.phone}</div>}
                 {form.fax && <div><span className="text-slate-500">FAX:</span> {form.fax}</div>}
               </div>

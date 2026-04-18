@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Member, MemberType, Staff, AdminDashboardMemberRow, ConvertMemberTypePayload } from '../types';
 import { api } from '../services/api';
+import PostalCodeInput from './PostalCodeInput';
 
 type EditableStaff = Staff & { isNew?: boolean };
 type EditableMemberForm = Record<string, any> & { staff?: EditableStaff[] };
@@ -831,17 +832,15 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
           )}
           <div>
             <label className={labelClass}>郵便番号{isRequired('officePostCode') && <RequiredMark />}</label>
-            <input
+            <PostalCodeInput
               id={getFieldAnchorId('officePostCode')}
-              className={fieldClass('officePostCode')}
               value={form.officePostCode || ''}
-              onChange={e => set('officePostCode', e.target.value)}
+              onChange={value => set('officePostCode', value)}
               onBlur={() => handleBlur('officePostCode')}
-              inputMode="numeric"
-              aria-required={isRequired('officePostCode')}
-              aria-invalid={touched.officePostCode && !!validationErrors.officePostCode}
-              aria-describedby={validationErrors.officePostCode ? 'err-officePostCode' : undefined}
-              placeholder="例: 573-0084"
+              required={isRequired('officePostCode')}
+              invalid={touched.officePostCode && !!validationErrors.officePostCode}
+              describedBy={validationErrors.officePostCode ? 'err-officePostCode' : undefined}
+              inputClassName={fieldClass('officePostCode')}
             />
             <FieldError fieldKey="officePostCode" />
           </div>
@@ -933,16 +932,15 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>郵便番号{isRequired('homePostCode') && <RequiredMark />}</label>
-              <input
+              <PostalCodeInput
                 id={getFieldAnchorId('homePostCode')}
-                className={fieldClass('homePostCode')}
                 value={form.homePostCode || ''}
-                onChange={e => set('homePostCode', e.target.value)}
+                onChange={value => set('homePostCode', value)}
                 onBlur={() => handleBlur('homePostCode')}
-                inputMode="numeric"
-                aria-required={isRequired('homePostCode')}
-                aria-invalid={touched.homePostCode && !!validationErrors.homePostCode}
-                aria-describedby={validationErrors.homePostCode ? 'err-homePostCode' : undefined}
+                required={isRequired('homePostCode')}
+                invalid={touched.homePostCode && !!validationErrors.homePostCode}
+                describedBy={validationErrors.homePostCode ? 'err-homePostCode' : undefined}
+                inputClassName={fieldClass('homePostCode')}
               />
               <FieldError fieldKey="homePostCode" />
             </div>

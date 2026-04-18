@@ -68,6 +68,20 @@ export interface SystemSettings {
   // v210: 公開ポータル メニュー表示設定
   publicPortalTrainingMenuEnabled?: boolean;
   publicPortalMembershipMenuEnabled?: boolean;
+  publicPortalHeroBadgeEnabled?: boolean;
+  publicPortalHeroBadgeLabel?: string;
+  publicPortalHeroTitle?: string;
+  publicPortalHeroDescriptionEnabled?: boolean;
+  publicPortalHeroDescription?: string;
+  publicPortalMembershipBadgeEnabled?: boolean;
+  publicPortalMembershipBadgeLabel?: string;
+  publicPortalMembershipTitleEnabled?: boolean;
+  publicPortalMembershipTitle?: string;
+  publicPortalMembershipDescriptionEnabled?: boolean;
+  publicPortalMembershipDescription?: string;
+  publicPortalMembershipCtaLabel?: string;
+  publicPortalCompletionLoginInfoVisible?: boolean;
+  publicPortalCredentialEmailEnabled?: boolean;
 }
 
 export interface AnnualFeeAdminRecord {

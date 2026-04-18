@@ -33,6 +33,7 @@
 - 技術、法務、セキュリティ、運用の提案前に、必要なら Web で最新の一次ソースを確認する。
 - 外部標準は採用するが、案件正本と衝突する場合は案件正本を優先し、差分を記録する。
 - 既存コード、prompt、運用手順の修正は差分修正を原則とする。
+- 実ブラウザでの実行確認は操作者側が行うことを既定とし、AI / agent はコード上の整合確認、build、Apps Script 実行系コマンド確認、取得できるエラーの調査を担当する。
 - コード、データ、デプロイ、UI、認証、運用手順を変えたら、関連正本を同ターンで更新する。
 - 文字化け、参照切れ、版ずれ、古い入口があれば先に直す。
 
@@ -43,6 +44,7 @@
 - 管理者ログインは Google アカウント + whitelist 検証。
 - fixed deployment 2 本運用を維持し、片系だけ更新しない。
 - production の fixed deployment 同期は `npx clasp redeploy` を標準とし、Apps Script UI の `Manage deployments` 手更新は障害復旧時の補助手段としてのみ扱う。
+- `npx clasp version` / `npx clasp redeploy` / `npx clasp deployments --json` / `npx clasp run ...` など Apps Script API に到達する本番系コマンドは、同じネットワーク失敗を避けるため、最初から承認済みの安定した実行経路で流す。失敗してから通常経路→昇格経路の二度打ちを標準にしない。
 - demo login、mock member route、画面内 demo selector は復活させない。
 - business member の代表者情報は `staff.role='REPRESENTATIVE'` を正本とする。
 - `seedDemoData` は production DB を破壊する操作として扱い、完全バックアップと明示承認なしでは実行しない。
@@ -53,6 +55,7 @@
 - **push 前に `git diff` で作業ツリー全体を確認し、自分の変更以外の未コミット変更が存在する場合はその影響範囲を評価する。** 問題がある場合はファイル単位で push 範囲を限定するかユーザーに確認してから進む。
 - fixed deployment sync は既知の deployment ID に対する `npx clasp redeploy ... --versionNumber ...` を正とし、結果は `npx clasp deployments --json` で確認する。
 - 毎回更新する文書は `HANDOVER.md`、`docs/09_DEPLOYMENT_POLICY.md`、必要に応じた release state 文書とし、`AGENTS.md` や案件固定ルールは運用原則が変わった場合にのみ更新する。
+- 実ブラウザ確認が未実施でも、コード上の検証結果と確認待ち範囲を必ず明記し、操作者による確認に引き継げる状態で完了報告する。
 - 未検証、残課題、承認待ちは必ず明記する。
 
 ## 6. セキュリティと承認

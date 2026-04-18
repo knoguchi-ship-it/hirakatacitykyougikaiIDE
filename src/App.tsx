@@ -10,6 +10,7 @@ import RosterExport from './components/RosterExport';
 import MailingListExport from './components/MailingListExport';
 import TemplateHelpPage from './components/TemplateHelpPage';
 import TemplateValidationPanel from './components/TemplateValidationPanel';
+import MemberDeleteConsole from './components/MemberDeleteConsole';
 import MemberDetailAdmin from './components/MemberDetailAdmin';
 import StaffDetailAdmin from './components/StaffDetailAdmin';
 import { AdminDashboardData, AdminDashboardMemberRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, SystemSettings, Training, TrainingFieldConfig, DEFAULT_FIELD_CONFIG } from './types';
@@ -17,7 +18,7 @@ import { TRAINING_OPTIONAL_FIELD_DEFS } from './components/TrainingManagement';
 import { api } from './services/api';
 
 type Role = 'ADMIN' | 'MEMBER';
-type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'roster-export' | 'mailing-list-export' | 'template-help' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings';
+type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'roster-export' | 'mailing-list-export' | 'template-help' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings' | 'member-delete';
 type AuthTab = 'member' | 'admin';
 type PendingAnnualFeeAction = { type: 'view'; view: View } | { type: 'logout' } | null;
 type MemberListFilter = 'ALL' | MemberType;
@@ -114,6 +115,10 @@ interface LoginIdentity {
   staffRole?: 'REPRESENTATIVE' | 'ADMIN' | 'STAFF';
 }
 
+const isActiveMemberIdentity = (member: Member): boolean => member.status !== 'WITHDRAWN';
+
+const isActiveStaffIdentity = (staff: NonNullable<Member['staff']>[number]): boolean => staff.status !== 'LEFT';
+
 declare global {
   interface Window {
     google?: any;
@@ -122,6 +127,9 @@ declare global {
 
 const buildLoginIdentities = (members: Member[]): LoginIdentity[] =>
   members.flatMap((member): LoginIdentity[] => {
+    if (!isActiveMemberIdentity(member)) {
+      return [];
+    }
     if (member.type !== MemberType.BUSINESS) {
       return [{
         id: member.id,
@@ -130,7 +138,7 @@ const buildLoginIdentities = (members: Member[]): LoginIdentity[] =>
         type: member.type,
       }];
     }
-    return (member.staff || []).map((staff) => ({
+    return (member.staff || []).filter(isActiveStaffIdentity).map((staff) => ({
       id: `${member.id}-${staff.id}`,
       label: `事業所会員: ${member.officeName} - ${staff.name} (${staff.role === 'REPRESENTATIVE' ? '代表者' : staff.role === 'ADMIN' ? '管理者' : 'メンバー'})`,
       memberId: member.id,
@@ -139,6 +147,22 @@ const buildLoginIdentities = (members: Member[]): LoginIdentity[] =>
       type: MemberType.BUSINESS,
     }));
   });
+
+const PUBLIC_PORTAL_DEFAULTS = {
+  heroBadgeEnabled: false,
+  heroBadgeLabel: 'お申込みポータル',
+  heroTitle: '研修申込・申込取消・新規入会申込を受け付けています',
+  heroDescriptionEnabled: false,
+  heroDescription: 'ご希望の手続きを選択し、そのまま申込画面へ進んでください。',
+  membershipBadgeEnabled: true,
+  membershipBadgeLabel: '入会申込',
+  membershipTitleEnabled: true,
+  membershipTitle: '新規入会を申し込む',
+  membershipDescriptionEnabled: true,
+  membershipDescription: '個人会員・事業所会員・賛助会員の入会申込を受け付けています。',
+  membershipCtaLabel: '入会申込へ進む',
+  completionLoginInfoVisible: true,
+} as const;
 
 const App: React.FC = () => {
   const [userRole, setUserRole] = useState<Role>('MEMBER');
@@ -236,6 +260,19 @@ const App: React.FC = () => {
   // v210: 公開ポータル メニュー表示設定
   const [publicPortalTrainingMenuEnabledInput, setPublicPortalTrainingMenuEnabledInput] = useState(true);
   const [publicPortalMembershipMenuEnabledInput, setPublicPortalMembershipMenuEnabledInput] = useState(true);
+  const [publicPortalHeroBadgeEnabledInput, setPublicPortalHeroBadgeEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.heroBadgeEnabled);
+  const [publicPortalHeroBadgeLabelInput, setPublicPortalHeroBadgeLabelInput] = useState(PUBLIC_PORTAL_DEFAULTS.heroBadgeLabel);
+  const [publicPortalHeroTitleInput, setPublicPortalHeroTitleInput] = useState(PUBLIC_PORTAL_DEFAULTS.heroTitle);
+  const [publicPortalHeroDescriptionEnabledInput, setPublicPortalHeroDescriptionEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.heroDescriptionEnabled);
+  const [publicPortalHeroDescriptionInput, setPublicPortalHeroDescriptionInput] = useState(PUBLIC_PORTAL_DEFAULTS.heroDescription);
+  const [publicPortalMembershipBadgeEnabledInput, setPublicPortalMembershipBadgeEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.membershipBadgeEnabled);
+  const [publicPortalMembershipBadgeLabelInput, setPublicPortalMembershipBadgeLabelInput] = useState(PUBLIC_PORTAL_DEFAULTS.membershipBadgeLabel);
+  const [publicPortalMembershipTitleEnabledInput, setPublicPortalMembershipTitleEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.membershipTitleEnabled);
+  const [publicPortalMembershipTitleInput, setPublicPortalMembershipTitleInput] = useState(PUBLIC_PORTAL_DEFAULTS.membershipTitle);
+  const [publicPortalMembershipDescriptionEnabledInput, setPublicPortalMembershipDescriptionEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.membershipDescriptionEnabled);
+  const [publicPortalMembershipDescriptionInput, setPublicPortalMembershipDescriptionInput] = useState(PUBLIC_PORTAL_DEFAULTS.membershipDescription);
+  const [publicPortalMembershipCtaLabelInput, setPublicPortalMembershipCtaLabelInput] = useState(PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel);
+  const [publicPortalCompletionLoginInfoVisibleInput, setPublicPortalCompletionLoginInfoVisibleInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible);
   const [memberListQuery, setMemberListQuery] = useState('');
   const [memberListFilter, setMemberListFilter] = useState<MemberListFilter>('ALL');
   const [memberListStatusFilter, setMemberListStatusFilter] = useState<MemberStatusFilter>(DEFAULT_MEMBER_STATUS_FILTER);
@@ -250,7 +287,7 @@ const App: React.FC = () => {
   const [withdrawingMemberId, setWithdrawingMemberId] = useState<string | null>(null);
 
   const [selectedIdentityId, setSelectedIdentityId] = useState<string>('');
-  const [authenticatedContext, setAuthenticatedContext] = useState<{ memberId: string; staffId?: string } | null>(null);
+  const [authenticatedContext, setAuthenticatedContext] = useState<{ memberId: string; staffId?: string; loginId?: string } | null>(null);
 
   const applySystemSettings = (systemSettings: SystemSettings) => {
     const limit = Number(systemSettings.defaultBusinessStaffLimit || 10);
@@ -289,6 +326,19 @@ const App: React.FC = () => {
     // v210
     setPublicPortalTrainingMenuEnabledInput(systemSettings.publicPortalTrainingMenuEnabled ?? true);
     setPublicPortalMembershipMenuEnabledInput(systemSettings.publicPortalMembershipMenuEnabled ?? true);
+    setPublicPortalHeroBadgeEnabledInput(systemSettings.publicPortalHeroBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.heroBadgeEnabled);
+    setPublicPortalHeroBadgeLabelInput(systemSettings.publicPortalHeroBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.heroBadgeLabel);
+    setPublicPortalHeroTitleInput(systemSettings.publicPortalHeroTitle ?? PUBLIC_PORTAL_DEFAULTS.heroTitle);
+    setPublicPortalHeroDescriptionEnabledInput(systemSettings.publicPortalHeroDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.heroDescriptionEnabled);
+    setPublicPortalHeroDescriptionInput(systemSettings.publicPortalHeroDescription ?? PUBLIC_PORTAL_DEFAULTS.heroDescription);
+    setPublicPortalMembershipBadgeEnabledInput(systemSettings.publicPortalMembershipBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.membershipBadgeEnabled);
+    setPublicPortalMembershipBadgeLabelInput(systemSettings.publicPortalMembershipBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.membershipBadgeLabel);
+    setPublicPortalMembershipTitleEnabledInput(systemSettings.publicPortalMembershipTitleEnabled ?? PUBLIC_PORTAL_DEFAULTS.membershipTitleEnabled);
+    setPublicPortalMembershipTitleInput(systemSettings.publicPortalMembershipTitle ?? PUBLIC_PORTAL_DEFAULTS.membershipTitle);
+    setPublicPortalMembershipDescriptionEnabledInput(systemSettings.publicPortalMembershipDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.membershipDescriptionEnabled);
+    setPublicPortalMembershipDescriptionInput(systemSettings.publicPortalMembershipDescription ?? PUBLIC_PORTAL_DEFAULTS.membershipDescription);
+    setPublicPortalMembershipCtaLabelInput(systemSettings.publicPortalMembershipCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel);
+    setPublicPortalCompletionLoginInfoVisibleInput(systemSettings.publicPortalCompletionLoginInfoVisible ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible);
     setSettingsIsDirty(false);
     setSystemSettingsLoaded(true);
   };
@@ -340,12 +390,12 @@ const App: React.FC = () => {
   };
 
   const loadMemberPortalData = async (
-    memberId: string,
+    loginId: string,
     options: { force?: boolean } = {},
   ): Promise<{ members: Member[]; trainings: Training[] }> => {
     const { force = false } = options;
-    if (!memberId) {
-      throw new Error('memberId が未指定です。');
+    if (!loginId) {
+      throw new Error('loginId が未指定です。');
     }
     if (!force && memberPortalRequestRef.current) {
       return memberPortalRequestRef.current;
@@ -355,10 +405,24 @@ const App: React.FC = () => {
       try {
         setIsLoading(true);
         setInitError(null);
-        const next = await api.getMemberPortalData(memberId);
+        const next = await api.getMemberPortalData(loginId);
         setMembers(next.members);
         setTrainings(next.trainings);
         setMemberPortalLoaded(true);
+        // v235: バックエンドが解決した memberId/staffId がセッションと異なる場合（ロール変換後など）
+        // authenticatedContext を自動補正してマイページが正しい種別で表示されるようにする
+        if (next.resolvedMemberId) {
+          setAuthenticatedContext(prev => {
+            if (!prev) return prev;
+            if (prev.memberId === next.resolvedMemberId && (prev.staffId || '') === (next.resolvedStaffId || '')) return prev;
+            return { ...prev, memberId: next.resolvedMemberId!, staffId: next.resolvedStaffId || undefined };
+          });
+          // selectedIdentityId も更新（ロール変換後に正しい Identity が選択されるよう）
+          const newIdentityId = next.resolvedStaffId
+            ? `${next.resolvedMemberId}-${next.resolvedStaffId}`
+            : next.resolvedMemberId;
+          setSelectedIdentityId(newIdentityId);
+        }
         return next;
       } catch (error) {
         console.error('Member portal initialization failed:', error);
@@ -515,9 +579,9 @@ const App: React.FC = () => {
 
   const refreshAllData = async () => {
     const tasks: Promise<unknown>[] = [];
-    const activeMemberId = currentIdentity?.memberId || authenticatedContext?.memberId;
-    if (activeMemberId && memberPortalLoaded) {
-      tasks.push(loadMemberPortalData(activeMemberId, { force: true }));
+    const activeLoginId = authenticatedContext?.loginId;
+    if (activeLoginId && memberPortalLoaded) {
+      tasks.push(loadMemberPortalData(activeLoginId, { force: true }));
     }
     if (fullDataLoaded) {
       tasks.push(loadAppData({ includeAdminSettings: userRole === 'ADMIN', force: true }));
@@ -583,8 +647,9 @@ const App: React.FC = () => {
     }
 
     if (currentView === 'profile' || currentView === 'training-apply') {
-      if (activeMemberId && !memberPortalLoaded) {
-        loadMemberPortalData(activeMemberId, { force: true }).catch(() => undefined);
+      const activeLoginId = authenticatedContext?.loginId;
+      if (activeLoginId && !memberPortalLoaded) {
+        loadMemberPortalData(activeLoginId, { force: true }).catch(() => undefined);
       }
       return;
     }
@@ -816,11 +881,11 @@ const App: React.FC = () => {
   };
 
   const applyAuthContext = (
-    ctx: { memberId: string; staffId?: string; canAccessAdminPage: boolean; adminPermissionLevel?: AdminPermissionLevel },
+    ctx: { memberId: string; staffId?: string; loginId?: string; canAccessAdminPage: boolean; adminPermissionLevel?: AdminPermissionLevel },
     availableMembers: Member[] = members,
   ) => {
     const identities = buildLoginIdentities(availableMembers);
-    setAuthenticatedContext({ memberId: ctx.memberId, staffId: ctx.staffId });
+    setAuthenticatedContext({ memberId: ctx.memberId, staffId: ctx.staffId, loginId: ctx.loginId });
     setSelectedIdentityId(resolveIdentityId(ctx, identities));
     const permLevel = ctx.adminPermissionLevel || null;
     setAdminPermissionLevel(permLevel);
@@ -2177,6 +2242,139 @@ const App: React.FC = () => {
                   </p>
                 )}
               </div>
+              <div className="border border-slate-200 rounded-lg p-4 space-y-4">
+                <div>
+                  <h5 className="text-sm font-semibold text-slate-800 mb-1">公開ポータル文言設定</h5>
+                  <p className="text-sm text-slate-600">
+                    トップの案内文と入会申込カードの見出し・説明文・ボタン文言を変更できます。不要な補助文言は非表示にできます。
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={publicPortalHeroBadgeEnabledInput}
+                      onChange={(e) => { setPublicPortalHeroBadgeEnabledInput(e.target.checked); setSettingsIsDirty(true); }}
+                      className="accent-primary-600"
+                    />
+                    <span className="text-sm text-slate-700">トップ補助ラベルを表示する</span>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={publicPortalHeroDescriptionEnabledInput}
+                      onChange={(e) => { setPublicPortalHeroDescriptionEnabledInput(e.target.checked); setSettingsIsDirty(true); }}
+                      className="accent-primary-600"
+                    />
+                    <span className="text-sm text-slate-700">トップ説明文を表示する</span>
+                  </label>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">トップ補助ラベル</label>
+                    <input
+                      type="text"
+                      value={publicPortalHeroBadgeLabelInput}
+                      onChange={(e) => { setPublicPortalHeroBadgeLabelInput(e.target.value); setSettingsIsDirty(true); }}
+                      className="w-full border border-slate-300 rounded px-3 py-2"
+                      placeholder="例: お申込みポータル"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">トップ見出し</label>
+                    <input
+                      type="text"
+                      value={publicPortalHeroTitleInput}
+                      onChange={(e) => { setPublicPortalHeroTitleInput(e.target.value); setSettingsIsDirty(true); }}
+                      className="w-full border border-slate-300 rounded px-3 py-2"
+                      placeholder="例: 研修申込・申込取消・新規入会申込を受け付けています"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">トップ説明文</label>
+                  <textarea
+                    value={publicPortalHeroDescriptionInput}
+                    onChange={(e) => { setPublicPortalHeroDescriptionInput(e.target.value); setSettingsIsDirty(true); }}
+                    rows={3}
+                    className="w-full border border-slate-300 rounded px-3 py-2"
+                    placeholder="例: ご希望の手続きを選択し、そのまま申込画面へ進んでください。"
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={publicPortalMembershipBadgeEnabledInput}
+                      onChange={(e) => { setPublicPortalMembershipBadgeEnabledInput(e.target.checked); setSettingsIsDirty(true); }}
+                      className="accent-primary-600"
+                    />
+                    <span className="text-sm text-slate-700">入会カードの補助ラベルを表示する</span>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={publicPortalMembershipTitleEnabledInput}
+                      onChange={(e) => { setPublicPortalMembershipTitleEnabledInput(e.target.checked); setSettingsIsDirty(true); }}
+                      className="accent-primary-600"
+                    />
+                    <span className="text-sm text-slate-700">入会カードの見出しを表示する</span>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={publicPortalMembershipDescriptionEnabledInput}
+                      onChange={(e) => { setPublicPortalMembershipDescriptionEnabledInput(e.target.checked); setSettingsIsDirty(true); }}
+                      className="accent-primary-600"
+                    />
+                    <span className="text-sm text-slate-700">入会カードの説明文を表示する</span>
+                  </label>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">入会カードの補助ラベル</label>
+                    <input
+                      type="text"
+                      value={publicPortalMembershipBadgeLabelInput}
+                      onChange={(e) => { setPublicPortalMembershipBadgeLabelInput(e.target.value); setSettingsIsDirty(true); }}
+                      className="w-full border border-slate-300 rounded px-3 py-2"
+                      placeholder="例: 入会申込"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">入会カードの見出し</label>
+                    <input
+                      type="text"
+                      value={publicPortalMembershipTitleInput}
+                      onChange={(e) => { setPublicPortalMembershipTitleInput(e.target.value); setSettingsIsDirty(true); }}
+                      className="w-full border border-slate-300 rounded px-3 py-2"
+                      placeholder="例: 新規入会を申し込む"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">入会カードの説明文</label>
+                    <textarea
+                      value={publicPortalMembershipDescriptionInput}
+                      onChange={(e) => { setPublicPortalMembershipDescriptionInput(e.target.value); setSettingsIsDirty(true); }}
+                      rows={3}
+                      className="w-full border border-slate-300 rounded px-3 py-2"
+                      placeholder="例: 個人会員・事業所会員・賛助会員の入会申込を受け付けています。"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">入会カードのボタン文言</label>
+                    <input
+                      type="text"
+                      value={publicPortalMembershipCtaLabelInput}
+                      onChange={(e) => { setPublicPortalMembershipCtaLabelInput(e.target.value); setSettingsIsDirty(true); }}
+                      className="w-full border border-slate-300 rounded px-3 py-2"
+                      placeholder="例: 入会申込へ進む"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* v209: 入会時認証情報メール設定 */}
@@ -2208,6 +2406,26 @@ const App: React.FC = () => {
                     準備が整ったら ON に戻してください。
                   </p>
                 )}
+                <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                  <label className="flex items-center gap-3 cursor-pointer w-fit">
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        className="sr-only"
+                        checked={publicPortalCompletionLoginInfoVisibleInput}
+                        onChange={(e) => { setPublicPortalCompletionLoginInfoVisibleInput(e.target.checked); setSettingsIsDirty(true); }}
+                      />
+                      <div className={`w-11 h-6 rounded-full transition-colors ${publicPortalCompletionLoginInfoVisibleInput ? 'bg-emerald-600' : 'bg-slate-300'}`} />
+                      <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${publicPortalCompletionLoginInfoVisibleInput ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                    <span className="text-sm font-medium text-slate-700">
+                      入会申込完了画面でログイン情報を表示する
+                    </span>
+                  </label>
+                  <p className="mt-2 text-xs text-slate-500">
+                    OFF の場合はログイン情報一覧を画面に表示せず、メール送信状況のみ案内します。会員ページ公開時に ON へ戻してください。
+                  </p>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">メール件名</label>
@@ -2421,6 +2639,19 @@ const App: React.FC = () => {
                     credentialEmailBody: credentialEmailBodyInput,
                     publicPortalTrainingMenuEnabled: publicPortalTrainingMenuEnabledInput,
                     publicPortalMembershipMenuEnabled: publicPortalMembershipMenuEnabledInput,
+                    publicPortalHeroBadgeEnabled: publicPortalHeroBadgeEnabledInput,
+                    publicPortalHeroBadgeLabel: publicPortalHeroBadgeLabelInput,
+                    publicPortalHeroTitle: publicPortalHeroTitleInput,
+                    publicPortalHeroDescriptionEnabled: publicPortalHeroDescriptionEnabledInput,
+                    publicPortalHeroDescription: publicPortalHeroDescriptionInput,
+                    publicPortalMembershipBadgeEnabled: publicPortalMembershipBadgeEnabledInput,
+                    publicPortalMembershipBadgeLabel: publicPortalMembershipBadgeLabelInput,
+                    publicPortalMembershipTitleEnabled: publicPortalMembershipTitleEnabledInput,
+                    publicPortalMembershipTitle: publicPortalMembershipTitleInput,
+                    publicPortalMembershipDescriptionEnabled: publicPortalMembershipDescriptionEnabledInput,
+                    publicPortalMembershipDescription: publicPortalMembershipDescriptionInput,
+                    publicPortalMembershipCtaLabel: publicPortalMembershipCtaLabelInput,
+                    publicPortalCompletionLoginInfoVisible: publicPortalCompletionLoginInfoVisibleInput,
                   });
                   setDefaultBusinessStaffLimit(saved.defaultBusinessStaffLimit);
                   setGlobalLimitInput(String(saved.defaultBusinessStaffLimit));
@@ -2442,6 +2673,19 @@ const App: React.FC = () => {
                   setCredentialEmailBodyInput(saved.credentialEmailBody ?? CREDENTIAL_EMAIL_DEFAULT_BODY);
                   setPublicPortalTrainingMenuEnabledInput(saved.publicPortalTrainingMenuEnabled ?? true);
                   setPublicPortalMembershipMenuEnabledInput(saved.publicPortalMembershipMenuEnabled ?? true);
+                  setPublicPortalHeroBadgeEnabledInput(saved.publicPortalHeroBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.heroBadgeEnabled);
+                  setPublicPortalHeroBadgeLabelInput(saved.publicPortalHeroBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.heroBadgeLabel);
+                  setPublicPortalHeroTitleInput(saved.publicPortalHeroTitle ?? PUBLIC_PORTAL_DEFAULTS.heroTitle);
+                  setPublicPortalHeroDescriptionEnabledInput(saved.publicPortalHeroDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.heroDescriptionEnabled);
+                  setPublicPortalHeroDescriptionInput(saved.publicPortalHeroDescription ?? PUBLIC_PORTAL_DEFAULTS.heroDescription);
+                  setPublicPortalMembershipBadgeEnabledInput(saved.publicPortalMembershipBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.membershipBadgeEnabled);
+                  setPublicPortalMembershipBadgeLabelInput(saved.publicPortalMembershipBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.membershipBadgeLabel);
+                  setPublicPortalMembershipTitleEnabledInput(saved.publicPortalMembershipTitleEnabled ?? PUBLIC_PORTAL_DEFAULTS.membershipTitleEnabled);
+                  setPublicPortalMembershipTitleInput(saved.publicPortalMembershipTitle ?? PUBLIC_PORTAL_DEFAULTS.membershipTitle);
+                  setPublicPortalMembershipDescriptionEnabledInput(saved.publicPortalMembershipDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.membershipDescriptionEnabled);
+                  setPublicPortalMembershipDescriptionInput(saved.publicPortalMembershipDescription ?? PUBLIC_PORTAL_DEFAULTS.membershipDescription);
+                  setPublicPortalMembershipCtaLabelInput(saved.publicPortalMembershipCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel);
+                  setPublicPortalCompletionLoginInfoVisibleInput(saved.publicPortalCompletionLoginInfoVisible ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible);
                   setSettingsIsDirty(false);
                   alert('設定を保存しました。');
                 } catch (e) {
@@ -2533,6 +2777,13 @@ const App: React.FC = () => {
         return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
       }
       return <MailingListExport api={api} />;
+    }
+
+    if (currentView === 'member-delete') {
+      if (userRole !== 'ADMIN' || adminPermissionLevel !== 'MASTER') {
+        return <div className="text-red-500 p-4">この機能はMASTER権限専用です。</div>;
+      }
+      return <MemberDeleteConsole />;
     }
 
     if (currentView === 'training-apply') {

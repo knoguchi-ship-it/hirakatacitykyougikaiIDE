@@ -41,6 +41,9 @@ const Sidebar: React.FC<SidebarProps> = ({
           { id: 'mailing-list-export', label: '宛名リスト出力コンソール', icon: <HomeIcon className="w-5 h-5" /> },
           { id: 'system-permissions', label: '管理コンソール（システム権限）', icon: <SettingsIcon className="w-5 h-5" /> },
           { id: 'admin-settings', label: 'システム設定', icon: <SettingsIcon className="w-5 h-5" /> },
+          ...(adminPermissionLevel === 'MASTER'
+            ? [{ id: 'member-delete', label: 'データ管理コンソール', icon: <SettingsIcon className="w-5 h-5" /> }]
+            : []),
         ]
       : []),
     ...(showAdminPage && isTrainingOnly

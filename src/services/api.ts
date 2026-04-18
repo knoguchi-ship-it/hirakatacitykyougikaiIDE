@@ -54,7 +54,7 @@ declare const google: {
 
 export interface ApiClient {
   fetchAllData(): Promise<{ members: Member[], trainings: Training[] }>;
-  getMemberPortalData(memberId: string): Promise<{ members: Member[], trainings: Training[] }>;
+  getMemberPortalData(loginId: string): Promise<{ members: Member[], trainings: Training[], resolvedMemberId?: string, resolvedStaffId?: string }>;
   getAdminDashboardData(): Promise<AdminDashboardData>;
   getAdminInitData(): Promise<{ dashboard: AdminDashboardData; settings: SystemSettings }>;
   adminLoginWithData(): Promise<{ auth: AdminLoginResult; portal: { members: Member[]; trainings: Training[] } }>;
@@ -174,6 +174,44 @@ export interface ApiClient {
   getBulkMailTemplates(): Promise<import('../types').EmailTemplate[]>;
   saveBulkMailTemplate(payload: { id?: string; name: string; subject: string; body: string }): Promise<import('../types').EmailTemplate>;
   deleteBulkMailTemplate(id: string): Promise<{ deletedId: string }>;
+  // v232: 物理削除（MASTER専用）
+  searchMembersForDelete(query: string): Promise<MemberDeleteSearchResult[]>;
+  previewDeleteMember(memberIds: string[]): Promise<MemberDeletePreview>;
+  executeDeleteMember(memberIds: string[], confirmText: string): Promise<MemberDeleteResult>;
+  getDeleteLogs(limit?: number): Promise<DeleteLogEntry[]>;
+  // v233: 重複職員レコード修復（MASTER専用）
+  repairDuplicateStaffRecords(): Promise<{ repaired: number }>;
+  // v234: 研修申込の申込者ID不整合修復（MASTER専用）
+  repairTrainingApplicationApplicantIds(): Promise<{ repaired: number; skipped: number }>;
+}
+
+export interface MemberDeleteSearchResult {
+  memberId: string;
+  displayName: string;
+  memberType: string;
+  memberStatus: string;
+  loginId: string;
+  isDeleted: boolean;
+}
+
+export interface MemberDeletePreview {
+  targets: Array<{ memberId: string; displayName: string; memberType: string; memberStatus: string }>;
+  counts: Record<string, number>;
+  totalRows: number;
+}
+
+export interface MemberDeleteResult {
+  logId: string;
+  deletedMemberIds: string[];
+  deletedCounts: Record<string, number>;
+}
+
+export interface DeleteLogEntry {
+  logId: string;
+  operatedAt: string;
+  operatorEmail: string;
+  memberIdList: string;
+  totalDeletedRows: number;
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -291,7 +329,7 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async getMemberPortalData(memberId: string): Promise<{ members: Member[], trainings: Training[] }> {
+  async getMemberPortalData(loginId: string): Promise<{ members: Member[], trainings: Training[], resolvedMemberId?: string, resolvedStaffId?: string }> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
         reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
@@ -307,6 +345,8 @@ class GasApiClient implements ApiClient {
               resolve({
                 members: normalizeMemberLoginIds(data.members || []),
                 trainings: data.trainings || [],
+                resolvedMemberId: data.resolvedMemberId,
+                resolvedStaffId: data.resolvedStaffId,
               });
             } else {
               reject(new Error(parsed.error || 'API Error'));
@@ -316,7 +356,7 @@ class GasApiClient implements ApiClient {
           }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getMemberPortalData', JSON.stringify({ memberId }));
+        .processApiRequest('getMemberPortalData', JSON.stringify({ loginId }));
     });
   }
 
@@ -1392,6 +1432,85 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('deleteBulkMailTemplate', JSON.stringify({ id }));
+    });
+  }
+
+  // v232: 物理削除
+  async searchMembersForDelete(query: string): Promise<import('./api').MemberDeleteSearchResult[]> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('searchMembersForDelete', JSON.stringify({ query }));
+    });
+  }
+
+  async previewDeleteMember(memberIds: string[]): Promise<import('./api').MemberDeletePreview> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('previewDeleteMember', JSON.stringify({ memberIds }));
+    });
+  }
+
+  async executeDeleteMember(memberIds: string[], confirmText: string): Promise<import('./api').MemberDeleteResult> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('executeDeleteMember', JSON.stringify({ memberIds, confirmText }));
+    });
+  }
+
+  async getDeleteLogs(limit = 20): Promise<import('./api').DeleteLogEntry[]> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getDeleteLogs', JSON.stringify({ limit }));
+    });
+  }
+
+  async repairDuplicateStaffRecords(): Promise<{ repaired: number }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('repairDuplicateStaffRecords', JSON.stringify({}));
+    });
+  }
+
+  async repairTrainingApplicationApplicantIds(): Promise<{ repaired: number; skipped: number }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('repairTrainingApplicationApplicantIds', JSON.stringify({}));
     });
   }
 }

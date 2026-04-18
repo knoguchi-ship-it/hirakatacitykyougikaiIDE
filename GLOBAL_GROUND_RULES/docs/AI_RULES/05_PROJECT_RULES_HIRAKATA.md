@@ -1,6 +1,6 @@
 # 05_PROJECT_RULES_HIRAKATA
 
-更新日: 2026-04-14
+更新日: 2026-04-17
 
 ## 目的
 - この文書は、枚方市介護支援専門員連絡協議会 会員システムにおける案件固有ルールの正本である。
@@ -22,6 +22,7 @@
 - 版番号、fixed deployment の向き先、最新 release state 参照は固定ルールへ埋め込まず、`HANDOVER.md` と `docs/09_DEPLOYMENT_POLICY.md` を都度更新して管理する。
 - 文字化け、参照切れ、版ずれ、古い handover 入口を見つけたら先に直す。
 - この案件では「動いた」だけでは完了としない。Apps Script 実行系と固定 deployment の整合まで確認して完了とする。
+- 実ブラウザでの確認は原則として操作者が行い、AI / agent はコード上の整合確認、build、Apps Script 実行系コマンド確認、取得できるエラー調査を担当する。
 
 ## 案件正本
 - `HANDOVER.md`
@@ -41,9 +42,11 @@
 - 管理者ログインは Google アカウント + whitelist 検証。
 - 本番 URL は fixed deployment 2 本で管理し、`docs/09_DEPLOYMENT_POLICY.md` に従う。
 - 本番の fixed deployment 更新は `npx clasp redeploy` を標準とし、Apps Script UI の `Manage deployments` 手更新は障害復旧または緊急迂回時だけに限定する。
+- `npx clasp version` / `npx clasp redeploy` / `npx clasp deployments --json` / `npx clasp run ...` などの Apps Script API 到達コマンドは、既知のネットワーク失敗を避けるため、最初から承認済みの安定経路で実行する。通常経路で一度失敗してから再実行する流れを標準運用にしない。
 - release 完了条件は `build -> push -> version -> fixed deployment sync -> verification -> document update`。
 - fixed deployment sync の確認は `npx clasp deployments --json` を正とする。
 - 毎回更新する文書は `HANDOVER.md`、`docs/09_DEPLOYMENT_POLICY.md`、必要に応じた release state 文書とし、この固定ルール文書は運用原則変更時のみ更新する。
+- 実ブラウザ確認が操作者待ちの場合でも、コード上の検証結果、未確認範囲、想定確認ポイントを明記して引き継ぐ。
 
 ## 現行の本番前提
 - 現行本番 version と fixed deployment の向き先は `HANDOVER.md` と `docs/09_DEPLOYMENT_POLICY.md` を正とし、この文書には固定で埋め込まない。

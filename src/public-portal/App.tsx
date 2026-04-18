@@ -6,6 +6,23 @@ import PublicTrainingList from './components/PublicTrainingList';
 import ExternalApplyForm from './components/ExternalApplyForm';
 import CancelForm from './components/CancelForm';
 
+type PublicPortalContentSettings = {
+  heroBadgeEnabled: boolean;
+  heroBadgeLabel: string;
+  heroTitle: string;
+  heroDescriptionEnabled: boolean;
+  heroDescription: string;
+  membershipBadgeEnabled: boolean;
+  membershipBadgeLabel: string;
+  membershipTitleEnabled: boolean;
+  membershipTitle: string;
+  membershipDescriptionEnabled: boolean;
+  membershipDescription: string;
+  membershipCtaLabel: string;
+  completionLoginInfoVisible: boolean;
+  credentialEmailEnabled: boolean;
+};
+
 type View =
   | 'home'
   | 'training-list'
@@ -13,6 +30,23 @@ type View =
   | 'training-cancel'
   | 'training-complete'
   | 'member-application';
+
+const DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS: PublicPortalContentSettings = {
+  heroBadgeEnabled: false,
+  heroBadgeLabel: 'お申込みポータル',
+  heroTitle: '研修申込・申込取消・新規入会申込を受け付けています',
+  heroDescriptionEnabled: false,
+  heroDescription: 'ご希望の手続きを選択し、そのまま申込画面へ進んでください。',
+  membershipBadgeEnabled: true,
+  membershipBadgeLabel: '入会申込',
+  membershipTitleEnabled: true,
+  membershipTitle: '新規入会を申し込む',
+  membershipDescriptionEnabled: true,
+  membershipDescription: '個人会員・事業所会員・賛助会員の入会申込を受け付けています。',
+  membershipCtaLabel: '入会申込へ進む',
+  completionLoginInfoVisible: true,
+  credentialEmailEnabled: true,
+};
 
 const PublicApp: React.FC = () => {
   const [view, setView] = useState<View>('home');
@@ -25,6 +59,7 @@ const PublicApp: React.FC = () => {
   // null = 未確定（ローディング中）。設定確定前は一切描画しない（FOIC防止）
   const [trainingMenuEnabled, setTrainingMenuEnabled] = useState<boolean | null>(null);
   const [membershipMenuEnabled, setMembershipMenuEnabled] = useState<boolean | null>(null);
+  const [portalContentSettings, setPortalContentSettings] = useState<PublicPortalContentSettings | null>(null);
   const mainRef = useRef<HTMLElement>(null);
   const isFirstRender = useRef(true);
 
@@ -52,7 +87,7 @@ const PublicApp: React.FC = () => {
       try {
         const [trainingsData, portalSettings] = await Promise.allSettled([
           callApi<PublicTraining[]>('getPublicTrainings'),
-          callApi<{ trainingMenuEnabled: boolean; membershipMenuEnabled: boolean }>('getPublicPortalSettings'),
+          callApi<{ trainingMenuEnabled: boolean; membershipMenuEnabled: boolean } & PublicPortalContentSettings>('getPublicPortalSettings'),
         ]);
         if (trainingsData.status === 'fulfilled') {
           setTrainings(trainingsData.value ?? []);
@@ -64,9 +99,26 @@ const PublicApp: React.FC = () => {
         if (portalSettings.status === 'fulfilled' && portalSettings.value) {
           setTrainingMenuEnabled(portalSettings.value.trainingMenuEnabled !== false);
           setMembershipMenuEnabled(portalSettings.value.membershipMenuEnabled !== false);
+          setPortalContentSettings({
+            heroBadgeEnabled: portalSettings.value.heroBadgeEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.heroBadgeEnabled,
+            heroBadgeLabel: portalSettings.value.heroBadgeLabel || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.heroBadgeLabel,
+            heroTitle: portalSettings.value.heroTitle || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.heroTitle,
+            heroDescriptionEnabled: portalSettings.value.heroDescriptionEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.heroDescriptionEnabled,
+            heroDescription: portalSettings.value.heroDescription || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.heroDescription,
+            membershipBadgeEnabled: portalSettings.value.membershipBadgeEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipBadgeEnabled,
+            membershipBadgeLabel: portalSettings.value.membershipBadgeLabel || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipBadgeLabel,
+            membershipTitleEnabled: portalSettings.value.membershipTitleEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipTitleEnabled,
+            membershipTitle: portalSettings.value.membershipTitle || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipTitle,
+            membershipDescriptionEnabled: portalSettings.value.membershipDescriptionEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipDescriptionEnabled,
+            membershipDescription: portalSettings.value.membershipDescription || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipDescription,
+            membershipCtaLabel: portalSettings.value.membershipCtaLabel || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipCtaLabel,
+            completionLoginInfoVisible: portalSettings.value.completionLoginInfoVisible ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionLoginInfoVisible,
+            credentialEmailEnabled: portalSettings.value.credentialEmailEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.credentialEmailEnabled,
+          });
         } else {
           setTrainingMenuEnabled(true);
           setMembershipMenuEnabled(true);
+          setPortalContentSettings(DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS);
         }
       } finally {
         setIsLoading(false);
@@ -103,20 +155,26 @@ const PublicApp: React.FC = () => {
     setView('training-list');
   };
 
-  const renderHome = () => (
+  const renderHome = () => {
+    const content = portalContentSettings ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS;
+    return (
     <div className="space-y-8">
       <section className="rounded-[28px] border border-slate-200 bg-white px-6 py-8 shadow-sm md:px-10">
         <div className="max-w-3xl space-y-4">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-sky-700">
-            Application Portal
-          </p>
+          {content.heroBadgeEnabled && (
+            <p className="text-sm font-semibold tracking-[0.12em] text-sky-700">
+              {content.heroBadgeLabel}
+            </p>
+          )}
           <div className="space-y-3">
             <h2 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
-              研修申込と新規入会を、同じ公開ポータルから受け付けます。
+              {content.heroTitle}
             </h2>
-            <p className="max-w-2xl text-sm leading-7 text-slate-600 md:text-base">
-              このページはログイン不要です。最初にご希望の手続きを選択し、そのまま申込画面へ進んでください。
-            </p>
+            {content.heroDescriptionEnabled && (
+              <p className="max-w-2xl text-sm leading-7 text-slate-600 md:text-base">
+                {content.heroDescription}
+              </p>
+            )}
           </div>
         </div>
       </section>
@@ -168,16 +226,21 @@ const PublicApp: React.FC = () => {
               onClick={() => setView('member-application')}
               className="group rounded-[28px] border border-emerald-200 bg-[linear-gradient(135deg,#ecfdf5_0%,#ffffff_70%)] p-7 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
             >
-              <div className="mb-5 inline-flex rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-white">
-                MEMBERSHIP
-              </div>
-              <h3 className="text-2xl font-bold text-slate-900">新規入会を申し込む</h3>
-              <p className="mt-3 text-sm leading-7 text-slate-600">
-                個人会員、事業所会員、賛助会員の入会申込を受け付けます。登録後のログイン情報はメールで通知します。
-              </p>
+              {content.membershipBadgeEnabled && (
+                <div className="mb-5 inline-flex rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold tracking-[0.12em] text-white">
+                  {content.membershipBadgeLabel}
+                </div>
+              )}
+              {content.membershipTitleEnabled && (
+                <h3 className="text-2xl font-bold text-slate-900">{content.membershipTitle}</h3>
+              )}
+              {content.membershipDescriptionEnabled && (
+                <p className="mt-3 text-sm leading-7 text-slate-600">
+                  {content.membershipDescription}
+                </p>
+              )}
               <div className="mt-6 flex items-center justify-between text-sm">
-                <span className="font-medium text-emerald-700">ログイン不要で申込できます</span>
-                <span className="font-semibold text-slate-900 transition group-hover:translate-x-0.5">進む →</span>
+                <span className="font-semibold text-slate-900 transition group-hover:translate-x-0.5">{content.membershipCtaLabel} →</span>
               </div>
             </button>
           )}
@@ -198,6 +261,7 @@ const PublicApp: React.FC = () => {
       )}
     </div>
   );
+  };
 
   const renderTrainingList = () => (
     <>
@@ -317,6 +381,8 @@ const PublicApp: React.FC = () => {
             title="新規入会申込"
             backLabel="ポータルトップへ戻る"
             completeLabel="ポータルトップへ戻る"
+            showCompletionLoginInfo={portalContentSettings?.completionLoginInfoVisible ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionLoginInfoVisible}
+            credentialEmailEnabled={portalContentSettings?.credentialEmailEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.credentialEmailEnabled}
           />
         )}
       </main>

@@ -1,13 +1,14 @@
 # Deployment Policy
 
 Updated: 2026-04-17
-Production: `v226` / fixed deployments `@226`
+Production: `v231` / fixed deployments `@231`
 
 ## 1. Purpose
 
 - Keep member and public URLs stable.
 - Sync both fixed deployments to the same version on every release.
 - Standardize production sync on terminal `clasp` commands instead of ad hoc UI edits.
+- Use the stable approved execution path for Apps Script API commands from the start, instead of first attempting a route that is known to fail intermittently in this environment.
 - Avoid `/exec` 404 regressions and accidental Web app type loss.
 
 ## 2. Fixed Deployment IDs
@@ -17,7 +18,7 @@ Production: `v226` / fixed deployments `@226`
 | Member portal | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `/exec` |
 | Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `/exec?app=public` |
 
-Both fixed deployments currently point to `@226`.
+Both fixed deployments currently point to `@231`.
 
 ## 3. Standard Release Steps
 
@@ -31,6 +32,16 @@ npm run build:gas
 npx clasp show-authorized-user
 npx clasp deployments
 ```
+
+Execution rule:
+
+- `npx clasp version`
+- `npx clasp redeploy`
+- `npx clasp deployments --json`
+- `npx clasp run healthCheck`
+- `npx clasp run getDbInfo`
+
+These must be run from the beginning on the approved stable path for this environment. Do not adopt a two-step flow where the command is first run on a route that is already known to fail and only then retried.
 
 ### 3.2 Push and version
 
@@ -62,7 +73,7 @@ npx clasp run healthCheck
 npx clasp run getDbInfo
 ```
 
-Also verify the runtime in a real browser when the change affects user flows.
+When the change affects user flows, real-browser verification is performed by the operator by default. The agent is responsible for code-level verification, build verification, Apps Script command checks, and documenting any remaining browser-side confirmation points.
 
 ## 4. Done Criteria
 
@@ -94,7 +105,8 @@ Also verify the runtime in a real browser when the change affects user flows.
 
 1. Check `npx clasp show-authorized-user`.
 2. Read `docs/16_INCIDENT_clasp_run_permission_2026-03-14.md`.
-3. Repair the operator auth state.
+3. Reconfirm that the command is being run on the approved stable path before treating it as a product-side failure.
+4. Repair the operator auth state.
 
 ### Document mojibake appears
 
@@ -102,6 +114,72 @@ Also verify the runtime in a real browser when the change affects user flows.
 - Do not leave corrupted source documents in place.
 
 ## 7. Current Recorded State
+
+### 2026-04-17 `v231`
+
+- Version `231` created: postal code split input + readonly office destination + annual fee consecutive fiscal years.
+- member/public の両 fixed deployment を `npx clasp redeploy` で `@231` に同期。
+- Verification:
+  - `npm run typecheck` ✅
+  - `npm run build` ✅
+  - `npm run build:gas` ✅
+  - `npx clasp show-authorized-user` ✅ (`k.noguchi@hcm-n.org`)
+  - `npx clasp deployments --json` ✅
+  - `npx clasp run healthCheck` ❌ `Unable to run script function`
+  - `npx clasp run getDbInfo` ❌ `Unable to run script function`
+- `clasp run` は project-scoped OAuth / permission issue の既知問題が継続。実行時は最初から承認済みの安定経路を使うこと。
+
+### 2026-04-17 `v230`
+
+- Version `230` created: active principal resolution for member-type reconversion.
+- member/public の両 fixed deployment を `npx clasp redeploy` で `@230` に同期。
+- Verification:
+  - `npm run typecheck` ✅
+  - `npm run build` ✅
+  - `npm run build:gas` ✅
+  - `npx clasp deployments --json` ✅
+  - `npx clasp run healthCheck` ❌ `Unable to run script function`
+  - `npx clasp run getDbInfo` ❌ `Unable to run script function`
+- `clasp run` は project-scoped OAuth / permission issue の既知問題が継続。実行時は最初から承認済みの安定経路を使うこと。
+
+### 2026-04-17 `v228`
+
+- Version `228` created: public membership completion toggle + address validation fixes.
+- member/public の両 fixed deployment を `npx clasp redeploy` で `@228` に同期。
+- Verification:
+  - `npm run typecheck` ✅
+  - `npm run build` ✅
+  - `npm run build:gas` ✅
+  - `npx clasp deployments --json` ✅
+  - `npx clasp run healthCheck` ❌ `Unable to run script function`
+  - `npx clasp run getDbInfo` ❌ `Unable to run script function`
+- `clasp run` は project-scoped OAuth / permission issue の既知問題が継続。次セッション開始時に再認証を確認すること。
+
+### 2026-04-17 `v229`
+
+- Version `229` created: member-page annual fee history + transfer-account fallback fixes.
+- member/public の両 fixed deployment を `npx clasp redeploy` で `@229` に同期。
+- Verification:
+  - `npm run typecheck` ✅
+  - `npm run build` ✅
+  - `npm run build:gas` ✅
+  - `npx clasp deployments --json` ✅
+  - `npx clasp run healthCheck` ❌ `Unable to run script function`
+  - `npx clasp run getDbInfo` ❌ `Unable to run script function`
+- `clasp run` は project-scoped OAuth / permission issue の既知問題が継続。次セッション開始時に再認証を確認すること。
+
+### 2026-04-17 `v227`
+
+- Version `227` created: public portal copy settings + Japanese membership label defaults.
+- member/public の両 fixed deployment を `npx clasp redeploy` で `@227` に同期。
+- Verification:
+  - `npm run typecheck` ✅
+  - `npm run build` ✅
+  - `npm run build:gas` ✅
+  - `npx clasp deployments --json` ✅
+  - `npx clasp run healthCheck` ❌ `Unable to run script function`
+  - `npx clasp run getDbInfo` ❌ `Unable to run script function`
+- `clasp run` は project-scoped OAuth / permission issue の既知問題が継続。次セッション開始時に再認証を確認すること。
 
 ### 2026-04-16 `v222`
 
