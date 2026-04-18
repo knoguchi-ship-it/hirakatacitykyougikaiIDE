@@ -1,13 +1,32 @@
 # 開発引継ぎ
 
 更新日: 2026-04-18
-現行本番: `v235`（GAS version 235）
-固定 deployment: member `@235` / public `@235`
-補足: v235 でセッションアンカーを loginId に変更しロール変換後のマイページ表示不整合を修正。v234 で研修申込申込者ID修正。v233 で職員重複バグ修正。
-v231 以前の変更も継続有効。
+現行本番: `v236`（GAS version 236）
+固定 deployment: member `@236` / public `@236`
+補足: v236 で個人→事業所転換機能の強化（既存会員転籍・職員追加フォームの CM 番号必須化・賛助会員転籍時 CM 番号入力対応）。v235 でセッションアンカーを loginId に変更しロール変換後のマイページ表示不整合を修正。v231 以前の変更も継続有効。
 
-## 0. v235 Current Quick Status
+## 0. v236 本番稼働中
+
+### v236 — 個人→事業所転換強化・職員追加 CM 番号必須化（2026-04-18 リリース済み）
+- **新機能**: 事業所会員詳細画面に「既存会員を転籍」ボタン追加。登録済みの個人/賛助会員を一覧から選択して転籍可能に。
+- **バグ修正**: 職員追加フォームに`介護支援専門員番号`フィールド追加（必須・8桁・フロントバリデーション）。保存時バックエンドエラーになっていた問題を解消。
+- **バグ修正**: `syncBusinessStaffRows_` が `介護支援専門員番号` を `upsertStaffRow_` に渡していなかった問題を修正（DB に空値で登録されていた）。
+- **賛助会員転籍対応**: 個人→事業所転籍モーダル・既存会員転籍モーダル両方で、賛助会員が選択された場合に `介護支援専門員番号` 入力欄を表示。バックエンドで受け取り・DB 書き戻しも対応。
+- **型拡張**: `ConvertMemberTypePayload` に `careManagerNumber?: string` を追加。
+- Verification:
+  - `npm run typecheck` ✅
+  - `npm run build:gas` ✅
+  - `npx clasp push --force` ✅（4 files pushed）
+  - `npx clasp version` ✅（version 236 created）
+  - `npx clasp deployments --json` ✅（member + public ともに versionNumber: 236）
+  - 実ブラウザ確認 → 操作者側で実施すること
+
+---
+
+## 0b. v235 Current Quick Status
 - current production: `v235` / fixed deployments member `@235` / public `@235`
+- release-state の参照は当面 `docs/98_RELEASE_STATE_v235_2026-04-18.md` を正本とする。`v232`〜`v235` は個別文書へ未分割のため、再開時はまずこの 1 本を読むこと。
+- 再開直後に `HANDOVER.md` と runtime の値が食い違う場合は、`npx clasp deployments --json` / `npx clasp run healthCheck` / `npx clasp run getDbInfo` の実行結果を優先し、その場で `HANDOVER.md` を更新する。
 - **v235 セッションアンカー修正（ロール変換後のマイページ表示不整合）**:
   - 根本原因: フロントエンドが `memberId`（ロール変換のたびに変わる）をセッション識別子として使用していた。変換後に古い memberId でポータルデータを取得し、WITHDRAWN の個人会員画面が表示されていた。
   - OWASP原則「認証は安定した人物識別子で解決する」に従い、`loginId`（変換しても不変）をセッションアンカーに変更。
@@ -35,33 +54,33 @@ v231 以前の変更も継続有効。
 3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
 5. `docs/98_RELEASE_STATE_v235_2026-04-18.md` ← **v235 current**（セッションアンカー loginId 化・ロール変換後マイページ修正）
-6. `docs/97_RELEASE_STATE_v234_2026-04-18.md`（v234 record: 研修申込 申込者ID不整合修正）
-6. `docs/96_RELEASE_STATE_v233_2026-04-18.md`（v233 record: 事業所職員重複バグ修正 + repairDuplicateStaffRecords）
-7. `docs/95_RELEASE_STATE_v232_2026-04-18.md`（v232 record: MASTER専用物理削除機能）
-7. `docs/94_RELEASE_STATE_v231_2026-04-17.md`（v231 record: 郵便番号入力標準化 + 参照専用表示 + 年会費連続年度表示）
-6. `docs/93_RELEASE_STATE_v230_2026-04-17.md`（v230 record: current principal 解決 + 再遷移整合修正）
-7. `docs/92_RELEASE_STATE_v229_2026-04-17.md`（v229 record: 会員マイページ 年会費表示修正）
-6. `docs/91_RELEASE_STATE_v228_2026-04-17.md`（v228 record: 公開入会申込 完了画面制御 + 住所入力改善）
-7. `docs/90_RELEASE_STATE_v227_2026-04-17.md`（v227 record: 公開ポータル文言設定対応）
-8. `docs/89_RELEASE_STATE_v226_2026-04-17.md`（v226 record: 入会申込フォーム 住所・連絡情報ステップ統合）
-9. `docs/88_RELEASE_STATE_v225_2026-04-17.md`（v225 record: 公開入会申込遷移ルール + 重要事項ダイアログ + 一括メールテンプレート保存）
-10. `docs/87_RELEASE_STATE_v224_2026-04-16.md`（v224 record: 一括メール送信テンプレート保存 + Drive 自動添付既定 OFF）
-11. `docs/86_RELEASE_STATE_v223_2026-04-16.md`（v223 record: 公開ポータル入会前案内ダイアログ + 定款リンク）
-12. `docs/85_RELEASE_STATE_v222_2026-04-16.md`（v222 record: 公開ポータル入会前案内追加）
-13. `docs/84_RELEASE_STATE_v221_2026-04-16.md`（v221 record: 年度集計バグ修正 + セイ・メイ変換）
-14. `docs/83_RELEASE_STATE_v216_2026-04-16.md`（v216 record: 個人会員編集バリデーション見直し）
-15. `docs/80_RELEASE_STATE_v209_2026-04-16.md`（v209 record: 入会時認証情報メール送信制御）
-16. `docs/79_HANDOVER_2026-04-15.md` ← 引継ぎ資料（v208 時点）— 機能一覧・運用・落とし穴まとめ
-17. `docs/78_RELEASE_STATE_v208_2026-04-15.md`（v208 record）
-18. `docs/77_RELEASE_STATE_v207_2026-04-15.md`（v207 record）
-19. `docs/76_RELEASE_STATE_v206_2026-04-15.md`（v206 record）
-20. `docs/75_RELEASE_STATE_v205_2026-04-14.md`（v205 record）
-21. `docs/63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md` ← **全フェーズ完了（Phase 1〜3）**
-22. `docs/58_NEXT_TASK_PERFORMANCE_2026-04-09.md`（B-02 未着手・残課題）
-23. `docs/09_DEPLOYMENT_POLICY.md`
-24. `docs/05_AUTH_AND_ROLE_SPEC.md`
-25. `docs/04_DB_OPERATION_RUNBOOK.md`
-26. `docs/03_DATA_MODEL.md`
+6. `docs/98_RELEASE_STATE_v235_2026-04-18.md` 内の `v234` 節（研修申込 申込者ID不整合修正）
+7. `docs/98_RELEASE_STATE_v235_2026-04-18.md` 内の `v233` 節（事業所職員重複バグ修正 + repairDuplicateStaffRecords）
+8. `docs/98_RELEASE_STATE_v235_2026-04-18.md` 内の `v232` 節（MASTER専用物理削除機能）
+9. `docs/94_RELEASE_STATE_v231_2026-04-17.md`（v231 record: 郵便番号入力標準化 + 参照専用表示 + 年会費連続年度表示）
+10. `docs/93_RELEASE_STATE_v230_2026-04-17.md`（v230 record: current principal 解決 + 再遷移整合修正）
+11. `docs/92_RELEASE_STATE_v229_2026-04-17.md`（v229 record: 会員マイページ 年会費表示修正）
+12. `docs/91_RELEASE_STATE_v228_2026-04-17.md`（v228 record: 公開入会申込 完了画面制御 + 住所入力改善）
+13. `docs/90_RELEASE_STATE_v227_2026-04-17.md`（v227 record: 公開ポータル文言設定対応）
+14. `docs/89_RELEASE_STATE_v226_2026-04-17.md`（v226 record: 入会申込フォーム 住所・連絡情報ステップ統合）
+15. `docs/88_RELEASE_STATE_v225_2026-04-17.md`（v225 record: 公開入会申込遷移ルール + 重要事項ダイアログ + 一括メールテンプレート保存）
+16. `docs/87_RELEASE_STATE_v224_2026-04-16.md`（v224 record: 一括メール送信テンプレート保存 + Drive 自動添付既定 OFF）
+17. `docs/86_RELEASE_STATE_v223_2026-04-16.md`（v223 record: 公開ポータル入会前案内ダイアログ + 定款リンク）
+18. `docs/85_RELEASE_STATE_v222_2026-04-16.md`（v222 record: 公開ポータル入会前案内追加）
+19. `docs/84_RELEASE_STATE_v221_2026-04-16.md`（v221 record: 年度集計バグ修正 + セイ・メイ変換）
+20. `docs/83_RELEASE_STATE_v216_2026-04-16.md`（v216 record: 個人会員編集バリデーション見直し）
+21. `docs/80_RELEASE_STATE_v209_2026-04-16.md`（v209 record: 入会時認証情報メール送信制御）
+22. `docs/79_HANDOVER_2026-04-15.md` ← 引継ぎ資料（v208 時点）— 機能一覧・運用・落とし穴まとめ
+23. `docs/78_RELEASE_STATE_v208_2026-04-15.md`（v208 record）
+24. `docs/77_RELEASE_STATE_v207_2026-04-15.md`（v207 record）
+25. `docs/76_RELEASE_STATE_v206_2026-04-15.md`（v206 record）
+26. `docs/75_RELEASE_STATE_v205_2026-04-14.md`（v205 record）
+27. `docs/63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md` ← **全フェーズ完了（Phase 1〜3）**
+28. `docs/58_NEXT_TASK_PERFORMANCE_2026-04-09.md`（B-02 未着手・残課題）
+29. `docs/09_DEPLOYMENT_POLICY.md`
+30. `docs/05_AUTH_AND_ROLE_SPEC.md`
+31. `docs/04_DB_OPERATION_RUNBOOK.md`
+32. `docs/03_DATA_MODEL.md`
 - v197〜v204 記録: `docs/archive/release_history/`（67〜74）
 - v170〜v196 記録: `docs/archive/release_history/`（45〜66）
 
@@ -74,7 +93,7 @@ v231 以前の変更も継続有効。
 
 ## 3. 現在の本番状態
 - ブランチ運用の基準は `main`。
-- 両 fixed deployment は `@231` を向いている（GAS version 231）。
+- 両 fixed deployment は `@235` を向いている（GAS version 235）。差異が出た場合はセクション 6 の runtime 確認結果を優先する。
 - fixed deployment の標準同期方法は `npx clasp redeploy`。Apps Script UI `Manage deployments` は障害復旧時の補助手段に限定する。
 - member portal は sidebar logout を採用済み。
 - デモログイン、mock member route、画面内 demo selector は廃止済み。
@@ -224,9 +243,9 @@ v231 以前の変更も継続有効。
 ---
 v195〜v202、v170〜v193 の詳細は `docs/79_HANDOVER_2026-04-15.md` または `docs/archive/release_history/` を参照。
 
-## 5. 現時点の注意事項（v221 更新）
+## 5. 現時点の注意事項（2026-04-18 更新）
 
-- **fixed deployment 2 本は `@232`** を向いている（GAS version 232）。
+- **fixed deployment 2 本は `@235`** を向いている想定（GAS version 235）。再開時は必ず `npx clasp deployments --json` で実測確認する。
 - **v206 DB 適用済み**: `npx clasp run addAddressLine2Columns` は実行完了。本番 `T_会員` に `勤務先住所2` / `自宅住所2` 列が追加されている。
 - **v194 リリース済みのため、本番管理者（`k.noguchi@hcm-n.org`）は次回 `/exec` アクセス時に `gmail.send + drive` の同意画面が表示される場合がある。** 未承認の場合は必ず承認すること。
 - **名簿出力コンソール（RosterExport）使用前提条件**: システム設定画面で `ROSTER_TEMPLATE_SS_ID`（テンプレートスプレッドシート ID）を登録すること。
@@ -254,7 +273,7 @@ npx clasp run getDbInfo
 
 期待値:
 - authorized user が運用アカウント（`k.noguchi@hcm-n.org`）
-- fixed deployment 2 本が `@232`（versionNumber: 232）
+- fixed deployment 2 本が `@235`（versionNumber: 235）
 - healthCheck が `ok: true` を返す
 - `getDbInfo` が本番固定 DB `1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs` を返す
 
@@ -264,14 +283,17 @@ npx clasp login --creds .tmp/oauth-client-hcmn-member-system-prod.json --use-pro
 ```
 ブラウザで認証後、リダイレクト URL の `code=` の値をターミナルにペーストする。
 
-2026-04-18 確認結果（v232）:
-- `npm run typecheck` → pass ✅
-- `npm run build:gas` → pass ✅
-- `npx clasp push --force` → success ✅（4 files pushed）
-- `npx clasp version` → version 232 created ✅
+2026-04-18 確認結果（v236 リリース後）:
+- `npx clasp deployments --json` → member + public ともに `versionNumber: 236` ✅
+- 実ブラウザ確認 → 操作者側で実施すること
+
+2026-04-18 確認結果（v235 セッション開始時 実測）:
+- `git status --short` → `M HANDOVER.md`, `?? docs/MCP_SETUP_MANUAL.html`
 - `npx clasp show-authorized-user` → `k.noguchi@hcm-n.org` ✅
-- `npx clasp deployments --json` → member + public ともに `versionNumber: 232` ✅
-- `npx clasp run addDeleteLogSheet` → **要実施**（T_削除ログ シート新設 / project-scoped OAuth 再設定後）
+- `npx clasp deployments --json` → member + public ともに `versionNumber: 235` ✅
+- `npx clasp run healthCheck` → `ok: true` ✅
+- `npx clasp run getDbInfo` → 本番固定 DB `1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs` ✅
+- `T_削除ログ` シート → getDbInfo のシート一覧に存在（addDeleteLogSheet 実施済み）✅
 - 実ブラウザ確認 → 操作者側で実施すること
 
 2026-04-17 確認結果（v231）:
@@ -288,7 +310,7 @@ npx clasp login --creds .tmp/oauth-client-hcmn-member-system-prod.json --use-pro
 ## 7. 次担当者（Codex）の最初の一手
 
 1. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md` の「作業開始チェック」を実施する。
-2. 再開時チェック（セクション 6）を実行し、deployment が `@231` であることを確認する。
+2. 再開時チェック（セクション 6）を実行し、deployment が `@235` を向いているか実測確認する。
 3. **`clasp run` が "Unable to run script function" で失敗する場合**:
    - `npx clasp login --creds .tmp/oauth-client-hcmn-member-system-prod.json --use-project-scopes --no-localhost` を実行
    - ブラウザ認証 → リダイレクト URL の `code=` 値をターミナルにペースト
@@ -448,4 +470,4 @@ npx clasp login --creds .tmp/oauth-client-hcmn-member-system-prod.json --use-pro
   - `npm run build:gas` ✅
   - `npx clasp push --force` → 未実行（clasp 再認証待ち）
   - 実ブラウザ確認 → 操作者側で実施（MASTER権限でログイン → サイドバー「データ管理コンソール」表示確認）
-- Latest release-state reference: `docs/95_RELEASE_STATE_v232_2026-04-18.md`（リリース後に作成すること）
+- Latest release-state reference: `docs/98_RELEASE_STATE_v235_2026-04-18.md`

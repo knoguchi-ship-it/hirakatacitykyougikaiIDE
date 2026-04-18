@@ -1951,6 +1951,7 @@ const App: React.FC = () => {
         <MemberDetailAdmin
           member={selectedMemberForDetail}
           businessMembers={adminMemberRows.filter(r => r.memberType === MemberType.BUSINESS)}
+          individualMembers={adminMemberRows.filter(r => r.memberType !== MemberType.BUSINESS)}
           onBack={() => {
             setSelectedStaffForDetail(null);
             setSelectedMemberForDetailId(null);

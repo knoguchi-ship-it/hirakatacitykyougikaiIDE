@@ -319,6 +319,8 @@ export interface ConvertMemberTypePayload {
   targetOfficeMemberId?: string;
   staffRole?: 'ADMIN' | 'STAFF';
   newRepresentativeStaffId?: string;
+  /** 賛助会員転籍時に新たに入力する介護支援専門員番号 */
+  careManagerNumber?: string;
 }
 
 export interface ConvertMemberTypeResult {

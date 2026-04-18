@@ -149,6 +149,8 @@ interface MemberDetailAdminProps {
   member?: Member;
   /** BUSINESS 事業所のリスト（個人→事業所転籍時の選択用） */
   businessMembers?: AdminDashboardMemberRow[];
+  /** 個人/賛助会員のリスト（事業所詳細画面での既存会員転籍用） */
+  individualMembers?: AdminDashboardMemberRow[];
   onBack: () => void;
   onSaved: (updatedMember?: Member) => void;
   /** v126: 職員詳細へのDrilldown遷移 */
@@ -158,7 +160,7 @@ interface MemberDetailAdminProps {
   onDismissStaffSaveToast?: () => void;
 }
 
-const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessMembers, onBack, onSaved, onOpenStaffDetail, staffSaveToast, onDismissStaffSaveToast }) => {
+const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessMembers, individualMembers, onBack, onSaved, onOpenStaffDetail, staffSaveToast, onDismissStaffSaveToast }) => {
   if (!member) {
     return (
       <div className="p-6">
@@ -195,10 +197,20 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     }
   }, [staffSaveToast]);
 
-  // 転籍モーダル状態
+  // 転籍モーダル状態（個人→事業所：個人会員ページから）
   const [showConvertToStaffModal, setShowConvertToStaffModal] = useState(false);
   const [convertTargetOfficeId, setConvertTargetOfficeId] = useState('');
   const [convertStaffRole, setConvertStaffRole] = useState<'ADMIN' | 'STAFF'>('STAFF');
+  // 賛助会員転籍時の介護支援専門員番号入力
+  const [convertCareManagerNumber, setConvertCareManagerNumber] = useState('');
+  const [convertCareManagerNumberError, setConvertCareManagerNumberError] = useState('');
+
+  // 既存個人会員を転籍モーダル（事業所会員ページから）
+  const [showConvertFromIndividualModal, setShowConvertFromIndividualModal] = useState(false);
+  const [convertFromIndividualId, setConvertFromIndividualId] = useState('');
+  const [convertFromIndividualRole, setConvertFromIndividualRole] = useState<'ADMIN' | 'STAFF'>('STAFF');
+  const [convertFromIndividualCareNum, setConvertFromIndividualCareNum] = useState('');
+  const [convertFromIndividualCareNumError, setConvertFromIndividualCareNumError] = useState('');
 
   // 職員→個人転換モーダル
   const [showConvertToIndividualModal, setShowConvertToIndividualModal] = useState(false);
@@ -394,6 +406,21 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       setError('入力内容を確認し、エラー項目を修正してください。');
       return;
     }
+    // 事業所会員: 新規追加ドラフトの介護支援専門員番号必須チェック
+    if (isBusiness) {
+      const draftStaff = ((convertedForm.staff as EditableStaff[]) || []).filter(s => s.isNew);
+      for (let i = 0; i < draftStaff.length; i++) {
+        const s = draftStaff[i];
+        if (!String(s.careManagerNumber || '').trim()) {
+          setError(`職員 ${i + 1} 番目の介護支援専門員番号が未入力です。`);
+          return;
+        }
+        if (!/^\d{8}$/.test(String(s.careManagerNumber || '').trim())) {
+          setError(`職員 ${i + 1} 番目の介護支援専門員番号は8桁の半角数字で入力してください。`);
+          return;
+        }
+      }
+    }
     // 事業所会員は郵送先区分を固定OFFICE
     const sanitizedStaff = sanitizeStaffList((convertedForm.staff as EditableStaff[]) || []);
     const nextForm = { ...convertedForm, staff: sanitizedStaff } as Member;
@@ -499,9 +526,16 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     }
   };
 
-  // ── 個人→事業所メンバー転籍 ──
+  // ── 個人→事業所メンバー転籍（個人会員ページから） ──
   const handleConvertToStaff = async () => {
     if (!convertTargetOfficeId) { setError('転籍先の事業所を選択してください。'); return; }
+    // 賛助会員で介護支援専門員番号がない場合は入力必須
+    if (isSupport && !String(form.careManagerNumber || '').trim()) {
+      const cm = String(convertCareManagerNumber || '').trim();
+      if (!cm) { setConvertCareManagerNumberError('介護支援専門員番号は必須です。'); return; }
+      if (!/^\d{8}$/.test(cm)) { setConvertCareManagerNumberError('8桁の半角数字で入力してください。'); return; }
+      setConvertCareManagerNumberError('');
+    }
     const targetName = businessMembers?.find(b => b.memberId === convertTargetOfficeId)?.displayName || convertTargetOfficeId;
     if (!confirm(`${form.lastName || ''} ${form.firstName || ''} を ${targetName} のメンバーとして登録します。個人会員としてのステータスは退会になります。よろしいですか？`)) return;
     try {
@@ -512,10 +546,50 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
         sourceMemberId: String(form.id),
         targetOfficeMemberId: convertTargetOfficeId,
         staffRole: convertStaffRole,
+        ...(isSupport && !String(form.careManagerNumber || '').trim()
+          ? { careManagerNumber: convertCareManagerNumber.trim() }
+          : {}),
       };
       await api.convertMemberType(payload);
       setSuccessMsg('事業所メンバーへの転籍が完了しました。');
       setShowConvertToStaffModal(false);
+      onSaved();
+      onBack();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '転籍処理に失敗しました。');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // ── 既存個人会員を転籍（事業所会員ページから） ──
+  const handleConvertFromIndividualToThisOffice = async () => {
+    if (!convertFromIndividualId) { setError('転籍する会員を選択してください。'); return; }
+    const srcMember = individualMembers?.find(m => m.memberId === convertFromIndividualId);
+    const isSelectedSupport = srcMember?.memberType === MemberType.SUPPORT;
+    if (isSelectedSupport) {
+      const cm = String(convertFromIndividualCareNum || '').trim();
+      if (!cm) { setConvertFromIndividualCareNumError('介護支援専門員番号は必須です。'); return; }
+      if (!/^\d{8}$/.test(cm)) { setConvertFromIndividualCareNumError('8桁の半角数字で入力してください。'); return; }
+      setConvertFromIndividualCareNumError('');
+    }
+    const memberName = srcMember?.displayName || convertFromIndividualId;
+    if (!confirm(`${memberName} をこの事業所の職員として転籍します。個人会員としてのステータスは退会になります。よろしいですか？`)) return;
+    try {
+      setActionLoading('convertFromIndividual');
+      setError(null);
+      const payload: ConvertMemberTypePayload = {
+        direction: 'INDIVIDUAL_TO_STAFF',
+        sourceMemberId: convertFromIndividualId,
+        targetOfficeMemberId: String(form.id),
+        staffRole: convertFromIndividualRole,
+        ...(isSelectedSupport ? { careManagerNumber: convertFromIndividualCareNum.trim() } : {}),
+      };
+      await api.convertMemberType(payload);
+      setSuccessMsg(`${memberName} を職員として転籍しました。`);
+      setShowConvertFromIndividualModal(false);
+      setConvertFromIndividualId('');
+      setConvertFromIndividualCareNum('');
       onSaved();
       onBack();
     } catch (e) {
@@ -1076,34 +1150,46 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       {/* 事業所職員一覧 */}
       {isBusiness && (
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
               <h3 className="text-lg font-bold text-slate-800">職員追加</h3>
-              <p className="mt-1 text-xs text-slate-500">追加内容は保存ボタンでまとめて反映します。</p>
+              <p className="mt-1 text-xs text-slate-500">追加内容は保存ボタンでまとめて反映します。介護支援専門員番号は必須です。</p>
             </div>
-            <button
-              type="button"
-              onClick={handleAddStaff}
-              className="px-3 py-2 rounded-lg border border-primary-300 text-primary-700 text-sm font-medium hover:bg-primary-50"
-            >
-              + 職員追加
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => { setShowConvertFromIndividualModal(true); setConvertFromIndividualId(''); setConvertFromIndividualCareNum(''); setConvertFromIndividualCareNumError(''); }}
+                className="px-3 py-2 rounded-lg border border-purple-300 text-purple-700 text-sm font-medium hover:bg-purple-50"
+              >
+                既存会員を転籍
+              </button>
+              <button
+                type="button"
+                onClick={handleAddStaff}
+                className="px-3 py-2 rounded-lg border border-primary-300 text-primary-700 text-sm font-medium hover:bg-primary-50"
+              >
+                + 新規職員追加
+              </button>
+            </div>
           </div>
           {staffList.filter((staff) => staff.isNew).length > 0 && (
             <div className="mt-4 space-y-3">
               {staffList.filter((staff) => staff.isNew).map((staff) => (
-                <div key={staff.id} className="grid grid-cols-1 md:grid-cols-[1.2fr_1.2fr_1.6fr_1fr_1fr_auto] gap-3 rounded-lg border border-slate-200 p-4">
+                <div key={staff.id} className="grid grid-cols-1 md:grid-cols-[1.2fr_1.2fr_1.4fr_1fr_1fr_1fr_auto] gap-3 rounded-lg border border-slate-200 p-4">
                   <input
                     value={staff.name || ''}
                     onChange={(e) => updateDraftStaff(staff.id, { name: e.target.value })}
                     className="border border-slate-300 rounded px-3 py-2 text-sm"
                     placeholder="氏名"
+                    aria-label="氏名"
+                    required
                   />
                   <input
                     value={staff.kana || ''}
                     onChange={(e) => updateDraftStaff(staff.id, { kana: e.target.value })}
                     className="border border-slate-300 rounded px-3 py-2 text-sm"
                     placeholder="カナ"
+                    aria-label="カナ"
                   />
                   <input
                     type="email"
@@ -1111,6 +1197,18 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                     onChange={(e) => updateDraftStaff(staff.id, { email: e.target.value })}
                     className="border border-slate-300 rounded px-3 py-2 text-sm"
                     placeholder="メール"
+                    aria-label="メールアドレス"
+                    required
+                  />
+                  <input
+                    value={staff.careManagerNumber || ''}
+                    onChange={(e) => updateDraftStaff(staff.id, { careManagerNumber: normalizeCareManagerInput(e.target.value) })}
+                    className={`border rounded px-3 py-2 text-sm ${!String(staff.careManagerNumber || '').trim() ? 'border-orange-300 bg-orange-50' : 'border-slate-300'}`}
+                    placeholder="介護支援専門員番号*"
+                    maxLength={8}
+                    inputMode="numeric"
+                    aria-label="介護支援専門員番号（必須）"
+                    aria-required="true"
                   />
                   <select
                     value={staff.role}
@@ -1311,7 +1409,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
         </div>
       </div>
 
-      {/* ── 転籍モーダル: 個人→事業所 ── */}
+      {/* ── 転籍モーダル: 個人→事業所（個人会員ページから） ── */}
       {showConvertToStaffModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md space-y-4">
@@ -1319,6 +1417,29 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
             <p className="text-sm text-slate-600">
               {form.lastName} {form.firstName} を事業所のメンバーとして登録します。個人会員としてのステータスは退会になります。
             </p>
+            {/* 賛助会員で介護支援専門員番号がない場合は入力必須 */}
+            {isSupport && !String(form.careManagerNumber || '').trim() && (
+              <div>
+                <label className={labelClass}>
+                  介護支援専門員番号
+                  <span className="text-red-500 ml-0.5" aria-hidden="true">*</span>
+                  <span className="ml-2 text-xs text-amber-600">賛助会員のため転籍前に入力が必要です</span>
+                </label>
+                <input
+                  value={convertCareManagerNumber}
+                  onChange={e => { setConvertCareManagerNumber(normalizeCareManagerInput(e.target.value)); setConvertCareManagerNumberError(''); }}
+                  className={`w-full border rounded px-3 py-2 text-sm ${convertCareManagerNumberError ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
+                  placeholder="8桁の半角数字"
+                  maxLength={8}
+                  inputMode="numeric"
+                  aria-required="true"
+                  aria-invalid={!!convertCareManagerNumberError}
+                />
+                {convertCareManagerNumberError && (
+                  <p className="text-xs text-red-600 mt-1" role="alert">{convertCareManagerNumberError}</p>
+                )}
+              </div>
+            )}
             <div>
               <label className={labelClass}>転籍先の事業所</label>
               <select className={fieldClass()} value={convertTargetOfficeId} onChange={e => setConvertTargetOfficeId(e.target.value)}>
@@ -1345,7 +1466,85 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
               >
                 {actionLoading === 'convertToStaff' ? '処理中...' : '転籍実行'}
               </button>
-              <button onClick={() => setShowConvertToStaffModal(false)} className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50">
+              <button onClick={() => { setShowConvertToStaffModal(false); setConvertCareManagerNumber(''); setConvertCareManagerNumberError(''); }} className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50">
+                キャンセル
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 既存個人会員を転籍モーダル（事業所会員ページから） ── */}
+      {showConvertFromIndividualModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md space-y-4">
+            <h3 className="text-lg font-bold text-slate-800">既存個人会員を職員として転籍</h3>
+            <p className="text-sm text-slate-600">
+              登録済みの個人会員または賛助会員を、この事業所の職員として転籍します。転籍元は退会扱いになります。
+            </p>
+            <div>
+              <label className={labelClass}>
+                転籍する会員
+                <span className="text-red-500 ml-0.5" aria-hidden="true">*</span>
+              </label>
+              <select
+                className={fieldClass()}
+                value={convertFromIndividualId}
+                onChange={e => { setConvertFromIndividualId(e.target.value); setConvertFromIndividualCareNum(''); setConvertFromIndividualCareNumError(''); }}
+              >
+                <option value="">-- 選択してください --</option>
+                {(individualMembers || [])
+                  .filter(m => m.status !== 'WITHDRAWN')
+                  .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ja'))
+                  .map(m => (
+                    <option key={m.memberId} value={m.memberId}>
+                      {m.displayName}（{m.memberType === MemberType.SUPPORT ? '賛助' : '個人'}・{m.memberId}）
+                    </option>
+                  ))}
+              </select>
+            </div>
+            {/* 賛助会員選択時は介護支援専門員番号入力必須 */}
+            {convertFromIndividualId && individualMembers?.find(m => m.memberId === convertFromIndividualId)?.memberType === MemberType.SUPPORT && (
+              <div>
+                <label className={labelClass}>
+                  介護支援専門員番号
+                  <span className="text-red-500 ml-0.5" aria-hidden="true">*</span>
+                  <span className="ml-2 text-xs text-amber-600">賛助会員のため転籍前に入力が必要です</span>
+                </label>
+                <input
+                  value={convertFromIndividualCareNum}
+                  onChange={e => { setConvertFromIndividualCareNum(normalizeCareManagerInput(e.target.value)); setConvertFromIndividualCareNumError(''); }}
+                  className={`w-full border rounded px-3 py-2 text-sm ${convertFromIndividualCareNumError ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
+                  placeholder="8桁の半角数字"
+                  maxLength={8}
+                  inputMode="numeric"
+                  aria-required="true"
+                  aria-invalid={!!convertFromIndividualCareNumError}
+                />
+                {convertFromIndividualCareNumError && (
+                  <p className="text-xs text-red-600 mt-1" role="alert">{convertFromIndividualCareNumError}</p>
+                )}
+              </div>
+            )}
+            <div>
+              <label className={labelClass}>権限</label>
+              <select className={fieldClass()} value={convertFromIndividualRole} onChange={e => setConvertFromIndividualRole(e.target.value as 'ADMIN' | 'STAFF')}>
+                <option value="STAFF">メンバー</option>
+                <option value="ADMIN">管理者</option>
+              </select>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={handleConvertFromIndividualToThisOffice}
+                disabled={actionLoading === 'convertFromIndividual'}
+                className="px-4 py-2 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 disabled:opacity-50"
+              >
+                {actionLoading === 'convertFromIndividual' ? '処理中...' : '転籍実行'}
+              </button>
+              <button
+                onClick={() => { setShowConvertFromIndividualModal(false); setConvertFromIndividualId(''); setConvertFromIndividualCareNum(''); setConvertFromIndividualCareNumError(''); }}
+                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
+              >
                 キャンセル
               </button>
             </div>

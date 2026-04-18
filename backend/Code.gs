@@ -7297,8 +7297,22 @@ function convertIndividualToStaff_(ss, payload) {
     throw new Error('転籍先の事業所は職員数上限（' + staffLimit + '名）に達しています。');
   }
 
-  // 3.5. 冪等性ガード: 同一介護支援専門員番号の在籍職員が既に存在する場合は二重登録を防止
+  // 3.5. 介護支援専門員番号の解決（賛助会員でペイロードから受け取る場合を含む）
   var srcCareNum = String(srcRow[srcCols['介護支援専門員番号']] || '').trim();
+  var inputCareNum = String(payload.careManagerNumber || '').trim();
+  if (!srcCareNum && srcType === 'SUPPORT') {
+    // 賛助会員で介護支援専門員番号が未登録の場合は入力値を必須とする
+    if (!inputCareNum) {
+      throw new Error('賛助会員を事業所職員として転籍するには介護支援専門員番号が必要です。モーダルで介護支援専門員番号を入力してください。');
+    }
+    if (!/^\d{8}$/.test(inputCareNum)) {
+      throw new Error('介護支援専門員番号は8桁の半角数字で入力してください。');
+    }
+    srcCareNum = inputCareNum;
+  } else if (!srcCareNum && srcType === 'INDIVIDUAL') {
+    // 個人会員で介護支援専門員番号がない場合（データ不整合）は警告付きで続行
+    Logger.log('警告: 個人会員 ' + sourceMemberId + ' に介護支援専門員番号が登録されていません。');
+  }
   if (srcCareNum) {
     var duplicateEnrolled = allEnrolledStaff.filter(function(r) {
       return String(r['介護支援専門員番号'] || '').trim() === srcCareNum;
@@ -7349,11 +7363,14 @@ function convertIndividualToStaff_(ss, payload) {
   });
   syncWhitelistMemberLinkByAuthIds_(ss, authRebind.authIds, targetOfficeMemberId, now);
 
-  // 6. 元の個人会員を退会
+  // 6. 元の個人会員を退会（賛助会員で新規入力 CM 番号があれば書き戻す）
   var updSrcRow = srcRow.slice();
   updSrcRow[srcCols['会員状態コード']] = 'WITHDRAWN';
   updSrcRow[srcCols['退会日']] = today;
   updSrcRow[srcCols['更新日時']] = now;
+  if (inputCareNum && srcCols['介護支援専門員番号'] != null) {
+    updSrcRow[srcCols['介護支援専門員番号']] = srcCareNum;
+  }
   memberSheet.getRange(srcFound.rowNumber, 1, 1, updSrcRow.length).setValues([updSrcRow]);
 
   // 7. T_研修申込: 会員ID→事業所ID, 職員ID→新ID
@@ -8882,6 +8899,7 @@ function syncBusinessStaffRows_(ss, memberId, memberTypeCode, staffPayloadList) 
       職員状態コード: status,
       入会日: joined,
       退会日: withdrawn,
+      介護支援専門員番号: String(payload.careManagerNumber || '').trim(),
       更新日時: nowIso,
       削除フラグ: false,
     });
