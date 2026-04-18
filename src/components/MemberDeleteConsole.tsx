@@ -53,6 +53,10 @@ const MemberDeleteConsole: React.FC = () => {
   const [repairApplyResult, setRepairApplyResult] = useState<{ repaired: number; skipped: number } | null>(null);
   const [repairApplyError, setRepairApplyError] = useState<string | null>(null);
 
+  const [repairCmLoading, setRepairCmLoading] = useState(false);
+  const [repairCmResult, setRepairCmResult] = useState<{ repaired: number; details: { memberId: string; careManagerNumber: string }[] } | null>(null);
+  const [repairCmError, setRepairCmError] = useState<string | null>(null);
+
   const handleSearch = useCallback(async () => {
     if (!query.trim()) return;
     setSearchLoading(true);
@@ -136,6 +140,20 @@ const MemberDeleteConsole: React.FC = () => {
       setRepairError(e.message || '修復に失敗しました');
     } finally {
       setRepairLoading(false);
+    }
+  };
+
+  const handleRepairCareManagerDuplicates = async () => {
+    setRepairCmLoading(true);
+    setRepairCmError(null);
+    setRepairCmResult(null);
+    try {
+      const result = await api.repairMemberCareManagerDuplicates();
+      setRepairCmResult(result);
+    } catch (e: any) {
+      setRepairCmError(e.message || '修復に失敗しました');
+    } finally {
+      setRepairCmLoading(false);
     }
   };
 
@@ -421,6 +439,40 @@ const MemberDeleteConsole: React.FC = () => {
               ? '重複レコードは見つかりませんでした（整合性OK）。'
               : `${repairResult.repaired} 件の重複レコードを修復しました。`}
           </p>
+        )}
+      </div>
+
+      {/* 会員CM番号重複修復 */}
+      <div className="bg-amber-50 border border-amber-300 rounded-lg p-5 space-y-3">
+        <h3 className="font-semibold text-amber-800">データ整合性修復: 会員CM番号重複（同一介護支援専門員番号に複数の有効会員）</h3>
+        <p className="text-xs text-amber-700">
+          同一介護支援専門員番号を持つ個人/賛助会員が複数 ACTIVE な場合、入会日が最も新しい1件を残し、それ以外を WITHDRAWN に更新します。
+          個人⇔事業所の変換エラー後に残る整合性違反を修復します。
+        </p>
+        <button
+          type="button"
+          onClick={handleRepairCareManagerDuplicates}
+          disabled={repairCmLoading}
+          className="px-4 py-2 bg-amber-600 text-white text-sm rounded hover:bg-amber-700 disabled:opacity-50"
+        >
+          {repairCmLoading ? '修復中...' : '会員CM番号重複を修復する'}
+        </button>
+        {repairCmError && <p className="text-sm text-red-600">{repairCmError}</p>}
+        {repairCmResult !== null && (
+          <div className="text-sm text-amber-800 space-y-1">
+            <p>
+              {repairCmResult.repaired === 0
+                ? '重複は見つかりませんでした（整合性OK）。'
+                : `${repairCmResult.repaired} 件の重複会員を WITHDRAWN に更新しました。`}
+            </p>
+            {repairCmResult.details.length > 0 && (
+              <ul className="list-disc list-inside text-xs text-amber-700 space-y-0.5">
+                {repairCmResult.details.map(d => (
+                  <li key={d.memberId}>会員ID {d.memberId}（CM# {d.careManagerNumber}）</li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
       </div>
 

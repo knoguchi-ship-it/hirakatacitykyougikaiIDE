@@ -183,6 +183,8 @@ export interface ApiClient {
   repairDuplicateStaffRecords(): Promise<{ repaired: number }>;
   // v234: 研修申込の申込者ID不整合修復（MASTER専用）
   repairTrainingApplicationApplicantIds(): Promise<{ repaired: number; skipped: number }>;
+  // v237: 会員CM番号重複修復（MASTER専用）
+  repairMemberCareManagerDuplicates(): Promise<{ repaired: number; details: { memberId: string; careManagerNumber: string }[] }>;
 }
 
 export interface MemberDeleteSearchResult {
@@ -1511,6 +1513,19 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('repairTrainingApplicationApplicantIds', JSON.stringify({}));
+    });
+  }
+
+  async repairMemberCareManagerDuplicates(): Promise<{ repaired: number; details: { memberId: string; careManagerNumber: string }[] }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('repairMemberCareManagerDuplicates', JSON.stringify({}));
     });
   }
 }

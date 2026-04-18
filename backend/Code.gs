@@ -1050,6 +1050,7 @@ function processApiRequest(action, payload) {
       'getDeleteLogs': ['MASTER'],
       'repairDuplicateStaffRecords': ['MASTER'],
       'repairTrainingApplicationApplicantIds': ['MASTER'],
+      'repairMemberCareManagerDuplicates': ['MASTER'],
     };
     var requiredPerms = ADMIN_ACTION_PERMISSIONS[action];
     if (requiredPerms) {
@@ -1369,6 +1370,9 @@ function processApiRequest(action, payload) {
     }
     if (action === 'repairTrainingApplicationApplicantIds') {
       return JSON.stringify({ success: true, data: repairTrainingApplicationApplicantIds_() });
+    }
+    if (action === 'repairMemberCareManagerDuplicates') {
+      return JSON.stringify({ success: true, data: repairMemberCareManagerDuplicates_() });
     }
 
     // ── 会員セルフサービス（管理者認証不要・パスワード再認証必須）──
@@ -7313,12 +7317,29 @@ function convertIndividualToStaff_(ss, payload) {
     // 個人会員で介護支援専門員番号がない場合（データ不整合）は警告付きで続行
     Logger.log('警告: 個人会員 ' + sourceMemberId + ' に介護支援専門員番号が登録されていません。');
   }
+  // 3.6. Pre-check: DB変更前に全会員・全事業所を対象とした重複確認（変更後アサートより安全）
   if (srcCareNum) {
-    var duplicateEnrolled = allEnrolledStaff.filter(function(r) {
-      return String(r['介護支援専門員番号'] || '').trim() === srcCareNum;
+    // (a) 転籍元以外の有効な個人/賛助会員に同一CM番号が存在しないか
+    var allMemberRowsForCheck = getRowsAsObjects_(ss, 'T_会員');
+    var activeSameCMMembers = allMemberRowsForCheck.filter(function(r) {
+      return !toBoolean_(r['削除フラグ'])
+        && String(r['介護支援専門員番号'] || '').trim() === srcCareNum
+        && String(r['会員種別コード'] || '') !== 'BUSINESS'
+        && String(r['会員状態コード'] || 'ACTIVE') !== 'WITHDRAWN'
+        && String(r['会員ID'] || '') !== sourceMemberId;
     });
-    if (duplicateEnrolled.length > 0) {
-      throw new Error('介護支援専門員番号 ' + srcCareNum + ' の職員が転籍先事業所に既に在籍中です（職員ID: ' + duplicateEnrolled[0]['職員ID'] + '）。二重登録を防ぐため処理を中断しました。');
+    if (activeSameCMMembers.length > 0) {
+      throw new Error('介護支援専門員番号 ' + srcCareNum + ' の有効な個人/賛助会員が他に存在します（会員ID: ' + activeSameCMMembers.map(function(r) { return String(r['会員ID'] || ''); }).join(', ') + '）。データ管理コンソールの「会員CM番号重複修復」を実行してから再度お試しください。');
+    }
+    // (b) 全事業所で同一CM番号のENROLLED職員が存在しないか
+    var allStaffRowsForCheck = getRowsAsObjects_(ss, 'T_事業所職員');
+    var enrolledSameCMStaff = allStaffRowsForCheck.filter(function(r) {
+      return !toBoolean_(r['削除フラグ'])
+        && String(r['介護支援専門員番号'] || '').trim() === srcCareNum
+        && String(r['職員状態コード'] || '') === 'ENROLLED';
+    });
+    if (enrolledSameCMStaff.length > 0) {
+      throw new Error('介護支援専門員番号 ' + srcCareNum + ' の在籍職員が既に存在します（職員ID: ' + enrolledSameCMStaff.map(function(r) { return String(r['職員ID'] || ''); }).join(', ') + '）。重複を解消してから再度お試しください。');
     }
   }
 
@@ -7374,8 +7395,8 @@ function convertIndividualToStaff_(ss, payload) {
   memberSheet.getRange(srcFound.rowNumber, 1, 1, updSrcRow.length).setValues([updSrcRow]);
 
   // 7. T_研修申込: 会員ID→事業所ID, 職員ID→新ID
+  // ※ assertSingleActiveAffiliationByCareManager_ は DB変更前の 3.6 pre-check に移行済み
   migrateTrainingApplications_(ss, sourceMemberId, '', targetOfficeMemberId, newStaffId);
-  assertSingleActiveAffiliationByCareManager_(ss, staffCareNum, '個人会員→事業所会員メンバー変換');
 
   clearAllDataCache_();
   clearAdminDashboardCache_();
@@ -7479,6 +7500,68 @@ function repairDuplicateStaffRecords_() {
 
     clearAllDataCache_();
     return { repaired: repairedCount };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// ── 会員CM番号重複（同一CM番号の複数アクティブ個人/賛助会員）を修復する (MASTER専用) ──
+// 同一CM番号に ACTIVE/WITHDRAWAL_SCHEDULED の個人・賛助会員が複数存在する場合、
+// 入会日が最も新しい1件を残し、残りを WITHDRAWN + 退会日=本日 に更新する。
+// 削除フラグ=true のレコードは一切触れない。
+function repairMemberCareManagerDuplicates_() {
+  var ss = getOrCreateDatabase_();
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var memberSheet = ss.getSheetByName('T_会員');
+    if (!memberSheet || memberSheet.getLastRow() < 2) return { repaired: 0, details: [] };
+
+    var headers = memberSheet.getRange(1, 1, 1, memberSheet.getLastColumn()).getValues()[0];
+    var cols = {};
+    for (var i = 0; i < headers.length; i++) cols[headers[i]] = i;
+
+    var data = memberSheet.getRange(2, 1, memberSheet.getLastRow() - 1, memberSheet.getLastColumn()).getValues();
+    var now = new Date().toISOString();
+    var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+
+    // グループ化: key = CM番号、value = {rowIndex, joinedDate, memberId}[]
+    var groups = {};
+    for (var r = 0; r < data.length; r++) {
+      var deleted = toBoolean_(data[r][cols['削除フラグ']]);
+      var typeCode = String(data[r][cols['会員種別コード']] || '');
+      var statusCode = String(data[r][cols['会員状態コード']] || '');
+      var cmNum = String(data[r][cols['介護支援専門員番号']] || '').trim();
+      if (deleted || typeCode === 'BUSINESS' || statusCode === 'WITHDRAWN' || !cmNum) continue;
+      if (!groups[cmNum]) groups[cmNum] = [];
+      groups[cmNum].push({
+        rowIndex: r,
+        joinedDate: String(data[r][cols['入会日']] || ''),
+        memberId: String(data[r][cols['会員ID']] || ''),
+      });
+    }
+
+    var repairedCount = 0;
+    var details = [];
+    Object.keys(groups).forEach(function(cmNum) {
+      var group = groups[cmNum];
+      if (group.length <= 1) return;
+      // 入会日降順ソート → 最も新しい1件（index 0）を残す
+      group.sort(function(a, b) { return a.joinedDate > b.joinedDate ? -1 : 1; });
+      for (var i = 1; i < group.length; i++) {
+        var ri = group[i].rowIndex;
+        if (cols['会員状態コード'] != null) data[ri][cols['会員状態コード']] = 'WITHDRAWN';
+        if (cols['退会日'] != null) data[ri][cols['退会日']] = today;
+        if (cols['更新日時'] != null) data[ri][cols['更新日時']] = now;
+        memberSheet.getRange(ri + 2, 1, 1, data[ri].length).setValues([data[ri]]);
+        details.push({ memberId: group[i].memberId, careManagerNumber: cmNum });
+        repairedCount++;
+      }
+    });
+
+    clearAllDataCache_();
+    clearAdminDashboardCache_();
+    return { repaired: repairedCount, details: details };
   } finally {
     lock.releaseLock();
   }

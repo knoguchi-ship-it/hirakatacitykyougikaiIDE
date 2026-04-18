@@ -211,6 +211,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
   const [convertFromIndividualRole, setConvertFromIndividualRole] = useState<'ADMIN' | 'STAFF'>('STAFF');
   const [convertFromIndividualCareNum, setConvertFromIndividualCareNum] = useState('');
   const [convertFromIndividualCareNumError, setConvertFromIndividualCareNumError] = useState('');
+  const [convertFromIndividualSearch, setConvertFromIndividualSearch] = useState('');
 
   // 職員→個人転換モーダル
   const [showConvertToIndividualModal, setShowConvertToIndividualModal] = useState(false);
@@ -1487,14 +1488,27 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                 転籍する会員
                 <span className="text-red-500 ml-0.5" aria-hidden="true">*</span>
               </label>
+              <input
+                type="text"
+                placeholder="名前・会員番号で検索..."
+                value={convertFromIndividualSearch}
+                onChange={e => setConvertFromIndividualSearch(e.target.value)}
+                className="w-full border border-slate-300 rounded px-3 py-2 text-sm mb-2"
+              />
               <select
                 className={fieldClass()}
                 value={convertFromIndividualId}
                 onChange={e => { setConvertFromIndividualId(e.target.value); setConvertFromIndividualCareNum(''); setConvertFromIndividualCareNumError(''); }}
+                size={6}
               >
                 <option value="">-- 選択してください --</option>
                 {(individualMembers || [])
                   .filter(m => m.status !== 'WITHDRAWN')
+                  .filter(m => {
+                    const q = convertFromIndividualSearch.trim().toLowerCase();
+                    if (!q) return true;
+                    return m.displayName.toLowerCase().includes(q) || m.memberId.toLowerCase().includes(q);
+                  })
                   .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ja'))
                   .map(m => (
                     <option key={m.memberId} value={m.memberId}>
@@ -1542,7 +1556,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                 {actionLoading === 'convertFromIndividual' ? '処理中...' : '転籍実行'}
               </button>
               <button
-                onClick={() => { setShowConvertFromIndividualModal(false); setConvertFromIndividualId(''); setConvertFromIndividualCareNum(''); setConvertFromIndividualCareNumError(''); }}
+                onClick={() => { setShowConvertFromIndividualModal(false); setConvertFromIndividualId(''); setConvertFromIndividualCareNum(''); setConvertFromIndividualCareNumError(''); setConvertFromIndividualSearch(''); }}
                 className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
               >
                 キャンセル
