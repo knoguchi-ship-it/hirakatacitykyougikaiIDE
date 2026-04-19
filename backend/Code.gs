@@ -15,8 +15,9 @@ var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
 var DB_SCHEMA_VERSION = '2026-04-10-01';
 
-// v209: 入会時認証情報メールのデフォルト設定
-var MEMBER_PORTAL_URL = 'https://script.google.com/macros/s/AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx/exec';
+// v241: 運用上の正本 URL は public fixed deployment の base URL に統一する。
+// doGet() は app 未指定時に member を返すため、この base URL を会員/管理者ログインの正規入口とする。
+var MEMBER_PORTAL_URL = 'https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec';
 var CREDENTIAL_EMAIL_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】会員登録完了のお知らせ';
 var CREDENTIAL_EMAIL_DEFAULT_BODY = '{{氏名}} 様\n\n会員登録が完了しました。\n以下のログイン情報で会員マイページにアクセスできます。\n\nログインID: {{ログインID}}\n初期パスワード: {{パスワード}}\n\n会員マイページURL:\n{{会員マイページURL}}\n\n初回ログイン後、パスワードの変更をお勧めします。\n\n※このメールに心当たりがない場合は、お手数ですが削除してください。\n─────────────────────────────\n枚方市介護支援専門員連絡協議会\n';
 var PUBLIC_PORTAL_DEFAULTS = {
@@ -3044,14 +3045,102 @@ function fetchAllDataFromDb_() {
   return result;
 }
 
+function buildSheetLookup_(ss) {
+  var map = {};
+  var sheets = ss.getSheets();
+  for (var i = 0; i < sheets.length; i += 1) {
+    map[sheets[i].getName()] = sheets[i];
+  }
+  return map;
+}
+
+function getRowsAsObjectsFromSheet_(sheet) {
+  if (!sheet) return [];
+  var data = sheet.getDataRange().getValues();
+  if (!data || data.length < 2) return [];
+  var headers = data[0] || [];
+  var rows = [];
+  for (var r = 1; r < data.length; r += 1) {
+    var obj = {};
+    for (var c = 0; c < headers.length; c += 1) {
+      obj[headers[c]] = data[r][c];
+    }
+    rows.push(obj);
+  }
+  return rows;
+}
+
+function getRowsAsObjectsBatch_(ss, sheetNames) {
+  var sheetLookup = buildSheetLookup_(ss);
+  var rowsBySheet = {};
+  for (var i = 0; i < sheetNames.length; i += 1) {
+    var sheetName = sheetNames[i];
+    rowsBySheet[sheetName] = getRowsAsObjectsFromSheet_(sheetLookup[sheetName]);
+  }
+  return rowsBySheet;
+}
+
+function buildTrainingApplicationRelationContextFromRows_(rowsBySheet) {
+  var trainingMap = {};
+  var memberMap = {};
+  var staffMap = {};
+  var externalMap = {};
+
+  var trainingRows = rowsBySheet['T_研修'] || [];
+  var memberRows = rowsBySheet['T_会員'] || [];
+  var staffRows = rowsBySheet['T_事業所職員'] || [];
+  var externalRows = rowsBySheet['T_外部申込者'] || [];
+
+  for (var i = 0; i < trainingRows.length; i += 1) {
+    if (!toBoolean_(trainingRows[i]['削除フラグ'])) {
+      trainingMap[String(trainingRows[i]['研修ID'] || '')] = trainingRows[i];
+    }
+  }
+  for (var j = 0; j < memberRows.length; j += 1) {
+    if (!toBoolean_(memberRows[j]['削除フラグ'])) {
+      memberMap[String(memberRows[j]['会員ID'] || '')] = memberRows[j];
+    }
+  }
+  for (var k = 0; k < staffRows.length; k += 1) {
+    if (!toBoolean_(staffRows[k]['削除フラグ'])) {
+      staffMap[String(staffRows[k]['職員ID'] || '')] = staffRows[k];
+    }
+  }
+  for (var m = 0; m < externalRows.length; m += 1) {
+    if (!toBoolean_(externalRows[m]['削除フラグ'])) {
+      externalMap[String(externalRows[m]['外部申込者ID'] || '')] = externalRows[m];
+    }
+  }
+
+  return {
+    trainingMap: trainingMap,
+    memberMap: memberMap,
+    staffMap: staffMap,
+    externalMap: externalMap,
+  };
+}
+
 function fetchAllDataFromDbFresh_() {
   var ss = getOrCreateDatabase_();
-  var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
-  var staffRows = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
-  var authRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
-  var trainingRows = getRowsAsObjects_(ss, 'T_研修').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
-  var applicationRows = getTrainingApplicationRows_(ss, { appliedOnly: true });
-  var feeRows = getRowsAsObjects_(ss, 'T_年会費納入履歴').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var rowsBySheet = getRowsAsObjectsBatch_(ss, [
+    'T_会員',
+    'T_事業所職員',
+    'T_認証アカウント',
+    'T_研修',
+    'T_研修申込',
+    'T_年会費納入履歴',
+    'T_外部申込者',
+  ]);
+  var memberRows = (rowsBySheet['T_会員'] || []).filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var staffRows = (rowsBySheet['T_事業所職員'] || []).filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var authRows = (rowsBySheet['T_認証アカウント'] || []).filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var trainingRows = (rowsBySheet['T_研修'] || []).filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var applicationRows = getTrainingApplicationRows_(ss, {
+    appliedOnly: true,
+    rows: rowsBySheet['T_研修申込'] || [],
+    context: buildTrainingApplicationRelationContextFromRows_(rowsBySheet),
+  });
+  var feeRows = (rowsBySheet['T_年会費納入履歴'] || []).filter(function(r) { return !toBoolean_(r['削除フラグ']); });
   var memberTypeFeeMap = getAnnualFeeAmountMap_(ss);
   return {
     members: mapMembersForApi_(ss, memberRows, staffRows, authRows, applicationRows, feeRows, memberTypeFeeMap),
@@ -3674,22 +3763,7 @@ function appendRowsByHeaders_(ss, sheetName, objectRows) {
 }
 
 function getRowsAsObjects_(ss, sheetName) {
-  var sheet = ss.getSheetByName(sheetName);
-  if (!sheet) return [];
-  var lastRow = sheet.getLastRow();
-  var lastCol = sheet.getLastColumn();
-  if (lastRow < 2 || lastCol < 1) return [];
-  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  var values = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
-  var rows = [];
-  for (var r = 0; r < values.length; r += 1) {
-    var obj = {};
-    for (var c = 0; c < headers.length; c += 1) {
-      obj[headers[c]] = values[r][c];
-    }
-    rows.push(obj);
-  }
-  return rows;
+  return getRowsAsObjectsFromSheet_(ss.getSheetByName(sheetName));
 }
 
 function getDbInfo_() {
@@ -4045,6 +4119,14 @@ function checkAdminBySession_() {
     displayName: derivedDisplayName,
     authenticatedAt: nowIso,
   };
+}
+
+function clearAdminPermissionCaches_() {
+  try {
+    var cache = CacheService.getScriptCache();
+    cache.remove('admin_wl_v1');
+    cache.remove('admin_auth_v1');
+  } catch (e) {}
 }
 
 function getSystemSettings_() {
@@ -4589,8 +4671,8 @@ function saveAdminPermission_(payload) {
     appendRowsByHeaders_(ss, 'T_管理者Googleホワイトリスト', [nextRow]);
   }
 
-  // ホワイトリスト変更時はキャッシュを無効化
-  try { CacheService.getScriptCache().remove('admin_wl_v1'); } catch (e) {}
+  // ホワイトリスト変更時は権限解決キャッシュを両方無効化する
+  clearAdminPermissionCaches_();
   return { saved: true, id: nextRow['ホワイトリストID'] };
 }
 
@@ -4632,8 +4714,8 @@ function deleteAdminPermission_(payload) {
   if (found.columns['変更者メール'] != null) row[found.columns['変更者メール']] = callerEmail;
   if (found.columns['変更日時'] != null) row[found.columns['変更日時']] = nowIso;
   sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
-  // ホワイトリスト変更時はキャッシュを無効化
-  try { CacheService.getScriptCache().remove('admin_wl_v1'); } catch (e) {}
+  // ホワイトリスト変更時は権限解決キャッシュを両方無効化する
+  clearAdminPermissionCaches_();
   return { deleted: true, id: id };
 }
 
@@ -7400,7 +7482,10 @@ function convertIndividualToStaff_(ss, payload) {
   var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
   var staffName = (String(srcRow[srcCols['姓']] || '') + ' ' + String(srcRow[srcCols['名']] || '')).trim();
   var staffKana = (String(srcRow[srcCols['セイ']] || '') + ' ' + String(srcRow[srcCols['メイ']] || '')).trim();
-  var staffEmail = String(srcRow[srcCols['代表メールアドレス']] || '');
+  var staffEmail = String(srcRow[srcCols['代表メールアドレス']] || '').trim();
+  if (!staffEmail) {
+    throw new Error('事業所職員へ転籍するには転籍元会員のメールアドレスが必須です。先に個人会員または賛助会員のメールアドレスを登録してください。');
+  }
   var staffCareNum = srcCareNum; // step 3.5 で確定済み
 
   var staffSheet = ss.getSheetByName('T_事業所職員');
@@ -9701,38 +9786,12 @@ function getMemberIdFromApplication_(rowObj) {
 }
 
 function buildTrainingApplicationRelationContext_(ss) {
-  var trainingMap = {};
-  var memberMap = {};
-  var staffMap = {};
-  var externalMap = {};
-
-  getRowsAsObjects_(ss, 'T_研修').forEach(function(row) {
-    if (!toBoolean_(row['削除フラグ'])) {
-      trainingMap[String(row['研修ID'] || '')] = row;
-    }
-  });
-  getRowsAsObjects_(ss, 'T_会員').forEach(function(row) {
-    if (!toBoolean_(row['削除フラグ'])) {
-      memberMap[String(row['会員ID'] || '')] = row;
-    }
-  });
-  getRowsAsObjects_(ss, 'T_事業所職員').forEach(function(row) {
-    if (!toBoolean_(row['削除フラグ'])) {
-      staffMap[String(row['職員ID'] || '')] = row;
-    }
-  });
-  getRowsAsObjects_(ss, 'T_外部申込者').forEach(function(row) {
-    if (!toBoolean_(row['削除フラグ'])) {
-      externalMap[String(row['外部申込者ID'] || '')] = row;
-    }
-  });
-
-  return {
-    trainingMap: trainingMap,
-    memberMap: memberMap,
-    staffMap: staffMap,
-    externalMap: externalMap,
-  };
+  return buildTrainingApplicationRelationContextFromRows_(getRowsAsObjectsBatch_(ss, [
+    'T_研修',
+    'T_会員',
+    'T_事業所職員',
+    'T_外部申込者',
+  ]));
 }
 
 function getTrainingApplicationIntegrityIssues_(rowObj, context) {
@@ -9797,7 +9856,8 @@ function isTrainingApplicationRowValid_(rowObj, context) {
 function getTrainingApplicationRows_(ss, options) {
   var opts = options || {};
   var context = opts.context || buildTrainingApplicationRelationContext_(ss);
-  return getRowsAsObjects_(ss, 'T_研修申込').filter(function(row) {
+  var sourceRows = opts.rows || getRowsAsObjects_(ss, 'T_研修申込');
+  return sourceRows.filter(function(row) {
     if (toBoolean_(row['削除フラグ'])) return false;
     if (opts.appliedOnly && String(row['申込状態コード'] || '') !== 'APPLIED') return false;
     if (opts.trainingId && String(row['研修ID'] || '') !== String(opts.trainingId)) return false;
@@ -12999,11 +13059,7 @@ function updateWL001EmailToHcmN() {
   sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
 
   // キャッシュを無効化
-  try {
-    var cache = CacheService.getScriptCache();
-    cache.remove('admin_wl_v1');
-    cache.remove('admin_auth_v1');
-  } catch (e) {}
+  clearAdminPermissionCaches_();
 
   return {
     ok: true,

@@ -1,12 +1,12 @@
 # 開発引継ぎ
 
 更新日: 2026-04-19
-現行本番: `v238`（GAS version 238）
-固定 deployment: member `@238` / public `@238`
+現行本番: `v243`（GAS version 243）
+固定 deployment: member `@243` / public `@243`
 
-## 0. v238 本番稼働中
+## 0. v243 本番稼働中
 
-**詳細リリース記録: `docs/99_RELEASE_STATE_v238_2026-04-19.md`**（v236〜v238 を一本化）
+**詳細リリース記録: `docs/104_RELEASE_STATE_v243_2026-04-19.md`**
 
 ### このセッション（2026-04-18〜19）で解決した問題
 
@@ -50,17 +50,22 @@
 2. `AGENTS.md`（グランドルール）
 3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`（作業プロセス正本）
-5. **`docs/99_RELEASE_STATE_v238_2026-04-19.md`** ← **最新（v236〜v238）再活性化パターン・転籍検索・修復API**
-6. `docs/98_RELEASE_STATE_v235_2026-04-18.md`（v232〜v235: 物理削除・重複修正・セッション設計刷新）
-7. `docs/94_RELEASE_STATE_v231_2026-04-17.md`（v231: 郵便番号標準化 + 年会費連続年度表示）
-8. `docs/92_RELEASE_STATE_v229_2026-04-17.md`（v229: 年会費表示修正）
-9. `docs/91_RELEASE_STATE_v228_2026-04-17.md`（v228: 公開入会申込 完了画面 + 住所改善）
-10. `docs/90_RELEASE_STATE_v227_2026-04-17.md`（v227: 公開ポータル文言設定）
-11. `docs/79_HANDOVER_2026-04-15.md` ← 機能一覧・運用・落とし穴まとめ（v208 時点、現在も有効）
-12. `docs/09_DEPLOYMENT_POLICY.md`（デプロイ標準・**`clasp deploy` 全面禁止**の根拠）
-13. `docs/05_AUTH_AND_ROLE_SPEC.md`
-14. `docs/04_DB_OPERATION_RUNBOOK.md`
-15. `docs/03_DATA_MODEL.md`（スキーマ）
+5. **`docs/104_RELEASE_STATE_v243_2026-04-19.md`** ← **最新（v243）事業所職員追加の必須/空白行/削除 UI 修正**
+6. `docs/103_RELEASE_STATE_v242_2026-04-19.md`（v242: batch read 最適化 + v239〜v241 本番反映）
+7. `docs/102_RELEASE_STATE_v241_2026-04-19.md`（v241: 単一運用URLを正本化）
+8. `docs/101_RELEASE_STATE_v240_2026-04-19.md`（v240: 管理者セッション識別子分離・管理権限即時反映）
+9. `docs/100_RELEASE_STATE_v239_2026-04-19.md`（v239: 事業所職員メール必須化・空行許容・メール欄拡張）
+10. `docs/99_RELEASE_STATE_v238_2026-04-19.md`（v236〜v238: 再活性化パターン・転籍検索・修復API）
+11. `docs/98_RELEASE_STATE_v235_2026-04-18.md`（v232〜v235: 物理削除・重複修正・セッション設計刷新）
+12. `docs/94_RELEASE_STATE_v231_2026-04-17.md`（v231: 郵便番号標準化 + 年会費連続年度表示）
+12. `docs/92_RELEASE_STATE_v229_2026-04-17.md`（v229: 年会費表示修正）
+13. `docs/91_RELEASE_STATE_v228_2026-04-17.md`（v228: 公開入会申込 完了画面 + 住所改善）
+14. `docs/90_RELEASE_STATE_v227_2026-04-17.md`（v227: 公開ポータル文言設定）
+15. `docs/79_HANDOVER_2026-04-15.md` ← 機能一覧・運用・落とし穴まとめ（v208 時点、現在も有効）
+16. `docs/09_DEPLOYMENT_POLICY.md`（デプロイ標準・**`clasp deploy` 全面禁止**の根拠）
+17. `docs/05_AUTH_AND_ROLE_SPEC.md`
+18. `docs/04_DB_OPERATION_RUNBOOK.md`
+19. `docs/03_DATA_MODEL.md`（スキーマ）
 - v225〜v226 記録: `docs/88_RELEASE_STATE_v225_2026-04-17.md` / `docs/89_RELEASE_STATE_v226_2026-04-17.md`
 - v209〜v224 記録: `docs/80〜87_RELEASE_STATE_*`
 - v197〜v208 記録: `docs/75〜79_*` または `docs/archive/release_history/`
@@ -74,7 +79,8 @@
 
 ## 3. 現在の本番状態
 - ブランチ運用の基準は `main`。
-- 両 fixed deployment は `@238` を向いている（GAS version 238）。差異が出た場合はセクション 6 の runtime 確認結果を優先する。
+- 両 fixed deployment は `@243` を向いている（GAS version 243）。差異が出た場合はセクション 6 の runtime 確認結果を優先する。
+- **操作者の正規入口 URL は単一で** `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec` を用いる。`?app=public` を付けた同一 base URL を公開ポータルとして扱う。
 - fixed deployment の標準同期方法は `npx clasp redeploy`。Apps Script UI `Manage deployments` は障害復旧時の補助手段に限定する。
 - member portal は sidebar logout を採用済み。
 - デモログイン、mock member route、画面内 demo selector は廃止済み。
@@ -89,6 +95,22 @@
 - **年度集計**: ダッシュボードのカード数値はフロントエンドが `memberRows` から再計算（バックエンドの `individualCount` 等は UI 未使用）。
 
 ## 4. 直近の重要履歴
+
+### v243（2026-04-19）— 詳細: `docs/104_RELEASE_STATE_v243_2026-04-19.md`
+事業所会員詳細の新規職員追加 UI を修正。完全空白行は保存前に除外し、部分入力行には `氏名 / フリガナ / メールアドレス / 介護支援専門員番号` の必須チェックを適用。`取消` ボタンがモーダル幅で見切れにくい配置に修正した。
+ただし、操作者実ブラウザ確認では「会員マイページから事業所会員情報を変更する際の問題」が未解決のまま残った。管理者 Google ログインでも通常の会員 `ID/パスワード` ログインでも同じ結果で、スーパーリロード後も改善しなかったため、次担当者はキャッシュ以外の真因を再鑑定すること。
+
+### v242（2026-04-19）— 詳細: `docs/103_RELEASE_STATE_v242_2026-04-19.md`
+`fetchAllDataFromDbFresh_()` の batch read 最適化を本番反映。あわせて v239〜v241 相当の未反映差分を `@242` に統合し、事業所職員メール必須化、管理者セッション識別子分離、単一運用 URL を本番状態として揃えた。
+
+### v241（2026-04-19）— 詳細: `docs/102_RELEASE_STATE_v241_2026-04-19.md`
+運用上の正本 URL を `AKfycbxy.../exec` に統一。コード上の `MEMBER_PORTAL_URL`、会員向け導線、文書の入口を運用実態に合わせて揃えた。
+
+### v240（2026-04-19）— 詳細: `docs/101_RELEASE_STATE_v240_2026-04-19.md`
+管理者 Google セッションの識別子と会員マイページ用 loginId を分離。管理者がプロフィール画面へ入ると `認証アカウントが見つかりません` になる不具合を修正し、管理権限変更時の `admin_wl_v1` / `admin_auth_v1` キャッシュを即時無効化。
+
+### v239（2026-04-19）— 詳細: `docs/100_RELEASE_STATE_v239_2026-04-19.md`
+事業所職員追加でメールアドレスを必須化。完全空白の追加行は保存対象から除外し、メール欄の視認性を改善。個人/賛助会員からの転籍は、転籍元会員にメールアドレスが未登録なら拒否する。
 
 ### v238（2026-04-18）— 詳細: `docs/99_RELEASE_STATE_v238_2026-04-19.md`
 会員種別変換に**再活性化パターン**を導入。往復変換によるレコード蓄積を根絶。年会費履歴が memberId 再利用で自動継承。
@@ -120,16 +142,18 @@ v195〜v208 の詳細は `docs/79_HANDOVER_2026-04-15.md` または `docs/archiv
 
 ## 5. 現時点の注意事項（2026-04-19 更新）
 
-- **fixed deployment 2 本は `@238`**（GAS version 238）。再開時は必ず `npx clasp deployments --json` で実測確認する。
+- **fixed deployment 2 本は `@243`**（GAS version 243）。再開時は必ず `npx clasp deployments --json` で実測確認する。
+- **操作者の正規入口 URL は単一で** `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec` を用いる。
 - **会員種別変換の設計（v238〜）**: 再活性化パターンにより、往復変換でも T_会員・T_事業所職員 の行は増えない。過去の重複 WITHDRAWN 行はデータ管理コンソール「会員CM番号重複修復」で整理できる。
 - **v206 DB 適用済み**: `T_会員` に `勤務先住所2` / `自宅住所2` 列が追加済み。`addAddressLine2Columns` の再実行は不要。
 - **名簿出力コンソール（RosterExport）**: システム設定で `ROSTER_TEMPLATE_SS_ID` を登録すること。
 - **一括メール送信（BulkMailSender）**: Drive 自動添付を使う場合は `BULK_MAIL_AUTO_ATTACH_FOLDER_ID` を登録すること。
 - **公開ポータル文言変更**: 管理設定 → 公開ポータル メニュー表示設定 → 保存 → 公開ポータルをリロード。
-- **GAS キャッシュ TTL 600秒**: 変更後しばらく旧データが表示される場合がある。
+- **GAS キャッシュ TTL 600秒**: 一般データキャッシュは最大 600 秒残る。管理者 Google ホワイトリスト / 認証紐付け変更は v240 で即時 invalidation 対応済み。
 - **AI 案内メール**: `GEMINI_API_KEY` が Script Properties に未設定だと動作しない。
 - **joinedDate 未設定会員**: 数名程度残存。v221 修正で集計は正常化済みだが、管理コンソールから直接補完が望ましい。
-- **残課題 B-02**: `docs/58_NEXT_TASK_PERFORMANCE_2026-04-09.md` の `fetchAllDataFromDbFresh_` 最適化は未着手。
+- **B-02**: `docs/58_NEXT_TASK_PERFORMANCE_2026-04-09.md` の `fetchAllDataFromDbFresh_` 最適化は `v242` で本番反映済み。実ブラウザ体感確認は操作者側で継続確認する。
+- **未解決課題**: 会員マイページから事業所会員情報を変更する際の問題は、`v243` 後も未解決。管理者 Google ログイン固有ではなく、通常の会員 `ID/パスワード` ログインでも再現し、スーパーリロード後も継続した。次フェーズで最優先調査対象とする。
 - **T_削除ログ**: `addDeleteLogSheet` 実施済み（v232 以降）。再実行不要。
 
 ## 6. 再開時チェック
@@ -142,9 +166,9 @@ npx clasp run healthCheck
 npx clasp run getDbInfo
 ```
 
-**期待値（v238 時点）:**
+**期待値（v243 時点）:**
 - authorized user: `k.noguchi@hcm-n.org`
-- fixed deployment 2 本が `@238`（versionNumber: 238）
+- fixed deployment 2 本が `@243`（versionNumber: 243）
 - healthCheck: `ok: true`
 - getDbInfo: 本番固定 DB `1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs`
 
@@ -154,15 +178,17 @@ npx clasp login --creds .tmp/oauth-client-hcmn-member-system-prod.json --use-pro
 ```
 ブラウザ認証後、リダイレクト URL の `code=` 値をターミナルにペーストする。
 
-2026-04-19 確認結果（v238 リリース後）:
-- `npx clasp deployments --json` → member + public ともに `versionNumber: 238` ✅
+2026-04-19 確認結果（v243 リリース後）:
+- `npx clasp deployments --json` → member + public ともに `versionNumber: 243` ✅
 - `npm run build:gas` ✅
+- `npx clasp run healthCheck` → `ok: true` ✅
+- `npx clasp run getDbInfo` → 本番固定 DB `1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs` ✅
 - 実ブラウザ確認 → 操作者側で実施すること
 
 ## 7. 次担当者の最初の一手
 
 1. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md` の「作業開始チェック」を実施する。
-2. セクション 6 の再開時チェックを実行し、deployment が `@238` であることを実測確認する。
+2. セクション 6 の再開時チェックを実行し、deployment が `@243` であることを実測確認する。
 3. **`clasp run` が失敗する場合**: 上記 `clasp login --creds` コマンドで project-scoped OAuth を再取得する。
 4. **データ管理コンソールで修復を実行**（v236〜v238 で生じた既存の CM 番号重複行がある場合）:
    - 管理者ログイン → データ管理 → 「会員CM番号重複修復」ボタンを実行
@@ -172,7 +198,8 @@ npx clasp login --creds .tmp/oauth-client-hcmn-member-system-prod.json --use-pro
    - T_会員・T_事業所職員 の行が増えていないこと（WITHDRAWN 行が再利用されること）を確認
 6. 残課題に着手する場合: `docs/58_NEXT_TASK_PERFORMANCE_2026-04-09.md`（B-02）を参照する。
 7. **変更後は必ず `HANDOVER.md` と関連 docs を同ターンで更新する。**
-7. 次フェーズで「デモデータ削除 / DB デバッグ機能」に着手する場合は、実装前に task 個票を切り、承認境界・対象テーブル・バックアップ前提・ロールバック方法を先に整理する。
+8. **最優先の未解決調査**: 会員マイページから事業所会員情報を変更する際の問題を再現し、`getMemberPortalData` 返却、`updateMemberSelf_` 保存結果、`T_会員 / T_事業所職員 / T_認証アカウント` 実データ、会員画面の表示状態を突き合わせて真因を特定する。管理者ログイン固有問題・単純キャッシュ問題として片付けない。
+9. 次フェーズで「デモデータ削除 / DB デバッグ機能」に着手する場合は、実装前に task 個票を切り、承認境界・対象テーブル・バックアップ前提・ロールバック方法を先に整理する。
 
 ## 8. 引継ぎ体制メモ
 - 入口は `HANDOVER.md`、日次運用は `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`、固定記録は `HANDOVER.md` に記載された最新の release state 文書を参照する。

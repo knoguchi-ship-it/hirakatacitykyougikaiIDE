@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-04-17
-Production: `v231` / fixed deployments `@231`
+Updated: 2026-04-19
+Production: `v243` / fixed deployments `@243`
 
 ## 1. Purpose
 
@@ -18,7 +18,17 @@ Production: `v231` / fixed deployments `@231`
 | Member portal | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `/exec` |
 | Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `/exec?app=public` |
 
-Both fixed deployments currently point to `@231`.
+Both fixed deployments currently point to `@243`.
+
+Operator-facing canonical URL:
+
+- 会員/管理者入口: `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec`
+- 公開ポータル: `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec?app=public`
+
+Project rule:
+
+- 固定 deployment 2 本運用は継続する。
+- ただし操作者向けの正規入口 URL は上記 public fixed deployment base URL に統一する。
 
 ## 3. Standard Release Steps
 
@@ -114,6 +124,83 @@ When the change affects user flows, real-browser verification is performed by th
 - Do not leave corrupted source documents in place.
 
 ## 7. Current Recorded State
+
+### 2026-04-19 `v243`
+
+- Version `243` created: business staff draft validation and removable blank-row UX fix.
+- Scope:
+  - 事業所会員詳細の新規職員追加で、完全空白行を保存前に除外。
+  - 部分入力の新規職員行は `氏名 / フリガナ / メールアドレス / 介護支援専門員番号` を必須検証。
+  - 新規職員追加行のレイアウトを見直し、`取消` ボタンがモーダル幅で見切れにくい構成へ修正。
+- member/public の両 fixed deployment を `npx clasp redeploy` で `@243` に同期。
+- Verification:
+  - `npm run typecheck` ✅
+  - `npm run build` ✅
+  - `npm run build:gas` ✅
+  - `npx clasp push --force` ✅
+  - `npx clasp deployments --json` ✅ (member + public both `versionNumber: 243`)
+  - `npx clasp run healthCheck` ✅ (`ok: true`)
+  - `npx clasp run getDbInfo` ✅ (`1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs`)
+  - 実ブラウザ確認 ❌ 未実施（操作者側）
+
+### 2026-04-19 `v242`
+
+- Version `242` created: `fetchAllDataFromDbFresh_` batch read optimization and portal/admin consistency updates.
+- Scope:
+  - `fetchAllDataFromDbFresh_()` で `T_会員` / `T_事業所職員` / `T_認証アカウント` / `T_研修` / `T_研修申込` / `T_年会費納入履歴` / `T_外部申込者` を batch 読込。
+  - `getTrainingApplicationRows_()` の `rows/context` 再利用で同一リクエスト内の重複読込を削減。
+  - v239〜v241 の未反映差分を同時に本番へ反映。
+- member/public の両 fixed deployment を `npx clasp redeploy` で `@242` に同期。
+- Verification:
+  - `npm run typecheck` ✅
+  - `npm run build` ✅
+  - `npm run build:gas` ✅
+  - `npx clasp push --force` ✅
+  - `npx clasp deployments --json` ✅ (member + public both `versionNumber: 242`)
+  - `npx clasp run healthCheck` ✅ (`ok: true`)
+  - `npx clasp run getDbInfo` ✅ (`1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs`)
+  - 実ブラウザ確認 ❌ 未実施（操作者側）
+
+### 2026-04-19 `v241`
+
+- Version `241` created: 単一運用 URL を正本化。
+- Scope:
+  - `MEMBER_PORTAL_URL` を `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec` に変更。
+  - `doGet()` の `app` 未指定 = `member` を前提に、会員/管理者入口を同一 URL に統一。
+  - 公開ポータルは同一 base URL の `?app=public` へ整理。
+- member/public の両 fixed deployment を `npx clasp redeploy` で `@241` に同期。
+- Verification:
+  - `npm run build` ✅
+  - `npx clasp push --force` ✅
+  - `npx clasp deployments --json` ✅ (member + public both `versionNumber: 241`)
+  - `npx clasp run healthCheck` ✅ (`ok: true`)
+  - `npx clasp run getDbInfo` ✅ (`1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs`)
+  - 実ブラウザ確認 ❌ 未実施（操作者側）
+
+### 2026-04-19 `v240`
+
+- Version `240` created: 管理者セッション識別子分離 + 管理権限キャッシュ即時反映。
+- member/public の両 fixed deployment を `npx clasp redeploy` で `@240` に同期。
+- Verification:
+  - `npm run build` ✅
+  - `npx clasp push --force` ✅
+  - `npx clasp deployments --json` ✅ (member + public both `versionNumber: 240`)
+  - `npx clasp run healthCheck` ✅ (`ok: true`)
+  - `npx clasp run getDbInfo` ✅ (`1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs`)
+  - 実ブラウザ確認 ❌ 未実施（操作者側）
+
+### 2026-04-19 `v239`
+
+- Version `239` created: business staff email required, blank new staff rows ignored on save, email input width expanded, and INDIVIDUAL/SUPPORT→STAFF transfer now requires source member email.
+- member/public の両 fixed deployment を `npx clasp redeploy` で `@239` に同期。
+- Verification:
+  - `npm run build` ✅
+  - `npm run build:gas` ✅
+  - `npx clasp show-authorized-user` ✅ (`k.noguchi@hcm-n.org`)
+  - `npx clasp deployments --json` ✅ (member + public both `versionNumber: 239`)
+  - `npx clasp run healthCheck` ✅ (`ok: true`)
+  - `npx clasp run getDbInfo` ✅ (`1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs`)
+  - 実ブラウザ確認 ❌ 未実施（操作者側）
 
 ### 2026-04-17 `v231`
 

@@ -41,6 +41,11 @@ export interface AdminEmailAliasesResult {
   warning?: string;
 }
 
+export interface MemberPortalLookup {
+  loginId?: string;
+  memberId?: string;
+}
+
 // GAS環境で提供される google.script.run の型定義（簡易版）
 declare const google: {
   script: {
@@ -54,7 +59,7 @@ declare const google: {
 
 export interface ApiClient {
   fetchAllData(): Promise<{ members: Member[], trainings: Training[] }>;
-  getMemberPortalData(loginId: string): Promise<{ members: Member[], trainings: Training[], resolvedMemberId?: string, resolvedStaffId?: string }>;
+  getMemberPortalData(lookup: MemberPortalLookup): Promise<{ members: Member[], trainings: Training[], resolvedMemberId?: string, resolvedStaffId?: string }>;
   getAdminDashboardData(): Promise<AdminDashboardData>;
   getAdminInitData(): Promise<{ dashboard: AdminDashboardData; settings: SystemSettings }>;
   adminLoginWithData(): Promise<{ auth: AdminLoginResult; portal: { members: Member[]; trainings: Training[] } }>;
@@ -331,7 +336,7 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async getMemberPortalData(loginId: string): Promise<{ members: Member[], trainings: Training[], resolvedMemberId?: string, resolvedStaffId?: string }> {
+  async getMemberPortalData(lookup: MemberPortalLookup): Promise<{ members: Member[], trainings: Training[], resolvedMemberId?: string, resolvedStaffId?: string }> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
         reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
@@ -358,7 +363,7 @@ class GasApiClient implements ApiClient {
           }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getMemberPortalData', JSON.stringify({ loginId }));
+        .processApiRequest('getMemberPortalData', JSON.stringify(lookup || {}));
     });
   }
 

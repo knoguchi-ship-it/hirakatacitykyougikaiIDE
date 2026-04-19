@@ -5,10 +5,13 @@ import { api } from '../services/api';
 import StaffTrainingView from './StaffTrainingView';
 import PostalCodeInput from './PostalCodeInput';
 
+type DraftStaff = Staff & { isNew?: boolean };
+
 const HALF_WIDTH_KANA_RE = /^[ｦ-ﾟ\s]+$/u;
 const CARE_MANAGER_RE = /^\d{8}$/;
 const POST_CODE_RE = /^\d{3}-?\d{4}$/;
 const PHONE_RE = /^[0-9-]+$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const hasTransferAccountInfo = (account?: TransferAccountInfo | null): account is TransferAccountInfo => {
   if (!account) return false;
   return Boolean(
@@ -462,6 +465,12 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
     }));
   };
 
+  const isBlankDraftStaff = (staff: DraftStaff) =>
+    !String(staff.name || '').trim()
+    && !String(staff.kana || '').trim()
+    && !String(staff.email || '').trim()
+    && !String(staff.careManagerNumber || '').trim();
+
   const addStaff = () => {
     if (isReadOnly) return;
     const count = (member.staff || []).length;
@@ -469,7 +478,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
       alert(`職員数の上限（${effectiveStaffLimit}名）に達しているため追加できません。`);
       return;
     }
-    const newStaff: Staff = {
+    const newStaff: DraftStaff = {
         id: `S${Date.now()}`,
         name: '',
         kana: '',
@@ -478,7 +487,8 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
         status: 'ENROLLED',
         joinedDate: '',
         withdrawnDate: '',
-        participatedTrainingIds: []
+        participatedTrainingIds: [],
+        isNew: true,
     };
     setMember(prev => ({
         ...prev,
@@ -486,9 +496,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
     }));
   };
 
-  const removeStaff = (id: string) => {
-    if (isReadOnly) return;
-    if (!window.confirm('この職員情報を削除しますか？')) return;
+  const removeNewStaff = (id: string) => {
     setMember(prev => ({
         ...prev,
         staff: prev.staff?.filter(s => s.id !== id)
@@ -592,10 +600,19 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
 
     if (isBusiness) {
       (m.staff || []).forEach((staff, index) => {
+        const draft = staff as DraftStaff;
+        if (draft.isNew && isBlankDraftStaff(draft)) return;
         const prefix = `staff_${index}`;
-        const staffInitiallyEmpty = initiallyEmptyStaffFields[staff.id] ?? new Set<string>();
-        if (!staff.name?.trim() && !staffInitiallyEmpty.has('name')) newErrors[`${prefix}_name`] = '職員氏名は必須です';
-        if (!staff.kana?.trim() && !staffInitiallyEmpty.has('kana')) newErrors[`${prefix}_kana`] = '職員フリガナは必須です';
+        if (draft.isNew) {
+          if (!staff.name?.trim()) newErrors[`${prefix}_name`] = '職員氏名は必須です';
+          if (!staff.kana?.trim()) newErrors[`${prefix}_kana`] = '職員フリガナは必須です';
+          if (!staff.email?.trim()) newErrors[`${prefix}_email`] = 'メールアドレスは必須です';
+          else if (!EMAIL_RE.test(staff.email.trim())) newErrors[`${prefix}_email`] = 'メールアドレスの形式が正しくありません';
+        } else {
+          const staffInitiallyEmpty = initiallyEmptyStaffFields[staff.id] ?? new Set<string>();
+          if (!staff.name?.trim() && !staffInitiallyEmpty.has('name')) newErrors[`${prefix}_name`] = '職員氏名は必須です';
+          if (!staff.kana?.trim() && !staffInitiallyEmpty.has('kana')) newErrors[`${prefix}_kana`] = '職員フリガナは必須です';
+        }
         const joined = staff.joinedDate ? new Date(staff.joinedDate) : null;
         const withdrawn = staff.withdrawnDate ? new Date(staff.withdrawnDate) : null;
         if (staff.joinedDate && (!joined || Number.isNaN(joined.getTime()))) {
@@ -621,15 +638,22 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
     e.preventDefault();
     if (isReadOnly && !isBusinessStaffSelfMode) return;
     // 保存前にセイ・メイを半角カナに変換（全角カナ・ひらがな → 半角カナ）
+    // 完全空白の isNew 行は保存対象から除外する
     const kanaConvertedMember: Member = {
       ...member,
       lastKana: member.lastKana ? toHalfWidthKana(member.lastKana) : member.lastKana,
       firstKana: member.firstKana ? toHalfWidthKana(member.firstKana) : member.firstKana,
-      staff: member.staff?.map(s => ({
-        ...s,
-        lastKana: s.lastKana ? toHalfWidthKana(s.lastKana) : s.lastKana,
-        firstKana: s.firstKana ? toHalfWidthKana(s.firstKana) : s.firstKana,
-      })),
+      staff: member.staff
+        ?.filter(s => !((s as DraftStaff).isNew && isBlankDraftStaff(s as DraftStaff)))
+        .map(s => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { isNew: _isNew, ...staffFields } = s as DraftStaff;
+          return {
+            ...staffFields,
+            lastKana: s.lastKana ? toHalfWidthKana(s.lastKana) : s.lastKana,
+            firstKana: s.firstKana ? toHalfWidthKana(s.firstKana) : s.firstKana,
+          };
+        }),
     };
     const nextErrors = validate(kanaConvertedMember);
     if (Object.keys(nextErrors).length > 0) {
@@ -1298,6 +1322,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                 <p className="text-xs text-slate-500 text-center py-4">登録されている職員はいません。</p>
                             )}
                             {member.staff?.map((staff, staffIndex) => {
+                                const draftStaff = staff as DraftStaff;
                                 // v106: STAFF ロールは自分の行の氏名・フリガナ・メールのみ編集可
                                 const isOwnStaff = staff.id === operatingStaffId;
                                 const isRepresentativeRow = staff.role === 'REPRESENTATIVE';
@@ -1338,15 +1363,18 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                         {isRepresentativeRow && <p className="text-xs text-slate-400 mt-1">代表者情報から自動反映されます</p>}
                                     </div>
                                     <div className="md:col-span-2">
-                                        <label className="block text-xs font-medium text-slate-500">個別メールアドレス</label>
+                                        <label className="block text-xs font-medium text-slate-500">
+                                          個別メールアドレス{draftStaff.isNew && <span className="text-red-500 ml-1">※</span>}
+                                        </label>
                                         <input
                                             disabled={nameDisabled}
                                             type="email"
                                             value={staff.email}
                                             onChange={(e) => handleStaffChange(staff.id, 'email', e.target.value)}
-                                            className={`w-full text-sm border-slate-200 rounded p-1 ${nameDisabled ? 'bg-slate-100' : ''}`}
+                                            className={`w-full text-sm rounded p-1 ${nameDisabled ? 'bg-slate-100 border-slate-200' : errors[`staff_${staffIndex}_email`] ? 'border-red-400 border' : 'border-slate-200 border'}`}
                                             placeholder="staff@example.com"
                                         />
+                                        {errors[`staff_${staffIndex}_email`] && <p className="text-xs text-red-500 mt-1">{errors[`staff_${staffIndex}_email`]}</p>}
                                     </div>
                                     <div className="md:col-span-1">
                                         <label className="block text-xs font-medium text-slate-500">状態</label>
@@ -1363,6 +1391,17 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                           <p className="text-xs text-slate-400 mt-1">代表者の状態変更はこの画面から行えません</p>
                                         )}
                                     </div>
+                                    {draftStaff.isNew ? (
+                                      <div className="md:col-span-2 flex items-end">
+                                        <button
+                                          type="button"
+                                          onClick={() => removeNewStaff(staff.id)}
+                                          className="text-xs text-slate-500 hover:text-red-600 border border-slate-300 hover:border-red-400 rounded px-2 py-1 shrink-0"
+                                        >
+                                          取消
+                                        </button>
+                                      </div>
+                                    ) : (
                                     <div className="md:col-span-2">
                                         <label className="block text-xs font-medium text-slate-500">権限</label>
                                         <select
@@ -1380,7 +1419,8 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                           </p>
                                         )}
                                     </div>
-                                    {/* v106: 削除ボタン廃止 — 退職ステータスで運用 */}
+                                    )}
+                                    {!draftStaff.isNew && (
                                     <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-3">
                                         <div>
                                             <label className="block text-xs font-medium text-slate-500">登録日</label>
@@ -1415,6 +1455,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                           </div>
                                         )}
                                     </div>
+                                    )}
                                 </div>
                                 );
                             })}

@@ -15,7 +15,7 @@ import MemberDetailAdmin from './components/MemberDetailAdmin';
 import StaffDetailAdmin from './components/StaffDetailAdmin';
 import { AdminDashboardData, AdminDashboardMemberRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, SystemSettings, Training, TrainingFieldConfig, DEFAULT_FIELD_CONFIG } from './types';
 import { TRAINING_OPTIONAL_FIELD_DEFS } from './components/TrainingManagement';
-import { api } from './services/api';
+import { api, type AdminLoginResult, type MemberLoginResult, type MemberPortalLookup } from './services/api';
 
 type Role = 'ADMIN' | 'MEMBER';
 type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'roster-export' | 'mailing-list-export' | 'template-help' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings' | 'member-delete';
@@ -113,6 +113,12 @@ interface LoginIdentity {
   staffId?: string;
   type: MemberType;
   staffRole?: 'REPRESENTATIVE' | 'ADMIN' | 'STAFF';
+}
+
+interface AuthenticatedContext {
+  memberId: string;
+  staffId?: string;
+  memberPortalLoginId?: string;
 }
 
 const isActiveMemberIdentity = (member: Member): boolean => member.status !== 'WITHDRAWN';
@@ -287,7 +293,7 @@ const App: React.FC = () => {
   const [withdrawingMemberId, setWithdrawingMemberId] = useState<string | null>(null);
 
   const [selectedIdentityId, setSelectedIdentityId] = useState<string>('');
-  const [authenticatedContext, setAuthenticatedContext] = useState<{ memberId: string; staffId?: string; loginId?: string } | null>(null);
+  const [authenticatedContext, setAuthenticatedContext] = useState<AuthenticatedContext | null>(null);
 
   const applySystemSettings = (systemSettings: SystemSettings) => {
     const limit = Number(systemSettings.defaultBusinessStaffLimit || 10);
@@ -390,12 +396,12 @@ const App: React.FC = () => {
   };
 
   const loadMemberPortalData = async (
-    loginId: string,
+    lookup: MemberPortalLookup,
     options: { force?: boolean } = {},
   ): Promise<{ members: Member[]; trainings: Training[] }> => {
     const { force = false } = options;
-    if (!loginId) {
-      throw new Error('loginId が未指定です。');
+    if (!lookup.loginId && !lookup.memberId) {
+      throw new Error('loginId または memberId が未指定です。');
     }
     if (!force && memberPortalRequestRef.current) {
       return memberPortalRequestRef.current;
@@ -405,7 +411,7 @@ const App: React.FC = () => {
       try {
         setIsLoading(true);
         setInitError(null);
-        const next = await api.getMemberPortalData(loginId);
+        const next = await api.getMemberPortalData(lookup);
         setMembers(next.members);
         setTrainings(next.trainings);
         setMemberPortalLoaded(true);
@@ -579,9 +585,13 @@ const App: React.FC = () => {
 
   const refreshAllData = async () => {
     const tasks: Promise<unknown>[] = [];
-    const activeLoginId = authenticatedContext?.loginId;
-    if (activeLoginId && memberPortalLoaded) {
-      tasks.push(loadMemberPortalData(activeLoginId, { force: true }));
+    const portalLookup = authenticatedContext?.memberPortalLoginId
+      ? { loginId: authenticatedContext.memberPortalLoginId }
+      : authenticatedContext?.memberId
+        ? { memberId: authenticatedContext.memberId }
+        : null;
+    if (portalLookup && memberPortalLoaded) {
+      tasks.push(loadMemberPortalData(portalLookup, { force: true }));
     }
     if (fullDataLoaded) {
       tasks.push(loadAppData({ includeAdminSettings: userRole === 'ADMIN', force: true }));
@@ -647,9 +657,13 @@ const App: React.FC = () => {
     }
 
     if (currentView === 'profile' || currentView === 'training-apply') {
-      const activeLoginId = authenticatedContext?.loginId;
-      if (activeLoginId && !memberPortalLoaded) {
-        loadMemberPortalData(activeLoginId, { force: true }).catch(() => undefined);
+      const portalLookup = authenticatedContext?.memberPortalLoginId
+        ? { loginId: authenticatedContext.memberPortalLoginId }
+        : authenticatedContext?.memberId
+          ? { memberId: authenticatedContext.memberId }
+          : null;
+      if (portalLookup && !memberPortalLoaded) {
+        loadMemberPortalData(portalLookup, { force: true }).catch(() => undefined);
       }
       return;
     }
@@ -881,11 +895,15 @@ const App: React.FC = () => {
   };
 
   const applyAuthContext = (
-    ctx: { memberId: string; staffId?: string; loginId?: string; canAccessAdminPage: boolean; adminPermissionLevel?: AdminPermissionLevel },
+    ctx: Pick<MemberLoginResult | AdminLoginResult, 'authMethod' | 'memberId' | 'staffId' | 'loginId' | 'canAccessAdminPage'> & { adminPermissionLevel?: AdminPermissionLevel },
     availableMembers: Member[] = members,
   ) => {
     const identities = buildLoginIdentities(availableMembers);
-    setAuthenticatedContext({ memberId: ctx.memberId, staffId: ctx.staffId, loginId: ctx.loginId });
+    setAuthenticatedContext({
+      memberId: ctx.memberId,
+      staffId: ctx.staffId,
+      memberPortalLoginId: ctx.authMethod === 'PASSWORD' ? ctx.loginId : undefined,
+    });
     setSelectedIdentityId(resolveIdentityId(ctx, identities));
     const permLevel = ctx.adminPermissionLevel || null;
     setAdminPermissionLevel(permLevel);

@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Member, MemberType, Staff, AdminDashboardMemberRow, ConvertMemberTypePayload } from '../types';
+import { Member, MemberType, Staff, StaffRole, AdminDashboardMemberRow, ConvertMemberTypePayload } from '../types';
 import { api } from '../services/api';
 import PostalCodeInput from './PostalCodeInput';
 
 type EditableStaff = Staff & { isNew?: boolean };
 type EditableMemberForm = Record<string, any> & { staff?: EditableStaff[] };
+type DraftStaffFieldKey = 'name' | 'kana' | 'email' | 'careManagerNumber';
+type DraftStaffFieldErrors = Partial<Record<DraftStaffFieldKey, string>>;
 
 const EDITABLE_MEMBER_FIELDS = [
   'id',
@@ -43,6 +45,7 @@ const HALF_WIDTH_KANA_RE = /^[ｦ-ﾟ\s]+$/u;
 const CARE_MANAGER_RE = /^\d{8}$/;
 const POST_CODE_RE = /^\d{3}-?\d{4}$/;
 const PHONE_RE = /^[0-9-]+$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // 全角カナ・ひらがな → 半角カナ変換（保存時に適用）
 const toHalfWidthKana = (value: string): string => {
@@ -76,14 +79,15 @@ const validateHalfWidthKana = (value: string) => !value.trim() || HALF_WIDTH_KAN
 const validateCareManagerNumber = (value: string) => !value.trim() || CARE_MANAGER_RE.test(value.trim());
 const validatePostCode = (value: string) => !value.trim() || POST_CODE_RE.test(value.trim());
 const validatePhone = (value: string) => !value.trim() || PHONE_RE.test(value.trim());
+const validateEmail = (value: string) => !value.trim() || EMAIL_RE.test(value.trim());
 
-const normalizeEditableStaff = (staff: Partial<EditableStaff> | undefined) => ({
+const normalizeEditableStaff = (staff: Partial<EditableStaff> | undefined): EditableStaff => ({
   id: String(staff?.id || ''),
   name: String(staff?.name || '').trim(),
   kana: String(staff?.kana || '').trim(),
   email: String(staff?.email || '').trim(),
-  role: String(staff?.role || 'STAFF'),
-  status: String(staff?.status || 'ENROLLED'),
+  role: (staff?.role || 'STAFF') as StaffRole,
+  status: (staff?.status || 'ENROLLED') as 'ENROLLED' | 'LEFT',
   joinedDate: String(staff?.joinedDate || ''),
   withdrawnDate: String(staff?.withdrawnDate || ''),
   careManagerNumber: String(staff?.careManagerNumber || '').trim(),
@@ -92,21 +96,39 @@ const normalizeEditableStaff = (staff: Partial<EditableStaff> | undefined) => ({
   firstName: String(staff?.firstName || '').trim(),
   lastKana: String(staff?.lastKana || '').trim(),
   firstKana: String(staff?.firstKana || '').trim(),
+  isNew: staff?.isNew === true,
 });
 
+const isBlankDraftStaff = (staff: Partial<EditableStaff> | undefined) =>
+  !String(staff?.name || '').trim()
+  && !String(staff?.kana || '').trim()
+  && !String(staff?.email || '').trim()
+  && !String(staff?.careManagerNumber || '').trim()
+  && !String(staff?.lastName || '').trim()
+  && !String(staff?.firstName || '').trim()
+  && !String(staff?.lastKana || '').trim()
+  && !String(staff?.firstKana || '').trim();
+
 const sanitizeStaffList = (staffList: EditableStaff[] = []): Staff[] =>
-  staffList.map(({ isNew, ...staff }) => ({
-    ...staff,
-    id: String(staff.id || ''),
-    name: String(staff.name || '').trim(),
-    kana: String(staff.kana || '').trim(),
-    email: String(staff.email || '').trim(),
-    careManagerNumber: String(staff.careManagerNumber || '').trim(),
-    lastName: String(staff.lastName || '').trim(),
-    firstName: String(staff.firstName || '').trim(),
-    lastKana: String(staff.lastKana || '').trim(),
-    firstKana: String(staff.firstKana || '').trim(),
-  }));
+  staffList
+    .filter((staff) => !(staff.isNew && isBlankDraftStaff(staff)))
+    .map(({ isNew, ...staff }) => ({
+      ...staff,
+      id: String(staff.id || ''),
+      name: String(staff.name || '').trim(),
+      kana: String(staff.kana || '').trim(),
+      email: String(staff.email || '').trim(),
+      careManagerNumber: String(staff.careManagerNumber || '').trim(),
+      lastName: String(staff.lastName || '').trim(),
+      firstName: String(staff.firstName || '').trim(),
+      lastKana: String(staff.lastKana || '').trim(),
+      firstKana: String(staff.firstKana || '').trim(),
+    }));
+
+const normalizeDraftStaffList = (staffList: EditableStaff[] = []): EditableStaff[] =>
+  staffList
+    .map(normalizeEditableStaff)
+    .filter((staff) => !(staff.isNew && isBlankDraftStaff(staff)));
 
 const normalizeEditableMember = (value: Partial<EditableMemberForm> | undefined) => {
   const normalized: Record<string, unknown> = {};
@@ -179,6 +201,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
   // v126: blur バリデーション用 touched 状態
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [draftStaffErrors, setDraftStaffErrors] = useState<Record<string, DraftStaffFieldErrors>>({});
 
   // member props が変更されたら form を再同期（インライン編集後のリロード対応）
   useEffect(() => {
@@ -187,6 +210,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     setInitialSnapshot(normalizeEditableMember(nextForm));
     setTouched({});
     setValidationErrors({});
+    setDraftStaffErrors({});
   }, [member]);
 
   // 職員保存トーストの自動消去
@@ -294,6 +318,9 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     if ((key === 'lastKana' || key === 'firstKana') && value.trim() && !validateHalfWidthKana(value)) {
       return `${fieldLabels[key]}は半角ｶﾅで入力してください。`;
     }
+    if (key === 'email' && value.trim() && !validateEmail(value)) {
+      return 'メールアドレスの形式が不正です。';
+    }
     if (key === 'careManagerNumber') {
       if (!isSupport && !value.trim()) return '介護支援専門員番号は必須です。';
       if (value.trim() && !validateCareManagerNumber(value)) {
@@ -362,6 +389,68 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     return errors;
   };
 
+  const validateDraftStaff = (staff: Partial<EditableStaff> | undefined): DraftStaffFieldErrors => {
+    if (!staff || isBlankDraftStaff(staff)) return {};
+    const errors: DraftStaffFieldErrors = {};
+    const name = String(staff.name || '').trim();
+    const kana = String(staff.kana || '').trim();
+    const email = String(staff.email || '').trim();
+    const careManagerNumber = String(staff.careManagerNumber || '').trim();
+    if (!name) errors.name = '氏名は必須です。';
+    if (!kana) errors.kana = 'フリガナは必須です。';
+    if (!email) {
+      errors.email = 'メールアドレスは必須です。';
+    } else if (!validateEmail(email)) {
+      errors.email = 'メールアドレスの形式が不正です。';
+    }
+    if (!careManagerNumber) {
+      errors.careManagerNumber = '介護支援専門員番号は必須です。';
+    } else if (!validateCareManagerNumber(careManagerNumber)) {
+      errors.careManagerNumber = '介護支援専門員番号は8桁の半角数字で入力してください。';
+    }
+    return errors;
+  };
+
+  const collectDraftStaffErrors = (staffList: EditableStaff[] = []): Record<string, DraftStaffFieldErrors> => {
+    const nextErrors: Record<string, DraftStaffFieldErrors> = {};
+    for (const staff of staffList) {
+      if (!staff.isNew) continue;
+      const staffErrors = validateDraftStaff(staff);
+      if (Object.keys(staffErrors).length > 0) {
+        nextErrors[staff.id] = staffErrors;
+      }
+    }
+    return nextErrors;
+  };
+
+  const getFirstDraftStaffErrorMessage = (staffList: EditableStaff[] = []) => {
+    const fieldOrder: DraftStaffFieldKey[] = ['name', 'kana', 'email', 'careManagerNumber'];
+    const labelMap: Record<DraftStaffFieldKey, string> = {
+      name: '氏名',
+      kana: 'フリガナ',
+      email: 'メールアドレス',
+      careManagerNumber: '介護支援専門員番号',
+    };
+    for (let i = 0; i < staffList.length; i += 1) {
+      const staff = staffList[i];
+      if (!staff.isNew) continue;
+      const errors = validateDraftStaff(staff);
+      for (const field of fieldOrder) {
+        if (errors[field]) {
+          return `職員 ${i + 1} 行目の${labelMap[field]}を確認してください。`;
+        }
+      }
+    }
+    return '職員追加行の入力内容を確認してください。';
+  };
+
+  const getDraftStaffFieldClass = (staffId: string, field: DraftStaffFieldKey) => {
+    const base = 'w-full min-w-0 border rounded px-3 py-2 text-sm';
+    return draftStaffErrors[staffId]?.[field]
+      ? `${base} border-red-400 bg-red-50 focus:ring-red-500 focus:border-red-500`
+      : `${base} border-slate-300`;
+  };
+
   // ── フィールド描画ヘルパー ──
   const fieldClass = (key?: string) => {
     const base = 'w-full border rounded px-3 py-2 text-sm';
@@ -394,13 +483,20 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
           firstKana: s.firstKana ? toHalfWidthKana(String(s.firstKana)) : s.firstKana,
         }))
       : form.staff;
+    const normalizedStaff = normalizeDraftStaffList((convertedStaff as EditableStaff[]) || []);
     const convertedForm: EditableMemberForm = {
       ...form,
       lastKana: form.lastKana ? toHalfWidthKana(String(form.lastKana)) : form.lastKana,
       firstKana: form.firstKana ? toHalfWidthKana(String(form.firstKana)) : form.firstKana,
-      staff: convertedStaff as any,
+      staff: normalizedStaff,
     };
     setForm(convertedForm);
+    const nextDraftStaffErrors = collectDraftStaffErrors(normalizedStaff);
+    setDraftStaffErrors(nextDraftStaffErrors);
+    if (Object.keys(nextDraftStaffErrors).length > 0) {
+      setError(getFirstDraftStaffErrorMessage(normalizedStaff));
+      return;
+    }
     const nextErrors = validateAllRequired(convertedForm);
     if (Object.keys(nextErrors).length > 0) {
       focusField(Object.keys(nextErrors)[0]);
@@ -412,6 +508,20 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       const draftStaff = ((convertedForm.staff as EditableStaff[]) || []).filter(s => s.isNew);
       for (let i = 0; i < draftStaff.length; i++) {
         const s = draftStaff[i];
+        if (isBlankDraftStaff(s)) continue;
+        if (!String(s.name || '').trim()) {
+          setError(`職員 ${i + 1} 行目の氏名が未入力です。`);
+          return;
+        }
+        const email = String(s.email || '').trim();
+        if (!email) {
+          setError(`職員 ${i + 1} 行目のメールアドレスが未入力です。`);
+          return;
+        }
+        if (!validateEmail(email)) {
+          setError(`職員 ${i + 1} 行目のメールアドレスの形式が不正です。`);
+          return;
+        }
         if (!String(s.careManagerNumber || '').trim()) {
           setError(`職員 ${i + 1} 番目の介護支援専門員番号が未入力です。`);
           return;
@@ -439,6 +549,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       await api.updateMember(payload as Member);
       setForm(nextForm as EditableMemberForm);
       setInitialSnapshot(normalizeEditableMember(nextForm as EditableMemberForm));
+      setDraftStaffErrors({});
       setSuccessMsg('会員情報を更新しました。');
       onSaved(nextForm);
     } catch (e) {
@@ -712,19 +823,34 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
   const isConvertSourceRep = convertSourceStaff?.role === 'REPRESENTATIVE';
 
   const updateDraftStaff = (staffId: string, patch: Partial<EditableStaff>) => {
+    let nextStaff: EditableStaff[] = [];
     setForm(prev => ({
       ...prev,
-      staff: (((prev.staff as EditableStaff[]) || []).map(staff =>
+      staff: (nextStaff = (((prev.staff as EditableStaff[]) || []).map(staff =>
         staff.id === staffId ? { ...staff, ...patch } : staff
-      )),
+      ))),
     }));
+    setDraftStaffErrors(prev => {
+      if (!prev[staffId]) return prev;
+      const nextRowErrors = validateDraftStaff(nextStaff.find(staff => staff.id === staffId));
+      if (Object.keys(nextRowErrors).length === 0) {
+        const { [staffId]: _removed, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [staffId]: nextRowErrors };
+    });
   };
 
   const handleAddStaff = () => {
+    const nextDraft = createEmptyStaffDraft();
     setForm(prev => ({
       ...prev,
-      staff: [...(((prev.staff as EditableStaff[]) || [])), createEmptyStaffDraft()],
+      staff: [...(((prev.staff as EditableStaff[]) || [])), nextDraft],
     }));
+    setDraftStaffErrors(prev => {
+      const { [nextDraft.id]: _removed, ...rest } = prev;
+      return rest;
+    });
     setSuccessMsg(null);
     setError(null);
   };
@@ -734,6 +860,10 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       ...prev,
       staff: (((prev.staff as EditableStaff[]) || []).filter(staff => staff.id !== staffId)),
     }));
+    setDraftStaffErrors(prev => {
+      const { [staffId]: _removed, ...rest } = prev;
+      return rest;
+    });
   };
 
   const isRequired = (key: string) => {
@@ -1176,19 +1306,18 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
           {staffList.filter((staff) => staff.isNew).length > 0 && (
             <div className="mt-4 space-y-3">
               {staffList.filter((staff) => staff.isNew).map((staff) => (
-                <div key={staff.id} className="grid grid-cols-1 md:grid-cols-[1.2fr_1.2fr_1.4fr_1fr_1fr_1fr_auto] gap-3 rounded-lg border border-slate-200 p-4">
+                <div key={staff.id} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[1.1fr_1.1fr_minmax(20rem,1.8fr)_1fr_1fr_auto] gap-3 rounded-lg border border-slate-200 p-4">
                   <input
                     value={staff.name || ''}
                     onChange={(e) => updateDraftStaff(staff.id, { name: e.target.value })}
-                    className="border border-slate-300 rounded px-3 py-2 text-sm"
+                    className={getDraftStaffFieldClass(staff.id, 'name')}
                     placeholder="氏名"
                     aria-label="氏名"
-                    required
                   />
                   <input
                     value={staff.kana || ''}
                     onChange={(e) => updateDraftStaff(staff.id, { kana: e.target.value })}
-                    className="border border-slate-300 rounded px-3 py-2 text-sm"
+                    className={getDraftStaffFieldClass(staff.id, 'kana')}
                     placeholder="カナ"
                     aria-label="カナ"
                   />
@@ -1196,15 +1325,14 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                     type="email"
                     value={staff.email || ''}
                     onChange={(e) => updateDraftStaff(staff.id, { email: e.target.value })}
-                    className="border border-slate-300 rounded px-3 py-2 text-sm"
+                    className={getDraftStaffFieldClass(staff.id, 'email')}
                     placeholder="メール"
                     aria-label="メールアドレス"
-                    required
                   />
                   <input
                     value={staff.careManagerNumber || ''}
                     onChange={(e) => updateDraftStaff(staff.id, { careManagerNumber: normalizeCareManagerInput(e.target.value) })}
-                    className={`border rounded px-3 py-2 text-sm ${!String(staff.careManagerNumber || '').trim() ? 'border-orange-300 bg-orange-50' : 'border-slate-300'}`}
+                    className={getDraftStaffFieldClass(staff.id, 'careManagerNumber')}
                     placeholder="介護支援専門員番号*"
                     maxLength={8}
                     inputMode="numeric"
@@ -1214,7 +1342,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                   <select
                     value={staff.role}
                     onChange={(e) => updateDraftStaff(staff.id, { role: e.target.value as Staff['role'] })}
-                    className="border border-slate-300 rounded px-3 py-2 text-sm bg-white"
+                    className="w-full min-w-0 border border-slate-300 rounded px-3 py-2 text-sm bg-white"
                   >
                     <option value="REPRESENTATIVE">代表者</option>
                     <option value="ADMIN">管理者</option>
@@ -1223,7 +1351,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                   <select
                     value={staff.status}
                     onChange={(e) => updateDraftStaff(staff.id, { status: e.target.value as Staff['status'] })}
-                    className="border border-slate-300 rounded px-3 py-2 text-sm bg-white"
+                    className="w-full min-w-0 border border-slate-300 rounded px-3 py-2 text-sm bg-white"
                   >
                     <option value="ENROLLED">在籍</option>
                     <option value="LEFT">除籍</option>
@@ -1231,10 +1359,15 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                   <button
                     type="button"
                     onClick={() => handleRemoveDraftStaff(staff.id)}
-                    className="px-3 py-2 rounded border border-slate-300 text-slate-600 text-sm hover:bg-slate-50"
+                    className="shrink-0 px-3 py-2 rounded border border-slate-300 text-slate-600 text-sm hover:bg-slate-50"
                   >
                     取消
                   </button>
+                  {draftStaffErrors[staff.id] && (
+                    <div className="md:col-span-2 xl:col-span-6 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                      {Object.values(draftStaffErrors[staff.id]).join(' ')}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

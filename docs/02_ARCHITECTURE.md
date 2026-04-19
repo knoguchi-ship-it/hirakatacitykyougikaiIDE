@@ -254,8 +254,8 @@
 ### 7.1 URL 構成
 | URL | 役割 |
 |-----|------|
-| `.../exec` | 会員ポータル（現行・ログイン必須） |
-| `.../exec?app=public` | 「枚方市介護支援専門員連絡協議会お申込みポータル」（ログイン不要） |
+| `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec` | 単一運用入口。`app` 未指定時は会員/管理者ログイン画面を返す |
+| `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec?app=public` | 同一 base URL 上の公開ポータル（ログイン不要） |
 
 ### 7.2 doGet ルーティング
 ```javascript
