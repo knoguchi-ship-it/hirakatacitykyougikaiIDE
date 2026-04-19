@@ -1,12 +1,21 @@
 # 開発引継ぎ
 
 更新日: 2026-04-19
-現行本番: `v243`（GAS version 243）
-固定 deployment: member `@243` / public `@243`
+現行本番: `v244`（GAS version 244）
+固定 deployment: member `@244` / public `@244`
 
-## 0. v243 本番稼働中
+## 0. v244 本番稼働中
 
-**詳細リリース記録: `docs/104_RELEASE_STATE_v243_2026-04-19.md`**
+**詳細リリース記録: `docs/105_RELEASE_STATE_v244_2026-04-19.md`**
+
+### v244（2026-04-19）— `MemberForm.tsx` isNew ドラフト職員行の修正
+
+会員マイページ（MemberForm.tsx）の事業所職員追加 UX を修正。
+- 完全空白の追加行は保存時にスキップ（バリデーションをブロックしない）
+- 追加行に「取消」ボタンを追加（行を削除可能）
+- 非空白の追加行にはメールアドレス必須チェックを適用
+- v243 で管理者コンソール（MemberDetailAdmin.tsx）に適用した isNew 概念を会員マイページ側にも展開
+- v239〜v243 の git 未コミット状態を一括解消（コミット `cf503e9`）
 
 ### このセッション（2026-04-18〜19）で解決した問題
 
@@ -50,8 +59,9 @@
 2. `AGENTS.md`（グランドルール）
 3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`（作業プロセス正本）
-5. **`docs/104_RELEASE_STATE_v243_2026-04-19.md`** ← **最新（v243）事業所職員追加の必須/空白行/削除 UI 修正**
-6. `docs/103_RELEASE_STATE_v242_2026-04-19.md`（v242: batch read 最適化 + v239〜v241 本番反映）
+5. **`docs/105_RELEASE_STATE_v244_2026-04-19.md`** ← **最新（v244）会員マイページ職員追加 UX 修正・git 未コミット解消**
+6. `docs/104_RELEASE_STATE_v243_2026-04-19.md`（v243: 管理者コンソール職員追加 UX 修正）
+7. `docs/103_RELEASE_STATE_v242_2026-04-19.md`（v242: batch read 最適化 + v239〜v241 本番反映）
 7. `docs/102_RELEASE_STATE_v241_2026-04-19.md`（v241: 単一運用URLを正本化）
 8. `docs/101_RELEASE_STATE_v240_2026-04-19.md`（v240: 管理者セッション識別子分離・管理権限即時反映）
 9. `docs/100_RELEASE_STATE_v239_2026-04-19.md`（v239: 事業所職員メール必須化・空行許容・メール欄拡張）
@@ -142,7 +152,7 @@ v195〜v208 の詳細は `docs/79_HANDOVER_2026-04-15.md` または `docs/archiv
 
 ## 5. 現時点の注意事項（2026-04-19 更新）
 
-- **fixed deployment 2 本は `@243`**（GAS version 243）。再開時は必ず `npx clasp deployments --json` で実測確認する。
+- **fixed deployment 2 本は `@244`**（GAS version 244）。再開時は必ず `npx clasp deployments --json` で実測確認する。
 - **操作者の正規入口 URL は単一で** `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec` を用いる。
 - **会員種別変換の設計（v238〜）**: 再活性化パターンにより、往復変換でも T_会員・T_事業所職員 の行は増えない。過去の重複 WITHDRAWN 行はデータ管理コンソール「会員CM番号重複修復」で整理できる。
 - **v206 DB 適用済み**: `T_会員` に `勤務先住所2` / `自宅住所2` 列が追加済み。`addAddressLine2Columns` の再実行は不要。
@@ -166,9 +176,9 @@ npx clasp run healthCheck
 npx clasp run getDbInfo
 ```
 
-**期待値（v243 時点）:**
+**期待値（v244 時点）:**
 - authorized user: `k.noguchi@hcm-n.org`
-- fixed deployment 2 本が `@243`（versionNumber: 243）
+- fixed deployment 2 本が `@244`（versionNumber: 244）
 - healthCheck: `ok: true`
 - getDbInfo: 本番固定 DB `1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs`
 
@@ -178,11 +188,11 @@ npx clasp login --creds .tmp/oauth-client-hcmn-member-system-prod.json --use-pro
 ```
 ブラウザ認証後、リダイレクト URL の `code=` 値をターミナルにペーストする。
 
-2026-04-19 確認結果（v243 リリース後）:
-- `npx clasp deployments --json` → member + public ともに `versionNumber: 243` ✅
+2026-04-19 確認結果（v244 リリース後）:
+- `npx clasp deployments --json` → member + public ともに `versionNumber: 244` ✅
+- `npm run typecheck` ✅
 - `npm run build:gas` ✅
-- `npx clasp run healthCheck` → `ok: true` ✅
-- `npx clasp run getDbInfo` → 本番固定 DB `1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs` ✅
+- `npx clasp push --force` ✅
 - 実ブラウザ確認 → 操作者側で実施すること
 
 ## 7. 次担当者の最初の一手
