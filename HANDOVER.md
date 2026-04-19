@@ -1,14 +1,22 @@
 # 開発引継ぎ
 
 更新日: 2026-04-19
-現行本番: `v244`（GAS version 244）
-固定 deployment: member `@244` / public `@244`
+現行本番: `v245`（GAS version 245）
+固定 deployment: member `@245` / public `@245`
 
-## 0. v244 本番稼働中
+## 0. v245 本番稼働中
 
-**詳細リリース記録: `docs/105_RELEASE_STATE_v244_2026-04-19.md`**
+**詳細リリース記録: `docs/106_RELEASE_STATE_v245_2026-04-19.md`**
 
-### v244（2026-04-19）— `MemberForm.tsx` isNew ドラフト職員行の修正
+### v245（2026-04-19）— MemberForm 職員行 UI 全面改修・バリデーション根本修正
+
+- **根本バグ修正**: `handleSubmit` で `isNew` strip 後に `validate()` を呼んでいたためメール/CM番号バリデーションが無効化されていた → `validate()` を先に呼ぶよう修正
+- **介護支援専門員番号フィールド**: 新規追加行に必須入力として追加（8桁半角数字チェック）
+- **カード型2列グリッドレイアウト**: 氏名/フリガナ2列、メール全幅、CM番号+状態/権限2列
+- **取消ボタン**: カードヘッダー右端に配置
+- GAS 200バージョン上限に到達 → 操作者が古いバージョンを手動削除して v245 作成
+
+### v244（2026-04-19）— `MemberForm.tsx` isNew ドラフト職員行の修正（部分的・v245で完全修正）
 
 会員マイページ（MemberForm.tsx）の事業所職員追加 UX を修正。
 - 完全空白の追加行は保存時にスキップ（バリデーションをブロックしない）
@@ -152,7 +160,7 @@ v195〜v208 の詳細は `docs/79_HANDOVER_2026-04-15.md` または `docs/archiv
 
 ## 5. 現時点の注意事項（2026-04-19 更新）
 
-- **fixed deployment 2 本は `@244`**（GAS version 244）。再開時は必ず `npx clasp deployments --json` で実測確認する。
+- **fixed deployment 2 本は `@245`**（GAS version 245）。再開時は必ず `npx clasp deployments --json` で実測確認する。
 - **操作者の正規入口 URL は単一で** `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec` を用いる。
 - **会員種別変換の設計（v238〜）**: 再活性化パターンにより、往復変換でも T_会員・T_事業所職員 の行は増えない。過去の重複 WITHDRAWN 行はデータ管理コンソール「会員CM番号重複修復」で整理できる。
 - **v206 DB 適用済み**: `T_会員` に `勤務先住所2` / `自宅住所2` 列が追加済み。`addAddressLine2Columns` の再実行は不要。
@@ -176,9 +184,9 @@ npx clasp run healthCheck
 npx clasp run getDbInfo
 ```
 
-**期待値（v244 時点）:**
+**期待値（v245 時点）:**
 - authorized user: `k.noguchi@hcm-n.org`
-- fixed deployment 2 本が `@244`（versionNumber: 244）
+- fixed deployment 2 本が `@245`（versionNumber: 245）
 - healthCheck: `ok: true`
 - getDbInfo: 本番固定 DB `1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs`
 
