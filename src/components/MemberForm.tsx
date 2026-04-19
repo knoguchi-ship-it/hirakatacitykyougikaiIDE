@@ -604,10 +604,12 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
         if (draft.isNew && isBlankDraftStaff(draft)) return;
         const prefix = `staff_${index}`;
         if (draft.isNew) {
-          if (!staff.name?.trim()) newErrors[`${prefix}_name`] = '職員氏名は必須です';
-          if (!staff.kana?.trim()) newErrors[`${prefix}_kana`] = '職員フリガナは必須です';
+          if (!staff.name?.trim()) newErrors[`${prefix}_name`] = '氏名は必須です';
+          if (!staff.kana?.trim()) newErrors[`${prefix}_kana`] = 'フリガナは必須です';
           if (!staff.email?.trim()) newErrors[`${prefix}_email`] = 'メールアドレスは必須です';
           else if (!EMAIL_RE.test(staff.email.trim())) newErrors[`${prefix}_email`] = 'メールアドレスの形式が正しくありません';
+          if (!staff.careManagerNumber?.trim()) newErrors[`${prefix}_careManagerNumber`] = '介護支援専門員番号は必須です';
+          else if (!CARE_MANAGER_RE.test(staff.careManagerNumber.trim())) newErrors[`${prefix}_careManagerNumber`] = '8桁の半角数字で入力してください';
         } else {
           const staffInitiallyEmpty = initiallyEmptyStaffFields[staff.id] ?? new Set<string>();
           if (!staff.name?.trim() && !staffInitiallyEmpty.has('name')) newErrors[`${prefix}_name`] = '職員氏名は必須です';
@@ -637,9 +639,22 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (isReadOnly && !isBusinessStaffSelfMode) return;
-    // 保存前にセイ・メイを半角カナに変換（全角カナ・ひらがな → 半角カナ）
-    // 完全空白の isNew 行は保存対象から除外する
-    const kanaConvertedMember: Member = {
+
+    // Step 1: validate against current member state (isNew flags preserved)
+    const nextErrors = validate();
+    if (Object.keys(nextErrors).length > 0) {
+        setWarning("入力内容に不備があります。赤枠の項目を確認し、必須事項を入力してください。");
+        const firstErrorField = Object.keys(nextErrors)[0];
+        if (firstErrorField) {
+          setTimeout(() => focusField(firstErrorField), 0);
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+    }
+    setWarning(null);
+
+    // Step 2: build save-ready member (strip isNew, filter blank draft rows, kana conversion)
+    const saveMember: Member = {
       ...member,
       lastKana: member.lastKana ? toHalfWidthKana(member.lastKana) : member.lastKana,
       firstKana: member.firstKana ? toHalfWidthKana(member.firstKana) : member.firstKana,
@@ -655,22 +670,12 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
           };
         }),
     };
-    const nextErrors = validate(kanaConvertedMember);
-    if (Object.keys(nextErrors).length > 0) {
-        setWarning("入力内容に不備があります。赤枠の項目を確認し、必須事項を入力してください。");
-        const firstErrorField = Object.keys(nextErrors)[0];
-        if (firstErrorField) {
-          setTimeout(() => focusField(firstErrorField), 0);
-        }
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        return;
-    }
-    setWarning(null);
-    const officeNameText = (kanaConvertedMember.officeName || '').trim();
+
+    const officeNameText = (saveMember.officeName || '').trim();
     const noOfficeAffiliation = !isBusiness && (officeNameText === '' || officeNameText === '勤務なし');
     const normalizedMemberBase = noOfficeAffiliation
       ? {
-          ...kanaConvertedMember,
+          ...saveMember,
           officeName: '',
           officeNumber: '',
           officePostCode: '',
@@ -680,11 +685,11 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
           phone: '',
           fax: '',
           preferredMailDestination:
-            kanaConvertedMember.preferredMailDestination === MailDestination.OFFICE
+            saveMember.preferredMailDestination === MailDestination.OFFICE
               ? MailDestination.HOME
-              : kanaConvertedMember.preferredMailDestination,
+              : saveMember.preferredMailDestination,
         }
-      : kanaConvertedMember;
+      : saveMember;
     const normalizedMember = isBusiness
       ? syncBusinessRepresentativeSnapshot({
           ...normalizedMemberBase,
@@ -1317,144 +1322,181 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                             )}
                         </div>
                         
-                        <div className="space-y-3">
+                        <div className="space-y-4">
                             {(!member.staff || member.staff.length === 0) && (
                                 <p className="text-xs text-slate-500 text-center py-4">登録されている職員はいません。</p>
                             )}
                             {member.staff?.map((staff, staffIndex) => {
                                 const draftStaff = staff as DraftStaff;
-                                // v106: STAFF ロールは自分の行の氏名・フリガナ・メールのみ編集可
                                 const isOwnStaff = staff.id === operatingStaffId;
                                 const isRepresentativeRow = staff.role === 'REPRESENTATIVE';
                                 const isStaffSelfEditable = currentStaff?.role === 'STAFF' && isOwnStaff;
                                 const nameDisabled = (isReadOnly && !isStaffSelfEditable) || isRepresentativeRow;
+                                const emailDisabled = nameDisabled;
                                 const canEditThisStatus = !isReadOnly && !isRepresentativeRow;
-                                // v167: ADMIN はロール変更可（代表者行・自分行を除く）
                                 const canEditThisRole = !isReadOnly && !isRepresentativeRow && (
                                   currentStaff?.role === 'REPRESENTATIVE' ||
-                                  (currentStaff?.role === 'ADMIN' && !isRepresentativeRow && !isOwnStaff)
+                                  (currentStaff?.role === 'ADMIN' && !isOwnStaff)
                                 );
+                                const errName = errors[`staff_${staffIndex}_name`] || (isOwnStaff ? errors.staff_self_name : '');
+                                const errKana = errors[`staff_${staffIndex}_kana`] || (isOwnStaff ? errors.staff_self_kana : '');
+                                const errEmail = errors[`staff_${staffIndex}_email`];
+                                const errCm = errors[`staff_${staffIndex}_careManagerNumber`];
+
+                                const inputBase = 'w-full text-sm border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-400';
+                                const inputNormal = `${inputBase} border-slate-300 bg-white`;
+                                const inputDisabled = `${inputBase} border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed`;
+                                const inputError = `${inputBase} border-red-400 bg-white`;
+
                                 return (
-                                <div key={staff.id} className={`bg-white p-3 rounded shadow-sm border ${isOwnStaff && currentStaff?.role === 'STAFF' ? 'border-primary-300 ring-1 ring-primary-200' : 'border-slate-200'} grid grid-cols-1 md:grid-cols-12 gap-3 items-start md:items-center`}>
-                                    <div className="md:col-span-3">
-                                        <label className="block text-xs font-medium text-slate-500">氏名</label>
-                                        <input
-                                            disabled={nameDisabled}
-                                            type="text"
-                                            value={staff.name}
-                                            onChange={(e) => handleStaffChange(staff.id, 'name', e.target.value)}
-                                            className={`w-full text-sm border-slate-200 rounded p-1 ${nameDisabled ? 'bg-slate-100' : ''}`}
-                                            placeholder="例: 佐藤 次郎"
-                                        />
-                                        {(errors[`staff_${staffIndex}_name`] || (isOwnStaff ? errors.staff_self_name : '')) && <p className="text-xs text-red-500 mt-1">{errors[`staff_${staffIndex}_name`] || errors.staff_self_name}</p>}
-                                        {isRepresentativeRow && <p className="text-xs text-slate-400 mt-1">代表者情報から自動反映されます</p>}
-                                    </div>
-                                    <div className="md:col-span-3">
-                                        <label className="block text-xs font-medium text-slate-500">フリガナ</label>
-                                        <input
-                                            disabled={nameDisabled}
-                                            type="text"
-                                            value={staff.kana}
-                                            onChange={(e) => handleStaffChange(staff.id, 'kana', e.target.value)}
-                                            className={`w-full text-sm border-slate-200 rounded p-1 ${nameDisabled ? 'bg-slate-100' : ''}`}
-                                            placeholder="サトウ ジロウ"
-                                        />
-                                        {(errors[`staff_${staffIndex}_kana`] || (isOwnStaff ? errors.staff_self_kana : '')) && <p className="text-xs text-red-500 mt-1">{errors[`staff_${staffIndex}_kana`] || errors.staff_self_kana}</p>}
-                                        {isRepresentativeRow && <p className="text-xs text-slate-400 mt-1">代表者情報から自動反映されます</p>}
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <label className="block text-xs font-medium text-slate-500">
-                                          個別メールアドレス{draftStaff.isNew && <span className="text-red-500 ml-1">※</span>}
-                                        </label>
-                                        <input
-                                            disabled={nameDisabled}
-                                            type="email"
-                                            value={staff.email}
-                                            onChange={(e) => handleStaffChange(staff.id, 'email', e.target.value)}
-                                            className={`w-full text-sm rounded p-1 ${nameDisabled ? 'bg-slate-100 border-slate-200' : errors[`staff_${staffIndex}_email`] ? 'border-red-400 border' : 'border-slate-200 border'}`}
-                                            placeholder="staff@example.com"
-                                        />
-                                        {errors[`staff_${staffIndex}_email`] && <p className="text-xs text-red-500 mt-1">{errors[`staff_${staffIndex}_email`]}</p>}
-                                    </div>
-                                    <div className="md:col-span-1">
-                                        <label className="block text-xs font-medium text-slate-500">状態</label>
-                                        <select
-                                            disabled={!canEditThisStatus}
-                                            value={staff.status || 'ENROLLED'}
-                                            onChange={(e) => handleStaffChange(staff.id, 'status', e.target.value)}
-                                            className={`w-full text-sm border-slate-200 rounded p-1 ${!canEditThisStatus ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`}
-                                        >
-                                            <option value="ENROLLED">在籍</option>
-                                            <option value="LEFT">退職</option>
-                                        </select>
-                                        {isRepresentativeRow && (
-                                          <p className="text-xs text-slate-400 mt-1">代表者の状態変更はこの画面から行えません</p>
-                                        )}
-                                    </div>
-                                    {draftStaff.isNew ? (
-                                      <div className="md:col-span-2 flex items-end">
+                                <div key={staff.id} className={`rounded-lg border ${draftStaff.isNew ? 'border-primary-300 bg-primary-50' : isOwnStaff && currentStaff?.role === 'STAFF' ? 'border-primary-200 bg-white' : 'border-slate-200 bg-white'} p-4 space-y-3`}>
+                                    {/* 行ヘッダー */}
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                                        {draftStaff.isNew ? '新規追加' : isRepresentativeRow ? '代表者' : isOwnStaff ? '自分' : '職員'}
+                                      </span>
+                                      {draftStaff.isNew && (
                                         <button
                                           type="button"
                                           onClick={() => removeNewStaff(staff.id)}
-                                          className="text-xs text-slate-500 hover:text-red-600 border border-slate-300 hover:border-red-400 rounded px-2 py-1 shrink-0"
+                                          className="text-xs text-slate-400 hover:text-red-600 border border-slate-300 hover:border-red-400 rounded px-3 py-1 transition-colors"
                                         >
-                                          取消
+                                          × 取消
                                         </button>
+                                      )}
+                                    </div>
+
+                                    {/* 氏名 / フリガナ */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                      <div>
+                                        <label className="block text-xs font-medium text-slate-600 mb-1">
+                                          氏名{draftStaff.isNew && <span className="text-red-500 ml-1">*</span>}
+                                        </label>
+                                        <input
+                                          disabled={nameDisabled}
+                                          type="text"
+                                          value={staff.name}
+                                          onChange={(e) => handleStaffChange(staff.id, 'name', e.target.value)}
+                                          className={nameDisabled ? inputDisabled : errName ? inputError : inputNormal}
+                                          placeholder="例: 佐藤 次郎"
+                                        />
+                                        {errName && <p className="text-xs text-red-500 mt-1">{errName}</p>}
+                                        {isRepresentativeRow && <p className="text-xs text-slate-400 mt-1">代表者情報から自動反映</p>}
                                       </div>
-                                    ) : (
-                                    <div className="md:col-span-2">
-                                        <label className="block text-xs font-medium text-slate-500">権限</label>
-                                        <select
+                                      <div>
+                                        <label className="block text-xs font-medium text-slate-600 mb-1">
+                                          フリガナ{draftStaff.isNew && <span className="text-red-500 ml-1">*</span>}
+                                        </label>
+                                        <input
+                                          disabled={nameDisabled}
+                                          type="text"
+                                          value={staff.kana}
+                                          onChange={(e) => handleStaffChange(staff.id, 'kana', e.target.value)}
+                                          className={nameDisabled ? inputDisabled : errKana ? inputError : inputNormal}
+                                          placeholder="サトウ ジロウ"
+                                        />
+                                        {errKana && <p className="text-xs text-red-500 mt-1">{errKana}</p>}
+                                        {isRepresentativeRow && <p className="text-xs text-slate-400 mt-1">代表者情報から自動反映</p>}
+                                      </div>
+                                    </div>
+
+                                    {/* メールアドレス（全幅） */}
+                                    <div>
+                                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                                        メールアドレス{draftStaff.isNew && <span className="text-red-500 ml-1">*</span>}
+                                      </label>
+                                      <input
+                                        disabled={emailDisabled}
+                                        type="email"
+                                        value={staff.email}
+                                        onChange={(e) => handleStaffChange(staff.id, 'email', e.target.value)}
+                                        className={emailDisabled ? inputDisabled : errEmail ? inputError : inputNormal}
+                                        placeholder="staff@example.com"
+                                      />
+                                      {errEmail && <p className="text-xs text-red-500 mt-1">{errEmail}</p>}
+                                    </div>
+
+                                    {/* 介護支援専門員番号 / 状態・権限 */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                      <div>
+                                        <label className="block text-xs font-medium text-slate-600 mb-1">
+                                          介護支援専門員番号{draftStaff.isNew && <span className="text-red-500 ml-1">*</span>}
+                                        </label>
+                                        {draftStaff.isNew ? (
+                                          <>
+                                            <input
+                                              type="text"
+                                              inputMode="numeric"
+                                              maxLength={8}
+                                              value={staff.careManagerNumber || ''}
+                                              onChange={(e) => handleStaffChange(staff.id, 'careManagerNumber', e.target.value.replace(/\D/g, '').slice(0, 8))}
+                                              className={errCm ? inputError : inputNormal}
+                                              placeholder="12345678（8桁）"
+                                            />
+                                            {errCm && <p className="text-xs text-red-500 mt-1">{errCm}</p>}
+                                          </>
+                                        ) : (
+                                          <p className={`text-sm px-3 py-2 rounded border border-slate-200 bg-slate-100 ${staff.careManagerNumber ? 'text-slate-700' : 'text-slate-400'}`}>
+                                            {staff.careManagerNumber || '未登録'}
+                                          </p>
+                                        )}
+                                      </div>
+                                      {!draftStaff.isNew && (
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                          <label className="block text-xs font-medium text-slate-600 mb-1">状態</label>
+                                          <select
+                                            disabled={!canEditThisStatus}
+                                            value={staff.status || 'ENROLLED'}
+                                            onChange={(e) => handleStaffChange(staff.id, 'status', e.target.value)}
+                                            className={`w-full text-sm border rounded px-2 py-2 ${!canEditThisStatus ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'border-slate-300 bg-white'}`}
+                                          >
+                                            <option value="ENROLLED">在籍</option>
+                                            <option value="LEFT">退職</option>
+                                          </select>
+                                          {isRepresentativeRow && <p className="text-xs text-slate-400 mt-1">変更不可</p>}
+                                        </div>
+                                        <div>
+                                          <label className="block text-xs font-medium text-slate-600 mb-1">権限</label>
+                                          <select
                                             disabled={!canEditThisRole}
                                             value={staff.role}
                                             onChange={(e) => handleStaffChange(staff.id, 'role', e.target.value as StaffRole)}
-                                            className={`w-full text-sm border-slate-200 rounded p-1 ${!canEditThisRole ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`}
-                                        >
+                                            className={`w-full text-sm border rounded px-2 py-2 ${!canEditThisRole ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'border-slate-300 bg-white'}`}
+                                          >
                                             <option value="ADMIN">管理者</option>
                                             <option value="STAFF">一般</option>
-                                        </select>
-                                        {!canEditThisRole && !isReadOnly && currentStaff?.role === 'ADMIN' && (
-                                          <p className="text-xs text-slate-400 mt-1">
-                                            {isRepresentativeRow ? '代表者の権限は変更できません' : '自身の権限は変更できません'}
-                                          </p>
-                                        )}
-                                    </div>
-                                    )}
-                                    {!draftStaff.isNew && (
-                                    <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="block text-xs font-medium text-slate-500">登録日</label>
-                                            <input
-                                              disabled={true}
-                                              type="date"
-                                              value={staff.joinedDate || ''}
-                                              className="w-full text-sm border-slate-200 rounded p-1 bg-slate-100 text-slate-500 cursor-not-allowed"
-                                            />
+                                          </select>
                                         </div>
-                                        {/* v106: 退職日・年度中退会は非表示（バックエンド自動管理） */}
-                                        {staff.status === 'LEFT' && staff.withdrawnDate && (
-                                          <div>
-                                            <label className="block text-xs font-medium text-slate-500">退職日</label>
-                                            <span className="block text-sm text-slate-600 p-1">{staff.withdrawnDate}</span>
-                                          </div>
-                                        )}
-                                        {/* v106: 職員別研修リンク */}
-                                        {(currentStaff?.role !== 'STAFF' || isOwnStaff) && staff.status !== 'LEFT' && (
-                                          <div className="md:col-span-2 flex items-end">
-                                            <button
-                                              type="button"
-                                              onClick={() => setTrainingViewStaffId(staff.id)}
-                                              className="text-xs text-primary-600 hover:text-primary-900 underline flex items-center"
-                                            >
-                                              <BookOpenIcon className="w-3 h-3 mr-1" />
-                                              研修申込を表示
-                                              {(staff.participatedTrainingIds?.length ?? 0) > 0 && (
-                                                <span className="ml-1 bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded-full text-xs">{staff.participatedTrainingIds!.length}</span>
-                                              )}
-                                            </button>
-                                          </div>
-                                        )}
+                                      </div>
+                                      )}
                                     </div>
+
+                                    {/* 既存行のみ: 登録日・研修リンク */}
+                                    {!draftStaff.isNew && (
+                                      <div className="flex flex-wrap items-center gap-4 pt-1 border-t border-slate-100">
+                                        <div className="text-xs text-slate-500">
+                                          登録日: <span className="text-slate-700">{staff.joinedDate || '—'}</span>
+                                        </div>
+                                        {staff.status === 'LEFT' && staff.withdrawnDate && (
+                                          <div className="text-xs text-slate-500">
+                                            退職日: <span className="text-slate-700">{staff.withdrawnDate}</span>
+                                          </div>
+                                        )}
+                                        {(currentStaff?.role !== 'STAFF' || isOwnStaff) && staff.status !== 'LEFT' && (
+                                          <button
+                                            type="button"
+                                            onClick={() => setTrainingViewStaffId(staff.id)}
+                                            className="text-xs text-primary-600 hover:text-primary-900 underline flex items-center"
+                                          >
+                                            <BookOpenIcon className="w-3 h-3 mr-1" />
+                                            研修申込を表示
+                                            {(staff.participatedTrainingIds?.length ?? 0) > 0 && (
+                                              <span className="ml-1 bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded-full text-xs">{staff.participatedTrainingIds!.length}</span>
+                                            )}
+                                          </button>
+                                        )}
+                                      </div>
                                     )}
                                 </div>
                                 );
