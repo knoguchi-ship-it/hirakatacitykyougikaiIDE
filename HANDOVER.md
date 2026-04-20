@@ -1,12 +1,22 @@
 # 開発引継ぎ
 
-更新日: 2026-04-20
-現行本番: `v250`（統合プロジェクト GAS version 249 / 管理者 split プロジェクト GAS version 3）
-固定 deployment: member `@249` / public `@249` / admin split `@3`
+更新日: 2026-04-21
+現行本番: `v251`（統合プロジェクト GAS version 250 / 会員 split GAS version 3 / 管理者 split GAS version 4）
+固定 deployment: 統合（公開ポータル）`@250` × 2本 / 会員 split `@3` / 管理者 split `@4`
 
-## 0. v250 本番稼働中
+## 0. v251 本番稼働中
 
-**詳細リリース記録: `docs/116_RELEASE_STATE_v250_2026-04-20.md`**
+**詳細リリース記録: `docs/117_RELEASE_STATE_v251_2026-04-21.md`**
+
+### v251（2026-04-21）— 公開ポータル切り分け完了: scriptId ベースルーティング・3プロジェクト分離確定
+
+- **`doGet` 刷新**: `?app=` URL パラメータ依存を廃止。`ScriptApp.getScriptId()` でプロジェクトを識別し、配信ページを固定。統合プロジェクトの base URL で会員サイトへアクセスできる状態を解消
+- **`MEMBER_PORTAL_URL` 更新**: 会員専用 split プロジェクト URL (`AKfycbxd.../exec`) を正本とする
+- **3プロジェクト同期**: 統合（公開）/ 会員 split / 管理者 split の全 Code.gs を同一変更で更新・デプロイ
+- **3境界確定**:
+  - 統合プロジェクト (`AKfycbyw...` / `AKfycbxy...`) → 公開ポータルのみ
+  - 会員 split (`AKfycbxd...`) → 会員マイページのみ
+  - 管理者 split (`AKfycbwS...`) → 管理者ポータルのみ（DOMAIN アクセス）
 
 ### v250（2026-04-20）— 管理者 split プロジェクト: admin shell 修正（member_unauthorized 解消）
 
@@ -117,9 +127,10 @@
 2. `AGENTS.md`（グランドルール）
 3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`（作業プロセス正本）
-5. **`docs/116_RELEASE_STATE_v250_2026-04-20.md`** ← **最新（v250）管理者 split: admin shell 修正（member_unauthorized 解消）**
-6. `docs/115_RELEASE_STATE_v249_2026-04-20.md`（v249: 会員/管理者ポータル分離・管理者専用URL追加）
-7. `docs/114_RELEASE_STATE_v248_2026-04-20.md`（v248: セキュリティ是正: 会員セッショントークン・IDOR修正）
+5. **`docs/117_RELEASE_STATE_v251_2026-04-21.md`** ← **最新（v251）公開ポータル切り分け完了・3プロジェクト分離確定**
+6. `docs/116_RELEASE_STATE_v250_2026-04-20.md`（v250: 管理者 split admin shell 修正）
+7. `docs/115_RELEASE_STATE_v249_2026-04-20.md`（v249: 会員/管理者ポータル分離・管理者専用URL追加）
+8. `docs/114_RELEASE_STATE_v248_2026-04-20.md`（v248: セキュリティ是正: 会員セッショントークン・IDOR修正）
 7. `docs/108_RELEASE_STATE_v247_2026-04-20.md`（v247: 職員氏名/フリガナ入力を分割 UI に統一）
 9. `docs/107_RELEASE_STATE_v246_2026-04-19.md`（v246: 会員マイページ保存の loginId アンカー統一・旧 version 整理）
 10. `docs/106_RELEASE_STATE_v245_2026-04-19.md`（v245: 会員マイページ職員追加 UI 全面改修・バリデーション根本修正）
@@ -155,15 +166,15 @@
 ## 3. 現在の本番状態
 - ブランチ運用の基準は `main`。
 - 両 fixed deployment は `@249` を向いている（GAS version 249）。差異が出た場合はセクション 6 の runtime 確認結果を優先する。
-- **URL 体系（v250〜確定）**:
+- **URL 体系（v251〜確定・3プロジェクト分離完了）**:
 
-  | 用途 | プロジェクト | URL | アクセス制御 |
-  |---|---|---|---|
-  | 会員マイページ | 統合 | `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec` | ANYONE_ANONYMOUS |
-  | **管理者ポータル** | **admin split** | `https://script.google.com/a/macros/hcm-n.org/s/AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os/exec` | **DOMAIN（workspace必須）** |
-  | 公開ポータル | 統合 | `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec?app=public` | ANYONE_ANONYMOUS |
+  | 用途 | プロジェクト | Deployment ID | URL | アクセス制御 |
+  |---|---|---|---|---|
+  | **会員マイページ** | **member split** | `AKfycbxd...` | `https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec` | ANYONE_ANONYMOUS |
+  | **管理者ポータル** | **admin split** | `AKfycbwS...` | `https://script.google.com/a/macros/hcm-n.org/s/AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os/exec` | **DOMAIN（workspace必須）** |
+  | **公開ポータル** | **統合（公開専用）** | `AKfycbxy...` | `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec` | ANYONE_ANONYMOUS |
 
-  > 統合プロジェクトの `?app=admin` ルートはコード上残存するが、管理者の正規入口は admin split URL のみ。
+  > v251〜: `doGet` は scriptId で配信ページを固定。URL パラメータ（`?app=`）は無効。統合プロジェクトの base URL で会員サイトへアクセス不可。
 - fixed deployment の標準同期方法は `npx clasp redeploy`。Apps Script UI `Manage deployments` は障害復旧時の補助手段に限定する。
 - member portal は sidebar logout を採用済み。
 - デモログイン、mock member route、画面内 demo selector は廃止済み。
@@ -225,14 +236,15 @@ v195〜v208 の詳細は `docs/79_HANDOVER_2026-04-15.md` または `docs/archiv
 
 ## 5. 現時点の注意事項（2026-04-20 更新）
 
-- **fixed deployment**: 統合プロジェクト 2 本は `@249`。管理者 split (`gas/admin`) は `@3`。再開時は必ず `npx clasp deployments --json` で実測確認する。
-- **Apps Script version 保持数**: 統合プロジェクトは `227`〜`249` の 23 件。管理者 split は version 1〜3。
-- **会員/管理者ポータル分離（v249〜）**: 会員ページには管理者タブなし。管理者は admin split URL でアクセスすること。`build-gas.mjs` は `VITE_APP=member` / `admin` / `public` の3ビルドを実施（5ファイル push）。
-- **admin shell 修正（v250〜）**: 管理者 split では `showMemberPages=false` により会員メニュー非表示。`loadMemberPortalData` も `!isAdminShell` ガードで呼ばれない。
+- **fixed deployment（v251〜）**: 統合（公開）2本 `@250`、会員 split `@3`、管理者 split `@4`。再開時は各プロジェクトで `npx clasp deployments --json` を実測確認する。
+- **Apps Script version 保持数**: 統合プロジェクトは `227`〜`250` の 24 件。会員 split は version 1〜3。管理者 split は version 1〜4。
+- **3プロジェクト分離完了（v251〜）**: `doGet` が `ScriptApp.getScriptId()` でプロジェクト識別。URL パラメータ不要・不使用。各プロジェクトは自身の用途のみ配信。
+- **`MEMBER_PORTAL_URL`（v251〜）**: 会員専用 split プロジェクト URL (`AKfycbxd.../exec`) を正本とする。認証情報メールに記載される URL が変更済み。
 - **会員セッショントークン（v248〜）**: ログイン成功時に UUID を発行し CacheService に 30分保存。会員 API は sessionToken 必須。フロントエンドは `GasApiClient.memberSessionToken` に保持。
-- **会員URL**: `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec`（ANYONE_ANONYMOUS・管理者タブなし）
-- **管理者URL（正規）**: `https://script.google.com/a/macros/hcm-n.org/s/AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os/exec`（DOMAIN・admin split プロジェクト）
-- **admin / member / public は物理プロジェクトで分離確定（v250〜）**: 管理者と会員マイページは同一画面で混在させない。セキュリティ境界の根幹。
+- **会員URL（v251〜正規）**: `https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec`（member split・ANYONE_ANONYMOUS）
+- **管理者URL**: `https://script.google.com/a/macros/hcm-n.org/s/AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os/exec`（admin split・DOMAIN）
+- **公開ポータルURL**: `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec`（統合公開専用・ANYONE_ANONYMOUS）
+- **3プロジェクト分離確定（v251〜）**: scriptId ルーティングにより各プロジェクトは自身の用途のみ配信。URL パラメータで別プロジェクトへの迂回不可。
 - **会員種別変換の設計（v238〜）**: 再活性化パターンにより、往復変換でも T_会員・T_事業所職員 の行は増えない。過去の重複 WITHDRAWN 行はデータ管理コンソール「会員CM番号重複修復」で整理できる。
 - **v206 DB 適用済み**: `T_会員` に `勤務先住所2` / `自宅住所2` 列が追加済み。`addAddressLine2Columns` の再実行は不要。
 - **名簿出力コンソール（RosterExport）**: システム設定で `ROSTER_TEMPLATE_SS_ID` を登録すること。
@@ -256,10 +268,11 @@ npx clasp run healthCheck
 npx clasp run getDbInfo
 ```
 
-**期待値（v250 時点）:**
+**期待値（v251 時点）:**
 - authorized user: `k.noguchi@hcm-n.org`
-- 統合プロジェクト固定 deployment 2 本が `@249`（versionNumber: 249）
-- 管理者 split deployment が `@3`（versionNumber: 3）
+- 統合（公開）固定 deployment 2 本が `@250`（versionNumber: 250）
+- 会員 split deployment が `@3`（versionNumber: 3）
+- 管理者 split deployment が `@4`（versionNumber: 4）
 - `npx clasp run healthCheck` / `getDbInfo` は、認証状態によっては `Unable to run script function. Please make sure you have permission to run the script function.` で失敗し得る。失敗時は認証状態を再点検する。
 
 **⚠️ `clasp run` が "Unable to run script function" で失敗する場合:**
@@ -268,13 +281,13 @@ npx clasp login --creds .tmp/oauth-client-hcmn-member-system-prod.json --use-pro
 ```
 ブラウザ認証後、リダイレクト URL の `code=` 値をターミナルにペーストする。
 
-2026-04-20 確認結果（v250 リリース後）:
-- 統合プロジェクト `npx clasp deployments --json` → member + public ともに `versionNumber: 249` ✅
-- 管理者 split `npx clasp deployments` → `@3` ✅（`v250 fix admin shell: hide member menu, guard getMemberPortalData`）
-- `npx clasp show-authorized-user` → `k.noguchi@hcm-n.org` ✅（v249 時点）
-- `npm run build:gas:admin` ✅（admin split ビルド）
-- `npx clasp run healthCheck` → 認証状態次第で失敗し得る（再認証後に再試行すること）
-- 実ブラウザ確認 → 操作者側で実施すること（確認ポイントは docs/116 参照）
+2026-04-21 確認結果（v251 リリース後）:
+- `npx clasp show-authorized-user` → `k.noguchi@hcm-n.org` ✅
+- 統合（公開）`npx clasp deployments` → `AKfycbyw... @250` / `AKfycbxy... @250` ✅
+- 会員 split `npx clasp deployments` → `AKfycbxd... @3` ✅
+- 管理者 split `npx clasp deployments` → `AKfycbwS... @4` ✅
+- `npm run build:gas` ✅ / `npm run build:gas:member` ✅ / `npm run build:gas:admin` ✅
+- 実ブラウザ確認 → 操作者側で実施すること（確認ポイントは docs/117 参照）
 
 ## 7. 次担当者の最初の一手
 

@@ -34,8 +34,9 @@ Updated: 2026-04-20 (v249)
 - `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md` - 開始/完了チェックの運用正本
 - Latest release-state document referenced from `HANDOVER.md` - 直近変更の詳細
 
-### 現行リリース記録（v235〜v250）
-- `docs/116_RELEASE_STATE_v250_2026-04-20.md` - **latest** - 管理者 split: admin shell 修正（member_unauthorized 解消、会員メニュー非表示）
+### 現行リリース記録（v235〜v251）
+- `docs/117_RELEASE_STATE_v251_2026-04-21.md` - **latest** - 公開ポータル切り分け完了: scriptId ルーティング・3プロジェクト分離確定
+- `docs/116_RELEASE_STATE_v250_2026-04-20.md` - 管理者 split: admin shell 修正（member_unauthorized 解消、会員メニュー非表示）
 - `docs/115_RELEASE_STATE_v249_2026-04-20.md` - 会員/管理者ポータル分離: 会員ページから管理者タブ除去、`?app=admin` 追加
 - `docs/114_RELEASE_STATE_v248_2026-04-20.md` - セキュリティ是正: 会員セッショントークン・IDOR修正・deny-by-default 完成
 - `docs/108_RELEASE_STATE_v247_2026-04-20.md` - 事業所職員の氏名/フリガナ入力を `氏 / 名 / セイ / メイ` に統一

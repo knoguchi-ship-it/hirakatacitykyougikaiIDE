@@ -15,9 +15,8 @@ var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
 var DB_SCHEMA_VERSION = '2026-04-10-01';
 
-// v241: 運用上の正本 URL は public fixed deployment の base URL に統一する。
-// doGet() は app 未指定時に member を返すため、この base URL を会員/管理者ログインの正規入口とする。
-var MEMBER_PORTAL_URL = 'https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec';
+// v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
+var MEMBER_PORTAL_URL = 'https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec';
 var CREDENTIAL_EMAIL_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】会員登録完了のお知らせ';
 var CREDENTIAL_EMAIL_DEFAULT_BODY = '{{氏名}} 様\n\n会員登録が完了しました。\n以下のログイン情報で会員マイページにアクセスできます。\n\nログインID: {{ログインID}}\n初期パスワード: {{パスワード}}\n\n会員マイページURL:\n{{会員マイページURL}}\n\n初回ログイン後、パスワードの変更をお勧めします。\n\n※このメールに心当たりがない場合は、お手数ですが削除してください。\n─────────────────────────────\n枚方市介護支援専門員連絡協議会\n';
 var PUBLIC_PORTAL_DEFAULTS = {
@@ -368,26 +367,22 @@ function doGet(e) {
   } catch (ex) {
     // UI表示を優先し、初期化失敗時もWebアプリは返す
   }
-  var app = (e && e.parameter && e.parameter.app) || 'member';
-  var allowedApps = { 'member': 'index', 'public': 'index_public', 'admin': 'index_admin' };
-  var file = allowedApps[app] || 'index';
 
-  // ブラウザタブ用タイトル（GAS sandbox では setTitle が唯一の手段）
-  var APP_TITLES = {
-    member: '会員マイページ｜枚方市ケアマネ協議会',
-    public:  '研修・入会申込ポータル｜枚方市ケアマネ協議会',
-    admin:   '管理者ポータル｜枚方市ケアマネ協議会',
+  // v251: scriptId でプロジェクトを識別し配信ページを固定。URL パラメータは無視。
+  // 各 split プロジェクトは自身の HTML のみを持ち、常に同一ページを返す。
+  var SCRIPT_ID_ROUTES = {
+    '1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ': { file: 'index',        title: '会員マイページ｜枚方市ケアマネ協議会',          favicon: 'member' },
+    '1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi': { file: 'index',        title: '管理者ポータル｜枚方市ケアマネ協議会',          favicon: 'member' },
+    '11YRlyWVgWRFw5_zByfLnA_vUlZzLeBSgiaanQCvZZoHMAfay8yK7RdkL':  { file: 'index_public', title: '研修・入会申込ポータル｜枚方市ケアマネ協議会', favicon: 'public' },
   };
-  var title = APP_TITLES[app] || APP_TITLES['member'];
+  var route = SCRIPT_ID_ROUTES[ScriptApp.getScriptId()]
+    || { file: 'index_public', title: '研修・入会申込ポータル｜枚方市ケアマネ協議会', favicon: 'public' };
 
-  var output = HtmlService.createHtmlOutputFromFile(file)
-    .setTitle(title)
+  var output = HtmlService.createHtmlOutputFromFile(route.file)
+    .setTitle(route.title)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 
-  // ファビコン: PNG data URI を試みる（SVG は非対応だが PNG は受け付ける可能性がある）
-  // Drive ホスト方式は組織ポリシーで公開共有がブロックされるため断念
   try {
-    // Node.js で生成した 32×32 PNG の base64（青背景+人物 / 緑背景+建物）
     var MEMBER_PNG_B64 =
       'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAATUlEQVR42mOQ9btBU8Qwa' +
       'sGoBUjoPxKgsgX/cQDqWPAfLxi14D8RYDQOaG4BzfMBPXLyaGk6agGpFvynABC24D/FY' +
@@ -396,11 +391,8 @@ function doGet(e) {
       'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAUUlEQVR42mNgnZZJU8Qwa' +
       'sHIs+A/xYCwD6hoOs4gopbpA2cBGXaQnIpobgFJdpCZD2huAZF2UJSTaWjB0E9Fw84C' +
       'MhSMWjBqwdC3YLThRTcLALH0a/3mcrRMAAAAAElFTkSuQmCC';
-    var b64 = (app === 'public') ? PUBLIC_PNG_B64 : MEMBER_PNG_B64;
-    output.setFaviconUrl('data:image/png;base64,' + b64);
-  } catch (ex) {
-    // ファビコン設定失敗はアプリ表示に影響させない
-  }
+    output.setFaviconUrl('data:image/png;base64,' + (route.favicon === 'public' ? PUBLIC_PNG_B64 : MEMBER_PNG_B64));
+  } catch (ex) {}
 
   return output;
 }
