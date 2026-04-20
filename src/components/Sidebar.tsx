@@ -31,8 +31,12 @@ const Sidebar: React.FC<SidebarProps> = ({
   const isTrainingOnly = adminPermissionLevel === 'TRAINING_MANAGER' || adminPermissionLevel === 'TRAINING_REGISTRAR';
 
   const menuItems = [
-    { id: 'profile', label: '会員マイページ', icon: <BookOpenIcon className="w-5 h-5" /> },
-    { id: 'training-apply', label: '研修受講の申込み', icon: <CalendarIcon className="w-5 h-5" /> },
+    ...(showMemberPages
+      ? [
+          { id: 'profile', label: '会員マイページ', icon: <BookOpenIcon className="w-5 h-5" /> },
+          { id: 'training-apply', label: '研修受講の申込み', icon: <CalendarIcon className="w-5 h-5" /> },
+        ]
+      : []),
     ...(showAdminPage && isFullAdmin
       ? [
           { id: 'admin', label: '管理コンソール（会員管理）', icon: <HomeIcon className="w-5 h-5" /> },

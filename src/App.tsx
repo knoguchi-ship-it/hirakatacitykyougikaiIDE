@@ -665,7 +665,7 @@ const App: React.FC = () => {
       return;
     }
 
-    if (currentView === 'profile' || currentView === 'training-apply') {
+    if (!isAdminShell && (currentView === 'profile' || currentView === 'training-apply')) {
       const portalLookup = authenticatedContext?.memberPortalLoginId
         ? { loginId: authenticatedContext.memberPortalLoginId }
         : authenticatedContext?.memberId
@@ -2885,6 +2885,7 @@ const App: React.FC = () => {
           }
           memberPageTypeLabel={memberPageTypeLabel}
           showAdminPage={userRole === 'ADMIN'}
+          showMemberPages={!isAdminShell}
           adminPermissionLevel={adminPermissionLevel}
           onLogout={handleLogoutClick}
         />

@@ -1,12 +1,19 @@
 # 開発引継ぎ
 
 更新日: 2026-04-20
-現行本番: `v249`（GAS version 249）
-固定 deployment: member `@249` / public `@249`
+現行本番: `v250`（統合プロジェクト GAS version 249 / 管理者 split プロジェクト GAS version 3）
+固定 deployment: member `@249` / public `@249` / admin split `@3`
 
-## 0. v249 本番稼働中
+## 0. v250 本番稼働中
 
-**詳細リリース記録: `docs/115_RELEASE_STATE_v249_2026-04-20.md`**
+**詳細リリース記録: `docs/116_RELEASE_STATE_v250_2026-04-20.md`**
+
+### v250（2026-04-20）— 管理者 split プロジェクト: admin shell 修正（member_unauthorized 解消）
+
+- **Sidebar 修正**: `showMemberPages={!isAdminShell}` 追加。管理者画面に「会員マイページ」「研修受講の申込み」が表示されなくなった
+- **useEffect ガード**: `loadMemberPortalData` 呼び出しに `!isAdminShell` ガードを追加。初期 `currentView='profile'` による sessionToken なし API 呼び出しを防止
+- **対象**: 管理者 split プロジェクト（`gas/admin`）のみ。会員・公開の fixed deployment は変更なし
+- **admin split deployment**: `AKfycbwS...` → `@3`
 
 ### v249（2026-04-20）— 会員ポータルから管理者ログインタブを分離・管理者専用 URL 追加
 
@@ -110,8 +117,9 @@
 2. `AGENTS.md`（グランドルール）
 3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`（作業プロセス正本）
-5. **`docs/115_RELEASE_STATE_v249_2026-04-20.md`** ← **最新（v249）会員/管理者ポータル分離・管理者専用URL追加**
-6. `docs/114_RELEASE_STATE_v248_2026-04-20.md`（v248: セキュリティ是正: 会員セッショントークン・IDOR修正）
+5. **`docs/116_RELEASE_STATE_v250_2026-04-20.md`** ← **最新（v250）管理者 split: admin shell 修正（member_unauthorized 解消）**
+6. `docs/115_RELEASE_STATE_v249_2026-04-20.md`（v249: 会員/管理者ポータル分離・管理者専用URL追加）
+7. `docs/114_RELEASE_STATE_v248_2026-04-20.md`（v248: セキュリティ是正: 会員セッショントークン・IDOR修正）
 7. `docs/108_RELEASE_STATE_v247_2026-04-20.md`（v247: 職員氏名/フリガナ入力を分割 UI に統一）
 9. `docs/107_RELEASE_STATE_v246_2026-04-19.md`（v246: 会員マイページ保存の loginId アンカー統一・旧 version 整理）
 10. `docs/106_RELEASE_STATE_v245_2026-04-19.md`（v245: 会員マイページ職員追加 UI 全面改修・バリデーション根本修正）
@@ -212,9 +220,10 @@ v195〜v208 の詳細は `docs/79_HANDOVER_2026-04-15.md` または `docs/archiv
 
 ## 5. 現時点の注意事項（2026-04-20 更新）
 
-- **fixed deployment 2 本は `@249`**（GAS version 249）。再開時は必ず `npx clasp deployments --json` で実測確認する。
-- **Apps Script version 保持数**: 現在は `227`〜`249` の 23 件を保持。次回 version 作成前に必要なら古い version を再整理する（上限 200）。
-- **会員/管理者ポータル分離（v249〜）**: 会員ページには管理者タブなし。管理者は `?app=admin` でアクセスすること。`build-gas.mjs` は `VITE_APP=member` / `admin` / `public` の3ビルドを実施（5ファイル push）。
+- **fixed deployment**: 統合プロジェクト 2 本は `@249`。管理者 split (`gas/admin`) は `@3`。再開時は必ず `npx clasp deployments --json` で実測確認する。
+- **Apps Script version 保持数**: 統合プロジェクトは `227`〜`249` の 23 件。管理者 split は version 1〜3。
+- **会員/管理者ポータル分離（v249〜）**: 会員ページには管理者タブなし。管理者は admin split URL でアクセスすること。`build-gas.mjs` は `VITE_APP=member` / `admin` / `public` の3ビルドを実施（5ファイル push）。
+- **admin shell 修正（v250〜）**: 管理者 split では `showMemberPages=false` により会員メニュー非表示。`loadMemberPortalData` も `!isAdminShell` ガードで呼ばれない。
 - **会員セッショントークン（v248〜）**: ログイン成功時に UUID を発行し CacheService に 30分保存。会員 API は sessionToken 必須。フロントエンドは `GasApiClient.memberSessionToken` に保持。
 - **会員URL**: `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec`（管理者タブなし）
 - **管理者URL**: `…/exec?app=admin`（管理者専用ページ）
@@ -241,9 +250,10 @@ npx clasp run healthCheck
 npx clasp run getDbInfo
 ```
 
-**期待値（v249 時点）:**
+**期待値（v250 時点）:**
 - authorized user: `k.noguchi@hcm-n.org`
-- fixed deployment 2 本が `@249`（versionNumber: 249）
+- 統合プロジェクト固定 deployment 2 本が `@249`（versionNumber: 249）
+- 管理者 split deployment が `@3`（versionNumber: 3）
 - `npx clasp run healthCheck` / `getDbInfo` は、認証状態によっては `Unable to run script function. Please make sure you have permission to run the script function.` で失敗し得る。失敗時は認証状態を再点検する。
 
 **⚠️ `clasp run` が "Unable to run script function" で失敗する場合:**
@@ -252,15 +262,13 @@ npx clasp login --creds .tmp/oauth-client-hcmn-member-system-prod.json --use-pro
 ```
 ブラウザ認証後、リダイレクト URL の `code=` 値をターミナルにペーストする。
 
-2026-04-20 確認結果（v249 リリース後）:
-- `npx clasp deployments --json` → member + public ともに `versionNumber: 249` ✅
-- `npx clasp show-authorized-user` → `k.noguchi@hcm-n.org` ✅
-- `npm run typecheck` ✅
-- `npm run build:gas` ✅（3ビルド: member/public/admin）
-- `npx clasp push --force` ✅（5 files pushed: Code.gs / appsscript.json / index.html / index_public.html / index_admin.html）
-- `npx clasp version` ✅（version 249 created）
+2026-04-20 確認結果（v250 リリース後）:
+- 統合プロジェクト `npx clasp deployments --json` → member + public ともに `versionNumber: 249` ✅
+- 管理者 split `npx clasp deployments` → `@3` ✅（`v250 fix admin shell: hide member menu, guard getMemberPortalData`）
+- `npx clasp show-authorized-user` → `k.noguchi@hcm-n.org` ✅（v249 時点）
+- `npm run build:gas:admin` ✅（admin split ビルド）
 - `npx clasp run healthCheck` → 認証状態次第で失敗し得る（再認証後に再試行すること）
-- 実ブラウザ確認 → 操作者側で実施すること（確認ポイントは docs/115 参照）
+- 実ブラウザ確認 → 操作者側で実施すること（確認ポイントは docs/116 参照）
 
 ## 7. 次担当者の最初の一手
 
