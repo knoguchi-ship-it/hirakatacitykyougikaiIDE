@@ -30,9 +30,37 @@ Operator-facing canonical URLs（v249〜）:
 
 Project rule:
 
-- 固定 deployment 2 本運用は継続する。
-- 会員ページと管理者ページは v249 以降 URL パラメータで分岐（`?app=admin`）。同一 deployment で3ルートを提供。
+- 固定 deployment 2 本運用は継続（公開ポータルはこのまま）。
+- 会員/管理者は v249 以降 URL パラメータで分岐（暫定）→ 分離プロジェクトへの移行を進行中。
 - 操作者向けの正規入口は上記 public fixed deployment の base URL を標準とする。
+
+## 2. (B) 分離プロジェクト Deployment IDs（準本番）
+
+| 用途 | Script ID | Deployment ID | version | webapp.access |
+|---|---|---|---|---|
+| 会員専用 (member) | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | @2 | ANYONE_ANONYMOUS |
+| 管理者専用 (admin) | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | @2 | DOMAIN |
+
+分離プロジェクト URL:
+
+| 用途 | URL |
+|---|---|
+| 会員専用 (member) | `https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec` |
+| 管理者専用 (admin) | `https://script.google.com/a/macros/hcm-n.org/s/AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os/exec` |
+
+更新コマンド（分離プロジェクト用）:
+
+```bash
+# admin
+cd gas/admin && npx clasp push --force
+cd gas/admin && npx clasp version "..."
+cd gas/admin && npx clasp redeploy AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os --versionNumber <n>
+
+# member
+cd gas/member && npx clasp push --force
+cd gas/member && npx clasp version "..."
+cd gas/member && npx clasp redeploy AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g --versionNumber <n>
+```
 
 ## 3. Standard Release Steps
 

@@ -443,52 +443,24 @@ npx clasp login --creds .tmp/oauth-client-hcmn-member-system-prod.json --use-pro
   - 実ブラウザ確認 → 操作者側で実施（MASTER権限でログイン → サイドバー「データ管理コンソール」表示確認）
 - Latest release-state reference: `docs/98_RELEASE_STATE_v235_2026-04-18.md`
 
-## 2026-04-20 member split side-by-side deployment note
-- 既存 production fixed deployments は v249 時点で member/public ともに `@249`（この note 記録時点は `@247` だったが、その後 v248/v249 で更新済み）。
-- 会員マイページ分離用の別 Apps Script project を新規作成した。
-  - Script ID: `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ`
-  - Local root: `gas/member`
-  - Local clasp config: `gas/member/.clasp.json`
-- side-by-side deployment を version `1` で作成した。
-  - Deployment ID: `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g`
-  - Description: `member split side-by-side initial deployment from v247 baseline`
-- 実施コマンド:
-  - `npm run build:gas:member`
-  - `npx clasp push --force` (`gas/member`)
-  - `npx clasp version "member split side-by-side initial deployment from v247 baseline"` (`gas/member`) → version `1`
-  - `npx clasp deploy -V 1 -d "member split side-by-side initial deployment from v247 baseline"` (`gas/member`)
-  - `npx clasp deployments` (`gas/member`) ✅
-- 確認結果:
-  - 新規 member split project 側の deployment 一覧で `@1` を確認。
-  - `curl -I https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec` は `403 Forbidden`。HEAD 応答のみの確認であり、実ブラウザの GET 疎通確認は未実施。
-- 未了:
-  - Apps Script UI で Web app の access / execute-as 表示確認
-  - 実ブラウザで member split URL の表示確認
-  - 必要に応じて member split project 専用 `appsscript.json` の scope 最小化
+## 2026-04-20 member split project（v249 時点）
 
-## 2026-04-20 admin split side-by-side deployment note
-- 既存 production fixed deployments は v249 時点で `@249`（この note 記録時点は `@247` だったが、その後 v248/v249 で更新済み）。admin 分離（side-by-side）は別 script project として継続中。
-- admin 専用 build root と script project を追加した。
-  - Local root: `gas/admin`
-  - Local clasp config: `gas/admin/.clasp.json`
-  - Script ID: `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi`
-- 実施コマンド:
-  - `npm run typecheck` ✅
-  - `npm run build:gas:admin` ✅
-  - `npx clasp push --force` (`gas/admin`) ✅
-  - `npx clasp version "admin split side-by-side initial deployment from v247 baseline"` (`gas/admin`) → version `1`
-  - `npx clasp deploy -V 1 -d "admin split side-by-side initial deployment from v247 baseline"` (`gas/admin`) ✅
-  - `npx clasp deployments` (`gas/admin`) ✅
-- 作成された deployment:
-  - Deployment ID: `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os`
-  - Description: `admin split side-by-side initial deployment from v247 baseline`
-- 確認結果:
-  - `npx clasp deployments` では `@1` を確認。
-  - ただし `/exec` は generic URL / domain URL ともに `404 Not Found`。
-  - したがって deployment object は存在するが、Web app としての到達確認は未完了。
-- 未了:
-  - Apps Script UI `Deploy > Manage deployments` で admin split deployment が Web app として作成されているか確認
-  - 必要なら UI で Web app deployment を作り直し、確定した URL を記録
-  - 実ブラウザで Google 管理者ログイン導線と主要画面（dashboard, training-manage）を確認
-- 次担当者は、分離作業専用 handover として `docs/112_HANDOVER_TASK_PROJECT_SPLIT_SIDE_BY_SIDE_2026-04-20.md` を必ず参照すること。
-- `docs/112_HANDOVER_TASK_PROJECT_SPLIT_SIDE_BY_SIDE_2026-04-20.md` には、次担当者の固定再開順、admin `/exec` 404 の切り分け順、UI 混線防止、response/performance guardrail を追記済み。分離作業はこの手順から外れないこと。
+- Script ID: `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ`
+- Local root: `gas/member` / clasp config: `gas/member/.clasp.json`（git 追跡済み）
+- **Current version: 2** (`appsscript.json` ANYONE_ANONYMOUS・最小スコープ: spreadsheets のみ）
+- **Deployment ID: `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` → @2**
+- **アクセス URL（ANYONE_ANONYMOUS）:**
+  `https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec`
+- **未確認（操作者ブラウザ確認待ち）:** 実ブラウザで会員ログイン → マイページ表示
+
+## 2026-04-20 admin split project（v249 時点）
+
+- Script ID: `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi`
+- Local root: `gas/admin` / clasp config: `gas/admin/.clasp.json`（git 追跡済み）
+- **Current version: 2** (`appsscript.json` webapp.access=DOMAIN・最小スコープ6つ）
+- **Deployment ID: `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` → @2**
+- **アクセス URL（DOMAIN = hcm-n.org ユーザー専用）:**
+  `https://script.google.com/a/macros/hcm-n.org/s/AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os/exec`
+- **v1 時点の 404 は修正済み**: v1 は ANYONE_ANONYMOUS で domain URL 参照 → 404。v2 で DOMAIN アクセスに修正し redeploy 済み
+- **未確認（操作者ブラウザ確認待ち）:** 実ブラウザで Google 管理者ログイン → ダッシュボード表示
+- 詳細は `docs/112_HANDOVER_TASK_PROJECT_SPLIT_SIDE_BY_SIDE_2026-04-20.md` 参照
