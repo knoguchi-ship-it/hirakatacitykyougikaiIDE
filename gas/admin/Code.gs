@@ -1006,13 +1006,6 @@ var MEMBER_ALLOWED_ACTIONS = {
   cancelWithdrawalSelf: true,
 };
 
-// 管理者ログイン専用アクション: Session.getActiveUser() による自己完結型認証のため、
-// 事前の admin session 検証を必要としない。関数内で認証を完結させる。
-var ADMIN_LOGIN_ACTIONS = {
-  checkAdminBySession: true,
-  adminLoginWithData: true,
-};
-
 var ADMIN_ACTION_PERMISSIONS = {
   'getDbInfo': ['MASTER','ADMIN'],
   'getSystemSettings': ['MASTER','ADMIN'],
@@ -1064,12 +1057,6 @@ var ADMIN_ACTION_PERMISSIONS = {
   'repairDuplicateStaffRecords': ['MASTER'],
   'repairTrainingApplicationApplicantIds': ['MASTER'],
   'repairMemberCareManagerDuplicates': ['MASTER'],
-  'fetchAllData': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
-  'initRosterExport': ['MASTER','ADMIN'],
-  'processRosterChunk': ['MASTER','ADMIN'],
-  'finalizeRosterExport': ['MASTER','ADMIN'],
-  'cleanupRosterExport': ['MASTER','ADMIN'],
-  'generateMailingListExcel': ['MASTER','ADMIN'],
 };
 
 function processApiRequest(action, payload) {
@@ -1077,9 +1064,8 @@ function processApiRequest(action, payload) {
     var parsedPayload = parsePayload_(payload) || {};
     var isPublicAction = !!PUBLIC_ALLOWED_ACTIONS[action];
     var isMemberAction = !!MEMBER_ALLOWED_ACTIONS[action];
-    var isAdminLoginAction = !!ADMIN_LOGIN_ACTIONS[action];
     var requiredPerms = ADMIN_ACTION_PERMISSIONS[action];
-    if (!isPublicAction && !isMemberAction && !isAdminLoginAction && !requiredPerms) {
+    if (!isPublicAction && !isMemberAction && !requiredPerms) {
       return JSON.stringify({ success: false, error: 'unsupported_action' });
     }
     if (requiredPerms) {
@@ -1091,26 +1077,8 @@ function processApiRequest(action, payload) {
       if (requiredPerms.indexOf(permLevel) === -1) {
         return JSON.stringify({ success: false, error: 'insufficient_permission' });
       }
+      // 下流関数でセッション情報を利用可能にする
       parsedPayload.__adminSession = sessionResult;
-    }
-    // 会員セッショントークン検証: ログイン以外の MEMBER_ALLOWED_ACTIONS は
-    // サーバー側セッションキャッシュからのみ principal を解決し、クライアント申告を信頼しない
-    var LOGIN_ONLY_MEMBER_ACTIONS = { memberLogin: true, memberLoginWithData: true };
-    if (isMemberAction && !LOGIN_ONLY_MEMBER_ACTIONS[action]) {
-      var memberToken = String(parsedPayload.sessionToken || '').trim();
-      if (!memberToken) {
-        return JSON.stringify({ success: false, error: 'member_unauthorized' });
-      }
-      var cachedMemberSession = CacheService.getScriptCache().get('ms_' + memberToken);
-      if (!cachedMemberSession) {
-        return JSON.stringify({ success: false, error: 'member_session_expired' });
-      }
-      var memberSession = JSON.parse(cachedMemberSession);
-      // クライアント申告の識別子をサーバー検証済み値で上書きして IDOR を防止する
-      parsedPayload.loginId = memberSession.loginId;
-      parsedPayload.memberId = memberSession.memberId;
-      parsedPayload.staffId = memberSession.staffId || '';
-      parsedPayload.__memberSession = memberSession;
     }
     // ─────────────────────────────────────────────────────────
 
@@ -4084,14 +4052,6 @@ function memberLogin_(request) {
   authSheet.getRange(authRowInfo.rowNumber, columns['更新日時'] + 1).setValue(nowIso);
   appendLoginHistory_(ss, authId, loginId, 'PASSWORD', 'SUCCESS', '会員ログイン成功');
 
-  var sessionToken = Utilities.getUuid();
-  CacheService.getScriptCache().put('ms_' + sessionToken, JSON.stringify({
-    loginId: loginId,
-    memberId: memberId,
-    staffId: staffId,
-    createdAt: nowIso,
-  }), 1800);
-
   return {
     authMethod: 'PASSWORD',
     loginId: loginId,
@@ -4099,7 +4059,6 @@ function memberLogin_(request) {
     staffId: staffId,
     roleCode: roleCode,
     canAccessAdminPage: false,
-    sessionToken: sessionToken,
     authenticatedAt: nowIso,
   };
 }

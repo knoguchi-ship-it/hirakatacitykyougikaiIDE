@@ -9,7 +9,9 @@ import { viteSingleFile } from 'vite-plugin-singlefile';
 // VITE_APP=member (or 未設定) → 会員ポータル (index.html)
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
-    const isPublic = env.VITE_APP === 'public';
+    const appVariant = env.VITE_APP || '';
+    const isPublic = appVariant === 'public';
+    const isAdmin = appVariant === 'admin';
 
     return {
       server: {
@@ -37,6 +39,18 @@ export default defineConfig(({ mode }) => {
             },
             rollupOptions: {
               input: path.resolve(__dirname, 'index_public.html'),
+            },
+          }
+        : isAdmin
+        ? {
+            outDir: 'dist-admin',
+            minify: 'terser',
+            terserOptions: {
+              compress: { passes: 2, drop_console: false, pure_funcs: [] },
+              mangle: { toplevel: false },
+            },
+            rollupOptions: {
+              input: path.resolve(__dirname, 'index_admin.html'),
             },
           }
         : {

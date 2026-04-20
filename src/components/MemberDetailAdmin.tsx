@@ -5,7 +5,7 @@ import PostalCodeInput from './PostalCodeInput';
 
 type EditableStaff = Staff & { isNew?: boolean };
 type EditableMemberForm = Record<string, any> & { staff?: EditableStaff[] };
-type DraftStaffFieldKey = 'name' | 'kana' | 'email' | 'careManagerNumber';
+type DraftStaffFieldKey = 'lastName' | 'firstName' | 'lastKana' | 'firstKana' | 'email' | 'careManagerNumber';
 type DraftStaffFieldErrors = Partial<Record<DraftStaffFieldKey, string>>;
 
 const EDITABLE_MEMBER_FIELDS = [
@@ -80,11 +80,15 @@ const validateCareManagerNumber = (value: string) => !value.trim() || CARE_MANAG
 const validatePostCode = (value: string) => !value.trim() || POST_CODE_RE.test(value.trim());
 const validatePhone = (value: string) => !value.trim() || PHONE_RE.test(value.trim());
 const validateEmail = (value: string) => !value.trim() || EMAIL_RE.test(value.trim());
+const joinNameParts = (lastName?: string, firstName?: string, fallback?: string) => {
+  const joined = `${String(lastName || '').trim()} ${String(firstName || '').trim()}`.trim();
+  return joined || String(fallback || '').trim();
+};
 
 const normalizeEditableStaff = (staff: Partial<EditableStaff> | undefined): EditableStaff => ({
   id: String(staff?.id || ''),
-  name: String(staff?.name || '').trim(),
-  kana: String(staff?.kana || '').trim(),
+  name: joinNameParts(staff?.lastName, staff?.firstName, staff?.name),
+  kana: joinNameParts(staff?.lastKana, staff?.firstKana, staff?.kana),
   email: String(staff?.email || '').trim(),
   role: (staff?.role || 'STAFF') as StaffRole,
   status: (staff?.status || 'ENROLLED') as 'ENROLLED' | 'LEFT',
@@ -115,8 +119,8 @@ const sanitizeStaffList = (staffList: EditableStaff[] = []): Staff[] =>
     .map(({ isNew, ...staff }) => ({
       ...staff,
       id: String(staff.id || ''),
-      name: String(staff.name || '').trim(),
-      kana: String(staff.kana || '').trim(),
+      name: joinNameParts(staff.lastName, staff.firstName, staff.name),
+      kana: joinNameParts(staff.lastKana, staff.firstKana, staff.kana),
       email: String(staff.email || '').trim(),
       careManagerNumber: String(staff.careManagerNumber || '').trim(),
       lastName: String(staff.lastName || '').trim(),
@@ -392,12 +396,18 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
   const validateDraftStaff = (staff: Partial<EditableStaff> | undefined): DraftStaffFieldErrors => {
     if (!staff || isBlankDraftStaff(staff)) return {};
     const errors: DraftStaffFieldErrors = {};
-    const name = String(staff.name || '').trim();
-    const kana = String(staff.kana || '').trim();
+    const lastName = String(staff.lastName || '').trim();
+    const firstName = String(staff.firstName || '').trim();
+    const lastKana = String(staff.lastKana || '').trim();
+    const firstKana = String(staff.firstKana || '').trim();
     const email = String(staff.email || '').trim();
     const careManagerNumber = String(staff.careManagerNumber || '').trim();
-    if (!name) errors.name = '氏名は必須です。';
-    if (!kana) errors.kana = 'フリガナは必須です。';
+    if (!lastName) errors.lastName = '氏は必須です。';
+    if (!firstName) errors.firstName = '名は必須です。';
+    if (!lastKana) errors.lastKana = 'セイは必須です。';
+    else if (!validateHalfWidthKana(lastKana)) errors.lastKana = 'セイは半角ｶﾅで入力してください。';
+    if (!firstKana) errors.firstKana = 'メイは必須です。';
+    else if (!validateHalfWidthKana(firstKana)) errors.firstKana = 'メイは半角ｶﾅで入力してください。';
     if (!email) {
       errors.email = 'メールアドレスは必須です。';
     } else if (!validateEmail(email)) {
@@ -424,10 +434,12 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
   };
 
   const getFirstDraftStaffErrorMessage = (staffList: EditableStaff[] = []) => {
-    const fieldOrder: DraftStaffFieldKey[] = ['name', 'kana', 'email', 'careManagerNumber'];
+    const fieldOrder: DraftStaffFieldKey[] = ['lastName', 'firstName', 'lastKana', 'firstKana', 'email', 'careManagerNumber'];
     const labelMap: Record<DraftStaffFieldKey, string> = {
-      name: '氏名',
-      kana: 'フリガナ',
+      lastName: '氏',
+      firstName: '名',
+      lastKana: 'セイ',
+      firstKana: 'メイ',
       email: 'メールアドレス',
       careManagerNumber: '介護支援専門員番号',
     };
@@ -509,8 +521,28 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       for (let i = 0; i < draftStaff.length; i++) {
         const s = draftStaff[i];
         if (isBlankDraftStaff(s)) continue;
-        if (!String(s.name || '').trim()) {
-          setError(`職員 ${i + 1} 行目の氏名が未入力です。`);
+        if (!String(s.lastName || '').trim()) {
+          setError(`職員 ${i + 1} 行目の氏が未入力です。`);
+          return;
+        }
+        if (!String(s.firstName || '').trim()) {
+          setError(`職員 ${i + 1} 行目の名が未入力です。`);
+          return;
+        }
+        if (!String(s.lastKana || '').trim()) {
+          setError(`職員 ${i + 1} 行目のセイが未入力です。`);
+          return;
+        }
+        if (!validateHalfWidthKana(String(s.lastKana || '').trim())) {
+          setError(`職員 ${i + 1} 行目のセイは半角ｶﾅで入力してください。`);
+          return;
+        }
+        if (!String(s.firstKana || '').trim()) {
+          setError(`職員 ${i + 1} 行目のメイが未入力です。`);
+          return;
+        }
+        if (!validateHalfWidthKana(String(s.firstKana || '').trim())) {
+          setError(`職員 ${i + 1} 行目のメイは半角ｶﾅで入力してください。`);
           return;
         }
         const email = String(s.email || '').trim();
@@ -827,7 +859,9 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     setForm(prev => ({
       ...prev,
       staff: (nextStaff = (((prev.staff as EditableStaff[]) || []).map(staff =>
-        staff.id === staffId ? { ...staff, ...patch } : staff
+        staff.id === staffId
+          ? normalizeEditableStaff({ ...staff, ...patch })
+          : staff
       ))),
     }));
     setDraftStaffErrors(prev => {
@@ -1306,20 +1340,34 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
           {staffList.filter((staff) => staff.isNew).length > 0 && (
             <div className="mt-4 space-y-3">
               {staffList.filter((staff) => staff.isNew).map((staff) => (
-                <div key={staff.id} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[1.1fr_1.1fr_minmax(20rem,1.8fr)_1fr_1fr_auto] gap-3 rounded-lg border border-slate-200 p-4">
+                <div key={staff.id} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[repeat(4,minmax(9rem,1fr))_minmax(20rem,1.8fr)_1fr_1fr_auto] gap-3 rounded-lg border border-slate-200 p-4">
                   <input
-                    value={staff.name || ''}
-                    onChange={(e) => updateDraftStaff(staff.id, { name: e.target.value })}
-                    className={getDraftStaffFieldClass(staff.id, 'name')}
-                    placeholder="氏名"
-                    aria-label="氏名"
+                    value={staff.lastName || ''}
+                    onChange={(e) => updateDraftStaff(staff.id, { lastName: e.target.value })}
+                    className={getDraftStaffFieldClass(staff.id, 'lastName')}
+                    placeholder="氏"
+                    aria-label="氏"
                   />
                   <input
-                    value={staff.kana || ''}
-                    onChange={(e) => updateDraftStaff(staff.id, { kana: e.target.value })}
-                    className={getDraftStaffFieldClass(staff.id, 'kana')}
-                    placeholder="カナ"
-                    aria-label="カナ"
+                    value={staff.firstName || ''}
+                    onChange={(e) => updateDraftStaff(staff.id, { firstName: e.target.value })}
+                    className={getDraftStaffFieldClass(staff.id, 'firstName')}
+                    placeholder="名"
+                    aria-label="名"
+                  />
+                  <input
+                    value={staff.lastKana || ''}
+                    onChange={(e) => updateDraftStaff(staff.id, { lastKana: e.target.value })}
+                    className={getDraftStaffFieldClass(staff.id, 'lastKana')}
+                    placeholder="ｾｲ"
+                    aria-label="セイ"
+                  />
+                  <input
+                    value={staff.firstKana || ''}
+                    onChange={(e) => updateDraftStaff(staff.id, { firstKana: e.target.value })}
+                    className={getDraftStaffFieldClass(staff.id, 'firstKana')}
+                    placeholder="ﾒｲ"
+                    aria-label="メイ"
                   />
                   <input
                     type="email"
@@ -1364,7 +1412,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                     取消
                   </button>
                   {draftStaffErrors[staff.id] && (
-                    <div className="md:col-span-2 xl:col-span-6 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                    <div className="md:col-span-2 xl:col-span-8 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                       {Object.values(draftStaffErrors[staff.id]).join(' ')}
                     </div>
                   )}

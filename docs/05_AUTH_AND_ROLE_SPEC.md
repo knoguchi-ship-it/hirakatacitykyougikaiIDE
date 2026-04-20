@@ -1,6 +1,6 @@
 ﻿# 認証・権限仕様
 
-最終更新: 2026-04-19
+最終更新: 2026-04-20
 
 ## 1. 基本方針
 - 会員マイページの権限制御は、`T_認証アカウント.認証方式='PASSWORD'` のログインIDに紐づく認証アカウントを基準に判定する。
@@ -8,6 +8,7 @@
 - current principal の解決は、会員・管理者ともに `T_認証アカウント` の現在紐付けを正とする。`T_管理者Googleホワイトリスト.紐付け会員ID` は後方互換の参照補助であり、auth row の `会員ID` より優先しない。
 - `loginId` は単一概念として混用しない。会員マイページ再読込のセッションアンカーは `PASSWORD` ログインID、管理者セッションの識別子は Google メールとして分離して扱う。
 - 管理者ログイン後に会員マイページを表示する場合、データ再読込の主キーは `memberId/staffId` を正とし、Google メールを `getMemberPortalData_()` の `loginId` に渡さない。
+- 会員セルフサービス API は、少なくとも `getMemberPortalData_` / `updateMemberSelf_` / `withdrawSelf_` / `cancelWithdrawalSelf_` で `payload.memberId` を認可根拠に使わない。`loginId` から解決した `T_認証アカウント` の `会員ID` / `職員ID` を正本 principal とする。
 - 会員マイページでは、管理者向け項目を disabled 表示で残さず、会員本人に必要な情報と操作だけを表示する。
 
 ## 2. 会員種別
@@ -15,7 +16,7 @@
 - 賛助会員: 個人会員に準じる。介護支援専門員番号は任意。
 - 事業所会員（代表者 `REPRESENTATIVE`）: 代表者情報、事業所情報、所属職員情報を編集できる。ただし会員ステータス・入会日・代表者自身の状態/権限は編集できない。
 - 事業所会員（管理者 `ADMIN`）: 代表者情報と事業所情報は閲覧のみ。所属職員情報は編集できる。
-- 事業所会員（一般 `STAFF`）: 代表者情報、事業所情報、所属職員情報は閲覧中心。自分の氏名・フリガナ・メールアドレス、研修申込のみ操作できる。
+- 事業所会員（一般 `STAFF`）: 代表者情報、事業所情報、所属職員情報は閲覧中心。自分の `氏 / 名 / セイ / メイ / メールアドレス` と研修申込のみ操作できる。
 
 ## 3. 事業所会員の正本ルール
 - 事業所には必ず 1 名の `REPRESENTATIVE` が存在しなければならない。
@@ -62,6 +63,7 @@
 - ログインIDは要約カードに重複表示せず、「ログインとパスワード」セクションでのみ表示する。
 - セッション操作は左メニューのアカウント領域に統合する。
 - 事業所会員向け画面では、管理用語よりも会員向け文言を優先し、`代表者情報`、`事業所情報`、`発送・通知ルール` を用いる。
+- 事業所会員の代表者情報・所属職員情報は、`氏 / 名 / セイ / メイ` の構造化入力を標準とし、単一の `氏名` / `フリガナ` テキストボックス入力を要求しない。
 - 会員マイページや研修申込画面など、一般会員が利用する画面では `閲覧専用モード` `一部編集モード` などの内部実装を示す文言は表示しない。
 - 年会費状況は `未納` を明示し、未納時のみ `納入方法を見る` の導線から振込先と納入案内を表示する。
 - 新年度開始時点で年会費対象会員の当年度レコードが未作成でも、会員マイページでは当年度を `未納` として先頭表示する。
@@ -79,7 +81,7 @@
 - 管理コンソールと会員マイページは、エラー項目に赤枠・項目別メッセージ・上部エラーサマリを表示し、保存時は先頭のエラー項目へフォーカスする。
 - 事業所会員: 事業所情報を必須とする。`officeNumber` を必須とする。
 - 事業所会員: 代表者情報の必須項目が欠けている場合は保存不可。
-- 事業所会員: 所属職員の `メールアドレス` は必須とする。新規追加時は、完全空白の追加行のみ保存対象から除外し、入力を開始した行は `氏名` / `メールアドレス` / `介護支援専門員番号` を必須とする。
+- 事業所会員: 所属職員の `メールアドレス` は必須とする。新規追加時は、完全空白の追加行のみ保存対象から除外し、入力を開始した行は `氏 / 名 / セイ / メイ / メールアドレス / 介護支援専門員番号` を必須とする。
 - 個人会員・賛助会員から事業所職員へ転籍する場合、転籍元会員に `メールアドレス` が登録されていなければ転籍不可とする。
 - 退会済み・退職日の整合、代表者 1 名制約はバックエンドで検証する。
 - 管理者 Google ホワイトリストの追加・更新・削除時は、`admin_wl_v1` と `admin_auth_v1` の両キャッシュを即時無効化し、権限変更を同一営業日待ちにしない。
@@ -92,3 +94,4 @@
 - `REPRESENTATIVE` retains full role-edit capability for all non-representative staff rows.
 - UI enforcement: role dropdown `disabled` per-row based on caller role and target row.
 - Backend enforcement: `updateMemberSelf_` strips `role` from the caller's own staff record when caller is `ADMIN`; `validateBusinessStaffRoleTransition_` blocks REPRESENTATIVE↔non-REPRESENTATIVE transitions for non-system-admin actors.
+- Backend enforcement: `processApiRequest` は `publicAllowedActions` / `memberAllowedActions` / `ADMIN_ACTION_PERMISSIONS` の登録外 action を `unsupported_action` で拒否する。deny-by-default を維持し、未分類 action の暗黙許可を作らない。

@@ -21,6 +21,7 @@ export interface MemberLoginResult {
   staffId?: string;
   roleCode: string;
   canAccessAdminPage: boolean;
+  sessionToken: string;
   authenticatedAt: string;
 }
 
@@ -58,6 +59,7 @@ declare const google: {
 };
 
 export interface ApiClient {
+  setMemberSessionToken(token: string | null): void;
   fetchAllData(): Promise<{ members: Member[], trainings: Training[] }>;
   getMemberPortalData(lookup: MemberPortalLookup): Promise<{ members: Member[], trainings: Training[], resolvedMemberId?: string, resolvedStaffId?: string }>;
   getAdminDashboardData(): Promise<AdminDashboardData>;
@@ -305,6 +307,16 @@ const GAS_RUNTIME_REQUIRED_MESSAGE = 'この画面は Google Apps Script Web ア
 
 // --- GAS Implementation (Production) ---
 class GasApiClient implements ApiClient {
+  private memberSessionToken: string | null = null;
+
+  setMemberSessionToken(token: string | null): void {
+    this.memberSessionToken = token;
+  }
+
+  private memberSessionPayload(): { sessionToken?: string } {
+    return this.memberSessionToken ? { sessionToken: this.memberSessionToken } : {};
+  }
+
   async fetchAllData(): Promise<{ members: Member[], trainings: Training[] }> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
@@ -363,7 +375,7 @@ class GasApiClient implements ApiClient {
           }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getMemberPortalData', JSON.stringify(lookup || {}));
+        .processApiRequest('getMemberPortalData', JSON.stringify({ ...lookup, ...this.memberSessionPayload() }));
     });
   }
 
@@ -522,7 +534,7 @@ class GasApiClient implements ApiClient {
           }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('updateMemberSelf', JSON.stringify({ ...member, loginId }));
+        .processApiRequest('updateMemberSelf', JSON.stringify({ ...member, loginId, ...this.memberSessionPayload() }));
     });
   }
 
@@ -547,7 +559,7 @@ class GasApiClient implements ApiClient {
           }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('changePassword', JSON.stringify({ loginId, currentPassword, newPassword }));
+        .processApiRequest('changePassword', JSON.stringify({ loginId, currentPassword, newPassword, ...this.memberSessionPayload() }));
     });
   }
 
@@ -904,7 +916,7 @@ class GasApiClient implements ApiClient {
           }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('applyTraining', JSON.stringify(request));
+        .processApiRequest('applyTraining', JSON.stringify({ ...request, ...this.memberSessionPayload() }));
     });
   }
 
@@ -925,7 +937,7 @@ class GasApiClient implements ApiClient {
           }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('cancelTraining', JSON.stringify(request));
+        .processApiRequest('cancelTraining', JSON.stringify({ ...request, ...this.memberSessionPayload() }));
     });
   }
 
@@ -1072,7 +1084,7 @@ class GasApiClient implements ApiClient {
           }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('withdrawSelf', JSON.stringify({ loginId, password, memberId }));
+        .processApiRequest('withdrawSelf', JSON.stringify({ loginId, password, memberId, ...this.memberSessionPayload() }));
     });
   }
 
@@ -1093,7 +1105,7 @@ class GasApiClient implements ApiClient {
           }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('cancelWithdrawalSelf', JSON.stringify({ loginId, password, memberId }));
+        .processApiRequest('cancelWithdrawalSelf', JSON.stringify({ loginId, password, memberId, ...this.memberSessionPayload() }));
     });
   }
 

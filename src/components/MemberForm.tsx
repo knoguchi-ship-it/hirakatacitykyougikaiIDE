@@ -145,6 +145,11 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
     const joined = `${lastName || ''} ${firstName || ''}`.trim();
     return joined || fallback || '';
   };
+  const syncStaffCompositeFields = (staff: Staff): Staff => ({
+    ...staff,
+    name: buildFullName(staff.lastName, staff.firstName, staff.name),
+    kana: buildFullName(staff.lastKana, staff.firstKana, staff.kana),
+  });
   const normalizeCareManagerInput = (value: string) => value.replace(/\D/g, '').slice(0, 8);
   const validateHalfWidthKana = (value: string) => !value.trim() || HALF_WIDTH_KANA_RE.test(value.trim());
   const validateCareManagerNumber = (value: string) => !value.trim() || CARE_MANAGER_RE.test(value.trim());
@@ -171,7 +176,15 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
   const canStaffSelfEditField = (staffId: string, field: keyof Staff) => (
     isBusinessStaffSelfMode &&
     staffId === operatingStaffId &&
-    (field === 'name' || field === 'kana' || field === 'email')
+    (
+      field === 'lastName' ||
+      field === 'firstName' ||
+      field === 'lastKana' ||
+      field === 'firstKana' ||
+      field === 'name' ||
+      field === 'kana' ||
+      field === 'email'
+    )
   );
 
   // データ移行期対応: 初期値が空の必須フィールドは空白を許容する
@@ -201,13 +214,15 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
     return empty;
   }, [initialMember]);
 
-  // 職員ごとの初期空フィールド（staff.id → Set<'name'|'kana'>）
+  // 職員ごとの初期空フィールド（staff.id → Set<'lastName'|'firstName'|'lastKana'|'firstKana'>）
   const initiallyEmptyStaffFields = useMemo(() => {
     const map: Record<string, Set<string>> = {};
     (initialMember.staff || []).forEach(staff => {
       const empty = new Set<string>();
-      if (!String(staff.name || '').trim()) empty.add('name');
-      if (!String(staff.kana || '').trim()) empty.add('kana');
+      if (!String(staff.lastName || '').trim()) empty.add('lastName');
+      if (!String(staff.firstName || '').trim()) empty.add('firstName');
+      if (!String(staff.lastKana || '').trim()) empty.add('lastKana');
+      if (!String(staff.firstKana || '').trim()) empty.add('firstKana');
       if (empty.size > 0) map[staff.id] = empty;
     });
     return map;
@@ -455,7 +470,15 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
         ...prev,
         staff: prev.staff?.map(s => {
           if (s.id !== id) return s;
-          const next = { ...s, [field]: value } as Staff;
+          let next = { ...s, [field]: value } as Staff;
+          if (
+            field === 'lastName' ||
+            field === 'firstName' ||
+            field === 'lastKana' ||
+            field === 'firstKana'
+          ) {
+            next = syncStaffCompositeFields(next);
+          }
           if (field === 'status' && value === 'ENROLLED') {
             next.withdrawnDate = '';
             next.midYearWithdrawal = false;
@@ -468,6 +491,10 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
   const isBlankDraftStaff = (staff: DraftStaff) =>
     !String(staff.name || '').trim()
     && !String(staff.kana || '').trim()
+    && !String(staff.lastName || '').trim()
+    && !String(staff.firstName || '').trim()
+    && !String(staff.lastKana || '').trim()
+    && !String(staff.firstKana || '').trim()
     && !String(staff.email || '').trim()
     && !String(staff.careManagerNumber || '').trim();
 
@@ -482,6 +509,10 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
         id: `S${Date.now()}`,
         name: '',
         kana: '',
+        lastName: '',
+        firstName: '',
+        lastKana: '',
+        firstKana: '',
         email: '',
         role: 'STAFF',
         status: 'ENROLLED',
@@ -526,8 +557,12 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
     if (isBusinessStaffSelfMode) {
       const ownStaff = m.staff?.find((staff) => staff.id === operatingStaffId);
       const ownStaffInitialEmpty = initiallyEmptyStaffFields[operatingStaffId ?? ''] ?? new Set<string>();
-      if (!ownStaff?.name?.trim() && !ownStaffInitialEmpty.has('name')) newErrors.staff_self_name = '氏名は必須です';
-      if (!ownStaff?.kana?.trim() && !ownStaffInitialEmpty.has('kana')) newErrors.staff_self_kana = 'フリガナは必須です';
+      if (!ownStaff?.lastName?.trim() && !ownStaffInitialEmpty.has('lastName')) newErrors.staff_self_lastName = '氏は必須です';
+      if (!ownStaff?.firstName?.trim() && !ownStaffInitialEmpty.has('firstName')) newErrors.staff_self_firstName = '名は必須です';
+      if (!ownStaff?.lastKana?.trim() && !ownStaffInitialEmpty.has('lastKana')) newErrors.staff_self_lastKana = 'セイは必須です';
+      else if (ownStaff?.lastKana?.trim() && !validateHalfWidthKana(ownStaff.lastKana)) newErrors.staff_self_lastKana = 'セイは半角ｶﾅで入力してください';
+      if (!ownStaff?.firstKana?.trim() && !ownStaffInitialEmpty.has('firstKana')) newErrors.staff_self_firstKana = 'メイは必須です';
+      else if (ownStaff?.firstKana?.trim() && !validateHalfWidthKana(ownStaff.firstKana)) newErrors.staff_self_firstKana = 'メイは半角ｶﾅで入力してください';
       setErrors(newErrors);
       return newErrors;
     }
@@ -604,16 +639,24 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
         if (draft.isNew && isBlankDraftStaff(draft)) return;
         const prefix = `staff_${index}`;
         if (draft.isNew) {
-          if (!staff.name?.trim()) newErrors[`${prefix}_name`] = '氏名は必須です';
-          if (!staff.kana?.trim()) newErrors[`${prefix}_kana`] = 'フリガナは必須です';
+          if (!staff.lastName?.trim()) newErrors[`${prefix}_lastName`] = '氏は必須です';
+          if (!staff.firstName?.trim()) newErrors[`${prefix}_firstName`] = '名は必須です';
+          if (!staff.lastKana?.trim()) newErrors[`${prefix}_lastKana`] = 'セイは必須です';
+          else if (!validateHalfWidthKana(staff.lastKana)) newErrors[`${prefix}_lastKana`] = 'セイは半角ｶﾅで入力してください';
+          if (!staff.firstKana?.trim()) newErrors[`${prefix}_firstKana`] = 'メイは必須です';
+          else if (!validateHalfWidthKana(staff.firstKana)) newErrors[`${prefix}_firstKana`] = 'メイは半角ｶﾅで入力してください';
           if (!staff.email?.trim()) newErrors[`${prefix}_email`] = 'メールアドレスは必須です';
           else if (!EMAIL_RE.test(staff.email.trim())) newErrors[`${prefix}_email`] = 'メールアドレスの形式が正しくありません';
           if (!staff.careManagerNumber?.trim()) newErrors[`${prefix}_careManagerNumber`] = '介護支援専門員番号は必須です';
           else if (!CARE_MANAGER_RE.test(staff.careManagerNumber.trim())) newErrors[`${prefix}_careManagerNumber`] = '8桁の半角数字で入力してください';
         } else {
           const staffInitiallyEmpty = initiallyEmptyStaffFields[staff.id] ?? new Set<string>();
-          if (!staff.name?.trim() && !staffInitiallyEmpty.has('name')) newErrors[`${prefix}_name`] = '職員氏名は必須です';
-          if (!staff.kana?.trim() && !staffInitiallyEmpty.has('kana')) newErrors[`${prefix}_kana`] = '職員フリガナは必須です';
+          if (!staff.lastName?.trim() && !staffInitiallyEmpty.has('lastName')) newErrors[`${prefix}_lastName`] = '職員の氏は必須です';
+          if (!staff.firstName?.trim() && !staffInitiallyEmpty.has('firstName')) newErrors[`${prefix}_firstName`] = '職員の名は必須です';
+          if (!staff.lastKana?.trim() && !staffInitiallyEmpty.has('lastKana')) newErrors[`${prefix}_lastKana`] = '職員のセイは必須です';
+          else if (staff.lastKana?.trim() && !validateHalfWidthKana(staff.lastKana)) newErrors[`${prefix}_lastKana`] = '職員のセイは半角ｶﾅで入力してください';
+          if (!staff.firstKana?.trim() && !staffInitiallyEmpty.has('firstKana')) newErrors[`${prefix}_firstKana`] = '職員のメイは必須です';
+          else if (staff.firstKana?.trim() && !validateHalfWidthKana(staff.firstKana)) newErrors[`${prefix}_firstKana`] = '職員のメイは半角ｶﾅで入力してください';
         }
         const joined = staff.joinedDate ? new Date(staff.joinedDate) : null;
         const withdrawn = staff.withdrawnDate ? new Date(staff.withdrawnDate) : null;
@@ -665,6 +708,12 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
           const { isNew: _isNew, ...staffFields } = s as DraftStaff;
           return {
             ...staffFields,
+            name: buildFullName(s.lastName, s.firstName, s.name),
+            kana: buildFullName(
+              s.lastKana ? toHalfWidthKana(s.lastKana) : s.lastKana,
+              s.firstKana ? toHalfWidthKana(s.firstKana) : s.firstKana,
+              s.kana,
+            ),
             lastKana: s.lastKana ? toHalfWidthKana(s.lastKana) : s.lastKana,
             firstKana: s.firstKana ? toHalfWidthKana(s.firstKana) : s.firstKana,
           };
@@ -1338,8 +1387,10 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                   currentStaff?.role === 'REPRESENTATIVE' ||
                                   (currentStaff?.role === 'ADMIN' && !isOwnStaff)
                                 );
-                                const errName = errors[`staff_${staffIndex}_name`] || (isOwnStaff ? errors.staff_self_name : '');
-                                const errKana = errors[`staff_${staffIndex}_kana`] || (isOwnStaff ? errors.staff_self_kana : '');
+                                const errLastName = errors[`staff_${staffIndex}_lastName`] || (isOwnStaff ? errors.staff_self_lastName : '');
+                                const errFirstName = errors[`staff_${staffIndex}_firstName`] || (isOwnStaff ? errors.staff_self_firstName : '');
+                                const errLastKana = errors[`staff_${staffIndex}_lastKana`] || (isOwnStaff ? errors.staff_self_lastKana : '');
+                                const errFirstKana = errors[`staff_${staffIndex}_firstKana`] || (isOwnStaff ? errors.staff_self_firstKana : '');
                                 const errEmail = errors[`staff_${staffIndex}_email`];
                                 const errCm = errors[`staff_${staffIndex}_careManagerNumber`];
 
@@ -1370,32 +1421,62 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                       <div>
                                         <label className="block text-xs font-medium text-slate-600 mb-1">
-                                          氏名{draftStaff.isNew && <span className="text-red-500 ml-1">*</span>}
+                                          氏{draftStaff.isNew && <span className="text-red-500 ml-1">*</span>}
                                         </label>
                                         <input
                                           disabled={nameDisabled}
                                           type="text"
-                                          value={staff.name}
-                                          onChange={(e) => handleStaffChange(staff.id, 'name', e.target.value)}
-                                          className={nameDisabled ? inputDisabled : errName ? inputError : inputNormal}
-                                          placeholder="例: 佐藤 次郎"
+                                          value={staff.lastName || ''}
+                                          onChange={(e) => handleStaffChange(staff.id, 'lastName', e.target.value)}
+                                          className={nameDisabled ? inputDisabled : errLastName ? inputError : inputNormal}
+                                          placeholder="例: 佐藤"
                                         />
-                                        {errName && <p className="text-xs text-red-500 mt-1">{errName}</p>}
+                                        {errLastName && <p className="text-xs text-red-500 mt-1">{errLastName}</p>}
                                         {isRepresentativeRow && <p className="text-xs text-slate-400 mt-1">代表者情報から自動反映</p>}
                                       </div>
                                       <div>
                                         <label className="block text-xs font-medium text-slate-600 mb-1">
-                                          フリガナ{draftStaff.isNew && <span className="text-red-500 ml-1">*</span>}
+                                          名{draftStaff.isNew && <span className="text-red-500 ml-1">*</span>}
                                         </label>
                                         <input
                                           disabled={nameDisabled}
                                           type="text"
-                                          value={staff.kana}
-                                          onChange={(e) => handleStaffChange(staff.id, 'kana', e.target.value)}
-                                          className={nameDisabled ? inputDisabled : errKana ? inputError : inputNormal}
-                                          placeholder="サトウ ジロウ"
+                                          value={staff.firstName || ''}
+                                          onChange={(e) => handleStaffChange(staff.id, 'firstName', e.target.value)}
+                                          className={nameDisabled ? inputDisabled : errFirstName ? inputError : inputNormal}
+                                          placeholder="例: 次郎"
                                         />
-                                        {errKana && <p className="text-xs text-red-500 mt-1">{errKana}</p>}
+                                        {errFirstName && <p className="text-xs text-red-500 mt-1">{errFirstName}</p>}
+                                        {isRepresentativeRow && <p className="text-xs text-slate-400 mt-1">代表者情報から自動反映</p>}
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs font-medium text-slate-600 mb-1">
+                                          セイ{draftStaff.isNew && <span className="text-red-500 ml-1">*</span>}
+                                        </label>
+                                        <input
+                                          disabled={nameDisabled}
+                                          type="text"
+                                          value={staff.lastKana || ''}
+                                          onChange={(e) => handleStaffChange(staff.id, 'lastKana', e.target.value)}
+                                          className={nameDisabled ? inputDisabled : errLastKana ? inputError : inputNormal}
+                                          placeholder="ｻﾄｳ"
+                                        />
+                                        {errLastKana && <p className="text-xs text-red-500 mt-1">{errLastKana}</p>}
+                                        {isRepresentativeRow && <p className="text-xs text-slate-400 mt-1">代表者情報から自動反映</p>}
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs font-medium text-slate-600 mb-1">
+                                          メイ{draftStaff.isNew && <span className="text-red-500 ml-1">*</span>}
+                                        </label>
+                                        <input
+                                          disabled={nameDisabled}
+                                          type="text"
+                                          value={staff.firstKana || ''}
+                                          onChange={(e) => handleStaffChange(staff.id, 'firstKana', e.target.value)}
+                                          className={nameDisabled ? inputDisabled : errFirstKana ? inputError : inputNormal}
+                                          placeholder="ｼﾞﾛｳ"
+                                        />
+                                        {errFirstKana && <p className="text-xs text-red-500 mt-1">{errFirstKana}</p>}
                                         {isRepresentativeRow && <p className="text-xs text-slate-400 mt-1">代表者情報から自動反映</p>}
                                       </div>
                                     </div>

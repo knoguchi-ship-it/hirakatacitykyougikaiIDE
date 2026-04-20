@@ -26,6 +26,7 @@ type MemberStatusFilter = 'ALL' | 'ACTIVE' | 'WITHDRAWAL_SCHEDULED' | 'WITHDRAWN
 type MemberSortKey = 'memberId' | 'displayName' | 'memberType' | 'trainingCount' | 'tenure' | 'status';
 type MemberSortDir = 'asc' | 'desc';
 type DisplayMemberStatus = Exclude<MemberStatusFilter, 'ALL'>;
+type AppShellMode = 'integrated' | 'member' | 'admin';
 const DEFAULT_MEMBER_PAGE_SIZE = 50;
 const getFiscalYearForDate = (date: Date) => (date.getMonth() < 3 ? date.getFullYear() - 1 : date.getFullYear());
 const DEFAULT_MEMBER_FISCAL_YEAR_FILTER = getFiscalYearForDate(new Date()).toString();
@@ -171,6 +172,14 @@ const PUBLIC_PORTAL_DEFAULTS = {
 } as const;
 
 const App: React.FC = () => {
+  const appShellMode: AppShellMode = import.meta.env.VITE_APP === 'admin'
+    ? 'admin'
+    : import.meta.env.VITE_APP === 'member'
+    ? 'member'
+    : 'integrated';
+  const isMemberShell = appShellMode === 'member';
+  const isAdminShell = appShellMode === 'admin';
+  const defaultAuthTab: AuthTab = isAdminShell ? 'admin' : 'member';
   const [userRole, setUserRole] = useState<Role>('MEMBER');
   const [currentView, setCurrentView] = useState<View>('profile');
   const [annualFeeHasUnsavedChanges, setAnnualFeeHasUnsavedChanges] = useState(false);
@@ -220,7 +229,7 @@ const App: React.FC = () => {
   const adminPermissionRequestRef = useRef<Promise<AdminPermissionData> | null>(null);
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [authTab, setAuthTab] = useState<AuthTab>('member');
+  const [authTab, setAuthTab] = useState<AuthTab>(defaultAuthTab);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
   const [memberLoginId, setMemberLoginId] = useState('');
@@ -895,7 +904,7 @@ const App: React.FC = () => {
   };
 
   const applyAuthContext = (
-    ctx: Pick<MemberLoginResult | AdminLoginResult, 'authMethod' | 'memberId' | 'staffId' | 'loginId' | 'canAccessAdminPage'> & { adminPermissionLevel?: AdminPermissionLevel },
+    ctx: Pick<MemberLoginResult | AdminLoginResult, 'authMethod' | 'memberId' | 'staffId' | 'loginId' | 'canAccessAdminPage'> & { adminPermissionLevel?: AdminPermissionLevel; sessionToken?: string },
     availableMembers: Member[] = members,
   ) => {
     const identities = buildLoginIdentities(availableMembers);
@@ -904,6 +913,9 @@ const App: React.FC = () => {
       staffId: ctx.staffId,
       memberPortalLoginId: ctx.authMethod === 'PASSWORD' ? ctx.loginId : undefined,
     });
+    if (ctx.authMethod === 'PASSWORD' && ctx.sessionToken) {
+      api.setMemberSessionToken(ctx.sessionToken);
+    }
     setSelectedIdentityId(resolveIdentityId(ctx, identities));
     const permLevel = ctx.adminPermissionLevel || null;
     setAdminPermissionLevel(permLevel);
@@ -1009,7 +1021,11 @@ const App: React.FC = () => {
         await api.updateMember(updatedMember);
         loadAdminDashboardData({ force: true }).catch(() => undefined);
       } else {
-        await api.updateMemberSelf(updatedMember, memberLoginId);
+        const memberPortalLoginId = authenticatedContext?.memberPortalLoginId || memberLoginId;
+        if (!memberPortalLoginId) {
+          throw new Error('会員マイページのログインIDを解決できません。');
+        }
+        await api.updateMemberSelf(updatedMember, memberPortalLoginId);
       }
     } catch (e) {
       console.error('Sync failed:', e);
@@ -1023,10 +1039,11 @@ const App: React.FC = () => {
     setCurrentView('profile');
     setAnnualFeeHasUnsavedChanges(false);
     setPendingAnnualFeeAction(null);
-    setAuthTab('member');
+    setAuthTab(defaultAuthTab);
     setAuthError(null);
     setMemberPassword('');
     setSelectedIdentityId('');
+    api.setMemberSessionToken(null);
     setAuthenticatedContext(null);
     setSelectedMemberForDetailId(null);
     setSelectedStaffForDetail(null);
@@ -1861,11 +1878,20 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     if (!isAuthenticated) {
+      const loginTitle = isAdminShell ? 'Admin Login' : isMemberShell ? 'Member Login' : 'Login';
+      const loginDescription = isAdminShell
+        ? 'Admin uses Google sign-in only.'
+        : isMemberShell
+        ? 'Member uses login ID and password only.'
+        : 'Member uses login ID/password. Admin uses Google sign-in only.';
+      const showMemberAuth = !isAdminShell;
+      const showAdminAuth = !isMemberShell;
       return (
         <div className="max-w-lg mx-auto mt-20 bg-white border border-slate-200 shadow-sm rounded-xl p-6">
           <h1 className="text-xl font-bold text-slate-800 mb-1">ログイン</h1>
           <p className="text-sm text-slate-600 mb-5">会員はログインID/パスワード、管理者のみGoogle認証を使用します。</p>
           <fieldset disabled={authBusy} className={authBusy ? 'opacity-60' : ''}>
+            {showMemberAuth && showAdminAuth && (
             <div className="flex gap-2 mb-4">
               <button type="button" className={`px-3 py-2 rounded ${authTab === 'member' ? 'bg-slate-800 text-white' : 'bg-slate-100'}`} onClick={() => setAuthTab('member')}>
                 会員ログイン
@@ -1874,8 +1900,9 @@ const App: React.FC = () => {
                 管理者ログイン
               </button>
             </div>
+            )}
 
-            {authTab === 'member' ? (
+            {showMemberAuth && authTab === 'member' ? (
               <form className="space-y-3" onSubmit={handleMemberLogin}>
                 <input
                   className="w-full border border-slate-300 rounded px-3 py-2"
@@ -2830,7 +2857,7 @@ const App: React.FC = () => {
         initialMember={currentUser}
         activeStaffId={currentIdentity?.staffId}
         activeStaffRole={currentIdentity?.staffRole}
-        loginId={memberLoginId}
+        loginId={authenticatedContext?.memberPortalLoginId || memberLoginId}
         isAdmin={userRole === 'ADMIN'}
         defaultBusinessStaffLimit={defaultBusinessStaffLimit}
         historyLookbackMonths={trainingHistoryLookbackMonths}

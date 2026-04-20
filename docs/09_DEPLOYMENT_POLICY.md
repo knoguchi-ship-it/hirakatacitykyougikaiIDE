@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-04-19
-Production: `v243` / fixed deployments `@243`
+Updated: 2026-04-20
+Production: `v247` / fixed deployments `@247`
 
 ## 1. Purpose
 
@@ -18,7 +18,7 @@ Production: `v243` / fixed deployments `@243`
 | Member portal | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `/exec` |
 | Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `/exec?app=public` |
 
-Both fixed deployments currently point to `@243`.
+Both fixed deployments currently point to `@247`.
 
 Operator-facing canonical URL:
 
@@ -124,6 +124,44 @@ When the change affects user flows, real-browser verification is performed by th
 - Do not leave corrupted source documents in place.
 
 ## 7. Current Recorded State
+
+### 2026-04-20 `v247`
+
+- Version `247` created: split staff name/kana fields in member portal and admin draft UI.
+- Scope:
+  - `src/components/MemberForm.tsx` の職員欄を `氏 / 名 / セイ / メイ` 分割入力へ変更し、保存前に `name` / `kana` を再合成。
+  - `src/components/MemberDetailAdmin.tsx` の「新規職員追加」も同じ分割入力へ統一し、既存 backend / データ構造との互換を維持。
+- member/public の両 fixed deployment を `npx clasp redeploy` で `@247` に同期。
+- Verification:
+  - `npm run typecheck` ✅
+  - `npm run build` ✅
+  - `npm run build:gas` ✅
+  - `npx clasp push --force` ✅
+  - `npx clasp show-authorized-user` ✅ (`k.noguchi@hcm-n.org`)
+  - `npx clasp deployments --json` ✅ (member + public both `versionNumber: 247`)
+  - `npx clasp versions` ✅ (`227`〜`247`, 21 versions)
+  - `npx clasp run healthCheck` ❌ (`Unable to run script function. Please make sure you have permission to run the script function.`)
+  - `npx clasp run getDbInfo` ❌ (`Unable to run script function. Please make sure you have permission to run the script function.`)
+  - 実ブラウザ確認 ❌ 未実施（操作者側）
+
+### 2026-04-19 `v246`
+
+- Version `246` created: member self-save loginId anchor fix + handover alignment.
+- Scope:
+  - `src/App.tsx` の会員保存で `authenticatedContext.memberPortalLoginId` を優先して `updateMemberSelf` へ渡すよう修正。
+  - `MemberForm` に渡す `loginId` も同じ解決ルールに統一。
+  - Apps Script Project History の bulk delete で古い version を削除し、最終的に `227`〜`246` の 20 件のみ保持する状態へ整理。
+- member/public の両 fixed deployment を `npx clasp redeploy` で `@246` に同期。
+- Verification:
+  - `npx clasp versions` ✅ (20 versions retained)
+  - `npm run typecheck` ✅
+  - `npm run build:gas` ✅
+  - `npx clasp push --force` ✅
+  - `npx clasp show-authorized-user` ✅ (`k.noguchi@hcm-n.org`)
+  - `npx clasp deployments --json` ✅ (member + public both `versionNumber: 246`)
+  - `npx clasp run healthCheck` ✅ (`ok: true`)
+  - `npx clasp run getDbInfo` ✅ (`1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs`)
+  - 実ブラウザ確認 ❌ 未実施（操作者側）
 
 ### 2026-04-19 `v243`
 
@@ -563,3 +601,45 @@ When the change affects user flows, real-browser verification is performed by th
 - Both fixed deployments were synced to `@226`.
 - Verification: `npm run typecheck` ✅, `npm run build:gas` ✅, `npx clasp deployments --json` ✅ (both @226).
 - `npx clasp run healthCheck` blocked by known project-scoped OAuth issue — re-run at next session start using `.tmp/oauth-client-hcmn-member-system-prod.json --use-project-scopes --no-localhost`.
+
+## 2026-04-20 member split side-by-side deployment note
+
+- This is not a production fixed deployment change. Production fixed deployments remain:
+  - member: `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` -> `@247`
+  - public: `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` -> `@247`
+- A separate side-by-side Apps Script project for the future member-only app was created from `gas/member`.
+  - Script ID: `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ`
+  - Deployment ID: `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g`
+  - Version: `1`
+  - Description: `member split side-by-side initial deployment from v247 baseline`
+- Commands executed:
+  - `npm run build:gas:member`
+  - `npx clasp push --force` in `gas/member`
+  - `npx clasp version "member split side-by-side initial deployment from v247 baseline"` in `gas/member`
+  - `npx clasp deploy -V 1 -d "member split side-by-side initial deployment from v247 baseline"` in `gas/member`
+  - `npx clasp deployments` in `gas/member`
+- Verification status:
+  - `npx clasp deployments` confirmed the new deployment at `@1`.
+  - `curl -I` against the generic `/exec` URL returned `403 Forbidden`; this is not treated as sufficient browser verification.
+  - Operator-side browser confirmation and Apps Script UI confirmation remain required before any route cutover.
+
+## 2026-04-20 admin split side-by-side deployment note
+
+- This is not a production fixed deployment change. Production fixed deployments remain:
+  - member: `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` -> `@247`
+  - public: `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` -> `@247`
+- A separate side-by-side Apps Script project for the future admin-only app was created from `gas/admin`.
+  - Script ID: `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi`
+  - Deployment ID: `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os`
+  - Version: `1`
+  - Description: `admin split side-by-side initial deployment from v247 baseline`
+- Commands executed:
+  - `npm run build:gas:admin`
+  - `npx clasp push --force` in `gas/admin`
+  - `npx clasp version "admin split side-by-side initial deployment from v247 baseline"` in `gas/admin`
+  - `npx clasp deploy -V 1 -d "admin split side-by-side initial deployment from v247 baseline"` in `gas/admin`
+  - `npx clasp deployments` in `gas/admin`
+- Verification status:
+  - `npx clasp deployments` confirmed the new deployment at `@1`.
+  - `curl -L -D - -o NUL` against both generic and domain-scoped `/exec` URLs returned `404 Not Found`.
+  - Treat this as unresolved until Apps Script UI confirms the deployment type and a real browser can reach the admin URL.

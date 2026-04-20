@@ -1,5 +1,7 @@
 # アーキテクチャ設計書
 
+最終更新: 2026-04-20
+
 ## 1. システム全体構成 (Google Workspace for Nonprofits 構成)
 本システムは、ランニングコストを抑えるため、外部のレンタルサーバーやクラウドデータベースを使用せず、**Google Workspace for Nonprofits (GWNP)** の標準機能のみで構築する。
 
@@ -120,6 +122,7 @@
   7. 管理者が会員詳細編集など全件データを必要とする画面へ進んだ時点で `fetchAllData` を呼び出す。
   8. 取得したデータを `App.tsx` のステートに格納し、Props として子コンポーネントへ伝播する。
   9. 変更時は `processApiRequest(action, payload)` を呼び出してスプレッドシートを更新し、レスポンス後に必要なローカルステートとキャッシュを同期する。
+  10. 事業所会員の代表者情報・所属職員情報は、UI 上 `氏 / 名 / セイ / メイ` の構造化入力を標準とし、保存時に `氏名` / `フリガナ` を後方互換用に再合成する。
 - **年会費管理コンソール**:
   - 会員マイページ向けの `annualFeeHistory` は「当年度・前年度」の連続2年度を優先表示する。
   - 対象会員で当年度または前年度の年会費レコードが未作成の場合は、その年度を `未納` として補完表示する。
@@ -163,7 +166,7 @@
 | `changePassword` | パスワード変更（現在PW照合あり） | 会員 |
 | `updateMember` | 会員情報更新（管理者用 allowlist でサニタイズ）(v143) | MASTER/ADMIN |
 | `updateMembersBatch` | 会員一括更新（最大100件） | MASTER/ADMIN |
-| `updateMemberSelf` | 会員自身のプロフィール更新（サーバーサイド allowlist フィルタ、loginId→会員ID照合） | 会員 |
+| `updateMemberSelf` | 会員自身のプロフィール更新（サーバーサイド allowlist フィルタ、`memberPortalLoginId` を優先して `loginId→会員ID` を照合） | 会員 |
 | `createMember` | 入会処理（会員+認証レコード作成） | MASTER/ADMIN |
 | `withdrawMember` | 退会処理（管理者操作） | MASTER/ADMIN |
 | `scheduleWithdrawMember` | 退会予約（翌年度4/1に退会） | MASTER/ADMIN |

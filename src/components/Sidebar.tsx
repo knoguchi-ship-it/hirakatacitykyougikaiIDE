@@ -11,6 +11,7 @@ interface SidebarProps {
   currentStaffName?: string;
   memberPageTypeLabel: string;
   showAdminPage: boolean;
+  showMemberPages?: boolean;
   adminPermissionLevel?: AdminPermissionLevel | null;
 }
 
@@ -23,6 +24,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   currentStaffName,
   memberPageTypeLabel,
   showAdminPage,
+  showMemberPages = true,
   adminPermissionLevel,
 }) => {
   const isFullAdmin = adminPermissionLevel === 'MASTER' || adminPermissionLevel === 'ADMIN';

@@ -69,9 +69,12 @@ function compressHtmlFile(inputPath) {
 
 const distDir    = path.resolve(__dirname, '..', 'dist');
 const distPubDir = path.resolve(__dirname, '..', 'dist-public');
+const distAdminDir = path.resolve(__dirname, '..', 'dist-admin');
 
 const memberHtml = path.join(distDir, 'index.html');
 const publicHtml = path.join(distPubDir, 'index_public.html');
+const adminHtml = path.join(distAdminDir, 'index_admin.html');
 
 if (fs.existsSync(memberHtml)) compressHtmlFile(memberHtml);
 if (fs.existsSync(publicHtml)) compressHtmlFile(publicHtml);
+if (fs.existsSync(adminHtml)) compressHtmlFile(adminHtml);

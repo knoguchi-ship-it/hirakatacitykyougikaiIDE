@@ -12,6 +12,8 @@
     "build:preview": "vite build --mode preview",
     "preview": "vite preview",
     "build:gas": "node scripts/build-gas.mjs",
+    "build:gas:member": "node scripts/build-member-gas.mjs",
+    "build:gas:admin": "node scripts/build-admin-gas.mjs",
     "clasp:setup": "powershell -ExecutionPolicy Bypass -File scripts/setup-clasp.ps1",
     "clasp:login": "clasp login",
     "clasp:push": "npm run build:gas && clasp push",

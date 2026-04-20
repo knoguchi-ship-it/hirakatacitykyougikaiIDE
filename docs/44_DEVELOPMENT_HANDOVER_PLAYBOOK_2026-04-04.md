@@ -21,16 +21,18 @@
 
 ## 3. 作業開始チェック
 1. `git status --short` で既存差分を把握する。
-2. `HANDOVER.md` を読み、本番 version と pending を確認する。
-3. `AGENTS.md` と案件ルールを読む。
-4. 対象機能の正本を読む。
-5. 必要なら task 個票を作成する。
-6. オンライン作業前は `npx clasp show-authorized-user`、`npx clasp run healthCheck`、`npx clasp run getDbInfo` を、最初から承認済みの安定経路で実行する。
+2. 未追跡ファイルがある場合は、追跡対象か、生成物・ローカルメモ・資格情報・一時ファイルなどの例外かを先に判定する。
+3. `HANDOVER.md` を読み、本番 version と pending を確認する。
+4. `AGENTS.md` と案件ルールを読む。
+5. 対象機能の正本を読む。
+6. 必要なら task 個票を作成する。
+7. オンライン作業前は `npx clasp show-authorized-user`、`npx clasp run healthCheck`、`npx clasp run getDbInfo` を、最初から承認済みの安定経路で実行する。
 
 ## 4. 作業中ルール
 - 仕様変更前に、対応する正本の記述有無を確認する。
 - 正本が不足している場合、コード変更と同じターンで追記する。
 - 既存の unrelated diff は触らない。
+- 追跡すべきファイルは未追跡のまま放置しない。未追跡でよい例外は `.gitignore` または案件正本に根拠を残す。
 - demo/mock の復活は不可。
 - business member の代表者情報は `REPRESENTATIVE` 行を正本とする。
 - task 単位で証跡を残し、結果だけでなく復旧内容も記録する。

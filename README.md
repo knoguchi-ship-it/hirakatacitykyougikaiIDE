@@ -35,11 +35,13 @@
 2. `AGENTS.md`
 3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-5. `docs/10_SOW.md`
+5. `HANDOVER.md` に記載された最新の release state 文書
 6. `docs/09_DEPLOYMENT_POLICY.md`
-7. `docs/17_ROOT_CAUSE_ERROR_RESPONSE_PLAYBOOK.md`
+7. `docs/05_AUTH_AND_ROLE_SPEC.md`
+8. `docs/04_DB_OPERATION_RUNBOOK.md`
+9. `docs/03_DATA_MODEL.md`
 
-デプロイ、認証、DB整合、障害対応の判断は上記を正本とします。`README.md` は入口案内であり、運用判断の最上位ではありません。ただし、技術選定と仕様提案では Web 検索による最新確認、ベストプラクティスの模索、根拠提示を必須とします。
+デプロイ、認証、DB整合、障害対応の判断は上記を正本とします。`README.md` は入口案内であり、運用判断の最上位ではありません。実際の再開時は `HANDOVER.md` の「最初に読むもの」を優先し、追加の深掘りが必要な場合のみ `docs/00_DOC_INDEX.md` から論点別に参照してください。
 
 ## 開発環境のセットアップ
 
@@ -83,11 +85,13 @@ npm run build:preview
 3. `npm run build:gas` で GAS 組み込み用HTMLを生成
 4. `cd backend && npx clasp push --force` でコードを反映
 5. `cd backend && npx clasp version "<release note>"` で新Versionを作成
-6. Apps Script UI の `Manage deployments` で、固定2 Deployment ID を同じVersionへ更新
+6. `npx clasp redeploy <deploymentId> --versionNumber <n> --description "..."` で固定2 Deployment ID を同じVersionへ同期
+7. `npx clasp deployments --json` で member / public の両 fixed deployment を確認
 
 重要:
 - `clasp deploy --deploymentId` は使用禁止です。
-- 本番運用は固定2 Deployment ID を同時更新します。
+- 本番運用は fixed deployment 2 本を同時更新します。
+- Apps Script UI の `Manage deployments` 手更新は障害復旧時の補助手段に限定します。
 - 正式な手順と禁止事項は `docs/09_DEPLOYMENT_POLICY.md` を参照してください。
 
 ### DB(スプレッドシート)初期化
@@ -103,10 +107,8 @@ npx clasp run setupDatabase
 
 - `HANDOVER.md`
 - `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-- `docs/34_DEVELOPMENT_OPERATING_MODEL_2026-03-30.md`
 - `AGENTS.md`
 - `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
-- `docs/10_SOW.md`
 - `docs/09_DEPLOYMENT_POLICY.md`
 - `docs/05_AUTH_AND_ROLE_SPEC.md`
 - `docs/04_DB_OPERATION_RUNBOOK.md`
@@ -123,13 +125,13 @@ npx clasp run setupDatabase
 - SOW要件は `docs/10_SOW.md` に明記しています。
 
 ## オンライン前提の開発フロー
-1. `HANDOVER.md`、`AGENTS.md`、`GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md` を再読する。
-2. `docs/34_DEVELOPMENT_OPERATING_MODEL_2026-03-30.md` で役割分担と完了条件を確認する。
+1. `HANDOVER.md` の「最初に読むもの」を上から順に確認する。
+2. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md` の開始チェックを実施する。
 3. `cd backend && npx clasp show-authorized-user` で運用アカウントを確認する。
 4. `npx clasp run healthCheck` と `npx clasp run getDbInfo` を実行し、オンライン疎通を確認する。
 5. 実装変更を行う。
 6. `npm run typecheck` と `npm run build` でローカル静的検証を行う。
 7. `npm run build:gas` → `cd backend && npx clasp push --force` → `npx clasp version "..."` を実行する。
-8. Apps Script UI の `Manage deployments` で固定2 Deployment ID を同一Versionへ更新する。
+8. `npx clasp redeploy ... --versionNumber ...` で fixed deployment 2 本を同一Versionへ同期し、`npx clasp deployments --json` で確認する。
 9. 実ブラウザで `/exec` と `/exec?app=public` を確認し、最後に `npx clasp run healthCheck` を再実行する。
-10. `HANDOVER.md` と関連正本を更新する。
+10. `HANDOVER.md`、`docs/09_DEPLOYMENT_POLICY.md`、必要な release state 文書を同ターンで更新する。
