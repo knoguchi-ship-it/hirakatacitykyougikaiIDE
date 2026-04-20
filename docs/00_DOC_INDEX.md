@@ -1,6 +1,6 @@
 # Document Index
 
-Updated: 2026-04-20 (v247)
+Updated: 2026-04-20 (v249)
 
 ## 1. Entry Sources Of Truth
 - `HANDOVER.md`
@@ -34,8 +34,10 @@ Updated: 2026-04-20 (v247)
 - `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md` - 開始/完了チェックの運用正本
 - Latest release-state document referenced from `HANDOVER.md` - 直近変更の詳細
 
-### 現行リリース記録（v235〜v247）
-- `docs/108_RELEASE_STATE_v247_2026-04-20.md` - **latest** - 事業所職員の氏名/フリガナ入力を `氏 / 名 / セイ / メイ` に統一
+### 現行リリース記録（v235〜v249）
+- `docs/115_RELEASE_STATE_v249_2026-04-20.md` - **latest** - 会員/管理者ポータル分離: 会員ページから管理者タブ除去、`?app=admin` 追加
+- `docs/114_RELEASE_STATE_v248_2026-04-20.md` - セキュリティ是正: 会員セッショントークン・IDOR修正・deny-by-default 完成
+- `docs/108_RELEASE_STATE_v247_2026-04-20.md` - 事業所職員の氏名/フリガナ入力を `氏 / 名 / セイ / メイ` に統一
 - `docs/107_RELEASE_STATE_v246_2026-04-19.md` - 会員マイページ保存の loginId アンカー統一・旧 version 整理
 - `docs/106_RELEASE_STATE_v245_2026-04-19.md` - 会員マイページ職員追加 UI 全面改修・バリデーション根本修正
 - `docs/105_RELEASE_STATE_v244_2026-04-19.md` - 会員マイページの新規職員ドラフト行 UX 修正

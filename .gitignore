@@ -30,6 +30,7 @@ dist-ssr
 .tmp/
 Dust/
 dist-public
+dist-admin
 backend/Code.js
 
 # Screenshot / evidence images (binary, not source — keep out of git)

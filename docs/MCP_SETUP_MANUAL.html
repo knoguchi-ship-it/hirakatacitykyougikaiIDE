@@ -1,0 +1,1579 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MCP サーバー設定マニュアル | Claude Code / Codex / VS Code</title>
+  <style>
+    /* ===== CSS Variables ===== */
+    :root {
+      --bg: #0f1117;
+      --bg-card: #1a1d2e;
+      --bg-card2: #242740;
+      --bg-code: #0d1117;
+      --border: #2d3154;
+      --border-accent: #4f5dd4;
+      --text-primary: #e8eaf6;
+      --text-secondary: #9da3c8;
+      --text-muted: #6b7299;
+      --accent: #7c83f5;
+      --accent-hover: #9da3f9;
+      --green: #4ade80;
+      --green-bg: rgba(74,222,128,0.1);
+      --yellow: #fbbf24;
+      --yellow-bg: rgba(251,191,36,0.1);
+      --red: #f87171;
+      --red-bg: rgba(248,113,113,0.1);
+      --blue: #60a5fa;
+      --blue-bg: rgba(96,165,250,0.1);
+      --purple: #c084fc;
+      --purple-bg: rgba(192,132,252,0.1);
+      --radius: 10px;
+      --radius-sm: 6px;
+      --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans JP', sans-serif;
+      --shadow: 0 4px 24px rgba(0,0,0,0.4);
+      --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    /* ===== Reset & Base ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; font-size: 16px; }
+
+    body {
+      background: var(--bg);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { color: var(--accent-hover); text-decoration: underline; }
+
+    /* ===== Layout ===== */
+    .layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      min-height: 100vh;
+    }
+
+    /* ===== Sidebar / TOC ===== */
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      background: var(--bg-card);
+      border-right: 1px solid var(--border);
+      padding: 24px 0;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    .sidebar-logo {
+      padding: 0 20px 20px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+
+    .sidebar-logo h2 {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .sidebar-logo p {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .toc-section {
+      padding: 0 8px;
+      margin-bottom: 8px;
+    }
+
+    .toc-section-title {
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 8px 12px 4px;
+    }
+
+    .toc-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      transition: all 0.15s;
+      cursor: pointer;
+    }
+
+    .toc-link:hover {
+      background: var(--bg-card2);
+      color: var(--text-primary);
+      text-decoration: none;
+    }
+
+    .toc-link.active {
+      background: rgba(124,131,245,0.15);
+      color: var(--accent);
+    }
+
+    .toc-link .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+
+    .toc-link:hover .dot, .toc-link.active .dot { background: var(--accent); }
+
+    /* ===== Main Content ===== */
+    .main {
+      padding: 48px 56px;
+      max-width: 960px;
+    }
+
+    /* ===== Header ===== */
+    .page-header {
+      margin-bottom: 56px;
+    }
+
+    .page-header .badge-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+
+    .badge-green { background: var(--green-bg); color: var(--green); border: 1px solid rgba(74,222,128,0.25); }
+    .badge-blue  { background: var(--blue-bg);  color: var(--blue);  border: 1px solid rgba(96,165,250,0.25); }
+    .badge-purple{ background: var(--purple-bg);color: var(--purple);border: 1px solid rgba(192,132,252,0.25); }
+    .badge-yellow{ background: var(--yellow-bg);color: var(--yellow);border: 1px solid rgba(251,191,36,0.25); }
+    .badge-red   { background: var(--red-bg);   color: var(--red);   border: 1px solid rgba(248,113,113,0.25); }
+    .badge-muted { background: rgba(107,114,153,0.15); color: var(--text-muted); border: 1px solid rgba(107,114,153,0.25); }
+
+    .page-header h1 {
+      font-size: 2.4rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #e8eaf6 0%, #9da3f9 50%, #c084fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1.2;
+      margin-bottom: 12px;
+    }
+
+    .page-header .subtitle {
+      font-size: 1.05rem;
+      color: var(--text-secondary);
+      max-width: 640px;
+    }
+
+    .page-header .meta {
+      margin-top: 16px;
+      display: flex;
+      gap: 20px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .page-header .meta span { display: flex; align-items: center; gap: 5px; }
+
+    /* ===== Section ===== */
+    .section {
+      margin-bottom: 64px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section-number {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: rgba(124,131,245,0.15);
+      border: 1px solid rgba(124,131,245,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .section-header h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin: 28px 0 12px;
+    }
+
+    h4 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin: 16px 0 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    p { color: var(--text-secondary); margin-bottom: 12px; }
+
+    ul, ol { color: var(--text-secondary); padding-left: 20px; margin-bottom: 12px; }
+    li { margin-bottom: 4px; }
+    strong { color: var(--text-primary); font-weight: 600; }
+
+    /* ===== Cards ===== */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 16px;
+    }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .tool-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .tool-card:hover {
+      border-color: var(--border-accent);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .tool-card .tool-icon {
+      font-size: 1.8rem;
+      margin-bottom: 10px;
+    }
+
+    .tool-card h3 {
+      font-size: 0.95rem;
+      margin: 0 0 6px;
+      color: var(--text-primary);
+    }
+
+    .tool-card p {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin: 0;
+    }
+
+    /* ===== Callouts ===== */
+    .callout {
+      display: flex;
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: var(--radius-sm);
+      margin: 16px 0;
+      font-size: 0.875rem;
+    }
+
+    .callout-icon { font-size: 1.1rem; flex-shrink: 0; line-height: 1.6; }
+    .callout p { margin: 0; }
+
+    .callout-info    { background: var(--blue-bg);   border-left: 3px solid var(--blue);   }
+    .callout-warn    { background: var(--yellow-bg);  border-left: 3px solid var(--yellow); }
+    .callout-danger  { background: var(--red-bg);     border-left: 3px solid var(--red);    }
+    .callout-success { background: var(--green-bg);   border-left: 3px solid var(--green);  }
+    .callout-tip     { background: var(--purple-bg);  border-left: 3px solid var(--purple); }
+
+    .callout-info    p { color: var(--blue);   }
+    .callout-warn    p { color: var(--yellow); }
+    .callout-danger  p { color: var(--red);    }
+    .callout-success p { color: var(--green);  }
+    .callout-tip     p { color: var(--purple); }
+
+    /* ===== Code Blocks ===== */
+    .code-block {
+      position: relative;
+      margin: 16px 0;
+    }
+
+    .code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #161b22;
+      border: 1px solid var(--border);
+      border-bottom: none;
+      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+      padding: 8px 14px;
+    }
+
+    .code-lang {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .copy-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 4px;
+      padding: 2px 10px;
+      font-size: 0.72rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: var(--font-sans);
+    }
+
+    .copy-btn:hover { background: var(--bg-card2); color: var(--text-primary); border-color: var(--border-accent); }
+    .copy-btn.copied { color: var(--green); border-color: var(--green); }
+
+    pre {
+      background: var(--bg-code);
+      border: 1px solid var(--border);
+      border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+      padding: 16px 18px;
+      overflow-x: auto;
+      font-size: 0.835rem;
+      line-height: 1.6;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    code {
+      font-family: var(--font-mono);
+      color: #e8eaf6;
+    }
+
+    p code, li code {
+      background: rgba(124,131,245,0.12);
+      border: 1px solid rgba(124,131,245,0.2);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 0.85em;
+      color: var(--accent-hover);
+    }
+
+    /* Syntax highlight colors */
+    .tok-comment { color: #6e7681; font-style: italic; }
+    .tok-key     { color: #79c0ff; }
+    .tok-str     { color: #a5d6ff; }
+    .tok-str2    { color: #7ee787; }
+    .tok-num     { color: #f2cc60; }
+    .tok-kw      { color: #ff7b72; }
+    .tok-cmd     { color: #ffa657; }
+    .tok-flag    { color: #d2a8ff; }
+    .tok-path    { color: #7ee787; }
+    .tok-prompt  { color: #6e7681; user-select: none; }
+    .tok-ok      { color: var(--green); }
+    .tok-warn    { color: var(--yellow); }
+
+    /* ===== Table ===== */
+    .table-wrap { overflow-x: auto; margin: 16px 0; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.86rem;
+    }
+
+    th {
+      background: var(--bg-card2);
+      color: var(--text-secondary);
+      font-weight: 600;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 2px solid var(--border);
+    }
+
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-secondary);
+      vertical-align: top;
+    }
+
+    tr:hover td { background: rgba(255,255,255,0.02); }
+
+    td code { font-size: 0.82rem; }
+
+    /* ===== Step list ===== */
+    .steps { counter-reset: step; }
+
+    .step {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    .step::before {
+      counter-increment: step;
+      content: counter(step);
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: rgba(124,131,245,0.15);
+      border: 1px solid rgba(124,131,245,0.4);
+      color: var(--accent);
+      font-size: 0.78rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .step-body { flex: 1; }
+    .step-body h4 { margin-top: 0; }
+    .step-body p  { margin-bottom: 8px; }
+
+    /* ===== Status indicator ===== */
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: var(--bg-card2);
+      border-radius: var(--radius-sm);
+      margin-bottom: 8px;
+      font-size: 0.86rem;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .status-dot.ok     { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .status-dot.warn   { background: var(--yellow); }
+    .status-dot.error  { background: var(--red); }
+
+    .status-name { font-weight: 600; color: var(--text-primary); min-width: 160px; }
+    .status-desc { color: var(--text-muted); font-size: 0.8rem; }
+
+    /* ===== File path display ===== */
+    .filepath {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--bg-card2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 4px 10px;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+    }
+
+    .filepath .icon { color: var(--accent); }
+
+    /* ===== Divider ===== */
+    hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+
+    /* ===== Responsive ===== */
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+      .main { padding: 32px 24px; }
+      .page-header h1 { font-size: 1.8rem; }
+      .card-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ===== Print ===== */
+    @media print {
+      .sidebar { display: none; }
+      .layout { display: block; }
+      .main { padding: 20px; max-width: 100%; }
+      .copy-btn { display: none; }
+    }
+
+    /* ===== Scrollbar ===== */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--border-accent); }
+
+    /* ===== Misc ===== */
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+
+    .tag-windows { background: rgba(0,120,215,0.15); color: #60a5fa; border: 1px solid rgba(0,120,215,0.3); }
+    .tag-global  { background: rgba(74,222,128,0.1);  color: var(--green);  border: 1px solid rgba(74,222,128,0.25); }
+    .tag-project { background: rgba(251,191,36,0.1);  color: var(--yellow); border: 1px solid rgba(251,191,36,0.25); }
+    .tag-official{ background: rgba(124,131,245,0.1); color: var(--accent); border: 1px solid rgba(124,131,245,0.25); }
+
+    .inline-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 1px 7px;
+      border-radius: 4px;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ===== SIDEBAR ===== -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <h2>&#x26A1; MCP セットアップ</h2>
+      <p>Claude Code / Codex / VS Code</p>
+    </div>
+
+    <div class="toc-section">
+      <div class="toc-section-title">はじめに</div>
+      <a class="toc-link" href="#overview"><span class="dot"></span>MCP とは</a>
+      <a class="toc-link" href="#current-state"><span class="dot"></span>現在の設定状態</a>
+      <a class="toc-link" href="#file-map"><span class="dot"></span>設定ファイル一覧</a>
+    </div>
+
+    <div class="toc-section">
+      <div class="toc-section-title">ツール別設定</div>
+      <a class="toc-link" href="#claude-code"><span class="dot"></span>Claude Code CLI</a>
+      <a class="toc-link" href="#codex"><span class="dot"></span>Codex CLI</a>
+      <a class="toc-link" href="#vscode"><span class="dot"></span>VS Code 拡張</a>
+    </div>
+
+    <div class="toc-section">
+      <div class="toc-section-title">MCP サーバー詳細</div>
+      <a class="toc-link" href="#server-memory"><span class="dot"></span>memory</a>
+      <a class="toc-link" href="#server-sequential"><span class="dot"></span>sequential-thinking</a>
+      <a class="toc-link" href="#server-filesystem"><span class="dot"></span>filesystem</a>
+      <a class="toc-link" href="#server-git"><span class="dot"></span>git</a>
+      <a class="toc-link" href="#server-playwright"><span class="dot"></span>playwright</a>
+    </div>
+
+    <div class="toc-section">
+      <div class="toc-section-title">運用</div>
+      <a class="toc-link" href="#windows-note"><span class="dot"></span>Windows 注意事項</a>
+      <a class="toc-link" href="#verification"><span class="dot"></span>動作確認</a>
+      <a class="toc-link" href="#troubleshoot"><span class="dot"></span>トラブルシューティング</a>
+      <a class="toc-link" href="#ts-project-override"><span class="dot"></span>&#x26A0; プロジェクト設定がGlobalを隠す</a>
+      <a class="toc-link" href="#scope-summary"><span class="dot"></span>スコープ早見表</a>
+    </div>
+  </nav>
+
+  <!-- ===== MAIN ===== -->
+  <main class="main">
+
+    <!-- PAGE HEADER -->
+    <header class="page-header">
+      <div class="badge-row">
+        <span class="badge badge-blue">&#x1F4C4; マニュアル</span>
+        <span class="badge badge-green">v1.0</span>
+        <span class="badge badge-muted">2026-04-17 作成</span>
+        <span class="badge badge-purple">Windows 11 対応</span>
+      </div>
+      <h1>MCP サーバー設定マニュアル</h1>
+      <p class="subtitle">
+        Claude Code CLI・Codex CLI・VS Code 拡張機能に対して<br>
+        Memory / Sequential Thinking / Filesystem / Git / Playwright の
+        5 つの MCP サーバーをグローバル（全プロジェクト共通）で有効にする手順書。
+      </p>
+      <div class="meta">
+        <span>&#x1F4BB; Windows 11 Pro</span>
+        <span>&#x1F464; k.noguchi@care-dx-platform.com</span>
+        <span>&#x1F4C1; C:/VSCode 配下が対象</span>
+      </div>
+    </header>
+
+    <!-- ===== SECTION 1: OVERVIEW ===== -->
+    <section class="section" id="overview">
+      <div class="section-header">
+        <div class="section-number">1</div>
+        <h2>MCP（Model Context Protocol）とは</h2>
+      </div>
+
+      <p>
+        <strong>Model Context Protocol（MCP）</strong> は Anthropic が策定したオープン標準で、
+        AI エージェントと外部ツール・データソースを接続するためのプロトコルです。
+        MCP サーバーを接続することで、AI がファイルシステム操作・Git 操作・メモリ管理などを
+        直接実行できるようになります。
+      </p>
+
+      <div class="card-grid">
+        <div class="tool-card">
+          <div class="tool-icon">&#x1F9E0;</div>
+          <h3>memory</h3>
+          <p>会話をまたいだ情報の永続化。プロジェクトのコンテキストや決定事項を記憶させておける</p>
+        </div>
+        <div class="tool-card">
+          <div class="tool-icon">&#x1F9D9;</div>
+          <h3>sequential-thinking</h3>
+          <p>複雑な問題を段階的に分解・構造化する思考支援。多ステップタスクの品質向上</p>
+        </div>
+        <div class="tool-card">
+          <div class="tool-icon">&#x1F4C2;</div>
+          <h3>filesystem</h3>
+          <p>ファイルシステムへの安全なアクセス。指定パス（C:/VSCode）配下を読み書き可能</p>
+        </div>
+        <div class="tool-card">
+          <div class="tool-icon">&#x1F4E6;</div>
+          <h3>git</h3>
+          <p>Git リポジトリ操作（ステータス確認・差分取得・コミット・ブランチ管理等）</p>
+        </div>
+        <div class="tool-card">
+          <div class="tool-icon">&#x1F3AD;</div>
+          <h3>playwright</h3>
+          <p>ブラウザ自動操作（ナビゲート・クリック・スクリーンショット・フォーム入力等）</p>
+        </div>
+      </div>
+
+      <div class="callout callout-info">
+        <div class="callout-icon">&#x2139;&#xFE0F;</div>
+        <p>
+          MCP サーバーは <strong>stdio（ローカルプロセス）</strong> 方式で動作します。
+          AI がツールを呼び出すたびに npx 経由でサーバープロセスが起動し、
+          標準入出力でやり取りを行います。
+        </p>
+      </div>
+    </section>
+
+    <!-- ===== SECTION 2: CURRENT STATE ===== -->
+    <section class="section" id="current-state">
+      <div class="section-header">
+        <div class="section-number">2</div>
+        <h2>現在の設定状態（2026-04-17 時点）</h2>
+      </div>
+
+      <h3>MCP サーバー稼働状況</h3>
+
+      <div class="status-row">
+        <div class="status-dot ok"></div>
+        <div class="status-name">playwright</div>
+        <div class="status-desc">Connected &#x2014; 全3ツール（CLI / Codex / VS Code）で稼働中</div>
+      </div>
+      <div class="status-row">
+        <div class="status-dot ok"></div>
+        <div class="status-name">memory</div>
+        <div class="status-desc">設定済み &#x2014; 再起動後に全ツールで有効化</div>
+      </div>
+      <div class="status-row">
+        <div class="status-dot ok"></div>
+        <div class="status-name">sequential-thinking</div>
+        <div class="status-desc">設定済み &#x2014; 再起動後に全ツールで有効化</div>
+      </div>
+      <div class="status-row">
+        <div class="status-dot ok"></div>
+        <div class="status-name">filesystem</div>
+        <div class="status-desc">設定済み &#x2014; C:/VSCode 配下が対象ディレクトリ</div>
+      </div>
+      <div class="status-row">
+        <div class="status-dot ok"></div>
+        <div class="status-name">git</div>
+        <div class="status-desc">設定済み &#x2014; 再起動後に全ツールで有効化</div>
+      </div>
+
+      <div class="callout callout-warn">
+        <div class="callout-icon">&#x26A0;&#xFE0F;</div>
+        <p>
+          <strong>設定変更後は Claude Code・Codex を再起動してください。</strong>
+          設定ファイルはセッション開始時にのみ読み込まれます。
+          VS Code は拡張機能のリロード（Ctrl+Shift+P → "Developer: Reload Window"）で反映されます。
+        </p>
+      </div>
+    </section>
+
+    <!-- ===== SECTION 3: FILE MAP ===== -->
+    <section class="section" id="file-map">
+      <div class="section-header">
+        <div class="section-number">3</div>
+        <h2>設定ファイル一覧</h2>
+      </div>
+
+      <p>MCP サーバーの設定は <strong>ツールごとに異なるファイル</strong> に書かれます。全て <strong>ユーザーレベル（グローバル）</strong> のパスです。</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ツール</th>
+              <th>設定ファイルパス</th>
+              <th>スコープ</th>
+              <th>フォーマット</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Claude Code CLI</strong></td>
+              <td><code>~/.claude/settings.json</code><br><small style="color:var(--text-muted)">C:\Users\kenno\.claude\settings.json</small></td>
+              <td><span class="tag tag-global">Global</span></td>
+              <td>JSON — <code>mcpServers</code> キー</td>
+            </tr>
+            <tr>
+              <td><strong>Codex CLI</strong></td>
+              <td><code>~/.codex/config.toml</code><br><small style="color:var(--text-muted)">C:\Users\kenno\.codex\config.toml</small></td>
+              <td><span class="tag tag-global">Global</span></td>
+              <td>TOML — <code>[mcp_servers.&lt;name&gt;]</code> テーブル</td>
+            </tr>
+            <tr>
+              <td><strong>VS Code 拡張</strong></td>
+              <td><code>AppData\Roaming\Code\User\mcp.json</code><br><small style="color:var(--text-muted)">C:\Users\kenno\AppData\Roaming\Code\User\mcp.json</small></td>
+              <td><span class="tag tag-global">Global</span></td>
+              <td>JSON — <code>servers</code> キー（※ mcpServers ではない）</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout callout-tip">
+        <div class="callout-icon">&#x1F4A1;</div>
+        <p>
+          <strong>プロジェクト縛りにしたい場合</strong>（チーム共有など）は、
+          プロジェクトルートに <code>.mcp.json</code>（Claude Code）または
+          <code>.vscode/mcp.json</code>（VS Code）を置きます。
+          今回はどちらも <strong>ユーザーレベル</strong> で設定済みのため、全プロジェクトで共有されます。
+        </p>
+      </div>
+    </section>
+
+    <!-- ===== SECTION 4: CLAUDE CODE ===== -->
+    <section class="section" id="claude-code">
+      <div class="section-header">
+        <div class="section-number">4</div>
+        <h2>Claude Code CLI — 設定詳細</h2>
+      </div>
+
+      <h3>設定ファイル</h3>
+      <div class="filepath"><span class="icon">&#x1F4C4;</span> C:\Users\kenno\.claude\settings.json</div>
+
+      <h3>現在の設定内容</h3>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">JSON — ~/.claude/settings.json</span>
+          <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+        </div>
+        <pre><code>{
+  <span class="tok-key">"mcpServers"</span>: {
+    <span class="tok-key">"playwright"</span>: {
+      <span class="tok-key">"type"</span>: <span class="tok-str">"stdio"</span>,
+      <span class="tok-key">"command"</span>: <span class="tok-str">"npx"</span>,
+      <span class="tok-key">"args"</span>: [<span class="tok-str">"-y"</span>, <span class="tok-str">"@playwright/mcp@0.0.68"</span>]
+    },
+    <span class="tok-key">"memory"</span>: {
+      <span class="tok-key">"type"</span>: <span class="tok-str">"stdio"</span>,
+      <span class="tok-key">"command"</span>: <span class="tok-str">"npx"</span>,
+      <span class="tok-key">"args"</span>: [<span class="tok-str">"-y"</span>, <span class="tok-str">"@modelcontextprotocol/server-memory"</span>]
+    },
+    <span class="tok-key">"sequential-thinking"</span>: {
+      <span class="tok-key">"type"</span>: <span class="tok-str">"stdio"</span>,
+      <span class="tok-key">"command"</span>: <span class="tok-str">"npx"</span>,
+      <span class="tok-key">"args"</span>: [<span class="tok-str">"-y"</span>, <span class="tok-str">"@modelcontextprotocol/server-sequential-thinking"</span>]
+    },
+    <span class="tok-key">"filesystem"</span>: {
+      <span class="tok-key">"type"</span>: <span class="tok-str">"stdio"</span>,
+      <span class="tok-key">"command"</span>: <span class="tok-str">"npx"</span>,
+      <span class="tok-key">"args"</span>: [<span class="tok-str">"-y"</span>, <span class="tok-str">"@modelcontextprotocol/server-filesystem"</span>, <span class="tok-str">"C:/VSCode"</span>]
+    },
+    <span class="tok-key">"git"</span>: {
+      <span class="tok-key">"type"</span>: <span class="tok-str">"stdio"</span>,
+      <span class="tok-key">"command"</span>: <span class="tok-str">"npx"</span>,
+      <span class="tok-key">"args"</span>: [<span class="tok-str">"-y"</span>, <span class="tok-str">"@cyanheads/git-mcp-server"</span>]
+    }
+  }
+}</code></pre>
+      </div>
+
+      <h3>CLI コマンドによる正式な登録方法（推奨）</h3>
+      <p>
+        公式ドキュメントでは、<code>claude mcp add --scope user</code> コマンドが
+        <strong>ユーザースコープ MCP の正式な登録方法</strong>として推奨されています。
+        このコマンドは設定を <code>~/.claude.json</code> に書き込みます。
+      </p>
+
+      <div class="callout callout-warn">
+        <div class="callout-icon">&#x26A0;&#xFE0F;</div>
+        <p>
+          <strong>Windows (非 WSL) 環境では <code>npx</code> を直接 command に指定すると
+          「Connection closed」エラーになる場合があります。</strong>
+          公式ドキュメントでは <code>cmd /c</code> ラッパーの使用が推奨されています。
+          詳細は <a href="#windows-note">セクション 7（Windows 注意事項）</a> を参照してください。
+        </p>
+      </div>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">bash — CLI 登録コマンド（user スコープ）</span>
+          <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+        </div>
+        <pre><code><span class="tok-comment"># memory</span>
+<span class="tok-prompt">$ </span><span class="tok-cmd">claude</span> mcp add --scope user --transport stdio memory <span class="tok-flag">--</span> cmd /c npx -y @modelcontextprotocol/server-memory
+
+<span class="tok-comment"># sequential-thinking</span>
+<span class="tok-prompt">$ </span><span class="tok-cmd">claude</span> mcp add --scope user --transport stdio sequential-thinking <span class="tok-flag">--</span> cmd /c npx -y @modelcontextprotocol/server-sequential-thinking
+
+<span class="tok-comment"># filesystem（C:/VSCode 配下を対象）</span>
+<span class="tok-prompt">$ </span><span class="tok-cmd">claude</span> mcp add --scope user --transport stdio filesystem <span class="tok-flag">--</span> cmd /c npx -y @modelcontextprotocol/server-filesystem C:/VSCode
+
+<span class="tok-comment"># git</span>
+<span class="tok-prompt">$ </span><span class="tok-cmd">claude</span> mcp add --scope user --transport stdio git <span class="tok-flag">--</span> cmd /c npx -y @cyanheads/git-mcp-server
+
+<span class="tok-comment"># playwright（既存 / 同様の方法で登録する場合）</span>
+<span class="tok-prompt">$ </span><span class="tok-cmd">claude</span> mcp add --scope user --transport stdio playwright <span class="tok-flag">--</span> cmd /c npx -y @playwright/mcp@0.0.68</code></pre>
+      </div>
+
+      <h3>MCP スコープの種類</h3>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>スコープ</th>
+              <th>フラグ</th>
+              <th>保存先</th>
+              <th>適用範囲</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="tag tag-global">user</span></td>
+              <td><code>--scope user</code></td>
+              <td><code>~/.claude.json</code></td>
+              <td>全プロジェクト（個人専用）</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-project">local</span></td>
+              <td><code>--scope local</code>（省略可）</td>
+              <td><code>~/.claude.json</code> のプロジェクトパス以下</td>
+              <td>現在のプロジェクトのみ（個人専用）</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-project">project</span></td>
+              <td><code>--scope project</code></td>
+              <td><code>.mcp.json</code>（プロジェクトルート）</td>
+              <td>現在のプロジェクトのみ（チーム共有可）</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>管理コマンド一覧</h3>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">bash</span>
+          <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+        </div>
+        <pre><code><span class="tok-comment"># 登録済み MCP サーバー一覧</span>
+<span class="tok-prompt">$ </span><span class="tok-cmd">claude</span> mcp list
+
+<span class="tok-comment"># 特定サーバーの詳細確認</span>
+<span class="tok-prompt">$ </span><span class="tok-cmd">claude</span> mcp get memory
+
+<span class="tok-comment"># サーバー削除</span>
+<span class="tok-prompt">$ </span><span class="tok-cmd">claude</span> mcp remove memory
+
+<span class="tok-comment"># セッション内での MCP 状態確認</span>
+<span class="tok-prompt">&gt; </span>/mcp</code></pre>
+      </div>
+    </section>
+
+    <!-- ===== SECTION 5: CODEX ===== -->
+    <section class="section" id="codex">
+      <div class="section-header">
+        <div class="section-number">5</div>
+        <h2>Codex CLI — 設定詳細</h2>
+      </div>
+
+      <h3>設定ファイル</h3>
+      <div class="filepath"><span class="icon">&#x1F4C4;</span> C:\Users\kenno\.codex\config.toml</div>
+
+      <h3>現在の設定内容</h3>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">TOML — ~/.codex/config.toml（MCP 関連部分）</span>
+          <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+        </div>
+        <pre><code>[<span class="tok-key">mcp_servers</span>.<span class="tok-cmd">playwright</span>]
+command = <span class="tok-str">"npx"</span>
+args = [<span class="tok-str">"-y"</span>, <span class="tok-str">"@playwright/mcp@0.0.68"</span>]
+
+[<span class="tok-key">mcp_servers</span>.<span class="tok-cmd">memory</span>]
+command = <span class="tok-str">"npx"</span>
+args = [<span class="tok-str">"-y"</span>, <span class="tok-str">"@modelcontextprotocol/server-memory"</span>]
+
+[<span class="tok-key">mcp_servers</span>.<span class="tok-cmd">sequential-thinking</span>]
+command = <span class="tok-str">"npx"</span>
+args = [<span class="tok-str">"-y"</span>, <span class="tok-str">"@modelcontextprotocol/server-sequential-thinking"</span>]
+
+[<span class="tok-key">mcp_servers</span>.<span class="tok-cmd">filesystem</span>]
+command = <span class="tok-str">"npx"</span>
+args = [<span class="tok-str">"-y"</span>, <span class="tok-str">"@modelcontextprotocol/server-filesystem"</span>, <span class="tok-str">"C:/VSCode"</span>]
+
+[<span class="tok-key">mcp_servers</span>.<span class="tok-cmd">git</span>]
+command = <span class="tok-str">"npx"</span>
+args = [<span class="tok-str">"-y"</span>, <span class="tok-str">"@cyanheads/git-mcp-server"</span>]</code></pre>
+      </div>
+
+      <h3>TOML 設定の全オプション（参考）</h3>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">TOML — 全オプション例</span>
+          <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+        </div>
+        <pre><code>[<span class="tok-key">mcp_servers</span>.<span class="tok-cmd">example-server</span>]
+command = <span class="tok-str">"npx"</span>                     <span class="tok-comment"># 起動コマンド（必須）</span>
+args    = [<span class="tok-str">"-y"</span>, <span class="tok-str">"some-mcp-server"</span>]  <span class="tok-comment"># コマンド引数</span>
+enabled = <span class="tok-kw">true</span>                      <span class="tok-comment"># false にすると削除せず無効化</span>
+startup_timeout_sec = <span class="tok-num">10</span>            <span class="tok-comment"># 起動タイムアウト（デフォルト 10秒）</span>
+tool_timeout_sec    = <span class="tok-num">60</span>            <span class="tok-comment"># ツール実行タイムアウト（デフォルト 60秒）</span>
+required = <span class="tok-kw">false</span>                    <span class="tok-comment"># true: 起動失敗時に Codex も起動失敗</span></code></pre>
+      </div>
+
+      <div class="callout callout-danger">
+        <div class="callout-icon">&#x1F6A8;</div>
+        <p>
+          <strong>既知の不具合：</strong> Codex CLI の特定バージョンで
+          <code>config.toml</code> の MCP サーバーが認識されないケースが報告されています。
+          セクション名を <strong><code>mcp_servers</code>（アンダースコア）</strong> にすることが重要です。
+          <code>mcp-servers</code>（ハイフン）は動作しません。
+        </p>
+      </div>
+
+      <h3>プロジェクト縛りにする場合</h3>
+      <p>信頼済みプロジェクト内に <code>.codex/config.toml</code> を置くとプロジェクト限定になります。</p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">bash — プロジェクトレベル設定</span>
+          <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+        </div>
+        <pre><code><span class="tok-comment"># プロジェクトルートに .codex ディレクトリを作成</span>
+<span class="tok-prompt">$ </span>mkdir .codex
+<span class="tok-prompt">$ </span>touch .codex/config.toml
+<span class="tok-comment"># → 同じ [mcp_servers.xxx] 形式で記述する</span></code></pre>
+      </div>
+    </section>
+
+    <!-- ===== SECTION 6: VS CODE ===== -->
+    <section class="section" id="vscode">
+      <div class="section-header">
+        <div class="section-number">6</div>
+        <h2>VS Code 拡張機能 — 設定詳細</h2>
+      </div>
+
+      <h3>設定ファイル</h3>
+      <div class="filepath"><span class="icon">&#x1F4C4;</span> C:\Users\kenno\AppData\Roaming\Code\User\mcp.json</div>
+
+      <p>このパスは VS Code の <strong>ユーザーレベル設定フォルダ</strong> です。全ワークスペースで共有されます。</p>
+
+      <h3>現在の設定内容</h3>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">JSON — AppData\Roaming\Code\User\mcp.json</span>
+          <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+        </div>
+        <pre><code>{
+  <span class="tok-key">"servers"</span>: {
+    <span class="tok-key">"playwright"</span>: {
+      <span class="tok-key">"command"</span>: <span class="tok-str">"npx"</span>,
+      <span class="tok-key">"args"</span>: [<span class="tok-str">"-y"</span>, <span class="tok-str">"@playwright/mcp@0.0.68"</span>]
+    },
+    <span class="tok-key">"filesystem"</span>: {
+      <span class="tok-key">"command"</span>: <span class="tok-str">"npx"</span>,
+      <span class="tok-key">"args"</span>: [<span class="tok-str">"-y"</span>, <span class="tok-str">"@modelcontextprotocol/server-filesystem"</span>, <span class="tok-str">"C:/VSCode"</span>]
+    },
+    <span class="tok-key">"sequential-thinking"</span>: {
+      <span class="tok-key">"command"</span>: <span class="tok-str">"npx"</span>,
+      <span class="tok-key">"args"</span>: [<span class="tok-str">"-y"</span>, <span class="tok-str">"@modelcontextprotocol/server-sequential-thinking"</span>]
+    },
+    <span class="tok-key">"memory"</span>: {
+      <span class="tok-key">"command"</span>: <span class="tok-str">"npx"</span>,
+      <span class="tok-key">"args"</span>: [<span class="tok-str">"-y"</span>, <span class="tok-str">"@modelcontextprotocol/server-memory"</span>]
+    },
+    <span class="tok-key">"git"</span>: {
+      <span class="tok-key">"command"</span>: <span class="tok-str">"npx"</span>,
+      <span class="tok-key">"args"</span>: [<span class="tok-str">"-y"</span>, <span class="tok-str">"@modelcontextprotocol/server-git"</span>]
+    }
+  }
+}</code></pre>
+      </div>
+
+      <div class="callout callout-warn">
+        <div class="callout-icon">&#x26A0;&#xFE0F;</div>
+        <p>
+          VS Code の <code>mcp.json</code> のルートキーは <strong><code>servers</code></strong> です。
+          Claude Code CLI や Claude Desktop で使う <code>mcpServers</code> とは <strong>異なります</strong>。
+          間違えると読み込まれません。
+        </p>
+      </div>
+
+      <h3>VS Code からファイルを開く方法</h3>
+      <div class="steps">
+        <div class="step">
+          <div class="step-body">
+            <h4>コマンドパレットから開く</h4>
+            <p><kbd>Ctrl+Shift+P</kbd> → <code>MCP: Open User Configuration</code> を実行</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-body">
+            <h4>新しいサーバーを追加する場合</h4>
+            <p><kbd>Ctrl+Shift+P</kbd> → <code>MCP: Add Server</code> → インタラクティブにウィザード形式で追加可能</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-body">
+            <h4>設定反映（リロード）</h4>
+            <p><kbd>Ctrl+Shift+P</kbd> → <code>Developer: Reload Window</code>（VS Code ウィンドウ全体をリロード）</p>
+          </div>
+        </div>
+      </div>
+
+      <h3>ワークスペース縛りにする場合</h3>
+      <p>プロジェクトルートの <code>.vscode/mcp.json</code> に同じ <code>servers</code> 形式で記述します。</p>
+    </section>
+
+    <!-- ===== SECTION 7: MCP SERVERS ===== -->
+    <section class="section" id="server-memory">
+      <div class="section-header">
+        <div class="section-number">7</div>
+        <h2>MCP サーバー詳細</h2>
+      </div>
+
+      <!-- memory -->
+      <div class="card" id="server-memory">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <span style="font-size:1.5rem">&#x1F9E0;</span>
+          <div>
+            <strong style="font-size:1.05rem">memory</strong>
+            <span class="badge badge-green" style="margin-left:8px">&#x2713; 設定済み</span>
+          </div>
+          <div style="margin-left:auto"><code style="font-size:0.78rem">@modelcontextprotocol/server-memory</code></div>
+        </div>
+        <p><strong>用途:</strong> 会話をまたいだ情報の永続化（エンティティグラフ形式のメモリ）</p>
+        <p><strong>できること:</strong></p>
+        <ul>
+          <li>プロジェクト固有の決定事項・コンテキストをセッション間で記憶</li>
+          <li>「前回話したこと」を引き継いで連続した作業が可能</li>
+          <li>人物・タスク・システム情報などをエンティティとして管理</li>
+        </ul>
+        <p><strong>使い方例:</strong> 「このプロジェクトのDB接続情報を覚えておいて」「前回の続きから始めて」</p>
+      </div>
+
+      <!-- sequential-thinking -->
+      <div class="card" id="server-sequential">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <span style="font-size:1.5rem">&#x1F9D9;</span>
+          <div>
+            <strong style="font-size:1.05rem">sequential-thinking</strong>
+            <span class="badge badge-green" style="margin-left:8px">&#x2713; 設定済み</span>
+          </div>
+          <div style="margin-left:auto"><code style="font-size:0.78rem">@modelcontextprotocol/server-sequential-thinking</code></div>
+        </div>
+        <p><strong>用途:</strong> 複雑な問題を段階的に分解・構造化する思考支援ツール</p>
+        <p><strong>できること:</strong></p>
+        <ul>
+          <li>多ステップの実装タスクを整理・順序立て</li>
+          <li>「思考の途中で考えが変わった」場合に前のステップを修正</li>
+          <li>仮説立案 → 検証 → 結論の構造的思考</li>
+        </ul>
+        <p><strong>使い方例:</strong> 「この設計の問題点を段階的に分析して」「リリース手順を構造化してまとめて」</p>
+      </div>
+
+      <!-- filesystem -->
+      <div class="card" id="server-filesystem">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <span style="font-size:1.5rem">&#x1F4C2;</span>
+          <div>
+            <strong style="font-size:1.05rem">filesystem</strong>
+            <span class="badge badge-green" style="margin-left:8px">&#x2713; 設定済み</span>
+          </div>
+          <div style="margin-left:auto"><code style="font-size:0.78rem">@modelcontextprotocol/server-filesystem</code></div>
+        </div>
+        <p><strong>対象ディレクトリ:</strong> <code>C:/VSCode</code>（配下の全プロジェクトが対象）</p>
+        <p><strong>できること:</strong></p>
+        <ul>
+          <li>ファイル読み書き・ディレクトリ一覧・ファイル検索</li>
+          <li>ファイル移動・コピー・削除</li>
+          <li>指定した許可パス配下のみ操作可能（セキュリティ境界あり）</li>
+        </ul>
+        <p><strong>セキュリティ注意:</strong> <code>C:/VSCode</code> 配下のファイルを MCP 経由で読み書きできます。機密ファイルの配置には注意してください。</p>
+      </div>
+
+      <!-- git -->
+      <div class="card" id="server-git">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <span style="font-size:1.5rem">&#x1F4E6;</span>
+          <div>
+            <strong style="font-size:1.05rem">git</strong>
+            <span class="badge badge-green" style="margin-left:8px">&#x2713; 設定済み</span>
+          </div>
+          <div style="margin-left:auto"><code style="font-size:0.78rem">@cyanheads/git-mcp-server</code></div>
+        </div>
+        <p><strong>用途:</strong> Git リポジトリ操作</p>
+        <p><strong>できること:</strong></p>
+        <ul>
+          <li>git status / diff / log の取得</li>
+          <li>ブランチ一覧・切り替え・作成</li>
+          <li>コミット・ステージング操作</li>
+          <li>ファイルの git blame 参照</li>
+        </ul>
+        <p><strong>使い方例:</strong> 「今の変更差分を確認して」「main との差分を見せて」</p>
+      </div>
+
+      <!-- playwright -->
+      <div class="card" id="server-playwright">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <span style="font-size:1.5rem">&#x1F3AD;</span>
+          <div>
+            <strong style="font-size:1.05rem">playwright</strong>
+            <span class="badge badge-green" style="margin-left:8px">&#x2713; Connected</span>
+            <span class="badge badge-blue" style="margin-left:4px">既存・稼働中</span>
+          </div>
+          <div style="margin-left:auto"><code style="font-size:0.78rem">@playwright/mcp@0.0.68</code></div>
+        </div>
+        <p><strong>用途:</strong> Chromium ブラウザの自動操作</p>
+        <p><strong>できること:</strong></p>
+        <ul>
+          <li>URL ナビゲーション・クリック・フォーム入力・キー操作</li>
+          <li>スクリーンショット・DOM スナップショット取得</li>
+          <li>ネットワークリクエスト監視・コンソールログ取得</li>
+          <li>ファイルアップロード・ダイアログ操作</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ===== SECTION 8: WINDOWS NOTE ===== -->
+    <section class="section" id="windows-note">
+      <div class="section-header">
+        <div class="section-number">8</div>
+        <h2>Windows 環境での注意事項</h2>
+      </div>
+
+      <div class="callout callout-danger">
+        <div class="callout-icon">&#x1F6A8;</div>
+        <p>
+          <strong>重要：</strong> Windows ネイティブ環境（非 WSL）では、
+          <code>npx</code> を <code>command</code> に直接指定すると
+          <strong>「Connection closed」エラー</strong>になることがあります。
+          公式ドキュメントでは <code>cmd /c</code> ラッパーの使用が推奨されています。
+        </p>
+      </div>
+
+      <h3>問題の原因</h3>
+      <p>
+        Windows は Unix シェルのように <code>npx</code> を直接実行できないため、
+        <code>cmd.exe</code> 経由で実行する必要があります。
+      </p>
+
+      <h3>CLI コマンド登録時（推奨方法）</h3>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">bash — Windows 向け cmd /c ラッパー形式</span>
+          <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+        </div>
+        <pre><code><span class="tok-comment"># NG: Windows では npx を直接実行できない場合がある</span>
+<span class="tok-prompt">$ </span>claude mcp add --scope user memory <span class="tok-flag">--</span> npx -y @modelcontextprotocol/server-memory
+
+<span class="tok-comment"># OK: cmd /c 経由で npx を実行</span>
+<span class="tok-prompt">$ </span>claude mcp add --scope user memory <span class="tok-flag">--</span> cmd /c npx -y @modelcontextprotocol/server-memory</code></pre>
+      </div>
+
+      <h3>settings.json に直接書く場合</h3>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">JSON — Windows 対応版（cmd /c ラッパー）</span>
+          <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+        </div>
+        <pre><code>{
+  <span class="tok-key">"mcpServers"</span>: {
+    <span class="tok-key">"memory"</span>: {
+      <span class="tok-key">"type"</span>: <span class="tok-str">"stdio"</span>,
+      <span class="tok-key">"command"</span>: <span class="tok-str">"cmd"</span>,
+      <span class="tok-key">"args"</span>: [<span class="tok-str">"/c"</span>, <span class="tok-str">"npx"</span>, <span class="tok-str">"-y"</span>, <span class="tok-str">"@modelcontextprotocol/server-memory"</span>]
+    }
+  }
+}</code></pre>
+      </div>
+
+      <p>
+        現在の <code>settings.json</code> は <code>command: "npx"</code> 形式で設定されています。
+        接続エラーが出た場合は、上記の <code>cmd /c</code> 形式に変更してください。
+      </p>
+    </section>
+
+    <!-- ===== SECTION 9: VERIFICATION ===== -->
+    <section class="section" id="verification">
+      <div class="section-header">
+        <div class="section-number">9</div>
+        <h2>動作確認手順</h2>
+      </div>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-body">
+            <h4>Claude Code を再起動</h4>
+            <p>ターミナルで <code>claude</code> を起動し直します（既存セッションを終了してから再起動）。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-body">
+            <h4>MCP サーバー一覧を確認</h4>
+            <div class="code-block">
+              <div class="code-header">
+                <span class="code-lang">bash</span>
+                <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+              </div>
+              <pre><code><span class="tok-prompt">$ </span><span class="tok-cmd">claude</span> mcp list</code></pre>
+            </div>
+            <p>期待する出力：</p>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">出力例</span></div>
+              <pre><code><span class="tok-ok">playwright          : npx -y @playwright/mcp@0.0.68 - ✓ Connected</span>
+<span class="tok-ok">memory              : npx -y @modelcontextprotocol/server-memory - ✓ Connected</span>
+<span class="tok-ok">sequential-thinking : npx -y @modelcontextprotocol/server-sequential-thinking - ✓ Connected</span>
+<span class="tok-ok">filesystem          : npx -y @modelcontextprotocol/server-filesystem - ✓ Connected</span>
+<span class="tok-ok">git                 : npx -y @cyanheads/git-mcp-server - ✓ Connected</span></code></pre>
+            </div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-body">
+            <h4>セッション内でのステータス確認</h4>
+            <p>Claude Code のセッション内で <code>/mcp</code> と入力すると、接続状態の詳細が確認できます。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-body">
+            <h4>Codex の確認</h4>
+            <div class="code-block">
+              <div class="code-header">
+                <span class="code-lang">bash</span>
+                <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+              </div>
+              <pre><code><span class="tok-comment"># Codex を起動してから /mcp コマンドで確認</span>
+<span class="tok-prompt">$ </span><span class="tok-cmd">codex</span>
+<span class="tok-comment"># 起動後 TUI 内で:</span>
+<span class="tok-prompt">&gt; </span>/mcp</code></pre>
+            </div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-body">
+            <h4>VS Code の確認</h4>
+            <p>
+              <kbd>Ctrl+Shift+P</kbd> → <code>MCP: List Servers</code> で登録済みサーバーを確認できます。
+              または <kbd>Ctrl+Shift+P</kbd> → <code>Developer: Reload Window</code> でリロード後に確認。
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== SECTION 10: TROUBLESHOOT ===== -->
+    <section class="section" id="troubleshoot">
+      <div class="section-header">
+        <div class="section-number">10</div>
+        <h2>トラブルシューティング</h2>
+      </div>
+
+      <h3>&#x1F534; Connection closed エラー（Claude Code / Windows）</h3>
+      <div class="card">
+        <p><strong>原因:</strong> Windows ネイティブ環境で <code>npx</code> を直接 command に指定している</p>
+        <p><strong>対処:</strong> <code>command: "cmd"</code>, <code>args: ["/c", "npx", ...]</code> 形式に変更する</p>
+        <p>詳細は <a href="#windows-note">セクション 8（Windows 注意事項）</a> を参照</p>
+      </div>
+
+      <h3>&#x1F534; Codex で MCP が認識されない</h3>
+      <div class="card">
+        <p><strong>確認事項 1:</strong> セクション名が <code>[mcp_servers.xxx]</code>（アンダースコア）になっているか確認。<code>mcp-servers</code>（ハイフン）は無効。</p>
+        <p><strong>確認事項 2:</strong> Codex を再起動しているか確認。</p>
+        <p><strong>確認事項 3:</strong> 特定バージョンでの既知バグ。<code>codex --version</code> で確認し、最新版に更新する。</p>
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">bash — 一時的に無効化する方法</span></div>
+          <pre><code><span class="tok-comment"># 問題のサーバーを一時無効化</span>
+<span class="tok-key">[mcp_servers.problematic-server]</span>
+enabled = <span class="tok-kw">false</span></code></pre>
+        </div>
+      </div>
+
+      <h3>&#x1F534; settings.json の mcpServers が無視される（Claude Code）</h3>
+      <div class="card">
+        <p><strong>原因:</strong> Claude Code はユーザースコープの MCP を <code>~/.claude.json</code> に保存するため、<code>settings.json</code> の <code>mcpServers</code> キーが一部バージョンで無視される既知の問題があります。</p>
+        <p><strong>対処:</strong> <code>claude mcp add --scope user</code> コマンドで正式登録することを推奨します。</p>
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">bash — CLI による user スコープ登録</span>
+            <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+          </div>
+          <pre><code><span class="tok-prompt">$ </span>claude mcp add --scope user --transport stdio memory <span class="tok-flag">--</span> cmd /c npx -y @modelcontextprotocol/server-memory
+<span class="tok-prompt">$ </span>claude mcp add --scope user --transport stdio sequential-thinking <span class="tok-flag">--</span> cmd /c npx -y @modelcontextprotocol/server-sequential-thinking
+<span class="tok-prompt">$ </span>claude mcp add --scope user --transport stdio filesystem <span class="tok-flag">--</span> cmd /c npx -y @modelcontextprotocol/server-filesystem C:/VSCode
+<span class="tok-prompt">$ </span>claude mcp add --scope user --transport stdio git <span class="tok-flag">--</span> cmd /c npx -y @cyanheads/git-mcp-server</code></pre>
+        </div>
+      </div>
+
+      <h3>&#x1F534; npx の初回起動が遅い / タイムアウトする</h3>
+      <div class="card">
+        <p><strong>原因:</strong> 初回実行時にパッケージをダウンロードするため時間がかかる</p>
+        <p><strong>対処 1:</strong> 事前にグローバルインストールする</p>
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">bash — グローバルインストール</span>
+            <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+          </div>
+          <pre><code>npm install -g @modelcontextprotocol/server-memory
+npm install -g @modelcontextprotocol/server-sequential-thinking
+npm install -g @modelcontextprotocol/server-filesystem
+npm install -g @cyanheads/git-mcp-server</code></pre>
+        </div>
+        <p><strong>対処 2:</strong> Codex の <code>startup_timeout_sec</code> を増やす</p>
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">TOML</span></div>
+          <pre><code>[<span class="tok-key">mcp_servers</span>.<span class="tok-cmd">memory</span>]
+command = <span class="tok-str">"npx"</span>
+args = [<span class="tok-str">"-y"</span>, <span class="tok-str">"@modelcontextprotocol/server-memory"</span>]
+startup_timeout_sec = <span class="tok-num">30</span>  <span class="tok-comment"># デフォルト 10秒 → 30秒に増加</span></code></pre>
+        </div>
+      </div>
+
+      <h3>&#x1F534; VS Code で MCP サーバーが表示されない</h3>
+      <div class="card">
+        <p><strong>確認事項 1:</strong> <code>mcp.json</code> のルートキーが <code>"servers"</code>（<code>"mcpServers"</code> ではない）になっているか確認</p>
+        <p><strong>確認事項 2:</strong> <kbd>Ctrl+Shift+P</kbd> → <code>Developer: Reload Window</code> でリロード</p>
+        <p><strong>確認事項 3:</strong> <kbd>Ctrl+Shift+P</kbd> → <code>MCP: Open User Configuration</code> でファイルパスを確認</p>
+      </div>
+
+      <h3 id="ts-project-override">&#x1F534; Claude Code でグローバル設定の MCP が一部だけ動く（2026-04-17 実例）</h3>
+      <div class="card">
+        <div class="callout callout-danger" style="margin-bottom:16px">
+          <div class="callout-icon">&#x26A0;&#xFE0F;</div>
+          <p>
+            <strong>重要：プロジェクトレベル設定はグローバル設定を完全に上書きする</strong><br>
+            Claude Code は <code>~/.claude.json</code> の <code>projects[プロジェクトパス].mcpServers</code> が存在すると、
+            グローバルの <code>~/.claude/settings.json</code> の <code>mcpServers</code> を無視します。
+          </p>
+        </div>
+        <p><strong>症状:</strong></p>
+        <ul>
+          <li>グローバルに5つの MCP を設定しているのに、playwright だけが動作する</li>
+          <li><code>/mcp</code> や ToolSearch で memory / filesystem / git / sequential-thinking が見つからない</li>
+          <li>各パッケージは手動実行すると正常起動する</li>
+        </ul>
+        <p><strong>根本原因:</strong></p>
+        <p>
+          SessionStart フック（<code>ensure-playwright.js</code>）が
+          <code>~/.claude.json</code> のプロジェクトエントリに playwright だけを書き込んでいた。
+          プロジェクトレベルの <code>mcpServers</code> が存在するとグローバル設定が完全に無効化されるため、
+          playwright 以外の4つが見えなくなった。
+        </p>
+        <p><strong>診断手順:</strong></p>
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">bash — プロジェクトレベルの MCP 設定を確認</span></div>
+          <pre><code><span class="tok-comment"># ~/.claude.json のプロジェクトエントリを確認</span>
+<span class="tok-comment"># 該当プロジェクトのキーに mcpServers があるか確認する</span>
+<span class="tok-prompt">$ </span>node -e "const d=require('/c/Users/kenno/.claude.json'); const p=d.projects['C:/VSCode/YOUR_PROJECT']; console.log(JSON.stringify(p?.mcpServers,null,2))"</code></pre>
+        </div>
+        <p><strong>対処:</strong> <code>~/.claude.json</code> の該当プロジェクトの <code>mcpServers</code> に、グローバルと同じ全サーバーを追記する。</p>
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">JSON — ~/.claude.json プロジェクトエントリへの全 MCP 追加例</span>
+            <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+          </div>
+          <pre><code><span class="tok-comment">// ~/.claude.json → projects["C:/VSCode/YOUR_PROJECT"] → mcpServers</span>
+{
+  <span class="tok-key">"playwright"</span>: { <span class="tok-key">"type"</span>: <span class="tok-str">"stdio"</span>, <span class="tok-key">"command"</span>: <span class="tok-str">"npx"</span>, <span class="tok-key">"args"</span>: [<span class="tok-str">"-y"</span>, <span class="tok-str">"@playwright/mcp@0.0.68"</span>], <span class="tok-key">"env"</span>: {} },
+  <span class="tok-key">"memory"</span>: { <span class="tok-key">"type"</span>: <span class="tok-str">"stdio"</span>, <span class="tok-key">"command"</span>: <span class="tok-str">"npx"</span>, <span class="tok-key">"args"</span>: [<span class="tok-str">"-y"</span>, <span class="tok-str">"@modelcontextprotocol/server-memory"</span>] },
+  <span class="tok-key">"sequential-thinking"</span>: { <span class="tok-key">"type"</span>: <span class="tok-str">"stdio"</span>, <span class="tok-key">"command"</span>: <span class="tok-str">"npx"</span>, <span class="tok-key">"args"</span>: [<span class="tok-str">"-y"</span>, <span class="tok-str">"@modelcontextprotocol/server-sequential-thinking"</span>] },
+  <span class="tok-key">"filesystem"</span>: { <span class="tok-key">"type"</span>: <span class="tok-str">"stdio"</span>, <span class="tok-key">"command"</span>: <span class="tok-str">"npx"</span>, <span class="tok-key">"args"</span>: [<span class="tok-str">"-y"</span>, <span class="tok-str">"@modelcontextprotocol/server-filesystem"</span>, <span class="tok-str">"C:/VSCode"</span>] },
+  <span class="tok-key">"git"</span>: { <span class="tok-key">"type"</span>: <span class="tok-str">"stdio"</span>, <span class="tok-key">"command"</span>: <span class="tok-str">"npx"</span>, <span class="tok-key">"args"</span>: [<span class="tok-str">"-y"</span>, <span class="tok-str">"@cyanheads/git-mcp-server"</span>] }
+}</code></pre>
+        </div>
+        <p>
+          <strong>再発防止:</strong> SessionStart フック等でプロジェクトレベルに MCP を書き込む場合は、
+          既存の全エントリを保持したまま追記するロジックを実装すること。
+          単純な上書き・新規書き込みはグローバル設定を隠してしまう。
+        </p>
+      </div>
+    </section>
+
+    <!-- ===== SECTION 11: SCOPE SUMMARY ===== -->
+    <section class="section" id="scope-summary">
+      <div class="section-header">
+        <div class="section-number">11</div>
+        <h2>スコープ・設定ファイル 早見表</h2>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ツール</th>
+              <th>スコープ</th>
+              <th>設定ファイル</th>
+              <th>適用範囲</th>
+              <th>チーム共有</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td rowspan="3"><strong>Claude Code CLI</strong></td>
+              <td><span class="tag tag-global">user</span></td>
+              <td><code>~/.claude.json</code> (user セクション)</td>
+              <td>全プロジェクト</td>
+              <td>&#x2718; 個人専用</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-project">local</span>（デフォルト）</td>
+              <td><code>~/.claude.json</code> (project パス)</td>
+              <td>現プロジェクトのみ</td>
+              <td>&#x2718; 個人専用</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-project">project</span></td>
+              <td><code>.mcp.json</code>（プロジェクトルート）</td>
+              <td>現プロジェクトのみ</td>
+              <td>&#x2713; git 管理可</td>
+            </tr>
+            <tr>
+              <td rowspan="2"><strong>Codex CLI</strong></td>
+              <td><span class="tag tag-global">global</span></td>
+              <td><code>~/.codex/config.toml</code></td>
+              <td>全プロジェクト</td>
+              <td>&#x2718; 個人専用</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-project">project</span></td>
+              <td><code>.codex/config.toml</code>（プロジェクト内）</td>
+              <td>現プロジェクトのみ</td>
+              <td>&#x2713; git 管理可</td>
+            </tr>
+            <tr>
+              <td rowspan="2"><strong>VS Code 拡張</strong></td>
+              <td><span class="tag tag-global">user</span></td>
+              <td><code>AppData\Roaming\Code\User\mcp.json</code></td>
+              <td>全ワークスペース</td>
+              <td>&#x2718; 個人専用</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-project">workspace</span></td>
+              <td><code>.vscode/mcp.json</code>（プロジェクト内）</td>
+              <td>現ワークスペースのみ</td>
+              <td>&#x2713; git 管理可</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout callout-success">
+        <div class="callout-icon">&#x2705;</div>
+        <p>
+          <strong>今回の設定はすべてグローバル（user/global）スコープ</strong> で行っています。
+          VS Code でどのプロジェクトを開いても、Claude Code・Codex・VS Code 拡張のどれを使っても、
+          5 つの MCP サーバーが利用可能です。
+        </p>
+      </div>
+
+      <hr />
+
+      <h3>参照ドキュメント（2026-04-17 確認）</h3>
+      <ul>
+        <li><a href="https://code.claude.com/docs/en/mcp" target="_blank">Claude Code MCP 公式ドキュメント</a></li>
+        <li><a href="https://developers.openai.com/codex/mcp" target="_blank">Codex CLI MCP 公式ドキュメント</a></li>
+        <li><a href="https://developers.openai.com/codex/config-reference" target="_blank">Codex CLI 設定リファレンス</a></li>
+        <li><a href="https://code.visualstudio.com/docs/copilot/customization/mcp-servers" target="_blank">VS Code MCP 公式ドキュメント</a></li>
+        <li><a href="https://github.com/modelcontextprotocol/servers" target="_blank">MCP サーバー公式リポジトリ（GitHub）</a></li>
+      </ul>
+
+    </section>
+
+  </main>
+</div>
+
+<script>
+  // ===== Copy button =====
+  function copyCode(btn) {
+    const pre = btn.closest('.code-block').querySelector('pre');
+    const text = pre.innerText || pre.textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = '✓ コピー済み';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = 'コピー';
+        btn.classList.remove('copied');
+      }, 1800);
+    });
+  }
+
+  // ===== Active TOC link on scroll =====
+  const sections = document.querySelectorAll('section[id], div[id]');
+  const tocLinks = document.querySelectorAll('.toc-link');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        tocLinks.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`.toc-link[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-10% 0px -85% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+
+</body>
+</html>

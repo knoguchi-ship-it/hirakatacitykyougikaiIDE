@@ -1,12 +1,20 @@
 # 開発引継ぎ
 
 更新日: 2026-04-20
-現行本番: `v248`（GAS version 248）
-固定 deployment: member `@248` / public `@248`
+現行本番: `v249`（GAS version 249）
+固定 deployment: member `@249` / public `@249`
 
-## 0. v248 本番稼働中
+## 0. v249 本番稼働中
 
-**詳細リリース記録: `docs/114_RELEASE_STATE_v248_2026-04-20.md`**
+**詳細リリース記録: `docs/115_RELEASE_STATE_v249_2026-04-20.md`**
+
+### v249（2026-04-20）— 会員ポータルから管理者ログインタブを分離・管理者専用 URL 追加
+
+- **会員ポータル分離**: `build-gas.mjs` を `VITE_APP=member` ビルドに変更。会員ページに管理者ログインタブが表示されなくなった
+- **管理者専用ページ新設**: `VITE_APP=admin` ビルドで `backend/index_admin.html` を新規生成。`?app=admin` でアクセス可能
+- **doGet ルート追加**: `allowedApps` に `admin → index_admin` を追加。タイトルも「管理者ポータル」に設定
+- **URL 体系確立**: 会員 `/exec`、管理者 `/exec?app=admin`、公開 `/exec?app=public` の3ルートに整理
+- **fixed deployment**: member / public ともに `@249` へ同期済み
 
 ### v248（2026-04-20）— セキュリティ是正: 会員セッショントークン・deny-by-default 完成
 
@@ -102,17 +110,18 @@
 2. `AGENTS.md`（グランドルール）
 3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`（作業プロセス正本）
-5. **`docs/114_RELEASE_STATE_v248_2026-04-20.md`** ← **最新（v248）セキュリティ是正: 会員セッショントークン・IDOR修正**
-6. `docs/108_RELEASE_STATE_v247_2026-04-20.md`（v247: 職員氏名/フリガナ入力を分割 UI に統一）
-6. `docs/107_RELEASE_STATE_v246_2026-04-19.md`（v246: 会員マイページ保存の loginId アンカー統一・旧 version 整理）
-7. `docs/106_RELEASE_STATE_v245_2026-04-19.md`（v245: 会員マイページ職員追加 UI 全面改修・バリデーション根本修正）
-8. `docs/105_RELEASE_STATE_v244_2026-04-19.md`（v244: 会員マイページ職員追加 UX 修正・git 未コミット解消）
-9. `docs/104_RELEASE_STATE_v243_2026-04-19.md`（v243: 管理者コンソール職員追加 UX 修正）
-10. `docs/103_RELEASE_STATE_v242_2026-04-19.md`（v242: batch read 最適化 + v239〜v241 本番反映）
-11. `docs/102_RELEASE_STATE_v241_2026-04-19.md`（v241: 単一運用URLを正本化）
-12. `docs/101_RELEASE_STATE_v240_2026-04-19.md`（v240: 管理者セッション識別子分離・管理権限即時反映）
-13. `docs/100_RELEASE_STATE_v239_2026-04-19.md`（v239: 事業所職員メール必須化・空行許容・メール欄拡張）
-14. `docs/99_RELEASE_STATE_v238_2026-04-19.md`（v236〜v238: 再活性化パターン・転籍検索・修復API）
+5. **`docs/115_RELEASE_STATE_v249_2026-04-20.md`** ← **最新（v249）会員/管理者ポータル分離・管理者専用URL追加**
+6. `docs/114_RELEASE_STATE_v248_2026-04-20.md`（v248: セキュリティ是正: 会員セッショントークン・IDOR修正）
+7. `docs/108_RELEASE_STATE_v247_2026-04-20.md`（v247: 職員氏名/フリガナ入力を分割 UI に統一）
+9. `docs/107_RELEASE_STATE_v246_2026-04-19.md`（v246: 会員マイページ保存の loginId アンカー統一・旧 version 整理）
+10. `docs/106_RELEASE_STATE_v245_2026-04-19.md`（v245: 会員マイページ職員追加 UI 全面改修・バリデーション根本修正）
+11. `docs/105_RELEASE_STATE_v244_2026-04-19.md`（v244: 会員マイページ職員追加 UX 修正・git 未コミット解消）
+12. `docs/104_RELEASE_STATE_v243_2026-04-19.md`（v243: 管理者コンソール職員追加 UX 修正）
+13. `docs/103_RELEASE_STATE_v242_2026-04-19.md`（v242: batch read 最適化 + v239〜v241 本番反映）
+14. `docs/102_RELEASE_STATE_v241_2026-04-19.md`（v241: 単一運用URLを正本化）
+15. `docs/101_RELEASE_STATE_v240_2026-04-19.md`（v240: 管理者セッション識別子分離・管理権限即時反映）
+16. `docs/100_RELEASE_STATE_v239_2026-04-19.md`（v239: 事業所職員メール必須化・空行許容・メール欄拡張）
+17. `docs/99_RELEASE_STATE_v238_2026-04-19.md`（v236〜v238: 再活性化パターン・転籍検索・修復API）
 15. `docs/98_RELEASE_STATE_v235_2026-04-18.md`（v232〜v235: 物理削除・重複修正・セッション設計刷新）
 16. `docs/94_RELEASE_STATE_v231_2026-04-17.md`（v231: 郵便番号標準化 + 年会費連続年度表示）
 16. `docs/92_RELEASE_STATE_v229_2026-04-17.md`（v229: 年会費表示修正）
@@ -137,8 +146,11 @@
 
 ## 3. 現在の本番状態
 - ブランチ運用の基準は `main`。
-- 両 fixed deployment は `@247` を向いている（GAS version 247）。差異が出た場合はセクション 6 の runtime 確認結果を優先する。
-- **操作者の正規入口 URL は単一で** `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec` を用いる。`?app=public` を付けた同一 base URL を公開ポータルとして扱う。
+- 両 fixed deployment は `@249` を向いている（GAS version 249）。差異が出た場合はセクション 6 の runtime 確認結果を優先する。
+- **URL 体系（v249〜）**:
+  - 会員マイページ: `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec`
+  - 管理者ポータル: `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec?app=admin`
+  - 公開ポータル: `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec?app=public`
 - fixed deployment の標準同期方法は `npx clasp redeploy`。Apps Script UI `Manage deployments` は障害復旧時の補助手段に限定する。
 - member portal は sidebar logout を採用済み。
 - デモログイン、mock member route、画面内 demo selector は廃止済み。
@@ -200,10 +212,12 @@ v195〜v208 の詳細は `docs/79_HANDOVER_2026-04-15.md` または `docs/archiv
 
 ## 5. 現時点の注意事項（2026-04-20 更新）
 
-- **fixed deployment 2 本は `@248`**（GAS version 248）。再開時は必ず `npx clasp deployments --json` で実測確認する。
-- **Apps Script version 保持数**: 現在は `227`〜`248` の 22 件を保持。次回 version 作成前に必要なら古い version を再整理する。
+- **fixed deployment 2 本は `@249`**（GAS version 249）。再開時は必ず `npx clasp deployments --json` で実測確認する。
+- **Apps Script version 保持数**: 現在は `227`〜`249` の 23 件を保持。次回 version 作成前に必要なら古い version を再整理する（上限 200）。
+- **会員/管理者ポータル分離（v249〜）**: 会員ページには管理者タブなし。管理者は `?app=admin` でアクセスすること。`build-gas.mjs` は `VITE_APP=member` / `admin` / `public` の3ビルドを実施（5ファイル push）。
 - **会員セッショントークン（v248〜）**: ログイン成功時に UUID を発行し CacheService に 30分保存。会員 API は sessionToken 必須。フロントエンドは `GasApiClient.memberSessionToken` に保持。
-- **操作者の正規入口 URL は単一で** `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec` を用いる。
+- **会員URL**: `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec`（管理者タブなし）
+- **管理者URL**: `…/exec?app=admin`（管理者専用ページ）
 - **会員種別変換の設計（v238〜）**: 再活性化パターンにより、往復変換でも T_会員・T_事業所職員 の行は増えない。過去の重複 WITHDRAWN 行はデータ管理コンソール「会員CM番号重複修復」で整理できる。
 - **v206 DB 適用済み**: `T_会員` に `勤務先住所2` / `自宅住所2` 列が追加済み。`addAddressLine2Columns` の再実行は不要。
 - **名簿出力コンソール（RosterExport）**: システム設定で `ROSTER_TEMPLATE_SS_ID` を登録すること。
@@ -227,9 +241,9 @@ npx clasp run healthCheck
 npx clasp run getDbInfo
 ```
 
-**期待値（v247 時点）:**
+**期待値（v249 時点）:**
 - authorized user: `k.noguchi@hcm-n.org`
-- fixed deployment 2 本が `@247`（versionNumber: 247）
+- fixed deployment 2 本が `@249`（versionNumber: 249）
 - `npx clasp run healthCheck` / `getDbInfo` は、認証状態によっては `Unable to run script function. Please make sure you have permission to run the script function.` で失敗し得る。失敗時は認証状態を再点検する。
 
 **⚠️ `clasp run` が "Unable to run script function" で失敗する場合:**
@@ -238,20 +252,20 @@ npx clasp login --creds .tmp/oauth-client-hcmn-member-system-prod.json --use-pro
 ```
 ブラウザ認証後、リダイレクト URL の `code=` 値をターミナルにペーストする。
 
-2026-04-20 確認結果（v248 リリース後）:
-- `npx clasp deployments --json` → member + public ともに `versionNumber: 248` ✅
+2026-04-20 確認結果（v249 リリース後）:
+- `npx clasp deployments --json` → member + public ともに `versionNumber: 249` ✅
 - `npx clasp show-authorized-user` → `k.noguchi@hcm-n.org` ✅
 - `npm run typecheck` ✅
-- `npm run build:gas` ✅
-- `npx clasp push --force` ✅（4 files pushed）
-- `npx clasp version` ✅（version 248 created）
+- `npm run build:gas` ✅（3ビルド: member/public/admin）
+- `npx clasp push --force` ✅（5 files pushed: Code.gs / appsscript.json / index.html / index_public.html / index_admin.html）
+- `npx clasp version` ✅（version 249 created）
 - `npx clasp run healthCheck` → 認証状態次第で失敗し得る（再認証後に再試行すること）
-- 実ブラウザ確認 → 操作者側で実施すること（確認ポイントは docs/114 参照）
+- 実ブラウザ確認 → 操作者側で実施すること（確認ポイントは docs/115 参照）
 
 ## 7. 次担当者の最初の一手
 
 1. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md` の「作業開始チェック」を実施する。
-2. セクション 6 の再開時チェックを実行し、deployment が `@247` であることを実測確認する。
+2. セクション 6 の再開時チェックを実行し、deployment が `@249` であることを実測確認する。
 3. **`clasp run` が失敗する場合**: 上記 `clasp login --creds` コマンドで project-scoped OAuth を再取得する。
 4. **データ管理コンソールで修復を実行**（v236〜v238 で生じた既存の CM 番号重複行がある場合）:
    - 管理者ログイン → データ管理 → 「会員CM番号重複修復」ボタンを実行
@@ -430,7 +444,7 @@ npx clasp login --creds .tmp/oauth-client-hcmn-member-system-prod.json --use-pro
 - Latest release-state reference: `docs/98_RELEASE_STATE_v235_2026-04-18.md`
 
 ## 2026-04-20 member split side-by-side deployment note
-- 既存 production fixed deployments は変更していない。現行 production は従来どおり member/public ともに `@247`。
+- 既存 production fixed deployments は v249 時点で member/public ともに `@249`（この note 記録時点は `@247` だったが、その後 v248/v249 で更新済み）。
 - 会員マイページ分離用の別 Apps Script project を新規作成した。
   - Script ID: `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ`
   - Local root: `gas/member`
@@ -453,7 +467,7 @@ npx clasp login --creds .tmp/oauth-client-hcmn-member-system-prod.json --use-pro
   - 必要に応じて member split project 専用 `appsscript.json` の scope 最小化
 
 ## 2026-04-20 admin split side-by-side deployment note
-- 既存 production fixed deployments は変更していない。admin 分離は side-by-side のみ。
+- 既存 production fixed deployments は v249 時点で `@249`（この note 記録時点は `@247` だったが、その後 v248/v249 で更新済み）。admin 分離（side-by-side）は別 script project として継続中。
 - admin 専用 build root と script project を追加した。
   - Local root: `gas/admin`
   - Local clasp config: `gas/admin/.clasp.json`

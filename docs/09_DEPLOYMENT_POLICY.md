@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-04-20
-Production: `v247` / fixed deployments `@247`
+Production: `v249` / fixed deployments `@249`
 
 ## 1. Purpose
 
@@ -18,17 +18,21 @@ Production: `v247` / fixed deployments `@247`
 | Member portal | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `/exec` |
 | Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `/exec?app=public` |
 
-Both fixed deployments currently point to `@247`.
+Both fixed deployments currently point to `@249`.
 
-Operator-facing canonical URL:
+Operator-facing canonical URLs（v249〜）:
 
-- 会員/管理者入口: `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec`
-- 公開ポータル: `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec?app=public`
+| 用途 | URL |
+|---|---|
+| 会員マイページ | `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec` |
+| 管理者ポータル | `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec?app=admin` |
+| 公開ポータル | `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec?app=public` |
 
 Project rule:
 
 - 固定 deployment 2 本運用は継続する。
-- ただし操作者向けの正規入口 URL は上記 public fixed deployment base URL に統一する。
+- 会員ページと管理者ページは v249 以降 URL パラメータで分岐（`?app=admin`）。同一 deployment で3ルートを提供。
+- 操作者向けの正規入口は上記 public fixed deployment の base URL を標準とする。
 
 ## 3. Standard Release Steps
 
@@ -124,6 +128,33 @@ When the change affects user flows, real-browser verification is performed by th
 - Do not leave corrupted source documents in place.
 
 ## 7. Current Recorded State
+
+### 2026-04-20 `v249` ← **current production**
+
+- Version `249` created: 会員/管理者ポータル UI 分離。
+- Scope:
+  - `scripts/build-gas.mjs`: `VITE_APP=member` / `VITE_APP=admin` / `VITE_APP=public` の3ビルドに変更。
+  - `backend/index_admin.html` 新規生成（管理者専用）。
+  - `backend/Code.gs doGet`: `allowedApps` に `admin → index_admin` を追加。
+- member/public の両 fixed deployment を `npx clasp redeploy` で `@249` に同期。
+- Verification:
+  - `npm run typecheck` ✅
+  - `npm run build:gas` ✅（5 files: member/public/admin + compress）
+  - `npx clasp push --force` ✅（5 files pushed）
+  - `npx clasp deployments --json` ✅（member + public ともに `versionNumber: 249`）
+  - `npx clasp run healthCheck` → 認証状態次第で失敗し得る
+  - 実ブラウザ確認 → 操作者側で実施
+
+### 2026-04-20 `v248`
+
+- Version `248` created: セキュリティ是正: 会員セッショントークン・deny-by-default 完成。
+- Scope: IDOR 修正、ADMIN_LOGIN_ACTIONS 新設、6 アクションのレジストリ追加、sessionToken 発行。
+- member/public の両 fixed deployment を `npx clasp redeploy` で `@248` に同期。
+- Verification:
+  - `npm run typecheck` ✅
+  - `npm run build:gas` ✅
+  - `npx clasp push --force` ✅（4 files pushed）
+  - `npx clasp deployments --json` ✅（member + public ともに `versionNumber: 248`）
 
 ### 2026-04-20 `v247`
 
@@ -604,9 +635,9 @@ When the change affects user flows, real-browser verification is performed by th
 
 ## 2026-04-20 member split side-by-side deployment note
 
-- This is not a production fixed deployment change. Production fixed deployments remain:
-  - member: `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` -> `@247`
-  - public: `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` -> `@247`
+- This is not a production fixed deployment change. Production fixed deployments are currently at `@249` (were `@247` when this note was written; subsequently updated via v248/v249).
+  - member: `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` -> `@249`
+  - public: `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` -> `@249`
 - A separate side-by-side Apps Script project for the future member-only app was created from `gas/member`.
   - Script ID: `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ`
   - Deployment ID: `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g`
@@ -625,9 +656,9 @@ When the change affects user flows, real-browser verification is performed by th
 
 ## 2026-04-20 admin split side-by-side deployment note
 
-- This is not a production fixed deployment change. Production fixed deployments remain:
-  - member: `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` -> `@247`
-  - public: `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` -> `@247`
+- This is not a production fixed deployment change. Production fixed deployments are currently at `@249` (were `@247` when this note was written).
+  - member: `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` -> `@249`
+  - public: `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` -> `@249`
 - A separate side-by-side Apps Script project for the future admin-only app was created from `gas/admin`.
   - Script ID: `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi`
   - Deployment ID: `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os`
