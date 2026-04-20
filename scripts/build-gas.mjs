@@ -23,11 +23,14 @@ function run(cmd, env = {}) {
   });
 }
 
-// 会員ポータル
-run('npx vite build', {});
+// 会員ポータル（会員専用モード: 管理者ログインタブを非表示）
+run('npx vite build', { VITE_APP: 'member' });
 
 // 公開ポータル
 run('npx vite build', { VITE_APP: 'public' });
+
+// 管理者ポータル（管理者専用モード）
+run('npx vite build', { VITE_APP: 'admin' });
 
 // 圧縮: deflate-raw + base64 でインライン JS を圧縮（new Function() で実行、GAS CSP 互換）
 run('node scripts/compress-html.mjs', {});
@@ -37,5 +40,8 @@ console.log('Copied dist/index.html → backend/index.html');
 
 copyFileSync(join(root, 'dist-public', 'index_public.html'), join(backendDir, 'index_public.html'));
 console.log('Copied dist-public/index_public.html → backend/index_public.html');
+
+copyFileSync(join(root, 'dist-admin', 'index_admin.html'), join(backendDir, 'index_admin.html'));
+console.log('Copied dist-admin/index_admin.html → backend/index_admin.html');
 
 console.log('\nbuild:gas complete.');

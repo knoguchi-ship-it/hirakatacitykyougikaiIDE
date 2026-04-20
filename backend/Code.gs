@@ -369,13 +369,14 @@ function doGet(e) {
     // UI表示を優先し、初期化失敗時もWebアプリは返す
   }
   var app = (e && e.parameter && e.parameter.app) || 'member';
-  var allowedApps = { 'member': 'index', 'public': 'index_public' };
+  var allowedApps = { 'member': 'index', 'public': 'index_public', 'admin': 'index_admin' };
   var file = allowedApps[app] || 'index';
 
   // ブラウザタブ用タイトル（GAS sandbox では setTitle が唯一の手段）
   var APP_TITLES = {
     member: '会員マイページ｜枚方市ケアマネ協議会',
-    public:  '研修・入会申込ポータル｜枚方市ケアマネ協議会'
+    public:  '研修・入会申込ポータル｜枚方市ケアマネ協議会',
+    admin:   '管理者ポータル｜枚方市ケアマネ協議会',
   };
   var title = APP_TITLES[app] || APP_TITLES['member'];
 
