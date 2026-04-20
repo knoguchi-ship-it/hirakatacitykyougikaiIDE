@@ -13,7 +13,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
 const memberGasDir = join(root, 'gas', 'member');
 const preserveFiles = {
+  '.clasp.json': true,
   '.clasp.json.example': true,
+  'appsscript.json': true,
   'README.md': true,
 };
 
@@ -48,8 +50,8 @@ run('node scripts/compress-html.mjs');
 copyFileSync(join(root, 'backend', 'Code.gs'), join(memberGasDir, 'Code.gs'));
 console.log('Copied backend/Code.gs -> gas/member/Code.gs');
 
-copyFileSync(join(root, 'backend', 'appsscript.json'), join(memberGasDir, 'appsscript.json'));
-console.log('Copied backend/appsscript.json -> gas/member/appsscript.json');
+// appsscript.json は gas/member/ の固有設定ファイルを使用（backend からコピーしない）
+console.log('Kept gas/member/appsscript.json (project-specific, not overwritten)');
 
 copyFileSync(join(root, 'dist', 'index.html'), join(memberGasDir, 'index.html'));
 console.log('Copied dist/index.html -> gas/member/index.html');

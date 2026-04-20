@@ -24,6 +24,7 @@ dist-ssr
 *.sln
 *.sw?
 .clasp.json
+!gas/**/.clasp.json
 .clasprc.json
 
 .claude/
