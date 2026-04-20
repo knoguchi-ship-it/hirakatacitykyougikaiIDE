@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-04-20
-Production: `v249` / fixed deployments `@249`
+Production: `v250` / 統合プロジェクト fixed deployments `@249` / 管理者 split `@3`
 
 ## 1. Purpose
 
@@ -18,28 +18,30 @@ Production: `v249` / fixed deployments `@249`
 | Member portal | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `/exec` |
 | Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `/exec?app=public` |
 
-Both fixed deployments currently point to `@249`.
+統合プロジェクトの両 fixed deployments は `@249` を指している。
 
-Operator-facing canonical URLs（v249〜）:
+Operator-facing canonical URLs（v250〜確定）:
 
-| 用途 | URL |
-|---|---|
-| 会員マイページ | `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec` |
-| 管理者ポータル | `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec?app=admin` |
-| 公開ポータル | `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec?app=public` |
+| 用途 | プロジェクト | URL | アクセス制御 |
+|---|---|---|---|
+| 会員マイページ | 統合 | `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec` | ANYONE_ANONYMOUS（ID/PW認証） |
+| 管理者ポータル | admin split | `https://script.google.com/a/macros/hcm-n.org/s/AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os/exec` | DOMAIN（Google workspace必須） |
+| 公開ポータル | 統合 | `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec?app=public` | ANYONE_ANONYMOUS |
+
+> **⚠️ 注意**: 統合プロジェクトの `?app=admin` ルートはコード上残存するが、管理者の正規入口は上記 admin split URL のみ。DOMAIN アクセス制御が適用されているのは admin split のみ。
 
 Project rule:
 
-- 固定 deployment 2 本運用は継続（公開ポータルはこのまま）。
-- 会員/管理者は v249 以降 URL パラメータで分岐（暫定）→ 分離プロジェクトへの移行を進行中。
-- 操作者向けの正規入口は上記 public fixed deployment の base URL を標準とする。
+- 統合プロジェクトの固定 deployment 2 本（member / public）は継続運用。
+- 管理者ポータルは admin split プロジェクト（`gas/admin`）を正本とする（v250〜確定）。
+- admin / member / public の3境界は物理プロジェクトで分離。混在させない。
 
 ## 2. (B) 分離プロジェクト Deployment IDs（準本番）
 
 | 用途 | Script ID | Deployment ID | version | webapp.access |
 |---|---|---|---|---|
 | 会員専用 (member) | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | @2 | ANYONE_ANONYMOUS |
-| 管理者専用 (admin) | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | @2 | DOMAIN |
+| 管理者専用 (admin) | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | @3 | DOMAIN |
 
 分離プロジェクト URL:
 
@@ -157,7 +159,21 @@ When the change affects user flows, real-browser verification is performed by th
 
 ## 7. Current Recorded State
 
-### 2026-04-20 `v249` ← **current production**
+### 2026-04-20 `v250` ← **current production**
+
+- Scope: admin split プロジェクト（`gas/admin`）の admin shell 修正。
+  - `src/components/Sidebar.tsx`: `showMemberPages` フラグで会員メニュー項目を条件化。
+  - `src/App.tsx`: `showMemberPages={!isAdminShell}` 追加 + `loadMemberPortalData` に `!isAdminShell` ガード。
+  - `AGENTS.md` セクション6: セキュリティ確定境界への逆行案提示禁止ルール追加。
+- 対象 deployment: admin split のみ（統合プロジェクト fixed deployments は変更なし）。
+- Verification:
+  - `npm run build:gas:admin` ✅
+  - `npx clasp push --force`（gas/admin） ✅（3 files pushed）
+  - `npx clasp version "v250..."` ✅（version 3 created）
+  - admin split `npx clasp deployments` ✅（`@3`）
+  - 実ブラウザ確認 → 操作者側で実施（確認ポイントは `docs/116` 参照）
+
+### 2026-04-20 `v249`
 
 - Version `249` created: 会員/管理者ポータル UI 分離。
 - Scope:

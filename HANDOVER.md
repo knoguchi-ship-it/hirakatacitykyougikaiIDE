@@ -155,10 +155,15 @@
 ## 3. 現在の本番状態
 - ブランチ運用の基準は `main`。
 - 両 fixed deployment は `@249` を向いている（GAS version 249）。差異が出た場合はセクション 6 の runtime 確認結果を優先する。
-- **URL 体系（v249〜）**:
-  - 会員マイページ: `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec`
-  - 管理者ポータル: `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec?app=admin`
-  - 公開ポータル: `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec?app=public`
+- **URL 体系（v250〜確定）**:
+
+  | 用途 | プロジェクト | URL | アクセス制御 |
+  |---|---|---|---|
+  | 会員マイページ | 統合 | `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec` | ANYONE_ANONYMOUS |
+  | **管理者ポータル** | **admin split** | `https://script.google.com/a/macros/hcm-n.org/s/AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os/exec` | **DOMAIN（workspace必須）** |
+  | 公開ポータル | 統合 | `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec?app=public` | ANYONE_ANONYMOUS |
+
+  > 統合プロジェクトの `?app=admin` ルートはコード上残存するが、管理者の正規入口は admin split URL のみ。
 - fixed deployment の標準同期方法は `npx clasp redeploy`。Apps Script UI `Manage deployments` は障害復旧時の補助手段に限定する。
 - member portal は sidebar logout を採用済み。
 - デモログイン、mock member route、画面内 demo selector は廃止済み。
@@ -225,8 +230,9 @@ v195〜v208 の詳細は `docs/79_HANDOVER_2026-04-15.md` または `docs/archiv
 - **会員/管理者ポータル分離（v249〜）**: 会員ページには管理者タブなし。管理者は admin split URL でアクセスすること。`build-gas.mjs` は `VITE_APP=member` / `admin` / `public` の3ビルドを実施（5ファイル push）。
 - **admin shell 修正（v250〜）**: 管理者 split では `showMemberPages=false` により会員メニュー非表示。`loadMemberPortalData` も `!isAdminShell` ガードで呼ばれない。
 - **会員セッショントークン（v248〜）**: ログイン成功時に UUID を発行し CacheService に 30分保存。会員 API は sessionToken 必須。フロントエンドは `GasApiClient.memberSessionToken` に保持。
-- **会員URL**: `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec`（管理者タブなし）
-- **管理者URL**: `…/exec?app=admin`（管理者専用ページ）
+- **会員URL**: `https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec`（ANYONE_ANONYMOUS・管理者タブなし）
+- **管理者URL（正規）**: `https://script.google.com/a/macros/hcm-n.org/s/AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os/exec`（DOMAIN・admin split プロジェクト）
+- **admin / member / public は物理プロジェクトで分離確定（v250〜）**: 管理者と会員マイページは同一画面で混在させない。セキュリティ境界の根幹。
 - **会員種別変換の設計（v238〜）**: 再活性化パターンにより、往復変換でも T_会員・T_事業所職員 の行は増えない。過去の重複 WITHDRAWN 行はデータ管理コンソール「会員CM番号重複修復」で整理できる。
 - **v206 DB 適用済み**: `T_会員` に `勤務先住所2` / `自宅住所2` 列が追加済み。`addAddressLine2Columns` の再実行は不要。
 - **名簿出力コンソール（RosterExport）**: システム設定で `ROSTER_TEMPLATE_SS_ID` を登録すること。
@@ -273,18 +279,19 @@ npx clasp login --creds .tmp/oauth-client-hcmn-member-system-prod.json --use-pro
 ## 7. 次担当者の最初の一手
 
 1. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md` の「作業開始チェック」を実施する。
-2. セクション 6 の再開時チェックを実行し、deployment が `@249` であることを実測確認する。
+2. セクション 6 の再開時チェックを実行し、統合プロジェクト `@249`・admin split `@3` を実測確認する。
 3. **`clasp run` が失敗する場合**: 上記 `clasp login --creds` コマンドで project-scoped OAuth を再取得する。
-4. **データ管理コンソールで修復を実行**（v236〜v238 で生じた既存の CM 番号重複行がある場合）:
+4. **管理者ポータルの実ブラウザ確認**（v250 後未実施）:
+   - admin split URL（`AKfycbwS.../exec`）に `k.noguchi@hcm-n.org` でアクセス
+   - サイドバーに「会員マイページ」「研修受講の申込み」が表示されないこと
+   - `member_unauthorized` エラーが表示されないこと
+   - 管理コンソールメニューが正常表示されること（`docs/116` 参照）
+5. **データ管理コンソールで修復を実行**（v236〜v238 で生じた既存の CM 番号重複行がある場合）:
    - 管理者ログイン → データ管理 → 「会員CM番号重複修復」ボタンを実行
-   - 修復件数と対象会員 ID を確認する
-5. **変換動作を実ブラウザで確認**（v238 再活性化パターン）:
-   - 個人会員 → 事業所職員 転籍 → 個人会員 に戻す、を1会員で実施
-   - T_会員・T_事業所職員 の行が増えていないこと（WITHDRAWN 行が再利用されること）を確認
-6. 残課題に着手する場合: `docs/58_NEXT_TASK_PERFORMANCE_2026-04-09.md`（B-02）を参照する。
+6. **最優先の未解決調査**: 会員マイページから事業所会員情報を変更する際の問題を再現し、`getMemberPortalData` 返却、`updateMemberSelf_` 保存結果、`T_会員 / T_事業所職員 / T_認証アカウント` 実データ、会員画面の表示状態を突き合わせて真因を特定する。
+   - v246 で `authenticatedContext.memberPortalLoginId` 優先を本番反映済み。次担当者は実ブラウザで再現有無を確認し、未解決なら backend 側まで掘ること。
 7. **変更後は必ず `HANDOVER.md` と関連 docs を同ターンで更新する。**
-8. **最優先の未解決調査**: 会員マイページから事業所会員情報を変更する際の問題を再現し、`getMemberPortalData` 返却、`updateMemberSelf_` 保存結果、`T_会員 / T_事業所職員 / T_認証アカウント` 実データ、会員画面の表示状態を突き合わせて真因を特定する。管理者ログイン固有問題・単純キャッシュ問題として片付けない。
-   - 2026-04-19 対応メモ: `src/App.tsx` では保存時にログイン画面の `memberLoginId` を優先して `updateMemberSelf` へ渡していたため、`authenticatedContext.memberPortalLoginId` を優先する実装修正を `v246` として本番反映済み。次担当者は実ブラウザで再現有無を確認し、未解決なら backend 側の保存結果と DB 実データまで掘ること。
+8. **セキュリティ境界の維持**: admin / member / public の3プロジェクト分離は確定事項。利便性理由での混在提案は `AGENTS.md` セクション6 のルールに従い行わない。
 9. 次フェーズで「デモデータ削除 / DB デバッグ機能」に着手する場合は、実装前に task 個票を切り、承認境界・対象テーブル・バックアップ前提・ロールバック方法を先に整理する。
 
 ## 8. 論点別の深掘り先
