@@ -11186,11 +11186,12 @@ function getAdminEmailAliases_() {
       },
     });
   } catch (e) {
+    var detail = String(e && e.message ? e.message : e);
     return JSON.stringify({
       success: true,
       data: {
         aliases: [ownerEmail],
-        warning: '送信エイリアスの取得に失敗しました。info アドレスで送るには、管理者が /exec を開いて Gmail 権限を再承認してください。',
+        warning: buildSendAsPermissionError_(detail),
       },
     });
   }

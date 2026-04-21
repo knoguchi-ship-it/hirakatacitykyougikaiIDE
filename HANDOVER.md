@@ -1,17 +1,44 @@
 # 開発引継ぎ
 
 更新日: 2026-04-21
-現行本番: `v253`（統合プロジェクト GAS version 252 / 会員 split GAS version 5 / 管理者 split GAS version 6）
-固定 deployment: 統合（公開ポータル）`@252` × 2本 / 会員 split `@5` / 管理者 split `@6`
+現行本番: `v255`（統合プロジェクト GAS version 253 / 会員 split GAS version 6 / 管理者 split GAS version 10）
+固定 deployment: 統合（公開ポータル）`@253` × 2本 / 会員 split `@6` / 管理者 split `@10`
 
-## 0. v253 本番稼働中（2026-04-21）
+## 0. v255 本番稼働中（2026-04-21）
+
+**詳細リリース記録: `docs/119_RELEASE_STATE_v255_2026-04-21.md`**
+
+### v255（2026-04-21）— 診断コード削除・本番クリーン化
+
+- **`getAdminEmailAliases_` catch ブロック**: `【診断】` プレフィックス付き詳細エラーを `buildSendAsPermissionError_(detail)` に戻した
+- **全 3 プロジェクト同期済み**: backend/Code.gs → gas/admin/Code.gs cp → push → version 作成 → `clasp redeploy`
+- **admin split GCP プロジェクト変更（v254 副作用）**: Apps Script Settings で GCP プロジェクトを `434742265454`（デフォルト） → `88737175415`（hcmn-member-system-prod）に変更済み。Gmail API が有効になり送信エイリアス取得エラーが解消した
+
+### v254（2026-04-21）— admin split Gmail スコープ追加・Code.gs 同期
+
+- **`gas/admin/appsscript.json`**: `gmail.settings.basic` スコープを追加
+- **`gas/admin/Code.gs`**: v252/v253 変更が 25 行抜けていたのを `cp backend/Code.gs` で同期
+- **診断コード**: `getAdminEmailAliases_` catch に `【診断】` エラーを一時追加（v255 で削除済み）
 
 ### v253（2026-04-21）— 入会完了画面 設定UI 3グループ化・送信済み案内文設定化
 
 - **新規 DB キー `PUBLIC_PORTAL_COMPLETION_CREDENTIAL_NOTICE`**: 送信済み時の案内文を設定可能に
 - **管理設定UI を3グループに再編成**: ① メール送信の有無 / ② 今後のご案内（送信ON/OFF別textarea）/ ③ ログイン情報カード表示
 - **3プロジェクト同期**: 統合 GAS@252 / 会員 split GAS@5 / 管理者 split GAS@6
-- **実ブラウザ確認待ち**: 管理設定→3グループ表示確認・送信ON/OFF別案内文変更・保存・完了画面反映確認
+
+## ⚠️ 次フェーズ: セキュリティ是正（第三者評価 §5 による）
+
+**評価結果: D / High Risk（docs/109_THIRD_PARTY_ASSESSMENT_2026-04-20.md）**
+
+| 優先度 | タスク | チケット |
+|---|---|---|
+| Critical | processApiRequest deny-by-default 実装 | docs/120 |
+| Critical | 自己操作 API の IDOR 修正 | docs/121 |
+| High | パスワードハッシュを PBKDF2 以上へ移行 | docs/122 |
+| Medium | OAuth スコープ最小化・CI セキュリティ自動化 | docs/123 |
+| Medium | CM番号編集ポリシー実装 | docs/113 |
+
+**注意**: docs/120（deny-by-default）と docs/121（IDOR 修正）は v248 で一部実装済みだが不完全。チケットを必ず読んでから着手すること。
 
 ## 0. v252 本番稼働中（2026-04-21）
 
