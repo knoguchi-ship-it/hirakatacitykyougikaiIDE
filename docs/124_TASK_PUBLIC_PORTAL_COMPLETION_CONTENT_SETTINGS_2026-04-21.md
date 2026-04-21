@@ -1,7 +1,7 @@
 # タスク: 公開ポータル入会完了画面の案内文・ログイン情報文言をシステム設定化
 
 作成日: 2026-04-21
-ステータス: IMPLEMENTED_LOCAL / 未デプロイ
+ステータス: DEPLOYED_PRODUCTION（v256 / 2026-04-21）
 優先度: High
 
 ## 目的
@@ -57,9 +57,23 @@
 5. メール送信 ON/OFF に応じて各本文が切り替わる
 6. ログイン情報表示 OFF 時でも補足本文だけ表示される
 
+## デプロイ結果
+
+- Git commit: `857e080 feat: make portal completion content configurable`
+- GAS version:
+  - 統合（公開） `@254`
+  - 会員 split `@7`
+  - 管理者 split `@11`
+- fixed deployment:
+  - 統合（公開） `AKfycbyw... @254` / `AKfycbxy... @254`
+  - 会員 split `AKfycbxd... @7`
+  - 管理者 split `AKfycbwS... @11`
+
 ## 備考
 
 - `npm run typecheck` 済み
 - `npm run build` 済み
 - `npm run build:gas` / `build:gas:member` / `build:gas:admin` 済み
-- 実ブラウザ確認と Apps Script デプロイは未実施
+- `npx clasp deployments --json` で 3 プロジェクトの fixed deployment 同期を確認済み
+- `npx clasp run healthCheck` / `npx clasp run getDbInfo` は 3 プロジェクトとも `Unable to run script function. Please make sure you have permission to run the script function.` で未確認
+- 実ブラウザ確認は操作者側で未実施

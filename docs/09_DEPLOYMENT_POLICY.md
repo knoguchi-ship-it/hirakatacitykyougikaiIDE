@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-04-21
-Production: `v251` / 統合（公開）fixed deployments `@250` / 会員 split `@3` / 管理者 split `@4`
+Production: `v256` / 統合（公開）fixed deployments `@254` / 会員 split `@7` / 管理者 split `@11`
 
 ## 1. Purpose
 
@@ -18,7 +18,7 @@ Production: `v251` / 統合（公開）fixed deployments `@250` / 会員 split `
 | Member portal | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `/exec` |
 | Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `/exec?app=public` |
 
-統合プロジェクト（公開専用）の両 fixed deployments は `@250` を指している。
+統合プロジェクト（公開専用）の両 fixed deployments は `@254` を指している。
 
 Operator-facing canonical URLs（v251〜確定・3プロジェクト分離完了）:
 
@@ -40,8 +40,8 @@ Project rule:
 
 | 用途 | Script ID | Deployment ID | version | webapp.access |
 |---|---|---|---|---|
-| 会員専用 (member) | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | @3 | ANYONE_ANONYMOUS |
-| 管理者専用 (admin) | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | @4 | DOMAIN |
+| 会員専用 (member) | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | @7 | ANYONE_ANONYMOUS |
+| 管理者専用 (admin) | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | @11 | DOMAIN |
 
 分離プロジェクト URL:
 
@@ -159,7 +159,26 @@ When the change affects user flows, real-browser verification is performed by th
 
 ## 7. Current Recorded State
 
-### 2026-04-21 `v251` ← **current production**
+### 2026-04-21 `v256` ← **current production**
+
+- Scope: 公開ポータル入会完了画面の `今後のご案内` / `ログイン情報` をシステム設定化。
+  - 新規キー: `PUBLIC_PORTAL_COMPLETION_GUIDANCE_*` / `PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BLOCK_VISIBLE` / `PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BODY_*`
+  - 管理画面で表示ON/OFFと本文変更が可能。
+  - 完了画面ではプレーンテキスト描画 + 改行保持、旧キーからの後方互換フォールバックあり。
+- 対象 deployment: 統合（公開）2本 / 会員 split / 管理者 split — 全 4 deployment 更新。
+- Verification:
+  - `npm run typecheck` ✅
+  - `npm run build` ✅
+  - `npm run build:gas` ✅ / `npm run build:gas:member` ✅ / `npm run build:gas:admin` ✅
+  - 統合 push ✅（5 files）/ 会員 split push ✅（3 files）/ 管理者 split push ✅（3 files）
+  - 統合 `npx clasp redeploy` ✅（`AKfycbyw... @254` / `AKfycbxy... @254`）
+  - 会員 split `npx clasp redeploy` ✅（`AKfycbxd... @7`）
+  - 管理者 split `npx clasp redeploy` ✅（`AKfycbwS... @11`）
+  - `npx clasp deployments --json` ✅
+  - `npx clasp run healthCheck` / `npx clasp run getDbInfo` は 3 プロジェクトとも `Unable to run script function. Please make sure you have permission to run the script function.` で未確認
+  - 実ブラウザ確認 → 操作者側で実施（確認ポイントは `docs/124` / `docs/125` 参照）
+
+### 2026-04-21 `v251`
 
 - Scope: 公開ポータル切り分け完了・3プロジェクト分離確定。
   - `backend/Code.gs doGet`: `?app=` パラメータ依存を廃止。`ScriptApp.getScriptId()` で配信ページを固定。
