@@ -17,8 +17,14 @@ interface MemberApplicationFormProps {
   title?: string;
   backLabel?: string;
   completeLabel?: string;
+  showCompletionGuidance?: boolean;
+  completionGuidanceBodyWhenCredentialSent?: string;
+  completionGuidanceBodyWhenCredentialNotSent?: string;
+  showCompletionLoginInfoBlock?: boolean;
   showCompletionLoginInfo?: boolean;
   credentialEmailEnabled?: boolean;
+  completionLoginInfoBodyWhenCredentialSent?: string;
+  completionLoginInfoBodyWhenCredentialNotSent?: string;
   completionNoCredentialNotice?: string;
   completionCredentialNotice?: string;
 }
@@ -80,6 +86,18 @@ const MEMBERSHIP_NOTICE_HIGHLIGHTS = [
     body: '退会は年度切替前の3月末までに完了してください。手続きがない場合は継続扱いとなり、当該年度の会費納入が必要です。',
   },
 ] as const;
+const DEFAULT_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_SENT = [
+  'ログイン情報をご登録のメールアドレスに送信しました。',
+  '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
+  '申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。',
+].join('\n');
+const DEFAULT_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_NOT_SENT = [
+  'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
+  '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
+  '申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。',
+].join('\n');
+const DEFAULT_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_SENT = 'ログイン情報は画面に表示していません。登録済みのメールをご確認ください。';
+const DEFAULT_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_NOT_SENT = 'ログイン情報メールは現在送信していません。公開準備後にご案内します。';
 
 // ─── バリデーション ───────────────────────────────────
 function createDefaultBusinessStaff(): ApplicationStaffEntry[] {
@@ -295,8 +313,14 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
   title = '入会申込',
   backLabel = '戻る',
   completeLabel = '閉じる',
+  showCompletionGuidance = true,
+  completionGuidanceBodyWhenCredentialSent = DEFAULT_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_SENT,
+  completionGuidanceBodyWhenCredentialNotSent = DEFAULT_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_NOT_SENT,
+  showCompletionLoginInfoBlock = true,
   showCompletionLoginInfo = true,
   credentialEmailEnabled = true,
+  completionLoginInfoBodyWhenCredentialSent = DEFAULT_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_SENT,
+  completionLoginInfoBodyWhenCredentialNotSent = DEFAULT_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_NOT_SENT,
   completionNoCredentialNotice = 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
   completionCredentialNotice = 'ログイン情報をご登録のメールアドレスに送信しました。',
 }) => {
@@ -431,13 +455,24 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
   // ─── 完了画面 ────────────────────────────────────────
   if (result) {
     const isBusinessCompletion = form.memberType === 'BUSINESS';
-    const showLoginInfoCard = showCompletionLoginInfo && (
-      (!isBusinessCompletion && !!result.loginId) ||
-      (isBusinessCompletion && !!result.staffCredentials?.length)
-    );
-    const loginInfoNotice = credentialEmailEnabled
+    const canResolveLoginInfo = (!isBusinessCompletion && !!result.loginId) ||
+      (isBusinessCompletion && !!result.staffCredentials?.length);
+    const showLoginInfoCard = showCompletionLoginInfo && canResolveLoginInfo;
+    const showLoginInfoSection = showCompletionLoginInfoBlock && canResolveLoginInfo;
+    const completionGuidanceBody = credentialEmailEnabled
+      ? completionGuidanceBodyWhenCredentialSent
+      : completionGuidanceBodyWhenCredentialNotSent;
+    const completionLoginInfoBody = credentialEmailEnabled
+      ? completionLoginInfoBodyWhenCredentialSent
+      : completionLoginInfoBodyWhenCredentialNotSent;
+    const legacyLoginInfoNotice = credentialEmailEnabled
       ? completionCredentialNotice
       : completionNoCredentialNotice;
+    const effectiveCompletionGuidanceBody = completionGuidanceBody || legacyLoginInfoNotice;
+    const effectiveCompletionLoginInfoBody = completionLoginInfoBody || legacyLoginInfoNotice;
+    const renderMultilineText = (text: string, className: string) => (
+      <p className={className} style={{ whiteSpace: 'pre-line' }}>{text}</p>
+    );
     return (
       <div className="max-w-2xl mx-auto py-12 px-4">
         <div className="bg-white rounded-2xl shadow-lg p-8 text-center space-y-6">
@@ -456,42 +491,32 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
               </div>
             </div>
           )}
-          <div className="bg-sky-50 border border-sky-100 rounded-lg p-4 text-left">
-            <p className="text-sm text-sky-900 font-medium mb-2">今後のご案内</p>
-            <div className="space-y-1 text-sm text-sky-800">
-              <p>{loginInfoNotice}</p>
-              <p>年会費や振込先などのご案内は、登録メールアドレスをご確認ください。</p>
-              <p>申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。</p>
+          {showCompletionGuidance && (
+            <div className="bg-sky-50 border border-sky-100 rounded-lg p-4 text-left">
+              <p className="text-sm text-sky-900 font-medium mb-2">今後のご案内</p>
+              {renderMultilineText(effectiveCompletionGuidanceBody, 'text-sm text-sky-800')}
             </div>
-          </div>
-          {!isBusinessCompletion && showLoginInfoCard && result.loginId && (
+          )}
+          {!isBusinessCompletion && showLoginInfoSection && showLoginInfoCard && result.loginId && (
             <div className="bg-primary-50 border border-primary-100 rounded-lg p-4 text-left">
               <p className="text-sm text-primary-900 font-medium mb-2">ログイン情報</p>
               <p className="text-sm">ログインID: <span className="font-mono font-bold">{result.loginId}</span></p>
-              <p className="text-sm text-primary-600 mt-1">
-                {credentialEmailEnabled ? '初期パスワードは登録メールアドレスに送信しました。' : '初期パスワードは現在送信していません。公開準備後にご案内します。'}
-              </p>
+              {renderMultilineText(effectiveCompletionLoginInfoBody, 'text-sm text-primary-600 mt-1')}
             </div>
           )}
-          {!showLoginInfoCard && ((isBusinessCompletion && !!result.staffCredentials?.length) || (!isBusinessCompletion && !!result.loginId)) && (
+          {showLoginInfoSection && !showLoginInfoCard && canResolveLoginInfo && (
             <div className="bg-primary-50 border border-primary-100 rounded-lg p-4 text-left">
               <p className="text-sm text-primary-900 font-medium mb-2">ログイン情報</p>
-              <p className="text-sm text-primary-700">
-                {credentialEmailEnabled
-                  ? 'ログイン情報は画面に表示していません。登録済みのメールをご確認ください。'
-                  : completionNoCredentialNotice}
-              </p>
+              {renderMultilineText(effectiveCompletionLoginInfoBody, 'text-sm text-primary-700')}
             </div>
           )}
-          {isBusinessCompletion && showLoginInfoCard && result.staffCredentials && (
+          {isBusinessCompletion && showLoginInfoSection && showLoginInfoCard && result.staffCredentials && (
             <div className="bg-primary-50 border border-primary-100 rounded-lg p-4 text-left">
               <p className="text-sm text-primary-900 font-medium mb-2">職員ログイン情報</p>
               {result.staffCredentials.map((sc, i) => (
                 <p key={i} className="text-sm">{sc.name}: <span className="font-mono">{sc.loginId}</span> → {sc.email}</p>
               ))}
-              <p className="text-sm text-primary-600 mt-2">
-                {credentialEmailEnabled ? '各職員のメールアドレスにログイン情報を送信しました。' : 'ログイン情報メールは現在送信していません。公開準備後にご案内します。'}
-              </p>
+              {renderMultilineText(effectiveCompletionLoginInfoBody, 'text-sm text-primary-600 mt-2')}
             </div>
           )}
           <div className="flex gap-3 justify-center pt-4">

@@ -80,7 +80,13 @@ export interface SystemSettings {
   publicPortalMembershipDescriptionEnabled?: boolean;
   publicPortalMembershipDescription?: string;
   publicPortalMembershipCtaLabel?: string;
+  publicPortalCompletionGuidanceVisible?: boolean;
+  publicPortalCompletionGuidanceBodyWhenCredentialSent?: string;
+  publicPortalCompletionGuidanceBodyWhenCredentialNotSent?: string;
+  publicPortalCompletionLoginInfoBlockVisible?: boolean;
   publicPortalCompletionLoginInfoVisible?: boolean;
+  publicPortalCompletionLoginInfoBodyWhenCredentialSent?: string;
+  publicPortalCompletionLoginInfoBodyWhenCredentialNotSent?: string;
   publicPortalCompletionNoCredentialNotice?: string;
   publicPortalCompletionCredentialNotice?: string;
   publicPortalCredentialEmailEnabled?: boolean;

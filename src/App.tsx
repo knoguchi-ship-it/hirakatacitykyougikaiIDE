@@ -168,7 +168,21 @@ const PUBLIC_PORTAL_DEFAULTS = {
   membershipDescriptionEnabled: true,
   membershipDescription: '個人会員・事業所会員・賛助会員の入会申込を受け付けています。',
   membershipCtaLabel: '入会申込へ進む',
+  completionGuidanceVisible: true,
+  completionGuidanceBodyWhenCredentialSent: [
+    'ログイン情報をご登録のメールアドレスに送信しました。',
+    '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
+    '申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。',
+  ].join('\n'),
+  completionGuidanceBodyWhenCredentialNotSent: [
+    'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
+    '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
+    '申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。',
+  ].join('\n'),
+  completionLoginInfoBlockVisible: true,
   completionLoginInfoVisible: true,
+  completionLoginInfoBodyWhenCredentialSent: 'ログイン情報は画面に表示していません。登録済みのメールをご確認ください。',
+  completionLoginInfoBodyWhenCredentialNotSent: 'ログイン情報メールは現在送信していません。公開準備後にご案内します。',
   completionNoCredentialNotice: 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
   completionCredentialNotice: 'ログイン情報をご登録のメールアドレスに送信しました。',
 } as const;
@@ -289,7 +303,13 @@ const App: React.FC = () => {
   const [publicPortalMembershipDescriptionEnabledInput, setPublicPortalMembershipDescriptionEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.membershipDescriptionEnabled);
   const [publicPortalMembershipDescriptionInput, setPublicPortalMembershipDescriptionInput] = useState(PUBLIC_PORTAL_DEFAULTS.membershipDescription);
   const [publicPortalMembershipCtaLabelInput, setPublicPortalMembershipCtaLabelInput] = useState(PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel);
+  const [publicPortalCompletionGuidanceVisibleInput, setPublicPortalCompletionGuidanceVisibleInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionGuidanceVisible);
+  const [publicPortalCompletionGuidanceBodyWhenCredentialSentInput, setPublicPortalCompletionGuidanceBodyWhenCredentialSentInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionGuidanceBodyWhenCredentialSent);
+  const [publicPortalCompletionGuidanceBodyWhenCredentialNotSentInput, setPublicPortalCompletionGuidanceBodyWhenCredentialNotSentInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionGuidanceBodyWhenCredentialNotSent);
+  const [publicPortalCompletionLoginInfoBlockVisibleInput, setPublicPortalCompletionLoginInfoBlockVisibleInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBlockVisible);
   const [publicPortalCompletionLoginInfoVisibleInput, setPublicPortalCompletionLoginInfoVisibleInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible);
+  const [publicPortalCompletionLoginInfoBodyWhenCredentialSentInput, setPublicPortalCompletionLoginInfoBodyWhenCredentialSentInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialSent);
+  const [publicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput, setPublicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialNotSent);
   const [publicPortalCompletionNoCredentialNoticeInput, setPublicPortalCompletionNoCredentialNoticeInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice);
   const [publicPortalCompletionCredentialNoticeInput, setPublicPortalCompletionCredentialNoticeInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice);
   const [memberListQuery, setMemberListQuery] = useState('');
@@ -357,7 +377,13 @@ const App: React.FC = () => {
     setPublicPortalMembershipDescriptionEnabledInput(systemSettings.publicPortalMembershipDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.membershipDescriptionEnabled);
     setPublicPortalMembershipDescriptionInput(systemSettings.publicPortalMembershipDescription ?? PUBLIC_PORTAL_DEFAULTS.membershipDescription);
     setPublicPortalMembershipCtaLabelInput(systemSettings.publicPortalMembershipCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel);
+    setPublicPortalCompletionGuidanceVisibleInput(systemSettings.publicPortalCompletionGuidanceVisible ?? PUBLIC_PORTAL_DEFAULTS.completionGuidanceVisible);
+    setPublicPortalCompletionGuidanceBodyWhenCredentialSentInput(systemSettings.publicPortalCompletionGuidanceBodyWhenCredentialSent ?? PUBLIC_PORTAL_DEFAULTS.completionGuidanceBodyWhenCredentialSent);
+    setPublicPortalCompletionGuidanceBodyWhenCredentialNotSentInput(systemSettings.publicPortalCompletionGuidanceBodyWhenCredentialNotSent ?? PUBLIC_PORTAL_DEFAULTS.completionGuidanceBodyWhenCredentialNotSent);
+    setPublicPortalCompletionLoginInfoBlockVisibleInput(systemSettings.publicPortalCompletionLoginInfoBlockVisible ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBlockVisible);
     setPublicPortalCompletionLoginInfoVisibleInput(systemSettings.publicPortalCompletionLoginInfoVisible ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible);
+    setPublicPortalCompletionLoginInfoBodyWhenCredentialSentInput(systemSettings.publicPortalCompletionLoginInfoBodyWhenCredentialSent ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialSent);
+    setPublicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput(systemSettings.publicPortalCompletionLoginInfoBodyWhenCredentialNotSent ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialNotSent);
     setPublicPortalCompletionNoCredentialNoticeInput(systemSettings.publicPortalCompletionNoCredentialNotice ?? PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice);
     setPublicPortalCompletionCredentialNoticeInput(systemSettings.publicPortalCompletionCredentialNotice ?? PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice);
     setSettingsIsDirty(false);
@@ -2465,7 +2491,20 @@ const App: React.FC = () => {
                 {/* ② 入会完了画面 - 今後のご案内 */}
                 <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 space-y-3">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">② 入会完了画面 — 今後のご案内</p>
-                  <p className="text-xs text-slate-500">入会申込完了画面の「今後のご案内」ブロックに表示する案内文を設定します。メール送信ON/OFFで別々に設定できます。</p>
+                  <p className="text-xs text-slate-500">完了画面の「今後のご案内」ブロック全体の表示有無と本文を設定します。本文はメール送信 ON/OFF で分けて管理します。</p>
+                  <label className="flex items-center gap-3 cursor-pointer w-fit">
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        className="sr-only"
+                        checked={publicPortalCompletionGuidanceVisibleInput}
+                        onChange={(e) => { setPublicPortalCompletionGuidanceVisibleInput(e.target.checked); setSettingsIsDirty(true); }}
+                      />
+                      <div className={`w-11 h-6 rounded-full transition-colors ${publicPortalCompletionGuidanceVisibleInput ? 'bg-emerald-600' : 'bg-slate-300'}`} />
+                      <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${publicPortalCompletionGuidanceVisibleInput ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                    <span className="text-sm font-medium text-slate-700">「今後のご案内」ブロックを表示する</span>
+                  </label>
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1">
                       <span className="inline-flex items-center gap-1">
@@ -2475,15 +2514,15 @@ const App: React.FC = () => {
                     </label>
                     <div className="flex gap-2 items-start">
                       <textarea
-                        value={publicPortalCompletionCredentialNoticeInput}
-                        onChange={(e) => { setPublicPortalCompletionCredentialNoticeInput(e.target.value); setSettingsIsDirty(true); }}
-                        rows={2}
+                        value={publicPortalCompletionGuidanceBodyWhenCredentialSentInput}
+                        onChange={(e) => { setPublicPortalCompletionGuidanceBodyWhenCredentialSentInput(e.target.value); setSettingsIsDirty(true); }}
+                        rows={4}
                         className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm resize-y"
-                        placeholder="送信済みの場合に表示する案内文"
+                        placeholder="送信済みの場合に表示する本文"
                       />
                       <button
                         type="button"
-                        onClick={() => { setPublicPortalCompletionCredentialNoticeInput(PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice); setSettingsIsDirty(true); }}
+                        onClick={() => { setPublicPortalCompletionGuidanceBodyWhenCredentialSentInput(PUBLIC_PORTAL_DEFAULTS.completionGuidanceBodyWhenCredentialSent); setSettingsIsDirty(true); }}
                         className="px-2 py-2 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 whitespace-nowrap"
                       >デフォルトに戻す</button>
                     </div>
@@ -2497,15 +2536,15 @@ const App: React.FC = () => {
                     </label>
                     <div className="flex gap-2 items-start">
                       <textarea
-                        value={publicPortalCompletionNoCredentialNoticeInput}
-                        onChange={(e) => { setPublicPortalCompletionNoCredentialNoticeInput(e.target.value); setSettingsIsDirty(true); }}
-                        rows={2}
+                        value={publicPortalCompletionGuidanceBodyWhenCredentialNotSentInput}
+                        onChange={(e) => { setPublicPortalCompletionGuidanceBodyWhenCredentialNotSentInput(e.target.value); setSettingsIsDirty(true); }}
+                        rows={4}
                         className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm resize-y"
-                        placeholder="未送信の場合に表示する案内文"
+                        placeholder="未送信の場合に表示する本文"
                       />
                       <button
                         type="button"
-                        onClick={() => { setPublicPortalCompletionNoCredentialNoticeInput(PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice); setSettingsIsDirty(true); }}
+                        onClick={() => { setPublicPortalCompletionGuidanceBodyWhenCredentialNotSentInput(PUBLIC_PORTAL_DEFAULTS.completionGuidanceBodyWhenCredentialNotSent); setSettingsIsDirty(true); }}
                         className="px-2 py-2 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 whitespace-nowrap"
                       >デフォルトに戻す</button>
                     </div>
@@ -2513,8 +2552,22 @@ const App: React.FC = () => {
                 </div>
 
                 {/* ③ ログイン情報カードの表示・非表示 */}
-                <div className="rounded-lg border border-slate-200 bg-white px-4 py-4">
+                <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 space-y-4">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">③ ログイン情報カードの表示・非表示</p>
+                  <p className="text-xs text-slate-500">ログイン情報ブロック全体の表示有無、ログインID自体を画面に出すか、補足本文を設定します。</p>
+                  <label className="flex items-center gap-3 cursor-pointer w-fit">
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        className="sr-only"
+                        checked={publicPortalCompletionLoginInfoBlockVisibleInput}
+                        onChange={(e) => { setPublicPortalCompletionLoginInfoBlockVisibleInput(e.target.checked); setSettingsIsDirty(true); }}
+                      />
+                      <div className={`w-11 h-6 rounded-full transition-colors ${publicPortalCompletionLoginInfoBlockVisibleInput ? 'bg-emerald-600' : 'bg-slate-300'}`} />
+                      <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${publicPortalCompletionLoginInfoBlockVisibleInput ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                    <span className="text-sm font-medium text-slate-700">ログイン情報ブロックを表示する</span>
+                  </label>
                   <label className="flex items-center gap-3 cursor-pointer w-fit">
                     <div className="relative">
                       <input
@@ -2533,6 +2586,40 @@ const App: React.FC = () => {
                   <p className="mt-2 text-xs text-slate-500">
                     OFF の場合はログインID・パスワードを画面に表示せず、メール送信状況のみ案内します。会員ページ公開時に ON へ戻してください。
                   </p>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">メール送信ON時の補足本文</label>
+                    <div className="flex gap-2 items-start">
+                      <textarea
+                        value={publicPortalCompletionLoginInfoBodyWhenCredentialSentInput}
+                        onChange={(e) => { setPublicPortalCompletionLoginInfoBodyWhenCredentialSentInput(e.target.value); setSettingsIsDirty(true); }}
+                        rows={3}
+                        className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm resize-y"
+                        placeholder="ログイン情報ブロック内の補足本文"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => { setPublicPortalCompletionLoginInfoBodyWhenCredentialSentInput(PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialSent); setSettingsIsDirty(true); }}
+                        className="px-2 py-2 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 whitespace-nowrap"
+                      >デフォルトに戻す</button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">メール送信OFF時の補足本文</label>
+                    <div className="flex gap-2 items-start">
+                      <textarea
+                        value={publicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput}
+                        onChange={(e) => { setPublicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput(e.target.value); setSettingsIsDirty(true); }}
+                        rows={3}
+                        className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm resize-y"
+                        placeholder="ログイン情報未送信時の補足本文"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => { setPublicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput(PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialNotSent); setSettingsIsDirty(true); }}
+                        className="px-2 py-2 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 whitespace-nowrap"
+                      >デフォルトに戻す</button>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div>
@@ -2759,7 +2846,13 @@ const App: React.FC = () => {
                     publicPortalMembershipDescriptionEnabled: publicPortalMembershipDescriptionEnabledInput,
                     publicPortalMembershipDescription: publicPortalMembershipDescriptionInput,
                     publicPortalMembershipCtaLabel: publicPortalMembershipCtaLabelInput,
+                    publicPortalCompletionGuidanceVisible: publicPortalCompletionGuidanceVisibleInput,
+                    publicPortalCompletionGuidanceBodyWhenCredentialSent: publicPortalCompletionGuidanceBodyWhenCredentialSentInput,
+                    publicPortalCompletionGuidanceBodyWhenCredentialNotSent: publicPortalCompletionGuidanceBodyWhenCredentialNotSentInput,
+                    publicPortalCompletionLoginInfoBlockVisible: publicPortalCompletionLoginInfoBlockVisibleInput,
                     publicPortalCompletionLoginInfoVisible: publicPortalCompletionLoginInfoVisibleInput,
+                    publicPortalCompletionLoginInfoBodyWhenCredentialSent: publicPortalCompletionLoginInfoBodyWhenCredentialSentInput,
+                    publicPortalCompletionLoginInfoBodyWhenCredentialNotSent: publicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput,
                     publicPortalCompletionNoCredentialNotice: publicPortalCompletionNoCredentialNoticeInput,
                     publicPortalCompletionCredentialNotice: publicPortalCompletionCredentialNoticeInput,
                   });
@@ -2795,7 +2888,13 @@ const App: React.FC = () => {
                   setPublicPortalMembershipDescriptionEnabledInput(saved.publicPortalMembershipDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.membershipDescriptionEnabled);
                   setPublicPortalMembershipDescriptionInput(saved.publicPortalMembershipDescription ?? PUBLIC_PORTAL_DEFAULTS.membershipDescription);
                   setPublicPortalMembershipCtaLabelInput(saved.publicPortalMembershipCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel);
+                  setPublicPortalCompletionGuidanceVisibleInput(saved.publicPortalCompletionGuidanceVisible ?? PUBLIC_PORTAL_DEFAULTS.completionGuidanceVisible);
+                  setPublicPortalCompletionGuidanceBodyWhenCredentialSentInput(saved.publicPortalCompletionGuidanceBodyWhenCredentialSent ?? PUBLIC_PORTAL_DEFAULTS.completionGuidanceBodyWhenCredentialSent);
+                  setPublicPortalCompletionGuidanceBodyWhenCredentialNotSentInput(saved.publicPortalCompletionGuidanceBodyWhenCredentialNotSent ?? PUBLIC_PORTAL_DEFAULTS.completionGuidanceBodyWhenCredentialNotSent);
+                  setPublicPortalCompletionLoginInfoBlockVisibleInput(saved.publicPortalCompletionLoginInfoBlockVisible ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBlockVisible);
                   setPublicPortalCompletionLoginInfoVisibleInput(saved.publicPortalCompletionLoginInfoVisible ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible);
+                  setPublicPortalCompletionLoginInfoBodyWhenCredentialSentInput(saved.publicPortalCompletionLoginInfoBodyWhenCredentialSent ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialSent);
+                  setPublicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput(saved.publicPortalCompletionLoginInfoBodyWhenCredentialNotSent ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialNotSent);
                   setPublicPortalCompletionNoCredentialNoticeInput(saved.publicPortalCompletionNoCredentialNotice ?? PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice);
                   setPublicPortalCompletionCredentialNoticeInput(saved.publicPortalCompletionCredentialNotice ?? PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice);
                   setSettingsIsDirty(false);

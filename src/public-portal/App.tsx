@@ -19,7 +19,13 @@ type PublicPortalContentSettings = {
   membershipDescriptionEnabled: boolean;
   membershipDescription: string;
   membershipCtaLabel: string;
+  completionGuidanceVisible: boolean;
+  completionGuidanceBodyWhenCredentialSent: string;
+  completionGuidanceBodyWhenCredentialNotSent: string;
+  completionLoginInfoBlockVisible: boolean;
   completionLoginInfoVisible: boolean;
+  completionLoginInfoBodyWhenCredentialSent: string;
+  completionLoginInfoBodyWhenCredentialNotSent: string;
   completionNoCredentialNotice: string;
   completionCredentialNotice: string;
   credentialEmailEnabled: boolean;
@@ -46,7 +52,21 @@ const DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS: PublicPortalContentSettings = {
   membershipDescriptionEnabled: true,
   membershipDescription: '個人会員・事業所会員・賛助会員の入会申込を受け付けています。',
   membershipCtaLabel: '入会申込へ進む',
+  completionGuidanceVisible: true,
+  completionGuidanceBodyWhenCredentialSent: [
+    'ログイン情報をご登録のメールアドレスに送信しました。',
+    '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
+    '申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。',
+  ].join('\n'),
+  completionGuidanceBodyWhenCredentialNotSent: [
+    'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
+    '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
+    '申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。',
+  ].join('\n'),
+  completionLoginInfoBlockVisible: true,
   completionLoginInfoVisible: true,
+  completionLoginInfoBodyWhenCredentialSent: 'ログイン情報は画面に表示していません。登録済みのメールをご確認ください。',
+  completionLoginInfoBodyWhenCredentialNotSent: 'ログイン情報メールは現在送信していません。公開準備後にご案内します。',
   completionNoCredentialNotice: 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
   completionCredentialNotice: 'ログイン情報をご登録のメールアドレスに送信しました。',
   credentialEmailEnabled: true,
@@ -116,7 +136,13 @@ const PublicApp: React.FC = () => {
             membershipDescriptionEnabled: portalSettings.value.membershipDescriptionEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipDescriptionEnabled,
             membershipDescription: portalSettings.value.membershipDescription || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipDescription,
             membershipCtaLabel: portalSettings.value.membershipCtaLabel || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipCtaLabel,
+            completionGuidanceVisible: portalSettings.value.completionGuidanceVisible ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionGuidanceVisible,
+            completionGuidanceBodyWhenCredentialSent: portalSettings.value.completionGuidanceBodyWhenCredentialSent || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionGuidanceBodyWhenCredentialSent,
+            completionGuidanceBodyWhenCredentialNotSent: portalSettings.value.completionGuidanceBodyWhenCredentialNotSent || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionGuidanceBodyWhenCredentialNotSent,
+            completionLoginInfoBlockVisible: portalSettings.value.completionLoginInfoBlockVisible ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionLoginInfoBlockVisible,
             completionLoginInfoVisible: portalSettings.value.completionLoginInfoVisible ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionLoginInfoVisible,
+            completionLoginInfoBodyWhenCredentialSent: portalSettings.value.completionLoginInfoBodyWhenCredentialSent || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionLoginInfoBodyWhenCredentialSent,
+            completionLoginInfoBodyWhenCredentialNotSent: portalSettings.value.completionLoginInfoBodyWhenCredentialNotSent || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionLoginInfoBodyWhenCredentialNotSent,
             completionNoCredentialNotice: portalSettings.value.completionNoCredentialNotice || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionNoCredentialNotice,
             completionCredentialNotice: portalSettings.value.completionCredentialNotice || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionCredentialNotice,
             credentialEmailEnabled: portalSettings.value.credentialEmailEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.credentialEmailEnabled,
@@ -387,7 +413,13 @@ const PublicApp: React.FC = () => {
             title="新規入会申込"
             backLabel="ポータルトップへ戻る"
             completeLabel="ポータルトップへ戻る"
+            showCompletionGuidance={portalContentSettings?.completionGuidanceVisible ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionGuidanceVisible}
+            completionGuidanceBodyWhenCredentialSent={portalContentSettings?.completionGuidanceBodyWhenCredentialSent ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionGuidanceBodyWhenCredentialSent}
+            completionGuidanceBodyWhenCredentialNotSent={portalContentSettings?.completionGuidanceBodyWhenCredentialNotSent ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionGuidanceBodyWhenCredentialNotSent}
+            showCompletionLoginInfoBlock={portalContentSettings?.completionLoginInfoBlockVisible ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionLoginInfoBlockVisible}
             showCompletionLoginInfo={portalContentSettings?.completionLoginInfoVisible ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionLoginInfoVisible}
+            completionLoginInfoBodyWhenCredentialSent={portalContentSettings?.completionLoginInfoBodyWhenCredentialSent ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionLoginInfoBodyWhenCredentialSent}
+            completionLoginInfoBodyWhenCredentialNotSent={portalContentSettings?.completionLoginInfoBodyWhenCredentialNotSent ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionLoginInfoBodyWhenCredentialNotSent}
             completionNoCredentialNotice={portalContentSettings?.completionNoCredentialNotice ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionNoCredentialNotice}
             completionCredentialNotice={portalContentSettings?.completionCredentialNotice ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionCredentialNotice}
             credentialEmailEnabled={portalContentSettings?.credentialEmailEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.credentialEmailEnabled}

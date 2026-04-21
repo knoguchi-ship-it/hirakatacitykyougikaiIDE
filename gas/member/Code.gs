@@ -32,7 +32,23 @@ var PUBLIC_PORTAL_DEFAULTS = {
   membershipDescriptionEnabled: true,
   membershipDescription: '個人会員・事業所会員・賛助会員の入会申込を受け付けています。',
   membershipCtaLabel: '入会申込へ進む',
+  completionGuidanceVisible: true,
+  completionGuidanceBodyWhenCredentialSent: [
+    'ログイン情報をご登録のメールアドレスに送信しました。',
+    '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
+    '申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。'
+  ].join('\n'),
+  completionGuidanceBodyWhenCredentialNotSent: [
+    'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
+    '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
+    '申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。'
+  ].join('\n'),
+  completionLoginInfoBlockVisible: true,
   completionLoginInfoVisible: true,
+  completionLoginInfoBodyWhenCredentialSent: 'ログイン情報は画面に表示していません。登録済みのメールをご確認ください。',
+  completionLoginInfoBodyWhenCredentialNotSent: 'ログイン情報メールは現在送信していません。公開準備後にご案内します。',
+  completionNoCredentialNotice: 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
+  completionCredentialNotice: 'ログイン情報をご登録のメールアドレスに送信しました。',
 };
 
 var マスタ定義 = {
@@ -4330,10 +4346,34 @@ function getSystemSettings_() {
     : String(membershipDescriptionEnabledRaw) !== 'false';
   var publicPortalMembershipDescription = String(m['PUBLIC_PORTAL_MEMBERSHIP_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.membershipDescription;
   var publicPortalMembershipCtaLabel = String(m['PUBLIC_PORTAL_MEMBERSHIP_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel;
+  var completionGuidanceVisibleRaw = m['PUBLIC_PORTAL_COMPLETION_GUIDANCE_VISIBLE'];
+  var publicPortalCompletionGuidanceVisible = completionGuidanceVisibleRaw === undefined || completionGuidanceVisibleRaw === ''
+    ? PUBLIC_PORTAL_DEFAULTS.completionGuidanceVisible
+    : String(completionGuidanceVisibleRaw) !== 'false';
   var completionLoginInfoVisibleRaw = m['PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_VISIBLE'];
   var publicPortalCompletionLoginInfoVisible = completionLoginInfoVisibleRaw === undefined || completionLoginInfoVisibleRaw === ''
     ? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible
     : String(completionLoginInfoVisibleRaw) !== 'false';
+  var completionLoginInfoBlockVisibleRaw = m['PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BLOCK_VISIBLE'];
+  var publicPortalCompletionLoginInfoBlockVisible = completionLoginInfoBlockVisibleRaw === undefined || completionLoginInfoBlockVisibleRaw === ''
+    ? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBlockVisible
+    : String(completionLoginInfoBlockVisibleRaw) !== 'false';
+  var legacyCompletionNoCredentialNotice = String(m['PUBLIC_PORTAL_COMPLETION_NO_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice;
+  var legacyCompletionCredentialNotice = String(m['PUBLIC_PORTAL_COMPLETION_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice;
+  var publicPortalCompletionGuidanceBodyWhenCredentialSent = String(m['PUBLIC_PORTAL_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_SENT'] || '') || [
+    legacyCompletionCredentialNotice,
+    '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
+    '申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。'
+  ].join('\n');
+  var publicPortalCompletionGuidanceBodyWhenCredentialNotSent = String(m['PUBLIC_PORTAL_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_NOT_SENT'] || '') || [
+    legacyCompletionNoCredentialNotice,
+    '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
+    '申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。'
+  ].join('\n');
+  var publicPortalCompletionLoginInfoBodyWhenCredentialSent = String(m['PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_SENT'] || '') || PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialSent;
+  var publicPortalCompletionLoginInfoBodyWhenCredentialNotSent = String(m['PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_NOT_SENT'] || '') || PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialNotSent;
+  var publicPortalCompletionNoCredentialNotice = String(m['PUBLIC_PORTAL_COMPLETION_NO_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice;
+  var publicPortalCompletionCredentialNotice = String(m['PUBLIC_PORTAL_COMPLETION_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice;
   return {
     defaultBusinessStaffLimit: value,
     trainingHistoryLookbackMonths: lookback,
@@ -4361,7 +4401,15 @@ function getSystemSettings_() {
     publicPortalMembershipDescriptionEnabled: publicPortalMembershipDescriptionEnabled,
     publicPortalMembershipDescription: publicPortalMembershipDescription,
     publicPortalMembershipCtaLabel: publicPortalMembershipCtaLabel,
+    publicPortalCompletionGuidanceVisible: publicPortalCompletionGuidanceVisible,
+    publicPortalCompletionGuidanceBodyWhenCredentialSent: publicPortalCompletionGuidanceBodyWhenCredentialSent,
+    publicPortalCompletionGuidanceBodyWhenCredentialNotSent: publicPortalCompletionGuidanceBodyWhenCredentialNotSent,
+    publicPortalCompletionLoginInfoBlockVisible: publicPortalCompletionLoginInfoBlockVisible,
     publicPortalCompletionLoginInfoVisible: publicPortalCompletionLoginInfoVisible,
+    publicPortalCompletionLoginInfoBodyWhenCredentialSent: publicPortalCompletionLoginInfoBodyWhenCredentialSent,
+    publicPortalCompletionLoginInfoBodyWhenCredentialNotSent: publicPortalCompletionLoginInfoBodyWhenCredentialNotSent,
+    publicPortalCompletionNoCredentialNotice: publicPortalCompletionNoCredentialNotice,
+    publicPortalCompletionCredentialNotice: publicPortalCompletionCredentialNotice,
     publicPortalCredentialEmailEnabled: credentialEmailEnabled,
   };
 }
@@ -4491,8 +4539,32 @@ function updateSystemSettings_(request, callerPermLevel) {
   if (request.publicPortalMembershipCtaLabel != null) {
     updates.push({ key: 'PUBLIC_PORTAL_MEMBERSHIP_CTA_LABEL', value: String(request.publicPortalMembershipCtaLabel).trim() || PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel, description: '公開ポータル：入会カードボタン文言' });
   }
+  if (request.publicPortalCompletionGuidanceVisible != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_COMPLETION_GUIDANCE_VISIBLE', value: request.publicPortalCompletionGuidanceVisible ? 'true' : 'false', description: '公開ポータル：入会完了画面の今後のご案内ブロックを表示するか' });
+  }
+  if (request.publicPortalCompletionGuidanceBodyWhenCredentialSent != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_SENT', value: String(request.publicPortalCompletionGuidanceBodyWhenCredentialSent), description: '公開ポータル：入会完了画面・今後のご案内（メール送信ON時）' });
+  }
+  if (request.publicPortalCompletionGuidanceBodyWhenCredentialNotSent != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_NOT_SENT', value: String(request.publicPortalCompletionGuidanceBodyWhenCredentialNotSent), description: '公開ポータル：入会完了画面・今後のご案内（メール送信OFF時）' });
+  }
+  if (request.publicPortalCompletionLoginInfoBlockVisible != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BLOCK_VISIBLE', value: request.publicPortalCompletionLoginInfoBlockVisible ? 'true' : 'false', description: '公開ポータル：入会完了画面のログイン情報ブロックを表示するか' });
+  }
   if (request.publicPortalCompletionLoginInfoVisible != null) {
     updates.push({ key: 'PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_VISIBLE', value: request.publicPortalCompletionLoginInfoVisible ? 'true' : 'false', description: '公開ポータル：入会完了画面のログイン情報を表示するか' });
+  }
+  if (request.publicPortalCompletionLoginInfoBodyWhenCredentialSent != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_SENT', value: String(request.publicPortalCompletionLoginInfoBodyWhenCredentialSent), description: '公開ポータル：入会完了画面・ログイン情報補足本文（メール送信ON時）' });
+  }
+  if (request.publicPortalCompletionLoginInfoBodyWhenCredentialNotSent != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_NOT_SENT', value: String(request.publicPortalCompletionLoginInfoBodyWhenCredentialNotSent), description: '公開ポータル：入会完了画面・ログイン情報補足本文（メール送信OFF時）' });
+  }
+  if (request.publicPortalCompletionNoCredentialNotice != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_COMPLETION_NO_CREDENTIAL_NOTICE', value: String(request.publicPortalCompletionNoCredentialNotice).trim() || PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice, description: '公開ポータル：入会完了画面・ログイン情報未送信時の案内文' });
+  }
+  if (request.publicPortalCompletionCredentialNotice != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_COMPLETION_CREDENTIAL_NOTICE', value: String(request.publicPortalCompletionCredentialNotice).trim() || PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice, description: '公開ポータル：入会完了画面・ログイン情報送信済み時の案内文' });
   }
   batchUpsertSystemSettings_(ss, updates);
   var scriptProperties = PropertiesService.getScriptProperties();
@@ -10555,7 +10627,15 @@ function ensureSystemSettingsRows_(ss) {
     { key: 'PUBLIC_PORTAL_MEMBERSHIP_DESCRIPTION_ENABLED', value: PUBLIC_PORTAL_DEFAULTS.membershipDescriptionEnabled ? 'true' : 'false', desc: '公開ポータル：入会カード説明文を表示するか' },
     { key: 'PUBLIC_PORTAL_MEMBERSHIP_DESCRIPTION', value: PUBLIC_PORTAL_DEFAULTS.membershipDescription, desc: '公開ポータル：入会カード説明文' },
     { key: 'PUBLIC_PORTAL_MEMBERSHIP_CTA_LABEL', value: PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel, desc: '公開ポータル：入会カードボタン文言' },
+    { key: 'PUBLIC_PORTAL_COMPLETION_GUIDANCE_VISIBLE', value: PUBLIC_PORTAL_DEFAULTS.completionGuidanceVisible ? 'true' : 'false', desc: '公開ポータル：入会完了画面の今後のご案内ブロックを表示するか' },
+    { key: 'PUBLIC_PORTAL_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_SENT', value: PUBLIC_PORTAL_DEFAULTS.completionGuidanceBodyWhenCredentialSent, desc: '公開ポータル：入会完了画面・今後のご案内（メール送信ON時）' },
+    { key: 'PUBLIC_PORTAL_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_NOT_SENT', value: PUBLIC_PORTAL_DEFAULTS.completionGuidanceBodyWhenCredentialNotSent, desc: '公開ポータル：入会完了画面・今後のご案内（メール送信OFF時）' },
+    { key: 'PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BLOCK_VISIBLE', value: PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBlockVisible ? 'true' : 'false', desc: '公開ポータル：入会完了画面のログイン情報ブロックを表示するか' },
     { key: 'PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_VISIBLE', value: PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible ? 'true' : 'false', desc: '公開ポータル：入会完了画面のログイン情報を表示するか' },
+    { key: 'PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_SENT', value: PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialSent, desc: '公開ポータル：入会完了画面・ログイン情報補足本文（メール送信ON時）' },
+    { key: 'PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_NOT_SENT', value: PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialNotSent, desc: '公開ポータル：入会完了画面・ログイン情報補足本文（メール送信OFF時）' },
+    { key: 'PUBLIC_PORTAL_COMPLETION_NO_CREDENTIAL_NOTICE', value: PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice, desc: '公開ポータル：入会完了画面・ログイン情報未送信時の案内文' },
+    { key: 'PUBLIC_PORTAL_COMPLETION_CREDENTIAL_NOTICE', value: PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice, desc: '公開ポータル：入会完了画面・ログイン情報送信済み時の案内文' },
   ];
   publicPortalTextSettings.forEach(function(item) {
     if (!byKey[item.key]) {
@@ -10884,10 +10964,34 @@ function getPublicPortalSettings_() {
     : String(membershipDescriptionEnabledRaw) !== 'false';
   var publicPortalMembershipDescription = String(map['PUBLIC_PORTAL_MEMBERSHIP_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.membershipDescription;
   var publicPortalMembershipCtaLabel = String(map['PUBLIC_PORTAL_MEMBERSHIP_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel;
+  var completionGuidanceVisibleRaw = map['PUBLIC_PORTAL_COMPLETION_GUIDANCE_VISIBLE'];
+  var publicPortalCompletionGuidanceVisible = completionGuidanceVisibleRaw === undefined || completionGuidanceVisibleRaw === ''
+    ? PUBLIC_PORTAL_DEFAULTS.completionGuidanceVisible
+    : String(completionGuidanceVisibleRaw) !== 'false';
   var completionLoginInfoVisibleRaw = map['PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_VISIBLE'];
   var publicPortalCompletionLoginInfoVisible = completionLoginInfoVisibleRaw === undefined || completionLoginInfoVisibleRaw === ''
     ? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible
     : String(completionLoginInfoVisibleRaw) !== 'false';
+  var completionLoginInfoBlockVisibleRaw = map['PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BLOCK_VISIBLE'];
+  var publicPortalCompletionLoginInfoBlockVisible = completionLoginInfoBlockVisibleRaw === undefined || completionLoginInfoBlockVisibleRaw === ''
+    ? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBlockVisible
+    : String(completionLoginInfoBlockVisibleRaw) !== 'false';
+  var legacyCompletionNoCredentialNotice = String(map['PUBLIC_PORTAL_COMPLETION_NO_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice;
+  var legacyCompletionCredentialNotice = String(map['PUBLIC_PORTAL_COMPLETION_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice;
+  var publicPortalCompletionGuidanceBodyWhenCredentialSent = String(map['PUBLIC_PORTAL_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_SENT'] || '') || [
+    legacyCompletionCredentialNotice,
+    '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
+    '申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。'
+  ].join('\n');
+  var publicPortalCompletionGuidanceBodyWhenCredentialNotSent = String(map['PUBLIC_PORTAL_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_NOT_SENT'] || '') || [
+    legacyCompletionNoCredentialNotice,
+    '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
+    '申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。'
+  ].join('\n');
+  var publicPortalCompletionLoginInfoBodyWhenCredentialSent = String(map['PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_SENT'] || '') || PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialSent;
+  var publicPortalCompletionLoginInfoBodyWhenCredentialNotSent = String(map['PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_NOT_SENT'] || '') || PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialNotSent;
+  var publicPortalCompletionNoCredentialNotice = String(map['PUBLIC_PORTAL_COMPLETION_NO_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice;
+  var publicPortalCompletionCredentialNotice = String(map['PUBLIC_PORTAL_COMPLETION_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice;
   var credentialEmailEnabledRaw = map['CREDENTIAL_EMAIL_ENABLED'];
   var credentialEmailEnabled = credentialEmailEnabledRaw === '' || credentialEmailEnabledRaw === null
     ? true
@@ -10909,7 +11013,15 @@ function getPublicPortalSettings_() {
       membershipDescriptionEnabled: publicPortalMembershipDescriptionEnabled,
       membershipDescription: publicPortalMembershipDescription,
       membershipCtaLabel: publicPortalMembershipCtaLabel,
+      completionGuidanceVisible: publicPortalCompletionGuidanceVisible,
+      completionGuidanceBodyWhenCredentialSent: publicPortalCompletionGuidanceBodyWhenCredentialSent,
+      completionGuidanceBodyWhenCredentialNotSent: publicPortalCompletionGuidanceBodyWhenCredentialNotSent,
+      completionLoginInfoBlockVisible: publicPortalCompletionLoginInfoBlockVisible,
       completionLoginInfoVisible: publicPortalCompletionLoginInfoVisible,
+      completionLoginInfoBodyWhenCredentialSent: publicPortalCompletionLoginInfoBodyWhenCredentialSent,
+      completionLoginInfoBodyWhenCredentialNotSent: publicPortalCompletionLoginInfoBodyWhenCredentialNotSent,
+      completionNoCredentialNotice: publicPortalCompletionNoCredentialNotice,
+      completionCredentialNotice: publicPortalCompletionCredentialNotice,
       credentialEmailEnabled: credentialEmailEnabled,
     }
   });
@@ -11168,11 +11280,12 @@ function getAdminEmailAliases_() {
       },
     });
   } catch (e) {
+    var detail = String(e && e.message ? e.message : e);
     return JSON.stringify({
       success: true,
       data: {
         aliases: [ownerEmail],
-        warning: '送信エイリアスの取得に失敗しました。info アドレスで送るには、管理者が /exec を開いて Gmail 権限を再承認してください。',
+        warning: buildSendAsPermissionError_(detail),
       },
     });
   }
