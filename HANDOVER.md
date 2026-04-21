@@ -1,18 +1,20 @@
 # 開発引継ぎ
 
 更新日: 2026-04-21
-現行本番: `v251`（統合プロジェクト GAS version 250 / 会員 split GAS version 3 / 管理者 split GAS version 4）
-固定 deployment: 統合（公開ポータル）`@250` × 2本 / 会員 split `@3` / 管理者 split `@4`
+現行本番: `v252`（統合プロジェクト GAS version 251 / 会員 split GAS version 4 / 管理者 split GAS version 5）
+固定 deployment: 統合（公開ポータル）`@251` × 2本 / 会員 split `@4` / 管理者 split `@5`
 
-> ⚠️ ローカル未リリース: `v252`（入会完了画面・案内文設定化）— `clasp push → version → redeploy` 未実施
+## 0. v252 本番稼働中（2026-04-21）
 
-## 0. v252（ローカル完成・未リリース）— 入会完了画面・ログイン情報未送信時の案内文設定化
+**詳細リリース記録: `docs/118_RELEASE_STATE_v252_2026-04-21.md`**
 
-- 新規 DB キー `PUBLIC_PORTAL_COMPLETION_NO_CREDENTIAL_NOTICE`：`credentialEmailEnabled=false` 時に完了画面に表示する案内文をシステム設定から変更可能にした
-- 管理設定画面（ログイン情報送信設定セクション）に「ログイン情報未送信時の案内文」textarea + デフォルトに戻すボタンを追加
-- 既存の「ログイン情報を表示する（completionLoginInfoVisible）」トグルはそのまま維持
-- 対象ファイル: `backend/Code.gs` / `src/App.tsx` / `src/components/application/MemberApplicationForm.tsx` / `src/public-portal/App.tsx` / `src/types.ts`
-- build 完了（3プロジェクト）。`clasp push --force` → `clasp version` → `clasp redeploy` が必要
+### v252（2026-04-21）— 入会完了画面・ログイン情報未送信時の案内文設定化
+
+- **新規 DB キー `PUBLIC_PORTAL_COMPLETION_NO_CREDENTIAL_NOTICE`**: `credentialEmailEnabled=false` 時に完了画面「今後のご案内」に表示する案内文をシステム設定から変更可能にした
+- **管理設定画面**: ログイン情報送信設定セクションに「ログイン情報未送信時の案内文」textarea + デフォルトに戻すボタンを追加
+- **既存トグル維持**: `completionLoginInfoVisible`（ログイン情報カードの表示・非表示）は変更なし
+- **3プロジェクト同期**: 統合 GAS@251 / 会員 split GAS@4 / 管理者 split GAS@5
+- **実ブラウザ確認待ち**: 管理設定 → 案内文変更 → 保存 → 公開ポータルで入会申込完了画面確認
 
 ## 0. v251 本番稼働中
 
@@ -137,8 +139,9 @@
 2. `AGENTS.md`（グランドルール）
 3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`（作業プロセス正本）
-5. **`docs/117_RELEASE_STATE_v251_2026-04-21.md`** ← **最新（v251）公開ポータル切り分け完了・3プロジェクト分離確定**
-6. `docs/116_RELEASE_STATE_v250_2026-04-20.md`（v250: 管理者 split admin shell 修正）
+5. **`docs/118_RELEASE_STATE_v252_2026-04-21.md`** ← **最新（v252）入会完了画面・案内文設定化**
+6. `docs/117_RELEASE_STATE_v251_2026-04-21.md`（v251: 公開ポータル切り分け完了・3プロジェクト分離確定）
+7. `docs/116_RELEASE_STATE_v250_2026-04-20.md`（v250: 管理者 split admin shell 修正）
 7. `docs/115_RELEASE_STATE_v249_2026-04-20.md`（v249: 会員/管理者ポータル分離・管理者専用URL追加）
 8. `docs/114_RELEASE_STATE_v248_2026-04-20.md`（v248: セキュリティ是正: 会員セッショントークン・IDOR修正）
 7. `docs/108_RELEASE_STATE_v247_2026-04-20.md`（v247: 職員氏名/フリガナ入力を分割 UI に統一）
@@ -246,8 +249,8 @@ v195〜v208 の詳細は `docs/79_HANDOVER_2026-04-15.md` または `docs/archiv
 
 ## 5. 現時点の注意事項（2026-04-20 更新）
 
-- **fixed deployment（v251〜）**: 統合（公開）2本 `@250`、会員 split `@3`、管理者 split `@4`。再開時は各プロジェクトで `npx clasp deployments --json` を実測確認する。
-- **Apps Script version 保持数**: 統合プロジェクトは `227`〜`250` の 24 件。会員 split は version 1〜3。管理者 split は version 1〜4。
+- **fixed deployment（v252〜）**: 統合（公開）2本 `@251`、会員 split `@4`、管理者 split `@5`。再開時は各プロジェクトで `npx clasp deployments --json` を実測確認する。
+- **Apps Script version 保持数**: 統合プロジェクトは `227`〜`251` の 25 件。会員 split は version 1〜4。管理者 split は version 1〜5。
 - **3プロジェクト分離完了（v251〜）**: `doGet` が `ScriptApp.getScriptId()` でプロジェクト識別。URL パラメータ不要・不使用。各プロジェクトは自身の用途のみ配信。
 - **`MEMBER_PORTAL_URL`（v251〜）**: 会員専用 split プロジェクト URL (`AKfycbxd.../exec`) を正本とする。認証情報メールに記載される URL が変更済み。
 - **会員セッショントークン（v248〜）**: ログイン成功時に UUID を発行し CacheService に 30分保存。会員 API は sessionToken 必須。フロントエンドは `GasApiClient.memberSessionToken` に保持。
