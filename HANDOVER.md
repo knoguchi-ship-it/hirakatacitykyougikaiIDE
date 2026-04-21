@@ -1,8 +1,17 @@
 # 開発引継ぎ
 
 更新日: 2026-04-21
-現行本番: `v252`（統合プロジェクト GAS version 251 / 会員 split GAS version 4 / 管理者 split GAS version 5）
-固定 deployment: 統合（公開ポータル）`@251` × 2本 / 会員 split `@4` / 管理者 split `@5`
+現行本番: `v253`（統合プロジェクト GAS version 252 / 会員 split GAS version 5 / 管理者 split GAS version 6）
+固定 deployment: 統合（公開ポータル）`@252` × 2本 / 会員 split `@5` / 管理者 split `@6`
+
+## 0. v253 本番稼働中（2026-04-21）
+
+### v253（2026-04-21）— 入会完了画面 設定UI 3グループ化・送信済み案内文設定化
+
+- **新規 DB キー `PUBLIC_PORTAL_COMPLETION_CREDENTIAL_NOTICE`**: 送信済み時の案内文を設定可能に
+- **管理設定UI を3グループに再編成**: ① メール送信の有無 / ② 今後のご案内（送信ON/OFF別textarea）/ ③ ログイン情報カード表示
+- **3プロジェクト同期**: 統合 GAS@252 / 会員 split GAS@5 / 管理者 split GAS@6
+- **実ブラウザ確認待ち**: 管理設定→3グループ表示確認・送信ON/OFF別案内文変更・保存・完了画面反映確認
 
 ## 0. v252 本番稼働中（2026-04-21）
 
@@ -139,7 +148,7 @@
 2. `AGENTS.md`（グランドルール）
 3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`（作業プロセス正本）
-5. **`docs/118_RELEASE_STATE_v252_2026-04-21.md`** ← **最新（v252）入会完了画面・案内文設定化**
+5. **`docs/118_RELEASE_STATE_v252_2026-04-21.md`** ← **最新（v253）設定UI 3グループ化・送信済み案内文設定化**（v252/v253 共通記録）
 6. `docs/117_RELEASE_STATE_v251_2026-04-21.md`（v251: 公開ポータル切り分け完了・3プロジェクト分離確定）
 7. `docs/116_RELEASE_STATE_v250_2026-04-20.md`（v250: 管理者 split admin shell 修正）
 7. `docs/115_RELEASE_STATE_v249_2026-04-20.md`（v249: 会員/管理者ポータル分離・管理者専用URL追加）
@@ -249,8 +258,8 @@ v195〜v208 の詳細は `docs/79_HANDOVER_2026-04-15.md` または `docs/archiv
 
 ## 5. 現時点の注意事項（2026-04-20 更新）
 
-- **fixed deployment（v252〜）**: 統合（公開）2本 `@251`、会員 split `@4`、管理者 split `@5`。再開時は各プロジェクトで `npx clasp deployments --json` を実測確認する。
-- **Apps Script version 保持数**: 統合プロジェクトは `227`〜`251` の 25 件。会員 split は version 1〜4。管理者 split は version 1〜5。
+- **fixed deployment（v253〜）**: 統合（公開）2本 `@252`、会員 split `@5`、管理者 split `@6`。再開時は各プロジェクトで `npx clasp deployments --json` を実測確認する。
+- **Apps Script version 保持数**: 統合プロジェクトは `227`〜`252` の 26 件。会員 split は version 1〜5。管理者 split は version 1〜6。
 - **3プロジェクト分離完了（v251〜）**: `doGet` が `ScriptApp.getScriptId()` でプロジェクト識別。URL パラメータ不要・不使用。各プロジェクトは自身の用途のみ配信。
 - **`MEMBER_PORTAL_URL`（v251〜）**: 会員専用 split プロジェクト URL (`AKfycbxd.../exec`) を正本とする。認証情報メールに記載される URL が変更済み。
 - **会員セッショントークン（v248〜）**: ログイン成功時に UUID を発行し CacheService に 30分保存。会員 API は sessionToken 必須。フロントエンドは `GasApiClient.memberSessionToken` に保持。
