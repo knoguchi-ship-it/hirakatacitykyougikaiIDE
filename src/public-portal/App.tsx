@@ -21,6 +21,7 @@ type PublicPortalContentSettings = {
   membershipCtaLabel: string;
   completionLoginInfoVisible: boolean;
   completionNoCredentialNotice: string;
+  completionCredentialNotice: string;
   credentialEmailEnabled: boolean;
 };
 
@@ -47,6 +48,7 @@ const DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS: PublicPortalContentSettings = {
   membershipCtaLabel: '入会申込へ進む',
   completionLoginInfoVisible: true,
   completionNoCredentialNotice: 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
+  completionCredentialNotice: 'ログイン情報をご登録のメールアドレスに送信しました。',
   credentialEmailEnabled: true,
 };
 
@@ -116,6 +118,7 @@ const PublicApp: React.FC = () => {
             membershipCtaLabel: portalSettings.value.membershipCtaLabel || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipCtaLabel,
             completionLoginInfoVisible: portalSettings.value.completionLoginInfoVisible ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionLoginInfoVisible,
             completionNoCredentialNotice: portalSettings.value.completionNoCredentialNotice || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionNoCredentialNotice,
+            completionCredentialNotice: portalSettings.value.completionCredentialNotice || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionCredentialNotice,
             credentialEmailEnabled: portalSettings.value.credentialEmailEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.credentialEmailEnabled,
           });
         } else {
@@ -386,6 +389,7 @@ const PublicApp: React.FC = () => {
             completeLabel="ポータルトップへ戻る"
             showCompletionLoginInfo={portalContentSettings?.completionLoginInfoVisible ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionLoginInfoVisible}
             completionNoCredentialNotice={portalContentSettings?.completionNoCredentialNotice ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionNoCredentialNotice}
+            completionCredentialNotice={portalContentSettings?.completionCredentialNotice ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionCredentialNotice}
             credentialEmailEnabled={portalContentSettings?.credentialEmailEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.credentialEmailEnabled}
           />
         )}

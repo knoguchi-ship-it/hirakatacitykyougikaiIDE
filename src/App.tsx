@@ -170,6 +170,7 @@ const PUBLIC_PORTAL_DEFAULTS = {
   membershipCtaLabel: '入会申込へ進む',
   completionLoginInfoVisible: true,
   completionNoCredentialNotice: 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
+  completionCredentialNotice: 'ログイン情報をご登録のメールアドレスに送信しました。',
 } as const;
 
 const App: React.FC = () => {
@@ -290,6 +291,7 @@ const App: React.FC = () => {
   const [publicPortalMembershipCtaLabelInput, setPublicPortalMembershipCtaLabelInput] = useState(PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel);
   const [publicPortalCompletionLoginInfoVisibleInput, setPublicPortalCompletionLoginInfoVisibleInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible);
   const [publicPortalCompletionNoCredentialNoticeInput, setPublicPortalCompletionNoCredentialNoticeInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice);
+  const [publicPortalCompletionCredentialNoticeInput, setPublicPortalCompletionCredentialNoticeInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice);
   const [memberListQuery, setMemberListQuery] = useState('');
   const [memberListFilter, setMemberListFilter] = useState<MemberListFilter>('ALL');
   const [memberListStatusFilter, setMemberListStatusFilter] = useState<MemberStatusFilter>(DEFAULT_MEMBER_STATUS_FILTER);
@@ -357,6 +359,7 @@ const App: React.FC = () => {
     setPublicPortalMembershipCtaLabelInput(systemSettings.publicPortalMembershipCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel);
     setPublicPortalCompletionLoginInfoVisibleInput(systemSettings.publicPortalCompletionLoginInfoVisible ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible);
     setPublicPortalCompletionNoCredentialNoticeInput(systemSettings.publicPortalCompletionNoCredentialNotice ?? PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice);
+    setPublicPortalCompletionCredentialNoticeInput(systemSettings.publicPortalCompletionCredentialNotice ?? PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice);
     setSettingsIsDirty(false);
     setSystemSettingsLoaded(true);
   };
@@ -2429,33 +2432,89 @@ const App: React.FC = () => {
             {/* v209: 入会時認証情報メール設定 */}
             <div className="mt-4 border-t border-slate-200 pt-4 space-y-4">
               <div>
-                <h4 className="text-sm font-semibold text-slate-800 mb-1">入会時ログイン情報メール設定</h4>
-                <p className="text-sm text-slate-600 mb-3">
-                  公開ポータルから入会申込があった際に、ログインID・初期パスワードを自動送信するかどうかを設定します。
-                  会員マイページの準備が整うまで送信しない場合はOFFにしてください。
-                </p>
-                <label className="flex items-center gap-3 cursor-pointer w-fit">
-                  <div className="relative">
-                    <input
-                      type="checkbox"
-                      className="sr-only"
-                      checked={credentialEmailEnabledInput}
-                      onChange={(e) => { setCredentialEmailEnabledInput(e.target.checked); setSettingsIsDirty(true); }}
-                    />
-                    <div className={`w-11 h-6 rounded-full transition-colors ${credentialEmailEnabledInput ? 'bg-primary-600' : 'bg-slate-300'}`} />
-                    <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${credentialEmailEnabledInput ? 'translate-x-5' : 'translate-x-0'}`} />
-                  </div>
-                  <span className="text-sm font-medium text-slate-700">
-                    {credentialEmailEnabledInput ? '入会後すぐにログイン情報を送信する（ON）' : '送信しない（OFF）— 管理者が手動で通知してください'}
-                  </span>
-                </label>
-                {!credentialEmailEnabledInput && (
-                  <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-                    現在 OFF です。入会申込完了後、ログイン情報メールは送信されません。
-                    準備が整ったら ON に戻してください。
+                <h4 className="text-sm font-semibold text-slate-800 mb-3">入会時ログイン情報メール設定</h4>
+
+                {/* ① メール送信の有無 */}
+                <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 space-y-2">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">① メール送信の有無</p>
+                  <p className="text-xs text-slate-500 mb-2">
+                    公開ポータルから入会申込があった際に、ログインID・初期パスワードを自動送信するかどうかを設定します。会員マイページの準備が整うまで送信しない場合はOFFにしてください。
                   </p>
-                )}
-                <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                  <label className="flex items-center gap-3 cursor-pointer w-fit">
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        className="sr-only"
+                        checked={credentialEmailEnabledInput}
+                        onChange={(e) => { setCredentialEmailEnabledInput(e.target.checked); setSettingsIsDirty(true); }}
+                      />
+                      <div className={`w-11 h-6 rounded-full transition-colors ${credentialEmailEnabledInput ? 'bg-primary-600' : 'bg-slate-300'}`} />
+                      <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${credentialEmailEnabledInput ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                    <span className="text-sm font-medium text-slate-700">
+                      {credentialEmailEnabledInput ? '入会後すぐにログイン情報を送信する（ON）' : '送信しない（OFF）— 管理者が手動で通知してください'}
+                    </span>
+                  </label>
+                  {!credentialEmailEnabledInput && (
+                    <p className="mt-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                      現在 OFF です。入会申込完了後、ログイン情報メールは送信されません。準備が整ったら ON に戻してください。
+                    </p>
+                  )}
+                </div>
+
+                {/* ② 入会完了画面 - 今後のご案内 */}
+                <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 space-y-3">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">② 入会完了画面 — 今後のご案内</p>
+                  <p className="text-xs text-slate-500">入会申込完了画面の「今後のご案内」ブロックに表示する案内文を設定します。メール送信ON/OFFで別々に設定できます。</p>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-primary-500 inline-block"></span>
+                        送信ON時の案内文
+                      </span>
+                    </label>
+                    <div className="flex gap-2 items-start">
+                      <textarea
+                        value={publicPortalCompletionCredentialNoticeInput}
+                        onChange={(e) => { setPublicPortalCompletionCredentialNoticeInput(e.target.value); setSettingsIsDirty(true); }}
+                        rows={2}
+                        className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm resize-y"
+                        placeholder="送信済みの場合に表示する案内文"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => { setPublicPortalCompletionCredentialNoticeInput(PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice); setSettingsIsDirty(true); }}
+                        className="px-2 py-2 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 whitespace-nowrap"
+                      >デフォルトに戻す</button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-slate-400 inline-block"></span>
+                        送信OFF時の案内文
+                      </span>
+                    </label>
+                    <div className="flex gap-2 items-start">
+                      <textarea
+                        value={publicPortalCompletionNoCredentialNoticeInput}
+                        onChange={(e) => { setPublicPortalCompletionNoCredentialNoticeInput(e.target.value); setSettingsIsDirty(true); }}
+                        rows={2}
+                        className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm resize-y"
+                        placeholder="未送信の場合に表示する案内文"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => { setPublicPortalCompletionNoCredentialNoticeInput(PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice); setSettingsIsDirty(true); }}
+                        className="px-2 py-2 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 whitespace-nowrap"
+                      >デフォルトに戻す</button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ③ ログイン情報カードの表示・非表示 */}
+                <div className="rounded-lg border border-slate-200 bg-white px-4 py-4">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">③ ログイン情報カードの表示・非表示</p>
                   <label className="flex items-center gap-3 cursor-pointer w-fit">
                     <div className="relative">
                       <input
@@ -2472,30 +2531,8 @@ const App: React.FC = () => {
                     </span>
                   </label>
                   <p className="mt-2 text-xs text-slate-500">
-                    OFF の場合はログイン情報一覧を画面に表示せず、メール送信状況のみ案内します。会員ページ公開時に ON へ戻してください。
+                    OFF の場合はログインID・パスワードを画面に表示せず、メール送信状況のみ案内します。会員ページ公開時に ON へ戻してください。
                   </p>
-                </div>
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    ログイン情報未送信時の案内文
-                  </label>
-                  <p className="text-xs text-slate-500 mb-1">
-                    ログイン情報メール送信が OFF の場合に入会完了画面に表示するメッセージです。
-                  </p>
-                  <div className="flex gap-2 items-start">
-                    <textarea
-                      value={publicPortalCompletionNoCredentialNoticeInput}
-                      onChange={(e) => { setPublicPortalCompletionNoCredentialNoticeInput(e.target.value); setSettingsIsDirty(true); }}
-                      rows={2}
-                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm resize-y"
-                      placeholder="案内文を入力"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => { setPublicPortalCompletionNoCredentialNoticeInput(PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice); setSettingsIsDirty(true); }}
-                      className="px-2 py-2 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 whitespace-nowrap"
-                    >デフォルトに戻す</button>
-                  </div>
                 </div>
               </div>
               <div>
@@ -2724,6 +2761,7 @@ const App: React.FC = () => {
                     publicPortalMembershipCtaLabel: publicPortalMembershipCtaLabelInput,
                     publicPortalCompletionLoginInfoVisible: publicPortalCompletionLoginInfoVisibleInput,
                     publicPortalCompletionNoCredentialNotice: publicPortalCompletionNoCredentialNoticeInput,
+                    publicPortalCompletionCredentialNotice: publicPortalCompletionCredentialNoticeInput,
                   });
                   setDefaultBusinessStaffLimit(saved.defaultBusinessStaffLimit);
                   setGlobalLimitInput(String(saved.defaultBusinessStaffLimit));
@@ -2759,6 +2797,7 @@ const App: React.FC = () => {
                   setPublicPortalMembershipCtaLabelInput(saved.publicPortalMembershipCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel);
                   setPublicPortalCompletionLoginInfoVisibleInput(saved.publicPortalCompletionLoginInfoVisible ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible);
                   setPublicPortalCompletionNoCredentialNoticeInput(saved.publicPortalCompletionNoCredentialNotice ?? PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice);
+                  setPublicPortalCompletionCredentialNoticeInput(saved.publicPortalCompletionCredentialNotice ?? PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice);
                   setSettingsIsDirty(false);
                   alert('設定を保存しました。');
                 } catch (e) {

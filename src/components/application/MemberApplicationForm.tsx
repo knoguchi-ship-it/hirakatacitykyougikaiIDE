@@ -20,6 +20,7 @@ interface MemberApplicationFormProps {
   showCompletionLoginInfo?: boolean;
   credentialEmailEnabled?: boolean;
   completionNoCredentialNotice?: string;
+  completionCredentialNotice?: string;
 }
 
 const STEPS_INDIVIDUAL = ['会員種別', '基本情報', '住所・連絡情報', '入力確認'];
@@ -297,6 +298,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
   showCompletionLoginInfo = true,
   credentialEmailEnabled = true,
   completionNoCredentialNotice = 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
+  completionCredentialNotice = 'ログイン情報をご登録のメールアドレスに送信しました。',
 }) => {
   const [form, setForm] = useState<ApplicationFormData>({ ...INITIAL_FORM_DATA });
   const [step, setStep] = useState(0);
@@ -434,9 +436,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
       (isBusinessCompletion && !!result.staffCredentials?.length)
     );
     const loginInfoNotice = credentialEmailEnabled
-      ? (isBusinessCompletion
-        ? '各職員のメールアドレスにログイン情報を送信しました。'
-        : 'ログイン情報は登録メールアドレスに送信しました。')
+      ? completionCredentialNotice
       : completionNoCredentialNotice;
     return (
       <div className="max-w-2xl mx-auto py-12 px-4">
