@@ -33,6 +33,8 @@ var PUBLIC_PORTAL_DEFAULTS = {
   membershipDescription: '個人会員・事業所会員・賛助会員の入会申込を受け付けています。',
   membershipCtaLabel: '入会申込へ進む',
   completionLoginInfoVisible: true,
+  completionNoCredentialNotice: 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
+  completionCredentialNotice: 'ログイン情報をご登録のメールアドレスに送信しました。',
 };
 
 var マスタ定義 = {
@@ -4334,6 +4336,8 @@ function getSystemSettings_() {
   var publicPortalCompletionLoginInfoVisible = completionLoginInfoVisibleRaw === undefined || completionLoginInfoVisibleRaw === ''
     ? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible
     : String(completionLoginInfoVisibleRaw) !== 'false';
+  var publicPortalCompletionNoCredentialNotice = String(m['PUBLIC_PORTAL_COMPLETION_NO_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice;
+  var publicPortalCompletionCredentialNotice = String(m['PUBLIC_PORTAL_COMPLETION_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice;
   return {
     defaultBusinessStaffLimit: value,
     trainingHistoryLookbackMonths: lookback,
@@ -4362,6 +4366,8 @@ function getSystemSettings_() {
     publicPortalMembershipDescription: publicPortalMembershipDescription,
     publicPortalMembershipCtaLabel: publicPortalMembershipCtaLabel,
     publicPortalCompletionLoginInfoVisible: publicPortalCompletionLoginInfoVisible,
+    publicPortalCompletionNoCredentialNotice: publicPortalCompletionNoCredentialNotice,
+    publicPortalCompletionCredentialNotice: publicPortalCompletionCredentialNotice,
     publicPortalCredentialEmailEnabled: credentialEmailEnabled,
   };
 }
@@ -4493,6 +4499,12 @@ function updateSystemSettings_(request, callerPermLevel) {
   }
   if (request.publicPortalCompletionLoginInfoVisible != null) {
     updates.push({ key: 'PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_VISIBLE', value: request.publicPortalCompletionLoginInfoVisible ? 'true' : 'false', description: '公開ポータル：入会完了画面のログイン情報を表示するか' });
+  }
+  if (request.publicPortalCompletionNoCredentialNotice != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_COMPLETION_NO_CREDENTIAL_NOTICE', value: String(request.publicPortalCompletionNoCredentialNotice).trim() || PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice, description: '公開ポータル：入会完了画面・ログイン情報未送信時の案内文' });
+  }
+  if (request.publicPortalCompletionCredentialNotice != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_COMPLETION_CREDENTIAL_NOTICE', value: String(request.publicPortalCompletionCredentialNotice).trim() || PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice, description: '公開ポータル：入会完了画面・ログイン情報送信済み時の案内文' });
   }
   batchUpsertSystemSettings_(ss, updates);
   var scriptProperties = PropertiesService.getScriptProperties();
@@ -10556,6 +10568,8 @@ function ensureSystemSettingsRows_(ss) {
     { key: 'PUBLIC_PORTAL_MEMBERSHIP_DESCRIPTION', value: PUBLIC_PORTAL_DEFAULTS.membershipDescription, desc: '公開ポータル：入会カード説明文' },
     { key: 'PUBLIC_PORTAL_MEMBERSHIP_CTA_LABEL', value: PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel, desc: '公開ポータル：入会カードボタン文言' },
     { key: 'PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_VISIBLE', value: PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible ? 'true' : 'false', desc: '公開ポータル：入会完了画面のログイン情報を表示するか' },
+    { key: 'PUBLIC_PORTAL_COMPLETION_NO_CREDENTIAL_NOTICE', value: PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice, desc: '公開ポータル：入会完了画面・ログイン情報未送信時の案内文' },
+    { key: 'PUBLIC_PORTAL_COMPLETION_CREDENTIAL_NOTICE', value: PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice, desc: '公開ポータル：入会完了画面・ログイン情報送信済み時の案内文' },
   ];
   publicPortalTextSettings.forEach(function(item) {
     if (!byKey[item.key]) {
@@ -10888,6 +10902,8 @@ function getPublicPortalSettings_() {
   var publicPortalCompletionLoginInfoVisible = completionLoginInfoVisibleRaw === undefined || completionLoginInfoVisibleRaw === ''
     ? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible
     : String(completionLoginInfoVisibleRaw) !== 'false';
+  var publicPortalCompletionNoCredentialNotice = String(map['PUBLIC_PORTAL_COMPLETION_NO_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice;
+  var publicPortalCompletionCredentialNotice = String(map['PUBLIC_PORTAL_COMPLETION_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice;
   var credentialEmailEnabledRaw = map['CREDENTIAL_EMAIL_ENABLED'];
   var credentialEmailEnabled = credentialEmailEnabledRaw === '' || credentialEmailEnabledRaw === null
     ? true
@@ -10910,6 +10926,8 @@ function getPublicPortalSettings_() {
       membershipDescription: publicPortalMembershipDescription,
       membershipCtaLabel: publicPortalMembershipCtaLabel,
       completionLoginInfoVisible: publicPortalCompletionLoginInfoVisible,
+      completionNoCredentialNotice: publicPortalCompletionNoCredentialNotice,
+      completionCredentialNotice: publicPortalCompletionCredentialNotice,
       credentialEmailEnabled: credentialEmailEnabled,
     }
   });
