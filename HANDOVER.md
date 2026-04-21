@@ -4,6 +4,16 @@
 現行本番: `v251`（統合プロジェクト GAS version 250 / 会員 split GAS version 3 / 管理者 split GAS version 4）
 固定 deployment: 統合（公開ポータル）`@250` × 2本 / 会員 split `@3` / 管理者 split `@4`
 
+> ⚠️ ローカル未リリース: `v252`（入会完了画面・案内文設定化）— `clasp push → version → redeploy` 未実施
+
+## 0. v252（ローカル完成・未リリース）— 入会完了画面・ログイン情報未送信時の案内文設定化
+
+- 新規 DB キー `PUBLIC_PORTAL_COMPLETION_NO_CREDENTIAL_NOTICE`：`credentialEmailEnabled=false` 時に完了画面に表示する案内文をシステム設定から変更可能にした
+- 管理設定画面（ログイン情報送信設定セクション）に「ログイン情報未送信時の案内文」textarea + デフォルトに戻すボタンを追加
+- 既存の「ログイン情報を表示する（completionLoginInfoVisible）」トグルはそのまま維持
+- 対象ファイル: `backend/Code.gs` / `src/App.tsx` / `src/components/application/MemberApplicationForm.tsx` / `src/public-portal/App.tsx` / `src/types.ts`
+- build 完了（3プロジェクト）。`clasp push --force` → `clasp version` → `clasp redeploy` が必要
+
 ## 0. v251 本番稼働中
 
 **詳細リリース記録: `docs/117_RELEASE_STATE_v251_2026-04-21.md`**
