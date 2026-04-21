@@ -187,6 +187,50 @@ const PUBLIC_PORTAL_DEFAULTS = {
   completionCredentialNotice: 'ログイン情報をご登録のメールアドレスに送信しました。',
 } as const;
 
+const ADMIN_SETTINGS_SECTION_CLASS = 'rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden';
+
+type AdminSettingsSectionProps = {
+  id: string;
+  title: string;
+  description: string;
+  badge?: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+};
+
+const AdminSettingsSection: React.FC<AdminSettingsSectionProps> = ({
+  id,
+  title,
+  description,
+  badge,
+  defaultOpen = false,
+  children,
+}) => (
+  <details id={id} open={defaultOpen} className={`${ADMIN_SETTINGS_SECTION_CLASS} group scroll-mt-24`}>
+    <summary className="list-none cursor-pointer px-5 py-4 sm:px-6 sm:py-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-semibold text-slate-900 sm:text-lg">{title}</h3>
+            {badge && (
+              <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                {badge}
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-sm leading-6 text-slate-600">{description}</p>
+        </div>
+        <span className="mt-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-500 transition group-open:rotate-180">
+          <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4" aria-hidden="true">
+            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clipRule="evenodd" />
+          </svg>
+        </span>
+      </div>
+    </summary>
+    <div className="border-t border-slate-200 px-5 py-5 sm:px-6 sm:py-6">{children}</div>
+  </details>
+);
+
 const App: React.FC = () => {
   const appShellMode: AppShellMode = import.meta.env.VITE_APP === 'admin'
     ? 'admin'
@@ -2100,10 +2144,69 @@ const App: React.FC = () => {
         return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
       }
       return (
-        <div className="space-y-6">
-          <h2 className="text-2xl font-bold text-slate-800">設定</h2>
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-800 mb-4">事業所会員メンバー上限設定</h3>
+        <div className="space-y-6 pb-24">
+          <div className="rounded-[28px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-sky-50 p-6 shadow-sm">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-sm font-medium text-sky-700">System Settings</p>
+                <h2 className="mt-1 text-2xl font-bold text-slate-900">設定</h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                  利用頻度の高い設定を上位に、運用担当者しか触らない設定を下位に整理しています。関連項目はセクション単位でまとめ、長文編集やテンプレート管理は折りたたんで扱える構成にしています。
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                  <p className="text-xs font-medium text-slate-500">保存状態</p>
+                  <p className={`mt-1 text-sm font-semibold ${settingsIsDirty ? 'text-amber-700' : 'text-emerald-700'}`}>
+                    {settingsIsDirty ? '未保存の変更あり' : '保存済み'}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                  <p className="text-xs font-medium text-slate-500">設定読込</p>
+                  <p className={`mt-1 text-sm font-semibold ${systemSettingsLoaded ? 'text-emerald-700' : 'text-slate-500'}`}>
+                    {systemSettingsLoaded ? '読み込み済み' : '読み込み中'}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 col-span-2 sm:col-span-1">
+                  <p className="text-xs font-medium text-slate-500">会員個別上限</p>
+                  <p className={`mt-1 text-sm font-semibold ${fullDataLoaded ? 'text-slate-900' : 'text-slate-500'}`}>
+                    {fullDataLoaded ? '編集可能' : '未読込'}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="mt-5 flex flex-wrap gap-2">
+              {[
+                ['settings-core', '基本設定'],
+                ['settings-mail-assets', '帳票・一括メール'],
+                ['settings-portal', '公開ポータル'],
+                ['settings-membership-mail', '入会通知メール'],
+                ['settings-business-limits', '事業所個別上限'],
+              ].map(([target, label]) => (
+                <a
+                  key={target}
+                  href={`#${target}`}
+                  className="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-800"
+                >
+                  {label}
+                </a>
+              ))}
+            </div>
+          </div>
+
+          {!systemSettingsLoaded && (
+            <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-500 shadow-sm">
+              システム設定を読み込み中です...
+            </div>
+          )}
+
+          <AdminSettingsSection
+            id="settings-core"
+            title="基本設定"
+            description="日常運用で使う共通値です。全体上限、研修履歴の表示期間、研修フォームの既定項目をここで管理します。"
+            badge="頻出"
+            defaultOpen
+          >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">全体デフォルト上限</label>
@@ -2114,7 +2217,6 @@ const App: React.FC = () => {
                 <input type="number" min={1} max={60} value={historyLookbackInput} onChange={(e) => { setHistoryLookbackInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" />
               </div>
             </div>
-            {!systemSettingsLoaded && <p className="text-sm text-slate-500">システム設定を読み込み中です...</p>}
             <div className="mb-4">
               <label className="block text-sm font-medium text-slate-700 mb-1">年会費の納入案内</label>
               <textarea
@@ -2193,7 +2295,7 @@ const App: React.FC = () => {
                 `T_システム設定.ANNUAL_FEE_TRANSFER_ACCOUNT` に保存され、未納会員の納入方法表示に利用されます。
               </p>
             </div>
-            <div className="mt-4 border-t border-slate-200 pt-4">
+            <div>
               <h4 className="text-sm font-semibold text-slate-800 mb-1">研修フォーム　項目表示デフォルト設定</h4>
               <p className="text-sm text-slate-600 mb-3">新規研修登録時に表示する項目のデフォルトを設定します。研修ごとに個別変更可能です。</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -2210,6 +2312,14 @@ const App: React.FC = () => {
                 ))}
               </div>
             </div>
+          </AdminSettingsSection>
+
+          <AdminSettingsSection
+            id="settings-mail-assets"
+            title="帳票・一括メール"
+            description="名簿出力、一括メール、自動添付に使う外部リソースや閲覧権限を管理します。頻度は低めですが、誤設定の影響が大きい領域です。"
+            badge="管理者向け"
+          >
             {/* v194: PDF名簿出力 & 一括メール送信設定 */}
             <TemplateValidationPanel
               api={api}
@@ -2269,9 +2379,16 @@ const App: React.FC = () => {
                 </div>
               )}
             </div>
+          </AdminSettingsSection>
 
-            {/* v210: 公開ポータル メニュー表示設定 */}
-            <div className="mt-4 border-t border-slate-200 pt-4 space-y-4">
+          <AdminSettingsSection
+            id="settings-portal"
+            title="公開ポータル"
+            description="匿名利用者に見せる導線と文言をまとめて管理します。トップ表示、入会カード、完了画面の見え方をここで調整します。"
+            badge="公開導線"
+            defaultOpen
+          >
+            <div className="space-y-4">
               <div>
                 <h4 className="text-sm font-semibold text-slate-800 mb-1">公開ポータル メニュー表示設定</h4>
                 <p className="text-sm text-slate-600 mb-3">
@@ -2455,8 +2572,16 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            {/* v209: 入会時認証情報メール設定 */}
-            <div className="mt-4 border-t border-slate-200 pt-4 space-y-4">
+          </AdminSettingsSection>
+
+          <AdminSettingsSection
+            id="settings-membership-mail"
+            title="入会通知メール"
+            description="ログイン情報メール、完了画面の表示文言、テンプレート保存をまとめて管理します。長文編集が中心のため、独立したセクションに分離しています。"
+            badge="長文編集"
+            defaultOpen
+          >
+            <div className="space-y-4">
               <div>
                 <h4 className="text-sm font-semibold text-slate-800 mb-3">入会時ログイン情報メール設定</h4>
 
@@ -2768,7 +2893,14 @@ const App: React.FC = () => {
                 </div>
               </div>
             </div>
+          </AdminSettingsSection>
 
+          <AdminSettingsSection
+            id="settings-business-limits"
+            title="事業所ごとの個別上限"
+            description="通常は全体デフォルト上限を使い、特定事業所だけ例外設定する場合に利用します。全件読込が必要なため単独セクションに分けています。"
+            badge="個別調整"
+          >
             <div className="mt-4 border-t border-slate-200 pt-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
@@ -2810,103 +2942,114 @@ const App: React.FC = () => {
                 </div>
               )}
             </div>
-          </div>
-          <div className="sticky bottom-0 z-10 bg-white border-t-2 border-primary-500 shadow-[0_-4px_16px_rgba(0,0,0,0.10)] flex items-center justify-between px-6 py-3 rounded-b-xl">
-            <p className="text-sm text-slate-500">全ての設定はこのボタンで一括保存されます</p>
-            <button
-              type="button"
-              disabled={settingsBusy || !systemSettingsLoaded || !settingsIsDirty}
-              onClick={async () => {
-                try {
-                  setSettingsBusy(true);
-                  const saved = await api.updateSystemSettings({
-                    defaultBusinessStaffLimit: Number(globalLimitInput || 10),
-                    trainingHistoryLookbackMonths: Number(historyLookbackInput || 18),
-                    annualFeePaymentGuidance: annualFeePaymentGuidanceInput,
-                    annualFeeTransferAccount: annualFeeTransferAccountInput,
-                    trainingDefaultFieldConfig: trainingDefaultFieldConfigInput,
-                    rosterTemplateSsId: rosterTemplateSsIdInput,
-                    reminderTemplateSsId: reminderTemplateSsIdInput,
-                    bulkMailAutoAttachFolderId: bulkMailAutoAttachFolderIdInput,
-                    emailLogViewerRole: emailLogViewerRoleInput,
-                    credentialEmailEnabled: credentialEmailEnabledInput,
-                    credentialEmailSubject: credentialEmailSubjectInput,
-                    credentialEmailBody: credentialEmailBodyInput,
-                    publicPortalTrainingMenuEnabled: publicPortalTrainingMenuEnabledInput,
-                    publicPortalMembershipMenuEnabled: publicPortalMembershipMenuEnabledInput,
-                    publicPortalHeroBadgeEnabled: publicPortalHeroBadgeEnabledInput,
-                    publicPortalHeroBadgeLabel: publicPortalHeroBadgeLabelInput,
-                    publicPortalHeroTitle: publicPortalHeroTitleInput,
-                    publicPortalHeroDescriptionEnabled: publicPortalHeroDescriptionEnabledInput,
-                    publicPortalHeroDescription: publicPortalHeroDescriptionInput,
-                    publicPortalMembershipBadgeEnabled: publicPortalMembershipBadgeEnabledInput,
-                    publicPortalMembershipBadgeLabel: publicPortalMembershipBadgeLabelInput,
-                    publicPortalMembershipTitleEnabled: publicPortalMembershipTitleEnabledInput,
-                    publicPortalMembershipTitle: publicPortalMembershipTitleInput,
-                    publicPortalMembershipDescriptionEnabled: publicPortalMembershipDescriptionEnabledInput,
-                    publicPortalMembershipDescription: publicPortalMembershipDescriptionInput,
-                    publicPortalMembershipCtaLabel: publicPortalMembershipCtaLabelInput,
-                    publicPortalCompletionGuidanceVisible: publicPortalCompletionGuidanceVisibleInput,
-                    publicPortalCompletionGuidanceBodyWhenCredentialSent: publicPortalCompletionGuidanceBodyWhenCredentialSentInput,
-                    publicPortalCompletionGuidanceBodyWhenCredentialNotSent: publicPortalCompletionGuidanceBodyWhenCredentialNotSentInput,
-                    publicPortalCompletionLoginInfoBlockVisible: publicPortalCompletionLoginInfoBlockVisibleInput,
-                    publicPortalCompletionLoginInfoVisible: publicPortalCompletionLoginInfoVisibleInput,
-                    publicPortalCompletionLoginInfoBodyWhenCredentialSent: publicPortalCompletionLoginInfoBodyWhenCredentialSentInput,
-                    publicPortalCompletionLoginInfoBodyWhenCredentialNotSent: publicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput,
-                    publicPortalCompletionNoCredentialNotice: publicPortalCompletionNoCredentialNoticeInput,
-                    publicPortalCompletionCredentialNotice: publicPortalCompletionCredentialNoticeInput,
-                  });
-                  setDefaultBusinessStaffLimit(saved.defaultBusinessStaffLimit);
-                  setGlobalLimitInput(String(saved.defaultBusinessStaffLimit));
-                  setTrainingHistoryLookbackMonths(saved.trainingHistoryLookbackMonths);
-                  setHistoryLookbackInput(String(saved.trainingHistoryLookbackMonths));
-                  setAnnualFeePaymentGuidance(saved.annualFeePaymentGuidance);
-                  setAnnualFeePaymentGuidanceInput(saved.annualFeePaymentGuidance);
-                  setAnnualFeeTransferAccount(saved.annualFeeTransferAccount);
-                  setAnnualFeeTransferAccountInput(saved.annualFeeTransferAccount);
-                  const tdfSaved = saved.trainingDefaultFieldConfig ?? { ...DEFAULT_FIELD_CONFIG };
-                  setTrainingDefaultFieldConfig(tdfSaved);
-                  setTrainingDefaultFieldConfigInput(tdfSaved);
-                  setRosterTemplateSsIdInput(saved.rosterTemplateSsId ?? '');
-                  setReminderTemplateSsIdInput(saved.reminderTemplateSsId ?? '');
-                  setBulkMailAutoAttachFolderIdInput(saved.bulkMailAutoAttachFolderId ?? '');
-                  setEmailLogViewerRoleInput(saved.emailLogViewerRole ?? 'MASTER');
-                  setCredentialEmailEnabledInput(saved.credentialEmailEnabled ?? true);
-                  setCredentialEmailSubjectInput(saved.credentialEmailSubject ?? CREDENTIAL_EMAIL_DEFAULT_SUBJECT);
-                  setCredentialEmailBodyInput(saved.credentialEmailBody ?? CREDENTIAL_EMAIL_DEFAULT_BODY);
-                  setPublicPortalTrainingMenuEnabledInput(saved.publicPortalTrainingMenuEnabled ?? true);
-                  setPublicPortalMembershipMenuEnabledInput(saved.publicPortalMembershipMenuEnabled ?? true);
-                  setPublicPortalHeroBadgeEnabledInput(saved.publicPortalHeroBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.heroBadgeEnabled);
-                  setPublicPortalHeroBadgeLabelInput(saved.publicPortalHeroBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.heroBadgeLabel);
-                  setPublicPortalHeroTitleInput(saved.publicPortalHeroTitle ?? PUBLIC_PORTAL_DEFAULTS.heroTitle);
-                  setPublicPortalHeroDescriptionEnabledInput(saved.publicPortalHeroDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.heroDescriptionEnabled);
-                  setPublicPortalHeroDescriptionInput(saved.publicPortalHeroDescription ?? PUBLIC_PORTAL_DEFAULTS.heroDescription);
-                  setPublicPortalMembershipBadgeEnabledInput(saved.publicPortalMembershipBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.membershipBadgeEnabled);
-                  setPublicPortalMembershipBadgeLabelInput(saved.publicPortalMembershipBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.membershipBadgeLabel);
-                  setPublicPortalMembershipTitleEnabledInput(saved.publicPortalMembershipTitleEnabled ?? PUBLIC_PORTAL_DEFAULTS.membershipTitleEnabled);
-                  setPublicPortalMembershipTitleInput(saved.publicPortalMembershipTitle ?? PUBLIC_PORTAL_DEFAULTS.membershipTitle);
-                  setPublicPortalMembershipDescriptionEnabledInput(saved.publicPortalMembershipDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.membershipDescriptionEnabled);
-                  setPublicPortalMembershipDescriptionInput(saved.publicPortalMembershipDescription ?? PUBLIC_PORTAL_DEFAULTS.membershipDescription);
-                  setPublicPortalMembershipCtaLabelInput(saved.publicPortalMembershipCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel);
-                  setPublicPortalCompletionGuidanceVisibleInput(saved.publicPortalCompletionGuidanceVisible ?? PUBLIC_PORTAL_DEFAULTS.completionGuidanceVisible);
-                  setPublicPortalCompletionGuidanceBodyWhenCredentialSentInput(saved.publicPortalCompletionGuidanceBodyWhenCredentialSent ?? PUBLIC_PORTAL_DEFAULTS.completionGuidanceBodyWhenCredentialSent);
-                  setPublicPortalCompletionGuidanceBodyWhenCredentialNotSentInput(saved.publicPortalCompletionGuidanceBodyWhenCredentialNotSent ?? PUBLIC_PORTAL_DEFAULTS.completionGuidanceBodyWhenCredentialNotSent);
-                  setPublicPortalCompletionLoginInfoBlockVisibleInput(saved.publicPortalCompletionLoginInfoBlockVisible ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBlockVisible);
-                  setPublicPortalCompletionLoginInfoVisibleInput(saved.publicPortalCompletionLoginInfoVisible ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible);
-                  setPublicPortalCompletionLoginInfoBodyWhenCredentialSentInput(saved.publicPortalCompletionLoginInfoBodyWhenCredentialSent ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialSent);
-                  setPublicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput(saved.publicPortalCompletionLoginInfoBodyWhenCredentialNotSent ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialNotSent);
-                  setPublicPortalCompletionNoCredentialNoticeInput(saved.publicPortalCompletionNoCredentialNotice ?? PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice);
-                  setPublicPortalCompletionCredentialNoticeInput(saved.publicPortalCompletionCredentialNotice ?? PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice);
-                  setSettingsIsDirty(false);
-                  alert('設定を保存しました。');
-                } catch (e) {
-                  alert(e instanceof Error ? e.message : '設定の保存に失敗しました。');
-                } finally {
-                  setSettingsBusy(false);
-                }
-              }}
-              className="px-8 py-2.5 rounded-lg bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white font-semibold text-base disabled:opacity-50 transition-colors shadow-sm"
-            >{settingsBusy ? '保存中...' : settingsIsDirty ? '設定を保存' : '変更なし'}</button>
+          </AdminSettingsSection>
+
+          <div className="sticky bottom-4 z-10 rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 shadow-[0_12px_32px_rgba(15,23,42,0.12)] backdrop-blur sm:px-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-700">一括保存</p>
+                <p className="text-xs text-slate-500">変更はセクションをまたいでまとめて保存されます。保存前に各セクションを閉じても入力値は保持されます。</p>
+              </div>
+              <div className="flex items-center justify-end gap-3">
+                <span className={`text-xs font-medium ${settingsIsDirty ? 'text-amber-700' : 'text-slate-500'}`}>
+                  {settingsIsDirty ? '未保存の変更があります' : '変更はありません'}
+                </span>
+                <button
+                  type="button"
+                  disabled={settingsBusy || !systemSettingsLoaded || !settingsIsDirty}
+                  onClick={async () => {
+                    try {
+                      setSettingsBusy(true);
+                      const saved = await api.updateSystemSettings({
+                        defaultBusinessStaffLimit: Number(globalLimitInput || 10),
+                        trainingHistoryLookbackMonths: Number(historyLookbackInput || 18),
+                        annualFeePaymentGuidance: annualFeePaymentGuidanceInput,
+                        annualFeeTransferAccount: annualFeeTransferAccountInput,
+                        trainingDefaultFieldConfig: trainingDefaultFieldConfigInput,
+                        rosterTemplateSsId: rosterTemplateSsIdInput,
+                        reminderTemplateSsId: reminderTemplateSsIdInput,
+                        bulkMailAutoAttachFolderId: bulkMailAutoAttachFolderIdInput,
+                        emailLogViewerRole: emailLogViewerRoleInput,
+                        credentialEmailEnabled: credentialEmailEnabledInput,
+                        credentialEmailSubject: credentialEmailSubjectInput,
+                        credentialEmailBody: credentialEmailBodyInput,
+                        publicPortalTrainingMenuEnabled: publicPortalTrainingMenuEnabledInput,
+                        publicPortalMembershipMenuEnabled: publicPortalMembershipMenuEnabledInput,
+                        publicPortalHeroBadgeEnabled: publicPortalHeroBadgeEnabledInput,
+                        publicPortalHeroBadgeLabel: publicPortalHeroBadgeLabelInput,
+                        publicPortalHeroTitle: publicPortalHeroTitleInput,
+                        publicPortalHeroDescriptionEnabled: publicPortalHeroDescriptionEnabledInput,
+                        publicPortalHeroDescription: publicPortalHeroDescriptionInput,
+                        publicPortalMembershipBadgeEnabled: publicPortalMembershipBadgeEnabledInput,
+                        publicPortalMembershipBadgeLabel: publicPortalMembershipBadgeLabelInput,
+                        publicPortalMembershipTitleEnabled: publicPortalMembershipTitleEnabledInput,
+                        publicPortalMembershipTitle: publicPortalMembershipTitleInput,
+                        publicPortalMembershipDescriptionEnabled: publicPortalMembershipDescriptionEnabledInput,
+                        publicPortalMembershipDescription: publicPortalMembershipDescriptionInput,
+                        publicPortalMembershipCtaLabel: publicPortalMembershipCtaLabelInput,
+                        publicPortalCompletionGuidanceVisible: publicPortalCompletionGuidanceVisibleInput,
+                        publicPortalCompletionGuidanceBodyWhenCredentialSent: publicPortalCompletionGuidanceBodyWhenCredentialSentInput,
+                        publicPortalCompletionGuidanceBodyWhenCredentialNotSent: publicPortalCompletionGuidanceBodyWhenCredentialNotSentInput,
+                        publicPortalCompletionLoginInfoBlockVisible: publicPortalCompletionLoginInfoBlockVisibleInput,
+                        publicPortalCompletionLoginInfoVisible: publicPortalCompletionLoginInfoVisibleInput,
+                        publicPortalCompletionLoginInfoBodyWhenCredentialSent: publicPortalCompletionLoginInfoBodyWhenCredentialSentInput,
+                        publicPortalCompletionLoginInfoBodyWhenCredentialNotSent: publicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput,
+                        publicPortalCompletionNoCredentialNotice: publicPortalCompletionNoCredentialNoticeInput,
+                        publicPortalCompletionCredentialNotice: publicPortalCompletionCredentialNoticeInput,
+                      });
+                      setDefaultBusinessStaffLimit(saved.defaultBusinessStaffLimit);
+                      setGlobalLimitInput(String(saved.defaultBusinessStaffLimit));
+                      setTrainingHistoryLookbackMonths(saved.trainingHistoryLookbackMonths);
+                      setHistoryLookbackInput(String(saved.trainingHistoryLookbackMonths));
+                      setAnnualFeePaymentGuidance(saved.annualFeePaymentGuidance);
+                      setAnnualFeePaymentGuidanceInput(saved.annualFeePaymentGuidance);
+                      setAnnualFeeTransferAccount(saved.annualFeeTransferAccount);
+                      setAnnualFeeTransferAccountInput(saved.annualFeeTransferAccount);
+                      const tdfSaved = saved.trainingDefaultFieldConfig ?? { ...DEFAULT_FIELD_CONFIG };
+                      setTrainingDefaultFieldConfig(tdfSaved);
+                      setTrainingDefaultFieldConfigInput(tdfSaved);
+                      setRosterTemplateSsIdInput(saved.rosterTemplateSsId ?? '');
+                      setReminderTemplateSsIdInput(saved.reminderTemplateSsId ?? '');
+                      setBulkMailAutoAttachFolderIdInput(saved.bulkMailAutoAttachFolderId ?? '');
+                      setEmailLogViewerRoleInput(saved.emailLogViewerRole ?? 'MASTER');
+                      setCredentialEmailEnabledInput(saved.credentialEmailEnabled ?? true);
+                      setCredentialEmailSubjectInput(saved.credentialEmailSubject ?? CREDENTIAL_EMAIL_DEFAULT_SUBJECT);
+                      setCredentialEmailBodyInput(saved.credentialEmailBody ?? CREDENTIAL_EMAIL_DEFAULT_BODY);
+                      setPublicPortalTrainingMenuEnabledInput(saved.publicPortalTrainingMenuEnabled ?? true);
+                      setPublicPortalMembershipMenuEnabledInput(saved.publicPortalMembershipMenuEnabled ?? true);
+                      setPublicPortalHeroBadgeEnabledInput(saved.publicPortalHeroBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.heroBadgeEnabled);
+                      setPublicPortalHeroBadgeLabelInput(saved.publicPortalHeroBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.heroBadgeLabel);
+                      setPublicPortalHeroTitleInput(saved.publicPortalHeroTitle ?? PUBLIC_PORTAL_DEFAULTS.heroTitle);
+                      setPublicPortalHeroDescriptionEnabledInput(saved.publicPortalHeroDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.heroDescriptionEnabled);
+                      setPublicPortalHeroDescriptionInput(saved.publicPortalHeroDescription ?? PUBLIC_PORTAL_DEFAULTS.heroDescription);
+                      setPublicPortalMembershipBadgeEnabledInput(saved.publicPortalMembershipBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.membershipBadgeEnabled);
+                      setPublicPortalMembershipBadgeLabelInput(saved.publicPortalMembershipBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.membershipBadgeLabel);
+                      setPublicPortalMembershipTitleEnabledInput(saved.publicPortalMembershipTitleEnabled ?? PUBLIC_PORTAL_DEFAULTS.membershipTitleEnabled);
+                      setPublicPortalMembershipTitleInput(saved.publicPortalMembershipTitle ?? PUBLIC_PORTAL_DEFAULTS.membershipTitle);
+                      setPublicPortalMembershipDescriptionEnabledInput(saved.publicPortalMembershipDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.membershipDescriptionEnabled);
+                      setPublicPortalMembershipDescriptionInput(saved.publicPortalMembershipDescription ?? PUBLIC_PORTAL_DEFAULTS.membershipDescription);
+                      setPublicPortalMembershipCtaLabelInput(saved.publicPortalMembershipCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel);
+                      setPublicPortalCompletionGuidanceVisibleInput(saved.publicPortalCompletionGuidanceVisible ?? PUBLIC_PORTAL_DEFAULTS.completionGuidanceVisible);
+                      setPublicPortalCompletionGuidanceBodyWhenCredentialSentInput(saved.publicPortalCompletionGuidanceBodyWhenCredentialSent ?? PUBLIC_PORTAL_DEFAULTS.completionGuidanceBodyWhenCredentialSent);
+                      setPublicPortalCompletionGuidanceBodyWhenCredentialNotSentInput(saved.publicPortalCompletionGuidanceBodyWhenCredentialNotSent ?? PUBLIC_PORTAL_DEFAULTS.completionGuidanceBodyWhenCredentialNotSent);
+                      setPublicPortalCompletionLoginInfoBlockVisibleInput(saved.publicPortalCompletionLoginInfoBlockVisible ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBlockVisible);
+                      setPublicPortalCompletionLoginInfoVisibleInput(saved.publicPortalCompletionLoginInfoVisible ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible);
+                      setPublicPortalCompletionLoginInfoBodyWhenCredentialSentInput(saved.publicPortalCompletionLoginInfoBodyWhenCredentialSent ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialSent);
+                      setPublicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput(saved.publicPortalCompletionLoginInfoBodyWhenCredentialNotSent ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialNotSent);
+                      setPublicPortalCompletionNoCredentialNoticeInput(saved.publicPortalCompletionNoCredentialNotice ?? PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice);
+                      setPublicPortalCompletionCredentialNoticeInput(saved.publicPortalCompletionCredentialNotice ?? PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice);
+                      setSettingsIsDirty(false);
+                      alert('設定を保存しました。');
+                    } catch (e) {
+                      alert(e instanceof Error ? e.message : '設定の保存に失敗しました。');
+                    } finally {
+                      setSettingsBusy(false);
+                    }
+                  }}
+                  className="px-8 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white font-semibold text-base disabled:opacity-50 transition-colors shadow-sm"
+                >{settingsBusy ? '保存中...' : settingsIsDirty ? '設定を保存' : '変更なし'}</button>
+              </div>
+            </div>
           </div>
         </div>
       );
