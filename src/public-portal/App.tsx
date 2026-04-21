@@ -20,6 +20,7 @@ type PublicPortalContentSettings = {
   membershipDescription: string;
   membershipCtaLabel: string;
   completionLoginInfoVisible: boolean;
+  completionNoCredentialNotice: string;
   credentialEmailEnabled: boolean;
 };
 
@@ -45,6 +46,7 @@ const DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS: PublicPortalContentSettings = {
   membershipDescription: '個人会員・事業所会員・賛助会員の入会申込を受け付けています。',
   membershipCtaLabel: '入会申込へ進む',
   completionLoginInfoVisible: true,
+  completionNoCredentialNotice: 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
   credentialEmailEnabled: true,
 };
 
@@ -113,6 +115,7 @@ const PublicApp: React.FC = () => {
             membershipDescription: portalSettings.value.membershipDescription || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipDescription,
             membershipCtaLabel: portalSettings.value.membershipCtaLabel || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipCtaLabel,
             completionLoginInfoVisible: portalSettings.value.completionLoginInfoVisible ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionLoginInfoVisible,
+            completionNoCredentialNotice: portalSettings.value.completionNoCredentialNotice || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionNoCredentialNotice,
             credentialEmailEnabled: portalSettings.value.credentialEmailEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.credentialEmailEnabled,
           });
         } else {
@@ -382,6 +385,7 @@ const PublicApp: React.FC = () => {
             backLabel="ポータルトップへ戻る"
             completeLabel="ポータルトップへ戻る"
             showCompletionLoginInfo={portalContentSettings?.completionLoginInfoVisible ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionLoginInfoVisible}
+            completionNoCredentialNotice={portalContentSettings?.completionNoCredentialNotice ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionNoCredentialNotice}
             credentialEmailEnabled={portalContentSettings?.credentialEmailEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.credentialEmailEnabled}
           />
         )}

@@ -169,6 +169,7 @@ const PUBLIC_PORTAL_DEFAULTS = {
   membershipDescription: '個人会員・事業所会員・賛助会員の入会申込を受け付けています。',
   membershipCtaLabel: '入会申込へ進む',
   completionLoginInfoVisible: true,
+  completionNoCredentialNotice: 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
 } as const;
 
 const App: React.FC = () => {
@@ -288,6 +289,7 @@ const App: React.FC = () => {
   const [publicPortalMembershipDescriptionInput, setPublicPortalMembershipDescriptionInput] = useState(PUBLIC_PORTAL_DEFAULTS.membershipDescription);
   const [publicPortalMembershipCtaLabelInput, setPublicPortalMembershipCtaLabelInput] = useState(PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel);
   const [publicPortalCompletionLoginInfoVisibleInput, setPublicPortalCompletionLoginInfoVisibleInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible);
+  const [publicPortalCompletionNoCredentialNoticeInput, setPublicPortalCompletionNoCredentialNoticeInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice);
   const [memberListQuery, setMemberListQuery] = useState('');
   const [memberListFilter, setMemberListFilter] = useState<MemberListFilter>('ALL');
   const [memberListStatusFilter, setMemberListStatusFilter] = useState<MemberStatusFilter>(DEFAULT_MEMBER_STATUS_FILTER);
@@ -354,6 +356,7 @@ const App: React.FC = () => {
     setPublicPortalMembershipDescriptionInput(systemSettings.publicPortalMembershipDescription ?? PUBLIC_PORTAL_DEFAULTS.membershipDescription);
     setPublicPortalMembershipCtaLabelInput(systemSettings.publicPortalMembershipCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel);
     setPublicPortalCompletionLoginInfoVisibleInput(systemSettings.publicPortalCompletionLoginInfoVisible ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible);
+    setPublicPortalCompletionNoCredentialNoticeInput(systemSettings.publicPortalCompletionNoCredentialNotice ?? PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice);
     setSettingsIsDirty(false);
     setSystemSettingsLoaded(true);
   };
@@ -2472,6 +2475,28 @@ const App: React.FC = () => {
                     OFF の場合はログイン情報一覧を画面に表示せず、メール送信状況のみ案内します。会員ページ公開時に ON へ戻してください。
                   </p>
                 </div>
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    ログイン情報未送信時の案内文
+                  </label>
+                  <p className="text-xs text-slate-500 mb-1">
+                    ログイン情報メール送信が OFF の場合に入会完了画面に表示するメッセージです。
+                  </p>
+                  <div className="flex gap-2 items-start">
+                    <textarea
+                      value={publicPortalCompletionNoCredentialNoticeInput}
+                      onChange={(e) => { setPublicPortalCompletionNoCredentialNoticeInput(e.target.value); setSettingsIsDirty(true); }}
+                      rows={2}
+                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm resize-y"
+                      placeholder="案内文を入力"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => { setPublicPortalCompletionNoCredentialNoticeInput(PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice); setSettingsIsDirty(true); }}
+                      className="px-2 py-2 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 whitespace-nowrap"
+                    >デフォルトに戻す</button>
+                  </div>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">メール件名</label>
@@ -2698,6 +2723,7 @@ const App: React.FC = () => {
                     publicPortalMembershipDescription: publicPortalMembershipDescriptionInput,
                     publicPortalMembershipCtaLabel: publicPortalMembershipCtaLabelInput,
                     publicPortalCompletionLoginInfoVisible: publicPortalCompletionLoginInfoVisibleInput,
+                    publicPortalCompletionNoCredentialNotice: publicPortalCompletionNoCredentialNoticeInput,
                   });
                   setDefaultBusinessStaffLimit(saved.defaultBusinessStaffLimit);
                   setGlobalLimitInput(String(saved.defaultBusinessStaffLimit));
@@ -2732,6 +2758,7 @@ const App: React.FC = () => {
                   setPublicPortalMembershipDescriptionInput(saved.publicPortalMembershipDescription ?? PUBLIC_PORTAL_DEFAULTS.membershipDescription);
                   setPublicPortalMembershipCtaLabelInput(saved.publicPortalMembershipCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel);
                   setPublicPortalCompletionLoginInfoVisibleInput(saved.publicPortalCompletionLoginInfoVisible ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible);
+                  setPublicPortalCompletionNoCredentialNoticeInput(saved.publicPortalCompletionNoCredentialNotice ?? PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice);
                   setSettingsIsDirty(false);
                   alert('設定を保存しました。');
                 } catch (e) {

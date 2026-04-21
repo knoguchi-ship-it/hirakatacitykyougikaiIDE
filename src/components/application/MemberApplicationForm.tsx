@@ -19,6 +19,7 @@ interface MemberApplicationFormProps {
   completeLabel?: string;
   showCompletionLoginInfo?: boolean;
   credentialEmailEnabled?: boolean;
+  completionNoCredentialNotice?: string;
 }
 
 const STEPS_INDIVIDUAL = ['会員種別', '基本情報', '住所・連絡情報', '入力確認'];
@@ -295,6 +296,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
   completeLabel = '閉じる',
   showCompletionLoginInfo = true,
   credentialEmailEnabled = true,
+  completionNoCredentialNotice = 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
 }) => {
   const [form, setForm] = useState<ApplicationFormData>({ ...INITIAL_FORM_DATA });
   const [step, setStep] = useState(0);
@@ -435,7 +437,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
       ? (isBusinessCompletion
         ? '各職員のメールアドレスにログイン情報を送信しました。'
         : 'ログイン情報は登録メールアドレスに送信しました。')
-      : 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。';
+      : completionNoCredentialNotice;
     return (
       <div className="max-w-2xl mx-auto py-12 px-4">
         <div className="bg-white rounded-2xl shadow-lg p-8 text-center space-y-6">
@@ -477,7 +479,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
               <p className="text-sm text-primary-700">
                 {credentialEmailEnabled
                   ? 'ログイン情報は画面に表示していません。登録済みのメールをご確認ください。'
-                  : 'ログイン情報は画面に表示していません。会員ページ公開時にご案内します。'}
+                  : completionNoCredentialNotice}
               </p>
             </div>
           )}

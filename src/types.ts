@@ -81,6 +81,7 @@ export interface SystemSettings {
   publicPortalMembershipDescription?: string;
   publicPortalMembershipCtaLabel?: string;
   publicPortalCompletionLoginInfoVisible?: boolean;
+  publicPortalCompletionNoCredentialNotice?: string;
   publicPortalCredentialEmailEnabled?: boolean;
 }
 
