@@ -1,8 +1,8 @@
 # 開発引継ぎ
 
 更新日: 2026-04-22
-現行本番: `v259`（統合プロジェクト GAS version 257 / 会員 split GAS version 10 / 管理者 split GAS version 14）
-固定 deployment: 統合（公開ポータル）`@257` × 2本 / 会員 split `@10` / 管理者 split `@14`
+現行本番: `v260`（統合プロジェクト GAS version 258 / 会員 split GAS version 11 / 管理者 split GAS version 15）
+固定 deployment: 統合（公開ポータル）`@258` × 2本 / 会員 split `@11` / 管理者 split `@15`
 
 ## 1. 再開の最短ルート
 
@@ -17,11 +17,11 @@
 7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `docs/131_RELEASE_STATE_v259_2026-04-22.md`
-11. `docs/129_RELEASE_STATE_v258_2026-04-22.md`
-12. `docs/127_RELEASE_STATE_v257_2026-04-21.md`
-13. `docs/125_RELEASE_STATE_v256_2026-04-21.md`
-14. `docs/119_RELEASE_STATE_v255_2026-04-21.md`
+10. `docs/133_RELEASE_STATE_v260_2026-04-22.md`
+11. `docs/131_RELEASE_STATE_v259_2026-04-22.md`
+12. `docs/129_RELEASE_STATE_v258_2026-04-22.md`
+13. `docs/127_RELEASE_STATE_v257_2026-04-21.md`
+14. `docs/125_RELEASE_STATE_v256_2026-04-21.md`
 15. `docs/09_DEPLOYMENT_POLICY.md`
 16. `docs/05_AUTH_AND_ROLE_SPEC.md`
 17. `docs/04_DB_OPERATION_RUNBOOK.md`
@@ -53,6 +53,8 @@
 
 ### 2.2 直近で本番反映済みの変更
 
+- `v260`: 公開ポータルに「会員登録情報を変更する」「退会を申し込む」カードと OTP 認証フローを追加。
+  詳細: `docs/133_RELEASE_STATE_v260_2026-04-22.md`
 - `v259`: 入会通知メールの送信元メールアドレスを設定化。主メールアドレスと Gmail send-as alias のみ選択可能。
   詳細: `docs/131_RELEASE_STATE_v259_2026-04-22.md`
 - `v258`: 公開入会申込の事業所番号を半角英数字10文字へ統一。共有メール許容、空職員カード無視、データ管理コンソールを論理削除化。
@@ -78,6 +80,7 @@
 
 ### 操作者確認待ち
 
+- `v260`: 公開ポータルで「会員登録情報を変更する」「退会を申し込む」の 2 カードが表示されること。OTP メールが登録アドレスに届き、変更・退会フローが完了すること。
 - `v259`: 管理設定で送信元メールアドレスを切り替え、入会通知メールが選択した alias で送られること。
 - `v258`: 公開入会申込で、事業所番号 10 文字制御、共有メール許容、空職員カード無視、論理削除 UI の挙動を確認すること。
 

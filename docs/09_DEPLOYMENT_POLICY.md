@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-04-22
-Production: `v259` / 統合（公開）fixed deployments `@257` / 会員 split `@10` / 管理者 split `@14`
+Production: `v260` / 統合（公開）fixed deployments `@258` / 会員 split `@11` / 管理者 split `@15`
 
 ## 1. Purpose
 
@@ -18,7 +18,7 @@ Production: `v259` / 統合（公開）fixed deployments `@257` / 会員 split `
 | Member portal | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `/exec` |
 | Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `/exec?app=public` |
 
-統合プロジェクト（公開専用）の両 fixed deployments は `@257` を指している。
+統合プロジェクト（公開専用）の両 fixed deployments は `@258` を指している。
 
 Operator-facing canonical URLs（v251〜確定・3プロジェクト分離完了）:
 
