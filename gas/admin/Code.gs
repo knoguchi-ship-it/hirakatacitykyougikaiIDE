@@ -1002,6 +1002,11 @@ var PUBLIC_ALLOWED_ACTIONS = {
   applyTrainingExternal: true,
   cancelTrainingExternal: true,
   submitMemberApplication: true,
+  // v260: 公開ポータル 会員情報変更・退会申請（OTP認証フロー）
+  sendPublicOtp: true,
+  verifyPublicOtp: true,
+  submitPublicMemberUpdate: true,
+  submitPublicWithdrawalRequest: true,
 };
 
 var MEMBER_ALLOWED_ACTIONS = {
@@ -1327,6 +1332,23 @@ function processApiRequest(action, payload) {
 
     if (action === 'cancelTrainingExternal') {
       return cancelTrainingExternal_(parsedPayload);
+    }
+
+    // v260: 公開ポータル 会員情報変更・退会申請（OTP認証フロー）
+    if (action === 'sendPublicOtp') {
+      return JSON.stringify({ success: true, data: sendPublicOtp_(parsedPayload) });
+    }
+
+    if (action === 'verifyPublicOtp') {
+      return JSON.stringify({ success: true, data: verifyPublicOtp_(parsedPayload) });
+    }
+
+    if (action === 'submitPublicMemberUpdate') {
+      return JSON.stringify({ success: true, data: submitPublicMemberUpdate_(parsedPayload) });
+    }
+
+    if (action === 'submitPublicWithdrawalRequest') {
+      return JSON.stringify({ success: true, data: submitPublicWithdrawalRequest_(parsedPayload) });
     }
 
     if (action === 'getTrainingApplicants') {
@@ -11256,6 +11278,274 @@ function cancelTrainingExternal_(payload) {
 
   return JSON.stringify({ success: true });
 }
+
+// ── v260: 公開ポータル 会員情報変更・退会申請 OTP 認証フロー ────────────────
+
+// 公開ポータル経由で変更可能なフィールド allowlist（個人会員のみ）
+var PUBLIC_MEMBER_UPDATE_ALLOWLIST_ = [
+  'email', 'mobilePhone',
+  'phone', 'fax',
+  'officePostCode', 'officePrefecture', 'officeCity', 'officeAddressLine', 'officeAddressLine2',
+  'homePostCode', 'homePrefecture', 'homeCity', 'homeAddressLine', 'homeAddressLine2',
+  'mailingPreference', 'preferredMailDestination',
+];
+
+function normalizeCmNumberForKey_(cm) {
+  return String(cm || '').trim().replace(/\s/g, '');
+}
+
+function generatePublicActionToken_() {
+  var bytes = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    String(Date.now()) + String(Math.random()) + String(Math.random())
+  );
+  return bytes.map(function(b) { return ('0' + (b & 0xFF).toString(16)).slice(-2); }).join('').slice(0, 32);
+}
+
+function generateOtp_() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+// CM番号で個人会員を検索し OTP をメール送信する。
+// セキュリティ: CM番号の有無を応答で露出しない（列挙防止）。
+function sendPublicOtp_(payload) {
+  var cmNumber = normalizeCmNumberForKey_(payload.cmNumber);
+  var purpose = String(payload.purpose || '').trim();
+
+  if (!/^\d{8}$/.test(cmNumber)) {
+    return { sent: false, error: 'CM番号の形式が正しくありません（8桁の数字）' };
+  }
+  if (purpose !== 'update' && purpose !== 'withdrawal') {
+    return { sent: false, error: 'invalid_purpose' };
+  }
+
+  var cache = CacheService.getScriptCache();
+  var rateLimitKey = 'pub_otp_rl_' + cmNumber;
+  var rateLimitRaw = cache.get(rateLimitKey);
+  var rateLimit = rateLimitRaw ? JSON.parse(rateLimitRaw) : { count: 0 };
+  if (rateLimit.count >= 5) {
+    // レート制限超過でも同じ応答（列挙防止）
+    return { sent: true };
+  }
+
+  var ss = getOrCreateDatabase_();
+  var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) &&
+           String(r['会員種別コード'] || '') === 'INDIVIDUAL' &&
+           String(r['会員状態コード'] || '') !== 'WITHDRAWN' &&
+           normalizeCmNumberForKey_(r['介護支援専門員番号']) === cmNumber;
+  });
+
+  rateLimit.count++;
+  cache.put(rateLimitKey, JSON.stringify(rateLimit), 900);
+
+  // 0件・複数件は列挙防止のため同じ応答を返す（メールは送信しない）
+  if (memberRows.length !== 1) {
+    return { sent: true };
+  }
+
+  var member = memberRows[0];
+  var email = String(member['代表メールアドレス'] || '').trim();
+  var memberId = String(member['会員ID'] || '');
+  var memberName = (String(member['姓'] || '') + ' ' + String(member['名'] || '')).trim();
+
+  if (!email) {
+    return { sent: true };
+  }
+
+  var otp = generateOtp_();
+  var otpKey = 'pub_otp_' + purpose + '_' + cmNumber;
+  cache.put(otpKey, JSON.stringify({ otp: otp, memberId: memberId, attempts: 0 }), 600);
+
+  var purposeLabel = purpose === 'withdrawal' ? '退会申請' : '会員情報変更';
+  MailApp.sendEmail(
+    email,
+    '【枚方市介護支援専門員連絡協議会】' + purposeLabel + ' 確認コード',
+    [
+      memberName + ' 様',
+      '',
+      purposeLabel + 'の認証コードをお送りします。',
+      '',
+      '認証コード: ' + otp,
+      '',
+      'このコードは10分間有効です。',
+      'お心当たりのない場合は事務局までご連絡ください。',
+      '',
+      '枚方市介護支援専門員連絡協議会',
+    ].join('\n')
+  );
+
+  return { sent: true };
+}
+
+// OTP を検証し、成功時に単一使用アクショントークンを発行する。
+function verifyPublicOtp_(payload) {
+  var cmNumber = normalizeCmNumberForKey_(payload.cmNumber);
+  var otp = String(payload.otp || '').trim();
+  var purpose = String(payload.purpose || '').trim();
+
+  if (!/^\d{8}$/.test(cmNumber) || !/^\d{6}$/.test(otp) ||
+      (purpose !== 'update' && purpose !== 'withdrawal')) {
+    return { success: false, error: 'invalid_input' };
+  }
+
+  var cache = CacheService.getScriptCache();
+  var otpKey = 'pub_otp_' + purpose + '_' + cmNumber;
+  var otpRaw = cache.get(otpKey);
+
+  if (!otpRaw) {
+    return { success: false, error: 'otp_expired' };
+  }
+
+  var stored = JSON.parse(otpRaw);
+
+  if (stored.attempts >= 5) {
+    cache.remove(otpKey);
+    return { success: false, error: 'too_many_attempts' };
+  }
+
+  if (stored.otp !== otp) {
+    stored.attempts++;
+    cache.put(otpKey, JSON.stringify(stored), 600);
+    var remaining = 5 - stored.attempts;
+    return { success: false, error: 'invalid_otp', remaining: remaining };
+  }
+
+  var token = generatePublicActionToken_();
+  cache.put('pub_tok_' + purpose + '_' + token, JSON.stringify({ memberId: stored.memberId }), 1800);
+  cache.remove(otpKey);
+
+  return { success: true, token: token };
+}
+
+// アクショントークンを検証し、許可フィールドのみ会員情報を更新する。
+function submitPublicMemberUpdate_(payload) {
+  var token = String(payload.token || '').trim();
+  var fields = payload.fields || {};
+
+  if (!token) return { success: false, error: 'invalid_token' };
+
+  var cache = CacheService.getScriptCache();
+  var tokenKey = 'pub_tok_update_' + token;
+  var tokenRaw = cache.get(tokenKey);
+  if (!tokenRaw) return { success: false, error: 'token_expired' };
+
+  var stored = JSON.parse(tokenRaw);
+  var memberId = stored.memberId;
+
+  // allowlist フィルタ
+  var updatePayload = { id: memberId };
+  for (var i = 0; i < PUBLIC_MEMBER_UPDATE_ALLOWLIST_.length; i++) {
+    var key = PUBLIC_MEMBER_UPDATE_ALLOWLIST_[i];
+    if (Object.prototype.hasOwnProperty.call(fields, key)) {
+      updatePayload[key] = fields[key];
+    }
+  }
+
+  if (Object.keys(updatePayload).length <= 1) {
+    return { success: false, error: '変更するフィールドが指定されていません' };
+  }
+
+  updateMember_(updatePayload, { skipAdminCheck: true });
+  cache.remove(tokenKey);
+
+  var ss = getOrCreateDatabase_();
+  var memberSheet = ss.getSheetByName('T_会員');
+  var found = memberSheet ? findRowByColumnValue_(memberSheet, '会員ID', memberId) : null;
+  if (found) {
+    var mRow = found.row;
+    var mCols = found.columns;
+    var toEmail = String(mRow[mCols['代表メールアドレス']] || '').trim();
+    var memberName2 = (String(mRow[mCols['姓']] || '') + ' ' + String(mRow[mCols['名']] || '')).trim();
+    if (toEmail) {
+      MailApp.sendEmail(
+        toEmail,
+        '【枚方市介護支援専門員連絡協議会】会員登録情報変更のご確認',
+        [
+          memberName2 + ' 様',
+          '',
+          '会員登録情報の変更を受け付けました。',
+          '内容にお心当たりのない場合は事務局までご連絡ください。',
+          '',
+          '枚方市介護支援専門員連絡協議会',
+        ].join('\n')
+      );
+    }
+  }
+
+  return { success: true };
+}
+
+// アクショントークンを検証し、年度末退会申請を登録する。
+function submitPublicWithdrawalRequest_(payload) {
+  var token = String(payload.token || '').trim();
+
+  if (!token) return { success: false, error: 'invalid_token' };
+
+  var cache = CacheService.getScriptCache();
+  var tokenKey = 'pub_tok_withdrawal_' + token;
+  var tokenRaw = cache.get(tokenKey);
+  if (!tokenRaw) return { success: false, error: 'token_expired' };
+
+  var stored = JSON.parse(tokenRaw);
+  var memberId = stored.memberId;
+
+  var ss = getOrCreateDatabase_();
+  var memberSheet = ss.getSheetByName('T_会員');
+  if (!memberSheet) throw new Error('T_会員 シートが見つかりません。');
+
+  var memberFound = findRowByColumnValue_(memberSheet, '会員ID', memberId);
+  if (!memberFound) throw new Error('対象会員が見つかりません。');
+
+  var mCols = memberFound.columns;
+  var mRow = memberFound.row.slice();
+  var currentStatus = String(mRow[mCols['会員状態コード']] || 'ACTIVE');
+
+  if (currentStatus === 'WITHDRAWN') throw new Error('この会員は既に退会済みです。');
+  if (currentStatus === 'WITHDRAWAL_SCHEDULED') throw new Error('既に退会申請済みです。');
+
+  var now = new Date();
+  var jstNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
+  var month = jstNow.getMonth() + 1;
+  var fiscalYearEndYear = month >= 4 ? jstNow.getFullYear() + 1 : jstNow.getFullYear();
+  var withdrawnDate = fiscalYearEndYear + '-03-31';
+
+  mRow[mCols['会員状態コード']] = 'WITHDRAWAL_SCHEDULED';
+  mRow[mCols['退会日']] = withdrawnDate;
+  mRow[mCols['更新日時']] = new Date().toISOString();
+  memberSheet.getRange(memberFound.rowNumber, 1, 1, mRow.length).setValues([mRow]);
+
+  clearAllDataCache_();
+  clearAdminDashboardCache_();
+  clearTrainingManagementCache_();
+  cache.remove(tokenKey);
+
+  var toEmail = String(mRow[mCols['代表メールアドレス']] || '').trim();
+  var memberName3 = (String(mRow[mCols['姓']] || '') + ' ' + String(mRow[mCols['名']] || '')).trim();
+  if (toEmail) {
+    MailApp.sendEmail(
+      toEmail,
+      '【枚方市介護支援専門員連絡協議会】退会申請受付のご確認',
+      [
+        memberName3 + ' 様',
+        '',
+        '退会申請を受け付けました。',
+        '',
+        '退会予定日: ' + withdrawnDate + '（年度末）',
+        '',
+        '退会予定日までは引き続き会員マイページにログインできます。',
+        '退会を撤回される場合は、会員マイページよりお手続きください。',
+        'お心当たりのない場合は事務局までご連絡ください。',
+        '',
+        '枚方市介護支援専門員連絡協議会',
+      ].join('\n')
+    );
+  }
+
+  return { success: true, withdrawnDate: withdrawnDate };
+}
+
+// ── v260 公開ポータル OTP 認証フロー ここまで ────────────────────────────────
 
 function getTrainingApplicants_(payload) {
   if (!checkAdminBySession_()) return JSON.stringify({ success: false, error: 'unauthorized' });

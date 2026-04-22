@@ -5,6 +5,8 @@ import MemberApplicationForm from '../components/application/MemberApplicationFo
 import PublicTrainingList from './components/PublicTrainingList';
 import ExternalApplyForm from './components/ExternalApplyForm';
 import CancelForm from './components/CancelForm';
+import MemberUpdateForm from './components/MemberUpdateForm';
+import WithdrawalRequestForm from './components/WithdrawalRequestForm';
 
 type PublicPortalContentSettings = {
   heroBadgeEnabled: boolean;
@@ -37,7 +39,9 @@ type View =
   | 'training-apply'
   | 'training-cancel'
   | 'training-complete'
-  | 'member-application';
+  | 'member-application'
+  | 'member-update'
+  | 'withdrawal-request';
 
 const DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS: PublicPortalContentSettings = {
   heroBadgeEnabled: false,
@@ -94,6 +98,8 @@ const PublicApp: React.FC = () => {
     'training-cancel': '申込取消',
     'training-complete': '申込完了',
     'member-application': '新規入会申込',
+    'member-update': '会員登録情報変更',
+    'withdrawal-request': '退会申込',
   };
 
   useEffect(() => {
@@ -214,24 +220,21 @@ const PublicApp: React.FC = () => {
       {/* 設定確定前は Skeleton を表示。設定未確定のまま誤ったカードを瞬間描画しない（FOIC防止） */}
       {(trainingMenuEnabled === null || membershipMenuEnabled === null) ? (
         <section className="grid gap-6 md:grid-cols-2" aria-busy="true" aria-label="読み込み中">
-          {[0, 1].map((i) => (
+          {[0, 1, 2, 3].map((i) => (
             <div key={i} className="animate-pulse rounded-[28px] border border-slate-200 bg-white p-7 shadow-sm">
               <div className="mb-5 h-6 w-24 rounded-full bg-slate-200" />
               <div className="h-7 w-40 rounded-lg bg-slate-200" />
               <div className="mt-3 space-y-2">
                 <div className="h-4 w-full rounded bg-slate-100" />
                 <div className="h-4 w-5/6 rounded bg-slate-100" />
-                <div className="h-4 w-4/6 rounded bg-slate-100" />
               </div>
-              <div className="mt-6 flex items-center justify-between">
-                <div className="h-4 w-32 rounded bg-slate-100" />
-                <div className="h-4 w-14 rounded bg-slate-100" />
-              </div>
+              <div className="mt-6 h-4 w-32 rounded bg-slate-100" />
             </div>
           ))}
         </section>
-      ) : (trainingMenuEnabled || membershipMenuEnabled) ? (
-        <section className={`grid gap-6 ${trainingMenuEnabled && membershipMenuEnabled ? 'md:grid-cols-2' : 'md:grid-cols-1 max-w-xl'}`}>
+      ) : (
+        <section className="grid gap-6 md:grid-cols-2">
+          {/* 研修申込カード */}
           {trainingMenuEnabled && (
             <button
               type="button"
@@ -252,6 +255,7 @@ const PublicApp: React.FC = () => {
             </button>
           )}
 
+          {/* 入会申込カード */}
           {membershipMenuEnabled && (
             <button
               type="button"
@@ -276,12 +280,51 @@ const PublicApp: React.FC = () => {
               </div>
             </button>
           )}
-        </section>
-      ) : (
-        <section className="rounded-[28px] border border-slate-200 bg-white px-6 py-12 shadow-sm text-center">
-          <p className="text-2xl mb-3">🔧</p>
-          <h3 className="text-lg font-bold text-slate-800">現在準備中です</h3>
-          <p className="mt-2 text-sm text-slate-600">申込受付を一時停止しています。しばらく経ってから再度アクセスしてください。</p>
+
+          {/* 会員登録情報変更カード（v260） */}
+          <button
+            type="button"
+            onClick={() => setView('member-update')}
+            className="group rounded-[28px] border border-violet-200 bg-[linear-gradient(135deg,#f5f3ff_0%,#ffffff_70%)] p-7 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+          >
+            <div className="mb-5 inline-flex rounded-full bg-violet-600 px-3 py-1 text-xs font-semibold tracking-[0.12em] text-white">
+              登録情報変更
+            </div>
+            <h3 className="text-2xl font-bold text-slate-900">会員登録情報を変更する</h3>
+            <p className="mt-3 text-sm leading-7 text-slate-600">
+              住所・電話番号・メールアドレスなど、ご登録情報の変更を申し込めます。介護支援専門員番号でご本人確認を行います。
+            </p>
+            <div className="mt-6 text-sm">
+              <span className="font-semibold text-slate-900 transition group-hover:translate-x-0.5">変更手続きへ進む →</span>
+            </div>
+          </button>
+
+          {/* 退会申込カード（v260） */}
+          <button
+            type="button"
+            onClick={() => setView('withdrawal-request')}
+            className="group rounded-[28px] border border-amber-200 bg-[linear-gradient(135deg,#fffbeb_0%,#ffffff_70%)] p-7 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+          >
+            <div className="mb-5 inline-flex rounded-full bg-amber-600 px-3 py-1 text-xs font-semibold tracking-[0.12em] text-white">
+              退会
+            </div>
+            <h3 className="text-2xl font-bold text-slate-900">退会を申し込む</h3>
+            <p className="mt-3 text-sm leading-7 text-slate-600">
+              退会申請を行います。退会は当年度末（3月31日）に適用されます。介護支援専門員番号でご本人確認を行います。
+            </p>
+            <div className="mt-6 text-sm">
+              <span className="font-semibold text-slate-900 transition group-hover:translate-x-0.5">退会手続きへ進む →</span>
+            </div>
+          </button>
+
+          {/* 研修・入会の両方が無効の場合のメッセージ */}
+          {!trainingMenuEnabled && !membershipMenuEnabled && (
+            <div className="col-span-2 rounded-[28px] border border-slate-200 bg-white px-6 py-12 shadow-sm text-center">
+              <p className="text-2xl mb-3">🔧</p>
+              <h3 className="text-lg font-bold text-slate-800">研修・入会申込は現在準備中です</h3>
+              <p className="mt-2 text-sm text-slate-600">申込受付を一時停止しています。しばらく経ってから再度アクセスしてください。</p>
+            </div>
+          )}
         </section>
       )}
 
@@ -404,6 +447,14 @@ const PublicApp: React.FC = () => {
               </button>
             </div>
           </div>
+        )}
+
+        {view === 'member-update' && (
+          <MemberUpdateForm onBack={handleBackToHome} />
+        )}
+
+        {view === 'withdrawal-request' && (
+          <WithdrawalRequestForm onBack={handleBackToHome} />
         )}
 
         {view === 'member-application' && (
