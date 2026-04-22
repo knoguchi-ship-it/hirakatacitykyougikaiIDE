@@ -147,6 +147,11 @@
   - `設定値`
   - `説明`
   - `更新日時`
+- 代表的なキー:
+  - `CREDENTIAL_EMAIL_ENABLED`
+  - `CREDENTIAL_EMAIL_FROM`
+  - `CREDENTIAL_EMAIL_SUBJECT`
+  - `CREDENTIAL_EMAIL_BODY`
 
 ### 3.3 `T_事業所職員`
 - 用途: 事業所に紐づく職員

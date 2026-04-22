@@ -4,6 +4,15 @@
 現行本番: `v258`（統合プロジェクト GAS version 256 / 会員 split GAS version 9 / 管理者 split GAS version 13）
 固定 deployment: 統合（公開ポータル）`@256` × 2本 / 会員 split `@9` / 管理者 split `@13`
 
+## 0. 2026-04-22 ローカル作業中
+
+**作業記録: `docs/130_TASK_CREDENTIAL_EMAIL_FROM_ALIAS_SELECTION_2026-04-22.md`**
+
+- システム設定「入会通知メール」に **送信元メールアドレス** の選択欄を追加
+- 送信元は **主メールアドレス + Gmail send-as alias** から選択可能
+- `T_システム設定.CREDENTIAL_EMAIL_FROM` を新設し、**保存時・送信時の両方で backend が alias 妥当性を検証**
+- 未デプロイ。現行本番は引き続き `v258`
+
 ## 0. v258 本番稼働中（2026-04-22）
 
 **詳細リリース記録: `docs/129_RELEASE_STATE_v258_2026-04-22.md`**

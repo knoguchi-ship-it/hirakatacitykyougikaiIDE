@@ -63,6 +63,7 @@ export interface SystemSettings {
   emailLogViewerRole?: string;
   // v209: 入会時認証情報メール設定
   credentialEmailEnabled?: boolean;
+  credentialEmailFrom?: string;
   credentialEmailSubject?: string;
   credentialEmailBody?: string;
   // v210: 公開ポータル メニュー表示設定

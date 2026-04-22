@@ -323,8 +323,12 @@ const App: React.FC = () => {
   const CREDENTIAL_EMAIL_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】会員登録完了のお知らせ';
   const CREDENTIAL_EMAIL_DEFAULT_BODY = '{{氏名}} 様\n\n会員登録が完了しました。\n以下のログイン情報で会員マイページにアクセスできます。\n\nログインID: {{ログインID}}\n初期パスワード: {{パスワード}}\n\n会員マイページURL:\n{{会員マイページURL}}\n\n初回ログイン後、パスワードの変更をお勧めします。\n\n※このメールに心当たりがない場合は、お手数ですが削除してください。\n─────────────────────────────\n枚方市介護支援専門員連絡協議会\n';
   const [credentialEmailEnabledInput, setCredentialEmailEnabledInput] = useState(true);
+  const [credentialEmailFromInput, setCredentialEmailFromInput] = useState('');
   const [credentialEmailSubjectInput, setCredentialEmailSubjectInput] = useState(CREDENTIAL_EMAIL_DEFAULT_SUBJECT);
   const [credentialEmailBodyInput, setCredentialEmailBodyInput] = useState(CREDENTIAL_EMAIL_DEFAULT_BODY);
+  const [credentialEmailAliases, setCredentialEmailAliases] = useState<string[]>([]);
+  const [credentialEmailAliasWarning, setCredentialEmailAliasWarning] = useState<string | null>(null);
+  const [credentialEmailAliasLoading, setCredentialEmailAliasLoading] = useState(false);
   // v219: 入会メール テンプレート管理
   const [emailTemplates, setEmailTemplates] = useState<import('./types').EmailTemplate[]>([]);
   const [templateListLoaded, setTemplateListLoaded] = useState(false);
@@ -397,6 +401,7 @@ const App: React.FC = () => {
     setEmailLogViewerRoleInput(systemSettings.emailLogViewerRole ?? 'MASTER');
     // v209
     setCredentialEmailEnabledInput(systemSettings.credentialEmailEnabled ?? true);
+    setCredentialEmailFromInput(systemSettings.credentialEmailFrom ?? '');
     setCredentialEmailSubjectInput(systemSettings.credentialEmailSubject ?? CREDENTIAL_EMAIL_DEFAULT_SUBJECT);
     setCredentialEmailBodyInput(systemSettings.credentialEmailBody ?? CREDENTIAL_EMAIL_DEFAULT_BODY);
     // v219: テンプレート一覧をバックグラウンド取得（設定ロード時に並行）
@@ -433,6 +438,29 @@ const App: React.FC = () => {
     setSettingsIsDirty(false);
     setSystemSettingsLoaded(true);
   };
+
+  const loadCredentialEmailAliases = useCallback(async () => {
+    setCredentialEmailAliasLoading(true);
+    try {
+      const { aliases, warning } = await api.getAdminEmailAliases();
+      setCredentialEmailAliases(Array.from(new Set((aliases || []).map((value) => String(value || '').trim()).filter(Boolean))));
+      setCredentialEmailAliasWarning(warning || null);
+    } catch (error) {
+      setCredentialEmailAliasWarning(error instanceof Error ? error.message : '送信元アドレス一覧の取得に失敗しました。');
+    } finally {
+      setCredentialEmailAliasLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated || userRole !== 'ADMIN' || currentView !== 'admin-settings') return;
+    if (credentialEmailAliases.length > 0 || credentialEmailAliasLoading) return;
+    void loadCredentialEmailAliases();
+  }, [isAuthenticated, userRole, currentView, credentialEmailAliases.length, credentialEmailAliasLoading, loadCredentialEmailAliases]);
+
+  const credentialEmailFromOptions = useMemo(() => {
+    return Array.from(new Set([credentialEmailFromInput, ...credentialEmailAliases].map((value) => String(value || '').trim()).filter(Boolean)));
+  }, [credentialEmailFromInput, credentialEmailAliases]);
 
   const loadAppData = async (
     options: { includeAdminSettings?: boolean; force?: boolean; silent?: boolean } = {},
@@ -2748,6 +2776,41 @@ const App: React.FC = () => {
                 </div>
               </div>
               <div>
+                <div className="flex items-center justify-between gap-3 mb-1">
+                  <label className="block text-sm font-medium text-slate-700">送信元メールアドレス</label>
+                  <button
+                    type="button"
+                    onClick={() => { void loadCredentialEmailAliases(); }}
+                    disabled={credentialEmailAliasLoading}
+                    className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    {credentialEmailAliasLoading ? '読込中...' : '更新'}
+                  </button>
+                </div>
+                <p className="text-xs text-slate-500 mb-2">
+                  Gmail の「メールアドレスを追加」「Send mail as」に登録済みの主メールアドレス・送信エイリアスから選択します。
+                </p>
+                <select
+                  value={credentialEmailFromInput}
+                  onChange={(e) => { setCredentialEmailFromInput(e.target.value); setSettingsIsDirty(true); }}
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm bg-white"
+                  disabled={credentialEmailAliasLoading && credentialEmailFromOptions.length === 0}
+                >
+                  {credentialEmailFromOptions.length > 0 ? (
+                    credentialEmailFromOptions.map((address) => (
+                      <option key={address} value={address}>{address}</option>
+                    ))
+                  ) : (
+                    <option value="">{credentialEmailAliasLoading ? '送信元アドレスを取得中...' : '利用可能な送信元アドレスがありません'}</option>
+                  )}
+                </select>
+                {credentialEmailAliasWarning && (
+                  <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                    {credentialEmailAliasWarning}
+                  </p>
+                )}
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">メール件名</label>
                 <div className="flex gap-2 items-start">
                   <input
@@ -2971,6 +3034,7 @@ const App: React.FC = () => {
                         bulkMailAutoAttachFolderId: bulkMailAutoAttachFolderIdInput,
                         emailLogViewerRole: emailLogViewerRoleInput,
                         credentialEmailEnabled: credentialEmailEnabledInput,
+                        credentialEmailFrom: credentialEmailFromInput,
                         credentialEmailSubject: credentialEmailSubjectInput,
                         credentialEmailBody: credentialEmailBodyInput,
                         publicPortalTrainingMenuEnabled: publicPortalTrainingMenuEnabledInput,
@@ -3013,6 +3077,7 @@ const App: React.FC = () => {
                       setBulkMailAutoAttachFolderIdInput(saved.bulkMailAutoAttachFolderId ?? '');
                       setEmailLogViewerRoleInput(saved.emailLogViewerRole ?? 'MASTER');
                       setCredentialEmailEnabledInput(saved.credentialEmailEnabled ?? true);
+                      setCredentialEmailFromInput(saved.credentialEmailFrom ?? '');
                       setCredentialEmailSubjectInput(saved.credentialEmailSubject ?? CREDENTIAL_EMAIL_DEFAULT_SUBJECT);
                       setCredentialEmailBodyInput(saved.credentialEmailBody ?? CREDENTIAL_EMAIL_DEFAULT_BODY);
                       setPublicPortalTrainingMenuEnabledInput(saved.publicPortalTrainingMenuEnabled ?? true);

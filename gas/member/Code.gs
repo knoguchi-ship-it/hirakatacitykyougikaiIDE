@@ -726,6 +726,7 @@ function insertSystemSettingKeysForV209() {
   });
   var newKeys = [
     { key: 'CREDENTIAL_EMAIL_ENABLED', value: 'true', desc: '入会申込時にログイン情報メールを送信するか（true / false）' },
+    { key: 'CREDENTIAL_EMAIL_FROM', value: '', desc: '入会時認証情報メールの送信元アドレス（空欄時は実行ユーザーの主メールアドレス）' },
     { key: 'CREDENTIAL_EMAIL_SUBJECT', value: CREDENTIAL_EMAIL_DEFAULT_SUBJECT, desc: '入会時認証情報メールの件名' },
     { key: 'CREDENTIAL_EMAIL_BODY', value: CREDENTIAL_EMAIL_DEFAULT_BODY, desc: '入会時認証情報メールの本文（マージタグ: {{氏名}} {{ログインID}} {{パスワード}} {{会員マイページURL}}）' },
   ];
@@ -4304,10 +4305,12 @@ function getSystemSettings_() {
   var bulkMailAutoAttachFolderId = String(m['BULK_MAIL_AUTO_ATTACH_FOLDER_ID'] || '');
   var emailLogViewerRole = String(m['EMAIL_LOG_VIEWER_ROLE'] || 'MASTER');
   // v209: 入会時認証情報メール設定
+  var ownerEmail = Session.getEffectiveUser().getEmail();
   var credentialEmailEnabledRaw = m['CREDENTIAL_EMAIL_ENABLED'];
   var credentialEmailEnabled = credentialEmailEnabledRaw === '' || credentialEmailEnabledRaw === null
     ? true
     : String(credentialEmailEnabledRaw) !== 'false';
+  var credentialEmailFrom = String(m['CREDENTIAL_EMAIL_FROM'] || '').trim() || ownerEmail;
   var credentialEmailSubject = String(m['CREDENTIAL_EMAIL_SUBJECT'] || '') || CREDENTIAL_EMAIL_DEFAULT_SUBJECT;
   var credentialEmailBody = String(m['CREDENTIAL_EMAIL_BODY'] || '') || CREDENTIAL_EMAIL_DEFAULT_BODY;
   // v210: 公開ポータル メニュー表示設定
@@ -4385,6 +4388,7 @@ function getSystemSettings_() {
     bulkMailAutoAttachFolderId: bulkMailAutoAttachFolderId,
     emailLogViewerRole: emailLogViewerRole,
     credentialEmailEnabled: credentialEmailEnabled,
+    credentialEmailFrom: credentialEmailFrom,
     credentialEmailSubject: credentialEmailSubject,
     credentialEmailBody: credentialEmailBody,
     publicPortalTrainingMenuEnabled: publicPortalTrainingMenuEnabled,
@@ -4485,6 +4489,12 @@ function updateSystemSettings_(request, callerPermLevel) {
   // v209: 入会時認証情報メール設定（MASTER/ADMIN 共通可変）
   if (request.credentialEmailEnabled != null) {
     updates.push({ key: 'CREDENTIAL_EMAIL_ENABLED', value: request.credentialEmailEnabled ? 'true' : 'false', description: '入会申込時にログイン情報メールを送信するか' });
+  }
+  if (request.credentialEmailFrom != null) {
+    var ownerEmail = Session.getEffectiveUser().getEmail();
+    var requestedFrom = String(request.credentialEmailFrom || '').trim();
+    var validatedFrom = validateRequestedFromAddress_(requestedFrom, ownerEmail);
+    updates.push({ key: 'CREDENTIAL_EMAIL_FROM', value: validatedFrom === ownerEmail ? '' : validatedFrom, description: '入会時認証情報メールの送信元アドレス' });
   }
   if (request.credentialEmailSubject != null) {
     var subj = String(request.credentialEmailSubject).trim();
@@ -6026,6 +6036,7 @@ function submitMemberApplication_(payload) {
     // マスタ取得失敗はメール送信を止めない
   }
   var credEmailOpts = {
+    from: String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_FROM') || '').trim(),
     subject: String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_SUBJECT') || '') || CREDENTIAL_EMAIL_DEFAULT_SUBJECT,
     body: String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_BODY') || '') || CREDENTIAL_EMAIL_DEFAULT_BODY,
     memberTypeLabel: memberTypeLabelForEmail,
@@ -6761,6 +6772,7 @@ function transferBusinessStaffToBusinessMember_(ss, payload) {
  */
 function sendCredentialEmail_(toEmail, loginId, password, memberName, opts) {
   opts = opts || {};
+  var from = String(opts.from || '').trim();
   var subject = (opts.subject && opts.subject.trim()) ? opts.subject : CREDENTIAL_EMAIL_DEFAULT_SUBJECT;
   var bodyTemplate = (opts.body && opts.body.trim()) ? opts.body : CREDENTIAL_EMAIL_DEFAULT_BODY;
   // v219: 年会費を「3,000円」形式にフォーマット
@@ -6778,7 +6790,11 @@ function sendCredentialEmail_(toEmail, loginId, password, memberName, opts) {
     .replace(/\{\{会員マイページURL\}\}/g, MEMBER_PORTAL_URL)
     .replace(/\{\{会員種別\}\}/g, opts.memberTypeLabel || '')
     .replace(/\{\{年会費\}\}/g, annualFeeStr);
-  MailApp.sendEmail(toEmail, subject, body);
+  sendEmailWithValidatedFrom_(toEmail, subject, body, {
+    from: from,
+    replyTo: from || Session.getEffectiveUser().getEmail(),
+    name: '枚方市介護支援専門員連絡協議会',
+  });
 }
 
 // ── 入会メール テンプレート管理（v219）──────────────────
