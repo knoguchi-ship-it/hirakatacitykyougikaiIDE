@@ -309,7 +309,7 @@ curl.exe -L -D - -o NUL <admin exec url>
 
 1. `HANDOVER.md`
 2. `docs/09_DEPLOYMENT_POLICY.md`
-3. `docs/112_HANDOVER_TASK_PROJECT_SPLIT_SIDE_BY_SIDE_2026-04-20.md`
+3. `docs/archive/historical/112_HANDOVER_TASK_PROJECT_SPLIT_SIDE_BY_SIDE_2026-04-20.md`
 4. `docs/111_IMPLEMENTATION_BLUEPRINT_PROJECT_SPLIT_2026-04-20.md`
 5. `git status --short`
 6. `git diff -- backend/Code.gs src/App.tsx src/components/Sidebar.tsx package.json vite.config.ts scripts/build-member-gas.mjs scripts/build-admin-gas.mjs docs/05_AUTH_AND_ROLE_SPEC.md docs/09_DEPLOYMENT_POLICY.md HANDOVER.md`

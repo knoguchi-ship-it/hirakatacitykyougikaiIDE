@@ -33,7 +33,7 @@ Production: `v208` / fixed deployments `@208`
 2. `AGENTS.md`
 3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-5. `docs/78_RELEASE_STATE_v208_2026-04-15.md`
+5. `docs/archive/release_history/78_RELEASE_STATE_v208_2026-04-15.md`
 6. `docs/09_DEPLOYMENT_POLICY.md`
 7. `docs/05_AUTH_AND_ROLE_SPEC.md`
 8. `docs/04_DB_OPERATION_RUNBOOK.md`

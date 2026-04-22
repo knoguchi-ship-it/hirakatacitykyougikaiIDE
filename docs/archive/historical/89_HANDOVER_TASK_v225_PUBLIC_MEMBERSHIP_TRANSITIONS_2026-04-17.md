@@ -16,7 +16,7 @@ Updated: 2026-04-17
 - 関連正本:
   - `HANDOVER.md`
   - `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-  - `docs/88_RELEASE_STATE_v225_2026-04-17.md`
+  - `docs/archive/release_history/88_RELEASE_STATE_v225_2026-04-17.md`
   - `docs/09_DEPLOYMENT_POLICY.md`
   - `docs/02_ARCHITECTURE.md`
   - `docs/03_DATA_MODEL.md`
@@ -33,7 +33,7 @@ Updated: 2026-04-17
 - [docs/00_DOC_INDEX.md](/C:/VSCode/CloudePL/hirakatacitykyougikaiIDE/docs/00_DOC_INDEX.md:1)
 - [docs/02_ARCHITECTURE.md](/C:/VSCode/CloudePL/hirakatacitykyougikaiIDE/docs/02_ARCHITECTURE.md:199)
 - [docs/03_DATA_MODEL.md](/C:/VSCode/CloudePL/hirakatacitykyougikaiIDE/docs/03_DATA_MODEL.md:136)
-- [docs/88_RELEASE_STATE_v225_2026-04-17.md](/C:/VSCode/CloudePL/hirakatacitykyougikaiIDE/docs/88_RELEASE_STATE_v225_2026-04-17.md:1)
+- [docs/archive/release_history/88_RELEASE_STATE_v225_2026-04-17.md](/C:/VSCode/CloudePL/hirakatacitykyougikaiIDE/docs/archive/release_history/88_RELEASE_STATE_v225_2026-04-17.md:1)
 
 #### 主な変更ファイル
 1. [backend/Code.gs](/C:/VSCode/CloudePL/hirakatacitykyougikaiIDE/backend/Code.gs:5534)
@@ -86,7 +86,7 @@ Updated: 2026-04-17
 - ワークツリーには未コミット差分が残っている。次担当者は `git status --short` から開始すること。
 
 #### 次担当者の最初の一手
-1. `HANDOVER.md` と `docs/88_RELEASE_STATE_v225_2026-04-17.md` を読み、v225 の範囲を把握する。
+1. `HANDOVER.md` と `docs/archive/release_history/88_RELEASE_STATE_v225_2026-04-17.md` を読み、v225 の範囲を把握する。
 2. `git status --short` を確認し、未コミット差分と未追跡 release docs の扱いを決める。
 3. 実データで公開入会の確認が必要なら、事務局承認のうえでテストデータ投入手順を先に固める。
 

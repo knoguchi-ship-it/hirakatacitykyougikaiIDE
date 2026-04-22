@@ -1,6 +1,6 @@
 # 開発引継ぎ・運用プレイブック
 
-更新日: 2026-04-17
+更新日: 2026-04-22
 目的: 担当者が変わっても、同じ入口・同じ完了条件・同じ証跡で開発を継続できる状態を維持する。
 
 ## 1. この文書の役割
@@ -64,7 +64,9 @@
 1. task 個票を更新する。
 2. `HANDOVER.md` に current state と pending を転記する。
 3. 関連する正本仕様を更新する。
-4. `docs/00_DOC_INDEX.md` に新規正本を追加する。
+4. `docs/00_DOC_INDEX.md` に新規正本または新規 task を追加する。
+5. 完了済み task は `docs/archive/historical/`、未採用または後続 task に置換された文書は `docs/archive/obsolete/` へ整理する。
+6. release state は直近 5 version だけを root `docs/` に残し、それより古い記録は `docs/archive/release_history/` へ移す。
 
 ## 7. 証跡の最低要件
 - 絶対日付
