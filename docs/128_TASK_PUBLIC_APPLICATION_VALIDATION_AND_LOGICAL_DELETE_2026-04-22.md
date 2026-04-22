@@ -1,7 +1,7 @@
 # 公開入会申込バリデーション強化・論理削除化タスク
 
 最終更新: 2026-04-22
-状態: ローカル実装済み / 未デプロイ
+状態: 本番反映済み（v258）
 
 ## 1. 背景
 
@@ -69,9 +69,24 @@
 補足:
 - 「共有メールアドレスを許容」は上記資料の明示要件ではなく、本案件の認証正本が `loginId + password` であり、通知先メールと認証子を分離している現行設計からの実装判断。
 
-## 4. 未実施
+## 4. 実施済み検証と未実施
+
+実施済み:
 
 - `npm run typecheck`
 - `npm run build`
+- `npm run build:gas`
+- `npm run build:gas:member`
+- `npm run build:gas:admin`
 - Apps Script への push / version / redeploy
+- `npx clasp deployments --json`（統合 / member / admin）
+
+未実施:
+
 - 操作者による実ブラウザ確認
+- `npx clasp run healthCheck`
+- `npx clasp run getDbInfo`
+
+補足:
+
+- `npx clasp run healthCheck` / `getDbInfo` は 2026-04-22 時点でも `Unable to run script function. Please make sure you have permission to run the script function.` で未確認。

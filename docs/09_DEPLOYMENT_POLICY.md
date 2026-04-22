@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-04-21
-Production: `v257` / 統合（公開）fixed deployments `@255` / 会員 split `@8` / 管理者 split `@12`
+Updated: 2026-04-22
+Production: `v258` / 統合（公開）fixed deployments `@256` / 会員 split `@9` / 管理者 split `@13`
 
 ## 1. Purpose
 
@@ -18,7 +18,7 @@ Production: `v257` / 統合（公開）fixed deployments `@255` / 会員 split `
 | Member portal | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `/exec` |
 | Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `/exec?app=public` |
 
-統合プロジェクト（公開専用）の両 fixed deployments は `@255` を指している。
+統合プロジェクト（公開専用）の両 fixed deployments は `@256` を指している。
 
 Operator-facing canonical URLs（v251〜確定・3プロジェクト分離完了）:
 
@@ -40,8 +40,8 @@ Project rule:
 
 | 用途 | Script ID | Deployment ID | version | webapp.access |
 |---|---|---|---|---|
-| 会員専用 (member) | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | @8 | ANYONE_ANONYMOUS |
-| 管理者専用 (admin) | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | @12 | DOMAIN |
+| 会員専用 (member) | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | @9 | ANYONE_ANONYMOUS |
+| 管理者専用 (admin) | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | @13 | DOMAIN |
 
 分離プロジェクト URL:
 
@@ -159,7 +159,27 @@ When the change affects user flows, real-browser verification is performed by th
 
 ## 7. Current Recorded State
 
-### 2026-04-21 `v257` ← **current production**
+### 2026-04-22 `v258` ← **current production**
+
+- Scope: 公開入会申込の事業所番号厳格化、事業所職員の共有メール許容、データ管理コンソールの論理削除化。
+  - `officeNumber` を `^[A-Za-z0-9]{10}$` に統一。
+  - 完全空白の職員カードを submit 対象から除外。
+  - 同一事業所内のメール重複禁止を撤廃。
+  - 削除コンソールを物理削除から論理削除へ変更し、個人会員 / 賛助会員 / 事業所会員 / 事業所会員メンバーを検索対象に追加。
+- 対象 deployment: 統合（公開）2本 / 会員 split / 管理者 split — 全 4 deployment 更新。
+- Verification:
+  - `npm run typecheck` ✅
+  - `npm run build` ✅
+  - `npm run build:gas` ✅ / `npm run build:gas:member` ✅ / `npm run build:gas:admin` ✅
+  - 統合 push ✅（5 files）/ 会員 split push ✅（3 files）/ 管理者 split push ✅（3 files）
+  - 統合 `npx clasp redeploy` ✅（`AKfycbyw... @256` / `AKfycbxy... @256`）
+  - 会員 split `npx clasp redeploy` ✅（`AKfycbxd... @9`）
+  - 管理者 split `npx clasp redeploy` ✅（`AKfycbwS... @13`）
+  - `npx clasp deployments --json` ✅
+  - `npx clasp run healthCheck` / `npx clasp run getDbInfo` は `Unable to run script function. Please make sure you have permission to run the script function.` で未確認
+  - 実ブラウザ確認 → 操作者側で実施（確認ポイントは `docs/128` / `docs/129` 参照）
+
+### 2026-04-21 `v257`
 
 - Scope: 管理者向けシステム設定画面の情報設計刷新。
   - 概要ヘッダ、状態カード、クイックジャンプ、5セクション構成へ再編。

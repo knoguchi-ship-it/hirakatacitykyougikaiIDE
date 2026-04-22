@@ -1,17 +1,20 @@
 # 開発引継ぎ
 
 更新日: 2026-04-22
-現行本番: `v257`（統合プロジェクト GAS version 255 / 会員 split GAS version 8 / 管理者 split GAS version 12）
-固定 deployment: 統合（公開ポータル）`@255` × 2本 / 会員 split `@8` / 管理者 split `@12`
+現行本番: `v258`（統合プロジェクト GAS version 256 / 会員 split GAS version 9 / 管理者 split GAS version 13）
+固定 deployment: 統合（公開ポータル）`@256` × 2本 / 会員 split `@9` / 管理者 split `@13`
 
-## 0. 2026-04-22 ローカル作業中
+## 0. v258 本番稼働中（2026-04-22）
 
-**作業記録: `docs/128_TASK_PUBLIC_APPLICATION_VALIDATION_AND_LOGICAL_DELETE_2026-04-22.md`**
+**詳細リリース記録: `docs/129_RELEASE_STATE_v258_2026-04-22.md`**
 
-- 公開入会申込の事業所番号を **半角英数字10文字** に統一し、フロント/バック双方で同一バリデーションを適用
-- 事業所職員の共有メールアドレスを許容し、**完全空白の職員カードは保存対象から除外**
-- データ管理コンソールを **物理削除から論理削除へ再設計**。個人会員 / 賛助会員 / 事業所会員 / 事業所会員メンバーを検索対象に追加
-- 未デプロイ。現行本番は引き続き `v257`
+### v258（2026-04-22）— 公開入会申込の厳格化・共有メール許容・論理削除化
+
+- **公開入会申込**: 事業所番号を **半角英数字10文字** に統一し、フロント/バック双方で `^[A-Za-z0-9]{10}$` の同一バリデーションを適用
+- **事業所職員登録**: 共有メールアドレスを許容し、**完全空白の職員カードは保存対象から除外**
+- **データ管理コンソール**: **物理削除から論理削除へ再設計**。個人会員 / 賛助会員 / 事業所会員 / 事業所会員メンバーを検索対象に追加
+- **3プロジェクト同期**: 統合 GAS@256 / 会員 split GAS@9 / 管理者 split GAS@13
+- **実行系確認の残課題**: `npx clasp run healthCheck` / `getDbInfo` は今回も `Unable to run script function. Please make sure you have permission to run the script function.` で未確認
 
 ## 0. v257 本番稼働中（2026-04-21）
 
@@ -207,34 +210,35 @@
 2. `AGENTS.md`（グランドルール）
 3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`（作業プロセス正本）
-5. **`docs/127_RELEASE_STATE_v257_2026-04-21.md`** ← **最新（v257）システム設定画面の情報設計刷新**
-6. `docs/125_RELEASE_STATE_v256_2026-04-21.md`（v256: 入会完了画面の案内文・ログイン情報を設定化）
-7. `docs/119_RELEASE_STATE_v255_2026-04-21.md`（v255: 診断コード削除・本番クリーン化）
-8. `docs/118_RELEASE_STATE_v252_2026-04-21.md`（v252: 入会完了画面・ログイン情報未送信時の案内文設定化）
-9. `docs/117_RELEASE_STATE_v251_2026-04-21.md`（v251: 公開ポータル切り分け完了・3プロジェクト分離確定）
-10. `docs/116_RELEASE_STATE_v250_2026-04-20.md`（v250: 管理者 split admin shell 修正）
-11. `docs/115_RELEASE_STATE_v249_2026-04-20.md`（v249: 会員/管理者ポータル分離・管理者専用URL追加）
-12. `docs/114_RELEASE_STATE_v248_2026-04-20.md`（v248: セキュリティ是正: 会員セッショントークン・IDOR修正）
-13. `docs/108_RELEASE_STATE_v247_2026-04-20.md`（v247: 職員氏名/フリガナ入力を分割 UI に統一）
-14. `docs/107_RELEASE_STATE_v246_2026-04-19.md`（v246: 会員マイページ保存の loginId アンカー統一・旧 version 整理）
-15. `docs/106_RELEASE_STATE_v245_2026-04-19.md`（v245: 会員マイページ職員追加 UI 全面改修・バリデーション根本修正）
-16. `docs/105_RELEASE_STATE_v244_2026-04-19.md`（v244: 会員マイページ職員追加 UX 修正・git 未コミット解消）
-17. `docs/104_RELEASE_STATE_v243_2026-04-19.md`（v243: 管理者コンソール職員追加 UX 修正）
-18. `docs/103_RELEASE_STATE_v242_2026-04-19.md`（v242: batch read 最適化 + v239〜v241 本番反映）
-19. `docs/102_RELEASE_STATE_v241_2026-04-19.md`（v241: 単一運用URLを正本化）
-20. `docs/101_RELEASE_STATE_v240_2026-04-19.md`（v240: 管理者セッション識別子分離・管理権限即時反映）
-21. `docs/100_RELEASE_STATE_v239_2026-04-19.md`（v239: 事業所職員メール必須化・空行許容・メール欄拡張）
-22. `docs/99_RELEASE_STATE_v238_2026-04-19.md`（v236〜v238: 再活性化パターン・転籍検索・修復API）
-23. `docs/98_RELEASE_STATE_v235_2026-04-18.md`（v232〜v235: 物理削除・重複修正・セッション設計刷新）
-24. `docs/94_RELEASE_STATE_v231_2026-04-17.md`（v231: 郵便番号標準化 + 年会費連続年度表示）
-25. `docs/92_RELEASE_STATE_v229_2026-04-17.md`（v229: 年会費表示修正）
-26. `docs/91_RELEASE_STATE_v228_2026-04-17.md`（v228: 公開入会申込 完了画面 + 住所改善）
-27. `docs/90_RELEASE_STATE_v227_2026-04-17.md`（v227: 公開ポータル文言設定）
-28. `docs/79_HANDOVER_2026-04-15.md` ← 機能一覧・運用・落とし穴まとめ（v208 時点、現在も有効）
-29. `docs/09_DEPLOYMENT_POLICY.md`（デプロイ標準・**`clasp deploy` 全面禁止**の根拠）
-30. `docs/05_AUTH_AND_ROLE_SPEC.md`
-31. `docs/04_DB_OPERATION_RUNBOOK.md`
-32. `docs/03_DATA_MODEL.md`（スキーマ）
+5. **`docs/129_RELEASE_STATE_v258_2026-04-22.md`** ← **最新（v258）公開入会申込の厳格化・共有メール許容・論理削除化**
+6. `docs/127_RELEASE_STATE_v257_2026-04-21.md`（v257: システム設定画面の情報設計刷新）
+7. `docs/125_RELEASE_STATE_v256_2026-04-21.md`（v256: 入会完了画面の案内文・ログイン情報を設定化）
+8. `docs/119_RELEASE_STATE_v255_2026-04-21.md`（v255: 診断コード削除・本番クリーン化）
+9. `docs/118_RELEASE_STATE_v252_2026-04-21.md`（v252: 入会完了画面・ログイン情報未送信時の案内文設定化）
+10. `docs/117_RELEASE_STATE_v251_2026-04-21.md`（v251: 公開ポータル切り分け完了・3プロジェクト分離確定）
+11. `docs/116_RELEASE_STATE_v250_2026-04-20.md`（v250: 管理者 split admin shell 修正）
+12. `docs/115_RELEASE_STATE_v249_2026-04-20.md`（v249: 会員/管理者ポータル分離・管理者専用URL追加）
+13. `docs/114_RELEASE_STATE_v248_2026-04-20.md`（v248: セキュリティ是正: 会員セッショントークン・IDOR修正）
+14. `docs/108_RELEASE_STATE_v247_2026-04-20.md`（v247: 職員氏名/フリガナ入力を分割 UI に統一）
+15. `docs/107_RELEASE_STATE_v246_2026-04-19.md`（v246: 会員マイページ保存の loginId アンカー統一・旧 version 整理）
+16. `docs/106_RELEASE_STATE_v245_2026-04-19.md`（v245: 会員マイページ職員追加 UI 全面改修・バリデーション根本修正）
+17. `docs/105_RELEASE_STATE_v244_2026-04-19.md`（v244: 会員マイページ職員追加 UX 修正・git 未コミット解消）
+18. `docs/104_RELEASE_STATE_v243_2026-04-19.md`（v243: 管理者コンソール職員追加 UX 修正）
+19. `docs/103_RELEASE_STATE_v242_2026-04-19.md`（v242: batch read 最適化 + v239〜v241 本番反映）
+20. `docs/102_RELEASE_STATE_v241_2026-04-19.md`（v241: 単一運用URLを正本化）
+21. `docs/101_RELEASE_STATE_v240_2026-04-19.md`（v240: 管理者セッション識別子分離・管理権限即時反映）
+22. `docs/100_RELEASE_STATE_v239_2026-04-19.md`（v239: 事業所職員メール必須化・空行許容・メール欄拡張）
+23. `docs/99_RELEASE_STATE_v238_2026-04-19.md`（v236〜v238: 再活性化パターン・転籍検索・修復API）
+24. `docs/98_RELEASE_STATE_v235_2026-04-18.md`（v232〜v235: 物理削除・重複修正・セッション設計刷新）
+25. `docs/94_RELEASE_STATE_v231_2026-04-17.md`（v231: 郵便番号標準化 + 年会費連続年度表示）
+26. `docs/92_RELEASE_STATE_v229_2026-04-17.md`（v229: 年会費表示修正）
+27. `docs/91_RELEASE_STATE_v228_2026-04-17.md`（v228: 公開入会申込 完了画面 + 住所改善）
+28. `docs/90_RELEASE_STATE_v227_2026-04-17.md`（v227: 公開ポータル文言設定）
+29. `docs/79_HANDOVER_2026-04-15.md` ← 機能一覧・運用・落とし穴まとめ（v208 時点、現在も有効）
+30. `docs/09_DEPLOYMENT_POLICY.md`（デプロイ標準・**`clasp deploy` 全面禁止**の根拠）
+31. `docs/05_AUTH_AND_ROLE_SPEC.md`
+32. `docs/04_DB_OPERATION_RUNBOOK.md`
+33. `docs/03_DATA_MODEL.md`（スキーマ）
 - v225〜v226 記録: `docs/88_RELEASE_STATE_v225_2026-04-17.md` / `docs/89_RELEASE_STATE_v226_2026-04-17.md`
 - v209〜v224 記録: `docs/80〜87_RELEASE_STATE_*`
 - v197〜v208 記録: `docs/75〜79_*` または `docs/archive/release_history/`
@@ -249,7 +253,7 @@
 
 ## 3. 現在の本番状態
 - ブランチ運用の基準は `main`。
-- fixed deployment は、統合（公開）2本が `@255`、会員 split が `@8`、管理者 split が `@12` を向いている。差異が出た場合はセクション 6 の runtime 確認結果を優先する。
+- fixed deployment は、統合（公開）2本が `@256`、会員 split が `@9`、管理者 split が `@13` を向いている。差異が出た場合はセクション 6 の runtime 確認結果を優先する。
 - **URL 体系（v251〜確定・3プロジェクト分離完了）**:
 
   | 用途 | プロジェクト | Deployment ID | URL | アクセス制御 |
@@ -270,6 +274,7 @@
 - **公開ポータル文言設定**: `T_システム設定` の `PUBLIC_PORTAL_*` キーで、トップ補助ラベル・トップ見出し・トップ説明文・入会カードの補助ラベル/見出し/説明文/CTA を管理。管理者画面から表示ON/OFFと文言変更が可能。
 - **v256 反映済み（2026-04-21）**: `docs/124_TASK_PUBLIC_PORTAL_COMPLETION_CONTENT_SETTINGS_2026-04-21.md`。入会申込完了画面の「今後のご案内」「ログイン情報」ブロックについて、表示/非表示と本文をシステム設定から変更可能にした。新規キーは `PUBLIC_PORTAL_COMPLETION_GUIDANCE_*` / `PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BLOCK_VISIBLE` / `PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BODY_*`。fixed deployment は統合 `@254`、会員 split `@7`、管理者 split `@11` へ同期済み。
 - **v257 反映済み（2026-04-21）**: `docs/126_TASK_ADMIN_SETTINGS_INFORMATION_ARCHITECTURE_2026-04-21.md`。管理者のシステム設定画面を、概要ヘッダ + クイックジャンプ + 5セクション（基本設定 / 帳票・一括メール / 公開ポータル / 入会通知メール / 事業所個別上限）へ再編。`details/summary` ベースのアコーディオンに統一し、sticky 保存バーへ刷新した。fixed deployment は統合 `@255`、会員 split `@8`、管理者 split `@12` へ同期済み。
+- **v258 反映済み（2026-04-22）**: `docs/128_TASK_PUBLIC_APPLICATION_VALIDATION_AND_LOGICAL_DELETE_2026-04-22.md`。公開入会申込の事業所番号を半角英数字10文字に統一し、事業所職員の共有メールアドレスを許容、完全空白の職員カードを非存在として扱うよう調整した。データ管理コンソールは物理削除を廃止して論理削除へ再設計し、個人会員 / 賛助会員 / 事業所会員 / 事業所会員メンバーを検索対象に追加した。fixed deployment は統合 `@256`、会員 split `@9`、管理者 split `@13` へ同期済み。
 - **設定保存**: `getSystemSettingMap_` + `batchUpsertSystemSettings_` による 1 パス処理（旧 N+1 解消済み）。
 - **セイ・メイ入力**: 入力中は全文字許可。保存時に全角カナ・ひらがな → 半角カナへ自動変換（v220〜）。
 - **年度集計**: ダッシュボードのカード数値はフロントエンドが `memberRows` から再計算（バックエンドの `individualCount` 等は UI 未使用）。
@@ -322,7 +327,7 @@ v195〜v208 の詳細は `docs/79_HANDOVER_2026-04-15.md` または `docs/archiv
 
 ## 5. 現時点の注意事項（2026-04-20 更新）
 
-- **fixed deployment（v257〜）**: 統合（公開）2本 `@255`、会員 split `@8`、管理者 split `@12`。再開時は各プロジェクトで `npx clasp deployments --json` を実測確認する。
+- **fixed deployment（v258〜）**: 統合（公開）2本 `@256`、会員 split `@9`、管理者 split `@13`。再開時は各プロジェクトで `npx clasp deployments --json` を実測確認する。
 - **Apps Script version 保持数**: 統合プロジェクトは `227`〜`253`、会員 split は version 1〜6、管理者 split は version 1〜10。正確な保持件数は Apps Script Project History を実測確認する。
 - **3プロジェクト分離完了（v251〜）**: `doGet` が `ScriptApp.getScriptId()` でプロジェクト識別。URL パラメータ不要・不使用。各プロジェクトは自身の用途のみ配信。
 - **`MEMBER_PORTAL_URL`（v251〜）**: 会員専用 split プロジェクト URL (`AKfycbxd.../exec`) を正本とする。認証情報メールに記載される URL が変更済み。
@@ -354,11 +359,11 @@ npx clasp run healthCheck
 npx clasp run getDbInfo
 ```
 
-**期待値（v257 時点）:**
+**期待値（v258 時点）:**
 - authorized user: `k.noguchi@hcm-n.org`
-- 統合（公開）固定 deployment 2 本が `@254`（versionNumber: 254）
-- 会員 split deployment が `@7`（versionNumber: 7）
-- 管理者 split deployment が `@11`（versionNumber: 11）
+- 統合（公開）固定 deployment 2 本が `@256`（versionNumber: 256）
+- 会員 split deployment が `@9`（versionNumber: 9）
+- 管理者 split deployment が `@13`（versionNumber: 13）
 - `npx clasp run healthCheck` / `getDbInfo` は、認証状態によっては `Unable to run script function. Please make sure you have permission to run the script function.` で失敗し得る。失敗時は認証状態を再点検する。
 
 **⚠️ `clasp run` が "Unable to run script function" で失敗する場合:**
@@ -367,18 +372,19 @@ npx clasp login --creds .tmp/oauth-client-hcmn-member-system-prod.json --use-pro
 ```
 ブラウザ認証後、リダイレクト URL の `code=` 値をターミナルにペーストする。
 
-2026-04-21 確認結果（v256 リリース後）:
+2026-04-22 確認結果（v258 リリース後）:
 - `npx clasp show-authorized-user` → `k.noguchi@hcm-n.org` ✅
-- 統合（公開）`npx clasp deployments` → `AKfycbyw... @254` / `AKfycbxy... @254` ✅
-- 会員 split `npx clasp deployments` → `AKfycbxd... @7` ✅
-- 管理者 split `npx clasp deployments` → `AKfycbwS... @11` ✅
+- 統合（公開）`npx clasp deployments` → `AKfycbyw... @256` / `AKfycbxy... @256` ✅
+- 会員 split `npx clasp deployments` → `AKfycbxd... @9` ✅
+- 管理者 split `npx clasp deployments` → `AKfycbwS... @13` ✅
 - `npm run build:gas` ✅ / `npm run build:gas:member` ✅ / `npm run build:gas:admin` ✅
+- `npx clasp run healthCheck` / `npx clasp run getDbInfo` → `Unable to run script function. Please make sure you have permission to run the script function.` で未確認
 - 実ブラウザ確認 → 操作者側で実施すること（確認ポイントは docs/117 参照）
 
 ## 7. 次担当者の最初の一手
 
 1. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md` の「作業開始チェック」を実施する。
-2. セクション 6 の再開時チェックを実行し、統合（公開）2本 `@254`・会員 split `@7`・管理者 split `@11` を実測確認する。
+2. セクション 6 の再開時チェックを実行し、統合（公開）2本 `@256`・会員 split `@9`・管理者 split `@13` を実測確認する。
 3. **`clasp run` が失敗する場合**: 上記 `clasp login --creds` コマンドで project-scoped OAuth を再取得する。
 4. **管理者ポータルの実ブラウザ確認**（v250 後未実施）:
    - admin split URL（`AKfycbwS.../exec`）に `k.noguchi@hcm-n.org` でアクセス
