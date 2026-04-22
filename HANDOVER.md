@@ -1,17 +1,20 @@
 # 開発引継ぎ
 
 更新日: 2026-04-22
-現行本番: `v258`（統合プロジェクト GAS version 256 / 会員 split GAS version 9 / 管理者 split GAS version 13）
-固定 deployment: 統合（公開ポータル）`@256` × 2本 / 会員 split `@9` / 管理者 split `@13`
+現行本番: `v259`（統合プロジェクト GAS version 257 / 会員 split GAS version 10 / 管理者 split GAS version 14）
+固定 deployment: 統合（公開ポータル）`@257` × 2本 / 会員 split `@10` / 管理者 split `@14`
 
-## 0. 2026-04-22 ローカル作業中
+## 0. v259 本番稼働中（2026-04-22）
 
-**作業記録: `docs/130_TASK_CREDENTIAL_EMAIL_FROM_ALIAS_SELECTION_2026-04-22.md`**
+**詳細リリース記録: `docs/131_RELEASE_STATE_v259_2026-04-22.md`**
 
-- システム設定「入会通知メール」に **送信元メールアドレス** の選択欄を追加
-- 送信元は **主メールアドレス + Gmail send-as alias** から選択可能
-- `T_システム設定.CREDENTIAL_EMAIL_FROM` を新設し、**保存時・送信時の両方で backend が alias 妥当性を検証**
-- 未デプロイ。現行本番は引き続き `v258`
+### v259（2026-04-22）— 入会通知メールの送信元アドレスを設定化
+
+- **システム設定追加**: 「入会通知メール」に **送信元メールアドレス** の選択欄を追加
+- **選択肢制御**: 実行アカウントの **主メールアドレス + Gmail send-as alias** のみ選択可能
+- **二重検証**: `T_システム設定.CREDENTIAL_EMAIL_FROM` を新設し、**保存時・送信時の両方で backend が alias 妥当性を検証**
+- **3プロジェクト同期**: 統合 GAS@257 / 会員 split GAS@10 / 管理者 split GAS@14
+- **実行系確認の残課題**: `npx clasp run healthCheck` / `getDbInfo` は今回も 3 プロジェクトとも `Unable to run script function. Please make sure you have permission to run the script function.` で未確認
 
 ## 0. v258 本番稼働中（2026-04-22）
 

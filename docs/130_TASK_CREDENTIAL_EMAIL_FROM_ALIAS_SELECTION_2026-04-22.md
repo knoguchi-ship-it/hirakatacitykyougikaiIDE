@@ -1,7 +1,7 @@
 # 入会通知メール 送信元アドレス設定・エイリアス選択タスク
 
 最終更新: 2026-04-22
-状態: ローカル実装済み / 未デプロイ
+状態: 本番反映済み（v259）
 
 ## 1. 背景
 
@@ -48,10 +48,26 @@
   - `docs/03_DATA_MODEL.md`
   - `docs/05_AUTH_AND_ROLE_SPEC.md`
 
-## 5. 未実施
+## 5. 本番反映
 
-- `npm run typecheck`
-- `npm run build`
-- `npm run build:gas`
-- 操作者による実ブラウザ確認
-- Apps Script への push / version / redeploy
+- 統合（公開専用）Apps Script version: `257`
+- 会員 split Apps Script version: `10`
+- 管理者 split Apps Script version: `14`
+- fixed deployment:
+  - 統合（公開）`AKfycbyw...` -> `@257`
+  - 統合（公開）`AKfycbxy...` -> `@257`
+  - 会員 split `AKfycbxd...` -> `@10`
+  - 管理者 split `AKfycbwS...` -> `@14`
+
+## 6. 検証
+
+- `npm run typecheck` ✅
+- `npm run build` ✅
+- `npm run build:gas` ✅
+- `npm run build:gas:member` ✅
+- `npm run build:gas:admin` ✅
+- `npx clasp deployments --json` ✅
+- `cd gas/member && npx clasp deployments --json` ✅
+- `cd gas/admin && npx clasp deployments --json` ✅
+- `npx clasp run healthCheck` / `getDbInfo` ⚠️ 3プロジェクトとも `Unable to run script function. Please make sure you have permission to run the script function.`
+- 実ブラウザ確認は操作者側で未実施
