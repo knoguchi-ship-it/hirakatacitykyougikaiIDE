@@ -8,20 +8,56 @@ const MEMBER_TYPE_LABEL: Record<string, string> = {
   BUSINESS: '事業所会員',
   SUPPORT: '賛助会員',
 };
-const STATUS_LABEL: Record<string, string> = {
+const MEMBER_STATUS_LABEL: Record<string, string> = {
   ACTIVE: '有効',
   WITHDRAWAL_SCHEDULED: '退会予定',
   WITHDRAWN: '退会済',
 };
+const STAFF_STATUS_LABEL: Record<string, string> = {
+  ENROLLED: '在籍',
+  LEFT: '退職',
+};
+const STAFF_ROLE_LABEL: Record<string, string> = {
+  REPRESENTATIVE: '代表者',
+  ADMIN: '管理者',
+  STAFF: 'メンバー',
+};
 const TABLE_LABEL: Record<string, string> = {
-  'T_会員': '会員',
-  'T_事業所職員': '事業所職員',
+  'T_会員': '会員レコード',
+  'T_事業所職員': '事業所職員レコード',
   'T_認証アカウント': '認証アカウント',
+  'T_管理者Googleホワイトリスト': '管理者ホワイトリスト',
   'T_ログイン履歴': 'ログイン履歴',
   'T_年会費納入履歴': '年会費納入履歴',
   'T_年会費更新履歴': '年会費更新履歴',
   'T_研修申込': '研修申込',
-  'T_管理者Googleホワイトリスト': '管理者ホワイトリスト',
+};
+
+const UPDATED_TABLE_ORDER = [
+  'T_会員',
+  'T_事業所職員',
+  'T_認証アカウント',
+  'T_管理者Googleホワイトリスト',
+];
+const RETAINED_TABLE_ORDER = [
+  'T_ログイン履歴',
+  'T_年会費納入履歴',
+  'T_年会費更新履歴',
+  'T_研修申込',
+];
+
+const renderTargetMeta = (target: MemberDeleteSearchResult | MemberDeletePreview['targets'][number]) => {
+  if (target.targetKind === 'STAFF') {
+    return [
+      '事業所会員メンバー',
+      STAFF_ROLE_LABEL[target.staffRole || 'STAFF'] || target.staffRole || 'メンバー',
+      STAFF_STATUS_LABEL[target.staffStatus || 'ENROLLED'] || target.staffStatus || '在籍',
+    ].join('・');
+  }
+  return [
+    MEMBER_TYPE_LABEL[target.memberType] || target.memberType,
+    MEMBER_STATUS_LABEL[target.memberStatus] || target.memberStatus,
+  ].join('・');
 };
 
 const MemberDeleteConsole: React.FC = () => {
@@ -31,7 +67,7 @@ const MemberDeleteConsole: React.FC = () => {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
 
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [preview, setPreview] = useState<MemberDeletePreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -61,7 +97,7 @@ const MemberDeleteConsole: React.FC = () => {
     if (!query.trim()) return;
     setSearchLoading(true);
     setSearchError(null);
-    setSelectedIds(new Set());
+    setSelectedKeys(new Set());
     try {
       const results = await api.searchMembersForDelete(query.trim());
       setSearchResults(results);
@@ -72,25 +108,25 @@ const MemberDeleteConsole: React.FC = () => {
     }
   }, [query]);
 
-  const toggleSelect = (id: string) => {
-    setSelectedIds(prev => {
+  const toggleSelect = (targetKey: string) => {
+    setSelectedKeys(prev => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
+      if (next.has(targetKey)) {
+        next.delete(targetKey);
       } else {
         if (next.size >= 10) return prev;
-        next.add(id);
+        next.add(targetKey);
       }
       return next;
     });
   };
 
   const handlePreview = async () => {
-    if (selectedIds.size === 0) return;
+    if (selectedKeys.size === 0) return;
     setPreviewLoading(true);
     setPreviewError(null);
     try {
-      const result = await api.previewDeleteMember(Array.from(selectedIds));
+      const result = await api.previewDeleteMember(Array.from(selectedKeys));
       setPreview(result);
       setStep('preview');
     } catch (e: any) {
@@ -101,15 +137,15 @@ const MemberDeleteConsole: React.FC = () => {
   };
 
   const handleExecute = async () => {
-    if (confirmText !== '物理削除' || !preview) return;
+    if (confirmText !== '論理削除' || !preview) return;
     setExecuting(true);
     setExecError(null);
     try {
-      const result = await api.executeDeleteMember(Array.from(selectedIds), confirmText);
-      setExecResult({ logId: result.logId, count: result.deletedMemberIds.length });
+      const result = await api.executeDeleteMember(Array.from(selectedKeys), confirmText);
+      setExecResult({ logId: result.logId, count: result.archivedTargetKeys.length });
       setStep('done');
     } catch (e: any) {
-      setExecError(e.message || '削除に失敗しました');
+      setExecError(e.message || '論理削除に失敗しました');
     } finally {
       setExecuting(false);
     }
@@ -119,7 +155,7 @@ const MemberDeleteConsole: React.FC = () => {
     setStep('search');
     setQuery('');
     setSearchResults([]);
-    setSelectedIds(new Set());
+    setSelectedKeys(new Set());
     setPreview(null);
     setConfirmText('');
     setExecResult(null);
@@ -177,34 +213,44 @@ const MemberDeleteConsole: React.FC = () => {
       const result = await api.getDeleteLogs(20);
       setLogs(result);
       setLogsLoaded(true);
-    } catch (e: any) {
-      setLogsLoaded(true);
     } finally {
       setLogsLoading(false);
     }
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
-      {/* ヘッダー */}
-      <div className="bg-red-50 border border-red-300 rounded-lg p-4">
-        <h2 className="text-xl font-bold text-red-800">データ管理コンソール（物理削除）</h2>
-        <p className="text-sm text-red-700 mt-1">
-          MASTER権限専用。対象アカウントに紐づく全データを不可逆的に物理削除します。
-          削除前スナップショットは T_削除ログ に保存されます。
+    <div className="p-6 max-w-5xl mx-auto space-y-6">
+      <div className="bg-amber-50 border border-amber-300 rounded-2xl p-5 space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+            MASTER専用
+          </span>
+          <span className="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-600 border border-amber-200">
+            物理削除は使用しません
+          </span>
+        </div>
+        <h2 className="text-xl font-bold text-slate-900">データ管理コンソール（論理削除）</h2>
+        <p className="text-sm leading-6 text-slate-700">
+          個人会員、賛助会員、事業所会員、事業所会員メンバーを検索し、
+          <strong className="mx-1 text-slate-900">退会・退職 + 削除フラグ + 認証無効化</strong>
+          を一括で実行します。履歴テーブルは保持し、`T_削除ログ` に操作前スナップショットを残します。
         </p>
       </div>
 
-      {/* STEP 1: 検索 */}
       {step === 'search' && (
-        <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-4">
-          <h3 className="font-semibold text-slate-700">Step 1: 削除対象アカウントを検索</h3>
-          <p className="text-xs text-slate-500">会員ID・氏名・ログインIDで検索（部分一致）</p>
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm">
+          <div className="space-y-1">
+            <h3 className="font-semibold text-slate-900">Step 1: 論理削除対象を検索</h3>
+            <p className="text-xs text-slate-500">
+              会員ID、職員ID、氏名、事業所名、ログインID、メールアドレス、事業所番号で部分一致検索します。
+            </p>
+          </div>
+
           <div className="flex gap-2">
             <input
               type="text"
-              className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm"
-              placeholder="例: demo-ind-001 / 野口 / 山田"
+              className="flex-1 border border-slate-300 rounded-xl px-4 py-2.5 text-sm"
+              placeholder="例: 2770100001 / 山田 / ひらかた / demo-ind-001"
               value={query}
               onChange={e => setQuery(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSearch()}
@@ -213,7 +259,7 @@ const MemberDeleteConsole: React.FC = () => {
               type="button"
               onClick={handleSearch}
               disabled={searchLoading || !query.trim()}
-              className="px-4 py-2 bg-slate-700 text-white text-sm rounded hover:bg-slate-800 disabled:opacity-50"
+              className="px-4 py-2.5 bg-slate-900 text-white text-sm rounded-xl hover:bg-slate-800 disabled:opacity-50"
             >
               {searchLoading ? '検索中...' : '検索'}
             </button>
@@ -222,51 +268,61 @@ const MemberDeleteConsole: React.FC = () => {
           {searchError && <p className="text-sm text-red-600">{searchError}</p>}
 
           {searchResults.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs text-slate-500">
-                {searchResults.length} 件見つかりました。削除する対象をチェック（最大10件）。
-              </p>
-              <div className="border border-slate-200 rounded divide-y divide-slate-100 max-h-72 overflow-y-auto">
-                {searchResults.map(r => (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <p className="text-slate-600">{searchResults.length} 件見つかりました。最大10件まで選択できます。</p>
+                <p className="text-xs text-slate-400">選択数: {selectedKeys.size} / 10</p>
+              </div>
+              <div className="space-y-2 max-h-[28rem] overflow-y-auto pr-1">
+                {searchResults.map(result => (
                   <label
-                    key={r.memberId}
-                    className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 ${
-                      selectedIds.has(r.memberId) ? 'bg-red-50' : ''
+                    key={result.targetKey}
+                    className={`block cursor-pointer rounded-2xl border px-4 py-3 transition ${
+                      selectedKeys.has(result.targetKey)
+                        ? 'border-amber-400 bg-amber-50 shadow-sm'
+                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
                     }`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(r.memberId)}
-                      onChange={() => toggleSelect(r.memberId)}
-                      disabled={!selectedIds.has(r.memberId) && selectedIds.size >= 10}
-                      className="accent-red-600"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <span className="font-medium text-sm text-slate-800">{r.displayName}</span>
-                      <span className="ml-2 text-xs text-slate-500">
-                        {MEMBER_TYPE_LABEL[r.memberType] || r.memberType}・
-                        {STATUS_LABEL[r.memberStatus] || r.memberStatus}
-                      </span>
-                      {r.isDeleted && <span className="ml-2 text-xs bg-slate-200 text-slate-600 rounded px-1">削除フラグON</span>}
-                    </div>
-                    <div className="text-xs text-slate-400 shrink-0">
-                      <div>{r.memberId}</div>
-                      {r.loginId && <div>ID: {r.loginId}</div>}
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedKeys.has(result.targetKey)}
+                        onChange={() => toggleSelect(result.targetKey)}
+                        disabled={!selectedKeys.has(result.targetKey) && selectedKeys.size >= 10}
+                        className="mt-1 accent-amber-600"
+                      />
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium text-slate-900">{result.displayName}</span>
+                          <span className="text-xs text-slate-500">{renderTargetMeta(result)}</span>
+                          {result.isDeleted && (
+                            <span className="inline-flex items-center rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                              削除フラグON
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                          <span>キー: {result.targetKey}</span>
+                          <span>会員ID: {result.memberId}</span>
+                          {result.staffId && <span>職員ID: {result.staffId}</span>}
+                          {result.loginId && <span>ログインID: {result.loginId}</span>}
+                        </div>
+                      </div>
                     </div>
                   </label>
                 ))}
               </div>
 
-              {selectedIds.size > 0 && (
+              {selectedKeys.size > 0 && (
                 <div className="flex items-center justify-between pt-2">
-                  <span className="text-sm text-slate-600">{selectedIds.size} 件選択中</span>
+                  <p className="text-sm text-slate-600">選択した対象の更新件数と保持履歴を確認します。</p>
                   <button
                     type="button"
                     onClick={handlePreview}
                     disabled={previewLoading}
-                    className="px-4 py-2 bg-orange-600 text-white text-sm rounded hover:bg-orange-700 disabled:opacity-50"
+                    className="px-4 py-2.5 bg-amber-600 text-white text-sm rounded-xl hover:bg-amber-700 disabled:opacity-50"
                   >
-                    {previewLoading ? '確認中...' : '削除プレビューを確認 →'}
+                    {previewLoading ? '確認中...' : '影響を確認する'}
                   </button>
                 </div>
               )}
@@ -275,101 +331,125 @@ const MemberDeleteConsole: React.FC = () => {
           )}
 
           {searchResults.length === 0 && !searchLoading && query && (
-            <p className="text-sm text-slate-500">該当するアカウントが見つかりませんでした。</p>
+            <p className="text-sm text-slate-500">該当する対象が見つかりませんでした。</p>
           )}
         </div>
       )}
 
-      {/* STEP 2: プレビュー */}
       {step === 'preview' && preview && (
-        <div className="bg-white border border-orange-300 rounded-lg p-5 space-y-4">
-          <h3 className="font-semibold text-slate-700">Step 2: 削除プレビュー</h3>
-          <p className="text-sm text-orange-700">
-            以下のデータが <strong>物理削除（復元不可）</strong> されます。
-            削除前にスナップショットが T_削除ログ に保存されます。
-          </p>
-
-          {/* 対象アカウント */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-5 shadow-sm">
           <div className="space-y-1">
-            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">削除対象アカウント</p>
-            {preview.targets.map(t => (
-              <div key={t.memberId} className="flex gap-2 text-sm">
-                <span className="font-medium text-slate-800">{t.displayName}</span>
-                <span className="text-slate-500">{MEMBER_TYPE_LABEL[t.memberType] || t.memberType}</span>
-                <span className="text-slate-400">{t.memberId}</span>
+            <h3 className="font-semibold text-slate-900">Step 2: 論理削除プレビュー</h3>
+            <p className="text-sm text-slate-600">
+              更新対象 {preview.totalUpdatedRows} 件、関連履歴 {Object.values(preview.retainedCounts).reduce<number>((sum, value) => sum + Number(value || 0), 0)} 件を確認します。
+              関連履歴は削除せず保持します。
+            </p>
+          </div>
+
+          <div className="grid gap-3">
+            {preview.targets.map(target => (
+              <div key={target.targetKey} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-slate-900">{target.displayName}</span>
+                  <span className="text-xs text-slate-500">{renderTargetMeta(target)}</span>
+                </div>
+                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                  <span>キー: {target.targetKey}</span>
+                  <span>会員ID: {target.memberId}</span>
+                  {target.staffId && <span>職員ID: {target.staffId}</span>}
+                  {target.loginId && <span>ログインID: {target.loginId}</span>}
+                </div>
               </div>
             ))}
           </div>
 
-          {/* 削除件数テーブル */}
-          <div className="border border-slate-200 rounded overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="text-left px-3 py-2 text-slate-600 font-medium">テーブル</th>
-                  <th className="text-right px-3 py-2 text-slate-600 font-medium">削除行数</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {Object.entries(preview.counts).map(([table, countVal]) => {
-                  const count = countVal as number;
-                  return (
-                    <tr key={table} className={count > 0 ? 'bg-white' : 'bg-slate-50 opacity-60'}>
-                      <td className="px-3 py-2 text-slate-700">{TABLE_LABEL[table] || table}</td>
-                      <td className="px-3 py-2 text-right font-mono">
-                        <span className={count > 0 ? 'text-red-700 font-semibold' : 'text-slate-400'}>
-                          {count} 件
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-                <tr className="bg-red-50 font-semibold">
-                  <td className="px-3 py-2 text-red-800">合計</td>
-                  <td className="px-3 py-2 text-right font-mono text-red-800">{preview.totalRows} 件</td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+              <h4 className="font-semibold text-amber-900">更新されるレコード</h4>
+              <table className="w-full text-sm">
+                <tbody className="divide-y divide-amber-100">
+                  {UPDATED_TABLE_ORDER.map(table => {
+                    const count = preview.counts[table] || 0;
+                    return (
+                      <tr key={table}>
+                        <td className="py-2 text-slate-700">{TABLE_LABEL[table] || table}</td>
+                        <td className="py-2 text-right font-mono text-amber-900">{count}</td>
+                      </tr>
+                    );
+                  })}
+                  <tr className="font-semibold">
+                    <td className="py-2 text-amber-900">合計</td>
+                    <td className="py-2 text-right font-mono text-amber-900">{preview.totalUpdatedRows}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+              <h4 className="font-semibold text-slate-900">保持される関連履歴</h4>
+              <table className="w-full text-sm">
+                <tbody className="divide-y divide-slate-200">
+                  {RETAINED_TABLE_ORDER.map(table => {
+                    const count = preview.retainedCounts[table] || 0;
+                    return (
+                      <tr key={table}>
+                        <td className="py-2 text-slate-700">{TABLE_LABEL[table] || table}</td>
+                        <td className="py-2 text-right font-mono text-slate-700">{count}</td>
+                      </tr>
+                    );
+                  })}
+                  <tr className="font-semibold">
+                    <td className="py-2 text-slate-900">総影響件数</td>
+                    <td className="py-2 text-right font-mono text-slate-900">{preview.totalRows}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
-          <div className="flex gap-3 pt-2">
+          <div className="flex gap-3 pt-1">
             <button
               type="button"
               onClick={() => setStep('search')}
-              className="px-4 py-2 border border-slate-300 text-slate-600 text-sm rounded hover:bg-slate-50"
+              className="px-4 py-2.5 border border-slate-300 text-slate-700 text-sm rounded-xl hover:bg-slate-50"
             >
-              ← 検索に戻る
+              検索に戻る
             </button>
             <button
               type="button"
               onClick={() => setStep('confirm')}
-              className="px-4 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+              className="px-4 py-2.5 bg-slate-900 text-white text-sm rounded-xl hover:bg-slate-800"
             >
-              削除確認へ進む →
+              最終確認へ進む
             </button>
           </div>
         </div>
       )}
 
-      {/* STEP 3: 確認 */}
       {step === 'confirm' && preview && (
-        <div className="bg-white border border-red-400 rounded-lg p-5 space-y-4">
-          <h3 className="font-semibold text-red-800">Step 3: 最終確認</h3>
-          <div className="bg-red-50 rounded p-3 text-sm text-red-800 space-y-1">
-            <p>・この操作は <strong>取り消せません</strong>。</p>
-            <p>・削除されたデータは T_削除ログ のスナップショットからのみ手動復元できます。</p>
-            <p>・対象: <strong>{preview.targets.map(t => t.displayName).join('、')}</strong> （計{preview.targets.length}件）</p>
-            <p>・削除行合計: <strong>{preview.totalRows} 行</strong></p>
+        <div className="bg-white border border-red-300 rounded-2xl p-5 space-y-4 shadow-sm">
+          <div className="space-y-1">
+            <h3 className="font-semibold text-red-800">Step 3: 最終確認</h3>
+            <p className="text-sm text-red-700">
+              対象を即時に退会・退職扱いへ更新し、認証を無効化します。履歴は保持されますが、通常画面からは除外されます。
+            </p>
+          </div>
+
+          <div className="rounded-2xl bg-red-50 border border-red-200 p-4 text-sm text-red-800 space-y-1">
+            <p>・物理削除は行いません。</p>
+            <p>・代表者職員は単体では論理削除できません。必要な場合は事業所会員全体を対象にしてください。</p>
+            <p>・対象: <strong>{preview.targets.map(target => target.displayName).join('、')}</strong></p>
+            <p>・更新レコード合計: <strong>{preview.totalUpdatedRows} 件</strong></p>
           </div>
 
           <div className="space-y-2">
             <label className="block text-sm font-medium text-slate-700">
-              実行するには下のテキストボックスに <code className="bg-red-100 text-red-800 px-1 rounded">物理削除</code> と入力してください。
+              実行するには <code className="bg-red-100 text-red-800 px-1.5 py-0.5 rounded">論理削除</code> と入力してください。
             </label>
             <input
               type="text"
-              className="w-full border border-red-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-              placeholder="物理削除"
+              className="w-full border border-red-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+              placeholder="論理削除"
               value={confirmText}
               onChange={e => setConfirmText(e.target.value)}
               autoComplete="off"
@@ -378,47 +458,45 @@ const MemberDeleteConsole: React.FC = () => {
 
           {execError && <p className="text-sm text-red-600">{execError}</p>}
 
-          <div className="flex gap-3 pt-2">
+          <div className="flex gap-3">
             <button
               type="button"
               onClick={() => setStep('preview')}
               disabled={executing}
-              className="px-4 py-2 border border-slate-300 text-slate-600 text-sm rounded hover:bg-slate-50 disabled:opacity-50"
+              className="px-4 py-2.5 border border-slate-300 text-slate-700 text-sm rounded-xl hover:bg-slate-50 disabled:opacity-50"
             >
-              ← 戻る
+              戻る
             </button>
             <button
               type="button"
               onClick={handleExecute}
-              disabled={confirmText !== '物理削除' || executing}
-              className="px-4 py-2 bg-red-700 text-white text-sm rounded hover:bg-red-800 disabled:opacity-40 disabled:cursor-not-allowed font-semibold"
+              disabled={confirmText !== '論理削除' || executing}
+              className="px-4 py-2.5 bg-red-700 text-white text-sm rounded-xl hover:bg-red-800 disabled:opacity-40 disabled:cursor-not-allowed font-semibold"
             >
-              {executing ? '削除実行中...' : '物理削除を実行する'}
+              {executing ? '実行中...' : '論理削除を実行する'}
             </button>
           </div>
         </div>
       )}
 
-      {/* STEP 4: 完了 */}
       {step === 'done' && execResult && (
-        <div className="bg-white border border-green-300 rounded-lg p-5 space-y-4">
-          <h3 className="font-semibold text-green-800">削除完了</h3>
+        <div className="bg-white border border-green-300 rounded-2xl p-5 space-y-3 shadow-sm">
+          <h3 className="font-semibold text-green-800">論理削除完了</h3>
           <p className="text-sm text-slate-700">
-            {execResult.count} 件のアカウントとその関連データを物理削除しました。
+            {execResult.count} 件の対象に対して退会・退職と認証無効化を適用しました。
           </p>
           <p className="text-xs text-slate-500">削除ログID: {execResult.logId}</p>
           <button
             type="button"
             onClick={handleReset}
-            className="px-4 py-2 bg-slate-700 text-white text-sm rounded hover:bg-slate-800"
+            className="px-4 py-2.5 bg-slate-900 text-white text-sm rounded-xl hover:bg-slate-800"
           >
-            続けて削除する / リセット
+            続けて処理する
           </button>
         </div>
       )}
 
-      {/* 重複職員レコード修復 */}
-      <div className="bg-amber-50 border border-amber-300 rounded-lg p-5 space-y-3">
+      <div className="bg-amber-50 border border-amber-300 rounded-2xl p-5 space-y-3">
         <h3 className="font-semibold text-amber-800">データ整合性修復: 重複在籍職員レコード</h3>
         <p className="text-xs text-amber-700">
           同一介護支援専門員番号 × 同一事業所に ENROLLED 件数が 2件以上ある場合、
@@ -428,7 +506,7 @@ const MemberDeleteConsole: React.FC = () => {
           type="button"
           onClick={handleRepair}
           disabled={repairLoading}
-          className="px-4 py-2 bg-amber-600 text-white text-sm rounded hover:bg-amber-700 disabled:opacity-50"
+          className="px-4 py-2 bg-amber-600 text-white text-sm rounded-xl hover:bg-amber-700 disabled:opacity-50"
         >
           {repairLoading ? '修復中...' : '重複在籍レコードを修復する'}
         </button>
@@ -442,8 +520,7 @@ const MemberDeleteConsole: React.FC = () => {
         )}
       </div>
 
-      {/* 会員CM番号重複修復 */}
-      <div className="bg-amber-50 border border-amber-300 rounded-lg p-5 space-y-3">
+      <div className="bg-amber-50 border border-amber-300 rounded-2xl p-5 space-y-3">
         <h3 className="font-semibold text-amber-800">データ整合性修復: 会員CM番号重複（同一介護支援専門員番号に複数の有効会員）</h3>
         <p className="text-xs text-amber-700">
           同一介護支援専門員番号を持つ個人/賛助会員が複数 ACTIVE な場合、入会日が最も新しい1件を残し、それ以外を WITHDRAWN に更新します。
@@ -453,7 +530,7 @@ const MemberDeleteConsole: React.FC = () => {
           type="button"
           onClick={handleRepairCareManagerDuplicates}
           disabled={repairCmLoading}
-          className="px-4 py-2 bg-amber-600 text-white text-sm rounded hover:bg-amber-700 disabled:opacity-50"
+          className="px-4 py-2 bg-amber-600 text-white text-sm rounded-xl hover:bg-amber-700 disabled:opacity-50"
         >
           {repairCmLoading ? '修復中...' : '会員CM番号重複を修復する'}
         </button>
@@ -467,8 +544,8 @@ const MemberDeleteConsole: React.FC = () => {
             </p>
             {repairCmResult.details.length > 0 && (
               <ul className="list-disc list-inside text-xs text-amber-700 space-y-0.5">
-                {repairCmResult.details.map(d => (
-                  <li key={d.memberId}>会員ID {d.memberId}（CM# {d.careManagerNumber}）</li>
+                {repairCmResult.details.map(detail => (
+                  <li key={detail.memberId}>会員ID {detail.memberId}（CM# {detail.careManagerNumber}）</li>
                 ))}
               </ul>
             )}
@@ -476,19 +553,17 @@ const MemberDeleteConsole: React.FC = () => {
         )}
       </div>
 
-      {/* 研修申込の申込者ID修復 */}
-      <div className="bg-amber-50 border border-amber-300 rounded-lg p-5 space-y-3">
+      <div className="bg-amber-50 border border-amber-300 rounded-2xl p-5 space-y-3">
         <h3 className="font-semibold text-amber-800">データ整合性修復: 研修申込の申込者ID不整合</h3>
         <p className="text-xs text-amber-700">
-          個人会員⇔事業所会員の往復変換後に <code className="bg-amber-100 px-1 rounded">申込者ID ≠ 会員ID</code>{' '}
-          となったレコードを修復します。T_会員 に存在しない 会員ID を持つレコードは安全のため変更しません。
-          スキップ件数が残る場合は手動確認が必要です。
+          個人会員⇔事業所会員の往復変換後に <code className="bg-amber-100 px-1 rounded">申込者ID ≠ 会員ID</code> となったレコードを修復します。
+          `T_会員` に存在しない会員IDを持つレコードは安全のため変更しません。
         </p>
         <button
           type="button"
           onClick={handleRepairApplicantIds}
           disabled={repairApplyLoading}
-          className="px-4 py-2 bg-amber-600 text-white text-sm rounded hover:bg-amber-700 disabled:opacity-50"
+          className="px-4 py-2 bg-amber-600 text-white text-sm rounded-xl hover:bg-amber-700 disabled:opacity-50"
         >
           {repairApplyLoading ? '修復中...' : '研修申込の申込者IDを修復する'}
         </button>
@@ -501,23 +576,25 @@ const MemberDeleteConsole: React.FC = () => {
                 : `${repairApplyResult.repaired} 件の申込者IDを修復しました。`}
             </p>
             {repairApplyResult.skipped > 0 && (
-              <p className="text-orange-700 font-medium">
-                ⚠ {repairApplyResult.skipped} 件は会員ID が T_会員 に存在しないためスキップしました。手動確認が必要です。
+              <p className="font-medium text-orange-700">
+                {repairApplyResult.skipped} 件は会員IDが `T_会員` に存在しないためスキップしました。
               </p>
             )}
           </div>
         )}
       </div>
 
-      {/* 削除ログ */}
-      <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-3">
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3 shadow-sm">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-slate-700">削除ログ（直近20件）</h3>
+          <div>
+            <h3 className="font-semibold text-slate-900">削除ログ（直近20件）</h3>
+            <p className="text-xs text-slate-500">論理削除実行前のスナップショットから集計した影響件数を表示します。</p>
+          </div>
           <button
             type="button"
             onClick={loadLogs}
             disabled={logsLoading}
-            className="text-xs px-3 py-1 border border-slate-300 text-slate-600 rounded hover:bg-slate-50 disabled:opacity-50"
+            className="text-xs px-3 py-1.5 border border-slate-300 text-slate-600 rounded-xl hover:bg-slate-50 disabled:opacity-50"
           >
             {logsLoading ? '読込中...' : '更新'}
           </button>
@@ -530,14 +607,14 @@ const MemberDeleteConsole: React.FC = () => {
           <p className="text-xs text-slate-400">削除ログはまだありません。</p>
         )}
         {logs.length > 0 && (
-          <div className="border border-slate-200 rounded overflow-hidden">
+          <div className="border border-slate-200 rounded-2xl overflow-hidden">
             <table className="w-full text-xs">
               <thead className="bg-slate-50">
                 <tr>
                   <th className="text-left px-3 py-2 text-slate-500 font-medium">操作日時</th>
                   <th className="text-left px-3 py-2 text-slate-500 font-medium">操作者</th>
-                  <th className="text-left px-3 py-2 text-slate-500 font-medium">対象会員ID</th>
-                  <th className="text-right px-3 py-2 text-slate-500 font-medium">削除行数</th>
+                  <th className="text-left px-3 py-2 text-slate-500 font-medium">対象キー</th>
+                  <th className="text-right px-3 py-2 text-slate-500 font-medium">影響件数</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -546,9 +623,9 @@ const MemberDeleteConsole: React.FC = () => {
                     <td className="px-3 py-2 text-slate-600 font-mono whitespace-nowrap">
                       {log.operatedAt ? new Date(log.operatedAt).toLocaleString('ja-JP') : '-'}
                     </td>
-                    <td className="px-3 py-2 text-slate-600">{log.operatorEmail}</td>
-                    <td className="px-3 py-2 text-slate-600 font-mono">{log.memberIdList}</td>
-                    <td className="px-3 py-2 text-right text-slate-700 font-semibold">{log.totalDeletedRows}</td>
+                    <td className="px-3 py-2 text-slate-600">{log.operatorEmail || '-'}</td>
+                    <td className="px-3 py-2 text-slate-600 font-mono break-all">{log.memberIdList}</td>
+                    <td className="px-3 py-2 text-right text-slate-700 font-semibold">{log.totalAffectedRows}</td>
                   </tr>
                 ))}
               </tbody>

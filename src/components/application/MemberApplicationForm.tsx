@@ -42,7 +42,7 @@ function getStepLabels(type: ApplicationMemberType | ''): string[] {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CARE_MANAGER_RE = /^\d{8}$/;
 const KATAKANA_RE = /^[ァ-ヶー－・\s　]+$/u;
-const DIGITS_RE = /^\d+$/;
+const OFFICE_NUMBER_RE = /^[A-Za-z0-9]{10}$/;
 const POST_CODE_RE = /^\d{3}-\d{4}$/;
 const PHONE_RE = /^[0-9-]+$/;
 const BUSINESS_OFFICE_DEFAULTS = {
@@ -117,6 +117,21 @@ function createBusinessFormData(): ApplicationFormData {
   };
 }
 
+function isBlankBusinessStaffEntry(entry: ApplicationStaffEntry): boolean {
+  return [
+    entry.lastName,
+    entry.firstName,
+    entry.lastKana,
+    entry.firstKana,
+    entry.careManagerNumber,
+    entry.email,
+  ].every(value => !String(value || '').trim());
+}
+
+function getEffectiveBusinessStaff(staff: ApplicationStaffEntry[]): ApplicationStaffEntry[] {
+  return staff.filter(entry => !isBlankBusinessStaffEntry(entry));
+}
+
 function createIndividualFormData(): ApplicationFormData {
   return {
     ...INITIAL_FORM_DATA,
@@ -129,7 +144,12 @@ function createIndividualFormData(): ApplicationFormData {
 }
 
 function stripUnusedAddressDefaults(form: ApplicationFormData): ApplicationFormData {
-  if (form.memberType === 'BUSINESS') return form;
+  if (form.memberType === 'BUSINESS') {
+    return {
+      ...form,
+      staff: getEffectiveBusinessStaff(form.staff),
+    };
+  }
   const next = { ...form };
   const def = INDIVIDUAL_ADDRESS_DEFAULTS;
   // 勤務先: 住所行が空でデフォルト値のみなら除去
@@ -163,10 +183,10 @@ function validateKanaValue(value: string, key: string, label: string, errs: Vali
   if (!KATAKANA_RE.test(trimmed)) errs[key] = `${label}はカタカナで入力してください。`;
 }
 
-function validateDigitsValue(value: string, key: string, label: string, errs: ValidationErrors) {
+function validateOfficeNumberValue(value: string, key: string, errs: ValidationErrors) {
   const trimmed = value.trim();
   if (!trimmed) return;
-  if (!DIGITS_RE.test(trimmed)) errs[key] = `${label}は数字で入力してください。`;
+  if (!OFFICE_NUMBER_RE.test(trimmed)) errs[key] = '事業所番号は半角英数字10文字で入力してください。';
 }
 
 function validatePostCodeValue(value: string, key: string, errs: ValidationErrors) {
@@ -264,7 +284,7 @@ function validateBusinessOffice(form: ApplicationFormData, errs: ValidationError
   if (!form.officeCity.trim()) errs.officeCity = '市区町村は必須です。';
   if (!form.officeAddressLine.trim()) errs.officeAddressLine = '住所は必須です。';
   if (!form.phone.trim()) errs.phone = '電話番号は必須です。';
-  validateDigitsValue(form.officeNumber, 'officeNumber', '事業所番号', errs);
+  validateOfficeNumberValue(form.officeNumber, 'officeNumber', errs);
   validatePostCodeValue(form.officePostCode, 'officePostCode', errs);
   validatePhoneValue(form.phone, 'phone', '電話番号', errs);
   validatePhoneValue(form.fax, 'fax', 'FAX番号', errs);
@@ -272,17 +292,18 @@ function validateBusinessOffice(form: ApplicationFormData, errs: ValidationError
 }
 
 function validateBusinessStaff(form: ApplicationFormData, errs: ValidationErrors): ValidationErrors {
-  if (form.staff.length === 0) {
+  const effectiveStaff = getEffectiveBusinessStaff(form.staff);
+  if (effectiveStaff.length === 0) {
     errs._staff = '最低1名の職員登録が必要です。';
     return errs;
   }
-  const repCount = form.staff.filter(s => s.role === 'REPRESENTATIVE').length;
+  const repCount = effectiveStaff.filter(s => s.role === 'REPRESENTATIVE').length;
   if (repCount === 0) errs._staffRep = '代表者は必ず1名登録してください。';
   if (repCount > 1) errs._staffRep = '代表者は1名のみ指定できます。';
 
   const cmNums = new Set<string>();
-  const emails = new Set<string>();
   form.staff.forEach((s, i) => {
+    if (isBlankBusinessStaffEntry(s)) return;
     const prefix = `staff_${i}_`;
     if (!s.lastName.trim()) errs[prefix + 'lastName'] = '姓は必須です。';
     if (!s.firstName.trim()) errs[prefix + 'firstName'] = '名は必須です。';
@@ -296,8 +317,6 @@ function validateBusinessStaff(form: ApplicationFormData, errs: ValidationErrors
     else cmNums.add(s.careManagerNumber.trim());
     if (!s.email.trim()) errs[prefix + 'email'] = 'メールアドレスは必須です。';
     else if (!EMAIL_RE.test(s.email.trim())) errs[prefix + 'email'] = 'メールアドレスの形式が正しくありません。';
-    else if (emails.has(s.email.trim().toLowerCase())) errs[prefix + 'email'] = '他の職員と重複しています。';
-    else emails.add(s.email.trim().toLowerCase());
   });
   return errs;
 }
@@ -1134,7 +1153,18 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
             </div>
             <div>
               <label className={labelClass}>事業所番号{requiredBadge}</label>
-              <input className={fieldClass} inputMode="numeric" value={form.officeNumber} onChange={e => set('officeNumber', e.target.value)} placeholder="例: 2770100001" />
+              <p className="mb-1 text-xs text-slate-500">半角英数字10文字で入力してください。</p>
+              <input
+                className={fieldClass}
+                inputMode="text"
+                maxLength={10}
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+                value={form.officeNumber}
+                onChange={e => set('officeNumber', e.target.value)}
+                placeholder="例: 2770100001"
+              />
               {errors.officeNumber && <p className={errorClass}>{errors.officeNumber}</p>}
             </div>
             <div>
@@ -1334,9 +1364,9 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
             </div>
           )}
 
-          {form.memberType === 'BUSINESS' && form.staff.length > 0 && (
+          {form.memberType === 'BUSINESS' && getEffectiveBusinessStaff(form.staff).length > 0 && (
             <div className="bg-white p-5 rounded-xl border border-slate-200 space-y-3">
-              <h4 className="font-bold text-slate-700">登録職員（{form.staff.length}名）</h4>
+              <h4 className="font-bold text-slate-700">登録職員（{getEffectiveBusinessStaff(form.staff).length}名）</h4>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm min-w-[480px]">
                   <thead><tr className="border-b">
@@ -1346,7 +1376,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
                     <th className="text-left py-1 text-slate-500 font-medium">メール</th>
                   </tr></thead>
                   <tbody>
-                    {form.staff.map((s, i) => (
+                    {getEffectiveBusinessStaff(form.staff).map((s, i) => (
                       <tr key={i} className="border-b border-slate-100">
                         <td className="py-1">{s.lastName} {s.firstName}</td>
                         <td className="py-1">{roleLabel(s.role)}</td>

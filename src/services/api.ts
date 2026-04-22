@@ -181,10 +181,10 @@ export interface ApiClient {
   getBulkMailTemplates(): Promise<import('../types').EmailTemplate[]>;
   saveBulkMailTemplate(payload: { id?: string; name: string; subject: string; body: string }): Promise<import('../types').EmailTemplate>;
   deleteBulkMailTemplate(id: string): Promise<{ deletedId: string }>;
-  // v232: 物理削除（MASTER専用）
+  // v258: 論理削除コンソール（MASTER専用）
   searchMembersForDelete(query: string): Promise<MemberDeleteSearchResult[]>;
-  previewDeleteMember(memberIds: string[]): Promise<MemberDeletePreview>;
-  executeDeleteMember(memberIds: string[], confirmText: string): Promise<MemberDeleteResult>;
+  previewDeleteMember(targetKeys: string[]): Promise<MemberDeletePreview>;
+  executeDeleteMember(targetKeys: string[], confirmText: string): Promise<MemberDeleteResult>;
   getDeleteLogs(limit?: number): Promise<DeleteLogEntry[]>;
   // v233: 重複職員レコード修復（MASTER専用）
   repairDuplicateStaffRecords(): Promise<{ repaired: number }>;
@@ -195,24 +195,43 @@ export interface ApiClient {
 }
 
 export interface MemberDeleteSearchResult {
+  targetKey: string;
+  targetKind: 'MEMBER' | 'STAFF';
   memberId: string;
+  staffId?: string;
   displayName: string;
   memberType: string;
   memberStatus: string;
+  staffRole?: string;
+  staffStatus?: string;
   loginId: string;
   isDeleted: boolean;
 }
 
 export interface MemberDeletePreview {
-  targets: Array<{ memberId: string; displayName: string; memberType: string; memberStatus: string }>;
+  targets: Array<{
+    targetKey: string;
+    targetKind: 'MEMBER' | 'STAFF';
+    memberId: string;
+    staffId?: string;
+    displayName: string;
+    memberType: string;
+    memberStatus: string;
+    staffRole?: string;
+    staffStatus?: string;
+    loginId?: string;
+  }>;
   counts: Record<string, number>;
+  retainedCounts: Record<string, number>;
   totalRows: number;
+  totalUpdatedRows: number;
 }
 
 export interface MemberDeleteResult {
   logId: string;
-  deletedMemberIds: string[];
-  deletedCounts: Record<string, number>;
+  archivedTargetKeys: string[];
+  affectedCounts: Record<string, number>;
+  retainedCounts: Record<string, number>;
 }
 
 export interface DeleteLogEntry {
@@ -220,7 +239,7 @@ export interface DeleteLogEntry {
   operatedAt: string;
   operatorEmail: string;
   memberIdList: string;
-  totalDeletedRows: number;
+  totalAffectedRows: number;
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1454,7 +1473,7 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  // v232: 物理削除
+  // v258: 論理削除
   async searchMembersForDelete(query: string): Promise<import('./api').MemberDeleteSearchResult[]> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
@@ -1468,7 +1487,7 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async previewDeleteMember(memberIds: string[]): Promise<import('./api').MemberDeletePreview> {
+  async previewDeleteMember(targetKeys: string[]): Promise<import('./api').MemberDeletePreview> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
       google.script.run
@@ -1477,11 +1496,11 @@ class GasApiClient implements ApiClient {
           catch { reject(new Error('Failed to parse response from GAS')); }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('previewDeleteMember', JSON.stringify({ memberIds }));
+        .processApiRequest('previewDeleteMember', JSON.stringify({ targetKeys }));
     });
   }
 
-  async executeDeleteMember(memberIds: string[], confirmText: string): Promise<import('./api').MemberDeleteResult> {
+  async executeDeleteMember(targetKeys: string[], confirmText: string): Promise<import('./api').MemberDeleteResult> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
       google.script.run
@@ -1490,7 +1509,7 @@ class GasApiClient implements ApiClient {
           catch { reject(new Error('Failed to parse response from GAS')); }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('executeDeleteMember', JSON.stringify({ memberIds, confirmText }));
+        .processApiRequest('executeDeleteMember', JSON.stringify({ targetKeys, confirmText }));
     });
   }
 
