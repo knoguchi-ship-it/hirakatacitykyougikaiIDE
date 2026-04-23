@@ -375,6 +375,10 @@ var テーブル定義 = {
   ],
 };
 
+// v259: 退会済み会員のアーカイブシート（メインDB内。同スキーマ）
+テーブル定義['T_会員_archive'] = テーブル定義['T_会員'].slice();
+テーブル定義['T_事業所職員_archive'] = テーブル定義['T_事業所職員'].slice();
+
 var 入力規則定義 = [
   ['T_会員', '会員種別コード', 'M_会員種別'],
   ['T_会員', '会員状態コード', 'M_会員状態'],
@@ -8489,9 +8493,10 @@ function sanitizeAdminMemberPayload_(payload) {
 }
 
 // v143: 監査ログ追記 — ADMIN_AUDIT_FIELDS_ の変更を T_監査ログ に記録
+// v259: ログSSが設定されている場合はそちらに書き込む
 function appendAdminAuditLog_(ss, adminEmail, memberId, changes) {
   if (!changes || changes.length === 0) return;
-  var sheet = ss.getSheetByName('T_監査ログ');
+  var sheet = getLogSs_().getSheetByName('T_監査ログ');
   if (!sheet) return; // スキーマ未反映時はサイレントスキップ
   var now = new Date().toISOString();
   for (var i = 0; i < changes.length; i++) {
@@ -9689,8 +9694,9 @@ function requireColumns_(columns, names) {
   }
 }
 
+// v259: ログSSが設定されている場合はそちらに書き込む
 function appendLoginHistory_(ss, authId, loginId, authMethod, result, reason) {
-  var historySheet = ss.getSheetByName('T_ログイン履歴');
+  var historySheet = getLogSs_().getSheetByName('T_ログイン履歴');
   if (!historySheet) {
     return;
   }
@@ -10405,7 +10411,7 @@ function repairTrainingApplicationIntegrityJson() {
 }
 
 function repairAdminSessionLoginHistory_(ss) {
-  var db = ss || getOrCreateDatabase_();
+  var db = getLogSs_(); // v259: ログSSを使用
   var sheet = db.getSheetByName('T_ログイン履歴');
   if (!sheet || sheet.getLastRow() < 2) return { repaired: 0, details: [] };
 
@@ -10565,6 +10571,22 @@ function getOrCreateDatabase_() {
   return created;
 }
 
+/**
+ * v259: ログスプレッドシートを返す。
+ * Script Properties に LOG_SPREADSHEET_ID が設定されていればそちらを返す。
+ * 未設定またはアクセス失敗時はメインDBにフォールバック（移行前・設定前は既存動作を維持）。
+ */
+function getLogSs_() {
+  var id = PropertiesService.getScriptProperties().getProperty('LOG_SPREADSHEET_ID');
+  if (!id) return getOrCreateDatabase_();
+  try {
+    return SpreadsheetApp.openById(id);
+  } catch (e) {
+    Logger.log('getLogSs_: ログSSへのアクセス失敗。メインDBにフォールバック: ' + e.message);
+    return getOrCreateDatabase_();
+  }
+}
+
 function initializeSchema_(ss) {
   createMasterSheets_(ss);
   ensureMemberTypeAnnualFeeAmounts_(ss);
@@ -10579,6 +10601,8 @@ function initializeSchema_(ss) {
   normalizeTableColumns_(ss, 'T_ログイン履歴');
   normalizeTableColumns_(ss, 'T_研修申込');
   normalizeTableColumns_(ss, 'T_監査ログ');
+  normalizeTableColumns_(ss, 'T_会員_archive');
+  normalizeTableColumns_(ss, 'T_事業所職員_archive');
   ensureSystemSettingsRows_(ss);
   seedPermissionMatrixIfNeeded_(ss);
   applyDataValidationRules_(ss);
@@ -16094,7 +16118,7 @@ function verifyMigration_(expected) {
       }
     }
 
-    var loginRows = getRowsAsObjects_(ss, 'T_ログイン履歴');
+    var loginRows = getRowsAsObjects_(getLogSs_(), 'T_ログイン履歴'); // v259: ログSS
     for (var li = 0; li < loginRows.length; li += 1) {
       var loginAuthId = String(loginRows[li]['認証ID'] || '');
       if (loginAuthId && !authIdMap[loginAuthId]) {
@@ -17350,24 +17374,21 @@ function sendBulkMemberMail_(payload) {
   }
 
   // ── T_メール送信ログ記録（append-only、個人情報なし） ────────────
+  // v259: getLogSs_() 経由でログSSに書き込む。バグ修正: 以前は引数ミスで書き込まれていなかった
   var logId = Utilities.getUuid();
   var now   = new Date().toISOString();
   try {
-    var logSs    = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
-    var logSheet = logSs.getSheetByName('T_メール送信ログ');
-    if (logSheet) {
-      appendRowsByHeaders_(logSheet, [{
-        'ログID':       logId,
-        '送信日時':     now,
-        '送信者メール': from,
-        '件名テンプレート': subject.substring(0, 200),
-        '宛先数':       targetRecipients.length,
-        '成功数':       sentCount,
-        'エラー数':     errors.length,
-        '送信種別':     'BULK_MEMBER',
-        '削除フラグ':   false,
-      }]);
-    }
+    appendRowsByHeaders_(getLogSs_(), 'T_メール送信ログ', [{
+      'ログID':       logId,
+      '送信日時':     now,
+      '送信者メール': from,
+      '件名テンプレート': subject.substring(0, 200),
+      '宛先数':       targetRecipients.length,
+      '成功数':       sentCount,
+      'エラー数':     errors.length,
+      '送信種別':     'BULK_MEMBER',
+      '削除フラグ':   false,
+    }]);
   } catch (le) {
     Logger.log('sendBulkMemberMail_: ログ記録失敗: ' + le.message);
   }
@@ -17399,7 +17420,8 @@ function getEmailSendLog_(payload) {
     throw new Error('メール送信ログの閲覧権限がありません。（権限: ' + callerPermLevel + '）');
   }
 
-  var logSheet = ss.getSheetByName('T_メール送信ログ');
+  // v259: getLogSs_() 経由でログSSから読み込む
+  var logSheet = getLogSs_().getSheetByName('T_メール送信ログ');
   if (!logSheet || logSheet.getLastRow() < 2) return [];
 
   var rows = getSheetData_(logSheet).filter(function(r) {
@@ -18928,7 +18950,7 @@ function buildLogicalDeletePlan_(ss, targetKeys) {
     }
   }
 
-  var loginRows = getRowsAsObjects_(ss, 'T_ログイン履歴');
+  var loginRows = getRowsAsObjects_(getLogSs_(), 'T_ログイン履歴'); // v259: ログSS
   var feeRows = getRowsAsObjects_(ss, 'T_年会費納入履歴');
   var feeUpdateRows = getRowsAsObjects_(ss, 'T_年会費更新履歴');
   var trainingRows = getRowsAsObjects_(ss, 'T_研修申込');
@@ -19279,4 +19301,168 @@ function getDeleteLogs_(payload) {
       totalAffectedRows: totalRows,
     };
   });
+}
+
+// ============================================================
+// v259: ログSS分離・アーカイブ関連
+// ============================================================
+
+/**
+ * ログスプレッドシートをセットアップする（初回1回だけ実行）。
+ * 新規スプレッドシートを作成し、Script Properties に LOG_SPREADSHEET_ID を保存。
+ * その後 rebuildLogDatabaseSchema() でシートを作成してから
+ * migrateLogsToLogSpreadsheet() で既存ログを移行する。
+ */
+function setupLogSpreadsheet() {
+  var existing = PropertiesService.getScriptProperties().getProperty('LOG_SPREADSHEET_ID');
+  if (existing) {
+    return { status: 'already_set', id: existing, message: 'LOG_SPREADSHEET_ID は既に設定済みです。' };
+  }
+  var logSs = SpreadsheetApp.create('会員システム_ログDB');
+  var logId = logSs.getId();
+  PropertiesService.getScriptProperties().setProperty('LOG_SPREADSHEET_ID', logId);
+  // デフォルトシートにヘッダーを設定
+  rebuildLogDatabaseSchemaInternal_(logSs);
+  return {
+    status: 'created',
+    id: logId,
+    url: logSs.getUrl(),
+    message: 'ログSSを作成しました。全GASプロジェクトのScript Propertiesに LOG_SPREADSHEET_ID=' + logId + ' を設定してください。',
+  };
+}
+
+/**
+ * ログSSのスキーマを再構築する（既存ログSSのシートが壊れた場合など）。
+ */
+function rebuildLogDatabaseSchema() {
+  var logSs = getLogSs_();
+  rebuildLogDatabaseSchemaInternal_(logSs);
+  return {
+    id: logSs.getId(),
+    sheets: logSs.getSheets().map(function(s) { return s.getName(); }),
+  };
+}
+
+function rebuildLogDatabaseSchemaInternal_(logSs) {
+  var logTableNames = ['T_ログイン履歴', 'T_監査ログ', 'T_メール送信ログ'];
+  for (var i = 0; i < logTableNames.length; i++) {
+    var name = logTableNames[i];
+    var headers = テーブル定義[name];
+    if (!headers) continue;
+    var sheet = logSs.getSheetByName(name);
+    if (!sheet) {
+      sheet = logSs.insertSheet(name);
+    }
+    if (sheet.getLastColumn() === 0 || sheet.getRange(1, 1).getValue() !== headers[0]) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    }
+  }
+  // デフォルトの「シート1」を削除
+  var defaultSheet = logSs.getSheetByName('シート1');
+  if (defaultSheet && logSs.getSheets().length > 1) {
+    logSs.deleteSheet(defaultSheet);
+  }
+}
+
+/**
+ * メインSSのログデータをログSSに移行する（一回実行専用）。
+ * 実行前に setupLogSpreadsheet() でログSSを作成済みであること。
+ */
+function migrateLogsToLogSpreadsheet() {
+  var mainSs = getOrCreateDatabase_();
+  var logSs = getLogSs_();
+  if (mainSs.getId() === logSs.getId()) {
+    return { status: 'skipped', message: 'LOG_SPREADSHEET_ID が未設定のため移行をスキップしました。先に setupLogSpreadsheet() を実行してください。' };
+  }
+  var logTableNames = ['T_ログイン履歴', 'T_監査ログ', 'T_メール送信ログ'];
+  var results = {};
+  for (var i = 0; i < logTableNames.length; i++) {
+    var tableName = logTableNames[i];
+    var srcSheet = mainSs.getSheetByName(tableName);
+    var dstSheet = logSs.getSheetByName(tableName);
+    if (!srcSheet || !dstSheet) {
+      results[tableName] = 'シートが見つかりません';
+      continue;
+    }
+    var srcLastRow = srcSheet.getLastRow();
+    if (srcLastRow < 2) {
+      results[tableName] = 'データなし（スキップ）';
+      continue;
+    }
+    var srcData = srcSheet.getRange(2, 1, srcLastRow - 1, srcSheet.getLastColumn()).getValues();
+    var dstLastRow = dstSheet.getLastRow();
+    var startRow = dstLastRow + 1;
+    var neededRows = startRow + srcData.length - 1;
+    if (neededRows > dstSheet.getMaxRows()) {
+      dstSheet.insertRowsAfter(dstSheet.getMaxRows(), neededRows - dstSheet.getMaxRows());
+    }
+    dstSheet.getRange(startRow, 1, srcData.length, srcData[0].length).setValues(srcData);
+    results[tableName] = srcData.length + '行を移行しました';
+  }
+  return { status: 'done', results: results };
+}
+
+/**
+ * 退会済み会員（指定年数以上前）をアーカイブシートに移動する（定期実行用）。
+ * デフォルトは退会から3年以上経過した会員をアーカイブ対象とする。
+ * 実行前に rebuildDatabaseSchema() でアーカイブシートが作成済みであること。
+ */
+function runArchiveOldWithdrawnMembers() {
+  var archiveYears = 3; // 退会からX年以上経過した会員をアーカイブ
+  var ss = getOrCreateDatabase_();
+  var cutoff = new Date();
+  cutoff.setFullYear(cutoff.getFullYear() - archiveYears);
+  var cutoffStr = cutoff.toISOString().slice(0, 10);
+
+  var results = {
+    members: moveWithdrawnRowsToArchive_(ss, 'T_会員', 'T_会員_archive', '退会日', cutoffStr),
+    staff: moveWithdrawnRowsToArchive_(ss, 'T_事業所職員', 'T_事業所職員_archive', '退会日', cutoffStr),
+  };
+  invalidateAllDataCache_();
+  return { status: 'done', cutoff: cutoffStr, moved: results };
+}
+
+function moveWithdrawnRowsToArchive_(ss, srcName, dstName, dateCol, cutoffStr) {
+  var srcSheet = ss.getSheetByName(srcName);
+  var dstSheet = ss.getSheetByName(dstName);
+  if (!srcSheet || !dstSheet || srcSheet.getLastRow() < 2) return 0;
+
+  var headers = srcSheet.getRange(1, 1, 1, srcSheet.getLastColumn()).getValues()[0];
+  var cols = {};
+  for (var h = 0; h < headers.length; h++) cols[headers[h]] = h;
+
+  var data = srcSheet.getRange(2, 1, srcSheet.getLastRow() - 1, srcSheet.getLastColumn()).getValues();
+  var keepRows = [];
+  var archiveRows = [];
+
+  for (var r = 0; r < data.length; r++) {
+    var isDeleted = toBoolean_(data[r][cols['削除フラグ']]);
+    var withdrawnDate = cols[dateCol] != null ? normalizeDateInput_(data[r][cols[dateCol]]) : '';
+    // 削除済み かつ 退会日が cutoff より前 → アーカイブ対象
+    if (isDeleted && withdrawnDate && withdrawnDate <= cutoffStr) {
+      archiveRows.push(data[r]);
+    } else {
+      keepRows.push(data[r]);
+    }
+  }
+
+  if (archiveRows.length === 0) return 0;
+
+  // アーカイブシートに追記
+  var dstLast = dstSheet.getLastRow();
+  var startRow = dstLast + 1;
+  var neededRows = startRow + archiveRows.length - 1;
+  if (neededRows > dstSheet.getMaxRows()) {
+    dstSheet.insertRowsAfter(dstSheet.getMaxRows(), neededRows - dstSheet.getMaxRows());
+  }
+  dstSheet.getRange(startRow, 1, archiveRows.length, archiveRows[0].length).setValues(archiveRows);
+
+  // ソースシートを更新（アーカイブ済み行を削除）
+  var newData = keepRows.length > 0 ? keepRows : [new Array(headers.length).fill('')];
+  srcSheet.getRange(2, 1, srcSheet.getLastRow() - 1, srcSheet.getLastColumn()).clearContent();
+  if (keepRows.length > 0) {
+    srcSheet.getRange(2, 1, keepRows.length, headers.length).setValues(keepRows);
+  }
+
+  return archiveRows.length;
 }

@@ -49,6 +49,14 @@
 - demo login、mock member route、画面内 demo selector は復活させない。
 - business member の代表者情報は `staff.role='REPRESENTATIVE'` を正本とする。
 - `seedDemoData` は production DB を破壊する操作として扱い、完全バックアップと明示承認なしでは実行しない。
+- **公開ポータルカード追加時の必須セット実装**: 公開ポータル（`src/public-portal/App.tsx`）にカードを追加する場合、必ず管理設定（`src/App.tsx` の公開ポータル設定セクション）に以下をセットで実装すること:
+  1. メニュー表示トグル（表示/非表示）
+  2. 補助ラベル（バッジ）の表示トグルと文言
+  3. 見出し（タイトル）の表示トグルと文言
+  4. 説明文の表示トグルと文言
+  5. ボタン文言
+  - 対応する `SystemSettings` 型フィールド（`src/types.ts`）、GAS バックエンドの `PUBLIC_PORTAL_DEFAULTS`・`getPublicPortalSettings_`・`getSystemSettings_`・`updateSystemSettings_`・`initializeSystemSettings_` も同時に更新する。
+  - 片方だけの実装は不完全とみなし、完了条件を満たさない。
 
 ## 5. 完了条件
 - 「動いた」だけでは完了としない。
