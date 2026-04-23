@@ -19466,3 +19466,14 @@ function moveWithdrawnRowsToArchive_(ss, srcName, dstName, dateCol, cutoffStr) {
 
   return archiveRows.length;
 }
+
+/**
+ * LOG_SPREADSHEET_ID をこのプロジェクトのスクリプトプロパティに設定する。
+ * admin/member split に同じログSSIDを適用するために使用する。
+ */
+function applyLogSpreadsheetId() {
+  var LOG_SS_ID = '1NmVv483UeehF8dqCdyNKOqOtv_fPKROhHN7011N23lw';
+  PropertiesService.getScriptProperties().setProperty('LOG_SPREADSHEET_ID', LOG_SS_ID);
+  var verify = PropertiesService.getScriptProperties().getProperty('LOG_SPREADSHEET_ID');
+  return { status: 'ok', LOG_SPREADSHEET_ID: verify };
+}
