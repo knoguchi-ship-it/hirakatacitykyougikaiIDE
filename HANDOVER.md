@@ -1,8 +1,8 @@
 # 開発引継ぎ
 
 更新日: 2026-04-24
-現行本番: `v261-patch`（統合プロジェクト GAS version 263 / 会員 split GAS version 15 / 管理者 split GAS version 21）
-固定 deployment: 統合（公開ポータル）`@263` × 2本 / 会員 split `@15` / 管理者 split `@21`
+現行本番: `v261-patch`（統合プロジェクト GAS version 263 / 会員 split GAS version 17 / 管理者 split GAS version 21）
+固定 deployment: 統合（公開ポータル）`@263` × 2本 / 会員 split `@17` / 管理者 split `@21`
 
 ## 1. 再開の最短ルート
 
@@ -54,7 +54,7 @@
 
 ### 2.2 直近で本番反映済みの変更
 
-- `v261-patch`: ログSS移行実施完了。ログSS ID: `1NmVv483UeehF8dqCdyNKOqOtv_fPKROhHN7011N23lw`。T_ログイン履歴 1997行移行済み。member split のみ手動Script Property設定が必要（appsscript.json スコープ制限でclasp run不可）。
+- `v261-patch`: ログSS移行実施完了（全3プロジェクト）。ログSS ID: `1NmVv483UeehF8dqCdyNKOqOtv_fPKROhHN7011N23lw`。T_ログイン履歴 1997行移行済み。member splitはdoPost bootstrap経由でLOG_SPREADSHEET_ID設定済み。
 - `v261`: ログテーブル（T_ログイン履歴・T_監査ログ・T_メール送信ログ）を別SS分離対応。退会済み会員の定期archiveシート移動。T_メール送信ログ書き込みバグ修正。入会申込UI改善（削除ボタン除去・建物名追加・職員追加カード2行化）。
   詳細: `docs/135_RELEASE_STATE_v261_2026-04-23.md`
 - `v260`: 公開ポータルに「会員登録情報を変更する」「退会を申し込む」カードと OTP 認証フローを追加。
@@ -84,7 +84,6 @@
 
 ### 操作者確認待ち
 
-- `v261-patch`: member split の Script Property に `LOG_SPREADSHEET_ID=1NmVv483UeehF8dqCdyNKOqOtv_fPKROhHN7011N23lw` を手動設定すること（Apps Script エディタ → 設定 → スクリプト プロパティ）。
 - `v261`: 入会申込UI（削除ボタンなし・建物名フィールド・職員追加2行カード）を実ブラウザで確認すること。
 - `v260`: 公開ポータルで「会員登録情報を変更する」「退会を申し込む」の 2 カードが表示されること。OTP メールが登録アドレスに届き、変更・退会フローが完了すること。
 - `v259`: 管理設定で送信元メールアドレスを切り替え、入会通知メールが選択した alias で送られること。
