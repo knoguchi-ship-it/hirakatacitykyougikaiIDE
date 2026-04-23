@@ -1340,79 +1340,100 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
           {staffList.filter((staff) => staff.isNew).length > 0 && (
             <div className="mt-4 space-y-3">
               {staffList.filter((staff) => staff.isNew).map((staff) => (
-                <div key={staff.id} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[repeat(4,minmax(9rem,1fr))_minmax(20rem,1.8fr)_1fr_1fr_auto] gap-3 rounded-lg border border-slate-200 p-4">
-                  <input
-                    value={staff.lastName || ''}
-                    onChange={(e) => updateDraftStaff(staff.id, { lastName: e.target.value })}
-                    className={getDraftStaffFieldClass(staff.id, 'lastName')}
-                    placeholder="氏"
-                    aria-label="氏"
-                  />
-                  <input
-                    value={staff.firstName || ''}
-                    onChange={(e) => updateDraftStaff(staff.id, { firstName: e.target.value })}
-                    className={getDraftStaffFieldClass(staff.id, 'firstName')}
-                    placeholder="名"
-                    aria-label="名"
-                  />
-                  <input
-                    value={staff.lastKana || ''}
-                    onChange={(e) => updateDraftStaff(staff.id, { lastKana: e.target.value })}
-                    className={getDraftStaffFieldClass(staff.id, 'lastKana')}
-                    placeholder="ｾｲ"
-                    aria-label="セイ"
-                  />
-                  <input
-                    value={staff.firstKana || ''}
-                    onChange={(e) => updateDraftStaff(staff.id, { firstKana: e.target.value })}
-                    className={getDraftStaffFieldClass(staff.id, 'firstKana')}
-                    placeholder="ﾒｲ"
-                    aria-label="メイ"
-                  />
-                  <input
-                    type="email"
-                    value={staff.email || ''}
-                    onChange={(e) => updateDraftStaff(staff.id, { email: e.target.value })}
-                    className={getDraftStaffFieldClass(staff.id, 'email')}
-                    placeholder="メール"
-                    aria-label="メールアドレス"
-                  />
-                  <input
-                    value={staff.careManagerNumber || ''}
-                    onChange={(e) => updateDraftStaff(staff.id, { careManagerNumber: normalizeCareManagerInput(e.target.value) })}
-                    className={getDraftStaffFieldClass(staff.id, 'careManagerNumber')}
-                    placeholder="介護支援専門員番号*"
-                    maxLength={8}
-                    inputMode="numeric"
-                    aria-label="介護支援専門員番号（必須）"
-                    aria-required="true"
-                  />
-                  <select
-                    value={staff.role}
-                    onChange={(e) => updateDraftStaff(staff.id, { role: e.target.value as Staff['role'] })}
-                    className="w-full min-w-0 border border-slate-300 rounded px-3 py-2 text-sm bg-white"
-                  >
-                    <option value="REPRESENTATIVE">代表者</option>
-                    <option value="ADMIN">管理者</option>
-                    <option value="STAFF">メンバー</option>
-                  </select>
-                  <select
-                    value={staff.status}
-                    onChange={(e) => updateDraftStaff(staff.id, { status: e.target.value as Staff['status'] })}
-                    className="w-full min-w-0 border border-slate-300 rounded px-3 py-2 text-sm bg-white"
-                  >
-                    <option value="ENROLLED">在籍</option>
-                    <option value="LEFT">除籍</option>
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveDraftStaff(staff.id)}
-                    className="shrink-0 px-3 py-2 rounded border border-slate-300 text-slate-600 text-sm hover:bg-slate-50"
-                  >
-                    取消
-                  </button>
+                <div key={staff.id} className="rounded-lg border border-primary-200 bg-primary-50/30 p-4 space-y-3">
+                  {/* 行1: 氏名・カナ・メール */}
+                  <div className="grid grid-cols-2 md:grid-cols-[1fr_1fr_1fr_1fr_2fr] gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">姓<span className="text-red-500 ml-0.5">*</span></label>
+                      <input
+                        value={staff.lastName || ''}
+                        onChange={(e) => updateDraftStaff(staff.id, { lastName: e.target.value })}
+                        className={getDraftStaffFieldClass(staff.id, 'lastName')}
+                        placeholder="例: 山田"
+                        aria-label="姓"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">名<span className="text-red-500 ml-0.5">*</span></label>
+                      <input
+                        value={staff.firstName || ''}
+                        onChange={(e) => updateDraftStaff(staff.id, { firstName: e.target.value })}
+                        className={getDraftStaffFieldClass(staff.id, 'firstName')}
+                        placeholder="例: 太郎"
+                        aria-label="名"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">セイ<span className="text-red-500 ml-0.5">*</span></label>
+                      <input
+                        value={staff.lastKana || ''}
+                        onChange={(e) => updateDraftStaff(staff.id, { lastKana: e.target.value })}
+                        className={getDraftStaffFieldClass(staff.id, 'lastKana')}
+                        placeholder="例: ヤマダ"
+                        aria-label="セイ"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">メイ<span className="text-red-500 ml-0.5">*</span></label>
+                      <input
+                        value={staff.firstKana || ''}
+                        onChange={(e) => updateDraftStaff(staff.id, { firstKana: e.target.value })}
+                        className={getDraftStaffFieldClass(staff.id, 'firstKana')}
+                        placeholder="例: タロウ"
+                        aria-label="メイ"
+                      />
+                    </div>
+                    <div className="col-span-2 md:col-span-1">
+                      <label className="block text-xs font-medium text-slate-600 mb-1">メールアドレス<span className="text-red-500 ml-0.5">*</span></label>
+                      <input
+                        type="email"
+                        value={staff.email || ''}
+                        onChange={(e) => updateDraftStaff(staff.id, { email: e.target.value })}
+                        className={getDraftStaffFieldClass(staff.id, 'email')}
+                        placeholder="例: taro@example.com"
+                        aria-label="メールアドレス"
+                      />
+                    </div>
+                  </div>
+                  {/* 行2: 介護支援専門員番号・役割・取消 */}
+                  <div className="flex flex-wrap items-end gap-3">
+                    <div className="flex-1 min-w-[200px]">
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        介護支援専門員番号（8桁）<span className="text-red-500 ml-0.5">*</span>
+                      </label>
+                      <input
+                        value={staff.careManagerNumber || ''}
+                        onChange={(e) => updateDraftStaff(staff.id, { careManagerNumber: normalizeCareManagerInput(e.target.value) })}
+                        className={getDraftStaffFieldClass(staff.id, 'careManagerNumber')}
+                        placeholder="例: 12345678"
+                        maxLength={8}
+                        inputMode="numeric"
+                        aria-label="介護支援専門員番号（必須）"
+                        aria-required="true"
+                      />
+                    </div>
+                    <div className="min-w-[140px]">
+                      <label className="block text-xs font-medium text-slate-600 mb-1">役割</label>
+                      <select
+                        value={staff.role}
+                        onChange={(e) => updateDraftStaff(staff.id, { role: e.target.value as Staff['role'] })}
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                      >
+                        <option value="REPRESENTATIVE">代表者</option>
+                        <option value="ADMIN">管理者</option>
+                        <option value="STAFF">メンバー</option>
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveDraftStaff(staff.id)}
+                      className="px-4 py-2.5 rounded-lg border-2 border-red-300 bg-white text-red-600 text-sm font-medium hover:bg-red-50 hover:border-red-400 transition-colors"
+                    >
+                      追加を取消
+                    </button>
+                  </div>
                   {draftStaffErrors[staff.id] && (
-                    <div className="md:col-span-2 xl:col-span-8 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                    <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                       {Object.values(draftStaffErrors[staff.id]).join(' ')}
                     </div>
                   )}

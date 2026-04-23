@@ -36,6 +36,7 @@ export interface ApplicationFormData {
   officePrefecture: string;
   officeCity: string;
   officeAddressLine: string;
+  officeAddressLine2: string; // 建物名・部屋番号（任意）
   phone: string;
   fax: string;
 
@@ -44,6 +45,7 @@ export interface ApplicationFormData {
   homePrefecture: string;
   homeCity: string;
   homeAddressLine: string;
+  homeAddressLine2: string; // 建物名・部屋番号（任意）
   mobilePhone: string;
 
   // 連絡設定（個人/賛助のみ）
@@ -98,12 +100,14 @@ export const INITIAL_FORM_DATA: ApplicationFormData = {
   officePrefecture: '',
   officeCity: '',
   officeAddressLine: '',
+  officeAddressLine2: '',
   phone: '',
   fax: '',
   homePostCode: '',
   homePrefecture: '',
   homeCity: '',
   homeAddressLine: '',
+  homeAddressLine2: '',
   mobilePhone: '',
   email: '',
   mailingPreference: 'EMAIL',

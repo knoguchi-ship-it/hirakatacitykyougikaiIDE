@@ -100,11 +100,12 @@ const DEFAULT_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_SENT = 'ログイン情
 const DEFAULT_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_NOT_SENT = 'ログイン情報メールは現在送信していません。公開準備後にご案内します。';
 
 // ─── バリデーション ───────────────────────────────────
+const BUSINESS_STAFF_LIMIT = 10;
+
 function createDefaultBusinessStaff(): ApplicationStaffEntry[] {
   return [
     { ...EMPTY_STAFF_ENTRY(), role: 'REPRESENTATIVE' },
-    EMPTY_STAFF_ENTRY(),
-    EMPTY_STAFF_ENTRY(),
+    ...Array.from({ length: BUSINESS_STAFF_LIMIT - 1 }, () => EMPTY_STAFF_ENTRY()),
   ];
 }
 
@@ -941,6 +942,15 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
                   />
                   {errors.officeAddressLine && <p className={errorClass} role="alert">{errors.officeAddressLine}</p>}
                 </div>
+                <div className="sm:col-span-2">
+                  <label className={labelClass}>建物名・部屋番号{optionalBadge}</label>
+                  <input
+                    className={fieldClass}
+                    value={form.officeAddressLine2}
+                    onChange={e => set('officeAddressLine2', e.target.value)}
+                    placeholder="例: ○○ビル 3F"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -1013,6 +1023,15 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
                   aria-invalid={!!errors.homeAddressLine}
                 />
                 {errors.homeAddressLine && <p className={errorClass} role="alert">{errors.homeAddressLine}</p>}
+              </div>
+              <div className="sm:col-span-2">
+                <label className={labelClass}>建物名・部屋番号{optionalBadge}</label>
+                <input
+                  className={fieldClass}
+                  value={form.homeAddressLine2}
+                  onChange={e => set('homeAddressLine2', e.target.value)}
+                  placeholder="例: ○○マンション 101号室"
+                />
               </div>
             </div>
           </div>
@@ -1193,8 +1212,12 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
             </div>
             <div>
               <label className={labelClass}>住所{requiredBadge}</label>
-              <input className={fieldClass} value={form.officeAddressLine} onChange={e => set('officeAddressLine', e.target.value)} />
+              <input className={fieldClass} value={form.officeAddressLine} onChange={e => set('officeAddressLine', e.target.value)} placeholder="例: 津田元町1-1-1" />
               {errors.officeAddressLine && <p className={errorClass}>{errors.officeAddressLine}</p>}
+            </div>
+            <div>
+              <label className={labelClass}>建物名・部屋番号{optionalBadge}</label>
+              <input className={fieldClass} value={form.officeAddressLine2} onChange={e => set('officeAddressLine2', e.target.value)} placeholder="例: ○○ビル 3F" />
             </div>
             <div>
               <label className={labelClass}>電話番号{requiredBadge}</label>
@@ -1214,14 +1237,10 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
     if (form.memberType === 'BUSINESS' && step === 2) {
       return (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-bold text-slate-800">職員登録</h3>
-              <p className="text-sm text-slate-500 mt-1">最低1名の登録が必要です。代表者は必ず1名指定してください。</p>
-            </div>
-            <button onClick={addStaff} className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700" disabled={form.staff.length >= 10}>
-              + 職員追加
-            </button>
+          <div>
+            <h3 className="text-lg font-bold text-slate-800">職員登録</h3>
+            <p className="text-sm text-slate-500 mt-1">最低1名の登録が必要です。代表者は必ず1名指定してください。</p>
+            <p className="text-sm text-slate-500 mt-1">登録は{BUSINESS_STAFF_LIMIT}名までです。{BUSINESS_STAFF_LIMIT + 1}名以上職員登録を希望の方は、別途事務局までお問い合わせください。</p>
           </div>
           {errors._staff && <p className={errorClass}>{errors._staff}</p>}
           {errors._staffRep && <p className={errorClass}>{errors._staffRep}</p>}
@@ -1234,9 +1253,6 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
                   {s.role === 'REPRESENTATIVE' && <span className="px-2 py-0.5 text-xs font-bold bg-amber-100 text-amber-700 rounded">代表者</span>}
                   {s.role === 'ADMIN' && <span className="px-2 py-0.5 text-xs font-bold bg-primary-100 text-primary-700 rounded">管理者</span>}
                 </div>
-                {form.staff.length > 1 && (
-                  <button onClick={() => removeStaff(i)} className="text-xs text-red-500 hover:text-red-700">削除</button>
-                )}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
