@@ -185,6 +185,29 @@ const PUBLIC_PORTAL_DEFAULTS = {
   completionLoginInfoBodyWhenCredentialNotSent: 'ログイン情報メールは現在送信していません。公開準備後にご案内します。',
   completionNoCredentialNotice: 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
   completionCredentialNotice: 'ログイン情報をご登録のメールアドレスに送信しました。',
+  trainingBadgeEnabled: true,
+  trainingBadgeLabel: 'TRAINING',
+  trainingTitleEnabled: true,
+  trainingTitle: '研修を申し込む',
+  trainingDescriptionEnabled: true,
+  trainingDescription: '受付中の研修一覧を確認し、そのまま申込できます。申込後の取消も研修ページから行えます。',
+  trainingCtaLabel: '進む',
+  memberUpdateMenuEnabled: true,
+  memberUpdateBadgeEnabled: true,
+  memberUpdateBadgeLabel: '登録情報変更',
+  memberUpdateTitleEnabled: true,
+  memberUpdateTitle: '会員登録情報を変更する',
+  memberUpdateDescriptionEnabled: true,
+  memberUpdateDescription: '住所・電話番号・メールアドレスなど、ご登録情報の変更を申し込めます。介護支援専門員番号でご本人確認を行います。',
+  memberUpdateCtaLabel: '変更手続きへ進む',
+  withdrawalMenuEnabled: true,
+  withdrawalBadgeEnabled: true,
+  withdrawalBadgeLabel: '退会',
+  withdrawalTitleEnabled: true,
+  withdrawalTitle: '退会を申し込む',
+  withdrawalDescriptionEnabled: true,
+  withdrawalDescription: '退会申請を行います。退会は当年度末（3月31日）に適用されます。介護支援専門員番号でご本人確認を行います。',
+  withdrawalCtaLabel: '退会手続きへ進む',
 } as const;
 
 const ADMIN_SETTINGS_SECTION_CLASS = 'rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden';
@@ -360,6 +383,29 @@ const App: React.FC = () => {
   const [publicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput, setPublicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialNotSent);
   const [publicPortalCompletionNoCredentialNoticeInput, setPublicPortalCompletionNoCredentialNoticeInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice);
   const [publicPortalCompletionCredentialNoticeInput, setPublicPortalCompletionCredentialNoticeInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice);
+  const [publicPortalTrainingBadgeEnabledInput, setPublicPortalTrainingBadgeEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.trainingBadgeEnabled);
+  const [publicPortalTrainingBadgeLabelInput, setPublicPortalTrainingBadgeLabelInput] = useState(PUBLIC_PORTAL_DEFAULTS.trainingBadgeLabel);
+  const [publicPortalTrainingTitleEnabledInput, setPublicPortalTrainingTitleEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.trainingTitleEnabled);
+  const [publicPortalTrainingTitleInput, setPublicPortalTrainingTitleInput] = useState(PUBLIC_PORTAL_DEFAULTS.trainingTitle);
+  const [publicPortalTrainingDescriptionEnabledInput, setPublicPortalTrainingDescriptionEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.trainingDescriptionEnabled);
+  const [publicPortalTrainingDescriptionInput, setPublicPortalTrainingDescriptionInput] = useState(PUBLIC_PORTAL_DEFAULTS.trainingDescription);
+  const [publicPortalTrainingCtaLabelInput, setPublicPortalTrainingCtaLabelInput] = useState(PUBLIC_PORTAL_DEFAULTS.trainingCtaLabel);
+  const [publicPortalMemberUpdateMenuEnabledInput, setPublicPortalMemberUpdateMenuEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.memberUpdateMenuEnabled);
+  const [publicPortalMemberUpdateBadgeEnabledInput, setPublicPortalMemberUpdateBadgeEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeEnabled);
+  const [publicPortalMemberUpdateBadgeLabelInput, setPublicPortalMemberUpdateBadgeLabelInput] = useState(PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeLabel);
+  const [publicPortalMemberUpdateTitleEnabledInput, setPublicPortalMemberUpdateTitleEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.memberUpdateTitleEnabled);
+  const [publicPortalMemberUpdateTitleInput, setPublicPortalMemberUpdateTitleInput] = useState(PUBLIC_PORTAL_DEFAULTS.memberUpdateTitle);
+  const [publicPortalMemberUpdateDescriptionEnabledInput, setPublicPortalMemberUpdateDescriptionEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.memberUpdateDescriptionEnabled);
+  const [publicPortalMemberUpdateDescriptionInput, setPublicPortalMemberUpdateDescriptionInput] = useState(PUBLIC_PORTAL_DEFAULTS.memberUpdateDescription);
+  const [publicPortalMemberUpdateCtaLabelInput, setPublicPortalMemberUpdateCtaLabelInput] = useState(PUBLIC_PORTAL_DEFAULTS.memberUpdateCtaLabel);
+  const [publicPortalWithdrawalMenuEnabledInput, setPublicPortalWithdrawalMenuEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.withdrawalMenuEnabled);
+  const [publicPortalWithdrawalBadgeEnabledInput, setPublicPortalWithdrawalBadgeEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeEnabled);
+  const [publicPortalWithdrawalBadgeLabelInput, setPublicPortalWithdrawalBadgeLabelInput] = useState(PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeLabel);
+  const [publicPortalWithdrawalTitleEnabledInput, setPublicPortalWithdrawalTitleEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.withdrawalTitleEnabled);
+  const [publicPortalWithdrawalTitleInput, setPublicPortalWithdrawalTitleInput] = useState(PUBLIC_PORTAL_DEFAULTS.withdrawalTitle);
+  const [publicPortalWithdrawalDescriptionEnabledInput, setPublicPortalWithdrawalDescriptionEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled);
+  const [publicPortalWithdrawalDescriptionInput, setPublicPortalWithdrawalDescriptionInput] = useState(PUBLIC_PORTAL_DEFAULTS.withdrawalDescription);
+  const [publicPortalWithdrawalCtaLabelInput, setPublicPortalWithdrawalCtaLabelInput] = useState(PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel);
   const [memberListQuery, setMemberListQuery] = useState('');
   const [memberListFilter, setMemberListFilter] = useState<MemberListFilter>('ALL');
   const [memberListStatusFilter, setMemberListStatusFilter] = useState<MemberStatusFilter>(DEFAULT_MEMBER_STATUS_FILTER);
@@ -435,6 +481,29 @@ const App: React.FC = () => {
     setPublicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput(systemSettings.publicPortalCompletionLoginInfoBodyWhenCredentialNotSent ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialNotSent);
     setPublicPortalCompletionNoCredentialNoticeInput(systemSettings.publicPortalCompletionNoCredentialNotice ?? PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice);
     setPublicPortalCompletionCredentialNoticeInput(systemSettings.publicPortalCompletionCredentialNotice ?? PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice);
+    setPublicPortalTrainingBadgeEnabledInput(systemSettings.publicPortalTrainingBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.trainingBadgeEnabled);
+    setPublicPortalTrainingBadgeLabelInput(systemSettings.publicPortalTrainingBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.trainingBadgeLabel);
+    setPublicPortalTrainingTitleEnabledInput(systemSettings.publicPortalTrainingTitleEnabled ?? PUBLIC_PORTAL_DEFAULTS.trainingTitleEnabled);
+    setPublicPortalTrainingTitleInput(systemSettings.publicPortalTrainingTitle ?? PUBLIC_PORTAL_DEFAULTS.trainingTitle);
+    setPublicPortalTrainingDescriptionEnabledInput(systemSettings.publicPortalTrainingDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.trainingDescriptionEnabled);
+    setPublicPortalTrainingDescriptionInput(systemSettings.publicPortalTrainingDescription ?? PUBLIC_PORTAL_DEFAULTS.trainingDescription);
+    setPublicPortalTrainingCtaLabelInput(systemSettings.publicPortalTrainingCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.trainingCtaLabel);
+    setPublicPortalMemberUpdateMenuEnabledInput(systemSettings.publicPortalMemberUpdateMenuEnabled ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateMenuEnabled);
+    setPublicPortalMemberUpdateBadgeEnabledInput(systemSettings.publicPortalMemberUpdateBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeEnabled);
+    setPublicPortalMemberUpdateBadgeLabelInput(systemSettings.publicPortalMemberUpdateBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeLabel);
+    setPublicPortalMemberUpdateTitleEnabledInput(systemSettings.publicPortalMemberUpdateTitleEnabled ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateTitleEnabled);
+    setPublicPortalMemberUpdateTitleInput(systemSettings.publicPortalMemberUpdateTitle ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateTitle);
+    setPublicPortalMemberUpdateDescriptionEnabledInput(systemSettings.publicPortalMemberUpdateDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateDescriptionEnabled);
+    setPublicPortalMemberUpdateDescriptionInput(systemSettings.publicPortalMemberUpdateDescription ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateDescription);
+    setPublicPortalMemberUpdateCtaLabelInput(systemSettings.publicPortalMemberUpdateCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateCtaLabel);
+    setPublicPortalWithdrawalMenuEnabledInput(systemSettings.publicPortalWithdrawalMenuEnabled ?? PUBLIC_PORTAL_DEFAULTS.withdrawalMenuEnabled);
+    setPublicPortalWithdrawalBadgeEnabledInput(systemSettings.publicPortalWithdrawalBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeEnabled);
+    setPublicPortalWithdrawalBadgeLabelInput(systemSettings.publicPortalWithdrawalBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeLabel);
+    setPublicPortalWithdrawalTitleEnabledInput(systemSettings.publicPortalWithdrawalTitleEnabled ?? PUBLIC_PORTAL_DEFAULTS.withdrawalTitleEnabled);
+    setPublicPortalWithdrawalTitleInput(systemSettings.publicPortalWithdrawalTitle ?? PUBLIC_PORTAL_DEFAULTS.withdrawalTitle);
+    setPublicPortalWithdrawalDescriptionEnabledInput(systemSettings.publicPortalWithdrawalDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled);
+    setPublicPortalWithdrawalDescriptionInput(systemSettings.publicPortalWithdrawalDescription ?? PUBLIC_PORTAL_DEFAULTS.withdrawalDescription);
+    setPublicPortalWithdrawalCtaLabelInput(systemSettings.publicPortalWithdrawalCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel);
     setSettingsIsDirty(false);
     setSystemSettingsLoaded(true);
   };
@@ -2454,14 +2523,45 @@ const App: React.FC = () => {
                       入会申込メニュー（「新規入会を申し込む」カード）を表示する
                     </span>
                   </label>
+                  <label className="flex items-center gap-3 cursor-pointer w-fit">
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        className="sr-only"
+                        checked={publicPortalMemberUpdateMenuEnabledInput}
+                        onChange={(e) => { setPublicPortalMemberUpdateMenuEnabledInput(e.target.checked); setSettingsIsDirty(true); }}
+                      />
+                      <div className={`w-11 h-6 rounded-full transition-colors ${publicPortalMemberUpdateMenuEnabledInput ? 'bg-violet-600' : 'bg-slate-300'}`} />
+                      <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${publicPortalMemberUpdateMenuEnabledInput ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                    <span className="text-sm font-medium text-slate-700">
+                      登録情報変更メニュー（「会員登録情報を変更する」カード）を表示する
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer w-fit">
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        className="sr-only"
+                        checked={publicPortalWithdrawalMenuEnabledInput}
+                        onChange={(e) => { setPublicPortalWithdrawalMenuEnabledInput(e.target.checked); setSettingsIsDirty(true); }}
+                      />
+                      <div className={`w-11 h-6 rounded-full transition-colors ${publicPortalWithdrawalMenuEnabledInput ? 'bg-amber-600' : 'bg-slate-300'}`} />
+                      <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${publicPortalWithdrawalMenuEnabledInput ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                    <span className="text-sm font-medium text-slate-700">
+                      退会申込メニュー（「退会を申し込む」カード）を表示する
+                    </span>
+                  </label>
                 </div>
-                {(!publicPortalTrainingMenuEnabledInput || !publicPortalMembershipMenuEnabledInput) && (
+                {(!publicPortalTrainingMenuEnabledInput || !publicPortalMembershipMenuEnabledInput || !publicPortalMemberUpdateMenuEnabledInput || !publicPortalWithdrawalMenuEnabledInput) && (
                   <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-                    {!publicPortalTrainingMenuEnabledInput && !publicPortalMembershipMenuEnabledInput
-                      ? '両メニューが OFF です。公開ポータルには「現在準備中です」と表示されます。'
-                      : !publicPortalTrainingMenuEnabledInput
-                        ? '研修申込メニューが OFF です。公開ポータルに研修申込カードは表示されません。'
-                        : '入会申込メニューが OFF です。公開ポータルに入会申込カードは表示されません。'}
+                    {[
+                      !publicPortalTrainingMenuEnabledInput && '研修申込',
+                      !publicPortalMembershipMenuEnabledInput && '入会申込',
+                      !publicPortalMemberUpdateMenuEnabledInput && '登録情報変更',
+                      !publicPortalWithdrawalMenuEnabledInput && '退会申込',
+                    ].filter(Boolean).join('・') + ' メニューが OFF です。該当カードは公開ポータルに表示されません。'}
                   </p>
                 )}
               </div>
@@ -2595,6 +2695,132 @@ const App: React.FC = () => {
                       className="w-full border border-slate-300 rounded px-3 py-2"
                       placeholder="例: 入会申込へ進む"
                     />
+                  </div>
+                </div>
+
+                {/* 研修カード文言設定 */}
+                <div className="border-t border-slate-200 pt-4">
+                  <h6 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                    <span className="inline-flex rounded-full bg-sky-600 px-2 py-0.5 text-xs font-semibold text-white">TRAINING</span>
+                    研修カードの文言
+                  </h6>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={publicPortalTrainingBadgeEnabledInput} onChange={(e) => { setPublicPortalTrainingBadgeEnabledInput(e.target.checked); setSettingsIsDirty(true); }} className="accent-primary-600" />
+                      <span className="text-sm text-slate-700">補助ラベルを表示する</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={publicPortalTrainingTitleEnabledInput} onChange={(e) => { setPublicPortalTrainingTitleEnabledInput(e.target.checked); setSettingsIsDirty(true); }} className="accent-primary-600" />
+                      <span className="text-sm text-slate-700">見出しを表示する</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={publicPortalTrainingDescriptionEnabledInput} onChange={(e) => { setPublicPortalTrainingDescriptionEnabledInput(e.target.checked); setSettingsIsDirty(true); }} className="accent-primary-600" />
+                      <span className="text-sm text-slate-700">説明文を表示する</span>
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">補助ラベル</label>
+                      <input type="text" value={publicPortalTrainingBadgeLabelInput} onChange={(e) => { setPublicPortalTrainingBadgeLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: TRAINING" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">見出し</label>
+                      <input type="text" value={publicPortalTrainingTitleInput} onChange={(e) => { setPublicPortalTrainingTitleInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 研修を申し込む" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">説明文</label>
+                      <textarea value={publicPortalTrainingDescriptionInput} onChange={(e) => { setPublicPortalTrainingDescriptionInput(e.target.value); setSettingsIsDirty(true); }} rows={3} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 受付中の研修一覧を確認し、そのまま申込できます。" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">ボタン文言</label>
+                      <input type="text" value={publicPortalTrainingCtaLabelInput} onChange={(e) => { setPublicPortalTrainingCtaLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 進む" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 登録情報変更カード文言設定 */}
+                <div className="border-t border-slate-200 pt-4">
+                  <h6 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                    <span className="inline-flex rounded-full bg-violet-600 px-2 py-0.5 text-xs font-semibold text-white">登録情報変更</span>
+                    登録情報変更カードの文言
+                  </h6>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={publicPortalMemberUpdateBadgeEnabledInput} onChange={(e) => { setPublicPortalMemberUpdateBadgeEnabledInput(e.target.checked); setSettingsIsDirty(true); }} className="accent-primary-600" />
+                      <span className="text-sm text-slate-700">補助ラベルを表示する</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={publicPortalMemberUpdateTitleEnabledInput} onChange={(e) => { setPublicPortalMemberUpdateTitleEnabledInput(e.target.checked); setSettingsIsDirty(true); }} className="accent-primary-600" />
+                      <span className="text-sm text-slate-700">見出しを表示する</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={publicPortalMemberUpdateDescriptionEnabledInput} onChange={(e) => { setPublicPortalMemberUpdateDescriptionEnabledInput(e.target.checked); setSettingsIsDirty(true); }} className="accent-primary-600" />
+                      <span className="text-sm text-slate-700">説明文を表示する</span>
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">補助ラベル</label>
+                      <input type="text" value={publicPortalMemberUpdateBadgeLabelInput} onChange={(e) => { setPublicPortalMemberUpdateBadgeLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 登録情報変更" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">見出し</label>
+                      <input type="text" value={publicPortalMemberUpdateTitleInput} onChange={(e) => { setPublicPortalMemberUpdateTitleInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 会員登録情報を変更する" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">説明文</label>
+                      <textarea value={publicPortalMemberUpdateDescriptionInput} onChange={(e) => { setPublicPortalMemberUpdateDescriptionInput(e.target.value); setSettingsIsDirty(true); }} rows={3} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 住所・電話番号・メールアドレスなど、ご登録情報の変更を申し込めます。" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">ボタン文言</label>
+                      <input type="text" value={publicPortalMemberUpdateCtaLabelInput} onChange={(e) => { setPublicPortalMemberUpdateCtaLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 変更手続きへ進む" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 退会カード文言設定 */}
+                <div className="border-t border-slate-200 pt-4">
+                  <h6 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                    <span className="inline-flex rounded-full bg-amber-600 px-2 py-0.5 text-xs font-semibold text-white">退会</span>
+                    退会カードの文言
+                  </h6>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={publicPortalWithdrawalBadgeEnabledInput} onChange={(e) => { setPublicPortalWithdrawalBadgeEnabledInput(e.target.checked); setSettingsIsDirty(true); }} className="accent-primary-600" />
+                      <span className="text-sm text-slate-700">補助ラベルを表示する</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={publicPortalWithdrawalTitleEnabledInput} onChange={(e) => { setPublicPortalWithdrawalTitleEnabledInput(e.target.checked); setSettingsIsDirty(true); }} className="accent-primary-600" />
+                      <span className="text-sm text-slate-700">見出しを表示する</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={publicPortalWithdrawalDescriptionEnabledInput} onChange={(e) => { setPublicPortalWithdrawalDescriptionEnabledInput(e.target.checked); setSettingsIsDirty(true); }} className="accent-primary-600" />
+                      <span className="text-sm text-slate-700">説明文を表示する</span>
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">補助ラベル</label>
+                      <input type="text" value={publicPortalWithdrawalBadgeLabelInput} onChange={(e) => { setPublicPortalWithdrawalBadgeLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 退会" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">見出し</label>
+                      <input type="text" value={publicPortalWithdrawalTitleInput} onChange={(e) => { setPublicPortalWithdrawalTitleInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 退会を申し込む" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">説明文</label>
+                      <textarea value={publicPortalWithdrawalDescriptionInput} onChange={(e) => { setPublicPortalWithdrawalDescriptionInput(e.target.value); setSettingsIsDirty(true); }} rows={3} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 退会申請を行います。退会は当年度末（3月31日）に適用されます。" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">ボタン文言</label>
+                      <input type="text" value={publicPortalWithdrawalCtaLabelInput} onChange={(e) => { setPublicPortalWithdrawalCtaLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 退会手続きへ進む" />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -3060,6 +3286,29 @@ const App: React.FC = () => {
                         publicPortalCompletionLoginInfoBodyWhenCredentialNotSent: publicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput,
                         publicPortalCompletionNoCredentialNotice: publicPortalCompletionNoCredentialNoticeInput,
                         publicPortalCompletionCredentialNotice: publicPortalCompletionCredentialNoticeInput,
+                        publicPortalTrainingBadgeEnabled: publicPortalTrainingBadgeEnabledInput,
+                        publicPortalTrainingBadgeLabel: publicPortalTrainingBadgeLabelInput,
+                        publicPortalTrainingTitleEnabled: publicPortalTrainingTitleEnabledInput,
+                        publicPortalTrainingTitle: publicPortalTrainingTitleInput,
+                        publicPortalTrainingDescriptionEnabled: publicPortalTrainingDescriptionEnabledInput,
+                        publicPortalTrainingDescription: publicPortalTrainingDescriptionInput,
+                        publicPortalTrainingCtaLabel: publicPortalTrainingCtaLabelInput,
+                        publicPortalMemberUpdateMenuEnabled: publicPortalMemberUpdateMenuEnabledInput,
+                        publicPortalMemberUpdateBadgeEnabled: publicPortalMemberUpdateBadgeEnabledInput,
+                        publicPortalMemberUpdateBadgeLabel: publicPortalMemberUpdateBadgeLabelInput,
+                        publicPortalMemberUpdateTitleEnabled: publicPortalMemberUpdateTitleEnabledInput,
+                        publicPortalMemberUpdateTitle: publicPortalMemberUpdateTitleInput,
+                        publicPortalMemberUpdateDescriptionEnabled: publicPortalMemberUpdateDescriptionEnabledInput,
+                        publicPortalMemberUpdateDescription: publicPortalMemberUpdateDescriptionInput,
+                        publicPortalMemberUpdateCtaLabel: publicPortalMemberUpdateCtaLabelInput,
+                        publicPortalWithdrawalMenuEnabled: publicPortalWithdrawalMenuEnabledInput,
+                        publicPortalWithdrawalBadgeEnabled: publicPortalWithdrawalBadgeEnabledInput,
+                        publicPortalWithdrawalBadgeLabel: publicPortalWithdrawalBadgeLabelInput,
+                        publicPortalWithdrawalTitleEnabled: publicPortalWithdrawalTitleEnabledInput,
+                        publicPortalWithdrawalTitle: publicPortalWithdrawalTitleInput,
+                        publicPortalWithdrawalDescriptionEnabled: publicPortalWithdrawalDescriptionEnabledInput,
+                        publicPortalWithdrawalDescription: publicPortalWithdrawalDescriptionInput,
+                        publicPortalWithdrawalCtaLabel: publicPortalWithdrawalCtaLabelInput,
                       });
                       setDefaultBusinessStaffLimit(saved.defaultBusinessStaffLimit);
                       setGlobalLimitInput(String(saved.defaultBusinessStaffLimit));
@@ -3103,6 +3352,29 @@ const App: React.FC = () => {
                       setPublicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput(saved.publicPortalCompletionLoginInfoBodyWhenCredentialNotSent ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialNotSent);
                       setPublicPortalCompletionNoCredentialNoticeInput(saved.publicPortalCompletionNoCredentialNotice ?? PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice);
                       setPublicPortalCompletionCredentialNoticeInput(saved.publicPortalCompletionCredentialNotice ?? PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice);
+                      setPublicPortalTrainingBadgeEnabledInput(saved.publicPortalTrainingBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.trainingBadgeEnabled);
+                      setPublicPortalTrainingBadgeLabelInput(saved.publicPortalTrainingBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.trainingBadgeLabel);
+                      setPublicPortalTrainingTitleEnabledInput(saved.publicPortalTrainingTitleEnabled ?? PUBLIC_PORTAL_DEFAULTS.trainingTitleEnabled);
+                      setPublicPortalTrainingTitleInput(saved.publicPortalTrainingTitle ?? PUBLIC_PORTAL_DEFAULTS.trainingTitle);
+                      setPublicPortalTrainingDescriptionEnabledInput(saved.publicPortalTrainingDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.trainingDescriptionEnabled);
+                      setPublicPortalTrainingDescriptionInput(saved.publicPortalTrainingDescription ?? PUBLIC_PORTAL_DEFAULTS.trainingDescription);
+                      setPublicPortalTrainingCtaLabelInput(saved.publicPortalTrainingCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.trainingCtaLabel);
+                      setPublicPortalMemberUpdateMenuEnabledInput(saved.publicPortalMemberUpdateMenuEnabled ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateMenuEnabled);
+                      setPublicPortalMemberUpdateBadgeEnabledInput(saved.publicPortalMemberUpdateBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeEnabled);
+                      setPublicPortalMemberUpdateBadgeLabelInput(saved.publicPortalMemberUpdateBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeLabel);
+                      setPublicPortalMemberUpdateTitleEnabledInput(saved.publicPortalMemberUpdateTitleEnabled ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateTitleEnabled);
+                      setPublicPortalMemberUpdateTitleInput(saved.publicPortalMemberUpdateTitle ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateTitle);
+                      setPublicPortalMemberUpdateDescriptionEnabledInput(saved.publicPortalMemberUpdateDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateDescriptionEnabled);
+                      setPublicPortalMemberUpdateDescriptionInput(saved.publicPortalMemberUpdateDescription ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateDescription);
+                      setPublicPortalMemberUpdateCtaLabelInput(saved.publicPortalMemberUpdateCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateCtaLabel);
+                      setPublicPortalWithdrawalMenuEnabledInput(saved.publicPortalWithdrawalMenuEnabled ?? PUBLIC_PORTAL_DEFAULTS.withdrawalMenuEnabled);
+                      setPublicPortalWithdrawalBadgeEnabledInput(saved.publicPortalWithdrawalBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeEnabled);
+                      setPublicPortalWithdrawalBadgeLabelInput(saved.publicPortalWithdrawalBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeLabel);
+                      setPublicPortalWithdrawalTitleEnabledInput(saved.publicPortalWithdrawalTitleEnabled ?? PUBLIC_PORTAL_DEFAULTS.withdrawalTitleEnabled);
+                      setPublicPortalWithdrawalTitleInput(saved.publicPortalWithdrawalTitle ?? PUBLIC_PORTAL_DEFAULTS.withdrawalTitle);
+                      setPublicPortalWithdrawalDescriptionEnabledInput(saved.publicPortalWithdrawalDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled);
+                      setPublicPortalWithdrawalDescriptionInput(saved.publicPortalWithdrawalDescription ?? PUBLIC_PORTAL_DEFAULTS.withdrawalDescription);
+                      setPublicPortalWithdrawalCtaLabelInput(saved.publicPortalWithdrawalCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel);
                       setSettingsIsDirty(false);
                       alert('設定を保存しました。');
                     } catch (e) {

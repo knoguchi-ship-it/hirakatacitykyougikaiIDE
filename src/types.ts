@@ -91,6 +91,29 @@ export interface SystemSettings {
   publicPortalCompletionNoCredentialNotice?: string;
   publicPortalCompletionCredentialNotice?: string;
   publicPortalCredentialEmailEnabled?: boolean;
+  publicPortalTrainingBadgeEnabled?: boolean;
+  publicPortalTrainingBadgeLabel?: string;
+  publicPortalTrainingTitleEnabled?: boolean;
+  publicPortalTrainingTitle?: string;
+  publicPortalTrainingDescriptionEnabled?: boolean;
+  publicPortalTrainingDescription?: string;
+  publicPortalTrainingCtaLabel?: string;
+  publicPortalMemberUpdateMenuEnabled?: boolean;
+  publicPortalMemberUpdateBadgeEnabled?: boolean;
+  publicPortalMemberUpdateBadgeLabel?: string;
+  publicPortalMemberUpdateTitleEnabled?: boolean;
+  publicPortalMemberUpdateTitle?: string;
+  publicPortalMemberUpdateDescriptionEnabled?: boolean;
+  publicPortalMemberUpdateDescription?: string;
+  publicPortalMemberUpdateCtaLabel?: string;
+  publicPortalWithdrawalMenuEnabled?: boolean;
+  publicPortalWithdrawalBadgeEnabled?: boolean;
+  publicPortalWithdrawalBadgeLabel?: string;
+  publicPortalWithdrawalTitleEnabled?: boolean;
+  publicPortalWithdrawalTitle?: string;
+  publicPortalWithdrawalDescriptionEnabled?: boolean;
+  publicPortalWithdrawalDescription?: string;
+  publicPortalWithdrawalCtaLabel?: string;
 }
 
 export interface AnnualFeeAdminRecord {

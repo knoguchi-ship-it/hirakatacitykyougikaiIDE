@@ -49,6 +49,29 @@ var PUBLIC_PORTAL_DEFAULTS = {
   completionLoginInfoBodyWhenCredentialNotSent: 'ログイン情報メールは現在送信していません。公開準備後にご案内します。',
   completionNoCredentialNotice: 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
   completionCredentialNotice: 'ログイン情報をご登録のメールアドレスに送信しました。',
+  trainingBadgeEnabled: true,
+  trainingBadgeLabel: 'TRAINING',
+  trainingTitleEnabled: true,
+  trainingTitle: '研修を申し込む',
+  trainingDescriptionEnabled: true,
+  trainingDescription: '受付中の研修一覧を確認し、そのまま申込できます。申込後の取消も研修ページから行えます。',
+  trainingCtaLabel: '進む',
+  memberUpdateMenuEnabled: true,
+  memberUpdateBadgeEnabled: true,
+  memberUpdateBadgeLabel: '登録情報変更',
+  memberUpdateTitleEnabled: true,
+  memberUpdateTitle: '会員登録情報を変更する',
+  memberUpdateDescriptionEnabled: true,
+  memberUpdateDescription: '住所・電話番号・メールアドレスなど、ご登録情報の変更を申し込めます。介護支援専門員番号でご本人確認を行います。',
+  memberUpdateCtaLabel: '変更手続きへ進む',
+  withdrawalMenuEnabled: true,
+  withdrawalBadgeEnabled: true,
+  withdrawalBadgeLabel: '退会',
+  withdrawalTitleEnabled: true,
+  withdrawalTitle: '退会を申し込む',
+  withdrawalDescriptionEnabled: true,
+  withdrawalDescription: '退会申請を行います。退会は当年度末（3月31日）に適用されます。介護支援専門員番号でご本人確認を行います。',
+  withdrawalCtaLabel: '退会手続きへ進む',
 };
 
 var マスタ定義 = {
@@ -1002,10 +1025,14 @@ var PUBLIC_ALLOWED_ACTIONS = {
   applyTrainingExternal: true,
   cancelTrainingExternal: true,
   submitMemberApplication: true,
-  // v260: 公開ポータル 会員情報変更・退会申請（OTP認証フロー）
-  sendPublicOtp: true,
-  verifyPublicOtp: true,
+  // v260: 公開ポータル 会員情報変更・退会申請
+  sendPublicOtp: true,          // 退会申請用 OTP（継続使用）
+  verifyPublicOtp: true,        // 退会申請用 OTP 検証（継続使用）
+  lookupMemberForPublicUpdate: true,   // v261: CM番号/事業所番号で照合 → トークン発行
   submitPublicMemberUpdate: true,
+  submitPublicBusinessUpdate: true,    // v261: 事業所 基本情報+スタッフ操作
+  addPublicStaffMember: true,          // v261: 事業所スタッフ追加
+  removePublicStaffByCmNumber: true,   // v261: 事業所スタッフ除籍
   submitPublicWithdrawalRequest: true,
 };
 
@@ -1334,7 +1361,7 @@ function processApiRequest(action, payload) {
       return cancelTrainingExternal_(parsedPayload);
     }
 
-    // v260: 公開ポータル 会員情報変更・退会申請（OTP認証フロー）
+    // v260/v261: 公開ポータル 会員情報変更・退会申請
     if (action === 'sendPublicOtp') {
       return JSON.stringify({ success: true, data: sendPublicOtp_(parsedPayload) });
     }
@@ -1343,8 +1370,24 @@ function processApiRequest(action, payload) {
       return JSON.stringify({ success: true, data: verifyPublicOtp_(parsedPayload) });
     }
 
+    if (action === 'lookupMemberForPublicUpdate') {
+      return JSON.stringify({ success: true, data: lookupMemberForPublicUpdate_(parsedPayload) });
+    }
+
     if (action === 'submitPublicMemberUpdate') {
       return JSON.stringify({ success: true, data: submitPublicMemberUpdate_(parsedPayload) });
+    }
+
+    if (action === 'submitPublicBusinessUpdate') {
+      return JSON.stringify({ success: true, data: submitPublicBusinessUpdate_(parsedPayload) });
+    }
+
+    if (action === 'addPublicStaffMember') {
+      return JSON.stringify({ success: true, data: addPublicStaffMember_(parsedPayload) });
+    }
+
+    if (action === 'removePublicStaffByCmNumber') {
+      return JSON.stringify({ success: true, data: removePublicStaffByCmNumber_(parsedPayload) });
     }
 
     if (action === 'submitPublicWithdrawalRequest') {
@@ -4399,6 +4442,40 @@ function getSystemSettings_() {
   var publicPortalCompletionLoginInfoBodyWhenCredentialNotSent = String(m['PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_NOT_SENT'] || '') || PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialNotSent;
   var publicPortalCompletionNoCredentialNotice = String(m['PUBLIC_PORTAL_COMPLETION_NO_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice;
   var publicPortalCompletionCredentialNotice = String(m['PUBLIC_PORTAL_COMPLETION_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice;
+  var trainingBadgeEnabledRaw = m['PUBLIC_PORTAL_TRAINING_BADGE_ENABLED'];
+  var publicPortalTrainingBadgeEnabled = trainingBadgeEnabledRaw === undefined || trainingBadgeEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.trainingBadgeEnabled : String(trainingBadgeEnabledRaw) !== 'false';
+  var publicPortalTrainingBadgeLabel = String(m['PUBLIC_PORTAL_TRAINING_BADGE_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.trainingBadgeLabel;
+  var trainingTitleEnabledRaw = m['PUBLIC_PORTAL_TRAINING_TITLE_ENABLED'];
+  var publicPortalTrainingTitleEnabled = trainingTitleEnabledRaw === undefined || trainingTitleEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.trainingTitleEnabled : String(trainingTitleEnabledRaw) !== 'false';
+  var publicPortalTrainingTitle = String(m['PUBLIC_PORTAL_TRAINING_TITLE'] || '') || PUBLIC_PORTAL_DEFAULTS.trainingTitle;
+  var trainingDescriptionEnabledRaw = m['PUBLIC_PORTAL_TRAINING_DESCRIPTION_ENABLED'];
+  var publicPortalTrainingDescriptionEnabled = trainingDescriptionEnabledRaw === undefined || trainingDescriptionEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.trainingDescriptionEnabled : String(trainingDescriptionEnabledRaw) !== 'false';
+  var publicPortalTrainingDescription = String(m['PUBLIC_PORTAL_TRAINING_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.trainingDescription;
+  var publicPortalTrainingCtaLabel = String(m['PUBLIC_PORTAL_TRAINING_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.trainingCtaLabel;
+  var memberUpdateMenuEnabledRaw = m['PUBLIC_PORTAL_MEMBER_UPDATE_MENU_ENABLED'];
+  var publicPortalMemberUpdateMenuEnabled = memberUpdateMenuEnabledRaw === undefined || memberUpdateMenuEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.memberUpdateMenuEnabled : String(memberUpdateMenuEnabledRaw) !== 'false';
+  var memberUpdateBadgeEnabledRaw = m['PUBLIC_PORTAL_MEMBER_UPDATE_BADGE_ENABLED'];
+  var publicPortalMemberUpdateBadgeEnabled = memberUpdateBadgeEnabledRaw === undefined || memberUpdateBadgeEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeEnabled : String(memberUpdateBadgeEnabledRaw) !== 'false';
+  var publicPortalMemberUpdateBadgeLabel = String(m['PUBLIC_PORTAL_MEMBER_UPDATE_BADGE_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeLabel;
+  var memberUpdateTitleEnabledRaw = m['PUBLIC_PORTAL_MEMBER_UPDATE_TITLE_ENABLED'];
+  var publicPortalMemberUpdateTitleEnabled = memberUpdateTitleEnabledRaw === undefined || memberUpdateTitleEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.memberUpdateTitleEnabled : String(memberUpdateTitleEnabledRaw) !== 'false';
+  var publicPortalMemberUpdateTitle = String(m['PUBLIC_PORTAL_MEMBER_UPDATE_TITLE'] || '') || PUBLIC_PORTAL_DEFAULTS.memberUpdateTitle;
+  var memberUpdateDescriptionEnabledRaw = m['PUBLIC_PORTAL_MEMBER_UPDATE_DESCRIPTION_ENABLED'];
+  var publicPortalMemberUpdateDescriptionEnabled = memberUpdateDescriptionEnabledRaw === undefined || memberUpdateDescriptionEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.memberUpdateDescriptionEnabled : String(memberUpdateDescriptionEnabledRaw) !== 'false';
+  var publicPortalMemberUpdateDescription = String(m['PUBLIC_PORTAL_MEMBER_UPDATE_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.memberUpdateDescription;
+  var publicPortalMemberUpdateCtaLabel = String(m['PUBLIC_PORTAL_MEMBER_UPDATE_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.memberUpdateCtaLabel;
+  var withdrawalMenuEnabledRaw = m['PUBLIC_PORTAL_WITHDRAWAL_MENU_ENABLED'];
+  var publicPortalWithdrawalMenuEnabled = withdrawalMenuEnabledRaw === undefined || withdrawalMenuEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalMenuEnabled : String(withdrawalMenuEnabledRaw) !== 'false';
+  var withdrawalBadgeEnabledRaw = m['PUBLIC_PORTAL_WITHDRAWAL_BADGE_ENABLED'];
+  var publicPortalWithdrawalBadgeEnabled = withdrawalBadgeEnabledRaw === undefined || withdrawalBadgeEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeEnabled : String(withdrawalBadgeEnabledRaw) !== 'false';
+  var publicPortalWithdrawalBadgeLabel = String(m['PUBLIC_PORTAL_WITHDRAWAL_BADGE_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeLabel;
+  var withdrawalTitleEnabledRaw = m['PUBLIC_PORTAL_WITHDRAWAL_TITLE_ENABLED'];
+  var publicPortalWithdrawalTitleEnabled = withdrawalTitleEnabledRaw === undefined || withdrawalTitleEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalTitleEnabled : String(withdrawalTitleEnabledRaw) !== 'false';
+  var publicPortalWithdrawalTitle = String(m['PUBLIC_PORTAL_WITHDRAWAL_TITLE'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalTitle;
+  var withdrawalDescriptionEnabledRaw = m['PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION_ENABLED'];
+  var publicPortalWithdrawalDescriptionEnabled = withdrawalDescriptionEnabledRaw === undefined || withdrawalDescriptionEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled : String(withdrawalDescriptionEnabledRaw) !== 'false';
+  var publicPortalWithdrawalDescription = String(m['PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalDescription;
+  var publicPortalWithdrawalCtaLabel = String(m['PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel;
   return {
     defaultBusinessStaffLimit: value,
     trainingHistoryLookbackMonths: lookback,
@@ -4437,6 +4514,29 @@ function getSystemSettings_() {
     publicPortalCompletionNoCredentialNotice: publicPortalCompletionNoCredentialNotice,
     publicPortalCompletionCredentialNotice: publicPortalCompletionCredentialNotice,
     publicPortalCredentialEmailEnabled: credentialEmailEnabled,
+    publicPortalTrainingBadgeEnabled: publicPortalTrainingBadgeEnabled,
+    publicPortalTrainingBadgeLabel: publicPortalTrainingBadgeLabel,
+    publicPortalTrainingTitleEnabled: publicPortalTrainingTitleEnabled,
+    publicPortalTrainingTitle: publicPortalTrainingTitle,
+    publicPortalTrainingDescriptionEnabled: publicPortalTrainingDescriptionEnabled,
+    publicPortalTrainingDescription: publicPortalTrainingDescription,
+    publicPortalTrainingCtaLabel: publicPortalTrainingCtaLabel,
+    publicPortalMemberUpdateMenuEnabled: publicPortalMemberUpdateMenuEnabled,
+    publicPortalMemberUpdateBadgeEnabled: publicPortalMemberUpdateBadgeEnabled,
+    publicPortalMemberUpdateBadgeLabel: publicPortalMemberUpdateBadgeLabel,
+    publicPortalMemberUpdateTitleEnabled: publicPortalMemberUpdateTitleEnabled,
+    publicPortalMemberUpdateTitle: publicPortalMemberUpdateTitle,
+    publicPortalMemberUpdateDescriptionEnabled: publicPortalMemberUpdateDescriptionEnabled,
+    publicPortalMemberUpdateDescription: publicPortalMemberUpdateDescription,
+    publicPortalMemberUpdateCtaLabel: publicPortalMemberUpdateCtaLabel,
+    publicPortalWithdrawalMenuEnabled: publicPortalWithdrawalMenuEnabled,
+    publicPortalWithdrawalBadgeEnabled: publicPortalWithdrawalBadgeEnabled,
+    publicPortalWithdrawalBadgeLabel: publicPortalWithdrawalBadgeLabel,
+    publicPortalWithdrawalTitleEnabled: publicPortalWithdrawalTitleEnabled,
+    publicPortalWithdrawalTitle: publicPortalWithdrawalTitle,
+    publicPortalWithdrawalDescriptionEnabled: publicPortalWithdrawalDescriptionEnabled,
+    publicPortalWithdrawalDescription: publicPortalWithdrawalDescription,
+    publicPortalWithdrawalCtaLabel: publicPortalWithdrawalCtaLabel,
   };
 }
 
@@ -4597,6 +4697,75 @@ function updateSystemSettings_(request, callerPermLevel) {
   }
   if (request.publicPortalCompletionCredentialNotice != null) {
     updates.push({ key: 'PUBLIC_PORTAL_COMPLETION_CREDENTIAL_NOTICE', value: String(request.publicPortalCompletionCredentialNotice).trim() || PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice, description: '公開ポータル：入会完了画面・ログイン情報送信済み時の案内文' });
+  }
+  if (request.publicPortalTrainingBadgeEnabled != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_TRAINING_BADGE_ENABLED', value: request.publicPortalTrainingBadgeEnabled ? 'true' : 'false', description: '公開ポータル：研修カード補助ラベルを表示するか' });
+  }
+  if (request.publicPortalTrainingBadgeLabel != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_TRAINING_BADGE_LABEL', value: String(request.publicPortalTrainingBadgeLabel).trim() || PUBLIC_PORTAL_DEFAULTS.trainingBadgeLabel, description: '公開ポータル：研修カード補助ラベル文言' });
+  }
+  if (request.publicPortalTrainingTitleEnabled != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_TRAINING_TITLE_ENABLED', value: request.publicPortalTrainingTitleEnabled ? 'true' : 'false', description: '公開ポータル：研修カード見出しを表示するか' });
+  }
+  if (request.publicPortalTrainingTitle != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_TRAINING_TITLE', value: String(request.publicPortalTrainingTitle).trim() || PUBLIC_PORTAL_DEFAULTS.trainingTitle, description: '公開ポータル：研修カード見出し' });
+  }
+  if (request.publicPortalTrainingDescriptionEnabled != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_TRAINING_DESCRIPTION_ENABLED', value: request.publicPortalTrainingDescriptionEnabled ? 'true' : 'false', description: '公開ポータル：研修カード説明文を表示するか' });
+  }
+  if (request.publicPortalTrainingDescription != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_TRAINING_DESCRIPTION', value: String(request.publicPortalTrainingDescription).trim() || PUBLIC_PORTAL_DEFAULTS.trainingDescription, description: '公開ポータル：研修カード説明文' });
+  }
+  if (request.publicPortalTrainingCtaLabel != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_TRAINING_CTA_LABEL', value: String(request.publicPortalTrainingCtaLabel).trim() || PUBLIC_PORTAL_DEFAULTS.trainingCtaLabel, description: '公開ポータル：研修カードボタン文言' });
+  }
+  if (request.publicPortalMemberUpdateMenuEnabled != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_MEMBER_UPDATE_MENU_ENABLED', value: request.publicPortalMemberUpdateMenuEnabled ? 'true' : 'false', description: '公開ポータル：登録情報変更メニューを表示するか' });
+  }
+  if (request.publicPortalMemberUpdateBadgeEnabled != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_MEMBER_UPDATE_BADGE_ENABLED', value: request.publicPortalMemberUpdateBadgeEnabled ? 'true' : 'false', description: '公開ポータル：登録情報変更カード補助ラベルを表示するか' });
+  }
+  if (request.publicPortalMemberUpdateBadgeLabel != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_MEMBER_UPDATE_BADGE_LABEL', value: String(request.publicPortalMemberUpdateBadgeLabel).trim() || PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeLabel, description: '公開ポータル：登録情報変更カード補助ラベル文言' });
+  }
+  if (request.publicPortalMemberUpdateTitleEnabled != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_MEMBER_UPDATE_TITLE_ENABLED', value: request.publicPortalMemberUpdateTitleEnabled ? 'true' : 'false', description: '公開ポータル：登録情報変更カード見出しを表示するか' });
+  }
+  if (request.publicPortalMemberUpdateTitle != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_MEMBER_UPDATE_TITLE', value: String(request.publicPortalMemberUpdateTitle).trim() || PUBLIC_PORTAL_DEFAULTS.memberUpdateTitle, description: '公開ポータル：登録情報変更カード見出し' });
+  }
+  if (request.publicPortalMemberUpdateDescriptionEnabled != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_MEMBER_UPDATE_DESCRIPTION_ENABLED', value: request.publicPortalMemberUpdateDescriptionEnabled ? 'true' : 'false', description: '公開ポータル：登録情報変更カード説明文を表示するか' });
+  }
+  if (request.publicPortalMemberUpdateDescription != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_MEMBER_UPDATE_DESCRIPTION', value: String(request.publicPortalMemberUpdateDescription).trim() || PUBLIC_PORTAL_DEFAULTS.memberUpdateDescription, description: '公開ポータル：登録情報変更カード説明文' });
+  }
+  if (request.publicPortalMemberUpdateCtaLabel != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_MEMBER_UPDATE_CTA_LABEL', value: String(request.publicPortalMemberUpdateCtaLabel).trim() || PUBLIC_PORTAL_DEFAULTS.memberUpdateCtaLabel, description: '公開ポータル：登録情報変更カードボタン文言' });
+  }
+  if (request.publicPortalWithdrawalMenuEnabled != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_WITHDRAWAL_MENU_ENABLED', value: request.publicPortalWithdrawalMenuEnabled ? 'true' : 'false', description: '公開ポータル：退会申込メニューを表示するか' });
+  }
+  if (request.publicPortalWithdrawalBadgeEnabled != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_WITHDRAWAL_BADGE_ENABLED', value: request.publicPortalWithdrawalBadgeEnabled ? 'true' : 'false', description: '公開ポータル：退会カード補助ラベルを表示するか' });
+  }
+  if (request.publicPortalWithdrawalBadgeLabel != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_WITHDRAWAL_BADGE_LABEL', value: String(request.publicPortalWithdrawalBadgeLabel).trim() || PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeLabel, description: '公開ポータル：退会カード補助ラベル文言' });
+  }
+  if (request.publicPortalWithdrawalTitleEnabled != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_WITHDRAWAL_TITLE_ENABLED', value: request.publicPortalWithdrawalTitleEnabled ? 'true' : 'false', description: '公開ポータル：退会カード見出しを表示するか' });
+  }
+  if (request.publicPortalWithdrawalTitle != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_WITHDRAWAL_TITLE', value: String(request.publicPortalWithdrawalTitle).trim() || PUBLIC_PORTAL_DEFAULTS.withdrawalTitle, description: '公開ポータル：退会カード見出し' });
+  }
+  if (request.publicPortalWithdrawalDescriptionEnabled != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION_ENABLED', value: request.publicPortalWithdrawalDescriptionEnabled ? 'true' : 'false', description: '公開ポータル：退会カード説明文を表示するか' });
+  }
+  if (request.publicPortalWithdrawalDescription != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION', value: String(request.publicPortalWithdrawalDescription).trim() || PUBLIC_PORTAL_DEFAULTS.withdrawalDescription, description: '公開ポータル：退会カード説明文' });
+  }
+  if (request.publicPortalWithdrawalCtaLabel != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL', value: String(request.publicPortalWithdrawalCtaLabel).trim() || PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel, description: '公開ポータル：退会カードボタン文言' });
   }
   batchUpsertSystemSettings_(ss, updates);
   var scriptProperties = PropertiesService.getScriptProperties();
@@ -10689,6 +10858,29 @@ function ensureSystemSettingsRows_(ss) {
     { key: 'PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_NOT_SENT', value: PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialNotSent, desc: '公開ポータル：入会完了画面・ログイン情報補足本文（メール送信OFF時）' },
     { key: 'PUBLIC_PORTAL_COMPLETION_NO_CREDENTIAL_NOTICE', value: PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice, desc: '公開ポータル：入会完了画面・ログイン情報未送信時の案内文' },
     { key: 'PUBLIC_PORTAL_COMPLETION_CREDENTIAL_NOTICE', value: PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice, desc: '公開ポータル：入会完了画面・ログイン情報送信済み時の案内文' },
+    { key: 'PUBLIC_PORTAL_TRAINING_BADGE_ENABLED', value: PUBLIC_PORTAL_DEFAULTS.trainingBadgeEnabled ? 'true' : 'false', desc: '公開ポータル：研修カード補助ラベルを表示するか' },
+    { key: 'PUBLIC_PORTAL_TRAINING_BADGE_LABEL', value: PUBLIC_PORTAL_DEFAULTS.trainingBadgeLabel, desc: '公開ポータル：研修カード補助ラベル文言' },
+    { key: 'PUBLIC_PORTAL_TRAINING_TITLE_ENABLED', value: PUBLIC_PORTAL_DEFAULTS.trainingTitleEnabled ? 'true' : 'false', desc: '公開ポータル：研修カード見出しを表示するか' },
+    { key: 'PUBLIC_PORTAL_TRAINING_TITLE', value: PUBLIC_PORTAL_DEFAULTS.trainingTitle, desc: '公開ポータル：研修カード見出し' },
+    { key: 'PUBLIC_PORTAL_TRAINING_DESCRIPTION_ENABLED', value: PUBLIC_PORTAL_DEFAULTS.trainingDescriptionEnabled ? 'true' : 'false', desc: '公開ポータル：研修カード説明文を表示するか' },
+    { key: 'PUBLIC_PORTAL_TRAINING_DESCRIPTION', value: PUBLIC_PORTAL_DEFAULTS.trainingDescription, desc: '公開ポータル：研修カード説明文' },
+    { key: 'PUBLIC_PORTAL_TRAINING_CTA_LABEL', value: PUBLIC_PORTAL_DEFAULTS.trainingCtaLabel, desc: '公開ポータル：研修カードボタン文言' },
+    { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_MENU_ENABLED', value: PUBLIC_PORTAL_DEFAULTS.memberUpdateMenuEnabled ? 'true' : 'false', desc: '公開ポータル：登録情報変更メニューを表示するか' },
+    { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_BADGE_ENABLED', value: PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeEnabled ? 'true' : 'false', desc: '公開ポータル：登録情報変更カード補助ラベルを表示するか' },
+    { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_BADGE_LABEL', value: PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeLabel, desc: '公開ポータル：登録情報変更カード補助ラベル文言' },
+    { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_TITLE_ENABLED', value: PUBLIC_PORTAL_DEFAULTS.memberUpdateTitleEnabled ? 'true' : 'false', desc: '公開ポータル：登録情報変更カード見出しを表示するか' },
+    { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_TITLE', value: PUBLIC_PORTAL_DEFAULTS.memberUpdateTitle, desc: '公開ポータル：登録情報変更カード見出し' },
+    { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_DESCRIPTION_ENABLED', value: PUBLIC_PORTAL_DEFAULTS.memberUpdateDescriptionEnabled ? 'true' : 'false', desc: '公開ポータル：登録情報変更カード説明文を表示するか' },
+    { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_DESCRIPTION', value: PUBLIC_PORTAL_DEFAULTS.memberUpdateDescription, desc: '公開ポータル：登録情報変更カード説明文' },
+    { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_CTA_LABEL', value: PUBLIC_PORTAL_DEFAULTS.memberUpdateCtaLabel, desc: '公開ポータル：登録情報変更カードボタン文言' },
+    { key: 'PUBLIC_PORTAL_WITHDRAWAL_MENU_ENABLED', value: PUBLIC_PORTAL_DEFAULTS.withdrawalMenuEnabled ? 'true' : 'false', desc: '公開ポータル：退会申込メニューを表示するか' },
+    { key: 'PUBLIC_PORTAL_WITHDRAWAL_BADGE_ENABLED', value: PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeEnabled ? 'true' : 'false', desc: '公開ポータル：退会カード補助ラベルを表示するか' },
+    { key: 'PUBLIC_PORTAL_WITHDRAWAL_BADGE_LABEL', value: PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeLabel, desc: '公開ポータル：退会カード補助ラベル文言' },
+    { key: 'PUBLIC_PORTAL_WITHDRAWAL_TITLE_ENABLED', value: PUBLIC_PORTAL_DEFAULTS.withdrawalTitleEnabled ? 'true' : 'false', desc: '公開ポータル：退会カード見出しを表示するか' },
+    { key: 'PUBLIC_PORTAL_WITHDRAWAL_TITLE', value: PUBLIC_PORTAL_DEFAULTS.withdrawalTitle, desc: '公開ポータル：退会カード見出し' },
+    { key: 'PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION_ENABLED', value: PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled ? 'true' : 'false', desc: '公開ポータル：退会カード説明文を表示するか' },
+    { key: 'PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION', value: PUBLIC_PORTAL_DEFAULTS.withdrawalDescription, desc: '公開ポータル：退会カード説明文' },
+    { key: 'PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL', value: PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel, desc: '公開ポータル：退会カードボタン文言' },
   ];
   publicPortalTextSettings.forEach(function(item) {
     if (!byKey[item.key]) {
@@ -11049,6 +11241,40 @@ function getPublicPortalSettings_() {
   var credentialEmailEnabled = credentialEmailEnabledRaw === '' || credentialEmailEnabledRaw === null
     ? true
     : String(credentialEmailEnabledRaw) !== 'false';
+  var ppTrainingBadgeEnabledRaw = map['PUBLIC_PORTAL_TRAINING_BADGE_ENABLED'];
+  var ppTrainingBadgeEnabled = ppTrainingBadgeEnabledRaw === undefined || ppTrainingBadgeEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.trainingBadgeEnabled : String(ppTrainingBadgeEnabledRaw) !== 'false';
+  var ppTrainingBadgeLabel = String(map['PUBLIC_PORTAL_TRAINING_BADGE_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.trainingBadgeLabel;
+  var ppTrainingTitleEnabledRaw = map['PUBLIC_PORTAL_TRAINING_TITLE_ENABLED'];
+  var ppTrainingTitleEnabled = ppTrainingTitleEnabledRaw === undefined || ppTrainingTitleEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.trainingTitleEnabled : String(ppTrainingTitleEnabledRaw) !== 'false';
+  var ppTrainingTitle = String(map['PUBLIC_PORTAL_TRAINING_TITLE'] || '') || PUBLIC_PORTAL_DEFAULTS.trainingTitle;
+  var ppTrainingDescriptionEnabledRaw = map['PUBLIC_PORTAL_TRAINING_DESCRIPTION_ENABLED'];
+  var ppTrainingDescriptionEnabled = ppTrainingDescriptionEnabledRaw === undefined || ppTrainingDescriptionEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.trainingDescriptionEnabled : String(ppTrainingDescriptionEnabledRaw) !== 'false';
+  var ppTrainingDescription = String(map['PUBLIC_PORTAL_TRAINING_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.trainingDescription;
+  var ppTrainingCtaLabel = String(map['PUBLIC_PORTAL_TRAINING_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.trainingCtaLabel;
+  var ppMemberUpdateMenuEnabledRaw = map['PUBLIC_PORTAL_MEMBER_UPDATE_MENU_ENABLED'];
+  var ppMemberUpdateMenuEnabled = ppMemberUpdateMenuEnabledRaw === undefined || ppMemberUpdateMenuEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.memberUpdateMenuEnabled : String(ppMemberUpdateMenuEnabledRaw) !== 'false';
+  var ppMemberUpdateBadgeEnabledRaw = map['PUBLIC_PORTAL_MEMBER_UPDATE_BADGE_ENABLED'];
+  var ppMemberUpdateBadgeEnabled = ppMemberUpdateBadgeEnabledRaw === undefined || ppMemberUpdateBadgeEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeEnabled : String(ppMemberUpdateBadgeEnabledRaw) !== 'false';
+  var ppMemberUpdateBadgeLabel = String(map['PUBLIC_PORTAL_MEMBER_UPDATE_BADGE_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeLabel;
+  var ppMemberUpdateTitleEnabledRaw = map['PUBLIC_PORTAL_MEMBER_UPDATE_TITLE_ENABLED'];
+  var ppMemberUpdateTitleEnabled = ppMemberUpdateTitleEnabledRaw === undefined || ppMemberUpdateTitleEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.memberUpdateTitleEnabled : String(ppMemberUpdateTitleEnabledRaw) !== 'false';
+  var ppMemberUpdateTitle = String(map['PUBLIC_PORTAL_MEMBER_UPDATE_TITLE'] || '') || PUBLIC_PORTAL_DEFAULTS.memberUpdateTitle;
+  var ppMemberUpdateDescriptionEnabledRaw = map['PUBLIC_PORTAL_MEMBER_UPDATE_DESCRIPTION_ENABLED'];
+  var ppMemberUpdateDescriptionEnabled = ppMemberUpdateDescriptionEnabledRaw === undefined || ppMemberUpdateDescriptionEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.memberUpdateDescriptionEnabled : String(ppMemberUpdateDescriptionEnabledRaw) !== 'false';
+  var ppMemberUpdateDescription = String(map['PUBLIC_PORTAL_MEMBER_UPDATE_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.memberUpdateDescription;
+  var ppMemberUpdateCtaLabel = String(map['PUBLIC_PORTAL_MEMBER_UPDATE_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.memberUpdateCtaLabel;
+  var ppWithdrawalMenuEnabledRaw = map['PUBLIC_PORTAL_WITHDRAWAL_MENU_ENABLED'];
+  var ppWithdrawalMenuEnabled = ppWithdrawalMenuEnabledRaw === undefined || ppWithdrawalMenuEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalMenuEnabled : String(ppWithdrawalMenuEnabledRaw) !== 'false';
+  var ppWithdrawalBadgeEnabledRaw = map['PUBLIC_PORTAL_WITHDRAWAL_BADGE_ENABLED'];
+  var ppWithdrawalBadgeEnabled = ppWithdrawalBadgeEnabledRaw === undefined || ppWithdrawalBadgeEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeEnabled : String(ppWithdrawalBadgeEnabledRaw) !== 'false';
+  var ppWithdrawalBadgeLabel = String(map['PUBLIC_PORTAL_WITHDRAWAL_BADGE_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeLabel;
+  var ppWithdrawalTitleEnabledRaw = map['PUBLIC_PORTAL_WITHDRAWAL_TITLE_ENABLED'];
+  var ppWithdrawalTitleEnabled = ppWithdrawalTitleEnabledRaw === undefined || ppWithdrawalTitleEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalTitleEnabled : String(ppWithdrawalTitleEnabledRaw) !== 'false';
+  var ppWithdrawalTitle = String(map['PUBLIC_PORTAL_WITHDRAWAL_TITLE'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalTitle;
+  var ppWithdrawalDescriptionEnabledRaw = map['PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION_ENABLED'];
+  var ppWithdrawalDescriptionEnabled = ppWithdrawalDescriptionEnabledRaw === undefined || ppWithdrawalDescriptionEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled : String(ppWithdrawalDescriptionEnabledRaw) !== 'false';
+  var ppWithdrawalDescription = String(map['PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalDescription;
+  var ppWithdrawalCtaLabel = String(map['PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel;
   return JSON.stringify({
     success: true,
     data: {
@@ -11076,6 +11302,29 @@ function getPublicPortalSettings_() {
       completionNoCredentialNotice: publicPortalCompletionNoCredentialNotice,
       completionCredentialNotice: publicPortalCompletionCredentialNotice,
       credentialEmailEnabled: credentialEmailEnabled,
+      trainingBadgeEnabled: ppTrainingBadgeEnabled,
+      trainingBadgeLabel: ppTrainingBadgeLabel,
+      trainingTitleEnabled: ppTrainingTitleEnabled,
+      trainingTitle: ppTrainingTitle,
+      trainingDescriptionEnabled: ppTrainingDescriptionEnabled,
+      trainingDescription: ppTrainingDescription,
+      trainingCtaLabel: ppTrainingCtaLabel,
+      memberUpdateMenuEnabled: ppMemberUpdateMenuEnabled,
+      memberUpdateBadgeEnabled: ppMemberUpdateBadgeEnabled,
+      memberUpdateBadgeLabel: ppMemberUpdateBadgeLabel,
+      memberUpdateTitleEnabled: ppMemberUpdateTitleEnabled,
+      memberUpdateTitle: ppMemberUpdateTitle,
+      memberUpdateDescriptionEnabled: ppMemberUpdateDescriptionEnabled,
+      memberUpdateDescription: ppMemberUpdateDescription,
+      memberUpdateCtaLabel: ppMemberUpdateCtaLabel,
+      withdrawalMenuEnabled: ppWithdrawalMenuEnabled,
+      withdrawalBadgeEnabled: ppWithdrawalBadgeEnabled,
+      withdrawalBadgeLabel: ppWithdrawalBadgeLabel,
+      withdrawalTitleEnabled: ppWithdrawalTitleEnabled,
+      withdrawalTitle: ppWithdrawalTitle,
+      withdrawalDescriptionEnabled: ppWithdrawalDescriptionEnabled,
+      withdrawalDescription: ppWithdrawalDescription,
+      withdrawalCtaLabel: ppWithdrawalCtaLabel,
     }
   });
 }
@@ -11279,16 +11528,25 @@ function cancelTrainingExternal_(payload) {
   return JSON.stringify({ success: true });
 }
 
-// ── v260: 公開ポータル 会員情報変更・退会申請 OTP 認証フロー ────────────────
+// ── v260/v261: 公開ポータル 会員情報変更・退会申請 ────────────────────────────
 
-// 公開ポータル経由で変更可能なフィールド allowlist（個人会員のみ）
-var PUBLIC_MEMBER_UPDATE_ALLOWLIST_ = [
+// 個人会員: 公開ポータル経由で変更可能なフィールド allowlist
+var PUBLIC_INDIVIDUAL_UPDATE_ALLOWLIST_ = [
   'email', 'mobilePhone',
   'phone', 'fax',
   'officePostCode', 'officePrefecture', 'officeCity', 'officeAddressLine', 'officeAddressLine2',
   'homePostCode', 'homePrefecture', 'homeCity', 'homeAddressLine', 'homeAddressLine2',
   'mailingPreference', 'preferredMailDestination',
 ];
+
+// 事業所会員: 公開ポータル経由で変更可能なフィールド allowlist
+var PUBLIC_BUSINESS_UPDATE_ALLOWLIST_ = [
+  'email', 'phone', 'fax',
+  'officePostCode', 'officePrefecture', 'officeCity', 'officeAddressLine', 'officeAddressLine2',
+];
+
+// 後方互換: submitPublicMemberUpdate_ で参照される旧名称
+var PUBLIC_MEMBER_UPDATE_ALLOWLIST_ = PUBLIC_INDIVIDUAL_UPDATE_ALLOWLIST_;
 
 function normalizeCmNumberForKey_(cm) {
   return String(cm || '').trim().replace(/\s/g, '');
@@ -11543,6 +11801,241 @@ function submitPublicWithdrawalRequest_(payload) {
   }
 
   return { success: true, withdrawnDate: withdrawnDate };
+}
+
+// ── v261: OTP なし照合フロー（個人: CM番号 / 事業所: 事業所番号）──────────────
+
+// CM番号または事業所番号でメンバーを検索し、アクショントークンを発行する。
+// token は pub_tok_update_<token> に memberType を含めて保存（30分・多用途）。
+function lookupMemberForPublicUpdate_(payload) {
+  var idNumber = normalizeCmNumberForKey_(payload.idNumber);
+  var memberType = String(payload.memberType || '').trim();
+
+  if (memberType !== 'INDIVIDUAL' && memberType !== 'BUSINESS') {
+    return { found: false, error: 'invalid_member_type' };
+  }
+
+  var validFormat = memberType === 'INDIVIDUAL'
+    ? /^\d{8}$/.test(idNumber)
+    : /^[A-Za-z0-9]{10}$/.test(idNumber);
+  if (!validFormat) {
+    return { found: false, error: memberType === 'INDIVIDUAL'
+      ? 'CM番号は8桁の数字で入力してください'
+      : '事業所番号は半角英数字10文字で入力してください' };
+  }
+
+  var ss = getOrCreateDatabase_();
+  var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(r) {
+    if (toBoolean_(r['削除フラグ'])) return false;
+    if (String(r['会員状態コード'] || '') === 'WITHDRAWN') return false;
+    if (String(r['会員種別コード'] || '') !== memberType) return false;
+    var key = memberType === 'INDIVIDUAL'
+      ? normalizeCmNumberForKey_(r['介護支援専門員番号'])
+      : normalizeCmNumberForKey_(r['事業所番号']);
+    return key === idNumber;
+  });
+
+  if (memberRows.length === 0) {
+    return { found: false, error: memberType === 'INDIVIDUAL'
+      ? '介護支援専門員番号が見つかりません'
+      : '事業所番号が見つかりません' };
+  }
+  if (memberRows.length > 1) {
+    return { found: false, error: '整合性エラーが発生しています。事務局にお問い合わせください。' };
+  }
+
+  var member = memberRows[0];
+  var memberId = String(member['会員ID'] || '');
+  var token = generatePublicActionToken_();
+  CacheService.getScriptCache().put(
+    'pub_tok_update_' + token,
+    JSON.stringify({ memberId: memberId, memberType: memberType }),
+    1800
+  );
+
+  return { found: true, token: token };
+}
+
+// 事業所会員の基本情報変更 + スタッフ追加/除籍をまとめて処理する。
+// token は削除せず TTL 内で多用途使用を許容。
+function submitPublicBusinessUpdate_(payload) {
+  var token = String(payload.token || '').trim();
+  if (!token) return { success: false, error: 'invalid_token' };
+
+  var cache = CacheService.getScriptCache();
+  var tokenRaw = cache.get('pub_tok_update_' + token);
+  if (!tokenRaw) return { success: false, error: 'token_expired' };
+
+  var stored = JSON.parse(tokenRaw);
+  if (stored.memberType !== 'BUSINESS') return { success: false, error: '事業所会員専用の操作です' };
+  var memberId = stored.memberId;
+
+  var results = {};
+
+  // 1. 基本情報変更
+  if (payload.fields && Object.keys(payload.fields).length > 0) {
+    var updatePayload = { id: memberId };
+    for (var i = 0; i < PUBLIC_BUSINESS_UPDATE_ALLOWLIST_.length; i++) {
+      var fk = PUBLIC_BUSINESS_UPDATE_ALLOWLIST_[i];
+      if (Object.prototype.hasOwnProperty.call(payload.fields, fk)) {
+        updatePayload[fk] = payload.fields[fk];
+      }
+    }
+    if (Object.keys(updatePayload).length > 1) {
+      updateMember_(updatePayload, { skipAdminCheck: true });
+      results.basicUpdated = true;
+    }
+  }
+
+  // 2. スタッフ追加
+  if (payload.addStaff) {
+    var addResult = addPublicStaffMember_({ token: token, staffData: payload.addStaff });
+    results.staffAdded = addResult.success;
+    if (!addResult.success) return { success: false, error: addResult.error };
+  }
+
+  // 3. スタッフ除籍
+  if (payload.removeCmNumber) {
+    var removeResult = removePublicStaffByCmNumber_({ token: token, cmNumber: payload.removeCmNumber });
+    results.staffRemoved = removeResult.success;
+    if (!removeResult.success) return { success: false, error: removeResult.error };
+  }
+
+  // 通知メール
+  var ss2 = getOrCreateDatabase_();
+  var memberSheet2 = ss2.getSheetByName('T_会員');
+  if (memberSheet2) {
+    var found2 = findRowByColumnValue_(memberSheet2, '会員ID', memberId);
+    if (found2) {
+      var emailTo = String(found2.row[found2.columns['代表メールアドレス']] || '').trim();
+      if (emailTo) {
+        MailApp.sendEmail(emailTo,
+          '【枚方市介護支援専門員連絡協議会】事業所登録情報変更のご確認',
+          ['事務局担当者 様', '', '事業所登録情報の変更を受け付けました。',
+           'お心当たりのない場合は事務局までご連絡ください。', '',
+           '枚方市介護支援専門員連絡協議会'].join('\n'));
+      }
+    }
+  }
+
+  return { success: true, results: results };
+}
+
+// 事業所にスタッフを新規追加する。認証アカウントは別途管理者が発行する。
+function addPublicStaffMember_(payload) {
+  var token = String(payload.token || '').trim();
+  if (!token) return { success: false, error: 'invalid_token' };
+
+  var cache = CacheService.getScriptCache();
+  var tokenRaw = cache.get('pub_tok_update_' + token);
+  if (!tokenRaw) return { success: false, error: 'token_expired' };
+
+  var stored = JSON.parse(tokenRaw);
+  if (stored.memberType !== 'BUSINESS') return { success: false, error: '事業所会員専用の操作です' };
+  var memberId = stored.memberId;
+
+  var s = payload.staffData || {};
+  var lastName = String(s.lastName || '').trim();
+  var firstName = String(s.firstName || '').trim();
+  if (!lastName || !firstName) return { success: false, error: '姓と名は必須です' };
+
+  var ss = getOrCreateDatabase_();
+
+  // 職員数上限チェック
+  var memberSheet = ss.getSheetByName('T_会員');
+  var memberFound = memberSheet ? findRowByColumnValue_(memberSheet, '会員ID', memberId) : null;
+  if (memberFound) {
+    var limitVal = memberFound.row[memberFound.columns['職員数上限']];
+    var staffLimit = limitVal ? Number(limitVal) : 0;
+    if (staffLimit > 0) {
+      var currentCount = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) {
+        return !toBoolean_(r['削除フラグ']) &&
+               String(r['会員ID'] || '') === memberId &&
+               String(r['職員状態コード'] || '') === 'ENROLLED';
+      }).length;
+      if (currentCount >= staffLimit) {
+        return { success: false, error: '職員数上限（' + staffLimit + '名）に達しています' };
+      }
+    }
+  }
+
+  var careNum = normalizeCmNumberForKey_(s.careManagerNumber);
+  var now = new Date().toISOString();
+  var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+  var newStaffId = 'S' + Date.now();
+  var fullName = [lastName, firstName].join(' ').trim();
+  var lastKana = String(s.lastKana || '').trim();
+  var firstKana = String(s.firstKana || '').trim();
+  var fullKana = [lastKana, firstKana].join(' ').trim();
+
+  appendRowsByHeaders_(ss, 'T_事業所職員', [{
+    職員ID: newStaffId,
+    会員ID: memberId,
+    姓: lastName,
+    名: firstName,
+    セイ: lastKana,
+    メイ: firstKana,
+    氏名: fullName,
+    フリガナ: fullKana,
+    メールアドレス: String(s.email || '').trim(),
+    職員権限コード: 'STAFF',
+    職員状態コード: 'ENROLLED',
+    入会日: today,
+    退会日: '',
+    介護支援専門員番号: careNum,
+    メール配信希望コード: 'YES',
+    作成日時: now,
+    更新日時: now,
+    削除フラグ: false,
+  }]);
+
+  clearAllDataCache_();
+  clearAdminDashboardCache_();
+  return { success: true, staffId: newStaffId };
+}
+
+// 事業所内のスタッフを介護支援専門員番号で検索して除籍する。
+function removePublicStaffByCmNumber_(payload) {
+  var token = String(payload.token || '').trim();
+  if (!token) return { success: false, error: 'invalid_token' };
+
+  var cache = CacheService.getScriptCache();
+  var tokenRaw = cache.get('pub_tok_update_' + token);
+  if (!tokenRaw) return { success: false, error: 'token_expired' };
+
+  var stored = JSON.parse(tokenRaw);
+  if (stored.memberType !== 'BUSINESS') return { success: false, error: '事業所会員専用の操作です' };
+  var memberId = stored.memberId;
+
+  var targetCm = normalizeCmNumberForKey_(payload.cmNumber);
+  if (!/^\d{8}$/.test(targetCm)) return { success: false, error: 'CM番号は8桁の数字で入力してください' };
+
+  var ss = getOrCreateDatabase_();
+  var staffRows = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) &&
+           String(r['会員ID'] || '') === memberId &&
+           String(r['職員状態コード'] || '') === 'ENROLLED' &&
+           normalizeCmNumberForKey_(r['介護支援専門員番号']) === targetCm;
+  });
+
+  if (staffRows.length === 0) {
+    return { success: false, error: '対象の職員が見つかりません（CM番号を確認してください）' };
+  }
+  if (staffRows.length > 1) {
+    return { success: false, error: '同一CM番号の在籍職員が複数見つかりました。事務局にお問い合わせください。' };
+  }
+
+  var targetStaff = staffRows[0];
+  var staffId = String(targetStaff['職員ID'] || '');
+
+  if (String(targetStaff['職員権限コード'] || '') === 'REPRESENTATIVE') {
+    return { success: false, error: '代表者は除籍できません。先に会員マイページで代表者を変更してください。' };
+  }
+
+  // removeStaffFromOffice_ を内部的に利用
+  removeStaffFromOffice_({ memberId: memberId, staffId: staffId });
+
+  return { success: true, staffId: staffId };
 }
 
 // ── v260 公開ポータル OTP 認証フロー ここまで ────────────────────────────────

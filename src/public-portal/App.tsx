@@ -31,6 +31,29 @@ type PublicPortalContentSettings = {
   completionNoCredentialNotice: string;
   completionCredentialNotice: string;
   credentialEmailEnabled: boolean;
+  trainingBadgeEnabled: boolean;
+  trainingBadgeLabel: string;
+  trainingTitleEnabled: boolean;
+  trainingTitle: string;
+  trainingDescriptionEnabled: boolean;
+  trainingDescription: string;
+  trainingCtaLabel: string;
+  memberUpdateMenuEnabled: boolean;
+  memberUpdateBadgeEnabled: boolean;
+  memberUpdateBadgeLabel: string;
+  memberUpdateTitleEnabled: boolean;
+  memberUpdateTitle: string;
+  memberUpdateDescriptionEnabled: boolean;
+  memberUpdateDescription: string;
+  memberUpdateCtaLabel: string;
+  withdrawalMenuEnabled: boolean;
+  withdrawalBadgeEnabled: boolean;
+  withdrawalBadgeLabel: string;
+  withdrawalTitleEnabled: boolean;
+  withdrawalTitle: string;
+  withdrawalDescriptionEnabled: boolean;
+  withdrawalDescription: string;
+  withdrawalCtaLabel: string;
 };
 
 type View =
@@ -74,6 +97,29 @@ const DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS: PublicPortalContentSettings = {
   completionNoCredentialNotice: 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
   completionCredentialNotice: 'ログイン情報をご登録のメールアドレスに送信しました。',
   credentialEmailEnabled: true,
+  trainingBadgeEnabled: true,
+  trainingBadgeLabel: 'TRAINING',
+  trainingTitleEnabled: true,
+  trainingTitle: '研修を申し込む',
+  trainingDescriptionEnabled: true,
+  trainingDescription: '受付中の研修一覧を確認し、そのまま申込できます。申込後の取消も研修ページから行えます。',
+  trainingCtaLabel: '進む',
+  memberUpdateMenuEnabled: true,
+  memberUpdateBadgeEnabled: true,
+  memberUpdateBadgeLabel: '登録情報変更',
+  memberUpdateTitleEnabled: true,
+  memberUpdateTitle: '会員登録情報を変更する',
+  memberUpdateDescriptionEnabled: true,
+  memberUpdateDescription: '住所・電話番号・メールアドレスなど、ご登録情報の変更を申し込めます。介護支援専門員番号でご本人確認を行います。',
+  memberUpdateCtaLabel: '変更手続きへ進む',
+  withdrawalMenuEnabled: true,
+  withdrawalBadgeEnabled: true,
+  withdrawalBadgeLabel: '退会',
+  withdrawalTitleEnabled: true,
+  withdrawalTitle: '退会を申し込む',
+  withdrawalDescriptionEnabled: true,
+  withdrawalDescription: '退会申請を行います。退会は当年度末（3月31日）に適用されます。介護支援専門員番号でご本人確認を行います。',
+  withdrawalCtaLabel: '退会手続きへ進む',
 };
 
 const PublicApp: React.FC = () => {
@@ -152,6 +198,29 @@ const PublicApp: React.FC = () => {
             completionNoCredentialNotice: portalSettings.value.completionNoCredentialNotice || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionNoCredentialNotice,
             completionCredentialNotice: portalSettings.value.completionCredentialNotice || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionCredentialNotice,
             credentialEmailEnabled: portalSettings.value.credentialEmailEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.credentialEmailEnabled,
+            trainingBadgeEnabled: portalSettings.value.trainingBadgeEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.trainingBadgeEnabled,
+            trainingBadgeLabel: portalSettings.value.trainingBadgeLabel || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.trainingBadgeLabel,
+            trainingTitleEnabled: portalSettings.value.trainingTitleEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.trainingTitleEnabled,
+            trainingTitle: portalSettings.value.trainingTitle || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.trainingTitle,
+            trainingDescriptionEnabled: portalSettings.value.trainingDescriptionEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.trainingDescriptionEnabled,
+            trainingDescription: portalSettings.value.trainingDescription || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.trainingDescription,
+            trainingCtaLabel: portalSettings.value.trainingCtaLabel || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.trainingCtaLabel,
+            memberUpdateMenuEnabled: portalSettings.value.memberUpdateMenuEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.memberUpdateMenuEnabled,
+            memberUpdateBadgeEnabled: portalSettings.value.memberUpdateBadgeEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.memberUpdateBadgeEnabled,
+            memberUpdateBadgeLabel: portalSettings.value.memberUpdateBadgeLabel || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.memberUpdateBadgeLabel,
+            memberUpdateTitleEnabled: portalSettings.value.memberUpdateTitleEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.memberUpdateTitleEnabled,
+            memberUpdateTitle: portalSettings.value.memberUpdateTitle || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.memberUpdateTitle,
+            memberUpdateDescriptionEnabled: portalSettings.value.memberUpdateDescriptionEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.memberUpdateDescriptionEnabled,
+            memberUpdateDescription: portalSettings.value.memberUpdateDescription || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.memberUpdateDescription,
+            memberUpdateCtaLabel: portalSettings.value.memberUpdateCtaLabel || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.memberUpdateCtaLabel,
+            withdrawalMenuEnabled: portalSettings.value.withdrawalMenuEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.withdrawalMenuEnabled,
+            withdrawalBadgeEnabled: portalSettings.value.withdrawalBadgeEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.withdrawalBadgeEnabled,
+            withdrawalBadgeLabel: portalSettings.value.withdrawalBadgeLabel || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.withdrawalBadgeLabel,
+            withdrawalTitleEnabled: portalSettings.value.withdrawalTitleEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.withdrawalTitleEnabled,
+            withdrawalTitle: portalSettings.value.withdrawalTitle || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.withdrawalTitle,
+            withdrawalDescriptionEnabled: portalSettings.value.withdrawalDescriptionEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.withdrawalDescriptionEnabled,
+            withdrawalDescription: portalSettings.value.withdrawalDescription || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.withdrawalDescription,
+            withdrawalCtaLabel: portalSettings.value.withdrawalCtaLabel || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.withdrawalCtaLabel,
           });
         } else {
           setTrainingMenuEnabled(true);
@@ -241,16 +310,20 @@ const PublicApp: React.FC = () => {
               onClick={handleOpenTrainingList}
               className="group rounded-[28px] border border-sky-200 bg-[linear-gradient(135deg,#eff6ff_0%,#ffffff_70%)] p-7 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
             >
-              <div className="mb-5 inline-flex rounded-full bg-sky-600 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-white">
-                TRAINING
-              </div>
-              <h3 className="text-2xl font-bold text-slate-900">研修を申し込む</h3>
-              <p className="mt-3 text-sm leading-7 text-slate-600">
-                受付中の研修一覧を確認し、そのまま申込できます。申込後の取消も研修ページから行えます。
-              </p>
+              {content.trainingBadgeEnabled && (
+                <div className="mb-5 inline-flex rounded-full bg-sky-600 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-white">
+                  {content.trainingBadgeLabel}
+                </div>
+              )}
+              {content.trainingTitleEnabled && (
+                <h3 className="text-2xl font-bold text-slate-900">{content.trainingTitle}</h3>
+              )}
+              {content.trainingDescriptionEnabled && (
+                <p className="mt-3 text-sm leading-7 text-slate-600">{content.trainingDescription}</p>
+              )}
               <div className="mt-6 flex items-center justify-between text-sm">
                 <span className="font-medium text-sky-700">{`${trainings.length} 件の受付中研修`}</span>
-                <span className="font-semibold text-slate-900 transition group-hover:translate-x-0.5">進む →</span>
+                <span className="font-semibold text-slate-900 transition group-hover:translate-x-0.5">{content.trainingCtaLabel} →</span>
               </div>
             </button>
           )}
@@ -281,44 +354,56 @@ const PublicApp: React.FC = () => {
             </button>
           )}
 
-          {/* 会員登録情報変更カード（v260） */}
-          <button
-            type="button"
-            onClick={() => setView('member-update')}
-            className="group rounded-[28px] border border-violet-200 bg-[linear-gradient(135deg,#f5f3ff_0%,#ffffff_70%)] p-7 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <div className="mb-5 inline-flex rounded-full bg-violet-600 px-3 py-1 text-xs font-semibold tracking-[0.12em] text-white">
-              登録情報変更
-            </div>
-            <h3 className="text-2xl font-bold text-slate-900">会員登録情報を変更する</h3>
-            <p className="mt-3 text-sm leading-7 text-slate-600">
-              住所・電話番号・メールアドレスなど、ご登録情報の変更を申し込めます。介護支援専門員番号でご本人確認を行います。
-            </p>
-            <div className="mt-6 text-sm">
-              <span className="font-semibold text-slate-900 transition group-hover:translate-x-0.5">変更手続きへ進む →</span>
-            </div>
-          </button>
+          {/* 会員登録情報変更カード */}
+          {content.memberUpdateMenuEnabled && (
+            <button
+              type="button"
+              onClick={() => setView('member-update')}
+              className="group rounded-[28px] border border-violet-200 bg-[linear-gradient(135deg,#f5f3ff_0%,#ffffff_70%)] p-7 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+            >
+              {content.memberUpdateBadgeEnabled && (
+                <div className="mb-5 inline-flex rounded-full bg-violet-600 px-3 py-1 text-xs font-semibold tracking-[0.12em] text-white">
+                  {content.memberUpdateBadgeLabel}
+                </div>
+              )}
+              {content.memberUpdateTitleEnabled && (
+                <h3 className="text-2xl font-bold text-slate-900">{content.memberUpdateTitle}</h3>
+              )}
+              {content.memberUpdateDescriptionEnabled && (
+                <p className="mt-3 text-sm leading-7 text-slate-600">{content.memberUpdateDescription}</p>
+              )}
+              <div className="mt-6 text-sm">
+                <span className="font-semibold text-slate-900 transition group-hover:translate-x-0.5">{content.memberUpdateCtaLabel} →</span>
+              </div>
+            </button>
+          )}
 
-          {/* 退会申込カード（v260） */}
-          <button
-            type="button"
-            onClick={() => setView('withdrawal-request')}
-            className="group rounded-[28px] border border-amber-200 bg-[linear-gradient(135deg,#fffbeb_0%,#ffffff_70%)] p-7 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <div className="mb-5 inline-flex rounded-full bg-amber-600 px-3 py-1 text-xs font-semibold tracking-[0.12em] text-white">
-              退会
-            </div>
-            <h3 className="text-2xl font-bold text-slate-900">退会を申し込む</h3>
-            <p className="mt-3 text-sm leading-7 text-slate-600">
-              退会申請を行います。退会は当年度末（3月31日）に適用されます。介護支援専門員番号でご本人確認を行います。
-            </p>
-            <div className="mt-6 text-sm">
-              <span className="font-semibold text-slate-900 transition group-hover:translate-x-0.5">退会手続きへ進む →</span>
-            </div>
-          </button>
+          {/* 退会申込カード */}
+          {content.withdrawalMenuEnabled && (
+            <button
+              type="button"
+              onClick={() => setView('withdrawal-request')}
+              className="group rounded-[28px] border border-amber-200 bg-[linear-gradient(135deg,#fffbeb_0%,#ffffff_70%)] p-7 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+            >
+              {content.withdrawalBadgeEnabled && (
+                <div className="mb-5 inline-flex rounded-full bg-amber-600 px-3 py-1 text-xs font-semibold tracking-[0.12em] text-white">
+                  {content.withdrawalBadgeLabel}
+                </div>
+              )}
+              {content.withdrawalTitleEnabled && (
+                <h3 className="text-2xl font-bold text-slate-900">{content.withdrawalTitle}</h3>
+              )}
+              {content.withdrawalDescriptionEnabled && (
+                <p className="mt-3 text-sm leading-7 text-slate-600">{content.withdrawalDescription}</p>
+              )}
+              <div className="mt-6 text-sm">
+                <span className="font-semibold text-slate-900 transition group-hover:translate-x-0.5">{content.withdrawalCtaLabel} →</span>
+              </div>
+            </button>
+          )}
 
-          {/* 研修・入会の両方が無効の場合のメッセージ */}
-          {!trainingMenuEnabled && !membershipMenuEnabled && (
+          {/* 全カードが無効の場合のメッセージ */}
+          {!trainingMenuEnabled && !membershipMenuEnabled && !content.memberUpdateMenuEnabled && !content.withdrawalMenuEnabled && (
             <div className="col-span-2 rounded-[28px] border border-slate-200 bg-white px-6 py-12 shadow-sm text-center">
               <p className="text-2xl mb-3">🔧</p>
               <h3 className="text-lg font-bold text-slate-800">研修・入会申込は現在準備中です</h3>
