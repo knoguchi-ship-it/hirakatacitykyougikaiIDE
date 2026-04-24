@@ -1,8 +1,8 @@
 # 開発引継ぎ
 
 更新日: 2026-04-25
-現行本番: `v264`（統合プロジェクト GAS version 266 / 会員 split GAS version 20 / 管理者 split GAS version 24）
-固定 deployment: 統合（公開ポータル）`@266` × 2本 / 会員 split `@20` / 管理者 split `@24`
+現行本番: `v264`（統合プロジェクト GAS version 266 / 会員 split GAS version 20 / 管理者 split GAS version 25）
+固定 deployment: 統合（公開ポータル）`@266` × 2本 / 会員 split `@20` / 管理者 split `@25`
 
 ## 1. 再開の最短ルート
 
@@ -112,7 +112,7 @@ npx clasp run getDbInfo
 - authorized user: `k.noguchi@hcm-n.org`
 - 統合 fixed deployment 2 本: `@266`
 - 会員 split: `@20`
-- 管理者 split: `@24`
+- 管理者 split: `@25`
 - `clasp run` は権限状態次第で失敗し得る。失敗時は operator 側権限の再確認を優先する。
 
 ## 6. 文書の見方

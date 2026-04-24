@@ -44,4 +44,8 @@ console.log('Copied dist-public/index_public.html → backend/index_public.html'
 copyFileSync(join(root, 'dist-admin', 'index_admin.html'), join(backendDir, 'index_admin.html'));
 console.log('Copied dist-admin/index_admin.html → backend/index_admin.html');
 
+// gas/admin/index.html も同期（admin split は gas/admin/ 以下を push するため）
+copyFileSync(join(root, 'dist-admin', 'index_admin.html'), join(root, 'gas', 'admin', 'index.html'));
+console.log('Copied dist-admin/index_admin.html → gas/admin/index.html');
+
 console.log('\nbuild:gas complete.');
