@@ -563,7 +563,7 @@
         <table>
           <thead><tr><th>SS</th><th>テーブル / シート</th><th>役割</th></tr></thead>
           <tbody>
-            <tr><td rowspan="14" style="vertical-align:middle;"><strong>メインDB</strong></td><td><code>T_会員</code></td><td>会員基本情報（個人・事業所・賛助）</td></tr>
+            <tr><td rowspan="25" style="vertical-align:middle;"><strong>メインDB</strong></td><td><code>T_会員</code></td><td>会員基本情報（個人・事業所・賛助）</td></tr>
             <tr><td><code>T_事業所職員</code></td><td>事業所に紐づく職員</td></tr>
             <tr><td><code>T_認証アカウント</code></td><td>ログインID/PW・Google認証情報</td></tr>
             <tr><td><code>T_管理者Googleホワイトリスト</code></td><td>管理者ログイン許可リスト</td></tr>
@@ -576,7 +576,18 @@
             <tr><td><code>T_画面項目権限</code></td><td>ロール別項目単位権限</td></tr>
             <tr><td><code>T_会員_archive</code></td><td>退会3年超の会員（定期移動・v261追加）</td></tr>
             <tr><td><code>T_事業所職員_archive</code></td><td>退会3年超の職員（定期移動・v261追加）</td></tr>
-            <tr><td><code>M_* (×12)</code></td><td>各種マスタ（会員種別・状態・権限等）</td></tr>
+            <tr><td><code>M_会員種別</code></td><td>INDIVIDUAL（個人・3,000円）/ BUSINESS（事業所・8,000円）/ SUPPORT（賛助・5,000円）・年会費金額保持</td></tr>
+            <tr><td><code>M_会員状態</code></td><td>ACTIVE（有効）/ WITHDRAWAL_SCHEDULED（退会予定）/ WITHDRAWN（退会）</td></tr>
+            <tr><td><code>M_発送方法</code></td><td>通知媒体コード（メール/郵送）</td></tr>
+            <tr><td><code>M_郵送先区分</code></td><td>定期郵送先区分（自宅/勤務先）</td></tr>
+            <tr><td><code>M_職員権限</code></td><td>REPRESENTATIVE（代表者）/ ADMIN（管理者）/ STAFF（一般）</td></tr>
+            <tr><td><code>M_職員状態</code></td><td>在籍/退職状態コード</td></tr>
+            <tr><td><code>M_システムロール</code></td><td>OFFICE_ADMIN / INDIVIDUAL_MEMBER / BUSINESS_ADMIN / BUSINESS_MEMBER</td></tr>
+            <tr><td><code>M_研修状態</code></td><td>OPEN（受付中）/ CLOSED（受付終了）</td></tr>
+            <tr><td><code>M_申込状態</code></td><td>申込済 / 取消</td></tr>
+            <tr><td><code>M_会費納入状態</code></td><td>年会費の納入状態コード</td></tr>
+            <tr><td><code>M_申込者区分</code></td><td>MEMBER（会員）/ EXTERNAL（非会員）</td></tr>
+            <tr><td><code>M_管理者権限</code></td><td>管理画面の権限レベル（MASTER/ADMIN/TRAINING_MANAGER 等）</td></tr>
             <tr><td rowspan="3" style="vertical-align:middle;"><strong>ログSS</strong><br><small style="color:var(--text-muted)">v261〜</small></td><td><code>T_ログイン履歴</code></td><td>ログイン成功/失敗の監査ログ</td></tr>
             <tr><td><code>T_監査ログ</code></td><td>管理操作の変更履歴</td></tr>
             <tr><td><code>T_メール送信ログ</code></td><td>一括メール送信の実績記録</td></tr>
@@ -598,276 +609,276 @@
         <div class="mermaid">
 erDiagram
   M_KAIIN_SHUBETSU["M_会員種別"] {
-    string コード PK
-    string 名称
-    int 表示順
-    boolean 有効フラグ
-    int 年会費金額
+    string code PK "コード"
+    string name "名称"
+    int display_order "表示順"
+    boolean is_active "有効フラグ"
+    int annual_fee "年会費金額"
   }
   M_KAIIN_JOTAI["M_会員状態"] {
-    string コード PK
-    string 名称
+    string code PK "コード"
+    string name "名称"
   }
   M_HASSOU_HOUHOU["M_発送方法"] {
-    string コード PK
-    string 名称
+    string code PK "コード"
+    string name "名称"
   }
   M_YUUSOU_KUBUN["M_郵送先区分"] {
-    string コード PK
-    string 名称
+    string code PK "コード"
+    string name "名称"
   }
   M_SHOKUIN_KENGEN["M_職員権限"] {
-    string コード PK
-    string 名称
+    string code PK "コード"
+    string name "名称"
   }
   M_SHOKUIN_JOTAI["M_職員状態"] {
-    string コード PK
-    string 名称
+    string code PK "コード"
+    string name "名称"
   }
   M_SYSTEM_ROLE["M_システムロール"] {
-    string コード PK
-    string 名称
+    string code PK "コード"
+    string name "名称"
   }
   M_KENSHUU_JOTAI["M_研修状態"] {
-    string コード PK
-    string 名称
+    string code PK "コード"
+    string name "名称"
   }
   M_MOUSHIKOMI_JOTAI["M_申込状態"] {
-    string コード PK
-    string 名称
+    string code PK "コード"
+    string name "名称"
   }
   M_KAIHI_JOTAI["M_会費納入状態"] {
-    string コード PK
-    string 名称
+    string code PK "コード"
+    string name "名称"
   }
   M_MOUSHIKOMI_KUBUN["M_申込者区分"] {
-    string コード PK
-    string 名称
+    string code PK "コード"
+    string name "名称"
   }
   M_KANRISHA_KENGEN["M_管理者権限"] {
-    string コード PK
-    string 名称
+    string code PK "コード"
+    string name "名称"
   }
   T_KAIIN["T_会員"] {
-    string 会員ID PK
-    string 会員種別コード FK
-    string 会員状態コード FK
-    date 入会日
-    date 退会日
-    date 退会処理日
-    string 姓
-    string 名
-    string セイ
-    string メイ
-    string 代表メールアドレス
-    string 携帯電話番号
-    string 勤務先名
-    string 勤務先郵便番号
-    string 勤務先都道府県
-    string 勤務先市区町村
-    string 勤務先住所
-    string 勤務先住所2
-    string 勤務先電話番号
-    string 勤務先FAX番号
-    string 自宅郵便番号
-    string 自宅都道府県
-    string 自宅市区町村
-    string 自宅住所
-    string 自宅住所2
-    string 発送方法コード FK
-    string 郵送先区分コード FK
-    int 職員数上限
-    string 介護支援専門員番号
-    string 事業所番号
-    datetime 作成日時
-    datetime 更新日時
-    boolean 削除フラグ
+    string kaiin_id PK "会員ID"
+    string shubetsu_code FK "会員種別コード"
+    string jotai_code FK "会員状態コード"
+    date nyukai_date "入会日"
+    date taikai_date "退会日"
+    date taikai_proc_date "退会処理日"
+    string sei "姓"
+    string mei "名"
+    string sei_kana "セイ"
+    string mei_kana "メイ"
+    string email "代表メールアドレス"
+    string mobile "携帯電話番号"
+    string office_name "勤務先名"
+    string office_zip "勤務先郵便番号"
+    string office_pref "勤務先都道府県"
+    string office_city "勤務先市区町村"
+    string office_addr "勤務先住所"
+    string office_addr2 "勤務先住所2"
+    string office_tel "勤務先電話番号"
+    string office_fax "勤務先FAX番号"
+    string home_zip "自宅郵便番号"
+    string home_pref "自宅都道府県"
+    string home_city "自宅市区町村"
+    string home_addr "自宅住所"
+    string home_addr2 "自宅住所2"
+    string hassou_code FK "発送方法コード"
+    string yuusou_code FK "郵送先区分コード"
+    int staff_limit "職員数上限"
+    string cm_number "介護支援専門員番号"
+    string office_number "事業所番号"
+    datetime created_at "作成日時"
+    datetime updated_at "更新日時"
+    boolean deleted "削除フラグ"
   }
   T_JIGYOUSHO_SHOKUIN["T_事業所職員"] {
-    string 職員ID PK
-    string 会員ID FK
-    string 姓
-    string 名
-    string セイ
-    string メイ
-    string 氏名
-    string フリガナ
-    string メールアドレス
-    string 職員権限コード FK
-    string 職員状態コード FK
-    date 入会日
-    date 退会日
-    string 介護支援専門員番号
-    string メール配信希望コード
-    datetime 作成日時
-    datetime 更新日時
-    boolean 削除フラグ
+    string shokuin_id PK "職員ID"
+    string kaiin_id FK "会員ID"
+    string sei "姓"
+    string mei "名"
+    string sei_kana "セイ"
+    string mei_kana "メイ"
+    string full_name "氏名"
+    string full_name_kana "フリガナ"
+    string email "メールアドレス"
+    string kengen_code FK "職員権限コード"
+    string jotai_code FK "職員状態コード"
+    date nyukai_date "入会日"
+    date taikai_date "退会日"
+    string cm_number "介護支援専門員番号"
+    string mail_opt "メール配信希望コード"
+    datetime created_at "作成日時"
+    datetime updated_at "更新日時"
+    boolean deleted "削除フラグ"
   }
   T_NINSHOU_ACCOUNT["T_認証アカウント"] {
-    string 認証ID PK
-    string 認証方式
-    string ログインID
-    string パスワードハッシュ
-    string パスワードソルト
-    string GoogleユーザーID
-    string Googleメール
-    string システムロールコード FK
-    string 会員ID FK
-    string 職員ID FK
-    datetime 最終ログイン日時
-    datetime パスワード更新日時
-    boolean アカウント有効フラグ
-    int ログイン失敗回数
-    boolean ロック状態
-    datetime 作成日時
-    datetime 更新日時
-    boolean 削除フラグ
+    string ninshou_id PK "認証ID"
+    string ninshou_type "認証方式"
+    string login_id "ログインID"
+    string pw_hash "パスワードハッシュ"
+    string pw_salt "パスワードソルト"
+    string google_uid "GoogleユーザーID"
+    string google_email "Googleメール"
+    string role_code FK "システムロールコード"
+    string kaiin_id FK "会員ID"
+    string shokuin_id FK "職員ID"
+    datetime last_login "最終ログイン日時"
+    datetime pw_updated "パスワード更新日時"
+    boolean is_active "アカウント有効フラグ"
+    int login_fail_count "ログイン失敗回数"
+    boolean is_locked "ロック状態"
+    datetime created_at "作成日時"
+    datetime updated_at "更新日時"
+    boolean deleted "削除フラグ"
   }
   T_KANRISHA_WL["T_管理者Googleホワイトリスト"] {
-    string ホワイトリストID PK
-    string GoogleユーザーID
-    string Googleメール
-    string 表示名
-    string 紐付け認証ID FK
-    string 紐付け会員ID FK
-    boolean 有効フラグ
-    datetime 作成日時
-    datetime 更新日時
-    boolean 削除フラグ
+    string wl_id PK "ホワイトリストID"
+    string google_uid "GoogleユーザーID"
+    string google_email "Googleメール"
+    string display_name "表示名"
+    string linked_ninshou_id FK "紐付け認証ID"
+    string linked_kaiin_id FK "紐付け会員ID"
+    boolean is_active "有効フラグ"
+    datetime created_at "作成日時"
+    datetime updated_at "更新日時"
+    boolean deleted "削除フラグ"
   }
   T_KENSHUU["T_研修"] {
-    string 研修ID PK
-    string 研修名
-    date 開催日
-    string 開催終了時刻
-    int 定員
-    int 申込者数
-    string 開催場所
-    string 研修状態コード FK
-    string 主催者
-    boolean 法定外研修フラグ
-    string 研修概要
-    string 研修内容
-    string 費用JSON
-    date 申込開始日
-    date 申込締切日
-    string 講師
-    string 案内状URL
-    string 項目設定JSON
-    datetime 作成日時
-    datetime 更新日時
-    boolean 削除フラグ
+    string kenshuu_id PK "研修ID"
+    string kenshuu_name "研修名"
+    date event_date "開催日"
+    string end_time "開催終了時刻"
+    int capacity "定員"
+    int applicant_count "申込者数"
+    string venue "開催場所"
+    string jotai_code FK "研修状態コード"
+    string organizer "主催者"
+    boolean is_optional "法定外研修フラグ"
+    string summary "研修概要"
+    string detail "研修内容"
+    string fee_json "費用JSON"
+    date apply_start "申込開始日"
+    date apply_end "申込締切日"
+    string instructor "講師"
+    string guide_url "案内状URL"
+    string config_json "項目設定JSON"
+    datetime created_at "作成日時"
+    datetime updated_at "更新日時"
+    boolean deleted "削除フラグ"
   }
   T_KENSHUU_MOUSHIKOMI["T_研修申込"] {
-    string 申込ID PK
-    string 研修ID FK
-    string 申込者区分コード FK
-    string 申込者ID
-    string 職員ID FK
-    string 申込状態コード FK
-    datetime 申込日時
-    datetime 取消日時
-    string 備考
-    datetime 作成日時
-    datetime 更新日時
-    boolean 削除フラグ
+    string apply_id PK "申込ID"
+    string kenshuu_id FK "研修ID"
+    string applicant_type FK "申込者区分コード"
+    string applicant_id "申込者ID"
+    string shokuin_id FK "職員ID"
+    string jotai_code FK "申込状態コード"
+    datetime apply_at "申込日時"
+    datetime cancel_at "取消日時"
+    string note "備考"
+    datetime created_at "作成日時"
+    datetime updated_at "更新日時"
+    boolean deleted "削除フラグ"
   }
   T_GAIBU_MOUSHIKOMI["T_外部申込者"] {
-    string 外部申込者ID PK
-    string 氏名
-    string フリガナ
-    string メールアドレス
-    string 電話番号
-    string 事業所名
-    datetime 同意日時
-    datetime 作成日時
-    datetime 更新日時
-    boolean 削除フラグ
+    string gaibu_id PK "外部申込者ID"
+    string full_name "氏名"
+    string full_name_kana "フリガナ"
+    string email "メールアドレス"
+    string tel "電話番号"
+    string office_name "事業所名"
+    datetime consent_at "同意日時"
+    datetime created_at "作成日時"
+    datetime updated_at "更新日時"
+    boolean deleted "削除フラグ"
   }
   T_NENKAIHI_NYUKIN["T_年会費納入履歴"] {
-    string 年会費履歴ID PK
-    string 会員ID FK
-    string 対象年度
-    string 会費納入状態コード FK
-    date 納入確認日
-    int 金額
-    string 備考
-    datetime 作成日時
-    datetime 更新日時
-    boolean 削除フラグ
+    string history_id PK "年会費履歴ID"
+    string kaiin_id FK "会員ID"
+    string target_year "対象年度"
+    string jotai_code FK "会費納入状態コード"
+    date paid_date "納入確認日"
+    int amount "金額"
+    string note "備考"
+    datetime created_at "作成日時"
+    datetime updated_at "更新日時"
+    boolean deleted "削除フラグ"
   }
   T_NENKAIHI_KOUSHINN["T_年会費更新履歴"] {
-    string 年会費更新履歴ID PK
-    string 年会費履歴ID FK
-    string 会員ID FK
-    string 対象年度
-    string 操作種別
-    string 更新前JSON
-    string 更新後JSON
-    string 実行者メール
-    datetime 実行日時
+    string update_id PK "年会費更新履歴ID"
+    string history_id FK "年会費履歴ID"
+    string kaiin_id FK "会員ID"
+    string target_year "対象年度"
+    string op_type "操作種別"
+    string before_json "更新前JSON"
+    string after_json "更新後JSON"
+    string operator_email "実行者メール"
+    datetime executed_at "実行日時"
   }
   T_SYSTEM_SETTING["T_システム設定"] {
-    string 設定キー PK
-    string 設定値
-    string 説明
-    datetime 更新日時
+    string setting_key PK "設定キー"
+    string setting_value "設定値"
+    string description "説明"
+    datetime updated_at "更新日時"
   }
   T_GAMEN_KENGEN["T_画面項目権限"] {
-    string 権限定義ID PK
-    string システムロールコード FK
-    string 画面コード
-    string 項目コード
-    boolean 閲覧可
-    boolean 登録可
-    boolean 変更可
-    boolean 削除可
-    datetime 作成日時
-    datetime 更新日時
-    boolean 削除フラグ
+    string kengen_id PK "権限定義ID"
+    string role_code FK "システムロールコード"
+    string screen_code "画面コード"
+    string item_code "項目コード"
+    boolean can_view "閲覧可"
+    boolean can_create "登録可"
+    boolean can_update "変更可"
+    boolean can_delete "削除可"
+    datetime created_at "作成日時"
+    datetime updated_at "更新日時"
+    boolean deleted "削除フラグ"
   }
   T_KAIIN_ARCHIVE["T_会員_archive"] {
-    string 会員ID PK
-    string 会員種別コード
-    string 会員状態コード
-    date 退会日
+    string kaiin_id PK "会員ID"
+    string shubetsu_code "会員種別コード"
+    string jotai_code "会員状態コード"
+    date taikai_date "退会日"
   }
   T_SHOKUIN_ARCHIVE["T_事業所職員_archive"] {
-    string 職員ID PK
-    string 会員ID
-    string 職員状態コード
+    string shokuin_id PK "職員ID"
+    string kaiin_id "会員ID"
+    string jotai_code "職員状態コード"
   }
   T_LOGIN_HISTORY["T_ログイン履歴 (ログSS)"] {
-    string ログイン履歴ID PK
-    string 認証ID FK
-    string ログインID
-    string 認証方式
-    string ログイン結果
-    string 失敗理由
-    string 接続元IP
-    string ユーザーエージェント
-    datetime 実行日時
+    string history_id PK "ログイン履歴ID"
+    string ninshou_id FK "認証ID"
+    string login_id "ログインID"
+    string ninshou_type "認証方式"
+    string login_result "ログイン結果"
+    string fail_reason "失敗理由"
+    string source_ip "接続元IP"
+    string user_agent "ユーザーエージェント"
+    datetime executed_at "実行日時"
   }
   T_AUDIT_LOG["T_監査ログ (ログSS)"] {
-    string 監査ログID PK
-    string 操作者メール
-    string 操作種別
-    string 対象テーブル
-    string 対象ID
-    string 変更前JSON
-    string 変更後JSON
-    datetime 実行日時
+    string log_id PK "監査ログID"
+    string operator_email "操作者メール"
+    string op_type "操作種別"
+    string target_table "対象テーブル"
+    string target_id "対象ID"
+    string before_json "変更前JSON"
+    string after_json "変更後JSON"
+    datetime executed_at "実行日時"
   }
   T_MAIL_LOG["T_メール送信ログ (ログSS)"] {
-    string ログID PK
-    datetime 送信日時
-    string 送信者メール
-    string 件名テンプレート
-    int 宛先数
-    int 成功数
-    int エラー数
-    string 送信種別
-    boolean 削除フラグ
+    string log_id PK "ログID"
+    datetime sent_at "送信日時"
+    string sender_email "送信者メール"
+    string subject_tmpl "件名テンプレート"
+    int recipient_count "宛先数"
+    int success_count "成功数"
+    int error_count "エラー数"
+    string send_type "送信種別"
+    boolean deleted "削除フラグ"
   }
 
   T_KAIIN }o--|| M_KAIIN_SHUBETSU : "会員種別コード"
