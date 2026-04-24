@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>システム概要 v263 | 枚方市介護支援専門員連絡協議会 会員システム</title>
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.5.0/dist/svg-pan-zoom.min.js"></script>
   <style>
     :root {
       --bg: #0d1117;
@@ -223,35 +222,39 @@
       overflow-x: auto; margin-bottom: 24px;
     }
     .mermaid { max-width: 100%; }
-    /* ER図専用: svg-pan-zoom でパン/ズーム対応 */
+    /* ER図専用: 固定高さ + 縦横スクロール */
     #er .mermaid-wrap {
       height: 75vh;
       min-height: 500px;
-      overflow: hidden;
-      padding: 0;
+      overflow: auto;
+      padding: 16px;
       position: relative;
-      cursor: grab;
     }
-    #er .mermaid-wrap:active { cursor: grabbing; }
     #er .mermaid-wrap .er-hint {
-      position: absolute;
-      top: 8px; right: 12px;
+      position: sticky;
+      top: 0;
+      float: right;
       font-size: 0.72rem;
       color: var(--text-muted);
-      background: rgba(22,27,34,0.85);
+      background: rgba(22,27,34,0.9);
       padding: 4px 10px;
       border-radius: 6px;
-      pointer-events: none;
       z-index: 10;
+      margin-bottom: 6px;
     }
-    #er .mermaid svg {
-      width: 100% !important;
-      height: 100% !important;
-      display: block;
+    #er .mermaid { max-width: none; display: inline-block; }
+    /* ズームコントロール */
+    .er-zoom-bar {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 10px;
     }
-    /* svg-pan-zoom コントロールアイコンの色調整 */
-    .svg-pan-zoom-control { stroke: var(--text-muted) !important; fill: var(--bg-card2) !important; }
-    .svg-pan-zoom-control:hover { fill: var(--bg-card) !important; }
+    .er-zoom-bar button {
+      background: var(--bg-card2); border: 1px solid var(--border);
+      color: var(--text-primary); border-radius: 6px;
+      padding: 4px 12px; cursor: pointer; font-size: 1rem;
+    }
+    .er-zoom-bar button:hover { background: var(--border); }
+    .er-zoom-bar span { font-size: 0.8rem; color: var(--text-muted); min-width: 40px; text-align: center; }
 
     /* ===== Status Grid ===== */
     .status-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
@@ -635,8 +638,15 @@
 
       <p>全テーブル・全マスタ・全カラム・全リレーション。スプレッドシート構成: メインDB（会員・研修・認証）＋ログSS（v261〜分離）。</p>
 
+      <div class="er-zoom-bar">
+        <button onclick="erZoom(-0.1)">－</button>
+        <span id="erZoomLabel">100%</span>
+        <button onclick="erZoom(0.1)">＋</button>
+        <button onclick="erZoomReset()" style="margin-left:4px">リセット</button>
+        <span style="margin-left:8px;font-size:0.78rem;color:var(--text-muted)">縦横スクロールで全体を探索</span>
+      </div>
       <div class="mermaid-wrap">
-        <div class="er-hint">🖱 ドラッグ: パン ／ スクロール: ズーム ／ 右下ボタン: フィット</div>
+        <div class="er-hint">←→↑↓ スクロール可</div>
         <div class="mermaid">
 erDiagram
   M_KAIIN_SHUBETSU["M_会員種別"] {
@@ -1225,38 +1235,18 @@ npx clasp run dryRunTrainingReminderT001</pre>
     },
   });
 
-  // svg-pan-zoom: ER図SVGにパン/ズームを適用
-  document.addEventListener('DOMContentLoaded', function () {
-    // Mermaid が startOnLoad で非同期描画するため少し待つ
-    var attempts = 0;
-    var interval = setInterval(function () {
-      attempts++;
-      var svg = document.querySelector('#er .mermaid svg');
-      if (svg) {
-        clearInterval(interval);
-        // SVGサイズを明示してコンテナ全体に広げる
-        svg.removeAttribute('width');
-        svg.removeAttribute('height');
-        svg.style.width = '100%';
-        svg.style.height = '100%';
-        if (typeof svgPanZoom !== 'undefined') {
-          svgPanZoom(svg, {
-            zoomEnabled: true,
-            controlIconsEnabled: true,
-            fit: true,
-            center: true,
-            minZoom: 0.05,
-            maxZoom: 20,
-            zoomScaleSensitivity: 0.3,
-            panEnabled: true,
-            dblClickZoomEnabled: true,
-          });
-        }
-      } else if (attempts > 40) {
-        clearInterval(interval); // 2秒以上経っても出なければ諦める
-      }
-    }, 50);
-  });
+  // ER図ズームコントロール（CSS zoom プロパティで拡縮）
+  var erCurrentZoom = 1.0;
+  function erGetSvg() { return document.querySelector('#er .mermaid svg'); }
+  function erApplyZoom(z) {
+    erCurrentZoom = Math.max(0.1, Math.min(3.0, z));
+    var svg = erGetSvg();
+    if (svg) svg.style.zoom = erCurrentZoom;
+    var lbl = document.getElementById('erZoomLabel');
+    if (lbl) lbl.textContent = Math.round(erCurrentZoom * 100) + '%';
+  }
+  function erZoom(delta) { erApplyZoom(erCurrentZoom + delta); }
+  function erZoomReset() { erApplyZoom(1.0); }
 
   // Active TOC highlight
   const sections = document.querySelectorAll('section[id]');
