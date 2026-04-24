@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-04-22
-Production: `v260` / 統合（公開）fixed deployments `@258` / 会員 split `@11` / 管理者 split `@15`
+Updated: 2026-04-24
+Production: `v262` / 統合（公開）fixed deployments `@264` / 会員 split `@18` / 管理者 split `@22`
 
 ## 1. Purpose
 
@@ -70,11 +70,19 @@ cd gas/member && npx clasp redeploy AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNd
 
 ```bash
 git status --short
+npm run security:audit          # High 以上の脆弱性がないこと
 npm run typecheck
 npm run build
 npm run build:gas
 npx clasp show-authorized-user
 npx clasp deployments
+```
+
+シークレットファイルの誤コミット確認:
+
+```bash
+git log --diff-filter=A --name-only --pretty=format: | grep -E '\.(env|pem|key|secret|credentials)$'
+# → 何も出力されないこと
 ```
 
 Execution rule:
@@ -121,6 +129,7 @@ When the change affects user flows, real-browser verification is performed by th
 
 ## 4. Done Criteria
 
+- `npm run security:audit` が High 以上の脆弱性 0 件で通過する。
 - `typecheck`, `build`, and `build:gas` pass.
 - `clasp push --force` and `clasp version` succeed.
 - `npx clasp redeploy` succeeds for both fixed deployment IDs.

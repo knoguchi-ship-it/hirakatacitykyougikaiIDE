@@ -1,8 +1,8 @@
 # 開発引継ぎ
 
 更新日: 2026-04-24
-現行本番: `v262`（統合プロジェクト GAS version 264 / 会員 split GAS version 18 / 管理者 split GAS version 22）
-固定 deployment: 統合（公開ポータル）`@264` × 2本 / 会員 split `@18` / 管理者 split `@22`
+現行本番: `v263`（統合プロジェクト GAS version 265 / 会員 split GAS version 19 / 管理者 split GAS version 23）
+固定 deployment: 統合（公開ポータル）`@265` × 2本 / 会員 split `@19` / 管理者 split `@23`
 
 ## 1. 再開の最短ルート
 
@@ -17,11 +17,11 @@
 7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `docs/137_RELEASE_STATE_v262_2026-04-24.md`
-11. `docs/135_RELEASE_STATE_v261_2026-04-23.md`
-12. `docs/133_RELEASE_STATE_v260_2026-04-22.md`
-13. `docs/131_RELEASE_STATE_v259_2026-04-22.md`
-14. `docs/129_RELEASE_STATE_v258_2026-04-22.md`
+10. `docs/139_RELEASE_STATE_v263_2026-04-24.md`
+11. `docs/137_RELEASE_STATE_v262_2026-04-24.md`
+12. `docs/135_RELEASE_STATE_v261_2026-04-23.md`
+13. `docs/133_RELEASE_STATE_v260_2026-04-22.md`
+14. `docs/131_RELEASE_STATE_v259_2026-04-22.md`
 15. `docs/09_DEPLOYMENT_POLICY.md`
 15. `docs/09_DEPLOYMENT_POLICY.md`
 16. `docs/05_AUTH_AND_ROLE_SPEC.md`
@@ -54,6 +54,8 @@
 
 ### 2.2 直近で本番反映済みの変更
 
+- `v263`: OAuthスコープ最小化（全3プロジェクト）、CIセキュリティゲート追加（`npm run security:audit`）、CM番号編集ポリシー案C確定・docs/05に記録。セキュリティタスク123/113完了・archive。**第三者評価（docs/109）起票の全タスク完了。**
+  詳細: `docs/139_RELEASE_STATE_v263_2026-04-24.md`
 - `v262`: パスワードハッシュを PBKDF2-HMAC-SHA256（10000反復）へ全面移行。新規アカウントは即時 PBKDF2、既存アカウントはログイン時に自動 rehash（ユーザー影響なし）。セキュリティタスク 120/121/122 完了・archive。
   詳細: `docs/137_RELEASE_STATE_v262_2026-04-24.md`
 - `v261-patch`: ログSS移行実施完了（全3プロジェクト）。ログSS ID: `1NmVv483UeehF8dqCdyNKOqOtv_fPKROhHN7011N23lw`。T_ログイン履歴 1997行移行済み。member splitはdoPost bootstrap経由でLOG_SPREADSHEET_ID設定済み。
@@ -76,10 +78,13 @@
 
 ### 最優先
 
+第三者評価（docs/109）起票の全セキュリティタスク（120/121/122/123/113）は **v263 時点で完了**。
+
+残タスク:
+
 | 優先度 | 内容 | 正本 |
 |---|---|---|
-| Medium | OAuth スコープ最小化と CI セキュリティ自動化 | `docs/123_TASK_SECURITY_SCOPE_AND_CI_2026-04-21.md` |
-| Medium | CM番号編集ポリシーの実装 | `docs/113_TASK_CM_NUMBER_EDIT_POLICY_2026-04-20.md` |
+| 📋 Backlog | パフォーマンス改善 | `docs/58_NEXT_TASK_PERFORMANCE_2026-04-09.md` |
 
 ### 操作者確認待ち
 
@@ -111,9 +116,9 @@ npx clasp run getDbInfo
 期待値:
 
 - authorized user: `k.noguchi@hcm-n.org`
-- 統合 fixed deployment 2 本: `@264`
-- 会員 split: `@18`
-- 管理者 split: `@22`
+- 統合 fixed deployment 2 本: `@265`
+- 会員 split: `@19`
+- 管理者 split: `@23`
 - `clasp run` は権限状態次第で失敗し得る。失敗時は operator 側権限の再確認を優先する。
 
 ## 6. 文書の見方

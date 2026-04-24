@@ -1,6 +1,6 @@
 ﻿# 認証・権限仕様
 
-最終更新: 2026-04-22
+最終更新: 2026-04-24
 
 ## 1. 基本方針
 - 会員マイページの権限制御は、`T_認証アカウント.認証方式='PASSWORD'` のログインIDに紐づく認証アカウントを基準に判定する。
@@ -98,3 +98,21 @@
 - UI enforcement: role dropdown `disabled` per-row based on caller role and target row.
 - Backend enforcement: `updateMemberSelf_` strips `role` from the caller's own staff record when caller is `ADMIN`; `validateBusinessStaffRoleTransition_` blocks REPRESENTATIVE↔non-REPRESENTATIVE transitions for non-system-admin actors.
 - Backend enforcement: `processApiRequest` は `publicAllowedActions` / `memberAllowedActions` / `ADMIN_ACTION_PERMISSIONS` の登録外 action を `unsupported_action` で拒否する。deny-by-default を維持し、未分類 action の暗黙許可を作らない。
+
+## 9. CM番号（介護支援専門員番号）編集ポリシー（docs/113 案C確定・2026-04-24）
+
+**方針: 管理者のみ変更可。会員セルフサービスでは読み取り専用。**
+
+根拠:
+- CM番号は会員管理の根幹となる業務上の一意識別子であり、ログインIDと連動している
+- 変更履歴が残らないまま変更されると、研修参加記録・年会費履歴との整合性が崩れる
+- 誤変更リスクを管理者管理下に置く方が運用上安全
+
+実装状態（v262〜確定）:
+- `MEMBER_WRITABLE_FIELDS_` に `careManagerNumber` を含めない（`updateMemberSelf_` からの変更不可）
+- `updateMemberSelf_` の `submittedStaff` mapping に `careManagerNumber` を含めない（職員間の変更も不可）
+- フロントエンド `MemberForm.tsx`: `careManagerNumber` 入力欄は `disabled={true}` で表示し「ログインIDと連動しているため、この画面では変更できません。」を表示
+- 既存職員行の CM番号は読み取り専用テキストで表示（新規追加行のみ入力可）
+- 管理者コンソール（`ADMIN_MEMBER_WRITABLE_FIELDS_`）からは引き続き変更可能
+
+変更が必要な場合は管理者（MASTER/ADMIN権限）に問い合わせること。

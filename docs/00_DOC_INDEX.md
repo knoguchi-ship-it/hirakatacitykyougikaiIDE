@@ -88,8 +88,6 @@
 
 | 優先度 | 文書 | 内容 |
 |---|---|---|
-| 🟡 Medium | `docs/123_TASK_SECURITY_SCOPE_AND_CI_2026-04-21.md` | OAuthスコープ最小化・CI |
-| 🟡 Medium | `docs/113_TASK_CM_NUMBER_EDIT_POLICY_2026-04-20.md` | CM番号編集ポリシー |
 | 📋 Backlog | `docs/58_NEXT_TASK_PERFORMANCE_2026-04-09.md` | パフォーマンス改善 |
 
 ---
@@ -98,11 +96,11 @@
 
 | バージョン | 文書 | 内容 |
 |---|---|---|
-| v262 | `docs/137_RELEASE_STATE_v262_2026-04-24.md` | **現行本番**。PBKDF2パスワードハッシュ移行・セキュリティタスク120/121/122完了 |
+| v263 | `docs/139_RELEASE_STATE_v263_2026-04-24.md` | **現行本番**。OAuthスコープ最小化・CIセキュリティゲート・CM番号ポリシー確定。**全セキュリティタスク完了** |
+| v262 | `docs/137_RELEASE_STATE_v262_2026-04-24.md` | PBKDF2パスワードハッシュ移行・セキュリティタスク120/121/122完了 |
 | v261-patch | `docs/135_RELEASE_STATE_v261_2026-04-23.md` | ログSS分離・archive・UIバグ修正 |
 | v260 | `docs/133_RELEASE_STATE_v260_2026-04-22.md` | 公開ポータル変更・退会OTPフロー |
 | v259 | `docs/131_RELEASE_STATE_v259_2026-04-22.md` | 入会通知メール送信元設定化 |
-| v258 | `docs/129_RELEASE_STATE_v258_2026-04-22.md` | 事業所番号バリデーション・論理削除化 |
 
 それより古いリリース: `docs/archive/release_history/`
 

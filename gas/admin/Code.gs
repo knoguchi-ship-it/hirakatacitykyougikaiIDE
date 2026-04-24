@@ -8399,6 +8399,9 @@ function cancelWithdrawalSelf_(payload) {
 // 根拠: OWASP Top 10 A01 / ASVS V4.1.2 / CWE-915
 // サーバーサイド allowlist でフィールドをフィルタし、管理者専用フィールドへの
 // クライアント側からの書き換えを防止する。
+// CM番号編集ポリシー（docs/113 案C確定）:
+//   careManagerNumber はこのリストに含めない。会員セルフサービスでは読み取り専用。
+//   変更は管理者コンソール（ADMIN_MEMBER_WRITABLE_FIELDS_）経由のみ。
 var MEMBER_WRITABLE_FIELDS_ = [
   'lastName','firstName','lastKana','firstKana',
   'homePostCode','homePrefecture','homeCity','homeAddressLine','homeAddressLine2','mobilePhone',

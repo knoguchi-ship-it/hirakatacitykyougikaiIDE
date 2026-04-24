@@ -17,7 +17,10 @@
     "clasp:setup": "powershell -ExecutionPolicy Bypass -File scripts/setup-clasp.ps1",
     "clasp:login": "clasp login",
     "clasp:push": "npm run build:gas && clasp push",
-    "clasp:deploy": "node -e \"console.error('ERROR: clasp deploy is prohibited. Use Manage Deployments UI after clasp version. See docs/09_DEPLOYMENT_POLICY.md.'); process.exit(1)\""
+    "clasp:deploy": "node -e \"console.error('ERROR: clasp deploy is prohibited. Use Manage Deployments UI after clasp version. See docs/09_DEPLOYMENT_POLICY.md.'); process.exit(1)\"",
+    "security:audit": "npm audit --audit-level=high",
+    "security:secrets": "git log --diff-filter=A --name-only --pretty=format: | grep -E '\\.(env|pem|key|secret|credentials)$' || true",
+    "prerelease": "npm run security:audit && npm run typecheck"
   },
   "dependencies": {
     "react": "^19.2.3",
