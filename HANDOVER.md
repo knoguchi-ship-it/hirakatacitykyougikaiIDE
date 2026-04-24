@@ -1,8 +1,8 @@
 # 開発引継ぎ
 
-更新日: 2026-04-24
-現行本番: `v263`（統合プロジェクト GAS version 265 / 会員 split GAS version 19 / 管理者 split GAS version 23）
-固定 deployment: 統合（公開ポータル）`@265` × 2本 / 会員 split `@19` / 管理者 split `@23`
+更新日: 2026-04-25
+現行本番: `v264`（統合プロジェクト GAS version 266 / 会員 split GAS version 20 / 管理者 split GAS version 24）
+固定 deployment: 統合（公開ポータル）`@266` × 2本 / 会員 split `@20` / 管理者 split `@24`
 
 ## 1. 再開の最短ルート
 
@@ -17,11 +17,11 @@
 7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `docs/139_RELEASE_STATE_v263_2026-04-24.md`
-11. `docs/137_RELEASE_STATE_v262_2026-04-24.md`
-12. `docs/135_RELEASE_STATE_v261_2026-04-23.md`
-13. `docs/133_RELEASE_STATE_v260_2026-04-22.md`
-14. `docs/131_RELEASE_STATE_v259_2026-04-22.md`
+10. `docs/141_RELEASE_STATE_v264_2026-04-25.md`
+11. `docs/139_RELEASE_STATE_v263_2026-04-24.md`
+12. `docs/137_RELEASE_STATE_v262_2026-04-24.md`
+13. `docs/135_RELEASE_STATE_v261_2026-04-23.md`
+14. `docs/133_RELEASE_STATE_v260_2026-04-22.md`
 15. `docs/09_DEPLOYMENT_POLICY.md`
 16. `docs/05_AUTH_AND_ROLE_SPEC.md`
 17. `docs/04_DB_OPERATION_RUNBOOK.md`
@@ -53,6 +53,8 @@
 
 ### 2.2 直近で本番反映済みの変更
 
+- `v264`: 公開ポータル変更・退会フローをOTPなし承認ワークフローへ全面刷新。会員種別選択→本人確認（CM番号+氏名 / 事業所番号）→変更項目チェックボックス選択→変更内容入力（デフォルト値なし）→申請（DB非反映）→管理者承認→DB反映。管理者コンソールに変更申請管理ビュー追加。T_変更申請テーブル追加。
+  詳細: `docs/141_RELEASE_STATE_v264_2026-04-25.md`
 - `v263`: OAuthスコープ最小化（全3プロジェクト）、CIセキュリティゲート追加（`npm run security:audit`）、CM番号編集ポリシー案C確定・docs/05に記録。セキュリティタスク123/113完了・archive。**第三者評価（docs/109）起票の全タスク完了。**
   詳細: `docs/139_RELEASE_STATE_v263_2026-04-24.md`
 - `v262`: パスワードハッシュを PBKDF2-HMAC-SHA256（10000反復）へ全面移行。新規アカウントは即時 PBKDF2、既存アカウントはログイン時に自動 rehash（ユーザー影響なし）。セキュリティタスク 120/121/122 完了・archive。
@@ -80,10 +82,9 @@
 
 ### 操作者確認待ち
 
+- `v264`: 公開ポータルで変更・退会フロー（OTPなし・会員種別選択→本人確認→申請）が正常動作すること。管理者コンソール「変更申請管理コンソール」で申請一覧・承認・却下が動作すること。T_変更申請シートがDBに自動作成されること。
 - `v261`: 入会申込UI（削除ボタンなし・建物名フィールド・職員追加2行カード）を実ブラウザで確認すること。
-- `v260`: 公開ポータルで「会員登録情報を変更する」「退会を申し込む」の 2 カードが表示されること。OTP メールが登録アドレスに届き、変更・退会フローが完了すること。
 - `v259`: 管理設定で送信元メールアドレスを切り替え、入会通知メールが選択した alias で送られること。
-- `v258`: 公開入会申込で、事業所番号 10 文字制御、共有メール許容、空職員カード無視、論理削除 UI の挙動を確認すること。
 
 ## 4. 既知の制約と注意事項
 
@@ -109,9 +110,9 @@ npx clasp run getDbInfo
 期待値:
 
 - authorized user: `k.noguchi@hcm-n.org`
-- 統合 fixed deployment 2 本: `@265`
-- 会員 split: `@19`
-- 管理者 split: `@23`
+- 統合 fixed deployment 2 本: `@266`
+- 会員 split: `@20`
+- 管理者 split: `@24`
 - `clasp run` は権限状態次第で失敗し得る。失敗時は operator 側権限の再確認を優先する。
 
 ## 6. 文書の見方
