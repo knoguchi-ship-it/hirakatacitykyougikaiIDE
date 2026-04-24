@@ -11,6 +11,7 @@ import MailingListExport from './components/MailingListExport';
 import TemplateHelpPage from './components/TemplateHelpPage';
 import TemplateValidationPanel from './components/TemplateValidationPanel';
 import MemberDeleteConsole from './components/MemberDeleteConsole';
+import ChangeRequestConsole from './components/ChangeRequestConsole';
 import MemberDetailAdmin from './components/MemberDetailAdmin';
 import StaffDetailAdmin from './components/StaffDetailAdmin';
 import { AdminDashboardData, AdminDashboardMemberRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, SystemSettings, Training, TrainingFieldConfig, DEFAULT_FIELD_CONFIG } from './types';
@@ -18,7 +19,7 @@ import { TRAINING_OPTIONAL_FIELD_DEFS } from './components/TrainingManagement';
 import { api, type AdminLoginResult, type MemberLoginResult, type MemberPortalLookup } from './services/api';
 
 type Role = 'ADMIN' | 'MEMBER';
-type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'roster-export' | 'mailing-list-export' | 'template-help' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings' | 'member-delete';
+type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'roster-export' | 'mailing-list-export' | 'template-help' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings' | 'member-delete' | 'change-requests';
 type AuthTab = 'member' | 'admin';
 type PendingAnnualFeeAction = { type: 'view'; view: View } | { type: 'logout' } | null;
 type MemberListFilter = 'ALL' | MemberType;
@@ -3475,6 +3476,13 @@ const App: React.FC = () => {
         return <div className="text-red-500 p-4">この機能はMASTER権限専用です。</div>;
       }
       return <MemberDeleteConsole />;
+    }
+
+    if (currentView === 'change-requests') {
+      if (userRole !== 'ADMIN') {
+        return <div className="text-red-500 p-4">この機能は管理者専用です。</div>;
+      }
+      return <ChangeRequestConsole />;
     }
 
     if (currentView === 'training-apply') {

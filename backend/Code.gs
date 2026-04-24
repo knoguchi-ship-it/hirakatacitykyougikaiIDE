@@ -378,6 +378,12 @@ var テーブル定義 = {
 // v259: 退会済み会員のアーカイブシート（メインDB内。同スキーマ）
 テーブル定義['T_会員_archive'] = テーブル定義['T_会員'].slice();
 テーブル定義['T_事業所職員_archive'] = テーブル定義['T_事業所職員'].slice();
+// v264: 公開ポータル変更申請テーブル（管理者承認待ちキュー）
+テーブル定義['T_変更申請'] = [
+  '申請ID', '会員ID', '会員種別コード', '申請種別コード', '申請状態コード',
+  '申請内容JSON', '連絡先メールアドレス', '申請者表示名', '申請日時',
+  '処理日時', '処理者メールアドレス', '処理備考', '作成日時', '更新日時', '削除フラグ',
+];
 
 var 入力規則定義 = [
   ['T_会員', '会員種別コード', 'M_会員種別'],
@@ -1038,6 +1044,10 @@ var PUBLIC_ALLOWED_ACTIONS = {
   addPublicStaffMember: true,          // v261: 事業所スタッフ追加
   removePublicStaffByCmNumber: true,   // v261: 事業所スタッフ除籍
   submitPublicWithdrawalRequest: true,
+  // v264: OTPなし本人確認フロー + 変更申請キュー
+  verifyMemberIdentityForPublic: true,
+  submitPublicChangeRequest: true,
+  getPublicAvailableStaffSlots: true,
 };
 
 var MEMBER_ALLOWED_ACTIONS = {
@@ -1116,6 +1126,10 @@ var ADMIN_ACTION_PERMISSIONS = {
   'finalizeRosterExport': ['MASTER','ADMIN'],
   'cleanupRosterExport': ['MASTER','ADMIN'],
   'generateMailingListExcel': ['MASTER','ADMIN'],
+  // v264: 変更申請管理
+  'getAdminChangeRequests': ['MASTER','ADMIN'],
+  'approveAdminChangeRequest': ['MASTER','ADMIN'],
+  'rejectAdminChangeRequest': ['MASTER','ADMIN'],
 };
 
 function processApiRequest(action, payload) {
@@ -1396,6 +1410,26 @@ function processApiRequest(action, payload) {
 
     if (action === 'submitPublicWithdrawalRequest') {
       return JSON.stringify({ success: true, data: submitPublicWithdrawalRequest_(parsedPayload) });
+    }
+
+    // v264: OTPなし本人確認フロー
+    if (action === 'verifyMemberIdentityForPublic') {
+      return JSON.stringify({ success: true, data: verifyMemberIdentityForPublic_(parsedPayload) });
+    }
+    if (action === 'submitPublicChangeRequest') {
+      return JSON.stringify({ success: true, data: submitPublicChangeRequest_(parsedPayload) });
+    }
+    if (action === 'getPublicAvailableStaffSlots') {
+      return JSON.stringify({ success: true, data: getPublicAvailableStaffSlots_(parsedPayload) });
+    }
+    if (action === 'getAdminChangeRequests') {
+      return JSON.stringify({ success: true, data: getAdminChangeRequests_(parsedPayload) });
+    }
+    if (action === 'approveAdminChangeRequest') {
+      return JSON.stringify({ success: true, data: approveAdminChangeRequest_(parsedPayload) });
+    }
+    if (action === 'rejectAdminChangeRequest') {
+      return JSON.stringify({ success: true, data: rejectAdminChangeRequest_(parsedPayload) });
     }
 
     if (action === 'getTrainingApplicants') {
@@ -10615,6 +10649,7 @@ function initializeSchema_(ss) {
   normalizeTableColumns_(ss, 'T_監査ログ');
   normalizeTableColumns_(ss, 'T_会員_archive');
   normalizeTableColumns_(ss, 'T_事業所職員_archive');
+  normalizeTableColumns_(ss, 'T_変更申請');
   ensureSystemSettingsRows_(ss);
   seedPermissionMatrixIfNeeded_(ss);
   applyDataValidationRules_(ss);
@@ -11566,19 +11601,23 @@ function cancelTrainingExternal_(payload) {
 
 // ── v260/v261: 公開ポータル 会員情報変更・退会申請 ────────────────────────────
 
-// 個人会員: 公開ポータル経由で変更可能なフィールド allowlist
+// 個人会員: 公開ポータル変更申請（管理者承認後に適用）で変更可能なフィールド allowlist
 var PUBLIC_INDIVIDUAL_UPDATE_ALLOWLIST_ = [
+  'lastName', 'firstName', 'lastKana', 'firstKana',
   'email', 'mobilePhone',
   'phone', 'fax',
   'officePostCode', 'officePrefecture', 'officeCity', 'officeAddressLine', 'officeAddressLine2',
   'homePostCode', 'homePrefecture', 'homeCity', 'homeAddressLine', 'homeAddressLine2',
   'mailingPreference', 'preferredMailDestination',
+  'careManagerNumber',
 ];
 
-// 事業所会員: 公開ポータル経由で変更可能なフィールド allowlist
+// 事業所会員: 公開ポータル変更申請（管理者承認後に適用）で変更可能なフィールド allowlist
 var PUBLIC_BUSINESS_UPDATE_ALLOWLIST_ = [
+  'officeName',
   'email', 'phone', 'fax',
   'officePostCode', 'officePrefecture', 'officeCity', 'officeAddressLine', 'officeAddressLine2',
+  'officeNumber',
 ];
 
 // 後方互換: submitPublicMemberUpdate_ で参照される旧名称
@@ -12075,6 +12114,540 @@ function removePublicStaffByCmNumber_(payload) {
 }
 
 // ── v260 公開ポータル OTP 認証フロー ここまで ────────────────────────────────
+
+// ── v264: OTPなし本人確認フロー + 変更申請キュー ─────────────────────────────
+
+// 本人確認（OTP不要）: 入力情報でDB照合し、成功時にアクショントークンを発行。
+// 列挙防止: 照合失敗・未存在ともに同一エラーを返す。
+// contactEmail はDB照合に使わず、確認メール送信先として保存する。
+function verifyMemberIdentityForPublic_(payload) {
+  var memberType = String(payload.memberType || '').trim();
+  var purpose = String(payload.purpose || '').trim();
+  var contactEmail = String(payload.contactEmail || '').trim();
+
+  if (memberType !== 'INDIVIDUAL' && memberType !== 'BUSINESS') {
+    return { verified: false, error: 'invalid_member_type' };
+  }
+  if (purpose !== 'update' && purpose !== 'withdrawal') {
+    return { verified: false, error: 'invalid_purpose' };
+  }
+  if (!contactEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+    return { verified: false, error: '有効なメールアドレスを入力してください' };
+  }
+
+  var cache = CacheService.getScriptCache();
+  var idKey = memberType === 'INDIVIDUAL'
+    ? normalizeCmNumberForKey_(payload.cmNumber)
+    : normalizeCmNumberForKey_(payload.officeNumber);
+
+  // レート制限（同一ID 15分以内5回まで）
+  var rlKey = 'pub_id_rl_' + memberType + '_' + idKey;
+  var rlRaw = cache.get(rlKey);
+  var rl = rlRaw ? JSON.parse(rlRaw) : { count: 0 };
+  if (rl.count >= 5) {
+    return { verified: false, error: '試行回数が上限を超えました。しばらくお待ちください。' };
+  }
+  rl.count++;
+  cache.put(rlKey, JSON.stringify(rl), 900);
+
+  var ss = getOrCreateDatabase_();
+  var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(r) {
+    if (toBoolean_(r['削除フラグ'])) return false;
+    if (String(r['会員状態コード'] || '') === 'WITHDRAWN') return false;
+    if (String(r['会員種別コード'] || '') !== memberType) return false;
+    if (memberType === 'INDIVIDUAL') {
+      return normalizeCmNumberForKey_(r['介護支援専門員番号']) === idKey;
+    }
+    return normalizeCmNumberForKey_(r['事業所番号']) === idKey;
+  });
+
+  if (memberRows.length !== 1) {
+    return { verified: false, error: '入力内容と一致する会員情報が見つかりませんでした。' };
+  }
+  var member = memberRows[0];
+
+  // 個人会員: 姓・名も照合
+  if (memberType === 'INDIVIDUAL') {
+    var dbLast = String(member['姓'] || '').trim();
+    var dbFirst = String(member['名'] || '').trim();
+    var inLast = String(payload.lastName || '').trim();
+    var inFirst = String(payload.firstName || '').trim();
+    if (!inLast || !inFirst || dbLast !== inLast || dbFirst !== inFirst) {
+      return { verified: false, error: '入力内容と一致する会員情報が見つかりませんでした。' };
+    }
+  }
+
+  var memberId = String(member['会員ID'] || '');
+  var applicantName = memberType === 'INDIVIDUAL'
+    ? (String(member['姓'] || '') + ' ' + String(member['名'] || '')).trim()
+    : String(member['勤務先名'] || '');
+
+  var token = generatePublicActionToken_();
+  cache.put(
+    'pub_tok_identity_' + token,
+    JSON.stringify({ memberId: memberId, memberType: memberType, contactEmail: contactEmail, applicantName: applicantName, purpose: purpose }),
+    1800
+  );
+
+  return { verified: true, token: token };
+}
+
+// 事業所会員の追加可能スタッフ数を返す。メンバーデータは漏らさない。
+function getPublicAvailableStaffSlots_(payload) {
+  var token = String(payload.token || '').trim();
+  var tokenRaw = CacheService.getScriptCache().get('pub_tok_identity_' + token);
+  if (!tokenRaw) return { error: 'token_expired' };
+  var stored = JSON.parse(tokenRaw);
+  if (stored.memberType !== 'BUSINESS') return { error: '事業所会員専用の操作です' };
+
+  var ss = getOrCreateDatabase_();
+  var memberSheet = ss.getSheetByName('T_会員');
+  var found = memberSheet ? findRowByColumnValue_(memberSheet, '会員ID', stored.memberId) : null;
+  var staffLimit = found ? (Number(found.row[found.columns['職員数上限']]) || 10) : 10;
+
+  var currentCount = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) &&
+           String(r['会員ID'] || '') === stored.memberId &&
+           String(r['職員状態コード'] || '') === 'ENROLLED';
+  }).length;
+
+  return { availableSlots: Math.max(0, staffLimit - currentCount), staffLimit: staffLimit, currentCount: currentCount };
+}
+
+// 変更申請をT_変更申請に書き込む。DBは変更しない。管理者承認後に適用される。
+function submitPublicChangeRequest_(payload) {
+  var token = String(payload.token || '').trim();
+  var cache = CacheService.getScriptCache();
+  var tokenRaw = cache.get('pub_tok_identity_' + token);
+  if (!tokenRaw) return { success: false, error: 'token_expired' };
+  var stored = JSON.parse(tokenRaw);
+
+  var requestType = String(payload.requestType || '').trim();
+  var validTypes = ['MEMBER_UPDATE', 'WITHDRAWAL', 'STAFF_ADD', 'STAFF_REMOVE'];
+  if (validTypes.indexOf(requestType) === -1) {
+    return { success: false, error: 'invalid_request_type' };
+  }
+
+  // 変更内容のallowlistフィルタ
+  var allowlist = stored.memberType === 'INDIVIDUAL'
+    ? PUBLIC_INDIVIDUAL_UPDATE_ALLOWLIST_
+    : PUBLIC_BUSINESS_UPDATE_ALLOWLIST_;
+
+  var sanitizedFields = {};
+  if (payload.fields && typeof payload.fields === 'object') {
+    for (var i = 0; i < allowlist.length; i++) {
+      var fk = allowlist[i];
+      if (Object.prototype.hasOwnProperty.call(payload.fields, fk)) {
+        sanitizedFields[fk] = String(payload.fields[fk] || '').trim();
+      }
+    }
+  }
+
+  var changeData = {
+    fields: sanitizedFields,
+    staffAdd: [],
+    staffRemove: [],
+  };
+
+  // 事業所会員: スタッフ追加（必須フィールド検証）
+  if (Array.isArray(payload.staffAdd)) {
+    payload.staffAdd.forEach(function(s) {
+      var lastName = String(s.lastName || '').trim();
+      var firstName = String(s.firstName || '').trim();
+      var lastKana = String(s.lastKana || '').trim();
+      var firstKana = String(s.firstKana || '').trim();
+      var careManagerNumber = normalizeCmNumberForKey_(s.careManagerNumber);
+      var email = String(s.email || '').trim();
+      if (!lastName || !firstName || !lastKana || !firstKana || !/^\d{8}$/.test(careManagerNumber) || !email) {
+        return;
+      }
+      changeData.staffAdd.push({ lastName: lastName, firstName: firstName, lastKana: lastKana, firstKana: firstKana, careManagerNumber: careManagerNumber, email: email });
+    });
+  }
+
+  // 事業所会員: スタッフ除籍（姓・名・CM番号で照合）
+  if (Array.isArray(payload.staffRemove)) {
+    payload.staffRemove.forEach(function(s) {
+      var lastName = String(s.lastName || '').trim();
+      var firstName = String(s.firstName || '').trim();
+      var careManagerNumber = normalizeCmNumberForKey_(s.careManagerNumber);
+      if (!lastName || !firstName || !/^\d{8}$/.test(careManagerNumber)) return;
+      changeData.staffRemove.push({ lastName: lastName, firstName: firstName, careManagerNumber: careManagerNumber });
+    });
+  }
+
+  var requestId = 'CR' + Date.now() + '_' + generatePublicActionToken_().slice(0, 8);
+  var now = new Date().toISOString();
+
+  var ss = getOrCreateDatabase_();
+  // T_変更申請 が未作成の場合は自動作成（初回 push 後のスキーマ未反映を吸収）
+  if (!ss.getSheetByName('T_変更申請')) {
+    var newSheet = getOrCreateSheet_(ss, 'T_変更申請');
+    writeSheetHeaders_(newSheet, テーブル定義['T_変更申請']);
+  }
+  appendRowsByHeaders_(ss, 'T_変更申請', [{
+    申請ID: requestId,
+    会員ID: stored.memberId,
+    会員種別コード: stored.memberType,
+    申請種別コード: requestType,
+    申請状態コード: 'PENDING',
+    申請内容JSON: JSON.stringify(changeData),
+    連絡先メールアドレス: stored.contactEmail,
+    申請者表示名: stored.applicantName,
+    申請日時: now,
+    処理日時: '',
+    処理者メールアドレス: '',
+    処理備考: '',
+    作成日時: now,
+    更新日時: now,
+    削除フラグ: false,
+  }]);
+
+  // トークン削除（単一使用）
+  cache.remove('pub_tok_identity_' + token);
+
+  // 申請者への確認メール
+  var typeLabel = { MEMBER_UPDATE: '登録情報変更申請', WITHDRAWAL: '退会申請', STAFF_ADD: '職員追加申請', STAFF_REMOVE: '職員除籍申請' };
+  MailApp.sendEmail(
+    stored.contactEmail,
+    '【枚方市介護支援専門員連絡協議会】' + (typeLabel[requestType] || '変更申請') + 'を受け付けました',
+    [
+      stored.applicantName + ' 様',
+      '',
+      '以下の申請を受け付けました。担当者が内容を確認後、ご連絡いたします。',
+      '',
+      '申請ID: ' + requestId,
+      '申請種別: ' + (typeLabel[requestType] || requestType),
+      '受付日時: ' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm'),
+      '',
+      '内容の確認・ご不明な点は事務局までお問い合わせください。',
+      '',
+      '枚方市介護支援専門員連絡協議会',
+    ].join('\n')
+  );
+
+  return { success: true, requestId: requestId };
+}
+
+// ── 管理者: 変更申請一覧取得 ──────────────────────────────────────────────────
+function getAdminChangeRequests_(payload) {
+  var ss = getOrCreateDatabase_();
+  var rows = getRowsAsObjects_(ss, 'T_変更申請').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']);
+  });
+
+  var statusFilter = String(payload.status || '').trim();
+  var memberTypeFilter = String(payload.memberType || '').trim();
+  var requestTypeFilter = String(payload.requestType || '').trim();
+
+  if (statusFilter) rows = rows.filter(function(r) { return String(r['申請状態コード'] || '') === statusFilter; });
+  if (memberTypeFilter) rows = rows.filter(function(r) { return String(r['会員種別コード'] || '') === memberTypeFilter; });
+  if (requestTypeFilter) rows = rows.filter(function(r) { return String(r['申請種別コード'] || '') === requestTypeFilter; });
+
+  // 新しい順
+  rows.sort(function(a, b) {
+    return String(b['申請日時'] || '') > String(a['申請日時'] || '') ? 1 : -1;
+  });
+
+  return rows.map(function(r) {
+    var changeData = {};
+    try { changeData = JSON.parse(String(r['申請内容JSON'] || '{}')); } catch(e) {}
+    return {
+      requestId: String(r['申請ID'] || ''),
+      memberId: String(r['会員ID'] || ''),
+      memberType: String(r['会員種別コード'] || ''),
+      requestType: String(r['申請種別コード'] || ''),
+      status: String(r['申請状態コード'] || ''),
+      contactEmail: String(r['連絡先メールアドレス'] || ''),
+      applicantName: String(r['申請者表示名'] || ''),
+      requestedAt: String(r['申請日時'] || ''),
+      processedAt: String(r['処理日時'] || ''),
+      processedByEmail: String(r['処理者メールアドレス'] || ''),
+      processNote: String(r['処理備考'] || ''),
+      changeData: changeData,
+    };
+  });
+}
+
+// ── 管理者: 変更申請を承認し変更を適用 ─────────────────────────────────────────
+function approveAdminChangeRequest_(payload) {
+  var requestId = String(payload.requestId || '').trim();
+  if (!requestId) return { success: false, error: '申請IDが必要です' };
+  var adminSession = payload.__adminSession;
+  if (!adminSession || !adminSession.email) return { success: false, error: 'unauthorized' };
+
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_変更申請');
+  if (!sheet) return { success: false, error: 'テーブルが見つかりません' };
+
+  var found = findRowByColumnValue_(sheet, '申請ID', requestId);
+  if (!found) return { success: false, error: '申請が見つかりません' };
+
+  var cols = found.columns;
+  var row = found.row;
+  var statusVal = String(row[cols['申請状態コード']] || '');
+  if (statusVal !== 'PENDING') return { success: false, error: 'この申請はすでに処理済みです（' + statusVal + '）' };
+
+  var memberId = String(row[cols['会員ID']] || '');
+  var memberType = String(row[cols['会員種別コード']] || '');
+  var requestType = String(row[cols['申請種別コード']] || '');
+  var contactEmail = String(row[cols['連絡先メールアドレス']] || '');
+  var applicantName = String(row[cols['申請者表示名']] || '');
+  var changeData = {};
+  try { changeData = JSON.parse(String(row[cols['申請内容JSON']] || '{}')); } catch(e) {}
+
+  var now = new Date().toISOString();
+
+  // ── 変更内容の適用 ────────────────────────────────────────────────────────
+  if (requestType === 'MEMBER_UPDATE') {
+    var updatePayload = { id: memberId };
+    var allowlist = memberType === 'INDIVIDUAL' ? PUBLIC_INDIVIDUAL_UPDATE_ALLOWLIST_ : PUBLIC_BUSINESS_UPDATE_ALLOWLIST_;
+    var fields = changeData.fields || {};
+    for (var i = 0; i < allowlist.length; i++) {
+      var fk = allowlist[i];
+      if (Object.prototype.hasOwnProperty.call(fields, fk) && fields[fk] !== '') {
+        updatePayload[fk] = fields[fk];
+      }
+    }
+    if (Object.keys(updatePayload).length > 1) {
+      updateMember_(updatePayload, { skipAdminCheck: true });
+    }
+
+    // 介護支援専門員番号変更の場合、T_認証アカウントのログインIDも更新
+    if (memberType === 'INDIVIDUAL' && fields.careManagerNumber) {
+      var authSheet = ss.getSheetByName('T_認証アカウント');
+      if (authSheet) {
+        var authRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) {
+          return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
+        });
+        if (authRows.length > 0) {
+          var authFound = findRowByColumnValue_(authSheet, '会員ID', memberId);
+          if (authFound) {
+            var authRow = authFound.row;
+            var authCols = authFound.columns;
+            authRow[authCols['ログインID']] = fields.careManagerNumber;
+            authRow[authCols['更新日時']] = now;
+            authSheet.getRange(authFound.rowNumber, 1, 1, authRow.length).setValues([authRow]);
+          }
+        }
+      }
+    }
+    // 事業所番号変更の場合、T_認証アカウントのログインIDも更新
+    if (memberType === 'BUSINESS' && fields.officeNumber) {
+      var bizAuthSheet = ss.getSheetByName('T_認証アカウント');
+      if (bizAuthSheet) {
+        var bizAuthFound = findRowByColumnValue_(bizAuthSheet, '会員ID', memberId);
+        if (bizAuthFound) {
+          var bizAuthRow = bizAuthFound.row;
+          var bizAuthCols = bizAuthFound.columns;
+          bizAuthRow[bizAuthCols['ログインID']] = fields.officeNumber;
+          bizAuthRow[bizAuthCols['更新日時']] = now;
+          bizAuthSheet.getRange(bizAuthFound.rowNumber, 1, 1, bizAuthRow.length).setValues([bizAuthRow]);
+        }
+      }
+    }
+    // MEMBER_UPDATE に含まれるスタッフ追加/除籍も適用（事業所会員の複合申請対応）
+    var staffToAddMixed = changeData.staffAdd || [];
+    for (var ja = 0; ja < staffToAddMixed.length; ja++) {
+      addPublicStaffMember_({ token: 'ADMIN_APPROVED', staffData: staffToAddMixed[ja], _directMemberId: memberId });
+    }
+    var staffToRemoveMixed = changeData.staffRemove || [];
+    for (var kr = 0; kr < staffToRemoveMixed.length; kr++) {
+      var srm = staffToRemoveMixed[kr];
+      var staffRowsMixed = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) {
+        return !toBoolean_(r['削除フラグ']) &&
+               String(r['会員ID'] || '') === memberId &&
+               String(r['職員状態コード'] || '') === 'ENROLLED' &&
+               normalizeCmNumberForKey_(r['介護支援専門員番号']) === normalizeCmNumberForKey_(srm.careManagerNumber) &&
+               String(r['姓'] || '').trim() === srm.lastName &&
+               String(r['名'] || '').trim() === srm.firstName;
+      });
+      if (staffRowsMixed.length === 1) {
+        var sIdMixed = String(staffRowsMixed[0]['職員ID'] || '');
+        if (sIdMixed) removeStaffFromOffice_({ memberId: memberId, staffId: sIdMixed });
+      }
+    }
+
+  } else if (requestType === 'WITHDRAWAL') {
+    var today = new Date();
+    var month = today.getMonth() + 1;
+    var year = today.getFullYear();
+    var withdrawnYear = (month >= 4) ? year + 1 : year;
+    var withdrawnDate = withdrawnYear + '-03-31';
+    updateMember_({ id: memberId, status: 'WITHDRAWAL_SCHEDULED', withdrawnDate: withdrawnDate }, { skipAdminCheck: true });
+
+  } else if (requestType === 'STAFF_ADD') {
+    var staffToAdd = changeData.staffAdd || [];
+    for (var j = 0; j < staffToAdd.length; j++) {
+      addPublicStaffMember_({
+        token: 'ADMIN_APPROVED',
+        staffData: staffToAdd[j],
+        _directMemberId: memberId,
+      });
+    }
+
+  } else if (requestType === 'STAFF_REMOVE') {
+    var staffToRemove = changeData.staffRemove || [];
+    for (var k = 0; k < staffToRemove.length; k++) {
+      var sr = staffToRemove[k];
+      var staffRows = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) {
+        return !toBoolean_(r['削除フラグ']) &&
+               String(r['会員ID'] || '') === memberId &&
+               String(r['職員状態コード'] || '') === 'ENROLLED' &&
+               normalizeCmNumberForKey_(r['介護支援専門員番号']) === normalizeCmNumberForKey_(sr.careManagerNumber) &&
+               String(r['姓'] || '').trim() === sr.lastName &&
+               String(r['名'] || '').trim() === sr.firstName;
+      });
+      if (staffRows.length === 1) {
+        var sId = String(staffRows[0]['職員ID'] || '');
+        if (sId) removeStaffFromOffice_({ memberId: memberId, staffId: sId });
+      }
+    }
+  }
+
+  // ステータス更新
+  row[cols['申請状態コード']] = 'APPROVED';
+  row[cols['処理日時']] = now;
+  row[cols['処理者メールアドレス']] = adminSession.email;
+  row[cols['処理備考']] = String(payload.note || '');
+  row[cols['更新日時']] = now;
+  sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+
+  clearAllDataCache_();
+  clearAdminDashboardCache_();
+
+  // 申請者への通知
+  if (contactEmail) {
+    var typeLabel2 = { MEMBER_UPDATE: '登録情報変更申請', WITHDRAWAL: '退会申請', STAFF_ADD: '職員追加申請', STAFF_REMOVE: '職員除籍申請' };
+    MailApp.sendEmail(
+      contactEmail,
+      '【枚方市介護支援専門員連絡協議会】' + (typeLabel2[requestType] || '申請') + 'が承認されました',
+      [
+        applicantName + ' 様',
+        '',
+        'お申し込みいただいた内容が承認され、変更が反映されました。',
+        '',
+        '申請ID: ' + requestId,
+        '処理日時: ' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm'),
+        '',
+        '変更内容の確認は会員マイページをご覧ください。',
+        'ご不明な点は事務局までお問い合わせください。',
+        '',
+        '枚方市介護支援専門員連絡協議会',
+      ].join('\n')
+    );
+  }
+
+  return { success: true, requestId: requestId };
+}
+
+// ── 管理者: 変更申請を却下 ──────────────────────────────────────────────────
+function rejectAdminChangeRequest_(payload) {
+  var requestId = String(payload.requestId || '').trim();
+  if (!requestId) return { success: false, error: '申請IDが必要です' };
+  var adminSession = payload.__adminSession;
+  if (!adminSession || !adminSession.email) return { success: false, error: 'unauthorized' };
+
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_変更申請');
+  if (!sheet) return { success: false, error: 'テーブルが見つかりません' };
+
+  var found = findRowByColumnValue_(sheet, '申請ID', requestId);
+  if (!found) return { success: false, error: '申請が見つかりません' };
+
+  var cols = found.columns;
+  var row = found.row;
+  if (String(row[cols['申請状態コード']] || '') !== 'PENDING') {
+    return { success: false, error: 'この申請はすでに処理済みです' };
+  }
+
+  var now = new Date().toISOString();
+  var contactEmail = String(row[cols['連絡先メールアドレス']] || '');
+  var applicantName = String(row[cols['申請者表示名']] || '');
+  var requestType = String(row[cols['申請種別コード']] || '');
+
+  row[cols['申請状態コード']] = 'REJECTED';
+  row[cols['処理日時']] = now;
+  row[cols['処理者メールアドレス']] = adminSession.email;
+  row[cols['処理備考']] = String(payload.note || '');
+  row[cols['更新日時']] = now;
+  sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+
+  if (contactEmail) {
+    var typeLabel3 = { MEMBER_UPDATE: '登録情報変更申請', WITHDRAWAL: '退会申請', STAFF_ADD: '職員追加申請', STAFF_REMOVE: '職員除籍申請' };
+    MailApp.sendEmail(
+      contactEmail,
+      '【枚方市介護支援専門員連絡協議会】' + (typeLabel3[requestType] || '申請') + 'について',
+      [
+        applicantName + ' 様',
+        '',
+        'お申し込みいただいた内容について、下記の理由により対応できませんでした。',
+        '',
+        '申請ID: ' + requestId,
+        'ご連絡: ' + (payload.note || '事務局よりご連絡いたします。'),
+        '',
+        'ご不明な点は事務局までお問い合わせください。',
+        '',
+        '枚方市介護支援専門員連絡協議会',
+      ].join('\n')
+    );
+  }
+
+  return { success: true, requestId: requestId };
+}
+
+// addPublicStaffMember_ の管理者承認経由呼び出し対応（_directMemberId でトークン不要）
+var _origAddPublicStaffMember = addPublicStaffMember_;
+addPublicStaffMember_ = function(payload) {
+  if (payload._directMemberId) {
+    var ss = getOrCreateDatabase_();
+    var memberId = payload._directMemberId;
+    var s = payload.staffData || {};
+    var lastName = String(s.lastName || '').trim();
+    var firstName = String(s.firstName || '').trim();
+    if (!lastName || !firstName) return { success: false, error: '姓と名は必須です' };
+    var memberSheet = ss.getSheetByName('T_会員');
+    var memberFound = memberSheet ? findRowByColumnValue_(memberSheet, '会員ID', memberId) : null;
+    if (memberFound) {
+      var limitVal = memberFound.row[memberFound.columns['職員数上限']];
+      var staffLimit = limitVal ? Number(limitVal) : 0;
+      if (staffLimit > 0) {
+        var currentCount = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) {
+          return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId && String(r['職員状態コード'] || '') === 'ENROLLED';
+        }).length;
+        if (currentCount >= staffLimit) return { success: false, error: '職員数上限に達しています' };
+      }
+    }
+    var careNum = normalizeCmNumberForKey_(s.careManagerNumber);
+    var now = new Date().toISOString();
+    var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+    appendRowsByHeaders_(ss, 'T_事業所職員', [{
+      職員ID: 'S' + Date.now(),
+      会員ID: memberId,
+      姓: lastName,
+      名: firstName,
+      セイ: String(s.lastKana || '').trim(),
+      メイ: String(s.firstKana || '').trim(),
+      氏名: [lastName, firstName].join(' ').trim(),
+      フリガナ: [String(s.lastKana || '').trim(), String(s.firstKana || '').trim()].join(' ').trim(),
+      メールアドレス: String(s.email || '').trim(),
+      職員権限コード: 'STAFF',
+      職員状態コード: 'ENROLLED',
+      入会日: today,
+      退会日: '',
+      介護支援専門員番号: careNum,
+      メール配信希望コード: 'YES',
+      作成日時: now,
+      更新日時: now,
+      削除フラグ: false,
+    }]);
+    clearAllDataCache_();
+    return { success: true };
+  }
+  return _origAddPublicStaffMember(payload);
+};
+
+// ── v264 変更申請キュー ここまで ────────────────────────────────────────────
 
 function getTrainingApplicants_(payload) {
   if (!checkAdminBySession_()) return JSON.stringify({ success: false, error: 'unauthorized' });
