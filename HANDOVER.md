@@ -1,8 +1,8 @@
 # 開発引継ぎ
 
 更新日: 2026-04-24
-現行本番: `v261-patch`（統合プロジェクト GAS version 263 / 会員 split GAS version 17 / 管理者 split GAS version 21）
-固定 deployment: 統合（公開ポータル）`@263` × 2本 / 会員 split `@17` / 管理者 split `@21`
+現行本番: `v262`（統合プロジェクト GAS version 264 / 会員 split GAS version 18 / 管理者 split GAS version 22）
+固定 deployment: 統合（公開ポータル）`@264` × 2本 / 会員 split `@18` / 管理者 split `@22`
 
 ## 1. 再開の最短ルート
 
@@ -17,12 +17,12 @@
 7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `docs/135_RELEASE_STATE_v261_2026-04-23.md`
-11. `docs/133_RELEASE_STATE_v260_2026-04-22.md`
-12. `docs/131_RELEASE_STATE_v259_2026-04-22.md`
-13. `docs/129_RELEASE_STATE_v258_2026-04-22.md`
-14. `docs/127_RELEASE_STATE_v257_2026-04-21.md`
-15. `docs/125_RELEASE_STATE_v256_2026-04-21.md`
+10. `docs/137_RELEASE_STATE_v262_2026-04-24.md`
+11. `docs/135_RELEASE_STATE_v261_2026-04-23.md`
+12. `docs/133_RELEASE_STATE_v260_2026-04-22.md`
+13. `docs/131_RELEASE_STATE_v259_2026-04-22.md`
+14. `docs/129_RELEASE_STATE_v258_2026-04-22.md`
+15. `docs/09_DEPLOYMENT_POLICY.md`
 15. `docs/09_DEPLOYMENT_POLICY.md`
 16. `docs/05_AUTH_AND_ROLE_SPEC.md`
 17. `docs/04_DB_OPERATION_RUNBOOK.md`
@@ -54,6 +54,8 @@
 
 ### 2.2 直近で本番反映済みの変更
 
+- `v262`: パスワードハッシュを PBKDF2-HMAC-SHA256（10000反復）へ全面移行。新規アカウントは即時 PBKDF2、既存アカウントはログイン時に自動 rehash（ユーザー影響なし）。セキュリティタスク 120/121/122 完了・archive。
+  詳細: `docs/137_RELEASE_STATE_v262_2026-04-24.md`
 - `v261-patch`: ログSS移行実施完了（全3プロジェクト）。ログSS ID: `1NmVv483UeehF8dqCdyNKOqOtv_fPKROhHN7011N23lw`。T_ログイン履歴 1997行移行済み。member splitはdoPost bootstrap経由でLOG_SPREADSHEET_ID設定済み。
 - `v261`: ログテーブル（T_ログイン履歴・T_監査ログ・T_メール送信ログ）を別SS分離対応。退会済み会員の定期archiveシート移動。T_メール送信ログ書き込みバグ修正。入会申込UI改善（削除ボタン除去・建物名追加・職員追加カード2行化）。
   詳細: `docs/135_RELEASE_STATE_v261_2026-04-23.md`
@@ -76,9 +78,6 @@
 
 | 優先度 | 内容 | 正本 |
 |---|---|---|
-| Critical | `processApiRequest` deny-by-default の完了 | `docs/120_TASK_SECURITY_DENY_BY_DEFAULT_2026-04-21.md` |
-| Critical | 自己操作 API の IDOR 修正完了 | `docs/121_TASK_SECURITY_IDOR_FIX_2026-04-21.md` |
-| High | パスワードハッシュを PBKDF2 以上へ移行 | `docs/122_TASK_SECURITY_PASSWORD_HASHING_2026-04-21.md` |
 | Medium | OAuth スコープ最小化と CI セキュリティ自動化 | `docs/123_TASK_SECURITY_SCOPE_AND_CI_2026-04-21.md` |
 | Medium | CM番号編集ポリシーの実装 | `docs/113_TASK_CM_NUMBER_EDIT_POLICY_2026-04-20.md` |
 
@@ -112,9 +111,9 @@ npx clasp run getDbInfo
 期待値:
 
 - authorized user: `k.noguchi@hcm-n.org`
-- 統合 fixed deployment 2 本: `@257`
-- 会員 split: `@10`
-- 管理者 split: `@14`
+- 統合 fixed deployment 2 本: `@264`
+- 会員 split: `@18`
+- 管理者 split: `@22`
 - `clasp run` は権限状態次第で失敗し得る。失敗時は operator 側権限の再確認を優先する。
 
 ## 6. 文書の見方

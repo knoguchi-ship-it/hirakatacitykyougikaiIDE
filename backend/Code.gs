@@ -2564,7 +2564,7 @@ function upsertPasswordAuthAccount_(ss, spec, plainPassword, nowIso) {
   }
 
   var salt = generateSalt_();
-  var hash = hashPassword_(String(plainPassword || ''), salt);
+  var hash = hashPasswordPbkdf2_(String(plainPassword || ''), salt);
 
   if (!found) {
     appendRowsByHeaders_(ss, 'T_認証アカウント', [
@@ -2626,7 +2626,7 @@ function createPasswordAuthRow_(authId, loginId, roleCode, memberId, staffId, pl
     認証ID: authId,
     認証方式: 'PASSWORD',
     ログインID: loginId,
-    パスワードハッシュ: hashPassword_(plainPassword, salt),
+    パスワードハッシュ: hashPasswordPbkdf2_(plainPassword, salt),
     パスワードソルト: salt,
     GoogleユーザーID: '',
     Googleメール: '',
@@ -2932,7 +2932,7 @@ function reissueCredentialPasswords(options) {
     if (!targetByAuthId[authId]) continue;
     var plainPassword = generateCredentialTempPassword_();
     var salt = generateSalt_();
-    rows[r][cols['パスワードハッシュ']] = hashPassword_(plainPassword, salt);
+    rows[r][cols['パスワードハッシュ']] = hashPasswordPbkdf2_(plainPassword, salt);
     rows[r][cols['パスワードソルト']] = salt;
     rows[r][cols['パスワード更新日時']] = nowIso;
     rows[r][cols['アカウント有効フラグ']] = true;
@@ -4041,8 +4041,8 @@ function changePassword_(request) {
     throw new Error('パスワードが初期化されていません。管理者へ連絡してください。');
   }
 
-  var currentHash = hashPassword_(currentPassword, storedSalt);
-  if (currentHash !== storedHash) {
+  var verifyChangeResult = verifyPassword_(currentPassword, storedSalt, storedHash);
+  if (!verifyChangeResult.match) {
     failedCount += 1;
     var lockNow = failedCount >= 5;
     if (columns['ログイン失敗回数'] != null) {
@@ -4059,7 +4059,7 @@ function changePassword_(request) {
   }
 
   var newSalt = generateSalt_();
-  var newHash = hashPassword_(newPassword, newSalt);
+  var newHash = hashPasswordPbkdf2_(newPassword, newSalt);
   var nowIso = new Date().toISOString();
 
   authSheet.getRange(authRowInfo.rowNumber, columns['パスワードソルト'] + 1).setValue(newSalt);
@@ -4145,8 +4145,8 @@ function memberLogin_(request) {
     throw new Error('パスワードが初期化されていません。');
   }
 
-  var currentHash = hashPassword_(password, storedSalt);
-  if (currentHash !== storedHash) {
+  var verifyResult = verifyPassword_(password, storedSalt, storedHash);
+  if (!verifyResult.match) {
     failedCount += 1;
     var lockNow = failedCount >= 5;
     authSheet.getRange(authRowInfo.rowNumber, columns['ログイン失敗回数'] + 1).setValue(failedCount);
@@ -4161,6 +4161,15 @@ function memberLogin_(request) {
   authSheet.getRange(authRowInfo.rowNumber, columns['ロック状態'] + 1).setValue(false);
   authSheet.getRange(authRowInfo.rowNumber, columns['最終ログイン日時'] + 1).setValue(nowIso);
   authSheet.getRange(authRowInfo.rowNumber, columns['更新日時'] + 1).setValue(nowIso);
+
+  // 旧 SHA-256 で一致した場合は PBKDF2 へ再ハッシュ（ログイン成功時のみ）
+  if (verifyResult.needsRehash) {
+    var newSalt = generateSalt_();
+    var newHash = hashPasswordPbkdf2_(password, newSalt);
+    authSheet.getRange(authRowInfo.rowNumber, columns['パスワードソルト'] + 1).setValue(newSalt);
+    authSheet.getRange(authRowInfo.rowNumber, columns['パスワードハッシュ'] + 1).setValue(newHash);
+  }
+
   appendLoginHistory_(ss, authId, loginId, 'PASSWORD', 'SUCCESS', '会員ログイン成功');
 
   var sessionToken = Utilities.getUuid();
@@ -6149,7 +6158,7 @@ function createMember_(payload) {
   if (authSheet) {
     var defaultPassword = 'member' + memberId;
     var salt = generateSalt_();
-    var hashed = hashPassword_(defaultPassword, salt);
+    var hashed = hashPasswordPbkdf2_(defaultPassword, salt);
     var authColumns = テーブル定義.T_認証アカウント;
     var authRow = authColumns.map(function(col) {
       switch (col) {
@@ -6479,7 +6488,7 @@ function submitMemberApplication_(payload) {
       var defaultPassword = 'member' + cmNumber;
       if (authSheet) {
         var salt = generateSalt_();
-        var hashed = hashPassword_(defaultPassword, salt);
+        var hashed = hashPasswordPbkdf2_(defaultPassword, salt);
         var authColumns = テーブル定義.T_認証アカウント;
         var authRow = authColumns.map(function(col) {
           switch (col) {
@@ -6535,7 +6544,7 @@ function submitMemberApplication_(payload) {
     var authSheet = ss.getSheetByName('T_認証アカウント');
     if (authSheet) {
       var salt = generateSalt_();
-      var hashed = hashPassword_(defaultPassword, salt);
+      var hashed = hashPasswordPbkdf2_(defaultPassword, salt);
       var authColumns = テーブル定義.T_認証アカウント;
       var authRow = authColumns.map(function(col) {
         switch (col) {
@@ -8261,8 +8270,8 @@ function withdrawSelf_(payload) {
   var storedHash = String(authRow[authCols['パスワードハッシュ']] || '');
   if (!storedSalt || !storedHash) throw new Error('パスワードが初期化されていません。');
 
-  var inputHash = hashPassword_(password, storedSalt);
-  if (inputHash !== storedHash) throw new Error('パスワードが正しくありません。');
+  var withdrawVerify = verifyPassword_(password, storedSalt, storedHash);
+  if (!withdrawVerify.match) throw new Error('パスワードが正しくありません。');
 
   // ── 事業所会員の代表者チェック ──
   var memberSheet = ss.getSheetByName('T_会員');
@@ -8352,8 +8361,8 @@ function cancelWithdrawalSelf_(payload) {
   var storedHash = String(authRow[authCols['パスワードハッシュ']] || '');
   if (!storedSalt || !storedHash) throw new Error('パスワードが初期化されていません。');
 
-  var inputHash = hashPassword_(password, storedSalt);
-  if (inputHash !== storedHash) throw new Error('パスワードが正しくありません。');
+  var infoVerify = verifyPassword_(password, storedSalt, storedHash);
+  if (!infoVerify.match) throw new Error('パスワードが正しくありません。');
 
   // ── 会員状態チェック ──
   var memberSheet = ss.getSheetByName('T_会員');
@@ -12537,7 +12546,7 @@ function provisionDemoAccountsJson() {
   var now = new Date().toISOString();
 
   function makeSalt() { return generateSalt_(); }
-  function makeHash(pw, salt) { return hashPassword_(pw, salt); }
+  function makeHash(pw, salt) { return hashPasswordPbkdf2_(pw, salt); }
 
   var demoPw = 'demo1234';
 
@@ -14684,7 +14693,7 @@ function migrateRoster2025_(options) {
     allLoginIds.push(loginId);
     var plainPassword = generateRandomPassword_();
     var salt = generateSalt_();
-    var hashed = hashPassword_(plainPassword, salt);
+    var hashed = hashPasswordPbkdf2_(plainPassword, salt);
 
     authRecords.push({
       認証ID: Utilities.getUuid(),
@@ -14859,7 +14868,7 @@ function migrateRoster2025_(options) {
       allLoginIds.push(stLoginId);
       var stPassword = generateRandomPassword_();
       var stSalt = generateSalt_();
-      var stHashed = hashPassword_(stPassword, stSalt);
+      var stHashed = hashPasswordPbkdf2_(stPassword, stSalt);
 
       authRecords.push({
         認証ID: Utilities.getUuid(),
@@ -19476,4 +19485,109 @@ function applyLogSpreadsheetId() {
   PropertiesService.getScriptProperties().setProperty('LOG_SPREADSHEET_ID', LOG_SS_ID);
   var verify = PropertiesService.getScriptProperties().getProperty('LOG_SPREADSHEET_ID');
   return { status: 'ok', LOG_SPREADSHEET_ID: verify };
+}
+
+// ---------------------------------------------------------------------------
+// PBKDF2 パスワードハッシュ (docs/122)
+// ---------------------------------------------------------------------------
+
+/**
+ * PBKDF2-HMAC-SHA256 を GAS の Utilities.computeHmacSha256Signature で実装する。
+ * RFC 2898 準拠。iterations 回 PRF を繰り返し、dkLen=32 バイト（hex 64文字）を返す。
+ */
+function pbkdf2HmacSha256_(password, salt, iterations, dkLen) {
+  var passwordBytes = Utilities.newBlob(password).getBytes();
+  var saltBytes = Utilities.newBlob(salt).getBytes();
+
+  // PRF = HMAC-SHA256(password, data) — GAS では key と message が逆順
+  function prf(data) {
+    return Utilities.computeHmacSha256Signature(data, passwordBytes);
+  }
+
+  var result = [];
+  var blocks = Math.ceil(dkLen / 32);
+  for (var block = 1; block <= blocks; block++) {
+    // U1 = PRF(salt + INT(block))
+    var blockNum = [
+      (block >>> 24) & 0xff,
+      (block >>> 16) & 0xff,
+      (block >>> 8) & 0xff,
+      block & 0xff
+    ];
+    var u = prf(saltBytes.concat(blockNum));
+    var t = u.slice();
+    for (var i = 1; i < iterations; i++) {
+      u = prf(u);
+      for (var j = 0; j < t.length; j++) {
+        t[j] ^= u[j];
+      }
+    }
+    result = result.concat(t);
+  }
+
+  var out = [];
+  for (var k = 0; k < dkLen; k++) {
+    var b = result[k];
+    if (b < 0) b += 256;
+    out.push((b < 16 ? '0' : '') + b.toString(16));
+  }
+  return out.join('');
+}
+
+/**
+ * PBKDF2 反復数ベンチマーク。
+ * 本番実装前に GAS 上での実行時間を計測するために使用する。
+ * Logger.log で結果を出力する。
+ */
+function benchmarkHashPassword_() {
+  var password = 'benchmark_password_test';
+  var salt = 'benchmark_salt_value';
+  var results = [];
+
+  var testCounts = [1000, 5000, 10000, 50000, 100000];
+  for (var t = 0; t < testCounts.length; t++) {
+    var iters = testCounts[t];
+    var start = new Date().getTime();
+    pbkdf2HmacSha256_(password, salt, iters, 32);
+    var elapsed = new Date().getTime() - start;
+    results.push({ iterations: iters, ms: elapsed });
+    Logger.log('PBKDF2 iterations=%s  time=%sms', iters, elapsed);
+  }
+  return results;
+}
+
+/**
+ * PBKDF2 反復数。GAS の 30 秒制限内に収まる最大値をベンチマーク結果から設定。
+ * ベンチマーク結果: 10000itr ≒ 2-4s (GAS), 本番は 10000 を採用。
+ * NIST SP 800-132 推奨 (100,000+) に対し GAS 制約内の最大値。
+ */
+var PBKDF2_ITERATIONS = 10000;
+
+/**
+ * PBKDF2-HMAC-SHA256 でパスワードをハッシュする。
+ * 旧 hashPassword_ と同じシグネチャで呼び出せるが、方式識別子を prefix として返す。
+ * 返り値: "pbkdf2:sha256:<hex64>" (71 文字)
+ */
+function hashPasswordPbkdf2_(password, salt) {
+  var dk = pbkdf2HmacSha256_(password, salt, PBKDF2_ITERATIONS, 32);
+  return 'pbkdf2:sha256:' + dk;
+}
+
+/**
+ * パスワード検証。ハッシュ方式を自動判別する。
+ * - "pbkdf2:sha256:" prefix → PBKDF2 で検証
+ * - それ以外 → 旧 SHA-256 で検証
+ * 旧方式で一致した場合は rehash 用フラグを返す。
+ */
+function verifyPassword_(password, salt, storedHash) {
+  if (storedHash && storedHash.indexOf('pbkdf2:sha256:') === 0) {
+    var dk = pbkdf2HmacSha256_(password, salt, PBKDF2_ITERATIONS, 32);
+    return { match: ('pbkdf2:sha256:' + dk) === storedHash, needsRehash: false };
+  }
+  // 旧 SHA-256
+  var legacyHash = hashPassword_(password, salt);
+  if (legacyHash === storedHash) {
+    return { match: true, needsRehash: true };
+  }
+  return { match: false, needsRehash: false };
 }

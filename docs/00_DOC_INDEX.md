@@ -88,9 +88,6 @@
 
 | 優先度 | 文書 | 内容 |
 |---|---|---|
-| 🔴 Critical | `docs/120_TASK_SECURITY_DENY_BY_DEFAULT_2026-04-21.md` | processApiRequest deny-by-default |
-| 🔴 Critical | `docs/121_TASK_SECURITY_IDOR_FIX_2026-04-21.md` | 自己操作API IDOR修正 |
-| 🟠 High | `docs/122_TASK_SECURITY_PASSWORD_HASHING_2026-04-21.md` | パスワードハッシュPBKDF2移行 |
 | 🟡 Medium | `docs/123_TASK_SECURITY_SCOPE_AND_CI_2026-04-21.md` | OAuthスコープ最小化・CI |
 | 🟡 Medium | `docs/113_TASK_CM_NUMBER_EDIT_POLICY_2026-04-20.md` | CM番号編集ポリシー |
 | 📋 Backlog | `docs/58_NEXT_TASK_PERFORMANCE_2026-04-09.md` | パフォーマンス改善 |
@@ -101,11 +98,11 @@
 
 | バージョン | 文書 | 内容 |
 |---|---|---|
-| v261-patch | `docs/135_RELEASE_STATE_v261_2026-04-23.md` | **現行本番**。ログSS分離・archive・UIバグ修正 |
+| v262 | `docs/137_RELEASE_STATE_v262_2026-04-24.md` | **現行本番**。PBKDF2パスワードハッシュ移行・セキュリティタスク120/121/122完了 |
+| v261-patch | `docs/135_RELEASE_STATE_v261_2026-04-23.md` | ログSS分離・archive・UIバグ修正 |
 | v260 | `docs/133_RELEASE_STATE_v260_2026-04-22.md` | 公開ポータル変更・退会OTPフロー |
 | v259 | `docs/131_RELEASE_STATE_v259_2026-04-22.md` | 入会通知メール送信元設定化 |
 | v258 | `docs/129_RELEASE_STATE_v258_2026-04-22.md` | 事業所番号バリデーション・論理削除化 |
-| v257 | `docs/127_RELEASE_STATE_v257_2026-04-21.md` | システム設定画面再編 |
 
 それより古いリリース: `docs/archive/release_history/`
 
