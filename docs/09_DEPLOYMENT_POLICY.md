@@ -168,7 +168,33 @@ When the change affects user flows, real-browser verification is performed by th
 
 ## 7. Current Recorded State
 
-### 2026-04-22 `v258` ← **current production**
+### 2026-04-24 `v263` ← **current production**
+
+- Scope: OAuthスコープ最小化（全3プロジェクト）・CIセキュリティゲート（`npm run security:audit`）追加・CM番号編集ポリシー案C確定。
+  - 統合: `spreadsheets` `script.external_request` `script.send_mail` `drive`（9スコープ削除）
+  - 管理者 split: `spreadsheets` `script.external_request` `script.send_mail` `gmail.settings.basic` `drive` `userinfo.email`（`gmail.send` 削除）
+  - 会員 split: `spreadsheets` `script.external_request` `script.send_mail`（`drive` `userinfo.email` `userinfo.profile` 削除）
+  - `package.json` に `security:audit` / `security:secrets` / `prerelease` スクリプト追加
+- 対象 deployment: 統合（公開）2本 / 会員 split / 管理者 split — 全4 deployment 更新。
+- Verification:
+  - `npm run build:gas` ✅
+  - 統合 push ✅（5 files）/ 会員 split push ✅（3 files）/ 管理者 split push ✅（3 files）
+  - 統合 `npx clasp redeploy` ✅（`AKfycbyw... @265` / `AKfycbxy... @265`）
+  - 会員 split `npx clasp redeploy` ✅（`AKfycbxd... @19`）
+  - 管理者 split `npx clasp redeploy` ✅（`AKfycbwS... @23`）
+  - 実ブラウザ確認 → 操作者側で実施（OAuth grant 失効の場合は再承認が必要）
+
+### 2026-04-24 `v262`
+
+- Scope: パスワードハッシュを PBKDF2-HMAC-SHA256（10000反復）へ全面移行。新規アカウントは即時 PBKDF2、既存アカウントはログイン時に自動 rehash（ユーザー影響なし）。
+- 対象 deployment: 統合（公開）2本 / 会員 split / 管理者 split — 全4 deployment 更新。
+- Verification:
+  - `npm run build:gas` ✅
+  - 統合 `npx clasp redeploy` ✅（`AKfycbyw... @264` / `AKfycbxy... @264`）
+  - 会員 split `npx clasp redeploy` ✅（`AKfycbxd... @18`）
+  - 管理者 split `npx clasp redeploy` ✅（`AKfycbwS... @22`）
+
+### 2026-04-22 `v258` （archived → `docs/archive/release_history/129_RELEASE_STATE_v258_2026-04-22.md`）
 
 - Scope: 公開入会申込の事業所番号厳格化、事業所職員の共有メール許容、データ管理コンソールの論理削除化。
   - `officeNumber` を `^[A-Za-z0-9]{10}$` に統一。

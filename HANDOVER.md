@@ -23,7 +23,6 @@
 13. `docs/133_RELEASE_STATE_v260_2026-04-22.md`
 14. `docs/131_RELEASE_STATE_v259_2026-04-22.md`
 15. `docs/09_DEPLOYMENT_POLICY.md`
-15. `docs/09_DEPLOYMENT_POLICY.md`
 16. `docs/05_AUTH_AND_ROLE_SPEC.md`
 17. `docs/04_DB_OPERATION_RUNBOOK.md`
 18. `docs/03_DATA_MODEL.md`
@@ -65,14 +64,7 @@
   詳細: `docs/133_RELEASE_STATE_v260_2026-04-22.md`
 - `v259`: 入会通知メールの送信元メールアドレスを設定化。主メールアドレスと Gmail send-as alias のみ選択可能。
   詳細: `docs/131_RELEASE_STATE_v259_2026-04-22.md`
-- `v258`: 公開入会申込の事業所番号を半角英数字10文字へ統一。共有メール許容、空職員カード無視、データ管理コンソールを論理削除化。
-  詳細: `docs/129_RELEASE_STATE_v258_2026-04-22.md`
-- `v257`: システム設定画面を情報設計ごと再編。概要ヘッダ、クイックジャンプ、5 セクション、sticky 保存バーへ整理。
-  詳細: `docs/127_RELEASE_STATE_v257_2026-04-21.md`
-- `v256`: 公開ポータルの入会完了画面「今後のご案内」「ログイン情報」をシステム設定化。
-  詳細: `docs/125_RELEASE_STATE_v256_2026-04-21.md`
-- `v255`: admin split Gmail alias 取得の診断コードを整理し、GCP プロジェクト差し替え後の本番クリーン状態へ戻した。
-  詳細: `docs/119_RELEASE_STATE_v255_2026-04-21.md`
+それより古いリリース: `docs/archive/release_history/`（v258: 129_, v257: 127_, v256: 125_, v255: 119_ 他）
 
 ## 3. 次フェーズの優先順位
 
@@ -95,8 +87,9 @@
 
 ## 4. 既知の制約と注意事項
 
-- `npx clasp run healthCheck` / `npx clasp run getDbInfo` は、2026-04-22 時点で 3 プロジェクトとも `Unable to run script function. Please make sure you have permission to run the script function.` となることがある。既知の operator 権限依存課題として扱う。
-- `getAdminEmailAliases_()` は admin split の Gmail API / send-as alias 構成に依存する。alias が取得できない場合は `docs/119_RELEASE_STATE_v255_2026-04-21.md` と `docs/16_INCIDENT_clasp_run_permission_2026-03-14.md` を先に確認する。
+- `npx clasp run healthCheck` / `npx clasp run getDbInfo` は、3 プロジェクトとも `Unable to run script function` となることがある。既知の operator 権限依存課題として扱う。失敗時は `docs/16_INCIDENT_clasp_run_permission_2026-03-14.md` を参照。
+- **v263 OAuth スコープ削減の影響**: v263 で不要スコープを削除した。既存の OAuth grant が失効した場合は `myaccount.google.com/permissions` でアプリを手動失効させ再承認する。
+- `getAdminEmailAliases_()` は admin split の Gmail API / send-as alias 構成に依存する。alias が取得できない場合は `docs/archive/release_history/119_RELEASE_STATE_v255_2026-04-21.md` と `docs/16_INCIDENT_clasp_run_permission_2026-03-14.md` を先に確認する。
 - business member の代表者情報は `staff.role='REPRESENTATIVE'` を正本とする。
 - `seedDemoData` は production DB を破壊する操作として扱い、完全バックアップと明示承認なしでは実行しない。
 - demo login、mock member route、画面内 demo selector は復活禁止。

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>システム概要 v261 | 枚方市介護支援専門員連絡協議会 会員システム</title>
+  <title>システム概要 v263 | 枚方市介護支援専門員連絡協議会 会員システム</title>
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
   <style>
     :root {
@@ -290,7 +290,7 @@
     </svg>
     枚方市介護支援専門員連絡協議会 会員システム
   </a>
-  <span class="version-badge">v261-patch</span>
+  <span class="version-badge">v263</span>
   <span class="date">2026-04-24 更新</span>
 </header>
 
@@ -341,8 +341,8 @@
         </div>
         <div class="card">
           <div class="card-label">現行バージョン</div>
-          <div class="card-title">v261-patch</div>
-          <div class="card-sub">ログSS分離・アーカイブ機能</div>
+          <div class="card-title">v263</div>
+          <div class="card-sub">PBKDF2・OAuthスコープ最小化・全セキュリティタスク完了</div>
           <span class="card-badge badge-blue">2026-04-24</span>
         </div>
         <div class="card">
@@ -442,21 +442,21 @@
             <tr>
               <td>管理者ポータル</td>
               <td><code>admin split</code></td>
-              <td>@21</td>
+              <td>@23</td>
               <td><code>AKfycbwSCTT...</code></td>
               <td><span class="card-badge badge-purple">DOMAIN</span></td>
             </tr>
             <tr>
               <td>会員マイページ</td>
               <td><code>member split</code></td>
-              <td>@17</td>
+              <td>@19</td>
               <td><code>AKfycbxd_6H...</code></td>
               <td><span class="card-badge badge-blue">ANYONE_ANON</span></td>
             </tr>
             <tr>
               <td>公開ポータル</td>
               <td><code>統合（公開専用）</code></td>
-              <td>@263 ×2本</td>
+              <td>@265 ×2本</td>
               <td><code>AKfycbywp...</code> / <code>AKfycbxyu...</code></td>
               <td><span class="card-badge badge-green">ANYONE_ANON</span></td>
             </tr>
@@ -878,41 +878,41 @@ npx clasp run dryRunTrainingReminderT001</pre>
         <h2>セキュリティ</h2>
       </div>
 
-      <h3>第三者評価に基づく是正タスク（docs/109）</h3>
+      <h3>第三者評価に基づく是正タスク（docs/109）— <span style="color:var(--green)">v263 時点で全完了</span></h3>
       <ul class="security-list">
-        <li class="crit">
-          <span class="sev sev-critical">CRITICAL</span>
+        <li style="border-color:var(--green-border); background:var(--green-bg)">
+          <span class="sev" style="background:var(--green); color:#000">DONE</span>
           <div>
             <strong style="color:var(--text-primary)">processApiRequest deny-by-default</strong><br>
-            <span style="color:var(--text-secondary); font-size:0.8rem">未定義ルートを全拒否するデフォルト拒否ポリシーの実装 → <code>docs/120</code></span>
+            <span style="color:var(--text-secondary); font-size:0.8rem">v261 時点で実装済みを確認・archive。PUBLIC/MEMBER/ADMIN_LOGIN/ADMIN_ACTION_PERMISSIONS の4分類ホワイトリストで完全制御。</span>
           </div>
         </li>
-        <li class="crit">
-          <span class="sev sev-critical">CRITICAL</span>
+        <li style="border-color:var(--green-border); background:var(--green-bg)">
+          <span class="sev" style="background:var(--green); color:#000">DONE</span>
           <div>
             <strong style="color:var(--text-primary)">自己操作 API IDOR 修正</strong><br>
-            <span style="color:var(--text-secondary); font-size:0.8rem">会員IDの直接指定による他会員データへのアクセス防止 → <code>docs/121</code></span>
+            <span style="color:var(--text-secondary); font-size:0.8rem">v261 時点で実装済みを確認・archive。loginId からサーバー側で会員ID/職員IDを解決し、クライアント指定値を上書きする。</span>
           </div>
         </li>
-        <li class="high">
-          <span class="sev sev-high">HIGH</span>
+        <li style="border-color:var(--green-border); background:var(--green-bg)">
+          <span class="sev" style="background:var(--green); color:#000">DONE</span>
           <div>
-            <strong style="color:var(--text-primary)">パスワードハッシュ PBKDF2 移行</strong><br>
-            <span style="color:var(--text-secondary); font-size:0.8rem">現行ハッシュを PBKDF2（推奨: 600,000回）以上へ移行 → <code>docs/122</code></span>
+            <strong style="color:var(--text-primary)">パスワードハッシュ PBKDF2-HMAC-SHA256 移行</strong><br>
+            <span style="color:var(--text-secondary); font-size:0.8rem">v262 で実装。新規アカウントは即時 PBKDF2（10000反復）。既存アカウントはログイン時に自動 rehash（ユーザー操作不要）。</span>
           </div>
         </li>
-        <li class="med">
-          <span class="sev sev-medium">MEDIUM</span>
+        <li style="border-color:var(--green-border); background:var(--green-bg)">
+          <span class="sev" style="background:var(--green); color:#000">DONE</span>
           <div>
-            <strong style="color:var(--text-primary)">OAuthスコープ最小化・CI自動化</strong><br>
-            <span style="color:var(--text-secondary); font-size:0.8rem">不要スコープの削除とセキュリティチェックのCI統合 → <code>docs/123</code></span>
+            <strong style="color:var(--text-primary)">OAuthスコープ最小化・CIセキュリティゲート</strong><br>
+            <span style="color:var(--text-secondary); font-size:0.8rem">v263 で実装。全3プロジェクトから不要スコープ削除。<code>npm run security:audit</code> をリリース前必須チェックに追加。</span>
           </div>
         </li>
-        <li class="med">
-          <span class="sev sev-medium">MEDIUM</span>
+        <li style="border-color:var(--green-border); background:var(--green-bg)">
+          <span class="sev" style="background:var(--green); color:#000">DONE</span>
           <div>
-            <strong style="color:var(--text-primary)">CM番号編集ポリシー</strong><br>
-            <span style="color:var(--text-secondary); font-size:0.8rem">介護支援専門員番号の変更ルール実装 → <code>docs/113</code></span>
+            <strong style="color:var(--text-primary)">CM番号編集ポリシー（案C確定）</strong><br>
+            <span style="color:var(--text-secondary); font-size:0.8rem">v263 で確定。管理者のみ変更可・会員セルフサービスは読み取り専用。<code>docs/05_AUTH_AND_ROLE_SPEC.md §9</code> に正式記録。</span>
           </div>
         </li>
       </ul>
@@ -936,8 +936,18 @@ npx clasp run dryRunTrainingReminderT001</pre>
 
       <div class="timeline">
         <div class="tl-item current">
-          <div class="tl-version">v261-patch <span class="card-badge badge-green" style="font-size:0.6rem">現行本番</span></div>
+          <div class="tl-version">v263 <span class="card-badge badge-green" style="font-size:0.6rem">現行本番</span></div>
           <div class="tl-date">2026-04-24</div>
+          <div class="tl-desc">OAuthスコープ最小化（全3プロジェクト・不要9スコープ削除）・CIセキュリティゲート（npm run security:audit）追加・CM番号編集ポリシー案C確定（管理者のみ変更可）。<strong>第三者評価起票の全セキュリティタスク完了。</strong></div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-version">v262</div>
+          <div class="tl-date">2026-04-24</div>
+          <div class="tl-desc">パスワードハッシュをPBKDF2-HMAC-SHA256（10000反復）へ全面移行。新規アカウントは即時PBKDF2、既存アカウントはログイン時に自動rehash（ユーザー影響なし）</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-version">v261-patch</div>
+          <div class="tl-date">2026-04-23</div>
           <div class="tl-desc">ログSS分離（T_ログイン履歴1997行移行）・T_会員_archive/T_事業所職員_archive追加・T_メール送信ログ書き込みバグ修正・入会申込UI改善（削除ボタン除去・建物名追加・職員追加2行カード）</div>
         </div>
         <div class="tl-item">
@@ -949,16 +959,6 @@ npx clasp run dryRunTrainingReminderT001</pre>
           <div class="tl-version">v259</div>
           <div class="tl-date">2026-04-22</div>
           <div class="tl-desc">入会通知メールの送信元メールアドレスを管理設定画面から切り替え可能に</div>
-        </div>
-        <div class="tl-item">
-          <div class="tl-version">v258</div>
-          <div class="tl-date">2026-04-22</div>
-          <div class="tl-desc">公開入会申込の事業所番号を半角英数字10文字へ統一、共有メール許容、空職員カード無視、データ管理コンソールを論理削除化</div>
-        </div>
-        <div class="tl-item">
-          <div class="tl-version">v257</div>
-          <div class="tl-date">2026-04-21</div>
-          <div class="tl-desc">システム設定画面を情報設計ごと再編。概要ヘッダ・クイックジャンプ・5セクション・sticky保存バーへ整理</div>
         </div>
       </div>
 
