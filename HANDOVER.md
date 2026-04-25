@@ -1,8 +1,8 @@
 # 開発引継ぎ
 
 更新日: 2026-04-25
-現行本番: `v264`（統合プロジェクト GAS version 266 / 会員 split GAS version 20 / 管理者 split GAS version 25）
-固定 deployment: 統合（公開ポータル）`@266` × 2本 / 会員 split `@20` / 管理者 split `@25`
+現行本番: `v264-fix`（統合プロジェクト GAS version 267 / 会員 split GAS version 21 / 管理者 split GAS version 26）
+固定 deployment: 統合（公開ポータル）`@267` × 2本 / 会員 split `@21` / 管理者 split `@26`
 
 ## 1. 再開の最短ルート
 
@@ -53,6 +53,8 @@
 
 ### 2.2 直近で本番反映済みの変更
 
+- `v264-fix`: CacheService依存のトークン管理をHMAC署名ステートレストークンへ置換（CacheService蒸発バグ修正）。フロントエンドのサイレント失敗バグ（success:falseを無視して完了表示）修正。
+  詳細: `docs/141_RELEASE_STATE_v264_2026-04-25.md`（更新済み）
 - `v264`: 公開ポータル変更・退会フローをOTPなし承認ワークフローへ全面刷新。会員種別選択→本人確認（CM番号+氏名 / 事業所番号）→変更項目チェックボックス選択→変更内容入力（デフォルト値なし）→申請（DB非反映）→管理者承認→DB反映。管理者コンソールに変更申請管理ビュー追加。T_変更申請テーブル追加。
   詳細: `docs/141_RELEASE_STATE_v264_2026-04-25.md`
 - `v263`: OAuthスコープ最小化（全3プロジェクト）、CIセキュリティゲート追加（`npm run security:audit`）、CM番号編集ポリシー案C確定・docs/05に記録。セキュリティタスク123/113完了・archive。**第三者評価（docs/109）起票の全タスク完了。**
@@ -111,8 +113,8 @@ npx clasp run getDbInfo
 
 - authorized user: `k.noguchi@hcm-n.org`
 - 統合 fixed deployment 2 本: `@266`
-- 会員 split: `@20`
-- 管理者 split: `@25`
+- 会員 split: `@21`
+- 管理者 split: `@26`
 - `clasp run` は権限状態次第で失敗し得る。失敗時は operator 側権限の再確認を優先する。
 
 ## 6. 文書の見方

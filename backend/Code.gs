@@ -12117,6 +12117,36 @@ function removePublicStaffByCmNumber_(payload) {
 
 // ── v264: OTPなし本人確認フロー + 変更申請キュー ─────────────────────────────
 
+// ステートレストークン（HMAC-SHA256署名）: CacheService非依存。
+// キーは Script Properties の PUBLIC_TOKEN_SECRET（未設定時はフォールバック値）。
+function createPublicIdentityToken_(data, ttlSeconds) {
+  var secret = PropertiesService.getScriptProperties().getProperty('PUBLIC_TOKEN_SECRET') || 'hcmn_member_system_v264_fallback';
+  var payload = JSON.stringify({ d: data, exp: Date.now() + ttlSeconds * 1000 });
+  var encoded = Utilities.base64EncodeWebSafe(payload);
+  var sigBytes = Utilities.computeHmacSha256Signature(encoded, secret);
+  var sig = Utilities.base64EncodeWebSafe(sigBytes);
+  return encoded + '.' + sig;
+}
+
+function verifyPublicIdentityToken_(token) {
+  try {
+    var parts = String(token || '').split('.');
+    if (parts.length !== 2) return null;
+    var encoded = parts[0];
+    var sig = parts[1];
+    var secret = PropertiesService.getScriptProperties().getProperty('PUBLIC_TOKEN_SECRET') || 'hcmn_member_system_v264_fallback';
+    var expectedSigBytes = Utilities.computeHmacSha256Signature(encoded, secret);
+    var expectedSig = Utilities.base64EncodeWebSafe(expectedSigBytes);
+    if (sig !== expectedSig) return null;
+    var decoded = Utilities.newBlob(Utilities.base64DecodeWebSafe(encoded)).getDataAsString();
+    var obj = JSON.parse(decoded);
+    if (!obj.exp || obj.exp < Date.now()) return null;
+    return obj.d;
+  } catch (e) {
+    return null;
+  }
+}
+
 // 本人確認（OTP不要）: 入力情報でDB照合し、成功時にアクショントークンを発行。
 // 列挙防止: 照合失敗・未存在ともに同一エラーを返す。
 // contactEmail はDB照合に使わず、確認メール送信先として保存する。
@@ -12182,10 +12212,9 @@ function verifyMemberIdentityForPublic_(payload) {
     ? (String(member['姓'] || '') + ' ' + String(member['名'] || '')).trim()
     : String(member['勤務先名'] || '');
 
-  var token = generatePublicActionToken_();
-  cache.put(
-    'pub_tok_identity_' + token,
-    JSON.stringify({ memberId: memberId, memberType: memberType, contactEmail: contactEmail, applicantName: applicantName, purpose: purpose }),
+  // ステートレストークン（HMAC署名、CacheService非依存）
+  var token = createPublicIdentityToken_(
+    { memberId: memberId, memberType: memberType, contactEmail: contactEmail, applicantName: applicantName, purpose: purpose },
     1800
   );
 
@@ -12195,9 +12224,8 @@ function verifyMemberIdentityForPublic_(payload) {
 // 事業所会員の追加可能スタッフ数を返す。メンバーデータは漏らさない。
 function getPublicAvailableStaffSlots_(payload) {
   var token = String(payload.token || '').trim();
-  var tokenRaw = CacheService.getScriptCache().get('pub_tok_identity_' + token);
-  if (!tokenRaw) return { error: 'token_expired' };
-  var stored = JSON.parse(tokenRaw);
+  var stored = verifyPublicIdentityToken_(token);
+  if (!stored) return { error: 'token_expired' };
   if (stored.memberType !== 'BUSINESS') return { error: '事業所会員専用の操作です' };
 
   var ss = getOrCreateDatabase_();
@@ -12217,10 +12245,8 @@ function getPublicAvailableStaffSlots_(payload) {
 // 変更申請をT_変更申請に書き込む。DBは変更しない。管理者承認後に適用される。
 function submitPublicChangeRequest_(payload) {
   var token = String(payload.token || '').trim();
-  var cache = CacheService.getScriptCache();
-  var tokenRaw = cache.get('pub_tok_identity_' + token);
-  if (!tokenRaw) return { success: false, error: 'token_expired' };
-  var stored = JSON.parse(tokenRaw);
+  var stored = verifyPublicIdentityToken_(token);
+  if (!stored) return { success: false, error: 'token_expired' };
 
   var requestType = String(payload.requestType || '').trim();
   var validTypes = ['MEMBER_UPDATE', 'WITHDRAWAL', 'STAFF_ADD', 'STAFF_REMOVE'];
@@ -12302,9 +12328,6 @@ function submitPublicChangeRequest_(payload) {
     更新日時: now,
     削除フラグ: false,
   }]);
-
-  // トークン削除（単一使用）
-  cache.remove('pub_tok_identity_' + token);
 
   // 申請者への確認メール
   var typeLabel = { MEMBER_UPDATE: '登録情報変更申請', WITHDRAWAL: '退会申請', STAFF_ADD: '職員追加申請', STAFF_REMOVE: '職員除籍申請' };

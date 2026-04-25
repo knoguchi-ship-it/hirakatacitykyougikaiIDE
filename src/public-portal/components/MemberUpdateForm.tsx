@@ -299,13 +299,22 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
         ? staffRemoveCards.filter(c => c.lastName && c.firstName && /^\d{8}$/.test(c.careManagerNumber))
         : [];
 
-      await callApi('submitPublicChangeRequest', {
+      const res = await callApi<{ success: boolean; requestId?: string; error?: string }>('submitPublicChangeRequest', {
         token,
         requestType: 'MEMBER_UPDATE',
         fields,
         staffAdd,
         staffRemove,
       });
+      if (!res.success) {
+        const e = res.error || '';
+        if (e === 'token_expired') {
+          setError('セッションの有効期限が切れました（30分）。最初からやり直してください。');
+        } else {
+          setError(e || '申請の送信に失敗しました。');
+        }
+        return;
+      }
       setStep('complete');
     } catch (err) {
       const msg = err instanceof Error ? err.message : '';
