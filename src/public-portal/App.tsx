@@ -263,27 +263,40 @@ const PublicApp: React.FC = () => {
   };
 
   const renderHome = () => {
+    // portalContentSettings が null の間はデフォルト値を一切表示しない（FOIC防止）
+    const settingsReady = portalContentSettings !== null;
     const content = portalContentSettings ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS;
     return (
     <div className="space-y-8">
       <section className="rounded-[28px] border border-slate-200 bg-white px-6 py-8 shadow-sm md:px-10">
-        <div className="max-w-3xl space-y-4">
-          {content.heroBadgeEnabled && (
-            <p className="text-sm font-semibold tracking-[0.12em] text-sky-700">
-              {content.heroBadgeLabel}
-            </p>
-          )}
-          <div className="space-y-3">
-            <h2 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
-              {content.heroTitle}
-            </h2>
-            {content.heroDescriptionEnabled && (
-              <p className="max-w-2xl text-sm leading-7 text-slate-600 md:text-base">
-                {content.heroDescription}
+        {!settingsReady ? (
+          // ヒーローセクション スケルトン（実際の表示領域に合わせたサイズ）
+          <div className="max-w-3xl animate-pulse space-y-4" aria-hidden="true">
+            <div className="h-10 w-3/4 rounded-lg bg-slate-200 md:h-12" />
+            <div className="space-y-2">
+              <div className="h-4 w-full rounded bg-slate-100" />
+              <div className="h-4 w-4/5 rounded bg-slate-100" />
+            </div>
+          </div>
+        ) : (
+          <div className="max-w-3xl space-y-4">
+            {content.heroBadgeEnabled && (
+              <p className="text-sm font-semibold tracking-[0.12em] text-sky-700">
+                {content.heroBadgeLabel}
               </p>
             )}
+            <div className="space-y-3">
+              <h2 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
+                {content.heroTitle}
+              </h2>
+              {content.heroDescriptionEnabled && (
+                <p className="max-w-2xl text-sm leading-7 text-slate-600 md:text-base">
+                  {content.heroDescription}
+                </p>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </section>
 
       {/* 設定確定前は Skeleton を表示。設定未確定のまま誤ったカードを瞬間描画しない（FOIC防止） */}
