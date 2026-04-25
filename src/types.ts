@@ -114,6 +114,19 @@ export interface SystemSettings {
   publicPortalWithdrawalDescriptionEnabled?: boolean;
   publicPortalWithdrawalDescription?: string;
   publicPortalWithdrawalCtaLabel?: string;
+  // v265: 事業所入会・職員追加メール設定
+  bizRepEmailEnabled?: boolean;
+  bizRepEmailSubject?: string;
+  bizRepEmailBody?: string;
+  bizStaffEmailEnabled?: boolean;
+  bizStaffEmailSubject?: string;
+  bizStaffEmailBody?: string;
+  staffAddStaffEmailEnabled?: boolean;
+  staffAddStaffEmailSubject?: string;
+  staffAddStaffEmailBody?: string;
+  staffAddRepEmailEnabled?: boolean;
+  staffAddRepEmailSubject?: string;
+  staffAddRepEmailBody?: string;
 }
 
 export interface AnnualFeeAdminRecord {

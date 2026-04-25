@@ -19,6 +19,84 @@ var DB_SCHEMA_VERSION = '2026-04-10-01';
 var MEMBER_PORTAL_URL = 'https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec';
 var CREDENTIAL_EMAIL_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】会員登録完了のお知らせ';
 var CREDENTIAL_EMAIL_DEFAULT_BODY = '{{氏名}} 様\n\n会員登録が完了しました。\n以下のログイン情報で会員マイページにアクセスできます。\n\nログインID: {{ログインID}}\n初期パスワード: {{パスワード}}\n\n会員マイページURL:\n{{会員マイページURL}}\n\n初回ログイン後、パスワードの変更をお勧めします。\n\n※このメールに心当たりがない場合は、お手数ですが削除してください。\n─────────────────────────────\n枚方市介護支援専門員連絡協議会\n';
+
+// v265: 事業所会員 入会時メール（代表者・メンバー別）・職員追加承認時メール デフォルトテンプレート
+var BIZ_REP_EMAIL_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】事業所会員登録完了のお知らせ（代表者）';
+var BIZ_REP_EMAIL_DEFAULT_BODY = [
+  '{{氏名}} 様',
+  '',
+  '{{事業所名}}の代表者として、事業所会員登録が完了しました。',
+  '以下のログイン情報で会員マイページにアクセスできます。',
+  '',
+  'ログインID: {{ログインID}}',
+  '初期パスワード: {{パスワード}}',
+  '',
+  '会員マイページURL:',
+  '{{会員マイページURL}}',
+  '',
+  '初回ログイン後、パスワードの変更をお勧めします。',
+  '代表者として、事業所のメンバーの情報管理をお願いします。',
+  '',
+  '※このメールに心当たりがない場合は、お手数ですが削除してください。',
+  '─────────────────────────────',
+  '枚方市介護支援専門員連絡協議会',
+].join('\n');
+
+var BIZ_STAFF_EMAIL_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】事業所会員登録完了のお知らせ';
+var BIZ_STAFF_EMAIL_DEFAULT_BODY = [
+  '{{氏名}} 様',
+  '',
+  '{{事業所名}}のメンバーとして、事業所会員登録が完了しました。',
+  '以下のログイン情報で会員マイページにアクセスできます。',
+  '',
+  'ログインID: {{ログインID}}',
+  '初期パスワード: {{パスワード}}',
+  '',
+  '会員マイページURL:',
+  '{{会員マイページURL}}',
+  '',
+  '初回ログイン後、パスワードの変更をお勧めします。',
+  '',
+  '※このメールに心当たりがない場合は、お手数ですが削除してください。',
+  '─────────────────────────────',
+  '枚方市介護支援専門員連絡協議会',
+].join('\n');
+
+var STAFF_ADD_STAFF_EMAIL_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】事業所会員メンバー追加のお知らせ';
+var STAFF_ADD_STAFF_EMAIL_DEFAULT_BODY = [
+  '{{氏名}} 様',
+  '',
+  '{{事業所名}}のメンバーとして登録されました。',
+  '以下のログイン情報で会員マイページにアクセスできます。',
+  '',
+  'ログインID: {{ログインID}}',
+  '初期パスワード: {{パスワード}}',
+  '',
+  '会員マイページURL:',
+  '{{会員マイページURL}}',
+  '',
+  '初回ログイン後、パスワードの変更をお勧めします。',
+  '',
+  '※このメールに心当たりがない場合は、お手数ですが削除してください。',
+  '─────────────────────────────',
+  '枚方市介護支援専門員連絡協議会',
+].join('\n');
+
+var STAFF_ADD_REP_EMAIL_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】新メンバー追加のお知らせ';
+var STAFF_ADD_REP_EMAIL_DEFAULT_BODY = [
+  '{{氏名}} 様',
+  '',
+  '{{事業所名}}に新しいメンバーが追加されました。',
+  '',
+  '追加されたメンバー: {{追加職員氏名}}',
+  '',
+  '詳細は会員マイページよりご確認ください。',
+  '会員マイページURL:',
+  '{{会員マイページURL}}',
+  '',
+  '─────────────────────────────',
+  '枚方市介護支援専門員連絡協議会',
+].join('\n');
 var PUBLIC_PORTAL_DEFAULTS = {
   heroBadgeEnabled: false,
   heroBadgeLabel: 'お申込みポータル',
@@ -4584,6 +4662,19 @@ function getSystemSettings_() {
     publicPortalWithdrawalDescriptionEnabled: publicPortalWithdrawalDescriptionEnabled,
     publicPortalWithdrawalDescription: publicPortalWithdrawalDescription,
     publicPortalWithdrawalCtaLabel: publicPortalWithdrawalCtaLabel,
+    // v265: 事業所入会・職員追加メール設定
+    bizRepEmailEnabled:        String(m['BIZ_REP_EMAIL_ENABLED'] || '') !== 'false',
+    bizRepEmailSubject:        String(m['BIZ_REP_EMAIL_SUBJECT'] || '') || BIZ_REP_EMAIL_DEFAULT_SUBJECT,
+    bizRepEmailBody:           String(m['BIZ_REP_EMAIL_BODY'] || '') || BIZ_REP_EMAIL_DEFAULT_BODY,
+    bizStaffEmailEnabled:      (function(){ var v = m['BIZ_STAFF_EMAIL_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
+    bizStaffEmailSubject:      String(m['BIZ_STAFF_EMAIL_SUBJECT'] || '') || BIZ_STAFF_EMAIL_DEFAULT_SUBJECT,
+    bizStaffEmailBody:         String(m['BIZ_STAFF_EMAIL_BODY'] || '') || BIZ_STAFF_EMAIL_DEFAULT_BODY,
+    staffAddStaffEmailEnabled: (function(){ var v = m['STAFF_ADD_STAFF_EMAIL_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
+    staffAddStaffEmailSubject: String(m['STAFF_ADD_STAFF_EMAIL_SUBJECT'] || '') || STAFF_ADD_STAFF_EMAIL_DEFAULT_SUBJECT,
+    staffAddStaffEmailBody:    String(m['STAFF_ADD_STAFF_EMAIL_BODY'] || '') || STAFF_ADD_STAFF_EMAIL_DEFAULT_BODY,
+    staffAddRepEmailEnabled:   (function(){ var v = m['STAFF_ADD_REP_EMAIL_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
+    staffAddRepEmailSubject:   String(m['STAFF_ADD_REP_EMAIL_SUBJECT'] || '') || STAFF_ADD_REP_EMAIL_DEFAULT_SUBJECT,
+    staffAddRepEmailBody:      String(m['STAFF_ADD_REP_EMAIL_BODY'] || '') || STAFF_ADD_REP_EMAIL_DEFAULT_BODY,
   };
 }
 
@@ -4813,6 +4904,43 @@ function updateSystemSettings_(request, callerPermLevel) {
   }
   if (request.publicPortalWithdrawalCtaLabel != null) {
     updates.push({ key: 'PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL', value: String(request.publicPortalWithdrawalCtaLabel).trim() || PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel, description: '公開ポータル：退会カードボタン文言' });
+  }
+  // v265: 事業所入会・職員追加メール設定
+  if (request.bizRepEmailEnabled != null) {
+    updates.push({ key: 'BIZ_REP_EMAIL_ENABLED', value: request.bizRepEmailEnabled ? 'true' : 'false', description: '事業所入会時：代表者メール送信ON/OFF' });
+  }
+  if (request.bizRepEmailSubject != null) {
+    updates.push({ key: 'BIZ_REP_EMAIL_SUBJECT', value: String(request.bizRepEmailSubject).trim() || BIZ_REP_EMAIL_DEFAULT_SUBJECT, description: '事業所入会時：代表者メール件名' });
+  }
+  if (request.bizRepEmailBody != null) {
+    updates.push({ key: 'BIZ_REP_EMAIL_BODY', value: String(request.bizRepEmailBody) || BIZ_REP_EMAIL_DEFAULT_BODY, description: '事業所入会時：代表者メール本文' });
+  }
+  if (request.bizStaffEmailEnabled != null) {
+    updates.push({ key: 'BIZ_STAFF_EMAIL_ENABLED', value: request.bizStaffEmailEnabled ? 'true' : 'false', description: '事業所入会時：メンバーメール送信ON/OFF' });
+  }
+  if (request.bizStaffEmailSubject != null) {
+    updates.push({ key: 'BIZ_STAFF_EMAIL_SUBJECT', value: String(request.bizStaffEmailSubject).trim() || BIZ_STAFF_EMAIL_DEFAULT_SUBJECT, description: '事業所入会時：メンバーメール件名' });
+  }
+  if (request.bizStaffEmailBody != null) {
+    updates.push({ key: 'BIZ_STAFF_EMAIL_BODY', value: String(request.bizStaffEmailBody) || BIZ_STAFF_EMAIL_DEFAULT_BODY, description: '事業所入会時：メンバーメール本文' });
+  }
+  if (request.staffAddStaffEmailEnabled != null) {
+    updates.push({ key: 'STAFF_ADD_STAFF_EMAIL_ENABLED', value: request.staffAddStaffEmailEnabled ? 'true' : 'false', description: '職員追加承認時：追加職員メール送信ON/OFF' });
+  }
+  if (request.staffAddStaffEmailSubject != null) {
+    updates.push({ key: 'STAFF_ADD_STAFF_EMAIL_SUBJECT', value: String(request.staffAddStaffEmailSubject).trim() || STAFF_ADD_STAFF_EMAIL_DEFAULT_SUBJECT, description: '職員追加承認時：追加職員メール件名' });
+  }
+  if (request.staffAddStaffEmailBody != null) {
+    updates.push({ key: 'STAFF_ADD_STAFF_EMAIL_BODY', value: String(request.staffAddStaffEmailBody) || STAFF_ADD_STAFF_EMAIL_DEFAULT_BODY, description: '職員追加承認時：追加職員メール本文' });
+  }
+  if (request.staffAddRepEmailEnabled != null) {
+    updates.push({ key: 'STAFF_ADD_REP_EMAIL_ENABLED', value: request.staffAddRepEmailEnabled ? 'true' : 'false', description: '職員追加承認時：代表者通知メール送信ON/OFF' });
+  }
+  if (request.staffAddRepEmailSubject != null) {
+    updates.push({ key: 'STAFF_ADD_REP_EMAIL_SUBJECT', value: String(request.staffAddRepEmailSubject).trim() || STAFF_ADD_REP_EMAIL_DEFAULT_SUBJECT, description: '職員追加承認時：代表者通知メール件名' });
+  }
+  if (request.staffAddRepEmailBody != null) {
+    updates.push({ key: 'STAFF_ADD_REP_EMAIL_BODY', value: String(request.staffAddRepEmailBody) || STAFF_ADD_REP_EMAIL_DEFAULT_BODY, description: '職員追加承認時：代表者通知メール本文' });
   }
   batchUpsertSystemSettings_(ss, updates);
   var scriptProperties = PropertiesService.getScriptProperties();
@@ -6398,7 +6526,9 @@ function submitMemberApplication_(payload) {
   };
 
   if (isBusiness) {
-    // 事業所会員: 職員ごとに認証レコード作成 + メール送信
+    // 事業所会員: 職員ごとに認証レコード作成 + メール送信（v265: 代表者/メンバー別テンプレート）
+    var bizOfficeName = String(payload.officeName || '').trim();
+    var bizEmailSettings = getBizEmailSettings_(ss);
     var staffList = Array.isArray(payload.staff) ? payload.staff.filter(function(staff) {
       if (!staff || typeof staff !== 'object') return false;
       return [
@@ -6550,13 +6680,32 @@ function submitMemberApplication_(payload) {
         authSheet.appendRow(authRow);
       }
 
-      // メール送信（v209: credEmailEnabled が false の場合はスキップ）
+      // v265: 事業所メール送信 — 全体フラグ最優先、代表者/メンバー別テンプレート
       if (credEmailEnabled) {
+        var bizVars = {
+          氏名: staffName.trim(),
+          ログインID: loginId,
+          パスワード: defaultPassword,
+          会員マイページURL: MEMBER_PORTAL_URL,
+          事業所名: bizOfficeName,
+        };
+        var fromAddr = credEmailOpts.from || '';
         try {
-          sendCredentialEmail_(staffEmail, loginId, defaultPassword, staffName.trim(), credEmailOpts);
-          result.emailsSent++;
+          if (staffRole === 'REPRESENTATIVE') {
+            if (bizEmailSettings.bizRepEmailEnabled) {
+              var repBody = renderBizEmailTemplate_(bizEmailSettings.bizRepEmailBody, bizVars);
+              sendEmailWithValidatedFrom_(staffEmail, bizEmailSettings.bizRepEmailSubject, repBody, { from: fromAddr });
+              result.emailsSent++;
+            }
+          } else {
+            if (bizEmailSettings.bizStaffEmailEnabled) {
+              var memberBody = renderBizEmailTemplate_(bizEmailSettings.bizStaffEmailBody, bizVars);
+              sendEmailWithValidatedFrom_(staffEmail, bizEmailSettings.bizStaffEmailSubject, memberBody, { from: fromAddr });
+              result.emailsSent++;
+            }
+          }
         } catch (e) {
-          Logger.log('sendCredentialEmail_ failed for ' + staffEmail + ': ' + e.message);
+          Logger.log('biz email send failed for ' + staffEmail + ' (' + staffRole + '): ' + e.message);
         }
       }
 
@@ -7008,6 +7157,40 @@ function transferBusinessStaffToBusinessMember_(ss, payload) {
  * 利用可能マージタグ: {{氏名}} {{ログインID}} {{パスワード}} {{会員マイページURL}}
  * opts を省略した場合はデフォルトテンプレートを使用する。
  */
+// v265: {{変数名}} プレースホルダーを vars オブジェクトで置換するヘルパー
+function renderBizEmailTemplate_(template, vars) {
+  var result = String(template || '');
+  var keys = Object.keys(vars);
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
+    result = result.replace(new RegExp('\\{\\{' + k + '\\}\\}', 'g'), String(vars[k] == null ? '' : vars[k]));
+  }
+  return result;
+}
+
+// v265: 事業所メール設定をまとめて取得するヘルパー（T_システム設定から）
+function getBizEmailSettings_(ss) {
+  var m = getSystemSettingMap_(ss);
+  var toB = function(key, def) {
+    var v = m[key];
+    return (v === '' || v === null || v === undefined) ? def : String(v) !== 'false';
+  };
+  return {
+    bizRepEmailEnabled:      toB('BIZ_REP_EMAIL_ENABLED', true),
+    bizRepEmailSubject:      String(m['BIZ_REP_EMAIL_SUBJECT'] || '') || BIZ_REP_EMAIL_DEFAULT_SUBJECT,
+    bizRepEmailBody:         String(m['BIZ_REP_EMAIL_BODY'] || '') || BIZ_REP_EMAIL_DEFAULT_BODY,
+    bizStaffEmailEnabled:    toB('BIZ_STAFF_EMAIL_ENABLED', true),
+    bizStaffEmailSubject:    String(m['BIZ_STAFF_EMAIL_SUBJECT'] || '') || BIZ_STAFF_EMAIL_DEFAULT_SUBJECT,
+    bizStaffEmailBody:       String(m['BIZ_STAFF_EMAIL_BODY'] || '') || BIZ_STAFF_EMAIL_DEFAULT_BODY,
+    staffAddStaffEmailEnabled: toB('STAFF_ADD_STAFF_EMAIL_ENABLED', true),
+    staffAddStaffEmailSubject: String(m['STAFF_ADD_STAFF_EMAIL_SUBJECT'] || '') || STAFF_ADD_STAFF_EMAIL_DEFAULT_SUBJECT,
+    staffAddStaffEmailBody:    String(m['STAFF_ADD_STAFF_EMAIL_BODY'] || '') || STAFF_ADD_STAFF_EMAIL_DEFAULT_BODY,
+    staffAddRepEmailEnabled:   toB('STAFF_ADD_REP_EMAIL_ENABLED', true),
+    staffAddRepEmailSubject:   String(m['STAFF_ADD_REP_EMAIL_SUBJECT'] || '') || STAFF_ADD_REP_EMAIL_DEFAULT_SUBJECT,
+    staffAddRepEmailBody:      String(m['STAFF_ADD_REP_EMAIL_BODY'] || '') || STAFF_ADD_REP_EMAIL_DEFAULT_BODY,
+  };
+}
+
 function sendCredentialEmail_(toEmail, loginId, password, memberName, opts) {
   opts = opts || {};
   var from = String(opts.from || '').trim();
@@ -10963,6 +11146,32 @@ function ensureSystemSettingsRows_(ss) {
       }]);
     }
   });
+
+  // v265: 事業所入会・職員追加メール設定 デフォルト初期化
+  var bizEmailDefaults = [
+    { key: 'BIZ_REP_EMAIL_ENABLED',        value: 'true',                                  desc: '事業所入会時：代表者メール送信ON/OFF' },
+    { key: 'BIZ_REP_EMAIL_SUBJECT',         value: BIZ_REP_EMAIL_DEFAULT_SUBJECT,           desc: '事業所入会時：代表者メール件名' },
+    { key: 'BIZ_REP_EMAIL_BODY',            value: BIZ_REP_EMAIL_DEFAULT_BODY,              desc: '事業所入会時：代表者メール本文' },
+    { key: 'BIZ_STAFF_EMAIL_ENABLED',       value: 'true',                                  desc: '事業所入会時：メンバーメール送信ON/OFF' },
+    { key: 'BIZ_STAFF_EMAIL_SUBJECT',       value: BIZ_STAFF_EMAIL_DEFAULT_SUBJECT,         desc: '事業所入会時：メンバーメール件名' },
+    { key: 'BIZ_STAFF_EMAIL_BODY',          value: BIZ_STAFF_EMAIL_DEFAULT_BODY,            desc: '事業所入会時：メンバーメール本文' },
+    { key: 'STAFF_ADD_STAFF_EMAIL_ENABLED', value: 'true',                                  desc: '職員追加承認時：追加職員メール送信ON/OFF' },
+    { key: 'STAFF_ADD_STAFF_EMAIL_SUBJECT', value: STAFF_ADD_STAFF_EMAIL_DEFAULT_SUBJECT,   desc: '職員追加承認時：追加職員メール件名' },
+    { key: 'STAFF_ADD_STAFF_EMAIL_BODY',    value: STAFF_ADD_STAFF_EMAIL_DEFAULT_BODY,      desc: '職員追加承認時：追加職員メール本文' },
+    { key: 'STAFF_ADD_REP_EMAIL_ENABLED',   value: 'true',                                  desc: '職員追加承認時：代表者通知メール送信ON/OFF' },
+    { key: 'STAFF_ADD_REP_EMAIL_SUBJECT',   value: STAFF_ADD_REP_EMAIL_DEFAULT_SUBJECT,     desc: '職員追加承認時：代表者通知メール件名' },
+    { key: 'STAFF_ADD_REP_EMAIL_BODY',      value: STAFF_ADD_REP_EMAIL_DEFAULT_BODY,        desc: '職員追加承認時：代表者通知メール本文' },
+  ];
+  bizEmailDefaults.forEach(function(item) {
+    if (!byKey[item.key]) {
+      appendRowsByHeaders_(ss, 'T_システム設定', [{
+        設定キー: item.key,
+        設定値: item.value,
+        説明: item.desc,
+        更新日時: now,
+      }]);
+    }
+  });
 }
 
 function writeMasterRows_(sheet, rows) {
@@ -12507,6 +12716,59 @@ function approveAdminChangeRequest_(payload) {
         staffData: staffToAdd[j],
         _directMemberId: memberId,
       });
+    }
+
+    // v265: 職員追加承認時メール（全体フラグ最優先）
+    var staffAddCredEnabledRaw = getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_ENABLED');
+    var staffAddCredEnabled = (staffAddCredEnabledRaw === '' || staffAddCredEnabledRaw === null)
+      ? true : String(staffAddCredEnabledRaw) !== 'false';
+    if (staffAddCredEnabled && staffToAdd.length > 0) {
+      var bizMailSettings = getBizEmailSettings_(ss);
+      // 事業所名・代表者メールを取得
+      var memberRowForEmail = getRowsAsObjects_(ss, 'T_会員').filter(function(r) {
+        return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
+      })[0] || {};
+      var officeNameForEmail = String(memberRowForEmail['勤務先名'] || applicantName || '');
+      var repStaffRow = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) {
+        return !toBoolean_(r['削除フラグ']) &&
+               String(r['会員ID'] || '') === memberId &&
+               String(r['職員状態コード'] || '') === 'ENROLLED' &&
+               String(r['権限コード'] || '') === 'REPRESENTATIVE';
+      })[0] || null;
+      var repEmail = repStaffRow ? String(repStaffRow['メールアドレス'] || '') : '';
+      var repName = repStaffRow ? (String(repStaffRow['姓'] || '') + ' ' + String(repStaffRow['名'] || '')).trim() : '';
+      var fromAddrForStaffAdd = String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_FROM') || '').trim();
+      var addedNames = [];
+
+      for (var ja = 0; ja < staffToAdd.length; ja++) {
+        var sa = staffToAdd[ja];
+        var saName = (String(sa.lastName || '') + ' ' + String(sa.firstName || '')).trim();
+        var saEmail = String(sa.email || '').trim();
+        var saLoginId = String(sa.careManagerNumber || '').trim();
+        var saPassword = 'member' + saLoginId;
+        addedNames.push(saName);
+        // 追加された職員へのメール
+        if (bizMailSettings.staffAddStaffEmailEnabled && saEmail) {
+          try {
+            var staffAddVars = { 氏名: saName, ログインID: saLoginId, パスワード: saPassword, 会員マイページURL: MEMBER_PORTAL_URL, 事業所名: officeNameForEmail };
+            var staffAddBody = renderBizEmailTemplate_(bizMailSettings.staffAddStaffEmailBody, staffAddVars);
+            sendEmailWithValidatedFrom_(saEmail, bizMailSettings.staffAddStaffEmailSubject, staffAddBody, { from: fromAddrForStaffAdd });
+          } catch (e) {
+            Logger.log('staffAdd staff email failed for ' + saEmail + ': ' + e.message);
+          }
+        }
+      }
+
+      // 代表者への追加通知メール
+      if (bizMailSettings.staffAddRepEmailEnabled && repEmail) {
+        try {
+          var repNotifyVars = { 氏名: repName, 会員マイページURL: MEMBER_PORTAL_URL, 事業所名: officeNameForEmail, 追加職員氏名: addedNames.join('、') };
+          var repNotifyBody = renderBizEmailTemplate_(bizMailSettings.staffAddRepEmailBody, repNotifyVars);
+          sendEmailWithValidatedFrom_(repEmail, bizMailSettings.staffAddRepEmailSubject, repNotifyBody, { from: fromAddrForStaffAdd });
+        } catch (e) {
+          Logger.log('staffAdd rep notify email failed for ' + repEmail + ': ' + e.message);
+        }
+      }
     }
 
   } else if (requestType === 'STAFF_REMOVE') {

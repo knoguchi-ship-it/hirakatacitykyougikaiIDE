@@ -407,6 +407,23 @@ const App: React.FC = () => {
   const [publicPortalWithdrawalDescriptionEnabledInput, setPublicPortalWithdrawalDescriptionEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled);
   const [publicPortalWithdrawalDescriptionInput, setPublicPortalWithdrawalDescriptionInput] = useState(PUBLIC_PORTAL_DEFAULTS.withdrawalDescription);
   const [publicPortalWithdrawalCtaLabelInput, setPublicPortalWithdrawalCtaLabelInput] = useState(PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel);
+  // v265: 事業所メール設定
+  const BIZ_REP_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】事業所会員登録完了のお知らせ（代表者）';
+  const BIZ_STAFF_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】事業所会員登録完了のお知らせ';
+  const STAFF_ADD_STAFF_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】事業所会員メンバー追加のお知らせ';
+  const STAFF_ADD_REP_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】新メンバー追加のお知らせ';
+  const [bizRepEmailEnabledInput, setBizRepEmailEnabledInput] = useState(true);
+  const [bizRepEmailSubjectInput, setBizRepEmailSubjectInput] = useState(BIZ_REP_SUBJECT_DEFAULT);
+  const [bizRepEmailBodyInput, setBizRepEmailBodyInput] = useState('');
+  const [bizStaffEmailEnabledInput, setBizStaffEmailEnabledInput] = useState(true);
+  const [bizStaffEmailSubjectInput, setBizStaffEmailSubjectInput] = useState(BIZ_STAFF_SUBJECT_DEFAULT);
+  const [bizStaffEmailBodyInput, setBizStaffEmailBodyInput] = useState('');
+  const [staffAddStaffEmailEnabledInput, setStaffAddStaffEmailEnabledInput] = useState(true);
+  const [staffAddStaffEmailSubjectInput, setStaffAddStaffEmailSubjectInput] = useState(STAFF_ADD_STAFF_SUBJECT_DEFAULT);
+  const [staffAddStaffEmailBodyInput, setStaffAddStaffEmailBodyInput] = useState('');
+  const [staffAddRepEmailEnabledInput, setStaffAddRepEmailEnabledInput] = useState(true);
+  const [staffAddRepEmailSubjectInput, setStaffAddRepEmailSubjectInput] = useState(STAFF_ADD_REP_SUBJECT_DEFAULT);
+  const [staffAddRepEmailBodyInput, setStaffAddRepEmailBodyInput] = useState('');
   const [memberListQuery, setMemberListQuery] = useState('');
   const [memberListFilter, setMemberListFilter] = useState<MemberListFilter>('ALL');
   const [memberListStatusFilter, setMemberListStatusFilter] = useState<MemberStatusFilter>(DEFAULT_MEMBER_STATUS_FILTER);
@@ -505,6 +522,19 @@ const App: React.FC = () => {
     setPublicPortalWithdrawalDescriptionEnabledInput(systemSettings.publicPortalWithdrawalDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled);
     setPublicPortalWithdrawalDescriptionInput(systemSettings.publicPortalWithdrawalDescription ?? PUBLIC_PORTAL_DEFAULTS.withdrawalDescription);
     setPublicPortalWithdrawalCtaLabelInput(systemSettings.publicPortalWithdrawalCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel);
+    // v265: 事業所メール設定ロード
+    setBizRepEmailEnabledInput(systemSettings.bizRepEmailEnabled ?? true);
+    setBizRepEmailSubjectInput(systemSettings.bizRepEmailSubject ?? BIZ_REP_SUBJECT_DEFAULT);
+    setBizRepEmailBodyInput(systemSettings.bizRepEmailBody ?? '');
+    setBizStaffEmailEnabledInput(systemSettings.bizStaffEmailEnabled ?? true);
+    setBizStaffEmailSubjectInput(systemSettings.bizStaffEmailSubject ?? BIZ_STAFF_SUBJECT_DEFAULT);
+    setBizStaffEmailBodyInput(systemSettings.bizStaffEmailBody ?? '');
+    setStaffAddStaffEmailEnabledInput(systemSettings.staffAddStaffEmailEnabled ?? true);
+    setStaffAddStaffEmailSubjectInput(systemSettings.staffAddStaffEmailSubject ?? STAFF_ADD_STAFF_SUBJECT_DEFAULT);
+    setStaffAddStaffEmailBodyInput(systemSettings.staffAddStaffEmailBody ?? '');
+    setStaffAddRepEmailEnabledInput(systemSettings.staffAddRepEmailEnabled ?? true);
+    setStaffAddRepEmailSubjectInput(systemSettings.staffAddRepEmailSubject ?? STAFF_ADD_REP_SUBJECT_DEFAULT);
+    setStaffAddRepEmailBodyInput(systemSettings.staffAddRepEmailBody ?? '');
     setSettingsIsDirty(false);
     setSystemSettingsLoaded(true);
   };
@@ -3185,6 +3215,119 @@ const App: React.FC = () => {
             </div>
           </AdminSettingsSection>
 
+          {/* v265: 事業所メール設定 */}
+          <AdminSettingsSection
+            id="settings-biz-email"
+            title="事業所会員メール設定"
+            description="事業所会員の入会申し込み時と職員追加承認時のメール送信を個別に制御します。全体フラグ（入会時ログイン情報メール）が OFF の場合は、ここの設定に関わらず全メールが停止されます。"
+            badge="事業所専用"
+          >
+            {(() => {
+              const tagDesc = [
+                ['{{氏名}}', '受信者の氏名'], ['{{ログインID}}', 'ログインID'], ['{{パスワード}}', '初期パスワード'],
+                ['{{会員マイページURL}}', '会員マイページURL'], ['{{事業所名}}', '事業所名'],
+              ];
+              const tagDescWithStaff = [...tagDesc, ['{{追加職員氏名}}', '追加された職員の氏名（複数の場合は読点区切り）']];
+              const TagList = ({ tags }: { tags: string[][] }) => (
+                <p className="text-xs text-slate-500 mb-2">
+                  利用可能なマージタグ：
+                  {tags.map(([tag, desc]) => (
+                    <span key={tag} className="inline-flex items-center gap-0.5 mx-0.5">
+                      <code className="bg-slate-100 text-violet-700 px-1 rounded text-[11px]">{tag}</code>
+                      <span className="text-slate-400 text-[11px]">({desc})</span>
+                    </span>
+                  ))}
+                </p>
+              );
+              const ToggleRow = ({ label, enabled, onToggle }: { label: string; enabled: boolean; onToggle: () => void }) => (
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <div className="relative inline-block w-11 h-6 flex-shrink-0">
+                    <input type="checkbox" className="sr-only" checked={enabled} onChange={onToggle} />
+                    <div className={`w-11 h-6 rounded-full transition-colors ${enabled ? 'bg-violet-600' : 'bg-slate-300'}`} />
+                    <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                  </div>
+                  <span className="text-sm text-slate-700">{label}</span>
+                </label>
+              );
+              const EmailBlock = ({ title, badge, enabled, onToggle, subject, onSubjectChange, body, onBodyChange, defaultSubject }: {
+                title: string; badge: string; enabled: boolean; onToggle: () => void;
+                subject: string; onSubjectChange: (v: string) => void;
+                body: string; onBodyChange: (v: string) => void; defaultSubject: string;
+                tags?: string[][];
+              }) => (
+                <div className="border border-slate-200 rounded-xl p-4 space-y-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="inline-flex rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-semibold text-violet-700">{badge}</span>
+                    <span className="text-sm font-semibold text-slate-800">{title}</span>
+                  </div>
+                  <ToggleRow label={enabled ? 'メールを送信する（ON）' : '送信しない（OFF）'} enabled={enabled} onToggle={onToggle} />
+                  {enabled && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">件名</label>
+                        <div className="flex gap-2">
+                          <input type="text" value={subject} onChange={e => onSubjectChange(e.target.value)}
+                            className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm" placeholder="メール件名" />
+                          <button type="button" onClick={() => onSubjectChange(defaultSubject)}
+                            className="px-2 py-2 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 whitespace-nowrap">デフォルト</button>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">本文</label>
+                        <textarea value={body} onChange={e => onBodyChange(e.target.value)} rows={8}
+                          className="w-full border border-slate-300 rounded px-3 py-2 text-sm font-mono leading-relaxed resize-y"
+                          placeholder="メール本文（マージタグ使用可能）" />
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+              return (
+                <div className="space-y-6 mt-4">
+                  {!credentialEmailEnabledInput && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                      全体フラグ「入会時ログイン情報メール」が OFF のため、以下の設定に関わらず全メールが停止されます。
+                    </div>
+                  )}
+
+                  <div>
+                    <h4 className="text-sm font-semibold text-slate-700 mb-1">▍入会申し込み時のメール</h4>
+                    <TagList tags={tagDesc} />
+                    <div className="space-y-4">
+                      <EmailBlock title="代表者向けメール" badge="代表者" enabled={bizRepEmailEnabledInput}
+                        onToggle={() => { setBizRepEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                        subject={bizRepEmailSubjectInput} onSubjectChange={v => { setBizRepEmailSubjectInput(v); setSettingsIsDirty(true); }}
+                        body={bizRepEmailBodyInput} onBodyChange={v => { setBizRepEmailBodyInput(v); setSettingsIsDirty(true); }}
+                        defaultSubject={BIZ_REP_SUBJECT_DEFAULT} />
+                      <EmailBlock title="メンバー（代表者以外）向けメール" badge="メンバー" enabled={bizStaffEmailEnabledInput}
+                        onToggle={() => { setBizStaffEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                        subject={bizStaffEmailSubjectInput} onSubjectChange={v => { setBizStaffEmailSubjectInput(v); setSettingsIsDirty(true); }}
+                        body={bizStaffEmailBodyInput} onBodyChange={v => { setBizStaffEmailBodyInput(v); setSettingsIsDirty(true); }}
+                        defaultSubject={BIZ_STAFF_SUBJECT_DEFAULT} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-sm font-semibold text-slate-700 mb-1">▍職員追加申請が承認されたときのメール</h4>
+                    <TagList tags={tagDescWithStaff} />
+                    <div className="space-y-4">
+                      <EmailBlock title="追加された職員へのメール" badge="追加職員" enabled={staffAddStaffEmailEnabledInput}
+                        onToggle={() => { setStaffAddStaffEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                        subject={staffAddStaffEmailSubjectInput} onSubjectChange={v => { setStaffAddStaffEmailSubjectInput(v); setSettingsIsDirty(true); }}
+                        body={staffAddStaffEmailBodyInput} onBodyChange={v => { setStaffAddStaffEmailBodyInput(v); setSettingsIsDirty(true); }}
+                        defaultSubject={STAFF_ADD_STAFF_SUBJECT_DEFAULT} />
+                      <EmailBlock title="代表者への追加通知メール" badge="代表者通知" enabled={staffAddRepEmailEnabledInput}
+                        onToggle={() => { setStaffAddRepEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                        subject={staffAddRepEmailSubjectInput} onSubjectChange={v => { setStaffAddRepEmailSubjectInput(v); setSettingsIsDirty(true); }}
+                        body={staffAddRepEmailBodyInput} onBodyChange={v => { setStaffAddRepEmailBodyInput(v); setSettingsIsDirty(true); }}
+                        defaultSubject={STAFF_ADD_REP_SUBJECT_DEFAULT} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </AdminSettingsSection>
+
           <AdminSettingsSection
             id="settings-business-limits"
             title="事業所ごとの個別上限"
@@ -3310,6 +3453,19 @@ const App: React.FC = () => {
                         publicPortalWithdrawalDescriptionEnabled: publicPortalWithdrawalDescriptionEnabledInput,
                         publicPortalWithdrawalDescription: publicPortalWithdrawalDescriptionInput,
                         publicPortalWithdrawalCtaLabel: publicPortalWithdrawalCtaLabelInput,
+                        // v265: 事業所メール設定
+                        bizRepEmailEnabled: bizRepEmailEnabledInput,
+                        bizRepEmailSubject: bizRepEmailSubjectInput,
+                        bizRepEmailBody: bizRepEmailBodyInput,
+                        bizStaffEmailEnabled: bizStaffEmailEnabledInput,
+                        bizStaffEmailSubject: bizStaffEmailSubjectInput,
+                        bizStaffEmailBody: bizStaffEmailBodyInput,
+                        staffAddStaffEmailEnabled: staffAddStaffEmailEnabledInput,
+                        staffAddStaffEmailSubject: staffAddStaffEmailSubjectInput,
+                        staffAddStaffEmailBody: staffAddStaffEmailBodyInput,
+                        staffAddRepEmailEnabled: staffAddRepEmailEnabledInput,
+                        staffAddRepEmailSubject: staffAddRepEmailSubjectInput,
+                        staffAddRepEmailBody: staffAddRepEmailBodyInput,
                       });
                       setDefaultBusinessStaffLimit(saved.defaultBusinessStaffLimit);
                       setGlobalLimitInput(String(saved.defaultBusinessStaffLimit));
