@@ -1,8 +1,8 @@
 # 開発引継ぎ
 
 更新日: 2026-04-25
-現行本番: `v264-fix`（統合プロジェクト GAS version 267 / 会員 split GAS version 21 / 管理者 split GAS version 26）
-固定 deployment: 統合（公開ポータル）`@267` × 2本 / 会員 split `@21` / 管理者 split `@26`
+現行本番: `v266`（統合プロジェクト GAS version 269 / 会員 split GAS version 23 / 管理者 split GAS version 28）
+固定 deployment: 統合（公開ポータル）`@269` × 2本 / 会員 split `@23` / 管理者 split `@28`
 
 ## 1. 再開の最短ルート
 
@@ -17,11 +17,11 @@
 7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `docs/141_RELEASE_STATE_v264_2026-04-25.md`
-11. `docs/139_RELEASE_STATE_v263_2026-04-24.md`
-12. `docs/137_RELEASE_STATE_v262_2026-04-24.md`
-13. `docs/135_RELEASE_STATE_v261_2026-04-23.md`
-14. `docs/133_RELEASE_STATE_v260_2026-04-22.md`
+10. `docs/145_RELEASE_STATE_v266_2026-04-25.md`
+11. `docs/143_RELEASE_STATE_v265_2026-04-25.md`
+12. `docs/141_RELEASE_STATE_v264_2026-04-25.md`
+13. `docs/139_RELEASE_STATE_v263_2026-04-24.md`
+14. `docs/137_RELEASE_STATE_v262_2026-04-24.md`
 15. `docs/09_DEPLOYMENT_POLICY.md`
 16. `docs/05_AUTH_AND_ROLE_SPEC.md`
 17. `docs/04_DB_OPERATION_RUNBOOK.md`
@@ -53,22 +53,19 @@
 
 ### 2.2 直近で本番反映済みの変更
 
-- `v264-fix`: CacheService依存のトークン管理をHMAC署名ステートレストークンへ置換（CacheService蒸発バグ修正）。フロントエンドのサイレント失敗バグ（success:falseを無視して完了表示）修正。
-  詳細: `docs/141_RELEASE_STATE_v264_2026-04-25.md`（更新済み）
-- `v264`: 公開ポータル変更・退会フローをOTPなし承認ワークフローへ全面刷新。会員種別選択→本人確認（CM番号+氏名 / 事業所番号）→変更項目チェックボックス選択→変更内容入力（デフォルト値なし）→申請（DB非反映）→管理者承認→DB反映。管理者コンソールに変更申請管理ビュー追加。T_変更申請テーブル追加。
+- `v266`: 入会・登録メール設定UIを統合再設計。5種メール（個人賛助・事業所代表者・事業所メンバー・追加職員・代表者通知）を「入会・登録メール設定」1セクションに統合。個人・賛助会員メールに個別ON/OFF（`IND_SUPP_EMAIL_ENABLED`）追加。入会完了画面文言設定を独立セクションに分離。
+  詳細: `docs/145_RELEASE_STATE_v266_2026-04-25.md`
+- `v265`: 事業所会員入会時メールを代表者/メンバー別テンプレートに分離。職員追加申請承認時に追加職員・代表者へ通知メールを自動送信（各ON/OFF・件名・本文設定可能）。計12設定キー追加。
+  詳細: `docs/143_RELEASE_STATE_v265_2026-04-25.md`
+- `v264-fix`: 公開ポータル変更申請のトークン管理をCacheServiceからHMAC署名ステートレストークンへ置換（CacheService蒸発バグ根本修正）。フロントエンドのサイレント失敗バグ修正。
   詳細: `docs/141_RELEASE_STATE_v264_2026-04-25.md`
-- `v263`: OAuthスコープ最小化（全3プロジェクト）、CIセキュリティゲート追加（`npm run security:audit`）、CM番号編集ポリシー案C確定・docs/05に記録。セキュリティタスク123/113完了・archive。**第三者評価（docs/109）起票の全タスク完了。**
+- `v264`: 公開ポータル変更・退会フローをOTPなし承認ワークフローへ全面刷新。T_変更申請テーブル追加。管理者コンソールに変更申請管理ビュー追加。
+  詳細: `docs/141_RELEASE_STATE_v264_2026-04-25.md`
+- `v263`: OAuthスコープ最小化、CIセキュリティゲート追加、CM番号編集ポリシー確定。第三者評価起票の全タスク完了。
   詳細: `docs/139_RELEASE_STATE_v263_2026-04-24.md`
-- `v262`: パスワードハッシュを PBKDF2-HMAC-SHA256（10000反復）へ全面移行。新規アカウントは即時 PBKDF2、既存アカウントはログイン時に自動 rehash（ユーザー影響なし）。セキュリティタスク 120/121/122 完了・archive。
+- `v262`: パスワードハッシュをPBKDF2-HMAC-SHA256（10000反復）へ全面移行。
   詳細: `docs/137_RELEASE_STATE_v262_2026-04-24.md`
-- `v261-patch`: ログSS移行実施完了（全3プロジェクト）。ログSS ID: `1NmVv483UeehF8dqCdyNKOqOtv_fPKROhHN7011N23lw`。T_ログイン履歴 1997行移行済み。member splitはdoPost bootstrap経由でLOG_SPREADSHEET_ID設定済み。
-- `v261`: ログテーブル（T_ログイン履歴・T_監査ログ・T_メール送信ログ）を別SS分離対応。退会済み会員の定期archiveシート移動。T_メール送信ログ書き込みバグ修正。入会申込UI改善（削除ボタン除去・建物名追加・職員追加カード2行化）。
-  詳細: `docs/135_RELEASE_STATE_v261_2026-04-23.md`
-- `v260`: 公開ポータルに「会員登録情報を変更する」「退会を申し込む」カードと OTP 認証フローを追加。
-  詳細: `docs/133_RELEASE_STATE_v260_2026-04-22.md`
-- `v259`: 入会通知メールの送信元メールアドレスを設定化。主メールアドレスと Gmail send-as alias のみ選択可能。
-  詳細: `docs/131_RELEASE_STATE_v259_2026-04-22.md`
-それより古いリリース: `docs/archive/release_history/`（v258: 129_, v257: 127_, v256: 125_, v255: 119_ 他）
+それより古いリリース: `docs/archive/release_history/`（v261: 135_, v260: 133_, v259: 131_, v258: 129_, v255: 119_ 他）
 
 ## 3. 次フェーズの優先順位
 
@@ -84,9 +81,9 @@
 
 ### 操作者確認待ち
 
-- `v264`: 公開ポータルで変更・退会フロー（OTPなし・会員種別選択→本人確認→申請）が正常動作すること。管理者コンソール「変更申請管理コンソール」で申請一覧・承認・却下が動作すること。T_変更申請シートがDBに自動作成されること。
-- `v261`: 入会申込UI（削除ボタンなし・建物名フィールド・職員追加2行カード）を実ブラウザで確認すること。
-- `v259`: 管理設定で送信元メールアドレスを切り替え、入会通知メールが選択した alias で送られること。
+- `v266`: 管理設定「入会・登録メール設定」が1セクションに統合されていること。全5種メール設定が編集できること。全体マスタースイッチOFF→全メール停止が動作すること。
+- `v265`: 事業所会員入会時に代表者・メンバーが異なる内容のメールを受け取ること。職員追加承認時に追加職員・代表者にメールが届くこと。
+- `v264`: 公開ポータルで変更・退会フロー（OTPなし・会員種別選択→本人確認→申請）が正常動作すること。管理者コンソール「変更申請管理コンソール」で申請一覧・承認・却下が動作すること。
 
 ## 4. 既知の制約と注意事項
 
@@ -112,9 +109,9 @@ npx clasp run getDbInfo
 期待値:
 
 - authorized user: `k.noguchi@hcm-n.org`
-- 統合 fixed deployment 2 本: `@266`
-- 会員 split: `@21`
-- 管理者 split: `@26`
+- 統合 fixed deployment 2 本: `@269`
+- 会員 split: `@23`
+- 管理者 split: `@28`
 - `clasp run` は権限状態次第で失敗し得る。失敗時は operator 側権限の再確認を優先する。
 
 ## 6. 文書の見方

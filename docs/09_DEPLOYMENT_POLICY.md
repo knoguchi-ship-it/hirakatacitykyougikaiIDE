@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-04-24
-Production: `v262` / 統合（公開）fixed deployments `@264` / 会員 split `@18` / 管理者 split `@22`
+Updated: 2026-04-25
+Production: `v266` / 統合（公開）fixed deployments `@269` / 会員 split `@23` / 管理者 split `@28`
 
 ## 1. Purpose
 
@@ -18,7 +18,7 @@ Production: `v262` / 統合（公開）fixed deployments `@264` / 会員 split `
 | Member portal | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `/exec` |
 | Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `/exec?app=public` |
 
-統合プロジェクト（公開専用）の両 fixed deployments は `@258` を指している。
+統合プロジェクト（公開専用）の両 fixed deployments は `@269`（v266）を指している。
 
 Operator-facing canonical URLs（v251〜確定・3プロジェクト分離完了）:
 
@@ -40,8 +40,8 @@ Project rule:
 
 | 用途 | Script ID | Deployment ID | version | webapp.access |
 |---|---|---|---|---|
-| 会員専用 (member) | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | @10 | ANYONE_ANONYMOUS |
-| 管理者専用 (admin) | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | @14 | DOMAIN |
+| 会員専用 (member) | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | @23（v266） | ANYONE_ANONYMOUS |
+| 管理者専用 (admin) | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | @28（v266） | DOMAIN |
 
 分離プロジェクト URL:
 

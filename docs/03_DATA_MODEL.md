@@ -1,7 +1,7 @@
 # データモデル設計書（スプレッドシートDB版）
 
-更新日: 2026-04-24
-スキーマバージョン: 2026-04-24-01
+更新日: 2026-04-25
+スキーマバージョン: 2026-04-25-01
 
 ---
 
@@ -499,6 +499,42 @@ T_ログイン履歴 }o--o| T_認証アカウント : "認証ID"
 - 退会日から3年超の WITHDRAWN 会員を `runArchiveOldWithdrawnMembers()` で定期移動（月次推奨）。
 - 同一スプレッドシート内の別シート。スキーマは元テーブルと同一。
 
+### 4.11 `T_変更申請` — メインDB（v264追加）
+
+公開ポータルから送信された変更・退会申請を管理者承認まで保存するキューテーブル。
+
+| 列 | 型 | 説明 |
+|---|---|---|
+| `申請ID` | string PK | `CR` + timestamp + token prefix |
+| `会員ID` | string FK | T_会員 |
+| `会員種別コード` | string | INDIVIDUAL / BUSINESS |
+| `申請種別コード` | string | MEMBER_UPDATE / WITHDRAWAL / STAFF_ADD / STAFF_REMOVE |
+| `申請状態コード` | string | PENDING / APPROVED / REJECTED |
+| `申請内容JSON` | JSON | `{ fields: {}, staffAdd: [], staffRemove: [] }` |
+| `連絡先メールアドレス` | string | 申請者入力の返信専用メール（DBとは別） |
+| `申請者表示名` | string | 申請者の氏名 or 事業所名 |
+| `申請日時` | datetime ISO | |
+| `処理日時` | datetime ISO | 承認/却下日時 |
+| `処理者メールアドレス` | string | 管理者のGoogleメール |
+| `処理備考` | string | 却下理由等 |
+| `作成日時` | datetime ISO | |
+| `更新日時` | datetime ISO | |
+| `削除フラグ` | boolean | |
+
+**承認ワークフロー:**
+1. 公開ポータルで申請 → `T_変更申請` に PENDING で記録
+2. 管理者が「変更申請管理コンソール」で確認・承認 → DB 反映 + 申請者に通知メール
+3. 却下の場合 → DB 変更なし + 申請者に却下メール
+
+**初回作成:** `submitPublicChangeRequest_` 呼び出し時に T_変更申請 が存在しない場合は自動作成。正式には `npx clasp run rebuildDatabaseSchema` で作成すること。
+
+**T_システム設定 追加キー（v264〜）:**
+- `BIZ_REP_EMAIL_ENABLED/SUBJECT/BODY` — 事業所代表者入会時メール
+- `BIZ_STAFF_EMAIL_ENABLED/SUBJECT/BODY` — 事業所メンバー入会時メール
+- `STAFF_ADD_STAFF_EMAIL_ENABLED/SUBJECT/BODY` — 職員追加承認時メール
+- `STAFF_ADD_REP_EMAIL_ENABLED/SUBJECT/BODY` — 職員追加代表者通知
+- `IND_SUPP_EMAIL_ENABLED`（v266〜） — 個人・賛助会員入会時メールON/OFF
+
 ---
 
 ## 5. ログ SS テーブル（別スプレッドシート・v261〜）
@@ -563,6 +599,7 @@ GAS コードは `getLogSs_()` 経由でアクセスする。`LOG_SPREADSHEET_ID
 
 | バージョン | 日付 | 変更概要 |
 |---|---|---|
+| 2026-04-25-01 | 2026-04-25 | T_変更申請テーブル追加（v264）。T_システム設定に事業所メール・個人賛助メール設定キー13件追加（v264〜v266）。 |
 | 2026-04-24-01 | 2026-04-24 | ログSS分離（T_ログイン履歴・T_監査ログ・T_メール送信ログ→別SS）、T_会員_archive / T_事業所職員_archive 追加。T_メール送信ログ書き込みバグ修正（v261） |
 | 2026-04-15-01 | 2026-04-15 | `T_会員` に `勤務先住所2` / `自宅住所2`（建物名・部屋番号）を追加 |
 | 2026-03-27-01 | 2026-03-27 | `T_事業所職員` に `メール配信希望コード` を追加（v133。特定電子メール法オプトイン準拠） |
