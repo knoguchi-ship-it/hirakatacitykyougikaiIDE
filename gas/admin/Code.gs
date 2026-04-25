@@ -4662,6 +4662,8 @@ function getSystemSettings_() {
     publicPortalWithdrawalDescriptionEnabled: publicPortalWithdrawalDescriptionEnabled,
     publicPortalWithdrawalDescription: publicPortalWithdrawalDescription,
     publicPortalWithdrawalCtaLabel: publicPortalWithdrawalCtaLabel,
+    // v265: 個人・賛助会員 入会時メール ON/OFF
+    indSuppEmailEnabled: (function(){ var v = m['IND_SUPP_EMAIL_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
     // v265: 事業所入会・職員追加メール設定
     bizRepEmailEnabled:        String(m['BIZ_REP_EMAIL_ENABLED'] || '') !== 'false',
     bizRepEmailSubject:        String(m['BIZ_REP_EMAIL_SUBJECT'] || '') || BIZ_REP_EMAIL_DEFAULT_SUBJECT,
@@ -4904,6 +4906,10 @@ function updateSystemSettings_(request, callerPermLevel) {
   }
   if (request.publicPortalWithdrawalCtaLabel != null) {
     updates.push({ key: 'PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL', value: String(request.publicPortalWithdrawalCtaLabel).trim() || PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel, description: '公開ポータル：退会カードボタン文言' });
+  }
+  // v265: 個人・賛助会員 入会時メール ON/OFF
+  if (request.indSuppEmailEnabled != null) {
+    updates.push({ key: 'IND_SUPP_EMAIL_ENABLED', value: request.indSuppEmailEnabled ? 'true' : 'false', description: '入会時：個人・賛助会員メール送信ON/OFF' });
   }
   // v265: 事業所入会・職員追加メール設定
   if (request.bizRepEmailEnabled != null) {
@@ -6757,9 +6763,12 @@ function submitMemberApplication_(payload) {
 
     result.loginId = loginId;
 
-    // メール送信（v209: credEmailEnabled が false の場合はスキップ）
+    // v265: 個人・賛助会員メール送信（全体フラグ + 個別フラグ両方チェック）
+    var indSuppEmailEnabledRaw = getSystemSettingValue_(ss, 'IND_SUPP_EMAIL_ENABLED');
+    var indSuppEmailEnabled = (indSuppEmailEnabledRaw === '' || indSuppEmailEnabledRaw === null)
+      ? true : String(indSuppEmailEnabledRaw) !== 'false';
     var email = String(payload.email || '').trim();
-    if (email && credEmailEnabled) {
+    if (email && credEmailEnabled && indSuppEmailEnabled) {
       try {
         var memberName = String(payload.lastName || '') + ' ' + String(payload.firstName || '');
         sendCredentialEmail_(email, loginId, defaultPassword, memberName.trim(), credEmailOpts);
@@ -11146,6 +11155,16 @@ function ensureSystemSettingsRows_(ss) {
       }]);
     }
   });
+
+  // v265: 個人・賛助会員メール ON/OFF デフォルト初期化
+  if (!byKey['IND_SUPP_EMAIL_ENABLED']) {
+    appendRowsByHeaders_(ss, 'T_システム設定', [{
+      設定キー: 'IND_SUPP_EMAIL_ENABLED',
+      設定値: 'true',
+      説明: '入会時：個人・賛助会員メール送信ON/OFF',
+      更新日時: now,
+    }]);
+  }
 
   // v265: 事業所入会・職員追加メール設定 デフォルト初期化
   var bizEmailDefaults = [

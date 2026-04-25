@@ -407,6 +407,8 @@ const App: React.FC = () => {
   const [publicPortalWithdrawalDescriptionEnabledInput, setPublicPortalWithdrawalDescriptionEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled);
   const [publicPortalWithdrawalDescriptionInput, setPublicPortalWithdrawalDescriptionInput] = useState(PUBLIC_PORTAL_DEFAULTS.withdrawalDescription);
   const [publicPortalWithdrawalCtaLabelInput, setPublicPortalWithdrawalCtaLabelInput] = useState(PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel);
+  // v265: 個人・賛助会員メール ON/OFF
+  const [indSuppEmailEnabledInput, setIndSuppEmailEnabledInput] = useState(true);
   // v265: 事業所メール設定
   const BIZ_REP_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】事業所会員登録完了のお知らせ（代表者）';
   const BIZ_STAFF_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】事業所会員登録完了のお知らせ';
@@ -522,6 +524,8 @@ const App: React.FC = () => {
     setPublicPortalWithdrawalDescriptionEnabledInput(systemSettings.publicPortalWithdrawalDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled);
     setPublicPortalWithdrawalDescriptionInput(systemSettings.publicPortalWithdrawalDescription ?? PUBLIC_PORTAL_DEFAULTS.withdrawalDescription);
     setPublicPortalWithdrawalCtaLabelInput(systemSettings.publicPortalWithdrawalCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel);
+    // v265: 個人・賛助会員メール ON/OFF
+    setIndSuppEmailEnabledInput(systemSettings.indSuppEmailEnabled ?? true);
     // v265: 事業所メール設定ロード
     setBizRepEmailEnabledInput(systemSettings.bizRepEmailEnabled ?? true);
     setBizRepEmailSubjectInput(systemSettings.bizRepEmailSubject ?? BIZ_REP_SUBJECT_DEFAULT);
@@ -2859,46 +2863,244 @@ const App: React.FC = () => {
 
           </AdminSettingsSection>
 
+          {/* v266: 入会・登録メール設定（全5種統合・再設計） */}
           <AdminSettingsSection
-            id="settings-membership-mail"
-            title="入会通知メール"
-            description="ログイン情報メール、完了画面の表示文言、テンプレート保存をまとめて管理します。長文編集が中心のため、独立したセクションに分離しています。"
-            badge="長文編集"
+            id="settings-all-email"
+            title="入会・登録メール設定"
+            description="全体マスタースイッチで一括停止、その下で種別ごとに ON/OFF・件名・本文を個別設定します。事業所会員と個人・賛助会員でテンプレートを使い分けできます。"
+            badge="メール設定"
             defaultOpen
           >
-            <div className="space-y-4">
-              <div>
-                <h4 className="text-sm font-semibold text-slate-800 mb-3">入会時ログイン情報メール設定</h4>
-
-                {/* ① メール送信の有無 */}
-                <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 space-y-2">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">① メール送信の有無</p>
-                  <p className="text-xs text-slate-500 mb-2">
-                    公開ポータルから入会申込があった際に、ログインID・初期パスワードを自動送信するかどうかを設定します。会員マイページの準備が整うまで送信しない場合はOFFにしてください。
-                  </p>
-                  <label className="flex items-center gap-3 cursor-pointer w-fit">
-                    <div className="relative">
-                      <input
-                        type="checkbox"
-                        className="sr-only"
-                        checked={credentialEmailEnabledInput}
-                        onChange={(e) => { setCredentialEmailEnabledInput(e.target.checked); setSettingsIsDirty(true); }}
-                      />
-                      <div className={`w-11 h-6 rounded-full transition-colors ${credentialEmailEnabledInput ? 'bg-primary-600' : 'bg-slate-300'}`} />
-                      <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${credentialEmailEnabledInput ? 'translate-x-5' : 'translate-x-0'}`} />
+            {(() => {
+              // 共通コンポーネント
+              const MasterOffBanner = () => !credentialEmailEnabledInput ? (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  全体マスタースイッチが <strong>OFF</strong> のため、以下の設定に関わらず全メールが停止されます。
+                </div>
+              ) : null;
+              const ToggleSwitch = ({ enabled, onToggle, onLabel, offLabel, color = 'violet' }: {
+                enabled: boolean; onToggle: () => void; onLabel: string; offLabel: string; color?: string;
+              }) => {
+                const bg = enabled ? (color === 'emerald' ? 'bg-emerald-600' : 'bg-violet-600') : 'bg-slate-300';
+                return (
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <div className="relative inline-block w-11 h-6 flex-shrink-0">
+                      <input type="checkbox" className="sr-only" checked={enabled} onChange={onToggle} />
+                      <div className={`w-11 h-6 rounded-full transition-colors ${bg}`} />
+                      <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0'}`} />
                     </div>
-                    <span className="text-sm font-medium text-slate-700">
-                      {credentialEmailEnabledInput ? '入会後すぐにログイン情報を送信する（ON）' : '送信しない（OFF）— 管理者が手動で通知してください'}
-                    </span>
+                    <span className="text-sm text-slate-700">{enabled ? onLabel : offLabel}</span>
                   </label>
+                );
+              };
+              const Tags = ({ items }: { items: [string, string][] }) => (
+                <p className="text-xs text-slate-500 mb-3">
+                  マージタグ: {items.map(([tag, desc]) => (
+                    <span key={tag} className="inline-flex items-center gap-0.5 mx-0.5">
+                      <code className="bg-slate-100 text-violet-700 px-1 rounded text-[11px]">{tag}</code>
+                      <span className="text-slate-400 text-[11px]">({desc})</span>
+                    </span>
+                  ))}
+                </p>
+              );
+              const EmailCard = ({ badge, title, enabled, onToggle, subject, onSubjectChange, defaultSubject, body, onBodyChange, extra }: {
+                badge: string; title: string; enabled: boolean; onToggle: () => void;
+                subject: string; onSubjectChange: (v: string) => void; defaultSubject: string;
+                body: string; onBodyChange: (v: string) => void; extra?: React.ReactNode;
+              }) => (
+                <div className={`rounded-xl border p-4 space-y-3 ${enabled ? 'border-violet-200 bg-violet-50' : 'border-slate-200 bg-slate-50'}`}>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-semibold text-violet-700">{badge}</span>
+                    <span className="text-sm font-semibold text-slate-800">{title}</span>
+                  </div>
+                  <ToggleSwitch enabled={enabled} onToggle={onToggle}
+                    onLabel="送信する（ON）" offLabel="送信しない（OFF）" />
+                  {enabled && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">件名</label>
+                        <div className="flex gap-2">
+                          <input type="text" value={subject} onChange={e => onSubjectChange(e.target.value)}
+                            className="flex-1 border border-slate-300 rounded px-3 py-1.5 text-sm bg-white" />
+                          <button type="button" onClick={() => onSubjectChange(defaultSubject)}
+                            className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 whitespace-nowrap bg-white">デフォルト</button>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">本文</label>
+                        <textarea value={body} onChange={e => onBodyChange(e.target.value)} rows={7}
+                          className="w-full border border-slate-300 rounded px-3 py-2 text-sm font-mono leading-relaxed resize-y bg-white"
+                          placeholder="メール本文（マージタグ使用可能）" />
+                        {extra}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+              return (
+              <div className="space-y-6">
+                {/* ─── 全体マスタースイッチ ─── */}
+                <div className="rounded-xl border-2 border-slate-300 bg-white p-4 space-y-3">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">全体マスタースイッチ</p>
+                  <p className="text-xs text-slate-500">OFF にすると以下の全メール設定に関わらず、すべての入会・登録メールが停止されます。</p>
+                  <ToggleSwitch color="emerald"
+                    enabled={credentialEmailEnabledInput}
+                    onToggle={() => { setCredentialEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    onLabel="入会・登録メールを送信する（ON）"
+                    offLabel="全メール停止中（OFF）— 準備が整ったら ON へ戻してください" />
                   {!credentialEmailEnabledInput && (
-                    <p className="mt-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-                      現在 OFF です。入会申込完了後、ログイン情報メールは送信されません。準備が整ったら ON に戻してください。
-                    </p>
+                    <p className="text-xs text-red-600">現在 OFF です。全ての入会・登録メールが送信されません。</p>
                   )}
                 </div>
 
-                {/* ② 入会完了画面 - 今後のご案内 */}
+                {/* ─── 送信元アドレス（共通） ─── */}
+                <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">送信元アドレス（全メール共通）</p>
+                    <button type="button" onClick={() => { void loadCredentialEmailAliases(); }}
+                      disabled={credentialEmailAliasLoading}
+                      className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 disabled:opacity-50">
+                      {credentialEmailAliasLoading ? '読込中...' : '更新'}
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-500">Gmail「Send mail as」に登録済みのアドレスから選択します。</p>
+                  <select value={credentialEmailFromInput}
+                    onChange={(e) => { setCredentialEmailFromInput(e.target.value); setSettingsIsDirty(true); }}
+                    className="w-full border border-slate-300 rounded px-3 py-2 text-sm bg-white"
+                    disabled={credentialEmailAliasLoading && credentialEmailFromOptions.length === 0}>
+                    {credentialEmailFromOptions.length > 0
+                      ? credentialEmailFromOptions.map(a => <option key={a} value={a}>{a}</option>)
+                      : <option value="">{credentialEmailAliasLoading ? '取得中...' : '利用可能なアドレスがありません'}</option>}
+                  </select>
+                  {credentialEmailAliasWarning && (
+                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">{credentialEmailAliasWarning}</p>
+                  )}
+                </div>
+
+                <MasterOffBanner />
+
+                {/* ─── 入会申し込み時のメール ─── */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-slate-700 border-b border-slate-200 pb-1">▍入会申し込み時のメール</h4>
+
+                  {/* 個人・賛助会員 */}
+                  <Tags items={[['{{氏名}}','氏名'],['{{ログインID}}','ログインID'],['{{パスワード}}','初期パスワード'],['{{会員マイページURL}}','マイページURL'],['{{会員種別}}','個人会員など'],['{{年会費}}','3,000円など']]} />
+                  <EmailCard badge="個人・賛助会員" title="個人会員・賛助会員向け"
+                    enabled={indSuppEmailEnabledInput}
+                    onToggle={() => { setIndSuppEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    subject={credentialEmailSubjectInput}
+                    onSubjectChange={v => { setCredentialEmailSubjectInput(v); setSettingsIsDirty(true); }}
+                    defaultSubject={CREDENTIAL_EMAIL_DEFAULT_SUBJECT}
+                    body={credentialEmailBodyInput}
+                    onBodyChange={v => { setCredentialEmailBodyInput(v); setSettingsIsDirty(true); }}
+                    extra={
+                      <div className="mt-2 border border-slate-200 rounded-lg p-3 bg-slate-50">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-semibold text-slate-700">テンプレート管理</span>
+                          <button type="button"
+                            className="text-xs px-2 py-1 rounded bg-primary-50 border border-primary-300 text-primary-700 hover:bg-primary-100"
+                            onClick={() => { setShowTemplateSaveForm(f => !f); setTemplateSaveNameInput(''); }}>
+                            ＋ 現在の内容を保存
+                          </button>
+                        </div>
+                        {showTemplateSaveForm && (
+                          <div className="flex gap-2 mb-2">
+                            <input type="text" value={templateSaveNameInput} onChange={e => setTemplateSaveNameInput(e.target.value)}
+                              placeholder="テンプレート名" className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs" maxLength={50} />
+                            <button type="button" disabled={templateSaving || !templateSaveNameInput.trim()}
+                              className="px-3 py-1 text-xs rounded bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50"
+                              onClick={async () => {
+                                if (!templateSaveNameInput.trim()) return;
+                                setTemplateSaving(true);
+                                try {
+                                  const saved = await api.saveCredentialEmailTemplate({ name: templateSaveNameInput.trim(), subject: credentialEmailSubjectInput, body: credentialEmailBodyInput });
+                                  setEmailTemplates(prev => { const idx = prev.findIndex(t => t.id === saved.id); return idx >= 0 ? prev.map(t => t.id === saved.id ? saved : t) : [...prev, saved]; });
+                                  setShowTemplateSaveForm(false); setTemplateSaveNameInput('');
+                                } catch { alert('保存に失敗しました'); } finally { setTemplateSaving(false); }
+                              }}>{templateSaving ? '保存中…' : '保存'}</button>
+                            <button type="button" className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-500"
+                              onClick={() => { setShowTemplateSaveForm(false); setTemplateSaveNameInput(''); }}>キャンセル</button>
+                          </div>
+                        )}
+                        {emailTemplates.length === 0 ? <p className="text-xs text-slate-400">保存済みテンプレートはありません</p> : (
+                          <ul className="space-y-1">
+                            {emailTemplates.map(t => (
+                              <li key={t.id} className="flex items-center gap-2 text-xs border border-slate-200 rounded px-2 py-1.5 bg-white">
+                                <span className="flex-1 font-medium text-slate-700 truncate">{t.name}</span>
+                                <span className="text-slate-400 shrink-0">{t.savedAt.slice(0, 10)}</span>
+                                <button type="button" className="px-2 py-0.5 rounded border border-primary-300 text-primary-700 hover:bg-primary-50"
+                                  onClick={() => { if (!window.confirm(`「${t.name}」を読み込みますか？`)) return; setCredentialEmailSubjectInput(t.subject); setCredentialEmailBodyInput(t.body); setSettingsIsDirty(true); }}>読み込む</button>
+                                <button type="button" disabled={templateDeleting === t.id}
+                                  className="px-2 py-0.5 rounded border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                                  onClick={async () => { if (!window.confirm(`「${t.name}」を削除しますか？`)) return; setTemplateDeleting(t.id); try { await api.deleteCredentialEmailTemplate(t.id); setEmailTemplates(prev => prev.filter(x => x.id !== t.id)); } catch { alert('削除に失敗しました'); } finally { setTemplateDeleting(null); } }}
+                                >{templateDeleting === t.id ? '…' : '削除'}</button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <div className="flex justify-end mt-1">
+                          <button type="button" onClick={() => { setCredentialEmailBodyInput(CREDENTIAL_EMAIL_DEFAULT_BODY); setSettingsIsDirty(true); }}
+                            className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50">デフォルトに戻す</button>
+                        </div>
+                      </div>
+                    } />
+
+                  {/* 事業所 代表者 */}
+                  <Tags items={[['{{氏名}}','氏名'],['{{ログインID}}','ログインID'],['{{パスワード}}','初期パスワード'],['{{会員マイページURL}}','マイページURL'],['{{事業所名}}','事業所名']]} />
+                  <EmailCard badge="事業所・代表者" title="事業所会員 代表者向け"
+                    enabled={bizRepEmailEnabledInput}
+                    onToggle={() => { setBizRepEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    subject={bizRepEmailSubjectInput}
+                    onSubjectChange={v => { setBizRepEmailSubjectInput(v); setSettingsIsDirty(true); }}
+                    defaultSubject={BIZ_REP_SUBJECT_DEFAULT}
+                    body={bizRepEmailBodyInput}
+                    onBodyChange={v => { setBizRepEmailBodyInput(v); setSettingsIsDirty(true); }} />
+                  <EmailCard badge="事業所・メンバー" title="事業所会員 メンバー（代表者以外）向け"
+                    enabled={bizStaffEmailEnabledInput}
+                    onToggle={() => { setBizStaffEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    subject={bizStaffEmailSubjectInput}
+                    onSubjectChange={v => { setBizStaffEmailSubjectInput(v); setSettingsIsDirty(true); }}
+                    defaultSubject={BIZ_STAFF_SUBJECT_DEFAULT}
+                    body={bizStaffEmailBodyInput}
+                    onBodyChange={v => { setBizStaffEmailBodyInput(v); setSettingsIsDirty(true); }} />
+                </div>
+
+                {/* ─── 職員追加承認時のメール ─── */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-slate-700 border-b border-slate-200 pb-1">▍職員追加申請 承認時のメール</h4>
+                  <Tags items={[['{{氏名}}','氏名'],['{{ログインID}}','ログインID'],['{{パスワード}}','初期パスワード'],['{{会員マイページURL}}','マイページURL'],['{{事業所名}}','事業所名'],['{{追加職員氏名}}','追加職員名（代表者通知用）']]} />
+                  <EmailCard badge="追加職員" title="追加された職員へのメール"
+                    enabled={staffAddStaffEmailEnabledInput}
+                    onToggle={() => { setStaffAddStaffEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    subject={staffAddStaffEmailSubjectInput}
+                    onSubjectChange={v => { setStaffAddStaffEmailSubjectInput(v); setSettingsIsDirty(true); }}
+                    defaultSubject={STAFF_ADD_STAFF_SUBJECT_DEFAULT}
+                    body={staffAddStaffEmailBodyInput}
+                    onBodyChange={v => { setStaffAddStaffEmailBodyInput(v); setSettingsIsDirty(true); }} />
+                  <EmailCard badge="代表者通知" title="事業所代表者への追加通知メール"
+                    enabled={staffAddRepEmailEnabledInput}
+                    onToggle={() => { setStaffAddRepEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    subject={staffAddRepEmailSubjectInput}
+                    onSubjectChange={v => { setStaffAddRepEmailSubjectInput(v); setSettingsIsDirty(true); }}
+                    defaultSubject={STAFF_ADD_REP_SUBJECT_DEFAULT}
+                    body={staffAddRepEmailBodyInput}
+                    onBodyChange={v => { setStaffAddRepEmailBodyInput(v); setSettingsIsDirty(true); }} />
+                </div>
+              </div>
+              );
+            })()}
+          </AdminSettingsSection>
+
+          {/* 入会完了画面の文言設定（メール設定から分離） */}
+          <AdminSettingsSection
+            id="settings-portal-completion"
+            title="入会完了画面の文言設定"
+            description="公開ポータルで入会申込完了後に表示される「今後のご案内」とログイン情報カードの文言を設定します。メール送信設定とは独立しています。"
+            badge="完了画面"
+          >
+            <div className="space-y-4">
+              <div>
+                {/* ① 入会完了画面 - 今後のご案内 */}
                 <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 space-y-3">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">② 入会完了画面 — 今後のご案内</p>
                   <p className="text-xs text-slate-500">完了画面の「今後のご案内」ブロック全体の表示有無と本文を設定します。本文はメール送信 ON/OFF で分けて管理します。</p>
@@ -3032,7 +3234,7 @@ const App: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <div>
+              <div className="hidden">
                 <div className="flex items-center justify-between gap-3 mb-1">
                   <label className="block text-sm font-medium text-slate-700">送信元メールアドレス</label>
                   <button
@@ -3215,12 +3417,13 @@ const App: React.FC = () => {
             </div>
           </AdminSettingsSection>
 
-          {/* v265: 事業所メール設定 */}
+          {/* v266: 事業所メール設定は settings-all-email に統合済み - このセクションは非表示 */}
+          <div className="hidden">
           <AdminSettingsSection
             id="settings-biz-email"
-            title="事業所会員メール設定"
-            description="事業所会員の入会申し込み時と職員追加承認時のメール送信を個別に制御します。全体フラグ（入会時ログイン情報メール）が OFF の場合は、ここの設定に関わらず全メールが停止されます。"
-            badge="事業所専用"
+            title="事業所会員メール設定（統合済み）"
+            description=""
+            badge=""
           >
             {(() => {
               const tagDesc = [
@@ -3327,6 +3530,7 @@ const App: React.FC = () => {
               );
             })()}
           </AdminSettingsSection>
+          </div>
 
           <AdminSettingsSection
             id="settings-business-limits"
@@ -3453,6 +3657,8 @@ const App: React.FC = () => {
                         publicPortalWithdrawalDescriptionEnabled: publicPortalWithdrawalDescriptionEnabledInput,
                         publicPortalWithdrawalDescription: publicPortalWithdrawalDescriptionInput,
                         publicPortalWithdrawalCtaLabel: publicPortalWithdrawalCtaLabelInput,
+                        // v265: 個人・賛助会員メール ON/OFF
+                        indSuppEmailEnabled: indSuppEmailEnabledInput,
                         // v265: 事業所メール設定
                         bizRepEmailEnabled: bizRepEmailEnabledInput,
                         bizRepEmailSubject: bizRepEmailSubjectInput,
