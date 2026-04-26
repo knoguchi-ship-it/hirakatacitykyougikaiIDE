@@ -43,14 +43,6 @@ const isWithinLookbackMonths = (raw: string, lookbackMonths: number): boolean =>
   return date.getTime() >= threshold.getTime();
 };
 
-const toPdfPreviewUrl = (url: string): string => {
-  if (!url) return '';
-  if (url.includes('drive.google.com/file/d/')) {
-    const m = url.match(/\/file\/d\/([^/]+)/);
-    if (m?.[1]) return `https://drive.google.com/file/d/${m[1]}/preview`;
-  }
-  return url;
-};
 
 const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, trainings, historyLookbackMonths, onApply, onCancel }) => {
   const [submittingTrainingId, setSubmittingTrainingId] = useState<string | null>(null);
@@ -84,9 +76,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
     [trainingHistory, selectedHistoryTrainingId],
   );
 
-  const selectedPreviewUrl = selectedHistoryTraining?.guidePdfUrl
-    ? toPdfPreviewUrl(selectedHistoryTraining.guidePdfUrl)
-    : '';
+  // selectedPreviewUrl は PdfThumbnail コンポーネントが内部で処理するため不要
 
   const getMemberFeeAmount = (training: Training): number => {
     const fees = training.fees || [];

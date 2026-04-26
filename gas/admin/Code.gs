@@ -1110,6 +1110,7 @@ function verifySeedData() {
 var PUBLIC_ALLOWED_ACTIONS = {
   getPublicTrainings: true,
   getPublicPortalSettings: true,
+  getFileThumbnail: true,   // v272: Drive ファイルサムネイルを base64 で返す
   applyTrainingExternal: true,
   cancelTrainingExternal: true,
   submitMemberApplication: true,
@@ -1443,6 +1444,10 @@ function processApiRequest(action, payload) {
 
     if (action === 'getPublicTrainings') {
       return getPublicTrainings_();
+    }
+
+    if (action === 'getFileThumbnail') {
+      return JSON.stringify({ success: true, data: getFileThumbnail_(parsedPayload) });
     }
 
     if (action === 'getPublicPortalSettings') {
@@ -11629,6 +11634,30 @@ function getPublicPortalSettings_() {
       withdrawalCtaLabel: ppWithdrawalCtaLabel,
     }
   });
+}
+
+// v272: Google Drive ファイルのサムネイルを base64 data URL で返す。
+// X-Frame-Options により iframe 埋め込みが Chrome でブロックされるため、
+// サムネイルを GAS 経由で img タグ表示に切り替える。
+function getFileThumbnail_(payload) {
+  var fileUrl = String(payload.fileUrl || '').trim();
+  if (!fileUrl) return { thumbnail: null };
+
+  var match = fileUrl.match(/\/file\/d\/([^/?]+)/);
+  if (!match) return { thumbnail: null };
+  var fileId = match[1];
+
+  try {
+    var file = DriveApp.getFileById(fileId);
+    var blob = file.getThumbnail();
+    if (!blob) return { thumbnail: null };
+    var base64 = Utilities.base64Encode(blob.getBytes());
+    var mimeType = blob.getContentType() || 'image/png';
+    return { thumbnail: 'data:' + mimeType + ';base64,' + base64 };
+  } catch (e) {
+    Logger.log('getFileThumbnail_ error: ' + e.message);
+    return { thumbnail: null };
+  }
 }
 
 function getPublicTrainings_() {
