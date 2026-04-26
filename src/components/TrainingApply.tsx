@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import { BookOpenIcon, CheckCircleIcon, PlusIcon, SparklesIcon } from './Icons';
 import { Member, MemberType, Training } from '../types';
+import PdfThumbnail from './PdfThumbnail';
 
 interface TrainingApplyProps {
   member: Member;
@@ -197,6 +198,13 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                     <p className="text-sm text-slate-600">{training.location || '-'} / 定員 {training.capacity}名</p>
                     <p className="text-sm text-slate-700 mt-1">会員研修費: {getMemberFeeAmount(training) > 0 ? formatYen(getMemberFeeAmount(training)) : '無料'}</p>
 
+                    {/* 案内PDF サムネイル */}
+                    {training.guidePdfUrl && (
+                      <div className="mt-3 max-w-xs">
+                        <PdfThumbnail fileUrl={training.guidePdfUrl} height={140} />
+                      </div>
+                    )}
+
                     <div className="mt-2 flex items-center gap-3">
                       <button
                         type="button"
@@ -207,7 +215,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                       </button>
                       {training.guidePdfUrl && (
                         <a href={training.guidePdfUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-700 hover:text-indigo-900 underline">
-                          案内PDFを見る
+                          案内PDFを全ページ開く
                         </a>
                       )}
                     </div>
@@ -356,14 +364,10 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                 <p className="text-xs text-slate-500 mb-2">添付PDF</p>
                 {selectedHistoryTraining.guidePdfUrl ? (
                   <div className="space-y-2">
-                    <a href={selectedHistoryTraining.guidePdfUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary-700 hover:text-primary-900 underline">別タブでPDFを開く</a>
-                    <iframe
-                      title={`pdf-preview-${selectedHistoryTraining.id}`}
-                      src={selectedPreviewUrl}
-                      className="w-full h-72 border border-slate-200 rounded"
-                      loading="lazy"
-                      referrerPolicy="no-referrer"
-                    />
+                    <PdfThumbnail fileUrl={selectedHistoryTraining.guidePdfUrl} height={220} />
+                    <a href={selectedHistoryTraining.guidePdfUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary-700 hover:text-primary-900 underline">
+                      全ページを別タブで開く
+                    </a>
                   </div>
                 ) : (
                   <p className="text-sm text-slate-500">この研修にはPDFが添付されていません。</p>

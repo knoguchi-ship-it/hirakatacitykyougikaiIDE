@@ -3,6 +3,7 @@ import { Training, TrainingFee, TrainingFieldConfig, DEFAULT_FIELD_CONFIG, DEFAU
 import { api } from '../services/api';
 import { PlusIcon, TrashIcon } from './Icons';
 import TrainingMailSender from './TrainingMailSender';
+import PdfThumbnail from './PdfThumbnail';
 
 interface Props {
   trainings: Training[];
@@ -541,25 +542,33 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
                     <input ref={fileInputRef} type="file" accept=".pdf,image/*" className="hidden" onChange={handleFileChange} disabled={uploading} />
                   </label>
                   {(uploadedFileName || form.guidePdfUrl) && (
-                    <div className="flex items-center gap-2 text-sm text-slate-600">
-                      {uploadedFileName && <span className="truncate max-w-40">{uploadedFileName}</span>}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm text-slate-600">
+                        {uploadedFileName && <span className="truncate max-w-40">{uploadedFileName}</span>}
+                        {form.guidePdfUrl && (
+                          <a href={form.guidePdfUrl} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline text-xs">
+                            ファイルを開く
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setForm((prev) => ({ ...prev, guidePdfUrl: '' }));
+                            setUploadedFileName('');
+                            if (fileInputRef.current) fileInputRef.current.value = '';
+                          }}
+                          className="text-slate-400 hover:text-red-500"
+                          title="削除"
+                        >
+                          <TrashIcon className="w-4 h-4" />
+                        </button>
+                      </div>
+                      {/* アップロード後プレビュー */}
                       {form.guidePdfUrl && (
-                        <a href={form.guidePdfUrl} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline text-xs">
-                          ファイルを開く
-                        </a>
+                        <div className="max-w-xs">
+                          <PdfThumbnail fileUrl={form.guidePdfUrl} height={130} />
+                        </div>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setForm((prev) => ({ ...prev, guidePdfUrl: '' }));
-                          setUploadedFileName('');
-                          if (fileInputRef.current) fileInputRef.current.value = '';
-                        }}
-                        className="text-slate-400 hover:text-red-500"
-                        title="削除"
-                      >
-                        <TrashIcon className="w-4 h-4" />
-                      </button>
                     </div>
                   )}
                 </div>

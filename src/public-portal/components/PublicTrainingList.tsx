@@ -1,5 +1,6 @@
 import React from 'react';
 import { PublicTraining } from '../../shared/types';
+import PdfThumbnail from '../../components/PdfThumbnail';
 
 interface Props {
   trainings: PublicTraining[];
@@ -173,6 +174,13 @@ const PublicTrainingList: React.FC<Props> = ({ trainings, onApply }) => {
               </div>
             )}
 
+            {/* 案内PDF サムネイル */}
+            {t.fileUrl && (
+              <div className="max-w-xs">
+                <PdfThumbnail fileUrl={t.fileUrl} height={130} />
+              </div>
+            )}
+
             {/* 案内状 + 申込ボタン */}
             <div className="flex items-center justify-between gap-4 pt-2 border-t border-gray-100">
               <div>
@@ -186,7 +194,7 @@ const PublicTrainingList: React.FC<Props> = ({ trainings, onApply }) => {
                     <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                     </svg>
-                    案内状（PDF）を開く
+                    案内状（PDF）を全ページ開く
                   </a>
                 )}
               </div>
