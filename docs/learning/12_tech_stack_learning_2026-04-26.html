@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>技術スタック学習ガイド | 枚方市介護支援専門員連絡協議会 会員システム</title>
+  <style>
+    :root {
+      --bg: #0d1117; --bg-card: #161b22; --bg-card2: #1c2128; --bg-code: #010409;
+      --border: #30363d; --text: #e6edf3; --text2: #8b949e; --text3: #6e7681;
+      --blue: #388bfd; --blue-bg: rgba(56,139,253,0.1); --blue-border: rgba(56,139,253,0.3);
+      --green: #3fb950; --green-bg: rgba(63,185,80,0.1); --green-border: rgba(63,185,80,0.3);
+      --yellow: #d29922; --yellow-bg: rgba(210,153,34,0.1); --yellow-border: rgba(210,153,34,0.3);
+      --violet: #a371f7; --violet-bg: rgba(163,113,247,0.1); --violet-border: rgba(163,113,247,0.3);
+      --red: #f85149; --red-bg: rgba(248,81,73,0.1); --red-border: rgba(248,81,73,0.3);
+      --orange: #e3b341; --orange-bg: rgba(227,179,65,0.1); --orange-border: rgba(227,179,65,0.3);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-size: 15px; line-height: 1.7; }
+    a { color: var(--blue); text-decoration: none; }
+    .wrap { max-width: 1000px; margin: 0 auto; padding: 0 20px; }
+    header { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 14px 0; position: sticky; top: 0; z-index: 100; }
+    header .wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .logo { font-size: 14px; font-weight: 700; }
+    nav { display: flex; gap: 4px; flex-wrap: wrap; }
+    nav a { color: var(--text2); font-size: 12px; padding: 3px 8px; border-radius: 6px; border: 1px solid transparent; }
+    nav a:hover { border-color: var(--border); color: var(--text); }
+    .hero { padding: 48px 0 32px; text-align: center; }
+    .hero h1 { font-size: 28px; font-weight: 800; margin-bottom: 10px; }
+    .hero p { color: var(--text2); font-size: 15px; max-width: 640px; margin: 0 auto; }
+    section { padding: 40px 0; border-top: 1px solid var(--border); }
+    h2 { font-size: 20px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+    h3 { font-size: 15px; font-weight: 700; margin: 20px 0 10px; color: var(--text); }
+    h4 { font-size: 13px; font-weight: 700; margin: 14px 0 6px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; }
+    p { color: var(--text2); font-size: 14px; margin-bottom: 10px; }
+    pre { background: var(--bg-code); border: 1px solid var(--border); border-radius: 8px; padding: 16px; overflow-x: auto; margin: 12px 0; }
+    code { font-family: 'Cascadia Code','Fira Code',monospace; font-size: 13px; color: var(--text); }
+    :not(pre) > code { background: var(--bg-card2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 12px; color: var(--orange); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+    .tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+    .tag { border-radius: 20px; padding: 3px 12px; font-size: 11px; font-weight: 700; border: 1px solid; }
+    .t-blue { background: var(--blue-bg); border-color: var(--blue-border); color: var(--blue); }
+    .t-green { background: var(--green-bg); border-color: var(--green-border); color: var(--green); }
+    .t-yellow { background: var(--yellow-bg); border-color: var(--yellow-border); color: var(--yellow); }
+    .t-violet { background: var(--violet-bg); border-color: var(--violet-border); color: var(--violet); }
+    .t-orange { background: var(--orange-bg); border-color: var(--orange-border); color: var(--orange); }
+    .t-red { background: var(--red-bg); border-color: var(--red-border); color: var(--red); }
+    .info { background: var(--blue-bg); border: 1px solid var(--blue-border); border-radius: 8px; padding: 10px 14px; font-size: 13px; color: var(--text); margin: 10px 0; }
+    .warn { background: var(--yellow-bg); border: 1px solid var(--yellow-border); border-radius: 8px; padding: 10px 14px; font-size: 13px; color: var(--text); margin: 10px 0; }
+    .success { background: var(--green-bg); border: 1px solid var(--green-border); border-radius: 8px; padding: 10px 14px; font-size: 13px; color: var(--text); margin: 10px 0; }
+    ul { padding-left: 18px; }
+    ul li { color: var(--text2); font-size: 13px; margin-bottom: 5px; }
+    ul li strong { color: var(--text); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 10px 0; }
+    th { background: var(--bg-card2); color: var(--text2); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; padding: 7px 10px; border: 1px solid var(--border); text-align: left; }
+    td { padding: 9px 10px; border: 1px solid var(--border); vertical-align: top; color: var(--text2); }
+    td strong { color: var(--text); }
+    footer { background: var(--bg-card); border-top: 1px solid var(--border); padding: 20px 0; text-align: center; color: var(--text3); font-size: 12px; margin-top: 32px; }
+    .kv { display: flex; gap: 8px; margin: 6px 0; }
+    .kv-key { color: var(--text3); font-size: 12px; min-width: 120px; flex-shrink: 0; }
+    .kv-val { color: var(--text); font-size: 12px; }
+    .divider { height: 1px; background: var(--border); margin: 20px 0; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="logo">技術スタック学習ガイド — v269</div>
+    <nav>
+      <a href="#architecture">アーキテクチャ</a>
+      <a href="#react">React 19</a>
+      <a href="#gas">GAS</a>
+      <a href="#auth">認証</a>
+      <a href="#email">メール</a>
+      <a href="#security">セキュリティ</a>
+      <a href="#patterns">パターン集</a>
+      <a href="#pitfalls">落とし穴</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <h1>🧠 技術スタック学習ガイド</h1>
+    <p>本システムで使用している技術・設計パターン・実装知識を体系的にまとめた開発者向けリファレンスです。</p>
+  </div>
+
+  <!-- アーキテクチャ -->
+  <section id="architecture">
+    <h2>🏗️ アーキテクチャ概要</h2>
+    <div class="tag-row">
+      <span class="tag t-blue">React 19</span>
+      <span class="tag t-green">Google Apps Script</span>
+      <span class="tag t-yellow">Vite 6</span>
+      <span class="tag t-violet">Tailwind CSS</span>
+      <span class="tag t-orange">TypeScript</span>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3>フロントエンド</h3>
+        <ul>
+          <li><strong>React 19</strong> + TypeScript — UI コンポーネント</li>
+          <li><strong>Vite 6</strong> — ビルドツール。GAS HTML 用に <code>vite-plugin-singlefile</code> でインライン化</li>
+          <li><strong>Tailwind CSS</strong> — ユーティリティファースト CSS</li>
+          <li><strong>vite-plugin-singlefile</strong> — JS/CSS を HTML に完全インライン化（GAS 配信用）</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>バックエンド / インフラ</h3>
+        <ul>
+          <li><strong>Google Apps Script</strong> — APIサーバー（GAS WebApp）</li>
+          <li><strong>Google Spreadsheet</strong> — データベース（シート＝テーブル）</li>
+          <li><strong>MailApp / GmailApp</strong> — メール送信</li>
+          <li><strong>CacheService</strong> — セッション・一時データ（TTL制限あり）</li>
+          <li><strong>PropertiesService</strong> — スクリプト設定の永続保存</li>
+          <li><strong>DriveApp</strong> — ファイルアップロード</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>ビルドフロー</h3>
+    <pre><code>npm run build:gas
+  → vite build (VITE_APP=member)   → dist/index.html（会員マイページ用）
+  → vite build (VITE_APP=public)   → dist-public/index_public.html（公開ポータル用）
+  → vite build (VITE_APP=admin)    → dist-admin/index_admin.html（管理者用）
+  → scripts/compress-html.mjs      → deflate+base64圧縮
+  → backend/index*.html へコピー
+  → gas/admin/index.html へも自動コピー</code></pre>
+
+    <div class="warn">⚠️ <code>npm run build</code>（Vite のみ）は GAS 用 HTML を更新しない。必ず <code>npm run build:gas</code> を使うこと。</div>
+
+    <h3>3プロジェクト構成</h3>
+    <table>
+      <tr><th>ディレクトリ</th><th>役割</th><th>共有コード</th></tr>
+      <tr><td><code>backend/</code></td><td>統合プロジェクト（公開ポータル）</td><td>Code.gs 正本</td></tr>
+      <tr><td><code>gas/member/</code></td><td>会員 split</td><td>backend/Code.gs をコピー</td></tr>
+      <tr><td><code>gas/admin/</code></td><td>管理者 split</td><td>backend/Code.gs をコピー + index.html を自動コピー</td></tr>
+    </table>
+    <div class="info">💡 Code.gs を変更したら必ず <code>cp backend/Code.gs gas/admin/Code.gs</code> を実行してから push すること（v254 教訓）。</div>
+  </section>
+
+  <!-- React 19 -->
+  <section id="react">
+    <h2>⚛️ React 19 + TypeScript パターン</h2>
+
+    <h3>GAS との通信（google.script.run）</h3>
+    <p>React から GAS バックエンドへの通信は、<code>google.script.run</code> を Promise 化した <code>callApi</code> 関数で統一。</p>
+    <pre><code>// src/shared/api-base.ts
+export function callApi&lt;T&gt;(action: string, payload?: unknown): Promise&lt;T&gt; {
+  return new Promise((resolve, reject) =&gt; {
+    google.script.run
+      .withSuccessHandler((result: string) =&gt; {
+        const parsed = JSON.parse(result);
+        if (parsed.success) resolve(parsed.data as T);
+        else reject(new Error(parsed.error || 'API error'));
+      })
+      .withFailureHandler((err: Error) =&gt; reject(err))
+      .processApiRequest(action, JSON.stringify(payload ?? {}));
+  });
+}
+
+// 使用例
+const data = await callApi&lt;Member[]&gt;('fetchAllData');</code></pre>
+
+    <div class="warn">⚠️ <code>processApiRequest</code> が <code>{ success: false, error: '...' }</code> を返した場合、<strong>外側の <code>success: true</code> で包まれると callApi が resolve してしまう</strong>。返値の <code>data.success</code> も必ず確認すること（v264-fix 教訓）。</div>
+
+    <h3>FOIC 防止パターン（Flash of Incorrect Content）</h3>
+    <p>設定がロードされる前にデフォルト値が瞬間表示されることを防ぐ（v267 で修正）。</p>
+    <pre><code>// ❌ 悪い例: デフォルト値が即座に表示される
+const content = settings ?? DEFAULT_SETTINGS;
+return &lt;h2&gt;{content.title}&lt;/h2&gt;;
+
+// ✅ 良い例: null の間はスケルトンを表示
+if (settings === null) {
+  return &lt;div className="animate-pulse h-10 w-3/4 bg-slate-200 rounded" /&gt;;
+}
+return &lt;h2&gt;{settings.title}&lt;/h2&gt;;</code></pre>
+
+    <h3>状態管理のベストプラクティス</h3>
+    <pre><code>// null = 未確定（ローディング中）を区別する
+const [settings, setSettings] = useState&lt;Settings | null&gt;(null);
+// ↑ false にしないこと。null と false では意味が違う
+
+// ローディング完了判定
+const isReady = settings !== null;</code></pre>
+
+    <h3>Tailwind CSS パターン</h3>
+    <pre><code>// 条件付きクラス（clsx 不使用でインラインで書く）
+className={`rounded-xl border p-4 ${
+  isSelected ? 'border-violet-400 bg-violet-50' : 'border-slate-200 bg-white'
+}`}
+
+// アニメーション付きスケルトン
+&lt;div className="animate-pulse rounded-lg bg-slate-200 h-4 w-full" /&gt;</code></pre>
+  </section>
+
+  <!-- GAS -->
+  <section id="gas">
+    <h2>⚡ Google Apps Script パターン</h2>
+
+    <h3>processApiRequest — 認可ミドルウェア</h3>
+    <p>全 API リクエストを一元処理する関数。deny-by-default でセキュリティを確保（v261〜）。</p>
+    <pre><code>function processApiRequest(action, payload) {
+  var parsedPayload = parsePayload_(payload) || {};
+  var isPublicAction = !!PUBLIC_ALLOWED_ACTIONS[action];
+  var isMemberAction = !!MEMBER_ALLOWED_ACTIONS[action];
+  var requiredPerms = ADMIN_ACTION_PERMISSIONS[action];
+
+  // deny-by-default: 知らないアクションは全て拒否
+  if (!isPublicAction && !isMemberAction && !requiredPerms) {
+    return JSON.stringify({ success: false, error: 'unsupported_action' });
+  }
+
+  // 管理者認証
+  if (requiredPerms) {
+    var session = checkAdminBySession_();
+    if (!session || requiredPerms.indexOf(session.adminPermissionLevel) === -1) {
+      return JSON.stringify({ success: false, error: 'unauthorized' });
+    }
+  }
+  // 以降、各アクションの処理...
+}</code></pre>
+
+    <h3>スプレッドシート DB パターン</h3>
+    <pre><code>// テーブル定義（列順を配列で管理）
+var テーブル定義 = {
+  T_会員: ['会員ID', '会員種別コード', '姓', '名', ...],
+  T_変更申請: ['申請ID', '会員ID', '申請種別コード', '申請状態コード', ...],
+};
+
+// 行をオブジェクトとして取得
+function getRowsAsObjects_(ss, tableName) {
+  var sheet = ss.getSheetByName(tableName);
+  var headers = sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
+  var rows = sheet.getRange(2,1,sheet.getLastRow()-1,headers.length).getValues();
+  return rows.map(function(row) {
+    var obj = {};
+    headers.forEach(function(h,i) { obj[h] = row[i]; });
+    return obj;
+  });
+}</code></pre>
+
+    <h3>CacheService の使い方と落とし穴</h3>
+    <pre><code>// ✅ 正しい使い方: TTL 内の一時データ（セッション等）
+var cache = CacheService.getScriptCache();
+cache.put('session_' + token, JSON.stringify(data), 1800); // 30分
+
+// ❌ 注意: CacheService は永続性を保証しない
+// 1000件上限でFIFO蒸発が発生する。重要データには使わない。
+// → 本システムでは認証トークンを HMAC ステートレストークンに移行済み（v264-fix）</code></pre>
+
+    <h3>OAuthスコープ管理（v263〜最小化済み）</h3>
+    <table>
+      <tr><th>プロジェクト</th><th>スコープ</th></tr>
+      <tr><td>統合（公開）</td><td>spreadsheets, script.external_request, script.send_mail, drive</td></tr>
+      <tr><td>会員 split</td><td>spreadsheets, script.external_request, script.send_mail</td></tr>
+      <tr><td>管理者 split</td><td>spreadsheets, script.external_request, script.send_mail, gmail.settings.basic, drive, userinfo.email</td></tr>
+    </table>
+    <div class="warn">⚠️ <strong>Session.getEffectiveUser()</strong> は <code>userinfo.email</code> スコープが必要。統合・会員 split では使用不可。try-catch でフォールバックすること（v268 修正済み）。</div>
+  </section>
+
+  <!-- 認証 -->
+  <section id="auth">
+    <h2>🔐 認証設計</h2>
+
+    <h3>PBKDF2-HMAC-SHA256 パスワードハッシュ（v262〜）</h3>
+    <p>旧: 単発 SHA-256 + salt。現行: PBKDF2-HMAC-SHA256（10000反復）で offline cracking 耐性を強化。</p>
+    <pre><code>// GAS での PBKDF2 実装
+function hashPasswordPbkdf2_(password, salt) {
+  var bytes = Utilities.computeHmacSha256Signature(password, salt);
+  for (var i = 1; i &lt; 10000; i++) {
+    bytes = Utilities.computeHmacSha256Signature(bytes, salt);
+  }
+  return Utilities.base64Encode(bytes);
+}
+
+// login 時に旧ハッシュを自動 rehash（ユーザー影響なし）
+function verifyPassword_(input, salt, storedHash) {
+  var newHash = hashPasswordPbkdf2_(input, salt);
+  return { match: newHash === storedHash, needsRehash: isOldFormat(storedHash) };
+}</code></pre>
+
+    <h3>HMAC-SHA256 ステートレストークン（v264-fix〜）</h3>
+    <p>CacheService 非依存。JWTに相当する自己検証型トークン。</p>
+    <pre><code>// トークン生成
+function createPublicIdentityToken_(data, ttlSeconds) {
+  var secret = PropertiesService.getScriptProperties()
+    .getProperty('PUBLIC_TOKEN_SECRET') || 'fallback_key';
+  var payload = JSON.stringify({ d: data, exp: Date.now() + ttlSeconds * 1000 });
+  var encoded = Utilities.base64EncodeWebSafe(payload);
+  var sigBytes = Utilities.computeHmacSha256Signature(encoded, secret);
+  return encoded + '.' + Utilities.base64EncodeWebSafe(sigBytes);
+}
+
+// トークン検証
+function verifyPublicIdentityToken_(token) {
+  var parts = token.split('.');
+  if (parts.length !== 2) return null;
+  var encoded = parts[0], sig = parts[1];
+  var expectedSig = Utilities.base64EncodeWebSafe(
+    Utilities.computeHmacSha256Signature(encoded, secret)
+  );
+  if (sig !== expectedSig) return null; // 改ざん検出
+  var obj = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(encoded)).getDataAsString());
+  if (obj.exp &lt; Date.now()) return null; // 有効期限切れ
+  return obj.d;
+}</code></pre>
+    <div class="success">✅ この設計により:（1）サーバー間の共有状態不要（2）スケール可能（3）CacheService 蒸発の影響ゼロ</div>
+
+    <h3>セッションベース会員認証</h3>
+    <pre><code>// ログイン成功時: セッショントークンを生成してキャッシュに保存
+var token = generateSessionToken_(); // UUID相当
+CacheService.getScriptCache().put('ms_' + token, JSON.stringify({
+  loginId, memberId, staffId
+}), 1800); // 30分
+
+// API 呼び出し時: sessionToken を検証してクライアント申告の memberId を上書き
+var cached = CacheService.getScriptCache().get('ms_' + payload.sessionToken);
+if (!cached) return { error: 'member_session_expired' };
+var session = JSON.parse(cached);
+payload.memberId = session.memberId; // IDOR防止: クライアント申告を無視</code></pre>
+  </section>
+
+  <!-- メール -->
+  <section id="email">
+    <h2>📧 メール送信パターン</h2>
+
+    <h3>MailApp vs GmailApp の使い分け</h3>
+    <table>
+      <tr><th>関数</th><th>必要スコープ</th><th>用途</th></tr>
+      <tr><td><code>MailApp.sendEmail()</code></td><td>script.send_mail</td><td>デフォルト送信元（deploying user）での送信。スコープ要件が低い。</td></tr>
+      <tr><td><code>GmailApp.sendEmail()</code></td><td>script.send_mail + gmail.*</td><td>エイリアス（send-as）指定での送信。管理者 split のみ。</td></tr>
+    </table>
+
+    <h3>sendEmailWithValidatedFrom_ パターン（v268〜）</h3>
+    <pre><code>function sendEmailWithValidatedFrom_(to, subject, body, options) {
+  // userinfo.email スコープがない場合でも安全に動作
+  var ownerEmail = '';
+  try { ownerEmail = Session.getEffectiveUser().getEmail(); } catch (e) {}
+
+  var from = String((options &amp;&amp; options.from) || ownerEmail).trim();
+
+  if (!from || from === ownerEmail) {
+    // from 未指定 or deploying user → MailApp（スコープ要件低い）
+    MailApp.sendEmail({ to, subject, body, ... });
+    return;
+  }
+  // エイリアス送信 → GmailApp（管理者 split のみで使用）
+  GmailApp.sendEmail(to, subject, body, { from, ... });
+}</code></pre>
+
+    <h3>テンプレート変数置換</h3>
+    <pre><code>// {{変数名}} プレースホルダーを安全に置換
+function renderBizEmailTemplate_(template, vars) {
+  var result = String(template || '');
+  Object.keys(vars).forEach(function(k) {
+    result = result.replace(new RegExp('\\{\\{' + k + '\\}\\}', 'g'),
+      String(vars[k] == null ? '' : vars[k]));
+  });
+  return result;
+}
+
+// 使用例
+var body = renderBizEmailTemplate_(bizRepEmailBody, {
+  氏名: '山田 太郎', ログインID: '12345678',
+  パスワード: 'member12345678', 事業所名: '○○ケアサービス',
+});</code></pre>
+  </section>
+
+  <!-- セキュリティ -->
+  <section id="security">
+    <h2>🛡️ セキュリティ実装（第三者評価対応・v261〜v263）</h2>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3>解決済みの脆弱性</h3>
+        <table>
+          <tr><th>問題</th><th>対応</th></tr>
+          <tr><td>匿名 API 到達</td><td>deny-by-default + allowlist（v261）</td></tr>
+          <tr><td>IDOR（自己操作 API）</td><td>server-side principal 確定（v261）</td></tr>
+          <tr><td>単発 SHA-256 ハッシュ</td><td>PBKDF2-HMAC-SHA256（v262）</td></tr>
+          <tr><td>過剰 OAuth スコープ</td><td>スコープ最小化（v263）</td></tr>
+          <tr><td>CacheService 蒸発</td><td>HMAC ステートレストークン（v264-fix）</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <h3>変更申請セキュリティ原則</h3>
+        <ul>
+          <li><strong>既存DB値の非表示</strong>: 変更フォームにデフォルト値なし</li>
+          <li><strong>管理者承認必須</strong>: 申請はキューに保存、自動反映なし</li>
+          <li><strong>本人確認</strong>: CM番号+氏名（個人）/ 事業所番号（事業所）</li>
+          <li><strong>返信メール分離</strong>: 連絡先メールはDBと無関係</li>
+          <li><strong>レート制限</strong>: 同一ID 15分以内5回まで</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>アカウントロック実装</h3>
+    <pre><code>// ログイン失敗カウントとロック
+var failedCount = Number(row[columns['ログイン失敗回数']] || 0);
+if (!verifyPassword_(input, salt, hash)) {
+  failedCount += 1;
+  var lockNow = failedCount >= 5; // 5回失敗でロック
+  authSheet.getRange(...).setValue(failedCount);
+  authSheet.getRange(...).setValue(lockNow);
+}</code></pre>
+  </section>
+
+  <!-- パターン集 -->
+  <section id="patterns">
+    <h2>📚 よく使うパターン集</h2>
+
+    <h3>論理削除フィルタ（v269〜）</h3>
+    <pre><code>// React: showDeleted フラグでフィルタリング
+const [showDeleted, setShowDeleted] = useState(false);
+const visible = showDeleted
+  ? searchResults
+  : searchResults.filter(r => !r.isDeleted);
+
+// UI
+&lt;label&gt;
+  &lt;input type="checkbox" checked={showDeleted}
+    onChange={e => setShowDeleted(e.target.checked)} /&gt;
+  削除済みも表示する
+&lt;/label&gt;
+&lt;p&gt;{visible.length} 件表示中（削除済み {searchResults.length - visible.length} 件を非表示）&lt;/p&gt;</code></pre>
+
+    <h3>型安全な GAS 呼び出し</h3>
+    <pre><code>// 返値の success フィールドを必ず確認する
+const res = await callApi&lt;{ success: boolean; requestId?: string; error?: string }&gt;(
+  'submitPublicChangeRequest',
+  { token, requestType: 'MEMBER_UPDATE', fields, staffAdd, staffRemove }
+);
+if (!res.success) {
+  setError(res.error === 'token_expired'
+    ? 'セッション切れ。最初からやり直してください。'
+    : res.error || '送信失敗');
+  return;
+}
+setStep('complete');</code></pre>
+
+    <h3>変更申請承認フロー（GAS）</h3>
+    <pre><code>// approveAdminChangeRequest_ の主要ロジック
+if (requestType === 'MEMBER_UPDATE') {
+  updateMember_(updatePayload, { skipAdminCheck: true });
+  // CM番号変更時はログインIDも更新
+  if (fields.careManagerNumber) updateAuthLoginId_(memberId, fields.careManagerNumber);
+  // 含まれるスタッフ操作も適用（複合申請対応）
+  changeData.staffAdd.forEach(s => addPublicStaffMember_({ _directMemberId: memberId, staffData: s }));
+  changeData.staffRemove.forEach(s => removeStaffByIdentity_(memberId, s));
+} else if (requestType === 'WITHDRAWAL') {
+  updateMember_({ id: memberId, status: 'WITHDRAWAL_SCHEDULED', withdrawnDate: calcFiscalYearEnd_() });
+}
+// 承認後に申請者へ通知メール
+MailApp.sendEmail(contactEmail, '承認のお知らせ', ...);</code></pre>
+  </section>
+
+  <!-- 落とし穴 -->
+  <section id="pitfalls">
+    <h2>⚠️ 学んだ落とし穴・教訓</h2>
+
+    <table>
+      <tr><th>問題</th><th>発生バージョン</th><th>教訓</th></tr>
+      <tr>
+        <td><strong>admin split の HTML が更新されない</strong></td>
+        <td>v264</td>
+        <td><code>build:gas</code> は <code>backend/</code> と <code>gas/admin/</code> の両方に HTML をコピーする必要がある。現在は自動化済み。</td>
+      </tr>
+      <tr>
+        <td><strong>CacheService 蒸発</strong></td>
+        <td>v264</td>
+        <td>1000件上限・マルチユーザーで FIFO 蒸発。セッション以外の重要データには HMAC ステートレストークンを使う。</td>
+      </tr>
+      <tr>
+        <td><strong>processApiRequest の二重 success</strong></td>
+        <td>v264-fix</td>
+        <td><code>{ success: true, data: { success: false } }</code> パターン。外側 true でも data.success を確認すること。</td>
+      </tr>
+      <tr>
+        <td><strong>Session.getEffectiveUser() スコープ</strong></td>
+        <td>v268</td>
+        <td>userinfo.email スコープがない統合・会員 split では呼び出し不可。try-catch で安全にフォールバックする。</td>
+      </tr>
+      <tr>
+        <td><strong>FOIC（設定ロード前の表示）</strong></td>
+        <td>v267</td>
+        <td>設定未確定時は <code>null</code> で管理し、スケルトン表示。デフォルト値へのフォールバックは FOIC を引き起こす。</td>
+      </tr>
+      <tr>
+        <td><strong>gas/admin/Code.gs 同期漏れ</strong></td>
+        <td>v254</td>
+        <td><code>backend/Code.gs</code> を変更したら必ず <code>cp backend/Code.gs gas/admin/Code.gs</code>。</td>
+      </tr>
+      <tr>
+        <td><strong>clasp deploy の禁止</strong></td>
+        <td>全バージョン</td>
+        <td><code>clasp deploy</code> は新 ID を生成し URL が変わる。<code>clasp redeploy</code> のみ使用。</td>
+      </tr>
+    </table>
+
+    <h3 style="margin-top:24px;">GAS 特有の制約まとめ</h3>
+    <div class="grid-2">
+      <div class="card">
+        <h4>実行時間・クォータ</h4>
+        <ul>
+          <li>スクリプト最大実行時間: <strong>6分</strong></li>
+          <li>MailApp.sendEmail: <strong>100通/日</strong>（@gmail.com）/ <strong>1500通/日</strong>（Workspace）</li>
+          <li>CacheService: 1エントリ最大 <strong>100KB</strong>、合計 <strong>1000エントリ</strong></li>
+          <li>URL Fetch: <strong>1000回/日</strong></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>Spreadsheet DB の注意点</h4>
+        <ul>
+          <li><code>getLastRow()</code> / <code>getLastColumn()</code> は空行を正確に返さない場合がある</li>
+          <li>大量データは <code>getValues()</code> で一括取得してメモリ内でフィルタリング</li>
+          <li>書き込みは <code>setValues()</code> でまとめて書く（1セルずつは遅い）</li>
+          <li><code>LockService</code> で競合を防止（長時間ロック注意）</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <p>技術スタック学習ガイド v269 — 2026-04-26 | 枚方市介護支援専門員連絡協議会 会員システム</p>
+  <p style="margin-top:4px;">このドキュメントは参照専用です。実装の正本は <code>backend/Code.gs</code> および <code>src/</code> 配下のコードを参照してください。</p>
+</footer>
+</body>
+</html>

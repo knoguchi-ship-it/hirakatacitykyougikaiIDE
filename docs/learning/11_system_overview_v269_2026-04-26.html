@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>システム概要 v269 | 枚方市介護支援専門員連絡協議会 会員システム</title>
+  <style>
+    :root {
+      --bg: #0d1117; --bg-card: #161b22; --bg-card2: #1c2128;
+      --border: #30363d; --border-accent: #388bfd;
+      --text: #e6edf3; --text2: #8b949e; --text3: #6e7681;
+      --blue: #388bfd; --blue-bg: rgba(56,139,253,0.1); --blue-border: rgba(56,139,253,0.3);
+      --green: #3fb950; --green-bg: rgba(63,185,80,0.1); --green-border: rgba(63,185,80,0.3);
+      --yellow: #d29922; --yellow-bg: rgba(210,153,34,0.1); --yellow-border: rgba(210,153,34,0.3);
+      --violet: #a371f7; --violet-bg: rgba(163,113,247,0.1); --violet-border: rgba(163,113,247,0.3);
+      --red: #f85149; --red-bg: rgba(248,81,73,0.1);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-size: 15px; line-height: 1.7; }
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
+    header { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 16px 0; position: sticky; top: 0; z-index: 100; }
+    header .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    .logo { font-size: 15px; font-weight: 700; color: var(--text); }
+    .badge { background: var(--green-bg); border: 1px solid var(--green-border); color: var(--green); border-radius: 20px; padding: 2px 12px; font-size: 12px; font-weight: 600; }
+    nav { display: flex; gap: 4px; flex-wrap: wrap; }
+    nav a { color: var(--text2); font-size: 13px; padding: 4px 10px; border-radius: 6px; }
+    nav a:hover { background: var(--bg-card2); color: var(--text); }
+    .hero { padding: 60px 0 40px; text-align: center; }
+    .hero h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 12px; }
+    .hero p { color: var(--text2); font-size: 16px; max-width: 600px; margin: 0 auto 24px; }
+    .hero-tags { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+    .tag { border-radius: 20px; padding: 4px 14px; font-size: 12px; font-weight: 600; border: 1px solid; }
+    .tag-blue { background: var(--blue-bg); border-color: var(--blue-border); color: var(--blue); }
+    .tag-green { background: var(--green-bg); border-color: var(--green-border); color: var(--green); }
+    .tag-yellow { background: var(--yellow-bg); border-color: var(--yellow-border); color: var(--yellow); }
+    .tag-violet { background: var(--violet-bg); border-color: var(--violet-border); color: var(--violet); }
+    section { padding: 48px 0; border-top: 1px solid var(--border); }
+    h2 { font-size: 22px; font-weight: 700; margin-bottom: 24px; display: flex; align-items: center; gap: 10px; }
+    h2 .sec-icon { font-size: 20px; }
+    h3 { font-size: 16px; font-weight: 700; margin-bottom: 12px; color: var(--text); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    @media (max-width: 700px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+    .card.blue { border-color: var(--blue-border); background: linear-gradient(135deg, rgba(56,139,253,0.06), var(--bg-card)); }
+    .card.green { border-color: var(--green-border); background: linear-gradient(135deg, rgba(63,185,80,0.06), var(--bg-card)); }
+    .card.yellow { border-color: var(--yellow-border); background: linear-gradient(135deg, rgba(210,153,34,0.06), var(--bg-card)); }
+    .card.violet { border-color: var(--violet-border); background: linear-gradient(135deg, rgba(163,113,247,0.06), var(--bg-card)); }
+    .card-icon { font-size: 28px; margin-bottom: 10px; }
+    .card-title { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+    .card-desc { color: var(--text2); font-size: 13px; line-height: 1.6; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { background: var(--bg-card2); color: var(--text2); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; padding: 8px 12px; text-align: left; border: 1px solid var(--border); }
+    td { padding: 10px 12px; border: 1px solid var(--border); vertical-align: top; }
+    td code { background: var(--bg-card2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 12px; font-family: 'Cascadia Code','Fira Code',monospace; }
+    .flow { display: flex; gap: 0; flex-wrap: wrap; align-items: center; margin: 16px 0; }
+    .flow-step { background: var(--bg-card2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; font-size: 13px; white-space: nowrap; }
+    .flow-arrow { color: var(--text3); padding: 0 8px; font-size: 18px; }
+    .info { background: var(--blue-bg); border: 1px solid var(--blue-border); border-radius: 8px; padding: 12px 16px; font-size: 13px; margin: 12px 0; }
+    .warn { background: var(--yellow-bg); border: 1px solid var(--yellow-border); border-radius: 8px; padding: 12px 16px; font-size: 13px; margin: 12px 0; }
+    .success { background: var(--green-bg); border: 1px solid var(--green-border); border-radius: 8px; padding: 12px 16px; font-size: 13px; margin: 12px 0; }
+    .url-box { background: var(--bg-card2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; font-family: monospace; font-size: 12px; color: var(--blue); margin: 8px 0; word-break: break-all; }
+    ul { padding-left: 20px; color: var(--text2); font-size: 14px; }
+    ul li { margin-bottom: 6px; }
+    ul li strong { color: var(--text); }
+    .version-badge { display: inline-block; background: var(--blue-bg); border: 1px solid var(--blue-border); color: var(--blue); border-radius: 4px; padding: 1px 8px; font-size: 11px; font-weight: 700; vertical-align: middle; }
+    footer { background: var(--bg-card); border-top: 1px solid var(--border); padding: 24px 0; text-align: center; color: var(--text3); font-size: 12px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="logo">枚方市介護支援専門員連絡協議会 会員システム</div>
+    <div class="badge">v269 — 2026-04-26</div>
+    <nav>
+      <a href="#overview">概要</a>
+      <a href="#portals">ポータル</a>
+      <a href="#auth">認証</a>
+      <a href="#email">メール</a>
+      <a href="#change-request">変更申請</a>
+      <a href="#admin">管理コンソール</a>
+      <a href="#deploy">デプロイ</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="hero">
+    <h1>システム全体概要</h1>
+    <p>枚方市介護支援専門員連絡協議会の会員管理・研修申込・公開申込ポータルを統合した、Google Workspace ベースの会員システムです。</p>
+    <div class="hero-tags">
+      <span class="tag tag-blue">React 19 + TypeScript</span>
+      <span class="tag tag-green">Google Apps Script</span>
+      <span class="tag tag-yellow">Tailwind CSS</span>
+      <span class="tag tag-violet">Spreadsheet DB</span>
+      <span class="tag tag-blue">PBKDF2 認証</span>
+      <span class="tag tag-green">HMAC トークン</span>
+    </div>
+  </div>
+
+  <!-- 概要 -->
+  <section id="overview">
+    <h2><span class="sec-icon">🏗️</span>システム構成</h2>
+    <div class="grid-3">
+      <div class="card blue">
+        <div class="card-icon">🌐</div>
+        <div class="card-title">公開ポータル</div>
+        <div class="card-desc">誰でもアクセス可能。研修申込・入会申込・登録情報変更申請・退会申請。認証不要の匿名アクセス。</div>
+      </div>
+      <div class="card green">
+        <div class="card-icon">👤</div>
+        <div class="card-title">会員マイページ</div>
+        <div class="card-desc">会員がログインして利用。プロフィール閲覧・更新、研修申込・取消、年会費確認、パスワード変更。</div>
+      </div>
+      <div class="card violet">
+        <div class="card-icon">⚙️</div>
+        <div class="card-title">管理者コンソール</div>
+        <div class="card-desc">Google アカウント認証のホワイトリスト制。会員管理、変更申請承認、研修管理、メール送信、各種設定。</div>
+      </div>
+    </div>
+
+    <div style="margin-top: 24px;">
+      <h3>3プロジェクト分離構成（v251〜確定）</h3>
+      <table>
+        <tr><th>用途</th><th>プロジェクト</th><th>アクセス制御</th><th>GAS Version</th></tr>
+        <tr>
+          <td>公開ポータル</td>
+          <td>統合（公開専用）<br><code>11YRlyWVgW...</code></td>
+          <td>ANYONE_ANONYMOUS</td>
+          <td><code>@272</code> (v269)</td>
+        </tr>
+        <tr>
+          <td>会員マイページ</td>
+          <td>会員 split<br><code>1ZKFJKNr4I...</code></td>
+          <td>ANYONE_ANONYMOUS</td>
+          <td><code>@25</code> (v269)</td>
+        </tr>
+        <tr>
+          <td>管理者コンソール</td>
+          <td>管理者 split<br><code>1tlBJ-OJjqN...</code></td>
+          <td>DOMAIN (hcm-n.org)</td>
+          <td><code>@31</code> (v269)</td>
+        </tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- ポータル -->
+  <section id="portals">
+    <h2><span class="sec-icon">🔗</span>本番 URL</h2>
+    <table>
+      <tr><th>用途</th><th>URL</th></tr>
+      <tr>
+        <td>公開ポータル</td>
+        <td><div class="url-box">https://script.google.com/a/macros/hcm-n.org/s/AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp/exec</div></td>
+      </tr>
+      <tr>
+        <td>会員マイページ</td>
+        <td><div class="url-box">https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec</div></td>
+      </tr>
+      <tr>
+        <td>管理者コンソール</td>
+        <td><div class="url-box">https://script.google.com/a/macros/hcm-n.org/s/AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os/exec</div></td>
+      </tr>
+    </table>
+    <div class="warn" style="margin-top:16px;">⚠️ Deployment ID は固定運用。<code>clasp deploy</code> は全形式禁止。バージョン更新は <code>clasp redeploy</code> のみ使用。</div>
+
+    <h3 style="margin-top: 24px;">公開ポータルのカード構成</h3>
+    <div class="grid-2">
+      <div class="card"><div class="card-title">🎓 研修を申し込む</div><div class="card-desc">受付中研修の一覧表示・申込・取消（申込ID+登録メール照合）。</div></div>
+      <div class="card"><div class="card-title">📋 新規入会を申し込む</div><div class="card-desc">個人・事業所・賛助会員の新規入会申込。認証情報メール自動送信。</div></div>
+      <div class="card blue"><div class="card-title">✏️ 会員登録情報を変更する</div><div class="card-desc">OTPなし本人確認（v264〜）。変更申請→管理者承認→DB反映のワークフロー。既存DB情報は一切表示しない。</div></div>
+      <div class="card yellow"><div class="card-title">🚪 退会を申し込む</div><div class="card-desc">同様の本人確認フローで退会申請。管理者承認後に年度末退会処理。</div></div>
+    </div>
+  </section>
+
+  <!-- 認証 -->
+  <section id="auth">
+    <h2><span class="sec-icon">🔒</span>認証・認可</h2>
+    <div class="grid-2">
+      <div class="card">
+        <h3>会員認証</h3>
+        <ul>
+          <li><strong>方式</strong>: ログインID + パスワード</li>
+          <li><strong>ログインID</strong>: 個人=CM番号8桁 / 事業所=事業所番号 / 賛助=会員番号</li>
+          <li><strong>パスワードハッシュ</strong>: PBKDF2-HMAC-SHA256（10000反復）v262〜</li>
+          <li><strong>rehash</strong>: ログイン時に旧SHA-256ハッシュを自動移行</li>
+          <li><strong>アカウントロック</strong>: 5回失敗でロック</li>
+          <li><strong>セッション</strong>: CacheService（TTL 30分）</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>管理者認証</h3>
+        <ul>
+          <li><strong>方式</strong>: Google アカウント + ホワイトリスト照合</li>
+          <li><strong>照合</strong>: <code>Session.getActiveUser().getEmail()</code> → <code>T_管理者Googleホワイトリスト</code></li>
+          <li><strong>権限</strong>: MASTER / ADMIN / TRAINING_MANAGER / TRAINING_REGISTRAR / GENERAL</li>
+          <li><strong>GIS廃止</strong>: v118〜。GAS iframe sandbox との互換性問題のため</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px;">
+      <h3>公開ポータル 本人確認（v264〜）</h3>
+      <p style="color:var(--text2);font-size:13px;margin-bottom:12px;">OTPなし。HMAC-SHA256署名付きステートレストークンで CacheService 非依存（v264-fix〜）。</p>
+      <div class="flow">
+        <div class="flow-step">会員種別選択</div><div class="flow-arrow">→</div>
+        <div class="flow-step">本人確認入力<br><small style="color:var(--text3)">個人: CM番号+氏名<br>事業所: 事業所番号</small></div><div class="flow-arrow">→</div>
+        <div class="flow-step">返信用メール入力<br><small style="color:var(--text3)">DB非紐付け</small></div><div class="flow-arrow">→</div>
+        <div class="flow-step">HMAC トークン発行</div><div class="flow-arrow">→</div>
+        <div class="flow-step">変更申請送信</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- メール設定 -->
+  <section id="email">
+    <h2><span class="sec-icon">📧</span>入会・登録メール設定（v265〜v266）</h2>
+    <div class="info">管理者ポータル → システム設定 → 「入会・登録メール設定」で全5種を一元管理。</div>
+
+    <table style="margin-top:12px;">
+      <tr><th>メール種別</th><th>送信タイミング</th><th>設定キー</th></tr>
+      <tr><td>個人・賛助会員向け</td><td>入会申込時</td><td><code>IND_SUPP_EMAIL_ENABLED/SUBJECT/BODY</code></td></tr>
+      <tr><td>事業所 代表者向け</td><td>入会申込時</td><td><code>BIZ_REP_EMAIL_ENABLED/SUBJECT/BODY</code></td></tr>
+      <tr><td>事業所 メンバー向け</td><td>入会申込時</td><td><code>BIZ_STAFF_EMAIL_ENABLED/SUBJECT/BODY</code></td></tr>
+      <tr><td>追加職員向け</td><td>職員追加申請承認時</td><td><code>STAFF_ADD_STAFF_EMAIL_ENABLED/SUBJECT/BODY</code></td></tr>
+      <tr><td>代表者通知</td><td>職員追加申請承認時</td><td><code>STAFF_ADD_REP_EMAIL_ENABLED/SUBJECT/BODY</code></td></tr>
+    </table>
+    <div class="warn" style="margin-top:12px;">全体マスタースイッチ（<code>CREDENTIAL_EMAIL_ENABLED</code>）が OFF の場合、全メールが停止。個別設定より優先。</div>
+    <p style="color:var(--text2);font-size:13px;margin-top:12px;">テンプレート変数: <code>{{氏名}}</code> <code>{{ログインID}}</code> <code>{{パスワード}}</code> <code>{{会員マイページURL}}</code> <code>{{事業所名}}</code> <code>{{追加職員氏名}}</code>（代表者通知のみ）</p>
+  </section>
+
+  <!-- 変更申請ワークフロー -->
+  <section id="change-request">
+    <h2><span class="sec-icon">📝</span>変更申請ワークフロー（v264〜）</h2>
+    <div class="flow" style="flex-wrap:wrap;">
+      <div class="flow-step" style="background:var(--blue-bg);border-color:var(--blue-border);">①公開ポータルで申請</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">T_変更申請に PENDING 保存</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step" style="background:var(--yellow-bg);border-color:var(--yellow-border);">②管理者が内容確認</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step" style="background:var(--green-bg);border-color:var(--green-border);">③承認 → DB反映</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">申請者へ通知メール</div>
+    </div>
+    <div class="grid-2" style="margin-top:16px;">
+      <div class="card">
+        <h3>申請種別</h3>
+        <ul>
+          <li><code>MEMBER_UPDATE</code>: 登録情報変更（フィールド変更・職員追加除籍を含む）</li>
+          <li><code>WITHDRAWAL</code>: 退会申請</li>
+          <li><code>STAFF_ADD</code>: 職員追加（単独申請）</li>
+          <li><code>STAFF_REMOVE</code>: 職員除籍（単独申請）</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>変更可能フィールド（個人）</h3>
+        <ul>
+          <li>氏名セット（氏・名・フリガナ氏・フリガナ名）</li>
+          <li>連絡先（メール・携帯）</li>
+          <li>勤務先情報（電話・FAX・住所）</li>
+          <li>自宅住所</li>
+          <li>CM番号 ⚠️（ログインIDも変更）</li>
+          <li>通知方法・郵送先区分</li>
+        </ul>
+      </div>
+    </div>
+    <div class="info" style="margin-top:12px;">セキュリティ: 変更内容のデフォルト値は一切表示しない。既存DB情報の漏洩防止。管理者承認なしでDBは変更されない。</div>
+  </section>
+
+  <!-- 管理コンソール -->
+  <section id="admin">
+    <h2><span class="sec-icon">⚙️</span>管理コンソール機能一覧</h2>
+    <div class="grid-2">
+      <div>
+        <h3>MASTER / ADMIN 権限</h3>
+        <table>
+          <tr><th>機能</th><th>説明</th></tr>
+          <tr><td>会員管理コンソール</td><td>全会員の検索・閲覧・編集・退会処理</td></tr>
+          <tr><td>変更申請管理コンソール <span class="version-badge">v264</span></td><td>変更・退会・職員追加/除籍申請の承認・却下</td></tr>
+          <tr><td>年会費管理コンソール</td><td>年度別納入状況の検索・登録・更新</td></tr>
+          <tr><td>研修管理コンソール</td><td>研修の作成・更新・申込状況確認・メール送信</td></tr>
+          <tr><td>一括メール送信コンソール</td><td>会員への一括メール（テンプレート・添付対応）</td></tr>
+          <tr><td>名簿出力コンソール</td><td>PDF/Excel 名簿出力</td></tr>
+          <tr><td>宛名リスト出力</td><td>郵送用宛名リスト</td></tr>
+          <tr><td>システム設定</td><td>全体設定・メールテンプレート・公開ポータル設定</td></tr>
+          <tr><td>データ管理コンソール <span class="version-badge">MASTER</span></td><td>論理削除（退会+削除フラグ+認証無効化）。削除済みフィルタ搭載 v269</td></tr>
+        </table>
+      </div>
+      <div>
+        <h3>システム設定の主要項目</h3>
+        <table>
+          <tr><th>設定</th><th>説明</th></tr>
+          <tr><td>入会・登録メール設定</td><td>5種メール ON/OFF・件名・本文</td></tr>
+          <tr><td>入会完了画面文言</td><td>公開ポータル完了後の表示テキスト</td></tr>
+          <tr><td>公開ポータルカード文言</td><td>各カードのバッジ・タイトル・説明文・CTA</td></tr>
+          <tr><td>メンバー上限</td><td>事業所会員の全体デフォルト上限・個別上限</td></tr>
+          <tr><td>年会費設定</td><td>振込先・納入案内文</td></tr>
+          <tr><td>名簿テンプレート</td><td>PDF/Excel テンプレートスプレッドシートID</td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- デプロイ -->
+  <section id="deploy">
+    <h2><span class="sec-icon">🚀</span>リリース手順</h2>
+    <div class="success">✅ v269 (2026-04-26) がすべてのプロジェクトにデプロイ済み</div>
+    <div style="margin-top:16px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;">
+      <pre style="color:var(--text2);font-size:12px;line-height:1.8;overflow-x:auto;"><code># 1. ビルド（全3プロジェクトのHTMLを更新）
+npm run build:gas
+cp backend/Code.gs gas/admin/Code.gs
+
+# 2. 統合プロジェクト
+npx clasp push --force
+npx clasp version "vXXX ..."
+npx clasp redeploy AKfycbyw... --versionNumber N
+npx clasp redeploy AKfycbxy... --versionNumber N
+
+# 3. 会員 split
+cd gas/member && npx clasp push --force && npx clasp version "..."
+npx clasp redeploy AKfycbxd... --versionNumber N
+
+# 4. 管理者 split
+cd gas/admin && npx clasp push --force && npx clasp version "..."
+npx clasp redeploy AKfycbwS... --versionNumber N</code></pre>
+    </div>
+    <div class="warn" style="margin-top:12px;"><strong>禁止:</strong> <code>clasp deploy</code> 全形式禁止（新 Deployment ID が生成されURLが変わる）。<code>clasp redeploy</code> のみ使用。</div>
+
+    <h3 style="margin-top:24px;">直近リリース履歴</h3>
+    <table>
+      <tr><th>バージョン</th><th>日付</th><th>内容</th></tr>
+      <tr><td><strong>v269</strong></td><td>2026-04-26</td><td>データ管理コンソール 論理削除フィルタ追加</td></tr>
+      <tr><td>v268</td><td>2026-04-26</td><td>Session.getEffectiveUser スコープエラー修正（メール送信不可解消）</td></tr>
+      <tr><td>v267</td><td>2026-04-26</td><td>公開ポータルヒーロー FOIC 修正</td></tr>
+      <tr><td>v266</td><td>2026-04-25</td><td>入会・登録メール設定UI統合再設計・個人賛助メール個別ON/OFF</td></tr>
+      <tr><td>v265</td><td>2026-04-25</td><td>事業所メール代表者/メンバー分離・職員追加承認時メール追加</td></tr>
+      <tr><td>v264-fix</td><td>2026-04-25</td><td>HMAC ステートレストークン（CacheService蒸発バグ根本修正）</td></tr>
+      <tr><td>v264</td><td>2026-04-25</td><td>変更申請ワークフロー・管理者承認コンソール・T_変更申請テーブル</td></tr>
+    </table>
+  </section>
+
+</div><!-- /wrap -->
+
+<footer>
+  <p>枚方市介護支援専門員連絡協議会 会員システム — v269 システム概要 (2026-04-26)</p>
+  <p style="margin-top:4px;">このドキュメントは参照専用です。正本は <code>HANDOVER.md</code> および <code>docs/</code> の各正本文書を参照してください。</p>
+</footer>
+
+</body>
+</html>

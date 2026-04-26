@@ -1,8 +1,8 @@
 # 開発引継ぎ
 
-更新日: 2026-04-25
-現行本番: `v266`（統合プロジェクト GAS version 269 / 会員 split GAS version 23 / 管理者 split GAS version 28）
-固定 deployment: 統合（公開ポータル）`@269` × 2本 / 会員 split `@23` / 管理者 split `@28`
+更新日: 2026-04-26
+現行本番: `v269`（統合プロジェクト GAS version 272 / 会員 split GAS version 25 / 管理者 split GAS version 31）
+固定 deployment: 統合（公開ポータル）`@272` × 2本 / 会員 split `@25` / 管理者 split `@31`
 
 ## 1. 再開の最短ルート
 
@@ -17,11 +17,11 @@
 7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `docs/145_RELEASE_STATE_v266_2026-04-25.md`
-11. `docs/143_RELEASE_STATE_v265_2026-04-25.md`
-12. `docs/141_RELEASE_STATE_v264_2026-04-25.md`
-13. `docs/139_RELEASE_STATE_v263_2026-04-24.md`
-14. `docs/137_RELEASE_STATE_v262_2026-04-24.md`
+10. `docs/151_RELEASE_STATE_v269_2026-04-26.md`
+11. `docs/149_RELEASE_STATE_v268_2026-04-26.md`
+12. `docs/147_RELEASE_STATE_v267_2026-04-26.md`
+13. `docs/145_RELEASE_STATE_v266_2026-04-25.md`
+14. `docs/143_RELEASE_STATE_v265_2026-04-25.md`
 15. `docs/09_DEPLOYMENT_POLICY.md`
 16. `docs/05_AUTH_AND_ROLE_SPEC.md`
 17. `docs/04_DB_OPERATION_RUNBOOK.md`
@@ -53,19 +53,17 @@
 
 ### 2.2 直近で本番反映済みの変更
 
-- `v266`: 入会・登録メール設定UIを統合再設計。5種メール（個人賛助・事業所代表者・事業所メンバー・追加職員・代表者通知）を「入会・登録メール設定」1セクションに統合。個人・賛助会員メールに個別ON/OFF（`IND_SUPP_EMAIL_ENABLED`）追加。入会完了画面文言設定を独立セクションに分離。
+- `v269`: データ管理コンソール 論理削除済みレコードをデフォルト非表示。「削除済みも表示する」チェックボックス追加。
+  詳細: `docs/151_RELEASE_STATE_v269_2026-04-26.md`
+- `v268`: sendEmailWithValidatedFrom_ の Session.getEffectiveUser スコープエラー修正。入会申込メール送信不可バグ解消。
+  詳細: `docs/149_RELEASE_STATE_v268_2026-04-26.md`
+- `v267`: 公開ポータルヒーローセクション FOIC 修正。設定ロード前にデフォルト文字が瞬間表示されていた問題を解消。
+  詳細: `docs/147_RELEASE_STATE_v267_2026-04-26.md`
+- `v266`: 入会・登録メール設定UIを統合再設計。5種メール設定を1セクションに統合。個人・賛助会員メール個別ON/OFF追加。
   詳細: `docs/145_RELEASE_STATE_v266_2026-04-25.md`
-- `v265`: 事業所会員入会時メールを代表者/メンバー別テンプレートに分離。職員追加申請承認時に追加職員・代表者へ通知メールを自動送信（各ON/OFF・件名・本文設定可能）。計12設定キー追加。
+- `v265`: 事業所会員入会時メールを代表者/メンバー別テンプレートに分離。職員追加承認時メール2種追加。
   詳細: `docs/143_RELEASE_STATE_v265_2026-04-25.md`
-- `v264-fix`: 公開ポータル変更申請のトークン管理をCacheServiceからHMAC署名ステートレストークンへ置換（CacheService蒸発バグ根本修正）。フロントエンドのサイレント失敗バグ修正。
-  詳細: `docs/141_RELEASE_STATE_v264_2026-04-25.md`
-- `v264`: 公開ポータル変更・退会フローをOTPなし承認ワークフローへ全面刷新。T_変更申請テーブル追加。管理者コンソールに変更申請管理ビュー追加。
-  詳細: `docs/141_RELEASE_STATE_v264_2026-04-25.md`
-- `v263`: OAuthスコープ最小化、CIセキュリティゲート追加、CM番号編集ポリシー確定。第三者評価起票の全タスク完了。
-  詳細: `docs/139_RELEASE_STATE_v263_2026-04-24.md`
-- `v262`: パスワードハッシュをPBKDF2-HMAC-SHA256（10000反復）へ全面移行。
-  詳細: `docs/137_RELEASE_STATE_v262_2026-04-24.md`
-それより古いリリース: `docs/archive/release_history/`（v261: 135_, v260: 133_, v259: 131_, v258: 129_, v255: 119_ 他）
+それより古いリリース: `docs/archive/release_history/`（v264: 141_, v263: 139_, v262: 137_, v261: 135_, v260: 133_ 他）
 
 ## 3. 次フェーズの優先順位
 
@@ -81,9 +79,11 @@
 
 ### 操作者確認待ち
 
+- `v269`: データ管理コンソール検索で削除フラグONが非表示になること。チェックボックスで切り替えられること。
+- `v268`: 入会申込後に認証情報メールが正常に届くこと（送信元アドレス設定済みであること）。
+- `v267`: 公開ポータルトップのヒーロータイトルが、設定ロード前に一切表示されないこと（スケルトンのみ表示）。
 - `v266`: 管理設定「入会・登録メール設定」が1セクションに統合されていること。全5種メール設定が編集できること。全体マスタースイッチOFF→全メール停止が動作すること。
 - `v265`: 事業所会員入会時に代表者・メンバーが異なる内容のメールを受け取ること。職員追加承認時に追加職員・代表者にメールが届くこと。
-- `v264`: 公開ポータルで変更・退会フロー（OTPなし・会員種別選択→本人確認→申請）が正常動作すること。管理者コンソール「変更申請管理コンソール」で申請一覧・承認・却下が動作すること。
 
 ## 4. 既知の制約と注意事項
 
@@ -109,9 +109,9 @@ npx clasp run getDbInfo
 期待値:
 
 - authorized user: `k.noguchi@hcm-n.org`
-- 統合 fixed deployment 2 本: `@269`
-- 会員 split: `@23`
-- 管理者 split: `@28`
+- 統合 fixed deployment 2 本: `@272`
+- 会員 split: `@25`
+- 管理者 split: `@31`
 - `clasp run` は権限状態次第で失敗し得る。失敗時は operator 側権限の再確認を優先する。
 
 ## 6. 文書の見方
