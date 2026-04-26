@@ -15,6 +15,7 @@ export interface PublicTraining {
   endDate: string;
   instructor: string;
   fileUrl: string;
+  thumbnailUrl: string;
   organizer: string;
   fieldConfig: string;
 }

@@ -363,6 +363,7 @@ var テーブル定義 = {
     '申込締切日',
     '講師',
     '案内状URL',
+    '案内状サムネイルURL',
     '項目設定JSON',
     '登録者メール',
     '作成日時',
@@ -3646,6 +3647,7 @@ function mapTrainingRowsForApi_(trainingRows) {
       summary: String(t['研修概要'] || ''),
       description: String(t['研修内容'] || ''),
       guidePdfUrl: String(t['案内状URL'] || ''),
+      thumbnailUrl: String(t['案内状サムネイルURL'] || ''),
       date: formatDateForApi_(t['開催日']),
       endTime: String(t['開催終了時刻'] || ''),
       capacity: Number(t['定員'] || 0),
@@ -10126,6 +10128,7 @@ function saveTraining_(payload) {
     setCol('申込締切日', payload.applicationCloseDate || '');
     setCol('講師', payload.instructor || '');
     setCol('案内状URL', payload.guidePdfUrl || '');
+    setCol('案内状サムネイルURL', payload.thumbnailUrl || '');
     setCol('項目設定JSON', serializeTrainingOptions_(
       payload.fieldConfig,
       payload.cancelAllowed,
@@ -10164,6 +10167,7 @@ function saveTraining_(payload) {
     '申込締切日': payload.applicationCloseDate || '',
     '講師': payload.instructor || '',
     '案内状URL': payload.guidePdfUrl || '',
+    '案内状サムネイルURL': payload.thumbnailUrl || '',
     '項目設定JSON': serializeTrainingOptions_(
       payload.fieldConfig,
       payload.cancelAllowed,
@@ -10754,6 +10758,7 @@ function deriveTrainingStatusByCloseDate_(closeDateRaw) {
 
 /**
  * 研修案内状ファイル（base64）をGoogle Driveにアップロードし、共有URLを返す。
+ * PDFの場合はGoogleが自動生成するサムネイルを取得して永続保存し thumbnailUrl も返す。
  * payload: { base64: string, filename: string, mimeType: string }
  */
 function uploadTrainingFile_(payload) {
@@ -10775,8 +10780,63 @@ function uploadTrainingFile_(payload) {
 
   var file = folder.createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  var fileId = file.getId();
+  var fileUrl = file.getUrl();
 
-  return { url: file.getUrl(), driveFileId: file.getId() };
+  // PDF の場合: Google 自動生成サムネイルを取得して永続保存
+  var thumbnailUrl = '';
+  if (mimeType === 'application/pdf') {
+    try {
+      thumbnailUrl = generateDriveThumbnail_(fileId, folder);
+    } catch (e) {
+      Logger.log('generateDriveThumbnail_ failed: ' + e.message);
+    }
+  }
+
+  return { url: fileUrl, driveFileId: fileId, thumbnailUrl: thumbnailUrl };
+}
+
+// Google Drive が自動生成したサムネイルを取得し、永続 Drive ファイルとして保存する。
+// Drive REST API を UrlFetchApp 経由で呼び出す（Advanced Drive Service 不要）。
+function generateDriveThumbnail_(fileId, folder) {
+  var token = ScriptApp.getOAuthToken();
+  var apiUrl = 'https://www.googleapis.com/drive/v3/files/' + fileId + '?fields=thumbnailLink';
+  var thumbnailLink = null;
+
+  // Google がサムネイルを生成するまで最大 3 回リトライ（計 9 秒）
+  for (var i = 0; i < 3; i++) {
+    Utilities.sleep(3000);
+    var apiResp = UrlFetchApp.fetch(apiUrl, {
+      headers: { Authorization: 'Bearer ' + token },
+      muteHttpExceptions: true,
+    });
+    if (apiResp.getResponseCode() === 200) {
+      var data = JSON.parse(apiResp.getContentText());
+      if (data.thumbnailLink) {
+        thumbnailLink = data.thumbnailLink;
+        break;
+      }
+    }
+  }
+
+  if (!thumbnailLink) return '';
+
+  // サムネイルサイズを大きくする（=s220 → =s1000）
+  var bigThumbUrl = thumbnailLink.replace(/=s\d+$/, '=s1000');
+
+  // サムネイル画像をフェッチして Drive に永続保存
+  var imgResp = UrlFetchApp.fetch(bigThumbUrl, {
+    headers: { Authorization: 'Bearer ' + token },
+    muteHttpExceptions: true,
+  });
+  if (imgResp.getResponseCode() !== 200) return '';
+
+  var thumbBlob = imgResp.getBlob().setName('thumb_' + fileId + '.png');
+  var thumbFile = folder.createFile(thumbBlob);
+  thumbFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+  // 直接表示可能な URL を返す
+  return 'https://drive.google.com/uc?export=view&id=' + thumbFile.getId();
 }
 
 /**
@@ -11682,6 +11742,7 @@ function getPublicTrainings_() {
       endDate: formatDateForApi_(r['申込締切日']),
       instructor: String(r['講師'] || ''),
       fileUrl: String(r['案内状URL'] || ''),
+      thumbnailUrl: String(r['案内状サムネイルURL'] || ''),
       organizer: String(r['主催者'] || ''),
       fieldConfig: String(r['項目設定JSON'] || ''),
     };

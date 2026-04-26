@@ -102,7 +102,7 @@ export interface ApiClient {
   }): Promise<void>;
   deleteAdminPermission(id: string): Promise<void>;
   saveTraining(training: Training): Promise<Training>;
-  uploadTrainingFile(base64: string, filename: string, mimeType: string): Promise<{ url: string }>;
+  uploadTrainingFile(base64: string, filename: string, mimeType: string): Promise<{ url: string; thumbnailUrl?: string }>;
   applyTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ applicationId: string; applicants: number; duplicate?: boolean }>;
   cancelTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ canceled: boolean; applicants: number }>;
   getTrainingApplicants(trainingId: string): Promise<TrainingApplicantRow[]>;
@@ -897,7 +897,7 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async uploadTrainingFile(base64: string, filename: string, mimeType: string): Promise<{ url: string }> {
+  async uploadTrainingFile(base64: string, filename: string, mimeType: string): Promise<{ url: string; thumbnailUrl?: string }> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
         reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));

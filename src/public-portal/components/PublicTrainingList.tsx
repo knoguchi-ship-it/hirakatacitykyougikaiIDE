@@ -175,9 +175,9 @@ const PublicTrainingList: React.FC<Props> = ({ trainings, onApply }) => {
             )}
 
             {/* 案内PDF サムネイル */}
-            {t.fileUrl && (
+            {t.thumbnailUrl && (
               <div className="max-w-xs">
-                <PdfThumbnail fileUrl={t.fileUrl} height={130} />
+                <PdfThumbnail thumbnailUrl={t.thumbnailUrl} fileUrl={t.fileUrl} height={130} />
               </div>
             )}
 

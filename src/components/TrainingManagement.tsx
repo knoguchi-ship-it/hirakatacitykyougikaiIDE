@@ -49,6 +49,7 @@ const buildEmptyForm = (fieldConfig: TrainingFieldConfig): Training => {
     status: 'OPEN',
     instructor: '',
     guidePdfUrl: '',
+    thumbnailUrl: '',
     cancelAllowed: false,
     inquiryPerson: '',
     inquiryPhone: '',
@@ -173,7 +174,11 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
     try {
       const base64 = await readFileAsBase64(file);
       const result = await api.uploadTrainingFile(base64, file.name, file.type);
-      setForm((prev) => ({ ...prev, guidePdfUrl: result.url }));
+      setForm((prev) => ({
+        ...prev,
+        guidePdfUrl: result.url,
+        thumbnailUrl: result.thumbnailUrl || '',
+      }));
       setUploadedFileName(file.name);
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'ファイルアップロードに失敗しました。');
@@ -538,7 +543,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
               {isFieldOn('guidePdfUrl') ? (
                 <div className="flex items-center gap-3">
                   <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-700 hover:bg-slate-50">
-                    {uploading ? 'アップロード中...' : 'ファイルを選択'}
+                    {uploading ? 'アップロード中（サムネイル生成中…）' : 'ファイルを選択'}
                     <input ref={fileInputRef} type="file" accept=".pdf,image/*" className="hidden" onChange={handleFileChange} disabled={uploading} />
                   </label>
                   {(uploadedFileName || form.guidePdfUrl) && (
@@ -553,7 +558,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
                         <button
                           type="button"
                           onClick={() => {
-                            setForm((prev) => ({ ...prev, guidePdfUrl: '' }));
+                            setForm((prev) => ({ ...prev, guidePdfUrl: '', thumbnailUrl: '' }));
                             setUploadedFileName('');
                             if (fileInputRef.current) fileInputRef.current.value = '';
                           }}
@@ -566,7 +571,10 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
                       {/* アップロード後プレビュー */}
                       {form.guidePdfUrl && (
                         <div className="max-w-xs">
-                          <PdfThumbnail fileUrl={form.guidePdfUrl} height={130} />
+                          {form.thumbnailUrl
+                            ? <PdfThumbnail thumbnailUrl={form.thumbnailUrl} fileUrl={form.guidePdfUrl} height={130} />
+                            : <p className="text-xs text-slate-400">サムネイルは生成されませんでした</p>
+                          }
                         </div>
                       )}
                     </div>

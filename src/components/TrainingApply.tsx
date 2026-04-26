@@ -189,9 +189,9 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                     <p className="text-sm text-slate-700 mt-1">会員研修費: {getMemberFeeAmount(training) > 0 ? formatYen(getMemberFeeAmount(training)) : '無料'}</p>
 
                     {/* 案内PDF サムネイル */}
-                    {training.guidePdfUrl && (
+                    {training.thumbnailUrl && (
                       <div className="mt-3 max-w-xs">
-                        <PdfThumbnail fileUrl={training.guidePdfUrl} height={140} />
+                        <PdfThumbnail thumbnailUrl={training.thumbnailUrl} fileUrl={training.guidePdfUrl} height={140} />
                       </div>
                     )}
 
@@ -354,7 +354,9 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                 <p className="text-xs text-slate-500 mb-2">添付PDF</p>
                 {selectedHistoryTraining.guidePdfUrl ? (
                   <div className="space-y-2">
-                    <PdfThumbnail fileUrl={selectedHistoryTraining.guidePdfUrl} height={220} />
+                    {selectedHistoryTraining.thumbnailUrl && (
+                      <PdfThumbnail thumbnailUrl={selectedHistoryTraining.thumbnailUrl} fileUrl={selectedHistoryTraining.guidePdfUrl} height={220} />
+                    )}
                     <a href={selectedHistoryTraining.guidePdfUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary-700 hover:text-primary-900 underline">
                       全ページを別タブで開く
                     </a>

@@ -422,6 +422,7 @@ export interface Training {
   summary?: string;
   description?: string;
   guidePdfUrl?: string;
+  thumbnailUrl?: string;
   date: string;
   endTime?: string;
   capacity: number;
