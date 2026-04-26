@@ -318,6 +318,9 @@ const App: React.FC = () => {
   const [authBusy, setAuthBusy] = useState(false);
   const [memberLoginId, setMemberLoginId] = useState('');
   const [memberPassword, setMemberPassword] = useState('');
+  // 管理者 shell 自動認証: ページロード時にセッション確認を自動実行
+  const [adminAutoAuthDone, setAdminAutoAuthDone] = useState(false);
+  const [adminAutoAuthFailed, setAdminAutoAuthFailed] = useState(false);
   const [defaultBusinessStaffLimit, setDefaultBusinessStaffLimit] = useState(10);
   const [globalLimitInput, setGlobalLimitInput] = useState('10');
   const [trainingHistoryLookbackMonths, setTrainingHistoryLookbackMonths] = useState(18);
@@ -1141,10 +1144,54 @@ const App: React.FC = () => {
     setAuthError(null);
   };
 
+  // 管理者 shell: ページロード時にGoogle セッションを自動確認し認証を試みる。
+  // 成功 → 管理ダッシュボードへ即遷移。失敗 → 404 表示（管理機能の存在を隠蔽）。
+  useEffect(() => {
+    if (!isAdminShell) return;
+    let cancelled = false;
+    const attemptAutoAuth = async () => {
+      try {
+        const auth = await api.checkAdminBySession();
+        if (cancelled) return;
+        setFullDataLoaded(false);
+        setMemberPortalLoaded(false);
+        setAdminDashboardData(null);
+        setTrainingManagementLoaded(false);
+        setTrainingManagementError(null);
+        setAdminPermissionData(null);
+        setAdminPermissionError(null);
+        setSystemSettingsLoaded(false);
+        // applyAuthContext はこの effect 内で直接呼べないため、個々の setter を呼ぶ
+        const identities = buildLoginIdentities([]);
+        setAuthenticatedContext({ memberId: auth.memberId, staffId: auth.staffId, memberPortalLoginId: undefined });
+        setSelectedIdentityId(resolveIdentityId(auth, identities));
+        const permLevel = auth.adminPermissionLevel || null;
+        setAdminPermissionLevel(permLevel);
+        if (permLevel === 'GENERAL' || !auth.canAccessAdminPage) {
+          setUserRole('MEMBER');
+          setCurrentView('profile');
+        } else if (permLevel === 'TRAINING_MANAGER' || permLevel === 'TRAINING_REGISTRAR') {
+          setUserRole('ADMIN');
+          setCurrentView('training-manage');
+        } else {
+          setUserRole('ADMIN');
+          setCurrentView('admin');
+        }
+        setIsAuthenticated(true);
+        setAuthError(null);
+      } catch {
+        if (!cancelled) setAdminAutoAuthFailed(true);
+      } finally {
+        if (!cancelled) setAdminAutoAuthDone(true);
+      }
+    };
+    attemptAutoAuth();
+    return () => { cancelled = true; };
+  }, [isAdminShell]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // v192: 管理者ログインをセッション認証のみに分離（getMemberPortalData_ を呼ばない）
   // adminLoginWithData は checkAdminBySession + getMemberPortalData を1呼び出しで実行していたため
   // 管理者ログインに 15〜18 秒かかっていた。checkAdminBySession のみに変更し即時遷移。
-  // 管理コンソールのデータは遷移後に loadAppData() が別途ロードする。
   const handleAdminSessionLogin = async () => {
     try {
       setAuthBusy(true);
@@ -2085,6 +2132,45 @@ const App: React.FC = () => {
   };
 
   const renderContent = () => {
+    // ── 管理者 shell 専用: 自動認証フロー ────────────────────────────────────
+    if (isAdminShell && !isAuthenticated) {
+      // 自動認証中: フルスクリーンスケルトン（ログインフォームは表示しない）
+      if (!adminAutoAuthDone) {
+        return (
+          <div className="fixed inset-0 flex flex-col items-center justify-center bg-slate-50 gap-6" aria-live="polite" aria-label="認証確認中">
+            <div className="flex flex-col items-center gap-4">
+              <svg className="w-10 h-10 text-slate-300 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              <p className="text-sm text-slate-400 tracking-wide">認証を確認しています…</p>
+            </div>
+          </div>
+        );
+      }
+      // 自動認証失敗: 404 ページ（管理機能の存在を隠蔽）
+      if (adminAutoAuthFailed) {
+        return (
+          <div className="fixed inset-0 flex flex-col items-center justify-center bg-white select-none">
+            <div className="text-center space-y-4 px-6 max-w-sm">
+              <p className="text-8xl font-black text-slate-100 tracking-tight leading-none">404</p>
+              <h1 className="text-xl font-bold text-slate-700">ページが見つかりません</h1>
+              <p className="text-sm text-slate-400 leading-relaxed">
+                お探しのページは存在しないか、移動した可能性があります。
+              </p>
+              <a
+                href="/"
+                className="inline-block mt-2 rounded-full border border-slate-200 bg-white px-6 py-2.5 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50"
+              >
+                トップへ戻る
+              </a>
+            </div>
+          </div>
+        );
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     if (!isAuthenticated) {
       const loginTitle = isAdminShell ? 'Admin Login' : isMemberShell ? 'Member Login' : 'Login';
       const loginDescription = isAdminShell
