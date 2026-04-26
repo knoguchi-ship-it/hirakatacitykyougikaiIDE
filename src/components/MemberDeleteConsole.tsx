@@ -64,6 +64,7 @@ const MemberDeleteConsole: React.FC = () => {
   const [step, setStep] = useState<Step>('search');
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<MemberDeleteSearchResult[]>([]);
+  const [showDeleted, setShowDeleted] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
 
@@ -267,14 +268,38 @@ const MemberDeleteConsole: React.FC = () => {
 
           {searchError && <p className="text-sm text-red-600">{searchError}</p>}
 
-          {searchResults.length > 0 && (
+          {searchResults.length > 0 && (() => {
+            const visibleResults = showDeleted
+              ? searchResults
+              : searchResults.filter(r => !r.isDeleted);
+            const hiddenCount = searchResults.length - visibleResults.length;
+            return (
             <div className="space-y-3">
-              <div className="flex items-center justify-between text-sm">
-                <p className="text-slate-600">{searchResults.length} 件見つかりました。最大10件まで選択できます。</p>
-                <p className="text-xs text-slate-400">選択数: {selectedKeys.size} / 10</p>
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <p className="text-slate-600">
+                  {visibleResults.length} 件表示中
+                  {hiddenCount > 0 && <span className="ml-1 text-slate-400">（削除済み {hiddenCount} 件を非表示）</span>}
+                </p>
+                <div className="flex items-center gap-4">
+                  <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-600 select-none">
+                    <input
+                      type="checkbox"
+                      checked={showDeleted}
+                      onChange={e => setShowDeleted(e.target.checked)}
+                      className="accent-slate-600"
+                    />
+                    削除済みも表示する
+                  </label>
+                  <p className="text-xs text-slate-400">選択数: {selectedKeys.size} / 10</p>
+                </div>
               </div>
               <div className="space-y-2 max-h-[28rem] overflow-y-auto pr-1">
-                {searchResults.map(result => (
+                {visibleResults.length === 0 && (
+                  <p className="text-sm text-slate-500 py-2">
+                    削除フラグOFFの対象が見つかりませんでした。「削除済みも表示する」をオンにすると削除済み対象が表示されます。
+                  </p>
+                )}
+                {visibleResults.map(result => (
                   <label
                     key={result.targetKey}
                     className={`block cursor-pointer rounded-2xl border px-4 py-3 transition ${
@@ -328,7 +353,8 @@ const MemberDeleteConsole: React.FC = () => {
               )}
               {previewError && <p className="text-sm text-red-600">{previewError}</p>}
             </div>
-          )}
+            );
+          })()}
 
           {searchResults.length === 0 && !searchLoading && query && (
             <p className="text-sm text-slate-500">該当する対象が見つかりませんでした。</p>
