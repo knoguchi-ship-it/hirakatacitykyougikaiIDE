@@ -7220,9 +7220,12 @@ function sendCredentialEmail_(toEmail, loginId, password, memberName, opts) {
     .replace(/\{\{会員マイページURL\}\}/g, MEMBER_PORTAL_URL)
     .replace(/\{\{会員種別\}\}/g, opts.memberTypeLabel || '')
     .replace(/\{\{年会費\}\}/g, annualFeeStr);
+  // replyTo は from が設定されている場合のみ設定する。
+  // Session.getEffectiveUser() は userinfo.email スコープが必要で、
+  // 統合・会員 split では v263 スコープ削減により使用不可。
   sendEmailWithValidatedFrom_(toEmail, subject, body, {
     from: from,
-    replyTo: from || Session.getEffectiveUser().getEmail(),
+    replyTo: from || '',
     name: '枚方市介護支援専門員連絡協議会',
   });
 }
@@ -13070,31 +13073,31 @@ function validateRequestedFromAddress_(from, ownerEmail) {
 }
 
 function sendEmailWithValidatedFrom_(to, subject, body, options) {
-  var ownerEmail = Session.getEffectiveUser().getEmail();
-  var from = String((options && options.from) || ownerEmail).trim() || ownerEmail;
-  var commonOptions = {
-    replyTo: String((options && options.replyTo) || from || ownerEmail),
-    name: String((options && options.name) || ''),
-    attachments: (options && options.attachments) || [],
-  };
+  // Session.getEffectiveUser() は userinfo.email スコープが必要。
+  // 統合・会員 split では v263 スコープ削減により使用不可のため try-catch で安全に取得する。
+  var ownerEmail = '';
+  try { ownerEmail = Session.getEffectiveUser().getEmail(); } catch (e) {}
 
-  if (from === ownerEmail) {
-    MailApp.sendEmail({
-      to: to,
-      subject: subject,
-      body: body,
-      replyTo: commonOptions.replyTo,
-      name: commonOptions.name,
-      attachments: commonOptions.attachments,
-    });
+  var from = String((options && options.from) || ownerEmail).trim();
+  var replyTo = String((options && options.replyTo) || from || ownerEmail).trim();
+  var name = String((options && options.name) || '');
+  var attachments = (options && options.attachments) || [];
+
+  var mailOpts = { to: to, subject: subject, body: body, name: name, attachments: attachments };
+  if (replyTo) mailOpts.replyTo = replyTo;
+
+  if (!from || from === ownerEmail) {
+    // from 未指定 or deploying user → MailApp（userinfo.email スコープ不要）
+    MailApp.sendEmail(mailOpts);
     return;
   }
 
+  // 送信エイリアス指定 → GmailApp（admin split での alias 送信用）
   GmailApp.sendEmail(to, subject, body, {
     from: from,
-    replyTo: commonOptions.replyTo,
-    name: commonOptions.name,
-    attachments: commonOptions.attachments,
+    replyTo: replyTo,
+    name: name,
+    attachments: attachments,
   });
 }
 
