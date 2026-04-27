@@ -1434,7 +1434,13 @@ function processApiRequest(action, payload) {
     }
 
     if (action === 'saveTraining') {
-      return JSON.stringify({ success: true, data: saveTraining_(parsedPayload) });
+      try {
+        var saveResult = saveTraining_(parsedPayload);
+        return JSON.stringify({ success: true, data: saveResult });
+      } catch (saveErr) {
+        Logger.log('[saveTraining error] ' + (saveErr && saveErr.message ? saveErr.message : String(saveErr)));
+        return JSON.stringify({ success: false, error: saveErr && saveErr.message ? saveErr.message : String(saveErr) });
+      }
     }
 
     if (action === 'uploadTrainingFile') {
@@ -1636,6 +1642,7 @@ function processApiRequest(action, payload) {
 
     return JSON.stringify({ success: true, data: { message: '未実装アクションです' } });
   } catch (error) {
+    Logger.log('[processApiRequest catch] action=' + action + ' error=' + (error && error.message ? error.message : String(error)));
     return JSON.stringify({
       success: false,
       error: error && error.message ? error.message : String(error),
