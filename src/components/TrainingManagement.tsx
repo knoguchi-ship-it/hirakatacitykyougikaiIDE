@@ -174,12 +174,9 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
     try {
       const base64 = await readFileAsBase64(file);
       const result = await api.uploadTrainingFile(base64, file.name, file.type);
-      setForm((prev) => ({
-        ...prev,
-        guidePdfUrl: result.url,
-        thumbnailUrl: result.thumbnailUrl || '',
-      }));
+      setForm((prev) => ({ ...prev, guidePdfUrl: result.url, thumbnailUrl: '' }));
       setUploadedFileName(file.name);
+      // サムネイルは GAS 時間ベーストリガーが 10 分後に自動生成する
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'ファイルアップロードに失敗しました。');
     } finally {
@@ -543,7 +540,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
               {isFieldOn('guidePdfUrl') ? (
                 <div className="flex items-center gap-3">
                   <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-700 hover:bg-slate-50">
-                    {uploading ? 'アップロード中（サムネイル生成中…）' : 'ファイルを選択'}
+                    {uploading ? 'アップロード中...' : 'ファイルを選択'}
                     <input ref={fileInputRef} type="file" accept=".pdf,image/*" className="hidden" onChange={handleFileChange} disabled={uploading} />
                   </label>
                   {(uploadedFileName || form.guidePdfUrl) && (
@@ -571,10 +568,13 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
                       {/* アップロード後プレビュー */}
                       {form.guidePdfUrl && (
                         <div className="max-w-xs">
-                          {form.thumbnailUrl
-                            ? <PdfThumbnail thumbnailUrl={form.thumbnailUrl} fileUrl={form.guidePdfUrl} height={130} />
-                            : <p className="text-xs text-slate-400">サムネイルは生成されませんでした</p>
-                          }
+                          {form.thumbnailUrl ? (
+                            <PdfThumbnail thumbnailUrl={form.thumbnailUrl} fileUrl={form.guidePdfUrl} height={130} />
+                          ) : (
+                            <p className="text-xs text-slate-400">
+                              サムネイルは登録後 10〜20 分で自動生成されます。
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>

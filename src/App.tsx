@@ -17,6 +17,7 @@ import StaffDetailAdmin from './components/StaffDetailAdmin';
 import { AdminDashboardData, AdminDashboardMemberRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, SystemSettings, Training, TrainingFieldConfig, DEFAULT_FIELD_CONFIG } from './types';
 import { TRAINING_OPTIONAL_FIELD_DEFS } from './components/TrainingManagement';
 import { api, type AdminLoginResult, type MemberLoginResult, type MemberPortalLookup } from './services/api';
+import { EmailCard, MasterOffBanner, MergeTags, ToggleSwitch } from './components/EmailSettingsCard';
 
 type Role = 'ADMIN' | 'MEMBER';
 type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'roster-export' | 'mailing-list-export' | 'template-help' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings' | 'member-delete' | 'change-requests';
@@ -2957,74 +2958,10 @@ const App: React.FC = () => {
             badge="メール設定"
             defaultOpen
           >
-            {(() => {
-              // 共通コンポーネント
-              const MasterOffBanner = () => !credentialEmailEnabledInput ? (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  全体マスタースイッチが <strong>OFF</strong> のため、以下の設定に関わらず全メールが停止されます。
-                </div>
-              ) : null;
-              const ToggleSwitch = ({ enabled, onToggle, onLabel, offLabel, color = 'violet' }: {
-                enabled: boolean; onToggle: () => void; onLabel: string; offLabel: string; color?: string;
-              }) => {
-                const bg = enabled ? (color === 'emerald' ? 'bg-emerald-600' : 'bg-violet-600') : 'bg-slate-300';
-                return (
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <div className="relative inline-block w-11 h-6 flex-shrink-0">
-                      <input type="checkbox" className="sr-only" checked={enabled} onChange={onToggle} />
-                      <div className={`w-11 h-6 rounded-full transition-colors ${bg}`} />
-                      <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0'}`} />
-                    </div>
-                    <span className="text-sm text-slate-700">{enabled ? onLabel : offLabel}</span>
-                  </label>
-                );
-              };
-              const Tags = ({ items }: { items: [string, string][] }) => (
-                <p className="text-xs text-slate-500 mb-3">
-                  マージタグ: {items.map(([tag, desc]) => (
-                    <span key={tag} className="inline-flex items-center gap-0.5 mx-0.5">
-                      <code className="bg-slate-100 text-violet-700 px-1 rounded text-[11px]">{tag}</code>
-                      <span className="text-slate-400 text-[11px]">({desc})</span>
-                    </span>
-                  ))}
-                </p>
-              );
-              const EmailCard = ({ badge, title, enabled, onToggle, subject, onSubjectChange, defaultSubject, body, onBodyChange, extra }: {
-                badge: string; title: string; enabled: boolean; onToggle: () => void;
-                subject: string; onSubjectChange: (v: string) => void; defaultSubject: string;
-                body: string; onBodyChange: (v: string) => void; extra?: React.ReactNode;
-              }) => (
-                <div className={`rounded-xl border p-4 space-y-3 ${enabled ? 'border-violet-200 bg-violet-50' : 'border-slate-200 bg-slate-50'}`}>
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-semibold text-violet-700">{badge}</span>
-                    <span className="text-sm font-semibold text-slate-800">{title}</span>
-                  </div>
-                  <ToggleSwitch enabled={enabled} onToggle={onToggle}
-                    onLabel="送信する（ON）" offLabel="送信しない（OFF）" />
-                  {enabled && (
-                    <>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 mb-1">件名</label>
-                        <div className="flex gap-2">
-                          <input type="text" value={subject} onChange={e => onSubjectChange(e.target.value)}
-                            className="flex-1 border border-slate-300 rounded px-3 py-1.5 text-sm bg-white" />
-                          <button type="button" onClick={() => onSubjectChange(defaultSubject)}
-                            className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 whitespace-nowrap bg-white">デフォルト</button>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 mb-1">本文</label>
-                        <textarea value={body} onChange={e => onBodyChange(e.target.value)} rows={7}
-                          className="w-full border border-slate-300 rounded px-3 py-2 text-sm font-mono leading-relaxed resize-y bg-white"
-                          placeholder="メール本文（マージタグ使用可能）" />
-                        {extra}
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-              return (
-              <div className="space-y-6">
+            {/* EmailCard / ToggleSwitch / MasterOffBanner / MergeTags は
+                EmailSettingsCard.tsx に定義。App 内 IIFE での定義は
+                毎レンダーで新型が生成されフォーカスが失われるため禁止。 */}
+            <div className="space-y-6">
                 {/* ─── 全体マスタースイッチ ─── */}
                 <div className="rounded-xl border-2 border-slate-300 bg-white p-4 space-y-3">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">全体マスタースイッチ</p>
@@ -3063,14 +3000,14 @@ const App: React.FC = () => {
                   )}
                 </div>
 
-                <MasterOffBanner />
+                <MasterOffBanner masterEnabled={credentialEmailEnabledInput} />
 
                 {/* ─── 入会申し込み時のメール ─── */}
                 <div className="space-y-3">
                   <h4 className="text-sm font-semibold text-slate-700 border-b border-slate-200 pb-1">▍入会申し込み時のメール</h4>
 
                   {/* 個人・賛助会員 */}
-                  <Tags items={[['{{氏名}}','氏名'],['{{ログインID}}','ログインID'],['{{パスワード}}','初期パスワード'],['{{会員マイページURL}}','マイページURL'],['{{会員種別}}','個人会員など'],['{{年会費}}','3,000円など']]} />
+                  <MergeTags items={[['{{氏名}}','氏名'],['{{ログインID}}','ログインID'],['{{パスワード}}','初期パスワード'],['{{会員マイページURL}}','マイページURL'],['{{会員種別}}','個人会員など'],['{{年会費}}','3,000円など']]} />
                   <EmailCard badge="個人・賛助会員" title="個人会員・賛助会員向け"
                     enabled={indSuppEmailEnabledInput}
                     onToggle={() => { setIndSuppEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
@@ -3132,7 +3069,7 @@ const App: React.FC = () => {
                     } />
 
                   {/* 事業所 代表者 */}
-                  <Tags items={[['{{氏名}}','氏名'],['{{ログインID}}','ログインID'],['{{パスワード}}','初期パスワード'],['{{会員マイページURL}}','マイページURL'],['{{事業所名}}','事業所名']]} />
+                  <MergeTags items={[['{{氏名}}','氏名'],['{{ログインID}}','ログインID'],['{{パスワード}}','初期パスワード'],['{{会員マイページURL}}','マイページURL'],['{{事業所名}}','事業所名']]} />
                   <EmailCard badge="事業所・代表者" title="事業所会員 代表者向け"
                     enabled={bizRepEmailEnabledInput}
                     onToggle={() => { setBizRepEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
@@ -3154,7 +3091,7 @@ const App: React.FC = () => {
                 {/* ─── 職員追加承認時のメール ─── */}
                 <div className="space-y-3">
                   <h4 className="text-sm font-semibold text-slate-700 border-b border-slate-200 pb-1">▍職員追加申請 承認時のメール</h4>
-                  <Tags items={[['{{氏名}}','氏名'],['{{ログインID}}','ログインID'],['{{パスワード}}','初期パスワード'],['{{会員マイページURL}}','マイページURL'],['{{事業所名}}','事業所名'],['{{追加職員氏名}}','追加職員名（代表者通知用）']]} />
+                  <MergeTags items={[['{{氏名}}','氏名'],['{{ログインID}}','ログインID'],['{{パスワード}}','初期パスワード'],['{{会員マイページURL}}','マイページURL'],['{{事業所名}}','事業所名'],['{{追加職員氏名}}','追加職員名（代表者通知用）']]} />
                   <EmailCard badge="追加職員" title="追加された職員へのメール"
                     enabled={staffAddStaffEmailEnabledInput}
                     onToggle={() => { setStaffAddStaffEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
@@ -3173,8 +3110,6 @@ const App: React.FC = () => {
                     onBodyChange={v => { setStaffAddRepEmailBodyInput(v); setSettingsIsDirty(true); }} />
                 </div>
               </div>
-              );
-            })()}
           </AdminSettingsSection>
 
           {/* 入会完了画面の文言設定（メール設定から分離） */}

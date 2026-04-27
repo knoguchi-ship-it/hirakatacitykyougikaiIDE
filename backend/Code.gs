@@ -645,6 +645,12 @@ function rebuildDatabaseSchema() {
   var ss = getOrCreateDatabase_();
   initializeSchema_(ss);
   markSchemaInitialized_();
+  // 研修案内PDFサムネイル自動生成トリガーを設定（10分ごと）
+  try {
+    setupThumbnailGenerationTrigger_();
+  } catch (e) {
+    Logger.log('setupThumbnailGenerationTrigger_ failed: ' + e.message);
+  }
   return {
     スプレッドシートID: ss.getId(),
     削除シート一覧: cleanupNonSchemaSheets_(ss),
@@ -10783,60 +10789,101 @@ function uploadTrainingFile_(payload) {
   var fileId = file.getId();
   var fileUrl = file.getUrl();
 
-  // PDF の場合: Google 自動生成サムネイルを取得して永続保存
-  var thumbnailUrl = '';
-  if (mimeType === 'application/pdf') {
-    try {
-      thumbnailUrl = generateDriveThumbnail_(fileId, folder);
-    } catch (e) {
-      Logger.log('generateDriveThumbnail_ failed: ' + e.message);
-    }
-  }
-
-  return { url: fileUrl, driveFileId: fileId, thumbnailUrl: thumbnailUrl };
+  // PDF アップロードは即時完了。サムネイル生成は別 API (generateTrainingThumbnail) で行う。
+  return { url: fileUrl, driveFileId: fileId, thumbnailUrl: '' };
 }
 
-// Google Drive が自動生成したサムネイルを取得し、永続 Drive ファイルとして保存する。
-// Drive REST API を UrlFetchApp 経由で呼び出す（Advanced Drive Service 不要）。
-function generateDriveThumbnail_(fileId, folder) {
-  var token = ScriptApp.getOAuthToken();
-  var apiUrl = 'https://www.googleapis.com/drive/v3/files/' + fileId + '?fields=thumbnailLink';
-  var thumbnailLink = null;
+// ── 研修案内PDF サムネイル バッチ生成（時間ベーストリガーで定期実行）──────────
 
-  // Google がサムネイルを生成するまで最大 3 回リトライ（計 9 秒）
-  for (var i = 0; i < 3; i++) {
-    Utilities.sleep(3000);
-    var apiResp = UrlFetchApp.fetch(apiUrl, {
-      headers: { Authorization: 'Bearer ' + token },
-      muteHttpExceptions: true,
-    });
-    if (apiResp.getResponseCode() === 200) {
-      var data = JSON.parse(apiResp.getContentText());
-      if (data.thumbnailLink) {
-        thumbnailLink = data.thumbnailLink;
-        break;
-      }
+/**
+ * トリガーから呼び出されるエントリーポイント（グローバル関数）。
+ * サムネイルURLが空の研修を最大5件処理する。
+ */
+function runThumbnailGeneration() {
+  try {
+    generateMissingThumbnails_();
+  } catch (e) {
+    Logger.log('runThumbnailGeneration error: ' + e.message);
+  }
+}
+
+/**
+ * 案内状URLはあるがサムネイルURLが未設定の研修を検索し、
+ * Drive のサムネイルが生成済みであれば取得・保存・更新する。
+ * 1回の実行で最大 MAX_BATCH 件処理（GASタイムアウト防止）。
+ */
+function generateMissingThumbnails_() {
+  var MAX_BATCH = 5;
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_研修');
+  if (!sheet || sheet.getLastRow() < 2) return;
+
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var pdfCol = headers.indexOf('案内状URL');
+  var thumbCol = headers.indexOf('案内状サムネイルURL');
+  if (pdfCol === -1 || thumbCol === -1) return; // スキーマ未反映時はスキップ
+
+  var dataRange = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length);
+  var rows = dataRange.getValues();
+
+  var folder = null;
+  var folderIter = DriveApp.getFoldersByName('研修案内状');
+  if (folderIter.hasNext()) folder = folderIter.next();
+  if (!folder) return;
+
+  var processed = 0;
+  for (var r = 0; r < rows.length && processed < MAX_BATCH; r++) {
+    var row = rows[r];
+    var pdfUrl = String(row[pdfCol] || '').trim();
+    var existingThumb = String(row[thumbCol] || '').trim();
+    var deletedFlag = row[headers.indexOf('削除フラグ')];
+
+    if (!pdfUrl || existingThumb || toBoolean_(deletedFlag)) continue;
+
+    // Google Drive file ID を抽出
+    var m = pdfUrl.match(/\/file\/d\/([^/?]+)/);
+    if (!m) continue;
+    var fileId = m[1];
+
+    try {
+      var thumbBlob = DriveApp.getFileById(fileId).getThumbnail();
+      if (!thumbBlob) continue; // まだ生成されていない → 次回リトライ
+
+      var thumbFile = folder.createFile(thumbBlob.setName('thumb_' + fileId + '.png'));
+      thumbFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      var thumbUrl = 'https://drive.google.com/uc?export=view&id=' + thumbFile.getId();
+
+      row[thumbCol] = thumbUrl;
+      sheet.getRange(r + 2, 1, 1, row.length).setValues([row]);
+      clearAllDataCache_();
+      clearAdminDashboardCache_();
+      clearTrainingManagementCache_();
+      Logger.log('Thumbnail generated: ' + fileId + ' -> ' + thumbUrl);
+      processed++;
+    } catch (e) {
+      Logger.log('generateMissingThumbnails_ skip ' + fileId + ': ' + e.message);
     }
   }
+}
 
-  if (!thumbnailLink) return '';
-
-  // サムネイルサイズを大きくする（=s220 → =s1000）
-  var bigThumbUrl = thumbnailLink.replace(/=s\d+$/, '=s1000');
-
-  // サムネイル画像をフェッチして Drive に永続保存
-  var imgResp = UrlFetchApp.fetch(bigThumbUrl, {
-    headers: { Authorization: 'Bearer ' + token },
-    muteHttpExceptions: true,
+/**
+ * 10分ごとに runThumbnailGeneration を実行するトリガーを設定する。
+ * 既存トリガーがあれば先に削除（冪等）。
+ * rebuildDatabaseSchema() から自動呼び出しされる。
+ */
+function setupThumbnailGenerationTrigger_() {
+  // 既存の同名トリガーを削除
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'runThumbnailGeneration') {
+      ScriptApp.deleteTrigger(t);
+    }
   });
-  if (imgResp.getResponseCode() !== 200) return '';
-
-  var thumbBlob = imgResp.getBlob().setName('thumb_' + fileId + '.png');
-  var thumbFile = folder.createFile(thumbBlob);
-  thumbFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-
-  // 直接表示可能な URL を返す
-  return 'https://drive.google.com/uc?export=view&id=' + thumbFile.getId();
+  // 10分ごとに実行するトリガーを登録
+  ScriptApp.newTrigger('runThumbnailGeneration')
+    .timeBased()
+    .everyMinutes(10)
+    .create();
+  Logger.log('Thumbnail generation trigger set (every 10 min).');
 }
 
 /**
