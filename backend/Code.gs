@@ -1181,6 +1181,7 @@ var ADMIN_ACTION_PERMISSIONS = {
   'saveAnnualFeeRecordsBatch': ['MASTER','ADMIN'],
   'saveTraining': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
   'uploadTrainingFile': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
+  'setupTrainingFileFolder': ['MASTER','ADMIN'],
   'getTrainingManagementData': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
   'getTrainingApplicants': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
   'sendTrainingReminder': ['MASTER','ADMIN','TRAINING_MANAGER'],
@@ -1445,6 +1446,10 @@ function processApiRequest(action, payload) {
 
     if (action === 'uploadTrainingFile') {
       return JSON.stringify({ success: true, data: uploadTrainingFile_(parsedPayload) });
+    }
+
+    if (action === 'setupTrainingFileFolder') {
+      return JSON.stringify({ success: true, data: setupTrainingFileFolder_(parsedPayload) });
     }
 
     if (action === 'applyTraining') {
@@ -4682,6 +4687,7 @@ function getSystemSettings_() {
     publicPortalWithdrawalDescriptionEnabled: publicPortalWithdrawalDescriptionEnabled,
     publicPortalWithdrawalDescription: publicPortalWithdrawalDescription,
     publicPortalWithdrawalCtaLabel: publicPortalWithdrawalCtaLabel,
+    trainingFileFolderId: String(m['TRAINING_FILE_FOLDER_ID'] || '').trim(),
     // v265: 個人・賛助会員 入会時メール ON/OFF
     indSuppEmailEnabled: (function(){ var v = m['IND_SUPP_EMAIL_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
     // v265: 事業所入会・職員追加メール設定
@@ -4926,6 +4932,11 @@ function updateSystemSettings_(request, callerPermLevel) {
   }
   if (request.publicPortalWithdrawalCtaLabel != null) {
     updates.push({ key: 'PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL', value: String(request.publicPortalWithdrawalCtaLabel).trim() || PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel, description: '公開ポータル：退会カードボタン文言' });
+  }
+  if (request.trainingFileFolderId != null) {
+    updates.push({ key: 'TRAINING_FILE_FOLDER_ID', value: String(request.trainingFileFolderId || '').trim(), description: '研修ファイル保存先 Google Drive フォルダ ID' });
+    // Script Properties にも保存
+    PropertiesService.getScriptProperties().setProperty('TRAINING_FILE_FOLDER_ID', String(request.trainingFileFolderId || '').trim());
   }
   // v265: 個人・賛助会員 入会時メール ON/OFF
   if (request.indSuppEmailEnabled != null) {
@@ -10774,6 +10785,52 @@ function deriveTrainingStatusByCloseDate_(closeDateRaw) {
  * PDFの場合はGoogleが自動生成するサムネイルを取得して永続保存し thumbnailUrl も返す。
  * payload: { base64: string, filename: string, mimeType: string }
  */
+/**
+ * 研修ファイル用フォルダを取得する。
+ * T_システム設定の TRAINING_FILE_FOLDER_ID が設定済みであればIDで直接取得。
+ * 未設定の場合は DriveApp.getRootFolder() 配下に作成してIDを保存する。
+ * getFoldersByName() は Drive 全体検索を行うため失敗リスクが高く使用しない。
+ */
+function getOrCreateTrainingFolder_(ss) {
+  // 設定済みフォルダIDを優先使用
+  var storedId = ss ? getSystemSettingValue_(ss, 'TRAINING_FILE_FOLDER_ID') : '';
+  if (storedId && String(storedId).trim()) {
+    try {
+      var folder = DriveApp.getFolderById(String(storedId).trim());
+      return folder;
+    } catch (e) {
+      Logger.log('getOrCreateTrainingFolder_: stored ID invalid, will recreate. ' + e.message);
+    }
+  }
+
+  // フォルダを新規作成してIDを保存
+  var newFolder = DriveApp.getRootFolder().createFolder('研修案内状');
+  newFolder.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE);
+  var newFolderId = newFolder.getId();
+
+  // Script Properties にも保存（DBが取得できない場合の保険）
+  PropertiesService.getScriptProperties().setProperty('TRAINING_FILE_FOLDER_ID', newFolderId);
+  Logger.log('getOrCreateTrainingFolder_: created folder ' + newFolderId);
+  return newFolder;
+}
+
+/**
+ * 研修ファイル用フォルダIDを返す管理者 API。
+ * 設定画面の「フォルダを作成・設定する」ボタンから呼び出す。
+ */
+function setupTrainingFileFolder_(payload) {
+  var ss = getOrCreateDatabase_();
+  var folder = getOrCreateTrainingFolder_(ss);
+  var folderId = folder.getId();
+  var folderUrl = 'https://drive.google.com/drive/folders/' + folderId;
+
+  // T_システム設定に保存
+  var updates = [{ key: 'TRAINING_FILE_FOLDER_ID', value: folderId, description: '研修ファイル保存先Driveフォルダ ID' }];
+  batchUpsertSystemSettings_(ss, updates);
+
+  return { folderId: folderId, folderUrl: folderUrl };
+}
+
 function uploadTrainingFile_(payload) {
   if (!payload || !payload.base64) throw new Error('ファイルデータが空です。');
   var filename = payload.filename || 'upload';
@@ -10782,22 +10839,13 @@ function uploadTrainingFile_(payload) {
   var bytes = Utilities.base64Decode(payload.base64);
   var blob = Utilities.newBlob(bytes, mimeType, filename);
 
-  var folderName = '研修案内状';
-  var folder;
-  var folders = DriveApp.getFoldersByName(folderName);
-  if (folders.hasNext()) {
-    folder = folders.next();
-  } else {
-    folder = DriveApp.createFolder(folderName);
-  }
+  var ss = getOrCreateDatabase_();
+  var folder = getOrCreateTrainingFolder_(ss);
 
   var file = folder.createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  var fileId = file.getId();
-  var fileUrl = file.getUrl();
 
-  // PDF アップロードは即時完了。サムネイル生成は別 API (generateTrainingThumbnail) で行う。
-  return { url: fileUrl, driveFileId: fileId, thumbnailUrl: '' };
+  return { url: file.getUrl(), driveFileId: file.getId(), thumbnailUrl: '' };
 }
 
 // ── 研修案内PDF サムネイル バッチ生成（時間ベーストリガーで定期実行）──────────
@@ -10834,9 +10882,10 @@ function generateMissingThumbnails_() {
   var rows = dataRange.getValues();
 
   var folder = null;
-  var folderIter = DriveApp.getFoldersByName('研修案内状');
-  if (folderIter.hasNext()) folder = folderIter.next();
-  if (!folder) return;
+  try { folder = getOrCreateTrainingFolder_(ss); } catch (e) {
+    Logger.log('generateMissingThumbnails_: folder error ' + e.message);
+    return;
+  }
 
   var processed = 0;
   for (var r = 0; r < rows.length && processed < MAX_BATCH; r++) {
@@ -11277,6 +11326,18 @@ function ensureSystemSettingsRows_(ss) {
       }]);
     }
   });
+
+  // 研修ファイル保存先フォルダID（未設定時は uploadTrainingFile_ で自動作成）
+  if (!byKey['TRAINING_FILE_FOLDER_ID']) {
+    // Script Properties に保存済みの場合は引き継ぐ
+    var existingFolderId = PropertiesService.getScriptProperties().getProperty('TRAINING_FILE_FOLDER_ID') || '';
+    appendRowsByHeaders_(ss, 'T_システム設定', [{
+      設定キー: 'TRAINING_FILE_FOLDER_ID',
+      設定値: existingFolderId,
+      説明: '研修ファイル保存先 Google Drive フォルダ ID（空の場合は初回アップロード時に自動作成）',
+      更新日時: now,
+    }]);
+  }
 
   // v265: 個人・賛助会員メール ON/OFF デフォルト初期化
   if (!byKey['IND_SUPP_EMAIL_ENABLED']) {

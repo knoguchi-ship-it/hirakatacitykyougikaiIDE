@@ -114,6 +114,7 @@ export interface SystemSettings {
   publicPortalWithdrawalDescriptionEnabled?: boolean;
   publicPortalWithdrawalDescription?: string;
   publicPortalWithdrawalCtaLabel?: string;
+  trainingFileFolderId?: string;
   // v265: 個人・賛助会員入会時メール ON/OFF
   indSuppEmailEnabled?: boolean;
   // v265: 事業所入会・職員追加メール設定

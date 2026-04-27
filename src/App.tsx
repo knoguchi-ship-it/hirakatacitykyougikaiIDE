@@ -17,6 +17,7 @@ import StaffDetailAdmin from './components/StaffDetailAdmin';
 import { AdminDashboardData, AdminDashboardMemberRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, SystemSettings, Training, TrainingFieldConfig, DEFAULT_FIELD_CONFIG } from './types';
 import { TRAINING_OPTIONAL_FIELD_DEFS } from './components/TrainingManagement';
 import { api, type AdminLoginResult, type MemberLoginResult, type MemberPortalLookup } from './services/api';
+import { callApi } from './shared/api-base';
 import { EmailCard, MasterOffBanner, MergeTags, ToggleSwitch } from './components/EmailSettingsCard';
 
 type Role = 'ADMIN' | 'MEMBER';
@@ -322,6 +323,9 @@ const App: React.FC = () => {
   // 管理者 shell 自動認証: ページロード時にセッション確認を自動実行
   const [adminAutoAuthDone, setAdminAutoAuthDone] = useState(false);
   const [adminAutoAuthFailed, setAdminAutoAuthFailed] = useState(false);
+  const [trainingFileFolderIdInput, setTrainingFileFolderIdInput] = useState('');
+  const [folderSetupBusy, setFolderSetupBusy] = useState(false);
+  const [folderSetupResult, setFolderSetupResult] = useState<{ folderId: string; folderUrl: string } | null>(null);
   const [defaultBusinessStaffLimit, setDefaultBusinessStaffLimit] = useState(10);
   const [globalLimitInput, setGlobalLimitInput] = useState('10');
   const [trainingHistoryLookbackMonths, setTrainingHistoryLookbackMonths] = useState(18);
@@ -447,6 +451,7 @@ const App: React.FC = () => {
   const [authenticatedContext, setAuthenticatedContext] = useState<AuthenticatedContext | null>(null);
 
   const applySystemSettings = (systemSettings: SystemSettings) => {
+    setTrainingFileFolderIdInput(systemSettings.trainingFileFolderId || '');
     const limit = Number(systemSettings.defaultBusinessStaffLimit || 10);
     const lookback = Number(systemSettings.trainingHistoryLookbackMonths || 18);
     const guidance = String(systemSettings.annualFeePaymentGuidance || '');
@@ -2398,6 +2403,7 @@ const App: React.FC = () => {
               {[
                 ['settings-core', '基本設定'],
                 ['settings-mail-assets', '帳票・一括メール'],
+                ['settings-training-folder', 'Driveフォルダ'],
                 ['settings-portal', '公開ポータル'],
                 ['settings-membership-mail', '入会通知メール'],
                 ['settings-business-limits', '事業所個別上限'],
@@ -3553,6 +3559,72 @@ const App: React.FC = () => {
           </AdminSettingsSection>
           </div>
 
+          {/* 研修ファイル保存先フォルダ設定 */}
+          <AdminSettingsSection
+            id="settings-training-folder"
+            title="研修ファイル保存先フォルダ"
+            description="研修案内PDFなどのアップロード先 Google Drive フォルダを設定します。未設定の場合は初回アップロード時にマイドライブ直下に「研修案内状」フォルダが自動作成されます。"
+            badge="Drive設定"
+          >
+            <div className="space-y-4 mt-2">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">保存先フォルダ ID</label>
+                <p className="text-xs text-slate-500 mb-2">
+                  Google Drive のフォルダURLの末尾の文字列（例: <code className="bg-slate-100 px-1 rounded">1abc...xyz</code>）を入力、または下のボタンで自動作成してください。
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={trainingFileFolderIdInput}
+                    onChange={e => { setTrainingFileFolderIdInput(e.target.value); setSettingsIsDirty(true); }}
+                    placeholder="Drive フォルダ ID（空の場合は自動作成）"
+                    className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm font-mono"
+                  />
+                </div>
+              </div>
+              <div>
+                <button
+                  type="button"
+                  disabled={folderSetupBusy}
+                  onClick={async () => {
+                    setFolderSetupBusy(true);
+                    setFolderSetupResult(null);
+                    try {
+                      const result = await callApi<{ folderId: string; folderUrl: string }>('setupTrainingFileFolder', {});
+                      setTrainingFileFolderIdInput(result.folderId);
+                      setFolderSetupResult(result);
+                      setSettingsIsDirty(true);
+                    } catch (e) {
+                      alert('フォルダ作成に失敗しました: ' + (e instanceof Error ? e.message : String(e)));
+                    } finally {
+                      setFolderSetupBusy(false);
+                    }
+                  }}
+                  className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {folderSetupBusy ? '作成中...' : 'マイドライブに「研修案内状」フォルダを作成して設定する'}
+                </button>
+                {folderSetupResult && (
+                  <div className="mt-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm">
+                    <p className="font-medium text-green-800">フォルダを作成・設定しました</p>
+                    <p className="text-green-700 mt-1">ID: <code className="bg-green-100 px-1 rounded">{folderSetupResult.folderId}</code></p>
+                    <a href={folderSetupResult.folderUrl} target="_blank" rel="noopener noreferrer" className="text-green-700 underline text-xs">
+                      Drive でフォルダを開く →
+                    </a>
+                    <p className="text-green-600 text-xs mt-1">「設定を保存」を押してIDを確定してください。</p>
+                  </div>
+                )}
+                {trainingFileFolderIdInput && !folderSetupResult && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    設定済みフォルダID: <code className="bg-slate-100 px-1 rounded">{trainingFileFolderIdInput}</code>
+                    {' '}
+                    <a href={'https://drive.google.com/drive/folders/' + trainingFileFolderIdInput} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Drive で確認 →</a>
+                  </p>
+                )}
+              </div>
+            </div>
+          </AdminSettingsSection>
+
           <AdminSettingsSection
             id="settings-business-limits"
             title="事業所ごとの個別上限"
@@ -3619,6 +3691,7 @@ const App: React.FC = () => {
                     try {
                       setSettingsBusy(true);
                       const saved = await api.updateSystemSettings({
+                        trainingFileFolderId: trainingFileFolderIdInput,
                         defaultBusinessStaffLimit: Number(globalLimitInput || 10),
                         trainingHistoryLookbackMonths: Number(historyLookbackInput || 18),
                         annualFeePaymentGuidance: annualFeePaymentGuidanceInput,
