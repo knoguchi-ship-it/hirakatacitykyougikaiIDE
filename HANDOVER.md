@@ -1,8 +1,11 @@
 # 開発引継ぎ
 
-更新日: 2026-04-26
-現行本番: `v269`（統合プロジェクト GAS version 272 / 会員 split GAS version 25 / 管理者 split GAS version 31）
-固定 deployment: 統合（公開ポータル）`@272` × 2本 / 会員 split `@25` / 管理者 split `@31`
+更新日: 2026-04-27
+現行本番: `v277`（統合プロジェクト GAS version 280 / 会員 split GAS version 29 / 管理者 split GAS version 39）
+固定 deployment: 統合（公開ポータル）`@280` × 2本 / 会員 split `@29` / 管理者 split `@39`
+
+> ⚠️ **未解決インシデント**: DriveApp 全操作失敗（権限問題）
+> 研修PDF アップロード機能が停止中。詳細: `docs/153_INCIDENT_DRIVE_PERMISSION_2026-04-27.md`
 
 ## 1. 再開の最短ルート
 
@@ -17,11 +20,12 @@
 7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `docs/151_RELEASE_STATE_v269_2026-04-26.md`
-11. `docs/149_RELEASE_STATE_v268_2026-04-26.md`
-12. `docs/147_RELEASE_STATE_v267_2026-04-26.md`
-13. `docs/145_RELEASE_STATE_v266_2026-04-25.md`
-14. `docs/143_RELEASE_STATE_v265_2026-04-25.md`
+10. **`docs/153_INCIDENT_DRIVE_PERMISSION_2026-04-27.md`** ← 最優先で読むこと
+11. `docs/151_RELEASE_STATE_v269_2026-04-26.md`
+12. `docs/149_RELEASE_STATE_v268_2026-04-26.md`
+13. `docs/147_RELEASE_STATE_v267_2026-04-26.md`
+14. `docs/145_RELEASE_STATE_v266_2026-04-25.md`
+15. `docs/143_RELEASE_STATE_v265_2026-04-25.md`
 15. `docs/09_DEPLOYMENT_POLICY.md`
 16. `docs/05_AUTH_AND_ROLE_SPEC.md`
 17. `docs/04_DB_OPERATION_RUNBOOK.md`
@@ -67,11 +71,19 @@
 
 ## 3. 次フェーズの優先順位
 
-### 最優先
+### 🚨 最優先 — DriveApp 権限問題（未解決）
 
-第三者評価（docs/109）起票の全セキュリティタスク（120/121/122/123/113）は **v263 時点で完了**。
+**研修PDF アップロードが全て失敗している。**
 
-残タスク:
+| 対処 | 内容 |
+|---|---|
+| 1 | GCP コンソール（88737175415）で **Google Drive API** が有効か確認・有効化 |
+| 2 | Apps Script エディタで `testDriveAccess()` を直接実行して確認 |
+| 3 | `myaccount.google.com/permissions` でアプリ権限を失効させて再承認 |
+
+詳細: `docs/153_INCIDENT_DRIVE_PERMISSION_2026-04-27.md`
+
+### その他タスク
 
 | 優先度 | 内容 | 正本 |
 |---|---|---|
@@ -79,6 +91,7 @@
 
 ### 操作者確認待ち
 
+- `v277`: **DriveApp 権限問題を解決後**、管理設定 → 研修ファイル保存先フォルダ → フォルダ作成ボタンを押して PDF アップロードが動作することを確認すること。
 - `v269`: データ管理コンソール検索で削除フラグONが非表示になること。チェックボックスで切り替えられること。
 - `v268`: 入会申込後に認証情報メールが正常に届くこと（送信元アドレス設定済みであること）。
 - `v267`: 公開ポータルトップのヒーロータイトルが、設定ロード前に一切表示されないこと（スケルトンのみ表示）。
@@ -109,9 +122,9 @@ npx clasp run getDbInfo
 期待値:
 
 - authorized user: `k.noguchi@hcm-n.org`
-- 統合 fixed deployment 2 本: `@272`
-- 会員 split: `@25`
-- 管理者 split: `@31`
+- 統合 fixed deployment 2 本: `@280`
+- 会員 split: `@29`
+- 管理者 split: `@39`
 - `clasp run` は権限状態次第で失敗し得る。失敗時は operator 側権限の再確認を優先する。
 
 ## 6. 文書の見方
