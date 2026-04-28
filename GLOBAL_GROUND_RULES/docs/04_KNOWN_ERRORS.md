@@ -5,6 +5,46 @@
 
 ---
 
+## [2026-04-27] DriveApp 全操作失敗 / Google Drive API 未有効化
+
+### 症状
+- Apps Script の `DriveApp.getFoldersByName()` / `DriveApp.getFolderById()` / `DriveApp.createFolder()` / `Folder.createFile()` が失敗する
+- 管理画面では PDF アップロードなど Drive 依存機能が汎用サーバーエラーになる
+- コードを変更しても DriveApp 操作全体が失敗し続ける
+
+### 原因
+- Apps Script が標準 Cloud project を使っていたが、対応する GCP project で Google Drive API が有効化されていなかった
+- `appsscript.json` に `https://www.googleapis.com/auth/drive` scope があっても、標準 Cloud project 側の API 有効化は別途必要
+
+### 切り分け
+- まず GCP Console の `APIs & Services` または `npx clasp apis` で `drive` が enabled か確認する
+- Apps Script エディタから最小診断関数を直接実行し、`clasp run` 固有の権限問題と分離する
+- `DriveApp.getRootFolder()` が失敗する場合は、コードより先に GCP API 有効化、OAuth grant、Workspace Drive SDK API、OAuth app access control を確認する
+- `getRootFolder` が成功して `createFolder` / `createFile` だけ失敗する場合は、実行ユーザーの Drive 作成権限、容量、Workspace ポリシーを確認する
+
+### 復旧方針
+コード修正より先に、外部サービス設定と権限境界を確認する。
+
+### 復旧手順
+1. GCP Console → 対象標準 Cloud project → APIs & Services で Google Drive API を有効化する
+2. `npx clasp apis` または GCP Console で `drive` が enabled になったことを確認する
+3. Apps Script エディタで DriveApp の read / createFolder / createFile / trash を行う最小診断関数を直接実行する
+4. 必要に応じて `myaccount.google.com/permissions` で対象アプリの OAuth grant を失効して再承認する
+5. DriveApp 最小診断が PASS してから、業務機能の payload / UI / DB 設定を調査する
+
+### 再発防止
+- Google API 依存機能の障害では、最初に GCP API 有効化・OAuth scope・Workspace 管理設定・実行ユーザー権限を確認する
+- `appsscript.json` の scope だけで「API は使える」と判断しない
+- コード原因の調査や実装修正は、根源問題（外部サービス設定・権限境界）を切り分けた後に行う
+
+### 関連情報
+- 関連ファイル: `docs/153_INCIDENT_DRIVE_PERMISSION_2026-04-27.md`, `docs/17_ROOT_CAUSE_ERROR_RESPONSE_PLAYBOOK.md`
+- 関連Issue/PR:
+- 関連ADR:
+- 一次ソース: Google Apps Script Drive Service / Google Apps Script standard Cloud project documentation
+
+---
+
 ## [2026-04-03] seedDemoData による本番 DB 全データ消失
 
 ### 症状

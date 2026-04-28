@@ -1,6 +1,6 @@
 # 根本エラー対応書（RCA運用書）
 
-更新日: 2026-03-14
+更新日: 2026-04-27
 
 ## 0. 作業開始時の必読（強制）
 - 以下を読了してから作業開始すること:
@@ -40,6 +40,7 @@
 - デプロイ: 参照している Deployment ID と Version が正しいか。
 - 実装: 対象関数・エントリポイントが存在するか。
 - 権限: OAuth scope / Execution API access / 組織ポリシーを確認する。
+- 外部 Google API: 標準 Cloud project の `APIs & Services` で対象 API が有効かを確認する。`appsscript.json` の scope だけで有効化済みと判断しない。
 
 3. 原因確定
 - 失敗条件と成功条件を並べ、差分で根本原因を特定する。
@@ -80,6 +81,14 @@
 2. 文字化けがある場合、その場で保存形式を修正して再保存する。
 3. 文字化けのままコミット/引継ぎしない。
 
+### E. DriveApp / Gmail / Google API 依存機能が突然失敗
+1. コード修正前に、GCP Console または `npx clasp apis` で対象 API が有効か確認する。
+2. Apps Script manifest の `oauthScopes` に必要 scope があるか確認する。
+3. Apps Script エディタから最小診断関数を直接実行し、`clasp run` 固有の権限問題と切り分ける。
+4. Workspace 管理コンソールで Drive SDK API、OAuth app access control、Context-Aware Access / DLP を確認する。
+5. API 有効化や scope 変更後は、必要に応じて OAuth grant を失効して再承認する。
+6. 上記が PASS してから、業務コード・payload・UI 経路を調査する。
+
 ## 5. 記録テンプレート
 ### 5.1 事象
 - 日時:
@@ -118,10 +127,16 @@
 - `HANDOVER.md` または正本ドキュメントに、次担当者向けの短い判断基準が残っていること。
 
 ## 6. 既知事例
+- DriveApp 全操作失敗（Google Drive API 未有効化）: `docs/153_INCIDENT_DRIVE_PERMISSION_2026-04-27.md`
 - 公開取消障害: `docs/15_INCIDENT_LOG_2026-03-14_v76.md`
 - `clasp run` 権限障害: `docs/16_INCIDENT_clasp_run_permission_2026-03-14.md`
 
-## 7. 今回の教訓（2026-03-14）
+## 7. 今回の教訓（2026-04-27）
+- Google API 依存機能では、根本原因はコードより先に GCP API 有効化・OAuth・Workspace 管理設定にあることがある。
+- `appsscript.json` に OAuth scope があっても、標準 Cloud project 側で API が無効なら DriveApp は失敗し得る。
+- 先に根源問題（外部サービス設定・権限境界）を切り分け、コード変更はその後に行う。
+
+## 8. 過去の教訓（2026-03-14）
 - `clasp` 既定 OAuth クライアントは組織ポリシーでブロックされることがある。
 - project-owned OAuth client + `--use-project-scopes` が復旧の有効手段。
 - 検証用にアクセス範囲を広げた場合（例: `ANYONE`）は、必ず即時で復元/削除する。
