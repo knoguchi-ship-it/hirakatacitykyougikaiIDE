@@ -25,6 +25,7 @@
 | `docs/109_THIRD_PARTY_ASSESSMENT_2026-04-20.md` | 第三者セキュリティ評価 |
 | `docs/111_IMPLEMENTATION_BLUEPRINT_PROJECT_SPLIT_2026-04-20.md` | 3プロジェクト分離設計 |
 | `docs/165_HANDOVER_PUBLIC_PORTAL_SEPARATION_PLAN_2026-04-28.md` | public portal の Code.gs 完全分離に向けた次期引継ぎ・計画 |
+| `docs/167_THIRD_PARTY_ASSESSMENT_PUBLIC_SEPARATION_2026-04-28.md` | v288 public separation 第三者評価（不合格 / v289 必須） |
 
 ## 3. Operations
 

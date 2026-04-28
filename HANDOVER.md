@@ -68,6 +68,7 @@
 
 ## 5. 既知の重要事項
 
+- `v288 third-party assessment`: 旧統合 URL の public artifact には admin/member action handler と HTML は残っていないが、`google.script.run` で呼べる `rebuildDatabaseSchema` / `getDbInfo` が残存。public separation は完了扱いにしない。詳細: `docs/167_THIRD_PARTY_ASSESSMENT_PUBLIC_SEPARATION_2026-04-28.md`
 - DriveApp 障害は解決済み。根本原因は GCP 標準 Cloud project `hcmn-member-system-prod`（88737175415）で Google Drive API が未有効化だったこと。詳細: `docs/153_INCIDENT_DRIVE_PERMISSION_2026-04-27.md`
 - Google API 依存機能の障害では、コード調査前に GCP API 有効化、OAuth scope、Workspace 管理設定、実行ユーザー権限を確認する。
 - `seedDemoData` は production DB を破壊する操作として扱い、完全バックアップと明示承認なしでは実行しない。
@@ -86,6 +87,7 @@
 
 # Next Handover Note
 
+- 最優先: `v289` で public artifact から `rebuildDatabaseSchema` / `getDbInfo` を除去し、build 後の public top-level callable allowlist 検査を追加する。
 - v288 で public portal の integrated artifact は public-only へ縮退済み。次担当者は `docs/166_RELEASE_STATE_v288_2026-04-28.md` と `docs/165_HANDOVER_PUBLIC_PORTAL_SEPARATION_PLAN_2026-04-28.md` を読むこと。
 - canonical full source は `gas-src/Code.full.gs`。`backend/Code.gs` は `npm run build:gas` で生成される public-only artifact として扱う。
 - admin `@47` はホワイトアウト発生済み。原因特定まで admin physical pruning を再デプロイしない。
