@@ -6,6 +6,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSyn
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import {
+  assertAllowedTopLevelFunctions,
   pruneUnreachableFunctionDeclarations,
   removeDisallowedActionHandlers,
   removeIfBlock,
@@ -71,7 +72,8 @@ function buildPublicCode(source) {
     '\n',
   );
   code = removeIfBlock(code, '!adminSession && !skipAdminCheck');
-  code = pruneUnreachableFunctionDeclarations(code, ['doGet', 'processApiRequest', 'healthCheck', 'getDbInfo'], 'build-gas-public');
+  code = pruneUnreachableFunctionDeclarations(code, ['doGet', 'processApiRequest', 'healthCheck'], 'build-gas-public');
+  assertAllowedTopLevelFunctions(code, ['doGet', 'processApiRequest', 'healthCheck'], 'build-gas-public');
   return code;
 }
 

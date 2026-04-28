@@ -545,33 +545,9 @@ function doGet(e) {
  */
 
 /**
- * T_会員 に 勤務先住所2 / 自宅住所2 列を追加するマイグレーション。
- * 既にカラムが存在する場合はスキップする（冪等）。
- * 実行後は rebuildDatabaseSchema() のヘッダー保護を再適用することを推奨。
- */
-
-/**
  * DBスキーマを再構築する。
  * 既存の定義外シートは削除し、定義シートのヘッダー/入力規則/保護を再適用する。
  */
-function rebuildDatabaseSchema() {
-  var ss = getOrCreateDatabase_();
-  initializeSchema_(ss);
-  markSchemaInitialized_();
-  // 研修案内PDFサムネイル自動生成トリガーを設定（10分ごと）
-  try {
-    setupThumbnailGenerationTrigger_();
-  } catch (e) {
-    Logger.log('setupThumbnailGenerationTrigger_ failed: ' + e.message);
-  }
-  return {
-    スプレッドシートID: ss.getId(),
-    削除シート一覧: cleanupNonSchemaSheets_(ss),
-    シート一覧: ss.getSheets().map(function(sheet) {
-      return sheet.getName();
-    }),
-  };
-}
 
 
 
@@ -585,9 +561,6 @@ function rebuildDatabaseSchema() {
  * 未定義の初期業務データ（例: 認証アカウント実データ）は作成しない。
  */
 
-function getDbInfo() {
-  return getDbInfo_();
-}
 
 // スコープ不要の疎通確認用。Execution API経路の切り分けに使う。
 function healthCheck() {
@@ -1062,16 +1035,6 @@ function getRowsAsObjects_(ss, sheetName) {
   return getRowsAsObjectsFromSheet_(ss.getSheetByName(sheetName));
 }
 
-function getDbInfo_() {
-  var ss = getOrCreateDatabase_();
-  return {
-    スプレッドシートID: ss.getId(),
-    スプレッドシートURL: ss.getUrl(),
-    シート一覧: ss.getSheets().map(function(sheet) {
-      return sheet.getName();
-    }),
-  };
-}
 
 function parsePayload_(payload) {
   if (!payload) {
@@ -3826,20 +3789,6 @@ function computeTrainingAvailability_(trainingRow, options) {
  * Drive のサムネイルが生成済みであれば取得・保存・更新する。
  * 1回の実行で最大 MAX_BATCH 件処理（GASタイムアウト防止）。
  */
-function setupThumbnailGenerationTrigger_() {
-  // 既存の同名トリガーを削除
-  ScriptApp.getProjectTriggers().forEach(function(t) {
-    if (t.getHandlerFunction() === 'runThumbnailGeneration') {
-      ScriptApp.deleteTrigger(t);
-    }
-  });
-  // 10分ごとに実行するトリガーを登録
-  ScriptApp.newTrigger('runThumbnailGeneration')
-    .timeBased()
-    .everyMinutes(10)
-    .create();
-  Logger.log('Thumbnail generation trigger set (every 10 min).');
-}
 
 /**
  * GASが参照するDBスプレッドシートIDを明示設定する。
@@ -6228,12 +6177,6 @@ function backfillBusinessStaffNameColumns_(ss) {
  * ログSSのスキーマを再構築する（既存ログSSのシートが壊れた場合など）。
  */
 
-
-/**
- * 退会済み会員（指定年数以上前）をアーカイブシートに移動する（定期実行用）。
- * デフォルトは退会から3年以上経過した会員をアーカイブ対象とする。
- * 実行前に rebuildDatabaseSchema() でアーカイブシートが作成済みであること。
- */
 
 
 /**

@@ -228,8 +228,9 @@ export function collectReachableFunctions(source, seedNames) {
     const name = queue.shift();
     const declaration = declarationByName.get(name);
     if (!declaration) continue;
+    const bodyForCalls = maskCommentsAndStrings(declaration.body);
     let match;
-    while ((match = callPattern.exec(declaration.body)) !== null) {
+    while ((match = callPattern.exec(bodyForCalls)) !== null) {
       const callee = match[1];
       if (declaredNames.has(callee) && !reachable.has(callee)) {
         reachable.add(callee);
@@ -238,6 +239,73 @@ export function collectReachableFunctions(source, seedNames) {
     }
   }
   return { declarations, reachable };
+}
+
+export function maskCommentsAndStrings(source) {
+  let result = '';
+  let quote = '';
+  let escaped = false;
+  let lineComment = false;
+  let blockComment = false;
+
+  for (let i = 0; i < source.length; i += 1) {
+    const ch = source[i];
+    const next = source[i + 1];
+
+    if (lineComment) {
+      if (ch === '\n') {
+        lineComment = false;
+        result += '\n';
+      } else {
+        result += ' ';
+      }
+      continue;
+    }
+    if (blockComment) {
+      if (ch === '*' && next === '/') {
+        blockComment = false;
+        result += '  ';
+        i += 1;
+      } else {
+        result += ch === '\n' ? '\n' : ' ';
+      }
+      continue;
+    }
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+        result += ' ';
+      } else if (ch === '\\') {
+        escaped = true;
+        result += ' ';
+      } else if (ch === quote) {
+        quote = '';
+        result += ' ';
+      } else {
+        result += ch === '\n' ? '\n' : ' ';
+      }
+      continue;
+    }
+    if (ch === '/' && next === '/') {
+      lineComment = true;
+      result += '  ';
+      i += 1;
+      continue;
+    }
+    if (ch === '/' && next === '*') {
+      blockComment = true;
+      result += '  ';
+      i += 1;
+      continue;
+    }
+    if (ch === '\'' || ch === '"' || ch === '`') {
+      quote = ch;
+      result += ' ';
+      continue;
+    }
+    result += ch;
+  }
+  return result;
 }
 
 export function pruneUnreachableFunctionDeclarations(source, seedNames, label) {
@@ -262,6 +330,18 @@ export function pruneUnreachableFunctionDeclarations(source, seedNames, label) {
   result += source.slice(cursor);
   console.log(`[${label}] Pruned ${removable.length} unreachable function declarations and ${removableTopLevelStatements.length} dependent top-level statements`);
   return result;
+}
+
+export function assertAllowedTopLevelFunctions(source, allowedNames, label) {
+  const allowed = new Set(allowedNames);
+  const publicTopLevel = collectFunctionDeclarations(source)
+    .map((decl) => decl.name)
+    .filter((name) => !name.endsWith('_'));
+  const disallowed = publicTopLevel.filter((name) => !allowed.has(name));
+  if (disallowed.length) {
+    throw new Error(`[${label}] Disallowed public top-level functions: ${disallowed.join(', ')}`);
+  }
+  console.log(`[${label}] Public top-level functions: ${publicTopLevel.join(', ')}`);
 }
 
 export function removeDisallowedActionHandlers(source, allowedActions) {
