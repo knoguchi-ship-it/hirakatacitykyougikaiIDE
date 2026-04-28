@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-04-28
-Production: `v288` / 統合（公開）fixed deployments `@287` / 会員 split `@39` / 管理者 split `@46`
+Updated: 2026-04-29
+Production: `v289` / 統合（公開）fixed deployments `@288` / 会員 split `@39` / 管理者 split `@46`
 
 ## 1. Purpose
 
@@ -17,8 +17,8 @@ Production: `v288` / 統合（公開）fixed deployments `@287` / 会員 split `
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@287` (`v288`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@287` (`v288`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@288` (`v289`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@288` (`v289`) |
 
 ### Split projects
 
@@ -106,7 +106,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-04-28 `v288` ← current production
+### 2026-04-29 `v289` ← current production
+
+- Scope: v288 第三者評価で検出した public callable maintenance / diagnostic entrypoint を除去。public generated `backend/Code.gs` の top-level callable を `doGet`, `processApiRequest`, `healthCheck` に限定。
+- Integrated fixed deployments: `@288` × 2.
+- Member split: `@39`.
+- Admin split: `@46`.
+- Detail: `docs/168_RELEASE_STATE_v289_2026-04-29.md`
+
+### 2026-04-28 `v288`
 
 - Scope: 統合 project の generated `backend/Code.gs` を public-only artifact に縮退。公開ポータル URL / deployment ID は維持し、member split `@39` と admin split `@46` は未変更。
 - Integrated fixed deployments: `@287` × 2.
