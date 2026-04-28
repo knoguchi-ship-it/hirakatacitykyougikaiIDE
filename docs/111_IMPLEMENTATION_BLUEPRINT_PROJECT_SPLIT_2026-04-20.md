@@ -520,3 +520,79 @@
 - 既存 production build (`build:gas`) は変更せず、side-by-side の `member/admin` build だけを分岐する。
 - `gas/admin/.clasp.json.example` と `gas/admin/README.md` を追加し、admin 専用 project の root を `gas/admin` として管理する前提を明示した。
 - admin side-by-side project と deployment 自体は作成したが、`/exec` は `404 Not Found` のままであり、Apps Script UI での deployment 種別 / access 確認が必要。
+
+## 16. 2026-04-27 v279 app boundary API gate
+
+- 完全分立の Phase 1 として、各 `Code.gs` に `APP_SECURITY_BOUNDARY` を追加した。
+- `backend/Code.gs` は `public`、`gas/member/Code.gs` は `member`、`gas/admin/Code.gs` は `admin` として動作する。
+- `processApiRequest` は app 境界外の action を `unsupported_action` で拒否する。
+- この段階では既存機能破損を避けるため、関数本体の削除は行っていない。
+- 次フェーズでは action registry の物理分離、dead code 削除、manifest / scope 最小化、shared 生成設計の順で進める。
+
+## 17. 2026-04-27 v280 member UI / action registry separation
+
+- member shell の未認証画面は会員ログインフォームのみ表示する。管理者ログインタブ、管理者 Google 認証ボタン、管理者 Google 認証説明は表示しない。
+- `processApiRequest` は `getActionRegistryForCurrentApp_()` を経由し、app ごとの allowlist だけを参照する。
+- `scripts/build-member-gas.mjs` / `scripts/build-admin-gas.mjs` は `backend/Code.gs` コピー時に `APP_SECURITY_BOUNDARY` を app 別値へ置換する。これにより将来の個別 build で境界値が `public` に巻き戻る事故を防ぐ。
+- この段階でも関数本体の dead code 削除は未実施。次は member/admin/public それぞれの `Code.gs` から境界外関数を段階削除し、最後に appsscript manifest と OAuth scope を最小化する。
+
+## 18. 2026-04-27 v281 split action registry physical reduction
+
+- `scripts/build-member-gas.mjs` は member artifact 生成時に `PUBLIC_ALLOWED_ACTIONS` / `ADMIN_LOGIN_ACTIONS` / `ADMIN_ACTION_PERMISSIONS` を `{}` に置換する。
+- `scripts/build-admin-gas.mjs` は admin artifact 生成時に `PUBLIC_ALLOWED_ACTIONS` / `MEMBER_ALLOWED_ACTIONS` を `{}` に置換する。
+- split 生成物の action registry は app 固有 action だけを保持する状態になった。
+- 次フェーズでは、action registry ではなく関数本体の dead code を削除する。削除前に呼び出しグラフを作り、管理者機能から再利用されている shared helper を誤って削除しないこと。
+
+## 19. 2026-04-27 v282 split action handler pruning
+
+- `scripts/build-member-gas.mjs` は member allowlist 外の `processApiRequest` action handler 分岐を生成時に削除する。
+- `scripts/build-admin-gas.mjs` は admin allowlist 外の `processApiRequest` action handler 分岐を生成時に削除する。
+- member 生成物の `processApiRequest` は member action 9件のみを保持する。
+- admin 生成物の `processApiRequest` は admin login / admin permission action のみを保持する。
+- 関数本体はまだ削除していない。次は呼び出しグラフを作成し、shared helper を保護した上で関数単位削除へ進む。
+
+## 20. 2026-04-27 v283 member function body pruning
+
+- `scripts/build-member-gas.mjs` は member artifact 生成時にトップレベル関数の静的到達解析を行う。
+- `doGet` / `processApiRequest` から到達不能なトップレベル関数宣言を `gas/member/Code.gs` 生成物から削除する。
+- member 生成物は 576 関数から 115 関数へ削減した。
+- ローカル関数宣言まで削除対象にすると構文破壊するため、pruning 対象はトップレベル関数のみに限定する。
+- `checkAdminBySession_` は `updateMember_` 共用により静的到達として残存。次フェーズで member self-service 更新処理を admin 更新処理から切り離して削除する。
+
+## 21. 2026-04-27 v284 member function pruning rollback
+
+- v283 は `addPublicStaffMember_` 本体を削除した一方、後段の wrapper 代入 `var _origAddPublicStaffMember = addPublicStaffMember_;` を残し、会員マイページで `ReferenceError` を発生させた。
+- 直前安定版 `@34` へ一時切り戻し後、`scripts/build-member-gas.mjs` の関数本体 pruning 実行を無効化した。
+- 安全版 member split version `36` を作成し、fixed deployment を `@36` へ同期した。
+- 単純な静的到達解析による GAS 関数本体 pruning は禁止。再開する場合は wrapper / alias / 再代入 / trigger / 直接実行関数を検出できる依存解析を先に実装する。
+- 次フェーズは関数削除ではなく、`updateMemberSelf_` と `updateMember_` の責務分離に戻す。
+
+## 22. 2026-04-27 v285 member self-service core split
+
+- `updateMember_` は admin wrapper として残し、必要時のみ `checkAdminBySession_()` を実行する。
+- 実保存処理は `saveMemberCore_` に分離した。
+- `updateMemberSelf_` は `updateMember_` を通さず `saveMemberCore_` へ直接委譲する。
+- これにより member self-service 経路から admin 認証 wrapper への直接依存を除去した。
+- 次は `saveMemberCore_` 内の admin audit / role validation 依存を option で明示分岐し、member 生成物から admin-only helper への静的参照をさらに減らす。
+# Latest Addendum: 2026-04-28 v286 explicit admin-only member core options
+
+- `saveMemberCore_` に `enableAdminRoleValidation` / `enableAdminAudit` option を追加した。
+- `updateMember_` は admin wrapper として両 option を `true` にし、代表者ロール遷移検証と管理者監査ログを維持する。
+- `updateMemberSelf_` は両 option を渡さないため、会員セルフ更新では admin-only 検証・監査ログを実行しない。
+- DB スキーマ、画面導線、ログイン仕様、保存仕様は変更していない。
+- 今後も分割は「機能維持、境界明確化、最小権限化」の順で進める。v283 で破損した単純な関数本体 pruning は、wrapper / alias / 再代入 / trigger / Apps Script 直接実行関数を含む依存解析ができるまで禁止する。
+
+# Latest Addendum: 2026-04-28 v287 member/admin physical function pruning
+
+- member/admin split の生成時に、到達不能トップレベル関数と、それに依存するトップレベル文を同時に削除する方式へ進めた。
+- member 生成物では admin 権限分岐を削除し、`checkAdminBySession_` など admin-only 関数の到達を断った。
+- admin 生成物では member セッション分岐を削除し、member/public action 実体への到達を断った。
+- v283 の失敗原因だった wrapper / 再代入の参照残りは、依存トップレベル文の同時削除で対策した。
+- URL 維持条件により public deployment ID を別 Apps Script project へ移管することはできない。public の完全物理分離は、full source を別正本へ退避し、統合 project へ push する artifact を public 専用にする方式で進める。
+
+# Latest Addendum: 2026-04-28 public portal remaining separation plan
+
+- 次フェーズの正本計画は `docs/165_HANDOVER_PUBLIC_PORTAL_SEPARATION_PLAN_2026-04-28.md` とする。
+- 目的は、現在の public URL を維持しながら integrated project の push artifact を public-only `Code.gs` に縮退し、admin/member の action registry、handler、認証処理、処理実体へ public から到達できないようにすること。
+- 既存 web app deployment ID を別 Apps Script project へ移管することはできないため、「project 移管」ではなく「artifact 縮退」として進める。
+- admin `@47` はホワイトアウト済みのため、admin physical pruning は原因特定と seed list 保護設計が完了するまで再デプロイしない。

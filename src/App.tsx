@@ -2055,7 +2055,7 @@ const App: React.FC = () => {
               <tr key={training.trainingId}>
                 <td className="px-4 py-3 text-sm text-slate-900">{training.title}</td>
                 <td className="px-4 py-3 text-sm text-slate-600">{training.date || '-'}</td>
-                <td className="px-4 py-3 text-sm text-slate-600">{training.status === 'OPEN' ? '受付中' : '受付終了'}</td>
+                <td className="px-4 py-3 text-sm text-slate-600">{(training.isApplicationOpen ?? training.status === 'OPEN') ? '受付中' : '受付終了'}</td>
                 <td className="px-4 py-3 text-sm text-slate-600">{training.applicants} / {training.capacity}</td>
               </tr>
             ))}
@@ -2189,7 +2189,13 @@ const App: React.FC = () => {
       return (
         <div className="max-w-lg mx-auto mt-20 bg-white border border-slate-200 shadow-sm rounded-xl p-6">
           <h1 className="text-xl font-bold text-slate-800 mb-1">ログイン</h1>
-          <p className="text-sm text-slate-600 mb-5">会員はログインID/パスワード、管理者のみGoogle認証を使用します。</p>
+          <p className="text-sm text-slate-600 mb-5">
+            {isAdminShell
+              ? '管理者はGoogle認証を使用します。'
+              : isMemberShell
+              ? '会員はログインIDとパスワードを使用します。'
+              : '会員はログインID/パスワード、管理者のみGoogle認証を使用します。'}
+          </p>
           <fieldset disabled={authBusy} className={authBusy ? 'opacity-60' : ''}>
             {showMemberAuth && showAdminAuth && (
             <div className="flex gap-2 mb-4">
@@ -2202,7 +2208,7 @@ const App: React.FC = () => {
             </div>
             )}
 
-            {showMemberAuth && authTab === 'member' ? (
+            {showMemberAuth && (isMemberShell || authTab === 'member') && (
               <form className="space-y-3" onSubmit={handleMemberLogin}>
                 <input
                   className="w-full border border-slate-300 rounded px-3 py-2"
@@ -2221,7 +2227,8 @@ const App: React.FC = () => {
                   {authBusy ? (<><span className="animate-spin inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>ログイン中...</>) : 'ログイン'}
                 </button>
               </form>
-            ) : (
+            )}
+            {showAdminAuth && (isAdminShell || authTab === 'admin') && (
               <div className="space-y-3">
                 <button
                   type="button"
@@ -3953,6 +3960,7 @@ const App: React.FC = () => {
           historyLookbackMonths={trainingHistoryLookbackMonths}
           onApply={handleTrainingApply}
           onCancel={handleTrainingCancel}
+          onRefresh={refreshAllData}
         />
       );
     }

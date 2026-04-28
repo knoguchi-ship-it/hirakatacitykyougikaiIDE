@@ -28,7 +28,7 @@ const StaffTrainingView: React.FC<StaffTrainingViewProps> = ({
   const participatedIds = staff.participatedTrainingIds || [];
 
   const availableTrainings = trainings.filter(
-    (t) => t.status === 'OPEN' && !participatedIds.includes(t.id)
+    (t) => (t.isApplicationOpen ?? t.status === 'OPEN') && !participatedIds.includes(t.id)
   );
 
   const trainingHistory = trainings
@@ -151,7 +151,7 @@ const StaffTrainingView: React.FC<StaffTrainingViewProps> = ({
           {trainingHistory.length > 0 ? (
             <div className="space-y-2">
               {trainingHistory.map((t) => {
-                const isOpen = t.status === 'OPEN';
+                const isOpen = t.isApplicationOpen ?? t.status === 'OPEN';
                 const canCancel = canOperate && isOpen && (t.cancelAllowed !== false);
                 return (
                   <div key={t.id} className="border border-slate-200 rounded-lg p-3 flex justify-between items-center">

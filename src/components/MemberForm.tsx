@@ -266,7 +266,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
 
   // 3. Filter NEW available trainings (Open AND Not participated)
   const availableTrainings = trainings.filter(t => 
-    t.status === 'OPEN' && !participatedIds.includes(t.id)
+    (t.isApplicationOpen ?? t.status === 'OPEN') && !participatedIds.includes(t.id)
   );
 
   const currentFeeStatus = member.annualFeeHistory[0];

@@ -32,8 +32,8 @@ const TrainingList: React.FC<TrainingListProps> = ({ trainings }) => {
           <div key={training.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center">
             <div className="mb-4 md:mb-0">
               <div className="flex items-center space-x-3 mb-2">
-                <span className={`px-3 py-1 rounded-full text-xs font-bold ${training.status === 'OPEN' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
-                  {training.status === 'OPEN' ? '受付中' : '受付終了'}
+                <span className={`px-3 py-1 rounded-full text-xs font-bold ${(training.isApplicationOpen ?? training.status === 'OPEN') ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                  {(training.isApplicationOpen ?? training.status === 'OPEN') ? '受付中' : '受付終了'}
                 </span>
                 <span className="text-slate-500 text-sm">{training.date}</span>
               </div>

@@ -48,4 +48,8 @@ console.log('Copied dist-admin/index_admin.html → backend/index_admin.html');
 copyFileSync(join(root, 'dist-admin', 'index_admin.html'), join(root, 'gas', 'admin', 'index.html'));
 console.log('Copied dist-admin/index_admin.html → gas/admin/index.html');
 
+// gas/member/index.html も同期（member split は gas/member/ 以下を push するため）
+copyFileSync(join(root, 'dist', 'index.html'), join(root, 'gas', 'member', 'index.html'));
+console.log('Copied dist/index.html → gas/member/index.html');
+
 console.log('\nbuild:gas complete.');

@@ -386,6 +386,9 @@ export interface TrainingFee {
   amount: number;  // 円
 }
 
+export type TrainingLifecycleStatus = 'DRAFT' | 'PUBLISHED' | 'CANCELLED' | 'ARCHIVED';
+export type TrainingApplicationStatus = 'OPEN' | 'NOT_STARTED' | 'CLOSED' | 'FULL' | 'UNAVAILABLE';
+
 export interface TrainingFieldConfig {
   organizer: boolean;
   isNonMandatory: boolean;
@@ -429,7 +432,12 @@ export interface Training {
   capacity: number;
   applicants: number;
   location: string;
+  /** @deprecated Use lifecycleStatus + applicationStatus/isApplicationOpen for new logic. */
   status: 'OPEN' | 'CLOSED';
+  lifecycleStatus?: TrainingLifecycleStatus;
+  applicationStatus?: TrainingApplicationStatus;
+  applicationStatusReason?: string;
+  isApplicationOpen?: boolean;
   organizer?: string;
   isNonMandatory?: boolean;
   fees?: TrainingFee[];

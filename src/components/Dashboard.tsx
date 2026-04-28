@@ -203,7 +203,7 @@ const Dashboard: React.FC<DashboardProps> = ({ members, trainings }) => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-slate-500 mb-1">開催予定研修</p>
-              <h3 className="text-3xl font-bold text-indigo-600">{trainings.filter((t) => t.status === 'OPEN').length}</h3>
+              <h3 className="text-3xl font-bold text-indigo-600">{trainings.filter((t) => t.isApplicationOpen ?? t.status === 'OPEN').length}</h3>
             </div>
             <div className="p-3 bg-indigo-50 rounded-full text-indigo-600">
               <BookOpenIcon />

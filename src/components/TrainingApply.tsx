@@ -10,6 +10,7 @@ interface TrainingApplyProps {
   historyLookbackMonths: number;
   onApply: (trainingId: string) => Promise<void>;
   onCancel: (trainingId: string) => Promise<void>;
+  onRefresh?: () => Promise<void>;
 }
 
 const formatDateTime = (raw: string) => {
@@ -44,8 +45,9 @@ const isWithinLookbackMonths = (raw: string, lookbackMonths: number): boolean =>
 };
 
 
-const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, trainings, historyLookbackMonths, onApply, onCancel }) => {
+const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, trainings, historyLookbackMonths, onApply, onCancel, onRefresh }) => {
   const [submittingTrainingId, setSubmittingTrainingId] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [expandedTrainingId, setExpandedTrainingId] = useState<string | null>(null);
   const [selectedHistoryTrainingId, setSelectedHistoryTrainingId] = useState<string | null>(null);
   const [confirmTraining, setConfirmTraining] = useState<Training | null>(null);
@@ -58,7 +60,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
   const participatedIds = isBusiness ? currentStaff?.participatedTrainingIds || [] : member.participatedTrainingIds || [];
 
   const availableTrainings = useMemo(
-    () => trainings.filter((t) => t.status === 'OPEN' && !participatedIds.includes(t.id)),
+    () => trainings.filter((t) => (t.isApplicationOpen ?? t.status === 'OPEN') && !participatedIds.includes(t.id)),
     [trainings, participatedIds],
   );
 
@@ -127,6 +129,19 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
     setConfirmTraining(training);
   };
 
+  const refreshTrainingData = async () => {
+    if (!onRefresh) return;
+    setRefreshing(true);
+    setErrorMsg(null);
+    try {
+      await onRefresh();
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : '研修データの再取得に失敗しました。');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const handleCancelApply = async (training: Training) => {
     if (submittingTrainingId) return;
     try {
@@ -146,8 +161,22 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
   return (
     <div className="space-y-6">
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-        <h2 className="text-2xl font-bold text-slate-800">研修確認・申込</h2>
-        <p className="text-slate-600 mt-2">受付中の研修を確認して申し込みできます。申し込み済み研修の詳細・PDF確認も可能です。</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800">研修確認・申込</h2>
+            <p className="text-slate-600 mt-2">受付中の研修を確認して申し込みできます。申し込み済み研修の詳細・PDF確認も可能です。</p>
+          </div>
+          {onRefresh && (
+            <button
+              type="button"
+              onClick={refreshTrainingData}
+              disabled={refreshing}
+              className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
+            >
+              {refreshing ? '更新中...' : '最新情報を取得'}
+            </button>
+          )}
+        </div>
       </div>
 
       {successMsg && (
@@ -464,4 +493,3 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
 };
 
 export default TrainingApply;
-

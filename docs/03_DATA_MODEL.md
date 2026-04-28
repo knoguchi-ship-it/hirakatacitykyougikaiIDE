@@ -397,7 +397,9 @@ T_ログイン履歴 }o--o| T_認証アカウント : "認証ID"
 - 初期値: `OFFICE_ADMIN`, `INDIVIDUAL_MEMBER`, `BUSINESS_ADMIN`, `BUSINESS_MEMBER`
 
 ### 3.8 `M_研修状態`
-- 初期値: `OPEN`（受付中）, `CLOSED`（受付終了）
+- 用途: 研修レコード自体のライフサイクル状態を表す。申込可否は `申込開始日` / `申込締切日` / `開催日` / `定員` / `申込者数` から API 層で導出する。
+- 初期値: `DRAFT`（下書き）, `PUBLISHED`（公開）, `CANCELLED`（中止）, `ARCHIVED`（アーカイブ）
+- 後方互換: 旧値 `OPEN` / `CLOSED` は既存データ読み取り時に `PUBLISHED` とみなし、申込可否は導出値 `applicationStatus` / `isApplicationOpen` を正とする。
 
 ### 3.9 `M_申込状態`
 - 用途: 申込状態（申込済/取消）

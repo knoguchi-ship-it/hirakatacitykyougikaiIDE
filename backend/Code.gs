@@ -202,8 +202,12 @@ var マスタ初期値 = {
     ['BUSINESS_MEMBER', '事業所メンバー', 4, true],
   ],
   M_研修状態: [
-    ['OPEN', '受付中', 1, true],
-    ['CLOSED', '受付終了', 2, true],
+    ['DRAFT', '下書き', 1, true],
+    ['PUBLISHED', '公開', 2, true],
+    ['CANCELLED', '中止', 3, true],
+    ['ARCHIVED', 'アーカイブ', 4, true],
+    ['OPEN', '受付中（旧）', 90, false],
+    ['CLOSED', '受付終了（旧）', 91, false],
   ],
   M_申込状態: [
     ['APPLIED', '申込済', 1, true],
@@ -578,6 +582,95 @@ function setupFavicons() {
     publicUrl: 'https://drive.google.com/uc?export=view&id=' + publicId,
     folderUrl: folder.getUrl()
   };
+}
+
+/**
+ * DriveApp 権限診断。
+ *
+ * 実行方法: Apps Script エディタでこの関数を選択して「実行」する。
+ * 目的: DriveApp の read / createFolder / createFile / trash がどの段階で失敗するかを切り分ける。
+ * 影響: 診断用の一時フォルダと一時ファイルを作成し、成功時は即座にゴミ箱へ移動する。
+ */
+function testDriveAccess() {
+  var result = {
+    ok: false,
+    executedAt: new Date().toISOString(),
+    scriptId: ScriptApp.getScriptId(),
+    effectiveUser: '',
+    activeUser: '',
+    steps: []
+  };
+
+  function recordStep(name, fn) {
+    var step = { name: name, ok: false };
+    try {
+      var value = fn();
+      step.ok = true;
+      if (value !== undefined) step.value = value;
+    } catch (e) {
+      step.error = e && e.message ? e.message : String(e);
+      step.stack = e && e.stack ? e.stack : '';
+    }
+    result.steps.push(step);
+    if (!step.ok) {
+      throw new Error(name + ' failed: ' + step.error);
+    }
+    return step.value;
+  }
+
+  try {
+    result.effectiveUser = Session.getEffectiveUser().getEmail();
+  } catch (e1) {
+    result.effectiveUserError = e1 && e1.message ? e1.message : String(e1);
+  }
+  try {
+    result.activeUser = Session.getActiveUser().getEmail();
+  } catch (e2) {
+    result.activeUserError = e2 && e2.message ? e2.message : String(e2);
+  }
+
+  var folder;
+  var file;
+  try {
+    var rootName = recordStep('getRootFolder', function () {
+      return DriveApp.getRootFolder().getName();
+    });
+    result.rootFolderName = rootName;
+
+    folder = recordStep('createFolder', function () {
+      return DriveApp.getRootFolder().createFolder('_hcmn_drive_diagnostic_' + Date.now());
+    });
+    result.folderId = folder.getId();
+    result.folderUrl = folder.getUrl();
+
+    file = recordStep('createFile', function () {
+      return folder.createFile(
+        'drive-diagnostic.txt',
+        'DriveApp diagnostic created at ' + result.executedAt,
+        MimeType.PLAIN_TEXT
+      );
+    });
+    result.fileId = file.getId();
+    result.fileUrl = file.getUrl();
+
+    recordStep('trashFile', function () {
+      file.setTrashed(true);
+      return true;
+    });
+    recordStep('trashFolder', function () {
+      folder.setTrashed(true);
+      return true;
+    });
+
+    result.ok = true;
+    Logger.log(JSON.stringify(result, null, 2));
+    return result;
+  } catch (e3) {
+    result.error = e3 && e3.message ? e3.message : String(e3);
+    result.stack = e3 && e3.stack ? e3.stack : '';
+    Logger.log(JSON.stringify(result, null, 2));
+    return result;
+  }
 }
 
 /**
@@ -1114,6 +1207,8 @@ function verifySeedData() {
   return result;
 }
 
+var APP_SECURITY_BOUNDARY = 'public';
+
 var PUBLIC_ALLOWED_ACTIONS = {
   getPublicTrainings: true,
   getPublicPortalSettings: true,
@@ -1219,13 +1314,42 @@ var ADMIN_ACTION_PERMISSIONS = {
   'rejectAdminChangeRequest': ['MASTER','ADMIN'],
 };
 
+function getActionRegistryForCurrentApp_() {
+  if (APP_SECURITY_BOUNDARY === 'public') {
+    return {
+      publicActions: PUBLIC_ALLOWED_ACTIONS,
+      memberActions: {},
+      adminLoginActions: {},
+      adminPermissions: {},
+    };
+  }
+  if (APP_SECURITY_BOUNDARY === 'member') {
+    return {
+      publicActions: {},
+      memberActions: MEMBER_ALLOWED_ACTIONS,
+      adminLoginActions: {},
+      adminPermissions: {},
+    };
+  }
+  if (APP_SECURITY_BOUNDARY === 'admin') {
+    return {
+      publicActions: {},
+      memberActions: {},
+      adminLoginActions: ADMIN_LOGIN_ACTIONS,
+      adminPermissions: ADMIN_ACTION_PERMISSIONS,
+    };
+  }
+  return { publicActions: {}, memberActions: {}, adminLoginActions: {}, adminPermissions: {} };
+}
+
 function processApiRequest(action, payload) {
   try {
     var parsedPayload = parsePayload_(payload) || {};
-    var isPublicAction = !!PUBLIC_ALLOWED_ACTIONS[action];
-    var isMemberAction = !!MEMBER_ALLOWED_ACTIONS[action];
-    var isAdminLoginAction = !!ADMIN_LOGIN_ACTIONS[action];
-    var requiredPerms = ADMIN_ACTION_PERMISSIONS[action];
+    var actionRegistry = getActionRegistryForCurrentApp_();
+    var isPublicAction = !!actionRegistry.publicActions[action];
+    var isMemberAction = !!actionRegistry.memberActions[action];
+    var isAdminLoginAction = !!actionRegistry.adminLoginActions[action];
+    var requiredPerms = actionRegistry.adminPermissions[action];
     if (!isPublicAction && !isMemberAction && !isAdminLoginAction && !requiredPerms) {
       return JSON.stringify({ success: false, error: 'unsupported_action' });
     }
@@ -3465,12 +3589,10 @@ function getMemberPortalData_(payload) {
     if (toBoolean_(r['削除フラグ'])) return false;
     // 申し込み済みは必ず含める（履歴表示のため）
     if (appliedIdSet[String(r['研修ID'] || '')]) return true;
-    // キャンセル済みは除外
-    if (String(r['研修状態コード'] || '') === 'CANCELLED') return false;
-    // 過去の研修（開催日が今日より前）は除外（申し込み対象外のため不要）
-    var dateStr = String(r['開催日'] || '').replace(/\//g, '-').split('T')[0];
-    if (!dateStr) return true; // 開催日未設定は含める
-    return new Date(dateStr + 'T23:59:59+09:00').getTime() >= nowTs;
+    var availability = computeTrainingAvailability_(r, { now: new Date(nowTs) });
+    if (availability.lifecycleStatus !== 'PUBLISHED') return false;
+    if (availability.isApplicationOpen || availability.applicationStatus === 'NOT_STARTED') return true;
+    return false;
   });
   var feeRows = getRowsAsObjects_(ss, 'T_年会費納入履歴').filter(function(r) {
     return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
@@ -3641,6 +3763,7 @@ function mapMembersForApi_(ss, memberRows, staffRows, authRows, applicationRows,
 
 function mapTrainingRowsForApi_(trainingRows) {
   return (trainingRows || []).map(function(t) {
+    var availability = computeTrainingAvailability_(t);
     var feesRaw = String(t['費用JSON'] || '');
     var fees = [];
     if (feesRaw) {
@@ -3671,7 +3794,11 @@ function mapTrainingRowsForApi_(trainingRows) {
       capacity: Number(t['定員'] || 0),
       applicants: Number(t['申込者数'] || 0),
       location: String(t['開催場所'] || ''),
-      status: deriveTrainingStatusByCloseDate_(t['申込締切日']),
+      status: availability.isApplicationOpen ? 'OPEN' : 'CLOSED',
+      lifecycleStatus: availability.lifecycleStatus,
+      applicationStatus: availability.applicationStatus,
+      applicationStatusReason: availability.applicationStatusReason,
+      isApplicationOpen: availability.isApplicationOpen,
       organizer: String(t['主催者'] || ''),
       isNonMandatory: toBoolean_(t['法定外研修フラグ']),
       fees: fees,
@@ -3825,7 +3952,7 @@ function getAdminDashboardData_() {
       trainingId: String(training['研修ID'] || ''),
       title: String(training['研修名'] || ''),
       date: formatDateForApi_(training['開催日']),
-      status: deriveTrainingStatusByCloseDate_(training['申込締切日']),
+      status: computeTrainingAvailability_(training).isApplicationOpen ? 'OPEN' : 'CLOSED',
       applicants: Number(training['申込者数'] || 0),
       capacity: Number(training['定員'] || 0),
     };
@@ -9169,8 +9296,8 @@ function updateMemberSelf_(payload) {
     }
   }
 
-  // 4. 既存の updateMember_ に委譲（skipAdminCheck=true）
-  return updateMember_(sanitized, {
+  // 4. 会員セルフサービス専用経路: admin 認証 wrapper を通さず保存 core へ渡す
+  return saveMemberCore_(sanitized, {
     skipAdminCheck: true,
     ss: ss,
     adminSession: callerStaffId ? {
@@ -9181,7 +9308,6 @@ function updateMemberSelf_(payload) {
 }
 
 function updateMember_(payload, options) {
-  if (!payload || !payload.id) throw new Error('会員IDが未指定です。');
   var skipAdminCheck = false;
   var adminSession = null;
   var ss = null;
@@ -9196,6 +9322,34 @@ function updateMember_(payload, options) {
   }
   if (!adminSession && !skipAdminCheck) {
     adminSession = checkAdminBySession_();
+  }
+  return saveMemberCore_(payload, {
+    skipAdminCheck: true,
+    adminSession: adminSession,
+    ss: ss,
+    skipCacheClear: skipCacheClear,
+    enableAdminRoleValidation: true,
+    enableAdminAudit: true,
+  });
+}
+
+function saveMemberCore_(payload, options) {
+  if (!payload || !payload.id) throw new Error('会員IDが未指定です。');
+  var skipAdminCheck = false;
+  var adminSession = null;
+  var ss = null;
+  var skipCacheClear = false;
+  var enableAdminRoleValidation = false;
+  var enableAdminAudit = false;
+  if (typeof options === 'boolean') {
+    skipAdminCheck = options;
+  } else if (options && typeof options === 'object') {
+    skipAdminCheck = options.skipAdminCheck === true;
+    adminSession = options.adminSession || null;
+    ss = options.ss || null;
+    skipCacheClear = options.skipCacheClear === true;
+    enableAdminRoleValidation = options.enableAdminRoleValidation === true;
+    enableAdminAudit = options.enableAdminAudit === true;
   }
   if (!ss) {
     ss = getOrCreateDatabase_();
@@ -9221,7 +9375,7 @@ function updateMember_(payload, options) {
   var hasOwn = Object.prototype.hasOwnProperty;
   // v147: 退会済み事業所会員は代表者バリデーションをスキップ（代表者なしでも情報更新可能）
   var currentMemberStatus = String(row[cols['会員状態コード']] || 'ACTIVE');
-  if (memberTypeCode === 'BUSINESS' && currentMemberStatus !== 'WITHDRAWN' && Object.prototype.hasOwnProperty.call(payload, 'staff')) {
+  if (enableAdminRoleValidation && memberTypeCode === 'BUSINESS' && currentMemberStatus !== 'WITHDRAWN' && Object.prototype.hasOwnProperty.call(payload, 'staff')) {
     validateBusinessStaffRoleTransition_(ss, String(payload.id), payload.staff, adminSession);
   }
   function fromPayloadOrCurrent(key, currentValue) {
@@ -9342,7 +9496,7 @@ function updateMember_(payload, options) {
 
   // v143: 管理者操作の監査ログ出力
   var effectiveAdminSession = adminSession || (payload.__adminSession || null);
-  if (effectiveAdminSession && effectiveAdminSession.email) {
+  if (enableAdminAudit && effectiveAdminSession && effectiveAdminSession.email) {
     var auditChanges = [];
     var newJoinedDate = String(normalizeDateInput_(mergedPayload.joinedDate) || '');
     var newWithdrawnDate = String(normalizeDateInput_(mergedPayload.withdrawnDate) || '');
@@ -10094,11 +10248,12 @@ function saveTraining_(payload) {
     throw new Error('問い合わせ窓口の担当者を入力してください。');
   }
   var normalizedContact = normalizeInquiryContacts_(payload.inquiryPhone, payload.inquiryEmail, payload.inquiryContactValue);
-  var derivedStatus = deriveTrainingStatusByCloseDate_(payload.applicationCloseDate);
+  var lifecycleStatus = normalizeTrainingLifecycleStatus_(payload.lifecycleStatus || payload.status || 'PUBLISHED');
   payload.organizer = organizer;
   payload.location = location;
   payload.summary = summary;
-  payload.status = derivedStatus;
+  payload.status = lifecycleStatus;
+  payload.lifecycleStatus = lifecycleStatus;
   payload.inquiryPerson = inquiryPerson;
   payload.inquiryPhone = normalizedContact.phone;
   payload.inquiryEmail = normalizedContact.email;
@@ -10142,7 +10297,7 @@ function saveTraining_(payload) {
     setCol('開催終了時刻', payload.endTime || '');
     setCol('定員', Number(payload.capacity || 0));
     setCol('開催場所', payload.location || '');
-    setCol('研修状態コード', derivedStatus);
+    setCol('研修状態コード', lifecycleStatus);
     setCol('主催者', payload.organizer || '');
     setCol('法定外研修フラグ', payload.isNonMandatory ? true : false);
     setCol('研修概要', payload.summary || '');
@@ -10168,7 +10323,7 @@ function saveTraining_(payload) {
     clearAllDataCache_();
     clearAdminDashboardCache_();
     clearTrainingManagementCache_();
-    return payload;
+    return buildTrainingSaveResponse_(payload, lifecycleStatus, Number((cols['申込者数'] != null ? row[cols['申込者数']] : payload.applicants) || 0));
   }
 
   // 新規作成
@@ -10181,7 +10336,7 @@ function saveTraining_(payload) {
     '定員': Number(payload.capacity || 0),
     '申込者数': 0,
     '開催場所': payload.location || '',
-    '研修状態コード': derivedStatus,
+    '研修状態コード': lifecycleStatus,
     '主催者': payload.organizer || '',
     '法定外研修フラグ': payload.isNonMandatory ? true : false,
     '研修概要': payload.summary || '',
@@ -10211,7 +10366,7 @@ function saveTraining_(payload) {
   clearAllDataCache_();
   clearAdminDashboardCache_();
   clearTrainingManagementCache_();
-  return payload;
+  return buildTrainingSaveResponse_(payload, lifecycleStatus, 0);
 }
 
 /**
@@ -10244,17 +10399,11 @@ function applyTraining_(payload) {
     requireColumns_(tCols, ['申込開始日', '申込締切日', '定員', '申込者数']);
     var tRow = found.row;
 
+    var trainingObj = rowToObjectByColumns_(tRow, tCols);
+    var availability = computeTrainingAvailability_(trainingObj);
     var now = new Date();
-    var openDate = parseDateOnly_(tRow[tCols['申込開始日']]);
-    var closeDate = parseDateOnly_(tRow[tCols['申込締切日']]);
-    if (deriveTrainingStatusByCloseDate_(tRow[tCols['申込締切日']]) !== 'OPEN') {
-      throw new Error('この研修は受付期間外です。');
-    }
-    if (openDate && now.getTime() < openDate.getTime()) {
-      throw new Error('申込開始日前のため、まだ申し込めません。');
-    }
-    if (closeDate && now.getTime() > closeDate.getTime()) {
-      throw new Error('申込締切日を過ぎているため、申し込めません。');
+    if (!availability.isApplicationOpen) {
+      throw new Error(availability.applicationStatusReason || 'この研修は受付期間外です。');
     }
 
     var applicationRows = getTrainingApplicationRows_(ss, { appliedOnly: true });
@@ -10778,6 +10927,104 @@ function deriveTrainingStatusByCloseDate_(closeDateRaw) {
   var closeDate = parseDateOnly_(closeDateRaw);
   if (!closeDate) return 'OPEN';
   return new Date().getTime() > closeDate.getTime() ? 'CLOSED' : 'OPEN';
+}
+
+function rowToObjectByColumns_(row, columns) {
+  var result = {};
+  Object.keys(columns || {}).forEach(function(name) {
+    result[name] = row[columns[name]];
+  });
+  return result;
+}
+
+function normalizeTrainingLifecycleStatus_(raw) {
+  var status = String(raw || '').trim().toUpperCase();
+  if (status === 'DRAFT') return 'DRAFT';
+  if (status === 'CANCELLED' || status === 'CANCELED') return 'CANCELLED';
+  if (status === 'ARCHIVED') return 'ARCHIVED';
+  // Legacy OPEN/CLOSED only described application availability. Treat them as visible trainings.
+  return 'PUBLISHED';
+}
+
+function parseDateOnlyStart_(raw) {
+  if (!raw) return null;
+  if (Object.prototype.toString.call(raw) === '[object Date]' && !isNaN(raw.getTime())) {
+    var date = new Date(raw.getTime());
+    date.setHours(0, 0, 0, 0);
+    return date;
+  }
+  var text = String(raw).trim();
+  if (!text) return null;
+  var normalized = text.replace(/\//g, '-').split('T')[0].split(' ')[0];
+  var parsed = new Date(normalized + 'T00:00:00+09:00');
+  if (isNaN(parsed.getTime())) return null;
+  return parsed;
+}
+
+function parseTrainingDateTime_(raw) {
+  if (!raw) return null;
+  if (Object.prototype.toString.call(raw) === '[object Date]' && !isNaN(raw.getTime())) {
+    return new Date(raw.getTime());
+  }
+  var text = String(raw).trim();
+  if (!text) return null;
+  var normalized = text.replace(/\//g, '-');
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    normalized += 'T23:59:59+09:00';
+  } else if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/.test(normalized)) {
+    normalized = normalized.replace(/\s+/, 'T') + '+09:00';
+  }
+  var parsed = new Date(normalized);
+  if (isNaN(parsed.getTime())) return null;
+  return parsed;
+}
+
+function computeTrainingAvailability_(trainingRow, options) {
+  var now = options && options.now ? options.now : new Date();
+  var lifecycleStatus = normalizeTrainingLifecycleStatus_(trainingRow && trainingRow['研修状態コード']);
+  var openDate = parseDateOnlyStart_(trainingRow && trainingRow['申込開始日']);
+  var closeDate = parseDateOnly_(trainingRow && trainingRow['申込締切日']);
+  var eventDate = parseTrainingDateTime_(trainingRow && trainingRow['開催日']);
+  var capacity = Number(trainingRow && trainingRow['定員'] || 0);
+  var applicants = Number(trainingRow && trainingRow['申込者数'] || 0);
+
+  if (lifecycleStatus !== 'PUBLISHED') {
+    return { lifecycleStatus: lifecycleStatus, applicationStatus: 'UNAVAILABLE', isApplicationOpen: false, applicationStatusReason: '研修が公開状態ではありません。' };
+  }
+  if (eventDate && now.getTime() > eventDate.getTime()) {
+    return { lifecycleStatus: lifecycleStatus, applicationStatus: 'CLOSED', isApplicationOpen: false, applicationStatusReason: '開催日時を過ぎています。' };
+  }
+  if (openDate && now.getTime() < openDate.getTime()) {
+    return { lifecycleStatus: lifecycleStatus, applicationStatus: 'NOT_STARTED', isApplicationOpen: false, applicationStatusReason: '申込開始日前です。' };
+  }
+  if (closeDate && now.getTime() > closeDate.getTime()) {
+    return { lifecycleStatus: lifecycleStatus, applicationStatus: 'CLOSED', isApplicationOpen: false, applicationStatusReason: '申込締切日を過ぎています。' };
+  }
+  if (capacity > 0 && applicants >= capacity) {
+    return { lifecycleStatus: lifecycleStatus, applicationStatus: 'FULL', isApplicationOpen: false, applicationStatusReason: '定員に達しています。' };
+  }
+  return { lifecycleStatus: lifecycleStatus, applicationStatus: 'OPEN', isApplicationOpen: true, applicationStatusReason: '' };
+}
+
+function buildTrainingSaveResponse_(payload, lifecycleStatus, applicants) {
+  var response = {};
+  Object.keys(payload || {}).forEach(function(key) {
+    response[key] = payload[key];
+  });
+  var availability = computeTrainingAvailability_({
+    '研修状態コード': lifecycleStatus,
+    '申込開始日': response.applicationOpenDate,
+    '申込締切日': response.applicationCloseDate,
+    '開催日': response.date,
+    '定員': response.capacity,
+    '申込者数': applicants,
+  });
+  response.status = availability.isApplicationOpen ? 'OPEN' : 'CLOSED';
+  response.lifecycleStatus = availability.lifecycleStatus;
+  response.applicationStatus = availability.applicationStatus;
+  response.applicationStatusReason = availability.applicationStatusReason;
+  response.isApplicationOpen = availability.isApplicationOpen;
+  return response;
 }
 
 /**
@@ -11840,8 +12087,7 @@ function getPublicTrainings_() {
   var sheet = db.getSheetByName('T_研修');
   var rows = getSheetData_(sheet);
   var result = rows.filter(function(r) {
-    var status = deriveTrainingStatusByCloseDate_(r['申込締切日']);
-    return status === 'OPEN' && !toBoolean_(r['削除フラグ']);
+    return !toBoolean_(r['削除フラグ']) && computeTrainingAvailability_(r).isApplicationOpen;
   }).map(function(r) {
     return {
       id: String(r['研修ID'] || ''),
@@ -11905,12 +12151,10 @@ function applyTrainingExternal_(payload) {
 
     if (!training) return JSON.stringify({ success: false, error: '研修が見つかりません' });
 
-    var status = deriveTrainingStatusByCloseDate_(training['申込締切日']);
-    if (status !== 'OPEN') return JSON.stringify({ success: false, error: '申込受付期間外です' });
-
-    var now = new Date();
-    if (training['申込開始日'] && new Date(training['申込開始日']) > now) return JSON.stringify({ success: false, error: '申込受付前です' });
-    if (training['申込締切日'] && new Date(training['申込締切日']) < now) return JSON.stringify({ success: false, error: '申込締切済みです' });
+    var availability = computeTrainingAvailability_(training);
+    if (!availability.isApplicationOpen) {
+      return JSON.stringify({ success: false, error: availability.applicationStatusReason || '申込受付期間外です' });
+    }
 
     if (training['定員'] && countAppliedApplicants_(db, trainingId) >= Number(training['定員'])) {
       return JSON.stringify({ success: false, error: '定員に達しています' });
