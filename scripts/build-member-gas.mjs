@@ -14,6 +14,7 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
 const memberGasDir = join(root, 'gas', 'member');
+const fullSourcePath = join(root, 'gas-src', 'Code.full.gs');
 const preserveFiles = {
   '.clasp.json': true,
   '.clasp.json.example': true,
@@ -389,13 +390,13 @@ ensureMemberGasDir();
 run('npx vite build', { VITE_APP: 'member' });
 run('node scripts/compress-html.mjs');
 
-const backendCode = readFileSync(join(root, 'backend', 'Code.gs'), 'utf8');
+const backendCode = readFileSync(fullSourcePath, 'utf8');
 writeFileSync(
   join(memberGasDir, 'Code.gs'),
   buildMemberCode(backendCode),
   'utf8',
 );
-console.log('Copied backend/Code.gs -> gas/member/Code.gs with member boundary, registry, and action handlers');
+console.log('Generated gas/member/Code.gs from gas-src/Code.full.gs with member boundary, registry, and action handlers');
 
 // appsscript.json は gas/member/ の固有設定ファイルを使用（backend からコピーしない）
 console.log('Kept gas/member/appsscript.json (project-specific, not overwritten)');

@@ -1,37 +1,4 @@
-import { execSync } from 'child_process';
-import {
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  writeFileSync,
-} from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const root = join(__dirname, '..');
-const adminGasDir = join(root, 'gas', 'admin');
-const fullSourcePath = join(root, 'gas-src', 'Code.full.gs');
-const preserveFiles = {
-  '.clasp.json': true,
-  '.clasp.json.example': true,
-  'appsscript.json': true,
-  'README.md': true,
-};
-
-function run(cmd, env = {}) {
-  console.log(`\n> ${cmd}`);
-  execSync(cmd, {
-    cwd: root,
-    stdio: 'inherit',
-    env: { ...process.env, ...env },
-  });
-}
-
-function replaceObjectLiteral(source, name, replacement) {
+export function replaceObjectLiteral(source, name, replacement) {
   const pattern = new RegExp(`var ${name} = \\{[\\s\\S]*?\\n\\};`);
   if (!pattern.test(source)) {
     throw new Error(`Could not find ${name} object literal in Code.gs`);
@@ -39,7 +6,7 @@ function replaceObjectLiteral(source, name, replacement) {
   return source.replace(pattern, `var ${name} = ${replacement};`);
 }
 
-function findBlockEnd(source, openBraceIndex) {
+export function findBlockEnd(source, openBraceIndex) {
   let depth = 0;
   let quote = '';
   let escaped = false;
@@ -91,10 +58,10 @@ function findBlockEnd(source, openBraceIndex) {
       if (depth === 0) return i + 1;
     }
   }
-  throw new Error('Could not find action handler block end');
+  throw new Error('Could not find block end');
 }
 
-function collectFunctionDeclarations(source) {
+export function collectFunctionDeclarations(source) {
   const declarations = [];
   let depth = 0;
   let quote = '';
@@ -166,7 +133,7 @@ function collectFunctionDeclarations(source) {
   return declarations;
 }
 
-function collectTopLevelStatements(source, declarations) {
+export function collectTopLevelStatements(source, declarations) {
   const declarationRanges = declarations.map((decl) => [decl.start, decl.end]);
   const statements = [];
   let depth = 0;
@@ -249,7 +216,7 @@ function collectTopLevelStatements(source, declarations) {
   return statements;
 }
 
-function collectReachableFunctions(source, seedNames) {
+export function collectReachableFunctions(source, seedNames) {
   const declarations = collectFunctionDeclarations(source);
   const declarationByName = new Map(declarations.map((decl) => [decl.name, decl]));
   const declaredNames = new Set(declarationByName.keys());
@@ -273,7 +240,7 @@ function collectReachableFunctions(source, seedNames) {
   return { declarations, reachable };
 }
 
-function pruneUnreachableFunctionDeclarations(source, seedNames, label) {
+export function pruneUnreachableFunctionDeclarations(source, seedNames, label) {
   const { declarations, reachable } = collectReachableFunctions(source, seedNames);
   const removable = declarations.filter((decl) => !reachable.has(decl.name));
   const removableNames = new Set(removable.map((decl) => decl.name));
@@ -297,7 +264,7 @@ function pruneUnreachableFunctionDeclarations(source, seedNames, label) {
   return result;
 }
 
-function removeDisallowedActionHandlers(source, allowedActions) {
+export function removeDisallowedActionHandlers(source, allowedActions) {
   const allowed = new Set(allowedActions);
   const actionPattern = /[ \t]*if \(action === '([^']+)'\) \{/g;
   let result = '';
@@ -326,7 +293,7 @@ function removeDisallowedActionHandlers(source, allowedActions) {
   return result + source.slice(cursor);
 }
 
-function removeIfBlock(source, conditionText) {
+export function removeIfBlock(source, conditionText) {
   const marker = `if (${conditionText}) {`;
   const start = source.indexOf(marker);
   if (start === -1) return source;
@@ -340,110 +307,11 @@ function removeIfBlock(source, conditionText) {
   return source.slice(0, start) + source.slice(afterEnd);
 }
 
-function buildAdminCode(source) {
-  let code = source.replace("var APP_SECURITY_BOUNDARY = 'public';", "var APP_SECURITY_BOUNDARY = 'admin';");
-  code = replaceObjectLiteral(code, 'PUBLIC_ALLOWED_ACTIONS', '{}');
-  code = replaceObjectLiteral(code, 'MEMBER_ALLOWED_ACTIONS', '{}');
-  code = removeDisallowedActionHandlers(code, [
-    'checkAdminBySession',
-    'adminLoginWithData',
-    'getDbInfo',
-    'getSystemSettings',
-    'updateSystemSettings',
-    'getAdminPermissionData',
-    'saveAdminPermission',
-    'deleteAdminPermission',
-    'seedDemoData',
-    'getAdminDashboardData',
-    'getAdminInitData',
-    'updateMember',
-    'updateMembersBatch',
-    'createMember',
-    'withdrawMember',
-    'scheduleWithdrawMember',
-    'cancelScheduledWithdraw',
-    'removeStaffFromOffice',
-    'updateStaff',
-    'getAdminPersonList',
-    'updatePersonsBatch',
-    'convertMemberType',
-    'getAnnualFeeAdminData',
-    'saveAnnualFeeRecord',
-    'saveAnnualFeeRecordsBatch',
-    'saveTraining',
-    'uploadTrainingFile',
-    'setupTrainingFileFolder',
-    'getTrainingManagementData',
-    'getTrainingApplicants',
-    'sendTrainingReminder',
-    'getAdminEmailAliases',
-    'sendTrainingMail',
-    'generateTrainingEmail',
-    'getMembersForRoster',
-    'generateRosterZip',
-    'validateTemplateSpreadsheet',
-    'getMembersForBulkMail',
-    'sendBulkMemberMail',
-    'getEmailSendLog',
-    'getCredentialEmailTemplates',
-    'saveCredentialEmailTemplate',
-    'deleteCredentialEmailTemplate',
-    'getBulkMailTemplates',
-    'saveBulkMailTemplate',
-    'deleteBulkMailTemplate',
-    'searchMembersForDelete',
-    'previewDeleteMember',
-    'executeDeleteMember',
-    'getDeleteLogs',
-    'repairDuplicateStaffRecords',
-    'repairTrainingApplicationApplicantIds',
-    'repairMemberCareManagerDuplicates',
-    'fetchAllData',
-    'initRosterExport',
-    'processRosterChunk',
-    'finalizeRosterExport',
-    'cleanupRosterExport',
-    'generateMailingListExcel',
-    'getAdminChangeRequests',
-    'approveAdminChangeRequest',
-    'rejectAdminChangeRequest',
-  ]);
-  code = removeIfBlock(code, "isMemberAction && !LOGIN_ONLY_MEMBER_ACTIONS[action]");
-  code = pruneUnreachableFunctionDeclarations(code, ['doGet', 'processApiRequest'], 'build-admin-gas');
-  return code;
-}
-
-function ensureAdminGasDir() {
-  if (!existsSync(adminGasDir)) {
-    mkdirSync(adminGasDir, { recursive: true });
-    return;
+export function replaceScriptRoutesWithPublicOnly(source) {
+  const pattern = /var SCRIPT_ID_ROUTES = \{[\s\S]*?\n  \};/;
+  const replacement = "var SCRIPT_ID_ROUTES = {\n    '11YRlyWVgWRFw5_zByfLnA_vUlZzLeBSgiaanQCvZZoHMAfay8yK7RdkL': { file: 'index_public', title: '研修・入会申込ポータル｜枚方市ケアマネ協議会', favicon: 'public' },\n  };";
+  if (!pattern.test(source)) {
+    throw new Error('Could not find SCRIPT_ID_ROUTES object literal in Code.gs');
   }
-  const entries = readdirSync(adminGasDir, { withFileTypes: true });
-  entries.forEach((entry) => {
-    if (preserveFiles[entry.name]) {
-      return;
-    }
-    rmSync(join(adminGasDir, entry.name), { recursive: true, force: true });
-  });
+  return source.replace(pattern, replacement);
 }
-
-ensureAdminGasDir();
-
-run('npx vite build', { VITE_APP: 'admin' });
-run('node scripts/compress-html.mjs');
-
-const backendCode = readFileSync(fullSourcePath, 'utf8');
-writeFileSync(
-  join(adminGasDir, 'Code.gs'),
-  buildAdminCode(backendCode),
-  'utf8',
-);
-console.log('Generated gas/admin/Code.gs from gas-src/Code.full.gs with admin boundary, registry, and action handlers');
-
-// appsscript.json は gas/admin/ の固有設定ファイルを使用（backend からコピーしない）
-console.log('Kept gas/admin/appsscript.json (project-specific, not overwritten)');
-
-copyFileSync(join(root, 'dist-admin', 'index_admin.html'), join(adminGasDir, 'index.html'));
-console.log('Copied dist-admin/index_admin.html -> gas/admin/index.html');
-
-console.log('\nbuild:gas:admin complete.');
