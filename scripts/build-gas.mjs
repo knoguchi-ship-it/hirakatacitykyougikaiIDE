@@ -71,7 +71,7 @@ function buildPublicCode(source) {
     '\n',
   );
   code = removeIfBlock(code, '!adminSession && !skipAdminCheck');
-  code = pruneUnreachableFunctionDeclarations(code, ['doGet', 'processApiRequest'], 'build-gas-public');
+  code = pruneUnreachableFunctionDeclarations(code, ['doGet', 'processApiRequest', 'healthCheck', 'getDbInfo'], 'build-gas-public');
   return code;
 }
 

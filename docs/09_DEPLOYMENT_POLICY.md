@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-04-28
-Production: `v287-partial` / 統合（公開）fixed deployments `@285` / 会員 split `@39` / 管理者 split `@46`
+Production: `v288` / 統合（公開）fixed deployments `@287` / 会員 split `@39` / 管理者 split `@46`
 
 ## 1. Purpose
 
@@ -17,8 +17,8 @@ Production: `v287-partial` / 統合（公開）fixed deployments `@285` / 会員
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@285` (`v286`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@285` (`v286`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@287` (`v288`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@287` (`v288`) |
 
 ### Split projects
 
@@ -106,7 +106,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-04-28 `v287-partial` ← current production
+### 2026-04-28 `v288` ← current production
+
+- Scope: 統合 project の generated `backend/Code.gs` を public-only artifact に縮退。公開ポータル URL / deployment ID は維持し、member split `@39` と admin split `@46` は未変更。
+- Integrated fixed deployments: `@287` × 2.
+- Member split: `@39`.
+- Admin split: `@46`.
+- Detail: `docs/166_RELEASE_STATE_v288_2026-04-28.md`
+
+### 2026-04-28 `v287-partial`
 
 - Scope: member split の生成済み `Code.gs` から境界外関数を物理削除。admin split は `@47` でホワイトアウトしたため `@46` へロールバック済み。統合/公開は `@285` 維持。
 - Integrated fixed deployments: `@285` × 2.

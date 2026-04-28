@@ -585,8 +585,18 @@ function rebuildDatabaseSchema() {
  * 未定義の初期業務データ（例: 認証アカウント実データ）は作成しない。
  */
 
+function getDbInfo() {
+  return getDbInfo_();
+}
 
 // スコープ不要の疎通確認用。Execution API経路の切り分けに使う。
+function healthCheck() {
+  return {
+    ok: true,
+    timestamp: new Date().toISOString(),
+    scriptId: ScriptApp.getScriptId(),
+  };
+}
 
 /**
  * Web App公開状態の確認用。
@@ -1052,6 +1062,16 @@ function getRowsAsObjects_(ss, sheetName) {
   return getRowsAsObjectsFromSheet_(ss.getSheetByName(sheetName));
 }
 
+function getDbInfo_() {
+  var ss = getOrCreateDatabase_();
+  return {
+    スプレッドシートID: ss.getId(),
+    スプレッドシートURL: ss.getUrl(),
+    シート一覧: ss.getSheets().map(function(sheet) {
+      return sheet.getName();
+    }),
+  };
+}
 
 function parsePayload_(payload) {
   if (!payload) {

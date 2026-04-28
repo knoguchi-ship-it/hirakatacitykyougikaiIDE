@@ -2,10 +2,13 @@
 
 作成日: 2026-04-28
 対象状態: `v287-partial`
+完了状態: `v288` で integrated/public fixed deployments `@287` へ反映済み
 
 ## 1. 目的
 
 現在の公開ポータル URL を変えずに、統合プロジェクト側へ残っている admin / member の処理機能を public から切り離す。
+
+2026-04-28 追記: Phase 1 から Phase 4 は `v288` として完了。実装・検証・rollback 条件の正本は `docs/166_RELEASE_STATE_v288_2026-04-28.md` を参照する。
 
 最終状態:
 
