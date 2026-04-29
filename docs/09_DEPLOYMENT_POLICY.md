@@ -35,6 +35,7 @@ Production: `v289` / 統合（公開）fixed deployments `@288` / 会員 split `
 git status --short
 git diff
 npm run security:audit
+npm run security:public-boundary
 npm run typecheck
 npm run build:gas
 ```
@@ -89,6 +90,7 @@ Real-browser verification is performed by the operator by default. The agent rec
 - `git diff` and `git status --short` reviewed before push.
 - Untracked files classified as tracked target or allowed local/generated artifact.
 - `npm run security:audit` has no high or critical findings.
+- `npm run security:public-boundary` passes for integrated/public artifacts.
 - `npm run typecheck` passes.
 - Required build commands pass.
 - `clasp push`, `clasp version`, and `clasp redeploy` succeed.

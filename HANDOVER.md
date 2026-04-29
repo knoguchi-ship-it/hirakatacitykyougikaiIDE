@@ -13,6 +13,7 @@
 - fixed deployment 2本運用を維持し、片系だけ更新しない。
 - production fixed deployment 同期は `npx clasp redeploy ... --versionNumber ... --description ...` を標準とする。
 - split project の広範な関数本体 pruning は v283 で破損したため停止中。public artifact は v289 で comment/string を除外した依存解析と top-level callable allowlist 検査を導入済み。
+- release 前に `npm run security:public-boundary` を実行し、統合/public artifact の callable/action/HTML 境界が崩れていないことを確認する。
 
 ## 2. 最初に読む順序
 
