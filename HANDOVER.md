@@ -27,26 +27,27 @@
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
 10. `docs/169_RELEASE_STATE_v290_2026-04-29.md`
-11. `docs/168_RELEASE_STATE_v289_2026-04-29.md`
-12. `docs/167_THIRD_PARTY_ASSESSMENT_PUBLIC_SEPARATION_2026-04-28.md`
-13. `docs/166_RELEASE_STATE_v288_2026-04-28.md`
-14. `docs/165_HANDOVER_PUBLIC_PORTAL_SEPARATION_PLAN_2026-04-28.md`
-15. `docs/164_RELEASE_STATE_v287_2026-04-28.md`
-16. `docs/163_RELEASE_STATE_v286_2026-04-28.md`
-17. `docs/162_RELEASE_STATE_v285_2026-04-27.md`
-18. `docs/161_RELEASE_STATE_v284_2026-04-27.md`
-19. `docs/160_RELEASE_STATE_v283_2026-04-27.md`
-20. `docs/159_RELEASE_STATE_v282_2026-04-27.md`
-21. `docs/158_RELEASE_STATE_v281_2026-04-27.md`
-22. `docs/157_RELEASE_STATE_v280_2026-04-27.md`
-23. `docs/156_RELEASE_STATE_v279_2026-04-27.md`
-24. `docs/155_RELEASE_STATE_v278_2026-04-27.md`
-25. `docs/153_INCIDENT_DRIVE_PERMISSION_2026-04-27.md`
-26. `docs/09_DEPLOYMENT_POLICY.md`
-27. `docs/05_AUTH_AND_ROLE_SPEC.md`
-28. `docs/04_DB_OPERATION_RUNBOOK.md`
-29. `docs/03_DATA_MODEL.md`
-30. `docs/00_DOC_INDEX.md`
+11. `docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md`
+12. `docs/168_RELEASE_STATE_v289_2026-04-29.md`
+13. `docs/167_THIRD_PARTY_ASSESSMENT_PUBLIC_SEPARATION_2026-04-28.md`
+14. `docs/166_RELEASE_STATE_v288_2026-04-28.md`
+15. `docs/165_HANDOVER_PUBLIC_PORTAL_SEPARATION_PLAN_2026-04-28.md`
+16. `docs/164_RELEASE_STATE_v287_2026-04-28.md`
+17. `docs/163_RELEASE_STATE_v286_2026-04-28.md`
+18. `docs/162_RELEASE_STATE_v285_2026-04-27.md`
+19. `docs/161_RELEASE_STATE_v284_2026-04-27.md`
+20. `docs/160_RELEASE_STATE_v283_2026-04-27.md`
+21. `docs/159_RELEASE_STATE_v282_2026-04-27.md`
+22. `docs/158_RELEASE_STATE_v281_2026-04-27.md`
+23. `docs/157_RELEASE_STATE_v280_2026-04-27.md`
+24. `docs/156_RELEASE_STATE_v279_2026-04-27.md`
+25. `docs/155_RELEASE_STATE_v278_2026-04-27.md`
+26. `docs/153_INCIDENT_DRIVE_PERMISSION_2026-04-27.md`
+27. `docs/09_DEPLOYMENT_POLICY.md`
+28. `docs/05_AUTH_AND_ROLE_SPEC.md`
+29. `docs/04_DB_OPERATION_RUNBOOK.md`
+30. `docs/03_DATA_MODEL.md`
+31. `docs/00_DOC_INDEX.md`
 
 ## 3. 配信境界
 
@@ -94,7 +95,8 @@
 
 # Next Handover Note
 
-- v290 で public artifact から admin cache / admin audit / admin role transition 系 private helper も除去済み。次担当者は `docs/169_RELEASE_STATE_v290_2026-04-29.md` を読むこと。
+- 次担当者は `docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md` を最初に読み、分離済み範囲と未完了タスクを確認すること。
+- v290 で public artifact から admin cache / admin audit / admin role transition 系 private helper も除去済み。詳細は `docs/169_RELEASE_STATE_v290_2026-04-29.md` を読むこと。
 - 2026-04-29 に agent 側で headless Chrome / CDP を使い、実アプリ iframe 内の `google.script.run.rebuildDatabaseSchema` / `google.script.run.getDbInfo` が `is not a function` で呼べないことを確認済み。
 - v288 で public portal の integrated artifact は public-only へ縮退済み。背景は `docs/166_RELEASE_STATE_v288_2026-04-28.md` と `docs/165_HANDOVER_PUBLIC_PORTAL_SEPARATION_PLAN_2026-04-28.md` を参照。
 - canonical full source は `gas-src/Code.full.gs`。`backend/Code.gs` は `npm run build:gas` で生成される public-only artifact として扱う。
