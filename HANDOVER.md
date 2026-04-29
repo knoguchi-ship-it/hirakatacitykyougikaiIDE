@@ -80,7 +80,6 @@
 ## 6. 操作者確認待ち
 
 - `v289`: 公開ポータルが旧統合 URL / 公開 URL で表示され、主要 public 導線が従来どおり動くこと。
-- `v289`: ブラウザ開発者ツールから `google.script.run.rebuildDatabaseSchema` / `google.script.run.getDbInfo` が呼べないこと。
 - `v288`: 公開ポータルで研修一覧、外部申込/取消、会員登録申請、公開変更申請、OTP 導線が従来どおり動くこと。
 - `v288`: 旧統合 URL が public-only 画面を返し、会員ログイン画面や管理者ログイン画面を返さないこと。
 - `v288`: 会員 split `@39` と管理者 split `@46` の実ブラウザ動作が従来どおり維持されること。
@@ -93,6 +92,7 @@
 # Next Handover Note
 
 - v289 で public artifact から `rebuildDatabaseSchema` / `getDbInfo` は除去済み。次担当者は `docs/168_RELEASE_STATE_v289_2026-04-29.md` を読むこと。
+- 2026-04-29 に agent 側で headless Chrome / CDP を使い、実アプリ iframe 内の `google.script.run.rebuildDatabaseSchema` / `google.script.run.getDbInfo` が `is not a function` で呼べないことを確認済み。
 - v288 で public portal の integrated artifact は public-only へ縮退済み。背景は `docs/166_RELEASE_STATE_v288_2026-04-28.md` と `docs/165_HANDOVER_PUBLIC_PORTAL_SEPARATION_PLAN_2026-04-28.md` を参照。
 - canonical full source は `gas-src/Code.full.gs`。`backend/Code.gs` は `npm run build:gas` で生成される public-only artifact として扱う。
 - admin `@47` はホワイトアウト発生済み。原因特定まで admin physical pruning を再デプロイしない。
