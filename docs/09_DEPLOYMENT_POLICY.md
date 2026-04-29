@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-04-29
-Production: `v289` / 統合（公開）fixed deployments `@288` / 会員 split `@39` / 管理者 split `@46`
+Production: `v290` / 統合（公開）fixed deployments `@289` / 会員 split `@39` / 管理者 split `@46`
 
 ## 1. Purpose
 
@@ -17,8 +17,8 @@ Production: `v289` / 統合（公開）fixed deployments `@288` / 会員 split `
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@288` (`v289`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@288` (`v289`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@289` (`v290`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@289` (`v290`) |
 
 ### Split projects
 
@@ -108,7 +108,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-04-29 `v289` ← current production
+### 2026-04-29 `v290` ← current production
+
+- Scope: public artifact から admin cache / admin audit / admin role transition 系 private helper と maintenance 関数名 token を追加削除。
+- Integrated fixed deployments: `@289` × 2.
+- Member split: `@39`.
+- Admin split: `@46`.
+- Detail: `docs/169_RELEASE_STATE_v290_2026-04-29.md`
+
+### 2026-04-29 `v289`
 
 - Scope: v288 第三者評価で検出した public callable maintenance / diagnostic entrypoint を除去。public generated `backend/Code.gs` の top-level callable を `doGet`, `processApiRequest`, `healthCheck` に限定。
 - Integrated fixed deployments: `@288` × 2.

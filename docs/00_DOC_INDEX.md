@@ -1,7 +1,7 @@
 # Document Index
 
 更新日: 2026-04-29
-現行バージョン: `v289`
+現行バージョン: `v290`
 
 ## 1. Entry Points
 
@@ -21,7 +21,7 @@
 | `docs/03_DATA_MODEL.md` | データモデル正本 |
 | `docs/04_DB_OPERATION_RUNBOOK.md` | DB運用手順 |
 | `docs/05_AUTH_AND_ROLE_SPEC.md` | 認証・認可仕様 |
-| `docs/09_DEPLOYMENT_POLICY.md` | デプロイポリシー正本（v289 @288/@39/@46） |
+| `docs/09_DEPLOYMENT_POLICY.md` | デプロイポリシー正本（v290 @289/@39/@46） |
 | `docs/109_THIRD_PARTY_ASSESSMENT_2026-04-20.md` | 第三者セキュリティ評価 |
 | `docs/111_IMPLEMENTATION_BLUEPRINT_PROJECT_SPLIT_2026-04-20.md` | 3プロジェクト分離設計 |
 | `docs/165_HANDOVER_PUBLIC_PORTAL_SEPARATION_PLAN_2026-04-28.md` | public portal の Code.gs 完全分離に向けた次期引継ぎ・計画 |
@@ -41,11 +41,11 @@
 
 | Version | 文書 | 内容 |
 |---|---|---|
-| **v289** | `docs/168_RELEASE_STATE_v289_2026-04-29.md` | public callable maintenance / diagnostic entrypoint を除去し、top-level callable allowlist を追加 |
+| **v290** | `docs/169_RELEASE_STATE_v290_2026-04-29.md` | public artifact から admin private helper と maintenance token を追加削除 |
+| v289 | `docs/168_RELEASE_STATE_v289_2026-04-29.md` | public callable maintenance / diagnostic entrypoint を除去し、top-level callable allowlist を追加 |
 | v288 | `docs/166_RELEASE_STATE_v288_2026-04-28.md` | 統合 project の public artifact を public-only に縮退。公開 URL / deployment ID は維持 |
 | v287-partial | `docs/164_RELEASE_STATE_v287_2026-04-28.md` | member 物理削除は継続。admin 物理削除はホワイトアウトにより @46 へロールバック |
 | v286 | `docs/163_RELEASE_STATE_v286_2026-04-28.md` | admin-only 代表者検証・監査ログを `saveMemberCore_` option で明示 |
-| v285 | `docs/162_RELEASE_STATE_v285_2026-04-27.md` | member self-service 更新経路を admin wrapper から core へ分離 |
 
 古いリリース: `docs/archive/release_history/`
 
