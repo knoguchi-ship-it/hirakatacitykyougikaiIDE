@@ -545,10 +545,10 @@ function doGet(e) {
  */
 
 /**
- * DBスキーマを再構築する。
- * 既存の定義外シートは削除し、定義シートのヘッダー/入力規則/保護を再適用する。
+ * T_会員 に 勤務先住所2 / 自宅住所2 列を追加するマイグレーション。
+ * 既にカラムが存在する場合はスキップする（冪等）。
+ * 実行後は schema maintenance のヘッダー保護を再適用することを推奨。
  */
-
 
 
 
@@ -867,13 +867,7 @@ function getAllDataCacheKey_() {
   return 'fetchAllData:' + DB_SCHEMA_VERSION;
 }
 
-function getAdminDashboardCacheKey_() {
-  return 'adminDashboard:' + DB_SCHEMA_VERSION;
-}
 
-function getTrainingManagementCacheKey_() {
-  return 'trainingManagement:' + DB_SCHEMA_VERSION;
-}
 
 // v150: CacheService チャンキング（100KB上限対応、putAll/getAll バッチ操作）
 var CACHE_CHUNK_SIZE = 90000; // 90KB safety margin
@@ -893,16 +887,9 @@ function removeChunkedCache_(cache, key) {
 function clearAllDataCache_() {
   var cache = CacheService.getScriptCache();
   removeChunkedCache_(cache, getAllDataCacheKey_());
-  clearRecentAnnualFeeAdminCaches_();
 }
 
-function clearAdminDashboardCache_() {
-  removeChunkedCache_(CacheService.getScriptCache(), getAdminDashboardCacheKey_());
-}
 
-function clearTrainingManagementCache_() {
-  removeChunkedCache_(CacheService.getScriptCache(), getTrainingManagementCacheKey_());
-}
 
 
 function buildSheetLookup_(ss) {
@@ -1089,11 +1076,6 @@ var MASTER_ONLY_SETTING_KEYS = ['EMAIL_LOG_VIEWER_ROLE'];
 
 
 
-function getCurrentFiscalYear_() {
-  var now = new Date();
-  var month = now.getMonth() + 1;
-  return month >= 4 ? now.getFullYear() : now.getFullYear() - 1;
-}
 
 
 
@@ -1103,12 +1085,6 @@ function getCurrentFiscalYear_() {
 
 
 
-function clearRecentAnnualFeeAdminCaches_() {
-  var currentFiscalYear = getCurrentFiscalYear_();
-  for (var year = currentFiscalYear - 2; year <= currentFiscalYear + 1; year += 1) {
-    clearAnnualFeeAdminCache_(year);
-  }
-}
 
 
 
@@ -1132,13 +1108,7 @@ function buildColumnIndex_(sheet) {
 
 
 
-function getAnnualFeeAdminCacheKey_(year) {
-  return 'annualFeeAdminData:' + DB_SCHEMA_VERSION + ':' + String(year || '');
-}
 
-function clearAnnualFeeAdminCache_(year) {
-  removeChunkedCache_(CacheService.getScriptCache(), getAnnualFeeAdminCacheKey_(year));
-}
 
 function getSystemSettingValue_(ss, key) {
   var sheet = ss.getSheetByName('T_システム設定');
@@ -1302,7 +1272,6 @@ function submitMemberApplication_(payload) {
       var conversionResult = convertStaffToIndividual_(ss, convertedPayload);
       overwritePublicApplicationMemberFields_(ss, conversionResult.newMemberId, payload, memberTypeCode, joinedDate, now);
       clearAllDataCache_();
-      clearAdminDashboardCache_();
       transitionSummary.push('事業所会員メンバーから個人会員へ切り替えました。');
       return {
         created: true,
@@ -1634,7 +1603,6 @@ function submitMemberApplication_(payload) {
   }
 
   clearAllDataCache_();
-  clearAdminDashboardCache_();
   return result;
 }
 
@@ -2000,8 +1968,6 @@ function transferBusinessStaffToBusinessMember_(ss, payload) {
 
   migrateTrainingApplications_(ss, sourceMemberId, sourceStaffId, targetOfficeMemberId, newStaffId);
   clearAllDataCache_();
-  clearAdminDashboardCache_();
-  clearTrainingManagementCache_();
 
   return {
     converted: true,
@@ -2153,8 +2119,6 @@ function removeStaffFromOffice_(payload) {
   disableAuthAccountsByStaffId_(ss, String(payload.staffId));
 
   clearAllDataCache_();
-  clearAdminDashboardCache_();
-  clearTrainingManagementCache_();
   return {
     removed: true,
     memberId: String(payload.memberId),
@@ -2470,8 +2434,6 @@ function convertStaffToIndividual_(ss, payload) {
   // post-check は廃止: 再活性化パターン + 事前チェック（step 2.5）で整合性を保証するため不要
 
   clearAllDataCache_();
-  clearAdminDashboardCache_();
-  clearTrainingManagementCache_();
 
   return {
     converted: true,
@@ -2667,8 +2629,6 @@ function convertIndividualToStaff_(ss, payload) {
   migrateTrainingApplications_(ss, sourceMemberId, '', targetOfficeMemberId, newStaffId);
 
   clearAllDataCache_();
-  clearAdminDashboardCache_();
-  clearTrainingManagementCache_();
 
   return {
     converted: true,
@@ -2782,26 +2742,6 @@ var STAFF_WRITABLE_FIELDS_SELF_ = ['id','name','kana','email'];
 
 // v143: 監査ログ追記 — ADMIN_AUDIT_FIELDS_ の変更を T_監査ログ に記録
 // v259: ログSSが設定されている場合はそちらに書き込む
-function appendAdminAuditLog_(ss, adminEmail, memberId, changes) {
-  if (!changes || changes.length === 0) return;
-  var sheet = getLogSs_().getSheetByName('T_監査ログ');
-  if (!sheet) return; // スキーマ未反映時はサイレントスキップ
-  var now = new Date().toISOString();
-  for (var i = 0; i < changes.length; i++) {
-    var c = changes[i];
-    sheet.appendRow([
-      Utilities.getUuid(),   // 監査ログID
-      now,                   // 操作日時
-      adminEmail || '',      // 操作者メール
-      'ADMIN_EDIT',          // 操作種別
-      'T_会員',              // 対象テーブル
-      String(memberId),      // 対象レコードID
-      c.field,               // フィールド名
-      String(c.oldValue),    // 旧値
-      String(c.newValue),    // 新値
-    ]);
-  }
-}
 
 
 // ── v125: フラット人物リスト取得（個人会員+事業所職員を混合） ──
@@ -2882,10 +2822,7 @@ function saveMemberCore_(payload, options) {
   var hasOwn = Object.prototype.hasOwnProperty;
   // v147: 退会済み事業所会員は代表者バリデーションをスキップ（代表者なしでも情報更新可能）
   var currentMemberStatus = String(row[cols['会員状態コード']] || 'ACTIVE');
-  if (enableAdminRoleValidation && memberTypeCode === 'BUSINESS' && currentMemberStatus !== 'WITHDRAWN' && Object.prototype.hasOwnProperty.call(payload, 'staff')) {
-    validateBusinessStaffRoleTransition_(ss, String(payload.id), payload.staff, adminSession);
-  }
-  function fromPayloadOrCurrent(key, currentValue) {
+    function fromPayloadOrCurrent(key, currentValue) {
     return hasOwn.call(payload, key) ? payload[key] : currentValue;
   }
   function getCol(name) {
@@ -3003,30 +2940,9 @@ function saveMemberCore_(payload, options) {
 
   // v143: 管理者操作の監査ログ出力
   var effectiveAdminSession = adminSession || (payload.__adminSession || null);
-  if (enableAdminAudit && effectiveAdminSession && effectiveAdminSession.email) {
-    var auditChanges = [];
-    var newJoinedDate = String(normalizeDateInput_(mergedPayload.joinedDate) || '');
-    var newWithdrawnDate = String(normalizeDateInput_(mergedPayload.withdrawnDate) || '');
-    var newWithdrawalProcessDate = String(normalizeDateInput_(mergedPayload.withdrawalProcessDate) || '');
-    if (nextStatus !== prevStatus) {
-      auditChanges.push({ field: '会員状態コード', oldValue: prevStatus, newValue: nextStatus });
-    }
-    if (newJoinedDate !== prevJoinedDate) {
-      auditChanges.push({ field: '入会日', oldValue: prevJoinedDate, newValue: newJoinedDate });
-    }
-    if (newWithdrawnDate !== prevWithdrawnDate) {
-      auditChanges.push({ field: '退会日', oldValue: prevWithdrawnDate, newValue: newWithdrawnDate });
-    }
-    if (newWithdrawalProcessDate !== prevWithdrawalProcessDate) {
-      auditChanges.push({ field: '退会処理日', oldValue: prevWithdrawalProcessDate, newValue: newWithdrawalProcessDate });
-    }
-    appendAdminAuditLog_(ss, effectiveAdminSession.email, payload.id, auditChanges);
-  }
 
   if (!skipCacheClear) {
     clearAllDataCache_();
-    clearAdminDashboardCache_();
-    clearTrainingManagementCache_();
   }
   return { updated: true, memberId: String(payload.id) };
 }
@@ -3132,132 +3048,7 @@ function normalizeBusinessStaffRole_(value) {
   return ['REPRESENTATIVE', 'ADMIN', 'STAFF'].indexOf(role) !== -1 ? role : 'STAFF';
 }
 
-function getBusinessStaffRowsByMember_(ss, memberId) {
-  return getRowsAsObjects_(ss, 'T_事業所職員').filter(function(row) {
-    return !toBoolean_(row['削除フラグ']) && String(row['会員ID'] || '') === String(memberId || '');
-  });
-}
 
-function validateBusinessStaffRoleTransition_(ss, memberId, staffPayloadList, adminSession) {
-  var actorStaffId = String((adminSession && adminSession.staffId) || '').trim();
-  var actorRoleCode = String((adminSession && adminSession.roleCode) || '');
-  var currentRows = getBusinessStaffRowsByMember_(ss, String(memberId || ''));
-
-  var currentRolesById = {};
-  var currentStatusById = {};
-  var currentRepIds = {};
-  var actorStaffRole = '';
-
-  for (var i = 0; i < currentRows.length; i += 1) {
-    var row = currentRows[i];
-    var staffId = String(row['職員ID'] || '');
-    if (!staffId) continue;
-    var role = normalizeBusinessStaffRole_(row['職員権限コード']);
-    var status = String(row['職員状態コード'] || 'ENROLLED');
-    currentRolesById[staffId] = role;
-    currentStatusById[staffId] = status;
-    if (status !== 'LEFT' && role === 'REPRESENTATIVE') {
-      currentRepIds[staffId] = true;
-    }
-    if (actorStaffId && actorStaffId === staffId) {
-      actorStaffRole = role;
-    }
-  }
-
-  // システム管理権限（MASTER/ADMIN）は事業所内の職員ロールに関係なく全操作可能
-  var adminPermLevel = adminSession ? String(adminSession.adminPermissionLevel || '') : '';
-  var isSystemAdmin = (adminPermLevel === 'MASTER' || adminPermLevel === 'ADMIN');
-
-  if (!actorStaffRole) {
-    actorStaffRole = isSystemAdmin ? 'REPRESENTATIVE' : 'ADMIN';
-  }
-
-  var payloadRows = Array.isArray(staffPayloadList) ? staffPayloadList : [];
-  var payloadById = {};
-  var nextRolesById = {};
-  var nextStatusById = {};
-  var nextRepIds = {};
-
-  for (var j = 0; j < payloadRows.length; j += 1) {
-    var payload = payloadRows[j] || {};
-    var staffId = String(payload.id || '').trim();
-    if (!staffId) continue;
-    payloadById[staffId] = {
-      role: normalizeBusinessStaffRole_(payload.role),
-      status: String(payload.status || 'ENROLLED') === 'LEFT' ? 'LEFT' : 'ENROLLED',
-    };
-  }
-
-  for (var existingId in currentRolesById) {
-    if (!Object.prototype.hasOwnProperty.call(currentRolesById, existingId)) continue;
-    var currentRole = currentRolesById[existingId];
-    var currentStatus = currentStatusById[existingId] || 'ENROLLED';
-    var nextStatus = currentStatus;
-    var nextRole = currentRole;
-    if (Object.prototype.hasOwnProperty.call(payloadById, existingId)) {
-      nextStatus = payloadById[existingId].status;
-      nextRole = payloadById[existingId].role;
-    } else {
-      nextStatus = 'LEFT';
-    }
-    nextRolesById[existingId] = nextRole;
-    nextStatusById[existingId] = nextStatus;
-    if (nextStatus !== 'LEFT' && nextRole === 'REPRESENTATIVE') {
-      nextRepIds[existingId] = true;
-    }
-    if (!isSystemAdmin && actorStaffRole !== 'REPRESENTATIVE') {
-      if (currentRole === 'REPRESENTATIVE' && nextRole !== 'REPRESENTATIVE') {
-        throw new Error('代表者ロールは代表者または管理者のみ変更できます。');
-      }
-      if (currentRole !== 'REPRESENTATIVE' && nextRole === 'REPRESENTATIVE') {
-        throw new Error('代表者は代表者または管理者のみ登録できます。');
-      }
-    }
-  }
-
-  for (var payloadId in payloadById) {
-    if (!Object.prototype.hasOwnProperty.call(payloadById, payloadId)) continue;
-    if (Object.prototype.hasOwnProperty.call(currentRolesById, payloadId)) continue;
-    var normalizedRole = payloadById[payloadId].role;
-    var normalizedStatus = payloadById[payloadId].status;
-    nextRolesById[payloadId] = normalizedRole;
-    nextStatusById[payloadId] = normalizedStatus;
-    if (normalizedStatus !== 'LEFT' && normalizedRole === 'REPRESENTATIVE') {
-      nextRepIds[payloadId] = true;
-    }
-    if (!isSystemAdmin && actorStaffRole !== 'REPRESENTATIVE' && normalizedRole === 'REPRESENTATIVE') {
-      throw new Error('代表者は代表者または管理者のみ登録できます。');
-    }
-  }
-
-  var repCount = 0;
-  var activeRepCount = 0;
-  for (var finalId in nextRepIds) {
-    if (Object.prototype.hasOwnProperty.call(nextRepIds, finalId)) {
-      repCount += 1;
-    }
-  }
-  if (repCount === 0) {
-    throw new Error('代表者は必ず1名登録してください。');
-  }
-  if (repCount > 1) {
-    throw new Error('代表者は1名のみ登録できます。');
-  }
-
-  for (var activeRoleId in nextRolesById) {
-    if (!Object.prototype.hasOwnProperty.call(nextRolesById, activeRoleId)) continue;
-    if ((nextStatusById[activeRoleId] || 'ENROLLED') === 'LEFT') continue;
-    if (nextRolesById[activeRoleId] === 'REPRESENTATIVE') {
-      activeRepCount += 1;
-    }
-  }
-  if (activeRepCount === 0) {
-    throw new Error('代表者は必ず1名登録してください。');
-  }
-  if (activeRepCount > 1) {
-    throw new Error('代表者は1名のみ登録できます。');
-  }
-}
 
 
 // 退会予定日を過ぎた WITHDRAWAL_SCHEDULED を WITHDRAWN に昇格 + 認証アカウント無効化
@@ -3469,7 +3260,7 @@ function findRowByColumnValue_(sheet, columnName, targetValue) {
 function requireColumns_(columns, names) {
   for (var i = 0; i < names.length; i += 1) {
     if (columns[names[i]] == null) {
-      throw new Error('スキーマ不足: 列「' + names[i] + '」が見つかりません。rebuildDatabaseSchema() を実行してください。');
+      throw new Error('スキーマ不足: 列「' + names[i] + '」が見つかりません。schema maintenance を実行してください。');
     }
   }
 }
@@ -3825,16 +3616,6 @@ function getOrCreateDatabase_() {
  * Script Properties に LOG_SPREADSHEET_ID が設定されていればそちらを返す。
  * 未設定またはアクセス失敗時はメインDBにフォールバック（移行前・設定前は既存動作を維持）。
  */
-function getLogSs_() {
-  var id = PropertiesService.getScriptProperties().getProperty('LOG_SPREADSHEET_ID');
-  if (!id) return getOrCreateDatabase_();
-  try {
-    return SpreadsheetApp.openById(id);
-  } catch (e) {
-    Logger.log('getLogSs_: ログSSへのアクセス失敗。メインDBにフォールバック: ' + e.message);
-    return getOrCreateDatabase_();
-  }
-}
 
 function initializeSchema_(ss) {
   createMasterSheets_(ss);
@@ -4753,7 +4534,6 @@ function applyTrainingExternal_(payload) {
 
     updateTrainingApplicantCount_(db, trainingId);
     clearAllDataCache_();
-    clearAdminDashboardCache_();
 
     try {
       MailApp.sendEmail({
@@ -4812,7 +4592,6 @@ function cancelTrainingExternal_(payload) {
   updateRowByKey_(applySheet, テーブル定義.T_研修申込, '申込ID', applyId, { '申込状態コード': 'CANCELED', '更新日時': nowStr });
   updateTrainingApplicantCount_(db, String(apply['研修ID'] || ''));
   clearAllDataCache_();
-  clearAdminDashboardCache_();
 
   return JSON.stringify({ success: true });
 }
@@ -5067,8 +4846,6 @@ function submitPublicWithdrawalRequest_(payload) {
   memberSheet.getRange(memberFound.rowNumber, 1, 1, mRow.length).setValues([mRow]);
 
   clearAllDataCache_();
-  clearAdminDashboardCache_();
-  clearTrainingManagementCache_();
   cache.remove(tokenKey);
 
   var toEmail = String(mRow[mCols['代表メールアドレス']] || '').trim();
@@ -5283,7 +5060,6 @@ function addPublicStaffMember_(payload) {
   }]);
 
   clearAllDataCache_();
-  clearAdminDashboardCache_();
   return { success: true, staffId: newStaffId };
 }
 
@@ -6177,6 +5953,12 @@ function backfillBusinessStaffNameColumns_(ss) {
  * ログSSのスキーマを再構築する（既存ログSSのシートが壊れた場合など）。
  */
 
+
+/**
+ * 退会済み会員（指定年数以上前）をアーカイブシートに移動する（定期実行用）。
+ * デフォルトは退会から3年以上経過した会員をアーカイブ対象とする。
+ * 実行前に schema maintenance でアーカイブシートが作成済みであること。
+ */
 
 
 /**

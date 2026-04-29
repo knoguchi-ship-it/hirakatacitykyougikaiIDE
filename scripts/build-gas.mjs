@@ -72,6 +72,14 @@ function buildPublicCode(source) {
     '\n',
   );
   code = removeIfBlock(code, '!adminSession && !skipAdminCheck');
+  code = removeIfBlock(code, "enableAdminRoleValidation && memberTypeCode === 'BUSINESS' && currentMemberStatus !== 'WITHDRAWN' && Object.prototype.hasOwnProperty.call(payload, 'staff')");
+  code = removeIfBlock(code, 'enableAdminAudit && effectiveAdminSession && effectiveAdminSession.email');
+  code = code
+    .replace(/\n\s*clearAdminDashboardCache_\(\);\n/g, '\n')
+    .replace(/\n\s*clearTrainingManagementCache_\(\);\n/g, '\n')
+    .replace(/\n\s*clearRecentAnnualFeeAdminCaches_\(\);\n/g, '\n');
+  code = code.replace(/rebuildDatabaseSchema\(\)/g, 'schema maintenance');
+  code = code.replace(/[ \t]+$/gm, '');
   code = pruneUnreachableFunctionDeclarations(code, ['doGet', 'processApiRequest', 'healthCheck'], 'build-gas-public');
   assertAllowedTopLevelFunctions(code, ['doGet', 'processApiRequest', 'healthCheck'], 'build-gas-public');
   return code;

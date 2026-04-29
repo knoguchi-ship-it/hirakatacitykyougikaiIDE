@@ -47,6 +47,18 @@ const forbiddenTopLevelFunctions = [
   'updateSystemSettings',
 ];
 
+const forbiddenPrivateFunctions = [
+  'getAdminDashboardCacheKey_',
+  'getTrainingManagementCacheKey_',
+  'clearAdminDashboardCache_',
+  'clearTrainingManagementCache_',
+  'clearRecentAnnualFeeAdminCaches_',
+  'getAnnualFeeAdminCacheKey_',
+  'clearAnnualFeeAdminCache_',
+  'appendAdminAuditLog_',
+  'validateBusinessStaffRoleTransition_',
+];
+
 const forbiddenHtmlTokens = [
   'memberLogin',
   'memberLoginWithData',
@@ -61,6 +73,11 @@ const forbiddenHtmlTokens = [
   'getAdminChangeRequests',
   'approveAdminChangeRequest',
   'fetchAllData',
+];
+
+const forbiddenCodeTokens = [
+  'rebuildDatabaseSchema',
+  'getDbInfo',
 ];
 
 const failures = [];
@@ -111,6 +128,21 @@ compareSets(topLevelFunctions, allowedTopLevelFunctions, 'public top-level funct
 for (const name of forbiddenTopLevelFunctions) {
   if (new RegExp(`^function\\s+${name}\\s*\\(`, 'm').test(code)) {
     fail(`forbidden public top-level function remains: ${name}`);
+  }
+}
+
+for (const token of forbiddenCodeTokens) {
+  if (code.includes(token)) {
+    fail(`forbidden public code token remains: ${token}`);
+  }
+}
+
+for (const name of forbiddenPrivateFunctions) {
+  if (new RegExp(`^function\\s+${name}\\s*\\(`, 'm').test(code)) {
+    fail(`forbidden admin private helper remains in public artifact: ${name}`);
+  }
+  if (new RegExp(`\\b${name}\\s*\\(`).test(code)) {
+    fail(`forbidden admin private helper call remains in public artifact: ${name}`);
   }
 }
 
