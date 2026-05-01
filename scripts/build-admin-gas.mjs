@@ -278,7 +278,7 @@ function pruneUnreachableFunctionDeclarations(source, seedNames, label) {
   const removable = declarations.filter((decl) => !reachable.has(decl.name));
   const removableNames = new Set(removable.map((decl) => decl.name));
   const removableTopLevelStatements = collectTopLevelStatements(source, declarations).filter((statement) => (
-    [...removableNames].some((name) => new RegExp(`\\b${name}\\b`).test(statement.text))
+    [...removableNames].some((name) => new RegExp(`\\b${name}\\s*\\(`).test(statement.text))
   ));
   const rangesToRemove = [
     ...removable.map((decl) => ({ start: decl.start, end: decl.end })),

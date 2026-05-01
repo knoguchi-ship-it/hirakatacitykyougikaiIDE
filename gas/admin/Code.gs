@@ -547,6 +547,12 @@ function doGet(e) {
  */
 
 /**
+ * スプレッドシートDBを作成し、マスタ/テーブルを初期化する。
+ * 不要シート（定義外シート）もあわせて削除する。
+ * clasp run setupDatabase から実行想定。
+ */
+
+/**
  * T_会員 に 勤務先住所2 / 自宅住所2 列を追加するマイグレーション。
  * 既にカラムが存在する場合はスキップする（冪等）。
  * 実行後は rebuildDatabaseSchema() のヘッダー保護を再適用することを推奨。
@@ -561,6 +567,19 @@ function doGet(e) {
 
 
 /**
+ * 既存ホワイトリストの権限コードをマイグレーションする。
+ * k.noguchi@uguisunosato.or.jp → MASTER、他 → ADMIN。
+ * 使い方: npx clasp run migrateAdminPermissions
+ */
+
+/**
+ * ホワイトリストのデータ列ズレを修復する（v118 スキーマ移行用）。
+ * writeSheetHeaders_ がヘッダーだけ上書きしデータ行を移動しなかったため、
+ * 旧列位置のデータを新列位置にリマップする。
+ * 使い方: npx clasp run repairWhitelistData
+ */
+
+/**
  * 定義外シートのみを削除する。
  */
 
@@ -571,6 +590,26 @@ function doGet(e) {
 
 
 // スコープ不要の疎通確認用。Execution API経路の切り分けに使う。
+
+/**
+ * v209: T_システム設定 に認証情報メール設定キーを追加する（ワンタイム実行）
+ * 実行: npx clasp run insertSystemSettingKeysForV209
+ */
+
+/**
+ * v210: T_システム設定 に公開ポータルメニュー表示設定キーを追加する（ワンタイム実行）
+ * 実行: npx clasp run insertSystemSettingKeysForV210
+ */
+
+/**
+ * v194 Phase 1: T_システム設定 に3新設定キーを追加する（ワンタイム実行）
+ * 実行: npx clasp run insertSystemSettingKeysForV194
+ */
+
+/**
+ * v194 Phase 1: T_メール送信ログ シートを DB に新設する（ワンタイム実行）
+ * 実行: npx clasp run createEmailLogSheet
+ */
 
 /**
  * Web App公開状態の確認用。
@@ -600,6 +639,71 @@ var MEMBER_ALLOWED_ACTIONS = {};
 var ADMIN_LOGIN_ACTIONS = {
   checkAdminBySession: true,
   adminLoginWithData: true,
+};
+
+var ADMIN_ACTION_PERMISSIONS = {
+  'getDbInfo': ['MASTER','ADMIN'],
+  'getSystemSettings': ['MASTER','ADMIN'],
+  'updateSystemSettings': ['MASTER','ADMIN'],
+  'getAdminPermissionData': ['MASTER','ADMIN'],
+  'saveAdminPermission': ['MASTER','ADMIN'],
+  'deleteAdminPermission': ['MASTER','ADMIN'],
+  'seedDemoData': ['MASTER'],
+  'getAdminDashboardData': ['MASTER','ADMIN'],
+  'getAdminInitData': ['MASTER','ADMIN'],
+  'updateMember': ['MASTER','ADMIN'],
+  'updateMembersBatch': ['MASTER','ADMIN'],
+  'createMember': ['MASTER','ADMIN'],
+  'withdrawMember': ['MASTER','ADMIN'],
+  'scheduleWithdrawMember': ['MASTER','ADMIN'],
+  'cancelScheduledWithdraw': ['MASTER','ADMIN'],
+  'removeStaffFromOffice': ['MASTER','ADMIN'],
+  'updateStaff': ['MASTER','ADMIN'],
+  'getAdminPersonList': ['MASTER','ADMIN'],
+  'updatePersonsBatch': ['MASTER','ADMIN'],
+  'convertMemberType': ['MASTER','ADMIN'],
+  'getAnnualFeeAdminData': ['MASTER','ADMIN'],
+  'saveAnnualFeeRecord': ['MASTER','ADMIN'],
+  'saveAnnualFeeRecordsBatch': ['MASTER','ADMIN'],
+  'saveTraining': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
+  'uploadTrainingFile': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
+  'setupTrainingFileFolder': ['MASTER','ADMIN'],
+  'getTrainingManagementData': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
+  'getTrainingApplicants': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
+  'sendTrainingReminder': ['MASTER','ADMIN','TRAINING_MANAGER'],
+  'getAdminEmailAliases': ['MASTER','ADMIN','TRAINING_MANAGER'],
+  'sendTrainingMail': ['MASTER','ADMIN','TRAINING_MANAGER'],
+  'generateTrainingEmail': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
+  'getMembersForRoster': ['MASTER','ADMIN'],
+  'generateRosterZip': ['MASTER','ADMIN'],
+  'validateTemplateSpreadsheet': ['MASTER','ADMIN'],
+  'getMembersForBulkMail': ['MASTER','ADMIN'],
+  'sendBulkMemberMail': ['MASTER','ADMIN'],
+  'getEmailSendLog': ['MASTER','ADMIN'],
+  'getCredentialEmailTemplates': ['MASTER','ADMIN'],
+  'saveCredentialEmailTemplate': ['MASTER','ADMIN'],
+  'deleteCredentialEmailTemplate': ['MASTER','ADMIN'],
+  'getBulkMailTemplates': ['MASTER','ADMIN'],
+  'saveBulkMailTemplate': ['MASTER','ADMIN'],
+  'deleteBulkMailTemplate': ['MASTER','ADMIN'],
+  'searchMembersForDelete': ['MASTER'],
+  'previewDeleteMember': ['MASTER'],
+  'executeDeleteMember': ['MASTER'],
+  'getDeleteLogs': ['MASTER'],
+  'repairDuplicateStaffRecords': ['MASTER'],
+  'repairTrainingApplicationApplicantIds': ['MASTER'],
+  'repairMemberCareManagerDuplicates': ['MASTER'],
+  'fetchAllData': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
+  'initRosterExport': ['MASTER','ADMIN'],
+  'processRosterChunk': ['MASTER','ADMIN'],
+  'finalizeRosterExport': ['MASTER','ADMIN'],
+  'cleanupRosterExport': ['MASTER','ADMIN'],
+  'getMailingListTargets': ['MASTER','ADMIN'],
+  'generateMailingListExcel': ['MASTER','ADMIN'],
+  // v264: 変更申請管理
+  'getAdminChangeRequests': ['MASTER','ADMIN'],
+  'approveAdminChangeRequest': ['MASTER','ADMIN'],
+  'rejectAdminChangeRequest': ['MASTER','ADMIN'],
 };
 
 function getActionRegistryForCurrentApp_() {
@@ -1172,6 +1276,13 @@ function formatDateForApi_(rawDate) {
 
 
 
+
+/**
+ * 会員ログインE2Eのため、代表的な会員認証アカウントのみを安全に再作成する。
+ * - 既存データ全削除は行わない（seedDemoData は呼ばない）
+ * - 対象: 個人会員2件 + 事業所管理者1件
+ * - パスワードは一括で demo1234 に再設定する
+ */
 
 
 
@@ -6955,6 +7066,12 @@ function uploadTrainingFile_(payload) {
  * Drive のサムネイルが生成済みであれば取得・保存・更新する。
  * 1回の実行で最大 MAX_BATCH 件処理（GASタイムアウト防止）。
  */
+
+/**
+ * 10分ごとに runThumbnailGeneration を実行するトリガーを設定する。
+ * 既存トリガーがあれば先に削除（冪等）。
+ * rebuildDatabaseSchema() から自動呼び出しされる。
+ */
 function setupThumbnailGenerationTrigger_() {
   // 既存の同名トリガーを削除
   ScriptApp.getProjectTriggers().forEach(function(t) {
@@ -7631,6 +7748,9 @@ var PUBLIC_BUSINESS_UPDATE_ALLOWLIST_ = [
   'officePostCode', 'officePrefecture', 'officeCity', 'officeAddressLine', 'officeAddressLine2',
   'officeNumber',
 ];
+
+// 後方互換: submitPublicMemberUpdate_ で参照される旧名称
+var PUBLIC_MEMBER_UPDATE_ALLOWLIST_ = PUBLIC_INDIVIDUAL_UPDATE_ALLOWLIST_;
 
 function normalizeCmNumberForKey_(cm) {
   return String(cm || '').trim().replace(/\s/g, '');
@@ -8484,6 +8604,12 @@ var MIGRATION_LOCK_WAIT_MS = 30000;
 
 
 
+/**
+ * WL-001 の Googleメール を k.noguchi@hcm-n.org に更新する（ワンタイム実行）。
+ * 紐付け認証ID / 紐付け会員ID / MASTER 権限はそのまま維持する。
+ * 実行: npx clasp run updateWL001EmailToHcmN
+ */
+
 
 // ── ソース読み取りとパース ──
 
@@ -8718,15 +8844,45 @@ function generateRandomPassword_() {
 
 
 
+// ── v131 補正関数 ──
+
+/**
+ * ソース V列の入会日を _MIGRATION_MAP 経由で T_会員.入会日 に補正する（dry-run 対応）
+ * 呼び出し: clasp run repairJoinedDateFromSourceJson
+ */
+
 
 
 /**
  * 入会日が不明な会員のリストを返す
  */
 
+/**
+ * T_事業所職員の介護支援専門員番号をソース M列から補正する（dry-run）
+ * マッチ方式: K列(勤務先) = T_会員.勤務先名 AND 職員の姓がL列/N列(氏名)に含まれる
+ * 呼び出し: clasp run repairStaffCareManagerNumberFromSourceJson
+ */
+
+/**
+ * v133: 既存の T_事業所職員 の メール配信希望コード が空のレコードを 'YES' で埋める。
+ * 呼び出し: clasp run backfillStaffMailingPreferenceJson
+ */
 
 
 
+/**
+ * T_事業所職員の入会日をソース V列から補正する（dry-run）
+ * マッチ方式: ソースK列(勤務先) = T_会員.勤務先名 AND 職員の姓がソースL列(氏名)に含まれる
+ * 呼び出し: clasp run repairStaffJoinedDateFromSourceJson
+ */
+
+
+
+/**
+ * 事業所会員の個人属性フィールドをブランクに補正する（dry-run 対応）
+ * 対象: 姓/名/セイ/メイ/介護支援専門員番号/発送方法コード/郵送先区分コード
+ * 呼び出し: clasp run repairBusinessMemberFieldsJson
+ */
 
 
 
@@ -9976,6 +10132,15 @@ function selectRosterDisplaySheetsV2_(ss, memberType) {
 }
 
 
+// ─────────────────────────────────────────────────────────────────────────
+// v258: 論理削除コンソール（MASTER権限専用）
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * T_削除ログ シートが存在しなければ作成する。setupDatabase 非実行環境向けのマイグレーション。
+ * clasp run addDeleteLogSheet で単独実行可能。
+ */
+
 function getDeleteMemberDisplayName_(memberRow) {
   var memberType = String(memberRow['会員種別コード'] || '');
   var fullName = joinHumanNameParts_(memberRow['姓'], memberRow['名']).trim();
@@ -10637,6 +10802,12 @@ function getPasswordPepper_() {
 function hmacSha256Hex_(message, secret) {
   return bytesToHex_(Utilities.computeHmacSha256Signature(String(message || ''), String(secret || '')));
 }
+
+/**
+ * PBKDF2-HMAC-SHA256 でパスワードをハッシュする。
+ * 旧 hashPassword_ と同じシグネチャで呼び出せるが、方式識別子を prefix として返す。
+ * 返り値: "pbkdf2:sha256:<hex64>" (71 文字)
+ */
 function hashPasswordPbkdf2_(password, salt) {
   var dk = pbkdf2HmacSha256_(password, salt, PBKDF2_ITERATIONS, 32);
   var pepper = getPasswordPepper_();
