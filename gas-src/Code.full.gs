@@ -1307,6 +1307,7 @@ var ADMIN_ACTION_PERMISSIONS = {
   'processRosterChunk': ['MASTER','ADMIN'],
   'finalizeRosterExport': ['MASTER','ADMIN'],
   'cleanupRosterExport': ['MASTER','ADMIN'],
+  'getMailingListTargets': ['MASTER','ADMIN'],
   'generateMailingListExcel': ['MASTER','ADMIN'],
   // v264: 変更申請管理
   'getAdminChangeRequests': ['MASTER','ADMIN'],
@@ -1733,6 +1734,9 @@ function processApiRequest(action, payload) {
     }
 
     // v207: 宛名リスト Excel 出力
+    if (action === 'getMailingListTargets') {
+      return JSON.stringify({ success: true, data: getMailingListTargets_(parsedPayload) });
+    }
     if (action === 'generateMailingListExcel') {
       return JSON.stringify({ success: true, data: generateMailingListExcel_(parsedPayload) });
     }
@@ -2938,7 +2942,7 @@ function generateCredentialTempPassword_() {
   var alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
   var bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, Utilities.getUuid() + ':' + new Date().getTime());
   var chars = [];
-  for (var i = 0; i < 12; i += 1) {
+  for (var i = 0; i < PASSWORD_MIN_LENGTH; i += 1) {
     var idx = Math.abs(bytes[i % bytes.length]) % alphabet.length;
     chars.push(alphabet.charAt(idx));
   }
@@ -4256,8 +4260,8 @@ function changePassword_(request) {
   var currentPassword = String(request.currentPassword);
   var newPassword = String(request.newPassword);
 
-  if (newPassword.length < 8) {
-    throw new Error('新しいパスワードは8文字以上で入力してください。');
+  if (newPassword.length < PASSWORD_MIN_LENGTH) {
+    throw new Error('新しいパスワードは' + PASSWORD_MIN_LENGTH + '文字以上で入力してください。');
   }
 
   var ss = getOrCreateDatabase_();
@@ -4320,6 +4324,12 @@ function changePassword_(request) {
     }
     appendLoginHistory_(ss, authId, loginId, 'PASSWORD', 'FAILURE', '現在パスワード不一致');
     throw new Error('現在のパスワードが正しくありません。');
+  }
+  if (verifyChangeResult.needsRehash) {
+    var rehashSalt = generateSalt_();
+    var rehashValue = hashPasswordPbkdf2_(currentPassword, rehashSalt);
+    authSheet.getRange(authRowInfo.rowNumber, columns['パスワードソルト'] + 1).setValue(rehashSalt);
+    authSheet.getRange(authRowInfo.rowNumber, columns['パスワードハッシュ'] + 1).setValue(rehashValue);
   }
 
   var newSalt = generateSalt_();
@@ -6480,9 +6490,9 @@ function createMember_(payload) {
 
   // パスワード認証レコード作成
   var loginId = String(payload.careManagerNumber || '').trim() || memberId;
+  var defaultPassword = generateRandomPassword_();
   var authSheet = ss.getSheetByName('T_認証アカウント');
   if (authSheet) {
-    var defaultPassword = 'member' + memberId;
     var salt = generateSalt_();
     var hashed = hashPasswordPbkdf2_(defaultPassword, salt);
     var authColumns = テーブル定義.T_認証アカウント;
@@ -6523,7 +6533,7 @@ function createMember_(payload) {
     created: true,
     memberId: memberId,
     loginId: loginId,
-    defaultPassword: 'member' + memberId,
+    defaultPassword: defaultPassword,
   };
 }
 
@@ -6813,7 +6823,7 @@ function submitMemberApplication_(payload) {
 
       // T_認証アカウントに挿入（ログインID = 介護支援専門員番号）
       var loginId = cmNumber;
-      var defaultPassword = 'member' + cmNumber;
+      var defaultPassword = generateRandomPassword_();
       if (authSheet) {
         var salt = generateSalt_();
         var hashed = hashPasswordPbkdf2_(defaultPassword, salt);
@@ -6886,7 +6896,7 @@ function submitMemberApplication_(payload) {
     var loginId = memberTypeCode === 'INDIVIDUAL'
       ? (String(payload.careManagerNumber || '').trim() || memberId)
       : memberId;
-    var defaultPassword = 'member' + loginId;
+    var defaultPassword = generateRandomPassword_();
 
     var authSheet = ss.getSheetByName('T_認証アカウント');
     if (authSheet) {
@@ -13216,7 +13226,7 @@ function approveAdminChangeRequest_(payload) {
         var saName = (String(sa.lastName || '') + ' ' + String(sa.firstName || '')).trim();
         var saEmail = String(sa.email || '').trim();
         var saLoginId = String(sa.careManagerNumber || '').trim();
-        var saPassword = 'member' + saLoginId;
+        var saPassword = '事務局から別途通知';
         addedNames.push(saName);
         // 追加された職員へのメール
         if (bizMailSettings.staffAddStaffEmailEnabled && saEmail) {
@@ -15765,12 +15775,12 @@ function calcFiscalYearEnd_(processDateStr) {
 }
 
 /**
- * ランダムパスワードを生成する（8文字、英数字）
+ * ランダムパスワードを生成する（15文字以上、英数字）
  */
 function generateRandomPassword_() {
   var chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   var pw = '';
-  for (var i = 0; i < 10; i++) {
+  for (var i = 0; i < PASSWORD_MIN_LENGTH; i++) {
     pw += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return pw;
@@ -18390,38 +18400,212 @@ function getMembersForBulkMail_(payload) {
   return results;
 }
 
-/**
- * v207: 宛名リスト Excel（.xlsx）出力
- *
- * payload: { filterType: 'KOHOUSHI' | 'OSHIRASE' }
- *   KOHOUSHI: 広報誌発送 — ACTIVE + WITHDRAWAL_SCHEDULED の全会員
- *   OSHIRASE: お知らせ発送 — 事業所会員全員 + 個人/賛助のうち 発送方法コード='POST'
- *
- * 住所解決:
- *   事業所会員: 勤務先* フィールドを使用
- *   個人/賛助: 郵送先区分コード が 'HOME' なら 自宅*、それ以外は 勤務先*
- *
- * 都道府県: '大阪府' の場合は出力しない（省略）。他府県のみ表示。
- *
- * 住所不備: 郵便番号・市区町村・番地のいずれかが空の場合は '住所不備' シートへ。
- *
- * 出力シート構成:
- *   [1] 事業所会員  columns: 名前, 郵便番号, 住所, 建物名
- *   [2] 個人会員    columns: 名前, 郵便番号, 住所, 建物名, 勤務先名
- *   [3] 賛助会員    columns: 名前, 郵便番号, 住所, 建物名, 勤務先名
- *   [4] 住所不備    columns: 名前, 会員種別, 住所不備の項目
- *
- * returns: { base64: string, filename: string, counts: { business, individual, support, invalid } }
- */
-function generateMailingListExcel_(payload) {
+function normalizeMailingListYear_(year) {
+  var selected = Number(year || 0);
+  if (!selected || !isFinite(selected)) selected = getCurrentFiscalYear_();
+  selected = Math.floor(selected);
+  if (selected < 2000 || selected > 2100) {
+    throw new Error('対象年度は 2000〜2100 の範囲で指定してください。');
+  }
+  return selected;
+}
+
+function getMailingListYears_(feeRows, selectedYear) {
+  var currentFiscalYear = getCurrentFiscalYear_();
+  var years = {};
+  years[currentFiscalYear] = true;
+  years[selectedYear] = true;
+  (feeRows || []).forEach(function(row) {
+    if (toBoolean_(row['削除フラグ'])) return;
+    var y = Number(row['対象年度'] || 0);
+    if (y) years[y] = true;
+  });
+  return Object.keys(years).map(function(y) {
+    return Number(y);
+  }).sort(function(a, b) {
+    return b - a;
+  });
+}
+
+function buildMailingListCandidates_(payload) {
   var p = payload || {};
   var filterType = String(p.filterType || 'KOHOUSHI'); // 'KOHOUSHI' | 'OSHIRASE'
+  if (filterType !== 'KOHOUSHI' && filterType !== 'OSHIRASE') {
+    throw new Error('発送区分が不正です。');
+  }
+  var year = normalizeMailingListYear_(p.year);
 
   var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
   var memberSheet = ss.getSheetByName('T_会員');
+  var feeSheet = ss.getSheetByName('T_年会費納入履歴');
   var members = getSheetData_(memberSheet);
+  var feeRows = feeSheet ? getSheetData_(feeSheet) : [];
 
   var ACTIVE_STATUSES = ['ACTIVE', 'WITHDRAWAL_SCHEDULED'];
+  var feeMap = {};
+  feeRows.forEach(function(r) {
+    if (toBoolean_(r['削除フラグ'])) return;
+    if (Number(r['対象年度'] || 0) !== year) return;
+    var mid = String(r['会員ID'] || '');
+    if (mid) feeMap[mid] = String(r['会費納入状態コード'] || 'UNPAID');
+  });
+
+  var candidates = [];
+
+  members.forEach(function(m) {
+    if (toBoolean_(m['削除フラグ'])) return;
+    var mtype = String(m['会員種別コード'] || '');
+    var status = String(m['会員状態コード'] || '');
+    if (ACTIVE_STATUSES.indexOf(status) < 0) return;
+
+    // お知らせフィルター: 事業所は全員対象。個人・賛助は 発送方法コード='POST' のみ
+    if (filterType === 'OSHIRASE' && mtype !== 'BUSINESS') {
+      var mailingPrefFilter = String(m['発送方法コード'] || 'EMAIL');
+      if (mailingPrefFilter !== 'POST') return;
+    }
+
+    var memberId = String(m['会員ID'] || '');
+    var displayName;
+    if (mtype === 'BUSINESS') {
+      displayName = String(m['勤務先名'] || '').trim();
+    } else {
+      var lastName = String(m['姓'] || '').trim();
+      var firstName = String(m['名'] || '').trim();
+      displayName = (lastName + ' ' + firstName).trim();
+    }
+    if (!displayName) displayName = memberId;
+
+    var postCode, prefecture, city, line1, line2, mailingDestination;
+    if (mtype === 'BUSINESS') {
+      mailingDestination = 'OFFICE';
+      postCode = String(m['勤務先郵便番号'] || '').trim();
+      prefecture = String(m['勤務先都道府県'] || '').trim();
+      city = String(m['勤務先市区町村'] || '').trim();
+      line1 = String(m['勤務先住所'] || '').trim();
+      line2 = String(m['勤務先住所2'] || '').trim();
+    } else {
+      mailingDestination = String(m['郵送先区分コード'] || 'OFFICE');
+      if (mailingDestination === 'HOME') {
+        postCode = String(m['自宅郵便番号'] || '').trim();
+        prefecture = String(m['自宅都道府県'] || '').trim();
+        city = String(m['自宅市区町村'] || '').trim();
+        line1 = String(m['自宅住所'] || '').trim();
+        line2 = String(m['自宅住所2'] || '').trim();
+      } else {
+        postCode = String(m['勤務先郵便番号'] || '').trim();
+        prefecture = String(m['勤務先都道府県'] || '').trim();
+        city = String(m['勤務先市区町村'] || '').trim();
+        line1 = String(m['勤務先住所'] || '').trim();
+        line2 = String(m['勤務先住所2'] || '').trim();
+      }
+    }
+
+    var invalidItems = [];
+    if (!postCode) invalidItems.push('郵便番号');
+    if (!city) invalidItems.push('市区町村');
+    if (!line1) invalidItems.push('番地');
+
+    var prefDisplay = (prefecture && prefecture !== '大阪府') ? prefecture : '';
+    var address1 = prefDisplay + city + line1;
+    var officeName = String(m['勤務先名'] || '').trim();
+    var feeStatus = feeMap[memberId] || 'UNPAID';
+
+    candidates.push({
+      targetKey: memberId,
+      memberId: memberId,
+      displayName: displayName,
+      memberType: mtype,
+      memberStatus: status,
+      annualFeeStatus: feeStatus,
+      annualFeeYear: year,
+      officeName: officeName,
+      mailingPreference: String(m['発送方法コード'] || 'EMAIL'),
+      mailingDestination: mailingDestination,
+      addressInvalidItems: invalidItems,
+      postCode: postCode,
+      address1: address1,
+      address2: line2,
+    });
+  });
+
+  candidates.sort(function(a, b) {
+    var ta = String(a.memberType || '');
+    var tb = String(b.memberType || '');
+    if (ta !== tb) return ta < tb ? -1 : 1;
+    return String(a.displayName || '').localeCompare(String(b.displayName || ''), 'ja');
+  });
+
+  return {
+    filterType: filterType,
+    year: year,
+    years: getMailingListYears_(feeRows, year),
+    candidates: candidates,
+  };
+}
+
+function summarizeMailingListCandidates_(candidates) {
+  var counts = { business: 0, individual: 0, support: 0, invalid: 0 };
+  (candidates || []).forEach(function(c) {
+    if (c.memberType === 'BUSINESS') counts.business += 1;
+    else if (c.memberType === 'INDIVIDUAL') counts.individual += 1;
+    else if (c.memberType === 'SUPPORT') counts.support += 1;
+    if (c.addressInvalidItems && c.addressInvalidItems.length > 0) counts.invalid += 1;
+  });
+  return counts;
+}
+
+function getMailingListTargets_(payload) {
+  var built = buildMailingListCandidates_(payload);
+  return {
+    selectedYear: built.year,
+    years: built.years,
+    targets: built.candidates.map(function(c) {
+      return {
+        targetKey: c.targetKey,
+        memberId: c.memberId,
+        displayName: c.displayName,
+        memberType: c.memberType,
+        memberStatus: c.memberStatus,
+        annualFeeStatus: c.annualFeeStatus,
+        annualFeeYear: c.annualFeeYear,
+        officeName: c.officeName,
+        mailingPreference: c.mailingPreference,
+        mailingDestination: c.mailingDestination,
+        addressInvalidItems: c.addressInvalidItems,
+      };
+    }),
+    counts: summarizeMailingListCandidates_(built.candidates),
+  };
+}
+
+/**
+ * v207/v291: 宛名リスト Excel（.xlsx）出力
+ *
+ * payload: { filterType: 'KOHOUSHI' | 'OSHIRASE', year?: number, targetKeys?: string[] }
+ *   KOHOUSHI: 広報誌発送 — ACTIVE + WITHDRAWAL_SCHEDULED の全会員
+ *   OSHIRASE: お知らせ発送 — 事業所会員全員 + 個人/賛助のうち 発送方法コード='POST'
+ *
+ * targetKeys 指定時は、バックエンドで再計算した発送対象候補との交差だけを出力する。
+ */
+function generateMailingListExcel_(payload) {
+  var p = payload || {};
+  var built = buildMailingListCandidates_(p);
+  var filterType = built.filterType;
+  var selectedCandidates = built.candidates;
+  if (Array.isArray(p.targetKeys)) {
+    if (p.targetKeys.length === 0) throw new Error('出力対象が選択されていません。');
+    var keySet = {};
+    p.targetKeys.forEach(function(k) {
+      keySet[String(k)] = true;
+    });
+    selectedCandidates = selectedCandidates.filter(function(c) {
+      return !!keySet[String(c.targetKey)];
+    });
+    if (selectedCandidates.length === 0) {
+      throw new Error('選択された会員が現在の発送条件に一致しません。');
+    }
+  }
+
   var HEADERS_BIZ     = ['名前', '郵便番号', '住所', '建物名'];
   var HEADERS_IND_SUP = ['名前', '郵便番号', '住所', '建物名', '勤務先名'];
   var HEADERS_INVALID = ['名前', '会員種別', '住所不備の項目'];
@@ -18431,79 +18615,20 @@ function generateMailingListExcel_(payload) {
   var rowsSup     = [];
   var rowsInvalid = [];
 
-  members.forEach(function(m) {
-    if (toBoolean_(m['削除フラグ'])) return;
-    var mtype  = String(m['会員種別コード'] || '');
-    var status = String(m['会員状態コード'] || '');
-    if (ACTIVE_STATUSES.indexOf(status) < 0) return;
-
-    // お知らせフィルター: 事業所は全員対象。個人・賛助は 発送方法コード='POST' のみ
-    if (filterType === 'OSHIRASE' && mtype !== 'BUSINESS') {
-      var mailingPref = String(m['発送方法コード'] || 'EMAIL');
-      if (mailingPref !== 'POST') return;
-    }
-
-    // 事業所会員の宛名は勤務先名。個人・賛助は姓名
-    var displayName;
-    if (mtype === 'BUSINESS') {
-      displayName = String(m['勤務先名'] || '').trim();
-    } else {
-      var lastName  = String(m['姓'] || '').trim();
-      var firstName = String(m['名'] || '').trim();
-      displayName   = (lastName + ' ' + firstName).trim();
-    }
-    if (!displayName) displayName = String(m['会員ID'] || '');
-
-    // 住所解決
-    var postCode, prefecture, city, line1, line2;
-    if (mtype === 'BUSINESS') {
-      postCode   = String(m['勤務先郵便番号'] || '').trim();
-      prefecture = String(m['勤務先都道府県'] || '').trim();
-      city       = String(m['勤務先市区町村'] || '').trim();
-      line1      = String(m['勤務先住所']     || '').trim();
-      line2      = String(m['勤務先住所2']    || '').trim();
-    } else {
-      var dest = String(m['郵送先区分コード'] || 'OFFICE');
-      if (dest === 'HOME') {
-        postCode   = String(m['自宅郵便番号'] || '').trim();
-        prefecture = String(m['自宅都道府県'] || '').trim();
-        city       = String(m['自宅市区町村'] || '').trim();
-        line1      = String(m['自宅住所']     || '').trim();
-        line2      = String(m['自宅住所2']    || '').trim();
-      } else {
-        postCode   = String(m['勤務先郵便番号'] || '').trim();
-        prefecture = String(m['勤務先都道府県'] || '').trim();
-        city       = String(m['勤務先市区町村'] || '').trim();
-        line1      = String(m['勤務先住所']     || '').trim();
-        line2      = String(m['勤務先住所2']    || '').trim();
-      }
-    }
-
-    // 住所不備チェック（郵便番号・市区町村・番地のいずれかが空）
-    var invalidItems = [];
-    if (!postCode) invalidItems.push('郵便番号');
-    if (!city)     invalidItems.push('市区町村');
-    if (!line1)    invalidItems.push('番地');
-
-    if (invalidItems.length > 0) {
-      var mtypeLabel = mtype === 'BUSINESS' ? '事業所会員'
-                     : mtype === 'INDIVIDUAL' ? '個人会員' : '賛助会員';
-      rowsInvalid.push([displayName, mtypeLabel, invalidItems.join('、')]);
+  selectedCandidates.forEach(function(c) {
+    if (c.addressInvalidItems.length > 0) {
+      var mtypeLabel = c.memberType === 'BUSINESS' ? '事業所会員'
+                     : c.memberType === 'INDIVIDUAL' ? '個人会員' : '賛助会員';
+      rowsInvalid.push([c.displayName, mtypeLabel, c.addressInvalidItems.join('、')]);
       return;
     }
 
-    // 都道府県: 大阪府は省略、他府県のみ表示
-    var prefDisplay = (prefecture && prefecture !== '大阪府') ? prefecture : '';
-    var address1    = prefDisplay + city + line1;
-    var officeName  = String(m['勤務先名'] || '').trim();
-
-    // 事業所会員: 名前は事業所代表名（姓名）、勤務先名列は不要（事業所ごとの宛先）
-    if (mtype === 'BUSINESS') {
-      rowsBiz.push([displayName, postCode, address1, line2]);
-    } else if (mtype === 'INDIVIDUAL') {
-      rowsInd.push([displayName, postCode, address1, line2, officeName]);
-    } else if (mtype === 'SUPPORT') {
-      rowsSup.push([displayName, postCode, address1, line2, officeName]);
+    if (c.memberType === 'BUSINESS') {
+      rowsBiz.push([c.displayName, c.postCode, c.address1, c.address2]);
+    } else if (c.memberType === 'INDIVIDUAL') {
+      rowsInd.push([c.displayName, c.postCode, c.address1, c.address2, c.officeName]);
+    } else if (c.memberType === 'SUPPORT') {
+      rowsSup.push([c.displayName, c.postCode, c.address1, c.address2, c.officeName]);
     }
   });
 
@@ -20820,8 +20945,12 @@ function applyLogSpreadsheetId() {
 }
 
 // ---------------------------------------------------------------------------
-// PBKDF2 パスワードハッシュ (docs/122)
+// Password hashing (PBKDF2 + verifier-side pepper)
 // ---------------------------------------------------------------------------
+
+var PASSWORD_MIN_LENGTH = 15;
+var PASSWORD_HASH_PEPPER_PROPERTY = 'PASSWORD_HASH_PEPPER_V1';
+var PASSWORD_HASH_PEPPER_ID = 'v1';
 
 /**
  * PBKDF2-HMAC-SHA256 を GAS の Utilities.computeHmacSha256Signature で実装する。
@@ -20895,6 +21024,37 @@ function benchmarkHashPassword_() {
  */
 var PBKDF2_ITERATIONS = 10000;
 
+function bytesToHex_(bytes) {
+  var out = [];
+  for (var i = 0; i < bytes.length; i += 1) {
+    var b = bytes[i];
+    if (b < 0) b += 256;
+    out.push((b < 16 ? '0' : '') + b.toString(16));
+  }
+  return out.join('');
+}
+
+function secureCompareString_(a, b) {
+  a = String(a || '');
+  b = String(b || '');
+  var maxLen = Math.max(a.length, b.length);
+  var diff = a.length ^ b.length;
+  for (var i = 0; i < maxLen; i += 1) {
+    var ca = i < a.length ? a.charCodeAt(i) : 0;
+    var cb = i < b.length ? b.charCodeAt(i) : 0;
+    diff |= ca ^ cb;
+  }
+  return diff === 0;
+}
+
+function getPasswordPepper_() {
+  return String(PropertiesService.getScriptProperties().getProperty(PASSWORD_HASH_PEPPER_PROPERTY) || '').trim();
+}
+
+function hmacSha256Hex_(message, secret) {
+  return bytesToHex_(Utilities.computeHmacSha256Signature(String(message || ''), String(secret || '')));
+}
+
 /**
  * PBKDF2-HMAC-SHA256 でパスワードをハッシュする。
  * 旧 hashPassword_ と同じシグネチャで呼び出せるが、方式識別子を prefix として返す。
@@ -20902,7 +21062,12 @@ var PBKDF2_ITERATIONS = 10000;
  */
 function hashPasswordPbkdf2_(password, salt) {
   var dk = pbkdf2HmacSha256_(password, salt, PBKDF2_ITERATIONS, 32);
-  return 'pbkdf2:sha256:' + dk;
+  var pepper = getPasswordPepper_();
+  if (pepper) {
+    var mac = hmacSha256Hex_(dk, pepper);
+    return 'pbkdf2:sha256:' + PBKDF2_ITERATIONS + ':pepper:' + PASSWORD_HASH_PEPPER_ID + ':' + mac;
+  }
+  return 'pbkdf2:sha256:' + PBKDF2_ITERATIONS + ':' + dk;
 }
 
 /**
@@ -20913,8 +21078,33 @@ function hashPasswordPbkdf2_(password, salt) {
  */
 function verifyPassword_(password, salt, storedHash) {
   if (storedHash && storedHash.indexOf('pbkdf2:sha256:') === 0) {
+    var parts = String(storedHash).split(':');
+    if (parts.length === 6 && parts[3] === 'pepper') {
+      var pepper = getPasswordPepper_();
+      if (!pepper) {
+        throw new Error('パスワード検証用pepperが未設定です。管理者へ連絡してください。');
+      }
+      var pepperIterations = Number(parts[2] || 0);
+      var dkPepper = pbkdf2HmacSha256_(password, salt, pepperIterations || PBKDF2_ITERATIONS, 32);
+      var mac = hmacSha256Hex_(dkPepper, pepper);
+      return {
+        match: secureCompareString_(mac, parts[5]),
+        needsRehash: pepperIterations !== PBKDF2_ITERATIONS || parts[4] !== PASSWORD_HASH_PEPPER_ID,
+      };
+    }
+    if (parts.length === 4) {
+      var iterations = Number(parts[2] || 0);
+      var dkVersioned = pbkdf2HmacSha256_(password, salt, iterations || PBKDF2_ITERATIONS, 32);
+      return {
+        match: secureCompareString_('pbkdf2:sha256:' + (iterations || PBKDF2_ITERATIONS) + ':' + dkVersioned, storedHash),
+        needsRehash: true,
+      };
+    }
     var dk = pbkdf2HmacSha256_(password, salt, PBKDF2_ITERATIONS, 32);
-    return { match: ('pbkdf2:sha256:' + dk) === storedHash, needsRehash: false };
+    return {
+      match: secureCompareString_('pbkdf2:sha256:' + dk, storedHash),
+      needsRehash: true,
+    };
   }
   // 旧 SHA-256
   var legacyHash = hashPassword_(password, salt);

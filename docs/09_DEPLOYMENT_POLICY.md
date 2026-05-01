@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-04-29
-Production: `v290` / 統合（公開）fixed deployments `@289` / 会員 split `@39` / 管理者 split `@46`
+Updated: 2026-05-01
+Production: `v291` / 統合（公開）fixed deployments `@290` / 会員 split `@40` / 管理者 split `@48`
 
 ## 1. Purpose
 
@@ -17,15 +17,15 @@ Production: `v290` / 統合（公開）fixed deployments `@289` / 会員 split `
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@289` (`v290`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@289` (`v290`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@290` (`v291`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@290` (`v291`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@39` (`v287`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@46` (`v286 rollback`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@40` (`v291`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@48` (`v291`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -36,15 +36,23 @@ git status --short
 git diff
 npm run security:audit
 npm run security:public-boundary
+npm run security:split-boundary
 npm run typecheck
 npm run build:gas
 ```
+
+Password verifier / credential generation を変更する release では、push / version / redeploy 前に次を満たすこと:
+
+- integrated/public・member split・admin split の各 Apps Script project に、同一の強乱数 Script Property `PASSWORD_HASH_PEPPER_V1` が設定済みである。
+- pepper の値は表示・記録・貼り付けしない。確認結果は「設定済み」のみ記録する。
+- `.env` は Apps Script 本番 runtime の正本にしない。ローカル補助に使う場合も未コミットとし、値を docs / handover / logs / chat へ残さない。
 
 If the release affects split projects, also run:
 
 ```bash
 npm run build:gas:member
 npm run build:gas:admin
+npm run security:split-boundary
 ```
 
 ### Push and version
@@ -91,6 +99,8 @@ Real-browser verification is performed by the operator by default. The agent rec
 - Untracked files classified as tracked target or allowed local/generated artifact.
 - `npm run security:audit` has no high or critical findings.
 - `npm run security:public-boundary` passes for integrated/public artifacts.
+- `npm run security:split-boundary` passes for member/admin split artifacts when split projects are built or released.
+- Password verifier / credential generation を変更する release では、`PASSWORD_HASH_PEPPER_V1` の三 project 設定済み確認が完了している。
 - `npm run typecheck` passes.
 - Required build commands pass.
 - `clasp push`, `clasp version`, and `clasp redeploy` succeed.
@@ -108,7 +118,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-04-29 `v290` ← current production
+### 2026-05-01 `v291` ← current production
+
+- Scope: パスワード保存を versioned PBKDF2-HMAC-SHA256 + verifier-side pepper へ更新し、宛名リスト出力コンソールに発送区分・年度・検索・候補選択を追加。member/admin split boundary audit を prerelease gate 化。
+- Integrated fixed deployments: `@290` × 2.
+- Member split: `@40`.
+- Admin split: `@48`.
+- Detail: `docs/173_RELEASE_STATE_v291_2026-05-01.md`
+
+### 2026-04-29 `v290`
 
 - Scope: public artifact から admin cache / admin audit / admin role transition 系 private helper と maintenance 関数名 token を追加削除。
 - Integrated fixed deployments: `@289` × 2.

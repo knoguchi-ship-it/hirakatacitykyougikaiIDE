@@ -49,6 +49,8 @@
 - demo login、mock member route、画面内 demo selector は復活させない。
 - business member の代表者情報は `staff.role='REPRESENTATIVE'` を正本とする。
 - `seedDemoData` は production DB を破壊する操作として扱い、完全バックアップと明示承認なしでは実行しない。
+- **パスワード hash pepper の本番前提**: versioned PBKDF2-HMAC-SHA256 + verifier-side pepper を含む認証変更は、本番反映前に integrated/public・member split・admin split の全 Apps Script project へ同一の強乱数 Script Property `PASSWORD_HASH_PEPPER_V1` が設定済みであることを必須条件とする。pepper の値は Git、handover、docs、ログ、チャット、生成物へ記録しない。`.env` は Apps Script 本番 runtime の正本にせず、必要な場合でも未コミットのローカル運用補助に限定する。未設定 project がある状態で push / version / redeploy してはならない。
+- **保留中だが必須の security backlog**: pepper を Script Properties から Google Cloud Secret Manager へ移行し、さらに Apps Script 内 PBKDF2 制約を解消する外部 KDF / managed identity の採否を決定するタスクは、保留にしてよいが破棄してはならない。次回以降のセキュリティ改善計画で必ず再開し、完了または明示的な代替設計決定まで `HANDOVER.md` と関連仕様に残す。
 - **公開ポータルカード追加時の必須セット実装**: 公開ポータル（`src/public-portal/App.tsx`）にカードを追加する場合、必ず管理設定（`src/App.tsx` の公開ポータル設定セクション）に以下をセットで実装すること:
   1. メニュー表示トグル（表示/非表示）
   2. 補助ラベル（バッジ）の表示トグルと文言
@@ -66,10 +68,12 @@
 - fixed deployment sync は既知の deployment ID に対する `npx clasp redeploy ... --versionNumber ...` を正とし、結果は `npx clasp deployments --json` で確認する。
 - 毎回更新する文書は `HANDOVER.md`、`docs/09_DEPLOYMENT_POLICY.md`、必要に応じた release state 文書とし、`AGENTS.md` や案件固定ルールは運用原則が変わった場合にのみ更新する。
 - 実ブラウザ確認が未実施でも、コード上の検証結果と確認待ち範囲を必ず明記し、操作者による確認に引き継げる状態で完了報告する。
+- password verifier / credential generation を変更する release では、`PASSWORD_HASH_PEPPER_V1` が integrated/public・member split・admin split の Script Properties に同一値で設定済みであることを、値を表示・記録せず確認する。
 - 未検証、残課題、承認待ちは必ず明記する。
 
 ## 6. セキュリティと承認
 - 本番 deploy、DB 更新、権限変更、外部送信、不可逆操作は人間承認を前提とする。
+- pepper、token、鍵、認証情報などの secret value は Git、handover、docs、ログ、チャット、生成物へ記録しない。設定名だけを記録し、値は各実行環境の secret / property store で管理する。
 - AI / agent 特有のリスクも通常のアプリケーションセキュリティと同じ優先度で扱う。
 - 外部入力は不信入力として扱い、モデル出力をそのまま shell、SQL、HTML、デプロイ設定へ流し込まない。
 - **確定済みセキュリティ境界への逆行案提示禁止**: 第三者評価（`docs/109`）や設計決定（`docs/111`）で確定した認証境界・アクセス制御・プロジェクト分離に反する案を「選択肢の一つ」として対等に提示してはならない。利便性はセキュリティ境界を崩す理由にならない。やむを得ず言及する場合は「**非推奨・セキュリティリスクあり**」を冒頭に明示し、推奨しないことを基本姿勢とする。

@@ -556,24 +556,6 @@ function doGet(e) {
  * DBスキーマを再構築する。
  * 既存の定義外シートは削除し、定義シートのヘッダー/入力規則/保護を再適用する。
  */
-function rebuildDatabaseSchema() {
-  var ss = getOrCreateDatabase_();
-  initializeSchema_(ss);
-  markSchemaInitialized_();
-  // 研修案内PDFサムネイル自動生成トリガーを設定（10分ごと）
-  try {
-    setupThumbnailGenerationTrigger_();
-  } catch (e) {
-    Logger.log('setupThumbnailGenerationTrigger_ failed: ' + e.message);
-  }
-  return {
-    スプレッドシートID: ss.getId(),
-    削除シート一覧: cleanupNonSchemaSheets_(ss),
-    シート一覧: ss.getSheets().map(function(sheet) {
-      return sheet.getName();
-    }),
-  };
-}
 
 
 
@@ -821,9 +803,6 @@ function processApiRequest(action, payload) {
       return JSON.stringify({ success: true, data: sendTrainingReminder_(parsedPayload) });
     }
 
-    if (action === 'seedDemoData') {
-      return JSON.stringify({ success: true, data: seedDemoData() });
-    }
 
     if (action === 'saveTraining') {
       try {
@@ -946,6 +925,9 @@ function processApiRequest(action, payload) {
     }
 
     // v207: 宛名リスト Excel 出力
+    if (action === 'getMailingListTargets') {
+      return JSON.stringify({ success: true, data: getMailingListTargets_(parsedPayload) });
+    }
     if (action === 'generateMailingListExcel') {
       return JSON.stringify({ success: true, data: generateMailingListExcel_(parsedPayload) });
     }
@@ -1178,386 +1160,6 @@ function formatDateForApi_(rawDate) {
 
 /** DBスプレッドシートのタイムゾーンをAsia/Tokyoに設定する（一度だけ実行）*/
 
-function seedDemoData() {
-  var ss = getOrCreateDatabase_();
-  initializeSchema_(ss);
-
-  var now = new Date().toISOString();
-  clearTableData_(ss, [
-    'T_会員',
-    'T_事業所職員',
-    'T_認証アカウント',
-    'T_ログイン履歴',
-    'T_管理者Googleホワイトリスト',
-    'T_研修',
-    'T_研修申込',
-    'T_年会費納入履歴',
-  ]);
-
-  appendRowsByHeaders_(ss, 'T_会員', [
-    {
-      会員ID: '12345678',
-      会員種別コード: 'INDIVIDUAL',
-      会員状態コード: 'ACTIVE',
-      入会日: '2024-04-01',
-      退会日: '',
-      姓: '山田',
-      名: '太郎',
-      セイ: 'ヤマダ',
-      メイ: 'タロウ',
-      代表メールアドレス: 'k.noguchi@uguisunosato.or.jp',
-      携帯電話番号: '090-0000-0000',
-      介護支援専門員番号: '12345678',
-      勤務先名: '枚方ケアプランセンター',
-      勤務先郵便番号: '573-0027',
-      勤務先都道府県: '大阪府',
-      勤務先市区町村: '枚方市',
-      勤務先住所: '大垣内町1-1-1',
-      勤務先電話番号: '072-000-0000',
-      勤務先FAX番号: '072-000-0001',
-      自宅郵便番号: '573-0000',
-      自宅都道府県: '大阪府',
-      自宅市区町村: '枚方市',
-      自宅住所: '自宅町1-2-3',
-      発送方法コード: 'EMAIL',
-      郵送先区分コード: 'OFFICE',
-      職員数上限: '',
-      作成日時: now,
-      更新日時: now,
-      削除フラグ: false,
-    },
-    {
-      会員ID: '87654321',
-      会員種別コード: 'INDIVIDUAL',
-      会員状態コード: 'ACTIVE',
-      入会日: '2024-04-01',
-      退会日: '',
-      姓: '鈴木',
-      名: '花子',
-      セイ: 'スズキ',
-      メイ: 'ハナコ',
-      代表メールアドレス: '',
-      携帯電話番号: '090-1111-1111',
-      介護支援専門員番号: '87654321',
-      勤務先名: '勤務なし',
-      勤務先郵便番号: '',
-      勤務先都道府県: '',
-      勤務先市区町村: '',
-      勤務先住所: '',
-      勤務先電話番号: '',
-      勤務先FAX番号: '',
-      自宅郵便番号: '573-0121',
-      自宅都道府県: '大阪府',
-      自宅市区町村: '枚方市',
-      自宅住所: '津田北町2-2-2',
-      発送方法コード: 'POST',
-      郵送先区分コード: 'HOME',
-      職員数上限: '',
-      作成日時: now,
-      更新日時: now,
-      削除フラグ: false,
-    },
-    {
-      会員ID: '934567890',
-      会員種別コード: 'SUPPORT',
-      会員状態コード: 'ACTIVE',
-      入会日: '2024-04-01',
-      退会日: '',
-      姓: '高橋',
-      名: '恵',
-      セイ: 'タカハシ',
-      メイ: 'メグミ',
-      代表メールアドレス: '',
-      携帯電話番号: '090-2222-3333',
-      介護支援専門員番号: '',
-      勤務先名: '賛助会員（個人）',
-      勤務先郵便番号: '',
-      勤務先都道府県: '',
-      勤務先市区町村: '',
-      勤務先住所: '',
-      勤務先電話番号: '',
-      勤務先FAX番号: '072-333-3333',
-      自宅郵便番号: '573-0055',
-      自宅都道府県: '大阪府',
-      自宅市区町村: '枚方市',
-      自宅住所: '中宮本町1-1',
-      発送方法コード: 'POST',
-      郵送先区分コード: 'HOME',
-      職員数上限: '',
-      作成日時: now,
-      更新日時: now,
-      削除フラグ: false,
-    },
-    {
-      会員ID: '99999999',
-      会員種別コード: 'BUSINESS',
-      会員状態コード: 'ACTIVE',
-      入会日: '2024-04-01',
-      退会日: '',
-      姓: '佐藤',
-      名: '次郎',
-      セイ: 'サトウ',
-      メイ: 'ジロウ',
-      代表メールアドレス: 'k.noguchi@uguisunosato.or.jp',
-      携帯電話番号: '080-8888-8888',
-      介護支援専門員番号: '933307710',
-      勤務先名: 'ひらかた介護ステーション',
-      勤務先郵便番号: '573-0084',
-      勤務先都道府県: '大阪府',
-      勤務先市区町村: '枚方市',
-      勤務先住所: '香里ケ丘3-3-3',
-      勤務先電話番号: '072-222-2222',
-      勤務先FAX番号: '072-222-2223',
-      自宅郵便番号: '',
-      自宅都道府県: '',
-      自宅市区町村: '',
-      自宅住所: '',
-      発送方法コード: 'EMAIL',
-      郵送先区分コード: 'OFFICE',
-      職員数上限: 10,
-      作成日時: now,
-      更新日時: now,
-      削除フラグ: false,
-    },
-  ]);
-
-  appendRowsByHeaders_(ss, 'T_事業所職員', [
-    {
-      職員ID: 'S1',
-      会員ID: '99999999',
-      氏名: '佐藤 次郎',
-      フリガナ: 'サトウ ジロウ',
-      メールアドレス: 'k.noguchi@uguisunosato.or.jp',
-      職員権限コード: 'REPRESENTATIVE',
-      職員状態コード: 'ENROLLED',
-      入会日: '2024-04-01',
-      退会日: '',
-      作成日時: now,
-      更新日時: now,
-      削除フラグ: false,
-    },
-    {
-      職員ID: 'S2',
-      会員ID: '99999999',
-      氏名: '田中 三郎',
-      フリガナ: 'タナカ サブロウ',
-      メールアドレス: 'k.noguchi@uguisunosato.or.jp',
-      職員権限コード: 'ADMIN',
-      職員状態コード: 'ENROLLED',
-      入会日: '2024-04-01',
-      退会日: '',
-      作成日時: now,
-      更新日時: now,
-      削除フラグ: false,
-    },
-    {
-      職員ID: 'S3',
-      会員ID: '99999999',
-      氏名: '伊藤 四郎',
-      フリガナ: 'イトウ シロウ',
-      メールアドレス: 'k.noguchi@uguisunosato.or.jp',
-      職員権限コード: 'STAFF',
-      職員状態コード: 'ENROLLED',
-      入会日: '2024-04-01',
-      退会日: '',
-      作成日時: now,
-      更新日時: now,
-      削除フラグ: false,
-    },
-  ]);
-
-  seedAuthAccounts_(ss, now);
-
-  appendRowsByHeaders_(ss, 'T_管理者Googleホワイトリスト', [
-    {
-      ホワイトリストID: 'WL-001',
-      Googleメール: 'k.noguchi@uguisunosato.or.jp',
-      紐付け認証ID: 'AUTH-ADMIN-GOOGLE',
-      紐付け会員ID: '99999999',
-      権限コード: 'MASTER',
-      有効フラグ: true,
-      変更者メール: 'k.noguchi@uguisunosato.or.jp',
-      変更日時: now,
-      作成日時: now,
-      更新日時: now,
-      削除フラグ: false,
-    },
-  ]);
-
-  appendRowsByHeaders_(ss, 'T_研修', [
-    {
-      研修ID: 'T001',
-      研修名: '令和8年度 介護報酬改定に伴う実務研修',
-      開催日: Utilities.parseDate('2026-04-15 10:00', 'Asia/Tokyo', 'yyyy-MM-dd HH:mm'),
-      開催終了時刻: '12:00',
-      定員: 100,
-      申込者数: 12,
-      開催場所: 'オンライン (Zoom)',
-      研修状態コード: 'OPEN',
-      主催者: '枚方市介護支援専門員連絡協議会',
-      法定外研修フラグ: false,
-      研修概要: '介護報酬改定の実務対応ポイントを解説します。',
-      研修内容: '改定内容の要点、請求・記録の実務対応、質疑応答を行います。現場での運用変更点を具体例で確認します。',
-      費用JSON: JSON.stringify([{ label: '会員', amount: 0 }, { label: '非会員', amount: 1000 }]),
-      申込開始日: '2026-03-01',
-      申込締切日: '2026-04-10',
-      講師: '厚生労働省 担当官',
-      案内状URL: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
-      項目設定JSON: serializeTrainingOptions_(null, true, '事務局 田中', 'EMAIL', 'support@example.com'),
-      作成日時: now,
-      更新日時: now,
-      削除フラグ: false,
-    },
-    {
-      研修ID: 'T002',
-      研修名: '認知症ケア実践リーダー研修',
-      開催日: Utilities.parseDate('2026-05-10 13:00', 'Asia/Tokyo', 'yyyy-MM-dd HH:mm'),
-      開催終了時刻: '17:00',
-      定員: 40,
-      申込者数: 40,
-      開催場所: '枚方市市民会館 会議室A',
-      研修状態コード: 'OPEN',
-      主催者: '枚方市介護支援専門員連絡協議会',
-      法定外研修フラグ: true,
-      研修概要: '認知症ケアの実践事例とリーダー育成を扱います。',
-      研修内容: 'ケーススタディを通じて、チームでの支援方針策定と多職種連携を学びます。',
-      費用JSON: JSON.stringify([{ label: '会員', amount: 2000 }, { label: '非会員', amount: 3000 }]),
-      申込開始日: '2026-03-15',
-      申込締切日: '2026-04-25',
-      講師: '田中 一郎 先生',
-      案内状URL: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
-      項目設定JSON: serializeTrainingOptions_(null, false, '事務局 佐藤', 'PHONE', '072-000-1234'),
-      作成日時: now,
-      更新日時: now,
-      削除フラグ: false,
-    },
-    {
-      研修ID: 'T003',
-      研修名: 'ケアプラン点検 実践ハンズオン',
-      開催日: Utilities.parseDate('2026-05-23 10:00', 'Asia/Tokyo', 'yyyy-MM-dd HH:mm'),
-      開催終了時刻: '16:00',
-      定員: 60,
-      申込者数: 18,
-      開催場所: '枚方市総合文化芸術センター 第2会議室',
-      研修状態コード: 'OPEN',
-      主催者: '枚方市介護支援専門員連絡協議会',
-      法定外研修フラグ: false,
-      研修概要: '提出書類の点検観点を実例ベースで学ぶ実践型研修です。',
-      研修内容: '事前配布資料のケースに沿って、算定根拠・記録整合性・加算要件を確認します。少人数グループで相互レビューを行います。',
-      費用JSON: JSON.stringify([{ label: '会員', amount: 1000 }, { label: '非会員', amount: 4000 }]),
-      申込開始日: '2026-03-20',
-      申込締切日: '2026-05-16',
-      講師: '中村 友美 先生',
-      案内状URL: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
-      項目設定JSON: serializeTrainingOptions_(null, true, '研修担当 中村', 'EMAIL', 'kenshu@example.com'),
-      作成日時: now,
-      更新日時: now,
-      削除フラグ: false,
-    },
-    {
-      研修ID: 'T004',
-      研修名: '在宅医療連携アップデート 2026',
-      開催日: Utilities.parseDate('2026-06-06 14:00', 'Asia/Tokyo', 'yyyy-MM-dd HH:mm'),
-      開催終了時刻: '16:30',
-      定員: 120,
-      申込者数: 45,
-      開催場所: 'オンライン (Zoom)',
-      研修状態コード: 'OPEN',
-      主催者: '枚方市介護支援専門員連絡協議会',
-      法定外研修フラグ: true,
-      研修概要: '多職種連携の最新実務と連絡票運用を整理します。',
-      研修内容: '訪問診療・訪問看護・薬局・ケアマネの連携フローを、事例とテンプレートで確認します。オンライン参加向け資料も配布します。',
-      費用JSON: JSON.stringify([{ label: '会員', amount: 0 }, { label: '非会員', amount: 2000 }]),
-      申込開始日: '2026-03-20',
-      申込締切日: '2026-05-30',
-      講師: '川口 誠 先生',
-      案内状URL: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
-      項目設定JSON: serializeTrainingOptions_(null, false, '運営窓口 川口', 'PHONE', '072-111-2222'),
-      作成日時: now,
-      更新日時: now,
-      削除フラグ: false,
-    },
-  ]);
-
-  appendRowsByHeaders_(ss, 'T_研修申込', [
-    {
-      申込ID: 'AP-001',
-      研修ID: 'T002',
-      会員ID: '12345678',
-      職員ID: '',
-      申込状態コード: 'APPLIED',
-      申込日時: now,
-      取消日時: '',
-      備考: '',
-      申込者区分コード: 'MEMBER',
-      申込者ID: '12345678',
-      作成日時: now,
-      更新日時: now,
-      削除フラグ: false,
-    },
-    {
-      申込ID: 'AP-002',
-      研修ID: 'T001',
-      会員ID: '99999999',
-      職員ID: 'S1',
-      申込状態コード: 'APPLIED',
-      申込日時: now,
-      取消日時: '',
-      備考: '',
-      申込者区分コード: 'MEMBER',
-      申込者ID: '99999999',
-      作成日時: now,
-      更新日時: now,
-      削除フラグ: false,
-    },
-    {
-      申込ID: 'AP-003',
-      研修ID: 'T002',
-      会員ID: '99999999',
-      職員ID: 'S1',
-      申込状態コード: 'APPLIED',
-      申込日時: now,
-      取消日時: '',
-      備考: '',
-      申込者区分コード: 'MEMBER',
-      申込者ID: '99999999',
-      作成日時: now,
-      更新日時: now,
-      削除フラグ: false,
-    },
-    {
-      申込ID: 'AP-004',
-      研修ID: 'T001',
-      会員ID: '99999999',
-      職員ID: 'S2',
-      申込状態コード: 'APPLIED',
-      申込日時: now,
-      取消日時: '',
-      備考: '',
-      申込者区分コード: 'MEMBER',
-      申込者ID: '99999999',
-      作成日時: now,
-      更新日時: now,
-      削除フラグ: false,
-    },
-  ]);
-
-  appendRowsByHeaders_(ss, 'T_年会費納入履歴', [
-    { 年会費履歴ID: 'FY-001', 会員ID: '12345678', 対象年度: 2025, 会費納入状態コード: 'PAID', 納入確認日: '2025-05-01', 金額: 3000, 備考: '', 作成日時: now, 更新日時: now, 削除フラグ: false },
-    { 年会費履歴ID: 'FY-002', 会員ID: '12345678', 対象年度: 2024, 会費納入状態コード: 'PAID', 納入確認日: '2024-05-01', 金額: 3000, 備考: '', 作成日時: now, 更新日時: now, 削除フラグ: false },
-    { 年会費履歴ID: 'FY-003', 会員ID: '87654321', 対象年度: 2025, 会費納入状態コード: 'UNPAID', 納入確認日: '', 金額: 3000, 備考: JSON.stringify(DEMO_TRANSFER_ACCOUNT), 作成日時: now, 更新日時: now, 削除フラグ: false },
-    { 年会費履歴ID: 'FY-004', 会員ID: '87654321', 対象年度: 2024, 会費納入状態コード: 'PAID', 納入確認日: '2024-05-01', 金額: 3000, 備考: '', 作成日時: now, 更新日時: now, 削除フラグ: false },
-    { 年会費履歴ID: 'FY-007', 会員ID: '934567890', 対象年度: 2025, 会費納入状態コード: 'PAID', 納入確認日: '2025-05-01', 金額: 5000, 備考: '', 作成日時: now, 更新日時: now, 削除フラグ: false },
-    { 年会費履歴ID: 'FY-008', 会員ID: '934567890', 対象年度: 2024, 会費納入状態コード: 'PAID', 納入確認日: '2024-05-01', 金額: 5000, 備考: '', 作成日時: now, 更新日時: now, 削除フラグ: false },
-    { 年会費履歴ID: 'FY-005', 会員ID: '99999999', 対象年度: 2025, 会費納入状態コード: 'PAID', 納入確認日: '2025-05-01', 金額: 8000, 備考: '', 作成日時: now, 更新日時: now, 削除フラグ: false },
-    { 年会費履歴ID: 'FY-006', 会員ID: '99999999', 対象年度: 2024, 会費納入状態コード: 'PAID', 納入確認日: '2024-05-01', 金額: 8000, 備考: '', 作成日時: now, 更新日時: now, 削除フラグ: false },
-  ]);
-
-  return {
-    message: 'デモデータ投入完了',
-    dbInfo: getDbInfo_(),
-  };
-}
 
 /**
  * 負荷試験用の会員・事業所・職員・認証・会費・研修申込データを追加する。
@@ -1570,73 +1172,8 @@ function seedDemoData() {
 
 
 
-function seedAuthAccounts_(ss, now) {
-  var basePassword = 'demo1234';
-  var supportS2 = buildSupportLoginId_('99999999-S2');
-  var supportS3 = buildSupportLoginId_('99999999-S3');
-  var supportMember = buildSupportLoginId_('934567890');
-
-  appendRowsByHeaders_(ss, 'T_認証アカウント', [
-    createPasswordAuthRow_('AUTH-I-12345678', '12345678', 'INDIVIDUAL_MEMBER', '12345678', '', basePassword, now),
-    createPasswordAuthRow_('AUTH-I-87654321', '87654321', 'INDIVIDUAL_MEMBER', '87654321', '', basePassword, now),
-    createPasswordAuthRow_('AUTH-S-934567890', supportMember, 'INDIVIDUAL_MEMBER', '934567890', '', basePassword, now),
-    createPasswordAuthRow_('AUTH-B-S1', '11223344', 'BUSINESS_ADMIN', '99999999', 'S1', basePassword, now),
-    createPasswordAuthRow_('AUTH-B-S2', supportS2, 'BUSINESS_MEMBER', '99999999', 'S2', basePassword, now),
-    createPasswordAuthRow_('AUTH-B-S3', supportS3, 'BUSINESS_MEMBER', '99999999', 'S3', basePassword, now),
-    {
-      認証ID: 'AUTH-ADMIN-GOOGLE',
-      認証方式: 'GOOGLE',
-      ログインID: '',
-      パスワードハッシュ: '',
-      パスワードソルト: '',
-      GoogleユーザーID: 'demo-google-sub-001',
-      Googleメール: 'k.noguchi@uguisunosato.or.jp',
-      システムロールコード: 'OFFICE_ADMIN',
-      会員ID: '99999999',
-      職員ID: 'S1',
-      最終ログイン日時: '',
-      パスワード更新日時: '',
-      アカウント有効フラグ: true,
-      ログイン失敗回数: 0,
-      ロック状態: false,
-      作成日時: now,
-      更新日時: now,
-      削除フラグ: false,
-    },
-  ]);
-}
-
-/**
- * 会員ログインE2Eのため、代表的な会員認証アカウントのみを安全に再作成する。
- * - 既存データ全削除は行わない（seedDemoData は呼ばない）
- * - 対象: 個人会員2件 + 事業所管理者1件
- * - パスワードは一括で demo1234 に再設定する
- */
 
 
-function createPasswordAuthRow_(authId, loginId, roleCode, memberId, staffId, plainPassword, now) {
-  var salt = generateSalt_();
-  return {
-    認証ID: authId,
-    認証方式: 'PASSWORD',
-    ログインID: loginId,
-    パスワードハッシュ: hashPasswordPbkdf2_(plainPassword, salt),
-    パスワードソルト: salt,
-    GoogleユーザーID: '',
-    Googleメール: '',
-    システムロールコード: roleCode,
-    会員ID: memberId,
-    職員ID: staffId || '',
-    最終ログイン日時: '',
-    パスワード更新日時: now,
-    アカウント有効フラグ: true,
-    ログイン失敗回数: 0,
-    ロック状態: false,
-    作成日時: now,
-    更新日時: now,
-    削除フラグ: false,
-  };
-}
 
 
 
@@ -2494,16 +2031,6 @@ function uniqueStrings_(arr) {
   return out;
 }
 
-function clearTableData_(ss, sheetNames) {
-  for (var i = 0; i < sheetNames.length; i += 1) {
-    var sheet = ss.getSheetByName(sheetNames[i]);
-    if (!sheet) continue;
-    var lastRow = sheet.getLastRow();
-    if (lastRow > 1) {
-      sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clearContent();
-    }
-  }
-}
 
 
 function appendRowsByHeaders_(ss, sheetName, objectRows) {
@@ -4571,9 +4098,9 @@ function createMember_(payload) {
 
   // パスワード認証レコード作成
   var loginId = String(payload.careManagerNumber || '').trim() || memberId;
+  var defaultPassword = generateRandomPassword_();
   var authSheet = ss.getSheetByName('T_認証アカウント');
   if (authSheet) {
-    var defaultPassword = 'member' + memberId;
     var salt = generateSalt_();
     var hashed = hashPasswordPbkdf2_(defaultPassword, salt);
     var authColumns = テーブル定義.T_認証アカウント;
@@ -4614,7 +4141,7 @@ function createMember_(payload) {
     created: true,
     memberId: memberId,
     loginId: loginId,
-    defaultPassword: 'member' + memberId,
+    defaultPassword: defaultPassword,
   };
 }
 
@@ -6927,16 +6454,6 @@ function generateSalt_() {
 
 
 
-function buildSupportLoginId_(seed) {
-  var text = String(seed || '');
-  var hash = 0;
-  for (var i = 0; i < text.length; i += 1) {
-    hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
-  }
-  var tail = String(hash % 100000000);
-  while (tail.length < 8) tail = '0' + tail;
-  return '9' + tail;
-}
 
 
 /**
@@ -8413,7 +7930,7 @@ function approveAdminChangeRequest_(payload) {
         var saName = (String(sa.lastName || '') + ' ' + String(sa.firstName || '')).trim();
         var saEmail = String(sa.email || '').trim();
         var saLoginId = String(sa.careManagerNumber || '').trim();
-        var saPassword = 'member' + saLoginId;
+        var saPassword = '事務局から別途通知';
         addedNames.push(saName);
         // 追加された職員へのメール
         if (bizMailSettings.staffAddStaffEmailEnabled && saEmail) {
@@ -9130,8 +8647,16 @@ function backfillBusinessStaffNameColumns_(ss) {
  */
 
 /**
- * ランダムパスワードを生成する（8文字、英数字）
+ * ランダムパスワードを生成する（15文字以上、英数字）
  */
+function generateRandomPassword_() {
+  var chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  var pw = '';
+  for (var i = 0; i < PASSWORD_MIN_LENGTH; i++) {
+    pw += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return pw;
+}
 
 /**
  * CM番号がない場合の9桁ログインID自動生成（先頭9 + 8桁ランダム）
@@ -9377,38 +8902,212 @@ function getMembersForBulkMail_(payload) {
   return results;
 }
 
-/**
- * v207: 宛名リスト Excel（.xlsx）出力
- *
- * payload: { filterType: 'KOHOUSHI' | 'OSHIRASE' }
- *   KOHOUSHI: 広報誌発送 — ACTIVE + WITHDRAWAL_SCHEDULED の全会員
- *   OSHIRASE: お知らせ発送 — 事業所会員全員 + 個人/賛助のうち 発送方法コード='POST'
- *
- * 住所解決:
- *   事業所会員: 勤務先* フィールドを使用
- *   個人/賛助: 郵送先区分コード が 'HOME' なら 自宅*、それ以外は 勤務先*
- *
- * 都道府県: '大阪府' の場合は出力しない（省略）。他府県のみ表示。
- *
- * 住所不備: 郵便番号・市区町村・番地のいずれかが空の場合は '住所不備' シートへ。
- *
- * 出力シート構成:
- *   [1] 事業所会員  columns: 名前, 郵便番号, 住所, 建物名
- *   [2] 個人会員    columns: 名前, 郵便番号, 住所, 建物名, 勤務先名
- *   [3] 賛助会員    columns: 名前, 郵便番号, 住所, 建物名, 勤務先名
- *   [4] 住所不備    columns: 名前, 会員種別, 住所不備の項目
- *
- * returns: { base64: string, filename: string, counts: { business, individual, support, invalid } }
- */
-function generateMailingListExcel_(payload) {
+function normalizeMailingListYear_(year) {
+  var selected = Number(year || 0);
+  if (!selected || !isFinite(selected)) selected = getCurrentFiscalYear_();
+  selected = Math.floor(selected);
+  if (selected < 2000 || selected > 2100) {
+    throw new Error('対象年度は 2000〜2100 の範囲で指定してください。');
+  }
+  return selected;
+}
+
+function getMailingListYears_(feeRows, selectedYear) {
+  var currentFiscalYear = getCurrentFiscalYear_();
+  var years = {};
+  years[currentFiscalYear] = true;
+  years[selectedYear] = true;
+  (feeRows || []).forEach(function(row) {
+    if (toBoolean_(row['削除フラグ'])) return;
+    var y = Number(row['対象年度'] || 0);
+    if (y) years[y] = true;
+  });
+  return Object.keys(years).map(function(y) {
+    return Number(y);
+  }).sort(function(a, b) {
+    return b - a;
+  });
+}
+
+function buildMailingListCandidates_(payload) {
   var p = payload || {};
   var filterType = String(p.filterType || 'KOHOUSHI'); // 'KOHOUSHI' | 'OSHIRASE'
+  if (filterType !== 'KOHOUSHI' && filterType !== 'OSHIRASE') {
+    throw new Error('発送区分が不正です。');
+  }
+  var year = normalizeMailingListYear_(p.year);
 
   var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
   var memberSheet = ss.getSheetByName('T_会員');
+  var feeSheet = ss.getSheetByName('T_年会費納入履歴');
   var members = getSheetData_(memberSheet);
+  var feeRows = feeSheet ? getSheetData_(feeSheet) : [];
 
   var ACTIVE_STATUSES = ['ACTIVE', 'WITHDRAWAL_SCHEDULED'];
+  var feeMap = {};
+  feeRows.forEach(function(r) {
+    if (toBoolean_(r['削除フラグ'])) return;
+    if (Number(r['対象年度'] || 0) !== year) return;
+    var mid = String(r['会員ID'] || '');
+    if (mid) feeMap[mid] = String(r['会費納入状態コード'] || 'UNPAID');
+  });
+
+  var candidates = [];
+
+  members.forEach(function(m) {
+    if (toBoolean_(m['削除フラグ'])) return;
+    var mtype = String(m['会員種別コード'] || '');
+    var status = String(m['会員状態コード'] || '');
+    if (ACTIVE_STATUSES.indexOf(status) < 0) return;
+
+    // お知らせフィルター: 事業所は全員対象。個人・賛助は 発送方法コード='POST' のみ
+    if (filterType === 'OSHIRASE' && mtype !== 'BUSINESS') {
+      var mailingPrefFilter = String(m['発送方法コード'] || 'EMAIL');
+      if (mailingPrefFilter !== 'POST') return;
+    }
+
+    var memberId = String(m['会員ID'] || '');
+    var displayName;
+    if (mtype === 'BUSINESS') {
+      displayName = String(m['勤務先名'] || '').trim();
+    } else {
+      var lastName = String(m['姓'] || '').trim();
+      var firstName = String(m['名'] || '').trim();
+      displayName = (lastName + ' ' + firstName).trim();
+    }
+    if (!displayName) displayName = memberId;
+
+    var postCode, prefecture, city, line1, line2, mailingDestination;
+    if (mtype === 'BUSINESS') {
+      mailingDestination = 'OFFICE';
+      postCode = String(m['勤務先郵便番号'] || '').trim();
+      prefecture = String(m['勤務先都道府県'] || '').trim();
+      city = String(m['勤務先市区町村'] || '').trim();
+      line1 = String(m['勤務先住所'] || '').trim();
+      line2 = String(m['勤務先住所2'] || '').trim();
+    } else {
+      mailingDestination = String(m['郵送先区分コード'] || 'OFFICE');
+      if (mailingDestination === 'HOME') {
+        postCode = String(m['自宅郵便番号'] || '').trim();
+        prefecture = String(m['自宅都道府県'] || '').trim();
+        city = String(m['自宅市区町村'] || '').trim();
+        line1 = String(m['自宅住所'] || '').trim();
+        line2 = String(m['自宅住所2'] || '').trim();
+      } else {
+        postCode = String(m['勤務先郵便番号'] || '').trim();
+        prefecture = String(m['勤務先都道府県'] || '').trim();
+        city = String(m['勤務先市区町村'] || '').trim();
+        line1 = String(m['勤務先住所'] || '').trim();
+        line2 = String(m['勤務先住所2'] || '').trim();
+      }
+    }
+
+    var invalidItems = [];
+    if (!postCode) invalidItems.push('郵便番号');
+    if (!city) invalidItems.push('市区町村');
+    if (!line1) invalidItems.push('番地');
+
+    var prefDisplay = (prefecture && prefecture !== '大阪府') ? prefecture : '';
+    var address1 = prefDisplay + city + line1;
+    var officeName = String(m['勤務先名'] || '').trim();
+    var feeStatus = feeMap[memberId] || 'UNPAID';
+
+    candidates.push({
+      targetKey: memberId,
+      memberId: memberId,
+      displayName: displayName,
+      memberType: mtype,
+      memberStatus: status,
+      annualFeeStatus: feeStatus,
+      annualFeeYear: year,
+      officeName: officeName,
+      mailingPreference: String(m['発送方法コード'] || 'EMAIL'),
+      mailingDestination: mailingDestination,
+      addressInvalidItems: invalidItems,
+      postCode: postCode,
+      address1: address1,
+      address2: line2,
+    });
+  });
+
+  candidates.sort(function(a, b) {
+    var ta = String(a.memberType || '');
+    var tb = String(b.memberType || '');
+    if (ta !== tb) return ta < tb ? -1 : 1;
+    return String(a.displayName || '').localeCompare(String(b.displayName || ''), 'ja');
+  });
+
+  return {
+    filterType: filterType,
+    year: year,
+    years: getMailingListYears_(feeRows, year),
+    candidates: candidates,
+  };
+}
+
+function summarizeMailingListCandidates_(candidates) {
+  var counts = { business: 0, individual: 0, support: 0, invalid: 0 };
+  (candidates || []).forEach(function(c) {
+    if (c.memberType === 'BUSINESS') counts.business += 1;
+    else if (c.memberType === 'INDIVIDUAL') counts.individual += 1;
+    else if (c.memberType === 'SUPPORT') counts.support += 1;
+    if (c.addressInvalidItems && c.addressInvalidItems.length > 0) counts.invalid += 1;
+  });
+  return counts;
+}
+
+function getMailingListTargets_(payload) {
+  var built = buildMailingListCandidates_(payload);
+  return {
+    selectedYear: built.year,
+    years: built.years,
+    targets: built.candidates.map(function(c) {
+      return {
+        targetKey: c.targetKey,
+        memberId: c.memberId,
+        displayName: c.displayName,
+        memberType: c.memberType,
+        memberStatus: c.memberStatus,
+        annualFeeStatus: c.annualFeeStatus,
+        annualFeeYear: c.annualFeeYear,
+        officeName: c.officeName,
+        mailingPreference: c.mailingPreference,
+        mailingDestination: c.mailingDestination,
+        addressInvalidItems: c.addressInvalidItems,
+      };
+    }),
+    counts: summarizeMailingListCandidates_(built.candidates),
+  };
+}
+
+/**
+ * v207/v291: 宛名リスト Excel（.xlsx）出力
+ *
+ * payload: { filterType: 'KOHOUSHI' | 'OSHIRASE', year?: number, targetKeys?: string[] }
+ *   KOHOUSHI: 広報誌発送 — ACTIVE + WITHDRAWAL_SCHEDULED の全会員
+ *   OSHIRASE: お知らせ発送 — 事業所会員全員 + 個人/賛助のうち 発送方法コード='POST'
+ *
+ * targetKeys 指定時は、バックエンドで再計算した発送対象候補との交差だけを出力する。
+ */
+function generateMailingListExcel_(payload) {
+  var p = payload || {};
+  var built = buildMailingListCandidates_(p);
+  var filterType = built.filterType;
+  var selectedCandidates = built.candidates;
+  if (Array.isArray(p.targetKeys)) {
+    if (p.targetKeys.length === 0) throw new Error('出力対象が選択されていません。');
+    var keySet = {};
+    p.targetKeys.forEach(function(k) {
+      keySet[String(k)] = true;
+    });
+    selectedCandidates = selectedCandidates.filter(function(c) {
+      return !!keySet[String(c.targetKey)];
+    });
+    if (selectedCandidates.length === 0) {
+      throw new Error('選択された会員が現在の発送条件に一致しません。');
+    }
+  }
+
   var HEADERS_BIZ     = ['名前', '郵便番号', '住所', '建物名'];
   var HEADERS_IND_SUP = ['名前', '郵便番号', '住所', '建物名', '勤務先名'];
   var HEADERS_INVALID = ['名前', '会員種別', '住所不備の項目'];
@@ -9418,79 +9117,20 @@ function generateMailingListExcel_(payload) {
   var rowsSup     = [];
   var rowsInvalid = [];
 
-  members.forEach(function(m) {
-    if (toBoolean_(m['削除フラグ'])) return;
-    var mtype  = String(m['会員種別コード'] || '');
-    var status = String(m['会員状態コード'] || '');
-    if (ACTIVE_STATUSES.indexOf(status) < 0) return;
-
-    // お知らせフィルター: 事業所は全員対象。個人・賛助は 発送方法コード='POST' のみ
-    if (filterType === 'OSHIRASE' && mtype !== 'BUSINESS') {
-      var mailingPref = String(m['発送方法コード'] || 'EMAIL');
-      if (mailingPref !== 'POST') return;
-    }
-
-    // 事業所会員の宛名は勤務先名。個人・賛助は姓名
-    var displayName;
-    if (mtype === 'BUSINESS') {
-      displayName = String(m['勤務先名'] || '').trim();
-    } else {
-      var lastName  = String(m['姓'] || '').trim();
-      var firstName = String(m['名'] || '').trim();
-      displayName   = (lastName + ' ' + firstName).trim();
-    }
-    if (!displayName) displayName = String(m['会員ID'] || '');
-
-    // 住所解決
-    var postCode, prefecture, city, line1, line2;
-    if (mtype === 'BUSINESS') {
-      postCode   = String(m['勤務先郵便番号'] || '').trim();
-      prefecture = String(m['勤務先都道府県'] || '').trim();
-      city       = String(m['勤務先市区町村'] || '').trim();
-      line1      = String(m['勤務先住所']     || '').trim();
-      line2      = String(m['勤務先住所2']    || '').trim();
-    } else {
-      var dest = String(m['郵送先区分コード'] || 'OFFICE');
-      if (dest === 'HOME') {
-        postCode   = String(m['自宅郵便番号'] || '').trim();
-        prefecture = String(m['自宅都道府県'] || '').trim();
-        city       = String(m['自宅市区町村'] || '').trim();
-        line1      = String(m['自宅住所']     || '').trim();
-        line2      = String(m['自宅住所2']    || '').trim();
-      } else {
-        postCode   = String(m['勤務先郵便番号'] || '').trim();
-        prefecture = String(m['勤務先都道府県'] || '').trim();
-        city       = String(m['勤務先市区町村'] || '').trim();
-        line1      = String(m['勤務先住所']     || '').trim();
-        line2      = String(m['勤務先住所2']    || '').trim();
-      }
-    }
-
-    // 住所不備チェック（郵便番号・市区町村・番地のいずれかが空）
-    var invalidItems = [];
-    if (!postCode) invalidItems.push('郵便番号');
-    if (!city)     invalidItems.push('市区町村');
-    if (!line1)    invalidItems.push('番地');
-
-    if (invalidItems.length > 0) {
-      var mtypeLabel = mtype === 'BUSINESS' ? '事業所会員'
-                     : mtype === 'INDIVIDUAL' ? '個人会員' : '賛助会員';
-      rowsInvalid.push([displayName, mtypeLabel, invalidItems.join('、')]);
+  selectedCandidates.forEach(function(c) {
+    if (c.addressInvalidItems.length > 0) {
+      var mtypeLabel = c.memberType === 'BUSINESS' ? '事業所会員'
+                     : c.memberType === 'INDIVIDUAL' ? '個人会員' : '賛助会員';
+      rowsInvalid.push([c.displayName, mtypeLabel, c.addressInvalidItems.join('、')]);
       return;
     }
 
-    // 都道府県: 大阪府は省略、他府県のみ表示
-    var prefDisplay = (prefecture && prefecture !== '大阪府') ? prefecture : '';
-    var address1    = prefDisplay + city + line1;
-    var officeName  = String(m['勤務先名'] || '').trim();
-
-    // 事業所会員: 名前は事業所代表名（姓名）、勤務先名列は不要（事業所ごとの宛先）
-    if (mtype === 'BUSINESS') {
-      rowsBiz.push([displayName, postCode, address1, line2]);
-    } else if (mtype === 'INDIVIDUAL') {
-      rowsInd.push([displayName, postCode, address1, line2, officeName]);
-    } else if (mtype === 'SUPPORT') {
-      rowsSup.push([displayName, postCode, address1, line2, officeName]);
+    if (c.memberType === 'BUSINESS') {
+      rowsBiz.push([c.displayName, c.postCode, c.address1, c.address2]);
+    } else if (c.memberType === 'INDIVIDUAL') {
+      rowsInd.push([c.displayName, c.postCode, c.address1, c.address2, c.officeName]);
+    } else if (c.memberType === 'SUPPORT') {
+      rowsSup.push([c.displayName, c.postCode, c.address1, c.address2, c.officeName]);
     }
   });
 
@@ -10335,17 +9975,6 @@ function selectRosterDisplaySheetsV2_(ss, memberType) {
   return applyRosterSheetVisibility_(ss, prefixSheets);
 }
 
-function addDeleteLogSheet() {
-  var ss = getOrCreateDatabase_();
-  var sheetName = 'T_削除ログ';
-  if (!ss.getSheetByName(sheetName)) {
-    var sheet = ss.insertSheet(sheetName);
-    var cols = テーブル定義[sheetName];
-    sheet.getRange(1, 1, 1, cols.length).setValues([cols]);
-    sheet.setFrozenRows(1);
-  }
-  return { status: 'ok', sheet: sheetName };
-}
 
 function getDeleteMemberDisplayName_(memberRow) {
   var memberType = String(memberRow['会員種別コード'] || '');
@@ -10927,8 +10556,12 @@ function getDeleteLogs_(payload) {
  */
 
 // ---------------------------------------------------------------------------
-// PBKDF2 パスワードハッシュ (docs/122)
+// Password hashing (PBKDF2 + verifier-side pepper)
 // ---------------------------------------------------------------------------
+
+var PASSWORD_MIN_LENGTH = 15;
+var PASSWORD_HASH_PEPPER_PROPERTY = 'PASSWORD_HASH_PEPPER_V1';
+var PASSWORD_HASH_PEPPER_ID = 'v1';
 
 /**
  * PBKDF2-HMAC-SHA256 を GAS の Utilities.computeHmacSha256Signature で実装する。
@@ -10985,9 +10618,33 @@ function pbkdf2HmacSha256_(password, salt, iterations, dkLen) {
  * NIST SP 800-132 推奨 (100,000+) に対し GAS 制約内の最大値。
  */
 var PBKDF2_ITERATIONS = 10000;
+
+function bytesToHex_(bytes) {
+  var out = [];
+  for (var i = 0; i < bytes.length; i += 1) {
+    var b = bytes[i];
+    if (b < 0) b += 256;
+    out.push((b < 16 ? '0' : '') + b.toString(16));
+  }
+  return out.join('');
+}
+
+
+function getPasswordPepper_() {
+  return String(PropertiesService.getScriptProperties().getProperty(PASSWORD_HASH_PEPPER_PROPERTY) || '').trim();
+}
+
+function hmacSha256Hex_(message, secret) {
+  return bytesToHex_(Utilities.computeHmacSha256Signature(String(message || ''), String(secret || '')));
+}
 function hashPasswordPbkdf2_(password, salt) {
   var dk = pbkdf2HmacSha256_(password, salt, PBKDF2_ITERATIONS, 32);
-  return 'pbkdf2:sha256:' + dk;
+  var pepper = getPasswordPepper_();
+  if (pepper) {
+    var mac = hmacSha256Hex_(dk, pepper);
+    return 'pbkdf2:sha256:' + PBKDF2_ITERATIONS + ':pepper:' + PASSWORD_HASH_PEPPER_ID + ':' + mac;
+  }
+  return 'pbkdf2:sha256:' + PBKDF2_ITERATIONS + ':' + dk;
 }
 
 /**

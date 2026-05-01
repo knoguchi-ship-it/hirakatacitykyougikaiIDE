@@ -572,7 +572,8 @@ GAS コードは `getLogSs_()` 経由でアクセスする。`LOG_SPREADSHEET_ID
 - 管理者ログイン: `checkAdminBySession_()` → `Session.getActiveUser().getEmail()` → `T_管理者Googleホワイトリスト` メール照合。
 - ログイン結果は `T_ログイン履歴` に記録。失敗回数・ロック状態を `T_認証アカウント` に更新。
 - 画面ごとの項目操作可否は `T_画面項目権限` で管理。
-- パスワードハッシュ+ソルトのみ保存（平文保存禁止）。
+- パスワードハッシュ+ソルトのみ保存（平文保存禁止）。2026-04-30 以降の新規保存形式は versioned PBKDF2-HMAC-SHA256 + verifier-side pepper。pepper は Script Properties の `PASSWORD_HASH_PEPPER_V1` で管理し、DB には保存しない。
+- pepper の値は integrated/public・member split・admin split の各 Apps Script project の Script Properties に同一値で設定する。本番反映前の必須条件であり、値は Git、handover、docs、ログ、チャット、生成物へ記録しない。`.env` は Apps Script 本番 runtime の正本にしない。
 
 ---
 

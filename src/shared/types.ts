@@ -119,6 +119,32 @@ export interface TemplateValidationResult {
 // v207: 宛名リスト Excel 出力
 export type MailingListFilterType = 'KOHOUSHI' | 'OSHIRASE';
 
+export interface MailingListTarget {
+  targetKey: string;
+  memberId: string;
+  displayName: string;
+  memberType: 'INDIVIDUAL' | 'BUSINESS' | 'SUPPORT';
+  memberStatus: string;
+  annualFeeStatus: 'PAID' | 'UNPAID' | 'NONE';
+  annualFeeYear: number;
+  officeName: string;
+  mailingPreference: string;
+  mailingDestination: string;
+  addressInvalidItems: string[];
+}
+
+export interface MailingListTargetsResult {
+  selectedYear: number;
+  years: number[];
+  targets: MailingListTarget[];
+  counts: {
+    business: number;
+    individual: number;
+    support: number;
+    invalid: number;
+  };
+}
+
 export interface MailingListExcelResult {
   base64: string;
   filename: string;

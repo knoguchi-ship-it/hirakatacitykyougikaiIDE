@@ -1478,7 +1478,7 @@ function submitMemberApplication_(payload) {
 
       // T_認証アカウントに挿入（ログインID = 介護支援専門員番号）
       var loginId = cmNumber;
-      var defaultPassword = 'member' + cmNumber;
+      var defaultPassword = generateRandomPassword_();
       if (authSheet) {
         var salt = generateSalt_();
         var hashed = hashPasswordPbkdf2_(defaultPassword, salt);
@@ -1551,7 +1551,7 @@ function submitMemberApplication_(payload) {
     var loginId = memberTypeCode === 'INDIVIDUAL'
       ? (String(payload.careManagerNumber || '').trim() || memberId)
       : memberId;
-    var defaultPassword = 'member' + loginId;
+    var defaultPassword = generateRandomPassword_();
 
     var authSheet = ss.getSheetByName('T_認証アカウント');
     if (authSheet) {
@@ -5725,8 +5725,16 @@ function backfillBusinessStaffNameColumns_(ss) {
  */
 
 /**
- * ランダムパスワードを生成する（8文字、英数字）
+ * ランダムパスワードを生成する（15文字以上、英数字）
  */
+function generateRandomPassword_() {
+  var chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  var pw = '';
+  for (var i = 0; i < PASSWORD_MIN_LENGTH; i++) {
+    pw += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return pw;
+}
 
 /**
  * CM番号がない場合の9桁ログインID自動生成（先頭9 + 8桁ランダム）
@@ -5820,28 +5828,19 @@ function backfillBusinessStaffNameColumns_(ss) {
  *   excludeNoEmail? – true: メール未登録除外（デフォルト true）
  */
 
+
+
+
+
+
 /**
- * v207: 宛名リスト Excel（.xlsx）出力
+ * v207/v291: 宛名リスト Excel（.xlsx）出力
  *
- * payload: { filterType: 'KOHOUSHI' | 'OSHIRASE' }
+ * payload: { filterType: 'KOHOUSHI' | 'OSHIRASE', year?: number, targetKeys?: string[] }
  *   KOHOUSHI: 広報誌発送 — ACTIVE + WITHDRAWAL_SCHEDULED の全会員
  *   OSHIRASE: お知らせ発送 — 事業所会員全員 + 個人/賛助のうち 発送方法コード='POST'
  *
- * 住所解決:
- *   事業所会員: 勤務先* フィールドを使用
- *   個人/賛助: 郵送先区分コード が 'HOME' なら 自宅*、それ以外は 勤務先*
- *
- * 都道府県: '大阪府' の場合は出力しない（省略）。他府県のみ表示。
- *
- * 住所不備: 郵便番号・市区町村・番地のいずれかが空の場合は '住所不備' シートへ。
- *
- * 出力シート構成:
- *   [1] 事業所会員  columns: 名前, 郵便番号, 住所, 建物名
- *   [2] 個人会員    columns: 名前, 郵便番号, 住所, 建物名, 勤務先名
- *   [3] 賛助会員    columns: 名前, 郵便番号, 住所, 建物名, 勤務先名
- *   [4] 住所不備    columns: 名前, 会員種別, 住所不備の項目
- *
- * returns: { base64: string, filename: string, counts: { business, individual, support, invalid } }
+ * targetKeys 指定時は、バックエンドで再計算した発送対象候補との交差だけを出力する。
  */
 
 /**
@@ -5967,8 +5966,12 @@ function backfillBusinessStaffNameColumns_(ss) {
  */
 
 // ---------------------------------------------------------------------------
-// PBKDF2 パスワードハッシュ (docs/122)
+// Password hashing (PBKDF2 + verifier-side pepper)
 // ---------------------------------------------------------------------------
+
+var PASSWORD_MIN_LENGTH = 15;
+var PASSWORD_HASH_PEPPER_PROPERTY = 'PASSWORD_HASH_PEPPER_V1';
+var PASSWORD_HASH_PEPPER_ID = 'v1';
 
 /**
  * PBKDF2-HMAC-SHA256 を GAS の Utilities.computeHmacSha256Signature で実装する。
@@ -6025,9 +6028,33 @@ function pbkdf2HmacSha256_(password, salt, iterations, dkLen) {
  * NIST SP 800-132 推奨 (100,000+) に対し GAS 制約内の最大値。
  */
 var PBKDF2_ITERATIONS = 10000;
+
+function bytesToHex_(bytes) {
+  var out = [];
+  for (var i = 0; i < bytes.length; i += 1) {
+    var b = bytes[i];
+    if (b < 0) b += 256;
+    out.push((b < 16 ? '0' : '') + b.toString(16));
+  }
+  return out.join('');
+}
+
+
+function getPasswordPepper_() {
+  return String(PropertiesService.getScriptProperties().getProperty(PASSWORD_HASH_PEPPER_PROPERTY) || '').trim();
+}
+
+function hmacSha256Hex_(message, secret) {
+  return bytesToHex_(Utilities.computeHmacSha256Signature(String(message || ''), String(secret || '')));
+}
 function hashPasswordPbkdf2_(password, salt) {
   var dk = pbkdf2HmacSha256_(password, salt, PBKDF2_ITERATIONS, 32);
-  return 'pbkdf2:sha256:' + dk;
+  var pepper = getPasswordPepper_();
+  if (pepper) {
+    var mac = hmacSha256Hex_(dk, pepper);
+    return 'pbkdf2:sha256:' + PBKDF2_ITERATIONS + ':pepper:' + PASSWORD_HASH_PEPPER_ID + ':' + mac;
+  }
+  return 'pbkdf2:sha256:' + PBKDF2_ITERATIONS + ':' + dk;
 }
 
 /**

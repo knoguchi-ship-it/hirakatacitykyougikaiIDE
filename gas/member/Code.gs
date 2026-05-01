@@ -556,24 +556,6 @@ function doGet(e) {
  * DBスキーマを再構築する。
  * 既存の定義外シートは削除し、定義シートのヘッダー/入力規則/保護を再適用する。
  */
-function rebuildDatabaseSchema() {
-  var ss = getOrCreateDatabase_();
-  initializeSchema_(ss);
-  markSchemaInitialized_();
-  // 研修案内PDFサムネイル自動生成トリガーを設定（10分ごと）
-  try {
-    setupThumbnailGenerationTrigger_();
-  } catch (e) {
-    Logger.log('setupThumbnailGenerationTrigger_ failed: ' + e.message);
-  }
-  return {
-    スプレッドシートID: ss.getId(),
-    削除シート一覧: cleanupNonSchemaSheets_(ss),
-    シート一覧: ss.getSheets().map(function(sheet) {
-      return sheet.getName();
-    }),
-  };
-}
 
 
 
@@ -1499,8 +1481,8 @@ function changePassword_(request) {
   var currentPassword = String(request.currentPassword);
   var newPassword = String(request.newPassword);
 
-  if (newPassword.length < 8) {
-    throw new Error('新しいパスワードは8文字以上で入力してください。');
+  if (newPassword.length < PASSWORD_MIN_LENGTH) {
+    throw new Error('新しいパスワードは' + PASSWORD_MIN_LENGTH + '文字以上で入力してください。');
   }
 
   var ss = getOrCreateDatabase_();
@@ -1563,6 +1545,12 @@ function changePassword_(request) {
     }
     appendLoginHistory_(ss, authId, loginId, 'PASSWORD', 'FAILURE', '現在パスワード不一致');
     throw new Error('現在のパスワードが正しくありません。');
+  }
+  if (verifyChangeResult.needsRehash) {
+    var rehashSalt = generateSalt_();
+    var rehashValue = hashPasswordPbkdf2_(currentPassword, rehashSalt);
+    authSheet.getRange(authRowInfo.rowNumber, columns['パスワードソルト'] + 1).setValue(rehashSalt);
+    authSheet.getRange(authRowInfo.rowNumber, columns['パスワードハッシュ'] + 1).setValue(rehashValue);
   }
 
   var newSalt = generateSalt_();
@@ -4585,7 +4573,7 @@ function backfillBusinessStaffNameColumns_(ss) {
  */
 
 /**
- * ランダムパスワードを生成する（8文字、英数字）
+ * ランダムパスワードを生成する（15文字以上、英数字）
  */
 
 /**
@@ -4680,28 +4668,19 @@ function backfillBusinessStaffNameColumns_(ss) {
  *   excludeNoEmail? – true: メール未登録除外（デフォルト true）
  */
 
+
+
+
+
+
 /**
- * v207: 宛名リスト Excel（.xlsx）出力
+ * v207/v291: 宛名リスト Excel（.xlsx）出力
  *
- * payload: { filterType: 'KOHOUSHI' | 'OSHIRASE' }
+ * payload: { filterType: 'KOHOUSHI' | 'OSHIRASE', year?: number, targetKeys?: string[] }
  *   KOHOUSHI: 広報誌発送 — ACTIVE + WITHDRAWAL_SCHEDULED の全会員
  *   OSHIRASE: お知らせ発送 — 事業所会員全員 + 個人/賛助のうち 発送方法コード='POST'
  *
- * 住所解決:
- *   事業所会員: 勤務先* フィールドを使用
- *   個人/賛助: 郵送先区分コード が 'HOME' なら 自宅*、それ以外は 勤務先*
- *
- * 都道府県: '大阪府' の場合は出力しない（省略）。他府県のみ表示。
- *
- * 住所不備: 郵便番号・市区町村・番地のいずれかが空の場合は '住所不備' シートへ。
- *
- * 出力シート構成:
- *   [1] 事業所会員  columns: 名前, 郵便番号, 住所, 建物名
- *   [2] 個人会員    columns: 名前, 郵便番号, 住所, 建物名, 勤務先名
- *   [3] 賛助会員    columns: 名前, 郵便番号, 住所, 建物名, 勤務先名
- *   [4] 住所不備    columns: 名前, 会員種別, 住所不備の項目
- *
- * returns: { base64: string, filename: string, counts: { business, individual, support, invalid } }
+ * targetKeys 指定時は、バックエンドで再計算した発送対象候補との交差だけを出力する。
  */
 
 /**
@@ -4827,8 +4806,12 @@ function backfillBusinessStaffNameColumns_(ss) {
  */
 
 // ---------------------------------------------------------------------------
-// PBKDF2 パスワードハッシュ (docs/122)
+// Password hashing (PBKDF2 + verifier-side pepper)
 // ---------------------------------------------------------------------------
+
+var PASSWORD_MIN_LENGTH = 15;
+var PASSWORD_HASH_PEPPER_PROPERTY = 'PASSWORD_HASH_PEPPER_V1';
+var PASSWORD_HASH_PEPPER_ID = 'v1';
 
 /**
  * PBKDF2-HMAC-SHA256 を GAS の Utilities.computeHmacSha256Signature で実装する。
@@ -4886,6 +4869,37 @@ function pbkdf2HmacSha256_(password, salt, iterations, dkLen) {
  */
 var PBKDF2_ITERATIONS = 10000;
 
+function bytesToHex_(bytes) {
+  var out = [];
+  for (var i = 0; i < bytes.length; i += 1) {
+    var b = bytes[i];
+    if (b < 0) b += 256;
+    out.push((b < 16 ? '0' : '') + b.toString(16));
+  }
+  return out.join('');
+}
+
+function secureCompareString_(a, b) {
+  a = String(a || '');
+  b = String(b || '');
+  var maxLen = Math.max(a.length, b.length);
+  var diff = a.length ^ b.length;
+  for (var i = 0; i < maxLen; i += 1) {
+    var ca = i < a.length ? a.charCodeAt(i) : 0;
+    var cb = i < b.length ? b.charCodeAt(i) : 0;
+    diff |= ca ^ cb;
+  }
+  return diff === 0;
+}
+
+function getPasswordPepper_() {
+  return String(PropertiesService.getScriptProperties().getProperty(PASSWORD_HASH_PEPPER_PROPERTY) || '').trim();
+}
+
+function hmacSha256Hex_(message, secret) {
+  return bytesToHex_(Utilities.computeHmacSha256Signature(String(message || ''), String(secret || '')));
+}
+
 /**
  * PBKDF2-HMAC-SHA256 でパスワードをハッシュする。
  * 旧 hashPassword_ と同じシグネチャで呼び出せるが、方式識別子を prefix として返す。
@@ -4893,7 +4907,12 @@ var PBKDF2_ITERATIONS = 10000;
  */
 function hashPasswordPbkdf2_(password, salt) {
   var dk = pbkdf2HmacSha256_(password, salt, PBKDF2_ITERATIONS, 32);
-  return 'pbkdf2:sha256:' + dk;
+  var pepper = getPasswordPepper_();
+  if (pepper) {
+    var mac = hmacSha256Hex_(dk, pepper);
+    return 'pbkdf2:sha256:' + PBKDF2_ITERATIONS + ':pepper:' + PASSWORD_HASH_PEPPER_ID + ':' + mac;
+  }
+  return 'pbkdf2:sha256:' + PBKDF2_ITERATIONS + ':' + dk;
 }
 
 /**
@@ -4904,8 +4923,33 @@ function hashPasswordPbkdf2_(password, salt) {
  */
 function verifyPassword_(password, salt, storedHash) {
   if (storedHash && storedHash.indexOf('pbkdf2:sha256:') === 0) {
+    var parts = String(storedHash).split(':');
+    if (parts.length === 6 && parts[3] === 'pepper') {
+      var pepper = getPasswordPepper_();
+      if (!pepper) {
+        throw new Error('パスワード検証用pepperが未設定です。管理者へ連絡してください。');
+      }
+      var pepperIterations = Number(parts[2] || 0);
+      var dkPepper = pbkdf2HmacSha256_(password, salt, pepperIterations || PBKDF2_ITERATIONS, 32);
+      var mac = hmacSha256Hex_(dkPepper, pepper);
+      return {
+        match: secureCompareString_(mac, parts[5]),
+        needsRehash: pepperIterations !== PBKDF2_ITERATIONS || parts[4] !== PASSWORD_HASH_PEPPER_ID,
+      };
+    }
+    if (parts.length === 4) {
+      var iterations = Number(parts[2] || 0);
+      var dkVersioned = pbkdf2HmacSha256_(password, salt, iterations || PBKDF2_ITERATIONS, 32);
+      return {
+        match: secureCompareString_('pbkdf2:sha256:' + (iterations || PBKDF2_ITERATIONS) + ':' + dkVersioned, storedHash),
+        needsRehash: true,
+      };
+    }
     var dk = pbkdf2HmacSha256_(password, salt, PBKDF2_ITERATIONS, 32);
-    return { match: ('pbkdf2:sha256:' + dk) === storedHash, needsRehash: false };
+    return {
+      match: secureCompareString_('pbkdf2:sha256:' + dk, storedHash),
+      needsRehash: true,
+    };
   }
   // 旧 SHA-256
   var legacyHash = hashPassword_(password, salt);

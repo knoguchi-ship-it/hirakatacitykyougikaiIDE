@@ -71,6 +71,10 @@
   - 全対象のPDFを `Utilities.zip()` でZIP化 → DriveApp.createFile → DLリンク返却。
   - 上限50件（6分制限対策）。事業所会員は REPRESENTATIVE→ADMIN→STAFF 順で職員一覧をPDF内展開。
   - スコープ: `https://www.googleapis.com/auth/drive`（v194 で追加済み）。
+- **宛名リスト出力機能（v291 ローカル変更）**: `SpreadsheetApp` + `UrlFetchApp`
+  - `getMailingListTargets` で発送区分・年度ごとの候補を取得し、画面上で年度処理、種別、状態、住所不備を確認して出力対象を選択する。
+  - キーワード検索はフロントエンドで表示候補を絞る。Excel 出力時は選択された `targetKeys` を GAS 側で再計算済み候補と照合し、条件外 ID を信用しない。
+  - `generateMailingListExcel` は選択済み候補のみを一時スプレッドシートへ出力し、xlsx に変換して返す。
 
 ## 3. ディレクトリ構成
 
@@ -198,6 +202,8 @@
 | `getEmailSendLog` | メール送信ログ取得（EMAIL_LOG_VIEWER_ROLE 動的権限チェック）(v195) | 設定依存 |
 | `getMembersForRoster` | PDF名簿出力用対象一覧取得（フィルタ付き）(v196) | MASTER/ADMIN |
 | `generateRosterZip` | テンプレートSS → PDF → ZIP生成 → DriveURL返却 (v196) | MASTER/ADMIN |
+| `getMailingListTargets` | 宛名リスト出力用の発送区分・年度別候補一覧取得（年度処理、種別、状態、住所不備を含む） | MASTER/ADMIN |
+| `generateMailingListExcel` | 選択済み宛名対象の Excel 出力。GAS 側で発送条件と `targetKeys` を再照合する | MASTER/ADMIN |
 | `getPublicTrainings` | 公開ポータル用：受付中研修一覧取得 | 不要（公開） |
 | `applyTrainingExternal` | 非会員研修申込（`T_外部申込者` 作成 + `T_研修申込` 追加） | 不要（公開） |
 | `cancelTrainingExternal` | 非会員申込取消（申込ID + 登録メール一致で本人確認） | 不要（公開） |

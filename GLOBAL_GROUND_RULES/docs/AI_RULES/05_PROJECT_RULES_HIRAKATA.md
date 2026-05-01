@@ -45,6 +45,8 @@
 - `npx clasp version` / `npx clasp redeploy` / `npx clasp deployments --json` / `npx clasp run ...` などの Apps Script API 到達コマンドは、既知のネットワーク失敗を避けるため、最初から承認済みの安定経路で実行する。通常経路で一度失敗してから再実行する流れを標準運用にしない。
 - release 完了条件は `build -> push -> version -> fixed deployment sync -> verification -> document update`。
 - fixed deployment sync の確認は `npx clasp deployments --json` を正とする。
+- versioned PBKDF2-HMAC-SHA256 + verifier-side pepper を含む認証変更は、本番反映前に integrated/public・member split・admin split の全 Apps Script project へ同一の強乱数 Script Property `PASSWORD_HASH_PEPPER_V1` が設定済みであることを必須条件とする。値は表示・記録しない。`.env` は Apps Script 本番 runtime の正本にせず、必要な場合でも未コミットのローカル運用補助に限定する。
+- pepper の Google Cloud Secret Manager 化、および Apps Script 内 PBKDF2 制約を解消する外部 KDF / managed identity の採否決定は、保留中でも必須の security backlog として扱う。破棄・完了扱い・正本文書からの削除は禁止し、完了または明示的な代替設計決定まで `HANDOVER.md` と関連仕様へ残す。
 - 毎回更新する文書は `HANDOVER.md`、`docs/09_DEPLOYMENT_POLICY.md`、必要に応じた release state 文書とし、この固定ルール文書は運用原則変更時のみ更新する。
 - 実ブラウザ確認が操作者待ちの場合でも、コード上の検証結果、未確認範囲、想定確認ポイントを明記して引き継ぐ。
 
@@ -57,6 +59,7 @@
 - business `ADMIN` は他者の `STAFF <-> ADMIN` 変更のみ可。自分自身、`REPRESENTATIVE` 行、`REPRESENTATIVE` 付与は不可。
 - 個人会員 / 居宅介護支援事業者所属でない会員は、`officeName` が空または `????` の場合に所属なしとして扱う。
 - `seedDemoData` は production DB を破壊する操作として扱い、完全バックアップと明示承認なしでは実行しない。
+- password hash pepper、token、鍵、認証情報などの secret value は Git、handover、docs、ログ、チャット、生成物へ記録しない。記録してよいのは設定名と配置先だけとする。
 - production DB の基準状態は 2026-04-04 のロールバック後整合済み状態であり、後続の文書化された DB 操作がない限りこれを正とする。
 
 ## 外部標準の取り込み方

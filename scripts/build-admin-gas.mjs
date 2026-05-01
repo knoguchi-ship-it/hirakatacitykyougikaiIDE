@@ -297,6 +297,42 @@ function pruneUnreachableFunctionDeclarations(source, seedNames, label) {
   return result;
 }
 
+function removeTopLevelFunctionDeclarations(source, namesToRemove, label) {
+  const declarations = collectFunctionDeclarations(source);
+  const removeNames = new Set(namesToRemove);
+  const rangesToRemove = declarations
+    .filter((decl) => removeNames.has(decl.name))
+    .map((decl) => ({ start: decl.start, end: decl.end, name: decl.name }))
+    .sort((a, b) => a.start - b.start);
+
+  let result = '';
+  let cursor = 0;
+  const removed = [];
+  for (const range of rangesToRemove) {
+    if (range.start < cursor) continue;
+    result += source.slice(cursor, range.start);
+    cursor = range.end;
+    removed.push(range.name);
+  }
+  result += source.slice(cursor);
+  if (removed.length) {
+    console.log(`[${label}] Removed top-level functions: ${removed.join(', ')}`);
+  }
+  return result;
+}
+
+function assertAllowedTopLevelFunctions(source, allowedNames, label) {
+  const allowed = new Set(allowedNames);
+  const topLevelFunctions = collectFunctionDeclarations(source)
+    .map((decl) => decl.name)
+    .filter((name) => !name.endsWith('_'));
+  const disallowed = topLevelFunctions.filter((name) => !allowed.has(name));
+  if (disallowed.length) {
+    throw new Error(`[${label}] Disallowed top-level callable functions: ${disallowed.join(', ')}`);
+  }
+  console.log(`[${label}] Top-level callable functions: ${topLevelFunctions.join(', ')}`);
+}
+
 function removeDisallowedActionHandlers(source, allowedActions) {
   const allowed = new Set(allowedActions);
   const actionPattern = /[ \t]*if \(action === '([^']+)'\) \{/g;
@@ -353,7 +389,6 @@ function buildAdminCode(source) {
     'getAdminPermissionData',
     'saveAdminPermission',
     'deleteAdminPermission',
-    'seedDemoData',
     'getAdminDashboardData',
     'getAdminInitData',
     'updateMember',
@@ -403,6 +438,7 @@ function buildAdminCode(source) {
     'processRosterChunk',
     'finalizeRosterExport',
     'cleanupRosterExport',
+    'getMailingListTargets',
     'generateMailingListExcel',
     'getAdminChangeRequests',
     'approveAdminChangeRequest',
@@ -410,6 +446,15 @@ function buildAdminCode(source) {
   ]);
   code = removeIfBlock(code, "isMemberAction && !LOGIN_ONLY_MEMBER_ACTIONS[action]");
   code = pruneUnreachableFunctionDeclarations(code, ['doGet', 'processApiRequest'], 'build-admin-gas');
+  code = removeTopLevelFunctionDeclarations(code, [
+    'rebuildDatabaseSchema',
+    'cleanupDatabaseSheets',
+    'buildDefinedScopeOnly',
+    'getDbInfo',
+    'seedDemoData',
+    'addDeleteLogSheet',
+  ], 'build-admin-gas');
+  assertAllowedTopLevelFunctions(code, ['doGet', 'processApiRequest'], 'build-admin-gas');
   return code;
 }
 

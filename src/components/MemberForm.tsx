@@ -763,8 +763,8 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
       setPasswordSuccess(null);
       return;
     }
-    if (passwordForm.nextPassword.length < 8) {
-      setPasswordError('新しいパスワードは8文字以上で入力してください。');
+    if (passwordForm.nextPassword.length < 15) {
+      setPasswordError('新しいパスワードは15文字以上で入力してください。');
       setPasswordSuccess(null);
       return;
     }

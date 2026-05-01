@@ -10,6 +10,9 @@
 - 管理者ログイン後に会員マイページを表示する場合、データ再読込の主キーは `memberId/staffId` を正とし、Google メールを `getMemberPortalData_()` の `loginId` に渡さない。
 - 会員セルフサービス API は、少なくとも `getMemberPortalData_` / `updateMemberSelf_` / `withdrawSelf_` / `cancelWithdrawalSelf_` で `payload.memberId` を認可根拠に使わない。`loginId` から解決した `T_認証アカウント` の `会員ID` / `職員ID` を正本 principal とする。
 - 会員マイページでは、管理者向け項目を disabled 表示で残さず、会員本人に必要な情報と操作だけを表示する。
+- パスワード保存は、旧 SHA-256 / 旧 PBKDF2 をログイン成功時に移行し、新規保存は versioned PBKDF2-HMAC-SHA256 + verifier-side pepper を使用する。pepper は `PASSWORD_HASH_PEPPER_V1` Script Property とし、DB には保存しない。詳細: `docs/171_PASSWORD_HASH_STANDARD_ALIGNMENT_2026-04-30.md`
+- `PASSWORD_HASH_PEPPER_V1` は integrated/public・member split・admin split の各 Apps Script project に同一値で設定する。本番反映前の必須条件であり、未設定 project がある場合は release 不可。pepper の値は Git、handover、docs、ログ、チャット、生成物へ記録しない。
+- `.env` は Apps Script 本番 runtime から参照されないため、pepper の本番正本にしない。ローカル作業補助として使う場合も未コミットに限定し、値を文書化しない。
 
 ## 2. 会員種別
 - 個人会員: 自身のプロフィール、自宅情報、勤務先情報、発送・通信設定を編集できる。
@@ -81,6 +84,7 @@
 - 個人会員・賛助会員: 郵送先区分が `HOME` の場合のみ、自宅情報の `郵便番号` / `都道府県` / `市区町村` / `番地` を必須とする。
 - 個人会員・賛助会員: `FAX番号` は任意。電話番号系フィールドは入力がある場合のみ半角数字とハイフンを許可する。
 - 管理コンソールと会員マイページは、エラー項目に赤枠・項目別メッセージ・上部エラーサマリを表示し、保存時は先頭のエラー項目へフォーカスする。
+- 会員が変更する新しいパスワードは 15 文字以上とする。
 - 事業所会員: 事業所情報を必須とする。`officeNumber` は公開申込では半角英数字 10 文字を必須とする。
 - 事業所会員: 代表者情報の必須項目が欠けている場合は保存不可。
 - 事業所会員: 所属職員の `メールアドレス` は必須とする。ただし同一事業所内でのメールアドレス重複は許容する。新規追加時は、完全空白の追加行のみ保存対象から除外し、入力を開始した行は `氏 / 名 / セイ / メイ / メールアドレス / 介護支援専門員番号` を必須とする。

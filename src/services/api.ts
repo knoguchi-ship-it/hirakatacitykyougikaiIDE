@@ -1,5 +1,5 @@
 import { Member, Training, AdminPermissionLevel, AdminPersonRow, ConvertMemberTypePayload, ConvertMemberTypeResult, SystemSettings } from '../types';
-import { TrainingApplicantRow, BulkMailRecipient, EmailSendLog, RosterTarget, TemplateValidationResult, TemplateValidationKind, MailingListFilterType, MailingListExcelResult } from '../shared/types';
+import { TrainingApplicantRow, BulkMailRecipient, EmailSendLog, RosterTarget, TemplateValidationResult, TemplateValidationKind, MailingListFilterType, MailingListExcelResult, MailingListTargetsResult } from '../shared/types';
 import { AdminDashboardData, AdminPermissionData, AnnualFeeAdminData, AnnualFeeAdminRecord } from '../types';
 
 export interface TrainingMailPayload {
@@ -172,7 +172,8 @@ export interface ApiClient {
     kind: TemplateValidationKind;
   }): Promise<TemplateValidationResult>;
   // v207: 宛名リスト Excel 出力
-  generateMailingListExcel(payload: { filterType: MailingListFilterType }): Promise<MailingListExcelResult>;
+  getMailingListTargets(payload: { filterType: MailingListFilterType; year?: number }): Promise<MailingListTargetsResult>;
+  generateMailingListExcel(payload: { filterType: MailingListFilterType; year?: number; targetKeys?: string[] }): Promise<MailingListExcelResult>;
   // v219: 入会メール テンプレート管理
   getCredentialEmailTemplates(): Promise<import('../types').EmailTemplate[]>;
   saveCredentialEmailTemplate(payload: { id?: string; name: string; subject: string; body: string }): Promise<import('../types').EmailTemplate>;
@@ -1385,8 +1386,21 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  // v207: 宛名リスト Excel 出力
-  async generateMailingListExcel(payload: { filterType: MailingListFilterType }): Promise<MailingListExcelResult> {
+  // v207/v291: 宛名リスト対象取得・Excel 出力
+  async getMailingListTargets(payload: { filterType: MailingListFilterType; year?: number }): Promise<MailingListTargetsResult> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getMailingListTargets', JSON.stringify(payload));
+    });
+  }
+
+  async generateMailingListExcel(payload: { filterType: MailingListFilterType; year?: number; targetKeys?: string[] }): Promise<MailingListExcelResult> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
       google.script.run
