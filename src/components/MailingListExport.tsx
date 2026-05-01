@@ -39,13 +39,40 @@ const calcCurrentFiscalYear = (): number => {
   return now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
 };
 
-const badgeClass = (base: string) => `inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${base}`;
+const badgeClass = (base: string) =>
+  `inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${base}`;
+
+const selectCls =
+  'w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500';
+
+interface ColumnFilters {
+  feeStatus: string;
+  memberType: string;
+  memberStatus: string;
+  mailingDest: string;
+  addressValidity: string;
+}
+
+const INITIAL_COLUMN_FILTERS: ColumnFilters = {
+  feeStatus: '',
+  memberType: '',
+  memberStatus: '',
+  mailingDest: '',
+  addressValidity: '',
+};
+
+const XIcon: React.FC<{ className?: string }> = ({ className = 'h-3 w-3' }) => (
+  <svg className={className} viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+    <path d="M6 4.586 9.293 1.293a1 1 0 1 1 1.414 1.414L7.414 6l3.293 3.293a1 1 0 0 1-1.414 1.414L6 7.414l-3.293 3.293a1 1 0 0 1-1.414-1.414L4.586 6 1.293 2.707A1 1 0 0 1 2.707 1.293L6 4.586z" />
+  </svg>
+);
 
 const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
   const currentFiscalYear = useMemo(calcCurrentFiscalYear, []);
   const [filterType, setFilterType] = useState<MailingListFilterType>('KOHOUSHI');
   const [year, setYear] = useState(currentFiscalYear);
   const [keyword, setKeyword] = useState('');
+  const [columnFilters, setColumnFilters] = useState<ColumnFilters>(INITIAL_COLUMN_FILTERS);
   const [loadingTargets, setLoadingTargets] = useState(false);
   const [targetsError, setTargetsError] = useState<string | null>(null);
   const [targetsData, setTargetsData] = useState<MailingListTargetsResult | null>(null);
@@ -72,6 +99,8 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
     setTargetsError(null);
     setResult(null);
     setError(null);
+    setKeyword('');
+    setColumnFilters(INITIAL_COLUMN_FILTERS);
     try {
       const data = await api.getMailingListTargets({ filterType, year });
       setTargetsData(data);
@@ -92,40 +121,83 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
 
   const targets = targetsData?.targets || [];
 
-  const filteredTargets = useMemo(() => {
-    const q = keyword.trim().toLowerCase();
-    if (!q) return targets;
-    return targets.filter((target) => {
-      const haystack = [
-        target.displayName,
-        target.memberId,
-        target.officeName,
-        MEMBER_TYPE_LABELS[target.memberType] || target.memberType,
-        MEMBER_STATUS_LABELS[target.memberStatus]?.label || target.memberStatus,
-        FEE_STATUS_LABELS[target.annualFeeStatus]?.label || target.annualFeeStatus,
-      ].join(' ').toLowerCase();
-      return haystack.includes(q);
-    });
-  }, [keyword, targets]);
-
-  const selectedCount = selectedKeys.size;
-  const filteredSelectedCount = filteredTargets.filter((target) => selectedKeys.has(target.targetKey)).length;
-
-  const selectedTargets = useMemo(
-    () => targets.filter((target) => selectedKeys.has(target.targetKey)),
-    [selectedKeys, targets],
+  // 郵送先「未設定」選択肢を動的表示するための判定
+  const hasEmptyMailingDest = useMemo(
+    () => targets.some((t) => !t.mailingDestination),
+    [targets],
   );
 
+  // キーワード + 5列フィルターを AND で適用
+  const filteredTargets = useMemo(() => {
+    const q = keyword.trim().toLowerCase();
+    const { feeStatus, memberType, memberStatus, mailingDest, addressValidity } = columnFilters;
+
+    return targets.filter((target) => {
+      if (q) {
+        const haystack = [
+          target.displayName,
+          target.memberId,
+          target.officeName,
+          MEMBER_TYPE_LABELS[target.memberType] || target.memberType,
+          MEMBER_STATUS_LABELS[target.memberStatus]?.label || target.memberStatus,
+          FEE_STATUS_LABELS[target.annualFeeStatus]?.label || target.annualFeeStatus,
+        ]
+          .join(' ')
+          .toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      if (feeStatus && target.annualFeeStatus !== feeStatus) return false;
+      if (memberType && target.memberType !== memberType) return false;
+      if (memberStatus && target.memberStatus !== memberStatus) return false;
+      if (mailingDest) {
+        const dest = target.mailingDestination || '';
+        if (mailingDest === '__EMPTY__' ? dest !== '' : dest !== mailingDest) return false;
+      }
+      if (addressValidity === 'VALID' && target.addressInvalidItems.length > 0) return false;
+      if (addressValidity === 'INVALID' && target.addressInvalidItems.length === 0) return false;
+      return true;
+    });
+  }, [keyword, targets, columnFilters]);
+
+  // 表示中かつ選択済み — カウントバッジ用（Q1=B）
+  const filteredSelectedTargets = useMemo(
+    () => filteredTargets.filter((t) => selectedKeys.has(t.targetKey)),
+    [filteredTargets, selectedKeys],
+  );
+
+  const selectedCount = selectedKeys.size;
+  const filteredSelectedCount = filteredSelectedTargets.length;
+
+  // カウントバッジは「表示中かつ選択済み」件数を反映（Q1=B）
   const selectedCounts = useMemo(() => {
     const counts = { business: 0, individual: 0, support: 0, invalid: 0 };
-    selectedTargets.forEach((target) => {
+    filteredSelectedTargets.forEach((target) => {
       if (target.memberType === 'BUSINESS') counts.business += 1;
       if (target.memberType === 'INDIVIDUAL') counts.individual += 1;
       if (target.memberType === 'SUPPORT') counts.support += 1;
       if (target.addressInvalidItems.length > 0) counts.invalid += 1;
     });
     return counts;
-  }, [selectedTargets]);
+  }, [filteredSelectedTargets]);
+
+  // 全件選択 = 表示中（フィルター後）のみ選択（Q2=B / Best practice: Select All respects filters）
+  const selectAll = () =>
+    setSelectedKeys(new Set(filteredTargets.map((t) => t.targetKey)));
+  const clearAll = () => setSelectedKeys(new Set());
+  const selectFiltered = () => {
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      filteredTargets.forEach((t) => next.add(t.targetKey));
+      return next;
+    });
+  };
+  const clearFiltered = () => {
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      filteredTargets.forEach((t) => next.delete(t.targetKey));
+      return next;
+    });
+  };
 
   const toggleOne = (targetKey: string) => {
     setSelectedKeys((prev) => {
@@ -136,22 +208,67 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
     });
   };
 
-  const selectAll = () => setSelectedKeys(new Set(targets.map((target) => target.targetKey)));
-  const clearAll = () => setSelectedKeys(new Set());
-  const selectFiltered = () => {
-    setSelectedKeys((prev) => {
-      const next = new Set(prev);
-      filteredTargets.forEach((target) => next.add(target.targetKey));
-      return next;
-    });
+  const isFiltered =
+    !!keyword.trim() ||
+    !!columnFilters.feeStatus ||
+    !!columnFilters.memberType ||
+    !!columnFilters.memberStatus ||
+    !!columnFilters.mailingDest ||
+    !!columnFilters.addressValidity;
+
+  const resetAllFilters = () => {
+    setKeyword('');
+    setColumnFilters(INITIAL_COLUMN_FILTERS);
   };
-  const clearFiltered = () => {
-    setSelectedKeys((prev) => {
-      const next = new Set(prev);
-      filteredTargets.forEach((target) => next.delete(target.targetKey));
-      return next;
+
+  // アクティブフィルターチップ（フィルター中のみ表示）
+  const activeChips: { key: string; label: string; onRemove: () => void }[] = [];
+  if (keyword.trim()) {
+    activeChips.push({
+      key: 'keyword',
+      label: `検索: ${keyword.trim()}`,
+      onRemove: () => setKeyword(''),
     });
-  };
+  }
+  if (columnFilters.feeStatus) {
+    activeChips.push({
+      key: 'feeStatus',
+      label: `年度処理: ${FEE_STATUS_LABELS[columnFilters.feeStatus]?.label ?? columnFilters.feeStatus}`,
+      onRemove: () => setColumnFilters((f) => ({ ...f, feeStatus: '' })),
+    });
+  }
+  if (columnFilters.memberType) {
+    activeChips.push({
+      key: 'memberType',
+      label: `種別: ${MEMBER_TYPE_LABELS[columnFilters.memberType] ?? columnFilters.memberType}`,
+      onRemove: () => setColumnFilters((f) => ({ ...f, memberType: '' })),
+    });
+  }
+  if (columnFilters.memberStatus) {
+    activeChips.push({
+      key: 'memberStatus',
+      label: `状態: ${MEMBER_STATUS_LABELS[columnFilters.memberStatus]?.label ?? columnFilters.memberStatus}`,
+      onRemove: () => setColumnFilters((f) => ({ ...f, memberStatus: '' })),
+    });
+  }
+  if (columnFilters.mailingDest) {
+    const destLabel =
+      columnFilters.mailingDest === '__EMPTY__'
+        ? '未設定'
+        : (MAILING_DESTINATION_LABELS[columnFilters.mailingDest] ?? columnFilters.mailingDest);
+    activeChips.push({
+      key: 'mailingDest',
+      label: `郵送先: ${destLabel}`,
+      onRemove: () => setColumnFilters((f) => ({ ...f, mailingDest: '' })),
+    });
+  }
+  if (columnFilters.addressValidity) {
+    activeChips.push({
+      key: 'addressValidity',
+      label: `住所: ${columnFilters.addressValidity === 'INVALID' ? '不備あり' : '不備なし'}`,
+      onRemove: () => setColumnFilters((f) => ({ ...f, addressValidity: '' })),
+    });
+  }
 
   const handleExport = async () => {
     if (selectedCount === 0) {
@@ -193,12 +310,18 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
   };
 
   const renderStatusBadge = (target: MailingListTarget) => {
-    const status = MEMBER_STATUS_LABELS[target.memberStatus] || { label: target.memberStatus || '-', cls: 'bg-slate-100 text-slate-600' };
+    const status = MEMBER_STATUS_LABELS[target.memberStatus] ?? {
+      label: target.memberStatus || '-',
+      cls: 'bg-slate-100 text-slate-600',
+    };
     return <span className={badgeClass(status.cls)}>{status.label}</span>;
   };
 
   const renderFeeBadge = (target: MailingListTarget) => {
-    const status = FEE_STATUS_LABELS[target.annualFeeStatus] || { label: target.annualFeeStatus || '-', cls: 'bg-slate-100 text-slate-600' };
+    const status = FEE_STATUS_LABELS[target.annualFeeStatus] ?? {
+      label: target.annualFeeStatus || '-',
+      cls: 'bg-slate-100 text-slate-600',
+    };
     return <span className={badgeClass(status.cls)}>{status.label}</span>;
   };
 
@@ -207,7 +330,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
       <div>
         <h2 className="text-xl font-bold text-slate-800">宛名リスト出力コンソール</h2>
         <p className="mt-1 text-sm text-slate-500">
-          会員の郵送先住所を Excel ファイル（.xlsx）で出力します。発送区分・年度・検索条件で対象を確認し、出力する会員を選択できます。
+          会員の郵送先住所を Excel ファイル（.xlsx）で出力します。発送区分・年度・絞り込みで対象を確認し、出力する会員を選択できます。
         </p>
       </div>
 
@@ -253,7 +376,9 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
             className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
           >
             {(targetsData?.years?.length ? targetsData.years : [currentFiscalYear]).map((fy) => (
-              <option key={fy} value={fy}>{fy}年度</option>
+              <option key={fy} value={fy}>
+                {fy}年度
+              </option>
             ))}
           </select>
           <button
@@ -268,31 +393,59 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
       </div>
 
       <section className="rounded-xl border border-slate-200 bg-white">
-        <div className="border-b border-slate-200 p-5">
+        <div className="space-y-4 border-b border-slate-200 p-5">
+
+          {/* ヘッダー：件数 + 選択ボタン */}
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <h3 className="text-base font-semibold text-slate-800">発送対象の選択</h3>
               <p className="mt-1 text-sm text-slate-500">
-                {targets.length} 件中 {selectedCount} 件を選択中。検索表示内では {filteredSelectedCount} / {filteredTargets.length} 件が選択されています。
+                全 {targets.length} 件中{' '}
+                {isFiltered && filteredTargets.length !== targets.length ? (
+                  <span className="font-semibold text-primary-700">{filteredTargets.length} 件表示</span>
+                ) : (
+                  <span>{filteredTargets.length} 件表示</span>
+                )}
+                。{filteredSelectedCount} 件選択中
+                {selectedCount !== filteredSelectedCount && (
+                  <span className="text-slate-400">（合計選択 {selectedCount} 件）</span>
+                )}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={selectAll} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+              <button
+                type="button"
+                onClick={selectAll}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
                 全件選択
               </button>
-              <button type="button" onClick={clearAll} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+              <button
+                type="button"
+                onClick={clearAll}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
                 全件解除
               </button>
-              <button type="button" onClick={selectFiltered} className="rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-xs font-semibold text-primary-700 hover:bg-primary-100">
+              <button
+                type="button"
+                onClick={selectFiltered}
+                className="rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-xs font-semibold text-primary-700 hover:bg-primary-100"
+              >
                 表示中を選択
               </button>
-              <button type="button" onClick={clearFiltered} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+              <button
+                type="button"
+                onClick={clearFiltered}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
                 表示中を解除
               </button>
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
+          {/* キーワード検索 + カウントバッジ */}
+          <div className="grid gap-3 md:grid-cols-[1fr_auto]">
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-slate-600">キーワード検索</span>
               <input
@@ -316,12 +469,160 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
                 <p className="text-slate-500">賛助</p>
                 <p className="text-lg font-bold text-slate-800">{selectedCounts.support}</p>
               </div>
-              <div className={`rounded-lg border p-2 ${selectedCounts.invalid > 0 ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
+              <div
+                className={`rounded-lg border p-2 ${
+                  selectedCounts.invalid > 0
+                    ? 'border-amber-300 bg-amber-50'
+                    : 'border-slate-200 bg-slate-50'
+                }`}
+              >
                 <p className="text-slate-500">住所不備</p>
-                <p className={`text-lg font-bold ${selectedCounts.invalid > 0 ? 'text-amber-700' : 'text-slate-800'}`}>{selectedCounts.invalid}</p>
+                <p
+                  className={`text-lg font-bold ${
+                    selectedCounts.invalid > 0 ? 'text-amber-700' : 'text-slate-800'
+                  }`}
+                >
+                  {selectedCounts.invalid}
+                </p>
               </div>
             </div>
           </div>
+
+          {/* 絞り込みフィルター（5列） */}
+          <div>
+            <p className="mb-2 text-xs font-medium text-slate-600">絞り込みフィルター</p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+              <div>
+                <label htmlFor="filter-fee-status" className="mb-1 block text-xs text-slate-500">
+                  年度処理
+                </label>
+                <select
+                  id="filter-fee-status"
+                  value={columnFilters.feeStatus}
+                  onChange={(e) =>
+                    setColumnFilters((f) => ({ ...f, feeStatus: e.target.value }))
+                  }
+                  className={selectCls}
+                >
+                  <option value="">すべて</option>
+                  <option value="UNPAID">未納</option>
+                  <option value="PAID">納入済み</option>
+                  <option value="NONE">記録なし</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="filter-member-type" className="mb-1 block text-xs text-slate-500">
+                  種別
+                </label>
+                <select
+                  id="filter-member-type"
+                  value={columnFilters.memberType}
+                  onChange={(e) =>
+                    setColumnFilters((f) => ({ ...f, memberType: e.target.value }))
+                  }
+                  className={selectCls}
+                >
+                  <option value="">すべて</option>
+                  <option value="BUSINESS">事業所会員</option>
+                  <option value="INDIVIDUAL">個人会員</option>
+                  <option value="SUPPORT">賛助会員</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="filter-member-status" className="mb-1 block text-xs text-slate-500">
+                  状態
+                </label>
+                <select
+                  id="filter-member-status"
+                  value={columnFilters.memberStatus}
+                  onChange={(e) =>
+                    setColumnFilters((f) => ({ ...f, memberStatus: e.target.value }))
+                  }
+                  className={selectCls}
+                >
+                  <option value="">すべて</option>
+                  <option value="ACTIVE">在籍中</option>
+                  <option value="WITHDRAWAL_SCHEDULED">退会予定</option>
+                  <option value="WITHDRAWN">退会済み</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="filter-mailing-dest" className="mb-1 block text-xs text-slate-500">
+                  郵送先
+                </label>
+                <select
+                  id="filter-mailing-dest"
+                  value={columnFilters.mailingDest}
+                  onChange={(e) =>
+                    setColumnFilters((f) => ({ ...f, mailingDest: e.target.value }))
+                  }
+                  className={selectCls}
+                >
+                  <option value="">すべて</option>
+                  <option value="OFFICE">事業所</option>
+                  <option value="HOME">自宅</option>
+                  {hasEmptyMailingDest && <option value="__EMPTY__">未設定</option>}
+                </select>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="filter-address-validity"
+                  className="mb-1 block text-xs text-slate-500"
+                >
+                  住所不備
+                </label>
+                <select
+                  id="filter-address-validity"
+                  value={columnFilters.addressValidity}
+                  onChange={(e) =>
+                    setColumnFilters((f) => ({ ...f, addressValidity: e.target.value }))
+                  }
+                  className={selectCls}
+                >
+                  <option value="">すべて</option>
+                  <option value="INVALID">不備あり</option>
+                  <option value="VALID">不備なし</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* アクティブフィルターチップ（フィルター適用中のみ表示） */}
+          {isFiltered && (
+            <div
+              className="flex flex-wrap items-center gap-2"
+              role="status"
+              aria-label="適用中のフィルター"
+            >
+              {activeChips.map((chip) => (
+                <span
+                  key={chip.key}
+                  className="inline-flex items-center gap-1 rounded-full bg-primary-100 px-2.5 py-1 text-xs font-medium text-primary-800"
+                >
+                  {chip.label}
+                  <button
+                    type="button"
+                    onClick={chip.onRemove}
+                    aria-label={`${chip.label}のフィルターを解除`}
+                    className="rounded-full p-0.5 hover:bg-primary-200 focus:outline-none focus:ring-1 focus:ring-primary-400"
+                  >
+                    <XIcon />
+                  </button>
+                </span>
+              ))}
+              <button
+                type="button"
+                onClick={resetAllFilters}
+                className="text-xs text-slate-500 underline hover:text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-400 rounded"
+              >
+                すべてリセット
+              </button>
+            </div>
+          )}
         </div>
 
         {targetsError && (
@@ -349,59 +650,80 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
               <tbody className="divide-y divide-slate-100 bg-white">
                 {loadingTargets && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-500">発送対象を読み込み中です。</td>
+                    <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-500">
+                      発送対象を読み込み中です。
+                    </td>
                   </tr>
                 )}
                 {!loadingTargets && filteredTargets.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-500">条件に一致する会員がありません。</td>
+                    <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-500">
+                      条件に一致する会員がありません。
+                      {isFiltered && (
+                        <button
+                          type="button"
+                          onClick={resetAllFilters}
+                          className="ml-2 text-primary-600 underline hover:text-primary-700"
+                        >
+                          フィルターをリセット
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 )}
-                {!loadingTargets && filteredTargets.map((target) => {
-                  const selected = selectedKeys.has(target.targetKey);
-                  return (
-                    <tr key={target.targetKey} className={selected ? 'bg-primary-50/40' : undefined}>
-                      <td className="px-4 py-3 align-top">
-                        <input
-                          type="checkbox"
-                          checked={selected}
-                          onChange={() => toggleOne(target.targetKey)}
-                          aria-label={`${target.displayName} を出力対象にする`}
-                          className="mt-1 h-4 w-4 rounded border-slate-300 accent-primary-600"
-                        />
-                      </td>
-                      <td className="px-3 py-3 align-top">
-                        <p className="font-semibold text-slate-800">{target.displayName}</p>
-                        <p className="text-xs text-slate-500">会員番号: {target.memberId}</p>
-                        {target.officeName && target.memberType !== 'BUSINESS' && (
-                          <p className="mt-0.5 text-xs text-slate-500">{target.officeName}</p>
-                        )}
-                      </td>
-                      <td className="px-3 py-3 align-top">
-                        <div className="space-y-1">
-                          {renderFeeBadge(target)}
-                          <p className="text-xs text-slate-500">{target.annualFeeYear}年度</p>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 align-top text-slate-700">
-                        {MEMBER_TYPE_LABELS[target.memberType] || target.memberType}
-                      </td>
-                      <td className="px-3 py-3 align-top">{renderStatusBadge(target)}</td>
-                      <td className="px-3 py-3 align-top text-slate-700">
-                        {MAILING_DESTINATION_LABELS[target.mailingDestination] || target.mailingDestination || '-'}
-                      </td>
-                      <td className="px-3 py-3 align-top">
-                        {target.addressInvalidItems.length > 0 ? (
-                          <span className={badgeClass('bg-amber-50 text-amber-700')}>
-                            不備: {target.addressInvalidItems.join('、')}
-                          </span>
-                        ) : (
-                          <span className={badgeClass('bg-emerald-50 text-emerald-700')}>出力可</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {!loadingTargets &&
+                  filteredTargets.map((target) => {
+                    const selected = selectedKeys.has(target.targetKey);
+                    return (
+                      <tr
+                        key={target.targetKey}
+                        className={selected ? 'bg-primary-50/40' : undefined}
+                      >
+                        <td className="px-4 py-3 align-top">
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => toggleOne(target.targetKey)}
+                            aria-label={`${target.displayName} を出力対象にする`}
+                            className="mt-1 h-4 w-4 rounded border-slate-300 accent-primary-600"
+                          />
+                        </td>
+                        <td className="px-3 py-3 align-top">
+                          <p className="font-semibold text-slate-800">{target.displayName}</p>
+                          <p className="text-xs text-slate-500">会員番号: {target.memberId}</p>
+                          {target.officeName && target.memberType !== 'BUSINESS' && (
+                            <p className="mt-0.5 text-xs text-slate-500">{target.officeName}</p>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 align-top">
+                          <div className="space-y-1">
+                            {renderFeeBadge(target)}
+                            <p className="text-xs text-slate-500">{target.annualFeeYear}年度</p>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 align-top text-slate-700">
+                          {MEMBER_TYPE_LABELS[target.memberType] || target.memberType}
+                        </td>
+                        <td className="px-3 py-3 align-top">{renderStatusBadge(target)}</td>
+                        <td className="px-3 py-3 align-top text-slate-700">
+                          {MAILING_DESTINATION_LABELS[target.mailingDestination] ||
+                            target.mailingDestination ||
+                            '-'}
+                        </td>
+                        <td className="px-3 py-3 align-top">
+                          {target.addressInvalidItems.length > 0 ? (
+                            <span className={badgeClass('bg-amber-50 text-amber-700')}>
+                              不備: {target.addressInvalidItems.join('、')}
+                            </span>
+                          ) : (
+                            <span className={badgeClass('bg-emerald-50 text-emerald-700')}>
+                              出力可
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>
@@ -430,20 +752,38 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
           <div className="grid grid-cols-2 gap-2 text-xs text-green-700 md:grid-cols-4">
             <div className="rounded-lg border border-green-200 bg-white p-3">
               <p className="text-slate-500">事業所会員</p>
-              <p className="text-xl font-bold text-slate-800">{result.counts.business}<span className="ml-1 text-sm font-normal">件</span></p>
+              <p className="text-xl font-bold text-slate-800">
+                {result.counts.business}
+                <span className="ml-1 text-sm font-normal">件</span>
+              </p>
             </div>
             <div className="rounded-lg border border-green-200 bg-white p-3">
               <p className="text-slate-500">個人会員</p>
-              <p className="text-xl font-bold text-slate-800">{result.counts.individual}<span className="ml-1 text-sm font-normal">件</span></p>
+              <p className="text-xl font-bold text-slate-800">
+                {result.counts.individual}
+                <span className="ml-1 text-sm font-normal">件</span>
+              </p>
             </div>
             <div className="rounded-lg border border-green-200 bg-white p-3">
               <p className="text-slate-500">賛助会員</p>
-              <p className="text-xl font-bold text-slate-800">{result.counts.support}<span className="ml-1 text-sm font-normal">件</span></p>
+              <p className="text-xl font-bold text-slate-800">
+                {result.counts.support}
+                <span className="ml-1 text-sm font-normal">件</span>
+              </p>
             </div>
-            <div className={`rounded-lg border bg-white p-3 ${result.counts.invalid > 0 ? 'border-amber-300' : 'border-green-200'}`}>
+            <div
+              className={`rounded-lg border bg-white p-3 ${
+                result.counts.invalid > 0 ? 'border-amber-300' : 'border-green-200'
+              }`}
+            >
               <p className="text-slate-500">住所不備</p>
-              <p className={`text-xl font-bold ${result.counts.invalid > 0 ? 'text-amber-600' : 'text-slate-800'}`}>
-                {result.counts.invalid}<span className="ml-1 text-sm font-normal">件</span>
+              <p
+                className={`text-xl font-bold ${
+                  result.counts.invalid > 0 ? 'text-amber-600' : 'text-slate-800'
+                }`}
+              >
+                {result.counts.invalid}
+                <span className="ml-1 text-sm font-normal">件</span>
               </p>
             </div>
           </div>
