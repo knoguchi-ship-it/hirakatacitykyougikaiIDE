@@ -167,7 +167,7 @@ Current state:
 
 Recommended approach:
 
-1. Diff generated `@47`-equivalent admin artifact against stable `@46`.
+1. Diff any future pruning candidate against the current stable admin artifact `@48` and the historical failed `@47` output if needed.
 2. Identify first-paint dependencies and bootstrap dependencies.
 3. Add explicit admin seed allowlist for initial display.
 4. Build locally, perform syntax check and boundary audit.
@@ -189,7 +189,7 @@ Recommended approach:
 2. Keep `npm run security:member-boundary` in the release gate and expand it when member workflows add actions.
 3. Validate member login, training list, applied training, member update, password change, apply/cancel, withdrawal flows.
 
-### Task E: Password hashing standard alignment
+### Task D: Password hashing standard alignment
 
 Goal: Move from GAS-constrained PBKDF2 toward current global password-storage standards.
 
@@ -209,7 +209,7 @@ Recommended approach:
 3. If benchmark cannot meet current guidance, design an external authentication/KDF component or managed identity option while preserving the user-facing `loginId + password` requirement.
 4. Document the chosen target, migration method, rollback, and user impact before implementation.
 
-### Task D: Source ownership cleanup
+### Task E: Source ownership cleanup
 
 Goal: Make source/artifact ownership obvious and harder to misuse.
 
