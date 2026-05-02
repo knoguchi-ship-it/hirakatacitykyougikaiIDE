@@ -1,8 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-05-02
-Production: `v292` / 統合（公開）fixed deployments `@290` / 会員 split `@40` / 管理者 split `@49`
-Note: 宛名リストフィルター機能（フロントエンドのみ）は git コミット済み・GAS 未デプロイ（次回 admin split リリース時に @50 として同期予定）
+Updated: 2026-05-03
+Production: `v293` / 統合（公開）fixed deployments `@290` / 会員 split `@40` / 管理者 split `@50`
 
 ## 1. Purpose
 
@@ -26,7 +25,7 @@ Note: 宛名リストフィルター機能（フロントエンドのみ）は g
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
 | member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@40` (`v291`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@49` (`v292`) | `DOMAIN` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@50` (`v293`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -119,19 +118,21 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-05-01 `v292` ← current production
+### 2026-05-03 `v293` ← current production
+
+- Scope: 宛名リスト出力コンソールに年度処理・種別・状態・郵送先・住所不備の5列ドロップダウンフィルターを反映。GAS action 変更なし。
+- Integrated fixed deployments: `@290` × 2.
+- Member split: `@40`.
+- Admin split: `@50`.
+- Detail: `docs/175_RELEASE_STATE_v293_2026-05-03.md`
+
+### 2026-05-01 `v292`
 
 - Scope: `build-admin-gas.mjs` / `build-member-gas.mjs` の pruning 正規表現バグ修正。`ADMIN_ACTION_PERMISSIONS` 誤削除（管理者ログイン不能・404）を解消。
 - Integrated fixed deployments: `@290` × 2.
 - Member split: `@40`.
 - Admin split: `@49`.
 - Detail: `docs/174_RELEASE_STATE_v292_2026-05-01.md`
-
-### 2026-05-02 宛名リストフィルター機能（フロントエンドのみ・GAS 未デプロイ）
-
-- Scope: 宛名リスト出力コンソールに年度処理・種別・状態・郵送先・住所不備の5列ドロップダウンフィルターを追加。GAS 側変更なし。
-- git commit: `f399a0a`（`src/components/MailingListExport.tsx`, `gas/admin/index.html`）
-- 次回 admin split リリース時に push → version 50 → redeploy で反映予定。
 
 ### 2026-05-01 `v291`
 
