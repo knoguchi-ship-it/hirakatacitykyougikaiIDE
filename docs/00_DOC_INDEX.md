@@ -30,6 +30,7 @@
 | `docs/171_PASSWORD_HASH_STANDARD_ALIGNMENT_2026-04-30.md` | パスワードハッシュ標準整合、pepper 運用、残る外部 KDF / 認証基盤課題 |
 | `docs/172_DEFERRED_SECURITY_BACKLOG_SECRET_MANAGER_KDF_2026-05-01.md` | Secret Manager 化・外部 KDF / managed identity 検討の保留中必須 backlog |
 | `docs/173_RELEASE_STATE_v291_2026-05-01.md` | v291 リリース状態、pepper 設定、宛名リスト選択 UI/API、固定 deployment 同期証跡 |
+| `docs/174_RELEASE_STATE_v292_2026-05-01.md` | v292 リリース状態、build-admin-gas pruning 正規表現バグ修正（管理者ログイン不能・404 解消）、admin split `@49` 同期証跡 |
 | `docs/175_RELEASE_STATE_v293_2026-05-03.md` | v293 リリース状態、宛名リスト5列フィルター、admin split `@50` 同期証跡 |
 | `docs/176_RELEASE_STATE_v294_2026-05-03.md` | v294 リリース状態、宛名リスト表示文言・初期未選択・選択ボタン調整、admin split `@51` 同期証跡 |
 
