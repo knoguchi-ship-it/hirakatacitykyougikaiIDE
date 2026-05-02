@@ -27,29 +27,30 @@
 7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `docs/173_RELEASE_STATE_v291_2026-05-01.md`
-11. `docs/169_RELEASE_STATE_v290_2026-04-29.md`
-12. `docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md`
-13. `docs/168_RELEASE_STATE_v289_2026-04-29.md`
-14. `docs/167_THIRD_PARTY_ASSESSMENT_PUBLIC_SEPARATION_2026-04-28.md`
-15. `docs/166_RELEASE_STATE_v288_2026-04-28.md`
-16. `docs/165_HANDOVER_PUBLIC_PORTAL_SEPARATION_PLAN_2026-04-28.md`
-17. `docs/164_RELEASE_STATE_v287_2026-04-28.md`
-18. `docs/163_RELEASE_STATE_v286_2026-04-28.md`
-19. `docs/162_RELEASE_STATE_v285_2026-04-27.md`
-20. `docs/161_RELEASE_STATE_v284_2026-04-27.md`
-21. `docs/160_RELEASE_STATE_v283_2026-04-27.md`
-22. `docs/159_RELEASE_STATE_v282_2026-04-27.md`
-23. `docs/158_RELEASE_STATE_v281_2026-04-27.md`
-24. `docs/157_RELEASE_STATE_v280_2026-04-27.md`
-25. `docs/156_RELEASE_STATE_v279_2026-04-27.md`
-26. `docs/155_RELEASE_STATE_v278_2026-04-27.md`
-27. `docs/153_INCIDENT_DRIVE_PERMISSION_2026-04-27.md`
-28. `docs/09_DEPLOYMENT_POLICY.md`
-29. `docs/05_AUTH_AND_ROLE_SPEC.md`
-30. `docs/04_DB_OPERATION_RUNBOOK.md`
-31. `docs/03_DATA_MODEL.md`
-32. `docs/00_DOC_INDEX.md`
+10. `docs/174_RELEASE_STATE_v292_2026-05-01.md`
+11. `docs/173_RELEASE_STATE_v291_2026-05-01.md`
+12. `docs/169_RELEASE_STATE_v290_2026-04-29.md`
+13. `docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md`
+14. `docs/168_RELEASE_STATE_v289_2026-04-29.md`
+15. `docs/167_THIRD_PARTY_ASSESSMENT_PUBLIC_SEPARATION_2026-04-28.md`
+16. `docs/166_RELEASE_STATE_v288_2026-04-28.md`
+17. `docs/165_HANDOVER_PUBLIC_PORTAL_SEPARATION_PLAN_2026-04-28.md`
+18. `docs/164_RELEASE_STATE_v287_2026-04-28.md`
+19. `docs/163_RELEASE_STATE_v286_2026-04-28.md`
+20. `docs/162_RELEASE_STATE_v285_2026-04-27.md`
+21. `docs/161_RELEASE_STATE_v284_2026-04-27.md`
+22. `docs/160_RELEASE_STATE_v283_2026-04-27.md`
+23. `docs/159_RELEASE_STATE_v282_2026-04-27.md`
+24. `docs/158_RELEASE_STATE_v281_2026-04-27.md`
+25. `docs/157_RELEASE_STATE_v280_2026-04-27.md`
+26. `docs/156_RELEASE_STATE_v279_2026-04-27.md`
+27. `docs/155_RELEASE_STATE_v278_2026-04-27.md`
+28. `docs/153_INCIDENT_DRIVE_PERMISSION_2026-04-27.md`
+29. `docs/09_DEPLOYMENT_POLICY.md`
+30. `docs/05_AUTH_AND_ROLE_SPEC.md`
+31. `docs/04_DB_OPERATION_RUNBOOK.md`
+32. `docs/03_DATA_MODEL.md`
+33. `docs/00_DOC_INDEX.md`
 
 ## 3. 配信境界
 
@@ -84,6 +85,17 @@
 - admin split Code.gs に `ADMIN_ACTION_PERMISSIONS` が復元され、管理者ログイン（`checkAdminBySession` / `adminLoginWithData`）が正常動作するようになった。
 - 管理者 split fixed deployment を `@49` へ同期。
 
+## 4.1.1 宛名リストフィルター機能（2026-05-02・git 済み・GAS 未デプロイ）
+
+- 宛名リスト出力コンソール（`src/components/MailingListExport.tsx`）に5列ドロップダウンフィルターを追加。
+  - 年度処理 / 種別 / 状態 / 郵送先 / 住所不備
+  - フィルター中はアクティブチップ表示・個別/一括リセット可能。
+  - カウントバッジは「表示中かつ選択済み」件数を反映。
+  - 全件選択はフィルター後の表示中のみ選択（Select All respects filters）。
+- GAS 側に変更なし。フロントエンドのみの変更。
+- git commit `f399a0a`。`gas/admin/index.html` は更新済みだが admin split へ未 push・未バージョン・未 redeploy。
+- **次回 admin split リリース時に**: `clasp push --force` → `clasp version "..."` → `clasp redeploy ... --versionNumber 50` が必要。
+
 ## 4.2 v291 反映済み変更（2026-05-01）
 
 - member/admin split artifact の top-level callable を `doGet` / `processApiRequest` のみに制限し、`npm run security:split-boundary` を prerelease gate に追加済み。
@@ -106,7 +118,7 @@
 `v292` の実ブラウザ確認は操作者側で行う。
 
 - **管理者ポータル（優先）**: `k.noguchi@hcm-n.org` で管理者ログインが成功し、ダッシュボードが表示されること（v292 修正確認）。
-- 管理者ポータル: 宛名リスト出力コンソールで、発送区分選択後に候補一覧、年度フィルタ、キーワード検索、対象選択、選択対象のみ Excel 出力が動くこと。
+- 管理者ポータル: 宛名リスト出力コンソールで、発送区分選択後に候補一覧、年度フィルタ、キーワード検索、対象選択、選択対象のみ Excel 出力が動くこと。（フィルター機能は GAS 未デプロイのため、現時点では旧 UI で確認）
 - 管理者ポータル: Google アカウント + whitelist の管理者ログインが従来どおり動き、会員向け UI に管理者導線が混入しないこと。
 - 会員マイページ: 会員ログイン、研修一覧、申込済み研修、会員情報更新、パスワード変更が従来どおり動くこと。旧 verifier は初回成功時に新形式へ再保存される。
 - 公開ポータル: 旧統合 URL / 公開 URL が public-only 画面を返し、研修一覧、外部申込/取消、会員登録申請、公開変更申請、OTP 導線が従来どおり動くこと。

@@ -16,7 +16,7 @@
 | Production version | `v291` |
 | Integrated/public GAS version | `@290` |
 | Member split GAS version | `@40` |
-| Admin split GAS version | `@48` |
+| Admin split GAS version | `@49` （v292 pruning バグ修正）|
 | Public deployment | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` |
 | Integrated legacy deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` |
 | Member split deployment | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` |
@@ -78,7 +78,7 @@ Status: **rolled back to stable deployment; further physical pruning is not comp
 
 Completed:
 
-- Admin split is deployed at `@48`.
+- Admin split is deployed at `@49` （v292: pruning バグ修正）。
 - Admin login remains Google account + whitelist.
 - Admin project access is `DOMAIN`.
 - `v291`: `scripts/build-admin-gas.mjs` removes maintenance/destructive top-level callables from the generated admin artifact and asserts admin top-level callables are only `doGet` and `processApiRequest`.
@@ -163,11 +163,11 @@ Goal: Make admin artifact physically smaller without whiteout.
 Current state:
 
 - Admin `@47` whiteout occurred historically.
-- Admin is currently stable at `@48`.
+- Admin is currently stable at `@49`.
 
 Recommended approach:
 
-1. Diff any future pruning candidate against the current stable admin artifact `@48` and the historical failed `@47` output if needed.
+1. Diff any future pruning candidate against the current stable admin artifact `@49` and the historical failed `@47` output if needed.
 2. Identify first-paint dependencies and bootstrap dependencies.
 3. Add explicit admin seed allowlist for initial display.
 4. Build locally, perform syntax check and boundary audit.
@@ -252,6 +252,6 @@ Last verified in v291:
 - `npm run prerelease`: PASS
 - `npm run security:public-boundary`: PASS through prerelease
 - `npm run security:split-boundary`: PASS through prerelease
-- `npx clasp deployments --json`: integrated/public `@290` × 2, member `@40`, admin `@48`
+- `npx clasp deployments --json`: integrated/public `@290` × 2, member `@40`, admin `@49`
 - `npx clasp run healthCheck`: not available in this session due Apps Script execution permission; deployment verification used `clasp deployments --json`.
 - Headless/browser functional confirmation for v291 admin mailing-list workflow and password flows remains operator confirmation.

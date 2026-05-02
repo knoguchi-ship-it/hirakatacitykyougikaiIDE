@@ -1,7 +1,8 @@
 # Deployment Policy
 
-Updated: 2026-05-01
-Production: `v291` / 統合（公開）fixed deployments `@290` / 会員 split `@40` / 管理者 split `@48`
+Updated: 2026-05-02
+Production: `v292` / 統合（公開）fixed deployments `@290` / 会員 split `@40` / 管理者 split `@49`
+Note: 宛名リストフィルター機能（フロントエンドのみ）は git コミット済み・GAS 未デプロイ（次回 admin split リリース時に @50 として同期予定）
 
 ## 1. Purpose
 
@@ -25,7 +26,7 @@ Production: `v291` / 統合（公開）fixed deployments `@290` / 会員 split `
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
 | member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@40` (`v291`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@48` (`v291`) | `DOMAIN` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@49` (`v292`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -118,7 +119,21 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-05-01 `v291` ← current production
+### 2026-05-01 `v292` ← current production
+
+- Scope: `build-admin-gas.mjs` / `build-member-gas.mjs` の pruning 正規表現バグ修正。`ADMIN_ACTION_PERMISSIONS` 誤削除（管理者ログイン不能・404）を解消。
+- Integrated fixed deployments: `@290` × 2.
+- Member split: `@40`.
+- Admin split: `@49`.
+- Detail: `docs/174_RELEASE_STATE_v292_2026-05-01.md`
+
+### 2026-05-02 宛名リストフィルター機能（フロントエンドのみ・GAS 未デプロイ）
+
+- Scope: 宛名リスト出力コンソールに年度処理・種別・状態・郵送先・住所不備の5列ドロップダウンフィルターを追加。GAS 側変更なし。
+- git commit: `f399a0a`（`src/components/MailingListExport.tsx`, `gas/admin/index.html`）
+- 次回 admin split リリース時に push → version 50 → redeploy で反映予定。
+
+### 2026-05-01 `v291`
 
 - Scope: パスワード保存を versioned PBKDF2-HMAC-SHA256 + verifier-side pepper へ更新し、宛名リスト出力コンソールに発送区分・年度・検索・候補選択を追加。member/admin split boundary audit を prerelease gate 化。
 - Integrated fixed deployments: `@290` × 2.
