@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-05-03
-Production: `v293` / 統合（公開）fixed deployments `@290` / 会員 split `@40` / 管理者 split `@50`
+Production: `v294` / 統合（公開）fixed deployments `@290` / 会員 split `@40` / 管理者 split `@51`
 
 ## 1. Purpose
 
@@ -25,7 +25,7 @@ Production: `v293` / 統合（公開）fixed deployments `@290` / 会員 split `
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
 | member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@40` (`v291`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@50` (`v293`) | `DOMAIN` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@51` (`v294`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -118,7 +118,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-05-03 `v293` ← current production
+### 2026-05-03 `v294` ← current production
+
+- Scope: 宛名リスト出力コンソールの「年度処理」表示を「年会費納入」へ変更。発送対象読み込み直後は未選択にし、「表示中を選択」ボタンの強調色を解除。
+- Integrated fixed deployments: `@290` × 2.
+- Member split: `@40`.
+- Admin split: `@51`.
+- Detail: `docs/176_RELEASE_STATE_v294_2026-05-03.md`
+
+### 2026-05-03 `v293`
 
 - Scope: 宛名リスト出力コンソールに年度処理・種別・状態・郵送先・住所不備の5列ドロップダウンフィルターを反映。GAS action 変更なし。
 - Integrated fixed deployments: `@290` × 2.

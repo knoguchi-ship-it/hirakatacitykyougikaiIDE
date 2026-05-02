@@ -105,7 +105,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
       const data = await api.getMailingListTargets({ filterType, year });
       setTargetsData(data);
       setYear(data.selectedYear);
-      setSelectedKeys(new Set(data.targets.map((target) => target.targetKey)));
+      setSelectedKeys(new Set());
     } catch (e: any) {
       setTargetsData(null);
       setSelectedKeys(new Set());
@@ -233,7 +233,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
   if (columnFilters.feeStatus) {
     activeChips.push({
       key: 'feeStatus',
-      label: `年度処理: ${FEE_STATUS_LABELS[columnFilters.feeStatus]?.label ?? columnFilters.feeStatus}`,
+      label: `年会費納入: ${FEE_STATUS_LABELS[columnFilters.feeStatus]?.label ?? columnFilters.feeStatus}`,
       onRemove: () => setColumnFilters((f) => ({ ...f, feeStatus: '' })),
     });
   }
@@ -430,7 +430,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
               <button
                 type="button"
                 onClick={selectFiltered}
-                className="rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-xs font-semibold text-primary-700 hover:bg-primary-100"
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
               >
                 表示中を選択
               </button>
@@ -452,7 +452,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
                 type="search"
                 value={keyword}
                 onChange={(event) => setKeyword(event.target.value)}
-                placeholder="氏名、会員番号、事業所名、種別、状態、年度処理で検索"
+                placeholder="氏名、会員番号、事業所名、種別、状態、年会費納入で検索"
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
               />
             </label>
@@ -494,7 +494,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
               <div>
                 <label htmlFor="filter-fee-status" className="mb-1 block text-xs text-slate-500">
-                  年度処理
+                  年会費納入
                 </label>
                 <select
                   id="filter-fee-status"
@@ -640,7 +640,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
                     <span className="sr-only">選択</span>
                   </th>
                   <th className="min-w-[220px] px-3 py-3">会員</th>
-                  <th className="px-3 py-3">年度処理</th>
+                  <th className="px-3 py-3">年会費納入</th>
                   <th className="px-3 py-3">種別</th>
                   <th className="px-3 py-3">状態</th>
                   <th className="px-3 py-3">郵送先</th>

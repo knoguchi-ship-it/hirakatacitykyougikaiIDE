@@ -1,8 +1,8 @@
 # 開発引継ぎ
 
 更新日: 2026-05-03
-現行本番: `v293`（統合プロジェクト GAS version 290 / 会員 split GAS version 40 / 管理者 split GAS version 50）
-固定 deployment: 統合（公開ポータル）`@290` × 2本 / 会員 split `@40` / 管理者 split `@50`
+現行本番: `v294`（統合プロジェクト GAS version 290 / 会員 split GAS version 40 / 管理者 split GAS version 51）
+固定 deployment: 統合（公開ポータル）`@290` × 2本 / 会員 split `@40` / 管理者 split `@51`
 
 ## 1. 現行状態
 
@@ -27,31 +27,32 @@
 7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `docs/175_RELEASE_STATE_v293_2026-05-03.md`
-11. `docs/174_RELEASE_STATE_v292_2026-05-01.md`
-12. `docs/173_RELEASE_STATE_v291_2026-05-01.md`
-13. `docs/169_RELEASE_STATE_v290_2026-04-29.md`
-14. `docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md`
-15. `docs/168_RELEASE_STATE_v289_2026-04-29.md`
-16. `docs/167_THIRD_PARTY_ASSESSMENT_PUBLIC_SEPARATION_2026-04-28.md`
-17. `docs/166_RELEASE_STATE_v288_2026-04-28.md`
-18. `docs/165_HANDOVER_PUBLIC_PORTAL_SEPARATION_PLAN_2026-04-28.md`
-19. `docs/164_RELEASE_STATE_v287_2026-04-28.md`
-20. `docs/163_RELEASE_STATE_v286_2026-04-28.md`
-21. `docs/162_RELEASE_STATE_v285_2026-04-27.md`
-22. `docs/161_RELEASE_STATE_v284_2026-04-27.md`
-23. `docs/160_RELEASE_STATE_v283_2026-04-27.md`
-24. `docs/159_RELEASE_STATE_v282_2026-04-27.md`
-25. `docs/158_RELEASE_STATE_v281_2026-04-27.md`
-26. `docs/157_RELEASE_STATE_v280_2026-04-27.md`
-27. `docs/156_RELEASE_STATE_v279_2026-04-27.md`
-28. `docs/155_RELEASE_STATE_v278_2026-04-27.md`
-29. `docs/153_INCIDENT_DRIVE_PERMISSION_2026-04-27.md`
-30. `docs/09_DEPLOYMENT_POLICY.md`
-31. `docs/05_AUTH_AND_ROLE_SPEC.md`
-32. `docs/04_DB_OPERATION_RUNBOOK.md`
-33. `docs/03_DATA_MODEL.md`
-34. `docs/00_DOC_INDEX.md`
+10. `docs/176_RELEASE_STATE_v294_2026-05-03.md`
+11. `docs/175_RELEASE_STATE_v293_2026-05-03.md`
+12. `docs/174_RELEASE_STATE_v292_2026-05-01.md`
+13. `docs/173_RELEASE_STATE_v291_2026-05-01.md`
+14. `docs/169_RELEASE_STATE_v290_2026-04-29.md`
+15. `docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md`
+16. `docs/168_RELEASE_STATE_v289_2026-04-29.md`
+17. `docs/167_THIRD_PARTY_ASSESSMENT_PUBLIC_SEPARATION_2026-04-28.md`
+18. `docs/166_RELEASE_STATE_v288_2026-04-28.md`
+19. `docs/165_HANDOVER_PUBLIC_PORTAL_SEPARATION_PLAN_2026-04-28.md`
+20. `docs/164_RELEASE_STATE_v287_2026-04-28.md`
+21. `docs/163_RELEASE_STATE_v286_2026-04-28.md`
+22. `docs/162_RELEASE_STATE_v285_2026-04-27.md`
+23. `docs/161_RELEASE_STATE_v284_2026-04-27.md`
+24. `docs/160_RELEASE_STATE_v283_2026-04-27.md`
+25. `docs/159_RELEASE_STATE_v282_2026-04-27.md`
+26. `docs/158_RELEASE_STATE_v281_2026-04-27.md`
+27. `docs/157_RELEASE_STATE_v280_2026-04-27.md`
+28. `docs/156_RELEASE_STATE_v279_2026-04-27.md`
+29. `docs/155_RELEASE_STATE_v278_2026-04-27.md`
+30. `docs/153_INCIDENT_DRIVE_PERMISSION_2026-04-27.md`
+31. `docs/09_DEPLOYMENT_POLICY.md`
+32. `docs/05_AUTH_AND_ROLE_SPEC.md`
+33. `docs/04_DB_OPERATION_RUNBOOK.md`
+34. `docs/03_DATA_MODEL.md`
+35. `docs/00_DOC_INDEX.md`
 
 ## 3. 配信境界
 
@@ -63,6 +64,7 @@
 
 ## 4. 直近リリース
 
+- `v294`: 宛名リスト出力コンソールの文言を「年度処理」から「年会費納入」へ変更し、候補読み込み直後のデフォルト選択を未選択に変更。「表示中を選択」ボタンの強調色を解除。管理者 split を `@51` へ同期。詳細: `docs/176_RELEASE_STATE_v294_2026-05-03.md`
 - `v293`: 宛名リスト出力コンソールの5列ドロップダウンフィルター（年度処理 / 種別 / 状態 / 郵送先 / 住所不備）を admin split に反映。管理者 split を `@50` へ同期。詳細: `docs/175_RELEASE_STATE_v293_2026-05-03.md`
 - `v292`: `build-admin-gas.mjs` の pruning バグ修正。`ADMIN_ACTION_PERMISSIONS` が誤削除されていた問題（管理者ログイン不能・404）を解消。`build-member-gas.mjs` の同一パターンも同時修正。管理者 split を `@49` へ同期。詳細: `docs/174_RELEASE_STATE_v292_2026-05-01.md`
 - `v291`: パスワード保存を versioned PBKDF2-HMAC-SHA256 + verifier-side pepper へ更新し、宛名リスト出力コンソールに発送区分・年度・検索・候補選択を追加。統合 fixed deployment 2本を `@290`、会員 split を `@40`、管理者 split を `@48` へ同期。詳細: `docs/173_RELEASE_STATE_v291_2026-05-01.md`
@@ -80,7 +82,18 @@
 - `v279`: app 境界 API gate を追加。詳細: `docs/156_RELEASE_STATE_v279_2026-04-27.md`
 - `v278`: 研修表示・申込判定モデルを lifecycle と application availability に分離。詳細: `docs/155_RELEASE_STATE_v278_2026-04-27.md`
 
-## 4.1 v293 反映済み変更（2026-05-03）
+## 4.1 v294 反映済み変更（2026-05-03）
+
+- 宛名リスト出力コンソールの「年度処理」表示を「年会費納入」へ変更。
+  - フィルターラベル
+  - アクティブチップ
+  - キーワード検索 placeholder
+  - 一覧テーブル見出し
+- 発送対象の読み込み直後はデフォルト未選択に変更。
+- 「表示中を選択」ボタンを他の選択操作ボタンと同じ白背景・slate border に統一し、強調色を解除。
+- 管理者 split fixed deployment を `@51` へ同期。
+
+## 4.2 v293 反映済み変更（2026-05-03）
 
 - 宛名リスト出力コンソール（`src/components/MailingListExport.tsx`）の5列ドロップダウンフィルターを admin split に反映済み。
   - 年度処理 / 種別 / 状態 / 郵送先 / 住所不備
@@ -90,14 +103,14 @@
 - GAS 側 action の追加変更なし。admin HTML artifact のみ更新。
 - 管理者 split fixed deployment を `@50` へ同期。
 
-## 4.2 v292 反映済み変更（2026-05-01）
+## 4.3 v292 反映済み変更（2026-05-01）
 
 - `build-admin-gas.mjs` の `pruneUnreachableFunctionDeclarations` で `removableTopLevelStatements` フィルタの正規表現を `\b${name}\b` → `\b${name}\s*\(` に修正。関数呼び出しのみを削除対象とし、データ宣言内の文字列キーへの誤マッチを防止。
 - `build-member-gas.mjs` の同一パターンも修正済み。
 - admin split Code.gs に `ADMIN_ACTION_PERMISSIONS` が復元され、管理者ログイン（`checkAdminBySession` / `adminLoginWithData`）が正常動作するようになった。
 - 管理者 split fixed deployment を `@49` へ同期。
 
-## 4.3 v291 反映済み変更（2026-05-01）
+## 4.4 v291 反映済み変更（2026-05-01）
 
 - member/admin split artifact の top-level callable を `doGet` / `processApiRequest` のみに制限し、`npm run security:split-boundary` を prerelease gate に追加済み。
 - パスワード保存を versioned PBKDF2-HMAC-SHA256 + verifier-side pepper 対応へ更新済み。pepper Script Property は `PASSWORD_HASH_PEPPER_V1`。integrated/public・member split・admin split の 3 project へ設定済み。pepper の値は Git、handover、docs、ログ、チャット、生成物へ記録しない。`.env` は Apps Script 本番 runtime の正本にしない。
@@ -116,10 +129,11 @@
 
 ## 6. 操作者確認待ち
 
-`v293` の実ブラウザ確認は操作者側で行う。
+`v294` の実ブラウザ確認は操作者側で行う。
 
 - **管理者ポータル（優先）**: `k.noguchi@hcm-n.org` で管理者ログインが成功し、ダッシュボードが表示されること（v292 修正確認）。
-- 管理者ポータル: 宛名リスト出力コンソールで、発送区分選択後に候補一覧、年度フィルタ、キーワード検索、5列ドロップダウンフィルター、対象選択、選択対象のみ Excel 出力が動くこと。
+- 管理者ポータル: 宛名リスト出力コンソールで、発送区分選択後に候補一覧が表示され、デフォルト未選択であること。
+- 管理者ポータル: 年会費納入フィルター、年度フィルタ、キーワード検索、5列ドロップダウンフィルター、対象選択、選択対象のみ Excel 出力が動くこと。
 - 管理者ポータル: Google アカウント + whitelist の管理者ログインが従来どおり動き、会員向け UI に管理者導線が混入しないこと。
 - 会員マイページ: 会員ログイン、研修一覧、申込済み研修、会員情報更新、パスワード変更が従来どおり動くこと。旧 verifier は初回成功時に新形式へ再保存される。
 - 公開ポータル: 旧統合 URL / 公開 URL が public-only 画面を返し、研修一覧、外部申込/取消、会員登録申請、公開変更申請、OTP 導線が従来どおり動くこと。
@@ -127,7 +141,7 @@
 
 # Next Handover Note
 
-- 次担当者は `docs/175_RELEASE_STATE_v293_2026-05-03.md`、`docs/174_RELEASE_STATE_v292_2026-05-01.md`、`docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md` を最初に読み、分離済み範囲と未完了タスクを確認すること。
+- 次担当者は `docs/176_RELEASE_STATE_v294_2026-05-03.md`、`docs/175_RELEASE_STATE_v293_2026-05-03.md`、`docs/174_RELEASE_STATE_v292_2026-05-01.md`、`docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md` を最初に読み、分離済み範囲と未完了タスクを確認すること。
 - v292 で build-admin-gas.mjs / build-member-gas.mjs の pruning 正規表現を修正済み。今後 admin/member build で同様の誤削除は発生しない。
 - v291 からの既存 note（v290 の admin helper 除去確認、headless Chrome 検証等）は引き続き有効。
 - v290 で public artifact から admin cache / admin audit / admin role transition 系 private helper も除去済み。詳細は `docs/169_RELEASE_STATE_v290_2026-04-29.md` を読むこと。
