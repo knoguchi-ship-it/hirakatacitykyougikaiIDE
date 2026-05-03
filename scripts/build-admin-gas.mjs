@@ -443,6 +443,26 @@ function buildAdminCode(source) {
     'getAdminChangeRequests',
     'approveAdminChangeRequest',
     'rejectAdminChangeRequest',
+    // v295: 役員管理マスタ
+    'getOfficerMasterData',
+    'saveOrganization',
+    'deleteOrganization',
+    'saveOfficerRole',
+    'deleteOfficerRole',
+    'savePaymentType',
+    'deletePaymentType',
+    // v295: 役員割当て管理
+    'getOfficerManagementData',
+    'assignOfficer',
+    'resignOfficer',
+    // v295: 振込口座管理
+    'getAdminBankAccount',
+    'saveAdminBankAccount',
+    'deleteAdminBankAccount',
+    // v295: 支払い履歴管理
+    'getPaymentHistory',
+    'savePayment',
+    'deletePayment',
   ]);
   code = removeIfBlock(code, "isMemberAction && !LOGIN_ONLY_MEMBER_ACTIONS[action]");
   code = pruneUnreachableFunctionDeclarations(code, ['doGet', 'processApiRequest'], 'build-admin-gas');

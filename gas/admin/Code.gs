@@ -165,6 +165,10 @@ var マスタ定義 = {
   M_会費納入状態: ['コード', '名称', '表示順', '有効フラグ'],
   M_申込者区分: ['コード', '名称', '表示順', '削除フラグ'],
   M_管理者権限: ['コード', '名称', '表示順', '有効フラグ'],
+  // v295: 役員管理マスタ（CRUD 可能 — システム設定から管理）
+  M_組織マスタ: ['組織コード', '組織名', '組織種別', '表示順', '有効フラグ', '削除フラグ', '作成日時', '更新日時'],
+  M_役職マスタ: ['役職コード', '役職名', '組織コード', '委員長フラグ', '表示順', '有効フラグ', '削除フラグ', '作成日時', '更新日時'],
+  M_支払い種別マスタ: ['種別コード', '種別名', '対象区分', '表示順', '有効フラグ', '削除フラグ', '作成日時', '更新日時'],
 };
 
 var マスタ初期値 = {
@@ -227,6 +231,44 @@ var マスタ初期値 = {
     ['TRAINING_MANAGER', '研修管理者', 3, true],
     ['TRAINING_REGISTRAR', '研修登録者', 4, true],
     ['GENERAL', '一般', 5, true],
+  ],
+  // v295: 役員管理マスタ初期値
+  // ['組織コード','組織名','組織種別','表示順','有効フラグ','削除フラグ','作成日時','更新日時']
+  M_組織マスタ: [
+    ['HQ',          '本部',            '本部',  1, true, false, '', ''],
+    ['DIRECTORS',   '理事会',          '委員会', 2, true, false, '', ''],
+    ['AUDITORS',    '監事会',          '委員会', 3, true, false, '', ''],
+    ['SECRETARIAT', '事務局',          '事務局', 4, true, false, '', ''],
+    ['REGIONAL',    '圏域委員会',      '委員会', 5, true, false, '', ''],
+    ['PR',          '広報組織化委員会','委員会', 6, true, false, '', ''],
+    ['TRAINING',    '研修委員会',      '委員会', 7, true, false, '', ''],
+    ['RESEARCH',    '調査研究委員会',  '委員会', 8, true, false, '', ''],
+  ],
+  // ['役職コード','役職名','組織コード','委員長フラグ','表示順','有効フラグ','削除フラグ','作成日時','更新日時']
+  M_役職マスタ: [
+    ['CHAIRMAN',          '会長',             'HQ',          false,  1, true, false, '', ''],
+    ['VICE_CHAIRMAN',     '副会長',           'HQ',          false,  2, true, false, '', ''],
+    ['DIRECTOR',          '理事',             'DIRECTORS',   false,  3, true, false, '', ''],
+    ['AUDITOR',           '監事',             'AUDITORS',    false,  4, true, false, '', ''],
+    ['SECRETARY_GENERAL', '事務局長',         'SECRETARIAT', false,  5, true, false, '', ''],
+    ['SECRETARY',         '事務局員',         'SECRETARIAT', false,  6, true, false, '', ''],
+    ['REGIONAL_CHAIR',    '圏域委員長',       'REGIONAL',    true,   7, true, false, '', ''],
+    ['REGIONAL_MEMBER',   '圏域委員',         'REGIONAL',    false,  8, true, false, '', ''],
+    ['PR_CHAIR',          '広報組織化委員長', 'PR',          true,   9, true, false, '', ''],
+    ['PR_MEMBER',         '広報組織会員',     'PR',          false, 10, true, false, '', ''],
+    ['TRAINING_CHAIR',    '研修委員長',       'TRAINING',    true,  11, true, false, '', ''],
+    ['TRAINING_MEMBER',   '研修委員',         'TRAINING',    false, 12, true, false, '', ''],
+    ['RESEARCH_CHAIR',    '調査研究委員長',   'RESEARCH',    true,  13, true, false, '', ''],
+    ['RESEARCH_MEMBER',   '調査研究委員',     'RESEARCH',    false, 14, true, false, '', ''],
+  ],
+  // ['種別コード','種別名','対象区分','表示順','有効フラグ','削除フラグ','作成日時','更新日時']
+  M_支払い種別マスタ: [
+    ['COMPENSATION', '役員報酬', '両方', 1, true, false, '', ''],
+    ['ACTIVITY',     '活動費',   '両方', 2, true, false, '', ''],
+    ['HONORARIUM',   '謝礼',     '両方', 3, true, false, '', ''],
+    ['TRANSPORT',    '交通費',   '両方', 4, true, false, '', ''],
+    ['SUPPLIES',     '消耗品費', '両方', 5, true, false, '', ''],
+    ['OTHER',        'その他',   '両方', 6, true, false, '', ''],
   ],
 };
 
@@ -467,6 +509,36 @@ var テーブル定義 = {
   '申請内容JSON', '連絡先メールアドレス', '申請者表示名', '申請日時',
   '処理日時', '処理者メールアドレス', '処理備考', '作成日時', '更新日時', '削除フラグ',
 ];
+// v295: 役員管理テーブル（5テーブル追加）
+テーブル定義['T_役員'] = [
+  '役員ID', '会員ID', '役職コード', '組織コード',
+  '就任日', '退任日', '備考',
+  '削除フラグ', '作成日時', '更新日時',
+];
+テーブル定義['T_振込口座'] = [
+  '口座ID', '会員ID',
+  '金融機関名', '金融機関コード', '支店名', '支店コード',
+  '口座種別', '口座番号', '口座名義カナ', '備考',
+  '削除フラグ', '作成日時', '更新日時',
+];
+テーブル定義['T_支払い'] = [
+  '支払いID', '会員ID',
+  '支払い日', '支払い方法', '合計金額',
+  '振込先口座JSON', '登録者メール', '備考',
+  '削除フラグ', '作成日時', '更新日時',
+];
+テーブル定義['T_支払い明細'] = [
+  '明細ID', '支払いID', '請求ID',
+  '役職コード', '組織コード', '種別コード',
+  '金額', '対象期間FROM', '対象期間TO', '摘要',
+  '削除フラグ', '作成日時', '更新日時',
+];
+テーブル定義['T_請求'] = [
+  '請求ID', '会員ID', '役職コード', '組織コード', '種別コード',
+  '請求金額', '活動日', '活動内容', '添付ファイルURL',
+  '請求状態', '却下理由', '承認者メール', '承認日時',
+  '削除フラグ', '作成日時', '更新日時',
+];
 
 var 入力規則定義 = [
   ['T_会員', '会員種別コード', 'M_会員種別'],
@@ -482,6 +554,13 @@ var 入力規則定義 = [
   ['T_年会費納入履歴', '会費納入状態コード', 'M_会費納入状態'],
   ['T_画面項目権限', 'システムロールコード', 'M_システムロール'],
   ['T_管理者Googleホワイトリスト', '権限コード', 'M_管理者権限'],
+  // v295: 役員管理FK検証
+  ['T_役員',       '役職コード', 'M_役職マスタ'],
+  ['T_役員',       '組織コード', 'M_組織マスタ'],
+  ['T_支払い明細', '種別コード', 'M_支払い種別マスタ'],
+  ['T_支払い明細', '組織コード', 'M_組織マスタ'],
+  ['T_請求',       '種別コード', 'M_支払い種別マスタ'],
+  ['T_請求',       '組織コード', 'M_組織マスタ'],
 ];
 
 var DEMO_TRANSFER_ACCOUNT = {
@@ -704,6 +783,26 @@ var ADMIN_ACTION_PERMISSIONS = {
   'getAdminChangeRequests': ['MASTER','ADMIN'],
   'approveAdminChangeRequest': ['MASTER','ADMIN'],
   'rejectAdminChangeRequest': ['MASTER','ADMIN'],
+  // v295: 役員管理マスタ（システム設定から管理）
+  'getOfficerMasterData': ['MASTER','ADMIN'],
+  'saveOrganization': ['MASTER','ADMIN'],
+  'deleteOrganization': ['MASTER','ADMIN'],
+  'saveOfficerRole': ['MASTER','ADMIN'],
+  'deleteOfficerRole': ['MASTER','ADMIN'],
+  'savePaymentType': ['MASTER','ADMIN'],
+  'deletePaymentType': ['MASTER','ADMIN'],
+  // v295: 役員割当て管理（管理コンソール）
+  'getOfficerManagementData': ['MASTER','ADMIN'],
+  'assignOfficer': ['MASTER','ADMIN'],
+  'resignOfficer': ['MASTER','ADMIN'],
+  // v295: 振込口座管理（管理者用）
+  'getAdminBankAccount': ['MASTER','ADMIN'],
+  'saveAdminBankAccount': ['MASTER','ADMIN'],
+  'deleteAdminBankAccount': ['MASTER','ADMIN'],
+  // v295: 支払い履歴管理
+  'getPaymentHistory': ['MASTER','ADMIN'],
+  'savePayment': ['MASTER','ADMIN'],
+  'deletePayment': ['MASTER','ADMIN'],
 };
 
 function getActionRegistryForCurrentApp_() {
@@ -793,6 +892,8 @@ function processApiRequest(action, payload) {
       });
     }
 
+
+    // v295: 役員自己サービス（sessionToken 検証済み → payload.memberId 確定済み）
 
     if (action === 'updateMember') {
       // v143: 管理者用 allowlist でサニタイズしてから委譲
@@ -1034,6 +1135,59 @@ function processApiRequest(action, payload) {
     }
     if (action === 'generateMailingListExcel') {
       return JSON.stringify({ success: true, data: generateMailingListExcel_(parsedPayload) });
+    }
+
+    // v295: 役員管理マスタ
+    if (action === 'getOfficerMasterData') {
+      return JSON.stringify({ success: true, data: getOfficerMasterData_() });
+    }
+    if (action === 'saveOrganization') {
+      return JSON.stringify({ success: true, data: saveOrganization_(parsedPayload) });
+    }
+    if (action === 'deleteOrganization') {
+      return JSON.stringify({ success: true, data: deleteOrganization_(parsedPayload) });
+    }
+    if (action === 'saveOfficerRole') {
+      return JSON.stringify({ success: true, data: saveOfficerRole_(parsedPayload) });
+    }
+    if (action === 'deleteOfficerRole') {
+      return JSON.stringify({ success: true, data: deleteOfficerRole_(parsedPayload) });
+    }
+    if (action === 'savePaymentType') {
+      return JSON.stringify({ success: true, data: savePaymentType_(parsedPayload) });
+    }
+    if (action === 'deletePaymentType') {
+      return JSON.stringify({ success: true, data: deletePaymentType_(parsedPayload) });
+    }
+    // v295: 役員割当て管理
+    if (action === 'getOfficerManagementData') {
+      return JSON.stringify({ success: true, data: getOfficerManagementData_() });
+    }
+    if (action === 'assignOfficer') {
+      return JSON.stringify({ success: true, data: assignOfficer_(parsedPayload) });
+    }
+    if (action === 'resignOfficer') {
+      return JSON.stringify({ success: true, data: resignOfficer_(parsedPayload) });
+    }
+    // v295: 振込口座管理（管理者用）
+    if (action === 'getAdminBankAccount') {
+      return JSON.stringify({ success: true, data: getBankAccount_(parsedPayload) });
+    }
+    if (action === 'saveAdminBankAccount') {
+      return JSON.stringify({ success: true, data: saveBankAccount_(parsedPayload) });
+    }
+    if (action === 'deleteAdminBankAccount') {
+      return JSON.stringify({ success: true, data: deleteBankAccount_(parsedPayload) });
+    }
+    // v295: 支払い履歴管理
+    if (action === 'getPaymentHistory') {
+      return JSON.stringify({ success: true, data: getPaymentHistory_(parsedPayload) });
+    }
+    if (action === 'savePayment') {
+      return JSON.stringify({ success: true, data: savePayment_(parsedPayload) });
+    }
+    if (action === 'deletePayment') {
+      return JSON.stringify({ success: true, data: deletePayment_(parsedPayload) });
     }
 
     // v232: 物理削除（MASTER専用）
@@ -7150,6 +7304,12 @@ function initializeSchema_(ss) {
   normalizeTableColumns_(ss, 'T_会員_archive');
   normalizeTableColumns_(ss, 'T_事業所職員_archive');
   normalizeTableColumns_(ss, 'T_変更申請');
+  // v295: 役員管理テーブル
+  normalizeTableColumns_(ss, 'T_役員');
+  normalizeTableColumns_(ss, 'T_振込口座');
+  normalizeTableColumns_(ss, 'T_支払い');
+  normalizeTableColumns_(ss, 'T_支払い明細');
+  normalizeTableColumns_(ss, 'T_請求');
   ensureSystemSettingsRows_(ss);
   seedPermissionMatrixIfNeeded_(ss);
   applyDataValidationRules_(ss);
@@ -10824,3 +10984,539 @@ function hashPasswordPbkdf2_(password, salt) {
  * - それ以外 → 旧 SHA-256 で検証
  * 旧方式で一致した場合は rehash 用フラグを返す。
  */
+
+// ============================================================
+// v295: 役員管理 — マスタ管理 / 役員割当て / 口座 / 支払い
+// ============================================================
+
+// ---------- 役員マスタデータ一括取得 ----------
+
+function getOfficerMasterData_() {
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  var orgs = getRowsAsObjects_(ss, 'M_組織マスタ').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var roles = getRowsAsObjects_(ss, 'M_役職マスタ').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var paymentTypes = getRowsAsObjects_(ss, 'M_支払い種別マスタ').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  return { organizations: orgs, roles: roles, paymentTypes: paymentTypes };
+}
+
+// ---------- M_組織マスタ CRUD ----------
+
+function saveOrganization_(payload) {
+  var id           = String(payload.organizationCode || '').trim().toUpperCase();
+  var name         = String(payload.organizationName || '').trim();
+  var type         = String(payload.organizationType || '').trim();
+  var displayOrder = Number(payload.displayOrder || 0);
+  if (!id)   throw new Error('組織コードは必須です。');
+  if (!name) throw new Error('組織名は必須です。');
+
+  var ss     = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  var sheet  = ss.getSheetByName('M_組織マスタ');
+  if (!sheet) throw new Error('M_組織マスタ が見つかりません。');
+  var found  = findRowByColumnValue_(sheet, '組織コード', id);
+  var nowIso = new Date().toISOString();
+
+  if (found) {
+    var row = found.row.slice();
+    row[found.columns['組織名']]    = name;
+    row[found.columns['組織種別']]  = type;
+    row[found.columns['表示順']]    = displayOrder;
+    row[found.columns['有効フラグ']] = toBoolean_(payload.enabled !== false);
+    row[found.columns['更新日時']]  = nowIso;
+    sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  } else {
+    appendRowsByHeaders_(ss, 'M_組織マスタ', [{
+      '組織コード': id, '組織名': name, '組織種別': type,
+      '表示順': displayOrder, '有効フラグ': true,
+      '削除フラグ': false, '作成日時': nowIso, '更新日時': nowIso,
+    }]);
+  }
+  return { organizationCode: id };
+}
+
+function deleteOrganization_(payload) {
+  var id = String(payload.organizationCode || '').trim();
+  if (!id) throw new Error('組織コードは必須です。');
+
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+
+  var roles = getRowsAsObjects_(ss, 'M_役職マスタ').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) && String(r['組織コード'] || '') === id;
+  });
+  if (roles.length > 0) throw new Error('この組織に役職が登録されています。先に役職を削除してください。');
+
+  var sheet = ss.getSheetByName('M_組織マスタ');
+  var found = findRowByColumnValue_(sheet, '組織コード', id);
+  if (!found) throw new Error('削除対象の組織が見つかりません。');
+
+  var row = found.row.slice();
+  row[found.columns['有効フラグ']] = false;
+  row[found.columns['削除フラグ']] = true;
+  row[found.columns['更新日時']]   = new Date().toISOString();
+  sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  return { deleted: true, organizationCode: id };
+}
+
+// ---------- M_役職マスタ CRUD ----------
+
+function saveOfficerRole_(payload) {
+  var id      = String(payload.roleCode         || '').trim().toUpperCase();
+  var name    = String(payload.roleName         || '').trim();
+  var orgCode = String(payload.organizationCode || '').trim();
+  var isChair = toBoolean_(payload.isChairman);
+  var displayOrder = Number(payload.displayOrder || 0);
+  if (!id)      throw new Error('役職コードは必須です。');
+  if (!name)    throw new Error('役職名は必須です。');
+  if (!orgCode) throw new Error('組織コードは必須です。');
+
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+
+  var org = findRowByColumnValue_(ss.getSheetByName('M_組織マスタ'), '組織コード', orgCode);
+  if (!org || toBoolean_(org.row[org.columns['削除フラグ']])) throw new Error('指定された組織が見つかりません。');
+
+  var sheet  = ss.getSheetByName('M_役職マスタ');
+  if (!sheet) throw new Error('M_役職マスタ が見つかりません。');
+  var found  = findRowByColumnValue_(sheet, '役職コード', id);
+  var nowIso = new Date().toISOString();
+
+  if (found) {
+    var row = found.row.slice();
+    row[found.columns['役職名']]     = name;
+    row[found.columns['組織コード']] = orgCode;
+    row[found.columns['委員長フラグ']] = isChair;
+    row[found.columns['表示順']]     = displayOrder;
+    row[found.columns['有効フラグ']] = toBoolean_(payload.enabled !== false);
+    row[found.columns['更新日時']]   = nowIso;
+    sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  } else {
+    appendRowsByHeaders_(ss, 'M_役職マスタ', [{
+      '役職コード': id, '役職名': name, '組織コード': orgCode,
+      '委員長フラグ': isChair, '表示順': displayOrder, '有効フラグ': true,
+      '削除フラグ': false, '作成日時': nowIso, '更新日時': nowIso,
+    }]);
+  }
+  return { roleCode: id };
+}
+
+function deleteOfficerRole_(payload) {
+  var id = String(payload.roleCode || '').trim();
+  if (!id) throw new Error('役職コードは必須です。');
+
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+
+  var officers = getRowsAsObjects_(ss, 'T_役員').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) && String(r['役職コード'] || '') === id;
+  });
+  if (officers.length > 0) throw new Error('この役職に役員が登録されています。先に役員割当てを解除してください。');
+
+  var sheet = ss.getSheetByName('M_役職マスタ');
+  var found = findRowByColumnValue_(sheet, '役職コード', id);
+  if (!found) throw new Error('削除対象の役職が見つかりません。');
+
+  var row = found.row.slice();
+  row[found.columns['有効フラグ']] = false;
+  row[found.columns['削除フラグ']] = true;
+  row[found.columns['更新日時']]   = new Date().toISOString();
+  sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  return { deleted: true, roleCode: id };
+}
+
+// ---------- M_支払い種別マスタ CRUD ----------
+
+function savePaymentType_(payload) {
+  var id           = String(payload.typeCode     || '').trim().toUpperCase();
+  var name         = String(payload.typeName     || '').trim();
+  var scope        = String(payload.scope        || '両方').trim();
+  var displayOrder = Number(payload.displayOrder || 0);
+  if (!id)   throw new Error('種別コードは必須です。');
+  if (!name) throw new Error('種別名は必須です。');
+
+  var ss     = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  var sheet  = ss.getSheetByName('M_支払い種別マスタ');
+  if (!sheet) throw new Error('M_支払い種別マスタ が見つかりません。');
+  var found  = findRowByColumnValue_(sheet, '種別コード', id);
+  var nowIso = new Date().toISOString();
+
+  if (found) {
+    var row = found.row.slice();
+    row[found.columns['種別名']]    = name;
+    row[found.columns['対象区分']]  = scope;
+    row[found.columns['表示順']]    = displayOrder;
+    row[found.columns['有効フラグ']] = toBoolean_(payload.enabled !== false);
+    row[found.columns['更新日時']]  = nowIso;
+    sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  } else {
+    appendRowsByHeaders_(ss, 'M_支払い種別マスタ', [{
+      '種別コード': id, '種別名': name, '対象区分': scope,
+      '表示順': displayOrder, '有効フラグ': true,
+      '削除フラグ': false, '作成日時': nowIso, '更新日時': nowIso,
+    }]);
+  }
+  return { typeCode: id };
+}
+
+function deletePaymentType_(payload) {
+  var id = String(payload.typeCode || '').trim();
+  if (!id) throw new Error('種別コードは必須です。');
+
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+
+  var lines  = getRowsAsObjects_(ss, 'T_支払い明細').filter(function(r) { return !toBoolean_(r['削除フラグ']) && String(r['種別コード'] || '') === id; });
+  var claims = getRowsAsObjects_(ss, 'T_請求').filter(function(r) { return !toBoolean_(r['削除フラグ']) && String(r['種別コード'] || '') === id; });
+  if (lines.length > 0 || claims.length > 0) throw new Error('この種別は使用中のため削除できません。');
+
+  var sheet = ss.getSheetByName('M_支払い種別マスタ');
+  var found = findRowByColumnValue_(sheet, '種別コード', id);
+  if (!found) throw new Error('削除対象の支払い種別が見つかりません。');
+
+  var row = found.row.slice();
+  row[found.columns['有効フラグ']] = false;
+  row[found.columns['削除フラグ']] = true;
+  row[found.columns['更新日時']]   = new Date().toISOString();
+  sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  return { deleted: true, typeCode: id };
+}
+
+// ---------- 役員ステータス確認ヘルパー ----------
+
+
+// ---------- T_役員 管理 ----------
+
+function getOfficerManagementData_() {
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+
+  var orgs     = getRowsAsObjects_(ss, 'M_組織マスタ').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var roles    = getRowsAsObjects_(ss, 'M_役職マスタ').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var officers = getRowsAsObjects_(ss, 'T_役員').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var members  = getRowsAsObjects_(ss, 'T_会員').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+
+  var memberMap = {};
+  members.forEach(function(m) { memberMap[String(m['会員ID'] || '')] = m; });
+
+  var enriched = officers.map(function(o) {
+    var m = memberMap[String(o['会員ID'] || '')] || {};
+    var displayName = (String(m['姓'] || '') + ' ' + String(m['名'] || '')).trim();
+    return {
+      役員ID: o['役員ID'], 会員ID: o['会員ID'],
+      表示名: displayName || String(o['会員ID'] || ''),
+      会員種別コード: String(m['会員種別コード'] || ''),
+      役職コード: o['役職コード'], 組織コード: o['組織コード'],
+      就任日: o['就任日'], 退任日: o['退任日'], 備考: o['備考'],
+      作成日時: o['作成日時'], 更新日時: o['更新日時'],
+    };
+  });
+  return { organizations: orgs, roles: roles, officers: enriched };
+}
+
+function assignOfficer_(payload) {
+  var memberId      = String(payload.memberId      || '').trim();
+  var roleCode      = String(payload.roleCode      || '').trim();
+  var appointedDate = String(payload.appointedDate || '').trim();
+  var note          = String(payload.note          || '').trim();
+  if (!memberId) throw new Error('会員IDは必須です。');
+  if (!roleCode) throw new Error('役職コードは必須です。');
+
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+
+  var member = findRowByColumnValue_(ss.getSheetByName('T_会員'), '会員ID', memberId);
+  if (!member || toBoolean_(member.row[member.columns['削除フラグ']])) throw new Error('対象会員が見つかりません。');
+
+  var roleSheet = ss.getSheetByName('M_役職マスタ');
+  var role = findRowByColumnValue_(roleSheet, '役職コード', roleCode);
+  if (!role || toBoolean_(role.row[role.columns['削除フラグ']])) throw new Error('役職が見つかりません。');
+  var orgCode = String(role.row[role.columns['組織コード']] || '');
+
+  var dup = getRowsAsObjects_(ss, 'T_役員').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) &&
+      String(r['会員ID'] || '') === memberId &&
+      String(r['役職コード'] || '') === roleCode &&
+      (!r['退任日'] || String(r['退任日'] || '') === '');
+  });
+  if (dup.length > 0) throw new Error('この会員はすでに同じ役職に就任中です。');
+
+  var nowIso = new Date().toISOString();
+  var officerId = Utilities.getUuid();
+  appendRowsByHeaders_(ss, 'T_役員', [{
+    '役員ID': officerId, '会員ID': memberId,
+    '役職コード': roleCode, '組織コード': orgCode,
+    '就任日': appointedDate, '退任日': '', '備考': note,
+    '削除フラグ': false, '作成日時': nowIso, '更新日時': nowIso,
+  }]);
+  clearAllDataCache_();
+  return { officerId: officerId };
+}
+
+function resignOfficer_(payload) {
+  var officerId       = String(payload.officerId       || '').trim();
+  var resignationDate = String(payload.resignationDate || '').trim();
+  if (!officerId) throw new Error('役員IDは必須です。');
+
+  var ss    = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  var sheet = ss.getSheetByName('T_役員');
+  var found = findRowByColumnValue_(sheet, '役員ID', officerId);
+  if (!found || toBoolean_(found.row[found.columns['削除フラグ']])) throw new Error('役員レコードが見つかりません。');
+
+  var row = found.row.slice();
+  row[found.columns['退任日']]  = resignationDate || new Date().toISOString().substring(0, 10);
+  row[found.columns['更新日時']] = new Date().toISOString();
+  sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  clearAllDataCache_();
+  return { resigned: true, officerId: officerId };
+}
+
+// ---------- T_振込口座 管理 ----------
+
+function getBankAccount_(payload) {
+  var memberId = String(payload.memberId || '').trim();
+  if (!memberId) throw new Error('会員IDは必須です。');
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  var rows = getRowsAsObjects_(ss, 'T_振込口座').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
+  });
+  return rows.length > 0 ? rows[0] : null;
+}
+
+function saveBankAccount_(payload) {
+  var memberId = String(payload.memberId || '').trim();
+  if (!memberId) throw new Error('会員IDは必須です。');
+
+  var ss    = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  var sheet = ss.getSheetByName('T_振込口座');
+  if (!sheet) throw new Error('T_振込口座 が見つかりません。');
+
+  var existing = getRowsAsObjects_(ss, 'T_振込口座');
+  var found = null;
+  for (var i = 0; i < existing.length; i += 1) {
+    if (!toBoolean_(existing[i]['削除フラグ']) && String(existing[i]['会員ID'] || '') === memberId) {
+      found = findRowByColumnValue_(sheet, '口座ID', existing[i]['口座ID']);
+      break;
+    }
+  }
+
+  var nowIso    = new Date().toISOString();
+  var accountId = found ? String(found.row[found.columns['口座ID']] || '') : Utilities.getUuid();
+  var newData   = {
+    '口座ID': accountId, '会員ID': memberId,
+    '金融機関名':   String(payload.bankName          || '').trim(),
+    '金融機関コード': String(payload.bankCode        || '').trim(),
+    '支店名':       String(payload.branchName        || '').trim(),
+    '支店コード':   String(payload.branchCode        || '').trim(),
+    '口座種別':     String(payload.accountType       || '普通').trim(),
+    '口座番号':     String(payload.accountNumber     || '').trim(),
+    '口座名義カナ': String(payload.accountHolderKana || '').trim(),
+    '備考':         String(payload.note              || '').trim(),
+    '削除フラグ': false,
+    '作成日時': found ? String(found.row[found.columns['作成日時']] || nowIso) : nowIso,
+    '更新日時': nowIso,
+  };
+
+  if (found) {
+    var row = found.row.slice();
+    var cols = found.columns;
+    Object.keys(newData).forEach(function(key) { if (cols[key] != null) row[cols[key]] = newData[key]; });
+    sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  } else {
+    appendRowsByHeaders_(ss, 'T_振込口座', [newData]);
+  }
+  return { accountId: accountId };
+}
+
+function deleteBankAccount_(payload) {
+  var memberId = String(payload.memberId || '').trim();
+  if (!memberId) throw new Error('会員IDは必須です。');
+
+  var ss    = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  var sheet = ss.getSheetByName('T_振込口座');
+  var rows  = getRowsAsObjects_(ss, 'T_振込口座');
+  var found = null;
+  for (var i = 0; i < rows.length; i += 1) {
+    if (!toBoolean_(rows[i]['削除フラグ']) && String(rows[i]['会員ID'] || '') === memberId) {
+      found = findRowByColumnValue_(sheet, '口座ID', rows[i]['口座ID']);
+      break;
+    }
+  }
+  if (!found) throw new Error('口座情報が見つかりません。');
+
+  var row = found.row.slice();
+  row[found.columns['削除フラグ']] = true;
+  row[found.columns['更新日時']]   = new Date().toISOString();
+  sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  return { deleted: true };
+}
+
+// 会員自身の役員ステータス + 口座取得（会員ポータル用）
+// processApiRequest で sessionToken 検証済み → payload.memberId は確定値
+
+
+// ---------- T_支払い / T_支払い明細 / T_請求 管理 ----------
+
+function getPaymentHistory_(payload) {
+  var ss       = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  var memberId = payload && payload.memberId ? String(payload.memberId).trim() : null;
+
+  var payments = getRowsAsObjects_(ss, 'T_支払い').filter(function(r) {
+    if (toBoolean_(r['削除フラグ'])) return false;
+    if (memberId && String(r['会員ID'] || '') !== memberId) return false;
+    return true;
+  });
+  var lines = getRowsAsObjects_(ss, 'T_支払い明細').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var lineMap = {};
+  lines.forEach(function(l) {
+    var pid = String(l['支払いID'] || '');
+    if (!lineMap[pid]) lineMap[pid] = [];
+    lineMap[pid].push(l);
+  });
+
+  var memberMap = {};
+  getRowsAsObjects_(ss, 'T_会員').forEach(function(m) { memberMap[String(m['会員ID'] || '')] = m; });
+
+  return payments.map(function(p) {
+    var m = memberMap[String(p['会員ID'] || '')] || {};
+    var displayName = (String(m['姓'] || '') + ' ' + String(m['名'] || '')).trim();
+    return Object.assign({}, p, { 表示名: displayName, 明細: lineMap[String(p['支払いID'] || '')] || [] });
+  });
+}
+
+function savePayment_(payload) {
+  var memberId = String(payload.memberId || '').trim();
+  if (!memberId) throw new Error('会員IDは必須です。');
+
+  var lines = payload.lines || [];
+  if (!lines.length) throw new Error('支払い明細は1件以上必要です。');
+
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+
+  var member = findRowByColumnValue_(ss.getSheetByName('T_会員'), '会員ID', memberId);
+  if (!member || toBoolean_(member.row[member.columns['削除フラグ']])) throw new Error('対象会員が見つかりません。');
+
+  var lineTotal = lines.reduce(function(sum, l) { return sum + Number(l.amount || 0); }, 0);
+  if (Number(payload.totalAmount || 0) !== lineTotal) {
+    throw new Error('合計金額（' + payload.totalAmount + '）と明細合計（' + lineTotal + '）が一致しません。');
+  }
+
+  var bankAccount  = getBankAccount_({ memberId: memberId });
+  var bankSnapshot = bankAccount ? JSON.stringify({
+    金融機関名: bankAccount['金融機関名'], 金融機関コード: bankAccount['金融機関コード'],
+    支店名: bankAccount['支店名'], 支店コード: bankAccount['支店コード'],
+    口座種別: bankAccount['口座種別'], 口座番号: bankAccount['口座番号'],
+    口座名義カナ: bankAccount['口座名義カナ'],
+  }) : '';
+
+  var nowIso     = new Date().toISOString();
+  var paymentId  = Utilities.getUuid();
+  var actorEmail = String(Session.getActiveUser().getEmail() || '').toLowerCase();
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(5000);
+  try {
+    appendRowsByHeaders_(ss, 'T_支払い', [{
+      '支払いID': paymentId, '会員ID': memberId,
+      '支払い日':   String(payload.paymentDate   || '').trim(),
+      '支払い方法': String(payload.paymentMethod || '振込').trim(),
+      '合計金額':   lineTotal,
+      '振込先口座JSON': bankSnapshot,
+      '登録者メール': actorEmail,
+      '備考': String(payload.note || '').trim(),
+      '削除フラグ': false, '作成日時': nowIso, '更新日時': nowIso,
+    }]);
+
+    var claimsToUpdate = [];
+    lines.forEach(function(l) {
+      var claimId = String(l.claimId || '').trim();
+      appendRowsByHeaders_(ss, 'T_支払い明細', [{
+        '明細ID': Utilities.getUuid(), '支払いID': paymentId, '請求ID': claimId,
+        '役職コード':   String(l.roleCode         || '').trim(),
+        '組織コード':   String(l.organizationCode  || '').trim(),
+        '種別コード':   String(l.typeCode          || '').trim(),
+        '金額':         Number(l.amount            || 0),
+        '対象期間FROM': String(l.periodFrom        || '').trim(),
+        '対象期間TO':   String(l.periodTo          || '').trim(),
+        '摘要':         String(l.note             || '').trim(),
+        '削除フラグ': false, '作成日時': nowIso, '更新日時': nowIso,
+      }]);
+      if (claimId) claimsToUpdate.push(claimId);
+    });
+
+    if (claimsToUpdate.length > 0) {
+      var claimSheet = ss.getSheetByName('T_請求');
+      if (claimSheet) {
+        claimsToUpdate.forEach(function(claimId) {
+          var cf = findRowByColumnValue_(claimSheet, '請求ID', claimId);
+          if (cf && !toBoolean_(cf.row[cf.columns['削除フラグ']])) {
+            var cr = cf.row.slice();
+            cr[cf.columns['請求状態']] = '支払い済み';
+            cr[cf.columns['更新日時']] = nowIso;
+            claimSheet.getRange(cf.rowNumber, 1, 1, cr.length).setValues([cr]);
+          }
+        });
+      }
+    }
+
+    clearAllDataCache_();
+    return { paymentId: paymentId, totalAmount: lineTotal };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function deletePayment_(payload) {
+  var paymentId = String(payload.paymentId || '').trim();
+  if (!paymentId) throw new Error('支払いIDは必須です。');
+
+  var ss     = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  var nowIso = new Date().toISOString();
+
+  var paymentSheet = ss.getSheetByName('T_支払い');
+  var pFound = findRowByColumnValue_(paymentSheet, '支払いID', paymentId);
+  if (!pFound || toBoolean_(pFound.row[pFound.columns['削除フラグ']])) throw new Error('支払いレコードが見つかりません。');
+
+  var pRow = pFound.row.slice();
+  pRow[pFound.columns['削除フラグ']] = true;
+  pRow[pFound.columns['更新日時']]   = nowIso;
+  paymentSheet.getRange(pFound.rowNumber, 1, 1, pRow.length).setValues([pRow]);
+
+  var lineSheet  = ss.getSheetByName('T_支払い明細');
+  var claimSheet = ss.getSheetByName('T_請求');
+  if (lineSheet) {
+    var lines = getRowsAsObjects_(ss, 'T_支払い明細').filter(function(r) {
+      return !toBoolean_(r['削除フラグ']) && String(r['支払いID'] || '') === paymentId;
+    });
+    lines.forEach(function(l) {
+      var lf = findRowByColumnValue_(lineSheet, '明細ID', l['明細ID']);
+      if (lf) {
+        var lr = lf.row.slice();
+        lr[lf.columns['削除フラグ']] = true;
+        lr[lf.columns['更新日時']]   = nowIso;
+        lineSheet.getRange(lf.rowNumber, 1, 1, lr.length).setValues([lr]);
+      }
+      var claimId = String(l['請求ID'] || '');
+      if (claimId && claimSheet) {
+        var cf = findRowByColumnValue_(claimSheet, '請求ID', claimId);
+        if (cf && !toBoolean_(cf.row[cf.columns['削除フラグ']])) {
+          var cr = cf.row.slice();
+          cr[cf.columns['請求状態']] = '承認済み';
+          cr[cf.columns['更新日時']] = nowIso;
+          claimSheet.getRange(cf.rowNumber, 1, 1, cr.length).setValues([cr]);
+        }
+      }
+    });
+  }
+
+  clearAllDataCache_();
+  return { deleted: true, paymentId: paymentId };
+}

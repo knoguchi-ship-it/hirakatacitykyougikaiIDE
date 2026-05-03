@@ -155,3 +155,182 @@ export interface MailingListExcelResult {
     invalid: number;
   };
 }
+
+// ============================================================
+// v295: 役員管理 型定義
+// ============================================================
+
+export interface Organization {
+  組織コード: string;
+  組織名: string;
+  組織種別: string;
+  表示順: number;
+  有効フラグ: boolean;
+  削除フラグ: boolean;
+  作成日時: string;
+  更新日時: string;
+}
+
+export interface OfficerRole {
+  役職コード: string;
+  役職名: string;
+  組織コード: string;
+  委員長フラグ: boolean;
+  表示順: number;
+  有効フラグ: boolean;
+  削除フラグ: boolean;
+  作成日時: string;
+  更新日時: string;
+}
+
+export interface PaymentType {
+  種別コード: string;
+  種別名: string;
+  対象区分: '支払い' | '請求' | '両方';
+  表示順: number;
+  有効フラグ: boolean;
+  削除フラグ: boolean;
+  作成日時: string;
+  更新日時: string;
+}
+
+export interface OfficerMasterData {
+  organizations: Organization[];
+  roles: OfficerRole[];
+  paymentTypes: PaymentType[];
+}
+
+export interface OfficerRecord {
+  役員ID: string;
+  会員ID: string;
+  表示名: string;
+  会員種別コード: string;
+  役職コード: string;
+  組織コード: string;
+  就任日: string;
+  退任日: string;
+  備考: string;
+  作成日時: string;
+  更新日時: string;
+}
+
+export interface OfficerManagementData {
+  organizations: Organization[];
+  roles: OfficerRole[];
+  officers: OfficerRecord[];
+}
+
+export interface BankAccount {
+  口座ID: string;
+  会員ID: string;
+  金融機関名: string;
+  金融機関コード: string;
+  支店名: string;
+  支店コード: string;
+  口座種別: string;
+  口座番号: string;
+  口座名義カナ: string;
+  備考: string;
+  削除フラグ: boolean;
+  作成日時: string;
+  更新日時: string;
+}
+
+export interface SaveBankAccountPayload {
+  memberId: string;
+  bankName: string;
+  bankCode: string;
+  branchName: string;
+  branchCode: string;
+  accountType: string;
+  accountNumber: string;
+  accountHolderKana: string;
+  note?: string;
+}
+
+export interface PaymentLine {
+  明細ID: string;
+  支払いID: string;
+  請求ID: string;
+  役職コード: string;
+  組織コード: string;
+  種別コード: string;
+  金額: number;
+  対象期間FROM: string;
+  対象期間TO: string;
+  摘要: string;
+  削除フラグ: boolean;
+  作成日時: string;
+  更新日時: string;
+}
+
+export interface PaymentRecord {
+  支払いID: string;
+  会員ID: string;
+  表示名: string;
+  支払い日: string;
+  支払い方法: string;
+  合計金額: number;
+  振込先口座JSON: string;
+  登録者メール: string;
+  備考: string;
+  削除フラグ: boolean;
+  作成日時: string;
+  更新日時: string;
+  明細: PaymentLine[];
+}
+
+export interface SavePaymentLinePayload {
+  roleCode?: string;
+  organizationCode?: string;
+  typeCode: string;
+  amount: number;
+  periodFrom?: string;
+  periodTo?: string;
+  note?: string;
+  claimId?: string;
+}
+
+export interface SavePaymentPayload {
+  memberId: string;
+  paymentDate: string;
+  paymentMethod: string;
+  totalAmount: number;
+  note?: string;
+  lines: SavePaymentLinePayload[];
+}
+
+export interface MemberActiveRole {
+  officerId: string;
+  roleCode: string;
+  roleName: string;
+  organizationCode: string;
+  organizationName: string;
+  appointedDate: string;
+}
+
+export interface MemberOfficerStatus {
+  isOfficer: boolean;
+  activeRoles: MemberActiveRole[];
+  bankAccount: BankAccount | null;
+}
+
+/** T_請求 の型定義（将来の請求フォーム実装に備えて先行定義） */
+export interface ClaimRecord {
+  請求ID: string;
+  会員ID: string;
+  役職コード: string;
+  組織コード: string;
+  種別コード: string;
+  請求金額: number;
+  活動日: string;
+  活動内容: string;
+  添付ファイルURL: string;
+  請求状態: '申請中' | '承認済み' | '支払い済み' | '却下';
+  却下理由: string;
+  承認者メール: string;
+  承認日時: string;
+  削除フラグ: boolean;
+  作成日時: string;
+  更新日時: string;
+}

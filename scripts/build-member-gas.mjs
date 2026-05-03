@@ -401,6 +401,9 @@ function buildMemberCode(source) {
     'cancelTraining',
     'withdrawSelf',
     'cancelWithdrawalSelf',
+    // v295: 役員自己サービス
+    'getMyOfficerStatus',
+    'saveMyBankAccount',
   ]);
   code = removeIfBlock(code, 'requiredPerms');
   code = pruneUnreachableFunctionDeclarations(code, ['doGet', 'processApiRequest'], 'build-member-gas');

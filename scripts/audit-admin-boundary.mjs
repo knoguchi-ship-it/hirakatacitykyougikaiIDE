@@ -70,6 +70,26 @@ const allowedAdminActions = [
   'getAdminChangeRequests',
   'approveAdminChangeRequest',
   'rejectAdminChangeRequest',
+  // v295: 役員管理マスタ
+  'getOfficerMasterData',
+  'saveOrganization',
+  'deleteOrganization',
+  'saveOfficerRole',
+  'deleteOfficerRole',
+  'savePaymentType',
+  'deletePaymentType',
+  // v295: 役員割当て管理
+  'getOfficerManagementData',
+  'assignOfficer',
+  'resignOfficer',
+  // v295: 振込口座管理
+  'getAdminBankAccount',
+  'saveAdminBankAccount',
+  'deleteAdminBankAccount',
+  // v295: 支払い履歴管理
+  'getPaymentHistory',
+  'savePayment',
+  'deletePayment',
 ];
 const forbiddenTopLevelFunctions = [
   'rebuildDatabaseSchema',

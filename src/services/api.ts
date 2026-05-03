@@ -193,6 +193,29 @@ export interface ApiClient {
   repairTrainingApplicationApplicantIds(): Promise<{ repaired: number; skipped: number }>;
   // v237: 会員CM番号重複修復（MASTER専用）
   repairMemberCareManagerDuplicates(): Promise<{ repaired: number; details: { memberId: string; careManagerNumber: string }[] }>;
+  // v295: 役員管理マスタ
+  getOfficerMasterData(): Promise<import('../shared/types').OfficerMasterData>;
+  saveOrganization(payload: { organizationCode: string; organizationName: string; organizationType?: string; displayOrder?: number; enabled?: boolean }): Promise<{ organizationCode: string }>;
+  deleteOrganization(payload: { organizationCode: string }): Promise<{ deleted: boolean; organizationCode: string }>;
+  saveOfficerRole(payload: { roleCode: string; roleName: string; organizationCode: string; isChairman?: boolean; displayOrder?: number; enabled?: boolean }): Promise<{ roleCode: string }>;
+  deleteOfficerRole(payload: { roleCode: string }): Promise<{ deleted: boolean; roleCode: string }>;
+  savePaymentType(payload: { typeCode: string; typeName: string; scope?: string; displayOrder?: number; enabled?: boolean }): Promise<{ typeCode: string }>;
+  deletePaymentType(payload: { typeCode: string }): Promise<{ deleted: boolean; typeCode: string }>;
+  // v295: 役員割当て管理
+  getOfficerManagementData(): Promise<import('../shared/types').OfficerManagementData>;
+  assignOfficer(payload: { memberId: string; roleCode: string; appointedDate?: string; note?: string }): Promise<{ officerId: string }>;
+  resignOfficer(payload: { officerId: string; resignationDate?: string }): Promise<{ resigned: boolean; officerId: string }>;
+  // v295: 振込口座管理（管理者用）
+  getAdminBankAccount(payload: { memberId: string }): Promise<import('../shared/types').BankAccount | null>;
+  saveAdminBankAccount(payload: import('../shared/types').SaveBankAccountPayload): Promise<{ accountId: string }>;
+  deleteAdminBankAccount(payload: { memberId: string }): Promise<{ deleted: boolean }>;
+  // v295: 支払い履歴管理
+  getPaymentHistory(payload?: { memberId?: string }): Promise<import('../shared/types').PaymentRecord[]>;
+  savePayment(payload: import('../shared/types').SavePaymentPayload): Promise<{ paymentId: string; totalAmount: number }>;
+  deletePayment(payload: { paymentId: string }): Promise<{ deleted: boolean; paymentId: string }>;
+  // v295: 会員自己サービス（役員のみ）
+  getMyOfficerStatus(payload: { sessionToken: string }): Promise<import('../shared/types').MemberOfficerStatus>;
+  saveMyBankAccount(payload: import('../shared/types').SaveBankAccountPayload & { sessionToken: string }): Promise<{ accountId: string }>;
 }
 
 export interface MemberDeleteSearchResult {
@@ -1582,6 +1605,250 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('repairMemberCareManagerDuplicates', JSON.stringify({}));
+    });
+  }
+
+  // ---- v295: 役員管理マスタ ----
+
+  async getOfficerMasterData(): Promise<import('../shared/types').OfficerMasterData> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getOfficerMasterData', JSON.stringify({}));
+    });
+  }
+
+  async saveOrganization(payload: { organizationCode: string; organizationName: string; organizationType?: string; displayOrder?: number; enabled?: boolean }): Promise<{ organizationCode: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('saveOrganization', JSON.stringify(payload));
+    });
+  }
+
+  async deleteOrganization(payload: { organizationCode: string }): Promise<{ deleted: boolean; organizationCode: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('deleteOrganization', JSON.stringify(payload));
+    });
+  }
+
+  async saveOfficerRole(payload: { roleCode: string; roleName: string; organizationCode: string; isChairman?: boolean; displayOrder?: number; enabled?: boolean }): Promise<{ roleCode: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('saveOfficerRole', JSON.stringify(payload));
+    });
+  }
+
+  async deleteOfficerRole(payload: { roleCode: string }): Promise<{ deleted: boolean; roleCode: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('deleteOfficerRole', JSON.stringify(payload));
+    });
+  }
+
+  async savePaymentType(payload: { typeCode: string; typeName: string; scope?: string; displayOrder?: number; enabled?: boolean }): Promise<{ typeCode: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('savePaymentType', JSON.stringify(payload));
+    });
+  }
+
+  async deletePaymentType(payload: { typeCode: string }): Promise<{ deleted: boolean; typeCode: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('deletePaymentType', JSON.stringify(payload));
+    });
+  }
+
+  // ---- v295: 役員割当て管理 ----
+
+  async getOfficerManagementData(): Promise<import('../shared/types').OfficerManagementData> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getOfficerManagementData', JSON.stringify({}));
+    });
+  }
+
+  async assignOfficer(payload: { memberId: string; roleCode: string; appointedDate?: string; note?: string }): Promise<{ officerId: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('assignOfficer', JSON.stringify(payload));
+    });
+  }
+
+  async resignOfficer(payload: { officerId: string; resignationDate?: string }): Promise<{ resigned: boolean; officerId: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('resignOfficer', JSON.stringify(payload));
+    });
+  }
+
+  // ---- v295: 振込口座管理（管理者用）----
+
+  async getAdminBankAccount(payload: { memberId: string }): Promise<import('../shared/types').BankAccount | null> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getAdminBankAccount', JSON.stringify(payload));
+    });
+  }
+
+  async saveAdminBankAccount(payload: import('../shared/types').SaveBankAccountPayload): Promise<{ accountId: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('saveAdminBankAccount', JSON.stringify(payload));
+    });
+  }
+
+  async deleteAdminBankAccount(payload: { memberId: string }): Promise<{ deleted: boolean }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('deleteAdminBankAccount', JSON.stringify(payload));
+    });
+  }
+
+  // ---- v295: 支払い履歴管理 ----
+
+  async getPaymentHistory(payload?: { memberId?: string }): Promise<import('../shared/types').PaymentRecord[]> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getPaymentHistory', JSON.stringify(payload || {}));
+    });
+  }
+
+  async savePayment(payload: import('../shared/types').SavePaymentPayload): Promise<{ paymentId: string; totalAmount: number }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('savePayment', JSON.stringify(payload));
+    });
+  }
+
+  async deletePayment(payload: { paymentId: string }): Promise<{ deleted: boolean; paymentId: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('deletePayment', JSON.stringify(payload));
+    });
+  }
+
+  // ---- v295: 会員自己サービス（役員のみ）----
+
+  async getMyOfficerStatus(payload: { sessionToken: string }): Promise<import('../shared/types').MemberOfficerStatus> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getMyOfficerStatus', JSON.stringify(payload));
+    });
+  }
+
+  async saveMyBankAccount(payload: import('../shared/types').SaveBankAccountPayload & { sessionToken: string }): Promise<{ accountId: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('saveMyBankAccount', JSON.stringify(payload));
     });
   }
 }

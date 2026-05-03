@@ -165,6 +165,10 @@ var マスタ定義 = {
   M_会費納入状態: ['コード', '名称', '表示順', '有効フラグ'],
   M_申込者区分: ['コード', '名称', '表示順', '削除フラグ'],
   M_管理者権限: ['コード', '名称', '表示順', '有効フラグ'],
+  // v295: 役員管理マスタ（CRUD 可能 — システム設定から管理）
+  M_組織マスタ: ['組織コード', '組織名', '組織種別', '表示順', '有効フラグ', '削除フラグ', '作成日時', '更新日時'],
+  M_役職マスタ: ['役職コード', '役職名', '組織コード', '委員長フラグ', '表示順', '有効フラグ', '削除フラグ', '作成日時', '更新日時'],
+  M_支払い種別マスタ: ['種別コード', '種別名', '対象区分', '表示順', '有効フラグ', '削除フラグ', '作成日時', '更新日時'],
 };
 
 var マスタ初期値 = {
@@ -227,6 +231,44 @@ var マスタ初期値 = {
     ['TRAINING_MANAGER', '研修管理者', 3, true],
     ['TRAINING_REGISTRAR', '研修登録者', 4, true],
     ['GENERAL', '一般', 5, true],
+  ],
+  // v295: 役員管理マスタ初期値
+  // ['組織コード','組織名','組織種別','表示順','有効フラグ','削除フラグ','作成日時','更新日時']
+  M_組織マスタ: [
+    ['HQ',          '本部',            '本部',  1, true, false, '', ''],
+    ['DIRECTORS',   '理事会',          '委員会', 2, true, false, '', ''],
+    ['AUDITORS',    '監事会',          '委員会', 3, true, false, '', ''],
+    ['SECRETARIAT', '事務局',          '事務局', 4, true, false, '', ''],
+    ['REGIONAL',    '圏域委員会',      '委員会', 5, true, false, '', ''],
+    ['PR',          '広報組織化委員会','委員会', 6, true, false, '', ''],
+    ['TRAINING',    '研修委員会',      '委員会', 7, true, false, '', ''],
+    ['RESEARCH',    '調査研究委員会',  '委員会', 8, true, false, '', ''],
+  ],
+  // ['役職コード','役職名','組織コード','委員長フラグ','表示順','有効フラグ','削除フラグ','作成日時','更新日時']
+  M_役職マスタ: [
+    ['CHAIRMAN',          '会長',             'HQ',          false,  1, true, false, '', ''],
+    ['VICE_CHAIRMAN',     '副会長',           'HQ',          false,  2, true, false, '', ''],
+    ['DIRECTOR',          '理事',             'DIRECTORS',   false,  3, true, false, '', ''],
+    ['AUDITOR',           '監事',             'AUDITORS',    false,  4, true, false, '', ''],
+    ['SECRETARY_GENERAL', '事務局長',         'SECRETARIAT', false,  5, true, false, '', ''],
+    ['SECRETARY',         '事務局員',         'SECRETARIAT', false,  6, true, false, '', ''],
+    ['REGIONAL_CHAIR',    '圏域委員長',       'REGIONAL',    true,   7, true, false, '', ''],
+    ['REGIONAL_MEMBER',   '圏域委員',         'REGIONAL',    false,  8, true, false, '', ''],
+    ['PR_CHAIR',          '広報組織化委員長', 'PR',          true,   9, true, false, '', ''],
+    ['PR_MEMBER',         '広報組織会員',     'PR',          false, 10, true, false, '', ''],
+    ['TRAINING_CHAIR',    '研修委員長',       'TRAINING',    true,  11, true, false, '', ''],
+    ['TRAINING_MEMBER',   '研修委員',         'TRAINING',    false, 12, true, false, '', ''],
+    ['RESEARCH_CHAIR',    '調査研究委員長',   'RESEARCH',    true,  13, true, false, '', ''],
+    ['RESEARCH_MEMBER',   '調査研究委員',     'RESEARCH',    false, 14, true, false, '', ''],
+  ],
+  // ['種別コード','種別名','対象区分','表示順','有効フラグ','削除フラグ','作成日時','更新日時']
+  M_支払い種別マスタ: [
+    ['COMPENSATION', '役員報酬', '両方', 1, true, false, '', ''],
+    ['ACTIVITY',     '活動費',   '両方', 2, true, false, '', ''],
+    ['HONORARIUM',   '謝礼',     '両方', 3, true, false, '', ''],
+    ['TRANSPORT',    '交通費',   '両方', 4, true, false, '', ''],
+    ['SUPPLIES',     '消耗品費', '両方', 5, true, false, '', ''],
+    ['OTHER',        'その他',   '両方', 6, true, false, '', ''],
   ],
 };
 
@@ -467,6 +509,36 @@ var テーブル定義 = {
   '申請内容JSON', '連絡先メールアドレス', '申請者表示名', '申請日時',
   '処理日時', '処理者メールアドレス', '処理備考', '作成日時', '更新日時', '削除フラグ',
 ];
+// v295: 役員管理テーブル（5テーブル追加）
+テーブル定義['T_役員'] = [
+  '役員ID', '会員ID', '役職コード', '組織コード',
+  '就任日', '退任日', '備考',
+  '削除フラグ', '作成日時', '更新日時',
+];
+テーブル定義['T_振込口座'] = [
+  '口座ID', '会員ID',
+  '金融機関名', '金融機関コード', '支店名', '支店コード',
+  '口座種別', '口座番号', '口座名義カナ', '備考',
+  '削除フラグ', '作成日時', '更新日時',
+];
+テーブル定義['T_支払い'] = [
+  '支払いID', '会員ID',
+  '支払い日', '支払い方法', '合計金額',
+  '振込先口座JSON', '登録者メール', '備考',
+  '削除フラグ', '作成日時', '更新日時',
+];
+テーブル定義['T_支払い明細'] = [
+  '明細ID', '支払いID', '請求ID',
+  '役職コード', '組織コード', '種別コード',
+  '金額', '対象期間FROM', '対象期間TO', '摘要',
+  '削除フラグ', '作成日時', '更新日時',
+];
+テーブル定義['T_請求'] = [
+  '請求ID', '会員ID', '役職コード', '組織コード', '種別コード',
+  '請求金額', '活動日', '活動内容', '添付ファイルURL',
+  '請求状態', '却下理由', '承認者メール', '承認日時',
+  '削除フラグ', '作成日時', '更新日時',
+];
 
 var 入力規則定義 = [
   ['T_会員', '会員種別コード', 'M_会員種別'],
@@ -482,6 +554,13 @@ var 入力規則定義 = [
   ['T_年会費納入履歴', '会費納入状態コード', 'M_会費納入状態'],
   ['T_画面項目権限', 'システムロールコード', 'M_システムロール'],
   ['T_管理者Googleホワイトリスト', '権限コード', 'M_管理者権限'],
+  // v295: 役員管理FK検証
+  ['T_役員',       '役職コード', 'M_役職マスタ'],
+  ['T_役員',       '組織コード', 'M_組織マスタ'],
+  ['T_支払い明細', '種別コード', 'M_支払い種別マスタ'],
+  ['T_支払い明細', '組織コード', 'M_組織マスタ'],
+  ['T_請求',       '種別コード', 'M_支払い種別マスタ'],
+  ['T_請求',       '組織コード', 'M_組織マスタ'],
 ];
 
 var DEMO_TRANSFER_ACCOUNT = {
@@ -547,6 +626,12 @@ function doGet(e) {
  */
 
 /**
+ * スプレッドシートDBを作成し、マスタ/テーブルを初期化する。
+ * 不要シート（定義外シート）もあわせて削除する。
+ * clasp run setupDatabase から実行想定。
+ */
+
+/**
  * T_会員 に 勤務先住所2 / 自宅住所2 列を追加するマイグレーション。
  * 既にカラムが存在する場合はスキップする（冪等）。
  * 実行後は rebuildDatabaseSchema() のヘッダー保護を再適用することを推奨。
@@ -561,6 +646,19 @@ function doGet(e) {
 
 
 /**
+ * 既存ホワイトリストの権限コードをマイグレーションする。
+ * k.noguchi@uguisunosato.or.jp → MASTER、他 → ADMIN。
+ * 使い方: npx clasp run migrateAdminPermissions
+ */
+
+/**
+ * ホワイトリストのデータ列ズレを修復する（v118 スキーマ移行用）。
+ * writeSheetHeaders_ がヘッダーだけ上書きしデータ行を移動しなかったため、
+ * 旧列位置のデータを新列位置にリマップする。
+ * 使い方: npx clasp run repairWhitelistData
+ */
+
+/**
  * 定義外シートのみを削除する。
  */
 
@@ -571,6 +669,26 @@ function doGet(e) {
 
 
 // スコープ不要の疎通確認用。Execution API経路の切り分けに使う。
+
+/**
+ * v209: T_システム設定 に認証情報メール設定キーを追加する（ワンタイム実行）
+ * 実行: npx clasp run insertSystemSettingKeysForV209
+ */
+
+/**
+ * v210: T_システム設定 に公開ポータルメニュー表示設定キーを追加する（ワンタイム実行）
+ * 実行: npx clasp run insertSystemSettingKeysForV210
+ */
+
+/**
+ * v194 Phase 1: T_システム設定 に3新設定キーを追加する（ワンタイム実行）
+ * 実行: npx clasp run insertSystemSettingKeysForV194
+ */
+
+/**
+ * v194 Phase 1: T_メール送信ログ シートを DB に新設する（ワンタイム実行）
+ * 実行: npx clasp run createEmailLogSheet
+ */
 
 /**
  * Web App公開状態の確認用。
@@ -603,6 +721,9 @@ var MEMBER_ALLOWED_ACTIONS = {
   cancelTraining: true,
   withdrawSelf: true,
   cancelWithdrawalSelf: true,
+  // v295: 役員自己サービス（役員のみ — サーバー側で isActiveOfficer_ を追加検証）
+  getMyOfficerStatus: true,
+  saveMyBankAccount: true,
 };
 
 // 管理者ログイン専用アクション: Session.getActiveUser() による自己完結型認証のため、
@@ -681,6 +802,14 @@ function processApiRequest(action, payload) {
         success: true,
         data: getMemberPortalData_(parsedPayload),
       });
+    }
+
+    // v295: 役員自己サービス（sessionToken 検証済み → payload.memberId 確定済み）
+    if (action === 'getMyOfficerStatus') {
+      return JSON.stringify({ success: true, data: getMemberOfficerStatus_(parsedPayload) });
+    }
+    if (action === 'saveMyBankAccount') {
+      return JSON.stringify({ success: true, data: saveMemberBankAccount_(parsedPayload) });
     }
 
 
@@ -775,6 +904,11 @@ function processApiRequest(action, payload) {
 
     // v207: 宛名リスト Excel 出力
 
+    // v295: 役員管理マスタ
+    // v295: 役員割当て管理
+    // v295: 振込口座管理（管理者用）
+    // v295: 支払い履歴管理
+
     // v232: 物理削除（MASTER専用）
 
     // ── 会員セルフサービス（管理者認証不要・パスワード再認証必須）──
@@ -834,6 +968,13 @@ function formatDateForApi_(rawDate) {
 
 
 
+
+/**
+ * 会員ログインE2Eのため、代表的な会員認証アカウントのみを安全に再作成する。
+ * - 既存データ全削除は行わない（seedDemoData は呼ばない）
+ * - 対象: 個人会員2件 + 事業所管理者1件
+ * - パスワードは一括で demo1234 に再設定する
+ */
 
 
 
@@ -3594,6 +3735,12 @@ function computeTrainingAvailability_(trainingRow, options) {
  * Drive のサムネイルが生成済みであれば取得・保存・更新する。
  * 1回の実行で最大 MAX_BATCH 件処理（GASタイムアウト防止）。
  */
+
+/**
+ * 10分ごとに runThumbnailGeneration を実行するトリガーを設定する。
+ * 既存トリガーがあれば先に削除（冪等）。
+ * rebuildDatabaseSchema() から自動呼び出しされる。
+ */
 function setupThumbnailGenerationTrigger_() {
   // 既存の同名トリガーを削除
   ScriptApp.getProjectTriggers().forEach(function(t) {
@@ -3672,6 +3819,12 @@ function initializeSchema_(ss) {
   normalizeTableColumns_(ss, 'T_会員_archive');
   normalizeTableColumns_(ss, 'T_事業所職員_archive');
   normalizeTableColumns_(ss, 'T_変更申請');
+  // v295: 役員管理テーブル
+  normalizeTableColumns_(ss, 'T_役員');
+  normalizeTableColumns_(ss, 'T_振込口座');
+  normalizeTableColumns_(ss, 'T_支払い');
+  normalizeTableColumns_(ss, 'T_支払い明細');
+  normalizeTableColumns_(ss, 'T_請求');
   ensureSystemSettingsRows_(ss);
   seedPermissionMatrixIfNeeded_(ss);
   applyDataValidationRules_(ss);
@@ -4233,6 +4386,9 @@ var PUBLIC_BUSINESS_UPDATE_ALLOWLIST_ = [
   'officeNumber',
 ];
 
+// 後方互換: submitPublicMemberUpdate_ で参照される旧名称
+var PUBLIC_MEMBER_UPDATE_ALLOWLIST_ = PUBLIC_INDIVIDUAL_UPDATE_ALLOWLIST_;
+
 
 
 
@@ -4278,6 +4434,9 @@ var PUBLIC_BUSINESS_UPDATE_ALLOWLIST_ = [
 // ── 管理者: 変更申請を承認し変更を適用 ─────────────────────────────────────────
 
 // ── 管理者: 変更申請を却下 ──────────────────────────────────────────────────
+
+// addPublicStaffMember_ の管理者承認経由呼び出し対応（_directMemberId でトークン不要）
+var _origAddPublicStaffMember = addPublicStaffMember_;
 
 // ── v264 変更申請キュー ここまで ────────────────────────────────────────────
 
@@ -4409,6 +4568,12 @@ var MIGRATION_LOCK_WAIT_MS = 30000;
 
 
 
+
+/**
+ * WL-001 の Googleメール を k.noguchi@hcm-n.org に更新する（ワンタイム実行）。
+ * 紐付け認証ID / 紐付け会員ID / MASTER 権限はそのまま維持する。
+ * 実行: npx clasp run updateWL001EmailToHcmN
+ */
 
 
 // ── ソース読み取りとパース ──
@@ -4636,15 +4801,45 @@ function backfillBusinessStaffNameColumns_(ss) {
 
 
 
+// ── v131 補正関数 ──
+
+/**
+ * ソース V列の入会日を _MIGRATION_MAP 経由で T_会員.入会日 に補正する（dry-run 対応）
+ * 呼び出し: clasp run repairJoinedDateFromSourceJson
+ */
+
 
 
 /**
  * 入会日が不明な会員のリストを返す
  */
 
+/**
+ * T_事業所職員の介護支援専門員番号をソース M列から補正する（dry-run）
+ * マッチ方式: K列(勤務先) = T_会員.勤務先名 AND 職員の姓がL列/N列(氏名)に含まれる
+ * 呼び出し: clasp run repairStaffCareManagerNumberFromSourceJson
+ */
+
+/**
+ * v133: 既存の T_事業所職員 の メール配信希望コード が空のレコードを 'YES' で埋める。
+ * 呼び出し: clasp run backfillStaffMailingPreferenceJson
+ */
 
 
 
+/**
+ * T_事業所職員の入会日をソース V列から補正する（dry-run）
+ * マッチ方式: ソースK列(勤務先) = T_会員.勤務先名 AND 職員の姓がソースL列(氏名)に含まれる
+ * 呼び出し: clasp run repairStaffJoinedDateFromSourceJson
+ */
+
+
+
+/**
+ * 事業所会員の個人属性フィールドをブランクに補正する（dry-run 対応）
+ * 対象: 姓/名/セイ/メイ/介護支援専門員番号/発送方法コード/郵送先区分コード
+ * 呼び出し: clasp run repairBusinessMemberFieldsJson
+ */
 
 
 
@@ -4724,6 +4919,16 @@ function backfillBusinessStaffNameColumns_(ss) {
  */
 
 /**
+ * v205: チャンク単位の PDF 生成（all-or-nothing + リトライ）。
+ *
+ * - 内部で最大 MAX_RETRY 回リトライ（transient HTTP エラー対策）。
+ * - 全成功: chunk_{chunkIndex}.zip を folderId フォルダに保存 → { ok: true, count }
+ * - 失敗残存: { ok: false, errors[] } (ZIP 保存なし。フロント側が cleanupRosterExport_ を呼ぶ)
+ *
+ * payload: { folderId, chunkIndex, memberIds[], year }
+ */
+
+/**
  * v205: 全チャンクの部分 ZIP を統合して最終 ZIP を生成。
  * payload: { folderId, year }
  */
@@ -4731,6 +4936,15 @@ function backfillBusinessStaffNameColumns_(ss) {
 /**
  * v205: エラー・中断時の一時フォルダクリーンアップ。
  * payload: { folderId }
+ */
+
+/**
+ * v205: PDF 生成コアヘルパー（processRosterChunk_ から呼ばれる）。
+ * memberIds を会員種別でソートし、parallelBatch 本の temp SS + UrlFetchApp.fetchAll() で並列 PDF 取得。
+ * returns { blobs: Blob[], failedIds: string[], errors: string[] }
+ *
+ * failedIds: HTTP エラー会員 ID のみ（リトライ対象）。
+ *            会員データなしは errors のみ（リトライ不要なので failedIds に入れない）。
  */
 
 
@@ -4769,6 +4983,15 @@ function backfillBusinessStaffNameColumns_(ss) {
 
 
 
+
+// ─────────────────────────────────────────────────────────────────────────
+// v258: 論理削除コンソール（MASTER権限専用）
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * T_削除ログ シートが存在しなければ作成する。setupDatabase 非実行環境向けのマイグレーション。
+ * clasp run addDeleteLogSheet で単独実行可能。
+ */
 
 
 
@@ -4958,3 +5181,153 @@ function verifyPassword_(password, salt, storedHash) {
   }
   return { match: false, needsRehash: false };
 }
+
+// ============================================================
+// v295: 役員管理 — マスタ管理 / 役員割当て / 口座 / 支払い
+// ============================================================
+
+// ---------- 役員マスタデータ一括取得 ----------
+
+
+// ---------- M_組織マスタ CRUD ----------
+
+
+
+// ---------- M_役職マスタ CRUD ----------
+
+
+
+// ---------- M_支払い種別マスタ CRUD ----------
+
+
+
+// ---------- 役員ステータス確認ヘルパー ----------
+
+function isActiveOfficer_(memberId, ss) {
+  var officers = getRowsAsObjects_(ss, 'T_役員').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) &&
+      String(r['会員ID'] || '') === String(memberId) &&
+      (!r['退任日'] || String(r['退任日'] || '') === '');
+  });
+  return officers.length > 0;
+}
+
+// ---------- T_役員 管理 ----------
+
+
+
+
+// ---------- T_振込口座 管理 ----------
+
+function getBankAccount_(payload) {
+  var memberId = String(payload.memberId || '').trim();
+  if (!memberId) throw new Error('会員IDは必須です。');
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  var rows = getRowsAsObjects_(ss, 'T_振込口座').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
+  });
+  return rows.length > 0 ? rows[0] : null;
+}
+
+function saveBankAccount_(payload) {
+  var memberId = String(payload.memberId || '').trim();
+  if (!memberId) throw new Error('会員IDは必須です。');
+
+  var ss    = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  var sheet = ss.getSheetByName('T_振込口座');
+  if (!sheet) throw new Error('T_振込口座 が見つかりません。');
+
+  var existing = getRowsAsObjects_(ss, 'T_振込口座');
+  var found = null;
+  for (var i = 0; i < existing.length; i += 1) {
+    if (!toBoolean_(existing[i]['削除フラグ']) && String(existing[i]['会員ID'] || '') === memberId) {
+      found = findRowByColumnValue_(sheet, '口座ID', existing[i]['口座ID']);
+      break;
+    }
+  }
+
+  var nowIso    = new Date().toISOString();
+  var accountId = found ? String(found.row[found.columns['口座ID']] || '') : Utilities.getUuid();
+  var newData   = {
+    '口座ID': accountId, '会員ID': memberId,
+    '金融機関名':   String(payload.bankName          || '').trim(),
+    '金融機関コード': String(payload.bankCode        || '').trim(),
+    '支店名':       String(payload.branchName        || '').trim(),
+    '支店コード':   String(payload.branchCode        || '').trim(),
+    '口座種別':     String(payload.accountType       || '普通').trim(),
+    '口座番号':     String(payload.accountNumber     || '').trim(),
+    '口座名義カナ': String(payload.accountHolderKana || '').trim(),
+    '備考':         String(payload.note              || '').trim(),
+    '削除フラグ': false,
+    '作成日時': found ? String(found.row[found.columns['作成日時']] || nowIso) : nowIso,
+    '更新日時': nowIso,
+  };
+
+  if (found) {
+    var row = found.row.slice();
+    var cols = found.columns;
+    Object.keys(newData).forEach(function(key) { if (cols[key] != null) row[cols[key]] = newData[key]; });
+    sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  } else {
+    appendRowsByHeaders_(ss, 'T_振込口座', [newData]);
+  }
+  return { accountId: accountId };
+}
+
+
+// 会員自身の役員ステータス + 口座取得（会員ポータル用）
+// processApiRequest で sessionToken 検証済み → payload.memberId は確定値
+function getMemberOfficerStatus_(payload) {
+  var memberId = String(payload.memberId || '').trim();
+  if (!memberId) throw new Error('セッション情報が無効です。');
+
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  var isOfficer  = isActiveOfficer_(memberId, ss);
+  var activeRoles = [];
+
+  if (isOfficer) {
+    var officers = getRowsAsObjects_(ss, 'T_役員').filter(function(r) {
+      return !toBoolean_(r['削除フラグ']) &&
+        String(r['会員ID'] || '') === memberId &&
+        (!r['退任日'] || String(r['退任日'] || '') === '');
+    });
+    var roleMap = {};
+    getRowsAsObjects_(ss, 'M_役職マスタ').forEach(function(r) { roleMap[String(r['役職コード'] || '')] = r; });
+    var orgMap = {};
+    getRowsAsObjects_(ss, 'M_組織マスタ').forEach(function(o) { orgMap[String(o['組織コード'] || '')] = o; });
+
+    activeRoles = officers.map(function(o) {
+      var role = roleMap[String(o['役職コード'] || '')] || {};
+      var org  = orgMap[String(o['組織コード']  || '')] || {};
+      return {
+        officerId:        o['役員ID'],
+        roleCode:         o['役職コード'],
+        roleName:         String(role['役職名'] || ''),
+        organizationCode: o['組織コード'],
+        organizationName: String(org['組織名']  || ''),
+        appointedDate:    o['就任日'],
+      };
+    });
+  }
+
+  var bankAccount = isOfficer ? getBankAccount_({ memberId: memberId }) : null;
+  return { isOfficer: isOfficer, activeRoles: activeRoles, bankAccount: bankAccount };
+}
+
+function saveMemberBankAccount_(payload) {
+  var memberId = String(payload.memberId || '').trim();
+  if (!memberId) throw new Error('セッション情報が無効です。');
+
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  if (!isActiveOfficer_(memberId, ss)) throw new Error('役員のみ口座情報を登録できます。');
+  return saveBankAccount_(Object.assign({}, payload, { memberId: memberId }));
+}
+
+// ---------- T_支払い / T_支払い明細 / T_請求 管理 ----------
+
+
+

@@ -19,6 +19,9 @@ const allowedMemberActions = [
   'cancelTraining',
   'withdrawSelf',
   'cancelWithdrawalSelf',
+  // v295: 役員自己サービス（役員のみ — サーバー側で isActiveOfficer_ を追加検証）
+  'getMyOfficerStatus',
+  'saveMyBankAccount',
 ];
 const forbiddenTopLevelFunctions = [
   'rebuildDatabaseSchema',
