@@ -1,8 +1,8 @@
 # 開発引継ぎ
 
 更新日: 2026-05-03
-現行本番: `v294`（統合プロジェクト GAS version 290 / 会員 split GAS version 40 / 管理者 split GAS version 51）
-固定 deployment: 統合（公開ポータル）`@290` × 2本 / 会員 split `@40` / 管理者 split `@51`
+現行本番: `v295`（統合プロジェクト GAS version 290 / 会員 split GAS version 41 / 管理者 split GAS version 52）
+固定 deployment: 統合（公開ポータル）`@290` × 2本 / 会員 split `@41` / 管理者 split `@52`
 
 ## 1. 現行状態
 
@@ -64,7 +64,7 @@
 
 ## 4. 直近リリース
 
-- `v295`（git コミット済み・**GAS 未デプロイ**）: 役員管理 DB スキーマ基盤。3マスタ（M_組織/M_役職/M_支払い種別）+ 5テーブル（T_役員/T_振込口座/T_支払い/T_支払い明細/T_請求）追加。GAS API 19関数・TypeScript 型・APIサービスメソッド追加。フロントエンド UI は次フェーズ。
+- `v295`: 役員管理フル実装。DB スキーマ（8テーブル）+ GAS API（19関数）+ フロントエンド UI（システム設定マスタ管理・役員割当て・口座管理・支払い履歴・会員ポータル役員表示）。admin split `@52`、会員 split `@41` へ同期。**⚠ `rebuildDatabaseSchema` を本番 DB に適用要（下記参照）**
 - `v294`: 宛名リスト出力コンソールの文言を「年度処理」から「年会費納入」へ変更し、候補読み込み直後のデフォルト選択を未選択に変更。「表示中を選択」ボタンの強調色を解除。管理者 split を `@51` へ同期。詳細: `docs/176_RELEASE_STATE_v294_2026-05-03.md`
 - `v293`: 宛名リスト出力コンソールの5列ドロップダウンフィルター（年度処理 / 種別 / 状態 / 郵送先 / 住所不備）を admin split に反映。管理者 split を `@50` へ同期。詳細: `docs/175_RELEASE_STATE_v293_2026-05-03.md`
 - `v292`: `build-admin-gas.mjs` の pruning バグ修正。`ADMIN_ACTION_PERMISSIONS` が誤削除されていた問題（管理者ログイン不能・404）を解消。`build-member-gas.mjs` の同一パターンも同時修正。管理者 split を `@49` へ同期。詳細: `docs/174_RELEASE_STATE_v292_2026-05-01.md`
@@ -128,11 +128,33 @@
 - `seedDemoData` は production DB を破壊する操作として扱い、完全バックアップと明示承認なしでは実行しない。
 - business member の代表者情報は `staff.role='REPRESENTATIVE'` を正本とする。
 
+## 5.1 v295 必須作業（rebuildDatabaseSchema）
+
+v295 で追加した 8テーブル（M_組織マスタ・M_役職マスタ・M_支払い種別マスタ・T_役員・T_振込口座・T_支払い・T_支払い明細・T_請求）を本番スプレッドシートに反映するには `rebuildDatabaseSchema` の実行が必要。
+
+```bash
+# project-scoped OAuth 再認証（一度だけ実行）
+npx clasp login --creds .tmp/oauth-client-hcmn-member-system-prod.json --use-project-scopes --no-localhost
+# ブラウザ認証後、code= の値をペースト
+
+# 統合プロジェクト（backend/）から実行
+cd backend
+npx clasp run rebuildDatabaseSchema
+```
+
+- 実行すると対象スプレッドシートに 8シートが追加される
+- 既存データは保持される（normalizeTableColumns_ が差分マイグレーション）
+- 実行後に `npx clasp run getDbInfo` でシート一覧を確認すること
+
 ## 6. 操作者確認待ち
 
 `v294` の実ブラウザ確認は操作者側で行う。
 
-- **管理者ポータル**: `k.noguchi@hcm-n.org` で管理者ログインが成功し、ダッシュボードが表示されること（v292 ログイン確認済み）。
+- **rebuildDatabaseSchema を実行し**、本番スプレッドシートに 8テーブルが追加されたことを確認すること（§5.1 参照）。
+- **管理者ポータル**: `k.noguchi@hcm-n.org` でログイン後、以下を確認する。
+  - システム設定 → 「役員マスタ管理」セクションに組織/役職/支払い種別が表示されること。
+  - 役員管理コンソールで役員の割当て・退任・口座管理が動作すること。
+  - 支払い履歴管理コンソールで支払い登録・一覧・削除が動作すること。
 - 管理者ポータル: 宛名リスト出力コンソールで、発送区分選択後に候補一覧が表示され、デフォルト未選択であること。
 - 管理者ポータル: 年会費納入フィルター、年度フィルタ、キーワード検索、5列ドロップダウンフィルター、対象選択、選択対象のみ Excel 出力が動くこと。
 - 管理者ポータル: Google アカウント + whitelist の管理者ログインが従来どおり動き、会員向け UI に管理者導線が混入しないこと。

@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-05-03
-Production: `v294` / 統合（公開）fixed deployments `@290` / 会員 split `@40` / 管理者 split `@51`
+Production: `v295` / 統合（公開）fixed deployments `@290` / 会員 split `@41` / 管理者 split `@52`
 
 ## 1. Purpose
 
@@ -24,8 +24,8 @@ Production: `v294` / 統合（公開）fixed deployments `@290` / 会員 split `
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@40` (`v291`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@51` (`v294`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@41` (`v295`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@52` (`v295`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -118,7 +118,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-05-03 `v294` ← current production
+### 2026-05-03 `v295` ← current production
+
+- Scope: 役員管理フル実装（DB 8テーブル・GAS API 19関数・フロントエンド4コンポーネント）。システム設定マスタ管理・役員割当て・口座管理・支払い履歴コンソール・会員ポータル役員表示。
+- Integrated fixed deployments: `@290` × 2（変更なし）
+- Member split: `@41`.
+- Admin split: `@52`.
+- ⚠ `rebuildDatabaseSchema` を本番 DB に適用要（HANDOVER.md §5.1 参照）
+
+### 2026-05-03 `v294`
 
 - Scope: 宛名リスト出力コンソールの「年度処理」表示を「年会費納入」へ変更。発送対象読み込み直後は未選択にし、「表示中を選択」ボタンの強調色を解除。
 - Integrated fixed deployments: `@290` × 2.
