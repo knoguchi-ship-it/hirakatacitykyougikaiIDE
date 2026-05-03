@@ -626,12 +626,6 @@ function doGet(e) {
  */
 
 /**
- * スプレッドシートDBを作成し、マスタ/テーブルを初期化する。
- * 不要シート（定義外シート）もあわせて削除する。
- * clasp run setupDatabase から実行想定。
- */
-
-/**
  * T_会員 に 勤務先住所2 / 自宅住所2 列を追加するマイグレーション。
  * 既にカラムが存在する場合はスキップする（冪等）。
  * 実行後は rebuildDatabaseSchema() のヘッダー保護を再適用することを推奨。
@@ -646,19 +640,6 @@ function doGet(e) {
 
 
 /**
- * 既存ホワイトリストの権限コードをマイグレーションする。
- * k.noguchi@uguisunosato.or.jp → MASTER、他 → ADMIN。
- * 使い方: npx clasp run migrateAdminPermissions
- */
-
-/**
- * ホワイトリストのデータ列ズレを修復する（v118 スキーマ移行用）。
- * writeSheetHeaders_ がヘッダーだけ上書きしデータ行を移動しなかったため、
- * 旧列位置のデータを新列位置にリマップする。
- * 使い方: npx clasp run repairWhitelistData
- */
-
-/**
  * 定義外シートのみを削除する。
  */
 
@@ -669,26 +650,6 @@ function doGet(e) {
 
 
 // スコープ不要の疎通確認用。Execution API経路の切り分けに使う。
-
-/**
- * v209: T_システム設定 に認証情報メール設定キーを追加する（ワンタイム実行）
- * 実行: npx clasp run insertSystemSettingKeysForV209
- */
-
-/**
- * v210: T_システム設定 に公開ポータルメニュー表示設定キーを追加する（ワンタイム実行）
- * 実行: npx clasp run insertSystemSettingKeysForV210
- */
-
-/**
- * v194 Phase 1: T_システム設定 に3新設定キーを追加する（ワンタイム実行）
- * 実行: npx clasp run insertSystemSettingKeysForV194
- */
-
-/**
- * v194 Phase 1: T_メール送信ログ シートを DB に新設する（ワンタイム実行）
- * 実行: npx clasp run createEmailLogSheet
- */
 
 /**
  * Web App公開状態の確認用。
@@ -991,13 +952,6 @@ function formatDateForApi_(rawDate) {
 
 
 
-
-/**
- * 会員ログインE2Eのため、代表的な会員認証アカウントのみを安全に再作成する。
- * - 既存データ全削除は行わない（seedDemoData は呼ばない）
- * - 対象: 個人会員2件 + 事業所管理者1件
- * - パスワードは一括で demo1234 に再設定する
- */
 
 
 
@@ -3811,12 +3765,6 @@ function computeTrainingAvailability_(trainingRow, options) {
  * Drive のサムネイルが生成済みであれば取得・保存・更新する。
  * 1回の実行で最大 MAX_BATCH 件処理（GASタイムアウト防止）。
  */
-
-/**
- * 10分ごとに runThumbnailGeneration を実行するトリガーを設定する。
- * 既存トリガーがあれば先に削除（冪等）。
- * rebuildDatabaseSchema() から自動呼び出しされる。
- */
 function setupThumbnailGenerationTrigger_() {
   // 既存の同名トリガーを削除
   ScriptApp.getProjectTriggers().forEach(function(t) {
@@ -4462,9 +4410,6 @@ var PUBLIC_BUSINESS_UPDATE_ALLOWLIST_ = [
   'officeNumber',
 ];
 
-// 後方互換: submitPublicMemberUpdate_ で参照される旧名称
-var PUBLIC_MEMBER_UPDATE_ALLOWLIST_ = PUBLIC_INDIVIDUAL_UPDATE_ALLOWLIST_;
-
 
 
 
@@ -4510,9 +4455,6 @@ var PUBLIC_MEMBER_UPDATE_ALLOWLIST_ = PUBLIC_INDIVIDUAL_UPDATE_ALLOWLIST_;
 // ── 管理者: 変更申請を承認し変更を適用 ─────────────────────────────────────────
 
 // ── 管理者: 変更申請を却下 ──────────────────────────────────────────────────
-
-// addPublicStaffMember_ の管理者承認経由呼び出し対応（_directMemberId でトークン不要）
-var _origAddPublicStaffMember = addPublicStaffMember_;
 
 // ── v264 変更申請キュー ここまで ────────────────────────────────────────────
 
@@ -4644,12 +4586,6 @@ var MIGRATION_LOCK_WAIT_MS = 30000;
 
 
 
-
-/**
- * WL-001 の Googleメール を k.noguchi@hcm-n.org に更新する（ワンタイム実行）。
- * 紐付け認証ID / 紐付け会員ID / MASTER 権限はそのまま維持する。
- * 実行: npx clasp run updateWL001EmailToHcmN
- */
 
 
 // ── ソース読み取りとパース ──
@@ -4877,45 +4813,15 @@ function backfillBusinessStaffNameColumns_(ss) {
 
 
 
-// ── v131 補正関数 ──
-
-/**
- * ソース V列の入会日を _MIGRATION_MAP 経由で T_会員.入会日 に補正する（dry-run 対応）
- * 呼び出し: clasp run repairJoinedDateFromSourceJson
- */
-
 
 
 /**
  * 入会日が不明な会員のリストを返す
  */
 
-/**
- * T_事業所職員の介護支援専門員番号をソース M列から補正する（dry-run）
- * マッチ方式: K列(勤務先) = T_会員.勤務先名 AND 職員の姓がL列/N列(氏名)に含まれる
- * 呼び出し: clasp run repairStaffCareManagerNumberFromSourceJson
- */
-
-/**
- * v133: 既存の T_事業所職員 の メール配信希望コード が空のレコードを 'YES' で埋める。
- * 呼び出し: clasp run backfillStaffMailingPreferenceJson
- */
 
 
 
-/**
- * T_事業所職員の入会日をソース V列から補正する（dry-run）
- * マッチ方式: ソースK列(勤務先) = T_会員.勤務先名 AND 職員の姓がソースL列(氏名)に含まれる
- * 呼び出し: clasp run repairStaffJoinedDateFromSourceJson
- */
-
-
-
-/**
- * 事業所会員の個人属性フィールドをブランクに補正する（dry-run 対応）
- * 対象: 姓/名/セイ/メイ/介護支援専門員番号/発送方法コード/郵送先区分コード
- * 呼び出し: clasp run repairBusinessMemberFieldsJson
- */
 
 
 
@@ -4995,16 +4901,6 @@ function backfillBusinessStaffNameColumns_(ss) {
  */
 
 /**
- * v205: チャンク単位の PDF 生成（all-or-nothing + リトライ）。
- *
- * - 内部で最大 MAX_RETRY 回リトライ（transient HTTP エラー対策）。
- * - 全成功: chunk_{chunkIndex}.zip を folderId フォルダに保存 → { ok: true, count }
- * - 失敗残存: { ok: false, errors[] } (ZIP 保存なし。フロント側が cleanupRosterExport_ を呼ぶ)
- *
- * payload: { folderId, chunkIndex, memberIds[], year }
- */
-
-/**
  * v205: 全チャンクの部分 ZIP を統合して最終 ZIP を生成。
  * payload: { folderId, year }
  */
@@ -5012,15 +4908,6 @@ function backfillBusinessStaffNameColumns_(ss) {
 /**
  * v205: エラー・中断時の一時フォルダクリーンアップ。
  * payload: { folderId }
- */
-
-/**
- * v205: PDF 生成コアヘルパー（processRosterChunk_ から呼ばれる）。
- * memberIds を会員種別でソートし、parallelBatch 本の temp SS + UrlFetchApp.fetchAll() で並列 PDF 取得。
- * returns { blobs: Blob[], failedIds: string[], errors: string[] }
- *
- * failedIds: HTTP エラー会員 ID のみ（リトライ対象）。
- *            会員データなしは errors のみ（リトライ不要なので failedIds に入れない）。
  */
 
 
@@ -5059,15 +4946,6 @@ function backfillBusinessStaffNameColumns_(ss) {
 
 
 
-
-// ─────────────────────────────────────────────────────────────────────────
-// v258: 論理削除コンソール（MASTER権限専用）
-// ─────────────────────────────────────────────────────────────────────────
-
-/**
- * T_削除ログ シートが存在しなければ作成する。setupDatabase 非実行環境向けのマイグレーション。
- * clasp run addDeleteLogSheet で単独実行可能。
- */
 
 
 

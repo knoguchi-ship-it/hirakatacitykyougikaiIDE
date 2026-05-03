@@ -287,9 +287,13 @@ function pruneUnreachableFunctionDeclarations(source, seedNames, label) {
   const removable = declarations.filter((decl) => !reachable.has(decl.name));
   const removableNames = new Set(removable.map((decl) => decl.name));
   const topLevelStatements = collectTopLevelStatements(source, declarations);
-  const removableTopLevelStatements = topLevelStatements.filter((statement) => (
-    [...removableNames].some((name) => new RegExp(`\\b${name}\\s*\\(`).test(statement.text))
-  ));
+  // 文字列リテラルを除去してからマッチ:
+  // - 'getDbInfo' のような文字列キーへの誤マッチを防ぐ（v292 修正）
+  // - = addPublicStaffMember_ のような値参照も正しく検出する（v296 修正）
+  const removableTopLevelStatements = topLevelStatements.filter((statement) => {
+    const stripped = statement.text.replace(/'[^']*'/g, "''").replace(/"[^"]*"/g, '""').replace(/`[^`]*`/g, '``');
+    return [...removableNames].some((name) => new RegExp(`\\b${name}\\b`).test(stripped));
+  });
   const rangesToRemove = [
     ...removable.map((decl) => ({ start: decl.start, end: decl.end })),
     ...removableTopLevelStatements.map((statement) => ({ start: statement.start, end: statement.end })),
