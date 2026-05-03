@@ -4,6 +4,7 @@ import { AlertTriangleIcon, MailIcon, CheckCircleIcon, BookOpenIcon, UsersIcon, 
 import { api } from '../services/api';
 import StaffTrainingView from './StaffTrainingView';
 import PostalCodeInput from './PostalCodeInput';
+import OfficerStatusCard from './OfficerStatusCard';
 
 type DraftStaff = Staff & { isNew?: boolean };
 
@@ -1030,6 +1031,9 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
           </div>
         </div>
       )}
+
+      {/* v295: 役員ステータス・振込口座（役員のみ表示） */}
+      <OfficerStatusCard />
 
       {/* NEW: Available Trainings Section */}
       <div className="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden animate-fadeIn">

@@ -213,9 +213,9 @@ export interface ApiClient {
   getPaymentHistory(payload?: { memberId?: string }): Promise<import('../shared/types').PaymentRecord[]>;
   savePayment(payload: import('../shared/types').SavePaymentPayload): Promise<{ paymentId: string; totalAmount: number }>;
   deletePayment(payload: { paymentId: string }): Promise<{ deleted: boolean; paymentId: string }>;
-  // v295: 会員自己サービス（役員のみ）
-  getMyOfficerStatus(payload: { sessionToken: string }): Promise<import('../shared/types').MemberOfficerStatus>;
-  saveMyBankAccount(payload: import('../shared/types').SaveBankAccountPayload & { sessionToken: string }): Promise<{ accountId: string }>;
+  // v295: 会員自己サービス（役員のみ）— sessionToken は API クライアントが自動付与
+  getMyOfficerStatus(): Promise<import('../shared/types').MemberOfficerStatus>;
+  saveMyBankAccount(payload: Omit<import('../shared/types').SaveBankAccountPayload, 'memberId'>): Promise<{ accountId: string }>;
 }
 
 export interface MemberDeleteSearchResult {
@@ -1826,7 +1826,7 @@ class GasApiClient implements ApiClient {
 
   // ---- v295: 会員自己サービス（役員のみ）----
 
-  async getMyOfficerStatus(payload: { sessionToken: string }): Promise<import('../shared/types').MemberOfficerStatus> {
+  async getMyOfficerStatus(): Promise<import('../shared/types').MemberOfficerStatus> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
       google.script.run
@@ -1835,11 +1835,11 @@ class GasApiClient implements ApiClient {
           catch { reject(new Error('Failed to parse response from GAS')); }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getMyOfficerStatus', JSON.stringify(payload));
+        .processApiRequest('getMyOfficerStatus', JSON.stringify(this.memberSessionPayload()));
     });
   }
 
-  async saveMyBankAccount(payload: import('../shared/types').SaveBankAccountPayload & { sessionToken: string }): Promise<{ accountId: string }> {
+  async saveMyBankAccount(payload: Omit<import('../shared/types').SaveBankAccountPayload, 'memberId'>): Promise<{ accountId: string }> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
       google.script.run
@@ -1848,7 +1848,7 @@ class GasApiClient implements ApiClient {
           catch { reject(new Error('Failed to parse response from GAS')); }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('saveMyBankAccount', JSON.stringify(payload));
+        .processApiRequest('saveMyBankAccount', JSON.stringify({ ...payload, ...this.memberSessionPayload() }));
     });
   }
 }
