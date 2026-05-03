@@ -724,6 +724,12 @@ var MEMBER_ALLOWED_ACTIONS = {
   // v295: 役員自己サービス（役員のみ — サーバー側で isActiveOfficer_ を追加検証）
   getMyOfficerStatus: true,
   saveMyBankAccount: true,
+  // v296: 請求（役員のみ — サーバー側で isActiveOfficer_ を追加検証）
+  getMyClaims: true,
+  submitClaim: true,
+  deleteMyClaim: true,
+  uploadClaimAttachment: true,
+  removeClaimAttachment: true,
 };
 
 // 管理者ログイン専用アクション: Session.getActiveUser() による自己完結型認証のため、
@@ -810,6 +816,22 @@ function processApiRequest(action, payload) {
     }
     if (action === 'saveMyBankAccount') {
       return JSON.stringify({ success: true, data: saveMemberBankAccount_(parsedPayload) });
+    }
+    // v296: 請求（役員のみ）
+    if (action === 'getMyClaims') {
+      return JSON.stringify({ success: true, data: getMyClaims_(parsedPayload) });
+    }
+    if (action === 'submitClaim') {
+      return JSON.stringify({ success: true, data: saveClaim_(parsedPayload) });
+    }
+    if (action === 'deleteMyClaim') {
+      return JSON.stringify({ success: true, data: deleteMyClaim_(parsedPayload) });
+    }
+    if (action === 'uploadClaimAttachment') {
+      return JSON.stringify({ success: true, data: uploadClaimAttachment_(parsedPayload) });
+    }
+    if (action === 'removeClaimAttachment') {
+      return JSON.stringify({ success: true, data: removeClaimAttachment_(parsedPayload) });
     }
 
 
@@ -908,6 +930,7 @@ function processApiRequest(action, payload) {
     // v295: 役員割当て管理
     // v295: 振込口座管理（管理者用）
     // v295: 支払い履歴管理
+    // v296: 請求管理（管理者）
 
     // v232: 物理削除（MASTER専用）
 
@@ -2004,6 +2027,59 @@ function getSystemSettingValue_(ss, key) {
 // T_システム設定を1回の読み込みで全設定を {key: value} マップとして返す（N+1回避）
 
 // 複数の設定を一括書き込み：読み2回＋書き1回で完結（N+1問題を解消）
+function batchUpsertSystemSettings_(ss, updates) {
+  if (!updates || updates.length === 0) return;
+  var sheet = ss.getSheetByName('T_システム設定');
+  if (!sheet) return;
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastCol < 1) return;
+  var headerValues = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var columns = {};
+  for (var i = 0; i < headerValues.length; i++) {
+    columns[String(headerValues[i] || '')] = i;
+  }
+  var keyCol = columns['設定キー'];
+  var valueCol = columns['設定値'];
+  var descCol = columns['説明'];
+  var updatedAtCol = columns['更新日時'];
+  if (keyCol === undefined) return;
+  var data = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, lastCol).getValues() : [];
+  // key → row index マップ
+  var keyToIndex = {};
+  for (var r = 0; r < data.length; r++) {
+    var k = String(data[r][keyCol] || '');
+    if (k) keyToIndex[k] = r;
+  }
+  var now = new Date().toISOString();
+  var modified = false;
+  var toAppend = [];
+  for (var u = 0; u < updates.length; u++) {
+    var upd = updates[u];
+    if (keyToIndex[upd.key] !== undefined) {
+      var ri = keyToIndex[upd.key];
+      if (valueCol !== undefined) data[ri][valueCol] = upd.value;
+      if (descCol !== undefined) data[ri][descCol] = upd.description || '';
+      if (updatedAtCol !== undefined) data[ri][updatedAtCol] = now;
+      modified = true;
+    } else {
+      toAppend.push(upd);
+    }
+  }
+  // 変更行を一括書き戻し（1回の setValues）
+  if (modified && data.length > 0) {
+    sheet.getRange(2, 1, data.length, lastCol).setValues(data);
+  }
+  // 新規行はアペンド
+  for (var ap = 0; ap < toAppend.length; ap++) {
+    appendRowsByHeaders_(ss, 'T_システム設定', [{
+      '設定キー': toAppend[ap].key,
+      '設定値': toAppend[ap].value,
+      '説明': toAppend[ap].description || '',
+      '更新日時': now,
+    }]);
+  }
+}
 
 
 function getAnyPasswordLoginIdByMemberId_(ss, memberId) {
@@ -5331,3 +5407,233 @@ function saveMemberBankAccount_(payload) {
 
 
 
+
+// ============================================================
+// v296: 請求管理 — Drive フォルダ / 請求 CRUD / ファイル管理
+// ============================================================
+
+var CLAIM_ALLOWED_MIMES = ['application/pdf', 'image/jpeg', 'image/png'];
+var CLAIM_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+
+// ---------- Drive フォルダ ----------
+
+function getOrCreateClaimAttachmentFolder_(ss) {
+  var storedId = ss ? getSystemSettingValue_(ss, 'CLAIM_ATTACHMENT_FOLDER_ID') : '';
+  if (storedId && String(storedId).trim()) {
+    try { return DriveApp.getFolderById(String(storedId).trim()); } catch (e) {
+      Logger.log('getOrCreateClaimAttachmentFolder_: stored ID invalid, recreating. ' + e.message);
+    }
+  }
+  var newFolder = DriveApp.getRootFolder().createFolder('請求添付ファイル');
+  newFolder.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE);
+  var newFolderId = newFolder.getId();
+  PropertiesService.getScriptProperties().setProperty('CLAIM_ATTACHMENT_FOLDER_ID', newFolderId);
+  try {
+    batchUpsertSystemSettings_(ss, [{ key: 'CLAIM_ATTACHMENT_FOLDER_ID', value: newFolderId, description: '請求添付ファイル保存先 Google Drive フォルダ ID' }]);
+  } catch (e) { Logger.log('getOrCreateClaimAttachmentFolder_: batchUpsert failed: ' + e.message); }
+  Logger.log('getOrCreateClaimAttachmentFolder_: created ' + newFolderId);
+  return newFolder;
+}
+
+// ---------- 請求 CRUD ----------
+
+function saveClaim_(payload) {
+  var memberId = String((payload.__memberSession && payload.__memberSession.memberId) ? payload.__memberSession.memberId : (payload.memberId || '')).trim();
+  if (!memberId) throw new Error('セッション情報が無効です。');
+
+  var claimId  = String(payload.claimId  || '').trim();
+  var roleCode = String(payload.roleCode || '').trim();
+  var orgCode  = String(payload.organizationCode || '').trim();
+  var typeCode = String(payload.typeCode || '').trim();
+  var amount   = Number(payload.amount   || 0);
+  var actDate  = String(payload.activityDate        || '').trim();
+  var actDesc  = String(payload.activityDescription || '').trim();
+  var attachmentsJson = payload.attachmentsJson ? JSON.stringify(payload.attachmentsJson) : '';
+
+  if (!typeCode)             throw new Error('種別は必須です。');
+  if (amount <= 0)           throw new Error('請求金額は1円以上を入力してください。');
+  if (!actDate)              throw new Error('活動日は必須です。');
+  if (!actDesc || actDesc.length < 10) throw new Error('活動内容は10文字以上入力してください。');
+
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+
+  // 役員チェック
+  if (!isActiveOfficer_(memberId, ss)) throw new Error('役員のみ請求を提出できます。');
+
+  var sheet = ss.getSheetByName('T_請求');
+  if (!sheet) throw new Error('T_請求 が見つかりません。');
+  var nowIso = new Date().toISOString();
+
+  if (claimId) {
+    // 更新（申請中のみ可）
+    var found = findRowByColumnValue_(sheet, '請求ID', claimId);
+    if (!found || toBoolean_(found.row[found.columns['削除フラグ']])) throw new Error('請求が見つかりません。');
+    var claimOwner = String(found.row[found.columns['会員ID']] || '');
+    if (claimOwner !== memberId) throw new Error('他の会員の請求は編集できません。');
+    var status = String(found.row[found.columns['請求状態']] || '');
+    if (status !== '申請中') throw new Error('申請中以外の請求は編集できません。');
+
+    var row = found.row.slice();
+    row[found.columns['役職コード']]  = roleCode;
+    row[found.columns['組織コード']]  = orgCode;
+    row[found.columns['種別コード']]  = typeCode;
+    row[found.columns['請求金額']]    = amount;
+    row[found.columns['活動日']]      = actDate;
+    row[found.columns['活動内容']]    = actDesc;
+    if (attachmentsJson) row[found.columns['添付ファイルURL']] = attachmentsJson;
+    row[found.columns['更新日時']]    = nowIso;
+    sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  } else {
+    // 新規作成
+    claimId = Utilities.getUuid();
+    appendRowsByHeaders_(ss, 'T_請求', [{
+      '請求ID':       claimId,
+      '会員ID':       memberId,
+      '役職コード':   roleCode,
+      '組織コード':   orgCode,
+      '種別コード':   typeCode,
+      '請求金額':     amount,
+      '活動日':       actDate,
+      '活動内容':     actDesc,
+      '添付ファイルURL': attachmentsJson,
+      '請求状態':     '申請中',
+      '却下理由':     '',
+      '承認者メール': '',
+      '承認日時':     '',
+      '削除フラグ':   false,
+      '作成日時':     nowIso,
+      '更新日時':     nowIso,
+    }]);
+  }
+  clearAllDataCache_();
+  return { claimId: claimId };
+}
+
+function getMyClaims_(payload) {
+  var memberId = String((payload.__memberSession && payload.__memberSession.memberId) ? payload.__memberSession.memberId : '').trim();
+  if (!memberId) throw new Error('セッション情報が無効です。');
+
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+
+  var claims = getRowsAsObjects_(ss, 'T_請求').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
+  });
+  return claims.sort(function(a, b) { return (b['作成日時'] || '').localeCompare(a['作成日時'] || ''); });
+}
+
+
+
+
+function deleteMyClaim_(payload) {
+  var memberId = String((payload.__memberSession && payload.__memberSession.memberId) ? payload.__memberSession.memberId : '').trim();
+  var claimId  = String(payload.claimId || '').trim();
+  if (!memberId) throw new Error('セッション情報が無効です。');
+  if (!claimId)  throw new Error('請求IDは必須です。');
+
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_請求');
+  var found = findRowByColumnValue_(sheet, '請求ID', claimId);
+  if (!found || toBoolean_(found.row[found.columns['削除フラグ']])) throw new Error('請求が見つかりません。');
+  if (String(found.row[found.columns['会員ID']] || '') !== memberId) throw new Error('他の会員の請求は削除できません。');
+  if (String(found.row[found.columns['請求状態']] || '') !== '申請中') throw new Error('申請中の請求のみ取り下げできます。');
+
+  var row = found.row.slice();
+  row[found.columns['削除フラグ']] = true;
+  row[found.columns['更新日時']]   = new Date().toISOString();
+  sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  clearAllDataCache_();
+  return { deleted: true, claimId: claimId };
+}
+
+
+// ---------- 添付ファイル管理 ----------
+
+function uploadClaimAttachment_(payload) {
+  var memberId = String((payload.__memberSession && payload.__memberSession.memberId) ? payload.__memberSession.memberId : '').trim();
+  var claimId  = String(payload.claimId  || '').trim();
+  var base64   = String(payload.base64   || '').replace(/^data:[^;]+;base64,/, '');
+  var filename = String(payload.filename || 'attachment');
+  var mimeType = String(payload.mimeType || 'application/octet-stream');
+
+  // MIMEタイプ検証
+  if (CLAIM_ALLOWED_MIMES.indexOf(mimeType) === -1) {
+    throw new Error('許可されていないファイル形式です。PDF・JPG・PNG のみアップロードできます。');
+  }
+  // サイズ検証
+  var bytes = Utilities.base64Decode(base64);
+  if (bytes.length > CLAIM_MAX_BYTES) {
+    throw new Error('ファイルサイズが 10MB を超えています。');
+  }
+
+  var blob = Utilities.newBlob(bytes, mimeType, filename);
+  var ss = getOrCreateDatabase_();
+  var folder = getOrCreateClaimAttachmentFolder_(ss);
+  var file = folder.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+  var attachment = {
+    name: filename,
+    url: file.getUrl(),
+    fileId: file.getId(),
+    mimeType: mimeType,
+    uploadedAt: new Date().toISOString(),
+  };
+
+  // 既存請求への紐づけ更新
+  if (claimId) {
+    var sheet = ss.getSheetByName('T_請求');
+    var found = findRowByColumnValue_(sheet, '請求ID', claimId);
+    if (found && !toBoolean_(found.row[found.columns['削除フラグ']])) {
+      // 所有者チェック（会員側の場合のみ）
+      if (memberId) {
+        var claimOwner = String(found.row[found.columns['会員ID']] || '');
+        if (claimOwner !== memberId) throw new Error('他の会員の請求にはファイルを追加できません。');
+        if (String(found.row[found.columns['請求状態']] || '') !== '申請中') throw new Error('申請中以外の請求にはファイルを追加できません。');
+      }
+      var existingJson = String(found.row[found.columns['添付ファイルURL']] || '');
+      var attachments = [];
+      if (existingJson) { try { attachments = JSON.parse(existingJson); } catch (e) { attachments = []; } }
+      attachments.push(attachment);
+      var row = found.row.slice();
+      row[found.columns['添付ファイルURL']] = JSON.stringify(attachments);
+      row[found.columns['更新日時']]         = new Date().toISOString();
+      sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+    }
+  }
+
+  return attachment;
+}
+
+function removeClaimAttachment_(payload) {
+  var memberId = String((payload.__memberSession && payload.__memberSession.memberId) ? payload.__memberSession.memberId : '').trim();
+  var claimId  = String(payload.claimId  || '').trim();
+  var fileId   = String(payload.fileId   || '').trim();
+  if (!claimId || !fileId) throw new Error('claimId と fileId は必須です。');
+
+  var ss    = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_請求');
+  var found = findRowByColumnValue_(sheet, '請求ID', claimId);
+  if (!found || toBoolean_(found.row[found.columns['削除フラグ']])) throw new Error('請求が見つかりません。');
+
+  if (memberId) {
+    if (String(found.row[found.columns['会員ID']] || '') !== memberId) throw new Error('他の会員の請求からはファイルを削除できません。');
+    if (String(found.row[found.columns['請求状態']] || '') !== '申請中') throw new Error('申請中以外の請求からはファイルを削除できません。');
+  }
+
+  // Drive からゴミ箱へ移動
+  try { DriveApp.getFileById(fileId).setTrashed(true); } catch (e) { Logger.log('removeClaimAttachment_: Drive file not found: ' + fileId); }
+
+  // 添付JSON から除去
+  var existingJson = String(found.row[found.columns['添付ファイルURL']] || '');
+  var attachments = [];
+  if (existingJson) { try { attachments = JSON.parse(existingJson); } catch (e) { attachments = []; } }
+  attachments = attachments.filter(function(a) { return a.fileId !== fileId; });
+
+  var row = found.row.slice();
+  row[found.columns['添付ファイルURL']] = attachments.length > 0 ? JSON.stringify(attachments) : '';
+  row[found.columns['更新日時']]         = new Date().toISOString();
+  sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  return { removed: true, fileId: fileId };
+}

@@ -70,6 +70,11 @@ const allowedAdminActions = [
   'getAdminChangeRequests',
   'approveAdminChangeRequest',
   'rejectAdminChangeRequest',
+  // v296: 請求管理
+  'getClaims',
+  'approveClaim',
+  'rejectClaim',
+  'adminDeleteClaim',
   // v295: 役員管理マスタ
   'getOfficerMasterData',
   'saveOrganization',

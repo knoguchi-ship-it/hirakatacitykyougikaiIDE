@@ -11,6 +11,7 @@ import MailingListExport from './components/MailingListExport';
 import OfficerMasterSettings from './components/OfficerMasterSettings';
 import OfficerManagement from './components/OfficerManagement';
 import PaymentHistoryConsole from './components/PaymentHistoryConsole';
+import ClaimManagementConsole from './components/ClaimManagementConsole';
 import TemplateHelpPage from './components/TemplateHelpPage';
 import TemplateValidationPanel from './components/TemplateValidationPanel';
 import MemberDeleteConsole from './components/MemberDeleteConsole';
@@ -24,7 +25,7 @@ import { callApi } from './shared/api-base';
 import { EmailCard, MasterOffBanner, MergeTags, ToggleSwitch } from './components/EmailSettingsCard';
 
 type Role = 'ADMIN' | 'MEMBER';
-type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'roster-export' | 'mailing-list-export' | 'template-help' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings' | 'member-delete' | 'change-requests' | 'officer-management' | 'payment-history';
+type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'roster-export' | 'mailing-list-export' | 'template-help' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings' | 'member-delete' | 'change-requests' | 'officer-management' | 'payment-history' | 'claim-management';
 type AuthTab = 'member' | 'admin';
 type PendingAnnualFeeAction = { type: 'view'; view: View } | { type: 'logout' } | null;
 type MemberListFilter = 'ALL' | MemberType;
@@ -327,6 +328,7 @@ const App: React.FC = () => {
   const [adminAutoAuthDone, setAdminAutoAuthDone] = useState(false);
   const [adminAutoAuthFailed, setAdminAutoAuthFailed] = useState(false);
   const [trainingFileFolderIdInput, setTrainingFileFolderIdInput] = useState('');
+  const [claimAttachmentFolderIdInput, setClaimAttachmentFolderIdInput] = useState('');
   const [folderSetupBusy, setFolderSetupBusy] = useState(false);
   const [folderSetupResult, setFolderSetupResult] = useState<{ folderId: string; folderUrl: string } | null>(null);
   const [defaultBusinessStaffLimit, setDefaultBusinessStaffLimit] = useState(10);
@@ -455,6 +457,7 @@ const App: React.FC = () => {
 
   const applySystemSettings = (systemSettings: SystemSettings) => {
     setTrainingFileFolderIdInput(systemSettings.trainingFileFolderId || '');
+    setClaimAttachmentFolderIdInput(systemSettings.claimAttachmentFolderId || '');
     const limit = Number(systemSettings.defaultBusinessStaffLimit || 10);
     const lookback = Number(systemSettings.trainingHistoryLookbackMonths || 18);
     const guidance = String(systemSettings.annualFeePaymentGuidance || '');
@@ -3633,6 +3636,29 @@ const App: React.FC = () => {
                   </p>
                 )}
               </div>
+
+              {/* v296: 請求添付ファイルフォルダ */}
+              <div className="mt-6 border-t border-slate-200 pt-5">
+                <h4 className="mb-2 text-sm font-semibold text-slate-800">請求添付ファイル保存先（v296）</h4>
+                <p className="mb-3 text-xs text-slate-500">
+                  役員が請求時にアップロードする領収書・明細書の保存先フォルダです。
+                  未設定の場合、最初のアップロード時に「請求添付ファイル」フォルダが自動作成されます。
+                </p>
+                <label className="block text-xs font-medium text-slate-600 mb-1" htmlFor="claim-folder-id">フォルダ ID（空白 = 自動作成）</label>
+                <input
+                  id="claim-folder-id"
+                  type="text"
+                  value={claimAttachmentFolderIdInput}
+                  onChange={(e) => { setClaimAttachmentFolderIdInput(e.target.value); setSettingsIsDirty(true); }}
+                  placeholder="Drive フォルダ ID（URLの /folders/〜 の部分）"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-mono focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                />
+                {claimAttachmentFolderIdInput && (
+                  <p className="mt-1 text-xs text-slate-500">
+                    <a href={`https://drive.google.com/drive/folders/${claimAttachmentFolderIdInput}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Drive で確認 →</a>
+                  </p>
+                )}
+              </div>
             </div>
           </AdminSettingsSection>
 
@@ -3713,6 +3739,7 @@ const App: React.FC = () => {
                       setSettingsBusy(true);
                       const saved = await api.updateSystemSettings({
                         trainingFileFolderId: trainingFileFolderIdInput,
+                        claimAttachmentFolderId: claimAttachmentFolderIdInput,
                         defaultBusinessStaffLimit: Number(globalLimitInput || 10),
                         trainingHistoryLookbackMonths: Number(historyLookbackInput || 18),
                         annualFeePaymentGuidance: annualFeePaymentGuidanceInput,
@@ -3960,6 +3987,18 @@ const App: React.FC = () => {
         return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
       }
       return <PaymentHistoryConsole api={api} />;
+    }
+
+    if (currentView === 'claim-management') {
+      if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
+        return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
+      }
+      return (
+        <ClaimManagementConsole
+          api={api}
+          onOpenPaymentConsole={() => setCurrentView('payment-history')}
+        />
+      );
     }
 
     if (currentView === 'member-delete') {

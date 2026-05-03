@@ -22,6 +22,12 @@ const allowedMemberActions = [
   // v295: 役員自己サービス（役員のみ — サーバー側で isActiveOfficer_ を追加検証）
   'getMyOfficerStatus',
   'saveMyBankAccount',
+  // v296: 請求（役員のみ）
+  'getMyClaims',
+  'submitClaim',
+  'deleteMyClaim',
+  'uploadClaimAttachment',
+  'removeClaimAttachment',
 ];
 const forbiddenTopLevelFunctions = [
   'rebuildDatabaseSchema',

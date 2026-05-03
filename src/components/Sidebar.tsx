@@ -48,6 +48,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           { id: 'change-requests', label: '変更申請管理コンソール', icon: <HomeIcon className="w-5 h-5" /> },
           { id: 'officer-management', label: '役員管理コンソール', icon: <HomeIcon className="w-5 h-5" /> },
           { id: 'payment-history', label: '支払い履歴管理コンソール', icon: <HomeIcon className="w-5 h-5" /> },
+          { id: 'claim-management', label: '請求管理コンソール', icon: <HomeIcon className="w-5 h-5" /> },
           { id: 'system-permissions', label: '管理コンソール（システム権限）', icon: <SettingsIcon className="w-5 h-5" /> },
           { id: 'admin-settings', label: 'システム設定', icon: <SettingsIcon className="w-5 h-5" /> },
           ...(adminPermissionLevel === 'MASTER'

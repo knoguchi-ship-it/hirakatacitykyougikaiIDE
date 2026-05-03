@@ -7,6 +7,7 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { api } from '../services/api';
+import ClaimCard from './ClaimCard';
 import {
   BankAccount,
   MemberActiveRole,
@@ -136,6 +137,11 @@ const OfficerStatusCard: React.FC = () => {
           initialAccount={status.bankAccount}
           onSaved={(updated) => setStatus(s => s ? { ...s, bankAccount: updated } : s)}
         />
+
+        <hr className="border-slate-200" />
+
+        {/* 請求 */}
+        <ClaimCard activeRoles={status.activeRoles} />
       </div>
     </div>
   );

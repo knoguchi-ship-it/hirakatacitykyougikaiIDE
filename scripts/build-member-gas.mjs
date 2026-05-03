@@ -404,6 +404,12 @@ function buildMemberCode(source) {
     // v295: 役員自己サービス
     'getMyOfficerStatus',
     'saveMyBankAccount',
+    // v296: 請求（役員のみ）
+    'getMyClaims',
+    'submitClaim',
+    'deleteMyClaim',
+    'uploadClaimAttachment',
+    'removeClaimAttachment',
   ]);
   code = removeIfBlock(code, 'requiredPerms');
   code = pruneUnreachableFunctionDeclarations(code, ['doGet', 'processApiRequest'], 'build-member-gas');

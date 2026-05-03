@@ -463,6 +463,11 @@ function buildAdminCode(source) {
     'getPaymentHistory',
     'savePayment',
     'deletePayment',
+    // v296: 請求管理（管理者）
+    'getClaims',
+    'approveClaim',
+    'rejectClaim',
+    'adminDeleteClaim',
   ]);
   code = removeIfBlock(code, "isMemberAction && !LOGIN_ONLY_MEMBER_ACTIONS[action]");
   code = pruneUnreachableFunctionDeclarations(code, ['doGet', 'processApiRequest'], 'build-admin-gas');

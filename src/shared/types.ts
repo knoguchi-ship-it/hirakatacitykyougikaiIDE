@@ -315,17 +315,38 @@ export interface MemberOfficerStatus {
   bankAccount: BankAccount | null;
 }
 
-/** T_請求 の型定義（将来の請求フォーム実装に備えて先行定義） */
+/** Drive に保存された添付ファイル1件（T_請求.添付ファイルURL に JSON 配列として保存） */
+export interface ClaimAttachment {
+  name: string;
+  url: string;
+  fileId: string;
+  mimeType: string;
+  uploadedAt: string;
+}
+
+export interface SaveClaimPayload {
+  claimId?: string;           // 更新時のみ
+  roleCode?: string;
+  organizationCode?: string;
+  typeCode: string;
+  amount: number;
+  activityDate: string;       // YYYY-MM-DD
+  activityDescription: string;
+  attachmentsJson?: ClaimAttachment[];
+}
+
+/** T_請求 の型定義 */
 export interface ClaimRecord {
   請求ID: string;
   会員ID: string;
+  表示名?: string;            // getClaims_ で付与
   役職コード: string;
   組織コード: string;
   種別コード: string;
   請求金額: number;
   活動日: string;
   活動内容: string;
-  添付ファイルURL: string;
+  添付ファイルURL: string;   // JSON 配列文字列 ClaimAttachment[]
   請求状態: '申請中' | '承認済み' | '支払い済み' | '却下';
   却下理由: string;
   承認者メール: string;

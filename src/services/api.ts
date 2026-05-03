@@ -216,6 +216,17 @@ export interface ApiClient {
   // v295: 会員自己サービス（役員のみ）— sessionToken は API クライアントが自動付与
   getMyOfficerStatus(): Promise<import('../shared/types').MemberOfficerStatus>;
   saveMyBankAccount(payload: Omit<import('../shared/types').SaveBankAccountPayload, 'memberId'>): Promise<{ accountId: string }>;
+  // v296: 請求（会員自己サービス）
+  getMyClaims(): Promise<import('../shared/types').ClaimRecord[]>;
+  submitClaim(payload: import('../shared/types').SaveClaimPayload): Promise<{ claimId: string }>;
+  deleteMyClaim(payload: { claimId: string }): Promise<{ deleted: boolean; claimId: string }>;
+  uploadClaimAttachment(payload: { claimId?: string; base64: string; filename: string; mimeType: string }): Promise<import('../shared/types').ClaimAttachment>;
+  removeClaimAttachment(payload: { claimId: string; fileId: string }): Promise<{ removed: boolean; fileId: string }>;
+  // v296: 請求管理（管理者）
+  getClaims(payload?: { status?: string; memberId?: string }): Promise<import('../shared/types').ClaimRecord[]>;
+  approveClaim(payload: { claimId: string }): Promise<{ approved: boolean; claimId: string }>;
+  rejectClaim(payload: { claimId: string; reason: string }): Promise<{ rejected: boolean; claimId: string }>;
+  adminDeleteClaim(payload: { claimId: string }): Promise<{ deleted: boolean; claimId: string }>;
 }
 
 export interface MemberDeleteSearchResult {
@@ -1836,6 +1847,96 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('getMyOfficerStatus', JSON.stringify(this.memberSessionPayload()));
+    });
+  }
+
+  async getMyClaims(): Promise<import('../shared/types').ClaimRecord[]> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
+        .withFailureHandler((e: Error) => reject(e))
+        .processApiRequest('getMyClaims', JSON.stringify(this.memberSessionPayload()));
+    });
+  }
+
+  async submitClaim(payload: import('../shared/types').SaveClaimPayload): Promise<{ claimId: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
+        .withFailureHandler((e: Error) => reject(e))
+        .processApiRequest('submitClaim', JSON.stringify({ ...payload, ...this.memberSessionPayload() }));
+    });
+  }
+
+  async deleteMyClaim(payload: { claimId: string }): Promise<{ deleted: boolean; claimId: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
+        .withFailureHandler((e: Error) => reject(e))
+        .processApiRequest('deleteMyClaim', JSON.stringify({ ...payload, ...this.memberSessionPayload() }));
+    });
+  }
+
+  async uploadClaimAttachment(payload: { claimId?: string; base64: string; filename: string; mimeType: string }): Promise<import('../shared/types').ClaimAttachment> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
+        .withFailureHandler((e: Error) => reject(e))
+        .processApiRequest('uploadClaimAttachment', JSON.stringify({ ...payload, ...this.memberSessionPayload() }));
+    });
+  }
+
+  async removeClaimAttachment(payload: { claimId: string; fileId: string }): Promise<{ removed: boolean; fileId: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
+        .withFailureHandler((e: Error) => reject(e))
+        .processApiRequest('removeClaimAttachment', JSON.stringify({ ...payload, ...this.memberSessionPayload() }));
+    });
+  }
+
+  async getClaims(payload?: { status?: string; memberId?: string }): Promise<import('../shared/types').ClaimRecord[]> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
+        .withFailureHandler((e: Error) => reject(e))
+        .processApiRequest('getClaims', JSON.stringify(payload || {}));
+    });
+  }
+
+  async approveClaim(payload: { claimId: string }): Promise<{ approved: boolean; claimId: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
+        .withFailureHandler((e: Error) => reject(e))
+        .processApiRequest('approveClaim', JSON.stringify(payload));
+    });
+  }
+
+  async rejectClaim(payload: { claimId: string; reason: string }): Promise<{ rejected: boolean; claimId: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
+        .withFailureHandler((e: Error) => reject(e))
+        .processApiRequest('rejectClaim', JSON.stringify(payload));
+    });
+  }
+
+  async adminDeleteClaim(payload: { claimId: string }): Promise<{ deleted: boolean; claimId: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
+        .withFailureHandler((e: Error) => reject(e))
+        .processApiRequest('adminDeleteClaim', JSON.stringify(payload));
     });
   }
 
