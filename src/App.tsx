@@ -10,6 +10,7 @@ import RosterExport from './components/RosterExport';
 import MailingListExport from './components/MailingListExport';
 import OfficerMasterSettings from './components/OfficerMasterSettings';
 import OfficerManagement from './components/OfficerManagement';
+import PaymentHistoryConsole from './components/PaymentHistoryConsole';
 import TemplateHelpPage from './components/TemplateHelpPage';
 import TemplateValidationPanel from './components/TemplateValidationPanel';
 import MemberDeleteConsole from './components/MemberDeleteConsole';
@@ -23,7 +24,7 @@ import { callApi } from './shared/api-base';
 import { EmailCard, MasterOffBanner, MergeTags, ToggleSwitch } from './components/EmailSettingsCard';
 
 type Role = 'ADMIN' | 'MEMBER';
-type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'roster-export' | 'mailing-list-export' | 'template-help' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings' | 'member-delete' | 'change-requests' | 'officer-management';
+type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'roster-export' | 'mailing-list-export' | 'template-help' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings' | 'member-delete' | 'change-requests' | 'officer-management' | 'payment-history';
 type AuthTab = 'member' | 'admin';
 type PendingAnnualFeeAction = { type: 'view'; view: View } | { type: 'logout' } | null;
 type MemberListFilter = 'ALL' | MemberType;
@@ -3952,6 +3953,13 @@ const App: React.FC = () => {
         return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
       }
       return <OfficerManagement api={api} members={members} />;
+    }
+
+    if (currentView === 'payment-history') {
+      if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
+        return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
+      }
+      return <PaymentHistoryConsole api={api} />;
     }
 
     if (currentView === 'member-delete') {
