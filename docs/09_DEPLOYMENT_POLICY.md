@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-05-03
-Production: `v295` / 統合（公開）fixed deployments `@290` / 会員 split `@41` / 管理者 split `@52`
+Production: `v296` / 統合（公開）fixed deployments `@290` / 会員 split `@42` / 管理者 split `@54`
 
 ## 1. Purpose
 
@@ -24,8 +24,8 @@ Production: `v295` / 統合（公開）fixed deployments `@290` / 会員 split `
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@41` (`v295`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@53` (`v295 clean`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@42` (`v296`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@54` (`v296`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -118,7 +118,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-05-03 `v295` ← current production
+### 2026-05-03 `v296` ← current production
+
+- Scope: 請求 UI フル実装。ClaimCard（会員マイページ）・ClaimManagementConsole（管理者）・GAS 10関数・DriveApp ファイルアップロード（PDF/JPG/PNG 10MB）。member split に drive スコープ追加。会員マイページ OAuth 再承認が必要。
+- Integrated fixed deployments: `@290` × 2（変更なし）
+- Member split: `@42`.
+- Admin split: `@54`.
+
+### 2026-05-03 `v295`
 
 - Scope: 役員管理フル実装（DB 8テーブル・GAS API 19関数・フロントエンド4コンポーネント）。システム設定マスタ管理・役員割当て・口座管理・支払い履歴コンソール・会員ポータル役員表示。
 - Integrated fixed deployments: `@290` × 2（変更なし）
