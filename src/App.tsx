@@ -8,6 +8,7 @@ import AnnualFeeManagement from './components/AnnualFeeManagement';
 import BulkMailSender from './components/BulkMailSender';
 import RosterExport from './components/RosterExport';
 import MailingListExport from './components/MailingListExport';
+import OfficerMasterSettings from './components/OfficerMasterSettings';
 import TemplateHelpPage from './components/TemplateHelpPage';
 import TemplateValidationPanel from './components/TemplateValidationPanel';
 import MemberDeleteConsole from './components/MemberDeleteConsole';
@@ -2414,6 +2415,7 @@ const App: React.FC = () => {
                 ['settings-portal', '公開ポータル'],
                 ['settings-membership-mail', '入会通知メール'],
                 ['settings-business-limits', '事業所個別上限'],
+                ['settings-officer-masters', '役員マスタ'],
               ].map(([target, label]) => (
                 <a
                   key={target}
@@ -3679,6 +3681,16 @@ const App: React.FC = () => {
                 </div>
               )}
             </div>
+          </AdminSettingsSection>
+
+          {/* v295: 役員マスタ管理 */}
+          <AdminSettingsSection
+            id="settings-officer-masters"
+            title="役員マスタ管理"
+            description="役員管理で使用する組織・役職・支払い種別を定義します。追加・編集・削除はこのセクションから行えます。"
+            badge="役員管理"
+          >
+            <OfficerMasterSettings api={api} />
           </AdminSettingsSection>
 
           <div className="sticky bottom-4 z-10 rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 shadow-[0_12px_32px_rgba(15,23,42,0.12)] backdrop-blur sm:px-6">
