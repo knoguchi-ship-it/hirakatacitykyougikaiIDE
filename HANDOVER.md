@@ -27,10 +27,11 @@
 7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `docs/176_RELEASE_STATE_v294_2026-05-03.md`
-11. `docs/175_RELEASE_STATE_v293_2026-05-03.md`
-12. `docs/174_RELEASE_STATE_v292_2026-05-01.md`
-13. `docs/173_RELEASE_STATE_v291_2026-05-01.md`
+10. `docs/177_RELEASE_STATE_v297_2026-05-04.md`
+11. `docs/176_RELEASE_STATE_v294_2026-05-03.md`
+12. `docs/175_RELEASE_STATE_v293_2026-05-03.md`
+13. `docs/174_RELEASE_STATE_v292_2026-05-01.md`
+14. `docs/173_RELEASE_STATE_v291_2026-05-01.md`
 14. `docs/169_RELEASE_STATE_v290_2026-04-29.md`
 15. `docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md`
 16. `docs/168_RELEASE_STATE_v289_2026-04-29.md`
@@ -158,33 +159,182 @@ admin split を `@57`（clean）へ再デプロイ済み。
 
 > **次回 clasp run が必要な場合**: `clasp run` は project-scoped OAuth が必要だが、push/redeploy には標準 `clasp login` で十分。
 
-## 6. 操作者確認待ち
+## 6. 未解消バグ（次担当者が最初に修正すること）
 
-`v296` の実ブラウザ確認は操作者側で行う。
+### BUG-001 【最優先】振込口座管理タブで事業所職員役員の口座登録・確認ができない
 
-- **rebuildDatabaseSchema 適用済み**（本番スプレッドシートに 8テーブル追加確認済み）。
-- **会員マイページ OAuth 再承認**（§5.2 参照）— drive スコープ追加のため必要。
-- **管理者ポータル v297 確認**:
-  - 役員管理コンソールの会員検索で事業所職員が候補に表示されること。
-  - 事業所職員を役員に割当てられること。
-  - 役員行の「紐づけ変更」ボタンで担当者を変更できること。
-- **管理者ポータル v295-v296 確認**:
-  - システム設定 → 「役員マスタ管理」、役員管理、支払い履歴、請求管理が動作すること。
-- **会員マイページ**（役員でログイン）: 役員情報・口座登録・請求提出が動作すること。
-- 管理者ポータル: 宛名リスト出力コンソールで、発送区分選択後に候補一覧が表示され、デフォルト未選択であること。
-- 管理者ポータル: 年会費納入フィルター、年度フィルタ、キーワード検索、5列ドロップダウンフィルター、対象選択、選択対象のみ Excel 出力が動くこと。
-- 管理者ポータル: Google アカウント + whitelist の管理者ログインが従来どおり動き、会員向け UI に管理者導線が混入しないこと。
-- 会員マイページ: 会員ログイン、研修一覧、申込済み研修、会員情報更新、パスワード変更が従来どおり動くこと。旧 verifier は初回成功時に新形式へ再保存される。
-- 公開ポータル: 旧統合 URL / 公開 URL が public-only 画面を返し、研修一覧、外部申込/取消、会員登録申請、公開変更申請、OTP 導線が従来どおり動くこと。
-- DriveApp: 必要に応じて管理設定の研修ファイル保存先フォルダ作成、PDF アップロード、サムネイル生成を確認すること。
+**症状**: 「振込口座管理」タブで事業所職員の役員を選択すると `（）` と空の番号が表示され、口座の登録・確認ができない。
 
-# Next Handover Note
+**原因**: `src/components/OfficerManagement.tsx` の `BankAccountTab` コンポーネント内 dropdown の `value` が `o.会員ID` のため、事業所職員型役員（`会員ID` = empty、`職員ID` = filled）では空文字になる。
 
-- 次担当者は `docs/176_RELEASE_STATE_v294_2026-05-03.md`、`docs/175_RELEASE_STATE_v293_2026-05-03.md`、`docs/174_RELEASE_STATE_v292_2026-05-01.md`、`docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md` を最初に読み、分離済み範囲と未完了タスクを確認すること。
-- v292 で build-admin-gas.mjs / build-member-gas.mjs の pruning 正規表現を修正済み。今後 admin/member build で同様の誤削除は発生しない。
-- v291 からの既存 note（v290 の admin helper 除去確認、headless Chrome 検証等）は引き続き有効。
-- v290 で public artifact から admin cache / admin audit / admin role transition 系 private helper も除去済み。詳細は `docs/169_RELEASE_STATE_v290_2026-04-29.md` を読むこと。
-- 2026-04-29 に agent 側で headless Chrome / CDP を使い、実アプリ iframe 内の `google.script.run.rebuildDatabaseSchema` / `google.script.run.getDbInfo` が `is not a function` で呼べないことを確認済み。
-- v288 で public portal の integrated artifact は public-only へ縮退済み。背景は `docs/166_RELEASE_STATE_v288_2026-04-28.md` と `docs/165_HANDOVER_PUBLIC_PORTAL_SEPARATION_PLAN_2026-04-28.md` を参照。
-- canonical full source は `gas-src/Code.full.gs`。`backend/Code.gs` は `npm run build:gas` で生成される public-only artifact として扱う。
-- admin `@47` はホワイトアウト発生済み。原因特定まで admin physical pruning を再デプロイしない。
+**修正場所**: `src/components/OfficerManagement.tsx` の `BankAccountTab` 内 `activeOfficers.map` および `handleSelectMember` 関数。
+
+**修正方針**（詳細は `docs/177_RELEASE_STATE_v297_2026-05-04.md` §7 を参照）:
+1. `personKey = o.職員ID || o.会員ID` を key として使用
+2. `value` に `staff:${staffId}` / `member:${memberId}` の prefix を付与してタイプを区別
+3. `handleSelectMember` で prefix を解析し、`staffId` か `memberId` を正しく渡す
+4. `api.getAdminBankAccount / saveAdminBankAccount / deleteAdminBankAccount` の型に `staffId?: string` を追加
+
+**確認後**: 事業所職員型役員を選択して口座の登録・表示・変更が正常動作すること。
+
+---
+
+## 7. 操作者確認待ち
+
+- **会員マイページ OAuth 再承認**（§5.2 参照）— drive スコープ追加のため必要（未実施の場合）。
+- **管理者ポータル**: 役員管理コンソールで事業所職員を役員に割当て → 「役員一覧」に表示されること。
+- **管理者ポータル**: BUG-001 修正後、事業所職員役員の口座登録が動作すること。
+
+---
+
+# Next Handover Note（次担当者向け 包括引継ぎ）
+
+## A. 最初にやること（必読順序）
+
+1. **このファイル（HANDOVER.md）** — 全体把握
+2. **`docs/177_RELEASE_STATE_v297_2026-05-04.md`** — 最新リリース・既知バグ
+3. **`AGENTS.md`** — グランドルール（必ず遵守）
+4. **`GLOBAL_GROUND_RULES/docs/AI_RULES/10_WORKFLOW_AND_QUALITY.md`** — 実装前の不明点確認ルール
+5. **`docs/09_DEPLOYMENT_POLICY.md`** — デプロイ手順の正本
+6. **`docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md`** — セキュリティ分離残タスク
+
+## B. 現行システム構成（2026-05-04 時点）
+
+### 本番 Deployment
+
+| 用途 | Deployment ID | Version |
+|---|---|---|
+| 公開ポータル（正式） | `AKfycbxy...` | @290 |
+| 公開ポータル（legacy） | `AKfycbyw...` | @290 |
+| 会員マイページ | `AKfycbxd...` | @44 |
+| **管理者ポータル** | **`AKfycbwS...`** | **@57** |
+
+### 本番スプレッドシート
+
+DB スプレッドシート ID: `1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs`（固定・変更禁止）
+
+### 役員管理テーブル（v295〜v297 で追加）
+
+| テーブル | 目的 |
+|---|---|
+| M_組織マスタ | 組織定義（本部・理事会等8組織）|
+| M_役職マスタ | 役職定義（会長〜調査研究委員等14役職）|
+| M_支払い種別マスタ | 支払い・請求種別（役員報酬・活動費等）|
+| T_役員 | 役員割当て（会員ID または 職員ID との XOR 対応）|
+| T_振込口座 | 役員の受取口座（1人1口座）|
+| T_支払い + T_支払い明細 | 支払いヘッダー + 明細（ERP標準構造）|
+| T_請求 | 役員の活動費等請求 |
+
+### 重要な XOR 制約
+
+T_役員・T_振込口座・T_請求 の人物識別:
+- **個人・賛助会員**: `会員ID` = filled, `職員ID` = ''
+- **事業所職員**: `会員ID` = '', `職員ID` = filled
+
+GAS 関数・フロントエンドは常にどちらかを確認してから処理すること。
+
+## C. 開発環境セットアップ
+
+```bash
+npm install          # 依存パッケージ
+npx clasp login      # 標準認証（push/redeploy 用）
+npx clasp show-authorized-user  # k.noguchi@hcm-n.org であること
+```
+
+## D. ビルド・リリース手順
+
+### 通常リリース（admin/member split 変更時）
+
+```bash
+# 1. ビルド
+npm run build:gas:admin   # → gas/admin/Code.gs + index.html
+npm run build:gas:member  # → gas/member/Code.gs + index.html
+
+# 2. 全ゲートチェック
+npm run prerelease
+# security:audit / security:public-boundary / security:split-boundary / typecheck
+
+# 3. git diff で確認（他セッション変更の混在チェック）
+git status --short
+git diff
+
+# 4. admin split デプロイ
+cd gas/admin
+npx clasp push --force
+npx clasp version "vXXX 変更内容"
+npx clasp redeploy AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os \
+  --versionNumber <N> --description "vXXX"
+
+# 5. member split デプロイ
+cd ../member
+npx clasp push --force
+npx clasp version "vXXX 変更内容"
+npx clasp redeploy AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g \
+  --versionNumber <N> --description "vXXX"
+
+# 6. 確認
+cd ../admin && npx clasp deployments --json
+cd ../member && npx clasp deployments --json
+```
+
+### DB スキーマ変更時の追加手順
+
+テーブル定義変更後は `rebuildDatabaseSchema` の実行が必要。
+
+`clasp run` は通常認証では失敗する。**Apps Script エディタ経由で実行する**:
+1. `gas/admin/Code.gs` の末尾に一時関数 `function runRebuildSchemaForVXxx() { ... }` を追加
+2. `cd gas/admin && npx clasp push --force`
+3. Apps Script エディタ（`https://script.google.com/d/1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi/edit`）から関数を選択・実行
+4. 完了後、一時関数を削除し push → version → redeploy（clean）
+
+### Pruning ビルドスクリプトの注意事項（v292・v296・v297 の教訓）
+
+`build-admin-gas.mjs` / `build-member-gas.mjs` の `pruneUnreachableFunctionDeclarations` は:
+- 文字列リテラルを除去してから `\b${name}\b` でマッチ（v296 修正済み）
+- 関数呼び出し `name()` だけでなく値参照 `= name_` も除去対象
+- `ADMIN_ACTION_PERMISSIONS` のような設定オブジェクト内の文字列キーへの誤マッチを防止
+
+詳細: `memory/feedback_build_pruning_bug.md`
+
+## E. 最優先タスク（次担当者が着手すること）
+
+### タスク1【必須・バグ修正】BUG-001 振込口座タブの事業所職員対応
+
+`docs/177_RELEASE_STATE_v297_2026-05-04.md` §7 参照。
+
+修正ファイル: `src/components/OfficerManagement.tsx` の `BankAccountTab`
+
+### タスク2【必須 Security Backlog】PBKDF2 work factor / Secret Manager 移行
+
+詳細: `docs/172_DEFERRED_SECURITY_BACKLOG_SECRET_MANAGER_KDF_2026-05-01.md`
+
+現状: PBKDF2-HMAC-SHA256 + verifier-side pepper は実装済みだが、OWASP 推奨 work factor（600,000回）未達。GAS の制約上 GAS 外での KDF 実装または Secret Manager への移行が必要。**このタスクは削除・完了扱い禁止。**
+
+### タスク3【保留・セキュリティ改善】
+
+| タスク | 状態 | 参照 |
+|---|---|---|
+| Public OAuth スコープ最小化 | 保留中 | `docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md` §6 Task A |
+| Admin physical pruning 安全再設計 | 保留中（@47 whiteout 教訓） | `docs/170` §6 Task B |
+| Member split pruning 強化 | 保留中 | `docs/170` §6 Task C |
+| 生成ファイルヘッダー追加 | 保留中 | `docs/170` §6 Task E |
+
+## F. 重要な運用ルール（崩してはいけない事項）
+
+1. **`clasp deploy` は全形式禁止** — URL が変わる。`clasp redeploy` のみ使用。
+2. **4本の fixed deployment を必ず同期** — admin は @57、member は @44 の固定 ID を使用。
+3. **`rebuildDatabaseSchema` に clasp run は使えない** — Apps Script エディタ経由で実行。
+4. **pepper 値を記録しない** — `PASSWORD_HASH_PEPPER_V1` の値は Git/docs/chat/logs に記載禁止。
+5. **管理者と会員は完全分離** — admin URL と member URL を混在させない。
+6. **seedDemoData は本番 DB 破壊** — 完全バックアップと明示承認なしに実行禁止。
+7. **不明点は必ず確認してから実装** — AGENTS.md §3 参照。
+8. **実ブラウザ確認は操作者が行う** — AI/agent はコード整合・ビルド・API 確認を担当。
+
+## G. 知っておくべき技術的制約
+
+- **GAS 実行時間制限**: 6分。大量データ処理は分割実行が必要。
+- **GAS ペイロード制限**: `google.script.run` の payload は数 MB 程度が上限。base64 ファイルは1件ずつ送信。
+- **スプレッドシート DB**: SQL の JOIN 不可。GAS で全件取得後に JS でマッピング。
+- **`clasp run` の制限**: 通常認証では失敗。project-scoped OAuth が必要だが Apps Script エディタ経由で代替可能。
+- **admin split の `@47` whiteout**: 原因特定まで admin physical pruning の再デプロイ禁止。
+- **member split の drive スコープ**: v296 で追加。初回アクセス時に OAuth 再承認が必要。
