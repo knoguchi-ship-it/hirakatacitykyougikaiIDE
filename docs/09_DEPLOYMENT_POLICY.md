@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-05-03
-Production: `v296` / 統合（公開）fixed deployments `@290` / 会員 split `@42` / 管理者 split `@54`
+Production: `v297` / 統合（公開）fixed deployments `@290` / 会員 split `@44` / 管理者 split `@57`
 
 ## 1. Purpose
 
@@ -24,8 +24,8 @@ Production: `v296` / 統合（公開）fixed deployments `@290` / 会員 split `
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@42` (`v296`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@54` (`v296`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@44` (`v297`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@57` (`v297 clean`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -118,7 +118,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-05-03 `v296` ← current production
+### 2026-05-04 `v297` ← current production
+
+- Scope: 事業所職員を役員に割当て可能（DB 3テーブルに職員ID 追加・双方向紐づけ変更・退職時自動退任）。
+- Integrated fixed deployments: `@290` × 2（変更なし）
+- Member split: `@44`.
+- Admin split: `@57`（clean）.
+- スキーマ移行適用済み（2026-05-04 Apps Script エディタから）
+
+### 2026-05-03 `v296`
 
 - Scope: 請求 UI フル実装。ClaimCard（会員マイページ）・ClaimManagementConsole（管理者）・GAS 10関数・DriveApp ファイルアップロード（PDF/JPG/PNG 10MB）。member split に drive スコープ追加。会員マイページ OAuth 再承認が必要。
 - Integrated fixed deployments: `@290` × 2（変更なし）
