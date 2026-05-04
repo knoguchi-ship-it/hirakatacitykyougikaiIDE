@@ -87,6 +87,7 @@ const allowedAdminActions = [
   'getOfficerManagementData',
   'assignOfficer',
   'resignOfficer',
+  'updateOfficerLinkage',
   // v295: 振込口座管理
   'getAdminBankAccount',
   'saveAdminBankAccount',

@@ -510,13 +510,15 @@ var テーブル定義 = {
   '処理日時', '処理者メールアドレス', '処理備考', '作成日時', '更新日時', '削除フラグ',
 ];
 // v295: 役員管理テーブル（5テーブル追加）
+// v297: 職員ID追加（事業所職員も役員になれる双方向対応）
+// 会員ID（個人・賛助会員）と職員ID（事業所職員）はXOR — どちらか一方のみ non-empty
 テーブル定義['T_役員'] = [
-  '役員ID', '会員ID', '役職コード', '組織コード',
+  '役員ID', '会員ID', '職員ID', '役職コード', '組織コード',
   '就任日', '退任日', '備考',
   '削除フラグ', '作成日時', '更新日時',
 ];
 テーブル定義['T_振込口座'] = [
-  '口座ID', '会員ID',
+  '口座ID', '会員ID', '職員ID',
   '金融機関名', '金融機関コード', '支店名', '支店コード',
   '口座種別', '口座番号', '口座名義カナ', '備考',
   '削除フラグ', '作成日時', '更新日時',
@@ -534,7 +536,7 @@ var テーブル定義 = {
   '削除フラグ', '作成日時', '更新日時',
 ];
 テーブル定義['T_請求'] = [
-  '請求ID', '会員ID', '役職コード', '組織コード', '種別コード',
+  '請求ID', '会員ID', '職員ID', '役職コード', '組織コード', '種別コード',
   '請求金額', '活動日', '活動内容', '添付ファイルURL',
   '請求状態', '却下理由', '承認者メール', '承認日時',
   '削除フラグ', '作成日時', '更新日時',
@@ -1409,10 +1411,11 @@ var ADMIN_ACTION_PERMISSIONS = {
   'deleteOfficerRole': ['MASTER','ADMIN'],
   'savePaymentType': ['MASTER','ADMIN'],
   'deletePaymentType': ['MASTER','ADMIN'],
-  // v295: 役員割当て管理（管理コンソール）
+  // v295/v297: 役員割当て管理（管理コンソール）
   'getOfficerManagementData': ['MASTER','ADMIN'],
   'assignOfficer': ['MASTER','ADMIN'],
   'resignOfficer': ['MASTER','ADMIN'],
+  'updateOfficerLinkage': ['MASTER','ADMIN'],
   // v295: 振込口座管理（管理者用）
   'getAdminBankAccount': ['MASTER','ADMIN'],
   'saveAdminBankAccount': ['MASTER','ADMIN'],
@@ -1909,6 +1912,9 @@ function processApiRequest(action, payload) {
     }
     if (action === 'resignOfficer') {
       return JSON.stringify({ success: true, data: resignOfficer_(parsedPayload) });
+    }
+    if (action === 'updateOfficerLinkage') {
+      return JSON.stringify({ success: true, data: updateOfficerLinkage_(parsedPayload) });
     }
     // v295: 振込口座管理（管理者用）
     if (action === 'getAdminBankAccount') {
@@ -8069,6 +8075,8 @@ function updateStaff_(payload) {
     var newStatus2 = String(row[cols['職員状態コード']]);
     if (newStatus2 === 'LEFT') {
       disableAuthAccountsByStaffId_(ss, String(payload.staffId));
+      // v297: 退職時に現職の役員レコードを自動退任
+      autoRetireOfficerByStaffId_(ss, String(payload.staffId), nowIso);
     } else {
       enableAuthAccountsByStaffId_(ss, String(payload.staffId));
     }
@@ -21529,11 +21537,14 @@ function deletePaymentType_(payload) {
 
 // ---------- 役員ステータス確認ヘルパー ----------
 
-function isActiveOfficer_(memberId, ss) {
+// v297: memberId（個人/賛助）または staffId（事業所職員）のいずれかでチェック
+function isActiveOfficer_(memberId, staffId, ss) {
   var officers = getRowsAsObjects_(ss, 'T_役員').filter(function(r) {
-    return !toBoolean_(r['削除フラグ']) &&
-      String(r['会員ID'] || '') === String(memberId) &&
-      (!r['退任日'] || String(r['退任日'] || '') === '');
+    if (toBoolean_(r['削除フラグ'])) return false;
+    if (r['退任日'] && String(r['退任日'] || '') !== '') return false;
+    if (memberId && !staffId && String(r['会員ID'] || '') === String(memberId)) return true;
+    if (staffId && String(r['職員ID'] || '') === String(staffId)) return true;
+    return false;
   });
   return officers.length > 0;
 }
@@ -21548,17 +21559,42 @@ function getOfficerManagementData_() {
   var roles    = getRowsAsObjects_(ss, 'M_役職マスタ').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
   var officers = getRowsAsObjects_(ss, 'T_役員').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
   var members  = getRowsAsObjects_(ss, 'T_会員').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var staffRows = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
 
   var memberMap = {};
   members.forEach(function(m) { memberMap[String(m['会員ID'] || '')] = m; });
+  var staffMap = {};
+  staffRows.forEach(function(s) { staffMap[String(s['職員ID'] || '')] = s; });
 
   var enriched = officers.map(function(o) {
-    var m = memberMap[String(o['会員ID'] || '')] || {};
-    var displayName = (String(m['姓'] || '') + ' ' + String(m['名'] || '')).trim();
+    var staffId  = String(o['職員ID'] || '');
+    var memberId = String(o['会員ID'] || '');
+    var displayName = '';
+    var memberType = '';
+    var officeName = '';
+
+    if (staffId) {
+      // 事業所職員パターン
+      var s = staffMap[staffId] || {};
+      displayName = String(s['氏名'] || (String(s['姓'] || '') + ' ' + String(s['名'] || '')).trim() || staffId);
+      var parentBiz = memberMap[String(s['会員ID'] || '')] || {};
+      officeName = String(parentBiz['勤務先名'] || '');
+      memberType = 'BUSINESS_STAFF';
+    } else {
+      // 個人・賛助会員パターン
+      var m = memberMap[memberId] || {};
+      displayName = (String(m['姓'] || '') + ' ' + String(m['名'] || '')).trim() || memberId;
+      memberType = String(m['会員種別コード'] || '');
+      officeName = String(m['勤務先名'] || '');
+    }
+
     return {
-      役員ID: o['役員ID'], 会員ID: o['会員ID'],
-      表示名: displayName || String(o['会員ID'] || ''),
-      会員種別コード: String(m['会員種別コード'] || ''),
+      役員ID: o['役員ID'],
+      会員ID: memberId,
+      職員ID: staffId,
+      表示名: displayName,
+      所属名: officeName,
+      会員種別コード: memberType,
       役職コード: o['役職コード'], 組織コード: o['組織コード'],
       就任日: o['就任日'], 退任日: o['退任日'], 備考: o['備考'],
       作成日時: o['作成日時'], 更新日時: o['更新日時'],
@@ -21569,35 +21605,49 @@ function getOfficerManagementData_() {
 
 function assignOfficer_(payload) {
   var memberId      = String(payload.memberId      || '').trim();
+  var staffId       = String(payload.staffId       || '').trim();
   var roleCode      = String(payload.roleCode      || '').trim();
   var appointedDate = String(payload.appointedDate || '').trim();
   var note          = String(payload.note          || '').trim();
-  if (!memberId) throw new Error('会員IDは必須です。');
+
+  // XOR バリデーション
+  if (!memberId && !staffId) throw new Error('会員IDまたは職員IDのいずれかが必要です。');
+  if (memberId && staffId)   throw new Error('会員IDと職員IDは同時に指定できません。');
   if (!roleCode) throw new Error('役職コードは必須です。');
 
   var ss = getOrCreateDatabase_();
   initializeSchemaIfNeeded_(ss);
 
-  var member = findRowByColumnValue_(ss.getSheetByName('T_会員'), '会員ID', memberId);
-  if (!member || toBoolean_(member.row[member.columns['削除フラグ']])) throw new Error('対象会員が見つかりません。');
+  // 存在確認
+  if (memberId) {
+    var member = findRowByColumnValue_(ss.getSheetByName('T_会員'), '会員ID', memberId);
+    if (!member || toBoolean_(member.row[member.columns['削除フラグ']])) throw new Error('対象会員が見つかりません。');
+  } else {
+    var staffRec = findRowByColumnValue_(ss.getSheetByName('T_事業所職員'), '職員ID', staffId);
+    if (!staffRec || toBoolean_(staffRec.row[staffRec.columns['削除フラグ']])) throw new Error('対象職員が見つかりません。');
+    if (String(staffRec.row[staffRec.columns['職員状態コード']] || '') === 'LEFT') throw new Error('退職済みの職員は役員に就任できません。');
+  }
 
   var roleSheet = ss.getSheetByName('M_役職マスタ');
   var role = findRowByColumnValue_(roleSheet, '役職コード', roleCode);
   if (!role || toBoolean_(role.row[role.columns['削除フラグ']])) throw new Error('役職が見つかりません。');
   var orgCode = String(role.row[role.columns['組織コード']] || '');
 
+  // 現職二重就任チェック
   var dup = getRowsAsObjects_(ss, 'T_役員').filter(function(r) {
-    return !toBoolean_(r['削除フラグ']) &&
-      String(r['会員ID'] || '') === memberId &&
-      String(r['役職コード'] || '') === roleCode &&
-      (!r['退任日'] || String(r['退任日'] || '') === '');
+    if (toBoolean_(r['削除フラグ'])) return false;
+    if (r['退任日'] && String(r['退任日'] || '') !== '') return false;
+    if (String(r['役職コード'] || '') !== roleCode) return false;
+    if (memberId && String(r['会員ID'] || '') === memberId) return true;
+    if (staffId  && String(r['職員ID'] || '') === staffId)  return true;
+    return false;
   });
-  if (dup.length > 0) throw new Error('この会員はすでに同じ役職に就任中です。');
+  if (dup.length > 0) throw new Error('すでに同じ役職に就任中です。');
 
   var nowIso = new Date().toISOString();
   var officerId = Utilities.getUuid();
   appendRowsByHeaders_(ss, 'T_役員', [{
-    '役員ID': officerId, '会員ID': memberId,
+    '役員ID': officerId, '会員ID': memberId, '職員ID': staffId,
     '役職コード': roleCode, '組織コード': orgCode,
     '就任日': appointedDate, '退任日': '', '備考': note,
     '削除フラグ': false, '作成日時': nowIso, '更新日時': nowIso,
@@ -21629,18 +21679,22 @@ function resignOfficer_(payload) {
 
 function getBankAccount_(payload) {
   var memberId = String(payload.memberId || '').trim();
-  if (!memberId) throw new Error('会員IDは必須です。');
+  var staffId  = String(payload.staffId  || '').trim();
   var ss = getOrCreateDatabase_();
   initializeSchemaIfNeeded_(ss);
   var rows = getRowsAsObjects_(ss, 'T_振込口座').filter(function(r) {
-    return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
+    if (toBoolean_(r['削除フラグ'])) return false;
+    if (staffId  && String(r['職員ID'] || '') === staffId)  return true;
+    if (memberId && !staffId && String(r['会員ID'] || '') === memberId) return true;
+    return false;
   });
   return rows.length > 0 ? rows[0] : null;
 }
 
 function saveBankAccount_(payload) {
   var memberId = String(payload.memberId || '').trim();
-  if (!memberId) throw new Error('会員IDは必須です。');
+  var staffId  = String(payload.staffId  || '').trim();
+  if (!memberId && !staffId) throw new Error('会員IDまたは職員IDが必要です。');
 
   var ss    = getOrCreateDatabase_();
   initializeSchemaIfNeeded_(ss);
@@ -21650,16 +21704,16 @@ function saveBankAccount_(payload) {
   var existing = getRowsAsObjects_(ss, 'T_振込口座');
   var found = null;
   for (var i = 0; i < existing.length; i += 1) {
-    if (!toBoolean_(existing[i]['削除フラグ']) && String(existing[i]['会員ID'] || '') === memberId) {
-      found = findRowByColumnValue_(sheet, '口座ID', existing[i]['口座ID']);
-      break;
-    }
+    if (toBoolean_(existing[i]['削除フラグ'])) continue;
+    var matchM = memberId && !staffId && String(existing[i]['会員ID'] || '') === memberId;
+    var matchS = staffId  && String(existing[i]['職員ID'] || '') === staffId;
+    if (matchM || matchS) { found = findRowByColumnValue_(sheet, '口座ID', existing[i]['口座ID']); break; }
   }
 
   var nowIso    = new Date().toISOString();
   var accountId = found ? String(found.row[found.columns['口座ID']] || '') : Utilities.getUuid();
   var newData   = {
-    '口座ID': accountId, '会員ID': memberId,
+    '口座ID': accountId, '会員ID': staffId ? '' : memberId, '職員ID': staffId,
     '金融機関名':   String(payload.bankName          || '').trim(),
     '金融機関コード': String(payload.bankCode        || '').trim(),
     '支店名':       String(payload.branchName        || '').trim(),
@@ -21686,7 +21740,7 @@ function saveBankAccount_(payload) {
 
 function deleteBankAccount_(payload) {
   var memberId = String(payload.memberId || '').trim();
-  if (!memberId) throw new Error('会員IDは必須です。');
+  var staffId  = String(payload.staffId  || '').trim();
 
   var ss    = getOrCreateDatabase_();
   initializeSchemaIfNeeded_(ss);
@@ -21694,10 +21748,10 @@ function deleteBankAccount_(payload) {
   var rows  = getRowsAsObjects_(ss, 'T_振込口座');
   var found = null;
   for (var i = 0; i < rows.length; i += 1) {
-    if (!toBoolean_(rows[i]['削除フラグ']) && String(rows[i]['会員ID'] || '') === memberId) {
-      found = findRowByColumnValue_(sheet, '口座ID', rows[i]['口座ID']);
-      break;
-    }
+    if (toBoolean_(rows[i]['削除フラグ'])) continue;
+    var matchM = memberId && !staffId && String(rows[i]['会員ID'] || '') === memberId;
+    var matchS = staffId  && String(rows[i]['職員ID'] || '') === staffId;
+    if (matchM || matchS) { found = findRowByColumnValue_(sheet, '口座ID', rows[i]['口座ID']); break; }
   }
   if (!found) throw new Error('口座情報が見つかりません。');
 
@@ -21709,21 +21763,24 @@ function deleteBankAccount_(payload) {
 }
 
 // 会員自身の役員ステータス + 口座取得（会員ポータル用）
-// processApiRequest で sessionToken 検証済み → payload.memberId は確定値
+// processApiRequest で sessionToken 検証済み → memberId・staffId が確定済み
 function getMemberOfficerStatus_(payload) {
   var memberId = String(payload.memberId || '').trim();
-  if (!memberId) throw new Error('セッション情報が無効です。');
+  var staffId  = String(payload.staffId  || '').trim();
+  if (!memberId && !staffId) throw new Error('セッション情報が無効です。');
 
   var ss = getOrCreateDatabase_();
   initializeSchemaIfNeeded_(ss);
-  var isOfficer  = isActiveOfficer_(memberId, ss);
+  var isOfficer  = isActiveOfficer_(memberId, staffId, ss);
   var activeRoles = [];
 
   if (isOfficer) {
     var officers = getRowsAsObjects_(ss, 'T_役員').filter(function(r) {
-      return !toBoolean_(r['削除フラグ']) &&
-        String(r['会員ID'] || '') === memberId &&
-        (!r['退任日'] || String(r['退任日'] || '') === '');
+      if (toBoolean_(r['削除フラグ'])) return false;
+      if (r['退任日'] && String(r['退任日'] || '') !== '') return false;
+      if (memberId && !staffId && String(r['会員ID'] || '') === memberId) return true;
+      if (staffId  && String(r['職員ID'] || '') === staffId) return true;
+      return false;
     });
     var roleMap = {};
     getRowsAsObjects_(ss, 'M_役職マスタ').forEach(function(r) { roleMap[String(r['役職コード'] || '')] = r; });
@@ -21744,18 +21801,19 @@ function getMemberOfficerStatus_(payload) {
     });
   }
 
-  var bankAccount = isOfficer ? getBankAccount_({ memberId: memberId }) : null;
+  var bankAccount = isOfficer ? getBankAccount_({ memberId: staffId ? '' : memberId, staffId: staffId }) : null;
   return { isOfficer: isOfficer, activeRoles: activeRoles, bankAccount: bankAccount };
 }
 
 function saveMemberBankAccount_(payload) {
   var memberId = String(payload.memberId || '').trim();
-  if (!memberId) throw new Error('セッション情報が無効です。');
+  var staffId  = String(payload.staffId  || '').trim();
+  if (!memberId && !staffId) throw new Error('セッション情報が無効です。');
 
   var ss = getOrCreateDatabase_();
   initializeSchemaIfNeeded_(ss);
-  if (!isActiveOfficer_(memberId, ss)) throw new Error('役員のみ口座情報を登録できます。');
-  return saveBankAccount_(Object.assign({}, payload, { memberId: memberId }));
+  if (!isActiveOfficer_(memberId, staffId, ss)) throw new Error('役員のみ口座情報を登録できます。');
+  return saveBankAccount_(Object.assign({}, payload, { memberId: staffId ? '' : memberId, staffId: staffId }));
 }
 
 // ---------- T_支払い / T_支払い明細 / T_請求 管理 ----------
@@ -21950,7 +22008,8 @@ function getOrCreateClaimAttachmentFolder_(ss) {
 
 function saveClaim_(payload) {
   var memberId = String((payload.__memberSession && payload.__memberSession.memberId) ? payload.__memberSession.memberId : (payload.memberId || '')).trim();
-  if (!memberId) throw new Error('セッション情報が無効です。');
+  var staffId  = String((payload.__memberSession && payload.__memberSession.staffId)  ? payload.__memberSession.staffId  : (payload.staffId  || '')).trim();
+  if (!memberId && !staffId) throw new Error('セッション情報が無効です。');
 
   var claimId  = String(payload.claimId  || '').trim();
   var roleCode = String(payload.roleCode || '').trim();
@@ -21970,7 +22029,7 @@ function saveClaim_(payload) {
   initializeSchemaIfNeeded_(ss);
 
   // 役員チェック
-  if (!isActiveOfficer_(memberId, ss)) throw new Error('役員のみ請求を提出できます。');
+  if (!isActiveOfficer_(memberId, staffId, ss)) throw new Error('役員のみ請求を提出できます。');
 
   var sheet = ss.getSheetByName('T_請求');
   if (!sheet) throw new Error('T_請求 が見つかりません。');
@@ -21980,8 +22039,11 @@ function saveClaim_(payload) {
     // 更新（申請中のみ可）
     var found = findRowByColumnValue_(sheet, '請求ID', claimId);
     if (!found || toBoolean_(found.row[found.columns['削除フラグ']])) throw new Error('請求が見つかりません。');
-    var claimOwner = String(found.row[found.columns['会員ID']] || '');
-    if (claimOwner !== memberId) throw new Error('他の会員の請求は編集できません。');
+    // 所有者チェック（会員IDまたは職員IDで照合）
+    var claimMember = String(found.row[found.columns['会員ID']] || '');
+    var claimStaff  = String(found.row[found.columns['職員ID'] != null ? found.columns['職員ID'] : -1] || '');
+    var ownerMatch = (memberId && !staffId && claimMember === memberId) || (staffId && claimStaff === staffId);
+    if (!ownerMatch) throw new Error('他の会員の請求は編集できません。');
     var status = String(found.row[found.columns['請求状態']] || '');
     if (status !== '申請中') throw new Error('申請中以外の請求は編集できません。');
 
@@ -22000,7 +22062,8 @@ function saveClaim_(payload) {
     claimId = Utilities.getUuid();
     appendRowsByHeaders_(ss, 'T_請求', [{
       '請求ID':       claimId,
-      '会員ID':       memberId,
+      '会員ID':       staffId ? '' : memberId,
+      '職員ID':       staffId,
       '役職コード':   roleCode,
       '組織コード':   orgCode,
       '種別コード':   typeCode,
@@ -22023,13 +22086,17 @@ function saveClaim_(payload) {
 
 function getMyClaims_(payload) {
   var memberId = String((payload.__memberSession && payload.__memberSession.memberId) ? payload.__memberSession.memberId : '').trim();
-  if (!memberId) throw new Error('セッション情報が無効です。');
+  var staffId  = String((payload.__memberSession && payload.__memberSession.staffId)  ? payload.__memberSession.staffId  : '').trim();
+  if (!memberId && !staffId) throw new Error('セッション情報が無効です。');
 
   var ss = getOrCreateDatabase_();
   initializeSchemaIfNeeded_(ss);
 
   var claims = getRowsAsObjects_(ss, 'T_請求').filter(function(r) {
-    return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
+    if (toBoolean_(r['削除フラグ'])) return false;
+    if (staffId  && String(r['職員ID'] || '') === staffId)  return true;
+    if (memberId && !staffId && String(r['会員ID'] || '') === memberId) return true;
+    return false;
   });
   return claims.sort(function(a, b) { return (b['作成日時'] || '').localeCompare(a['作成日時'] || ''); });
 }
@@ -22146,6 +22213,7 @@ function adminDeleteClaim_(payload) {
 
 function uploadClaimAttachment_(payload) {
   var memberId = String((payload.__memberSession && payload.__memberSession.memberId) ? payload.__memberSession.memberId : '').trim();
+  var staffId  = String((payload.__memberSession && payload.__memberSession.staffId)  ? payload.__memberSession.staffId  : '').trim();
   var claimId  = String(payload.claimId  || '').trim();
   var base64   = String(payload.base64   || '').replace(/^data:[^;]+;base64,/, '');
   var filename = String(payload.filename || 'attachment');
@@ -22180,10 +22248,12 @@ function uploadClaimAttachment_(payload) {
     var sheet = ss.getSheetByName('T_請求');
     var found = findRowByColumnValue_(sheet, '請求ID', claimId);
     if (found && !toBoolean_(found.row[found.columns['削除フラグ']])) {
-      // 所有者チェック（会員側の場合のみ）
-      if (memberId) {
-        var claimOwner = String(found.row[found.columns['会員ID']] || '');
-        if (claimOwner !== memberId) throw new Error('他の会員の請求にはファイルを追加できません。');
+      // 所有者チェック（会員/職員側の場合のみ）
+      if (memberId || staffId) {
+        var claimM = String(found.row[found.columns['会員ID']] || '');
+        var claimS = String(found.row[found.columns['職員ID'] != null ? found.columns['職員ID'] : -1] || '');
+        var owns = (memberId && !staffId && claimM === memberId) || (staffId && claimS === staffId);
+        if (!owns) throw new Error('他の会員の請求にはファイルを追加できません。');
         if (String(found.row[found.columns['請求状態']] || '') !== '申請中') throw new Error('申請中以外の請求にはファイルを追加できません。');
       }
       var existingJson = String(found.row[found.columns['添付ファイルURL']] || '');
@@ -22202,6 +22272,7 @@ function uploadClaimAttachment_(payload) {
 
 function removeClaimAttachment_(payload) {
   var memberId = String((payload.__memberSession && payload.__memberSession.memberId) ? payload.__memberSession.memberId : '').trim();
+  var staffId  = String((payload.__memberSession && payload.__memberSession.staffId)  ? payload.__memberSession.staffId  : '').trim();
   var claimId  = String(payload.claimId  || '').trim();
   var fileId   = String(payload.fileId   || '').trim();
   if (!claimId || !fileId) throw new Error('claimId と fileId は必須です。');
@@ -22211,8 +22282,11 @@ function removeClaimAttachment_(payload) {
   var found = findRowByColumnValue_(sheet, '請求ID', claimId);
   if (!found || toBoolean_(found.row[found.columns['削除フラグ']])) throw new Error('請求が見つかりません。');
 
-  if (memberId) {
-    if (String(found.row[found.columns['会員ID']] || '') !== memberId) throw new Error('他の会員の請求からはファイルを削除できません。');
+  if (memberId || staffId) {
+    var cM = String(found.row[found.columns['会員ID']] || '');
+    var cS = String(found.row[found.columns['職員ID'] != null ? found.columns['職員ID'] : -1] || '');
+    var owns = (memberId && !staffId && cM === memberId) || (staffId && cS === staffId);
+    if (!owns) throw new Error('他の会員の請求からはファイルを削除できません。');
     if (String(found.row[found.columns['請求状態']] || '') !== '申請中') throw new Error('申請中以外の請求からはファイルを削除できません。');
   }
 
@@ -22230,4 +22304,98 @@ function removeClaimAttachment_(payload) {
   row[found.columns['更新日時']]         = new Date().toISOString();
   sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
   return { removed: true, fileId: fileId };
+}
+
+// ============================================================
+// v297: 役員紐づけ変更 / 退職自動退任
+// ============================================================
+
+/**
+ * 役員の紐づけを変更する（個人会員↔事業所職員の双方向対応）。
+ * T_振込口座 の linkage も同時に更新する。
+ * T_請求 の過去レコードは元の紐づけのまま保持（履歴として有効）。
+ */
+function updateOfficerLinkage_(payload) {
+  var officerId    = String(payload.officerId    || '').trim();
+  var newMemberId  = String(payload.newMemberId  || '').trim();
+  var newStaffId   = String(payload.newStaffId   || '').trim();
+  if (!officerId)                    throw new Error('役員IDは必須です。');
+  if (!newMemberId && !newStaffId)   throw new Error('新しい会員IDまたは職員IDが必要です。');
+  if (newMemberId && newStaffId)     throw new Error('会員IDと職員IDは同時に指定できません。');
+
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+
+  var officerSheet = ss.getSheetByName('T_役員');
+  var oFound = findRowByColumnValue_(officerSheet, '役員ID', officerId);
+  if (!oFound || toBoolean_(oFound.row[oFound.columns['削除フラグ']])) throw new Error('役員レコードが見つかりません。');
+
+  // 新しい人物の存在確認
+  if (newMemberId) {
+    var memCheck = findRowByColumnValue_(ss.getSheetByName('T_会員'), '会員ID', newMemberId);
+    if (!memCheck || toBoolean_(memCheck.row[memCheck.columns['削除フラグ']])) throw new Error('指定した会員が見つかりません。');
+  } else {
+    var stfCheck = findRowByColumnValue_(ss.getSheetByName('T_事業所職員'), '職員ID', newStaffId);
+    if (!stfCheck || toBoolean_(stfCheck.row[stfCheck.columns['削除フラグ']])) throw new Error('指定した職員が見つかりません。');
+    if (String(stfCheck.row[stfCheck.columns['職員状態コード']] || '') === 'LEFT') throw new Error('退職済みの職員には紐づけ変更できません。');
+  }
+
+  // 旧 linkage を記録（口座の照合に使用）
+  var oldMemberId = String(oFound.row[oFound.columns['会員ID']] || '');
+  var oldStaffId  = String(oFound.row[oFound.columns['職員ID'] != null ? oFound.columns['職員ID'] : -1] || '');
+
+  var nowIso = new Date().toISOString();
+
+  // T_役員 更新
+  var oRow = oFound.row.slice();
+  oRow[oFound.columns['会員ID']] = newMemberId;
+  if (oFound.columns['職員ID'] != null) oRow[oFound.columns['職員ID']] = newStaffId;
+  oRow[oFound.columns['更新日時']] = nowIso;
+  officerSheet.getRange(oFound.rowNumber, 1, 1, oRow.length).setValues([oRow]);
+
+  // T_振込口座 の linkage も自動移行
+  var bankSheet = ss.getSheetByName('T_振込口座');
+  var bankRows  = getRowsAsObjects_(ss, 'T_振込口座');
+  for (var i = 0; i < bankRows.length; i += 1) {
+    var br = bankRows[i];
+    if (toBoolean_(br['削除フラグ'])) continue;
+    var matchM = oldMemberId && !oldStaffId && String(br['会員ID'] || '') === oldMemberId;
+    var matchS = oldStaffId  && String(br['職員ID'] || '') === oldStaffId;
+    if (matchM || matchS) {
+      var bFound = findRowByColumnValue_(bankSheet, '口座ID', br['口座ID']);
+      if (bFound) {
+        var bRow = bFound.row.slice();
+        bRow[bFound.columns['会員ID']] = newMemberId;
+        if (bFound.columns['職員ID'] != null) bRow[bFound.columns['職員ID']] = newStaffId;
+        bRow[bFound.columns['更新日時']] = nowIso;
+        bankSheet.getRange(bFound.rowNumber, 1, 1, bRow.length).setValues([bRow]);
+      }
+    }
+  }
+
+  clearAllDataCache_();
+  return { updated: true, officerId: officerId };
+}
+
+/**
+ * 職員が退職（LEFT）になった時に現職の役員レコードを自動退任させる。
+ * updateStaff_ から呼び出される。
+ */
+function autoRetireOfficerByStaffId_(ss, staffId, nowIso) {
+  var officerSheet = ss.getSheetByName('T_役員');
+  if (!officerSheet) return;
+  var activeOfficers = getRowsAsObjects_(ss, 'T_役員').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) &&
+      String(r['職員ID'] || '') === staffId &&
+      (!r['退任日'] || String(r['退任日'] || '') === '');
+  });
+  activeOfficers.forEach(function(o) {
+    var found = findRowByColumnValue_(officerSheet, '役員ID', o['役員ID']);
+    if (found) {
+      var row = found.row.slice();
+      row[found.columns['退任日']]  = nowIso.substring(0, 10);
+      row[found.columns['更新日時']] = nowIso;
+      officerSheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+    }
+  });
 }

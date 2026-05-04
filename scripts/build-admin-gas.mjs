@@ -455,10 +455,11 @@ function buildAdminCode(source) {
     'deleteOfficerRole',
     'savePaymentType',
     'deletePaymentType',
-    // v295: 役員割当て管理
+    // v295/v297: 役員割当て管理
     'getOfficerManagementData',
     'assignOfficer',
     'resignOfficer',
+    'updateOfficerLinkage',
     // v295: 振込口座管理
     'getAdminBankAccount',
     'saveAdminBankAccount',

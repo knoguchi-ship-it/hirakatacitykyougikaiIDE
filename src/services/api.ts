@@ -203,8 +203,9 @@ export interface ApiClient {
   deletePaymentType(payload: { typeCode: string }): Promise<{ deleted: boolean; typeCode: string }>;
   // v295: 役員割当て管理
   getOfficerManagementData(): Promise<import('../shared/types').OfficerManagementData>;
-  assignOfficer(payload: { memberId: string; roleCode: string; appointedDate?: string; note?: string }): Promise<{ officerId: string }>;
+  assignOfficer(payload: { memberId?: string; staffId?: string; roleCode: string; appointedDate?: string; note?: string }): Promise<{ officerId: string }>;
   resignOfficer(payload: { officerId: string; resignationDate?: string }): Promise<{ resigned: boolean; officerId: string }>;
+  updateOfficerLinkage(payload: { officerId: string; newMemberId?: string; newStaffId?: string }): Promise<{ updated: boolean; officerId: string }>;
   // v295: 振込口座管理（管理者用）
   getAdminBankAccount(payload: { memberId: string }): Promise<import('../shared/types').BankAccount | null>;
   saveAdminBankAccount(payload: import('../shared/types').SaveBankAccountPayload): Promise<{ accountId: string }>;
@@ -1727,7 +1728,17 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async assignOfficer(payload: { memberId: string; roleCode: string; appointedDate?: string; note?: string }): Promise<{ officerId: string }> {
+  async updateOfficerLinkage(payload: { officerId: string; newMemberId?: string; newStaffId?: string }): Promise<{ updated: boolean; officerId: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
+        .withFailureHandler((e: Error) => reject(e))
+        .processApiRequest('updateOfficerLinkage', JSON.stringify(payload));
+    });
+  }
+
+  async assignOfficer(payload: { memberId?: string; staffId?: string; roleCode: string; appointedDate?: string; note?: string }): Promise<{ officerId: string }> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
       google.script.run

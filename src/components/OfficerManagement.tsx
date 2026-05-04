@@ -140,7 +140,8 @@ const OfficerManagement: React.FC<OfficerManagementProps> = ({ api, members }) =
 // ── 役員一覧・割当てタブ ───────────────────────────────────────────────────
 
 interface AssignFormState {
-  memberId: string;
+  memberId: string;   // 個人・賛助会員の場合
+  staffId: string;    // 事業所職員の場合（XOR）
   memberSearch: string;
   roleCode: string;
   appointedDate: string;
@@ -148,8 +149,18 @@ interface AssignFormState {
 }
 
 const ASSIGN_INITIAL: AssignFormState = {
-  memberId: '', memberSearch: '', roleCode: '', appointedDate: '', note: '',
+  memberId: '', staffId: '', memberSearch: '', roleCode: '', appointedDate: '', note: '',
 };
+
+/** 割当て対象人物（個人会員・事業所職員を統合した検索用） */
+interface SearchablePerson {
+  key: string;         // unique key for React
+  memberId: string;
+  staffId: string;
+  label: string;       // 検索ドロップダウン表示用
+  displayName: string;
+  officeName: string;
+}
 
 const OfficerListTab: React.FC<{
   masterData: OfficerMasterData;
@@ -188,14 +199,48 @@ const OfficerListTab: React.FC<{
   const activeRoles = masterData.roles.filter(r => !r.削除フラグ && r.有効フラグ).sort((a, b) => (a.表示順 || 0) - (b.表示順 || 0));
   const activeOrgs = masterData.organizations.filter(o => !o.削除フラグ && o.有効フラグ).sort((a, b) => (a.表示順 || 0) - (b.表示順 || 0));
 
-  // 会員検索
-  const filteredMembers = useMemo(() => {
+  // 割当て候補（個人・賛助会員 + 全事業所職員）を統合した検索リスト
+  const allSearchablePersons = useMemo((): SearchablePerson[] => {
+    const result: SearchablePerson[] = [];
+    for (const m of members) {
+      if (m.status !== 'ACTIVE' && m.status !== 'WITHDRAWAL_SCHEDULED') continue;
+      if (m.type !== MemberType.BUSINESS) {
+        // 個人・賛助会員
+        const fullName = `${m.lastName} ${m.firstName}`;
+        result.push({
+          key: `member-${m.id}`,
+          memberId: m.id,
+          staffId: '',
+          displayName: fullName,
+          officeName: m.officeName,
+          label: `${fullName}（${m.id}）${m.officeName ? ' ' + m.officeName : ''}`,
+        });
+      } else {
+        // 事業所の全在籍職員
+        for (const s of m.staff ?? []) {
+          if (s.status !== 'ENROLLED') continue;
+          const name = s.name || `${(s as any).lastName ?? ''} ${(s as any).firstName ?? ''}`.trim() || s.id;
+          result.push({
+            key: `staff-${s.id}`,
+            memberId: '',
+            staffId: s.id,
+            displayName: name,
+            officeName: m.officeName,
+            label: `${name}（${m.officeName}）`,
+          });
+        }
+      }
+    }
+    return result;
+  }, [members]);
+
+  const filteredPersons = useMemo(() => {
     const q = assignForm.memberSearch.trim().toLowerCase();
-    return members
-      .filter(m => m.status === 'ACTIVE' || m.status === 'WITHDRAWAL_SCHEDULED')
-      .filter(m => !q || `${m.lastName}${m.firstName} ${m.id} ${m.officeName}`.toLowerCase().includes(q))
-      .slice(0, 50);
-  }, [members, assignForm.memberSearch]);
+    if (!q) return allSearchablePersons.slice(0, 80);
+    return allSearchablePersons
+      .filter(p => p.label.toLowerCase().includes(q) || p.memberId.includes(q) || p.staffId.includes(q))
+      .slice(0, 80);
+  }, [allSearchablePersons, assignForm.memberSearch]);
 
   // 役員リストフィルタリング
   const filteredOfficers = useMemo(() => {
@@ -210,10 +255,44 @@ const OfficerListTab: React.FC<{
       });
   }, [officerData.officers, filterOrg, filterRole, showResigned]);
 
+  // 紐づけ変更フォーム
+  const [linkageTarget, setLinkageTarget] = useState<OfficerRecord | null>(null);
+  const [linkageSearch, setLinkageSearch] = useState('');
+  const [linkageSelected, setLinkageSelected] = useState<SearchablePerson | null>(null);
+  const [linkageSaving, setLinkageSaving] = useState(false);
+  const [linkageError, setLinkageError] = useState<string | null>(null);
+
+  const filteredLinkagePersons = useMemo(() => {
+    const q = linkageSearch.trim().toLowerCase();
+    if (!q) return allSearchablePersons.slice(0, 80);
+    return allSearchablePersons.filter(p => p.label.toLowerCase().includes(q)).slice(0, 80);
+  }, [allSearchablePersons, linkageSearch]);
+
+  const handleLinkageUpdate = async () => {
+    if (!linkageTarget || !linkageSelected) { setLinkageError('新しい担当者を選択してください。'); return; }
+    setLinkageSaving(true);
+    setLinkageError(null);
+    try {
+      await api.updateOfficerLinkage({
+        officerId: linkageTarget.役員ID,
+        newMemberId: linkageSelected.memberId || undefined,
+        newStaffId: linkageSelected.staffId || undefined,
+      });
+      await onRefresh();
+      setLinkageTarget(null);
+      setLinkageSearch('');
+      setLinkageSelected(null);
+    } catch (e: any) {
+      setLinkageError(e?.message || '紐づけ変更に失敗しました。');
+    } finally {
+      setLinkageSaving(false);
+    }
+  };
+
   // 割当てフォームバリデーション
   const validateAssign = (): boolean => {
     const errs: Partial<AssignFormState> = {};
-    if (!assignForm.memberId) errs.memberId = '会員を選択してください。';
+    if (!assignForm.memberId && !assignForm.staffId) errs.memberId = '会員または職員を選択してください。';
     if (!assignForm.roleCode) errs.roleCode = '役職を選択してください。';
     if (assignForm.appointedDate && !validateDate(assignForm.appointedDate)) {
       errs.appointedDate = '正しい日付形式（YYYY-MM-DD）で入力してください。';
@@ -228,7 +307,8 @@ const OfficerListTab: React.FC<{
     setAssignServerError(null);
     try {
       await api.assignOfficer({
-        memberId: assignForm.memberId,
+        memberId: assignForm.memberId || undefined,
+        staffId: assignForm.staffId || undefined,
         roleCode: assignForm.roleCode,
         appointedDate: assignForm.appointedDate || undefined,
         note: assignForm.note || undefined,
@@ -332,35 +412,33 @@ const OfficerListTab: React.FC<{
               <input
                 type="text"
                 value={assignForm.memberSearch}
-                onChange={e => setAssignForm(f => ({ ...f, memberSearch: e.target.value, memberId: '' }))}
-                placeholder="氏名・会員ID・事業所名で検索"
+                onChange={e => setAssignForm(f => ({ ...f, memberSearch: e.target.value, memberId: '', staffId: '' }))}
+                placeholder="氏名・会員ID・事業所名で検索（個人会員・事業所職員を含む）"
                 className={fieldInput(!!assignErrors.memberId)}
               />
-              {assignForm.memberSearch && (
-                <div className="mt-1 max-h-40 overflow-auto rounded-lg border border-slate-200 bg-white shadow-md">
-                  {filteredMembers.length === 0 ? (
-                    <p className="px-3 py-2 text-xs text-slate-400">該当会員なし</p>
+              {assignForm.memberSearch && !assignForm.memberId && !assignForm.staffId && (
+                <div className="mt-1 max-h-48 overflow-auto rounded-lg border border-slate-200 bg-white shadow-md">
+                  {filteredPersons.length === 0 ? (
+                    <p className="px-3 py-2 text-xs text-slate-400">該当なし</p>
                   ) : (
-                    filteredMembers.map(m => {
-                      const fullName = `${m.lastName} ${m.firstName}`;
-                      const isSelected = assignForm.memberId === m.id;
-                      return (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => setAssignForm(f => ({ ...f, memberId: m.id, memberSearch: `${fullName}（${m.id}）` }))}
-                          className={`w-full px-3 py-2 text-left text-xs hover:bg-primary-50 ${isSelected ? 'bg-primary-100 font-semibold' : ''}`}
-                        >
-                          <span className="font-medium text-slate-800">{fullName}</span>
-                          <span className="ml-2 text-slate-500">{m.id}</span>
-                          {m.officeName && <span className="ml-2 text-slate-400">{m.officeName}</span>}
-                        </button>
-                      );
-                    })
+                    filteredPersons.map(p => (
+                      <button
+                        key={p.key}
+                        type="button"
+                        onClick={() => setAssignForm(f => ({ ...f, memberId: p.memberId, staffId: p.staffId, memberSearch: p.label }))}
+                        className="w-full px-3 py-2 text-left text-xs hover:bg-primary-50"
+                      >
+                        <span className="font-medium text-slate-800">{p.displayName}</span>
+                        {p.officeName && <span className="ml-2 text-slate-400">{p.officeName}</span>}
+                        <span className="ml-2 text-[10px] rounded bg-slate-100 px-1 text-slate-500">
+                          {p.staffId ? '事業所職員' : '個人/賛助'}
+                        </span>
+                      </button>
+                    ))
                   )}
                 </div>
               )}
-              {assignForm.memberId && (
+              {(assignForm.memberId || assignForm.staffId) && (
                 <p className="mt-1 text-[11px] text-emerald-600">✓ 選択済み: {assignForm.memberSearch}</p>
               )}
               {assignErrors.memberId && <p className="mt-1 text-xs text-red-600">{assignErrors.memberId}</p>}
@@ -464,6 +542,44 @@ const OfficerListTab: React.FC<{
         </div>
       )}
 
+      {/* 紐づけ変更フォーム */}
+      {linkageTarget && (
+        <div className="rounded-xl border border-sky-200 bg-sky-50/60 p-5 space-y-3">
+          <h3 className="text-sm font-semibold text-sky-800">
+            紐づけ変更 — {linkageTarget.表示名}（{roleMap[linkageTarget.役職コード] ?? linkageTarget.役職コード}）
+          </h3>
+          <p className="text-xs text-slate-600">会員種別が変わった場合（個人↔事業所職員）に紐づけを更新します。振込口座も同時に移行されます。</p>
+          <div className="max-w-lg">
+            <label className="mb-1 block text-xs font-medium text-slate-700">新しい担当者</label>
+            <input type="text" value={linkageSearch} onChange={e => { setLinkageSearch(e.target.value); setLinkageSelected(null); }}
+              placeholder="氏名・事業所名で検索" className={inputCls} />
+            {linkageSearch && !linkageSelected && (
+              <div className="mt-1 max-h-40 overflow-auto rounded-lg border border-slate-200 bg-white shadow-md">
+                {filteredLinkagePersons.length === 0
+                  ? <p className="px-3 py-2 text-xs text-slate-400">該当なし</p>
+                  : filteredLinkagePersons.map(p => (
+                    <button key={p.key} type="button"
+                      onClick={() => { setLinkageSelected(p); setLinkageSearch(p.label); }}
+                      className="w-full px-3 py-2 text-left text-xs hover:bg-sky-50">
+                      <span className="font-medium text-slate-800">{p.displayName}</span>
+                      {p.officeName && <span className="ml-2 text-slate-400">{p.officeName}</span>}
+                      <span className="ml-2 text-[10px] rounded bg-slate-100 px-1 text-slate-500">{p.staffId ? '事業所職員' : '個人/賛助'}</span>
+                    </button>
+                  ))
+                }
+              </div>
+            )}
+            {linkageSelected && <p className="mt-1 text-[11px] text-emerald-600">✓ 選択済み: {linkageSelected.label}</p>}
+          </div>
+          {linkageError && <p className="text-xs text-red-600" role="alert">{linkageError}</p>}
+          <div className="flex gap-2">
+            <button type="button" onClick={handleLinkageUpdate} disabled={linkageSaving || !linkageSelected}
+              className={btnPrimary}>{linkageSaving ? '変更中…' : '紐づけを変更する'}</button>
+            <button type="button" onClick={() => { setLinkageTarget(null); setLinkageSearch(''); setLinkageSelected(null); }} className={btnSecondary}>キャンセル</button>
+          </div>
+        </div>
+      )}
+
       {/* 役員テーブル */}
       <div className="overflow-hidden rounded-xl border border-slate-200">
         <div className="flex items-center justify-between bg-slate-50 px-4 py-3 border-b border-slate-200">
@@ -495,12 +611,10 @@ const OfficerListTab: React.FC<{
                     <tr key={officer.役員ID} className={!isActive ? 'bg-slate-50/60 opacity-60' : undefined}>
                       <td className="px-4 py-3">
                         <p className="font-semibold text-slate-800">{officer.表示名}</p>
-                        <p className="text-xs text-slate-500">会員番号: {officer.会員ID}</p>
-                        {officer.会員種別コード && (
-                          <p className="text-xs text-slate-400">
-                            {officer.会員種別コード === 'INDIVIDUAL' ? '個人会員' : officer.会員種別コード === 'BUSINESS' ? '事業所会員' : '賛助会員'}
-                          </p>
-                        )}
+                        {officer.所属名 && <p className="text-xs text-slate-400">{officer.所属名}</p>}
+                        <span className="text-[10px] rounded bg-slate-100 px-1 text-slate-500">
+                          {officer.職員ID ? '事業所職員' : (officer.会員種別コード === 'INDIVIDUAL' ? '個人会員' : officer.会員種別コード === 'SUPPORT' ? '賛助会員' : officer.会員種別コード)}
+                        </span>
                       </td>
                       <td className="px-3 py-3 text-slate-700 text-xs">{orgMap[officer.組織コード] ?? officer.組織コード}</td>
                       <td className="px-3 py-3 text-slate-700">{roleMap[officer.役職コード] ?? officer.役職コード}</td>
@@ -512,15 +626,19 @@ const OfficerListTab: React.FC<{
                         </span>
                       </td>
                       <td className="px-3 py-3 text-right">
-                        {isActive && (
-                          <button
-                            type="button"
-                            onClick={() => openResign(officer)}
-                            className={btnDanger}
-                          >
-                            退任処理
-                          </button>
-                        )}
+                        <div className="flex justify-end gap-1.5">
+                          {isActive && (
+                            <button type="button" onClick={() => { setLinkageTarget(officer); setLinkageSearch(''); setLinkageSelected(null); setLinkageError(null); }}
+                              className="rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-[11px] font-semibold text-sky-700 hover:bg-sky-100">
+                              紐づけ変更
+                            </button>
+                          )}
+                          {isActive && (
+                            <button type="button" onClick={() => openResign(officer)} className={btnDanger}>
+                              退任処理
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

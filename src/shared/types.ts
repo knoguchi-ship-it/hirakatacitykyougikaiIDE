@@ -203,8 +203,10 @@ export interface OfficerMasterData {
 export interface OfficerRecord {
   役員ID: string;
   会員ID: string;
+  職員ID: string;         // 事業所職員の場合のみ non-empty（個人/賛助は空）
   表示名: string;
-  会員種別コード: string;
+  所属名: string;         // 事業所名 or 所属先
+  会員種別コード: string; // 個人/賛助は MemberType、事業所職員は 'BUSINESS_STAFF'
   役職コード: string;
   組織コード: string;
   就任日: string;
