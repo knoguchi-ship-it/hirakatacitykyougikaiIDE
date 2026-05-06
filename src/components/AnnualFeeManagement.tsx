@@ -8,6 +8,7 @@ import {
   MemberType,
   PaymentStatus,
 } from '../types';
+import { matchesSearchQuery } from '../utils/search';
 
 interface Props {
   onChanged?: () => Promise<void> | void;
@@ -356,16 +357,11 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
   }, []);
 
   const filteredRecords = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
     return data.records.filter((record) => {
       if (failedKeys && !failedKeys.has(buildRowKey(record))) return false;
       if (statusFilter !== 'ALL' && record.status !== statusFilter) return false;
       if (memberTypeFilter !== 'ALL' && record.memberType !== memberTypeFilter) return false;
-      if (!normalizedQuery) return true;
-      return [record.memberId, record.displayName, toMemberTypeLabel(record.memberType)]
-        .join(' ')
-        .toLowerCase()
-        .includes(normalizedQuery);
+      return matchesSearchQuery(query, [record.memberId, record.displayName, toMemberTypeLabel(record.memberType)]);
     });
   }, [data.records, failedKeys, memberTypeFilter, query, statusFilter]);
 

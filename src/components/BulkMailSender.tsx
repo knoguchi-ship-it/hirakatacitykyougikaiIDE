@@ -3,6 +3,7 @@ import { AdminPermissionLevel, SystemSettings } from '../types';
 import { BulkMailRecipient, EmailSendLog } from '../shared/types';
 import { ApiClient } from '../services/api';
 import type { EmailTemplate } from '../types';
+import { matchesSearchQuery } from '../utils/search';
 
 interface BulkMailSenderProps {
   api: ApiClient;
@@ -97,13 +98,11 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
   }, [recipients, selectedIds, excludedIds]);
 
   const visibleRecipients = useMemo<BulkMailRecipient[]>(() => {
-    const q = recipientQuery.trim().toLowerCase();
-    if (!q) return recipients;
     return recipients.filter(r => {
       const stateLabel = r.memberType === 'BUSINESS'
         ? (r.staffStatus === 'ENROLLED' ? '在籍' : '退職')
         : (r.memberStatus === 'ACTIVE' ? '在籍' : r.memberStatus === 'WITHDRAWAL_SCHEDULED' ? '退会予定' : '退会');
-      return [
+      return matchesSearchQuery(recipientQuery, [
         r.displayName,
         r.email,
         r.memberId,
@@ -111,7 +110,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
         r.lastName,
         r.firstName,
         stateLabel,
-      ].some(value => String(value || '').toLowerCase().includes(q));
+      ]);
     });
   }, [recipients, recipientQuery]);
 

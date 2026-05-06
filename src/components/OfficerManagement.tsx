@@ -8,6 +8,7 @@ import {
   SaveBankAccountPayload,
 } from '../shared/types';
 import { Member, MemberType } from '../types';
+import { matchesSearchQuery } from '../utils/search';
 
 interface OfficerManagementProps {
   api: ApiClient;
@@ -235,10 +236,9 @@ const OfficerListTab: React.FC<{
   }, [members]);
 
   const filteredPersons = useMemo(() => {
-    const q = assignForm.memberSearch.trim().toLowerCase();
-    if (!q) return allSearchablePersons.slice(0, 80);
+    if (!assignForm.memberSearch.trim()) return allSearchablePersons.slice(0, 80);
     return allSearchablePersons
-      .filter(p => p.label.toLowerCase().includes(q) || p.memberId.includes(q) || p.staffId.includes(q))
+      .filter(p => matchesSearchQuery(assignForm.memberSearch, [p.label, p.memberId, p.staffId]))
       .slice(0, 80);
   }, [allSearchablePersons, assignForm.memberSearch]);
 
@@ -263,9 +263,10 @@ const OfficerListTab: React.FC<{
   const [linkageError, setLinkageError] = useState<string | null>(null);
 
   const filteredLinkagePersons = useMemo(() => {
-    const q = linkageSearch.trim().toLowerCase();
-    if (!q) return allSearchablePersons.slice(0, 80);
-    return allSearchablePersons.filter(p => p.label.toLowerCase().includes(q)).slice(0, 80);
+    if (!linkageSearch.trim()) return allSearchablePersons.slice(0, 80);
+    return allSearchablePersons
+      .filter(p => matchesSearchQuery(linkageSearch, [p.label, p.memberId, p.staffId]))
+      .slice(0, 80);
   }, [allSearchablePersons, linkageSearch]);
 
   const handleLinkageUpdate = async () => {
@@ -674,6 +675,47 @@ const BANK_INITIAL: BankFormState = {
 
 const ACCOUNT_TYPES = ['普通', '当座', '貯蓄'];
 
+type BankAccountSubjectKind = 'member' | 'staff';
+
+interface BankAccountSubject {
+  key: string;
+  kind: BankAccountSubjectKind;
+  memberId: string;
+  staffId: string;
+  label: string;
+}
+
+function buildBankAccountSubject(officer: OfficerRecord): BankAccountSubject | null {
+  const staffId = String(officer.職員ID || '').trim();
+  const memberId = String(officer.会員ID || '').trim();
+  if (staffId && memberId) return null;
+  if (staffId) {
+    return {
+      key: `staff:${staffId}`,
+      kind: 'staff',
+      memberId: '',
+      staffId,
+      label: `${officer.表示名}（${staffId}）`,
+    };
+  }
+  if (memberId) {
+    return {
+      key: `member:${memberId}`,
+      kind: 'member',
+      memberId,
+      staffId: '',
+      label: `${officer.表示名}（${memberId}）`,
+    };
+  }
+  return null;
+}
+
+function bankAccountSubjectPayload(subject: BankAccountSubject): { memberId?: string; staffId?: string } {
+  return subject.kind === 'staff'
+    ? { staffId: subject.staffId }
+    : { memberId: subject.memberId };
+}
+
 function validateBankForm(form: BankFormState): BankFormErrors {
   const errs: BankFormErrors = {};
   if (!form.bankName.trim()) errs.bankName = '金融機関名は必須です。';
@@ -697,12 +739,19 @@ const BankAccountTab: React.FC<{
   officerData: OfficerManagementData;
   api: ApiClient;
 }> = ({ officerData, api }) => {
-  const activeOfficers = useMemo(
-    () => officerData.officers.filter(o => !o.退任日).sort((a, b) => a.表示名.localeCompare(b.表示名, 'ja')),
-    [officerData.officers],
-  );
+  const activeOfficerSubjects = useMemo(() => {
+    const subjectsByKey = new Map<string, BankAccountSubject>();
+    officerData.officers
+      .filter(o => !o.退任日)
+      .map(buildBankAccountSubject)
+      .filter((subject): subject is BankAccountSubject => subject !== null)
+      .forEach(subject => {
+        if (!subjectsByKey.has(subject.key)) subjectsByKey.set(subject.key, subject);
+      });
+    return [...subjectsByKey.values()].sort((a, b) => a.label.localeCompare(b.label, 'ja'));
+  }, [officerData.officers]);
 
-  const [selectedMemberId, setSelectedMemberId] = useState('');
+  const [selectedSubjectKey, setSelectedSubjectKey] = useState('');
   const [account, setAccount] = useState<BankAccount | null | undefined>(undefined); // undefined=未読込
   const [accountLoading, setAccountLoading] = useState(false);
   const [formVisible, setFormVisible] = useState(false);
@@ -712,13 +761,18 @@ const BankAccountTab: React.FC<{
   const [deleting, setDeleting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
-  const loadAccount = async (memberId: string) => {
+  const selectedSubject = useMemo(
+    () => activeOfficerSubjects.find(subject => subject.key === selectedSubjectKey) ?? null,
+    [activeOfficerSubjects, selectedSubjectKey],
+  );
+
+  const loadAccount = async (subject: BankAccountSubject) => {
     setAccountLoading(true);
     setAccount(undefined);
     setFormVisible(false);
     setServerError(null);
     try {
-      const acc = await api.getAdminBankAccount({ memberId });
+      const acc = await api.getAdminBankAccount(bankAccountSubjectPayload(subject));
       setAccount(acc);
     } catch (e: any) {
       setServerError(e?.message || '口座情報の取得に失敗しました。');
@@ -727,10 +781,16 @@ const BankAccountTab: React.FC<{
     }
   };
 
-  const handleSelectMember = (memberId: string) => {
-    setSelectedMemberId(memberId);
-    if (memberId) void loadAccount(memberId);
-    else setAccount(undefined);
+  const handleSelectSubject = (subjectKey: string) => {
+    setSelectedSubjectKey(subjectKey);
+    const subject = activeOfficerSubjects.find(item => item.key === subjectKey);
+    if (subject) {
+      void loadAccount(subject);
+      return;
+    }
+    setAccount(undefined);
+    setFormVisible(false);
+    setServerError(subjectKey ? '選択した役員の人物IDが不正です。役員一覧を再読み込みしてください。' : null);
   };
 
   const openForm = () => {
@@ -754,6 +814,10 @@ const BankAccountTab: React.FC<{
   };
 
   const handleSave = async () => {
+    if (!selectedSubject) {
+      setServerError('対象役員を選択してください。');
+      return;
+    }
     const errs = validateBankForm(form);
     setFormErrors(errs);
     if (Object.keys(errs).length > 0) return;
@@ -762,7 +826,7 @@ const BankAccountTab: React.FC<{
     setServerError(null);
     try {
       const payload: SaveBankAccountPayload = {
-        memberId: selectedMemberId,
+        ...bankAccountSubjectPayload(selectedSubject),
         bankName: form.bankName.trim(),
         bankCode: form.bankCode.trim(),
         branchName: form.branchName.trim(),
@@ -773,7 +837,7 @@ const BankAccountTab: React.FC<{
         note: form.note.trim(),
       };
       await api.saveAdminBankAccount(payload);
-      await loadAccount(selectedMemberId);
+      await loadAccount(selectedSubject);
       setFormVisible(false);
     } catch (e: any) {
       setServerError(e?.message || '保存に失敗しました。');
@@ -783,11 +847,15 @@ const BankAccountTab: React.FC<{
   };
 
   const handleDelete = async () => {
+    if (!selectedSubject) {
+      setServerError('対象役員を選択してください。');
+      return;
+    }
     if (!window.confirm('この口座情報を削除しますか？')) return;
     setDeleting(true);
     setServerError(null);
     try {
-      await api.deleteAdminBankAccount({ memberId: selectedMemberId });
+      await api.deleteAdminBankAccount(bankAccountSubjectPayload(selectedSubject));
       setAccount(null);
       setFormVisible(false);
     } catch (e: any) {
@@ -814,14 +882,14 @@ const BankAccountTab: React.FC<{
         <h3 className="text-sm font-semibold text-slate-800">対象役員の選択</h3>
         <div className="max-w-sm">
           <select
-            value={selectedMemberId}
-            onChange={e => handleSelectMember(e.target.value)}
+            value={selectedSubjectKey}
+            onChange={e => handleSelectSubject(e.target.value)}
             className={inputCls}
           >
             <option value="">-- 役員を選択してください --</option>
-            {activeOfficers.map(o => (
-              <option key={`${o.役員ID}`} value={o.会員ID}>
-                {o.表示名}（{o.会員ID}）
+            {activeOfficerSubjects.map(subject => (
+              <option key={subject.key} value={subject.key}>
+                {subject.label}{subject.kind === 'staff' ? ' / 事業所職員' : ''}
               </option>
             ))}
           </select>
@@ -830,7 +898,7 @@ const BankAccountTab: React.FC<{
       </div>
 
       {/* 口座情報表示 */}
-      {selectedMemberId && (
+      {selectedSubject && (
         <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-slate-800">振込口座情報</h3>
