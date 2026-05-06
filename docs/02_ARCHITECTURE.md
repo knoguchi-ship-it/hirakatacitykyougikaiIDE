@@ -73,7 +73,9 @@
   - スコープ: `https://www.googleapis.com/auth/drive`（v194 で追加済み）。
 - **宛名リスト出力機能（v291 ローカル変更）**: `SpreadsheetApp` + `UrlFetchApp`
   - `getMailingListTargets` で発送区分・年度ごとの候補を取得し、画面上で年度処理、種別、状態、住所不備を確認して出力対象を選択する。
+  - 年度基準の会員対象判定は `getMemberFiscalSnapshot_()` を正とし、年度途中退会者は対象に含め、年度開始前退会者・年度末後入会者は対象外とする。年会費履歴なしを `UNPAID` とみなすのは年度内会員に限る。
   - キーワード検索はフロントエンドで表示候補を絞る。Excel 出力時は選択された `targetKeys` を GAS 側で再計算済み候補と照合し、条件外 ID を信用しない。
+  - 氏名検索は共通検索正規化を使い、`姓 名` / `姓名` のスペース有無に依存しない。
   - `generateMailingListExcel` は選択済み候補のみを一時スプレッドシートへ出力し、xlsx に変換して返す。
 
 ## 3. ディレクトリ構成
@@ -309,3 +311,49 @@ GAS の制約（外部 JS 読み込み制限）上、reCAPTCHA 等の外部サ�
 - `@google/genai` SDKを使用。
 - `services/geminiService.ts` にロジックをカプセル化。
 - 主に事務局機能（研修案内メールの自動生成）で利用。プロンプトエンジニアリングにより、対象者の属性に合わせた丁寧な文面を出力する。
+
+---
+
+## v305 Addendum: Fiscal-Year Membership and Shared Search Architecture
+
+Status: production `v305` / admin split `@65`.
+
+### Canonical Rules
+
+- Fiscal-year membership eligibility for mailing-list and roster style outputs is centralized in `getMemberFiscalSnapshot_(memberRow, fiscalYear)`.
+- The selected fiscal year, not the current date, is the reference point for membership status in these outputs.
+- A member is eligible for a fiscal year when `入会日 <= fiscalYearEnd` and `退会日` is empty or after the previous fiscal year end. A member who withdraws during the selected fiscal year remains eligible for that fiscal year.
+- Annual-fee `UNPAID` supplementation is applied only after fiscal-year membership eligibility is confirmed. A missing `T_年会費納入履歴` row does not make a non-member an unpaid target.
+- Text search with the same behavior must use the shared normalizer/matcher (`src/utils/search.ts` on the frontend, `matchesSearchQuery_()` on GAS). Do not create screen-local duplicate search behavior.
+
+### Runtime Flow
+
+```mermaid
+flowchart TD
+  A[Admin selects fiscal year and filters] --> B[getMailingListTargets / getMembersForRoster]
+  B --> C[getMemberFiscalSnapshot_]
+  C --> D{Eligible in selected fiscal year?}
+  D -- No --> X[Exclude from candidates]
+  D -- Yes --> E[Resolve fiscal-year status]
+  E --> F[Join selected-year annual-fee history]
+  F --> G{Annual-fee row exists?}
+  G -- Yes --> H[Use recorded fee status]
+  G -- No --> I[Supplement UNPAID]
+  H --> J[Apply UI/API filters and selection]
+  I --> J
+  J --> K[Export / display]
+```
+
+### Search Flow
+
+```mermaid
+flowchart LR
+  Q[User query] --> N[Normalize NFKC, lowercase, trim]
+  N --> C[Compact spaces: half-width and full-width]
+  V[Candidate fields] --> VN[Normalize each field]
+  VN --> VC[Compact each field]
+  C --> M{compact query contained in compact candidate?}
+  M -- Yes --> HIT[Match]
+  M -- No --> T[Token match against normalized and compact forms]
+  T --> HIT
+```

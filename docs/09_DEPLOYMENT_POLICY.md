@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-05-03
-Production: `v297` / 統合（公開）fixed deployments `@290` / 会員 split `@44` / 管理者 split `@57`
+Updated: 2026-05-06
+Production: `v308` / integrated-public fixed deployments `@290` x2 / member split `@44` / admin split `@68`
 
 ## 1. Purpose
 
@@ -25,7 +25,7 @@ Production: `v297` / 統合（公開）fixed deployments `@290` / 会員 split `
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
 | member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@44` (`v297`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@57` (`v297 clean`) | `DOMAIN` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@68` (`v308`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -41,11 +41,11 @@ npm run typecheck
 npm run build:gas
 ```
 
-Password verifier / credential generation を変更する release では、push / version / redeploy 前に次を満たすこと:
+If the release changes password verifier / credential generation, confirm the following before push / version / redeploy:
 
-- integrated/public・member split・admin split の各 Apps Script project に、同一の強乱数 Script Property `PASSWORD_HASH_PEPPER_V1` が設定済みである。
-- pepper の値は表示・記録・貼り付けしない。確認結果は「設定済み」のみ記録する。
-- `.env` は Apps Script 本番 runtime の正本にしない。ローカル補助に使う場合も未コミットとし、値を docs / handover / logs / chat へ残さない。
+- `PASSWORD_HASH_PEPPER_V1` is set in integrated/public, member split, and admin split Apps Script projects with the same strong random value.
+- The pepper value is not displayed, logged, pasted, or written to Git, docs, handover, generated files, terminal logs, or chat.
+- `.env` is not the Apps Script production runtime source of truth. If used locally, it remains uncommitted and no value is documented.
 
 If the release affects split projects, also run:
 
@@ -55,7 +55,9 @@ npm run build:gas:admin
 npm run security:split-boundary
 ```
 
-### Push and version
+### Push and Version
+
+Use the project-specific directory for the target artifact.
 
 ```bash
 npx clasp push --force
@@ -70,7 +72,7 @@ npx clasp push --force
 npx clasp version "<release note>"
 ```
 
-### Fixed deployment sync
+### Fixed Deployment Sync
 
 ```bash
 npx clasp redeploy AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx --versionNumber <version> --description "<release note>"
@@ -100,7 +102,7 @@ Real-browser verification is performed by the operator by default. The agent rec
 - `npm run security:audit` has no high or critical findings.
 - `npm run security:public-boundary` passes for integrated/public artifacts.
 - `npm run security:split-boundary` passes for member/admin split artifacts when split projects are built or released.
-- Password verifier / credential generation を変更する release では、`PASSWORD_HASH_PEPPER_V1` の三 project 設定済み確認が完了している。
+- Password verifier / credential generation releases include confirmed `PASSWORD_HASH_PEPPER_V1` setup in all 3 Apps Script projects without recording the value.
 - `npm run typecheck` passes.
 - Required build commands pass.
 - `clasp push`, `clasp version`, and `clasp redeploy` succeed.
@@ -115,108 +117,127 @@ Real-browser verification is performed by the operator by default. The agent rec
 - Do not call a release complete before source documents are updated.
 - Do not use Apps Script UI deployment edits as the default path.
 - Do not change production deployment IDs without recording the reason.
+- Do not run `seedDemoData` against production without full backup and explicit approval.
+- Do not redeploy historical admin split `@47` physical pruning output.
 
 ## 6. Current Recorded State
 
-### 2026-05-04 `v297` ← current production
+### 2026-05-06 `v308` ← current production
 
-- Scope: 事業所職員を役員に割当て可能（DB 3テーブルに職員ID 追加・双方向紐づけ変更・退職時自動退任）。
-- Integrated fixed deployments: `@290` × 2（変更なし）
-- Member split: `@44`.
-- Admin split: `@57`（clean）.
-- スキーマ移行適用済み（2026-05-04 Apps Script エディタから）
+- Scope: 会員詳細編集画面の年会費表示を、2024 年度以降、当年度から過去 4 年分へ修正。
+- Integrated fixed deployments: `@290` x2（変更なし）
+- Member split: `@44`（変更なし）
+- Admin split: `@68`
+- Detail: `docs/193_RELEASE_STATE_v308_2026-05-06.md`
+
+### 2026-05-06 `v307`
+
+- Scope: 管理コンソールの会員詳細編集画面に、年会費の年度行ごとの表示・編集・保存機能を追加。
+- Integrated fixed deployments: `@290` x2（変更なし）
+- Member split: `@44`（変更なし）
+- Admin split: `@67`
+- Detail: `docs/192_RELEASE_STATE_v307_2026-05-06.md`
+
+### 2026-05-06 `v306`
+
+- Scope: 管理コンソールの保存後バックグラウンド再読込で member portal action を呼び得る状態管理を修正。年会費コンソール等の保存後に `unsupported_action` が App 全体の fatal error にならないようにした。
+- Integrated fixed deployments: `@290` x2（変更なし）
+- Member split: `@44`（変更なし）
+- Admin split: `@66`
+- Detail: `docs/190_RELEASE_STATE_v306_2026-05-06.md`
+
+### 2026-05-05 `v305`
+
+- Scope: 宛名リスト・名簿出力の年度基準判定を `getMemberFiscalSnapshot_()` へ共通化。年会費未納対象は選択年度内会員に限定し、年度内退会者は対象に含める。氏名検索は半角/全角スペース有無に依存しない共通検索へ修正。
+- Integrated fixed deployments: `@290` x2（変更なし）
+- Member split: `@44`（変更なし）
+- Admin split: `@65`
+- Detail: `docs/188_RELEASE_STATE_v305_2026-05-05.md`
+
+### 2026-05-05 `v304`
+
+- Scope: 会員管理コンソールの事業所職員一覧 UI を修正。タブ表示を「事業所職員」に変更し、詳細遷移対象を事業所名クリックのみに限定。氏名・カナは表示のみ、メール配信列を追加し、一括保存に対応。
+- Integrated fixed deployments: `@290` x2（変更なし）
+- Member split: `@44`（変更なし）
+- Admin split: `@64`
+- Detail: `docs/186_RELEASE_STATE_v304_2026-05-05.md`
+
+### 2026-05-04 `v303`
+
+- Scope: v302 の `staffRows` 追加後も旧 `adminDashboard` cache が残る条件を避けるため、`staffRows` なし cache を無視して再生成する guard を追加。
+- Integrated fixed deployments: `@290` x2（変更なし）
+- Member split: `@44`（変更なし）
+- Admin split: `@63`
+- Detail: `docs/184_RELEASE_STATE_v303_2026-05-04.md`
+
+### 2026-05-04 `v302`
+
+- Scope: 会員管理コンソールの事業所職員一覧を `T_事業所職員` 由来の `staffRows` で表示するよう修正。cache 集計と一覧のデータソース不一致を解消。
+- Integrated fixed deployments: `@290` x2（変更なし）
+- Member split: `@44`（変更なし）
+- Admin split: `@62`
+- Detail: `docs/183_RELEASE_STATE_v302_2026-05-04.md`
+
+### 2026-05-04 `v301`
+
+- Scope: 管理コンソール未反映報告を受け、v300 と同一機能差分の admin artifact を再生成して admin fixed deployment を再同期。
+- Integrated fixed deployments: `@290` x2（変更なし）
+- Member split: `@44`（変更なし）
+- Admin split: `@61`
+- Detail: `docs/182_RELEASE_STATE_v301_2026-05-04.md`
+
+### 2026-05-04 `v300`
+
+- Scope: 会員管理コンソールの事業所会員ビューを事業所職員一覧へ修正し、氏名・カナ・メール・区分・在籍状況の一括編集と一括保存に対応。
+- Integrated fixed deployments: `@290` x2（変更なし）
+- Member split: `@44`（変更なし）
+- Admin split: `@60`
+- Detail: `docs/181_RELEASE_STATE_v300_2026-05-04.md`
+
+### 2026-05-04 `v299`
+
+- Scope: 会員管理コンソールに事業所会員ビューを追加。追加 API なしで既存 state 派生により事業所番号・事業所名・代表者・職員情報を横断検索可能にした。
+- Integrated fixed deployments: `@290` x2（変更なし）
+- Member split: `@44`（変更なし）
+- Admin split: `@59`
+- Detail: `docs/180_RELEASE_STATE_v299_2026-05-04.md`
+
+### 2026-05-04 `v298`
+
+- Scope: 振込口座管理タブの事業所職員役員対応。管理 UI の対象役員選択を `member:<会員ID>` / `staff:<職員ID>` の discriminated key に変更し、`staffId` payload で口座取得・保存・削除できるよう修正。
+- Integrated fixed deployments: `@290` x2（変更なし）
+- Member split: `@44`（変更なし）
+- Admin split: `@58`
+- Detail: `docs/178_RELEASE_STATE_v298_2026-05-04.md`
+
+### 2026-05-04 `v297`
+
+- Scope: 事業所職員を役員に割当て可能にした。DB 3 テーブルへ `職員ID` を追加し、会員ID / 職員ID の XOR 制約、紐づけ変更、退職時自動退任を導入。
+- Integrated fixed deployments: `@290` x2（変更なし）
+- Member split: `@44`
+- Admin split: `@57`
+- Schema migration applied from Apps Script editor on 2026-05-04.
+- Detail: `docs/177_RELEASE_STATE_v297_2026-05-04.md`
 
 ### 2026-05-03 `v296`
 
-- Scope: 請求 UI フル実装。ClaimCard（会員マイページ）・ClaimManagementConsole（管理者）・GAS 10関数・DriveApp ファイルアップロード（PDF/JPG/PNG 10MB）。member split に drive スコープ追加。会員マイページ OAuth 再承認が必要。
-- Integrated fixed deployments: `@290` × 2（変更なし）
-- Member split: `@42`.
-- Admin split: `@54`.
+- Scope: 請求 UI フル実装。会員マイページの `ClaimCard`、管理者の `ClaimManagementConsole`、DriveApp ファイルアップロード、関連 GAS 関数を追加。member split に `drive` scope を追加したため、初回アクセス時に OAuth 再承認が必要。
+- Integrated fixed deployments: `@290` x2（変更なし）
+- Member split: `@43`
+- Admin split: `@55`
 
 ### 2026-05-03 `v295`
 
-- Scope: 役員管理フル実装（DB 8テーブル・GAS API 19関数・フロントエンド4コンポーネント）。システム設定マスタ管理・役員割当て・口座管理・支払い履歴コンソール・会員ポータル役員表示。
-- Integrated fixed deployments: `@290` × 2（変更なし）
-- Member split: `@41`.
-- Admin split: `@52`.
-- ⚠ `rebuildDatabaseSchema` を本番 DB に適用要（HANDOVER.md §5.1 参照）
-
-### 2026-05-03 `v294`
-
-- Scope: 宛名リスト出力コンソールの「年度処理」表示を「年会費納入」へ変更。発送対象読み込み直後は未選択にし、「表示中を選択」ボタンの強調色を解除。
-- Integrated fixed deployments: `@290` × 2.
-- Member split: `@40`.
-- Admin split: `@51`.
-- Detail: `docs/176_RELEASE_STATE_v294_2026-05-03.md`
-
-### 2026-05-03 `v293`
-
-- Scope: 宛名リスト出力コンソールに年度処理・種別・状態・郵送先・住所不備の5列ドロップダウンフィルターを反映。GAS action 変更なし。
-- Integrated fixed deployments: `@290` × 2.
-- Member split: `@40`.
-- Admin split: `@50`.
-- Detail: `docs/175_RELEASE_STATE_v293_2026-05-03.md`
-
-### 2026-05-01 `v292`
-
-- Scope: `build-admin-gas.mjs` / `build-member-gas.mjs` の pruning 正規表現バグ修正。`ADMIN_ACTION_PERMISSIONS` 誤削除（管理者ログイン不能・404）を解消。
-- Integrated fixed deployments: `@290` × 2.
-- Member split: `@40`.
-- Admin split: `@49`.
-- Detail: `docs/174_RELEASE_STATE_v292_2026-05-01.md`
+- Scope: 役員管理フル実装。DB 8 テーブル、GAS API、システム設定マスタ管理、役員割当て、口座管理、支払い履歴、会員ポータル役員表示を追加。
+- Integrated fixed deployments: `@290` x2（変更なし）
+- Member split: `@41`
+- Admin split: `@53`
+- `runRebuildSchemaForV295` applied to production DB from Apps Script editor on 2026-05-03.
 
 ### 2026-05-01 `v291`
 
-- Scope: パスワード保存を versioned PBKDF2-HMAC-SHA256 + verifier-side pepper へ更新し、宛名リスト出力コンソールに発送区分・年度・検索・候補選択を追加。member/admin split boundary audit を prerelease gate 化。
-- Integrated fixed deployments: `@290` × 2.
-- Member split: `@40`.
-- Admin split: `@48`.
+- Scope: パスワード保存を versioned PBKDF2-HMAC-SHA256 + verifier-side pepper へ更新。member/admin split boundary audit を prerelease gate 化。
+- Integrated fixed deployments: `@290` x2
+- Member split: `@40`
+- Admin split: `@48`
 - Detail: `docs/173_RELEASE_STATE_v291_2026-05-01.md`
-
-### 2026-04-29 `v290`
-
-- Scope: public artifact から admin cache / admin audit / admin role transition 系 private helper と maintenance 関数名 token を追加削除。
-- Integrated fixed deployments: `@289` × 2.
-- Member split: `@39`.
-- Admin split: `@46`.
-- Detail: `docs/169_RELEASE_STATE_v290_2026-04-29.md`
-
-### 2026-04-29 `v289`
-
-- Scope: v288 第三者評価で検出した public callable maintenance / diagnostic entrypoint を除去。public generated `backend/Code.gs` の top-level callable を `doGet`, `processApiRequest`, `healthCheck` に限定。
-- Integrated fixed deployments: `@288` × 2.
-- Member split: `@39`.
-- Admin split: `@46`.
-- Detail: `docs/168_RELEASE_STATE_v289_2026-04-29.md`
-
-### 2026-04-28 `v288`
-
-- Scope: 統合 project の generated `backend/Code.gs` を public-only artifact に縮退。公開ポータル URL / deployment ID は維持し、member split `@39` と admin split `@46` は未変更。
-- Integrated fixed deployments: `@287` × 2.
-- Member split: `@39`.
-- Admin split: `@46`.
-- Detail: `docs/166_RELEASE_STATE_v288_2026-04-28.md`
-
-### 2026-04-28 `v287-partial`
-
-- Scope: member split の生成済み `Code.gs` から境界外関数を物理削除。admin split は `@47` でホワイトアウトしたため `@46` へロールバック済み。統合/公開は `@285` 維持。
-- Integrated fixed deployments: `@285` × 2.
-- Member split: `@39`.
-- Admin split: `@46`.
-- Detail: `docs/164_RELEASE_STATE_v287_2026-04-28.md`
-
-### 2026-04-28 `v286`
-
-- Scope: `saveMemberCore_` の admin-only 代表者検証・監査ログを option 明示化。会員セルフ更新の機能変更なし。
-- Integrated fixed deployments: `@285` × 2.
-- Member split: `@38`.
-- Admin split: `@46`.
-- Detail: `docs/163_RELEASE_STATE_v286_2026-04-28.md`
-
-### 2026-04-27 `v285`
-
-- Scope: `updateMember_` を admin wrapper、`saveMemberCore_` を実保存 core に分離。
-- Integrated fixed deployments: `@284` × 2.
-- Member split: `@37`.
-- Admin split: `@45`.
-- Detail: `docs/162_RELEASE_STATE_v285_2026-04-27.md`

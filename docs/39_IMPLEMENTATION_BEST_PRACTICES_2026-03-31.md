@@ -9,7 +9,7 @@
 ## 1. この文書の使い方
 
 - この文書は監査レポートではなく、今後の実装判断に使う実務指針である。
-- 仕様を変更する場合は、まず `HANDOVER.md`、`docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`、本書を照合する。
+- 仕様を変更する場合は、まず `HANDOVER.md`、`docs/archive/historical/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`、本書を照合する。
 - 外部標準と案件正本が衝突した場合は案件正本を優先し、採否理由を記録する。
 
 ---
@@ -92,7 +92,7 @@
 
 ### 3.6 ドキュメント運用
 
-- 状態の正本は `HANDOVER.md` と `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` に置く。
+- 状態の正本は `HANDOVER.md` に置く。`docs/archive/historical/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` は補足状態サマリとして扱う。
 - task 文書は実行管理用であり、完了結果を正本へ転記して閉じる。
 - 変動しやすい外部仕様は、固定値を断定するより「公式リンク + 最終確認日 + この案件の判断基準」で書く。
 - 文書更新時は UTF-8 表示確認を必須とする。
@@ -127,3 +127,30 @@
 - 認証方式が変わったとき
 - APPI / WCAG / Apps Script / Vite の前提が大きく変わったとき
 - 監査レポートで新しい HIGH / MEDIUM 項目が出たとき
+
+---
+
+## v305 Quality Rule: Shared Domain Logic and Search
+
+Status: production `v305` / admin split `@65`.
+
+### Fiscal-Year Domain Logic
+
+- Do not implement fiscal-year membership checks inline in screens, exports, or one-off API handlers.
+- Use `getMemberFiscalSnapshot_(memberRow, fiscalYear)` as the canonical domain operation for output eligibility based on `入会日`, `退会日`, and selected fiscal year.
+- If another feature needs the same behavior, extend the canonical helper without changing existing semantics for mailing-list and roster outputs.
+- Treat annual-fee `UNPAID` supplementation as a derived status that is valid only after fiscal-year membership eligibility has been confirmed.
+
+### Search Logic
+
+- Do not create new `toLowerCase().includes()` ad hoc searches for member/person search.
+- Frontend search must use `matchesSearchQuery()` from `src/utils/search.ts` when the expected behavior is shared member/person text matching.
+- GAS-side search must use `matchesSearchQuery_()` for equivalent server-side candidate filtering.
+- Search normalization must preserve existing direct-token matching while also supporting compact matching without half-width/full-width spaces between surname and given name.
+
+### Review Checklist
+
+- The logic has one owner and one name.
+- Date comparisons are explicit about fiscal-year start/end.
+- Missing history rows are not treated as business facts until the domain target has been proven eligible.
+- UI filter labels describe the selected-year basis, not current-day status.

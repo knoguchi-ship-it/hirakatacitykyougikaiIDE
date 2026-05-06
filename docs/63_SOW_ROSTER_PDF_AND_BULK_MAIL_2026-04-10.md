@@ -342,3 +342,20 @@ T_会員 (BUSINESS)
 | `docs/09_DEPLOYMENT_POLICY.md` | リリース手順 |
 | `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md` | 完了条件・証跡要件 |
 | `docs/37_GAS_QUOTAS_AND_LIMITS.md` | GASクォータ・タイムアウト制約 |
+
+---
+
+## v305 Update: Roster and Mailing Target Semantics
+
+Status: production `v305` / admin split `@65`.
+
+The original SOW remains the historical implementation scope. Current production behavior adds the following canonical semantics:
+
+- PDF roster target retrieval (`getMembersForRoster`) and mailing-list target retrieval (`getMailingListTargets`) use selected fiscal-year membership eligibility.
+- Eligibility is based on `T_会員.入会日` and `T_会員.退会日` through `getMemberFiscalSnapshot_()`.
+- Fiscal-year mid-year withdrawals remain included for that fiscal year.
+- Members withdrawn before the fiscal year starts, or joined after the fiscal year ends, are excluded.
+- `T_年会費納入履歴` missing rows are displayed as `未納` only for members eligible in the selected fiscal year.
+- Shared member/person search no longer depends on a half-width space between surname and given name.
+
+This supersedes older wording that described roster or mailing status as depending only on the current `T_会員.会員状態コード`.

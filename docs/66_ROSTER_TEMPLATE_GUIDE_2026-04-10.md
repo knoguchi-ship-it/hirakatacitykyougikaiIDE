@@ -192,3 +192,16 @@ Apps Script 関数 `createRosterTemplateExample()` で、名簿と催促状を�
 - 本番利用中テンプレートを直接編集しない。
 - hidden シートと内部シート名は変更しない。
 - レイアウト変更後は設定画面の検証を通してから保存する。
+
+---
+
+## v305 Note: Target Data Semantics
+
+Status: production `v305` / admin split `@65`.
+
+The `_DATA_ROSTER` and `_DATA_REMINDER` sheet layouts are unchanged. v305 changes the upstream candidate selection semantics only:
+
+- The rows written into `_DATA_ROSTER` are selected using fiscal-year membership eligibility where the roster screen requests a fiscal year.
+- Fiscal-year mid-year withdrawals may appear in the data for that fiscal year.
+- Members outside the selected fiscal-year membership period are not written into the data sheet solely because they lack an annual-fee history row.
+- Template formulas do not need to implement this filtering. Filtering belongs to GAS domain logic before data is written.

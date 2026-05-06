@@ -1,6 +1,6 @@
 # DB運用ランブック（スプレッドシート）
 
-更新日: 2026-04-05
+更新日: 2026-05-04
 
 ## 1. 目的
 - 本システムのDB（Googleスプレッドシート）を、定義どおりに自動構築・再構築・清掃するための運用手順を記録する。
@@ -10,6 +10,13 @@
   - 注: この名称は新規スプレッドシート作成時のみ使用。本番は固定IDで管理。
 - スプレッドシートID: `1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs`
 - 参照コード: `backend/Code.gs` の `DB_SPREADSHEET_ID_FIXED`
+
+### 2.1 ログ SS
+
+- 名称: ログイン履歴・監査ログ・メール送信ログ用スプレッドシート
+- スプレッドシートID: `1NmVv483UeehF8dqCdyNKOqOtv_fPKROhHN7011N23lw`
+- 参照コード: `getLogSs_()`
+- `LOG_SPREADSHEET_ID` Script Property が未設定の場合はメイン DB にフォールバックするが、現行本番運用ではログ SS 分離を正とする。
 
 ## 3. 自動構築関数（Apps Script）
 - `setupDatabase()`
@@ -34,12 +41,28 @@
 3. `実行` を押す
 4. `実行完了` を確認する
 
+### 4.1 スキーマ変更時の標準手順
+
+テーブル定義を変更した場合は、既存データを保持する差分正規化を原則とする。
+
+1. 変更前に本番スプレッドシートのバックアップを取得する。
+2. `gas/admin/Code.gs` 末尾に、対象テーブルだけを `normalizeTableColumns_()` する一時関数を追加する。
+3. `cd gas/admin && npx clasp push --force` を実行する。
+4. Apps Script エディタから一時関数を手動実行する。
+5. 対象シートの列追加・列順・既存データ保持を確認する。
+6. 一時関数を削除し、`push -> version -> redeploy` で clean 版へ戻す。
+7. `docs/03_DATA_MODEL.md`、本ランブック、`HANDOVER.md`、release state を更新する。
+
+`clasp run` は project-scoped OAuth の制約で通常認証では失敗することがあるため、本番 DB スキーマ変更は Apps Script エディタ経由を標準とする。
+
 ## 5. 検証ポイント
 - 不要シート `シート1` が存在しないこと
 - 以下のシートが存在すること（Code.gs `マスタ定義` / `テーブル定義` に準拠）
-  - マスタシート: `M_会員種別`, `M_会員状態`, `M_発送方法`, `M_郵送先区分`, `M_職員権限`, `M_職員状態`, `M_システムロール`, `M_研修状態`, `M_申込状態`, `M_会費納入状態`, `M_申込者区分`（2026-03-12追加）
-  - テーブルシート: `T_会員`, `T_システム設定`, `T_事業所職員`, `T_認証アカウント`, `T_ログイン履歴`, `T_管理者Googleホワイトリスト`, `T_画面項目権限`, `T_研修`, `T_研修申込`, `T_年会費納入履歴`, `T_年会費更新履歴`, `T_外部申込者`（2026-03-15更新）
+  - マスタシート: `M_会員種別`, `M_会員状態`, `M_発送方法`, `M_郵送先区分`, `M_職員権限`, `M_職員状態`, `M_システムロール`, `M_研修状態`, `M_申込状態`, `M_会費納入状態`, `M_申込者区分`, `M_管理者権限`, `M_組織マスタ`, `M_役職マスタ`, `M_支払い種別マスタ`
+  - メインDBテーブルシート: `T_会員`, `T_システム設定`, `T_事業所職員`, `T_認証アカウント`, `T_管理者Googleホワイトリスト`, `T_画面項目権限`, `T_研修`, `T_研修申込`, `T_年会費納入履歴`, `T_年会費更新履歴`, `T_外部申込者`, `T_会員_archive`, `T_事業所職員_archive`, `T_変更申請`, `T_役員`, `T_振込口座`, `T_支払い`, `T_支払い明細`, `T_請求`
+  - ログSSテーブルシート: `T_ログイン履歴`, `T_監査ログ`, `T_メール送信ログ`
 - **廃止済みシート** `M_開催形式` は定義から除外済み。存在する場合は `cleanupDatabaseSheets()` で自動削除される。
+- メイン DB 側の `T_ログイン履歴`, `T_監査ログ`, `T_メール送信ログ` は v261 以降廃止済み。ログ SS 側に存在することを確認する。
 
 ## 5.1 認証関連の運用検証
 1. 会員認証
@@ -49,9 +72,9 @@
   - `T_管理者Googleホワイトリスト` に `有効フラグ=true` で `Googleメール` が登録されていること
   - `紐付け認証ID` / `紐付け会員ID` が `T_認証アカウント` / `T_会員` と一致すること
 3. 監査
-  - `T_ログイン履歴.認証方式` に `PASSWORD` または `GOOGLE` が記録されること
+  - ログ SS の `T_ログイン履歴.認証方式` に `PASSWORD` または `GOOGLE` が記録されること
 
-## 5.3 会員テスト認証の再生成（非破壊）
+## 5.2 会員テスト認証の再生成（非破壊）
 - 目的: 本番データを消去せず、会員ログイン検証用アカウントだけを再生成する。
 - 実行関数: `provisionTestMemberAccounts()`
 - 実行場所: Apps Script エディタ（関数選択して実行）
@@ -64,7 +87,7 @@
   - `seedDemoData()` はテーブルデータを広範囲に再投入するため、通常運用では使用しない。
   - この手順は `T_認証アカウント` の対象行のみ更新する。
 
-## 5.3.1 負荷試験データの再生成（非破壊・2026-03-15 追加）
+## 5.2.1 負荷試験データの再生成（非破壊・2026-03-15 追加）
 - 目的: 大量会員データを前提に、会員画面・管理画面の応答と整合性を検証する。
 - 実行関数: `seedPerformanceTestData()`
 - 実行場所: CLI または Apps Script エディタ
@@ -82,7 +105,7 @@ npx clasp run seedPerformanceTestData
   - 既存データを全面初期化しないため、本番環境でも投入自体は非破壊だが、件数増加により一覧系の表示負荷は上がる。
   - 生成されたデータは `負荷 ...` / `LTM-...` / `LTT-...` で識別する。
 
-## 5.2 会費・研修表示の運用検証
+## 5.3 会費・研修表示の運用検証
 1. 会費
   - `T_年会費納入履歴` の最新年度が未納の会員で、振込先口座情報が表示されること
   - `T_システム設定.ANNUAL_FEE_PAYMENT_GUIDANCE` の文面が、未納会員の「納入方法を見る」に反映されること
@@ -99,7 +122,8 @@ npx clasp run seedPerformanceTestData
 1. 一覧
   - 対象年度・納入状況・会員種別・会員番号/氏名で絞り込めること
   - 一覧に `対象年度 / 会員番号 / 氏名・事業所 / 会員種別 / 納入状況 / 納入確認日 / 金額 / 備考 / 保存` が表示されること
-  - 対象年度では全会員が一覧に現れ、未作成レコードも保存可能であること
+  - 対象年度では、年度途中退会者を含む年度内会員が一覧に現れ、年度開始前退会者・年度末後入会者は対象外になること
+  - 年度内会員で年会費レコード未作成の場合のみ「未納」として扱い、保存時に当該年度のレコードを新規作成できること
 2. 更新
   - `PAID` 変更時に `納入確認日` 必須チェックが動作すること
   - `UNPAID` 変更時に `納入確認日` を空にできること
@@ -108,6 +132,26 @@ npx clasp run seedPerformanceTestData
 3. 監査
   - `T_年会費更新履歴` に `操作種別 / 実行者メール / 実行日時 / 更新前JSON / 更新後JSON` が記録されること
 
+## 5.5 役員・請求管理の運用検証（v295〜v297）
+
+1. スキーマ
+  - `M_組織マスタ`, `M_役職マスタ`, `M_支払い種別マスタ` が存在すること。
+  - `T_役員`, `T_振込口座`, `T_支払い`, `T_支払い明細`, `T_請求` が存在すること。
+  - `T_役員`, `T_振込口座`, `T_請求` に `会員ID` と `職員ID` が存在すること。
+2. XOR 制約
+  - 個人会員・賛助会員の役員行は `会員ID` が non-empty、`職員ID` が empty であること。
+  - 事業所職員の役員行は `会員ID` が empty、`職員ID` が non-empty であること。
+  - `会員ID` と `職員ID` が同時に入る行、または両方空の行がないこと。
+3. 口座
+  - 事業所職員型役員の `T_振込口座` 行も `職員ID` で所有者を識別できること。
+  - 同一人物が複数役職を兼務しても、口座は人物単位で重複しないこと。
+4. 請求
+  - 会員マイページからの請求保存時、ログイン主体の `会員ID` または `職員ID` と一致する所有者のみ保存・閲覧できること。
+  - 添付ファイルは Drive に保存され、`T_請求.添付ファイルURL` に JSON 配列として記録されること。
+5. 退職・紐づけ変更
+  - 事業所職員を `LEFT` にした場合、現役役員が自動退任されること。
+  - 役員の個人会員/事業所職員紐づけ変更時、`T_振込口座` の所有者も連動移行すること。
+
 ## 6. 注意事項
 - 運用アカウントは `k.noguchi@hcm-n.org` を正とする。
 - 定義外シートを保持したい場合は、関数実行前に要件へ反映（`マスタ定義`/`テーブル定義` へ追加）する。
@@ -115,7 +159,7 @@ npx clasp run seedPerformanceTestData
 ## 6.1 危険操作リスト
 ### `seedDemoData()`
 - 対象: 本番固定 DB (`DB_SPREADSHEET_ID_FIXED`)
-- 動作: `T_会員`, `T_事業所職員`, `T_認証アカウント`, `T_ログイン履歴`, `T_管理者Googleホワイトリスト`, `T_研修`, `T_研修申込`, `T_年会費納入履歴` を削除し、デモデータで置き換える。
+- 動作: 会員・職員・認証・管理者ホワイトリスト・研修・申込・年会費などの本番運用データを広範囲に削除し、デモデータで置き換える。実装時点のテーブル定義により、追加テーブルも初期化・再投入対象になり得る。
 - 影響: 管理者ホワイトリストや会員一覧を含む本番運用データを破壊する。
 - 用途: 開発・検証専用。本番運用 DB に対して通常運用で実行してはならない。
 - 必須条件: 実行前にスプレッドシート版歴または外部バックアップを確保し、ロールバック手段を記録する。
@@ -157,3 +201,32 @@ npx clasp run auditTrainingInquiryContacts
 - 本番Deployment IDを固定し、版のみ更新する。
 - 標準手順は `docs/09_DEPLOYMENT_POLICY.md` を参照。
 - 新規Deployment乱立は禁止。404再発防止を最優先とする。
+
+---
+
+## v305 Operational Verification: Fiscal-Year Outputs and Shared Search
+
+Status: production `v305` / admin split `@65`.
+
+### Mailing List / Roster Fiscal-Year Checks
+
+Use a target fiscal year such as `2025年度` and verify the following from the admin console:
+
+1. Members whose `退会日` is before `2025-04-01` do not appear in fiscal-year targets.
+2. Members whose `入会日` is after `2026-03-31` do not appear in fiscal-year targets.
+3. Members who withdrew between `2025-04-01` and `2026-03-31` remain eligible for `2025年度` output and are shown as fiscal-year withdrawn/年度内退会 where applicable.
+4. Annual-fee status `未納` includes missing `T_年会費納入履歴` rows only for members eligible in the selected fiscal year.
+5. Changing the selected fiscal year changes the eligibility reference dates; the current date must not affect these output filters.
+
+### Shared Search Checks
+
+Run the same search behavior checks anywhere shared member/person search is used:
+
+- `山田太郎` finds records stored/displayed as `山田 太郎`.
+- `山田 太郎` finds records stored/displayed as `山田太郎`.
+- Full-width spaces and half-width spaces are equivalent.
+- Existing searches by member number, office name, email, and kana still work.
+
+### Evidence to Record
+
+Record the target fiscal year, selected filters, expected included/excluded sample member IDs, and whether each screen uses the shared search behavior. Do not record secret values or personal data beyond the minimum member IDs needed for verification.

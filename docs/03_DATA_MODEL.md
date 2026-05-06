@@ -1,7 +1,7 @@
 # データモデル設計書（スプレッドシートDB版）
 
-更新日: 2026-04-25
-スキーマバージョン: 2026-04-25-01
+更新日: 2026-05-04
+スキーマバージョン: 2026-05-04-01
 
 ---
 
@@ -79,6 +79,28 @@ M_申込者区分 {
 M_管理者権限 {
   string コード PK
   string 名称
+}
+M_組織マスタ {
+  string 組織コード PK
+  string 組織名
+  string 組織種別
+  int 表示順
+  boolean 有効フラグ
+}
+M_役職マスタ {
+  string 役職コード PK
+  string 役職名
+  string 組織コード FK
+  boolean 委員長フラグ
+  int 表示順
+  boolean 有効フラグ
+}
+M_支払い種別マスタ {
+  string 種別コード PK
+  string 種別名
+  string 対象区分
+  int 表示順
+  boolean 有効フラグ
 }
 
 %% ===== メインテーブル =====
@@ -250,6 +272,87 @@ T_年会費更新履歴 {
   datetime 実行日時
 }
 
+T_役員 {
+  string 役員ID PK
+  string 会員ID FK
+  string 職員ID FK
+  string 役職コード FK
+  string 組織コード FK
+  date 就任日
+  date 退任日
+  string 備考
+  boolean 削除フラグ
+  datetime 作成日時
+  datetime 更新日時
+}
+
+T_振込口座 {
+  string 口座ID PK
+  string 会員ID FK
+  string 職員ID FK
+  string 金融機関名
+  string 金融機関コード
+  string 支店名
+  string 支店コード
+  string 口座種別
+  string 口座番号
+  string 口座名義カナ
+  string 備考
+  boolean 削除フラグ
+  datetime 作成日時
+  datetime 更新日時
+}
+
+T_支払い {
+  string 支払いID PK
+  string 会員ID FK
+  date 支払い日
+  string 支払い方法
+  int 合計金額
+  string 振込先口座JSON
+  string 登録者メール
+  string 備考
+  boolean 削除フラグ
+  datetime 作成日時
+  datetime 更新日時
+}
+
+T_支払い明細 {
+  string 明細ID PK
+  string 支払いID FK
+  string 請求ID FK
+  string 役職コード FK
+  string 組織コード FK
+  string 種別コード FK
+  int 金額
+  date 対象期間FROM
+  date 対象期間TO
+  string 摘要
+  boolean 削除フラグ
+  datetime 作成日時
+  datetime 更新日時
+}
+
+T_請求 {
+  string 請求ID PK
+  string 会員ID FK
+  string 職員ID FK
+  string 役職コード FK
+  string 組織コード FK
+  string 種別コード FK
+  int 請求金額
+  date 活動日
+  string 活動内容
+  string 添付ファイルURL
+  string 請求状態
+  string 却下理由
+  string 承認者メール
+  datetime 承認日時
+  boolean 削除フラグ
+  datetime 作成日時
+  datetime 更新日時
+}
+
 T_システム設定 {
   string 設定キー PK
   string 設定値
@@ -351,6 +454,25 @@ T_年会費納入履歴 }o--|| M_会費納入状態 : "会費納入状態コー�
 T_年会費更新履歴 }o--|| T_年会費納入履歴 : "年会費履歴ID"
 T_年会費更新履歴 }o--|| T_会員 : "会員ID"
 
+M_役職マスタ }o--|| M_組織マスタ : "組織コード"
+T_役員 }o--o| T_会員 : "会員ID"
+T_役員 }o--o| T_事業所職員 : "職員ID"
+T_役員 }o--|| M_役職マスタ : "役職コード"
+T_役員 }o--|| M_組織マスタ : "組織コード"
+T_振込口座 }o--o| T_会員 : "会員ID"
+T_振込口座 }o--o| T_事業所職員 : "職員ID"
+T_支払い }o--|| T_会員 : "会員ID"
+T_支払い明細 }o--|| T_支払い : "支払いID"
+T_支払い明細 }o--o| T_請求 : "請求ID"
+T_支払い明細 }o--|| M_役職マスタ : "役職コード"
+T_支払い明細 }o--|| M_組織マスタ : "組織コード"
+T_支払い明細 }o--|| M_支払い種別マスタ : "種別コード"
+T_請求 }o--o| T_会員 : "会員ID"
+T_請求 }o--o| T_事業所職員 : "職員ID"
+T_請求 }o--|| M_役職マスタ : "役職コード"
+T_請求 }o--|| M_組織マスタ : "組織コード"
+T_請求 }o--|| M_支払い種別マスタ : "種別コード"
+
 T_画面項目権限 }o--|| M_システムロール : "システムロールコード"
 
 T_ログイン履歴 }o--o| T_認証アカウント : "認証ID"
@@ -413,6 +535,14 @@ T_ログイン履歴 }o--o| T_認証アカウント : "認証ID"
 
 ### 3.12 `M_管理者権限`
 - 用途: 管理画面の権限レベル管理
+
+### 3.13 `M_組織マスタ` / `M_役職マスタ` / `M_支払い種別マスタ` — v295追加
+
+- 用途: 役員管理、支払い、請求の分類マスタ。
+- `M_組織マスタ`: 本部、理事会、監事会、事務局、各委員会などの組織定義。
+- `M_役職マスタ`: 会長、副会長、理事、監事、委員長、委員などの役職定義。`組織コード` で組織に属する。
+- `M_支払い種別マスタ`: 役員報酬、活動費、謝礼、交通費、消耗品費、その他などの支払い・請求種別。
+- 管理者ポータルのシステム設定マスタ管理から CRUD 可能。ただし参照中のマスタ削除はバックエンドで拒否する。
 
 ---
 
@@ -528,7 +658,7 @@ T_ログイン履歴 }o--o| T_認証アカウント : "認証ID"
 2. 管理者が「変更申請管理コンソール」で確認・承認 → DB 反映 + 申請者に通知メール
 3. 却下の場合 → DB 変更なし + 申請者に却下メール
 
-**初回作成:** `submitPublicChangeRequest_` 呼び出し時に T_変更申請 が存在しない場合は自動作成。正式には `npx clasp run rebuildDatabaseSchema` で作成すること。
+**初回作成:** `submitPublicChangeRequest_` 呼び出し時に T_変更申請 が存在しない場合は自動作成。正式なスキーマ反映は `docs/04_DB_OPERATION_RUNBOOK.md` のスキーマ変更手順に従い、Apps Script エディタ経由の差分正規化を標準とする。
 
 **T_システム設定 追加キー（v264〜）:**
 - `BIZ_REP_EMAIL_ENABLED/SUBJECT/BODY` — 事業所代表者入会時メール
@@ -536,6 +666,52 @@ T_ログイン履歴 }o--o| T_認証アカウント : "認証ID"
 - `STAFF_ADD_STAFF_EMAIL_ENABLED/SUBJECT/BODY` — 職員追加承認時メール
 - `STAFF_ADD_REP_EMAIL_ENABLED/SUBJECT/BODY` — 職員追加代表者通知
 - `IND_SUPP_EMAIL_ENABLED`（v266〜） — 個人・賛助会員入会時メールON/OFF
+
+### 4.12 役員管理テーブル — メインDB（v295〜v297追加）
+
+対象テーブル:
+- `T_役員`
+- `T_振込口座`
+- `T_支払い`
+- `T_支払い明細`
+- `T_請求`
+
+#### 人物識別の XOR 制約
+
+`T_役員` / `T_振込口座` / `T_請求` は、人物を `会員ID` または `職員ID` のどちらか一方で識別する。
+
+| 対象 | `会員ID` | `職員ID` |
+|---|---|---|
+| 個人会員・賛助会員 | non-empty | empty |
+| 事業所職員 | empty | non-empty |
+
+- `会員ID` と `職員ID` の同時指定は禁止。
+- どちらも空のレコードは禁止。
+- 制約は Apps Script の API 層で保証する。スプレッドシート自体に DB 制約は存在しない。
+
+#### `T_役員`
+
+- 役員割当ての正本。
+- `役職コード` / `組織コード` は各マスタを参照する。
+- 事業所職員が退職状態になった場合、`autoRetireOfficerByStaffId_` により現役役員を自動退任する。
+- `updateOfficerLinkage_` により、個人会員と事業所職員の紐づけ変更を行える。`T_振込口座` の人物紐づけも同時に移行する。
+
+#### `T_振込口座`
+
+- 役員の受取口座。人物単位で 1 口座を正とする。
+- `会員ID` / `職員ID` の XOR で所有者を識別する。
+
+#### `T_支払い` / `T_支払い明細`
+
+- `T_支払い` は支払いヘッダー、`T_支払い明細` は明細行。
+- 明細は `請求ID` を任意で参照し、請求から支払いへ処理済み状態を連動できる。
+- `振込先口座JSON` は支払い時点の口座スナップショットであり、後続の口座変更に追従しない。
+
+#### `T_請求`
+
+- 役員本人が会員マイページから申請する活動費等の請求。
+- `添付ファイルURL` は Drive に保存した添付ファイル情報の JSON 配列。
+- `請求状態` は申請、承認、却下、支払い済みなどの業務状態を表す。承認者・承認日時・却下理由を保持する。
 
 ---
 
@@ -602,6 +778,7 @@ GAS コードは `getLogSs_()` 経由でアクセスする。`LOG_SPREADSHEET_ID
 
 | バージョン | 日付 | 変更概要 |
 |---|---|---|
+| 2026-05-04-01 | 2026-05-04 | v295〜v297 の役員管理・請求管理スキーマを正本化。`M_組織マスタ` / `M_役職マスタ` / `M_支払い種別マスタ`、`T_役員` / `T_振込口座` / `T_支払い` / `T_支払い明細` / `T_請求`、`会員ID` / `職員ID` XOR 制約を追加。 |
 | 2026-04-25-01 | 2026-04-25 | T_変更申請テーブル追加（v264）。T_システム設定に事業所メール・個人賛助メール設定キー13件追加（v264〜v266）。 |
 | 2026-04-24-01 | 2026-04-24 | ログSS分離（T_ログイン履歴・T_監査ログ・T_メール送信ログ→別SS）、T_会員_archive / T_事業所職員_archive 追加。T_メール送信ログ書き込みバグ修正（v261） |
 | 2026-04-15-01 | 2026-04-15 | `T_会員` に `勤務先住所2` / `自宅住所2`（建物名・部屋番号）を追加 |
@@ -617,9 +794,103 @@ GAS コードは `getLogSs_()` 経由でアクセスする。`LOG_SPREADSHEET_ID
 ## 10. GAS実装メモ
 
 - `rebuildDatabaseSchema()`: メインDBシートを定義に基づき再作成・正規化する。
+- `normalizeTableColumns_()`: 既存データを保持したまま、定義済みテーブルへ不足列を差分追加・列順正規化する。v295/v297 の本番移行では Apps Script エディタから一時関数経由で実行済み。
 - `getLogSs_()`: ログSS取得。`LOG_SPREADSHEET_ID` 未設定時はメインDBにフォールバック。
 - `setupLogSpreadsheet()`: ログSS新規作成 + スクリプトプロパティ設定（初回のみ）。
 - `rebuildLogDatabaseSchema()`: ログSSのシート構造を再作成。
 - `migrateLogsToLogSpreadsheet()`: メインDBの既存ログ行をログSSにコピー。
 - `runArchiveOldWithdrawnMembers()`: 退会から3年超の会員をアーカイブシートへ移動（月次トリガー推奨）。
 - `cleanupNonSchemaSheets_()`: 定義外シートを削除。
+
+---
+
+## v305 Addendum: Fiscal-Year Derived Model and Human-Readable ER
+
+Status: production `v305` / admin split `@65`.
+
+No physical DB table or column was added in v305. The change is a canonical derived model used by admin output features.
+
+### Derived Entity: MemberFiscalSnapshot
+
+`MemberFiscalSnapshot` is not stored as a sheet. It is computed by `getMemberFiscalSnapshot_(memberRow, fiscalYear)` from `T_会員` and is the source of truth for fiscal-year membership targeting in mailing-list and roster outputs.
+
+| Field | Source | Meaning |
+|---|---|---|
+| `memberId` | `T_会員.会員ID` | Target member key |
+| `fiscalYear` | Request payload | Selected fiscal year |
+| `eligible` | derived | Whether the person/member belonged to the association during the selected fiscal year |
+| `memberStatus` | derived from `会員状態コード`, `入会日`, `退会日` | Fiscal-year status used for output filters |
+| `joinedDate` | `T_会員.入会日` | Membership start date |
+| `withdrawnDate` | `T_会員.退会日` | Membership end date |
+| `reason` | derived | Exclusion reason for debugging/audit review |
+
+### v305 ER Supplement
+
+```mermaid
+erDiagram
+  T_MEMBER {
+    string member_id PK "会員ID"
+    string member_type_code FK "会員種別コード"
+    string member_status_code FK "会員状態コード"
+    date joined_date "入会日"
+    date withdrawn_date "退会日"
+    boolean deleted "削除フラグ"
+  }
+
+  T_ANNUAL_FEE_HISTORY {
+    string annual_fee_history_id PK "年会費履歴ID"
+    string member_id FK "会員ID"
+    string fiscal_year "対象年度"
+    string annual_fee_status_code FK "会費納入状態コード"
+    date confirmed_date "納入確認日"
+  }
+
+  M_ANNUAL_FEE_STATUS {
+    string code PK "会費納入状態コード"
+    string name "名称"
+  }
+
+  MEMBER_FISCAL_SNAPSHOT {
+    string member_id "derived"
+    string fiscal_year "request"
+    boolean eligible "derived"
+    string fiscal_status "ACTIVE/WITHDRAWAL_SCHEDULED/WITHDRAWN"
+    date joined_date "source"
+    date withdrawn_date "source"
+  }
+
+  MAILING_LIST_TARGET {
+    string target_key "derived"
+    string member_id "derived"
+    string fiscal_year "request"
+    string annual_fee_status "recorded or UNPAID supplement"
+    string delivery_method "derived"
+  }
+
+  T_MEMBER ||--o{ T_ANNUAL_FEE_HISTORY : "member_id"
+  T_ANNUAL_FEE_HISTORY }o--|| M_ANNUAL_FEE_STATUS : "annual_fee_status_code"
+  T_MEMBER ||--o{ MEMBER_FISCAL_SNAPSHOT : "computed per fiscal year"
+  MEMBER_FISCAL_SNAPSHOT ||--o{ MAILING_LIST_TARGET : "eligible members only"
+  T_ANNUAL_FEE_HISTORY }o--o{ MAILING_LIST_TARGET : "same member and fiscal year"
+```
+
+### Fiscal-Year Eligibility Formula
+
+For a selected fiscal year `Y`, where `start = Y-04-01` and `end = (Y+1)-03-31`:
+
+```text
+eligible = not deleted
+       and joinedDate <= end
+       and (withdrawnDate is empty or withdrawnDate >= start)
+```
+
+Operational interpretation:
+
+- Withdrawn during the selected fiscal year: included.
+- Withdrawn before the selected fiscal year starts: excluded.
+- Joined after the selected fiscal year ends: excluded.
+- Missing annual-fee row: `UNPAID` only when `eligible = true`.
+
+### Schema Version Note
+
+v305 does not require `rebuildDatabaseSchema()` because it changes derived logic, generated admin artifact, and documentation only. The latest physical schema version remains the previous physical DB schema version unless a later release adds or removes actual sheet columns.

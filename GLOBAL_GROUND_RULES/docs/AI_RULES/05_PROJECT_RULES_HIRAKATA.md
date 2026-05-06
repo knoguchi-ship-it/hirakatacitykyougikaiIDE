@@ -13,13 +13,14 @@
 補足: この案件で追加で参照する文書（`AGENTS.md §2` の順序に含まれないもの）:
 - `docs/10_SOW.md` — スコープ定義と受入条件
 - `docs/17_ROOT_CAUSE_ERROR_RESPONSE_PLAYBOOK.md` — 障害復旧プレイブック
-- `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` — 補足状態サマリ（HANDOVER.md を正本とする）
+- `docs/archive/historical/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` — 補足状態サマリ（HANDOVER.md を正本とする）
 
 ## この案件の判断原則
 - 技術、法務、セキュリティ、運用の推奨を行う前に、必要なら最新の一次ソースを確認する。
 - 外部標準は採用するが、案件の固定運用と衝突する場合は案件正本を優先し、差分を明記する。
 - コード、データ、デプロイ、UI、認証、運用手順を変えたら、関連正本を同じターンで更新する。
 - 版番号、fixed deployment の向き先、最新 release state 参照は固定ルールへ埋め込まず、`HANDOVER.md` と `docs/09_DEPLOYMENT_POLICY.md` を都度更新して管理する。
+- 文書作成・更新時は、現在正常に日本語表示できている既存正本文書と同じ文字コード（原則 UTF-8）で保存する。PowerShell 等の既定エンコーディングに依存した読み書きは禁止し、必要に応じて `-Encoding UTF8` など明示的な指定で確認する。
 - 文字化け、参照切れ、版ずれ、古い handover 入口を見つけたら先に直す。
 - この案件では「動いた」だけでは完了としない。Apps Script 実行系と固定 deployment の整合まで確認して完了とする。
 - 実ブラウザでの確認は原則として操作者が行い、AI / agent はコード上の整合確認、build、Apps Script 実行系コマンド確認、取得できるエラー調査を担当する。
@@ -34,7 +35,7 @@
 - `docs/05_AUTH_AND_ROLE_SPEC.md`
 - `docs/04_DB_OPERATION_RUNBOOK.md`
 - `docs/03_DATA_MODEL.md`
-- `docs/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`
+- `docs/archive/historical/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`
 
 ## ランタイム固定ルール
 - 認証、認可、DB 整合、deployment 検証は static mock ではなく Apps Script 実行系で確認する。
