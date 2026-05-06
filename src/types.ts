@@ -199,6 +199,26 @@ export interface AdminDashboardMemberRow {
   enrolledStaffCount?: number; // BUSINESS type only: number of ENROLLED staff in this organization
 }
 
+export interface AdminDashboardStaffRow {
+  memberId: string;
+  officeName: string;
+  officeNumber: string;
+  staffId: string;
+  careManagerNumber: string;
+  lastName: string;
+  firstName: string;
+  lastKana: string;
+  firstKana: string;
+  name: string;
+  kana: string;
+  email: string;
+  role: StaffRole;
+  status: 'ENROLLED' | 'LEFT';
+  joinedDate: string;
+  withdrawnDate: string;
+  mailingPreference: string;
+}
+
 export interface AdminDashboardTrainingRow {
   trainingId: string;
   title: string;
@@ -223,6 +243,7 @@ export interface AdminDashboardData {
   postCount: number;
   openTrainingCount: number;
   memberRows: AdminDashboardMemberRow[];
+  staffRows: AdminDashboardStaffRow[];
   trainingRows: AdminDashboardTrainingRow[];
 }
 

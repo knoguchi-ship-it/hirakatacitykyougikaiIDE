@@ -61,6 +61,7 @@ export interface RosterTarget {
   officeName: string;
   memberStatus: string;
   joinedDate: string;
+  withdrawnDate?: string;
   annualFeeStatus: 'PAID' | 'UNPAID' | 'NONE';
   annualFeeYear: number;
   enrolledStaffCount?: number; // BUSINESS のみ
@@ -225,6 +226,7 @@ export interface OfficerManagementData {
 export interface BankAccount {
   口座ID: string;
   会員ID: string;
+  職員ID?: string;
   金融機関名: string;
   金融機関コード: string;
   支店名: string;
@@ -239,7 +241,8 @@ export interface BankAccount {
 }
 
 export interface SaveBankAccountPayload {
-  memberId: string;
+  memberId?: string;
+  staffId?: string;
   bankName: string;
   bankCode: string;
   branchName: string;

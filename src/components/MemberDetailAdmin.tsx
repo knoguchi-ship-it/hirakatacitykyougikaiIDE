@@ -1,12 +1,22 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Member, MemberType, Staff, StaffRole, AdminDashboardMemberRow, ConvertMemberTypePayload } from '../types';
+import { AnnualFeeRecord, Member, MemberType, PaymentStatus, Staff, StaffRole, AdminDashboardMemberRow, ConvertMemberTypePayload } from '../types';
 import { api } from '../services/api';
 import PostalCodeInput from './PostalCodeInput';
+import { matchesSearchQuery } from '../utils/search';
 
 type EditableStaff = Staff & { isNew?: boolean };
 type EditableMemberForm = Record<string, any> & { staff?: EditableStaff[] };
 type DraftStaffFieldKey = 'lastName' | 'firstName' | 'lastKana' | 'firstKana' | 'email' | 'careManagerNumber';
 type DraftStaffFieldErrors = Partial<Record<DraftStaffFieldKey, string>>;
+type AnnualFeeEditDraft = {
+  id?: string;
+  year: number;
+  status: PaymentStatus;
+  confirmedDate: string;
+  amount: number;
+  note: string;
+  updatedAt?: string;
+};
 
 const EDITABLE_MEMBER_FIELDS = [
   'id',
@@ -84,6 +94,38 @@ const joinNameParts = (lastName?: string, firstName?: string, fallback?: string)
   const joined = `${String(lastName || '').trim()} ${String(firstName || '').trim()}`.trim();
   return joined || String(fallback || '').trim();
 };
+const getFiscalYearForDate = (date: Date) => (date.getMonth() < 3 ? date.getFullYear() - 1 : date.getFullYear());
+const formatCurrency = (amount?: number) => `${Number(amount || 0).toLocaleString('ja-JP')}円`;
+const annualFeeStatusLabel = (status: PaymentStatus) => (status === PaymentStatus.PAID ? '納入済み' : '未納');
+const normalizeAnnualFeeDrafts = (records: AnnualFeeRecord[] = []): AnnualFeeEditDraft[] => {
+  const source = records.length > 0
+    ? records
+    : [{
+      year: getFiscalYearForDate(new Date()),
+      status: PaymentStatus.UNPAID,
+      confirmedDate: '',
+      amount: 0,
+      note: '',
+    }];
+  return source
+    .map((record) => ({
+      id: record.id || '',
+      year: Number(record.year || getFiscalYearForDate(new Date())),
+      status: record.status === PaymentStatus.PAID ? PaymentStatus.PAID : PaymentStatus.UNPAID,
+      confirmedDate: record.confirmedDate || '',
+      amount: Number(record.amount || 0),
+      note: record.note || '',
+      updatedAt: record.updatedAt || '',
+    }))
+    .sort((a, b) => b.year - a.year);
+};
+const normalizeAnnualFeeSnapshot = (records: AnnualFeeEditDraft[]) => records.map((record) => ({
+  id: record.id || '',
+  year: record.year,
+  status: record.status,
+  confirmedDate: record.status === PaymentStatus.PAID ? record.confirmedDate || '' : '',
+  note: record.note || '',
+}));
 
 const normalizeEditableStaff = (staff: Partial<EditableStaff> | undefined): EditableStaff => ({
   id: String(staff?.id || ''),
@@ -198,6 +240,10 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
 
   const [form, setForm] = useState<EditableMemberForm>({ ...(member as EditableMemberForm) });
   const [initialSnapshot, setInitialSnapshot] = useState(() => normalizeEditableMember(member as EditableMemberForm));
+  const [annualFeeDrafts, setAnnualFeeDrafts] = useState<AnnualFeeEditDraft[]>(() => normalizeAnnualFeeDrafts(member.annualFeeHistory || []));
+  const [initialAnnualFeeSnapshot, setInitialAnnualFeeSnapshot] = useState(() => normalizeAnnualFeeSnapshot(normalizeAnnualFeeDrafts(member.annualFeeHistory || [])));
+  const [annualFeeSavingYear, setAnnualFeeSavingYear] = useState<number | null>(null);
+  const [annualFeeErrors, setAnnualFeeErrors] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -212,6 +258,11 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     const nextForm = { ...(member as EditableMemberForm) };
     setForm(nextForm);
     setInitialSnapshot(normalizeEditableMember(nextForm));
+    const nextAnnualFeeDrafts = normalizeAnnualFeeDrafts(member.annualFeeHistory || []);
+    setAnnualFeeDrafts(nextAnnualFeeDrafts);
+    setInitialAnnualFeeSnapshot(normalizeAnnualFeeSnapshot(nextAnnualFeeDrafts));
+    setAnnualFeeErrors({});
+    setAnnualFeeSavingYear(null);
     setTouched({});
     setValidationErrors({});
     setDraftStaffErrors({});
@@ -259,6 +310,11 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
   const preferredMailDestination = String(form.preferredMailDestination || 'OFFICE');
   const currentSnapshot = useMemo(() => normalizeEditableMember(form), [form]);
   const isDirty = useMemo(() => !snapshotsEqual(currentSnapshot, initialSnapshot), [currentSnapshot, initialSnapshot]);
+  const currentAnnualFeeSnapshot = useMemo(() => normalizeAnnualFeeSnapshot(annualFeeDrafts), [annualFeeDrafts]);
+  const isAnnualFeeDirty = useMemo(
+    () => !snapshotsEqual(currentAnnualFeeSnapshot, initialAnnualFeeSnapshot),
+    [currentAnnualFeeSnapshot, initialAnnualFeeSnapshot],
+  );
   const isStaffDirty = useMemo(
     () => !snapshotsEqual(currentSnapshot.staff, initialSnapshot.staff),
     [currentSnapshot, initialSnapshot],
@@ -588,6 +644,85 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       setError(e instanceof Error ? e.message : '保存に失敗しました。');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const updateAnnualFeeDraft = (year: number, patch: Partial<AnnualFeeEditDraft>) => {
+    setAnnualFeeDrafts((prev) => prev.map((record) => {
+      if (record.year !== year) return record;
+      const next = { ...record, ...patch };
+      if (patch.status === PaymentStatus.UNPAID) {
+        next.confirmedDate = '';
+      }
+      return next;
+    }));
+    setAnnualFeeErrors((prev) => {
+      if (!prev[year]) return prev;
+      const { [year]: _removed, ...rest } = prev;
+      return rest;
+    });
+  };
+
+  const handleAnnualFeeSave = async (draft: AnnualFeeEditDraft) => {
+    if (draft.status === PaymentStatus.PAID && !draft.confirmedDate) {
+      setAnnualFeeErrors((prev) => ({ ...prev, [draft.year]: '納入済みにする場合は納入確認日を入力してください。' }));
+      return;
+    }
+    if ((draft.note || '').length > 2000) {
+      setAnnualFeeErrors((prev) => ({ ...prev, [draft.year]: '備考は 2000 文字以内で入力してください。' }));
+      return;
+    }
+    try {
+      setAnnualFeeSavingYear(draft.year);
+      setError(null);
+      setSuccessMsg(null);
+      const saved = await api.saveAnnualFeeRecord({
+        id: draft.id || undefined,
+        memberId: String(form.id),
+        year: draft.year,
+        status: draft.status,
+        confirmedDate: draft.status === PaymentStatus.PAID ? draft.confirmedDate : '',
+        note: draft.note,
+      });
+      const nextAnnualFeeDrafts = annualFeeDrafts
+        .map((record) => record.year === saved.year
+          ? {
+            id: saved.id,
+            year: saved.year,
+            status: saved.status,
+            confirmedDate: saved.confirmedDate || '',
+            amount: saved.amount,
+            note: saved.note || '',
+            updatedAt: saved.updatedAt || '',
+          }
+          : record)
+        .sort((a, b) => b.year - a.year);
+      setAnnualFeeDrafts(nextAnnualFeeDrafts);
+      setInitialAnnualFeeSnapshot(normalizeAnnualFeeSnapshot(nextAnnualFeeDrafts));
+      setAnnualFeeErrors((prev) => {
+        const { [draft.year]: _removed, ...rest } = prev;
+        return rest;
+      });
+      const nextMember = {
+        ...(form as Member),
+        annualFeeHistory: nextAnnualFeeDrafts.map((record) => ({
+          id: record.id,
+          year: record.year,
+          status: record.status,
+          confirmedDate: record.confirmedDate,
+          amount: record.amount,
+          note: record.note,
+          updatedAt: record.updatedAt,
+        })),
+      };
+      setForm(nextMember as EditableMemberForm);
+      setInitialSnapshot(normalizeEditableMember(nextMember as EditableMemberForm));
+      setSuccessMsg(`${saved.year}年度の年会費情報を保存しました。`);
+      onSaved(nextMember);
+    } catch (e) {
+      setAnnualFeeErrors((prev) => ({ ...prev, [draft.year]: e instanceof Error ? e.message : '年会費情報の保存に失敗しました。' }));
+    } finally {
+      setAnnualFeeSavingYear(null);
     }
   };
 
@@ -1312,6 +1447,114 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
         </div>
       </div>
 
+      {/* 年会費 */}
+      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-bold text-slate-800">年会費</h3>
+            <p className="mt-1 text-sm text-slate-500">対象年度ごとに納入状況、納入確認日、備考を確認・編集できます。</p>
+          </div>
+          {isAnnualFeeDirty && (
+            <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+              未保存の年会費変更があります
+            </span>
+          )}
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">年度</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">会費</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">納入ステータス</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">納入確認日</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">備考</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">操作</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {annualFeeDrafts.map((record) => {
+                const rowDirty = !snapshotsEqual(
+                  normalizeAnnualFeeSnapshot([record])[0],
+                  initialAnnualFeeSnapshot.find((initial) => initial.year === record.year),
+                );
+                const rowError = annualFeeErrors[record.year];
+                const rowBusy = annualFeeSavingYear === record.year;
+                const statusTone = record.status === PaymentStatus.PAID
+                  ? 'bg-green-50 text-green-700 border-green-200'
+                  : 'bg-red-50 text-red-700 border-red-200';
+                return (
+                  <tr key={record.year} className={rowDirty ? 'bg-amber-50/50' : 'bg-white'}>
+                    <td className="px-4 py-3 align-top text-sm font-medium text-slate-800">{record.year}年度</td>
+                    <td className="px-4 py-3 align-top text-sm tabular-nums text-slate-700">{formatCurrency(record.amount)}</td>
+                    <td className="px-4 py-3 align-top text-sm">
+                      <div className="space-y-2">
+                        <select
+                          className="w-full min-w-[120px] rounded border border-slate-300 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          value={record.status}
+                          disabled={rowBusy}
+                          aria-label={`${record.year}年度の納入ステータス`}
+                          onChange={(e) => {
+                            const nextStatus = e.target.value as PaymentStatus;
+                            updateAnnualFeeDraft(record.year, {
+                              status: nextStatus,
+                              confirmedDate: nextStatus === PaymentStatus.PAID
+                                ? record.confirmedDate || new Date().toISOString().slice(0, 10)
+                                : '',
+                            });
+                          }}
+                        >
+                          <option value={PaymentStatus.UNPAID}>未納</option>
+                          <option value={PaymentStatus.PAID}>納入済み</option>
+                        </select>
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${statusTone}`}>
+                          {annualFeeStatusLabel(record.status)}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 align-top text-sm">
+                      <input
+                        type="date"
+                        className="w-full min-w-[150px] rounded border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        value={record.confirmedDate}
+                        disabled={rowBusy || record.status !== PaymentStatus.PAID}
+                        aria-label={`${record.year}年度の納入確認日`}
+                        onChange={(e) => updateAnnualFeeDraft(record.year, { confirmedDate: e.target.value })}
+                      />
+                    </td>
+                    <td className="px-4 py-3 align-top text-sm">
+                      <textarea
+                        className="min-h-[72px] w-full min-w-[240px] rounded border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        value={record.note}
+                        disabled={rowBusy}
+                        maxLength={2000}
+                        aria-label={`${record.year}年度の年会費備考`}
+                        onChange={(e) => updateAnnualFeeDraft(record.year, { note: e.target.value })}
+                        placeholder="確認メモ"
+                      />
+                      <p className="mt-1 text-xs text-slate-400">{record.note.length}/2000</p>
+                    </td>
+                    <td className="px-4 py-3 align-top text-sm">
+                      <button
+                        type="button"
+                        onClick={() => void handleAnnualFeeSave(record)}
+                        disabled={rowBusy || !rowDirty}
+                        className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
+                      >
+                        {rowBusy ? '保存中...' : rowDirty ? '保存' : '変更なし'}
+                      </button>
+                      {rowError && (
+                        <p className="mt-2 max-w-[220px] text-xs text-red-600" role="alert">{rowError}</p>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* 事業所職員一覧 */}
       {isBusiness && (
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
@@ -1707,9 +1950,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                 {(individualMembers || [])
                   .filter(m => m.status !== 'WITHDRAWN')
                   .filter(m => {
-                    const q = convertFromIndividualSearch.trim().toLowerCase();
-                    if (!q) return true;
-                    return m.displayName.toLowerCase().includes(q) || m.memberId.toLowerCase().includes(q);
+                    return matchesSearchQuery(convertFromIndividualSearch, [m.displayName, m.memberId]);
                   })
                   .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ja'))
                   .map(m => (

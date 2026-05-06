@@ -207,9 +207,9 @@ export interface ApiClient {
   resignOfficer(payload: { officerId: string; resignationDate?: string }): Promise<{ resigned: boolean; officerId: string }>;
   updateOfficerLinkage(payload: { officerId: string; newMemberId?: string; newStaffId?: string }): Promise<{ updated: boolean; officerId: string }>;
   // v295: 振込口座管理（管理者用）
-  getAdminBankAccount(payload: { memberId: string }): Promise<import('../shared/types').BankAccount | null>;
+  getAdminBankAccount(payload: { memberId?: string; staffId?: string }): Promise<import('../shared/types').BankAccount | null>;
   saveAdminBankAccount(payload: import('../shared/types').SaveBankAccountPayload): Promise<{ accountId: string }>;
-  deleteAdminBankAccount(payload: { memberId: string }): Promise<{ deleted: boolean }>;
+  deleteAdminBankAccount(payload: { memberId?: string; staffId?: string }): Promise<{ deleted: boolean }>;
   // v295: 支払い履歴管理
   getPaymentHistory(payload?: { memberId?: string }): Promise<import('../shared/types').PaymentRecord[]>;
   savePayment(payload: import('../shared/types').SavePaymentPayload): Promise<{ paymentId: string; totalAmount: number }>;
@@ -1766,7 +1766,7 @@ class GasApiClient implements ApiClient {
 
   // ---- v295: 振込口座管理（管理者用）----
 
-  async getAdminBankAccount(payload: { memberId: string }): Promise<import('../shared/types').BankAccount | null> {
+  async getAdminBankAccount(payload: { memberId?: string; staffId?: string }): Promise<import('../shared/types').BankAccount | null> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
       google.script.run
@@ -1792,7 +1792,7 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async deleteAdminBankAccount(payload: { memberId: string }): Promise<{ deleted: boolean }> {
+  async deleteAdminBankAccount(payload: { memberId?: string; staffId?: string }): Promise<{ deleted: boolean }> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
       google.script.run

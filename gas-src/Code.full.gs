@@ -4033,13 +4033,17 @@ function getAdminDashboardData_() {
   var cache = CacheService.getScriptCache();
   var cacheKey = getAdminDashboardCacheKey_();
   var cached = getChunkedCache_(cache, cacheKey);
-  if (cached) return cached;
+  if (cached && cached.staffRows) return cached;
 
   var ss = getOrCreateDatabase_();
   initializeSchemaIfNeeded_(ss);
   var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(r) {
     return !toBoolean_(r['削除フラグ']);
   });
+  var memberById = {};
+  for (var memberMapIdx = 0; memberMapIdx < memberRows.length; memberMapIdx += 1) {
+    memberById[String(memberRows[memberMapIdx]['会員ID'] || '')] = memberRows[memberMapIdx];
+  }
   var trainingRows = getRowsAsObjects_(ss, 'T_研修').filter(function(r) {
     return !toBoolean_(r['削除フラグ']);
   });
@@ -4104,6 +4108,34 @@ function getAdminDashboardData_() {
     if (!smid) continue;
     enrolledStaffCountByMember[smid] = (enrolledStaffCountByMember[smid] || 0) + 1;
   }
+  var staffSummaries = staffRows.map(function(staff) {
+    var staffMemberId = String(staff['会員ID'] || '');
+    var parentMember = memberById[staffMemberId] || {};
+    var staffNameFields = normalizeStaffNameFields_(staff);
+    return {
+      memberId: staffMemberId,
+      officeName: String(parentMember['勤務先名'] || ''),
+      officeNumber: String(parentMember['事業所番号'] || ''),
+      staffId: String(staff['職員ID'] || ''),
+      careManagerNumber: String(staff['介護支援専門員番号'] || ''),
+      lastName: staffNameFields.lastName,
+      firstName: staffNameFields.firstName,
+      lastKana: staffNameFields.lastKana,
+      firstKana: staffNameFields.firstKana,
+      name: staffNameFields.name,
+      kana: staffNameFields.kana,
+      email: String(staff['メールアドレス'] || ''),
+      role: String(staff['職員権限コード'] || 'STAFF'),
+      status: String(staff['職員状態コード'] || 'ENROLLED') === 'LEFT' ? 'LEFT' : 'ENROLLED',
+      joinedDate: normalizeDateInput_(staff['入会日']),
+      withdrawnDate: normalizeDateInput_(staff['退会日']),
+      mailingPreference: String(staff['メール配信希望コード'] || 'YES'),
+    };
+  }).sort(function(a, b) {
+    return String(a.officeName || '').localeCompare(String(b.officeName || ''))
+      || String(a.name || '').localeCompare(String(b.name || ''))
+      || String(a.staffId || '').localeCompare(String(b.staffId || ''));
+  });
 
   // 会員種別別カウント・入退会集計
   // v143: アクティブ会員（ACTIVE / WITHDRAWAL_SCHEDULED）のみカウント
@@ -4196,6 +4228,7 @@ function getAdminDashboardData_() {
     postCount: activeMembers.filter(function(member) { return String(member['発送方法コード'] || 'EMAIL') === 'POST'; }).length,
     openTrainingCount: trainingSummaries.filter(function(training) { return training.status === 'OPEN'; }).length,
     memberRows: memberSummaries,
+    staffRows: staffSummaries,
     trainingRows: trainingSummaries,
   };
 
@@ -5792,8 +5825,66 @@ function getAnnualFeeFiscalYearPreviousEndDate_(fiscalYear) {
   return String(Number(fiscalYear || 0)) + '-03-31';
 }
 
+function getFiscalYearStartDate_(fiscalYear) {
+  return String(Number(fiscalYear || 0)) + '-04-01';
+}
+
 function getAnnualFeeFiscalYearEndDate_(fiscalYear) {
   return String(Number(fiscalYear || 0) + 1) + '-03-31';
+}
+
+function getMemberFiscalSnapshot_(memberRow, fiscalYear) {
+  var normalizedYear = Number(fiscalYear || 0);
+  var result = {
+    eligible: false,
+    memberStatus: 'OUT_OF_YEAR',
+    joinedDate: normalizeDateInput_(memberRow && memberRow['入会日']),
+    withdrawnDate: normalizeDateInput_(memberRow && memberRow['退会日']),
+    fiscalYear: normalizedYear,
+    reason: '',
+  };
+  if (!memberRow) {
+    result.reason = 'NO_MEMBER';
+    return result;
+  }
+  if (toBoolean_(memberRow['削除フラグ'])) {
+    result.reason = 'DELETED';
+    return result;
+  }
+  if (!isFinite(normalizedYear) || normalizedYear < 2000 || normalizedYear > 2100) {
+    result.reason = 'INVALID_YEAR';
+    return result;
+  }
+
+  var memberStatus = String(memberRow['会員状態コード'] || 'ACTIVE');
+  var previousFiscalYearEnd = getAnnualFeeFiscalYearPreviousEndDate_(normalizedYear);
+  var fiscalYearEnd = getAnnualFeeFiscalYearEndDate_(normalizedYear);
+
+  if (result.withdrawnDate && result.withdrawnDate <= previousFiscalYearEnd) {
+    result.reason = 'WITHDRAWN_BEFORE_YEAR';
+    result.memberStatus = 'WITHDRAWN';
+    return result;
+  }
+  if (!result.withdrawnDate && memberStatus === 'WITHDRAWN') {
+    result.reason = 'WITHDRAWN_WITHOUT_DATE';
+    result.memberStatus = 'WITHDRAWN';
+    return result;
+  }
+  if (result.joinedDate && result.joinedDate > fiscalYearEnd) {
+    result.reason = 'JOINED_AFTER_YEAR';
+    result.memberStatus = 'NOT_YET_JOINED';
+    return result;
+  }
+
+  result.eligible = true;
+  if (memberStatus === 'WITHDRAWAL_SCHEDULED') {
+    result.memberStatus = 'WITHDRAWAL_SCHEDULED';
+  } else if (result.withdrawnDate && result.withdrawnDate <= fiscalYearEnd) {
+    result.memberStatus = 'WITHDRAWN';
+  } else {
+    result.memberStatus = 'ACTIVE';
+  }
+  return result;
 }
 
 function buildMemberAnnualFeeHistory_(memberRow, feeHistory, memberTypeFeeMap) {
@@ -5810,15 +5901,18 @@ function buildMemberAnnualFeeHistory_(memberRow, feeHistory, memberTypeFeeMap) {
   }
 
   var prioritizedYears = [];
-  if (isAnnualFeeEligibleMemberForYear_(memberRow, currentFiscalYear)) {
-    prioritizedYears.push(currentFiscalYear);
-  }
-  if (isAnnualFeeEligibleMemberForYear_(memberRow, currentFiscalYear - 1)) {
-    prioritizedYears.push(currentFiscalYear - 1);
+  var oldestDisplayYear = Math.max(2024, currentFiscalYear - 3);
+  for (var displayYear = currentFiscalYear; displayYear >= oldestDisplayYear; displayYear -= 1) {
+    if (isAnnualFeeEligibleMemberForYear_(memberRow, displayYear)) {
+      prioritizedYears.push(displayYear);
+    }
   }
 
   if (prioritizedYears.length === 0) {
-    return sortedActualHistory.slice(0, 2);
+    return sortedActualHistory.filter(function(record) {
+      var actualYear = Number(record && record.year || 0);
+      return actualYear >= 2024 && actualYear <= currentFiscalYear;
+    }).slice(0, 4);
   }
 
   return prioritizedYears.map(function(year) {
@@ -5836,23 +5930,7 @@ function buildMemberAnnualFeeHistory_(memberRow, feeHistory, memberTypeFeeMap) {
 }
 
 function isAnnualFeeEligibleMemberForYear_(memberRow, fiscalYear) {
-  if (!memberRow) return false;
-  if (toBoolean_(memberRow['削除フラグ'])) return false;
-
-  var normalizedYear = Number(fiscalYear || 0);
-  if (!isFinite(normalizedYear) || normalizedYear < 2000 || normalizedYear > 2100) return false;
-
-  var memberStatus = String(memberRow['会員状態コード'] || 'ACTIVE');
-  var withdrawnDate = normalizeDateInput_(memberRow['退会日']);
-  var joinedDate = normalizeDateInput_(memberRow['入会日']);
-  var previousFiscalYearEnd = getAnnualFeeFiscalYearPreviousEndDate_(normalizedYear);
-  var fiscalYearEnd = getAnnualFeeFiscalYearEndDate_(normalizedYear);
-
-  if (withdrawnDate && withdrawnDate <= previousFiscalYearEnd) return false;
-  if (!withdrawnDate && memberStatus === 'WITHDRAWN') return false;
-  if (joinedDate && joinedDate > fiscalYearEnd) return false;
-
-  return true;
+  return getMemberFiscalSnapshot_(memberRow, fiscalYear).eligible;
 }
 
 function buildAnnualFeeIneligibleMessage_(memberRow, fiscalYear) {
@@ -9837,11 +9915,52 @@ function validateMemberPayload_(payload, memberTypeCode, currentMemberStatus) {
 }
 
 function normalizeDateInput_(value) {
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, 'Asia/Tokyo', 'yyyy-MM-dd');
+  }
   var text = String(value || '').trim();
   if (!text) return '';
+  var ymd = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (ymd) {
+    var y = Number(ymd[1]);
+    var m = Number(ymd[2]);
+    var d = Number(ymd[3]);
+    var strictDate = new Date(y, m - 1, d, 12, 0, 0, 0);
+    if (
+      strictDate.getFullYear() !== y ||
+      strictDate.getMonth() !== m - 1 ||
+      strictDate.getDate() !== d
+    ) return '';
+    return text;
+  }
   var parsed = new Date(text);
   if (isNaN(parsed.getTime())) return '';
   return Utilities.formatDate(parsed, 'Asia/Tokyo', 'yyyy-MM-dd');
+}
+
+function normalizeSearchText_(value) {
+  return String(value == null ? '' : value)
+    .normalize('NFKC')
+    .toLowerCase()
+    .trim();
+}
+
+function compactSearchText_(value) {
+  return normalizeSearchText_(value).replace(/[\s\u3000]+/g, '');
+}
+
+function matchesSearchQuery_(query, values) {
+  var normalizedQuery = normalizeSearchText_(query);
+  if (!normalizedQuery) return true;
+  var sourceValues = Array.isArray(values) ? values : [];
+  var normalizedHaystack = sourceValues.map(normalizeSearchText_).join(' ');
+  var compactHaystack = sourceValues.map(compactSearchText_).join('');
+  var compactQuery = compactSearchText_(normalizedQuery);
+  if (compactQuery && compactHaystack.indexOf(compactQuery) >= 0) return true;
+  var terms = normalizedQuery.split(/[\s\u3000]+/).filter(function(term) { return !!term; });
+  return terms.every(function(term) {
+    return normalizedHaystack.indexOf(term) >= 0 || compactHaystack.indexOf(compactSearchText_(term)) >= 0;
+  });
 }
 
 function shouldAutoDeleteOnNextApril_(withdrawnDateRaw, referenceDate) {
@@ -18664,7 +18783,6 @@ function buildMailingListCandidates_(payload) {
   var members = getSheetData_(memberSheet);
   var feeRows = feeSheet ? getSheetData_(feeSheet) : [];
 
-  var ACTIVE_STATUSES = ['ACTIVE', 'WITHDRAWAL_SCHEDULED'];
   var feeMap = {};
   feeRows.forEach(function(r) {
     if (toBoolean_(r['削除フラグ'])) return;
@@ -18676,10 +18794,10 @@ function buildMailingListCandidates_(payload) {
   var candidates = [];
 
   members.forEach(function(m) {
-    if (toBoolean_(m['削除フラグ'])) return;
+    var fiscalSnapshot = getMemberFiscalSnapshot_(m, year);
+    if (!fiscalSnapshot.eligible) return;
     var mtype = String(m['会員種別コード'] || '');
-    var status = String(m['会員状態コード'] || '');
-    if (ACTIVE_STATUSES.indexOf(status) < 0) return;
+    var status = fiscalSnapshot.memberStatus;
 
     // お知らせフィルター: 事業所は全員対象。個人・賛助は 発送方法コード='POST' のみ
     if (filterType === 'OSHIRASE' && mtype !== 'BUSINESS') {
@@ -19194,11 +19312,13 @@ function getMembersForRoster_(payload) {
     var mtype = String(m['会員種別コード'] || '');
     if (memberTypes.indexOf(mtype) < 0) return;
 
-    var status = String(m['会員状態コード'] || '');
+    var fiscalSnapshot = getMemberFiscalSnapshot_(m, year);
+    if (!fiscalSnapshot.eligible) return;
+    var status = fiscalSnapshot.memberStatus;
     if (memberStatus === 'ACTIVE' && status !== 'ACTIVE') return;
     if (memberStatus === 'INCLUDING_SCHEDULED' &&
         status !== 'ACTIVE' && status !== 'WITHDRAWAL_SCHEDULED') return;
-    // 'ALL' → フィルタなし
+    // 'ALL' → 対象年度に会員だった人を年度内退会者も含める
 
     var memberId  = String(m['会員ID'] || '');
     var feeStatus = feeMap[memberId] || 'NONE'; // NONE = 当年度の記録なし
@@ -19220,7 +19340,8 @@ function getMembersForRoster_(payload) {
       kana:              kana,
       officeName:        String(m['勤務先名'] || '').trim(),
       memberStatus:      status,
-      joinedDate:        String(m['入会日'] || ''),
+      joinedDate:        fiscalSnapshot.joinedDate,
+      withdrawnDate:     fiscalSnapshot.withdrawnDate,
       annualFeeStatus:   feeStatus,
       annualFeeYear:     year,
       enrolledStaffCount: mtype === 'BUSINESS' ? (staffCountMap[memberId] || 0) : undefined,
@@ -20818,7 +20939,6 @@ function searchMembersForDelete_(payload) {
 
   var ss = getOrCreateDatabase_();
   var catalog = buildDeleteCatalog_(ss);
-  var lowerQuery = query.toLowerCase();
   var results = [];
 
   for (var i = 0; i < catalog.members.length; i++) {
@@ -20827,14 +20947,14 @@ function searchMembersForDelete_(payload) {
     if (!memberId) continue;
     var displayName = getDeleteMemberDisplayName_(member);
     var loginId = catalog.memberLoginIdById[memberId] || '';
-    var memberSearchText = [
+    var memberSearchValues = [
       memberId,
       displayName,
       loginId,
       String(member['事業所番号'] || ''),
       String(member['代表メールアドレス'] || ''),
-    ].join(' ').toLowerCase();
-    if (memberSearchText.indexOf(lowerQuery) === -1) continue;
+    ];
+    if (!matchesSearchQuery_(query, memberSearchValues)) continue;
     results.push({
       targetKey: 'member:' + memberId,
       targetKind: 'MEMBER',
@@ -20857,15 +20977,15 @@ function searchMembersForDelete_(payload) {
     var parentMember = catalog.memberById[parentMemberId] || null;
     var staffDisplayName = getDeleteStaffDisplayName_(staff, parentMember);
     var staffLoginId = catalog.staffLoginIdById[staffId] || '';
-    var staffSearchText = [
+    var staffSearchValues = [
       staffId,
       parentMemberId,
       staffDisplayName,
       staffLoginId,
       String(staff['メールアドレス'] || ''),
       String(staff['介護支援専門員番号'] || ''),
-    ].join(' ').toLowerCase();
-    if (staffSearchText.indexOf(lowerQuery) === -1) continue;
+    ];
+    if (!matchesSearchQuery_(query, staffSearchValues)) continue;
     results.push({
       targetKey: 'staff:' + staffId,
       targetKind: 'STAFF',

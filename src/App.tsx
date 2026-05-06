@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue } from 'react';
 import Sidebar from './components/Sidebar';
 import MemberBatchEditor from './MemberBatchEditor';
 import MemberForm from './components/MemberForm';
@@ -18,11 +18,12 @@ import MemberDeleteConsole from './components/MemberDeleteConsole';
 import ChangeRequestConsole from './components/ChangeRequestConsole';
 import MemberDetailAdmin from './components/MemberDetailAdmin';
 import StaffDetailAdmin from './components/StaffDetailAdmin';
-import { AdminDashboardData, AdminDashboardMemberRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, SystemSettings, Training, TrainingFieldConfig, DEFAULT_FIELD_CONFIG } from './types';
+import { AdminDashboardData, AdminDashboardMemberRow, AdminDashboardStaffRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, Staff, StaffRole, SystemSettings, Training, TrainingFieldConfig, DEFAULT_FIELD_CONFIG } from './types';
 import { TRAINING_OPTIONAL_FIELD_DEFS } from './components/TrainingManagement';
 import { api, type AdminLoginResult, type MemberLoginResult, type MemberPortalLookup } from './services/api';
 import { callApi } from './shared/api-base';
 import { EmailCard, MasterOffBanner, MergeTags, ToggleSwitch } from './components/EmailSettingsCard';
+import { matchesSearchQuery } from './utils/search';
 
 type Role = 'ADMIN' | 'MEMBER';
 type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'roster-export' | 'mailing-list-export' | 'template-help' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings' | 'member-delete' | 'change-requests' | 'officer-management' | 'payment-history' | 'claim-management';
@@ -34,6 +35,28 @@ type MemberSortKey = 'memberId' | 'displayName' | 'memberType' | 'trainingCount'
 type MemberSortDir = 'asc' | 'desc';
 type DisplayMemberStatus = Exclude<MemberStatusFilter, 'ALL'>;
 type AppShellMode = 'integrated' | 'member' | 'admin';
+type AdminMemberViewMode = 'all' | 'business';
+type StaffStatus = 'ENROLLED' | 'LEFT';
+type BusinessStaffRoleFilter = 'ALL' | StaffRole;
+type BusinessStaffStatusFilter = 'ALL' | StaffStatus;
+type BusinessStaffDraft = {
+  name: string;
+  kana: string;
+  email: string;
+  role: StaffRole;
+  status: StaffStatus;
+  mailingPreference: string;
+};
+type BusinessStaffDirectoryMember = Pick<Member, 'id' | 'officeName' | 'officeNumber'>;
+type BusinessStaffDirectoryRow = {
+  member: BusinessStaffDirectoryMember;
+  staff: Staff;
+  dashboardRow?: AdminDashboardMemberRow;
+  draft: BusinessStaffDraft;
+  original: BusinessStaffDraft;
+  fiscalStatus: StaffStatus | null;
+  searchableValues: unknown[];
+};
 const DEFAULT_MEMBER_PAGE_SIZE = 50;
 const getFiscalYearForDate = (date: Date) => (date.getMonth() < 3 ? date.getFullYear() - 1 : date.getFullYear());
 const DEFAULT_MEMBER_FISCAL_YEAR_FILTER = getFiscalYearForDate(new Date()).toString();
@@ -91,7 +114,7 @@ const getMemberStatusAtFiscalYear = (
 };
 
 const getStaffStatusAtFiscalYear = (
-  staff: NonNullable<Member['staff']>[number],
+  staff: Staff,
   fiscalYear: number | null,
   currentFiscalYear: number,
 ): 'ENROLLED' | 'LEFT' | null => {
@@ -132,6 +155,57 @@ interface AuthenticatedContext {
 const isActiveMemberIdentity = (member: Member): boolean => member.status !== 'WITHDRAWN';
 
 const isActiveStaffIdentity = (staff: NonNullable<Member['staff']>[number]): boolean => staff.status !== 'LEFT';
+
+const businessStaffRoleLabel = (role: StaffRole): string => {
+  if (role === 'REPRESENTATIVE') return '代表者';
+  if (role === 'ADMIN') return '管理者';
+  return 'メンバー';
+};
+
+const businessStaffStatusLabel = (status: StaffStatus): string => (status === 'LEFT' ? '除籍' : '在籍');
+const businessStaffMailingPreferenceLabel = (preference: string): string => (preference === 'NO' ? '配信しない' : '配信する');
+
+const normalizeBusinessStaffDraft = (staff: Staff): BusinessStaffDraft => ({
+  name: staff.name || [staff.lastName, staff.firstName].filter(Boolean).join(' '),
+  kana: staff.kana || [staff.lastKana, staff.firstKana].filter(Boolean).join(' '),
+  email: staff.email || '',
+  role: (staff.role || 'STAFF') as StaffRole,
+  status: (staff.status === 'LEFT' ? 'LEFT' : 'ENROLLED') as StaffStatus,
+  mailingPreference: staff.mailingPreference === 'NO' ? 'NO' : 'YES',
+});
+
+const mapAdminDashboardStaffRow = (row: AdminDashboardStaffRow): { member: BusinessStaffDirectoryMember; staff: Staff } => ({
+  member: {
+    id: row.memberId,
+    officeName: row.officeName || '',
+    officeNumber: row.officeNumber || '',
+  },
+  staff: {
+    id: row.staffId,
+    careManagerNumber: row.careManagerNumber || '',
+    lastName: row.lastName || '',
+    firstName: row.firstName || '',
+    lastKana: row.lastKana || '',
+    firstKana: row.firstKana || '',
+    name: row.name || [row.lastName, row.firstName].filter(Boolean).join(' '),
+    kana: row.kana || [row.lastKana, row.firstKana].filter(Boolean).join(' '),
+    email: row.email || '',
+    role: (row.role || 'STAFF') as StaffRole,
+    status: row.status === 'LEFT' ? 'LEFT' : 'ENROLLED',
+    joinedDate: row.joinedDate || '',
+    withdrawnDate: row.withdrawnDate || '',
+    mailingPreference: row.mailingPreference || 'YES',
+  },
+});
+
+const businessStaffDraftEquals = (a: BusinessStaffDraft, b: BusinessStaffDraft): boolean => (
+  a.name.trim() === b.name.trim()
+  && a.kana.trim() === b.kana.trim()
+  && a.email.trim() === b.email.trim()
+  && a.role === b.role
+  && a.status === b.status
+  && a.mailingPreference === b.mailingPreference
+);
 
 declare global {
   interface Window {
@@ -439,6 +513,7 @@ const App: React.FC = () => {
   const [staffAddRepEmailEnabledInput, setStaffAddRepEmailEnabledInput] = useState(true);
   const [staffAddRepEmailSubjectInput, setStaffAddRepEmailSubjectInput] = useState(STAFF_ADD_REP_SUBJECT_DEFAULT);
   const [staffAddRepEmailBodyInput, setStaffAddRepEmailBodyInput] = useState('');
+  const [adminMemberViewMode, setAdminMemberViewMode] = useState<AdminMemberViewMode>('all');
   const [memberListQuery, setMemberListQuery] = useState('');
   const [memberListFilter, setMemberListFilter] = useState<MemberListFilter>('ALL');
   const [memberListStatusFilter, setMemberListStatusFilter] = useState<MemberStatusFilter>(DEFAULT_MEMBER_STATUS_FILTER);
@@ -447,6 +522,14 @@ const App: React.FC = () => {
   const [memberListPageSize, setMemberListPageSize] = useState(DEFAULT_MEMBER_PAGE_SIZE);
   const [memberSortKey, setMemberSortKey] = useState<MemberSortKey>('displayName');
   const [memberSortDir, setMemberSortDir] = useState<MemberSortDir>('asc');
+  const [businessMemberQuery, setBusinessMemberQuery] = useState('');
+  const [businessMemberPage, setBusinessMemberPage] = useState(1);
+  const [businessStaffRoleFilter, setBusinessStaffRoleFilter] = useState<BusinessStaffRoleFilter>('ALL');
+  const [businessStaffStatusFilter, setBusinessStaffStatusFilter] = useState<BusinessStaffStatusFilter>('ALL');
+  const [businessStaffDrafts, setBusinessStaffDrafts] = useState<Record<string, BusinessStaffDraft>>({});
+  const [businessStaffSaving, setBusinessStaffSaving] = useState(false);
+  const [businessStaffSaveMessage, setBusinessStaffSaveMessage] = useState<string | null>(null);
+  const [businessStaffSaveError, setBusinessStaffSaveError] = useState<string | null>(null);
   const [selectedMemberForDetailId, setSelectedMemberForDetailId] = useState<string | null>(null);
   const [selectedStaffForDetail, setSelectedStaffForDetail] = useState<{ memberId: string; staffId: string } | null>(null);
   const [staffSaveToast, setStaffSaveToast] = useState<string | null>(null);
@@ -602,7 +685,9 @@ const App: React.FC = () => {
         setMembers(nextMembers);
         setTrainings(nextTrainings);
         setFullDataLoaded(true);
-        setMemberPortalLoaded(true);
+        if (userRole !== 'ADMIN') {
+          setMemberPortalLoaded(true);
+        }
         setTrainingManagementLoaded(true);
         if (systemSettings) {
           applySystemSettings(systemSettings);
@@ -610,7 +695,9 @@ const App: React.FC = () => {
         return { members: nextMembers, trainings: nextTrainings };
       } catch (error) {
         console.error('Initialization failed:', error);
-        setInitError(error instanceof Error ? error.message : 'データの読み込みに失敗しました。');
+        if (!silent) {
+          setInitError(error instanceof Error ? error.message : 'データの読み込みに失敗しました。');
+        }
         throw error;
       } finally {
         if (!silent) setIsLoading(false);
@@ -822,11 +909,11 @@ const App: React.FC = () => {
       : authenticatedContext?.memberId
         ? { memberId: authenticatedContext.memberId }
         : null;
-    if (portalLookup && memberPortalLoaded) {
+    if (userRole !== 'ADMIN' && portalLookup && memberPortalLoaded) {
       tasks.push(loadMemberPortalData(portalLookup, { force: true }));
     }
     if (fullDataLoaded) {
-      tasks.push(loadAppData({ includeAdminSettings: userRole === 'ADMIN', force: true }));
+      tasks.push(loadAppData({ includeAdminSettings: userRole === 'ADMIN', force: true, silent: userRole === 'ADMIN' }));
     }
     if (userRole === 'ADMIN') {
       tasks.push(loadAdminDashboardData({ force: true }));
@@ -920,7 +1007,14 @@ const App: React.FC = () => {
   const currentIdentity = loginIdentities.find((i) => i.id === selectedIdentityId) || loginIdentities[0];
   const currentUser = currentIdentity ? members.find((m) => m.id === currentIdentity.memberId) : undefined;
   const adminMemberRows = adminDashboardData?.memberRows || [];
+  const deferredMemberListQuery = useDeferredValue(memberListQuery);
+  const deferredBusinessMemberQuery = useDeferredValue(businessMemberQuery);
   const currentFiscalYear = adminDashboardData?.currentFiscalYear ?? getFiscalYearForDate(new Date());
+  const adminMemberRowById = useMemo(() => {
+    const map = new Map<string, AdminDashboardMemberRow>();
+    adminMemberRows.forEach(row => map.set(row.memberId, row));
+    return map;
+  }, [adminMemberRows]);
   const selectedFiscalYear = useMemo(() => {
     if (memberListFiscalYearFilter === 'ALL') return null;
     const fiscalYear = Number(memberListFiscalYearFilter);
@@ -938,7 +1032,7 @@ const App: React.FC = () => {
   }, []);
 
   const filteredAdminMemberRows = useMemo(() => {
-    const normalizedQuery = memberListQuery.trim().toLowerCase();
+    const normalizedQuery = deferredMemberListQuery.trim().toLowerCase();
     return adminMemberRows.filter((member) => {
       if (memberListFilter !== 'ALL' && member.memberType !== memberListFilter) return false;
       const displayStatus = getMemberStatusAtFiscalYear(member, selectedFiscalYear, currentFiscalYear);
@@ -950,7 +1044,82 @@ const App: React.FC = () => {
         .toLowerCase()
         .includes(normalizedQuery);
     });
-  }, [adminMemberRows, currentFiscalYear, memberListFilter, memberListQuery, memberListStatusFilter, selectedFiscalYear]);
+  }, [adminMemberRows, currentFiscalYear, deferredMemberListQuery, memberListFilter, memberListStatusFilter, selectedFiscalYear]);
+
+  const businessMemberDirectoryRows = useMemo((): BusinessStaffDirectoryRow[] => {
+    const dashboardStaffRows = adminDashboardData?.staffRows || [];
+    const sourceRows = dashboardStaffRows.length > 0
+      ? dashboardStaffRows.map(mapAdminDashboardStaffRow)
+      : members
+        .filter(member => member.type === MemberType.BUSINESS)
+        .flatMap(member => (member.staff || []).map(staff => ({
+          member: {
+            id: member.id,
+            officeName: member.officeName,
+            officeNumber: member.officeNumber,
+          },
+          staff,
+        })));
+
+    return sourceRows
+      .map(({ member, staff }) => {
+        const dashboardRow = adminMemberRowById.get(member.id);
+        const key = `${member.id}:${staff.id}`;
+        const original = normalizeBusinessStaffDraft(staff);
+        const draft = businessStaffDrafts[key] || original;
+        const fiscalStatus = getStaffStatusAtFiscalYear(staff, selectedFiscalYear, currentFiscalYear);
+        return {
+          member,
+          staff,
+          dashboardRow,
+          draft,
+          original,
+          fiscalStatus,
+          searchableValues: [
+            member.id,
+            member.officeNumber,
+            member.officeName,
+            staff.id,
+            staff.name,
+            staff.lastName,
+            staff.firstName,
+            staff.kana,
+            staff.lastKana,
+            staff.firstKana,
+            staff.email,
+            staff.careManagerNumber,
+            businessStaffRoleLabel(draft.role),
+            businessStaffStatusLabel(draft.status),
+            businessStaffMailingPreferenceLabel(draft.mailingPreference),
+          ],
+        };
+      })
+      .sort((a, b) => (
+        (a.member.officeName || '').localeCompare(b.member.officeName || '', 'ja')
+        || a.draft.name.localeCompare(b.draft.name, 'ja')
+        || a.staff.id.localeCompare(b.staff.id)
+      ));
+  }, [adminDashboardData?.staffRows, adminMemberRowById, businessStaffDrafts, currentFiscalYear, members, selectedFiscalYear]);
+
+  const filteredBusinessMemberRows = useMemo(() => {
+    return businessMemberDirectoryRows.filter((row) => {
+      if (selectedFiscalYear !== null && !row.fiscalStatus) return false;
+      if (businessStaffRoleFilter !== 'ALL' && row.draft.role !== businessStaffRoleFilter) return false;
+      const effectiveStatus = row.fiscalStatus || row.draft.status;
+      if (businessStaffStatusFilter !== 'ALL' && effectiveStatus !== businessStaffStatusFilter) return false;
+      return matchesSearchQuery(deferredBusinessMemberQuery, row.searchableValues);
+    });
+  }, [businessMemberDirectoryRows, businessStaffRoleFilter, businessStaffStatusFilter, deferredBusinessMemberQuery, selectedFiscalYear]);
+
+  const dirtyBusinessStaffRows = useMemo(() => (
+    businessMemberDirectoryRows.filter(row => !businessStaffDraftEquals(row.draft, row.original))
+  ), [businessMemberDirectoryRows]);
+
+  const businessMemberTotalPages = Math.max(1, Math.ceil(filteredBusinessMemberRows.length / memberListPageSize));
+  const pagedBusinessMemberRows = useMemo(() => {
+    const start = (businessMemberPage - 1) * memberListPageSize;
+    return filteredBusinessMemberRows.slice(start, start + memberListPageSize);
+  }, [businessMemberPage, filteredBusinessMemberRows, memberListPageSize]);
 
   const sortedAdminMemberRows = useMemo(() => {
     const rows = [...filteredAdminMemberRows];
@@ -1098,10 +1267,90 @@ const App: React.FC = () => {
   }, [memberListFilter, memberListStatusFilter, memberListFiscalYearFilter, memberListQuery, memberListPageSize]);
 
   useEffect(() => {
+    setBusinessMemberPage(1);
+  }, [businessMemberQuery, businessStaffRoleFilter, businessStaffStatusFilter, memberListFiscalYearFilter, memberListPageSize]);
+
+  useEffect(() => {
     if (memberListPage > memberListTotalPages) {
       setMemberListPage(memberListTotalPages);
     }
   }, [memberListPage, memberListTotalPages]);
+
+  useEffect(() => {
+    if (businessMemberPage > businessMemberTotalPages) {
+      setBusinessMemberPage(businessMemberTotalPages);
+    }
+  }, [businessMemberPage, businessMemberTotalPages]);
+
+  const updateBusinessStaffDraft = (memberId: string, staff: Staff, patch: Partial<BusinessStaffDraft>) => {
+    const key = `${memberId}:${staff.id}`;
+    setBusinessStaffSaveMessage(null);
+    setBusinessStaffSaveError(null);
+    setBusinessStaffDrafts((prev) => {
+      const original = normalizeBusinessStaffDraft(staff);
+      const nextDraft = { ...(prev[key] || original), ...patch };
+      const next = { ...prev };
+      if (businessStaffDraftEquals(nextDraft, original)) {
+        delete next[key];
+      } else {
+        next[key] = nextDraft;
+      }
+      return next;
+    });
+  };
+
+  const openBusinessStaffDetail = (memberId: string, staffId: string) => {
+    setStaffSaveToast(null);
+    setSelectedMemberForDetailId(memberId);
+    setSelectedStaffForDetail({ memberId, staffId });
+    setCurrentView('staff-detail');
+  };
+
+  const saveBusinessStaffDrafts = async () => {
+    if (dirtyBusinessStaffRows.length === 0 || businessStaffSaving) return;
+    const invalidRow = dirtyBusinessStaffRows.find(row => (
+      !row.draft.name.trim()
+      || !row.draft.kana.trim()
+      || (!!row.draft.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.draft.email.trim()))
+    ));
+    if (invalidRow) {
+      setBusinessStaffSaveMessage(null);
+      setBusinessStaffSaveError('未入力またはメール形式が不正な行があります。氏名、カナ、メールを確認してください。');
+      return;
+    }
+    setBusinessStaffSaving(true);
+    setBusinessStaffSaveMessage(null);
+    setBusinessStaffSaveError(null);
+    let savedCount = 0;
+    try {
+      for (const row of dirtyBusinessStaffRows) {
+        await api.updateStaff({
+          staffId: row.staff.id,
+          memberId: row.member.id,
+          name: row.draft.name.trim(),
+          kana: row.draft.kana.trim(),
+          email: row.draft.email.trim(),
+          role: row.draft.role,
+          status: row.draft.status,
+          mailingPreference: row.draft.mailingPreference,
+        });
+        savedCount += 1;
+      }
+      setBusinessStaffDrafts({});
+      setBusinessStaffSaveMessage(`${savedCount}件の職員情報を保存しました。`);
+      loadAdminDashboardData({ force: true }).catch(() => undefined);
+      await loadAppData({ includeAdminSettings: true, force: true, silent: true });
+    } catch (e) {
+      setBusinessStaffSaveError(e instanceof Error ? e.message : '職員情報の保存に失敗しました。');
+      if (savedCount > 0) {
+        setBusinessStaffSaveMessage(`${savedCount}件は保存済みです。未保存の行を確認してください。`);
+      }
+      loadAdminDashboardData({ force: true }).catch(() => undefined);
+      loadAppData({ includeAdminSettings: true, force: true, silent: true }).catch(() => undefined);
+    } finally {
+      setBusinessStaffSaving(false);
+    }
+  };
 
   const memberPageTypeLabel = useMemo(() => {
     if (!currentIdentity) return '未選択';
@@ -1463,10 +1712,7 @@ const App: React.FC = () => {
   const filterIdentityOptions = (query: string) => {
     const opts = adminPermissionData?.identityOptions || [];
     if (!query.trim()) return opts;
-    const q = query.trim().toLowerCase();
-    return opts.filter((o) =>
-      [o.label, o.loginId, o.memberId, o.staffId || ''].join(' ').toLowerCase().includes(q)
-    );
+    return opts.filter((o) => matchesSearchQuery(query, [o.label, o.loginId, o.memberId, o.staffId || '']));
   };
 
   const isEntryEditable = (entry: AdminPermissionEntry) => {
@@ -1877,26 +2123,67 @@ const App: React.FC = () => {
 
   const renderMemberList = () => (
     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mt-6">
+      <div className="mb-4 inline-flex rounded border border-slate-300 bg-white p-1">
+        <button
+          type="button"
+          className={`px-3 py-1.5 text-sm rounded ${adminMemberViewMode === 'all' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+          onClick={() => setAdminMemberViewMode('all')}
+        >
+          会員一覧
+        </button>
+        <button
+          type="button"
+          className={`px-3 py-1.5 text-sm rounded ${adminMemberViewMode === 'business' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+          onClick={() => setAdminMemberViewMode('business')}
+        >
+          事業所職員
+        </button>
+      </div>
+
       {/* フィルタエリア */}
       <div className="flex flex-wrap items-end gap-3 mb-4">
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">会員種別</label>
-          <select className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={memberListFilter} onChange={(e) => setMemberListFilter(e.target.value as MemberListFilter)}>
-            <option value="ALL">全種別</option>
-            <option value={MemberType.INDIVIDUAL}>個人会員</option>
-            <option value={MemberType.BUSINESS}>事業所会員</option>
-            <option value={MemberType.SUPPORT}>賛助会員</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">会員状態</label>
-          <select className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={memberListStatusFilter} onChange={(e) => setMemberListStatusFilter(e.target.value as MemberStatusFilter)}>
-            <option value="ALL">全状態</option>
-            <option value="ACTIVE">在籍中</option>
-            <option value="WITHDRAWAL_SCHEDULED">退会予定</option>
-            <option value="WITHDRAWN">退会済</option>
-          </select>
-        </div>
+        {adminMemberViewMode === 'all' && (
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">会員種別</label>
+            <select className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={memberListFilter} onChange={(e) => setMemberListFilter(e.target.value as MemberListFilter)}>
+              <option value="ALL">全種別</option>
+              <option value={MemberType.INDIVIDUAL}>個人会員</option>
+              <option value={MemberType.BUSINESS}>事業所会員</option>
+              <option value={MemberType.SUPPORT}>賛助会員</option>
+            </select>
+          </div>
+        )}
+        {adminMemberViewMode === 'business' ? (
+          <>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">区分</label>
+              <select className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={businessStaffRoleFilter} onChange={(e) => setBusinessStaffRoleFilter(e.target.value as BusinessStaffRoleFilter)}>
+                <option value="ALL">全区分</option>
+                <option value="REPRESENTATIVE">代表者</option>
+                <option value="ADMIN">管理者</option>
+                <option value="STAFF">メンバー</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">在籍状況</label>
+              <select className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={businessStaffStatusFilter} onChange={(e) => setBusinessStaffStatusFilter(e.target.value as BusinessStaffStatusFilter)}>
+                <option value="ALL">全状態</option>
+                <option value="ENROLLED">在籍</option>
+                <option value="LEFT">除籍</option>
+              </select>
+            </div>
+          </>
+        ) : (
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">会員状態</label>
+            <select className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={memberListStatusFilter} onChange={(e) => setMemberListStatusFilter(e.target.value as MemberStatusFilter)}>
+              <option value="ALL">全状態</option>
+              <option value="ACTIVE">在籍中</option>
+              <option value="WITHDRAWAL_SCHEDULED">退会予定</option>
+              <option value="WITHDRAWN">退会済</option>
+            </select>
+          </div>
+        )}
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">対象年度</label>
           <select className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={memberListFiscalYearFilter} onChange={(e) => setMemberListFiscalYearFilter(e.target.value)}>
@@ -1906,7 +2193,12 @@ const App: React.FC = () => {
         </div>
         <div className="min-w-[240px]">
           <label className="block text-xs font-medium text-slate-600 mb-1">キーワード検索</label>
-          <input className="w-full border border-slate-300 rounded px-3 py-2 text-sm" value={memberListQuery} onChange={(e) => setMemberListQuery(e.target.value)} placeholder="会員番号・氏名・事業所名" />
+          <input
+            className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+            value={adminMemberViewMode === 'business' ? businessMemberQuery : memberListQuery}
+            onChange={(e) => adminMemberViewMode === 'business' ? setBusinessMemberQuery(e.target.value) : setMemberListQuery(e.target.value)}
+            placeholder={adminMemberViewMode === 'business' ? '事業所名・氏名・カナ・メール・CM番号' : '会員番号・氏名・事業所名'}
+          />
         </div>
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">表示件数</label>
@@ -1919,19 +2211,31 @@ const App: React.FC = () => {
       </div>
 
       {/* フィルタチップ */}
-      {(memberListFilter !== 'ALL' || memberListStatusFilter !== 'ALL' || memberListFiscalYearFilter !== 'ALL' || memberListQuery) && (
+      {(adminMemberViewMode === 'all' ? (memberListFilter !== 'ALL' || memberListStatusFilter !== 'ALL' || memberListFiscalYearFilter !== 'ALL' || memberListQuery) : (businessStaffRoleFilter !== 'ALL' || businessStaffStatusFilter !== 'ALL' || memberListFiscalYearFilter !== 'ALL' || businessMemberQuery)) && (
         <div className="flex flex-wrap gap-2 mb-4">
           <span className="text-xs text-slate-500">適用中:</span>
-          {memberListFilter !== 'ALL' && (
+          {adminMemberViewMode === 'all' && memberListFilter !== 'ALL' && (
             <span className="inline-flex items-center gap-1 bg-primary-50 text-primary-700 text-xs px-2 py-1 rounded-full">
               {memberTypeLabel(memberListFilter)}
               <button onClick={() => setMemberListFilter('ALL')} className="hover:text-primary-900">&times;</button>
             </span>
           )}
-          {memberListStatusFilter !== 'ALL' && (
+          {adminMemberViewMode === 'all' && memberListStatusFilter !== 'ALL' && (
             <span className="inline-flex items-center gap-1 bg-primary-50 text-primary-700 text-xs px-2 py-1 rounded-full">
               {memberListStatusFilter === 'ACTIVE' ? '在籍中' : '退会済'}
               <button onClick={() => setMemberListStatusFilter('ALL')} className="hover:text-primary-900">&times;</button>
+            </span>
+          )}
+          {adminMemberViewMode === 'business' && businessStaffRoleFilter !== 'ALL' && (
+            <span className="inline-flex items-center gap-1 bg-primary-50 text-primary-700 text-xs px-2 py-1 rounded-full">
+              {businessStaffRoleLabel(businessStaffRoleFilter)}
+              <button onClick={() => setBusinessStaffRoleFilter('ALL')} className="hover:text-primary-900">&times;</button>
+            </span>
+          )}
+          {adminMemberViewMode === 'business' && businessStaffStatusFilter !== 'ALL' && (
+            <span className="inline-flex items-center gap-1 bg-primary-50 text-primary-700 text-xs px-2 py-1 rounded-full">
+              {businessStaffStatusLabel(businessStaffStatusFilter)}
+              <button onClick={() => setBusinessStaffStatusFilter('ALL')} className="hover:text-primary-900">&times;</button>
             </span>
           )}
           {memberListFiscalYearFilter !== 'ALL' && (
@@ -1940,15 +2244,155 @@ const App: React.FC = () => {
               <button onClick={() => setMemberListFiscalYearFilter('ALL')} className="hover:text-primary-900">&times;</button>
             </span>
           )}
-          {memberListQuery && (
+          {adminMemberViewMode === 'all' && memberListQuery && (
             <span className="inline-flex items-center gap-1 bg-primary-50 text-primary-700 text-xs px-2 py-1 rounded-full">
               &quot;{memberListQuery}&quot;
               <button onClick={() => setMemberListQuery('')} className="hover:text-primary-900">&times;</button>
             </span>
           )}
+          {adminMemberViewMode === 'business' && businessMemberQuery && (
+            <span className="inline-flex items-center gap-1 bg-primary-50 text-primary-700 text-xs px-2 py-1 rounded-full">
+              &quot;{businessMemberQuery}&quot;
+              <button onClick={() => setBusinessMemberQuery('')} className="hover:text-primary-900">&times;</button>
+            </span>
+          )}
         </div>
       )}
 
+      {adminMemberViewMode === 'business' ? (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-3">
+            <div>
+              <h3 className="text-lg font-bold text-slate-800">事業所職員一覧</h3>
+              <p className="text-sm text-slate-500 mt-1">
+                {filteredBusinessMemberRows.length === 0
+                  ? '該当データなし'
+                  : `${(businessMemberPage - 1) * memberListPageSize + 1} - ${Math.min(businessMemberPage * memberListPageSize, filteredBusinessMemberRows.length)} 件を表示 / 全 ${filteredBusinessMemberRows.length} 件`}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <button type="button" disabled={businessMemberPage <= 1} onClick={() => setBusinessMemberPage(1)} className="px-2 py-1 rounded border border-slate-300 bg-white text-sm disabled:opacity-50">&laquo;</button>
+                <button type="button" disabled={businessMemberPage <= 1} onClick={() => setBusinessMemberPage(p => Math.max(1, p - 1))} className="px-3 py-1 rounded border border-slate-300 bg-white text-sm disabled:opacity-50">前へ</button>
+                <span className="text-sm text-slate-600">{businessMemberPage} / {businessMemberTotalPages}</span>
+                <button type="button" disabled={businessMemberPage >= businessMemberTotalPages} onClick={() => setBusinessMemberPage(p => Math.min(businessMemberTotalPages, p + 1))} className="px-3 py-1 rounded border border-slate-300 bg-white text-sm disabled:opacity-50">次へ</button>
+                <button type="button" disabled={businessMemberPage >= businessMemberTotalPages} onClick={() => setBusinessMemberPage(businessMemberTotalPages)} className="px-2 py-1 rounded border border-slate-300 bg-white text-sm disabled:opacity-50">&raquo;</button>
+              </div>
+              <button
+                type="button"
+                onClick={() => void saveBusinessStaffDrafts()}
+                disabled={businessStaffSaving || dirtyBusinessStaffRows.length === 0}
+                aria-busy={businessStaffSaving}
+                className="min-w-[150px] rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+              >
+                {businessStaffSaving ? '保存中...' : dirtyBusinessStaffRows.length > 0 ? `変更を保存（${dirtyBusinessStaffRows.length}件）` : '変更なし'}
+              </button>
+            </div>
+          </div>
+
+          <div aria-live="polite" className="mb-3 min-h-[1.5rem]">
+            {businessStaffSaveMessage && (
+              <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-3 py-2">{businessStaffSaveMessage}</p>
+            )}
+            {businessStaffSaveError && (
+              <p role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">{businessStaffSaveError}</p>
+            )}
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">事業所名</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">氏名</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">カナ</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">メール</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">区分</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">在籍状況</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">メール配信</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-slate-200">
+                {pagedBusinessMemberRows.map(({ member, staff, draft, original }) => {
+                  const rowKey = `${member.id}:${staff.id}`;
+                  const isDirty = !businessStaffDraftEquals(draft, original);
+                  const inputClass = `w-full rounded border px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${isDirty ? 'border-amber-300 bg-amber-50' : 'border-slate-300 bg-white'}`;
+                  return (
+                    <tr
+                      key={rowKey}
+                      className={`hover:bg-slate-50 ${isDirty ? 'bg-amber-50/40' : ''}`}
+                    >
+                      <td className="px-4 py-3 text-sm">
+                        <button
+                          type="button"
+                          className="text-left font-semibold text-primary-700 underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-primary-500 rounded"
+                          onClick={() => openBusinessStaffDetail(member.id, staff.id)}
+                        >
+                          {member.officeName || '（事業所名未設定）'}
+                        </button>
+                        <div className="mt-1 text-xs text-slate-500">
+                          <span>事業所番号: {member.officeNumber || '-'}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm min-w-[160px]">
+                        <div className="font-medium text-slate-900">{draft.name || '-'}</div>
+                      </td>
+                      <td className="px-4 py-3 text-sm min-w-[150px]">
+                        <div className="text-slate-700">{draft.kana || '-'}</div>
+                      </td>
+                      <td className="px-4 py-3 text-sm min-w-[220px]">
+                        <input
+                          className={inputClass}
+                          type="email"
+                          value={draft.email}
+                          aria-label={`${member.officeName || '事業所'} ${staff.id} メール`}
+                          onChange={(e) => updateBusinessStaffDraft(member.id, staff, { email: e.target.value })}
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-sm min-w-[130px]">
+                        <select
+                          className={inputClass}
+                          value={draft.role}
+                          aria-label={`${member.officeName || '事業所'} ${staff.id} 区分`}
+                          onChange={(e) => updateBusinessStaffDraft(member.id, staff, { role: e.target.value as StaffRole })}
+                        >
+                          <option value="REPRESENTATIVE">代表者</option>
+                          <option value="ADMIN">管理者</option>
+                          <option value="STAFF">メンバー</option>
+                        </select>
+                      </td>
+                      <td className="px-4 py-3 text-sm min-w-[120px]">
+                        <select
+                          className={inputClass}
+                          value={draft.status}
+                          aria-label={`${member.officeName || '事業所'} ${staff.id} 在籍状況`}
+                          onChange={(e) => updateBusinessStaffDraft(member.id, staff, { status: e.target.value as StaffStatus })}
+                        >
+                          <option value="ENROLLED">在籍</option>
+                          <option value="LEFT">除籍</option>
+                        </select>
+                      </td>
+                      <td className="px-4 py-3 text-sm min-w-[140px]">
+                        <select
+                          className={inputClass}
+                          value={draft.mailingPreference}
+                          aria-label={`${member.officeName || '事業所'} ${staff.id} メール配信`}
+                          onChange={(e) => updateBusinessStaffDraft(member.id, staff, { mailingPreference: e.target.value })}
+                        >
+                          <option value="YES">配信する</option>
+                          <option value="NO">配信しない</option>
+                        </select>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {!adminDashboardLoading && filteredBusinessMemberRows.length === 0 && <p className="mt-4 text-sm text-slate-500">条件に一致する事業所職員がありません。</p>}
+        </>
+      ) : (
+        <>
       {/* ヘッダー行 */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-3">
         <div>
@@ -2025,6 +2469,8 @@ const App: React.FC = () => {
             <button type="button" disabled={memberListPage >= memberListTotalPages} onClick={() => setMemberListPage(memberListTotalPages)} className="px-2 py-1 rounded border border-slate-300 bg-white text-sm disabled:opacity-50">&raquo;</button>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );
@@ -2341,15 +2787,20 @@ const App: React.FC = () => {
       const parentMember = selectedStaffForDetail
         ? members.find(m => m.id === selectedStaffForDetail.memberId)
         : undefined;
-      const targetStaff = parentMember?.staff?.find(s => s.id === selectedStaffForDetail?.staffId);
+      const directoryRow = selectedStaffForDetail
+        ? businessMemberDirectoryRows.find(row => row.member.id === selectedStaffForDetail.memberId && row.staff.id === selectedStaffForDetail.staffId)
+        : undefined;
+      const targetStaff = parentMember?.staff?.find(s => s.id === selectedStaffForDetail?.staffId) || directoryRow?.staff;
       return (
         <StaffDetailAdmin
           staff={targetStaff}
           memberId={selectedStaffForDetail?.memberId || ''}
-          officeName={parentMember?.officeName || ''}
+          officeName={parentMember?.officeName || directoryRow?.member.officeName || ''}
           onBack={() => {
             setSelectedStaffForDetail(null);
-            setCurrentView('member-detail');
+            setSelectedMemberForDetailId(null);
+            setAdminMemberViewMode('business');
+            setCurrentView('admin');
           }}
           onSaved={async () => {
             setStaffSaveToast('職員情報を保存しました');
