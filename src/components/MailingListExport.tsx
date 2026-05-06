@@ -6,6 +6,7 @@ import {
   MailingListTarget,
   MailingListTargetsResult,
 } from '../shared/types';
+import { matchesSearchQuery } from '../utils/search';
 
 interface MailingListExportProps {
   api: ApiClient;
@@ -20,7 +21,7 @@ const MEMBER_TYPE_LABELS: Record<string, string> = {
 const MEMBER_STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   ACTIVE: { label: '在籍中', cls: 'bg-emerald-50 text-emerald-700' },
   WITHDRAWAL_SCHEDULED: { label: '退会予定', cls: 'bg-amber-50 text-amber-700' },
-  WITHDRAWN: { label: '退会済み', cls: 'bg-slate-100 text-slate-600' },
+  WITHDRAWN: { label: '年度内退会', cls: 'bg-slate-100 text-slate-600' },
 };
 
 const FEE_STATUS_LABELS: Record<string, { label: string; cls: string }> = {
@@ -85,7 +86,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
     {
       value: 'KOHOUSHI',
       label: '広報誌発送',
-      description: '在籍中の全会員（退会予定を含む）が対象です。',
+      description: '選択年度に会員だった全会員（年度内退会を含む）が対象です。',
     },
     {
       value: 'OSHIRASE',
@@ -129,22 +130,18 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
 
   // キーワード + 5列フィルターを AND で適用
   const filteredTargets = useMemo(() => {
-    const q = keyword.trim().toLowerCase();
     const { feeStatus, memberType, memberStatus, mailingDest, addressValidity } = columnFilters;
 
     return targets.filter((target) => {
-      if (q) {
-        const haystack = [
+      if (keyword.trim()) {
+        if (!matchesSearchQuery(keyword, [
           target.displayName,
           target.memberId,
           target.officeName,
           MEMBER_TYPE_LABELS[target.memberType] || target.memberType,
           MEMBER_STATUS_LABELS[target.memberStatus]?.label || target.memberStatus,
           FEE_STATUS_LABELS[target.annualFeeStatus]?.label || target.annualFeeStatus,
-        ]
-          .join(' ')
-          .toLowerCase();
-        if (!haystack.includes(q)) return false;
+        ])) return false;
       }
       if (feeStatus && target.annualFeeStatus !== feeStatus) return false;
       if (memberType && target.memberType !== memberType) return false;
@@ -545,7 +542,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
                   <option value="">すべて</option>
                   <option value="ACTIVE">在籍中</option>
                   <option value="WITHDRAWAL_SCHEDULED">退会予定</option>
-                  <option value="WITHDRAWN">退会済み</option>
+                  <option value="WITHDRAWN">年度内退会</option>
                 </select>
               </div>
 

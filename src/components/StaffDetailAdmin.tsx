@@ -48,7 +48,7 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
   if (!staff) {
     return (
       <div className="p-6">
-        <button onClick={onBack} className="text-sm text-primary-600 hover:underline">&larr; 事業所詳細に戻る</button>
+        <button onClick={onBack} className="text-sm text-primary-600 hover:underline">&larr; 事業所職員一覧に戻る</button>
         <p className="mt-4 text-slate-500">職員が選択されていません。</p>
       </div>
     );
@@ -188,7 +188,7 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
           onClick={onBack}
           className="text-sm text-primary-600 hover:underline focus:outline-none focus:ring-2 focus:ring-primary-500 rounded"
         >
-          &larr; 事業所詳細に戻る
+          &larr; 事業所職員一覧に戻る
         </button>
       </nav>
 

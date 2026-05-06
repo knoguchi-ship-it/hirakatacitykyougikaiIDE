@@ -28,7 +28,7 @@ const FEE_STATUS_LABELS: Record<string, { label: string; cls: string }> = {
 const MEMBER_STATUS_LABELS: Record<string, string> = {
   ACTIVE: '在籍中',
   WITHDRAWAL_SCHEDULED: '退会予定',
-  WITHDRAWN: '退会',
+  WITHDRAWN: '年度内退会',
 };
 
 const calcCurrentFY = (): number => {
