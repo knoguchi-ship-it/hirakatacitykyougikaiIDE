@@ -64,6 +64,8 @@ export interface RosterTarget {
   withdrawnDate?: string;
   annualFeeStatus: 'PAID' | 'UNPAID' | 'NONE';
   annualFeeYear: number;
+  /** v312: 利用可能な全年度の納入状況。未記録年度は UNPAID として返る */
+  annualFeeHistories: Record<number, 'PAID' | 'UNPAID'>;
   enrolledStaffCount?: number; // BUSINESS のみ
 }
 

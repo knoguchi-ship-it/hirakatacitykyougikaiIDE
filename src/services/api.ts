@@ -128,9 +128,8 @@ export interface ApiClient {
   getMembersForRoster(payload: {
     memberTypes?: string[];
     memberStatus?: string;
-    annualFeeStatus?: string;
     year?: number;
-  }): Promise<RosterTarget[]>;
+  }): Promise<{ targets: RosterTarget[]; years: number[] }>;
   // v205: チャンク分割 PDF 出力 API（1000件対応）
   initRosterExport(payload: { year: number }): Promise<{ folderId: string }>;
   processRosterChunk(payload: {
@@ -1289,9 +1288,8 @@ class GasApiClient implements ApiClient {
   async getMembersForRoster(payload: {
     memberTypes?: string[];
     memberStatus?: string;
-    annualFeeStatus?: string;
     year?: number;
-  }): Promise<RosterTarget[]> {
+  }): Promise<{ targets: RosterTarget[]; years: number[] }> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
       google.script.run

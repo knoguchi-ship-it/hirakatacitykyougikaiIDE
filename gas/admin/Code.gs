@@ -9907,16 +9907,17 @@ function getEmailSendLog_(payload) {
  * 年会費ステータスは T_会員(BUSINESS) ベースで判定。
  *
  * payload:
- *   memberTypes?    – ['INDIVIDUAL','BUSINESS','SUPPORT'] デフォルト全種別
- *   memberStatus?   – 'ACTIVE' | 'INCLUDING_SCHEDULED' | 'ALL'  デフォルト 'ACTIVE'
- *   annualFeeStatus? – 'ALL' | 'PAID' | 'UNPAID'              デフォルト 'ALL'
- *   year?           – 対象年度（省略時は当年度）
+ *   memberTypes?  – ['INDIVIDUAL','BUSINESS','SUPPORT'] デフォルト全種別
+ *   memberStatus? – 'ACTIVE' | 'INCLUDING_SCHEDULED' | 'ALL'  デフォルト 'ACTIVE'
+ *   year?         – 在籍判定年度（省略時は当年度）
+ *
+ * v312: annualFeeStatus は廃止（クライアント側多年度フィルタに移行）。
+ *       返却形式を { targets, years } に変更。
  */
 function getMembersForRoster_(payload) {
   var p = payload || {};
-  var memberTypes    = p.memberTypes    || ['INDIVIDUAL', 'BUSINESS', 'SUPPORT'];
-  var memberStatus   = String(p.memberStatus   || 'ACTIVE');
-  var annualFeeStatus = String(p.annualFeeStatus || 'ALL');
+  var memberTypes  = p.memberTypes  || ['INDIVIDUAL', 'BUSINESS', 'SUPPORT'];
+  var memberStatus = String(p.memberStatus || 'ACTIVE');
 
   // 当年度算出（日本会計年度: 4月始まり）
   var now = new Date();
@@ -9929,18 +9930,25 @@ function getMembersForRoster_(payload) {
   var staffSheet  = ss.getSheetByName('T_事業所職員');
   var feeSheet    = ss.getSheetByName('T_年会費納入履歴');
 
-  var members  = getSheetData_(memberSheet);
-  var staffRows = staffSheet  ? getSheetData_(staffSheet)  : [];
-  var feeRows   = feeSheet    ? getSheetData_(feeSheet)    : [];
+  var members   = getSheetData_(memberSheet);
+  var staffRows = staffSheet ? getSheetData_(staffSheet) : [];
+  var feeRows   = feeSheet   ? getSheetData_(feeSheet)   : [];
 
-  // 年会費マップ: 会員ID → 状態コード（対象年度のみ）
-  var feeMap = {};
+  // v312: 全年度の年会費マップを構築（クライアント側多年度フィルタ対応）
+  var feeMap = {};       // 選択年度: { memberId: status }
+  var feeMapByYear = {}; // 全年度: { year: { memberId: status } }
   feeRows.forEach(function(r) {
     if (toBoolean_(r['削除フラグ'])) return;
-    if (Number(r['対象年度'] || 0) !== year) return;
+    var yr  = Number(r['対象年度'] || 0);
     var mid = String(r['会員ID'] || '');
-    if (mid) feeMap[mid] = String(r['会費納入状態コード'] || 'UNPAID');
+    if (!yr || !mid) return;
+    var status = String(r['会費納入状態コード'] || 'UNPAID');
+    if (!feeMapByYear[yr]) feeMapByYear[yr] = {};
+    feeMapByYear[yr][mid] = status;
+    if (yr === year) feeMap[mid] = status;
   });
+  // 利用可能年度リスト（宛名リストと同じロジック）
+  var allFeeYears = getMailingListYears_(feeRows, year);
 
   // 在籍職員数マップ: 会員ID → 在籍数
   var staffCountMap = {};
@@ -9969,9 +9977,11 @@ function getMembersForRoster_(payload) {
     var memberId  = String(m['会員ID'] || '');
     var feeStatus = feeMap[memberId] || 'NONE'; // NONE = 当年度の記録なし
 
-    if (annualFeeStatus === 'PAID'   && feeStatus !== 'PAID') return;
-    // UNPAID: UNPAID と NONE（記録なし = 未納扱い）を含む
-    if (annualFeeStatus === 'UNPAID' && feeStatus === 'PAID') return;
+    // v312: 全年度の納入状況マップ（未記録は UNPAID 扱い）
+    var feeHistories = {};
+    allFeeYears.forEach(function(yr) {
+      feeHistories[yr] = (feeMapByYear[yr] && feeMapByYear[yr][memberId]) || 'UNPAID';
+    });
 
     var lastName  = String(m['姓'] || '').trim();
     var firstName = String(m['名'] || '').trim();
@@ -9980,21 +9990,22 @@ function getMembersForRoster_(payload) {
     var kana = (String(m['セイ'] || '') + ' ' + String(m['メイ'] || '')).trim();
 
     results.push({
-      memberId:          memberId,
-      memberType:        mtype,
-      displayName:       displayName,
-      kana:              kana,
-      officeName:        String(m['勤務先名'] || '').trim(),
-      memberStatus:      status,
-      joinedDate:        fiscalSnapshot.joinedDate,
-      withdrawnDate:     fiscalSnapshot.withdrawnDate,
-      annualFeeStatus:   feeStatus,
-      annualFeeYear:     year,
+      memberId:           memberId,
+      memberType:         mtype,
+      displayName:        displayName,
+      kana:               kana,
+      officeName:         String(m['勤務先名'] || '').trim(),
+      memberStatus:       status,
+      joinedDate:         fiscalSnapshot.joinedDate,
+      withdrawnDate:      fiscalSnapshot.withdrawnDate,
+      annualFeeStatus:    feeStatus,
+      annualFeeYear:      year,
+      annualFeeHistories: feeHistories,
       enrolledStaffCount: mtype === 'BUSINESS' ? (staffCountMap[memberId] || 0) : undefined,
     });
   });
 
-  return results;
+  return { targets: results, years: allFeeYears };
 }
 
 /**

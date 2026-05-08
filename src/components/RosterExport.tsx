@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { RosterTarget } from '../shared/types';
 import { ApiClient } from '../services/api';
 
@@ -51,11 +51,22 @@ const RosterExport: React.FC<RosterExportProps> = ({
   onOpenHelp,
   onOpenSettings,
 }) => {
+  type FeeCondition = { year: number | ''; status: 'PAID' | 'UNPAID' | '' };
+
   const currentFY = useMemo(calcCurrentFY, []);
+
+  // 年度フィルター（在籍判定年度）
+  const defaultYears = useMemo(() => {
+    const ys: number[] = [];
+    for (let y = currentFY + 1; y >= currentFY - 3; y--) { if (y >= 2020) ys.push(y); }
+    return ys;
+  }, [currentFY]);
+
   const [filterTypes, setFilterTypes] = useState<string[]>(['INDIVIDUAL', 'BUSINESS', 'SUPPORT']);
   const [filterStatus, setFilterStatus] = useState('ACTIVE');
-  const [filterFeeStatus, setFilterFeeStatus] = useState('ALL');
   const [filterYear, setFilterYear] = useState(currentFY);
+  const [availableYears, setAvailableYears] = useState<number[]>(defaultYears);
+  const [feeConditions, setFeeConditions] = useState<FeeCondition[]>([]);
 
   const [targets, setTargets] = useState<RosterTarget[]>([]);
   const [loading, setLoading] = useState(false);
@@ -82,20 +93,38 @@ const RosterExport: React.FC<RosterExportProps> = ({
     processed: number;
   } | null>(null);
 
+  // 年会費条件（AND）でクライアント側フィルタリング
+  const filteredTargets = useMemo<RosterTarget[]>(() => {
+    const active = feeConditions.filter((c) => c.year !== '' && c.status !== '');
+    if (active.length === 0) return targets;
+    return targets.filter((target) =>
+      active.every((c) => {
+        const actual = (target.annualFeeHistories?.[c.year as number]) ?? 'UNPAID';
+        return actual === c.status;
+      })
+    );
+  }, [targets, feeConditions]);
+
   const effectiveTargets = useMemo<RosterTarget[]>(() => {
     if (selectedIds === null) {
-      return targets.filter((target) => !excludedIds.has(target.memberId));
+      return filteredTargets.filter((target) => !excludedIds.has(target.memberId));
     }
-    return targets.filter((target) => selectedIds.has(target.memberId));
-  }, [targets, selectedIds, excludedIds]);
+    return filteredTargets.filter((target) => selectedIds.has(target.memberId));
+  }, [filteredTargets, selectedIds, excludedIds]);
+
+  // 年会費条件変更時に選択を全リセット（Q4）
+  useEffect(() => {
+    setSelectedIds(null);
+    setExcludedIds(new Set());
+  }, [feeConditions]);
 
   const typeCount = useMemo(() => {
     const countMap: Record<string, number> = {};
-    targets.forEach((target) => {
+    filteredTargets.forEach((target) => {
       countMap[target.memberType] = (countMap[target.memberType] || 0) + 1;
     });
     return countMap;
-  }, [targets]);
+  }, [filteredTargets]);
 
   const isSelected = (id: string) =>
     selectedIds === null ? !excludedIds.has(id) : selectedIds.has(id);
@@ -119,17 +148,18 @@ const RosterExport: React.FC<RosterExportProps> = ({
       const data = await api.getMembersForRoster({
         memberTypes: filterTypes,
         memberStatus: filterStatus,
-        annualFeeStatus: filterFeeStatus,
         year: filterYear,
       });
-      setTargets(data);
+      setTargets(data.targets);
+      setAvailableYears(data.years.length > 0 ? data.years : defaultYears);
+      setFeeConditions([{ year: filterYear, status: '' }]);
       setHasLoaded(true);
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : '対象一覧の読み込みに失敗しました。');
     } finally {
       setLoading(false);
     }
-  }, [api, filterFeeStatus, filterStatus, filterTypes, filterYear]);
+  }, [api, filterStatus, filterTypes, filterYear, defaultYears]);
 
   const selectAll = () => {
     setSelectedIds(null);
@@ -161,7 +191,7 @@ const RosterExport: React.FC<RosterExportProps> = ({
   };
 
   const selectByType = (memberType: string) => {
-    const ids = targets.filter((target) => target.memberType === memberType).map((target) => target.memberId);
+    const ids = filteredTargets.filter((target) => target.memberType === memberType).map((target) => target.memberId);
     if (selectedIds === null) {
       setExcludedIds((prev) => {
         const next = new Set(prev);
@@ -318,35 +348,96 @@ const RosterExport: React.FC<RosterExportProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {/* 在籍判定年度 + 在籍状態（第1段） */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600">在籍判定年度</label>
+            <select
+              className={inputCls}
+              value={filterYear}
+              onChange={(e) => setFilterYear(Number(e.target.value))}
+            >
+              {availableYears.map((yr) => (
+                <option key={yr} value={yr}>{yr}年度</option>
+              ))}
+            </select>
+          </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-600">在籍状態</label>
-            <select className={inputCls} value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)}>
+            <select className={inputCls} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
               <option value="ACTIVE">在籍中のみ</option>
               <option value="INCLUDING_SCHEDULED">退会予定を含む</option>
               <option value="ALL">すべて</option>
             </select>
           </div>
+        </div>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-600">年会費状態</label>
-            <select className={inputCls} value={filterFeeStatus} onChange={(event) => setFilterFeeStatus(event.target.value)}>
-              <option value="ALL">すべて</option>
-              <option value="UNPAID">未納のみ</option>
-              <option value="PAID">納入済みのみ</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-600">年会費対象年度</label>
-            <input
-              type="number"
-              className={inputCls}
-              value={filterYear}
-              min={2020}
-              max={2099}
-              onChange={(event) => setFilterYear(Number(event.target.value))}
-            />
+        {/* 年会費フィルター — 年度別条件ビルダー（第2段） */}
+        <div>
+          <p className="mb-1.5 text-sm font-medium text-slate-600">年会費納入（年度別）</p>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
+            {feeConditions.length === 0 && (
+              <p className="text-sm text-slate-400">条件なし（すべて表示）</p>
+            )}
+            {feeConditions.map((cond, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <select
+                  value={cond.year}
+                  onChange={(e) =>
+                    setFeeConditions((prev) =>
+                      prev.map((c, idx) =>
+                        idx === i ? { ...c, year: e.target.value === '' ? '' : Number(e.target.value) } : c
+                      )
+                    )
+                  }
+                  className={inputCls}
+                  aria-label={`年会費条件${i + 1} 年度`}
+                >
+                  <option value="">年度を選択</option>
+                  {availableYears.map((yr) => (
+                    <option key={yr} value={yr}>{yr}年度</option>
+                  ))}
+                </select>
+                <select
+                  value={cond.status}
+                  onChange={(e) =>
+                    setFeeConditions((prev) =>
+                      prev.map((c, idx) =>
+                        idx === i ? { ...c, status: e.target.value as FeeCondition['status'] } : c
+                      )
+                    )
+                  }
+                  className={inputCls}
+                  aria-label={`年会費条件${i + 1} 状態`}
+                >
+                  <option value="">状態を選択（すべて）</option>
+                  <option value="UNPAID">未納</option>
+                  <option value="PAID">納入済み</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setFeeConditions((prev) => prev.filter((_, idx) => idx !== i))}
+                  className="shrink-0 rounded p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  aria-label={`条件${i + 1}を削除`}
+                >
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+                    <path d="M6 4.586 9.293 1.293a1 1 0 1 1 1.414 1.414L7.414 6l3.293 3.293a1 1 0 0 1-1.414 1.414L6 7.414l-3.293 3.293a1 1 0 0 1-1.414-1.414L4.586 6 1.293 2.707A1 1 0 0 1 2.707 1.293L6 4.586z" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+            <div className="flex items-center gap-3 pt-0.5">
+              <button
+                type="button"
+                onClick={() => setFeeConditions((prev) => [...prev, { year: '', status: '' }])}
+                className="text-sm text-primary-600 hover:text-primary-800 font-medium focus:outline-none focus:underline"
+              >
+                + 条件を追加
+              </button>
+              {feeConditions.filter((c) => c.year !== '' && c.status !== '').length > 1 && (
+                <span className="text-xs text-slate-400">※ 複数条件はすべて AND で絞り込みます</span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -371,7 +462,11 @@ const RosterExport: React.FC<RosterExportProps> = ({
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-4">
             <div className="flex flex-wrap items-center gap-3">
               <span className="text-sm font-semibold text-slate-700">
-                対象: {targets.length}件 / 選択中: {effectiveTargets.length}件
+                対象: {filteredTargets.length}件
+                {filteredTargets.length !== targets.length && (
+                  <span className="ml-1 text-slate-400 font-normal">（全{targets.length}件中）</span>
+                )}
+                {' '}/ 選択中: {effectiveTargets.length}件
               </span>
             </div>
             <div className="flex flex-wrap gap-2">
