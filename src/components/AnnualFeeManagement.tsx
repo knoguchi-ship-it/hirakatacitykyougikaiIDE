@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../services/api';
 import {
+  AdminPermissionLevel,
   AnnualFeeAdminData,
   AnnualFeeAdminRecord,
   AnnualFeeAdminSummary,
@@ -9,11 +10,13 @@ import {
   PaymentStatus,
 } from '../types';
 import { matchesSearchQuery } from '../utils/search';
+import SharedMemoPanel from './SharedMemoPanel';
 
 interface Props {
   onChanged?: () => Promise<void> | void;
   onDirtyChange?: (dirty: boolean) => void;
   onOpenMember?: (memberId: string) => void;
+  adminPermissionLevel?: AdminPermissionLevel | null;
 }
 
 type StatusFilter = 'ALL' | PaymentStatus;
@@ -237,7 +240,7 @@ const Pagination: React.FC<{
   </div>
 );
 
-const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpenMember }) => {
+const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpenMember, adminPermissionLevel }) => {
   const [data, setData] = useState<AnnualFeeAdminData>(createEmptyData);
   const [loading, setLoading] = useState(true);
   const [batchSaving, setBatchSaving] = useState(false);
@@ -615,6 +618,8 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
             「前年度末退会」は年会費状態として保存せず、会員側に退会処理を行います。
           </p>
         </div>
+
+        <SharedMemoPanel api={api} adminPermissionLevel={adminPermissionLevel ?? null} />
 
         {error && (
           <div role="alert" className="flex items-center justify-between text-red-600 bg-red-50 border border-red-200 rounded px-4 py-3">

@@ -1,4 +1,4 @@
-import { Member, Training, AdminPermissionLevel, AdminPersonRow, ConvertMemberTypePayload, ConvertMemberTypeResult, SystemSettings } from '../types';
+import { Member, Training, AdminPermissionLevel, AdminPersonRow, ConvertMemberTypePayload, ConvertMemberTypeResult, SystemSettings, SharedMemo, SharedMemoSaveResult } from '../types';
 import { TrainingApplicantRow, BulkMailRecipient, EmailSendLog, RosterTarget, TemplateValidationResult, TemplateValidationKind, MailingListFilterType, MailingListExcelResult, MailingListTargetsResult } from '../shared/types';
 import { AdminDashboardData, AdminPermissionData, AnnualFeeAdminData, AnnualFeeAdminRecord } from '../types';
 
@@ -228,6 +228,9 @@ export interface ApiClient {
   approveClaim(payload: { claimId: string }): Promise<{ approved: boolean; claimId: string }>;
   rejectClaim(payload: { claimId: string; reason: string }): Promise<{ rejected: boolean; claimId: string }>;
   adminDeleteClaim(payload: { claimId: string }): Promise<{ deleted: boolean; claimId: string }>;
+  // v309: 共有メモ（申し送りホワイトボード）
+  getSharedMemo(key: string): Promise<SharedMemo>;
+  saveSharedMemo(key: string, content: string, version: number): Promise<SharedMemoSaveResult>;
 }
 
 export interface MemberDeleteSearchResult {
@@ -1948,6 +1951,32 @@ class GasApiClient implements ApiClient {
         .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
         .withFailureHandler((e: Error) => reject(e))
         .processApiRequest('adminDeleteClaim', JSON.stringify(payload));
+    });
+  }
+
+  async getSharedMemo(key: string): Promise<SharedMemo> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getSharedMemo', JSON.stringify({ key }));
+    });
+  }
+
+  async saveSharedMemo(key: string, content: string, version: number): Promise<SharedMemoSaveResult> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('saveSharedMemo', JSON.stringify({ key, content, version }));
     });
   }
 

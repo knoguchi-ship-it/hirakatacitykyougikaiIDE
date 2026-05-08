@@ -96,6 +96,9 @@ const allowedAdminActions = [
   'getPaymentHistory',
   'savePayment',
   'deletePayment',
+  // v309: 共有メモ（申し送りホワイトボード）
+  'getSharedMemo',
+  'saveSharedMemo',
 ];
 const forbiddenTopLevelFunctions = [
   'rebuildDatabaseSchema',

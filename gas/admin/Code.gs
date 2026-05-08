@@ -541,6 +541,10 @@ var テーブル定義 = {
   '請求状態', '却下理由', '承認者メール', '承認日時',
   '削除フラグ', '作成日時', '更新日時',
 ];
+// v309: 管理者共有メモ（申し送りホワイトボード）
+テーブル定義['T_共有メモ'] = [
+  'キー', '内容', '更新者メール', '更新者名', '更新日時', 'バージョン',
+];
 
 var 入力規則定義 = [
   ['T_会員', '会員種別コード', 'M_会員種別'],
@@ -772,6 +776,9 @@ var ADMIN_ACTION_PERMISSIONS = {
   'approveClaim': ['MASTER','ADMIN'],
   'rejectClaim': ['MASTER','ADMIN'],
   'adminDeleteClaim': ['MASTER','ADMIN'],
+  // v309: 共有メモ（年会費コンソール申し送りホワイトボード）
+  'getSharedMemo': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR','GENERAL'],
+  'saveSharedMemo': ['MASTER','ADMIN'],
 };
 
 function getActionRegistryForCurrentApp_() {
@@ -972,6 +979,14 @@ function processApiRequest(action, payload) {
 
     if (action === 'saveAnnualFeeRecordsBatch') {
       return JSON.stringify({ success: true, data: saveAnnualFeeRecordsBatch_(parsedPayload) });
+    }
+
+    if (action === 'getSharedMemo') {
+      return JSON.stringify({ success: true, data: getSharedMemo_(parsedPayload) });
+    }
+
+    if (action === 'saveSharedMemo') {
+      return JSON.stringify({ success: true, data: saveSharedMemo_(parsedPayload) });
     }
 
     if (action === 'sendTrainingReminder') {
@@ -2517,6 +2532,91 @@ function clearAdminPermissionCaches_() {
     cache.remove('admin_auth_v1');
   } catch (e) {}
 }
+
+// ─── v309: 共有メモ（申し送りホワイトボード）────────────────────────────────
+
+function getSharedMemo_(payload) {
+  var key = String((payload && payload.key) || 'ANNUAL_FEE_BOARD');
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_共有メモ');
+  if (!sheet || sheet.getLastRow() < 2) {
+    return { key: key, content: '', updatedByEmail: '', updatedByName: '', updatedAt: '', version: 0 };
+  }
+  var found = findRowByColumnValue_(sheet, 'キー', key);
+  if (!found) {
+    return { key: key, content: '', updatedByEmail: '', updatedByName: '', updatedAt: '', version: 0 };
+  }
+  var row = found.row;
+  var cols = found.columns;
+  return {
+    key: key,
+    content: String(row[cols['内容']] || ''),
+    updatedByEmail: String(row[cols['更新者メール']] || ''),
+    updatedByName: String(row[cols['更新者名']] || ''),
+    updatedAt: String(row[cols['更新日時']] || ''),
+    version: parseInt(String(row[cols['バージョン']] || '0'), 10) || 0,
+  };
+}
+
+function saveSharedMemo_(payload) {
+  var key = String((payload && payload.key) || 'ANNUAL_FEE_BOARD');
+  var content = String((payload && payload.content !== undefined) ? payload.content : '');
+  var clientVersion = parseInt(String((payload && payload.version) || '0'), 10) || 0;
+  var session = payload && payload.__adminSession;
+  var editorEmail = session ? String(session.loginId || '') : '';
+  var editorName = session ? String(session.displayName || '') : '';
+
+  var ss = getOrCreateDatabase_();
+  // シートが存在しない場合は初期化
+  var sheet = ss.getSheetByName('T_共有メモ');
+  if (!sheet) {
+    initializeSheet_(ss, 'T_共有メモ');
+    sheet = ss.getSheetByName('T_共有メモ');
+  }
+
+  var now = new Date().toISOString();
+  var found = (sheet.getLastRow() >= 2) ? findRowByColumnValue_(sheet, 'キー', key) : null;
+
+  if (found) {
+    var serverVersion = parseInt(String(found.row[found.columns['バージョン']] || '0'), 10) || 0;
+    // 楽観的排他制御: クライアントのバージョンが古い場合は競合として返す
+    if (clientVersion < serverVersion) {
+      return {
+        conflict: true,
+        current: {
+          key: key,
+          content: String(found.row[found.columns['内容']] || ''),
+          updatedByEmail: String(found.row[found.columns['更新者メール']] || ''),
+          updatedByName: String(found.row[found.columns['更新者名']] || ''),
+          updatedAt: String(found.row[found.columns['更新日時']] || ''),
+          version: serverVersion,
+        },
+      };
+    }
+    var newVersion = serverVersion + 1;
+    var newRow = found.row.slice();
+    newRow[found.columns['内容']] = content;
+    newRow[found.columns['更新者メール']] = editorEmail;
+    newRow[found.columns['更新者名']] = editorName;
+    newRow[found.columns['更新日時']] = now;
+    newRow[found.columns['バージョン']] = newVersion;
+    sheet.getRange(found.rowNumber, 1, 1, newRow.length).setValues([newRow]);
+    return { key: key, content: content, updatedByEmail: editorEmail, updatedByName: editorName, updatedAt: now, version: newVersion };
+  }
+
+  // 新規行を追加
+  appendRowsByHeaders_(ss, 'T_共有メモ', [{
+    'キー': key,
+    '内容': content,
+    '更新者メール': editorEmail,
+    '更新者名': editorName,
+    '更新日時': now,
+    'バージョン': 1,
+  }]);
+  return { key: key, content: content, updatedByEmail: editorEmail, updatedByName: editorName, updatedAt: now, version: 1 };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 function getSystemSettings_() {
   var ss = getOrCreateDatabase_();

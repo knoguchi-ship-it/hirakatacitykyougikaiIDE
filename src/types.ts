@@ -247,6 +247,26 @@ export interface AdminDashboardData {
   trainingRows: AdminDashboardTrainingRow[];
 }
 
+export interface SharedMemo {
+  key: string;
+  content: string;
+  updatedByEmail: string;
+  updatedByName: string;
+  updatedAt: string;
+  version: number;
+}
+
+export interface SharedMemoSaveResult {
+  conflict?: boolean;
+  current?: SharedMemo;
+  key?: string;
+  content?: string;
+  updatedByEmail?: string;
+  updatedByName?: string;
+  updatedAt?: string;
+  version?: number;
+}
+
 export interface AdminPermissionIdentityOption {
   authId: string;
   authMethod: 'PASSWORD' | 'GOOGLE';

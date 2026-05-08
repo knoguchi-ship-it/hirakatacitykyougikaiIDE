@@ -4359,7 +4359,7 @@ const App: React.FC = () => {
       if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
         return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
       }
-      return <AnnualFeeManagement onChanged={refreshAllData} onDirtyChange={setAnnualFeeHasUnsavedChanges} onOpenMember={(memberId) => { setSelectedMemberForDetailId(memberId); setCurrentView('member-detail'); }} />;
+      return <AnnualFeeManagement onChanged={refreshAllData} onDirtyChange={setAnnualFeeHasUnsavedChanges} onOpenMember={(memberId) => { setSelectedMemberForDetailId(memberId); setCurrentView('member-detail'); }} adminPermissionLevel={adminPermissionLevel} />;
     }
 
     if (currentView === 'training-manage') {
