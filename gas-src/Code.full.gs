@@ -4904,12 +4904,9 @@ function saveSharedMemo_(payload) {
   var editorName = session ? String(session.displayName || '') : '';
 
   var ss = getOrCreateDatabase_();
-  // シートが存在しない場合は初期化
-  var sheet = ss.getSheetByName('T_共有メモ');
-  if (!sheet) {
-    initializeSheet_(ss, 'T_共有メモ');
-    sheet = ss.getSheetByName('T_共有メモ');
-  }
+  // シートが存在しない場合はヘッダー付きで新規作成
+  var sheet = getOrCreateSheet_(ss, 'T_共有メモ');
+  writeSheetHeaders_(sheet, テーブル定義['T_共有メモ']);
 
   var now = new Date().toISOString();
   var found = (sheet.getLastRow() >= 2) ? findRowByColumnValue_(sheet, 'キー', key) : null;
@@ -22618,4 +22615,20 @@ function autoRetireOfficerByStaffId_(ss, staffId, nowIso) {
       officerSheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
     }
   });
+}
+
+// ─── v309: T_共有メモ シート追加（ワンタイム移行） ─────────────────────────────
+
+/**
+ * v309 移行: T_共有メモ シートをDBスプレッドシートに作成する。
+ * Apps Script エディタ（admin split）から手動で1回だけ実行すること。
+ * saveSharedMemo_ も初回書き込み時に自動作成するため、
+ * 本関数は事前に確実にシートを用意したい場合の補助として使用する。
+ */
+function runAddSharedMemoSheetForV309() {
+  var ss = getOrCreateDatabase_();
+  var sheet = getOrCreateSheet_(ss, 'T_共有メモ');
+  writeSheetHeaders_(sheet, テーブル定義['T_共有メモ']);
+  Logger.log('T_共有メモ シートを作成しました（または既存シートのヘッダーを確認しました）。');
+  return { ok: true, message: 'T_共有メモ シート作成完了' };
 }
