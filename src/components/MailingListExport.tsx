@@ -103,11 +103,11 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
     setError(null);
     setKeyword('');
     setColumnFilters(INITIAL_COLUMN_FILTERS);
-    setFeeConditions([]);
     try {
       const data = await api.getMailingListTargets({ filterType, year });
       setTargetsData(data);
       setYear(data.selectedYear);
+      setFeeConditions([{ year: data.selectedYear, status: '' }]);
       setSelectedKeys(new Set());
     } catch (e: any) {
       setTargetsData(null);
