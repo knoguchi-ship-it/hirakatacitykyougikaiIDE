@@ -1,8 +1,8 @@
 # 開発引継ぎ
 
 更新日: 2026-05-08
-現行本番: `v309` / integrated-public GAS version `290` / member split GAS version `44` / admin split GAS version `69`
-fixed deployment: integrated/public `@290` x2 / member split `@44` / admin split `@69`
+現行本番: `v310` / integrated-public GAS version `290` / member split GAS version `44` / admin split GAS version `70`
+fixed deployment: integrated/public `@290` x2 / member split `@44` / admin split `@70`
 
 ## 1. 現行状態
 
@@ -52,10 +52,11 @@ fixed deployment: integrated/public `@290` x2 / member split `@44` / admin split
 | 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@290` |
 | 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@290` |
 | 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@44` |
-| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@69` |
+| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@70` |
 
 ## 4. 直近リリース
 
+- `v310`: 宛名リスト出力コンソールの年会費納入フィルターを、複数年度・AND条件に対応した条件ビルダーに刷新。admin split `@70`。詳細: `docs/195_RELEASE_STATE_v310_2026-05-08.md`
 - `v309`: 年会費管理コンソールに管理者共有申し送りメモ（ホワイトボード型）を追加。MASTER/ADMIN が書き込み可、60秒自動ポーリング＋手動更新、楽観的排他制御。admin split `@69`。詳細: `docs/194_RELEASE_STATE_v309_2026-05-08.md`
 - `v308`: 会員詳細編集画面の年会費表示を 2024 年度以降、当年度から過去 4 年分へ修正。admin split `@68`。詳細: `docs/193_RELEASE_STATE_v308_2026-05-06.md`
 - `v307`: 会員詳細編集画面に年会費の表示・編集セクションを追加。admin split `@67`。詳細: `docs/192_RELEASE_STATE_v307_2026-05-06.md`
@@ -99,6 +100,7 @@ fixed deployment: integrated/public `@290` x2 / member split `@44` / admin split
 - v305: 宛名リストで対象年度の年度外会員が出ないこと、年度内退会者が対象に残ること、氏名検索がスペース有無に依存しないこと。
 - v306: 管理コンソールで全体データ読込後に年会費コンソール等を保存しても `unsupported_action` の全画面エラーにならず、再ログイン不要で継続操作できること。
 - v307: 会員詳細編集画面で年会費ステータス、納入確認日、備考を年度行ごとに保存でき、年会費管理コンソール側にも反映されること。
+- v310: 宛名リストで「+ 条件を追加」から年度と状態を選択して絞り込めること。複数条件が AND で機能すること。アクティブフィルターチップが条件ごとに表示・個別削除できること。
 - v309: 年会費管理コンソールで申し送りメモパネルが表示・保存・自動更新されること。複数アカウントで同時編集して競合バナーが出ること。
 - v308: 会員詳細編集画面の年会費セクションで、2024 年度以降、当年度から過去 4 年分までの行が表示されること。
 
