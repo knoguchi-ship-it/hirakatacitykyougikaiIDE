@@ -46,8 +46,9 @@ const badgeClass = (base: string) =>
 const selectCls =
   'w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500';
 
+type FeeCondition = { year: number | ''; status: 'PAID' | 'UNPAID' | '' };
+
 interface ColumnFilters {
-  feeStatus: string;
   memberType: string;
   memberStatus: string;
   mailingDest: string;
@@ -55,7 +56,6 @@ interface ColumnFilters {
 }
 
 const INITIAL_COLUMN_FILTERS: ColumnFilters = {
-  feeStatus: '',
   memberType: '',
   memberStatus: '',
   mailingDest: '',
@@ -74,6 +74,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
   const [year, setYear] = useState(currentFiscalYear);
   const [keyword, setKeyword] = useState('');
   const [columnFilters, setColumnFilters] = useState<ColumnFilters>(INITIAL_COLUMN_FILTERS);
+  const [feeConditions, setFeeConditions] = useState<FeeCondition[]>([]);
   const [loadingTargets, setLoadingTargets] = useState(false);
   const [targetsError, setTargetsError] = useState<string | null>(null);
   const [targetsData, setTargetsData] = useState<MailingListTargetsResult | null>(null);
@@ -102,6 +103,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
     setError(null);
     setKeyword('');
     setColumnFilters(INITIAL_COLUMN_FILTERS);
+    setFeeConditions([]);
     try {
       const data = await api.getMailingListTargets({ filterType, year });
       setTargetsData(data);
@@ -128,9 +130,10 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
     [targets],
   );
 
-  // キーワード + 5列フィルターを AND で適用
+  // キーワード + 年会費年度別条件（AND）+ 列フィルターを AND で適用
   const filteredTargets = useMemo(() => {
-    const { feeStatus, memberType, memberStatus, mailingDest, addressValidity } = columnFilters;
+    const { memberType, memberStatus, mailingDest, addressValidity } = columnFilters;
+    const activeFeeConditions = feeConditions.filter((c) => c.year !== '' && c.status !== '');
 
     return targets.filter((target) => {
       if (keyword.trim()) {
@@ -143,7 +146,11 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
           FEE_STATUS_LABELS[target.annualFeeStatus]?.label || target.annualFeeStatus,
         ])) return false;
       }
-      if (feeStatus && target.annualFeeStatus !== feeStatus) return false;
+      // 年度別年会費 AND フィルター（レコードなしは UNPAID 扱い）
+      for (const cond of activeFeeConditions) {
+        const actual = (target.annualFeeHistories?.[cond.year as number]) ?? 'UNPAID';
+        if (actual !== cond.status) return false;
+      }
       if (memberType && target.memberType !== memberType) return false;
       if (memberStatus && target.memberStatus !== memberStatus) return false;
       if (mailingDest) {
@@ -154,7 +161,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
       if (addressValidity === 'INVALID' && target.addressInvalidItems.length === 0) return false;
       return true;
     });
-  }, [keyword, targets, columnFilters]);
+  }, [keyword, targets, columnFilters, feeConditions]);
 
   // 表示中かつ選択済み — カウントバッジ用（Q1=B）
   const filteredSelectedTargets = useMemo(
@@ -205,9 +212,11 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
     });
   };
 
+  const activeFeeConditionCount = feeConditions.filter((c) => c.year !== '' && c.status !== '').length;
+
   const isFiltered =
     !!keyword.trim() ||
-    !!columnFilters.feeStatus ||
+    activeFeeConditionCount > 0 ||
     !!columnFilters.memberType ||
     !!columnFilters.memberStatus ||
     !!columnFilters.mailingDest ||
@@ -216,6 +225,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
   const resetAllFilters = () => {
     setKeyword('');
     setColumnFilters(INITIAL_COLUMN_FILTERS);
+    setFeeConditions([]);
   };
 
   // アクティブフィルターチップ（フィルター中のみ表示）
@@ -227,13 +237,15 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
       onRemove: () => setKeyword(''),
     });
   }
-  if (columnFilters.feeStatus) {
+  feeConditions.forEach((cond, i) => {
+    if (cond.year === '' || cond.status === '') return;
+    const statusLabel = cond.status === 'PAID' ? '納入済み' : '未納';
     activeChips.push({
-      key: 'feeStatus',
-      label: `年会費納入: ${FEE_STATUS_LABELS[columnFilters.feeStatus]?.label ?? columnFilters.feeStatus}`,
-      onRemove: () => setColumnFilters((f) => ({ ...f, feeStatus: '' })),
+      key: `fee-${i}`,
+      label: `年会費 ${cond.year}年度: ${statusLabel}`,
+      onRemove: () => setFeeConditions((prev) => prev.filter((_, idx) => idx !== i)),
     });
-  }
+  });
   if (columnFilters.memberType) {
     activeChips.push({
       key: 'memberType',
@@ -485,28 +497,75 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
             </div>
           </div>
 
-          {/* 絞り込みフィルター（5列） */}
-          <div>
-            <p className="mb-2 text-xs font-medium text-slate-600">絞り込みフィルター</p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-              <div>
-                <label htmlFor="filter-fee-status" className="mb-1 block text-xs text-slate-500">
-                  年会費納入
-                </label>
-                <select
-                  id="filter-fee-status"
-                  value={columnFilters.feeStatus}
-                  onChange={(e) =>
-                    setColumnFilters((f) => ({ ...f, feeStatus: e.target.value }))
-                  }
-                  className={selectCls}
-                >
-                  <option value="">すべて</option>
-                  <option value="UNPAID">未納</option>
-                  <option value="PAID">納入済み</option>
-                  <option value="NONE">記録なし</option>
-                </select>
+          {/* 絞り込みフィルター */}
+          <div className="space-y-3">
+            <p className="text-xs font-medium text-slate-600">絞り込みフィルター</p>
+
+            {/* 年会費納入（年度別条件ビルダー） */}
+            <div>
+              <p className="mb-1.5 text-xs text-slate-500">年会費納入（年度別）</p>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
+                {feeConditions.length === 0 && (
+                  <p className="text-xs text-slate-400">条件なし（すべて表示）</p>
+                )}
+                {feeConditions.map((cond, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <select
+                      value={cond.year}
+                      onChange={(e) =>
+                        setFeeConditions((prev) =>
+                          prev.map((c, idx) => idx === i ? { ...c, year: e.target.value === '' ? '' : Number(e.target.value) } : c)
+                        )
+                      }
+                      className={selectCls}
+                      aria-label={`年会費条件${i + 1} 年度`}
+                    >
+                      <option value="">年度を選択</option>
+                      {(targetsData?.years ?? []).map((yr) => (
+                        <option key={yr} value={yr}>{yr}年度</option>
+                      ))}
+                    </select>
+                    <select
+                      value={cond.status}
+                      onChange={(e) =>
+                        setFeeConditions((prev) =>
+                          prev.map((c, idx) => idx === i ? { ...c, status: e.target.value as FeeCondition['status'] } : c)
+                        )
+                      }
+                      className={selectCls}
+                      aria-label={`年会費条件${i + 1} 状態`}
+                    >
+                      <option value="">状態を選択</option>
+                      <option value="UNPAID">未納</option>
+                      <option value="PAID">納入済み</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setFeeConditions((prev) => prev.filter((_, idx) => idx !== i))}
+                      className="shrink-0 rounded p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      aria-label={`条件${i + 1}を削除`}
+                    >
+                      <XIcon />
+                    </button>
+                  </div>
+                ))}
+                <div className="flex items-center gap-3 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setFeeConditions((prev) => [...prev, { year: '', status: '' }])}
+                    className="text-xs text-primary-600 hover:text-primary-800 font-medium focus:outline-none focus:underline"
+                  >
+                    + 条件を追加
+                  </button>
+                  {feeConditions.filter((c) => c.year !== '' && c.status !== '').length > 1 && (
+                    <span className="text-xs text-slate-400">※ 複数条件はすべて AND で絞り込みます</span>
+                  )}
+                </div>
               </div>
+            </div>
+
+            {/* 他の列フィルター（4列） */}
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
 
               <div>
                 <label htmlFor="filter-member-type" className="mb-1 block text-xs text-slate-500">
@@ -587,6 +646,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
               </div>
             </div>
           </div>
+          {/* /絞り込みフィルター */}
 
           {/* アクティブフィルターチップ（フィルター適用中のみ表示） */}
           {isFiltered && (

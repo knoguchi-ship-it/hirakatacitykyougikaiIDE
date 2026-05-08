@@ -18880,13 +18880,21 @@ function buildMailingListCandidates_(payload) {
   var members = getSheetData_(memberSheet);
   var feeRows = feeSheet ? getSheetData_(feeSheet) : [];
 
-  var feeMap = {};
+  // 全年度の feeMap を構築（v310: 年度別複数条件フィルター対応）
+  var feeMap = {};        // 選択年度: { memberId: status }
+  var feeMapByYear = {};  // 全年度: { year: { memberId: status } }
   feeRows.forEach(function(r) {
     if (toBoolean_(r['削除フラグ'])) return;
-    if (Number(r['対象年度'] || 0) !== year) return;
+    var yr = Number(r['対象年度'] || 0);
     var mid = String(r['会員ID'] || '');
-    if (mid) feeMap[mid] = String(r['会費納入状態コード'] || 'UNPAID');
+    if (!yr || !mid) return;
+    var status = String(r['会費納入状態コード'] || 'UNPAID');
+    if (!feeMapByYear[yr]) feeMapByYear[yr] = {};
+    feeMapByYear[yr][mid] = status;
+    if (yr === year) feeMap[mid] = status;
   });
+  // 利用可能な全年度リストを先行計算（候補ループで annualFeeHistories に使用）
+  var allFeeYears = getMailingListYears_(feeRows, year);
 
   var candidates = [];
 
@@ -18947,6 +18955,11 @@ function buildMailingListCandidates_(payload) {
     var address1 = prefDisplay + city + line1;
     var officeName = String(m['勤務先名'] || '').trim();
     var feeStatus = feeMap[memberId] || 'UNPAID';
+    // v310: 全年度の納入状況マップ（未記録は UNPAID 扱い）
+    var feeHistories = {};
+    allFeeYears.forEach(function(yr) {
+      feeHistories[yr] = (feeMapByYear[yr] && feeMapByYear[yr][memberId]) || 'UNPAID';
+    });
 
     candidates.push({
       targetKey: memberId,
@@ -18956,6 +18969,7 @@ function buildMailingListCandidates_(payload) {
       memberStatus: status,
       annualFeeStatus: feeStatus,
       annualFeeYear: year,
+      annualFeeHistories: feeHistories,
       officeName: officeName,
       mailingPreference: String(m['発送方法コード'] || 'EMAIL'),
       mailingDestination: mailingDestination,
@@ -19006,6 +19020,7 @@ function getMailingListTargets_(payload) {
         memberStatus: c.memberStatus,
         annualFeeStatus: c.annualFeeStatus,
         annualFeeYear: c.annualFeeYear,
+        annualFeeHistories: c.annualFeeHistories || {},
         officeName: c.officeName,
         mailingPreference: c.mailingPreference,
         mailingDestination: c.mailingDestination,

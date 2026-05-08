@@ -128,6 +128,8 @@ export interface MailingListTarget {
   memberStatus: string;
   annualFeeStatus: 'PAID' | 'UNPAID' | 'NONE';
   annualFeeYear: number;
+  /** v310: 利用可能な全年度の納入状況。未記録年度は UNPAID として返る */
+  annualFeeHistories: Record<number, 'PAID' | 'UNPAID'>;
   officeName: string;
   mailingPreference: string;
   mailingDestination: string;
