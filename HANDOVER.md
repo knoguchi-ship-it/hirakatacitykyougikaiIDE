@@ -1,8 +1,8 @@
 # 開発引継ぎ
 
 更新日: 2026-05-08
-現行本番: `v314` / integrated-public GAS version `290` / member split GAS version `44` / admin split GAS version `74`
-fixed deployment: integrated/public `@290` x2 / member split `@44` / admin split `@74`
+現行本番: `v315` / integrated-public GAS version `290` / member split GAS version `44` / admin split GAS version `75`
+fixed deployment: integrated/public `@290` x2 / member split `@44` / admin split `@75`
 
 ## 1. 現行状態
 
@@ -52,7 +52,7 @@ fixed deployment: integrated/public `@290` x2 / member split `@44` / admin split
 | 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@290` |
 | 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@290` |
 | 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@44` |
-| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@74` |
+| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@75` |
 
 ## 4. 直近リリース
 
