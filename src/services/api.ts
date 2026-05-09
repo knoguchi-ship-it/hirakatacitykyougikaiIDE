@@ -1,4 +1,4 @@
-import { Member, Training, AdminPermissionLevel, AdminPersonRow, ConvertMemberTypePayload, ConvertMemberTypeResult, SystemSettings, SharedMemo, SharedMemoSaveResult } from '../types';
+import { Member, Training, AdminPermissionLevel, AdminPersonRow, ConvertMemberTypePayload, ConvertMemberTypeResult, SystemSettings, SharedMemo, SharedMemoSaveResult, RosterTemplate } from '../types';
 import { TrainingApplicantRow, BulkMailRecipient, EmailSendLog, RosterTarget, TemplateValidationResult, TemplateValidationKind, MailingListFilterType, MailingListExcelResult, MailingListTargetsResult } from '../shared/types';
 import { AdminDashboardData, AdminPermissionData, AnnualFeeAdminData, AnnualFeeAdminRecord } from '../types';
 
@@ -137,6 +137,7 @@ export interface ApiClient {
     chunkIndex: number;
     memberIds: string[];
     year: number;
+    templateSsId?: string;
   }): Promise<{ ok: boolean; count?: number; errors?: string[] }>;
   finalizeRosterExport(payload: {
     folderId: string;
@@ -230,6 +231,11 @@ export interface ApiClient {
   // v309: 共有メモ（申し送りホワイトボード）
   getSharedMemo(key: string): Promise<SharedMemo>;
   saveSharedMemo(key: string, content: string, version: number): Promise<SharedMemoSaveResult>;
+  // v316: テンプレートライブラリ
+  getRosterTemplateList(): Promise<RosterTemplate[]>;
+  saveRosterTemplate(payload: { id?: string; name: string; ssId: string; description?: string }): Promise<RosterTemplate[]>;
+  deleteRosterTemplate(id: string): Promise<RosterTemplate[]>;
+  setDefaultRosterTemplate(id: string): Promise<RosterTemplate[]>;
 }
 
 export interface MemberDeleteSearchResult {
@@ -1321,6 +1327,7 @@ class GasApiClient implements ApiClient {
     chunkIndex: number;
     memberIds: string[];
     year: number;
+    templateSsId?: string;
   }): Promise<{ ok: boolean; count?: number; errors?: string[] }> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
@@ -1949,6 +1956,58 @@ class GasApiClient implements ApiClient {
         .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
         .withFailureHandler((e: Error) => reject(e))
         .processApiRequest('adminDeleteClaim', JSON.stringify(payload));
+    });
+  }
+
+  async getRosterTemplateList(): Promise<RosterTemplate[]> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getRosterTemplateList', '{}');
+    });
+  }
+
+  async saveRosterTemplate(payload: { id?: string; name: string; ssId: string; description?: string }): Promise<RosterTemplate[]> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('saveRosterTemplate', JSON.stringify(payload));
+    });
+  }
+
+  async deleteRosterTemplate(id: string): Promise<RosterTemplate[]> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('deleteRosterTemplate', JSON.stringify({ id }));
+    });
+  }
+
+  async setDefaultRosterTemplate(id: string): Promise<RosterTemplate[]> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('setDefaultRosterTemplate', JSON.stringify({ id }));
     });
   }
 

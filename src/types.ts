@@ -50,6 +50,15 @@ export interface EmailTemplate {
   savedAt: string;
 }
 
+export interface RosterTemplate {
+  id: string;
+  name: string;         // 必須
+  ssId: string;
+  description?: string;
+  isDefault: boolean;
+  validatedAt?: string;
+}
+
 export interface SystemSettings {
   defaultBusinessStaffLimit: number;
   trainingHistoryLookbackMonths: number;
@@ -57,8 +66,9 @@ export interface SystemSettings {
   annualFeeTransferAccount: TransferAccountInfo;
   trainingDefaultFieldConfig?: TrainingFieldConfig | null;
   // v194: PDF名簿出力 & 一括メール送信設定
-  rosterTemplateSsId?: string;
-  reminderTemplateSsId?: string;
+  rosterTemplateSsId?: string;    // v316で rosterTemplates へ移行（後方互換のため残存）
+  reminderTemplateSsId?: string;  // 同上
+  rosterTemplates?: RosterTemplate[]; // v316: テンプレートライブラリ
   bulkMailAutoAttachFolderId?: string;
   emailLogViewerRole?: string;
   // v209: 入会時認証情報メール設定

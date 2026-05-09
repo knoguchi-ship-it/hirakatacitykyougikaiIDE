@@ -99,6 +99,11 @@ const allowedAdminActions = [
   // v309: 共有メモ（申し送りホワイトボード）
   'getSharedMemo',
   'saveSharedMemo',
+  // v316: テンプレートライブラリ
+  'getRosterTemplateList',
+  'saveRosterTemplate',
+  'deleteRosterTemplate',
+  'setDefaultRosterTemplate',
 ];
 const forbiddenTopLevelFunctions = [
   'rebuildDatabaseSchema',

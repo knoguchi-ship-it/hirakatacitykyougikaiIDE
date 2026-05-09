@@ -1,14 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RosterTarget } from '../shared/types';
+import { RosterTemplate } from '../types';
 import { ApiClient } from '../services/api';
-
-interface RosterExportSettings {
-  rosterTemplateSsId?: string;
-}
 
 interface RosterExportProps {
   api: ApiClient;
-  settings: RosterExportSettings;
+  templates: RosterTemplate[];
+  onTemplatesChange: (templates: RosterTemplate[]) => void;
   onOpenHelp: () => void;
   onOpenSettings: () => void;
 }
@@ -46,7 +44,8 @@ const quickStepCls =
 
 const RosterExport: React.FC<RosterExportProps> = ({
   api,
-  settings,
+  templates,
+  onTemplatesChange,
   onOpenHelp,
   onOpenSettings,
 }) => {
@@ -240,6 +239,7 @@ const RosterExport: React.FC<RosterExportProps> = ({
           chunkIndex: i,
           memberIds: chunks[i],
           year: filterYear,
+          templateSsId: selectedTemplate?.ssId,
         });
         if (!result.ok) {
           // チャンク内でリトライ後も失敗 → クリーンアップして中断
@@ -263,7 +263,39 @@ const RosterExport: React.FC<RosterExportProps> = ({
     }
   };
 
-  const hasTemplate = Boolean(settings.rosterTemplateSsId);
+  // テンプレート選択（searchable combobox）
+  const defaultTemplate = templates.find((t) => t.isDefault) ?? templates[0] ?? null;
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(defaultTemplate?.id ?? '');
+  const [templateQuery, setTemplateQuery] = useState('');
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const comboRef = useRef<HTMLDivElement>(null);
+
+  // templates が変わったとき（マイグレーション後など）に selectedTemplateId を補正
+  useEffect(() => {
+    if (selectedTemplateId && templates.some((t) => t.id === selectedTemplateId)) return;
+    const def = templates.find((t) => t.isDefault) ?? templates[0];
+    setSelectedTemplateId(def?.id ?? '');
+  }, [templates, selectedTemplateId]);
+
+  // コンボボックスの外クリックで閉じる
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (comboRef.current && !comboRef.current.contains(e.target as Node)) {
+        setTemplateOpen(false);
+        setTemplateQuery('');
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const filteredTemplates = useMemo(() => {
+    const q = templateQuery.trim().toLowerCase();
+    return q ? templates.filter((t) => t.name.toLowerCase().includes(q)) : templates;
+  }, [templates, templateQuery]);
+
+  const selectedTemplate = templates.find((t) => t.id === selectedTemplateId) ?? null;
+  const hasTemplate = templates.length > 0;
 
   return (
     <div className="space-y-6">
@@ -278,7 +310,48 @@ const RosterExport: React.FC<RosterExportProps> = ({
 
       {!hasTemplate && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          名簿テンプレートが未設定です。先にシステム設定でテンプレートを登録してください。
+          テンプレートが登録されていません。先にシステム設定 &gt; 帳票・一括メール &gt; テンプレートライブラリに登録してください。
+        </div>
+      )}
+
+      {hasTemplate && (
+        <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-2">
+          <label className="block text-sm font-medium text-slate-700">使用テンプレート</label>
+          <div ref={comboRef} className="relative">
+            <input
+              type="text"
+              className={`${inputCls} pr-10`}
+              placeholder={selectedTemplate ? selectedTemplate.name : 'テンプレートを選択...'}
+              value={templateOpen ? templateQuery : (selectedTemplate?.name ?? '')}
+              onFocus={() => { setTemplateOpen(true); setTemplateQuery(''); }}
+              onChange={(e) => { setTemplateQuery(e.target.value); setTemplateOpen(true); }}
+              aria-label="使用テンプレートを選択"
+              aria-expanded={templateOpen}
+              aria-autocomplete="list"
+            />
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">▼</span>
+            {templateOpen && (
+              <ul className="absolute z-20 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg overflow-auto max-h-52 text-sm">
+                {filteredTemplates.length === 0 && (
+                  <li className="px-4 py-2 text-slate-400">該当するテンプレートがありません</li>
+                )}
+                {filteredTemplates.map((t) => (
+                  <li
+                    key={t.id}
+                    className={`flex items-center gap-2 px-4 py-2 cursor-pointer hover:bg-primary-50 ${t.id === selectedTemplateId ? 'bg-primary-50 font-medium text-primary-700' : 'text-slate-800'}`}
+                    onMouseDown={(e) => { e.preventDefault(); setSelectedTemplateId(t.id); setTemplateOpen(false); setTemplateQuery(''); }}
+                  >
+                    {t.isDefault && <span className="text-amber-500 text-xs">★</span>}
+                    <span className="flex-1 truncate">{t.name}</span>
+                    {t.description && <span className="text-xs text-slate-400 truncate max-w-[160px]">{t.description}</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          {selectedTemplate && (
+            <p className="text-xs text-slate-400 truncate">ID: {selectedTemplate.ssId}</p>
+          )}
         </div>
       )}
 
@@ -583,13 +656,14 @@ const RosterExport: React.FC<RosterExportProps> = ({
         <div className="flex flex-wrap items-center gap-4">
           <button
             type="button"
-            disabled={effectiveTargets.length === 0 || generating || !hasTemplate}
+            disabled={effectiveTargets.length === 0 || generating || !hasTemplate || !selectedTemplate}
             onClick={handleGenerate}
             className={`${btnCls} bg-primary-600 text-white hover:bg-primary-700`}
           >
             {generating ? '出力中...' : `${effectiveTargets.length}件の名簿 PDF を ZIP 生成`}
           </button>
-          {!hasTemplate && <span className="text-sm text-amber-700">テンプレート設定が必要です。</span>}
+          {!hasTemplate && <span className="text-sm text-amber-700">テンプレートを登録してください。</span>}
+          {hasTemplate && !selectedTemplate && <span className="text-sm text-amber-700">テンプレートを選択してください。</span>}
           {effectiveTargets.length === 0 && <span className="text-sm text-slate-500">出力対象を選択してください。</span>}
         </div>
       )}

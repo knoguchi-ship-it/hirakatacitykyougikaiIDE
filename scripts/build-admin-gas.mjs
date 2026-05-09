@@ -476,6 +476,11 @@ function buildAdminCode(source) {
     // v309: 共有メモ（申し送りホワイトボード）
     'getSharedMemo',
     'saveSharedMemo',
+    // v316: テンプレートライブラリ
+    'getRosterTemplateList',
+    'saveRosterTemplate',
+    'deleteRosterTemplate',
+    'setDefaultRosterTemplate',
   ]);
   code = removeIfBlock(code, "isMemberAction && !LOGIN_ONLY_MEMBER_ACTIONS[action]");
   code = pruneUnreachableFunctionDeclarations(code, ['doGet', 'processApiRequest'], 'build-admin-gas');

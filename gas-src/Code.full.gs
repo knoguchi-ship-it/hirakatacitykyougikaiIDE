@@ -1087,8 +1087,9 @@ function insertSystemSettingKeysForV194() {
     if (k) byKey[k] = true;
   });
   var newKeys = [
-    { key: 'ROSTER_TEMPLATE_SS_ID', value: '', desc: '名簿テンプレートスプレッドシートID' },
-    { key: 'REMINDER_TEMPLATE_SS_ID', value: '', desc: '催促用紙テンプレートスプレッドシートID' },
+    { key: 'ROSTER_TEMPLATE_SS_ID', value: '', desc: '名簿テンプレートスプレッドシートID（v316で ROSTER_TEMPLATE_LIST へ移行済み）' },
+    { key: 'REMINDER_TEMPLATE_SS_ID', value: '', desc: '催促用紙テンプレートスプレッドシートID（v316で ROSTER_TEMPLATE_LIST へ移行済み）' },
+    { key: 'ROSTER_TEMPLATE_LIST', value: '[]', desc: 'テンプレートライブラリJSON（v316〜）' },
     { key: 'BULK_MAIL_AUTO_ATTACH_FOLDER_ID', value: '', desc: '一括メール個別自動添付DriveフォルダID' },
     { key: 'EMAIL_LOG_VIEWER_ROLE', value: 'MASTER', desc: 'メール送信ログ閲覧権限（MASTER / MASTER,ADMIN）' },
   ];
@@ -1436,6 +1437,11 @@ var ADMIN_ACTION_PERMISSIONS = {
   // v309: 共有メモ（年会費コンソール申し送りホワイトボード）
   'getSharedMemo': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR','GENERAL'],
   'saveSharedMemo': ['MASTER','ADMIN'],
+  // v316: テンプレートライブラリ
+  'getRosterTemplateList': ['MASTER','ADMIN'],
+  'saveRosterTemplate': ['MASTER','ADMIN'],
+  'deleteRosterTemplate': ['MASTER','ADMIN'],
+  'setDefaultRosterTemplate': ['MASTER','ADMIN'],
 };
 
 function getActionRegistryForCurrentApp_() {
@@ -1704,6 +1710,22 @@ function processApiRequest(action, payload) {
 
     if (action === 'saveSharedMemo') {
       return JSON.stringify({ success: true, data: saveSharedMemo_(parsedPayload) });
+    }
+
+    if (action === 'getRosterTemplateList') {
+      return JSON.stringify({ success: true, data: getRosterTemplateList_() });
+    }
+
+    if (action === 'saveRosterTemplate') {
+      return JSON.stringify({ success: true, data: saveRosterTemplate_(parsedPayload) });
+    }
+
+    if (action === 'deleteRosterTemplate') {
+      return JSON.stringify({ success: true, data: deleteRosterTemplate_(parsedPayload) });
+    }
+
+    if (action === 'setDefaultRosterTemplate') {
+      return JSON.stringify({ success: true, data: setDefaultRosterTemplate_(parsedPayload) });
     }
 
     if (action === 'sendTrainingReminder') {
@@ -4870,6 +4892,123 @@ function clearAdminPermissionCaches_() {
   } catch (e) {}
 }
 
+// ─── v316: テンプレートライブラリ ────────────────────────────────────────────
+
+/**
+ * テンプレートライブラリ一覧を取得する。
+ * ROSTER_TEMPLATE_LIST が空かつ旧キーが存在する場合は自動マイグレーションを行う。
+ */
+function getRosterTemplateList_() {
+  var ss = getOrCreateDatabase_();
+  var raw = String(getSystemSettingValue_(ss, 'ROSTER_TEMPLATE_LIST') || '').trim();
+  var list = [];
+  try { list = raw ? JSON.parse(raw) : []; } catch (e) { list = []; }
+  if (!Array.isArray(list)) list = [];
+
+  // 自動マイグレーション: 旧キーから移行
+  if (list.length === 0) {
+    var rosterSsId = String(getSystemSettingValue_(ss, 'ROSTER_TEMPLATE_SS_ID') || '').trim();
+    var reminderSsId = String(getSystemSettingValue_(ss, 'REMINDER_TEMPLATE_SS_ID') || '').trim();
+    var migrated = [];
+    if (rosterSsId) {
+      migrated.push({ id: Utilities.getUuid(), name: '名簿テンプレート', ssId: rosterSsId, description: '（移行済み）', isDefault: true, validatedAt: '' });
+    }
+    if (reminderSsId && reminderSsId !== rosterSsId) {
+      migrated.push({ id: Utilities.getUuid(), name: '催促状テンプレート', ssId: reminderSsId, description: '（移行済み）', isDefault: !rosterSsId, validatedAt: '' });
+    }
+    if (migrated.length > 0) {
+      upsertSystemSetting_(ss, 'ROSTER_TEMPLATE_LIST', JSON.stringify(migrated), 'テンプレートライブラリJSON（v316〜）');
+      return migrated;
+    }
+  }
+  return list;
+}
+
+/**
+ * テンプレートを追加または更新する。id がなければ新規追加。
+ * payload: { id?, name, ssId, description?, isDefault? }
+ */
+function saveRosterTemplate_(payload) {
+  var p = payload || {};
+  var name = String(p.name || '').trim();
+  if (!name) throw new Error('テンプレート名は必須です。');
+  var ssId = String(p.ssId || '').trim();
+  if (!ssId) throw new Error('スプレッドシートIDまたはURLを入力してください。');
+  ssId = normalizeSpreadsheetIdInput_(ssId);
+
+  var ss = getOrCreateDatabase_();
+  var list = getRosterTemplateList_();
+  var id = String(p.id || '').trim();
+  var isDefault = p.isDefault === true;
+  var now = '';
+
+  if (id) {
+    // 更新
+    var found = false;
+    list = list.map(function(t) {
+      if (t.id === id) {
+        found = true;
+        return { id: id, name: name, ssId: ssId, description: String(p.description || ''), isDefault: t.isDefault, validatedAt: t.validatedAt || '' };
+      }
+      return t;
+    });
+    if (!found) throw new Error('指定のテンプレートが見つかりません。');
+  } else {
+    // 新規
+    var newEntry = { id: Utilities.getUuid(), name: name, ssId: ssId, description: String(p.description || ''), isDefault: false, validatedAt: '' };
+    list.push(newEntry);
+  }
+  // デフォルトなしの場合は先頭をデフォルトに
+  if (!list.some(function(t) { return t.isDefault; }) && list.length > 0) {
+    list[0].isDefault = true;
+  }
+  upsertSystemSetting_(ss, 'ROSTER_TEMPLATE_LIST', JSON.stringify(list), 'テンプレートライブラリJSON（v316〜）');
+  return list;
+}
+
+/**
+ * テンプレートを削除する。
+ * payload: { id }
+ */
+function deleteRosterTemplate_(payload) {
+  var p = payload || {};
+  var id = String(p.id || '').trim();
+  if (!id) throw new Error('テンプレートIDが指定されていません。');
+  var ss = getOrCreateDatabase_();
+  var list = getRosterTemplateList_();
+  var before = list.length;
+  list = list.filter(function(t) { return t.id !== id; });
+  if (list.length === before) throw new Error('指定のテンプレートが見つかりません。');
+  // 削除後にデフォルトが消えたら先頭をデフォルトに
+  if (!list.some(function(t) { return t.isDefault; }) && list.length > 0) {
+    list[0].isDefault = true;
+  }
+  upsertSystemSetting_(ss, 'ROSTER_TEMPLATE_LIST', JSON.stringify(list), 'テンプレートライブラリJSON（v316〜）');
+  return list;
+}
+
+/**
+ * デフォルトテンプレートを設定する。
+ * payload: { id }
+ */
+function setDefaultRosterTemplate_(payload) {
+  var p = payload || {};
+  var id = String(p.id || '').trim();
+  if (!id) throw new Error('テンプレートIDが指定されていません。');
+  var ss = getOrCreateDatabase_();
+  var list = getRosterTemplateList_();
+  var found = false;
+  list = list.map(function(t) {
+    if (t.id === id) { found = true; return Object.assign({}, t, { isDefault: true }); }
+    return Object.assign({}, t, { isDefault: false });
+  });
+  if (!found) throw new Error('指定のテンプレートが見つかりません。');
+  upsertSystemSetting_(ss, 'ROSTER_TEMPLATE_LIST', JSON.stringify(list), 'テンプレートライブラリJSON（v316〜）');
+  return list;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ─── v309: 共有メモ（申し送りホワイトボード）────────────────────────────────
 
 function getSharedMemo_(payload) {
@@ -5110,6 +5249,7 @@ function getSystemSettings_() {
     trainingDefaultFieldConfig: trainingDefaultFieldConfig,
     rosterTemplateSsId: rosterTemplateSsId,
     reminderTemplateSsId: reminderTemplateSsId,
+    rosterTemplates: getRosterTemplateList_(),
     bulkMailAutoAttachFolderId: bulkMailAutoAttachFolderId,
     emailLogViewerRole: emailLogViewerRole,
     credentialEmailEnabled: credentialEmailEnabled,
@@ -19533,9 +19673,15 @@ function processRosterChunk_(payload) {
   if (!year || !isFinite(year)) year = currentFY;
 
   var dbSs = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
-  var templateId = String(getSystemSettingValue_(dbSs, 'ROSTER_TEMPLATE_SS_ID') || '').trim();
+  // v316: payload.templateSsId 優先。未指定時はテンプレートライブラリのデフォルトを使用
+  var templateId = String(p.templateSsId || '').trim();
   if (!templateId) {
-    throw new Error('名簿テンプレートSSが未設定です。システム設定 > ROSTER_TEMPLATE_SS_ID を登録してください。');
+    var templates = getRosterTemplateList_();
+    var def = templates.find(function(t) { return t.isDefault; }) || templates[0];
+    templateId = def ? String(def.ssId || '').trim() : '';
+  }
+  if (!templateId) {
+    throw new Error('名簿テンプレートが未設定です。システム設定 > テンプレートライブラリに登録してください。');
   }
   var templateFile;
   try { templateFile = DriveApp.getFileById(templateId); }
