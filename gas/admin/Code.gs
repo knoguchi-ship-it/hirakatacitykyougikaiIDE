@@ -9975,7 +9975,7 @@ function getMembersForRoster_(payload) {
     // 'ALL' → 対象年度に会員だった人を年度内退会者も含める
 
     var memberId  = String(m['会員ID'] || '');
-    var feeStatus = feeMap[memberId] || 'NONE'; // NONE = 当年度の記録なし
+    var feeStatus = feeMap[memberId] || 'UNPAID'; // 記録なし = 未納扱い（NONE は廃止）
 
     // v312: 全年度の納入状況マップ（未記録は UNPAID 扱い）
     var feeHistories = {};

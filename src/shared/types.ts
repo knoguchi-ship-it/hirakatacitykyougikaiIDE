@@ -62,7 +62,7 @@ export interface RosterTarget {
   memberStatus: string;
   joinedDate: string;
   withdrawnDate?: string;
-  annualFeeStatus: 'PAID' | 'UNPAID' | 'NONE';
+  annualFeeStatus: 'PAID' | 'UNPAID';
   annualFeeYear: number;
   /** v312: 利用可能な全年度の納入状況。未記録年度は UNPAID として返る */
   annualFeeHistories: Record<number, 'PAID' | 'UNPAID'>;

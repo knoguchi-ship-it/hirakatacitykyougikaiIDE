@@ -20,9 +20,8 @@ const MEMBER_TYPE_LABELS: Record<string, string> = {
 };
 
 const FEE_STATUS_LABELS: Record<string, { label: string; cls: string }> = {
-  PAID: { label: '納入済み', cls: 'text-emerald-700 bg-emerald-50' },
-  UNPAID: { label: '未納', cls: 'text-rose-700 bg-rose-50' },
-  NONE: { label: '対象外', cls: 'text-slate-500 bg-slate-50' },
+  PAID:   { label: '納入済み', cls: 'text-emerald-700 bg-emerald-50' },
+  UNPAID: { label: '未納',    cls: 'text-rose-700   bg-rose-50'    },
 };
 
 const MEMBER_STATUS_LABELS: Record<string, string> = {
@@ -534,7 +533,7 @@ const RosterExport: React.FC<RosterExportProps> = ({
                   </tr>
                 ) : (
                   filteredTargets.map((target) => {
-                    const feeMeta = FEE_STATUS_LABELS[target.annualFeeStatus] ?? FEE_STATUS_LABELS.NONE;
+                    const feeMeta = FEE_STATUS_LABELS[target.annualFeeStatus] ?? FEE_STATUS_LABELS.UNPAID;
                     return (
                       <tr
                         key={target.memberId}
