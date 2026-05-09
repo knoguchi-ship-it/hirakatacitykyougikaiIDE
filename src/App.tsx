@@ -425,6 +425,8 @@ const App: React.FC = () => {
   const [trainingDefaultFieldConfigInput, setTrainingDefaultFieldConfigInput] = useState<TrainingFieldConfig>({ ...DEFAULT_FIELD_CONFIG });
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [settingsIsDirty, setSettingsIsDirty] = useState(false);
+  // v317: システム設定サブナビ
+  const [settingsSub, setSettingsSub] = useState<'basic' | 'output' | 'email' | 'portal' | 'masters'>('basic');
   // v194: PDF名簿出力 & 一括メール送信設定
   const [rosterTemplateSsIdInput, setRosterTemplateSsIdInput] = useState('');
   const [reminderTemplateSsIdInput, setReminderTemplateSsIdInput] = useState('');
@@ -2839,58 +2841,55 @@ const App: React.FC = () => {
       if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
         return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
       }
+      // v317: 設定ページ サブナビ定義
+      const settingsSubNav: { id: typeof settingsSub; label: string; desc: string }[] = [
+        { id: 'basic',   label: '基本設定',     desc: '上限・年会費・振込先' },
+        { id: 'output',  label: '帳票出力',     desc: 'テンプレート・Drive' },
+        { id: 'email',   label: 'メール通知',   desc: '入会メール・事業所メール' },
+        { id: 'portal',  label: '公開ポータル', desc: 'カード設定・文言' },
+        { id: 'masters', label: 'マスタ管理',   desc: '役員・事業所個別上限' },
+      ];
       return (
-        <div className="space-y-6 pb-24">
-          <div className="rounded-[28px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-sky-50 p-6 shadow-sm">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <p className="text-sm font-medium text-sky-700">System Settings</p>
-                <h2 className="mt-1 text-2xl font-bold text-slate-900">設定</h2>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                  利用頻度の高い設定を上位に、運用担当者しか触らない設定を下位に整理しています。関連項目はセクション単位でまとめ、長文編集やテンプレート管理は折りたたんで扱える構成にしています。
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                  <p className="text-xs font-medium text-slate-500">保存状態</p>
-                  <p className={`mt-1 text-sm font-semibold ${settingsIsDirty ? 'text-amber-700' : 'text-emerald-700'}`}>
-                    {settingsIsDirty ? '未保存の変更あり' : '保存済み'}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                  <p className="text-xs font-medium text-slate-500">設定読込</p>
-                  <p className={`mt-1 text-sm font-semibold ${systemSettingsLoaded ? 'text-emerald-700' : 'text-slate-500'}`}>
-                    {systemSettingsLoaded ? '読み込み済み' : '読み込み中'}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 col-span-2 sm:col-span-1">
-                  <p className="text-xs font-medium text-slate-500">会員個別上限</p>
-                  <p className={`mt-1 text-sm font-semibold ${fullDataLoaded ? 'text-slate-900' : 'text-slate-500'}`}>
-                    {fullDataLoaded ? '編集可能' : '未読込'}
-                  </p>
-                </div>
-              </div>
+        <div className="pb-24">
+          {/* ページヘッダー */}
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-medium text-sky-700 uppercase tracking-wide">System Settings</p>
+              <h2 className="mt-0.5 text-2xl font-bold text-slate-900">設定</h2>
             </div>
-            <div className="mt-5 flex flex-wrap gap-2">
-              {[
-                ['settings-core', '基本設定'],
-                ['settings-mail-assets', '帳票・一括メール'],
-                ['settings-training-folder', 'Driveフォルダ'],
-                ['settings-portal', '公開ポータル'],
-                ['settings-membership-mail', '入会通知メール'],
-                ['settings-business-limits', '事業所個別上限'],
-                ['settings-officer-masters', '役員マスタ'],
-              ].map(([target, label]) => (
-                <a
-                  key={target}
-                  href={`#${target}`}
-                  className="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-800"
-                >
-                  {label}
-                </a>
-              ))}
+            <div className="flex items-center gap-3">
+              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${settingsIsDirty ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                {settingsIsDirty ? '未保存の変更あり' : '保存済み'}
+              </span>
+              {!systemSettingsLoaded && (
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-500">読み込み中...</span>
+              )}
             </div>
           </div>
+
+          {/* 2カラムレイアウト */}
+          <div className="flex gap-6 items-start">
+            {/* 左サブナビ */}
+            <nav className="w-44 shrink-0 sticky top-4 space-y-1">
+              {settingsSubNav.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setSettingsSub(item.id)}
+                  className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${
+                    settingsSub === item.id
+                      ? 'bg-primary-50 border border-primary-200 text-primary-800'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800'
+                  }`}
+                >
+                  <p className={`text-sm font-semibold ${settingsSub === item.id ? 'text-primary-700' : 'text-slate-700'}`}>{item.label}</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5 leading-tight">{item.desc}</p>
+                </button>
+              ))}
+            </nav>
+
+            {/* 右コンテンツ */}
+            <div className="flex-1 min-w-0 space-y-5">
 
           {!systemSettingsLoaded && (
             <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-500 shadow-sm">
@@ -2898,7 +2897,8 @@ const App: React.FC = () => {
             </div>
           )}
 
-          <AdminSettingsSection
+          {/* ── 基本設定 ── */}
+          {settingsSub === 'basic' && <AdminSettingsSection
             id="settings-core"
             title="基本設定"
             description="日常運用で使う共通値です。全体上限、研修履歴の表示期間、研修フォームの既定項目をここで管理します。"
@@ -3010,9 +3010,10 @@ const App: React.FC = () => {
                 ))}
               </div>
             </div>
-          </AdminSettingsSection>
+          </AdminSettingsSection>}
 
-          <AdminSettingsSection
+          {/* ── 帳票出力 ── */}
+          {settingsSub === 'output' && <AdminSettingsSection
             id="settings-mail-assets"
             title="帳票・一括メール"
             description="名簿出力、一括メール、自動添付に使う外部リソースや閲覧権限を管理します。頻度は低めですが、誤設定の影響が大きい領域です。"
@@ -3182,9 +3183,10 @@ const App: React.FC = () => {
                 </div>
               )}
             </div>
-          </AdminSettingsSection>
+          </AdminSettingsSection>}
 
-          <AdminSettingsSection
+          {/* ── 公開ポータル ── */}
+          {settingsSub === 'portal' && <AdminSettingsSection
             id="settings-portal"
             title="公開ポータル"
             description="匿名利用者に見せる導線と文言をまとめて管理します。トップ表示、入会カード、完了画面の見え方をここで調整します。"
@@ -3532,10 +3534,10 @@ const App: React.FC = () => {
               </div>
             </div>
 
-          </AdminSettingsSection>
+          </AdminSettingsSection>}
 
-          {/* v266: 入会・登録メール設定（全5種統合・再設計） */}
-          <AdminSettingsSection
+          {/* ── メール通知 ── */}
+          {settingsSub === 'email' && <AdminSettingsSection
             id="settings-all-email"
             title="入会・登録メール設定"
             description="全体マスタースイッチで一括停止、その下で種別ごとに ON/OFF・件名・本文を個別設定します。事業所会員と個人・賛助会員でテンプレートを使い分けできます。"
@@ -3694,10 +3696,9 @@ const App: React.FC = () => {
                     onBodyChange={v => { setStaffAddRepEmailBodyInput(v); setSettingsIsDirty(true); }} />
                 </div>
               </div>
-          </AdminSettingsSection>
+          </AdminSettingsSection>}
 
-          {/* 入会完了画面の文言設定（メール設定から分離） */}
-          <AdminSettingsSection
+          {settingsSub === 'portal' && <AdminSettingsSection
             id="settings-portal-completion"
             title="入会完了画面の文言設定"
             description="公開ポータルで入会申込完了後に表示される「今後のご案内」とログイン情報カードの文言を設定します。メール送信設定とは独立しています。"
@@ -4020,7 +4021,7 @@ const App: React.FC = () => {
                 </div>
               </div>
             </div>
-          </AdminSettingsSection>
+          </AdminSettingsSection>}
 
           {/* v266: 事業所メール設定は settings-all-email に統合済み - このセクションは非表示 */}
           <div className="hidden">
@@ -4137,8 +4138,7 @@ const App: React.FC = () => {
           </AdminSettingsSection>
           </div>
 
-          {/* 研修ファイル保存先フォルダ設定 */}
-          <AdminSettingsSection
+          {settingsSub === 'output' && <AdminSettingsSection
             id="settings-training-folder"
             title="研修ファイル保存先フォルダ"
             description="研修案内PDFなどのアップロード先 Google Drive フォルダを設定します。未設定の場合は初回アップロード時にマイドライブ直下に「研修案内状」フォルダが自動作成されます。"
@@ -4224,9 +4224,10 @@ const App: React.FC = () => {
                 )}
               </div>
             </div>
-          </AdminSettingsSection>
+          </AdminSettingsSection>}
 
-          <AdminSettingsSection
+          {/* ── マスタ管理 ── */}
+          {settingsSub === 'masters' && <AdminSettingsSection
             id="settings-business-limits"
             title="事業所ごとの個別上限"
             description="通常は全体デフォルト上限を使い、特定事業所だけ例外設定する場合に利用します。全件読込が必要なため単独セクションに分けています。"
@@ -4273,18 +4274,18 @@ const App: React.FC = () => {
                 </div>
               )}
             </div>
-          </AdminSettingsSection>
+          </AdminSettingsSection>}
 
-          {/* v295: 役員マスタ管理 */}
-          <AdminSettingsSection
+          {settingsSub === 'masters' && <AdminSettingsSection
             id="settings-officer-masters"
             title="役員マスタ管理"
             description="役員管理で使用する組織・役職・支払い種別を定義します。追加・編集・削除はこのセクションから行えます。"
             badge="役員管理"
           >
             <OfficerMasterSettings api={api} />
-          </AdminSettingsSection>
+          </AdminSettingsSection>}
 
+          {/* 保存ボタン */}
           <div className="sticky bottom-4 z-10 rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 shadow-[0_12px_32px_rgba(15,23,42,0.12)] backdrop-blur sm:px-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -4457,6 +4458,8 @@ const App: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>{/* /右コンテンツ */}
+      </div>{/* /2カラム */}
         </div>
       );
     }
