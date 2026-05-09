@@ -29,15 +29,12 @@ fixed deployment: integrated/public `@290` x2 / member split `@44` / admin split
 7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `docs/193_RELEASE_STATE_v308_2026-05-06.md`
-11. `docs/192_RELEASE_STATE_v307_2026-05-06.md`
-12. `docs/191_ADMIN_MEMBER_DETAIL_ANNUAL_FEE_EDIT_2026-05-06.md`
-13. `docs/190_RELEASE_STATE_v306_2026-05-06.md`
-14. `docs/189_ADMIN_CONSOLE_REFRESH_UNSUPPORTED_ACTION_FIX_2026-05-05.md`
-15. `docs/188_RELEASE_STATE_v305_2026-05-05.md`
-16. `docs/186_RELEASE_STATE_v304_2026-05-05.md`
-17. `docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md`
-18. `docs/172_DEFERRED_SECURITY_BACKLOG_SECRET_MANAGER_KDF_2026-05-01.md`
+10. `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`（最新：v311〜v319 統合）
+11. `docs/195_RELEASE_STATE_v310_2026-05-08.md`
+12. `docs/194_RELEASE_STATE_v309_2026-05-08.md`
+13. `docs/193_RELEASE_STATE_v308_2026-05-06.md`
+14. `docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md`
+15. `docs/172_DEFERRED_SECURITY_BACKLOG_SECRET_MANAGER_KDF_2026-05-01.md`
 19. `docs/09_DEPLOYMENT_POLICY.md`
 20. `docs/05_AUTH_AND_ROLE_SPEC.md`
 21. `docs/04_DB_OPERATION_RUNBOOK.md`
@@ -99,18 +96,19 @@ fixed deployment: integrated/public `@290` x2 / member split `@44` / admin split
 実ブラウザ確認は操作者側で実施する。
 
 - 会員マイページ OAuth 再承認: member split に `drive` scope が追加済みのため、未実施環境では再承認が必要。
-- v304: 会員管理コンソールの「事業所職員」一覧で、事業所名クリックだけが詳細遷移し、メール配信変更が一括保存後も保持されること。
-- v305: 宛名リストで対象年度の年度外会員が出ないこと、年度内退会者が対象に残ること、氏名検索がスペース有無に依存しないこと。
-- v306: 管理コンソールで全体データ読込後に年会費コンソール等を保存しても `unsupported_action` の全画面エラーにならず、再ログイン不要で継続操作できること。
-- v307: 会員詳細編集画面で年会費ステータス、納入確認日、備考を年度行ごとに保存でき、年会費管理コンソール側にも反映されること。
-- v310: 宛名リストで「+ 条件を追加」から年度と状態を選択して絞り込めること。複数条件が AND で機能すること。アクティブフィルターチップが条件ごとに表示・個別削除できること。
-- v309: 年会費管理コンソールで申し送りメモパネルが表示・保存・自動更新されること。複数アカウントで同時編集して競合バナーが出ること。
-- v308: 会員詳細編集画面の年会費セクションで、2024 年度以降、当年度から過去 4 年分までの行が表示されること。
+- v319: サイドバーが5グループで折りたたみ表示される。変更申請がある場合にバッジが表示される。各コンソールにパンくずが表示される。
+- v318: システム設定が5カテゴリのサブナビで1カテゴリずつ表示される。保存ボタンは引き続き全設定一括保存。
+- v317: サイドバーグループの開閉状態がリロード後も保持される。MASTER専用項目に🔒が表示される。
+- v316: システム設定のテンプレートライブラリにテンプレートを追加・検証・デフォルト設定でき、名簿出力で選択できる。初回アクセス時に旧2枠設定が自動移行される。
+- v313〜v315: 名簿出力が自動読み込みされ「対象外」が表示されず「未納」に統一される。事業所会員が事業所名で表示される。
+- v312: 名簿出力の年会費条件ビルダーで複数年度AND絞り込みができる。
+- v311: 宛名リスト読み込み後に年会費フィルターに現在年度が自動設定される。
+- v309: 年会費管理コンソールで申し送りメモパネルが表示・保存・自動更新される。
 
 ## 8. 次担当者の最初の一手
 
 1. `git status --short` で既存差分と未追跡ファイルを確認する。
-2. `HANDOVER.md`、`docs/194_RELEASE_STATE_v309_2026-05-08.md`、`docs/09_DEPLOYMENT_POLICY.md` を読む。
+2. `HANDOVER.md`、`docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`、`docs/09_DEPLOYMENT_POLICY.md` を読む。
 3. 実装・構成・デプロイ前に不明点を確認する。
 4. 変更前に関連正本を読み、コード・データ・デプロイ・UI・認証・運用手順を変える場合は同ターンで正本を更新する。
 5. 本番系 `clasp` コマンドは最初から承認済みの安定経路で実行する。

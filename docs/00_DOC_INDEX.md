@@ -1,7 +1,7 @@
 # Document Index
 
-更新日: 2026-05-06
-現行バージョン: `v308`（admin @68 / member @44 / integrated-public @290）
+更新日: 2026-05-09
+現行バージョン: `v319`（admin @79 / member @44 / integrated-public @290）
 
 ## 1. Entry Points
 
@@ -32,6 +32,9 @@
 
 | 文書 | 内容 |
 |---|---|
+| `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md` | v311〜v319 統合リリース状態・第三者評価レポート。admin split `@71`〜`@79`。サイドバーリニューアル・設定サブナビ・テンプレートライブラリ・年会費多年度フィルター |
+| `docs/195_RELEASE_STATE_v310_2026-05-08.md` | v310 リリース状態。宛名リスト年会費納入フィルターを複数年度AND条件ビルダーに刷新、admin split `@70` |
+| `docs/194_RELEASE_STATE_v309_2026-05-08.md` | v309 リリース状態。年会費管理コンソールに管理者共有メモパネル追加、admin split `@69` |
 | `docs/193_RELEASE_STATE_v308_2026-05-06.md` | v308 リリース状態。会員詳細年会費表示を 2024 年度以降、当年度から過去 4 年分へ修正、admin split `@68` 同期証跡 |
 | `docs/192_RELEASE_STATE_v307_2026-05-06.md` | v307 リリース状態。会員詳細編集画面の年会費表示・編集追加、admin split `@67` 同期証跡 |
 | `docs/191_ADMIN_MEMBER_DETAIL_ANNUAL_FEE_EDIT_2026-05-06.md` | 会員詳細編集画面の年会費表示・編集追加 |

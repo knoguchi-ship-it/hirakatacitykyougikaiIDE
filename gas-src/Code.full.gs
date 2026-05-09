@@ -19914,7 +19914,7 @@ function generatePdfsForIds_(memberIds, templateFile, memberMap, staffByMember, 
         String(member['自宅郵便番号'] || ''), String(member['自宅都道府県'] || ''),
         String(member['自宅市区町村'] || ''), String(member['自宅住所'] || ''),
         String(member['代表メールアドレス'] || ''), String(member['入会日'] || ''),
-        feeMap[memberId] || 'NONE', year,
+        feeMap[memberId] || 'UNPAID', year, // 記録なし=UNPAID扱い（v314〜統一）
         String(member['介護支援専門員番号'] || ''),
       ]]);
       if (enrolledStaff.length > 0) {

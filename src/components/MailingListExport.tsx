@@ -25,9 +25,8 @@ const MEMBER_STATUS_LABELS: Record<string, { label: string; cls: string }> = {
 };
 
 const FEE_STATUS_LABELS: Record<string, { label: string; cls: string }> = {
-  PAID: { label: '納入済み', cls: 'bg-emerald-50 text-emerald-700' },
-  UNPAID: { label: '未納', cls: 'bg-rose-50 text-rose-700' },
-  NONE: { label: '記録なし', cls: 'bg-slate-100 text-slate-600' },
+  PAID:   { label: '納入済み', cls: 'bg-emerald-50 text-emerald-700' },
+  UNPAID: { label: '未納',    cls: 'bg-rose-50   text-rose-700'    },
 };
 
 const MAILING_DESTINATION_LABELS: Record<string, string> = {
