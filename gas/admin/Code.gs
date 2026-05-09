@@ -9983,11 +9983,17 @@ function getMembersForRoster_(payload) {
       feeHistories[yr] = (feeMapByYear[yr] && feeMapByYear[yr][memberId]) || 'UNPAID';
     });
 
-    var lastName  = String(m['姓'] || '').trim();
-    var firstName = String(m['名'] || '').trim();
-    var displayName = (lastName + ' ' + firstName).trim() ||
-                      String(m['代表メールアドレス'] || memberId);
-    var kana = (String(m['セイ'] || '') + ' ' + String(m['メイ'] || '')).trim();
+    var displayName, kana;
+    if (mtype === 'BUSINESS') {
+      // 事業所会員は事業所名のみ表示（姓/名は空のためメールや会員IDへの誤フォールバックを防ぐ）
+      displayName = String(m['勤務先名'] || '').trim() || memberId;
+      kana = '';
+    } else {
+      var lastName  = String(m['姓'] || '').trim();
+      var firstName = String(m['名'] || '').trim();
+      displayName = (lastName + ' ' + firstName).trim() || memberId;
+      kana = (String(m['セイ'] || '') + ' ' + String(m['メイ'] || '')).trim();
+    }
 
     results.push({
       memberId:           memberId,
