@@ -93,17 +93,21 @@ const RosterExport: React.FC<RosterExportProps> = ({
     processed: number;
   } | null>(null);
 
-  // 年会費条件（AND）でクライアント側フィルタリング
+  // 会員種別・在籍状態・年会費条件（AND）をすべてクライアント側でフィルタリング
   const filteredTargets = useMemo<RosterTarget[]>(() => {
-    const active = feeConditions.filter((c) => c.year !== '' && c.status !== '');
-    if (active.length === 0) return targets;
-    return targets.filter((target) =>
-      active.every((c) => {
+    const activeFee = feeConditions.filter((c) => c.year !== '' && c.status !== '');
+    return targets.filter((target) => {
+      if (!filterTypes.includes(target.memberType)) return false;
+      if (filterStatus === 'ACTIVE' && target.memberStatus !== 'ACTIVE') return false;
+      if (filterStatus === 'INCLUDING_SCHEDULED' &&
+          target.memberStatus !== 'ACTIVE' && target.memberStatus !== 'WITHDRAWAL_SCHEDULED') return false;
+      for (const c of activeFee) {
         const actual = (target.annualFeeHistories?.[c.year as number]) ?? 'UNPAID';
-        return actual === c.status;
-      })
-    );
-  }, [targets, feeConditions]);
+        if (actual !== c.status) return false;
+      }
+      return true;
+    });
+  }, [targets, filterTypes, filterStatus, feeConditions]);
 
   const effectiveTargets = useMemo<RosterTarget[]>(() => {
     if (selectedIds === null) {
@@ -112,11 +116,11 @@ const RosterExport: React.FC<RosterExportProps> = ({
     return filteredTargets.filter((target) => selectedIds.has(target.memberId));
   }, [filteredTargets, selectedIds, excludedIds]);
 
-  // 年会費条件変更時に選択を全リセット（Q4）
+  // 表示フィルター変更時に選択を全リセット
   useEffect(() => {
     setSelectedIds(null);
     setExcludedIds(new Set());
-  }, [feeConditions]);
+  }, [feeConditions, filterTypes, filterStatus]);
 
   const typeCount = useMemo(() => {
     const countMap: Record<string, number> = {};
@@ -146,8 +150,7 @@ const RosterExport: React.FC<RosterExportProps> = ({
     setGenerateError(null);
     try {
       const data = await api.getMembersForRoster({
-        memberTypes: filterTypes,
-        memberStatus: filterStatus,
+        memberStatus: 'ALL',   // 全在籍状態を取得（種別・状態はクライアント側でフィルタ）
         year: filterYear,
       });
       setTargets(data.targets);
@@ -159,7 +162,10 @@ const RosterExport: React.FC<RosterExportProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [api, filterStatus, filterTypes, filterYear, defaultYears]);
+  }, [api, filterYear, defaultYears]);
+
+  // 初回マウント時 + 在籍判定年度変更時に自動ロード
+  useEffect(() => { void loadTargets(); }, [loadTargets]);
 
   const selectAll = () => {
     setSelectedIds(null);
@@ -329,7 +335,18 @@ const RosterExport: React.FC<RosterExportProps> = ({
       </section>
 
       <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
-        <h3 className="text-base font-semibold text-slate-700">出力フィルタ</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold text-slate-700">出力フィルタ</h3>
+          <button
+            type="button"
+            onClick={loadTargets}
+            disabled={loading}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+          >
+            <span className={loading ? 'animate-spin' : ''}>↻</span>
+            {loading ? '読み込み中...' : '再読み込み'}
+          </button>
+        </div>
 
         <div>
           <p className="mb-2 text-sm font-medium text-slate-600">会員種別</p>
@@ -441,21 +458,18 @@ const RosterExport: React.FC<RosterExportProps> = ({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={loadTargets}
-          disabled={loading || filterTypes.length === 0}
-          className={`${btnCls} bg-primary-600 text-white hover:bg-primary-700`}
-        >
-          {loading ? '読み込み中...' : '対象を読み込む'}
-        </button>
-
         {loadError && (
           <p className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
             {loadError}
           </p>
         )}
       </section>
+
+      {loading && !hasLoaded && (
+        <div className="rounded-xl border border-slate-200 bg-white px-5 py-8 text-center text-sm text-slate-400">
+          読み込み中...
+        </div>
+      )}
 
       {hasLoaded && (
         <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
@@ -512,14 +526,14 @@ const RosterExport: React.FC<RosterExportProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {targets.length === 0 ? (
+                {filteredTargets.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
-                      対象がありません。フィルタを確認して再度読み込んでください。
+                      {targets.length === 0 ? '読み込み中...' : '条件に合う会員がいません。フィルタを確認してください。'}
                     </td>
                   </tr>
                 ) : (
-                  targets.map((target) => {
+                  filteredTargets.map((target) => {
                     const feeMeta = FEE_STATUS_LABELS[target.annualFeeStatus] ?? FEE_STATUS_LABELS.NONE;
                     return (
                       <tr
