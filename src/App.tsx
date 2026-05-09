@@ -293,6 +293,26 @@ const PUBLIC_PORTAL_DEFAULTS = {
 
 const ADMIN_SETTINGS_SECTION_CLASS = 'rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden';
 
+// v319: パンくずマップ（グループ名 › コンソール名）
+const BREADCRUMB_MAP: Record<string, { group: string; label: string }> = {
+  'admin':              { group: '会員管理',   label: '会員一覧' },
+  'member-detail':      { group: '会員管理',   label: '会員詳細' },
+  'staff-detail':       { group: '会員管理',   label: '事業所職員詳細' },
+  'change-requests':    { group: '会員管理',   label: '変更申請管理' },
+  'annual-fee-manage':  { group: '財務・帳票', label: '年会費管理' },
+  'payment-history':    { group: '財務・帳票', label: '支払い履歴管理' },
+  'claim-management':   { group: '財務・帳票', label: '請求管理' },
+  'roster-export':      { group: '財務・帳票', label: '名簿出力' },
+  'mailing-list-export':{ group: '財務・帳票', label: '宛名リスト出力' },
+  'template-help':      { group: '財務・帳票', label: 'テンプレートヘルプ' },
+  'training-manage':    { group: '研修・通知', label: '研修管理' },
+  'bulk-mail':          { group: '研修・通知', label: '一括メール送信' },
+  'officer-management': { group: '組織管理',   label: '役員管理' },
+  'admin-settings':     { group: 'システム',   label: 'システム設定' },
+  'system-permissions': { group: 'システム',   label: '権限管理' },
+  'member-delete':      { group: 'システム',   label: 'データ管理' },
+};
+
 type AdminSettingsSectionProps = {
   id: string;
   title: string;
@@ -427,6 +447,8 @@ const App: React.FC = () => {
   const [settingsIsDirty, setSettingsIsDirty] = useState(false);
   // v317: システム設定サブナビ
   const [settingsSub, setSettingsSub] = useState<'basic' | 'output' | 'email' | 'portal' | 'masters'>('basic');
+  // v319: 変更申請 PENDING バッジカウント
+  const [pendingChangeRequestCount, setPendingChangeRequestCount] = useState<number>(0);
   // v194: PDF名簿出力 & 一括メール送信設定
   const [rosterTemplateSsIdInput, setRosterTemplateSsIdInput] = useState('');
   const [reminderTemplateSsIdInput, setReminderTemplateSsIdInput] = useState('');
@@ -1459,6 +1481,14 @@ const App: React.FC = () => {
     attemptAutoAuth();
     return () => { cancelled = true; };
   }, [isAdminShell]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // v319: 管理者ログイン後に変更申請 PENDING カウントを取得
+  useEffect(() => {
+    if (!isAuthenticated || userRole !== 'ADMIN') return;
+    callApi<{ status: string }[]>('getAdminChangeRequests', { status: 'PENDING' })
+      .then((reqs) => setPendingChangeRequestCount(reqs.filter((r) => r.status === 'PENDING').length))
+      .catch(() => { /* サイレント失敗 */ });
+  }, [isAuthenticated, userRole]);
 
   // v192: 管理者ログインをセッション認証のみに分離（getMemberPortalData_ を呼ばない）
   // adminLoginWithData は checkAdminBySession + getMemberPortalData を1呼び出しで実行していたため
@@ -4636,10 +4666,19 @@ const App: React.FC = () => {
           showAdminPage={userRole === 'ADMIN'}
           showMemberPages={!isAdminShell}
           adminPermissionLevel={adminPermissionLevel}
+          pendingChangeRequestCount={pendingChangeRequestCount}
           onLogout={handleLogoutClick}
         />
       )}
       <main className="flex-1 min-w-0 p-8 overflow-y-auto relative overscroll-contain">
+        {/* v319: パンくずリスト（管理者ビューのみ） */}
+        {isAuthenticated && userRole === 'ADMIN' && BREADCRUMB_MAP[currentView] && (
+          <nav aria-label="パンくず" className="mb-4 flex items-center gap-1.5 text-xs text-slate-400">
+            <span>{BREADCRUMB_MAP[currentView].group}</span>
+            <span aria-hidden="true">›</span>
+            <span className="font-medium text-slate-600">{BREADCRUMB_MAP[currentView].label}</span>
+          </nav>
+        )}
         <div className="max-w-6xl mx-auto">{renderContent()}</div>
         <dialog
           ref={annualFeeLeaveDialogRef}

@@ -23,12 +23,14 @@ interface SidebarProps {
   showAdminPage: boolean;
   showMemberPages?: boolean;
   adminPermissionLevel?: AdminPermissionLevel | null;
+  pendingChangeRequestCount?: number;
 }
 
 interface NavItem {
   id: string;
   label: string;
   masterOnly?: boolean;
+  badge?: number;
 }
 
 interface NavGroup {
@@ -64,6 +66,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   showAdminPage,
   showMemberPages = true,
   adminPermissionLevel,
+  pendingChangeRequestCount = 0,
 }) => {
   const isFullAdmin = adminPermissionLevel === 'MASTER' || adminPermissionLevel === 'ADMIN';
   const isMaster = adminPermissionLevel === 'MASTER';
@@ -79,7 +82,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       defaultOpen: true,
       items: [
         { id: 'admin', label: '会員一覧' },
-        { id: 'change-requests', label: '変更申請管理' },
+        { id: 'change-requests', label: '変更申請管理', badge: pendingChangeRequestCount },
       ],
     },
     {
@@ -303,6 +306,7 @@ interface NavItemButtonProps {
   active: boolean;
   onClick: () => void;
   masterOnly?: boolean;
+  badge?: number;
   indent?: boolean;
 }
 
@@ -312,6 +316,7 @@ const NavItemButton: React.FC<NavItemButtonProps> = ({
   active,
   onClick,
   masterOnly,
+  badge,
   indent,
 }) => (
   <button
@@ -327,6 +332,13 @@ const NavItemButton: React.FC<NavItemButtonProps> = ({
   >
     {icon && <span className="shrink-0">{icon}</span>}
     <span className="flex-1 text-left truncate">{label}</span>
+    {badge !== undefined && badge > 0 && (
+      <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+        active ? 'bg-white/30 text-white' : 'bg-amber-500 text-white'
+      }`}>
+        {badge > 99 ? '99+' : badge}
+      </span>
+    )}
     {masterOnly && (
       <LockIcon className="w-3 h-3 shrink-0 opacity-60" />
     )}
@@ -386,6 +398,7 @@ const NavGroupSection: React.FC<NavGroupSectionProps> = ({
               active={currentView === item.id}
               onClick={() => onChangeView(item.id)}
               masterOnly={item.masterOnly}
+              badge={item.badge}
               indent
             />
           ))}
