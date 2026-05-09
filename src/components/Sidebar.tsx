@@ -1,5 +1,15 @@
-import React from 'react';
-import { BookOpenIcon, HomeIcon, CalendarIcon, SettingsIcon } from './Icons';
+import React, { useEffect, useState } from 'react';
+import {
+  BanknoteIcon,
+  BookOpenIcon,
+  BuildingIcon,
+  CalendarIcon,
+  ChevronDownIcon,
+  FileTextIcon,
+  LockIcon,
+  SettingsIcon,
+  UsersIcon,
+} from './Icons';
 import { Member, MemberType, AdminPermissionLevel } from '../types';
 
 interface SidebarProps {
@@ -15,6 +25,34 @@ interface SidebarProps {
   adminPermissionLevel?: AdminPermissionLevel | null;
 }
 
+interface NavItem {
+  id: string;
+  label: string;
+  masterOnly?: boolean;
+}
+
+interface NavGroup {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+  items: NavItem[];
+  defaultOpen?: boolean;
+}
+
+const STORAGE_KEY = 'sidebar_groups_v1';
+
+const loadGroupState = (defaults: Record<string, boolean>): Record<string, boolean> => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) return { ...defaults, ...JSON.parse(saved) };
+  } catch { /* ignore */ }
+  return { ...defaults };
+};
+
+const saveGroupState = (state: Record<string, boolean>) => {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* ignore */ }
+};
+
 const Sidebar: React.FC<SidebarProps> = ({
   currentView,
   onChangeView,
@@ -28,40 +66,102 @@ const Sidebar: React.FC<SidebarProps> = ({
   adminPermissionLevel,
 }) => {
   const isFullAdmin = adminPermissionLevel === 'MASTER' || adminPermissionLevel === 'ADMIN';
-  const isTrainingOnly = adminPermissionLevel === 'TRAINING_MANAGER' || adminPermissionLevel === 'TRAINING_REGISTRAR';
+  const isMaster = adminPermissionLevel === 'MASTER';
+  const isTrainingOnly =
+    adminPermissionLevel === 'TRAINING_MANAGER' ||
+    adminPermissionLevel === 'TRAINING_REGISTRAR';
 
-  const menuItems = [
-    ...(showMemberPages
-      ? [
-          { id: 'profile', label: '会員マイページ', icon: <BookOpenIcon className="w-5 h-5" /> },
-          { id: 'training-apply', label: '研修受講の申込み', icon: <CalendarIcon className="w-5 h-5" /> },
-        ]
-      : []),
-    ...(showAdminPage && isFullAdmin
-      ? [
-          { id: 'admin', label: '管理コンソール（会員管理）', icon: <HomeIcon className="w-5 h-5" /> },
-          { id: 'annual-fee-manage', label: '年会費管理コンソール', icon: <HomeIcon className="w-5 h-5" /> },
-          { id: 'training-manage', label: '研修管理コンソール', icon: <CalendarIcon className="w-5 h-5" /> },
-          { id: 'bulk-mail', label: '一括メール送信コンソール', icon: <HomeIcon className="w-5 h-5" /> },
-          { id: 'roster-export', label: '名簿出力コンソール', icon: <HomeIcon className="w-5 h-5" /> },
-          { id: 'mailing-list-export', label: '宛名リスト出力コンソール', icon: <HomeIcon className="w-5 h-5" /> },
-          { id: 'change-requests', label: '変更申請管理コンソール', icon: <HomeIcon className="w-5 h-5" /> },
-          { id: 'officer-management', label: '役員管理コンソール', icon: <HomeIcon className="w-5 h-5" /> },
-          { id: 'payment-history', label: '支払い履歴管理コンソール', icon: <HomeIcon className="w-5 h-5" /> },
-          { id: 'claim-management', label: '請求管理コンソール', icon: <HomeIcon className="w-5 h-5" /> },
-          { id: 'system-permissions', label: '管理コンソール（システム権限）', icon: <SettingsIcon className="w-5 h-5" /> },
-          { id: 'admin-settings', label: 'システム設定', icon: <SettingsIcon className="w-5 h-5" /> },
-          ...(adminPermissionLevel === 'MASTER'
-            ? [{ id: 'member-delete', label: 'データ管理コンソール', icon: <SettingsIcon className="w-5 h-5" /> }]
-            : []),
-        ]
-      : []),
-    ...(showAdminPage && isTrainingOnly
-      ? [
-          { id: 'training-manage', label: '研修管理コンソール', icon: <CalendarIcon className="w-5 h-5" /> },
-        ]
-      : []),
+  const adminGroups: NavGroup[] = [
+    {
+      id: 'members',
+      label: '会員管理',
+      icon: <UsersIcon className="w-4 h-4" />,
+      defaultOpen: true,
+      items: [
+        { id: 'admin', label: '会員一覧' },
+        { id: 'change-requests', label: '変更申請管理' },
+      ],
+    },
+    {
+      id: 'finance',
+      label: '財務・帳票',
+      icon: <BanknoteIcon className="w-4 h-4" />,
+      defaultOpen: true,
+      items: [
+        { id: 'annual-fee-manage', label: '年会費管理' },
+        { id: 'payment-history', label: '支払い履歴管理' },
+        { id: 'claim-management', label: '請求管理' },
+        { id: 'roster-export', label: '名簿出力' },
+        { id: 'mailing-list-export', label: '宛名リスト出力' },
+      ],
+    },
+    {
+      id: 'training',
+      label: '研修・通知',
+      icon: <CalendarIcon className="w-4 h-4" />,
+      defaultOpen: true,
+      items: [
+        { id: 'training-manage', label: '研修管理' },
+        { id: 'bulk-mail', label: '一括メール送信' },
+      ],
+    },
+    {
+      id: 'org',
+      label: '組織管理',
+      icon: <BuildingIcon className="w-4 h-4" />,
+      defaultOpen: true,
+      items: [
+        { id: 'officer-management', label: '役員管理' },
+      ],
+    },
   ];
+
+  const systemGroup: NavGroup = {
+    id: 'system',
+    label: 'システム',
+    icon: <SettingsIcon className="w-4 h-4" />,
+    defaultOpen: false,
+    items: [
+      { id: 'admin-settings', label: 'システム設定' },
+      { id: 'system-permissions', label: '権限管理' },
+      ...(isMaster ? [{ id: 'member-delete', label: 'データ管理', masterOnly: true }] : []),
+    ],
+  };
+
+  const allGroups = [...adminGroups, systemGroup];
+
+  const defaultOpen = allGroups.reduce<Record<string, boolean>>((acc, g) => {
+    acc[g.id] = g.defaultOpen ?? true;
+    return acc;
+  }, {});
+
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(
+    () => loadGroupState(defaultOpen),
+  );
+
+  // 現在のビューが属するグループを自動展開
+  useEffect(() => {
+    for (const g of allGroups) {
+      if (g.items.some((item) => item.id === currentView)) {
+        setOpenGroups((prev) => {
+          if (prev[g.id]) return prev;
+          const next = { ...prev, [g.id]: true };
+          saveGroupState(next);
+          return next;
+        });
+        break;
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentView]);
+
+  const toggleGroup = (id: string) => {
+    setOpenGroups((prev) => {
+      const next = { ...prev, [id]: !prev[id] };
+      saveGroupState(next);
+      return next;
+    });
+  };
 
   const permissionLabel = (level?: AdminPermissionLevel | null) => {
     const map: Record<string, string> = {
@@ -84,7 +184,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const getUserDisplayDetail = () => {
     if (role === 'ADMIN' && adminPermissionLevel) {
       const pLabel = permissionLabel(adminPermissionLevel);
-      if (currentUser) return `${memberPageTypeLabel} / 管理者権限: ${pLabel}`;
+      if (currentUser) return `管理者権限: ${pLabel}`;
       return `管理者権限: ${pLabel}`;
     }
     if (currentUser?.type === MemberType.BUSINESS) return memberPageTypeLabel;
@@ -95,58 +195,203 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <aside className="w-64 bg-slate-900 text-white h-screen sticky top-0 flex flex-col shadow-xl transition-all duration-300 overflow-hidden">
-      <div className="p-6 border-b border-slate-700">
-        <h1 className="text-xl font-bold tracking-tight">
-          枚方市
-          <br />
-          介護支援専門員
-          <br />
-          連絡協議会
+    <aside className="w-56 bg-slate-900 text-white h-screen sticky top-0 flex flex-col shadow-xl overflow-hidden">
+      {/* ヘッダー */}
+      <div className="px-5 py-4 border-b border-slate-700/60">
+        <h1 className="text-sm font-bold leading-snug tracking-tight text-white">
+          枚方市<br />介護支援専門員<br />連絡協議会
         </h1>
-        <p className="text-xs text-slate-400 mt-2">会員システム</p>
+        <p className="text-[10px] text-slate-400 mt-1">会員システム</p>
       </div>
 
-      <div className="p-4 border-b border-slate-700 bg-slate-800/50">
-        <div className="flex items-center space-x-3">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${role === 'ADMIN' ? 'bg-primary-500' : 'bg-green-500'}`}>
+      {/* ユーザー情報 */}
+      <div className="px-4 py-3 border-b border-slate-700/60 bg-slate-800/40">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div
+            className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+              role === 'ADMIN' ? 'bg-primary-500' : 'bg-emerald-500'
+            }`}
+          >
             {role === 'ADMIN' ? 'A' : 'M'}
           </div>
-          <div className="overflow-hidden">
-            <p className="text-sm font-bold truncate">{getUserDisplayName()}</p>
-            <p className="text-xs text-slate-400 truncate">{getUserDisplayDetail()}</p>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-white truncate">{getUserDisplayName()}</p>
+            <p className="text-[10px] text-slate-400 truncate">{getUserDisplayDetail()}</p>
           </div>
         </div>
         <button
           type="button"
           onClick={onLogout}
-          className="mt-4 w-full rounded-lg border border-slate-600 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-100 transition-colors hover:bg-slate-700"
+          className="mt-2.5 w-full rounded border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-700 transition-colors"
         >
           ログアウト
         </button>
       </div>
 
-      <div className="px-4 pt-4 text-xs text-slate-400">
-        会員マイページ種別: <span className="text-slate-200">{memberPageTypeLabel}</span>
-      </div>
+      {/* ナビゲーション */}
+      <nav className="flex-1 py-2 overflow-y-auto overscroll-contain">
 
-      <nav className="flex-1 p-4 space-y-2 overflow-y-auto overscroll-contain">
-        {menuItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => onChangeView(item.id)}
-            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors duration-200 ${
-              currentView === item.id
-                ? 'bg-primary-600 text-white'
-                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-            }`}
-          >
-            {item.icon}
-            <span className="font-medium">{item.label}</span>
-          </button>
-        ))}
+        {/* 会員マイページ（会員ログイン時） */}
+        {showMemberPages && (
+          <div className="px-2 pb-1">
+            {[
+              { id: 'profile', label: '会員マイページ', icon: <BookOpenIcon className="w-4 h-4" /> },
+              { id: 'training-apply', label: '研修の申込み', icon: <CalendarIcon className="w-4 h-4" /> },
+            ].map((item) => (
+              <NavItemButton
+                key={item.id}
+                id={item.id}
+                label={item.label}
+                icon={item.icon}
+                active={currentView === item.id}
+                onClick={() => onChangeView(item.id)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* 管理者メニュー（グルーピング） */}
+        {showAdminPage && isFullAdmin && (
+          <>
+            {adminGroups.map((group) => (
+              <NavGroupSection
+                key={group.id}
+                group={group}
+                currentView={currentView}
+                open={!!openGroups[group.id]}
+                onToggle={() => toggleGroup(group.id)}
+                onChangeView={onChangeView}
+              />
+            ))}
+
+            {/* システム グループ（区切り線あり） */}
+            <div className="mx-3 my-2 border-t border-slate-700/60" />
+            <NavGroupSection
+              group={systemGroup}
+              currentView={currentView}
+              open={!!openGroups[systemGroup.id]}
+              onToggle={() => toggleGroup(systemGroup.id)}
+              onChangeView={onChangeView}
+              dimmed
+            />
+          </>
+        )}
+
+        {/* 研修専用権限 */}
+        {showAdminPage && isTrainingOnly && (
+          <div className="px-2">
+            <NavItemButton
+              id="training-manage"
+              label="研修管理"
+              icon={<CalendarIcon className="w-4 h-4" />}
+              active={currentView === 'training-manage'}
+              onClick={() => onChangeView('training-manage')}
+            />
+          </div>
+        )}
       </nav>
     </aside>
+  );
+};
+
+/* ── 内部コンポーネント ─────────────────────────────────────────── */
+
+interface NavItemButtonProps {
+  id: string;
+  label: string;
+  icon?: React.ReactNode;
+  active: boolean;
+  onClick: () => void;
+  masterOnly?: boolean;
+  indent?: boolean;
+}
+
+const NavItemButton: React.FC<NavItemButtonProps> = ({
+  label,
+  icon,
+  active,
+  onClick,
+  masterOnly,
+  indent,
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-colors duration-150 ${
+      indent ? 'pl-7' : ''
+    } ${
+      active
+        ? 'bg-primary-600 text-white'
+        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+    }`}
+  >
+    {icon && <span className="shrink-0">{icon}</span>}
+    <span className="flex-1 text-left truncate">{label}</span>
+    {masterOnly && (
+      <LockIcon className="w-3 h-3 shrink-0 opacity-60" />
+    )}
+  </button>
+);
+
+interface NavGroupSectionProps {
+  group: NavGroup;
+  currentView: string;
+  open: boolean;
+  onToggle: () => void;
+  onChangeView: (view: string) => void;
+  dimmed?: boolean;
+}
+
+const NavGroupSection: React.FC<NavGroupSectionProps> = ({
+  group,
+  currentView,
+  open,
+  onToggle,
+  onChangeView,
+  dimmed,
+}) => {
+  const hasActive = group.items.some((item) => item.id === currentView);
+
+  return (
+    <div className="px-2 pb-0.5">
+      {/* グループヘッダー */}
+      <button
+        type="button"
+        onClick={onToggle}
+        className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-[11px] font-semibold tracking-wide transition-colors ${
+          dimmed
+            ? 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+            : hasActive
+            ? 'text-slate-200 hover:bg-slate-800'
+            : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+        }`}
+      >
+        <span className={`shrink-0 ${hasActive && !dimmed ? 'text-slate-300' : ''}`}>
+          {group.icon}
+        </span>
+        <span className="flex-1 text-left uppercase">{group.label}</span>
+        <ChevronDownIcon
+          className={`w-3 h-3 shrink-0 transition-transform duration-200 ${open ? '' : '-rotate-90'}`}
+        />
+      </button>
+
+      {/* アイテム一覧 */}
+      {open && (
+        <div className="mt-0.5 space-y-0.5">
+          {group.items.map((item) => (
+            <NavItemButton
+              key={item.id}
+              id={item.id}
+              label={item.label}
+              active={currentView === item.id}
+              onClick={() => onChangeView(item.id)}
+              masterOnly={item.masterOnly}
+              indent
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
 
