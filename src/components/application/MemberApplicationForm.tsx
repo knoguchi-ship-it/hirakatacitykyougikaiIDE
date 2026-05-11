@@ -590,14 +590,14 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
           </section>
 
           {noticeDialogOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4 py-6">
+            <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-slate-900/45 px-3 py-3 sm:items-center sm:px-4 sm:py-6">
               <div
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="membership-notice-title"
-                className="max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-2xl"
+                className="flex max-h-[100dvh] sm:max-h-[90dvh] w-full max-w-3xl flex-col overflow-hidden rounded-[20px] sm:rounded-[28px] border border-slate-200 bg-white shadow-2xl"
               >
-                <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+                <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6 sm:py-5">
                   <div>
                     <h4 id="membership-notice-title" className="text-xl font-bold text-slate-900">
                       事務局からのお願い（ご入会にあたって）
@@ -615,7 +615,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
                   </button>
                 </div>
 
-                <div className="max-h-[calc(90vh-168px)] overflow-y-auto px-6 py-6">
+                <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6 sm:py-6">
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     {MEMBERSHIP_NOTICE_HIGHLIGHTS.map(item => (
                       <div key={item.title} className="rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-sm">
@@ -674,11 +674,11 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
                   </label>
                 </div>
 
-                <div className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-white px-6 py-4 sm:flex-row sm:justify-between">
+                <div className="flex shrink-0 flex-col-reverse gap-3 border-t border-slate-200 bg-white px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-between sm:px-6">
                   <button
                     type="button"
                     onClick={() => setNoticeDialogOpen(false)}
-                    className="rounded-full border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-400"
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-full border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-400"
                   >
                     閉じる
                   </button>
@@ -693,7 +693,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
                       });
                       setNoticeDialogOpen(false);
                     }}
-                    className="rounded-full bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-700"
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-full bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-700"
                   >
                     内容を確認して閉じる
                   </button>
