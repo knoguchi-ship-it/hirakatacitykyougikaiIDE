@@ -15,8 +15,7 @@ fixed deployment: integrated/public `@296` x2 / member split `@52` / admin split
 - split project の広範な関数本体 pruning は v283 で破損したため停止中。public artifact は v289 で comment/string を除外した依存解析と top-level callable allowlist 検査を導入済み。
 - release 前に `npm run security:public-boundary` / `npm run security:split-boundary` を実行し、public/member/admin 境界が崩れていないことを確認する。
 - member/admin split artifact の top-level callable は `doGet` / `processApiRequest` のみに制限済み。
-- `v309`: 年会費管理コンソールに管理者共有メモ（申し送りホワイトボード）を追加。admin split `@69`。詳細: `docs/194_RELEASE_STATE_v309_2026-05-08.md`
-- `v308`: 会員詳細編集画面の年会費表示を、2024 年度以降、当年度から過去 4 年分へ修正。admin split `@68`。詳細: `docs/193_RELEASE_STATE_v308_2026-05-06.md`
+- **v320〜v332（2026-05-11）**: 全 3 ポータルで viewport meta + WCAG 2.2 AAA タップターゲット (44×44px) + iOS Safari モーダル UX + Sidebar モバイルドロアー + パスワード規約 (8〜20文字・許可文字制限) + `member_unauthorized` / `unsupported_action` の利用者向け平易表示を整備。Playwright 自動レスポンシブテスト **98/98 セル全合格** を達成。次担当者向け統合引継ぎ正本: `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md`、テスト正本: `docs/198_RESPONSIVE_TEST_REPORT_2026-05-11.md`。
 
 ## 2. 最初に読む順序
 
@@ -29,19 +28,21 @@ fixed deployment: integrated/public `@296` x2 / member split `@52` / admin split
 7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `docs/197_RELEASE_STATE_v320_2026-05-11.md`（最新：v320 モバイル viewport / レスポンシブ）
-11. `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`（v311〜v319 統合）
-12. `docs/195_RELEASE_STATE_v310_2026-05-08.md`
-13. `docs/194_RELEASE_STATE_v309_2026-05-08.md`
-14. `docs/193_RELEASE_STATE_v308_2026-05-06.md`
-15. `docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md`
-16. `docs/172_DEFERRED_SECURITY_BACKLOG_SECRET_MANAGER_KDF_2026-05-01.md`
-17. `docs/09_DEPLOYMENT_POLICY.md`
-18. `docs/05_AUTH_AND_ROLE_SPEC.md`
-19. `docs/04_DB_OPERATION_RUNBOOK.md`
-20. `docs/03_DATA_MODEL.md`
-21. `docs/00_DOC_INDEX.md`
-22. `docs/archive/historical/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`（補足状態サマリ。正本は `HANDOVER.md`）
+10. `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md`（**最新：v320〜v332 統合・引継ぎ正本**）
+11. `docs/198_RESPONSIVE_TEST_REPORT_2026-05-11.md`（Playwright 自動レスポンシブテスト正本・98/98 セル合格）
+12. `docs/197_RELEASE_STATE_v320_2026-05-11.md`（v320 初出時の経緯）
+13. `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`（v311〜v319 統合）
+14. `docs/195_RELEASE_STATE_v310_2026-05-08.md`
+15. `docs/194_RELEASE_STATE_v309_2026-05-08.md`
+16. `docs/193_RELEASE_STATE_v308_2026-05-06.md`
+17. `docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md`
+18. `docs/172_DEFERRED_SECURITY_BACKLOG_SECRET_MANAGER_KDF_2026-05-01.md`
+19. `docs/09_DEPLOYMENT_POLICY.md`
+20. `docs/05_AUTH_AND_ROLE_SPEC.md`
+21. `docs/04_DB_OPERATION_RUNBOOK.md`
+22. `docs/03_DATA_MODEL.md`
+23. `docs/00_DOC_INDEX.md`
+24. `docs/archive/historical/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`（補足状態サマリ。正本は `HANDOVER.md`）
 
 ## 3. 配信境界
 
@@ -115,7 +116,13 @@ fixed deployment: integrated/public `@296` x2 / member split `@52` / admin split
 
 実ブラウザ確認は操作者側で実施する。
 
-- **v320 モバイル実機確認（最優先）**: iPhone Safari と Android Chrome で公開ポータル・会員マイページ・管理者ポータルを開き、白ページが解消され、レイアウトが破綻なく表示・操作できることを確認する。確認端末幅の目安: 360px / 390px / 414px。
+### 最優先（v320〜v332 関連）
+- **モバイル実機確認**: iPhone Safari / Android Chrome（端末幅 360〜414px）で公開ポータル・会員マイページ・管理者ポータルにアクセスし、白ページが解消され、サイドバーがハンバーガーメニュー → ドロアー展開でき、各 CTA が指で押せるサイズ（≧44px）で表示されることを確認。
+- **パスワード変更**: 会員マイページ → パスワード変更モーダルで、規約パネル（8〜20 文字・許可文字一覧）が見え、不正値を入力すると **モーダル内** に警告が表示されることを確認。
+- **役員ステータスカード**: 役員会員（広報組織化委員長など）でログインし、`unsupported_action` / `member_unauthorized` のエラーが表示されず、振込口座と請求情報が正常に読み込まれることを確認。
+- **VoiceOver / TalkBack**: 任意フェーズ。サイドバードロアーとモーダルがスクリーンリーダー操作可能であること。
+
+### 既存（v311〜v319 関連、未確認分）
 - 会員マイページ OAuth 再承認: member split に `drive` scope が追加済みのため、未実施環境では再承認が必要。
 - v319: サイドバーが5グループで折りたたみ表示される。変更申請がある場合にバッジが表示される。各コンソールにパンくずが表示される。
 - v318: システム設定が5カテゴリのサブナビで1カテゴリずつ表示される。保存ボタンは引き続き全設定一括保存。
@@ -128,11 +135,20 @@ fixed deployment: integrated/public `@296` x2 / member split `@52` / admin split
 
 ## 8. 次担当者の最初の一手
 
-1. `git status --short` で既存差分と未追跡ファイルを確認する。
-2. `HANDOVER.md`、`docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`、`docs/09_DEPLOYMENT_POLICY.md` を読む。
-3. 実装・構成・デプロイ前に不明点を確認する。
-4. 変更前に関連正本を読み、コード・データ・デプロイ・UI・認証・運用手順を変える場合は同ターンで正本を更新する。
-5. 本番系 `clasp` コマンドは最初から承認済みの安定経路で実行する。
+1. `git status --short` で既存差分と未追跡ファイルを確認する（直近セッション終了時点で clean）。
+2. **次の 3 件を必ず読む**:
+   - `AGENTS.md`（特に **§0 シークレット最優先絶対ルール** と §4 レスポンシブ必須）
+   - `HANDOVER.md`（本文書）
+   - `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md`（直近 13 リリースの統合引継ぎ正本）
+3. テストハーネス前提を整える（必要に応じて）:
+   - Member テスト: `.env.test.example` を `.env.test` にコピーし、`MEMBER_LOGIN_ID` / `MEMBER_PASSWORD` を埋める（`demo-ind-001` はロック中。`demo-ind-002` などを使用）。
+   - Admin テスト: `node scripts/auth-bootstrap-admin.mjs` で Google ログイン → `.test-out/auth-admin.json` を作成（通常 1〜2 週間有効）。
+   - これらの認証情報は **絶対にチャット・コミット・ログ・ドキュメントに値を再掲しない**（§0）。
+4. 実装・構成・デプロイ前に不明点を確認する。複数解釈が成立する場合は推測で実装せず、YesNo か選択肢で答えられる形で質問する。
+5. 変更前に関連正本を読み、コード・データ・デプロイ・UI・認証・運用手順を変える場合は同ターンで正本を更新する。
+6. 本番系 `clasp` コマンドは最初から承認済みの安定経路で実行する。
+7. リリース完了条件: `build → push → version → fixed deployment sync → verification → document update`（§5）。
+8. リリース後、可能なら `node scripts/responsive-test*.mjs` でレスポンシブ品質に後退がないことを確認。
 
 ## 9. 標準確認コマンド
 
@@ -140,9 +156,17 @@ fixed deployment: integrated/public `@296` x2 / member split `@52` / admin split
 git status --short
 git diff
 npm run typecheck
-npm run build:gas:admin
+npm run build:gas
 npm run security:public-boundary
 npm run security:split-boundary
+```
+
+レスポンシブ後退を防ぐための自動テスト（任意・要 .env.test / .test-out/auth-admin.json）:
+
+```bash
+node scripts/responsive-test.mjs         # 公開ポータル
+node scripts/responsive-test-member.mjs  # 会員マイページ
+node scripts/responsive-test-admin.mjs   # 管理者ポータル
 ```
 
 本番反映時は `docs/09_DEPLOYMENT_POLICY.md` の `build -> push -> version -> fixed deployment sync -> verification -> document update` を完了条件とする。

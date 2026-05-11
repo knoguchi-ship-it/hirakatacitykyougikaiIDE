@@ -1,7 +1,7 @@
 # Document Index
 
-更新日: 2026-05-09
-現行バージョン: `v319`（admin @79 / member @44 / integrated-public @290）
+更新日: 2026-05-11
+現行バージョン: `v332`（integrated-public `@296` x2 / member split `@52` / admin split `@90`）
 
 ## 1. Entry Points
 
@@ -32,6 +32,9 @@
 
 | 文書 | 内容 |
 |---|---|
+| `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md` | **最新** v320〜v332 統合（モバイル viewport / レスポンシブ全面強化 / WCAG 2.2 AAA 完全達成 / Playwright 自動テスト 98/98 セル / パスワード規約 8〜20 / `member_unauthorized` 解消 / `getOfficerMasterData` を member 公開） |
+| `docs/198_RESPONSIVE_TEST_REPORT_2026-05-11.md` | レスポンシブ自動テスト正本（Public 21 / Member 21 / Admin 56 セル全合格）と Playwright ハーネスの実装方針 |
+| `docs/197_RELEASE_STATE_v320_2026-05-11.md` | v320 リリース時の経緯記録（GAS 外側 iframe ラッパーへの viewport addMetaTag） |
 | `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md` | v311〜v319 統合リリース状態・第三者評価レポート。admin split `@71`〜`@79`。サイドバーリニューアル・設定サブナビ・テンプレートライブラリ・年会費多年度フィルター |
 | `docs/195_RELEASE_STATE_v310_2026-05-08.md` | v310 リリース状態。宛名リスト年会費納入フィルターを複数年度AND条件ビルダーに刷新、admin split `@70` |
 | `docs/194_RELEASE_STATE_v309_2026-05-08.md` | v309 リリース状態。年会費管理コンソールに管理者共有メモパネル追加、admin split `@69` |
