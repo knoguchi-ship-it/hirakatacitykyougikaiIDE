@@ -28,6 +28,8 @@ const allowedMemberActions = [
   'deleteMyClaim',
   'uploadClaimAttachment',
   'removeClaimAttachment',
+  // v331: 請求フォームの選択肢（組織・役職・支払い種別）描画用 — 読み取り専用、会員公開でも安全
+  'getOfficerMasterData',
 ];
 const forbiddenTopLevelFunctions = [
   'rebuildDatabaseSchema',

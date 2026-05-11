@@ -696,6 +696,8 @@ var MEMBER_ALLOWED_ACTIONS = {
   deleteMyClaim: true,
   uploadClaimAttachment: true,
   removeClaimAttachment: true,
+  // v331: 請求フォームの選択肢（組織・役職・支払い種別）描画用 — 読み取り専用、会員公開でも安全。
+  getOfficerMasterData: true,
 };
 
 // 管理者ログイン専用アクション: Session.getActiveUser() による自己完結型認証のため、
@@ -798,6 +800,10 @@ function processApiRequest(action, payload) {
     }
     if (action === 'removeClaimAttachment') {
       return JSON.stringify({ success: true, data: removeClaimAttachment_(parsedPayload) });
+    }
+    // v331: 請求フォームの選択肢（組織・役職・支払い種別）描画用 — 読み取り専用
+    if (action === 'getOfficerMasterData') {
+      return JSON.stringify({ success: true, data: getOfficerMasterData_() });
     }
 
 
@@ -1606,6 +1612,12 @@ function changePassword_(request) {
 
   if (newPassword.length < PASSWORD_MIN_LENGTH) {
     throw new Error('新しいパスワードは' + PASSWORD_MIN_LENGTH + '文字以上で入力してください。');
+  }
+  if (newPassword.length > PASSWORD_MAX_LENGTH) {
+    throw new Error('新しいパスワードは' + PASSWORD_MAX_LENGTH + '文字以内で入力してください。');
+  }
+  if (!validatePasswordCharset_(newPassword)) {
+    throw new Error('使用できない文字が含まれています。半角英数字と一部記号 (! @ # $ % ^ * ( ) _ + - = [ ] { } ; : , . ? / | ~) のみ使用できます。');
   }
 
   var ss = getOrCreateDatabase_();
@@ -4991,7 +5003,18 @@ function backfillBusinessStaffNameColumns_(ss) {
 // Password hashing (PBKDF2 + verifier-side pepper)
 // ---------------------------------------------------------------------------
 
-var PASSWORD_MIN_LENGTH = 15;
+// v331: パスワード長制約（8〜19 文字 — user-supplied）
+// generateCredentialTempPassword_ で生成する初期パスワードは PASSWORD_GENERATED_LENGTH（15）固定。
+var PASSWORD_MIN_LENGTH = 8;
+var PASSWORD_MAX_LENGTH = 19;
+var PASSWORD_GENERATED_LENGTH = 15;
+// v331: 許可文字 — ASCII 英数 + 安全記号のみ。エスケープ可能な記号
+// (\ ` ' " < > &)、空白、制御文字は禁止（インジェクション・XSS・コマンド注入対策）。
+var PASSWORD_ALLOWED_REGEX = /^[A-Za-z0-9!@#$%^*()_+=\-\[\]{};:,.?\/|~]+$/;
+function validatePasswordCharset_(password) {
+  if (typeof password !== 'string' || password.length === 0) return false;
+  return PASSWORD_ALLOWED_REGEX.test(password);
+}
 var PASSWORD_HASH_PEPPER_PROPERTY = 'PASSWORD_HASH_PEPPER_V1';
 var PASSWORD_HASH_PEPPER_ID = 'v1';
 
@@ -5284,6 +5307,17 @@ function getMemberOfficerStatus_(payload) {
 
   var bankAccount = isOfficer ? getBankAccount_({ memberId: staffId ? '' : memberId, staffId: staffId }) : null;
   return { isOfficer: isOfficer, activeRoles: activeRoles, bankAccount: bankAccount };
+}
+
+// v331: 請求フォームの選択肢（組織・役職・支払い種別）描画用 — 読み取り専用、会員公開でも安全。
+// gas-src/Code.full.gs のミラー（getOfficerMasterData_ を会員側でも実行可能にする）。
+function getOfficerMasterData_() {
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  var orgs = getRowsAsObjects_(ss, 'M_組織マスタ').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var roles = getRowsAsObjects_(ss, 'M_役職マスタ').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var paymentTypes = getRowsAsObjects_(ss, 'M_支払い種別マスタ').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  return { organizations: orgs, roles: roles, paymentTypes: paymentTypes };
 }
 
 function saveMemberBankAccount_(payload) {

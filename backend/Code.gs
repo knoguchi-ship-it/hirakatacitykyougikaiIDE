@@ -5885,12 +5885,12 @@ function backfillBusinessStaffNameColumns_(ss) {
  */
 
 /**
- * ランダムパスワードを生成する（15文字以上、英数字）
+ * ランダムパスワードを生成する（PASSWORD_GENERATED_LENGTH 文字、英数字のみ）
  */
 function generateRandomPassword_() {
   var chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   var pw = '';
-  for (var i = 0; i < PASSWORD_MIN_LENGTH; i++) {
+  for (var i = 0; i < PASSWORD_GENERATED_LENGTH; i++) {
     pw += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return pw;
@@ -6126,12 +6126,11 @@ function generateRandomPassword_() {
  * LOG_SPREADSHEET_ID をこのプロジェクトのスクリプトプロパティに設定する。
  * admin/member split に同じログSSIDを適用するために使用する。
  */
-
-// ---------------------------------------------------------------------------
-// Password hashing (PBKDF2 + verifier-side pepper)
-// ---------------------------------------------------------------------------
-
-var PASSWORD_MIN_LENGTH = 15;
+var PASSWORD_MAX_LENGTH = 19;
+var PASSWORD_GENERATED_LENGTH = 15;
+// v331: 許可文字 — ASCII 英数 + 安全記号のみ。エスケープ可能な記号
+// (\ ` ' " < > &)、空白、制御文字は禁止（インジェクション・XSS・コマンド注入対策）。
+var PASSWORD_ALLOWED_REGEX = /^[A-Za-z0-9!@#$%^*()_+=\-\[\]{};:,.?\/|~]+$/;
 var PASSWORD_HASH_PEPPER_PROPERTY = 'PASSWORD_HASH_PEPPER_V1';
 var PASSWORD_HASH_PEPPER_ID = 'v1';
 

@@ -9285,7 +9285,7 @@ function backfillBusinessStaffNameColumns_(ss) {
 function generateRandomPassword_() {
   var chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   var pw = '';
-  for (var i = 0; i < PASSWORD_MIN_LENGTH; i++) {
+  for (var i = 0; i < PASSWORD_GENERATED_LENGTH; i++) {
     pw += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return pw;
@@ -11231,7 +11231,18 @@ function getDeleteLogs_(payload) {
 // Password hashing (PBKDF2 + verifier-side pepper)
 // ---------------------------------------------------------------------------
 
-var PASSWORD_MIN_LENGTH = 15;
+// v331: パスワード長制約（8〜19 文字 — user-supplied）
+// generateCredentialTempPassword_ で生成する初期パスワードは PASSWORD_GENERATED_LENGTH（15）固定。
+var PASSWORD_MIN_LENGTH = 8;
+var PASSWORD_MAX_LENGTH = 19;
+var PASSWORD_GENERATED_LENGTH = 15;
+// v331: 許可文字 — ASCII 英数 + 安全記号のみ。エスケープ可能な記号
+// (\ ` ' " < > &)、空白、制御文字は禁止（インジェクション・XSS・コマンド注入対策）。
+var PASSWORD_ALLOWED_REGEX = /^[A-Za-z0-9!@#$%^*()_+=\-\[\]{};:,.?\/|~]+$/;
+function validatePasswordCharset_(password) {
+  if (typeof password !== 'string' || password.length === 0) return false;
+  return PASSWORD_ALLOWED_REGEX.test(password);
+}
 var PASSWORD_HASH_PEPPER_PROPERTY = 'PASSWORD_HASH_PEPPER_V1';
 var PASSWORD_HASH_PEPPER_ID = 'v1';
 

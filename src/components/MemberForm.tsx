@@ -752,6 +752,13 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
     alert("登録情報を更新しました。");
   };
 
+  // v331: パスワード規約 — 8〜19 文字、半角英数 + 安全記号のみ
+  // サーバー側 PASSWORD_ALLOWED_REGEX と同期。エスケープ可能な記号は除外。
+  const PASSWORD_MIN = 8;
+  const PASSWORD_MAX = 19;
+  const PASSWORD_ALLOWED_REGEX = /^[A-Za-z0-9!@#$%^*()_+=\-\[\]{};:,.?/|~]+$/;
+  const PASSWORD_ALLOWED_SYMBOLS_DISPLAY = '! @ # $ % ^ * ( ) _ + - = [ ] { } ; : , . ? / | ~';
+
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!passwordForm.currentPassword) {
@@ -764,8 +771,18 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
       setPasswordSuccess(null);
       return;
     }
-    if (passwordForm.nextPassword.length < 15) {
-      setPasswordError('新しいパスワードは15文字以上で入力してください。');
+    if (passwordForm.nextPassword.length < PASSWORD_MIN) {
+      setPasswordError(`新しいパスワードは${PASSWORD_MIN}文字以上で入力してください。`);
+      setPasswordSuccess(null);
+      return;
+    }
+    if (passwordForm.nextPassword.length > PASSWORD_MAX) {
+      setPasswordError(`新しいパスワードは${PASSWORD_MAX}文字以内で入力してください。`);
+      setPasswordSuccess(null);
+      return;
+    }
+    if (!PASSWORD_ALLOWED_REGEX.test(passwordForm.nextPassword)) {
+      setPasswordError(`使用できない文字が含まれています。半角英数字と一部記号 (${PASSWORD_ALLOWED_SYMBOLS_DISPLAY}) のみ使用できます。`);
       setPasswordSuccess(null);
       return;
     }
@@ -964,12 +981,18 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
             </div>
             <div className="md:col-span-2 flex items-center justify-between">
               <div>
-                {passwordError && <p className="text-sm text-red-600">{passwordError}</p>}
-                {passwordSuccess && <p className="text-sm text-green-600">{passwordSuccess}</p>}
+                {/* v331: パスワード変更時の警告・成功表示はモーダル内に移動済み。
+                    モーダル閉じ後の永続表示はしない（必要なら再オープン時にモーダル内に再表示）。 */}
               </div>
               <button
                 type="button"
-                onClick={() => setPasswordModalOpen(true)}
+                onClick={() => {
+                  // v331: モーダル再オープン時は前回のエラー・成功・入力をクリア
+                  setPasswordError(null);
+                  setPasswordSuccess(null);
+                  setPasswordForm({ currentPassword: '', nextPassword: '', confirmPassword: '' });
+                  setPasswordModalOpen(true);
+                }}
                 title="別ウィンドウで開きます"
                 className="inline-flex min-h-[44px] items-center justify-center px-4 py-2 rounded-lg text-sm font-bold border text-cyan-900 bg-cyan-50 border-cyan-300 hover:bg-cyan-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 after:ml-1 after:content-['↗']"
               >
@@ -984,37 +1007,71 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
       {passwordModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => setPasswordModalOpen(false)} />
-          <div className="relative w-full max-w-md bg-white rounded-xl shadow-2xl border border-slate-200 p-6">
-            <h3 className="text-lg font-bold text-slate-900 mb-4">パスワード変更</h3>
+          <div role="dialog" aria-modal="true" aria-labelledby="password-change-title" className="relative w-full max-w-md bg-white rounded-xl shadow-2xl border border-slate-200 p-6">
+            <h3 id="password-change-title" className="text-lg font-bold text-slate-900 mb-2">パスワード変更</h3>
+
+            {/* v331: パスワード規約案内（モーダル内） */}
+            <div className="mb-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-700">
+              <p className="font-semibold text-slate-800">パスワード規約</p>
+              <ul className="mt-1 list-disc pl-4 space-y-0.5">
+                <li>{PASSWORD_MIN}文字以上 {PASSWORD_MAX}文字以内（{PASSWORD_MAX + 1}文字未満）</li>
+                <li>半角英数字（a–z, A–Z, 0–9）と次の記号のみ使用可: <code className="font-mono text-[11px] text-slate-800">{PASSWORD_ALLOWED_SYMBOLS_DISPLAY}</code></li>
+                <li>使用不可: 空白・全角文字・<code className="font-mono">\</code> <code className="font-mono">`</code> <code className="font-mono">'</code> <code className="font-mono">"</code> <code className="font-mono">&lt;</code> <code className="font-mono">&gt;</code> <code className="font-mono">&amp;</code>（インジェクション・XSS 対策）</li>
+              </ul>
+            </div>
+
+            {/* v331: 警告／成功表示をモーダル内に集約 */}
+            {passwordError && (
+              <div role="alert" aria-live="assertive" className="mb-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {passwordError}
+              </div>
+            )}
+            {passwordSuccess && (
+              <div role="status" aria-live="polite" className="mb-3 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                {passwordSuccess}
+              </div>
+            )}
+
             <form onSubmit={handlePasswordChange} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">現在のパスワード</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1" htmlFor="pw-current">現在のパスワード</label>
                 <input
+                  id="pw-current"
                   type="password"
                   value={passwordForm.currentPassword}
                   onChange={(e) => setPasswordForm((prev) => ({ ...prev, currentPassword: e.target.value }))}
                   className="w-full rounded-md shadow-sm border border-slate-300 p-2"
                   autoComplete="current-password"
+                  maxLength={PASSWORD_MAX}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">新しいパスワード</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1" htmlFor="pw-next">新しいパスワード（{PASSWORD_MIN}〜{PASSWORD_MAX}文字）</label>
                 <input
+                  id="pw-next"
                   type="password"
                   value={passwordForm.nextPassword}
                   onChange={(e) => setPasswordForm((prev) => ({ ...prev, nextPassword: e.target.value }))}
                   className="w-full rounded-md shadow-sm border border-slate-300 p-2"
                   autoComplete="new-password"
+                  minLength={PASSWORD_MIN}
+                  maxLength={PASSWORD_MAX}
+                  pattern="[A-Za-z0-9!@#$%^*()_+=\-\[\]{};:,.?/|~]+"
+                  title={`${PASSWORD_MIN}〜${PASSWORD_MAX}文字。半角英数字と記号 ${PASSWORD_ALLOWED_SYMBOLS_DISPLAY} のみ。`}
                 />
+                <p className="mt-1 text-xs text-slate-500">{passwordForm.nextPassword.length} / {PASSWORD_MAX} 文字</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">新しいパスワード（確認）</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1" htmlFor="pw-confirm">新しいパスワード（確認）</label>
                 <input
+                  id="pw-confirm"
                   type="password"
                   value={passwordForm.confirmPassword}
                   onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
                   className="w-full rounded-md shadow-sm border border-slate-300 p-2"
                   autoComplete="new-password"
+                  minLength={PASSWORD_MIN}
+                  maxLength={PASSWORD_MAX}
                 />
               </div>
               <div className="flex justify-end gap-2 pt-2">
