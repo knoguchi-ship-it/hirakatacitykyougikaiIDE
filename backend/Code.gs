@@ -598,8 +598,7 @@ function doGet(e) {
   var output = HtmlService.createHtmlOutputFromFile(route.file)
     .setTitle(route.title)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover')
-    .addMetaTag('theme-color', '#0369a1');
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
 
   try {
     var MEMBER_PNG_B64 =
