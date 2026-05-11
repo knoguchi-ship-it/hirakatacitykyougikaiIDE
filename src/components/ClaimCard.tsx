@@ -321,7 +321,22 @@ const ClaimCard: React.FC<ClaimCardProps> = ({ activeRoles }) => {
   };
 
   if (loading) return <div className="mt-2 text-sm text-slate-400">請求情報を読み込み中…</div>;
-  if (loadError) return <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{loadError}</div>;
+  if (loadError) {
+    // v331: 生エラーコードを利用者向けの平易なメッセージに置換し、状態を区別しやすくする。
+    const raw = loadError;
+    let friendly = raw;
+    if (/member_unauthorized/i.test(raw) || /member_session_expired/i.test(raw)) {
+      friendly = 'ログインセッションが切れています。一度ログアウト後、再度ログインしてください。';
+    } else if (/unsupported_action/i.test(raw)) {
+      friendly = '請求情報の読み込みに失敗しました。お手数ですがページを再読み込みしてください。';
+    }
+    return (
+      <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <p className="font-semibold mb-1">請求情報を読み込めませんでした</p>
+        <p>{friendly}</p>
+      </div>
+    );
+  }
 
   return (
     <div>

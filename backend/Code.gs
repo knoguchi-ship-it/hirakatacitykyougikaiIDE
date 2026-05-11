@@ -6126,7 +6126,7 @@ function generateRandomPassword_() {
  * LOG_SPREADSHEET_ID をこのプロジェクトのスクリプトプロパティに設定する。
  * admin/member split に同じログSSIDを適用するために使用する。
  */
-var PASSWORD_MAX_LENGTH = 19;
+var PASSWORD_MAX_LENGTH = 20;
 var PASSWORD_GENERATED_LENGTH = 15;
 // v331: 許可文字 — ASCII 英数 + 安全記号のみ。エスケープ可能な記号
 // (\ ` ' " < > &)、空白、制御文字は禁止（インジェクション・XSS・コマンド注入対策）。

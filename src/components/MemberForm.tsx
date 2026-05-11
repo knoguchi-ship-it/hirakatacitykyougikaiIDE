@@ -752,10 +752,10 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
     alert("登録情報を更新しました。");
   };
 
-  // v331: パスワード規約 — 8〜19 文字、半角英数 + 安全記号のみ
+  // v332: パスワード規約 — 8〜20 文字、半角英数 + 安全記号のみ
   // サーバー側 PASSWORD_ALLOWED_REGEX と同期。エスケープ可能な記号は除外。
   const PASSWORD_MIN = 8;
-  const PASSWORD_MAX = 19;
+  const PASSWORD_MAX = 20;
   const PASSWORD_ALLOWED_REGEX = /^[A-Za-z0-9!@#$%^*()_+=\-\[\]{};:,.?/|~]+$/;
   const PASSWORD_ALLOWED_SYMBOLS_DISPLAY = '! @ # $ % ^ * ( ) _ + - = [ ] { } ; : , . ? / | ~';
 
@@ -782,7 +782,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
       return;
     }
     if (!PASSWORD_ALLOWED_REGEX.test(passwordForm.nextPassword)) {
-      setPasswordError(`使用できない文字が含まれています。半角英数字と一部記号 (${PASSWORD_ALLOWED_SYMBOLS_DISPLAY}) のみ使用できます。`);
+      setPasswordError(`使用できない文字が含まれています。半角英数字と記号 ${PASSWORD_ALLOWED_SYMBOLS_DISPLAY} のみ使用できます。`);
       setPasswordSuccess(null);
       return;
     }
@@ -1010,13 +1010,12 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
           <div role="dialog" aria-modal="true" aria-labelledby="password-change-title" className="relative w-full max-w-md bg-white rounded-xl shadow-2xl border border-slate-200 p-6">
             <h3 id="password-change-title" className="text-lg font-bold text-slate-900 mb-2">パスワード変更</h3>
 
-            {/* v331: パスワード規約案内（モーダル内） */}
+            {/* v332: パスワード規約案内（モーダル内・UX 改善: 使う人目線の簡潔表記） */}
             <div className="mb-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-700">
               <p className="font-semibold text-slate-800">パスワード規約</p>
               <ul className="mt-1 list-disc pl-4 space-y-0.5">
-                <li>{PASSWORD_MIN}文字以上 {PASSWORD_MAX}文字以内（{PASSWORD_MAX + 1}文字未満）</li>
-                <li>半角英数字（a–z, A–Z, 0–9）と次の記号のみ使用可: <code className="font-mono text-[11px] text-slate-800">{PASSWORD_ALLOWED_SYMBOLS_DISPLAY}</code></li>
-                <li>使用不可: 空白・全角文字・<code className="font-mono">\</code> <code className="font-mono">`</code> <code className="font-mono">'</code> <code className="font-mono">"</code> <code className="font-mono">&lt;</code> <code className="font-mono">&gt;</code> <code className="font-mono">&amp;</code>（インジェクション・XSS 対策）</li>
+                <li>{PASSWORD_MIN}文字以上 {PASSWORD_MAX}文字以内</li>
+                <li>使用できる文字: 半角英数字（a–z, A–Z, 0–9）と記号 <code className="font-mono text-[11px] text-slate-800">{PASSWORD_ALLOWED_SYMBOLS_DISPLAY}</code></li>
               </ul>
             </div>
 

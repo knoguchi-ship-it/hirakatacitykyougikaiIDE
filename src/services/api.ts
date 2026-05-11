@@ -1639,7 +1639,8 @@ class GasApiClient implements ApiClient {
           catch { reject(new Error('Failed to parse response from GAS')); }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getOfficerMasterData', JSON.stringify({}));
+        // v331: 会員側からも呼ばれるため sessionToken を必ず付与（admin shell では空オブジェクト）
+        .processApiRequest('getOfficerMasterData', JSON.stringify(this.memberSessionPayload()));
     });
   }
 
