@@ -36,6 +36,7 @@
     "@types/google-apps-script": "^2.0.8",
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "playwright": "^1.59.1",
     "tailwindcss": "^4.2.2",
     "terser": "^5.46.1",
     "typescript": "~5.8.2",

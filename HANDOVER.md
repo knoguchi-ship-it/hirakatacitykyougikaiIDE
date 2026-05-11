@@ -1,8 +1,8 @@
 # 開発引継ぎ
 
 更新日: 2026-05-11
-現行本番: `v322`（v321 hotfix：入会申込「事務局からのお願い」モーダルのスマホスクロール／フッターボタン到達不能を修正） / integrated-public GAS version `293` / member split GAS version `46` / admin split GAS version `82`
-fixed deployment: integrated/public `@293` x2 / member split `@46` / admin split `@82`
+現行本番: `v323`（公開ポータル全主要動線で WCAG 2.2 AAA タップターゲット 44px 達成。Playwright 自動テストで 7 viewport × 3 view 全合格を確認） / integrated-public GAS version `294` / member split GAS version `46` / admin split GAS version `82`
+fixed deployment: integrated/public `@294` x2 / member split `@46` / admin split `@82`
 
 ## 1. 現行状態
 
@@ -47,16 +47,17 @@ fixed deployment: integrated/public `@293` x2 / member split `@46` / admin split
 
 | 用途 | Project | Deployment ID | Access | Current version |
 |---|---|---|---|---|
-| 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@293` |
-| 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@293` |
+| 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@294` |
+| 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@294` |
 | 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@46` |
 | 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@82` |
 
 ## 4. 直近リリース
 
-- `v322`: 入会申込画面「事務局からのお願い（ご入会にあたって）」モーダルがスマホで `max-h-[90vh]` + 固定 calc 高さで組まれており、iOS Safari のアドレスバー領域分だけフッターが画面下にはみ出して「内容を確認して閉じる／閉じる」ボタンに到達できない不具合を修正。flex column レイアウト + `max-h-[100dvh]` (sm 以上は `90dvh`) + `flex-1 min-h-0 overflow-y-auto` ボディに変更し、フッターは `shrink-0` + `pb-[max(1rem,env(safe-area-inset-bottom))]` で safe area を確保。タップターゲットも `min-h-[44px]` 化。integrated/public `@293` x2 のみ更新。
-- `v321`: v320 hotfix。GAS `HtmlOutput.addMetaTag()` は `viewport` / `apple-mobile-web-app-capable` / `mobile-web-app-capable` / `google-site-verification` のみ許可で、`theme-color` を渡すと `Exception: 指定したメタタグはこのコンテキストでは使用できません` で全ページ表示不可になっていたため、`theme-color` の addMetaTag 呼び出しを 3 プロジェクトから除去。viewport は維持。integrated/public `@293` x2 / member split `@46` / admin split `@82`
-- `v320`: 全 3 プロジェクト（public/member/admin）の `doGet()` に `addMetaTag('viewport', ...)` および `addMetaTag('theme-color', ...)` を追加し、スマートフォンでの白ページを解消。公開ポータルを mobile-first レスポンシブ UX（`100dvh`・`overflow-x-hidden`・`sm:grid-cols-2`・カード段階サイズ・ヘッダー/フッター stack・WCAG 2.2 タップターゲット 44px）に強化。AGENTS.md にレスポンシブ必須グランドルールを追加。integrated/public `@293` x2 / member split `@45` / admin split `@81`。詳細: `docs/197_RELEASE_STATE_v320_2026-05-11.md`
+- `v323`: Playwright (chromium) を導入し、公開ポータルに対する自動レスポンシブテストを 7 viewport (320–1920px) × 3 view で実施。初回測定で見つかった WCAG 2.2 AAA 未達のタップターゲット (`← ポータルトップへ戻る` / `重要事項を確認する` / ダイアログ header `閉じる` / `入会・退会案内を開く` / `定款を確認する`) を `min-h-[44px]` + `min-w-[44px]` に揃え、再測定で 21 セル全合格を確認。テスト基準・結果は `docs/198_RESPONSIVE_TEST_REPORT_2026-05-11.md` 参照。`scripts/responsive-test.mjs` で再実行可能。integrated/public `@294` x2 のみ更新。
+- `v322`: 入会申込画面「事務局からのお願い（ご入会にあたって）」モーダルがスマホで `max-h-[90vh]` + 固定 calc 高さで組まれており、iOS Safari のアドレスバー領域分だけフッターが画面下にはみ出して「内容を確認して閉じる／閉じる」ボタンに到達できない不具合を修正。flex column レイアウト + `max-h-[100dvh]` (sm 以上は `90dvh`) + `flex-1 min-h-0 overflow-y-auto` ボディに変更し、フッターは `shrink-0` + `pb-[max(1rem,env(safe-area-inset-bottom))]` で safe area を確保。タップターゲットも `min-h-[44px]` 化。integrated/public `@294` x2 のみ更新。
+- `v321`: v320 hotfix。GAS `HtmlOutput.addMetaTag()` は `viewport` / `apple-mobile-web-app-capable` / `mobile-web-app-capable` / `google-site-verification` のみ許可で、`theme-color` を渡すと `Exception: 指定したメタタグはこのコンテキストでは使用できません` で全ページ表示不可になっていたため、`theme-color` の addMetaTag 呼び出しを 3 プロジェクトから除去。viewport は維持。integrated/public `@294` x2 / member split `@46` / admin split `@82`
+- `v320`: 全 3 プロジェクト（public/member/admin）の `doGet()` に `addMetaTag('viewport', ...)` および `addMetaTag('theme-color', ...)` を追加し、スマートフォンでの白ページを解消。公開ポータルを mobile-first レスポンシブ UX（`100dvh`・`overflow-x-hidden`・`sm:grid-cols-2`・カード段階サイズ・ヘッダー/フッター stack・WCAG 2.2 タップターゲット 44px）に強化。AGENTS.md にレスポンシブ必須グランドルールを追加。integrated/public `@294` x2 / member split `@45` / admin split `@81`。詳細: `docs/197_RELEASE_STATE_v320_2026-05-11.md`
 - `v319-post`: 第三者評価指摘の修正（`annualFeeStatus` 型から `NONE` 除去、`MailingListExport` の dead entry 削除、`processRosterChunk_` の `|| 'NONE'` → `|| 'UNPAID'`）を反映。admin split `@80`。詳細: `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`
 - `v319`: 管理者ポータルにパンくずナビ（グループ名 › コンソール名）と変更申請 PENDING バッジを追加。admin split `@79`。詳細: `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`
 - `v318`: システム設定ページを 5 カテゴリ左サブナビ + 1 カテゴリ集中表示に変更。admin split `@78`。詳細: `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`

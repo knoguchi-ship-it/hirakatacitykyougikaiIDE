@@ -572,7 +572,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
               <button
                 type="button"
                 onClick={() => setNoticeDialogOpen(true)}
-                className="inline-flex items-center justify-center rounded-full border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-800 transition hover:border-amber-400 hover:bg-amber-50"
+                className="inline-flex min-h-[44px] items-center justify-center rounded-full border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-800 transition hover:border-amber-400 hover:bg-amber-50"
               >
                 重要事項を確認する
               </button>
@@ -609,7 +609,8 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
                   <button
                     type="button"
                     onClick={() => setNoticeDialogOpen(false)}
-                    className="rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:text-slate-800"
+                    aria-label="ダイアログを閉じる"
+                    className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:text-slate-800"
                   >
                     閉じる
                   </button>
@@ -626,7 +627,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
                             href={item.actionHref}
                             target="_blank"
                             rel="noreferrer"
-                            className="mt-4 inline-flex items-center rounded-full border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-semibold text-primary-700 transition hover:border-primary-300 hover:bg-primary-100"
+                            className="mt-4 inline-flex min-h-[44px] items-center rounded-full border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-semibold text-primary-700 transition hover:border-primary-300 hover:bg-primary-100"
                           >
                             {item.actionLabel}
                           </a>
@@ -647,7 +648,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
                         href={INCORPORATION_URL}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:text-slate-900"
+                        className="inline-flex min-h-[44px] items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:text-slate-900"
                       >
                         定款を確認する
                       </a>
@@ -1419,7 +1420,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
     <div className="max-w-3xl mx-auto py-8 px-4 space-y-6">
       {/* ヘッダー */}
       <div className="flex items-center gap-4">
-        <button onClick={handleBack} className="text-sm text-primary-600 hover:underline">&larr; {step === 0 ? backLabel : '前のステップ'}</button>
+        <button onClick={handleBack} className="inline-flex min-h-[44px] items-center rounded-md px-2 text-sm font-medium text-primary-600 transition hover:bg-primary-50 hover:underline">&larr; {step === 0 ? backLabel : '前のステップ'}</button>
         <h2 className="text-2xl font-bold text-slate-800">{title}</h2>
       </div>
 
