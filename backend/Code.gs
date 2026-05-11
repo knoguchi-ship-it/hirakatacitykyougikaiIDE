@@ -165,6 +165,10 @@ var マスタ定義 = {
   M_会費納入状態: ['コード', '名称', '表示順', '有効フラグ'],
   M_申込者区分: ['コード', '名称', '表示順', '削除フラグ'],
   M_管理者権限: ['コード', '名称', '表示順', '有効フラグ'],
+  // v295: 役員管理マスタ（CRUD 可能 — システム設定から管理）
+  M_組織マスタ: ['組織コード', '組織名', '組織種別', '表示順', '有効フラグ', '削除フラグ', '作成日時', '更新日時'],
+  M_役職マスタ: ['役職コード', '役職名', '組織コード', '委員長フラグ', '表示順', '有効フラグ', '削除フラグ', '作成日時', '更新日時'],
+  M_支払い種別マスタ: ['種別コード', '種別名', '対象区分', '表示順', '有効フラグ', '削除フラグ', '作成日時', '更新日時'],
 };
 
 var マスタ初期値 = {
@@ -227,6 +231,44 @@ var マスタ初期値 = {
     ['TRAINING_MANAGER', '研修管理者', 3, true],
     ['TRAINING_REGISTRAR', '研修登録者', 4, true],
     ['GENERAL', '一般', 5, true],
+  ],
+  // v295: 役員管理マスタ初期値
+  // ['組織コード','組織名','組織種別','表示順','有効フラグ','削除フラグ','作成日時','更新日時']
+  M_組織マスタ: [
+    ['HQ',          '本部',            '本部',  1, true, false, '', ''],
+    ['DIRECTORS',   '理事会',          '委員会', 2, true, false, '', ''],
+    ['AUDITORS',    '監事会',          '委員会', 3, true, false, '', ''],
+    ['SECRETARIAT', '事務局',          '事務局', 4, true, false, '', ''],
+    ['REGIONAL',    '圏域委員会',      '委員会', 5, true, false, '', ''],
+    ['PR',          '広報組織化委員会','委員会', 6, true, false, '', ''],
+    ['TRAINING',    '研修委員会',      '委員会', 7, true, false, '', ''],
+    ['RESEARCH',    '調査研究委員会',  '委員会', 8, true, false, '', ''],
+  ],
+  // ['役職コード','役職名','組織コード','委員長フラグ','表示順','有効フラグ','削除フラグ','作成日時','更新日時']
+  M_役職マスタ: [
+    ['CHAIRMAN',          '会長',             'HQ',          false,  1, true, false, '', ''],
+    ['VICE_CHAIRMAN',     '副会長',           'HQ',          false,  2, true, false, '', ''],
+    ['DIRECTOR',          '理事',             'DIRECTORS',   false,  3, true, false, '', ''],
+    ['AUDITOR',           '監事',             'AUDITORS',    false,  4, true, false, '', ''],
+    ['SECRETARY_GENERAL', '事務局長',         'SECRETARIAT', false,  5, true, false, '', ''],
+    ['SECRETARY',         '事務局員',         'SECRETARIAT', false,  6, true, false, '', ''],
+    ['REGIONAL_CHAIR',    '圏域委員長',       'REGIONAL',    true,   7, true, false, '', ''],
+    ['REGIONAL_MEMBER',   '圏域委員',         'REGIONAL',    false,  8, true, false, '', ''],
+    ['PR_CHAIR',          '広報組織化委員長', 'PR',          true,   9, true, false, '', ''],
+    ['PR_MEMBER',         '広報組織会員',     'PR',          false, 10, true, false, '', ''],
+    ['TRAINING_CHAIR',    '研修委員長',       'TRAINING',    true,  11, true, false, '', ''],
+    ['TRAINING_MEMBER',   '研修委員',         'TRAINING',    false, 12, true, false, '', ''],
+    ['RESEARCH_CHAIR',    '調査研究委員長',   'RESEARCH',    true,  13, true, false, '', ''],
+    ['RESEARCH_MEMBER',   '調査研究委員',     'RESEARCH',    false, 14, true, false, '', ''],
+  ],
+  // ['種別コード','種別名','対象区分','表示順','有効フラグ','削除フラグ','作成日時','更新日時']
+  M_支払い種別マスタ: [
+    ['COMPENSATION', '役員報酬', '両方', 1, true, false, '', ''],
+    ['ACTIVITY',     '活動費',   '両方', 2, true, false, '', ''],
+    ['HONORARIUM',   '謝礼',     '両方', 3, true, false, '', ''],
+    ['TRANSPORT',    '交通費',   '両方', 4, true, false, '', ''],
+    ['SUPPLIES',     '消耗品費', '両方', 5, true, false, '', ''],
+    ['OTHER',        'その他',   '両方', 6, true, false, '', ''],
   ],
 };
 
@@ -467,6 +509,42 @@ var テーブル定義 = {
   '申請内容JSON', '連絡先メールアドレス', '申請者表示名', '申請日時',
   '処理日時', '処理者メールアドレス', '処理備考', '作成日時', '更新日時', '削除フラグ',
 ];
+// v295: 役員管理テーブル（5テーブル追加）
+// v297: 職員ID追加（事業所職員も役員になれる双方向対応）
+// 会員ID（個人・賛助会員）と職員ID（事業所職員）はXOR — どちらか一方のみ non-empty
+テーブル定義['T_役員'] = [
+  '役員ID', '会員ID', '職員ID', '役職コード', '組織コード',
+  '就任日', '退任日', '備考',
+  '削除フラグ', '作成日時', '更新日時',
+];
+テーブル定義['T_振込口座'] = [
+  '口座ID', '会員ID', '職員ID',
+  '金融機関名', '金融機関コード', '支店名', '支店コード',
+  '口座種別', '口座番号', '口座名義カナ', '備考',
+  '削除フラグ', '作成日時', '更新日時',
+];
+テーブル定義['T_支払い'] = [
+  '支払いID', '会員ID',
+  '支払い日', '支払い方法', '合計金額',
+  '振込先口座JSON', '登録者メール', '備考',
+  '削除フラグ', '作成日時', '更新日時',
+];
+テーブル定義['T_支払い明細'] = [
+  '明細ID', '支払いID', '請求ID',
+  '役職コード', '組織コード', '種別コード',
+  '金額', '対象期間FROM', '対象期間TO', '摘要',
+  '削除フラグ', '作成日時', '更新日時',
+];
+テーブル定義['T_請求'] = [
+  '請求ID', '会員ID', '職員ID', '役職コード', '組織コード', '種別コード',
+  '請求金額', '活動日', '活動内容', '添付ファイルURL',
+  '請求状態', '却下理由', '承認者メール', '承認日時',
+  '削除フラグ', '作成日時', '更新日時',
+];
+// v309: 管理者共有メモ（申し送りホワイトボード）
+テーブル定義['T_共有メモ'] = [
+  'キー', '内容', '更新者メール', '更新者名', '更新日時', 'バージョン',
+];
 
 var 入力規則定義 = [
   ['T_会員', '会員種別コード', 'M_会員種別'],
@@ -482,6 +560,13 @@ var 入力規則定義 = [
   ['T_年会費納入履歴', '会費納入状態コード', 'M_会費納入状態'],
   ['T_画面項目権限', 'システムロールコード', 'M_システムロール'],
   ['T_管理者Googleホワイトリスト', '権限コード', 'M_管理者権限'],
+  // v295: 役員管理FK検証
+  ['T_役員',       '役職コード', 'M_役職マスタ'],
+  ['T_役員',       '組織コード', 'M_組織マスタ'],
+  ['T_支払い明細', '種別コード', 'M_支払い種別マスタ'],
+  ['T_支払い明細', '組織コード', 'M_組織マスタ'],
+  ['T_請求',       '種別コード', 'M_支払い種別マスタ'],
+  ['T_請求',       '組織コード', 'M_組織マスタ'],
 ];
 
 var DEMO_TRANSFER_ACCOUNT = {
@@ -508,9 +593,13 @@ function doGet(e) {
   var route = SCRIPT_ID_ROUTES[ScriptApp.getScriptId()]
     || { file: 'index_public', title: '研修・入会申込ポータル｜枚方市ケアマネ協議会', favicon: 'public' };
 
+  // GAS は外側 iframe で配信するため、HTML 内の <meta viewport> は無視される。
+  // モバイル表示（白ページ防止／レスポンシブ動作）には server-side addMetaTag が必須。
   var output = HtmlService.createHtmlOutputFromFile(route.file)
     .setTitle(route.title)
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover')
+    .addMetaTag('theme-color', '#0369a1');
 
   try {
     var MEMBER_PNG_B64 =
@@ -645,6 +734,9 @@ function processApiRequest(action, payload) {
 
 
 
+    // v295: 役員自己サービス（sessionToken 検証済み → payload.memberId 確定済み）
+    // v296: 請求（役員のみ）
+
 
 
 
@@ -668,6 +760,12 @@ function processApiRequest(action, payload) {
 
 
     // v150: 管理者ログイン+ポータルデータ統合API（round-trip削減）
+
+
+
+
+
+
 
 
 
@@ -767,6 +865,12 @@ function processApiRequest(action, payload) {
     // v224: 一括メール テンプレート管理
 
     // v207: 宛名リスト Excel 出力
+
+    // v295: 役員管理マスタ
+    // v295: 役員割当て管理
+    // v295: 振込口座管理（管理者用）
+    // v295: 支払い履歴管理
+    // v296: 請求管理（管理者）
 
     // v232: 物理削除（MASTER専用）
 
@@ -1056,12 +1160,44 @@ function parsePayload_(payload) {
  */
 
 
+// ─── v316: テンプレートライブラリ ────────────────────────────────────────────
+
+/**
+ * テンプレートライブラリ一覧を取得する。
+ * ROSTER_TEMPLATE_LIST が空かつ旧キーが存在する場合は自動マイグレーションを行う。
+ */
+
+/**
+ * テンプレートを追加または更新する。id がなければ新規追加。
+ * payload: { id?, name, ssId, description?, isDefault? }
+ */
+
+/**
+ * テンプレートを削除する。
+ * payload: { id }
+ */
+
+/**
+ * デフォルトテンプレートを設定する。
+ * payload: { id }
+ */
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─── v309: 共有メモ（申し送りホワイトボード）────────────────────────────────
+
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 
 // MASTER のみ変更可能な設定キー（v194）
 var MASTER_ONLY_SETTING_KEYS = ['EMAIL_LOG_VIEWER_ROLE'];
 
 // T_システム設定のスネークアッパーケースキーを camelCase に変換する
 // 例: 'EMAIL_LOG_VIEWER_ROLE' → 'emailLogViewerRole'
+
+
 
 
 
@@ -3033,12 +3169,31 @@ function validateMemberPayload_(payload, memberTypeCode, currentMemberStatus) {
 }
 
 function normalizeDateInput_(value) {
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, 'Asia/Tokyo', 'yyyy-MM-dd');
+  }
   var text = String(value || '').trim();
   if (!text) return '';
+  var ymd = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (ymd) {
+    var y = Number(ymd[1]);
+    var m = Number(ymd[2]);
+    var d = Number(ymd[3]);
+    var strictDate = new Date(y, m - 1, d, 12, 0, 0, 0);
+    if (
+      strictDate.getFullYear() !== y ||
+      strictDate.getMonth() !== m - 1 ||
+      strictDate.getDate() !== d
+    ) return '';
+    return text;
+  }
   var parsed = new Date(text);
   if (isNaN(parsed.getTime())) return '';
   return Utilities.formatDate(parsed, 'Asia/Tokyo', 'yyyy-MM-dd');
 }
+
+
+
 
 
 // v106: 年度開始日ユーティリティ（日本の会計年度: 4月1日〜翌年3月31日）
@@ -3634,6 +3789,12 @@ function initializeSchema_(ss) {
   normalizeTableColumns_(ss, 'T_会員_archive');
   normalizeTableColumns_(ss, 'T_事業所職員_archive');
   normalizeTableColumns_(ss, 'T_変更申請');
+  // v295: 役員管理テーブル
+  normalizeTableColumns_(ss, 'T_役員');
+  normalizeTableColumns_(ss, 'T_振込口座');
+  normalizeTableColumns_(ss, 'T_支払い');
+  normalizeTableColumns_(ss, 'T_支払い明細');
+  normalizeTableColumns_(ss, 'T_請求');
   ensureSystemSettingsRows_(ss);
   seedPermissionMatrixIfNeeded_(ss);
   applyDataValidationRules_(ss);
@@ -5877,10 +6038,12 @@ function generateRandomPassword_() {
  * 年会費ステータスは T_会員(BUSINESS) ベースで判定。
  *
  * payload:
- *   memberTypes?    – ['INDIVIDUAL','BUSINESS','SUPPORT'] デフォルト全種別
- *   memberStatus?   – 'ACTIVE' | 'INCLUDING_SCHEDULED' | 'ALL'  デフォルト 'ACTIVE'
- *   annualFeeStatus? – 'ALL' | 'PAID' | 'UNPAID'              デフォルト 'ALL'
- *   year?           – 対象年度（省略時は当年度）
+ *   memberTypes?  – ['INDIVIDUAL','BUSINESS','SUPPORT'] デフォルト全種別
+ *   memberStatus? – 'ACTIVE' | 'INCLUDING_SCHEDULED' | 'ALL'  デフォルト 'ACTIVE'
+ *   year?         – 在籍判定年度（省略時は当年度）
+ *
+ * v312: annualFeeStatus は廃止（クライアント側多年度フィルタに移行）。
+ *       返却形式を { targets, years } に変更。
  */
 
 /**
@@ -6062,4 +6225,79 @@ function hashPasswordPbkdf2_(password, salt) {
  * - "pbkdf2:sha256:" prefix → PBKDF2 で検証
  * - それ以外 → 旧 SHA-256 で検証
  * 旧方式で一致した場合は rehash 用フラグを返す。
+ */
+
+// ============================================================
+// v295: 役員管理 — マスタ管理 / 役員割当て / 口座 / 支払い
+// ============================================================
+
+// ---------- 役員マスタデータ一括取得 ----------
+
+
+// ---------- M_組織マスタ CRUD ----------
+
+
+
+// ---------- M_役職マスタ CRUD ----------
+
+
+
+// ---------- M_支払い種別マスタ CRUD ----------
+
+
+
+// ---------- 役員ステータス確認ヘルパー ----------
+
+// v297: memberId（個人/賛助）または staffId（事業所職員）のいずれかでチェック
+
+// ---------- T_役員 管理 ----------
+
+
+
+
+// ---------- T_振込口座 管理 ----------
+
+
+
+
+// 会員自身の役員ステータス + 口座取得（会員ポータル用）
+// processApiRequest で sessionToken 検証済み → memberId・staffId が確定済み
+
+
+// ---------- T_支払い / T_支払い明細 / T_請求 管理 ----------
+
+
+
+
+// ============================================================
+// v296: 請求管理 — Drive フォルダ / 請求 CRUD / ファイル管理
+// ============================================================
+
+var CLAIM_ALLOWED_MIMES = ['application/pdf', 'image/jpeg', 'image/png'];
+var CLAIM_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+
+// ---------- Drive フォルダ ----------
+
+
+// ---------- 請求 CRUD ----------
+
+
+
+
+
+
+
+
+// ---------- 添付ファイル管理 ----------
+
+
+
+// ============================================================
+// v297: 役員紐づけ変更 / 退職自動退任
+// ============================================================
+
+/**
+ * 役員の紐づけを変更する（個人会員↔事業所職員の双方向対応）。
+ * T_振込口座 の linkage も同時に更新する。
+ * T_請求 の過去レコードは元の紐づけのまま保持（履歴として有効）。
  */

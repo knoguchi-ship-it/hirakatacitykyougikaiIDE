@@ -61,6 +61,15 @@
   5. ボタン文言
   - 対応する `SystemSettings` 型フィールド（`src/types.ts`）、GAS バックエンドの `PUBLIC_PORTAL_DEFAULTS`・`getPublicPortalSettings_`・`getSystemSettings_`・`updateSystemSettings_`・`initializeSystemSettings_` も同時に更新する。
   - 片方だけの実装は不完全とみなし、完了条件を満たさない。
+- **レスポンシブ対応は必須機能**: 公開ポータル・会員マイページ・管理者ポータルのすべての画面・新規実装・既存改修は、必ずスマートフォン（最小幅 360px）から PC（1920px 以上）まで破綻なく表示・操作できるように設計・実装すること。「PC で動いた」だけでは完了としない。
+  1. **GAS server-side viewport**: 各 `doGet()` で `HtmlOutput#addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover')` を必ず呼ぶ。GAS の外側 iframe ラッパーは HTML 内の `<meta viewport>` を無視するため、これを欠かすとモバイルで白ページや極端な縮小表示になる。3 プロジェクト（integrated/public・member split・admin split）の `doGet()` すべてで維持する。
+  2. **Mobile-first レイアウト**: Tailwind の unprefixed クラス（モバイル用）を基準に書き、`sm:` / `md:` / `lg:` で大画面へ段階拡張する。`md:grid-cols-2` のように `md:` 以上でしかカラム化しない設計は避け、可能な限り `sm:` から有効化する。
+  3. **タップターゲット**: 主要 CTA・ナビゲーション・フォーム入力の操作要素は WCAG 2.2 / Apple HIG 準拠で最小 44×44px（推奨 48×48px）を確保する。`min-h-[44px]` 等で明示する。
+  4. **横スクロール禁止**: ルート要素に `overflow-x-hidden` を含め、長い文字列・URL・コード片には `break-words` / `break-all` を付ける。
+  5. **動的ビューポート単位**: 全画面高は `min-h-screen` ではなく `min-h-[100dvh]`（または `min-h-svh`）を使い、iOS Safari のアドレスバー高さ変動で要素が切れないようにする。
+  6. **WCAG 2.2 §1.4.10 リフロー**: 320px 幅・200% ズーム時に横スクロールなく、機能損失なく利用できることを設計時に意識する。
+  7. **完了条件**: モバイル幅（360〜414px）で実機またはブラウザ devtools により表示・操作確認したことを最低条件とする。スマホ未確認のまま「完了」と報告しない。
+  - 上記いずれかが満たされない実装は不完全とみなし、完了条件を満たさない。
 
 ## 5. 完了条件
 - 「動いた」だけでは完了としない。

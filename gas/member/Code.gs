@@ -591,9 +591,13 @@ function doGet(e) {
   var route = SCRIPT_ID_ROUTES[ScriptApp.getScriptId()]
     || { file: 'index_public', title: '研修・入会申込ポータル｜枚方市ケアマネ協議会', favicon: 'public' };
 
+  // GAS は外側 iframe で配信するため、HTML 内の <meta viewport> は無視される。
+  // モバイル表示（白ページ防止／レスポンシブ動作）には server-side addMetaTag が必須。
   var output = HtmlService.createHtmlOutputFromFile(route.file)
     .setTitle(route.title)
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover')
+    .addMetaTag('theme-color', '#0369a1');
 
   try {
     var MEMBER_PNG_B64 =

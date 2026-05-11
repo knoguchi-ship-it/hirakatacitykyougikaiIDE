@@ -268,7 +268,7 @@ const PublicApp: React.FC = () => {
     const content = portalContentSettings ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS;
     return (
     <div className="space-y-8">
-      <section className="rounded-[28px] border border-slate-200 bg-white px-6 py-8 shadow-sm md:px-10">
+      <section className="rounded-[20px] border border-slate-200 bg-white px-5 py-6 shadow-sm sm:rounded-[28px] sm:px-6 sm:py-8 md:px-10">
         {!settingsReady ? (
           // ヒーローセクション スケルトン（実際の表示領域に合わせたサイズ）
           <div className="max-w-3xl animate-pulse space-y-4" aria-hidden="true">
@@ -286,7 +286,7 @@ const PublicApp: React.FC = () => {
               </p>
             )}
             <div className="space-y-3">
-              <h2 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
+              <h2 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl md:text-4xl">
                 {content.heroTitle}
               </h2>
               {content.heroDescriptionEnabled && (
@@ -301,7 +301,7 @@ const PublicApp: React.FC = () => {
 
       {/* 設定確定前は Skeleton を表示。設定未確定のまま誤ったカードを瞬間描画しない（FOIC防止） */}
       {(trainingMenuEnabled === null || membershipMenuEnabled === null) ? (
-        <section className="grid gap-6 md:grid-cols-2" aria-busy="true" aria-label="読み込み中">
+        <section className="grid gap-4 sm:gap-6 sm:grid-cols-2" aria-busy="true" aria-label="読み込み中">
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className="animate-pulse rounded-[28px] border border-slate-200 bg-white p-7 shadow-sm">
               <div className="mb-5 h-6 w-24 rounded-full bg-slate-200" />
@@ -315,13 +315,13 @@ const PublicApp: React.FC = () => {
           ))}
         </section>
       ) : (
-        <section className="grid gap-6 md:grid-cols-2">
+        <section className="grid gap-4 sm:gap-6 sm:grid-cols-2">
           {/* 研修申込カード */}
           {trainingMenuEnabled && (
             <button
               type="button"
               onClick={handleOpenTrainingList}
-              className="group rounded-[28px] border border-sky-200 bg-[linear-gradient(135deg,#eff6ff_0%,#ffffff_70%)] p-7 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+              className="group rounded-[20px] border border-sky-200 bg-[linear-gradient(135deg,#eff6ff_0%,#ffffff_70%)] p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:rounded-[28px] sm:p-7"
             >
               {content.trainingBadgeEnabled && (
                 <div className="mb-5 inline-flex rounded-full bg-sky-600 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-white">
@@ -346,7 +346,7 @@ const PublicApp: React.FC = () => {
             <button
               type="button"
               onClick={() => setView('member-application')}
-              className="group rounded-[28px] border border-emerald-200 bg-[linear-gradient(135deg,#ecfdf5_0%,#ffffff_70%)] p-7 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+              className="group rounded-[20px] border border-emerald-200 bg-[linear-gradient(135deg,#ecfdf5_0%,#ffffff_70%)] p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:rounded-[28px] sm:p-7"
             >
               {content.membershipBadgeEnabled && (
                 <div className="mb-5 inline-flex rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold tracking-[0.12em] text-white">
@@ -372,7 +372,7 @@ const PublicApp: React.FC = () => {
             <button
               type="button"
               onClick={() => setView('member-update')}
-              className="group rounded-[28px] border border-violet-200 bg-[linear-gradient(135deg,#f5f3ff_0%,#ffffff_70%)] p-7 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+              className="group rounded-[20px] border border-violet-200 bg-[linear-gradient(135deg,#f5f3ff_0%,#ffffff_70%)] p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:rounded-[28px] sm:p-7"
             >
               {content.memberUpdateBadgeEnabled && (
                 <div className="mb-5 inline-flex rounded-full bg-violet-600 px-3 py-1 text-xs font-semibold tracking-[0.12em] text-white">
@@ -396,7 +396,7 @@ const PublicApp: React.FC = () => {
             <button
               type="button"
               onClick={() => setView('withdrawal-request')}
-              className="group rounded-[28px] border border-amber-200 bg-[linear-gradient(135deg,#fffbeb_0%,#ffffff_70%)] p-7 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+              className="group rounded-[20px] border border-amber-200 bg-[linear-gradient(135deg,#fffbeb_0%,#ffffff_70%)] p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:rounded-[28px] sm:p-7"
             >
               {content.withdrawalBadgeEnabled && (
                 <div className="mb-5 inline-flex rounded-full bg-amber-600 px-3 py-1 text-xs font-semibold tracking-[0.12em] text-white">
@@ -417,7 +417,7 @@ const PublicApp: React.FC = () => {
 
           {/* 全カードが無効の場合のメッセージ */}
           {!trainingMenuEnabled && !membershipMenuEnabled && !content.memberUpdateMenuEnabled && !content.withdrawalMenuEnabled && (
-            <div className="col-span-2 rounded-[28px] border border-slate-200 bg-white px-6 py-12 shadow-sm text-center">
+            <div className="sm:col-span-2 rounded-[20px] border border-slate-200 bg-white px-5 py-10 shadow-sm text-center sm:rounded-[28px] sm:px-6 sm:py-12">
               <p className="text-2xl mb-3">🔧</p>
               <h3 className="text-lg font-bold text-slate-800">研修・入会申込は現在準備中です</h3>
               <p className="mt-2 text-sm text-slate-600">申込受付を一時停止しています。しばらく経ってから再度アクセスしてください。</p>
@@ -471,7 +471,7 @@ const PublicApp: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f8fbff_0%,#eef5f7_45%,#f8fafc_100%)]">
+    <div className="min-h-[100dvh] overflow-x-hidden bg-[linear-gradient(180deg,#f8fbff_0%,#eef5f7_45%,#f8fafc_100%)]">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-sky-700 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white focus:shadow-lg"
@@ -479,16 +479,16 @@ const PublicApp: React.FC = () => {
         メインコンテンツへスキップ
       </a>
       <header className="border-b border-slate-200 bg-white/90 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-5">
-          <div>
-            <h1 className="text-lg font-bold text-slate-900 md:text-xl">枚方市介護支援専門員連絡協議会お申込みポータル</h1>
-            <p className="text-sm text-slate-500">研修申込・申込取消・新規入会申込</p>
+        <div className="mx-auto flex max-w-5xl flex-col items-start justify-between gap-3 px-4 py-4 sm:flex-row sm:items-center sm:gap-4 sm:py-5">
+          <div className="min-w-0">
+            <h1 className="text-base font-bold text-slate-900 sm:text-lg md:text-xl">枚方市介護支援専門員連絡協議会お申込みポータル</h1>
+            <p className="text-xs text-slate-500 sm:text-sm">研修申込・申込取消・新規入会申込</p>
           </div>
           {view !== 'home' && (
             <button
               type="button"
               onClick={handleBackToHome}
-              className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400"
+              className="inline-flex min-h-[44px] shrink-0 items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400"
             >
               トップへ戻る
             </button>
@@ -577,7 +577,7 @@ const PublicApp: React.FC = () => {
       </main>
 
       <footer className="border-t border-slate-200 bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4">
+        <div className="mx-auto flex max-w-5xl flex-col items-start justify-between gap-1 px-4 py-4 sm:flex-row sm:items-center sm:gap-4">
           <p className="text-xs text-slate-500">
             &copy; 枚方市介護支援専門員連絡協議会
           </p>

@@ -1,8 +1,8 @@
 # 開発引継ぎ
 
-更新日: 2026-05-08
-現行本番: `v319`（admin @80 に第三者評価修正適用済み） / integrated-public GAS version `290` / member split GAS version `44` / admin split GAS version `80`
-fixed deployment: integrated/public `@290` x2 / member split `@44` / admin split `@80`
+更新日: 2026-05-11
+現行本番: `v320`（モバイル viewport 対応・公開ポータルレスポンシブ UX 強化）/ integrated-public GAS version `291` / member split GAS version `45` / admin split GAS version `81`
+fixed deployment: integrated/public `@291` x2 / member split `@45` / admin split `@81`
 
 ## 1. 現行状態
 
@@ -29,33 +29,42 @@ fixed deployment: integrated/public `@290` x2 / member split `@44` / admin split
 7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`（最新：v311〜v319 統合）
-11. `docs/195_RELEASE_STATE_v310_2026-05-08.md`
-12. `docs/194_RELEASE_STATE_v309_2026-05-08.md`
-13. `docs/193_RELEASE_STATE_v308_2026-05-06.md`
-14. `docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md`
-15. `docs/172_DEFERRED_SECURITY_BACKLOG_SECRET_MANAGER_KDF_2026-05-01.md`
-19. `docs/09_DEPLOYMENT_POLICY.md`
-20. `docs/05_AUTH_AND_ROLE_SPEC.md`
-21. `docs/04_DB_OPERATION_RUNBOOK.md`
-22. `docs/03_DATA_MODEL.md`
-23. `docs/00_DOC_INDEX.md`
-24. `docs/archive/historical/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`（補足状態サマリ。正本は `HANDOVER.md`）
+10. `docs/197_RELEASE_STATE_v320_2026-05-11.md`（最新：v320 モバイル viewport / レスポンシブ）
+11. `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`（v311〜v319 統合）
+12. `docs/195_RELEASE_STATE_v310_2026-05-08.md`
+13. `docs/194_RELEASE_STATE_v309_2026-05-08.md`
+14. `docs/193_RELEASE_STATE_v308_2026-05-06.md`
+15. `docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md`
+16. `docs/172_DEFERRED_SECURITY_BACKLOG_SECRET_MANAGER_KDF_2026-05-01.md`
+17. `docs/09_DEPLOYMENT_POLICY.md`
+18. `docs/05_AUTH_AND_ROLE_SPEC.md`
+19. `docs/04_DB_OPERATION_RUNBOOK.md`
+20. `docs/03_DATA_MODEL.md`
+21. `docs/00_DOC_INDEX.md`
+22. `docs/archive/historical/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`（補足状態サマリ。正本は `HANDOVER.md`）
 
 ## 3. 配信境界
 
 | 用途 | Project | Deployment ID | Access | Current version |
 |---|---|---|---|---|
-| 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@290` |
-| 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@290` |
-| 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@44` |
-| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@80` |
+| 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@291` |
+| 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@291` |
+| 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@45` |
+| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@81` |
 
 ## 4. 直近リリース
 
-- `v313`: 名簿出力コンソールを自動ロード・クライアント側フィルタリング・テーブル表示バグ修正。admin split `@73`
-- `v312`: 名簿出力コンソールに在籍判定年度ドロップダウン＋年会費多年度条件ビルダーを追加（宛名リストと同仕様）。admin split `@72`
-- `v311`: 宛名リスト年会費フィルターの初期値を選択年度・全状態にデフォルト設定。admin split `@72`
+- `v320`: 全 3 プロジェクト（public/member/admin）の `doGet()` に `addMetaTag('viewport', ...)` および `addMetaTag('theme-color', ...)` を追加し、スマートフォンでの白ページを解消。公開ポータルを mobile-first レスポンシブ UX（`100dvh`・`overflow-x-hidden`・`sm:grid-cols-2`・カード段階サイズ・ヘッダー/フッター stack・WCAG 2.2 タップターゲット 44px）に強化。AGENTS.md にレスポンシブ必須グランドルールを追加。integrated/public `@291` x2 / member split `@45` / admin split `@81`。詳細: `docs/197_RELEASE_STATE_v320_2026-05-11.md`
+- `v319-post`: 第三者評価指摘の修正（`annualFeeStatus` 型から `NONE` 除去、`MailingListExport` の dead entry 削除、`processRosterChunk_` の `|| 'NONE'` → `|| 'UNPAID'`）を反映。admin split `@80`。詳細: `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`
+- `v319`: 管理者ポータルにパンくずナビ（グループ名 › コンソール名）と変更申請 PENDING バッジを追加。admin split `@79`。詳細: `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`
+- `v318`: システム設定ページを 5 カテゴリ左サブナビ + 1 カテゴリ集中表示に変更。admin split `@78`。詳細: `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`
+- `v317`: サイドバーナビを 5 グループ化・折りたたみ・開閉状態保存に対応。admin split `@77`。詳細: `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`
+- `v316`: テンプレートライブラリを無制限登録・検索選択・自動マイグレーションに対応。admin split `@76`。詳細: `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`
+- `v315`: 名簿出力コンソール事業所会員の氏名表示を事業所名のみに修正。admin split `@75`。詳細: `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`
+- `v314`: 名簿出力年会費ステータスの `NONE` を廃止し未納に統一（データ整合性修正）。admin split `@74`。詳細: `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`
+- `v313`: 名簿出力コンソールを自動ロード・クライアント側フィルタリング・テーブル表示バグ修正。admin split `@73`。詳細: `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`
+- `v312`: 名簿出力コンソールに在籍判定年度ドロップダウン＋年会費多年度条件ビルダーを追加（宛名リストと同仕様）。admin split `@72`。詳細: `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`
+- `v311`: 宛名リスト年会費フィルターの初期値を選択年度・全状態にデフォルト設定。admin split `@71`。詳細: `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`
 - `v310`: 宛名リスト出力コンソールの年会費納入フィルターを、複数年度・AND条件に対応した条件ビルダーに刷新。admin split `@70`。詳細: `docs/195_RELEASE_STATE_v310_2026-05-08.md`
 - `v309`: 年会費管理コンソールに管理者共有申し送りメモ（ホワイトボード型）を追加。MASTER/ADMIN が書き込み可、60秒自動ポーリング＋手動更新、楽観的排他制御。admin split `@69`。詳細: `docs/194_RELEASE_STATE_v309_2026-05-08.md`
 - `v308`: 会員詳細編集画面の年会費表示を 2024 年度以降、当年度から過去 4 年分へ修正。admin split `@68`。詳細: `docs/193_RELEASE_STATE_v308_2026-05-06.md`
@@ -95,6 +104,7 @@ fixed deployment: integrated/public `@290` x2 / member split `@44` / admin split
 
 実ブラウザ確認は操作者側で実施する。
 
+- **v320 モバイル実機確認（最優先）**: iPhone Safari と Android Chrome で公開ポータル・会員マイページ・管理者ポータルを開き、白ページが解消され、レイアウトが破綻なく表示・操作できることを確認する。確認端末幅の目安: 360px / 390px / 414px。
 - 会員マイページ OAuth 再承認: member split に `drive` scope が追加済みのため、未実施環境では再承認が必要。
 - v319: サイドバーが5グループで折りたたみ表示される。変更申請がある場合にバッジが表示される。各コンソールにパンくずが表示される。
 - v318: システム設定が5カテゴリのサブナビで1カテゴリずつ表示される。保存ボタンは引き続き全設定一括保存。
