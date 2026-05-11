@@ -391,6 +391,7 @@ const App: React.FC = () => {
   const [editingPermissionId, setEditingPermissionId] = useState<string | null>(null);
   const [newPermissionIdentitySearch, setNewPermissionIdentitySearch] = useState('');
   const [editPermissionIdentitySearches, setEditPermissionIdentitySearches] = useState<Record<string, string>>({});
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [adminPermissionDrafts, setAdminPermissionDrafts] = useState<Record<string, {
     googleEmail: string;
     linkedAuthId: string;
@@ -2703,19 +2704,19 @@ const App: React.FC = () => {
             {showMemberAuth && (isMemberShell || authTab === 'member') && (
               <form className="space-y-3" onSubmit={handleMemberLogin}>
                 <input
-                  className="w-full border border-slate-300 rounded px-3 py-2"
+                  className="w-full min-h-[44px] border border-slate-300 rounded px-3 py-2"
                   placeholder="ログインID"
                   value={memberLoginId}
                   onChange={(e) => setMemberLoginId(e.target.value)}
                 />
                 <input
-                  className="w-full border border-slate-300 rounded px-3 py-2"
+                  className="w-full min-h-[44px] border border-slate-300 rounded px-3 py-2"
                   type="password"
                   placeholder="パスワード"
                   value={memberPassword}
                   onChange={(e) => setMemberPassword(e.target.value)}
                 />
-                <button className="w-full bg-slate-800 text-white rounded px-3 py-2 flex items-center justify-center gap-2 disabled:opacity-50" type="submit">
+                <button className="w-full min-h-[44px] bg-slate-800 text-white rounded px-3 py-2 inline-flex items-center justify-center gap-2 disabled:opacity-50" type="submit">
                   {authBusy ? (<><span className="animate-spin inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>ログイン中...</>) : 'ログイン'}
                 </button>
               </form>
@@ -2724,7 +2725,7 @@ const App: React.FC = () => {
               <div className="space-y-3">
                 <button
                   type="button"
-                  className="w-full bg-slate-800 text-white rounded px-3 py-2 flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full min-h-[44px] bg-slate-800 text-white rounded px-3 py-2 inline-flex items-center justify-center gap-2 disabled:opacity-50"
                   onClick={handleAdminSessionLogin}
                 >
                   {authBusy ? (<><span className="animate-spin inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>認証中...</>) : 'Googleアカウントで管理者ログイン'}
@@ -4668,9 +4669,27 @@ const App: React.FC = () => {
           adminPermissionLevel={adminPermissionLevel}
           pendingChangeRequestCount={pendingChangeRequestCount}
           onLogout={handleLogoutClick}
+          mobileOpen={mobileMenuOpen}
+          onMobileClose={() => setMobileMenuOpen(false)}
         />
       )}
-      <main className="flex-1 min-w-0 p-8 overflow-y-auto relative overscroll-contain">
+      <main className="flex-1 min-w-0 p-4 md:p-8 overflow-y-auto relative overscroll-contain">
+        {/* Mobile hamburger — only shown when authenticated and sidebar is closed */}
+        {isAuthenticated && (
+          <button
+            type="button"
+            aria-label="メニューを開く"
+            onClick={() => setMobileMenuOpen(true)}
+            className="md:hidden mb-3 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-slate-700 shadow-sm hover:bg-slate-50"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+            <span className="ml-2 text-sm font-medium">メニュー</span>
+          </button>
+        )}
         {/* v319: パンくずリスト（管理者ビューのみ） */}
         {isAuthenticated && userRole === 'ADMIN' && BREADCRUMB_MAP[currentView] && (
           <nav aria-label="パンくず" className="mb-4 flex items-center gap-1.5 text-xs text-slate-400">

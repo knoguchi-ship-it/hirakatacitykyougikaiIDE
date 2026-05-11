@@ -9,3 +9,14 @@
   --color-primary-700: #1d4ed8;
   --color-primary-900: #1e3a8a;
 }
+
+/* WCAG 2.2 §2.5.5 / §2.5.8: text inputs and selects should meet the 44px AAA
+   tap-target threshold by default. Components can opt out by adding min-h-0
+   on the element if a tighter cell is required (admin table inline editors). */
+@layer base {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="range"]),
+  select,
+  textarea {
+    min-height: 44px;
+  }
+}

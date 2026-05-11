@@ -24,6 +24,9 @@ interface SidebarProps {
   showMemberPages?: boolean;
   adminPermissionLevel?: AdminPermissionLevel | null;
   pendingChangeRequestCount?: number;
+  /** Mobile drawer state. md+ ignores this and always shows the sidebar. */
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
 interface NavItem {
@@ -67,6 +70,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   showMemberPages = true,
   adminPermissionLevel,
   pendingChangeRequestCount = 0,
+  mobileOpen = false,
+  onMobileClose,
 }) => {
   const isFullAdmin = adminPermissionLevel === 'MASTER' || adminPermissionLevel === 'ADMIN';
   const isMaster = adminPermissionLevel === 'MASTER';
@@ -197,8 +202,28 @@ const Sidebar: React.FC<SidebarProps> = ({
     return '';
   };
 
+  const handleNavChange = (view: string) => {
+    onChangeView(view);
+    if (mobileOpen && onMobileClose) onMobileClose();
+  };
+
   return (
-    <aside className="w-56 bg-slate-900 text-white h-screen sticky top-0 flex flex-col shadow-xl overflow-hidden">
+    <>
+      {/* Mobile backdrop */}
+      {mobileOpen && (
+        <button
+          type="button"
+          aria-label="メニューを閉じる"
+          onClick={onMobileClose}
+          className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm md:hidden"
+        />
+      )}
+      <aside
+        className={`bg-slate-900 text-white flex flex-col shadow-xl overflow-hidden z-50
+          fixed inset-y-0 left-0 w-64 transform transition-transform duration-200 ease-out
+          ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
+          md:relative md:translate-x-0 md:w-56 md:h-screen md:sticky md:top-0`}
+      >
       {/* ヘッダー */}
       <div className="px-5 py-4 border-b border-slate-700/60">
         <h1 className="text-sm font-bold leading-snug tracking-tight text-white">
@@ -225,7 +250,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         <button
           type="button"
           onClick={onLogout}
-          className="mt-2.5 w-full rounded border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-700 transition-colors"
+          className="mt-2.5 w-full inline-flex min-h-[44px] items-center justify-center rounded border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-medium text-slate-200 hover:bg-slate-700 transition-colors"
         >
           ログアウト
         </button>
@@ -247,7 +272,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 label={item.label}
                 icon={item.icon}
                 active={currentView === item.id}
-                onClick={() => onChangeView(item.id)}
+                onClick={() => handleNavChange(item.id)}
               />
             ))}
           </div>
@@ -263,7 +288,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 currentView={currentView}
                 open={!!openGroups[group.id]}
                 onToggle={() => toggleGroup(group.id)}
-                onChangeView={onChangeView}
+                onChangeView={handleNavChange}
               />
             ))}
 
@@ -288,12 +313,13 @@ const Sidebar: React.FC<SidebarProps> = ({
               label="研修管理"
               icon={<CalendarIcon className="w-4 h-4" />}
               active={currentView === 'training-manage'}
-              onClick={() => onChangeView('training-manage')}
+              onClick={() => handleNavChange('training-manage')}
             />
           </div>
         )}
       </nav>
     </aside>
+    </>
   );
 };
 
@@ -322,7 +348,7 @@ const NavItemButton: React.FC<NavItemButtonProps> = ({
   <button
     type="button"
     onClick={onClick}
-    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-colors duration-150 ${
+    className={`w-full flex items-center gap-2.5 px-3 min-h-[44px] py-2 rounded-md text-xs font-medium transition-colors duration-150 ${
       indent ? 'pl-7' : ''
     } ${
       active
@@ -370,7 +396,7 @@ const NavGroupSection: React.FC<NavGroupSectionProps> = ({
       <button
         type="button"
         onClick={onToggle}
-        className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-[11px] font-semibold tracking-wide transition-colors ${
+        className={`w-full flex items-center gap-2 px-3 min-h-[44px] py-2 rounded-md text-[11px] font-semibold tracking-wide transition-colors ${
           dimmed
             ? 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
             : hasActive

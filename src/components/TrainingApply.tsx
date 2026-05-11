@@ -171,7 +171,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
               type="button"
               onClick={refreshTrainingData}
               disabled={refreshing}
-              className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
+              className="shrink-0 inline-flex min-h-[44px] items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
             >
               {refreshing ? '更新中...' : '最新情報を取得'}
             </button>
@@ -228,12 +228,12 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                       <button
                         type="button"
                         onClick={() => setExpandedTrainingId((prev) => (prev === training.id ? null : training.id))}
-                        className="text-sm text-primary-700 hover:text-primary-900 underline"
+                        className="inline-flex min-h-[44px] items-center rounded-md px-2 text-sm font-medium text-primary-700 hover:bg-primary-50 hover:text-primary-900 hover:underline"
                       >
                         {expandedTrainingId === training.id ? '詳細を閉じる' : '詳細を見る'}
                       </button>
                       {training.guidePdfUrl && (
-                        <a href={training.guidePdfUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-700 hover:text-indigo-900 underline">
+                        <a href={training.guidePdfUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[44px] items-center rounded-md px-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50 hover:text-indigo-900 hover:underline">
                           案内PDFを全ページ開く
                         </a>
                       )}
@@ -250,7 +250,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                     type="button"
                     onClick={() => openApplyConfirm(training)}
                     disabled={submittingTrainingId !== null}
-                    className={`whitespace-nowrap font-bold py-2 px-6 rounded-lg shadow-sm flex items-center ${
+                    className={`whitespace-nowrap inline-flex min-h-[44px] items-center font-bold py-2 px-6 rounded-lg shadow-sm ${
                       submittingTrainingId === training.id ? 'bg-slate-300 text-slate-500 cursor-wait' : 'bg-primary-600 hover:bg-primary-700 text-white'
                     }`}
                   >
@@ -301,7 +301,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-500">{formatDateTime(t.date)}</td>
                       <td className="px-4 py-4 text-sm font-medium text-slate-900">{t.title}</td>
                       <td className="px-4 py-4 whitespace-nowrap">
-                        <button type="button" onClick={() => setSelectedHistoryTrainingId(t.id)} className="text-sm text-primary-700 hover:text-primary-900 underline">詳細を見る</button>
+                        <button type="button" onClick={() => setSelectedHistoryTrainingId(t.id)} className="inline-flex min-h-[44px] items-center rounded-md px-2 text-sm font-medium text-primary-700 hover:bg-primary-50 hover:text-primary-900 hover:underline">詳細を見る</button>
                       </td>
                     </tr>
                   ))}
@@ -386,7 +386,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                     {selectedHistoryTraining.thumbnailUrl && (
                       <PdfThumbnail thumbnailUrl={selectedHistoryTraining.thumbnailUrl} fileUrl={selectedHistoryTraining.guidePdfUrl} height={220} />
                     )}
-                    <a href={selectedHistoryTraining.guidePdfUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary-700 hover:text-primary-900 underline">
+                    <a href={selectedHistoryTraining.guidePdfUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[44px] items-center rounded-md px-2 text-sm font-medium text-primary-700 hover:bg-primary-50 hover:text-primary-900 hover:underline">
                       全ページを別タブで開く
                     </a>
                   </div>

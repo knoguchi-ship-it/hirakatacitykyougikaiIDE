@@ -971,7 +971,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                 type="button"
                 onClick={() => setPasswordModalOpen(true)}
                 title="別ウィンドウで開きます"
-                className="px-4 py-2 rounded-lg text-sm font-bold border text-cyan-900 bg-cyan-50 border-cyan-300 hover:bg-cyan-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 after:ml-1 after:content-['↗']"
+                className="inline-flex min-h-[44px] items-center justify-center px-4 py-2 rounded-lg text-sm font-bold border text-cyan-900 bg-cyan-50 border-cyan-300 hover:bg-cyan-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 after:ml-1 after:content-['↗']"
               >
                 パスワード変更
               </button>
@@ -1065,7 +1065,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                   <button
                                     type="button"
                                     onClick={() => setExpandedTrainingId((prev) => (prev === training.id ? null : training.id))}
-                                    className="text-sm text-primary-700 hover:text-primary-900 underline"
+                                    className="inline-flex min-h-[44px] items-center rounded-md px-2 text-sm font-medium text-primary-700 hover:bg-primary-50 hover:text-primary-900 hover:underline"
                                   >
                                     {expandedTrainingId === training.id ? '詳細を閉じる' : '詳細を見る'}
                                   </button>
@@ -1074,7 +1074,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                       href={training.guidePdfUrl}
                                       target="_blank"
                                       rel="noreferrer"
-                                      className="text-sm text-indigo-700 hover:text-indigo-900 underline"
+                                      className="inline-flex min-h-[44px] items-center rounded-md px-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50 hover:text-indigo-900 hover:underline"
                                     >
                                       案内PDFを見る
                                     </a>
@@ -1089,9 +1089,9 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                             <button 
                                 onClick={() => handleTrainingApply(training.id)}
                                 disabled={submittingTrainingId !== null}
-                                className={`whitespace-nowrap font-bold py-2 px-6 rounded-lg shadow-sm transition-all flex items-center ${
-                                  submittingTrainingId === training.id 
-                                    ? 'bg-slate-300 text-slate-500 cursor-wait' 
+                                className={`whitespace-nowrap inline-flex min-h-[44px] items-center font-bold py-2 px-6 rounded-lg shadow-sm transition-all ${
+                                  submittingTrainingId === training.id
+                                    ? 'bg-slate-300 text-slate-500 cursor-wait'
                                     : 'bg-primary-600 hover:bg-primary-700 hover:-translate-y-0.5 text-white'
                                 }`}
                             >
@@ -1218,7 +1218,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
             type="button"
             onClick={() => setProfileEditModalOpen(true)}
             title="別ウィンドウで開きます"
-            className="px-4 py-2 rounded-lg text-sm font-bold border text-cyan-900 bg-cyan-50 border-cyan-300 hover:bg-cyan-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 after:ml-1 after:content-['↗']"
+            className="inline-flex min-h-[44px] items-center justify-center px-4 py-2 rounded-lg text-sm font-bold border text-cyan-900 bg-cyan-50 border-cyan-300 hover:bg-cyan-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 after:ml-1 after:content-['↗']"
           >
             会員情報を確認・変更
           </button>
