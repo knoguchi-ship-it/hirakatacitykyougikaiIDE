@@ -28,18 +28,25 @@ const CONSOLES = [
   { id: 'admin-settings',  label: 'システム設定',         group: 'システム',       expectInPage: /システム設定|設定/ },
 ];
 
-async function expandGroupIfNeeded(frame, group) {
-  if (!group) return;
-  await frame.evaluate((g) => {
-    // Find sidebar group header by exact text and click to expand
-    const cands = Array.from(document.querySelectorAll('button, [role="button"]'));
-    const header = cands.find((b) => {
+async function expandGroupIfNeeded(frame, leafLabel, groupLabel) {
+  if (!groupLabel) return;
+  // If the leaf nav item is already visible, no need to expand.
+  const visible = await frame.evaluate((l) => {
+    return Array.from(document.querySelectorAll('button, a, [role="button"]')).some((b) => {
       const t = (b.innerText || '').trim();
-      return t === g || t.startsWith(g + ' ') || t.endsWith(' ' + g) || (t.includes(g) && t.length < g.length + 10);
+      const r = b.getBoundingClientRect();
+      return t === l && r.width > 0 && r.height > 0;
     });
-    if (header && header.getAttribute('aria-expanded') === 'false') header.click();
-  }, group);
-  await frame.evaluate(() => new Promise(r => requestAnimationFrame(() => r())));
+  }, leafLabel);
+  if (visible) return;
+  // Otherwise, click the group header to expand. aria-expanded isn't set on
+  // this app's group buttons, so we just click if the leaf isn't visible.
+  await frame.evaluate((g) => {
+    const cands = Array.from(document.querySelectorAll('button'));
+    const header = cands.find((b) => (b.innerText || '').trim() === g);
+    if (header) header.click();
+  }, groupLabel);
+  await frame.evaluate(() => new Promise((r) => setTimeout(r, 200)));
 }
 
 async function clickConsole(frame, label) {
@@ -74,7 +81,7 @@ async function runViewport(browser, vp, consoleErrors) {
     for (const c of CONSOLES) {
       if (c.id === 'dashboard') continue;
       try {
-        await expandGroupIfNeeded(frame, c.group);
+        await expandGroupIfNeeded(frame, c.label, c.group);
         const clicked = await clickConsole(frame, c.label);
         if (!clicked) { result.views[c.id] = { skipped: 'nav not found' }; continue; }
         await page.waitForTimeout(2000);

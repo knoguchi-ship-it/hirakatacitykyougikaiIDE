@@ -453,7 +453,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
           </div>
 
           {/* キーワード検索 + カウントバッジ */}
-          <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+          <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-slate-600">キーワード検索</span>
               <input
@@ -464,7 +464,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
               />
             </label>
-            <div className="grid grid-cols-4 gap-2 text-xs md:min-w-[360px]">
+            <div className="grid grid-cols-4 gap-2 text-xs lg:min-w-[360px]">
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
                 <p className="text-slate-500">事業所</p>
                 <p className="text-lg font-bold text-slate-800">{selectedCounts.business}</p>

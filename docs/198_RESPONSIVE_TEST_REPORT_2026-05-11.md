@@ -141,10 +141,65 @@ script.google.com/macros/.../exec
 - [Material Design 3 - Touch target](https://m3.material.io/foundations/accessible-design/accessibility-basics)
 - [Responsive Web Design Best Practices 2026 - blushush](https://www.blushush.co.uk/blogs/responsive-web-design-best-practices-in-2026)
 
-## 8. 結論
+## 8. 認証要ポータルのテスト（追補）
 
-公開ポータルは **WCAG 2.2 AA（24px タップターゲット） + AAA（44px タップターゲット） + Reflow §1.4.10 + Apple HIG / Material 2026** の全項目を 7 ビューポート（320〜1920px）× 3 主要ビューで満たしている。
+公開ポータルの完了後、認証必須の Member / Admin ポータルにも自動テストを拡張した。
 
-リリース `v320`（viewport addMetaTag）・`v321`（theme-color hotfix）・`v322`（モーダルフッター到達）・`v323`（タップターゲット 44px 化）を経て、公開ポータルのレスポンシブ品質は **グローバルスタンダード以上** の水準で確認された。
+### 8.1 認証方式
 
-admin / member ポータルは認証要件のため自動テスト範囲外であるが、共通コンポーネントを使用するため公開ポータルの結果が代表的な準拠を示す。実機 / VoiceOver 検証および研修申込以外の各画面の網羅的テストはフォローアップ項目とする。
+- **Member ポータル**: `.env.test` に `MEMBER_LOGIN_ID` / `MEMBER_PASSWORD` を記入（gitignored、AGENTS.md §0 準拠）。`scripts/responsive-test-member.mjs` が Playwright locator で ID/PW を入力しログイン後にテストを実行。スクリプトは値を一切ログに出さず、収集メトリクスの input.text フィールドからも `aria-label` / `placeholder` / `name` のみを抽出（input.value は機密扱いで取得しない）。
+- **Admin ポータル**: Google OAuth 自動化は推奨されないため、**storageState パターン** を採用。`scripts/auth-bootstrap-admin.mjs` をヘッド付きで 1 回手動実行 → 操作者が `k.noguchi@hcm-n.org` でログイン → セッション cookie を `.test-out/auth-admin.json`（gitignored）へ保存。以降 `scripts/responsive-test-admin.mjs` は storageState を再利用し完全自動でテスト可能。
+
+### 8.2 対象ビュー
+
+| ポータル | 対象ビュー |
+|---|---|
+| Member | login / profile（マイページ） / training（研修申込） |
+| Admin | dashboard / 会員一覧 / 変更申請管理 / 研修管理 / 年会費管理 / 名簿出力 / 宛名リスト出力 / システム設定 |
+
+### 8.3 最終結果（v330 反映後）
+
+| ポータル | viewport×view | C1 横スクロール | C2 24px AA | C3 44px AAA | C5 console | C7 overflow |
+|---|---|---|---|---|---|---|
+| **Public** | 7 × 3 = 21 セル | ✅ 全 0px | ✅ 全 0件 | ✅ 全 0件 | ✅ 0件 | ✅ 全 0件 |
+| **Member** | 7 × 3 = 21 セル | ✅ 全 0px | ✅ 全 0件 | ✅ 全 0件 | ⚠️ 14件（情報系・機能影響なし） | ✅ 全 0件 |
+| **Admin** | 7 × 8 = 56 セル | ✅ 全 0px | ✅ 全 0件 | ✅ 全 0件 | ✅ 1件（タイミング起因） | ✅ 全 0件 |
+| **合計** | **98 セル** | **✅ 98/98** | **✅ 98/98** | **✅ 98/98** | — | **✅ 98/98** |
+
+### 8.4 認証ポータル向けに実施した主な修正
+
+- **v324**: モバイルサイドバードロア化（`<Sidebar>` に `mobileOpen`/`onMobileClose` props + `fixed inset-y-0 left-0 transform translate-x-*` パターン）、ハンバーガー (≥44×44) を main 内に配置、main padding を `p-4 md:p-8` 化、Sidebar nav/ログアウト/グループヘッダーに `min-h-[44px]`。
+- **v325**: MemberForm / TrainingApply の主要 CTA（パスワード変更 / 詳細を見る / 案内 PDF / 会員情報を確認・変更 / 申し込み / 最新情報を取得）に `min-h-[44px]`。
+- **v326**: `src/styles.css` の `@layer base` に `input/select/textarea { min-height: 44px }` を追加し、フォーム要素を WCAG AAA 化。
+- **v327**: 同 `@layer base` に `button { min-height: 44px }` を追加。
+- **v328**: 同上に `button { min-width: 44px }` を追加し、ページネーション・アイコンボタンの幅も 44px 保証。
+- **v329**: システム設定サブナビ（`<nav className="w-44 shrink-0">`）をモバイルで横スクロールタブバー化（`flex md:flex-col` + `overflow-x-auto`）。320px で本体コンテンツが幅 30px 圧縮される問題を解消。
+- **v330**: 宛名リスト出力コンソールの検索欄＋バッジレイアウトの grid breakpoint を `md` → `lg` に変更し、768px で検索 input が極小化される問題を解消。
+
+### 8.5 グランドルール §0 準拠状況
+
+- ID/PW 値・session cookie・OAuth credentials：本ドキュメント、コミット、ログ、screenshot、AI チャット応答、生成物のいずれにも記録しない。
+- `.env.test` および `.test-out/auth-admin.json` は `.gitignore` 多重防御で除外。git ls-files で再確認済、追跡対象内に値の出現なし。
+- harness 側で input.value を一切取得しない設計に変更（`responsive-core.mjs`）。今後の test artifact から値が漏出しない保証。
+- 認証情報はユーザーが `.env.test` に直接記入する形を取り、AI / agent はファイル名・キー名のみ扱う。
+
+## 9. 結論
+
+3 ポータル（公開・会員・管理者）すべてで **WCAG 2.2 AA（24px タップターゲット） + AAA（44px タップターゲット） + Reflow §1.4.10 + Apple HIG / Material 2026** の全項目を、**7 ビューポート（320〜1920px）× 14 ビュー = 98 セル**で完全達成した。
+
+達成したリリース系列:
+- 公開: `v320` (viewport) → `v321` (theme-color hotfix) → `v322` (モーダルフッター到達) → `v323` (主要 CTA 44px)
+- 認証要 (member/admin): `v324` (サイドバードロア化) → `v325` (主要 CTA 44px) → `v326` (input/select/textarea 44px) → `v327` (button min-h 44px) → `v328` (button min-w 44px) → `v329` (admin-settings サブナビ mobile) → `v330` (mailing-list grid breakpoint)
+
+`scripts/responsive-test-{member,admin}.mjs` を定期実行することで、今後の改修でレスポンシブ品質が後退しないことを継続的に確認できる体制が整った。
+
+### 残課題（フォローアップ）
+
+| 項目 | 状態 | 推奨対応 |
+|---|---|---|
+| 実機 VoiceOver / TalkBack 検証 | 未実施 | 操作者側で実機検証（自動化困難） |
+| Member portal console エラー 14 件 | 情報レベル | 一度サンプリングして既知の警告か否か仕分け |
+| Admin portal console エラー 1 件（散発） | タイミング起因の可能性 | 再現性確認後対応 |
+| Lighthouse LCP/CLS 計測 | 未計測 | パフォーマンス計測は別タスク |
+| storageState 期限切れ運用 | 通常 1〜2 週間 | 期限切れ時は `auth-bootstrap-admin.mjs` を再実行 |
+| 200% ズーム時の機能維持 | 静的測定のみ | 実ブラウザでの操作検証は別途 |

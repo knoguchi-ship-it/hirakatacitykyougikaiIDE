@@ -1,8 +1,8 @@
 # 開発引継ぎ
 
 更新日: 2026-05-11
-現行本番: `v326`（会員マイページのモバイルサイドバードロア化＋ナビ/ログアウト 44px＋グローバル input/select/textarea 最低 44px。Member 7 viewport × 3 view 全合格） / integrated-public GAS version `294` / member split GAS version `49` / admin split GAS version `84`
-fixed deployment: integrated/public `@294` x2 / member split `@49` / admin split `@84`
+現行本番: `v330`（公開・会員・管理者ポータルすべてで WCAG 2.2 AAA タップターゲット (44×44px) 完全達成。Playwright で 98/98 セル全合格を確認） / integrated-public GAS version `294` / member split GAS version `50` / admin split GAS version `88`
+fixed deployment: integrated/public `@294` x2 / member split `@50` / admin split `@88`
 
 ## 1. 現行状態
 
@@ -49,11 +49,15 @@ fixed deployment: integrated/public `@294` x2 / member split `@49` / admin split
 |---|---|---|---|---|
 | 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@294` |
 | 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@294` |
-| 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@49` |
-| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@84` |
+| 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@50` |
+| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@88` |
 
 ## 4. 直近リリース
 
+- `v330`: 宛名リスト出力コンソールの検索欄レイアウト breakpoint を `md` → `lg` に変更し、768px (iPad portrait) で検索 input が極小化される問題を解消。Admin 56 セル / Member 21 セル / Public 21 セルの計 **98 セル全合格**を達成。詳細: `docs/198_RESPONSIVE_TEST_REPORT_2026-05-11.md`。admin split `@88`。
+- `v329`: システム設定ページのサブナビをモバイル時に横スクロールタブバー化し、320px で本体コンテンツが圧縮される問題を解消。admin split `@87`。
+- `v328`: グローバル `button { min-width: 44px; min-height: 44px; }` を `@layer base` に追加し、ページネーション等の小型ボタンを WCAG 2.2 AAA 準拠サイズに引き上げ。member split `@50` / admin split `@86`。
+- `v327`: 全 `button` 要素にグローバル `min-height: 44px` を追加（v326 の input/select/textarea 対応を拡張）。admin split `@85`。
 - `v326`: 認証要 (member/admin) ポータルのモバイル UX 全面強化。Sidebar をモバイル時ドロアー（ハンバーガー＋backdrop overlay）化、Tailwind base layer に `input/select/textarea { min-height: 44px }` を追加してフォーム要素を 44px AAA 基準に統一、Sidebar nav/ログアウト/グループヘッダーに `min-h-[44px]`、`<main>` を `p-4 md:p-8` に変更。Member ポータルで 7 viewport (320–1920px) × 3 view (login/profile/training) の Playwright 自動テスト 21 セル全合格を確認。member split `@49` / admin split `@84`。
 - `v324`/`v325`: 上記の段階リリース（drawer 導入 → 個別タップターゲット 44px 化）。
 - `v323`: Playwright (chromium) を導入し、公開ポータルに対する自動レスポンシブテストを 7 viewport (320–1920px) × 3 view で実施。初回測定で見つかった WCAG 2.2 AAA 未達のタップターゲット (`← ポータルトップへ戻る` / `重要事項を確認する` / ダイアログ header `閉じる` / `入会・退会案内を開く` / `定款を確認する`) を `min-h-[44px]` + `min-w-[44px]` に揃え、再測定で 21 セル全合格を確認。テスト基準・結果は `docs/198_RESPONSIVE_TEST_REPORT_2026-05-11.md` 参照。`scripts/responsive-test.mjs` で再実行可能。integrated/public `@294` x2 のみ更新。

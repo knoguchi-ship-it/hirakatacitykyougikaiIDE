@@ -2898,23 +2898,23 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          {/* 2カラムレイアウト */}
-          <div className="flex gap-6 items-start">
-            {/* 左サブナビ */}
-            <nav className="w-44 shrink-0 sticky top-4 space-y-1">
+          {/* 2カラムレイアウト（モバイルでは縦積み） */}
+          <div className="flex flex-col md:flex-row gap-4 md:gap-6 items-start">
+            {/* 左サブナビ（モバイル時は横スクロールのタブバー） */}
+            <nav className="w-full md:w-44 md:shrink-0 md:sticky md:top-4 flex md:flex-col gap-2 md:gap-0 md:space-y-1 overflow-x-auto md:overflow-x-visible -mx-1 px-1 md:mx-0 md:px-0">
               {settingsSubNav.map((item) => (
                 <button
                   key={item.id}
                   type="button"
                   onClick={() => setSettingsSub(item.id)}
-                  className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${
+                  className={`shrink-0 md:w-full md:shrink text-left px-3 py-2.5 rounded-lg transition-colors ${
                     settingsSub === item.id
                       ? 'bg-primary-50 border border-primary-200 text-primary-800'
                       : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800'
                   }`}
                 >
-                  <p className={`text-sm font-semibold ${settingsSub === item.id ? 'text-primary-700' : 'text-slate-700'}`}>{item.label}</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5 leading-tight">{item.desc}</p>
+                  <p className={`text-sm font-semibold whitespace-nowrap md:whitespace-normal ${settingsSub === item.id ? 'text-primary-700' : 'text-slate-700'}`}>{item.label}</p>
+                  <p className="hidden md:block text-[11px] text-slate-400 mt-0.5 leading-tight">{item.desc}</p>
                 </button>
               ))}
             </nav>

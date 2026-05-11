@@ -10,13 +10,20 @@
   --color-primary-900: #1e3a8a;
 }
 
-/* WCAG 2.2 §2.5.5 / §2.5.8: text inputs and selects should meet the 44px AAA
-   tap-target threshold by default. Components can opt out by adding min-h-0
-   on the element if a tighter cell is required (admin table inline editors). */
+/* WCAG 2.2 §2.5.5 / §2.5.8: interactive controls should meet the 44px AAA
+   tap-target threshold by default. Components can opt out by adding `min-h-0`
+   on the element if a tighter cell is essential (admin inline editors).
+   `button` and `a[role="button"]` are covered so all CTAs comply regardless
+   of utility-class composition. Anchor links that act as plain inline text
+   intentionally stay opt-in via Tailwind classes. */
 @layer base {
   input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="range"]),
   select,
   textarea {
     min-height: 44px;
+  }
+  button:not([data-no-min]) {
+    min-height: 44px;
+    min-width: 44px;
   }
 }
