@@ -1,6 +1,6 @@
-﻿# 認証・権限仕様
+# 認証・権限仕様
 
-最終更新: 2026-04-24
+最終更新: 2026-05-11
 
 ## 1. 基本方針
 - 会員マイページの権限制御は、`T_認証アカウント.認証方式='PASSWORD'` のログインIDに紐づく認証アカウントを基準に判定する。
@@ -84,7 +84,7 @@
 - 個人会員・賛助会員: 郵送先区分が `HOME` の場合のみ、自宅情報の `郵便番号` / `都道府県` / `市区町村` / `番地` を必須とする。
 - 個人会員・賛助会員: `FAX番号` は任意。電話番号系フィールドは入力がある場合のみ半角数字とハイフンを許可する。
 - 管理コンソールと会員マイページは、エラー項目に赤枠・項目別メッセージ・上部エラーサマリを表示し、保存時は先頭のエラー項目へフォーカスする。
-- 会員が変更する新しいパスワードは 15 文字以上とする。
+- 会員が変更する新しいパスワードは 8〜20 文字とし、半角英数字および許可済み安全記号のみを受け付ける。初期生成パスワードは 15 文字固定で生成する。
 - 事業所会員: 事業所情報を必須とする。`officeNumber` は公開申込では半角英数字 10 文字を必須とする。
 - 事業所会員: 代表者情報の必須項目が欠けている場合は保存不可。
 - 事業所会員: 所属職員の `メールアドレス` は必須とする。ただし同一事業所内でのメールアドレス重複は許容する。新規追加時は、完全空白の追加行のみ保存対象から除外し、入力を開始した行は `氏 / 名 / セイ / メイ / メールアドレス / 介護支援専門員番号` を必須とする。
@@ -102,6 +102,15 @@
 - UI enforcement: role dropdown `disabled` per-row based on caller role and target row.
 - Backend enforcement: `updateMemberSelf_` strips `role` from the caller's own staff record when caller is `ADMIN`; `validateBusinessStaffRoleTransition_` blocks REPRESENTATIVE↔non-REPRESENTATIVE transitions for non-system-admin actors.
 - Backend enforcement: `processApiRequest` は `publicAllowedActions` / `memberAllowedActions` / `ADMIN_ACTION_PERMISSIONS` の登録外 action を `unsupported_action` で拒否する。deny-by-default を維持し、未分類 action の暗黙許可を作らない。
+
+## 8.1 役員の活動報告・経費請求（v333）
+
+- 会員マイページの活動報告・経費請求は、ログイン主体が現役役員である場合のみ利用できる。
+- 活動部（組織）は、ログイン中役員が所属する組織、および `M_組織マスタ.全役員表示フラグ=true` の組織だけを選択可能とする。フロントエンド表示だけでなく、GAS の `saveClaim_()` でも同じ制約を検証する。
+- 活動報告は `M_業務分類` の単価を正とし、会員側の手入力金額を信用しない。数量は常に 1。
+- 経費請求は領収書等の添付ファイルを必須とし、保存時にサーバー側でも添付有無を検証する。
+- HEIC / HEIF は会員側で JPG に変換してからアップロードする。GAS 側の保存対象 MIME は PDF / JPEG / PNG の allowlist を維持する。
+- 管理者は請求管理コンソールで内容・単価根拠・添付有無を確認してから承認または却下する。
 
 ## 9. CM番号（介護支援専門員番号）編集ポリシー（docs/113 案C確定・2026-04-24）
 

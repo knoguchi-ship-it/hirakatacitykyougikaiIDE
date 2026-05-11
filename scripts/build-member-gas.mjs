@@ -414,6 +414,8 @@ function buildMemberCode(source) {
     'deleteMyClaim',
     'uploadClaimAttachment',
     'removeClaimAttachment',
+    // v331: 請求フォームの選択肢（読み取り専用）
+    'getOfficerMasterData',
   ]);
   code = removeIfBlock(code, 'requiredPerms');
   code = pruneUnreachableFunctionDeclarations(code, ['doGet', 'processApiRequest'], 'build-member-gas');

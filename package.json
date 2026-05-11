@@ -27,6 +27,7 @@
     "prerelease": "npm run security:audit && npm run security:public-boundary && npm run security:split-boundary && npm run typecheck"
   },
   "dependencies": {
+    "heic2any": "^0.0.4",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
   },

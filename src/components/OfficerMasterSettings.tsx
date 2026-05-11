@@ -5,6 +5,7 @@ import {
   OfficerMasterData,
   OfficerRole,
   PaymentType,
+  WorkCategory,
 } from '../shared/types';
 
 interface OfficerMasterSettingsProps {
@@ -84,6 +85,8 @@ const OfficerMasterSettings: React.FC<OfficerMasterSettingsProps> = ({ api }) =>
       <RoleSection data={data} setData={setData} api={api} />
       <hr className="border-slate-200" />
       <PaymentTypeSection data={data} setData={setData} api={api} />
+      <hr className="border-slate-200" />
+      <WorkCategorySection data={data} setData={setData} api={api} />
     </div>
   );
 };
@@ -95,6 +98,7 @@ interface OrgForm {
   name: string;
   type: string;
   order: string;
+  allOfficerVisible: boolean;
   enabled: boolean;
 }
 
@@ -105,7 +109,7 @@ const OrganizationSection: React.FC<{
   setData: React.Dispatch<React.SetStateAction<OfficerMasterData | null>>;
   api: ApiClient;
 }> = ({ data, setData, api }) => {
-  const empty: OrgForm = { code: '', name: '', type: '委員会', order: '', enabled: true };
+  const empty: OrgForm = { code: '', name: '', type: '委員会', order: '', allOfficerVisible: false, enabled: true };
   const [editing, setEditing] = useState<Organization | null>(null);
   const [form, setForm] = useState<OrgForm>(empty);
   const [formVisible, setFormVisible] = useState(false);
@@ -121,6 +125,7 @@ const OrganizationSection: React.FC<{
       name: org.組織名,
       type: org.組織種別,
       order: String(org.表示順 || ''),
+      allOfficerVisible: !!org.全役員表示フラグ,
       enabled: !!org.有効フラグ,
     });
     setFormVisible(true);
@@ -141,6 +146,7 @@ const OrganizationSection: React.FC<{
         organizationName: form.name.trim(),
         organizationType: form.type,
         displayOrder: form.order ? Number(form.order) : 0,
+        allOfficerVisible: form.allOfficerVisible,
         enabled: form.enabled,
       });
       const updated = await api.getOfficerMasterData();
@@ -223,7 +229,16 @@ const OrganizationSection: React.FC<{
               />
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-4">
+            <label className="flex items-center gap-1.5 cursor-pointer text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={form.allOfficerVisible}
+                onChange={e => setForm(f => ({ ...f, allOfficerVisible: e.target.checked }))}
+                className="h-4 w-4 rounded border-slate-300 accent-primary-600"
+              />
+              すべての役員に活動部として表示
+            </label>
             <label className="flex items-center gap-1.5 cursor-pointer text-xs text-slate-600">
               <input
                 type="checkbox"
@@ -254,6 +269,7 @@ const OrganizationSection: React.FC<{
                 <th className="px-3 py-2">コード</th>
                 <th className="px-3 py-2">組織名</th>
                 <th className="px-3 py-2">種別</th>
+                <th className="px-3 py-2">全役員</th>
                 <th className="px-3 py-2">順</th>
                 <th className="px-3 py-2">状態</th>
                 <th className="px-3 py-2 text-right">操作</th>
@@ -265,6 +281,7 @@ const OrganizationSection: React.FC<{
                   <td className="px-3 py-2 font-mono text-xs text-slate-500">{org.組織コード}</td>
                   <td className="px-3 py-2 font-medium text-slate-800">{org.組織名}</td>
                   <td className="px-3 py-2 text-slate-600">{org.組織種別}</td>
+                  <td className="px-3 py-2 text-xs text-slate-600">{org.全役員表示フラグ ? '表示' : '所属者のみ'}</td>
                   <td className="px-3 py-2 text-slate-500">{org.表示順}</td>
                   <td className="px-3 py-2">
                     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${org.有効フラグ ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
@@ -703,6 +720,231 @@ const PaymentTypeSection: React.FC<{
                         className={btnDanger}
                       >
                         {deleting === pt.種別コード ? '…' : '削除'}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── M_業務分類 ────────────────────────────────────────────────────────────
+
+interface WorkCategoryForm {
+  code: string;
+  name: string;
+  orgCode: string;
+  unitPrice: string;
+  order: string;
+  enabled: boolean;
+}
+
+const WorkCategorySection: React.FC<{
+  data: OfficerMasterData;
+  setData: React.Dispatch<React.SetStateAction<OfficerMasterData | null>>;
+  api: ApiClient;
+}> = ({ data, setData, api }) => {
+  const activeOrgs = data.organizations.filter(o => !o.削除フラグ && o.有効フラグ).sort((a, b) => (a.表示順 || 0) - (b.表示順 || 0));
+  const defaultOrg = activeOrgs[0]?.組織コード ?? '';
+  const empty: WorkCategoryForm = { code: '', name: '', orgCode: defaultOrg, unitPrice: '', order: '', enabled: true };
+
+  const [editing, setEditing] = useState<WorkCategory | null>(null);
+  const [form, setForm] = useState<WorkCategoryForm>(empty);
+  const [formVisible, setFormVisible] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const openAdd = () => { setEditing(null); setForm({ ...empty, orgCode: defaultOrg }); setFormVisible(true); setError(null); };
+  const openEdit = (category: WorkCategory) => {
+    setEditing(category);
+    setForm({
+      code: category.業務分類コード,
+      name: category.業務分類名,
+      orgCode: category.組織コード,
+      unitPrice: String(category.単価 ?? ''),
+      order: String(category.表示順 || ''),
+      enabled: !!category.有効フラグ,
+    });
+    setFormVisible(true);
+    setError(null);
+  };
+  const closeForm = () => { setFormVisible(false); setEditing(null); setForm(empty); setError(null); };
+
+  const handleSave = async () => {
+    if (!form.code.trim() || !form.name.trim() || !form.orgCode) {
+      setError('業務分類コード・分類名・組織は必須です。');
+      return;
+    }
+    const unitPrice = Number(form.unitPrice || 0);
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+      setError('単価は0円以上の数値で入力してください。');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await api.saveWorkCategory({
+        categoryCode: form.code.trim().toUpperCase(),
+        categoryName: form.name.trim(),
+        organizationCode: form.orgCode,
+        unitPrice,
+        displayOrder: form.order ? Number(form.order) : 0,
+        enabled: form.enabled,
+      });
+      const updated = await api.getOfficerMasterData();
+      setData(updated);
+      closeForm();
+    } catch (e: any) {
+      setError(e?.message || '保存に失敗しました。');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (category: WorkCategory) => {
+    if (!window.confirm(`「${category.業務分類名}」を削除しますか？\n使用中の場合は削除できません。`)) return;
+    setDeleting(category.業務分類コード);
+    try {
+      await api.deleteWorkCategory({ categoryCode: category.業務分類コード });
+      const updated = await api.getOfficerMasterData();
+      setData(updated);
+    } catch (e: any) {
+      alert(e?.message || '削除に失敗しました。');
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const orgMap = Object.fromEntries(data.organizations.map(o => [o.組織コード, o.組織名]));
+  const categories = (data.workCategories ?? []).filter(c => !c.削除フラグ).sort((a, b) => {
+    const orgSort = String(a.組織コード || '').localeCompare(String(b.組織コード || ''), 'ja');
+    return orgSort || (a.表示順 || 0) - (b.表示順 || 0);
+  });
+
+  return (
+    <div className="space-y-3">
+      <SubSectionHeader title="業務分類マスタ" count={categories.length} onAdd={openAdd} />
+      <p className="text-xs text-slate-500">活動報告の業務内容と単価を管理します。会員側では選択した業務分類の単価が自動で請求金額になります。</p>
+
+      {formVisible && (
+        <div className="rounded-xl border border-primary-200 bg-primary-50 p-4 space-y-3">
+          <p className="text-xs font-semibold text-primary-800">{editing ? '業務分類を編集' : '新しい業務分類を追加'}</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">分類コード *</label>
+              <input
+                value={form.code}
+                onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
+                disabled={!!editing}
+                placeholder="例: MEETING"
+                maxLength={30}
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">分類名 *</label>
+              <input
+                value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="例: 会議出席"
+                maxLength={50}
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">組織 *</label>
+              <select value={form.orgCode} onChange={e => setForm(f => ({ ...f, orgCode: e.target.value }))} className={inputCls}>
+                {activeOrgs.map(o => <option key={o.組織コード} value={o.組織コード}>{o.組織名}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">単価 *</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={form.unitPrice}
+                onChange={e => setForm(f => ({ ...f, unitPrice: e.target.value.replace(/[^\d]/g, '') }))}
+                placeholder="例: 3000"
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">表示順</label>
+              <input
+                type="number"
+                value={form.order}
+                onChange={e => setForm(f => ({ ...f, order: e.target.value }))}
+                min={0}
+                max={999}
+                placeholder="0"
+                className={inputCls}
+              />
+            </div>
+          </div>
+          <label className="flex items-center gap-1.5 cursor-pointer text-xs text-slate-600">
+            <input
+              type="checkbox"
+              checked={form.enabled}
+              onChange={e => setForm(f => ({ ...f, enabled: e.target.checked }))}
+              className="h-4 w-4 rounded border-slate-300 accent-primary-600"
+            />
+            有効
+          </label>
+          {error && <p className="text-xs text-red-600">{error}</p>}
+          <div className="flex gap-2">
+            <button type="button" onClick={handleSave} disabled={saving} className={btnPrimary}>
+              {saving ? '保存中…' : '保存'}
+            </button>
+            <button type="button" onClick={closeForm} className={btnSecondary}>キャンセル</button>
+          </div>
+        </div>
+      )}
+
+      {categories.length === 0 ? (
+        <p className="text-xs text-slate-400 py-2">業務分類が登録されていません。</p>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-slate-200">
+          <table className="min-w-full divide-y divide-slate-100 text-sm">
+            <thead className="bg-slate-50 text-left text-xs font-semibold text-slate-500">
+              <tr>
+                <th className="px-3 py-2">コード</th>
+                <th className="px-3 py-2">分類名</th>
+                <th className="px-3 py-2">組織</th>
+                <th className="px-3 py-2 text-right">単価</th>
+                <th className="px-3 py-2">順</th>
+                <th className="px-3 py-2">状態</th>
+                <th className="px-3 py-2 text-right">操作</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {categories.map(category => (
+                <tr key={category.業務分類コード} className={!category.有効フラグ ? 'opacity-50' : undefined}>
+                  <td className="px-3 py-2 font-mono text-xs text-slate-500">{category.業務分類コード}</td>
+                  <td className="px-3 py-2 font-medium text-slate-800">{category.業務分類名}</td>
+                  <td className="px-3 py-2 text-slate-600 text-xs">{orgMap[category.組織コード] ?? category.組織コード}</td>
+                  <td className="px-3 py-2 text-right font-semibold text-slate-700">¥{Number(category.単価 || 0).toLocaleString('ja-JP')}</td>
+                  <td className="px-3 py-2 text-slate-500">{category.表示順}</td>
+                  <td className="px-3 py-2">
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${category.有効フラグ ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                      {category.有効フラグ ? '有効' : '無効'}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <div className="flex justify-end gap-1.5">
+                      <button type="button" onClick={() => openEdit(category)} className={btnEdit}>編集</button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDelete(category)}
+                        disabled={deleting === category.業務分類コード}
+                        className={btnDanger}
+                      >
+                        {deleting === category.業務分類コード ? '…' : '削除'}
                       </button>
                     </div>
                   </td>

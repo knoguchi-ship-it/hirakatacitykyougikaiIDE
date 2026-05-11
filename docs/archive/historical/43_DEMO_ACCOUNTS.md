@@ -19,10 +19,10 @@
 
 | 項目 | 値 |
 |------|-----|
-| 会員ID | `DEMO-IND-001` |
+| 会員ID | `[REDACTED_TEST_LOGIN_ID]` |
 | 名前 | `[デモ]山田 太郎` |
-| ログインID | `demo-ind-001` |
-| パスワード | `demo1234` |
+| ログインID | `[REDACTED_TEST_LOGIN_ID]` |
+| パスワード | `[REDACTED_TEST_PASSWORD]` |
 | 会員種別 | INDIVIDUAL |
 | 状態 | ACTIVE |
 
@@ -30,10 +30,10 @@
 
 | 項目 | 値 |
 |------|-----|
-| 会員ID | `DEMO-IND-002` |
+| 会員ID | `[REDACTED_TEST_LOGIN_ID]` |
 | 名前 | `[デモ]鈴木 花子` |
-| ログインID | `demo-ind-002` |
-| パスワード | `demo1234` |
+| ログインID | `[REDACTED_TEST_LOGIN_ID]` |
+| パスワード | `[REDACTED_TEST_PASSWORD]` |
 | 会員種別 | INDIVIDUAL |
 | 状態 | ACTIVE |
 
@@ -44,7 +44,7 @@
 | 会員ID | `DEMO-BIZ-001` |
 | 事業所名 | `[デモ]ひらかた介護ステーション` |
 | ログインID（代表者） | `demo-biz-rep` |
-| パスワード | `demo1234` |
+| パスワード | `[REDACTED_TEST_PASSWORD]` |
 | 職員権限 | REPRESENTATIVE |
 | 職員ID | `DEMO-S-REP` |
 
@@ -54,7 +54,7 @@
 |------|-----|
 | 会員ID | `DEMO-BIZ-001` |
 | ログインID | `demo-biz-adm` |
-| パスワード | `demo1234` |
+| パスワード | `[REDACTED_TEST_PASSWORD]` |
 | 職員権限 | ADMIN |
 | 職員ID | `DEMO-S-ADM` |
 
@@ -64,7 +64,7 @@
 |------|-----|
 | 会員ID | `DEMO-BIZ-001` |
 | ログインID | `demo-biz-stf` |
-| パスワード | `demo1234` |
+| パスワード | `[REDACTED_TEST_PASSWORD]` |
 | 職員権限 | STAFF |
 | 職員ID | `DEMO-S-STF` |
 
@@ -72,7 +72,7 @@
 
 ## 注意事項
 
-- パスワード `demo1234` は固定のため、セキュリティ目的には使用しないこと。
+- パスワード `[REDACTED_TEST_PASSWORD]` は固定のため、セキュリティ目的には使用しないこと。
 - 会員ID は `DEMO-` プレフィックスで本番データと区別可能。
 - `provisionDemoAccountsJson` は冪等（既存レコードはスキップ）。
 - 再実行しても重複は発生しない。

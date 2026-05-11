@@ -1,8 +1,8 @@
 # 開発引継ぎ
 
 更新日: 2026-05-11
-現行本番: `v332`（パスワード規約を 8〜20 文字に拡張、規約パネルからセキュリティ理由文を除去（UX）、ClaimCard で `getOfficerMasterData` 呼び出しに sessionToken を付与して `member_unauthorized` を解消、エラーメッセージを利用者向けに平易化） / integrated-public GAS version `296` / member split GAS version `52` / admin split GAS version `90`
-fixed deployment: integrated/public `@296` x2 / member split `@52` / admin split `@90`
+現行本番: `v333`（役員向け請求を活動報告 / 経費請求の 2 系統へ分離。業務分類マスタ、全役員表示組織、経費添付必須、HEIC/HEIF→JPG 変換、管理者確認 UI を追加） / integrated-public GAS version `297` / member split GAS version `53` / admin split GAS version `91`
+fixed deployment: integrated/public `@297` x2 / member split `@53` / admin split `@91`
 
 ## 1. 現行状態
 
@@ -16,6 +16,7 @@ fixed deployment: integrated/public `@296` x2 / member split `@52` / admin split
 - release 前に `npm run security:public-boundary` / `npm run security:split-boundary` を実行し、public/member/admin 境界が崩れていないことを確認する。
 - member/admin split artifact の top-level callable は `doGet` / `processApiRequest` のみに制限済み。
 - **v320〜v332（2026-05-11）**: 全 3 ポータルで viewport meta + WCAG 2.2 AAA タップターゲット (44×44px) + iOS Safari モーダル UX + Sidebar モバイルドロアー + パスワード規約 (8〜20文字・許可文字制限) + `member_unauthorized` / `unsupported_action` の利用者向け平易表示を整備。Playwright 自動レスポンシブテスト **98/98 セル全合格** を達成。次担当者向け統合引継ぎ正本: `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md`、テスト正本: `docs/198_RESPONSIVE_TEST_REPORT_2026-05-11.md`。
+- **v333（2026-05-12）**: 役員向け請求を **活動報告 / 経費請求** の 2 系統へ分離。`M_業務分類`、`M_組織マスタ.全役員表示フラグ`、`T_請求.請求種別/業務分類コード/単価/数量` を追加。経費請求は添付必須、HEIC/HEIF は会員側で JPG 変換。public `@297` x2 / member split `@53` / admin split `@91`。詳細: `docs/200_RELEASE_STATE_v333_2026-05-12.md`。
 
 ## 2. 最初に読む順序
 
@@ -28,33 +29,35 @@ fixed deployment: integrated/public `@296` x2 / member split `@52` / admin split
 7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md`（**最新：v320〜v332 統合・引継ぎ正本**）
-11. `docs/198_RESPONSIVE_TEST_REPORT_2026-05-11.md`（Playwright 自動レスポンシブテスト正本・98/98 セル合格）
-12. `docs/197_RELEASE_STATE_v320_2026-05-11.md`（v320 初出時の経緯）
-13. `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`（v311〜v319 統合）
-14. `docs/195_RELEASE_STATE_v310_2026-05-08.md`
-15. `docs/194_RELEASE_STATE_v309_2026-05-08.md`
-16. `docs/193_RELEASE_STATE_v308_2026-05-06.md`
-17. `docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md`
-18. `docs/172_DEFERRED_SECURITY_BACKLOG_SECRET_MANAGER_KDF_2026-05-01.md`
-19. `docs/09_DEPLOYMENT_POLICY.md`
-20. `docs/05_AUTH_AND_ROLE_SPEC.md`
-21. `docs/04_DB_OPERATION_RUNBOOK.md`
-22. `docs/03_DATA_MODEL.md`
-23. `docs/00_DOC_INDEX.md`
-24. `docs/archive/historical/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`（補足状態サマリ。正本は `HANDOVER.md`）
+10. `docs/200_RELEASE_STATE_v333_2026-05-12.md`（**最新：v333 本番反映。活動報告 / 経費請求 2系統化**）
+11. `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md`（v320〜v332 統合・引継ぎ正本）
+12. `docs/198_RESPONSIVE_TEST_REPORT_2026-05-11.md`（Playwright 自動レスポンシブテスト正本・98/98 セル合格）
+13. `docs/197_RELEASE_STATE_v320_2026-05-11.md`（v320 初出時の経緯）
+14. `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`（v311〜v319 統合）
+15. `docs/195_RELEASE_STATE_v310_2026-05-08.md`
+16. `docs/194_RELEASE_STATE_v309_2026-05-08.md`
+17. `docs/193_RELEASE_STATE_v308_2026-05-06.md`
+18. `docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md`
+19. `docs/172_DEFERRED_SECURITY_BACKLOG_SECRET_MANAGER_KDF_2026-05-01.md`
+20. `docs/09_DEPLOYMENT_POLICY.md`
+21. `docs/05_AUTH_AND_ROLE_SPEC.md`
+22. `docs/04_DB_OPERATION_RUNBOOK.md`
+23. `docs/03_DATA_MODEL.md`
+24. `docs/00_DOC_INDEX.md`
+25. `docs/archive/historical/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`（補足状態サマリ。正本は `HANDOVER.md`）
 
 ## 3. 配信境界
 
 | 用途 | Project | Deployment ID | Access | Current version |
 |---|---|---|---|---|
-| 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@296` |
-| 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@296` |
-| 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@52` |
-| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@90` |
+| 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@297` |
+| 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@297` |
+| 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@53` |
+| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@91` |
 
 ## 4. 直近リリース
 
+- `v333`: 役員向け請求を活動報告 / 経費請求の 2 系統へ分離。活動報告は活動部 + 業務分類から単価を確定し数量 1 固定、経費請求は自由記載 + 半角数値金額 + 添付必須。組織の全役員表示フラグ、業務分類マスタ、HEIC/HEIF→JPG 変換、管理者確認 UI を追加。public `@297` x2 / member split `@53` / admin split `@91`。リリース前バックアップは Execution API 権限不足で未実施、ユーザー承認によりスプレッドシート版歴を復旧手段として続行。
 - `v332`: ユーザビリティ・要件改善。**(1) パスワード規約**: 上限を 19 → 20 文字に拡張（8〜20 文字、20文字以下）。規約案内パネルからセキュリティ理由文（XSS / インジェクション対策説明・禁止文字一覧の根拠）を削除し、エンドユーザー視点の「使える文字」のみに集約。**(2) `member_unauthorized` 解消**: `api.getOfficerMasterData()` が会員側からの呼び出し時に sessionToken を渡していなかった問題を修正。**(3) ClaimCard エラー表示の平易化**: 生エラーコード（`member_unauthorized` / `member_session_expired` / `unsupported_action`）を利用者向け日本語メッセージに置換し、警告色（amber）で「請求情報を読み込めませんでした」とタイトル付き表示に。public `@296` / member split `@52` / admin split `@90`。
 - `v331`: **パスワード変更フローの仕様改訂** — `PASSWORD_MIN_LENGTH=8` / `PASSWORD_MAX_LENGTH=19` の範囲制約、許可文字を半角英数 + 安全記号 (`! @ # $ % ^ * ( ) _ + - = [ ] { } ; : , . ? / | ~`) のみに制限。エスケープ可能な記号 (`\` `` ` `` `'` `"` `<` `>` `&`) は禁止しインジェクション・XSS 対策。検証メッセージはパスワード変更モーダル内に表示（`role="alert"` + 規約パネル）。サーバー側 `changePassword_` も同等の検証を実施。初期生成パスワードは `PASSWORD_GENERATED_LENGTH=15` 固定で従来動作維持。**役員会員の `unsupported_action` エラー解消** — `getOfficerMasterData` を `MEMBER_ALLOWED_ACTIONS` に追加（請求フォーム描画用の読み取り専用マスタ参照）。boundary audit / handler / 関数ミラーを更新。public `@295` / member split `@51` / admin split `@89`。なお v332 で `PASSWORD_MAX_LENGTH` は 20 に再調整。
 - `v330`: 宛名リスト出力コンソールの検索欄レイアウト breakpoint を `md` → `lg` に変更し、768px (iPad portrait) で検索 input が極小化される問題を解消。Admin 56 セル / Member 21 セル / Public 21 セルの計 **98 セル全合格**を達成。詳細: `docs/198_RESPONSIVE_TEST_REPORT_2026-05-11.md`。admin split `@88`。
@@ -136,13 +139,13 @@ fixed deployment: integrated/public `@296` x2 / member split `@52` / admin split
 
 ## 8. 次担当者の最初の一手
 
-1. `git status --short` で既存差分と未追跡ファイルを確認する（直近セッション終了時点で clean）。
+1. `git status --short` で既存差分と未追跡ファイルを確認する（2026-05-11 引継ぎ整備で正本文書の更新差分あり）。
 2. **次の 3 件を必ず読む**:
    - `AGENTS.md`（特に **§0 シークレット最優先絶対ルール** と §4 レスポンシブ必須）
    - `HANDOVER.md`（本文書）
    - `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md`（直近 13 リリースの統合引継ぎ正本）
 3. テストハーネス前提を整える（必要に応じて）:
-   - Member テスト: `.env.test.example` を `.env.test` にコピーし、`MEMBER_LOGIN_ID` / `MEMBER_PASSWORD` を埋める（`demo-ind-001` はロック中。`demo-ind-002` などを使用）。
+   - Member テスト: `.env.test.example` を `.env.test` にコピーし、`MEMBER_LOGIN_ID` / `MEMBER_PASSWORD` をユーザー側で埋める（ロックされていないテスト用アカウントを使用）。
    - Admin テスト: `node scripts/auth-bootstrap-admin.mjs` で Google ログイン → `.test-out/auth-admin.json` を作成（通常 1〜2 週間有効）。
    - これらの認証情報は **絶対にチャット・コミット・ログ・ドキュメントに値を再掲しない**（§0）。
 4. 実装・構成・デプロイ前に不明点を確認する。複数解釈が成立する場合は推測で実装せず、YesNo か選択肢で答えられる形で質問する。

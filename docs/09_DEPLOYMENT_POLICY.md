@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-05-06
-Production: `v308` / integrated-public fixed deployments `@290` x2 / member split `@44` / admin split `@68`
+Updated: 2026-05-11
+Production: `v333` / integrated-public fixed deployments `@297` x2 / member split `@53` / admin split `@91`
 
 ## 1. Purpose
 
@@ -17,15 +17,15 @@ Production: `v308` / integrated-public fixed deployments `@290` x2 / member spli
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@290` (`v291`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@290` (`v291`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@297` (`v333`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@297` (`v333`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@44` (`v297`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@68` (`v308`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@53` (`v333`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@91` (`v333`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -122,7 +122,23 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-05-06 `v308` ← current production
+### 2026-05-12 `v333` ← current production
+- Scope: 役員向け請求を活動報告 / 経費請求の 2 系統へ分離。業務分類マスタ、全役員表示組織、HEIC/HEIF→JPG 変換、管理者確認 UI を追加。
+- Integrated fixed deployments: `@297` x2
+- Member split: `@53`
+- Admin split: `@91`
+- Detail: `docs/200_RELEASE_STATE_v333_2026-05-12.md`
+- Note: pre-release backup via `clasp run` was blocked by Execution API permission. User explicitly approved proceeding with Google Sheets version history as rollback path.
+
+### 2026-05-11 `v332`
+
+- Scope: パスワード規約を 8〜20 文字へ調整し、規約パネルからセキュリティ理由文を除去。`getOfficerMasterData` の member sessionToken 付与漏れを修正し、ClaimCard の生エラーコード表示を利用者向け文言へ変更。
+- Integrated fixed deployments: `@296` x2
+- Member split: `@52`
+- Admin split: `@90`
+- Detail: `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md`
+
+### 2026-05-06 `v308`
 
 - Scope: 会員詳細編集画面の年会費表示を、2024 年度以降、当年度から過去 4 年分へ修正。
 - Integrated fixed deployments: `@290` x2（変更なし）

@@ -195,12 +195,14 @@ export interface ApiClient {
   repairMemberCareManagerDuplicates(): Promise<{ repaired: number; details: { memberId: string; careManagerNumber: string }[] }>;
   // v295: 役員管理マスタ
   getOfficerMasterData(): Promise<import('../shared/types').OfficerMasterData>;
-  saveOrganization(payload: { organizationCode: string; organizationName: string; organizationType?: string; displayOrder?: number; enabled?: boolean }): Promise<{ organizationCode: string }>;
+  saveOrganization(payload: { organizationCode: string; organizationName: string; organizationType?: string; displayOrder?: number; allOfficerVisible?: boolean; enabled?: boolean }): Promise<{ organizationCode: string }>;
   deleteOrganization(payload: { organizationCode: string }): Promise<{ deleted: boolean; organizationCode: string }>;
   saveOfficerRole(payload: { roleCode: string; roleName: string; organizationCode: string; isChairman?: boolean; displayOrder?: number; enabled?: boolean }): Promise<{ roleCode: string }>;
   deleteOfficerRole(payload: { roleCode: string }): Promise<{ deleted: boolean; roleCode: string }>;
   savePaymentType(payload: { typeCode: string; typeName: string; scope?: string; displayOrder?: number; enabled?: boolean }): Promise<{ typeCode: string }>;
   deletePaymentType(payload: { typeCode: string }): Promise<{ deleted: boolean; typeCode: string }>;
+  saveWorkCategory(payload: { categoryCode: string; categoryName: string; organizationCode: string; unitPrice: number; displayOrder?: number; enabled?: boolean }): Promise<{ categoryCode: string }>;
+  deleteWorkCategory(payload: { categoryCode: string }): Promise<{ deleted: boolean; categoryCode: string }>;
   // v295: 役員割当て管理
   getOfficerManagementData(): Promise<import('../shared/types').OfficerManagementData>;
   assignOfficer(payload: { memberId?: string; staffId?: string; roleCode: string; appointedDate?: string; note?: string }): Promise<{ officerId: string }>;
@@ -1644,7 +1646,7 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async saveOrganization(payload: { organizationCode: string; organizationName: string; organizationType?: string; displayOrder?: number; enabled?: boolean }): Promise<{ organizationCode: string }> {
+  async saveOrganization(payload: { organizationCode: string; organizationName: string; organizationType?: string; displayOrder?: number; allOfficerVisible?: boolean; enabled?: boolean }): Promise<{ organizationCode: string }> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
       google.script.run
@@ -1719,6 +1721,32 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('deletePaymentType', JSON.stringify(payload));
+    });
+  }
+
+  async saveWorkCategory(payload: { categoryCode: string; categoryName: string; organizationCode: string; unitPrice: number; displayOrder?: number; enabled?: boolean }): Promise<{ categoryCode: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('saveWorkCategory', JSON.stringify(payload));
+    });
+  }
+
+  async deleteWorkCategory(payload: { categoryCode: string }): Promise<{ deleted: boolean; categoryCode: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('deleteWorkCategory', JSON.stringify(payload));
     });
   }
 

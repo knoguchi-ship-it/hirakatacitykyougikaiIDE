@@ -13,7 +13,7 @@ var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
 var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
-var DB_SCHEMA_VERSION = '2026-04-10-01';
+var DB_SCHEMA_VERSION = '2026-05-11-claim-v2';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
 var MEMBER_PORTAL_URL = 'https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec';
@@ -166,9 +166,10 @@ var マスタ定義 = {
   M_申込者区分: ['コード', '名称', '表示順', '削除フラグ'],
   M_管理者権限: ['コード', '名称', '表示順', '有効フラグ'],
   // v295: 役員管理マスタ（CRUD 可能 — システム設定から管理）
-  M_組織マスタ: ['組織コード', '組織名', '組織種別', '表示順', '有効フラグ', '削除フラグ', '作成日時', '更新日時'],
+  M_組織マスタ: ['組織コード', '組織名', '組織種別', '表示順', '全役員表示フラグ', '有効フラグ', '削除フラグ', '作成日時', '更新日時'],
   M_役職マスタ: ['役職コード', '役職名', '組織コード', '委員長フラグ', '表示順', '有効フラグ', '削除フラグ', '作成日時', '更新日時'],
   M_支払い種別マスタ: ['種別コード', '種別名', '対象区分', '表示順', '有効フラグ', '削除フラグ', '作成日時', '更新日時'],
+  M_業務分類: ['業務分類コード', '業務分類名', '組織コード', '単価', '表示順', '有効フラグ', '削除フラグ', '作成日時', '更新日時'],
 };
 
 var マスタ初期値 = {
@@ -233,16 +234,16 @@ var マスタ初期値 = {
     ['GENERAL', '一般', 5, true],
   ],
   // v295: 役員管理マスタ初期値
-  // ['組織コード','組織名','組織種別','表示順','有効フラグ','削除フラグ','作成日時','更新日時']
+  // ['組織コード','組織名','組織種別','表示順','全役員表示フラグ','有効フラグ','削除フラグ','作成日時','更新日時']
   M_組織マスタ: [
-    ['HQ',          '本部',            '本部',  1, true, false, '', ''],
-    ['DIRECTORS',   '理事会',          '委員会', 2, true, false, '', ''],
-    ['AUDITORS',    '監事会',          '委員会', 3, true, false, '', ''],
-    ['SECRETARIAT', '事務局',          '事務局', 4, true, false, '', ''],
-    ['REGIONAL',    '圏域委員会',      '委員会', 5, true, false, '', ''],
-    ['PR',          '広報組織化委員会','委員会', 6, true, false, '', ''],
-    ['TRAINING',    '研修委員会',      '委員会', 7, true, false, '', ''],
-    ['RESEARCH',    '調査研究委員会',  '委員会', 8, true, false, '', ''],
+    ['HQ',          '本部',            '本部',  1, true,  true, false, '', ''],
+    ['DIRECTORS',   '理事会',          '委員会', 2, true,  true, false, '', ''],
+    ['AUDITORS',    '監事会',          '委員会', 3, false, true, false, '', ''],
+    ['SECRETARIAT', '事務局',          '事務局', 4, true,  true, false, '', ''],
+    ['REGIONAL',    '圏域委員会',      '委員会', 5, false, true, false, '', ''],
+    ['PR',          '広報組織化委員会','委員会', 6, false, true, false, '', ''],
+    ['TRAINING',    '研修委員会',      '委員会', 7, false, true, false, '', ''],
+    ['RESEARCH',    '調査研究委員会',  '委員会', 8, false, true, false, '', ''],
   ],
   // ['役職コード','役職名','組織コード','委員長フラグ','表示順','有効フラグ','削除フラグ','作成日時','更新日時']
   M_役職マスタ: [
@@ -269,6 +270,10 @@ var マスタ初期値 = {
     ['TRANSPORT',    '交通費',   '両方', 4, true, false, '', ''],
     ['SUPPLIES',     '消耗品費', '両方', 5, true, false, '', ''],
     ['OTHER',        'その他',   '両方', 6, true, false, '', ''],
+  ],
+  // ['業務分類コード','業務分類名','組織コード','単価','表示順','有効フラグ','削除フラグ','作成日時','更新日時']
+  M_業務分類: [
+    ['MEETING_ATTENDANCE', '会議出席', 'HQ', 0, 1, true, false, '', ''],
   ],
 };
 
@@ -537,6 +542,7 @@ var テーブル定義 = {
 ];
 テーブル定義['T_請求'] = [
   '請求ID', '会員ID', '職員ID', '役職コード', '組織コード', '種別コード',
+  '請求種別', '業務分類コード', '単価', '数量',
   '請求金額', '活動日', '活動内容', '添付ファイルURL',
   '請求状態', '却下理由', '承認者メール', '承認日時',
   '削除フラグ', '作成日時', '更新日時',
@@ -566,6 +572,7 @@ var 入力規則定義 = [
   ['T_支払い明細', '種別コード', 'M_支払い種別マスタ'],
   ['T_支払い明細', '組織コード', 'M_組織マスタ'],
   ['T_請求',       '種別コード', 'M_支払い種別マスタ'],
+  ['T_請求',       '業務分類コード', 'M_業務分類'],
   ['T_請求',       '組織コード', 'M_組織マスタ'],
 ];
 
@@ -742,6 +749,7 @@ var ADMIN_ACTION_PERMISSIONS = {
   'repairDuplicateStaffRecords': ['MASTER'],
   'repairTrainingApplicationApplicantIds': ['MASTER'],
   'repairMemberCareManagerDuplicates': ['MASTER'],
+  'backupMigrationTargets': ['MASTER'],
   'fetchAllData': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
   'initRosterExport': ['MASTER','ADMIN'],
   'processRosterChunk': ['MASTER','ADMIN'],
@@ -761,6 +769,8 @@ var ADMIN_ACTION_PERMISSIONS = {
   'deleteOfficerRole': ['MASTER','ADMIN'],
   'savePaymentType': ['MASTER','ADMIN'],
   'deletePaymentType': ['MASTER','ADMIN'],
+  'saveWorkCategory': ['MASTER','ADMIN'],
+  'deleteWorkCategory': ['MASTER','ADMIN'],
   // v295/v297: 役員割当て管理（管理コンソール）
   'getOfficerManagementData': ['MASTER','ADMIN'],
   'assignOfficer': ['MASTER','ADMIN'],
@@ -1168,6 +1178,12 @@ function processApiRequest(action, payload) {
     if (action === 'deletePaymentType') {
       return JSON.stringify({ success: true, data: deletePaymentType_(parsedPayload) });
     }
+    if (action === 'saveWorkCategory') {
+      return JSON.stringify({ success: true, data: saveWorkCategory_(parsedPayload) });
+    }
+    if (action === 'deleteWorkCategory') {
+      return JSON.stringify({ success: true, data: deleteWorkCategory_(parsedPayload) });
+    }
     // v295: 役員割当て管理
     if (action === 'getOfficerManagementData') {
       return JSON.stringify({ success: true, data: getOfficerManagementData_() });
@@ -1236,6 +1252,9 @@ function processApiRequest(action, payload) {
     }
     if (action === 'repairMemberCareManagerDuplicates') {
       return JSON.stringify({ success: true, data: repairMemberCareManagerDuplicates_() });
+    }
+    if (action === 'backupMigrationTargets') {
+      return JSON.stringify({ success: true, data: backupMigrationTargets_() });
     }
 
     // ── 会員セルフサービス（管理者認証不要・パスワード再認証必須）──
@@ -9023,8 +9042,89 @@ var MIGRATION_LOCK_WAIT_MS = 30000;
  * 対象テーブルの全データを _BAK_yyyyMMdd シートに退避し、
  * 同じスナップショットを別スプレッドシートにも保存する。
  */
+function backupBeforeMigration_() {
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var suffix = '_BAK_' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd_HHmmss');
+  var backed = [];
+  var externalBackup = createExternalBackupSpreadsheet_(ss, suffix);
+  var externalBacked = [];
 
+  for (var i = 0; i < MIGRATION_TARGET_TABLES.length; i++) {
+    var tableName = MIGRATION_TARGET_TABLES[i];
+    var src = ss.getSheetByName(tableName);
+    if (!src || src.getLastRow() < 1) continue;
+    var copy = src.copyTo(ss);
+    copy.setName(tableName + suffix);
+    backed.push(tableName + suffix);
 
+    var externalCopy = src.copyTo(externalBackup.spreadsheet);
+    externalCopy.setName(tableName);
+    externalBacked.push({
+      tableName: tableName,
+      rowCount: src.getLastRow(),
+      columnCount: src.getLastColumn()
+    });
+  }
+
+  finalizeExternalBackupSpreadsheet_(externalBackup.spreadsheet, ss, suffix, backed, externalBacked);
+  var props = PropertiesService.getScriptProperties();
+  props.setProperty(LAST_EXTERNAL_BACKUP_SPREADSHEET_ID_KEY, externalBackup.spreadsheet.getId());
+  props.setProperty(LAST_EXTERNAL_BACKUP_SPREADSHEET_URL_KEY, externalBackup.spreadsheet.getUrl());
+  props.setProperty(LAST_EXTERNAL_BACKUP_SUFFIX_KEY, suffix);
+  Logger.log('バックアップ完了: ' + backed.join(', '));
+  Logger.log('外部バックアップ: ' + externalBackup.spreadsheet.getUrl());
+  return {
+    suffix: suffix,
+    tables: backed,
+    externalSpreadsheetId: externalBackup.spreadsheet.getId(),
+    externalSpreadsheetUrl: externalBackup.spreadsheet.getUrl(),
+    externalTables: externalBacked.map(function(item) { return item.tableName; })
+  };
+}
+
+function createExternalBackupSpreadsheet_(sourceSpreadsheet, suffix) {
+  var backupName = DB_BACKUP_SPREADSHEET_NAME_PREFIX + suffix.replace(/^_/, '_');
+  var backupSpreadsheet = SpreadsheetApp.create(backupName);
+  var manifest = backupSpreadsheet.getSheets()[0];
+  manifest.setName(DB_BACKUP_MANIFEST_SHEET);
+  manifest.clear();
+  manifest.getRange(1, 1, 1, 5).setValues([['section', 'key', 'value', 'rowCount', 'columnCount']]);
+  manifest.getRange(2, 1, 5, 5).setValues([
+    ['meta', 'createdAt', Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss'), '', ''],
+    ['meta', 'sourceSpreadsheetId', sourceSpreadsheet.getId(), '', ''],
+    ['meta', 'sourceSpreadsheetName', sourceSpreadsheet.getName(), '', ''],
+    ['meta', 'backupSuffix', suffix, '', ''],
+    ['meta', 'backupSpreadsheetId', backupSpreadsheet.getId(), '', '']
+  ]);
+  return { spreadsheet: backupSpreadsheet };
+}
+
+function finalizeExternalBackupSpreadsheet_(backupSpreadsheet, sourceSpreadsheet, suffix, internalTables, externalTables) {
+  var manifest = backupSpreadsheet.getSheetByName(DB_BACKUP_MANIFEST_SHEET);
+  if (!manifest) {
+    manifest = backupSpreadsheet.insertSheet(DB_BACKUP_MANIFEST_SHEET, 0);
+    manifest.getRange(1, 1, 1, 5).setValues([['section', 'key', 'value', 'rowCount', 'columnCount']]);
+  }
+
+  var rows = [
+    ['meta', 'backupSpreadsheetUrl', backupSpreadsheet.getUrl(), '', ''],
+    ['meta', 'tableCount', String(externalTables.length), '', ''],
+    ['meta', 'internalBackupSheets', internalTables.join(','), '', ''],
+    ['meta', 'sourceSpreadsheetUrl', sourceSpreadsheet.getUrl(), '', '']
+  ];
+
+  for (var i = 0; i < externalTables.length; i++) {
+    rows.push([
+      'table',
+      externalTables[i].tableName,
+      externalTables[i].tableName + suffix,
+      externalTables[i].rowCount,
+      externalTables[i].columnCount
+    ]);
+  }
+
+  manifest.getRange(manifest.getLastRow() + 1, 1, rows.length, 5).setValues(rows);
+}
 
 
 
@@ -9280,7 +9380,7 @@ function backfillBusinessStaffNameColumns_(ss) {
  */
 
 /**
- * ランダムパスワードを生成する（15文字以上、英数字）
+ * ランダムパスワードを生成する（PASSWORD_GENERATED_LENGTH 文字、英数字のみ）
  */
 function generateRandomPassword_() {
   var chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -9332,6 +9432,9 @@ function generateRandomPassword_() {
 
 
 
+function backupMigrationTargets_() {
+  return backupBeforeMigration_();
+}
 
 
 
@@ -11226,23 +11329,11 @@ function getDeleteLogs_(payload) {
  * LOG_SPREADSHEET_ID をこのプロジェクトのスクリプトプロパティに設定する。
  * admin/member split に同じログSSIDを適用するために使用する。
  */
-
-// ---------------------------------------------------------------------------
-// Password hashing (PBKDF2 + verifier-side pepper)
-// ---------------------------------------------------------------------------
-
-// v332: パスワード長制約（8〜20 文字 — user-supplied）
-// generateCredentialTempPassword_ で生成する初期パスワードは PASSWORD_GENERATED_LENGTH（15）固定。
-var PASSWORD_MIN_LENGTH = 8;
 var PASSWORD_MAX_LENGTH = 20;
 var PASSWORD_GENERATED_LENGTH = 15;
 // v331: 許可文字 — ASCII 英数 + 安全記号のみ。エスケープ可能な記号
 // (\ ` ' " < > &)、空白、制御文字は禁止（インジェクション・XSS・コマンド注入対策）。
 var PASSWORD_ALLOWED_REGEX = /^[A-Za-z0-9!@#$%^*()_+=\-\[\]{};:,.?\/|~]+$/;
-function validatePasswordCharset_(password) {
-  if (typeof password !== 'string' || password.length === 0) return false;
-  return PASSWORD_ALLOWED_REGEX.test(password);
-}
 var PASSWORD_HASH_PEPPER_PROPERTY = 'PASSWORD_HASH_PEPPER_V1';
 var PASSWORD_HASH_PEPPER_ID = 'v1';
 
@@ -11349,7 +11440,8 @@ function getOfficerMasterData_() {
   var orgs = getRowsAsObjects_(ss, 'M_組織マスタ').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
   var roles = getRowsAsObjects_(ss, 'M_役職マスタ').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
   var paymentTypes = getRowsAsObjects_(ss, 'M_支払い種別マスタ').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
-  return { organizations: orgs, roles: roles, paymentTypes: paymentTypes };
+  var workCategories = getRowsAsObjects_(ss, 'M_業務分類').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  return { organizations: orgs, roles: roles, paymentTypes: paymentTypes, workCategories: workCategories };
 }
 
 // ---------- M_組織マスタ CRUD ----------
@@ -11359,6 +11451,7 @@ function saveOrganization_(payload) {
   var name         = String(payload.organizationName || '').trim();
   var type         = String(payload.organizationType || '').trim();
   var displayOrder = Number(payload.displayOrder || 0);
+  var allOfficerVisible = toBoolean_(payload.allOfficerVisible);
   if (!id)   throw new Error('組織コードは必須です。');
   if (!name) throw new Error('組織名は必須です。');
 
@@ -11374,13 +11467,14 @@ function saveOrganization_(payload) {
     row[found.columns['組織名']]    = name;
     row[found.columns['組織種別']]  = type;
     row[found.columns['表示順']]    = displayOrder;
+    if (found.columns['全役員表示フラグ'] != null) row[found.columns['全役員表示フラグ']] = allOfficerVisible;
     row[found.columns['有効フラグ']] = toBoolean_(payload.enabled !== false);
     row[found.columns['更新日時']]  = nowIso;
     sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
   } else {
     appendRowsByHeaders_(ss, 'M_組織マスタ', [{
       '組織コード': id, '組織名': name, '組織種別': type,
-      '表示順': displayOrder, '有効フラグ': true,
+      '表示順': displayOrder, '全役員表示フラグ': allOfficerVisible, '有効フラグ': true,
       '削除フラグ': false, '作成日時': nowIso, '更新日時': nowIso,
     }]);
   }
@@ -11398,6 +11492,10 @@ function deleteOrganization_(payload) {
     return !toBoolean_(r['削除フラグ']) && String(r['組織コード'] || '') === id;
   });
   if (roles.length > 0) throw new Error('この組織に役職が登録されています。先に役職を削除してください。');
+  var workCategories = getRowsAsObjects_(ss, 'M_業務分類').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) && String(r['組織コード'] || '') === id;
+  });
+  if (workCategories.length > 0) throw new Error('この組織に業務分類が登録されています。先に業務分類を削除してください。');
 
   var sheet = ss.getSheetByName('M_組織マスタ');
   var found = findRowByColumnValue_(sheet, '組織コード', id);
@@ -11533,6 +11631,78 @@ function deletePaymentType_(payload) {
   row[found.columns['更新日時']]   = new Date().toISOString();
   sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
   return { deleted: true, typeCode: id };
+}
+
+// ---------- M_業務分類 CRUD ----------
+
+function saveWorkCategory_(payload) {
+  var id           = String(payload.categoryCode || '').trim().toUpperCase();
+  var name         = String(payload.categoryName || '').trim();
+  var orgCode      = String(payload.organizationCode || '').trim();
+  var unitPrice    = Number(payload.unitPrice || 0);
+  var displayOrder = Number(payload.displayOrder || 0);
+  if (!id)      throw new Error('業務分類コードは必須です。');
+  if (!name)    throw new Error('業務分類名は必須です。');
+  if (!orgCode) throw new Error('組織は必須です。');
+  if (unitPrice < 0 || !isFinite(unitPrice)) throw new Error('単価は0円以上の数値で入力してください。');
+
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  var org = findRowByColumnValue_(ss.getSheetByName('M_組織マスタ'), '組織コード', orgCode);
+  if (!org || toBoolean_(org.row[org.columns['削除フラグ']])) throw new Error('指定された組織が見つかりません。');
+
+  var sheet = ss.getSheetByName('M_業務分類');
+  if (!sheet) throw new Error('M_業務分類 が見つかりません。');
+  var found = findRowByColumnValue_(sheet, '業務分類コード', id);
+  var nowIso = new Date().toISOString();
+
+  if (found) {
+    var row = found.row.slice();
+    row[found.columns['業務分類名']] = name;
+    row[found.columns['組織コード']] = orgCode;
+    row[found.columns['単価']] = unitPrice;
+    row[found.columns['表示順']] = displayOrder;
+    row[found.columns['有効フラグ']] = toBoolean_(payload.enabled !== false);
+    row[found.columns['更新日時']] = nowIso;
+    sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  } else {
+    appendRowsByHeaders_(ss, 'M_業務分類', [{
+      '業務分類コード': id,
+      '業務分類名': name,
+      '組織コード': orgCode,
+      '単価': unitPrice,
+      '表示順': displayOrder,
+      '有効フラグ': true,
+      '削除フラグ': false,
+      '作成日時': nowIso,
+      '更新日時': nowIso,
+    }]);
+  }
+  return { categoryCode: id };
+}
+
+function deleteWorkCategory_(payload) {
+  var id = String(payload.categoryCode || '').trim();
+  if (!id) throw new Error('業務分類コードは必須です。');
+
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+
+  var claims = getRowsAsObjects_(ss, 'T_請求').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) && String(r['業務分類コード'] || '') === id;
+  });
+  if (claims.length > 0) throw new Error('この業務分類は請求で使用中のため削除できません。');
+
+  var sheet = ss.getSheetByName('M_業務分類');
+  var found = findRowByColumnValue_(sheet, '業務分類コード', id);
+  if (!found) throw new Error('削除対象の業務分類が見つかりません。');
+
+  var row = found.row.slice();
+  row[found.columns['有効フラグ']] = false;
+  row[found.columns['削除フラグ']] = true;
+  row[found.columns['更新日時']] = new Date().toISOString();
+  sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  return { deleted: true, categoryCode: id };
 }
 
 // ---------- 役員ステータス確認ヘルパー ----------
@@ -11756,6 +11926,16 @@ function deleteBankAccount_(payload) {
 // processApiRequest で sessionToken 検証済み → memberId・staffId が確定済み
 
 
+function normalizeClaimRecord_(record) {
+  var out = Object.assign({}, record);
+  if (!String(out['請求種別'] || '').trim()) out['請求種別'] = 'EXPENSE_CLAIM';
+  if (!String(out['数量'] || '').trim()) out['数量'] = 1;
+  if (!String(out['単価'] || '').trim()) out['単価'] = Number(out['請求金額'] || 0);
+  if (!String(out['業務分類コード'] || '').trim()) out['業務分類コード'] = '';
+  return out;
+}
+
+
 // ---------- T_支払い / T_支払い明細 / T_請求 管理 ----------
 
 function getPaymentHistory_(payload) {
@@ -11949,6 +12129,7 @@ function getClaims_(payload) {
   getRowsAsObjects_(ss, 'T_会員').forEach(function(m) { memberMap[String(m['会員ID'] || '')] = m; });
 
   return claims.map(function(c) {
+    c = normalizeClaimRecord_(c);
     var m = memberMap[String(c['会員ID'] || '')] || {};
     var displayName = (String(m['姓'] || '') + ' ' + String(m['名'] || '')).trim();
     return Object.assign({}, c, { 表示名: displayName || String(c['会員ID'] || '') });

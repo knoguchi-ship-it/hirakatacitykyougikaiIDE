@@ -170,6 +170,7 @@ export interface Organization {
   組織名: string;
   組織種別: string;
   表示順: number;
+  全役員表示フラグ?: boolean;
   有効フラグ: boolean;
   削除フラグ: boolean;
   作成日時: string;
@@ -199,10 +200,23 @@ export interface PaymentType {
   更新日時: string;
 }
 
+export interface WorkCategory {
+  業務分類コード: string;
+  業務分類名: string;
+  組織コード: string;
+  単価: number;
+  表示順: number;
+  有効フラグ: boolean;
+  削除フラグ: boolean;
+  作成日時: string;
+  更新日時: string;
+}
+
 export interface OfficerMasterData {
   organizations: Organization[];
   roles: OfficerRole[];
   paymentTypes: PaymentType[];
+  workCategories: WorkCategory[];
 }
 
 export interface OfficerRecord {
@@ -335,9 +349,11 @@ export interface ClaimAttachment {
 
 export interface SaveClaimPayload {
   claimId?: string;           // 更新時のみ
+  claimType: 'ACTIVITY_REPORT' | 'EXPENSE_CLAIM';
   roleCode?: string;
   organizationCode?: string;
-  typeCode: string;
+  typeCode?: string;
+  workCategoryCode?: string;
   amount: number;
   activityDate: string;       // YYYY-MM-DD
   activityDescription: string;
@@ -352,6 +368,10 @@ export interface ClaimRecord {
   役職コード: string;
   組織コード: string;
   種別コード: string;
+  請求種別: 'ACTIVITY_REPORT' | 'EXPENSE_CLAIM';
+  業務分類コード: string;
+  単価: number;
+  数量: number;
   請求金額: number;
   活動日: string;
   活動内容: string;

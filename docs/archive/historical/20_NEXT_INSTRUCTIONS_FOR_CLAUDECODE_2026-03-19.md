@@ -17,7 +17,7 @@ Production: `v208` / fixed deployments `@208`
 - The member portal uses sidebar logout.
 - Business-member UI is organized around representative info, office info, and fixed delivery rules.
 - Individual/support members treat blank `officeName` or `????` as no office affiliation.
-- Demo accounts (production DB): `demo-ind-001` / `demo1234` (individual), `demo-ind-002` / `demo1234` (individual).
+- Demo accounts (production DB): test login IDs and passwords are intentionally omitted. Use the current handover and gitignored `.env.test` workflow instead.
 - Roster export console (`RosterExport`): requires `ROSTER_TEMPLATE_SS_ID` in system settings.
   - Template resolution: prefers `_DATA_ROSTER` sheet, falls back to legacy `_DATA`.
   - Sheet selection: prefers developer metadata (`HKC_TEMPLATE_FAMILY`), falls back to `P_` / `B_` prefix.

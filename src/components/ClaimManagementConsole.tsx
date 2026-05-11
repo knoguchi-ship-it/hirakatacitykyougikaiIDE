@@ -39,6 +39,12 @@ const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
   { value: '却下', label: '却下' },
 ];
 
+const CLAIM_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: '', label: 'すべて' },
+  { value: 'ACTIVITY_REPORT', label: '活動報告' },
+  { value: 'EXPENSE_CLAIM', label: '経費請求' },
+];
+
 const inputCls = 'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500';
 const btnPrimary = 'rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50';
 const btnSec = 'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50';
@@ -55,6 +61,10 @@ function daysSince(dateStr: string): number {
 function parseAttachments(jsonStr: string): ClaimAttachment[] {
   if (!jsonStr) return [];
   try { return JSON.parse(jsonStr); } catch { return []; }
+}
+
+function getClaimType(claim: ClaimRecord): 'ACTIVITY_REPORT' | 'EXPENSE_CLAIM' {
+  return claim.請求種別 === 'ACTIVITY_REPORT' ? 'ACTIVITY_REPORT' : 'EXPENSE_CLAIM';
 }
 
 // ── StatusBadge ──────────────────────────────────────────────────────────────
@@ -77,6 +87,7 @@ const ClaimManagementConsole: React.FC<ClaimManagementConsoleProps> = ({ api, on
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // フィルター
+  const [filterClaimType, setFilterClaimType] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterMemberId, setFilterMemberId] = useState('');
   const [filterTypeCode, setFilterTypeCode] = useState('');
@@ -119,6 +130,7 @@ const ClaimManagementConsole: React.FC<ClaimManagementConsoleProps> = ({ api, on
   const typeMap = useMemo(() => Object.fromEntries((masterData?.paymentTypes ?? []).map(t => [t.種別コード, t.種別名])), [masterData]);
   const orgMap = useMemo(() => Object.fromEntries((masterData?.organizations ?? []).map(o => [o.組織コード, o.組織名])), [masterData]);
   const roleMap = useMemo(() => Object.fromEntries((masterData?.roles ?? []).map(r => [r.役職コード, r.役職名])), [masterData]);
+  const categoryMap = useMemo(() => Object.fromEntries((masterData?.workCategories ?? []).map(c => [c.業務分類コード, c])), [masterData]);
 
   // 会員ドロップダウン用（重複排除）
   const uniqueMembers = useMemo(() => {
@@ -128,32 +140,28 @@ const ClaimManagementConsole: React.FC<ClaimManagementConsoleProps> = ({ api, on
       .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
   }, [claims]);
 
-  // 種別ドロップダウン用
-  const activeTypes = useMemo(
-    () => (masterData?.paymentTypes ?? []).filter(t => !t.削除フラグ).sort((a, b) => (a.表示順 || 0) - (b.表示順 || 0)),
-    [masterData],
-  );
-
   const filteredClaims = useMemo(() => {
     return claims.filter(c => {
+      if (filterClaimType && getClaimType(c) !== filterClaimType) return false;
       if (filterStatus && c.請求状態 !== filterStatus) return false;
       if (filterMemberId && c.会員ID !== filterMemberId) return false;
-      if (filterTypeCode && c.種別コード !== filterTypeCode) return false;
+      if (filterTypeCode && (c.業務分類コード || c.種別コード) !== filterTypeCode) return false;
       if (filterDateFrom && c.活動日 < filterDateFrom) return false;
       if (filterDateTo && c.活動日 > filterDateTo) return false;
       if (showSlaOnly && !(c.請求状態 === '申請中' && daysSince(c.作成日時) >= SLA_WARNING_DAYS)) return false;
       return true;
     });
-  }, [claims, filterStatus, filterMemberId, filterTypeCode, filterDateFrom, filterDateTo, showSlaOnly]);
+  }, [claims, filterClaimType, filterStatus, filterMemberId, filterTypeCode, filterDateFrom, filterDateTo, showSlaOnly]);
 
   const slaCount = useMemo(
     () => claims.filter(c => c.請求状態 === '申請中' && daysSince(c.作成日時) >= SLA_WARNING_DAYS).length,
     [claims],
   );
 
-  const isFiltered = !!(filterStatus || filterMemberId || filterTypeCode || filterDateFrom || filterDateTo || showSlaOnly);
+  const isFiltered = !!(filterClaimType || filterStatus || filterMemberId || filterTypeCode || filterDateFrom || filterDateTo || showSlaOnly);
 
   const clearFilters = () => {
+    setFilterClaimType('');
     setFilterStatus(''); setFilterMemberId(''); setFilterTypeCode('');
     setFilterDateFrom(''); setFilterDateTo(''); setShowSlaOnly(false);
   };
@@ -162,7 +170,9 @@ const ClaimManagementConsole: React.FC<ClaimManagementConsoleProps> = ({ api, on
 
   // 承認
   const handleApprove = async (claimId: string) => {
-    if (!window.confirm('この請求を承認しますか？')) return;
+    const target = claims.find(c => c.請求ID === claimId);
+    const typeLabel = target && getClaimType(target) === 'ACTIVITY_REPORT' ? '活動報告' : '経費請求';
+    if (!window.confirm(`${typeLabel}の内容を確認済みとして承認しますか？`)) return;
     setApprovingId(claimId);
     try {
       await api.approveClaim({ claimId });
@@ -224,7 +234,7 @@ const ClaimManagementConsole: React.FC<ClaimManagementConsoleProps> = ({ api, on
     <div className="mx-auto max-w-5xl space-y-6 p-6">
       <div>
         <h2 className="text-xl font-bold text-slate-800">請求管理コンソール</h2>
-        <p className="mt-1 text-sm text-slate-500">役員からの活動費・交通費等の請求を審査・承認・却下します。</p>
+        <p className="mt-1 text-sm text-slate-500">役員からの活動報告・経費請求を確認し、承認・却下します。</p>
       </div>
 
       {/* SLA 警告バー */}
@@ -243,6 +253,12 @@ const ClaimManagementConsole: React.FC<ClaimManagementConsoleProps> = ({ api, on
       {/* フィルターバー */}
       <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4">
         <div>
+          <label className="mb-1 block text-xs font-medium text-slate-600">区分</label>
+          <select value={filterClaimType} onChange={e => setFilterClaimType(e.target.value)} className={inputCls}>
+            {CLAIM_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+        <div>
           <label className="mb-1 block text-xs font-medium text-slate-600">状態</label>
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={inputCls}>
             {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -256,10 +272,11 @@ const ClaimManagementConsole: React.FC<ClaimManagementConsoleProps> = ({ api, on
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">種別</label>
+          <label className="mb-1 block text-xs font-medium text-slate-600">業務分類/種別</label>
           <select value={filterTypeCode} onChange={e => setFilterTypeCode(e.target.value)} className={inputCls}>
-            <option value="">すべての種別</option>
-            {activeTypes.map(t => <option key={t.種別コード} value={t.種別コード}>{t.種別名}</option>)}
+            <option value="">すべて</option>
+            {(masterData?.workCategories ?? []).filter(c => !c.削除フラグ).map(c => <option key={c.業務分類コード} value={c.業務分類コード}>活動: {c.業務分類名}</option>)}
+            {(masterData?.paymentTypes ?? []).filter(t => !t.削除フラグ).map(t => <option key={t.種別コード} value={t.種別コード}>経費: {t.種別名}</option>)}
           </select>
         </div>
         <div>
@@ -293,7 +310,7 @@ const ClaimManagementConsole: React.FC<ClaimManagementConsoleProps> = ({ api, on
       {rejectTarget && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-3">
           <p className="text-sm font-semibold text-red-800">
-            却下処理 — {rejectTarget.表示名}（{typeMap[rejectTarget.種別コード] ?? rejectTarget.種別コード} ¥{Number(rejectTarget.請求金額 || 0).toLocaleString('ja-JP')}）
+            却下処理 — {rejectTarget.表示名}（{getClaimType(rejectTarget) === 'ACTIVITY_REPORT' ? '活動報告' : '経費請求'} ¥{Number(rejectTarget.請求金額 || 0).toLocaleString('ja-JP')}）
           </p>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-700">却下理由 <span className="text-red-500">*</span>（5文字以上）</label>
@@ -328,7 +345,7 @@ const ClaimManagementConsole: React.FC<ClaimManagementConsoleProps> = ({ api, on
             <thead className="bg-slate-50 text-left text-xs font-semibold text-slate-500">
               <tr>
                 <th className="w-8 px-3 py-3" />
-                <th className="px-3 py-3">会員 / 種別</th>
+                <th className="px-3 py-3">会員 / 区分</th>
                 <th className="px-3 py-3">活動日</th>
                 <th className="px-3 py-3">申請日</th>
                 <th className="px-3 py-3 text-right">金額</th>
@@ -342,6 +359,9 @@ const ClaimManagementConsole: React.FC<ClaimManagementConsoleProps> = ({ api, on
                 const days = daysSince(claim.作成日時);
                 const isSlaWarning = claim.請求状態 === '申請中' && days >= SLA_WARNING_DAYS;
                 const attachments = parseAttachments(claim.添付ファイルURL);
+                const claimType = getClaimType(claim);
+                const category = claim.業務分類コード ? categoryMap[claim.業務分類コード] : null;
+                const hasRequiredAttachment = claimType === 'ACTIVITY_REPORT' || attachments.length > 0;
 
                 return (
                   <React.Fragment key={claim.請求ID}>
@@ -355,8 +375,12 @@ const ClaimManagementConsole: React.FC<ClaimManagementConsoleProps> = ({ api, on
                       </td>
                       <td className="px-3 py-3">
                         <p className="font-semibold text-slate-800">{claim.表示名 ?? claim.会員ID}</p>
-                        <p className="text-xs text-slate-400">{typeMap[claim.種別コード] ?? claim.種別コード}</p>
+                        <p className="text-xs text-slate-400">{claimType === 'ACTIVITY_REPORT' ? '活動報告' : '経費請求'}</p>
+                        <p className="text-xs text-slate-400">
+                          {claimType === 'ACTIVITY_REPORT' ? (category?.業務分類名 ?? claim.業務分類コード) : (typeMap[claim.種別コード] ?? '経費')}
+                        </p>
                         {roleMap[claim.役職コード] && <p className="text-xs text-slate-400">{roleMap[claim.役職コード]}</p>}
+                        {!hasRequiredAttachment && <p className="mt-1 text-xs font-semibold text-red-600">領収書未添付</p>}
                       </td>
                       <td className="px-3 py-3 text-slate-600">{claim.活動日}</td>
                       <td className="px-3 py-3">
@@ -407,8 +431,11 @@ const ClaimManagementConsole: React.FC<ClaimManagementConsoleProps> = ({ api, on
                       <tr>
                         <td colSpan={7} className="bg-slate-50/50 px-6 pb-4 pt-2">
                           <div className="space-y-2 text-xs text-slate-600">
-                            <p><span className="font-medium">活動内容:</span> {claim.活動内容}</p>
+                            <p><span className="font-medium">内容:</span> {claimType === 'ACTIVITY_REPORT' ? (category?.業務分類名 ?? claim.活動内容) : claim.活動内容}</p>
                             {claim.組織コード && <p><span className="font-medium">組織:</span> {orgMap[claim.組織コード] ?? claim.組織コード}</p>}
+                            {claimType === 'ACTIVITY_REPORT' && (
+                              <p><span className="font-medium">単価/数量:</span> ¥{Number(claim.単価 || claim.請求金額 || 0).toLocaleString('ja-JP')} × 1</p>
+                            )}
                             {claim.請求状態 === '却下' && claim.却下理由 && (
                               <p className="rounded bg-red-50 px-2 py-1 text-red-700"><span className="font-medium">却下理由:</span> {claim.却下理由}</p>
                             )}

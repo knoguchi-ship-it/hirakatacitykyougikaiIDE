@@ -455,6 +455,9 @@ function buildAdminCode(source) {
     'deleteOfficerRole',
     'savePaymentType',
     'deletePaymentType',
+    'saveWorkCategory',
+    'deleteWorkCategory',
+    'backupMigrationTargets',
     // v295/v297: 役員割当て管理
     'getOfficerManagementData',
     'assignOfficer',

@@ -1,7 +1,7 @@
 # Document Index
 
 更新日: 2026-05-11
-現行バージョン: `v332`（integrated-public `@296` x2 / member split `@52` / admin split `@90`）
+現行バージョン: `v333`（integrated-public `@297` x2 / member split `@53` / admin split `@91`）
 
 ## 1. Entry Points
 
@@ -32,7 +32,8 @@
 
 | 文書 | 内容 |
 |---|---|
-| `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md` | **最新** v320〜v332 統合（モバイル viewport / レスポンシブ全面強化 / WCAG 2.2 AAA 完全達成 / Playwright 自動テスト 98/98 セル / パスワード規約 8〜20 / `member_unauthorized` 解消 / `getOfficerMasterData` を member 公開） |
+| `docs/200_RELEASE_STATE_v333_2026-05-12.md` | **最新** v333 本番反映。活動報告 / 経費請求 2系統化、業務分類マスタ、HEIC→JPG 変換、管理者確認 UI |
+| `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md` | v320〜v332 統合（モバイル viewport / レスポンシブ全面強化 / WCAG 2.2 AAA 完全達成 / Playwright 自動テスト 98/98 セル / パスワード規約 8〜20 / `member_unauthorized` 解消 / `getOfficerMasterData` を member 公開） |
 | `docs/198_RESPONSIVE_TEST_REPORT_2026-05-11.md` | レスポンシブ自動テスト正本（Public 21 / Member 21 / Admin 56 セル全合格）と Playwright ハーネスの実装方針 |
 | `docs/197_RELEASE_STATE_v320_2026-05-11.md` | v320 リリース時の経緯記録（GAS 外側 iframe ラッパーへの viewport addMetaTag） |
 | `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md` | v311〜v319 統合リリース状態・第三者評価レポート。admin split `@71`〜`@79`。サイドバーリニューアル・設定サブナビ・テンプレートライブラリ・年会費多年度フィルター |
