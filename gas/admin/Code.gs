@@ -314,6 +314,7 @@ var テーブル定義 = {
     '削除フラグ',
     '介護支援専門員番号',
     '事業所番号',
+    'ステータスメモ',
   ],
   T_システム設定: [
     '設定キー',
@@ -1791,7 +1792,7 @@ function fetchAllDataFromDbFresh_() {
   var feeRows = (rowsBySheet['T_年会費納入履歴'] || []).filter(function(r) { return !toBoolean_(r['削除フラグ']); });
   var memberTypeFeeMap = getAnnualFeeAmountMap_(ss);
   return {
-    members: mapMembersForApi_(ss, memberRows, staffRows, authRows, applicationRows, feeRows, memberTypeFeeMap),
+    members: mapMembersForApi_(ss, memberRows, staffRows, authRows, applicationRows, feeRows, memberTypeFeeMap, { includeAdminStatusNote: true }),
     trainings: mapTrainingRowsForApi_(trainingRows),
   };
 }
@@ -1876,7 +1877,8 @@ function getMemberPortalData_(payload) {
   return result;
 }
 
-function mapMembersForApi_(ss, memberRows, staffRows, authRows, applicationRows, feeRows, memberTypeFeeMap) {
+function mapMembersForApi_(ss, memberRows, staffRows, authRows, applicationRows, feeRows, memberTypeFeeMap, options) {
+  var includeAdminStatusNote = options && options.includeAdminStatusNote === true;
   var memberMap = {};
   for (var memberIdx = 0; memberIdx < memberRows.length; memberIdx += 1) {
     memberMap[String(memberRows[memberIdx]['会員ID'] || '')] = memberRows[memberIdx];
@@ -1976,7 +1978,7 @@ function mapMembersForApi_(ss, memberRows, staffRows, authRows, applicationRows,
     var id = String(m['会員ID'] || '');
     var type = String(m['会員種別コード'] || 'INDIVIDUAL');
     var history = buildMemberAnnualFeeHistory_(m, feeByMember[id] || [], memberTypeFeeMap);
-    return {
+    var mappedMember = {
       id: id,
       loginId: loginByMemberId[id] || '',
       careManagerNumber: String(m['介護支援専門員番号'] || loginByMemberId[id] || ''),
@@ -2021,6 +2023,10 @@ function mapMembersForApi_(ss, memberRows, staffRows, authRows, applicationRows,
       annualFeeHistory: history,
       participatedTrainingIds: type === 'BUSINESS' ? [] : uniqueStrings_(applicationsByMember[id] || []),
     };
+    if (includeAdminStatusNote) {
+      mappedMember.statusNote = String(m['ステータスメモ'] || '');
+    }
+    return mappedMember;
   });
 }
 
@@ -7021,12 +7027,12 @@ var ADMIN_MEMBER_WRITABLE_FIELDS_ = [
   'officePostCode','officePrefecture','officeCity','officeAddressLine','officeAddressLine2','phone','fax',
   'email','mailingPreference','preferredMailDestination',
   // 管理者専用フィールド（ADMIN_ONLY_EDIT 層）
-  'status','joinedDate','withdrawnDate','withdrawalProcessDate','midYearWithdrawal',
+  'status','joinedDate','withdrawnDate','withdrawalProcessDate','statusNote','midYearWithdrawal',
   'careManagerNumber','officeName','officeNumber','staffLimit',
 ];
 // v143: 管理者編集で監査ログ対象となるフィールド（ADMIN_ONLY_EDIT 層）
 var ADMIN_AUDIT_FIELDS_ = [
-  'status','joinedDate','withdrawnDate','withdrawalProcessDate','midYearWithdrawal',
+  'status','joinedDate','withdrawnDate','withdrawalProcessDate','statusNote','midYearWithdrawal',
 ];
 // v106: NIST RBAC — ロール別職員フィールド allowlist
 var STAFF_WRITABLE_FIELDS_REPRESENTATIVE_ = ['id','name','kana','email','status','role'];
@@ -7436,6 +7442,7 @@ function saveMemberCore_(payload, options) {
     joinedDate: fromPayloadOrCurrent('joinedDate', String(getCol('入会日') || '')),
     withdrawnDate: fromPayloadOrCurrent('withdrawnDate', String(getCol('退会日') || '')),
     withdrawalProcessDate: fromPayloadOrCurrent('withdrawalProcessDate', String(getCol('退会処理日') || '')),
+    statusNote: fromPayloadOrCurrent('statusNote', String(getCol('ステータスメモ') || '')),
     midYearWithdrawal: fromPayloadOrCurrent('midYearWithdrawal', false),
   };
   validateMemberPayload_(mergedPayload, memberTypeCode, currentMemberStatus);
@@ -7448,6 +7455,7 @@ function saveMemberCore_(payload, options) {
   var prevJoinedDate = String(normalizeDateInput_(getCol('入会日')) || '');
   var prevWithdrawnDate = String(normalizeDateInput_(getCol('退会日')) || '');
   var prevWithdrawalProcessDate = String(normalizeDateInput_(getCol('退会処理日')) || '');
+  var prevStatusNote = String(getCol('ステータスメモ') || '');
 
   function setCol(name, value) {
     var idx = cols[name];
@@ -7471,6 +7479,9 @@ function saveMemberCore_(payload, options) {
   // v143: 退会処理日の保存
   if (cols['退会処理日'] != null) {
     setCol('退会処理日', normalizeDateInput_(mergedPayload.withdrawalProcessDate));
+  }
+  if (cols['ステータスメモ'] != null) {
+    setCol('ステータスメモ', String(mergedPayload.statusNote || '').slice(0, 2000));
   }
   var immediateDelete = nextStatus === 'WITHDRAWN' &&
     (mergedPayload.midYearWithdrawal === true || String(mergedPayload.midYearWithdrawal || '').toLowerCase() === 'true');
@@ -7520,6 +7531,7 @@ function saveMemberCore_(payload, options) {
     var newJoinedDate = String(normalizeDateInput_(mergedPayload.joinedDate) || '');
     var newWithdrawnDate = String(normalizeDateInput_(mergedPayload.withdrawnDate) || '');
     var newWithdrawalProcessDate = String(normalizeDateInput_(mergedPayload.withdrawalProcessDate) || '');
+    var newStatusNote = String(mergedPayload.statusNote || '').slice(0, 2000);
     if (nextStatus !== prevStatus) {
       auditChanges.push({ field: '会員状態コード', oldValue: prevStatus, newValue: nextStatus });
     }
@@ -7531,6 +7543,9 @@ function saveMemberCore_(payload, options) {
     }
     if (newWithdrawalProcessDate !== prevWithdrawalProcessDate) {
       auditChanges.push({ field: '退会処理日', oldValue: prevWithdrawalProcessDate, newValue: newWithdrawalProcessDate });
+    }
+    if (newStatusNote !== prevStatusNote) {
+      auditChanges.push({ field: 'ステータスメモ', oldValue: prevStatusNote, newValue: newStatusNote });
     }
     appendAdminAuditLog_(ss, effectiveAdminSession.email, payload.id, auditChanges);
   }

@@ -314,6 +314,7 @@ var テーブル定義 = {
     '削除フラグ',
     '介護支援専門員番号',
     '事業所番号',
+    'ステータスメモ',
   ],
   T_システム設定: [
     '設定キー',
@@ -1536,12 +1537,12 @@ var ADMIN_MEMBER_WRITABLE_FIELDS_ = [
   'officePostCode','officePrefecture','officeCity','officeAddressLine','officeAddressLine2','phone','fax',
   'email','mailingPreference','preferredMailDestination',
   // 管理者専用フィールド（ADMIN_ONLY_EDIT 層）
-  'status','joinedDate','withdrawnDate','withdrawalProcessDate','midYearWithdrawal',
+  'status','joinedDate','withdrawnDate','withdrawalProcessDate','statusNote','midYearWithdrawal',
   'careManagerNumber','officeName','officeNumber','staffLimit',
 ];
 // v143: 管理者編集で監査ログ対象となるフィールド（ADMIN_ONLY_EDIT 層）
 var ADMIN_AUDIT_FIELDS_ = [
-  'status','joinedDate','withdrawnDate','withdrawalProcessDate','midYearWithdrawal',
+  'status','joinedDate','withdrawnDate','withdrawalProcessDate','statusNote','midYearWithdrawal',
 ];
 // v106: NIST RBAC — ロール別職員フィールド allowlist
 var STAFF_WRITABLE_FIELDS_REPRESENTATIVE_ = ['id','name','kana','email','status','role'];
@@ -1674,6 +1675,7 @@ function saveMemberCore_(payload, options) {
     joinedDate: fromPayloadOrCurrent('joinedDate', String(getCol('入会日') || '')),
     withdrawnDate: fromPayloadOrCurrent('withdrawnDate', String(getCol('退会日') || '')),
     withdrawalProcessDate: fromPayloadOrCurrent('withdrawalProcessDate', String(getCol('退会処理日') || '')),
+    statusNote: fromPayloadOrCurrent('statusNote', String(getCol('ステータスメモ') || '')),
     midYearWithdrawal: fromPayloadOrCurrent('midYearWithdrawal', false),
   };
   validateMemberPayload_(mergedPayload, memberTypeCode, currentMemberStatus);
@@ -1686,6 +1688,7 @@ function saveMemberCore_(payload, options) {
   var prevJoinedDate = String(normalizeDateInput_(getCol('入会日')) || '');
   var prevWithdrawnDate = String(normalizeDateInput_(getCol('退会日')) || '');
   var prevWithdrawalProcessDate = String(normalizeDateInput_(getCol('退会処理日')) || '');
+  var prevStatusNote = String(getCol('ステータスメモ') || '');
 
   function setCol(name, value) {
     var idx = cols[name];
@@ -1709,6 +1712,9 @@ function saveMemberCore_(payload, options) {
   // v143: 退会処理日の保存
   if (cols['退会処理日'] != null) {
     setCol('退会処理日', normalizeDateInput_(mergedPayload.withdrawalProcessDate));
+  }
+  if (cols['ステータスメモ'] != null) {
+    setCol('ステータスメモ', String(mergedPayload.statusNote || '').slice(0, 2000));
   }
   var immediateDelete = nextStatus === 'WITHDRAWN' &&
     (mergedPayload.midYearWithdrawal === true || String(mergedPayload.midYearWithdrawal || '').toLowerCase() === 'true');

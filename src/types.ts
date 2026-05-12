@@ -382,6 +382,7 @@ export interface Member {
   joinedDate?: string;
   withdrawnDate?: string;
   withdrawalProcessDate?: string;
+  statusNote?: string;
   midYearWithdrawal?: boolean;
   
   // Annual Fee History (Past 2 years)

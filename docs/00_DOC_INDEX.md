@@ -32,6 +32,7 @@
 
 | 文書 | 内容 |
 |---|---|
+| `docs/208_MEMBER_STATUS_NOTE_2026-05-12.md` | 会員ステータスメモ（管理者専用）の実装記録。未デプロイ |
 | `docs/207_RELEASE_STATE_v338_2026-05-12.md` | **最新本番** v338。管理者ポータルの勤務先事業所名検索修正、admin split `@96` |
 | `docs/206_ADMIN_WORKPLACE_SEARCH_FIX_2026-05-12.md` | 管理者ポータルの勤務先事業所名検索が効かない原因調査と修正記録 |
 | `docs/205_RELEASE_STATE_v337_2026-05-12.md` | v337。v335 schema-shift incident の診断/復旧関数 cleanup、admin split `@95` |

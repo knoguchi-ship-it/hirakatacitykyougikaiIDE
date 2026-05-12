@@ -49,6 +49,7 @@ const EDITABLE_MEMBER_FIELDS = [
   'joinedDate',
   'withdrawnDate',
   'withdrawalProcessDate',
+  'statusNote',
 ] as const;
 
 const HALF_WIDTH_KANA_RE = /^[ｦ-ﾟ\s]+$/u;
@@ -56,6 +57,7 @@ const CARE_MANAGER_RE = /^\d{8}$/;
 const POST_CODE_RE = /^\d{3}-?\d{4}$/;
 const PHONE_RE = /^[0-9-]+$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const STATUS_NOTE_MAX_LENGTH = 2000;
 
 // 全角カナ・ひらがな → 半角カナ変換（保存時に適用）
 const toHalfWidthKana = (value: string): string => {
@@ -624,6 +626,11 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     const sanitizedStaff = sanitizeStaffList((convertedForm.staff as EditableStaff[]) || []);
     const nextForm = { ...convertedForm, staff: sanitizedStaff } as Member;
     const payload: EditableMemberForm = { ...nextForm };
+    const statusNote = String(payload.statusNote || '');
+    if (statusNote.length > STATUS_NOTE_MAX_LENGTH) {
+      setError(`ステータスメモは ${STATUS_NOTE_MAX_LENGTH} 文字以内で入力してください。`);
+      return;
+    }
     if (isBusiness) {
       payload.preferredMailDestination = 'OFFICE';
     }
@@ -1444,6 +1451,21 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
           <div>
             <label className={labelClass}>退会処理日</label>
             <input className={fieldClass()} type="date" value={form.withdrawalProcessDate || ''} onChange={e => set('withdrawalProcessDate', e.target.value)} />
+          </div>
+          <div className="md:col-span-2 lg:col-span-4">
+            <label className={labelClass}>ステータスメモ（管理者のみ）</label>
+            <textarea
+              className={`${fieldClass()} h-auto min-h-[112px] resize-y leading-relaxed`}
+              value={form.statusNote || ''}
+              maxLength={STATUS_NOTE_MAX_LENGTH}
+              onChange={e => set('statusNote', e.target.value)}
+              placeholder="退会処理、退会予定、移行済み等の管理者向けメモ"
+              aria-describedby="status-note-help"
+            />
+            <div id="status-note-help" className="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+              <span>会員マイページには表示されません。</span>
+              <span>{String(form.statusNote || '').length}/{STATUS_NOTE_MAX_LENGTH}</span>
+            </div>
           </div>
         </div>
       </div>
