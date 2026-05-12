@@ -1,8 +1,8 @@
 # 開発引継ぎ
 
 更新日: 2026-05-12
-現行本番: `v335`（公開ポータル入会申込を変更申請キュー化、介護支援専門員番号による同一人物移行、TRANSFERRED/移行日/人物統合ログ追加） / integrated-public GAS version `299` / member split GAS version `55` / admin split GAS version `93`
-fixed deployment: integrated/public `@299` x2 / member split `@55` / admin split `@93`
+現行本番: `v336`（会員一覧・年会費管理のキーワード検索を共通化し勤務先事業所名でもヒット） / integrated-public GAS version `299` / member split GAS version `55` / admin split GAS version `94`
+fixed deployment: integrated/public `@299` x2 / member split `@55` / admin split `@94`
 
 ## 1. 現行状態
 
@@ -18,6 +18,7 @@ fixed deployment: integrated/public `@299` x2 / member split `@55` / admin split
 - **v320〜v332（2026-05-11）**: 全 3 ポータルで viewport meta + WCAG 2.2 AAA タップターゲット (44×44px) + iOS Safari モーダル UX + Sidebar モバイルドロアー + パスワード規約 (8〜20文字・許可文字制限) + `member_unauthorized` / `unsupported_action` の利用者向け平易表示を整備。Playwright 自動レスポンシブテスト **98/98 セル全合格** を達成。次担当者向け統合引継ぎ正本: `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md`、テスト正本: `docs/198_RESPONSIVE_TEST_REPORT_2026-05-11.md`。
 - **v333（2026-05-12）**: 役員向け請求を **活動報告 / 経費請求** の 2 系統へ分離。`M_業務分類`、`M_組織マスタ.全役員表示フラグ`、`T_請求.請求種別/業務分類コード/単価/数量` を追加。経費請求は添付必須、HEIC/HEIF は会員側で JPG 変換。public `@297` x2 / member split `@53` / admin split `@91`。詳細: `docs/200_RELEASE_STATE_v333_2026-05-12.md`。
 - **v334（2026-05-12）**: 役員管理で状態変更（現職 / 退任済み）、役職、就任日、退任日、備考を編集可能化。役員管理ページの読み込み遅延原因だった不要な `fetchAllData` と `getOfficerMasterData` の重複取得を停止し、`getOfficerManagementData` 1 回で必要データを返す構成へ変更。public `@298` x2 / member split `@54` / admin split `@92`。詳細: `docs/201_RELEASE_STATE_v334_2026-05-12.md`。
+- **v336（2026-05-12）**: 会員管理コンソール（会員一覧）と年会費管理コンソールのキーワード検索で、個人/賛助会員の勤務先事業所名でもヒットするよう `AdminDashboardMemberRow.officeName` / `AnnualFeeAdminRecord.officeName` を追加。会員一覧フィルタを共通 `matchesSearchQuery`（NFKC・case folding・全角/半角スペース除去・多語AND）に統一。admin split `@94`。詳細: `docs/203_RELEASE_STATE_v336_2026-05-12.md`。
 - **v335（2026-05-12）**: 公開ポータルの新規入会申込を即時DB登録から `T_変更申請` の `MEMBER_APPLICATION` 承認待ちへ変更。`M_会員状態.TRANSFERRED`、`T_会員.移行日`、`T_人物統合ログ` を追加し、介護支援専門員番号が一致する個人/賛助会員・事業所職員間の移行時に認証・役員・振込口座・請求・研修申込を引き継ぐ。年会費履歴は会員レコード同士の重複修復時のみ移行。public `@299` x2 / member split `@55` / admin split `@93`。詳細: `docs/202_RELEASE_STATE_v335_2026-05-12.md`。
 
 ## 2. 最初に読む順序
@@ -57,10 +58,11 @@ fixed deployment: integrated/public `@299` x2 / member split `@55` / admin split
 | 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@299` |
 | 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@299` |
 | 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@55` |
-| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@93` |
+| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@94` |
 
 ## 4. 直近リリース
 
+- `v336`: 会員管理コンソール（会員一覧）と年会費管理コンソールのキーワード検索で、個人/賛助会員の勤務先事業所名でもヒットするよう改善。`AdminDashboardMemberRow.officeName` / `AnnualFeeAdminRecord.officeName` を追加。会員一覧フィルタを共通 `matchesSearchQuery`（NFKC正規化・case folding・スペース除去・多語AND）に統一。admin split `@94`。
 - `v335`: 入会申込を承認待ちキュー化し、同一人物移行で旧個人/賛助会員を `TRANSFERRED`、旧事業所職員を `LEFT` とする。`T_人物統合ログ` へ移行結果を記録。public `@299` x2 / member split `@55` / admin split `@93`。
 - `v334`: 役員管理で状態変更（現職 / 退任済み）、役職、就任日、退任日、備考を編集可能化。役員管理ページの不要な `fetchAllData` と `getOfficerMasterData` 重複取得を停止。public `@298` x2 / member split `@54` / admin split `@92`。
 - `v333`: 役員向け請求を活動報告 / 経費請求の 2 系統へ分離。活動報告は活動部 + 業務分類から単価を確定し数量 1 固定、経費請求は自由記載 + 半角数値金額 + 添付必須。組織の全役員表示フラグ、業務分類マスタ、HEIC/HEIF→JPG 変換、管理者確認 UI を追加。public `@297` x2 / member split `@53` / admin split `@91`。リリース前バックアップは Execution API 権限不足で未実施、ユーザー承認によりスプレッドシート版歴を復旧手段として続行。
