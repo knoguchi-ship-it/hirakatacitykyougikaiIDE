@@ -208,6 +208,7 @@ export interface ApiClient {
   assignOfficer(payload: { memberId?: string; staffId?: string; roleCode: string; appointedDate?: string; note?: string }): Promise<{ officerId: string }>;
   resignOfficer(payload: { officerId: string; resignationDate?: string }): Promise<{ resigned: boolean; officerId: string }>;
   updateOfficerLinkage(payload: { officerId: string; newMemberId?: string; newStaffId?: string }): Promise<{ updated: boolean; officerId: string }>;
+  updateOfficerRecord(payload: { officerId: string; roleCode?: string; appointedDate?: string; resignationDate?: string; note?: string }): Promise<{ updated: boolean; officerId: string }>;
   // v295: 振込口座管理（管理者用）
   getAdminBankAccount(payload: { memberId?: string; staffId?: string }): Promise<import('../shared/types').BankAccount | null>;
   saveAdminBankAccount(payload: import('../shared/types').SaveBankAccountPayload): Promise<{ accountId: string }>;
@@ -1798,6 +1799,19 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('resignOfficer', JSON.stringify(payload));
+    });
+  }
+
+  async updateOfficerRecord(payload: { officerId: string; roleCode?: string; appointedDate?: string; resignationDate?: string; note?: string }): Promise<{ updated: boolean; officerId: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
+          catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('updateOfficerRecord', JSON.stringify(payload));
     });
   }
 

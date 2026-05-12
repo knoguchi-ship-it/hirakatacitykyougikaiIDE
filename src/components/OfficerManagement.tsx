@@ -2,17 +2,15 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ApiClient } from '../services/api';
 import {
   BankAccount,
+  OfficerCandidate,
   OfficerManagementData,
-  OfficerMasterData,
   OfficerRecord,
   SaveBankAccountPayload,
 } from '../shared/types';
-import { Member, MemberType } from '../types';
 import { matchesSearchQuery } from '../utils/search';
 
 interface OfficerManagementProps {
   api: ApiClient;
-  members: Member[];
 }
 
 type Tab = 'officers' | 'bankAccounts';
@@ -53,9 +51,8 @@ function validateKana(value: string): boolean {
 
 // ── メインコンポーネント ───────────────────────────────────────────────────
 
-const OfficerManagement: React.FC<OfficerManagementProps> = ({ api, members }) => {
+const OfficerManagement: React.FC<OfficerManagementProps> = ({ api }) => {
   const [tab, setTab] = useState<Tab>('officers');
-  const [masterData, setMasterData] = useState<OfficerMasterData | null>(null);
   const [officerData, setOfficerData] = useState<OfficerManagementData | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -64,11 +61,7 @@ const OfficerManagement: React.FC<OfficerManagementProps> = ({ api, members }) =
     setLoading(true);
     setLoadError(null);
     try {
-      const [m, o] = await Promise.all([
-        api.getOfficerMasterData(),
-        api.getOfficerManagementData(),
-      ]);
-      setMasterData(m);
+      const o = await api.getOfficerManagementData();
       setOfficerData(o);
     } catch (e: any) {
       setLoadError(e?.message || 'データの読み込みに失敗しました。');
@@ -92,7 +85,7 @@ const OfficerManagement: React.FC<OfficerManagementProps> = ({ api, members }) =
       </div>
     );
   }
-  if (!masterData || !officerData) return null;
+  if (!officerData) return null;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-6">
@@ -121,9 +114,7 @@ const OfficerManagement: React.FC<OfficerManagementProps> = ({ api, members }) =
 
       {tab === 'officers' && (
         <OfficerListTab
-          masterData={masterData}
           officerData={officerData}
-          members={members}
           api={api}
           onRefresh={load}
         />
@@ -153,23 +144,19 @@ const ASSIGN_INITIAL: AssignFormState = {
   memberId: '', staffId: '', memberSearch: '', roleCode: '', appointedDate: '', note: '',
 };
 
-/** 割当て対象人物（個人会員・事業所職員を統合した検索用） */
-interface SearchablePerson {
-  key: string;         // unique key for React
-  memberId: string;
-  staffId: string;
-  label: string;       // 検索ドロップダウン表示用
-  displayName: string;
-  officeName: string;
+interface OfficerEditFormState {
+  roleCode: string;
+  status: 'ACTIVE' | 'RESIGNED';
+  appointedDate: string;
+  resignationDate: string;
+  note: string;
 }
 
 const OfficerListTab: React.FC<{
-  masterData: OfficerMasterData;
   officerData: OfficerManagementData;
-  members: Member[];
   api: ApiClient;
   onRefresh: () => Promise<void>;
-}> = ({ masterData, officerData, members, api, onRefresh }) => {
+}> = ({ officerData, api, onRefresh }) => {
   // フィルター
   const [filterOrg, setFilterOrg] = useState('');
   const [filterRole, setFilterRole] = useState('');
@@ -188,52 +175,25 @@ const OfficerListTab: React.FC<{
   const [resignDateError, setResignDateError] = useState('');
   const [resignSaving, setResignSaving] = useState(false);
 
+  const [editTarget, setEditTarget] = useState<OfficerRecord | null>(null);
+  const [editForm, setEditForm] = useState<OfficerEditFormState>({ roleCode: '', status: 'ACTIVE', appointedDate: '', resignationDate: '', note: '' });
+  const [editErrors, setEditErrors] = useState<Partial<Record<keyof OfficerEditFormState, string>>>({});
+  const [editSaving, setEditSaving] = useState(false);
+  const [editServerError, setEditServerError] = useState<string | null>(null);
+
   const orgMap = useMemo(
-    () => Object.fromEntries(masterData.organizations.map(o => [o.組織コード, o.組織名])),
-    [masterData],
+    () => Object.fromEntries(officerData.organizations.map(o => [o.組織コード, o.組織名])),
+    [officerData.organizations],
   );
   const roleMap = useMemo(
-    () => Object.fromEntries(masterData.roles.map(r => [r.役職コード, r.役職名])),
-    [masterData],
+    () => Object.fromEntries(officerData.roles.map(r => [r.役職コード, r.役職名])),
+    [officerData.roles],
   );
 
-  const activeRoles = masterData.roles.filter(r => !r.削除フラグ && r.有効フラグ).sort((a, b) => (a.表示順 || 0) - (b.表示順 || 0));
-  const activeOrgs = masterData.organizations.filter(o => !o.削除フラグ && o.有効フラグ).sort((a, b) => (a.表示順 || 0) - (b.表示順 || 0));
+  const activeRoles = officerData.roles.filter(r => !r.削除フラグ && r.有効フラグ).sort((a, b) => (a.表示順 || 0) - (b.表示順 || 0));
+  const activeOrgs = officerData.organizations.filter(o => !o.削除フラグ && o.有効フラグ).sort((a, b) => (a.表示順 || 0) - (b.表示順 || 0));
 
-  // 割当て候補（個人・賛助会員 + 全事業所職員）を統合した検索リスト
-  const allSearchablePersons = useMemo((): SearchablePerson[] => {
-    const result: SearchablePerson[] = [];
-    for (const m of members) {
-      if (m.status !== 'ACTIVE' && m.status !== 'WITHDRAWAL_SCHEDULED') continue;
-      if (m.type !== MemberType.BUSINESS) {
-        // 個人・賛助会員
-        const fullName = `${m.lastName} ${m.firstName}`;
-        result.push({
-          key: `member-${m.id}`,
-          memberId: m.id,
-          staffId: '',
-          displayName: fullName,
-          officeName: m.officeName,
-          label: `${fullName}（${m.id}）${m.officeName ? ' ' + m.officeName : ''}`,
-        });
-      } else {
-        // 事業所の全在籍職員
-        for (const s of m.staff ?? []) {
-          if (s.status !== 'ENROLLED') continue;
-          const name = s.name || `${(s as any).lastName ?? ''} ${(s as any).firstName ?? ''}`.trim() || s.id;
-          result.push({
-            key: `staff-${s.id}`,
-            memberId: '',
-            staffId: s.id,
-            displayName: name,
-            officeName: m.officeName,
-            label: `${name}（${m.officeName}）`,
-          });
-        }
-      }
-    }
-    return result;
-  }, [members]);
+  const allSearchablePersons = useMemo((): OfficerCandidate[] => officerData.candidates || [], [officerData.candidates]);
 
   const filteredPersons = useMemo(() => {
     if (!assignForm.memberSearch.trim()) return allSearchablePersons.slice(0, 80);
@@ -258,7 +218,7 @@ const OfficerListTab: React.FC<{
   // 紐づけ変更フォーム
   const [linkageTarget, setLinkageTarget] = useState<OfficerRecord | null>(null);
   const [linkageSearch, setLinkageSearch] = useState('');
-  const [linkageSelected, setLinkageSelected] = useState<SearchablePerson | null>(null);
+  const [linkageSelected, setLinkageSelected] = useState<OfficerCandidate | null>(null);
   const [linkageSaving, setLinkageSaving] = useState(false);
   const [linkageError, setLinkageError] = useState<string | null>(null);
 
@@ -356,6 +316,57 @@ const OfficerListTab: React.FC<{
     setResignTarget(officer);
     setResignDate(new Date().toISOString().slice(0, 10));
     setResignDateError('');
+  };
+
+  const openEdit = (officer: OfficerRecord) => {
+    setEditTarget(officer);
+    setEditForm({
+      roleCode: officer.役職コード || '',
+      status: officer.退任日 ? 'RESIGNED' : 'ACTIVE',
+      appointedDate: officer.就任日 || '',
+      resignationDate: officer.退任日 || '',
+      note: officer.備考 || '',
+    });
+    setEditErrors({});
+    setEditServerError(null);
+  };
+
+  const validateEdit = (): boolean => {
+    const errs: Partial<Record<keyof OfficerEditFormState, string>> = {};
+    if (!editForm.roleCode) errs.roleCode = '役職を選択してください。';
+    if (editForm.appointedDate && !validateDate(editForm.appointedDate)) {
+      errs.appointedDate = '正しい日付形式（YYYY-MM-DD）で入力してください。';
+    }
+    if (editForm.status === 'RESIGNED') {
+      if (!editForm.resignationDate) errs.resignationDate = '退任済みにする場合は退任日が必須です。';
+      else if (!validateDate(editForm.resignationDate)) errs.resignationDate = '正しい日付形式（YYYY-MM-DD）で入力してください。';
+    }
+    if (editForm.appointedDate && editForm.resignationDate && editForm.resignationDate < editForm.appointedDate) {
+      errs.resignationDate = '退任日は就任日以降の日付を指定してください。';
+    }
+    setEditErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleEditSave = async () => {
+    if (!editTarget || !validateEdit()) return;
+    setEditSaving(true);
+    setEditServerError(null);
+    try {
+      await api.updateOfficerRecord({
+        officerId: editTarget.役員ID,
+        roleCode: editForm.roleCode,
+        appointedDate: editForm.appointedDate || undefined,
+        resignationDate: editForm.status === 'ACTIVE' ? '' : editForm.resignationDate,
+        note: editForm.note,
+      });
+      await onRefresh();
+      setEditTarget(null);
+    } catch (e: any) {
+      setEditServerError(e?.message || '役員情報の更新に失敗しました。');
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -543,6 +554,108 @@ const OfficerListTab: React.FC<{
         </div>
       )}
 
+      {editTarget && (
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-800">
+              役員情報を編集 — {editTarget.表示名}
+            </h3>
+            <p className="mt-1 text-xs text-slate-500">役職、就任日、現職/退任済み、備考を変更できます。</p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-700">
+                役職 <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={editForm.roleCode}
+                onChange={e => setEditForm(f => ({ ...f, roleCode: e.target.value }))}
+                className={fieldInput(!!editErrors.roleCode)}
+              >
+                <option value="">-- 選択してください --</option>
+                {activeOrgs.map(org => {
+                  const orgRoles = activeRoles.filter(r => r.組織コード === org.組織コード);
+                  if (orgRoles.length === 0) return null;
+                  return (
+                    <optgroup key={org.組織コード} label={org.組織名}>
+                      {orgRoles.map(r => <option key={r.役職コード} value={r.役職コード}>{r.役職名}</option>)}
+                    </optgroup>
+                  );
+                })}
+              </select>
+              {editErrors.roleCode && <p className="mt-1 text-xs text-red-600">{editErrors.roleCode}</p>}
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-700">状態</label>
+              <select
+                value={editForm.status}
+                onChange={e => setEditForm(f => ({
+                  ...f,
+                  status: e.target.value as OfficerEditFormState['status'],
+                  resignationDate: e.target.value === 'ACTIVE' ? '' : (f.resignationDate || todayStr),
+                }))}
+                className={inputCls}
+              >
+                <option value="ACTIVE">現職</option>
+                <option value="RESIGNED">退任済み</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-700">就任日</label>
+              <input
+                type="date"
+                value={editForm.appointedDate}
+                onChange={e => setEditForm(f => ({ ...f, appointedDate: e.target.value }))}
+                max={todayStr}
+                className={fieldInput(!!editErrors.appointedDate)}
+              />
+              {editErrors.appointedDate && <p className="mt-1 text-xs text-red-600">{editErrors.appointedDate}</p>}
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-700">
+                退任日 {editForm.status === 'RESIGNED' && <span className="text-red-500">*</span>}
+              </label>
+              <input
+                type="date"
+                value={editForm.resignationDate}
+                onChange={e => setEditForm(f => ({ ...f, resignationDate: e.target.value }))}
+                disabled={editForm.status === 'ACTIVE'}
+                min={editForm.appointedDate || undefined}
+                max={todayStr}
+                className={fieldInput(!!editErrors.resignationDate)}
+              />
+              {editErrors.resignationDate && <p className="mt-1 text-xs text-red-600">{editErrors.resignationDate}</p>}
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-slate-700">備考</label>
+              <input
+                type="text"
+                value={editForm.note}
+                onChange={e => setEditForm(f => ({ ...f, note: e.target.value }))}
+                maxLength={200}
+                className={inputCls}
+              />
+            </div>
+          </div>
+
+          {editServerError && (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">{editServerError}</p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={handleEditSave} disabled={editSaving} className={btnPrimary}>
+              {editSaving ? '保存中…' : '変更を保存'}
+            </button>
+            <button type="button" onClick={() => setEditTarget(null)} className={btnSecondary}>
+              キャンセル
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 紐づけ変更フォーム */}
       {linkageTarget && (
         <div className="rounded-xl border border-sky-200 bg-sky-50/60 p-5 space-y-3">
@@ -628,6 +741,10 @@ const OfficerListTab: React.FC<{
                       </td>
                       <td className="px-3 py-3 text-right">
                         <div className="flex justify-end gap-1.5">
+                          <button type="button" onClick={() => openEdit(officer)}
+                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50">
+                            状態変更
+                          </button>
                           {isActive && (
                             <button type="button" onClick={() => { setLinkageTarget(officer); setLinkageSearch(''); setLinkageSelected(null); setLinkageError(null); }}
                               className="rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-[11px] font-semibold text-sky-700 hover:bg-sky-100">

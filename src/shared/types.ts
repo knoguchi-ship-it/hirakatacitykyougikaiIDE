@@ -235,10 +235,20 @@ export interface OfficerRecord {
   更新日時: string;
 }
 
+export interface OfficerCandidate {
+  key: string;
+  memberId: string;
+  staffId: string;
+  label: string;
+  displayName: string;
+  officeName: string;
+}
+
 export interface OfficerManagementData {
   organizations: Organization[];
   roles: OfficerRole[];
   officers: OfficerRecord[];
+  candidates: OfficerCandidate[];
 }
 
 export interface BankAccount {

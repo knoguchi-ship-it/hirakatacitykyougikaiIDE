@@ -776,6 +776,7 @@ var ADMIN_ACTION_PERMISSIONS = {
   'assignOfficer': ['MASTER','ADMIN'],
   'resignOfficer': ['MASTER','ADMIN'],
   'updateOfficerLinkage': ['MASTER','ADMIN'],
+  'updateOfficerRecord': ['MASTER','ADMIN'],
   // v295: 振込口座管理（管理者用）
   'getAdminBankAccount': ['MASTER','ADMIN'],
   'saveAdminBankAccount': ['MASTER','ADMIN'],
@@ -1196,6 +1197,9 @@ function processApiRequest(action, payload) {
     }
     if (action === 'updateOfficerLinkage') {
       return JSON.stringify({ success: true, data: updateOfficerLinkage_(parsedPayload) });
+    }
+    if (action === 'updateOfficerRecord') {
+      return JSON.stringify({ success: true, data: updateOfficerRecord_(parsedPayload) });
     }
     // v295: 振込口座管理（管理者用）
     if (action === 'getAdminBankAccount') {
@@ -11726,6 +11730,40 @@ function getOfficerManagementData_() {
   var staffMap = {};
   staffRows.forEach(function(s) { staffMap[String(s['職員ID'] || '')] = s; });
 
+  var candidates = [];
+  members.forEach(function(m) {
+    var memberStatus = String(m['会員状態コード'] || 'ACTIVE');
+    if (memberStatus !== 'ACTIVE' && memberStatus !== 'WITHDRAWAL_SCHEDULED') return;
+    var memberType = String(m['会員種別コード'] || '');
+    if (memberType === 'BUSINESS') return;
+    var memberIdForCandidate = String(m['会員ID'] || '');
+    var memberDisplayName = (String(m['姓'] || '') + ' ' + String(m['名'] || '')).trim() || memberIdForCandidate;
+    var memberOfficeName = String(m['勤務先名'] || '');
+    candidates.push({
+      key: 'member-' + memberIdForCandidate,
+      memberId: memberIdForCandidate,
+      staffId: '',
+      displayName: memberDisplayName,
+      officeName: memberOfficeName,
+      label: memberDisplayName + '（' + memberIdForCandidate + '）' + (memberOfficeName ? ' ' + memberOfficeName : ''),
+    });
+  });
+  staffRows.forEach(function(s) {
+    if (String(s['職員状態コード'] || 'ENROLLED') !== 'ENROLLED') return;
+    var staffIdForCandidate = String(s['職員ID'] || '');
+    var parentBiz = memberMap[String(s['会員ID'] || '')] || {};
+    var staffDisplayName = String(s['氏名'] || (String(s['姓'] || '') + ' ' + String(s['名'] || '')).trim() || staffIdForCandidate);
+    var staffOfficeName = String(parentBiz['勤務先名'] || '');
+    candidates.push({
+      key: 'staff-' + staffIdForCandidate,
+      memberId: '',
+      staffId: staffIdForCandidate,
+      displayName: staffDisplayName,
+      officeName: staffOfficeName,
+      label: staffDisplayName + '（' + staffOfficeName + '）',
+    });
+  });
+
   var enriched = officers.map(function(o) {
     var staffId  = String(o['職員ID'] || '');
     var memberId = String(o['会員ID'] || '');
@@ -11756,11 +11794,11 @@ function getOfficerManagementData_() {
       所属名: officeName,
       会員種別コード: memberType,
       役職コード: o['役職コード'], 組織コード: o['組織コード'],
-      就任日: o['就任日'], 退任日: o['退任日'], 備考: o['備考'],
+      就任日: normalizeDateInput_(o['就任日']), 退任日: normalizeDateInput_(o['退任日']), 備考: o['備考'],
       作成日時: o['作成日時'], 更新日時: o['更新日時'],
     };
   });
-  return { organizations: orgs, roles: roles, officers: enriched };
+  return { organizations: orgs, roles: roles, officers: enriched, candidates: candidates };
 }
 
 function assignOfficer_(payload) {
@@ -11833,6 +11871,69 @@ function resignOfficer_(payload) {
   sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
   clearAllDataCache_();
   return { resigned: true, officerId: officerId };
+}
+
+function updateOfficerRecord_(payload) {
+  var officerId = String(payload.officerId || '').trim();
+  if (!officerId) throw new Error('役員IDは必須です。');
+
+  var roleCode = String(payload.roleCode || '').trim();
+  var appointedDate = String(payload.appointedDate || '').trim();
+  var resignationDate = String(payload.resignationDate || '').trim();
+  var note = String(payload.note || '').trim();
+
+  function assertDateString_(value, label, allowBlank) {
+    if (!value) {
+      if (allowBlank) return;
+      throw new Error(label + 'は必須です。');
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || isNaN(new Date(value + 'T00:00:00+09:00').getTime())) {
+      throw new Error(label + 'は YYYY-MM-DD 形式で指定してください。');
+    }
+  }
+
+  assertDateString_(appointedDate, '就任日', true);
+  assertDateString_(resignationDate, '退任日', true);
+  if (appointedDate && resignationDate && resignationDate < appointedDate) {
+    throw new Error('退任日は就任日以降の日付を指定してください。');
+  }
+
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  var sheet = ss.getSheetByName('T_役員');
+  var found = findRowByColumnValue_(sheet, '役員ID', officerId);
+  if (!found || toBoolean_(found.row[found.columns['削除フラグ']])) throw new Error('役員レコードが見つかりません。');
+
+  var row = found.row.slice();
+  if (roleCode) {
+    var roleSheet = ss.getSheetByName('M_役職マスタ');
+    var role = findRowByColumnValue_(roleSheet, '役職コード', roleCode);
+    if (!role || toBoolean_(role.row[role.columns['削除フラグ']])) throw new Error('役職が見つかりません。');
+    row[found.columns['役職コード']] = roleCode;
+    row[found.columns['組織コード']] = String(role.row[role.columns['組織コード']] || '');
+  }
+  var nextRoleCode = String(row[found.columns['役職コード']] || '');
+  var nextMemberId = String(row[found.columns['会員ID']] || '');
+  var nextStaffId = String(row[found.columns['職員ID']] || '');
+  if (!resignationDate) {
+    var activeDup = getRowsAsObjects_(ss, 'T_役員').filter(function(r) {
+      if (toBoolean_(r['削除フラグ'])) return false;
+      if (String(r['役員ID'] || '') === officerId) return false;
+      if (String(r['役職コード'] || '') !== nextRoleCode) return false;
+      if (String(r['退任日'] || '')) return false;
+      if (nextMemberId && String(r['会員ID'] || '') === nextMemberId) return true;
+      if (nextStaffId && String(r['職員ID'] || '') === nextStaffId) return true;
+      return false;
+    });
+    if (activeDup.length > 0) throw new Error('同じ担当者が同じ役職で現職になっているレコードが既にあります。');
+  }
+  if (found.columns['就任日'] != null) row[found.columns['就任日']] = appointedDate;
+  if (found.columns['退任日'] != null) row[found.columns['退任日']] = resignationDate;
+  if (found.columns['備考'] != null) row[found.columns['備考']] = note;
+  row[found.columns['更新日時']] = new Date().toISOString();
+  sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  clearAllDataCache_();
+  return { updated: true, officerId: officerId };
 }
 
 // ---------- T_振込口座 管理 ----------

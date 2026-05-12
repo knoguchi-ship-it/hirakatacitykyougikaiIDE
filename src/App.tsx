@@ -994,7 +994,7 @@ const App: React.FC = () => {
       loadSystemSettings(false).catch(() => undefined);
     }
 
-    if (currentView === 'annual-fee-manage' || currentView === 'member-detail' || currentView === 'staff-detail') {
+    if (currentView === 'annual-fee-manage' || currentView === 'member-detail' || currentView === 'staff-detail' || currentView === 'officer-management') {
       return;
     }
 
@@ -4575,7 +4575,7 @@ const App: React.FC = () => {
       if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
         return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
       }
-      return <OfficerManagement api={api} members={members} />;
+      return <OfficerManagement api={api} />;
     }
 
     if (currentView === 'payment-history') {

@@ -463,6 +463,7 @@ function buildAdminCode(source) {
     'assignOfficer',
     'resignOfficer',
     'updateOfficerLinkage',
+    'updateOfficerRecord',
     // v295: 振込口座管理
     'getAdminBankAccount',
     'saveAdminBankAccount',
