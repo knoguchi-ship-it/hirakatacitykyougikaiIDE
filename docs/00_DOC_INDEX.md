@@ -1,7 +1,7 @@
 # Document Index
 
 更新日: 2026-05-12
-現行バージョン: `v336`（integrated-public `@299` x2 / member split `@55` / admin split `@94`）
+現行バージョン: `v337`（integrated-public `@299` x2 / member split `@55` / admin split `@95`）
 
 ## 1. Entry Points
 
@@ -32,8 +32,9 @@
 
 | 文書 | 内容 |
 |---|---|
-| `docs/204_INCIDENT_DB_SCHEMA_SHIFT_2026-05-12.md` | **最優先** v335 schema-shift incident。データ復旧済み、v337 cleanup release 未実施 |
-| `docs/203_RELEASE_STATE_v336_2026-05-12.md` | **最新本番** v336。会員一覧・年会費管理の勤務先事業所名検索、admin split `@94` |
+| `docs/205_RELEASE_STATE_v337_2026-05-12.md` | **最新本番** v337。v335 schema-shift incident の診断/復旧関数 cleanup、admin split `@95` |
+| `docs/204_INCIDENT_DB_SCHEMA_SHIFT_2026-05-12.md` | v335 schema-shift incident。データ復旧済み、v337 cleanup release 完了 |
+| `docs/203_RELEASE_STATE_v336_2026-05-12.md` | v336。会員一覧・年会費管理の勤務先事業所名検索、admin split `@94` |
 | `docs/202_RELEASE_STATE_v335_2026-05-12.md` | v335 本番反映。入会申込の承認待ちキュー化、同一人物移行、`TRANSFERRED` / `T_人物統合ログ` |
 | `docs/201_RELEASE_STATE_v334_2026-05-12.md` | v334 本番反映。役員管理の状態編集、就任日/退任日の時刻非表示、役員管理読み込み高速化 |
 | `docs/200_RELEASE_STATE_v333_2026-05-12.md` | v333 本番反映。活動報告 / 経費請求 2系統化、業務分類マスタ、HEIC→JPG 変換、管理者確認 UI |

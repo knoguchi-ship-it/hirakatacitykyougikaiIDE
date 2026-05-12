@@ -1,6 +1,6 @@
 # Incident — T_会員 DB schema-shift data corruption (2026-05-12)
 
-Status: **データ復旧 100% 完了**。診断/復旧関数の cleanup は local commit `1da2fa2` 済み。現時点の local `main` は `origin/main` より 4 commit 先行。v337 リリース（Git push → admin push → version → redeploy）のみ残作業。
+Status: **closed**。データ復旧 100% 完了。診断/復旧関数の cleanup は local commit `1da2fa2` 済み、v337 として admin fixed deployment `@95` へ反映済み。
 
 ## 復旧確定済み
 
@@ -68,7 +68,7 @@ v335 リリース（2026-05-12）で `T_会員` に `移行日` 列を position 
 - [x] 診断/復旧関数 4 つを `gas-src/Code.full.gs` から削除（local commit `1da2fa2` 済み）
 - [x] `scripts/build-admin-gas.mjs` および `scripts/audit-admin-boundary.mjs` の allowlist 整理
 - [x] typecheck / build:gas:admin / 全 boundary audit PASS
-- [ ] **v337 リリース**（next maintainer）: Git push → admin push → version → redeploy（HANDOVER.md §10.1 に詳細手順あり）
+- [x] **v337 リリース**: Git push → admin push → version `95` → admin fixed deployment `@95` redeploy 完了（詳細: `docs/205_RELEASE_STATE_v337_2026-05-12.md`）
 - [ ] **バックアップシートの保管期限**: `T_会員_backup_20260512_000201` と `M_組織マスタ_backup_20260512_014831` は最低 2 週間（2026-05-26 まで）残置を推奨。安全性確認後は削除可
 - [ ] **再発防止策の実装**（v338 以降）: `writeSheetHeaders_` の name-based data-shift 追加、または `initializeSchema_` 内の呼び出し順序変更
 
