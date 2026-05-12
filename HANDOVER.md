@@ -1,8 +1,10 @@
 # 開発引継ぎ
 
-更新日: 2026-05-12
+更新日: 2026-05-13
 現行本番: `v340`（管理者専用の会員ステータスメモ追加、schema initialization guard 反映） / integrated-public GAS version `301` / member split GAS version `57` / admin split GAS version `98`
 fixed deployment: integrated/public `@301` x2 / member split `@57` / admin split `@98`
+
+> **2026-05-13 引継ぎ開始時メモ**: 作業ツリー確認時点で未コミット差分なし。`npx clasp deployments --json` は integrated/public・member split・admin split の 3 系統すべてで `invalid_grant` / `invalid_rapt` となり、ローカル OAuth セッション再認証が必要。Google Workspace の Cloud services session length / reauthentication 系の事象であり、直前の v340 fixed deployment は `docs/209_RELEASE_STATE_v340_2026-05-12.md` 記載の `@301/@57/@98` が正本。次に Apps Script API を使う前に `npx clasp login` または案件標準の project-scoped OAuth 手順で再認証すること。
 
 > **🚨 引き継ぎ時に必ず読むこと**: `docs/204_INCIDENT_DB_SCHEMA_SHIFT_2026-05-12.md`
 > v335 schema 変更時の data-shift マイグレーション未走に起因する DB データ scramble が発生。**T_会員 232 行と M_組織マスタ 8 行はすべて復旧完了**（バックアップ: `T_会員_backup_20260512_000201`、`M_組織マスタ_backup_20260512_014831`）。`全役員表示フラグ` の正しい値も UI 経由で 3 行設定済み。診断/復旧関数は `gas-src` / admin artifact から **clean 済み**。v337 cleanup release と admin fixed deployment `@95` 同期まで完了。
