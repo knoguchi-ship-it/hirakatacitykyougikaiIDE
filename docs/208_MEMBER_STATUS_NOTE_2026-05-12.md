@@ -1,7 +1,7 @@
 # Member Status Note
 
 Date: 2026-05-12
-Status: implemented locally, not deployed
+Status: deployed in production as v340
 
 ## Scope
 
@@ -27,6 +27,10 @@ Status: implemented locally, not deployed
 
 ## Verification
 
+- `npx clasp deployments --json` (integrated/public): PASS, fixed deployments `@301` x2
+- `npx clasp deployments --json` (member split): PASS, fixed deployment `@57`
+- `npx clasp deployments --json` (admin split): PASS, fixed deployment `@98`
+- `npm run prerelease`: PASS
 - `npm run typecheck`: PASS
 - `npm run build:gas:admin`: PASS
 - `npm run build:gas`: PASS
@@ -37,7 +41,14 @@ Status: implemented locally, not deployed
 
 ## Deployment Notes
 
-Pending. Because this release adds a DB column, deploy only after approval. After deployment, verify:
+Deployed on 2026-05-12 as v340:
+
+- Integrated/public Apps Script version: `301`
+- Member split Apps Script version: `57`
+- Admin split Apps Script version: `98`
+- Fixed deployment description: `v340 status note schema fix`
+
+Post-deployment operator browser checks:
 
 1. Admin portal -> member detail -> status section shows the memo field.
 2. Saving a memo persists after reload.
