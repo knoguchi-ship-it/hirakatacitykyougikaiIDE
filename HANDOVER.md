@@ -23,6 +23,7 @@ fixed deployment: integrated/public `@299` x2 / member split `@55` / admin split
 - **v334（2026-05-12）**: 役員管理で状態変更（現職 / 退任済み）、役職、就任日、退任日、備考を編集可能化。役員管理ページの読み込み遅延原因だった不要な `fetchAllData` と `getOfficerMasterData` の重複取得を停止し、`getOfficerManagementData` 1 回で必要データを返す構成へ変更。public `@298` x2 / member split `@54` / admin split `@92`。詳細: `docs/201_RELEASE_STATE_v334_2026-05-12.md`。
 - **v337（2026-05-12）**: v335 schema-shift incident の診断/復旧関数 cleanup を admin fixed deployment `@95` へ反映。public / member は変更なし。詳細: `docs/205_RELEASE_STATE_v337_2026-05-12.md`。
 - **v336（2026-05-12）**: 会員管理コンソール（会員一覧）と年会費管理コンソールのキーワード検索で、個人/賛助会員の勤務先事業所名でもヒットするよう `AdminDashboardMemberRow.officeName` / `AnnualFeeAdminRecord.officeName` を追加。会員一覧フィルタを共通 `matchesSearchQuery`（NFKC・case folding・全角/半角スペース除去・多語AND）に統一。admin split `@94`。詳細: `docs/203_RELEASE_STATE_v336_2026-05-12.md`。
+- **未デプロイ修正（2026-05-12）**: v336 の勤務先事業所名検索はフロント側検索対象追加済みだったが、admin dashboard / annual fee API が `T_会員.事業所名` を参照していたため、個人/賛助会員の勤務先名が空で返っていた。`T_会員.勤務先名` 参照へ修正し、admin dashboard cache key を更新済み。詳細: `docs/206_ADMIN_WORKPLACE_SEARCH_FIX_2026-05-12.md`。
 - **v335（2026-05-12）**: 公開ポータルの新規入会申込を即時DB登録から `T_変更申請` の `MEMBER_APPLICATION` 承認待ちへ変更。`M_会員状態.TRANSFERRED`、`T_会員.移行日`、`T_人物統合ログ` を追加し、介護支援専門員番号が一致する個人/賛助会員・事業所職員間の移行時に認証・役員・振込口座・請求・研修申込を引き継ぐ。年会費履歴は会員レコード同士の重複修復時のみ移行。public `@299` x2 / member split `@55` / admin split `@93`。詳細: `docs/202_RELEASE_STATE_v335_2026-05-12.md`。
 
 ## 2. 最初に読む順序
@@ -37,26 +38,27 @@ fixed deployment: integrated/public `@299` x2 / member split `@55` / admin split
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
 10. `docs/205_RELEASE_STATE_v337_2026-05-12.md`（**最新本番：v337。incident cleanup / admin split @95**）
-11. `docs/204_INCIDENT_DB_SCHEMA_SHIFT_2026-05-12.md`（v335 schema-shift incident。データ復旧済み、v337 cleanup release 完了）
-12. `docs/203_RELEASE_STATE_v336_2026-05-12.md`（v336。勤務先事業所名検索 / admin split @94）
-13. `docs/202_RELEASE_STATE_v335_2026-05-12.md`（v335 本番反映。入会申込キュー化 / 同一人物移行）
-14. `docs/201_RELEASE_STATE_v334_2026-05-12.md`（v334 役員管理の状態編集 / 読み込み高速化）
-15. `docs/200_RELEASE_STATE_v333_2026-05-12.md`（v333 本番反映。活動報告 / 経費請求 2系統化）
-16. `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md`（v320〜v332 統合・引継ぎ正本）
-17. `docs/198_RESPONSIVE_TEST_REPORT_2026-05-11.md`（Playwright 自動レスポンシブテスト正本・98/98 セル合格）
-18. `docs/197_RELEASE_STATE_v320_2026-05-11.md`（v320 初出時の経緯）
-19. `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`（v311〜v319 統合）
-20. `docs/195_RELEASE_STATE_v310_2026-05-08.md`
-21. `docs/194_RELEASE_STATE_v309_2026-05-08.md`
-22. `docs/193_RELEASE_STATE_v308_2026-05-06.md`
-23. `docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md`
-24. `docs/172_DEFERRED_SECURITY_BACKLOG_SECRET_MANAGER_KDF_2026-05-01.md`
-25. `docs/09_DEPLOYMENT_POLICY.md`
-26. `docs/05_AUTH_AND_ROLE_SPEC.md`
-27. `docs/04_DB_OPERATION_RUNBOOK.md`
-28. `docs/03_DATA_MODEL.md`
-29. `docs/00_DOC_INDEX.md`
-30. `docs/archive/historical/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`（補足状態サマリ。正本は `HANDOVER.md`）
+11. `docs/206_ADMIN_WORKPLACE_SEARCH_FIX_2026-05-12.md`（勤務先事業所名検索の原因調査と未デプロイ修正）
+12. `docs/204_INCIDENT_DB_SCHEMA_SHIFT_2026-05-12.md`（v335 schema-shift incident。データ復旧済み、v337 cleanup release 完了）
+13. `docs/203_RELEASE_STATE_v336_2026-05-12.md`（v336。勤務先事業所名検索 / admin split @94）
+14. `docs/202_RELEASE_STATE_v335_2026-05-12.md`（v335 本番反映。入会申込キュー化 / 同一人物移行）
+15. `docs/201_RELEASE_STATE_v334_2026-05-12.md`（v334 役員管理の状態編集 / 読み込み高速化）
+16. `docs/200_RELEASE_STATE_v333_2026-05-12.md`（v333 本番反映。活動報告 / 経費請求 2系統化）
+17. `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md`（v320〜v332 統合・引継ぎ正本）
+18. `docs/198_RESPONSIVE_TEST_REPORT_2026-05-11.md`（Playwright 自動レスポンシブテスト正本・98/98 セル合格）
+19. `docs/197_RELEASE_STATE_v320_2026-05-11.md`（v320 初出時の経緯）
+20. `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`（v311〜v319 統合）
+21. `docs/195_RELEASE_STATE_v310_2026-05-08.md`
+22. `docs/194_RELEASE_STATE_v309_2026-05-08.md`
+23. `docs/193_RELEASE_STATE_v308_2026-05-06.md`
+24. `docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md`
+25. `docs/172_DEFERRED_SECURITY_BACKLOG_SECRET_MANAGER_KDF_2026-05-01.md`
+26. `docs/09_DEPLOYMENT_POLICY.md`
+27. `docs/05_AUTH_AND_ROLE_SPEC.md`
+28. `docs/04_DB_OPERATION_RUNBOOK.md`
+29. `docs/03_DATA_MODEL.md`
+30. `docs/00_DOC_INDEX.md`
+31. `docs/archive/historical/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`（補足状態サマリ。正本は `HANDOVER.md`）
 
 ## 3. 配信境界
 

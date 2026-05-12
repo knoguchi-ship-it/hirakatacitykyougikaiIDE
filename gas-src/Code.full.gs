@@ -3630,7 +3630,7 @@ function getAllDataCacheKey_() {
 }
 
 function getAdminDashboardCacheKey_() {
-  return 'adminDashboard:' + DB_SCHEMA_VERSION;
+  return 'adminDashboard:' + DB_SCHEMA_VERSION + ':v338-workplace-search';
 }
 
 function getTrainingManagementCacheKey_() {
@@ -4254,7 +4254,7 @@ function getAdminDashboardData_() {
       memberId: memberId,
       displayName: buildAnnualFeeDisplayName_(member),
       memberType: memberType,
-      officeName: String(member['事業所名'] || ''),
+      officeName: String(member['勤務先名'] || ''),
       latestFeeStatus: latestFee ? String(latestFee.status || 'UNPAID') : 'UNPAID',
       trainingCount: trainingCountByMember[memberId] || 0,
       joinedDate: normalizeDateInput_(joinedDateRaw),
@@ -6767,7 +6767,7 @@ function mapAnnualFeeAdminRecord_(rowObj, memberRow, selectedYear, amountMap) {
     memberId: memberId,
     memberType: String((memberRow && memberRow['会員種別コード']) || 'INDIVIDUAL'),
     displayName: buildAnnualFeeDisplayName_(memberRow),
-    officeName: String((memberRow && memberRow['事業所名']) || ''),
+    officeName: String((memberRow && memberRow['勤務先名']) || ''),
     year: year,
     status: String((rowObj && (rowObj.status || rowObj['会費納入状態コード'])) || 'UNPAID'),
     confirmedDate: normalizeDateInput_(rowObj && (rowObj.confirmedDate || rowObj['納入確認日'])),

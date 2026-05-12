@@ -32,6 +32,7 @@
 
 | 文書 | 内容 |
 |---|---|
+| `docs/206_ADMIN_WORKPLACE_SEARCH_FIX_2026-05-12.md` | 管理者ポータルの勤務先事業所名検索が効かない原因調査と修正記録。実装済み、未デプロイ |
 | `docs/205_RELEASE_STATE_v337_2026-05-12.md` | **最新本番** v337。v335 schema-shift incident の診断/復旧関数 cleanup、admin split `@95` |
 | `docs/204_INCIDENT_DB_SCHEMA_SHIFT_2026-05-12.md` | v335 schema-shift incident。データ復旧済み、v337 cleanup release 完了 |
 | `docs/203_RELEASE_STATE_v336_2026-05-12.md` | v336。会員一覧・年会費管理の勤務先事業所名検索、admin split `@94` |
