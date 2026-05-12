@@ -1068,17 +1068,16 @@ const App: React.FC = () => {
   }, []);
 
   const filteredAdminMemberRows = useMemo(() => {
-    const normalizedQuery = deferredMemberListQuery.trim().toLowerCase();
     return adminMemberRows.filter((member) => {
       if (memberListFilter !== 'ALL' && member.memberType !== memberListFilter) return false;
       const displayStatus = getMemberStatusAtFiscalYear(member, selectedFiscalYear, currentFiscalYear);
       if (selectedFiscalYear !== null && !displayStatus) return false;
       if (memberListStatusFilter !== 'ALL' && displayStatus !== memberListStatusFilter) return false;
-      if (!normalizedQuery) return true;
-      return [member.memberId, member.displayName]
-        .join(' ')
-        .toLowerCase()
-        .includes(normalizedQuery);
+      return matchesSearchQuery(deferredMemberListQuery, [
+        member.memberId,
+        member.displayName,
+        member.officeName,
+      ]);
     });
   }, [adminMemberRows, currentFiscalYear, deferredMemberListQuery, memberListFilter, memberListStatusFilter, selectedFiscalYear]);
 
@@ -2242,7 +2241,7 @@ const App: React.FC = () => {
             className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
             value={adminMemberViewMode === 'business' ? businessMemberQuery : memberListQuery}
             onChange={(e) => adminMemberViewMode === 'business' ? setBusinessMemberQuery(e.target.value) : setMemberListQuery(e.target.value)}
-            placeholder={adminMemberViewMode === 'business' ? '事業所名・氏名・カナ・メール・CM番号' : '会員番号・氏名・事業所名'}
+            placeholder={adminMemberViewMode === 'business' ? '事業所名・氏名・カナ・メール・CM番号' : '会員番号・氏名・事業所名（勤務先含む）'}
           />
         </div>
         <div>

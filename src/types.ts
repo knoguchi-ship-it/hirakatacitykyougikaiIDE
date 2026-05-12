@@ -149,6 +149,7 @@ export interface AnnualFeeAdminRecord {
   memberId: string;
   memberType: MemberType;
   displayName: string;
+  officeName: string; // 事業所会員=事業所名 / 個人・賛助会員=勤務先事業所名
   year: number;
   status: PaymentStatus;
   confirmedDate?: string;
@@ -201,6 +202,7 @@ export interface AdminDashboardMemberRow {
   memberId: string;
   displayName: string;
   memberType: MemberType;
+  officeName: string; // 事業所会員=事業所名 / 個人・賛助会員=勤務先事業所名（キーワード検索の対象）
   latestFeeStatus: PaymentStatus;
   trainingCount: number;
   joinedDate: string;

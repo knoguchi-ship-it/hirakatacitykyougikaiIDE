@@ -364,7 +364,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
       if (failedKeys && !failedKeys.has(buildRowKey(record))) return false;
       if (statusFilter !== 'ALL' && record.status !== statusFilter) return false;
       if (memberTypeFilter !== 'ALL' && record.memberType !== memberTypeFilter) return false;
-      return matchesSearchQuery(query, [record.memberId, record.displayName, toMemberTypeLabel(record.memberType)]);
+      return matchesSearchQuery(query, [record.memberId, record.displayName, record.officeName, toMemberTypeLabel(record.memberType)]);
     });
   }, [data.records, failedKeys, memberTypeFilter, query, statusFilter]);
 
@@ -694,7 +694,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
                 className="w-full border border-slate-300 rounded px-3 py-2"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="会員名・会員ID・会員種別で検索"
+                placeholder="会員名・会員ID・事業所名（勤務先含む）・会員種別で検索"
               />
             </div>
             <div>
