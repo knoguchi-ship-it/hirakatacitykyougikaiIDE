@@ -1,6 +1,29 @@
 # Incident — T_会員 DB schema-shift data corruption (2026-05-12)
 
-Status: T_会員 復旧済み（要 UI 確認）。T_組織マスタ / T_請求 は未検証（同症状の疑いあり）。診断/復旧関数は admin head に残置（@94 fixed deployment には未反映）。
+Status: **データ復旧 100% 完了**。診断/復旧関数の cleanup を `gas-src/Code.full.gs` 上で完了（未コミット）。v337 リリース（push → version → redeploy）のみ残作業。
+
+## 復旧確定済み
+
+| テーブル | 影響 | 復旧 | バックアップ |
+|---|---|---|---|
+| T_会員（232 行） | 列 6 以降が右シフト 1 列ズレ | ✅ `repairSchemaShiftForV336` で復旧、verify OK | `T_会員_backup_20260512_000201` |
+| M_組織マスタ（8 行） | 列 5 以降が右シフト 1 列ズレ | ✅ 同関数で復旧 + `全役員表示フラグ` を UI 経由で正しい値に設定 | `M_組織マスタ_backup_20260512_014831` |
+| T_請求 / T_振込口座 / T_変更申請 | データなし | ✅ 影響なし確認 | — |
+| T_役員 | 8 行存在、kind 検出で全列正常 | ✅ 影響なし確認 | — |
+| T_事業所職員 / T_認証アカウント / T_研修 / T_年会費納入履歴 / M_役職マスタ / M_支払い種別マスタ 等 | v288 以降 schema 変更なし | ✅ 影響なし | — |
+
+## M_組織マスタ 全役員表示フラグ 最終状態（UI 設定後）
+
+| 組織コード | 組織名 | 全役員表示フラグ |
+|---|---|---|
+| HQ | 本部 | true（表示） |
+| DIRECTORS | 理事会 | true（表示） |
+| AUDITORS | 監事会 | false（所属者のみ） |
+| SECRETARIAT | 事務局 | true（表示） |
+| REGIONAL | 圏域委員会 | false（所属者のみ） |
+| PR | 広報組織化委員会 | false（所属者のみ） |
+| TRAINING | 研修委員会 | false（所属者のみ） |
+| RESEARCH | 調査研究委員会 | false（所属者のみ） |
 
 ## 概要
 
@@ -37,12 +60,17 @@ v335 リリース（2026-05-12）で `T_会員` に `移行日` 列を position 
 
 ## 残作業
 
-- [ ] **UI 確認**: 管理者ポータル → 会員管理 → 個人/賛助/事業所会員を開き、姓・名・セイ・メイ・勤務先・自宅・電話・メール・介護番号が正しく表示されることを確認。**この確認が完了するまで、管理コンソールで「保存」操作は行わないこと**（不整合があれば保存で上書き破壊するリスクあり）
-- [ ] **T_組織マスタ の同症状検証**: `repairSchemaShiftForV336({mode:'dryRun', table:'T_組織マスタ', insertedAtPosition:5})` を実行（`全役員表示フラグ` 挿入位置は schema を要再確認）
-- [ ] **T_請求 の同症状検証**: 同様。v333 で複数列追加されたため、挿入位置を T_請求 schema 履歴から特定して個別に対応
-- [ ] **診断/復旧関数の除去**: T_会員 / T_組織マスタ / T_請求 の復旧完了後、`diagnoseTKaiInSchemaForV336` / `diagnoseTKaiInSchemaForV336deep` / `repairSchemaShiftForV336` を `gas-src/Code.full.gs` から削除し、`scripts/build-admin-gas.mjs` および `scripts/audit-admin-boundary.mjs` の allowlist からも除去
-- [ ] **クリーンアップ後の本番反映**: v337 として admin split を push → version → fixed deployment redeploy。fixed deployment は現状 `@94`（v336 リリース時点）のまま、診断/復旧関数を含む head とは分離されている
-- [ ] **バックアップシートの保管期限**: `T_会員_backup_20260512_000201` は最低 2 週間（2026-05-26 まで）残置を推奨。安全性確認後は削除可
+- [x] T_会員 UI 確認（押江 朋子 等の表示が正常であることを Playwright で確認済）
+- [x] T_組織マスタ の同症状検証 → execute（8 行復旧）
+- [x] T_請求 / T_振込口座 / T_変更申請: データなし確認
+- [x] T_役員: kind 検出で全列正常確認
+- [x] M_組織マスタ 全役員表示フラグ 3 行を UI から設定（HQ / DIRECTORS / SECRETARIAT を true に）
+- [x] 診断/復旧関数 4 つを `gas-src/Code.full.gs` から削除（uncommitted）
+- [x] `scripts/build-admin-gas.mjs` および `scripts/audit-admin-boundary.mjs` の allowlist 整理
+- [x] typecheck / build:gas:admin / 全 boundary audit PASS
+- [ ] **v337 リリース**（next maintainer）: commit → push → version → redeploy（HANDOVER.md §10.1 に詳細手順あり）
+- [ ] **バックアップシートの保管期限**: `T_会員_backup_20260512_000201` と `M_組織マスタ_backup_20260512_014831` は最低 2 週間（2026-05-26 まで）残置を推奨。安全性確認後は削除可
+- [ ] **再発防止策の実装**（v338 以降）: `writeSheetHeaders_` の name-based data-shift 追加、または `initializeSchema_` 内の呼び出し順序変更
 
 ## 再発防止策（提案）
 

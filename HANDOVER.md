@@ -5,7 +5,7 @@
 fixed deployment: integrated/public `@299` x2 / member split `@55` / admin split `@94`
 
 > **🚨 引き継ぎ時に必ず読むこと**: `docs/204_INCIDENT_DB_SCHEMA_SHIFT_2026-05-12.md`
-> v335 スキーマ変更時の data-shift マイグレーション未走に起因する DB データ scramble が発生し、T_会員 232 行は復旧済み（バックアップ: `T_会員_backup_20260512_000201`）。T_組織マスタ / T_請求 は未検証。admin head には診断/復旧関数（`diagnoseTKaiInSchemaForV336` / `repairSchemaShiftForV336` 等）が一時的に残置されているが、fixed deployment `@94` には含まれない。クリーンアップ前に保存操作禁止。詳細は §10 を参照。
+> v335 schema 変更時の data-shift マイグレーション未走に起因する DB データ scramble が発生。**T_会員 232 行と M_組織マスタ 8 行はすべて復旧完了**（バックアップ: `T_会員_backup_20260512_000201`、`M_組織マスタ_backup_20260512_014831`）。`全役員表示フラグ` の正しい値も UI 経由で 3 行設定済み。診断/復旧関数を `gas-src` から **clean 済み（作業ツリー uncommitted）**。次担当者は **§10 の v337 リリース手順を実施するだけで終了**。
 
 ## 1. 現行状態
 
@@ -189,43 +189,101 @@ node scripts/responsive-test-admin.mjs   # 管理者ポータル
 
 ## 10. 進行中インシデント / 未完了タスク（最優先）
 
-### 10.1 DB schema-shift incident（2026-05-12 発生 / T_会員 復旧済み）
+### 10.1 DB schema-shift incident（2026-05-12 発生 / データ復旧 100% 完了 / リリースのみ未実施）
 
 正本: `docs/204_INCIDENT_DB_SCHEMA_SHIFT_2026-05-12.md`
 
-**現状**:
-- T_会員: 232 行を `repairSchemaShiftForV336` で右シフト復旧済み。バックアップ `T_会員_backup_20260512_000201` を同 SS 内に保持
-- T_組織マスタ / T_請求: 同症状の疑いあるが**未検証**
-- 診断/復旧関数（`diagnoseTKaiInSchemaForV336` / `diagnoseTKaiInSchemaForV336deep` / `repairSchemaShiftForV336`）は admin head に残置されているが、**fixed deployment `@94` には含まれていない**ため UI 経由では呼び出せない。`clasp run` でのみ実行可能
+**完了済み**:
+- ✅ T_会員 232 行: `repairSchemaShiftForV336` で右シフト復旧（backup: `T_会員_backup_20260512_000201`）
+- ✅ M_組織マスタ 8 行: 同関数で復旧（backup: `M_組織マスタ_backup_20260512_014831`）
+- ✅ `全役員表示フラグ` の 3 行（HQ / DIRECTORS / SECRETARIAT を `表示=true`）を Playwright MCP 経由で UI から設定
+- ✅ T_請求 / T_振込口座 / T_変更申請: データなし（lastRow=1）→ 修正不要
+- ✅ T_役員: 8 行存在、kind 検出で全列正常整合確認 → 修正不要
+- ✅ T_事業所職員 / T_認証アカウント / T_研修 / T_年会費納入履歴 / M_役職マスタ 等: v288 以降 schema 変更なし → 影響なし
+- ✅ 診断/復旧関数（`diagnoseTKaiInSchemaForV336`, `diagnoseTKaiInSchemaForV336deep`, `repairSchemaShiftForV336`, `seedOrgMasterFullDisplayFlagsForV336`）を `gas-src/Code.full.gs` から削除（**作業ツリーに uncommitted 状態**）
+- ✅ `scripts/build-admin-gas.mjs` と `scripts/audit-admin-boundary.mjs` の allowlist から関数名を削除
+- ✅ `npm run typecheck` / `build:gas:admin` / `security:admin-boundary` / `security:member-boundary` / `security:public-boundary`: すべて PASS
 
-**次に着手する 1 手目**: 管理者ポータル → 会員管理を開き、個人/賛助/事業所会員の姓・名・勤務先・自宅・電話・メール・介護番号が正しく表示されているか目視で確認する。**確認完了まで管理コンソールで「保存」操作禁止**（不整合があれば破壊上書きするため）。
+**残作業（次担当者・v337 リリース）**:
 
-**残作業**:
-1. T_会員 UI 確認（操作者）
-2. T_組織マスタ の dryRun → 同症状なら execute（挿入列は `全役員表示フラグ`。位置は `gas-src/Code.full.gs` の `テーブル定義['T_組織マスタ']` を確認）
-3. T_請求 の dryRun → 同症状なら execute（v333 で `請求種別 / 業務分類コード / 単価 / 数量` 追加）
-4. 復旧完了後、診断/復旧関数 3 つを `gas-src/Code.full.gs` から削除し、`scripts/build-admin-gas.mjs` および `scripts/audit-admin-boundary.mjs` の allowlist からも除去
-5. v337 として admin split を push → version → redeploy（fixed deployment `@94` 更新）
-6. 再発防止策（`docs/204` §再発防止策）を `docs/09_DEPLOYMENT_POLICY.md` に反映
+これだけ実施すれば全て完了:
 
-**clasp 認証の落とし穴**:
-- `clasp push` は **標準 OAuth** (`k.noguchi@hcm-n.org`) でしか通らない
-- `clasp run` は **project-scoped OAuth** (`.tmp/oauth-client-hcmn-member-system-prod.json`) でしか通らない
-- 同じ session で両方を使う必要がある時は `clasp logout` → 別の `clasp login` で都度切替が発生する（既知事象、AGENTS.md §4 の本番系コマンド経路ルールに従う）
+1. **未コミット差分を確認**:
+   ```powershell
+   cd C:\VSCode\CloudePL\hirakatacitykyougikaiIDE
+   git status --short
+   git diff --stat
+   ```
+   期待値:
+   ```
+   M backend/Code.gs
+   M gas-src/Code.full.gs
+   M gas/admin/Code.gs
+   M scripts/audit-admin-boundary.mjs
+   M scripts/build-admin-gas.mjs
+   ```
+   約 770 行削除。診断/復旧関数の除去のみ。
 
-**コマンド再掲**:
-```powershell
-# project-scoped に切替
-npx clasp login --creds .tmp\oauth-client-hcmn-member-system-prod.json --use-project-scopes --no-localhost
+2. **コミット**:
+   ```powershell
+   git add backend/Code.gs gas-src/Code.full.gs gas/admin/Code.gs scripts/audit-admin-boundary.mjs scripts/build-admin-gas.mjs
+   git commit -m "cleanup(v337): remove v336 incident diagnostic and repair functions"
+   ```
 
-# dryRun
-$p = '[{\"mode\":\"dryRun\",\"table\":\"T_テーブル名\",\"insertedAtPosition\":N,\"sampleSize\":3}]'
-npx clasp run repairSchemaShiftForV336 --params $p
+3. **標準 OAuth に切替（push 用）**:
+   ```powershell
+   npx clasp logout
+   npx clasp login
+   ```
+   ブラウザで `k.noguchi@hcm-n.org` を選択。
 
-# execute (バックアップ自動作成・5分 guard 付き・直後 verify)
-$p = '[{\"mode\":\"execute\",\"table\":\"T_テーブル名\",\"insertedAtPosition\":N}]'
-npx clasp run repairSchemaShiftForV336 --params $p
-```
+4. **push → version → redeploy**:
+   ```powershell
+   cd gas\admin
+   npx clasp push --force
+   npx clasp version "v337 cleanup v336 diagnostic and repair functions"
+   # 戻ってきた version 番号 N を控える（おそらく 95）
+   npx clasp redeploy AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os --versionNumber N --description "v337 cleanup"
+   npx clasp deployments --json
+   ```
+
+5. **検証**:
+   - `clasp deployments --json` で admin fixed deployment が `@95`（または N）になっていることを確認
+   - admin URL を開いて MASTER ログインで動作確認（会員一覧・組織マスタが正常表示）
+
+6. **ドキュメント更新**:
+   - `HANDOVER.md` の冒頭の現行本番表記を `v337` / admin split `@95` へ更新
+   - 本セクション §10.1 を「完了済み」とし、過去インシデントとして archive 候補に
+   - `docs/204_INCIDENT_DB_SCHEMA_SHIFT_2026-05-12.md` の Status を `closed` に更新
+   - `docs/205_RELEASE_STATE_v337_2026-05-12.md` を新規作成（cleanup release の記録）
+
+7. **コミット & 完了**:
+   ```powershell
+   git add HANDOVER.md docs/204_INCIDENT_DB_SCHEMA_SHIFT_2026-05-12.md docs/205_RELEASE_STATE_v337_2026-05-12.md
+   git commit -m "docs(v337): close incident 204 and add release state"
+   ```
+
+**clasp 認証の落とし穴（既知事象）**:
+- `clasp push` は **標準 OAuth** (`k.noguchi@hcm-n.org` 直接ログイン) でしか通らない
+- `clasp run` は **project-scoped OAuth** (`.tmp/oauth-client-hcmn-member-system-prod.json` + `--use-project-scopes`) でしか通らない
+- v337 は push のみで `clasp run` は不要なので、標準 OAuth 1 回で完結する
+- 同 session で両方を使う必要がある場合は `clasp logout` → 別の `clasp login` で都度切替
+
+**今後の再発防止策（v338 以降で対応推奨）**:
+
+根本原因は `writeSheetHeaders_`（`gas-src/Code.full.gs:12432` 付近、ファイル変動で要再検索）が schema 列追加時に **header 行だけを setValues で上書きし、データ行の name-based shift を行わない**こと。
+具体的には:
+- `createMasterSheets_` / `createTableSheets_` → `writeSheetHeaders_` の順で header だけ上書き
+- 続く `normalizeTableColumns_` が `currentHeaders === targetHeaders` を真と判定して早期 return
+- 結果: data-shift マイグレーションが全くスキップされる
+
+**修正案**:
+1. `initializeSchema_` で `createTableSheets_` より **前** に `normalizeTableColumns_` を呼ぶ
+2. または `writeSheetHeaders_` 内で「header 長 / 名前の差異」を検出した場合に内部で name-based shift を実行
+3. `削除フラグ` カラムが `true/false` 以外を含む場合に warning ログを出す sanity check
+4. release checklist の deploy checklist に schema 変更時の `runRebuildSchemaForV<N>` 手動実行を追記
+
+詳細は `docs/204_INCIDENT_DB_SCHEMA_SHIFT_2026-05-12.md` §再発防止策。
 
 ### 10.2 v336 文書（参考）
 

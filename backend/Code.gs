@@ -665,7 +665,6 @@ function doGet(e) {
  * 未定義の初期業務データ（例: 認証アカウント実データ）は作成しない。
  */
 
-
 // スコープ不要の疎通確認用。Execution API経路の切り分けに使う。
 function healthCheck() {
   return {
