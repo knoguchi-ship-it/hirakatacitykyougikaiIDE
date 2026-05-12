@@ -487,7 +487,7 @@ function buildAdminCode(source) {
     'setDefaultRosterTemplate',
   ]);
   code = removeIfBlock(code, "isMemberAction && !LOGIN_ONLY_MEMBER_ACTIONS[action]");
-  code = pruneUnreachableFunctionDeclarations(code, ['doGet', 'processApiRequest'], 'build-admin-gas');
+  code = pruneUnreachableFunctionDeclarations(code, ['doGet', 'processApiRequest', 'diagnoseTKaiInSchemaForV336', 'diagnoseTKaiInSchemaForV336deep', 'repairSchemaShiftForV336'], 'build-admin-gas');
   code = removeTopLevelFunctionDeclarations(code, [
     'rebuildDatabaseSchema',
     'cleanupDatabaseSheets',
@@ -496,7 +496,7 @@ function buildAdminCode(source) {
     'seedDemoData',
     'addDeleteLogSheet',
   ], 'build-admin-gas');
-  assertAllowedTopLevelFunctions(code, ['doGet', 'processApiRequest'], 'build-admin-gas');
+  assertAllowedTopLevelFunctions(code, ['doGet', 'processApiRequest', 'diagnoseTKaiInSchemaForV336', 'diagnoseTKaiInSchemaForV336deep', 'repairSchemaShiftForV336'], 'build-admin-gas');
   return code;
 }
 

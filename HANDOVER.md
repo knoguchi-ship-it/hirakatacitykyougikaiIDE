@@ -4,6 +4,9 @@
 現行本番: `v336`（会員一覧・年会費管理のキーワード検索を共通化し勤務先事業所名でもヒット） / integrated-public GAS version `299` / member split GAS version `55` / admin split GAS version `94`
 fixed deployment: integrated/public `@299` x2 / member split `@55` / admin split `@94`
 
+> **🚨 引き継ぎ時に必ず読むこと**: `docs/204_INCIDENT_DB_SCHEMA_SHIFT_2026-05-12.md`
+> v335 スキーマ変更時の data-shift マイグレーション未走に起因する DB データ scramble が発生し、T_会員 232 行は復旧済み（バックアップ: `T_会員_backup_20260512_000201`）。T_組織マスタ / T_請求 は未検証。admin head には診断/復旧関数（`diagnoseTKaiInSchemaForV336` / `repairSchemaShiftForV336` 等）が一時的に残置されているが、fixed deployment `@94` には含まれない。クリーンアップ前に保存操作禁止。詳細は §10 を参照。
+
 ## 1. 現行状態
 
 - `public / member / admin` の 3 境界は確定済み。
@@ -183,3 +186,47 @@ node scripts/responsive-test-admin.mjs   # 管理者ポータル
 ```
 
 本番反映時は `docs/09_DEPLOYMENT_POLICY.md` の `build -> push -> version -> fixed deployment sync -> verification -> document update` を完了条件とする。
+
+## 10. 進行中インシデント / 未完了タスク（最優先）
+
+### 10.1 DB schema-shift incident（2026-05-12 発生 / T_会員 復旧済み）
+
+正本: `docs/204_INCIDENT_DB_SCHEMA_SHIFT_2026-05-12.md`
+
+**現状**:
+- T_会員: 232 行を `repairSchemaShiftForV336` で右シフト復旧済み。バックアップ `T_会員_backup_20260512_000201` を同 SS 内に保持
+- T_組織マスタ / T_請求: 同症状の疑いあるが**未検証**
+- 診断/復旧関数（`diagnoseTKaiInSchemaForV336` / `diagnoseTKaiInSchemaForV336deep` / `repairSchemaShiftForV336`）は admin head に残置されているが、**fixed deployment `@94` には含まれていない**ため UI 経由では呼び出せない。`clasp run` でのみ実行可能
+
+**次に着手する 1 手目**: 管理者ポータル → 会員管理を開き、個人/賛助/事業所会員の姓・名・勤務先・自宅・電話・メール・介護番号が正しく表示されているか目視で確認する。**確認完了まで管理コンソールで「保存」操作禁止**（不整合があれば破壊上書きするため）。
+
+**残作業**:
+1. T_会員 UI 確認（操作者）
+2. T_組織マスタ の dryRun → 同症状なら execute（挿入列は `全役員表示フラグ`。位置は `gas-src/Code.full.gs` の `テーブル定義['T_組織マスタ']` を確認）
+3. T_請求 の dryRun → 同症状なら execute（v333 で `請求種別 / 業務分類コード / 単価 / 数量` 追加）
+4. 復旧完了後、診断/復旧関数 3 つを `gas-src/Code.full.gs` から削除し、`scripts/build-admin-gas.mjs` および `scripts/audit-admin-boundary.mjs` の allowlist からも除去
+5. v337 として admin split を push → version → redeploy（fixed deployment `@94` 更新）
+6. 再発防止策（`docs/204` §再発防止策）を `docs/09_DEPLOYMENT_POLICY.md` に反映
+
+**clasp 認証の落とし穴**:
+- `clasp push` は **標準 OAuth** (`k.noguchi@hcm-n.org`) でしか通らない
+- `clasp run` は **project-scoped OAuth** (`.tmp/oauth-client-hcmn-member-system-prod.json`) でしか通らない
+- 同じ session で両方を使う必要がある時は `clasp logout` → 別の `clasp login` で都度切替が発生する（既知事象、AGENTS.md §4 の本番系コマンド経路ルールに従う）
+
+**コマンド再掲**:
+```powershell
+# project-scoped に切替
+npx clasp login --creds .tmp\oauth-client-hcmn-member-system-prod.json --use-project-scopes --no-localhost
+
+# dryRun
+$p = '[{\"mode\":\"dryRun\",\"table\":\"T_テーブル名\",\"insertedAtPosition\":N,\"sampleSize\":3}]'
+npx clasp run repairSchemaShiftForV336 --params $p
+
+# execute (バックアップ自動作成・5分 guard 付き・直後 verify)
+$p = '[{\"mode\":\"execute\",\"table\":\"T_テーブル名\",\"insertedAtPosition\":N}]'
+npx clasp run repairSchemaShiftForV336 --params $p
+```
+
+### 10.2 v336 文書（参考）
+
+`docs/203_RELEASE_STATE_v336_2026-05-12.md`: キーワード検索の勤務先事業所名対応。fixed deployment `@94` 反映済み。v336 自体は incident と別件。

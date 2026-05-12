@@ -674,6 +674,388 @@ function doGet(e) {
  */
 
 
+/**
+ * v336 緊急復旧: schema 列挿入時の data-row 未シフトを修正する。
+ *
+ * 症状: 既存シートの header 行が新 schema に置き換わったが、データは旧 schema の位置のまま残っている。
+ *       たとえば T_会員 で v335 に position 6 へ '移行日' が挿入されたが、各レコードの値は依然 33 列で
+ *       column N に旧 column N の値が入っている状態（header だけ更新・data 未シフト）。
+ *
+ * 修正: insertedAtPosition (1-indexed) の列を空にし、それ以降の列を右シフトする。
+ *
+ * payload (JSON):
+ *   mode: 'dryRun' | 'execute'
+ *   table: 'T_会員' | 'T_組織マスタ' | 'T_請求' など
+ *   insertedAtPosition: 1-indexed の挿入列位置（例: T_会員 の '移行日' は 6）
+ *   sampleSize: dryRun で返す before/after サンプル件数（default 3）
+ *
+ * 安全策:
+ *   - execute モードは ScriptLock 取得・タイムスタンプ付きバックアップシート作成・shift 後一括書き戻し・直後検証を必須化
+ *   - 同じ table への execute は 5 分以内に二度走らせない (Script Property guard)
+ *   - 値マスクは dryRun のサンプルにのみ適用
+ *
+ * 実行例:
+ *   clasp run repairSchemaShiftForV336 --params '[{"mode":"dryRun","table":"T_会員","insertedAtPosition":6}]'
+ *   clasp run repairSchemaShiftForV336 --params '[{"mode":"execute","table":"T_会員","insertedAtPosition":6}]'
+ */
+function repairSchemaShiftForV336(payload) {
+  payload = payload || {};
+  var mode = String(payload.mode || 'dryRun');
+  var table = String(payload.table || '');
+  var insertedAt = Number(payload.insertedAtPosition || 0);
+  var sampleSize = Math.max(1, Math.min(10, Number(payload.sampleSize || 3)));
+
+  if (!table) return { error: 'table is required' };
+  if (!insertedAt || insertedAt < 2) return { error: 'insertedAtPosition must be >= 2' };
+  if (mode !== 'dryRun' && mode !== 'execute') return { error: 'mode must be dryRun or execute' };
+
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName(table);
+  if (!sheet) return { error: table + ' not found' };
+
+  var lastCol = sheet.getLastColumn();
+  var lastRow = sheet.getLastRow();
+  var expectedHeaders = (テーブル定義 && テーブル定義[table]) || [];
+  var actualHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0]
+    .map(function(h) { return String(h || ''); });
+
+  // 前提: header 行は新 schema と一致している必要がある
+  var headerOk = expectedHeaders.length === actualHeaders.length;
+  if (headerOk) {
+    for (var hi = 0; hi < expectedHeaders.length; hi += 1) {
+      if (actualHeaders[hi] !== expectedHeaders[hi]) { headerOk = false; break; }
+    }
+  }
+  if (!headerOk) {
+    return { error: 'header row does not match schema; aborting', actual: actualHeaders, expected: expectedHeaders };
+  }
+  if (insertedAt > lastCol) {
+    return { error: 'insertedAtPosition exceeds lastColumn', insertedAt: insertedAt, lastCol: lastCol };
+  }
+
+  var dataStartRow = 2;
+  var dataRowCount = lastRow - 1;
+  if (dataRowCount <= 0) return { error: 'no data rows', lastRow: lastRow };
+
+  var oldValues = sheet.getRange(dataStartRow, 1, dataRowCount, lastCol).getValues();
+  var newValues = oldValues.map(function(row) {
+    var copy = row.slice();
+    // 右シフト: columns [insertedAt..lastCol-1] (0-indexed [insertedAt-1..lastCol-2]) の値を 1 列右に移動
+    // 結果: copy[insertedAt-1] = ''、copy[k] = oldRow[k-1] for k in [insertedAt..lastCol-1]
+    for (var k = lastCol - 1; k >= insertedAt; k -= 1) {
+      copy[k] = row[k - 1];
+    }
+    copy[insertedAt - 1] = '';
+    return copy;
+  });
+
+  // dryRun: 修正前後のサンプル N 件を返す（kindだけ示し、PIIは出さない）
+  function detectKind(v) {
+    var s = String(v == null ? '' : v).trim();
+    if (!s) return 'empty';
+    if (/^\d{8}$/.test(s)) return 'digits8';
+    if (/^\d{3}-\d{4}$/.test(s)) return 'postal';
+    if (/^\d{2,4}-\d{3,4}-\d{4}$/.test(s)) return 'phone';
+    if (/^[\w.+-]+@[\w.-]+$/.test(s)) return 'email';
+    if (/^(ACTIVE|WITHDRAWN|WITHDRAWAL_SCHEDULED|TRANSFERRED)$/.test(s)) return 'memberStatus';
+    if (/^(INDIVIDUAL|BUSINESS|SUPPORT)$/.test(s)) return 'memberType';
+    if (/^(OFFICE|HOME|POST_OFFICE)$/.test(s)) return 'mailDest';
+    if (/^(EMAIL|POST|HYBRID|NONE)$/.test(s)) return 'mailPref';
+    if (/^(true|false|TRUE|FALSE)$/.test(s)) return 'bool';
+    if (/^\d{4}-\d{2}-\d{2}T/.test(s) || /GMT[-+]\d{4}/.test(s) || /^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}/.test(s)) return 'datetime';
+    if (/^[ぁ-んァ-ン一-龯々]+$/.test(s) && s.length <= 6) return 'kanjiShort';
+    if (/^[ァ-ヶｦ-ﾟ]+$/.test(s) && s.length <= 12) return 'kana';
+    if (/^(大阪府|東京都|京都府|北海道|.{2,3}県)$/.test(s)) return 'prefecture';
+    if (/[市区町村]/.test(s)) return 'city';
+    if (/[町丁番地号-]/.test(s) && s.length > 3) return 'address';
+    return 'other';
+  }
+  var samples = [];
+  var sampleStep = Math.max(1, Math.floor(dataRowCount / sampleSize));
+  for (var ssi = 0; ssi < sampleSize; ssi += 1) {
+    var rowIdx = ssi * sampleStep;
+    if (rowIdx >= oldValues.length) break;
+    var diff = [];
+    for (var ci = 0; ci < actualHeaders.length; ci += 1) {
+      var bKind = detectKind(oldValues[rowIdx][ci]);
+      var aKind = detectKind(newValues[rowIdx][ci]);
+      if (bKind !== aKind) {
+        diff.push(actualHeaders[ci] + ': ' + bKind + ' -> ' + aKind);
+      }
+    }
+    samples.push('row ' + (rowIdx + dataStartRow) + ' (' + diff.length + ' cols changed): ' + diff.join(' | '));
+  }
+
+  if (mode === 'dryRun') {
+    return {
+      mode: 'dryRun',
+      table: table,
+      insertedAtPosition: insertedAt,
+      insertedColumnName: actualHeaders[insertedAt - 1],
+      rowCount: dataRowCount,
+      lastColumn: lastCol,
+      samplesKindOnly: samples,
+    };
+  }
+
+  // execute
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) {
+    return { error: 'failed to acquire script lock' };
+  }
+  try {
+    // 5 分以内の二重実行ガード
+    var props = PropertiesService.getScriptProperties();
+    var guardKey = 'REPAIR_SCHEMA_SHIFT_LAST_' + table;
+    var last = props.getProperty(guardKey);
+    if (last) {
+      var elapsedMs = (new Date()).getTime() - Number(last);
+      if (isFinite(elapsedMs) && elapsedMs < 5 * 60 * 1000) {
+        return { error: 'guard: same table was repaired within 5 minutes', lastAt: new Date(Number(last)).toISOString() };
+      }
+    }
+    // backup
+    var ts = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Tokyo', 'yyyyMMdd_HHmmss');
+    var backupName = table + '_backup_' + ts;
+    var backupSheet = sheet.copyTo(ss).setName(backupName);
+    // hide backup by moving to end
+    ss.setActiveSheet(backupSheet);
+    ss.moveActiveSheet(ss.getNumSheets());
+
+    // write
+    sheet.getRange(dataStartRow, 1, dataRowCount, lastCol).setValues(newValues);
+    SpreadsheetApp.flush();
+
+    // verify by reading back
+    var verifyValues = sheet.getRange(dataStartRow, 1, dataRowCount, lastCol).getValues();
+    var verifyOk = true;
+    for (var vr = 0; vr < verifyValues.length && verifyOk; vr += 1) {
+      for (var vc = 0; vc < lastCol && verifyOk; vc += 1) {
+        if (String(verifyValues[vr][vc]) !== String(newValues[vr][vc])) verifyOk = false;
+      }
+    }
+    if (!verifyOk) {
+      return { error: 'verification mismatch after write; backup at ' + backupName };
+    }
+
+    props.setProperty(guardKey, String((new Date()).getTime()));
+
+    // キャッシュ無効化
+    try { clearAdminDashboardCache_(); } catch (e) {}
+    try { clearAllDataCache_(); } catch (e) {}
+
+    return {
+      mode: 'execute',
+      table: table,
+      insertedAtPosition: insertedAt,
+      insertedColumnName: actualHeaders[insertedAt - 1],
+      rowCount: dataRowCount,
+      backupSheet: backupName,
+      verified: true,
+      samplesKindOnly: samples,
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * v336 一時診断 (拡張): T_会員 / T_事業所職員 の scramble パターンを検証。
+ * 完了後すぐに削除すること。実行: npx clasp run diagnoseTKaiInSchemaForV336deep
+ */
+function diagnoseTKaiInSchemaForV336deep() {
+  var ss = getOrCreateDatabase_();
+  var props = PropertiesService.getScriptProperties();
+
+  function inspect(sheetName, sampleSize) {
+    var sheet = ss.getSheetByName(sheetName);
+    if (!sheet) return { error: sheetName + ' not found' };
+    var lastCol = sheet.getLastColumn();
+    var lastRow = sheet.getLastRow();
+    var actualHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0]
+      .map(function(h) { return String(h || ''); });
+    var expectedHeaders = (テーブル定義 && テーブル定義[sheetName]) || [];
+    var mismatched = [];
+    var maxLen = Math.max(actualHeaders.length, expectedHeaders.length);
+    for (var i = 0; i < maxLen; i += 1) {
+      if ((actualHeaders[i] || '') !== (expectedHeaders[i] || '')) {
+        mismatched.push({ position: i + 1, actual: actualHeaders[i] || '', expected: expectedHeaders[i] || '' });
+      }
+    }
+
+    // 列の値タイプを推定するヒューリスティック
+    function detectKind(v) {
+      var s = String(v == null ? '' : v).trim();
+      if (!s) return 'empty';
+      if (/^\d{8}$/.test(s)) return 'digits8';                   // 会員ID/介護番号
+      if (/^\d{3}-\d{4}$/.test(s)) return 'postal';
+      if (/^\d{2,4}-\d{3,4}-\d{4}$/.test(s)) return 'phone';
+      if (/^0\d{9,10}$/.test(s)) return 'phoneNoDash';
+      if (/^[\w.+-]+@[\w.-]+$/.test(s)) return 'email';
+      if (/^(ACTIVE|WITHDRAWN|WITHDRAWAL_SCHEDULED|TRANSFERRED)$/.test(s)) return 'memberStatusCode';
+      if (/^(INDIVIDUAL|BUSINESS|SUPPORT)$/.test(s)) return 'memberTypeCode';
+      if (/^(OFFICE|HOME|POST_OFFICE)$/.test(s)) return 'mailDestCode';
+      if (/^(EMAIL|POST|HYBRID|NONE)$/.test(s)) return 'mailPrefCode';
+      if (/^(YES|NO)$/.test(s)) return 'yesNo';
+      if (/^(true|false|TRUE|FALSE)$/.test(s)) return 'bool';
+      if (/^\d{4}-\d{2}-\d{2}T/.test(s) || /GMT[-+]\d{4}/.test(s) || /^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}/.test(s)) return 'datetime';
+      if (/^[ぁ-んァ-ン一-龯々]+$/.test(s) && s.length <= 6) return 'kanjiName';
+      if (/^[ァ-ヶｦ-ﾟ]+$/.test(s) && s.length <= 12) return 'kana';
+      if (/[市区町村]/.test(s)) return 'city';
+      if (/^(大阪府|東京都|京都府|北海道|.{2,3}県)/.test(s)) return 'prefecture';
+      if (/[町丁番地号-]/.test(s) && s.length > 3) return 'address';
+      if (s.length > 4 && /[一-龯ぁ-んァ-ンA-Za-z]/.test(s)) return 'name_or_office';
+      return 'other';
+    }
+
+    var sampleRows = [];
+    var perColumnKindCounts = {};
+    for (var c = 0; c < actualHeaders.length; c += 1) perColumnKindCounts[actualHeaders[c]] = {};
+    if (lastRow > 1) {
+      var n = Math.min(sampleSize || 10, lastRow - 1);
+      // 均等にサンプリング
+      var indices = [];
+      var step = Math.max(1, Math.floor((lastRow - 1) / n));
+      for (var k = 0; k < n; k += 1) indices.push(2 + k * step);
+      // 値タイプの集計用に全 233 行を読み取る
+      var allRows = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+      for (var ri = 0; ri < allRows.length; ri += 1) {
+        for (var ci = 0; ci < actualHeaders.length; ci += 1) {
+          var hdr = actualHeaders[ci];
+          if (!hdr) continue;
+          var kind = detectKind(allRows[ri][ci]);
+          perColumnKindCounts[hdr][kind] = (perColumnKindCounts[hdr][kind] || 0) + 1;
+        }
+      }
+      // サンプル行は raw kind だけ返す（PII を出さない）
+      for (var si = 0; si < indices.length; si += 1) {
+        var rowIdx = indices[si] - 2;
+        if (rowIdx < 0 || rowIdx >= allRows.length) continue;
+        var sample = { _rowIndex: indices[si] };
+        for (var cj = 0; cj < actualHeaders.length; cj += 1) {
+          var h2 = actualHeaders[cj];
+          if (!h2) continue;
+          sample[h2] = detectKind(allRows[rowIdx][cj]);
+        }
+        sampleRows.push(sample);
+      }
+    }
+
+    // 各列で最頻の kind を求める
+    var dominantKindByColumn = {};
+    Object.keys(perColumnKindCounts).forEach(function(hdr) {
+      var counts = perColumnKindCounts[hdr];
+      var best = '';
+      var bestCount = -1;
+      Object.keys(counts).forEach(function(k) {
+        if (counts[k] > bestCount) { best = k; bestCount = counts[k]; }
+      });
+      dominantKindByColumn[hdr] = { kind: best, count: bestCount, total: Object.keys(counts).reduce(function(s, k) { return s + counts[k]; }, 0) };
+    });
+
+    return {
+      sheetName: sheetName,
+      lastColumn: lastCol,
+      lastRow: lastRow,
+      headerMismatched: mismatched,
+      dominantKindByColumn: dominantKindByColumn,
+      sampleRowsKindOnly: sampleRows,
+    };
+  }
+
+  return {
+    spreadsheetId: ss.getId(),
+    dbSchemaVersion: (typeof DB_SCHEMA_VERSION !== 'undefined') ? DB_SCHEMA_VERSION : null,
+    schemaInitializedVersion: props.getProperty('SCHEMA_INITIALIZED_VERSION') || props.getProperty('schemaInitializedVersion'),
+    tkaiin: inspect('T_会員', 8),
+    tstaff: inspect('T_事業所職員', 5),
+  };
+}
+
+/**
+ * v336 一時診断: T_会員 の実 header 行と先頭3レコードを取得し、テーブル定義との
+ * 不整合を検出する読み取り専用関数。完了後すぐに削除すること。
+ * 実行: npx clasp run diagnoseTKaiInSchemaForV336
+ */
+function diagnoseTKaiInSchemaForV336() {
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_会員');
+  if (!sheet) return { error: 'T_会員 sheet not found' };
+  var lastCol = sheet.getLastColumn();
+  var lastRow = sheet.getLastRow();
+  var actualHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0]
+    .map(function(h) { return String(h || ''); });
+  var expectedHeaders = (テーブル定義 && テーブル定義['T_会員']) || [];
+
+  var headerDiff = {
+    actualLength: actualHeaders.length,
+    expectedLength: expectedHeaders.length,
+    mismatched: [],
+    onlyInActual: [],
+    onlyInExpected: [],
+  };
+  var maxLen = Math.max(actualHeaders.length, expectedHeaders.length);
+  for (var i = 0; i < maxLen; i += 1) {
+    var a = actualHeaders[i] || '';
+    var e = expectedHeaders[i] || '';
+    if (a !== e) {
+      headerDiff.mismatched.push({ position: i + 1, actual: a, expected: e });
+    }
+  }
+  var expectedSet = {};
+  for (var ei = 0; ei < expectedHeaders.length; ei += 1) expectedSet[expectedHeaders[ei]] = true;
+  var actualSet = {};
+  for (var ai = 0; ai < actualHeaders.length; ai += 1) actualSet[actualHeaders[ai]] = true;
+  for (var aj = 0; aj < actualHeaders.length; aj += 1) {
+    if (actualHeaders[aj] && !expectedSet[actualHeaders[aj]]) headerDiff.onlyInActual.push(actualHeaders[aj]);
+  }
+  for (var ek = 0; ek < expectedHeaders.length; ek += 1) {
+    if (!actualSet[expectedHeaders[ek]]) headerDiff.onlyInExpected.push(expectedHeaders[ek]);
+  }
+
+  // 先頭3行を取得し、メール・電話・名前を部分マスク
+  var sampleRows = [];
+  if (lastRow > 1) {
+    var rawRows = sheet.getRange(2, 1, Math.min(3, lastRow - 1), lastCol).getValues();
+    for (var r = 0; r < rawRows.length; r += 1) {
+      var maskedRow = {};
+      for (var c = 0; c < actualHeaders.length; c += 1) {
+        var header = actualHeaders[c];
+        if (!header) continue;
+        var v = String(rawRows[r][c] == null ? '' : rawRows[r][c]);
+        // PIIマスク: 名前は1文字目+*、電話/郵便/介護番号は先頭3文字+*、メールはローカルパート先頭2文字+*、住所は先頭4文字+*
+        if (v) {
+          if (header === '姓' || header === '名' || header === 'セイ' || header === 'メイ') {
+            v = v.charAt(0) + (v.length > 1 ? '*'.repeat(v.length - 1) : '');
+          } else if (/メール/.test(header)) {
+            var at = v.indexOf('@');
+            if (at > 0) v = v.substring(0, Math.min(2, at)) + '***' + v.substring(at);
+            else v = v.substring(0, 2) + '***';
+          } else if (/電話|FAX|郵便|介護支援専門員番号/.test(header)) {
+            v = v.substring(0, Math.min(3, v.length)) + '***';
+          } else if (/住所|市区町村|都道府県/.test(header)) {
+            v = v.substring(0, Math.min(4, v.length)) + '***';
+          }
+        }
+        maskedRow[header] = v;
+      }
+      sampleRows.push(maskedRow);
+    }
+  }
+
+  return {
+    spreadsheetId: ss.getId(),
+    sheetName: 'T_会員',
+    lastColumn: lastCol,
+    lastRow: lastRow,
+    headerDiff: headerDiff,
+    sampleRowsMasked: sampleRows,
+    dbSchemaVersion: (typeof DB_SCHEMA_VERSION !== 'undefined') ? DB_SCHEMA_VERSION : null,
+    schemaInitializedFlag: PropertiesService.getScriptProperties().getProperty('SCHEMA_INITIALIZED') || PropertiesService.getScriptProperties().getProperty('schemaInitialized'),
+    schemaInitializedVersion: PropertiesService.getScriptProperties().getProperty('SCHEMA_INITIALIZED_VERSION') || PropertiesService.getScriptProperties().getProperty('schemaInitializedVersion'),
+  };
+}
+
 // スコープ不要の疎通確認用。Execution API経路の切り分けに使う。
 
 /**

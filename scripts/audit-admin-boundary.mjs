@@ -8,7 +8,7 @@ const root = join(__dirname, '..');
 const codePath = join(root, 'gas', 'admin', 'Code.gs');
 const htmlPath = join(root, 'gas', 'admin', 'index.html');
 
-const allowedTopLevelFunctions = ['doGet', 'processApiRequest'];
+const allowedTopLevelFunctions = ['doGet', 'processApiRequest', 'diagnoseTKaiInSchemaForV336', 'diagnoseTKaiInSchemaForV336deep', 'repairSchemaShiftForV336'];
 const allowedAdminLoginActions = ['checkAdminBySession', 'adminLoginWithData'];
 const allowedAdminActions = [
   'getDbInfo',
