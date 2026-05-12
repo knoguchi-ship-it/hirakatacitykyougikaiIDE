@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-05-12
-Production: `v337` / integrated-public fixed deployments `@299` x2 / member split `@55` / admin split `@95`
+Production: `v338` / integrated-public fixed deployments `@299` x2 / member split `@55` / admin split `@96`
 
 ## 1. Purpose
 
@@ -25,7 +25,7 @@ Production: `v337` / integrated-public fixed deployments `@299` x2 / member spli
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
 | member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@55` (`v335`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@95` (`v337`) | `DOMAIN` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@96` (`v338`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -122,7 +122,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-05-12 `v337` ← current production
+### 2026-05-12 `v338` ← current production
+- Scope: 管理者ポータルの会員一覧・年会費管理で、個人/賛助会員の勤務先事業所名検索が効かない不具合を修正。admin dashboard / annual fee API の `officeName` を `T_会員.勤務先名` 参照へ修正。
+- Integrated fixed deployments: `@299` x2（変更なし、v335 artifact）
+- Member split: `@55`（変更なし、v335 artifact）
+- Admin split: `@96`
+- Detail: `docs/207_RELEASE_STATE_v338_2026-05-12.md`
+
+### 2026-05-12 `v337`
 - Scope: v335 schema-shift incident の診断/復旧関数 cleanup を admin fixed deployment へ反映。public / member は変更なし。
 - Integrated fixed deployments: `@299` x2（変更なし、v335 artifact）
 - Member split: `@55`（変更なし、v335 artifact）

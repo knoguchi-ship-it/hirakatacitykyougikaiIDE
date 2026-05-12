@@ -1,8 +1,8 @@
 # 開発引継ぎ
 
 更新日: 2026-05-12
-現行本番: `v337`（v336 incident cleanup。診断/復旧関数を admin artifact から除去） / integrated-public GAS version `299` / member split GAS version `55` / admin split GAS version `95`
-fixed deployment: integrated/public `@299` x2 / member split `@55` / admin split `@95`
+現行本番: `v338`（管理者ポータルの勤務先事業所名検索修正。admin dashboard / annual fee payload の `officeName` を `T_会員.勤務先名` 参照へ修正） / integrated-public GAS version `299` / member split GAS version `55` / admin split GAS version `96`
+fixed deployment: integrated/public `@299` x2 / member split `@55` / admin split `@96`
 
 > **🚨 引き継ぎ時に必ず読むこと**: `docs/204_INCIDENT_DB_SCHEMA_SHIFT_2026-05-12.md`
 > v335 schema 変更時の data-shift マイグレーション未走に起因する DB データ scramble が発生。**T_会員 232 行と M_組織マスタ 8 行はすべて復旧完了**（バックアップ: `T_会員_backup_20260512_000201`、`M_組織マスタ_backup_20260512_014831`）。`全役員表示フラグ` の正しい値も UI 経由で 3 行設定済み。診断/復旧関数は `gas-src` / admin artifact から **clean 済み**。v337 cleanup release と admin fixed deployment `@95` 同期まで完了。
@@ -21,9 +21,9 @@ fixed deployment: integrated/public `@299` x2 / member split `@55` / admin split
 - **v320〜v332（2026-05-11）**: 全 3 ポータルで viewport meta + WCAG 2.2 AAA タップターゲット (44×44px) + iOS Safari モーダル UX + Sidebar モバイルドロアー + パスワード規約 (8〜20文字・許可文字制限) + `member_unauthorized` / `unsupported_action` の利用者向け平易表示を整備。Playwright 自動レスポンシブテスト **98/98 セル全合格** を達成。次担当者向け統合引継ぎ正本: `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md`、テスト正本: `docs/198_RESPONSIVE_TEST_REPORT_2026-05-11.md`。
 - **v333（2026-05-12）**: 役員向け請求を **活動報告 / 経費請求** の 2 系統へ分離。`M_業務分類`、`M_組織マスタ.全役員表示フラグ`、`T_請求.請求種別/業務分類コード/単価/数量` を追加。経費請求は添付必須、HEIC/HEIF は会員側で JPG 変換。public `@297` x2 / member split `@53` / admin split `@91`。詳細: `docs/200_RELEASE_STATE_v333_2026-05-12.md`。
 - **v334（2026-05-12）**: 役員管理で状態変更（現職 / 退任済み）、役職、就任日、退任日、備考を編集可能化。役員管理ページの読み込み遅延原因だった不要な `fetchAllData` と `getOfficerMasterData` の重複取得を停止し、`getOfficerManagementData` 1 回で必要データを返す構成へ変更。public `@298` x2 / member split `@54` / admin split `@92`。詳細: `docs/201_RELEASE_STATE_v334_2026-05-12.md`。
+- **v338（2026-05-12）**: v336 の勤務先事業所名検索修正。admin dashboard / annual fee API の `officeName` を `T_会員.勤務先名` 参照へ修正し、cache key を更新。admin split `@96`。詳細: `docs/207_RELEASE_STATE_v338_2026-05-12.md`。
 - **v337（2026-05-12）**: v335 schema-shift incident の診断/復旧関数 cleanup を admin fixed deployment `@95` へ反映。public / member は変更なし。詳細: `docs/205_RELEASE_STATE_v337_2026-05-12.md`。
 - **v336（2026-05-12）**: 会員管理コンソール（会員一覧）と年会費管理コンソールのキーワード検索で、個人/賛助会員の勤務先事業所名でもヒットするよう `AdminDashboardMemberRow.officeName` / `AnnualFeeAdminRecord.officeName` を追加。会員一覧フィルタを共通 `matchesSearchQuery`（NFKC・case folding・全角/半角スペース除去・多語AND）に統一。admin split `@94`。詳細: `docs/203_RELEASE_STATE_v336_2026-05-12.md`。
-- **未デプロイ修正（2026-05-12）**: v336 の勤務先事業所名検索はフロント側検索対象追加済みだったが、admin dashboard / annual fee API が `T_会員.事業所名` を参照していたため、個人/賛助会員の勤務先名が空で返っていた。`T_会員.勤務先名` 参照へ修正し、admin dashboard cache key を更新済み。詳細: `docs/206_ADMIN_WORKPLACE_SEARCH_FIX_2026-05-12.md`。
 - **v335（2026-05-12）**: 公開ポータルの新規入会申込を即時DB登録から `T_変更申請` の `MEMBER_APPLICATION` 承認待ちへ変更。`M_会員状態.TRANSFERRED`、`T_会員.移行日`、`T_人物統合ログ` を追加し、介護支援専門員番号が一致する個人/賛助会員・事業所職員間の移行時に認証・役員・振込口座・請求・研修申込を引き継ぐ。年会費履歴は会員レコード同士の重複修復時のみ移行。public `@299` x2 / member split `@55` / admin split `@93`。詳細: `docs/202_RELEASE_STATE_v335_2026-05-12.md`。
 
 ## 2. 最初に読む順序
@@ -37,28 +37,29 @@ fixed deployment: integrated/public `@299` x2 / member split `@55` / admin split
 7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `docs/205_RELEASE_STATE_v337_2026-05-12.md`（**最新本番：v337。incident cleanup / admin split @95**）
-11. `docs/206_ADMIN_WORKPLACE_SEARCH_FIX_2026-05-12.md`（勤務先事業所名検索の原因調査と未デプロイ修正）
-12. `docs/204_INCIDENT_DB_SCHEMA_SHIFT_2026-05-12.md`（v335 schema-shift incident。データ復旧済み、v337 cleanup release 完了）
-13. `docs/203_RELEASE_STATE_v336_2026-05-12.md`（v336。勤務先事業所名検索 / admin split @94）
-14. `docs/202_RELEASE_STATE_v335_2026-05-12.md`（v335 本番反映。入会申込キュー化 / 同一人物移行）
-15. `docs/201_RELEASE_STATE_v334_2026-05-12.md`（v334 役員管理の状態編集 / 読み込み高速化）
-16. `docs/200_RELEASE_STATE_v333_2026-05-12.md`（v333 本番反映。活動報告 / 経費請求 2系統化）
-17. `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md`（v320〜v332 統合・引継ぎ正本）
-18. `docs/198_RESPONSIVE_TEST_REPORT_2026-05-11.md`（Playwright 自動レスポンシブテスト正本・98/98 セル合格）
-19. `docs/197_RELEASE_STATE_v320_2026-05-11.md`（v320 初出時の経緯）
-20. `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`（v311〜v319 統合）
-21. `docs/195_RELEASE_STATE_v310_2026-05-08.md`
-22. `docs/194_RELEASE_STATE_v309_2026-05-08.md`
-23. `docs/193_RELEASE_STATE_v308_2026-05-06.md`
-24. `docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md`
-25. `docs/172_DEFERRED_SECURITY_BACKLOG_SECRET_MANAGER_KDF_2026-05-01.md`
-26. `docs/09_DEPLOYMENT_POLICY.md`
-27. `docs/05_AUTH_AND_ROLE_SPEC.md`
-28. `docs/04_DB_OPERATION_RUNBOOK.md`
-29. `docs/03_DATA_MODEL.md`
-30. `docs/00_DOC_INDEX.md`
-31. `docs/archive/historical/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`（補足状態サマリ。正本は `HANDOVER.md`）
+10. `docs/207_RELEASE_STATE_v338_2026-05-12.md`（**最新本番：v338。勤務先事業所名検索修正 / admin split @96**）
+11. `docs/206_ADMIN_WORKPLACE_SEARCH_FIX_2026-05-12.md`（勤務先事業所名検索の原因調査と修正記録）
+12. `docs/205_RELEASE_STATE_v337_2026-05-12.md`（v337。incident cleanup / admin split @95）
+13. `docs/204_INCIDENT_DB_SCHEMA_SHIFT_2026-05-12.md`（v335 schema-shift incident。データ復旧済み、v337 cleanup release 完了）
+14. `docs/203_RELEASE_STATE_v336_2026-05-12.md`（v336。勤務先事業所名検索 / admin split @94）
+15. `docs/202_RELEASE_STATE_v335_2026-05-12.md`（v335 本番反映。入会申込キュー化 / 同一人物移行）
+16. `docs/201_RELEASE_STATE_v334_2026-05-12.md`（v334 役員管理の状態編集 / 読み込み高速化）
+17. `docs/200_RELEASE_STATE_v333_2026-05-12.md`（v333 本番反映。活動報告 / 経費請求 2系統化）
+18. `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md`（v320〜v332 統合・引継ぎ正本）
+19. `docs/198_RESPONSIVE_TEST_REPORT_2026-05-11.md`（Playwright 自動レスポンシブテスト正本・98/98 セル合格）
+20. `docs/197_RELEASE_STATE_v320_2026-05-11.md`（v320 初出時の経緯）
+21. `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`（v311〜v319 統合）
+22. `docs/195_RELEASE_STATE_v310_2026-05-08.md`
+23. `docs/194_RELEASE_STATE_v309_2026-05-08.md`
+24. `docs/193_RELEASE_STATE_v308_2026-05-06.md`
+25. `docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md`
+26. `docs/172_DEFERRED_SECURITY_BACKLOG_SECRET_MANAGER_KDF_2026-05-01.md`
+27. `docs/09_DEPLOYMENT_POLICY.md`
+28. `docs/05_AUTH_AND_ROLE_SPEC.md`
+29. `docs/04_DB_OPERATION_RUNBOOK.md`
+30. `docs/03_DATA_MODEL.md`
+31. `docs/00_DOC_INDEX.md`
+32. `docs/archive/historical/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`（補足状態サマリ。正本は `HANDOVER.md`）
 
 ## 3. 配信境界
 
@@ -67,10 +68,11 @@ fixed deployment: integrated/public `@299` x2 / member split `@55` / admin split
 | 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@299` |
 | 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@299` |
 | 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@55` |
-| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@95` |
+| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@96` |
 
 ## 4. 直近リリース
 
+- `v338`: 管理者ポータルの会員一覧・年会費管理で、個人/賛助会員の勤務先事業所名検索が効かない不具合を修正。admin dashboard / annual fee API の `officeName` を `T_会員.勤務先名` 参照へ修正し、admin dashboard cache key を更新。admin split `@96`。
 - `v337`: v335 schema-shift incident の診断/復旧関数 cleanup を admin fixed deployment `@95` へ反映。public / member は変更なし。
 - `v336`: 会員管理コンソール（会員一覧）と年会費管理コンソールのキーワード検索で、個人/賛助会員の勤務先事業所名でもヒットするよう改善。`AdminDashboardMemberRow.officeName` / `AnnualFeeAdminRecord.officeName` を追加。会員一覧フィルタを共通 `matchesSearchQuery`（NFKC正規化・case folding・スペース除去・多語AND）に統一。admin split `@94`。
 - `v335`: 入会申込を承認待ちキュー化し、同一人物移行で旧個人/賛助会員を `TRANSFERRED`、旧事業所職員を `LEFT` とする。`T_人物統合ログ` へ移行結果を記録。public `@299` x2 / member split `@55` / admin split `@93`。

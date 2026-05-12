@@ -1,7 +1,7 @@
 # Admin Workplace Search Fix
 
 Date: 2026-05-12
-Status: implemented locally, not deployed
+Status: deployed as v338
 
 ## Finding
 
@@ -27,7 +27,10 @@ v336 added `officeName` to the admin member list and annual fee search target, b
 - `npm run security:split-boundary`: PASS
 - `npm run security:admin-boundary`: PASS
 
-Deployment is not yet performed.
+- Admin split `npx clasp push --force`: PASS
+- Apps Script version: `96`
+- Admin fixed deployment: `@96`
+- `npx clasp deployments --json`: confirmed `versionNumber: 96`, `description: "v338 workplace search fix"`
 
 ## Operator Check
 
