@@ -474,11 +474,12 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
 
   // ─── 完了画面 ────────────────────────────────────────
   if (result) {
+    const isQueuedApplication = !!result.queued || (!!result.requestId && !result.memberId);
     const isBusinessCompletion = form.memberType === 'BUSINESS';
     const canResolveLoginInfo = (!isBusinessCompletion && !!result.loginId) ||
       (isBusinessCompletion && !!result.staffCredentials?.length);
-    const showLoginInfoCard = showCompletionLoginInfo && canResolveLoginInfo;
-    const showLoginInfoSection = showCompletionLoginInfoBlock && canResolveLoginInfo;
+    const showLoginInfoCard = !isQueuedApplication && showCompletionLoginInfo && canResolveLoginInfo;
+    const showLoginInfoSection = !isQueuedApplication && showCompletionLoginInfoBlock && canResolveLoginInfo;
     const completionGuidanceBody = credentialEmailEnabled
       ? completionGuidanceBodyWhenCredentialSent
       : completionGuidanceBodyWhenCredentialNotSent;
@@ -499,8 +500,18 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
           <div className="w-16 h-16 mx-auto bg-green-100 rounded-full flex items-center justify-center">
             <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
           </div>
-          <h2 className="text-2xl font-bold text-slate-800">入会申込が完了しました</h2>
-          <p className="text-slate-600">会員番号: <span className="font-mono font-bold text-lg">{result.memberId}</span></p>
+          <h2 className="text-2xl font-bold text-slate-800">
+            {isQueuedApplication ? '入会申込を受け付けました' : '入会申込が完了しました'}
+          </h2>
+          {isQueuedApplication ? (
+            <div className="bg-sky-50 border border-sky-100 rounded-lg p-4 text-left">
+              <p className="text-sm text-sky-900 font-medium mb-2">受付番号</p>
+              <p className="text-sm text-sky-800 font-mono break-all">{result.requestId}</p>
+              <p className="text-sm text-sky-800 mt-2">事務局が内容を確認し、承認後に会員登録を反映します。</p>
+            </div>
+          ) : (
+            <p className="text-slate-600">会員番号: <span className="font-mono font-bold text-lg">{result.memberId}</span></p>
+          )}
           {!!result.transitionSummary?.length && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-left">
               <p className="text-sm font-medium text-amber-900 mb-2">登録時の切り替え結果</p>

@@ -1968,7 +1968,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
         </form>
 
         {/* ── 退会手続きセクション ── */}
-        {loginId && member.status !== 'WITHDRAWN' && (!isBusiness || currentStaff?.role === 'REPRESENTATIVE') && (
+        {loginId && member.status !== 'WITHDRAWN' && member.status !== 'TRANSFERRED' && (!isBusiness || currentStaff?.role === 'REPRESENTATIVE') && (
           <WithdrawalSection
             member={member}
             loginId={loginId}

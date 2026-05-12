@@ -30,7 +30,7 @@ type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'trai
 type AuthTab = 'member' | 'admin';
 type PendingAnnualFeeAction = { type: 'view'; view: View } | { type: 'logout' } | null;
 type MemberListFilter = 'ALL' | MemberType;
-type MemberStatusFilter = 'ALL' | 'ACTIVE' | 'WITHDRAWAL_SCHEDULED' | 'WITHDRAWN';
+type MemberStatusFilter = 'ALL' | 'ACTIVE' | 'WITHDRAWAL_SCHEDULED' | 'WITHDRAWN' | 'TRANSFERRED';
 type MemberSortKey = 'memberId' | 'displayName' | 'memberType' | 'trainingCount' | 'tenure' | 'status';
 type MemberSortDir = 'asc' | 'desc';
 type DisplayMemberStatus = Exclude<MemberStatusFilter, 'ALL'>;
@@ -109,6 +109,9 @@ const getMemberStatusAtFiscalYear = (
   if (member.status === 'WITHDRAWN' && !withdrawn) {
     return 'WITHDRAWN';
   }
+  if (member.status === 'TRANSFERRED') {
+    return 'TRANSFERRED';
+  }
 
   return 'ACTIVE';
 };
@@ -152,7 +155,7 @@ interface AuthenticatedContext {
   memberPortalLoginId?: string;
 }
 
-const isActiveMemberIdentity = (member: Member): boolean => member.status !== 'WITHDRAWN';
+const isActiveMemberIdentity = (member: Member): boolean => member.status !== 'WITHDRAWN' && member.status !== 'TRANSFERRED';
 
 const isActiveStaffIdentity = (staff: NonNullable<Member['staff']>[number]): boolean => staff.status !== 'LEFT';
 
@@ -2222,6 +2225,7 @@ const App: React.FC = () => {
               <option value="ACTIVE">在籍中</option>
               <option value="WITHDRAWAL_SCHEDULED">退会予定</option>
               <option value="WITHDRAWN">退会済</option>
+              <option value="TRANSFERRED">移行済み</option>
             </select>
           </div>
         )}
@@ -2263,7 +2267,13 @@ const App: React.FC = () => {
           )}
           {adminMemberViewMode === 'all' && memberListStatusFilter !== 'ALL' && (
             <span className="inline-flex items-center gap-1 bg-primary-50 text-primary-700 text-xs px-2 py-1 rounded-full">
-              {memberListStatusFilter === 'ACTIVE' ? '在籍中' : '退会済'}
+              {memberListStatusFilter === 'ACTIVE'
+                ? '在籍中'
+                : memberListStatusFilter === 'WITHDRAWAL_SCHEDULED'
+                  ? '退会予定'
+                  : memberListStatusFilter === 'TRANSFERRED'
+                    ? '移行済み'
+                    : '退会済'}
               <button onClick={() => setMemberListStatusFilter('ALL')} className="hover:text-primary-900">&times;</button>
             </span>
           )}
@@ -2482,6 +2492,8 @@ const App: React.FC = () => {
                     ? <span className="text-red-500">退会済</span>
                     : displayStatus === 'WITHDRAWAL_SCHEDULED'
                       ? <span className="text-amber-600">退会予定</span>
+                      : displayStatus === 'TRANSFERRED'
+                        ? <span className="text-slate-500">移行済み</span>
                       : <span className="text-green-600">在籍中</span>;
                 })()}</td>
               </tr>

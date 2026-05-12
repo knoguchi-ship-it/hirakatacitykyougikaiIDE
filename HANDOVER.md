@@ -1,8 +1,8 @@
 # 開発引継ぎ
 
 更新日: 2026-05-12
-現行本番: `v334`（役員管理で状態変更・役職・就任日・退任日・備考を編集可能化し、役員管理ページの不要な全体データ取得を停止して読み込みを高速化） / integrated-public GAS version `298` / member split GAS version `54` / admin split GAS version `92`
-fixed deployment: integrated/public `@298` x2 / member split `@54` / admin split `@92`
+現行本番: `v335`（公開ポータル入会申込を変更申請キュー化、介護支援専門員番号による同一人物移行、TRANSFERRED/移行日/人物統合ログ追加） / integrated-public GAS version `299` / member split GAS version `55` / admin split GAS version `93`
+fixed deployment: integrated/public `@299` x2 / member split `@55` / admin split `@93`
 
 ## 1. 現行状態
 
@@ -18,6 +18,7 @@ fixed deployment: integrated/public `@298` x2 / member split `@54` / admin split
 - **v320〜v332（2026-05-11）**: 全 3 ポータルで viewport meta + WCAG 2.2 AAA タップターゲット (44×44px) + iOS Safari モーダル UX + Sidebar モバイルドロアー + パスワード規約 (8〜20文字・許可文字制限) + `member_unauthorized` / `unsupported_action` の利用者向け平易表示を整備。Playwright 自動レスポンシブテスト **98/98 セル全合格** を達成。次担当者向け統合引継ぎ正本: `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md`、テスト正本: `docs/198_RESPONSIVE_TEST_REPORT_2026-05-11.md`。
 - **v333（2026-05-12）**: 役員向け請求を **活動報告 / 経費請求** の 2 系統へ分離。`M_業務分類`、`M_組織マスタ.全役員表示フラグ`、`T_請求.請求種別/業務分類コード/単価/数量` を追加。経費請求は添付必須、HEIC/HEIF は会員側で JPG 変換。public `@297` x2 / member split `@53` / admin split `@91`。詳細: `docs/200_RELEASE_STATE_v333_2026-05-12.md`。
 - **v334（2026-05-12）**: 役員管理で状態変更（現職 / 退任済み）、役職、就任日、退任日、備考を編集可能化。役員管理ページの読み込み遅延原因だった不要な `fetchAllData` と `getOfficerMasterData` の重複取得を停止し、`getOfficerManagementData` 1 回で必要データを返す構成へ変更。public `@298` x2 / member split `@54` / admin split `@92`。詳細: `docs/201_RELEASE_STATE_v334_2026-05-12.md`。
+- **v335（2026-05-12）**: 公開ポータルの新規入会申込を即時DB登録から `T_変更申請` の `MEMBER_APPLICATION` 承認待ちへ変更。`M_会員状態.TRANSFERRED`、`T_会員.移行日`、`T_人物統合ログ` を追加し、介護支援専門員番号が一致する個人/賛助会員・事業所職員間の移行時に認証・役員・振込口座・請求・研修申込を引き継ぐ。年会費履歴は会員レコード同士の重複修復時のみ移行。public `@299` x2 / member split `@55` / admin split `@93`。詳細: `docs/202_RELEASE_STATE_v335_2026-05-12.md`。
 
 ## 2. 最初に読む順序
 
@@ -30,11 +31,12 @@ fixed deployment: integrated/public `@298` x2 / member split `@54` / admin split
 7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `docs/201_RELEASE_STATE_v334_2026-05-12.md`（**最新：v334 本番反映。役員管理の状態編集 / 読み込み高速化**）
-11. `docs/200_RELEASE_STATE_v333_2026-05-12.md`（v333 本番反映。活動報告 / 経費請求 2系統化）
-12. `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md`（v320〜v332 統合・引継ぎ正本）
-13. `docs/198_RESPONSIVE_TEST_REPORT_2026-05-11.md`（Playwright 自動レスポンシブテスト正本・98/98 セル合格）
-13. `docs/197_RELEASE_STATE_v320_2026-05-11.md`（v320 初出時の経緯）
+10. `docs/202_RELEASE_STATE_v335_2026-05-12.md`（**最新：v335 本番反映。入会申込キュー化 / 同一人物移行**）
+11. `docs/201_RELEASE_STATE_v334_2026-05-12.md`（v334 役員管理の状態編集 / 読み込み高速化）
+12. `docs/200_RELEASE_STATE_v333_2026-05-12.md`（v333 本番反映。活動報告 / 経費請求 2系統化）
+13. `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md`（v320〜v332 統合・引継ぎ正本）
+14. `docs/198_RESPONSIVE_TEST_REPORT_2026-05-11.md`（Playwright 自動レスポンシブテスト正本・98/98 セル合格）
+15. `docs/197_RELEASE_STATE_v320_2026-05-11.md`（v320 初出時の経緯）
 14. `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`（v311〜v319 統合）
 15. `docs/195_RELEASE_STATE_v310_2026-05-08.md`
 16. `docs/194_RELEASE_STATE_v309_2026-05-08.md`
@@ -52,13 +54,14 @@ fixed deployment: integrated/public `@298` x2 / member split `@54` / admin split
 
 | 用途 | Project | Deployment ID | Access | Current version |
 |---|---|---|---|---|
-| 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@298` |
-| 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@298` |
-| 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@54` |
-| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@92` |
+| 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@299` |
+| 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@299` |
+| 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@55` |
+| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@93` |
 
 ## 4. 直近リリース
 
+- `v335`: 入会申込を承認待ちキュー化し、同一人物移行で旧個人/賛助会員を `TRANSFERRED`、旧事業所職員を `LEFT` とする。`T_人物統合ログ` へ移行結果を記録。public `@299` x2 / member split `@55` / admin split `@93`。
 - `v334`: 役員管理で状態変更（現職 / 退任済み）、役職、就任日、退任日、備考を編集可能化。役員管理ページの不要な `fetchAllData` と `getOfficerMasterData` 重複取得を停止。public `@298` x2 / member split `@54` / admin split `@92`。
 - `v333`: 役員向け請求を活動報告 / 経費請求の 2 系統へ分離。活動報告は活動部 + 業務分類から単価を確定し数量 1 固定、経費請求は自由記載 + 半角数値金額 + 添付必須。組織の全役員表示フラグ、業務分類マスタ、HEIC/HEIF→JPG 変換、管理者確認 UI を追加。public `@297` x2 / member split `@53` / admin split `@91`。リリース前バックアップは Execution API 権限不足で未実施、ユーザー承認によりスプレッドシート版歴を復旧手段として続行。
 - `v332`: ユーザビリティ・要件改善。**(1) パスワード規約**: 上限を 19 → 20 文字に拡張（8〜20 文字、20文字以下）。規約案内パネルからセキュリティ理由文（XSS / インジェクション対策説明・禁止文字一覧の根拠）を削除し、エンドユーザー視点の「使える文字」のみに集約。**(2) `member_unauthorized` 解消**: `api.getOfficerMasterData()` が会員側からの呼び出し時に sessionToken を渡していなかった問題を修正。**(3) ClaimCard エラー表示の平易化**: 生エラーコード（`member_unauthorized` / `member_session_expired` / `unsupported_action`）を利用者向け日本語メッセージに置換し、警告色（amber）で「請求情報を読み込めませんでした」とタイトル付き表示に。public `@296` / member split `@52` / admin split `@90`。
@@ -116,6 +119,7 @@ fixed deployment: integrated/public `@298` x2 / member split `@54` / admin split
 - ログ SS ID: `1NmVv483UeehF8dqCdyNKOqOtv_fPKROhHN7011N23lw`
 - v295 DB マイグレーションは 2026-05-03 に Apps Script エディタ（admin split）から `runRebuildSchemaForV295` を手動実行済み。
 - v297 DB マイグレーションは 2026-05-04 に Apps Script エディタ（admin split）から `runRebuildSchemaForV297` を手動実行済み。
+- v335 は DB スキーマ変更あり。`initializeSchemaIfNeeded_()` により初回 WebApp ロード時に `M_会員状態.TRANSFERRED`、`T_会員.移行日`、`T_人物統合ログ` が差分正規化される。操作者側で初回ロード後のシート確認が必要。
 - v305 / v306 / v307 / v308 は物理 DB スキーマ変更なし。v305 は `getMemberFiscalSnapshot_()` による年度基準派生モデルの修正、v306 は管理コンソール再読込状態管理の修正、v307/v308 は既存年会費 API を使う会員詳細 UI と表示年度修正のみ。
 - `T_役員` / `T_振込口座` / `T_請求` の人物識別は `会員ID` または `職員ID` の XOR 制約を守る。
 

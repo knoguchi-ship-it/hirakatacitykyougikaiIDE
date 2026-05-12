@@ -12,6 +12,7 @@ const MEMBER_STATUS_LABEL: Record<string, string> = {
   ACTIVE: '有効',
   WITHDRAWAL_SCHEDULED: '退会予定',
   WITHDRAWN: '退会済',
+  TRANSFERRED: '移行済み',
 };
 const STAFF_STATUS_LABEL: Record<string, string> = {
   ENROLLED: '在籍',
@@ -549,7 +550,7 @@ const MemberDeleteConsole: React.FC = () => {
       <div className="bg-amber-50 border border-amber-300 rounded-2xl p-5 space-y-3">
         <h3 className="font-semibold text-amber-800">データ整合性修復: 会員CM番号重複（同一介護支援専門員番号に複数の有効会員）</h3>
         <p className="text-xs text-amber-700">
-          同一介護支援専門員番号を持つ個人/賛助会員が複数 ACTIVE な場合、入会日が最も新しい1件を残し、それ以外を WITHDRAWN に更新します。
+          同一介護支援専門員番号を持つ個人/賛助会員が複数 ACTIVE な場合、入会日が最も新しい1件を残し、それ以外を 移行済み に更新します。
           個人⇔事業所の変換エラー後に残る整合性違反を修復します。
         </p>
         <button
@@ -566,7 +567,7 @@ const MemberDeleteConsole: React.FC = () => {
             <p>
               {repairCmResult.repaired === 0
                 ? '重複は見つかりませんでした（整合性OK）。'
-                : `${repairCmResult.repaired} 件の重複会員を WITHDRAWN に更新しました。`}
+                : `${repairCmResult.repaired} 件の重複会員を 移行済み に更新しました。`}
             </p>
             {repairCmResult.details.length > 0 && (
               <ul className="list-disc list-inside text-xs text-amber-700 space-y-0.5">

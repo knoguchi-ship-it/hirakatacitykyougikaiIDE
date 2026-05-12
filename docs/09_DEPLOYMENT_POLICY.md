@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-05-12
-Production: `v334` / integrated-public fixed deployments `@298` x2 / member split `@54` / admin split `@92`
+Production: `v335` / integrated-public fixed deployments `@299` x2 / member split `@55` / admin split `@93`
 
 ## 1. Purpose
 
@@ -17,15 +17,15 @@ Production: `v334` / integrated-public fixed deployments `@298` x2 / member spli
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@298` (`v334`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@298` (`v334`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@299` (`v335`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@299` (`v335`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@54` (`v334`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@92` (`v334`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@55` (`v335`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@93` (`v335`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -122,7 +122,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-05-12 `v334` ← current production
+### 2026-05-12 `v335` ← current production
+- Scope: 公開ポータル入会申込を変更申請キュー化。介護支援専門員番号による同一人物移行、`TRANSFERRED`、`T_会員.移行日`、`T_人物統合ログ` を追加。
+- Integrated fixed deployments: `@299` x2
+- Member split: `@55`
+- Admin split: `@93`
+- Detail: `docs/202_RELEASE_STATE_v335_2026-05-12.md`
+
+### 2026-05-12 `v334`
 - Scope: 役員管理で状態変更・役職・就任日・退任日・備考を編集可能化。役員管理ページの不要な全体データ取得を停止して読み込みを高速化。
 - Integrated fixed deployments: `@298` x2
 - Member split: `@54`

@@ -13,7 +13,7 @@ var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
 var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
-var DB_SCHEMA_VERSION = '2026-05-11-claim-v2';
+var DB_SCHEMA_VERSION = '2026-05-12-person-dedupe-v1';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
 var MEMBER_PORTAL_URL = 'https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec';
@@ -182,6 +182,7 @@ var マスタ初期値 = {
     ['ACTIVE', '有効', 1, true],
     ['WITHDRAWAL_SCHEDULED', '退会予定', 2, true],
     ['WITHDRAWN', '退会', 3, true],
+    ['TRANSFERRED', '移行済み', 4, true],
   ],
   M_発送方法: [
     ['EMAIL', 'メール', 1, true],
@@ -284,6 +285,7 @@ var テーブル定義 = {
     '会員状態コード',
     '入会日',
     '退会日',
+    '移行日',
     '退会処理日',
     '姓',
     '名',
@@ -513,6 +515,13 @@ var テーブル定義 = {
   '申請ID', '会員ID', '会員種別コード', '申請種別コード', '申請状態コード',
   '申請内容JSON', '連絡先メールアドレス', '申請者表示名', '申請日時',
   '処理日時', '処理者メールアドレス', '処理備考', '作成日時', '更新日時', '削除フラグ',
+];
+// v335: 同一人物移行・重複修復ログ（append-only）
+テーブル定義['T_人物統合ログ'] = [
+  'ログID', '処理種別', '介護支援専門員番号',
+  '旧会員ID', '旧職員ID', '新会員ID', '新職員ID',
+  '結果コード', '詳細JSON', '実行者メール', '実行日時',
+  '作成日時', '削除フラグ',
 ];
 // v295: 役員管理テーブル（5テーブル追加）
 // v297: 職員ID追加（事業所職員も役員になれる双方向対応）
@@ -2168,6 +2177,8 @@ function getAnyPasswordLoginIdByMemberId_(ss, memberId) {
 
 
 
+
+
 // ── ログイン情報メール送信 ──────────────────────────────────
 /**
  * 入会時認証情報メールを送信する。
@@ -2222,6 +2233,11 @@ function getAnyPasswordLoginIdByMemberId_(ss, memberId) {
 
 
 
+
+
+
+
+
 // ── 研修申込の会員ID/職員ID/申込者IDを移行する ──
 // 申込者IDは常に会員IDと一致させる（getTrainingApplicationIntegrityIssues_ の不変条件）。
 // 更新対象: 削除フラグ=false のレコードのみ。
@@ -2232,7 +2248,7 @@ function getAnyPasswordLoginIdByMemberId_(ss, memberId) {
 
 // ── 会員CM番号重複（同一CM番号の複数アクティブ個人/賛助会員）を修復する (MASTER専用) ──
 // 同一CM番号に ACTIVE/WITHDRAWAL_SCHEDULED の個人・賛助会員が複数存在する場合、
-// 入会日が最も新しい1件を残し、残りを WITHDRAWN + 退会日=本日 に更新する。
+// 入会日が最も新しい1件を残し、残りを TRANSFERRED + 移行日=本日 に更新する。
 // 削除フラグ=true のレコードは一切触れない。
 
 // ── T_研修申込の申込者ID不整合を修復する (MASTER専用) ──────────────
@@ -3967,6 +3983,7 @@ function initializeSchema_(ss) {
   normalizeTableColumns_(ss, 'T_会員_archive');
   normalizeTableColumns_(ss, 'T_事業所職員_archive');
   normalizeTableColumns_(ss, 'T_変更申請');
+  normalizeTableColumns_(ss, 'T_人物統合ログ');
   // v295: 役員管理テーブル
   normalizeTableColumns_(ss, 'T_役員');
   normalizeTableColumns_(ss, 'T_振込口座');

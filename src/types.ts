@@ -204,7 +204,7 @@ export interface AdminDashboardMemberRow {
   latestFeeStatus: PaymentStatus;
   trainingCount: number;
   joinedDate: string;
-  status: 'ACTIVE' | 'WITHDRAWAL_SCHEDULED' | 'WITHDRAWN';
+  status: 'ACTIVE' | 'WITHDRAWAL_SCHEDULED' | 'WITHDRAWN' | 'TRANSFERRED';
   withdrawnDate?: string;
   enrolledStaffCount?: number; // BUSINESS type only: number of ENROLLED staff in this organization
 }
@@ -376,7 +376,7 @@ export interface Member {
   preferredMailDestination: MailDestination; // For mandatory physical mail (3x/year)
   email?: string; // Main Contact Email (Rep)
   
-  status: 'ACTIVE' | 'WITHDRAWAL_SCHEDULED' | 'WITHDRAWN';
+  status: 'ACTIVE' | 'WITHDRAWAL_SCHEDULED' | 'WITHDRAWN' | 'TRANSFERRED';
   joinedDate?: string;
   withdrawnDate?: string;
   withdrawalProcessDate?: string;

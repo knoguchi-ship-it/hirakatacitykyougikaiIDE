@@ -1,7 +1,7 @@
 # Document Index
 
 更新日: 2026-05-12
-現行バージョン: `v334`（integrated-public `@298` x2 / member split `@54` / admin split `@92`）
+現行バージョン: `v335`（integrated-public `@299` x2 / member split `@55` / admin split `@93`）
 
 ## 1. Entry Points
 
@@ -32,7 +32,8 @@
 
 | 文書 | 内容 |
 |---|---|
-| `docs/201_RELEASE_STATE_v334_2026-05-12.md` | **最新** v334 本番反映。役員管理の状態編集、就任日/退任日の時刻非表示、役員管理読み込み高速化 |
+| `docs/202_RELEASE_STATE_v335_2026-05-12.md` | **最新** v335 本番反映。入会申込の承認待ちキュー化、同一人物移行、`TRANSFERRED` / `T_人物統合ログ` |
+| `docs/201_RELEASE_STATE_v334_2026-05-12.md` | v334 本番反映。役員管理の状態編集、就任日/退任日の時刻非表示、役員管理読み込み高速化 |
 | `docs/200_RELEASE_STATE_v333_2026-05-12.md` | v333 本番反映。活動報告 / 経費請求 2系統化、業務分類マスタ、HEIC→JPG 変換、管理者確認 UI |
 | `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md` | v320〜v332 統合（モバイル viewport / レスポンシブ全面強化 / WCAG 2.2 AAA 完全達成 / Playwright 自動テスト 98/98 セル / パスワード規約 8〜20 / `member_unauthorized` 解消 / `getOfficerMasterData` を member 公開） |
 | `docs/198_RESPONSIVE_TEST_REPORT_2026-05-11.md` | レスポンシブ自動テスト正本（Public 21 / Member 21 / Admin 56 セル全合格）と Playwright ハーネスの実装方針 |

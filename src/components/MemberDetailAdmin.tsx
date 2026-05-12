@@ -1430,6 +1430,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
               <option value="ACTIVE">在籍中</option>
               <option value="WITHDRAWAL_SCHEDULED">退会予定</option>
               <option value="WITHDRAWN">退会済</option>
+              <option value="TRANSFERRED">移行済み</option>
             </select>
           </div>
           <div>
@@ -1891,7 +1892,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
               <select className={fieldClass()} value={convertTargetOfficeId} onChange={e => setConvertTargetOfficeId(e.target.value)}>
                 <option value="">-- 選択してください --</option>
                 {(businessMembers || [])
-                  .filter(b => b.memberType === MemberType.BUSINESS && b.status !== 'WITHDRAWN')
+                  .filter(b => b.memberType === MemberType.BUSINESS && b.status !== 'WITHDRAWN' && b.status !== 'TRANSFERRED')
                   .map(b => (
                     <option key={b.memberId} value={b.memberId}>{b.displayName} ({b.memberId})</option>
                   ))}
@@ -1948,7 +1949,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
               >
                 <option value="">-- 選択してください --</option>
                 {(individualMembers || [])
-                  .filter(m => m.status !== 'WITHDRAWN')
+                  .filter(m => m.status !== 'WITHDRAWN' && m.status !== 'TRANSFERRED')
                   .filter(m => {
                     return matchesSearchQuery(convertFromIndividualSearch, [m.displayName, m.memberId]);
                   })

@@ -4,6 +4,7 @@ import { callApi } from '../shared/api-base';
 // ── 型定義 ────────────────────────────────────────────────────────────────────
 
 interface ChangeData {
+  applicationPayload?: Record<string, any>;
   fields?: Record<string, string>;
   staffAdd?: Array<{
     lastName: string; firstName: string; lastKana: string; firstKana: string;
@@ -35,6 +36,7 @@ const MEMBER_TYPE_LABEL: Record<string, string> = {
   SUPPORT: '賛助会員',
 };
 const REQUEST_TYPE_LABEL: Record<string, string> = {
+  MEMBER_APPLICATION: '入会申込',
   MEMBER_UPDATE: '登録情報変更',
   WITHDRAWAL: '退会申請',
   STAFF_ADD: '職員追加',
@@ -99,6 +101,26 @@ const ChangeDataView: React.FC<{ data: ChangeData; requestType: string }> = ({ d
         </div>
       )}
 
+      {requestType === 'MEMBER_APPLICATION' && data.applicationPayload && (
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">入会申込内容</p>
+          <dl className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
+            {Object.entries(data.applicationPayload)
+              .filter(([, value]) => value !== '' && value !== null && value !== undefined && !Array.isArray(value))
+              .slice(0, 24)
+              .map(([k, v]) => (
+                <div key={k} className="flex items-start gap-3 px-4 py-2 text-sm">
+                  <dt className="w-48 shrink-0 text-slate-500">{FIELD_LABEL[k] || k}</dt>
+                  <dd className="font-medium text-slate-800 break-all">{String(v)}</dd>
+                </div>
+              ))}
+          </dl>
+          {Array.isArray(data.applicationPayload.staff) && data.applicationPayload.staff.length > 0 && (
+            <p className="mt-2 text-sm text-slate-600">職員: {data.applicationPayload.staff.length}名</p>
+          )}
+        </div>
+      )}
+
       {staffAdd.length > 0 && (
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">職員追加（{staffAdd.length}名）</p>
@@ -141,6 +163,7 @@ const ChangeRequestConsole: React.FC = () => {
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<Record<string, string>>({});
   const [actionError, setActionError] = useState<Record<string, string>>({});
+  const [actionResult, setActionResult] = useState<Record<string, any>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -170,7 +193,9 @@ const ChangeRequestConsole: React.FC = () => {
     setBusy(req.requestId);
     setActionError(prev => ({ ...prev, [req.requestId]: '' }));
     try {
-      await callApi('approveAdminChangeRequest', { requestId: req.requestId, note: note[req.requestId] || '' });
+      const result = await callApi<any>('approveAdminChangeRequest', { requestId: req.requestId, note: note[req.requestId] || '' });
+      setActionResult(prev => ({ ...prev, [req.requestId]: result?.result || result || {} }));
+      window.alert(`承認処理が完了しました。\n${JSON.stringify(result?.result || result || {}, null, 2)}`);
       await load();
     } catch (e) {
       setActionError(prev => ({ ...prev, [req.requestId]: e instanceof Error ? e.message : '承認に失敗しました' }));
@@ -292,6 +317,11 @@ const ChangeRequestConsole: React.FC = () => {
                 </div>
                 {actionError[req.requestId] && (
                   <p className="mb-3 text-xs text-red-600">{actionError[req.requestId]}</p>
+                )}
+                {actionResult[req.requestId] && (
+                  <pre className="mb-3 max-h-40 overflow-auto rounded-lg border border-green-200 bg-green-50 p-3 text-xs text-green-900">
+                    {JSON.stringify(actionResult[req.requestId], null, 2)}
+                  </pre>
                 )}
                 <div className="flex flex-wrap gap-3">
                   <button onClick={() => handleApprove(req)} disabled={busy === req.requestId}

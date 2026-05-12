@@ -520,7 +520,7 @@ T_ログイン履歴 }o--o| T_認証アカウント : "認証ID"
 ### 3.2 `M_会員状態`
 - 用途: 会員状態の管理
 - 列: `コード`, `名称`, `表示順`, `有効フラグ`
-- 初期値: `ACTIVE`（有効）, `WITHDRAWAL_SCHEDULED`（退会予定）, `WITHDRAWN`（退会）
+- 初期値: `ACTIVE`（有効）, `WITHDRAWAL_SCHEDULED`（退会予定）, `WITHDRAWN`（退会）, `TRANSFERRED`（移行済み）
 
 ### 3.3 `M_発送方法`
 - 用途: 通知媒体（メール/郵送）
@@ -596,6 +596,7 @@ T_ログイン履歴 }o--o| T_認証アカウント : "認証ID"
 | 事業所番号 | 使用しない | 必須（半角英数字10文字） | 使用しない |
 
 - `退会処理日`：退会手続き実施日。`退会日` は年度末 3/31 を自動計算。
+- `移行日`：同一人物が別会員種別・別事業所職員レコードへ移行した日。`会員状態コード=TRANSFERRED` の場合に記録する。
 - `勤務先住所2` / `自宅住所2`：建物名・部屋番号（任意）。v261 で入会申込フォームに追加。
 - `事業所番号` による二重登録防止（公開ポータル申込時）。
 
@@ -674,9 +675,9 @@ T_ログイン履歴 }o--o| T_認証アカウント : "認証ID"
 | `申請ID` | string PK | `CR` + timestamp + token prefix |
 | `会員ID` | string FK | T_会員 |
 | `会員種別コード` | string | INDIVIDUAL / BUSINESS |
-| `申請種別コード` | string | MEMBER_UPDATE / WITHDRAWAL / STAFF_ADD / STAFF_REMOVE |
+| `申請種別コード` | string | MEMBER_APPLICATION / MEMBER_UPDATE / WITHDRAWAL / STAFF_ADD / STAFF_REMOVE |
 | `申請状態コード` | string | PENDING / APPROVED / REJECTED |
-| `申請内容JSON` | JSON | `{ fields: {}, staffAdd: [], staffRemove: [] }` |
+| `申請内容JSON` | JSON | `MEMBER_APPLICATION` は `{ applicationPayload: {...} }`、変更系は `{ fields: {}, staffAdd: [], staffRemove: [] }` |
 | `連絡先メールアドレス` | string | 申請者入力の返信専用メール（DBとは別） |
 | `申請者表示名` | string | 申請者の氏名 or 事業所名 |
 | `申請日時` | datetime ISO | |
@@ -688,11 +689,29 @@ T_ログイン履歴 }o--o| T_認証アカウント : "認証ID"
 | `削除フラグ` | boolean | |
 
 **承認ワークフロー:**
-1. 公開ポータルで申請 → `T_変更申請` に PENDING で記録
+1. 公開ポータルで入会・変更・退会申請 → `T_変更申請` に PENDING で記録
 2. 管理者が「変更申請管理コンソール」で確認・承認 → DB 反映 + 申請者に通知メール
 3. 却下の場合 → DB 変更なし + 申請者に却下メール
 
-**初回作成:** `submitPublicChangeRequest_` 呼び出し時に T_変更申請 が存在しない場合は自動作成。正式なスキーマ反映は `docs/04_DB_OPERATION_RUNBOOK.md` のスキーマ変更手順に従い、Apps Script エディタ経由の差分正規化を標準とする。
+**初回作成:** `submitMemberApplication_` / `submitPublicChangeRequest_` 呼び出し時に T_変更申請 が存在しない場合は自動作成。正式なスキーマ反映は `docs/04_DB_OPERATION_RUNBOOK.md` のスキーマ変更手順に従い、Apps Script エディタ経由の差分正規化を標準とする。
+
+### 4.11.1 同一人物移行ログ `T_人物統合ログ` — メインDB（v335追加）
+
+同じ `介護支援専門員番号` を持つ人物の会員種別変更・事業所職員転籍・重複修復の監査ログ。
+
+| 列 | 説明 |
+|---|---|
+| `ログID` | `PML` + timestamp + UUID prefix |
+| `処理種別` | `INDIVIDUAL_TO_STAFF` / `STAFF_TO_INDIVIDUAL` / `STAFF_TO_STAFF` / `REPAIR_MEMBER_CM_DUPLICATE` |
+| `介護支援専門員番号` | 同一人物判定キー。空の場合は自動統合しない。 |
+| `旧会員ID` / `旧職員ID` | 移行元 |
+| `新会員ID` / `新職員ID` | 移行先 |
+| `結果コード` | `OK` など |
+| `詳細JSON` | 移行した関連テーブル件数、事業所自動退会有無など |
+| `実行者メール` | 手動修復・承認者がある場合に記録 |
+| `実行日時` / `作成日時` / `削除フラグ` | 監査管理用 |
+
+関連レコードの移行対象は `T_研修申込`, `T_役員`, `T_振込口座`, `T_請求`, `T_認証アカウント`, `T_管理者Googleホワイトリスト`。会員レコード同士の重複修復では `T_支払い`, `T_年会費納入履歴`, `T_年会費更新履歴` も移行対象とする。事業所職員を含む移行では、事業所会員そのものの支払い・年会費履歴を誤移行しないため対象外とする。
 
 **T_システム設定 追加キー（v264〜）:**
 - `BIZ_REP_EMAIL_ENABLED/SUBJECT/BODY` — 事業所代表者入会時メール
