@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-05-12
-Production: `v335` / integrated-public fixed deployments `@299` x2 / member split `@55` / admin split `@93`
+Production: `v336` / integrated-public fixed deployments `@299` x2 / member split `@55` / admin split `@94`
 
 ## 1. Purpose
 
@@ -25,7 +25,7 @@ Production: `v335` / integrated-public fixed deployments `@299` x2 / member spli
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
 | member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@55` (`v335`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@93` (`v335`) | `DOMAIN` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@94` (`v336`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -122,7 +122,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-05-12 `v335` ← current production
+### 2026-05-12 `v336` ← current production
+- Scope: 会員管理コンソール（会員一覧）と年会費管理コンソールのキーワード検索で、個人/賛助会員の勤務先事業所名でもヒットするよう改善。会員一覧フィルタを共通 `matchesSearchQuery` に統一。
+- Integrated fixed deployments: `@299` x2（変更なし、v335 artifact）
+- Member split: `@55`（変更なし、v335 artifact）
+- Admin split: `@94`
+- Detail: `docs/203_RELEASE_STATE_v336_2026-05-12.md`
+
+### 2026-05-12 `v335`
 - Scope: 公開ポータル入会申込を変更申請キュー化。介護支援専門員番号による同一人物移行、`TRANSFERRED`、`T_会員.移行日`、`T_人物統合ログ` を追加。
 - Integrated fixed deployments: `@299` x2
 - Member split: `@55`

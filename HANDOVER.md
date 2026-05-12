@@ -5,7 +5,7 @@
 fixed deployment: integrated/public `@299` x2 / member split `@55` / admin split `@94`
 
 > **🚨 引き継ぎ時に必ず読むこと**: `docs/204_INCIDENT_DB_SCHEMA_SHIFT_2026-05-12.md`
-> v335 schema 変更時の data-shift マイグレーション未走に起因する DB データ scramble が発生。**T_会員 232 行と M_組織マスタ 8 行はすべて復旧完了**（バックアップ: `T_会員_backup_20260512_000201`、`M_組織マスタ_backup_20260512_014831`）。`全役員表示フラグ` の正しい値も UI 経由で 3 行設定済み。診断/復旧関数を `gas-src` から **clean 済み（作業ツリー uncommitted）**。次担当者は **§10 の v337 リリース手順を実施するだけで終了**。
+> v335 schema 変更時の data-shift マイグレーション未走に起因する DB データ scramble が発生。**T_会員 232 行と M_組織マスタ 8 行はすべて復旧完了**（バックアップ: `T_会員_backup_20260512_000201`、`M_組織マスタ_backup_20260512_014831`）。`全役員表示フラグ` の正しい値も UI 経由で 3 行設定済み。診断/復旧関数は `gas-src` から **clean 済み**で、cleanup は local commit `1da2fa2` 済み。現時点の local `main` は `origin/main` より 4 commit 先行。次担当者は **§10 の v337 リリース手順（Git push + Apps Script admin push/version/redeploy）を実施するだけで終了**。
 
 ## 1. 現行状態
 
@@ -35,24 +35,26 @@ fixed deployment: integrated/public `@299` x2 / member split `@55` / admin split
 7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `docs/202_RELEASE_STATE_v335_2026-05-12.md`（**最新：v335 本番反映。入会申込キュー化 / 同一人物移行**）
-11. `docs/201_RELEASE_STATE_v334_2026-05-12.md`（v334 役員管理の状態編集 / 読み込み高速化）
-12. `docs/200_RELEASE_STATE_v333_2026-05-12.md`（v333 本番反映。活動報告 / 経費請求 2系統化）
-13. `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md`（v320〜v332 統合・引継ぎ正本）
-14. `docs/198_RESPONSIVE_TEST_REPORT_2026-05-11.md`（Playwright 自動レスポンシブテスト正本・98/98 セル合格）
-15. `docs/197_RELEASE_STATE_v320_2026-05-11.md`（v320 初出時の経緯）
-14. `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`（v311〜v319 統合）
-15. `docs/195_RELEASE_STATE_v310_2026-05-08.md`
-16. `docs/194_RELEASE_STATE_v309_2026-05-08.md`
-17. `docs/193_RELEASE_STATE_v308_2026-05-06.md`
-18. `docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md`
-19. `docs/172_DEFERRED_SECURITY_BACKLOG_SECRET_MANAGER_KDF_2026-05-01.md`
-20. `docs/09_DEPLOYMENT_POLICY.md`
-21. `docs/05_AUTH_AND_ROLE_SPEC.md`
-22. `docs/04_DB_OPERATION_RUNBOOK.md`
-23. `docs/03_DATA_MODEL.md`
-24. `docs/00_DOC_INDEX.md`
-25. `docs/archive/historical/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`（補足状態サマリ。正本は `HANDOVER.md`）
+10. `docs/204_INCIDENT_DB_SCHEMA_SHIFT_2026-05-12.md`（**最優先：v335 schema-shift incident。データ復旧済み、v337 cleanup release 未実施**）
+11. `docs/203_RELEASE_STATE_v336_2026-05-12.md`（**最新本番：v336。勤務先事業所名検索 / admin split @94**）
+12. `docs/202_RELEASE_STATE_v335_2026-05-12.md`（v335 本番反映。入会申込キュー化 / 同一人物移行）
+13. `docs/201_RELEASE_STATE_v334_2026-05-12.md`（v334 役員管理の状態編集 / 読み込み高速化）
+14. `docs/200_RELEASE_STATE_v333_2026-05-12.md`（v333 本番反映。活動報告 / 経費請求 2系統化）
+15. `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md`（v320〜v332 統合・引継ぎ正本）
+16. `docs/198_RESPONSIVE_TEST_REPORT_2026-05-11.md`（Playwright 自動レスポンシブテスト正本・98/98 セル合格）
+17. `docs/197_RELEASE_STATE_v320_2026-05-11.md`（v320 初出時の経緯）
+18. `docs/196_RELEASE_STATE_v311_to_v319_2026-05-09.md`（v311〜v319 統合）
+19. `docs/195_RELEASE_STATE_v310_2026-05-08.md`
+20. `docs/194_RELEASE_STATE_v309_2026-05-08.md`
+21. `docs/193_RELEASE_STATE_v308_2026-05-06.md`
+22. `docs/170_HANDOVER_SECURITY_SEPARATION_NEXT_2026-04-29.md`
+23. `docs/172_DEFERRED_SECURITY_BACKLOG_SECRET_MANAGER_KDF_2026-05-01.md`
+24. `docs/09_DEPLOYMENT_POLICY.md`
+25. `docs/05_AUTH_AND_ROLE_SPEC.md`
+26. `docs/04_DB_OPERATION_RUNBOOK.md`
+27. `docs/03_DATA_MODEL.md`
+28. `docs/00_DOC_INDEX.md`
+29. `docs/archive/historical/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`（補足状態サマリ。正本は `HANDOVER.md`）
 
 ## 3. 配信境界
 
@@ -151,11 +153,11 @@ fixed deployment: integrated/public `@299` x2 / member split `@55` / admin split
 
 ## 8. 次担当者の最初の一手
 
-1. `git status --short` で既存差分と未追跡ファイルを確認する（2026-05-11 引継ぎ整備で正本文書の更新差分あり）。
+1. `git status -sb` で既存差分、未追跡ファイル、`origin/main` との差分を確認する。2026-05-12 引継ぎ時点では cleanup commit `1da2fa2` を含め local `main` が `origin/main` より 4 commit 先行している。
 2. **次の 3 件を必ず読む**:
    - `AGENTS.md`（特に **§0 シークレット最優先絶対ルール** と §4 レスポンシブ必須）
    - `HANDOVER.md`（本文書）
-   - `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md`（直近 13 リリースの統合引継ぎ正本）
+   - `docs/204_INCIDENT_DB_SCHEMA_SHIFT_2026-05-12.md`（DB schema-shift incident。データ復旧済み、v337 cleanup release 未実施）
 3. テストハーネス前提を整える（必要に応じて）:
    - Member テスト: `.env.test.example` を `.env.test` にコピーし、`MEMBER_LOGIN_ID` / `MEMBER_PASSWORD` をユーザー側で埋める（ロックされていないテスト用アカウントを使用）。
    - Admin テスト: `node scripts/auth-bootstrap-admin.mjs` で Google ログイン → `.test-out/auth-admin.json` を作成（通常 1〜2 週間有効）。
@@ -200,34 +202,30 @@ node scripts/responsive-test-admin.mjs   # 管理者ポータル
 - ✅ T_請求 / T_振込口座 / T_変更申請: データなし（lastRow=1）→ 修正不要
 - ✅ T_役員: 8 行存在、kind 検出で全列正常整合確認 → 修正不要
 - ✅ T_事業所職員 / T_認証アカウント / T_研修 / T_年会費納入履歴 / M_役職マスタ 等: v288 以降 schema 変更なし → 影響なし
-- ✅ 診断/復旧関数（`diagnoseTKaiInSchemaForV336`, `diagnoseTKaiInSchemaForV336deep`, `repairSchemaShiftForV336`, `seedOrgMasterFullDisplayFlagsForV336`）を `gas-src/Code.full.gs` から削除（**作業ツリーに uncommitted 状態**）
+- ✅ 診断/復旧関数（`diagnoseTKaiInSchemaForV336`, `diagnoseTKaiInSchemaForV336deep`, `repairSchemaShiftForV336`, `seedOrgMasterFullDisplayFlagsForV336`）を `gas-src/Code.full.gs` から削除（cleanup commit `1da2fa2` 済み）
 - ✅ `scripts/build-admin-gas.mjs` と `scripts/audit-admin-boundary.mjs` の allowlist から関数名を削除
 - ✅ `npm run typecheck` / `build:gas:admin` / `security:admin-boundary` / `security:member-boundary` / `security:public-boundary`: すべて PASS
 
 **残作業（次担当者・v337 リリース）**:
 
-これだけ実施すれば全て完了:
+cleanup の source commit は完了済み。残りは Git push と Apps Script admin artifact の v337 release:
 
-1. **未コミット差分を確認**:
+1. **local / remote 差分を確認**:
    ```powershell
    cd C:\VSCode\CloudePL\hirakatacitykyougikaiIDE
-   git status --short
-   git diff --stat
+   git status -sb
+   git log --oneline origin/main..HEAD
    ```
    期待値:
    ```
-   M backend/Code.gs
-   M gas-src/Code.full.gs
-   M gas/admin/Code.gs
-   M scripts/audit-admin-boundary.mjs
-   M scripts/build-admin-gas.mjs
+   ## main...origin/main [ahead 4]
+   1da2fa2 cleanup(v337-prep): remove v336 incident diagnostic and repair functions
+   ...
    ```
-   約 770 行削除。診断/復旧関数の除去のみ。
 
-2. **コミット**:
+2. **Git push**:
    ```powershell
-   git add backend/Code.gs gas-src/Code.full.gs gas/admin/Code.gs scripts/audit-admin-boundary.mjs scripts/build-admin-gas.mjs
-   git commit -m "cleanup(v337): remove v336 incident diagnostic and repair functions"
+   git push origin main
    ```
 
 3. **標準 OAuth に切替（push 用）**:
