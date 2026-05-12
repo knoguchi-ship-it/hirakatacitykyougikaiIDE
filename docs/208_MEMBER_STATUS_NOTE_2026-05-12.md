@@ -16,6 +16,7 @@ Status: implemented locally, not deployed
 - `ステータスメモ` is appended to the end of `T_会員`.
 - The column is intentionally appended, not inserted into the middle of the table, to avoid shifting existing data columns.
 - Schema initialization was adjusted so existing table headers are not overwritten before `normalizeTableColumns_` runs. Existing tables now go through name-based migration first; only missing tables receive fresh headers through `ensureTableSheetsExist_`.
+- `DB_SCHEMA_VERSION` is bumped to `2026-05-12-member-status-note-v1` so production initialization does not skip the new column.
 
 ## Implementation Notes
 

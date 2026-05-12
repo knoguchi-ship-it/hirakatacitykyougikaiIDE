@@ -13,7 +13,7 @@ var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
 var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
-var DB_SCHEMA_VERSION = '2026-05-12-person-dedupe-v1';
+var DB_SCHEMA_VERSION = '2026-05-12-member-status-note-v1';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
 var MEMBER_PORTAL_URL = 'https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec';
