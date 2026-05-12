@@ -2455,7 +2455,7 @@ function getOrCreateDatabase_() {
 function initializeSchema_(ss) {
   createMasterSheets_(ss);
   ensureMemberTypeAnnualFeeAmounts_(ss);
-  createTableSheets_(ss);
+  ensureTableSheetsExist_(ss);
   normalizeTableColumns_(ss, 'T_会員');
   normalizeTableColumns_(ss, 'T_事業所職員');
   normalizeTableColumns_(ss, 'T_研修');
@@ -2626,13 +2626,14 @@ function ensureMemberTypeAnnualFeeAmounts_(ss) {
   sheet.getRange(2, 1, rows.length, sheet.getLastColumn()).setValues(rows);
 }
 
-function createTableSheets_(ss) {
+
+function ensureTableSheetsExist_(ss) {
   var tableNames = Object.keys(テーブル定義);
   for (var i = 0; i < tableNames.length; i += 1) {
     var tableName = tableNames[i];
-    var headers = テーブル定義[tableName];
-    var sheet = getOrCreateSheet_(ss, tableName);
-    writeSheetHeaders_(sheet, headers);
+    if (ss.getSheetByName(tableName)) continue;
+    var sheet = ss.insertSheet(tableName);
+    writeSheetHeaders_(sheet, テーブル定義[tableName]);
   }
 }
 
