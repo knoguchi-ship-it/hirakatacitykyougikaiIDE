@@ -566,6 +566,7 @@ const App: React.FC = () => {
   const [businessStaffSaveMessage, setBusinessStaffSaveMessage] = useState<string | null>(null);
   const [businessStaffSaveError, setBusinessStaffSaveError] = useState<string | null>(null);
   const [selectedMemberForDetailId, setSelectedMemberForDetailId] = useState<string | null>(null);
+  const [selectedMemberForDetailSnapshot, setSelectedMemberForDetailSnapshot] = useState<Member | null>(null);
   const [selectedStaffForDetail, setSelectedStaffForDetail] = useState<{ memberId: string; staffId: string } | null>(null);
   const [staffSaveToast, setStaffSaveToast] = useState<string | null>(null);
   const [withdrawingMemberId, setWithdrawingMemberId] = useState<string | null>(null);
@@ -1279,8 +1280,10 @@ const App: React.FC = () => {
     try {
       // B-05: fullDataLoaded かつ members state に対象が存在する場合は再取得しない
       // （React state は次レンダーまで反映されないため、state 参照は同期的に行う）
-      if (fullDataLoaded && members.find(m => m.id === memberId)) {
+      const loadedMember = members.find(m => m.id === memberId);
+      if (fullDataLoaded && loadedMember) {
         setSelectedMemberForDetailId(memberId);
+        setSelectedMemberForDetailSnapshot(loadedMember);
         setCurrentView('member-detail');
         return;
       }
@@ -1291,6 +1294,7 @@ const App: React.FC = () => {
         return;
       }
       setSelectedMemberForDetailId(found.id);
+      setSelectedMemberForDetailSnapshot(found);
       setCurrentView('member-detail');
     } catch (e) {
       alert(e instanceof Error ? e.message : '会員データの読み込みに失敗しました。');
@@ -1337,6 +1341,7 @@ const App: React.FC = () => {
   const openBusinessStaffDetail = (memberId: string, staffId: string) => {
     setStaffSaveToast(null);
     setSelectedMemberForDetailId(memberId);
+    setSelectedMemberForDetailSnapshot(members.find(m => m.id === memberId) || null);
     setSelectedStaffForDetail({ memberId, staffId });
     setCurrentView('staff-detail');
   };
@@ -1399,6 +1404,7 @@ const App: React.FC = () => {
 
   const selectedMemberForDetail = selectedMemberForDetailId
     ? members.find(m => m.id === selectedMemberForDetailId)
+      || (selectedMemberForDetailSnapshot?.id === selectedMemberForDetailId ? selectedMemberForDetailSnapshot : undefined)
     : undefined;
 
   const resolveIdentityId = (
@@ -1605,6 +1611,7 @@ const App: React.FC = () => {
     api.setMemberSessionToken(null);
     setAuthenticatedContext(null);
     setSelectedMemberForDetailId(null);
+    setSelectedMemberForDetailSnapshot(null);
     setSelectedStaffForDetail(null);
     setStaffSaveToast(null);
     setMembers([]);
@@ -2811,11 +2818,13 @@ const App: React.FC = () => {
           onBack={() => {
             setSelectedStaffForDetail(null);
             setSelectedMemberForDetailId(null);
+            setSelectedMemberForDetailSnapshot(null);
             setCurrentView('admin');
           }}
           onSaved={(updatedMember) => {
             if (updatedMember) {
               setMembers((prev) => prev.map((member) => (member.id === updatedMember.id ? updatedMember : member)));
+              setSelectedMemberForDetailSnapshot(updatedMember);
             }
             loadAdminDashboardData({ force: true }).catch(() => undefined);
             loadAppData({ force: true, silent: true }).catch(() => undefined);
@@ -2823,6 +2832,7 @@ const App: React.FC = () => {
           onOpenStaffDetail={(mId, sId) => {
             setStaffSaveToast(null);
             setSelectedMemberForDetailId(mId);
+            setSelectedMemberForDetailSnapshot(members.find((member) => member.id === mId) || null);
             setSelectedStaffForDetail({ memberId: mId, staffId: sId });
             setCurrentView('staff-detail');
           }}
@@ -2851,6 +2861,7 @@ const App: React.FC = () => {
           onBack={() => {
             setSelectedStaffForDetail(null);
             setSelectedMemberForDetailId(null);
+            setSelectedMemberForDetailSnapshot(null);
             setAdminMemberViewMode('business');
             setCurrentView('admin');
           }}
@@ -4517,7 +4528,7 @@ const App: React.FC = () => {
       if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
         return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
       }
-      return <AnnualFeeManagement onChanged={refreshAllData} onDirtyChange={setAnnualFeeHasUnsavedChanges} onOpenMember={(memberId) => { setSelectedMemberForDetailId(memberId); setCurrentView('member-detail'); }} adminPermissionLevel={adminPermissionLevel} />;
+      return <AnnualFeeManagement onChanged={refreshAllData} onDirtyChange={setAnnualFeeHasUnsavedChanges} onOpenMember={(memberId) => { void openMemberDetail(memberId); }} adminPermissionLevel={adminPermissionLevel} />;
     }
 
     if (currentView === 'training-manage') {

@@ -1,7 +1,7 @@
 # Document Index
 
-更新日: 2026-05-12
-現行バージョン: `v340`（integrated-public `@301` x2 / member split `@57` / admin split `@98`）
+更新日: 2026-05-13
+現行バージョン: `v341`（integrated-public `@301` x2 / member split `@58` / admin split `@99`）
 
 ## 1. Entry Points
 
@@ -32,7 +32,8 @@
 
 | 文書 | 内容 |
 |---|---|
-| `docs/209_RELEASE_STATE_v340_2026-05-12.md` | **最新本番** v340。管理者専用の会員ステータスメモ、schema initialization guard、integrated-public `@301` x2 / member `@57` / admin `@98` |
+| `docs/210_RELEASE_STATE_v341_2026-05-13.md` | **最新本番** v341。年会費管理から会員詳細への遷移を会員一覧未ロード状態に依存しないよう修正、integrated-public `@301` x2 / member `@58` / admin `@99` |
+| `docs/209_RELEASE_STATE_v340_2026-05-12.md` | v340。管理者専用の会員ステータスメモ、schema initialization guard、integrated-public `@301` x2 / member `@57` / admin `@98` |
 | `docs/208_MEMBER_STATUS_NOTE_2026-05-12.md` | 会員ステータスメモ（管理者専用）の実装・デプロイ記録 |
 | `docs/207_RELEASE_STATE_v338_2026-05-12.md` | v338。管理者ポータルの勤務先事業所名検索修正、admin split `@96` |
 | `docs/206_ADMIN_WORKPLACE_SEARCH_FIX_2026-05-12.md` | 管理者ポータルの勤務先事業所名検索が効かない原因調査と修正記録 |

@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-05-12
-Production: `v340` / integrated-public fixed deployments `@301` x2 / member split `@57` / admin split `@98`
+Updated: 2026-05-13
+Production: `v341` / integrated-public fixed deployments `@301` x2 / member split `@58` / admin split `@99`
 
 ## 1. Purpose
 
@@ -17,15 +17,15 @@ Production: `v340` / integrated-public fixed deployments `@301` x2 / member spli
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@301` (`v340`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@301` (`v340`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@301` (`v340`, unchanged in v341) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@301` (`v340`, unchanged in v341) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@57` (`v340`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@98` (`v340`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@58` (`v341`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@99` (`v341`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -122,7 +122,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-05-12 `v340` ← current production
+### 2026-05-13 `v341` ← current production
+- Scope: Fixes annual fee management -> member detail navigation so it does not depend on the admin member list being loaded. Public deployments unchanged.
+- Integrated fixed deployments: `@301` x2（変更なし、v340 artifact）
+- Member split: `@58`
+- Admin split: `@99`
+- Detail: `docs/210_RELEASE_STATE_v341_2026-05-13.md`
+
+### 2026-05-12 `v340`
 - Scope: Adds the admin-only member status note field and deploys the schema initialization guard that prevents existing table headers from being rewritten before name-based migration.
 - Integrated fixed deployments: `@301` x2
 - Member split: `@57`
