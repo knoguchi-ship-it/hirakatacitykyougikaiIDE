@@ -3315,9 +3315,22 @@ function getPublicPortalSettings_() {
   });
 }
 
-// v272: Google Drive ファイルのサムネイルを base64 data URL で返す。
-// X-Frame-Options により iframe 埋め込みが Chrome でブロックされるため、
-// サムネイルを GAS 経由で img タグ表示に切り替える。
+// v345: Google Drive ファイルのサムネイルを base64 data URL で返す。
+//
+// 真因の経緯:
+//   - v272 で DriveApp.getFileById(id).getThumbnail() を使用していたが、これは
+//     PDF に対し常に null を返す Apps Script の既知制約があり、PDF サムネイルが
+//     一切表示できない状態だった（issuetracker / forums 多数）。
+//   - v345 で Google Drive の公開 thumbnail endpoint
+//     `https://drive.google.com/thumbnail?id=<id>&sz=w400` を UrlFetchApp で取得し、
+//     bytes を base64 へ変換するアプローチへ切替。Drive の thumbnail CDN が PDF→
+//     画像変換を裏で実行するため、PDF にもサムネイルが返る。
+//   - <img src> 直接参照では rate limit / 多枚問題が起きるが、サーバー側で取得して
+//     base64 化すればクライアントは data: URL を読むだけなので回避できる。
+//   - ANYONE_WITH_LINK 共有ファイルは無認証 UrlFetchApp で取得可能（member split は
+//     drive scope 無しだが script.external_request はあるため動作する）。
+//   - CacheService で 1 時間キャッシュ（item size limit 100KB を考慮し、超える
+//     payload はキャッシュをスキップ）。
 function getFileThumbnail_(payload) {
   var fileUrl = String(payload.fileUrl || '').trim();
   if (!fileUrl) return { thumbnail: null };
@@ -3326,13 +3339,38 @@ function getFileThumbnail_(payload) {
   if (!match) return { thumbnail: null };
   var fileId = match[1];
 
+  var cache = CacheService.getScriptCache();
+  var cacheKey = 'thumb_v345_' + fileId;
   try {
-    var file = DriveApp.getFileById(fileId);
-    var blob = file.getThumbnail();
-    if (!blob) return { thumbnail: null };
+    var cached = cache.get(cacheKey);
+    if (cached) return { thumbnail: cached };
+  } catch (e1) {
+    // cache miss / error 時は通常フェッチへ
+  }
+
+  var thumbUrl = 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(fileId) + '&sz=w400';
+  try {
+    var response = UrlFetchApp.fetch(thumbUrl, {
+      muteHttpExceptions: true,
+      followRedirects: true,
+    });
+    var code = response.getResponseCode();
+    if (code !== 200) {
+      Logger.log('getFileThumbnail_ non-200: code=' + code + ' fileId=' + fileId);
+      return { thumbnail: null };
+    }
+    var blob = response.getBlob();
+    var contentType = blob.getContentType() || 'image/png';
+    if (contentType.indexOf('image/') !== 0) {
+      Logger.log('getFileThumbnail_ unexpected contentType: ' + contentType + ' fileId=' + fileId);
+      return { thumbnail: null };
+    }
     var base64 = Utilities.base64Encode(blob.getBytes());
-    var mimeType = blob.getContentType() || 'image/png';
-    return { thumbnail: 'data:' + mimeType + ';base64,' + base64 };
+    var dataUrl = 'data:' + contentType + ';base64,' + base64;
+    if (dataUrl.length < 95 * 1024) {
+      try { cache.put(cacheKey, dataUrl, 3600); } catch (e2) {}
+    }
+    return { thumbnail: dataUrl };
   } catch (e) {
     Logger.log('getFileThumbnail_ error: ' + e.message);
     return { thumbnail: null };
