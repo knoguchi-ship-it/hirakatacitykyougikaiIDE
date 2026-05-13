@@ -9372,77 +9372,143 @@ function getLastRowsAsObjects_(ss, sheetName, count) {
 //   - CacheService で 1 時間キャッシュ（item size limit 100KB を考慮し、超える
 //     payload はキャッシュをスキップ）。
 function getFileThumbnail_(payload) {
-  var fileUrl = String(payload.fileUrl || '').trim();
-  if (!fileUrl) return { thumbnail: null };
-
-  var match = fileUrl.match(/\/file\/d\/([^/?]+)/);
-  if (!match) return { thumbnail: null };
-  var fileId = match[1];
-
-  var cache = CacheService.getScriptCache();
-  var cacheKey = 'thumb_v345_' + fileId;
-  try {
-    var cached = cache.get(cacheKey);
-    if (cached) return { thumbnail: cached };
-  } catch (e1) {
-    // cache miss / error 時は通常フェッチへ
-  }
-
-  // v347: drive.google.com/thumbnail は Authorization 付きでも PDF に対して 403 を返す
-  // ことが本番ログで確認された。確実な経路は Drive REST API v3 の files.get?fields=
-  // thumbnailLink で得た lh3.googleusercontent.com の URL を Bearer 付きで再 fetch する
-  // 二段構え。Drive 公式 API が裏でサムネイル生成を担保しているため PDF にも対応する。
-  try {
-    var authHeaders = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
-    var metaUrl = 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(fileId) +
-      '?fields=thumbnailLink%2Cname%2CmimeType&supportsAllDrives=true';
-    var metaResp = UrlFetchApp.fetch(metaUrl, {
-      muteHttpExceptions: true,
-      headers: authHeaders,
-    });
-    var metaCode = metaResp.getResponseCode();
-    if (metaCode !== 200) {
-      Logger.log('getFileThumbnail_ files.get non-200: code=' + metaCode + ' fileId=' + fileId +
-        ' body=' + metaResp.getContentText().substring(0, 200));
-      return { thumbnail: null };
-    }
-    var meta = JSON.parse(metaResp.getContentText());
-    var thumbnailLink = meta && meta.thumbnailLink;
-    if (!thumbnailLink) {
-      Logger.log('getFileThumbnail_ thumbnailLink absent for fileId=' + fileId +
-        ' mimeType=' + (meta && meta.mimeType));
-      return { thumbnail: null };
-    }
-    // thumbnailLink の sz パラメータをデフォルト (s220) より上に引き上げる。
-    // 既存形式は ...=s220 など。差し替え無しでも動くが視認性のため w400 を指定する。
-    var sizedLink = thumbnailLink.replace(/=s\d+(-.+)?$/, '=w400').replace(/=s\d+$/, '=w400');
-    var imgResp = UrlFetchApp.fetch(sizedLink, {
-      muteHttpExceptions: true,
-      followRedirects: true,
-      headers: authHeaders,
-    });
-    var imgCode = imgResp.getResponseCode();
-    if (imgCode !== 200) {
-      Logger.log('getFileThumbnail_ thumbnailLink fetch non-200: code=' + imgCode +
-        ' fileId=' + fileId);
-      return { thumbnail: null };
-    }
-    var blob = imgResp.getBlob();
-    var contentType = blob.getContentType() || 'image/png';
-    if (contentType.indexOf('image/') !== 0) {
-      Logger.log('getFileThumbnail_ unexpected contentType: ' + contentType + ' fileId=' + fileId);
-      return { thumbnail: null };
-    }
-    var base64 = Utilities.base64Encode(blob.getBytes());
-    var dataUrl = 'data:' + contentType + ';base64,' + base64;
-    if (dataUrl.length < 95 * 1024) {
-      try { cache.put(cacheKey, dataUrl, 3600); } catch (e2) {}
-    }
-    return { thumbnail: dataUrl };
-  } catch (e) {
-    Logger.log('getFileThumbnail_ error: ' + e.message + ' fileId=' + fileId);
+  var fileUrl = String((payload && payload.fileUrl) || '').trim();
+  Logger.log('getFileThumbnail_ ENTER fileUrl=' + fileUrl);
+  if (!fileUrl) {
+    Logger.log('getFileThumbnail_ EXIT: empty fileUrl');
     return { thumbnail: null };
   }
+
+  var match = fileUrl.match(/\/file\/d\/([^/?]+)/) || fileUrl.match(/[?&]id=([^&]+)/);
+  if (!match) {
+    Logger.log('getFileThumbnail_ EXIT: no fileId in url=' + fileUrl);
+    return { thumbnail: null };
+  }
+  var fileId = match[1];
+  Logger.log('getFileThumbnail_ fileId=' + fileId);
+
+  var cache = CacheService.getScriptCache();
+  var cacheKey = 'thumb_v348_' + fileId;
+  try {
+    var cached = cache.get(cacheKey);
+    if (cached) {
+      Logger.log('getFileThumbnail_ cache HIT fileId=' + fileId);
+      return { thumbnail: cached };
+    }
+  } catch (e1) {}
+
+  var authHeaders = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
+
+  // ── Strategy A: DriveApp.getFileById でファイル可視性を確認し、メタデータをログへ。
+  // 画像 or サムネイル取得可能ファイルなら即返却。
+  var driveAppFile = null;
+  try {
+    driveAppFile = DriveApp.getFileById(fileId);
+    var owner = '';
+    try { owner = driveAppFile.getOwner() ? driveAppFile.getOwner().getEmail() : '(no owner)'; } catch (eo) { owner = '(getOwner err: ' + eo.message + ')'; }
+    var sharing = '';
+    try { sharing = String(driveAppFile.getSharingAccess()) + '/' + String(driveAppFile.getSharingPermission()); } catch (es) { sharing = '(getSharing err: ' + es.message + ')'; }
+    var fileMime = '';
+    try { fileMime = String(driveAppFile.getMimeType() || ''); } catch (em) { fileMime = '(getMimeType err)'; }
+    Logger.log('getFileThumbnail_ DriveApp OK fileId=' + fileId + ' mime=' + fileMime +
+      ' owner=' + owner + ' sharing=' + sharing);
+
+    // 画像本体ならそのまま返却
+    if (fileMime.indexOf('image/') === 0) {
+      var directBlob = driveAppFile.getBlob();
+      var directBase64 = Utilities.base64Encode(directBlob.getBytes());
+      var directDataUrl = 'data:' + (directBlob.getContentType() || fileMime) + ';base64,' + directBase64;
+      if (directDataUrl.length < 95 * 1024) {
+        try { cache.put(cacheKey, directDataUrl, 3600); } catch (e2) {}
+      }
+      Logger.log('getFileThumbnail_ A: returning direct image blob fileId=' + fileId);
+      return { thumbnail: directDataUrl };
+    }
+
+    // PDF などはサムネイル取得を試行（多くの場合 null）
+    var thumbBlob = null;
+    try { thumbBlob = driveAppFile.getThumbnail(); } catch (eth) { Logger.log('getFileThumbnail_ A getThumbnail throw: ' + eth.message); }
+    if (thumbBlob) {
+      var thBase64 = Utilities.base64Encode(thumbBlob.getBytes());
+      var thDataUrl = 'data:' + (thumbBlob.getContentType() || 'image/png') + ';base64,' + thBase64;
+      if (thDataUrl.length < 95 * 1024) {
+        try { cache.put(cacheKey, thDataUrl, 3600); } catch (e3) {}
+      }
+      Logger.log('getFileThumbnail_ A: returning getThumbnail blob fileId=' + fileId);
+      return { thumbnail: thDataUrl };
+    }
+    Logger.log('getFileThumbnail_ A: getThumbnail returned null fileId=' + fileId);
+  } catch (eA) {
+    Logger.log('getFileThumbnail_ A DriveApp.getFileById failed: ' + eA.message + ' fileId=' + fileId);
+  }
+
+  // ── Strategy B: Drive REST API v3 files.get?fields=thumbnailLink
+  try {
+    var metaUrl = 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(fileId) +
+      '?fields=thumbnailLink,name,mimeType,owners(emailAddress),permissions(type,role)&supportsAllDrives=true';
+    var metaResp = UrlFetchApp.fetch(metaUrl, { muteHttpExceptions: true, headers: authHeaders });
+    var metaCode = metaResp.getResponseCode();
+    if (metaCode === 200) {
+      var meta = JSON.parse(metaResp.getContentText());
+      Logger.log('getFileThumbnail_ B files.get OK fileId=' + fileId +
+        ' mime=' + meta.mimeType + ' hasThumb=' + !!meta.thumbnailLink);
+      var thumbnailLink = meta && meta.thumbnailLink;
+      if (thumbnailLink) {
+        var sizedLink = thumbnailLink.replace(/=s\d+(-.+)?$/, '=w400').replace(/=s\d+$/, '=w400');
+        var imgResp = UrlFetchApp.fetch(sizedLink, {
+          muteHttpExceptions: true,
+          followRedirects: true,
+          headers: authHeaders,
+        });
+        var imgCode = imgResp.getResponseCode();
+        if (imgCode === 200) {
+          var bBlob = imgResp.getBlob();
+          var bCt = bBlob.getContentType() || 'image/png';
+          if (bCt.indexOf('image/') === 0) {
+            var bBase64 = Utilities.base64Encode(bBlob.getBytes());
+            var bDataUrl = 'data:' + bCt + ';base64,' + bBase64;
+            if (bDataUrl.length < 95 * 1024) {
+              try { cache.put(cacheKey, bDataUrl, 3600); } catch (e4) {}
+            }
+            Logger.log('getFileThumbnail_ B: returning thumbnailLink blob fileId=' + fileId);
+            return { thumbnail: bDataUrl };
+          }
+          Logger.log('getFileThumbnail_ B thumbnailLink ct=' + bCt);
+        } else {
+          Logger.log('getFileThumbnail_ B thumbnailLink fetch code=' + imgCode);
+        }
+      }
+    } else {
+      Logger.log('getFileThumbnail_ B files.get non-200: code=' + metaCode + ' fileId=' + fileId +
+        ' body=' + metaResp.getContentText().substring(0, 300));
+    }
+  } catch (eB) {
+    Logger.log('getFileThumbnail_ B Drive REST error: ' + eB.message + ' fileId=' + fileId);
+  }
+
+  // ── Strategy C: ファイルから PDF blob を取り、base64 で返却して client 側で PDF.js が無くても
+  // 一旦「PDF アイコン+ファイル名」プレースホルダで案内する（fallback）。
+  // ここでは server-side で SVG プレースホルダを返す（client 改修なし）。
+  if (driveAppFile) {
+    try {
+      var fname = driveAppFile.getName();
+      var safeName = String(fname || 'PDF').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').substring(0, 60);
+      var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180">' +
+        '<rect width="320" height="180" fill="#f1f5f9"/>' +
+        '<text x="160" y="80" text-anchor="middle" font-family="sans-serif" font-size="42" fill="#94a3b8">PDF</text>' +
+        '<text x="160" y="130" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#475569">' + safeName + '</text>' +
+        '</svg>';
+      var svgB64 = Utilities.base64Encode(Utilities.newBlob(svg, 'image/svg+xml').getBytes());
+      var svgDataUrl = 'data:image/svg+xml;base64,' + svgB64;
+      Logger.log('getFileThumbnail_ C: returning SVG placeholder fileId=' + fileId);
+      return { thumbnail: svgDataUrl };
+    } catch (eC) {
+      Logger.log('getFileThumbnail_ C SVG placeholder error: ' + eC.message);
+    }
+  }
+
+  Logger.log('getFileThumbnail_ EXIT: all strategies failed fileId=' + fileId);
+  return { thumbnail: null };
 }
 
 
