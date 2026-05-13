@@ -32,7 +32,8 @@
 
 | 文書 | 内容 |
 |---|---|
-| `docs/214_RELEASE_STATE_v345_2026-05-13.md` | **最新本番** v345。案内 PDF サムネイル真因再特定（DriveApp.getThumbnail は PDF 非対応）→ UrlFetch(drive.google.com/thumbnail) 経由化、integrated-public `@304` x2 / member `@61` / admin `@103` |
+| `docs/215_RELEASE_STATE_v347_2026-05-14.md` | **最新本番** v347。案内 PDF サムネイル Drive REST + thumbnailLink 経路化、integrated-public `@306` x2 / member `@63` / admin `@105` |
+| `docs/214_RELEASE_STATE_v345_2026-05-13.md` | v345。案内 PDF サムネイル真因再特定（DriveApp.getThumbnail は PDF 非対応）→ UrlFetch(drive.google.com/thumbnail) 経由化（本番 403 残存、v347 で再修正）、integrated-public `@304` x2 / member `@61` / admin `@103` |
 | `docs/213_RELEASE_STATE_v344_2026-05-13.md` | v344。案内 PDF サムネイル画像の GAS proxy 化（DriveApp 経路で PDF 非対応のため未解消、v345 で再修正）、integrated-public `@303` x2 / member `@60` / admin `@102` |
 | `docs/212_RELEASE_STATE_v343_2026-05-13.md` | v343。管理者ポータル「登録済み管理者アカウント」一覧の事業所職員氏名表示修正、admin split `@101` |
 | `docs/211_RELEASE_STATE_v342_2026-05-13.md` | v342。DB schema-shift 構造的再発防止（writeSheetHeaders_ name-based shift + 削除フラグ sanity check + deploy checklist 追記）、integrated-public `@302` x2 / member `@59` / admin `@100` |
