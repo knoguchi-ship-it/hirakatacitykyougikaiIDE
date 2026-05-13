@@ -1,10 +1,10 @@
 # 開発引継ぎ
 
 更新日: 2026-05-13
-現行本番: `v341`（年会費管理から会員詳細への遷移を会員一覧未ロード状態に依存しないよう修正） / integrated-public GAS version `301` / member split GAS version `58` / admin split GAS version `99`
-fixed deployment: integrated/public `@301` x2 / member split `@58` / admin split `@99`
+現行本番: `v342`（DB schema-shift 構造的再発防止: writeSheetHeaders_ の name-based migration + 削除フラグ sanity check + deploy checklist 追記） / integrated-public GAS version `302` / member split GAS version `59` / admin split GAS version `100`
+fixed deployment: integrated/public `@302` x2 / member split `@59` / admin split `@100`
 
-> **2026-05-13 引継ぎ開始時メモ**: 作業ツリー確認時点で未コミット差分なし。`npx clasp deployments --json` は integrated/public・member split・admin split の 3 系統すべてで `invalid_grant` / `invalid_rapt` となり、ローカル OAuth セッション再認証が必要。Google Workspace の Cloud services session length / reauthentication 系の事象であり、直前の v340 fixed deployment は `docs/209_RELEASE_STATE_v340_2026-05-12.md` 記載の `@301/@57/@98` が正本。次に Apps Script API を使う前に `npx clasp login` または案件標準の project-scoped OAuth 手順で再認証すること。
+> **2026-05-13 v342 反映済み**: 2026-05-12 schema-shift incident (`docs/204`) の構造的再発防止策を全 3 プロジェクトへ反映。`writeSheetHeaders_` を name-based shift 対応にし、列追加・列名変更でデータ行が旧位置に残ることを防止。`auditDeleteFlagColumns_` を initializeSchema_ 末尾に追加し、削除フラグ列に boolean 以外の値があれば Logger へ警告。`docs/09_DEPLOYMENT_POLICY.md` に schema 変更 release 時の `runRebuildSchemaForV<N>` 手動実行と log 検査手順を追記。`DB_SCHEMA_VERSION` を `2026-05-13-schema-shift-guard-v1` に bump し、初回ヒット時に新 guard を本番シートに対して 1 回走らせる。詳細: `docs/211_RELEASE_STATE_v342_2026-05-13.md`
 
 > **2026-05-13 v341 反映済み**: 年会費管理コンソールから会員名をクリックして会員詳細へ遷移する経路が、会員一覧未ロード時に「会員データが見つかりません。」となる問題を `src/App.tsx` で修正。`AnnualFeeAdminRecord.memberId` と `Member.id` はどちらも `T_会員.会員ID` でキー前提は一致。詳細遷移は `openMemberDetail()` で対象会員を取得し、React state 更新が次 render になる前提に合わせて詳細表示用 `Member` snapshot も保持する。member split `@58` / admin split `@99` へ fixed deployment 同期済み。public は変更なしで `@301` x2 維持。詳細: `docs/210_RELEASE_STATE_v341_2026-05-13.md`
 
@@ -22,6 +22,7 @@ fixed deployment: integrated/public `@301` x2 / member split `@58` / admin split
 - split project の広範な関数本体 pruning は v283 で破損したため停止中。public artifact は v289 で comment/string を除外した依存解析と top-level callable allowlist 検査を導入済み。
 - release 前に `npm run security:public-boundary` / `npm run security:split-boundary` を実行し、public/member/admin 境界が崩れていないことを確認する。
 - member/admin split artifact の top-level callable は `doGet` / `processApiRequest` のみに制限済み。
+- **v342（2026-05-13）**: DB schema-shift 構造的再発防止。`writeSheetHeaders_` を name-based shift 対応にして列追加時にデータ行を新 schema 位置へ自動 migrate。`auditDeleteFlagColumns_` で削除フラグ列の非 boolean 値を Logger 警告。`docs/09_DEPLOYMENT_POLICY.md` に schema 変更 release 時の `runRebuildSchemaForV<N>` 手動実行 / 警告ログ検査手順を追記。`DB_SCHEMA_VERSION = 2026-05-13-schema-shift-guard-v1`。integrated/public `@302` x2 / member split `@59` / admin split `@100`。詳細: `docs/211_RELEASE_STATE_v342_2026-05-13.md`。
 - **v341（2026-05-13）**: 年会費管理コンソールから会員名をクリックして会員詳細へ遷移する経路を修正。`T_会員.会員ID` を正本キーとして維持しつつ、会員詳細表示用の `Member` snapshot を保持して、会員一覧未ロード時でも詳細を表示できるようにした。public は変更なし、member split `@58` / admin split `@99`。詳細: `docs/210_RELEASE_STATE_v341_2026-05-13.md`。
 - **v320〜v332（2026-05-11）**: 全 3 ポータルで viewport meta + WCAG 2.2 AAA タップターゲット (44×44px) + iOS Safari モーダル UX + Sidebar モバイルドロアー + パスワード規約 (8〜20文字・許可文字制限) + `member_unauthorized` / `unsupported_action` の利用者向け平易表示を整備。Playwright 自動レスポンシブテスト **98/98 セル全合格** を達成。次担当者向け統合引継ぎ正本: `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md`、テスト正本: `docs/198_RESPONSIVE_TEST_REPORT_2026-05-11.md`。
 - **v333（2026-05-12）**: 役員向け請求を **活動報告 / 経費請求** の 2 系統へ分離。`M_業務分類`、`M_組織マスタ.全役員表示フラグ`、`T_請求.請求種別/業務分類コード/単価/数量` を追加。経費請求は添付必須、HEIC/HEIF は会員側で JPG 変換。public `@297` x2 / member split `@53` / admin split `@91`。詳細: `docs/200_RELEASE_STATE_v333_2026-05-12.md`。
@@ -43,8 +44,9 @@ fixed deployment: integrated/public `@301` x2 / member split `@58` / admin split
 7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `docs/210_RELEASE_STATE_v341_2026-05-13.md`（**最新本番：v341。年会費管理から会員詳細への遷移修正 / integrated-public @301 x2 / member @58 / admin @99**）
-11. `docs/209_RELEASE_STATE_v340_2026-05-12.md`（v340。会員ステータスメモ / schema initialization guard / integrated-public @301 x2 / member @57 / admin @98）
+10. `docs/211_RELEASE_STATE_v342_2026-05-13.md`（**最新本番：v342。DB schema-shift 構造的再発防止 / integrated-public @302 x2 / member @59 / admin @100**）
+11. `docs/210_RELEASE_STATE_v341_2026-05-13.md`（v341。年会費管理から会員詳細への遷移修正 / integrated-public @301 x2 / member @58 / admin @99）
+12. `docs/209_RELEASE_STATE_v340_2026-05-12.md`（v340。会員ステータスメモ / schema initialization guard / integrated-public @301 x2 / member @57 / admin @98）
 12. `docs/208_MEMBER_STATUS_NOTE_2026-05-12.md`（会員ステータスメモの実装・デプロイ記録）
 13. `docs/207_RELEASE_STATE_v338_2026-05-12.md`（v338。勤務先事業所名検索修正 / admin split @96）
 14. `docs/206_ADMIN_WORKPLACE_SEARCH_FIX_2026-05-12.md`（勤務先事業所名検索の原因調査と修正記録）
@@ -74,13 +76,14 @@ fixed deployment: integrated/public `@301` x2 / member split `@58` / admin split
 
 | 用途 | Project | Deployment ID | Access | Current version |
 |---|---|---|---|---|
-| 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@301` |
-| 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@301` |
-| 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@58` |
-| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@99` |
+| 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@302` |
+| 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@302` |
+| 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@59` |
+| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@100` |
 
 ## 4. 直近リリース
 
+- `v342`: DB schema-shift 構造的再発防止。`writeSheetHeaders_` の name-based shift、`auditDeleteFlagColumns_` 追加、`docs/09` の deploy checklist 追記、`DB_SCHEMA_VERSION` bump。integrated/public `@302` x2 / member split `@59` / admin split `@100`。
 - `v341`: 年会費管理コンソールから会員詳細への遷移を、会員一覧ロード状態に依存しない設計へ修正。`T_会員.会員ID` をキー正本として維持し、詳細表示用 `Member` snapshot を保持。public `@301` x2（変更なし） / member split `@58` / admin split `@99`。
 - `v340`: 管理者専用の会員ステータスメモを追加。`T_会員.ステータスメモ` は末尾列として追加し、管理者コンソールのみ表示・保存。会員マイページ・公開ポータルには出力しない。schema initialization guard を反映し、既存テーブルのヘッダー上書き前に name-based migration が走るよう修正。integrated/public `@301` x2 / member split `@57` / admin split `@98`。
 - `v338`: 管理者ポータルの会員一覧・年会費管理で、個人/賛助会員の勤務先事業所名検索が効かない不具合を修正。admin dashboard / annual fee API の `officeName` を `T_会員.勤務先名` 参照へ修正し、admin dashboard cache key を更新。admin split `@96`。
@@ -179,7 +182,7 @@ fixed deployment: integrated/public `@301` x2 / member split `@58` / admin split
 2. **次の 3 件を必ず読む**:
    - `AGENTS.md`（特に **§0 シークレット最優先絶対ルール** と §4 レスポンシブ必須）
    - `HANDOVER.md`（本文書）
-   - `docs/210_RELEASE_STATE_v341_2026-05-13.md`（最新本番 release state）
+   - `docs/211_RELEASE_STATE_v342_2026-05-13.md`（最新本番 release state）
 3. テストハーネス前提を整える（必要に応じて）:
    - Member テスト: `.env.test.example` を `.env.test` にコピーし、`MEMBER_LOGIN_ID` / `MEMBER_PASSWORD` をユーザー側で埋める（ロックされていないテスト用アカウントを使用）。
    - Admin テスト: `node scripts/auth-bootstrap-admin.mjs` で Google ログイン → `.test-out/auth-admin.json` を作成（通常 1〜2 週間有効）。

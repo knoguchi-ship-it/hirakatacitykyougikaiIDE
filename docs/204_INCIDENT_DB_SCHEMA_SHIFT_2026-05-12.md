@@ -70,7 +70,7 @@ v335 リリース（2026-05-12）で `T_会員` に `移行日` 列を position 
 - [x] typecheck / build:gas:admin / 全 boundary audit PASS
 - [x] **v337 リリース**: Git push → admin push → version `95` → admin fixed deployment `@95` redeploy 完了（詳細: `docs/205_RELEASE_STATE_v337_2026-05-12.md`）
 - [ ] **バックアップシートの保管期限**: `T_会員_backup_20260512_000201` と `M_組織マスタ_backup_20260512_014831` は最低 2 週間（2026-05-26 まで）残置を推奨。安全性確認後は削除可
-- [ ] **再発防止策の実装**（v338 以降）: `writeSheetHeaders_` の name-based data-shift 追加、または `initializeSchema_` 内の呼び出し順序変更
+- [x] **再発防止策の実装**（v342, 2026-05-13）: `writeSheetHeaders_` に name-based shift を組込み（`gas-src/Code.full.gs`）、`auditDeleteFlagColumns_` を `initializeSchema_` 末尾に追加、`docs/09_DEPLOYMENT_POLICY.md` に schema migration release 手順を追記、`DB_SCHEMA_VERSION` bump で本番シートに対し初回ヒット時に新 guard を 1 回走らせる。詳細: `docs/211_RELEASE_STATE_v342_2026-05-13.md`
 
 ## 再発防止策（提案）
 

@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-05-13
-Production: `v341` / integrated-public fixed deployments `@301` x2 / member split `@58` / admin split `@99`
+Production: `v342` / integrated-public fixed deployments `@302` x2 / member split `@59` / admin split `@100`
 
 ## 1. Purpose
 
@@ -17,15 +17,15 @@ Production: `v341` / integrated-public fixed deployments `@301` x2 / member spli
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@301` (`v340`, unchanged in v341) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@301` (`v340`, unchanged in v341) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@302` (`v342`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@302` (`v342`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@58` (`v341`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@99` (`v341`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@59` (`v342`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@100` (`v342`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -142,7 +142,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-05-13 `v341` ← current production
+### 2026-05-13 `v342` ← current production
+- Scope: DB schema-shift 構造的再発防止。`writeSheetHeaders_` を name-based shift 対応にし、列追加・列名変更でデータ行が旧位置に残ることを防止。`auditDeleteFlagColumns_` を追加し、削除フラグ列に boolean 以外の値があれば Logger 警告。`docs/09` の release checklist に schema 変更時の `runRebuildSchemaForV<N>` 手動実行と警告ログ検査手順を追記。
+- Integrated fixed deployments: `@302` x2
+- Member split: `@59`
+- Admin split: `@100`
+- Detail: `docs/211_RELEASE_STATE_v342_2026-05-13.md`
+
+### 2026-05-13 `v341`
 - Scope: Fixes annual fee management -> member detail navigation so it does not depend on the admin member list being loaded. Public deployments unchanged.
 - Integrated fixed deployments: `@301` x2（変更なし、v340 artifact）
 - Member split: `@58`

@@ -32,7 +32,8 @@
 
 | 文書 | 内容 |
 |---|---|
-| `docs/210_RELEASE_STATE_v341_2026-05-13.md` | **最新本番** v341。年会費管理から会員詳細への遷移を会員一覧未ロード状態に依存しないよう修正、integrated-public `@301` x2 / member `@58` / admin `@99` |
+| `docs/211_RELEASE_STATE_v342_2026-05-13.md` | **最新本番** v342。DB schema-shift 構造的再発防止（writeSheetHeaders_ name-based shift + 削除フラグ sanity check + deploy checklist 追記）、integrated-public `@302` x2 / member `@59` / admin `@100` |
+| `docs/210_RELEASE_STATE_v341_2026-05-13.md` | v341。年会費管理から会員詳細への遷移を会員一覧未ロード状態に依存しないよう修正、integrated-public `@301` x2 / member `@58` / admin `@99` |
 | `docs/209_RELEASE_STATE_v340_2026-05-12.md` | v340。管理者専用の会員ステータスメモ、schema initialization guard、integrated-public `@301` x2 / member `@57` / admin `@98` |
 | `docs/208_MEMBER_STATUS_NOTE_2026-05-12.md` | 会員ステータスメモ（管理者専用）の実装・デプロイ記録 |
 | `docs/207_RELEASE_STATE_v338_2026-05-12.md` | v338。管理者ポータルの勤務先事業所名検索修正、admin split `@96` |
