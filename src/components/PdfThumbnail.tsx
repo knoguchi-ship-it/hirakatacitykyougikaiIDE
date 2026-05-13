@@ -1,23 +1,62 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 interface PdfThumbnailProps {
-  /** Drive に保存済みのサムネイル画像 URL（永続 URL）*/
-  thumbnailUrl: string;
-  /** クリックで fileUrl を新しいタブで開くか（デフォルト true） */
-  fileUrl?: string;
+  /** Drive 上の元 PDF URL（/file/d/<id>/view 形式）。サムネイル base64 をサーバから取得するため必須。 */
+  fileUrl: string;
+  /**
+   * Drive ファイルのサムネイル base64 data URL を取得する関数。
+   * 境界（member / admin / public）ごとに異なる API 経路を渡す。
+   */
+  fetchThumbnail: (fileUrl: string) => Promise<string | null>;
+  /** サムネイル存在の事前ヒント。未設定でも fetch は試みる。 */
+  thumbnailUrl?: string;
   /** サムネイル高さ px（デフォルト 140） */
   height?: number;
   /** 追加 className */
   className?: string;
 }
 
+/**
+ * v344: drive.google.com/uc?export=view&id=... の hotlink 制限により <img src> 直接参照が
+ * 失敗する事象に対応。サムネイルは GAS proxy 経由で base64 data URL を取得して表示する。
+ */
 const PdfThumbnail: React.FC<PdfThumbnailProps> = ({
-  thumbnailUrl,
   fileUrl,
+  fetchThumbnail,
   height = 140,
   className = '',
 }) => {
-  if (!thumbnailUrl) return null;
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
+
+  useEffect(() => {
+    if (!fileUrl) {
+      setDataUrl(null);
+      setStatus('idle');
+      return;
+    }
+    let cancelled = false;
+    setStatus('loading');
+    fetchThumbnail(fileUrl)
+      .then((url) => {
+        if (cancelled) return;
+        if (url) {
+          setDataUrl(url);
+          setStatus('loaded');
+        } else {
+          setDataUrl(null);
+          setStatus('error');
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setDataUrl(null);
+        setStatus('error');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fileUrl, fetchThumbnail]);
 
   const clickable = !!fileUrl;
 
@@ -35,19 +74,29 @@ const PdfThumbnail: React.FC<PdfThumbnailProps> = ({
       tabIndex={clickable ? 0 : undefined}
       onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') handleClick(); } : undefined}
     >
-      <img
-        src={thumbnailUrl}
-        alt="案内PDFサムネイル"
-        className="h-full w-full object-cover object-top"
-        draggable={false}
-      />
+      {status === 'loaded' && dataUrl && (
+        <img
+          src={dataUrl}
+          alt="案内PDFサムネイル"
+          className="h-full w-full object-cover object-top"
+          draggable={false}
+        />
+      )}
+      {status === 'loading' && (
+        <div className="flex h-full w-full items-center justify-center text-xs text-slate-400">
+          サムネイル読み込み中...
+        </div>
+      )}
+      {status === 'error' && (
+        <div className="flex h-full w-full items-center justify-center text-xs text-slate-500">
+          PDF プレビューを読み込めませんでした
+        </div>
+      )}
 
-      {/* ホバーオーバーレイ */}
-      {clickable && (
+      {clickable && status === 'loaded' && (
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
       )}
 
-      {/* PDF バッジ */}
       <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-red-500/90 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm select-none">
         <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/>
@@ -55,8 +104,7 @@ const PdfThumbnail: React.FC<PdfThumbnailProps> = ({
         PDF
       </div>
 
-      {/* ホバー時ラベル */}
-      {clickable && (
+      {clickable && status === 'loaded' && (
         <div className="absolute bottom-2 left-0 right-0 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
           <span className="rounded-full bg-slate-900/80 px-3 py-1 text-[11px] font-medium text-white shadow select-none">
             クリックで全ページを開く →

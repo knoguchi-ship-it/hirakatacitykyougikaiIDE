@@ -569,7 +569,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
                       {form.guidePdfUrl && (
                         <div className="max-w-xs">
                           {form.thumbnailUrl ? (
-                            <PdfThumbnail thumbnailUrl={form.thumbnailUrl} fileUrl={form.guidePdfUrl} height={130} />
+                            <PdfThumbnail fileUrl={form.guidePdfUrl} fetchThumbnail={api.getFileThumbnail.bind(api)} height={130} />
                           ) : (
                             <p className="text-xs text-slate-400">
                               サムネイルは登録後 10〜20 分で自動生成されます。

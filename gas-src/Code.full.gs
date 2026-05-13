@@ -1357,6 +1357,9 @@ var MEMBER_ALLOWED_ACTIONS = {
   removeClaimAttachment: true,
   // v331: 請求フォームの選択肢（組織・役職・支払い種別）描画用 — 読み取り専用、会員公開でも安全。
   getOfficerMasterData: true,
+  // v344: 案内PDFサムネイルを Drive proxy 経由で取得（drive.google.com/uc?... の hotlink 制限回避）。
+  // ファイルは ANYONE_WITH_LINK 共有で既に公開済みのため、追加リーク無し。
+  getFileThumbnail: true,
 };
 
 // 管理者ログイン専用アクション: Session.getActiveUser() による自己完結型認証のため、
@@ -1462,6 +1465,8 @@ var ADMIN_ACTION_PERMISSIONS = {
   // v309: 共有メモ（年会費コンソール申し送りホワイトボード）
   'getSharedMemo': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR','GENERAL'],
   'saveSharedMemo': ['MASTER','ADMIN'],
+  // v344: 案内PDFサムネイルを管理者画面でも Drive proxy 経由で取得（hotlink 制限回避）。
+  'getFileThumbnail': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR','GENERAL'],
   // v316: テンプレートライブラリ
   'getRosterTemplateList': ['MASTER','ADMIN'],
   'saveRosterTemplate': ['MASTER','ADMIN'],

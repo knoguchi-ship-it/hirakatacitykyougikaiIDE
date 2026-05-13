@@ -802,6 +802,8 @@ var ADMIN_ACTION_PERMISSIONS = {
   // v309: 共有メモ（年会費コンソール申し送りホワイトボード）
   'getSharedMemo': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR','GENERAL'],
   'saveSharedMemo': ['MASTER','ADMIN'],
+  // v344: 案内PDFサムネイルを管理者画面でも Drive proxy 経由で取得（hotlink 制限回避）。
+  'getFileThumbnail': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR','GENERAL'],
   // v316: テンプレートライブラリ
   'getRosterTemplateList': ['MASTER','ADMIN'],
   'saveRosterTemplate': ['MASTER','ADMIN'],
@@ -1059,6 +1061,9 @@ function processApiRequest(action, payload) {
 
 
 
+    if (action === 'getFileThumbnail') {
+      return JSON.stringify({ success: true, data: getFileThumbnail_(parsedPayload) });
+    }
 
 
 
@@ -9353,6 +9358,26 @@ function getLastRowsAsObjects_(ss, sheetName, count) {
 // v272: Google Drive ファイルのサムネイルを base64 data URL で返す。
 // X-Frame-Options により iframe 埋め込みが Chrome でブロックされるため、
 // サムネイルを GAS 経由で img タグ表示に切り替える。
+function getFileThumbnail_(payload) {
+  var fileUrl = String(payload.fileUrl || '').trim();
+  if (!fileUrl) return { thumbnail: null };
+
+  var match = fileUrl.match(/\/file\/d\/([^/?]+)/);
+  if (!match) return { thumbnail: null };
+  var fileId = match[1];
+
+  try {
+    var file = DriveApp.getFileById(fileId);
+    var blob = file.getThumbnail();
+    if (!blob) return { thumbnail: null };
+    var base64 = Utilities.base64Encode(blob.getBytes());
+    var mimeType = blob.getContentType() || 'image/png';
+    return { thumbnail: 'data:' + mimeType + ';base64,' + base64 };
+  } catch (e) {
+    Logger.log('getFileThumbnail_ error: ' + e.message);
+    return { thumbnail: null };
+  }
+}
 
 
 

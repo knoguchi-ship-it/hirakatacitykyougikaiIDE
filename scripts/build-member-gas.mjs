@@ -416,6 +416,8 @@ function buildMemberCode(source) {
     'removeClaimAttachment',
     // v331: 請求フォームの選択肢（読み取り専用）
     'getOfficerMasterData',
+    // v344: 案内PDFサムネイル Drive proxy
+    'getFileThumbnail',
   ]);
   code = removeIfBlock(code, 'requiredPerms');
   code = pruneUnreachableFunctionDeclarations(code, ['doGet', 'processApiRequest'], 'build-member-gas');

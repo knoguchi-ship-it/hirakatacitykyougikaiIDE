@@ -108,6 +108,8 @@ const allowedAdminActions = [
   'saveRosterTemplate',
   'deleteRosterTemplate',
   'setDefaultRosterTemplate',
+  // v344: 案内PDFサムネイル Drive proxy
+  'getFileThumbnail',
 ];
 const forbiddenTopLevelFunctions = [
   'rebuildDatabaseSchema',

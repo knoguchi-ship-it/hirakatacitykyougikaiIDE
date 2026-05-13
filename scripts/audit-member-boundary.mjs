@@ -30,6 +30,8 @@ const allowedMemberActions = [
   'removeClaimAttachment',
   // v331: 請求フォームの選択肢（組織・役職・支払い種別）描画用 — 読み取り専用、会員公開でも安全
   'getOfficerMasterData',
+  // v344: 案内PDFサムネイルを Drive proxy 経由で取得（hotlink 制限回避）— ファイルは ANYONE_WITH_LINK 共有済み
+  'getFileThumbnail',
 ];
 const forbiddenTopLevelFunctions = [
   'rebuildDatabaseSchema',

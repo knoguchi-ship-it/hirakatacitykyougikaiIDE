@@ -485,6 +485,8 @@ function buildAdminCode(source) {
     'saveRosterTemplate',
     'deleteRosterTemplate',
     'setDefaultRosterTemplate',
+    // v344: 案内PDFサムネイル Drive proxy
+    'getFileThumbnail',
   ]);
   code = removeIfBlock(code, "isMemberAction && !LOGIN_ONLY_MEMBER_ACTIONS[action]");
   code = pruneUnreachableFunctionDeclarations(code, ['doGet', 'processApiRequest'], 'build-admin-gas');

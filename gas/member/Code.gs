@@ -718,6 +718,9 @@ var MEMBER_ALLOWED_ACTIONS = {
   removeClaimAttachment: true,
   // v331: 請求フォームの選択肢（組織・役職・支払い種別）描画用 — 読み取り専用、会員公開でも安全。
   getOfficerMasterData: true,
+  // v344: 案内PDFサムネイルを Drive proxy 経由で取得（drive.google.com/uc?... の hotlink 制限回避）。
+  // ファイルは ANYONE_WITH_LINK 共有で既に公開済みのため、追加リーク無し。
+  getFileThumbnail: true,
 };
 
 // 管理者ログイン専用アクション: Session.getActiveUser() による自己完結型認証のため、
@@ -885,6 +888,9 @@ function processApiRequest(action, payload) {
     }
 
 
+    if (action === 'getFileThumbnail') {
+      return JSON.stringify({ success: true, data: getFileThumbnail_(parsedPayload) });
+    }
 
 
 
@@ -4636,6 +4642,26 @@ function cleanupNonSchemaSheets_(ss) {
 // v272: Google Drive ファイルのサムネイルを base64 data URL で返す。
 // X-Frame-Options により iframe 埋め込みが Chrome でブロックされるため、
 // サムネイルを GAS 経由で img タグ表示に切り替える。
+function getFileThumbnail_(payload) {
+  var fileUrl = String(payload.fileUrl || '').trim();
+  if (!fileUrl) return { thumbnail: null };
+
+  var match = fileUrl.match(/\/file\/d\/([^/?]+)/);
+  if (!match) return { thumbnail: null };
+  var fileId = match[1];
+
+  try {
+    var file = DriveApp.getFileById(fileId);
+    var blob = file.getThumbnail();
+    if (!blob) return { thumbnail: null };
+    var base64 = Utilities.base64Encode(blob.getBytes());
+    var mimeType = blob.getContentType() || 'image/png';
+    return { thumbnail: 'data:' + mimeType + ';base64,' + base64 };
+  } catch (e) {
+    Logger.log('getFileThumbnail_ error: ' + e.message);
+    return { thumbnail: null };
+  }
+}
 
 
 

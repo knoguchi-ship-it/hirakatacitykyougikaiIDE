@@ -1,6 +1,12 @@
 import React from 'react';
 import { PublicTraining } from '../../shared/types';
 import PdfThumbnail from '../../components/PdfThumbnail';
+import { callApi } from '../../shared/api-base';
+
+const fetchPublicThumbnail = (fileUrl: string): Promise<string | null> =>
+  callApi<{ thumbnail: string | null }>('getFileThumbnail', { fileUrl })
+    .then((res) => res.thumbnail)
+    .catch(() => null);
 
 interface Props {
   trainings: PublicTraining[];
@@ -177,7 +183,7 @@ const PublicTrainingList: React.FC<Props> = ({ trainings, onApply }) => {
             {/* 案内PDF サムネイル */}
             {t.thumbnailUrl && (
               <div className="max-w-xs">
-                <PdfThumbnail thumbnailUrl={t.thumbnailUrl} fileUrl={t.fileUrl} height={130} />
+                <PdfThumbnail fileUrl={t.fileUrl} fetchThumbnail={fetchPublicThumbnail} height={130} />
               </div>
             )}
 
