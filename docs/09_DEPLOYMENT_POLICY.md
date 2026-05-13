@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-05-13
-Production: `v344` / integrated-public fixed deployments `@303` x2 / member split `@60` / admin split `@102`
+Production: `v345` / integrated-public fixed deployments `@304` x2 / member split `@61` / admin split `@103`
 
 ## 1. Purpose
 
@@ -17,15 +17,15 @@ Production: `v344` / integrated-public fixed deployments `@303` x2 / member spli
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@303` (`v344`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@303` (`v344`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@304` (`v345`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@304` (`v345`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@60` (`v344`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@102` (`v344`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@61` (`v345`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@103` (`v345`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -142,7 +142,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-05-13 `v344` ← current production
+### 2026-05-13 `v345` ← current production
+- Scope: 案内 PDF サムネイルが v344 後も「PDF プレビューを読み込めませんでした」を出していた真因を再特定し修正。`DriveApp.getThumbnail()` は PDF に対し常に null を返す Apps Script の既知制約だった。`getFileThumbnail_` を `UrlFetchApp(drive.google.com/thumbnail?id=...&sz=w400)` + base64 化へ書換、`CacheService` 1h TTL を追加。OAuth スコープ追加なし。
+- Integrated fixed deployments: `@304` x2
+- Member split: `@61`
+- Admin split: `@103`
+- Detail: `docs/214_RELEASE_STATE_v345_2026-05-13.md`
+
+### 2026-05-13 `v344`
 - Scope: 案内 PDF サムネイル画像が全 3 ポータルで壊れた画像になっていた事象を修正。`drive.google.com/uc?export=view&id=...` の hotlink 制限が原因。PdfThumbnail を GAS `getFileThumbnail` proxy 経由の base64 data URL 取得に切替。3 境界 ACL / build allowlist / audit allowlist にも追加。
 - Integrated fixed deployments: `@303` x2
 - Member split: `@60`
