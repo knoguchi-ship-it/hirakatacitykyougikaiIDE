@@ -1,8 +1,10 @@
 # 開発引継ぎ
 
 更新日: 2026-05-13
-現行本番: `v342`（DB schema-shift 構造的再発防止: writeSheetHeaders_ の name-based migration + 削除フラグ sanity check + deploy checklist 追記） / integrated-public GAS version `302` / member split GAS version `59` / admin split GAS version `100`
-fixed deployment: integrated/public `@302` x2 / member split `@59` / admin split `@100`
+現行本番: `v343`（管理者ポータル「登録済み管理者アカウント」一覧の事業所職員紐付け行で「表示名」列が氏名なしになっていた問題を修正） / integrated-public GAS version `302` / member split GAS version `59` / admin split GAS version `101`
+fixed deployment: integrated/public `@302` x2 / member split `@59` / admin split `@101`
+
+> **2026-05-13 v343 反映済み**: 管理者ポータル「登録済み管理者アカウント」一覧で、事業所職員紐付けの行の「表示名」列が権限ラベル（「マスター」「管理者」）だけになっていた事象を修正。`getAdminPermissionEntries_` が `memberMap[linkedMemberId]` だけを参照し、`T_認証アカウント.職員ID` 経由の事業所職員氏名を解決していなかったため、`staffMap[linkedStaffId]` も参照して `氏名（権限）` 形式へ統一。public / member artifact は変更なし。admin split `@101` のみ更新。詳細: `docs/212_RELEASE_STATE_v343_2026-05-13.md`
 
 > **2026-05-13 v342 反映済み**: 2026-05-12 schema-shift incident (`docs/204`) の構造的再発防止策を全 3 プロジェクトへ反映。`writeSheetHeaders_` を name-based shift 対応にし、列追加・列名変更でデータ行が旧位置に残ることを防止。`auditDeleteFlagColumns_` を initializeSchema_ 末尾に追加し、削除フラグ列に boolean 以外の値があれば Logger へ警告。`docs/09_DEPLOYMENT_POLICY.md` に schema 変更 release 時の `runRebuildSchemaForV<N>` 手動実行と log 検査手順を追記。`DB_SCHEMA_VERSION` を `2026-05-13-schema-shift-guard-v1` に bump し、初回ヒット時に新 guard を本番シートに対して 1 回走らせる。詳細: `docs/211_RELEASE_STATE_v342_2026-05-13.md`
 
@@ -44,7 +46,8 @@ fixed deployment: integrated/public `@302` x2 / member split `@59` / admin split
 7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `docs/211_RELEASE_STATE_v342_2026-05-13.md`（**最新本番：v342。DB schema-shift 構造的再発防止 / integrated-public @302 x2 / member @59 / admin @100**）
+10. `docs/212_RELEASE_STATE_v343_2026-05-13.md`（**最新本番：v343。管理者一覧の事業所職員氏名表示修正 / admin @101**）
+11. `docs/211_RELEASE_STATE_v342_2026-05-13.md`（v342。DB schema-shift 構造的再発防止 / integrated-public @302 x2 / member @59 / admin @100）
 11. `docs/210_RELEASE_STATE_v341_2026-05-13.md`（v341。年会費管理から会員詳細への遷移修正 / integrated-public @301 x2 / member @58 / admin @99）
 12. `docs/209_RELEASE_STATE_v340_2026-05-12.md`（v340。会員ステータスメモ / schema initialization guard / integrated-public @301 x2 / member @57 / admin @98）
 12. `docs/208_MEMBER_STATUS_NOTE_2026-05-12.md`（会員ステータスメモの実装・デプロイ記録）
@@ -79,10 +82,11 @@ fixed deployment: integrated/public `@302` x2 / member split `@59` / admin split
 | 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@302` |
 | 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@302` |
 | 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@59` |
-| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@100` |
+| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@101` |
 
 ## 4. 直近リリース
 
+- `v343`: 管理者ポータル「登録済み管理者アカウント」一覧の事業所職員紐付け行で「表示名」列が氏名なしになっていた問題を修正。`getAdminPermissionEntries_` で `staffMap[linkedStaffId]` も参照して `氏名（権限）` 形式へ統一。admin split `@101` のみ更新（public / member は変更なし）。
 - `v342`: DB schema-shift 構造的再発防止。`writeSheetHeaders_` の name-based shift、`auditDeleteFlagColumns_` 追加、`docs/09` の deploy checklist 追記、`DB_SCHEMA_VERSION` bump。integrated/public `@302` x2 / member split `@59` / admin split `@100`。
 - `v341`: 年会費管理コンソールから会員詳細への遷移を、会員一覧ロード状態に依存しない設計へ修正。`T_会員.会員ID` をキー正本として維持し、詳細表示用 `Member` snapshot を保持。public `@301` x2（変更なし） / member split `@58` / admin split `@99`。
 - `v340`: 管理者専用の会員ステータスメモを追加。`T_会員.ステータスメモ` は末尾列として追加し、管理者コンソールのみ表示・保存。会員マイページ・公開ポータルには出力しない。schema initialization guard を反映し、既存テーブルのヘッダー上書き前に name-based migration が走るよう修正。integrated/public `@301` x2 / member split `@57` / admin split `@98`。

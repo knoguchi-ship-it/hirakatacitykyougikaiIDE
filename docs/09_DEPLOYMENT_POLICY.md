@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-05-13
-Production: `v342` / integrated-public fixed deployments `@302` x2 / member split `@59` / admin split `@100`
+Production: `v343` / integrated-public fixed deployments `@302` x2 / member split `@59` / admin split `@101`
 
 ## 1. Purpose
 
@@ -25,7 +25,7 @@ Production: `v342` / integrated-public fixed deployments `@302` x2 / member spli
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
 | member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@59` (`v342`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@100` (`v342`) | `DOMAIN` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@101` (`v343`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -142,7 +142,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-05-13 `v342` ← current production
+### 2026-05-13 `v343` ← current production
+- Scope: 管理者ポータル「登録済み管理者アカウント」一覧の事業所職員紐付け行で「表示名」列が氏名を含まなかった事象を修正。`getAdminPermissionEntries_` で `staffMap[linkedStaffId]` も参照し `氏名（権限）` 形式へ統一。
+- Integrated fixed deployments: `@302` x2（変更なし、v342 artifact）
+- Member split: `@59`（変更なし、v342 artifact）
+- Admin split: `@101`
+- Detail: `docs/212_RELEASE_STATE_v343_2026-05-13.md`
+
+### 2026-05-13 `v342`
 - Scope: DB schema-shift 構造的再発防止。`writeSheetHeaders_` を name-based shift 対応にし、列追加・列名変更でデータ行が旧位置に残ることを防止。`auditDeleteFlagColumns_` を追加し、削除フラグ列に boolean 以外の値があれば Logger 警告。`docs/09` の release checklist に schema 変更時の `runRebuildSchemaForV<N>` 手動実行と警告ログ検査手順を追記。
 - Integrated fixed deployments: `@302` x2
 - Member split: `@59`
