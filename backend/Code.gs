@@ -3348,26 +3348,46 @@ function getFileThumbnail_(payload) {
     // cache miss / error 時は通常フェッチへ
   }
 
-  var thumbUrl = 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(fileId) + '&sz=w400';
+  // v347: drive.google.com/thumbnail は Authorization 付きでも PDF に対して 403 を返す
+  // ことが本番ログで確認された。確実な経路は Drive REST API v3 の files.get?fields=
+  // thumbnailLink で得た lh3.googleusercontent.com の URL を Bearer 付きで再 fetch する
+  // 二段構え。Drive 公式 API が裏でサムネイル生成を担保しているため PDF にも対応する。
   try {
-    // v346: drive.google.com への匿名 UrlFetchApp は 2020 年以降 Google の reCAPTCHA で
-    // 403 にブロックされる。`Authorization: Bearer <OAuth token>` を付与する必要がある
-    // （3 境界とも appsscript.json に `drive` scope 設定済み）。
-    // Ref: Apps Script Community thread "UrlFetchApp from drive.google.com STOPPED WORKING - error 403"
-    // および tanaike 氏 gist の動作実績パターン。
-    var response = UrlFetchApp.fetch(thumbUrl, {
+    var authHeaders = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
+    var metaUrl = 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(fileId) +
+      '?fields=thumbnailLink%2Cname%2CmimeType&supportsAllDrives=true';
+    var metaResp = UrlFetchApp.fetch(metaUrl, {
       muteHttpExceptions: true,
-      followRedirects: true,
-      headers: {
-        Authorization: 'Bearer ' + ScriptApp.getOAuthToken(),
-      },
+      headers: authHeaders,
     });
-    var code = response.getResponseCode();
-    if (code !== 200) {
-      Logger.log('getFileThumbnail_ non-200: code=' + code + ' fileId=' + fileId);
+    var metaCode = metaResp.getResponseCode();
+    if (metaCode !== 200) {
+      Logger.log('getFileThumbnail_ files.get non-200: code=' + metaCode + ' fileId=' + fileId +
+        ' body=' + metaResp.getContentText().substring(0, 200));
       return { thumbnail: null };
     }
-    var blob = response.getBlob();
+    var meta = JSON.parse(metaResp.getContentText());
+    var thumbnailLink = meta && meta.thumbnailLink;
+    if (!thumbnailLink) {
+      Logger.log('getFileThumbnail_ thumbnailLink absent for fileId=' + fileId +
+        ' mimeType=' + (meta && meta.mimeType));
+      return { thumbnail: null };
+    }
+    // thumbnailLink の sz パラメータをデフォルト (s220) より上に引き上げる。
+    // 既存形式は ...=s220 など。差し替え無しでも動くが視認性のため w400 を指定する。
+    var sizedLink = thumbnailLink.replace(/=s\d+(-.+)?$/, '=w400').replace(/=s\d+$/, '=w400');
+    var imgResp = UrlFetchApp.fetch(sizedLink, {
+      muteHttpExceptions: true,
+      followRedirects: true,
+      headers: authHeaders,
+    });
+    var imgCode = imgResp.getResponseCode();
+    if (imgCode !== 200) {
+      Logger.log('getFileThumbnail_ thumbnailLink fetch non-200: code=' + imgCode +
+        ' fileId=' + fileId);
+      return { thumbnail: null };
+    }
+    var blob = imgResp.getBlob();
     var contentType = blob.getContentType() || 'image/png';
     if (contentType.indexOf('image/') !== 0) {
       Logger.log('getFileThumbnail_ unexpected contentType: ' + contentType + ' fileId=' + fileId);
@@ -3380,7 +3400,7 @@ function getFileThumbnail_(payload) {
     }
     return { thumbnail: dataUrl };
   } catch (e) {
-    Logger.log('getFileThumbnail_ error: ' + e.message);
+    Logger.log('getFileThumbnail_ error: ' + e.message + ' fileId=' + fileId);
     return { thumbnail: null };
   }
 }
