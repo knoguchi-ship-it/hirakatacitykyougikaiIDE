@@ -1,8 +1,10 @@
 # 開発引継ぎ
 
 更新日: 2026-05-13
-現行本番: `v343`（管理者ポータル「登録済み管理者アカウント」一覧の事業所職員紐付け行で「表示名」列が氏名なしになっていた問題を修正） / integrated-public GAS version `302` / member split GAS version `59` / admin split GAS version `101`
-fixed deployment: integrated/public `@302` x2 / member split `@59` / admin split `@101`
+現行本番: `v344`（案内 PDF サムネイル画像が全 3 ポータルで表示されなかった問題を修正。Drive hotlink 制限を GAS proxy 経由 base64 取得で回避） / integrated-public GAS version `303` / member split GAS version `60` / admin split GAS version `102`
+fixed deployment: integrated/public `@303` x2 / member split `@60` / admin split `@102`
+
+> **2026-05-13 v344 反映済み**: 会員マイページ・公開ポータル・管理者ポータル全てで、案内 PDF サムネイル画像が壊れた画像アイコンになっていた事象を修正。真因は `T_研修.案内状サムネイルURL` の `drive.google.com/uc?export=view&id=...` URL を `<img src>` に直接渡していたが、Google が外部 hotlink を制限しているため画像取得が必ず失敗していたこと。v272 で server 側 proxy (`getFileThumbnail_`) は用意されていたが client 配線が抜け落ちていた。PdfThumbnail を base64 data URL fetch 化し、3 境界それぞれに `getFileThumbnail` action と allowlist を配線。integrated/public `@303` x2 / member split `@60` / admin split `@102`。詳細: `docs/213_RELEASE_STATE_v344_2026-05-13.md`
 
 > **2026-05-13 v343 反映済み**: 管理者ポータル「登録済み管理者アカウント」一覧で、事業所職員紐付けの行の「表示名」列が権限ラベル（「マスター」「管理者」）だけになっていた事象を修正。`getAdminPermissionEntries_` が `memberMap[linkedMemberId]` だけを参照し、`T_認証アカウント.職員ID` 経由の事業所職員氏名を解決していなかったため、`staffMap[linkedStaffId]` も参照して `氏名（権限）` 形式へ統一。public / member artifact は変更なし。admin split `@101` のみ更新。詳細: `docs/212_RELEASE_STATE_v343_2026-05-13.md`
 
@@ -46,8 +48,9 @@ fixed deployment: integrated/public `@302` x2 / member split `@59` / admin split
 7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `docs/212_RELEASE_STATE_v343_2026-05-13.md`（**最新本番：v343。管理者一覧の事業所職員氏名表示修正 / admin @101**）
-11. `docs/211_RELEASE_STATE_v342_2026-05-13.md`（v342。DB schema-shift 構造的再発防止 / integrated-public @302 x2 / member @59 / admin @100）
+10. `docs/213_RELEASE_STATE_v344_2026-05-13.md`（**最新本番：v344。案内 PDF サムネイル GAS proxy 化 / integrated-public @303 x2 / member @60 / admin @102**）
+11. `docs/212_RELEASE_STATE_v343_2026-05-13.md`（v343。管理者一覧の事業所職員氏名表示修正 / admin @101）
+12. `docs/211_RELEASE_STATE_v342_2026-05-13.md`（v342。DB schema-shift 構造的再発防止 / integrated-public @302 x2 / member @59 / admin @100）
 11. `docs/210_RELEASE_STATE_v341_2026-05-13.md`（v341。年会費管理から会員詳細への遷移修正 / integrated-public @301 x2 / member @58 / admin @99）
 12. `docs/209_RELEASE_STATE_v340_2026-05-12.md`（v340。会員ステータスメモ / schema initialization guard / integrated-public @301 x2 / member @57 / admin @98）
 12. `docs/208_MEMBER_STATUS_NOTE_2026-05-12.md`（会員ステータスメモの実装・デプロイ記録）
@@ -79,13 +82,14 @@ fixed deployment: integrated/public `@302` x2 / member split `@59` / admin split
 
 | 用途 | Project | Deployment ID | Access | Current version |
 |---|---|---|---|---|
-| 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@302` |
-| 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@302` |
-| 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@59` |
-| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@101` |
+| 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@303` |
+| 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@303` |
+| 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@60` |
+| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@102` |
 
 ## 4. 直近リリース
 
+- `v344`: 案内 PDF サムネイル画像が全 3 ポータルで表示されなかった問題を修正。`drive.google.com/uc?export=view&id=...` の hotlink 制限を回避するため、PdfThumbnail を GAS `getFileThumbnail` 経由の base64 data URL 取得に書き換え。3 境界 ACL / build allowlist / audit allowlist にも `getFileThumbnail` を追加。integrated/public `@303` x2 / member split `@60` / admin split `@102`。
 - `v343`: 管理者ポータル「登録済み管理者アカウント」一覧の事業所職員紐付け行で「表示名」列が氏名なしになっていた問題を修正。`getAdminPermissionEntries_` で `staffMap[linkedStaffId]` も参照して `氏名（権限）` 形式へ統一。admin split `@101` のみ更新（public / member は変更なし）。
 - `v342`: DB schema-shift 構造的再発防止。`writeSheetHeaders_` の name-based shift、`auditDeleteFlagColumns_` 追加、`docs/09` の deploy checklist 追記、`DB_SCHEMA_VERSION` bump。integrated/public `@302` x2 / member split `@59` / admin split `@100`。
 - `v341`: 年会費管理コンソールから会員詳細への遷移を、会員一覧ロード状態に依存しない設計へ修正。`T_会員.会員ID` をキー正本として維持し、詳細表示用 `Member` snapshot を保持。public `@301` x2（変更なし） / member split `@58` / admin split `@99`。
@@ -186,7 +190,7 @@ fixed deployment: integrated/public `@302` x2 / member split `@59` / admin split
 2. **次の 3 件を必ず読む**:
    - `AGENTS.md`（特に **§0 シークレット最優先絶対ルール** と §4 レスポンシブ必須）
    - `HANDOVER.md`（本文書）
-   - `docs/211_RELEASE_STATE_v342_2026-05-13.md`（最新本番 release state）
+   - `docs/213_RELEASE_STATE_v344_2026-05-13.md`（最新本番 release state）
 3. テストハーネス前提を整える（必要に応じて）:
    - Member テスト: `.env.test.example` を `.env.test` にコピーし、`MEMBER_LOGIN_ID` / `MEMBER_PASSWORD` をユーザー側で埋める（ロックされていないテスト用アカウントを使用）。
    - Admin テスト: `node scripts/auth-bootstrap-admin.mjs` で Google ログイン → `.test-out/auth-admin.json` を作成（通常 1〜2 週間有効）。

@@ -32,7 +32,8 @@
 
 | 文書 | 内容 |
 |---|---|
-| `docs/212_RELEASE_STATE_v343_2026-05-13.md` | **最新本番** v343。管理者ポータル「登録済み管理者アカウント」一覧の事業所職員氏名表示修正、admin split `@101` |
+| `docs/213_RELEASE_STATE_v344_2026-05-13.md` | **最新本番** v344。案内 PDF サムネイル画像の GAS proxy 化（Drive hotlink 制限回避）、integrated-public `@303` x2 / member `@60` / admin `@102` |
+| `docs/212_RELEASE_STATE_v343_2026-05-13.md` | v343。管理者ポータル「登録済み管理者アカウント」一覧の事業所職員氏名表示修正、admin split `@101` |
 | `docs/211_RELEASE_STATE_v342_2026-05-13.md` | v342。DB schema-shift 構造的再発防止（writeSheetHeaders_ name-based shift + 削除フラグ sanity check + deploy checklist 追記）、integrated-public `@302` x2 / member `@59` / admin `@100` |
 | `docs/210_RELEASE_STATE_v341_2026-05-13.md` | v341。年会費管理から会員詳細への遷移を会員一覧未ロード状態に依存しないよう修正、integrated-public `@301` x2 / member `@58` / admin `@99` |
 | `docs/209_RELEASE_STATE_v340_2026-05-12.md` | v340。管理者専用の会員ステータスメモ、schema initialization guard、integrated-public `@301` x2 / member `@57` / admin `@98` |

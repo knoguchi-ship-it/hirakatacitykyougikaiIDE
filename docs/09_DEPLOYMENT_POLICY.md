@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-05-13
-Production: `v343` / integrated-public fixed deployments `@302` x2 / member split `@59` / admin split `@101`
+Production: `v344` / integrated-public fixed deployments `@303` x2 / member split `@60` / admin split `@102`
 
 ## 1. Purpose
 
@@ -17,15 +17,15 @@ Production: `v343` / integrated-public fixed deployments `@302` x2 / member spli
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@302` (`v342`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@302` (`v342`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@303` (`v344`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@303` (`v344`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@59` (`v342`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@101` (`v343`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@60` (`v344`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@102` (`v344`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -142,7 +142,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-05-13 `v343` ← current production
+### 2026-05-13 `v344` ← current production
+- Scope: 案内 PDF サムネイル画像が全 3 ポータルで壊れた画像になっていた事象を修正。`drive.google.com/uc?export=view&id=...` の hotlink 制限が原因。PdfThumbnail を GAS `getFileThumbnail` proxy 経由の base64 data URL 取得に切替。3 境界 ACL / build allowlist / audit allowlist にも追加。
+- Integrated fixed deployments: `@303` x2
+- Member split: `@60`
+- Admin split: `@102`
+- Detail: `docs/213_RELEASE_STATE_v344_2026-05-13.md`
+
+### 2026-05-13 `v343`
 - Scope: 管理者ポータル「登録済み管理者アカウント」一覧の事業所職員紐付け行で「表示名」列が氏名を含まなかった事象を修正。`getAdminPermissionEntries_` で `staffMap[linkedStaffId]` も参照し `氏名（権限）` 形式へ統一。
 - Integrated fixed deployments: `@302` x2（変更なし、v342 artifact）
 - Member split: `@59`（変更なし、v342 artifact）
