@@ -6015,10 +6015,20 @@ function getAdminPermissionEntries_(ss) {
       var linkedMemberId = String(row['紐付け会員ID'] || (linkedAuth && linkedAuth['会員ID']) || '');
       var linkedStaffId = String((linkedAuth && linkedAuth['職員ID']) || '');
       var permLevel = String(row['権限コード'] || '') || 'ADMIN';
-      // 表示名を会員名 + 権限ラベルから自動導出
+      // 表示名を会員名/職員名 + 権限ラベルから自動導出
       var memberRow = memberMap[linkedMemberId];
-      var memberName = memberRow ? (String(memberRow['姓'] || '') + ' ' + String(memberRow['名'] || '')).trim() : '';
-      var derivedDisplayName = memberName ? memberName + '（' + mapAdminPermissionLabel_(permLevel) + '）' : mapAdminPermissionLabel_(permLevel);
+      var staffRow = staffMap[linkedStaffId];
+      var personName = '';
+      if (memberRow) {
+        personName = (String(memberRow['姓'] || '') + ' ' + String(memberRow['名'] || '')).trim();
+      }
+      if (!personName && staffRow) {
+        personName = String(staffRow['氏名'] || '').trim();
+        if (!personName) {
+          personName = (String(staffRow['姓'] || '') + ' ' + String(staffRow['名'] || '')).trim();
+        }
+      }
+      var derivedDisplayName = personName ? personName + '（' + mapAdminPermissionLabel_(permLevel) + '）' : mapAdminPermissionLabel_(permLevel);
       return {
         id: String(row['ホワイトリストID'] || ''),
         googleEmail: String(row['Googleメール'] || '').trim().toLowerCase(),
