@@ -55,6 +55,26 @@ npm run build:gas:admin
 npm run security:split-boundary
 ```
 
+### Schema migration step (mandatory when DB schema columns change)
+
+When a release adds, inserts, removes, or renames columns in any table or master sheet
+(i.e. when `DB_SCHEMA_VERSION` is bumped or `テーブル定義` / `マスタ定義` is changed):
+
+1. Before push, write or update `runRebuildSchemaForV<N>` (an explicit `clasp run` entry) for
+   the new schema version. It must be safe to re-run and must call `initializeSchema_(ss)`.
+2. After `clasp push` to the admin split project, run
+   `npx clasp run runRebuildSchemaForV<N>` from `gas/admin/` so that
+   `writeSheetHeaders_` and `normalizeTableColumns_` actually shift existing data rows
+   into the new column layout. The `initializeSchemaIfNeeded_` runtime path is **not** a
+   substitute - it can be skipped by the cached `SCHEMA_INITIALIZED_VERSION_KEY` property
+   on certain code paths (this was the root cause of the 2026-05-12 schema-shift incident,
+   `docs/204`).
+3. Inspect Apps Script execution logs for any `auditDeleteFlagColumns_: schema-drift suspected`
+   or `writeSheetHeaders_: schema drift detected` log entries. Both are surfaced as
+   `Logger.log` warnings by the v342 sanity check. Investigate any non-zero report before
+   proceeding to `clasp version`.
+4. Record the manual rebuild result in the release state document.
+
 ### Push and Version
 
 Use the project-specific directory for the target artifact.

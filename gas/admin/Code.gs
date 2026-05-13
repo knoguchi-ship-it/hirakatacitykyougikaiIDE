@@ -13,7 +13,7 @@ var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
 var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
-var DB_SCHEMA_VERSION = '2026-05-12-member-status-note-v1';
+var DB_SCHEMA_VERSION = '2026-05-13-schema-shift-guard-v1';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
 var MEMBER_PORTAL_URL = 'https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec';
@@ -8648,7 +8648,6 @@ function getLogSs_() {
     return getOrCreateDatabase_();
   }
 }
-
 function initializeSchema_(ss) {
   createMasterSheets_(ss);
   ensureMemberTypeAnnualFeeAmounts_(ss);
@@ -8679,6 +8678,49 @@ function initializeSchema_(ss) {
   protectHeaderRows_(ss);
   cleanupNonSchemaSheets_(ss);
   backfillBusinessStaffNameColumns_(ss);
+  auditDeleteFlagColumns_(ss);
+}
+
+/**
+ * v342: 削除フラグ列の sanity check (docs/204 再発防止 §3)。
+ * schema-shift が writeSheetHeaders_ で取りこぼされた場合、削除フラグ列に
+ * boolean 以外の文字列（介護支援専門員番号など）が混入する事象が発生する。
+ * 全 T_* テーブルを走査し、true/false/空 以外の値があれば Logger に警告。
+ */
+function auditDeleteFlagColumns_(ss) {
+  var tableNames = Object.keys(テーブル定義);
+  var warnings = [];
+  for (var i = 0; i < tableNames.length; i += 1) {
+    var tableName = tableNames[i];
+    var headers = テーブル定義[tableName];
+    var deleteFlagIndex = headers.indexOf('削除フラグ');
+    if (deleteFlagIndex < 0) continue;
+    var sheet = ss.getSheetByName(tableName);
+    if (!sheet) continue;
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) continue;
+    var values = sheet.getRange(2, deleteFlagIndex + 1, lastRow - 1, 1).getValues();
+    var badCount = 0;
+    var firstBadRow = -1;
+    var firstBadValue = '';
+    for (var r = 0; r < values.length; r += 1) {
+      var v = values[r][0];
+      if (v === '' || v === null || v === true || v === false) continue;
+      var s = String(v);
+      if (s === 'TRUE' || s === 'FALSE' || s === 'true' || s === 'false') continue;
+      badCount += 1;
+      if (firstBadRow < 0) {
+        firstBadRow = r + 2;
+        firstBadValue = s.substring(0, 40);
+      }
+    }
+    if (badCount > 0) {
+      warnings.push(tableName + ': ' + badCount + ' rows with non-boolean 削除フラグ (first row=' + firstBadRow + ', value="' + firstBadValue + '")');
+    }
+  }
+  if (warnings.length > 0) {
+    Logger.log('auditDeleteFlagColumns_: schema-drift suspected. ' + warnings.join(' | '));
+  }
 }
 
 function normalizeTableColumns_(ss, tableName) {
@@ -9063,6 +9105,22 @@ function writeMasterRows_(sheet, rows) {
   }
 }
 
+/**
+ * v342: シート header を schema 定義と一致させる。
+ *
+ * 旧挙動はヘッダー行のみを上書きしていたため、列追加・列挿入・列名変更を伴う
+ * schema 変更時にデータ行が旧 column 位置のまま残置され、T_会員 / M_組織マスタ
+ * schema-shift incident (2026-05-12, docs/204) と同じ列ズレを再発させる原因となっていた。
+ *
+ * 現挙動:
+ *   - 空シート: ヘッダーを追記
+ *   - ヘッダー完全一致: no-op
+ *   - データ行なし & ヘッダー不一致: ヘッダーだけ書換 + 余剰列をクリア
+ *   - データ行あり & ヘッダー不一致: name-based shift でデータ行を新 schema 位置へリマップ
+ *
+ * 旧ヘッダーに存在しない新列は '' で埋め、新ヘッダーに存在しない旧列は破棄する。
+ * 同名ヘッダーが旧側に複数ある場合は最初に出現した列を採用する。
+ */
 function writeSheetHeaders_(sheet, headers) {
   var currentLastRow = sheet.getLastRow();
   if (currentLastRow === 0) {
@@ -9070,17 +9128,54 @@ function writeSheetHeaders_(sheet, headers) {
     return;
   }
 
-  var existingHeaders = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
-  var matches = true;
-  for (var i = 0; i < headers.length; i += 1) {
-    if (existingHeaders[i] !== headers[i]) {
-      matches = false;
-      break;
+  var currentLastCol = Math.max(1, sheet.getLastColumn());
+  var readWidth = Math.max(currentLastCol, headers.length);
+  var existingHeaders = sheet.getRange(1, 1, 1, readWidth).getValues()[0];
+
+  var matches = currentLastCol === headers.length;
+  if (matches) {
+    for (var i = 0; i < headers.length; i += 1) {
+      if (String(existingHeaders[i] == null ? '' : existingHeaders[i]) !== String(headers[i] == null ? '' : headers[i])) {
+        matches = false;
+        break;
+      }
     }
   }
-  if (!matches) {
+  if (matches) return;
+
+  if (currentLastRow < 2) {
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    if (currentLastCol > headers.length) {
+      sheet.getRange(1, headers.length + 1, 1, currentLastCol - headers.length).clearContent();
+    }
+    return;
   }
+
+  var oldHeaderIndex = {};
+  for (var h = 0; h < currentLastCol; h += 1) {
+    var name = String(existingHeaders[h] == null ? '' : existingHeaders[h]);
+    if (name && !Object.prototype.hasOwnProperty.call(oldHeaderIndex, name)) {
+      oldHeaderIndex[name] = h;
+    }
+  }
+
+  var oldRows = sheet.getRange(2, 1, currentLastRow - 1, currentLastCol).getValues();
+  var migrated = oldRows.map(function(row) {
+    return headers.map(function(header) {
+      var idx = oldHeaderIndex[String(header == null ? '' : header)];
+      return idx == null ? '' : row[idx];
+    });
+  });
+
+  Logger.log('writeSheetHeaders_: schema drift detected on "' + sheet.getName() +
+    '". Migrating ' + migrated.length + ' rows from ' + currentLastCol +
+    ' to ' + headers.length + ' columns by header name.');
+
+  if (currentLastCol > headers.length) {
+    sheet.getRange(1, headers.length + 1, currentLastRow, currentLastCol - headers.length).clearContent();
+  }
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.getRange(2, 1, migrated.length, headers.length).setValues(migrated);
 }
 
 function applyDataValidationRules_(ss) {
