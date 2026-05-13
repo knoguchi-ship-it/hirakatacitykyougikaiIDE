@@ -3350,9 +3350,17 @@ function getFileThumbnail_(payload) {
 
   var thumbUrl = 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(fileId) + '&sz=w400';
   try {
+    // v346: drive.google.com への匿名 UrlFetchApp は 2020 年以降 Google の reCAPTCHA で
+    // 403 にブロックされる。`Authorization: Bearer <OAuth token>` を付与する必要がある
+    // （3 境界とも appsscript.json に `drive` scope 設定済み）。
+    // Ref: Apps Script Community thread "UrlFetchApp from drive.google.com STOPPED WORKING - error 403"
+    // および tanaike 氏 gist の動作実績パターン。
     var response = UrlFetchApp.fetch(thumbUrl, {
       muteHttpExceptions: true,
       followRedirects: true,
+      headers: {
+        Authorization: 'Bearer ' + ScriptApp.getOAuthToken(),
+      },
     });
     var code = response.getResponseCode();
     if (code !== 200) {
