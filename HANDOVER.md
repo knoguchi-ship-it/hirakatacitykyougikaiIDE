@@ -1,8 +1,10 @@
 # 開発引継ぎ
 
 更新日: 2026-05-14
-現行本番: `v350`（v351 を import.meta SyntaxError で **ロールバック**、`v350` に戻す） / integrated-public GAS version `309` / member split GAS version `66` / admin split GAS version `108`
-fixed deployment: integrated/public `@309` x2 / member split `@66` / admin split `@108`
+現行本番: `v352`（公開ポータル研修一覧を A4 縦 PDF サムネイル + 詳細情報の 2 カラムカードに改修） / integrated-public GAS version `311` / member split GAS version `66` / admin split GAS version `108`
+fixed deployment: integrated/public `@311` x2 / member split `@66` (v350 のまま) / admin split `@108` (v350 のまま)
+
+> **2026-05-14 v352 反映済み**: 公開ポータル「現在受付中の研修」一覧 (`src/public-portal/components/PublicTrainingList.tsx`) を A4 縦サムネイル + 詳細情報の 2 カラムカードへ再設計。`PdfThumbnail` に `aspectRatio` prop を追加 (`'210 / 297'` = A4 縦)。WCAG 2.5.5 タップターゲット 44px / semantic HTML / aria-label を採用。public のみ deploy、member/admin は v350 のまま。詳細: `docs/219_RELEASE_STATE_v352_2026-05-14.md`
 
 > **2026-05-14 v351 ロールバック完了**: v351 で導入した `pdfjs-dist` の dynamic import が、`vite-plugin-singlefile` のデフォルト挙動（bundle を plain `<script>` 化）と組み合わさり、`pdfjs-dist/build/pdf.mjs:9421` の `import.meta.url`（Node 専用 dead code）が parse 時に `Uncaught SyntaxError: Cannot use 'import.meta' outside a module` を投げ、admin shell 全体がクラッシュ。4 fixed deployment を全て v350 (`@309 x2 / @66 / @108`) へ即時 redeploy 戻しした。GAS Apps Script コードと build artifact は v351 commit 群（`606c520 / f1ed4be / 37d92c5`）として git に残るが、本番には未反映。再挑戦時は `@rollup/plugin-replace` で pdfjs-dist 内の `import.meta.url` をリテラル置換するなど、Vite bundle 構成側の対策が必要。罠詳細: `memory/feedback_pdfjs_dist_vite_singlefile_trap.md`
 
@@ -60,8 +62,9 @@ fixed deployment: integrated/public `@309` x2 / member split `@66` / admin split
 7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `docs/217_RELEASE_STATE_v350_2026-05-14.md`（**最新本番：v350。hasThumbnail polling + trigger backfill + 再生成ボタン / integrated-public @309 x2 / member @66 / admin @108**）
-11. `docs/218_RELEASE_STATE_v351_2026-05-14.md`（v351 = **ロールバック済み**。pdfjs-dist client-side レンダリングの試行録、罠と再挑戦方針）
+10. `docs/219_RELEASE_STATE_v352_2026-05-14.md`（**最新本番：v352。公開ポータル研修一覧 A4 サムネイル UI 改修 / integrated-public @311 x2**）
+11. `docs/217_RELEASE_STATE_v350_2026-05-14.md`（v350。サムネイル運用強化、member/admin は引き続き v350 / member @66 / admin @108）
+12. `docs/218_RELEASE_STATE_v351_2026-05-14.md`（v351 = **ロールバック済み**。pdfjs-dist client-side レンダリングの試行録、罠と再挑戦方針）
 12. `docs/216_RELEASE_STATE_v349_2026-05-14.md`（v349。アップロード時生成 + 永続化 pipeline / integrated-public @308 x2 / member @65 / admin @107）
 12. `docs/215_RELEASE_STATE_v347_2026-05-14.md`（v347。案内 PDF サムネイル Drive REST + thumbnailLink 経路化（既存 PDF の identity 罠で未解消、v349 で構造改修） / integrated-public @306 x2 / member @63 / admin @105）
 11. `docs/214_RELEASE_STATE_v345_2026-05-13.md`（v345。案内 PDF サムネイル真因再特定・UrlFetch 経由化（@304 で未解消）/ integrated-public @304 x2 / member @61 / admin @103）
@@ -99,13 +102,14 @@ fixed deployment: integrated/public `@309` x2 / member split `@66` / admin split
 
 | 用途 | Project | Deployment ID | Access | Current version |
 |---|---|---|---|---|
-| 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@309` |
-| 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@309` |
+| 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@311` |
+| 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@311` |
 | 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@66` |
 | 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@108` |
 
 ## 4. 直近リリース
 
+- `v352`: 公開ポータル「現在受付中の研修」一覧を A4 縦 PDF サムネイル + 詳細情報 2 カラムカード化。サムネイルクリックで PDF オープン、日時/会場/主催/講師/定員/締切/参加費/問合せ先を semantic dl で明示。`PdfThumbnail` に `aspectRatio` prop 追加 (既存 height パス互換)。public のみ更新、member/admin は v350 のまま。integrated/public `@311` x2。
 - **v351 (ROLLBACK)**: pdfjs-dist client-side レンダリング導入を試みたが、`import.meta` を含む node-only dead code が vite-plugin-singlefile の plain script 化と組み合わさり admin shell が parse 時 SyntaxError でクラッシュ。全 fixed deployment を v350 へ即時戻した。再挑戦課題として残置。
 - `v351 (commits 606c520 / f1ed4be / 37d92c5, 本番未反映)`: 案内 PDF サムネイル即時化。`pdfjs-dist@^5.7` を admin に導入し、ブラウザの `<canvas>` で 1 ページ目をレンダリング → PNG base64 をアップロード時に同送、サーバは即時 Drive 保存。Drive thumbnailLink 待ち (20-25 秒) を完全排除し体感 **3-8 秒**。v350 サーバ polling 経路は fallback として維持。admin bundle +175KB (compressed)、member/public 不変。integrated/public `@310` x2 / member split `@67` / admin split `@109`。
 - `v350`: 案内 PDF サムネイル運用強化。Web 検索ベストプラクティスに基づき (1) hasThumbnail polling + 5s×5 retry、(2) 10 分 trigger による後追い backfill (`processPendingThumbnails`)、(3) admin の手動「サムネイル再生成」ボタン (`regenerateThumbnailForTraining`) を追加。`setupPendingThumbnailsTrigger` を 1 回 Apps Script editor から Run する operator setup が必要。Playwright e2e で 24 秒/24KB 描画確認。integrated/public `@309` x2 / member split `@66` / admin split `@108`。
@@ -215,7 +219,7 @@ fixed deployment: integrated/public `@309` x2 / member split `@66` / admin split
 2. **次の 3 件を必ず読む**:
    - `AGENTS.md`（特に **§0 シークレット最優先絶対ルール** と §4 レスポンシブ必須）
    - `HANDOVER.md`（本文書）
-   - `docs/217_RELEASE_STATE_v350_2026-05-14.md`（最新本番 release state）
+   - `docs/219_RELEASE_STATE_v352_2026-05-14.md`（最新本番 release state）
 3. テストハーネス前提を整える（必要に応じて）:
    - Member テスト: `.env.test.example` を `.env.test` にコピーし、`MEMBER_LOGIN_ID` / `MEMBER_PASSWORD` をユーザー側で埋める（ロックされていないテスト用アカウントを使用）。
    - Admin テスト: `node scripts/auth-bootstrap-admin.mjs` で Google ログイン → `.test-out/auth-admin.json` を作成（通常 1〜2 週間有効）。

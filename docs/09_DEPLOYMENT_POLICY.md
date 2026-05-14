@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-05-14
-Production: `v350` (v351 was rolled back due to import.meta SyntaxError) / integrated-public fixed deployments `@309` x2 / member split `@66` / admin split `@108`
+Production: `v352` (public のみ UI 改修) / integrated-public fixed deployments `@311` x2 / member split `@66` (v350 のまま) / admin split `@108` (v350 のまま)
 
 ## 1. Purpose
 
@@ -17,8 +17,8 @@ Production: `v350` (v351 was rolled back due to import.meta SyntaxError) / integ
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@309` (`v350`, rolled back from `@310` v351) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@309` (`v350`, rolled back from `@310` v351) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@311` (`v352`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@311` (`v352`) |
 
 ### Split projects
 
@@ -141,6 +141,13 @@ Real-browser verification is performed by the operator by default. The agent rec
 - Do not redeploy historical admin split `@47` physical pruning output.
 
 ## 6. Current Recorded State
+
+### 2026-05-14 `v352` ← current production
+- Scope: 公開ポータル「現在受付中の研修」一覧を A4 縦 PDF サムネイル + 詳細情報の 2 カラムカードへ再設計。`PdfThumbnail` に `aspectRatio` prop 追加。WCAG 2.5.5 / semantic HTML 準拠。public のみ更新、member/admin は v350 のまま。
+- Integrated fixed deployments: `@311` x2
+- Member split: `@66` (unchanged, v350)
+- Admin split: `@108` (unchanged, v350)
+- Detail: `docs/219_RELEASE_STATE_v352_2026-05-14.md`
 
 ### 2026-05-14 `v351` — **ROLLED BACK**
 - Scope (intended): pdfjs-dist client-side レンダリングで 1 ページ目を即時生成。
