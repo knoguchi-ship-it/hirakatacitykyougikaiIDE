@@ -2403,6 +2403,27 @@ function computeTrainingAvailability_(trainingRow, options) {
  */
 
 
+/**
+ * v349: 既存 PDF (Drive 上の fileId) から 1 ページ目のサムネイル PNG を生成し、
+ * 同フォルダに ANYONE_WITH_LINK の PNG ファイルとして保存して URL を返す。
+ *
+ * 流れ:
+ *   1. Drive REST API v3 files.get?fields=thumbnailLink を Bearer 付きで呼び、
+ *      Drive が裏で生成した lh3.googleusercontent.com の URL を取得。
+ *      生成が間に合わない場合があるため最大 3 回まで sleep ＋ retry。
+ *   2. thumbnailLink の =s220 を =w800 に置換して解像度を引き上げ、Bearer 付きで
+ *      fetch して PNG bytes を取得。
+ *   3. PNG を専用ファイル名で同フォルダに createFile + ANYONE_WITH_LINK 共有。
+ *   4. 永続化した PNG の getUrl() を返却。
+ *
+ * 失敗時は空文字を返す（呼び出し側で UI fallback を出す）。
+ *
+ * Ref: Tanaike, 2023 ("Converting All Pages in PDF File to PNG Images using Google
+ *      Apps Script") — multi-page splitting 部分は不要なので簡素化した形を採用。
+ */
+
+
+
 // ── 研修案内PDF サムネイル バッチ生成（時間ベーストリガーで定期実行）──────────
 
 /**
@@ -3314,161 +3335,57 @@ function getPublicPortalSettings_() {
     }
   });
 }
-
-// v345: Google Drive ファイルのサムネイルを base64 data URL で返す。
-//
-// 真因の経緯:
-//   - v272 で DriveApp.getFileById(id).getThumbnail() を使用していたが、これは
-//     PDF に対し常に null を返す Apps Script の既知制約があり、PDF サムネイルが
-//     一切表示できない状態だった（issuetracker / forums 多数）。
-//   - v345 で Google Drive の公開 thumbnail endpoint
-//     `https://drive.google.com/thumbnail?id=<id>&sz=w400` を UrlFetchApp で取得し、
-//     bytes を base64 へ変換するアプローチへ切替。Drive の thumbnail CDN が PDF→
-//     画像変換を裏で実行するため、PDF にもサムネイルが返る。
-//   - <img src> 直接参照では rate limit / 多枚問題が起きるが、サーバー側で取得して
-//     base64 化すればクライアントは data: URL を読むだけなので回避できる。
-//   - ANYONE_WITH_LINK 共有ファイルは無認証 UrlFetchApp で取得可能（member split は
-//     drive scope 無しだが script.external_request はあるため動作する）。
-//   - CacheService で 1 時間キャッシュ（item size limit 100KB を考慮し、超える
-//     payload はキャッシュをスキップ）。
 function getFileThumbnail_(payload) {
   var fileUrl = String((payload && payload.fileUrl) || '').trim();
-  Logger.log('getFileThumbnail_ ENTER fileUrl=' + fileUrl);
-  if (!fileUrl) {
-    Logger.log('getFileThumbnail_ EXIT: empty fileUrl');
-    return { thumbnail: null };
-  }
+  if (!fileUrl) return { thumbnail: null };
 
   var match = fileUrl.match(/\/file\/d\/([^/?]+)/) || fileUrl.match(/[?&]id=([^&]+)/);
   if (!match) {
-    Logger.log('getFileThumbnail_ EXIT: no fileId in url=' + fileUrl);
-    return { thumbnail: null };
+    Logger.log('getFileThumbnail_: cannot extract fileId from url=' + fileUrl);
+    return { thumbnail: makePdfSvgPlaceholder_('PDF') };
   }
   var fileId = match[1];
-  Logger.log('getFileThumbnail_ fileId=' + fileId);
 
   var cache = CacheService.getScriptCache();
-  var cacheKey = 'thumb_v348_' + fileId;
+  var cacheKey = 'thumb_v349_' + fileId;
   try {
     var cached = cache.get(cacheKey);
-    if (cached) {
-      Logger.log('getFileThumbnail_ cache HIT fileId=' + fileId);
-      return { thumbnail: cached };
-    }
+    if (cached) return { thumbnail: cached };
   } catch (e1) {}
 
-  var authHeaders = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
-
-  // ── Strategy A: DriveApp.getFileById でファイル可視性を確認し、メタデータをログへ。
-  // 画像 or サムネイル取得可能ファイルなら即返却。
-  var driveAppFile = null;
   try {
-    driveAppFile = DriveApp.getFileById(fileId);
-    var owner = '';
-    try { owner = driveAppFile.getOwner() ? driveAppFile.getOwner().getEmail() : '(no owner)'; } catch (eo) { owner = '(getOwner err: ' + eo.message + ')'; }
-    var sharing = '';
-    try { sharing = String(driveAppFile.getSharingAccess()) + '/' + String(driveAppFile.getSharingPermission()); } catch (es) { sharing = '(getSharing err: ' + es.message + ')'; }
-    var fileMime = '';
-    try { fileMime = String(driveAppFile.getMimeType() || ''); } catch (em) { fileMime = '(getMimeType err)'; }
-    Logger.log('getFileThumbnail_ DriveApp OK fileId=' + fileId + ' mime=' + fileMime +
-      ' owner=' + owner + ' sharing=' + sharing);
-
-    // 画像本体ならそのまま返却
-    if (fileMime.indexOf('image/') === 0) {
-      var directBlob = driveAppFile.getBlob();
-      var directBase64 = Utilities.base64Encode(directBlob.getBytes());
-      var directDataUrl = 'data:' + (directBlob.getContentType() || fileMime) + ';base64,' + directBase64;
-      if (directDataUrl.length < 95 * 1024) {
-        try { cache.put(cacheKey, directDataUrl, 3600); } catch (e2) {}
-      }
-      Logger.log('getFileThumbnail_ A: returning direct image blob fileId=' + fileId);
-      return { thumbnail: directDataUrl };
+    var file = DriveApp.getFileById(fileId);
+    var blob = file.getBlob();
+    var contentType = blob.getContentType() || '';
+    if (contentType.indexOf('image/') !== 0) {
+      // 受け取ったのが PNG ではなく PDF だった等の異常系
+      Logger.log('getFileThumbnail_: not an image fileId=' + fileId + ' ct=' + contentType);
+      return { thumbnail: makePdfSvgPlaceholder_(file.getName()) };
     }
-
-    // PDF などはサムネイル取得を試行（多くの場合 null）
-    var thumbBlob = null;
-    try { thumbBlob = driveAppFile.getThumbnail(); } catch (eth) { Logger.log('getFileThumbnail_ A getThumbnail throw: ' + eth.message); }
-    if (thumbBlob) {
-      var thBase64 = Utilities.base64Encode(thumbBlob.getBytes());
-      var thDataUrl = 'data:' + (thumbBlob.getContentType() || 'image/png') + ';base64,' + thBase64;
-      if (thDataUrl.length < 95 * 1024) {
-        try { cache.put(cacheKey, thDataUrl, 3600); } catch (e3) {}
-      }
-      Logger.log('getFileThumbnail_ A: returning getThumbnail blob fileId=' + fileId);
-      return { thumbnail: thDataUrl };
+    var base64 = Utilities.base64Encode(blob.getBytes());
+    var dataUrl = 'data:' + contentType + ';base64,' + base64;
+    if (dataUrl.length < 95 * 1024) {
+      try { cache.put(cacheKey, dataUrl, 3600); } catch (e2) {}
     }
-    Logger.log('getFileThumbnail_ A: getThumbnail returned null fileId=' + fileId);
-  } catch (eA) {
-    Logger.log('getFileThumbnail_ A DriveApp.getFileById failed: ' + eA.message + ' fileId=' + fileId);
+    return { thumbnail: dataUrl };
+  } catch (e) {
+    Logger.log('getFileThumbnail_: error fileId=' + fileId + ' msg=' + e.message);
+    return { thumbnail: makePdfSvgPlaceholder_('PDF') };
   }
+}
 
-  // ── Strategy B: Drive REST API v3 files.get?fields=thumbnailLink
-  try {
-    var metaUrl = 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(fileId) +
-      '?fields=thumbnailLink,name,mimeType,owners(emailAddress),permissions(type,role)&supportsAllDrives=true';
-    var metaResp = UrlFetchApp.fetch(metaUrl, { muteHttpExceptions: true, headers: authHeaders });
-    var metaCode = metaResp.getResponseCode();
-    if (metaCode === 200) {
-      var meta = JSON.parse(metaResp.getContentText());
-      Logger.log('getFileThumbnail_ B files.get OK fileId=' + fileId +
-        ' mime=' + meta.mimeType + ' hasThumb=' + !!meta.thumbnailLink);
-      var thumbnailLink = meta && meta.thumbnailLink;
-      if (thumbnailLink) {
-        var sizedLink = thumbnailLink.replace(/=s\d+(-.+)?$/, '=w400').replace(/=s\d+$/, '=w400');
-        var imgResp = UrlFetchApp.fetch(sizedLink, {
-          muteHttpExceptions: true,
-          followRedirects: true,
-          headers: authHeaders,
-        });
-        var imgCode = imgResp.getResponseCode();
-        if (imgCode === 200) {
-          var bBlob = imgResp.getBlob();
-          var bCt = bBlob.getContentType() || 'image/png';
-          if (bCt.indexOf('image/') === 0) {
-            var bBase64 = Utilities.base64Encode(bBlob.getBytes());
-            var bDataUrl = 'data:' + bCt + ';base64,' + bBase64;
-            if (bDataUrl.length < 95 * 1024) {
-              try { cache.put(cacheKey, bDataUrl, 3600); } catch (e4) {}
-            }
-            Logger.log('getFileThumbnail_ B: returning thumbnailLink blob fileId=' + fileId);
-            return { thumbnail: bDataUrl };
-          }
-          Logger.log('getFileThumbnail_ B thumbnailLink ct=' + bCt);
-        } else {
-          Logger.log('getFileThumbnail_ B thumbnailLink fetch code=' + imgCode);
-        }
-      }
-    } else {
-      Logger.log('getFileThumbnail_ B files.get non-200: code=' + metaCode + ' fileId=' + fileId +
-        ' body=' + metaResp.getContentText().substring(0, 300));
-    }
-  } catch (eB) {
-    Logger.log('getFileThumbnail_ B Drive REST error: ' + eB.message + ' fileId=' + fileId);
-  }
-
-  // ── Strategy C: ファイルから PDF blob を取り、base64 で返却して client 側で PDF.js が無くても
-  // 一旦「PDF アイコン+ファイル名」プレースホルダで案内する（fallback）。
-  // ここでは server-side で SVG プレースホルダを返す（client 改修なし）。
-  if (driveAppFile) {
-    try {
-      var fname = driveAppFile.getName();
-      var safeName = String(fname || 'PDF').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').substring(0, 60);
-      var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180">' +
-        '<rect width="320" height="180" fill="#f1f5f9"/>' +
-        '<text x="160" y="80" text-anchor="middle" font-family="sans-serif" font-size="42" fill="#94a3b8">PDF</text>' +
-        '<text x="160" y="130" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#475569">' + safeName + '</text>' +
-        '</svg>';
-      var svgB64 = Utilities.base64Encode(Utilities.newBlob(svg, 'image/svg+xml').getBytes());
-      var svgDataUrl = 'data:image/svg+xml;base64,' + svgB64;
-      Logger.log('getFileThumbnail_ C: returning SVG placeholder fileId=' + fileId);
-      return { thumbnail: svgDataUrl };
-    } catch (eC) {
-      Logger.log('getFileThumbnail_ C SVG placeholder error: ' + eC.message);
-    }
-  }
-
-  Logger.log('getFileThumbnail_ EXIT: all strategies failed fileId=' + fileId);
-  return { thumbnail: null };
+function makePdfSvgPlaceholder_(name) {
+  var safe = String(name || 'PDF')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .substring(0, 60);
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180">' +
+    '<rect width="320" height="180" fill="#f1f5f9"/>' +
+    '<text x="160" y="80" text-anchor="middle" font-family="sans-serif" font-size="42" fill="#94a3b8">PDF</text>' +
+    '<text x="160" y="130" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#475569">' + safe + '</text>' +
+    '</svg>';
+  return 'data:image/svg+xml;base64,' + Utilities.base64Encode(Utilities.newBlob(svg, 'image/svg+xml').getBytes());
 }
 
 function getPublicTrainings_() {

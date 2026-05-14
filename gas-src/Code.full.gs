@@ -11158,6 +11158,18 @@ function saveTraining_(payload) {
       if (idx != null) row[idx] = value !== undefined ? value : '';
     }
 
+    // v349: PDF / サムネイル差し替え時に旧ファイルを Drive 上で trashed する。
+    var oldPdfUrl = cols['案内状URL'] != null ? String(row[cols['案内状URL']] || '') : '';
+    var oldThumbUrl = cols['案内状サムネイルURL'] != null ? String(row[cols['案内状サムネイルURL']] || '') : '';
+    var newPdfUrl = String(payload.guidePdfUrl || '');
+    var newThumbUrl = String(payload.thumbnailUrl || '');
+    if (oldPdfUrl && oldPdfUrl !== newPdfUrl) {
+      trashFileFromUrlIfPossible_(oldPdfUrl);
+    }
+    if (oldThumbUrl && oldThumbUrl !== newThumbUrl) {
+      trashFileFromUrlIfPossible_(oldThumbUrl);
+    }
+
     setCol('研修名', payload.title || '');
     setCol('開催日', payload.date || '');
     setCol('開催終了時刻', payload.endTime || '');
@@ -11958,7 +11970,226 @@ function uploadTrainingFile_(payload) {
   var file = folder.createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
-  return { url: file.getUrl(), driveFileId: file.getId(), thumbnailUrl: '' };
+  var pdfFileId = file.getId();
+  var pdfFileUrl = file.getUrl();
+  var thumbnailUrl = '';
+
+  // v349: PDF アップロード時に 1 ページ目のサムネイル PNG を生成・永続化する。
+  // Drive 自体の thumbnailLink が新規アップロード直後は同一 OAuth identity で
+  // 確実に取れるため、ここで PNG ファイルとして保存しておけば view 時の identity
+  // 罠 (v347 で見た 404) を回避できる。失敗してもアップロード自体は成功扱い。
+  var looksLikePdf = String(mimeType).toLowerCase().indexOf('pdf') >= 0 ||
+    /\.pdf$/i.test(filename);
+  if (looksLikePdf) {
+    try {
+      thumbnailUrl = generateAndSaveThumbnailForPdf_(pdfFileId, folder) || '';
+    } catch (e) {
+      Logger.log('uploadTrainingFile_: thumbnail generation failed pdfFileId=' + pdfFileId + ': ' + e.message);
+      thumbnailUrl = '';
+    }
+  }
+
+  return { url: pdfFileUrl, driveFileId: pdfFileId, thumbnailUrl: thumbnailUrl };
+}
+
+/**
+ * v349: 既存 PDF (Drive 上の fileId) から 1 ページ目のサムネイル PNG を生成し、
+ * 同フォルダに ANYONE_WITH_LINK の PNG ファイルとして保存して URL を返す。
+ *
+ * 流れ:
+ *   1. Drive REST API v3 files.get?fields=thumbnailLink を Bearer 付きで呼び、
+ *      Drive が裏で生成した lh3.googleusercontent.com の URL を取得。
+ *      生成が間に合わない場合があるため最大 3 回まで sleep ＋ retry。
+ *   2. thumbnailLink の =s220 を =w800 に置換して解像度を引き上げ、Bearer 付きで
+ *      fetch して PNG bytes を取得。
+ *   3. PNG を専用ファイル名で同フォルダに createFile + ANYONE_WITH_LINK 共有。
+ *   4. 永続化した PNG の getUrl() を返却。
+ *
+ * 失敗時は空文字を返す（呼び出し側で UI fallback を出す）。
+ *
+ * Ref: Tanaike, 2023 ("Converting All Pages in PDF File to PNG Images using Google
+ *      Apps Script") — multi-page splitting 部分は不要なので簡素化した形を採用。
+ */
+function generateAndSaveThumbnailForPdf_(pdfFileId, folder) {
+  if (!pdfFileId) return '';
+  var authHeaders = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
+
+  var thumbnailLink = '';
+  var maxAttempts = 3;
+  for (var attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    Utilities.sleep(attempt === 1 ? 3000 : 4000);
+    var metaUrl = 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(pdfFileId) +
+      '?fields=thumbnailLink,mimeType&supportsAllDrives=true';
+    var metaResp = UrlFetchApp.fetch(metaUrl, { muteHttpExceptions: true, headers: authHeaders });
+    var metaCode = metaResp.getResponseCode();
+    if (metaCode !== 200) {
+      Logger.log('generateAndSaveThumbnailForPdf_: files.get attempt=' + attempt +
+        ' code=' + metaCode + ' pdfFileId=' + pdfFileId +
+        ' body=' + metaResp.getContentText().substring(0, 200));
+      continue;
+    }
+    var meta = JSON.parse(metaResp.getContentText());
+    thumbnailLink = (meta && meta.thumbnailLink) || '';
+    if (thumbnailLink) break;
+    Logger.log('generateAndSaveThumbnailForPdf_: thumbnailLink absent attempt=' + attempt +
+      ' pdfFileId=' + pdfFileId);
+  }
+
+  if (!thumbnailLink) {
+    Logger.log('generateAndSaveThumbnailForPdf_: thumbnailLink not produced after ' +
+      maxAttempts + ' attempts pdfFileId=' + pdfFileId);
+    return '';
+  }
+
+  var sizedLink = thumbnailLink.replace(/=s\d+(-.+)?$/, '=w800').replace(/=s\d+$/, '=w800');
+  var imgResp = UrlFetchApp.fetch(sizedLink, {
+    muteHttpExceptions: true,
+    followRedirects: true,
+    headers: authHeaders,
+  });
+  var imgCode = imgResp.getResponseCode();
+  if (imgCode !== 200) {
+    Logger.log('generateAndSaveThumbnailForPdf_: thumbnailLink fetch code=' + imgCode +
+      ' pdfFileId=' + pdfFileId);
+    return '';
+  }
+  var pngBlob = imgResp.getBlob();
+  var contentType = pngBlob.getContentType() || 'image/png';
+  if (contentType.indexOf('image/') !== 0) {
+    Logger.log('generateAndSaveThumbnailForPdf_: unexpected contentType=' + contentType +
+      ' pdfFileId=' + pdfFileId);
+    return '';
+  }
+  pngBlob.setName('thumb_' + pdfFileId + '_' + Date.now() + '.png');
+
+  var pngFile = folder.createFile(pngBlob);
+  pngFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return pngFile.getUrl();
+}
+
+/**
+ * v349: URL から fileId を抽出して Drive 上のファイルを trashed にする。
+ * 想定: 研修案内 PDF / サムネイル PNG の差し替え時に旧ファイルを GC する。
+ * fileId が抽出できない / 既に trashed / 権限不足 等は黙って無視する。
+ */
+/**
+ * v349 backfill: 既存研修のサムネイル PNG を一括生成する MASTER 専用ツール。
+ * clasp run regenerateAllThumbnails --params '[{ ... }]' から呼ぶ。
+ *
+ * payload:
+ *   - trainingId?: string  特定の研修だけ対象。未指定で全件
+ *   - force?: boolean      既にサムネイル URL がある研修も上書きする
+ *   - dryRun?: boolean     生成は行わず対象数だけ報告
+ *
+ * 返却: { dryRun, processed, succeeded, skipped, failed: [{id,name,reason}] }
+ *
+ * セキュリティ: clasp run は OAuth 認証済の deployer (k.noguchi@hcm-n.org) として
+ * 実行されるため、ここでは MASTER 確認を行わない。Apps Script editor から
+ * 誤って呼ばれても damage は「サムネイル再生成」だけで非破壊。元 PDF が現 deployer
+ * から不可視 (Drive REST 404) のものはスキップして失敗扱い + 理由をログへ。
+ */
+function regenerateAllThumbnails(payload) {
+  var opts = payload || {};
+  var trainingId = String(opts.trainingId || '').trim();
+  var force = !!opts.force;
+  var dryRun = !!opts.dryRun;
+
+  var ss = getOrCreateDatabase_();
+  var folder = getOrCreateTrainingFolder_(ss);
+  var sheet = ss.getSheetByName('T_研修');
+  if (!sheet || sheet.getLastRow() < 2) {
+    return { dryRun: dryRun, processed: 0, succeeded: 0, skipped: 0, failed: [] };
+  }
+
+  var rows = getRowsAsObjects_(ss, 'T_研修').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  if (trainingId) {
+    rows = rows.filter(function(r) { return String(r['研修ID']) === trainingId; });
+  }
+
+  var result = { dryRun: dryRun, processed: 0, succeeded: 0, skipped: 0, failed: [] };
+
+  for (var i = 0; i < rows.length; i += 1) {
+    var row = rows[i];
+    var pdfUrl = String(row['案内状URL'] || '').trim();
+    var existingThumb = String(row['案内状サムネイルURL'] || '').trim();
+    if (!pdfUrl) {
+      result.skipped += 1;
+      continue;
+    }
+    if (existingThumb && !force) {
+      result.skipped += 1;
+      continue;
+    }
+    result.processed += 1;
+
+    var pdfIdMatch = pdfUrl.match(/\/file\/d\/([^/?]+)/) || pdfUrl.match(/[?&]id=([^&]+)/);
+    if (!pdfIdMatch) {
+      result.failed.push({ id: String(row['研修ID']), name: String(row['研修名']), reason: 'pdf_url_unparseable' });
+      continue;
+    }
+    var pdfId = pdfIdMatch[1];
+
+    if (dryRun) {
+      result.succeeded += 1;
+      continue;
+    }
+
+    try {
+      var newThumbUrl = generateAndSaveThumbnailForPdf_(pdfId, folder);
+      if (!newThumbUrl) {
+        result.failed.push({ id: String(row['研修ID']), name: String(row['研修名']), reason: 'no_thumbnail_link' });
+        continue;
+      }
+      updateTrainingThumbnailUrlByRowId_(ss, String(row['研修ID']), newThumbUrl);
+      if (existingThumb) {
+        trashFileFromUrlIfPossible_(existingThumb);
+      }
+      result.succeeded += 1;
+      Logger.log('regenerateAllThumbnails: OK trainingId=' + row['研修ID'] + ' -> ' + newThumbUrl);
+    } catch (e) {
+      var reason = String((e && e.message) || e).substring(0, 200);
+      result.failed.push({ id: String(row['研修ID']), name: String(row['研修名']), reason: reason });
+      Logger.log('regenerateAllThumbnails: FAIL trainingId=' + row['研修ID'] + ' reason=' + reason);
+    }
+  }
+
+  clearAllDataCache_();
+  clearAdminDashboardCache_();
+  clearTrainingManagementCache_();
+  return result;
+}
+
+function updateTrainingThumbnailUrlByRowId_(ss, trainingId, thumbUrl) {
+  var sheet = ss.getSheetByName('T_研修');
+  if (!sheet) throw new Error('T_研修 sheet missing');
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var idCol = headers.indexOf('研修ID');
+  var thumbCol = headers.indexOf('案内状サムネイルURL');
+  var updatedCol = headers.indexOf('更新日時');
+  if (idCol < 0 || thumbCol < 0) throw new Error('required column missing');
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+  var ids = sheet.getRange(2, idCol + 1, lastRow - 1, 1).getValues();
+  for (var r = 0; r < ids.length; r += 1) {
+    if (String(ids[r][0]) === String(trainingId)) {
+      sheet.getRange(r + 2, thumbCol + 1).setValue(thumbUrl);
+      if (updatedCol >= 0) sheet.getRange(r + 2, updatedCol + 1).setValue(new Date().toISOString());
+      return;
+    }
+  }
+}
+
+function trashFileFromUrlIfPossible_(url) {
+  if (!url) return false;
+  var m = String(url).match(/\/file\/d\/([^/?]+)/) || String(url).match(/[?&]id=([^&]+)/);
+  if (!m) return false;
+  try {
+    DriveApp.getFileById(m[1]).setTrashed(true);
+    return true;
+  } catch (e) {
+    Logger.log('trashFileFromUrlIfPossible_: ' + e.message + ' url=' + url);
+    return false;
+  }
 }
 
 // ── 研修案内PDF サムネイル バッチ生成（時間ベーストリガーで定期実行）──────────
@@ -13064,144 +13295,65 @@ function getPublicPortalSettings_() {
 //     drive scope 無しだが script.external_request はあるため動作する）。
 //   - CacheService で 1 時間キャッシュ（item size limit 100KB を考慮し、超える
 //     payload はキャッシュをスキップ）。
+/**
+ * v349: 引数で渡される URL は「PDF の URL」ではなく **「事前生成済み PNG サムネイル」
+ * の Drive URL** である前提（uploadTrainingFile_ が生成して T_研修.案内状サムネイルURL
+ * に保存している）。実行ユーザー所有の PNG なので DriveApp.getBlob() で確実に取れる。
+ *
+ * 想定外（fileId 抽出不可 / 取得例外 / image 以外）の場合は SVG プレースホルダを返却し、
+ * 画面が空にならないようにする。
+ */
 function getFileThumbnail_(payload) {
   var fileUrl = String((payload && payload.fileUrl) || '').trim();
-  Logger.log('getFileThumbnail_ ENTER fileUrl=' + fileUrl);
-  if (!fileUrl) {
-    Logger.log('getFileThumbnail_ EXIT: empty fileUrl');
-    return { thumbnail: null };
-  }
+  if (!fileUrl) return { thumbnail: null };
 
   var match = fileUrl.match(/\/file\/d\/([^/?]+)/) || fileUrl.match(/[?&]id=([^&]+)/);
   if (!match) {
-    Logger.log('getFileThumbnail_ EXIT: no fileId in url=' + fileUrl);
-    return { thumbnail: null };
+    Logger.log('getFileThumbnail_: cannot extract fileId from url=' + fileUrl);
+    return { thumbnail: makePdfSvgPlaceholder_('PDF') };
   }
   var fileId = match[1];
-  Logger.log('getFileThumbnail_ fileId=' + fileId);
 
   var cache = CacheService.getScriptCache();
-  var cacheKey = 'thumb_v348_' + fileId;
+  var cacheKey = 'thumb_v349_' + fileId;
   try {
     var cached = cache.get(cacheKey);
-    if (cached) {
-      Logger.log('getFileThumbnail_ cache HIT fileId=' + fileId);
-      return { thumbnail: cached };
-    }
+    if (cached) return { thumbnail: cached };
   } catch (e1) {}
 
-  var authHeaders = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
-
-  // ── Strategy A: DriveApp.getFileById でファイル可視性を確認し、メタデータをログへ。
-  // 画像 or サムネイル取得可能ファイルなら即返却。
-  var driveAppFile = null;
   try {
-    driveAppFile = DriveApp.getFileById(fileId);
-    var owner = '';
-    try { owner = driveAppFile.getOwner() ? driveAppFile.getOwner().getEmail() : '(no owner)'; } catch (eo) { owner = '(getOwner err: ' + eo.message + ')'; }
-    var sharing = '';
-    try { sharing = String(driveAppFile.getSharingAccess()) + '/' + String(driveAppFile.getSharingPermission()); } catch (es) { sharing = '(getSharing err: ' + es.message + ')'; }
-    var fileMime = '';
-    try { fileMime = String(driveAppFile.getMimeType() || ''); } catch (em) { fileMime = '(getMimeType err)'; }
-    Logger.log('getFileThumbnail_ DriveApp OK fileId=' + fileId + ' mime=' + fileMime +
-      ' owner=' + owner + ' sharing=' + sharing);
-
-    // 画像本体ならそのまま返却
-    if (fileMime.indexOf('image/') === 0) {
-      var directBlob = driveAppFile.getBlob();
-      var directBase64 = Utilities.base64Encode(directBlob.getBytes());
-      var directDataUrl = 'data:' + (directBlob.getContentType() || fileMime) + ';base64,' + directBase64;
-      if (directDataUrl.length < 95 * 1024) {
-        try { cache.put(cacheKey, directDataUrl, 3600); } catch (e2) {}
-      }
-      Logger.log('getFileThumbnail_ A: returning direct image blob fileId=' + fileId);
-      return { thumbnail: directDataUrl };
+    var file = DriveApp.getFileById(fileId);
+    var blob = file.getBlob();
+    var contentType = blob.getContentType() || '';
+    if (contentType.indexOf('image/') !== 0) {
+      // 受け取ったのが PNG ではなく PDF だった等の異常系
+      Logger.log('getFileThumbnail_: not an image fileId=' + fileId + ' ct=' + contentType);
+      return { thumbnail: makePdfSvgPlaceholder_(file.getName()) };
     }
-
-    // PDF などはサムネイル取得を試行（多くの場合 null）
-    var thumbBlob = null;
-    try { thumbBlob = driveAppFile.getThumbnail(); } catch (eth) { Logger.log('getFileThumbnail_ A getThumbnail throw: ' + eth.message); }
-    if (thumbBlob) {
-      var thBase64 = Utilities.base64Encode(thumbBlob.getBytes());
-      var thDataUrl = 'data:' + (thumbBlob.getContentType() || 'image/png') + ';base64,' + thBase64;
-      if (thDataUrl.length < 95 * 1024) {
-        try { cache.put(cacheKey, thDataUrl, 3600); } catch (e3) {}
-      }
-      Logger.log('getFileThumbnail_ A: returning getThumbnail blob fileId=' + fileId);
-      return { thumbnail: thDataUrl };
+    var base64 = Utilities.base64Encode(blob.getBytes());
+    var dataUrl = 'data:' + contentType + ';base64,' + base64;
+    if (dataUrl.length < 95 * 1024) {
+      try { cache.put(cacheKey, dataUrl, 3600); } catch (e2) {}
     }
-    Logger.log('getFileThumbnail_ A: getThumbnail returned null fileId=' + fileId);
-  } catch (eA) {
-    Logger.log('getFileThumbnail_ A DriveApp.getFileById failed: ' + eA.message + ' fileId=' + fileId);
+    return { thumbnail: dataUrl };
+  } catch (e) {
+    Logger.log('getFileThumbnail_: error fileId=' + fileId + ' msg=' + e.message);
+    return { thumbnail: makePdfSvgPlaceholder_('PDF') };
   }
+}
 
-  // ── Strategy B: Drive REST API v3 files.get?fields=thumbnailLink
-  try {
-    var metaUrl = 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(fileId) +
-      '?fields=thumbnailLink,name,mimeType,owners(emailAddress),permissions(type,role)&supportsAllDrives=true';
-    var metaResp = UrlFetchApp.fetch(metaUrl, { muteHttpExceptions: true, headers: authHeaders });
-    var metaCode = metaResp.getResponseCode();
-    if (metaCode === 200) {
-      var meta = JSON.parse(metaResp.getContentText());
-      Logger.log('getFileThumbnail_ B files.get OK fileId=' + fileId +
-        ' mime=' + meta.mimeType + ' hasThumb=' + !!meta.thumbnailLink);
-      var thumbnailLink = meta && meta.thumbnailLink;
-      if (thumbnailLink) {
-        var sizedLink = thumbnailLink.replace(/=s\d+(-.+)?$/, '=w400').replace(/=s\d+$/, '=w400');
-        var imgResp = UrlFetchApp.fetch(sizedLink, {
-          muteHttpExceptions: true,
-          followRedirects: true,
-          headers: authHeaders,
-        });
-        var imgCode = imgResp.getResponseCode();
-        if (imgCode === 200) {
-          var bBlob = imgResp.getBlob();
-          var bCt = bBlob.getContentType() || 'image/png';
-          if (bCt.indexOf('image/') === 0) {
-            var bBase64 = Utilities.base64Encode(bBlob.getBytes());
-            var bDataUrl = 'data:' + bCt + ';base64,' + bBase64;
-            if (bDataUrl.length < 95 * 1024) {
-              try { cache.put(cacheKey, bDataUrl, 3600); } catch (e4) {}
-            }
-            Logger.log('getFileThumbnail_ B: returning thumbnailLink blob fileId=' + fileId);
-            return { thumbnail: bDataUrl };
-          }
-          Logger.log('getFileThumbnail_ B thumbnailLink ct=' + bCt);
-        } else {
-          Logger.log('getFileThumbnail_ B thumbnailLink fetch code=' + imgCode);
-        }
-      }
-    } else {
-      Logger.log('getFileThumbnail_ B files.get non-200: code=' + metaCode + ' fileId=' + fileId +
-        ' body=' + metaResp.getContentText().substring(0, 300));
-    }
-  } catch (eB) {
-    Logger.log('getFileThumbnail_ B Drive REST error: ' + eB.message + ' fileId=' + fileId);
-  }
-
-  // ── Strategy C: ファイルから PDF blob を取り、base64 で返却して client 側で PDF.js が無くても
-  // 一旦「PDF アイコン+ファイル名」プレースホルダで案内する（fallback）。
-  // ここでは server-side で SVG プレースホルダを返す（client 改修なし）。
-  if (driveAppFile) {
-    try {
-      var fname = driveAppFile.getName();
-      var safeName = String(fname || 'PDF').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').substring(0, 60);
-      var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180">' +
-        '<rect width="320" height="180" fill="#f1f5f9"/>' +
-        '<text x="160" y="80" text-anchor="middle" font-family="sans-serif" font-size="42" fill="#94a3b8">PDF</text>' +
-        '<text x="160" y="130" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#475569">' + safeName + '</text>' +
-        '</svg>';
-      var svgB64 = Utilities.base64Encode(Utilities.newBlob(svg, 'image/svg+xml').getBytes());
-      var svgDataUrl = 'data:image/svg+xml;base64,' + svgB64;
-      Logger.log('getFileThumbnail_ C: returning SVG placeholder fileId=' + fileId);
-      return { thumbnail: svgDataUrl };
-    } catch (eC) {
-      Logger.log('getFileThumbnail_ C SVG placeholder error: ' + eC.message);
-    }
-  }
-
-  Logger.log('getFileThumbnail_ EXIT: all strategies failed fileId=' + fileId);
-  return { thumbnail: null };
+function makePdfSvgPlaceholder_(name) {
+  var safe = String(name || 'PDF')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .substring(0, 60);
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180">' +
+    '<rect width="320" height="180" fill="#f1f5f9"/>' +
+    '<text x="160" y="80" text-anchor="middle" font-family="sans-serif" font-size="42" fill="#94a3b8">PDF</text>' +
+    '<text x="160" y="130" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#475569">' + safe + '</text>' +
+    '</svg>';
+  return 'data:image/svg+xml;base64,' + Utilities.base64Encode(Utilities.newBlob(svg, 'image/svg+xml').getBytes());
 }
 
 function getPublicTrainings_() {

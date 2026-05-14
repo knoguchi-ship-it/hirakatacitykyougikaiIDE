@@ -8,7 +8,9 @@ const root = join(__dirname, '..');
 const codePath = join(root, 'gas', 'admin', 'Code.gs');
 const htmlPath = join(root, 'gas', 'admin', 'index.html');
 
-const allowedTopLevelFunctions = ['doGet', 'processApiRequest'];
+// v349: regenerateAllThumbnails は clasp run 専用の MASTER 一括 backfill ツール。
+// processApiRequest ACL には登録せず、admin 側のみ top-level callable として残す。
+const allowedTopLevelFunctions = ['doGet', 'processApiRequest', 'regenerateAllThumbnails'];
 const allowedAdminLoginActions = ['checkAdminBySession', 'adminLoginWithData'];
 const allowedAdminActions = [
   'getDbInfo',

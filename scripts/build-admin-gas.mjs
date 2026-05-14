@@ -489,7 +489,9 @@ function buildAdminCode(source) {
     'getFileThumbnail',
   ]);
   code = removeIfBlock(code, "isMemberAction && !LOGIN_ONLY_MEMBER_ACTIONS[action]");
-  code = pruneUnreachableFunctionDeclarations(code, ['doGet', 'processApiRequest'], 'build-admin-gas');
+  // v349: regenerateAllThumbnails は clasp run 専用の admin backfill ツール。
+  // pruning の seed に加えて関数本体が残るようにする。
+  code = pruneUnreachableFunctionDeclarations(code, ['doGet', 'processApiRequest', 'regenerateAllThumbnails'], 'build-admin-gas');
   code = removeTopLevelFunctionDeclarations(code, [
     'rebuildDatabaseSchema',
     'cleanupDatabaseSheets',
@@ -498,7 +500,7 @@ function buildAdminCode(source) {
     'seedDemoData',
     'addDeleteLogSheet',
   ], 'build-admin-gas');
-  assertAllowedTopLevelFunctions(code, ['doGet', 'processApiRequest'], 'build-admin-gas');
+  assertAllowedTopLevelFunctions(code, ['doGet', 'processApiRequest', 'regenerateAllThumbnails'], 'build-admin-gas');
   return code;
 }
 

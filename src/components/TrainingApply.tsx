@@ -221,7 +221,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                     {/* 案内PDF サムネイル */}
                     {training.thumbnailUrl && (
                       <div className="mt-3 max-w-xs">
-                        <PdfThumbnail fileUrl={training.guidePdfUrl!} fetchThumbnail={api.getFileThumbnail.bind(api)} height={140} />
+                        <PdfThumbnail thumbnailUrl={training.thumbnailUrl!} fileUrl={training.guidePdfUrl} fetchThumbnail={api.getFileThumbnail.bind(api)} height={140} />
                       </div>
                     )}
 
@@ -385,7 +385,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                 {selectedHistoryTraining.guidePdfUrl ? (
                   <div className="space-y-2">
                     {selectedHistoryTraining.thumbnailUrl && (
-                      <PdfThumbnail fileUrl={selectedHistoryTraining.guidePdfUrl!} fetchThumbnail={api.getFileThumbnail.bind(api)} height={220} />
+                      <PdfThumbnail thumbnailUrl={selectedHistoryTraining.thumbnailUrl!} fileUrl={selectedHistoryTraining.guidePdfUrl} fetchThumbnail={api.getFileThumbnail.bind(api)} height={220} />
                     )}
                     <a href={selectedHistoryTraining.guidePdfUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[44px] items-center rounded-md px-2 text-sm font-medium text-primary-700 hover:bg-primary-50 hover:text-primary-900 hover:underline">
                       全ページを別タブで開く

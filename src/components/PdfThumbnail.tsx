@@ -1,15 +1,12 @@
 import React, { useEffect, useState } from 'react';
 
 interface PdfThumbnailProps {
-  /** Drive 上の元 PDF URL（/file/d/<id>/view 形式）。サムネイル base64 をサーバから取得するため必須。 */
-  fileUrl: string;
-  /**
-   * Drive ファイルのサムネイル base64 data URL を取得する関数。
-   * 境界（member / admin / public）ごとに異なる API 経路を渡す。
-   */
-  fetchThumbnail: (fileUrl: string) => Promise<string | null>;
-  /** サムネイル存在の事前ヒント。未設定でも fetch は試みる。 */
-  thumbnailUrl?: string;
+  /** Drive 上の事前生成 PNG サムネイルの URL（fetchThumbnail に渡される） */
+  thumbnailUrl: string;
+  /** PDF サムネイル base64 data URL を取得する関数（境界ごとに API 経路が違う） */
+  fetchThumbnail: (thumbnailUrl: string) => Promise<string | null>;
+  /** PDF 本体の URL（カードをクリックすると新しいタブで開く先） */
+  fileUrl?: string;
   /** サムネイル高さ px（デフォルト 140） */
   height?: number;
   /** 追加 className */
@@ -17,12 +14,14 @@ interface PdfThumbnailProps {
 }
 
 /**
- * v344: drive.google.com/uc?export=view&id=... の hotlink 制限により <img src> 直接参照が
- * 失敗する事象に対応。サムネイルは GAS proxy 経由で base64 data URL を取得して表示する。
+ * v349: 引数 thumbnailUrl は uploadTrainingFile_ がアップロード時に永続保存した
+ * PNG ファイルの Drive URL。fetchThumbnail でサーバーが PNG bytes を base64 化して
+ * 返す。クリック時は fileUrl (PDF) を新タブで開く。
  */
 const PdfThumbnail: React.FC<PdfThumbnailProps> = ({
-  fileUrl,
+  thumbnailUrl,
   fetchThumbnail,
+  fileUrl,
   height = 140,
   className = '',
 }) => {
@@ -30,14 +29,14 @@ const PdfThumbnail: React.FC<PdfThumbnailProps> = ({
   const [status, setStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
 
   useEffect(() => {
-    if (!fileUrl) {
+    if (!thumbnailUrl) {
       setDataUrl(null);
       setStatus('idle');
       return;
     }
     let cancelled = false;
     setStatus('loading');
-    fetchThumbnail(fileUrl)
+    fetchThumbnail(thumbnailUrl)
       .then((url) => {
         if (cancelled) return;
         if (url) {
@@ -56,7 +55,7 @@ const PdfThumbnail: React.FC<PdfThumbnailProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [fileUrl, fetchThumbnail]);
+  }, [thumbnailUrl, fetchThumbnail]);
 
   const clickable = !!fileUrl;
 

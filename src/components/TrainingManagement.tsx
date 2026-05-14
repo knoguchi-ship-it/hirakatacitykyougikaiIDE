@@ -173,10 +173,11 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
     setSaveError(null);
     try {
       const base64 = await readFileAsBase64(file);
+      // v349: uploadTrainingFile_ が PDF アップロードと同期して 1 ページ目の
+      // サムネイル PNG を生成・永続化する。所要 10〜15 秒。
       const result = await api.uploadTrainingFile(base64, file.name, file.type);
-      setForm((prev) => ({ ...prev, guidePdfUrl: result.url, thumbnailUrl: '' }));
+      setForm((prev) => ({ ...prev, guidePdfUrl: result.url, thumbnailUrl: result.thumbnailUrl || '' }));
       setUploadedFileName(file.name);
-      // サムネイルは GAS 時間ベーストリガーが 10 分後に自動生成する
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'ファイルアップロードに失敗しました。');
     } finally {
@@ -540,7 +541,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
               {isFieldOn('guidePdfUrl') ? (
                 <div className="flex items-center gap-3">
                   <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-700 hover:bg-slate-50">
-                    {uploading ? 'アップロード中...' : 'ファイルを選択'}
+                    {uploading ? 'アップロード中（サムネイルも生成中、10〜15 秒）...' : 'ファイルを選択'}
                     <input ref={fileInputRef} type="file" accept=".pdf,image/*" className="hidden" onChange={handleFileChange} disabled={uploading} />
                   </label>
                   {(uploadedFileName || form.guidePdfUrl) && (
@@ -569,7 +570,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
                       {form.guidePdfUrl && (
                         <div className="max-w-xs">
                           {form.thumbnailUrl ? (
-                            <PdfThumbnail fileUrl={form.guidePdfUrl} fetchThumbnail={api.getFileThumbnail.bind(api)} height={130} />
+                            <PdfThumbnail thumbnailUrl={form.thumbnailUrl} fileUrl={form.guidePdfUrl} fetchThumbnail={api.getFileThumbnail.bind(api)} height={130} />
                           ) : (
                             <p className="text-xs text-slate-400">
                               サムネイルは登録後 10〜20 分で自動生成されます。
