@@ -7,8 +7,10 @@ interface PdfThumbnailProps {
   fetchThumbnail: (thumbnailUrl: string) => Promise<string | null>;
   /** PDF 本体の URL（カードをクリックすると新しいタブで開く先） */
   fileUrl?: string;
-  /** サムネイル高さ px（デフォルト 140） */
+  /** サムネイル高さ px（aspectRatio 未指定時のデフォルト 140） */
   height?: number;
+  /** CSS aspect-ratio (例: '210 / 297' で A4 縦)。指定時は width=100% で aspect 維持。 */
+  aspectRatio?: string;
   /** 追加 className */
   className?: string;
 }
@@ -23,6 +25,7 @@ const PdfThumbnail: React.FC<PdfThumbnailProps> = ({
   fetchThumbnail,
   fileUrl,
   height = 140,
+  aspectRatio,
   className = '',
 }) => {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
@@ -63,10 +66,15 @@ const PdfThumbnail: React.FC<PdfThumbnailProps> = ({
     if (fileUrl) window.open(fileUrl, '_blank', 'noopener,noreferrer');
   };
 
+  // aspectRatio が指定されればそれを優先、なければ height 固定
+  const containerStyle: React.CSSProperties = aspectRatio
+    ? { aspectRatio, width: '100%' }
+    : { height };
+
   return (
     <div
       className={`relative overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-sm ${clickable ? 'cursor-pointer group' : ''} ${className}`}
-      style={{ height }}
+      style={containerStyle}
       onClick={clickable ? handleClick : undefined}
       role={clickable ? 'button' : undefined}
       aria-label={clickable ? '案内PDFを開く' : 'PDF サムネイル'}
