@@ -205,67 +205,138 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
           {availableTrainings.length === 0 ? (
             <div className="text-center py-8 text-slate-500 bg-slate-50 rounded-lg border border-dashed border-slate-300">現在、申込可能な研修はありません。</div>
           ) : (
-            <div className="grid gap-4">
-              {availableTrainings.map((training) => (
-                <div key={training.id} className="border border-slate-200 rounded-lg p-4 bg-white flex flex-col sm:flex-row justify-between items-start sm:items-center">
-                  <div className="mb-4 sm:mb-0">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded">受付中</span>
-                      <span className="text-sm text-slate-500">{formatDateTime(training.date)}</span>
-                    </div>
-                    <h4 className="font-bold text-slate-800 text-lg mb-1">{training.title}</h4>
-                    {training.summary && <p className="text-sm text-slate-600 mb-2">{training.summary}</p>}
-                    <p className="text-sm text-slate-600">{training.location || '-'} / 定員 {training.capacity}名</p>
-                    <p className="text-sm text-slate-700 mt-1">会員研修費: {getMemberFeeAmount(training) > 0 ? formatYen(getMemberFeeAmount(training)) : '無料'}</p>
+            <div className="grid gap-5">
+              {availableTrainings.map((training) => {
+                const memberFee = getMemberFeeAmount(training);
+                const isSubmitting = submittingTrainingId === training.id;
+                const isExpanded = expandedTrainingId === training.id;
+                return (
+                  <article key={training.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    {/* ヘッダー: 受付中バッジ + 開催日時 */}
+                    <header className="flex flex-wrap items-center gap-3 px-4 py-3 bg-gradient-to-r from-primary-50 to-white border-b border-slate-100">
+                      <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-1">受付中</span>
+                      <span className="text-sm font-medium text-slate-700">{formatDateTime(training.date)}</span>
+                    </header>
 
-                    {/* 案内PDF サムネイル */}
-                    {training.thumbnailUrl && (
-                      <div className="mt-3 max-w-xs">
-                        <PdfThumbnail thumbnailUrl={training.thumbnailUrl!} fileUrl={training.guidePdfUrl} fetchThumbnail={api.getFileThumbnail.bind(api)} height={140} />
+                    <div className="flex flex-col sm:flex-row gap-5 p-4 sm:p-6">
+                      {/* 左カラム: A4 縦 PDF サムネイル */}
+                      <div className="w-full max-w-[180px] sm:max-w-[200px] mx-auto sm:mx-0 flex-shrink-0">
+                        {training.thumbnailUrl ? (
+                          <PdfThumbnail
+                            thumbnailUrl={training.thumbnailUrl}
+                            fileUrl={training.guidePdfUrl}
+                            fetchThumbnail={api.getFileThumbnail.bind(api)}
+                            aspectRatio="210 / 297"
+                          />
+                        ) : (
+                          <div
+                            className="flex items-center justify-center bg-slate-100 border border-slate-200 rounded-xl text-slate-400 text-xs text-center px-2"
+                            style={{ aspectRatio: '210 / 297' }}
+                            aria-label="案内PDFサムネイルなし"
+                          >
+                            案内PDFサムネイル<br />未生成
+                          </div>
+                        )}
+                        {training.guidePdfUrl && (
+                          <a
+                            href={training.guidePdfUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-2 inline-flex min-h-[44px] items-center justify-center gap-1 w-full px-2 text-xs font-medium text-primary-700 hover:bg-primary-50 hover:underline rounded-md"
+                            aria-label={`${training.title} の案内PDFを別タブで開く`}
+                          >
+                            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>
+                            案内PDFを全ページ開く
+                          </a>
+                        )}
                       </div>
-                    )}
 
-                    <div className="mt-2 flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setExpandedTrainingId((prev) => (prev === training.id ? null : training.id))}
-                        className="inline-flex min-h-[44px] items-center rounded-md px-2 text-sm font-medium text-primary-700 hover:bg-primary-50 hover:text-primary-900 hover:underline"
-                      >
-                        {expandedTrainingId === training.id ? '詳細を閉じる' : '詳細を見る'}
-                      </button>
-                      {training.guidePdfUrl && (
-                        <a href={training.guidePdfUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[44px] items-center rounded-md px-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50 hover:text-indigo-900 hover:underline">
-                          案内PDFを全ページ開く
-                        </a>
-                      )}
-                    </div>
+                      {/* 右カラム: 詳細情報 + CTA */}
+                      <div className="flex-1 flex flex-col gap-3 min-w-0">
+                        <h4 className="text-lg sm:text-xl font-bold text-slate-900 leading-snug break-words">{training.title}</h4>
 
-                    {expandedTrainingId === training.id && training.description && (
-                      <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded text-sm text-slate-700 max-w-xl">
-                        {training.description}
+                        {training.summary && (
+                          <p className="text-sm text-slate-700 leading-relaxed">{training.summary}</p>
+                        )}
+
+                        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+                          <div className="flex gap-2">
+                            <dt className="font-medium text-slate-500 whitespace-nowrap min-w-[5rem]">開催日時</dt>
+                            <dd className="text-slate-800 break-words">{formatDateTime(training.date)}</dd>
+                          </div>
+                          <div className="flex gap-2">
+                            <dt className="font-medium text-slate-500 whitespace-nowrap min-w-[5rem]">会場</dt>
+                            <dd className="text-slate-800 break-words">{training.location || '-'}</dd>
+                          </div>
+                          {training.organizer && (
+                            <div className="flex gap-2">
+                              <dt className="font-medium text-slate-500 whitespace-nowrap min-w-[5rem]">主催</dt>
+                              <dd className="text-slate-800 break-words">{training.organizer}</dd>
+                            </div>
+                          )}
+                          {training.instructor && (
+                            <div className="flex gap-2">
+                              <dt className="font-medium text-slate-500 whitespace-nowrap min-w-[5rem]">講師</dt>
+                              <dd className="text-slate-800 break-words">{training.instructor}</dd>
+                            </div>
+                          )}
+                          {training.capacity > 0 && (
+                            <div className="flex gap-2">
+                              <dt className="font-medium text-slate-500 whitespace-nowrap min-w-[5rem]">定員</dt>
+                              <dd className="text-slate-800">{training.capacity}名</dd>
+                            </div>
+                          )}
+                          <div className="flex gap-2">
+                            <dt className="font-medium text-slate-500 whitespace-nowrap min-w-[5rem]">会員研修費</dt>
+                            <dd className="font-semibold text-slate-900">{memberFee > 0 ? formatYen(memberFee) : '無料'}</dd>
+                          </div>
+                        </dl>
+
+                        {training.description && (
+                          <div>
+                            <button
+                              type="button"
+                              onClick={() => setExpandedTrainingId((prev) => (prev === training.id ? null : training.id))}
+                              className="inline-flex min-h-[44px] items-center rounded-md px-2 text-sm font-medium text-primary-700 hover:bg-primary-50 hover:text-primary-900 hover:underline"
+                              aria-expanded={isExpanded}
+                            >
+                              {isExpanded ? '詳細を閉じる ▲' : '詳細を見る ▼'}
+                            </button>
+                            {isExpanded && (
+                              <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
+                                {training.description}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="mt-auto pt-3 border-t border-slate-100 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => openApplyConfirm(training)}
+                            disabled={submittingTrainingId !== null}
+                            className={`whitespace-nowrap inline-flex min-h-[44px] items-center font-bold py-2 px-6 rounded-lg shadow-sm ${
+                              isSubmitting ? 'bg-slate-300 text-slate-500 cursor-wait' : 'bg-primary-600 hover:bg-primary-700 text-white'
+                            }`}
+                            aria-label={`${training.title} に申し込む`}
+                          >
+                            {isSubmitting ? (
+                              '処理中...'
+                            ) : (
+                              <>
+                                <PlusIcon className="w-4 h-4 mr-1" />
+                                {needsFeeConfirmation(training) ? '費用確認して申込' : '申し込む'}
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
-                    )}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => openApplyConfirm(training)}
-                    disabled={submittingTrainingId !== null}
-                    className={`whitespace-nowrap inline-flex min-h-[44px] items-center font-bold py-2 px-6 rounded-lg shadow-sm ${
-                      submittingTrainingId === training.id ? 'bg-slate-300 text-slate-500 cursor-wait' : 'bg-primary-600 hover:bg-primary-700 text-white'
-                    }`}
-                  >
-                    {submittingTrainingId === training.id ? (
-                      '処理中...'
-                    ) : (
-                      <>
-                        <PlusIcon className="w-4 h-4 mr-1" />
-                        {needsFeeConfirmation(training) ? '費用確認して申込' : '申込する'}
-                      </>
-                    )}
-                  </button>
-                </div>
-              ))}
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           )}
         </div>
