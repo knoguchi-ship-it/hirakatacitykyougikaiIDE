@@ -117,6 +117,9 @@ async function run() {
   console.log(`[admin] navigating to ${ADMIN_URL}`);
   await page.goto(ADMIN_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
+  // v351: bundle size (pdfjs-dist 込み) で初回 load が 60s 超えるケースあり。
+  // getAppFrame は 50s timeout で固定なので、明示的に追加待機しておく。
+  await page.waitForTimeout(20000);
   const frame = await getAppFrame(page, /管理|ダッシュボード|研修管理/);
   await shot(page, 'after-load');
 

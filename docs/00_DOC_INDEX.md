@@ -32,7 +32,8 @@
 
 | 文書 | 内容 |
 |---|---|
-| `docs/217_RELEASE_STATE_v350_2026-05-14.md` | **最新本番** v350。案内 PDF サムネイル運用強化 (hasThumbnail polling + 10 分 trigger backfill + admin 手動再生成ボタン)、integrated-public `@309` x2 / member `@66` / admin `@108` |
+| `docs/218_RELEASE_STATE_v351_2026-05-14.md` | **最新本番** v351。pdfjs-dist client-side 即時レンダリングで PDF 1 ページ目サムネイル生成、Drive 待ち排除、integrated-public `@310` x2 / member `@67` / admin `@109` |
+| `docs/217_RELEASE_STATE_v350_2026-05-14.md` | v350。案内 PDF サムネイル運用強化 (hasThumbnail polling + 10 分 trigger backfill + admin 手動再生成ボタン)、integrated-public `@309` x2 / member `@66` / admin `@108` |
 | `docs/216_RELEASE_STATE_v349_2026-05-14.md` | v349。案内 PDF サムネイルをアップロード時に Drive 上 PNG として永続化する構造改修、integrated-public `@308` x2 / member `@65` / admin `@107` |
 | `docs/215_RELEASE_STATE_v347_2026-05-14.md` | v347。案内 PDF サムネイル Drive REST + thumbnailLink 経路化（既存 PDF の identity 罠で未解消、v349 で構造改修）、integrated-public `@306` x2 / member `@63` / admin `@105` |
 | `docs/214_RELEASE_STATE_v345_2026-05-13.md` | v345。案内 PDF サムネイル真因再特定（DriveApp.getThumbnail は PDF 非対応）→ UrlFetch(drive.google.com/thumbnail) 経由化（本番 403 残存、v347 で再修正）、integrated-public `@304` x2 / member `@61` / admin `@103` |
