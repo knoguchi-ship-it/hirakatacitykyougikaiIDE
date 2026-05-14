@@ -1395,6 +1395,8 @@ var ADMIN_ACTION_PERMISSIONS = {
   'saveAnnualFeeRecordsBatch': ['MASTER','ADMIN'],
   'saveTraining': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
   'uploadTrainingFile': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
+  // v350: 失敗時の手動サムネイル再生成
+  'regenerateThumbnailForTraining': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
   'setupTrainingFileFolder': ['MASTER','ADMIN'],
   'getTrainingManagementData': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
   'getTrainingApplicants': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
@@ -1778,6 +1780,10 @@ function processApiRequest(action, payload) {
 
     if (action === 'uploadTrainingFile') {
       return JSON.stringify({ success: true, data: uploadTrainingFile_(parsedPayload) });
+    }
+
+    if (action === 'regenerateThumbnailForTraining') {
+      return JSON.stringify({ success: true, data: regenerateThumbnailForTraining_(parsedPayload) });
     }
 
     if (action === 'setupTrainingFileFolder') {
@@ -11973,6 +11979,8 @@ function uploadTrainingFile_(payload) {
   var pdfFileId = file.getId();
   var pdfFileUrl = file.getUrl();
   var thumbnailUrl = '';
+  // v350: client が UX を切り替えるための状態。'skipped' は PDF 以外。
+  var thumbnailGenerationStatus = 'skipped';
 
   // v349: PDF アップロード時に 1 ページ目のサムネイル PNG を生成・永続化する。
   // Drive 自体の thumbnailLink が新規アップロード直後は同一 OAuth identity で
@@ -11983,13 +11991,120 @@ function uploadTrainingFile_(payload) {
   if (looksLikePdf) {
     try {
       thumbnailUrl = generateAndSaveThumbnailForPdf_(pdfFileId, folder) || '';
+      thumbnailGenerationStatus = thumbnailUrl ? 'generated' : 'pending';
     } catch (e) {
       Logger.log('uploadTrainingFile_: thumbnail generation failed pdfFileId=' + pdfFileId + ': ' + e.message);
       thumbnailUrl = '';
+      thumbnailGenerationStatus = 'failed';
     }
   }
 
-  return { url: pdfFileUrl, driveFileId: pdfFileId, thumbnailUrl: thumbnailUrl };
+  return {
+    url: pdfFileUrl,
+    driveFileId: pdfFileId,
+    thumbnailUrl: thumbnailUrl,
+    thumbnailGenerationStatus: thumbnailGenerationStatus,
+  };
+}
+
+/**
+ * v350: 単一研修のサムネイル PNG を再生成する admin action。
+ * 編集モーダルの「サムネイル再生成」ボタンから呼ぶ。
+ * payload: { trainingId }
+ * 返り値: { trainingId, thumbnailUrl, thumbnailGenerationStatus, reason? }
+ */
+function regenerateThumbnailForTraining_(payload) {
+  var trainingId = String((payload && payload.trainingId) || '').trim();
+  if (!trainingId) throw new Error('trainingId が未指定です。');
+  var ss = getOrCreateDatabase_();
+  var folder = getOrCreateTrainingFolder_(ss);
+  var rows = getRowsAsObjects_(ss, 'T_研修').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var row = rows.find ? rows.find(function(r) { return String(r['研修ID']) === trainingId; })
+    : (function() { for (var i = 0; i < rows.length; i += 1) if (String(rows[i]['研修ID']) === trainingId) return rows[i]; return null; })();
+  if (!row) throw new Error('研修ID「' + trainingId + '」が見つかりません。');
+
+  var pdfUrl = String(row['案内状URL'] || '').trim();
+  if (!pdfUrl) {
+    return { trainingId: trainingId, thumbnailUrl: '', thumbnailGenerationStatus: 'skipped', reason: 'no_pdf' };
+  }
+  var pdfIdMatch = pdfUrl.match(/\/file\/d\/([^/?]+)/) || pdfUrl.match(/[?&]id=([^&]+)/);
+  if (!pdfIdMatch) {
+    return { trainingId: trainingId, thumbnailUrl: '', thumbnailGenerationStatus: 'failed', reason: 'pdf_url_unparseable' };
+  }
+  var pdfId = pdfIdMatch[1];
+  var oldThumb = String(row['案内状サムネイルURL'] || '').trim();
+  try {
+    var newThumbUrl = generateAndSaveThumbnailForPdf_(pdfId, folder);
+    if (!newThumbUrl) {
+      return { trainingId: trainingId, thumbnailUrl: '', thumbnailGenerationStatus: 'pending', reason: 'thumbnail_not_ready' };
+    }
+    updateTrainingThumbnailUrlByRowId_(ss, trainingId, newThumbUrl);
+    if (oldThumb) trashFileFromUrlIfPossible_(oldThumb);
+    clearAllDataCache_();
+    clearAdminDashboardCache_();
+    clearTrainingManagementCache_();
+    return { trainingId: trainingId, thumbnailUrl: newThumbUrl, thumbnailGenerationStatus: 'generated' };
+  } catch (e) {
+    Logger.log('regenerateThumbnailForTraining_: error trainingId=' + trainingId + ' msg=' + e.message);
+    return { trainingId: trainingId, thumbnailUrl: '', thumbnailGenerationStatus: 'failed', reason: String(e.message || e).substring(0, 200) };
+  }
+}
+
+/**
+ * v350: 10 分ごとに時間ベーストリガーから呼ばれる pending backfill。
+ * thumbnailUrl 空の T_研修 行を最大 5 件処理する（Apps Script 6 分制限を考慮）。
+ * Drive が 5 分以上かけて生成する大きい PDF も時間経過で hasThumbnail=true に
+ * なるため、繰り返し trigger で最終的に救済される。
+ */
+function processPendingThumbnails() {
+  try {
+    var ss = getOrCreateDatabase_();
+    var folder = getOrCreateTrainingFolder_(ss);
+    var rows = getRowsAsObjects_(ss, 'T_研修').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+    var MAX_BATCH = 5;
+    var processed = 0;
+    for (var i = 0; i < rows.length && processed < MAX_BATCH; i += 1) {
+      var row = rows[i];
+      if (String(row['案内状サムネイルURL'] || '').trim()) continue;
+      var pdfUrl = String(row['案内状URL'] || '').trim();
+      if (!pdfUrl) continue;
+      var m = pdfUrl.match(/\/file\/d\/([^/?]+)/) || pdfUrl.match(/[?&]id=([^&]+)/);
+      if (!m) continue;
+      try {
+        var newUrl = generateAndSaveThumbnailForPdf_(m[1], folder);
+        if (newUrl) {
+          updateTrainingThumbnailUrlByRowId_(ss, String(row['研修ID']), newUrl);
+          Logger.log('processPendingThumbnails: backfilled trainingId=' + row['研修ID']);
+          processed += 1;
+        }
+      } catch (e) {
+        Logger.log('processPendingThumbnails: error trainingId=' + row['研修ID'] + ' ' + e.message);
+      }
+    }
+    if (processed > 0) {
+      clearAllDataCache_();
+      clearAdminDashboardCache_();
+      clearTrainingManagementCache_();
+    }
+  } catch (e) {
+    Logger.log('processPendingThumbnails: fatal ' + e.message);
+  }
+}
+
+/**
+ * v350: processPendingThumbnails を 10 分ごとに走らせるトリガーを登録する。
+ * 既存の同名トリガーを削除して再登録（冪等）。
+ * admin の Apps Script editor から 1 回手動実行する想定。
+ */
+function setupPendingThumbnailsTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'processPendingThumbnails') {
+      ScriptApp.deleteTrigger(t);
+    }
+  });
+  ScriptApp.newTrigger('processPendingThumbnails').timeBased().everyMinutes(10).create();
+  Logger.log('setupPendingThumbnailsTrigger: trigger installed (every 10 min).');
+  return { ok: true, intervalMinutes: 10 };
 }
 
 /**
@@ -12014,12 +12129,18 @@ function generateAndSaveThumbnailForPdf_(pdfFileId, folder) {
   if (!pdfFileId) return '';
   var authHeaders = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
 
+  // v350: hasThumbnail boolean field を真実情報として polling する。
+  // Drive コミュニティ推奨 (Latenode thread, 2024-2025) では 10-15 秒初動 +
+  // 30s 毎に 5 分まで polling だが、Web App の同期 path で 5 分は不可。
+  // ここでは admin の UX を考慮し最大 25 秒 (5s x 5 回) まで sync で粘る。
+  // 間に合わなければ '' を返し、time-based trigger (processPendingThumbnails_)
+  // が後追いで生成する。
   var thumbnailLink = '';
-  var maxAttempts = 3;
+  var maxAttempts = 5;
   for (var attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    Utilities.sleep(attempt === 1 ? 3000 : 4000);
+    Utilities.sleep(5000);
     var metaUrl = 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(pdfFileId) +
-      '?fields=thumbnailLink,mimeType&supportsAllDrives=true';
+      '?fields=thumbnailLink,hasThumbnail,mimeType&supportsAllDrives=true';
     var metaResp = UrlFetchApp.fetch(metaUrl, { muteHttpExceptions: true, headers: authHeaders });
     var metaCode = metaResp.getResponseCode();
     if (metaCode !== 200) {
@@ -12029,15 +12150,21 @@ function generateAndSaveThumbnailForPdf_(pdfFileId, folder) {
       continue;
     }
     var meta = JSON.parse(metaResp.getContentText());
-    thumbnailLink = (meta && meta.thumbnailLink) || '';
-    if (thumbnailLink) break;
-    Logger.log('generateAndSaveThumbnailForPdf_: thumbnailLink absent attempt=' + attempt +
+    if (meta && meta.hasThumbnail && meta.thumbnailLink) {
+      thumbnailLink = meta.thumbnailLink;
+      Logger.log('generateAndSaveThumbnailForPdf_: hasThumbnail=true at attempt=' + attempt +
+        ' pdfFileId=' + pdfFileId);
+      break;
+    }
+    Logger.log('generateAndSaveThumbnailForPdf_: hasThumbnail=' + (meta && meta.hasThumbnail) +
+      ' thumbnailLink=' + (meta && !!meta.thumbnailLink) + ' attempt=' + attempt +
       ' pdfFileId=' + pdfFileId);
   }
 
   if (!thumbnailLink) {
-    Logger.log('generateAndSaveThumbnailForPdf_: thumbnailLink not produced after ' +
-      maxAttempts + ' attempts pdfFileId=' + pdfFileId);
+    Logger.log('generateAndSaveThumbnailForPdf_: not ready after ' +
+      maxAttempts + ' attempts pdfFileId=' + pdfFileId +
+      ' — processPendingThumbnails_ trigger will retry later');
     return '';
   }
 

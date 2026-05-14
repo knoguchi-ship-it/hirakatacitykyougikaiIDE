@@ -72,6 +72,9 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState('');
+  // v350: サムネイル生成/再生成の即時状態
+  const [thumbnailStatus, setThumbnailStatus] = useState<'idle' | 'pending' | 'failed' | 'regenerating'>('idle');
+  const [thumbnailStatusMsg, setThumbnailStatusMsg] = useState<string>('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [panelView, setPanelView] = useState<PanelView>('form');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -178,6 +181,19 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
       const result = await api.uploadTrainingFile(base64, file.name, file.type);
       setForm((prev) => ({ ...prev, guidePdfUrl: result.url, thumbnailUrl: result.thumbnailUrl || '' }));
       setUploadedFileName(file.name);
+      // v350: 生成状態を即時反映。pending は trigger による後追い生成、failed は手動再生成促し
+      const st = result.thumbnailGenerationStatus;
+      if (st === 'generated') { setThumbnailStatus('idle'); setThumbnailStatusMsg(''); }
+      else if (st === 'pending') {
+        setThumbnailStatus('pending');
+        setThumbnailStatusMsg('サムネイル生成に時間がかかっています。10 分以内に自動生成されます。すぐ反映したい場合は「サムネイル再生成」を押してください。');
+      } else if (st === 'failed') {
+        setThumbnailStatus('failed');
+        setThumbnailStatusMsg('サムネイル生成に失敗しました。「サムネイル再生成」で再試行してください。');
+      } else {
+        setThumbnailStatus('idle');
+        setThumbnailStatusMsg('');
+      }
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'ファイルアップロードに失敗しました。');
     } finally {
@@ -566,15 +582,50 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
                           <TrashIcon className="w-4 h-4" />
                         </button>
                       </div>
-                      {/* アップロード後プレビュー */}
+                      {/* アップロード後プレビュー + v350 即時再生成 UI */}
                       {form.guidePdfUrl && (
-                        <div className="max-w-xs">
+                        <div className="max-w-sm space-y-2">
                           {form.thumbnailUrl ? (
                             <PdfThumbnail thumbnailUrl={form.thumbnailUrl} fileUrl={form.guidePdfUrl} fetchThumbnail={api.getFileThumbnail.bind(api)} height={130} />
                           ) : (
-                            <p className="text-xs text-slate-400">
-                              サムネイルは登録後 10〜20 分で自動生成されます。
+                            <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded p-2">
+                              サムネイル画像はまだ生成されていません。
                             </p>
+                          )}
+                          {(thumbnailStatusMsg || thumbnailStatus !== 'idle') && (
+                            <p className={`text-xs ${thumbnailStatus === 'failed' ? 'text-red-600' : 'text-amber-700'}`}>
+                              {thumbnailStatusMsg}
+                            </p>
+                          )}
+                          {form.id && (
+                            <button
+                              type="button"
+                              disabled={thumbnailStatus === 'regenerating'}
+                              onClick={async () => {
+                                setThumbnailStatus('regenerating');
+                                setThumbnailStatusMsg('サムネイルを再生成中...');
+                                try {
+                                  const r = await api.regenerateThumbnailForTraining(form.id!);
+                                  if (r.thumbnailGenerationStatus === 'generated' && r.thumbnailUrl) {
+                                    setForm((prev) => ({ ...prev, thumbnailUrl: r.thumbnailUrl }));
+                                    setThumbnailStatus('idle');
+                                    setThumbnailStatusMsg('サムネイルを再生成しました。');
+                                  } else if (r.thumbnailGenerationStatus === 'pending') {
+                                    setThumbnailStatus('pending');
+                                    setThumbnailStatusMsg('Drive 側のサムネイル生成がまだ完了していません。1〜5 分待って再試行してください。');
+                                  } else {
+                                    setThumbnailStatus('failed');
+                                    setThumbnailStatusMsg(`サムネイル再生成に失敗しました: ${r.reason || r.thumbnailGenerationStatus}`);
+                                  }
+                                } catch (e) {
+                                  setThumbnailStatus('failed');
+                                  setThumbnailStatusMsg(e instanceof Error ? e.message : 'サムネイル再生成に失敗しました。');
+                                }
+                              }}
+                              className="inline-flex min-h-[44px] items-center gap-2 px-3 py-2 text-xs rounded border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-50"
+                            >
+                              {thumbnailStatus === 'regenerating' ? '再生成中...' : 'サムネイル再生成'}
+                            </button>
                           )}
                         </div>
                       )}

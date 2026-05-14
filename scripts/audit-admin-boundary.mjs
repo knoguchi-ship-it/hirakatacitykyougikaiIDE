@@ -9,8 +9,16 @@ const codePath = join(root, 'gas', 'admin', 'Code.gs');
 const htmlPath = join(root, 'gas', 'admin', 'index.html');
 
 // v349: regenerateAllThumbnails は clasp run 専用の MASTER 一括 backfill ツール。
-// processApiRequest ACL には登録せず、admin 側のみ top-level callable として残す。
-const allowedTopLevelFunctions = ['doGet', 'processApiRequest', 'regenerateAllThumbnails'];
+// v350: processPendingThumbnails と setupPendingThumbnailsTrigger は時間ベース
+// トリガー (10 分毎の pending backfill) 用 / 1 回登録用。いずれも admin のみ
+// top-level callable として残す（member/public からは pruning）。
+const allowedTopLevelFunctions = [
+  'doGet',
+  'processApiRequest',
+  'regenerateAllThumbnails',
+  'processPendingThumbnails',
+  'setupPendingThumbnailsTrigger',
+];
 const allowedAdminLoginActions = ['checkAdminBySession', 'adminLoginWithData'];
 const allowedAdminActions = [
   'getDbInfo',
@@ -112,6 +120,8 @@ const allowedAdminActions = [
   'setDefaultRosterTemplate',
   // v344: 案内PDFサムネイル Drive proxy
   'getFileThumbnail',
+  // v350: 失敗時の手動サムネイル再生成
+  'regenerateThumbnailForTraining',
 ];
 const forbiddenTopLevelFunctions = [
   'rebuildDatabaseSchema',

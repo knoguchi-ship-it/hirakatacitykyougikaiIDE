@@ -102,9 +102,11 @@ export interface ApiClient {
   }): Promise<void>;
   deleteAdminPermission(id: string): Promise<void>;
   saveTraining(training: Training): Promise<Training>;
-  uploadTrainingFile(base64: string, filename: string, mimeType: string): Promise<{ url: string; driveFileId?: string; thumbnailUrl?: string }>;
+  uploadTrainingFile(base64: string, filename: string, mimeType: string): Promise<{ url: string; driveFileId?: string; thumbnailUrl?: string; thumbnailGenerationStatus?: 'generated' | 'pending' | 'failed' | 'skipped' }>;
   // v344: 案内PDF サムネイルを GAS proxy 経由で base64 data URL として取得（hotlink 制限回避）
   getFileThumbnail(fileUrl: string): Promise<string | null>;
+  // v350: 案内PDF サムネイル手動再生成（編集モーダルから 1 クリック）
+  regenerateThumbnailForTraining(trainingId: string): Promise<{ trainingId: string; thumbnailUrl: string; thumbnailGenerationStatus: 'generated' | 'pending' | 'failed' | 'skipped'; reason?: string }>;
   applyTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ applicationId: string; applicants: number; duplicate?: boolean }>;
   cancelTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ canceled: boolean; applicants: number }>;
   getTrainingApplicants(trainingId: string): Promise<TrainingApplicantRow[]>;
@@ -970,6 +972,27 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('uploadTrainingFile', JSON.stringify({ base64, filename, mimeType }));
+    });
+  }
+
+  async regenerateThumbnailForTraining(trainingId: string): Promise<{ trainingId: string; thumbnailUrl: string; thumbnailGenerationStatus: 'generated' | 'pending' | 'failed' | 'skipped'; reason?: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data);
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('regenerateThumbnailForTraining', JSON.stringify({ trainingId }));
     });
   }
 

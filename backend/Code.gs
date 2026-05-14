@@ -797,6 +797,7 @@ function processApiRequest(action, payload) {
 
 
 
+
     if (action === 'getPublicTrainings') {
       return getPublicTrainings_();
     }
@@ -2402,6 +2403,20 @@ function computeTrainingAvailability_(trainingRow, options) {
  * 設定画面の「フォルダを作成・設定する」ボタンから呼び出す。
  */
 
+
+/**
+ * v350: 単一研修のサムネイル PNG を再生成する admin action。
+ * 編集モーダルの「サムネイル再生成」ボタンから呼ぶ。
+ * payload: { trainingId }
+ * 返り値: { trainingId, thumbnailUrl, thumbnailGenerationStatus, reason? }
+ */
+
+/**
+ * v350: 10 分ごとに時間ベーストリガーから呼ばれる pending backfill。
+ * thumbnailUrl 空の T_研修 行を最大 5 件処理する（Apps Script 6 分制限を考慮）。
+ * Drive が 5 分以上かけて生成する大きい PDF も時間経過で hasThumbnail=true に
+ * なるため、繰り返し trigger で最終的に救済される。
+ */
 
 /**
  * v349: 既存 PDF (Drive 上の fileId) から 1 ページ目のサムネイル PNG を生成し、

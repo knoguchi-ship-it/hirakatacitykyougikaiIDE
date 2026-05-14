@@ -487,11 +487,20 @@ function buildAdminCode(source) {
     'setDefaultRosterTemplate',
     // v344: 案内PDFサムネイル Drive proxy
     'getFileThumbnail',
+    // v350: 失敗時の手動サムネイル再生成
+    'regenerateThumbnailForTraining',
   ]);
   code = removeIfBlock(code, "isMemberAction && !LOGIN_ONLY_MEMBER_ACTIONS[action]");
   // v349: regenerateAllThumbnails は clasp run 専用の admin backfill ツール。
-  // pruning の seed に加えて関数本体が残るようにする。
-  code = pruneUnreachableFunctionDeclarations(code, ['doGet', 'processApiRequest', 'regenerateAllThumbnails'], 'build-admin-gas');
+  // v350: processPendingThumbnails は time-based trigger、setupPendingThumbnailsTrigger
+  // は 1 回登録。いずれも seed に加える。
+  code = pruneUnreachableFunctionDeclarations(code, [
+    'doGet',
+    'processApiRequest',
+    'regenerateAllThumbnails',
+    'processPendingThumbnails',
+    'setupPendingThumbnailsTrigger',
+  ], 'build-admin-gas');
   code = removeTopLevelFunctionDeclarations(code, [
     'rebuildDatabaseSchema',
     'cleanupDatabaseSheets',
@@ -500,7 +509,13 @@ function buildAdminCode(source) {
     'seedDemoData',
     'addDeleteLogSheet',
   ], 'build-admin-gas');
-  assertAllowedTopLevelFunctions(code, ['doGet', 'processApiRequest', 'regenerateAllThumbnails'], 'build-admin-gas');
+  assertAllowedTopLevelFunctions(code, [
+    'doGet',
+    'processApiRequest',
+    'regenerateAllThumbnails',
+    'processPendingThumbnails',
+    'setupPendingThumbnailsTrigger',
+  ], 'build-admin-gas');
   return code;
 }
 
