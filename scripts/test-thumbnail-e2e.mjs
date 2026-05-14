@@ -115,12 +115,28 @@ async function run() {
   });
 
   console.log(`[admin] navigating to ${ADMIN_URL}`);
-  await page.goto(ADMIN_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await page.goto(ADMIN_URL, { waitUntil: 'domcontentloaded', timeout: 120000 });
+  await page.waitForLoadState('networkidle', { timeout: 120000 }).catch(() => {});
 
-  // v351: bundle size (pdfjs-dist 込み) で初回 load が 60s 超えるケースあり。
-  // getAppFrame は 50s timeout で固定なので、明示的に追加待機しておく。
-  await page.waitForTimeout(20000);
-  const frame = await getAppFrame(page, /管理|ダッシュボード|研修管理/);
+  // v351: pdfjs-dist 込みの bundle で初回 frame 検出に時間がかかる。
+  // 標準 getAppFrame (50s) を頼らず、より長い猶予で frame を探す。
+  const expectText = /管理|ダッシュボード|研修管理|システム管理者/;
+  let frame = null;
+  const frameDeadline = Date.now() + 150 * 1000;
+  while (Date.now() < frameDeadline && !frame) {
+    for (const f of page.frames()) {
+      try {
+        const info = await f.evaluate(() => {
+          const t = (document.body && document.body.innerText || '');
+          return { len: t.length, txt: t.slice(0, 200) };
+        });
+        if (info.len > 20 && expectText.test(info.txt)) { frame = f; break; }
+      } catch { /* mid-attach */ }
+    }
+    if (!frame) await page.waitForTimeout(500);
+  }
+  if (!frame) throw new Error('App frame did not appear within 150s (v351 e2e)');
+  console.log(`[admin] app frame detected after ${((Date.now() - frameDeadline + 150000) / 1000).toFixed(1)}s of polling`);
   await shot(page, 'after-load');
 
   // Expand the 研修・通知 group and click 研修管理
