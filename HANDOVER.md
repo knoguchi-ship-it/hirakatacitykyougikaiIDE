@@ -1,8 +1,10 @@
 # 開発引継ぎ
 
 更新日: 2026-05-14
-現行本番: `v349`（案内 PDF サムネイル: アップロード時に PNG 1 ページ目を Drive に永続化する pipeline に再設計） / integrated-public GAS version `308` / member split GAS version `65` / admin split GAS version `107`
-fixed deployment: integrated/public `@308` x2 / member split `@65` / admin split `@107`
+現行本番: `v350`（案内 PDF サムネイル: hasThumbnail polling 強化 + 10 分 trigger 後追い backfill + admin 手動再生成ボタン） / integrated-public GAS version `309` / member split GAS version `66` / admin split GAS version `108`
+fixed deployment: integrated/public `@309` x2 / member split `@66` / admin split `@108`
+
+> **2026-05-14 v350 反映済み**: v349 で残った「アップロード直後の Drive thumbnailLink が間に合わず thumbnailUrl='' のまま」事象を Web 検索のベストプラクティスで再評価し、(1) polling を `hasThumbnail` field + 5s×5回=最大 25 秒へ強化、(2) 10 分毎の `processPendingThumbnails` trigger を導入し大きい PDF を後追い backfill、(3) admin 編集モーダルに「サムネイル再生成」ボタン (`regenerateThumbnailForTraining` action) を追加。Playwright e2e で 24 秒で 24KB の base64 PNG 描画を確認。**operator 必須**: Apps Script editor で **`setupPendingThumbnailsTrigger` を 1 回 Run** して 10 分 trigger を登録すること。詳細: `docs/217_RELEASE_STATE_v350_2026-05-14.md`
 
 > **2026-05-14 v349 反映済み**: 案内 PDF サムネイル問題を構造的に解消。真因は「過去アップロードの PDF は別 OAuth identity 所有 → 現 deployer から Drive REST `files.get` で 404」だった。`uploadTrainingFile_` 内でアップロード直後（同 identity = 確実に可視）に Drive thumbnailLink を取り、PNG として永続保存する pipeline に転換。`getFileThumbnail_` は PNG fileId から DriveApp.getBlob() するだけ。差し替え時の旧ファイル trash と、既存研修の MASTER 一括 backfill 関数 `regenerateAllThumbnails` を admin top-level として追加。詳細: `docs/216_RELEASE_STATE_v349_2026-05-14.md`
 
@@ -54,8 +56,9 @@ fixed deployment: integrated/public `@308` x2 / member split `@65` / admin split
 7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `docs/216_RELEASE_STATE_v349_2026-05-14.md`（**最新本番：v349。案内 PDF サムネイルをアップロード時生成 + 永続化 pipeline へ / integrated-public @308 x2 / member @65 / admin @107**）
-11. `docs/215_RELEASE_STATE_v347_2026-05-14.md`（v347。案内 PDF サムネイル Drive REST + thumbnailLink 経路化（既存 PDF の identity 罠で未解消、v349 で構造改修） / integrated-public @306 x2 / member @63 / admin @105）
+10. `docs/217_RELEASE_STATE_v350_2026-05-14.md`（**最新本番：v350。案内 PDF サムネイル運用強化 (hasThumbnail polling + trigger backfill + 再生成ボタン) / integrated-public @309 x2 / member @66 / admin @108**）
+11. `docs/216_RELEASE_STATE_v349_2026-05-14.md`（v349。アップロード時生成 + 永続化 pipeline / integrated-public @308 x2 / member @65 / admin @107）
+12. `docs/215_RELEASE_STATE_v347_2026-05-14.md`（v347。案内 PDF サムネイル Drive REST + thumbnailLink 経路化（既存 PDF の identity 罠で未解消、v349 で構造改修） / integrated-public @306 x2 / member @63 / admin @105）
 11. `docs/214_RELEASE_STATE_v345_2026-05-13.md`（v345。案内 PDF サムネイル真因再特定・UrlFetch 経由化（@304 で未解消）/ integrated-public @304 x2 / member @61 / admin @103）
 12. `docs/213_RELEASE_STATE_v344_2026-05-13.md`（v344。案内 PDF サムネイル GAS proxy 化（DriveApp 経路） / integrated-public @303 x2 / member @60 / admin @102）
 12. `docs/212_RELEASE_STATE_v343_2026-05-13.md`（v343。管理者一覧の事業所職員氏名表示修正 / admin @101）
@@ -91,13 +94,14 @@ fixed deployment: integrated/public `@308` x2 / member split `@65` / admin split
 
 | 用途 | Project | Deployment ID | Access | Current version |
 |---|---|---|---|---|
-| 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@308` |
-| 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@308` |
-| 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@65` |
-| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@107` |
+| 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@309` |
+| 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@309` |
+| 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@66` |
+| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@108` |
 
 ## 4. 直近リリース
 
+- `v350`: 案内 PDF サムネイル運用強化。Web 検索ベストプラクティスに基づき (1) hasThumbnail polling + 5s×5 retry、(2) 10 分 trigger による後追い backfill (`processPendingThumbnails`)、(3) admin の手動「サムネイル再生成」ボタン (`regenerateThumbnailForTraining`) を追加。`setupPendingThumbnailsTrigger` を 1 回 Apps Script editor から Run する operator setup が必要。Playwright e2e で 24 秒/24KB 描画確認。integrated/public `@309` x2 / member split `@66` / admin split `@108`。
 - `v349`: 案内 PDF サムネイル構造改修。アップロード時に PNG 1 ページ目を Drive に永続化（Tanaike pattern を簡素化）→ 表示時は DriveApp.getBlob() のみで identity 罠を回避。`saveTraining_` で差し替え時の旧ファイル GC、`regenerateAllThumbnails` で MASTER 一括 backfill。integrated/public `@308` x2 / member split `@65` / admin split `@107`。
 - `v348`: 多経路フォールバック + 診断ログ追加（v349 に統合済み、参考）。integrated/public `@307` x2 / member split `@64` / admin split `@106`。
 - `v347`: 案内 PDF サムネイル真因確定。Drive REST API v3 `files.get?fields=thumbnailLink` → `lh3.googleusercontent.com/...` を Bearer 付き UrlFetchApp で取得し base64 化。Drive Web UI と同じ render pipeline が PDF にも対応。`CacheService` 1h TTL 維持。integrated/public `@306` x2 / member split `@63` / admin split `@105`。
@@ -204,7 +208,7 @@ fixed deployment: integrated/public `@308` x2 / member split `@65` / admin split
 2. **次の 3 件を必ず読む**:
    - `AGENTS.md`（特に **§0 シークレット最優先絶対ルール** と §4 レスポンシブ必須）
    - `HANDOVER.md`（本文書）
-   - `docs/216_RELEASE_STATE_v349_2026-05-14.md`（最新本番 release state）
+   - `docs/217_RELEASE_STATE_v350_2026-05-14.md`（最新本番 release state）
 3. テストハーネス前提を整える（必要に応じて）:
    - Member テスト: `.env.test.example` を `.env.test` にコピーし、`MEMBER_LOGIN_ID` / `MEMBER_PASSWORD` をユーザー側で埋める（ロックされていないテスト用アカウントを使用）。
    - Admin テスト: `node scripts/auth-bootstrap-admin.mjs` で Google ログイン → `.test-out/auth-admin.json` を作成（通常 1〜2 週間有効）。
