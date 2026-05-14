@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-05-14
-Production: `v351` / integrated-public fixed deployments `@310` x2 / member split `@67` / admin split `@109`
+Production: `v350` (v351 was rolled back due to import.meta SyntaxError) / integrated-public fixed deployments `@309` x2 / member split `@66` / admin split `@108`
 
 ## 1. Purpose
 
@@ -17,15 +17,15 @@ Production: `v351` / integrated-public fixed deployments `@310` x2 / member spli
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@310` (`v351`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@310` (`v351`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@309` (`v350`, rolled back from `@310` v351) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@309` (`v350`, rolled back from `@310` v351) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@67` (`v351`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@109` (`v351`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@66` (`v350`, rolled back from `@67` v351) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@108` (`v350`, rolled back from `@109` v351) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -142,14 +142,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-05-14 `v351` ← current production
-- Scope: 案内 PDF サムネイル即時化。`pdfjs-dist@^5.7` を admin に追加し、`src/lib/pdfThumbnail.ts` がブラウザで PDF 1 ページ目を `<canvas>` レンダリング → PNG base64 を `uploadTrainingFile_` に同送。サーバは即時 Drive 保存（Drive thumbnailLink 待ち排除）。client 失敗時は v350 サーバ polling 経路へ fallback。実体感 20-25s → **3-8 秒**。admin bundle +175KB (compressed)、member/public 不変。
-- Integrated fixed deployments: `@310` x2
-- Member split: `@67`
-- Admin split: `@109`
+### 2026-05-14 `v351` — **ROLLED BACK**
+- Scope (intended): pdfjs-dist client-side レンダリングで 1 ページ目を即時生成。
+- Cause of rollback: `pdfjs-dist/build/pdf.mjs:9421` の `import.meta.url` が `vite-plugin-singlefile` の plain `<script>` 化と組み合わさり、admin shell の bundle parse 時に `Uncaught SyntaxError: Cannot use 'import.meta' outside a module` を投げ、管理画面全体がクラッシュ。
+- Action taken: 全 4 fixed deployment を `@309 x2 / @66 / @108` (`v350`) へ即時 redeploy 戻し。git 上の v351 commit (`606c520 / f1ed4be / 37d92c5`) は履歴として保持。
+- Next attempt 方針: `@rollup/plugin-replace` で pdfjs-dist の `import.meta.url` を空文字置換、または Vite alias で patched build に差替え。memory: `feedback_pdfjs_dist_vite_singlefile_trap.md`
 - Detail: `docs/218_RELEASE_STATE_v351_2026-05-14.md`
 
-### 2026-05-14 `v350`
+### 2026-05-14 `v350` ← current production
+
 - Scope: 案内 PDF サムネイル運用強化。Web 検索（Latenode community / Drive API v3 file metadata guide）のベストプラクティスに基づき (1) `generateAndSaveThumbnailForPdf_` を `hasThumbnail` field + 5s×5 retry = 25s 同期に強化、(2) `processPendingThumbnails` を 10 分 trigger で後追い backfill 化、(3) `regenerateThumbnailForTraining` admin action + 編集モーダル「サムネイル再生成」ボタンを追加。
 - Integrated fixed deployments: `@309` x2
 - Member split: `@66`
