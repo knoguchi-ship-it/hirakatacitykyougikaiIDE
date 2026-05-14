@@ -11980,22 +11980,41 @@ function uploadTrainingFile_(payload) {
   var pdfFileUrl = file.getUrl();
   var thumbnailUrl = '';
   // v350: client が UX を切り替えるための状態。'skipped' は PDF 以外。
+  // v351: 'client-generated' = ブラウザ側で pdf.js が render した PNG を保存
   var thumbnailGenerationStatus = 'skipped';
 
-  // v349: PDF アップロード時に 1 ページ目のサムネイル PNG を生成・永続化する。
-  // Drive 自体の thumbnailLink が新規アップロード直後は同一 OAuth identity で
-  // 確実に取れるため、ここで PNG ファイルとして保存しておけば view 時の identity
-  // 罠 (v347 で見た 404) を回避できる。失敗してもアップロード自体は成功扱い。
-  var looksLikePdf = String(mimeType).toLowerCase().indexOf('pdf') >= 0 ||
-    /\.pdf$/i.test(filename);
-  if (looksLikePdf) {
+  // v351: client (pdfjs-dist) が先に 1 ページ目を PNG に変換して送ってきた場合は
+  // それを Drive にそのまま createFile する（Drive thumbnail API 待ち skip）。
+  // 体感 3〜8 秒で完結する。client 失敗時は thumbnailBase64=空で v350 経路へ。
+  var clientThumbnailBase64 = String((payload && payload.thumbnailBase64) || '').trim();
+  if (clientThumbnailBase64) {
     try {
-      thumbnailUrl = generateAndSaveThumbnailForPdf_(pdfFileId, folder) || '';
-      thumbnailGenerationStatus = thumbnailUrl ? 'generated' : 'pending';
+      var clientPngBytes = Utilities.base64Decode(clientThumbnailBase64);
+      var clientPngBlob = Utilities.newBlob(clientPngBytes, 'image/png',
+        'thumb_' + pdfFileId + '_' + Date.now() + '_client.png');
+      var clientPngFile = folder.createFile(clientPngBlob);
+      clientPngFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      thumbnailUrl = clientPngFile.getUrl();
+      thumbnailGenerationStatus = 'client-generated';
     } catch (e) {
-      Logger.log('uploadTrainingFile_: thumbnail generation failed pdfFileId=' + pdfFileId + ': ' + e.message);
-      thumbnailUrl = '';
-      thumbnailGenerationStatus = 'failed';
+      Logger.log('uploadTrainingFile_: client thumbnail save failed pdfFileId=' + pdfFileId + ': ' + e.message);
+    }
+  }
+
+  // v349: client が thumbnail を送ってこなかった or 上で失敗した場合のみ、
+  // サーバ側の Drive thumbnailLink polling へ fallback する。
+  if (!thumbnailUrl) {
+    var looksLikePdf = String(mimeType).toLowerCase().indexOf('pdf') >= 0 ||
+      /\.pdf$/i.test(filename);
+    if (looksLikePdf) {
+      try {
+        thumbnailUrl = generateAndSaveThumbnailForPdf_(pdfFileId, folder) || '';
+        thumbnailGenerationStatus = thumbnailUrl ? 'generated' : 'pending';
+      } catch (e) {
+        Logger.log('uploadTrainingFile_: server thumbnail generation failed pdfFileId=' + pdfFileId + ': ' + e.message);
+        thumbnailUrl = '';
+        thumbnailGenerationStatus = 'failed';
+      }
     }
   }
 

@@ -176,14 +176,27 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
     setSaveError(null);
     try {
       const base64 = await readFileAsBase64(file);
-      // v349: uploadTrainingFile_ が PDF アップロードと同期して 1 ページ目の
-      // サムネイル PNG を生成・永続化する。所要 10〜15 秒。
-      const result = await api.uploadTrainingFile(base64, file.name, file.type);
+      // v351: 1 ページ目を client (pdfjs-dist) でレンダリングし、PNG base64 を
+      // アップロード一緒に送ることで Drive 待ちを排除する。失敗時はサーバ fallback。
+      let thumbnailBase64: string | undefined;
+      if (/\.pdf$/i.test(file.name) || /pdf/.test(file.type)) {
+        try {
+          const mod = await import('../lib/pdfThumbnail');
+          const t = await mod.renderPdfFirstPageToPng(file, 800);
+          thumbnailBase64 = t.base64;
+        } catch (e) {
+          // client-side render に失敗してもアップロード続行（サーバ fallback）
+          console.warn('client PDF thumbnail render failed, falling back to server:', e);
+        }
+      }
+      const result = await api.uploadTrainingFile(base64, file.name, file.type, thumbnailBase64);
       setForm((prev) => ({ ...prev, guidePdfUrl: result.url, thumbnailUrl: result.thumbnailUrl || '' }));
       setUploadedFileName(file.name);
-      // v350: 生成状態を即時反映。pending は trigger による後追い生成、failed は手動再生成促し
+      // v350/v351: 生成状態を即時反映。
+      // 'client-generated' = ブラウザで即時レンダリング、'generated' = サーバ生成、
+      // 'pending' = trigger 後追い、'failed' = 手動再生成促し
       const st = result.thumbnailGenerationStatus;
-      if (st === 'generated') { setThumbnailStatus('idle'); setThumbnailStatusMsg(''); }
+      if (st === 'generated' || st === 'client-generated') { setThumbnailStatus('idle'); setThumbnailStatusMsg(''); }
       else if (st === 'pending') {
         setThumbnailStatus('pending');
         setThumbnailStatusMsg('サムネイル生成に時間がかかっています。10 分以内に自動生成されます。すぐ反映したい場合は「サムネイル再生成」を押してください。');
@@ -557,7 +570,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
               {isFieldOn('guidePdfUrl') ? (
                 <div className="flex items-center gap-3">
                   <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-700 hover:bg-slate-50">
-                    {uploading ? 'アップロード中（サムネイルも生成中、10〜15 秒）...' : 'ファイルを選択'}
+                    {uploading ? 'アップロード中（数秒〜10 秒）...' : 'ファイルを選択'}
                     <input ref={fileInputRef} type="file" accept=".pdf,image/*" className="hidden" onChange={handleFileChange} disabled={uploading} />
                   </label>
                   {(uploadedFileName || form.guidePdfUrl) && (
