@@ -32,7 +32,8 @@
 
 | 文書 | 内容 |
 |---|---|
-| `docs/215_RELEASE_STATE_v347_2026-05-14.md` | **最新本番** v347。案内 PDF サムネイル Drive REST + thumbnailLink 経路化、integrated-public `@306` x2 / member `@63` / admin `@105` |
+| `docs/216_RELEASE_STATE_v349_2026-05-14.md` | **最新本番** v349。案内 PDF サムネイルをアップロード時に Drive 上 PNG として永続化する構造改修、integrated-public `@308` x2 / member `@65` / admin `@107` |
+| `docs/215_RELEASE_STATE_v347_2026-05-14.md` | v347。案内 PDF サムネイル Drive REST + thumbnailLink 経路化（既存 PDF の identity 罠で未解消、v349 で構造改修）、integrated-public `@306` x2 / member `@63` / admin `@105` |
 | `docs/214_RELEASE_STATE_v345_2026-05-13.md` | v345。案内 PDF サムネイル真因再特定（DriveApp.getThumbnail は PDF 非対応）→ UrlFetch(drive.google.com/thumbnail) 経由化（本番 403 残存、v347 で再修正）、integrated-public `@304` x2 / member `@61` / admin `@103` |
 | `docs/213_RELEASE_STATE_v344_2026-05-13.md` | v344。案内 PDF サムネイル画像の GAS proxy 化（DriveApp 経路で PDF 非対応のため未解消、v345 で再修正）、integrated-public `@303` x2 / member `@60` / admin `@102` |
 | `docs/212_RELEASE_STATE_v343_2026-05-13.md` | v343。管理者ポータル「登録済み管理者アカウント」一覧の事業所職員氏名表示修正、admin split `@101` |
