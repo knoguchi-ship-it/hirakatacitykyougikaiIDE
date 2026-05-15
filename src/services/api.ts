@@ -102,7 +102,7 @@ export interface ApiClient {
   }): Promise<void>;
   deleteAdminPermission(id: string): Promise<void>;
   saveTraining(training: Training): Promise<Training>;
-  uploadTrainingFile(base64: string, filename: string, mimeType: string, thumbnailBase64?: string): Promise<{ url: string; driveFileId?: string; thumbnailUrl?: string; thumbnailGenerationStatus?: 'generated' | 'client-generated' | 'pending' | 'failed' | 'skipped' }>;
+  uploadTrainingFile(base64: string, filename: string, mimeType: string): Promise<{ url: string; driveFileId?: string; thumbnailUrl?: string; thumbnailGenerationStatus?: 'generated' | 'pending' | 'failed' | 'skipped' }>;
   // v344: 案内PDF サムネイルを GAS proxy 経由で base64 data URL として取得（hotlink 制限回避）
   getFileThumbnail(fileUrl: string): Promise<string | null>;
   // v350: 案内PDF サムネイル手動再生成（編集モーダルから 1 クリック）
@@ -954,7 +954,7 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async uploadTrainingFile(base64: string, filename: string, mimeType: string, thumbnailBase64?: string): Promise<{ url: string; driveFileId?: string; thumbnailUrl?: string; thumbnailGenerationStatus?: 'generated' | 'client-generated' | 'pending' | 'failed' | 'skipped' }> {
+  async uploadTrainingFile(base64: string, filename: string, mimeType: string): Promise<{ url: string; driveFileId?: string; thumbnailUrl?: string; thumbnailGenerationStatus?: 'generated' | 'pending' | 'failed' | 'skipped' }> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
         reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
@@ -971,7 +971,7 @@ class GasApiClient implements ApiClient {
           }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('uploadTrainingFile', JSON.stringify({ base64, filename, mimeType, thumbnailBase64 }));
+        .processApiRequest('uploadTrainingFile', JSON.stringify({ base64, filename, mimeType }));
     });
   }
 

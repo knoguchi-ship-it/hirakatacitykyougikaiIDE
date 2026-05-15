@@ -176,27 +176,19 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
     setSaveError(null);
     try {
       const base64 = await readFileAsBase64(file);
-      // v351: 1 ページ目を client (pdfjs-dist) でレンダリングし、PNG base64 を
-      // アップロード一緒に送ることで Drive 待ちを排除する。失敗時はサーバ fallback。
-      let thumbnailBase64: string | undefined;
-      if (/\.pdf$/i.test(file.name) || /pdf/.test(file.type)) {
-        try {
-          const mod = await import('../lib/pdfThumbnail');
-          const t = await mod.renderPdfFirstPageToPng(file, 800);
-          thumbnailBase64 = t.base64;
-        } catch (e) {
-          // client-side render に失敗してもアップロード続行（サーバ fallback）
-          console.warn('client PDF thumbnail render failed, falling back to server:', e);
-        }
-      }
-      const result = await api.uploadTrainingFile(base64, file.name, file.type, thumbnailBase64);
+      // v354: v351 で導入した client (pdfjs-dist) レンダリング経路は
+      // pdfjs-dist の Node-only コードに含まれる import.meta が vite-singlefile の
+      // plain script bundle で SyntaxError を起こし会員/管理者シェルを破壊した
+      // ため完全撤去（src/lib/pdfThumbnail.ts と pdfjs-dist 依存ごと削除）。
+      // サムネイル生成は v350 のサーバサイド polling + 10 分 trigger backfill +
+      // 「サムネイル再生成」ボタンで充分に賄う。
+      const result = await api.uploadTrainingFile(base64, file.name, file.type);
       setForm((prev) => ({ ...prev, guidePdfUrl: result.url, thumbnailUrl: result.thumbnailUrl || '' }));
       setUploadedFileName(file.name);
-      // v350/v351: 生成状態を即時反映。
-      // 'client-generated' = ブラウザで即時レンダリング、'generated' = サーバ生成、
-      // 'pending' = trigger 後追い、'failed' = 手動再生成促し
+      // v350: 生成状態を即時反映。
+      // 'generated' = サーバ同期生成 / 'pending' = trigger 後追い / 'failed' = 手動再生成促し
       const st = result.thumbnailGenerationStatus;
-      if (st === 'generated' || st === 'client-generated') { setThumbnailStatus('idle'); setThumbnailStatusMsg(''); }
+      if (st === 'generated') { setThumbnailStatus('idle'); setThumbnailStatusMsg(''); }
       else if (st === 'pending') {
         setThumbnailStatus('pending');
         setThumbnailStatusMsg('サムネイル生成に時間がかかっています。10 分以内に自動生成されます。すぐ反映したい場合は「サムネイル再生成」を押してください。');
