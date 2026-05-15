@@ -32,7 +32,8 @@
 
 | 文書 | 内容 |
 |---|---|
-| `docs/219_RELEASE_STATE_v352_2026-05-14.md` | **最新本番** v352。公開ポータル研修一覧を A4 縦 PDF サムネイル + 詳細情報の 2 カラムカードへ改修、integrated-public `@311` x2 |
+| `docs/220_RELEASE_STATE_v353_2026-05-15.md` | **最新本番** v353。会員マイページ「受付中の研修」を A4 縦 PDF サムネイル + 詳細情報の 2 カラムカードへ改修、member `@68` |
+| `docs/219_RELEASE_STATE_v352_2026-05-14.md` | v352。公開ポータル研修一覧を A4 縦 PDF サムネイル + 詳細情報の 2 カラムカードへ改修、integrated-public `@311` x2 |
 | `docs/217_RELEASE_STATE_v350_2026-05-14.md` | v350。案内 PDF サムネイル運用強化 (hasThumbnail polling + 10 分 trigger backfill + admin 手動再生成ボタン)、member `@66` / admin `@108` (v352 でも維持) |
 | `docs/218_RELEASE_STATE_v351_2026-05-14.md` | **v351 = ロールバック済み**。pdfjs-dist client-side レンダリングを試行したが import.meta SyntaxError で admin shell がクラッシュ、v350 へ即時戻し。再挑戦方針記録。 |
 | `docs/216_RELEASE_STATE_v349_2026-05-14.md` | v349。案内 PDF サムネイルをアップロード時に Drive 上 PNG として永続化する構造改修、integrated-public `@308` x2 / member `@65` / admin `@107` |

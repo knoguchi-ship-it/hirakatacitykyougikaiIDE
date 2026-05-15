@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-05-14
-Production: `v352` (public のみ UI 改修) / integrated-public fixed deployments `@311` x2 / member split `@66` (v350 のまま) / admin split `@108` (v350 のまま)
+Updated: 2026-05-15
+Production: `v353` (member の「受付中の研修」UI 改修) / integrated-public fixed deployments `@311` x2 / member split `@68` / admin split `@108` (v350 のまま)
 
 ## 1. Purpose
 
@@ -24,7 +24,7 @@ Production: `v352` (public のみ UI 改修) / integrated-public fixed deploymen
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@66` (`v350`, rolled back from `@67` v351) | `ANYONE_ANONYMOUS` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@68` (`v353`) | `ANYONE_ANONYMOUS` |
 | admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@108` (`v350`, rolled back from `@109` v351) | `DOMAIN` |
 
 ## 3. Standard Release Steps
@@ -142,7 +142,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-05-14 `v352` ← current production
+### 2026-05-15 `v353` ← current production
+- Scope: 会員マイページの「受付中の研修」(`src/components/TrainingApply.tsx`) を v352 と同じ A4 縦サムネイル + 詳細情報 2 カラムカードへ改修。v352 では誤って public portal を改修していた認識違いを修正。member split のみ更新。
+- Integrated fixed deployments: `@311` x2 (unchanged, v352)
+- Member split: `@68`
+- Admin split: `@108` (unchanged, v350)
+- Detail: `docs/220_RELEASE_STATE_v353_2026-05-15.md`
+
+### 2026-05-14 `v352`
 - Scope: 公開ポータル「現在受付中の研修」一覧を A4 縦 PDF サムネイル + 詳細情報の 2 カラムカードへ再設計。`PdfThumbnail` に `aspectRatio` prop 追加。WCAG 2.5.5 / semantic HTML 準拠。public のみ更新、member/admin は v350 のまま。
 - Integrated fixed deployments: `@311` x2
 - Member split: `@66` (unchanged, v350)
