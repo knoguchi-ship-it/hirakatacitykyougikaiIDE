@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { PublicTraining } from '../../shared/types';
 import PdfThumbnail from '../../components/PdfThumbnail';
+import PdfPreviewModal from '../../components/PdfPreviewModal';
 import { callApi } from '../../shared/api-base';
 
 const fetchPublicThumbnail = (fileUrl: string): Promise<string | null> =>
@@ -67,6 +68,9 @@ function parseInquiry(fieldConfig: string): { person: string; type: string; valu
 }
 
 const PublicTrainingList: React.FC<Props> = ({ trainings, onApply }) => {
+  // v355: PDF プレビュー lightbox
+  const [previewTraining, setPreviewTraining] = useState<{ title: string; fileUrl: string } | null>(null);
+
   if (trainings.length === 0) {
     return (
       <div className="text-center py-12 text-gray-500">
@@ -119,6 +123,7 @@ const PublicTrainingList: React.FC<Props> = ({ trainings, onApply }) => {
                     fileUrl={t.fileUrl}
                     fetchThumbnail={fetchPublicThumbnail}
                     aspectRatio="210 / 297"
+                    onPreview={t.fileUrl ? () => setPreviewTraining({ title: t.name, fileUrl: t.fileUrl }) : undefined}
                   />
                 ) : (
                   <div
@@ -258,6 +263,13 @@ const PublicTrainingList: React.FC<Props> = ({ trainings, onApply }) => {
           </article>
         );
       })}
+      {/* v355: PDF プレビュー lightbox */}
+      <PdfPreviewModal
+        open={!!previewTraining}
+        onClose={() => setPreviewTraining(null)}
+        fileUrl={previewTraining?.fileUrl || ''}
+        title={previewTraining?.title}
+      />
     </div>
   );
 };

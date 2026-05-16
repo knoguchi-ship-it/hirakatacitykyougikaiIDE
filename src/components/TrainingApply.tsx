@@ -2,6 +2,7 @@
 import { BookOpenIcon, CheckCircleIcon, PlusIcon, SparklesIcon } from './Icons';
 import { Member, MemberType, Training } from '../types';
 import PdfThumbnail from './PdfThumbnail';
+import PdfPreviewModal from './PdfPreviewModal';
 import { api } from '../services/api';
 
 interface TrainingApplyProps {
@@ -50,6 +51,8 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
   const [submittingTrainingId, setSubmittingTrainingId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [expandedTrainingId, setExpandedTrainingId] = useState<string | null>(null);
+  // v355: PDF プレビュー lightbox モーダル
+  const [previewTraining, setPreviewTraining] = useState<{ title: string; fileUrl: string } | null>(null);
   const [selectedHistoryTrainingId, setSelectedHistoryTrainingId] = useState<string | null>(null);
   const [confirmTraining, setConfirmTraining] = useState<Training | null>(null);
   const [cancelTargetTraining, setCancelTargetTraining] = useState<Training | null>(null);
@@ -227,6 +230,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                             fileUrl={training.guidePdfUrl}
                             fetchThumbnail={api.getFileThumbnail.bind(api)}
                             aspectRatio="210 / 297"
+                            onPreview={training.guidePdfUrl ? () => setPreviewTraining({ title: training.title, fileUrl: training.guidePdfUrl! }) : undefined}
                           />
                         ) : (
                           <div
@@ -456,7 +460,13 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                 {selectedHistoryTraining.guidePdfUrl ? (
                   <div className="space-y-2">
                     {selectedHistoryTraining.thumbnailUrl && (
-                      <PdfThumbnail thumbnailUrl={selectedHistoryTraining.thumbnailUrl!} fileUrl={selectedHistoryTraining.guidePdfUrl} fetchThumbnail={api.getFileThumbnail.bind(api)} height={220} />
+                      <PdfThumbnail
+                        thumbnailUrl={selectedHistoryTraining.thumbnailUrl!}
+                        fileUrl={selectedHistoryTraining.guidePdfUrl}
+                        fetchThumbnail={api.getFileThumbnail.bind(api)}
+                        height={220}
+                        onPreview={selectedHistoryTraining.guidePdfUrl ? () => setPreviewTraining({ title: selectedHistoryTraining.title, fileUrl: selectedHistoryTraining.guidePdfUrl! }) : undefined}
+                      />
                     )}
                     <a href={selectedHistoryTraining.guidePdfUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[44px] items-center rounded-md px-2 text-sm font-medium text-primary-700 hover:bg-primary-50 hover:text-primary-900 hover:underline">
                       全ページを別タブで開く
@@ -560,6 +570,14 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
           </div>
         </div>
       )}
+
+      {/* v355: PDF プレビュー lightbox */}
+      <PdfPreviewModal
+        open={!!previewTraining}
+        onClose={() => setPreviewTraining(null)}
+        fileUrl={previewTraining?.fileUrl || ''}
+        title={previewTraining?.title}
+      />
     </div>
   );
 };

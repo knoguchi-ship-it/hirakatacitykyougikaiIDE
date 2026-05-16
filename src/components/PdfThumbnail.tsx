@@ -5,8 +5,13 @@ interface PdfThumbnailProps {
   thumbnailUrl: string;
   /** PDF サムネイル base64 data URL を取得する関数（境界ごとに API 経路が違う） */
   fetchThumbnail: (thumbnailUrl: string) => Promise<string | null>;
-  /** PDF 本体の URL（カードをクリックすると新しいタブで開く先） */
+  /** PDF 本体の URL（クリック時の挙動の対象。onPreview 未指定時は新タブで開く） */
   fileUrl?: string;
+  /**
+   * v355: クリック時に呼ばれる callback（lightbox モーダル展開などに使う）。
+   * 指定された場合 fileUrl の新タブオープンは行われない。
+   */
+  onPreview?: () => void;
   /** サムネイル高さ px（aspectRatio 未指定時のデフォルト 140） */
   height?: number;
   /** CSS aspect-ratio (例: '210 / 297' で A4 縦)。指定時は width=100% で aspect 維持。 */
@@ -24,6 +29,7 @@ const PdfThumbnail: React.FC<PdfThumbnailProps> = ({
   thumbnailUrl,
   fetchThumbnail,
   fileUrl,
+  onPreview,
   height = 140,
   aspectRatio,
   className = '',
@@ -60,9 +66,13 @@ const PdfThumbnail: React.FC<PdfThumbnailProps> = ({
     };
   }, [thumbnailUrl, fetchThumbnail]);
 
-  const clickable = !!fileUrl;
+  const clickable = !!onPreview || !!fileUrl;
 
   const handleClick = () => {
+    if (onPreview) {
+      onPreview();
+      return;
+    }
     if (fileUrl) window.open(fileUrl, '_blank', 'noopener,noreferrer');
   };
 
@@ -77,7 +87,7 @@ const PdfThumbnail: React.FC<PdfThumbnailProps> = ({
       style={containerStyle}
       onClick={clickable ? handleClick : undefined}
       role={clickable ? 'button' : undefined}
-      aria-label={clickable ? '案内PDFを開く' : 'PDF サムネイル'}
+      aria-label={clickable ? (onPreview ? '案内PDFを拡大表示する' : '案内PDFを開く') : 'PDF サムネイル'}
       tabIndex={clickable ? 0 : undefined}
       onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') handleClick(); } : undefined}
     >
@@ -114,7 +124,7 @@ const PdfThumbnail: React.FC<PdfThumbnailProps> = ({
       {clickable && status === 'loaded' && (
         <div className="absolute bottom-2 left-0 right-0 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
           <span className="rounded-full bg-slate-900/80 px-3 py-1 text-[11px] font-medium text-white shadow select-none">
-            クリックで全ページを開く →
+            {onPreview ? 'クリックで拡大プレビュー →' : 'クリックで全ページを開く →'}
           </span>
         </div>
       )}

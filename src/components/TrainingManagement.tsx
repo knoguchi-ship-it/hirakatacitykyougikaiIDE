@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import { PlusIcon, TrashIcon } from './Icons';
 import TrainingMailSender from './TrainingMailSender';
 import PdfThumbnail from './PdfThumbnail';
+import PdfPreviewModal from './PdfPreviewModal';
 
 interface Props {
   trainings: Training[];
@@ -75,6 +76,8 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
   // v350: サムネイル生成/再生成の即時状態
   const [thumbnailStatus, setThumbnailStatus] = useState<'idle' | 'pending' | 'failed' | 'regenerating'>('idle');
   const [thumbnailStatusMsg, setThumbnailStatusMsg] = useState<string>('');
+  // v355: PDF プレビュー lightbox
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [panelView, setPanelView] = useState<PanelView>('form');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -591,7 +594,13 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
                       {form.guidePdfUrl && (
                         <div className="max-w-sm space-y-2">
                           {form.thumbnailUrl ? (
-                            <PdfThumbnail thumbnailUrl={form.thumbnailUrl} fileUrl={form.guidePdfUrl} fetchThumbnail={api.getFileThumbnail.bind(api)} height={130} />
+                            <PdfThumbnail
+                              thumbnailUrl={form.thumbnailUrl}
+                              fileUrl={form.guidePdfUrl}
+                              fetchThumbnail={api.getFileThumbnail.bind(api)}
+                              height={130}
+                              onPreview={form.guidePdfUrl ? () => setPdfPreviewOpen(true) : undefined}
+                            />
                           ) : (
                             <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded p-2">
                               サムネイル画像はまだ生成されていません。
@@ -692,6 +701,13 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
           )}
         </div>
       </div>
+      {/* v355: PDF プレビュー lightbox */}
+      <PdfPreviewModal
+        open={pdfPreviewOpen}
+        onClose={() => setPdfPreviewOpen(false)}
+        fileUrl={form.guidePdfUrl || ''}
+        title={form.title || '案内PDFプレビュー'}
+      />
     </div>
   );
 };
