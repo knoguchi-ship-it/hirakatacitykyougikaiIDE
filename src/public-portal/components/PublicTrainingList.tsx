@@ -9,6 +9,12 @@ const fetchPublicThumbnail = (fileUrl: string): Promise<string | null> =>
     .then((res) => res.thumbnail)
     .catch(() => null);
 
+const fetchPublicPdfBytes = (
+  fileUrl: string,
+): Promise<{ base64: string | null; mimeType?: string; size?: number; error?: string }> =>
+  callApi<{ base64: string | null; mimeType?: string; size?: number; error?: string }>('getFileBytes', { fileUrl })
+    .catch(() => ({ base64: null, error: 'fetch_failed' }));
+
 interface Props {
   trainings: PublicTraining[];
   onApply: (training: PublicTraining) => void;
@@ -263,12 +269,13 @@ const PublicTrainingList: React.FC<Props> = ({ trainings, onApply }) => {
           </article>
         );
       })}
-      {/* v355: PDF プレビュー lightbox */}
+      {/* v357: PDF プレビュー lightbox (blob URL iframe 方式) */}
       <PdfPreviewModal
         open={!!previewTraining}
         onClose={() => setPreviewTraining(null)}
         fileUrl={previewTraining?.fileUrl || ''}
         title={previewTraining?.title}
+        fetchPdfBytes={fetchPublicPdfBytes}
       />
     </div>
   );

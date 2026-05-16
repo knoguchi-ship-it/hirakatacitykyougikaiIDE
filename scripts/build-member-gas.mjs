@@ -418,6 +418,8 @@ function buildMemberCode(source) {
     'getOfficerMasterData',
     // v344: 案内PDFサムネイル Drive proxy
     'getFileThumbnail',
+    // v357: PDF lightbox 用 bytes proxy
+    'getFileBytes',
   ]);
   code = removeIfBlock(code, 'requiredPerms');
   code = pruneUnreachableFunctionDeclarations(code, ['doGet', 'processApiRequest'], 'build-member-gas');

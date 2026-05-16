@@ -698,6 +698,7 @@ var PUBLIC_ALLOWED_ACTIONS = {
   getPublicTrainings: true,
   getPublicPortalSettings: true,
   getFileThumbnail: true,   // v272: Drive ファイルサムネイルを base64 で返す
+  getFileBytes: true,       // v357: PDF lightbox 用 bytes proxy (10MB 上限)
   applyTrainingExternal: true,
   cancelTrainingExternal: true,
   submitMemberApplication: true,
@@ -804,6 +805,10 @@ function processApiRequest(action, payload) {
 
     if (action === 'getFileThumbnail') {
       return JSON.stringify({ success: true, data: getFileThumbnail_(parsedPayload) });
+    }
+
+    if (action === 'getFileBytes') {
+      return JSON.stringify({ success: true, data: getFileBytes_(parsedPayload) });
     }
 
     if (action === 'getPublicPortalSettings') {
@@ -3386,6 +3391,67 @@ function getFileThumbnail_(payload) {
   } catch (e) {
     Logger.log('getFileThumbnail_: error fileId=' + fileId + ' msg=' + e.message);
     return { thumbnail: makePdfSvgPlaceholder_('PDF') };
+  }
+}
+
+/**
+ * v357: Drive 上の PDF 本体の bytes を base64 で返す。lightbox 内 iframe で
+ * ブラウザ内蔵 PDF viewer に表示する用途。
+ *
+ * 背景: Drive の /file/d/<id>/preview を直接 iframe で埋め込むと、Drive が
+ * CSP `frame-ancestors https://drive.google.com` を返すため外部からの埋め込み
+ * が CSP 違反でブロックされる (2024 以降の Google セキュリティ強化)。
+ * GAS server で PDF bytes を取得して base64 で返し、client で blob URL を
+ * 作って iframe に渡せば CSP の制約を受けない。
+ *
+ * 制限: 大きい PDF を毎回 client へ送るとレスポンス時間が伸びるため、
+ * 10MB 超のファイルは error code で返して client に「別タブで開く」案内へ
+ * 切り替えてもらう。
+ */
+function getFileBytes_(payload) {
+  var fileUrl = String((payload && payload.fileUrl) || '').trim();
+  if (!fileUrl) return { base64: null, error: 'empty_url' };
+  var m = fileUrl.match(/\/file\/d\/([^/?]+)/) || fileUrl.match(/[?&]id=([^&]+)/);
+  if (!m) return { base64: null, error: 'unparseable_url' };
+  var fileId = m[1];
+
+  var authHeaders = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
+  try {
+    var metaResp = UrlFetchApp.fetch(
+      'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(fileId) +
+      '?fields=size,mimeType,name&supportsAllDrives=true',
+      { muteHttpExceptions: true, headers: authHeaders }
+    );
+    if (metaResp.getResponseCode() !== 200) {
+      Logger.log('getFileBytes_ meta non-200 code=' + metaResp.getResponseCode() + ' fileId=' + fileId);
+      return { base64: null, error: 'meta_failed' };
+    }
+    var meta = JSON.parse(metaResp.getContentText());
+    var sizeBytes = Number(meta.size || 0);
+    if (sizeBytes > 10 * 1024 * 1024) {
+      Logger.log('getFileBytes_ too large: ' + sizeBytes + ' fileId=' + fileId);
+      return { base64: null, error: 'file_too_large', size: sizeBytes };
+    }
+
+    var bytesResp = UrlFetchApp.fetch(
+      'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(fileId) +
+      '?alt=media&supportsAllDrives=true',
+      { muteHttpExceptions: true, headers: authHeaders, followRedirects: true }
+    );
+    if (bytesResp.getResponseCode() !== 200) {
+      Logger.log('getFileBytes_ media non-200 code=' + bytesResp.getResponseCode() + ' fileId=' + fileId);
+      return { base64: null, error: 'media_failed' };
+    }
+    var blob = bytesResp.getBlob();
+    return {
+      base64: Utilities.base64Encode(blob.getBytes()),
+      mimeType: blob.getContentType() || meta.mimeType || 'application/pdf',
+      name: meta.name || '',
+      size: sizeBytes,
+    };
+  } catch (e) {
+    Logger.log('getFileBytes_ error: ' + e.message + ' fileId=' + fileId);
+    return { base64: null, error: 'exception' };
   }
 }
 

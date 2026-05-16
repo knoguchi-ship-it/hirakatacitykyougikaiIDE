@@ -122,6 +122,8 @@ const allowedAdminActions = [
   'getFileThumbnail',
   // v350: 失敗時の手動サムネイル再生成
   'regenerateThumbnailForTraining',
+  // v357: PDF lightbox 用 bytes proxy
+  'getFileBytes',
 ];
 const forbiddenTopLevelFunctions = [
   'rebuildDatabaseSchema',

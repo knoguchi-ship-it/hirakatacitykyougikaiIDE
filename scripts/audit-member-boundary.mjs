@@ -32,6 +32,8 @@ const allowedMemberActions = [
   'getOfficerMasterData',
   // v344: 案内PDFサムネイルを Drive proxy 経由で取得（hotlink 制限回避）— ファイルは ANYONE_WITH_LINK 共有済み
   'getFileThumbnail',
+  // v357: PDF lightbox プレビュー用 bytes proxy (10MB 上限)
+  'getFileBytes',
 ];
 const forbiddenTopLevelFunctions = [
   'rebuildDatabaseSchema',

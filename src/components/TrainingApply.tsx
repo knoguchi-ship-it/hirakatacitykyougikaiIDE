@@ -588,12 +588,13 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
         </div>
       )}
 
-      {/* v355: PDF プレビュー lightbox */}
+      {/* v357: PDF プレビュー lightbox (blob URL iframe 方式) */}
       <PdfPreviewModal
         open={!!previewTraining}
         onClose={() => setPreviewTraining(null)}
         fileUrl={previewTraining?.fileUrl || ''}
         title={previewTraining?.title}
+        fetchPdfBytes={api.getFileBytes.bind(api)}
       />
     </div>
   );

@@ -1,19 +1,21 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 /**
- * v355: PDF プレビュー lightbox モーダル。
+ * v357: PDF プレビュー lightbox モーダル（blob URL 方式に再設計）。
  *
- * Google Drive 公式の embed URL `https://drive.google.com/file/d/<id>/preview`
- * を iframe で表示する。Drive viewer がそのまま動くので:
- *   - 文字読み取り可能（高解像度ネイティブ render）
- *   - ページめくり / ズーム / テキスト選択 / 検索 全部使える
- *   - ANYONE_WITH_LINK 共有 + 25MB 以下 という前提
+ * v355 では Drive `/file/d/<id>/preview` を iframe 埋め込みしていたが、Drive
+ * 自身が CSP `frame-ancestors https://drive.google.com` を返すため外部からの
+ * 埋め込みが完全ブロックされた（2024+ のセキュリティ強化）。
  *
- * モーダル仕様:
- *   - Desktop: 90vw × 90vh
- *   - Mobile (~640px 未満): full screen
- *   - ESC キーで閉じる、backdrop クリックで閉じる
- *   - role="dialog" + aria-modal + focus restoration
+ * v357 の解:
+ *   1. GAS server (`getFileBytes` action) が Drive REST `files/<id>?alt=media`
+ *      で PDF bytes を取得して base64 で返す（Bearer 付きなので CORS / CSP 回避）
+ *   2. client で base64 → Uint8Array → Blob('application/pdf') → URL.createObjectURL
+ *   3. その blob: URL を iframe src に → ブラウザ内蔵 PDF viewer で render
+ *
+ * Mobile (iOS Safari / 一部 Android Chrome): blob URL の iframe で PDF が
+ * blank になるケースが知られているため、UA 判定で iframe を出さず「別タブで
+ * 開く」CTA を中央に大きく表示する。
  */
 
 interface PdfPreviewModalProps {
@@ -23,19 +25,35 @@ interface PdfPreviewModalProps {
   fileUrl: string;
   /** ヘッダーに出すタイトル（研修名など） */
   title?: string;
+  /**
+   * 境界ごとの fetcher を渡す:
+   *   - member / admin: api.getFileBytes.bind(api)（sessionToken 自動付与）
+   *   - public: (url) => callApi('getFileBytes', { fileUrl: url })
+   * 未指定時は iframe 表示せず「別タブで開く」のみを案内。
+   */
+  fetchPdfBytes?: (fileUrl: string) => Promise<{ base64: string | null; mimeType?: string; size?: number; error?: string }>;
 }
 
-function extractDriveFileId(url: string): string | null {
-  if (!url) return null;
-  const m = url.match(/\/file\/d\/([^/?]+)/) || url.match(/[?&]id=([^&]+)/);
-  return m ? m[1] : null;
+function isMobileUserAgent(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /iPad|iPhone|iPod|Android.*Mobile/i.test(navigator.userAgent);
 }
 
-const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ open, onClose, fileUrl, title }) => {
+const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({
+  open,
+  onClose,
+  fileUrl,
+  title,
+  fetchPdfBytes,
+}) => {
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error' | 'too-large'>('idle');
+  const [errorReason, setErrorReason] = useState<string>('');
+  const [isMobile] = useState<boolean>(isMobileUserAgent);
 
-  // ESC キーで閉じる + フォーカスリストア
+  // ESC キー + フォーカスリストア + 背景スクロールロック
   useEffect(() => {
     if (!open) return;
     previousFocusRef.current = document.activeElement as HTMLElement | null;
@@ -46,10 +64,8 @@ const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ open, onClose, fileUr
       }
     };
     document.addEventListener('keydown', onKey);
-    // モーダル open 時に背景スクロールを止める
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    // 初期フォーカスを閉じるボタンに
     setTimeout(() => closeButtonRef.current?.focus(), 0);
     return () => {
       document.removeEventListener('keydown', onKey);
@@ -58,11 +74,59 @@ const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ open, onClose, fileUr
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  // open かつ desktop の場合のみ PDF bytes を取得
+  useEffect(() => {
+    if (!open) {
+      setBlobUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      setStatus('idle');
+      setErrorReason('');
+      return;
+    }
+    if (!fileUrl || !fetchPdfBytes || isMobile) {
+      // モバイルや fetcher 未指定時は iframe を出さない（CTA だけ表示）
+      return;
+    }
+    let cancelled = false;
+    let localBlobUrl: string | null = null;
+    setStatus('loading');
+    setErrorReason('');
+    fetchPdfBytes(fileUrl)
+      .then((res) => {
+        if (cancelled) return;
+        if (!res || !res.base64) {
+          if (res?.error === 'file_too_large') {
+            setStatus('too-large');
+            setErrorReason('file_too_large');
+          } else {
+            setStatus('error');
+            setErrorReason(res?.error || 'unknown');
+          }
+          return;
+        }
+        // base64 → Uint8Array
+        const bin = atob(res.base64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+        const blob = new Blob([bytes], { type: res.mimeType || 'application/pdf' });
+        localBlobUrl = URL.createObjectURL(blob);
+        setBlobUrl(localBlobUrl);
+        setStatus('ready');
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setStatus('error');
+        setErrorReason('fetch_failed');
+      });
+    return () => {
+      cancelled = true;
+      if (localBlobUrl) URL.revokeObjectURL(localBlobUrl);
+    };
+  }, [open, fileUrl, fetchPdfBytes, isMobile]);
 
-  const fileId = extractDriveFileId(fileUrl);
-  const previewSrc = fileId ? `https://drive.google.com/file/d/${fileId}/preview` : '';
-  const openInTabHref = fileUrl;
+  if (!open) return null;
 
   return (
     <div
@@ -71,7 +135,6 @@ const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ open, onClose, fileUr
       aria-labelledby="pdf-preview-title"
       className="fixed inset-0 z-50 flex items-stretch sm:items-center justify-center bg-black/70 backdrop-blur-sm"
       onClick={(e) => {
-        // backdrop click で閉じる（モーダル本体のクリックは伝播停止）
         if (e.target === e.currentTarget) onClose();
       }}
     >
@@ -79,7 +142,6 @@ const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ open, onClose, fileUr
         className="relative bg-white shadow-2xl flex flex-col w-full h-full sm:w-[90vw] sm:h-[90vh] sm:max-w-[1400px] sm:rounded-xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ヘッダー */}
         <header className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3 border-b border-slate-200 bg-slate-50 flex-shrink-0">
           <h2
             id="pdf-preview-title"
@@ -93,7 +155,7 @@ const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ open, onClose, fileUr
           <div className="flex items-center gap-1 flex-shrink-0">
             {fileUrl && (
               <a
-                href={openInTabHref}
+                href={fileUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex min-h-[44px] items-center gap-1 px-3 text-xs sm:text-sm font-medium text-primary-700 hover:bg-primary-50 rounded-md"
@@ -119,19 +181,85 @@ const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ open, onClose, fileUr
           </div>
         </header>
 
-        {/* iframe 本体 */}
-        <div className="flex-1 min-h-0 bg-slate-100">
-          {previewSrc ? (
+        <div className="flex-1 min-h-0 bg-slate-100 flex items-center justify-center">
+          {/* Mobile: iframe を出さず「別タブで開く」CTA を中央に */}
+          {isMobile && (
+            <div className="text-center p-6 max-w-sm">
+              <p className="text-slate-700 text-sm mb-4">
+                スマートフォンでは、案内PDFは別タブで開いてご覧ください。<br />
+                ブラウザの PDF ビューアーで全文表示できます。
+              </p>
+              <a
+                href={fileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-[44px] items-center justify-center gap-2 px-5 py-3 bg-primary-600 text-white font-bold rounded-md hover:bg-primary-700"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M14 5h6v6m0-6L10 15M5 5h6m-6 0v14h14v-6" />
+                </svg>
+                案内PDFを別タブで開く
+              </a>
+            </div>
+          )}
+
+          {/* Desktop: blob URL iframe */}
+          {!isMobile && status === 'loading' && (
+            <div className="text-sm text-slate-500">PDFを読み込み中...</div>
+          )}
+          {!isMobile && status === 'ready' && blobUrl && (
             <iframe
-              src={previewSrc}
+              src={blobUrl}
               title={title ? `${title} の案内PDFプレビュー` : '案内PDFプレビュー'}
-              className="w-full h-full border-0"
-              loading="lazy"
-              allow="autoplay"
+              className="w-full h-full border-0 bg-white"
+              loading="eager"
+              sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads"
             />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-sm text-slate-500 p-4 text-center">
-              PDF の URL を解析できませんでした。「別タブで開く」をご利用ください。
+          )}
+          {!isMobile && status === 'too-large' && (
+            <div className="text-center p-6 max-w-md">
+              <p className="text-sm text-slate-700 mb-3">
+                このPDFは大きいため、プレビュー内では表示しません。
+              </p>
+              <a
+                href={fileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-[44px] items-center justify-center gap-2 px-5 py-3 bg-primary-600 text-white font-bold rounded-md hover:bg-primary-700"
+              >
+                案内PDFを別タブで開く
+              </a>
+            </div>
+          )}
+          {!isMobile && status === 'error' && (
+            <div className="text-center p-6 max-w-md">
+              <p className="text-sm text-red-700 mb-3">
+                PDFの読み込みに失敗しました（理由: {errorReason || 'unknown'}）。<br />
+                「別タブで開く」をご利用ください。
+              </p>
+              <a
+                href={fileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-[44px] items-center justify-center gap-2 px-5 py-3 bg-primary-600 text-white font-bold rounded-md hover:bg-primary-700"
+              >
+                案内PDFを別タブで開く
+              </a>
+            </div>
+          )}
+          {!isMobile && !fetchPdfBytes && (
+            <div className="text-center p-6 max-w-md">
+              <p className="text-sm text-slate-700 mb-3">
+                このページでは PDF プレビューを表示できません。
+              </p>
+              <a
+                href={fileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-[44px] items-center justify-center gap-2 px-5 py-3 bg-primary-600 text-white font-bold rounded-md hover:bg-primary-700"
+              >
+                案内PDFを別タブで開く
+              </a>
             </div>
           )}
         </div>

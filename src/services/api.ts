@@ -105,6 +105,8 @@ export interface ApiClient {
   uploadTrainingFile(base64: string, filename: string, mimeType: string): Promise<{ url: string; driveFileId?: string; thumbnailUrl?: string; thumbnailGenerationStatus?: 'generated' | 'pending' | 'failed' | 'skipped' }>;
   // v344: 案内PDF サムネイルを GAS proxy 経由で base64 data URL として取得（hotlink 制限回避）
   getFileThumbnail(fileUrl: string): Promise<string | null>;
+  // v357: PDF 本体 bytes を GAS proxy 経由で base64 として取得（lightbox 内 iframe 用、10MB 上限）
+  getFileBytes(fileUrl: string): Promise<{ base64: string | null; mimeType?: string; name?: string; size?: number; error?: string }>;
   // v350: 案内PDF サムネイル手動再生成（編集モーダルから 1 クリック）
   regenerateThumbnailForTraining(trainingId: string): Promise<{ trainingId: string; thumbnailUrl: string; thumbnailGenerationStatus: 'generated' | 'pending' | 'failed' | 'skipped'; reason?: string }>;
   applyTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ applicationId: string; applicants: number; duplicate?: boolean }>;
@@ -993,6 +995,27 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('regenerateThumbnailForTraining', JSON.stringify({ trainingId }));
+    });
+  }
+
+  async getFileBytes(fileUrl: string): Promise<{ base64: string | null; mimeType?: string; name?: string; size?: number; error?: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data || { base64: null });
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('getFileBytes', JSON.stringify({ fileUrl, ...this.memberSessionPayload() }));
     });
   }
 
