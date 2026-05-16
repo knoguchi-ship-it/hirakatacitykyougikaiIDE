@@ -12337,10 +12337,10 @@ function updateTrainingThumbnailUrlByRowId_(ss, trainingId, thumbUrl) {
 
 function trashFileFromUrlIfPossible_(url) {
   if (!url) return false;
-  var m = String(url).match(/\/file\/d\/([^/?]+)/) || String(url).match(/[?&]id=([^&]+)/);
-  if (!m) return false;
+  var fileId = extractDriveFileId_(url);
+  if (!fileId) return false;
   try {
-    DriveApp.getFileById(m[1]).setTrashed(true);
+    DriveApp.getFileById(fileId).setTrashed(true);
     return true;
   } catch (e) {
     Logger.log('trashFileFromUrlIfPossible_: ' + e.message + ' url=' + url);
@@ -13456,26 +13456,73 @@ function getPublicPortalSettings_() {
  * の Drive URL** である前提（uploadTrainingFile_ が生成して T_研修.案内状サムネイルURL
  * に保存している）。実行ユーザー所有の PNG なので DriveApp.getBlob() で確実に取れる。
  *
+ * v358: payload.size でリサイズ指示を受け付ける。
+ *   - 未指定 / 0: 既存の DriveApp.getBlob() (元 PNG をそのまま返却、低解像度サムネ用)
+ *   - 数値 (例: 2000): Drive thumbnailLink を w<N> で再取得して高解像度 PNG を返す
+ *     （lightbox 拡大表示用）
+ *
  * 想定外（fileId 抽出不可 / 取得例外 / image 以外）の場合は SVG プレースホルダを返却し、
  * 画面が空にならないようにする。
  */
 function getFileThumbnail_(payload) {
   var fileUrl = String((payload && payload.fileUrl) || '').trim();
   if (!fileUrl) return { thumbnail: null };
+  var requestedSize = Number((payload && payload.size) || 0);
 
-  var match = fileUrl.match(/\/file\/d\/([^/?]+)/) || fileUrl.match(/[?&]id=([^&]+)/);
-  if (!match) {
+  var fileId = extractDriveFileId_(fileUrl);
+  if (!fileId) {
     Logger.log('getFileThumbnail_: cannot extract fileId from url=' + fileUrl);
     return { thumbnail: makePdfSvgPlaceholder_('PDF') };
   }
-  var fileId = match[1];
 
   var cache = CacheService.getScriptCache();
-  var cacheKey = 'thumb_v349_' + fileId;
+  var cacheKey = 'thumb_v358_' + fileId + '_s' + (requestedSize || 0);
   try {
     var cached = cache.get(cacheKey);
     if (cached) return { thumbnail: cached };
   } catch (e1) {}
+
+  // v358: 大きいサイズ要求時は thumbnailLink (lh3.googleusercontent.com) を再取得
+  if (requestedSize > 0) {
+    try {
+      var authHeaders = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
+      var metaUrl = 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(fileId) +
+        '?fields=thumbnailLink,mimeType,name&supportsAllDrives=true';
+      var metaResp = UrlFetchApp.fetch(metaUrl, { muteHttpExceptions: true, headers: authHeaders });
+      if (metaResp.getResponseCode() === 200) {
+        var meta = JSON.parse(metaResp.getContentText());
+        if (meta && meta.thumbnailLink) {
+          var sizedLink = meta.thumbnailLink
+            .replace(/=s\d+(-.+)?$/, '=w' + requestedSize)
+            .replace(/=s\d+$/, '=w' + requestedSize)
+            .replace(/=w\d+(-.+)?$/, '=w' + requestedSize);
+          var imgResp = UrlFetchApp.fetch(sizedLink, {
+            muteHttpExceptions: true,
+            followRedirects: true,
+            headers: authHeaders,
+          });
+          if (imgResp.getResponseCode() === 200) {
+            var hrBlob = imgResp.getBlob();
+            var hrCt = hrBlob.getContentType() || 'image/png';
+            if (hrCt.indexOf('image/') === 0) {
+              var hrDataUrl = 'data:' + hrCt + ';base64,' + Utilities.base64Encode(hrBlob.getBytes());
+              if (hrDataUrl.length < 95 * 1024) {
+                try { cache.put(cacheKey, hrDataUrl, 3600); } catch (e2) {}
+              }
+              return { thumbnail: hrDataUrl };
+            }
+          } else {
+            Logger.log('getFileThumbnail_ high-res link fetch code=' + imgResp.getResponseCode());
+          }
+        }
+      } else {
+        Logger.log('getFileThumbnail_ high-res files.get code=' + metaResp.getResponseCode());
+      }
+      // 高解像度取得が何らかで失敗した場合は通常 PNG 取得経路へ fallback
+    } catch (eHr) {
+      Logger.log('getFileThumbnail_ high-res error: ' + eHr.message);
+    }
+  }
 
   try {
     var file = DriveApp.getFileById(fileId);
@@ -13499,6 +13546,33 @@ function getFileThumbnail_(payload) {
 }
 
 /**
+ * v358: 各種 Drive URL から fileId を堅牢に抽出する共通ヘルパー。
+ * 対応形式:
+ *   - https://drive.google.com/file/d/<id>/view (or /preview or /edit)
+ *   - https://drive.google.com/open?id=<id>
+ *   - https://drive.google.com/uc?export=download&id=<id>
+ *   - https://drive.google.com/d/<id>
+ *   - 単体 fileId 文字列 (28〜44 文字の英数 + - _)
+ *   - URL encode された上記
+ */
+function extractDriveFileId_(url) {
+  if (!url) return null;
+  var decoded;
+  try { decoded = decodeURIComponent(String(url)); } catch (e) { decoded = String(url); }
+  var patterns = [
+    /\/file\/d\/([a-zA-Z0-9_-]{20,})/,
+    /\/d\/([a-zA-Z0-9_-]{20,})/,
+    /[?&]id=([a-zA-Z0-9_-]{20,})/,
+    /^([a-zA-Z0-9_-]{28,44})$/,
+  ];
+  for (var i = 0; i < patterns.length; i += 1) {
+    var m = decoded.match(patterns[i]);
+    if (m && m[1]) return m[1];
+  }
+  return null;
+}
+
+/**
  * v357: Drive 上の PDF 本体の bytes を base64 で返す。lightbox 内 iframe で
  * ブラウザ内蔵 PDF viewer に表示する用途。
  *
@@ -13515,9 +13589,11 @@ function getFileThumbnail_(payload) {
 function getFileBytes_(payload) {
   var fileUrl = String((payload && payload.fileUrl) || '').trim();
   if (!fileUrl) return { base64: null, error: 'empty_url' };
-  var m = fileUrl.match(/\/file\/d\/([^/?]+)/) || fileUrl.match(/[?&]id=([^&]+)/);
-  if (!m) return { base64: null, error: 'unparseable_url' };
-  var fileId = m[1];
+  var fileId = extractDriveFileId_(fileUrl);
+  if (!fileId) {
+    Logger.log('getFileBytes_: cannot extract fileId from url=' + fileUrl);
+    return { base64: null, error: 'unparseable_url' };
+  }
 
   var authHeaders = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
   try {

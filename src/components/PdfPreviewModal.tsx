@@ -1,21 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 /**
- * v357: PDF プレビュー lightbox モーダル（blob URL 方式に再設計）。
+ * v358: PDF プレビュー lightbox モーダル（高解像度 PNG 表示方式）。
  *
- * v355 では Drive `/file/d/<id>/preview` を iframe 埋め込みしていたが、Drive
- * 自身が CSP `frame-ancestors https://drive.google.com` を返すため外部からの
- * 埋め込みが完全ブロックされた（2024+ のセキュリティ強化）。
+ * 経緯（実装試行と撤退）:
+ *   - v355 Drive `/file/d/<id>/preview` iframe: Drive の CSP `frame-ancestors
+ *     https://drive.google.com` で外部から埋め込み禁止 → 構造的に動かない
+ *   - v357 blob URL iframe: Chrome の cross-origin blob ナビゲーション制限で
+ *     PDF viewer がブロック ("このページは Chrome によってブロックされています")
+ *   - data URL iframe: Chrome の data URL サイズ制限 ~2MB で 5MB PDF は無理
+ *   - PDF.js bundle: pdfjs-dist の import.meta が vite-singlefile で SyntaxError
  *
- * v357 の解:
- *   1. GAS server (`getFileBytes` action) が Drive REST `files/<id>?alt=media`
- *      で PDF bytes を取得して base64 で返す（Bearer 付きなので CORS / CSP 回避）
- *   2. client で base64 → Uint8Array → Blob('application/pdf') → URL.createObjectURL
- *   3. その blob: URL を iframe src に → ブラウザ内蔵 PDF viewer で render
- *
- * Mobile (iOS Safari / 一部 Android Chrome): blob URL の iframe で PDF が
- * blank になるケースが知られているため、UA 判定で iframe を出さず「別タブで
- * 開く」CTA を中央に大きく表示する。
+ * v358 の解:
+ *   server `getFileThumbnail_` に size パラメータを追加して **w2000 の高解像度
+ *   PNG** を Drive thumbnailLink から取得 → クライアントで `<img>` として中央表示。
+ *   1 ページ目だけだが「人間が文字を読める」品質。複数ページ閲覧は header の
+ *   「別タブで開く」リンクから Drive viewer に飛ぶ。CSP/Chrome blob 制約を完全
+ *   回避、すべての PDF で確実に動く。
  */
 
 interface PdfPreviewModalProps {
@@ -26,17 +27,12 @@ interface PdfPreviewModalProps {
   /** ヘッダーに出すタイトル（研修名など） */
   title?: string;
   /**
-   * 境界ごとの fetcher を渡す:
-   *   - member / admin: api.getFileBytes.bind(api)（sessionToken 自動付与）
-   *   - public: (url) => callApi('getFileBytes', { fileUrl: url })
-   * 未指定時は iframe 表示せず「別タブで開く」のみを案内。
+   * 高解像度 PNG (w2000) を取得する関数。境界ごとに渡す:
+   *   - member / admin: (url) => api.getFileThumbnail(url, 2000)
+   *   - public: (url) => callApi('getFileThumbnail', { fileUrl: url, size: 2000 }).then(r => r.thumbnail)
+   * 戻り値は data:image/...;base64,... の data URL。失敗時 null。
    */
-  fetchPdfBytes?: (fileUrl: string) => Promise<{ base64: string | null; mimeType?: string; size?: number; error?: string }>;
-}
-
-function isMobileUserAgent(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  return /iPad|iPhone|iPod|Android.*Mobile/i.test(navigator.userAgent);
+  fetchHighResImage?: (fileUrl: string) => Promise<string | null>;
 }
 
 const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({
@@ -44,14 +40,15 @@ const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({
   onClose,
   fileUrl,
   title,
-  fetchPdfBytes,
+  fetchHighResImage,
 }) => {
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
-  const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error' | 'too-large'>('idle');
-  const [errorReason, setErrorReason] = useState<string>('');
-  const [isMobile] = useState<boolean>(isMobileUserAgent);
+  const fetchRef = useRef(fetchHighResImage);
+  useEffect(() => { fetchRef.current = fetchHighResImage; });
+
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
 
   // ESC キー + フォーカスリストア + 背景スクロールロック
   useEffect(() => {
@@ -74,57 +71,36 @@ const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({
     };
   }, [open, onClose]);
 
-  // open かつ desktop の場合のみ PDF bytes を取得
+  // open 時に高解像度 PNG を fetch
   useEffect(() => {
     if (!open) {
-      setBlobUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return null;
-      });
+      setImageUrl(null);
       setStatus('idle');
-      setErrorReason('');
       return;
     }
-    if (!fileUrl || !fetchPdfBytes || isMobile) {
-      // モバイルや fetcher 未指定時は iframe を出さない（CTA だけ表示）
+    if (!fileUrl || !fetchRef.current) {
+      setStatus('error');
       return;
     }
     let cancelled = false;
-    let localBlobUrl: string | null = null;
     setStatus('loading');
-    setErrorReason('');
-    fetchPdfBytes(fileUrl)
-      .then((res) => {
+    fetchRef.current(fileUrl)
+      .then((url) => {
         if (cancelled) return;
-        if (!res || !res.base64) {
-          if (res?.error === 'file_too_large') {
-            setStatus('too-large');
-            setErrorReason('file_too_large');
-          } else {
-            setStatus('error');
-            setErrorReason(res?.error || 'unknown');
-          }
-          return;
+        if (url) {
+          setImageUrl(url);
+          setStatus('ready');
+        } else {
+          setStatus('error');
         }
-        // base64 → Uint8Array
-        const bin = atob(res.base64);
-        const bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
-        const blob = new Blob([bytes], { type: res.mimeType || 'application/pdf' });
-        localBlobUrl = URL.createObjectURL(blob);
-        setBlobUrl(localBlobUrl);
-        setStatus('ready');
       })
       .catch(() => {
         if (cancelled) return;
         setStatus('error');
-        setErrorReason('fetch_failed');
       });
-    return () => {
-      cancelled = true;
-      if (localBlobUrl) URL.revokeObjectURL(localBlobUrl);
-    };
-  }, [open, fileUrl, fetchPdfBytes, isMobile]);
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, fileUrl]);
 
   if (!open) return null;
 
@@ -133,7 +109,7 @@ const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="pdf-preview-title"
-      className="fixed inset-0 z-50 flex items-stretch sm:items-center justify-center bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-stretch sm:items-center justify-center bg-black/80 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -159,12 +135,13 @@ const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex min-h-[44px] items-center gap-1 px-3 text-xs sm:text-sm font-medium text-primary-700 hover:bg-primary-50 rounded-md"
-                aria-label="案内PDFを別タブで開く"
+                aria-label="案内PDFを別タブで開く（全ページ閲覧）"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M14 5h6v6m0-6L10 15M5 5h6m-6 0v14h14v-6" />
                 </svg>
-                <span className="hidden sm:inline">別タブで開く</span>
+                <span className="hidden sm:inline">全ページを別タブで開く</span>
+                <span className="sm:hidden">別タブ</span>
               </a>
             )}
             <button
@@ -181,88 +158,43 @@ const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({
           </div>
         </header>
 
-        <div className="flex-1 min-h-0 bg-slate-100 flex items-center justify-center">
-          {/* Mobile: iframe を出さず「別タブで開く」CTA を中央に */}
-          {isMobile && (
-            <div className="text-center p-6 max-w-sm">
-              <p className="text-slate-700 text-sm mb-4">
-                スマートフォンでは、案内PDFは別タブで開いてご覧ください。<br />
-                ブラウザの PDF ビューアーで全文表示できます。
-              </p>
-              <a
-                href={fileUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex min-h-[44px] items-center justify-center gap-2 px-5 py-3 bg-primary-600 text-white font-bold rounded-md hover:bg-primary-700"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M14 5h6v6m0-6L10 15M5 5h6m-6 0v14h14v-6" />
-                </svg>
-                案内PDFを別タブで開く
-              </a>
-            </div>
+        <div className="flex-1 min-h-0 bg-slate-100 overflow-auto flex items-start justify-center p-2 sm:p-4">
+          {status === 'loading' && (
+            <div className="self-center text-sm text-slate-500">PDFを読み込み中...</div>
           )}
-
-          {/* Desktop: blob URL iframe */}
-          {!isMobile && status === 'loading' && (
-            <div className="text-sm text-slate-500">PDFを読み込み中...</div>
-          )}
-          {!isMobile && status === 'ready' && blobUrl && (
-            <iframe
-              src={blobUrl}
-              title={title ? `${title} の案内PDFプレビュー` : '案内PDFプレビュー'}
-              className="w-full h-full border-0 bg-white"
-              loading="eager"
-              sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads"
+          {status === 'ready' && imageUrl && (
+            <img
+              src={imageUrl}
+              alt={`${title || '案内PDF'} の 1 ページ目`}
+              className="max-w-full h-auto shadow-lg bg-white"
+              style={{ imageRendering: 'auto' }}
             />
           )}
-          {!isMobile && status === 'too-large' && (
-            <div className="text-center p-6 max-w-md">
+          {status === 'error' && (
+            <div className="self-center text-center p-6 max-w-md">
               <p className="text-sm text-slate-700 mb-3">
-                このPDFは大きいため、プレビュー内では表示しません。
+                プレビュー画像を表示できませんでした。<br />
+                「全ページを別タブで開く」から Drive で閲覧してください。
               </p>
-              <a
-                href={fileUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex min-h-[44px] items-center justify-center gap-2 px-5 py-3 bg-primary-600 text-white font-bold rounded-md hover:bg-primary-700"
-              >
-                案内PDFを別タブで開く
-              </a>
-            </div>
-          )}
-          {!isMobile && status === 'error' && (
-            <div className="text-center p-6 max-w-md">
-              <p className="text-sm text-red-700 mb-3">
-                PDFの読み込みに失敗しました（理由: {errorReason || 'unknown'}）。<br />
-                「別タブで開く」をご利用ください。
-              </p>
-              <a
-                href={fileUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex min-h-[44px] items-center justify-center gap-2 px-5 py-3 bg-primary-600 text-white font-bold rounded-md hover:bg-primary-700"
-              >
-                案内PDFを別タブで開く
-              </a>
-            </div>
-          )}
-          {!isMobile && !fetchPdfBytes && (
-            <div className="text-center p-6 max-w-md">
-              <p className="text-sm text-slate-700 mb-3">
-                このページでは PDF プレビューを表示できません。
-              </p>
-              <a
-                href={fileUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex min-h-[44px] items-center justify-center gap-2 px-5 py-3 bg-primary-600 text-white font-bold rounded-md hover:bg-primary-700"
-              >
-                案内PDFを別タブで開く
-              </a>
+              {fileUrl && (
+                <a
+                  href={fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-[44px] items-center justify-center gap-2 px-5 py-3 bg-primary-600 text-white font-bold rounded-md hover:bg-primary-700"
+                >
+                  案内PDFを別タブで開く
+                </a>
+              )}
             </div>
           )}
         </div>
+
+        {status === 'ready' && (
+          <div className="px-4 py-2 text-xs text-slate-500 bg-slate-50 border-t border-slate-200 text-center flex-shrink-0">
+            ※ ここに表示しているのは 1 ページ目のプレビューです。複数ページの閲覧は「全ページを別タブで開く」をご利用ください。
+          </div>
+        )}
       </div>
     </div>
   );

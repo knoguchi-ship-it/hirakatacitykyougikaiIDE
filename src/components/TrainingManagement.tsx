@@ -701,13 +701,13 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
           )}
         </div>
       </div>
-      {/* v357: PDF プレビュー lightbox (blob URL iframe 方式) */}
+      {/* v358: PDF プレビュー lightbox (高解像度 PNG モーダル) */}
       <PdfPreviewModal
         open={pdfPreviewOpen}
         onClose={() => setPdfPreviewOpen(false)}
         fileUrl={form.guidePdfUrl || ''}
         title={form.title || '案内PDFプレビュー'}
-        fetchPdfBytes={api.getFileBytes.bind(api)}
+        fetchHighResImage={(url) => api.getFileThumbnail(url, 2000)}
       />
     </div>
   );

@@ -104,7 +104,8 @@ export interface ApiClient {
   saveTraining(training: Training): Promise<Training>;
   uploadTrainingFile(base64: string, filename: string, mimeType: string): Promise<{ url: string; driveFileId?: string; thumbnailUrl?: string; thumbnailGenerationStatus?: 'generated' | 'pending' | 'failed' | 'skipped' }>;
   // v344: 案内PDF サムネイルを GAS proxy 経由で base64 data URL として取得（hotlink 制限回避）
-  getFileThumbnail(fileUrl: string): Promise<string | null>;
+  // v358: 第2引数 size を渡すと高解像度版（Drive thumbnailLink を w<size> で再取得）を返す
+  getFileThumbnail(fileUrl: string, size?: number): Promise<string | null>;
   // v357: PDF 本体 bytes を GAS proxy 経由で base64 として取得（lightbox 内 iframe 用、10MB 上限）
   getFileBytes(fileUrl: string): Promise<{ base64: string | null; mimeType?: string; name?: string; size?: number; error?: string }>;
   // v350: 案内PDF サムネイル手動再生成（編集モーダルから 1 クリック）
@@ -1019,7 +1020,7 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async getFileThumbnail(fileUrl: string): Promise<string | null> {
+  async getFileThumbnail(fileUrl: string, size?: number): Promise<string | null> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
         reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
@@ -1039,7 +1040,7 @@ class GasApiClient implements ApiClient {
           }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getFileThumbnail', JSON.stringify({ fileUrl, ...this.memberSessionPayload() }));
+        .processApiRequest('getFileThumbnail', JSON.stringify({ fileUrl, size: size || 0, ...this.memberSessionPayload() }));
     });
   }
 
