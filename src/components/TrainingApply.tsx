@@ -458,17 +458,34 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
               <div className="pt-2 border-t border-slate-200">
                 <p className="text-xs text-slate-500 mb-2">添付PDF</p>
                 {selectedHistoryTraining.guidePdfUrl ? (
-                  <div className="space-y-2">
-                    {selectedHistoryTraining.thumbnailUrl && (
+                  <div className="w-full max-w-[220px] sm:max-w-[260px]">
+                    {selectedHistoryTraining.thumbnailUrl ? (
                       <PdfThumbnail
-                        thumbnailUrl={selectedHistoryTraining.thumbnailUrl!}
+                        thumbnailUrl={selectedHistoryTraining.thumbnailUrl}
                         fileUrl={selectedHistoryTraining.guidePdfUrl}
                         fetchThumbnail={api.getFileThumbnail.bind(api)}
-                        height={220}
-                        onPreview={selectedHistoryTraining.guidePdfUrl ? () => setPreviewTraining({ title: selectedHistoryTraining.title, fileUrl: selectedHistoryTraining.guidePdfUrl! }) : undefined}
+                        aspectRatio="210 / 297"
+                        onPreview={() => setPreviewTraining({ title: selectedHistoryTraining.title, fileUrl: selectedHistoryTraining.guidePdfUrl! })}
                       />
+                    ) : (
+                      <div
+                        className="flex items-center justify-center bg-slate-100 border border-slate-200 rounded-xl text-slate-400 text-xs text-center px-2"
+                        style={{ aspectRatio: '210 / 297' }}
+                        aria-label="案内PDFサムネイル未生成"
+                      >
+                        案内PDFサムネイル<br />未生成
+                      </div>
                     )}
-                    <a href={selectedHistoryTraining.guidePdfUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[44px] items-center rounded-md px-2 text-sm font-medium text-primary-700 hover:bg-primary-50 hover:text-primary-900 hover:underline">
+                    <a
+                      href={selectedHistoryTraining.guidePdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-flex min-h-[44px] items-center justify-center gap-1 w-full px-2 text-xs font-medium text-primary-700 hover:bg-primary-50 hover:underline rounded-md"
+                      aria-label="案内PDFを別タブで開く"
+                    >
+                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
                       全ページを別タブで開く
                     </a>
                   </div>

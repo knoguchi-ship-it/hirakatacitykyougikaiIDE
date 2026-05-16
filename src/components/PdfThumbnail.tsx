@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 interface PdfThumbnailProps {
   /** Drive 上の事前生成 PNG サムネイルの URL（fetchThumbnail に渡される） */
@@ -37,6 +37,18 @@ const PdfThumbnail: React.FC<PdfThumbnailProps> = ({
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
 
+  // v356: fetchThumbnail は親 (caller) が毎 render で新しい関数 reference を渡してくる
+  // ことが多い (api.getFileThumbnail.bind(api) 等)。useEffect の依存に直接入れると
+  // 親が re-render するたびにフェッチが再実行され「詳細を見る」クリック等の度に
+  // サムネイルが loading → loaded に戻ってチラつく。
+  // React 19 系の推奨パターンに従い、ref で latest を保持しつつ effect は
+  // thumbnailUrl 変化時だけ再実行する。
+  // Ref: https://peterkellner.net/2026/01/09/understanding-react-useeffectevent-vs-useeffect/
+  const fetchRef = useRef(fetchThumbnail);
+  useEffect(() => {
+    fetchRef.current = fetchThumbnail;
+  });
+
   useEffect(() => {
     if (!thumbnailUrl) {
       setDataUrl(null);
@@ -45,7 +57,7 @@ const PdfThumbnail: React.FC<PdfThumbnailProps> = ({
     }
     let cancelled = false;
     setStatus('loading');
-    fetchThumbnail(thumbnailUrl)
+    fetchRef.current(thumbnailUrl)
       .then((url) => {
         if (cancelled) return;
         if (url) {
@@ -64,7 +76,8 @@ const PdfThumbnail: React.FC<PdfThumbnailProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [thumbnailUrl, fetchThumbnail]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [thumbnailUrl]);
 
   const clickable = !!onPreview || !!fileUrl;
 
