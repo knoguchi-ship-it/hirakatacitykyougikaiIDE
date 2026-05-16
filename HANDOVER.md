@@ -1,8 +1,10 @@
 # 開発引継ぎ
 
 更新日: 2026-05-16
-現行本番: `v358`（案内 PDF プレビュー lightbox を高解像度 PNG (w2000) モーダル化、CSP/Chrome blob 制約を全て回避） / integrated-public GAS version `316` / member split GAS version `73` / admin split GAS version `114`
-fixed deployment: integrated/public `@316` x2 / member split `@73` / admin split `@114`
+現行本番: `v359`（会員ログイン高速化、ログインID保存、パスワード表示切替、パスワード再設定メール導線） / integrated-public GAS version `317` / member split GAS version `74` / admin split GAS version `115`
+fixed deployment: integrated/public `@317` x2 / member split `@74` / admin split `@115`
+
+> **2026-05-16 v359 反映済み**: 会員ログイン UX / パスワード再設定を改修。会員ログインは `memberLoginWithData` ではなく `memberLogin` で認証を先に完了し、会員ポータルデータは既存の遅延ロードに切替。ログイン画面にログインID保存、パスワード表示/非表示、`ログインID + 登録メールアドレス` によるパスワード再設定メール送信を追加。事業所職員アカウントの登録メール正本は `T_事業所職員.メールアドレス`。再設定メールは `CREDENTIAL_EMAIL_FROM` を使用し、確認コードは短期キャッシュでハッシュ保存、成功時に失敗回数とロック状態をリセットする。integrated/public `@317` x2 / member `@74` / admin `@115`。詳細: `docs/222_RELEASE_STATE_v359_2026-05-16.md`
 
 > **2026-05-16 v358 反映済み**: 案内 PDF lightbox プレビューを w2000 高解像度 PNG `<img>` モーダルへ着地。v355 (Drive `/preview` iframe = CSP frame-ancestors) / v357 (blob URL iframe = Chrome cross-origin block) が構造的に動かない理由が判明したため、Drive thumbnailLink から取った高解像度 PNG を 1 ページ目だけ表示し、全ページは「別タブで開く」で Drive viewer に飛ばす設計に統一。`extractDriveFileId_` 共通ヘルパー導入で `/d/`, `?id=`, URL encode 形式の `unparseable_url` も解消。`getFileThumbnail_` に `size` 引数追加 (`api.getFileThumbnail(url, 2000)`)。v354〜v358 の経緯詳細: `docs/221_RELEASE_STATE_v354_to_v358_2026-05-16.md`
 
@@ -12,7 +14,7 @@ fixed deployment: integrated/public `@316` x2 / member split `@73` / admin split
 
 > **2026-05-14 v351 ロールバック完了**: v351 で導入した `pdfjs-dist` の dynamic import が、`vite-plugin-singlefile` のデフォルト挙動（bundle を plain `<script>` 化）と組み合わさり、`pdfjs-dist/build/pdf.mjs:9421` の `import.meta.url`（Node 専用 dead code）が parse 時に `Uncaught SyntaxError: Cannot use 'import.meta' outside a module` を投げ、admin shell 全体がクラッシュ。4 fixed deployment を全て v350 (`@309 x2 / @66 / @108`) へ即時 redeploy 戻しした。GAS Apps Script コードと build artifact は v351 commit 群（`606c520 / f1ed4be / 37d92c5`）として git に残るが、本番には未反映。再挑戦時は `@rollup/plugin-replace` で pdfjs-dist 内の `import.meta.url` をリテラル置換するなど、Vite bundle 構成側の対策が必要。罠詳細: `memory/feedback_pdfjs_dist_vite_singlefile_trap.md`
 
-> **2026-05-14 v350 反映済み (現行本番)**: 案内 PDF サムネイルの生成時間を **20-25 秒 + pending → 3-8 秒** へ短縮。Web 検索 (Mozilla pdf.js v5.4 / Nutrient 2026 guide) のベストプラクティスに従い、admin ポータルに `pdfjs-dist@^5.7` を導入。`src/lib/pdfThumbnail.ts` が File → 1 ページ目を `<canvas>` レンダリング → PNG base64 を返し、`uploadTrainingFile_` がそれを受け取って即時 Drive 保存。サーバ側の `generateAndSaveThumbnailForPdf_` polling は client 側失敗時の fallback として維持。admin bundle size +175KB (compressed)、member/public 不変。詳細: `docs/218_RELEASE_STATE_v351_2026-05-14.md`
+> **2026-05-14 v350 反映済み (参考)**: 案内 PDF サムネイルの生成時間を **20-25 秒 + pending → 3-8 秒** へ短縮。Web 検索 (Mozilla pdf.js v5.4 / Nutrient 2026 guide) のベストプラクティスに従い、admin ポータルに `pdfjs-dist@^5.7` を導入。`src/lib/pdfThumbnail.ts` が File → 1 ページ目を `<canvas>` レンダリング → PNG base64 を返し、`uploadTrainingFile_` がそれを受け取って即時 Drive 保存。サーバ側の `generateAndSaveThumbnailForPdf_` polling は client 側失敗時の fallback として維持。admin bundle size +175KB (compressed)、member/public 不変。詳細: `docs/218_RELEASE_STATE_v351_2026-05-14.md`
 
 > **2026-05-14 v350 反映済み**: v349 で残った「アップロード直後の Drive thumbnailLink が間に合わず thumbnailUrl='' のまま」事象を Web 検索のベストプラクティスで再評価し、(1) polling を `hasThumbnail` field + 5s×5回=最大 25 秒へ強化、(2) 10 分毎の `processPendingThumbnails` trigger を導入し大きい PDF を後追い backfill、(3) admin 編集モーダルに「サムネイル再生成」ボタン (`regenerateThumbnailForTraining` action) を追加。Playwright e2e で 24 秒で 24KB の base64 PNG 描画を確認。**operator 必須**: Apps Script editor で **`setupPendingThumbnailsTrigger` を 1 回 Run** して 10 分 trigger を登録すること。詳細: `docs/217_RELEASE_STATE_v350_2026-05-14.md`
 
@@ -66,7 +68,8 @@ fixed deployment: integrated/public `@316` x2 / member split `@73` / admin split
 7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `docs/221_RELEASE_STATE_v354_to_v358_2026-05-16.md`（**最新本番：v358。PDF lightbox 高解像度 PNG モーダル + v354〜v358 統合 release state。integrated-public @316 x2 / member @73 / admin @114**）
+10. `docs/222_RELEASE_STATE_v359_2026-05-16.md`（**最新本番：v359。会員ログイン高速化 / ログインID保存 / パスワード表示切替 / パスワード再設定メール導線。integrated-public @317 x2 / member @74 / admin @115**）
+11. `docs/221_RELEASE_STATE_v354_to_v358_2026-05-16.md`（v358。PDF lightbox 高解像度 PNG モーダル + v354〜v358 統合 release state。integrated-public @316 x2 / member @73 / admin @114）
 11. `docs/220_RELEASE_STATE_v353_2026-05-15.md`（v353。会員マイページ「受付中の研修」A4 サムネイル UI 改修）
 12. `docs/219_RELEASE_STATE_v352_2026-05-14.md`（v352。公開ポータル研修一覧 A4 サムネイル UI 改修）
 11. `docs/217_RELEASE_STATE_v350_2026-05-14.md`（v350。サムネイル運用強化、member/admin は引き続き v350 / member @66 / admin @108）
@@ -108,13 +111,14 @@ fixed deployment: integrated/public `@316` x2 / member split `@73` / admin split
 
 | 用途 | Project | Deployment ID | Access | Current version |
 |---|---|---|---|---|
-| 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@316` |
-| 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@316` |
-| 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@73` |
-| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@114` |
+| 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@317` |
+| 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@317` |
+| 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@74` |
+| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@115` |
 
 ## 4. 直近リリース
 
+- `v359`: 会員ログインを認証先行 + 遅延ロードへ変更。ログインID保存、パスワード表示/非表示、登録メールへのパスワード再設定コード送信を追加。integrated/public `@317` x2 / member `@74` / admin `@115`。詳細: `docs/222_RELEASE_STATE_v359_2026-05-16.md`
 - `v358`: 案内 PDF lightbox プレビューを高解像度 PNG (w2000) モーダル化。CSP / Chrome blob / iOS Safari 制約を全て回避、1 ページ目を読める品質で表示し、全ページ閲覧は「別タブで開く」(Drive viewer) で。`extractDriveFileId_` 共通ヘルパーで全 URL 形式に対応 → `unparseable_url` 解消。integrated/public `@316` x2 / member `@73` / admin `@114`。
 - `v357`: lightbox を blob URL iframe で実装 (Chrome ブロックで撤退 → v358 へ)。
 - `v356`: PdfThumbnail の useEffect dep に fetchThumbnail が入っており「詳細を見る」開閉で再フェッチが起きていた問題を useRef パターンで修正 + 申込済み詳細パネルの PdfThumbnail を A4 縦比に統一。
@@ -231,7 +235,7 @@ fixed deployment: integrated/public `@316` x2 / member split `@73` / admin split
 2. **次の 3 件を必ず読む**:
    - `AGENTS.md`（特に **§0 シークレット最優先絶対ルール** と §4 レスポンシブ必須）
    - `HANDOVER.md`（本文書）
-   - `docs/221_RELEASE_STATE_v354_to_v358_2026-05-16.md`（最新本番 release state）
+   - `docs/222_RELEASE_STATE_v359_2026-05-16.md`（最新本番 release state）
 3. テストハーネス前提を整える（必要に応じて）:
    - Member テスト: `.env.test.example` を `.env.test` にコピーし、`MEMBER_LOGIN_ID` / `MEMBER_PASSWORD` をユーザー側で埋める（ロックされていないテスト用アカウントを使用）。
    - Admin テスト: `node scripts/auth-bootstrap-admin.mjs` で Google ログイン → `.test-out/auth-admin.json` を作成（通常 1〜2 週間有効）。

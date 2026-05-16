@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-05-16
-Production: `v358` (PDF lightbox 高解像度 PNG モーダル化、CSP/Chrome blob 制約回避) / integrated-public fixed deployments `@316` x2 / member split `@73` / admin split `@114`
+Production: `v359` (会員ログイン高速化、ログインID保存、パスワード表示切替、パスワード再設定メール導線) / integrated-public fixed deployments `@317` x2 / member split `@74` / admin split `@115`
 
 ## 1. Purpose
 
@@ -17,15 +17,15 @@ Production: `v358` (PDF lightbox 高解像度 PNG モーダル化、CSP/Chrome b
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@316` (`v358`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@316` (`v358`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@317` (`v359`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@317` (`v359`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@73` (`v358`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@114` (`v358`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@74` (`v359`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@115` (`v359`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -142,7 +142,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-05-16 `v358` ← current production
+### 2026-05-16 `v359` ← current production
+- Scope: 会員ログイン UX / パスワード再設定を改善。会員ログインは `memberLogin` で認証を先に完了し、会員ポータルデータは遅延ロードへ変更。ログイン画面にログインID保存、パスワード表示/非表示、`ログインID + 登録メールアドレス` によるパスワード再設定メール送信を追加。事業所職員アカウントの登録メール正本は `T_事業所職員.メールアドレス`。確認コードは 30 分有効の短期キャッシュ hash 保存。
+- Integrated fixed deployments: `@317` x2
+- Member split: `@74`
+- Admin split: `@115`
+- Detail: `docs/222_RELEASE_STATE_v359_2026-05-16.md`
+
+### 2026-05-16 `v358`
 - Scope: 案内 PDF lightbox プレビューを **高解像度 PNG (w2000) `<img>` モーダル** に着地。`getFileThumbnail_` に `size` パラメータ追加 + `extractDriveFileId_` 共通ヘルパー導入で URL parse 強化 (`/d/`, `?id=`, URL encode 対応)。Drive `/preview` iframe (v355) と blob URL iframe (v357) の構造的不可能性を確認し、安定経路に統一。
 - Integrated fixed deployments: `@316` x2
 - Member split: `@73`
@@ -170,7 +177,7 @@ Real-browser verification is performed by the operator by default. The agent rec
 - Next attempt 方針: `@rollup/plugin-replace` で pdfjs-dist の `import.meta.url` を空文字置換、または Vite alias で patched build に差替え。memory: `feedback_pdfjs_dist_vite_singlefile_trap.md`
 - Detail: `docs/218_RELEASE_STATE_v351_2026-05-14.md`
 
-### 2026-05-14 `v350` ← current production
+### 2026-05-14 `v350`
 
 - Scope: 案内 PDF サムネイル運用強化。Web 検索（Latenode community / Drive API v3 file metadata guide）のベストプラクティスに基づき (1) `generateAndSaveThumbnailForPdf_` を `hasThumbnail` field + 5s×5 retry = 25s 同期に強化、(2) `processPendingThumbnails` を 10 分 trigger で後追い backfill 化、(3) `regenerateThumbnailForTraining` admin action + 編集モーダル「サムネイル再生成」ボタンを追加。
 - Integrated fixed deployments: `@309` x2

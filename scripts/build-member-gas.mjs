@@ -398,6 +398,8 @@ function buildMemberCode(source) {
   code = removeDisallowedActionHandlers(code, [
     'memberLogin',
     'memberLoginWithData',
+    'requestPasswordReset',
+    'completePasswordReset',
     'getMemberPortalData',
     'updateMemberSelf',
     'changePassword',

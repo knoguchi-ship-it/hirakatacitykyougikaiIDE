@@ -136,6 +136,8 @@ const forbiddenTopLevelFunctions = [
 const forbiddenActions = [
   'memberLogin',
   'memberLoginWithData',
+  'requestPasswordReset',
+  'completePasswordReset',
   'getMemberPortalData',
   'updateMemberSelf',
   'changePassword',

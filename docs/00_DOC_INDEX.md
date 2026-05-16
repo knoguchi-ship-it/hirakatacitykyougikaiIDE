@@ -1,7 +1,7 @@
 # Document Index
 
-更新日: 2026-05-13
-現行バージョン: `v341`（integrated-public `@301` x2 / member split `@58` / admin split `@99`）
+更新日: 2026-05-16
+現行バージョン: `v359`（integrated-public `@317` x2 / member split `@74` / admin split `@115`）
 
 ## 1. Entry Points
 
@@ -32,7 +32,8 @@
 
 | 文書 | 内容 |
 |---|---|
-| `docs/221_RELEASE_STATE_v354_to_v358_2026-05-16.md` | **最新本番** v358。PDF lightbox を高解像度 PNG (w2000) モーダル化、`extractDriveFileId_` 共通ヘルパー導入。v354〜v358 の lightbox UX 試行 4 サイクルを統合した release state。integrated-public `@316` x2 / member `@73` / admin `@114` |
+| `docs/222_RELEASE_STATE_v359_2026-05-16.md` | **最新本番** v359。会員ログイン高速化、ログインID保存、パスワード表示切替、パスワード再設定メール導線。integrated-public `@317` x2 / member `@74` / admin `@115` |
+| `docs/221_RELEASE_STATE_v354_to_v358_2026-05-16.md` | v358。PDF lightbox を高解像度 PNG (w2000) モーダル化、`extractDriveFileId_` 共通ヘルパー導入。v354〜v358 の lightbox UX 試行 4 サイクルを統合した release state。integrated-public `@316` x2 / member `@73` / admin `@114` |
 | `docs/220_RELEASE_STATE_v353_2026-05-15.md` | v353。会員マイページ「受付中の研修」を A4 縦 PDF サムネイル + 詳細情報の 2 カラムカードへ改修、member `@68` |
 | `docs/219_RELEASE_STATE_v352_2026-05-14.md` | v352。公開ポータル研修一覧を A4 縦 PDF サムネイル + 詳細情報の 2 カラムカードへ改修、integrated-public `@311` x2 |
 | `docs/217_RELEASE_STATE_v350_2026-05-14.md` | v350。案内 PDF サムネイル運用強化 (hasThumbnail polling + 10 分 trigger backfill + admin 手動再生成ボタン)、member `@66` / admin `@108` (v352 でも維持) |

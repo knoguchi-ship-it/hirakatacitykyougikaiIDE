@@ -700,6 +700,8 @@ var PUBLIC_ALLOWED_ACTIONS = {};
 var MEMBER_ALLOWED_ACTIONS = {
   memberLogin: true,
   memberLoginWithData: true,
+  requestPasswordReset: true,
+  completePasswordReset: true,
   getMemberPortalData: true,
   updateMemberSelf: true,
   changePassword: true,
@@ -773,7 +775,7 @@ function processApiRequest(action, payload) {
     }
         // 会員セッショントークン検証: ログイン以外の MEMBER_ALLOWED_ACTIONS は
     // サーバー側セッションキャッシュからのみ principal を解決し、クライアント申告を信頼しない
-    var LOGIN_ONLY_MEMBER_ACTIONS = { memberLogin: true, memberLoginWithData: true };
+    var LOGIN_ONLY_MEMBER_ACTIONS = { memberLogin: true, memberLoginWithData: true, requestPasswordReset: true, completePasswordReset: true };
     if (isMemberAction && !LOGIN_ONLY_MEMBER_ACTIONS[action]) {
       var memberToken = String(parsedPayload.sessionToken || '').trim();
       if (!memberToken) {
@@ -847,6 +849,14 @@ function processApiRequest(action, payload) {
 
     if (action === 'changePassword') {
       return JSON.stringify({ success: true, data: changePassword_(parsedPayload) });
+    }
+
+    if (action === 'requestPasswordReset') {
+      return JSON.stringify({ success: true, data: requestPasswordReset_(parsedPayload) });
+    }
+
+    if (action === 'completePasswordReset') {
+      return JSON.stringify({ success: true, data: completePasswordReset_(parsedPayload) });
     }
 
     if (action === 'memberLogin') {
@@ -1753,6 +1763,222 @@ function changePassword_(request) {
 
   return {
     loginId: loginId,
+    updatedAt: nowIso,
+  };
+}
+
+var PASSWORD_RESET_CODE_TTL_SECONDS = 30 * 60;
+var PASSWORD_RESET_CODE_TTL_MINUTES = 30;
+var PASSWORD_RESET_GENERIC_MESSAGE = '入力内容が登録情報と一致する場合、手続き用メールを送信しました。メールに記載された確認コードを入力してください。';
+
+function normalizeEmailForCompare_(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
+function passwordResetCacheKey_(loginId) {
+  return 'pr_' + hmacSha256Hex_(String(loginId || '').trim(), 'password-reset-cache-key').slice(0, 48);
+}
+
+function passwordResetRateLimitKey_(loginId, email) {
+  return 'pr_rl_' + hmacSha256Hex_(String(loginId || '').trim() + '|' + normalizeEmailForCompare_(email), 'password-reset-rate-limit').slice(0, 48);
+}
+
+function generatePasswordResetCode_(loginId) {
+  var seed = Utilities.getUuid() + '|' + String(loginId || '') + '|' + new Date().toISOString();
+  var hex = hmacSha256Hex_(seed, 'password-reset-code');
+  var value = parseInt(hex.slice(0, 12), 16) % 1000000;
+  return ('000000' + value).slice(-6);
+}
+
+function resolvePasswordResetTarget_(ss, loginId) {
+  var authSheet = ss.getSheetByName('T_認証アカウント');
+  if (!authSheet) return null;
+  var authRowInfo = findRowByColumnValue_(authSheet, 'ログインID', loginId);
+  if (!authRowInfo) return null;
+  var authRow = authRowInfo.row;
+  var authCols = authRowInfo.columns;
+  requireColumns_(authCols, ['認証ID', '認証方式', '会員ID', '職員ID', 'アカウント有効フラグ', '削除フラグ']);
+  if (String(authRow[authCols['認証方式']] || '') !== 'PASSWORD') return null;
+  if (!toBoolean_(authRow[authCols['アカウント有効フラグ']])) return null;
+  if (toBoolean_(authRow[authCols['削除フラグ']])) return null;
+
+  var authId = String(authRow[authCols['認証ID']] || '').trim();
+  var memberId = String(authRow[authCols['会員ID']] || '').trim();
+  var staffId = String(authRow[authCols['職員ID']] || '').trim();
+  var email = '';
+  var displayName = '';
+
+  if (staffId) {
+    var staffSheet = ss.getSheetByName('T_事業所職員');
+    if (!staffSheet) return null;
+    var staffRowInfo = findRowByColumnValue_(staffSheet, '職員ID', staffId);
+    if (!staffRowInfo) return null;
+    var staffRow = staffRowInfo.row;
+    var staffCols = staffRowInfo.columns;
+    requireColumns_(staffCols, ['メールアドレス', '姓', '名', '氏名', '削除フラグ']);
+    if (toBoolean_(staffRow[staffCols['削除フラグ']])) return null;
+    email = String(staffRow[staffCols['メールアドレス']] || '').trim();
+    displayName = String(staffRow[staffCols['氏名']] || '').trim()
+      || (String(staffRow[staffCols['姓']] || '').trim() + ' ' + String(staffRow[staffCols['名']] || '').trim()).trim();
+  } else {
+    var memberSheet = ss.getSheetByName('T_会員');
+    if (!memberSheet) return null;
+    var memberRowInfo = findRowByColumnValue_(memberSheet, '会員ID', memberId);
+    if (!memberRowInfo) return null;
+    var memberRow = memberRowInfo.row;
+    var memberCols = memberRowInfo.columns;
+    requireColumns_(memberCols, ['代表メールアドレス', '姓', '名', '勤務先名', '削除フラグ']);
+    if (toBoolean_(memberRow[memberCols['削除フラグ']])) return null;
+    email = String(memberRow[memberCols['代表メールアドレス']] || '').trim();
+    displayName = (String(memberRow[memberCols['姓']] || '').trim() + ' ' + String(memberRow[memberCols['名']] || '').trim()).trim()
+      || String(memberRow[memberCols['勤務先名']] || '').trim();
+  }
+
+  if (!email) return null;
+  return {
+    authSheet: authSheet,
+    authRowInfo: authRowInfo,
+    authColumns: authCols,
+    authId: authId,
+    loginId: String(loginId || '').trim(),
+    memberId: memberId,
+    staffId: staffId,
+    email: email,
+    displayName: displayName || '会員',
+  };
+}
+
+function sendPasswordResetCodeEmail_(target, code) {
+  var ss = getOrCreateDatabase_();
+  var from = String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_FROM') || '').trim();
+  var subject = '【枚方市介護支援専門員連絡協議会】パスワード再設定手続き';
+  var body = [
+    target.displayName + ' 様',
+    '',
+    '会員マイページのパスワード再設定を受け付けました。',
+    '以下の確認コードを画面に入力し、新しいパスワードを設定してください。',
+    '',
+    '確認コード: ' + code,
+    '有効期限: ' + PASSWORD_RESET_CODE_TTL_MINUTES + '分',
+    '',
+    'この手続きに心当たりがない場合は、このメールを破棄してください。',
+    '確認コードを他の人に伝えないでください。',
+    '',
+    '会員マイページURL:',
+    MEMBER_PORTAL_URL,
+    '',
+    '─────────────────────────────',
+    '枚方市介護支援専門員連絡協議会',
+  ].join('\n');
+  sendEmailWithValidatedFrom_(target.email, subject, body, {
+    from: from,
+    replyTo: from || '',
+    name: '枚方市介護支援専門員連絡協議会',
+  });
+}
+
+function requestPasswordReset_(request) {
+  if (!request || !String(request.loginId || '').trim() || !String(request.email || '').trim()) {
+    throw new Error('ログインIDと登録メールアドレスを入力してください。');
+  }
+
+  var loginId = String(request.loginId || '').trim();
+  var inputEmail = normalizeEmailForCompare_(request.email);
+  var cache = CacheService.getScriptCache();
+  var rateKey = passwordResetRateLimitKey_(loginId, inputEmail);
+  var rateCount = Number(cache.get(rateKey) || 0);
+  if (rateCount >= 5) {
+    return { message: PASSWORD_RESET_GENERIC_MESSAGE, expiresInMinutes: PASSWORD_RESET_CODE_TTL_MINUTES };
+  }
+  cache.put(rateKey, String(rateCount + 1), PASSWORD_RESET_CODE_TTL_SECONDS);
+
+  var ss = getOrCreateDatabase_();
+  var target = resolvePasswordResetTarget_(ss, loginId);
+  if (!target || normalizeEmailForCompare_(target.email) !== inputEmail) {
+    appendLoginHistory_(ss, '', loginId, 'PASSWORD', 'FAILURE', 'パスワード再設定照合不一致');
+    return { message: PASSWORD_RESET_GENERIC_MESSAGE, expiresInMinutes: PASSWORD_RESET_CODE_TTL_MINUTES };
+  }
+
+  var code = generatePasswordResetCode_(loginId);
+  var createdAt = new Date().toISOString();
+  var secret = target.authId + '|' + target.email + '|' + createdAt;
+  cache.put(passwordResetCacheKey_(loginId), JSON.stringify({
+    loginId: loginId,
+    authId: target.authId,
+    email: target.email,
+    codeHash: hmacSha256Hex_(code, secret),
+    createdAt: createdAt,
+    attempts: 0,
+  }), PASSWORD_RESET_CODE_TTL_SECONDS);
+
+  sendPasswordResetCodeEmail_(target, code);
+  appendLoginHistory_(ss, target.authId, loginId, 'PASSWORD', 'SUCCESS', 'パスワード再設定コード送信');
+  return { message: PASSWORD_RESET_GENERIC_MESSAGE, expiresInMinutes: PASSWORD_RESET_CODE_TTL_MINUTES };
+}
+
+function completePasswordReset_(request) {
+  if (!request || !String(request.loginId || '').trim() || !String(request.code || '').trim() || !String(request.newPassword || '')) {
+    throw new Error('確認コードと新しいパスワードを入力してください。');
+  }
+  var loginId = String(request.loginId || '').trim();
+  var code = String(request.code || '').trim();
+  var newPassword = String(request.newPassword || '');
+  if (!/^\d{6}$/.test(code)) {
+    throw new Error('確認コードは6桁で入力してください。');
+  }
+  if (newPassword.length < PASSWORD_MIN_LENGTH) {
+    throw new Error('新しいパスワードは' + PASSWORD_MIN_LENGTH + '文字以上で入力してください。');
+  }
+  if (newPassword.length > PASSWORD_MAX_LENGTH) {
+    throw new Error('新しいパスワードは' + PASSWORD_MAX_LENGTH + '文字以内で入力してください。');
+  }
+  if (!validatePasswordCharset_(newPassword)) {
+    throw new Error('使用できない文字が含まれています。半角英数字と一部記号 (! @ # $ % ^ * ( ) _ + - = [ ] { } ; : , . ? / | ~) のみ使用できます。');
+  }
+
+  var cache = CacheService.getScriptCache();
+  var key = passwordResetCacheKey_(loginId);
+  var raw = cache.get(key);
+  if (!raw) {
+    throw new Error('確認コードが無効または期限切れです。もう一度手続きしてください。');
+  }
+  var record = JSON.parse(raw);
+  var attempts = Number(record.attempts || 0);
+  if (attempts >= 5) {
+    cache.remove(key);
+    throw new Error('確認コードの入力回数が上限に達しました。もう一度手続きしてください。');
+  }
+  var secret = String(record.authId || '') + '|' + String(record.email || '') + '|' + String(record.createdAt || '');
+  var expected = String(record.codeHash || '');
+  var actual = hmacSha256Hex_(code, secret);
+  if (!secureCompareString_(actual, expected)) {
+    record.attempts = attempts + 1;
+    cache.put(key, JSON.stringify(record), PASSWORD_RESET_CODE_TTL_SECONDS);
+    throw new Error('確認コードが正しくありません。');
+  }
+
+  var ss = getOrCreateDatabase_();
+  var target = resolvePasswordResetTarget_(ss, loginId);
+  if (!target || String(target.authId || '') !== String(record.authId || '')) {
+    cache.remove(key);
+    throw new Error('認証情報を確認できませんでした。もう一度手続きしてください。');
+  }
+
+  var cols = target.authColumns;
+  requireColumns_(cols, ['パスワードハッシュ', 'パスワードソルト', 'パスワード更新日時', 'ログイン失敗回数', 'ロック状態', '更新日時']);
+  var nowIso = new Date().toISOString();
+  var newSalt = generateSalt_();
+  var newHash = hashPasswordPbkdf2_(newPassword, newSalt);
+  target.authSheet.getRange(target.authRowInfo.rowNumber, cols['パスワードソルト'] + 1).setValue(newSalt);
+  target.authSheet.getRange(target.authRowInfo.rowNumber, cols['パスワードハッシュ'] + 1).setValue(newHash);
+  target.authSheet.getRange(target.authRowInfo.rowNumber, cols['パスワード更新日時'] + 1).setValue(nowIso);
+  target.authSheet.getRange(target.authRowInfo.rowNumber, cols['ログイン失敗回数'] + 1).setValue(0);
+  target.authSheet.getRange(target.authRowInfo.rowNumber, cols['ロック状態'] + 1).setValue(false);
+  target.authSheet.getRange(target.authRowInfo.rowNumber, cols['更新日時'] + 1).setValue(nowIso);
+  cache.remove(key);
+  appendLoginHistory_(ss, target.authId, loginId, 'PASSWORD', 'SUCCESS', 'パスワード再設定成功');
+  return {
+    message: 'パスワードを再設定しました。新しいパスワードでログインしてください。',
     updatedAt: nowIso,
   };
 }
@@ -4943,6 +5169,34 @@ var PUBLIC_BUSINESS_UPDATE_ALLOWLIST_ = [
 
 
 
+function sendEmailWithValidatedFrom_(to, subject, body, options) {
+  // Session.getEffectiveUser() は userinfo.email スコープが必要。
+  // 統合・会員 split では v263 スコープ削減により使用不可のため try-catch で安全に取得する。
+  var ownerEmail = '';
+  try { ownerEmail = Session.getEffectiveUser().getEmail(); } catch (e) {}
+
+  var from = String((options && options.from) || ownerEmail).trim();
+  var replyTo = String((options && options.replyTo) || from || ownerEmail).trim();
+  var name = String((options && options.name) || '');
+  var attachments = (options && options.attachments) || [];
+
+  var mailOpts = { to: to, subject: subject, body: body, name: name, attachments: attachments };
+  if (replyTo) mailOpts.replyTo = replyTo;
+
+  if (!from || from === ownerEmail) {
+    // from 未指定 or deploying user → MailApp（userinfo.email スコープ不要）
+    MailApp.sendEmail(mailOpts);
+    return;
+  }
+
+  // 送信エイリアス指定 → GmailApp（admin split での alias 送信用）
+  GmailApp.sendEmail(to, subject, body, {
+    from: from,
+    replyTo: replyTo,
+    name: name,
+    attachments: attachments,
+  });
+}
 
 
 // ============================================================

@@ -12,6 +12,8 @@ const allowedTopLevelFunctions = ['doGet', 'processApiRequest'];
 const allowedMemberActions = [
   'memberLogin',
   'memberLoginWithData',
+  'requestPasswordReset',
+  'completePasswordReset',
   'getMemberPortalData',
   'updateMemberSelf',
   'changePassword',

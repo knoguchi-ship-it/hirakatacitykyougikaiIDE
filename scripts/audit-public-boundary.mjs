@@ -38,6 +38,8 @@ const forbiddenTopLevelFunctions = [
   'seedDemoData',
   'memberLogin',
   'memberLoginWithData',
+  'requestPasswordReset',
+  'completePasswordReset',
   'adminLoginWithData',
   'checkAdminBySession',
   'getMemberPortalData',
@@ -63,6 +65,8 @@ const forbiddenPrivateFunctions = [
 const forbiddenHtmlTokens = [
   'memberLogin',
   'memberLoginWithData',
+  'requestPasswordReset',
+  'completePasswordReset',
   'adminLoginWithData',
   'checkAdminBySession',
   'getMemberPortalData',

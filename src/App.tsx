@@ -422,6 +422,18 @@ const App: React.FC = () => {
   const [authBusy, setAuthBusy] = useState(false);
   const [memberLoginId, setMemberLoginId] = useState('');
   const [memberPassword, setMemberPassword] = useState('');
+  const [rememberLoginId, setRememberLoginId] = useState(false);
+  const [showMemberPassword, setShowMemberPassword] = useState(false);
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [resetLoginId, setResetLoginId] = useState('');
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetCode, setResetCode] = useState('');
+  const [resetNewPassword, setResetNewPassword] = useState('');
+  const [resetConfirmPassword, setResetConfirmPassword] = useState('');
+  const [resetStep, setResetStep] = useState<'request' | 'complete'>('request');
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
+  const [resetError, setResetError] = useState<string | null>(null);
   // 管理者 shell 自動認証: ページロード時にセッション確認を自動実行
   const [adminAutoAuthDone, setAdminAutoAuthDone] = useState(false);
   const [adminAutoAuthFailed, setAdminAutoAuthFailed] = useState(false);
@@ -700,6 +712,20 @@ const App: React.FC = () => {
   const credentialEmailFromOptions = useMemo(() => {
     return Array.from(new Set([credentialEmailFromInput, ...credentialEmailAliases].map((value) => String(value || '').trim()).filter(Boolean)));
   }, [credentialEmailFromInput, credentialEmailAliases]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const savedLoginId = window.localStorage.getItem('hcmn.member.loginId') || '';
+      if (savedLoginId) {
+        setMemberLoginId(savedLoginId);
+        setResetLoginId(savedLoginId);
+        setRememberLoginId(true);
+      }
+    } catch {
+      // ローカル保存が使えない環境では通常入力にフォールバックする。
+    }
+  }, []);
 
   const loadAppData = async (
     options: { includeAdminSettings?: boolean; force?: boolean; silent?: boolean } = {},
@@ -1523,21 +1549,85 @@ const App: React.FC = () => {
     }
   };
 
-  // v150: 会員ログイン（統合API: 認証+ポータルデータを1回のround-tripで取得）
+  // v359: 会員ログインは認証だけ先に完了し、ポータルデータは遅延ロードして体感待ち時間を短縮する。
   const handleMemberLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       setAuthBusy(true);
       setAuthError(null);
-      const { auth, portal } = await api.memberLoginWithData(memberLoginId.trim(), memberPassword);
-      setMembers(portal.members);
-      setTrainings(portal.trainings);
-      setMemberPortalLoaded(true);
-      applyAuthContext(auth, portal.members);
+      const loginId = memberLoginId.trim();
+      const auth = await api.memberLogin(loginId, memberPassword);
+      if (typeof window !== 'undefined') {
+        try {
+          if (rememberLoginId) {
+            window.localStorage.setItem('hcmn.member.loginId', loginId);
+          } else {
+            window.localStorage.removeItem('hcmn.member.loginId');
+          }
+        } catch {
+          // 保存に失敗してもログイン自体は継続する。
+        }
+      }
+      setMembers([]);
+      setTrainings([]);
+      setMemberPortalLoaded(false);
+      applyAuthContext(auth, []);
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : 'ログインに失敗しました。');
     } finally {
       setAuthBusy(false);
+    }
+  };
+
+  const openPasswordReset = () => {
+    setResetModalOpen(true);
+    setResetStep('request');
+    setResetLoginId(memberLoginId.trim());
+    setResetEmail('');
+    setResetCode('');
+    setResetNewPassword('');
+    setResetConfirmPassword('');
+    setResetMessage(null);
+    setResetError(null);
+  };
+
+  const handlePasswordResetRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setResetBusy(true);
+      setResetError(null);
+      setResetMessage(null);
+      const result = await api.requestPasswordReset(resetLoginId.trim(), resetEmail.trim());
+      setResetStep('complete');
+      setResetMessage(result.message || `手続き用メールを送信しました。${result.expiresInMinutes}分以内に確認コードを入力してください。`);
+    } catch (error) {
+      setResetError(error instanceof Error ? error.message : 'パスワード再設定メールの送信に失敗しました。');
+    } finally {
+      setResetBusy(false);
+    }
+  };
+
+  const handlePasswordResetComplete = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (resetNewPassword !== resetConfirmPassword) {
+      setResetError('新しいパスワードと確認用パスワードが一致しません。');
+      return;
+    }
+    try {
+      setResetBusy(true);
+      setResetError(null);
+      setResetMessage(null);
+      const result = await api.completePasswordReset(resetLoginId.trim(), resetCode.trim(), resetNewPassword);
+      setMemberLoginId(resetLoginId.trim());
+      setMemberPassword('');
+      setResetMessage(result.message || 'パスワードを再設定しました。新しいパスワードでログインしてください。');
+      setResetCode('');
+      setResetNewPassword('');
+      setResetConfirmPassword('');
+    } catch (error) {
+      setResetError(error instanceof Error ? error.message : 'パスワード再設定に失敗しました。');
+    } finally {
+      setResetBusy(false);
     }
   };
 
@@ -2721,19 +2811,58 @@ const App: React.FC = () => {
 
             {showMemberAuth && (isMemberShell || authTab === 'member') && (
               <form className="space-y-3" onSubmit={handleMemberLogin}>
-                <input
-                  className="w-full min-h-[44px] border border-slate-300 rounded px-3 py-2"
-                  placeholder="ログインID"
-                  value={memberLoginId}
-                  onChange={(e) => setMemberLoginId(e.target.value)}
-                />
-                <input
-                  className="w-full min-h-[44px] border border-slate-300 rounded px-3 py-2"
-                  type="password"
-                  placeholder="パスワード"
-                  value={memberPassword}
-                  onChange={(e) => setMemberPassword(e.target.value)}
-                />
+                <div>
+                  <label className="sr-only" htmlFor="member-login-id">ログインID</label>
+                  <input
+                    id="member-login-id"
+                    className="w-full min-h-[44px] border border-slate-300 rounded px-3 py-2"
+                    placeholder="ログインID"
+                    value={memberLoginId}
+                    onChange={(e) => setMemberLoginId(e.target.value)}
+                    autoComplete="username"
+                    inputMode="numeric"
+                  />
+                </div>
+                <div>
+                  <label className="sr-only" htmlFor="member-password">パスワード</label>
+                  <div className="relative">
+                    <input
+                      id="member-password"
+                      className="w-full min-h-[44px] border border-slate-300 rounded px-3 py-2 pr-20"
+                      type={showMemberPassword ? 'text' : 'password'}
+                      placeholder="パスワード"
+                      value={memberPassword}
+                      onChange={(e) => setMemberPassword(e.target.value)}
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-1 min-h-[44px] min-w-[64px] rounded px-3 text-sm font-bold text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-500"
+                      onClick={() => setShowMemberPassword((value) => !value)}
+                      aria-label={showMemberPassword ? 'パスワードを隠す' : 'パスワードを表示'}
+                    >
+                      {showMemberPassword ? '隠す' : '表示'}
+                    </button>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <label className="inline-flex min-h-[44px] items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      className="h-5 w-5 rounded border-slate-300"
+                      checked={rememberLoginId}
+                      onChange={(e) => setRememberLoginId(e.target.checked)}
+                    />
+                    ログインIDを保存する
+                  </label>
+                  <button
+                    type="button"
+                    className="min-h-[44px] rounded px-2 text-left text-sm font-bold text-slate-700 underline decoration-slate-300 underline-offset-4 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-500"
+                    onClick={openPasswordReset}
+                  >
+                    パスワードを忘れた方
+                  </button>
+                </div>
                 <button className="w-full min-h-[44px] bg-slate-800 text-white rounded px-3 py-2 inline-flex items-center justify-center gap-2 disabled:opacity-50" type="submit">
                   {authBusy ? (<><span className="animate-spin inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>ログイン中...</>) : 'ログイン'}
                 </button>
@@ -2753,6 +2882,98 @@ const App: React.FC = () => {
           </fieldset>
           {authBusy && <p className="mt-3 text-sm text-slate-500 text-center" role="status" aria-live="assertive">認証処理を実行しています...</p>}
           {authError && <div className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2" role="alert">{authError}</div>}
+          {resetModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" role="presentation">
+              <div role="dialog" aria-modal="true" aria-labelledby="password-reset-title" className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <h2 id="password-reset-title" className="text-lg font-bold text-slate-900">パスワード再設定</h2>
+                    <p className="mt-1 text-sm text-slate-600">ログインIDと登録メールアドレスを確認し、手続き用メールを送信します。</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="min-h-[44px] min-w-[44px] rounded text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-500"
+                    onClick={() => setResetModalOpen(false)}
+                    aria-label="閉じる"
+                  >
+                    ×
+                  </button>
+                </div>
+                {resetError && <div className="mb-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">{resetError}</div>}
+                {resetMessage && <div className="mb-3 rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800" role="status">{resetMessage}</div>}
+
+                {resetStep === 'request' ? (
+                  <form className="space-y-3" onSubmit={handlePasswordResetRequest}>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="reset-login-id">ログインID</label>
+                      <input
+                        id="reset-login-id"
+                        className="w-full min-h-[44px] rounded border border-slate-300 px-3 py-2"
+                        value={resetLoginId}
+                        onChange={(e) => setResetLoginId(e.target.value)}
+                        autoComplete="username"
+                        inputMode="numeric"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="reset-email">登録メールアドレス</label>
+                      <input
+                        id="reset-email"
+                        className="w-full min-h-[44px] rounded border border-slate-300 px-3 py-2"
+                        type="email"
+                        value={resetEmail}
+                        onChange={(e) => setResetEmail(e.target.value)}
+                        autoComplete="email"
+                      />
+                    </div>
+                    <button type="submit" disabled={resetBusy} className="w-full min-h-[44px] rounded bg-slate-800 px-3 py-2 font-bold text-white disabled:opacity-50">
+                      {resetBusy ? '送信中...' : '手続きメールを送信'}
+                    </button>
+                  </form>
+                ) : (
+                  <form className="space-y-3" onSubmit={handlePasswordResetComplete}>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="reset-code">確認コード</label>
+                      <input
+                        id="reset-code"
+                        className="w-full min-h-[44px] rounded border border-slate-300 px-3 py-2 tracking-[0.25em]"
+                        value={resetCode}
+                        onChange={(e) => setResetCode(e.target.value)}
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        maxLength={6}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="reset-new-password">新しいパスワード</label>
+                      <input
+                        id="reset-new-password"
+                        className="w-full min-h-[44px] rounded border border-slate-300 px-3 py-2"
+                        type="password"
+                        value={resetNewPassword}
+                        onChange={(e) => setResetNewPassword(e.target.value)}
+                        autoComplete="new-password"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="reset-confirm-password">新しいパスワード（確認）</label>
+                      <input
+                        id="reset-confirm-password"
+                        className="w-full min-h-[44px] rounded border border-slate-300 px-3 py-2"
+                        type="password"
+                        value={resetConfirmPassword}
+                        onChange={(e) => setResetConfirmPassword(e.target.value)}
+                        autoComplete="new-password"
+                      />
+                    </div>
+                    <button type="submit" disabled={resetBusy} className="w-full min-h-[44px] rounded bg-slate-800 px-3 py-2 font-bold text-white disabled:opacity-50">
+                      {resetBusy ? '再設定中...' : 'パスワードを再設定'}
+                    </button>
+                  </form>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       );
     }

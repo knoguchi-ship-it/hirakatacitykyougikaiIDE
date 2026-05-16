@@ -71,6 +71,8 @@ export interface ApiClient {
   updateMembersBatch(members: Array<Partial<Member> & Pick<Member, 'id'>>): Promise<Array<{ updated: boolean; memberId: string }>>;
   updateMemberSelf(member: Member, loginId: string): Promise<void>;
   changePassword(loginId: string, currentPassword: string, newPassword: string): Promise<void>;
+  requestPasswordReset(loginId: string, email: string): Promise<{ message: string; expiresInMinutes: number }>;
+  completePasswordReset(loginId: string, code: string, newPassword: string): Promise<{ message: string; updatedAt: string }>;
   getSystemSettings(): Promise<SystemSettings>;
   updateSystemSettings(settings: SystemSettings): Promise<SystemSettings>;
   getAnnualFeeAdminData(year?: number): Promise<AnnualFeeAdminData>;
@@ -806,6 +808,48 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('memberLogin', JSON.stringify({ loginId, password }));
+    });
+  }
+
+  async requestPasswordReset(loginId: string, email: string): Promise<{ message: string; expiresInMinutes: number }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data);
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('requestPasswordReset', JSON.stringify({ loginId, email }));
+    });
+  }
+
+  async completePasswordReset(loginId: string, code: string, newPassword: string): Promise<{ message: string; updatedAt: string }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data);
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('completePasswordReset', JSON.stringify({ loginId, code, newPassword }));
     });
   }
 

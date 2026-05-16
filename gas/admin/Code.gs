@@ -867,7 +867,7 @@ function processApiRequest(action, payload) {
     }
     // 会員セッショントークン検証: ログイン以外の MEMBER_ALLOWED_ACTIONS は
     // サーバー側セッションキャッシュからのみ principal を解決し、クライアント申告を信頼しない
-    var LOGIN_ONLY_MEMBER_ACTIONS = { memberLogin: true, memberLoginWithData: true };
+    var LOGIN_ONLY_MEMBER_ACTIONS = { memberLogin: true, memberLoginWithData: true, requestPasswordReset: true, completePasswordReset: true };
         // ─────────────────────────────────────────────────────────
 
     if (action === 'fetchAllData') {
@@ -963,6 +963,8 @@ function processApiRequest(action, payload) {
     if (action === 'getDbInfo') {
       return JSON.stringify({ success: true, data: getDbInfo_() });
     }
+
+
 
 
 
@@ -2457,6 +2459,18 @@ function parsePayload_(payload) {
     throw new Error('payloadのJSONパースに失敗しました。');
   }
 }
+
+
+
+
+
+
+
+var PASSWORD_RESET_CODE_TTL_SECONDS = 30 * 60;
+var PASSWORD_RESET_CODE_TTL_MINUTES = 30;
+var PASSWORD_RESET_GENERIC_MESSAGE = '入力内容が登録情報と一致する場合、手続き用メールを送信しました。メールに記載された確認コードを入力してください。';
+
+
 
 
 
