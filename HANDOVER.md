@@ -1,10 +1,12 @@
 # 開発引継ぎ
 
-更新日: 2026-05-15
-現行本番: `v353`（会員マイページ「受付中の研修」を A4 縦 PDF サムネイル + 詳細情報 2 カラムカードに改修。v352 の認識違いを修正） / integrated-public GAS version `311` / member split GAS version `68` / admin split GAS version `108`
-fixed deployment: integrated/public `@311` x2 / member split `@68` / admin split `@108` (v350 のまま)
+更新日: 2026-05-16
+現行本番: `v358`（案内 PDF プレビュー lightbox を高解像度 PNG (w2000) モーダル化、CSP/Chrome blob 制約を全て回避） / integrated-public GAS version `316` / member split GAS version `73` / admin split GAS version `114`
+fixed deployment: integrated/public `@316` x2 / member split `@73` / admin split `@114`
 
-> **2026-05-15 v353 反映済み**: v352 で公開ポータル `PublicTrainingList.tsx` を A4 サムネイル化したが、ユーザー実機画面は会員マイページの **`src/components/TrainingApply.tsx`** の「受付中の研修」だったため認識違いを修正。同一仕様（A4 縦サムネイル / クリック PDF / 開催日時・会場・主催・講師・定員・会員研修費の `<dl>` 表示 / `min-h-[44px]` / `<article>` semantic）を会員側にも適用。member split のみ更新、public/admin は変更なし。詳細: `docs/220_RELEASE_STATE_v353_2026-05-15.md`
+> **2026-05-16 v358 反映済み**: 案内 PDF lightbox プレビューを w2000 高解像度 PNG `<img>` モーダルへ着地。v355 (Drive `/preview` iframe = CSP frame-ancestors) / v357 (blob URL iframe = Chrome cross-origin block) が構造的に動かない理由が判明したため、Drive thumbnailLink から取った高解像度 PNG を 1 ページ目だけ表示し、全ページは「別タブで開く」で Drive viewer に飛ばす設計に統一。`extractDriveFileId_` 共通ヘルパー導入で `/d/`, `?id=`, URL encode 形式の `unparseable_url` も解消。`getFileThumbnail_` に `size` 引数追加 (`api.getFileThumbnail(url, 2000)`)。v354〜v358 の経緯詳細: `docs/221_RELEASE_STATE_v354_to_v358_2026-05-16.md`
+
+> **2026-05-15 v353 反映済み (上書きずみ、参考)**: v352 で公開ポータル `PublicTrainingList.tsx` を A4 サムネイル化したが、ユーザー実機画面は会員マイページの **`src/components/TrainingApply.tsx`** の「受付中の研修」だったため認識違いを修正。同一仕様（A4 縦サムネイル / クリック PDF / 開催日時・会場・主催・講師・定員・会員研修費の `<dl>` 表示 / `min-h-[44px]` / `<article>` semantic）を会員側にも適用。member split のみ更新、public/admin は変更なし。詳細: `docs/220_RELEASE_STATE_v353_2026-05-15.md`
 
 > **2026-05-14 v352 反映済み**: 公開ポータル「現在受付中の研修」一覧 (`src/public-portal/components/PublicTrainingList.tsx`) を A4 縦サムネイル + 詳細情報の 2 カラムカードへ再設計。`PdfThumbnail` に `aspectRatio` prop を追加 (`'210 / 297'` = A4 縦)。WCAG 2.5.5 タップターゲット 44px / semantic HTML / aria-label を採用。public のみ deploy、member/admin は v350 のまま。詳細: `docs/219_RELEASE_STATE_v352_2026-05-14.md`
 
@@ -64,8 +66,9 @@ fixed deployment: integrated/public `@311` x2 / member split `@68` / admin split
 7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `docs/220_RELEASE_STATE_v353_2026-05-15.md`（**最新本番：v353。会員マイページ「受付中の研修」A4 サムネイル UI 改修 / member @68**）
-11. `docs/219_RELEASE_STATE_v352_2026-05-14.md`（v352。公開ポータル研修一覧 A4 サムネイル UI 改修 / integrated-public @311 x2）
+10. `docs/221_RELEASE_STATE_v354_to_v358_2026-05-16.md`（**最新本番：v358。PDF lightbox 高解像度 PNG モーダル + v354〜v358 統合 release state。integrated-public @316 x2 / member @73 / admin @114**）
+11. `docs/220_RELEASE_STATE_v353_2026-05-15.md`（v353。会員マイページ「受付中の研修」A4 サムネイル UI 改修）
+12. `docs/219_RELEASE_STATE_v352_2026-05-14.md`（v352。公開ポータル研修一覧 A4 サムネイル UI 改修）
 11. `docs/217_RELEASE_STATE_v350_2026-05-14.md`（v350。サムネイル運用強化、member/admin は引き続き v350 / member @66 / admin @108）
 12. `docs/218_RELEASE_STATE_v351_2026-05-14.md`（v351 = **ロールバック済み**。pdfjs-dist client-side レンダリングの試行録、罠と再挑戦方針）
 12. `docs/216_RELEASE_STATE_v349_2026-05-14.md`（v349。アップロード時生成 + 永続化 pipeline / integrated-public @308 x2 / member @65 / admin @107）
@@ -105,14 +108,19 @@ fixed deployment: integrated/public `@311` x2 / member split `@68` / admin split
 
 | 用途 | Project | Deployment ID | Access | Current version |
 |---|---|---|---|---|
-| 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@311` |
-| 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@311` |
-| 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@68` |
-| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@108` |
+| 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@316` |
+| 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@316` |
+| 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@73` |
+| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@114` |
 
 ## 4. 直近リリース
 
-- `v353`: 会員マイページ「受付中の研修」(`src/components/TrainingApply.tsx`) を A4 縦サムネイル + 詳細情報 2 カラムカード化。v352 で誤って public 側を改修したため、対象を会員側へ修正。member split `@68` のみ更新。
+- `v358`: 案内 PDF lightbox プレビューを高解像度 PNG (w2000) モーダル化。CSP / Chrome blob / iOS Safari 制約を全て回避、1 ページ目を読める品質で表示し、全ページ閲覧は「別タブで開く」(Drive viewer) で。`extractDriveFileId_` 共通ヘルパーで全 URL 形式に対応 → `unparseable_url` 解消。integrated/public `@316` x2 / member `@73` / admin `@114`。
+- `v357`: lightbox を blob URL iframe で実装 (Chrome ブロックで撤退 → v358 へ)。
+- `v356`: PdfThumbnail の useEffect dep に fetchThumbnail が入っており「詳細を見る」開閉で再フェッチが起きていた問題を useRef パターンで修正 + 申込済み詳細パネルの PdfThumbnail を A4 縦比に統一。
+- `v355`: lightbox を Drive `/preview` iframe で実装 (Drive 側 CSP `frame-ancestors` でブロック撤退 → v357 へ)。
+- `v354`: v351 で残置した `pdfjs-dist` 依存 + `src/lib/pdfThumbnail.ts` + `TrainingManagement` の dynamic import を完全 purge。member shell の `Cannot use 'import.meta' outside a module` SyntaxError を構造的に解消。v354〜v358 の総括: `docs/221_RELEASE_STATE_v354_to_v358_2026-05-16.md`
+- `v353`: 会員マイページ「受付中の研修」(`src/components/TrainingApply.tsx`) を A4 縦サムネイル + 詳細情報 2 カラムカード化。member split のみ更新。
 - `v352`: 公開ポータル「現在受付中の研修」一覧を A4 縦 PDF サムネイル + 詳細情報 2 カラムカード化。サムネイルクリックで PDF オープン、日時/会場/主催/講師/定員/締切/参加費/問合せ先を semantic dl で明示。`PdfThumbnail` に `aspectRatio` prop 追加 (既存 height パス互換)。public のみ更新、member/admin は v350 のまま。integrated/public `@311` x2。
 - **v351 (ROLLBACK)**: pdfjs-dist client-side レンダリング導入を試みたが、`import.meta` を含む node-only dead code が vite-plugin-singlefile の plain script 化と組み合わさり admin shell が parse 時 SyntaxError でクラッシュ。全 fixed deployment を v350 へ即時戻した。再挑戦課題として残置。
 - `v351 (commits 606c520 / f1ed4be / 37d92c5, 本番未反映)`: 案内 PDF サムネイル即時化。`pdfjs-dist@^5.7` を admin に導入し、ブラウザの `<canvas>` で 1 ページ目をレンダリング → PNG base64 をアップロード時に同送、サーバは即時 Drive 保存。Drive thumbnailLink 待ち (20-25 秒) を完全排除し体感 **3-8 秒**。v350 サーバ polling 経路は fallback として維持。admin bundle +175KB (compressed)、member/public 不変。integrated/public `@310` x2 / member split `@67` / admin split `@109`。
@@ -223,7 +231,7 @@ fixed deployment: integrated/public `@311` x2 / member split `@68` / admin split
 2. **次の 3 件を必ず読む**:
    - `AGENTS.md`（特に **§0 シークレット最優先絶対ルール** と §4 レスポンシブ必須）
    - `HANDOVER.md`（本文書）
-   - `docs/220_RELEASE_STATE_v353_2026-05-15.md`（最新本番 release state）
+   - `docs/221_RELEASE_STATE_v354_to_v358_2026-05-16.md`（最新本番 release state）
 3. テストハーネス前提を整える（必要に応じて）:
    - Member テスト: `.env.test.example` を `.env.test` にコピーし、`MEMBER_LOGIN_ID` / `MEMBER_PASSWORD` をユーザー側で埋める（ロックされていないテスト用アカウントを使用）。
    - Admin テスト: `node scripts/auth-bootstrap-admin.mjs` で Google ログイン → `.test-out/auth-admin.json` を作成（通常 1〜2 週間有効）。
