@@ -24311,3 +24311,671 @@ function runAddSharedMemoSheetForV309() {
   Logger.log('T_共有メモ シートを作成しました（または既存シートのヘッダーを確認しました）。');
   return { ok: true, message: 'T_共有メモ シート作成完了' };
 }
+// ============================================================================
+// DRYRUN APPLICATION SCENARIOS (2026-05-17)
+//
+// 本番 DB に DRYRUN_ プレフィックス付きで投入し、申込→承認→転籍経路を end-to-end
+// 検証する synthetic transaction フレームワーク。
+//
+// 設計原則:
+//   - Unique prefix isolation: 全フィクスチャに `DRYRUN_` / `dryrun-*@example.invalid`
+//   - Track-then-cleanup: 作成行 ID を ScriptProperties manifest に蓄積、別関数で
+//     preview → soft delete (削除フラグ=true)
+//   - AAA pattern: Arrange (payload 作成) → Act (関数呼出) → Assert (DB 副作用検証)
+//   - Email isolation: CREDENTIAL_EMAIL_ENABLED を一時 false 化 + @example.invalid
+//   - Independence: 各シナリオ独立、任意順序で実行可
+//   - Idempotency: cleanup は同 runId に対し冪等
+//
+// 呼び出し:
+//   1. dryRunApplicationScenarios()    — 全シナリオ実行（admin 認証必須）
+//   2. previewDryRunApplicationCleanup() — 削除対象件数を返す
+//   3. executeDryRunApplicationCleanup() — soft delete 実行
+// ============================================================================
+
+var DRYRUN_PREFIX = 'DRYRUN_';
+var DRYRUN_EMAIL_DOMAIN = '@example.invalid';  // RFC 2606 reserved
+var DRYRUN_MANIFEST_KEY = 'DRYRUN_APPLICATION_MANIFEST_V1';
+
+function dryRun_assertAdminOperator_() {
+  // 設計判断: clasp run 経由でのみ呼ばれる関数のため、admin ホワイトリスト照合より
+  // 厳しい「Apps Script editor 権限 + project-scoped OAuth」が既に gating 条件として
+  // 効いている。userinfo.email スコープ非搭載でも安全に実行可能なよう、
+  // checkAdminBySession_() を呼ばず effective user で代用する。
+  var operatorEmail = '';
+  try { operatorEmail = Session.getEffectiveUser().getEmail() || ''; } catch (e) {}
+  if (!operatorEmail) {
+    try { operatorEmail = Session.getActiveUser().getEmail() || ''; } catch (e) {}
+  }
+  return {
+    loginId: operatorEmail || 'clasp-run-operator',
+    permissionCode: 'CLASP_EDITOR',
+    displayName: operatorEmail ? operatorEmail + '（clasp editor）' : 'DryRunOperator',
+  };
+}
+
+function dryRun_pad_(n, width) {
+  var s = String(n);
+  while (s.length < width) s = '0' + s;
+  return s;
+}
+
+function dryRun_uniqueSuffix_(scenarioCode, index) {
+  // 10 文字以内に収めるため、Date.now の下位 6 桁 + scenario code + index
+  var base = String(Date.now()).slice(-6);
+  return scenarioCode + base + dryRun_pad_(index, 2);
+}
+
+function dryRun_makeOfficeNumber_(seed) {
+  // 事業所番号は半角英数字 10 文字。`DRYRUN` (6) + 4 桁数字。
+  return 'DRYRUN' + dryRun_pad_(seed % 10000, 4);
+}
+
+function dryRun_makeCmNumber_(seed) {
+  // 介護支援専門員番号: `DRYR` (4) + 6 桁数字 → 10 文字（典型的な CM 番号と同桁数）
+  return 'DRYR' + dryRun_pad_(seed % 1000000, 6);
+}
+
+function dryRun_makeIndividualPayload_(suffix, opts) {
+  opts = opts || {};
+  return {
+    memberType: 'INDIVIDUAL',
+    lastName: DRYRUN_PREFIX + '個人姓' + suffix,
+    firstName: '太郎' + suffix,
+    lastKana: 'ドライラン',
+    firstKana: 'タロウ',
+    email: 'dryrun-ind-' + suffix.toLowerCase() + DRYRUN_EMAIL_DOMAIN,
+    mobilePhone: '090-0000-0000',
+    careManagerNumber: opts.careManagerNumber || dryRun_makeCmNumber_(parseInt(String(Date.now()).slice(-6), 10) + suffix.length),
+    officeName: DRYRUN_PREFIX + '勤務先' + suffix,
+    officePostCode: '5730000',
+    officePrefecture: '大阪府',
+    officeCity: '枚方市',
+    officeAddressLine: 'DRYRUN町1-1-1',
+    officeAddressLine2: '',
+    phone: '072-000-0000',
+    fax: '',
+    homePostCode: '5730000',
+    homePrefecture: '大阪府',
+    homeCity: '枚方市',
+    homeAddressLine: 'DRYRUN自宅1-1-1',
+    homeAddressLine2: '',
+    mailingPreference: 'EMAIL',
+    preferredMailDestination: 'OFFICE',
+  };
+}
+
+function dryRun_makeSupportPayload_(suffix) {
+  return {
+    memberType: 'SUPPORT',
+    lastName: DRYRUN_PREFIX + '賛助姓' + suffix,
+    firstName: '次郎' + suffix,
+    lastKana: 'ドライラン',
+    firstKana: 'ジロウ',
+    email: 'dryrun-sup-' + suffix.toLowerCase() + DRYRUN_EMAIL_DOMAIN,
+    mobilePhone: '090-0000-0001',
+    careManagerNumber: '',
+    officeName: '',
+    officePostCode: '',
+    officePrefecture: '',
+    officeCity: '',
+    officeAddressLine: '',
+    officeAddressLine2: '',
+    phone: '',
+    fax: '',
+    homePostCode: '5730000',
+    homePrefecture: '大阪府',
+    homeCity: '枚方市',
+    homeAddressLine: 'DRYRUN賛助自宅1-1-1',
+    homeAddressLine2: '',
+    mailingPreference: 'EMAIL',
+    preferredMailDestination: 'HOME',
+  };
+}
+
+function dryRun_makeBizPayload_(suffix, opts) {
+  opts = opts || {};
+  var officeNumberSeed = parseInt(String(Date.now()).slice(-4), 10) + suffix.length * 7;
+  var officeNumber = opts.officeNumber || dryRun_makeOfficeNumber_(officeNumberSeed);
+  var staffList = opts.staff || [
+    { role: 'REPRESENTATIVE', last: '代表', first: '太郎' },
+    { role: 'STAFF', last: '職員A', first: '花子' },
+    { role: 'STAFF', last: '職員B', first: '次郎' },
+    { role: 'ADMIN', last: '管理者', first: '三郎' },
+  ];
+  var built = staffList.map(function(s, idx) {
+    return {
+      role: s.role || 'STAFF',
+      lastName: DRYRUN_PREFIX + s.last + suffix,
+      firstName: s.first + suffix,
+      lastKana: 'ドライラン',
+      firstKana: 'スタッフ',
+      email: 'dryrun-staff-' + suffix.toLowerCase() + '-' + idx + DRYRUN_EMAIL_DOMAIN,
+      careManagerNumber: s.careManagerNumber || dryRun_makeCmNumber_(officeNumberSeed * 10 + idx),
+    };
+  });
+  return {
+    memberType: 'BUSINESS',
+    officeName: DRYRUN_PREFIX + '事業所' + suffix,
+    officeNumber: officeNumber,
+    representativeEmail: built[0].email,
+    officePostCode: '5730000',
+    officePrefecture: '大阪府',
+    officeCity: '枚方市',
+    officeAddressLine: 'DRYRUN事業所1-1-1',
+    officeAddressLine2: '',
+    phone: '072-100-0000',
+    fax: '072-100-0001',
+    staff: built,
+  };
+}
+
+function dryRun_runScenario_(state, scenarioName, fn) {
+  var startedAt = new Date().toISOString();
+  var assertions = [];
+  function assert(condition, message) {
+    assertions.push({ ok: !!condition, message: message });
+    if (!condition) throw new Error('Assertion failed: ' + message);
+  }
+  var ok = false;
+  var error = null;
+  var result = null;
+  try {
+    result = fn(assert) || {};
+    ok = true;
+  } catch (e) {
+    error = e.message || String(e);
+  }
+  var finishedAt = new Date().toISOString();
+  state.report.scenarios.push({
+    name: scenarioName,
+    passed: ok,
+    error: error,
+    startedAt: startedAt,
+    finishedAt: finishedAt,
+    assertions: assertions,
+    result: result,
+  });
+  if (ok) state.report.passedCount++;
+  else state.report.failedCount++;
+}
+
+function dryRun_submitAndApprove_(payload, adminSession) {
+  var enqueue = submitMemberApplication_(payload);
+  if (!enqueue || !enqueue.requestId) throw new Error('enqueue 失敗: ' + JSON.stringify(enqueue));
+  var approveResult = approveAdminChangeRequest_({
+    requestId: enqueue.requestId,
+    note: 'DRYRUN approval',
+    __adminSession: adminSession,
+  });
+  if (!approveResult || approveResult.success !== true) {
+    throw new Error('approve 失敗: ' + JSON.stringify(approveResult));
+  }
+  return {
+    requestId: enqueue.requestId,
+    result: approveResult.result || {},
+  };
+}
+
+function dryRun_findMemberById_(ss, memberId) {
+  var rows = getRowsAsObjects_(ss, 'T_会員');
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i]['会員ID'] || '') === String(memberId)) return rows[i];
+  }
+  return null;
+}
+
+function dryRun_findStaffByMemberId_(ss, memberId) {
+  return getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) {
+    return String(r['会員ID'] || '') === String(memberId);
+  });
+}
+
+function dryRun_findAuthByMemberId_(ss, memberId) {
+  return getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) {
+    return String(r['会員ID'] || '') === String(memberId);
+  });
+}
+
+function dryRun_recordMember_(state, memberId) {
+  if (memberId) state.manifest.memberIds[memberId] = true;
+}
+
+function dryRun_recordAllSideEffects_(state, ss, memberId) {
+  dryRun_recordMember_(state, memberId);
+  var staffRows = dryRun_findStaffByMemberId_(ss, memberId);
+  for (var i = 0; i < staffRows.length; i++) {
+    var sid = String(staffRows[i]['職員ID'] || '');
+    if (sid) state.manifest.staffIds[sid] = true;
+  }
+  var authRows = dryRun_findAuthByMemberId_(ss, memberId);
+  for (var j = 0; j < authRows.length; j++) {
+    var aid = String(authRows[j]['認証ID'] || '');
+    if (aid) state.manifest.authIds[aid] = true;
+  }
+}
+
+function dryRun_recordChangeRequest_(state, requestId) {
+  if (requestId) state.manifest.requestIds[requestId] = true;
+}
+
+// ── シナリオ実装 ─────────────────────────────────────────────────────────
+function dryRun_scenario_newIndividual_(state, ss, adminSession) {
+  dryRun_runScenario_(state, 'NEW_INDIVIDUAL', function(assert) {
+    var suffix = 'IND' + state.runStamp;
+    var payload = dryRun_makeIndividualPayload_(suffix);
+    var io = dryRun_submitAndApprove_(payload, adminSession);
+    dryRun_recordChangeRequest_(state, io.requestId);
+    var memberId = io.result.memberId;
+    assert(!!memberId, 'memberId が返ること');
+    var memberRow = dryRun_findMemberById_(ss, memberId);
+    assert(memberRow, 'T_会員 行が作成されていること');
+    assert(String(memberRow['会員種別コード']) === 'INDIVIDUAL', '会員種別コード=INDIVIDUAL');
+    assert(String(memberRow['会員状態コード']) === 'ACTIVE', '会員状態コード=ACTIVE');
+    assert(String(memberRow['介護支援専門員番号']) === payload.careManagerNumber, 'CM 番号一致');
+    var auths = dryRun_findAuthByMemberId_(ss, memberId);
+    assert(auths.length === 1, 'T_認証アカウント 1 行作成 (got ' + auths.length + ')');
+    assert(String(auths[0]['ログインID']) === payload.careManagerNumber, 'ログインID=CM番号');
+    dryRun_recordAllSideEffects_(state, ss, memberId);
+    return { memberId: memberId, loginId: io.result.loginId };
+  });
+}
+
+function dryRun_scenario_newSupport_(state, ss, adminSession) {
+  dryRun_runScenario_(state, 'NEW_SUPPORT', function(assert) {
+    var suffix = 'SUP' + state.runStamp;
+    var payload = dryRun_makeSupportPayload_(suffix);
+    var io = dryRun_submitAndApprove_(payload, adminSession);
+    dryRun_recordChangeRequest_(state, io.requestId);
+    var memberId = io.result.memberId;
+    assert(!!memberId, 'memberId が返ること');
+    var memberRow = dryRun_findMemberById_(ss, memberId);
+    assert(memberRow, 'T_会員 行が作成されていること');
+    assert(String(memberRow['会員種別コード']) === 'SUPPORT', '会員種別=SUPPORT');
+    var auths = dryRun_findAuthByMemberId_(ss, memberId);
+    assert(auths.length === 1, 'T_認証アカウント 1 行作成');
+    assert(String(auths[0]['ログインID']) === memberId, '賛助のログインIDは会員ID');
+    dryRun_recordAllSideEffects_(state, ss, memberId);
+    return { memberId: memberId };
+  });
+}
+
+function dryRun_scenario_newBusiness_(state, ss, adminSession) {
+  dryRun_runScenario_(state, 'NEW_BUSINESS', function(assert) {
+    var suffix = 'BIZ' + state.runStamp;
+    var payload = dryRun_makeBizPayload_(suffix);
+    var io = dryRun_submitAndApprove_(payload, adminSession);
+    dryRun_recordChangeRequest_(state, io.requestId);
+    var memberId = io.result.memberId;
+    assert(!!memberId, 'memberId が返ること');
+    var memberRow = dryRun_findMemberById_(ss, memberId);
+    assert(memberRow, 'T_会員 行が作成されていること');
+    assert(String(memberRow['会員種別コード']) === 'BUSINESS', '会員種別=BUSINESS');
+    assert(String(memberRow['事業所番号']) === payload.officeNumber, '事業所番号一致');
+    var staffRows = dryRun_findStaffByMemberId_(ss, memberId);
+    assert(staffRows.length === payload.staff.length,
+      '職員 ' + payload.staff.length + ' 名作成 (got ' + staffRows.length + ')');
+    var repCount = 0;
+    for (var i = 0; i < staffRows.length; i++) {
+      if (String(staffRows[i]['職員権限コード']) === 'REPRESENTATIVE') repCount++;
+    }
+    assert(repCount === 1, '代表者は 1 名');
+    var auths = dryRun_findAuthByMemberId_(ss, memberId);
+    assert(auths.length === payload.staff.length, '認証アカウント ' + payload.staff.length + ' 行');
+    dryRun_recordAllSideEffects_(state, ss, memberId);
+    return { memberId: memberId, staffCount: staffRows.length };
+  });
+}
+
+function dryRun_scenario_transferIndividualToStaff_(state, ss, adminSession) {
+  dryRun_runScenario_(state, 'TRANSFER_INDIVIDUAL_TO_STAFF', function(assert) {
+    // Arrange: 既存個人会員を作成
+    var indSuffix = 'I2S' + state.runStamp;
+    var sharedCm = dryRun_makeCmNumber_(parseInt(String(Date.now()).slice(-6), 10) + 17);
+    var indPayload = dryRun_makeIndividualPayload_(indSuffix, { careManagerNumber: sharedCm });
+    var indIo = dryRun_submitAndApprove_(indPayload, adminSession);
+    dryRun_recordChangeRequest_(state, indIo.requestId);
+    var sourceMemberId = indIo.result.memberId;
+    assert(!!sourceMemberId, '前提: 個人会員作成');
+    dryRun_recordAllSideEffects_(state, ss, sourceMemberId);
+
+    // Act: 同 CM を含む事業所申込 → 転籍
+    var bizSuffix = 'I2SB' + state.runStamp;
+    var bizPayload = dryRun_makeBizPayload_(bizSuffix, {
+      staff: [
+        { role: 'REPRESENTATIVE', last: '代表', first: '太郎', careManagerNumber: dryRun_makeCmNumber_(parseInt(String(Date.now()).slice(-6), 10) + 19) },
+        { role: 'STAFF', last: '転籍者', first: '花子', careManagerNumber: sharedCm },
+      ],
+    });
+    var bizIo = dryRun_submitAndApprove_(bizPayload, adminSession);
+    dryRun_recordChangeRequest_(state, bizIo.requestId);
+    var bizMemberId = bizIo.result.memberId;
+    assert(!!bizMemberId, '事業所会員作成');
+    dryRun_recordAllSideEffects_(state, ss, bizMemberId);
+
+    // Assert: 元個人会員が WITHDRAWN になり、事業所職員として登録されている
+    var srcMember = dryRun_findMemberById_(ss, sourceMemberId);
+    assert(srcMember, '元個人会員行存在');
+    var srcStatus = String(srcMember['会員状態コード'] || '');
+    assert(srcStatus === 'TRANSFERRED' || srcStatus === 'WITHDRAWN',
+      '元個人会員が TRANSFERRED/WITHDRAWN になっている (got ' + srcStatus + ')');
+    var bizStaffRows = dryRun_findStaffByMemberId_(ss, bizMemberId);
+    var transferredStaff = null;
+    for (var i = 0; i < bizStaffRows.length; i++) {
+      if (String(bizStaffRows[i]['介護支援専門員番号']) === sharedCm) {
+        transferredStaff = bizStaffRows[i];
+        break;
+      }
+    }
+    assert(transferredStaff, '事業所側に CM 一致の職員が存在');
+    return { sourceMemberId: sourceMemberId, bizMemberId: bizMemberId, sharedCm: sharedCm };
+  });
+}
+
+function dryRun_scenario_transferStaffToIndividual_(state, ss, adminSession) {
+  dryRun_runScenario_(state, 'TRANSFER_STAFF_TO_INDIVIDUAL', function(assert) {
+    // Arrange: 事業所会員 + 職員 (CM 共有)
+    var bizSuffix = 'S2I' + state.runStamp;
+    var sharedCm = dryRun_makeCmNumber_(parseInt(String(Date.now()).slice(-6), 10) + 23);
+    var bizPayload = dryRun_makeBizPayload_(bizSuffix, {
+      staff: [
+        { role: 'REPRESENTATIVE', last: '代表', first: '太郎', careManagerNumber: dryRun_makeCmNumber_(parseInt(String(Date.now()).slice(-6), 10) + 29) },
+        { role: 'STAFF', last: '独立予定', first: '花子', careManagerNumber: sharedCm },
+      ],
+    });
+    var bizIo = dryRun_submitAndApprove_(bizPayload, adminSession);
+    dryRun_recordChangeRequest_(state, bizIo.requestId);
+    var bizMemberId = bizIo.result.memberId;
+    assert(!!bizMemberId, '前提: 事業所会員作成');
+    dryRun_recordAllSideEffects_(state, ss, bizMemberId);
+
+    // Act: 同 CM で個人会員申込 → convertStaffToIndividual_ が走る
+    var indSuffix = 'S2II' + state.runStamp;
+    var indPayload = dryRun_makeIndividualPayload_(indSuffix, { careManagerNumber: sharedCm });
+    var indIo = dryRun_submitAndApprove_(indPayload, adminSession);
+    dryRun_recordChangeRequest_(state, indIo.requestId);
+    var newMemberId = indIo.result.memberId;
+    assert(!!newMemberId, '新個人会員作成');
+    dryRun_recordAllSideEffects_(state, ss, newMemberId);
+
+    // Assert: 元事業所職員が ENROLLED でなくなっている
+    var bizStaffRows = dryRun_findStaffByMemberId_(ss, bizMemberId);
+    var formerStaff = null;
+    for (var i = 0; i < bizStaffRows.length; i++) {
+      if (String(bizStaffRows[i]['介護支援専門員番号']) === sharedCm) {
+        formerStaff = bizStaffRows[i];
+        break;
+      }
+    }
+    if (formerStaff) {
+      var fs = String(formerStaff['職員状態コード'] || '');
+      assert(fs !== 'ENROLLED', '元職員は ENROLLED でなくなっている (got ' + fs + ')');
+    }
+    var newMember = dryRun_findMemberById_(ss, newMemberId);
+    assert(newMember, '新個人会員行存在');
+    assert(String(newMember['会員種別コード']) === 'INDIVIDUAL', '会員種別=INDIVIDUAL');
+    assert(String(newMember['介護支援専門員番号']) === sharedCm, 'CM 引継ぎ');
+    return { bizMemberId: bizMemberId, newMemberId: newMemberId, sharedCm: sharedCm };
+  });
+}
+
+function dryRun_scenario_transferStaffAcrossBiz_(state, ss, adminSession) {
+  dryRun_runScenario_(state, 'TRANSFER_STAFF_ACROSS_BIZ', function(assert) {
+    // Arrange: 事業所 A + 職員 (CM 共有)
+    var aSuffix = 'BA' + state.runStamp;
+    var sharedCm = dryRun_makeCmNumber_(parseInt(String(Date.now()).slice(-6), 10) + 31);
+    var aPayload = dryRun_makeBizPayload_(aSuffix, {
+      staff: [
+        { role: 'REPRESENTATIVE', last: 'A代表', first: '太郎', careManagerNumber: dryRun_makeCmNumber_(parseInt(String(Date.now()).slice(-6), 10) + 37) },
+        { role: 'STAFF', last: '移籍予定', first: '花子', careManagerNumber: sharedCm },
+      ],
+    });
+    var aIo = dryRun_submitAndApprove_(aPayload, adminSession);
+    dryRun_recordChangeRequest_(state, aIo.requestId);
+    var bizAId = aIo.result.memberId;
+    assert(!!bizAId, '事業所 A 作成');
+    dryRun_recordAllSideEffects_(state, ss, bizAId);
+
+    // Act: 事業所 B 申込（同 CM の職員含む）
+    var bSuffix = 'BB' + state.runStamp;
+    var bPayload = dryRun_makeBizPayload_(bSuffix, {
+      staff: [
+        { role: 'REPRESENTATIVE', last: 'B代表', first: '次郎', careManagerNumber: dryRun_makeCmNumber_(parseInt(String(Date.now()).slice(-6), 10) + 41) },
+        { role: 'STAFF', last: '移籍者', first: '花子', careManagerNumber: sharedCm },
+      ],
+    });
+    var bIo = dryRun_submitAndApprove_(bPayload, adminSession);
+    dryRun_recordChangeRequest_(state, bIo.requestId);
+    var bizBId = bIo.result.memberId;
+    assert(!!bizBId, '事業所 B 作成');
+    dryRun_recordAllSideEffects_(state, ss, bizBId);
+
+    // Assert: A 側の職員が ENROLLED でなく、B 側に同 CM 職員が存在
+    var aStaffRows = dryRun_findStaffByMemberId_(ss, bizAId);
+    var formerStaff = null;
+    for (var i = 0; i < aStaffRows.length; i++) {
+      if (String(aStaffRows[i]['介護支援専門員番号']) === sharedCm) {
+        formerStaff = aStaffRows[i];
+        break;
+      }
+    }
+    if (formerStaff) {
+      var fs = String(formerStaff['職員状態コード'] || '');
+      assert(fs !== 'ENROLLED', '事業所 A 側元職員は ENROLLED ではない (got ' + fs + ')');
+    }
+    var bStaffRows = dryRun_findStaffByMemberId_(ss, bizBId);
+    var newStaff = null;
+    for (var j = 0; j < bStaffRows.length; j++) {
+      if (String(bStaffRows[j]['介護支援専門員番号']) === sharedCm) {
+        newStaff = bStaffRows[j];
+        break;
+      }
+    }
+    assert(newStaff, '事業所 B 側に CM 一致の職員が存在');
+    return { bizAId: bizAId, bizBId: bizBId, sharedCm: sharedCm };
+  });
+}
+
+function dryRun_scenario_memberTypeChange_(state, ss, adminSession) {
+  dryRun_runScenario_(state, 'MEMBER_TYPE_CHANGE_IND_TO_SUPPORT', function(assert) {
+    // Arrange: 個人会員作成
+    var suffix = 'TYP' + state.runStamp;
+    var indPayload = dryRun_makeIndividualPayload_(suffix);
+    var indIo = dryRun_submitAndApprove_(indPayload, adminSession);
+    dryRun_recordChangeRequest_(state, indIo.requestId);
+    var memberId = indIo.result.memberId;
+    assert(!!memberId, '個人会員作成');
+    dryRun_recordAllSideEffects_(state, ss, memberId);
+
+    // Act: convertMemberType_ を直接呼び出し（INDIVIDUAL → SUPPORT）
+    var convertResult;
+    try {
+      convertResult = convertMemberType_({ memberId: memberId, newMemberType: 'SUPPORT' });
+    } catch (e) {
+      throw new Error('convertMemberType_ 呼出失敗: ' + e.message);
+    }
+    assert(convertResult && convertResult.success !== false, 'convertMemberType_ 成功');
+
+    // Assert: 会員種別が SUPPORT に変わっている
+    var memberRow = dryRun_findMemberById_(ss, memberId);
+    assert(memberRow, '会員行存在');
+    var newType = String(memberRow['会員種別コード'] || '');
+    assert(newType === 'SUPPORT', '会員種別が SUPPORT に変わっている (got ' + newType + ')');
+    return { memberId: memberId, newType: newType };
+  });
+}
+
+// ── メインエントリ ───────────────────────────────────────────────────────
+function dryRunApplicationScenarios() {
+  var adminSession = dryRun_assertAdminOperator_();
+  var ss = getOrCreateDatabase_();
+  var runStamp = String(Date.now()).slice(-5);
+  var startedAt = new Date().toISOString();
+
+  var state = {
+    runStamp: runStamp,
+    report: {
+      runId: 'DRYRUN_' + runStamp + '_' + Utilities.getUuid().substring(0, 8),
+      operator: adminSession.loginId,
+      permissionCode: adminSession.permissionCode,
+      startedAt: startedAt,
+      finishedAt: null,
+      passedCount: 0,
+      failedCount: 0,
+      scenarios: [],
+      manifestKey: DRYRUN_MANIFEST_KEY,
+    },
+    manifest: {
+      memberIds: {},
+      staffIds: {},
+      authIds: {},
+      requestIds: {},
+    },
+  };
+
+  // ── Email isolation: CREDENTIAL_EMAIL_ENABLED を一時 false 化 ────────────
+  var originalEmailEnabled = getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_ENABLED');
+  var emailSettingExisted = (originalEmailEnabled !== '' && originalEmailEnabled !== null);
+  try {
+    batchUpsertSystemSettings_(ss, [{ key: 'CREDENTIAL_EMAIL_ENABLED', value: 'false', description: 'dryRun: 一時的に無効化' }]);
+  } catch (e) {
+    Logger.log('dryRun: email setting toggle failed (continuing with @example.invalid as defense): ' + e.message);
+  }
+
+  try {
+    dryRun_scenario_newIndividual_(state, ss, adminSession);
+    dryRun_scenario_newSupport_(state, ss, adminSession);
+    dryRun_scenario_newBusiness_(state, ss, adminSession);
+    dryRun_scenario_transferIndividualToStaff_(state, ss, adminSession);
+    dryRun_scenario_transferStaffToIndividual_(state, ss, adminSession);
+    dryRun_scenario_transferStaffAcrossBiz_(state, ss, adminSession);
+    dryRun_scenario_memberTypeChange_(state, ss, adminSession);
+  } finally {
+    // 元の email 設定を復元
+    try {
+      var restoreValue = emailSettingExisted ? String(originalEmailEnabled) : 'true';
+      batchUpsertSystemSettings_(ss, [{ key: 'CREDENTIAL_EMAIL_ENABLED', value: restoreValue, description: 'dryRun: 復元' }]);
+    } catch (e) {
+      Logger.log('dryRun: email setting restore failed: ' + e.message);
+    }
+  }
+
+  state.report.finishedAt = new Date().toISOString();
+  state.report.manifestCounts = {
+    members: Object.keys(state.manifest.memberIds).length,
+    staff: Object.keys(state.manifest.staffIds).length,
+    auth: Object.keys(state.manifest.authIds).length,
+    changeRequests: Object.keys(state.manifest.requestIds).length,
+  };
+
+  // Manifest を ScriptProperties に保存（cleanup 用）
+  var existingManifestJson = PropertiesService.getScriptProperties().getProperty(DRYRUN_MANIFEST_KEY);
+  var manifestAccumulator = { runs: [] };
+  if (existingManifestJson) {
+    try { manifestAccumulator = JSON.parse(existingManifestJson); } catch (e) {}
+    if (!manifestAccumulator.runs) manifestAccumulator.runs = [];
+  }
+  manifestAccumulator.runs.push({
+    runId: state.report.runId,
+    startedAt: startedAt,
+    finishedAt: state.report.finishedAt,
+    memberIds: Object.keys(state.manifest.memberIds),
+    staffIds: Object.keys(state.manifest.staffIds),
+    authIds: Object.keys(state.manifest.authIds),
+    requestIds: Object.keys(state.manifest.requestIds),
+  });
+  PropertiesService.getScriptProperties().setProperty(DRYRUN_MANIFEST_KEY, JSON.stringify(manifestAccumulator));
+
+  Logger.log('dryRunApplicationScenarios: ' + JSON.stringify(state.report));
+  // clasp run は util.inspect で出力するためネストが [Object]/[Array] に省略される。
+  // 文字列で返すことで全データを取り出せるようにする。
+  return '__DRYRUN_JSON__' + JSON.stringify(state.report);
+}
+
+function previewDryRunApplicationCleanup() {
+  dryRun_assertAdminOperator_();
+  var manifestJson = PropertiesService.getScriptProperties().getProperty(DRYRUN_MANIFEST_KEY);
+  if (!manifestJson) return '__DRYRUN_JSON__' + JSON.stringify({ runs: 0, totalRows: 0, message: 'manifest 未保存（dryRunApplicationScenarios 未実行）' });
+  var manifest;
+  try { manifest = JSON.parse(manifestJson); } catch (e) { return '__DRYRUN_JSON__' + JSON.stringify({ error: 'manifest parse 失敗: ' + e.message }); }
+  var runs = (manifest && manifest.runs) || [];
+  var memberSet = {}, staffSet = {}, authSet = {}, requestSet = {};
+  for (var r = 0; r < runs.length; r++) {
+    (runs[r].memberIds || []).forEach(function(id) { memberSet[id] = true; });
+    (runs[r].staffIds || []).forEach(function(id) { staffSet[id] = true; });
+    (runs[r].authIds || []).forEach(function(id) { authSet[id] = true; });
+    (runs[r].requestIds || []).forEach(function(id) { requestSet[id] = true; });
+  }
+  var out = {
+    runs: runs.length,
+    counts: {
+      members: Object.keys(memberSet).length,
+      staff: Object.keys(staffSet).length,
+      auth: Object.keys(authSet).length,
+      changeRequests: Object.keys(requestSet).length,
+    },
+    sampleMemberIds: Object.keys(memberSet).slice(0, 5),
+    note: 'soft delete (削除フラグ=true) のみ。executeDryRunApplicationCleanup で実行。',
+  };
+  return '__DRYRUN_JSON__' + JSON.stringify(out);
+}
+
+function dryRun_softDeleteByKey_(ss, sheetName, keyColumn, ids) {
+  if (!ids || ids.length === 0) return 0;
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet || sheet.getLastRow() < 2) return 0;
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var keyIdx = -1, delIdx = -1, updIdx = -1;
+  for (var i = 0; i < headers.length; i++) {
+    if (String(headers[i]) === keyColumn) keyIdx = i;
+    if (String(headers[i]) === '削除フラグ') delIdx = i;
+    if (String(headers[i]) === '更新日時') updIdx = i;
+  }
+  if (keyIdx === -1 || delIdx === -1) return 0;
+  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  var idSet = {};
+  ids.forEach(function(id) { idSet[String(id)] = true; });
+  var now = new Date().toISOString();
+  var changed = 0;
+  for (var r = 0; r < data.length; r++) {
+    var key = String(data[r][keyIdx] || '');
+    if (!key || !idSet[key]) continue;
+    if (data[r][delIdx] === true) continue;
+    data[r][delIdx] = true;
+    if (updIdx !== -1) data[r][updIdx] = now;
+    sheet.getRange(r + 2, 1, 1, data[r].length).setValues([data[r]]);
+    changed++;
+  }
+  return changed;
+}
+
+function executeDryRunApplicationCleanup() {
+  dryRun_assertAdminOperator_();
+  var manifestJson = PropertiesService.getScriptProperties().getProperty(DRYRUN_MANIFEST_KEY);
+  if (!manifestJson) return { success: false, error: 'manifest 未保存' };
+  var manifest;
+  try { manifest = JSON.parse(manifestJson); } catch (e) { return { success: false, error: 'manifest parse 失敗: ' + e.message }; }
+  var ss = getOrCreateDatabase_();
+  var runs = (manifest && manifest.runs) || [];
+  var memberSet = {}, staffSet = {}, authSet = {}, requestSet = {};
+  for (var r = 0; r < runs.length; r++) {
+    (runs[r].memberIds || []).forEach(function(id) { memberSet[id] = true; });
+    (runs[r].staffIds || []).forEach(function(id) { staffSet[id] = true; });
+    (runs[r].authIds || []).forEach(function(id) { authSet[id] = true; });
+    (runs[r].requestIds || []).forEach(function(id) { requestSet[id] = true; });
+  }
+  var result = {
+    success: true,
+    deleted: {
+      members: dryRun_softDeleteByKey_(ss, 'T_会員', '会員ID', Object.keys(memberSet)),
+      staff: dryRun_softDeleteByKey_(ss, 'T_事業所職員', '職員ID', Object.keys(staffSet)),
+      auth: dryRun_softDeleteByKey_(ss, 'T_認証アカウント', '認証ID', Object.keys(authSet)),
+      changeRequests: dryRun_softDeleteByKey_(ss, 'T_変更申請', '申請ID', Object.keys(requestSet)),
+    },
+  };
+  // manifest クリア（冪等性のため）
+  PropertiesService.getScriptProperties().deleteProperty(DRYRUN_MANIFEST_KEY);
+  clearAllDataCache_();
+  clearAdminDashboardCache_();
+  Logger.log('executeDryRunApplicationCleanup: ' + JSON.stringify(result));
+  return '__DRYRUN_JSON__' + JSON.stringify(result);
+}

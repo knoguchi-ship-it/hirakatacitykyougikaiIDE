@@ -18,6 +18,10 @@ const allowedTopLevelFunctions = [
   'regenerateAllThumbnails',
   'processPendingThumbnails',
   'setupPendingThumbnailsTrigger',
+  // 2026-05-17: dryRun synthetic transaction test runner (clasp run 専用)
+  'dryRunApplicationScenarios',
+  'previewDryRunApplicationCleanup',
+  'executeDryRunApplicationCleanup',
 ];
 const allowedAdminLoginActions = ['checkAdminBySession', 'adminLoginWithData'];
 const allowedAdminActions = [

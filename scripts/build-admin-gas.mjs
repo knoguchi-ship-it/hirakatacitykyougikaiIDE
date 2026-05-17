@@ -502,6 +502,10 @@ function buildAdminCode(source) {
     'regenerateAllThumbnails',
     'processPendingThumbnails',
     'setupPendingThumbnailsTrigger',
+    // 2026-05-17: dryRun synthetic transaction test runner (clasp run 専用)
+    'dryRunApplicationScenarios',
+    'previewDryRunApplicationCleanup',
+    'executeDryRunApplicationCleanup',
   ], 'build-admin-gas');
   code = removeTopLevelFunctionDeclarations(code, [
     'rebuildDatabaseSchema',
@@ -517,6 +521,9 @@ function buildAdminCode(source) {
     'regenerateAllThumbnails',
     'processPendingThumbnails',
     'setupPendingThumbnailsTrigger',
+    'dryRunApplicationScenarios',
+    'previewDryRunApplicationCleanup',
+    'executeDryRunApplicationCleanup',
   ], 'build-admin-gas');
   return code;
 }
