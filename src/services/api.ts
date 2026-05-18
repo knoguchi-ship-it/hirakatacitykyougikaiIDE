@@ -278,6 +278,13 @@ export interface ApiClient {
   saveRosterTemplate(payload: { id?: string; name: string; ssId: string; description?: string }): Promise<RosterTemplate[]>;
   deleteRosterTemplate(id: string): Promise<RosterTemplate[]>;
   setDefaultRosterTemplate(id: string): Promise<RosterTemplate[]>;
+  // v372: 名簿出力 Visual Template Designer
+  getRosterFieldDictionary(): Promise<import('../types').RosterFieldDef[]>;
+  getRosterDesignerData(payload: { memberTypes?: string[]; memberStatus?: string; year?: number }): Promise<{ rows: import('../types').RosterDesignerRow[]; years: number[]; year: number }>;
+  loadRosterTemplatesV2(): Promise<{ templates: import('../types').RosterTemplateV2[] }>;
+  saveRosterTemplateV2(template: import('../types').RosterTemplateV2): Promise<{ ok: boolean; templates: import('../types').RosterTemplateV2[] }>;
+  deleteRosterTemplateV2(id: string): Promise<{ ok: boolean; templates: import('../types').RosterTemplateV2[] }>;
+  duplicateRosterTemplateV2(id: string): Promise<{ ok: boolean; templates: import('../types').RosterTemplateV2[] }>;
 }
 
 export interface MemberDeleteSearchResult {
@@ -2254,6 +2261,67 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('setDefaultRosterTemplate', JSON.stringify({ id }));
+    });
+  }
+
+  // v372: 名簿出力 Visual Template Designer
+  async getRosterFieldDictionary(): Promise<import('../types').RosterFieldDef[]> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
+        .withFailureHandler((e: Error) => reject(e))
+        .processApiRequest('getRosterFieldDictionary', '{}');
+    });
+  }
+
+  async getRosterDesignerData(payload: { memberTypes?: string[]; memberStatus?: string; year?: number }): Promise<{ rows: import('../types').RosterDesignerRow[]; years: number[]; year: number }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
+        .withFailureHandler((e: Error) => reject(e))
+        .processApiRequest('getRosterDesignerData', JSON.stringify(payload));
+    });
+  }
+
+  async loadRosterTemplatesV2(): Promise<{ templates: import('../types').RosterTemplateV2[] }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
+        .withFailureHandler((e: Error) => reject(e))
+        .processApiRequest('loadRosterTemplatesV2', '{}');
+    });
+  }
+
+  async saveRosterTemplateV2(template: import('../types').RosterTemplateV2): Promise<{ ok: boolean; templates: import('../types').RosterTemplateV2[] }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
+        .withFailureHandler((e: Error) => reject(e))
+        .processApiRequest('saveRosterTemplateV2', JSON.stringify({ template }));
+    });
+  }
+
+  async deleteRosterTemplateV2(id: string): Promise<{ ok: boolean; templates: import('../types').RosterTemplateV2[] }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
+        .withFailureHandler((e: Error) => reject(e))
+        .processApiRequest('deleteRosterTemplateV2', JSON.stringify({ id }));
+    });
+  }
+
+  async duplicateRosterTemplateV2(id: string): Promise<{ ok: boolean; templates: import('../types').RosterTemplateV2[] }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
+      google.script.run
+        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
+        .withFailureHandler((e: Error) => reject(e))
+        .processApiRequest('duplicateRosterTemplateV2', JSON.stringify({ id }));
     });
   }
 

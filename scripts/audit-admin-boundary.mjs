@@ -129,6 +129,13 @@ const allowedAdminActions = [
   'saveRosterTemplate',
   'deleteRosterTemplate',
   'setDefaultRosterTemplate',
+  // v372: 名簿出力 Visual Template Designer
+  'getRosterFieldDictionary',
+  'getRosterDesignerData',
+  'loadRosterTemplatesV2',
+  'saveRosterTemplateV2',
+  'deleteRosterTemplateV2',
+  'duplicateRosterTemplateV2',
   // v344: 案内PDFサムネイル Drive proxy
   'getFileThumbnail',
   // v350: 失敗時の手動サムネイル再生成

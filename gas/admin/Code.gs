@@ -13,7 +13,7 @@ var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
 var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
-var DB_SCHEMA_VERSION = '2026-05-19-mail-kill-switch-v371.2';
+var DB_SCHEMA_VERSION = '2026-05-19-roster-designer-v372';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
 var MEMBER_PORTAL_URL = 'https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec';
@@ -1151,6 +1151,26 @@ function processApiRequest(action, payload) {
 
     if (action === 'setDefaultRosterTemplate') {
       return JSON.stringify({ success: true, data: setDefaultRosterTemplate_(parsedPayload) });
+    }
+
+    // v372: 名簿出力 全面刷新（Visual Template Designer）
+    if (action === 'getRosterFieldDictionary') {
+      return JSON.stringify({ success: true, data: getRosterFieldDictionary_() });
+    }
+    if (action === 'getRosterDesignerData') {
+      return JSON.stringify({ success: true, data: getRosterDesignerData_(parsedPayload) });
+    }
+    if (action === 'loadRosterTemplatesV2') {
+      return JSON.stringify({ success: true, data: loadRosterTemplatesV2_() });
+    }
+    if (action === 'saveRosterTemplateV2') {
+      return JSON.stringify({ success: true, data: saveRosterTemplateV2_(parsedPayload) });
+    }
+    if (action === 'deleteRosterTemplateV2') {
+      return JSON.stringify({ success: true, data: deleteRosterTemplateV2_(parsedPayload) });
+    }
+    if (action === 'duplicateRosterTemplateV2') {
+      return JSON.stringify({ success: true, data: duplicateRosterTemplateV2_(parsedPayload) });
     }
 
     if (action === 'sendTrainingReminder') {
@@ -12612,6 +12632,261 @@ function getMembersForRoster_(payload) {
   });
 
   return { targets: results, years: allFeeYears };
+}
+
+// ─── v372: 名簿出力 Visual Template Designer 用 API ───────────────────────────
+
+/**
+ * フィールド辞書: 列ビルダー UI で表示する全候補フィールドのメタ情報。
+ * フロントエンドはこの辞書からチェックボックスを生成し、出力列に追加可能。
+ * 新フィールド追加時はこの辞書のみ更新すればフロント改修不要。
+ */
+function getRosterFieldDictionary_() {
+  return [
+    // member 基本情報
+    { key: 'memberId',             label: '会員ID',           group: 'member', type: 'string', sample: 'M0123456789' },
+    { key: 'memberType',           label: '会員種別',         group: 'member', type: 'enum',   enumLabels: { INDIVIDUAL: '個人会員', BUSINESS: '事業所会員', SUPPORT: '賛助会員' }, sample: '個人会員' },
+    { key: 'memberStatus',         label: '会員状態',         group: 'member', type: 'enum',   enumLabels: { ACTIVE: '在籍中', WITHDRAWAL_SCHEDULED: '退会予定', WITHDRAWN: '年度内退会' }, sample: '在籍中' },
+    { key: 'lastName',             label: '姓',               group: 'member', type: 'string', sample: '山田' },
+    { key: 'firstName',            label: '名',               group: 'member', type: 'string', sample: '太郎' },
+    { key: 'fullName',             label: '氏名（姓 名）',    group: 'computed', type: 'string', sample: '山田 太郎' },
+    { key: 'lastKana',             label: 'セイ',             group: 'member', type: 'string', sample: 'ヤマダ' },
+    { key: 'firstKana',            label: 'メイ',             group: 'member', type: 'string', sample: 'タロウ' },
+    { key: 'fullKana',             label: 'フリガナ（セイ メイ）', group: 'computed', type: 'string', sample: 'ヤマダ タロウ' },
+    { key: 'email',                label: '代表メールアドレス', group: 'member', type: 'string', sample: 'taro@example.jp' },
+    { key: 'mobilePhone',          label: '携帯電話番号',     group: 'member', type: 'string', sample: '090-1234-5678' },
+    { key: 'careManagerNumber',    label: '介護支援専門員番号', group: 'member', type: 'string', sample: '27000001' },
+    { key: 'joinedDate',           label: '入会日',           group: 'member', type: 'date',   sample: '2024-04-01' },
+    { key: 'withdrawnDate',        label: '退会日',           group: 'member', type: 'date',   sample: '' },
+    { key: 'mailingPreference',    label: '発送方法',         group: 'member', type: 'enum',   enumLabels: { EMAIL: 'メール', POST: '郵送' }, sample: 'メール' },
+    { key: 'preferredMailDestination', label: '郵送先区分',  group: 'member', type: 'enum',   enumLabels: { OFFICE: '勤務先', HOME: '自宅' }, sample: '勤務先' },
+    // office
+    { key: 'officeName',           label: '勤務先名',         group: 'office', type: 'string', sample: 'ケアプランセンターA' },
+    { key: 'officeNumber',         label: '事業所番号',       group: 'office', type: 'string', sample: '2700123456' },
+    { key: 'officePostCode',       label: '勤務先郵便番号',   group: 'office', type: 'string', sample: '573-0000' },
+    { key: 'officePrefecture',     label: '勤務先都道府県',   group: 'office', type: 'string', sample: '大阪府' },
+    { key: 'officeCity',           label: '勤務先市区町村',   group: 'office', type: 'string', sample: '枚方市' },
+    { key: 'officeAddressLine',    label: '勤務先住所',       group: 'office', type: 'string', sample: '岡東町1-1' },
+    { key: 'officeAddressLine2',   label: '勤務先住所2',      group: 'office', type: 'string', sample: '○○ビル3F' },
+    { key: 'officeFullAddress',    label: '勤務先住所（結合）', group: 'computed', type: 'string', sample: '大阪府枚方市岡東町1-1 ○○ビル3F' },
+    { key: 'officePhone',          label: '勤務先電話番号',   group: 'office', type: 'string', sample: '072-000-0000' },
+    { key: 'officeFax',            label: '勤務先FAX番号',    group: 'office', type: 'string', sample: '072-000-0001' },
+    // home
+    { key: 'homePostCode',         label: '自宅郵便番号',     group: 'member', type: 'string', sample: '573-0000' },
+    { key: 'homePrefecture',       label: '自宅都道府県',     group: 'member', type: 'string', sample: '大阪府' },
+    { key: 'homeCity',             label: '自宅市区町村',     group: 'member', type: 'string', sample: '枚方市' },
+    { key: 'homeAddressLine',      label: '自宅住所',         group: 'member', type: 'string', sample: '○○町1-1' },
+    { key: 'homeAddressLine2',     label: '自宅住所2',        group: 'member', type: 'string', sample: '' },
+    { key: 'homeFullAddress',      label: '自宅住所（結合）', group: 'computed', type: 'string', sample: '大阪府枚方市○○町1-1' },
+    // fee
+    { key: 'annualFeeStatus',      label: '年会費状態（選択年度）', group: 'fee', type: 'enum', enumLabels: { PAID: '納入済み', UNPAID: '未納' }, sample: '納入済み' },
+    { key: 'annualFeeYear',        label: '年会費対象年度',   group: 'fee', type: 'number', sample: '2026' },
+    // computed
+    { key: 'enrolledStaffCount',   label: '在籍職員数（事業所のみ）', group: 'computed', type: 'number', sample: '5' },
+  ];
+}
+
+/**
+ * Visual Template Designer 用に会員データをフラット化して返す。
+ * 既存 getMembersForRoster_ と異なり、辞書の全キーを raw 文字列で含む。
+ * フロントエンドは row[fieldKey] でアクセスできる。
+ */
+function getRosterDesignerData_(payload) {
+  var p = payload || {};
+  var memberTypes  = p.memberTypes  || ['INDIVIDUAL', 'BUSINESS', 'SUPPORT'];
+  var memberStatusFilter = String(p.memberStatus || 'ACTIVE');
+
+  var now = new Date();
+  var currentFY = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  var year = Number(p.year || 0);
+  if (!year || !isFinite(year)) year = currentFY;
+
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var memberSheet = ss.getSheetByName('T_会員');
+  var staffSheet  = ss.getSheetByName('T_事業所職員');
+  var feeSheet    = ss.getSheetByName('T_年会費納入履歴');
+
+  var members   = getSheetData_(memberSheet);
+  var staffRows = staffSheet ? getSheetData_(staffSheet) : [];
+  var feeRows   = feeSheet   ? getSheetData_(feeSheet)   : [];
+
+  var feeMap = {};
+  var feeMapByYear = {};
+  feeRows.forEach(function(r) {
+    if (toBoolean_(r['削除フラグ'])) return;
+    var yr  = Number(r['対象年度'] || 0);
+    var mid = String(r['会員ID'] || '');
+    if (!yr || !mid) return;
+    var status = String(r['会費納入状態コード'] || 'UNPAID');
+    if (!feeMapByYear[yr]) feeMapByYear[yr] = {};
+    feeMapByYear[yr][mid] = status;
+    if (yr === year) feeMap[mid] = status;
+  });
+  var allFeeYears = getMailingListYears_(feeRows, year);
+
+  var staffCountMap = {};
+  staffRows.forEach(function(s) {
+    if (toBoolean_(s['削除フラグ'])) return;
+    if (String(s['職員状態コード'] || '') !== 'ENROLLED') return;
+    var mid = String(s['会員ID'] || '');
+    staffCountMap[mid] = (staffCountMap[mid] || 0) + 1;
+  });
+
+  var joinStr_ = function(parts) {
+    return parts.filter(function(p){ return p != null && String(p).trim() !== ''; }).map(function(p){ return String(p).trim(); }).join('');
+  };
+
+  var rows = [];
+  members.forEach(function(m) {
+    if (toBoolean_(m['削除フラグ'])) return;
+    var mtype = String(m['会員種別コード'] || '');
+    if (memberTypes.indexOf(mtype) < 0) return;
+
+    var fiscalSnapshot = getMemberFiscalSnapshot_(m, year);
+    if (!fiscalSnapshot.eligible) return;
+    var status = fiscalSnapshot.memberStatus;
+    if (memberStatusFilter === 'ACTIVE' && status !== 'ACTIVE') return;
+    if (memberStatusFilter === 'INCLUDING_SCHEDULED' &&
+        status !== 'ACTIVE' && status !== 'WITHDRAWAL_SCHEDULED') return;
+
+    var memberId  = String(m['会員ID'] || '');
+    var feeStatus = feeMap[memberId] || 'UNPAID';
+    var feeHistories = {};
+    allFeeYears.forEach(function(yr) {
+      feeHistories[yr] = (feeMapByYear[yr] && feeMapByYear[yr][memberId]) || 'UNPAID';
+    });
+
+    var lastName  = String(m['姓'] || '').trim();
+    var firstName = String(m['名'] || '').trim();
+    var lastKana  = String(m['セイ'] || '').trim();
+    var firstKana = String(m['メイ'] || '').trim();
+    var officeName = String(m['勤務先名'] || '').trim();
+    var displayName = (mtype === 'BUSINESS')
+      ? (officeName || memberId)
+      : ((lastName + ' ' + firstName).trim() || memberId);
+
+    rows.push({
+      // raw fields
+      memberId: memberId,
+      memberType: mtype,
+      memberStatus: status,
+      lastName: lastName,
+      firstName: firstName,
+      lastKana: lastKana,
+      firstKana: firstKana,
+      email: String(m['代表メールアドレス'] || ''),
+      mobilePhone: String(m['携帯電話番号'] || ''),
+      careManagerNumber: String(m['介護支援専門員番号'] || ''),
+      joinedDate: fiscalSnapshot.joinedDate || '',
+      withdrawnDate: fiscalSnapshot.withdrawnDate || '',
+      mailingPreference: String(m['発送方法コード'] || ''),
+      preferredMailDestination: String(m['郵送先区分コード'] || ''),
+      officeName: officeName,
+      officeNumber: String(m['事業所番号'] || ''),
+      officePostCode: String(m['勤務先郵便番号'] || ''),
+      officePrefecture: String(m['勤務先都道府県'] || ''),
+      officeCity: String(m['勤務先市区町村'] || ''),
+      officeAddressLine: String(m['勤務先住所'] || ''),
+      officeAddressLine2: String(m['勤務先住所2'] || ''),
+      officePhone: String(m['勤務先電話番号'] || ''),
+      officeFax: String(m['勤務先FAX番号'] || ''),
+      homePostCode: String(m['自宅郵便番号'] || ''),
+      homePrefecture: String(m['自宅都道府県'] || ''),
+      homeCity: String(m['自宅市区町村'] || ''),
+      homeAddressLine: String(m['自宅住所'] || ''),
+      homeAddressLine2: String(m['自宅住所2'] || ''),
+      annualFeeStatus: feeStatus,
+      annualFeeYear: String(year),
+      enrolledStaffCount: mtype === 'BUSINESS' ? String(staffCountMap[memberId] || 0) : '',
+      annualFeeHistories: feeHistories,
+      // computed
+      fullName: (lastName + ' ' + firstName).trim(),
+      fullKana: (lastKana + ' ' + firstKana).trim(),
+      displayName: displayName,
+      officeFullAddress: joinStr_([m['勤務先都道府県'], m['勤務先市区町村'], m['勤務先住所'], m['勤務先住所2']]),
+      homeFullAddress: joinStr_([m['自宅都道府県'], m['自宅市区町村'], m['自宅住所'], m['自宅住所2']]),
+    });
+  });
+
+  return { rows: rows, years: allFeeYears, year: year };
+}
+
+/**
+ * ROSTER_TEMPLATE_LIBRARY_V2 の読み込み（T_システム設定 から JSON 取得）。
+ */
+function loadRosterTemplatesV2_() {
+  var ss = getOrCreateDatabase_();
+  var raw = String(getSystemSettingValue_(ss, 'ROSTER_TEMPLATE_LIBRARY_V2') || '[]');
+  var list = [];
+  try { list = JSON.parse(raw); } catch (e) { list = []; }
+  if (!Array.isArray(list)) list = [];
+  return { templates: list };
+}
+
+function saveRosterTemplateV2_(payload) {
+  var p = payload || {};
+  var template = p.template;
+  if (!template || typeof template !== 'object') throw new Error('テンプレートが指定されていません。');
+  if (!template.id || typeof template.id !== 'string') throw new Error('テンプレートIDが必要です。');
+  if (!template.name || typeof template.name !== 'string') throw new Error('テンプレート名が必要です。');
+  if (!Array.isArray(template.columns)) throw new Error('columns 配列が必要です。');
+
+  var ss = getOrCreateDatabase_();
+  var current = loadRosterTemplatesV2_().templates;
+  var now = new Date().toISOString();
+  var found = false;
+  current = current.map(function(t) {
+    if (t.id === template.id) {
+      found = true;
+      return Object.assign({}, t, template, { updatedAt: now });
+    }
+    return t;
+  });
+  if (!found) {
+    template.createdAt = template.createdAt || now;
+    template.updatedAt = now;
+    current.push(template);
+  }
+  // isDefault 排他処理
+  if (template.isDefault) {
+    current = current.map(function(t) {
+      return Object.assign({}, t, { isDefault: t.id === template.id });
+    });
+  }
+  batchUpsertSystemSettings_(ss, [{
+    key: 'ROSTER_TEMPLATE_LIBRARY_V2',
+    value: JSON.stringify(current),
+    description: '名簿テンプレートライブラリ V2（Visual Designer 用）',
+  }]);
+  return { ok: true, templates: current };
+}
+
+function deleteRosterTemplateV2_(payload) {
+  var id = String((payload || {}).id || '').trim();
+  if (!id) throw new Error('テンプレートIDが必要です。');
+  var ss = getOrCreateDatabase_();
+  var current = loadRosterTemplatesV2_().templates.filter(function(t){ return t.id !== id; });
+  batchUpsertSystemSettings_(ss, [{
+    key: 'ROSTER_TEMPLATE_LIBRARY_V2',
+    value: JSON.stringify(current),
+    description: '名簿テンプレートライブラリ V2（Visual Designer 用）',
+  }]);
+  return { ok: true, templates: current };
+}
+
+function duplicateRosterTemplateV2_(payload) {
+  var id = String((payload || {}).id || '').trim();
+  if (!id) throw new Error('テンプレートIDが必要です。');
+  var current = loadRosterTemplatesV2_().templates;
+  var src = current.filter(function(t){ return t.id === id; })[0];
+  if (!src) throw new Error('テンプレートが見つかりません。');
+  var copy = JSON.parse(JSON.stringify(src));
+  copy.id = Utilities.getUuid();
+  copy.name = (src.name || '名前なし') + ' (コピー)';
+  copy.isDefault = false;
+  copy.createdAt = new Date().toISOString();
+  copy.updatedAt = copy.createdAt;
+  return saveRosterTemplateV2_({ template: copy });
 }
 
 /**

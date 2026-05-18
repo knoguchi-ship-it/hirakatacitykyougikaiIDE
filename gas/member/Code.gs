@@ -13,7 +13,7 @@ var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
 var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
-var DB_SCHEMA_VERSION = '2026-05-19-mail-kill-switch-v371.2';
+var DB_SCHEMA_VERSION = '2026-05-19-roster-designer-v372';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
 var MEMBER_PORTAL_URL = 'https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec';
@@ -986,6 +986,8 @@ function processApiRequest(action, payload) {
 
 
 
+
+    // v372: 名簿出力 全面刷新（Visual Template Designer）
 
 
 
@@ -5884,6 +5886,21 @@ function backfillBusinessStaffNameColumns_(ss) {
  * v312: annualFeeStatus は廃止（クライアント側多年度フィルタに移行）。
  *       返却形式を { targets, years } に変更。
  */
+
+// ─── v372: 名簿出力 Visual Template Designer 用 API ───────────────────────────
+
+/**
+ * フィールド辞書: 列ビルダー UI で表示する全候補フィールドのメタ情報。
+ * フロントエンドはこの辞書からチェックボックスを生成し、出力列に追加可能。
+ * 新フィールド追加時はこの辞書のみ更新すればフロント改修不要。
+ */
+
+/**
+ * ROSTER_TEMPLATE_LIBRARY_V2 の読み込み（T_システム設定 から JSON 取得）。
+ */
+
+
+
 
 /**
  * v205: 全チャンクの部分 ZIP を統合して最終 ZIP を生成。

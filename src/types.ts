@@ -41,6 +41,65 @@ export interface AnnualFeeRecord {
   transferAccount?: TransferAccountInfo;
 }
 
+// v372: 名簿出力 Visual Template Designer
+export type RosterFieldType = 'string' | 'number' | 'date' | 'enum' | 'boolean' | 'array';
+export type RosterFieldGroup = 'member' | 'office' | 'staff' | 'fee' | 'computed';
+
+export interface RosterFieldDef {
+  key: string;
+  label: string;
+  group: RosterFieldGroup;
+  type: RosterFieldType;
+  enumLabels?: Record<string, string>;
+  sample: string;
+  description?: string;
+}
+
+export interface ConditionalRule {
+  when: string;
+  style: { color?: string; bgColor?: string; bold?: boolean };
+}
+
+export interface RosterColumnDef {
+  id: string;
+  source: 'field' | 'formula' | 'literal';
+  fieldKey?: string;
+  formula?: string;
+  literal?: string;
+  label: string;
+  width?: number;
+  align?: 'left' | 'center' | 'right';
+  format?: string;
+  conditionalStyle?: ConditionalRule[];
+}
+
+export interface RosterLayoutDef {
+  paperSize?: 'A4' | 'A3' | 'B5';
+  orientation?: 'portrait' | 'landscape';
+  fontSize?: number;
+  rowsPerPage?: number;
+  showRecordCount?: boolean;
+  recordCountPosition?: 'header' | 'footer' | 'both';
+  recordCountFormat?: string; // 例: '出力対象: {{count}} 名'
+}
+
+export interface RosterTemplateV2 {
+  id: string;
+  name: string;
+  description?: string;
+  target?: 'PERSONAL_SUPPORT' | 'BUSINESS' | 'ALL';
+  columns: RosterColumnDef[];
+  layout?: RosterLayoutDef;
+  isDefault?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface RosterDesignerRow {
+  // raw fields (string keys from getRosterFieldDictionary)
+  [key: string]: string | number | undefined | Record<number, 'PAID' | 'UNPAID'>;
+}
+
 // v219: 入会メールテンプレート
 export interface EmailTemplate {
   id: string;

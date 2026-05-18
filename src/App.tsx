@@ -7,6 +7,7 @@ import TrainingApply from './components/TrainingApply';
 import AnnualFeeManagement from './components/AnnualFeeManagement';
 import BulkMailSender from './components/BulkMailSender';
 import RosterExport from './components/RosterExport';
+import RosterDesigner from './components/RosterDesigner';
 import MailingListExport from './components/MailingListExport';
 import OfficerMasterSettings from './components/OfficerMasterSettings';
 import OfficerManagement from './components/OfficerManagement';
@@ -5015,6 +5016,15 @@ const App: React.FC = () => {
     }
 
     if (currentView === 'roster-export') {
+      if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
+        return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
+      }
+      // v372 S1: 新 Visual Designer 採用。旧 RosterExport は S5 で削除予定（コード保持）。
+      return <RosterDesigner api={api} />;
+    }
+
+    // v372: 旧 RosterExport は到達不能（Sidebar 非表示化）。S5 で削除。
+    if (currentView === 'roster-export-legacy') {
       if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
         return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
       }
