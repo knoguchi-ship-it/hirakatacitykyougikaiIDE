@@ -18,7 +18,14 @@ const allowedTopLevelFunctions = [
   'regenerateAllThumbnails',
   'processPendingThumbnails',
   'setupPendingThumbnailsTrigger',
-  // 2026-05-17: dryRun synthetic transaction test runner (clasp run 専用)
+  // v370.1: PENDING 入会申込の診断とクリーンアップ（operator 実行用）
+  'diagnoseStaleApplicationForV370',
+  'diagnoseAllStaleApplicationsForV370',
+  'cleanupStaleBusinessApplicationForV370',
+  'runCleanupPartialBusinessV370_53779700',
+  // v360 schema migration (operator が Apps Script editor から 1 回 Run)
+  'runRebuildSchemaForV360',
+  // 2026-05-17: dryRun synthetic transaction test runner
   'dryRunApplicationScenarios',
   'previewDryRunApplicationCleanup',
   'executeDryRunApplicationCleanup',
@@ -128,6 +135,18 @@ const allowedAdminActions = [
   'regenerateThumbnailForTraining',
   // v357: PDF lightbox 用 bytes proxy
   'getFileBytes',
+  // v360: 研修名簿・出欠・受講履歴・一括メール明細
+  'getTrainingRosterDetail',
+  'saveAttendance',
+  'saveAttendanceBatch',
+  'addRosterEntry',
+  'addGuestRosterEntry',
+  'cancelRosterEntry',
+  'updateRosterEntry',
+  'getTrainingStats',
+  'getMemberTrainingHistory',
+  'sendTrainingMailSegmented',
+  'getTrainingMailSendLogs',
 ];
 const forbiddenTopLevelFunctions = [
   'rebuildDatabaseSchema',

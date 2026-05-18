@@ -551,6 +551,31 @@ const App: React.FC = () => {
   const [bizRepEmailEnabledInput, setBizRepEmailEnabledInput] = useState(true);
   const [bizRepEmailSubjectInput, setBizRepEmailSubjectInput] = useState(BIZ_REP_SUBJECT_DEFAULT);
   const [bizRepEmailBodyInput, setBizRepEmailBodyInput] = useState('');
+  // v369: 変更申請ワークフローメール（受付確認・承認通知・却下通知）
+  const APPLICATION_RECEIPT_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】{{申請種別}}を受け付けました';
+  const APPROVAL_NOTIFICATION_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】{{申請種別}}が承認されました';
+  const REJECTION_NOTIFICATION_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】{{申請種別}}について';
+  const [applicationReceiptEnabledInput, setApplicationReceiptEnabledInput] = useState(true);
+  const [applicationReceiptSubjectInput, setApplicationReceiptSubjectInput] = useState(APPLICATION_RECEIPT_SUBJECT_DEFAULT);
+  const [applicationReceiptBodyInput, setApplicationReceiptBodyInput] = useState('');
+  const [approvalNotificationEnabledInput, setApprovalNotificationEnabledInput] = useState(true);
+  const [approvalNotificationSubjectInput, setApprovalNotificationSubjectInput] = useState(APPROVAL_NOTIFICATION_SUBJECT_DEFAULT);
+  const [approvalNotificationBodyInput, setApprovalNotificationBodyInput] = useState('');
+  const [rejectionNotificationEnabledInput, setRejectionNotificationEnabledInput] = useState(true);
+  const [rejectionNotificationSubjectInput, setRejectionNotificationSubjectInput] = useState(REJECTION_NOTIFICATION_SUBJECT_DEFAULT);
+  const [rejectionNotificationBodyInput, setRejectionNotificationBodyInput] = useState('');
+  // v371: メール送信 4 階層ガード（GLOBAL / MODE / ALLOWLIST / CATEGORY）
+  // 初期値は false（safe-stop）— サーバ側設定が読み込まれるまでメール送信を止めて見せる
+  const [mailGlobalEnabledInput, setMailGlobalEnabledInput] = useState(false);
+  const [mailDeliveryModeInput, setMailDeliveryModeInput] = useState<'LIVE' | 'REDIRECT' | 'SUPPRESS'>('LIVE');
+  const [mailRedirectAllowlistInput, setMailRedirectAllowlistInput] = useState('');
+  const [trainingApplyReceiptEnabledInput, setTrainingApplyReceiptEnabledInput] = useState(true);
+  const [trainingReminderEnabledInput, setTrainingReminderEnabledInput] = useState(true);
+  const [bulkMailEnabledInput, setBulkMailEnabledInput] = useState(true);
+  const [authOtpEnabledInput, setAuthOtpEnabledInput] = useState(true);
+  const [memberUpdateConfirmEnabledInput, setMemberUpdateConfirmEnabledInput] = useState(true);
+  const [withdrawalConfirmEnabledInput, setWithdrawalConfirmEnabledInput] = useState(true);
+  const [passwordResetEnabledInput, setPasswordResetEnabledInput] = useState(true);
   const [bizStaffEmailEnabledInput, setBizStaffEmailEnabledInput] = useState(true);
   const [bizStaffEmailSubjectInput, setBizStaffEmailSubjectInput] = useState(BIZ_STAFF_SUBJECT_DEFAULT);
   const [bizStaffEmailBodyInput, setBizStaffEmailBodyInput] = useState('');
@@ -579,6 +604,8 @@ const App: React.FC = () => {
   const [businessStaffSaveError, setBusinessStaffSaveError] = useState<string | null>(null);
   const [selectedMemberForDetailId, setSelectedMemberForDetailId] = useState<string | null>(null);
   const [selectedMemberForDetailSnapshot, setSelectedMemberForDetailSnapshot] = useState<Member | null>(null);
+  // v363.2: 会員詳細をモーダル表示するためのフラグ。trueなら overlay 表示、currentView は元のまま維持
+  const [memberDetailModalOpen, setMemberDetailModalOpen] = useState(false);
   const [selectedStaffForDetail, setSelectedStaffForDetail] = useState<{ memberId: string; staffId: string } | null>(null);
   const [staffSaveToast, setStaffSaveToast] = useState<string | null>(null);
   const [withdrawingMemberId, setWithdrawingMemberId] = useState<string | null>(null);
@@ -677,6 +704,16 @@ const App: React.FC = () => {
     setBizRepEmailEnabledInput(systemSettings.bizRepEmailEnabled ?? true);
     setBizRepEmailSubjectInput(systemSettings.bizRepEmailSubject ?? BIZ_REP_SUBJECT_DEFAULT);
     setBizRepEmailBodyInput(systemSettings.bizRepEmailBody ?? '');
+    // v369: 変更申請ワークフローメール
+    setApplicationReceiptEnabledInput(systemSettings.applicationReceiptEnabled ?? true);
+    setApplicationReceiptSubjectInput(systemSettings.applicationReceiptSubject ?? APPLICATION_RECEIPT_SUBJECT_DEFAULT);
+    setApplicationReceiptBodyInput(systemSettings.applicationReceiptBody ?? '');
+    setApprovalNotificationEnabledInput(systemSettings.approvalNotificationEnabled ?? true);
+    setApprovalNotificationSubjectInput(systemSettings.approvalNotificationSubject ?? APPROVAL_NOTIFICATION_SUBJECT_DEFAULT);
+    setApprovalNotificationBodyInput(systemSettings.approvalNotificationBody ?? '');
+    setRejectionNotificationEnabledInput(systemSettings.rejectionNotificationEnabled ?? true);
+    setRejectionNotificationSubjectInput(systemSettings.rejectionNotificationSubject ?? REJECTION_NOTIFICATION_SUBJECT_DEFAULT);
+    setRejectionNotificationBodyInput(systemSettings.rejectionNotificationBody ?? '');
     setBizStaffEmailEnabledInput(systemSettings.bizStaffEmailEnabled ?? true);
     setBizStaffEmailSubjectInput(systemSettings.bizStaffEmailSubject ?? BIZ_STAFF_SUBJECT_DEFAULT);
     setBizStaffEmailBodyInput(systemSettings.bizStaffEmailBody ?? '');
@@ -686,6 +723,17 @@ const App: React.FC = () => {
     setStaffAddRepEmailEnabledInput(systemSettings.staffAddRepEmailEnabled ?? true);
     setStaffAddRepEmailSubjectInput(systemSettings.staffAddRepEmailSubject ?? STAFF_ADD_REP_SUBJECT_DEFAULT);
     setStaffAddRepEmailBodyInput(systemSettings.staffAddRepEmailBody ?? '');
+    // v371: メール送信 4 階層ガード ロード
+    setMailGlobalEnabledInput(systemSettings.mailGlobalEnabled ?? false);
+    setMailDeliveryModeInput((systemSettings.mailDeliveryMode as 'LIVE' | 'REDIRECT' | 'SUPPRESS') ?? 'LIVE');
+    setMailRedirectAllowlistInput(systemSettings.mailRedirectAllowlist ?? '');
+    setTrainingApplyReceiptEnabledInput(systemSettings.trainingApplyReceiptEnabled ?? true);
+    setTrainingReminderEnabledInput(systemSettings.trainingReminderEnabled ?? true);
+    setBulkMailEnabledInput(systemSettings.bulkMailEnabled ?? true);
+    setAuthOtpEnabledInput(systemSettings.authOtpEnabled ?? true);
+    setMemberUpdateConfirmEnabledInput(systemSettings.memberUpdateConfirmEnabled ?? true);
+    setWithdrawalConfirmEnabledInput(systemSettings.withdrawalConfirmEnabled ?? true);
+    setPasswordResetEnabledInput(systemSettings.passwordResetEnabled ?? true);
     setSettingsIsDirty(false);
     setSystemSettingsLoaded(true);
   };
@@ -1103,6 +1151,7 @@ const App: React.FC = () => {
       return matchesSearchQuery(deferredMemberListQuery, [
         member.memberId,
         member.displayName,
+        member.kana || '', // v362: フリガナ検索（ひらがな/全角カナ/半角カナ いずれもヒット）
         member.officeName,
       ]);
     });
@@ -1302,15 +1351,15 @@ const App: React.FC = () => {
     }
   };
 
+  // v363.2: 会員詳細をモーダル overlay で表示する。currentView は変更せず元画面を維持。
+  // 新タブ方式（v363）は GAS DOMAIN 認証で毎回ログイン画面に戻る問題のため廃止。
   const openMemberDetail = async (memberId: string) => {
     try {
-      // B-05: fullDataLoaded かつ members state に対象が存在する場合は再取得しない
-      // （React state は次レンダーまで反映されないため、state 参照は同期的に行う）
       const loadedMember = members.find(m => m.id === memberId);
       if (fullDataLoaded && loadedMember) {
         setSelectedMemberForDetailId(memberId);
         setSelectedMemberForDetailSnapshot(loadedMember);
-        setCurrentView('member-detail');
+        setMemberDetailModalOpen(true);
         return;
       }
       const { members: freshMembers } = await loadAppData({ includeAdminSettings: true, force: true });
@@ -1321,11 +1370,30 @@ const App: React.FC = () => {
       }
       setSelectedMemberForDetailId(found.id);
       setSelectedMemberForDetailSnapshot(found);
-      setCurrentView('member-detail');
+      setMemberDetailModalOpen(true);
     } catch (e) {
       alert(e instanceof Error ? e.message : '会員データの読み込みに失敗しました。');
     }
   };
+
+  // v363.2: モーダル閉じる処理
+  const closeMemberDetailModal = () => {
+    setMemberDetailModalOpen(false);
+    setSelectedMemberForDetailId(null);
+    setSelectedMemberForDetailSnapshot(null);
+    setSelectedStaffForDetail(null);
+  };
+
+  // ESC キーでモーダルを閉じる
+  useEffect(() => {
+    if (!memberDetailModalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeMemberDetailModal();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [memberDetailModalOpen]);
 
   useEffect(() => {
     setMemberListPage(1);
@@ -2338,7 +2406,7 @@ const App: React.FC = () => {
             className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
             value={adminMemberViewMode === 'business' ? businessMemberQuery : memberListQuery}
             onChange={(e) => adminMemberViewMode === 'business' ? setBusinessMemberQuery(e.target.value) : setMemberListQuery(e.target.value)}
-            placeholder={adminMemberViewMode === 'business' ? '事業所名・氏名・カナ・メール・CM番号' : '会員番号・氏名・事業所名（勤務先含む）'}
+            placeholder={adminMemberViewMode === 'business' ? '事業所名・氏名・フリガナ・メール・CM番号' : '会員番号・氏名・フリガナ・事業所名（勤務先含む）'}
           />
         </div>
         <div>
@@ -3810,6 +3878,97 @@ const App: React.FC = () => {
 
           </AdminSettingsSection>}
 
+          {/* ── v371: メール送信制御（4 階層ガード）── */}
+          {settingsSub === 'email' && <AdminSettingsSection
+            id="settings-mail-control"
+            title="メール送信制御（4階層ガード）"
+            description="グローバルキルスイッチ + 配信モード + Redirect allowlist + カテゴリ別 ON/OFF。テスト時はRedirect 宛先を自分のメールに固定すると全メールが自分宛のみに集約されます。"
+            badge="メール制御"
+            defaultOpen
+          >
+            <div className="space-y-6">
+              {/* ─── [1] グローバルキルスイッチ ─── */}
+              <div className={`rounded-xl border-2 p-4 space-y-3 ${mailGlobalEnabledInput ? 'border-emerald-300 bg-emerald-50' : 'border-red-400 bg-red-50'}`}>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">[1] グローバルキルスイッチ</p>
+                <p className="text-xs text-slate-600">OFF にするとカテゴリ・モードに関わらず<strong>全メール送信を即時停止</strong>します。テスト環境では OFF にしておくことを推奨します。</p>
+                <ToggleSwitch color={mailGlobalEnabledInput ? 'emerald' : 'slate'}
+                  enabled={mailGlobalEnabledInput}
+                  onToggle={() => { setMailGlobalEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                  onLabel="メール送信を有効化（ON）"
+                  offLabel="全メール停止中（OFF）— 安全状態" />
+                {!mailGlobalEnabledInput && (
+                  <p className="text-xs text-red-700 font-semibold">⚠️ 現在すべてのメール送信が停止されています。ドライランや本番運用に必要なときのみ ON に切り替えてください。</p>
+                )}
+              </div>
+
+              {/* ─── [2] 配信モード ─── */}
+              <div className="rounded-xl border-2 border-slate-300 bg-white p-4 space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">[2] 配信モード</p>
+                <p className="text-xs text-slate-500">グローバル ON 時のメール処理方式を選択します。</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {(['LIVE', 'REDIRECT', 'SUPPRESS'] as const).map((modeOpt) => (
+                    <label key={modeOpt} className={`flex items-start gap-2 p-3 rounded border cursor-pointer transition-colors min-h-[44px] ${mailDeliveryModeInput === modeOpt ? 'border-primary-500 bg-primary-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
+                      <input type="radio" name="mailDeliveryMode" value={modeOpt} checked={mailDeliveryModeInput === modeOpt}
+                        onChange={() => { setMailDeliveryModeInput(modeOpt); setSettingsIsDirty(true); }}
+                        className="mt-1" />
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800">{modeOpt}</p>
+                        <p className="text-xs text-slate-500">{
+                          modeOpt === 'LIVE' ? '通常送信（カテゴリ別フラグに従う）'
+                          : modeOpt === 'REDIRECT' ? '全メールを Redirect 宛先に集約（テスト用）'
+                          : '全カテゴリ送信抑止（ログのみ）'
+                        }</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* ─── [3] Redirect Allowlist ─── */}
+              <div className={`rounded-xl border-2 p-4 space-y-3 ${mailDeliveryModeInput === 'REDIRECT' ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">[3] Redirect 宛先 allowlist</p>
+                <p className="text-xs text-slate-600">REDIRECT モード時、全メールがここに記入された宛先（複数可・カンマ区切り）へ集約されます。LIVE/SUPPRESS モードでは無視されます。空欄かつ REDIRECT モードの場合は実質 SUPPRESS と同等の挙動。</p>
+                <input type="text" value={mailRedirectAllowlistInput}
+                  onChange={(e) => { setMailRedirectAllowlistInput(e.target.value); setSettingsIsDirty(true); }}
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                  placeholder="例: kenta-noguchi@tadakayo.jp, test@example.com" />
+                {mailDeliveryModeInput === 'REDIRECT' && !mailRedirectAllowlistInput.trim() && (
+                  <p className="text-xs text-red-600">⚠️ REDIRECT モード選択中ですが allowlist が空です。このままだとメールは送信されません。</p>
+                )}
+              </div>
+
+              {/* ─── [4] カテゴリ別 ON/OFF ─── */}
+              <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">[4] カテゴリ別 ON/OFF（補完カテゴリ）</p>
+                <p className="text-xs text-slate-500">既存の認証情報メール／事業所メール／変更申請ワークフローメール以外の補完カテゴリです。それぞれ ON/OFF を切替可能。</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                  <ToggleSwitch color="emerald" enabled={trainingApplyReceiptEnabledInput}
+                    onToggle={() => { setTrainingApplyReceiptEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    onLabel="研修申込確認メール（ON）" offLabel="研修申込確認メール（OFF）" />
+                  <ToggleSwitch color="emerald" enabled={trainingReminderEnabledInput}
+                    onToggle={() => { setTrainingReminderEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    onLabel="研修リマインダーメール（ON）" offLabel="研修リマインダーメール（OFF）" />
+                  <ToggleSwitch color="emerald" enabled={bulkMailEnabledInput}
+                    onToggle={() => { setBulkMailEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    onLabel="一括メール送信（ON）" offLabel="一括メール送信（OFF）" />
+                  <ToggleSwitch color="emerald" enabled={authOtpEnabledInput}
+                    onToggle={() => { setAuthOtpEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    onLabel="公開ポータルOTPメール（ON）" offLabel="公開ポータルOTPメール（OFF）" />
+                  <ToggleSwitch color="emerald" enabled={memberUpdateConfirmEnabledInput}
+                    onToggle={() => { setMemberUpdateConfirmEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    onLabel="会員情報変更確認メール（ON）" offLabel="会員情報変更確認メール（OFF）" />
+                  <ToggleSwitch color="emerald" enabled={withdrawalConfirmEnabledInput}
+                    onToggle={() => { setWithdrawalConfirmEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    onLabel="退会申請受付確認メール（ON）" offLabel="退会申請受付確認メール（OFF）" />
+                  <ToggleSwitch color="emerald" enabled={passwordResetEnabledInput}
+                    onToggle={() => { setPasswordResetEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    onLabel="パスワード再設定コードメール（ON）" offLabel="パスワード再設定コードメール（OFF）" />
+                </div>
+                <p className="text-xs text-slate-500 mt-2">※既存の認証情報・事業所・変更申請ワークフローのメール設定は下の「入会・登録メール設定」セクションを使用してください。</p>
+              </div>
+            </div>
+          </AdminSettingsSection>}
+
           {/* ── メール通知 ── */}
           {settingsSub === 'email' && <AdminSettingsSection
             id="settings-all-email"
@@ -3968,6 +4127,37 @@ const App: React.FC = () => {
                     defaultSubject={STAFF_ADD_REP_SUBJECT_DEFAULT}
                     body={staffAddRepEmailBodyInput}
                     onBodyChange={v => { setStaffAddRepEmailBodyInput(v); setSettingsIsDirty(true); }} />
+                </div>
+
+                {/* v369: ─── 変更申請ワークフロー (受付・承認・却下) のメール ─── */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-slate-700 border-b border-slate-200 pb-1">▍変更申請ワークフロー（受付・承認・却下）のメール</h4>
+                  <p className="text-xs text-slate-500">公開ポータルからの入会・変更・退会・職員追加/除籍の申請受付時、および管理者の承認/却下時に申請者へ送信されるメールです。差込変数: <code>{`{{氏名}}`}</code> <code>{`{{会員種別ラベル}}`}</code> <code>{`{{申請種別}}`}</code> <code>{`{{申請ID}}`}</code> <code>{`{{受付日時}}`}</code> <code>{`{{処理日時}}`}</code> <code>{`{{処理者名}}`}</code> <code>{`{{変更内容サマリー}}`}</code> <code>{`{{処理備考}}`}</code></p>
+                  <MergeTags items={[['{{氏名}}','氏名'],['{{会員種別ラベル}}','会員種別ラベル'],['{{申請種別}}','申請種別ラベル'],['{{申請ID}}','申請ID'],['{{受付日時}}','受付日時'],['{{処理日時}}','処理日時'],['{{処理者名}}','処理者名'],['{{変更内容サマリー}}','変更内容サマリー（承認メール用）'],['{{処理備考}}','処理備考（却下メール用）']]} />
+                  <EmailCard badge="①受付確認" title="申請受付時：受付確認メール（申請者へ）"
+                    enabled={applicationReceiptEnabledInput}
+                    onToggle={() => { setApplicationReceiptEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    subject={applicationReceiptSubjectInput}
+                    onSubjectChange={v => { setApplicationReceiptSubjectInput(v); setSettingsIsDirty(true); }}
+                    defaultSubject={APPLICATION_RECEIPT_SUBJECT_DEFAULT}
+                    body={applicationReceiptBodyInput}
+                    onBodyChange={v => { setApplicationReceiptBodyInput(v); setSettingsIsDirty(true); }} />
+                  <EmailCard badge="②承認通知" title="管理者承認時：承認通知メール（申請者へ）"
+                    enabled={approvalNotificationEnabledInput}
+                    onToggle={() => { setApprovalNotificationEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    subject={approvalNotificationSubjectInput}
+                    onSubjectChange={v => { setApprovalNotificationSubjectInput(v); setSettingsIsDirty(true); }}
+                    defaultSubject={APPROVAL_NOTIFICATION_SUBJECT_DEFAULT}
+                    body={approvalNotificationBodyInput}
+                    onBodyChange={v => { setApprovalNotificationBodyInput(v); setSettingsIsDirty(true); }} />
+                  <EmailCard badge="③却下通知" title="管理者却下時：却下通知メール（申請者へ）"
+                    enabled={rejectionNotificationEnabledInput}
+                    onToggle={() => { setRejectionNotificationEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    subject={rejectionNotificationSubjectInput}
+                    onSubjectChange={v => { setRejectionNotificationSubjectInput(v); setSettingsIsDirty(true); }}
+                    defaultSubject={REJECTION_NOTIFICATION_SUBJECT_DEFAULT}
+                    body={rejectionNotificationBodyInput}
+                    onBodyChange={v => { setRejectionNotificationBodyInput(v); setSettingsIsDirty(true); }} />
                 </div>
               </div>
           </AdminSettingsSection>}
@@ -4653,6 +4843,27 @@ const App: React.FC = () => {
                         staffAddRepEmailEnabled: staffAddRepEmailEnabledInput,
                         staffAddRepEmailSubject: staffAddRepEmailSubjectInput,
                         staffAddRepEmailBody: staffAddRepEmailBodyInput,
+                        // v369: 変更申請ワークフローメール
+                        applicationReceiptEnabled: applicationReceiptEnabledInput,
+                        applicationReceiptSubject: applicationReceiptSubjectInput,
+                        applicationReceiptBody: applicationReceiptBodyInput,
+                        approvalNotificationEnabled: approvalNotificationEnabledInput,
+                        approvalNotificationSubject: approvalNotificationSubjectInput,
+                        approvalNotificationBody: approvalNotificationBodyInput,
+                        rejectionNotificationEnabled: rejectionNotificationEnabledInput,
+                        rejectionNotificationSubject: rejectionNotificationSubjectInput,
+                        rejectionNotificationBody: rejectionNotificationBodyInput,
+                        // v371: メール送信 4 階層ガード
+                        mailGlobalEnabled: mailGlobalEnabledInput,
+                        mailDeliveryMode: mailDeliveryModeInput,
+                        mailRedirectAllowlist: mailRedirectAllowlistInput,
+                        trainingApplyReceiptEnabled: trainingApplyReceiptEnabledInput,
+                        trainingReminderEnabled: trainingReminderEnabledInput,
+                        bulkMailEnabled: bulkMailEnabledInput,
+                        authOtpEnabled: authOtpEnabledInput,
+                        memberUpdateConfirmEnabled: memberUpdateConfirmEnabledInput,
+                        withdrawalConfirmEnabled: withdrawalConfirmEnabledInput,
+                        passwordResetEnabled: passwordResetEnabledInput,
                       });
                       setDefaultBusinessStaffLimit(saved.defaultBusinessStaffLimit);
                       setGlobalLimitInput(String(saved.defaultBusinessStaffLimit));
@@ -4719,6 +4930,17 @@ const App: React.FC = () => {
                       setPublicPortalWithdrawalDescriptionEnabledInput(saved.publicPortalWithdrawalDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled);
                       setPublicPortalWithdrawalDescriptionInput(saved.publicPortalWithdrawalDescription ?? PUBLIC_PORTAL_DEFAULTS.withdrawalDescription);
                       setPublicPortalWithdrawalCtaLabelInput(saved.publicPortalWithdrawalCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel);
+                      // v371: メール送信 4 階層ガード
+                      setMailGlobalEnabledInput(saved.mailGlobalEnabled ?? false);
+                      setMailDeliveryModeInput((saved.mailDeliveryMode as 'LIVE' | 'REDIRECT' | 'SUPPRESS') ?? 'LIVE');
+                      setMailRedirectAllowlistInput(saved.mailRedirectAllowlist ?? '');
+                      setTrainingApplyReceiptEnabledInput(saved.trainingApplyReceiptEnabled ?? true);
+                      setTrainingReminderEnabledInput(saved.trainingReminderEnabled ?? true);
+                      setBulkMailEnabledInput(saved.bulkMailEnabled ?? true);
+                      setAuthOtpEnabledInput(saved.authOtpEnabled ?? true);
+                      setMemberUpdateConfirmEnabledInput(saved.memberUpdateConfirmEnabled ?? true);
+                      setWithdrawalConfirmEnabledInput(saved.withdrawalConfirmEnabled ?? true);
+                      setPasswordResetEnabledInput(saved.passwordResetEnabled ?? true);
                       setSettingsIsDirty(false);
                       alert('設定を保存しました。');
                     } catch (e) {
@@ -4942,6 +5164,80 @@ const App: React.FC = () => {
           </nav>
         )}
         <div className="max-w-6xl mx-auto">{renderContent()}</div>
+        {/* v363.2: 会員詳細モーダル（新タブ方式は GAS DOMAIN 認証で動かないため dialog 方式に変更） */}
+        {memberDetailModalOpen && (() => {
+          const targetMember = selectedMemberForDetailId
+            ? (members.find(m => m.id === selectedMemberForDetailId) || selectedMemberForDetailSnapshot)
+            : null;
+          if (!targetMember) {
+            return (
+              <div
+                className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4"
+                onClick={closeMemberDetailModal}
+              >
+                <div className="bg-white rounded-xl p-6 max-w-md text-red-600" onClick={(e) => e.stopPropagation()}>
+                  会員データが見つかりません。
+                  <button onClick={closeMemberDetailModal} className="ml-4 px-3 py-1 border rounded">閉じる</button>
+                </div>
+              </div>
+            );
+          }
+          return (
+            <div
+              className="fixed inset-0 z-50 bg-slate-900/50 flex items-start justify-center p-2 sm:p-4 overflow-y-auto"
+              onClick={closeMemberDetailModal}
+              role="dialog"
+              aria-modal="true"
+              aria-label={`${(targetMember.lastName || '') + (targetMember.firstName || '') || targetMember.officeName || '会員'} の詳細`}
+            >
+              <div
+                className="bg-white rounded-xl shadow-2xl w-full max-w-5xl my-4 max-h-[calc(100dvh-2rem)] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="sticky top-0 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between z-10">
+                  <h2 className="text-base sm:text-lg font-bold text-slate-800 truncate">
+                    会員詳細 — {(targetMember.lastName || '') + (targetMember.firstName || '') || targetMember.officeName || '(未設定)'}
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={closeMemberDetailModal}
+                    aria-label="閉じる"
+                    className="ml-2 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="p-4 sm:p-6">
+                  <MemberDetailAdmin
+                    member={targetMember}
+                    businessMembers={adminMemberRows.filter(r => r.memberType === MemberType.BUSINESS)}
+                    individualMembers={adminMemberRows.filter(r => r.memberType !== MemberType.BUSINESS)}
+                    onBack={closeMemberDetailModal}
+                    onSaved={(updatedMember) => {
+                      if (updatedMember) {
+                        setMembers((prev) => prev.map((m) => (m.id === updatedMember.id ? updatedMember : m)));
+                        setSelectedMemberForDetailSnapshot(updatedMember);
+                      }
+                      loadAdminDashboardData({ force: true }).catch(() => undefined);
+                      loadAppData({ force: true, silent: true }).catch(() => undefined);
+                    }}
+                    onOpenStaffDetail={(mId, sId) => {
+                      setStaffSaveToast(null);
+                      setSelectedMemberForDetailId(mId);
+                      setSelectedMemberForDetailSnapshot(members.find((member) => member.id === mId) || null);
+                      setSelectedStaffForDetail({ memberId: mId, staffId: sId });
+                      setMemberDetailModalOpen(false);
+                      setCurrentView('staff-detail');
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          );
+        })()}
         <dialog
           ref={annualFeeLeaveDialogRef}
           onClose={() => {

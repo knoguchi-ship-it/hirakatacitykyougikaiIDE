@@ -13,12 +13,65 @@ var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
 var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
-var DB_SCHEMA_VERSION = '2026-05-13-schema-shift-guard-v1';
+var DB_SCHEMA_VERSION = '2026-05-19-mail-kill-switch-v371.2';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
 var MEMBER_PORTAL_URL = 'https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec';
 var CREDENTIAL_EMAIL_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】会員登録完了のお知らせ';
 var CREDENTIAL_EMAIL_DEFAULT_BODY = '{{氏名}} 様\n\n会員登録が完了しました。\n以下のログイン情報で会員マイページにアクセスできます。\n\nログインID: {{ログインID}}\n初期パスワード: {{パスワード}}\n\n会員マイページURL:\n{{会員マイページURL}}\n\n初回ログイン後、パスワードの変更をお勧めします。\n\n※このメールに心当たりがない場合は、お手数ですが削除してください。\n─────────────────────────────\n枚方市介護支援専門員連絡協議会\n';
+
+// v368: 申込受付メール（公開ポータルから申請送信時に送る短い受付確認メール）
+var APPLICATION_RECEIPT_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】{{申請種別}}を受け付けました';
+var APPLICATION_RECEIPT_DEFAULT_BODY = [
+  '{{氏名}} 様',
+  '',
+  '以下の申請を受け付けました。担当者が内容を確認後、ご連絡いたします。',
+  '',
+  '申請ID: {{申請ID}}',
+  '申請種別: {{申請種別}}',
+  '受付日時: {{受付日時}}',
+  '',
+  '内容の確認・ご不明な点は事務局までお問い合わせください。',
+  '',
+  '枚方市介護支援専門員連絡協議会',
+].join('\n');
+
+// v368: 承認通知メール（管理者が承認した際に申請者へ送る通知）
+var APPROVAL_NOTIFICATION_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】{{申請種別}}が承認されました';
+var APPROVAL_NOTIFICATION_DEFAULT_BODY = [
+  '{{氏名}} 様',
+  '',
+  'お申し込みいただいた内容が承認され、変更が反映されました。',
+  '',
+  '申請ID: {{申請ID}}',
+  '申請種別: {{申請種別}}',
+  '処理日時: {{処理日時}}',
+  '処理者: {{処理者名}}',
+  '',
+  '{{変更内容サマリー}}',
+  '変更内容の確認は会員マイページをご覧ください。',
+  'ご不明な点は事務局までお問い合わせください。',
+  '',
+  '枚方市介護支援専門員連絡協議会',
+].join('\n');
+
+// v368: 却下通知メール
+var REJECTION_NOTIFICATION_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】{{申請種別}}について';
+var REJECTION_NOTIFICATION_DEFAULT_BODY = [
+  '{{氏名}} 様',
+  '',
+  'お申し込みいただいた内容について、確認の結果、今回はお受けできない結果となりました。',
+  '',
+  '申請ID: {{申請ID}}',
+  '申請種別: {{申請種別}}',
+  '処理日時: {{処理日時}}',
+  '',
+  '理由・備考: {{処理備考}}',
+  '',
+  'ご不明な点は事務局までお問い合わせください。',
+  '',
+  '枚方市介護支援専門員連絡協議会',
+].join('\n');
 
 // v265: 事業所会員 入会時メール（代表者・メンバー別）・職員追加承認時メール デフォルトテンプレート
 var BIZ_REP_EMAIL_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】事業所会員登録完了のお知らせ（代表者）';
@@ -170,6 +223,8 @@ var マスタ定義 = {
   M_役職マスタ: ['役職コード', '役職名', '組織コード', '委員長フラグ', '表示順', '有効フラグ', '削除フラグ', '作成日時', '更新日時'],
   M_支払い種別マスタ: ['種別コード', '種別名', '対象区分', '表示順', '有効フラグ', '削除フラグ', '作成日時', '更新日時'],
   M_業務分類: ['業務分類コード', '業務分類名', '組織コード', '単価', '表示順', '有効フラグ', '削除フラグ', '作成日時', '更新日時'],
+  // v360: 研修当日出欠状態マスタ
+  M_出欠状態: ['コード', '名称', '表示順', '有効フラグ'],
 };
 
 var マスタ初期値 = {
@@ -275,6 +330,14 @@ var マスタ初期値 = {
   // ['業務分類コード','業務分類名','組織コード','単価','表示順','有効フラグ','削除フラグ','作成日時','更新日時']
   M_業務分類: [
     ['MEETING_ATTENDANCE', '会議出席', 'HQ', 0, 1, true, false, '', ''],
+  ],
+  // v360: 研修当日出欠状態
+  M_出欠状態: [
+    ['UNRECORDED', '未記録', 1, true],
+    ['PRESENT', '出席', 2, true],
+    ['ABSENT', '欠席', 3, true],
+    ['LATE', '遅刻', 4, true],
+    ['SAMEDAY_CANCEL', '当日キャンセル', 5, true],
   ],
 };
 
@@ -438,6 +501,12 @@ var テーブル定義 = {
     '作成日時',
     '更新日時',
     '削除フラグ',
+    // v360: 2-FK XOR 化 + 出欠管理（末尾追加・schema-shift guard 経由で安全に migrate）
+    '外部申込者ID',
+    '出欠状態コード',
+    '出欠記録日時',
+    '出欠記録者メール',
+    '事務局メモ',
   ],
   T_外部申込者: [
     '外部申込者ID',
@@ -475,6 +544,7 @@ var テーブル定義 = {
     '実行日時',
   ],
   // v194: メール一括送信ログ（append-only。個人メールアドレス・本文は記録しない）
+  // v360: 研修ID 列を追加（nullable・研修関連送信時のみ populate）
   T_メール送信ログ: [
     'ログID',
     '送信日時',
@@ -484,6 +554,20 @@ var テーブル定義 = {
     '成功数',
     'エラー数',
     '送信種別',
+    '研修ID',
+    '削除フラグ',
+  ],
+  // v360: メール送信明細（per-recipient detail）— Header-Detail パターン
+  T_メール送信明細: [
+    '明細ID',
+    'ログID',
+    '研修ID',
+    '受信者区分',
+    '受信者ID',
+    '受信者メール',
+    '送信結果',
+    'エラー詳細',
+    '作成日時',
     '削除フラグ',
   ],
   // v143: 管理者操作の監査ログ（append-only）
@@ -614,7 +698,23 @@ function doGet(e) {
 
   // GAS は外側 iframe で配信するため、HTML 内の <meta viewport> は無視される。
   // モバイル表示（白ページ防止／レスポンシブ動作）には server-side addMetaTag が必須。
-  var output = HtmlService.createHtmlOutputFromFile(route.file)
+  var rawHtml = HtmlService.createHtmlOutputFromFile(route.file).getContent();
+
+  // v363: 新タブ deep link 用に exec URL を client へ注入する。
+  // iframe 内では window.location が iframe 内部 URL になるため、
+  // クライアント側で window.open(__APP_URL__ + '#member=...') を組み立てる際に
+  // ScriptApp.getService().getUrl() を正本として参照する。
+  try {
+    var appUrl = ScriptApp.getService().getUrl();
+    if (appUrl) {
+      var injection = '<script>window.__APP_URL__=' + JSON.stringify(appUrl) + ';</script>';
+      rawHtml = injection + rawHtml;
+    }
+  } catch (ex) {
+    // getUrl() 失敗時は注入をスキップ（ハッシュ未指定で同一タブ navigation にフォールバック）
+  }
+
+  var output = HtmlService.createHtmlOutput(rawHtml)
     .setTitle(route.title)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
@@ -813,6 +913,18 @@ var ADMIN_ACTION_PERMISSIONS = {
   'saveRosterTemplate': ['MASTER','ADMIN'],
   'deleteRosterTemplate': ['MASTER','ADMIN'],
   'setDefaultRosterTemplate': ['MASTER','ADMIN'],
+  // v360: 研修名簿・出欠・受講履歴・一括メール明細
+  'getTrainingRosterDetail': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
+  'saveAttendance': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
+  'saveAttendanceBatch': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
+  'addRosterEntry': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
+  'addGuestRosterEntry': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
+  'cancelRosterEntry': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
+  'updateRosterEntry': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
+  'getTrainingStats': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
+  'getMemberTrainingHistory': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
+  'sendTrainingMailSegmented': ['MASTER','ADMIN','TRAINING_MANAGER'],
+  'getTrainingMailSendLogs': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
 };
 
 function getActionRegistryForCurrentApp_() {
@@ -1096,10 +1208,20 @@ function processApiRequest(action, payload) {
       return JSON.stringify({ success: true, data: getAdminChangeRequests_(parsedPayload) });
     }
     if (action === 'approveAdminChangeRequest') {
-      return JSON.stringify({ success: true, data: approveAdminChangeRequest_(parsedPayload) });
+      // v367: inner が {success:false, error:...} を返した場合は outer に伝播し
+      // client 側で正しく失敗として扱えるようにする（旧: 常に success:true で包んでいた）
+      var approveResult = approveAdminChangeRequest_(parsedPayload);
+      if (approveResult && approveResult.success === false) {
+        return JSON.stringify({ success: false, error: approveResult.error || 'approve failed' });
+      }
+      return JSON.stringify({ success: true, data: approveResult });
     }
     if (action === 'rejectAdminChangeRequest') {
-      return JSON.stringify({ success: true, data: rejectAdminChangeRequest_(parsedPayload) });
+      var rejectResult = rejectAdminChangeRequest_(parsedPayload);
+      if (rejectResult && rejectResult.success === false) {
+        return JSON.stringify({ success: false, error: rejectResult.error || 'reject failed' });
+      }
+      return JSON.stringify({ success: true, data: rejectResult });
     }
 
     if (action === 'getTrainingApplicants') {
@@ -1112,6 +1234,41 @@ function processApiRequest(action, payload) {
 
     if (action === 'sendTrainingMail') {
       return sendTrainingMail_(parsedPayload);
+    }
+
+    // ── v360: 研修名簿・出欠・受講履歴・一括メール明細 ───────────────
+    if (action === 'getTrainingRosterDetail') {
+      return JSON.stringify({ success: true, data: getTrainingRosterDetail_(parsedPayload) });
+    }
+    if (action === 'saveAttendance') {
+      return JSON.stringify({ success: true, data: saveAttendance_(parsedPayload) });
+    }
+    if (action === 'saveAttendanceBatch') {
+      return JSON.stringify({ success: true, data: saveAttendanceBatch_(parsedPayload) });
+    }
+    if (action === 'addRosterEntry') {
+      return JSON.stringify({ success: true, data: addRosterEntry_(parsedPayload) });
+    }
+    if (action === 'addGuestRosterEntry') {
+      return JSON.stringify({ success: true, data: addGuestRosterEntry_(parsedPayload) });
+    }
+    if (action === 'cancelRosterEntry') {
+      return JSON.stringify({ success: true, data: cancelRosterEntry_(parsedPayload) });
+    }
+    if (action === 'updateRosterEntry') {
+      return JSON.stringify({ success: true, data: updateRosterEntry_(parsedPayload) });
+    }
+    if (action === 'getTrainingStats') {
+      return JSON.stringify({ success: true, data: getTrainingStats_(parsedPayload) });
+    }
+    if (action === 'getMemberTrainingHistory') {
+      return JSON.stringify({ success: true, data: getMemberTrainingHistory_(parsedPayload) });
+    }
+    if (action === 'sendTrainingMailSegmented') {
+      return sendTrainingMailSegmented_(parsedPayload);
+    }
+    if (action === 'getTrainingMailSendLogs') {
+      return JSON.stringify({ success: true, data: getTrainingMailSendLogs_(parsedPayload) });
     }
 
     // v188: Gemini AI案内メール生成（APIキーはScriptPropertiesで管理、フロントに露出しない）
@@ -1374,14 +1531,11 @@ function sendTrainingReminder_(request) {
 
   for (var j = 0; j < recipients.length; j += 1) {
     var to = recipients[j].email;
-    MailApp.sendEmail({
-      to: to,
-      subject: subject,
-      body: body,
-      name: '枚方市介護支援専門員連絡協議会 事務局',
-    });
-    result.sentTo.push(to);
-    result.sentCount += 1;
+    var sendRes = deliverMail_('BULK_MAIL', to, subject, body, { name: '枚方市介護支援専門員連絡協議会 事務局' });
+    if (sendRes && sendRes.sent) {
+      result.sentTo.push(to);
+      result.sentCount += 1;
+    }
   }
 
   return result;
@@ -1627,7 +1781,8 @@ function getAllDataCacheKey_() {
 }
 
 function getAdminDashboardCacheKey_() {
-  return 'adminDashboard:' + DB_SCHEMA_VERSION + ':v338-workplace-search';
+  // v362: kana 列追加のためキャッシュ key を bump
+  return 'adminDashboard:' + DB_SCHEMA_VERSION + ':v362-kana';
 }
 
 function getTrainingManagementCacheKey_() {
@@ -2255,6 +2410,8 @@ function getAdminDashboardData_() {
     return {
       memberId: memberId,
       displayName: buildAnnualFeeDisplayName_(member),
+      // v362: フリガナ検索対応（T_会員 セイ + メイ）
+      kana: (String(member['セイ'] || '') + ' ' + String(member['メイ'] || '')).trim(),
       memberType: memberType,
       officeName: String(member['勤務先名'] || ''),
       latestFeeStatus: latestFee ? String(latestFee.status || 'UNPAID') : 'UNPAID',
@@ -3054,6 +3211,27 @@ function getSystemSettings_() {
     staffAddRepEmailEnabled:   (function(){ var v = m['STAFF_ADD_REP_EMAIL_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
     staffAddRepEmailSubject:   String(m['STAFF_ADD_REP_EMAIL_SUBJECT'] || '') || STAFF_ADD_REP_EMAIL_DEFAULT_SUBJECT,
     staffAddRepEmailBody:      String(m['STAFF_ADD_REP_EMAIL_BODY'] || '') || STAFF_ADD_REP_EMAIL_DEFAULT_BODY,
+    // v368: 変更申請ワークフローメール
+    applicationReceiptEnabled:    (function(){ var v = m['APPLICATION_RECEIPT_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
+    applicationReceiptSubject:    String(m['APPLICATION_RECEIPT_SUBJECT'] || '') || APPLICATION_RECEIPT_DEFAULT_SUBJECT,
+    applicationReceiptBody:       String(m['APPLICATION_RECEIPT_BODY'] || '') || APPLICATION_RECEIPT_DEFAULT_BODY,
+    approvalNotificationEnabled:  (function(){ var v = m['APPROVAL_NOTIFICATION_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
+    approvalNotificationSubject:  String(m['APPROVAL_NOTIFICATION_SUBJECT'] || '') || APPROVAL_NOTIFICATION_DEFAULT_SUBJECT,
+    approvalNotificationBody:     String(m['APPROVAL_NOTIFICATION_BODY'] || '') || APPROVAL_NOTIFICATION_DEFAULT_BODY,
+    rejectionNotificationEnabled: (function(){ var v = m['REJECTION_NOTIFICATION_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
+    rejectionNotificationSubject: String(m['REJECTION_NOTIFICATION_SUBJECT'] || '') || REJECTION_NOTIFICATION_DEFAULT_SUBJECT,
+    rejectionNotificationBody:    String(m['REJECTION_NOTIFICATION_BODY'] || '') || REJECTION_NOTIFICATION_DEFAULT_BODY,
+    // v371: メール送信 4 階層ガード（GLOBAL / MODE / ALLOWLIST / CATEGORY 6 種）
+    mailGlobalEnabled:            (function(){ var v = m['MAIL_GLOBAL_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
+    mailDeliveryMode:             String(m['MAIL_DELIVERY_MODE'] || 'LIVE').toUpperCase(),
+    mailRedirectAllowlist:        String(m['MAIL_REDIRECT_ALLOWLIST'] || ''),
+    trainingApplyReceiptEnabled:  (function(){ var v = m['TRAINING_APPLY_RECEIPT_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
+    trainingReminderEnabled:      (function(){ var v = m['TRAINING_REMINDER_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
+    bulkMailEnabled:              (function(){ var v = m['BULK_MAIL_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
+    authOtpEnabled:               (function(){ var v = m['AUTH_OTP_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
+    memberUpdateConfirmEnabled:   (function(){ var v = m['MEMBER_UPDATE_CONFIRM_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
+    withdrawalConfirmEnabled:     (function(){ var v = m['WITHDRAWAL_CONFIRM_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
+    passwordResetEnabled:         (function(){ var v = m['PASSWORD_RESET_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
   };
 }
 
@@ -3334,6 +3512,70 @@ function updateSystemSettings_(request, callerPermLevel) {
   }
   if (request.staffAddRepEmailBody != null) {
     updates.push({ key: 'STAFF_ADD_REP_EMAIL_BODY', value: String(request.staffAddRepEmailBody) || STAFF_ADD_REP_EMAIL_DEFAULT_BODY, description: '職員追加承認時：代表者通知メール本文' });
+  }
+  // v368: 変更申請ワークフローメール 3 種 × ENABLED/SUBJECT/BODY
+  if (request.applicationReceiptEnabled != null) {
+    updates.push({ key: 'APPLICATION_RECEIPT_ENABLED', value: request.applicationReceiptEnabled ? 'true' : 'false', description: '公開ポータル申請受付時：受付確認メール送信ON/OFF' });
+  }
+  if (request.applicationReceiptSubject != null) {
+    updates.push({ key: 'APPLICATION_RECEIPT_SUBJECT', value: String(request.applicationReceiptSubject).trim() || APPLICATION_RECEIPT_DEFAULT_SUBJECT, description: '公開ポータル申請受付時：受付確認メール件名' });
+  }
+  if (request.applicationReceiptBody != null) {
+    updates.push({ key: 'APPLICATION_RECEIPT_BODY', value: String(request.applicationReceiptBody) || APPLICATION_RECEIPT_DEFAULT_BODY, description: '公開ポータル申請受付時：受付確認メール本文' });
+  }
+  if (request.approvalNotificationEnabled != null) {
+    updates.push({ key: 'APPROVAL_NOTIFICATION_ENABLED', value: request.approvalNotificationEnabled ? 'true' : 'false', description: '管理者承認時：承認通知メール送信ON/OFF' });
+  }
+  if (request.approvalNotificationSubject != null) {
+    updates.push({ key: 'APPROVAL_NOTIFICATION_SUBJECT', value: String(request.approvalNotificationSubject).trim() || APPROVAL_NOTIFICATION_DEFAULT_SUBJECT, description: '管理者承認時：承認通知メール件名' });
+  }
+  if (request.approvalNotificationBody != null) {
+    updates.push({ key: 'APPROVAL_NOTIFICATION_BODY', value: String(request.approvalNotificationBody) || APPROVAL_NOTIFICATION_DEFAULT_BODY, description: '管理者承認時：承認通知メール本文' });
+  }
+  if (request.rejectionNotificationEnabled != null) {
+    updates.push({ key: 'REJECTION_NOTIFICATION_ENABLED', value: request.rejectionNotificationEnabled ? 'true' : 'false', description: '管理者却下時：却下通知メール送信ON/OFF' });
+  }
+  if (request.rejectionNotificationSubject != null) {
+    updates.push({ key: 'REJECTION_NOTIFICATION_SUBJECT', value: String(request.rejectionNotificationSubject).trim() || REJECTION_NOTIFICATION_DEFAULT_SUBJECT, description: '管理者却下時：却下通知メール件名' });
+  }
+  if (request.rejectionNotificationBody != null) {
+    updates.push({ key: 'REJECTION_NOTIFICATION_BODY', value: String(request.rejectionNotificationBody) || REJECTION_NOTIFICATION_DEFAULT_BODY, description: '管理者却下時：却下通知メール本文' });
+  }
+  // v371: メール送信 4 階層ガード
+  if (request.mailGlobalEnabled != null) {
+    updates.push({ key: 'MAIL_GLOBAL_ENABLED', value: request.mailGlobalEnabled ? 'true' : 'false', description: 'メール送信のグローバルキルスイッチ（false で全停止）' });
+  }
+  if (request.mailDeliveryMode != null) {
+    var rawMode = String(request.mailDeliveryMode || 'LIVE').toUpperCase();
+    if (['LIVE', 'REDIRECT', 'SUPPRESS'].indexOf(rawMode) < 0) rawMode = 'LIVE';
+    updates.push({ key: 'MAIL_DELIVERY_MODE', value: rawMode, description: '配信モード: LIVE / REDIRECT / SUPPRESS' });
+  }
+  if (request.mailRedirectAllowlist != null) {
+    // 入力サニタイズ: トリム + カンマ区切り正規化
+    var allowlistRaw = String(request.mailRedirectAllowlist || '');
+    var normalized = allowlistRaw.split(',').map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; }).join(',');
+    updates.push({ key: 'MAIL_REDIRECT_ALLOWLIST', value: normalized, description: 'REDIRECT モード時の送信先（カンマ区切り）' });
+  }
+  if (request.trainingApplyReceiptEnabled != null) {
+    updates.push({ key: 'TRAINING_APPLY_RECEIPT_ENABLED', value: request.trainingApplyReceiptEnabled ? 'true' : 'false', description: '研修申込確認メール送信ON/OFF' });
+  }
+  if (request.trainingReminderEnabled != null) {
+    updates.push({ key: 'TRAINING_REMINDER_ENABLED', value: request.trainingReminderEnabled ? 'true' : 'false', description: '研修リマインダーメール送信ON/OFF' });
+  }
+  if (request.bulkMailEnabled != null) {
+    updates.push({ key: 'BULK_MAIL_ENABLED', value: request.bulkMailEnabled ? 'true' : 'false', description: '一括メール送信ON/OFF' });
+  }
+  if (request.authOtpEnabled != null) {
+    updates.push({ key: 'AUTH_OTP_ENABLED', value: request.authOtpEnabled ? 'true' : 'false', description: '公開ポータル OTP メール送信ON/OFF' });
+  }
+  if (request.memberUpdateConfirmEnabled != null) {
+    updates.push({ key: 'MEMBER_UPDATE_CONFIRM_ENABLED', value: request.memberUpdateConfirmEnabled ? 'true' : 'false', description: '会員情報変更確認メール送信ON/OFF' });
+  }
+  if (request.withdrawalConfirmEnabled != null) {
+    updates.push({ key: 'WITHDRAWAL_CONFIRM_ENABLED', value: request.withdrawalConfirmEnabled ? 'true' : 'false', description: '退会申請受付確認メール送信ON/OFF' });
+  }
+  if (request.passwordResetEnabled != null) {
+    updates.push({ key: 'PASSWORD_RESET_ENABLED', value: request.passwordResetEnabled ? 'true' : 'false', description: 'パスワード再設定確認コードメール送信ON/OFF' });
   }
   batchUpsertSystemSettings_(ss, updates);
   var scriptProperties = PropertiesService.getScriptProperties();
@@ -3960,6 +4202,8 @@ function buildAnnualFeeAdminSummary_(records) {
     unpaidCount: 0,
     paidAmount: 0,
     unpaidAmount: 0,
+    // v364: 前年度未納者数（前年度有効 かつ UNPAID/未記録）
+    previousYearUnpaidCount: 0,
     memberTypeBreakdown: [
       byType.INDIVIDUAL,
       byType.BUSINESS,
@@ -3986,6 +4230,11 @@ function buildAnnualFeeAdminSummary_(records) {
       summary.unpaidAmount += amount;
       bucket.unpaidCount += 1;
       bucket.unpaidAmount += amount;
+    }
+
+    // v364: 前年度未納集計
+    if (record.previousYearEligible && record.previousYearStatus === 'UNPAID') {
+      summary.previousYearUnpaidCount += 1;
     }
   }
 
@@ -4043,16 +4292,37 @@ function getAnnualFeeAdminData_(payload) {
   years.sort(function(a, b) { return b - a; });
 
   var feeByMemberYear = {};
+  // v364: 前年度（selectedYear - 1）の納入状況を判定するためのマップ
+  var previousYear = selectedYear - 1;
+  var prevFeeByMember = {};
   for (var feeIdx = 0; feeIdx < feeRows.length; feeIdx += 1) {
     var fee = feeRows[feeIdx];
-    if (Number(fee['対象年度'] || 0) !== selectedYear) continue;
-    feeByMemberYear[String(fee['会員ID'] || '')] = fee;
+    var feeYear = Number(fee['対象年度'] || 0);
+    var feeMemberId = String(fee['会員ID'] || '');
+    if (feeYear === selectedYear) feeByMemberYear[feeMemberId] = fee;
+    else if (feeYear === previousYear) prevFeeByMember[feeMemberId] = fee;
   }
 
+  // v364: 全 T_会員 から「前年度に有効だった人」を一度判定（memberRows は selectedYear で
+  // フィルタ済のため、selectedYear=2026 / previousYear=2025 で 2026 入会者の前年判定が漏れない
+  // よう、対象 selectedYear の memberRows をそのまま使う＝同一スキーマで eligibility 再判定）
   var records = memberRows.map(function(member) {
     var memberId = String(member['会員ID'] || '');
     var row = feeByMemberYear[memberId];
-    return mapAnnualFeeAdminRecord_(row, member, selectedYear, amountMap);
+    var record = mapAnnualFeeAdminRecord_(row, member, selectedYear, amountMap);
+
+    // 前年度ステータス判定: 有効でない → NOT_ELIGIBLE, 有効かつ PAID → PAID, それ以外 → UNPAID
+    var prevEligible = isAnnualFeeEligibleMemberForYear_(member, previousYear);
+    record.previousYear = previousYear;
+    record.previousYearEligible = prevEligible;
+    if (!prevEligible) {
+      record.previousYearStatus = 'NOT_ELIGIBLE';
+    } else {
+      var prevFee = prevFeeByMember[memberId];
+      var prevStatus = prevFee ? String(prevFee['会費納入状態コード'] || 'UNPAID') : 'UNPAID';
+      record.previousYearStatus = prevStatus === 'PAID' ? 'PAID' : 'UNPAID';
+    }
+    return record;
   }).sort(function(a, b) {
     return String(a.displayName || '').localeCompare(String(b.displayName || ''));
   });
@@ -4465,6 +4735,8 @@ function mapAnnualFeeAdminRecord_(rowObj, memberRow, selectedYear, amountMap) {
     memberId: memberId,
     memberType: String((memberRow && memberRow['会員種別コード']) || 'INDIVIDUAL'),
     displayName: buildAnnualFeeDisplayName_(memberRow),
+    // v362: フリガナ検索対応（T_会員 セイ + メイ）
+    kana: ((String((memberRow && memberRow['セイ']) || '') + ' ' + String((memberRow && memberRow['メイ']) || '')).trim()),
     officeName: String((memberRow && memberRow['勤務先名']) || ''),
     year: year,
     status: String((rowObj && (rowObj.status || rowObj['会費納入状態コード'])) || 'UNPAID'),
@@ -4536,7 +4808,8 @@ function resolveAnnualFeeAmount_(memberRow, amountMap, fallbackAmount) {
 }
 
 function getAnnualFeeAdminCacheKey_(year) {
-  return 'annualFeeAdminData:' + DB_SCHEMA_VERSION + ':' + String(year || '');
+  // v362: kana 列追加 / v364: previousYear 列追加のためキャッシュ key を bump
+  return 'annualFeeAdminData:' + DB_SCHEMA_VERSION + ':v364-prev:' + String(year || '');
 }
 
 function clearAnnualFeeAdminCache_(year) {
@@ -4849,22 +5122,14 @@ function enqueueMemberApplicationChangeRequest_(payload) {
     更新日時: now,
     削除フラグ: false,
   }]);
-  MailApp.sendEmail(
-    contactEmail,
-    '【枚方市介護支援専門員連絡協議会】入会申込を受け付けました',
-    [
-      applicantName + ' 様',
-      '',
-      '入会申込を受け付けました。事務局が内容を確認し、承認後に登録を反映します。',
-      '',
-      '申請ID: ' + requestId,
-      '受付日時: ' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm'),
-      '',
-      '内容の確認・ご不明な点は事務局までお問い合わせください。',
-      '',
-      '枚方市介護支援専門員連絡協議会',
-    ].join('\n')
-  );
+  // v368: 申込受付メールをテンプレ化（システム設定で件名・本文を編集可能）
+  sendApplicationReceiptMail_(ss, {
+    contactEmail: contactEmail,
+    applicantName: applicantName,
+    requestId: requestId,
+    requestType: 'MEMBER_APPLICATION',
+    memberTypeLabel: memberType === 'INDIVIDUAL' ? '個人会員' : memberType === 'BUSINESS' ? '事業所会員' : '賛助会員',
+  });
   return { queued: true, success: true, requestId: requestId };
 }
 
@@ -5202,13 +5467,13 @@ function createMemberApplicationDirect_(payload) {
           if (staffRole === 'REPRESENTATIVE') {
             if (bizEmailSettings.bizRepEmailEnabled) {
               var repBody = renderBizEmailTemplate_(bizEmailSettings.bizRepEmailBody, bizVars);
-              sendEmailWithValidatedFrom_(staffEmail, bizEmailSettings.bizRepEmailSubject, repBody, { from: fromAddr });
+              deliverMail_('BIZ_REP_EMAIL', staffEmail, bizEmailSettings.bizRepEmailSubject, repBody, { from: fromAddr });
               result.emailsSent++;
             }
           } else {
             if (bizEmailSettings.bizStaffEmailEnabled) {
               var memberBody = renderBizEmailTemplate_(bizEmailSettings.bizStaffEmailBody, bizVars);
-              sendEmailWithValidatedFrom_(staffEmail, bizEmailSettings.bizStaffEmailSubject, memberBody, { from: fromAddr });
+              deliverMail_('BIZ_STAFF_EMAIL', staffEmail, bizEmailSettings.bizStaffEmailSubject, memberBody, { from: fromAddr });
               result.emailsSent++;
             }
           }
@@ -5696,6 +5961,131 @@ function renderBizEmailTemplate_(template, vars) {
   return result;
 }
 
+// v368: 変更申請の人間可読サマリーを生成する
+//   changeData: { fields?: {key:value}, staffAdd?: [...], staffRemove?: [...], applicationPayload?: {...} }
+//   requestType: MEMBER_APPLICATION / MEMBER_UPDATE / WITHDRAWAL / STAFF_ADD / STAFF_REMOVE
+function buildChangeSummaryText_(changeData, requestType) {
+  if (!changeData || typeof changeData !== 'object') return '';
+  var lines = [];
+  var FIELD_LABELS = {
+    lastName: '姓', firstName: '名', lastKana: '姓カナ', firstKana: '名カナ',
+    email: 'メールアドレス', mobilePhone: '携帯電話',
+    workplaceName: '勤務先名', officeName: '事業所名',
+    workplacePostalCode: '勤務先郵便番号', workplacePrefecture: '勤務先都道府県',
+    workplaceCity: '勤務先市区町村', workplaceAddress1: '勤務先住所', workplaceAddress2: '勤務先住所2',
+    workplacePhone: '勤務先電話番号', workplaceFax: '勤務先FAX',
+    homePostalCode: '自宅郵便番号', homePrefecture: '自宅都道府県',
+    homeCity: '自宅市区町村', homeAddress1: '自宅住所', homeAddress2: '自宅住所2',
+    careManagerNumber: '介護支援専門員番号',
+    deliveryMethodCode: '通知方法', deliveryDestinationCode: '郵送先区分',
+  };
+  if (requestType === 'WITHDRAWAL') {
+    lines.push('・退会申請');
+  } else if (requestType === 'MEMBER_APPLICATION') {
+    lines.push('・新規入会申込');
+  } else if (changeData.fields && typeof changeData.fields === 'object') {
+    var keys = Object.keys(changeData.fields);
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      var v = String(changeData.fields[k] == null ? '' : changeData.fields[k]).trim();
+      if (!v) continue;
+      var label = FIELD_LABELS[k] || k;
+      lines.push('・' + label + ': ' + v);
+    }
+  }
+  if (Array.isArray(changeData.staffAdd) && changeData.staffAdd.length > 0) {
+    changeData.staffAdd.forEach(function(s) {
+      lines.push('・職員追加: ' + (s.lastName || '') + ' ' + (s.firstName || '') + '（CM番号 ' + (s.careManagerNumber || '') + '）');
+    });
+  }
+  if (Array.isArray(changeData.staffRemove) && changeData.staffRemove.length > 0) {
+    changeData.staffRemove.forEach(function(s) {
+      lines.push('・職員除籍: ' + (s.lastName || '') + ' ' + (s.firstName || '') + '（CM番号 ' + (s.careManagerNumber || '') + '）');
+    });
+  }
+  if (lines.length === 0) return '';
+  return ['変更内容:'].concat(lines).join('\n') + '\n';
+}
+
+// v368: 申請種別ラベル変換（テンプレ差込変数 {{申請種別}} 用）
+var REQUEST_TYPE_LABEL_ = {
+  MEMBER_APPLICATION: '入会申込',
+  MEMBER_UPDATE: '登録情報変更申請',
+  WITHDRAWAL: '退会申請',
+  STAFF_ADD: '職員追加申請',
+  STAFF_REMOVE: '職員除籍申請',
+};
+
+// v368: 申込受付メール送信ヘルパー（公開ポータル申請受付時に使用）
+function sendApplicationReceiptMail_(ss, params) {
+  // params: { contactEmail, applicantName, requestId, requestType, memberTypeLabel, receivedAt }
+  if (!params || !params.contactEmail) return;
+  var enabledRaw = String(getSystemSettingValue_(ss, 'APPLICATION_RECEIPT_ENABLED') || 'true');
+  if (enabledRaw === 'false') return;
+  var subjectTpl = String(getSystemSettingValue_(ss, 'APPLICATION_RECEIPT_SUBJECT') || '') || APPLICATION_RECEIPT_DEFAULT_SUBJECT;
+  var bodyTpl = String(getSystemSettingValue_(ss, 'APPLICATION_RECEIPT_BODY') || '') || APPLICATION_RECEIPT_DEFAULT_BODY;
+  var vars = {
+    '氏名': params.applicantName || '',
+    '会員種別ラベル': params.memberTypeLabel || '',
+    '申請種別': REQUEST_TYPE_LABEL_[params.requestType] || params.requestType || '',
+    '申請ID': params.requestId || '',
+    '受付日時': params.receivedAt || Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm'),
+  };
+  try {
+    deliverMail_('APPLICATION_RECEIPT', params.contactEmail, renderBizEmailTemplate_(subjectTpl, vars), renderBizEmailTemplate_(bodyTpl, vars));
+  } catch (e) {
+    Logger.log('[sendApplicationReceiptMail_] failed: ' + e.message);
+  }
+}
+
+// v368: 承認通知メール送信ヘルパー
+function sendApprovalNotificationMail_(ss, params) {
+  // params: { contactEmail, applicantName, requestId, requestType, processedAt, processorName, changeSummary }
+  if (!params || !params.contactEmail) return;
+  var enabledRaw = String(getSystemSettingValue_(ss, 'APPROVAL_NOTIFICATION_ENABLED') || 'true');
+  if (enabledRaw === 'false') return;
+  var subjectTpl = String(getSystemSettingValue_(ss, 'APPROVAL_NOTIFICATION_SUBJECT') || '') || APPROVAL_NOTIFICATION_DEFAULT_SUBJECT;
+  var bodyTpl = String(getSystemSettingValue_(ss, 'APPROVAL_NOTIFICATION_BODY') || '') || APPROVAL_NOTIFICATION_DEFAULT_BODY;
+  var vars = {
+    '氏名': params.applicantName || '',
+    '会員種別ラベル': params.memberTypeLabel || '',
+    '申請種別': REQUEST_TYPE_LABEL_[params.requestType] || params.requestType || '',
+    '申請ID': params.requestId || '',
+    '処理日時': params.processedAt || Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm'),
+    '処理者名': params.processorName || '事務局',
+    '変更内容サマリー': params.changeSummary || '',
+  };
+  try {
+    deliverMail_('APPROVAL_NOTIFICATION', params.contactEmail, renderBizEmailTemplate_(subjectTpl, vars), renderBizEmailTemplate_(bodyTpl, vars));
+  } catch (e) {
+    Logger.log('[sendApprovalNotificationMail_] failed: ' + e.message);
+  }
+}
+
+// v368: 却下通知メール送信ヘルパー
+function sendRejectionNotificationMail_(ss, params) {
+  // params: { contactEmail, applicantName, requestId, requestType, processedAt, processorName, note }
+  if (!params || !params.contactEmail) return;
+  var enabledRaw = String(getSystemSettingValue_(ss, 'REJECTION_NOTIFICATION_ENABLED') || 'true');
+  if (enabledRaw === 'false') return;
+  var subjectTpl = String(getSystemSettingValue_(ss, 'REJECTION_NOTIFICATION_SUBJECT') || '') || REJECTION_NOTIFICATION_DEFAULT_SUBJECT;
+  var bodyTpl = String(getSystemSettingValue_(ss, 'REJECTION_NOTIFICATION_BODY') || '') || REJECTION_NOTIFICATION_DEFAULT_BODY;
+  var vars = {
+    '氏名': params.applicantName || '',
+    '会員種別ラベル': params.memberTypeLabel || '',
+    '申請種別': REQUEST_TYPE_LABEL_[params.requestType] || params.requestType || '',
+    '申請ID': params.requestId || '',
+    '処理日時': params.processedAt || Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm'),
+    '処理者名': params.processorName || '事務局',
+    '処理備考': params.note || '',
+  };
+  try {
+    deliverMail_('REJECTION_NOTIFICATION', params.contactEmail, renderBizEmailTemplate_(subjectTpl, vars), renderBizEmailTemplate_(bodyTpl, vars));
+  } catch (e) {
+    Logger.log('[sendRejectionNotificationMail_] failed: ' + e.message);
+  }
+}
+
 // v265: 事業所メール設定をまとめて取得するヘルパー（T_システム設定から）
 function getBizEmailSettings_(ss) {
   var m = getSystemSettingMap_(ss);
@@ -5742,7 +6132,7 @@ function sendCredentialEmail_(toEmail, loginId, password, memberName, opts) {
   // replyTo は from が設定されている場合のみ設定する。
   // Session.getEffectiveUser() は userinfo.email スコープが必要で、
   // 統合・会員 split では v263 スコープ削減により使用不可。
-  sendEmailWithValidatedFrom_(toEmail, subject, body, {
+  deliverMail_('CREDENTIAL_EMAIL', toEmail, subject, body, {
     from: from,
     replyTo: from || '',
     name: '枚方市介護支援専門員連絡協議会',
@@ -6727,9 +7117,12 @@ function convertIndividualToStaff_(ss, payload) {
   var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
   var staffName = (String(srcRow[srcCols['姓']] || '') + ' ' + String(srcRow[srcCols['名']] || '')).trim();
   var staffKana = (String(srcRow[srcCols['セイ']] || '') + ' ' + String(srcRow[srcCols['メイ']] || '')).trim();
+  // v368: 紐づけは介護支援専門員番号で行うため、メアド空でも転籍を通す。
+  // メアド空の場合は credential メール送信は skip し、職員レコードのみ作成する。
+  // 後で管理者が職員のメアドを手動入力した時点で、管理画面から credential メール再送が可能。
   var staffEmail = String(srcRow[srcCols['代表メールアドレス']] || '').trim();
   if (!staffEmail) {
-    throw new Error('事業所職員へ転籍するには転籍元会員のメールアドレスが必須です。先に個人会員または賛助会員のメールアドレスを登録してください。');
+    Logger.log('[convertMemberType] 転籍元会員(' + sourceMemberId + ')のメアド空。credential メール送信を skip して転籍を継続。');
   }
   var staffCareNum = srcCareNum; // step 3.5 で確定済み
 
@@ -8403,15 +8796,37 @@ function backfillApplicationApplicantIdentity_(ss) {
 }
 
 function getApplicationApplicantType_(rowObj) {
+  // v360: 3-FK XOR を優先的に評価し、空ならば legacy 申込者区分コードへフォールバック
+  var externalId = String(rowObj['外部申込者ID'] || '').trim();
+  if (externalId) return 'EXTERNAL';
   var applicantType = String(rowObj['申込者区分コード'] || '').trim();
   if (applicantType) return applicantType;
   return String(rowObj['会員ID'] || '').trim() ? 'MEMBER' : '';
 }
 
 function getApplicationApplicantId_(rowObj) {
+  // v360: 3-FK XOR 優先
+  var externalId = String(rowObj['外部申込者ID'] || '').trim();
+  if (externalId) return externalId;
   var applicantId = String(rowObj['申込者ID'] || '').trim();
   if (applicantId) return applicantId;
   return String(rowObj['会員ID'] || '').trim();
+}
+
+// v360: 申込者の正本参照を取得（3-FK XOR 優先）
+function getCanonicalApplicantRef_(rowObj) {
+  var memberId = String(rowObj['会員ID'] || '').trim();
+  var staffId = String(rowObj['職員ID'] || '').trim();
+  var externalId = String(rowObj['外部申込者ID'] || '').trim();
+  if (externalId) return { type: 'EXTERNAL', id: externalId };
+  if (staffId) return { type: 'STAFF', id: staffId };
+  if (memberId) return { type: 'MEMBER', id: memberId };
+  // フォールバック: legacy データ
+  var legacyId = String(rowObj['申込者ID'] || '').trim();
+  var legacyType = String(rowObj['申込者区分コード'] || '').trim();
+  if (legacyId && legacyType === 'EXTERNAL') return { type: 'EXTERNAL', id: legacyId };
+  if (legacyId) return { type: 'MEMBER', id: legacyId };
+  return { type: '', id: '' };
 }
 
 function getMemberIdFromApplication_(rowObj) {
@@ -9549,6 +9964,56 @@ function ensureSystemSettingsRows_(ss) {
       }]);
     }
   });
+
+  // v368: 申込受付メール / 承認通知メール / 却下通知メール デフォルト初期化
+  var changeRequestEmailDefaults = [
+    { key: 'APPLICATION_RECEIPT_ENABLED', value: 'true', desc: '公開ポータル申請受付時：受付確認メール送信ON/OFF' },
+    { key: 'APPLICATION_RECEIPT_SUBJECT', value: APPLICATION_RECEIPT_DEFAULT_SUBJECT, desc: '公開ポータル申請受付時：受付確認メール件名' },
+    { key: 'APPLICATION_RECEIPT_BODY',    value: APPLICATION_RECEIPT_DEFAULT_BODY,    desc: '公開ポータル申請受付時：受付確認メール本文' },
+    { key: 'APPROVAL_NOTIFICATION_ENABLED', value: 'true', desc: '管理者承認時：承認通知メール送信ON/OFF' },
+    { key: 'APPROVAL_NOTIFICATION_SUBJECT', value: APPROVAL_NOTIFICATION_DEFAULT_SUBJECT, desc: '管理者承認時：承認通知メール件名' },
+    { key: 'APPROVAL_NOTIFICATION_BODY',    value: APPROVAL_NOTIFICATION_DEFAULT_BODY,    desc: '管理者承認時：承認通知メール本文' },
+    { key: 'REJECTION_NOTIFICATION_ENABLED', value: 'true', desc: '管理者却下時：却下通知メール送信ON/OFF' },
+    { key: 'REJECTION_NOTIFICATION_SUBJECT', value: REJECTION_NOTIFICATION_DEFAULT_SUBJECT, desc: '管理者却下時：却下通知メール件名' },
+    { key: 'REJECTION_NOTIFICATION_BODY',    value: REJECTION_NOTIFICATION_DEFAULT_BODY,    desc: '管理者却下時：却下通知メール本文' },
+  ];
+  changeRequestEmailDefaults.forEach(function(item) {
+    if (!byKey[item.key]) {
+      appendRowsByHeaders_(ss, 'T_システム設定', [{
+        設定キー: item.key,
+        設定値: item.value,
+        説明: item.desc,
+        更新日時: now,
+      }]);
+    }
+  });
+
+  // v371: メール送信 4 階層ガード（GLOBAL / MODE / ALLOWLIST / CATEGORY）
+  // safe-stop default: MAIL_GLOBAL_ENABLED='false' で初回デプロイ時は全メール停止状態で着地。
+  // 操作者がシステム設定 UI から true へ変更することで送信再開。
+  // 既存の T_システム設定 行があれば上書きしない（if !byKey ガード）。
+  var mailGuardDefaults = [
+    { key: 'MAIL_GLOBAL_ENABLED',         value: 'false', desc: 'メール送信のグローバルキルスイッチ（false で全停止）' },
+    { key: 'MAIL_DELIVERY_MODE',          value: 'LIVE',  desc: '配信モード: LIVE / REDIRECT / SUPPRESS' },
+    { key: 'MAIL_REDIRECT_ALLOWLIST',     value: '',      desc: 'REDIRECT モード時の送信先（カンマ区切り）' },
+    { key: 'TRAINING_APPLY_RECEIPT_ENABLED', value: 'true', desc: '研修申込確認メール送信ON/OFF' },
+    { key: 'TRAINING_REMINDER_ENABLED',   value: 'true', desc: '研修リマインダーメール送信ON/OFF' },
+    { key: 'BULK_MAIL_ENABLED',           value: 'true', desc: '一括メール送信ON/OFF' },
+    { key: 'AUTH_OTP_ENABLED',            value: 'true', desc: '公開ポータル OTP メール送信ON/OFF' },
+    { key: 'MEMBER_UPDATE_CONFIRM_ENABLED', value: 'true', desc: '会員情報変更確認メール送信ON/OFF' },
+    { key: 'WITHDRAWAL_CONFIRM_ENABLED',  value: 'true', desc: '退会申請受付確認メール送信ON/OFF' },
+    { key: 'PASSWORD_RESET_ENABLED',      value: 'true', desc: 'パスワード再設定確認コードメール送信ON/OFF' },
+  ];
+  mailGuardDefaults.forEach(function(item) {
+    if (!byKey[item.key]) {
+      appendRowsByHeaders_(ss, 'T_システム設定', [{
+        設定キー: item.key,
+        設定値: item.value,
+        説明: item.desc,
+        更新日時: now,
+      }]);
+    }
+  });
 }
 
 function writeMasterRows_(sheet, rows) {
@@ -10216,7 +10681,8 @@ function approveAdminChangeRequest_(payload) {
   var requestId = String(payload.requestId || '').trim();
   if (!requestId) return { success: false, error: '申請IDが必要です' };
   var adminSession = payload.__adminSession;
-  if (!adminSession || !adminSession.email) return { success: false, error: 'unauthorized' };
+  // v367: checkAdminBySession_() の戻り値は loginId (email)。`email` キーは存在しない
+  if (!adminSession || !adminSession.loginId) return { success: false, error: 'unauthorized' };
 
   var ss = getOrCreateDatabase_();
   var sheet = ss.getSheetByName('T_変更申請');
@@ -10369,7 +10835,7 @@ function approveAdminChangeRequest_(payload) {
           try {
             var staffAddVars = { 氏名: saName, ログインID: saLoginId, パスワード: saPassword, 会員マイページURL: MEMBER_PORTAL_URL, 事業所名: officeNameForEmail };
             var staffAddBody = renderBizEmailTemplate_(bizMailSettings.staffAddStaffEmailBody, staffAddVars);
-            sendEmailWithValidatedFrom_(saEmail, bizMailSettings.staffAddStaffEmailSubject, staffAddBody, { from: fromAddrForStaffAdd });
+            deliverMail_('STAFF_ADD_STAFF_EMAIL', saEmail, bizMailSettings.staffAddStaffEmailSubject, staffAddBody, { from: fromAddrForStaffAdd });
           } catch (e) {
             Logger.log('staffAdd staff email failed for ' + saEmail + ': ' + e.message);
           }
@@ -10381,7 +10847,7 @@ function approveAdminChangeRequest_(payload) {
         try {
           var repNotifyVars = { 氏名: repName, 会員マイページURL: MEMBER_PORTAL_URL, 事業所名: officeNameForEmail, 追加職員氏名: addedNames.join('、') };
           var repNotifyBody = renderBizEmailTemplate_(bizMailSettings.staffAddRepEmailBody, repNotifyVars);
-          sendEmailWithValidatedFrom_(repEmail, bizMailSettings.staffAddRepEmailSubject, repNotifyBody, { from: fromAddrForStaffAdd });
+          deliverMail_('STAFF_ADD_REP_EMAIL', repEmail, bizMailSettings.staffAddRepEmailSubject, repNotifyBody, { from: fromAddrForStaffAdd });
         } catch (e) {
           Logger.log('staffAdd rep notify email failed for ' + repEmail + ': ' + e.message);
         }
@@ -10410,7 +10876,7 @@ function approveAdminChangeRequest_(payload) {
   // ステータス更新
   row[cols['申請状態コード']] = 'APPROVED';
   row[cols['処理日時']] = now;
-  row[cols['処理者メールアドレス']] = adminSession.email;
+  row[cols['処理者メールアドレス']] = adminSession.loginId; // v367: email→loginId
   row[cols['処理備考']] = String(payload.note || '');
   row[cols['更新日時']] = now;
   sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
@@ -10418,27 +10884,16 @@ function approveAdminChangeRequest_(payload) {
   clearAllDataCache_();
   clearAdminDashboardCache_();
 
-  // 申請者への通知
-  if (contactEmail) {
-    var typeLabel2 = { MEMBER_APPLICATION: '入会申込', MEMBER_UPDATE: '登録情報変更申請', WITHDRAWAL: '退会申請', STAFF_ADD: '職員追加申請', STAFF_REMOVE: '職員除籍申請' };
-    MailApp.sendEmail(
-      contactEmail,
-      '【枚方市介護支援専門員連絡協議会】' + (typeLabel2[requestType] || '申請') + 'が承認されました',
-      [
-        applicantName + ' 様',
-        '',
-        'お申し込みいただいた内容が承認され、変更が反映されました。',
-        '',
-        '申請ID: ' + requestId,
-        '処理日時: ' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm'),
-        '',
-        '変更内容の確認は会員マイページをご覧ください。',
-        'ご不明な点は事務局までお問い合わせください。',
-        '',
-        '枚方市介護支援専門員連絡協議会',
-      ].join('\n')
-    );
-  }
+  // v368: 申請者への承認通知メール（テンプレ化・変更内容サマリー差込）
+  sendApprovalNotificationMail_(ss, {
+    contactEmail: contactEmail,
+    applicantName: applicantName,
+    requestId: requestId,
+    requestType: requestType,
+    memberTypeLabel: memberType === 'INDIVIDUAL' ? '個人会員' : memberType === 'BUSINESS' ? '事業所会員' : '賛助会員',
+    processorName: adminSession.displayName || adminSession.loginId || '事務局',
+    changeSummary: buildChangeSummaryText_(changeData, requestType),
+  });
 
   return { success: true, requestId: requestId, result: approvalResult };
 }
@@ -10448,7 +10903,8 @@ function rejectAdminChangeRequest_(payload) {
   var requestId = String(payload.requestId || '').trim();
   if (!requestId) return { success: false, error: '申請IDが必要です' };
   var adminSession = payload.__adminSession;
-  if (!adminSession || !adminSession.email) return { success: false, error: 'unauthorized' };
+  // v367: checkAdminBySession_() の戻り値は loginId (email)。`email` キーは存在しない
+  if (!adminSession || !adminSession.loginId) return { success: false, error: 'unauthorized' };
 
   var ss = getOrCreateDatabase_();
   var sheet = ss.getSheetByName('T_変更申請');
@@ -10470,30 +10926,20 @@ function rejectAdminChangeRequest_(payload) {
 
   row[cols['申請状態コード']] = 'REJECTED';
   row[cols['処理日時']] = now;
-  row[cols['処理者メールアドレス']] = adminSession.email;
+  row[cols['処理者メールアドレス']] = adminSession.loginId; // v367: email→loginId
   row[cols['処理備考']] = String(payload.note || '');
   row[cols['更新日時']] = now;
   sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
 
-  if (contactEmail) {
-    var typeLabel3 = { MEMBER_APPLICATION: '入会申込', MEMBER_UPDATE: '登録情報変更申請', WITHDRAWAL: '退会申請', STAFF_ADD: '職員追加申請', STAFF_REMOVE: '職員除籍申請' };
-    MailApp.sendEmail(
-      contactEmail,
-      '【枚方市介護支援専門員連絡協議会】' + (typeLabel3[requestType] || '申請') + 'について',
-      [
-        applicantName + ' 様',
-        '',
-        'お申し込みいただいた内容について、下記の理由により対応できませんでした。',
-        '',
-        '申請ID: ' + requestId,
-        'ご連絡: ' + (payload.note || '事務局よりご連絡いたします。'),
-        '',
-        'ご不明な点は事務局までお問い合わせください。',
-        '',
-        '枚方市介護支援専門員連絡協議会',
-      ].join('\n')
-    );
-  }
+  // v368: 申請者への却下通知メール（テンプレ化・備考差込）
+  sendRejectionNotificationMail_(ss, {
+    contactEmail: contactEmail,
+    applicantName: applicantName,
+    requestId: requestId,
+    requestType: requestType,
+    processorName: adminSession.displayName || adminSession.loginId || '事務局',
+    note: String(payload.note || ''),
+  });
 
   return { success: true, requestId: requestId };
 }
@@ -10701,6 +11147,74 @@ function validateRequestedFromAddress_(from, ownerEmail) {
   return requested;
 }
 
+// ── v371: メール送信の 4 階層ガード（GLOBAL / MODE / ALLOWLIST / CATEGORY）──
+// 設計: docs/227_MAIL_KILL_SWITCH_2026-05-18.md
+//   [1] MAIL_GLOBAL_ENABLED         — 全停止スイッチ（default true: 既存挙動維持）
+//   [2] MAIL_DELIVERY_MODE          — LIVE / REDIRECT / SUPPRESS (default LIVE)
+//   [3] MAIL_REDIRECT_ALLOWLIST     — REDIRECT モード時の宛先 (CSV)
+//   [4] {category}_ENABLED          — カテゴリ別 ON/OFF (既存 9 + 補完 5)
+function mailDispatchPolicy_() {
+  try {
+    var ss = getOrCreateDatabase_();
+    var globalRaw = String(getSystemSettingValue_(ss, 'MAIL_GLOBAL_ENABLED') || '').trim();
+    var globalEnabled = globalRaw === '' ? true : globalRaw.toLowerCase() !== 'false';
+    if (!globalEnabled) return { mode: 'SUPPRESS', reason: 'global_disabled' };
+
+    var rawMode = String(getSystemSettingValue_(ss, 'MAIL_DELIVERY_MODE') || 'LIVE').trim().toUpperCase();
+    if (rawMode === 'SUPPRESS') return { mode: 'SUPPRESS', reason: 'mode_suppress' };
+    if (rawMode === 'REDIRECT') {
+      var allowlist = String(getSystemSettingValue_(ss, 'MAIL_REDIRECT_ALLOWLIST') || '')
+        .split(',')
+        .map(function(s){ return s.trim(); })
+        .filter(function(s){ return s.length > 0; });
+      if (allowlist.length === 0) return { mode: 'SUPPRESS', reason: 'redirect_no_allowlist' };
+      return { mode: 'REDIRECT', allowlist: allowlist };
+    }
+    return { mode: 'LIVE' };
+  } catch (e) {
+    // fail-safe: infra error 時は LIVE で進める（本番運用中の事故防止優先）
+    Logger.log('mailDispatchPolicy_ infra error (defaulting LIVE): ' + e.message);
+    return { mode: 'LIVE' };
+  }
+}
+
+// メール送信の中央集約ラッパー
+// category: 'BULK_MAIL' / 'TRAINING_REMINDER' 等。null/未指定なら GENERAL 扱いで GLOBAL/MODE のみ判定。
+// to/subject/body/options: 既存 sendEmailWithValidatedFrom_ と互換
+// 戻り値: { sent: bool, suppressed?: bool, reason?: string, mode?: string }
+function deliverMail_(category, to, subject, body, options) {
+  // [4] カテゴリ別フラグ
+  if (category) {
+    try {
+      var catKey = String(category).toUpperCase() + '_ENABLED';
+      var catRaw = String(getSystemSettingValue_(getOrCreateDatabase_(), catKey) || '').trim();
+      var catEnabled = catRaw === '' ? true : catRaw.toLowerCase() !== 'false';
+      if (!catEnabled) {
+        Logger.log('[mail/category-disabled] category=' + category + ' to=' + to + ' subject=' + subject);
+        return { sent: false, suppressed: true, reason: 'category_disabled' };
+      }
+    } catch (e) {
+      // カテゴリ判定失敗時は default 通過（GLOBAL/MODE で受け止める）
+    }
+  }
+  var policy = mailDispatchPolicy_();
+  if (policy.mode === 'SUPPRESS') {
+    Logger.log('[mail/' + policy.reason + '] suppressed category=' + (category || 'GENERAL') + ' to=' + to + ' subject=' + subject);
+    return { sent: false, suppressed: true, reason: policy.reason };
+  }
+  var finalTo = to;
+  var finalSubject = subject;
+  var finalBody = body;
+  if (policy.mode === 'REDIRECT') {
+    var origTo = String(to || '');
+    finalTo = policy.allowlist.join(',');
+    finalSubject = '[REDIRECT from ' + origTo + '] ' + subject;
+    finalBody = '--- ORIGINAL TO: ' + origTo + ' ---\n--- CATEGORY: ' + (category || 'GENERAL') + ' ---\n\n' + (body || '');
+  }
+  sendEmailWithValidatedFrom_(finalTo, finalSubject, finalBody, options || {});
+  return { sent: true, mode: policy.mode };
+}
+
 function sendEmailWithValidatedFrom_(to, subject, body, options) {
   // Session.getEffectiveUser() は userinfo.email スコープが必要。
   // 統合・会員 split では v263 スコープ削減により使用不可のため try-catch で安全に取得する。
@@ -10810,7 +11324,7 @@ function sendTrainingMail_(payload) {
           Logger.log('個別添付取得失敗: ' + rec.applyId + ' ' + fe.message);
         }
       }
-      sendEmailWithValidatedFrom_(rec.email, personalSubject, personalBody, {
+      deliverMail_('TRAINING_REMINDER', rec.email, personalSubject, personalBody, {
         from: from,
         replyTo: replyTo,
         attachments: allAttachments,
@@ -11398,6 +11912,8 @@ function getMembersForBulkMail_(payload) {
       firstName:    firstName,
       name:         name,
       displayName:  displayName,
+      // v362: フリガナ検索対応
+      kana:         (String(m['セイ'] || '') + ' ' + String(m['メイ'] || '')).trim(),
       email:        email,
       officeName:   String(m['勤務先名'] || '').trim(),
       memberStatus: status,
@@ -11440,6 +11956,8 @@ function getMembersForBulkMail_(payload) {
         firstName:     firstName,
         name:          name,
         displayName:   displayName,
+        // v362: フリガナ検索対応
+        kana:          (String(s['セイ'] || '') + ' ' + String(s['メイ'] || '')).trim() || String(s['フリガナ'] || ''),
         email:         email,
         officeName:    String(parent['勤務先名'] || '').trim(),
         memberStatus:  String(parent['会員状態コード'] || ''),
@@ -11578,6 +12096,8 @@ function buildMailingListCandidates_(payload) {
       targetKey: memberId,
       memberId: memberId,
       displayName: displayName,
+      // v362: フリガナ検索対応（T_会員 セイ + メイ）
+      kana: (String(m['セイ'] || '') + ' ' + String(m['メイ'] || '')).trim(),
       memberType: mtype,
       memberStatus: status,
       annualFeeStatus: feeStatus,
@@ -11629,6 +12149,7 @@ function getMailingListTargets_(payload) {
         targetKey: c.targetKey,
         memberId: c.memberId,
         displayName: c.displayName,
+        kana: c.kana || '', // v362
         memberType: c.memberType,
         memberStatus: c.memberStatus,
         annualFeeStatus: c.annualFeeStatus,
@@ -11893,7 +12414,7 @@ function sendBulkMemberMail_(payload) {
         allAttachments.push(Utilities.newBlob(indvBytes, indvAtt.mimeType, indvAtt.name));
       }
 
-      sendEmailWithValidatedFrom_(rec.email, personalSubject, personalBody, {
+      deliverMail_('BULK_MAIL', rec.email, personalSubject, personalBody, {
         from: from,
         replyTo: from,
         name: '枚方市介護支援専門員連絡協議会',
@@ -14217,6 +14738,1037 @@ function autoRetireOfficerByStaffId_(ss, staffId, nowIso) {
  * saveSharedMemo_ も初回書き込み時に自動作成するため、
  * 本関数は事前に確実にシートを用意したい場合の補助として使用する。
  */
+// ─── v370.1: PENDING 入会申込の partial データ診断とクリーンアップ ────────────
+// v368 で導入したバグ（srcMemberId reference error）により、事業所入会申込承認時に
+// 事業所会員 + 代表者 1 名のみが部分登録され、残職員と申請ステータス更新が中断された。
+// 以下は (1) 安全な read-only 診断と (2) 確認後の soft-delete クリーンアップ関数。
+
+/**
+ * v370.1 診断: PENDING 入会申込の applicationPayload を解析し、
+ * partial に作成された会員・職員・認証アカウントを特定するレポートを返す。
+ * **read-only**。DB 変更なし。Logger に詳細出力 + 戻り値で構造化レポート。
+ *
+ * 使い方（Apps Script editor から）:
+ *   diagnoseStaleApplicationForV370('CR1778920612878_22c197b0')
+ *   または引数なしで全 PENDING MEMBER_APPLICATION を一括診断:
+ *   diagnoseAllStaleApplicationsForV370()
+ */
+function diagnoseStaleApplicationForV370(targetRequestId) {
+  var ss = getOrCreateDatabase_();
+  var changeRequests = getRowsAsObjects_(ss, 'T_変更申請').filter(function(r) {
+    if (toBoolean_(r['削除フラグ'])) return false;
+    if (String(r['申請種別コード'] || '') !== 'MEMBER_APPLICATION') return false;
+    if (String(r['申請状態コード'] || '') !== 'PENDING') return false;
+    if (targetRequestId && String(r['申請ID'] || '') !== String(targetRequestId)) return false;
+    return true;
+  });
+
+  if (changeRequests.length === 0) {
+    var msg = targetRequestId
+      ? '指定された申請ID (' + targetRequestId + ') が見つからない、または PENDING 入会申込ではありません。'
+      : 'PENDING の入会申込はありません。';
+    Logger.log(msg);
+    return { found: 0, message: msg, reports: [] };
+  }
+
+  var allMembers = getRowsAsObjects_(ss, 'T_会員');
+  var allStaff = getRowsAsObjects_(ss, 'T_事業所職員');
+  var allAuth = getRowsAsObjects_(ss, 'T_認証アカウント');
+
+  var reports = changeRequests.map(function(req) {
+    var requestId = String(req['申請ID'] || '');
+    var memberType = String(req['会員種別コード'] || '');
+    var contactEmail = String(req['連絡先メールアドレス'] || '');
+    var applicantName = String(req['申請者表示名'] || '');
+    var submittedAt = String(req['申請日時'] || '');
+
+    var changeData = {};
+    try { changeData = JSON.parse(String(req['申請内容JSON'] || '{}')); } catch (e) {}
+    var payload = changeData.applicationPayload || {};
+
+    // 申請内容の整合性チェック
+    var payloadValidation = {
+      hasMemberType: !!payload.memberType,
+      memberTypeMatch: String(payload.memberType || '') === memberType,
+      isBusiness: memberType === 'BUSINESS',
+      officeName: String(payload.officeName || ''),
+      officeNumber: String(payload.officeNumber || ''),
+      staffCount: Array.isArray(payload.staff) ? payload.staff.length : 0,
+      staffList: Array.isArray(payload.staff) ? payload.staff.map(function(s, i) {
+        return {
+          index: i,
+          role: String(s.role || ''),
+          lastName: String(s.lastName || ''),
+          firstName: String(s.firstName || ''),
+          lastKana: String(s.lastKana || ''),
+          firstKana: String(s.firstKana || ''),
+          careManagerNumber: String(s.careManagerNumber || ''),
+          email: String(s.email || ''),
+          missingRequiredFields: ['lastName', 'firstName', 'lastKana', 'firstKana', 'careManagerNumber', 'email']
+            .filter(function(f) { return !String(s[f] || '').trim(); }),
+        };
+      }) : [],
+    };
+
+    // partial に作成された会員候補を勤務先名/事業所名で検索
+    var partialMembers = [];
+    if (memberType === 'BUSINESS' && payload.officeName) {
+      partialMembers = allMembers.filter(function(m) {
+        if (toBoolean_(m['削除フラグ'])) return false;
+        if (String(m['会員種別コード'] || '') !== 'BUSINESS') return false;
+        var officeNameMatch = String(m['勤務先名'] || '').trim() === String(payload.officeName || '').trim();
+        var officeNumberMatch = payload.officeNumber
+          ? String(m['事業所番号'] || '').trim() === String(payload.officeNumber || '').trim()
+          : false;
+        return officeNameMatch || officeNumberMatch;
+      }).map(function(m) {
+        var memberId = String(m['会員ID'] || '');
+        var memberStaff = allStaff.filter(function(s) {
+          return !toBoolean_(s['削除フラグ']) && String(s['会員ID'] || '') === memberId;
+        }).map(function(s) {
+          return {
+            staffId: String(s['職員ID'] || ''),
+            name: String(s['姓'] || '') + ' ' + String(s['名'] || ''),
+            role: String(s['職員権限コード'] || ''),
+            status: String(s['職員状態コード'] || ''),
+            careManagerNumber: String(s['介護支援専門員番号'] || ''),
+            email: String(s['メールアドレス'] || ''),
+          };
+        });
+        var memberAuth = allAuth.filter(function(a) {
+          return !toBoolean_(a['削除フラグ']) && String(a['会員ID'] || '') === memberId;
+        }).map(function(a) {
+          return {
+            authId: String(a['認証ID'] || ''),
+            loginId: String(a['ログインID'] || ''),
+            staffId: String(a['職員ID'] || ''),
+            enabled: toBoolean_(a['アカウント有効フラグ']),
+          };
+        });
+        return {
+          memberId: memberId,
+          memberStatus: String(m['会員状態コード'] || ''),
+          officeName: String(m['勤務先名'] || ''),
+          officeNumber: String(m['事業所番号'] || ''),
+          joinedDate: String(m['入会日'] || ''),
+          createdAt: String(m['作成日時'] || ''),
+          staffRows: memberStaff,
+          authRows: memberAuth,
+          partialDetectionHint:
+            payloadValidation.staffCount > memberStaff.length
+              ? '申請の職員数 ' + payloadValidation.staffCount + ' 名に対し DB は ' + memberStaff.length + ' 名のみ。partial 登録の可能性。'
+              : '完全登録の可能性（職員数一致）',
+        };
+      });
+    }
+
+    var report = {
+      requestId: requestId,
+      submittedAt: submittedAt,
+      contactEmail: contactEmail,
+      applicantName: applicantName,
+      memberType: memberType,
+      payload: payloadValidation,
+      partialMembers: partialMembers,
+      verdict: (function() {
+        if (partialMembers.length === 0) return 'クリーン: partial 登録は検出されず。再承認可能。';
+        if (partialMembers.length > 1) return '警告: 同名 BUSINESS 会員が複数存在。手動確認必要。';
+        var pm = partialMembers[0];
+        if (pm.staffRows.length < payloadValidation.staffCount) return 'partial 登録あり: ' + pm.partialDetectionHint;
+        return '完全登録の可能性: 申請は再承認すべきでない（既に DB に反映済の可能性）';
+      })(),
+    };
+    return report;
+  });
+
+  Logger.log('=== v370.1 partial application 診断レポート ===');
+  Logger.log(JSON.stringify(reports, null, 2));
+  Logger.log('=== END ===');
+  return { found: reports.length, reports: reports };
+}
+
+/**
+ * 全 PENDING 入会申込を一括診断する
+ */
+function diagnoseAllStaleApplicationsForV370() {
+  return diagnoseStaleApplicationForV370(null);
+}
+
+/**
+ * v370.1 クリーンアップ: 指定の partial 登録された 事業所会員 + 関連職員 + 認証 を soft-delete する。
+ *
+ * **必ず先に diagnoseStaleApplicationForV370 で対象を確認してから実行すること。**
+ *
+ * 使い方（Apps Script editor から）:
+ *   cleanupStaleBusinessApplicationForV370('M0123456789') // 部分登録された 事業所会員ID
+ *
+ * 安全策:
+ *   - 引数で memberId を明示必須
+ *   - 既に削除済みなら何もしない
+ *   - 事業所会員かつ職員数 < 申請数 のときのみ削除（誤削除防止）
+ *   - T_監査ログ へ削除前スナップショット記録
+ *   - 申請 PENDING 行は触らない（再承認可能な状態を維持）
+ */
+function cleanupStaleBusinessApplicationForV370(memberId) {
+  if (!memberId) throw new Error('memberId を指定してください。例: cleanupStaleBusinessApplicationForV370("M0123456789")');
+
+  var ss = getOrCreateDatabase_();
+  var memberSheet = ss.getSheetByName('T_会員');
+  var staffSheet = ss.getSheetByName('T_事業所職員');
+  var authSheet = ss.getSheetByName('T_認証アカウント');
+  if (!memberSheet || !staffSheet || !authSheet) throw new Error('必要シートが見つかりません。');
+
+  var memberFound = findRowByColumnValue_(memberSheet, '会員ID', String(memberId));
+  if (!memberFound) throw new Error('会員 ' + memberId + ' が見つかりません。');
+  var memberRow = memberFound.row;
+  var memberCols = memberFound.columns;
+
+  if (toBoolean_(memberRow[memberCols['削除フラグ']])) {
+    return { ok: true, message: '既に削除済み。何もしません。', memberId: memberId };
+  }
+  if (String(memberRow[memberCols['会員種別コード']] || '') !== 'BUSINESS') {
+    throw new Error('指定された会員は事業所会員ではありません。手動で削除してください。');
+  }
+
+  var now = new Date().toISOString();
+  var operatorEmail = '';
+  try { operatorEmail = Session.getActiveUser().getEmail() || ''; } catch (e) {}
+
+  // スナップショット
+  var snapshot = {
+    member: { memberId: memberId, officeName: String(memberRow[memberCols['勤務先名']] || ''), 状態: String(memberRow[memberCols['会員状態コード']] || '') },
+    staff: [],
+    auth: [],
+  };
+
+  // 1. 関連職員を soft-delete + 認証アカウントを soft-delete
+  var staffRows = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === String(memberId);
+  });
+  var staffData = staffSheet.getRange(2, 1, Math.max(staffSheet.getLastRow() - 1, 0), staffSheet.getLastColumn()).getValues();
+  var staffHeaders = staffSheet.getRange(1, 1, 1, staffSheet.getLastColumn()).getValues()[0];
+  var staffColMap = {};
+  for (var i = 0; i < staffHeaders.length; i++) staffColMap[staffHeaders[i]] = i;
+  var deletedStaffCount = 0;
+  for (var r = 0; r < staffData.length; r++) {
+    if (String(staffData[r][staffColMap['会員ID']] || '') !== String(memberId)) continue;
+    if (toBoolean_(staffData[r][staffColMap['削除フラグ']])) continue;
+    snapshot.staff.push({
+      staffId: String(staffData[r][staffColMap['職員ID']] || ''),
+      name: String(staffData[r][staffColMap['姓']] || '') + ' ' + String(staffData[r][staffColMap['名']] || ''),
+      role: String(staffData[r][staffColMap['職員権限コード']] || ''),
+    });
+    staffData[r][staffColMap['削除フラグ']] = true;
+    if (staffColMap['職員状態コード'] != null) staffData[r][staffColMap['職員状態コード']] = 'LEFT';
+    if (staffColMap['退会日'] != null) staffData[r][staffColMap['退会日']] = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+    if (staffColMap['更新日時'] != null) staffData[r][staffColMap['更新日時']] = now;
+    staffSheet.getRange(r + 2, 1, 1, staffData[r].length).setValues([staffData[r]]);
+    deletedStaffCount++;
+  }
+
+  // 2. 認証アカウント soft-delete（会員ID または 職員ID で hit）
+  var authData = authSheet.getRange(2, 1, Math.max(authSheet.getLastRow() - 1, 0), authSheet.getLastColumn()).getValues();
+  var authHeaders = authSheet.getRange(1, 1, 1, authSheet.getLastColumn()).getValues()[0];
+  var authColMap = {};
+  for (var ai = 0; ai < authHeaders.length; ai++) authColMap[authHeaders[ai]] = ai;
+  var deletedStaffIds = snapshot.staff.map(function(s) { return s.staffId; });
+  var deletedAuthCount = 0;
+  for (var ar = 0; ar < authData.length; ar++) {
+    if (toBoolean_(authData[ar][authColMap['削除フラグ']])) continue;
+    var aMemberId = String(authData[ar][authColMap['会員ID']] || '');
+    var aStaffId = String(authData[ar][authColMap['職員ID']] || '');
+    var matches = (aMemberId === String(memberId)) || (aStaffId && deletedStaffIds.indexOf(aStaffId) >= 0);
+    if (!matches) continue;
+    snapshot.auth.push({
+      authId: String(authData[ar][authColMap['認証ID']] || ''),
+      loginId: String(authData[ar][authColMap['ログインID']] || ''),
+    });
+    authData[ar][authColMap['削除フラグ']] = true;
+    if (authColMap['アカウント有効フラグ'] != null) authData[ar][authColMap['アカウント有効フラグ']] = false;
+    if (authColMap['更新日時'] != null) authData[ar][authColMap['更新日時']] = now;
+    authSheet.getRange(ar + 2, 1, 1, authData[ar].length).setValues([authData[ar]]);
+    deletedAuthCount++;
+  }
+
+  // 3. 会員レコード soft-delete
+  memberRow[memberCols['削除フラグ']] = true;
+  if (memberCols['会員状態コード'] != null) memberRow[memberCols['会員状態コード']] = 'WITHDRAWN';
+  if (memberCols['退会日'] != null) memberRow[memberCols['退会日']] = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+  if (memberCols['更新日時'] != null) memberRow[memberCols['更新日時']] = now;
+  memberSheet.getRange(memberFound.rowNumber, 1, 1, memberRow.length).setValues([memberRow]);
+
+  // 4. 監査ログ
+  try {
+    var logSs = getLogSs_();
+    appendRowsByHeaders_(logSs, 'T_監査ログ', [{
+      '監査ログID': 'AUD' + Date.now(),
+      '操作日時': now,
+      '操作者メール': operatorEmail,
+      '操作種別': 'CLEANUP_STALE_BUSINESS_APPLICATION_V370',
+      '対象テーブル': 'T_会員,T_事業所職員,T_認証アカウント',
+      '対象レコードID': memberId,
+      'フィールド名': '',
+      '旧値': JSON.stringify(snapshot),
+      '新値': '削除済み（partial v368 srcMemberId reference error の補正）',
+    }]);
+  } catch (e) {
+    Logger.log('[cleanupStaleBusinessApplicationForV370] audit log failed: ' + e.message);
+  }
+
+  clearAllDataCache_();
+  clearAdminDashboardCache_();
+  var result = {
+    ok: true,
+    memberId: memberId,
+    deletedStaffCount: deletedStaffCount,
+    deletedAuthCount: deletedAuthCount,
+    snapshot: snapshot,
+    nextSteps: '変更申請管理コンソールから該当申請を再承認すれば、全職員が新規作成されます。',
+  };
+  Logger.log('=== v370.1 cleanup 完了 ===');
+  Logger.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+/**
+ * v370.1 one-shot: 申請 CR1778920612878_22c197b0 の partial 会員 53779700 をクリーンアップ
+ * （Apps Script editor で引数渡し不可のため、固定引数 wrapper として 1 回限り使用）
+ * 実行後この wrapper は次リリースで削除予定。
+ */
+function runCleanupPartialBusinessV370_53779700() {
+  return cleanupStaleBusinessApplicationForV370('53779700');
+}
+
+
+// ─── v360: 研修名簿・出欠・一括メール明細 スキーマ移行 ─────────────────
+/**
+ * v360 のスキーマ変更を本番 DB へ反映する。Apps Script editor から手動 1 回実行する。
+ *
+ * 実行内容:
+ *  1. マスタシート M_出欠状態 を作成・初期値投入
+ *  2. T_研修申込 に 5 列追加（外部申込者ID / 出欠状態コード / 出欠記録日時 / 出欠記録者メール / 事務局メモ）
+ *  3. ログ SS に T_メール送信明細 を作成（Header-Detail パターン）
+ *  4. T_メール送信ログ に 研修ID 列を追加
+ *  5. 既存 T_研修申込 行を 2-FK 化（申込者区分=EXTERNAL の 申込者ID を 外部申込者ID へ複写）
+ *  6. 既存 T_研修申込 行の 出欠状態コード を UNRECORDED で backfill
+ *  7. ROSTER_TEMPLATE_LIST JSON の各エントリに category='MAILING_LIST' を auto-add
+ *  8. 整合性監査結果を Logger に記録
+ */
+function runRebuildSchemaForV360() {
+  var ss = getOrCreateDatabase_();
+  var report = { schemaVersion: DB_SCHEMA_VERSION, steps: [] };
+
+  // Step 1: M_出欠状態 マスタ作成 + 初期値
+  var masterSheet = getOrCreateSheet_(ss, 'M_出欠状態');
+  writeSheetHeaders_(masterSheet, マスタ定義['M_出欠状態']);
+  if (masterSheet.getLastRow() < 2) {
+    var initialRows = マスタ初期値['M_出欠状態'];
+    masterSheet.getRange(2, 1, initialRows.length, initialRows[0].length).setValues(initialRows);
+    report.steps.push({ step: 'M_出欠状態 初期値投入', count: initialRows.length });
+  } else {
+    report.steps.push({ step: 'M_出欠状態 既存', note: 'マスタ既存のため初期値投入スキップ' });
+  }
+
+  // Step 2: T_研修申込 列追加（writeSheetHeaders_ v342 name-based shift が data 保持）
+  normalizeTableColumns_(ss, 'T_研修申込');
+  report.steps.push({ step: 'T_研修申込 列追加', columns: ['外部申込者ID', '出欠状態コード', '出欠記録日時', '出欠記録者メール', '事務局メモ'] });
+
+  // Step 3: ログ SS に T_メール送信明細 作成 + T_メール送信ログ 拡張
+  try {
+    var logSs = getLogSs_();
+    var detailSheet = logSs.getSheetByName('T_メール送信明細');
+    if (!detailSheet) {
+      detailSheet = logSs.insertSheet('T_メール送信明細');
+      detailSheet.getRange(1, 1, 1, テーブル定義['T_メール送信明細'].length).setValues([テーブル定義['T_メール送信明細']]);
+      report.steps.push({ step: 'T_メール送信明細 作成', location: 'ログSS' });
+    } else {
+      report.steps.push({ step: 'T_メール送信明細 既存', location: 'ログSS' });
+    }
+    normalizeTableColumns_(logSs, 'T_メール送信ログ');
+    report.steps.push({ step: 'T_メール送信ログ 研修ID 列追加', location: 'ログSS' });
+  } catch (e) {
+    report.steps.push({ step: 'ログSS 操作失敗', error: e.message });
+    Logger.log('v360 log SS migration failed: ' + e.message);
+  }
+
+  // Step 5: T_研修申込 2-FK 化マイグレーション
+  var migrateResult = migrateTrainingApplicationsToTwoFkForV360_(ss);
+  report.steps.push({ step: '2-FK migration', detail: migrateResult });
+
+  // Step 6: 出欠状態コード backfill
+  var backfillResult = backfillAttendanceStatusForV360_(ss);
+  report.steps.push({ step: '出欠状態 backfill', detail: backfillResult });
+
+  // Step 7: ROSTER_TEMPLATE_LIST category 追加
+  var templateMigrate = migrateRosterTemplateLibraryCategoryForV360_(ss);
+  report.steps.push({ step: 'テンプレート category 追加', detail: templateMigrate });
+
+  // Step 8: 整合性監査
+  var auditResult = auditTrainingApplicationsAfterV360_(ss);
+  report.steps.push({ step: '整合性監査', detail: auditResult });
+  if (auditResult.xorViolations > 0) {
+    Logger.log('[v360 WARNING] XOR 違反行 ' + auditResult.xorViolations + ' 件検出。詳細: ' + JSON.stringify(auditResult.violationSample));
+  }
+
+  markSchemaInitialized_();
+  clearAllDataCache_();
+  Logger.log('runRebuildSchemaForV360 完了: ' + JSON.stringify(report));
+  return report;
+}
+
+/**
+ * T_研修申込 の既存行を 2-FK 化:
+ *  - 申込者区分=EXTERNAL かつ 外部申込者ID が空の行: 申込者ID を 外部申込者ID へ複写
+ *  - 既存 申込者ID / 申込者区分コード は維持（v361 以降で物理削除予定）
+ */
+function migrateTrainingApplicationsToTwoFkForV360_(ss) {
+  var sheet = ss.getSheetByName('T_研修申込');
+  if (!sheet || sheet.getLastRow() < 2) return { migrated: 0, skipped: 0 };
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var cols = {};
+  for (var i = 0; i < headers.length; i++) cols[String(headers[i] || '')] = i;
+  if (cols['外部申込者ID'] == null || cols['申込者区分コード'] == null || cols['申込者ID'] == null) {
+    return { migrated: 0, skipped: 0, error: '必要列が見つかりません' };
+  }
+  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  var migrated = 0;
+  for (var r = 0; r < data.length; r++) {
+    var type = String(data[r][cols['申込者区分コード']] || '').trim();
+    var legacyId = String(data[r][cols['申込者ID']] || '').trim();
+    var externalId = String(data[r][cols['外部申込者ID']] || '').trim();
+    if (type === 'EXTERNAL' && legacyId && !externalId) {
+      data[r][cols['外部申込者ID']] = legacyId;
+      migrated++;
+    }
+  }
+  if (migrated > 0) {
+    sheet.getRange(2, 1, data.length, data[0].length).setValues(data);
+  }
+  return { migrated: migrated, total: data.length };
+}
+
+/**
+ * 既存 T_研修申込 行の 出欠状態コード を UNRECORDED で backfill。
+ */
+function backfillAttendanceStatusForV360_(ss) {
+  var sheet = ss.getSheetByName('T_研修申込');
+  if (!sheet || sheet.getLastRow() < 2) return { backfilled: 0 };
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var col = headers.indexOf('出欠状態コード');
+  if (col < 0) return { backfilled: 0, error: '出欠状態コード列なし' };
+  var data = sheet.getRange(2, col + 1, sheet.getLastRow() - 1, 1).getValues();
+  var backfilled = 0;
+  for (var r = 0; r < data.length; r++) {
+    if (!String(data[r][0] || '').trim()) {
+      data[r][0] = 'UNRECORDED';
+      backfilled++;
+    }
+  }
+  if (backfilled > 0) {
+    sheet.getRange(2, col + 1, data.length, 1).setValues(data);
+  }
+  return { backfilled: backfilled, total: data.length };
+}
+
+/**
+ * ROSTER_TEMPLATE_LIST JSON の各エントリに category='MAILING_LIST' を追加（既存値維持）。
+ */
+function migrateRosterTemplateLibraryCategoryForV360_(ss) {
+  try {
+    var settings = getRowsAsObjects_(ss, 'T_システム設定');
+    var entry = null;
+    for (var i = 0; i < settings.length; i++) {
+      if (settings[i]['設定キー'] === 'ROSTER_TEMPLATE_LIST') { entry = settings[i]; break; }
+    }
+    if (!entry) return { migrated: 0, reason: '設定キーなし' };
+    var list = JSON.parse(String(entry['設定値'] || '[]'));
+    if (!Array.isArray(list) || list.length === 0) return { migrated: 0, reason: '空リスト' };
+    var changed = 0;
+    for (var j = 0; j < list.length; j++) {
+      if (!list[j].category) {
+        list[j].category = 'MAILING_LIST';
+        changed++;
+      }
+    }
+    if (changed > 0) {
+      upsertSystemSetting_(ss, 'ROSTER_TEMPLATE_LIST', JSON.stringify(list), 'テンプレートライブラリJSON（v316〜・v360: category付き）');
+    }
+    return { migrated: changed, total: list.length };
+  } catch (e) {
+    return { migrated: 0, error: e.message };
+  }
+}
+
+/**
+ * T_研修申込 の 3-FK XOR 違反を検出（v360 以降の不変条件）。
+ * Strict-XOR は外部申込者ID/会員ID/職員ID のいずれか1つだけ non-empty。
+ * legacy 行（外部申込者ID 空 + 申込者ID 持ち）は warning 扱い。
+ */
+// ─── v360: 研修名簿管理 API ─────────────────────────────────────────────
+
+/**
+ * 研修詳細名簿取得（管理者専用）。
+ * 既存 getTrainingApplicants_ を拡張し、出欠状態・事務局メモ・申込者サブ種別情報を追加する。
+ */
+function getTrainingRosterDetail_(payload) {
+  if (!checkAdminBySession_()) return { error: 'unauthorized' };
+  if (!payload) return { error: 'trainingId required' };
+  var trainingId = String(payload.trainingId || '').trim();
+  if (!trainingId) return { error: 'trainingId required' };
+
+  var db = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var applyRows = getTrainingApplicationRows_(db, { trainingId: trainingId });
+
+  var memberRows = getRowsAsObjects_(db, 'T_会員');
+  var memberMap = {};
+  memberRows.forEach(function(r) { memberMap[String(r['会員ID'] || '')] = r; });
+
+  var staffRows = getRowsAsObjects_(db, 'T_事業所職員');
+  var staffMap = {};
+  staffRows.forEach(function(r) { staffMap[String(r['職員ID'] || '')] = r; });
+
+  var externalRows = getRowsAsObjects_(db, 'T_外部申込者');
+  var externalMap = {};
+  externalRows.forEach(function(r) { externalMap[String(r['外部申込者ID'] || '')] = r; });
+
+  var result = applyRows.map(function(r) {
+    var ref = getCanonicalApplicantRef_(r);
+    var info, name = '(不明)', email = '', officeName = '', phone = '';
+    if (ref.type === 'EXTERNAL') {
+      info = externalMap[ref.id];
+      if (info) {
+        name = String(info['氏名'] || '');
+        email = String(info['メールアドレス'] || '');
+        officeName = String(info['事業所名'] || '');
+        phone = String(info['電話番号'] || '');
+      }
+    } else if (ref.type === 'STAFF') {
+      info = staffMap[ref.id];
+      if (info) {
+        name = (String(info['姓'] || '') + ' ' + String(info['名'] || '')).trim() || String(info['氏名'] || '');
+        email = String(info['メールアドレス'] || '');
+        var officeMember = memberMap[String(info['会員ID'] || '')];
+        officeName = officeMember ? String(officeMember['勤務先名'] || '') : '';
+      }
+    } else if (ref.type === 'MEMBER') {
+      info = memberMap[ref.id];
+      if (info) {
+        name = (String(info['姓'] || '') + ' ' + String(info['名'] || '')).trim() || String(info['氏名'] || '');
+        email = String(info['代表メールアドレス'] || '');
+        officeName = String(info['勤務先名'] || '');
+        phone = String(info['携帯電話番号'] || '');
+      }
+    }
+    return {
+      applyId: String(r['申込ID'] || ''),
+      trainingId: String(r['研修ID'] || ''),
+      applicantType: ref.type,
+      applicantId: ref.id,
+      name: name,
+      email: email,
+      officeName: officeName,
+      phone: phone,
+      status: String(r['申込状態コード'] || ''),
+      applyDate: String(r['申込日時'] || ''),
+      cancelDate: String(r['取消日時'] || ''),
+      attendanceStatus: String(r['出欠状態コード'] || 'UNRECORDED'),
+      attendanceRecordedAt: String(r['出欠記録日時'] || ''),
+      attendanceRecordedBy: String(r['出欠記録者メール'] || ''),
+      adminMemo: String(r['事務局メモ'] || ''),
+      remarks: String(r['備考'] || ''),
+    };
+  });
+  return { applicants: result };
+}
+
+/**
+ * 出欠状態を 1 件記録。
+ */
+function saveAttendance_(payload) {
+  if (!checkAdminBySession_()) return { error: 'unauthorized' };
+  if (!payload || !payload.applyId || !payload.status) return { error: 'invalid payload' };
+  var validStatus = ['UNRECORDED', 'PRESENT', 'ABSENT', 'LATE', 'SAMEDAY_CANCEL'];
+  if (validStatus.indexOf(payload.status) < 0) return { error: 'invalid status' };
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_研修申込');
+  if (!sheet) return { error: 'sheet missing' };
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var cols = {};
+  for (var i = 0; i < headers.length; i++) cols[String(headers[i] || '')] = i;
+  if (cols['申込ID'] == null || cols['出欠状態コード'] == null) return { error: 'columns missing' };
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { error: 'no data' };
+  var data = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
+  var operatorEmail = Session.getActiveUser().getEmail();
+  var now = new Date().toISOString();
+  for (var r = 0; r < data.length; r++) {
+    if (String(data[r][cols['申込ID']] || '') === String(payload.applyId)) {
+      data[r][cols['出欠状態コード']] = payload.status;
+      if (cols['出欠記録日時'] != null) data[r][cols['出欠記録日時']] = now;
+      if (cols['出欠記録者メール'] != null) data[r][cols['出欠記録者メール']] = operatorEmail;
+      if (cols['更新日時'] != null) data[r][cols['更新日時']] = now;
+      sheet.getRange(r + 2, 1, 1, data[r].length).setValues([data[r]]);
+      clearAllDataCache_();
+      return { ok: true, applyId: payload.applyId, status: payload.status, recordedAt: now };
+    }
+  }
+  return { error: 'applyId not found' };
+}
+
+/**
+ * 出欠を一括更新（全員出席セット等）。
+ */
+function saveAttendanceBatch_(payload) {
+  if (!checkAdminBySession_()) return { error: 'unauthorized' };
+  if (!payload || !Array.isArray(payload.entries)) return { error: 'invalid payload' };
+  var results = [];
+  for (var i = 0; i < payload.entries.length; i++) {
+    results.push(saveAttendance_(payload.entries[i]));
+  }
+  return { results: results };
+}
+
+/**
+ * 管理者による申込者の手動追加（会員・職員）。
+ * payload: { trainingId, memberId? | staffId? }
+ */
+function addRosterEntry_(payload) {
+  if (!checkAdminBySession_()) return { error: 'unauthorized' };
+  if (!payload || !payload.trainingId) return { error: 'trainingId required' };
+  var trainingId = String(payload.trainingId).trim();
+  var memberId = String(payload.memberId || '').trim();
+  var staffId = String(payload.staffId || '').trim();
+  if (!memberId && !staffId) return { error: 'memberId or staffId required' };
+  if (memberId && staffId) return { error: 'memberId and staffId are mutually exclusive' };
+
+  var ss = getOrCreateDatabase_();
+  var operatorEmail = Session.getActiveUser().getEmail();
+  var now = new Date().toISOString();
+  var applyId = 'AP-' + Utilities.getUuid().slice(0, 8).toUpperCase();
+  var row = {
+    '申込ID': applyId,
+    '研修ID': trainingId,
+    '会員ID': memberId,
+    '職員ID': staffId,
+    '外部申込者ID': '',
+    '申込者区分コード': 'MEMBER',
+    '申込者ID': memberId || staffId,
+    '申込状態コード': 'APPLIED',
+    '申込日時': now,
+    '取消日時': '',
+    '備考': '管理者により手動追加 (' + operatorEmail + ')',
+    '出欠状態コード': 'UNRECORDED',
+    '出欠記録日時': '',
+    '出欠記録者メール': '',
+    '事務局メモ': String(payload.memo || ''),
+    '作成日時': now,
+    '更新日時': now,
+    '削除フラグ': false,
+  };
+  appendRowsByHeaders_(ss, 'T_研修申込', [row]);
+  clearAllDataCache_();
+  return { ok: true, applyId: applyId };
+}
+
+/**
+ * 管理者によるゲスト（非会員）申込追加。T_外部申込者 + T_研修申込 を 1 トランザクションで作成。
+ * payload: { trainingId, guest: { name, kana?, email?, phone?, officeName? } }
+ */
+function addGuestRosterEntry_(payload) {
+  if (!checkAdminBySession_()) return { error: 'unauthorized' };
+  if (!payload || !payload.trainingId) return { error: 'trainingId required' };
+  if (!payload.guest || !payload.guest.name) return { error: 'guest.name required' };
+
+  var ss = getOrCreateDatabase_();
+  var operatorEmail = Session.getActiveUser().getEmail();
+  var now = new Date().toISOString();
+
+  // 1. T_外部申込者 へ追加
+  var externalId = 'EXT-' + Utilities.getUuid().slice(0, 8).toUpperCase();
+  var externalRow = {
+    '外部申込者ID': externalId,
+    '氏名': String(payload.guest.name),
+    'フリガナ': String(payload.guest.kana || ''),
+    'メールアドレス': String(payload.guest.email || ''),
+    '電話番号': String(payload.guest.phone || ''),
+    '事業所名': String(payload.guest.officeName || ''),
+    '同意日時': now,
+    '作成日時': now,
+    '更新日時': now,
+    '削除フラグ': false,
+  };
+  appendRowsByHeaders_(ss, 'T_外部申込者', [externalRow]);
+
+  // 2. T_研修申込 へ追加
+  var applyId = 'AP-' + Utilities.getUuid().slice(0, 8).toUpperCase();
+  var applyRow = {
+    '申込ID': applyId,
+    '研修ID': String(payload.trainingId),
+    '会員ID': '',
+    '職員ID': '',
+    '外部申込者ID': externalId,
+    '申込者区分コード': 'EXTERNAL',
+    '申込者ID': externalId,
+    '申込状態コード': 'APPLIED',
+    '申込日時': now,
+    '取消日時': '',
+    '備考': '管理者によりゲスト追加 (' + operatorEmail + ')',
+    '出欠状態コード': 'UNRECORDED',
+    '出欠記録日時': '',
+    '出欠記録者メール': '',
+    '事務局メモ': String(payload.memo || ''),
+    '作成日時': now,
+    '更新日時': now,
+    '削除フラグ': false,
+  };
+  appendRowsByHeaders_(ss, 'T_研修申込', [applyRow]);
+  clearAllDataCache_();
+  return { ok: true, applyId: applyId, externalId: externalId };
+}
+
+/**
+ * 管理者による申込キャンセル。物理削除はせず、申込状態=CANCELED + 取消日時 を記録。
+ */
+function cancelRosterEntry_(payload) {
+  if (!checkAdminBySession_()) return { error: 'unauthorized' };
+  if (!payload || !payload.applyId) return { error: 'applyId required' };
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_研修申込');
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var cols = {};
+  for (var i = 0; i < headers.length; i++) cols[String(headers[i] || '')] = i;
+  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  var now = new Date().toISOString();
+  var operatorEmail = Session.getActiveUser().getEmail();
+  for (var r = 0; r < data.length; r++) {
+    if (String(data[r][cols['申込ID']] || '') === String(payload.applyId)) {
+      data[r][cols['申込状態コード']] = 'CANCELED';
+      data[r][cols['取消日時']] = now;
+      if (cols['備考'] != null) {
+        var prevNote = String(data[r][cols['備考']] || '');
+        data[r][cols['備考']] = prevNote + ' / 管理者キャンセル(' + operatorEmail + '): ' + String(payload.reason || '');
+      }
+      if (cols['更新日時'] != null) data[r][cols['更新日時']] = now;
+      sheet.getRange(r + 2, 1, 1, data[r].length).setValues([data[r]]);
+      clearAllDataCache_();
+      return { ok: true };
+    }
+  }
+  return { error: 'applyId not found' };
+}
+
+/**
+ * 申込レコードの編集（事務局メモのみ変更可能 - データ整合性のため）。
+ */
+function updateRosterEntry_(payload) {
+  if (!checkAdminBySession_()) return { error: 'unauthorized' };
+  if (!payload || !payload.applyId) return { error: 'applyId required' };
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_研修申込');
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var cols = {};
+  for (var i = 0; i < headers.length; i++) cols[String(headers[i] || '')] = i;
+  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  var now = new Date().toISOString();
+  for (var r = 0; r < data.length; r++) {
+    if (String(data[r][cols['申込ID']] || '') === String(payload.applyId)) {
+      if (payload.adminMemo !== undefined && cols['事務局メモ'] != null) {
+        data[r][cols['事務局メモ']] = String(payload.adminMemo || '').slice(0, 1000);
+      }
+      if (cols['更新日時'] != null) data[r][cols['更新日時']] = now;
+      sheet.getRange(r + 2, 1, 1, data[r].length).setValues([data[r]]);
+      clearAllDataCache_();
+      return { ok: true };
+    }
+  }
+  return { error: 'applyId not found' };
+}
+
+/**
+ * 研修の集計指標を返す（残席・区分内訳・出欠率・事業所別）。
+ */
+function getTrainingStats_(payload) {
+  if (!checkAdminBySession_()) return { error: 'unauthorized' };
+  if (!payload || !payload.trainingId) return { error: 'trainingId required' };
+  var trainingId = String(payload.trainingId).trim();
+  var detail = getTrainingRosterDetail_({ trainingId: trainingId });
+  if (detail.error) return detail;
+  var applicants = detail.applicants;
+
+  var ss = getOrCreateDatabase_();
+  var trainingRows = getRowsAsObjects_(ss, 'T_研修');
+  var training = null;
+  for (var i = 0; i < trainingRows.length; i++) {
+    if (String(trainingRows[i]['研修ID'] || '') === trainingId) { training = trainingRows[i]; break; }
+  }
+  var capacity = training ? Number(training['定員'] || 0) : 0;
+
+  var applied = applicants.filter(function(a) { return a.status === 'APPLIED'; });
+  var typeBreakdown = { MEMBER: 0, STAFF: 0, EXTERNAL: 0 };
+  var attendanceBreakdown = { UNRECORDED: 0, PRESENT: 0, ABSENT: 0, LATE: 0, SAMEDAY_CANCEL: 0 };
+  var officeBreakdown = {};
+  applied.forEach(function(a) {
+    typeBreakdown[a.applicantType] = (typeBreakdown[a.applicantType] || 0) + 1;
+    attendanceBreakdown[a.attendanceStatus] = (attendanceBreakdown[a.attendanceStatus] || 0) + 1;
+    var office = a.officeName || '(未設定)';
+    officeBreakdown[office] = (officeBreakdown[office] || 0) + 1;
+  });
+  var officeList = Object.keys(officeBreakdown).map(function(k) { return { officeName: k, count: officeBreakdown[k] }; });
+  officeList.sort(function(a, b) { return b.count - a.count; });
+
+  var recorded = applied.length - attendanceBreakdown.UNRECORDED;
+  var attended = attendanceBreakdown.PRESENT + attendanceBreakdown.LATE;
+  return {
+    trainingId: trainingId,
+    capacity: capacity,
+    applicantCount: applied.length,
+    canceledCount: applicants.length - applied.length,
+    remainingSlots: Math.max(capacity - applied.length, 0),
+    typeBreakdown: typeBreakdown,
+    attendanceBreakdown: attendanceBreakdown,
+    attendanceRate: recorded > 0 ? Math.round((attended / recorded) * 1000) / 10 : null,
+    cancellationRate: recorded > 0 ? Math.round((attendanceBreakdown.SAMEDAY_CANCEL / recorded) * 1000) / 10 : null,
+    officeBreakdown: officeList,
+  };
+}
+
+/**
+ * 会員ごとの受講履歴を返す。
+ * payload: { memberId? | staffId? | externalId? }
+ */
+function getMemberTrainingHistory_(payload) {
+  if (!checkAdminBySession_()) return { error: 'unauthorized' };
+  if (!payload) return { error: 'invalid payload' };
+  var memberId = String(payload.memberId || '').trim();
+  var staffId = String(payload.staffId || '').trim();
+  var externalId = String(payload.externalId || '').trim();
+  if (!memberId && !staffId && !externalId) return { error: 'memberId/staffId/externalId required' };
+
+  var ss = getOrCreateDatabase_();
+  var apps = getRowsAsObjects_(ss, 'T_研修申込').filter(function(r) {
+    if (toBoolean_(r['削除フラグ'])) return false;
+    var ref = getCanonicalApplicantRef_(r);
+    if (memberId && ref.type === 'MEMBER' && ref.id === memberId) return true;
+    if (staffId && ref.type === 'STAFF' && ref.id === staffId) return true;
+    if (externalId && ref.type === 'EXTERNAL' && ref.id === externalId) return true;
+    return false;
+  });
+  var trainingRows = getRowsAsObjects_(ss, 'T_研修');
+  var trainingMap = {};
+  trainingRows.forEach(function(t) { trainingMap[String(t['研修ID'] || '')] = t; });
+  var history = apps.map(function(r) {
+    var t = trainingMap[String(r['研修ID'] || '')] || {};
+    return {
+      applyId: String(r['申込ID'] || ''),
+      trainingId: String(r['研修ID'] || ''),
+      trainingName: String(t['研修名'] || ''),
+      trainingDate: String(t['開催日'] || ''),
+      location: String(t['開催場所'] || ''),
+      status: String(r['申込状態コード'] || ''),
+      attendanceStatus: String(r['出欠状態コード'] || 'UNRECORDED'),
+      applyDate: String(r['申込日時'] || ''),
+    };
+  });
+  history.sort(function(a, b) { return (b.trainingDate || '').localeCompare(a.trainingDate || ''); });
+  return { history: history };
+}
+
+/**
+ * セグメント送信（研修申込者をフィルタした上で一括メール送信 + 明細ログ）。
+ * payload: { trainingId, subject, body, from, segment: { type, attendance?, applicantTypes?, officeNames? } }
+ */
+function sendTrainingMailSegmented_(payload) {
+  if (!checkAdminBySession_()) return JSON.stringify({ success: false, error: 'unauthorized' });
+  if (!payload || !payload.trainingId) return JSON.stringify({ success: false, error: 'trainingId required' });
+  var subject = String(payload.subject || '').trim();
+  var body = String(payload.body || '').trim();
+  if (!subject || !body) return JSON.stringify({ success: false, error: 'subject and body required' });
+
+  var detail = getTrainingRosterDetail_({ trainingId: payload.trainingId });
+  if (detail.error) return JSON.stringify({ success: false, error: detail.error });
+
+  var segment = payload.segment || {};
+  var targets = detail.applicants.filter(function(a) {
+    if (a.status !== 'APPLIED') return false;
+    if (!a.email) return false;
+    if (segment.attendance && Array.isArray(segment.attendance) && segment.attendance.indexOf(a.attendanceStatus) < 0) return false;
+    if (segment.applicantTypes && Array.isArray(segment.applicantTypes) && segment.applicantTypes.indexOf(a.applicantType) < 0) return false;
+    if (segment.officeNames && Array.isArray(segment.officeNames) && segment.officeNames.indexOf(a.officeName) < 0) return false;
+    if (segment.applyIds && Array.isArray(segment.applyIds) && segment.applyIds.indexOf(a.applyId) < 0) return false;
+    return true;
+  });
+
+  var operatorEmail = Session.getActiveUser().getEmail();
+  var now = new Date().toISOString();
+  var logId = 'ML-' + Utilities.getUuid().slice(0, 12).toUpperCase();
+  var from = String(payload.from || operatorEmail);
+
+  var ss = getOrCreateDatabase_();
+  var trainingRows = getRowsAsObjects_(ss, 'T_研修');
+  var training = null;
+  for (var i = 0; i < trainingRows.length; i++) {
+    if (String(trainingRows[i]['研修ID'] || '') === payload.trainingId) { training = trainingRows[i]; break; }
+  }
+
+  var sent = 0;
+  var failed = 0;
+  var details = [];
+  for (var t = 0; t < targets.length; t++) {
+    var target = targets[t];
+    var mergedBody = body
+      .replace(/\{\{氏名\}\}/g, target.name)
+      .replace(/\{\{事業所名\}\}/g, target.officeName || '')
+      .replace(/\{\{研修名\}\}/g, training ? String(training['研修名'] || '') : '')
+      .replace(/\{\{開催日\}\}/g, training ? String(training['開催日'] || '') : '')
+      .replace(/\{\{会場\}\}/g, training ? String(training['開催場所'] || '') : '');
+    var mergedSubject = subject
+      .replace(/\{\{氏名\}\}/g, target.name)
+      .replace(/\{\{研修名\}\}/g, training ? String(training['研修名'] || '') : '');
+    var sendResult = 'SENT';
+    var errorDetail = '';
+    try {
+      var options = { name: payload.fromName || from };
+      if (from && from !== operatorEmail) options.from = from;
+      var deliveryRes = deliverMail_('TRAINING_REMINDER', target.email, mergedSubject, mergedBody, options);
+      if (deliveryRes && deliveryRes.sent) {
+        sent++;
+      } else {
+        sendResult = 'SUPPRESSED';
+        errorDetail = (deliveryRes && deliveryRes.reason) || 'suppressed';
+        failed++;
+      }
+    } catch (e) {
+      sendResult = 'FAILED';
+      errorDetail = String(e && e.message ? e.message : e);
+      failed++;
+    }
+    details.push({
+      明細ID: 'MLD-' + Utilities.getUuid().slice(0, 12).toUpperCase(),
+      ログID: logId,
+      研修ID: payload.trainingId,
+      受信者区分: target.applicantType,
+      受信者ID: target.applicantId,
+      受信者メール: target.email,
+      送信結果: sendResult,
+      エラー詳細: errorDetail,
+      作成日時: new Date().toISOString(),
+      削除フラグ: false,
+    });
+  }
+
+  // Header (T_メール送信ログ) + Detail (T_メール送信明細) 書込
+  try {
+    var logSs = getLogSs_();
+    appendRowsByHeaders_(logSs, 'T_メール送信ログ', [{
+      'ログID': logId,
+      '送信日時': now,
+      '送信者メール': operatorEmail,
+      '件名テンプレート': subject.slice(0, 200),
+      '宛先数': targets.length,
+      '成功数': sent,
+      'エラー数': failed,
+      '送信種別': 'TRAINING_BULK',
+      '研修ID': payload.trainingId,
+      '削除フラグ': false,
+    }]);
+    if (details.length > 0) {
+      appendRowsByHeaders_(logSs, 'T_メール送信明細', details);
+    }
+  } catch (e) {
+    Logger.log('[sendTrainingMailSegmented] log write failed: ' + e.message);
+  }
+
+  return JSON.stringify({ success: true, data: { logId: logId, sent: sent, failed: failed, total: targets.length } });
+}
+
+/**
+ * 研修ごとのメール送信ログ（ヘッダー＋明細）を返す。
+ */
+function getTrainingMailSendLogs_(payload) {
+  if (!checkAdminBySession_()) return { error: 'unauthorized' };
+  if (!payload || !payload.trainingId) return { error: 'trainingId required' };
+  var trainingId = String(payload.trainingId).trim();
+  try {
+    var logSs = getLogSs_();
+    var headerRows = getRowsAsObjects_(logSs, 'T_メール送信ログ').filter(function(r) {
+      if (toBoolean_(r['削除フラグ'])) return false;
+      return String(r['研修ID'] || '') === trainingId;
+    });
+    var headerLogIds = {};
+    headerRows.forEach(function(r) { headerLogIds[String(r['ログID'] || '')] = true; });
+    var detailRows = getRowsAsObjects_(logSs, 'T_メール送信明細').filter(function(r) {
+      if (toBoolean_(r['削除フラグ'])) return false;
+      return headerLogIds[String(r['ログID'] || '')] === true;
+    });
+    headerRows.sort(function(a, b) { return String(b['送信日時'] || '').localeCompare(String(a['送信日時'] || '')); });
+    return {
+      headers: headerRows.map(function(r) {
+        return {
+          logId: String(r['ログID'] || ''),
+          sentAt: String(r['送信日時'] || ''),
+          senderEmail: String(r['送信者メール'] || ''),
+          subjectTemplate: String(r['件名テンプレート'] || ''),
+          recipients: Number(r['宛先数'] || 0),
+          succeeded: Number(r['成功数'] || 0),
+          failed: Number(r['エラー数'] || 0),
+          type: String(r['送信種別'] || ''),
+        };
+      }),
+      details: detailRows.map(function(r) {
+        return {
+          detailId: String(r['明細ID'] || ''),
+          logId: String(r['ログID'] || ''),
+          recipientType: String(r['受信者区分'] || ''),
+          recipientId: String(r['受信者ID'] || ''),
+          recipientEmail: String(r['受信者メール'] || ''),
+          result: String(r['送信結果'] || ''),
+          errorDetail: String(r['エラー詳細'] || ''),
+          createdAt: String(r['作成日時'] || ''),
+        };
+      }),
+    };
+  } catch (e) {
+    return { error: 'log SS access failed: ' + e.message };
+  }
+}
+
+function auditTrainingApplicationsAfterV360_(ss) {
+  var sheet = ss.getSheetByName('T_研修申込');
+  if (!sheet || sheet.getLastRow() < 2) return { rows: 0, xorViolations: 0, legacyWarnings: 0 };
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var cols = {};
+  for (var i = 0; i < headers.length; i++) cols[String(headers[i] || '')] = i;
+  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  var xorViolations = 0;
+  var legacyWarnings = 0;
+  var sample = [];
+  for (var r = 0; r < data.length; r++) {
+    if (toBoolean_(data[r][cols['削除フラグ']])) continue;
+    var memberId = String(data[r][cols['会員ID']] || '').trim();
+    var staffId = String(data[r][cols['職員ID']] || '').trim();
+    var externalId = String(data[r][cols['外部申込者ID']] || '').trim();
+    var setCount = (memberId ? 1 : 0) + (staffId ? 1 : 0) + (externalId ? 1 : 0);
+    if (setCount === 0) {
+      // legacy: 申込者ID に頼っている行
+      var legacyId = String(data[r][cols['申込者ID']] || '').trim();
+      if (legacyId) {
+        legacyWarnings++;
+      } else {
+        xorViolations++;
+        if (sample.length < 5) sample.push({ row: r + 2, applyId: data[r][cols['申込ID']], issue: 'all FKs empty' });
+      }
+    } else if (setCount > 1) {
+      // 会員ID + 職員ID 併存は legacy STAFF 申込の正常状態として許容（既存 §4.12 と同パターン）
+      // 外部申込者ID + 他併存は違反
+      if (externalId && (memberId || staffId)) {
+        xorViolations++;
+        if (sample.length < 5) sample.push({ row: r + 2, applyId: data[r][cols['申込ID']], issue: 'external + internal combined' });
+      }
+    }
+  }
+  return { rows: data.length, xorViolations: xorViolations, legacyWarnings: legacyWarnings, violationSample: sample };
+}
+
 // ============================================================================
 // DRYRUN APPLICATION SCENARIOS (2026-05-17)
 //

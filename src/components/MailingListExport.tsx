@@ -138,6 +138,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
       if (keyword.trim()) {
         if (!matchesSearchQuery(keyword, [
           target.displayName,
+          target.kana || '', // v362: フリガナ検索（ひらがな/全角カナ/半角カナ いずれもヒット）
           target.memberId,
           target.officeName,
           MEMBER_TYPE_LABELS[target.memberType] || target.memberType,
@@ -460,7 +461,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
                 type="search"
                 value={keyword}
                 onChange={(event) => setKeyword(event.target.value)}
-                placeholder="氏名、会員番号、事業所名、種別、状態、年会費納入で検索"
+                placeholder="氏名、フリガナ、会員番号、事業所名、種別、状態、年会費納入で検索"
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
               />
             </label>

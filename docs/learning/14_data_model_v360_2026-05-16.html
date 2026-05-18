@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>データモデル v360 | 枚方市介護支援専門員連絡協議会 会員システム</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg: #0d1117; --bg-card: #161b22; --bg-card2: #1c2128;
+      --border: #30363d; --border-accent: #388bfd;
+      --text: #e6edf3; --text2: #8b949e; --text3: #6e7681;
+      --blue: #388bfd; --blue-bg: rgba(56,139,253,0.1); --blue-border: rgba(56,139,253,0.3);
+      --green: #3fb950; --green-bg: rgba(63,185,80,0.1); --green-border: rgba(63,185,80,0.3);
+      --yellow: #d29922; --yellow-bg: rgba(210,153,34,0.1); --yellow-border: rgba(210,153,34,0.3);
+      --violet: #a371f7; --violet-bg: rgba(163,113,247,0.1); --violet-border: rgba(163,113,247,0.3);
+      --red: #f85149; --red-bg: rgba(248,81,73,0.1); --red-border: rgba(248,81,73,0.3);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',sans-serif; font-size: 15px; line-height: 1.7; }
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
+    header { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 16px 0; position: sticky; top: 0; z-index: 100; }
+    header .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    .logo { font-size: 15px; font-weight: 700; }
+    .badge { background: var(--green-bg); border: 1px solid var(--green-border); color: var(--green); border-radius: 20px; padding: 2px 12px; font-size: 12px; font-weight: 600; }
+    .badge.warn { background: var(--yellow-bg); border-color: var(--yellow-border); color: var(--yellow); }
+    nav { display: flex; gap: 4px; flex-wrap: wrap; }
+    nav a { color: var(--text2); font-size: 13px; padding: 4px 10px; border-radius: 6px; }
+    nav a:hover { background: var(--bg-card2); color: var(--text); }
+    .hero { padding: 60px 0 40px; text-align: center; }
+    .hero h1 { font-size: 30px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 12px; }
+    .hero p { color: var(--text2); font-size: 16px; max-width: 720px; margin: 0 auto 24px; }
+    .hero-tags { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+    .tag { border-radius: 20px; padding: 4px 14px; font-size: 12px; font-weight: 600; border: 1px solid; }
+    .tag-blue { background: var(--blue-bg); border-color: var(--blue-border); color: var(--blue); }
+    .tag-green { background: var(--green-bg); border-color: var(--green-border); color: var(--green); }
+    .tag-yellow { background: var(--yellow-bg); border-color: var(--yellow-border); color: var(--yellow); }
+    .tag-violet { background: var(--violet-bg); border-color: var(--violet-border); color: var(--violet); }
+    section { padding: 40px 0; border-top: 1px solid var(--border); }
+    h2 { font-size: 22px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+    h3 { font-size: 16px; font-weight: 700; margin: 18px 0 10px; }
+    p { margin-bottom: 12px; }
+    p + p { margin-top: 0; }
+    ul, ol { margin: 8px 0 12px 20px; }
+    li { margin-bottom: 4px; }
+    code { background: var(--bg-card2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 12px; font-family: 'Cascadia Code','Fira Code',monospace; color: var(--green); }
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+    .card.blue { border-color: var(--blue-border); background: linear-gradient(135deg, rgba(56,139,253,0.06), var(--bg-card)); }
+    .card.green { border-color: var(--green-border); background: linear-gradient(135deg, rgba(63,185,80,0.06), var(--bg-card)); }
+    .card.yellow { border-color: var(--yellow-border); background: linear-gradient(135deg, rgba(210,153,34,0.06), var(--bg-card)); }
+    .card.red { border-color: var(--red-border); background: linear-gradient(135deg, rgba(248,81,73,0.06), var(--bg-card)); }
+    .card-title { font-size: 15px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 12px 0; }
+    th { background: var(--bg-card2); color: var(--text2); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; padding: 8px 12px; text-align: left; border: 1px solid var(--border); }
+    td { padding: 10px 12px; border: 1px solid var(--border); vertical-align: top; }
+    td.mono { font-family: 'Cascadia Code','Fira Code',monospace; font-size: 12px; }
+    .ok { color: var(--green); font-weight: 700; }
+    .ng { color: var(--red); font-weight: 700; }
+    .warn { color: var(--yellow); font-weight: 700; }
+    .mermaid { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin: 16px 0; overflow-x: auto; }
+    footer { padding: 32px 0; text-align: center; color: var(--text3); font-size: 13px; border-top: 1px solid var(--border); }
+    .toc { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; margin: 16px 0; }
+    .toc-title { font-size: 12px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+    .toc ol { margin: 0 0 0 20px; }
+    .toc li { margin-bottom: 2px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <div class="logo">📊 データモデル v360</div>
+      <span class="badge warn">本番未反映 (2026-05-16 提案)</span>
+      <nav>
+        <a href="#bp">①ベストプラクティス</a>
+        <a href="#reuse">②既存資産流用</a>
+        <a href="#er">③ER 図</a>
+        <a href="#changes">④変更詳細</a>
+        <a href="#migration">⑤移行</a>
+        <a href="#check">⑥整合性</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <h1>研修名簿・出欠・一括メール明細<br>データモデル設計</h1>
+      <p>v360 で追加される研修名簿管理・出欠記録・一括メール明細ログのデータモデル設計書。2026 年データベース設計ベストプラクティス（3NF, Header-Detail, Polymorphic 回避）に準拠し、既存資産を最大限再利用する。</p>
+      <div class="hero-tags">
+        <span class="tag tag-green">3NF 準拠</span>
+        <span class="tag tag-blue">2-FK XOR 移行</span>
+        <span class="tag tag-violet">Header-Detail</span>
+        <span class="tag tag-yellow">既存資産流用 3 件</span>
+      </div>
+    </section>
+
+    <section>
+      <div class="toc">
+        <div class="toc-title">目次</div>
+        <ol>
+          <li><a href="#bp">設計判断とベストプラクティス適用</a></li>
+          <li><a href="#reuse">既存資産流用判断（新規テーブル 3 件却下）</a></li>
+          <li><a href="#er">ER 図（差分）</a></li>
+          <li><a href="#changes">変更詳細（テーブル・列・マスタ）</a></li>
+          <li><a href="#migration">マイグレーション計画</a></li>
+          <li><a href="#check">RDB 整合性検証チェックリスト</a></li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="bp">
+      <h2>① 設計判断とベストプラクティス適用</h2>
+      <p>Web 検索（2026-05-16 取得）で確認した最新ベストプラクティスを本案件のスプレッドシート DB 上で適用可能な範囲で採用した。</p>
+
+      <table>
+        <thead><tr><th>原則</th><th>採用</th><th>根拠 / 補足</th></tr></thead>
+        <tbody>
+          <tr><td>3NF 正規化（非キー属性は PK のみに依存）</td><td class="ok">採用</td><td>業務アプリの定石。集計・更新異常を防ぐ</td></tr>
+          <tr><td>Soft delete（<code>削除フラグ</code> 列）</td><td class="ok">採用</td><td>既存ルール（<code>docs/03 §7</code>）を踏襲</td></tr>
+          <tr><td>Audit columns（<code>作成日時</code> / <code>更新日時</code>）</td><td class="ok">採用</td><td>全テーブル統一</td></tr>
+          <tr><td>Header-Detail パターン（バッチ vs 明細の分離）</td><td class="ok">採用</td><td>既存 <code>T_支払い</code> / <code>T_支払い明細</code> と一貫</td></tr>
+          <tr><td>マスタ参照 FK（enum 直書き回避）</td><td class="ok">採用</td><td><code>M_出欠状態</code> を新設。将来拡張に対応</td></tr>
+          <tr><td>Polymorphic association 回避（2-FK / 3-FK XOR）</td><td class="ok">採用</td><td>Sequelize / Hashrocket 2026 推奨。<code>T_研修申込</code> を 3-FK XOR に移行</td></tr>
+          <tr><td>命名規約（日本語列名・<code>T_</code> / <code>M_</code> プレフィックス）</td><td class="ok">採用</td><td>案件規約継承</td></tr>
+          <tr><td>FK enforcement（DB レベル制約）</td><td class="warn">部分採用</td><td>スプレッドシート DB のため API 層で <code>getMasterCodeSet_</code> 経由 enforcement</td></tr>
+          <tr><td>utf8mb4 / charset 統一</td><td class="warn">N/A</td><td>GAS Spreadsheet は内部 UTF-16 / export 時 UTF-8</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="reuse">
+      <h2>② 既存資産流用判断（新規テーブル 3 件却下）</h2>
+      <p>当初計画した新規テーブル 3 件は、既存資産との重複が判明したため新設を却下し、流用設計に切替えた。</p>
+
+      <div class="card green">
+        <div class="card-title">✅ 流用判断 #1: ゲスト枠 → <code>T_外部申込者</code></div>
+        <p>非会員（電話/紙申込・他体職員参加）の表現に <code>T_研修申込.ゲスト氏名 / ゲスト事業所</code> 列追加を当初計画したが、既に <strong><code>T_外部申込者</code> テーブルが存在</strong>（氏名/フリガナ/メール/電話/事業所名/同意日時）。重複新設を却下し、<code>T_研修申込.外部申込者ID</code> FK 経由で参照する設計に変更。</p>
+      </div>
+
+      <div class="card green">
+        <div class="card-title">✅ 流用判断 #2: メール送信ログ → <code>T_メール送信ログ</code> + 新規 <code>T_メール送信明細</code></div>
+        <p>メインDB に新規 <code>T_メール送信ログ</code> 作成を当初計画したが、既にログ SS に <strong>同名テーブルが存在</strong>（バッチサマリ用：宛先数/成功数/エラー数）。重複新設を却下し、<strong>Header-Detail パターン</strong>で既存を Header として維持、<code>T_メール送信明細</code> を per-recipient detail として新設。既存 <code>T_支払い</code> / <code>T_支払い明細</code> と同一設計パターン。</p>
+      </div>
+
+      <div class="card green">
+        <div class="card-title">✅ 流用判断 #3: メールテンプレート → <code>ROSTER_TEMPLATE_LIST</code></div>
+        <p>新規 <code>T_メールテンプレート</code> テーブル作成を当初計画したが、既に <strong>v316 でテンプレートライブラリ機構</strong>が <code>T_システム設定.ROSTER_TEMPLATE_LIST</code>（JSON 配列）として存在。重複新設を却下し、JSON エントリに <code>category: 'TRAINING_REMINDER' | 'TRAINING_THANKS' | 'TRAINING_CANCEL' | 'MAILING_LIST'</code> を追加するのみで流用。既存エントリは欠落時 <code>MAILING_LIST</code> 既定値で auto-migrate（v316 と同パターン）。</p>
+      </div>
+
+      <p><strong>結果</strong>: v360 で追加するのはマスタ <strong>1 件</strong>（M_出欠状態）+ テーブル <strong>1 件</strong>（T_メール送信明細）+ 列追加 <strong>5 列</strong>（T_研修申込: 外部申込者ID, 出欠状態コード, 出欠記録日時, 出欠記録者メール, 事務局メモ）+ 既存 1 列拡張（T_メール送信ログ.研修ID nullable）のみ。</p>
+    </section>
+
+    <section id="er">
+      <h2>③ ER 図（差分）</h2>
+      <p>v360 で変更・追加されるエンティティと関係のみを表示。既存の全体図は <code>docs/03_DATA_MODEL.md §2</code> を参照。</p>
+
+      <div class="mermaid">
+erDiagram
+  T_研修 {
+    string 研修ID PK
+    string 研修名
+    date 開催日
+    int 定員
+  }
+  T_研修申込 {
+    string 申込ID PK
+    string 研修ID FK
+    string 会員ID FK "v360 2-FK"
+    string 職員ID FK "v360 2-FK"
+    string 外部申込者ID FK "v360 新規"
+    string 出欠状態コード FK "v360 新規"
+    datetime 出欠記録日時 "v360 新規"
+    string 出欠記録者メール "v360 新規"
+    string 事務局メモ "v360 新規 管理者専用"
+    string 申込状態コード FK
+  }
+  T_外部申込者 {
+    string 外部申込者ID PK "既存・流用"
+    string 氏名
+    string 事業所名
+    string メールアドレス
+  }
+  M_出欠状態 {
+    string コード PK "v360 新規"
+    string 名称
+    int 表示順
+  }
+  T_メール送信ログ {
+    string ログID PK "既存(ログSS)"
+    datetime 送信日時
+    string 送信種別 "v360: +TRAINING_BULK"
+    string 研修ID FK "v360 拡張 nullable"
+    int 宛先数
+    int 成功数
+  }
+  T_メール送信明細 {
+    string 明細ID PK "v360 新規(ログSS)"
+    string ログID FK
+    string 研修ID FK
+    string 受信者区分 "MEMBER/STAFF/EXTERNAL"
+    string 受信者ID
+    string 受信者メール
+    string 送信結果 "SENT/FAILED"
+    string エラー詳細
+  }
+
+  T_研修申込 }o--|| T_研修 : "研修ID"
+  T_研修申込 }o--o| T_外部申込者 : "外部申込者ID (v360)"
+  T_研修申込 }o--|| M_出欠状態 : "出欠状態コード (v360)"
+  T_メール送信明細 }o--|| T_メール送信ログ : "ログID (v360)"
+  T_メール送信明細 }o--o| T_研修 : "研修ID (v360)"
+      </div>
+    </section>
+
+    <section id="changes">
+      <h2>④ 変更詳細</h2>
+
+      <h3>4.1 新規マスタ <code>M_出欠状態</code></h3>
+      <table>
+        <thead><tr><th>コード</th><th>名称</th><th>備考</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">UNRECORDED</td><td>未記録</td><td>既定値。出欠記録前のすべての行に適用</td></tr>
+          <tr><td class="mono">PRESENT</td><td>出席</td><td></td></tr>
+          <tr><td class="mono">ABSENT</td><td>欠席</td><td></td></tr>
+          <tr><td class="mono">LATE</td><td>遅刻</td><td></td></tr>
+          <tr><td class="mono">SAMEDAY_CANCEL</td><td>当日キャンセル</td><td>事前キャンセル（取消日時 set）とは別扱い</td></tr>
+        </tbody>
+      </table>
+      <p><strong>拡張性</strong>: 将来 <code>EARLY_LEAVE</code>（早退）/ <code>ONLINE</code>（オンライン参加）等の値を追加可能。enum 直書きを避けマスタ化することで破壊変更を伴わない。</p>
+
+      <h3>4.2 <code>T_研修申込</code> 列追加（5 列、末尾追加）</h3>
+      <table>
+        <thead><tr><th>列名</th><th>型</th><th>NULL</th><th>FK</th><th>用途</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">外部申込者ID</td><td>string</td><td>NULL</td><td>T_外部申込者</td><td>非会員申込時の人物 FK。2-FK XOR の一翼</td></tr>
+          <tr><td class="mono">出欠状態コード</td><td>string</td><td>NOT NULL</td><td>M_出欠状態</td><td>当日出欠の記録。既定値 <code>UNRECORDED</code></td></tr>
+          <tr><td class="mono">出欠記録日時</td><td>datetime ISO</td><td>NULL</td><td>-</td><td>監査用</td></tr>
+          <tr><td class="mono">出欠記録者メール</td><td>string</td><td>NULL</td><td>(T_管理者WL 論理参照)</td><td>スナップショット保存。WL 削除後も残存</td></tr>
+          <tr><td class="mono">事務局メモ</td><td>string(max 1000)</td><td>NULL</td><td>-</td><td>管理者専用フリーテキスト。<strong class="ng">会員側 API には絶対に出力しない</strong></td></tr>
+        </tbody>
+      </table>
+
+      <h3>4.3 2-FK XOR 制約（Polymorphic 回避）</h3>
+      <div class="card blue">
+        <div class="card-title">🔑 申込者識別の新規約</div>
+        <p>v360 以降、研修申込者の識別は 3 つの独立した FK 列の <strong>XOR 制約</strong>を正本とする。</p>
+        <table>
+          <thead><tr><th>申込者種別</th><th>会員ID</th><th>職員ID</th><th>外部申込者ID</th></tr></thead>
+          <tbody>
+            <tr><td>個人会員 / 賛助会員</td><td class="ok mono">non-empty</td><td class="mono">empty</td><td class="mono">empty</td></tr>
+            <tr><td>事業所職員</td><td class="mono">empty</td><td class="ok mono">non-empty</td><td class="mono">empty</td></tr>
+            <tr><td>非会員（公開ポータル）</td><td class="mono">empty</td><td class="mono">empty</td><td class="ok mono">non-empty</td></tr>
+          </tbody>
+        </table>
+        <p>旧 <code>申込者区分コード</code> / <code>申込者ID</code> は <strong>deprecated</strong>。物理列は保持し、新規書込み停止 + 読み取り時の派生のみ。v361 以降で物理削除を計画。</p>
+      </div>
+
+      <h3>4.4 新規テーブル <code>T_メール送信明細</code>（ログ SS）</h3>
+      <p>既存 <code>T_メール送信ログ</code>（バッチサマリ）の Detail として配置する Header-Detail パターン。受信者単位の送達結果記録。</p>
+      <table>
+        <thead><tr><th>列名</th><th>用途</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">明細ID</td><td>PK</td></tr>
+          <tr><td class="mono">ログID</td><td>FK → T_メール送信ログ</td></tr>
+          <tr><td class="mono">研修ID</td><td>FK → T_研修 (nullable, 研修関連送信時のみ)</td></tr>
+          <tr><td class="mono">受信者区分</td><td>MEMBER / STAFF / EXTERNAL</td></tr>
+          <tr><td class="mono">受信者ID</td><td>ポリモーフィック: 会員ID / 職員ID / 外部申込者ID（混在送信先のため不可避）</td></tr>
+          <tr><td class="mono">受信者メール</td><td>送信時点スナップショット</td></tr>
+          <tr><td class="mono">送信結果</td><td>SENT / FAILED</td></tr>
+          <tr><td class="mono">エラー詳細</td><td>FAILED 時のエラーメッセージ</td></tr>
+          <tr><td class="mono">作成日時 / 削除フラグ</td><td>audit / soft delete</td></tr>
+        </tbody>
+      </table>
+
+      <h3>4.5 既存資産の拡張（テーブル追加なし）</h3>
+      <ul>
+        <li><code>T_システム設定.ROSTER_TEMPLATE_LIST</code> JSON: 各エントリに <code>category</code> フィールド追加</li>
+        <li><code>T_メール送信ログ.送信種別</code>: 新値 <code>TRAINING_BULK</code> を追加（既存値変更なし）</li>
+        <li><code>T_メール送信ログ.研修ID</code>: nullable で新規列追加（研修関連時のみ populate）</li>
+      </ul>
+    </section>
+
+    <section id="migration">
+      <h2>⑤ マイグレーション計画</h2>
+      <table>
+        <thead><tr><th>ステップ</th><th>関数</th><th>実行方法</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td class="mono">runRebuildSchemaForV360</td><td>Apps Script editor から手動 1 回実行。<code>M_出欠状態</code> 作成・初期値投入、<code>T_研修申込</code> 5 列追加、<code>T_メール送信明細</code> 作成</td></tr>
+          <tr><td>2</td><td class="mono">migrateTrainingApplicationsToTwoFkForV360_</td><td>step 1 末尾で自動実行。EXTERNAL 行を <code>外部申込者ID</code> 列へ migrate</td></tr>
+          <tr><td>3</td><td class="mono">auditTrainingApplicationsAfterV360_</td><td>XOR 違反行があれば Logger 警告</td></tr>
+          <tr><td>4</td><td class="mono">migrateRosterTemplateLibraryCategoryForV360_</td><td>ROSTER_TEMPLATE_LIST JSON 各エントリに <code>category: 'MAILING_LIST'</code> auto-add</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="check">
+      <h2>⑥ RDB 整合性検証チェックリスト</h2>
+      <div class="card">
+        <ul style="list-style: none; margin-left: 0;">
+          <li>✅ 既存テーブルの列削除なし（v360 では物理削除なし、deprecated マーキングのみ）</li>
+          <li>✅ 既存列の型変更なし</li>
+          <li>✅ 既存 FK 削除なし</li>
+          <li>✅ v342 schema-shift guard により末尾列追加は data-shift しない</li>
+          <li>✅ 既存行の <code>出欠状態コード</code> 欠落は migration で <code>UNRECORDED</code> 一括設定</li>
+          <li>✅ 既存 EXTERNAL 行の <code>外部申込者ID</code> 欠落は migration で <code>申込者ID</code> から複写</li>
+          <li>✅ <code>M_出欠状態</code> マスタ参照は API 層 <code>getMasterCodeSet_</code> で enforcement</li>
+          <li>✅ <code>T_メール送信明細</code> の Header-Detail 削除は論理削除のみ</li>
+          <li>✅ <code>事務局メモ</code> は会員境界 audit（<code>audit-member-boundary.mjs</code>）で漏洩検査</li>
+        </ul>
+      </div>
+
+      <h3>セキュリティ境界</h3>
+      <ul>
+        <li><code>事務局メモ</code> 列は管理者専用。<code>fetchAllDataFromDb_</code> の会員向けフィルタで除外。</li>
+        <li><code>T_メール送信明細.受信者メール</code> はログ SS に保存され、ログ SS のアクセスは admin split のみ。会員 split から参照不可。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>📚 参照ドキュメント</h2>
+      <ul>
+        <li><a href="../03_DATA_MODEL.md">docs/03_DATA_MODEL.md</a> — データモデル設計書本体（§11 v360 Addendum）</li>
+        <li><a href="11_system_overview_v269_2026-04-26.html">11_system_overview_v269</a> — v269 時点のシステム概要</li>
+        <li><a href="../09_DEPLOYMENT_POLICY.md">docs/09_DEPLOYMENT_POLICY.md</a> — schema 変更 release 手順</li>
+        <li><a href="../204_INCIDENT_DB_SCHEMA_SHIFT_2026-05-12.md">docs/204</a> — schema-shift incident（再発防止策の根拠）</li>
+      </ul>
+
+      <h3>Web 検索ソース（2026-05-16 取得）</h3>
+      <ul>
+        <li><a href="https://erflow.io/en/blog/database-schema-design-best-practices" target="_blank" rel="noopener">Database Schema Design Best Practices for 2026 — ER Flow</a></li>
+        <li><a href="https://oneuptime.com/blog/post/2026-03-31-mysql-mysql-schema-design-best-practices/view" target="_blank" rel="noopener">How to Handle MySQL Schema Design Best Practices (2026-03)</a></li>
+        <li><a href="https://hashrocket.com/blog/posts/modeling-polymorphic-associations-in-a-relational-database" target="_blank" rel="noopener">Modeling Polymorphic Associations in a Relational Database — Hashrocket</a></li>
+        <li><a href="https://sequelize.org/docs/v7/associations/polymorphic-associations/" target="_blank" rel="noopener">Polymorphic Associations — Sequelize v7</a></li>
+        <li><a href="https://medium.com/@pujanjani30/soft-delete-in-database-strategies-problems-and-solutions-6a91dec9cd0d" target="_blank" rel="noopener">Soft Delete in Database: Strategies, Problems, and Solutions (2026-03)</a></li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    枚方市介護支援専門員連絡協議会 会員システム — データモデル v360 (2026-05-16) — 本番未反映
+  </footer>
+
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'dark', themeVariables: { primaryColor: '#1c2128', primaryTextColor: '#e6edf3', lineColor: '#388bfd' }, er: { useMaxWidth: true } });
+  </script>
+</body>
+</html>

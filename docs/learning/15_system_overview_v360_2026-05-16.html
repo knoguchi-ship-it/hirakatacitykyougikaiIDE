@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>システム概要 v360 | 枚方市介護支援専門員連絡協議会 会員システム</title>
+  <style>
+    :root {
+      --bg: #0d1117; --bg-card: #161b22; --bg-card2: #1c2128;
+      --border: #30363d; --border-accent: #388bfd;
+      --text: #e6edf3; --text2: #8b949e; --text3: #6e7681;
+      --blue: #388bfd; --blue-bg: rgba(56,139,253,0.1); --blue-border: rgba(56,139,253,0.3);
+      --green: #3fb950; --green-bg: rgba(63,185,80,0.1); --green-border: rgba(63,185,80,0.3);
+      --yellow: #d29922; --yellow-bg: rgba(210,153,34,0.1); --yellow-border: rgba(210,153,34,0.3);
+      --violet: #a371f7; --violet-bg: rgba(163,113,247,0.1); --violet-border: rgba(163,113,247,0.3);
+      --red: #f85149; --red-bg: rgba(248,81,73,0.1);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',sans-serif; font-size: 15px; line-height: 1.7; }
+    a { color: var(--blue); text-decoration: none; } a:hover { text-decoration: underline; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
+    header { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 16px 0; position: sticky; top: 0; z-index: 100; }
+    header .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    .logo { font-size: 15px; font-weight: 700; }
+    .badge { background: var(--green-bg); border: 1px solid var(--green-border); color: var(--green); border-radius: 20px; padding: 2px 12px; font-size: 12px; font-weight: 600; }
+    .badge.warn { background: var(--yellow-bg); border-color: var(--yellow-border); color: var(--yellow); }
+    nav { display: flex; gap: 4px; flex-wrap: wrap; }
+    nav a { color: var(--text2); font-size: 13px; padding: 4px 10px; border-radius: 6px; }
+    nav a:hover { background: var(--bg-card2); color: var(--text); }
+    .hero { padding: 60px 0 40px; text-align: center; }
+    .hero h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 12px; }
+    .hero p { color: var(--text2); font-size: 16px; max-width: 720px; margin: 0 auto 24px; }
+    .hero-tags { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+    .tag { border-radius: 20px; padding: 4px 14px; font-size: 12px; font-weight: 600; border: 1px solid; }
+    .tag-blue { background: var(--blue-bg); border-color: var(--blue-border); color: var(--blue); }
+    .tag-green { background: var(--green-bg); border-color: var(--green-border); color: var(--green); }
+    .tag-yellow { background: var(--yellow-bg); border-color: var(--yellow-border); color: var(--yellow); }
+    .tag-violet { background: var(--violet-bg); border-color: var(--violet-border); color: var(--violet); }
+    section { padding: 40px 0; border-top: 1px solid var(--border); }
+    h2 { font-size: 22px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+    h2 .sec-icon { font-size: 20px; }
+    h3 { font-size: 16px; font-weight: 700; margin: 18px 0 10px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    @media (max-width: 700px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+    .card.blue { border-color: var(--blue-border); background: linear-gradient(135deg, rgba(56,139,253,0.06), var(--bg-card)); }
+    .card.green { border-color: var(--green-border); background: linear-gradient(135deg, rgba(63,185,80,0.06), var(--bg-card)); }
+    .card.yellow { border-color: var(--yellow-border); background: linear-gradient(135deg, rgba(210,153,34,0.06), var(--bg-card)); }
+    .card.violet { border-color: var(--violet-border); background: linear-gradient(135deg, rgba(163,113,247,0.06), var(--bg-card)); }
+    .card-icon { font-size: 28px; margin-bottom: 10px; }
+    .card-title { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+    .card-desc { color: var(--text2); font-size: 13px; line-height: 1.6; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 8px 0; }
+    th { background: var(--bg-card2); color: var(--text2); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; padding: 8px 12px; text-align: left; border: 1px solid var(--border); }
+    td { padding: 10px 12px; border: 1px solid var(--border); vertical-align: top; }
+    td code { background: var(--bg-card2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 12px; font-family: 'Cascadia Code','Fira Code',monospace; }
+    .flow { display: flex; gap: 0; flex-wrap: wrap; align-items: center; margin: 16px 0; }
+    .flow-step { background: var(--bg-card2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; font-size: 13px; white-space: nowrap; }
+    .flow-arrow { color: var(--text3); padding: 0 8px; font-size: 18px; }
+    .info { background: var(--blue-bg); border: 1px solid var(--blue-border); border-radius: 8px; padding: 12px 16px; font-size: 13px; margin: 12px 0; }
+    .warn { background: var(--yellow-bg); border: 1px solid var(--yellow-border); border-radius: 8px; padding: 12px 16px; font-size: 13px; margin: 12px 0; }
+    .success { background: var(--green-bg); border: 1px solid var(--green-border); border-radius: 8px; padding: 12px 16px; font-size: 13px; margin: 12px 0; }
+    ul { padding-left: 20px; color: var(--text2); font-size: 14px; }
+    ul li { margin-bottom: 6px; } ul li strong { color: var(--text); }
+    .version-badge { display: inline-block; background: var(--violet-bg); border: 1px solid var(--violet-border); color: var(--violet); border-radius: 4px; padding: 1px 8px; font-size: 11px; font-weight: 700; vertical-align: middle; }
+    footer { background: var(--bg-card); border-top: 1px solid var(--border); padding: 24px 0; text-align: center; color: var(--text3); font-size: 12px; }
+  </style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="logo">枚方市介護支援専門員連絡協議会 会員システム</div>
+    <span class="badge warn">v360 提案 — 2026-05-16</span>
+    <nav>
+      <a href="#overview">概要</a>
+      <a href="#roster">研修名簿 v360</a>
+      <a href="#auth">認証</a>
+      <a href="#email">メール</a>
+      <a href="#admin">管理コンソール</a>
+      <a href="#release">リリース履歴</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="hero" style="text-align: center;">
+    <h1>システム全体概要 v360</h1>
+    <p>v269 概要を踏襲し、v270〜v359 までの本番リリース、および v360 で追加される研修名簿・出欠・一括メール明細機能を反映した最新版。</p>
+    <div class="hero-tags">
+      <span class="tag tag-blue">React 19 + TypeScript</span>
+      <span class="tag tag-green">Google Apps Script</span>
+      <span class="tag tag-yellow">Tailwind CSS</span>
+      <span class="tag tag-violet">Spreadsheet DB</span>
+      <span class="tag tag-blue">PBKDF2 + Pepper</span>
+      <span class="tag tag-green">SheetJS xlsx</span>
+    </div>
+  </div>
+
+  <section id="overview">
+    <h2><span class="sec-icon">🏗️</span>システム構成（3 境界）</h2>
+    <div class="grid-3">
+      <div class="card blue"><div class="card-icon">🌐</div><div class="card-title">公開ポータル</div><div class="card-desc">誰でもアクセス可能。研修申込・入会申込・変更/退会申請。</div></div>
+      <div class="card green"><div class="card-icon">👤</div><div class="card-title">会員マイページ</div><div class="card-desc">会員ログイン。プロフィール・研修申込・年会費確認・パスワード変更・受講履歴 v360。</div></div>
+      <div class="card violet"><div class="card-icon">⚙️</div><div class="card-title">管理者コンソール</div><div class="card-desc">Google アカウント + WL 制。会員管理・研修管理・<strong>名簿/出欠 v360</strong>・メール送信・各種設定。</div></div>
+    </div>
+
+    <h3 style="margin-top: 24px;">現行本番（v359 / v360 提案）</h3>
+    <table>
+      <tr><th>用途</th><th>プロジェクト</th><th>アクセス制御</th><th>GAS Version</th></tr>
+      <tr><td>公開ポータル</td><td>統合（公開専用）</td><td>ANYONE_ANONYMOUS</td><td><code>@317</code> (v359) → <code>@318</code> 予定</td></tr>
+      <tr><td>会員マイページ</td><td>会員 split</td><td>ANYONE_ANONYMOUS</td><td><code>@74</code> (v359) → <code>@75</code> 予定</td></tr>
+      <tr><td>管理者コンソール</td><td>管理者 split</td><td>DOMAIN</td><td><code>@115</code> (v359) → <code>@116</code> 予定</td></tr>
+    </table>
+  </section>
+
+  <section id="roster">
+    <h2><span class="sec-icon">🎓</span>研修名簿管理（v360 新規）</h2>
+    <p>研修ごとの申込者一覧・出欠管理・手動追加・ゲスト枠・xlsx 出力・集計を統合した名簿管理機能を新設。</p>
+
+    <h3>機能フロー</h3>
+    <div class="flow" style="flex-wrap:wrap;">
+      <div class="flow-step" style="background:var(--blue-bg);border-color:var(--blue-border);">研修選択</div><div class="flow-arrow">→</div>
+      <div class="flow-step">名簿タブを開く</div><div class="flow-arrow">→</div>
+      <div class="flow-step" style="background:var(--green-bg);border-color:var(--green-border);">集計カード表示<br><small>申込/定員/残/区分内訳/出欠率</small></div><div class="flow-arrow">→</div>
+      <div class="flow-step">行内チェックイン</div><div class="flow-arrow">→</div>
+      <div class="flow-step" style="background:var(--yellow-bg);border-color:var(--yellow-border);">xlsx 出力 / 一括メール</div>
+    </div>
+
+    <div class="grid-2" style="margin-top:16px;">
+      <div class="card">
+        <h3>名簿ビュー</h3>
+        <ul>
+          <li><strong>列</strong>: 連番・氏名・事業所・申込者区分・連絡先・申込日・申込状態・<strong>出欠状態 v360</strong>・<strong>事務局メモ v360（管理者専用）</strong></li>
+          <li><strong>検索・絞り込み</strong>: 氏名/事業所/区分/出欠状態で絞り込み</li>
+          <li><strong>一括操作</strong>: 全員出席セット / 全員欠席セット</li>
+          <li><strong>個別操作</strong>: 行内ドロップダウンで出欠変更（即時保存）</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>申込者の管理者追加</h3>
+        <ul>
+          <li><strong>会員選択モーダル</strong>: 会員管理の検索 UI 流用。電話・紙申込の代理登録に対応</li>
+          <li><strong>ゲスト枠</strong>: 会員未登録者を氏名・事業所・連絡先のみで追加。<code>T_外部申込者</code> + <code>T_研修申込.外部申込者ID</code> で記録</li>
+          <li><strong>キャンセル</strong>: 管理者が代理キャンセル可能（取消日時に手動記録）</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card violet" style="margin-top:16px;">
+      <h3>出欠 5 状態（M_出欠状態 マスタ）</h3>
+      <table>
+        <tr><th>コード</th><th>名称</th><th>用途</th></tr>
+        <tr><td><code>UNRECORDED</code></td><td>未記録</td><td>既定値</td></tr>
+        <tr><td><code>PRESENT</code></td><td>出席</td><td></td></tr>
+        <tr><td><code>ABSENT</code></td><td>欠席</td><td></td></tr>
+        <tr><td><code>LATE</code></td><td>遅刻</td><td></td></tr>
+        <tr><td><code>SAMEDAY_CANCEL</code></td><td>当日キャンセル</td><td>事前キャンセル（取消日時）と別扱い</td></tr>
+      </table>
+    </div>
+
+    <h3>受講履歴（会員詳細タブ・v360 新規）</h3>
+    <p>会員管理コンソール → 会員詳細モーダルに「受講履歴」タブを追加。過去受講した研修・出欠状態・受講時所属を一覧表示。検索センタリック。</p>
+
+    <h3>xlsx 出力</h3>
+    <p>SheetJS（UMD bundle）で client-side 生成。会場受付名簿（A4 縦）/ 事務局保管用（全列詳細）の 2 種類。CSV (UTF-8 BOM) も併用可能。<strong>導入時罠回避</strong>: <code>vite-plugin-singlefile</code> 互換性は v351 ロールバック事例があるため、bundle 後の admin shell 起動テストを必須化。</p>
+  </section>
+
+  <section id="email">
+    <h2><span class="sec-icon">📧</span>一括メール送信（v360 拡張）</h2>
+    <div class="info">既存 <code>TrainingMailSender</code>（v316 〜）を拡張し、テンプレート流用・セグメント送信・送達ログ明細を追加。</div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3>テンプレートライブラリ（流用拡張）</h3>
+        <p>既存の <code>T_システム設定.ROSTER_TEMPLATE_LIST</code>（v316〜）に <code>category</code> フィールドを追加して流用。新規テーブルは作らない。</p>
+        <ul>
+          <li><code>TRAINING_REMINDER</code> リマインダ</li>
+          <li><code>TRAINING_THANKS</code> 開催後お礼</li>
+          <li><code>TRAINING_CANCEL</code> キャンセル通知</li>
+          <li><code>MAILING_LIST</code> 既存名簿出力テンプレ（移行互換）</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>セグメント送信</h3>
+        <p>送信対象を以下の条件で絞り込み可能:</p>
+        <ul>
+          <li>申込者全員（既存）</li>
+          <li>申込者区分（個人/賛助/職員/外部）</li>
+          <li>出欠状態（未記録のみ / 出席者のみ / 欠席者のみ）</li>
+          <li>事業所ごと</li>
+          <li>個別選択（既存）</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <h3>送達ログ（Header-Detail パターン）</h3>
+      <p>既存 <code>T_メール送信ログ</code>（バッチサマリ）を <strong>Header</strong> として維持、新規 <code>T_メール送信明細</code> を <strong>Detail</strong> として追加。誰にいつ何が届いたか・誰の送信が失敗したかを per-recipient 単位で記録。問合せ対応・監査の正本。</p>
+      <p style="color:var(--text2);font-size:13px;">既存設計 <code>T_支払い</code> / <code>T_支払い明細</code> と一貫した設計パターン。</p>
+    </div>
+
+    <h3 style="margin-top: 18px;">差込変数（v360 拡張）</h3>
+    <p style="color:var(--text2);font-size:13px;"><code>{{氏名}}</code> <code>{{事業所名}}</code>（既存）+ <code>{{研修名}}</code> <code>{{開催日}}</code> <code>{{会場}}</code> <code>{{参加費}}</code>（v360 追加）</p>
+  </section>
+
+  <section id="auth">
+    <h2><span class="sec-icon">🔒</span>認証・認可（v269 から不変）</h2>
+    <div class="grid-2">
+      <div class="card">
+        <h3>会員認証</h3>
+        <ul>
+          <li>ログインID + パスワード</li>
+          <li>PBKDF2-HMAC-SHA256 + Pepper (Script Property)</li>
+          <li>v359: ログインID保存 / パスワード表示切替 / 再設定メール導線</li>
+          <li>セッション: CacheService TTL 30分</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>管理者認証</h3>
+        <ul>
+          <li>Google アカウント + WL 照合</li>
+          <li>権限: MASTER / ADMIN / TRAINING_MANAGER / TRAINING_REGISTRAR / GENERAL</li>
+          <li>5 段階権限モデル</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="admin">
+    <h2><span class="sec-icon">⚙️</span>管理コンソール（v360 反映）</h2>
+    <div class="grid-2">
+      <div>
+        <h3>主要機能（v360 追加 / 拡張）</h3>
+        <table>
+          <tr><th>機能</th><th>説明</th></tr>
+          <tr><td>研修名簿コンソール <span class="version-badge">v360新</span></td><td>研修ごとの名簿閲覧・出欠記録・手動追加・xlsx 出力・集計</td></tr>
+          <tr><td>会員受講履歴 <span class="version-badge">v360新</span></td><td>会員詳細モーダル → 「受講履歴」タブ</td></tr>
+          <tr><td>研修一括メール（拡張）<span class="version-badge">v360</span></td><td>テンプレ流用・セグメント送信・送達ログ明細</td></tr>
+          <tr><td>会員管理コンソール</td><td>全会員の検索・閲覧・編集・退会処理</td></tr>
+          <tr><td>変更申請管理コンソール</td><td>変更・退会・職員追加/除籍申請の承認・却下</td></tr>
+          <tr><td>年会費管理コンソール</td><td>年度別納入状況の検索・登録・更新・申し送りメモ</td></tr>
+          <tr><td>名簿出力コンソール</td><td>PDF/Excel 名簿出力</td></tr>
+        </table>
+      </div>
+      <div>
+        <h3>v270〜v359 主要追加</h3>
+        <ul>
+          <li>v272〜v358: 案内 PDF サムネイル pipeline 構築（最終 v358 で高解像度 PNG モーダル）</li>
+          <li>v295〜v297: 役員管理・請求管理・XOR 制約モデル</li>
+          <li>v309: 年会費管理に申し送りホワイトボード</li>
+          <li>v316〜v319: テンプレートライブラリ・サイドバー 5 グループ・パンくず・PENDING バッジ</li>
+          <li>v320〜v332: モバイル AAA・パスワード規約・viewport meta</li>
+          <li>v333〜v340: 役員請求 2 系統・移行ログ・会員ステータスメモ</li>
+          <li>v342: schema-shift 構造的再発防止（writeSheetHeaders_ name-based shift）</li>
+          <li>v359: 会員ログイン高速化・パスワード再設定メール</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="release">
+    <h2><span class="sec-icon">🚀</span>リリース履歴（直近・v340〜v360）</h2>
+    <table>
+      <tr><th>Ver</th><th>日付</th><th>概要</th></tr>
+      <tr><td><strong>v360</strong> 提案</td><td>2026-05-16</td><td><strong>研修名簿・出欠・一括メール明細</strong>。M_出欠状態 / T_研修申込 2-FK化 / T_メール送信明細 追加。詳細: <a href="14_data_model_v360_2026-05-16.html">データモデル v360</a></td></tr>
+      <tr><td>v359</td><td>2026-05-16</td><td>会員ログイン高速化・パスワード再設定メール導線</td></tr>
+      <tr><td>v358</td><td>2026-05-16</td><td>案内 PDF lightbox 高解像度 PNG モーダル化（最終形）</td></tr>
+      <tr><td>v342</td><td>2026-05-13</td><td>DB schema-shift 構造的再発防止</td></tr>
+      <tr><td>v340</td><td>2026-05-12</td><td>会員ステータスメモ（管理者専用）</td></tr>
+      <tr><td>v335</td><td>2026-05-12</td><td>入会申込キュー化・同一人物移行ログ（T_人物統合ログ）</td></tr>
+      <tr><td>v333</td><td>2026-05-12</td><td>役員請求 2 系統化（活動報告 / 経費請求）</td></tr>
+      <tr><td>v320</td><td>2026-05-11</td><td>モバイル AAA・viewport meta（全 3 ポータル）</td></tr>
+      <tr><td>v297</td><td>2026-05-04</td><td>事業所職員役員割当て・XOR 制約モデル</td></tr>
+      <tr><td>v269</td><td>2026-04-26</td><td>データ管理コンソール 論理削除フィルタ（前世代基準）</td></tr>
+    </table>
+    <div class="info" style="margin-top:12px;">全リリース履歴の正本は <code>HANDOVER.md</code> §4 を参照。</div>
+  </section>
+</div>
+
+<footer>
+  <p>枚方市介護支援専門員連絡協議会 会員システム — システム概要 v360 (2026-05-16 提案 / 本番未反映)</p>
+  <p style="margin-top:4px;">正本は <code>HANDOVER.md</code> と <code>docs/</code> 各正本文書を参照。</p>
+</footer>
+
+</body>
+</html>

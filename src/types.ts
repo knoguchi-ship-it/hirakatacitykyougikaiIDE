@@ -141,6 +141,27 @@ export interface SystemSettings {
   staffAddRepEmailEnabled?: boolean;
   staffAddRepEmailSubject?: string;
   staffAddRepEmailBody?: string;
+  // v368: 変更申請ワークフローのテンプレ化
+  applicationReceiptEnabled?: boolean;
+  applicationReceiptSubject?: string;
+  applicationReceiptBody?: string;
+  approvalNotificationEnabled?: boolean;
+  approvalNotificationSubject?: string;
+  approvalNotificationBody?: string;
+  rejectionNotificationEnabled?: boolean;
+  rejectionNotificationSubject?: string;
+  rejectionNotificationBody?: string;
+  // v371: メール送信 4 階層ガード（GLOBAL / MODE / ALLOWLIST / CATEGORY）
+  mailGlobalEnabled?: boolean;
+  mailDeliveryMode?: 'LIVE' | 'REDIRECT' | 'SUPPRESS';
+  mailRedirectAllowlist?: string; // カンマ区切り
+  trainingApplyReceiptEnabled?: boolean;
+  trainingReminderEnabled?: boolean;
+  bulkMailEnabled?: boolean;
+  authOtpEnabled?: boolean;
+  memberUpdateConfirmEnabled?: boolean;
+  withdrawalConfirmEnabled?: boolean;
+  passwordResetEnabled?: boolean;
 }
 
 export interface AnnualFeeAdminRecord {
@@ -149,8 +170,14 @@ export interface AnnualFeeAdminRecord {
   memberId: string;
   memberType: MemberType;
   displayName: string;
+  /** v362: 検索用フリガナ（T_会員 セイ + メイ）。事業所会員は空 */
+  kana?: string;
   officeName: string; // 事業所会員=事業所名 / 個人・賛助会員=勤務先事業所名
   year: number;
+  /** v364: 前年度（year - 1）の納入状況。NOT_ELIGIBLE=前年度に有効会員でなかった */
+  previousYear?: number;
+  previousYearEligible?: boolean;
+  previousYearStatus?: 'PAID' | 'UNPAID' | 'NOT_ELIGIBLE';
   status: PaymentStatus;
   confirmedDate?: string;
   amount: number;
@@ -187,6 +214,8 @@ export interface AnnualFeeAdminSummary {
   unpaidCount: number;
   paidAmount: number;
   unpaidAmount: number;
+  /** v364: 前年度未納者数（前年度有効 かつ UNPAID/未記録） */
+  previousYearUnpaidCount?: number;
   memberTypeBreakdown: AnnualFeeAdminSummaryByType[];
 }
 
@@ -201,6 +230,8 @@ export interface AnnualFeeAdminData {
 export interface AdminDashboardMemberRow {
   memberId: string;
   displayName: string;
+  /** v362: 検索用フリガナ（T_会員 セイ + メイ）。事業所会員は空 */
+  kana?: string;
   memberType: MemberType;
   officeName: string; // 事業所会員=事業所名 / 個人・賛助会員=勤務先事業所名（キーワード検索の対象）
   latestFeeStatus: PaymentStatus;

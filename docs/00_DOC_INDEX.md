@@ -1,7 +1,7 @@
 # Document Index
 
-更新日: 2026-05-16
-現行バージョン: `v359`（integrated-public `@317` x2 / member split `@74` / admin split `@115`）
+更新日: 2026-05-18
+現行バージョン: `v370`（integrated-public `@329` x2 / member split `@87` / admin split `@129`）
 
 ## 1. Entry Points
 
@@ -32,7 +32,11 @@
 
 | 文書 | 内容 |
 |---|---|
-| `docs/222_RELEASE_STATE_v359_2026-05-16.md` | **最新本番** v359。会員ログイン高速化、ログインID保存、パスワード表示切替、パスワード再設定メール導線。integrated-public `@317` x2 / member `@74` / admin `@115` |
+| `docs/226_HANDOVER_DRYRUN_2026-05-17.md` | **最新引継ぎ** dryRun synthetic transaction フレームワーク導入、6/7 シナリオ PASS、operator 残作業と Git 整理方針 |
+| `docs/225_RELEASE_STATE_v360_to_v370_2026-05-17.md` | **最新本番** v360〜v370 統合正本。現行本番 v370、integrated-public `@329` x2 / member `@87` / admin `@129` |
+| `docs/224_RESUME_v360_2026-05-16.md` | v360/v361 作業再開ガイド。schema migration と実ブラウザ確認の operator 残作業 |
+| `docs/223_RELEASE_STATE_v360_2026-05-16.md` | v360 研修名簿・出欠管理・一括メール明細・DB schema 変更の詳細 |
+| `docs/222_RELEASE_STATE_v359_2026-05-16.md` | v359。会員ログイン高速化、ログインID保存、パスワード表示切替、パスワード再設定メール導線。integrated-public `@317` x2 / member `@74` / admin `@115` |
 | `docs/221_RELEASE_STATE_v354_to_v358_2026-05-16.md` | v358。PDF lightbox を高解像度 PNG (w2000) モーダル化、`extractDriveFileId_` 共通ヘルパー導入。v354〜v358 の lightbox UX 試行 4 サイクルを統合した release state。integrated-public `@316` x2 / member `@73` / admin `@114` |
 | `docs/220_RELEASE_STATE_v353_2026-05-15.md` | v353。会員マイページ「受付中の研修」を A4 縦 PDF サムネイル + 詳細情報の 2 カラムカードへ改修、member `@68` |
 | `docs/219_RELEASE_STATE_v352_2026-05-14.md` | v352。公開ポータル研修一覧を A4 縦 PDF サムネイル + 詳細情報の 2 カラムカードへ改修、integrated-public `@311` x2 |

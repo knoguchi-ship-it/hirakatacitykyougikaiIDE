@@ -52,6 +52,91 @@ export interface TrainingApplicantRow {
   applyDate: string;
 }
 
+// v360: 研修名簿（出欠・事務局メモ込み）
+export type AttendanceStatus = 'UNRECORDED' | 'PRESENT' | 'ABSENT' | 'LATE' | 'SAMEDAY_CANCEL';
+export type ApplicantType = 'MEMBER' | 'STAFF' | 'EXTERNAL';
+
+export interface TrainingRosterRow {
+  applyId: string;
+  trainingId: string;
+  applicantType: ApplicantType;
+  applicantId: string;
+  name: string;
+  email: string;
+  officeName: string;
+  phone: string;
+  status: string;
+  applyDate: string;
+  cancelDate: string;
+  attendanceStatus: AttendanceStatus;
+  attendanceRecordedAt: string;
+  attendanceRecordedBy: string;
+  adminMemo: string;
+  remarks: string;
+}
+
+export interface TrainingStats {
+  trainingId: string;
+  capacity: number;
+  applicantCount: number;
+  canceledCount: number;
+  remainingSlots: number;
+  typeBreakdown: Record<ApplicantType, number>;
+  attendanceBreakdown: Record<AttendanceStatus, number>;
+  attendanceRate: number | null;
+  cancellationRate: number | null;
+  officeBreakdown: Array<{ officeName: string; count: number }>;
+}
+
+export interface TrainingHistoryEntry {
+  applyId: string;
+  trainingId: string;
+  trainingName: string;
+  trainingDate: string;
+  location: string;
+  status: string;
+  attendanceStatus: AttendanceStatus;
+  applyDate: string;
+}
+
+export interface TrainingMailSegment {
+  attendance?: AttendanceStatus[];
+  applicantTypes?: ApplicantType[];
+  officeNames?: string[];
+  applyIds?: string[];
+}
+
+export interface TrainingMailSegmentedPayload {
+  trainingId: string;
+  subject: string;
+  body: string;
+  from: string;
+  fromName?: string;
+  segment: TrainingMailSegment;
+}
+
+export interface TrainingMailLogHeader {
+  logId: string;
+  sentAt: string;
+  senderEmail: string;
+  subjectTemplate: string;
+  recipients: number;
+  succeeded: number;
+  failed: number;
+  type: string;
+}
+
+export interface TrainingMailLogDetail {
+  detailId: string;
+  logId: string;
+  recipientType: ApplicantType;
+  recipientId: string;
+  recipientEmail: string;
+  result: 'SENT' | 'FAILED';
+  errorDetail: string;
+  createdAt: string;
+}
+
 // v196: PDF名簿出力
 export interface RosterTarget {
   memberId: string;
@@ -79,6 +164,8 @@ export interface BulkMailRecipient {
   firstName: string;
   name: string;               // 姓名（スペースなし、Drive照合キー）
   displayName: string;        // 姓 + ' ' + 名（表示用）
+  /** v362: 検索用フリガナ（姓カナ + 名カナ）。フリガナ検索対応 */
+  kana?: string;
   email: string;
   officeName: string;
   memberStatus: string;
@@ -126,6 +213,8 @@ export interface MailingListTarget {
   targetKey: string;
   memberId: string;
   displayName: string;
+  /** v362: 検索用フリガナ */
+  kana?: string;
   memberType: 'INDIVIDUAL' | 'BUSINESS' | 'SUPPORT';
   memberStatus: string;
   annualFeeStatus: 'PAID' | 'UNPAID'; // NONE は廃止済み（v314〜 記録なし=UNPAID扱い）

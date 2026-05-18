@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-05-16
-Production: `v359` (会員ログイン高速化、ログインID保存、パスワード表示切替、パスワード再設定メール導線) / integrated-public fixed deployments `@317` x2 / member split `@74` / admin split `@115`
+Updated: 2026-05-18
+Production: `v370` (srcMemberId reference error hotfix; admin HEAD includes v370.1 cleanup helpers) / integrated-public fixed deployments `@329` x2 / member split `@87` / admin split `@129`
 
 ## 1. Purpose
 
@@ -17,15 +17,15 @@ Production: `v359` (会員ログイン高速化、ログインID保存、パス�
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@317` (`v359`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@317` (`v359`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@329` (`v370`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@329` (`v370`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@74` (`v359`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@115` (`v359`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@87` (`v370`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@129` (`v370`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -142,7 +142,23 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-05-16 `v359` ← current production
+### 2026-05-17 `v370` ← current production
+- Scope: v368 の Logger.log 内 `srcMemberId` undefined 参照を `sourceMemberId` に修正し、事業所入会申込承認時の partial 登録クラッシュを解消。admin HEAD には v370.1 の partial application 診断/cleanup helper も含む。
+- Integrated fixed deployments: `@329` x2
+- Member split: `@87`
+- Admin split: `@129`
+- Detail: `docs/225_RELEASE_STATE_v360_to_v370_2026-05-17.md`
+- Pending: `runRebuildSchemaForV360` の operator 実行、`runCleanupPartialBusinessV370_53779700` の operator 実行と再承認、v361 以降の実ブラウザ確認。
+
+### 2026-05-16 `v361`
+- Scope: v360 の研修名簿・出欠管理・一括メール明細を本番反映後、SheetJS xlsx dynamic import が `import.meta.url` を bundle に残して admin/member shell をクラッシュさせたため、xlsx を完全除去して UTF-8 BOM 付き CSV 出力へ切替。`scripts/compress-html.mjs` に build 時 `import.meta` 残存検知 gate を追加。
+- Integrated fixed deployments: `@319` x2
+- Member split: `@76`
+- Admin split: `@117`
+- Detail: `docs/224_RESUME_v360_2026-05-16.md` and `docs/223_RELEASE_STATE_v360_2026-05-16.md`
+- Pending: admin split で `runRebuildSchemaForV360` を 1 回実行し、Logger.log の `xorViolations: 0` と実ブラウザ動作を確認する。
+
+### 2026-05-16 `v359`
 - Scope: 会員ログイン UX / パスワード再設定を改善。会員ログインは `memberLogin` で認証を先に完了し、会員ポータルデータは遅延ロードへ変更。ログイン画面にログインID保存、パスワード表示/非表示、`ログインID + 登録メールアドレス` によるパスワード再設定メール送信を追加。事業所職員アカウントの登録メール正本は `T_事業所職員.メールアドレス`。確認コードは 30 分有効の短期キャッシュ hash 保存。
 - Integrated fixed deployments: `@317` x2
 - Member split: `@74`

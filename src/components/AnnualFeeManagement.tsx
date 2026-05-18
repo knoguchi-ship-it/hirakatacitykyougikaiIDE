@@ -11,6 +11,7 @@ import {
 } from '../types';
 import { matchesSearchQuery } from '../utils/search';
 import SharedMemoPanel from './SharedMemoPanel';
+import CopyButton from './CopyButton';
 
 interface Props {
   onChanged?: () => Promise<void> | void;
@@ -364,7 +365,8 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
       if (failedKeys && !failedKeys.has(buildRowKey(record))) return false;
       if (statusFilter !== 'ALL' && record.status !== statusFilter) return false;
       if (memberTypeFilter !== 'ALL' && record.memberType !== memberTypeFilter) return false;
-      return matchesSearchQuery(query, [record.memberId, record.displayName, record.officeName, toMemberTypeLabel(record.memberType)]);
+      // v362: フリガナ検索（ひらがな/全角カナ/半角カナ いずれもヒット）
+      return matchesSearchQuery(query, [record.memberId, record.displayName, record.kana || '', record.officeName, toMemberTypeLabel(record.memberType)]);
     });
   }, [data.records, failedKeys, memberTypeFilter, query, statusFilter]);
 
@@ -619,7 +621,8 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
           </p>
         </div>
 
-        <SharedMemoPanel api={api} adminPermissionLevel={adminPermissionLevel ?? null} />
+        {/* v366: 年会費管理コンソールでは sticky 表示 (sm+) */}
+        <SharedMemoPanel api={api} adminPermissionLevel={adminPermissionLevel ?? null} sticky />
 
         {error && (
           <div role="alert" className="flex items-center justify-between text-red-600 bg-red-50 border border-red-200 rounded px-4 py-3">
@@ -694,7 +697,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
                 className="w-full border border-slate-300 rounded px-3 py-2"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="会員名・会員ID・事業所名（勤務先含む）・会員種別で検索"
+                placeholder="会員名・フリガナ・会員ID・事業所名（勤務先含む）・会員種別で検索"
               />
             </div>
             <div>
@@ -711,7 +714,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
               <div className="text-xs text-slate-500">対象会員数</div>
               <div className="mt-1 text-xl font-semibold text-slate-800">{summary.eligibleCount} 件</div>
@@ -731,6 +734,14 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
               <div className="text-xs text-amber-700">未納会費合計</div>
               <div className="mt-1 text-xl font-semibold text-amber-800">{formatCurrency(summary.unpaidAmount)}</div>
+            </div>
+            {/* v364: 前年度未納者数カード */}
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3" title={`${data.selectedYear - 1}年度の年会費が未納のため、注意が必要な会員数`}>
+              <div className="text-xs text-red-700 flex items-center gap-1">
+                <span aria-hidden="true">⚠</span>
+                <span>前年度({data.selectedYear - 1}年度)未納</span>
+              </div>
+              <div className="mt-1 text-xl font-semibold text-red-800">{summary.previousYearUnpaidCount ?? 0} 件</div>
             </div>
           </div>
 
@@ -828,24 +839,68 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
                     };
                     const dirty = isDirty(record, draft) || rawDateTexts[key] !== undefined;
                     const stripe = index % 2 === 1 ? 'bg-slate-50/60' : 'bg-white';
+                    // v364: 前年度未納行ハイライト（前年度有効 かつ UNPAID/未記録）
+                    const prevUnpaid = record.previousYearEligible === true && record.previousYearStatus === 'UNPAID';
+                    const rowBg = dirty ? 'bg-amber-50/50' : (prevUnpaid ? 'bg-red-50' : stripe);
+                    const rowBorder = prevUnpaid ? 'border-l-4 border-red-400' : '';
+                    const prevYearTooltip = prevUnpaid && record.previousYear
+                      ? `${record.previousYear}年度の年会費が未納のため、注意が必要です`
+                      : '';
                     return (
-                      <tr key={key} className={`${dirty ? 'bg-amber-50/50' : stripe} hover:bg-primary-50/40 transition-colors`}>
+                      <tr key={key} className={`${rowBg} ${rowBorder} hover:bg-primary-50/40 transition-colors`}>
                         <td className="px-3 py-2.5 text-sm text-slate-900 align-top">
-                          {onOpenMember ? (
-                            <button
-                              type="button"
-                              className="text-left hover:text-primary-600 hover:underline transition-colors"
-                              onClick={() => onOpenMember(record.memberId)}
-                            >
-                              <div className="font-medium">{record.displayName}</div>
-                              <div className="text-xs text-slate-400 tabular-nums">{record.memberId}</div>
-                            </button>
-                          ) : (
-                            <>
-                              <div className="font-medium">{record.displayName}</div>
-                              <div className="text-xs text-slate-400 tabular-nums">{record.memberId}</div>
-                            </>
-                          )}
+                          {/* v363.2: クリックでモーダル表示 / v364: 前年度未納警告 / v365: 会員名コピーボタン */}
+                          <div className="flex items-start gap-1">
+                            <div className="flex-1 min-w-0">
+                              {onOpenMember ? (
+                                <button
+                                  type="button"
+                                  className="text-left hover:text-primary-600 hover:underline transition-colors w-full"
+                                  onClick={() => onOpenMember(record.memberId)}
+                                  aria-label={`${record.displayName} の詳細を開く${prevUnpaid && record.previousYear ? '（' + record.previousYear + '年度未納）' : ''}`}
+                                >
+                                  <div className="font-medium flex items-center gap-1.5">
+                                    {prevUnpaid && (
+                                      <span
+                                        role="img"
+                                        aria-label={`${record.previousYear || ''}年度未納`}
+                                        title={prevYearTooltip}
+                                        className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-100 text-red-700 text-xs flex-shrink-0"
+                                      >
+                                        ⚠
+                                      </span>
+                                    )}
+                                    <span className="break-words">{record.displayName}</span>
+                                  </div>
+                                  <div className="text-xs text-slate-400 tabular-nums">{record.memberId}</div>
+                                  {prevUnpaid && record.previousYear && (
+                                    <div className="text-xs text-red-700 mt-0.5 font-medium" title={prevYearTooltip}>
+                                      {record.previousYear}年度未納
+                                    </div>
+                                  )}
+                                </button>
+                              ) : (
+                                <>
+                                  <div className="font-medium flex items-center gap-1.5">
+                                    {prevUnpaid && (
+                                      <span role="img" aria-label={`${record.previousYear || ''}年度未納`} title={prevYearTooltip} className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-100 text-red-700 text-xs flex-shrink-0">⚠</span>
+                                    )}
+                                    <span className="break-words">{record.displayName}</span>
+                                  </div>
+                                  <div className="text-xs text-slate-400 tabular-nums">{record.memberId}</div>
+                                  {prevUnpaid && record.previousYear && (
+                                    <div className="text-xs text-red-700 mt-0.5 font-medium">{record.previousYear}年度未納</div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                            <CopyButton
+                              value={record.displayName}
+                              label="会員名をコピー"
+                              size="xs"
+                              className="flex-shrink-0 mt-0.5"
+                            />
+                          </div>
                         </td>
                         <td className="px-3 py-2.5 text-sm align-top">
                           <span className={`inline-block text-xs font-medium rounded-full px-2 py-0.5 ${memberTypeBadge(record.memberType)}`}>

@@ -194,8 +194,13 @@ const ChangeRequestConsole: React.FC = () => {
     setActionError(prev => ({ ...prev, [req.requestId]: '' }));
     try {
       const result = await callApi<any>('approveAdminChangeRequest', { requestId: req.requestId, note: note[req.requestId] || '' });
+      // v367: inner success が false の場合は失敗として扱う（旧: 常に成功 alert 表示していた）
+      if (result && result.success === false) {
+        setActionError(prev => ({ ...prev, [req.requestId]: result.error || '承認に失敗しました' }));
+        return;
+      }
       setActionResult(prev => ({ ...prev, [req.requestId]: result?.result || result || {} }));
-      window.alert(`承認処理が完了しました。\n${JSON.stringify(result?.result || result || {}, null, 2)}`);
+      window.alert(`承認処理が完了しました。\n申請ID: ${req.requestId}`);
       await load();
     } catch (e) {
       setActionError(prev => ({ ...prev, [req.requestId]: e instanceof Error ? e.message : '承認に失敗しました' }));

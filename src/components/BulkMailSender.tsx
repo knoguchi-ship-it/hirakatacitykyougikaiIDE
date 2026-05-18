@@ -104,6 +104,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
         : (r.memberStatus === 'ACTIVE' ? '在籍' : r.memberStatus === 'WITHDRAWAL_SCHEDULED' ? '退会予定' : '退会');
       return matchesSearchQuery(recipientQuery, [
         r.displayName,
+        r.kana || '', // v362: フリガナ検索（ひらがな/全角カナ/半角カナ いずれもヒット）
         r.email,
         r.memberId,
         r.officeName,
@@ -425,7 +426,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
               className={inputCls}
               value={recipientQuery}
               onChange={e => setRecipientQuery(e.target.value)}
-              placeholder="氏名・メールアドレス・会員番号・事業所名で検索"
+              placeholder="氏名・フリガナ・メールアドレス・会員番号・事業所名で検索"
             />
           </div>
 

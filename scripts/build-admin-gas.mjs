@@ -491,6 +491,18 @@ function buildAdminCode(source) {
     'regenerateThumbnailForTraining',
     // v357: PDF lightbox 用 bytes proxy
     'getFileBytes',
+    // v360: 研修名簿・出欠・受講履歴・一括メール明細
+    'getTrainingRosterDetail',
+    'saveAttendance',
+    'saveAttendanceBatch',
+    'addRosterEntry',
+    'addGuestRosterEntry',
+    'cancelRosterEntry',
+    'updateRosterEntry',
+    'getTrainingStats',
+    'getMemberTrainingHistory',
+    'sendTrainingMailSegmented',
+    'getTrainingMailSendLogs',
   ]);
   code = removeIfBlock(code, "isMemberAction && !LOGIN_ONLY_MEMBER_ACTIONS[action]");
   // v349: regenerateAllThumbnails は clasp run 専用の admin backfill ツール。
@@ -502,6 +514,14 @@ function buildAdminCode(source) {
     'regenerateAllThumbnails',
     'processPendingThumbnails',
     'setupPendingThumbnailsTrigger',
+    // v370.1: PENDING 入会申込の診断とクリーンアップ（operator が Apps Script editor から実行）
+    'diagnoseStaleApplicationForV370',
+    'diagnoseAllStaleApplicationsForV370',
+    'cleanupStaleBusinessApplicationForV370',
+    // v370.1 one-shot: 53779700 専用 wrapper（次リリースで削除）
+    'runCleanupPartialBusinessV370_53779700',
+    // v360 schema migration (operator が Apps Script editor から 1 回 Run)
+    'runRebuildSchemaForV360',
     // 2026-05-17: dryRun synthetic transaction test runner (clasp run 専用)
     'dryRunApplicationScenarios',
     'previewDryRunApplicationCleanup',
@@ -521,6 +541,12 @@ function buildAdminCode(source) {
     'regenerateAllThumbnails',
     'processPendingThumbnails',
     'setupPendingThumbnailsTrigger',
+    // v370.1
+    'diagnoseStaleApplicationForV370',
+    'diagnoseAllStaleApplicationsForV370',
+    'cleanupStaleBusinessApplicationForV370',
+    'runCleanupPartialBusinessV370_53779700',
+    'runRebuildSchemaForV360',
     'dryRunApplicationScenarios',
     'previewDryRunApplicationCleanup',
     'executeDryRunApplicationCleanup',

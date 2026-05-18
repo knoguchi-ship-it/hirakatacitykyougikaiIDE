@@ -3,6 +3,7 @@ import { Training, TrainingFee, TrainingFieldConfig, DEFAULT_FIELD_CONFIG, DEFAU
 import { api } from '../services/api';
 import { PlusIcon, TrashIcon } from './Icons';
 import TrainingMailSender from './TrainingMailSender';
+import TrainingRoster from './TrainingRoster';
 import PdfThumbnail from './PdfThumbnail';
 import PdfPreviewModal from './PdfPreviewModal';
 
@@ -62,7 +63,7 @@ const buildEmptyForm = (fieldConfig: TrainingFieldConfig): Training => {
 const PHONE_PATTERN = /^[0-9+\-() ー−]{6,}$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-type PanelView = 'form' | 'mail';
+type PanelView = 'form' | 'mail' | 'roster';
 
 const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldConfig }) => {
   const effectiveDefault = defaultFieldConfig ?? DEFAULT_FIELD_CONFIG;
@@ -365,26 +366,43 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
         </div>
 
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm">
-          <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+          <div className="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-lg font-bold text-slate-800">
-              {panelView === 'mail' ? `メール送信: ${form.title || ''}` : (isNew ? '新規研修登録' : `編集: ${form.title || '(未入力)'}`)}
+              {panelView === 'mail' ? `メール送信: ${form.title || ''}` :
+               panelView === 'roster' ? `名簿: ${form.title || ''}` :
+               (isNew ? '新規研修登録' : `編集: ${form.title || '(未入力)'}`)}
             </h3>
             {!isNew && (
-              <button
-                type="button"
-                onClick={() => setPanelView(panelView === 'form' ? 'mail' : 'form')}
-                className={`text-sm px-3 py-1.5 rounded-lg border font-medium transition-colors ${
-                  panelView === 'mail'
-                    ? 'border-primary-500 bg-primary-50 text-primary-700 hover:bg-primary-100'
-                    : 'border-slate-300 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {panelView === 'mail' ? '← 研修編集に戻る' : '申込者一覧・メール送信'}
-              </button>
+              <div className="flex gap-1 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setPanelView('form')}
+                  className={`text-sm px-3 py-2 min-h-[44px] rounded-lg border font-medium transition-colors ${panelView === 'form' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
+                >編集</button>
+                <button
+                  type="button"
+                  onClick={() => setPanelView('roster')}
+                  className={`text-sm px-3 py-2 min-h-[44px] rounded-lg border font-medium transition-colors ${panelView === 'roster' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
+                >名簿 / 出欠</button>
+                <button
+                  type="button"
+                  onClick={() => setPanelView('mail')}
+                  className={`text-sm px-3 py-2 min-h-[44px] rounded-lg border font-medium transition-colors ${panelView === 'mail' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
+                >メール送信</button>
+              </div>
             )}
           </div>
 
-          {panelView === 'mail' && !isNew ? (
+          {panelView === 'roster' && !isNew ? (
+            <div className="p-4">
+              <TrainingRoster
+                trainingId={form.id}
+                trainingTitle={form.title}
+                trainingDate={form.date}
+                onBack={() => setPanelView('form')}
+              />
+            </div>
+          ) : panelView === 'mail' && !isNew ? (
             <div className="p-4">
               <TrainingMailSender
                 trainingId={form.id}

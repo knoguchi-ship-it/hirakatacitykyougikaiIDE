@@ -32,6 +32,19 @@ function compressHtmlFile(inputPath) {
   }
 
   const scriptContent = match[1];
+
+  // v360-fix: new Function() で eval するため、import.meta を含む npm lib が
+  // 混入していたら admin shell が parse 時に SyntaxError で死ぬ（v351 と同罠）。
+  // build 時点で検知して abort する。
+  const importMetaMatches = scriptContent.match(/import\.meta(\.\w+)?/g);
+  if (importMetaMatches && importMetaMatches.length > 0) {
+    console.error(`[compress-html] ❌ ABORT: ${path.basename(inputPath)} bundle に import.meta が ${importMetaMatches.length} 件残存しています。`);
+    console.error(`[compress-html]    検出例: ${importMetaMatches.slice(0, 5).join(', ')}${importMetaMatches.length > 5 ? '...' : ''}`);
+    console.error(`[compress-html]    new Function() で eval されるため admin shell が parse 時にクラッシュします（v351 / v360 と同罠）。`);
+    console.error(`[compress-html]    対策: import.meta を含む npm パッケージを依存から削除するか、@rollup/plugin-replace でリテラル置換してください。`);
+    process.exit(1);
+  }
+
   const scriptBytes = Buffer.from(scriptContent, 'utf8');
 
   const compressed = zlib.deflateRawSync(scriptBytes, { level: zlib.constants.Z_BEST_COMPRESSION });

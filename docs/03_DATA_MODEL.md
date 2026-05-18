@@ -1,7 +1,9 @@
 # データモデル設計書（スプレッドシートDB版）
 
-更新日: 2026-05-13
-スキーマバージョン: 2026-05-12-member-status-note-v1（v340 本番反映済み）
+更新日: 2026-05-17
+スキーマバージョン: 2026-05-16-training-roster-v360（v370 本番コード反映済み／admin split の手動 schema migration `runRebuildSchemaForV360` のみ未実行）
+
+> v360 で追加した研修名簿・出欠管理・一括メール明細ログのスキーマ変更を反映。v361 で xlsx を除去し CSV 出力へ切替。v362〜v370 はスキーマ追加（kana 列、previousYear*、APPLICATION_RECEIPT_* 設定キー）と bug fix のみで物理 schema 変更なし。詳細は §9 スキーマバージョン履歴 / §11 v360 Addendum / §12 v362-v370 Addendum を参照。
 
 ---
 
@@ -79,6 +81,12 @@ M_申込者区分 {
 M_管理者権限 {
   string コード PK
   string 名称
+}
+M_出欠状態 {
+  string コード PK
+  string 名称
+  int 表示順
+  boolean 有効フラグ
 }
 M_組織マスタ {
   string 組織コード PK
@@ -233,12 +241,18 @@ T_研修 {
 T_研修申込 {
   string 申込ID PK
   string 研修ID FK
-  string 申込者区分コード FK
-  string 申込者ID
-  string 職員ID FK
+  string 会員ID FK "2-FK v360"
+  string 職員ID FK "2-FK v360"
+  string 外部申込者ID FK "2-FK v360 新規"
+  string 申込者区分コード FK "deprecated v360"
+  string 申込者ID "deprecated v360"
   string 申込状態コード FK
   datetime 申込日時
   datetime 取消日時
+  string 出欠状態コード FK "v360新規"
+  datetime 出欠記録日時 "v360新規"
+  string 出欠記録者メール "v360新規"
+  string 事務局メモ "v360新規 管理者専用"
   string 備考
   datetime 作成日時
   datetime 更新日時
@@ -448,6 +462,21 @@ T_メール送信ログ {
   int 成功数
   int エラー数
   string 送信種別
+  string 研修ID FK "v360拡張 nullable"
+  boolean 削除フラグ
+}
+
+%% v360 新規: T_メール送信ログ の per-recipient 明細
+T_メール送信明細 {
+  string 明細ID PK
+  string ログID FK
+  string 研修ID FK "nullable"
+  string 受信者区分 "MEMBER/STAFF/EXTERNAL"
+  string 受信者ID "ポリモーフィック: 会員ID/職員ID/外部申込者ID"
+  string 受信者メール
+  string 送信結果 "SENT/FAILED"
+  string エラー詳細
+  datetime 作成日時
   boolean 削除フラグ
 }
 
@@ -469,9 +498,15 @@ T_管理者Googleホワイトリスト }o--o| T_認証アカウント : "紐付�
 T_管理者Googleホワイトリスト }o--o| T_会員 : "紐付け会員ID"
 
 T_研修申込 }o--|| T_研修 : "研修ID"
-T_研修申込 }o--|| M_申込者区分 : "申込者区分コード"
-T_研修申込 }o--o| T_事業所職員 : "職員ID"
+T_研修申込 }o--o| T_会員 : "会員ID(v360 2-FK)"
+T_研修申込 }o--o| T_事業所職員 : "職員ID(v360 2-FK)"
+T_研修申込 }o--o| T_外部申込者 : "外部申込者ID(v360 2-FK 新規)"
+T_研修申込 }o--|| M_出欠状態 : "出欠状態コード(v360新規)"
+T_研修申込 }o--|| M_申込者区分 : "申込者区分コード(deprecated v360)"
 T_研修申込 }o--o| M_申込状態 : "申込状態コード"
+
+T_メール送信明細 }o--|| T_メール送信ログ : "ログID(v360新規)"
+T_メール送信明細 }o--o| T_研修 : "研修ID(v360新規)"
 
 T_研修 }o--|| M_研修状態 : "研修状態コード"
 
@@ -573,7 +608,20 @@ T_ログイン履歴 }o--o| T_認証アカウント : "認証ID"
 - `M_支払い種別マスタ`: 役員報酬、活動費、謝礼、交通費、消耗品費、その他などの支払い・請求種別。
 - 管理者ポータルのシステム設定マスタ管理から CRUD 可能。ただし参照中のマスタ削除はバックエンドで拒否する。
 
-### 3.14 `M_業務分類` — v333 追加
+### 3.14 `M_出欠状態` — v360 追加
+
+- 用途: 研修申込者の当日出欠状態を表す。`T_研修申込.出欠状態コード` から参照される。
+- 列: `コード`, `名称`, `表示順`, `有効フラグ`
+- 初期値:
+  - `UNRECORDED`（未記録）— 既定値。出欠記録前のすべての行に適用。
+  - `PRESENT`（出席）
+  - `ABSENT`（欠席）
+  - `LATE`（遅刻）
+  - `SAMEDAY_CANCEL`（当日キャンセル）
+- 拡張性: 将来 `EARLY_LEAVE`（早退）/`ONLINE`（オンライン参加）等を追加可能。enum 直書きを避けマスタ化することで破壊変更を伴わない。
+- 削除制約: 既存 `T_研修申込` から参照中のコードはマスタ管理 UI 上で削除不可とする（既存マスタ `M_組織マスタ` 等と同パターン）。
+
+### 3.15 `M_業務分類` — v333 追加
 
 - 用途: 役員の活動報告で選択する業務内容と単価を管理する。
 - `組織コード`: 活動部（組織）に紐づく。会員側では、選択した活動部に属する有効な業務分類だけを表示する。
@@ -643,8 +691,32 @@ T_ログイン履歴 }o--o| T_認証アカウント : "認証ID"
 
 ### 4.6 `T_研修申込` — メインDB
 
-- `申込者区分コード + 申込者ID` がポリモーフィック設計の正本（`MEMBER` = 会員ID, `EXTERNAL` = 外部申込者ID）。
-- `会員ID` 列は後方互換として保持。
+#### 人物識別モデル（v360 で 2-FK 化）
+
+v360 以降、研修申込者の識別は **3 つの独立した FK 列の XOR 制約**を正本とする（2026 年データベース設計ベストプラクティスに準拠）。
+
+| 申込者種別 | `会員ID` | `職員ID` | `外部申込者ID` |
+|---|---|---|---|
+| 個人会員 / 賛助会員 | non-empty | empty | empty |
+| 事業所職員 | empty | non-empty | empty |
+| 非会員（公開ポータル経由） | empty | empty | non-empty |
+
+- 3 列のうち**ちょうど 1 つ**が non-empty。それ以外の状態は API 層で拒否する。
+- 旧 `申込者区分コード` / `申込者ID` は **deprecated**。物理列は v360 では削除しないが、新規書込みは行わず、読み取り時のみ FK 列から派生して後方互換を提供する。v361 以降の release で物理削除を計画する。
+- 整合性監査関数 `getTrainingApplicationIntegrityIssues_` は 2-FK 規約へ書換える。
+- マイグレーション関数 `migrateTrainingApplicationsToTwoFkForV360_` は既存行を読み取り、申込者区分 `EXTERNAL` の行を `外部申込者ID` 列へ移送する。
+
+#### 出欠管理列（v360 新規）
+
+| 列 | 型 | NULL | FK | 用途 |
+|---|---|---|---|---|
+| `出欠状態コード` | string | NOT NULL（既定値 `UNRECORDED`） | M_出欠状態 | 当日出欠の記録 |
+| `出欠記録日時` | datetime ISO | NULL | - | 監査用 |
+| `出欠記録者メール` | string | NULL | (T_管理者WL論理参照) | スナップショット保存。WL 削除後も残存 |
+| `事務局メモ` | string(max 1000) | NULL | - | 管理者専用フリーテキスト。**会員側 API には絶対に出力しない** |
+
+- 出欠は 1 申込 = 1 出欠の **1:1 関係**のため別テーブル化せず T_研修申込 列追加で表現（JOIN コスト回避、3NF 準拠：全列が `申込ID` にのみ依存）。
+- 出欠履歴（複数回記録）の必要性は現要件にないが、将来発生した場合は `T_研修出欠履歴` を別途追加し、本表は最新値スナップショットとして維持する。
 
 ### 4.7 `T_外部申込者` — メインDB
 
@@ -804,11 +876,22 @@ GAS コードは `getLogSs_()` 経由でアクセスする。`LOG_SPREADSHEET_ID
 - 主キー: `監査ログID`
 - 列: `操作者メール`, `操作種別`, `対象テーブル`, `対象ID`, `変更前JSON`, `変更後JSON`, `実行日時`
 
-### 5.3 `T_メール送信ログ`
+### 5.3 `T_メール送信ログ` — Header
 
-- 用途: 一括メール送信の実績記録（v261でバグ修正済み）
+- 用途: 一括メール送信のバッチサマリ（v261でバグ修正済み）
 - 主キー: `ログID`
-- 列: `送信日時`, `送信者メール`, `件名テンプレート`, `宛先数`, `成功数`, `エラー数`, `送信種別`
+- 列: `送信日時`, `送信者メール`, `件名テンプレート`, `宛先数`, `成功数`, `エラー数`, `送信種別`, `研修ID`（v360 拡張・nullable）
+- v360 で `送信種別` に新値 `TRAINING_BULK`（研修一括送信）を追加。既存値（`MAILING_LIST` 等）は維持。
+- v360 で per-recipient 明細を別表 `T_メール送信明細` に分離。本表は引き続きバッチサマリとして機能する（Header-Detail パターン、既存 `T_支払い` / `T_支払い明細` と同設計）。
+
+### 5.4 `T_メール送信明細` — Detail（v360 新規）
+
+- 用途: 一括メール送信の受信者単位の送達結果記録。問合せ対応・監査の正本。
+- 主キー: `明細ID`
+- 列: `ログID`（FK→T_メール送信ログ）, `研修ID`（FK→T_研修, nullable）, `受信者区分`（MEMBER/STAFF/EXTERNAL）, `受信者ID`（ポリモーフィック: 会員ID/職員ID/外部申込者ID）, `受信者メール`, `送信結果`（SENT/FAILED）, `エラー詳細`, `作成日時`, `削除フラグ`
+- `受信者メール` は送信時点スナップショット（既存 `T_支払い.振込先口座JSON` と同設計判断。受信者のメールアドレス変更後も送信時の値を保持）。
+- `受信者区分 + 受信者ID` のポリモーフィック設計は、送信先が会員・職員・外部申込者の 3 種混在となるため不可避。整合性は API 層で `区分` ごとに別マスタ参照で enforcement する（DB レベル制約は不可）。
+- 3NF 検証: 全列が `明細ID` にのみ依存。受信者メールは導出可能だが意図的に冗長化（スナップショット要件）。
 
 ---
 
@@ -849,6 +932,7 @@ GAS コードは `getLogSs_()` 経由でアクセスする。`LOG_SPREADSHEET_ID
 
 | バージョン | 日付 | 変更概要 |
 |---|---|---|
+| 2026-05-16-training-roster-v360 | 2026-05-16 | v361 本番コード反映済み。研修名簿・出欠・一括メール明細を整備。`M_出欠状態` 新規マスタ、`T_研修申込` に `外部申込者ID` / `出欠状態コード` / `出欠記録日時` / `出欠記録者メール` / `事務局メモ` を追加（2-FK 化）、`T_メール送信明細` を新規追加、`T_メール送信ログ.研修ID` を拡張、`T_システム設定.ROSTER_TEMPLATE_LIST` の JSON エントリに `category` を追加。admin split の `runRebuildSchemaForV360` 手動実行は未完了。 |
 | 2026-05-12-member-status-note-v1 | 2026-05-12 | v340 本番反映。`T_会員.ステータスメモ` を末尾列として追加し、管理者コンソール専用項目にした。既存シートの header 上書き前に name-based migration を走らせる schema initialization guard を反映。 |
 | 2026-05-12-member-transfer-v1 | 2026-05-12 | v335 本番反映。公開ポータル入会申込を変更申請キュー化し、`M_会員状態.TRANSFERRED`、`T_会員.移行日`、`T_人物統合ログ` を追加。 |
 | 2026-05-11-claim-v2 | 2026-05-12 | v333 本番反映。活動報告 / 経費請求 2系統化のため、`M_組織マスタ.全役員表示フラグ`、`M_業務分類`、`T_請求.請求種別/業務分類コード/単価/数量` を追加。 |
@@ -968,3 +1052,196 @@ Operational interpretation:
 ### Schema Version Note
 
 v305 does not require `rebuildDatabaseSchema()` because it changes derived logic, generated admin artifact, and documentation only. The latest physical schema version remains the previous physical DB schema version unless a later release adds or removes actual sheet columns.
+
+---
+
+## 11. v360 Addendum: 研修名簿・出欠・一括メール明細
+
+ステータス: v361 本番コード反映済み（admin split の `runRebuildSchemaForV360` 手動 schema migration 未実行）／スキーマバージョン `2026-05-16-training-roster-v360`。
+
+### 11.1 設計判断（2026 年データベース設計ベストプラクティス準拠）
+
+| 原則 | 採用判断 | 根拠 |
+|---|---|---|
+| 3NF 正規化 | ✅ 全追加列が PK 依存 | 集計・更新異常を防ぐ標準 |
+| Soft delete | ✅ 全テーブル `削除フラグ` 継承 | docs/03 §7 既定踏襲 |
+| Audit columns | ✅ 全テーブル `作成日時/更新日時` | 既存ルール継承 |
+| Header-Detail パターン | ✅ T_メール送信ログ + T_メール送信明細 | 既存 T_支払い / T_支払い明細 と一貫 |
+| Polymorphic 回避（2-FK 化） | ✅ T_研修申込 を 3-FK XOR に移行 | Sequelize/Hashrocket の 2026 推奨。FK enforcement を明確化 |
+| マスタ参照 FK | ✅ M_出欠状態 を新設 | enum 直書き回避、将来拡張に対応 |
+| 既存資産の再利用 | ✅ T_外部申込者・T_メール送信ログ・ROSTER_TEMPLATE_LIST を流用 | 重複テーブル新設禁止原則 |
+| 命名規約 | ✅ 日本語命名・`T_`/`M_` プレフィックス継承 | 案件規約 |
+
+### 11.2 既存資産の再利用判断
+
+| 当初追加候補 | 既存資産 | 判断 |
+|---|---|---|
+| `T_研修申込.ゲスト氏名 / ゲスト事業所` 列追加 | **`T_外部申込者`**（既存）| 重複新設却下。`T_研修申込.外部申込者ID` FK で参照 |
+| メインDB に新規 `T_メール送信ログ` | **`T_メール送信ログ`**（ログSS 既存・バッチサマリ）| 重複新設却下。既存をヘッダーとし、`T_メール送信明細` を追加 |
+| 新規 `T_メールテンプレート` テーブル | **`T_システム設定.ROSTER_TEMPLATE_LIST`**（v316〜・JSON）| 重複新設却下。JSON エントリに `category` を追加 |
+
+### 11.3 T_研修申込 2-FK XOR 制約
+
+```text
+exactly_one_of(会員ID, 職員ID, 外部申込者ID) is non-empty
+```
+
+旧 `申込者区分コード` / `申込者ID` は deprecated。v360 では物理列を保持し、新規書込み停止 + 読み取り時の派生のみ。v361 以降で物理削除を計画。
+
+整合性監査関数の書換え対象:
+- `getTrainingApplicationIntegrityIssues_` — 旧ルール（申込者ID == 会員ID）から新ルール（3-FK XOR）へ
+- `repairTrainingApplicationApplicantIds_` — 2-FK 化後は不要、deprecated 化
+- `migrateTrainingApplications_`（同一人物移行）— 3-FK 規約へ
+- `applyTraining_` / `applyTrainingExternal_` — 書込み時に正しい FK 列を選択
+
+### 11.4 出欠 1:1 関係の根拠
+
+研修申込 1 件 = 出欠記録 1 件の 1:1 関係であり、別テーブル化（T_出欠記録）は不要な JOIN を生む。3NF 違反なし（全 4 列が `申込ID` にのみ依存）。
+
+将来「出欠記録履歴を複数保持する要件」が発生した場合は、`T_研修出欠履歴` を新設し T_研修申込 の本表は最新値スナップショットとして維持する設計に切替可能（既存 `T_年会費納入履歴` / `T_年会費更新履歴` と同パターン）。
+
+### 11.5 マイグレーション計画
+
+| ステップ | 関数 | 実行方法 |
+|---|---|---|
+| 1 | `runRebuildSchemaForV360` | Apps Script editor から手動 1 回実行。`M_出欠状態` 作成・初期値投入、`T_研修申込` 新規 5 列追加、`T_メール送信明細` 作成 |
+| 2 | `migrateTrainingApplicationsToTwoFkForV360_` | runRebuildSchemaForV360 の最後で自動実行。既存 EXTERNAL 行を `外部申込者ID` 列へ migrate |
+| 3 | `auditTrainingApplicationsAfterV360_` | 整合性 sanity check。XOR 違反行があれば Logger 警告 |
+| 4 | `migrateRosterTemplateLibraryCategoryForV360_` | ROSTER_TEMPLATE_LIST JSON の各エントリに `category: 'MAILING_LIST'` 既定値を auto-add |
+
+### 11.6 RDB 整合性検証チェックリスト
+
+- [x] 既存テーブルの列削除なし（v360 では物理削除なし、deprecated マーキングのみ）
+- [x] 既存列の型変更なし
+- [x] 既存 FK 削除なし
+- [x] v342 schema-shift guard により末尾列追加は data-shift しない
+- [x] 既存行の `出欠状態コード` 欠落は migration で `UNRECORDED` 一括設定
+- [x] 既存 EXTERNAL 行の `外部申込者ID` 欠落は migration で `申込者ID` から複写
+- [x] M_出欠状態 マスタ参照は API 層 `getMasterCodeSet_` で enforcement
+- [x] T_メール送信明細 の Header-Detail 削除は論理削除のみ（既存 T_支払い と同パターン）
+
+### 11.7 セキュリティ境界
+
+- `事務局メモ` 列は管理者専用。`fetchAllDataFromDb_` の会員向けフィルタで除外。`audit-member-boundary.mjs` で boundary 漏洩検査。
+- `T_メール送信明細.受信者メール` はログ SS に保存され、ログ SS のアクセスは admin split のみ。会員 split から参照不可。
+
+### 11.8 ER 差分図（追加部分のみ）
+
+```mermaid
+erDiagram
+  T_研修申込 {
+    string 申込ID PK
+    string 研修ID FK
+    string 会員ID FK "v360 2-FK"
+    string 職員ID FK "v360 2-FK"
+    string 外部申込者ID FK "v360 新規"
+    string 出欠状態コード FK "v360 新規"
+    datetime 出欠記録日時 "v360 新規"
+    string 出欠記録者メール "v360 新規"
+    string 事務局メモ "v360 新規 管理者専用"
+  }
+  M_出欠状態 {
+    string コード PK "v360 新規マスタ"
+    string 名称
+    int 表示順
+    boolean 有効フラグ
+  }
+  T_メール送信ログ {
+    string ログID PK "既存(ログSS)"
+    string 送信種別 "+TRAINING_BULK"
+    string 研修ID FK "v360 拡張"
+  }
+  T_メール送信明細 {
+    string 明細ID PK "v360 新規(ログSS)"
+    string ログID FK
+    string 研修ID FK
+    string 受信者区分
+    string 受信者ID
+    string 受信者メール
+    string 送信結果
+    string エラー詳細
+  }
+  T_外部申込者 {
+    string 外部申込者ID PK "既存・流用"
+  }
+
+  T_研修申込 }o--o| T_外部申込者 : "外部申込者ID(v360)"
+  T_研修申込 }o--|| M_出欠状態 : "出欠状態コード(v360)"
+  T_メール送信明細 }o--|| T_メール送信ログ : "ログID(v360)"
+  T_メール送信明細 }o--o| T_研修 : "研修ID(v360)"
+```
+
+---
+
+## 12. v362〜v370 Addendum: 検索強化・前年度未納可視化・変更申請メールテンプレ化・bug fix
+
+ステータス: 全リリース本番反映済み (v370 = `integrated@329 x2 / member@87 / admin@129`)。スキーマバージョン bump なし（物理列追加なし、API 層の派生フィールド追加・既存設定キー拡張のみ）。
+
+### 12.1 v362: フリガナ検索の派生 `kana` 列追加（型・derived）
+
+物理スキーマ変更なし。API レスポンスの派生フィールドとして `kana` を追加。バックエンドが返す行に kana を含めるよう以下を改修:
+
+| 型 | 追加列 | 由来 | 用途 |
+|---|---|---|---|
+| `AdminDashboardMemberRow` | `kana?: string` | `T_会員.セイ + メイ` | 会員管理コンソール検索 |
+| `AnnualFeeAdminRecord` | `kana?: string` | 同上 | 年会費管理コンソール検索 |
+| `BulkMailRecipient` | `kana?: string` | 個人/賛助: 会員.セイ+メイ / 事業所職員: 職員.セイ+メイ | 一括メール送信検索 |
+| `MailingListTarget` | `kana?: string` | 会員.セイ+メイ | 宛名リスト出力検索 |
+
+検索正規化関数 (`src/utils/search.ts`) に **ひらがな→カタカナ統一** + **NFC** を追加し、半角カナ/全角カナ/全角ひらがな いずれの入力でもヒット。
+
+キャッシュキー bump: `annualFeeAdminData:{schema}:v362-kana:{year}` / `adminDashboard:{schema}:v362-kana` で旧キャッシュ無効化。
+
+### 12.2 v364: 前年度未納の派生フラグ
+
+`AnnualFeeAdminRecord` に以下 3 派生フィールド追加（物理列なし・サーバ計算）:
+
+| 派生列 | 値 | 計算ルール |
+|---|---|---|
+| `previousYear?: number` | `selectedYear - 1` | 集計対象の前年度 |
+| `previousYearEligible?: boolean` | true/false | `isAnnualFeeEligibleMemberForYear_(member, previousYear)` |
+| `previousYearStatus?: 'PAID' \| 'UNPAID' \| 'NOT_ELIGIBLE'` | enum | 前年度に在籍 = ステータス、非在籍 = NOT_ELIGIBLE、未記録 = UNPAID 扱い |
+
+`AnnualFeeAdminSummary` に `previousYearUnpaidCount?: number` を追加。
+
+キャッシュキー bump: `annualFeeAdminData:{schema}:v364-prev:{year}`。
+
+### 12.3 v368: 変更申請ワークフローメール設定（9 新キー）
+
+`T_システム設定` に以下 **9 キー** を自動初期化（`ensureSystemSettingsRows_`）。物理スキーマ変更なし（既存テーブルに行追加のみ）:
+
+| 設定キー | デフォルト | 用途 |
+|---|---|---|
+| `APPLICATION_RECEIPT_ENABLED` | `true` | 公開ポータル申請受付時：受付確認メール送信 ON/OFF |
+| `APPLICATION_RECEIPT_SUBJECT` | `【枚方市〜】{{申請種別}}を受け付けました` | 件名（テンプレ） |
+| `APPLICATION_RECEIPT_BODY` | 受付確認文（テンプレ） | 本文 |
+| `APPROVAL_NOTIFICATION_ENABLED` | `true` | 管理者承認時：承認通知メール送信 ON/OFF |
+| `APPROVAL_NOTIFICATION_SUBJECT` | `【枚方市〜】{{申請種別}}が承認されました` | 件名 |
+| `APPROVAL_NOTIFICATION_BODY` | 承認文（変更内容サマリー差込） | 本文 |
+| `REJECTION_NOTIFICATION_ENABLED` | `true` | 管理者却下時：却下通知メール送信 ON/OFF |
+| `REJECTION_NOTIFICATION_SUBJECT` | `【枚方市〜】{{申請種別}}について` | 件名 |
+| `REJECTION_NOTIFICATION_BODY` | 却下文（処理備考差込） | 本文 |
+
+**差込変数**（テンプレ内で利用可能）:
+`{{氏名}}` `{{会員種別ラベル}}` `{{申請種別}}` `{{申請ID}}` `{{受付日時}}` `{{処理日時}}` `{{処理者名}}` `{{変更内容サマリー}}` `{{処理備考}}`
+
+`{{変更内容サマリー}}` は `buildChangeSummaryText_(changeData, requestType)` で生成（例: 「・メールアドレス: NEW」「・職員追加: 山田 太郎（CM番号 12345678）」）。
+
+### 12.4 v368: 個人/賛助→事業所職員転籍時のメアド必須緩和
+
+`convertIndividualToStaff_` (gas-src/Code.full.gs) で、転籍元会員の `代表メールアドレス` が空でも throw せず Logger 警告のみ。CM 番号で紐づくため、メアド空でも転籍を継続。`T_事業所職員.メールアドレス` は空文字で保存。
+
+### 12.5 v370: srcMemberId reference error 修正
+
+v368 で導入した Logger.log の変数名間違い（`srcMemberId` → `sourceMemberId`）を修正。partial 登録された会員の cleanup には `cleanupStaleBusinessApplicationForV370(memberId)` を使用。
+
+### 12.6 派生フィールドの API キャッシュ規約
+
+派生フィールド追加 release では DB_SCHEMA_VERSION は bump せず、**該当 API のキャッシュキーに version マーカーを追記**して旧キャッシュを無効化する（例: `:v362-kana`, `:v364-prev`, `:v362-kana` for admin dashboard）。これにより新フィールドが古いキャッシュで欠落する事故を防ぐ。
+
+### 12.7 関連ドキュメント
+
+- 包括 release state: `docs/225_RELEASE_STATE_v360_to_v370_2026-05-17.md`
+- HTML 概要: `docs/learning/16_system_overview_v370_2026-05-17.html`
+- v360 詳細: `docs/223_RELEASE_STATE_v360_2026-05-16.md`
+- v360 データモデル HTML: `docs/learning/14_data_model_v360_2026-05-16.html`

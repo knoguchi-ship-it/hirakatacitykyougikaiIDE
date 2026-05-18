@@ -1,5 +1,23 @@
 import { Member, Training, AdminPermissionLevel, AdminPersonRow, ConvertMemberTypePayload, ConvertMemberTypeResult, SystemSettings, SharedMemo, SharedMemoSaveResult, RosterTemplate } from '../types';
-import { TrainingApplicantRow, BulkMailRecipient, EmailSendLog, RosterTarget, TemplateValidationResult, TemplateValidationKind, MailingListFilterType, MailingListExcelResult, MailingListTargetsResult } from '../shared/types';
+import {
+  TrainingApplicantRow,
+  BulkMailRecipient,
+  EmailSendLog,
+  RosterTarget,
+  TemplateValidationResult,
+  TemplateValidationKind,
+  MailingListFilterType,
+  MailingListExcelResult,
+  MailingListTargetsResult,
+  // v360
+  TrainingRosterRow,
+  TrainingStats,
+  TrainingHistoryEntry,
+  TrainingMailSegmentedPayload,
+  TrainingMailLogHeader,
+  TrainingMailLogDetail,
+  AttendanceStatus,
+} from '../shared/types';
 import { AdminDashboardData, AdminPermissionData, AnnualFeeAdminData, AnnualFeeAdminRecord } from '../types';
 
 export interface TrainingMailPayload {
@@ -117,6 +135,18 @@ export interface ApiClient {
   getTrainingApplicants(trainingId: string): Promise<TrainingApplicantRow[]>;
   getAdminEmailAliases(): Promise<AdminEmailAliasesResult>;
   sendTrainingMail(payload: TrainingMailPayload): Promise<{ sent: number; errors: string[] }>;
+  // ── v360: 研修名簿・出欠・受講履歴・一括メール明細 ────────────────
+  getTrainingRosterDetail(trainingId: string): Promise<{ applicants: TrainingRosterRow[] }>;
+  saveAttendance(payload: { applyId: string; status: AttendanceStatus }): Promise<{ ok: boolean; recordedAt?: string; error?: string }>;
+  saveAttendanceBatch(entries: Array<{ applyId: string; status: AttendanceStatus }>): Promise<{ results: any[] }>;
+  addRosterEntry(payload: { trainingId: string; memberId?: string; staffId?: string; memo?: string }): Promise<{ ok: boolean; applyId?: string; error?: string }>;
+  addGuestRosterEntry(payload: { trainingId: string; guest: { name: string; kana?: string; email?: string; phone?: string; officeName?: string }; memo?: string }): Promise<{ ok: boolean; applyId?: string; externalId?: string; error?: string }>;
+  cancelRosterEntry(payload: { applyId: string; reason?: string }): Promise<{ ok: boolean; error?: string }>;
+  updateRosterEntry(payload: { applyId: string; adminMemo?: string }): Promise<{ ok: boolean; error?: string }>;
+  getTrainingStats(trainingId: string): Promise<TrainingStats>;
+  getMemberTrainingHistory(payload: { memberId?: string; staffId?: string; externalId?: string }): Promise<{ history: TrainingHistoryEntry[] }>;
+  sendTrainingMailSegmented(payload: TrainingMailSegmentedPayload): Promise<{ logId: string; sent: number; failed: number; total: number }>;
+  getTrainingMailSendLogs(trainingId: string): Promise<{ headers: TrainingMailLogHeader[]; details: TrainingMailLogDetail[] }>;
   createMember(payload: Partial<Member> & { type: string }): Promise<{ created: boolean; memberId: string; loginId: string; defaultPassword: string }>;
   withdrawMember(memberId: string, withdrawnDate?: string, midYearWithdrawal?: boolean): Promise<{ withdrawn: boolean; memberId: string; withdrawnDate: string }>;
   withdrawSelf(loginId: string, password: string, memberId: string): Promise<{ scheduled: boolean; memberId: string; withdrawnDate: string }>;
@@ -1191,6 +1221,62 @@ class GasApiClient implements ApiClient {
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('sendTrainingMail', JSON.stringify(payload));
     });
+  }
+
+  // ── v360: 研修名簿管理 API ──────────────────────────────────────
+  private callAction<T>(action: string, payload: unknown): Promise<T> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data);
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest(action, payload === null ? null : JSON.stringify(payload));
+    });
+  }
+
+  getTrainingRosterDetail(trainingId: string) {
+    return this.callAction<{ applicants: TrainingRosterRow[] }>('getTrainingRosterDetail', { trainingId });
+  }
+  saveAttendance(payload: { applyId: string; status: AttendanceStatus }) {
+    return this.callAction<{ ok: boolean; recordedAt?: string; error?: string }>('saveAttendance', payload);
+  }
+  saveAttendanceBatch(entries: Array<{ applyId: string; status: AttendanceStatus }>) {
+    return this.callAction<{ results: any[] }>('saveAttendanceBatch', { entries });
+  }
+  addRosterEntry(payload: { trainingId: string; memberId?: string; staffId?: string; memo?: string }) {
+    return this.callAction<{ ok: boolean; applyId?: string; error?: string }>('addRosterEntry', payload);
+  }
+  addGuestRosterEntry(payload: { trainingId: string; guest: { name: string; kana?: string; email?: string; phone?: string; officeName?: string }; memo?: string }) {
+    return this.callAction<{ ok: boolean; applyId?: string; externalId?: string; error?: string }>('addGuestRosterEntry', payload);
+  }
+  cancelRosterEntry(payload: { applyId: string; reason?: string }) {
+    return this.callAction<{ ok: boolean; error?: string }>('cancelRosterEntry', payload);
+  }
+  updateRosterEntry(payload: { applyId: string; adminMemo?: string }) {
+    return this.callAction<{ ok: boolean; error?: string }>('updateRosterEntry', payload);
+  }
+  getTrainingStats(trainingId: string) {
+    return this.callAction<TrainingStats>('getTrainingStats', { trainingId });
+  }
+  getMemberTrainingHistory(payload: { memberId?: string; staffId?: string; externalId?: string }) {
+    return this.callAction<{ history: TrainingHistoryEntry[] }>('getMemberTrainingHistory', payload);
+  }
+  sendTrainingMailSegmented(payload: TrainingMailSegmentedPayload) {
+    return this.callAction<{ logId: string; sent: number; failed: number; total: number }>('sendTrainingMailSegmented', payload);
+  }
+  getTrainingMailSendLogs(trainingId: string) {
+    return this.callAction<{ headers: TrainingMailLogHeader[]; details: TrainingMailLogDetail[] }>('getTrainingMailSendLogs', { trainingId });
   }
 
   async createMember(payload: Partial<Member> & { type: string }): Promise<{ created: boolean; memberId: string; loginId: string; defaultPassword: string }> {

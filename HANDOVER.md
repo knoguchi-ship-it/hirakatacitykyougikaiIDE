@@ -1,8 +1,119 @@
 # 開発引継ぎ
 
-更新日: 2026-05-16
-現行本番: `v359`（会員ログイン高速化、ログインID保存、パスワード表示切替、パスワード再設定メール導線） / integrated-public GAS version `317` / member split GAS version `74` / admin split GAS version `115`
-fixed deployment: integrated/public `@317` x2 / member split `@74` / admin split `@115`
+更新日: 2026-05-19（v371.1 メール送信 4 階層ガード導入直後）
+現行本番: **`v371.1`**（メール送信キルスイッチ + 配信モード + Redirect allowlist + 補完カテゴリ） / integrated-public GAS version `331` / member split GAS version `89` / admin split GAS version `132`
+fixed deployment: integrated/public `@331` x2 / member split `@89` / admin split `@132`
+
+> **🆕 2026-05-19 v371.1 本番反映済み（メール送信制御の 4 階層ガード導入）**
+>
+> **背景**: テスト環境として本番 DB を使う運用中に「メールが実際の宛先へ飛んでしまう」課題がありユーザーから即時停止と細粒度制御の要望。Web 検索（2026-05-18 取得）に基づくベストプラクティス採用。
+>
+> **設計**:
+> 1. `MAIL_GLOBAL_ENABLED` — 全停止スイッチ（初期値 `false`、safe-stop で着地）
+> 2. `MAIL_DELIVERY_MODE` — `LIVE` / `REDIRECT` / `SUPPRESS`
+> 3. `MAIL_REDIRECT_ALLOWLIST` — REDIRECT モード時の宛先（カンマ区切り・複数可）
+> 4. 補完 6 カテゴリの `*_ENABLED` フラグ（既存 9 カテゴリと並列）
+>    - `TRAINING_APPLY_RECEIPT_ENABLED` / `TRAINING_REMINDER_ENABLED` / `BULK_MAIL_ENABLED` / `AUTH_OTP_ENABLED` / `MEMBER_UPDATE_CONFIRM_ENABLED` / `WITHDRAWAL_CONFIRM_ENABLED`
+>
+> **実装**:
+> - `gas-src/Code.full.gs` に `mailDispatchPolicy_()` + `deliverMail_(category, to, subject, body, options)` ヘルパー追加
+> - 既存 10 箇所の直接 `MailApp.sendEmail` / `GmailApp.sendEmail` 呼出しを `deliverMail_` 経由に置換
+> - 中央 `sendEmailWithValidatedFrom_` は最終送信ポイント（gate は deliverMail_ 側に集約、二重判定なし）
+> - REDIRECT 時は件名に `[REDIRECT from <origTo>]`、本文先頭に `--- ORIGINAL TO: <origTo> --- --- CATEGORY: <cat> ---` を付与
+> - `getSystemSettings_` / `updateSystemSettings_` に新 9 フィールド読み書き対応
+> - React 側 `src/types.ts` `SystemSettings` + `src/App.tsx` システム設定 UI に「メール送信制御」セクション追加
+> - DB_SCHEMA_VERSION を `2026-05-19-mail-kill-switch-v371` に bump し、`initializeSchema_` 内 mailGuardDefaults でキー自動投入（既存値は上書きしない idempotent ガード）
+>
+> **デプロイ**: 統合 public `@331` x2 / member `@89` / admin `@132`
+>
+> **テスト復帰手順**: システム設定 → メール通知タブ → 「メール送信制御」セクションで
+> 1. `MAIL_GLOBAL_ENABLED=true`
+> 2. `MAIL_DELIVERY_MODE=REDIRECT`
+> 3. `MAIL_REDIRECT_ALLOWLIST=kenta-noguchi@tadakayo.jp`
+> 4. 「設定を保存」
+> → 全メールが野口さん宛のみに集約。ドライランテスト可能。
+>
+> **本番運用復帰手順**:
+> 1. `MAIL_GLOBAL_ENABLED=true`
+> 2. `MAIL_DELIVERY_MODE=LIVE`
+> 3. 必要に応じてカテゴリ別 ENABLED を調整
+> → カテゴリ別フラグに従って通常送信。
+>
+> **詳細**: `docs/227_MAIL_KILL_SWITCH_2026-05-18.md`（本セッション草案）。Web 検索ソース: Mailtrap / Postmark / Moosend / Drupal Mail Redirect / Laravel always-to パターン。
+
+> **🆕 2026-05-18 次担当者向け再開状態（必読）**
+>
+> - **現在の入口は本 `HANDOVER.md` と `docs/225_RELEASE_STATE_v360_to_v370_2026-05-17.md`。** `docs/224_RESUME_v360_2026-05-16.md` は v361 時点の履歴資料であり、現行状態の入口にはしない。
+> - 現行本番は v370 / integrated-public `@329` x2 / member `@87` / admin `@129`。`docs/09_DEPLOYMENT_POLICY.md` と `docs/00_DOC_INDEX.md` も同値へ更新済み。
+> - AGENTS.md §0 に合わせ、`gas/admin/.clasp.json` / `gas/member/.clasp.json` を Git 追跡対象から除外し、`.gitignore` の `!gas/**/.clasp.json` 例外を削除。ローカルファイルは削除せず保持。新規環境では各自ローカルで `.clasp.json` を作成する。
+> - admin callable から dryRun 物理削除関数（`previewPhysicalDeleteDryRunData` / `executePhysicalDeleteDryRunData`）を削除。soft delete cleanup (`executeDryRunApplicationCleanup`) は維持。
+> - 研修名簿 UI は CSV 出力のみに統一。`CopyButton` のタップターゲットは 44px に修正。
+>
+> **次に読むべき順:** `AGENTS.md` §0 → 本 `HANDOVER.md` → `docs/225_RELEASE_STATE_v360_to_v370_2026-05-17.md` → `docs/226_HANDOVER_DRYRUN_2026-05-17.md` → `docs/09_DEPLOYMENT_POLICY.md`。
+
+> **🆕 2026-05-17 引継ぎ時のセッション要点（必読）**: 詳細 `docs/226_HANDOVER_DRYRUN_2026-05-17.md`
+>
+> **本セッションでの成果:**
+> - dryRun synthetic transaction フレームワーク を実装・本番 DB で 6/7 シナリオ PASS を確認・cleanup 完了 → **コミット済み (`d110b48`)**
+> - 検証対象: 新規申込（個人/賛助/事業所）+ 3 種の転籍（個人↔事業所職員・事業所 A→B 職員）
+> - 追加されたツール: `node scripts/dryrun-applications.mjs run|preview|cleanup --yes` + 3 GAS 関数 (`dryRunApplicationScenarios` / `previewDryRunApplicationCleanup` / `executeDryRunApplicationCleanup`)
+>
+> **🔴 操作者による即時対応が必要なタスク (最優先・未完了):**
+> 1. **`runRebuildSchemaForV360` を admin Apps Script editor で 1 回 Run** — 未実行（一括メール送信のみ動作不可）
+> 2. **`runCleanupPartialBusinessV370_53779700` を admin Apps Script editor で 1 回 Run + 変更申請再承認** — partial 登録の復旧
+> 3. **v360〜v370 の実ブラウザ動作確認** — 研修名簿/出欠/CSV/メール/変更申請/モバイル実機。確認観点は `docs/225_RELEASE_STATE_v360_to_v370_2026-05-17.md` §3 と `docs/223_RELEASE_STATE_v360_2026-05-16.md` §5 を正とする。
+>
+> **⚠️ 未コミット状態:**
+> - dryRun コミット d110b48 以後、working tree に v360-v370 リリース作業と 2026-05-18 cleanup（`.clasp.json` 追跡解除、docs 整合、dryRun 物理削除 callable 除去、CSV/44px 整理）が残存
+> - v360-v370 本体は本番 fixed deployment @329/@87/@129 で既に稼働中だが、git 履歴未反映。2026-05-18 cleanup は未デプロイ・未コミット。
+> - 操作者の動作確認 PASS 後にコミット推奨（コミットメッセージ案: `feat: ship v360-v370 (training roster, search kana, mail templates, transfer hotfixes)`）
+>
+> **⚠️ admin split devMode の状態:**
+> - 現在 devMode は「HEAD + dryRun」状態（本日テスト用に push）
+> - 本番 fixed @129 は v370.1 のまま、UI ユーザーへは無影響
+> - v360-v370 機能を dev で動作確認したい場合は `npm run build:gas:admin && cd gas/admin && npx clasp push --force`（標準 OAuth client）で再 push
+>
+> **旧注記:** `docs/224_RESUME_v360_2026-05-16.md` は v361 時点の一時再開ガイド。古い deployment 値を含むため、現行判断には使わない。
+
+> 直近の包括変更履歴: `docs/225_RELEASE_STATE_v360_to_v370_2026-05-17.md`。データモデル設計: `docs/03_DATA_MODEL.md`（最新）+ `docs/learning/16_system_overview_v370_2026-05-17.html`（HTML 概要）。
+>
+> **🚨 直前の重大事象（v370 緊急 bug fix・反映済み）**: v368 で導入した転籍時 Logger.log で undefined 変数 `srcMemberId` を参照していたため、事業所会員入会申込承認時に既存個人会員と CM 番号一致した職員が含まれていると `convertIndividualToStaff_` が ReferenceError でクラッシュ。結果、事業所会員 + 代表者 1 名のみ登録され残職員は未作成 + 申請 PENDING のまま。変数名を正しい `sourceMemberId` に修正済み（v370）。さらに v370.1 で診断/cleanup 関数を admin split に追加（`diagnoseAllStaleApplicationsForV370` / `cleanupStaleBusinessApplicationForV370`）。
+>
+> **⚠️ partial データの後始末（operator 対応中）**: 申請 `CR1778920612878_22c197b0`（枚方市包括支援センターはなまる）で会員ID `53779700` が partial 登録されている。Apps Script editor から **`runCleanupPartialBusinessV370_53779700`** を 1 回実行 → cleanup 完了確認後、変更申請管理コンソールから再承認すれば 3 名全員が正常作成される。
+
+> **🆕 2026-05-17 v369 本番反映済み**: v368 で追加した 9 システム設定キー（APPLICATION_RECEIPT_*, APPROVAL_NOTIFICATION_*, REJECTION_NOTIFICATION_*）をシステム設定 UI から編集可能に。`src/types.ts` `SystemSettings` に 9 フィールド追加、`getSystemSettings_` / `updateSystemSettings_` に読み書き対応、システム設定の「入会・登録メール設定」サブビュー末尾に「▍変更申請ワークフロー（受付・承認・却下）のメール」セクション追加（受付確認/承認通知/却下通知 各 EmailCard + 差込変数ガイド）。スプレッドシート直編集不要。integrated/public `@328` x2 / member `@86` / admin `@128`。
+
+> **🆕 2026-05-17 v368 本番反映済み**: 2 件の改修。
+> **(1) 個人/賛助→事業所職員転籍時の代表メアド必須を緩和**: CM番号で紐づけているため、転籍元会員のメアドが空でも転籍を通すように。空のときは credential メール送信は skip し、職員レコードのみ作成。Logger に警告ログ。
+> **(2) 申込/承認/却下メールをテンプレ化**: ハードコード文言を 9 件の新規システム設定キー (APPLICATION_RECEIPT_*, APPROVAL_NOTIFICATION_*, REJECTION_NOTIFICATION_* 各 ENABLED/SUBJECT/BODY) に切替。差込変数 `{{氏名}} {{会員種別ラベル}} {{申請種別}} {{申請ID}} {{受付日時}} {{処理日時}} {{処理者名}} {{変更内容サマリー}} {{処理備考}}` をサポート。`buildChangeSummaryText_` ヘルパーで変更内容を人間可読サマリーに変換。`sendApplicationReceiptMail_` / `sendApprovalNotificationMail_` / `sendRejectionNotificationMail_` 3 ヘルパー新設。**システム設定 UI への新規キーの編集フォーム追加は未実装** — DB シート `T_システム設定` に新キーは初期化されるが、画面から編集するには次リリースで UI 追加が必要（現状はスプレッドシート直編集で運用可能）。integrated/public `@327` x2 / member `@85` / admin `@127`。
+
+> **🚨 2026-05-17 v367 本番反映済み（緊急バグ修正）**: **変更申請の承認/却下が常に `unauthorized` で失敗していた**（公開ポータルからの入会申込・変更申請・退会申請がすべて DB 反映不可だった重大不具合）。原因は 3 層:
+> 1. `approveAdminChangeRequest_` / `rejectAdminChangeRequest_` で `adminSession.email` を参照していたが、`checkAdminBySession_()` の戻り値には `email` キーが存在せず `loginId` キーのみ（4 箇所修正）
+> 2. dispatcher が inner の `{success:false}` を outer `{success:true, data:{...}}` で包み client に成功扱いで返していた → approve/reject の dispatcher 分岐で inner.success を検知し outer へ伝播
+> 3. `ChangeRequestConsole.tsx` が inner.success を確認せず常に「承認処理が完了しました」alert を表示していた → inner.success===false なら actionError として表示
+> integrated/public `@326` x2 / member `@84` / admin `@126`。
+
+> **🆕 2026-05-17 v366 本番反映済み**: 年会費管理コンソールの SharedMemoPanel を画面上部に sticky 化（sm+ のみ・モバイルは通常スクロール、Nielsen 推奨「モバイル sticky は 15% 超過 NG」回避）。`SharedMemoPanel` に `sticky?: boolean` prop 追加 → `position: sticky; top: 0; z-index: 30`。IntersectionObserver で sentinel が viewport 上方へ消えたタイミング（stuck）を検知し自動 collapsed 化（peek mode へ移行）、shadow も付与してスクロールコンテンツとの境界を明示。展開状態のままユーザーが手動 collapse 済みなら干渉しない。integrated/public `@325` x2 / member `@83` / admin `@125`。
+
+> **🆕 2026-05-17 v365 本番反映済み**: 年会費一覧の会員名横に **コピーボタン**を追加。新規 `src/components/CopyButton.tsx`（再利用可能）— `navigator.clipboard.writeText` 優先 + `document.execCommand('copy')` fallback（非 HTTPS 環境対応）、クリック後 1.5 秒でアイコン切替（clipboard → check）、aria-live="polite" で SR 通知、`stopPropagation` で行クリック非干渉、タップターゲットは 2026-05-18 cleanup で 44px に修正済み。会員名のみコピー（"ケアプランセンターうぐいすの里" 等）。失敗時は ✕ アイコン + 赤バッジに切替。integrated/public `@324` x2 / member `@82` / admin `@124`。
+
+> **🆕 2026-05-17 v364 本番反映済み**: 年会費管理コンソールの年会費一覧で、**前年度（selectedYear − 1）に有効会員だったのに前年度年会費が UNPAID または未記録の行**を red-50 背景 + 左ボーダー(border-l-4 border-red-400) + ⚠ アイコン + 「{年}年度未納」テキスト で常時ハイライト。WCAG 2.2 推奨「色だけに頼らない」に準拠。上部サマリに「前年度({year-1}年度)未納 X 件」カードを追加。バックエンド: `AnnualFeeAdminRecord` に `previousYear` / `previousYearEligible` / `previousYearStatus` を追加、`isAnnualFeeEligibleMemberForYear_(member, prevYear)` で前年度在籍判定。キャッシュキー `v364-prev:{year}` で旧キャッシュ無効化。integrated/public `@323` x2 / member `@81` / admin `@123`。
+
+> **🆕 2026-05-16 v363.2 本番反映済み**: 会員詳細をモーダルダイアログ表示に変更。v363 の新タブ方式は GAS DOMAIN 認証で毎回ログイン画面に戻る問題のため廃止。`openMemberDetail` を `memberDetailModalOpen` state ベースの overlay 表示に変更し、`currentView` は元のまま維持（背景に元コンソールが見える）。閉じ方: ✕ ボタン / ESC キー / backdrop クリック の 3 方法。role="dialog" + aria-modal + aria-label で a11y 対応。職員詳細遷移は従来通り currentView を切替。`src/utils/deepLink.ts` は今回未使用だが、APP_URL 注入は doGet に残置（将来の deep link 用）。integrated/public `@322` x2 / member `@80` / admin `@122`。
+
+> **🆕 2026-05-16 v362 本番反映済み**: 管理コンソール全検索の正規化を強化。`src/utils/search.ts` の `matchesSearchQuery` に **ひらがな → カタカナ統一** + NFC を追加し、`半角カナ / 全角カナ / 全角ひらがな` のいずれの入力でもフリガナ検索がヒットするように。`AdminDashboardMemberRow` / `AnnualFeeAdminRecord` / `BulkMailRecipient` / `MailingListTarget` に `kana` 列追加し、検索値配列とプレースホルダーも更新。`getAnnualFeeAdminCacheKey_` / `getAdminDashboardCacheKey_` を `v362-kana` で bump し旧キャッシュ無効化。`scripts/test-search.mts` で 16 ケース単体テスト追加（`npm run test:search`）。
+>
+> **⚠️ 教訓**: `npm run build:gas` は `gas/admin/Code.gs` / `gas/member/Code.gs` を再生成しない（backend と HTML のみ）。admin/member への変更は **必ず `npm run build:gas:admin` / `build:gas:member` を個別実行**してから clasp push する。v362 deploy 直後の hotfix（@118/@77 → @120/@78）の原因。
+
+> **⏸ 2026-05-16 v361 時点の一時中断メモ（履歴）**: `docs/224_RESUME_v360_2026-05-16.md` は v361 時点の履歴資料。現行の再開入口は本 HANDOVER と `docs/225_RELEASE_STATE_v360_to_v370_2026-05-17.md`。残作業は引き続き admin split で `runRebuildSchemaForV360` を 1 回 Run（schema データ migration・未実行だと一括メール送信のみ動作不可）+ v360〜v370 実ブラウザ確認。
+>
+> **🆕 2026-05-16 v361 本番反映済み（v360 hotfix）**: v360 で導入した SheetJS xlsx の dynamic import が `import.meta.url` を bundle に漏らし、`compress-html.mjs` の `new Function()` ラッパーと非互換で **会員マイページ・管理コンソールがクラッシュ**した。v351 と同類のトラップ。**xlsx を完全除去し CSV (UTF-8 BOM 付き) のみ提供** に変更。`scripts/compress-html.mjs` に **build 時 import.meta 残存検知 gate** を追加し再発防止。全 4 deployments を v361 へ redeploy（integrated `@319` x2 / member `@76` / admin `@117`）。
+>
+> **v360 機能は引き続き有効**: 研修名簿・出欠管理・一括メール明細・M_出欠状態・T_研修申込 5 列追加・T_メール送信明細・2-FK 化。Excel 出力は `.csv` (BOM) で代替（Excel で直接開ける）。
+>
+> **⚠️ 残作業（operator・優先度高）**: (1) admin split で `runRebuildSchemaForV360` を Apps Script editor から 1 回 Run（T_メール送信明細 ログ SS 作成 + 2-FK migration + 出欠 backfill + テンプレ category 追加）。 (2) admin shell をブラウザで開いて起動確認（v361 で復旧済みのはず）。 (3) 研修名簿タブの動作確認。手順: `docs/223_RELEASE_STATE_v360_2026-05-16.md` §5。
+>
+> **コミット状態**: working tree 未コミット。次担当者は `git status --short` と `git diff` で、v360-v370 本体・2026-05-18 cleanup・`.clasp.json` 追跡解除が混在していることを確認してから commit 範囲を決める。
 
 > **2026-05-16 v359 反映済み**: 会員ログイン UX / パスワード再設定を改修。会員ログインは `memberLoginWithData` ではなく `memberLogin` で認証を先に完了し、会員ポータルデータは既存の遅延ロードに切替。ログイン画面にログインID保存、パスワード表示/非表示、`ログインID + 登録メールアドレス` によるパスワード再設定メール送信を追加。事業所職員アカウントの登録メール正本は `T_事業所職員.メールアドレス`。再設定メールは `CREDENTIAL_EMAIL_FROM` を使用し、確認コードは短期キャッシュでハッシュ保存、成功時に失敗回数とロック状態をリセットする。integrated/public `@317` x2 / member `@74` / admin `@115`。詳細: `docs/222_RELEASE_STATE_v359_2026-05-16.md`
 
@@ -68,7 +179,7 @@ fixed deployment: integrated/public `@317` x2 / member split `@74` / admin split
 7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
 8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `docs/222_RELEASE_STATE_v359_2026-05-16.md`（**最新本番：v359。会員ログイン高速化 / ログインID保存 / パスワード表示切替 / パスワード再設定メール導線。integrated-public @317 x2 / member @74 / admin @115**）
+10. `docs/225_RELEASE_STATE_v360_to_v370_2026-05-17.md`（**最新本番：v370。integrated-public @329 x2 / member @87 / admin @129**）
 11. `docs/221_RELEASE_STATE_v354_to_v358_2026-05-16.md`（v358。PDF lightbox 高解像度 PNG モーダル + v354〜v358 統合 release state。integrated-public @316 x2 / member @73 / admin @114）
 11. `docs/220_RELEASE_STATE_v353_2026-05-15.md`（v353。会員マイページ「受付中の研修」A4 サムネイル UI 改修）
 12. `docs/219_RELEASE_STATE_v352_2026-05-14.md`（v352。公開ポータル研修一覧 A4 サムネイル UI 改修）
@@ -111,13 +222,28 @@ fixed deployment: integrated/public `@317` x2 / member split `@74` / admin split
 
 | 用途 | Project | Deployment ID | Access | Current version |
 |---|---|---|---|---|
-| 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@317` |
-| 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@317` |
-| 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@74` |
-| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@115` |
+| 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@329` |
+| 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@329` |
+| 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@87` |
+| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@129` |
 
 ## 4. 直近リリース
 
+> v360〜v370 を時系列でひとまとめにした正本: **`docs/225_RELEASE_STATE_v360_to_v370_2026-05-17.md`**。HTML 概要: `docs/learning/16_system_overview_v370_2026-05-17.html`。
+
+- **`v370.1`（2026-05-17 反映済み・admin HEAD push 経由）**: PENDING 入会申込の partial データ診断 + cleanup 関数を admin split に追加。`diagnoseStaleApplicationForV370(requestId?)` / `diagnoseAllStaleApplicationsForV370()` / `cleanupStaleBusinessApplicationForV370(memberId)` の 3 関数を Apps Script editor から実行可能。`scripts/audit-admin-boundary.mjs` と `scripts/build-admin-gas.mjs` の allowlist に追加。admin Code.gs は `clasp push --force` で HEAD 同期済み（editor は HEAD を実行するため version bump 不要）。fixed deployment は v370 のまま (`@129`)。
+- **`v370`（2026-05-17 反映済み・緊急 hotfix）**: v368 の Logger.log 内で undefined 変数 `srcMemberId` を参照していたバグ修正（正しくは `sourceMemberId`）。事業所入会申込で既存個人会員と CM 番号一致した職員が含まれていた場合 ReferenceError でクラッシュ → 1 代表者のみ登録される現象を解消。integrated `@329` x2 / member `@87` / admin `@129`。
+- **`v369`（2026-05-17 反映済み）**: v368 の 9 設定キーをシステム設定画面 UI から編集可能に。「入会・登録メール設定」サブビュー末尾に「変更申請ワークフロー」セクション追加（受付確認/承認通知/却下通知）+ 差込変数ガイド。integrated `@328` x2 / member `@86` / admin `@128`。
+- **`v368`（2026-05-17 反映済み）**: (1) 個人/賛助→事業所職員転籍時の代表メアド必須を緩和（CM番号紐づけのみで通す）。(2) 申込/承認/却下メールをハードコードからシステム設定テンプレートへ移行。差込変数 9 種類対応 + 変更内容サマリー差込。9 新キー追加。integrated `@327` x2 / member `@85` / admin `@127`。
+- **`v367`（2026-05-17 反映済み・緊急 bug fix）**: 変更申請の承認/却下が常に unauthorized で失敗していた重大不具合を修正。`adminSession.email` → `loginId`（4箇所）+ dispatcher で inner.success:false 伝播 + ChangeRequestConsole UX 修正。integrated `@326` x2 / member `@84` / admin `@126`。
+- **`v366`（2026-05-17 反映済み）**: SharedMemoPanel を sm+ で sticky 化（年会費管理のみ）。IntersectionObserver で stuck 検知 → 自動 collapsed。モバイルは通常スクロール。integrated `@325` x2 / member `@83` / admin `@125`。
+- **`v365`（2026-05-17 反映済み）**: 年会費一覧の会員名横にコピーボタン（CopyButton 汎用コンポーネント）追加。navigator.clipboard 優先 + execCommand fallback、1.5 秒アイコン切替フィードバック、aria-live + stopPropagation。integrated `@324` x2 / member `@82` / admin `@124`。
+- **`v364`（2026-05-17 反映済み）**: 年会費管理コンソールで前年度未納行を red-50 背景 + 左ボーダー + ⚠ アイコン + テキストでハイライト。前年度在籍判定（isAnnualFeeEligibleMemberForYear_）で「対象外」を除外、UNPAID と未記録のみ警告対象。上部サマリに「前年度未納」カード追加。WCAG 2.2「色だけに頼らない」準拠。integrated `@323` x2 / member `@81` / admin `@123`。
+- **`v363.2`（2026-05-16 反映済み）**: 会員詳細をモーダルダイアログ表示に変更（v363 新タブ廃止）。GAS DOMAIN 認証で毎回ログイン画面に戻る問題を回避。背景に元コンソール維持・✕/ESC/backdrop で閉じる。integrated `@322` x2 / member `@80` / admin `@122`。
+- **`v363`（2026-05-16 反映済み・直後 v363.2 で改修）**: 会員詳細を新タブで開く試行。GAS DOMAIN 認証で再ログイン要求のため UX 不可。doGet APP_URL 注入と deepLink.ts は残置（将来 deep link 用）。
+- **`v362`（2026-05-16 反映済み）**: 管理コンソール全検索のフリガナ対応。`matchesSearchQuery` に ひらがな→カタカナ統一 + NFC を追加。会員管理・年会費管理・一括メール送信・宛名リスト出力の検索値配列に `kana` 列追加（backend も同時対応）。`scripts/test-search.mts` で 16 ケース単体テスト。integrated `@320` x2 / member `@77` / admin `@118`。
+- **`v361`（2026-05-16 反映済み）**: v360 hotfix。SheetJS xlsx の `import.meta` トラップで admin/member shell クラッシュ → xlsx 除去 + CSV (UTF-8 BOM) 出力 + `compress-html.mjs` に build 時 `import.meta` 検出 gate。
+- **`v360`（2026-05-16 反映済み・データ migration のみ要 operator 実行）**: 研修名簿・出欠・受講履歴・一括メール明細を新設。M_出欠状態 / T_メール送信明細 / T_研修申込 2-FK 化（外部申込者ID 追加）+ 出欠 4 列。残作業: admin split で `runRebuildSchemaForV360` 手動 Run。詳細: `docs/223_RELEASE_STATE_v360_2026-05-16.md`、データモデル: `docs/learning/14_data_model_v360_2026-05-16.html`
 - `v359`: 会員ログインを認証先行 + 遅延ロードへ変更。ログインID保存、パスワード表示/非表示、登録メールへのパスワード再設定コード送信を追加。integrated/public `@317` x2 / member `@74` / admin `@115`。詳細: `docs/222_RELEASE_STATE_v359_2026-05-16.md`
 - `v358`: 案内 PDF lightbox プレビューを高解像度 PNG (w2000) モーダル化。CSP / Chrome blob / iOS Safari 制約を全て回避、1 ページ目を読める品質で表示し、全ページ閲覧は「別タブで開く」(Drive viewer) で。`extractDriveFileId_` 共通ヘルパーで全 URL 形式に対応 → `unparseable_url` 解消。integrated/public `@316` x2 / member `@73` / admin `@114`。
 - `v357`: lightbox を blob URL iframe で実装 (Chrome ブロックで撤退 → v358 へ)。
@@ -235,16 +361,18 @@ fixed deployment: integrated/public `@317` x2 / member split `@74` / admin split
 2. **次の 3 件を必ず読む**:
    - `AGENTS.md`（特に **§0 シークレット最優先絶対ルール** と §4 レスポンシブ必須）
    - `HANDOVER.md`（本文書）
-   - `docs/222_RELEASE_STATE_v359_2026-05-16.md`（最新本番 release state）
-3. テストハーネス前提を整える（必要に応じて）:
+   - `docs/225_RELEASE_STATE_v360_to_v370_2026-05-17.md`（最新本番 release state）
+3. `.clasp.json` は Git 追跡対象外。`gas/admin/.clasp.json` / `gas/member/.clasp.json` がローカルに無い環境では、値をチャットや docs に出さず、各自ローカルで作成する。
+4. `git diff --check` / `npm run typecheck` / `npm run security:public-boundary` / `npm run security:split-boundary` / `npm run test:search` を再実行して、整理済み環境を確認する。
+5. テストハーネス前提を整える（必要に応じて）:
    - Member テスト: `.env.test.example` を `.env.test` にコピーし、`MEMBER_LOGIN_ID` / `MEMBER_PASSWORD` をユーザー側で埋める（ロックされていないテスト用アカウントを使用）。
    - Admin テスト: `node scripts/auth-bootstrap-admin.mjs` で Google ログイン → `.test-out/auth-admin.json` を作成（通常 1〜2 週間有効）。
    - これらの認証情報は **絶対にチャット・コミット・ログ・ドキュメントに値を再掲しない**（§0）。
-4. 実装・構成・デプロイ前に不明点を確認する。複数解釈が成立する場合は推測で実装せず、YesNo か選択肢で答えられる形で質問する。
-5. 変更前に関連正本を読み、コード・データ・デプロイ・UI・認証・運用手順を変える場合は同ターンで正本を更新する。
-6. 本番系 `clasp` コマンドは最初から承認済みの安定経路で実行する。
-7. リリース完了条件: `build → push → version → fixed deployment sync → verification → document update`（§5）。
-8. リリース後、可能なら `node scripts/responsive-test*.mjs` でレスポンシブ品質に後退がないことを確認。
+6. 実装・構成・デプロイ前に不明点を確認する。複数解釈が成立する場合は推測で実装せず、YesNo か選択肢で答えられる形で質問する。
+7. 変更前に関連正本を読み、コード・データ・デプロイ・UI・認証・運用手順を変える場合は同ターンで正本を更新する。
+8. 本番系 `clasp` コマンドは最初から承認済みの安定経路で実行する。
+9. リリース完了条件: `build → push → version → fixed deployment sync → verification → document update`（§5）。
+10. リリース後、可能なら `node scripts/responsive-test*.mjs` でレスポンシブ品質に後退がないことを確認。
 
 ## 9. 標準確認コマンド
 

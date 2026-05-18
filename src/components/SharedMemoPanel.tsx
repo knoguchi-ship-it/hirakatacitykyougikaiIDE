@@ -24,9 +24,11 @@ function formatUpdatedAt(isoString: string): string {
 interface Props {
   api: ApiClient;
   adminPermissionLevel: AdminPermissionLevel | null;
+  /** v366: 親スクロール領域内で上部に sticky 表示する（sm+ のみ）。スクロール時は自動 collapsed */
+  sticky?: boolean;
 }
 
-const SharedMemoPanel: React.FC<Props> = ({ api, adminPermissionLevel }) => {
+const SharedMemoPanel: React.FC<Props> = ({ api, adminPermissionLevel, sticky = false }) => {
   const canWrite = adminPermissionLevel === 'MASTER' || adminPermissionLevel === 'ADMIN';
 
   const [memo, setMemo] = useState<SharedMemo | null>(null);
@@ -37,6 +39,12 @@ const SharedMemoPanel: React.FC<Props> = ({ api, adminPermissionLevel }) => {
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [conflict, setConflict] = useState<SharedMemo | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // v366: sticky モード時、IntersectionObserver で「上部に張り付いている」状態を検知し
+  // 自動的に collapsed = true にする（コンパクトヘッダーのみ表示）。
+  // ユーザーが click で展開した場合は peek 表示として一時的に expand。
+  const [stuck, setStuck] = useState(false);
+  const stickySentinelRef = useRef<HTMLDivElement>(null);
 
   const saveMessageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -178,8 +186,49 @@ const SharedMemoPanel: React.FC<Props> = ({ api, adminPermissionLevel }) => {
       ? `最終更新: ${formatUpdatedAt(memo.updatedAt)}`
       : '未記入';
 
+  // v366: sticky モードでは sentinel が viewport 外 (top) になったら stuck = true
+  useEffect(() => {
+    if (!sticky) {
+      setStuck(false);
+      return;
+    }
+    const sentinel = stickySentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          // sentinel が見えている (top にいる) → not stuck
+          // sentinel が見えなくなった (上にスクロールアウト) → stuck
+          setStuck(!entry.isIntersecting);
+        }
+      },
+      { threshold: 0, rootMargin: '0px 0px 0px 0px' }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [sticky]);
+
+  // v366: stuck になったタイミングで自動 collapse（peek 表示への入口）
+  // 既にユーザーが手動で collapsed していた場合はそのまま、展開していた場合のみ collapse する
+  const prevStuck = useRef(false);
+  useEffect(() => {
+    if (sticky && stuck && !prevStuck.current && !collapsed) {
+      setCollapsed(true);
+    }
+    prevStuck.current = stuck;
+  }, [stuck, sticky, collapsed]);
+
+  // v366: sticky 用 wrapper クラス。sm+ のみ sticky 適用、< 640px は通常配置
+  const wrapperClass = sticky
+    ? 'sm:sticky sm:top-0 sm:z-30'
+    : '';
+  const panelShadowClass = sticky && stuck ? 'sm:shadow-lg' : 'shadow-sm';
+
   return (
-    <div className="bg-amber-50 border border-amber-200 border-l-4 border-l-amber-400 rounded-xl shadow-sm overflow-hidden">
+    <div className={wrapperClass}>
+      {/* v366: sticky 検知用の sentinel（高さ0・視覚非表示） */}
+      {sticky && <div ref={stickySentinelRef} aria-hidden="true" style={{ height: 1, marginTop: -1 }} />}
+      <div className={`bg-amber-50 border border-amber-200 border-l-4 border-l-amber-400 rounded-xl ${panelShadowClass} overflow-hidden transition-shadow`}>
       {/* ヘッダー */}
       <button
         type="button"
@@ -303,6 +352,7 @@ const SharedMemoPanel: React.FC<Props> = ({ api, adminPermissionLevel }) => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };
