@@ -1,8 +1,8 @@
 # 開発引継ぎ
 
-更新日: 2026-05-19（v371.1 メール送信 4 階層ガード導入直後）
-現行本番: **`v371.1`**（メール送信キルスイッチ + 配信モード + Redirect allowlist + 補完カテゴリ） / integrated-public GAS version `331` / member split GAS version `89` / admin split GAS version `132`
-fixed deployment: integrated/public `@331` x2 / member split `@89` / admin split `@132`
+更新日: 2026-05-19（v371.2 全送信統合 + コミット完了）
+現行本番: **`v371.2`**（全メール送信が deliverMail_ 経由・GLOBAL/MODE/REDIRECT 完全適用） / integrated-public GAS version `332` / member split GAS version `90` / admin split GAS version `133`
+fixed deployment: integrated/public `@332` x2 / member split `@90` / admin split `@133`
 
 > **🆕 2026-05-19 v371.1 本番反映済み（メール送信制御の 4 階層ガード導入）**
 >
@@ -58,20 +58,15 @@ fixed deployment: integrated/public `@331` x2 / member split `@89` / admin split
 > - 検証対象: 新規申込（個人/賛助/事業所）+ 3 種の転籍（個人↔事業所職員・事業所 A→B 職員）
 > - 追加されたツール: `node scripts/dryrun-applications.mjs run|preview|cleanup --yes` + 3 GAS 関数 (`dryRunApplicationScenarios` / `previewDryRunApplicationCleanup` / `executeDryRunApplicationCleanup`)
 >
-> **🔴 操作者による即時対応が必要なタスク (最優先・未完了):**
-> 1. **`runRebuildSchemaForV360` を admin Apps Script editor で 1 回 Run** — 未実行（一括メール送信のみ動作不可）
-> 2. **`runCleanupPartialBusinessV370_53779700` を admin Apps Script editor で 1 回 Run + 変更申請再承認** — partial 登録の復旧
-> 3. **v360〜v370 の実ブラウザ動作確認** — 研修名簿/出欠/CSV/メール/変更申請/モバイル実機。確認観点は `docs/225_RELEASE_STATE_v360_to_v370_2026-05-17.md` §3 と `docs/223_RELEASE_STATE_v360_2026-05-16.md` §5 を正とする。
+> **🔴 操作者による即時対応が必要なタスク（残作業）:**
+> 1. **`runRebuildSchemaForV360` を admin Apps Script editor で 1 回 Run** — ✅ 完了済み（2026-05-18, xorViolations: 0, T_メール送信明細 作成 OK, ログSS の研修ID列追加だけ別件で失敗）
+> 2. **`runCleanupPartialBusinessV370_53779700` を admin Apps Script editor で 1 回 Run + 変更申請再承認** — ✅ 完了済み（2026-05-18, 申請 CR1778920612878_22c197b0 承認済み）
+> 3. **v360〜v371.2 の実ブラウザ動作確認** — 残作業。確認観点は `docs/225_RELEASE_STATE_v360_to_v370_2026-05-17.md` §3 と `docs/223_RELEASE_STATE_v360_2026-05-16.md` §5 + メール送信制御セクション動作確認
+> 4. **テスト環境メール制御**: システム設定 → メール通知タブ → 「メール送信制御」セクションで `MAIL_GLOBAL_ENABLED=true` + `MAIL_DELIVERY_MODE=REDIRECT` + allowlist に自分のメール を設定すれば dryRun テスト可
 >
-> **⚠️ 未コミット状態:**
-> - dryRun コミット d110b48 以後、working tree に v360-v370 リリース作業と 2026-05-18 cleanup（`.clasp.json` 追跡解除、docs 整合、dryRun 物理削除 callable 除去、CSV/44px 整理）が残存
-> - v360-v370 本体は本番 fixed deployment @329/@87/@129 で既に稼働中だが、git 履歴未反映。2026-05-18 cleanup は未デプロイ・未コミット。
-> - 操作者の動作確認 PASS 後にコミット推奨（コミットメッセージ案: `feat: ship v360-v370 (training roster, search kana, mail templates, transfer hotfixes)`）
+> **✅ コミット済み**: `605f69f feat: ship v360-v371.2 (training roster, mail templates, transfer hotfixes, mail kill switch)` で v360〜v371.2 + 2026-05-18 cleanup + メール送信 4 階層ガードを 1 コミットにまとめ済み。
 >
-> **⚠️ admin split devMode の状態:**
-> - 現在 devMode は「HEAD + dryRun」状態（本日テスト用に push）
-> - 本番 fixed @129 は v370.1 のまま、UI ユーザーへは無影響
-> - v360-v370 機能を dev で動作確認したい場合は `npm run build:gas:admin && cd gas/admin && npx clasp push --force`（標準 OAuth client）で再 push
+> **✅ devMode 状態**: 全 4 deployment が v371.2 (@332/@90/@133) に着地済み。devMode と fixed は同一バージョン。
 >
 > **旧注記:** `docs/224_RESUME_v360_2026-05-16.md` は v361 時点の一時再開ガイド。古い deployment 値を含むため、現行判断には使わない。
 
