@@ -3145,7 +3145,13 @@ function saveMemberCore_(payload, options) {
     statusNote: fromPayloadOrCurrent('statusNote', String(getCol('ステータスメモ') || '')),
     midYearWithdrawal: fromPayloadOrCurrent('midYearWithdrawal', false),
   };
-  validateMemberPayload_(mergedPayload, memberTypeCode, currentMemberStatus);
+  // v372.4: admin 権限（MASTER/ADMIN）の場合のみ CM 番号緩和を許可
+  var allowRelaxedCm = isAllowedRelaxedCmNumber_(adminSession);
+  validateMemberPayload_(mergedPayload, memberTypeCode, currentMemberStatus, { allowRelaxedCmNumber: allowRelaxedCm });
+  // v372.4: DB 保存前に CM 番号を大文字化（既存純数字データは影響なし）
+  if (mergedPayload.careManagerNumber) {
+    mergedPayload.careManagerNumber = normalizeCmNumberForStorage_(mergedPayload.careManagerNumber);
+  }
   var sharedMobile = memberTypeCode === 'BUSINESS' && !String(mergedPayload.mobilePhone || '').trim()
     ? String(mergedPayload.phone || '')
     : String(mergedPayload.mobilePhone || '');
@@ -3258,7 +3264,10 @@ function saveMemberCore_(payload, options) {
   return { updated: true, memberId: String(payload.id) };
 }
 
-function validateMemberPayload_(payload, memberTypeCode, currentMemberStatus) {
+function validateMemberPayload_(payload, memberTypeCode, currentMemberStatus, opts) {
+  // v372.4: opts.allowRelaxedCmNumber === true で 1〜10 桁半角英数字を許可
+  opts = opts || {};
+  var allowRelaxedCm = opts.allowRelaxedCmNumber === true;
   function trim(v) { return String(v || '').trim(); }
   function isHalfWidthKana(v) { return /^[ｦ-ﾟ\s]+$/u.test(trim(v)); }
   function isEightDigits(v) { return /^\d{8}$/.test(trim(v)); }
@@ -3282,8 +3291,17 @@ function validateMemberPayload_(payload, memberTypeCode, currentMemberStatus) {
     if (!isHalfWidthKana(payload.lastKana)) throw new Error('セイは半角ｶﾅで入力してください。');
     if (!isHalfWidthKana(payload.firstKana)) throw new Error('メイは半角ｶﾅで入力してください。');
     if (!isSupport && !trim(payload.careManagerNumber)) throw new Error('賛助会員以外は介護支援専門員番号が必須です。');
-    if (trim(payload.careManagerNumber) && !isEightDigits(payload.careManagerNumber)) {
-      throw new Error('介護支援専門員番号は8桁の半角数字で入力してください。');
+    if (trim(payload.careManagerNumber)) {
+      // v372.4: admin 例外（MASTER/ADMIN 権限）なら 1〜10 桁半角英数字を許可
+      if (allowRelaxedCm) {
+        if (!isEightDigits(payload.careManagerNumber) && !isValidCmNumberRelaxed_(payload.careManagerNumber)) {
+          throw new Error('介護支援専門員番号は 8 桁の半角数字、または例外として 1〜10 桁の半角英数字で入力してください（看護師等: HN+事業所番号下8桁 / 社会福祉士: HS+事業所番号下8桁）。');
+        }
+      } else {
+        if (!isEightDigits(payload.careManagerNumber)) {
+          throw new Error('介護支援専門員番号は8桁の半角数字で入力してください。');
+        }
+      }
     }
   }
 
@@ -5299,6 +5317,27 @@ var PUBLIC_BUSINESS_UPDATE_ALLOWLIST_ = [
   'officeNumber',
 ];
 
+
+// v372.4: 介護支援専門員番号バリデーション + 大文字統一
+// 厳格: 8 桁の半角数字（公開ポータルでの基本ルール）
+// 緩和: 1〜10 桁の半角英数字（admin 例外運用）— 例: 看護師 HN12345678 / 社会福祉士 HS12345678
+var CM_NUMBER_STRICT_RE_ = /^\d{8}$/;
+var CM_NUMBER_RELAXED_RE_ = /^[A-Za-z0-9]{1,10}$/;
+function isValidCmNumberRelaxed_(v) {
+  return CM_NUMBER_RELAXED_RE_.test(String(v || '').trim());
+}
+// DB 保存時の正規化（trim + 大文字化）。空文字は空のまま返す。
+function normalizeCmNumberForStorage_(v) {
+  var s = String(v || '').trim();
+  if (!s) return '';
+  return s.toUpperCase();
+}
+// adminSession から MASTER/ADMIN 権限を判定（CM 番号緩和許可の単一判定箇所）
+function isAllowedRelaxedCmNumber_(adminSession) {
+  if (!adminSession) return false;
+  var perm = String(adminSession.adminPermissionLevel || '').toUpperCase();
+  return perm === 'MASTER' || perm === 'ADMIN';
+}
 
 
 

@@ -53,7 +53,9 @@ const EDITABLE_MEMBER_FIELDS = [
 ] as const;
 
 const HALF_WIDTH_KANA_RE = /^[ｦ-ﾟ\s]+$/u;
+// v372.4: admin 例外運用 — 厳格 (8 桁半角数字) または 緩和 (1〜10 桁半角英数字) を許容
 const CARE_MANAGER_RE = /^\d{8}$/;
+const CARE_MANAGER_RELAXED_RE = /^[A-Za-z0-9]{1,10}$/;
 const POST_CODE_RE = /^\d{3}-?\d{4}$/;
 const PHONE_RE = /^[0-9-]+$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -86,9 +88,15 @@ const toHalfWidthKana = (value: string): string => {
   };
   return s.replace(/[ァ-ヶー。「」、・]/g, (c) => fullToHalf[c] || c);
 };
-const normalizeCareManagerInput = (value: string) => value.replace(/\D/g, '').slice(0, 8);
+// v372.4: admin 例外運用 — 半角英数字を許容 (10 桁まで切詰、大文字化)
+const normalizeCareManagerInput = (value: string) => value.replace(/[^A-Za-z0-9]/g, '').slice(0, 10).toUpperCase();
 const validateHalfWidthKana = (value: string) => !value.trim() || HALF_WIDTH_KANA_RE.test(value.trim());
-const validateCareManagerNumber = (value: string) => !value.trim() || CARE_MANAGER_RE.test(value.trim());
+// v372.4: admin 画面は厳格 (8 桁数字) または緩和 (1〜10 桁英数字) のどちらかを許容
+const validateCareManagerNumber = (value: string) => {
+  const s = value.trim();
+  return !s || CARE_MANAGER_RE.test(s) || CARE_MANAGER_RELAXED_RE.test(s);
+};
+const CARE_MANAGER_NUMBER_ERROR_MSG = '介護支援専門員番号は 8 桁の半角数字、または例外として 1〜10 桁の半角英数字で入力してください。';
 const validatePostCode = (value: string) => !value.trim() || POST_CODE_RE.test(value.trim());
 const validatePhone = (value: string) => !value.trim() || PHONE_RE.test(value.trim());
 const validateEmail = (value: string) => !value.trim() || EMAIL_RE.test(value.trim());
@@ -386,7 +394,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     if (key === 'careManagerNumber') {
       if (!isSupport && !value.trim()) return '介護支援専門員番号は必須です。';
       if (value.trim() && !validateCareManagerNumber(value)) {
-        return '介護支援専門員番号は8桁の半角数字で入力してください。';
+        return CARE_MANAGER_NUMBER_ERROR_MSG;
       }
     }
     if (isIndividualLike && preferredMailDestination === 'OFFICE' && key === 'officeName' && !value.trim()) {
@@ -474,7 +482,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     if (!careManagerNumber) {
       errors.careManagerNumber = '介護支援専門員番号は必須です。';
     } else if (!validateCareManagerNumber(careManagerNumber)) {
-      errors.careManagerNumber = '介護支援専門員番号は8桁の半角数字で入力してください。';
+      errors.careManagerNumber = CARE_MANAGER_NUMBER_ERROR_MSG;
     }
     return errors;
   };
@@ -616,8 +624,8 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
           setError(`職員 ${i + 1} 番目の介護支援専門員番号が未入力です。`);
           return;
         }
-        if (!/^\d{8}$/.test(String(s.careManagerNumber || '').trim())) {
-          setError(`職員 ${i + 1} 番目の介護支援専門員番号は8桁の半角数字で入力してください。`);
+        if (!validateCareManagerNumber(String(s.careManagerNumber || ''))) {
+          setError(`職員 ${i + 1} 番目の介護支援専門員番号は 8 桁の半角数字、または例外として 1〜10 桁の半角英数字で入力してください。`);
           return;
         }
       }
@@ -819,7 +827,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     if (isSupport && !String(form.careManagerNumber || '').trim()) {
       const cm = String(convertCareManagerNumber || '').trim();
       if (!cm) { setConvertCareManagerNumberError('介護支援専門員番号は必須です。'); return; }
-      if (!/^\d{8}$/.test(cm)) { setConvertCareManagerNumberError('8桁の半角数字で入力してください。'); return; }
+      if (!validateCareManagerNumber(cm)) { setConvertCareManagerNumberError(CARE_MANAGER_NUMBER_ERROR_MSG); return; }
       setConvertCareManagerNumberError('');
     }
     const targetName = businessMembers?.find(b => b.memberId === convertTargetOfficeId)?.displayName || convertTargetOfficeId;
@@ -856,7 +864,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     if (isSelectedSupport) {
       const cm = String(convertFromIndividualCareNum || '').trim();
       if (!cm) { setConvertFromIndividualCareNumError('介護支援専門員番号は必須です。'); return; }
-      if (!/^\d{8}$/.test(cm)) { setConvertFromIndividualCareNumError('8桁の半角数字で入力してください。'); return; }
+      if (!validateCareManagerNumber(cm)) { setConvertFromIndividualCareNumError(CARE_MANAGER_NUMBER_ERROR_MSG); return; }
       setConvertFromIndividualCareNumError('');
     }
     const memberName = srcMember?.displayName || convertFromIndividualId;
@@ -1160,12 +1168,16 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                   value={form.careManagerNumber || ''}
                   onChange={e => set('careManagerNumber', e.target.value)}
                   onBlur={() => handleBlur('careManagerNumber')}
-                  inputMode="numeric"
-                  maxLength={8}
+                  maxLength={10}
                   aria-required={!isSupport || undefined}
                   aria-invalid={touched['careManagerNumber'] && !!validationErrors['careManagerNumber'] || undefined}
-                  aria-describedby={validationErrors['careManagerNumber'] ? 'err-careManagerNumber' : undefined}
+                  aria-describedby={`cm-help${validationErrors['careManagerNumber'] ? ' err-careManagerNumber' : ''}`}
                 />
+                {/* v372.4: admin 例外運用の注意書き */}
+                <p id="cm-help" className="mt-1 text-xs text-slate-500 leading-relaxed">
+                  ※ 通常は 8 桁半角数字。例外的に介護支援専門員以外を登録する場合のみ、半角英数字 10 桁まで入力可。<br />
+                  看護師・保健師等は <code className="bg-slate-100 px-1 rounded">HN</code> + 事業所番号下 8 桁、社会福祉士は <code className="bg-slate-100 px-1 rounded">HS</code> + 事業所番号下 8 桁。
+                </p>
                 {touched['careManagerNumber'] && validationErrors['careManagerNumber'] && (
                   <p id="err-careManagerNumber" role="alert" className="mt-1 text-sm text-red-600">{validationErrors['careManagerNumber']}</p>
                 )}
@@ -1665,18 +1677,21 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                   <div className="flex flex-wrap items-end gap-3">
                     <div className="flex-1 min-w-[200px]">
                       <label className="block text-xs font-medium text-slate-600 mb-1">
-                        介護支援専門員番号（8桁）<span className="text-red-500 ml-0.5">*</span>
+                        介護支援専門員番号<span className="text-red-500 ml-0.5">*</span>
                       </label>
                       <input
                         value={staff.careManagerNumber || ''}
                         onChange={(e) => updateDraftStaff(staff.id, { careManagerNumber: normalizeCareManagerInput(e.target.value) })}
                         className={getDraftStaffFieldClass(staff.id, 'careManagerNumber')}
-                        placeholder="例: 12345678"
-                        maxLength={8}
-                        inputMode="numeric"
-                        aria-label="介護支援専門員番号（必須）"
+                        placeholder="例: 12345678 / HN12345678"
+                        maxLength={10}
+                        aria-label="介護支援専門員番号（必須・通常8桁数字、例外的にHN/HS等の英数字10桁可）"
                         aria-required="true"
+                        aria-describedby={`draft-cm-help-${staff.id}`}
                       />
+                      <p id={`draft-cm-help-${staff.id}`} className="mt-1 text-[10px] text-slate-500 leading-relaxed">
+                        ※ 通常 8 桁半角数字。例外: <code className="bg-slate-100 px-1 rounded">HN</code>+事業所番号下8桁（看護師等）/ <code className="bg-slate-100 px-1 rounded">HS</code>+事業所番号下8桁（社会福祉士）
+                      </p>
                     </div>
                     <div className="min-w-[140px]">
                       <label className="block text-xs font-medium text-slate-600 mb-1">役割</label>

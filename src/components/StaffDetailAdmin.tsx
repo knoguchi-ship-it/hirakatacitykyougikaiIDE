@@ -99,6 +99,13 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
     if (key === 'email' && value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())) {
       return 'メールアドレスの形式が正しくありません';
     }
+    // v372.4: 介護支援専門員番号は 8 桁半角数字を基本、admin 例外で 1〜10 桁半角英数字を許容
+    if (key === 'careManagerNumber' && value.trim()) {
+      const v = value.trim();
+      if (!/^\d{8}$/.test(v) && !/^[A-Za-z0-9]{1,10}$/.test(v)) {
+        return '介護支援専門員番号は 8 桁の半角数字、または例外として 1〜10 桁の半角英数字で入力してください';
+      }
+    }
     return '';
   };
 
@@ -373,10 +380,15 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
               value={form.careManagerNumber}
               onChange={e => set('careManagerNumber', e.target.value)}
               onBlur={() => handleBlur('careManagerNumber')}
+              maxLength={10}
               aria-required="true"
               aria-invalid={hasErr('careManagerNumber')}
-              aria-describedby={hasErr('careManagerNumber') ? 'err-cm' : undefined}
+              aria-describedby={hasErr('careManagerNumber') ? 'err-cm staff-cm-help' : 'staff-cm-help'}
             />
+            <p id="staff-cm-help" className="mt-1 text-xs text-slate-500 leading-relaxed">
+              ※ 通常は 8 桁半角数字。例外的に介護支援専門員以外を登録する場合のみ、半角英数字 10 桁まで入力可。<br />
+              看護師・保健師等は <code className="bg-slate-100 px-1 rounded">HN</code> + 事業所番号下 8 桁、社会福祉士は <code className="bg-slate-100 px-1 rounded">HS</code> + 事業所番号下 8 桁。
+            </p>
             <FieldError id="err-cm" message={touched.careManagerNumber ? validationErrors.careManagerNumber || '' : ''} />
           </div>
           <div>
