@@ -913,6 +913,13 @@ var ADMIN_ACTION_PERMISSIONS = {
   'saveRosterTemplate': ['MASTER','ADMIN'],
   'deleteRosterTemplate': ['MASTER','ADMIN'],
   'setDefaultRosterTemplate': ['MASTER','ADMIN'],
+  // v372: 名簿出力 Visual Template Designer
+  'getRosterFieldDictionary': ['MASTER','ADMIN'],
+  'getRosterDesignerData': ['MASTER','ADMIN'],
+  'loadRosterTemplatesV2': ['MASTER','ADMIN'],
+  'saveRosterTemplateV2': ['MASTER','ADMIN'],
+  'deleteRosterTemplateV2': ['MASTER','ADMIN'],
+  'duplicateRosterTemplateV2': ['MASTER','ADMIN'],
   // v360: 研修名簿・出欠・受講履歴・一括メール明細
   'getTrainingRosterDetail': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
   'saveAttendance': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
