@@ -5,7 +5,10 @@ import {
   RosterDesignerRow,
   RosterFieldDef,
   RosterLayoutDef,
+  RosterOutputUnit,
   RosterTemplateV2,
+  RowFilterDef,
+  RowFilterOperator,
 } from '../types';
 
 // v372: 名簿出力 Visual Template Designer (S1: 骨組み + 列ビルダー + CSV + 件数表示)
@@ -40,9 +43,65 @@ const emptyTemplate = (): RosterTemplateV2 => ({
   name: '',
   description: '',
   target: 'ALL',
+  outputUnit: 'MEMBER',
   columns: [],
   layout: { ...DEFAULT_LAYOUT },
 });
+
+// 演算子定義（型別）
+const OPERATORS_BY_TYPE: Record<string, Array<{ value: RowFilterOperator; label: string; valueKind: 'none' | 'single' | 'double' | 'multi' }>> = {
+  string: [
+    { value: 'contains',     label: '含む',         valueKind: 'single' },
+    { value: 'notContains',  label: '含まない',     valueKind: 'single' },
+    { value: 'equals',       label: '等しい',       valueKind: 'single' },
+    { value: 'notEquals',    label: '等しくない',   valueKind: 'single' },
+    { value: 'startsWith',   label: '始まる',       valueKind: 'single' },
+    { value: 'endsWith',     label: '終わる',       valueKind: 'single' },
+    { value: 'isEmpty',      label: '空',           valueKind: 'none' },
+    { value: 'isNotEmpty',   label: '空でない',     valueKind: 'none' },
+  ],
+  number: [
+    { value: 'equals',       label: '=',           valueKind: 'single' },
+    { value: 'notEquals',    label: '≠',           valueKind: 'single' },
+    { value: 'gt',           label: '>',           valueKind: 'single' },
+    { value: 'lt',           label: '<',           valueKind: 'single' },
+    { value: 'gte',          label: '≥',           valueKind: 'single' },
+    { value: 'lte',          label: '≤',           valueKind: 'single' },
+    { value: 'between',      label: '範囲',         valueKind: 'double' },
+    { value: 'isEmpty',      label: '空',           valueKind: 'none' },
+    { value: 'isNotEmpty',   label: '空でない',     valueKind: 'none' },
+  ],
+  date: [
+    { value: 'equals',       label: '等しい',       valueKind: 'single' },
+    { value: 'before',       label: '以前',         valueKind: 'single' },
+    { value: 'after',        label: '以降',         valueKind: 'single' },
+    { value: 'between',      label: '期間',         valueKind: 'double' },
+    { value: 'isEmpty',      label: '空',           valueKind: 'none' },
+    { value: 'isNotEmpty',   label: '空でない',     valueKind: 'none' },
+  ],
+  enum: [
+    { value: 'in',           label: 'いずれか',     valueKind: 'multi' },
+    { value: 'notIn',        label: '除外',         valueKind: 'multi' },
+    { value: 'isEmpty',      label: '空',           valueKind: 'none' },
+    { value: 'isNotEmpty',   label: '空でない',     valueKind: 'none' },
+  ],
+  boolean: [
+    { value: 'equals',       label: '等しい',       valueKind: 'single' },
+  ],
+};
+const operatorsFor = (type?: string) => OPERATORS_BY_TYPE[type || 'string'] || OPERATORS_BY_TYPE.string;
+const operatorLabel = (op?: RowFilterOperator): string => {
+  for (const list of Object.values(OPERATORS_BY_TYPE)) {
+    const f = list.find((o) => o.value === op);
+    if (f) return f.label;
+  }
+  return String(op || '');
+};
+const operatorValueKind = (type: string, op: RowFilterOperator): 'none' | 'single' | 'double' | 'multi' => {
+  const list = operatorsFor(type);
+  const f = list.find((o) => o.value === op);
+  return f?.valueKind ?? 'single';
+};
 
 const genId = (): string => {
   // crypto.randomUUID() は GAS iframe 内で動作するブラウザのみ。fallback 用意。
@@ -59,13 +118,13 @@ const fmtValue = (raw: unknown, type: string, enumLabels?: Record<string, string
   return s;
 };
 
-const groupOrder: Array<RosterFieldDef['group']> = ['member', 'office', 'fee', 'computed', 'staff'];
+const groupOrder: Array<RosterFieldDef['group']> = ['member', 'office', 'staff', 'fee', 'computed'];
 const groupLabel: Record<string, string> = {
   member: '会員（個人情報）',
   office: '勤務先',
+  staff: '事業所職員',
   fee: '年会費',
   computed: '計算済み',
-  staff: '事業所職員',
 };
 
 const btnCls =
@@ -141,6 +200,7 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
         memberTypes: filterTypes,
         memberStatus: filterStatus,
         year: filterYear,
+        outputUnit: working.outputUnit ?? 'MEMBER',
       });
       setRows(data.rows);
       setAvailableYears(data.years.length > 0 ? data.years : [currentFY]);
@@ -151,12 +211,79 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
     } finally {
       setLoadingData(false);
     }
-  }, [api, filterTypes, filterStatus, filterYear, currentFY]);
+  }, [api, filterTypes, filterStatus, filterYear, currentFY, working.outputUnit]);
 
   useEffect(() => { void loadData(); }, [loadData]);
 
-  // 選択判定
-  const filteredRows = rows; // 既に backend でフィルタ済み
+  // --- 列フィルタ評価（rowFilter）---
+  const dictByKeyForFilter = useMemo(() => {
+    const map = new Map<string, RosterFieldDef>();
+    dictionary.forEach((d) => map.set(d.key, d));
+    return map;
+  }, [dictionary]);
+
+  const evalRowFilter = useCallback((row: RosterDesignerRow, col: RosterColumnDef): boolean => {
+    const rf = col.rowFilter;
+    if (!rf || !rf.operator) return true;
+    const fdef = col.fieldKey ? dictByKeyForFilter.get(col.fieldKey) : null;
+    const type = fdef?.type || 'string';
+    const valueKind = operatorValueKind(type, rf.operator);
+    // 値未入力フィルタは無視
+    if (valueKind === 'single' && !rf.value) return true;
+    if (valueKind === 'double' && !rf.value && !rf.value2) return true;
+    if (valueKind === 'multi' && (!rf.values || rf.values.length === 0)) return true;
+    const raw = col.fieldKey ? row[col.fieldKey] : undefined;
+    const sval = raw == null ? '' : String(raw);
+    switch (rf.operator) {
+      case 'isEmpty': return sval === '';
+      case 'isNotEmpty': return sval !== '';
+      case 'contains': return sval.indexOf(String(rf.value || '')) >= 0;
+      case 'notContains': return sval.indexOf(String(rf.value || '')) < 0;
+      case 'equals': return sval === String(rf.value || '');
+      case 'notEquals': return sval !== String(rf.value || '');
+      case 'startsWith': return sval.indexOf(String(rf.value || '')) === 0;
+      case 'endsWith': return sval.length >= String(rf.value || '').length && sval.lastIndexOf(String(rf.value || '')) === sval.length - String(rf.value || '').length;
+      case 'gt':  return Number(sval) >  Number(rf.value);
+      case 'lt':  return Number(sval) <  Number(rf.value);
+      case 'gte': return Number(sval) >= Number(rf.value);
+      case 'lte': return Number(sval) <= Number(rf.value);
+      case 'between': {
+        const n = type === 'number' ? Number(sval) : sval;
+        const lo = type === 'number' ? Number(rf.value)  : String(rf.value  || '');
+        const hi = type === 'number' ? Number(rf.value2) : String(rf.value2 || '');
+        return (n as number) >= (lo as number) && (n as number) <= (hi as number);
+      }
+      case 'in': return Array.isArray(rf.values) && rf.values.indexOf(sval) >= 0;
+      case 'notIn': return Array.isArray(rf.values) && rf.values.indexOf(sval) < 0;
+      case 'before': return sval !== '' && sval <= String(rf.value || '');
+      case 'after':  return sval !== '' && sval >= String(rf.value || '');
+      default: return true;
+    }
+  }, [dictByKeyForFilter]);
+
+  // 行フィルタ適用後の rows
+  const filteredRows = useMemo(() => {
+    if (!working.columns.some((c) => c.rowFilter && c.rowFilter.operator)) return rows;
+    return rows.filter((r) => working.columns.every((c) => evalRowFilter(r, c)));
+  }, [rows, working.columns, evalRowFilter]);
+
+  // 適用中フィルタ chip リスト
+  const activeFilters = useMemo(() => {
+    return working.columns
+      .filter((c) => c.rowFilter && c.rowFilter.operator)
+      .map((c) => {
+        const rf = c.rowFilter!;
+        const fdef = c.fieldKey ? dictByKeyForFilter.get(c.fieldKey) : null;
+        const type = fdef?.type || 'string';
+        const valueKind = operatorValueKind(type, rf.operator);
+        let valStr = '';
+        if (valueKind === 'single') valStr = rf.value || '';
+        else if (valueKind === 'double') valStr = `${rf.value || ''}〜${rf.value2 || ''}`;
+        else if (valueKind === 'multi') valStr = (rf.values || []).join(',');
+        return { colId: c.id, label: c.label, opLabel: operatorLabel(rf.operator), valStr };
+      });
+  }, [working.columns, dictByKeyForFilter]);
+
   const isSelected = (id: string) =>
     selectedIds === null ? !excludedIds.has(id) : selectedIds.has(id);
   const effectiveRows = useMemo(() => {
@@ -407,6 +534,24 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
             disabled={!selectedTemplateId} onClick={duplicateTemplate}>複製</button>
           <button className={`${btnCls} border border-rose-300 bg-white text-rose-700 hover:bg-rose-50 disabled:opacity-50`}
             disabled={!selectedTemplateId} onClick={deleteTemplate}>削除</button>
+          <span className="ml-auto inline-flex items-center gap-2">
+            <button
+              className={`${btnCls} ${dirty ? 'bg-primary-600 text-white hover:bg-primary-700' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
+              onClick={saveTemplate} disabled={saving || !dirty}>
+              {saving ? '保存中…' : dirty ? '💾 保存' : '✓ 保存済み'}
+            </button>
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
+          <p className="text-sm font-medium text-slate-600 shrink-0">出力単位:</p>
+          {(['MEMBER', 'STAFF', 'MIXED'] as const).map((u) => (
+            <label key={u} className="flex items-center gap-2 text-sm min-h-[44px] cursor-pointer">
+              <input type="radio" name="outputUnit" value={u}
+                checked={(working.outputUnit ?? 'MEMBER') === u}
+                onChange={() => { setWorking((w) => ({ ...w, outputUnit: u })); setDirty(true); }} />
+              {u === 'MEMBER' ? '会員単位（既定）' : u === 'STAFF' ? '事業所職員単位' : '混合（個人/賛助/事業所職員）'}
+            </label>
+          ))}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
@@ -511,6 +656,11 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
             )}
             {working.columns.map((col, idx) => {
               const fdef = col.fieldKey ? dictByKey.get(col.fieldKey) : null;
+              const fieldType = fdef?.type || 'string';
+              const ops = operatorsFor(fieldType);
+              const rf = col.rowFilter;
+              const valKind = rf?.operator ? operatorValueKind(fieldType, rf.operator) : 'single';
+              const enumOpts = fdef?.enumLabels ? Object.entries(fdef.enumLabels) : [];
               return (
                 <div key={col.id} className="rounded border border-slate-200 bg-slate-50 p-2 space-y-2">
                   <div className="flex items-center gap-2">
@@ -541,6 +691,72 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                       <option value="center">中央</option>
                       <option value="right">右</option>
                     </select>
+                  </div>
+                  {/* 行フィルタ */}
+                  <div className="flex flex-wrap items-center gap-2 text-xs bg-white rounded border border-slate-200 px-2 py-1.5">
+                    <span className="shrink-0 text-slate-500">条件:</span>
+                    <select className="rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
+                      value={rf?.operator || ''}
+                      onChange={(e) => {
+                        const opVal = e.target.value as RowFilterOperator | '';
+                        if (!opVal) { updateColumn(col.id, { rowFilter: undefined }); return; }
+                        updateColumn(col.id, { rowFilter: { operator: opVal } });
+                      }}>
+                      <option value="">（なし）</option>
+                      {ops.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                    {rf?.operator && valKind === 'single' && (
+                      fieldType === 'enum' ? (
+                        <select className="flex-1 min-w-[120px] rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
+                          value={rf.value || ''}
+                          onChange={(e) => updateColumn(col.id, { rowFilter: { ...rf, value: e.target.value } as RowFilterDef })}>
+                          <option value="">選択</option>
+                          {enumOpts.map(([k, lbl]) => <option key={k} value={k}>{lbl}</option>)}
+                        </select>
+                      ) : (
+                        <input
+                          type={fieldType === 'number' ? 'number' : fieldType === 'date' ? 'date' : 'text'}
+                          className="flex-1 min-w-[100px] rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
+                          value={rf.value || ''}
+                          onChange={(e) => updateColumn(col.id, { rowFilter: { ...rf, value: e.target.value } as RowFilterDef })}
+                          placeholder="値" />
+                      )
+                    )}
+                    {rf?.operator && valKind === 'double' && (
+                      <>
+                        <input
+                          type={fieldType === 'number' ? 'number' : fieldType === 'date' ? 'date' : 'text'}
+                          className="flex-1 min-w-[80px] rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
+                          value={rf.value || ''}
+                          onChange={(e) => updateColumn(col.id, { rowFilter: { ...rf, value: e.target.value } as RowFilterDef })}
+                          placeholder="下限" />
+                        <span className="text-slate-400">〜</span>
+                        <input
+                          type={fieldType === 'number' ? 'number' : fieldType === 'date' ? 'date' : 'text'}
+                          className="flex-1 min-w-[80px] rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
+                          value={rf.value2 || ''}
+                          onChange={(e) => updateColumn(col.id, { rowFilter: { ...rf, value2: e.target.value } as RowFilterDef })}
+                          placeholder="上限" />
+                      </>
+                    )}
+                    {rf?.operator && valKind === 'multi' && (
+                      <div className="flex flex-wrap items-center gap-1">
+                        {enumOpts.map(([k, lbl]) => {
+                          const arr = rf.values || [];
+                          const selected = arr.indexOf(k) >= 0;
+                          return (
+                            <label key={k} className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs cursor-pointer border ${selected ? 'border-primary-500 bg-primary-50' : 'border-slate-300 bg-white'}`}>
+                              <input type="checkbox" className="h-3 w-3" checked={selected}
+                                onChange={(e) => {
+                                  const next = e.target.checked ? Array.from(new Set([...arr, k])) : arr.filter((x) => x !== k);
+                                  updateColumn(col.id, { rowFilter: { ...rf, values: next } as RowFilterDef });
+                                }} />
+                              {lbl}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -579,6 +795,23 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
       {/* ⑤ プレビュー（先頭 5 件 + 件数） */}
       <section className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
         <h3 className="text-base font-semibold text-slate-700">⑤ プレビュー</h3>
+        {activeFilters.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2">
+            <span className="text-xs font-semibold text-amber-700 shrink-0">適用中の列フィルタ:</span>
+            {activeFilters.map((af) => (
+              <span key={af.colId} className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-white px-2 py-0.5 text-xs text-amber-800">
+                <span className="font-medium">{af.label}</span>
+                <span className="text-slate-500">{af.opLabel}</span>
+                {af.valStr && <span className="text-slate-700">{af.valStr}</span>}
+                <button type="button"
+                  onClick={() => updateColumn(af.colId, { rowFilter: undefined })}
+                  className="ml-1 rounded-full hover:bg-amber-100 px-1 text-amber-700"
+                  aria-label={`${af.label}の条件を解除`}>×</button>
+              </span>
+            ))}
+            <span className="ml-auto text-xs text-amber-700">{filteredRows.length} / {rows.length} 件</span>
+          </div>
+        )}
         {working.layout?.showRecordCount && recordCountText && (
           <p className="text-sm text-slate-600 font-medium">{recordCountText}</p>
         )}

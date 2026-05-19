@@ -12690,6 +12690,22 @@ function getRosterFieldDictionary_() {
     { key: 'annualFeeYear',        label: '年会費対象年度',   group: 'fee', type: 'number', sample: '2026' },
     // computed
     { key: 'enrolledStaffCount',   label: '在籍職員数（事業所のみ）', group: 'computed', type: 'number', sample: '5' },
+    // 出力単位 STAFF / MIXED 向けフィールド
+    { key: 'outputCategory',       label: '区分（会員/職員）',         group: 'computed', type: 'enum', enumLabels: { MEMBER: '会員', STAFF: '事業所職員' }, sample: '会員' },
+    { key: 'staffId',              label: '職員ID',                  group: 'staff', type: 'string', sample: 'a1b2c3d4' },
+    { key: 'staffLastName',        label: '職員 姓',                 group: 'staff', type: 'string', sample: '佐藤' },
+    { key: 'staffFirstName',       label: '職員 名',                 group: 'staff', type: 'string', sample: '次郎' },
+    { key: 'staffFullName',        label: '職員氏名（姓 名）',       group: 'staff', type: 'string', sample: '佐藤 次郎' },
+    { key: 'staffLastKana',        label: '職員 セイ',               group: 'staff', type: 'string', sample: 'サトウ' },
+    { key: 'staffFirstKana',       label: '職員 メイ',               group: 'staff', type: 'string', sample: 'ジロウ' },
+    { key: 'staffFullKana',        label: '職員フリガナ',            group: 'staff', type: 'string', sample: 'サトウ ジロウ' },
+    { key: 'staffEmail',           label: '職員メールアドレス',       group: 'staff', type: 'string', sample: 'jiro@example.jp' },
+    { key: 'staffCareManagerNumber', label: '職員CM番号',            group: 'staff', type: 'string', sample: '27000123' },
+    { key: 'staffRole',            label: '職員権限',                group: 'staff', type: 'enum', enumLabels: { REPRESENTATIVE: '代表者', ADMIN: '管理者', STAFF: '職員' }, sample: '代表者' },
+    { key: 'staffStatus',          label: '職員状態',                group: 'staff', type: 'enum', enumLabels: { ENROLLED: '在籍', LEFT: '退職' }, sample: '在籍' },
+    { key: 'staffJoinedDate',      label: '職員入会日',              group: 'staff', type: 'date',   sample: '2024-04-01' },
+    { key: 'staffWithdrawnDate',   label: '職員退会日',              group: 'staff', type: 'date',   sample: '' },
+    { key: 'staffMailingOptOut',   label: '職員メール配信希望',       group: 'staff', type: 'enum',   enumLabels: { YES: '配信希望', NO: '配信停止' }, sample: '配信希望' },
   ];
 }
 
@@ -12702,6 +12718,8 @@ function getRosterDesignerData_(payload) {
   var p = payload || {};
   var memberTypes  = p.memberTypes  || ['INDIVIDUAL', 'BUSINESS', 'SUPPORT'];
   var memberStatusFilter = String(p.memberStatus || 'ACTIVE');
+  var outputUnit = String(p.outputUnit || 'MEMBER').toUpperCase();
+  if (['MEMBER', 'STAFF', 'MIXED'].indexOf(outputUnit) < 0) outputUnit = 'MEMBER';
 
   var now = new Date();
   var currentFY = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
@@ -12743,26 +12761,24 @@ function getRosterDesignerData_(payload) {
     return parts.filter(function(p){ return p != null && String(p).trim() !== ''; }).map(function(p){ return String(p).trim(); }).join('');
   };
 
-  var rows = [];
-  members.forEach(function(m) {
-    if (toBoolean_(m['削除フラグ'])) return;
-    var mtype = String(m['会員種別コード'] || '');
-    if (memberTypes.indexOf(mtype) < 0) return;
-
-    var fiscalSnapshot = getMemberFiscalSnapshot_(m, year);
-    if (!fiscalSnapshot.eligible) return;
-    var status = fiscalSnapshot.memberStatus;
-    if (memberStatusFilter === 'ACTIVE' && status !== 'ACTIVE') return;
-    if (memberStatusFilter === 'INCLUDING_SCHEDULED' &&
-        status !== 'ACTIVE' && status !== 'WITHDRAWAL_SCHEDULED') return;
-
-    var memberId  = String(m['会員ID'] || '');
-    var feeStatus = feeMap[memberId] || 'UNPAID';
-    var feeHistories = {};
-    allFeeYears.forEach(function(yr) {
-      feeHistories[yr] = (feeMapByYear[yr] && feeMapByYear[yr][memberId]) || 'UNPAID';
+  // 事業所職員行を会員IDごとに事前マップ
+  var staffByMemberId = {};
+  if (outputUnit === 'STAFF' || outputUnit === 'MIXED') {
+    staffRows.forEach(function(s) {
+      if (toBoolean_(s['削除フラグ'])) return;
+      var mid = String(s['会員ID'] || '');
+      if (!mid) return;
+      if (!staffByMemberId[mid]) staffByMemberId[mid] = [];
+      staffByMemberId[mid].push(s);
     });
+  }
 
+  var memberById = {};
+  members.forEach(function(m) { memberById[String(m['会員ID'] || '')] = m; });
+
+  // 会員行を作る共通ヘルパー
+  var buildMemberRow_ = function(m, fiscalSnapshot, memberId, feeStatus, feeHistories) {
+    var mtype = String(m['会員種別コード'] || '');
     var lastName  = String(m['姓'] || '').trim();
     var firstName = String(m['名'] || '').trim();
     var lastKana  = String(m['セイ'] || '').trim();
@@ -12771,12 +12787,10 @@ function getRosterDesignerData_(payload) {
     var displayName = (mtype === 'BUSINESS')
       ? (officeName || memberId)
       : ((lastName + ' ' + firstName).trim() || memberId);
-
-    rows.push({
-      // raw fields
+    return {
       memberId: memberId,
       memberType: mtype,
-      memberStatus: status,
+      memberStatus: String(fiscalSnapshot.memberStatus || ''),
       lastName: lastName,
       firstName: firstName,
       lastKana: lastKana,
@@ -12806,16 +12820,91 @@ function getRosterDesignerData_(payload) {
       annualFeeYear: String(year),
       enrolledStaffCount: mtype === 'BUSINESS' ? String(staffCountMap[memberId] || 0) : '',
       annualFeeHistories: feeHistories,
-      // computed
       fullName: (lastName + ' ' + firstName).trim(),
       fullKana: (lastKana + ' ' + firstKana).trim(),
       displayName: displayName,
       officeFullAddress: joinStr_([m['勤務先都道府県'], m['勤務先市区町村'], m['勤務先住所'], m['勤務先住所2']]),
       homeFullAddress: joinStr_([m['自宅都道府県'], m['自宅市区町村'], m['自宅住所'], m['自宅住所2']]),
+      outputCategory: 'MEMBER',
+      // staff 列は空（会員行）
+      staffId: '', staffLastName: '', staffFirstName: '', staffFullName: '',
+      staffLastKana: '', staffFirstKana: '', staffFullKana: '',
+      staffEmail: '', staffCareManagerNumber: '', staffRole: '', staffStatus: '',
+      staffJoinedDate: '', staffWithdrawnDate: '', staffMailingOptOut: '',
+    };
+  };
+
+  // 職員行を作る共通ヘルパー（親会員データを継承）
+  var buildStaffRow_ = function(m, s, fiscalSnapshot, memberId, feeStatus, feeHistories) {
+    var base = buildMemberRow_(m, fiscalSnapshot, memberId, feeStatus, feeHistories);
+    var sLastName  = String(s['姓'] || '').trim();
+    var sFirstName = String(s['名'] || '').trim();
+    var sLastKana  = String(s['セイ'] || '').trim();
+    var sFirstKana = String(s['メイ'] || '').trim();
+    base.outputCategory = 'STAFF';
+    base.staffId = String(s['職員ID'] || '');
+    base.staffLastName = sLastName;
+    base.staffFirstName = sFirstName;
+    base.staffFullName = (sLastName + ' ' + sFirstName).trim();
+    base.staffLastKana = sLastKana;
+    base.staffFirstKana = sFirstKana;
+    base.staffFullKana = (sLastKana + ' ' + sFirstKana).trim();
+    base.staffEmail = String(s['メールアドレス'] || '');
+    base.staffCareManagerNumber = String(s['介護支援専門員番号'] || '');
+    base.staffRole = String(s['職員権限コード'] || '');
+    base.staffStatus = String(s['職員状態コード'] || '');
+    base.staffJoinedDate = String(s['入会日'] || '');
+    base.staffWithdrawnDate = String(s['退会日'] || '');
+    base.staffMailingOptOut = String(s['メール配信希望コード'] || '');
+    base.displayName = base.staffFullName || base.staffId;
+    return base;
+  };
+
+  var rows = [];
+  members.forEach(function(m) {
+    if (toBoolean_(m['削除フラグ'])) return;
+    var mtype = String(m['会員種別コード'] || '');
+    if (memberTypes.indexOf(mtype) < 0) return;
+
+    var fiscalSnapshot = getMemberFiscalSnapshot_(m, year);
+    if (!fiscalSnapshot.eligible) return;
+    var status = fiscalSnapshot.memberStatus;
+    if (memberStatusFilter === 'ACTIVE' && status !== 'ACTIVE') return;
+    if (memberStatusFilter === 'INCLUDING_SCHEDULED' &&
+        status !== 'ACTIVE' && status !== 'WITHDRAWAL_SCHEDULED') return;
+
+    var memberId  = String(m['会員ID'] || '');
+    var feeStatus = feeMap[memberId] || 'UNPAID';
+    var feeHistories = {};
+    allFeeYears.forEach(function(yr) {
+      feeHistories[yr] = (feeMapByYear[yr] && feeMapByYear[yr][memberId]) || 'UNPAID';
     });
+
+    if (outputUnit === 'MEMBER') {
+      rows.push(buildMemberRow_(m, fiscalSnapshot, memberId, feeStatus, feeHistories));
+    } else if (outputUnit === 'STAFF') {
+      // 事業所会員のみ職員行を展開
+      if (mtype !== 'BUSINESS') return;
+      var arr = staffByMemberId[memberId] || [];
+      arr.forEach(function(s) {
+        if (String(s['職員状態コード'] || '') !== 'ENROLLED') return;
+        rows.push(buildStaffRow_(m, s, fiscalSnapshot, memberId, feeStatus, feeHistories));
+      });
+    } else {
+      // MIXED: 個人/賛助は会員行、事業所は職員行（事業所自身も 1 行追加して代表者欄を可視化したい場合は別途検討）
+      if (mtype === 'BUSINESS') {
+        var sArr = staffByMemberId[memberId] || [];
+        sArr.forEach(function(s) {
+          if (String(s['職員状態コード'] || '') !== 'ENROLLED') return;
+          rows.push(buildStaffRow_(m, s, fiscalSnapshot, memberId, feeStatus, feeHistories));
+        });
+      } else {
+        rows.push(buildMemberRow_(m, fiscalSnapshot, memberId, feeStatus, feeHistories));
+      }
+    }
   });
 
-  return { rows: rows, years: allFeeYears, year: year };
+  return { rows: rows, years: allFeeYears, year: year, outputUnit: outputUnit };
 }
 
 /**

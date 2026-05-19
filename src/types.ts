@@ -60,6 +60,23 @@ export interface ConditionalRule {
   style: { color?: string; bgColor?: string; bold?: boolean };
 }
 
+// v372 S1.5: 列ごとの行フィルタ
+export type RowFilterOperator =
+  | 'equals' | 'notEquals'
+  | 'contains' | 'notContains'
+  | 'startsWith' | 'endsWith'
+  | 'isEmpty' | 'isNotEmpty'
+  | 'gt' | 'lt' | 'gte' | 'lte' | 'between'
+  | 'in' | 'notIn'
+  | 'before' | 'after';
+
+export interface RowFilterDef {
+  operator: RowFilterOperator;
+  value?: string;
+  value2?: string;   // between/range 用
+  values?: string[]; // in/notIn 用
+}
+
 export interface RosterColumnDef {
   id: string;
   source: 'field' | 'formula' | 'literal';
@@ -71,6 +88,7 @@ export interface RosterColumnDef {
   align?: 'left' | 'center' | 'right';
   format?: string;
   conditionalStyle?: ConditionalRule[];
+  rowFilter?: RowFilterDef;
 }
 
 export interface RosterLayoutDef {
@@ -83,11 +101,14 @@ export interface RosterLayoutDef {
   recordCountFormat?: string; // 例: '出力対象: {{count}} 名'
 }
 
+export type RosterOutputUnit = 'MEMBER' | 'STAFF' | 'MIXED';
+
 export interface RosterTemplateV2 {
   id: string;
   name: string;
   description?: string;
   target?: 'PERSONAL_SUPPORT' | 'BUSINESS' | 'ALL';
+  outputUnit?: RosterOutputUnit;
   columns: RosterColumnDef[];
   layout?: RosterLayoutDef;
   isDefault?: boolean;

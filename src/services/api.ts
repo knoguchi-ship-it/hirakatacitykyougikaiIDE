@@ -280,7 +280,7 @@ export interface ApiClient {
   setDefaultRosterTemplate(id: string): Promise<RosterTemplate[]>;
   // v372: 名簿出力 Visual Template Designer
   getRosterFieldDictionary(): Promise<import('../types').RosterFieldDef[]>;
-  getRosterDesignerData(payload: { memberTypes?: string[]; memberStatus?: string; year?: number }): Promise<{ rows: import('../types').RosterDesignerRow[]; years: number[]; year: number }>;
+  getRosterDesignerData(payload: { memberTypes?: string[]; memberStatus?: string; year?: number; outputUnit?: import('../types').RosterOutputUnit }): Promise<{ rows: import('../types').RosterDesignerRow[]; years: number[]; year: number; outputUnit?: import('../types').RosterOutputUnit }>;
   loadRosterTemplatesV2(): Promise<{ templates: import('../types').RosterTemplateV2[] }>;
   saveRosterTemplateV2(template: import('../types').RosterTemplateV2): Promise<{ ok: boolean; templates: import('../types').RosterTemplateV2[] }>;
   deleteRosterTemplateV2(id: string): Promise<{ ok: boolean; templates: import('../types').RosterTemplateV2[] }>;
@@ -2275,7 +2275,7 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async getRosterDesignerData(payload: { memberTypes?: string[]; memberStatus?: string; year?: number }): Promise<{ rows: import('../types').RosterDesignerRow[]; years: number[]; year: number }> {
+  async getRosterDesignerData(payload: { memberTypes?: string[]; memberStatus?: string; year?: number; outputUnit?: import('../types').RosterOutputUnit }): Promise<{ rows: import('../types').RosterDesignerRow[]; years: number[]; year: number; outputUnit?: import('../types').RosterOutputUnit }> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
       google.script.run
