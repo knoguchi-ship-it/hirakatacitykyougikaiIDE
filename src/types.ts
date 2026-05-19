@@ -56,6 +56,8 @@ export interface RosterFieldDef {
   description?: string;
   // v372.2: どの出力単位で意味があるか（'MEMBER' = 会員行に値あり / 'STAFF' = 職員行に値あり）
   applicableUnits?: Array<'MEMBER' | 'STAFF'>;
+  // v372.3: 値ピッカーの種類（'year' なら availableYears から select 表示）
+  valuePicker?: 'year';
 }
 
 export interface ConditionalRule {
@@ -75,6 +77,8 @@ export type RowFilterOperator =
 
 export interface RowFilterDef {
   operator: RowFilterOperator;
+  // v372.3: 否定トグル（true で結果を反転）
+  negate?: boolean;
   value?: string;
   value2?: string;   // between/range 用
   values?: string[]; // in/notIn 用

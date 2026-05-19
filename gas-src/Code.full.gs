@@ -21484,7 +21484,7 @@ function getRosterFieldDictionary_() {
 
     // === 年会費 ===
     { key: 'annualFeeStatus',         label: '年会費状態（選択年度）',  group: 'fee', type: 'enum', enumLabels: { PAID: '納入済み', UNPAID: '未納' }, sample: '納入済み', applicableUnits: ['MEMBER', 'STAFF'] },
-    { key: 'annualFeeYear',           label: '年会費対象年度',          group: 'fee', type: 'number', sample: '2026', applicableUnits: ['MEMBER', 'STAFF'] },
+    { key: 'annualFeeYear',           label: '年会費対象年度',          group: 'fee', type: 'number', sample: '2026', applicableUnits: ['MEMBER', 'STAFF'], valuePicker: 'year' },
   ];
 }
 

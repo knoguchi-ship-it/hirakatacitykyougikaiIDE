@@ -63,55 +63,81 @@ const fmtValue = (raw: unknown, type: string, enumLabels?: Record<string, string
   return s;
 };
 
-const OPERATORS_BY_TYPE: Record<string, Array<{ value: RowFilterOperator; label: string; valueKind: 'none' | 'single' | 'double' | 'multi' }>> = {
+// v372.3: 演算子セットを最小化。冗長な notXxx は廃止し「否定」トグル（negate）で表現する。
+// 後方互換: legacy notXxx は normalizeColumnFilter_() で読込時に変換。
+const OPERATORS_BY_TYPE: Record<string, Array<{ value: RowFilterOperator; label: string; valueKind: 'none' | 'single' | 'double' | 'multi'; canNegate: boolean }>> = {
   string: [
-    { value: 'contains', label: '含む', valueKind: 'single' },
-    { value: 'notContains', label: '含まない', valueKind: 'single' },
-    { value: 'equals', label: '等しい', valueKind: 'single' },
-    { value: 'notEquals', label: '等しくない', valueKind: 'single' },
-    { value: 'startsWith', label: '始まる', valueKind: 'single' },
-    { value: 'endsWith', label: '終わる', valueKind: 'single' },
-    { value: 'isEmpty', label: '空', valueKind: 'none' },
-    { value: 'isNotEmpty', label: '空でない', valueKind: 'none' },
+    { value: 'contains',   label: '含む',     valueKind: 'single', canNegate: true  },
+    { value: 'equals',     label: '等しい',   valueKind: 'single', canNegate: true  },
+    { value: 'startsWith', label: '始まる',   valueKind: 'single', canNegate: true  },
+    { value: 'endsWith',   label: '終わる',   valueKind: 'single', canNegate: true  },
+    { value: 'isEmpty',    label: '空',       valueKind: 'none',   canNegate: false },
+    { value: 'isNotEmpty', label: '空でない', valueKind: 'none',   canNegate: false },
   ],
   number: [
-    { value: 'equals', label: '=', valueKind: 'single' },
-    { value: 'notEquals', label: '≠', valueKind: 'single' },
-    { value: 'gt', label: '>', valueKind: 'single' },
-    { value: 'lt', label: '<', valueKind: 'single' },
-    { value: 'gte', label: '≥', valueKind: 'single' },
-    { value: 'lte', label: '≤', valueKind: 'single' },
-    { value: 'between', label: '範囲', valueKind: 'double' },
-    { value: 'isEmpty', label: '空', valueKind: 'none' },
-    { value: 'isNotEmpty', label: '空でない', valueKind: 'none' },
+    { value: 'equals',     label: '=',        valueKind: 'single', canNegate: true  },
+    { value: 'gt',         label: '>',        valueKind: 'single', canNegate: true  },
+    { value: 'lt',         label: '<',        valueKind: 'single', canNegate: true  },
+    { value: 'gte',        label: '≥',        valueKind: 'single', canNegate: true  },
+    { value: 'lte',        label: '≤',        valueKind: 'single', canNegate: true  },
+    { value: 'between',    label: '範囲',     valueKind: 'double', canNegate: true  },
+    { value: 'isEmpty',    label: '空',       valueKind: 'none',   canNegate: false },
+    { value: 'isNotEmpty', label: '空でない', valueKind: 'none',   canNegate: false },
   ],
   date: [
-    { value: 'equals', label: '等しい', valueKind: 'single' },
-    { value: 'before', label: '以前', valueKind: 'single' },
-    { value: 'after', label: '以降', valueKind: 'single' },
-    { value: 'between', label: '期間', valueKind: 'double' },
-    { value: 'isEmpty', label: '空', valueKind: 'none' },
-    { value: 'isNotEmpty', label: '空でない', valueKind: 'none' },
+    { value: 'equals',     label: '等しい',   valueKind: 'single', canNegate: true  },
+    { value: 'before',     label: '以前',     valueKind: 'single', canNegate: true  },
+    { value: 'after',      label: '以降',     valueKind: 'single', canNegate: true  },
+    { value: 'between',    label: '期間',     valueKind: 'double', canNegate: true  },
+    { value: 'isEmpty',    label: '空',       valueKind: 'none',   canNegate: false },
+    { value: 'isNotEmpty', label: '空でない', valueKind: 'none',   canNegate: false },
   ],
   enum: [
-    { value: 'in', label: 'いずれか', valueKind: 'multi' },
-    { value: 'notIn', label: '除外', valueKind: 'multi' },
-    { value: 'isEmpty', label: '空', valueKind: 'none' },
-    { value: 'isNotEmpty', label: '空でない', valueKind: 'none' },
+    { value: 'in',         label: 'いずれか', valueKind: 'multi',  canNegate: true  },
+    { value: 'isEmpty',    label: '空',       valueKind: 'none',   canNegate: false },
+    { value: 'isNotEmpty', label: '空でない', valueKind: 'none',   canNegate: false },
   ],
-  boolean: [{ value: 'equals', label: '等しい', valueKind: 'single' }],
+  boolean: [
+    { value: 'equals',     label: '等しい',   valueKind: 'single', canNegate: true  },
+  ],
 };
+
+// 後方互換: 旧 notXxx 演算子を { operator: <肯定形>, negate: true } に変換
+const normalizeColumnFilter_ = (rf: RowFilterDef | undefined): RowFilterDef | undefined => {
+  if (!rf || !rf.operator) return rf;
+  const map: Record<string, RowFilterOperator> = {
+    notContains: 'contains',
+    notEquals:   'equals',
+    notIn:       'in',
+  };
+  if (map[rf.operator as string]) {
+    return { ...rf, operator: map[rf.operator as string], negate: true };
+  }
+  return rf;
+};
+const normalizeTemplate_ = (t: RosterTemplateV2): RosterTemplateV2 => ({
+  ...t,
+  columns: (t.columns || []).map((c) => c.rowFilter ? { ...c, rowFilter: normalizeColumnFilter_(c.rowFilter) } : c),
+});
 const operatorsFor = (type?: string) => OPERATORS_BY_TYPE[type || 'string'] || OPERATORS_BY_TYPE.string;
 const operatorLabel = (op?: RowFilterOperator): string => {
   for (const list of Object.values(OPERATORS_BY_TYPE)) {
     const f = list.find((o) => o.value === op);
     if (f) return f.label;
   }
+  // legacy fallback
+  if (op === 'notContains') return '含まない';
+  if (op === 'notEquals') return '等しくない';
+  if (op === 'notIn') return '除外';
   return String(op || '');
 };
 const operatorValueKind = (type: string, op: RowFilterOperator): 'none' | 'single' | 'double' | 'multi' => {
   const list = operatorsFor(type);
   return list.find((o) => o.value === op)?.valueKind ?? 'single';
+};
+const operatorCanNegate = (type: string, op: RowFilterOperator): boolean => {
+  const list = operatorsFor(type);
+  return list.find((o) => o.value === op)?.canNegate ?? false;
 };
 
 // グループ表示順とラベル
@@ -188,7 +214,7 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
         const def = tplResp.templates.find((t) => t.isDefault) ?? tplResp.templates[0];
         if (def) {
           setSelectedTemplateId(def.id);
-          setWorking(JSON.parse(JSON.stringify(def)));
+          setWorking(normalizeTemplate_(JSON.parse(JSON.stringify(def))));
         } else {
           const init: RosterTemplateV2 = {
             ...emptyTemplate(),
@@ -267,31 +293,38 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
     if (valueKind === 'multi' && (!rf.values || rf.values.length === 0)) return true;
     const raw = col.fieldKey ? row[col.fieldKey] : undefined;
     const sval = raw == null ? '' : String(raw);
+    let result: boolean;
     switch (rf.operator) {
-      case 'isEmpty': return sval === '';
-      case 'isNotEmpty': return sval !== '';
-      case 'contains': return sval.indexOf(String(rf.value || '')) >= 0;
-      case 'notContains': return sval.indexOf(String(rf.value || '')) < 0;
-      case 'equals': return sval === String(rf.value || '');
-      case 'notEquals': return sval !== String(rf.value || '');
-      case 'startsWith': return sval.indexOf(String(rf.value || '')) === 0;
-      case 'endsWith': return sval.length >= String(rf.value || '').length && sval.lastIndexOf(String(rf.value || '')) === sval.length - String(rf.value || '').length;
-      case 'gt': return Number(sval) > Number(rf.value);
-      case 'lt': return Number(sval) < Number(rf.value);
-      case 'gte': return Number(sval) >= Number(rf.value);
-      case 'lte': return Number(sval) <= Number(rf.value);
+      case 'isEmpty': result = sval === ''; break;
+      case 'isNotEmpty': result = sval !== ''; break;
+      case 'contains': result = sval.indexOf(String(rf.value || '')) >= 0; break;
+      case 'notContains': result = sval.indexOf(String(rf.value || '')) < 0; break; // legacy
+      case 'equals': result = sval === String(rf.value || ''); break;
+      case 'notEquals': result = sval !== String(rf.value || ''); break; // legacy
+      case 'startsWith': result = sval.indexOf(String(rf.value || '')) === 0; break;
+      case 'endsWith': result = sval.length >= String(rf.value || '').length && sval.lastIndexOf(String(rf.value || '')) === sval.length - String(rf.value || '').length; break;
+      case 'gt': result = Number(sval) > Number(rf.value); break;
+      case 'lt': result = Number(sval) < Number(rf.value); break;
+      case 'gte': result = Number(sval) >= Number(rf.value); break;
+      case 'lte': result = Number(sval) <= Number(rf.value); break;
       case 'between': {
         const n = type === 'number' ? Number(sval) : sval;
         const lo = type === 'number' ? Number(rf.value) : String(rf.value || '');
         const hi = type === 'number' ? Number(rf.value2) : String(rf.value2 || '');
-        return (n as number) >= (lo as number) && (n as number) <= (hi as number);
+        result = (n as number) >= (lo as number) && (n as number) <= (hi as number);
+        break;
       }
-      case 'in': return Array.isArray(rf.values) && rf.values.indexOf(sval) >= 0;
-      case 'notIn': return Array.isArray(rf.values) && rf.values.indexOf(sval) < 0;
-      case 'before': return sval !== '' && sval <= String(rf.value || '');
-      case 'after': return sval !== '' && sval >= String(rf.value || '');
-      default: return true;
+      case 'in': result = Array.isArray(rf.values) && rf.values.indexOf(sval) >= 0; break;
+      case 'notIn': result = Array.isArray(rf.values) && rf.values.indexOf(sval) < 0; break; // legacy
+      case 'before': result = sval !== '' && sval <= String(rf.value || ''); break;
+      case 'after': result = sval !== '' && sval >= String(rf.value || ''); break;
+      default: result = true;
     }
+    // v372.3: 否定トグルが ON なら結果を反転（canNegate=false の演算子では効果なし）
+    if (rf.negate && operatorCanNegate(type, rf.operator)) {
+      return !result;
+    }
+    return result;
   }, [dictByKey]);
 
   const filteredRows = useMemo(() => {
@@ -307,11 +340,20 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
         const fdef = c.fieldKey ? dictByKey.get(c.fieldKey) : null;
         const type = fdef?.type || 'string';
         const valueKind = operatorValueKind(type, rf.operator);
+        const canNegate = operatorCanNegate(type, rf.operator);
         let valStr = '';
-        if (valueKind === 'single') valStr = rf.value || '';
-        else if (valueKind === 'double') valStr = `${rf.value || ''}〜${rf.value2 || ''}`;
-        else if (valueKind === 'multi') valStr = (rf.values || []).join(',');
-        return { colId: c.id, label: c.label, opLabel: operatorLabel(rf.operator), valStr };
+        if (valueKind === 'single') {
+          // enum なら表示用ラベル
+          if (type === 'enum' && fdef?.enumLabels && rf.value && fdef.enumLabels[rf.value]) valStr = fdef.enumLabels[rf.value];
+          else valStr = rf.value || '';
+        } else if (valueKind === 'double') {
+          valStr = `${rf.value || ''}〜${rf.value2 || ''}`;
+        } else if (valueKind === 'multi') {
+          const labels = (rf.values || []).map((v) => (fdef?.enumLabels && fdef.enumLabels[v]) || v);
+          valStr = labels.join(',');
+        }
+        const negate = rf.negate && canNegate;
+        return { colId: c.id, label: c.label, opLabel: operatorLabel(rf.operator), valStr, negate };
       });
   }, [working.columns, dictByKey]);
 
@@ -399,7 +441,7 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
     if (dirty && !confirm('未保存の変更があります。破棄して切り替えますか？')) return;
     setSelectedTemplateId(id);
     const t = templates.find((x) => x.id === id);
-    if (t) setWorking(JSON.parse(JSON.stringify(t)));
+    if (t) setWorking(normalizeTemplate_(JSON.parse(JSON.stringify(t))));
     setDirty(false);
   };
   const newTemplate = () => {
@@ -438,7 +480,7 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
       setTemplates(r.templates);
       const newest = r.templates[r.templates.length - 1];
       setSelectedTemplateId(newest.id);
-      setWorking(JSON.parse(JSON.stringify(newest)));
+      setWorking(normalizeTemplate_(JSON.parse(JSON.stringify(newest))));
       setDirty(false);
     } catch (e) { alert(e instanceof Error ? e.message : '複製に失敗しました。'); }
   };
@@ -451,7 +493,7 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
       const def = r.templates.find((t) => t.isDefault) ?? r.templates[0];
       if (def) {
         setSelectedTemplateId(def.id);
-        setWorking(JSON.parse(JSON.stringify(def)));
+        setWorking(normalizeTemplate_(JSON.parse(JSON.stringify(def))));
       } else newTemplate();
       setDirty(false);
     } catch (e) { alert(e instanceof Error ? e.message : '削除に失敗しました。'); }
@@ -760,6 +802,20 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                           <option value="">（なし）</option>
                           {ops.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
+                        {/* v372.3: 否定トグル */}
+                        {rf?.operator && operatorCanNegate(fieldType, rf.operator) && (
+                          <button type="button"
+                            onClick={() => updateColumn(col.id, { rowFilter: { ...rf, negate: !rf.negate } as RowFilterDef })}
+                            className={`shrink-0 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors min-h-[28px] ${
+                              rf.negate ? 'border-rose-400 bg-rose-50 text-rose-700' : 'border-slate-300 bg-white text-slate-500 hover:bg-slate-50'
+                            }`}
+                            aria-label="否定切替"
+                            aria-pressed={!!rf.negate}
+                            title="クリックで条件を反転（NOT）">
+                            <span>{rf.negate ? '🚫 否定' : '○ 否定'}</span>
+                          </button>
+                        )}
+                        {/* 値入力 */}
                         {rf?.operator && valKind === 'single' && (
                           fieldType === 'enum' ? (
                             <select className="flex-1 min-w-[120px] rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
@@ -767,6 +823,15 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                               onChange={(e) => updateColumn(col.id, { rowFilter: { ...rf, value: e.target.value } as RowFilterDef })}>
                               <option value="">選択</option>
                               {enumOpts.map(([k, lbl]) => <option key={k} value={k}>{lbl}</option>)}
+                            </select>
+                          ) : fdef?.valuePicker === 'year' ? (
+                            <select className="flex-1 min-w-[100px] rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
+                              value={rf.value || ''}
+                              onChange={(e) => updateColumn(col.id, { rowFilter: { ...rf, value: e.target.value } as RowFilterDef })}>
+                              <option value="">選択</option>
+                              {(availableYears.length > 0 ? availableYears : [currentFY]).map((y) => (
+                                <option key={y} value={String(y)}>{y}年度</option>
+                              ))}
                             </select>
                           ) : (
                             <input
@@ -778,21 +843,43 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                           )
                         )}
                         {rf?.operator && valKind === 'double' && (
-                          <>
-                            <input
-                              type={fieldType === 'number' ? 'number' : fieldType === 'date' ? 'date' : 'text'}
-                              className="flex-1 min-w-[80px] rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
-                              value={rf.value || ''}
-                              onChange={(e) => updateColumn(col.id, { rowFilter: { ...rf, value: e.target.value } as RowFilterDef })}
-                              placeholder="下限" />
-                            <span className="text-slate-400">〜</span>
-                            <input
-                              type={fieldType === 'number' ? 'number' : fieldType === 'date' ? 'date' : 'text'}
-                              className="flex-1 min-w-[80px] rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
-                              value={rf.value2 || ''}
-                              onChange={(e) => updateColumn(col.id, { rowFilter: { ...rf, value2: e.target.value } as RowFilterDef })}
-                              placeholder="上限" />
-                          </>
+                          fdef?.valuePicker === 'year' ? (
+                            <>
+                              <select className="flex-1 min-w-[90px] rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
+                                value={rf.value || ''}
+                                onChange={(e) => updateColumn(col.id, { rowFilter: { ...rf, value: e.target.value } as RowFilterDef })}>
+                                <option value="">下限</option>
+                                {(availableYears.length > 0 ? availableYears : [currentFY]).map((y) => (
+                                  <option key={y} value={String(y)}>{y}年度</option>
+                                ))}
+                              </select>
+                              <span className="text-slate-400">〜</span>
+                              <select className="flex-1 min-w-[90px] rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
+                                value={rf.value2 || ''}
+                                onChange={(e) => updateColumn(col.id, { rowFilter: { ...rf, value2: e.target.value } as RowFilterDef })}>
+                                <option value="">上限</option>
+                                {(availableYears.length > 0 ? availableYears : [currentFY]).map((y) => (
+                                  <option key={y} value={String(y)}>{y}年度</option>
+                                ))}
+                              </select>
+                            </>
+                          ) : (
+                            <>
+                              <input
+                                type={fieldType === 'number' ? 'number' : fieldType === 'date' ? 'date' : 'text'}
+                                className="flex-1 min-w-[80px] rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
+                                value={rf.value || ''}
+                                onChange={(e) => updateColumn(col.id, { rowFilter: { ...rf, value: e.target.value } as RowFilterDef })}
+                                placeholder="下限" />
+                              <span className="text-slate-400">〜</span>
+                              <input
+                                type={fieldType === 'number' ? 'number' : fieldType === 'date' ? 'date' : 'text'}
+                                className="flex-1 min-w-[80px] rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
+                                value={rf.value2 || ''}
+                                onChange={(e) => updateColumn(col.id, { rowFilter: { ...rf, value2: e.target.value } as RowFilterDef })}
+                                placeholder="上限" />
+                            </>
+                          )
                         )}
                         {rf?.operator && valKind === 'multi' && (
                           <div className="flex flex-wrap items-center gap-1">
@@ -911,6 +998,7 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                 {activeFilters.map((af) => (
                   <span key={af.colId} className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-white px-2 py-0.5 text-xs text-amber-800">
                     <span className="font-medium">{af.label}</span>
+                    {af.negate && <span className="text-rose-600 font-semibold">NOT</span>}
                     <span className="text-slate-500">{af.opLabel}</span>
                     {af.valStr && <span className="text-slate-700">{af.valStr}</span>}
                     <button type="button"
