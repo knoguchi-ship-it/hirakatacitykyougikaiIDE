@@ -1,8 +1,28 @@
 # 開発引継ぎ
 
-更新日: 2026-05-19（v371.2 全送信統合 + コミット完了）
-現行本番: **`v371.2`**（全メール送信が deliverMail_ 経由・GLOBAL/MODE/REDIRECT 完全適用） / integrated-public GAS version `332` / member split GAS version `90` / admin split GAS version `133`
-fixed deployment: integrated/public `@332` x2 / member split `@90` / admin split `@133`
+更新日: 2026-05-19（v372 S1 名簿出力 Visual Designer 骨組み）
+現行本番: **`v372 S1`**（Roster Visual Designer 第1段階・フィールド辞書 + 列ビルダー + CSV + 件数表示） / integrated-public GAS version `333` / member split GAS version `91` / admin split GAS version `134`
+fixed deployment: integrated/public `@333` x2 / member split `@91` / admin split `@134`
+
+> **🆕 2026-05-19 v372 S1 本番反映済み（名簿出力 Visual Designer 第1段階）**
+>
+> **背景**: 旧 RosterExport（外部 Google Sheets テンプレ依存）は柔軟性・カスタマイズ性・項目固定が問題で「ほぼ使えない」状態。設計書 `docs/228_ROSTER_REDESIGN_2026-05-19.md` に基づき全面刷新。Sprint 5 段階で進める。
+>
+> **S1 完了範囲**:
+> - `getRosterFieldDictionary_()` で 36 フィールド宣言（member/office/fee/computed）
+> - `getRosterDesignerData_()` で生データを Record 形式で返却
+> - `loadRosterTemplatesV2_` / `saveRosterTemplateV2_` / `deleteRosterTemplateV2_` / `duplicateRosterTemplateV2_` の admin callable
+> - 保存先: `T_システム設定.ROSTER_TEMPLATE_LIBRARY_V2`（JSON）
+> - 新 `RosterDesigner.tsx`: チェックボックス選択 + 列並び替え（↑↓）+ 列名編集 + 配置選択 + 件数表示設定 + CSV 出力 + プレビュー
+> - 旧 `RosterExport.tsx` は `roster-export-legacy` ビューとして残置（Sidebar 非表示・S5 で完全削除）
+>
+> **S2-S5 残作業**:
+> - **S2**: @dnd-kit drag-drop / リアルタイムプレビュー強化 / 列幅 / 日付・数値書式
+> - **S3**: 計算式（内製簡易式）・条件付き書式
+> - **S4**: PDF 出力（window.print + @page CSS）+ レイアウト（A4/A3/縦横/フォントサイズ）
+> - **S5**: Excel 出力（xlsx 再評価）+ 旧 RosterExport / TemplateValidationPanel / TemplateHelpPage / RosterTemplateHelpDialog / 旧 GAS 関数群を完全削除
+>
+> **コミット**: `3dbccc4 feat: v372 S1 名簿出力 Visual Designer 骨組み`
 
 > **🆕 2026-05-19 v371.1 本番反映済み（メール送信制御の 4 階層ガード導入）**
 >
