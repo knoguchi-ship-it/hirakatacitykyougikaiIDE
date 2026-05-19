@@ -43,7 +43,8 @@ export interface AnnualFeeRecord {
 
 // v372: 名簿出力 Visual Template Designer
 export type RosterFieldType = 'string' | 'number' | 'date' | 'enum' | 'boolean' | 'array';
-export type RosterFieldGroup = 'member' | 'office' | 'staff' | 'fee' | 'computed';
+// v372.2: グループ細分化 — individual / office / staff / fee / auto（統合フィールド）
+export type RosterFieldGroup = 'auto' | 'member' | 'individual' | 'office' | 'staff' | 'fee' | 'computed';
 
 export interface RosterFieldDef {
   key: string;
@@ -53,6 +54,8 @@ export interface RosterFieldDef {
   enumLabels?: Record<string, string>;
   sample: string;
   description?: string;
+  // v372.2: どの出力単位で意味があるか（'MEMBER' = 会員行に値あり / 'STAFF' = 職員行に値あり）
+  applicableUnits?: Array<'MEMBER' | 'STAFF'>;
 }
 
 export interface ConditionalRule {
