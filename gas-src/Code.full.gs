@@ -1435,6 +1435,8 @@ var PUBLIC_ALLOWED_ACTIONS = {
   verifyMemberIdentityForPublic: true,
   submitPublicChangeRequest: true,
   getPublicAvailableStaffSlots: true,
+  // v372.5: 公開ポータル 職員情報変更フロー — 在籍職員一覧取得
+  getPublicEnrolledStaffList: true,
 };
 
 var MEMBER_ALLOWED_ACTIONS = {
@@ -2019,6 +2021,9 @@ function processApiRequest(action, payload) {
     }
     if (action === 'getPublicAvailableStaffSlots') {
       return JSON.stringify({ success: true, data: getPublicAvailableStaffSlots_(parsedPayload) });
+    }
+    if (action === 'getPublicEnrolledStaffList') {
+      return JSON.stringify({ success: true, data: getPublicEnrolledStaffList_(parsedPayload) });
     }
     if (action === 'getAdminChangeRequests') {
       return JSON.stringify({ success: true, data: getAdminChangeRequests_(parsedPayload) });
@@ -8595,6 +8600,18 @@ function buildChangeSummaryText_(changeData, requestType) {
       lines.push('・職員除籍: ' + (s.lastName || '') + ' ' + (s.firstName || '') + '（CM番号 ' + (s.careManagerNumber || '') + '）');
     });
   }
+  // v372.5: 既存職員情報の変更
+  if (Array.isArray(changeData.staffUpdate) && changeData.staffUpdate.length > 0) {
+    changeData.staffUpdate.forEach(function(s) {
+      var changes = [];
+      ['lastName', 'firstName', 'lastKana', 'firstKana', 'email', 'careManagerNumber'].forEach(function(k) {
+        if (Object.prototype.hasOwnProperty.call(s, k) && String(s[k] || '').trim()) {
+          changes.push((FIELD_LABELS[k] || k) + '→' + s[k]);
+        }
+      });
+      lines.push('・職員情報変更（職員ID: ' + (s.staffId || '') + '）: ' + changes.join(', '));
+    });
+  }
   if (lines.length === 0) return '';
   return ['変更内容:'].concat(lines).join('\n') + '\n';
 }
@@ -9191,6 +9208,14 @@ function updateStaff_(payload) {
     }
   }
 
+  // v372.5: withdrawnDate を明示指定された場合は status='LEFT' のとき限定で上書き
+  if (payload.withdrawnDate != null && String(payload.withdrawnDate).trim() && cols['退会日'] != null) {
+    var curStatus = String(row[cols['職員状態コード']] || '');
+    if (curStatus === 'LEFT') {
+      var normalizedW = normalizeDateInput_(payload.withdrawnDate);
+      if (normalizedW) row[cols['退会日']] = normalizedW;
+    }
+  }
   if (payload.joinedDate != null) {
     var normalized = normalizeDateInput_(payload.joinedDate);
     if (normalized) row[cols['入会日']] = normalized;
@@ -15247,6 +15272,39 @@ function verifyMemberIdentityForPublic_(payload) {
   return { verified: true, token: token };
 }
 
+// v372.5: 事業所会員の在籍職員一覧を取得（公開ポータル staffUpdate フロー用）
+// HMAC token 経由で BUSINESS 会員のみアクセス可。最小限の情報のみ返却。
+function getPublicEnrolledStaffList_(payload) {
+  var token = String(payload.token || '').trim();
+  var stored = verifyPublicIdentityToken_(token);
+  if (!stored) return { error: 'token_expired' };
+  if (stored.memberType !== 'BUSINESS') return { error: '事業所会員専用の操作です' };
+
+  var ss = getOrCreateDatabase_();
+  var staffRows = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) &&
+           String(r['会員ID'] || '') === stored.memberId &&
+           String(r['職員状態コード'] || '') === 'ENROLLED';
+  });
+  var list = staffRows.map(function(s) {
+    var cm = String(s['介護支援専門員番号'] || '');
+    // v372.4 緩和ルール: 8桁数字以外（admin 例外で入力された値）は公開ポータルで編集不可
+    var isRelaxed = !!cm && !/^\d{8}$/.test(cm);
+    return {
+      staffId: String(s['職員ID'] || ''),
+      lastName: String(s['姓'] || ''),
+      firstName: String(s['名'] || ''),
+      lastKana: String(s['セイ'] || ''),
+      firstKana: String(s['メイ'] || ''),
+      email: String(s['メールアドレス'] || ''),
+      careManagerNumber: cm,
+      role: String(s['職員権限コード'] || ''),
+      careManagerNumberLocked: isRelaxed, // 10桁等の特殊 CM 番号は公開ポータルで編集不可
+    };
+  });
+  return { staff: list };
+}
+
 // 事業所会員の追加可能スタッフ数を返す。メンバーデータは漏らさない。
 function getPublicAvailableStaffSlots_(payload) {
   var token = String(payload.token || '').trim();
@@ -15299,6 +15357,7 @@ function submitPublicChangeRequest_(payload) {
     fields: sanitizedFields,
     staffAdd: [],
     staffRemove: [],
+    staffUpdate: [], // v372.5: 既存職員の情報変更
   };
 
   // 事業所会員: スタッフ追加（必須フィールド検証）
@@ -15325,6 +15384,32 @@ function submitPublicChangeRequest_(payload) {
       var careManagerNumber = normalizeCmNumberForKey_(s.careManagerNumber);
       if (!lastName || !firstName || !/^\d{8}$/.test(careManagerNumber)) return;
       changeData.staffRemove.push({ lastName: lastName, firstName: firstName, careManagerNumber: careManagerNumber });
+    });
+  }
+
+  // v372.5: 事業所会員: 既存職員の情報変更（staffId 指定 + 変更したいフィールドのみ含める）
+  if (Array.isArray(payload.staffUpdate)) {
+    var updateAllowlist_ = ['lastName', 'firstName', 'lastKana', 'firstKana', 'email', 'careManagerNumber'];
+    payload.staffUpdate.forEach(function(s) {
+      var staffId = String(s.staffId || '').trim();
+      if (!staffId) return;
+      var entry = { staffId: staffId };
+      var hasAny = false;
+      for (var k = 0; k < updateAllowlist_.length; k++) {
+        var f = updateAllowlist_[k];
+        if (!Object.prototype.hasOwnProperty.call(s, f)) continue;
+        var v = String(s[f] || '').trim();
+        if (v === '') continue; // 空欄 = 変更なし
+        if (f === 'careManagerNumber') {
+          // 公開ポータルは厳格 8 桁数字のみ。admin 緩和入力分（HN/HS 等）は更新不可
+          if (!/^\d{8}$/.test(v)) continue;
+        } else if (f === 'email') {
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) continue;
+        }
+        entry[f] = v;
+        hasAny = true;
+      }
+      if (hasAny) changeData.staffUpdate.push(entry);
     });
   }
 
@@ -15510,6 +15595,87 @@ function approveAdminChangeRequest_(payload) {
         var sIdMixed = String(staffRowsMixed[0]['職員ID'] || '');
         if (sIdMixed) removeStaffFromOffice_({ memberId: memberId, staffId: sIdMixed });
       }
+    }
+
+    // v372.5: 既存職員情報の更新（staffUpdate）
+    var staffUpdates = changeData.staffUpdate || [];
+    if (staffUpdates.length > 0) {
+      var staffSheetU = ss.getSheetByName('T_事業所職員');
+      var allStaffRowsU = getRowsAsObjects_(ss, 'T_事業所職員');
+      var staffEmailNotifications = []; // [{staffId, oldEmail, newEmail, staffName}]
+      for (var su = 0; su < staffUpdates.length; su++) {
+        var upd = staffUpdates[su];
+        // 対象職員の所属確認（セキュリティ: 申請の memberId と職員の所属 memberId が一致）
+        var target = allStaffRowsU.filter(function(r) {
+          return !toBoolean_(r['削除フラグ']) &&
+                 String(r['職員ID'] || '') === String(upd.staffId) &&
+                 String(r['会員ID'] || '') === memberId &&
+                 String(r['職員状態コード'] || '') === 'ENROLLED';
+        })[0];
+        if (!target) { Logger.log('staffUpdate skipped (not found / not belonging): ' + upd.staffId); continue; }
+        // 10 桁等の admin 緩和 CM 番号は公開ポータルからは更新不可（safeguard）
+        var currentCm = String(target['介護支援専門員番号'] || '');
+        if (Object.prototype.hasOwnProperty.call(upd, 'careManagerNumber') && currentCm && !/^\d{8}$/.test(currentCm)) {
+          Logger.log('staffUpdate CM number protected (admin-relaxed): ' + upd.staffId);
+          delete upd.careManagerNumber;
+        }
+        var oldEmail = String(target['メールアドレス'] || '');
+        // updateStaff_ 経由で適用（権限境界 skipAdminCheck はないので、adminSession 渡しでバイパス）
+        try {
+          var staffPayload = { staffId: String(upd.staffId), memberId: memberId, __adminSession: adminSession };
+          if (Object.prototype.hasOwnProperty.call(upd, 'lastName')) staffPayload.lastName = upd.lastName;
+          if (Object.prototype.hasOwnProperty.call(upd, 'firstName')) staffPayload.firstName = upd.firstName;
+          if (Object.prototype.hasOwnProperty.call(upd, 'lastKana')) staffPayload.lastKana = upd.lastKana;
+          if (Object.prototype.hasOwnProperty.call(upd, 'firstKana')) staffPayload.firstKana = upd.firstKana;
+          if (Object.prototype.hasOwnProperty.call(upd, 'email')) staffPayload.email = upd.email;
+          if (Object.prototype.hasOwnProperty.call(upd, 'careManagerNumber')) staffPayload.careManagerNumber = upd.careManagerNumber;
+          updateStaff_(staffPayload);
+          // メール変更があれば旧・新両方に通知メール（H 採用）
+          if (Object.prototype.hasOwnProperty.call(upd, 'email') && upd.email && upd.email !== oldEmail) {
+            staffEmailNotifications.push({
+              staffId: upd.staffId,
+              oldEmail: oldEmail,
+              newEmail: upd.email,
+              staffName: String(target['氏名'] || '').trim() || (String(target['姓'] || '') + ' ' + String(target['名'] || '')).trim(),
+            });
+          }
+        } catch (eUpd) {
+          Logger.log('staffUpdate apply failed for staffId=' + upd.staffId + ': ' + eUpd.message);
+        }
+      }
+      approvalResult.staffUpdateCount = staffUpdates.length;
+      approvalResult.staffEmailNotifications = staffEmailNotifications.length;
+      // 通知メール送信（メール変更時のみ・旧アドレス + 新アドレス両方）
+      staffEmailNotifications.forEach(function(n) {
+        var subject = '【枚方市介護支援専門員連絡協議会】登録メールアドレス変更のお知らせ';
+        var bodyOld = [
+          n.staffName + ' 様',
+          '',
+          'ご登録のメールアドレスが変更されました。',
+          '',
+          '旧アドレス: ' + n.oldEmail,
+          '新アドレス: ' + n.newEmail,
+          '',
+          '今後のご連絡は新アドレス宛てに送信されます。',
+          'お心当たりがない場合は、お早めに事務局までご連絡ください。',
+          '',
+          '枚方市介護支援専門員連絡協議会',
+        ].join('\n');
+        var bodyNew = [
+          n.staffName + ' 様',
+          '',
+          'こちらのメールアドレスが連絡先として新たに登録されました。',
+          '',
+          '旧アドレス: ' + n.oldEmail,
+          '新アドレス: ' + n.newEmail,
+          '',
+          'お心当たりがない場合は事務局までご連絡ください。',
+          '',
+          '枚方市介護支援専門員連絡協議会',
+        ].join('\n');
+        try { if (n.oldEmail) deliverMail_('MEMBER_UPDATE_CONFIRM', n.oldEmail, subject, bodyOld); } catch (e1) { Logger.log('staffUpdate notify old failed: ' + e1.message); }
+        try { if (n.newEmail) deliverMail_('MEMBER_UPDATE_CONFIRM', n.newEmail, subject, bodyNew); } catch (e2) { Logger.log('staffUpdate notify new failed: ' + e2.message); }
+      });
     }
 
   } else if (requestType === 'WITHDRAWAL') {

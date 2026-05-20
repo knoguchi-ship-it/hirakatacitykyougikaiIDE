@@ -64,8 +64,11 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
     role: staff.role || 'STAFF' as StaffRole,
     status: staff.status || 'ENROLLED',
     joinedDate: staff.joinedDate || '',
+    withdrawnDate: staff.withdrawnDate || '',
     mailingPreference: staff.mailingPreference || 'YES',
   });
+  // v372.5: 状態変更時の確認モーダル制御
+  const initialStatus = staff.status || 'ENROLLED';
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -149,12 +152,7 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
     setStatusConfirmPending(null);
   };
 
-  const handleSave = async () => {
-    setError(null);
-    if (!validateAll()) {
-      setError('入力エラーがあります。各項目を確認してください。');
-      return;
-    }
+  const performSave = async () => {
     setSaving(true);
     try {
       await api.updateStaff({
@@ -171,6 +169,7 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
         role: form.role,
         status: form.status,
         joinedDate: form.joinedDate,
+        withdrawnDate: form.status === 'LEFT' ? (form.withdrawnDate || '') : '',
         mailingPreference: form.mailingPreference,
       });
       onSaved();
@@ -179,7 +178,22 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
       setError(e instanceof Error ? e.message : '保存に失敗しました');
     } finally {
       setSaving(false);
+      setStatusConfirmPending(null);
     }
+  };
+
+  const handleSave = async () => {
+    setError(null);
+    if (!validateAll()) {
+      setError('入力エラーがあります。各項目を確認してください。');
+      return;
+    }
+    // v372.5: 状態変更時は確認ダイアログを挟む
+    if (form.status !== initialStatus) {
+      setStatusConfirmPending(form.status);
+      return;
+    }
+    await performSave();
   };
 
   const isLeft = form.status === 'LEFT';

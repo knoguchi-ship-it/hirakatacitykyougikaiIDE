@@ -815,6 +815,8 @@ var PUBLIC_ALLOWED_ACTIONS = {
   verifyMemberIdentityForPublic: true,
   submitPublicChangeRequest: true,
   getPublicAvailableStaffSlots: true,
+  // v372.5: 公開ポータル 職員情報変更フロー — 在籍職員一覧取得
+  getPublicEnrolledStaffList: true,
 };
 
 
@@ -972,6 +974,9 @@ function processApiRequest(action, payload) {
     }
     if (action === 'getPublicAvailableStaffSlots') {
       return JSON.stringify({ success: true, data: getPublicAvailableStaffSlots_(parsedPayload) });
+    }
+    if (action === 'getPublicEnrolledStaffList') {
+      return JSON.stringify({ success: true, data: getPublicEnrolledStaffList_(parsedPayload) });
     }
 
 
@@ -4625,6 +4630,39 @@ function verifyMemberIdentityForPublic_(payload) {
   return { verified: true, token: token };
 }
 
+// v372.5: 事業所会員の在籍職員一覧を取得（公開ポータル staffUpdate フロー用）
+// HMAC token 経由で BUSINESS 会員のみアクセス可。最小限の情報のみ返却。
+function getPublicEnrolledStaffList_(payload) {
+  var token = String(payload.token || '').trim();
+  var stored = verifyPublicIdentityToken_(token);
+  if (!stored) return { error: 'token_expired' };
+  if (stored.memberType !== 'BUSINESS') return { error: '事業所会員専用の操作です' };
+
+  var ss = getOrCreateDatabase_();
+  var staffRows = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) &&
+           String(r['会員ID'] || '') === stored.memberId &&
+           String(r['職員状態コード'] || '') === 'ENROLLED';
+  });
+  var list = staffRows.map(function(s) {
+    var cm = String(s['介護支援専門員番号'] || '');
+    // v372.4 緩和ルール: 8桁数字以外（admin 例外で入力された値）は公開ポータルで編集不可
+    var isRelaxed = !!cm && !/^\d{8}$/.test(cm);
+    return {
+      staffId: String(s['職員ID'] || ''),
+      lastName: String(s['姓'] || ''),
+      firstName: String(s['名'] || ''),
+      lastKana: String(s['セイ'] || ''),
+      firstKana: String(s['メイ'] || ''),
+      email: String(s['メールアドレス'] || ''),
+      careManagerNumber: cm,
+      role: String(s['職員権限コード'] || ''),
+      careManagerNumberLocked: isRelaxed, // 10桁等の特殊 CM 番号は公開ポータルで編集不可
+    };
+  });
+  return { staff: list };
+}
+
 // 事業所会員の追加可能スタッフ数を返す。メンバーデータは漏らさない。
 function getPublicAvailableStaffSlots_(payload) {
   var token = String(payload.token || '').trim();
@@ -4677,6 +4715,7 @@ function submitPublicChangeRequest_(payload) {
     fields: sanitizedFields,
     staffAdd: [],
     staffRemove: [],
+    staffUpdate: [], // v372.5: 既存職員の情報変更
   };
 
   // 事業所会員: スタッフ追加（必須フィールド検証）
@@ -4703,6 +4742,32 @@ function submitPublicChangeRequest_(payload) {
       var careManagerNumber = normalizeCmNumberForKey_(s.careManagerNumber);
       if (!lastName || !firstName || !/^\d{8}$/.test(careManagerNumber)) return;
       changeData.staffRemove.push({ lastName: lastName, firstName: firstName, careManagerNumber: careManagerNumber });
+    });
+  }
+
+  // v372.5: 事業所会員: 既存職員の情報変更（staffId 指定 + 変更したいフィールドのみ含める）
+  if (Array.isArray(payload.staffUpdate)) {
+    var updateAllowlist_ = ['lastName', 'firstName', 'lastKana', 'firstKana', 'email', 'careManagerNumber'];
+    payload.staffUpdate.forEach(function(s) {
+      var staffId = String(s.staffId || '').trim();
+      if (!staffId) return;
+      var entry = { staffId: staffId };
+      var hasAny = false;
+      for (var k = 0; k < updateAllowlist_.length; k++) {
+        var f = updateAllowlist_[k];
+        if (!Object.prototype.hasOwnProperty.call(s, f)) continue;
+        var v = String(s[f] || '').trim();
+        if (v === '') continue; // 空欄 = 変更なし
+        if (f === 'careManagerNumber') {
+          // 公開ポータルは厳格 8 桁数字のみ。admin 緩和入力分（HN/HS 等）は更新不可
+          if (!/^\d{8}$/.test(v)) continue;
+        } else if (f === 'email') {
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) continue;
+        }
+        entry[f] = v;
+        hasAny = true;
+      }
+      if (hasAny) changeData.staffUpdate.push(entry);
     });
   }
 

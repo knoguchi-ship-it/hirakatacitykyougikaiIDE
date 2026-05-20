@@ -30,6 +30,7 @@ const allowedPublicActions = [
   'verifyMemberIdentityForPublic',
   'submitPublicChangeRequest',
   'getPublicAvailableStaffSlots',
+  'getPublicEnrolledStaffList',
 ];
 
 const forbiddenTopLevelFunctions = [

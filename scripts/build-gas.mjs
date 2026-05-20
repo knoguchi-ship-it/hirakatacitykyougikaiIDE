@@ -65,6 +65,7 @@ function buildPublicCode(source) {
     'verifyMemberIdentityForPublic',
     'submitPublicChangeRequest',
     'getPublicAvailableStaffSlots',
+    'getPublicEnrolledStaffList',
   ]);
   code = removeIfBlock(code, 'requiredPerms');
   code = removeIfBlock(code, "isMemberAction && !LOGIN_ONLY_MEMBER_ACTIONS[action]");

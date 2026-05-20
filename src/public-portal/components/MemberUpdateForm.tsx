@@ -23,7 +23,8 @@ type FieldGroup =
   | 'bizAddress'      // 事業所住所
   | 'officeNumber'    // 事業所番号（ログインIDに影響）
   | 'staffAdd'        // 職員追加
-  | 'staffRemove';    // 職員除籍
+  | 'staffRemove'     // 職員除籍
+  | 'staffUpdate';    // v372.5: 既存職員情報の変更
 
 interface AddressValue {
   postCode: string;
@@ -50,6 +51,31 @@ interface StaffRemoveCard {
   careManagerNumber: string;
 }
 const EMPTY_STAFF_REMOVE: StaffRemoveCard = { lastName: '', firstName: '', careManagerNumber: '' };
+
+// v372.5: 既存職員情報の変更カード
+interface StaffUpdateOriginal {
+  staffId: string;
+  lastName: string;
+  firstName: string;
+  lastKana: string;
+  firstKana: string;
+  email: string;
+  careManagerNumber: string;
+  role: string;
+  careManagerNumberLocked: boolean; // 10桁等の admin 緩和入力時は編集不可
+}
+interface StaffUpdateCard {
+  staffId: string;
+  original: StaffUpdateOriginal;
+  selected: boolean; // 「変更する」チェックボックス
+  // 入力値（空欄 = 変更なし）
+  lastName: string;
+  firstName: string;
+  lastKana: string;
+  firstKana: string;
+  email: string;
+  careManagerNumber: string;
+}
 
 interface IndividualFields {
   lastName: string; firstName: string; lastKana: string; firstKana: string;
@@ -166,6 +192,8 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
   const [staffAddCards, setStaffAddCards] = useState<StaffAddCard[]>([{ ...EMPTY_STAFF_ADD }]);
   // スタッフ除籍カード
   const [staffRemoveCards, setStaffRemoveCards] = useState<StaffRemoveCard[]>([{ ...EMPTY_STAFF_REMOVE }]);
+  // v372.5: 職員情報変更カード（在籍職員一覧から自動生成）
+  const [staffUpdateCards, setStaffUpdateCards] = useState<StaffUpdateCard[]>([]);
 
   // ── Step 1: 会員種別選択 ─────────────────────────────────────────────────────
   const handleSelectType = (t: MemberType) => {
@@ -218,6 +246,24 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
       } catch {
         setAvailableSlots(1);
         setStaffAddCards([{ ...EMPTY_STAFF_ADD }]);
+      } finally {
+        setBusy(false);
+      }
+    }
+    // v372.5: 職員情報変更選択時: 在籍職員一覧を取得してカード初期化
+    if (memberType === 'BUSINESS' && selected.has('staffUpdate')) {
+      setBusy(true);
+      try {
+        const res = await callApi<{ staff?: StaffUpdateOriginal[]; error?: string }>('getPublicEnrolledStaffList', { token });
+        const list = res.staff || [];
+        setStaffUpdateCards(list.map((s) => ({
+          staffId: s.staffId,
+          original: s,
+          selected: false,
+          lastName: '', firstName: '', lastKana: '', firstKana: '', email: '', careManagerNumber: '',
+        })));
+      } catch {
+        setStaffUpdateCards([]);
       } finally {
         setBusy(false);
       }
@@ -298,6 +344,25 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
       const staffRemove = (selected.has('staffRemove') && memberType === 'BUSINESS')
         ? staffRemoveCards.filter(c => c.lastName && c.firstName && /^\d{8}$/.test(c.careManagerNumber))
         : [];
+      // v372.5: 職員情報変更 — 選択された職員のうち、変更入力されたフィールドだけ送る
+      const staffUpdate = (selected.has('staffUpdate') && memberType === 'BUSINESS')
+        ? staffUpdateCards
+            .filter((c) => c.selected)
+            .map((c) => {
+              const entry: Record<string, string> = { staffId: c.staffId };
+              if (c.lastName.trim()) entry.lastName = c.lastName.trim();
+              if (c.firstName.trim()) entry.firstName = c.firstName.trim();
+              if (c.lastKana.trim()) entry.lastKana = c.lastKana.trim();
+              if (c.firstKana.trim()) entry.firstKana = c.firstKana.trim();
+              if (c.email.trim()) entry.email = c.email.trim();
+              // 10桁等の緩和入力は公開ポータルで編集不可 (UI でも disable)
+              if (c.careManagerNumber.trim() && !c.original.careManagerNumberLocked) {
+                entry.careManagerNumber = c.careManagerNumber.trim();
+              }
+              return entry;
+            })
+            .filter((e) => Object.keys(e).length > 1) // staffId 以外に何か変更がある場合のみ
+        : [];
 
       const res = await callApi<{ success: boolean; requestId?: string; error?: string }>('submitPublicChangeRequest', {
         token,
@@ -305,6 +370,7 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
         fields,
         staffAdd,
         staffRemove,
+        staffUpdate,
       });
       if (!res.success) {
         const e = res.error || '';
@@ -344,6 +410,7 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
     { key: 'officeNumber' as FieldGroup, label: '事業所番号', desc: '⚠ 変更するとログインIDも変わります', warn: true },
     { key: 'staffAdd' as FieldGroup, label: '職員を追加する', desc: '追加可能な枠数分のカードを表示します' },
     { key: 'staffRemove' as FieldGroup, label: '職員を除籍する', desc: '氏・名・介護支援専門員番号で照合します' },
+    { key: 'staffUpdate' as FieldGroup, label: '職員情報を変更する', desc: '在籍中の職員の氏名・メール・CM番号を変更します（10桁特殊CM番号は管理者にご連絡ください）' },
   ];
   const groups = memberType === 'INDIVIDUAL' ? INDIVIDUAL_GROUPS : BUSINESS_GROUPS;
 
@@ -778,6 +845,105 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
                         + 除籍職員を追加
                       </button>
                     </div>
+                  </div>
+                )}
+
+                {/* v372.5: 職員情報変更 */}
+                {selected.has('staffUpdate') && (
+                  <div>
+                    <h4 className="mb-2 text-sm font-semibold text-slate-800">職員情報の変更</h4>
+                    <p className="mb-4 text-xs text-slate-500">
+                      変更したい職員の「変更する」にチェックを入れ、変更したい項目のみ入力してください（空欄は変更なし）。
+                    </p>
+                    {staffUpdateCards.length === 0 ? (
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                        在籍中の職員が見つかりませんでした。
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {staffUpdateCards.map((card, idx) => {
+                          const o = card.original;
+                          const isCmLocked = card.original.careManagerNumberLocked;
+                          const cmWillChange = card.selected && card.careManagerNumber.trim() && card.careManagerNumber.trim() !== o.careManagerNumber;
+                          return (
+                            <fieldset key={card.staffId} className={`rounded-lg border p-4 ${card.selected ? 'border-violet-300 bg-violet-50' : 'border-slate-200 bg-white'}`}>
+                              <legend className="px-1 text-xs font-semibold text-slate-700">
+                                {o.lastName} {o.firstName}（CM番号: {o.careManagerNumber || '-'}）
+                              </legend>
+                              <div className="mt-2 space-y-3">
+                                <label className="flex items-center gap-2 text-sm font-medium text-slate-700 min-h-[44px] cursor-pointer">
+                                  <input type="checkbox" checked={card.selected}
+                                    onChange={(e) => setStaffUpdateCards((cards) => cards.map((c, i) => i === idx ? { ...c, selected: e.target.checked } : c))} />
+                                  この職員の情報を変更する
+                                </label>
+                                {card.selected && (
+                                  <>
+                                    <div className="grid grid-cols-2 gap-3">
+                                      <div>
+                                        <label className={labelClass}>氏（姓）<span className="text-xs text-slate-400">（空欄=変更なし）</span></label>
+                                        <input type="text" value={card.lastName} placeholder={o.lastName}
+                                          onChange={(e) => setStaffUpdateCards((cards) => cards.map((c, i) => i === idx ? { ...c, lastName: e.target.value } : c))}
+                                          className={inputClass} />
+                                      </div>
+                                      <div>
+                                        <label className={labelClass}>名<span className="text-xs text-slate-400">（空欄=変更なし）</span></label>
+                                        <input type="text" value={card.firstName} placeholder={o.firstName}
+                                          onChange={(e) => setStaffUpdateCards((cards) => cards.map((c, i) => i === idx ? { ...c, firstName: e.target.value } : c))}
+                                          className={inputClass} />
+                                      </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                      <div>
+                                        <label className={labelClass}>フリガナ（姓）<span className="text-xs text-slate-400">（空欄=変更なし）</span></label>
+                                        <input type="text" value={card.lastKana} placeholder={o.lastKana}
+                                          onChange={(e) => setStaffUpdateCards((cards) => cards.map((c, i) => i === idx ? { ...c, lastKana: e.target.value } : c))}
+                                          className={inputClass} />
+                                      </div>
+                                      <div>
+                                        <label className={labelClass}>フリガナ（名）<span className="text-xs text-slate-400">（空欄=変更なし）</span></label>
+                                        <input type="text" value={card.firstKana} placeholder={o.firstKana}
+                                          onChange={(e) => setStaffUpdateCards((cards) => cards.map((c, i) => i === idx ? { ...c, firstKana: e.target.value } : c))}
+                                          className={inputClass} />
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <label className={labelClass}>メールアドレス<span className="text-xs text-slate-400">（空欄=変更なし）</span></label>
+                                      <input type="email" value={card.email} placeholder={o.email}
+                                        onChange={(e) => setStaffUpdateCards((cards) => cards.map((c, i) => i === idx ? { ...c, email: e.target.value } : c))}
+                                        className={inputClass} />
+                                    </div>
+                                    <div>
+                                      <label className={labelClass}>
+                                        介護支援専門員番号
+                                        <span className="text-xs text-slate-400">（空欄=変更なし）</span>
+                                      </label>
+                                      <input type="text" inputMode="numeric" pattern="\d{8}" maxLength={8}
+                                        value={card.careManagerNumber} placeholder={o.careManagerNumber}
+                                        disabled={isCmLocked}
+                                        onChange={(e) => setStaffUpdateCards((cards) => cards.map((c, i) => i === idx ? { ...c, careManagerNumber: e.target.value.replace(/\D/g, '') } : c))}
+                                        className={isCmLocked ? `${inputClass} bg-slate-100 cursor-not-allowed` : inputClass} />
+                                      {isCmLocked ? (
+                                        <p className="mt-1 text-xs text-amber-700">
+                                          ⚠ 現在のCM番号は管理者専用形式（HN/HS等）のため、ここでは変更できません。変更が必要な場合は事務局までご連絡ください。
+                                        </p>
+                                      ) : (
+                                        <p className="mt-1 text-xs text-slate-500">半角数字 8 桁</p>
+                                      )}
+                                      {cmWillChange && !isCmLocked && (
+                                        <p className="mt-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+                                          ⚠ CM番号を変更すると、この職員の<strong>会員マイページのログインID</strong>も新しいCM番号に変わります。
+                                          変更後は新しいCM番号でログインしてください。
+                                        </p>
+                                      )}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </fieldset>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </>
