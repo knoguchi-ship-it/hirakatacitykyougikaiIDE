@@ -60,8 +60,17 @@ export interface RosterFieldDef {
   valuePicker?: 'year';
 }
 
+// v373.2: 構造化条件ルール（Airtable 風）+ legacy `when` 後方互換
 export interface ConditionalRule {
-  when: string;
+  // v372 legacy: 自由記述式（v373.2 で UI からは廃止、評価のみ後方互換）
+  when?: string;
+  // v373.2+ 構造化条件: 同一行の指定フィールドに対する filter 評価
+  fieldKey?: string;
+  operator?: RowFilterOperator;
+  value?: string;
+  values?: string[];
+  value2?: string;
+  negate?: boolean;
   style: { color?: string; bgColor?: string; bold?: boolean };
 }
 

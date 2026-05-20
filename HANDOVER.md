@@ -1,15 +1,20 @@
 # 開発引継ぎ
 
-更新日: 2026-05-20（v372.9 まで本番反映済み・名簿出力 S2 drag-drop）
-現行本番: **`v372.9`** / integrated-public GAS version `341` / member split GAS version `99` / admin split GAS version `145`
-fixed deployment: integrated/public `@341` x2 / member split `@99` / admin split `@145`
+更新日: 2026-05-20（v373.4 まで本番反映済み・行フィルタ no-code UI 化）
+現行本番: **`v373.4`** / integrated-public GAS version `341` / member split GAS version `99` / admin split GAS version `150`
+fixed deployment: integrated/public `@341` x2 / member split `@99` / admin split `@150`
 
 > **🆕 次担当者向け再開ガイド（必読）**
 >
 > ### 1. まず読む順
 > 1. `AGENTS.md` §0 — シークレット絶対ルール
 > 2. 本 `HANDOVER.md` ヘッダー〜「v372 系包括サマリー」
-> 3. `docs/232_RELEASE_STATE_v372.9_ROSTER_S2_DRAG_DROP_2026-05-20.md` — v372.9 名簿出力 S2 drag-drop（本番反映済み）
+> 3. `docs/238_RELEASE_STATE_v373.4_ROSTER_ROW_FILTER_NOCODE_2026-05-20.md` — **v373.4 行フィルタの no-code UI 化（演算子記号→日本語、enum/boolean 演算子廃止、年度除外、否定全廃）（本番反映済み・最新）**
+> 4. `docs/237_RELEASE_STATE_v373.3_ROSTER_STYLE_RULE_SIMPLIFY_2026-05-20.md` — v373.3 条件付き書式 UX 微調整
+> 4. `docs/236_RELEASE_STATE_v373.2_ROSTER_UX_OVERHAUL_2026-05-20.md` — v373.2 名簿出力 UX 全面是正（PDF修正/プリセット化/drag handle）
+> 4. `docs/235_RELEASE_STATE_v373.1_ROSTER_S4_2026-05-20.md` — v373.1 S4 PDF 初版（v373.2 で修正済み）
+> 5. `docs/234_RELEASE_STATE_v373_ROSTER_S3_2026-05-20.md` — v373 S3 計算式+条件付き書式 初版（v373.2 で UI 刷新）
+> 6. `docs/232_RELEASE_STATE_v372.9_ROSTER_S2_DRAG_DROP_2026-05-20.md` — v372.9 S2 drag-drop（本番反映済み）
 > 4. `docs/233_HANDOVER_v372.9_NEXT_TASKS_2026-05-20.md` — v372.9 後の残タスク整理・次担当者引継ぎ
 > 5. `docs/231_RELEASE_STATE_v372.8_ROSTER_S2_FORMAT_WIDTH_2026-05-20.md` — v372.8 名簿出力 S2 列幅・書式（本番反映済み）
 > 6. `docs/230_SECURITY_REMEDIATION_DRIVE_PROXY_ALLOWLIST_2026-05-20.md` — v372.7 Drive proxy allowlist 是正（本番反映済み）
@@ -21,7 +26,7 @@ fixed deployment: integrated/public `@341` x2 / member split `@99` / admin split
 > - **統合 public legacy** `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` @341
 > - **統合 public 正式**   `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` @341
 > - **member split**     `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` @99
-> - **admin split**      `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` @145
+> - **admin split**      `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` @150
 >
 > ### 3. 🔴 操作者の即時対応タスク（未完了・優先度高）
 > | # | タスク | 詳細 |
@@ -32,8 +37,17 @@ fixed deployment: integrated/public `@341` x2 / member split `@99` / admin split
 > | 4 | メール送信制御の確認 | admin → システム設定 → メール通知 → 「メール送信制御」セクションで `MAIL_GLOBAL_ENABLED=false`（safe-stop）状態を確認 |
 > | 5 | v360-v372 実ブラウザ動作確認 | 名簿出力 Visual Designer / 公開ポータル staffUpdate / CM 番号緩和 等 |
 >
-> ### 4. 直近の重要変更（v372 系）
-> v372.9 は **`docs/232_RELEASE_STATE_v372.9_ROSTER_S2_DRAG_DROP_2026-05-20.md`**、残タスク整理は **`docs/233_HANDOVER_v372.9_NEXT_TASKS_2026-05-20.md`**、v372.8 は **`docs/231_RELEASE_STATE_v372.8_ROSTER_S2_FORMAT_WIDTH_2026-05-20.md`**、v372.7 は **`docs/230_SECURITY_REMEDIATION_DRIVE_PROXY_ALLOWLIST_2026-05-20.md`**、v372〜v372.6.1 の包括変更は **`docs/229_RELEASE_STATE_v372_to_v372.6.1_2026-05-20.md`** に集約。
+> ### 4. 直近の重要変更（v373 系 / v372 系）
+> v373.2 は **`docs/236_RELEASE_STATE_v373.2_ROSTER_UX_OVERHAUL_2026-05-20.md`**（名簿出力 UX 全面是正：PDF Portal 化 / 条件付き書式構造化 / 計算列プリセット化 / drag handle 改善）、v373.1 は **`docs/235_RELEASE_STATE_v373.1_ROSTER_S4_2026-05-20.md`**（S4 PDF 初版、v373.2 で修正）、v373 は **`docs/234_RELEASE_STATE_v373_ROSTER_S3_2026-05-20.md`**（S3 計算式+条件付き書式 初版、v373.2 で UI 刷新）、v372.9 は **`docs/232_RELEASE_STATE_v372.9_ROSTER_S2_DRAG_DROP_2026-05-20.md`**、残タスク整理は **`docs/233_HANDOVER_v372.9_NEXT_TASKS_2026-05-20.md`**、v372.8 は **`docs/231_RELEASE_STATE_v372.8_ROSTER_S2_FORMAT_WIDTH_2026-05-20.md`**、v372.7 は **`docs/230_SECURITY_REMEDIATION_DRIVE_PROXY_ALLOWLIST_2026-05-20.md`**、v372〜v372.6.1 の包括変更は **`docs/229_RELEASE_STATE_v372_to_v372.6.1_2026-05-20.md`** に集約。
+>
+> **v373.2 ハイライト（最重要）**:
+> - **PDF 修正**: `position:absolute` を撤去し React `createPortal` で `<body>` 直下にマウント → `body > *:not(.roster-print-portal) { display: none }` で兄弟を消去。通常フロー配置で自動ページ分割が機能。MDN/react-to-print issue #2 既知問題の標準解決パターン
+> - **条件付き書式 UI 刷新**: Airtable「Color by Conditions」型へ。式入力 UI を完全廃止し、フィールド `<select>`（optgroup）+ 演算子 + 値 + スタイルプリセット 5 種 の構造化編集
+> - **計算列プリセット化**: textarea 廃止、8 プリセット（年会費○×/未納警告/フリガナ/住所フル/電話優先/事業所+役職/CM+事業所/空欄）から選択。既存式は `findPresetByFormula` で照合、不一致は legacy として読取専用保持
+> - **Drag handle 改善**: 左端に全高 grip カラム（w-8 + `⋮⋮` + 番号バッジ）、`cursor: grab/grabbing`。Airtable/Notion/Linear パターン
+> - 後方互換: legacy `when:` rules / freeform formulas は引き続き評価される（UI は読取専用 + 「新形式に置換」ボタン）
+>
+> **v373 ハイライト**: jsep + 自前 AST walker による safe formula engine（eval/Function/member access 全 reject、関数 allowlist 16 種、AST 深さ 32 上限）。`scripts/test-formula-eval.mts` で攻撃シナリオ 9 件含む 33 テスト pass。Web 検索 2026-05-20 ベースで `expr-eval`(2026 RCE) / `jse-eval`(no sandbox) を不採用、`jsep` のみ採用根拠は `docs/234` §3 参照。v373.2 で UI は廃止されたがエンジン（評価器）は formula 列 + legacy 条件式の両方で引き続き稼働。
 >
 > ### 5. 既知の制約・要注意事項
 > - **v372.7 security remediation 反映済み**: 2026-05-20 第三者評価 #1 対応として、Drive bytes / thumbnail proxy を `T_研修.案内状URL` / `案内状サムネイルURL` 登録 fileId のみに制限。integrated/public `@341` x2 / member `@99` / admin `@143`。詳細: `docs/230_SECURITY_REMEDIATION_DRIVE_PROXY_ALLOWLIST_2026-05-20.md`。

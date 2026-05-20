@@ -25,13 +25,15 @@
     "security:split-boundary": "npm run security:member-boundary && npm run security:admin-boundary",
     "security:secrets": "git log --diff-filter=A --name-only --pretty=format: | grep -E '\\.(env|pem|key|secret|credentials)$' || true",
     "test:search": "node --experimental-strip-types --no-warnings --test scripts/test-search.mts",
-    "prerelease": "npm run security:audit && npm run security:public-boundary && npm run security:split-boundary && npm run typecheck && npm run test:search"
+    "test:formula": "node --experimental-strip-types --no-warnings --test scripts/test-formula-eval.mts",
+    "prerelease": "npm run security:audit && npm run security:public-boundary && npm run security:split-boundary && npm run typecheck && npm run test:search && npm run test:formula"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "heic2any": "^0.0.4",
+    "jsep": "^1.4.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
   },

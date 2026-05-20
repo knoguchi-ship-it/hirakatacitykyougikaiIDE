@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   closestCenter,
   DndContext,
@@ -18,6 +19,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { ApiClient } from '../services/api';
 import {
+  ConditionalRule,
   RosterColumnDef,
   RosterDesignerRow,
   RosterFieldDef,
@@ -28,6 +30,11 @@ import {
   RowFilterDef,
   RowFilterOperator,
 } from '../types';
+import {
+  evaluateCondition,
+  evaluateFormula,
+  type FormulaScope,
+} from '../lib/formulaEval';
 
 // v372.2 (S1.6): タブ式 2 ステップ + 統合フィールド + 折りたたみ + バッジ + 動的絞り込み
 // S2 で drag-drop, S3 で計算式, S4 で PDF, S5 で Excel
@@ -56,6 +63,46 @@ const DEFAULT_LAYOUT: RosterLayoutDef = {
   showRecordCount: true,
   recordCountPosition: 'header',
   recordCountFormat: '出力対象: {{count}} 名',
+};
+
+// v373.1 (S4): 印刷用紙設定。@page で size に渡せる値のみ列挙
+const PAPER_SIZES: Array<{ value: 'A4' | 'A3' | 'B5'; label: string }> = [
+  { value: 'A4', label: 'A4' },
+  { value: 'A3', label: 'A3' },
+  { value: 'B5', label: 'B5' },
+];
+const FONT_SIZES = [8, 9, 10, 11, 12, 13, 14];
+
+// v373.2 (S4 修正): React Portal で body 直下にマウントし、印刷時は portal 以外の兄弟を display:none に。
+// position:absolute は撤去（絶対配置は印刷時にページ分割されず 1 ページで切れる既知問題 — MDN / react-to-print issue #2）
+// values は controlled enum のみ受け入れて XSS を排除
+const buildPrintStyleCss = (layout: RosterLayoutDef | undefined): string => {
+  const paper = (layout?.paperSize && ['A4', 'A3', 'B5'].includes(layout.paperSize)) ? layout.paperSize : 'A4';
+  const orient = (layout?.orientation === 'landscape') ? 'landscape' : 'portrait';
+  const fs = (typeof layout?.fontSize === 'number' && layout.fontSize >= 8 && layout.fontSize <= 14)
+    ? layout.fontSize : 10;
+  return `
+@media screen { .roster-print-portal { display: none !important; } }
+@media print {
+  @page { size: ${paper} ${orient}; margin: 12mm; }
+  html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
+  /* Portal 兄弟（admin shell 全体）を消して、印刷対象だけを通常フローでページ分割させる */
+  body > *:not(.roster-print-portal) { display: none !important; }
+  .roster-print-portal { display: block !important; }
+  .roster-print-root { font-size: ${fs}pt; color: #000; margin: 0; padding: 0; }
+  .roster-print-table { width: 100%; border-collapse: collapse; table-layout: auto; }
+  .roster-print-table thead { display: table-header-group; }
+  .roster-print-table tfoot { display: table-footer-group; }
+  .roster-print-table tr { break-inside: avoid; page-break-inside: avoid; }
+  .roster-print-table th, .roster-print-table td { border: 1px solid #475569; padding: 3px 6px; vertical-align: top; word-break: break-word; }
+  .roster-print-table th { background: #e2e8f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .roster-print-header { margin-bottom: 8px; break-after: avoid; page-break-after: avoid; }
+  .roster-print-header h1 { font-size: ${fs + 4}pt; font-weight: 700; margin: 0 0 2px 0; }
+  .roster-print-header .meta { font-size: ${Math.max(fs - 2, 7)}pt; color: #1e293b; }
+  /* WCAG: 色印刷を強制保持（Chrome/Edge は背景色をデフォルトで白に上書きするため必須） */
+  .roster-print-table td[data-styled="1"] { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+}
+`;
 };
 
 const emptyTemplate = (): RosterTemplateV2 => ({
@@ -131,6 +178,125 @@ const columnWidthStyle = (col: RosterColumnDef): React.CSSProperties => {
   return { width, minWidth: width };
 };
 
+// v373 (S3): 行 → formula スコープに変換。値は文字列/数値で正規化（fee 等は枝刈り）
+const rowToScope = (row: RosterDesignerRow): FormulaScope => {
+  const scope: FormulaScope = {};
+  Object.keys(row).forEach((k) => {
+    const v = row[k];
+    if (v == null) scope[k] = '';
+    else if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') scope[k] = v;
+    else scope[k] = JSON.stringify(v);
+  });
+  return scope;
+};
+
+// v373 (S3) + v373.2 (構造化): 条件付き書式を順次評価し、最初にマッチしたルールを採用
+// 後方互換: 旧 freeform `when` は formulaEval にフォールバック
+const cellStyleFor = (
+  rules: ConditionalRule[] | undefined,
+  scope: FormulaScope,
+  row: RosterDesignerRow,
+  dictByKey: Map<string, RosterFieldDef>,
+): React.CSSProperties => {
+  if (!rules || rules.length === 0) return {};
+  for (const r of rules) {
+    if (!r) continue;
+    let matched = false;
+    if (r.fieldKey && r.operator) {
+      matched = evalStructuredRule(r, row, dictByKey);
+    } else if (r.when) {
+      matched = evaluateCondition(r.when, scope);
+    }
+    if (matched) {
+      const s: React.CSSProperties = {};
+      if (r.style?.color)   s.color = r.style.color;
+      if (r.style?.bgColor) s.backgroundColor = r.style.bgColor;
+      if (r.style?.bold)    s.fontWeight = 700;
+      return s;
+    }
+  }
+  return {};
+};
+
+// v373.2: 構造化条件ルールの評価（evalRowFilter と同一ロジック）
+const evalStructuredRule = (
+  rule: ConditionalRule,
+  row: RosterDesignerRow,
+  dictByKey: Map<string, RosterFieldDef>,
+): boolean => {
+  if (!rule.fieldKey || !rule.operator) return false;
+  const fdef = dictByKey.get(rule.fieldKey);
+  const type = fdef?.type || 'string';
+  const raw = row[rule.fieldKey];
+  const sval = raw == null ? '' : String(raw);
+  let result: boolean;
+  switch (rule.operator) {
+    case 'isEmpty':     result = sval === ''; break;
+    case 'isNotEmpty':  result = sval !== ''; break;
+    case 'contains':    result = sval.indexOf(String(rule.value || '')) >= 0; break;
+    case 'notContains': result = sval.indexOf(String(rule.value || '')) < 0; break;
+    case 'equals':      result = sval === String(rule.value || ''); break;
+    case 'notEquals':   result = sval !== String(rule.value || ''); break;
+    case 'startsWith':  result = sval.indexOf(String(rule.value || '')) === 0; break;
+    case 'endsWith': {
+      const v = String(rule.value || '');
+      result = sval.length >= v.length && sval.lastIndexOf(v) === sval.length - v.length;
+      break;
+    }
+    case 'gt':  result = Number(sval) >  Number(rule.value); break;
+    case 'lt':  result = Number(sval) <  Number(rule.value); break;
+    case 'gte': result = Number(sval) >= Number(rule.value); break;
+    case 'lte': result = Number(sval) <= Number(rule.value); break;
+    case 'between': {
+      if (type === 'number') {
+        const n = Number(sval);
+        result = n >= Number(rule.value) && n <= Number(rule.value2);
+      } else {
+        result = sval >= String(rule.value || '') && sval <= String(rule.value2 || '');
+      }
+      break;
+    }
+    case 'in':     result = Array.isArray(rule.values) && rule.values.indexOf(sval) >= 0; break;
+    case 'notIn':  result = Array.isArray(rule.values) && rule.values.indexOf(sval) < 0; break;
+    case 'before': result = sval !== '' && sval <= String(rule.value || ''); break;
+    case 'after':  result = sval !== '' && sval >= String(rule.value || ''); break;
+    default: result = false;
+  }
+  return rule.negate ? !result : result;
+};
+
+// v373.2: 計算列プリセット（freeform formula 入力を廃止）
+interface FormulaPreset {
+  key: string;
+  label: string;
+  description: string;
+  formula: string;
+  defaultColumnLabel: string;
+}
+const FORMULA_PRESETS: FormulaPreset[] = [
+  { key: 'fee_mark',        label: '年会費 ○×記号',         description: '年会費が PAID なら ○、それ以外は ×',           formula: "if({annualFeeStatus} === 'PAID', '○', '×')",                defaultColumnLabel: '年会費状態' },
+  { key: 'fee_alert',       label: '年会費 未納警告',       description: '未納なら「⚠ 未納」、納付済みなら空欄',         formula: "if({annualFeeStatus} === 'PAID', '', '⚠ 未納')",            defaultColumnLabel: '未納警告' },
+  { key: 'kana_full',       label: 'フリガナ（姓 + 名）',   description: 'カナの姓と名をスペース区切りで結合',           formula: "{lastNameKana} + ' ' + {firstNameKana}",                    defaultColumnLabel: 'フリガナ' },
+  { key: 'address_full',    label: '住所（郵便番号〜全文）',description: '〒郵便番号 + 住所1 + 住所2 を結合',           formula: "concat('〒', {postalCode}, ' ', {address1}, {address2})",   defaultColumnLabel: '住所' },
+  { key: 'phone_priority',  label: '電話番号（携帯優先）',  description: '携帯があれば携帯、なければ固定電話を表示',     formula: "coalesce({mobilePhone}, {homePhone})",                      defaultColumnLabel: '電話番号' },
+  { key: 'office_with_role',label: '事業所名 + 役職',       description: '事業所名と役職を「 / 」で結合（空欄安全）',     formula: "{officeName} + if(len({staffRole}) > 0, ' / ' + {staffRole}, '')", defaultColumnLabel: '事業所・役職' },
+  { key: 'cm_with_office',  label: 'CM番号 + 事業所名',     description: 'CM番号と事業所名を「 / 」で結合',              formula: "concat({autoCareManagerNumber}, ' / ', {officeName})",      defaultColumnLabel: 'CM・事業所' },
+  { key: 'literal_blank',   label: '空欄列（手書き用）',    description: '常に空欄。印刷後に手書きする欄を作るのに便利',  formula: "''",                                                        defaultColumnLabel: '備考' },
+];
+const findPresetByFormula = (formula: string | undefined): FormulaPreset | undefined => {
+  if (!formula) return undefined;
+  return FORMULA_PRESETS.find((p) => p.formula === formula);
+};
+
+// v373 (S3): WCAG 2.2 §1.4.1 準拠の安全プリセット (color だけに頼らず bold/bg を併用)
+const STYLE_PRESETS: Array<{ key: string; label: string; style: ConditionalRule['style'] }> = [
+  { key: 'danger',  label: '赤(警告)',   style: { color: '#991b1b', bgColor: '#fee2e2', bold: true } },
+  { key: 'warning', label: '黄(注意)',   style: { color: '#92400e', bgColor: '#fef3c7', bold: false } },
+  { key: 'success', label: '緑(良好)',   style: { color: '#065f46', bgColor: '#d1fae5', bold: false } },
+  { key: 'info',    label: '青(情報)',   style: { color: '#1e40af', bgColor: '#dbeafe', bold: false } },
+  { key: 'muted',   label: '灰(無効)',   style: { color: '#475569', bgColor: '#f1f5f9', bold: false } },
+];
+
 // v372.3: 演算子セットを最小化。冗長な notXxx は廃止し「否定」トグル（negate）で表現する。
 // 後方互換: legacy notXxx は normalizeColumnFilter_() で読込時に変換。
 const OPERATORS_BY_TYPE: Record<string, Array<{ value: RowFilterOperator; label: string; valueKind: 'none' | 'single' | 'double' | 'multi'; canNegate: boolean }>> = {
@@ -188,7 +354,52 @@ const normalizeTemplate_ = (t: RosterTemplateV2): RosterTemplateV2 => ({
   columns: (t.columns || []).map((c) => c.rowFilter ? { ...c, rowFilter: normalizeColumnFilter_(c.rowFilter) } : c),
 });
 const operatorsFor = (type?: string) => OPERATORS_BY_TYPE[type || 'string'] || OPERATORS_BY_TYPE.string;
+
+// v373.3: 条件付き書式専用 operators — 文字列の「等しい」を除外（「含む」で代用可能・UX 簡素化）
+const operatorsForStyle = (type?: string) => {
+  const base = operatorsFor(type);
+  if ((type || 'string') === 'string') {
+    return base.filter((o) => o.value !== 'equals');
+  }
+  return base;
+};
+
+// v373.4: 行フィルタ専用 operators — プログラミング知識不要のラベル + 記号排除
+// 記号 (=, >, <, ≥, ≤) を日本語に置換し、よく使わない演算子も削除して 3〜6 個に絞り込み。
+// enum/boolean は別系統（演算子を出さずチェックボックス UI のみ）。year picker は対象外。
+const FILTER_OPERATORS_BY_TYPE: Record<string, Array<{ value: RowFilterOperator; label: string; valueKind: 'none' | 'single' | 'double' | 'multi' }>> = {
+  string: [
+    { value: 'contains',   label: '含む',       valueKind: 'single' },
+    { value: 'isNotEmpty', label: '入力あり',   valueKind: 'none'   },
+    { value: 'isEmpty',    label: '空欄',       valueKind: 'none'   },
+  ],
+  number: [
+    { value: 'equals',     label: 'ぴったり一致', valueKind: 'single' },
+    { value: 'gte',        label: '以上',       valueKind: 'single' },
+    { value: 'lte',        label: '以下',       valueKind: 'single' },
+    { value: 'between',    label: '範囲',       valueKind: 'double' },
+    { value: 'isNotEmpty', label: '入力あり',   valueKind: 'none'   },
+    { value: 'isEmpty',    label: '空欄',       valueKind: 'none'   },
+  ],
+  date: [
+    { value: 'before',     label: '以前',       valueKind: 'single' },
+    { value: 'after',      label: '以降',       valueKind: 'single' },
+    { value: 'between',    label: '期間',       valueKind: 'double' },
+    { value: 'isNotEmpty', label: '入力あり',   valueKind: 'none'   },
+    { value: 'isEmpty',    label: '空欄',       valueKind: 'none'   },
+  ],
+};
+const operatorsForFilter = (type?: string) => FILTER_OPERATORS_BY_TYPE[type || 'string'] || FILTER_OPERATORS_BY_TYPE.string;
+const filterOperatorValueKind = (type: string, op: RowFilterOperator): 'none' | 'single' | 'double' | 'multi' => {
+  const list = operatorsForFilter(type);
+  return list.find((o) => o.value === op)?.valueKind ?? 'single';
+};
 const operatorLabel = (op?: RowFilterOperator): string => {
+  // v373.4: 行フィルタ向け（日本語化済み）のラベルを優先
+  for (const list of Object.values(FILTER_OPERATORS_BY_TYPE)) {
+    const f = list.find((o) => o.value === op);
+    if (f) return f.label;
+  }
   for (const list of Object.values(OPERATORS_BY_TYPE)) {
     const f = list.find((o) => o.value === op);
     if (f) return f.label;
@@ -624,8 +835,16 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
       const type = fdef?.type || 'string';
       return formatRosterValue(fmtValue(raw, type, fdef?.enumLabels), type, col.format);
     }
+    if (col.source === 'formula' && col.formula) {
+      const r = evaluateFormula(col.formula, rowToScope(row));
+      if (!r.ok) return ''; // 式エラーは空セル
+      return r.value == null ? '' : String(r.value);
+    }
     return '';
   }, [dictByKey]);
+
+  // v373.2: 旧 formulaErrors useMemo は計算列のプリセット化に伴い廃止。
+  // プリセット式はビルド時にバリデート済みのため、ランタイム検証は不要。
 
   // 件数表示
   const recordCountText = useMemo(() => {
@@ -874,27 +1093,33 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                     {working.columns.map((col, idx) => {
                       const fdef = col.fieldKey ? dictByKey.get(col.fieldKey) : null;
                       const fieldType = fdef?.type || 'string';
-                      const ops = operatorsFor(fieldType);
+                      // v373.4: 行フィルタは専用 operators（記号→日本語、絞込）
+                      const ops = operatorsForFilter(fieldType);
                       const rf = col.rowFilter;
-                      const valKind = rf?.operator ? operatorValueKind(fieldType, rf.operator) : 'single';
+                      const valKind = rf?.operator ? filterOperatorValueKind(fieldType, rf.operator) : 'single';
                       const enumOpts = fdef?.enumLabels ? Object.entries(fdef.enumLabels) : [];
+                      // v373.4: 年度 picker と formula/literal 列、ID 列は行フィルタ対象外
+                      const isYearField = fdef?.valuePicker === 'year';
+                      const filterDisabled = !col.fieldKey || isYearField || col.source !== 'field';
                       return (
                         <SortableColumnShell key={col.id} id={col.id}>
                           {({ attributes, listeners, setActivatorNodeRef, isDragging }) => (
-                    <div className={`rounded border p-2 space-y-2 ${isDragging ? 'border-primary-300 bg-primary-50 shadow-lg' : 'border-slate-200 bg-slate-50'}`}>
+                    <div className={`rounded border flex overflow-hidden ${isDragging ? 'border-primary-400 bg-primary-50 shadow-lg ring-2 ring-primary-300' : 'border-slate-200 bg-slate-50 hover:border-slate-300'}`}>
+                      {/* v373.2: 大型 grip ハンドル（カード左端・全高・cursor:grab） — Airtable/Notion/Linear パターン */}
+                      <button
+                        type="button"
+                        ref={setActivatorNodeRef}
+                        {...attributes}
+                        {...listeners}
+                        className={`shrink-0 flex flex-col items-center justify-center w-8 border-r border-slate-200 bg-white text-slate-400 hover:bg-primary-50 hover:text-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-primary-50 ${isDragging ? 'cursor-grabbing bg-primary-100 text-primary-700' : 'cursor-grab'}`}
+                        aria-label={`${col.label || '列'}をドラッグして並び替え（${idx + 1}番目 / 全${working.columns.length}列）`}
+                        title="ドラッグまたはキーボード（Space/↑↓/Enter）で並び替え">
+                        <span className="text-[9px] font-semibold leading-none mb-1">{idx + 1}</span>
+                        <span className="text-base leading-none select-none" aria-hidden="true">⋮⋮</span>
+                      </button>
+                      <div className="flex-1 p-2 space-y-2 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-slate-400 w-6 text-center shrink-0">{idx + 1}</span>
-                        <button
-                          type="button"
-                          ref={setActivatorNodeRef}
-                          {...attributes}
-                          {...listeners}
-                          className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-500 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                          aria-label={`${col.label || '列'}をドラッグして並び替え`}
-                          title="ドラッグまたはキーボードで並び替え">
-                          ↕
-                        </button>
-                        <input className="flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-sm"
+                        <input className="flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-sm min-w-0"
                           value={col.label}
                           onChange={(e) => updateColumn(col.id, { label: e.target.value })} />
                         <button type="button" onClick={() => moveColumn(col.id, -1)}
@@ -911,7 +1136,7 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                       </div>
                       <div className="flex items-center gap-2 text-xs text-slate-500">
                         <span className="shrink-0">フィールド:</span>
-                        <span className="truncate">{fdef?.label ?? (col.source === 'literal' ? `文字列: "${col.literal}"` : '不明')}</span>
+                        <span className="truncate">{fdef?.label ?? (col.source === 'literal' ? `文字列: "${col.literal}"` : col.source === 'formula' ? '🧮 計算式' : '不明')}</span>
                         <span className="ml-auto shrink-0">配置:</span>
                         <select className="rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
                           value={col.align || 'left'}
@@ -951,116 +1176,376 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                           </select>
                         </label>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2 text-xs bg-white rounded border border-slate-200 px-2 py-1.5">
-                        <span className="shrink-0 text-slate-500">条件:</span>
-                        <select className="rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
-                          value={rf?.operator || ''}
-                          onChange={(e) => {
-                            const opVal = e.target.value as RowFilterOperator | '';
-                            if (!opVal) { updateColumn(col.id, { rowFilter: undefined }); return; }
-                            updateColumn(col.id, { rowFilter: { operator: opVal } });
-                          }}>
-                          <option value="">（なし）</option>
-                          {ops.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                        </select>
-                        {/* v372.3: 否定トグル */}
-                        {rf?.operator && operatorCanNegate(fieldType, rf.operator) && (
-                          <button type="button"
-                            onClick={() => updateColumn(col.id, { rowFilter: { ...rf, negate: !rf.negate } as RowFilterDef })}
-                            className={`shrink-0 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors min-h-[28px] ${
-                              rf.negate ? 'border-rose-400 bg-rose-50 text-rose-700' : 'border-slate-300 bg-white text-slate-500 hover:bg-slate-50'
-                            }`}
-                            aria-label="否定切替"
-                            aria-pressed={!!rf.negate}
-                            title="クリックで条件を反転（NOT）">
-                            <span>{rf.negate ? '🚫 否定' : '○ 否定'}</span>
-                          </button>
-                        )}
-                        {/* 値入力 */}
-                        {rf?.operator && valKind === 'single' && (
-                          fieldType === 'enum' ? (
-                            <select className="flex-1 min-w-[120px] rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
-                              value={rf.value || ''}
-                              onChange={(e) => updateColumn(col.id, { rowFilter: { ...rf, value: e.target.value } as RowFilterDef })}>
-                              <option value="">選択</option>
-                              {enumOpts.map(([k, lbl]) => <option key={k} value={k}>{lbl}</option>)}
-                            </select>
-                          ) : fdef?.valuePicker === 'year' ? (
-                            <select className="flex-1 min-w-[100px] rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
-                              value={rf.value || ''}
-                              onChange={(e) => updateColumn(col.id, { rowFilter: { ...rf, value: e.target.value } as RowFilterDef })}>
-                              <option value="">選択</option>
-                              {(availableYears.length > 0 ? availableYears : [currentFY]).map((y) => (
-                                <option key={y} value={String(y)}>{y}年度</option>
+                      {/* v373.2: 計算列はプリセット選択のみ（freeform formula を廃止） */}
+                      {col.source === 'formula' && (() => {
+                        const matchedPreset = findPresetByFormula(col.formula);
+                        const isLegacyCustom = !matchedPreset && !!col.formula;
+                        return (
+                          <div className="rounded border border-violet-200 bg-violet-50 p-2 space-y-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[10px] font-semibold text-violet-700">🧮 計算列プリセット</span>
+                              {isLegacyCustom && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300" title="旧バージョンで作成されたカスタム式。読取専用で保持されます。">
+                                  ⚠ レガシーカスタム式
+                                </span>
+                              )}
+                            </div>
+                            <select
+                              className="w-full rounded border border-violet-300 bg-white px-2 py-1.5 text-xs"
+                              value={matchedPreset?.key || (isLegacyCustom ? '__legacy__' : '')}
+                              onChange={(e) => {
+                                const key = e.target.value;
+                                if (key === '__legacy__') return;
+                                const p = FORMULA_PRESETS.find((x) => x.key === key);
+                                if (!p) return;
+                                updateColumn(col.id, {
+                                  formula: p.formula,
+                                  label: col.label && col.label !== '計算列' ? col.label : p.defaultColumnLabel,
+                                });
+                              }}
+                              aria-label={`${col.label}の計算プリセット`}>
+                              <option value="">— プリセットを選択 —</option>
+                              {isLegacyCustom && <option value="__legacy__">（旧カスタム式を保持中）</option>}
+                              {FORMULA_PRESETS.map((p) => (
+                                <option key={p.key} value={p.key}>{p.label}</option>
                               ))}
                             </select>
-                          ) : (
+                            {matchedPreset && (
+                              <p className="text-[10px] text-violet-700">{matchedPreset.description}</p>
+                            )}
+                            {previewRows[0] && (col.formula) && (
+                              <p className="text-[10px] text-violet-600 truncate">
+                                プレビュー: <span className="font-semibold">{valueFor(previewRows[0], col) || '(空)'}</span>
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
+                      {/* v373.2: 条件付き書式 — 構造化ルール UI（Airtable 風）。式入力廃止 */}
+                      <details className="rounded border border-amber-200 bg-amber-50">
+                        <summary className="cursor-pointer px-2 py-1.5 text-xs font-semibold text-amber-800 min-h-[40px] flex items-center justify-between">
+                          <span>🎨 条件付き書式 {col.conditionalStyle?.length ? `(${col.conditionalStyle.length} ルール)` : ''}</span>
+                          <span className="text-amber-600">{col.conditionalStyle?.length ? '▼' : '▶ 追加'}</span>
+                        </summary>
+                        <div className="p-2 space-y-2">
+                          {(col.conditionalStyle || []).map((rule, ri) => {
+                            const isLegacyWhen = !!rule.when && !rule.fieldKey;
+                            const ruleField = rule.fieldKey ? dictByKey.get(rule.fieldKey) : null;
+                            const ruleType = ruleField?.type || 'string';
+                            // v373.3: 条件付き書式は equals 除外版、否定なし
+                            const ruleOps = operatorsForStyle(ruleType);
+                            const ruleVk = rule.operator ? operatorValueKind(ruleType, rule.operator) : 'single';
+                            const ruleEnumOpts = ruleField?.enumLabels ? Object.entries(ruleField.enumLabels) : [];
+                            const isYearPicker = ruleField?.valuePicker === 'year';
+                            const yearOptions = availableYears.length > 0 ? availableYears : [currentFY];
+                            // v373.3: year picker のフィールドが選ばれた時、未入力なら filterYear を prefill
+                            const handleFieldChange = (newKey: string) => {
+                              const newField = newKey ? dictByKey.get(newKey) : null;
+                              const newOps = operatorsForStyle(newField?.type || 'string');
+                              // 旧 operator が新 type で使えなければ最初の演算子に
+                              const opStillValid = newOps.some((o) => o.value === rule.operator);
+                              const prefillValue = newField?.valuePicker === 'year' ? String(filterYear) : '';
+                              updateRule({
+                                fieldKey: newKey,
+                                operator: opStillValid ? rule.operator : (newOps[0]?.value || 'contains'),
+                                value: prefillValue,
+                                values: [],
+                                value2: '',
+                                negate: undefined, // v373.3: 条件付き書式から否定を完全除去
+                              });
+                            };
+                            const updateRule = (patch: Partial<ConditionalRule>) => {
+                              const next = [...(col.conditionalStyle || [])];
+                              next[ri] = { ...rule, ...patch };
+                              updateColumn(col.id, { conditionalStyle: next });
+                            };
+                            return (
+                              <div key={ri} className="rounded border border-amber-300 bg-white p-2 space-y-2">
+                                {isLegacyWhen ? (
+                                  <div className="text-[10px] bg-slate-50 border border-slate-200 rounded p-2 space-y-1">
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-semibold text-slate-600">⚠ レガシー条件式（読取専用）</span>
+                                      <button type="button"
+                                        onClick={() => updateRule({ when: undefined, fieldKey: col.fieldKey || '', operator: 'contains' })}
+                                        className="rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-700 hover:bg-amber-100">
+                                        新形式に置き換え
+                                      </button>
+                                    </div>
+                                    <code className="block bg-white border border-slate-200 rounded px-1.5 py-1 font-mono">{rule.when}</code>
+                                  </div>
+                                ) : (
+                                  <div className="grid grid-cols-1 gap-1.5">
+                                    {/* 行 1: フィールド + 演算子 */}
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      <span className="shrink-0 text-[10px] text-amber-700 font-semibold w-12">ルール {ri + 1}</span>
+                                      <select
+                                        className="flex-1 min-w-[140px] rounded border border-slate-300 bg-white px-1.5 py-1 text-xs"
+                                        value={rule.fieldKey || ''}
+                                        onChange={(e) => handleFieldChange(e.target.value)}
+                                        aria-label="対象フィールド">
+                                        <option value="">— フィールド選択 —</option>
+                                        {GROUP_ORDER.map((g) => {
+                                          const items = dictionary.filter((d) => d.group === g);
+                                          if (items.length === 0) return null;
+                                          return (
+                                            <optgroup key={g} label={GROUP_META[g].label}>
+                                              {items.map((d) => <option key={d.key} value={d.key}>{d.label}</option>)}
+                                            </optgroup>
+                                          );
+                                        })}
+                                      </select>
+                                      <select
+                                        className="rounded border border-slate-300 bg-white px-1.5 py-1 text-xs"
+                                        value={rule.operator || ''}
+                                        onChange={(e) => updateRule({ operator: e.target.value as RowFilterOperator })}
+                                        disabled={!rule.fieldKey}
+                                        aria-label="演算子">
+                                        <option value="">— 条件 —</option>
+                                        {ruleOps.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                      </select>
+                                      {/* v373.3: 否定トグルは条件付き書式から完全削除（行フィルタには残存） */}
+                                      <button type="button"
+                                        onClick={() => {
+                                          const next = (col.conditionalStyle || []).filter((_, i) => i !== ri);
+                                          updateColumn(col.id, { conditionalStyle: next.length ? next : undefined });
+                                        }}
+                                        className="ml-auto rounded border border-rose-200 bg-white px-1.5 py-0.5 text-[10px] text-rose-600 hover:bg-rose-50 min-h-[24px]"
+                                        aria-label="ルール削除">×</button>
+                                    </div>
+                                    {/* 行 2: 値 */}
+                                    {rule.operator && ruleVk !== 'none' && (
+                                      <div className="flex flex-wrap items-center gap-1.5 pl-12">
+                                        <span className="shrink-0 text-[10px] text-slate-500">値:</span>
+                                        {ruleVk === 'single' && (
+                                          isYearPicker ? (
+                                            <select className="flex-1 min-w-[120px] rounded border border-slate-300 bg-white px-1.5 py-1 text-xs"
+                                              value={rule.value || ''}
+                                              onChange={(e) => updateRule({ value: e.target.value })}
+                                              aria-label="年度を選択">
+                                              <option value="">— 年度選択 —</option>
+                                              {yearOptions.map((y) => <option key={y} value={String(y)}>{y}年度</option>)}
+                                            </select>
+                                          ) : ruleType === 'enum' ? (
+                                            <select className="flex-1 min-w-[120px] rounded border border-slate-300 bg-white px-1.5 py-1 text-xs"
+                                              value={rule.value || ''}
+                                              onChange={(e) => updateRule({ value: e.target.value })}>
+                                              <option value="">選択</option>
+                                              {ruleEnumOpts.map(([k, lbl]) => <option key={k} value={k}>{lbl}</option>)}
+                                            </select>
+                                          ) : (
+                                            <input
+                                              type={ruleType === 'number' ? 'number' : ruleType === 'date' ? 'date' : 'text'}
+                                              className="flex-1 min-w-[100px] rounded border border-slate-300 bg-white px-1.5 py-1 text-xs"
+                                              value={rule.value || ''}
+                                              onChange={(e) => updateRule({ value: e.target.value })}
+                                              placeholder="値" />
+                                          )
+                                        )}
+                                        {ruleVk === 'double' && (
+                                          isYearPicker ? (
+                                            <>
+                                              <select className="flex-1 min-w-[90px] rounded border border-slate-300 bg-white px-1.5 py-1 text-xs"
+                                                value={rule.value || ''}
+                                                onChange={(e) => updateRule({ value: e.target.value })}
+                                                aria-label="年度（下限）">
+                                                <option value="">下限</option>
+                                                {yearOptions.map((y) => <option key={y} value={String(y)}>{y}年度</option>)}
+                                              </select>
+                                              <span className="text-slate-400">〜</span>
+                                              <select className="flex-1 min-w-[90px] rounded border border-slate-300 bg-white px-1.5 py-1 text-xs"
+                                                value={rule.value2 || ''}
+                                                onChange={(e) => updateRule({ value2: e.target.value })}
+                                                aria-label="年度（上限）">
+                                                <option value="">上限</option>
+                                                {yearOptions.map((y) => <option key={y} value={String(y)}>{y}年度</option>)}
+                                              </select>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <input
+                                                type={ruleType === 'number' ? 'number' : ruleType === 'date' ? 'date' : 'text'}
+                                                className="flex-1 min-w-[80px] rounded border border-slate-300 bg-white px-1.5 py-1 text-xs"
+                                                value={rule.value || ''}
+                                                onChange={(e) => updateRule({ value: e.target.value })}
+                                                placeholder="下限" />
+                                              <span className="text-slate-400">〜</span>
+                                              <input
+                                                type={ruleType === 'number' ? 'number' : ruleType === 'date' ? 'date' : 'text'}
+                                                className="flex-1 min-w-[80px] rounded border border-slate-300 bg-white px-1.5 py-1 text-xs"
+                                                value={rule.value2 || ''}
+                                                onChange={(e) => updateRule({ value2: e.target.value })}
+                                                placeholder="上限" />
+                                            </>
+                                          )
+                                        )}
+                                        {ruleVk === 'multi' && (
+                                          <div className="flex flex-wrap items-center gap-1">
+                                            {ruleEnumOpts.map(([k, lbl]) => {
+                                              const arr = rule.values || [];
+                                              const selected = arr.indexOf(k) >= 0;
+                                              return (
+                                                <label key={k} className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] cursor-pointer border ${selected ? 'border-primary-500 bg-primary-50' : 'border-slate-300 bg-white'}`}>
+                                                  <input type="checkbox" className="h-3 w-3" checked={selected}
+                                                    onChange={(e) => {
+                                                      const next = e.target.checked ? Array.from(new Set([...arr, k])) : arr.filter((x) => x !== k);
+                                                      updateRule({ values: next });
+                                                    }} />
+                                                  {lbl}
+                                                </label>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                {/* スタイル（プリセット 5 + 詳細） */}
+                                <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-amber-100">
+                                  <span className="shrink-0 text-[10px] text-slate-500">→ 色:</span>
+                                  {STYLE_PRESETS.map((p) => {
+                                    const matched = rule.style?.color === p.style?.color && rule.style?.bgColor === p.style?.bgColor;
+                                    return (
+                                      <button key={p.key} type="button"
+                                        onClick={() => updateRule({ style: { ...p.style } })}
+                                        style={{ color: p.style?.color, backgroundColor: p.style?.bgColor, fontWeight: p.style?.bold ? 700 : 400 }}
+                                        className={`rounded border px-2 py-1 text-[10px] min-h-[28px] ${matched ? 'border-amber-600 ring-2 ring-amber-400' : 'border-slate-300'}`}
+                                        aria-pressed={matched}
+                                        aria-label={`${p.label}スタイル`}>
+                                        {p.label}
+                                      </button>
+                                    );
+                                  })}
+                                  <label className="flex items-center gap-1 text-[10px] ml-2">
+                                    <input type="checkbox" checked={!!rule.style?.bold}
+                                      onChange={(e) => updateRule({ style: { ...rule.style, bold: e.target.checked } })} />
+                                    太字
+                                  </label>
+                                  <span className="ml-auto rounded px-2 py-1 text-[10px]"
+                                    style={{ color: rule.style?.color, backgroundColor: rule.style?.bgColor, fontWeight: rule.style?.bold ? 700 : 400 }}>
+                                    サンプル
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          <button type="button"
+                            onClick={() => {
+                              // v373.3: 初期演算子は型に応じて適切なもの。year picker なら filterYear を prefill。
+                              const initFieldKey = col.fieldKey || '';
+                              const initField = initFieldKey ? dictByKey.get(initFieldKey) : null;
+                              const initType = initField?.type || 'string';
+                              const initOps = operatorsForStyle(initType);
+                              const initOperator = (initOps[0]?.value || 'contains') as RowFilterOperator;
+                              const initValue = initField?.valuePicker === 'year' ? String(filterYear) : '';
+                              const next = [...(col.conditionalStyle || []), {
+                                fieldKey: initFieldKey,
+                                operator: initOperator,
+                                value: initValue,
+                                style: { ...STYLE_PRESETS[0].style },
+                              } as ConditionalRule];
+                              updateColumn(col.id, { conditionalStyle: next });
+                            }}
+                            className="w-full rounded border-2 border-dashed border-amber-400 bg-white px-2 py-2 text-xs text-amber-700 hover:bg-amber-100 min-h-[40px] font-medium">
+                            ＋ ルールを追加（上から順に最初に一致したものが適用）
+                          </button>
+                          <p className="text-[10px] text-amber-700">
+                            💡 例: 「年会費納入状況」が「未納」と「等しい」→ 赤(警告)。WCAG 2.2 §1.4.1 に従い色＋太字の併用を推奨。
+                          </p>
+                        </div>
+                      </details>
+                      {/* v373.4: 行フィルタ — プログラミング知識不要のプリセット UI 化 */}
+                      {filterDisabled ? null : fieldType === 'enum' ? (
+                        // enum: 演算子なし、値チェックボックスのみ
+                        <div className="flex flex-wrap items-center gap-2 text-xs bg-white rounded border border-slate-200 px-2 py-1.5">
+                          <span className="shrink-0 text-slate-500">絞り込み:</span>
+                          <span className="shrink-0 text-[10px] text-slate-400">該当を選択（未選択=全件）</span>
+                          {enumOpts.map(([k, lbl]) => {
+                            const arr = rf?.values || [];
+                            const selected = arr.indexOf(k) >= 0;
+                            return (
+                              <label key={k} className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs cursor-pointer border min-h-[28px] ${selected ? 'border-primary-500 bg-primary-50' : 'border-slate-300 bg-white'}`}>
+                                <input type="checkbox" className="h-3 w-3" checked={selected}
+                                  onChange={(e) => {
+                                    const next = e.target.checked ? Array.from(new Set([...arr, k])) : arr.filter((x) => x !== k);
+                                    if (next.length === 0) { updateColumn(col.id, { rowFilter: undefined }); }
+                                    else { updateColumn(col.id, { rowFilter: { operator: 'in', values: next } }); }
+                                  }} />
+                                {lbl}
+                              </label>
+                            );
+                          })}
+                          {rf?.operator && (
+                            <button type="button"
+                              onClick={() => updateColumn(col.id, { rowFilter: undefined })}
+                              className="ml-auto rounded border border-slate-300 bg-white px-2 py-1 text-[10px] text-slate-500 hover:bg-slate-50">
+                              解除
+                            </button>
+                          )}
+                        </div>
+                      ) : fieldType === 'boolean' ? (
+                        // boolean: 演算子なし、3 状態ラジオ（指定なし / はい / いいえ）
+                        <div className="flex flex-wrap items-center gap-2 text-xs bg-white rounded border border-slate-200 px-2 py-1.5">
+                          <span className="shrink-0 text-slate-500">絞り込み:</span>
+                          {(['', 'true', 'false'] as const).map((v) => {
+                            const lbl = v === '' ? '指定なし' : v === 'true' ? 'はい' : 'いいえ';
+                            const checked = (rf?.value || '') === v;
+                            return (
+                              <label key={v} className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs cursor-pointer border min-h-[28px] ${checked ? 'border-primary-500 bg-primary-50' : 'border-slate-300 bg-white'}`}>
+                                <input type="radio" name={`rf-bool-${col.id}`} checked={checked}
+                                  onChange={() => {
+                                    if (v === '') updateColumn(col.id, { rowFilter: undefined });
+                                    else updateColumn(col.id, { rowFilter: { operator: 'equals', value: v } });
+                                  }} />
+                                {lbl}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        // string / number / date: 演算子 + 値（演算子は日本語ラベル）
+                        <div className="flex flex-wrap items-center gap-2 text-xs bg-white rounded border border-slate-200 px-2 py-1.5">
+                          <span className="shrink-0 text-slate-500">絞り込み:</span>
+                          <select className="rounded border border-slate-300 bg-white px-2 py-1 text-xs min-h-[28px]"
+                            value={rf?.operator || ''}
+                            onChange={(e) => {
+                              const opVal = e.target.value as RowFilterOperator | '';
+                              if (!opVal) { updateColumn(col.id, { rowFilter: undefined }); return; }
+                              updateColumn(col.id, { rowFilter: { operator: opVal } });
+                            }}
+                            aria-label="絞り込み条件">
+                            <option value="">（なし）</option>
+                            {ops.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                          </select>
+                          {/* 値入力（valKind=='none' のときは値不要） */}
+                          {rf?.operator && valKind === 'single' && (
                             <input
                               type={fieldType === 'number' ? 'number' : fieldType === 'date' ? 'date' : 'text'}
-                              className="flex-1 min-w-[100px] rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
+                              className="flex-1 min-w-[100px] rounded border border-slate-300 bg-white px-2 py-1 text-xs min-h-[28px]"
                               value={rf.value || ''}
                               onChange={(e) => updateColumn(col.id, { rowFilter: { ...rf, value: e.target.value } as RowFilterDef })}
                               placeholder="値" />
-                          )
-                        )}
-                        {rf?.operator && valKind === 'double' && (
-                          fdef?.valuePicker === 'year' ? (
-                            <>
-                              <select className="flex-1 min-w-[90px] rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
-                                value={rf.value || ''}
-                                onChange={(e) => updateColumn(col.id, { rowFilter: { ...rf, value: e.target.value } as RowFilterDef })}>
-                                <option value="">下限</option>
-                                {(availableYears.length > 0 ? availableYears : [currentFY]).map((y) => (
-                                  <option key={y} value={String(y)}>{y}年度</option>
-                                ))}
-                              </select>
-                              <span className="text-slate-400">〜</span>
-                              <select className="flex-1 min-w-[90px] rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
-                                value={rf.value2 || ''}
-                                onChange={(e) => updateColumn(col.id, { rowFilter: { ...rf, value2: e.target.value } as RowFilterDef })}>
-                                <option value="">上限</option>
-                                {(availableYears.length > 0 ? availableYears : [currentFY]).map((y) => (
-                                  <option key={y} value={String(y)}>{y}年度</option>
-                                ))}
-                              </select>
-                            </>
-                          ) : (
+                          )}
+                          {rf?.operator && valKind === 'double' && (
                             <>
                               <input
                                 type={fieldType === 'number' ? 'number' : fieldType === 'date' ? 'date' : 'text'}
-                                className="flex-1 min-w-[80px] rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
+                                className="flex-1 min-w-[80px] rounded border border-slate-300 bg-white px-2 py-1 text-xs min-h-[28px]"
                                 value={rf.value || ''}
                                 onChange={(e) => updateColumn(col.id, { rowFilter: { ...rf, value: e.target.value } as RowFilterDef })}
                                 placeholder="下限" />
                               <span className="text-slate-400">〜</span>
                               <input
                                 type={fieldType === 'number' ? 'number' : fieldType === 'date' ? 'date' : 'text'}
-                                className="flex-1 min-w-[80px] rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
+                                className="flex-1 min-w-[80px] rounded border border-slate-300 bg-white px-2 py-1 text-xs min-h-[28px]"
                                 value={rf.value2 || ''}
                                 onChange={(e) => updateColumn(col.id, { rowFilter: { ...rf, value2: e.target.value } as RowFilterDef })}
                                 placeholder="上限" />
                             </>
-                          )
-                        )}
-                        {rf?.operator && valKind === 'multi' && (
-                          <div className="flex flex-wrap items-center gap-1">
-                            {enumOpts.map(([k, lbl]) => {
-                              const arr = rf.values || [];
-                              const selected = arr.indexOf(k) >= 0;
-                              return (
-                                <label key={k} className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs cursor-pointer border ${selected ? 'border-primary-500 bg-primary-50' : 'border-slate-300 bg-white'}`}>
-                                  <input type="checkbox" className="h-3 w-3" checked={selected}
-                                    onChange={(e) => {
-                                      const next = e.target.checked ? Array.from(new Set([...arr, k])) : arr.filter((x) => x !== k);
-                                      updateColumn(col.id, { rowFilter: { ...rf, values: next } as RowFilterDef });
-                                    }} />
-                                  {lbl}
-                                </label>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
+                          )}
+                        </div>
+                      )}
+                      </div>{/* /flex-1 wrapper */}
                     </div>
                           )}
                         </SortableColumnShell>
@@ -1068,6 +1553,23 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                     })}
                   </SortableContext>
                 </DndContext>
+                {/* v373.2: 計算列追加（最初のプリセット = 年会費 ○×記号 を初期値に） */}
+                <button type="button"
+                  onClick={() => {
+                    const p = FORMULA_PRESETS[0];
+                    const newCol: RosterColumnDef = {
+                      id: genId(),
+                      source: 'formula',
+                      formula: p.formula,
+                      label: p.defaultColumnLabel,
+                      align: 'center',
+                    };
+                    setWorking((w) => ({ ...w, columns: [...w.columns, newCol] }));
+                    setDirty(true);
+                  }}
+                  className="w-full rounded border-2 border-dashed border-primary-300 bg-primary-50 px-3 py-3 text-sm text-primary-700 hover:bg-primary-100 min-h-[44px]">
+                  ＋ 計算列を追加（プリセットから選択）
+                </button>
               </div>
             </div>
           </section>
@@ -1075,7 +1577,36 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
           {/* レイアウト */}
           <section className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
             <h3 className="text-base font-semibold text-slate-700">レイアウト</h3>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            {/* v373.1 (S4): 用紙設定 */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <label className="text-sm">
+                <span className="mb-1 block font-medium text-slate-600">用紙サイズ</span>
+                <select className={inputCls}
+                  value={working.layout?.paperSize || 'A4'}
+                  onChange={(e) => { setWorking((w) => ({ ...w, layout: { ...w.layout, paperSize: e.target.value as 'A4' | 'A3' | 'B5' } })); setDirty(true); }}>
+                  {PAPER_SIZES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                </select>
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block font-medium text-slate-600">向き</span>
+                <select className={inputCls}
+                  value={working.layout?.orientation || 'portrait'}
+                  onChange={(e) => { setWorking((w) => ({ ...w, layout: { ...w.layout, orientation: e.target.value as 'portrait' | 'landscape' } })); setDirty(true); }}>
+                  <option value="portrait">縦</option>
+                  <option value="landscape">横</option>
+                </select>
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block font-medium text-slate-600">フォントサイズ (pt)</span>
+                <select className={inputCls}
+                  value={working.layout?.fontSize ?? 10}
+                  onChange={(e) => { setWorking((w) => ({ ...w, layout: { ...w.layout, fontSize: Number(e.target.value) } })); setDirty(true); }}>
+                  {FONT_SIZES.map((s) => <option key={s} value={s}>{s}pt</option>)}
+                </select>
+              </label>
+            </div>
+            <p className="text-xs text-slate-500">PDF 出力時にこの設定で @page が適用されます（プリンタダイアログでも変更可能）。</p>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2 border-t border-slate-100">
               <label className="flex items-center gap-2 text-sm min-h-[44px]">
                 <input type="checkbox"
                   checked={working.layout?.showRecordCount ?? true}
@@ -1199,14 +1730,17 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {previewRows.map((r, i) => (
-                      <tr key={rowKey(r) + ':' + i} className="even:bg-slate-50">
-                        {working.columns.map((c) => (
-                          <td key={c.id} className="border-b border-slate-100 px-3 py-1.5 text-slate-800"
-                            style={{ textAlign: c.align || 'left', ...columnWidthStyle(c) }}>{valueFor(r, c)}</td>
-                        ))}
-                      </tr>
-                    ))}
+                    {previewRows.map((r, i) => {
+                      const scope = rowToScope(r);
+                      return (
+                        <tr key={rowKey(r) + ':' + i} className="even:bg-slate-50">
+                          {working.columns.map((c) => (
+                            <td key={c.id} className="border-b border-slate-100 px-3 py-1.5 text-slate-800"
+                              style={{ textAlign: c.align || 'left', ...columnWidthStyle(c), ...cellStyleFor(c.conditionalStyle, scope, r, dictByKey) }}>{valueFor(r, c)}</td>
+                          ))}
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               )}
@@ -1266,8 +1800,11 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
               onClick={exportCsv} disabled={working.columns.length === 0 || effectiveRows.length === 0}>
               CSV ダウンロード
             </button>
-            <button className={`${btnCls} bg-slate-300 text-slate-500 cursor-not-allowed`} disabled title="S4 で実装予定">
-              PDF 出力（S4）
+            <button className={`${btnCls} bg-sky-600 text-white hover:bg-sky-700`}
+              onClick={() => window.print()}
+              disabled={working.columns.length === 0 || effectiveRows.length === 0}
+              title="ブラウザの印刷ダイアログを開きます。「PDF として保存」を選択してください。">
+              PDF 出力
             </button>
             <button className={`${btnCls} bg-slate-300 text-slate-500 cursor-not-allowed`} disabled title="S5 で実装予定">
               Excel ダウンロード（S5）
@@ -1276,6 +1813,55 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
               S2: drag-drop / S3: 計算式 / S4: PDF / S5: Excel
             </span>
           </section>
+
+          {/* v373.2 (S4 修正): React Portal で body 直下に印刷 DOM を配置 — 通常フロー配置で自動ページ分割 */}
+          {typeof document !== 'undefined' && createPortal(
+            <div className="roster-print-portal">
+              <style dangerouslySetInnerHTML={{ __html: buildPrintStyleCss(working.layout) }} />
+              <div className="roster-print-root" aria-hidden="true">
+                <div className="roster-print-header">
+                  <h1>{working.name || '名簿'}</h1>
+                  <div className="meta">
+                    出力日時: {new Date().toLocaleString('ja-JP')} ／ 出力対象: {effectiveRows.length} 名
+                    {working.description ? ` ／ ${working.description}` : ''}
+                  </div>
+                </div>
+                {working.layout?.showRecordCount && recordCountText && (working.layout?.recordCountPosition !== 'footer') && (
+                  <div className="meta" style={{ marginBottom: 4 }}>{recordCountText}</div>
+                )}
+                <table className="roster-print-table">
+                  <thead>
+                    <tr>
+                      {working.columns.map((c) => (
+                        <th key={c.id} style={{ textAlign: c.align || 'left', ...columnWidthStyle(c) }}>{c.label}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {effectiveRows.map((r, i) => {
+                      const scope = rowToScope(r);
+                      return (
+                        <tr key={rowKey(r) + ':print:' + i}>
+                          {working.columns.map((c) => {
+                            const cs = cellStyleFor(c.conditionalStyle, scope, r, dictByKey);
+                            const styled = Object.keys(cs).length > 0 ? 1 : 0;
+                            return (
+                              <td key={c.id} data-styled={styled}
+                                style={{ textAlign: c.align || 'left', ...columnWidthStyle(c), ...cs }}>{valueFor(r, c)}</td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {working.layout?.showRecordCount && recordCountText && (working.layout?.recordCountPosition === 'footer' || working.layout?.recordCountPosition === 'both') && (
+                  <div className="meta" style={{ marginTop: 6 }}>{recordCountText}</div>
+                )}
+              </div>
+            </div>,
+            document.body,
+          )}
         </div>
       )}
     </div>
