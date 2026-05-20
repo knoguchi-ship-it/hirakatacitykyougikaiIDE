@@ -841,9 +841,7 @@ var ADMIN_ACTION_PERMISSIONS = {
   'getAdminEmailAliases': ['MASTER','ADMIN','TRAINING_MANAGER'],
   'sendTrainingMail': ['MASTER','ADMIN','TRAINING_MANAGER'],
   'generateTrainingEmail': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
-  'getMembersForRoster': ['MASTER','ADMIN'],
-  'generateRosterZip': ['MASTER','ADMIN'],
-  'validateTemplateSpreadsheet': ['MASTER','ADMIN'],
+  // v373.7 (S5 Phase 2): getMembersForRoster / generateRosterZip / validateTemplateSpreadsheet 撤去（旧 RosterExport 関連）
   'getMembersForBulkMail': ['MASTER','ADMIN'],
   'sendBulkMemberMail': ['MASTER','ADMIN'],
   'getEmailSendLog': ['MASTER','ADMIN'],
@@ -862,10 +860,7 @@ var ADMIN_ACTION_PERMISSIONS = {
   'repairMemberCareManagerDuplicates': ['MASTER'],
   'backupMigrationTargets': ['MASTER'],
   'fetchAllData': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
-  'initRosterExport': ['MASTER','ADMIN'],
-  'processRosterChunk': ['MASTER','ADMIN'],
-  'finalizeRosterExport': ['MASTER','ADMIN'],
-  'cleanupRosterExport': ['MASTER','ADMIN'],
+  // v373.7 (S5 Phase 2): initRosterExport / processRosterChunk / finalizeRosterExport / cleanupRosterExport 撤去
   'getMailingListTargets': ['MASTER','ADMIN'],
   'generateMailingListExcel': ['MASTER','ADMIN'],
   // v264: 変更申請管理
@@ -908,11 +903,7 @@ var ADMIN_ACTION_PERMISSIONS = {
   'getFileThumbnail': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR','GENERAL'],
   // v357: PDF lightbox プレビュー用 bytes proxy
   'getFileBytes': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR','GENERAL'],
-  // v316: テンプレートライブラリ
-  'getRosterTemplateList': ['MASTER','ADMIN'],
-  'saveRosterTemplate': ['MASTER','ADMIN'],
-  'deleteRosterTemplate': ['MASTER','ADMIN'],
-  'setDefaultRosterTemplate': ['MASTER','ADMIN'],
+  // v373.7 (S5 Phase 2): 旧 v316 テンプレートライブラリ ACTION 群撤去
   // v372: 名簿出力 Visual Template Designer
   'getRosterFieldDictionary': ['MASTER','ADMIN'],
   'getRosterDesignerData': ['MASTER','ADMIN'],
@@ -1144,22 +1135,7 @@ function processApiRequest(action, payload) {
       return JSON.stringify({ success: true, data: saveSharedMemo_(parsedPayload) });
     }
 
-    if (action === 'getRosterTemplateList') {
-      return JSON.stringify({ success: true, data: getRosterTemplateList_() });
-    }
-
-    if (action === 'saveRosterTemplate') {
-      return JSON.stringify({ success: true, data: saveRosterTemplate_(parsedPayload) });
-    }
-
-    if (action === 'deleteRosterTemplate') {
-      return JSON.stringify({ success: true, data: deleteRosterTemplate_(parsedPayload) });
-    }
-
-    if (action === 'setDefaultRosterTemplate') {
-      return JSON.stringify({ success: true, data: setDefaultRosterTemplate_(parsedPayload) });
-    }
-
+    // v373.7 (S5 Phase 2): 旧 v316 RosterTemplate dispatcher 撤去
     // v372: 名簿出力 全面刷新（Visual Template Designer）
     if (action === 'getRosterFieldDictionary') {
       return JSON.stringify({ success: true, data: getRosterFieldDictionary_() });
@@ -1303,28 +1279,9 @@ function processApiRequest(action, payload) {
       return JSON.stringify({ success: true, data: generateTrainingEmailWithAI_(parsedPayload) });
     }
 
-    // v194: PDF名簿出力（対象取得）
-    if (action === 'getMembersForRoster') {
-      return JSON.stringify({ success: true, data: getMembersForRoster_(parsedPayload) });
-    }
-
-    // v205: チャンク分割 PDF 出力 API（1000件対応・all-or-nothing + リトライ）
-    if (action === 'initRosterExport') {
-      return JSON.stringify({ success: true, data: initRosterExport_(parsedPayload) });
-    }
-    if (action === 'processRosterChunk') {
-      return JSON.stringify({ success: true, data: processRosterChunk_(parsedPayload) });
-    }
-    if (action === 'finalizeRosterExport') {
-      return JSON.stringify({ success: true, data: finalizeRosterExport_(parsedPayload) });
-    }
-    if (action === 'cleanupRosterExport') {
-      return JSON.stringify({ success: true, data: cleanupRosterExport_(parsedPayload) });
-    }
-
-    if (action === 'validateTemplateSpreadsheet') {
-      return JSON.stringify({ success: true, data: validateTemplateSpreadsheet_(parsedPayload) });
-    }
+    // v373.7 (S5 Phase 2): 旧 PDF 名簿出力 dispatcher 群撤去（v194 getMembersForRoster /
+    // v205 initRosterExport / processRosterChunk / finalizeRosterExport / cleanupRosterExport /
+    // validateTemplateSpreadsheet）。新 Visual Template Designer に統合済み。
 
     // v194: 会員一括メール送信
     if (action === 'getMembersForBulkMail') {
@@ -2810,122 +2767,6 @@ function clearAdminPermissionCaches_() {
   } catch (e) {}
 }
 
-// ─── v316: テンプレートライブラリ ────────────────────────────────────────────
-
-/**
- * テンプレートライブラリ一覧を取得する。
- * ROSTER_TEMPLATE_LIST が空かつ旧キーが存在する場合は自動マイグレーションを行う。
- */
-function getRosterTemplateList_() {
-  var ss = getOrCreateDatabase_();
-  var raw = String(getSystemSettingValue_(ss, 'ROSTER_TEMPLATE_LIST') || '').trim();
-  var list = [];
-  try { list = raw ? JSON.parse(raw) : []; } catch (e) { list = []; }
-  if (!Array.isArray(list)) list = [];
-
-  // 自動マイグレーション: 旧キーから移行
-  if (list.length === 0) {
-    var rosterSsId = String(getSystemSettingValue_(ss, 'ROSTER_TEMPLATE_SS_ID') || '').trim();
-    var reminderSsId = String(getSystemSettingValue_(ss, 'REMINDER_TEMPLATE_SS_ID') || '').trim();
-    var migrated = [];
-    if (rosterSsId) {
-      migrated.push({ id: Utilities.getUuid(), name: '名簿テンプレート', ssId: rosterSsId, description: '（移行済み）', isDefault: true, validatedAt: '' });
-    }
-    if (reminderSsId && reminderSsId !== rosterSsId) {
-      migrated.push({ id: Utilities.getUuid(), name: '催促状テンプレート', ssId: reminderSsId, description: '（移行済み）', isDefault: !rosterSsId, validatedAt: '' });
-    }
-    if (migrated.length > 0) {
-      upsertSystemSetting_(ss, 'ROSTER_TEMPLATE_LIST', JSON.stringify(migrated), 'テンプレートライブラリJSON（v316〜）');
-      return migrated;
-    }
-  }
-  return list;
-}
-
-/**
- * テンプレートを追加または更新する。id がなければ新規追加。
- * payload: { id?, name, ssId, description?, isDefault? }
- */
-function saveRosterTemplate_(payload) {
-  var p = payload || {};
-  var name = String(p.name || '').trim();
-  if (!name) throw new Error('テンプレート名は必須です。');
-  var ssId = String(p.ssId || '').trim();
-  if (!ssId) throw new Error('スプレッドシートIDまたはURLを入力してください。');
-  ssId = normalizeSpreadsheetIdInput_(ssId);
-
-  var ss = getOrCreateDatabase_();
-  var list = getRosterTemplateList_();
-  var id = String(p.id || '').trim();
-  var isDefault = p.isDefault === true;
-  var now = '';
-
-  if (id) {
-    // 更新
-    var found = false;
-    list = list.map(function(t) {
-      if (t.id === id) {
-        found = true;
-        return { id: id, name: name, ssId: ssId, description: String(p.description || ''), isDefault: t.isDefault, validatedAt: t.validatedAt || '' };
-      }
-      return t;
-    });
-    if (!found) throw new Error('指定のテンプレートが見つかりません。');
-  } else {
-    // 新規
-    var newEntry = { id: Utilities.getUuid(), name: name, ssId: ssId, description: String(p.description || ''), isDefault: false, validatedAt: '' };
-    list.push(newEntry);
-  }
-  // デフォルトなしの場合は先頭をデフォルトに
-  if (!list.some(function(t) { return t.isDefault; }) && list.length > 0) {
-    list[0].isDefault = true;
-  }
-  upsertSystemSetting_(ss, 'ROSTER_TEMPLATE_LIST', JSON.stringify(list), 'テンプレートライブラリJSON（v316〜）');
-  return list;
-}
-
-/**
- * テンプレートを削除する。
- * payload: { id }
- */
-function deleteRosterTemplate_(payload) {
-  var p = payload || {};
-  var id = String(p.id || '').trim();
-  if (!id) throw new Error('テンプレートIDが指定されていません。');
-  var ss = getOrCreateDatabase_();
-  var list = getRosterTemplateList_();
-  var before = list.length;
-  list = list.filter(function(t) { return t.id !== id; });
-  if (list.length === before) throw new Error('指定のテンプレートが見つかりません。');
-  // 削除後にデフォルトが消えたら先頭をデフォルトに
-  if (!list.some(function(t) { return t.isDefault; }) && list.length > 0) {
-    list[0].isDefault = true;
-  }
-  upsertSystemSetting_(ss, 'ROSTER_TEMPLATE_LIST', JSON.stringify(list), 'テンプレートライブラリJSON（v316〜）');
-  return list;
-}
-
-/**
- * デフォルトテンプレートを設定する。
- * payload: { id }
- */
-function setDefaultRosterTemplate_(payload) {
-  var p = payload || {};
-  var id = String(p.id || '').trim();
-  if (!id) throw new Error('テンプレートIDが指定されていません。');
-  var ss = getOrCreateDatabase_();
-  var list = getRosterTemplateList_();
-  var found = false;
-  list = list.map(function(t) {
-    if (t.id === id) { found = true; return Object.assign({}, t, { isDefault: true }); }
-    return Object.assign({}, t, { isDefault: false });
-  });
-  if (!found) throw new Error('指定のテンプレートが見つかりません。');
-  upsertSystemSetting_(ss, 'ROSTER_TEMPLATE_LIST', JSON.stringify(list), 'テンプレートライブラリJSON（v316〜）');
-  return list;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 // ─── v309: 共有メモ（申し送りホワイトボード）────────────────────────────────
 
@@ -3048,8 +2889,8 @@ function getSystemSettings_() {
     try { trainingDefaultFieldConfig = JSON.parse(trainingDefaultFieldConfigRaw); } catch (e) {}
   }
   // v194: PDF名簿出力 & 一括メール設定
-  var rosterTemplateSsId = String(m['ROSTER_TEMPLATE_SS_ID'] || '');
-  var reminderTemplateSsId = String(m['REMINDER_TEMPLATE_SS_ID'] || '');
+  // v373.7 (S5 Phase 2): ROSTER_TEMPLATE_SS_ID / REMINDER_TEMPLATE_SS_ID は撤去（旧 RosterExport 関連）
+  // データ自体は T_システム設定 に残置（rollback 容易・データ保全）
   var bulkMailAutoAttachFolderId = String(m['BULK_MAIL_AUTO_ATTACH_FOLDER_ID'] || '');
   var emailLogViewerRole = String(m['EMAIL_LOG_VIEWER_ROLE'] || 'MASTER');
   // v209: 入会時認証情報メール設定
@@ -3165,9 +3006,7 @@ function getSystemSettings_() {
     annualFeePaymentGuidance: guidance,
     annualFeeTransferAccount: transferAccount,
     trainingDefaultFieldConfig: trainingDefaultFieldConfig,
-    rosterTemplateSsId: rosterTemplateSsId,
-    reminderTemplateSsId: reminderTemplateSsId,
-    rosterTemplates: getRosterTemplateList_(),
+    // v373.7 (S5 Phase 2): rosterTemplateSsId / reminderTemplateSsId / rosterTemplates 撤去
     bulkMailAutoAttachFolderId: bulkMailAutoAttachFolderId,
     emailLogViewerRole: emailLogViewerRole,
     credentialEmailEnabled: credentialEmailEnabled,
@@ -3314,12 +3153,7 @@ function updateSystemSettings_(request, callerPermLevel) {
     updates.push({ key: 'TRAINING_DEFAULT_FIELD_CONFIG', value: JSON.stringify(request.trainingDefaultFieldConfig), description: '研修フォームのデフォルト表示項目設定' });
   }
   // v194: PDF名簿出力 & 一括メール設定（MASTER/ADMIN 共通可変）
-  if (request.rosterTemplateSsId != null) {
-    updates.push({ key: 'ROSTER_TEMPLATE_SS_ID', value: normalizeSpreadsheetIdInput_(request.rosterTemplateSsId), description: '名簿テンプレートスプレッドシートID' });
-  }
-  if (request.reminderTemplateSsId != null) {
-    updates.push({ key: 'REMINDER_TEMPLATE_SS_ID', value: normalizeSpreadsheetIdInput_(request.reminderTemplateSsId), description: '催促用紙テンプレートスプレッドシートID' });
-  }
+  // v373.7 (S5 Phase 2): rosterTemplateSsId / reminderTemplateSsId pass-through 撤去
   if (request.bulkMailAutoAttachFolderId != null) {
     updates.push({ key: 'BULK_MAIL_AUTO_ATTACH_FOLDER_ID', value: String(request.bulkMailAutoAttachFolderId).trim(), description: '一括メール個別自動添付DriveフォルダID' });
   }
@@ -3609,157 +3443,6 @@ function updateSystemSettings_(request, callerPermLevel) {
   scriptProperties.setProperty(DEFAULT_BUSINESS_STAFF_LIMIT_KEY, String(Math.floor(next))); // backward compatibility
   scriptProperties.setProperty(TRAINING_HISTORY_LOOKBACK_MONTHS_KEY, String(Math.floor(lookback))); // backward compatibility
   return getSystemSettings_();
-}
-
-function normalizeSpreadsheetIdInput_(rawValue) {
-  var text = String(rawValue || '').trim();
-  if (!text) return '';
-  var match = text.match(/\/d\/([a-zA-Z0-9-_]+)/);
-  if (match && match[1]) return match[1];
-  return text;
-}
-
-function buildTemplateValidationCheck_(key, label, status, detail) {
-  return { key: key, label: label, status: status, detail: detail };
-}
-
-function getTemplateSheetsByRule_(ss, kind) {
-  var result = { personal: [], business: [], metadataMatched: 0 };
-  ss.getSheets().forEach(function(sheet) {
-    var name = sheet.getName();
-    var metadata = getTemplateSheetMetadataMap_(sheet);
-    var family = String(metadata.HKC_TEMPLATE_FAMILY || '').toUpperCase();
-    var target = String(metadata.HKC_TEMPLATE_TARGET || '').toUpperCase();
-    var matchedByMetadata = false;
-
-    if (kind === 'ROSTER' && family === 'ROSTER') {
-      matchedByMetadata = true;
-      if (target === 'PERSONAL_SUPPORT') result.personal.push(sheet);
-      if (target === 'BUSINESS') result.business.push(sheet);
-    }
-    if (kind === 'REMINDER' && family === 'REMINDER') {
-      matchedByMetadata = true;
-      if (target === 'PERSONAL_SUPPORT') result.personal.push(sheet);
-      if (target === 'BUSINESS') result.business.push(sheet);
-    }
-    if (matchedByMetadata) {
-      result.metadataMatched += 1;
-      return;
-    }
-
-    if (kind === 'ROSTER') {
-      if (name.indexOf('P_') === 0) result.personal.push(sheet);
-      if (name.indexOf('B_') === 0) result.business.push(sheet);
-      return;
-    }
-
-    if (name.indexOf('R_P_') === 0) result.personal.push(sheet);
-    if (name.indexOf('R_B_') === 0) result.business.push(sheet);
-  });
-  return result;
-}
-
-function summarizeTemplateValidationStatus_(checks) {
-  for (var i = 0; i < checks.length; i += 1) {
-    if (checks[i].status === 'fail') return 'fail';
-  }
-  for (var j = 0; j < checks.length; j += 1) {
-    if (checks[j].status === 'warn') return 'warn';
-  }
-  return 'pass';
-}
-
-function validateTemplateSpreadsheet_(payload) {
-  var kind = String(payload && payload.kind || 'ROSTER').toUpperCase() === 'REMINDER' ? 'REMINDER' : 'ROSTER';
-  var spreadsheetId = normalizeSpreadsheetIdInput_(payload && payload.spreadsheetId);
-  if (!spreadsheetId) {
-    throw new Error((kind === 'ROSTER' ? '名簿' : '催促状') + 'テンプレートのスプレッドシートIDまたはURLを入力してください。');
-  }
-
-  var ss = SpreadsheetApp.openById(spreadsheetId);
-  var grouped = getTemplateSheetsByRule_(ss, kind);
-  var visibleSheets = ss.getSheets().filter(function(sheet) { return !sheet.isSheetHidden(); }).map(function(sheet) { return sheet.getName(); });
-  var hiddenSheets = ss.getSheets().filter(function(sheet) { return sheet.isSheetHidden(); }).map(function(sheet) { return sheet.getName(); });
-  var dataSheet = kind === 'ROSTER' ? getRosterTemplateDataSheet_(ss) : ss.getSheetByName('_DATA_REMINDER');
-  var checks = [];
-
-  checks.push(buildTemplateValidationCheck_('open', 'テンプレートファイルにアクセスできる', 'pass', 'スプレッドシートを開けました。'));
-  checks.push(buildTemplateValidationCheck_(
-    'data-sheet',
-    kind === 'ROSTER' ? 'データシートがある' : '催促状データシートがある',
-    dataSheet ? 'pass' : 'fail',
-    dataSheet
-      ? ('使用データシート: ' + dataSheet.getName())
-      : (kind === 'ROSTER' ? '`_DATA_ROSTER` または `_DATA` が必要です。' : '`_DATA_REMINDER` が必要です。')
-  ));
-  checks.push(buildTemplateValidationCheck_(
-    'personal',
-    kind === 'ROSTER' ? '個人・賛助向けの用紙がある' : '個人・賛助向けの催促状がある',
-    grouped.personal.length > 0 ? 'pass' : 'fail',
-    grouped.personal.length > 0
-      ? grouped.personal.map(function(sheet) { return sheet.getName(); }).join(', ')
-      : (kind === 'ROSTER' ? '`P_` シート群または metadata が必要です。' : '`R_P_` シート群または metadata が必要です。')
-  ));
-  checks.push(buildTemplateValidationCheck_(
-    'business',
-    kind === 'ROSTER' ? '事業所向けの用紙がある' : '事業所向けの催促状がある',
-    grouped.business.length > 0 ? 'pass' : 'fail',
-    grouped.business.length > 0
-      ? grouped.business.map(function(sheet) { return sheet.getName(); }).join(', ')
-      : (kind === 'ROSTER' ? '`B_` シート群または metadata が必要です。' : '`R_B_` シート群または metadata が必要です。')
-  ));
-  checks.push(buildTemplateValidationCheck_(
-    'metadata',
-    '分類ルール',
-    grouped.metadataMatched > 0 ? 'pass' : 'warn',
-    grouped.metadataMatched > 0
-      ? 'developer metadata が設定されています。'
-      : '現在はシート名の規約で判定します。新規テンプレートでは metadata 設定を推奨します。'
-  ));
-  checks.push(buildTemplateValidationCheck_(
-    'guide',
-    '運用ガイドシート',
-    ss.getSheetByName('_GUIDE') ? 'pass' : 'warn',
-    ss.getSheetByName('_GUIDE') ? '`_GUIDE` シートがあります。' : '運用担当者向けに `_GUIDE` シートの追加を推奨します。'
-  ));
-  checks.push(buildTemplateValidationCheck_(
-    'hidden-data',
-    'システムシートの非表示',
-    !dataSheet ? 'info' : (dataSheet.isSheetHidden() ? 'pass' : 'warn'),
-    !dataSheet ? 'データシート未検出のため未判定です。' : (dataSheet.isSheetHidden() ? 'hidden で管理されています。' : '実運用では hidden を推奨します。')
-  ));
-
-  var recommendedActions = [];
-  if (!dataSheet) {
-    recommendedActions.push(kind === 'ROSTER' ? '`_DATA_ROSTER` を追加する' : '`_DATA_REMINDER` を追加する');
-  }
-  if (grouped.personal.length === 0) {
-    recommendedActions.push(kind === 'ROSTER' ? '`P_01_会員基本` を追加する' : '`R_P_01_催促状` を追加する');
-  }
-  if (grouped.business.length === 0) {
-    recommendedActions.push(kind === 'ROSTER' ? '`B_01_会員基本` を追加する' : '`R_B_01_催促状` を追加する');
-  }
-  if (grouped.metadataMatched === 0) {
-    recommendedActions.push('新規テンプレートでは developer metadata を設定する');
-  }
-  if (!ss.getSheetByName('_GUIDE')) {
-    recommendedActions.push('運用担当者向けの `_GUIDE` シートを追加する');
-  }
-  if (recommendedActions.length === 0) {
-    recommendedActions.push('このまま利用できます。印刷シートだけを編集し、hidden シートは保護してください。');
-  }
-
-  return {
-    kind: kind,
-    spreadsheetId: spreadsheetId,
-    spreadsheetUrl: ss.getUrl(),
-    spreadsheetName: ss.getName(),
-    summaryStatus: summarizeTemplateValidationStatus_(checks),
-    visibleSheets: visibleSheets,
-    hiddenSheets: hiddenSheets,
-    checks: checks,
-    recommendedActions: recommendedActions,
-  };
 }
 
 function getAdminPermissionData_(callerSession) {
@@ -4920,26 +4603,6 @@ function batchUpsertSystemSettings_(ss, updates) {
   }
 }
 
-function upsertSystemSetting_(ss, key, value, description) {
-  var sheet = ss.getSheetByName('T_システム設定');
-  if (!sheet) return;
-  var found = findRowByColumnValue_(sheet, '設定キー', key);
-  var now = new Date().toISOString();
-  if (!found) {
-    appendRowsByHeaders_(ss, 'T_システム設定', [{
-      設定キー: key,
-      設定値: value,
-      説明: description || '',
-      更新日時: now,
-    }]);
-    return;
-  }
-  var row = found.row.slice();
-  if (found.columns['設定値'] != null) row[found.columns['設定値']] = value;
-  if (found.columns['説明'] != null) row[found.columns['説明']] = description || '';
-  if (found.columns['更新日時'] != null) row[found.columns['更新日時']] = now;
-  sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
-}
 
 function getAnyPasswordLoginIdByMemberId_(ss, memberId) {
   var rows = getRowsAsObjects_(ss, 'T_認証アカウント');
@@ -9907,22 +9570,7 @@ function ensureSystemSettingsRows_(ss) {
     }]);
   }
   // v194: PDF名簿出力 & 一括メール設定
-  if (!byKey['ROSTER_TEMPLATE_SS_ID']) {
-    appendRowsByHeaders_(ss, 'T_システム設定', [{
-      設定キー: 'ROSTER_TEMPLATE_SS_ID',
-      設定値: '',
-      説明: '名簿テンプレートスプレッドシートID',
-      更新日時: now,
-    }]);
-  }
-  if (!byKey['REMINDER_TEMPLATE_SS_ID']) {
-    appendRowsByHeaders_(ss, 'T_システム設定', [{
-      設定キー: 'REMINDER_TEMPLATE_SS_ID',
-      設定値: '',
-      説明: '催促用紙テンプレートスプレッドシートID',
-      更新日時: now,
-    }]);
-  }
+  // v373.7 (S5 Phase 2): ROSTER_TEMPLATE_SS_ID / REMINDER_TEMPLATE_SS_ID の seed 撤去（旧 RosterExport 関連）
   if (!byKey['BULK_MAIL_AUTO_ATTACH_FOLDER_ID']) {
     appendRowsByHeaders_(ss, 'T_システム設定', [{
       設定キー: 'BULK_MAIL_AUTO_ATTACH_FOLDER_ID',
@@ -12719,122 +12367,6 @@ function getEmailSendLog_(payload) {
   });
 }
 
-// ============================================================
-// v196 Phase 3: PDF名簿出力
-// ============================================================
-
-/**
- * PDF名簿出力用: 対象会員一覧を取得する。
- * 年会費ステータスは T_会員(BUSINESS) ベースで判定。
- *
- * payload:
- *   memberTypes?  – ['INDIVIDUAL','BUSINESS','SUPPORT'] デフォルト全種別
- *   memberStatus? – 'ACTIVE' | 'INCLUDING_SCHEDULED' | 'ALL'  デフォルト 'ACTIVE'
- *   year?         – 在籍判定年度（省略時は当年度）
- *
- * v312: annualFeeStatus は廃止（クライアント側多年度フィルタに移行）。
- *       返却形式を { targets, years } に変更。
- */
-function getMembersForRoster_(payload) {
-  var p = payload || {};
-  var memberTypes  = p.memberTypes  || ['INDIVIDUAL', 'BUSINESS', 'SUPPORT'];
-  var memberStatus = String(p.memberStatus || 'ACTIVE');
-
-  // 当年度算出（日本会計年度: 4月始まり）
-  var now = new Date();
-  var currentFY = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-  var year = Number(p.year || 0);
-  if (!year || !isFinite(year)) year = currentFY;
-
-  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
-  var memberSheet = ss.getSheetByName('T_会員');
-  var staffSheet  = ss.getSheetByName('T_事業所職員');
-  var feeSheet    = ss.getSheetByName('T_年会費納入履歴');
-
-  var members   = getSheetData_(memberSheet);
-  var staffRows = staffSheet ? getSheetData_(staffSheet) : [];
-  var feeRows   = feeSheet   ? getSheetData_(feeSheet)   : [];
-
-  // v312: 全年度の年会費マップを構築（クライアント側多年度フィルタ対応）
-  var feeMap = {};       // 選択年度: { memberId: status }
-  var feeMapByYear = {}; // 全年度: { year: { memberId: status } }
-  feeRows.forEach(function(r) {
-    if (toBoolean_(r['削除フラグ'])) return;
-    var yr  = Number(r['対象年度'] || 0);
-    var mid = String(r['会員ID'] || '');
-    if (!yr || !mid) return;
-    var status = String(r['会費納入状態コード'] || 'UNPAID');
-    if (!feeMapByYear[yr]) feeMapByYear[yr] = {};
-    feeMapByYear[yr][mid] = status;
-    if (yr === year) feeMap[mid] = status;
-  });
-  // 利用可能年度リスト（宛名リストと同じロジック）
-  var allFeeYears = getMailingListYears_(feeRows, year);
-
-  // 在籍職員数マップ: 会員ID → 在籍数
-  var staffCountMap = {};
-  staffRows.forEach(function(s) {
-    if (toBoolean_(s['削除フラグ'])) return;
-    if (String(s['職員状態コード'] || '') !== 'ENROLLED') return;
-    var mid = String(s['会員ID'] || '');
-    staffCountMap[mid] = (staffCountMap[mid] || 0) + 1;
-  });
-
-  var results = [];
-
-  members.forEach(function(m) {
-    if (toBoolean_(m['削除フラグ'])) return;
-    var mtype = String(m['会員種別コード'] || '');
-    if (memberTypes.indexOf(mtype) < 0) return;
-
-    var fiscalSnapshot = getMemberFiscalSnapshot_(m, year);
-    if (!fiscalSnapshot.eligible) return;
-    var status = fiscalSnapshot.memberStatus;
-    if (memberStatus === 'ACTIVE' && status !== 'ACTIVE') return;
-    if (memberStatus === 'INCLUDING_SCHEDULED' &&
-        status !== 'ACTIVE' && status !== 'WITHDRAWAL_SCHEDULED') return;
-    // 'ALL' → 対象年度に会員だった人を年度内退会者も含める
-
-    var memberId  = String(m['会員ID'] || '');
-    var feeStatus = feeMap[memberId] || 'UNPAID'; // 記録なし = 未納扱い（NONE は廃止）
-
-    // v312: 全年度の納入状況マップ（未記録は UNPAID 扱い）
-    var feeHistories = {};
-    allFeeYears.forEach(function(yr) {
-      feeHistories[yr] = (feeMapByYear[yr] && feeMapByYear[yr][memberId]) || 'UNPAID';
-    });
-
-    var displayName, kana;
-    if (mtype === 'BUSINESS') {
-      // 事業所会員は事業所名のみ表示（姓/名は空のためメールや会員IDへの誤フォールバックを防ぐ）
-      displayName = String(m['勤務先名'] || '').trim() || memberId;
-      kana = '';
-    } else {
-      var lastName  = String(m['姓'] || '').trim();
-      var firstName = String(m['名'] || '').trim();
-      displayName = (lastName + ' ' + firstName).trim() || memberId;
-      kana = (String(m['セイ'] || '') + ' ' + String(m['メイ'] || '')).trim();
-    }
-
-    results.push({
-      memberId:           memberId,
-      memberType:         mtype,
-      displayName:        displayName,
-      kana:               kana,
-      officeName:         String(m['勤務先名'] || '').trim(),
-      memberStatus:       status,
-      joinedDate:         fiscalSnapshot.joinedDate,
-      withdrawnDate:      fiscalSnapshot.withdrawnDate,
-      annualFeeStatus:    feeStatus,
-      annualFeeYear:      year,
-      annualFeeHistories: feeHistories,
-      enrolledStaffCount: mtype === 'BUSINESS' ? (staffCountMap[memberId] || 0) : undefined,
-    });
-  });
-
-  return { targets: results, years: allFeeYears };
-}
-
 // ─── v372: 名簿出力 Visual Template Designer 用 API ───────────────────────────
 
 /**
@@ -12919,7 +12451,7 @@ function getRosterFieldDictionary_() {
 
 /**
  * Visual Template Designer 用に会員データをフラット化して返す。
- * 既存 getMembersForRoster_ と異なり、辞書の全キーを raw 文字列で含む。
+ * 辞書の全キーを raw 文字列で含む（v373.7 までは旧 getMembersForRoster_ と並存していたが現在は唯一の経路）。
  * フロントエンドは row[fieldKey] でアクセスできる。
  */
 function getRosterDesignerData_(payload) {
@@ -13202,479 +12734,6 @@ function duplicateRosterTemplateV2_(payload) {
   copy.updatedAt = copy.createdAt;
   return saveRosterTemplateV2_({ template: copy });
 }
-
-/**
- * PDF名簿出力 v205: 1000件対応アーキテクチャ
- *
- * フロントエンドが CHUNK_SIZE=250 件ずつ分割し、順次 processRosterChunk_ を呼ぶ。
- * 各チャンク内で PARALLEL_BATCH=15 本の temp SS + UrlFetchApp.fetchAll() で並列 PDF 取得。
- * 失敗分は最大 MAX_RETRY=2 回リトライ。全成功のみ部分 ZIP を Drive 一時フォルダへ保存。
- * 全チャンク完了後に finalizeRosterExport_ で部分 ZIP を統合して最終 ZIP を生成。
- * all-or-nothing: いずれかのチャンクで失敗が残った場合は ZIP を出力しない。
- *
- * GAS 6分制限 vs 件数試算:
- *   250件/チャンク、PARALLEL_BATCH=15 → ceil(250/15)=17バッチ x ~10s ≈ 3分 (余裕あり)
- *   1000件 = 4チャンク x ~3分 ≈ 計12分（GASは1回あたり6分以内に収まる）
- *   finalizeRosterExport_ (unzip+rezip) ≈ 30秒
- *
- * 注意: 会員データなし（memberMap に存在しない ID）は恒久失敗として扱いリトライしない。
- */
-
-/**
- * v205: PDF 出力ジョブ初期化。Drive に一時フォルダを作成して folderId を返す。
- */
-function initRosterExport_(payload) {
-  var folder = DriveApp.createFolder(
-    '_ROSTER_JOB_' + Utilities.getUuid().substring(0, 12)
-  );
-  return { folderId: folder.getId() };
-}
-
-/**
- * v205: チャンク単位の PDF 生成（all-or-nothing + リトライ）。
- *
- * - 内部で最大 MAX_RETRY 回リトライ（transient HTTP エラー対策）。
- * - 全成功: chunk_{chunkIndex}.zip を folderId フォルダに保存 → { ok: true, count }
- * - 失敗残存: { ok: false, errors[] } (ZIP 保存なし。フロント側が cleanupRosterExport_ を呼ぶ)
- *
- * payload: { folderId, chunkIndex, memberIds[], year }
- */
-function processRosterChunk_(payload) {
-  var p          = payload || {};
-  var folderId   = String(p.folderId   || '');
-  var chunkIndex = Number(p.chunkIndex || 0);
-  var memberIds  = p.memberIds         || [];
-  var year       = Number(p.year       || 0);
-  var MAX_RETRY  = 2;
-  var PARALLEL_BATCH = 15;
-
-  if (!folderId)         throw new Error('folderId が指定されていません。');
-  if (!memberIds.length) return { ok: true, count: 0 };
-
-  var now = new Date();
-  var currentFY = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-  if (!year || !isFinite(year)) year = currentFY;
-
-  var dbSs = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
-  // v316: payload.templateSsId 優先。未指定時はテンプレートライブラリのデフォルトを使用
-  var templateId = String(p.templateSsId || '').trim();
-  if (!templateId) {
-    var templates = getRosterTemplateList_();
-    var def = templates.find(function(t) { return t.isDefault; }) || templates[0];
-    templateId = def ? String(def.ssId || '').trim() : '';
-  }
-  if (!templateId) {
-    throw new Error('名簿テンプレートが未設定です。システム設定 > テンプレートライブラリに登録してください。');
-  }
-  var templateFile;
-  try { templateFile = DriveApp.getFileById(templateId); }
-  catch (e) { throw new Error('テンプレートSSの取得に失敗しました: ' + e.message); }
-
-  var memberSheet = dbSs.getSheetByName('T_会員');
-  var staffSheet  = dbSs.getSheetByName('T_事業所職員');
-  var feeSheet    = dbSs.getSheetByName('T_年会費納入履歴');
-
-  var memberMap = {};
-  getSheetData_(memberSheet).forEach(function(m) {
-    memberMap[String(m['会員ID'] || '')] = m;
-  });
-  var staffByMember = {};
-  (staffSheet ? getSheetData_(staffSheet) : []).forEach(function(s) {
-    if (toBoolean_(s['削除フラグ'])) return;
-    var mid = String(s['会員ID'] || '');
-    if (!staffByMember[mid]) staffByMember[mid] = [];
-    staffByMember[mid].push(s);
-  });
-  var feeMap = {};
-  (feeSheet ? getSheetData_(feeSheet) : []).forEach(function(r) {
-    if (toBoolean_(r['削除フラグ'])) return;
-    if (Number(r['対象年度'] || 0) !== year) return;
-    var mid = String(r['会員ID'] || '');
-    if (mid) feeMap[mid] = String(r['会費納入状態コード'] || 'UNPAID');
-  });
-
-  var remainingIds = memberIds.slice();
-  var allBlobs     = [];
-  var finalErrors  = [];
-
-  for (var attempt = 0; attempt <= MAX_RETRY; attempt++) {
-    if (remainingIds.length === 0) break;
-    if (attempt > 0) Utilities.sleep(2000);
-    var result = generatePdfsForIds_(
-      remainingIds, templateFile, memberMap, staffByMember, feeMap, year, PARALLEL_BATCH
-    );
-    allBlobs     = allBlobs.concat(result.blobs);
-    remainingIds = result.failedIds;
-    finalErrors  = result.errors;
-  }
-
-  if (remainingIds.length > 0) {
-    return { ok: false, errors: finalErrors };
-  }
-
-  var zipBlob = Utilities.zip(allBlobs, 'chunk_' + chunkIndex + '.zip');
-  DriveApp.getFolderById(folderId).createFile(zipBlob);
-  return { ok: true, count: allBlobs.length };
-}
-
-/**
- * v205: 全チャンクの部分 ZIP を統合して最終 ZIP を生成。
- * payload: { folderId, year }
- */
-function finalizeRosterExport_(payload) {
-  var p        = payload || {};
-  var folderId = String(p.folderId || '');
-  var year     = Number(p.year    || 0);
-
-  if (!folderId) throw new Error('folderId が指定されていません。');
-
-  var folder = DriveApp.getFolderById(folderId);
-  var files  = folder.getFiles();
-
-  var allBlobs = [];
-  while (files.hasNext()) {
-    var file = files.next();
-    try {
-      var unzipped = Utilities.unzip(file.getBlob());
-      unzipped.forEach(function(b) { allBlobs.push(b); });
-    } catch (e) {
-      Logger.log('finalizeRosterExport_: unzip 失敗: ' + file.getName() + ': ' + e.message);
-    }
-  }
-
-  if (allBlobs.length === 0) {
-    throw new Error('統合する PDF がありません。チャンク処理が完了していない可能性があります。');
-  }
-
-  var now = new Date();
-  var currentFY = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-  if (!year || !isFinite(year)) year = currentFY;
-
-  var zipName = '名簿_' + year + '年度_' + allBlobs.length + '件.zip';
-  var zipBlob = Utilities.zip(allBlobs, zipName);
-  var zipFile = DriveApp.createFile(zipBlob);
-  var downloadUrl = 'https://drive.google.com/uc?export=download&id=' + zipFile.getId();
-
-  try { folder.setTrashed(true); } catch (ce) {
-    Logger.log('finalizeRosterExport_: temp folder 削除失敗: ' + ce.message);
-  }
-
-  return {
-    downloadUrl: downloadUrl,
-    fileId:      zipFile.getId(),
-    zipName:     zipName,
-    count:       allBlobs.length,
-  };
-}
-
-/**
- * v205: エラー・中断時の一時フォルダクリーンアップ。
- * payload: { folderId }
- */
-function cleanupRosterExport_(payload) {
-  var folderId = String((payload || {}).folderId || '');
-  if (!folderId) return { ok: true };
-  try { DriveApp.getFolderById(folderId).setTrashed(true); }
-  catch (e) { Logger.log('cleanupRosterExport_: ' + e.message); }
-  return { ok: true };
-}
-
-/**
- * v205: PDF 生成コアヘルパー（processRosterChunk_ から呼ばれる）。
- * memberIds を会員種別でソートし、parallelBatch 本の temp SS + UrlFetchApp.fetchAll() で並列 PDF 取得。
- * returns { blobs: Blob[], failedIds: string[], errors: string[] }
- *
- * failedIds: HTTP エラー会員 ID のみ（リトライ対象）。
- *            会員データなしは errors のみ（リトライ不要なので failedIds に入れない）。
- */
-function generatePdfsForIds_(memberIds, templateFile, memberMap, staffByMember, feeMap, year, parallelBatch) {
-  var MEMBER_HEADERS = [
-    '会員番号', '会員種別', '姓', '名', 'フリガナ姓', 'フリガナ名',
-    '勤務先名', '事業所番号', '勤務先郵便番号', '勤務先都道府県', '勤務先市区町村', '勤務先住所',
-    '勤務先電話', '勤務先FAX', '自宅郵便番号', '自宅都道府県', '自宅市区町村', '自宅住所',
-    'メールアドレス', '入会日', '年会費状態', '年会費年度', '介護支援専門員番号',
-  ];
-  var STAFF_HEADERS = [
-    '職員番号', '職員権限', '姓', '名', 'フリガナ姓', 'フリガナ名',
-    'メールアドレス', '入会日', '職員状態',
-  ];
-  var roleOrder = { REPRESENTATIVE: 0, ADMIN: 1, STAFF: 2 };
-
-  var memberTypeOf = {};
-  memberIds.forEach(function(id) {
-    var m = memberMap[String(id)];
-    memberTypeOf[String(id)] = m ? String(m['会員種別コード'] || '') : '';
-  });
-  var sortedIds = memberIds.slice().sort(function(a, b) {
-    var ta = memberTypeOf[String(a)] || '';
-    var tb = memberTypeOf[String(b)] || '';
-    return ta < tb ? -1 : ta > tb ? 1 : 0;
-  });
-
-  var actualBatch  = Math.min(parallelBatch, sortedIds.length);
-  var tempContexts = [];
-  for (var ti = 0; ti < actualBatch; ti++) {
-    try {
-      var tmpFile = templateFile.makeCopy(
-        '_ROSTER_TMP_' + Utilities.getUuid().substring(0, 8) + '_' + ti
-      );
-      var tmpSs = SpreadsheetApp.openById(tmpFile.getId());
-
-      if (ti === 0) {
-        var visibleSheets = tmpSs.getSheets().filter(function(s) {
-          return !s.isSheetHidden() && !isTemplateInternalSheet_(s.getName());
-        });
-        if (visibleSheets.length === 0) {
-          try { DriveApp.getFileById(tmpFile.getId()).setTrashed(true); } catch (ce) {}
-          throw new Error(
-            'テンプレートSSに表示用シートがありません。' +
-            '「P_」または「B_」で始まるシートを1枚以上追加してください。'
-          );
-        }
-      }
-
-      var tmpDataSheet = ensureRosterTemplateDataSheet_(tmpSs);
-      tmpDataSheet.hideSheet();
-      tempContexts.push({
-        ss:        tmpSs,
-        dataSheet: tmpDataSheet,
-        fileId:    tmpFile.getId(),
-        lastType:  null,
-      });
-    } catch (e) {
-      if (ti === 0) throw e;
-      Logger.log('generatePdfsForIds_: temp SS ' + ti + ' 作成失敗: ' + e.message);
-    }
-  }
-
-  if (tempContexts.length === 0) {
-    throw new Error('テンプレートSSのコピーに失敗しました。Drive の容量・権限・ID を確認してください。');
-  }
-  actualBatch = tempContexts.length;
-
-  var oauthToken = ScriptApp.getOAuthToken();
-  var blobs     = [];
-  var failedIds = [];
-  var errors    = [];
-
-  for (var batchStart = 0; batchStart < sortedIds.length; batchStart += actualBatch) {
-    var batchIds  = sortedIds.slice(batchStart, batchStart + actualBatch);
-    var requests  = [];
-    var batchMeta = [];
-
-    for (var j = 0; j < batchIds.length; j++) {
-      var ctx      = tempContexts[j];
-      var memberId = String(batchIds[j]);
-      var member   = memberMap[memberId];
-
-      if (!member) {
-        errors.push(memberId + ': 会員データなし');
-        continue;
-      }
-
-      var mtype = String(member['会員種別コード'] || '');
-      var enrolledStaff = [];
-      if (mtype === 'BUSINESS') {
-        enrolledStaff = (staffByMember[memberId] || []).filter(function(s) {
-          return String(s['職員状態コード'] || '') === 'ENROLLED';
-        });
-        enrolledStaff.sort(function(a, b) {
-          return (roleOrder[a['職員権限コード']] || 9) - (roleOrder[b['職員権限コード']] || 9);
-        });
-      }
-
-      var dataSheet = ctx.dataSheet;
-      dataSheet.clearContents();
-      dataSheet.getRange(1, 1, 1, MEMBER_HEADERS.length).setValues([MEMBER_HEADERS]);
-      dataSheet.getRange(2, 1, 1, MEMBER_HEADERS.length).setValues([[
-        memberId, mtype,
-        String(member['姓'] || ''), String(member['名'] || ''),
-        String(member['セイ'] || ''), String(member['メイ'] || ''),
-        String(member['勤務先名'] || ''), String(member['事業所番号'] || ''),
-        String(member['勤務先郵便番号'] || ''), String(member['勤務先都道府県'] || ''),
-        String(member['勤務先市区町村'] || ''), String(member['勤務先住所'] || ''),
-        String(member['勤務先電話番号'] || ''), String(member['勤務先FAX番号'] || ''),
-        String(member['自宅郵便番号'] || ''), String(member['自宅都道府県'] || ''),
-        String(member['自宅市区町村'] || ''), String(member['自宅住所'] || ''),
-        String(member['代表メールアドレス'] || ''), String(member['入会日'] || ''),
-        feeMap[memberId] || 'UNPAID', year, // 記録なし=UNPAID扱い（v314〜統一）
-        String(member['介護支援専門員番号'] || ''),
-      ]]);
-      if (enrolledStaff.length > 0) {
-        dataSheet.getRange(4, 1, 1, STAFF_HEADERS.length).setValues([STAFF_HEADERS]);
-        dataSheet.getRange(5, 1, enrolledStaff.length, STAFF_HEADERS.length)
-          .setValues(enrolledStaff.map(function(s) {
-            return [
-              String(s['職員ID'] || ''), String(s['職員権限コード'] || ''),
-              String(s['姓'] || ''), String(s['名'] || ''),
-              String(s['セイ'] || ''), String(s['メイ'] || ''),
-              String(s['メールアドレス'] || ''), String(s['入会日'] || ''),
-              String(s['職員状態コード'] || ''),
-            ];
-          }));
-      }
-
-      if (ctx.lastType !== mtype) {
-        selectRosterDisplaySheetsV2_(ctx.ss, mtype);
-        ctx.lastType = mtype;
-      }
-
-      requests.push({
-        url: 'https://docs.google.com/spreadsheets/d/' + ctx.fileId +
-          '/export?format=pdf&size=a4&portrait=true&fitw=true' +
-          '&sheetnames=false&printtitle=false&pagenumbers=false&gridlines=false&fzr=false',
-        headers: { Authorization: 'Bearer ' + oauthToken },
-        muteHttpExceptions: true,
-      });
-      batchMeta.push({ memberId: memberId, member: member, ctxIndex: j });
-    }
-
-    if (requests.length === 0) continue;
-
-    SpreadsheetApp.flush();
-
-    for (var k = 0; k < batchMeta.length; k++) {
-      var ctx = tempContexts[batchMeta[k].ctxIndex];
-      var dispSheets = ctx.ss.getSheets().filter(function(s) { return !s.isSheetHidden(); });
-      if (dispSheets.length > 0 && dispSheets[0].getLastRow() > 0 && dispSheets[0].getLastColumn() > 0) {
-        dispSheets[0].getRange(1, 1).getValue();
-      }
-    }
-
-    var responses = UrlFetchApp.fetchAll(requests);
-
-    for (var k = 0; k < responses.length; k++) {
-      var meta     = batchMeta[k];
-      var response = responses[k];
-      if (response.getResponseCode() === 200) {
-        var lastName   = String(meta.member['姓'] || '').trim();
-        var firstName  = String(meta.member['名'] || '').trim();
-        var officeName = String(meta.member['勤務先名'] || '').trim().substring(0, 20);
-        var pdfName    = meta.memberId + '_' + (lastName + firstName || officeName || '名前なし') + '.pdf';
-        blobs.push(response.getBlob().setName(pdfName));
-      } else {
-        failedIds.push(meta.memberId);
-        errors.push(
-          String(meta.member['姓'] || '') + String(meta.member['名'] || '') +
-          '（' + meta.memberId + '）: HTTP ' + response.getResponseCode()
-        );
-      }
-    }
-  }
-
-  tempContexts.forEach(function(ctx) {
-    try { DriveApp.getFileById(ctx.fileId).setTrashed(true); } catch (ce) {
-      Logger.log('generatePdfsForIds_: cleanup 失敗: ' + ce.message);
-    }
-  });
-
-  return { blobs: blobs, failedIds: failedIds, errors: errors };
-}
-
-
-
-
-function isTemplateInternalSheet_(sheetName) {
-  return String(sheetName || '').indexOf('_') === 0;
-}
-
-function getTemplateSheetMetadataMap_(sheet) {
-  var map = {};
-  var metadata = sheet.getDeveloperMetadata ? sheet.getDeveloperMetadata() : [];
-  metadata.forEach(function(item) {
-    map[item.getKey()] = item.getValue();
-  });
-  return map;
-}
-
-function getRosterTemplateDataSheet_(ss) {
-  return ss.getSheetByName('_DATA_ROSTER') || ss.getSheetByName('_DATA');
-}
-
-function ensureRosterTemplateDataSheet_(ss) {
-  var sheet = getRosterTemplateDataSheet_(ss);
-  if (sheet) return sheet;
-  return ss.insertSheet('_DATA_ROSTER');
-}
-
-function applyRosterSheetVisibility_(ss, targetSheets) {
-  var allowed = {};
-  targetSheets.forEach(function(sheet) {
-    allowed[sheet.getName()] = true;
-    if (sheet.isSheetHidden()) sheet.showSheet();
-  });
-
-  ss.getSheets().forEach(function(sheet) {
-    var name = sheet.getName();
-    if (isTemplateInternalSheet_(name)) {
-      if (!sheet.isSheetHidden()) sheet.hideSheet();
-      return;
-    }
-    if (!allowed[name] && !sheet.isSheetHidden()) {
-      sheet.hideSheet();
-    }
-  });
-
-  return targetSheets;
-}
-
-
-/**
- * 名簿テンプレートのサンプルスプレッドシートを作成する。
- * - 実運用に流用できるよう、_DATA のサンプルデータと表示シートの参照数式をあらかじめ設定する。
- * - 作成後に返す spreadsheetId を T_システム設定.ROSTER_TEMPLATE_SS_ID に登録すれば、
- *   そのまま名簿出力テンプレートとして利用できる。
- */
-
-
-
-
-
-
-
-
-
-// 2026-04-11: metadata 優先・prefix 後方互換のテンプレート解決と、
-// 名簿/催促状同居テンプレート例を後方互換を壊さず上書き定義する。
-
-
-
-
-
-
-
-
-
-function selectRosterDisplaySheetsV2_(ss, memberType) {
-  var target = String(memberType || '') === 'BUSINESS' ? 'BUSINESS' : 'PERSONAL_SUPPORT';
-  var metadataSheets = ss.getSheets()
-    .map(function(sheet) {
-      var meta = getTemplateSheetMetadataMap_(sheet);
-      return { sheet: sheet, meta: meta };
-    })
-    .filter(function(item) {
-      return item.meta.HKC_TEMPLATE_FAMILY === 'ROSTER' &&
-        item.meta.HKC_TEMPLATE_TARGET === target;
-    })
-    .sort(function(a, b) {
-      return Number(a.meta.HKC_TEMPLATE_ORDER || 0) - Number(b.meta.HKC_TEMPLATE_ORDER || 0);
-    })
-    .map(function(item) { return item.sheet; });
-
-  if (metadataSheets.length) {
-    return applyRosterSheetVisibility_(ss, metadataSheets);
-  }
-
-  var prefix = String(memberType || '') === 'BUSINESS' ? 'B_' : 'P_';
-  var prefixSheets = ss.getSheets().filter(function(sheet) {
-    return sheet.getName().indexOf(prefix) === 0;
-  });
-  if (!prefixSheets.length) {
-    throw new Error('名簿テンプレートの対象シートが見つかりません。memberType=' + memberType);
-  }
-  return applyRosterSheetVisibility_(ss, prefixSheets);
-}
-
 
 function getDeleteMemberDisplayName_(memberRow) {
   var memberType = String(memberRow['会員種別コード'] || '');
@@ -15835,7 +14894,7 @@ function cleanupCorruptChangeRequestsV372() {
  *  4. T_メール送信ログ に 研修ID 列を追加
  *  5. 既存 T_研修申込 行を 2-FK 化（申込者区分=EXTERNAL の 申込者ID を 外部申込者ID へ複写）
  *  6. 既存 T_研修申込 行の 出欠状態コード を UNRECORDED で backfill
- *  7. ROSTER_TEMPLATE_LIST JSON の各エントリに category='MAILING_LIST' を auto-add
+ *  7. (v373.7 で撤去) ROSTER_TEMPLATE_LIST category 追加 — 操作者確認済みで dead code 化
  *  8. 整合性監査結果を Logger に記録
  */
 function runRebuildSchemaForV360() {
@@ -15883,9 +14942,7 @@ function runRebuildSchemaForV360() {
   var backfillResult = backfillAttendanceStatusForV360_(ss);
   report.steps.push({ step: '出欠状態 backfill', detail: backfillResult });
 
-  // Step 7: ROSTER_TEMPLATE_LIST category 追加
-  var templateMigrate = migrateRosterTemplateLibraryCategoryForV360_(ss);
-  report.steps.push({ step: 'テンプレート category 追加', detail: templateMigrate });
+  // Step 7: v373.7 (S5 Phase 2) で撤去（旧 RosterExport 関連、操作者確認終了で dead code）
 
   // Step 8: 整合性監査
   var auditResult = auditTrainingApplicationsAfterV360_(ss);
@@ -15954,34 +15011,7 @@ function backfillAttendanceStatusForV360_(ss) {
   return { backfilled: backfilled, total: data.length };
 }
 
-/**
- * ROSTER_TEMPLATE_LIST JSON の各エントリに category='MAILING_LIST' を追加（既存値維持）。
- */
-function migrateRosterTemplateLibraryCategoryForV360_(ss) {
-  try {
-    var settings = getRowsAsObjects_(ss, 'T_システム設定');
-    var entry = null;
-    for (var i = 0; i < settings.length; i++) {
-      if (settings[i]['設定キー'] === 'ROSTER_TEMPLATE_LIST') { entry = settings[i]; break; }
-    }
-    if (!entry) return { migrated: 0, reason: '設定キーなし' };
-    var list = JSON.parse(String(entry['設定値'] || '[]'));
-    if (!Array.isArray(list) || list.length === 0) return { migrated: 0, reason: '空リスト' };
-    var changed = 0;
-    for (var j = 0; j < list.length; j++) {
-      if (!list[j].category) {
-        list[j].category = 'MAILING_LIST';
-        changed++;
-      }
-    }
-    if (changed > 0) {
-      upsertSystemSetting_(ss, 'ROSTER_TEMPLATE_LIST', JSON.stringify(list), 'テンプレートライブラリJSON（v316〜・v360: category付き）');
-    }
-    return { migrated: changed, total: list.length };
-  } catch (e) {
-    return { migrated: 0, error: e.message };
-  }
-}
+// v373.7 (S5 Phase 2): migrateRosterTemplateLibraryCategoryForV360_ 撤去（操作者確認済み）
 
 /**
  * T_研修申込 の 3-FK XOR 違反を検出（v360 以降の不変条件）。

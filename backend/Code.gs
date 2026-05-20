@@ -894,10 +894,7 @@ function processApiRequest(action, payload) {
 
 
 
-
-
-
-
+    // v373.7 (S5 Phase 2): 旧 v316 RosterTemplate dispatcher 撤去
     // v372: 名簿出力 全面刷新（Visual Template Designer）
 
 
@@ -986,10 +983,9 @@ function processApiRequest(action, payload) {
 
     // v188: Gemini AI案内メール生成（APIキーはScriptPropertiesで管理、フロントに露出しない）
 
-    // v194: PDF名簿出力（対象取得）
-
-    // v205: チャンク分割 PDF 出力 API（1000件対応・all-or-nothing + リトライ）
-
+    // v373.7 (S5 Phase 2): 旧 PDF 名簿出力 dispatcher 群撤去（v194 getMembersForRoster /
+    // v205 initRosterExport / processRosterChunk / finalizeRosterExport / cleanupRosterExport /
+    // validateTemplateSpreadsheet）。新 Visual Template Designer に統合済み。
 
     // v194: 会員一括メール送信
 
@@ -1296,29 +1292,6 @@ var PASSWORD_RESET_GENERIC_MESSAGE = '入力内容が登録情報と一致する
  */
 
 
-// ─── v316: テンプレートライブラリ ────────────────────────────────────────────
-
-/**
- * テンプレートライブラリ一覧を取得する。
- * ROSTER_TEMPLATE_LIST が空かつ旧キーが存在する場合は自動マイグレーションを行う。
- */
-
-/**
- * テンプレートを追加または更新する。id がなければ新規追加。
- * payload: { id?, name, ssId, description?, isDefault? }
- */
-
-/**
- * テンプレートを削除する。
- * payload: { id }
- */
-
-/**
- * デフォルトテンプレートを設定する。
- * payload: { id }
- */
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 // ─── v309: 共有メモ（申し送りホワイトボード）────────────────────────────────
 
@@ -1332,11 +1305,6 @@ var MASTER_ONLY_SETTING_KEYS = ['EMAIL_LOG_VIEWER_ROLE'];
 
 // T_システム設定のスネークアッパーケースキーを camelCase に変換する
 // 例: 'EMAIL_LOG_VIEWER_ROLE' → 'emailLogViewerRole'
-
-
-
-
-
 
 
 
@@ -2985,22 +2953,7 @@ function ensureSystemSettingsRows_(ss) {
     }]);
   }
   // v194: PDF名簿出力 & 一括メール設定
-  if (!byKey['ROSTER_TEMPLATE_SS_ID']) {
-    appendRowsByHeaders_(ss, 'T_システム設定', [{
-      設定キー: 'ROSTER_TEMPLATE_SS_ID',
-      設定値: '',
-      説明: '名簿テンプレートスプレッドシートID',
-      更新日時: now,
-    }]);
-  }
-  if (!byKey['REMINDER_TEMPLATE_SS_ID']) {
-    appendRowsByHeaders_(ss, 'T_システム設定', [{
-      設定キー: 'REMINDER_TEMPLATE_SS_ID',
-      設定値: '',
-      説明: '催促用紙テンプレートスプレッドシートID',
-      更新日時: now,
-    }]);
-  }
+  // v373.7 (S5 Phase 2): ROSTER_TEMPLATE_SS_ID / REMINDER_TEMPLATE_SS_ID の seed 撤去（旧 RosterExport 関連）
   if (!byKey['BULK_MAIL_AUTO_ATTACH_FOLDER_ID']) {
     appendRowsByHeaders_(ss, 'T_システム設定', [{
       設定キー: 'BULK_MAIL_AUTO_ATTACH_FOLDER_ID',
@@ -5389,23 +5342,6 @@ function backfillBusinessStaffNameColumns_(ss) {
  * 設定値: 'MASTER' または 'MASTER,ADMIN' のどちらか。
  */
 
-// ============================================================
-// v196 Phase 3: PDF名簿出力
-// ============================================================
-
-/**
- * PDF名簿出力用: 対象会員一覧を取得する。
- * 年会費ステータスは T_会員(BUSINESS) ベースで判定。
- *
- * payload:
- *   memberTypes?  – ['INDIVIDUAL','BUSINESS','SUPPORT'] デフォルト全種別
- *   memberStatus? – 'ACTIVE' | 'INCLUDING_SCHEDULED' | 'ALL'  デフォルト 'ACTIVE'
- *   year?         – 在籍判定年度（省略時は当年度）
- *
- * v312: annualFeeStatus は廃止（クライアント側多年度フィルタに移行）。
- *       返却形式を { targets, years } に変更。
- */
-
 // ─── v372: 名簿出力 Visual Template Designer 用 API ───────────────────────────
 
 /**
@@ -5415,55 +5351,14 @@ function backfillBusinessStaffNameColumns_(ss) {
  */
 
 /**
+ * Visual Template Designer 用に会員データをフラット化して返す。
+ * 辞書の全キーを raw 文字列で含む（v373.7 までは旧 getMembersForRoster_ と並存していたが現在は唯一の経路）。
+ * フロントエンドは row[fieldKey] でアクセスできる。
+ */
+
+/**
  * ROSTER_TEMPLATE_LIBRARY_V2 の読み込み（T_システム設定 から JSON 取得）。
  */
-
-
-
-
-/**
- * v205: 全チャンクの部分 ZIP を統合して最終 ZIP を生成。
- * payload: { folderId, year }
- */
-
-/**
- * v205: エラー・中断時の一時フォルダクリーンアップ。
- * payload: { folderId }
- */
-
-
-
-
-
-
-
-
-
-
-/**
- * 名簿テンプレートのサンプルスプレッドシートを作成する。
- * - 実運用に流用できるよう、_DATA のサンプルデータと表示シートの参照数式をあらかじめ設定する。
- * - 作成後に返す spreadsheetId を T_システム設定.ROSTER_TEMPLATE_SS_ID に登録すれば、
- *   そのまま名簿出力テンプレートとして利用できる。
- */
-
-
-
-
-
-
-
-
-
-// 2026-04-11: metadata 優先・prefix 後方互換のテンプレート解決と、
-// 名簿/催促状同居テンプレート例を後方互換を壊さず上書き定義する。
-
-
-
-
-
-
-
 
 
 
@@ -5684,7 +5579,7 @@ var CLAIM_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
  *  4. T_メール送信ログ に 研修ID 列を追加
  *  5. 既存 T_研修申込 行を 2-FK 化（申込者区分=EXTERNAL の 申込者ID を 外部申込者ID へ複写）
  *  6. 既存 T_研修申込 行の 出欠状態コード を UNRECORDED で backfill
- *  7. ROSTER_TEMPLATE_LIST JSON の各エントリに category='MAILING_LIST' を auto-add
+ *  7. (v373.7 で撤去) ROSTER_TEMPLATE_LIST category 追加 — 操作者確認済みで dead code 化
  *  8. 整合性監査結果を Logger に記録
  */
 
@@ -5696,10 +5591,6 @@ var CLAIM_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 
 /**
  * 既存 T_研修申込 行の 出欠状態コード を UNRECORDED で backfill。
- */
-
-/**
- * ROSTER_TEMPLATE_LIST JSON の各エントリに category='MAILING_LIST' を追加（既存値維持）。
  */
 
 /**

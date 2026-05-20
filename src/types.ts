@@ -156,10 +156,8 @@ export interface SystemSettings {
   annualFeeTransferAccount: TransferAccountInfo;
   trainingDefaultFieldConfig?: TrainingFieldConfig | null;
   // v194: PDF名簿出力 & 一括メール送信設定
-  // v373.6 (S5): rosterTemplates 配列は撤去。rosterTemplateSsId/reminderTemplateSsId は
-  // GAS 側 T_システム設定 行が残っているため pass-through 用に型は維持（次セッションで撤去予定）
-  rosterTemplateSsId?: string;
-  reminderTemplateSsId?: string;
+  // v373.7 (S5 Phase 2): rosterTemplateSsId / reminderTemplateSsId / rosterTemplates 撤去
+  // （旧 RosterExport 関連は front-end / GAS 両側から削除済み、T_システム設定 行のみ保全）
   bulkMailAutoAttachFolderId?: string;
   emailLogViewerRole?: string;
   // v209: 入会時認証情報メール設定

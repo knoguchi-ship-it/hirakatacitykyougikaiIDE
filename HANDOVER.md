@@ -1,15 +1,16 @@
 # 開発引継ぎ
 
-更新日: 2026-05-20（v373.6 まで本番反映済み・旧 RosterExport front-end 削除）
-現行本番: **`v373.6`** / integrated-public GAS version `343` / member split GAS version `101` / admin split GAS version `152`
-fixed deployment: integrated/public `@343` x2 / member split `@101` / admin split `@152`
+更新日: 2026-05-20（v373.7 まで本番反映済み・Sprint S5 完了 = 旧 RosterExport 完全削除）
+現行本番: **`v373.7`** / integrated-public GAS version `344` / member split GAS version `102` / admin split GAS version `153`
+fixed deployment: integrated/public `@344` x2 / member split `@102` / admin split `@153`
 
 > **🆕 次担当者向け再開ガイド（必読）**
 >
 > ### 1. まず読む順
 > 1. `AGENTS.md` §0 — シークレット絶対ルール
 > 2. 本 `HANDOVER.md` ヘッダー〜「v372 系包括サマリー」
-> 3. `docs/242_RELEASE_STATE_v373.6_ROSTER_S5_FRONTEND_CLEANUP_2026-05-20.md` — **v373.6 旧 RosterExport front-end 削除（本番反映済み・最新）**
+> 3. `docs/243_RELEASE_STATE_v373.7_ROSTER_S5_GAS_CLEANUP_2026-05-20.md` — **v373.7 GAS バックエンド側削除（Sprint S5 完了・本番反映済み・最新）**
+> 4. `docs/242_RELEASE_STATE_v373.6_ROSTER_S5_FRONTEND_CLEANUP_2026-05-20.md` — v373.6 旧 RosterExport front-end 削除
 > 4. `docs/241_RELEASE_STATE_v373.5_SECRET_MANAGER_2026-05-20.md` — v373.5 Secret Manager 連携（操作者対応は GCP 利用判断時に延期）
 > 5. `docs/239_OPERATOR_GCP_SECRET_MANAGER_SETUP_2026-05-20.md` — 操作者 GCP セットアップ手順（延期中）
 > 5. `docs/240_DESIGN_CLOUD_RUN_ARGON2ID_2026-05-20.md` — 次段階（Cloud Run Argon2id 外部 KDF）設計書 + 実装雛形
@@ -27,10 +28,10 @@ fixed deployment: integrated/public `@343` x2 / member split `@101` / admin spli
 > 9. `docs/12_ENGINEERING_RULEBOOK.md` / `docs/09_DEPLOYMENT_POLICY.md` — 開発・デプロイ標準
 >
 > ### 2. 現行本番デプロイ
-> - **統合 public legacy** `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` @343
-> - **統合 public 正式**   `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` @343
-> - **member split**     `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` @101
-> - **admin split**      `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` @152
+> - **統合 public legacy** `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` @344
+> - **統合 public 正式**   `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` @344
+> - **member split**     `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` @102
+> - **admin split**      `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` @153
 >
 > ### 3. 🔴 操作者の即時対応タスク（未完了・優先度高）
 > | # | タスク | 詳細 |
@@ -43,7 +44,9 @@ fixed deployment: integrated/public `@343` x2 / member split `@101` / admin spli
 > | 5 | v360-v373 実ブラウザ動作確認 | 名簿出力 Visual Designer / 公開ポータル staffUpdate / CM 番号緩和 等 |
 >
 > ### 4. 直近の重要変更（v373 系 / v372 系）
-> **v373.6 (2026-05-20・最新)**: 名簿出力 Sprint S5 第 1 弾（front-end 完全削除）。`RosterExport.tsx` / `TemplateValidationPanel.tsx` / `TemplateHelpPage.tsx` / `RosterTemplateHelpDialog.tsx` の 4 component + App.tsx の 3 UI 領域 (template-help view / roster-export-legacy view / テンプレートライブラリ設定セクション 137 行) + 6 state + ApiClient の 10 メソッド + 旧型定義（RosterTemplate / RosterTarget / TemplateValidationResult / TemplateValidationKind / TemplateValidationCheck）+ scripts/replace_roster.mjs migration 一回限り script を完全削除。GAS 側は次セッションで Phase 2 として cleanup（handler 関数 / audit allowlist / SystemSettings.rosterTemplateSsId 等）。詳細 `docs/242`。
+> **v373.7 (2026-05-20・🎉Sprint S5 完了)**: 名簿出力 Sprint S5 第 2 弾（GAS バックエンド完全削除）。`gas-src/Code.full.gs` から旧 v316 テンプレートライブラリ系 4 関数 / v205 PDF chunk 系 25+ 関数 / v194 getMembersForRoster_ / validateTemplateSpreadsheet_ + 4 helpers / runRebuildSchemaForV360 内の Step 7 (一回実施済み migration) 等、計 -1,599 行 + 自動 pruning で 315 関数削減。ALLOWED_ACTIONS から 10 action 削除、dispatcher case 群削除、initializeSchema_ から旧キー seed 撤去、SystemSettings.rosterTemplateSsId 等 pass-through 撤去。T_システム設定 の旧キー行は data 保全のため残置。詳細 `docs/243`。Sprint S1〜S5 完了、v373 シリーズで -4,046 行削減。
+>
+> **v373.6 (2026-05-20)**: 名簿出力 Sprint S5 第 1 弾（front-end 完全削除）。`RosterExport.tsx` / `TemplateValidationPanel.tsx` / `TemplateHelpPage.tsx` / `RosterTemplateHelpDialog.tsx` の 4 component + App.tsx の 3 UI 領域 (template-help view / roster-export-legacy view / テンプレートライブラリ設定セクション 137 行) + 6 state + ApiClient の 10 メソッド + 旧型定義（RosterTemplate / RosterTarget / TemplateValidationResult / TemplateValidationKind / TemplateValidationCheck）+ scripts/replace_roster.mjs migration 一回限り script を完全削除。GAS 側は次セッションで Phase 2 として cleanup（handler 関数 / audit allowlist / SystemSettings.rosterTemplateSsId 等）。詳細 `docs/242`。
 >
 > **v373.5 (2026-05-20・🔴最重要)**: パスワード pepper を Google Cloud Secret Manager 連携化。第三者評価 docs/172 (必須・破棄禁止 backlog) の第 1 弾完了。`getPasswordPepper_()` を CacheService → Secret Manager → Script Properties の 3 階層 fail-soft 化。3 split に `cloud-platform` scope 追加、`healthCheckPasswordPepper` admin top-level 関数追加。**operator 30 分対応必須 (docs/239)**。次段階 Cloud Run Argon2id 外部 KDF は `docs/240` で完全設計済 + `cloud-run/password-hash-service/` に実装雛形提供、本番反映は次セッション以降。
 >

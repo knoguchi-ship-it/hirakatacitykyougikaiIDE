@@ -67,8 +67,7 @@ const allowedAdminActions = [
   'getAdminEmailAliases',
   'sendTrainingMail',
   'generateTrainingEmail',
-  'getMembersForRoster',
-  'validateTemplateSpreadsheet',
+  // v373.7 (S5 Phase 2): getMembersForRoster / validateTemplateSpreadsheet 撤去
   'getMembersForBulkMail',
   'sendBulkMemberMail',
   'getEmailSendLog',
@@ -86,10 +85,7 @@ const allowedAdminActions = [
   'repairTrainingApplicationApplicantIds',
   'repairMemberCareManagerDuplicates',
   'fetchAllData',
-  'initRosterExport',
-  'processRosterChunk',
-  'finalizeRosterExport',
-  'cleanupRosterExport',
+  // v373.7 (S5 Phase 2): initRosterExport / processRosterChunk / finalizeRosterExport / cleanupRosterExport 撤去
   'getMailingListTargets',
   'generateMailingListExcel',
   'getAdminChangeRequests',
@@ -128,11 +124,7 @@ const allowedAdminActions = [
   // v309: 共有メモ（申し送りホワイトボード）
   'getSharedMemo',
   'saveSharedMemo',
-  // v316: テンプレートライブラリ
-  'getRosterTemplateList',
-  'saveRosterTemplate',
-  'deleteRosterTemplate',
-  'setDefaultRosterTemplate',
+  // v373.7 (S5 Phase 2): v316 テンプレートライブラリ ACTION 群撤去
   // v372: 名簿出力 Visual Template Designer
   'getRosterFieldDictionary',
   'getRosterDesignerData',

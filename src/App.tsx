@@ -464,8 +464,7 @@ const App: React.FC = () => {
   // v319: 変更申請 PENDING バッジカウント
   const [pendingChangeRequestCount, setPendingChangeRequestCount] = useState<number>(0);
   // v194: PDF名簿出力 & 一括メール送信設定
-  const [rosterTemplateSsIdInput, setRosterTemplateSsIdInput] = useState('');
-  const [reminderTemplateSsIdInput, setReminderTemplateSsIdInput] = useState('');
+  // v373.7 (S5 Phase 2): rosterTemplateSsIdInput / reminderTemplateSsIdInput state 撤去
   // v373.6 (S5): 旧 RosterExport テンプレートライブラリ state は撤去。
   // GAS 側の T_システム設定.ROSTER_TEMPLATE_LIST は次セッションで撤去予定。
   const [bulkMailAutoAttachFolderIdInput, setBulkMailAutoAttachFolderIdInput] = useState('');
@@ -627,8 +626,6 @@ const App: React.FC = () => {
     setTrainingDefaultFieldConfig(tdfConfig);
     setTrainingDefaultFieldConfigInput(tdfConfig);
     // v194
-    setRosterTemplateSsIdInput(systemSettings.rosterTemplateSsId ?? '');
-    setReminderTemplateSsIdInput(systemSettings.reminderTemplateSsId ?? '');
     setBulkMailAutoAttachFolderIdInput(systemSettings.bulkMailAutoAttachFolderId ?? '');
     setEmailLogViewerRoleInput(systemSettings.emailLogViewerRole ?? 'MASTER');
     // v209
@@ -4620,8 +4617,6 @@ const App: React.FC = () => {
                         annualFeePaymentGuidance: annualFeePaymentGuidanceInput,
                         annualFeeTransferAccount: annualFeeTransferAccountInput,
                         trainingDefaultFieldConfig: trainingDefaultFieldConfigInput,
-                        rosterTemplateSsId: rosterTemplateSsIdInput,
-                        reminderTemplateSsId: reminderTemplateSsIdInput,
                         bulkMailAutoAttachFolderId: bulkMailAutoAttachFolderIdInput,
                         emailLogViewerRole: emailLogViewerRoleInput,
                         credentialEmailEnabled: credentialEmailEnabledInput,
@@ -4722,8 +4717,6 @@ const App: React.FC = () => {
                       const tdfSaved = saved.trainingDefaultFieldConfig ?? { ...DEFAULT_FIELD_CONFIG };
                       setTrainingDefaultFieldConfig(tdfSaved);
                       setTrainingDefaultFieldConfigInput(tdfSaved);
-                      setRosterTemplateSsIdInput(saved.rosterTemplateSsId ?? '');
-                      setReminderTemplateSsIdInput(saved.reminderTemplateSsId ?? '');
                       setBulkMailAutoAttachFolderIdInput(saved.bulkMailAutoAttachFolderId ?? '');
                       setEmailLogViewerRoleInput(saved.emailLogViewerRole ?? 'MASTER');
                       setCredentialEmailEnabledInput(saved.credentialEmailEnabled ?? true);
@@ -4847,7 +4840,6 @@ const App: React.FC = () => {
         trainingHistoryLookbackMonths: trainingHistoryLookbackMonths,
         annualFeePaymentGuidance: annualFeePaymentGuidance,
         annualFeeTransferAccount: annualFeeTransferAccount,
-        rosterTemplateSsId: rosterTemplateSsIdInput,
         bulkMailAutoAttachFolderId: bulkMailAutoAttachFolderIdInput,
         emailLogViewerRole: emailLogViewerRoleInput,
       };
