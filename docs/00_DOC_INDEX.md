@@ -1,7 +1,7 @@
 # Document Index
 
-更新日: 2026-05-18
-現行バージョン: `v370`（integrated-public `@329` x2 / member split `@87` / admin split `@129`）
+更新日: 2026-05-20
+現行バージョン: `v372.7`（integrated-public `@341` x2 / member split `@99` / admin split `@143`）
 
 ## 1. Entry Points
 
@@ -32,7 +32,8 @@
 
 | 文書 | 内容 |
 |---|---|
-| `docs/229_RELEASE_STATE_v372_to_v372.6.1_2026-05-20.md` | **🆕 最新本番** v372〜v372.6.1（全 8 リリース）統合正本。名簿出力 Visual Designer / CM 番号 admin 例外 / 公開ポータル staffUpdate / UTF-8 文字化け修正 / 送信ボタン disable。integrated-public `@340` x2 / member `@98` / admin `@142`。第三者評価自己診断付き |
+| `docs/230_SECURITY_REMEDIATION_DRIVE_PROXY_ALLOWLIST_2026-05-20.md` | **🆕 最新本番 v372.7** 第三者評価 2026-05-20 指摘 #1 対応。Drive bytes / thumbnail proxy を `T_研修.案内状URL` / `案内状サムネイルURL` 登録 fileId のみに制限。integrated-public `@341` x2 / member `@99` / admin `@143` |
+| `docs/229_RELEASE_STATE_v372_to_v372.6.1_2026-05-20.md` | v372〜v372.6.1（全 8 リリース）統合正本。名簿出力 Visual Designer / CM 番号 admin 例外 / 公開ポータル staffUpdate / UTF-8 文字化け修正 / 送信ボタン disable。integrated-public `@340` x2 / member `@98` / admin `@142`。第三者評価自己診断付き |
 | `docs/228_ROSTER_REDESIGN_2026-05-19.md` | 名簿出力 全面刷新設計書（5 Sprint 計画）。Visual Template Designer 内蔵化・統合フィールド・Tab 式 2 ステップ |
 | `docs/227_MAIL_KILL_SWITCH_2026-05-18.md` | メール送信 4 階層ガード設計書（v371.x）。GLOBAL/MODE/ALLOWLIST/CATEGORY 動作モード一覧 |
 | `docs/226_HANDOVER_DRYRUN_2026-05-17.md` | dryRun synthetic transaction フレームワーク導入、6/7 シナリオ PASS |

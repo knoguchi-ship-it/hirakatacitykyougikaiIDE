@@ -1,7 +1,9 @@
 # Deployment Policy
 
-Updated: 2026-05-18
-Production: `v370` (srcMemberId reference error hotfix; admin HEAD includes v370.1 cleanup helpers) / integrated-public fixed deployments `@329` x2 / member split `@87` / admin split `@129`
+Updated: 2026-05-20
+Production: `v372.7` / integrated-public fixed deployments `@341` x2 / member split `@99` / admin split `@143`
+
+> Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
 ## 1. Purpose
 
@@ -17,15 +19,15 @@ Production: `v370` (srcMemberId reference error hotfix; admin HEAD includes v370
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@329` (`v370`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@329` (`v370`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@341` (`v372.7`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@341` (`v372.7`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@87` (`v370`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@129` (`v370`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@99` (`v372.7`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@143` (`v372.7`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -142,7 +144,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-05-17 `v370` ← current production
+### 2026-05-20 `v372.7` ← current production
+- Scope: 第三者評価 #1 の是正。Drive bytes / thumbnail proxy を `T_研修.案内状URL` / `案内状サムネイルURL` に登録された fileId のみに制限し、未許可 fileId は fail-closed にする。
+- Integrated fixed deployments: `@341` x2
+- Member split: `@99`
+- Admin split: `@143`
+- Detail: `docs/230_SECURITY_REMEDIATION_DRIVE_PROXY_ALLOWLIST_2026-05-20.md`
+- Verification: `npx clasp deployments --json` で integrated/public 2 本、member split、admin split の fixed deployment version を確認済み。
+
+### 2026-05-17 `v370`
 - Scope: v368 の Logger.log 内 `srcMemberId` undefined 参照を `sourceMemberId` に修正し、事業所入会申込承認時の partial 登録クラッシュを解消。admin HEAD には v370.1 の partial application 診断/cleanup helper も含む。
 - Integrated fixed deployments: `@329` x2
 - Member split: `@87`

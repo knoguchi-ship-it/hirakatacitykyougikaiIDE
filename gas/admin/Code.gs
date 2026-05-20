@@ -10395,6 +10395,10 @@ function getFileThumbnail_(payload) {
     Logger.log('getFileThumbnail_: cannot extract fileId from url=' + fileUrl);
     return { thumbnail: makePdfSvgPlaceholder_('PDF') };
   }
+  if (!isTrainingGuideDriveFileAllowed_(fileId)) {
+    Logger.log('getFileThumbnail_: denied non-training fileId=' + fileId);
+    return { thumbnail: makePdfSvgPlaceholder_('PDF') };
+  }
 
   var cache = CacheService.getScriptCache();
   var cacheKey = 'thumb_v358_' + fileId + '_s' + (requestedSize || 0);
@@ -10494,6 +10498,31 @@ function extractDriveFileId_(url) {
 }
 
 /**
+ * Drive proxy の公開面を T_研修 に登録済みの案内 PDF / 生成済みサムネイルだけへ制限する。
+ * WebApp は USER_DEPLOYING 権限で Drive を読むため、任意 fileId proxy にならないよう fail-closed。
+ */
+function isTrainingGuideDriveFileAllowed_(fileId) {
+  var targetId = String(fileId || '').trim();
+  if (!targetId) return false;
+  try {
+    var ss = getOrCreateDatabase_();
+    var rows = getRowsAsObjects_(ss, 'T_研修');
+    for (var i = 0; i < rows.length; i += 1) {
+      var row = rows[i];
+      if (toBoolean_(row['削除フラグ'])) continue;
+      if (APP_SECURITY_BOUNDARY === 'public' && !computeTrainingAvailability_(row).isApplicationOpen) continue;
+      var pdfId = extractDriveFileId_(row['案内状URL']);
+      if (pdfId && pdfId === targetId) return true;
+      var thumbId = extractDriveFileId_(row['案内状サムネイルURL']);
+      if (thumbId && thumbId === targetId) return true;
+    }
+  } catch (e) {
+    Logger.log('isTrainingGuideDriveFileAllowed_: fail-closed error=' + (e && e.message ? e.message : String(e)));
+  }
+  return false;
+}
+
+/**
  * v357: Drive 上の PDF 本体の bytes を base64 で返す。lightbox 内 iframe で
  * ブラウザ内蔵 PDF viewer に表示する用途。
  *
@@ -10514,6 +10543,10 @@ function getFileBytes_(payload) {
   if (!fileId) {
     Logger.log('getFileBytes_: cannot extract fileId from url=' + fileUrl);
     return { base64: null, error: 'unparseable_url' };
+  }
+  if (!isTrainingGuideDriveFileAllowed_(fileId)) {
+    Logger.log('getFileBytes_: denied non-training fileId=' + fileId);
+    return { base64: null, error: 'access_denied' };
   }
 
   var authHeaders = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
