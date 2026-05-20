@@ -32,7 +32,19 @@
 
 | 文書 | 内容 |
 |---|---|
-| `docs/232_RELEASE_STATE_v372.9_ROSTER_S2_DRAG_DROP_2026-05-20.md` | **🆕 最新本番 v372.9** 名簿出力 Visual Designer S2。出力列を `@dnd-kit` で drag-drop 並び替え可能化。admin split `@145` |
+| `docs/245_UI_ACCESSIBILITY_REGRESSION_CHECKLIST_2026-05-21.md` | **🆕 v374** 新 UI 追加時の a11y + responsive 必須回帰チェックリスト（開発時セット / PR 前ローカルコマンド / 手動確認 / アンチパターン集） |
+| `docs/244_WCAG_2.2_AA_CONFORMANCE_STATEMENT_2026-05-21.md` | **🆕 v374** WCAG 2.2 AA 適合声明 初版。評価方法（axe-core + responsive + manual）/ Principle 1-4 各 SC 別自己評価表 / 半期レビューサイクル |
+| `docs/243_RELEASE_STATE_v373.7_ROSTER_S5_GAS_CLEANUP_2026-05-20.md` | **🆕 v373.7** Sprint S5 完了 第 2 弾 GAS バックエンド完全削除（旧 PDF 名簿 -1,599 行 + pruner 連鎖 -315 関数）integrated-public `@344` x2 / member `@102` / admin `@153` |
+| `docs/242_RELEASE_STATE_v373.6_ROSTER_S5_FRONTEND_CLEANUP_2026-05-20.md` | **🆕 v373.6** Sprint S5 第 1 弾 旧 RosterExport front-end 完全削除（-2,447 行）integrated-public `@343` x2 / member `@101` / admin `@152` |
+| `docs/241_RELEASE_STATE_v373.5_SECRET_MANAGER_2026-05-20.md` | **🆕 v373.5** パスワード pepper を Google Cloud Secret Manager 連携化（CacheService → SM → Properties の 3 階層 fail-soft）integrated-public `@342` x2 / member `@100` / admin `@151` |
+| `docs/240_DESIGN_CLOUD_RUN_ARGON2ID_2026-05-20.md` | **🆕 設計書** Cloud Run + Node.js argon2 service の完全設計 + 実装雛形（`cloud-run/password-hash-service/`）。本番反映は GCP 利用判断時 |
+| `docs/239_OPERATOR_GCP_SECRET_MANAGER_SETUP_2026-05-20.md` | **🆕 operator 手順** GCP Secret Manager セットアップ 30 分手順（GCP 利用判断時に実施） |
+| `docs/238_RELEASE_STATE_v373.4_ROSTER_ROW_FILTER_NOCODE_2026-05-20.md` | **🆕 v373.4** 行フィルタ no-code UI 化（演算子記号→日本語、enum/boolean 演算子廃止、年度除外、否定全廃） |
+| `docs/237_RELEASE_STATE_v373.3_ROSTER_STYLE_RULE_SIMPLIFY_2026-05-20.md` | **🆕 v373.3** 条件付き書式 UX 微調整（year picker / equals 削除 / 否定削除） |
+| `docs/236_RELEASE_STATE_v373.2_ROSTER_UX_OVERHAUL_2026-05-20.md` | **🆕 v373.2** 名簿出力 UX 全面是正（PDF Portal 化 / プリセット化 / drag handle 改善） |
+| `docs/235_RELEASE_STATE_v373.1_ROSTER_S4_2026-05-20.md` | **🆕 v373.1** S4 PDF 出力 + レイアウト初版（v373.2 で修正） |
+| `docs/234_RELEASE_STATE_v373_ROSTER_S3_2026-05-20.md` | **🆕 v373** S3 計算式 + 条件付き書式 初版（jsep + AST walker + 33 unit tests）（v373.2 で UI 刷新） |
+| `docs/232_RELEASE_STATE_v372.9_ROSTER_S2_DRAG_DROP_2026-05-20.md` | v372.9 名簿出力 Visual Designer S2。出力列を `@dnd-kit` で drag-drop 並び替え可能化。admin split `@145` |
 | `docs/233_HANDOVER_v372.9_NEXT_TASKS_2026-05-20.md` | **🆕 引継ぎ** v372.9 後の残タスク整理と次担当者向け再開手順 |
 | `docs/231_RELEASE_STATE_v372.8_ROSTER_S2_FORMAT_WIDTH_2026-05-20.md` | v372.8 名簿出力 Visual Designer S2 部分対応。列幅・日付/数値書式を設定できるようにし、プレビューと CSV 出力へ反映。admin split `@144` |
 | `docs/230_SECURITY_REMEDIATION_DRIVE_PROXY_ALLOWLIST_2026-05-20.md` | v372.7 第三者評価 2026-05-20 指摘 #1 対応。Drive bytes / thumbnail proxy を `T_研修.案内状URL` / `案内状サムネイルURL` 登録 fileId のみに制限。integrated-public `@341` x2 / member `@99` / admin `@143` |

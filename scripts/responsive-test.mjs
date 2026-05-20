@@ -70,18 +70,31 @@ async function collectMetrics(frame, page, viewportWidth) {
         const r = el.getBoundingClientRect();
         const styles = window.getComputedStyle(el);
         const visible = styles.display !== 'none' && styles.visibility !== 'hidden' && r.width > 0 && r.height > 0;
+        const type = el.type || '';
         return {
           tag: el.tagName.toLowerCase(),
+          type,
           text: (el.innerText || el.value || '').trim().slice(0, 60),
           w: Math.round(r.width),
           h: Math.round(r.height),
           visible,
+          // v374: WCAG 適合パターンを除外できるよう情報を付与
+          isSrOnly: !!(el.className && typeof el.className === 'string' && /\bsr-only\b/.test(el.className)),
+          wrappedInLabel: !!el.closest('label'),
         };
       })
       .filter((x) => x.visible);
 
-    const tooSmall24 = tapTargets.filter((t) => t.w < 24 || t.h < 24);
-    const tooSmall44 = tapTargets.filter((t) => t.w < 44 || t.h < 44);
+    // v374: WCAG 適合パターンを除外
+    //   - sr-only skip link (visually hidden, becomes visible on focus — SC 2.4.1 Bypass Blocks 適合)
+    //   - checkbox/radio が <label> でラップされている場合（label が hit area・SC 2.5.5 適合）
+    const realTargets = tapTargets.filter((t) => {
+      if (t.isSrOnly) return false;
+      if ((t.type === 'checkbox' || t.type === 'radio') && t.wrappedInLabel) return false;
+      return true;
+    });
+    const tooSmall24 = realTargets.filter((t) => t.w < 24 || t.h < 24);
+    const tooSmall44 = realTargets.filter((t) => t.w < 44 || t.h < 44);
 
     // Find any element whose right edge crosses viewport (potential overflow)
     const allEls = Array.from(document.body.querySelectorAll('*'));
