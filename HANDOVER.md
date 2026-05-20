@@ -1,15 +1,19 @@
 # 開発引継ぎ
 
-更新日: 2026-05-20（v373.7 まで本番反映済み・Sprint S5 完了 = 旧 RosterExport 完全削除）
-現行本番: **`v373.7`** / integrated-public GAS version `344` / member split GAS version `102` / admin split GAS version `153`
+更新日: 2026-05-21（v374 = WCAG/responsive 自動化基盤、本番反映は public のみ要操作者対応）
+現行本番: **`v373.7`** (GAS 反映状態) / **`v374`** (リポジトリ最新) / integrated-public GAS version `344` / member split GAS version `102` / admin split GAS version `153`
 fixed deployment: integrated/public `@344` x2 / member split `@102` / admin split `@153`
+
+> **🔴 v374 本番反映待ち**: `npx clasp` の RAPT 認証期限切れにより v374 (badge contrast 修正含む) は **未デプロイ**。operator が `npx clasp login` で再ログイン後、integrated/public で `npx clasp push --force` → `npx clasp version "v374 WCAG fix"` → `npx clasp redeploy AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx --versionNumber <new>` + 正式 deployment も同様。member/admin は src/public-portal 変更影響なしのため redeploy 不要。
 
 > **🆕 次担当者向け再開ガイド（必読）**
 >
 > ### 1. まず読む順
 > 1. `AGENTS.md` §0 — シークレット絶対ルール
 > 2. 本 `HANDOVER.md` ヘッダー〜「v372 系包括サマリー」
-> 3. `docs/243_RELEASE_STATE_v373.7_ROSTER_S5_GAS_CLEANUP_2026-05-20.md` — **v373.7 GAS バックエンド側削除（Sprint S5 完了・本番反映済み・最新）**
+> 3. `docs/244_WCAG_2.2_AA_CONFORMANCE_STATEMENT_2026-05-21.md` — **v374 WCAG 2.2 AA 適合声明（初版・最新）**
+> 4. `docs/245_UI_ACCESSIBILITY_REGRESSION_CHECKLIST_2026-05-21.md` — **新 UI 追加時の必須回帰チェックリスト**
+> 5. `docs/243_RELEASE_STATE_v373.7_ROSTER_S5_GAS_CLEANUP_2026-05-20.md` — v373.7 GAS バックエンド側削除（Sprint S5 完了）
 > 4. `docs/242_RELEASE_STATE_v373.6_ROSTER_S5_FRONTEND_CLEANUP_2026-05-20.md` — v373.6 旧 RosterExport front-end 削除
 > 4. `docs/241_RELEASE_STATE_v373.5_SECRET_MANAGER_2026-05-20.md` — v373.5 Secret Manager 連携（操作者対応は GCP 利用判断時に延期）
 > 5. `docs/239_OPERATOR_GCP_SECRET_MANAGER_SETUP_2026-05-20.md` — 操作者 GCP セットアップ手順（延期中）
@@ -44,6 +48,8 @@ fixed deployment: integrated/public `@344` x2 / member split `@102` / admin spli
 > | 5 | v360-v373 実ブラウザ動作確認 | 名簿出力 Visual Designer / 公開ポータル staffUpdate / CM 番号緩和 等 |
 >
 > ### 4. 直近の重要変更（v373 系 / v372 系）
+> **v374 (2026-05-21・最新)**: WCAG 2.2 AA 自動アクセシビリティテスト基盤 + レスポンシブテスト回帰運用化。`@axe-core/playwright` 導入し `scripts/test-a11y.mjs` で公開ポータル 3 view を WCAG 2.2 AA タグで自動スキャン。CI mode で critical/serious gate 可能。`npm run test:a11y` / `test:responsive` / `test:responsive:admin` / `test:responsive:member` を package.json に登録。baseline run で `bg-emerald-600` + `text-white` の AA 未達 (4.46:1) を検出し `bg-emerald-700` (5.7:1) に修正済み。`docs/244` で WCAG 2.2 各 SC 別自己評価表 (Principle 1-4) を整備、`docs/245` で新 UI 追加時の必須チェックリスト (キーボード/ARIA/タップターゲット/コントラスト/レスポンシブ/色だけ非依存 + アンチパターン集) を文書化。半期レビュー (5/11月) サイクル確立。
+>
 > **v373.7 (2026-05-20・🎉Sprint S5 完了)**: 名簿出力 Sprint S5 第 2 弾（GAS バックエンド完全削除）。`gas-src/Code.full.gs` から旧 v316 テンプレートライブラリ系 4 関数 / v205 PDF chunk 系 25+ 関数 / v194 getMembersForRoster_ / validateTemplateSpreadsheet_ + 4 helpers / runRebuildSchemaForV360 内の Step 7 (一回実施済み migration) 等、計 -1,599 行 + 自動 pruning で 315 関数削減。ALLOWED_ACTIONS から 10 action 削除、dispatcher case 群削除、initializeSchema_ から旧キー seed 撤去、SystemSettings.rosterTemplateSsId 等 pass-through 撤去。T_システム設定 の旧キー行は data 保全のため残置。詳細 `docs/243`。Sprint S1〜S5 完了、v373 シリーズで -4,046 行削減。
 >
 > **v373.6 (2026-05-20)**: 名簿出力 Sprint S5 第 1 弾（front-end 完全削除）。`RosterExport.tsx` / `TemplateValidationPanel.tsx` / `TemplateHelpPage.tsx` / `RosterTemplateHelpDialog.tsx` の 4 component + App.tsx の 3 UI 領域 (template-help view / roster-export-legacy view / テンプレートライブラリ設定セクション 137 行) + 6 state + ApiClient の 10 メソッド + 旧型定義（RosterTemplate / RosterTarget / TemplateValidationResult / TemplateValidationKind / TemplateValidationCheck）+ scripts/replace_roster.mjs migration 一回限り script を完全削除。GAS 側は次セッションで Phase 2 として cleanup（handler 関数 / audit allowlist / SystemSettings.rosterTemplateSsId 等）。詳細 `docs/242`。

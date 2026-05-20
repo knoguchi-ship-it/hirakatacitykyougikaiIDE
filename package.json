@@ -26,6 +26,10 @@
     "security:secrets": "git log --diff-filter=A --name-only --pretty=format: | grep -E '\\.(env|pem|key|secret|credentials)$' || true",
     "test:search": "node --experimental-strip-types --no-warnings --test scripts/test-search.mts",
     "test:formula": "node --experimental-strip-types --no-warnings --test scripts/test-formula-eval.mts",
+    "test:a11y": "node scripts/test-a11y.mjs",
+    "test:responsive": "node scripts/responsive-test.mjs",
+    "test:responsive:admin": "node scripts/responsive-test-admin.mjs",
+    "test:responsive:member": "node scripts/responsive-test-member.mjs",
     "prerelease": "npm run security:audit && npm run security:public-boundary && npm run security:split-boundary && npm run typecheck && npm run test:search && npm run test:formula"
   },
   "dependencies": {
@@ -38,6 +42,7 @@
     "react-dom": "^19.2.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.3",
     "@google/clasp": "^3.2.0",
     "@tailwindcss/vite": "^4.2.2",
     "@types/google-apps-script": "^2.0.8",

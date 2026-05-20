@@ -349,7 +349,9 @@ const PublicApp: React.FC = () => {
               className="group rounded-[20px] border border-emerald-200 bg-[linear-gradient(135deg,#ecfdf5_0%,#ffffff_70%)] p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:rounded-[28px] sm:p-7"
             >
               {content.membershipBadgeEnabled && (
-                <div className="mb-5 inline-flex rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold tracking-[0.12em] text-white">
+                /* v374: WCAG 2.2 SC 1.4.3 Contrast (Minimum) — emerald-600 (#059669) on white は 4.46:1 で AA 未達。
+                   emerald-700 (#047857) で 5.7:1 を確保し AA 準拠。 */
+                <div className="mb-5 inline-flex rounded-full bg-emerald-700 px-3 py-1 text-xs font-semibold tracking-[0.12em] text-white">
                   {content.membershipBadgeLabel}
                 </div>
               )}
