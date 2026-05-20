@@ -146,14 +146,8 @@ export interface EmailTemplate {
   savedAt: string;
 }
 
-export interface RosterTemplate {
-  id: string;
-  name: string;         // 必須
-  ssId: string;
-  description?: string;
-  isDefault: boolean;
-  validatedAt?: string;
-}
+// v373.6 (S5): RosterTemplate interface 撤去（旧 RosterExport 削除に伴う）。
+// SystemSettings.rosterTemplates は型からは外したが、GAS 側 T_システム設定 行は次セッションで撤去予定。
 
 export interface SystemSettings {
   defaultBusinessStaffLimit: number;
@@ -162,9 +156,10 @@ export interface SystemSettings {
   annualFeeTransferAccount: TransferAccountInfo;
   trainingDefaultFieldConfig?: TrainingFieldConfig | null;
   // v194: PDF名簿出力 & 一括メール送信設定
-  rosterTemplateSsId?: string;    // v316で rosterTemplates へ移行（後方互換のため残存）
-  reminderTemplateSsId?: string;  // 同上
-  rosterTemplates?: RosterTemplate[]; // v316: テンプレートライブラリ
+  // v373.6 (S5): rosterTemplates 配列は撤去。rosterTemplateSsId/reminderTemplateSsId は
+  // GAS 側 T_システム設定 行が残っているため pass-through 用に型は維持（次セッションで撤去予定）
+  rosterTemplateSsId?: string;
+  reminderTemplateSsId?: string;
   bulkMailAutoAttachFolderId?: string;
   emailLogViewerRole?: string;
   // v209: 入会時認証情報メール設定

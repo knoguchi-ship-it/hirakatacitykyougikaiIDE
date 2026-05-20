@@ -1,16 +1,17 @@
 # 開発引継ぎ
 
-更新日: 2026-05-20（v373.5 まで本番反映済み・Secret Manager 連携）
-現行本番: **`v373.5`** / integrated-public GAS version `342` / member split GAS version `100` / admin split GAS version `151`
-fixed deployment: integrated/public `@342` x2 / member split `@100` / admin split `@151`
+更新日: 2026-05-20（v373.6 まで本番反映済み・旧 RosterExport front-end 削除）
+現行本番: **`v373.6`** / integrated-public GAS version `343` / member split GAS version `101` / admin split GAS version `152`
+fixed deployment: integrated/public `@343` x2 / member split `@101` / admin split `@152`
 
 > **🆕 次担当者向け再開ガイド（必読）**
 >
 > ### 1. まず読む順
 > 1. `AGENTS.md` §0 — シークレット絶対ルール
 > 2. 本 `HANDOVER.md` ヘッダー〜「v372 系包括サマリー」
-> 3. `docs/241_RELEASE_STATE_v373.5_SECRET_MANAGER_2026-05-20.md` — **v373.5 Secret Manager 連携（本番反映済み・最新・操作者対応必須）**
-> 4. `docs/239_OPERATOR_GCP_SECRET_MANAGER_SETUP_2026-05-20.md` — **操作者 30 分セットアップ手順（GCP API + Secret 作成 + IAM）**
+> 3. `docs/242_RELEASE_STATE_v373.6_ROSTER_S5_FRONTEND_CLEANUP_2026-05-20.md` — **v373.6 旧 RosterExport front-end 削除（本番反映済み・最新）**
+> 4. `docs/241_RELEASE_STATE_v373.5_SECRET_MANAGER_2026-05-20.md` — v373.5 Secret Manager 連携（操作者対応は GCP 利用判断時に延期）
+> 5. `docs/239_OPERATOR_GCP_SECRET_MANAGER_SETUP_2026-05-20.md` — 操作者 GCP セットアップ手順（延期中）
 > 5. `docs/240_DESIGN_CLOUD_RUN_ARGON2ID_2026-05-20.md` — 次段階（Cloud Run Argon2id 外部 KDF）設計書 + 実装雛形
 > 6. `docs/238_RELEASE_STATE_v373.4_ROSTER_ROW_FILTER_NOCODE_2026-05-20.md` — v373.4 行フィルタの no-code UI 化
 > 7. `docs/237_RELEASE_STATE_v373.3_ROSTER_STYLE_RULE_SIMPLIFY_2026-05-20.md` — v373.3 条件付き書式 UX 微調整
@@ -26,10 +27,10 @@ fixed deployment: integrated/public `@342` x2 / member split `@100` / admin spli
 > 9. `docs/12_ENGINEERING_RULEBOOK.md` / `docs/09_DEPLOYMENT_POLICY.md` — 開発・デプロイ標準
 >
 > ### 2. 現行本番デプロイ
-> - **統合 public legacy** `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` @342
-> - **統合 public 正式**   `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` @342
-> - **member split**     `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` @100
-> - **admin split**      `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` @151
+> - **統合 public legacy** `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` @343
+> - **統合 public 正式**   `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` @343
+> - **member split**     `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` @101
+> - **admin split**      `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` @152
 >
 > ### 3. 🔴 操作者の即時対応タスク（未完了・優先度高）
 > | # | タスク | 詳細 |
@@ -42,6 +43,8 @@ fixed deployment: integrated/public `@342` x2 / member split `@100` / admin spli
 > | 5 | v360-v373 実ブラウザ動作確認 | 名簿出力 Visual Designer / 公開ポータル staffUpdate / CM 番号緩和 等 |
 >
 > ### 4. 直近の重要変更（v373 系 / v372 系）
+> **v373.6 (2026-05-20・最新)**: 名簿出力 Sprint S5 第 1 弾（front-end 完全削除）。`RosterExport.tsx` / `TemplateValidationPanel.tsx` / `TemplateHelpPage.tsx` / `RosterTemplateHelpDialog.tsx` の 4 component + App.tsx の 3 UI 領域 (template-help view / roster-export-legacy view / テンプレートライブラリ設定セクション 137 行) + 6 state + ApiClient の 10 メソッド + 旧型定義（RosterTemplate / RosterTarget / TemplateValidationResult / TemplateValidationKind / TemplateValidationCheck）+ scripts/replace_roster.mjs migration 一回限り script を完全削除。GAS 側は次セッションで Phase 2 として cleanup（handler 関数 / audit allowlist / SystemSettings.rosterTemplateSsId 等）。詳細 `docs/242`。
+>
 > **v373.5 (2026-05-20・🔴最重要)**: パスワード pepper を Google Cloud Secret Manager 連携化。第三者評価 docs/172 (必須・破棄禁止 backlog) の第 1 弾完了。`getPasswordPepper_()` を CacheService → Secret Manager → Script Properties の 3 階層 fail-soft 化。3 split に `cloud-platform` scope 追加、`healthCheckPasswordPepper` admin top-level 関数追加。**operator 30 分対応必須 (docs/239)**。次段階 Cloud Run Argon2id 外部 KDF は `docs/240` で完全設計済 + `cloud-run/password-hash-service/` に実装雛形提供、本番反映は次セッション以降。
 >
 > v373.2 は **`docs/236_RELEASE_STATE_v373.2_ROSTER_UX_OVERHAUL_2026-05-20.md`**（名簿出力 UX 全面是正：PDF Portal 化 / 条件付き書式構造化 / 計算列プリセット化 / drag handle 改善）、v373.1 は **`docs/235_RELEASE_STATE_v373.1_ROSTER_S4_2026-05-20.md`**（S4 PDF 初版、v373.2 で修正）、v373 は **`docs/234_RELEASE_STATE_v373_ROSTER_S3_2026-05-20.md`**（S3 計算式+条件付き書式 初版、v373.2 で UI 刷新）、v372.9 は **`docs/232_RELEASE_STATE_v372.9_ROSTER_S2_DRAG_DROP_2026-05-20.md`**、残タスク整理は **`docs/233_HANDOVER_v372.9_NEXT_TASKS_2026-05-20.md`**、v372.8 は **`docs/231_RELEASE_STATE_v372.8_ROSTER_S2_FORMAT_WIDTH_2026-05-20.md`**、v372.7 は **`docs/230_SECURITY_REMEDIATION_DRIVE_PROXY_ALLOWLIST_2026-05-20.md`**、v372〜v372.6.1 の包括変更は **`docs/229_RELEASE_STATE_v372_to_v372.6.1_2026-05-20.md`** に集約。

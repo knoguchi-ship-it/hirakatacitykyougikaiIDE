@@ -137,22 +137,7 @@ export interface TrainingMailLogDetail {
   createdAt: string;
 }
 
-// v196: PDF名簿出力
-export interface RosterTarget {
-  memberId: string;
-  memberType: 'INDIVIDUAL' | 'BUSINESS' | 'SUPPORT';
-  displayName: string;
-  kana: string;
-  officeName: string;
-  memberStatus: string;
-  joinedDate: string;
-  withdrawnDate?: string;
-  annualFeeStatus: 'PAID' | 'UNPAID';
-  annualFeeYear: number;
-  /** v312: 利用可能な全年度の納入状況。未記録年度は UNPAID として返る */
-  annualFeeHistories: Record<number, 'PAID' | 'UNPAID'>;
-  enrolledStaffCount?: number; // BUSINESS のみ
-}
+// v373.6 (S5): RosterTarget interface 撤去（旧 RosterExport 削除に伴う、新 Roster Designer は RosterDesignerRow を使用）
 
 // v194: 会員一括メール送信
 export interface BulkMailRecipient {
@@ -184,27 +169,8 @@ export interface EmailSendLog {
   sendType: string;
 }
 
-export type TemplateValidationKind = 'ROSTER' | 'REMINDER';
-export type TemplateValidationStatus = 'pass' | 'warn' | 'fail' | 'info';
-
-export interface TemplateValidationCheck {
-  key: string;
-  label: string;
-  status: TemplateValidationStatus;
-  detail: string;
-}
-
-export interface TemplateValidationResult {
-  kind: TemplateValidationKind;
-  spreadsheetId: string;
-  spreadsheetUrl: string;
-  spreadsheetName: string;
-  summaryStatus: 'pass' | 'warn' | 'fail';
-  visibleSheets: string[];
-  hiddenSheets: string[];
-  checks: TemplateValidationCheck[];
-  recommendedActions: string[];
-}
+// v373.6 (S5): TemplateValidationKind / TemplateValidationResult / TemplateValidationCheck 撤去
+// （旧 TemplateValidationPanel 削除に伴う）
 
 // v207: 宛名リスト Excel 出力
 export type MailingListFilterType = 'KOHOUSHI' | 'OSHIRASE';

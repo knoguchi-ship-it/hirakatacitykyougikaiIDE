@@ -6,20 +6,17 @@ import TrainingManagement from './components/TrainingManagement';
 import TrainingApply from './components/TrainingApply';
 import AnnualFeeManagement from './components/AnnualFeeManagement';
 import BulkMailSender from './components/BulkMailSender';
-import RosterExport from './components/RosterExport';
 import RosterDesigner from './components/RosterDesigner';
 import MailingListExport from './components/MailingListExport';
 import OfficerMasterSettings from './components/OfficerMasterSettings';
 import OfficerManagement from './components/OfficerManagement';
 import PaymentHistoryConsole from './components/PaymentHistoryConsole';
 import ClaimManagementConsole from './components/ClaimManagementConsole';
-import TemplateHelpPage from './components/TemplateHelpPage';
-import TemplateValidationPanel from './components/TemplateValidationPanel';
 import MemberDeleteConsole from './components/MemberDeleteConsole';
 import ChangeRequestConsole from './components/ChangeRequestConsole';
 import MemberDetailAdmin from './components/MemberDetailAdmin';
 import StaffDetailAdmin from './components/StaffDetailAdmin';
-import { AdminDashboardData, AdminDashboardMemberRow, AdminDashboardStaffRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, RosterTemplate, Staff, StaffRole, SystemSettings, Training, TrainingFieldConfig, DEFAULT_FIELD_CONFIG } from './types';
+import { AdminDashboardData, AdminDashboardMemberRow, AdminDashboardStaffRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, Staff, StaffRole, SystemSettings, Training, TrainingFieldConfig, DEFAULT_FIELD_CONFIG } from './types';
 import { TRAINING_OPTIONAL_FIELD_DEFS } from './components/TrainingManagement';
 import { api, type AdminLoginResult, type MemberLoginResult, type MemberPortalLookup } from './services/api';
 import { callApi } from './shared/api-base';
@@ -469,13 +466,8 @@ const App: React.FC = () => {
   // v194: PDF名簿出力 & 一括メール送信設定
   const [rosterTemplateSsIdInput, setRosterTemplateSsIdInput] = useState('');
   const [reminderTemplateSsIdInput, setReminderTemplateSsIdInput] = useState('');
-  // v316: テンプレートライブラリ
-  const [rosterTemplates, setRosterTemplates] = useState<RosterTemplate[]>([]);
-  const [templateLibBusy, setTemplateLibBusy] = useState(false);
-  const [templateLibError, setTemplateLibError] = useState<string | null>(null);
-  const [templateAddForm, setTemplateAddForm] = useState<{ name: string; ssId: string; description: string } | null>(null);
-  const [templateEditId, setTemplateEditId] = useState<string | null>(null);
-  const [templateEditForm, setTemplateEditForm] = useState<{ name: string; ssId: string; description: string }>({ name: '', ssId: '', description: '' });
+  // v373.6 (S5): 旧 RosterExport テンプレートライブラリ state は撤去。
+  // GAS 側の T_システム設定.ROSTER_TEMPLATE_LIST は次セッションで撤去予定。
   const [bulkMailAutoAttachFolderIdInput, setBulkMailAutoAttachFolderIdInput] = useState('');
   const [emailLogViewerRoleInput, setEmailLogViewerRoleInput] = useState('MASTER');
   // v209: 入会時認証情報メール設定
@@ -637,7 +629,6 @@ const App: React.FC = () => {
     // v194
     setRosterTemplateSsIdInput(systemSettings.rosterTemplateSsId ?? '');
     setReminderTemplateSsIdInput(systemSettings.reminderTemplateSsId ?? '');
-    setRosterTemplates(systemSettings.rosterTemplates ?? []);
     setBulkMailAutoAttachFolderIdInput(systemSettings.bulkMailAutoAttachFolderId ?? '');
     setEmailLogViewerRoleInput(systemSettings.emailLogViewerRole ?? 'MASTER');
     // v209
@@ -3168,17 +3159,7 @@ const App: React.FC = () => {
       );
     }
 
-    if (currentView === 'template-help') {
-      if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
-        return <div className="text-red-500 p-4">管理コンソールへのアクセス権限がありません。</div>;
-      }
-      return (
-        <TemplateHelpPage
-          onBack={() => setCurrentView('roster-export')}
-          onOpenSettings={() => setCurrentView('admin-settings')}
-        />
-      );
-    }
+    // v373.6 (S5): template-help view 撤去（旧 TemplateHelpPage 削除に伴う）
 
     if (currentView === 'admin-settings') {
       if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
@@ -3362,143 +3343,7 @@ const App: React.FC = () => {
             description="名簿出力、一括メール、自動添付に使う外部リソースや閲覧権限を管理します。頻度は低めですが、誤設定の影響が大きい領域です。"
             badge="管理者向け"
           >
-            {/* v316: テンプレートライブラリ */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-semibold text-slate-800">テンプレートライブラリ</h4>
-                <button
-                  type="button"
-                  onClick={() => setTemplateAddForm({ name: '', ssId: '', description: '' })}
-                  disabled={!!templateAddForm}
-                  className="rounded-lg border border-primary-600 px-3 py-1.5 text-xs font-medium text-primary-600 hover:bg-primary-50 disabled:opacity-40"
-                >
-                  + テンプレートを追加
-                </button>
-              </div>
-              {templateLibError && (
-                <p className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{templateLibError}</p>
-              )}
-              {/* 追加フォーム */}
-              {templateAddForm && (
-                <div className="rounded-lg border border-primary-200 bg-primary-50 p-4 space-y-2">
-                  <p className="text-xs font-semibold text-primary-700">新規テンプレートを追加</p>
-                  <input type="text" placeholder="テンプレート名（必須）" maxLength={60}
-                    value={templateAddForm.name}
-                    onChange={(e) => setTemplateAddForm((f) => f ? { ...f, name: e.target.value } : f)}
-                    className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm" />
-                  <input type="text" placeholder="スプレッドシートID または URL（必須）"
-                    value={templateAddForm.ssId}
-                    onChange={(e) => setTemplateAddForm((f) => f ? { ...f, ssId: e.target.value } : f)}
-                    className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm font-mono" />
-                  <input type="text" placeholder="説明（任意）" maxLength={100}
-                    value={templateAddForm.description}
-                    onChange={(e) => setTemplateAddForm((f) => f ? { ...f, description: e.target.value } : f)}
-                    className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm" />
-                  <div className="flex gap-2">
-                    <button type="button" disabled={templateLibBusy || !templateAddForm.name.trim() || !templateAddForm.ssId.trim()}
-                      onClick={async () => {
-                        if (!templateAddForm) return;
-                        setTemplateLibBusy(true); setTemplateLibError(null);
-                        try {
-                          const updated = await api.saveRosterTemplate({ name: templateAddForm.name.trim(), ssId: templateAddForm.ssId.trim(), description: templateAddForm.description.trim() });
-                          setRosterTemplates(updated); setTemplateAddForm(null);
-                        } catch (e: any) { setTemplateLibError(e?.message ?? '保存に失敗しました'); }
-                        finally { setTemplateLibBusy(false); }
-                      }}
-                      className="rounded-lg bg-primary-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-primary-700 disabled:opacity-40">
-                      {templateLibBusy ? '保存中...' : '保存'}
-                    </button>
-                    <button type="button" onClick={() => setTemplateAddForm(null)} className="rounded-lg border border-slate-300 px-4 py-1.5 text-xs text-slate-600 hover:bg-slate-50">キャンセル</button>
-                  </div>
-                </div>
-              )}
-              {/* テンプレート一覧 */}
-              {rosterTemplates.length === 0 && !templateAddForm && (
-                <p className="text-sm text-slate-400">テンプレートがまだ登録されていません。</p>
-              )}
-              {rosterTemplates.map((tmpl) => (
-                <div key={tmpl.id} className="rounded-lg border border-slate-200 bg-white p-4 space-y-2">
-                  {templateEditId === tmpl.id ? (
-                    <div className="space-y-2">
-                      <input type="text" placeholder="テンプレート名（必須）" maxLength={60}
-                        value={templateEditForm.name}
-                        onChange={(e) => setTemplateEditForm((f) => ({ ...f, name: e.target.value }))}
-                        className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm" />
-                      <input type="text" placeholder="スプレッドシートID または URL"
-                        value={templateEditForm.ssId}
-                        onChange={(e) => setTemplateEditForm((f) => ({ ...f, ssId: e.target.value }))}
-                        className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm font-mono" />
-                      <input type="text" placeholder="説明（任意）" maxLength={100}
-                        value={templateEditForm.description}
-                        onChange={(e) => setTemplateEditForm((f) => ({ ...f, description: e.target.value }))}
-                        className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm" />
-                      <div className="flex gap-2">
-                        <button type="button" disabled={templateLibBusy || !templateEditForm.name.trim() || !templateEditForm.ssId.trim()}
-                          onClick={async () => {
-                            setTemplateLibBusy(true); setTemplateLibError(null);
-                            try {
-                              const updated = await api.saveRosterTemplate({ id: tmpl.id, name: templateEditForm.name.trim(), ssId: templateEditForm.ssId.trim(), description: templateEditForm.description.trim() });
-                              setRosterTemplates(updated); setTemplateEditId(null);
-                            } catch (e: any) { setTemplateLibError(e?.message ?? '保存に失敗しました'); }
-                            finally { setTemplateLibBusy(false); }
-                          }}
-                          className="rounded-lg bg-primary-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-primary-700 disabled:opacity-40">
-                          {templateLibBusy ? '保存中...' : '更新'}
-                        </button>
-                        <button type="button" onClick={() => setTemplateEditId(null)} className="rounded-lg border border-slate-300 px-4 py-1.5 text-xs text-slate-600 hover:bg-slate-50">キャンセル</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          {tmpl.isDefault && <span className="text-amber-500 text-xs font-bold">★ デフォルト</span>}
-                          <span className="font-medium text-sm text-slate-800 truncate">{tmpl.name}</span>
-                        </div>
-                        {tmpl.description && <p className="text-xs text-slate-500 mt-0.5">{tmpl.description}</p>}
-                        <p className="text-xs text-slate-400 font-mono mt-0.5 truncate">{tmpl.ssId}</p>
-                      </div>
-                      <div className="flex shrink-0 gap-1">
-                        {!tmpl.isDefault && (
-                          <button type="button" title="デフォルトに設定" disabled={templateLibBusy}
-                            onClick={async () => {
-                              setTemplateLibBusy(true); setTemplateLibError(null);
-                              try { setRosterTemplates(await api.setDefaultRosterTemplate(tmpl.id)); }
-                              catch (e: any) { setTemplateLibError(e?.message ?? 'エラー'); }
-                              finally { setTemplateLibBusy(false); }
-                            }}
-                            className="rounded px-2 py-1 text-xs border border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-40">★</button>
-                        )}
-                        <button type="button" disabled={templateLibBusy}
-                          onClick={() => { setTemplateEditId(tmpl.id); setTemplateEditForm({ name: tmpl.name, ssId: tmpl.ssId, description: tmpl.description ?? '' }); }}
-                          className="rounded px-2 py-1 text-xs border border-slate-300 text-slate-600 hover:bg-slate-50 disabled:opacity-40">編集</button>
-                        <button type="button" disabled={templateLibBusy}
-                          onClick={async () => {
-                            if (!window.confirm(`「${tmpl.name}」を削除しますか？`)) return;
-                            setTemplateLibBusy(true); setTemplateLibError(null);
-                            try { setRosterTemplates(await api.deleteRosterTemplate(tmpl.id)); }
-                            catch (e: any) { setTemplateLibError(e?.message ?? 'エラー'); }
-                            finally { setTemplateLibBusy(false); }
-                          }}
-                          className="rounded px-2 py-1 text-xs border border-rose-300 text-rose-600 hover:bg-rose-50 disabled:opacity-40">削除</button>
-                      </div>
-                    </div>
-                  )}
-                  {/* 検証パネル（テンプレートごと） */}
-                  {templateEditId !== tmpl.id && (
-                    <TemplateValidationPanel
-                      api={api}
-                      rosterTemplateSsId={tmpl.ssId}
-                      reminderTemplateSsId=""
-                      onRosterTemplateChange={() => {}}
-                      onReminderTemplateChange={() => {}}
-                      onOpenHelp={() => setCurrentView('template-help')}
-                      singleMode
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
+            {/* v373.6 (S5): 旧テンプレートライブラリ UI 撤去（外部 Google Sheets テンプレ依存型）。新名簿 Visual Designer に統合済み。 */}
             <div className="border-t border-slate-200 pt-4 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">一括メール自動添付DriveフォルダID</label>
@@ -5023,21 +4868,7 @@ const App: React.FC = () => {
       return <RosterDesigner api={api} />;
     }
 
-    // v372: 旧 RosterExport は到達不能（Sidebar 非表示化）。S5 で削除。
-    if (currentView === 'roster-export-legacy') {
-      if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
-        return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
-      }
-      return (
-        <RosterExport
-          api={api}
-          templates={rosterTemplates}
-          onTemplatesChange={setRosterTemplates}
-          onOpenHelp={() => setCurrentView('template-help')}
-          onOpenSettings={() => setCurrentView('admin-settings')}
-        />
-      );
-    }
+    // v373.6 (S5): roster-export-legacy view 撤去（旧 RosterExport 削除に伴う）
 
     if (currentView === 'mailing-list-export') {
       if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
