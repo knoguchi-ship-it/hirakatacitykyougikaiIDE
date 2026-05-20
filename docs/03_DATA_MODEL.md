@@ -740,9 +740,33 @@ v360 以降、研修申込者の識別は **3 つの独立した FK 列の XOR �
 ### 4.9 `T_システム設定` — メインDB
 
 主キー: `設定キー`。代表的なキー：
-- `CREDENTIAL_EMAIL_ENABLED` / `CREDENTIAL_EMAIL_FROM` / `CREDENTIAL_EMAIL_SUBJECT` / `CREDENTIAL_EMAIL_BODY`
+
+**メール送信設定（既存 + v371 / v372 系で拡張）**:
+- 既存カテゴリ（v265 / v368）:
+  - `CREDENTIAL_EMAIL_ENABLED` / `_FROM` / `_SUBJECT` / `_BODY` — 入会時認証情報メール
+  - `BIZ_REP_EMAIL_*` / `BIZ_STAFF_EMAIL_*` — 事業所入会時メール
+  - `STAFF_ADD_REP_EMAIL_*` / `STAFF_ADD_STAFF_EMAIL_*` — 職員追加承認メール
+  - `IND_SUPP_EMAIL_ENABLED` — 個人・賛助会員入会メール
+  - `APPLICATION_RECEIPT_*` / `APPROVAL_NOTIFICATION_*` / `REJECTION_NOTIFICATION_*` — 変更申請ワークフローメール
+- **v371.x 4 階層ガード**:
+  - `MAIL_GLOBAL_ENABLED` — 全停止スイッチ（initial=false で safe-stop）
+  - `MAIL_DELIVERY_MODE` — `LIVE` / `REDIRECT` / `SUPPRESS`
+  - `MAIL_REDIRECT_ALLOWLIST` — REDIRECT モード時の宛先（カンマ区切り）
+  - 補完カテゴリ ENABLED: `TRAINING_APPLY_RECEIPT_ENABLED` / `TRAINING_REMINDER_ENABLED` / `BULK_MAIL_ENABLED` / `AUTH_OTP_ENABLED` / `MEMBER_UPDATE_CONFIRM_ENABLED` / `WITHDRAWAL_CONFIRM_ENABLED` / `PASSWORD_RESET_ENABLED`
+  - 詳細設計: `docs/227_MAIL_KILL_SWITCH_2026-05-18.md`
+
+**公開ポータル設定**:
 - `PUBLIC_PORTAL_*`（公開ポータル各カードの表示設定）
+
+**年会費・名簿**:
 - `ANNUAL_FEE_TRANSFER_ACCOUNT`
+- `ROSTER_TEMPLATE_LIST`（v316〜・legacy・S5 で削除予定）
+- `ROSTER_TEMPLATE_LIBRARY_V2`（v372〜・Visual Designer 用 JSON 配列）
+
+**運用パラメータ**:
+- `DEFAULT_BUSINESS_STAFF_LIMIT` / `TRAINING_HISTORY_LOOKBACK_MONTHS`
+- `TRAINING_FILE_FOLDER_ID` / `CLAIM_ATTACHMENT_FOLDER_ID`
+- `BULK_MAIL_AUTO_ATTACH_FOLDER_ID` / `EMAIL_LOG_VIEWER_ROLE`（MASTER 限定）
 
 ### 4.10 `T_会員_archive` / `T_事業所職員_archive` — メインDB（v261追加）
 
@@ -760,7 +784,7 @@ v360 以降、研修申込者の識別は **3 つの独立した FK 列の XOR �
 | `会員種別コード` | string | INDIVIDUAL / BUSINESS |
 | `申請種別コード` | string | MEMBER_APPLICATION / MEMBER_UPDATE / WITHDRAWAL / STAFF_ADD / STAFF_REMOVE |
 | `申請状態コード` | string | PENDING / APPROVED / REJECTED |
-| `申請内容JSON` | JSON | `MEMBER_APPLICATION` は `{ applicationPayload: {...} }`、変更系は `{ fields: {}, staffAdd: [], staffRemove: [] }` |
+| `申請内容JSON` | JSON | `MEMBER_APPLICATION` は `{ applicationPayload: {...} }`、変更系は `{ fields: {}, staffAdd: [], staffRemove: [], staffUpdate: [] }`（**v372.5〜**で `staffUpdate` 追加：既存職員の情報変更）。`staffUpdate` の各要素は `{staffId, lastName?, firstName?, lastKana?, firstKana?, email?, careManagerNumber?}` の形式で、入力されたフィールドのみ含む。承認時に `updateStaff_` 経由で適用、メール変更時は旧・新両方に通知。 |
 | `連絡先メールアドレス` | string | 申請者入力の返信専用メール（DBとは別） |
 | `申請者表示名` | string | 申請者の氏名 or 事業所名 |
 | `申請日時` | datetime ISO | |
@@ -940,7 +964,9 @@ GAS コードは `getLogSs_()` 経由でアクセスする。`LOG_SPREADSHEET_ID
 
 | バージョン | 日付 | 変更概要 |
 |---|---|---|
+| 2026-05-20-public-staff-update-v372.5 | 2026-05-20 | v372.5〜v372.6.1 本番反映。公開ポータルの「会員登録情報を変更する」フローに **「職員情報を変更する」** を追加（事業所会員のみ）。`T_変更申請.申請内容JSON` の構造に `staffUpdate: Array<{staffId, lastName?, firstName?, lastKana?, firstKana?, email?, careManagerNumber?}>` を追加（カラム追加はなし）。承認時に `updateStaff_` 経由で適用。メール変更時は旧アドレス・新アドレス両方に通知。v372.6 で HMAC token UTF-8 charset 明示で日本語化け修正、全空申請の拒否、デザイン整合性改善。v372.6.1 で送信ボタン disable + ヒント表示。 |
 | 2026-05-19-cm-relaxed-admin-v372.4 | 2026-05-19 | v372.4 本番反映。介護支援専門員番号のバリデーションを **基本 8 桁半角数字** に維持しつつ、admin（MASTER/ADMIN）の `MemberDetailAdmin` / `StaffDetailAdmin` 編集画面でのみ **例外として 1〜10 桁の半角英数字**を許容。地域包括支援センターに所属する介護支援専門員以外（看護師: HN+番号下8桁 / 社会福祉士: HS+番号下8桁）の登録に対応。DB 保存時に大文字化、`normalizeCmNumberForKey_` で重複検索も大文字統一。既存純数字データは正規化後も同値で互換。 |
+| 2026-05-19-roster-designer-v372 | 2026-05-19 | v372 S1 本番反映。名簿出力 Visual Designer 第1段階。`T_システム設定.ROSTER_TEMPLATE_LIBRARY_V2`（JSON 配列）を新規追加。旧 `ROSTER_TEMPLATE_LIST` は legacy として残置（S5 で削除予定）。 |
 | 2026-05-16-training-roster-v360 | 2026-05-16 | v361 本番コード反映済み。研修名簿・出欠・一括メール明細を整備。`M_出欠状態` 新規マスタ、`T_研修申込` に `外部申込者ID` / `出欠状態コード` / `出欠記録日時` / `出欠記録者メール` / `事務局メモ` を追加（2-FK 化）、`T_メール送信明細` を新規追加、`T_メール送信ログ.研修ID` を拡張、`T_システム設定.ROSTER_TEMPLATE_LIST` の JSON エントリに `category` を追加。admin split の `runRebuildSchemaForV360` 手動実行は未完了。 |
 | 2026-05-12-member-status-note-v1 | 2026-05-12 | v340 本番反映。`T_会員.ステータスメモ` を末尾列として追加し、管理者コンソール専用項目にした。既存シートの header 上書き前に name-based migration を走らせる schema initialization guard を反映。 |
 | 2026-05-12-member-transfer-v1 | 2026-05-12 | v335 本番反映。公開ポータル入会申込を変更申請キュー化し、`M_会員状態.TRANSFERRED`、`T_会員.移行日`、`T_人物統合ログ` を追加。 |

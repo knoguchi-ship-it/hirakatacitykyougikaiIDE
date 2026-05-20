@@ -32,8 +32,11 @@
 
 | 文書 | 内容 |
 |---|---|
-| `docs/226_HANDOVER_DRYRUN_2026-05-17.md` | **最新引継ぎ** dryRun synthetic transaction フレームワーク導入、6/7 シナリオ PASS、operator 残作業と Git 整理方針 |
-| `docs/225_RELEASE_STATE_v360_to_v370_2026-05-17.md` | **最新本番** v360〜v370 統合正本。現行本番 v370、integrated-public `@329` x2 / member `@87` / admin `@129` |
+| `docs/229_RELEASE_STATE_v372_to_v372.6.1_2026-05-20.md` | **🆕 最新本番** v372〜v372.6.1（全 8 リリース）統合正本。名簿出力 Visual Designer / CM 番号 admin 例外 / 公開ポータル staffUpdate / UTF-8 文字化け修正 / 送信ボタン disable。integrated-public `@340` x2 / member `@98` / admin `@142`。第三者評価自己診断付き |
+| `docs/228_ROSTER_REDESIGN_2026-05-19.md` | 名簿出力 全面刷新設計書（5 Sprint 計画）。Visual Template Designer 内蔵化・統合フィールド・Tab 式 2 ステップ |
+| `docs/227_MAIL_KILL_SWITCH_2026-05-18.md` | メール送信 4 階層ガード設計書（v371.x）。GLOBAL/MODE/ALLOWLIST/CATEGORY 動作モード一覧 |
+| `docs/226_HANDOVER_DRYRUN_2026-05-17.md` | dryRun synthetic transaction フレームワーク導入、6/7 シナリオ PASS |
+| `docs/225_RELEASE_STATE_v360_to_v370_2026-05-17.md` | v360〜v370 統合正本（参考・旧版） |
 | `docs/224_RESUME_v360_2026-05-16.md` | v360/v361 作業再開ガイド。schema migration と実ブラウザ確認の operator 残作業 |
 | `docs/223_RELEASE_STATE_v360_2026-05-16.md` | v360 研修名簿・出欠管理・一括メール明細・DB schema 変更の詳細 |
 | `docs/222_RELEASE_STATE_v359_2026-05-16.md` | v359。会員ログイン高速化、ログインID保存、パスワード表示切替、パスワード再設定メール導線。integrated-public `@317` x2 / member `@74` / admin `@115` |

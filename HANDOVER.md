@@ -1,8 +1,42 @@
 # 開発引継ぎ
 
-更新日: 2026-05-19（v372 S1 名簿出力 Visual Designer 骨組み）
-現行本番: **`v372 S1`**（Roster Visual Designer 第1段階・フィールド辞書 + 列ビルダー + CSV + 件数表示） / integrated-public GAS version `333` / member split GAS version `91` / admin split GAS version `134`
-fixed deployment: integrated/public `@333` x2 / member split `@91` / admin split `@134`
+更新日: 2026-05-20（v372.6.1 まで本番反映済み・次担当者引継ぎ刷新）
+現行本番: **`v372.6.1`** / integrated-public GAS version `340` / member split GAS version `98` / admin split GAS version `142`
+fixed deployment: integrated/public `@340` x2 / member split `@98` / admin split `@142`
+
+> **🆕 次担当者向け再開ガイド（必読）**
+>
+> ### 1. まず読む順
+> 1. `AGENTS.md` §0 — シークレット絶対ルール
+> 2. 本 `HANDOVER.md` ヘッダー〜「v372 系包括サマリー」
+> 3. `docs/229_RELEASE_STATE_v372_to_v372.6.1_2026-05-20.md` — v372 系全リリースの設計・実装・運用詳細
+> 4. `docs/03_DATA_MODEL.md` — 最新スキーマ（ER 図 + バリデーション規約 + バージョン履歴）
+> 5. `docs/12_ENGINEERING_RULEBOOK.md` / `docs/09_DEPLOYMENT_POLICY.md` — 開発・デプロイ標準
+>
+> ### 2. 現行本番デプロイ
+> - **統合 public legacy** `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` @340
+> - **統合 public 正式**   `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` @340
+> - **member split**     `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` @98
+> - **admin split**      `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` @142
+>
+> ### 3. 🔴 操作者の即時対応タスク（未完了・優先度高）
+> | # | タスク | 詳細 |
+> |---|---|---|
+> | 1 | `runRebuildSchemaForV360` Run | admin Apps Script editor で 1 回。v360 schema migration（未実行だと一括メール明細が動作不可） |
+> | 2 | `setupPendingThumbnailsTrigger` Run | admin Apps Script editor で 1 回。PDF サムネイル後追い再生成 10 分 trigger 登録 |
+> | 3 | `cleanupCorruptChangeRequestsV372` Run | admin Apps Script editor で 1 回。文字化け申請レコード soft-delete |
+> | 4 | メール送信制御の確認 | admin → システム設定 → メール通知 → 「メール送信制御」セクションで `MAIL_GLOBAL_ENABLED=false`（safe-stop）状態を確認 |
+> | 5 | v360-v372 実ブラウザ動作確認 | 名簿出力 Visual Designer / 公開ポータル staffUpdate / CM 番号緩和 等 |
+>
+> ### 4. 直近の重要変更（v372 系・全 7 リリース）
+> v372 / v372.1 / v372.2 / v372.3 / v372.4 / v372.5 / v372.6 / v372.6.1 の包括変更は **`docs/229_RELEASE_STATE_v372_to_v372.6.1_2026-05-20.md`** に集約。
+>
+> ### 5. 既知の制約・要注意事項
+> - **メール送信は safe-stop**: `MAIL_GLOBAL_ENABLED=false` で起動。テスト目的なら REDIRECT モードに切替（system 設定 UI）
+> - **PDF サムネイル**: Drive 側の thumbnail 生成タイミングで `案内状サムネイルURL` が空着地する場合あり。`processPendingThumbnails` trigger で自動修復（trigger 未登録だと永続）
+> - **介護支援専門員番号**: 公開ポータルは厳格 8 桁数字。admin（MASTER/ADMIN）画面でのみ 1-10 桁英数字を許容（HN/HS プレフィックス対応）。詳細 docs/03_DATA_MODEL.md §4.1
+> - **名簿出力 旧 RosterExport.tsx**: legacy として残存。Sprint S5 で完全削除予定（PDF レンダリング刷新が完成後）
+> - **公開ポータル変更申請**: v372.5 で staffUpdate（既存職員情報変更）を追加。v372.6 で UTF-8 文字化けバグ修正
 
 > **🆕 2026-05-19 v372 S1 本番反映済み（名簿出力 Visual Designer 第1段階）**
 >
