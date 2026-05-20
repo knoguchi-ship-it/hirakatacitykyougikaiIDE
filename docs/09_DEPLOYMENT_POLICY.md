@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-05-20
-Production: `v372.7` / integrated-public fixed deployments `@341` x2 / member split `@99` / admin split `@143`
+Production: `v372.8` / integrated-public fixed deployments `@341` x2 / member split `@99` / admin split `@144`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -19,15 +19,15 @@ Production: `v372.7` / integrated-public fixed deployments `@341` x2 / member sp
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@341` (`v372.7`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@341` (`v372.7`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@341` (`v372.7`, unchanged in v372.8) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@341` (`v372.7`, unchanged in v372.8) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@99` (`v372.7`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@143` (`v372.7`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@99` (`v372.7`, unchanged in v372.8) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@144` (`v372.8`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -144,7 +144,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-05-20 `v372.7` ← current production
+### 2026-05-20 `v372.8` ← current production
+- Scope: 名簿出力 Visual Designer S2 部分対応。列幅と日付/数値書式をテンプレ列へ設定できるようにし、プレビューと CSV 出力へ反映。admin split のみ変更。
+- Integrated fixed deployments: `@341` x2（変更なし）
+- Member split: `@99`（変更なし）
+- Admin split: `@144`
+- Detail: `docs/231_RELEASE_STATE_v372.8_ROSTER_S2_FORMAT_WIDTH_2026-05-20.md`
+- Verification: `npm run prerelease` PASS、`npx clasp deployments --json` で admin fixed deployment `@144` を確認済み。
+
+### 2026-05-20 `v372.7`
 - Scope: 第三者評価 #1 の是正。Drive bytes / thumbnail proxy を `T_研修.案内状URL` / `案内状サムネイルURL` に登録された fileId のみに制限し、未許可 fileId は fail-closed にする。
 - Integrated fixed deployments: `@341` x2
 - Member split: `@99`

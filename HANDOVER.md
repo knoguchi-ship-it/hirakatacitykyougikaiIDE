@@ -1,24 +1,25 @@
 # 開発引継ぎ
 
-更新日: 2026-05-20（v372.7 まで本番反映済み・第三者評価 #1 是正）
-現行本番: **`v372.7`** / integrated-public GAS version `341` / member split GAS version `99` / admin split GAS version `143`
-fixed deployment: integrated/public `@341` x2 / member split `@99` / admin split `@143`
+更新日: 2026-05-20（v372.8 まで本番反映済み・名簿出力 S2 部分対応）
+現行本番: **`v372.8`** / integrated-public GAS version `341` / member split GAS version `99` / admin split GAS version `144`
+fixed deployment: integrated/public `@341` x2 / member split `@99` / admin split `@144`
 
 > **🆕 次担当者向け再開ガイド（必読）**
 >
 > ### 1. まず読む順
 > 1. `AGENTS.md` §0 — シークレット絶対ルール
 > 2. 本 `HANDOVER.md` ヘッダー〜「v372 系包括サマリー」
-> 3. `docs/230_SECURITY_REMEDIATION_DRIVE_PROXY_ALLOWLIST_2026-05-20.md` — v372.7 Drive proxy allowlist 是正（本番反映済み）
-> 4. `docs/229_RELEASE_STATE_v372_to_v372.6.1_2026-05-20.md` — v372〜v372.6.1 の設計・実装・運用詳細
-> 5. `docs/03_DATA_MODEL.md` — 最新スキーマ（ER 図 + バリデーション規約 + バージョン履歴）
-> 6. `docs/12_ENGINEERING_RULEBOOK.md` / `docs/09_DEPLOYMENT_POLICY.md` — 開発・デプロイ標準
+> 3. `docs/231_RELEASE_STATE_v372.8_ROSTER_S2_FORMAT_WIDTH_2026-05-20.md` — v372.8 名簿出力 S2 部分対応（本番反映済み）
+> 4. `docs/230_SECURITY_REMEDIATION_DRIVE_PROXY_ALLOWLIST_2026-05-20.md` — v372.7 Drive proxy allowlist 是正（本番反映済み）
+> 5. `docs/229_RELEASE_STATE_v372_to_v372.6.1_2026-05-20.md` — v372〜v372.6.1 の設計・実装・運用詳細
+> 6. `docs/03_DATA_MODEL.md` — 最新スキーマ（ER 図 + バリデーション規約 + バージョン履歴）
+> 7. `docs/12_ENGINEERING_RULEBOOK.md` / `docs/09_DEPLOYMENT_POLICY.md` — 開発・デプロイ標準
 >
 > ### 2. 現行本番デプロイ
 > - **統合 public legacy** `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` @341
 > - **統合 public 正式**   `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` @341
 > - **member split**     `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` @99
-> - **admin split**      `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` @143
+> - **admin split**      `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` @144
 >
 > ### 3. 🔴 操作者の即時対応タスク（未完了・優先度高）
 > | # | タスク | 詳細 |
@@ -29,8 +30,8 @@ fixed deployment: integrated/public `@341` x2 / member split `@99` / admin split
 > | 4 | メール送信制御の確認 | admin → システム設定 → メール通知 → 「メール送信制御」セクションで `MAIL_GLOBAL_ENABLED=false`（safe-stop）状態を確認 |
 > | 5 | v360-v372 実ブラウザ動作確認 | 名簿出力 Visual Designer / 公開ポータル staffUpdate / CM 番号緩和 等 |
 >
-> ### 4. 直近の重要変更（v372 系・全 7 リリース）
-> v372 / v372.1 / v372.2 / v372.3 / v372.4 / v372.5 / v372.6 / v372.6.1 の包括変更は **`docs/229_RELEASE_STATE_v372_to_v372.6.1_2026-05-20.md`** に集約。
+> ### 4. 直近の重要変更（v372 系）
+> v372.8 は **`docs/231_RELEASE_STATE_v372.8_ROSTER_S2_FORMAT_WIDTH_2026-05-20.md`**、v372.7 は **`docs/230_SECURITY_REMEDIATION_DRIVE_PROXY_ALLOWLIST_2026-05-20.md`**、v372〜v372.6.1 の包括変更は **`docs/229_RELEASE_STATE_v372_to_v372.6.1_2026-05-20.md`** に集約。
 >
 > ### 5. 既知の制約・要注意事項
 > - **v372.7 security remediation 反映済み**: 2026-05-20 第三者評価 #1 対応として、Drive bytes / thumbnail proxy を `T_研修.案内状URL` / `案内状サムネイルURL` 登録 fileId のみに制限。integrated/public `@341` x2 / member `@99` / admin `@143`。詳細: `docs/230_SECURITY_REMEDIATION_DRIVE_PROXY_ALLOWLIST_2026-05-20.md`。
@@ -39,6 +40,12 @@ fixed deployment: integrated/public `@341` x2 / member split `@99` / admin split
 > - **介護支援専門員番号**: 公開ポータルは厳格 8 桁数字。admin（MASTER/ADMIN）画面でのみ 1-10 桁英数字を許容（HN/HS プレフィックス対応）。詳細 docs/03_DATA_MODEL.md §4.1
 > - **名簿出力 旧 RosterExport.tsx**: legacy として残存。Sprint S5 で完全削除予定（PDF レンダリング刷新が完成後）
 > - **公開ポータル変更申請**: v372.5 で staffUpdate（既存職員情報変更）を追加。v372.6 で UTF-8 文字化けバグ修正
+
+> **🆕 2026-05-20 v372.8 本番反映済み（名簿出力 S2 部分対応: 列幅・書式）**
+>
+> **対応**: 名簿出力 Visual Designer の列ごとに列幅（60〜320px）と日付/数値書式を設定できるようにし、プレビューと CSV 出力へ反映。既存 `RosterColumnDef.width` / `align` / `format` を使用するため DB スキーマ変更なし。
+>
+> **デプロイ**: admin split `@144` のみ更新。integrated/public `@341` x2、member split `@99` は変更なし。詳細: `docs/231_RELEASE_STATE_v372.8_ROSTER_S2_FORMAT_WIDTH_2026-05-20.md`
 
 > **🆕 2026-05-20 v372.7 本番反映済み（第三者評価 #1 Drive proxy allowlist）**
 >
@@ -282,7 +289,7 @@ fixed deployment: integrated/public `@341` x2 / member split `@99` / admin split
 | 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@341` |
 | 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@341` |
 | 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@99` |
-| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@143` |
+| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@144` |
 
 ## 4. 直近リリース
 

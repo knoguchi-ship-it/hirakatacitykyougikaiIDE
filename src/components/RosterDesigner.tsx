@@ -63,6 +63,57 @@ const fmtValue = (raw: unknown, type: string, enumLabels?: Record<string, string
   return s;
 };
 
+const FORMAT_OPTIONS_BY_TYPE: Record<string, Array<{ value: string; label: string }>> = {
+  string: [{ value: '', label: '標準' }],
+  enum: [{ value: '', label: '標準' }],
+  boolean: [{ value: '', label: '標準' }],
+  date: [
+    { value: '', label: '標準' },
+    { value: 'yyyy-MM-dd', label: '2026-05-20' },
+    { value: 'yyyy/MM/dd', label: '2026/05/20' },
+    { value: 'ja-date', label: '2026年5月20日' },
+  ],
+  number: [
+    { value: '', label: '標準' },
+    { value: '#,##0', label: '1,234' },
+    { value: 'currency-jpy', label: '1,234円' },
+  ],
+};
+
+const formatDateValue = (raw: string, format?: string): string => {
+  if (!raw || !format) return raw;
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return raw;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  if (format === 'yyyy-MM-dd') return `${y}-${m}-${day}`;
+  if (format === 'yyyy/MM/dd') return `${y}/${m}/${day}`;
+  if (format === 'ja-date') return `${y}年${d.getMonth() + 1}月${d.getDate()}日`;
+  return raw;
+};
+
+const formatNumberValue = (raw: string, format?: string): string => {
+  if (!raw || !format) return raw;
+  const n = Number(String(raw).replace(/,/g, ''));
+  if (!Number.isFinite(n)) return raw;
+  if (format === '#,##0') return Math.round(n).toLocaleString('ja-JP');
+  if (format === 'currency-jpy') return `${Math.round(n).toLocaleString('ja-JP')}円`;
+  return raw;
+};
+
+const formatRosterValue = (raw: string, type: string, format?: string): string => {
+  if (type === 'date') return formatDateValue(raw, format);
+  if (type === 'number') return formatNumberValue(raw, format);
+  return raw;
+};
+
+const columnWidthStyle = (col: RosterColumnDef): React.CSSProperties => {
+  const width = Number(col.width || 0);
+  if (!Number.isFinite(width) || width <= 0) return {};
+  return { width, minWidth: width };
+};
+
 // v372.3: 演算子セットを最小化。冗長な notXxx は廃止し「否定」トグル（negate）で表現する。
 // 後方互換: legacy notXxx は normalizeColumnFilter_() で読込時に変換。
 const OPERATORS_BY_TYPE: Record<string, Array<{ value: RowFilterOperator; label: string; valueKind: 'none' | 'single' | 'double' | 'multi'; canNegate: boolean }>> = {
@@ -505,7 +556,8 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
     if (col.source === 'field' && col.fieldKey) {
       const fdef = dictByKey.get(col.fieldKey);
       const raw = row[col.fieldKey];
-      return fmtValue(raw, fdef?.type || 'string', fdef?.enumLabels);
+      const type = fdef?.type || 'string';
+      return formatRosterValue(fmtValue(raw, type, fdef?.enumLabels), type, col.format);
     }
     return '';
   }, [dictByKey]);
@@ -790,6 +842,36 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                           <option value="right">右</option>
                         </select>
                       </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-500">
+                        <label className="flex items-center gap-2">
+                          <span className="shrink-0">列幅:</span>
+                          <input
+                            type="number"
+                            min={60}
+                            max={320}
+                            step={10}
+                            className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs"
+                            value={col.width ?? ''}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              const width = raw === '' ? undefined : Math.min(320, Math.max(60, Number(raw)));
+                              updateColumn(col.id, { width });
+                            }}
+                            placeholder="自動" />
+                          <span className="shrink-0 text-slate-400">px</span>
+                        </label>
+                        <label className="flex items-center gap-2">
+                          <span className="shrink-0">書式:</span>
+                          <select
+                            className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs"
+                            value={col.format || ''}
+                            onChange={(e) => updateColumn(col.id, { format: e.target.value || undefined })}>
+                            {(FORMAT_OPTIONS_BY_TYPE[fieldType] || FORMAT_OPTIONS_BY_TYPE.string).map((opt) => (
+                              <option key={opt.value || 'default'} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
                       <div className="flex flex-wrap items-center gap-2 text-xs bg-white rounded border border-slate-200 px-2 py-1.5">
                         <span className="shrink-0 text-slate-500">条件:</span>
                         <select className="rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
@@ -1029,7 +1111,7 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                     <tr>
                       {working.columns.map((c) => (
                         <th key={c.id} className="border-b border-slate-200 px-3 py-2 text-left font-semibold"
-                          style={{ textAlign: c.align || 'left' }}>{c.label}</th>
+                          style={{ textAlign: c.align || 'left', ...columnWidthStyle(c) }}>{c.label}</th>
                       ))}
                     </tr>
                   </thead>
@@ -1038,7 +1120,7 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                       <tr key={rowKey(r) + ':' + i} className="even:bg-slate-50">
                         {working.columns.map((c) => (
                           <td key={c.id} className="border-b border-slate-100 px-3 py-1.5 text-slate-800"
-                            style={{ textAlign: c.align || 'left' }}>{valueFor(r, c)}</td>
+                            style={{ textAlign: c.align || 'left', ...columnWidthStyle(c) }}>{valueFor(r, c)}</td>
                         ))}
                       </tr>
                     ))}
