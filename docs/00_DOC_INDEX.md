@@ -1,7 +1,7 @@
 # Document Index
 
 更新日: 2026-05-20
-現行バージョン: `v372.8`（integrated-public `@341` x2 / member split `@99` / admin split `@144`）
+現行バージョン: `v372.9`（integrated-public `@341` x2 / member split `@99` / admin split `@145`）
 
 ## 1. Entry Points
 
@@ -32,7 +32,9 @@
 
 | 文書 | 内容 |
 |---|---|
-| `docs/231_RELEASE_STATE_v372.8_ROSTER_S2_FORMAT_WIDTH_2026-05-20.md` | **🆕 最新本番 v372.8** 名簿出力 Visual Designer S2 部分対応。列幅・日付/数値書式を設定できるようにし、プレビューと CSV 出力へ反映。admin split `@144` |
+| `docs/232_RELEASE_STATE_v372.9_ROSTER_S2_DRAG_DROP_2026-05-20.md` | **🆕 最新本番 v372.9** 名簿出力 Visual Designer S2。出力列を `@dnd-kit` で drag-drop 並び替え可能化。admin split `@145` |
+| `docs/233_HANDOVER_v372.9_NEXT_TASKS_2026-05-20.md` | **🆕 引継ぎ** v372.9 後の残タスク整理と次担当者向け再開手順 |
+| `docs/231_RELEASE_STATE_v372.8_ROSTER_S2_FORMAT_WIDTH_2026-05-20.md` | v372.8 名簿出力 Visual Designer S2 部分対応。列幅・日付/数値書式を設定できるようにし、プレビューと CSV 出力へ反映。admin split `@144` |
 | `docs/230_SECURITY_REMEDIATION_DRIVE_PROXY_ALLOWLIST_2026-05-20.md` | v372.7 第三者評価 2026-05-20 指摘 #1 対応。Drive bytes / thumbnail proxy を `T_研修.案内状URL` / `案内状サムネイルURL` 登録 fileId のみに制限。integrated-public `@341` x2 / member `@99` / admin `@143` |
 | `docs/229_RELEASE_STATE_v372_to_v372.6.1_2026-05-20.md` | v372〜v372.6.1（全 8 リリース）統合正本。名簿出力 Visual Designer / CM 番号 admin 例外 / 公開ポータル staffUpdate / UTF-8 文字化け修正 / 送信ボタン disable。integrated-public `@340` x2 / member `@98` / admin `@142`。第三者評価自己診断付き |
 | `docs/228_ROSTER_REDESIGN_2026-05-19.md` | 名簿出力 全面刷新設計書（5 Sprint 計画）。Visual Template Designer 内蔵化・統合フィールド・Tab 式 2 ステップ |

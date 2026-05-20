@@ -33,5 +33,5 @@ DB スキーマ変更、認証境界変更、public/member 変更は行わない
 
 ## 4. 未実施
 
-- S2 の drag-drop は未実装。依存追加（`@dnd-kit/core` / `@dnd-kit/sortable`）を伴うため、次工程で導入可否を確認して実施する。
-- 本番ブラウザでの列幅・書式・CSV 出力の目視確認は操作者確認待ち。
+- S2 の drag-drop は v372.9 で実装済み。詳細: `docs/232_RELEASE_STATE_v372.9_ROSTER_S2_DRAG_DROP_2026-05-20.md`
+- CSV 出力は操作者が本番ブラウザで目視確認済み。列幅は CSV 形式上は反映対象外で、画面プレビュー用として扱う。

@@ -28,6 +28,9 @@
     "prerelease": "npm run security:audit && npm run security:public-boundary && npm run security:split-boundary && npm run typecheck && npm run test:search"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "heic2any": "^0.0.4",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"

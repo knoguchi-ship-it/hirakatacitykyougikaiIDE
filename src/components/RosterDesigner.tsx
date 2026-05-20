@@ -1,4 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  closestCenter,
+  DndContext,
+  DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { ApiClient } from '../services/api';
 import {
   RosterColumnDef,
@@ -219,6 +236,38 @@ const inputCls =
 
 // =============== コンポーネント ===============
 
+const SortableColumnShell: React.FC<{
+  id: string;
+  children: (args: {
+    attributes: Record<string, unknown>;
+    listeners: Record<string, unknown> | undefined;
+    setActivatorNodeRef: (element: HTMLElement | null) => void;
+    isDragging: boolean;
+  }) => React.ReactNode;
+}> = ({ id, children }) => {
+  const {
+    attributes,
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.72 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children({ attributes, listeners, setActivatorNodeRef, isDragging })}
+    </div>
+  );
+};
+
 const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
   // タブ
   const [activeTab, setActiveTab] = useState<'design' | 'export'>('design');
@@ -251,6 +300,10 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
 
   // グループの折りたたみ状態
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   // 初回ロード
   useEffect(() => {
@@ -482,6 +535,18 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
     });
     setDirty(true);
   };
+  const columnIds = useMemo(() => working.columns.map((c) => c.id), [working.columns]);
+  const handleColumnDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setWorking((w) => {
+      const oldIndex = w.columns.findIndex((c) => c.id === active.id);
+      const newIndex = w.columns.findIndex((c) => c.id === over.id);
+      if (oldIndex < 0 || newIndex < 0) return w;
+      return { ...w, columns: arrayMove(w.columns, oldIndex, newIndex) };
+    });
+    setDirty(true);
+  }, []);
   const updateColumn = (id: string, patch: Partial<RosterColumnDef>) => {
     setWorking((w) => ({ ...w, columns: w.columns.map((c) => (c.id === id ? { ...c, ...patch } : c)) }));
     setDirty(true);
@@ -804,17 +869,31 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                     ← 左から列を追加してください
                   </p>
                 )}
-                {working.columns.map((col, idx) => {
-                  const fdef = col.fieldKey ? dictByKey.get(col.fieldKey) : null;
-                  const fieldType = fdef?.type || 'string';
-                  const ops = operatorsFor(fieldType);
-                  const rf = col.rowFilter;
-                  const valKind = rf?.operator ? operatorValueKind(fieldType, rf.operator) : 'single';
-                  const enumOpts = fdef?.enumLabels ? Object.entries(fdef.enumLabels) : [];
-                  return (
-                    <div key={col.id} className="rounded border border-slate-200 bg-slate-50 p-2 space-y-2">
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleColumnDragEnd}>
+                  <SortableContext items={columnIds} strategy={verticalListSortingStrategy}>
+                    {working.columns.map((col, idx) => {
+                      const fdef = col.fieldKey ? dictByKey.get(col.fieldKey) : null;
+                      const fieldType = fdef?.type || 'string';
+                      const ops = operatorsFor(fieldType);
+                      const rf = col.rowFilter;
+                      const valKind = rf?.operator ? operatorValueKind(fieldType, rf.operator) : 'single';
+                      const enumOpts = fdef?.enumLabels ? Object.entries(fdef.enumLabels) : [];
+                      return (
+                        <SortableColumnShell key={col.id} id={col.id}>
+                          {({ attributes, listeners, setActivatorNodeRef, isDragging }) => (
+                    <div className={`rounded border p-2 space-y-2 ${isDragging ? 'border-primary-300 bg-primary-50 shadow-lg' : 'border-slate-200 bg-slate-50'}`}>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-slate-400 w-6 text-center shrink-0">{idx + 1}</span>
+                        <button
+                          type="button"
+                          ref={setActivatorNodeRef}
+                          {...attributes}
+                          {...listeners}
+                          className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-500 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          aria-label={`${col.label || '列'}をドラッグして並び替え`}
+                          title="ドラッグまたはキーボードで並び替え">
+                          ↕
+                        </button>
                         <input className="flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-sm"
                           value={col.label}
                           onChange={(e) => updateColumn(col.id, { label: e.target.value })} />
@@ -983,8 +1062,12 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                         )}
                       </div>
                     </div>
-                  );
-                })}
+                          )}
+                        </SortableColumnShell>
+                      );
+                    })}
+                  </SortableContext>
+                </DndContext>
               </div>
             </div>
           </section>

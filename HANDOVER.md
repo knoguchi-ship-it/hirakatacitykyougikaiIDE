@@ -1,25 +1,27 @@
 # 開発引継ぎ
 
-更新日: 2026-05-20（v372.8 まで本番反映済み・名簿出力 S2 部分対応）
-現行本番: **`v372.8`** / integrated-public GAS version `341` / member split GAS version `99` / admin split GAS version `144`
-fixed deployment: integrated/public `@341` x2 / member split `@99` / admin split `@144`
+更新日: 2026-05-20（v372.9 まで本番反映済み・名簿出力 S2 drag-drop）
+現行本番: **`v372.9`** / integrated-public GAS version `341` / member split GAS version `99` / admin split GAS version `145`
+fixed deployment: integrated/public `@341` x2 / member split `@99` / admin split `@145`
 
 > **🆕 次担当者向け再開ガイド（必読）**
 >
 > ### 1. まず読む順
 > 1. `AGENTS.md` §0 — シークレット絶対ルール
 > 2. 本 `HANDOVER.md` ヘッダー〜「v372 系包括サマリー」
-> 3. `docs/231_RELEASE_STATE_v372.8_ROSTER_S2_FORMAT_WIDTH_2026-05-20.md` — v372.8 名簿出力 S2 部分対応（本番反映済み）
-> 4. `docs/230_SECURITY_REMEDIATION_DRIVE_PROXY_ALLOWLIST_2026-05-20.md` — v372.7 Drive proxy allowlist 是正（本番反映済み）
-> 5. `docs/229_RELEASE_STATE_v372_to_v372.6.1_2026-05-20.md` — v372〜v372.6.1 の設計・実装・運用詳細
-> 6. `docs/03_DATA_MODEL.md` — 最新スキーマ（ER 図 + バリデーション規約 + バージョン履歴）
-> 7. `docs/12_ENGINEERING_RULEBOOK.md` / `docs/09_DEPLOYMENT_POLICY.md` — 開発・デプロイ標準
+> 3. `docs/232_RELEASE_STATE_v372.9_ROSTER_S2_DRAG_DROP_2026-05-20.md` — v372.9 名簿出力 S2 drag-drop（本番反映済み）
+> 4. `docs/233_HANDOVER_v372.9_NEXT_TASKS_2026-05-20.md` — v372.9 後の残タスク整理・次担当者引継ぎ
+> 5. `docs/231_RELEASE_STATE_v372.8_ROSTER_S2_FORMAT_WIDTH_2026-05-20.md` — v372.8 名簿出力 S2 列幅・書式（本番反映済み）
+> 6. `docs/230_SECURITY_REMEDIATION_DRIVE_PROXY_ALLOWLIST_2026-05-20.md` — v372.7 Drive proxy allowlist 是正（本番反映済み）
+> 7. `docs/229_RELEASE_STATE_v372_to_v372.6.1_2026-05-20.md` — v372〜v372.6.1 の設計・実装・運用詳細
+> 8. `docs/03_DATA_MODEL.md` — 最新スキーマ（ER 図 + バリデーション規約 + バージョン履歴）
+> 9. `docs/12_ENGINEERING_RULEBOOK.md` / `docs/09_DEPLOYMENT_POLICY.md` — 開発・デプロイ標準
 >
 > ### 2. 現行本番デプロイ
 > - **統合 public legacy** `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` @341
 > - **統合 public 正式**   `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` @341
 > - **member split**     `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` @99
-> - **admin split**      `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` @144
+> - **admin split**      `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` @145
 >
 > ### 3. 🔴 操作者の即時対応タスク（未完了・優先度高）
 > | # | タスク | 詳細 |
@@ -31,7 +33,7 @@ fixed deployment: integrated/public `@341` x2 / member split `@99` / admin split
 > | 5 | v360-v372 実ブラウザ動作確認 | 名簿出力 Visual Designer / 公開ポータル staffUpdate / CM 番号緩和 等 |
 >
 > ### 4. 直近の重要変更（v372 系）
-> v372.8 は **`docs/231_RELEASE_STATE_v372.8_ROSTER_S2_FORMAT_WIDTH_2026-05-20.md`**、v372.7 は **`docs/230_SECURITY_REMEDIATION_DRIVE_PROXY_ALLOWLIST_2026-05-20.md`**、v372〜v372.6.1 の包括変更は **`docs/229_RELEASE_STATE_v372_to_v372.6.1_2026-05-20.md`** に集約。
+> v372.9 は **`docs/232_RELEASE_STATE_v372.9_ROSTER_S2_DRAG_DROP_2026-05-20.md`**、残タスク整理は **`docs/233_HANDOVER_v372.9_NEXT_TASKS_2026-05-20.md`**、v372.8 は **`docs/231_RELEASE_STATE_v372.8_ROSTER_S2_FORMAT_WIDTH_2026-05-20.md`**、v372.7 は **`docs/230_SECURITY_REMEDIATION_DRIVE_PROXY_ALLOWLIST_2026-05-20.md`**、v372〜v372.6.1 の包括変更は **`docs/229_RELEASE_STATE_v372_to_v372.6.1_2026-05-20.md`** に集約。
 >
 > ### 5. 既知の制約・要注意事項
 > - **v372.7 security remediation 反映済み**: 2026-05-20 第三者評価 #1 対応として、Drive bytes / thumbnail proxy を `T_研修.案内状URL` / `案内状サムネイルURL` 登録 fileId のみに制限。integrated/public `@341` x2 / member `@99` / admin `@143`。詳細: `docs/230_SECURITY_REMEDIATION_DRIVE_PROXY_ALLOWLIST_2026-05-20.md`。
@@ -40,6 +42,12 @@ fixed deployment: integrated/public `@341` x2 / member split `@99` / admin split
 > - **介護支援専門員番号**: 公開ポータルは厳格 8 桁数字。admin（MASTER/ADMIN）画面でのみ 1-10 桁英数字を許容（HN/HS プレフィックス対応）。詳細 docs/03_DATA_MODEL.md §4.1
 > - **名簿出力 旧 RosterExport.tsx**: legacy として残存。Sprint S5 で完全削除予定（PDF レンダリング刷新が完成後）
 > - **公開ポータル変更申請**: v372.5 で staffUpdate（既存職員情報変更）を追加。v372.6 で UTF-8 文字化けバグ修正
+
+> **🆕 2026-05-20 v372.9 本番反映済み（名簿出力 S2 drag-drop）**
+>
+> **対応**: 名簿出力 Visual Designer の出力列を `@dnd-kit` で drag-drop 並び替え可能にした。既存の ↑/↓ ボタンは残置。PointerSensor は 6px 移動後に開始し、KeyboardSensor も有効化。
+>
+> **デプロイ**: admin split `@145` のみ更新。integrated/public `@341` x2、member split `@99` は変更なし。詳細: `docs/232_RELEASE_STATE_v372.9_ROSTER_S2_DRAG_DROP_2026-05-20.md`
 
 > **🆕 2026-05-20 v372.8 本番反映済み（名簿出力 S2 部分対応: 列幅・書式）**
 >
@@ -65,8 +73,8 @@ fixed deployment: integrated/public `@341` x2 / member split `@99` / admin split
 > - 新 `RosterDesigner.tsx`: チェックボックス選択 + 列並び替え（↑↓）+ 列名編集 + 配置選択 + 件数表示設定 + CSV 出力 + プレビュー
 > - 旧 `RosterExport.tsx` は `roster-export-legacy` ビューとして残置（Sidebar 非表示・S5 で完全削除）
 >
-> **S2-S5 残作業**:
-> - **S2**: @dnd-kit drag-drop / リアルタイムプレビュー強化 / 列幅 / 日付・数値書式
+> **S3-S5 残作業**:
+> - **S2**: v372.8〜v372.9 で完了（列幅・配置・日付/数値書式・テンプレ複製・@dnd-kit drag-drop）。本番ブラウザで drag-drop / キーボード並び替え確認のみ残。
 > - **S3**: 計算式（内製簡易式）・条件付き書式
 > - **S4**: PDF 出力（window.print + @page CSS）+ レイアウト（A4/A3/縦横/フォントサイズ）
 > - **S5**: Excel 出力（xlsx 再評価）+ 旧 RosterExport / TemplateValidationPanel / TemplateHelpPage / RosterTemplateHelpDialog / 旧 GAS 関数群を完全削除
@@ -289,7 +297,7 @@ fixed deployment: integrated/public `@341` x2 / member split `@99` / admin split
 | 公開ポータル | integrated/public | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `ANYONE_ANONYMOUS` | `@341` |
 | 公開ポータル legacy | integrated/public | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `ANYONE_ANONYMOUS` | `@341` |
 | 会員マイページ | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `ANYONE_ANONYMOUS` | `@99` |
-| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@144` |
+| 管理者ポータル | admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `DOMAIN` | `@145` |
 
 ## 4. 直近リリース
 
@@ -425,7 +433,7 @@ fixed deployment: integrated/public `@341` x2 / member split `@99` / admin split
 2. **次の 3 件を必ず読む**:
    - `AGENTS.md`（特に **§0 シークレット最優先絶対ルール** と §4 レスポンシブ必須）
    - `HANDOVER.md`（本文書）
-   - `docs/225_RELEASE_STATE_v360_to_v370_2026-05-17.md`（最新本番 release state）
+   - `docs/232_RELEASE_STATE_v372.9_ROSTER_S2_DRAG_DROP_2026-05-20.md`（最新本番 release state）
 3. `.clasp.json` は Git 追跡対象外。`gas/admin/.clasp.json` / `gas/member/.clasp.json` がローカルに無い環境では、値をチャットや docs に出さず、各自ローカルで作成する。
 4. `git diff --check` / `npm run typecheck` / `npm run security:public-boundary` / `npm run security:split-boundary` / `npm run test:search` を再実行して、整理済み環境を確認する。
 5. テストハーネス前提を整える（必要に応じて）:
