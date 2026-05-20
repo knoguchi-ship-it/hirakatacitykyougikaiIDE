@@ -31,6 +31,8 @@ const allowedTopLevelFunctions = [
   'dryRunApplicationScenarios',
   'previewDryRunApplicationCleanup',
   'executeDryRunApplicationCleanup',
+  // v373.5: Secret Manager 連携ヘルスチェック（operator が Apps Script editor から 1 回 Run）
+  'healthCheckPasswordPepper',
 ];
 const allowedAdminLoginActions = ['checkAdminBySession', 'adminLoginWithData'];
 const allowedAdminActions = [

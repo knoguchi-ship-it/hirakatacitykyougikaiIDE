@@ -535,6 +535,8 @@ function buildAdminCode(source) {
     'dryRunApplicationScenarios',
     'previewDryRunApplicationCleanup',
     'executeDryRunApplicationCleanup',
+    // v373.5: Secret Manager 連携ヘルスチェック（operator が Apps Script editor から実行）
+    'healthCheckPasswordPepper',
   ], 'build-admin-gas');
   code = removeTopLevelFunctionDeclarations(code, [
     'rebuildDatabaseSchema',
@@ -560,6 +562,7 @@ function buildAdminCode(source) {
     'dryRunApplicationScenarios',
     'previewDryRunApplicationCleanup',
     'executeDryRunApplicationCleanup',
+    'healthCheckPasswordPepper',
   ], 'build-admin-gas');
   return code;
 }

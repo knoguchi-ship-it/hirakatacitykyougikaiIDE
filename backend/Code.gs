@@ -5509,6 +5509,13 @@ var PASSWORD_GENERATED_LENGTH = 15;
 var PASSWORD_ALLOWED_REGEX = /^[A-Za-z0-9!@#$%^*()_+=\-\[\]{};:,.?\/|~]+$/;
 var PASSWORD_HASH_PEPPER_PROPERTY = 'PASSWORD_HASH_PEPPER_V1';
 var PASSWORD_HASH_PEPPER_ID = 'v1';
+// v373.5: Google Cloud Secret Manager 連携用 — Script Properties から GCP project ID と secret 名を取得
+// `PASSWORD_HASH_PEPPER_GCP_PROJECT` が未設定なら hcmn-member-system-prod を既定値とする
+var PASSWORD_HASH_PEPPER_GCP_PROJECT_PROPERTY = 'PASSWORD_HASH_PEPPER_GCP_PROJECT';
+var PASSWORD_HASH_PEPPER_GCP_PROJECT_DEFAULT = 'hcmn-member-system-prod';
+var PASSWORD_HASH_PEPPER_SECRET_NAME = 'password-hash-pepper-v1';
+var PASSWORD_HASH_PEPPER_CACHE_KEY = 'pepper:v1';
+var PASSWORD_HASH_PEPPER_CACHE_TTL_SECONDS = 300; // 5 min
 
 /**
  * PBKDF2-HMAC-SHA256 を GAS の Utilities.computeHmacSha256Signature で実装する。
@@ -5530,6 +5537,34 @@ var PBKDF2_ITERATIONS = 10000;
 
 
 
+/**
+ * v373.5: パスワード pepper を Secret Manager 優先で取得する。
+ *
+ * 階層:
+ *   1. CacheService に直近 5 分以内の値があればそれを返す（API 呼び出し最小化）
+ *   2. Secret Manager から取得を試行（cloud-platform scope + IAM 必須）
+ *   3. Script Properties (PASSWORD_HASH_PEPPER_V1) にフォールバック（移行期間用）
+ *
+ * Secret Manager は fail-soft: 障害時は Logger に警告（値は出さない）+ Properties に倒れる。
+ * これにより GCP 障害でログイン全停止を避ける。本番完全移行後は Properties fallback を撤去する。
+ *
+ * 値の出力ルール: 関数内・呼び出し元・ログ・例外メッセージのいずれでも pepper 値を表示しない。
+ * 不一致検証など値そのものを比較する場面でも、長さや先頭数文字のみログ出力にとどめる（実装上は出力しない）。
+ */
+
+/**
+ * v373.5: GCP Secret Manager v1 API から pepper を取得する。
+ *
+ * 失敗時は throw する（呼び出し側で fail-soft 判定）。
+ * 値は base64 で返るため Utilities.base64Decode → string 化する。
+ */
+
+/**
+ * v373.5: pepper 取得ヘルスチェック（admin Apps Script editor からの手動実行用）。
+ * 値は出力せず、source / length / SHA-256 fingerprint のみ Logger に返す。
+ * operator が Secret Manager セットアップ後に Apps Script editor から実行して検証する。
+ * admin split のみ top-level callable として残す（member/public からは pruning）。
+ */
 
 
 /**

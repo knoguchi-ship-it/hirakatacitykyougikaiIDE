@@ -6069,6 +6069,13 @@ function validatePasswordCharset_(password) {
 }
 var PASSWORD_HASH_PEPPER_PROPERTY = 'PASSWORD_HASH_PEPPER_V1';
 var PASSWORD_HASH_PEPPER_ID = 'v1';
+// v373.5: Google Cloud Secret Manager 連携用 — Script Properties から GCP project ID と secret 名を取得
+// `PASSWORD_HASH_PEPPER_GCP_PROJECT` が未設定なら hcmn-member-system-prod を既定値とする
+var PASSWORD_HASH_PEPPER_GCP_PROJECT_PROPERTY = 'PASSWORD_HASH_PEPPER_GCP_PROJECT';
+var PASSWORD_HASH_PEPPER_GCP_PROJECT_DEFAULT = 'hcmn-member-system-prod';
+var PASSWORD_HASH_PEPPER_SECRET_NAME = 'password-hash-pepper-v1';
+var PASSWORD_HASH_PEPPER_CACHE_KEY = 'pepper:v1';
+var PASSWORD_HASH_PEPPER_CACHE_TTL_SECONDS = 300; // 5 min
 
 /**
  * PBKDF2-HMAC-SHA256 を GAS の Utilities.computeHmacSha256Signature で実装する。
@@ -6149,9 +6156,103 @@ function secureCompareString_(a, b) {
   return diff === 0;
 }
 
+/**
+ * v373.5: パスワード pepper を Secret Manager 優先で取得する。
+ *
+ * 階層:
+ *   1. CacheService に直近 5 分以内の値があればそれを返す（API 呼び出し最小化）
+ *   2. Secret Manager から取得を試行（cloud-platform scope + IAM 必須）
+ *   3. Script Properties (PASSWORD_HASH_PEPPER_V1) にフォールバック（移行期間用）
+ *
+ * Secret Manager は fail-soft: 障害時は Logger に警告（値は出さない）+ Properties に倒れる。
+ * これにより GCP 障害でログイン全停止を避ける。本番完全移行後は Properties fallback を撤去する。
+ *
+ * 値の出力ルール: 関数内・呼び出し元・ログ・例外メッセージのいずれでも pepper 値を表示しない。
+ * 不一致検証など値そのものを比較する場面でも、長さや先頭数文字のみログ出力にとどめる（実装上は出力しない）。
+ */
 function getPasswordPepper_() {
-  return String(PropertiesService.getScriptProperties().getProperty(PASSWORD_HASH_PEPPER_PROPERTY) || '').trim();
+  // 1. CacheService から
+  var cache = null;
+  try { cache = CacheService.getScriptCache(); } catch (cacheErr) { cache = null; }
+  if (cache) {
+    try {
+      var cached = cache.get(PASSWORD_HASH_PEPPER_CACHE_KEY);
+      if (cached && typeof cached === 'string' && cached.length > 0) {
+        return cached;
+      }
+    } catch (cacheReadErr) { /* fall through */ }
+  }
+
+  // 2. Secret Manager (fail-soft)
+  var fromSecretManager = '';
+  try {
+    fromSecretManager = fetchPepperFromSecretManager_();
+  } catch (smErr) {
+    var smMsg = smErr && smErr.message ? smErr.message : String(smErr);
+    // 値は絶対に出さない。失敗事象だけログ
+    try { Logger.log('[getPasswordPepper_] Secret Manager fetch failed (fail-soft to Properties): %s', smMsg); } catch (e) {}
+  }
+
+  // 3. Properties fallback
+  var resolved = fromSecretManager;
+  if (!resolved) {
+    resolved = String(PropertiesService.getScriptProperties().getProperty(PASSWORD_HASH_PEPPER_PROPERTY) || '').trim();
+  }
+
+  if (resolved && cache) {
+    try { cache.put(PASSWORD_HASH_PEPPER_CACHE_KEY, resolved, PASSWORD_HASH_PEPPER_CACHE_TTL_SECONDS); } catch (e) {}
+  }
+  return resolved;
 }
+
+/**
+ * v373.5: GCP Secret Manager v1 API から pepper を取得する。
+ *
+ * 失敗時は throw する（呼び出し側で fail-soft 判定）。
+ * 値は base64 で返るため Utilities.base64Decode → string 化する。
+ */
+function fetchPepperFromSecretManager_() {
+  var projectId = String(
+    PropertiesService.getScriptProperties().getProperty(PASSWORD_HASH_PEPPER_GCP_PROJECT_PROPERTY)
+    || PASSWORD_HASH_PEPPER_GCP_PROJECT_DEFAULT
+  ).trim();
+  if (!projectId) {
+    throw new Error('GCP project id not set');
+  }
+  var url = 'https://secretmanager.googleapis.com/v1/projects/'
+    + encodeURIComponent(projectId)
+    + '/secrets/' + encodeURIComponent(PASSWORD_HASH_PEPPER_SECRET_NAME)
+    + '/versions/latest:access';
+  var response = UrlFetchApp.fetch(url, {
+    method: 'get',
+    headers: { 'Authorization': 'Bearer ' + ScriptApp.getOAuthToken() },
+    muteHttpExceptions: true,
+    followRedirects: true,
+  });
+  var code = response.getResponseCode();
+  if (code !== 200) {
+    // body は error 情報を含むが、Secret 値そのものは含まないので長さだけ確認
+    throw new Error('Secret Manager HTTP ' + code);
+  }
+  var body = response.getContentText();
+  if (!body) throw new Error('Empty response');
+  var parsed;
+  try { parsed = JSON.parse(body); } catch (parseErr) { throw new Error('Invalid JSON response'); }
+  if (!parsed || !parsed.payload || !parsed.payload.data) {
+    throw new Error('payload.data missing');
+  }
+  // payload.data は base64 エンコード済み
+  var decoded = Utilities.newBlob(Utilities.base64Decode(parsed.payload.data)).getDataAsString();
+  if (!decoded) throw new Error('Decoded value empty');
+  return decoded.trim();
+}
+
+/**
+ * v373.5: pepper 取得ヘルスチェック（admin Apps Script editor からの手動実行用）。
+ * 値は出力せず、source / length / SHA-256 fingerprint のみ Logger に返す。
+ * operator が Secret Manager セットアップ後に Apps Script editor から実行して検証する。
+ * admin split のみ top-level callable として残す（member/public からは pruning）。
+ */
 
 function hmacSha256Hex_(message, secret) {
   return bytesToHex_(Utilities.computeHmacSha256Signature(String(message || ''), String(secret || '')));

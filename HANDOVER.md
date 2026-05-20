@@ -1,16 +1,19 @@
 # 開発引継ぎ
 
-更新日: 2026-05-20（v373.4 まで本番反映済み・行フィルタ no-code UI 化）
-現行本番: **`v373.4`** / integrated-public GAS version `341` / member split GAS version `99` / admin split GAS version `150`
-fixed deployment: integrated/public `@341` x2 / member split `@99` / admin split `@150`
+更新日: 2026-05-20（v373.5 まで本番反映済み・Secret Manager 連携）
+現行本番: **`v373.5`** / integrated-public GAS version `342` / member split GAS version `100` / admin split GAS version `151`
+fixed deployment: integrated/public `@342` x2 / member split `@100` / admin split `@151`
 
 > **🆕 次担当者向け再開ガイド（必読）**
 >
 > ### 1. まず読む順
 > 1. `AGENTS.md` §0 — シークレット絶対ルール
 > 2. 本 `HANDOVER.md` ヘッダー〜「v372 系包括サマリー」
-> 3. `docs/238_RELEASE_STATE_v373.4_ROSTER_ROW_FILTER_NOCODE_2026-05-20.md` — **v373.4 行フィルタの no-code UI 化（演算子記号→日本語、enum/boolean 演算子廃止、年度除外、否定全廃）（本番反映済み・最新）**
-> 4. `docs/237_RELEASE_STATE_v373.3_ROSTER_STYLE_RULE_SIMPLIFY_2026-05-20.md` — v373.3 条件付き書式 UX 微調整
+> 3. `docs/241_RELEASE_STATE_v373.5_SECRET_MANAGER_2026-05-20.md` — **v373.5 Secret Manager 連携（本番反映済み・最新・操作者対応必須）**
+> 4. `docs/239_OPERATOR_GCP_SECRET_MANAGER_SETUP_2026-05-20.md` — **操作者 30 分セットアップ手順（GCP API + Secret 作成 + IAM）**
+> 5. `docs/240_DESIGN_CLOUD_RUN_ARGON2ID_2026-05-20.md` — 次段階（Cloud Run Argon2id 外部 KDF）設計書 + 実装雛形
+> 6. `docs/238_RELEASE_STATE_v373.4_ROSTER_ROW_FILTER_NOCODE_2026-05-20.md` — v373.4 行フィルタの no-code UI 化
+> 7. `docs/237_RELEASE_STATE_v373.3_ROSTER_STYLE_RULE_SIMPLIFY_2026-05-20.md` — v373.3 条件付き書式 UX 微調整
 > 4. `docs/236_RELEASE_STATE_v373.2_ROSTER_UX_OVERHAUL_2026-05-20.md` — v373.2 名簿出力 UX 全面是正（PDF修正/プリセット化/drag handle）
 > 4. `docs/235_RELEASE_STATE_v373.1_ROSTER_S4_2026-05-20.md` — v373.1 S4 PDF 初版（v373.2 で修正済み）
 > 5. `docs/234_RELEASE_STATE_v373_ROSTER_S3_2026-05-20.md` — v373 S3 計算式+条件付き書式 初版（v373.2 で UI 刷新）
@@ -23,21 +26,24 @@ fixed deployment: integrated/public `@341` x2 / member split `@99` / admin split
 > 9. `docs/12_ENGINEERING_RULEBOOK.md` / `docs/09_DEPLOYMENT_POLICY.md` — 開発・デプロイ標準
 >
 > ### 2. 現行本番デプロイ
-> - **統合 public legacy** `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` @341
-> - **統合 public 正式**   `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` @341
-> - **member split**     `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` @99
-> - **admin split**      `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` @150
+> - **統合 public legacy** `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` @342
+> - **統合 public 正式**   `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` @342
+> - **member split**     `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` @100
+> - **admin split**      `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` @151
 >
 > ### 3. 🔴 操作者の即時対応タスク（未完了・優先度高）
 > | # | タスク | 詳細 |
 > |---|---|---|
+> | **0** | **GCP Secret Manager セットアップ（v373.5 必須）** | `docs/239` 30 分手順。API 有効化 + Secret 作成 + IAM 付与 + `healthCheckPasswordPepper` 実行で fingerprint 一致確認 |
 > | 1 | `runRebuildSchemaForV360` Run | admin Apps Script editor で 1 回。v360 schema migration（未実行だと一括メール明細が動作不可） |
 > | 2 | `setupPendingThumbnailsTrigger` Run | admin Apps Script editor で 1 回。PDF サムネイル後追い再生成 10 分 trigger 登録 |
 > | 3 | `cleanupCorruptChangeRequestsV372` Run | admin Apps Script editor で 1 回。文字化け申請レコード soft-delete |
 > | 4 | メール送信制御の確認 | admin → システム設定 → メール通知 → 「メール送信制御」セクションで `MAIL_GLOBAL_ENABLED=false`（safe-stop）状態を確認 |
-> | 5 | v360-v372 実ブラウザ動作確認 | 名簿出力 Visual Designer / 公開ポータル staffUpdate / CM 番号緩和 等 |
+> | 5 | v360-v373 実ブラウザ動作確認 | 名簿出力 Visual Designer / 公開ポータル staffUpdate / CM 番号緩和 等 |
 >
 > ### 4. 直近の重要変更（v373 系 / v372 系）
+> **v373.5 (2026-05-20・🔴最重要)**: パスワード pepper を Google Cloud Secret Manager 連携化。第三者評価 docs/172 (必須・破棄禁止 backlog) の第 1 弾完了。`getPasswordPepper_()` を CacheService → Secret Manager → Script Properties の 3 階層 fail-soft 化。3 split に `cloud-platform` scope 追加、`healthCheckPasswordPepper` admin top-level 関数追加。**operator 30 分対応必須 (docs/239)**。次段階 Cloud Run Argon2id 外部 KDF は `docs/240` で完全設計済 + `cloud-run/password-hash-service/` に実装雛形提供、本番反映は次セッション以降。
+>
 > v373.2 は **`docs/236_RELEASE_STATE_v373.2_ROSTER_UX_OVERHAUL_2026-05-20.md`**（名簿出力 UX 全面是正：PDF Portal 化 / 条件付き書式構造化 / 計算列プリセット化 / drag handle 改善）、v373.1 は **`docs/235_RELEASE_STATE_v373.1_ROSTER_S4_2026-05-20.md`**（S4 PDF 初版、v373.2 で修正）、v373 は **`docs/234_RELEASE_STATE_v373_ROSTER_S3_2026-05-20.md`**（S3 計算式+条件付き書式 初版、v373.2 で UI 刷新）、v372.9 は **`docs/232_RELEASE_STATE_v372.9_ROSTER_S2_DRAG_DROP_2026-05-20.md`**、残タスク整理は **`docs/233_HANDOVER_v372.9_NEXT_TASKS_2026-05-20.md`**、v372.8 は **`docs/231_RELEASE_STATE_v372.8_ROSTER_S2_FORMAT_WIDTH_2026-05-20.md`**、v372.7 は **`docs/230_SECURITY_REMEDIATION_DRIVE_PROXY_ALLOWLIST_2026-05-20.md`**、v372〜v372.6.1 の包括変更は **`docs/229_RELEASE_STATE_v372_to_v372.6.1_2026-05-20.md`** に集約。
 >
 > **v373.2 ハイライト（最重要）**:
