@@ -1,10 +1,10 @@
 # 開発引継ぎ
 
-更新日: 2026-05-21（v374 = WCAG/responsive 自動化基盤、本番反映は public のみ要操作者対応）
-現行本番: **`v373.7`** (GAS 反映状態) / **`v374`** (リポジトリ最新) / integrated-public GAS version `344` / member split GAS version `102` / admin split GAS version `153`
-fixed deployment: integrated/public `@344` x2 / member split `@102` / admin split `@153`
+更新日: 2026-05-21（v374 まで本番反映済み・WCAG 2.2 AA 違反ゼロ達成）
+現行本番: **`v374`** / integrated-public GAS version `345` / member split GAS version `102` / admin split GAS version `153`
+fixed deployment: integrated/public `@345` x2 / member split `@102` / admin split `@153`
 
-> **🔴 v374 本番反映待ち**: `npx clasp` の RAPT 認証期限切れにより v374 (badge contrast 修正含む) は **未デプロイ**。operator が `npx clasp login` で再ログイン後、integrated/public で `npx clasp push --force` → `npx clasp version "v374 WCAG fix"` → `npx clasp redeploy AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx --versionNumber <new>` + 正式 deployment も同様。member/admin は src/public-portal 変更影響なしのため redeploy 不要。
+> **✅ v374 本番反映済み (2026-05-21)**: badge contrast 修正 (`bg-emerald-700` 適用後 5.7:1) を含む v374 を integrated/public 両系統 (legacy + 正式) に redeploy。本番ブラウザでの `npm run test:a11y` 結果 = **critical=0 / serious=0 / moderate=0 / minor=0** で WCAG 2.2 AA 違反ゼロを確認。member/admin は src/public-portal 変更影響なしのため未更新（@102/@153 のまま）。
 
 > **🆕 次担当者向け再開ガイド（必読）**
 >
@@ -32,8 +32,8 @@ fixed deployment: integrated/public `@344` x2 / member split `@102` / admin spli
 > 9. `docs/12_ENGINEERING_RULEBOOK.md` / `docs/09_DEPLOYMENT_POLICY.md` — 開発・デプロイ標準
 >
 > ### 2. 現行本番デプロイ
-> - **統合 public legacy** `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` @344
-> - **統合 public 正式**   `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` @344
+> - **統合 public legacy** `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` @345
+> - **統合 public 正式**   `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` @345
 > - **member split**     `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` @102
 > - **admin split**      `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` @153
 >
