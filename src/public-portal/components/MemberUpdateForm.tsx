@@ -116,6 +116,8 @@ const labelClass = 'mb-1 block text-sm font-medium text-slate-700';
 const req = <span className="text-red-500"> *</span>;
 
 // ── 住所入力コンポーネント ─────────────────────────────────────────────────────
+// v372.6: 「空欄=変更なし」モデルに統一。required 属性 + * マークを除去し、
+// プレースホルダーを「例:」プレフィックス統一。グローバルガイダンス参照。
 const AddressInput: React.FC<{
   label: string; value: AddressValue; onChange: (v: AddressValue) => void;
 }> = ({ label, value, onChange }) => {
@@ -124,16 +126,16 @@ const AddressInput: React.FC<{
   return (
     <fieldset className="space-y-3 rounded-lg border border-slate-200 p-4">
       <legend className="px-1 text-sm font-semibold text-slate-700">{label}</legend>
-      <div><label className={labelClass}>郵便番号{req}</label>
-        <input type="text" value={value.postCode} onChange={up('postCode')} placeholder="123-4567" maxLength={8} className={inputClass} required /></div>
-      <div><label className={labelClass}>都道府県{req}</label>
-        <input type="text" value={value.prefecture} onChange={up('prefecture')} placeholder="大阪府" maxLength={10} className={inputClass} required /></div>
-      <div><label className={labelClass}>市区町村{req}</label>
-        <input type="text" value={value.city} onChange={up('city')} placeholder="枚方市" className={inputClass} required /></div>
-      <div><label className={labelClass}>番地{req}</label>
-        <input type="text" value={value.addressLine} onChange={up('addressLine')} placeholder="○○町1-2-3" className={inputClass} required /></div>
-      <div><label className={labelClass}>建物名・部屋番号（任意）</label>
-        <input type="text" value={value.addressLine2} onChange={up('addressLine2')} placeholder="○○ビル101" className={inputClass} /></div>
+      <div><label className={labelClass}>郵便番号</label>
+        <input type="text" value={value.postCode} onChange={up('postCode')} placeholder="例: 123-4567" maxLength={8} className={inputClass} /></div>
+      <div><label className={labelClass}>都道府県</label>
+        <input type="text" value={value.prefecture} onChange={up('prefecture')} placeholder="例: 大阪府" maxLength={10} className={inputClass} /></div>
+      <div><label className={labelClass}>市区町村</label>
+        <input type="text" value={value.city} onChange={up('city')} placeholder="例: 枚方市" className={inputClass} /></div>
+      <div><label className={labelClass}>番地</label>
+        <input type="text" value={value.addressLine} onChange={up('addressLine')} placeholder="例: ○○町1-2-3" className={inputClass} /></div>
+      <div><label className={labelClass}>建物名・部屋番号</label>
+        <input type="text" value={value.addressLine2} onChange={up('addressLine2')} placeholder="例: ○○ビル101" className={inputClass} /></div>
     </fieldset>
   );
 };
@@ -364,6 +366,18 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
             .filter((e) => Object.keys(e).length > 1) // staffId 以外に何か変更がある場合のみ
         : [];
 
+      // v372.6 fix: 全空チェック（フロント側でも弾く・WCAG SC 3.3.1/3.3.3 inline validation）
+      const hasAnyChange =
+        Object.keys(fields).length > 0 ||
+        staffAdd.length > 0 ||
+        staffRemove.length > 0 ||
+        staffUpdate.length > 0;
+      if (!hasAnyChange) {
+        setError('変更したい項目を 1 つ以上入力してください。空欄のままでは申請できません。');
+        setBusy(false);
+        return;
+      }
+
       const res = await callApi<{ success: boolean; requestId?: string; error?: string }>('submitPublicChangeRequest', {
         token,
         requestType: 'MEMBER_UPDATE',
@@ -476,19 +490,19 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
                 <label className={labelClass}>介護支援専門員番号{req}</label>
                 <input type="text" inputMode="numeric" pattern="\d{8}" maxLength={8} required
                   value={cmNumber} onChange={e => setCmNumber(e.target.value.replace(/\D/g, ''))}
-                  placeholder="12345678" className={inputClass} />
+                  placeholder="例: 12345678" className={inputClass} />
                 <p className="mt-1 text-xs text-slate-500">半角数字8桁</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelClass}>氏（姓）{req}</label>
                   <input type="text" required value={lastName}
-                    onChange={e => setLastName(e.target.value)} placeholder="山田" className={inputClass} />
+                    onChange={e => setLastName(e.target.value)} placeholder="例: 山田" className={inputClass} />
                 </div>
                 <div>
                   <label className={labelClass}>名{req}</label>
                   <input type="text" required value={firstName}
-                    onChange={e => setFirstName(e.target.value)} placeholder="太郎" className={inputClass} />
+                    onChange={e => setFirstName(e.target.value)} placeholder="例: 太郎" className={inputClass} />
                 </div>
               </div>
             </div>
@@ -496,14 +510,14 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
             <div>
               <label className={labelClass}>事業所番号{req}</label>
               <input type="text" required value={officeNumber}
-                onChange={e => setOfficeNumber(e.target.value.trim())} placeholder="事業所番号を入力" className={inputClass} />
+                onChange={e => setOfficeNumber(e.target.value.trim())} placeholder="例: 2700123456" className={inputClass} />
             </div>
           )}
 
           <div className="mt-4">
             <label className={labelClass}>返信用メールアドレス{req}</label>
             <input type="email" required value={contactEmail}
-              onChange={e => setContactEmail(e.target.value.trim())} placeholder="example@email.com" className={inputClass} />
+              onChange={e => setContactEmail(e.target.value.trim())} placeholder="例: example@email.com" className={inputClass} />
             <p className="mt-1 text-xs text-slate-500">
               申請受付・処理結果の通知に使用します。会員登録情報とは紐づきません。
             </p>
@@ -566,9 +580,15 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
       {step === 'input-fields' && (
         <form onSubmit={handleSubmit} className="rounded-[20px] border border-slate-200 bg-white p-6 shadow-sm">
           <h3 className="mb-2 text-lg font-semibold text-slate-800">新しい情報を入力</h3>
-          <p className="mb-5 text-sm text-slate-600">
-            変更後の情報を入力してください。空欄の項目は変更対象になりません。
-          </p>
+          {/* v372.6: 「空欄=変更なし」モデルを強調するガイダンスバナー */}
+          <div className="mb-5 rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm text-violet-900" role="note">
+            <p className="font-semibold mb-1">📝 変更したい項目のみ入力してください</p>
+            <ul className="ml-5 list-disc text-xs leading-relaxed">
+              <li><strong>空欄 = 変更なし</strong>（現在の登録内容がそのまま維持されます）</li>
+              <li>少なくとも 1 項目以上の入力が必要です（全て空欄のままでは送信できません）</li>
+              <li>職員追加 / 職員除籍欄は、追加・除籍を行う場合のみ全項目入力してください</li>
+            </ul>
+          </div>
           <div className="space-y-6">
             {/* ── 個人会員フィールド ──────────────────────────────────── */}
             {memberType === 'INDIVIDUAL' && (

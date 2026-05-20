@@ -4531,8 +4531,9 @@ function removePublicStaffByCmNumber_(payload) {
 function createPublicIdentityToken_(data, ttlSeconds) {
   var secret = PropertiesService.getScriptProperties().getProperty('PUBLIC_TOKEN_SECRET') || 'hcmn_member_system_v264_fallback';
   var payload = JSON.stringify({ d: data, exp: Date.now() + ttlSeconds * 1000 });
-  var encoded = Utilities.base64EncodeWebSafe(payload);
-  var sigBytes = Utilities.computeHmacSha256Signature(encoded, secret);
+  // v372.6 fix: UTF-8 charset を明示しないと日本語が ? に化ける（Utilities.base64EncodeWebSafe のデフォルト挙動）
+  var encoded = Utilities.base64EncodeWebSafe(payload, Utilities.Charset.UTF_8);
+  var sigBytes = Utilities.computeHmacSha256Signature(encoded, secret, Utilities.Charset.UTF_8);
   var sig = Utilities.base64EncodeWebSafe(sigBytes);
   return encoded + '.' + sig;
 }
@@ -4544,7 +4545,8 @@ function verifyPublicIdentityToken_(token) {
     var encoded = parts[0];
     var sig = parts[1];
     var secret = PropertiesService.getScriptProperties().getProperty('PUBLIC_TOKEN_SECRET') || 'hcmn_member_system_v264_fallback';
-    var expectedSigBytes = Utilities.computeHmacSha256Signature(encoded, secret);
+    // v372.6 fix: HMAC sign 時と verify 時で charset を統一（UTF-8）
+    var expectedSigBytes = Utilities.computeHmacSha256Signature(encoded, secret, Utilities.Charset.UTF_8);
     var expectedSig = Utilities.base64EncodeWebSafe(expectedSigBytes);
     if (sig !== expectedSig) return null;
     var decoded = Utilities.newBlob(Utilities.base64DecodeWebSafe(encoded)).getDataAsString();
@@ -4769,6 +4771,16 @@ function submitPublicChangeRequest_(payload) {
       }
       if (hasAny) changeData.staffUpdate.push(entry);
     });
+  }
+
+  // v372.6 fix: 全空の申請は拒否（fields も staffAdd/Remove/Update も空 / WITHDRAWAL は例外）
+  var hasAnyChange = (changeData.fields && Object.keys(changeData.fields).length > 0)
+    || (changeData.staffAdd && changeData.staffAdd.length > 0)
+    || (changeData.staffRemove && changeData.staffRemove.length > 0)
+    || (changeData.staffUpdate && changeData.staffUpdate.length > 0)
+    || requestType === 'WITHDRAWAL';
+  if (!hasAnyChange) {
+    return { success: false, error: '変更内容が指定されていません。変更したい項目に入力してください。' };
   }
 
   var requestId = 'CR' + Date.now() + '_' + generatePublicActionToken_().slice(0, 8);
@@ -5584,6 +5596,12 @@ var CLAIM_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
  * v370.1 one-shot: 申請 CR1778920612878_22c197b0 の partial 会員 53779700 をクリーンアップ
  * （Apps Script editor で引数渡し不可のため、固定引数 wrapper として 1 回限り使用）
  * 実行後この wrapper は次リリースで削除予定。
+ */
+
+/**
+ * v372.6: createPublicIdentityToken_ の UTF-8 charset 未指定バグで申請者表示名が
+ * '???...' になった変更申請レコードを一括 soft-delete する。
+ * Apps Script editor から手動 Run。
  */
 
 

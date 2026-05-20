@@ -15173,8 +15173,9 @@ function removePublicStaffByCmNumber_(payload) {
 function createPublicIdentityToken_(data, ttlSeconds) {
   var secret = PropertiesService.getScriptProperties().getProperty('PUBLIC_TOKEN_SECRET') || 'hcmn_member_system_v264_fallback';
   var payload = JSON.stringify({ d: data, exp: Date.now() + ttlSeconds * 1000 });
-  var encoded = Utilities.base64EncodeWebSafe(payload);
-  var sigBytes = Utilities.computeHmacSha256Signature(encoded, secret);
+  // v372.6 fix: UTF-8 charset を明示しないと日本語が ? に化ける（Utilities.base64EncodeWebSafe のデフォルト挙動）
+  var encoded = Utilities.base64EncodeWebSafe(payload, Utilities.Charset.UTF_8);
+  var sigBytes = Utilities.computeHmacSha256Signature(encoded, secret, Utilities.Charset.UTF_8);
   var sig = Utilities.base64EncodeWebSafe(sigBytes);
   return encoded + '.' + sig;
 }
@@ -15186,7 +15187,8 @@ function verifyPublicIdentityToken_(token) {
     var encoded = parts[0];
     var sig = parts[1];
     var secret = PropertiesService.getScriptProperties().getProperty('PUBLIC_TOKEN_SECRET') || 'hcmn_member_system_v264_fallback';
-    var expectedSigBytes = Utilities.computeHmacSha256Signature(encoded, secret);
+    // v372.6 fix: HMAC sign 時と verify 時で charset を統一（UTF-8）
+    var expectedSigBytes = Utilities.computeHmacSha256Signature(encoded, secret, Utilities.Charset.UTF_8);
     var expectedSig = Utilities.base64EncodeWebSafe(expectedSigBytes);
     if (sig !== expectedSig) return null;
     var decoded = Utilities.newBlob(Utilities.base64DecodeWebSafe(encoded)).getDataAsString();
@@ -15411,6 +15413,16 @@ function submitPublicChangeRequest_(payload) {
       }
       if (hasAny) changeData.staffUpdate.push(entry);
     });
+  }
+
+  // v372.6 fix: 全空の申請は拒否（fields も staffAdd/Remove/Update も空 / WITHDRAWAL は例外）
+  var hasAnyChange = (changeData.fields && Object.keys(changeData.fields).length > 0)
+    || (changeData.staffAdd && changeData.staffAdd.length > 0)
+    || (changeData.staffRemove && changeData.staffRemove.length > 0)
+    || (changeData.staffUpdate && changeData.staffUpdate.length > 0)
+    || requestType === 'WITHDRAWAL';
+  if (!hasAnyChange) {
+    return { success: false, error: '変更内容が指定されていません。変更したい項目に入力してください。' };
   }
 
   var requestId = 'CR' + Date.now() + '_' + generatePublicActionToken_().slice(0, 8);
@@ -25736,6 +25748,68 @@ function cleanupStaleBusinessApplicationForV370(memberId) {
  */
 function runCleanupPartialBusinessV370_53779700() {
   return cleanupStaleBusinessApplicationForV370('53779700');
+}
+
+/**
+ * v372.6: createPublicIdentityToken_ の UTF-8 charset 未指定バグで申請者表示名が
+ * '???...' になった変更申請レコードを一括 soft-delete する。
+ * Apps Script editor から手動 Run。
+ */
+function cleanupCorruptChangeRequestsV372() {
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_変更申請');
+  if (!sheet) return { ok: false, error: 'T_変更申請 sheet not found' };
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { ok: true, scanned: 0, softDeleted: 0 };
+
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var col = {};
+  headers.forEach(function(h, i) { col[h] = i; });
+  var required = ['申請者表示名', '削除フラグ', '更新日時'];
+  for (var ri = 0; ri < required.length; ri++) {
+    if (col[required[ri]] == null) return { ok: false, error: 'required column missing: ' + required[ri] };
+  }
+
+  var data = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
+  var now = new Date().toISOString();
+  var operator = '';
+  try { operator = Session.getActiveUser().getEmail() || ''; } catch (e) {}
+  var corruptIds = [];
+  for (var r = 0; r < data.length; r++) {
+    if (toBoolean_(data[r][col['削除フラグ']])) continue;
+    var name = String(data[r][col['申請者表示名']] || '');
+    // 「???」が含まれる、または「？」が含まれる（全角・半角どちらも）→ 文字化け疑い
+    if (/^\?+$/.test(name) || /\?{5,}/.test(name) || /^\？+$/.test(name) || /\？{5,}/.test(name)) {
+      data[r][col['削除フラグ']] = true;
+      if (col['更新日時'] != null) data[r][col['更新日時']] = now;
+      corruptIds.push(String(data[r][col['申請ID'] || 0] || ''));
+      sheet.getRange(r + 2, 1, 1, data[r].length).setValues([data[r]]);
+    }
+  }
+
+  // 監査ログ
+  try {
+    var logSs = getLogSs_();
+    appendRowsByHeaders_(logSs, 'T_監査ログ', [{
+      '監査ログID': 'AUD' + Date.now(),
+      '操作日時': now,
+      '操作者メール': operator,
+      '操作種別': 'CLEANUP_CORRUPT_CHANGE_REQUESTS_V372_6',
+      '対象テーブル': 'T_変更申請',
+      '対象レコードID': corruptIds.join(','),
+      'フィールド名': '申請者表示名',
+      '旧値': '???系の文字化け',
+      '新値': '削除フラグ=true',
+    }]);
+  } catch (e) {
+    Logger.log('cleanupCorruptChangeRequestsV372 audit log failed: ' + e.message);
+  }
+
+  clearAllDataCache_();
+  var result = { ok: true, scanned: data.length, softDeleted: corruptIds.length, corruptIds: corruptIds };
+  Logger.log('cleanupCorruptChangeRequestsV372 result: ' + JSON.stringify(result));
+  return result;
 }
 
 function runAddSharedMemoSheetForV309() {

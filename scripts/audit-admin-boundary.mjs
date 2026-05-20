@@ -25,6 +25,8 @@ const allowedTopLevelFunctions = [
   'runCleanupPartialBusinessV370_53779700',
   // v360 schema migration (operator が Apps Script editor から 1 回 Run)
   'runRebuildSchemaForV360',
+  // v372.6: 文字化け変更申請レコードの一括 soft delete
+  'cleanupCorruptChangeRequestsV372',
   // 2026-05-17: dryRun synthetic transaction test runner
   'dryRunApplicationScenarios',
   'previewDryRunApplicationCleanup',
