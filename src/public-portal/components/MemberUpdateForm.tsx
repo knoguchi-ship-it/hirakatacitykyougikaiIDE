@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { callApi } from '../../shared/api-base';
 
 interface Props {
@@ -274,6 +274,40 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
   };
 
   // ── Step 4 → 送信 ────────────────────────────────────────────────────────────
+  // v372.6: 変更内容ゼロを send 前に検出（送信ボタン disable に使う）
+  const hasAnyInput = useMemo(() => {
+    // 個人会員
+    if (memberType === 'INDIVIDUAL') {
+      if (selected.has('name') && (indFields.lastName.trim() || indFields.firstName.trim() || indFields.lastKana.trim() || indFields.firstKana.trim())) return true;
+      if (selected.has('contact') && (indFields.email.trim() || indFields.mobilePhone.trim())) return true;
+      if (selected.has('officeContact') && (indFields.phone.trim() || indFields.fax.trim())) return true;
+      if (selected.has('officeAddress')) {
+        const a = indFields.officeAddress;
+        if (a.postCode.trim() || a.prefecture.trim() || a.city.trim() || a.addressLine.trim() || a.addressLine2.trim()) return true;
+      }
+      if (selected.has('homeAddress')) {
+        const a = indFields.homeAddress;
+        if (a.postCode.trim() || a.prefecture.trim() || a.city.trim() || a.addressLine.trim() || a.addressLine2.trim()) return true;
+      }
+      if (selected.has('careManagerNumber') && indFields.careManagerNumber.trim()) return true;
+      if (selected.has('mailingPreference') && indFields.mailingPreference.trim()) return true;
+      if (selected.has('preferredMailDestination') && indFields.preferredMailDestination.trim()) return true;
+    }
+    // 事業所会員
+    if (memberType === 'BUSINESS') {
+      if (selected.has('officeBasic') && (bizFields.officeName.trim() || bizFields.email.trim() || bizFields.phone.trim() || bizFields.fax.trim())) return true;
+      if (selected.has('bizAddress')) {
+        const a = bizFields.bizAddress;
+        if (a.postCode.trim() || a.prefecture.trim() || a.city.trim() || a.addressLine.trim() || a.addressLine2.trim()) return true;
+      }
+      if (selected.has('officeNumber') && bizFields.officeNumber.trim()) return true;
+      if (selected.has('staffAdd') && staffAddCards.some((c) => c.lastName.trim() && c.firstName.trim() && c.lastKana.trim() && c.firstKana.trim() && /^\d{8}$/.test(c.careManagerNumber) && c.email.trim())) return true;
+      if (selected.has('staffRemove') && staffRemoveCards.some((c) => c.lastName.trim() && c.firstName.trim() && /^\d{8}$/.test(c.careManagerNumber))) return true;
+      if (selected.has('staffUpdate') && staffUpdateCards.some((c) => c.selected && (c.lastName.trim() || c.firstName.trim() || c.lastKana.trim() || c.firstKana.trim() || c.email.trim() || (c.careManagerNumber.trim() && !c.original.careManagerNumberLocked)))) return true;
+    }
+    return false;
+  }, [memberType, selected, indFields, bizFields, staffAddCards, staffRemoveCards, staffUpdateCards]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -975,10 +1009,19 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
               className="flex-1 rounded-full border border-slate-300 bg-white px-6 py-3 text-sm font-medium text-slate-700 transition hover:border-slate-400">
               ← 項目選択に戻る
             </button>
-            <button type="submit" disabled={busy}
-              className="flex-1 rounded-full bg-violet-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-300">
-              {busy ? '送信中...' : '変更を申請する'}
-            </button>
+            <div className="flex-1">
+              <button type="submit" disabled={busy || !hasAnyInput}
+                aria-disabled={busy || !hasAnyInput}
+                title={!hasAnyInput ? '変更したい項目に入力してください（全て空欄では申請できません）' : ''}
+                className="w-full rounded-full bg-violet-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500">
+                {busy ? '送信中...' : '変更を申請する'}
+              </button>
+              {!hasAnyInput && (
+                <p className="mt-2 text-center text-xs text-slate-500" role="status">
+                  変更したい項目に入力すると送信できます
+                </p>
+              )}
+            </div>
           </div>
         </form>
       )}
