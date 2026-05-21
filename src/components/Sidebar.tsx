@@ -111,6 +111,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       items: [
         { id: 'training-manage', label: '研修管理' },
         { id: 'bulk-mail', label: '一括メール送信' },
+        { id: 'line-post', label: '📱 公式LINE投稿依頼' },
       ],
     },
     {
