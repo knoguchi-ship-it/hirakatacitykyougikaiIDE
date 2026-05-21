@@ -645,6 +645,17 @@ var テーブル定義 = {
 テーブル定義['T_共有メモ'] = [
   'キー', '内容', '更新者メール', '更新者名', '更新日時', 'バージョン',
 ];
+// v374.1: 公式 LINE 投稿依頼テーブル（管理者ポータル → LINE 担当者への依頼集約）
+// polymorphic association: 対象種別 + 対象ID で将来の連携対象を任意拡張可能（GENERAL / TRAINING / 将来 EVENT 等）
+テーブル定義['T_LINE投稿依頼'] = [
+  '投稿依頼ID', 'ステータス',
+  'テキスト', '研修申込リンク',
+  '添付ファイルURL', '添付ファイル種別', '添付ファイル名',
+  '対象種別', '対象ID',
+  '作成者メール', '作成日時', '更新日時',
+  '投稿依頼日時', '投稿日時', '投稿マーク者メール',
+  '備考', '削除フラグ',
+];
 
 var 入力規則定義 = [
   ['T_会員', '会員種別コード', 'M_会員種別'],
@@ -1209,6 +1220,9 @@ function insertSystemSettingKeysForV194() {
     // v373.7 (S5 Phase 2): ROSTER_TEMPLATE_SS_ID / REMINDER_TEMPLATE_SS_ID / ROSTER_TEMPLATE_LIST
     // のスキーマ初期化エントリ撤去。既存環境では行データを残置（rollback 容易・データ保全）
     { key: 'BULK_MAIL_AUTO_ATTACH_FOLDER_ID', value: '', desc: '一括メール個別自動添付DriveフォルダID' },
+    // v374.1: 公式LINE投稿依頼
+    { key: 'LINE_POST_ASSETS_FOLDER_ID', value: '', desc: '公式LINE投稿の添付ファイル保存先 Drive フォルダID（空なら初回アップロード時に自動作成）' },
+    { key: 'LINE_POST_NOTIFY_EMAIL', value: '', desc: '公式LINE投稿依頼が REQUESTED 状態になった際の通知先メールアドレス（空ならメール送信スキップ）' },
     { key: 'EMAIL_LOG_VIEWER_ROLE', value: 'MASTER', desc: 'メール送信ログ閲覧権限（MASTER / MASTER,ADMIN）' },
   ];
   var added = [];
@@ -1581,6 +1595,13 @@ var ADMIN_ACTION_PERMISSIONS = {
   'saveRosterTemplateV2': ['MASTER','ADMIN'],
   'deleteRosterTemplateV2': ['MASTER','ADMIN'],
   'duplicateRosterTemplateV2': ['MASTER','ADMIN'],
+  // v374.1: 公式LINE投稿依頼
+  'listLinePostRequests': ['MASTER','ADMIN'],
+  'getLinePostRequest': ['MASTER','ADMIN'],
+  'saveLinePostRequest': ['MASTER','ADMIN'],
+  'uploadLinePostAttachment': ['MASTER','ADMIN'],
+  'transitionLinePostRequest': ['MASTER','ADMIN'],
+  'deleteLinePostRequest': ['MASTER','ADMIN'],
   // v360: 研修名簿・出欠・受講履歴・一括メール明細
   'getTrainingRosterDetail': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
   'saveAttendance': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
@@ -1890,6 +1911,26 @@ function processApiRequest(action, payload) {
     }
     if (action === 'duplicateRosterTemplateV2') {
       return JSON.stringify({ success: true, data: duplicateRosterTemplateV2_(parsedPayload) });
+    }
+
+    // v374.1: 公式LINE投稿依頼
+    if (action === 'listLinePostRequests') {
+      return JSON.stringify({ success: true, data: listLinePostRequests_(parsedPayload) });
+    }
+    if (action === 'getLinePostRequest') {
+      return JSON.stringify({ success: true, data: getLinePostRequest_(parsedPayload) });
+    }
+    if (action === 'saveLinePostRequest') {
+      return JSON.stringify({ success: true, data: saveLinePostRequest_(parsedPayload) });
+    }
+    if (action === 'uploadLinePostAttachment') {
+      return JSON.stringify({ success: true, data: uploadLinePostAttachment_(parsedPayload) });
+    }
+    if (action === 'transitionLinePostRequest') {
+      return JSON.stringify({ success: true, data: transitionLinePostRequest_(parsedPayload) });
+    }
+    if (action === 'deleteLinePostRequest') {
+      return JSON.stringify({ success: true, data: deleteLinePostRequest_(parsedPayload) });
     }
 
     if (action === 'sendTrainingReminder') {
@@ -21591,6 +21632,305 @@ function duplicateRosterTemplateV2_(payload) {
   copy.createdAt = new Date().toISOString();
   copy.updatedAt = copy.createdAt;
   return saveRosterTemplateV2_({ template: copy });
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// v374.1: 公式LINE投稿依頼（管理者ポータル → LINE 担当者への依頼集約）
+// ─────────────────────────────────────────────────────────────────────────
+
+var LINE_POST_STATUS_DRAFT = 'DRAFT';
+var LINE_POST_STATUS_REQUESTED = 'REQUESTED';
+var LINE_POST_STATUS_POSTED = 'POSTED';
+var LINE_POST_TARGET_GENERAL = 'GENERAL';
+var LINE_POST_TARGET_TRAINING = 'TRAINING';
+var LINE_POST_TEXT_MAX = 500;
+var LINE_POST_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+var LINE_POST_ATTACHMENT_KIND_IMAGE = 'IMAGE';
+var LINE_POST_ATTACHMENT_KIND_PDF = 'PDF';
+
+function ensureLinePostRequestSheet_(ss) {
+  return getOrCreateSheet_(ss, 'T_LINE投稿依頼');
+}
+
+function getLinePostAssetsFolder_() {
+  var ss = getOrCreateDatabase_();
+  var folderId = String(getSystemSettingValue_(ss, 'LINE_POST_ASSETS_FOLDER_ID') || '').trim();
+  if (folderId) {
+    try { return DriveApp.getFolderById(folderId); } catch (e) { /* fall through to create */ }
+  }
+  var folder = DriveApp.createFolder('LINE投稿資材');
+  upsertSystemSetting_(ss, 'LINE_POST_ASSETS_FOLDER_ID', folder.getId(),
+    '公式LINE投稿の添付ファイル保存先 Drive フォルダID');
+  return folder;
+}
+
+function rowToLinePostRequest_(row) {
+  return {
+    id: String(row['投稿依頼ID'] || ''),
+    status: String(row['ステータス'] || LINE_POST_STATUS_DRAFT),
+    text: String(row['テキスト'] || ''),
+    trainingApplyUrl: String(row['研修申込リンク'] || ''),
+    attachmentUrl: String(row['添付ファイルURL'] || ''),
+    attachmentKind: String(row['添付ファイル種別'] || ''),
+    attachmentName: String(row['添付ファイル名'] || ''),
+    targetType: String(row['対象種別'] || LINE_POST_TARGET_GENERAL),
+    targetId: String(row['対象ID'] || ''),
+    createdByEmail: String(row['作成者メール'] || ''),
+    createdAt: String(row['作成日時'] || ''),
+    updatedAt: String(row['更新日時'] || ''),
+    requestedAt: String(row['投稿依頼日時'] || ''),
+    postedAt: String(row['投稿日時'] || ''),
+    postedByEmail: String(row['投稿マーク者メール'] || ''),
+    memo: String(row['備考'] || ''),
+  };
+}
+
+function listLinePostRequests_(payload) {
+  var p = payload || {};
+  var statusFilter = String(p.status || '').trim();
+  var targetTypeFilter = String(p.targetType || '').trim();
+  var keyword = String(p.keyword || '').trim().toLowerCase();
+  var limit = Math.min(Math.max(Number(p.limit) || 200, 1), 1000);
+
+  var ss = getOrCreateDatabase_();
+  ensureLinePostRequestSheet_(ss);
+  var rows = getRowsAsObjects_(ss, 'T_LINE投稿依頼');
+  var items = [];
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
+    if (String(row['削除フラグ'] || '').toLowerCase() === 'true') continue;
+    if (statusFilter && String(row['ステータス']) !== statusFilter) continue;
+    if (targetTypeFilter && String(row['対象種別']) !== targetTypeFilter) continue;
+    if (keyword) {
+      var hay = (String(row['テキスト']) + ' ' + String(row['備考']) + ' ' + String(row['添付ファイル名'])).toLowerCase();
+      if (hay.indexOf(keyword) < 0) continue;
+    }
+    items.push(rowToLinePostRequest_(row));
+  }
+  // 作成日時降順
+  items.sort(function (a, b) { return (a.createdAt < b.createdAt) ? 1 : (a.createdAt > b.createdAt ? -1 : 0); });
+  if (items.length > limit) items = items.slice(0, limit);
+  return { items: items, total: items.length, statusFilter: statusFilter, targetTypeFilter: targetTypeFilter };
+}
+
+function getLinePostRequest_(payload) {
+  var id = String((payload || {}).id || '').trim();
+  if (!id) throw new Error('投稿依頼IDが必要です。');
+  var ss = getOrCreateDatabase_();
+  ensureLinePostRequestSheet_(ss);
+  var rows = getRowsAsObjects_(ss, 'T_LINE投稿依頼');
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i]['投稿依頼ID']) === id) {
+      if (String(rows[i]['削除フラグ'] || '').toLowerCase() === 'true') {
+        throw new Error('削除済みの投稿依頼です。');
+      }
+      var item = rowToLinePostRequest_(rows[i]);
+      // 関連情報（targetType=TRAINING なら研修名を同送）
+      if (item.targetType === LINE_POST_TARGET_TRAINING && item.targetId) {
+        var trainings = getRowsAsObjects_(ss, 'T_研修');
+        for (var j = 0; j < trainings.length; j++) {
+          if (String(trainings[j]['研修ID']) === item.targetId) {
+            item.targetLabel = String(trainings[j]['研修名'] || '') + (trainings[j]['開催日'] ? ' (' + trainings[j]['開催日'] + ')' : '');
+            break;
+          }
+        }
+      }
+      return { item: item };
+    }
+  }
+  throw new Error('投稿依頼が見つかりません。');
+}
+
+function saveLinePostRequest_(payload) {
+  var p = payload || {};
+  var caller = String(Session.getActiveUser().getEmail() || '').toLowerCase();
+  var ss = getOrCreateDatabase_();
+  ensureLinePostRequestSheet_(ss);
+  var text = String(p.text || '');
+  if (!text) throw new Error('テキストを入力してください。');
+  if (text.length > LINE_POST_TEXT_MAX) throw new Error('テキストは' + LINE_POST_TEXT_MAX + '文字以内で入力してください。');
+  var trainingApplyUrl = String(p.trainingApplyUrl || '').trim();
+  if (trainingApplyUrl) {
+    var urlLower = trainingApplyUrl.toLowerCase();
+    if (urlLower.indexOf('http://') !== 0 && urlLower.indexOf('https://') !== 0) {
+      throw new Error('研修申込リンクは http(s):// で始まる URL を入力してください。');
+    }
+  }
+  var targetType = String(p.targetType || LINE_POST_TARGET_GENERAL);
+  if (targetType !== LINE_POST_TARGET_GENERAL && targetType !== LINE_POST_TARGET_TRAINING) {
+    throw new Error('対象種別が不正です。');
+  }
+  var targetId = String(p.targetId || '').trim();
+  if (targetType === LINE_POST_TARGET_TRAINING && !targetId) {
+    throw new Error('対象種別が研修の場合は対象ID（研修ID）が必要です。');
+  }
+  var now = new Date().toISOString();
+  var id = String(p.id || '').trim();
+  var sheet = ss.getSheetByName('T_LINE投稿依頼');
+  if (id) {
+    // 既存更新（DRAFT のみ編集可）
+    var rows = getRowsAsObjects_(ss, 'T_LINE投稿依頼');
+    var foundIndex = -1;
+    for (var i = 0; i < rows.length; i++) {
+      if (String(rows[i]['投稿依頼ID']) === id) { foundIndex = i; break; }
+    }
+    if (foundIndex < 0) throw new Error('編集対象の投稿依頼が見つかりません。');
+    if (String(rows[foundIndex]['ステータス']) !== LINE_POST_STATUS_DRAFT) {
+      throw new Error('作成中（DRAFT）の投稿依頼のみ編集できます。先に「取り下げ」を実行してください。');
+    }
+    var existing = rows[foundIndex];
+    var updates = Object.assign({}, existing, {
+      'テキスト': text,
+      '研修申込リンク': trainingApplyUrl,
+      '添付ファイルURL': String(p.attachmentUrl || existing['添付ファイルURL'] || ''),
+      '添付ファイル種別': String(p.attachmentKind || existing['添付ファイル種別'] || ''),
+      '添付ファイル名': String(p.attachmentName || existing['添付ファイル名'] || ''),
+      '対象種別': targetType,
+      '対象ID': targetId,
+      '更新日時': now,
+      '備考': String(p.memo || ''),
+    });
+    // 添付削除リクエスト（明示 null）
+    if (p.clearAttachment === true) {
+      updates['添付ファイルURL'] = '';
+      updates['添付ファイル種別'] = '';
+      updates['添付ファイル名'] = '';
+    }
+    var saveSheet = ss.getSheetByName('T_LINE投稿依頼');
+    updateRowByKey_(saveSheet, テーブル定義['T_LINE投稿依頼'], '投稿依頼ID', id, updates);
+    return getLinePostRequest_({ id: id });
+  } else {
+    // 新規作成
+    var newId = Utilities.getUuid();
+    var newRow = {
+      '投稿依頼ID': newId,
+      'ステータス': LINE_POST_STATUS_DRAFT,
+      'テキスト': text,
+      '研修申込リンク': trainingApplyUrl,
+      '添付ファイルURL': String(p.attachmentUrl || ''),
+      '添付ファイル種別': String(p.attachmentKind || ''),
+      '添付ファイル名': String(p.attachmentName || ''),
+      '対象種別': targetType,
+      '対象ID': targetId,
+      '作成者メール': caller,
+      '作成日時': now,
+      '更新日時': now,
+      '投稿依頼日時': '',
+      '投稿日時': '',
+      '投稿マーク者メール': '',
+      '備考': String(p.memo || ''),
+      '削除フラグ': 'false',
+    };
+    appendRowsByHeaders_(ss, 'T_LINE投稿依頼', [newRow]);
+    return getLinePostRequest_({ id: newId });
+  }
+}
+
+function uploadLinePostAttachment_(payload) {
+  var p = payload || {};
+  var base64 = String(p.base64 || '');
+  var mimeType = String(p.mimeType || '').toLowerCase();
+  var fileName = String(p.fileName || 'attachment');
+  if (!base64) throw new Error('添付データが空です。');
+  // mimeType 判定
+  var kind = '';
+  if (mimeType.indexOf('image/') === 0) kind = LINE_POST_ATTACHMENT_KIND_IMAGE;
+  else if (mimeType === 'application/pdf') kind = LINE_POST_ATTACHMENT_KIND_PDF;
+  else throw new Error('画像（jpg/png/gif/webp）または PDF のみアップロード可能です。');
+  // size check (base64 length × 3/4 ≒ bytes)
+  var approxBytes = Math.floor(base64.length * 0.75);
+  if (approxBytes > LINE_POST_ATTACHMENT_MAX_BYTES) {
+    throw new Error('ファイルサイズが上限（10MB）を超えています。');
+  }
+  var bytes = Utilities.base64Decode(base64);
+  var blob = Utilities.newBlob(bytes, mimeType, fileName);
+  var folder = getLinePostAssetsFolder_();
+  var file = folder.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return {
+    url: file.getUrl(),
+    fileId: file.getId(),
+    fileName: file.getName(),
+    kind: kind,
+    mimeType: mimeType,
+    sizeBytes: approxBytes,
+  };
+}
+
+function transitionLinePostRequest_(payload) {
+  var p = payload || {};
+  var id = String(p.id || '').trim();
+  // build pruner が `if (action === '...')` を dispatcher case と誤認するのを避けるため
+  // パラメータ名は `transAction` を使用（payload.action は外部 API 名で固定のため受信側のみ別名）
+  var transAction = String(p.action || '').trim(); // 'request' / 'post' / 'withdraw'
+  if (!id) throw new Error('投稿依頼IDが必要です。');
+  var caller = String(Session.getActiveUser().getEmail() || '').toLowerCase();
+  var ss = getOrCreateDatabase_();
+  ensureLinePostRequestSheet_(ss);
+  var rows = getRowsAsObjects_(ss, 'T_LINE投稿依頼');
+  var found = null;
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i]['投稿依頼ID']) === id) { found = rows[i]; break; }
+  }
+  if (!found) throw new Error('投稿依頼が見つかりません。');
+  var now = new Date().toISOString();
+  var currentStatus = String(found['ステータス']);
+  var updates = { '更新日時': now };
+  if (transAction === 'request') {
+    if (currentStatus !== LINE_POST_STATUS_DRAFT) {
+      throw new Error('作成中（DRAFT）の投稿依頼のみ依頼へ移行できます。');
+    }
+    updates['ステータス'] = LINE_POST_STATUS_REQUESTED;
+    updates['投稿依頼日時'] = now;
+    // メール通知
+    var notifyEmail = String(getSystemSettingValue_(ss, 'LINE_POST_NOTIFY_EMAIL') || '').trim();
+    if (notifyEmail) {
+      try {
+        var subject = '【LINE投稿依頼】新規依頼が登録されました';
+        var body = '公式LINE への投稿依頼が登録されました。\n\n'
+          + '【投稿依頼ID】' + id + '\n'
+          + '【依頼者】' + caller + '\n'
+          + '【依頼日時】' + now + '\n\n'
+          + '----- 本文 -----\n' + String(found['テキスト']) + '\n\n'
+          + (String(found['研修申込リンク']) ? '【研修申込リンク】' + String(found['研修申込リンク']) + '\n' : '')
+          + (String(found['添付ファイルURL']) ? '【添付ファイル】' + String(found['添付ファイル名']) + '\n' + String(found['添付ファイルURL']) + '\n' : '');
+        deliverMail_('LINE_POST_REQUEST', notifyEmail, subject, body, {});
+      } catch (mailErr) {
+        Logger.log('[transitionLinePostRequest_] mail notify failed: ' + mailErr.message);
+      }
+    }
+  } else if (transAction === 'post') {
+    if (currentStatus !== LINE_POST_STATUS_REQUESTED) {
+      throw new Error('投稿依頼中（REQUESTED）の依頼のみ「投稿済み」に移行できます。');
+    }
+    updates['ステータス'] = LINE_POST_STATUS_POSTED;
+    updates['投稿日時'] = now;
+    updates['投稿マーク者メール'] = caller;
+  } else if (transAction === 'withdraw') {
+    if (currentStatus === LINE_POST_STATUS_POSTED) {
+      throw new Error('投稿済みの依頼は取下げできません。');
+    }
+    updates['ステータス'] = LINE_POST_STATUS_DRAFT;
+    updates['投稿依頼日時'] = '';
+  } else {
+    throw new Error('不正な遷移アクションです。');
+  }
+  var transSheet = ss.getSheetByName('T_LINE投稿依頼');
+  updateRowByKey_(transSheet, テーブル定義['T_LINE投稿依頼'], '投稿依頼ID', id, updates);
+  return getLinePostRequest_({ id: id });
+}
+
+function deleteLinePostRequest_(payload) {
+  var id = String((payload || {}).id || '').trim();
+  if (!id) throw new Error('投稿依頼IDが必要です。');
+  var ss = getOrCreateDatabase_();
+  ensureLinePostRequestSheet_(ss);
+  var delSheet = ss.getSheetByName('T_LINE投稿依頼');
+  updateRowByKey_(delSheet, テーブル定義['T_LINE投稿依頼'], '投稿依頼ID', id, {
+    '削除フラグ': 'true',
+    '更新日時': new Date().toISOString(),
+  });
+  return { ok: true, id: id };
 }
 
 // ─────────────────────────────────────────────────────────────────────────

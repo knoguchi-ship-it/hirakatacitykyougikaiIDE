@@ -8,6 +8,7 @@ import AnnualFeeManagement from './components/AnnualFeeManagement';
 import BulkMailSender from './components/BulkMailSender';
 import RosterDesigner from './components/RosterDesigner';
 import MailingListExport from './components/MailingListExport';
+import LinePostConsole from './components/LinePostConsole';
 import OfficerMasterSettings from './components/OfficerMasterSettings';
 import OfficerManagement from './components/OfficerManagement';
 import PaymentHistoryConsole from './components/PaymentHistoryConsole';
@@ -24,7 +25,7 @@ import { EmailCard, MasterOffBanner, MergeTags, ToggleSwitch } from './component
 import { matchesSearchQuery } from './utils/search';
 
 type Role = 'ADMIN' | 'MEMBER';
-type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'roster-export' | 'mailing-list-export' | 'template-help' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings' | 'member-delete' | 'change-requests' | 'officer-management' | 'payment-history' | 'claim-management';
+type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'roster-export' | 'mailing-list-export' | 'template-help' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings' | 'member-delete' | 'change-requests' | 'officer-management' | 'payment-history' | 'claim-management' | 'line-post';
 type AuthTab = 'member' | 'admin';
 type PendingAnnualFeeAction = { type: 'view'; view: View } | { type: 'logout' } | null;
 type MemberListFilter = 'ALL' | MemberType;
@@ -308,6 +309,7 @@ const BREADCRUMB_MAP: Record<string, { group: string; label: string }> = {
   'template-help':      { group: '財務・帳票', label: 'テンプレートヘルプ' },
   'training-manage':    { group: '研修・通知', label: '研修管理' },
   'bulk-mail':          { group: '研修・通知', label: '一括メール送信' },
+  'line-post':          { group: '研修・通知', label: '📱 公式LINE投稿依頼' },
   'officer-management': { group: '組織管理',   label: '役員管理' },
   'admin-settings':     { group: 'システム',   label: 'システム設定' },
   'system-permissions': { group: 'システム',   label: '権限管理' },
@@ -1065,7 +1067,7 @@ const App: React.FC = () => {
       return;
     }
 
-    if (userRole === 'ADMIN' && (currentView === 'admin-settings' || currentView === 'bulk-mail' || currentView === 'roster-export' || currentView === 'mailing-list-export')) {
+    if (userRole === 'ADMIN' && (currentView === 'admin-settings' || currentView === 'bulk-mail' || currentView === 'roster-export' || currentView === 'mailing-list-export' || currentView === 'line-post')) {
       loadSystemSettings(false).catch(() => undefined);
       return;
     }
@@ -4867,6 +4869,14 @@ const App: React.FC = () => {
         return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
       }
       return <MailingListExport api={api} />;
+    }
+
+    // v374.1: 公式LINE投稿依頼
+    if (currentView === 'line-post') {
+      if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
+        return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
+      }
+      return <LinePostConsole api={api} trainings={trainings} />;
     }
 
     if (currentView === 'officer-management') {

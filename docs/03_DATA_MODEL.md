@@ -888,6 +888,19 @@ v360 以降、研修申込者の識別は **3 つの独立した FK 列の XOR �
 - **`rebuildDatabaseSchema()` 対応**: `テーブル定義['T_共有メモ']` に追加済みのため `createTableSheets_()` が自動作成する。`cleanupNonSchemaSheets_()` による誤削除も発生しない。
 - **初回作成**: `runAddSharedMemoSheetForV309()` 関数を Apps Script エディタから実行、または `saveSharedMemo_()` の初回呼び出し時に自動作成。
 
+#### `T_LINE投稿依頼` — v374.1追加
+
+- **用途**: 公式LINE への投稿コンテンツ依頼を集約（手動投稿運用の支援）。詳細設計は `docs/246_DESIGN_LINE_POST_REQUEST_2026-05-21.md`。
+- **主キー**: `投稿依頼ID`（UUID）。
+- **列**: `投稿依頼ID`, `ステータス`, `テキスト`, `研修申込リンク`, `添付ファイルURL`, `添付ファイル種別`, `添付ファイル名`, `対象種別`, `対象ID`, `作成者メール`, `作成日時`, `更新日時`, `投稿依頼日時`, `投稿日時`, `投稿マーク者メール`, `備考`, `削除フラグ`。
+- **ステータス**: `DRAFT`（作成中）/ `REQUESTED`（投稿依頼中・LINE 担当者へメール通知済）/ `POSTED`（投稿済み）。状態遷移: DRAFT→REQUESTED→POSTED、REQUESTED→DRAFT（取り下げ）。
+- **対象種別**: `GENERAL` / `TRAINING`。**Polymorphic association** で将来 `EVENT` / `MEMBER_RECRUIT` 等を追加可能（スキーマ変更不要）。
+- **対象ID**: targetType=TRAINING のときは研修ID。GENERAL のときは空。FK 制約は持たないが UI 側で T_研修 から選択し整合性確保。
+- **添付ファイル**: 画像（image/*）or PDF（application/pdf）。10MB 上限。Drive 「LINE投稿資材」フォルダに ANYONE_WITH_LINK で保存。
+- **削除**: soft delete（`削除フラグ=true`）のみ。POSTED は削除不可（履歴保持）。
+- **権限**: admin only（MASTER + ADMIN）。
+- **関連 SystemSettings**: `LINE_POST_ASSETS_FOLDER_ID`（Drive folder, 自動生成）/ `LINE_POST_NOTIFY_EMAIL`（REQUESTED 遷移時通知先）。
+
 ---
 
 ## 5. ログ SS テーブル（別スプレッドシート・v261〜）

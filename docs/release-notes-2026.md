@@ -13,6 +13,19 @@
 
 ---
 
+## v374.1 — 2026-05-21
+
+| 種別 | 内容 | 参照 |
+|---|---|---|
+| 🆕 | **公式LINE投稿依頼コンソール**を管理者ポータルに新規追加。3 状態ライフサイクル（DRAFT → REQUESTED → POSTED）+ Drive 添付（画像/PDF・10MB）+ Polymorphic association（GENERAL / TRAINING、将来拡張可）+ LINE 風プレビュー | `docs/246_DESIGN_LINE_POST_REQUEST_2026-05-21.md` |
+| 🆕 | T_LINE投稿依頼テーブル / 2 SystemSettings (`LINE_POST_ASSETS_FOLDER_ID` / `LINE_POST_NOTIFY_EMAIL`) / 6 admin API actions | `docs/03_DATA_MODEL.md` §4 |
+| 🐛 | build pruner が関数内 `if (action === ...)` を dispatcher case と誤認する問題を回避するため、handler のパラメータ名を `action` → `transAction` に変更 | — |
+| 🐛 | build parser が regex literal `/.../` を line comment と誤認する問題を回避するため、handler 内 regex を String 操作に置換 | — |
+
+デプロイ: integrated/public `@346` x2 / member `@103` / admin `@155`
+
+---
+
 ## v374 — 2026-05-21
 
 | 種別 | 内容 | 参照 |

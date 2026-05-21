@@ -449,3 +449,37 @@ export interface ClaimRecord {
   作成日時: string;
   更新日時: string;
 }
+
+// v374.1: 公式LINE投稿依頼
+export type LinePostStatus = 'DRAFT' | 'REQUESTED' | 'POSTED';
+export type LinePostTargetType = 'GENERAL' | 'TRAINING';
+export type LinePostAttachmentKind = '' | 'IMAGE' | 'PDF';
+
+export interface LinePostRequest {
+  id: string;
+  status: LinePostStatus;
+  text: string;
+  trainingApplyUrl: string;
+  attachmentUrl: string;
+  attachmentKind: LinePostAttachmentKind;
+  attachmentName: string;
+  targetType: LinePostTargetType;
+  targetId: string;
+  targetLabel?: string;       // backend が getLinePostRequest_ で同送（targetType=TRAINING 時）
+  createdByEmail: string;
+  createdAt: string;
+  updatedAt: string;
+  requestedAt: string;
+  postedAt: string;
+  postedByEmail: string;
+  memo: string;
+}
+
+export interface LinePostAttachmentUploadResult {
+  url: string;
+  fileId: string;
+  fileName: string;
+  kind: LinePostAttachmentKind;
+  mimeType: string;
+  sizeBytes: number;
+}

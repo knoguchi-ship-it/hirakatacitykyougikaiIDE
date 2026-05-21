@@ -132,6 +132,13 @@ const allowedAdminActions = [
   'saveRosterTemplateV2',
   'deleteRosterTemplateV2',
   'duplicateRosterTemplateV2',
+  // v374.1: 公式LINE投稿依頼
+  'listLinePostRequests',
+  'getLinePostRequest',
+  'saveLinePostRequest',
+  'uploadLinePostAttachment',
+  'transitionLinePostRequest',
+  'deleteLinePostRequest',
   // v344: 案内PDFサムネイル Drive proxy
   'getFileThumbnail',
   // v350: 失敗時の手動サムネイル再生成

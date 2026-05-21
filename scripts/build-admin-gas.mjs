@@ -510,6 +510,13 @@ function buildAdminCode(source) {
     'getMemberTrainingHistory',
     'sendTrainingMailSegmented',
     'getTrainingMailSendLogs',
+    // v374.1: 公式LINE投稿依頼
+    'listLinePostRequests',
+    'getLinePostRequest',
+    'saveLinePostRequest',
+    'uploadLinePostAttachment',
+    'transitionLinePostRequest',
+    'deleteLinePostRequest',
   ]);
   code = removeIfBlock(code, "isMemberAction && !LOGIN_ONLY_MEMBER_ACTIONS[action]");
   // v349: regenerateAllThumbnails は clasp run 専用の admin backfill ツール。

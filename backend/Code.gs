@@ -645,6 +645,17 @@ var テーブル定義 = {
 テーブル定義['T_共有メモ'] = [
   'キー', '内容', '更新者メール', '更新者名', '更新日時', 'バージョン',
 ];
+// v374.1: 公式 LINE 投稿依頼テーブル（管理者ポータル → LINE 担当者への依頼集約）
+// polymorphic association: 対象種別 + 対象ID で将来の連携対象を任意拡張可能（GENERAL / TRAINING / 将来 EVENT 等）
+テーブル定義['T_LINE投稿依頼'] = [
+  '投稿依頼ID', 'ステータス',
+  'テキスト', '研修申込リンク',
+  '添付ファイルURL', '添付ファイル種別', '添付ファイル名',
+  '対象種別', '対象ID',
+  '作成者メール', '作成日時', '更新日時',
+  '投稿依頼日時', '投稿日時', '投稿マーク者メール',
+  '備考', '削除フラグ',
+];
 
 var 入力規則定義 = [
   ['T_会員', '会員種別コード', 'M_会員種別'],
@@ -896,6 +907,8 @@ function processApiRequest(action, payload) {
 
     // v373.7 (S5 Phase 2): 旧 v316 RosterTemplate dispatcher 撤去
     // v372: 名簿出力 全面刷新（Visual Template Designer）
+
+    // v374.1: 公式LINE投稿依頼
 
 
 
@@ -5359,6 +5372,29 @@ function backfillBusinessStaffNameColumns_(ss) {
 /**
  * ROSTER_TEMPLATE_LIBRARY_V2 の読み込み（T_システム設定 から JSON 取得）。
  */
+
+
+
+
+// ─────────────────────────────────────────────────────────────────────────
+// v374.1: 公式LINE投稿依頼（管理者ポータル → LINE 担当者への依頼集約）
+// ─────────────────────────────────────────────────────────────────────────
+
+var LINE_POST_STATUS_DRAFT = 'DRAFT';
+var LINE_POST_STATUS_REQUESTED = 'REQUESTED';
+var LINE_POST_STATUS_POSTED = 'POSTED';
+var LINE_POST_TARGET_GENERAL = 'GENERAL';
+var LINE_POST_TARGET_TRAINING = 'TRAINING';
+var LINE_POST_TEXT_MAX = 500;
+var LINE_POST_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+var LINE_POST_ATTACHMENT_KIND_IMAGE = 'IMAGE';
+var LINE_POST_ATTACHMENT_KIND_PDF = 'PDF';
+
+
+
+
+
+
 
 
 

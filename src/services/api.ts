@@ -14,6 +14,12 @@ import {
   TrainingMailLogHeader,
   TrainingMailLogDetail,
   AttendanceStatus,
+  // v374.1: 公式LINE投稿依頼
+  LinePostRequest,
+  LinePostStatus,
+  LinePostTargetType,
+  LinePostAttachmentKind,
+  LinePostAttachmentUploadResult,
 } from '../shared/types';
 import { AdminDashboardData, AdminPermissionData, AnnualFeeAdminData, AnnualFeeAdminRecord } from '../types';
 
@@ -253,6 +259,24 @@ export interface ApiClient {
   saveRosterTemplateV2(template: import('../types').RosterTemplateV2): Promise<{ ok: boolean; templates: import('../types').RosterTemplateV2[] }>;
   deleteRosterTemplateV2(id: string): Promise<{ ok: boolean; templates: import('../types').RosterTemplateV2[] }>;
   duplicateRosterTemplateV2(id: string): Promise<{ ok: boolean; templates: import('../types').RosterTemplateV2[] }>;
+  // v374.1: 公式LINE投稿依頼
+  listLinePostRequests(payload: { status?: LinePostStatus | ''; targetType?: LinePostTargetType | ''; keyword?: string; limit?: number }): Promise<{ items: LinePostRequest[]; total: number }>;
+  getLinePostRequest(id: string): Promise<{ item: LinePostRequest }>;
+  saveLinePostRequest(payload: {
+    id?: string;
+    text: string;
+    trainingApplyUrl?: string;
+    attachmentUrl?: string;
+    attachmentKind?: LinePostAttachmentKind;
+    attachmentName?: string;
+    targetType: LinePostTargetType;
+    targetId?: string;
+    memo?: string;
+    clearAttachment?: boolean;
+  }): Promise<{ item: LinePostRequest }>;
+  uploadLinePostAttachment(payload: { base64: string; mimeType: string; fileName: string }): Promise<LinePostAttachmentUploadResult>;
+  transitionLinePostRequest(payload: { id: string; action: 'request' | 'post' | 'withdraw' }): Promise<{ item: LinePostRequest }>;
+  deleteLinePostRequest(id: string): Promise<{ ok: boolean; id: string }>;
 }
 
 export interface MemberDeleteSearchResult {
@@ -2135,6 +2159,37 @@ class GasApiClient implements ApiClient {
         .withFailureHandler((e: Error) => reject(e))
         .processApiRequest('duplicateRosterTemplateV2', JSON.stringify({ id }));
     });
+  }
+
+  // v374.1: 公式LINE投稿依頼
+  async listLinePostRequests(payload: { status?: LinePostStatus | ''; targetType?: LinePostTargetType | ''; keyword?: string; limit?: number }) {
+    return this.callAction<{ items: LinePostRequest[]; total: number }>('listLinePostRequests', payload);
+  }
+  async getLinePostRequest(id: string) {
+    return this.callAction<{ item: LinePostRequest }>('getLinePostRequest', { id });
+  }
+  async saveLinePostRequest(payload: {
+    id?: string;
+    text: string;
+    trainingApplyUrl?: string;
+    attachmentUrl?: string;
+    attachmentKind?: LinePostAttachmentKind;
+    attachmentName?: string;
+    targetType: LinePostTargetType;
+    targetId?: string;
+    memo?: string;
+    clearAttachment?: boolean;
+  }) {
+    return this.callAction<{ item: LinePostRequest }>('saveLinePostRequest', payload);
+  }
+  async uploadLinePostAttachment(payload: { base64: string; mimeType: string; fileName: string }) {
+    return this.callAction<LinePostAttachmentUploadResult>('uploadLinePostAttachment', payload);
+  }
+  async transitionLinePostRequest(payload: { id: string; action: 'request' | 'post' | 'withdraw' }) {
+    return this.callAction<{ item: LinePostRequest }>('transitionLinePostRequest', payload);
+  }
+  async deleteLinePostRequest(id: string) {
+    return this.callAction<{ ok: boolean; id: string }>('deleteLinePostRequest', { id });
   }
 
   async getSharedMemo(key: string): Promise<SharedMemo> {
