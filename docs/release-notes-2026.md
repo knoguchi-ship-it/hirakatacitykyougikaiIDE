@@ -1,0 +1,210 @@
+# Release Notes 2026
+
+このファイルは **時系列の release ログ**です。リリース確定後は本書のエントリだけ更新し、`HANDOVER.md` は「現状」のみ保持してください。
+詳細な背景・設計判断・修正コードは個別 `docs/2XX_RELEASE_STATE_*.md` を参照。
+
+凡例:
+- 🆕 = 機能追加
+- 🔧 = 改善 / リファクタ
+- 🐛 = バグ修正
+- 🔒 = セキュリティ
+- 📝 = ドキュメント / ツール
+- 🎉 = マイルストーン
+
+---
+
+## v374 — 2026-05-21
+
+| 種別 | 内容 | 参照 |
+|---|---|---|
+| 📝 | WCAG 2.2 AA 自動アクセシビリティテスト基盤導入（`@axe-core/playwright`、`scripts/test-a11y.mjs`、CI gate 対応） | `docs/244` |
+| 📝 | 新 UI 追加時の必須回帰チェックリスト整備 | `docs/245` |
+| 📝 | レスポンシブテストを `npm run test:responsive` / `:admin` / `:member` へ昇格 | — |
+| 🐛 | 入会 hero badge `bg-emerald-600` (4.46:1, AA 未達) → `bg-emerald-700` (5.7:1, AA 準拠) | `src/public-portal/App.tsx` |
+| 🐛 | `responsive-test.mjs` の sr-only skip link false-positive 解消 → 21/21 セル合格 | — |
+| 🎉 | **WCAG 2.2 AA 自動検出範囲で違反ゼロ達成**（本番 a11y scan で critical/serious/moderate/minor=0 確認） | — |
+
+デプロイ: integrated/public `@344→@345` x2 (legacy + 正式)、member `@102` 維持、admin `@153` 維持。
+
+---
+
+## v373.7 — 2026-05-20 🎉 Sprint S5 完了
+
+| 種別 | 内容 |
+|---|---|
+| 🔧 | 名簿出力 Sprint S5 第 2 弾: GAS バックエンドの旧 RosterExport コードを完全削除（-1,599 行 + 自動 pruning で 315 関数削減） |
+| 🔧 | ALLOWED_ACTIONS マップから 10 action 削除、dispatcher case 群削除 |
+| 🔧 | `initializeSchema_` の旧キー seed 撤去、`SystemSettings.rosterTemplateSsId` pass-through 撤去 |
+| 🔧 | `T_システム設定` の旧キー行は data 保全のため残置 |
+
+詳細: `docs/243_RELEASE_STATE_v373.7_ROSTER_S5_GAS_CLEANUP_2026-05-20.md`
+デプロイ: integrated/public `@344` x2 / member `@102` / admin `@153`
+
+---
+
+## v373.6 — 2026-05-20
+
+| 種別 | 内容 |
+|---|---|
+| 🔧 | 名簿出力 Sprint S5 第 1 弾: 旧 RosterExport の front-end を完全削除（4 component / 137 行の UI / 10 ApiClient メソッド / 5 旧型定義、計 -2,447 行） |
+| 🔧 | `T_システム設定` の旧キー行は data 保全のため残置 |
+
+詳細: `docs/242_RELEASE_STATE_v373.6_ROSTER_S5_FRONTEND_CLEANUP_2026-05-20.md`
+
+---
+
+## v373.5 — 2026-05-20 🔒
+
+| 種別 | 内容 |
+|---|---|
+| 🔒 | パスワード pepper を Google Cloud Secret Manager 連携化（CacheService → SM → Script Properties の 3 階層 fail-soft） |
+| 🔒 | 3 split に `cloud-platform` OAuth scope 追加 |
+| 🔒 | `healthCheckPasswordPepper` admin top-level 関数追加（fingerprint 比較で値の一致性検証） |
+| 📝 | 次段階 Cloud Run Argon2id 外部 KDF の完全設計書 + 実装雛形（`cloud-run/password-hash-service/`） |
+
+operator 対応: GCP 利用判断時に `docs/239` 30 分手順を実施。
+詳細: `docs/241_RELEASE_STATE_v373.5_SECRET_MANAGER_2026-05-20.md` / `docs/240_DESIGN_CLOUD_RUN_ARGON2ID_2026-05-20.md`
+
+---
+
+## v373.4 — 2026-05-20
+
+| 種別 | 内容 |
+|---|---|
+| 🔧 | 名簿出力 行フィルタ no-code UI 化（演算子記号 `=, >, <, ≥, ≤` を日本語ラベル化、enum/boolean 演算子廃止、年度フィールド除外、否定全廃） |
+
+詳細: `docs/238_RELEASE_STATE_v373.4_ROSTER_ROW_FILTER_NOCODE_2026-05-20.md`
+
+---
+
+## v373.3 — 2026-05-20
+
+| 種別 | 内容 |
+|---|---|
+| 🔧 | 条件付き書式 UX 微調整（year picker / equals 削除 / 否定削除 / filterYear 自動 prefill） |
+
+詳細: `docs/237_RELEASE_STATE_v373.3_ROSTER_STYLE_RULE_SIMPLIFY_2026-05-20.md`
+
+---
+
+## v373.2 — 2026-05-20
+
+| 種別 | 内容 |
+|---|---|
+| 🐛 | PDF 出力で全件が出ない問題を React Portal + `display: none` パターンで修正（`position: absolute` を撤去・MDN/react-to-print 既知問題対応） |
+| 🔧 | 条件付き書式 UI を Airtable 風（フィールド + 演算子 + 値 + プリセット）に刷新、式入力を完全廃止 |
+| 🔧 | 計算列を 8 プリセット選択化、textarea 廃止 |
+| 🔧 | drag handle 改善（左端に全高 grip カラム、`cursor: grab/grabbing`） |
+
+詳細: `docs/236_RELEASE_STATE_v373.2_ROSTER_UX_OVERHAUL_2026-05-20.md`
+
+---
+
+## v373.1 — 2026-05-20
+
+| 種別 | 内容 |
+|---|---|
+| 🆕 | 名簿出力 PDF 出力（`window.print()` + 動的 `@page` CSS、用紙 A4/A3/B5・縦横・フォントサイズ） |
+| 🐛 | v373.2 で PDF Portal 化に修正 |
+
+詳細: `docs/235_RELEASE_STATE_v373.1_ROSTER_S4_2026-05-20.md`
+
+---
+
+## v373 — 2026-05-20
+
+| 種別 | 内容 |
+|---|---|
+| 🆕 | 名簿出力 計算式 + 条件付き書式（jsep + 自前 AST walker、eval/Function/MemberExpression 全 reject、関数 allowlist 16 種、AST 深さ 32 上限、攻撃シナリオ含む 33 unit tests） |
+| 🔒 | Web 検索 2026-05-20 ベースで `expr-eval`(RCE 2026) / `jse-eval`(no sandbox) を不採用、`jsep` のみ採用 |
+
+詳細: `docs/234_RELEASE_STATE_v373_ROSTER_S3_2026-05-20.md`
+
+---
+
+## v372.9 — 2026-05-20
+
+| 種別 | 内容 |
+|---|---|
+| 🆕 | 名簿出力 出力列を `@dnd-kit` で drag-drop 並び替え |
+
+デプロイ: admin split `@145`。詳細: `docs/232_RELEASE_STATE_v372.9_ROSTER_S2_DRAG_DROP_2026-05-20.md`
+
+---
+
+## v372.8 — 2026-05-20
+
+| 種別 | 内容 |
+|---|---|
+| 🆕 | 名簿出力 列幅 (60-320px) + 日付/数値書式設定 |
+
+詳細: `docs/231_RELEASE_STATE_v372.8_ROSTER_S2_FORMAT_WIDTH_2026-05-20.md`
+
+---
+
+## v372.7 — 2026-05-20 🔒
+
+| 種別 | 内容 |
+|---|---|
+| 🔒 | 第三者評価 2026-05-20 指摘 #1 対応: `getFileThumbnail_()` / `getFileBytes_()` の Drive fileId proxy を `T_研修.案内状URL` / `案内状サムネイルURL` 登録 fileId のみに制限（fail-closed） |
+
+詳細: `docs/230_SECURITY_REMEDIATION_DRIVE_PROXY_ALLOWLIST_2026-05-20.md`
+
+---
+
+## v372 〜 v372.6.1 — 2026-05-19 〜 20
+
+| 種別 | 内容 |
+|---|---|
+| 🆕 | 名簿出力 Visual Designer 骨組み（v372 S1）、フィールド辞書 36 件、テンプレ保存、CSV 出力、Tab UI、出力単位（会員/職員/混合）、列フィルタ |
+| 🆕 | 公開ポータルに staffUpdate（既存職員情報変更）追加 |
+| 🐛 | UTF-8 文字化けバグ修正 |
+| 🔧 | CM 番号 admin 例外バリデーション緩和 |
+| 🐛 | 公開ポータル変更申請 送信ボタン disable + ヒント表示 |
+
+詳細: `docs/229_RELEASE_STATE_v372_to_v372.6.1_2026-05-20.md`
+
+---
+
+## v371 系 — 2026-05-18 〜 19（メール送信制御）
+
+| 種別 | 内容 |
+|---|---|
+| 🔒 | メール送信 4 階層ガード導入（GLOBAL_ENABLED / MODE: LIVE/REDIRECT/SUPPRESS / ALLOWLIST / CATEGORY） |
+| 🔒 | 初期値 `MAIL_GLOBAL_ENABLED=false`（safe-stop で着地） |
+
+詳細: `docs/227_MAIL_KILL_SWITCH_2026-05-18.md`
+
+---
+
+## v360 〜 v370 — 2026-05-16 〜 17
+
+研修名簿・出欠管理・一括メール明細・DB schema 変更・dryRun synthetic transaction フレームワーク・転籍時バグ修正。
+
+詳細: `docs/225_RELEASE_STATE_v360_to_v370_2026-05-17.md`（統合 release state）/ `docs/223` / `docs/226`
+
+---
+
+## v320 〜 v358 — 2026-05-11 〜 16
+
+- v320〜v332: モバイル viewport / レスポンシブ全面強化 / WCAG 2.2 AAA / Playwright 自動テスト 98/98 セル / パスワード規約
+- v333: 役員向け請求を活動報告 + 経費請求 2 系統化
+- v334: 役員管理の状態編集 + 読み込み高速化
+- v335: 入会申込キュー化 + 同一人物移行
+- v336-v338: 検索改善
+- v340-v345: 様々な修正（会員ステータスメモ、年会費管理遷移、schema-shift 構造的防止 等）
+- v347-v358: PDF サムネイル + lightbox 反復改善
+
+詳細: 個別 `docs/186-222_*.md` 参照（または `docs/archive/release_history/`）
+
+---
+
+## v260 〜 v319 — 2026-04-24 〜 05-09
+
+セキュリティ是正（第三者評価 docs/109 対応）、認証認可、ポータル分離、パスワードハッシュ PBKDF2 移行、OAuth スコープ最小化、CI セキュリティゲート、admin/member ポータル split 化等。
+
+詳細: 個別 `docs/139-196_*.md` 参照（または `docs/archive/release_history/`）
+
+---
+
+> **過去のリリース** (v200 以下) は `docs/archive/release_history/` に保管しています。

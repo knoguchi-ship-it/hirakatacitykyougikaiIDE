@@ -189,7 +189,7 @@ Real-browser verification is performed by the operator by default. The agent rec
 - Integrated fixed deployments: `@317` x2
 - Member split: `@74`
 - Admin split: `@115`
-- Detail: `docs/222_RELEASE_STATE_v359_2026-05-16.md`
+- Detail: `docs/archive/release_history/222_RELEASE_STATE_v359_2026-05-16.md`
 
 ### 2026-05-16 `v358`
 - Scope: 案内 PDF lightbox プレビューを **高解像度 PNG (w2000) `<img>` モーダル** に着地。`getFileThumbnail_` に `size` パラメータ追加 + `extractDriveFileId_` 共通ヘルパー導入で URL parse 強化 (`/d/`, `?id=`, URL encode 対応)。Drive `/preview` iframe (v355) と blob URL iframe (v357) の構造的不可能性を確認し、安定経路に統一。
@@ -203,7 +203,7 @@ Real-browser verification is performed by the operator by default. The agent rec
 - Integrated fixed deployments: `@311` x2 (unchanged, v352)
 - Member split: `@68`
 - Admin split: `@108` (unchanged, v350)
-- Detail: `docs/220_RELEASE_STATE_v353_2026-05-15.md`
+- Detail: `docs/archive/release_history/220_RELEASE_STATE_v353_2026-05-15.md`
 
 ### 2026-05-14 `v352`
 - Scope: 公開ポータル「現在受付中の研修」一覧を A4 縦 PDF サムネイル + 詳細情報の 2 カラムカードへ再設計。`PdfThumbnail` に `aspectRatio` prop 追加。WCAG 2.5.5 / semantic HTML 準拠。public のみ更新、member/admin は v350 のまま。
@@ -275,7 +275,7 @@ Real-browser verification is performed by the operator by default. The agent rec
 - Integrated fixed deployments: `@301` x2（変更なし、v340 artifact）
 - Member split: `@58`
 - Admin split: `@99`
-- Detail: `docs/210_RELEASE_STATE_v341_2026-05-13.md`
+- Detail: `docs/archive/release_history/210_RELEASE_STATE_v341_2026-05-13.md`
 
 ### 2026-05-12 `v340`
 - Scope: Adds the admin-only member status note field and deploys the schema initialization guard that prevents existing table headers from being rewritten before name-based migration.
