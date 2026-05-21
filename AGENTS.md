@@ -88,6 +88,15 @@
   6. **WCAG 2.2 §1.4.10 リフロー**: 320px 幅・200% ズーム時に横スクロールなく、機能損失なく利用できることを設計時に意識する。
   7. **完了条件**: モバイル幅（360〜414px）で実機またはブラウザ devtools により表示・操作確認したことを最低条件とする。スマホ未確認のまま「完了」と報告しない。
   - 上記いずれかが満たされない実装は不完全とみなし、完了条件を満たさない。
+- **boot loader 契約（v375〜確定）**: `scripts/compress-html.mjs` が admin / member / public 3 split の HTML に注入する起動ローダーは以下 6 要素を必ず備えること。1 つでも欠落させてはならない（Safari iOS 初回ホワイトアウト再発防止のため）。
+  1. **CSS-only loading splash**: `<body>` 直後に `<div id="__boot_splash__">` を注入。spinner + 進捗ラベル + サブラベルを HTML/CSS のみで描画。JS 評価開始前から可視であること。
+  2. **try/catch + 可視エラー UI**: async IIFE 全体・decompress promise・`new Function()` eval をすべて try/catch で包み、失敗時は splash を `.__err` 状態にして「再読み込みする」ボタン付きの明示エラー UI に切り替える。silent fail 禁止。
+  3. **DecompressionStream feature detect**: `typeof DecompressionStream !== 'function'` および `new DecompressionStream('deflate-raw')` 構築 try/catch の両方で検査し、未サポート時は「iOS 16.4 以降の Safari、または最新の Chrome / Edge / Firefox を」とブラウザ更新を促すメッセージを表示する（DOM 準備後に実行すること）。
+  4. **死んだ importmap の除去**: `<script type="importmap">` は `vite-plugin-singlefile` バンドルが自己完結のため不要。regex で必ず削除する（admin shell の parse コスト削減）。
+  5. **Google Fonts 非ブロック化**: `<link rel="stylesheet" href="fonts.googleapis.com/...">` は `media="print" onload="this.media='all'"` + `preconnect` (fonts.googleapis.com + fonts.gstatic.com crossorigin) + `<noscript>` フォールバックの組合せに置換する。render-blocking な原形のまま残してはならない。
+  6. **`requestIdleCallback` 分散**: `atob` / `DecompressionStream` pipe / `new Function()` eval は `requestIdleCallback`（fallback: `setTimeout`）で分散実行し、splash がリペイントされ続けるようにする。ブロッキング同期チェーンに戻してはならない。
+  - 上記契約はリリース判定の必須条件とする。compress-html.mjs を編集する際は本契約を破らないこと。違反した実装は不完全とみなし、完了条件を満たさない。
+  - v375 以前（v374 までの単純 IIFE）には決して戻さない。
 
 ## 5. 完了条件
 - 「動いた」だけでは完了としない。
