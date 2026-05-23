@@ -4751,8 +4751,9 @@ function createMember_(payload) {
       case '退会日': return '';
       case '姓': return String(payload.lastName || '');
       case '名': return String(payload.firstName || '');
-      case 'セイ': return String(payload.lastKana || '');
-      case 'メイ': return String(payload.firstKana || '');
+      // v376: kana 列を全角カタカナへ正規化
+      case 'セイ': return normalizeAndValidateKana_(payload.lastKana || '', '個人会員のセイ');
+      case 'メイ': return normalizeAndValidateKana_(payload.firstKana || '', '個人会員のメイ');
       case '代表メールアドレス': return String(payload.email || '');
       case '携帯電話番号': return String(payload.mobilePhone || '');
       case '勤務先名': return String(payload.officeName || '');
@@ -5007,8 +5008,9 @@ function createMemberApplicationDirect_(payload) {
       case '退会日': return '';
       case '姓': return isBusiness ? '' : String(payload.lastName || '');
       case '名': return isBusiness ? '' : String(payload.firstName || '');
-      case 'セイ': return isBusiness ? '' : String(payload.lastKana || '');
-      case 'メイ': return isBusiness ? '' : String(payload.firstKana || '');
+      // v376: kana 列を全角カタカナへ正規化（事業所会員は空のまま）
+      case 'セイ': return isBusiness ? '' : normalizeAndValidateKana_(payload.lastKana || '', '個人会員のセイ');
+      case 'メイ': return isBusiness ? '' : normalizeAndValidateKana_(payload.firstKana || '', '個人会員のメイ');
       case '代表メールアドレス': return isBusiness ? '' : String(payload.email || '');
       case '携帯電話番号': return String(payload.mobilePhone || '');
       case '勤務先名': return String(payload.officeName || '');
@@ -5453,8 +5455,9 @@ function overwritePublicApplicationMemberFields_(ss, memberId, payload, memberTy
   setCol('退会処理日', '');
   setCol('姓', String(payload.lastName || '').trim());
   setCol('名', String(payload.firstName || '').trim());
-  setCol('セイ', String(payload.lastKana || '').trim());
-  setCol('メイ', String(payload.firstKana || '').trim());
+  // v376: kana 列を normalizeKana_ で全角カタカナへ正規化
+  setCol('セイ', normalizeAndValidateKana_(payload.lastKana || '', '個人会員のセイ'));
+  setCol('メイ', normalizeAndValidateKana_(payload.firstKana || '', '個人会員のメイ'));
   setCol('代表メールアドレス', String(payload.email || '').trim());
   setCol('携帯電話番号', String(payload.mobilePhone || '').trim());
   setCol('勤務先名', String(payload.officeName || '').trim());
@@ -5489,10 +5492,11 @@ function overwritePublicApplicationStaffFields_(ss, memberId, staffId, payload, 
   var cols = found.columns;
   var lastName = String(payload.lastName || '').trim();
   var firstName = String(payload.firstName || '').trim();
-  var lastKana = String(payload.lastKana || '').trim();
-  var firstKana = String(payload.firstKana || '').trim();
+  // v376: kana 列を normalizeKana_ で全角カタカナへ正規化
+  var lastKana = normalizeAndValidateKana_(payload.lastKana || '', '職員のセイ');
+  var firstKana = normalizeAndValidateKana_(payload.firstKana || '', '職員のメイ');
   var name = joinHumanNameParts_(lastName, firstName).trim();
-  var kana = joinHumanNameParts_(lastKana, firstKana).trim();
+  var kana = normalizeKana_(joinHumanNameParts_(lastKana, firstKana));
   var role = normalizeBusinessStaffRole_(payload.role);
   function setCol(name, value) {
     if (cols[name] != null) row[cols[name]] = value;
@@ -7746,8 +7750,9 @@ function saveMemberCore_(payload, options) {
 
   setCol('姓', mergedPayload.lastName || '');
   setCol('名', mergedPayload.firstName || '');
-  setCol('セイ', mergedPayload.lastKana || '');
-  setCol('メイ', mergedPayload.firstKana || '');
+  // v376: kana 列は normalizeKana_ で全角カタカナに正規化（不正文字は throw）
+  setCol('セイ', normalizeAndValidateKana_(mergedPayload.lastKana || '', '会員のセイ'));
+  setCol('メイ', normalizeAndValidateKana_(mergedPayload.firstKana || '', '会員のメイ'));
   // v143: MASTER/ADMIN は全有効ステータスへ遷移可能（復旧・強制退会を含む）
   var rawStatus = String(mergedPayload.status || 'ACTIVE');
   var VALID_MEMBER_STATUSES = ['ACTIVE', 'WITHDRAWAL_SCHEDULED', 'WITHDRAWN'];
@@ -7864,8 +7869,7 @@ function validateMemberPayload_(payload, memberTypeCode, currentMemberStatus, op
     if (!trim(payload.firstName)) throw new Error('名は必須です。');
     if (!trim(payload.lastKana)) throw new Error('セイは必須です。');
     if (!trim(payload.firstKana)) throw new Error('メイは必須です。');
-    if (!isHalfWidthKana(payload.lastKana)) throw new Error('セイは半角ｶﾅで入力してください。');
-    if (!isHalfWidthKana(payload.firstKana)) throw new Error('メイは半角ｶﾅで入力してください。');
+    // v376: 半角カナ制限を廃止。ひらがな/全角カナ/半角カナを許容し、保存時に normalizeAndValidateKana_ が全角カタカナに正規化する
     if (!isSupport && !trim(payload.careManagerNumber)) throw new Error('賛助会員以外は介護支援専門員番号が必須です。');
     if (trim(payload.careManagerNumber)) {
       // v372.4: admin 例外（MASTER/ADMIN 権限）なら 1〜10 桁半角英数字を許可
@@ -11532,13 +11536,55 @@ function joinHumanNameParts_(lastName, firstName) {
   return last || first;
 }
 
+// v376: フリガナ列の保存用正規化（src/utils/kanaNormalize.ts と同一ロジック）。
+//   入力が半角カナ / ひらがな / 全角カナの混在でも保存形式は「全角カタカナ + 長音 + 全角スペース + 中点」に揃える。
+//   順序: trim → NFKC → ひらがな→カタカナ → 半角スペース→全角スペース → NFC
+function normalizeKana_(value) {
+  var raw = String(value == null ? '' : value).trim();
+  if (!raw) return '';
+  return raw
+    .normalize('NFKC')
+    .replace(/[ぁ-ゖ]/g, function (c) {
+      return String.fromCharCode(c.charCodeAt(0) + 0x60);
+    })
+    .replace(/ /g, '　')
+    .normalize('NFC');
+}
+
+// v376: 正規化済み文字列が「全角カタカナ ァ-ヶ + 長音 ー + 全角スペース + 中点 ・」のみで構成されるか判定。
+//   空文字は valid（必須チェックは呼び出し側で）。
+function isValidFullwidthKatakana_(normalized) {
+  var s = String(normalized == null ? '' : normalized);
+  if (!s) return true;
+  return /^[ァ-ヶー　・]+$/.test(s);
+}
+
+// v376: 正規化 + バリデーション + エラー throw を一括で行うヘルパー。
+//   fieldLabel: エラーメッセージに含める表示名（例: '個人会員のセイ'）
+//   options.required: true なら空文字でエラー
+function normalizeAndValidateKana_(value, fieldLabel, options) {
+  var opts = options || {};
+  var normalized = normalizeKana_(value);
+  if (!normalized) {
+    if (opts.required) {
+      throw new Error(fieldLabel + 'は必須です。');
+    }
+    return '';
+  }
+  if (!isValidFullwidthKatakana_(normalized)) {
+    throw new Error(fieldLabel + 'はカタカナ・ひらがな・半角カナのみで入力してください（漢字・英数字・記号は使用できません）。');
+  }
+  return normalized;
+}
+
 function normalizeStaffNameFields_(rowLike) {
   var lastName = String((rowLike && rowLike['姓']) || '').trim();
   var firstName = String((rowLike && rowLike['名']) || '').trim();
-  var lastKana = String((rowLike && rowLike['セイ']) || '').trim();
-  var firstKana = String((rowLike && rowLike['メイ']) || '').trim();
+  // v376: kana 列は normalizeKana_ で全角カタカナに正規化し、不正文字は throw
+  var lastKana = normalizeAndValidateKana_((rowLike && rowLike['セイ']) || '', '職員のセイ');
+  var firstKana = normalizeAndValidateKana_((rowLike && rowLike['メイ']) || '', '職員のメイ');
   var fullName = String((rowLike && rowLike['氏名']) || '').trim();
-  var fullKana = String((rowLike && rowLike['フリガナ']) || '').trim();
+  var fullKana = normalizeAndValidateKana_((rowLike && rowLike['フリガナ']) || '', '職員のフリガナ');
 
   if (!lastName && !firstName && fullName) {
     var nameParts = splitName_(fullName);
@@ -11568,6 +11614,8 @@ function normalizeStaffNameFields_(rowLike) {
     firstKana = fallbackKanaParts.first;
     fullKana = joinHumanNameParts_(lastKana, firstKana);
   }
+  // v376: joinHumanNameParts_ は半角スペースで連結するため、全角スペースに再正規化
+  fullKana = normalizeKana_(fullKana);
 
   return {
     lastName: lastName,
@@ -11578,6 +11626,11 @@ function normalizeStaffNameFields_(rowLike) {
     kana: fullKana,
   };
 }
+
+// v376: 既存 DB のフリガナ列を全角カタカナへ一括正規化する migration 関数。
+//   対象: T_会員 (セイ/メイ) / T_事業所職員 (セイ/メイ/フリガナ) / T_外部申込者 (フリガナ)
+//   実行: admin editor から手動 Run。最初に dryRun=true で件数確認、ユーザー承認後 dryRun=false で本実行。
+//   Plan A: T_変更申請 の pending レコードは正規化対象外（承認時に approveAdminChangeRequest_ → 各 save 関数で正規化される）。
 
 function backfillBusinessStaffNameColumns_(ss) {
   var targetSs = ss || getOrCreateDatabase_();

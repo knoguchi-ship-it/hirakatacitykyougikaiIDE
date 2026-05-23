@@ -5,6 +5,7 @@ import { api } from '../services/api';
 import StaffTrainingView from './StaffTrainingView';
 import PostalCodeInput from './PostalCodeInput';
 import OfficerStatusCard from './OfficerStatusCard';
+import { normalizeKana } from '../utils/kanaNormalize';
 
 type DraftStaff = Staff & { isNew?: boolean };
 
@@ -24,7 +25,8 @@ const hasTransferAccountInfo = (account?: TransferAccountInfo | null): account i
 };
 
 // 全角カナ・ひらがな → 半角カナ変換（保存時に適用）
-const toHalfWidthKana = (value: string): string => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const toHalfWidthKana_DEPRECATED_v376 = (value: string): string => {
   let s = value.replace(/[\u3041-\u3096]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 0x60));
   const fullToHalf: Record<string, string> = {
     'ア':'ｱ','イ':'ｲ','ウ':'ｳ','エ':'ｴ','オ':'ｵ',
@@ -698,25 +700,24 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
     setWarning(null);
 
     // Step 2: build save-ready member (strip isNew, filter blank draft rows, kana conversion)
+    // v376: 保存時に kana を全角カタカナへ正規化（半角カナ/ひらがな入力も受け付け、全角に統一）
     const saveMember: Member = {
       ...member,
-      lastKana: member.lastKana ? toHalfWidthKana(member.lastKana) : member.lastKana,
-      firstKana: member.firstKana ? toHalfWidthKana(member.firstKana) : member.firstKana,
+      lastKana: normalizeKana(member.lastKana),
+      firstKana: normalizeKana(member.firstKana),
       staff: member.staff
         ?.filter(s => !((s as DraftStaff).isNew && isBlankDraftStaff(s as DraftStaff)))
         .map(s => {
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { isNew: _isNew, ...staffFields } = s as DraftStaff;
+          const normalizedLastKana = normalizeKana(s.lastKana);
+          const normalizedFirstKana = normalizeKana(s.firstKana);
           return {
             ...staffFields,
             name: buildFullName(s.lastName, s.firstName, s.name),
-            kana: buildFullName(
-              s.lastKana ? toHalfWidthKana(s.lastKana) : s.lastKana,
-              s.firstKana ? toHalfWidthKana(s.firstKana) : s.firstKana,
-              s.kana,
-            ),
-            lastKana: s.lastKana ? toHalfWidthKana(s.lastKana) : s.lastKana,
-            firstKana: s.firstKana ? toHalfWidthKana(s.firstKana) : s.firstKana,
+            kana: buildFullName(normalizedLastKana, normalizedFirstKana, s.kana),
+            lastKana: normalizedLastKana,
+            firstKana: normalizedFirstKana,
           };
         }),
     };

@@ -3,6 +3,7 @@ import { AnnualFeeRecord, Member, MemberType, PaymentStatus, Staff, StaffRole, A
 import { api } from '../services/api';
 import PostalCodeInput from './PostalCodeInput';
 import { matchesSearchQuery } from '../utils/search';
+import { normalizeKana } from '../utils/kanaNormalize';
 
 type EditableStaff = Staff & { isNew?: boolean };
 type EditableMemberForm = Record<string, any> & { staff?: EditableStaff[] };
@@ -62,7 +63,8 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const STATUS_NOTE_MAX_LENGTH = 2000;
 
 // 全角カナ・ひらがな → 半角カナ変換（保存時に適用）
-const toHalfWidthKana = (value: string): string => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const toHalfWidthKana_DEPRECATED_v376 = (value: string): string => {
   // ひらがな → 全角カナ
   let s = value.replace(/[\u3041-\u3096]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 0x60));
   // 全角カナ → 半角カナ
@@ -553,19 +555,19 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
   };
 
   const handleSave = async () => {
-    // 保存前にセイ・メイを半角カナに変換（全角カナ・ひらがな → 半角カナ）
+    // v376: 保存前にセイ・メイを全角カタカナに正規化（半角カナ・ひらがな・全角カナを受け付け）
     const convertedStaff = form.staff
       ? (form.staff as any[]).map(s => ({
           ...s,
-          lastKana: s.lastKana ? toHalfWidthKana(String(s.lastKana)) : s.lastKana,
-          firstKana: s.firstKana ? toHalfWidthKana(String(s.firstKana)) : s.firstKana,
+          lastKana: normalizeKana(s.lastKana),
+          firstKana: normalizeKana(s.firstKana),
         }))
       : form.staff;
     const normalizedStaff = normalizeDraftStaffList((convertedStaff as EditableStaff[]) || []);
     const convertedForm: EditableMemberForm = {
       ...form,
-      lastKana: form.lastKana ? toHalfWidthKana(String(form.lastKana)) : form.lastKana,
-      firstKana: form.firstKana ? toHalfWidthKana(String(form.firstKana)) : form.firstKana,
+      lastKana: normalizeKana(form.lastKana),
+      firstKana: normalizeKana(form.firstKana),
       staff: normalizedStaff,
     };
     setForm(convertedForm);

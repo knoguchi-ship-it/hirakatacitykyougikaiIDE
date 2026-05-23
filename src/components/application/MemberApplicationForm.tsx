@@ -10,6 +10,7 @@ import {
 import type { ApplicationMemberType } from './types';
 import { api } from '../../services/api';
 import PostalCodeInput from '../PostalCodeInput';
+import { normalizeKana } from '../../utils/kanaNormalize';
 
 interface MemberApplicationFormProps {
   onBack: () => void;
@@ -462,7 +463,20 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const submitPayload = stripUnusedAddressDefaults(form);
+      const stripped = stripUnusedAddressDefaults(form);
+      // v376: kana 列を全角カタカナに正規化（半角カナ/ひらがな入力も受け付け）
+      const submitPayload = {
+        ...stripped,
+        lastKana: normalizeKana(stripped.lastKana),
+        firstKana: normalizeKana(stripped.firstKana),
+        staff: Array.isArray(stripped.staff)
+          ? stripped.staff.map((s: ApplicationStaffEntry) => ({
+              ...s,
+              lastKana: normalizeKana(s.lastKana),
+              firstKana: normalizeKana(s.firstKana),
+            }))
+          : stripped.staff,
+      };
       const res = await api.submitMemberApplication(submitPayload as any);
       setResult(res);
     } catch (e) {

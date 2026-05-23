@@ -1,6 +1,7 @@
 // v360: 研修名簿管理コンポーネント
 import React, { useEffect, useMemo, useState } from 'react';
 import { api } from '../services/api';
+import { normalizeKana } from '../utils/kanaNormalize';
 import { TrainingRosterRow, TrainingStats, AttendanceStatus, ApplicantType } from '../shared/types';
 import { downloadAsCsv } from '../lib/xlsx';
 import { TrashIcon } from './Icons';
@@ -334,7 +335,8 @@ const GuestAddDialog: React.FC<{ trainingId: string; onClose: () => void; onAdde
     try {
       const res = await api.addGuestRosterEntry({
         trainingId,
-        guest: { name: name.trim(), kana: kana.trim(), email: email.trim(), phone: phone.trim(), officeName: officeName.trim() },
+        // v376: kana 列を全角カタカナに正規化
+        guest: { name: name.trim(), kana: normalizeKana(kana), email: email.trim(), phone: phone.trim(), officeName: officeName.trim() },
         memo: memo.trim(),
       });
       if (!res.ok) { setErr(res.error || '追加に失敗しました'); return; }

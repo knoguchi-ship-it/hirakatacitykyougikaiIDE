@@ -1,6 +1,7 @@
 ﻿import React, { useState } from 'react';
 import { Staff, StaffRole } from '../types';
 import { api } from '../services/api';
+import { normalizeKana } from '../utils/kanaNormalize';
 
 interface StaffDetailAdminProps {
   staff?: Staff;
@@ -155,15 +156,18 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
   const performSave = async () => {
     setSaving(true);
     try {
+      // v376: kana 列を全角カタカナに正規化
+      const normalizedLastKana = normalizeKana(form.lastKana);
+      const normalizedFirstKana = normalizeKana(form.firstKana);
       await api.updateStaff({
         staffId: staff.id,
         memberId,
         lastName: form.lastName.trim(),
         firstName: form.firstName.trim(),
-        lastKana: form.lastKana.trim(),
-        firstKana: form.firstKana.trim(),
+        lastKana: normalizedLastKana,
+        firstKana: normalizedFirstKana,
         name: joinNameParts(form.lastName, form.firstName),
-        kana: joinNameParts(form.lastKana, form.firstKana),
+        kana: normalizeKana(joinNameParts(normalizedLastKana, normalizedFirstKana)),
         email: form.email.trim(),
         careManagerNumber: form.careManagerNumber.trim(),
         role: form.role,

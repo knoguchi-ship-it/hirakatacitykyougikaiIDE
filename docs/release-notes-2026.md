@@ -13,6 +13,24 @@
 
 ---
 
+## v376 — 2026-05-23
+
+| 種別 | 内容 | 参照 |
+|---|---|---|
+| 🆕 | **フリガナ（セイ/メイ/フリガナ）の保存形式を全角カタカナに統一**。ひらがな・半角カナ・全角カタカナの混在入力を受け付け、保存時に NFKC + ひらがな→カタカナ + 全角スペース正規化を適用。中点 `・` と長音 `ー` のみ追加許容、それ以外（漢字・英数字）は throw | `src/utils/kanaNormalize.ts` |
+| 🆕 | `normalizeKana()` / `normalizeAndValidateKana_()` を frontend (TS) + backend (GAS) 両方に実装（同一ロジック・冪等性確認済） | — |
+| 🆕 | `backfillKanaToFullwidth({dryRun})` 移行関数を追加（T_会員 / T_事業所職員 / T_外部申込者 対象。dryRun=true で件数確認 → admin 承認後 dryRun=false で本実行） | — |
+| 🔧 | 旧 `toHalfWidthKana` (frontend) を `normalizeKana` 呼び出しに置換 — MemberForm / MemberDetailAdmin / StaffDetailAdmin / MemberApplicationForm / MemberUpdateForm / TrainingRoster | — |
+| 🔧 | バックエンド書込関数（saveMemberCore_ / overwritePublicApplicationMemberFields_ / overwritePublicApplicationStaffFields_ / submitPublicChangeRequest_ / normalizeStaffNameFields_）で正規化 + validation を信頼境界として強制 | — |
+| 🔧 | 旧 `isHalfWidthKana` バリデーション（v131 系）を削除。ポリシー反転（半角強制 → 全角強制） | `validateMemberPayload_` |
+| 📝 | 19 ケースの Vitest 単体テスト追加 (`scripts/test-kana-normalize.mts`)。`npm run prerelease` gate に組み込み | — |
+
+実装方針: T_変更申請 pending レコードは migration 対象外（承認時 `approveAdminChangeRequest_` → 各 save 関数で正規化されるため）。
+
+デプロイ予定: 3 split を build → push → redeploy → migration dryRun → 確認 → 本実行。
+
+---
+
 ## v374.1 — 2026-05-21
 
 | 種別 | 内容 | 参照 |

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { callApi } from '../../shared/api-base';
+import { normalizeKana } from '../../utils/kanaNormalize';
 
 interface Props {
   onBack: () => void;
@@ -318,8 +319,9 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
         if (selected.has('name')) {
           if (indFields.lastName) fields.lastName = indFields.lastName;
           if (indFields.firstName) fields.firstName = indFields.firstName;
-          if (indFields.lastKana) fields.lastKana = indFields.lastKana;
-          if (indFields.firstKana) fields.firstKana = indFields.firstKana;
+          // v376: kana 列を全角カタカナに正規化
+          if (indFields.lastKana) fields.lastKana = normalizeKana(indFields.lastKana);
+          if (indFields.firstKana) fields.firstKana = normalizeKana(indFields.firstKana);
         }
         if (selected.has('contact')) {
           if (indFields.email) fields.email = indFields.email;
@@ -375,7 +377,10 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
       }
 
       const staffAdd = (selected.has('staffAdd') && memberType === 'BUSINESS')
-        ? staffAddCards.filter(c => c.lastName && c.firstName && c.lastKana && c.firstKana && /^\d{8}$/.test(c.careManagerNumber) && c.email)
+        ? staffAddCards
+            .filter(c => c.lastName && c.firstName && c.lastKana && c.firstKana && /^\d{8}$/.test(c.careManagerNumber) && c.email)
+            // v376: kana 列を全角カタカナに正規化
+            .map(c => ({ ...c, lastKana: normalizeKana(c.lastKana), firstKana: normalizeKana(c.firstKana) }))
         : [];
       const staffRemove = (selected.has('staffRemove') && memberType === 'BUSINESS')
         ? staffRemoveCards.filter(c => c.lastName && c.firstName && /^\d{8}$/.test(c.careManagerNumber))
@@ -388,8 +393,9 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
               const entry: Record<string, string> = { staffId: c.staffId };
               if (c.lastName.trim()) entry.lastName = c.lastName.trim();
               if (c.firstName.trim()) entry.firstName = c.firstName.trim();
-              if (c.lastKana.trim()) entry.lastKana = c.lastKana.trim();
-              if (c.firstKana.trim()) entry.firstKana = c.firstKana.trim();
+              // v376: kana 列を全角カタカナに正規化
+              if (c.lastKana.trim()) entry.lastKana = normalizeKana(c.lastKana);
+              if (c.firstKana.trim()) entry.firstKana = normalizeKana(c.firstKana);
               if (c.email.trim()) entry.email = c.email.trim();
               // 10桁等の緩和入力は公開ポータルで編集不可 (UI でも disable)
               if (c.careManagerNumber.trim() && !c.original.careManagerNumberLocked) {
