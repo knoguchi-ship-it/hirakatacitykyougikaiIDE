@@ -13,6 +13,16 @@
 
 ---
 
+## v376.1 — 2026-05-25
+
+| 種別 | 内容 |
+|---|---|
+| 🐛 | `backfillKanaToFullwidth` が build pruner に削除され admin editor の関数選択に出ないバグを修正。`scripts/build-admin-gas.mjs` の keep-list に追加 |
+
+デプロイ: admin `@159`。
+
+---
+
 ## v376 — 2026-05-23
 
 | 種別 | 内容 | 参照 |

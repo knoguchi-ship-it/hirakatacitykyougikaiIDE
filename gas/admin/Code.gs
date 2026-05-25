@@ -11631,6 +11631,109 @@ function normalizeStaffNameFields_(rowLike) {
 //   対象: T_会員 (セイ/メイ) / T_事業所職員 (セイ/メイ/フリガナ) / T_外部申込者 (フリガナ)
 //   実行: admin editor から手動 Run。最初に dryRun=true で件数確認、ユーザー承認後 dryRun=false で本実行。
 //   Plan A: T_変更申請 の pending レコードは正規化対象外（承認時に approveAdminChangeRequest_ → 各 save 関数で正規化される）。
+function backfillKanaToFullwidth(options) {
+  var opts = options || {};
+  var dryRun = opts.dryRun !== false; // 既定 dryRun=true（安全側）
+  var ss = getOrCreateDatabase_();
+  var report = { dryRun: dryRun, tables: {}, totalChanged: 0, totalScanned: 0, errors: [] };
+
+  // 対象テーブルと kana 列の対応
+  var targets = [
+    { sheetName: 'T_会員', kanaCols: ['セイ', 'メイ'] },
+    { sheetName: 'T_事業所職員', kanaCols: ['セイ', 'メイ', 'フリガナ'] },
+    { sheetName: 'T_外部申込者', kanaCols: ['フリガナ'] },
+  ];
+
+  for (var t = 0; t < targets.length; t++) {
+    var target = targets[t];
+    var sheet = ss.getSheetByName(target.sheetName);
+    var tableReport = { scanned: 0, changed: 0, samples: [], skipped: false, error: null };
+    report.tables[target.sheetName] = tableReport;
+
+    if (!sheet) {
+      tableReport.skipped = true;
+      tableReport.error = 'sheet not found';
+      continue;
+    }
+    if (sheet.getLastRow() < 2) {
+      tableReport.skipped = true;
+      continue;
+    }
+
+    try {
+      var lastCol = sheet.getLastColumn();
+      var lastRow = sheet.getLastRow();
+      var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+      var colIdx = {};
+      for (var h = 0; h < headers.length; h++) colIdx[headers[h]] = h;
+
+      // 対象列が 1 つでも欠落していたらスキップ（schema-mismatch）
+      var missingCols = target.kanaCols.filter(function (c) { return colIdx[c] == null; });
+      if (missingCols.length > 0) {
+        tableReport.skipped = true;
+        tableReport.error = 'missing columns: ' + missingCols.join(',');
+        continue;
+      }
+
+      var data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+      var rowsChanged = 0;
+      var updates = []; // [{ rowNumber, colIndex, oldValue, newValue }]
+
+      for (var r = 0; r < data.length; r++) {
+        tableReport.scanned += 1;
+        var rowChanged = false;
+        for (var k = 0; k < target.kanaCols.length; k++) {
+          var col = target.kanaCols[k];
+          var idx = colIdx[col];
+          var oldVal = String(data[r][idx] == null ? '' : data[r][idx]);
+          if (!oldVal) continue;
+          var newVal = normalizeKana_(oldVal);
+          if (newVal !== oldVal) {
+            data[r][idx] = newVal;
+            updates.push({ rowNumber: r + 2, colIndex: idx, col: col, oldValue: oldVal, newValue: newVal });
+            rowChanged = true;
+            if (tableReport.samples.length < 20) {
+              tableReport.samples.push({
+                rowNumber: r + 2,
+                column: col,
+                before: oldVal,
+                after: newVal,
+              });
+            }
+          }
+        }
+        if (rowChanged) rowsChanged += 1;
+      }
+
+      tableReport.changed = rowsChanged;
+      tableReport.cellUpdates = updates.length;
+
+      if (!dryRun && updates.length > 0) {
+        // 一括書き戻し（更新列を保護しつつ data 全体を書き戻す）
+        sheet.getRange(2, 1, data.length, lastCol).setValues(data);
+        SpreadsheetApp.flush();
+      }
+
+      report.totalChanged += rowsChanged;
+      report.totalScanned += tableReport.scanned;
+    } catch (e) {
+      tableReport.error = String(e && e.message ? e.message : e);
+      report.errors.push(target.sheetName + ': ' + tableReport.error);
+    }
+  }
+
+  // Logger 出力（admin editor の実行ログで確認可能）
+  Logger.log('=== backfillKanaToFullwidth ' + (dryRun ? '[DRY RUN]' : '[APPLY]') + ' ===');
+  Logger.log(JSON.stringify(report, null, 2));
+
+  // キャッシュ無効化（本実行時のみ）
+  if (!dryRun && report.totalChanged > 0) {
+    try { clearAllDataCache_(); } catch (eCache) {}
+    try { clearAdminDashboardCache_(); } catch (eCache2) {}
+  }
+
+  return report;
+}
 
 function backfillBusinessStaffNameColumns_(ss) {
   var targetSs = ss || getOrCreateDatabase_();
