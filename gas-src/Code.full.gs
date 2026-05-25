@@ -18062,6 +18062,11 @@ function normalizeStaffNameFields_(rowLike) {
 //   対象: T_会員 (セイ/メイ) / T_事業所職員 (セイ/メイ/フリガナ) / T_外部申込者 (フリガナ)
 //   実行: admin editor から手動 Run。最初に dryRun=true で件数確認、ユーザー承認後 dryRun=false で本実行。
 //   Plan A: T_変更申請 の pending レコードは正規化対象外（承認時に approveAdminChangeRequest_ → 各 save 関数で正規化される）。
+// v376.2: editor 1-click 本実行用ラッパー（dryRun:false 固定）。引数指定が editor から面倒なため。
+function backfillKanaToFullwidth_APPLY() {
+  return backfillKanaToFullwidth({ dryRun: false });
+}
+
 function backfillKanaToFullwidth(options) {
   var opts = options || {};
   var dryRun = opts.dryRun !== false; // 既定 dryRun=true（安全側）

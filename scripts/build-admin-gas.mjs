@@ -546,6 +546,7 @@ function buildAdminCode(source) {
     'healthCheckPasswordPepper',
     // v376: フリガナ一括正規化 migration（operator が Apps Script editor から実行）
     'backfillKanaToFullwidth',
+    'backfillKanaToFullwidth_APPLY',
   ], 'build-admin-gas');
   code = removeTopLevelFunctionDeclarations(code, [
     'rebuildDatabaseSchema',
@@ -574,6 +575,7 @@ function buildAdminCode(source) {
     'healthCheckPasswordPepper',
     // v376
     'backfillKanaToFullwidth',
+    'backfillKanaToFullwidth_APPLY',
   ], 'build-admin-gas');
   return code;
 }
