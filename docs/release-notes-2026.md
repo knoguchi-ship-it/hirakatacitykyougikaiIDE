@@ -13,6 +13,19 @@
 
 ---
 
+## v376.14 — 2026-05-27 ✅ 研修管理 全機能ドライランテスト
+
+| 種別 | 内容 |
+|---|---|
+| ✅ | `dryRunTrainingManagement()` を追加 — 15 項目の機能網羅テスト（CREATE/READ/UPDATE/ゲスト追加/STAFF申込/名簿取得/メール対象解決(v376.12回帰)/出欠単・一括/集計/メモ/キャンセル/soft delete/一覧除外/復元） |
+| ✅ | `cleanupDryRunTrainingManagement()` を追加 — manifest 記録した training / 申込 / 外部申込者を物理削除（行番号降順 deleteRow） |
+| 📝 | メール送信は実行せず `getTrainingApplicants_` の対象解決のみ検証（誤送信なし）。2026 CRUD/integration test best practice 準拠 |
+| 🔒 | build keep-list 3 箇所 + audit-admin-boundary allowlist に登録 |
+
+デプロイ: admin `@172`。テスト関数のみ追加・既存挙動への影響なし。
+
+---
+
 ## v376.13 — 2026-05-26 🐛 メール送信のチェックボックス再選択バグ修正
 
 | 種別 | 内容 |
