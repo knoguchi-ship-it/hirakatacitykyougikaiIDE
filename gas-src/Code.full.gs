@@ -15790,6 +15790,8 @@ function getTrainingApplicants_(payload) {
   var trainingId = String(payload.trainingId || '').trim();
   if (!trainingId) return JSON.stringify({ success: false, error: 'trainingId required' });
 
+  // v376.12: getCanonicalApplicantRef_ で 3-FK XOR 正本判定。事業所職員 (STAFF) を職員IDで解決し、
+  //   送信先メールが事業所代表ではなく職員個人になるよう修正。
   var db = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
   backfillApplicationApplicantIdentity_(db);
   var applyRows = getTrainingApplicationRows_(db, { trainingId: trainingId });
@@ -15799,25 +15801,49 @@ function getTrainingApplicants_(payload) {
   var memberMap = {};
   memberRows.forEach(function(r) { memberMap[String(r['会員ID'] || '')] = r; });
 
+  var staffSheet = db.getSheetByName('T_事業所職員');
+  var staffMap = {};
+  (staffSheet ? getSheetData_(staffSheet) : []).forEach(function(r) { staffMap[String(r['職員ID'] || '')] = r; });
+
   var externalSheet = db.getSheetByName('T_外部申込者');
   var externalRows = getSheetData_(externalSheet);
   var externalMap = {};
   externalRows.forEach(function(r) { externalMap[String(r['外部申込者ID'] || '')] = r; });
 
   var result = applyRows.map(function(r) {
-    var applicantType = getApplicationApplicantType_(r) || 'MEMBER';
-    var isMember = applicantType === 'MEMBER';
-    var applicantId = getApplicationApplicantId_(r);
-    var info = isMember ? memberMap[applicantId] : externalMap[applicantId];
-    var memberName = info ? (String(info['姓'] || '') + ' ' + String(info['名'] || '')).trim() : '';
+    var ref = getCanonicalApplicantRef_(r);
+    var name = '(不明)', email = '', officeName = '';
+    if (ref.type === 'STAFF') {
+      var staffInfo = staffMap[ref.id];
+      if (staffInfo) {
+        name = (String(staffInfo['姓'] || '') + ' ' + String(staffInfo['名'] || '')).trim() || String(staffInfo['氏名'] || '');
+        email = String(staffInfo['メールアドレス'] || '');
+        var parentMember = memberMap[String(staffInfo['会員ID'] || '')];
+        officeName = parentMember ? String(parentMember['勤務先名'] || '') : '';
+      }
+    } else if (ref.type === 'MEMBER') {
+      var memberInfo = memberMap[ref.id];
+      if (memberInfo) {
+        name = (String(memberInfo['姓'] || '') + ' ' + String(memberInfo['名'] || '')).trim() || String(memberInfo['氏名'] || '');
+        email = String(memberInfo['代表メールアドレス'] || '');
+        officeName = String(memberInfo['勤務先名'] || '');
+      }
+    } else if (ref.type === 'EXTERNAL') {
+      var extInfo = externalMap[ref.id];
+      if (extInfo) {
+        name = String(extInfo['氏名'] || '');
+        email = String(extInfo['メールアドレス'] || '');
+        officeName = String(extInfo['事業所名'] || '');
+      }
+    }
     return {
       applyId: String(r['申込ID'] || ''),
       trainingId: String(r['研修ID'] || ''),
-      applicantType: applicantType,
-      applicantId: applicantId,
-      name: info ? (isMember ? (memberName || String(info['氏名'] || '')) : String(info['氏名'] || '')) : '(不明)',
-      email: info ? (isMember ? String(info['代表メールアドレス'] || '') : String(info['メールアドレス'] || '')) : '',
-      officeName: info ? (isMember ? String(info['勤務先名'] || '') : String(info['事業所名'] || '')) : '',
+      applicantType: ref.type || 'MEMBER',
+      applicantId: ref.id,
+      name: name,
+      email: email,
+      officeName: officeName,
       status: String(r['申込状態コード'] || ''),
       applyDate: String(r['申込日時'] || ''),
     };
@@ -16019,12 +16045,19 @@ function sendTrainingMail_(payload) {
     if (!trainingId || !targetApplyIds || !targetApplyIds.length) {
       return JSON.stringify({ success: false, error: 'パラメータが不足しています' });
     }
+    // v376.12: getCanonicalApplicantRef_ で 3-FK XOR 正本判定。STAFF を職員IDで解決し
+    //   実際の送信先が職員個人メールになるよう修正（事業所代表メール宛の誤送信を防止）。
     var db = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
     backfillApplicationApplicantIdentity_(db);
     var applyRows = getTrainingApplicationRows_(db, { trainingId: trainingId });
     var memberSheet = db.getSheetByName('T_会員');
     var memberMap = {};
     getSheetData_(memberSheet).forEach(function(r) { memberMap[String(r['会員ID'] || '')] = r; });
+    var staffSheetForSend = db.getSheetByName('T_事業所職員');
+    var staffMapForSend = {};
+    (staffSheetForSend ? getSheetData_(staffSheetForSend) : []).forEach(function(r) {
+      staffMapForSend[String(r['職員ID'] || '')] = r;
+    });
     var externalSheet = db.getSheetByName('T_外部申込者');
     var externalMap = {};
     getSheetData_(externalSheet).forEach(function(r) { externalMap[String(r['外部申込者ID'] || '')] = r; });
@@ -16035,17 +16068,32 @@ function sendTrainingMail_(payload) {
     recipients = applyRows
       .filter(function(r) { return targetSet[String(r['申込ID'] || '')]; })
       .map(function(r) {
-        var applicantType = getApplicationApplicantType_(r) || 'MEMBER';
-        var isMember = applicantType === 'MEMBER';
-        var applicantId = getApplicationApplicantId_(r);
-        var info = isMember ? memberMap[applicantId] : externalMap[applicantId];
-        var memberName = info ? (String(info['姓'] || '') + ' ' + String(info['名'] || '')).trim() : '';
-        return {
-          applyId: String(r['申込ID'] || ''),
-          name: info ? (isMember ? (memberName || String(info['氏名'] || '')) : String(info['氏名'] || '')) : '(不明)',
-          email: info ? (isMember ? String(info['代表メールアドレス'] || '') : String(info['メールアドレス'] || '')) : '',
-          officeName: info ? (isMember ? String(info['勤務先名'] || '') : String(info['事業所名'] || '')) : '',
-        };
+        var ref = getCanonicalApplicantRef_(r);
+        var name = '(不明)', email = '', officeName = '';
+        if (ref.type === 'STAFF') {
+          var staffInfo = staffMapForSend[ref.id];
+          if (staffInfo) {
+            name = (String(staffInfo['姓'] || '') + ' ' + String(staffInfo['名'] || '')).trim() || String(staffInfo['氏名'] || '');
+            email = String(staffInfo['メールアドレス'] || '');
+            var parentMember = memberMap[String(staffInfo['会員ID'] || '')];
+            officeName = parentMember ? String(parentMember['勤務先名'] || '') : '';
+          }
+        } else if (ref.type === 'MEMBER') {
+          var memberInfo = memberMap[ref.id];
+          if (memberInfo) {
+            name = (String(memberInfo['姓'] || '') + ' ' + String(memberInfo['名'] || '')).trim() || String(memberInfo['氏名'] || '');
+            email = String(memberInfo['代表メールアドレス'] || '');
+            officeName = String(memberInfo['勤務先名'] || '');
+          }
+        } else if (ref.type === 'EXTERNAL') {
+          var extInfo = externalMap[ref.id];
+          if (extInfo) {
+            name = String(extInfo['氏名'] || '');
+            email = String(extInfo['メールアドレス'] || '');
+            officeName = String(extInfo['事業所名'] || '');
+          }
+        }
+        return { applyId: String(r['申込ID'] || ''), name: name, email: email, officeName: officeName };
       });
   }
 

@@ -13,6 +13,19 @@
 
 ---
 
+## v376.12 — 2026-05-26 🐛 メール送信: 事業所職員の誤送信修正
+
+| 種別 | 内容 |
+|---|---|
+| 🐛 | **重要バグ修正**: 事業所職員 (STAFF) の研修申込が、メール送信画面で事業所代表 (MEMBER) 扱いされ、送信先が事業所代表メール宛になっていた問題を解消 |
+| 🐛 | 原因: `getTrainingApplicants_` / `sendTrainingMail_` 両方が legacy `getApplicationApplicantType_` を使用していた。これは申込レコードに `職員ID` と `会員ID` が両方ある場合、`会員ID` で MEMBER 判定してしまう仕様。`getTrainingRosterDetail_` (名簿) は v360 modern `getCanonicalApplicantRef_` (3-FK XOR) を使うため正常動作していた |
+| 🔧 | `getTrainingApplicants_` と `sendTrainingMail_` を `getCanonicalApplicantRef_` ベースに統一し、`T_事業所職員` を staffMap として参照。STAFF は職員姓名・職員個人メール・親事業所の勤務先名で解決 |
+| 🎨 | フロント `TrainingApplicantRow.applicantType` を `'MEMBER' \| 'STAFF' \| 'EXTERNAL'` の 3 値に拡張。送信画面の区分バッジに「事業所職員」(violet) を追加 |
+
+デプロイ: admin `@170`。public/member は無変更（fetchAllData 系は別経路）。仕様変更ゼロ・DB 不変・セキュリティ影響なし（職員メールは既に admin が名簿で閲覧可能だった情報）。
+
+---
+
 ## v376.11 — 2026-05-26 🎨 研修詳細を大画面モーダルへ
 
 | 種別 | 内容 |

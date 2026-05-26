@@ -43,7 +43,8 @@ export interface ExternalApplyPayload {
 export interface TrainingApplicantRow {
   applyId: string;
   trainingId: string;
-  applicantType: 'MEMBER' | 'EXTERNAL';
+  // v376.12: STAFF (事業所職員) を追加。事業所代表メール宛誤送信バグを修正
+  applicantType: 'MEMBER' | 'STAFF' | 'EXTERNAL';
   applicantId: string;
   name: string;
   email: string;
