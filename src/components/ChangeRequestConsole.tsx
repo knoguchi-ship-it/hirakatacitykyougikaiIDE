@@ -198,12 +198,10 @@ const ChangeRequestConsole: React.FC = () => {
         setActionError(prev => ({ ...prev, [req.requestId]: result.error || '承認に失敗しました' }));
         return;
       }
-      // v376.5: busy 解除を load() 前に行う（ボタン「処理中…」滞留の防止）。
-      //         また、承認結果 JSON の画面表示は廃止（alert で完了通知済 + 空オブジェクトが冗長表示されるバグ回避）。
+      // v376.6: 承認結果 JSON 表示は廃止（alert で完了通知済）。busy 解除は finally のみで、
+      //         API 完了→load 開始の隙間で再押下されないよう load 完了まで保持する。
       window.alert(`承認処理が完了しました。\n申請ID: ${req.requestId}`);
-      setBusy(null);
       await load();
-      return;
     } catch (e) {
       setActionError(prev => ({ ...prev, [req.requestId]: e instanceof Error ? e.message : '承認に失敗しました' }));
     } finally {
@@ -219,10 +217,8 @@ const ChangeRequestConsole: React.FC = () => {
     setActionError(prev => ({ ...prev, [req.requestId]: '' }));
     try {
       await callApi('rejectAdminChangeRequest', { requestId: req.requestId, note: reason });
-      // v376.5: busy 解除を load() 前に行う
-      setBusy(null);
+      // v376.6: busy は finally でのみ解除（API→load の隙間での再押下を防止）
       await load();
-      return;
     } catch (e) {
       setActionError(prev => ({ ...prev, [req.requestId]: e instanceof Error ? e.message : '却下に失敗しました' }));
     } finally {
