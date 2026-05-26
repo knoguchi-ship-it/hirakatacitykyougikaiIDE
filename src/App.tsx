@@ -1704,6 +1704,22 @@ const App: React.FC = () => {
     return saved;
   };
 
+  // v376.7: 研修 soft delete / restore（admin のみ）
+  const handleTrainingDelete = async (trainingId: string): Promise<void> => {
+    await api.softDeleteTraining(trainingId);
+    setTrainings((prev) => prev.map((t) => (t.id === trainingId ? { ...t, isDeleted: true } : t)));
+    if (userRole === 'ADMIN') {
+      loadAdminDashboardData({ force: true }).catch(() => undefined);
+    }
+  };
+  const handleTrainingRestore = async (trainingId: string): Promise<void> => {
+    await api.restoreTraining(trainingId);
+    setTrainings((prev) => prev.map((t) => (t.id === trainingId ? { ...t, isDeleted: false } : t)));
+    if (userRole === 'ADMIN') {
+      loadAdminDashboardData({ force: true }).catch(() => undefined);
+    }
+  };
+
   const handleTrainingApply = async (trainingId: string): Promise<void> => {
     if (!currentIdentity) {
       throw new Error('ログイン情報が見つかりません。');
@@ -4830,7 +4846,7 @@ const App: React.FC = () => {
       if (trainingManagementError && !trainingManagementLoaded) {
         return <div className="text-red-500 p-4 border border-red-200 bg-red-50 rounded">{trainingManagementError}</div>;
       }
-      return <TrainingManagement trainings={trainings} onSave={handleTrainingSave} defaultFieldConfig={trainingDefaultFieldConfig} />;
+      return <TrainingManagement trainings={trainings} onSave={handleTrainingSave} onDelete={handleTrainingDelete} onRestore={handleTrainingRestore} defaultFieldConfig={trainingDefaultFieldConfig} />;
     }
 
     if (currentView === 'bulk-mail') {

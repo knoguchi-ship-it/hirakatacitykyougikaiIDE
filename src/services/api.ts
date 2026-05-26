@@ -125,6 +125,9 @@ export interface ApiClient {
   }): Promise<void>;
   deleteAdminPermission(id: string): Promise<void>;
   saveTraining(training: Training): Promise<Training>;
+  // v376.7: 研修 soft delete / restore
+  softDeleteTraining(trainingId: string): Promise<{ trainingId: string; applicantCount: number; deleted: true; alreadyDeleted?: boolean }>;
+  restoreTraining(trainingId: string): Promise<{ trainingId: string; restored: true; alreadyActive?: boolean }>;
   uploadTrainingFile(base64: string, filename: string, mimeType: string): Promise<{ url: string; driveFileId?: string; thumbnailUrl?: string; thumbnailGenerationStatus?: 'generated' | 'pending' | 'failed' | 'skipped' }>;
   // v344: 案内PDF サムネイルを GAS proxy 経由で base64 data URL として取得（hotlink 制限回避）
   // v358: 第2引数 size を渡すと高解像度版（Drive thumbnailLink を w<size> で再取得）を返す
@@ -1003,6 +1006,46 @@ class GasApiClient implements ApiClient {
           reject(new Error('[GAS] ' + msg));
         })
         .processApiRequest('saveTraining', JSON.stringify(training));
+    });
+  }
+
+  // v376.7: 研修 soft delete
+  async softDeleteTraining(trainingId: string): Promise<{ trainingId: string; applicantCount: number; deleted: true; alreadyDeleted?: boolean }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data);
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('softDeleteTraining', JSON.stringify({ trainingId }));
+    });
+  }
+
+  // v376.7: 研修 restore（削除取消）
+  async restoreTraining(trainingId: string): Promise<{ trainingId: string; restored: true; alreadyActive?: boolean }> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data);
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch { reject(new Error('Failed to parse response from GAS')); }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest('restoreTraining', JSON.stringify({ trainingId }));
     });
   }
 

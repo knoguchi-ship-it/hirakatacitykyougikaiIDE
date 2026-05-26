@@ -13,6 +13,21 @@
 
 ---
 
+## v376.7 — 2026-05-26 🆕 研修管理 — フィルター + soft delete
+
+| 種別 | 内容 |
+|---|---|
+| 🆕 | **研修削除機能**を追加（soft delete = `削除フラグ=true`、物理削除しない）。申込実績がある場合は警告ダイアログ。削除済表示時は「復元」ボタンで取消可能 |
+| 🆕 | **研修一覧フィルター** UI 追加 — 年度（既定: 今年度・日本式 4 月開始）/ 状態（申込受付中・締切済・削除済）/ キーワード検索（研修名+主催者） |
+| 🆕 | 件数表示「フィルター後 N / 全 M 件」で透明性確保 |
+| 🔧 | `getTrainingManagementData_` で削除済も含めて返却し `isDeleted` フラグ付与（admin 側のみ。公開ポータルは `fetchAllData_` 別パスで filter 維持・**影響ゼロ**） |
+| 🔧 | バックエンドに `softDeleteTraining_` / `restoreTraining_` 追加。権限 `MASTER/ADMIN/TRAINING_MANAGER` のみ（`TRAINING_REGISTRAR` は登録専用） |
+| 📝 | DB スキーマ変更ゼロ（`削除フラグ` 既存列を利用）。グローバル UX best practice 準拠（Salesforce/Tableau 既定 = current fiscal year、NN/g filter 7 項目以内、progressive disclosure） |
+
+デプロイ: admin `@165`。
+
+---
+
 ## v376.6 — 2026-05-26
 
 | 種別 | 内容 |

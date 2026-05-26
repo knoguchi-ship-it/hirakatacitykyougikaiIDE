@@ -602,6 +602,8 @@ export interface Training {
   description?: string;
   guidePdfUrl?: string;
   thumbnailUrl?: string;
+  /** v376.7: admin 一覧で削除済を識別。公開ポータルは backend 側で除外済のため常に false。 */
+  isDeleted?: boolean;
   date: string;
   endTime?: string;
   capacity: number;

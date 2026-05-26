@@ -1515,6 +1515,9 @@ var ADMIN_ACTION_PERMISSIONS = {
   'saveAnnualFeeRecord': ['MASTER','ADMIN'],
   'saveAnnualFeeRecordsBatch': ['MASTER','ADMIN'],
   'saveTraining': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
+  // v376.7: soft delete / restore は MASTER/ADMIN/TRAINING_MANAGER のみ（REGISTRAR は登録専用で削除権限なし）
+  'softDeleteTraining': ['MASTER','ADMIN','TRAINING_MANAGER'],
+  'restoreTraining': ['MASTER','ADMIN','TRAINING_MANAGER'],
   'uploadTrainingFile': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
   // v350: 失敗時の手動サムネイル再生成
   'regenerateThumbnailForTraining': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
@@ -1948,6 +1951,22 @@ function processApiRequest(action, payload) {
       } catch (saveErr) {
         Logger.log('[saveTraining error] ' + (saveErr && saveErr.message ? saveErr.message : String(saveErr)));
         return JSON.stringify({ success: false, error: saveErr && saveErr.message ? saveErr.message : String(saveErr) });
+      }
+    }
+
+    // v376.7: 研修 soft delete / restore
+    if (action === 'softDeleteTraining') {
+      try {
+        return JSON.stringify({ success: true, data: softDeleteTraining_(parsedPayload) });
+      } catch (delErr) {
+        return JSON.stringify({ success: false, error: delErr && delErr.message ? delErr.message : String(delErr) });
+      }
+    }
+    if (action === 'restoreTraining') {
+      try {
+        return JSON.stringify({ success: true, data: restoreTraining_(parsedPayload) });
+      } catch (resErr) {
+        return JSON.stringify({ success: false, error: resErr && resErr.message ? resErr.message : String(resErr) });
       }
     }
 
@@ -3914,7 +3933,11 @@ function clearAdminDashboardCache_() {
 }
 
 function clearTrainingManagementCache_() {
-  removeChunkedCache_(CacheService.getScriptCache(), getTrainingManagementCacheKey_());
+  // v376.7: getTrainingManagementData_ は cache key に _v2 suffix を追加したため両方クリア
+  var cache = CacheService.getScriptCache();
+  var baseKey = getTrainingManagementCacheKey_();
+  removeChunkedCache_(cache, baseKey);
+  removeChunkedCache_(cache, baseKey + '_v2');
 }
 
 function fetchAllDataFromDb_() {
@@ -4296,6 +4319,8 @@ function mapTrainingRowsForApi_(trainingRows) {
       description: String(t['研修内容'] || ''),
       guidePdfUrl: String(t['案内状URL'] || ''),
       thumbnailUrl: String(t['案内状サムネイルURL'] || ''),
+      // v376.7: admin 一覧で削除済フィルタを表示するため isDeleted を公開（公開ポータルは別パス）
+      isDeleted: toBoolean_(t['削除フラグ']),
       date: formatDateForApi_(t['開催日']),
       endTime: String(t['開催終了時刻'] || ''),
       capacity: Number(t['定員'] || 0),
@@ -4538,16 +4563,16 @@ function getAdminDashboardData_() {
 }
 
 function getTrainingManagementData_() {
+  // v376.7: admin 一覧では削除済も含めて全件返す（isDeleted で識別、frontend で filter）。
+  //   公開ポータルは fetchAllData_ など別 API パスで !削除フラグ filter 済み。
   var cache = CacheService.getScriptCache();
-  var cacheKey = getTrainingManagementCacheKey_();
+  var cacheKey = getTrainingManagementCacheKey_() + '_v2';
   var cached = getChunkedCache_(cache, cacheKey);
   if (cached) return cached;
 
   var ss = getOrCreateDatabase_();
   initializeSchemaIfNeeded_(ss);
-  var trainingRows = getRowsAsObjects_(ss, 'T_研修').filter(function(r) {
-    return !toBoolean_(r['削除フラグ']);
-  });
+  var trainingRows = getRowsAsObjects_(ss, 'T_研修');
 
   var trainings = mapTrainingRowsForApi_(trainingRows).sort(function(a, b) {
     return String(b.date || '').localeCompare(String(a.date || ''));
@@ -11535,6 +11560,69 @@ function hashPassword_(password, salt) {
     out.push((b < 16 ? '0' : '') + b.toString(16));
   }
   return out.join('');
+}
+
+// v376.7: 研修の soft delete（削除フラグ=true）。物理削除しない。
+//   payload: { trainingId: string }
+//   返却: { trainingId, applicantCount, deleted: true }
+//   申込実績がある場合も削除可能（呼出側で警告表示 → 確認後実行する設計）。
+//   削除後は公開ポータル/admin dashboard から自動非表示（既存の !削除フラグ filter 経由）。
+function softDeleteTraining_(payload) {
+  var trainingId = String((payload && payload.trainingId) || '').trim();
+  if (!trainingId) throw new Error('trainingId が必要です。');
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_研修');
+  if (!sheet) throw new Error('T_研修 シートが見つかりません。');
+  var found = findRowByColumnValue_(sheet, '研修ID', trainingId);
+  if (!found) throw new Error('対象研修が見つかりません: ' + trainingId);
+  var cols = found.columns;
+  var row = found.row.slice();
+  if (toBoolean_(row[cols['削除フラグ']])) {
+    return { trainingId: trainingId, applicantCount: 0, deleted: true, alreadyDeleted: true };
+  }
+  row[cols['削除フラグ']] = true;
+  if (cols['更新日時'] != null) row[cols['更新日時']] = new Date().toISOString();
+  sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+
+  // 申込件数を返却（参考表示用、削除をブロックしない）
+  var applicantCount = 0;
+  try {
+    var applySheet = ss.getSheetByName('T_研修申込');
+    if (applySheet && applySheet.getLastRow() >= 2) {
+      var applies = getRowsAsObjects_(ss, 'T_研修申込');
+      applicantCount = applies.filter(function (r) {
+        return !toBoolean_(r['削除フラグ']) &&
+               String(r['研修ID'] || '') === trainingId &&
+               String(r['申込状態コード'] || '') !== 'CANCELED';
+      }).length;
+    }
+  } catch (e) {}
+
+  try { clearAllDataCache_(); } catch (e) {}
+  try { clearAdminDashboardCache_(); } catch (e) {}
+  return { trainingId: trainingId, applicantCount: applicantCount, deleted: true };
+}
+
+// v376.7: 研修の復元（削除フラグ=false）。soft delete の取消。
+function restoreTraining_(payload) {
+  var trainingId = String((payload && payload.trainingId) || '').trim();
+  if (!trainingId) throw new Error('trainingId が必要です。');
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_研修');
+  if (!sheet) throw new Error('T_研修 シートが見つかりません。');
+  var found = findRowByColumnValue_(sheet, '研修ID', trainingId);
+  if (!found) throw new Error('対象研修が見つかりません: ' + trainingId);
+  var cols = found.columns;
+  var row = found.row.slice();
+  if (!toBoolean_(row[cols['削除フラグ']])) {
+    return { trainingId: trainingId, restored: true, alreadyActive: true };
+  }
+  row[cols['削除フラグ']] = false;
+  if (cols['更新日時'] != null) row[cols['更新日時']] = new Date().toISOString();
+  sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  try { clearAllDataCache_(); } catch (e) {}
+  try { clearAdminDashboardCache_(); } catch (e) {}
+  return { trainingId: trainingId, restored: true };
 }
 
 /**

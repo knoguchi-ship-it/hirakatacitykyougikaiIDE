@@ -410,6 +410,9 @@ function buildAdminCode(source) {
     'saveAnnualFeeRecord',
     'saveAnnualFeeRecordsBatch',
     'saveTraining',
+    // v376.7: 研修 soft delete / restore
+    'softDeleteTraining',
+    'restoreTraining',
     'uploadTrainingFile',
     'setupTrainingFileFolder',
     'getTrainingManagementData',

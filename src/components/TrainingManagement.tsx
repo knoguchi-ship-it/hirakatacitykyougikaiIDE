@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Training, TrainingFee, TrainingFieldConfig, DEFAULT_FIELD_CONFIG, DEFAULT_FEES } from '../types';
 import { api } from '../services/api';
 import { PlusIcon, TrashIcon } from './Icons';
@@ -10,8 +10,24 @@ import PdfPreviewModal from './PdfPreviewModal';
 interface Props {
   trainings: Training[];
   onSave: (training: Training) => Promise<Training>;
+  // v376.7: 削除・復元ハンドラ（admin のみ）
+  onDelete?: (trainingId: string) => Promise<void>;
+  onRestore?: (trainingId: string) => Promise<void>;
   defaultFieldConfig?: TrainingFieldConfig | null;
 }
+
+// v376.7: 日本の年度（4 月開始）。開催日 "2026-03-15" → 2025 年度、"2026-04-01" → 2026 年度。
+const fiscalYearOf = (eventDate: string | undefined | null): number | null => {
+  if (!eventDate) return null;
+  const d = new Date(eventDate);
+  if (isNaN(d.getTime())) return null;
+  return d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
+};
+
+const currentFiscalYear = (): number => {
+  const now = new Date();
+  return now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+};
 
 // 法定外研修フラグは常時表示のため除外
 export const TRAINING_OPTIONAL_FIELD_DEFS: { key: keyof TrainingFieldConfig; label: string }[] = [
@@ -65,7 +81,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type PanelView = 'form' | 'mail' | 'roster';
 
-const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldConfig }) => {
+const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRestore, defaultFieldConfig }) => {
   const effectiveDefault = defaultFieldConfig ?? DEFAULT_FIELD_CONFIG;
   const [form, setForm] = useState<Training>(() => buildEmptyForm(effectiveDefault));
   const [isNew, setIsNew] = useState(true);
@@ -82,6 +98,82 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [panelView, setPanelView] = useState<PanelView>('form');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // v376.7: 一覧フィルター（admin のみ）
+  const [filterYear, setFilterYear] = useState<number | 'ALL'>(() => currentFiscalYear());
+  const [filterStatus, setFilterStatus] = useState<'ALL' | 'OPEN' | 'CLOSED' | 'DELETED'>('ALL');
+  const [filterKeyword, setFilterKeyword] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  // 利用可能な年度（既存研修の開催日から派生 + 今年度を必ず含む）
+  const availableYears = useMemo(() => {
+    const set = new Set<number>([currentFiscalYear()]);
+    for (const t of trainings) {
+      const y = fiscalYearOf(t.date);
+      if (y !== null) set.add(y);
+    }
+    return Array.from(set).sort((a, b) => b - a); // 新しい年度が先頭
+  }, [trainings]);
+
+  // フィルター適用後の一覧
+  const filteredTrainings = useMemo(() => {
+    const kw = filterKeyword.trim().toLowerCase();
+    return trainings.filter((t) => {
+      // 年度フィルター
+      if (filterYear !== 'ALL') {
+        const y = fiscalYearOf(t.date);
+        if (y !== filterYear) return false;
+      }
+      // 状態フィルター
+      if (filterStatus === 'DELETED') {
+        if (!t.isDeleted) return false;
+      } else {
+        if (t.isDeleted) return false; // 削除済は通常表示で除外
+        if (filterStatus === 'OPEN' && t.status !== 'OPEN') return false;
+        if (filterStatus === 'CLOSED' && t.status !== 'CLOSED') return false;
+      }
+      // キーワード（研修名 + 主催者）
+      if (kw) {
+        const hay = (t.title + ' ' + (t.organizer || '')).toLowerCase();
+        if (!hay.includes(kw)) return false;
+      }
+      return true;
+    });
+  }, [trainings, filterYear, filterStatus, filterKeyword]);
+
+  const handleDelete = async () => {
+    if (!form.id || !onDelete) return;
+    const applicantCount = form.applicants || 0;
+    const warning = applicantCount > 0
+      ? `\n※既に申込が ${applicantCount} 件あります。申込履歴は保持されますが、研修自体は一覧から非表示になります。`
+      : '';
+    if (!window.confirm(`研修「${form.title}」を削除しますか?\n削除後も「削除済」フィルタから復元可能です。${warning}`)) return;
+    setDeleting(true);
+    try {
+      await onDelete(form.id);
+      window.alert('研修を削除しました。');
+      startNew();
+    } catch (e) {
+      window.alert('削除に失敗しました: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    if (!form.id || !onRestore) return;
+    if (!window.confirm(`研修「${form.title}」を復元しますか?`)) return;
+    setDeleting(true);
+    try {
+      await onRestore(form.id);
+      window.alert('研修を復元しました。');
+      startNew();
+    } catch (e) {
+      window.alert('復元に失敗しました: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const fieldConfig: TrainingFieldConfig = form.fieldConfig ?? { ...effectiveDefault };
   const isFieldOn = (key: keyof TrainingFieldConfig) => fieldConfig[key] !== false;
@@ -342,22 +434,67 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-slate-100">
-            <h3 className="text-lg font-bold text-slate-800">研修一覧</h3>
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <h3 className="text-lg font-bold text-slate-800">研修一覧</h3>
+              <span className="text-xs text-slate-500">
+                {filteredTrainings.length} / {trainings.length} 件
+              </span>
+            </div>
+            {/* v376.7: フィルター UI */}
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <select
+                  value={String(filterYear)}
+                  onChange={(e) => setFilterYear(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+                  className="flex-1 text-xs border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  aria-label="年度フィルター"
+                >
+                  {availableYears.map((y) => (
+                    <option key={y} value={y}>{y} 年度{y === currentFiscalYear() ? '（今年度）' : ''}</option>
+                  ))}
+                  <option value="ALL">すべての年度</option>
+                </select>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value as typeof filterStatus)}
+                  className="flex-1 text-xs border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  aria-label="状態フィルター"
+                >
+                  <option value="ALL">すべて</option>
+                  <option value="OPEN">申込受付中</option>
+                  <option value="CLOSED">締切済</option>
+                  <option value="DELETED">削除済</option>
+                </select>
+              </div>
+              <input
+                type="text"
+                value={filterKeyword}
+                onChange={(e) => setFilterKeyword(e.target.value)}
+                placeholder="🔍 研修名・主催者で検索"
+                className="w-full text-xs border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                aria-label="キーワード検索"
+              />
+            </div>
           </div>
           <ul className="divide-y divide-slate-100 max-h-[640px] overflow-y-auto">
-            {trainings.length === 0 && (
-              <li className="p-4 text-sm text-slate-400 text-center">研修データがありません。</li>
+            {filteredTrainings.length === 0 && (
+              <li className="p-4 text-sm text-slate-400 text-center">
+                {trainings.length === 0 ? '研修データがありません。' : '該当する研修がありません。'}
+              </li>
             )}
-            {trainings.map((t) => (
+            {filteredTrainings.map((t) => (
               <li key={t.id}>
                 <button
                   type="button"
                   onClick={() => loadTraining(t)}
                   className={`w-full text-left px-4 py-3 hover:bg-slate-50 ${
                     form.id === t.id && !isNew ? 'bg-primary-50 border-l-2 border-primary-500' : ''
-                  }`}
+                  } ${t.isDeleted ? 'opacity-60' : ''}`}
                 >
-                  <p className="text-sm font-medium text-slate-800 truncate">{t.title}</p>
+                  <p className="text-sm font-medium text-slate-800 truncate">
+                    {t.isDeleted && <span className="inline-block mr-1 px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[10px] align-middle">削除済</span>}
+                    {t.title}
+                  </p>
                   <p className="text-xs text-slate-500 mt-0.5">{normalizeDateTime(t.date)} / {t.status}</p>
                 </button>
               </li>
@@ -389,6 +526,25 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, defaultFieldCo
                   onClick={() => setPanelView('mail')}
                   className={`text-sm px-3 py-2 min-h-[44px] rounded-lg border font-medium transition-colors ${panelView === 'mail' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
                 >メール送信</button>
+                {/* v376.7: 削除 / 復元ボタン */}
+                {!form.isDeleted && onDelete && (
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="text-sm px-3 py-2 min-h-[44px] rounded-lg border border-red-300 text-red-600 hover:bg-red-50 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="この研修を削除"
+                  >{deleting ? '処理中...' : '🗑 削除'}</button>
+                )}
+                {form.isDeleted && onRestore && (
+                  <button
+                    type="button"
+                    onClick={handleRestore}
+                    disabled={deleting}
+                    className="text-sm px-3 py-2 min-h-[44px] rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="この研修を復元"
+                  >{deleting ? '処理中...' : '↺ 復元'}</button>
+                )}
               </div>
             )}
           </div>
