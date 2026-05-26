@@ -38,6 +38,9 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // v376.8: 選択ベースの一括操作（誤操作防止）
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -97,18 +100,45 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
     }
   };
 
-  const bulkSet = async (status: AttendanceStatus) => {
-    if (!confirm(`表示中の ${filtered.length} 名を「${ATTENDANCE_LABEL[status]}」に一括設定します。よろしいですか？`)) return;
+  // v376.8: 選択行に対する一括出欠変更（誤操作防止：選択明示が必要）
+  const bulkSetSelected = async (status: AttendanceStatus) => {
+    const targets = filtered.filter((r) => selectedIds.has(r.applyId) && r.status === 'APPLIED');
+    if (targets.length === 0) return;
+    if (!confirm(`選択中の ${targets.length} 名を「${ATTENDANCE_LABEL[status]}」に変更します。よろしいですか？`)) return;
     setBusy(true);
     try {
-      const entries = filtered.map((r) => ({ applyId: r.applyId, status }));
+      const entries = targets.map((r) => ({ applyId: r.applyId, status }));
       await api.saveAttendanceBatch(entries);
+      setSelectedIds(new Set());
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : '一括更新に失敗しました');
     } finally {
       setBusy(false);
     }
+  };
+
+  // 表示中行の全選択 / 解除（APPLIED のみ対象）
+  const toggleSelectAllFiltered = () => {
+    const eligible = filtered.filter((r) => r.status === 'APPLIED').map((r) => r.applyId);
+    const allSelected = eligible.length > 0 && eligible.every((id) => selectedIds.has(id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allSelected) {
+        eligible.forEach((id) => next.delete(id));
+      } else {
+        eligible.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectOne = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
   };
 
   const exportCsv = () => {
@@ -149,41 +179,54 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
     }
   };
 
+  // v376.8: 選択状態（filter 切替時に範囲外の選択を保持・visible 制御は selectionCount で判定）
+  const visibleEligibleIds = filtered.filter((r) => r.status === 'APPLIED').map((r) => r.applyId);
+  const selectedVisibleCount = visibleEligibleIds.filter((id) => selectedIds.has(id)).length;
+  const allVisibleSelected = visibleEligibleIds.length > 0 && selectedVisibleCount === visibleEligibleIds.length;
+
+  // segmented control 共通スタイル
+  const segBase = 'px-3 py-1.5 min-h-[36px] text-xs font-medium rounded-md transition-colors border';
+  const segActive = 'bg-primary-600 text-white border-primary-600';
+  const segInactive = 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50';
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <button onClick={onBack} className="text-sm text-blue-600 hover:underline min-h-[44px]">← 研修一覧へ戻る</button>
-          <h2 className="text-xl font-bold mt-1">{trainingTitle} の名簿</h2>
-          {trainingDate && <p className="text-sm text-gray-500">{trainingDate}</p>}
+      {/* v376.8: header 簡素化 — タイトル/日付/出席率を 1 行に。「研修一覧へ戻る」は親タブ往復で代替するため廃止 */}
+      <div className="flex flex-wrap items-baseline justify-between gap-3 pb-2 border-b border-slate-200">
+        <div className="flex items-baseline gap-3 flex-wrap">
+          <span className="text-sm text-slate-500">📅 {trainingDate || '-'}</span>
+          {stats && (
+            <>
+              <span className="text-sm text-slate-500">申込 {stats.applicantCount} / {stats.capacity}</span>
+              <span className="text-sm text-slate-500">出席率 {stats.attendanceRate ?? '-'}%</span>
+            </>
+          )}
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button onClick={load} disabled={loading || busy} className="px-3 py-2 min-h-[44px] bg-gray-100 hover:bg-gray-200 rounded text-sm">更新</button>
-          <button onClick={() => setShowAddDialog(true)} className="px-3 py-2 min-h-[44px] bg-blue-600 text-white rounded text-sm">+ 会員を追加</button>
-          <button onClick={() => setShowGuestDialog(true)} className="px-3 py-2 min-h-[44px] bg-violet-600 text-white rounded text-sm">+ ゲスト追加</button>
-          <button onClick={exportCsv} className="px-3 py-2 min-h-[44px] bg-emerald-500 text-white rounded text-sm">📄 CSV 出力</button>
-        </div>
+        <button onClick={load} disabled={loading || busy}
+          className="px-3 py-2 min-h-[36px] bg-white hover:bg-slate-50 border border-slate-300 rounded-md text-xs text-slate-600">
+          🔄 更新
+        </button>
       </div>
 
-      {error && <div className="p-3 bg-red-50 border border-red-200 rounded text-sm text-red-800" role="alert">{error}</div>}
-      {notice && <div className="p-2 bg-green-50 border border-green-200 rounded text-sm text-green-800">{notice}</div>}
+      {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800" role="alert">{error}</div>}
+      {notice && <div className="p-2 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800" role="status">{notice}</div>}
 
-      {/* 集計カード */}
+      {/* 集計カード（圧縮版） */}
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatCard label="申込者数" value={stats.applicantCount} sub={`定員 ${stats.capacity} / 残 ${stats.remainingSlots}`} />
-          <StatCard label="出席" value={stats.attendanceBreakdown.PRESENT} sub={`出席率 ${stats.attendanceRate ?? '-'}%`} color="green" />
-          <StatCard label="欠席" value={stats.attendanceBreakdown.ABSENT} sub={`未記録 ${stats.attendanceBreakdown.UNRECORDED}`} color="yellow" />
-          <StatCard label="当日キャンセル" value={stats.attendanceBreakdown.SAMEDAY_CANCEL} sub={`遅刻 ${stats.attendanceBreakdown.LATE}`} color="red" />
+          <StatCard label="申込" value={stats.applicantCount} sub={`残 ${stats.remainingSlots}`} />
+          <StatCard label="出席" value={stats.attendanceBreakdown.PRESENT} color="green" />
+          <StatCard label="欠席" value={stats.attendanceBreakdown.ABSENT} color="yellow" />
+          <StatCard label="未記録" value={stats.attendanceBreakdown.UNRECORDED} color="red" />
         </div>
       )}
 
       {stats && stats.officeBreakdown.length > 0 && (
-        <details className="bg-white border rounded p-3 text-sm">
-          <summary className="cursor-pointer font-semibold">事業所別 申込数</summary>
+        <details className="bg-white border border-slate-200 rounded-lg p-3 text-sm">
+          <summary className="cursor-pointer font-semibold text-slate-700">事業所別 申込数</summary>
           <ul className="mt-2 space-y-1">
             {stats.officeBreakdown.slice(0, 15).map((o) => (
-              <li key={o.officeName} className="flex justify-between border-b py-1">
+              <li key={o.officeName} className="flex justify-between border-b border-slate-100 py-1">
                 <span>{o.officeName}</span><span className="font-semibold">{o.count}</span>
               </li>
             ))}
@@ -191,86 +234,177 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
         </details>
       )}
 
-      {/* フィルタ + 一括操作 */}
-      <div className="flex flex-wrap gap-2 items-center bg-gray-50 border rounded p-3">
-        <input
-          type="text"
-          placeholder="氏名 / 事業所 / メール で検索"
-          value={filterText}
-          onChange={(e) => setFilterText(e.target.value)}
-          className="flex-1 min-w-[200px] min-h-[44px] px-3 py-2 border rounded text-sm"
-        />
-        <select value={filterType} onChange={(e) => setFilterType(e.target.value as any)} className="min-h-[44px] px-2 border rounded text-sm">
-          <option value="ALL">全区分</option>
-          <option value="MEMBER">会員</option>
-          <option value="STAFF">事業所職員</option>
-          <option value="EXTERNAL">非会員</option>
-        </select>
-        <select value={filterAttendance} onChange={(e) => setFilterAttendance(e.target.value as any)} className="min-h-[44px] px-2 border rounded text-sm">
-          <option value="ALL">全出欠</option>
-          {(Object.keys(ATTENDANCE_LABEL) as AttendanceStatus[]).map((s) => (
-            <option key={s} value={s}>{ATTENDANCE_LABEL[s]}</option>
-          ))}
-        </select>
-        <div className="flex gap-1">
-          <button onClick={() => bulkSet('PRESENT')} disabled={busy || filtered.length === 0} className="px-2 py-2 min-h-[44px] bg-green-600 text-white rounded text-xs">表示全員 出席</button>
-          <button onClick={() => bulkSet('ABSENT')} disabled={busy || filtered.length === 0} className="px-2 py-2 min-h-[44px] bg-yellow-600 text-white rounded text-xs">表示全員 欠席</button>
+      {/* Primary toolbar: 申込者を追加 (primary) / CSV (neutral) */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <button onClick={() => setAddMenuOpen((o) => !o)}
+            className="px-4 py-2 min-h-[44px] bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium flex items-center gap-1"
+            aria-expanded={addMenuOpen} aria-haspopup="menu">
+            + 申込者を追加 <span aria-hidden="true">▾</span>
+          </button>
+          {addMenuOpen && (
+            <div role="menu" className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-10 min-w-[160px]">
+              <button role="menuitem"
+                onClick={() => { setAddMenuOpen(false); setShowAddDialog(true); }}
+                className="block w-full text-left px-4 py-2 text-sm hover:bg-slate-50">会員を追加</button>
+              <button role="menuitem"
+                onClick={() => { setAddMenuOpen(false); setShowGuestDialog(true); }}
+                className="block w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-t border-slate-100">ゲスト（非会員）を追加</button>
+            </div>
+          )}
         </div>
-        <span className="text-xs text-gray-600 ml-auto">{filtered.length} / {applied.length} 名表示</span>
+        <button onClick={exportCsv}
+          className="px-3 py-2 min-h-[44px] bg-white hover:bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-700">
+          📄 CSV 出力
+        </button>
       </div>
+
+      {/* Filter bar: 検索 + segmented filters */}
+      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            placeholder="🔍 氏名・事業所・メールで検索"
+            value={filterText}
+            onChange={(e) => setFilterText(e.target.value)}
+            className="flex-1 min-h-[40px] px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
+            aria-label="名簿検索"
+          />
+          <span className="text-xs text-slate-500 whitespace-nowrap">{filtered.length} / {applied.length} 名</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-slate-500 mr-1">区分:</span>
+          {([
+            { v: 'ALL', label: 'すべて' },
+            { v: 'MEMBER', label: '会員' },
+            { v: 'STAFF', label: '職員' },
+            { v: 'EXTERNAL', label: '非会員' },
+          ] as { v: ApplicantType | 'ALL'; label: string }[]).map((opt) => (
+            <button key={opt.v} type="button"
+              onClick={() => setFilterType(opt.v)}
+              className={`${segBase} ${filterType === opt.v ? segActive : segInactive}`}
+              aria-pressed={filterType === opt.v}>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-slate-500 mr-1">出欠:</span>
+          {([
+            { v: 'ALL', label: 'すべて' },
+            { v: 'UNRECORDED', label: '未記録' },
+            { v: 'PRESENT', label: '出席' },
+            { v: 'ABSENT', label: '欠席' },
+            { v: 'LATE', label: '遅刻' },
+            { v: 'SAMEDAY_CANCEL', label: '当日キャンセル' },
+          ] as { v: AttendanceStatus | 'ALL'; label: string }[]).map((opt) => (
+            <button key={opt.v} type="button"
+              onClick={() => setFilterAttendance(opt.v)}
+              className={`${segBase} ${filterAttendance === opt.v ? segActive : segInactive}`}
+              aria-pressed={filterAttendance === opt.v}>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Selection toolbar (選択時のみ) */}
+      {selectedVisibleCount > 0 && (
+        <div className="flex flex-wrap items-center gap-2 bg-primary-50 border border-primary-200 rounded-lg px-4 py-2"
+          role="region" aria-label="一括操作">
+          <span className="text-sm font-medium text-primary-900">☑ {selectedVisibleCount} 名選択中</span>
+          <div className="flex gap-2 ml-auto">
+            <button onClick={() => bulkSetSelected('PRESENT')} disabled={busy}
+              className="px-3 py-2 min-h-[36px] bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-xs font-medium disabled:opacity-50">
+              選択中を出席に
+            </button>
+            <button onClick={() => bulkSetSelected('ABSENT')} disabled={busy}
+              className="px-3 py-2 min-h-[36px] bg-amber-600 hover:bg-amber-700 text-white rounded-md text-xs font-medium disabled:opacity-50">
+              選択中を欠席に
+            </button>
+            <button onClick={() => setSelectedIds(new Set())}
+              className="px-3 py-2 min-h-[36px] bg-white hover:bg-slate-50 border border-slate-300 rounded-md text-xs text-slate-600">
+              選択解除
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 名簿テーブル */}
       {loading ? (
-        <div className="p-4 text-center text-gray-500">読み込み中…</div>
+        <div className="p-4 text-center text-slate-500">読み込み中…</div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border">
-            <thead className="bg-gray-100 text-xs">
+        <div className="overflow-x-auto bg-white border border-slate-200 rounded-lg">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-xs text-slate-700 border-b border-slate-200">
               <tr>
-                <th className="px-2 py-2 border text-left">#</th>
-                <th className="px-2 py-2 border text-left">氏名</th>
-                <th className="px-2 py-2 border text-left">事業所</th>
-                <th className="px-2 py-2 border text-left">区分</th>
-                <th className="px-2 py-2 border text-left">連絡先</th>
-                <th className="px-2 py-2 border text-left">申込状態</th>
-                <th className="px-2 py-2 border text-left">出欠</th>
-                <th className="px-2 py-2 border text-left">事務局メモ</th>
-                <th className="px-2 py-2 border text-left">操作</th>
+                <th className="px-2 py-2 text-center w-10">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleSelectAllFiltered}
+                    aria-label="表示中の全員を選択"
+                    className="w-4 h-4 cursor-pointer"
+                  />
+                </th>
+                <th className="px-2 py-2 text-left">#</th>
+                <th className="px-2 py-2 text-left">氏名</th>
+                <th className="px-2 py-2 text-left">事業所</th>
+                <th className="px-2 py-2 text-left">区分</th>
+                <th className="px-2 py-2 text-left">連絡先</th>
+                <th className="px-2 py-2 text-left">申込状態</th>
+                <th className="px-2 py-2 text-left">出欠</th>
+                <th className="px-2 py-2 text-left">事務局メモ</th>
+                <th className="px-2 py-2 text-left">操作</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100">
               {filtered.map((r, i) => (
-                <tr key={r.applyId} className={r.status !== 'APPLIED' ? 'bg-gray-50 text-gray-500' : ''}>
-                  <td className="px-2 py-2 border">{i + 1}</td>
-                  <td className="px-2 py-2 border font-semibold">{r.name}</td>
-                  <td className="px-2 py-2 border">{r.officeName}</td>
-                  <td className="px-2 py-2 border text-xs">{APPLICANT_TYPE_LABEL[r.applicantType]}</td>
-                  <td className="px-2 py-2 border text-xs break-all">
-                    {r.email && <div>{r.email}</div>}
-                    {r.phone && <div className="text-gray-500">{r.phone}</div>}
+                <tr key={r.applyId} className={r.status !== 'APPLIED' ? 'bg-slate-50 text-slate-400' : 'hover:bg-slate-50'}>
+                  <td className="px-2 py-2 text-center">
+                    {r.status === 'APPLIED' && (
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(r.applyId)}
+                        onChange={() => toggleSelectOne(r.applyId)}
+                        aria-label={`${r.name} を選択`}
+                        className="w-4 h-4 cursor-pointer"
+                      />
+                    )}
                   </td>
-                  <td className="px-2 py-2 border text-xs">{r.status === 'APPLIED' ? '申込済' : '取消'}</td>
-                  <td className="px-2 py-2 border">
+                  <td className="px-2 py-2 text-slate-500">{i + 1}</td>
+                  <td className="px-2 py-2 font-medium text-slate-800">{r.name}</td>
+                  <td className="px-2 py-2 text-slate-700">{r.officeName}</td>
+                  <td className="px-2 py-2 text-xs text-slate-600">{APPLICANT_TYPE_LABEL[r.applicantType]}</td>
+                  <td className="px-2 py-2 text-xs break-all text-slate-600">
+                    {r.email && <div>{r.email}</div>}
+                    {r.phone && <div className="text-slate-400">{r.phone}</div>}
+                  </td>
+                  <td className="px-2 py-2 text-xs">{r.status === 'APPLIED' ? <span className="text-emerald-700">申込済</span> : <span className="text-slate-400">取消</span>}</td>
+                  <td className="px-2 py-2">
                     {r.status === 'APPLIED' ? (
                       <select
                         value={r.attendanceStatus}
                         onChange={(e) => updateAttendance(r.applyId, e.target.value as AttendanceStatus)}
-                        className="min-h-[44px] px-2 border rounded text-xs"
+                        className="min-h-[36px] px-2 py-1 border border-slate-300 rounded-md text-xs bg-white"
+                        aria-label={`${r.name} の出欠`}
                       >
                         {(Object.keys(ATTENDANCE_LABEL) as AttendanceStatus[]).map((s) => (
                           <option key={s} value={s}>{ATTENDANCE_LABEL[s]}</option>
                         ))}
                       </select>
                     ) : (
-                      <span className="text-xs text-gray-400">-</span>
+                      <span className="text-xs text-slate-400">-</span>
                     )}
                   </td>
-                  <td className="px-2 py-2 border text-xs max-w-[180px] truncate" title={r.adminMemo}>{r.adminMemo || '-'}</td>
-                  <td className="px-2 py-2 border">
+                  <td className="px-2 py-2 text-xs max-w-[180px] truncate text-slate-600" title={r.adminMemo}>{r.adminMemo || '-'}</td>
+                  <td className="px-2 py-2">
                     <div className="flex gap-1">
-                      <button onClick={() => editMemo(r)} className="px-2 py-1 min-h-[44px] text-xs bg-gray-100 hover:bg-gray-200 rounded">メモ</button>
+                      <button onClick={() => editMemo(r)}
+                        className="px-2 py-1 min-h-[32px] text-xs bg-white hover:bg-slate-100 border border-slate-300 rounded-md text-slate-700">メモ</button>
                       {r.status === 'APPLIED' && (
-                        <button onClick={() => cancel(r.applyId, r.name)} className="px-2 py-1 min-h-[44px] text-xs bg-red-100 hover:bg-red-200 text-red-800 rounded" aria-label="キャンセル">
+                        <button onClick={() => cancel(r.applyId, r.name)}
+                          className="px-2 py-1 min-h-[32px] text-xs text-red-600 hover:bg-red-50 border border-red-200 rounded-md" aria-label={`${r.name} の申込を取り消す`}>
                           <TrashIcon className="w-4 h-4" />
                         </button>
                       )}
@@ -279,7 +413,7 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={9} className="px-2 py-8 text-center text-gray-400">該当者なし</td></tr>
+                <tr><td colSpan={10} className="px-2 py-8 text-center text-slate-400">該当者なし</td></tr>
               )}
             </tbody>
           </table>

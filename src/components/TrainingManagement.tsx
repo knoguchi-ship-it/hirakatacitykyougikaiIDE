@@ -504,10 +504,9 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
 
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm">
           <div className="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-lg font-bold text-slate-800">
-              {panelView === 'mail' ? `メール送信: ${form.title || ''}` :
-               panelView === 'roster' ? `名簿: ${form.title || ''}` :
-               (isNew ? '新規研修登録' : `編集: ${form.title || '(未入力)'}`)}
+            {/* v376.8: タブで view コンテキスト明示済のため見出しは研修タイトル単体に集約（二重表示を回避） */}
+            <h3 className="text-lg font-bold text-slate-800 truncate">
+              {isNew ? '新規研修登録' : (form.title || '(未入力)')}
             </h3>
             {!isNew && (
               <div className="flex gap-1 flex-wrap">

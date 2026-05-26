@@ -13,6 +13,22 @@
 
 ---
 
+## v376.8 — 2026-05-26 🎨 研修管理 — 名簿・メール送信 UX 改修
+
+| 種別 | 内容 |
+|---|---|
+| 🎨 | **TrainingRoster**: 二重タイトル削除（タブで明示済）/「研修一覧へ戻る」リンク廃止 / ボタン 3 階層化（primary=申込追加、neutral=CSV・更新、destructive=取消）/ 申込者追加を drop-down 化（会員 / ゲスト） |
+| 🎨 | **TrainingRoster**: フィルターを segmented control に（区分・出欠の各 4〜6 個ボタン）。検索 + 件数を別段に分離 |
+| 🔒 | **TrainingRoster**: 「表示全員 出席」「表示全員 欠席」一括ボタンを廃止 → **選択ベース**（checkbox で行選択 → selection toolbar で実行）に変更。誤操作リスク低減 |
+| 🎨 | **TrainingRoster**: テーブルに checkbox 列追加 + 行 hover ハイライト + ステータス色分け |
+| 🎨 | **TrainingMailSender**: 「研修メール送信」見出し削除（タブで明示）/ 全員選択・解除ボタンを segmented 同等スタイルへ |
+| 🎨 | **TrainingManagement**: パネル見出しを `編集: タイトル` / `名簿: タイトル` / `メール送信: タイトル` から **タイトル単体** に集約 |
+| 📝 | グローバル enterprise UX 準拠 — Salesforce Lightning + Mobbin segmented control + NN/g filter pattern + WCAG 2.2 AA |
+
+デプロイ: admin `@166`。API 変更なし・公開ポータル影響なし。
+
+---
+
 ## v376.7 — 2026-05-26 🆕 研修管理 — フィルター + soft delete
 
 | 種別 | 内容 |

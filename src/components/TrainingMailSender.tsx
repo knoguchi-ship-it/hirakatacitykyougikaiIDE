@@ -184,34 +184,26 @@ const TrainingMailSender: React.FC<Props> = ({ trainingId, trainingTitle, onBack
 
   return (
     <div className="space-y-6">
-      {/* ヘッダー */}
-      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
-        <button
-          type="button"
-          onClick={onBack}
-          className="text-slate-500 hover:text-slate-700 text-sm border border-slate-300 rounded-lg px-3 py-1"
-        >
-          ← 編集に戻る
-        </button>
-        <div>
-          <h2 className="text-xl font-bold text-slate-800">研修メール送信</h2>
-          <p className="text-slate-500 text-xs mt-0.5">{trainingTitle}</p>
-        </div>
+      {/* v376.8: header 簡素化 — タブで「メール送信」コンテキスト明示済なので二重見出しを廃止 */}
+      <div className="flex flex-wrap items-baseline gap-3 pb-2 border-b border-slate-200">
+        <span className="text-sm text-slate-500">📨 送信対象: {effectiveTargets.length} / {applicants.length} 名</span>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* 申込者一覧 */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-            <h3 className="text-lg font-bold text-slate-800">
-              申込者一覧
+            <h3 className="text-sm font-semibold text-slate-700">
+              送信対象を選択
               <span className="ml-2 text-slate-400 font-normal text-xs">
-                {effectiveTargets.length} / {applicants.length} 名選択中
+                {effectiveTargets.length} / {applicants.length} 名
               </span>
             </h3>
-            <div className="flex gap-2">
-              <button type="button" onClick={selectAll} className="text-xs text-primary-600 hover:underline">全員選択</button>
-              <button type="button" onClick={deselectAll} className="text-xs text-slate-500 hover:underline">全員解除</button>
+            <div className="flex gap-1">
+              <button type="button" onClick={selectAll}
+                className="text-xs px-2 py-1 min-h-[32px] border border-slate-300 rounded-md text-slate-600 hover:bg-slate-50">全員選択</button>
+              <button type="button" onClick={deselectAll}
+                className="text-xs px-2 py-1 min-h-[32px] border border-slate-300 rounded-md text-slate-600 hover:bg-slate-50">全員解除</button>
             </div>
           </div>
           {applicants.length === 0 ? (
