@@ -6,6 +6,7 @@ import TrainingMailSender from './TrainingMailSender';
 import TrainingRoster from './TrainingRoster';
 import PdfThumbnail from './PdfThumbnail';
 import PdfPreviewModal from './PdfPreviewModal';
+import TrainingDetailModal from './TrainingDetailModal';
 
 interface Props {
   trainings: Training[];
@@ -97,6 +98,8 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [panelView, setPanelView] = useState<PanelView>('form');
+  // v376.11: 既存研修選択時の大画面モーダル制御
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // v376.7: 一覧フィルター（admin のみ）
@@ -200,6 +203,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
     setUploadedFileName('');
     setSettingsOpen(false);
     setPanelView('form');
+    setDetailModalOpen(false); // v376.11: 新規登録時はモーダルを閉じる
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -219,6 +223,8 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
     setUploadedFileName('');
     // v376.10: 研修選択時の既定ビューは「名簿・出欠」（業務頻度の最も高い操作）
     setPanelView('roster');
+    // v376.11: 既存研修選択時は大画面モーダルで表示
+    setDetailModalOpen(true);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -415,6 +421,353 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
   const inputCls =
     'w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500';
 
+  // v376.11: 編集 form JSX を関数抽出。inline (新規登録) とモーダル (既存編集) の双方で同一 form を再利用する。
+  const renderEditForm = () => (
+    <form onSubmit={handleSubmit} className="p-6 space-y-5">
+      <div className="border border-slate-200 rounded-lg overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setSettingsOpen((prev) => !prev)}
+          className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 text-sm font-medium text-slate-700"
+        >
+          <span>表示項目設定（任意項目）</span>
+          <span className="text-xs text-slate-500">
+            {TRAINING_OPTIONAL_FIELD_DEFS.filter((f) => isFieldOn(f.key)).length}/{TRAINING_OPTIONAL_FIELD_DEFS.length}
+          </span>
+        </button>
+        {settingsOpen && (
+          <div className="px-4 py-4 border-t border-slate-200 bg-white">
+            <p className="text-xs text-slate-500 mb-3">各項目の表示状態は「表示中/非表示中」スイッチ、または以下一覧から切り替えできます。</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {TRAINING_OPTIONAL_FIELD_DEFS.map(({ key, label }) => (
+                <label key={key} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isFieldOn(key)}
+                    onChange={() => toggleField(key)}
+                    className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+          <input
+            type="checkbox"
+            id="isNonMandatory"
+            name="isNonMandatory"
+            checked={form.isNonMandatory || false}
+            onChange={handleChange}
+            className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+          />
+          法定外研修として登録する
+        </label>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">研修タイトル <span className="text-red-500">*</span></label>
+        <input className={inputCls} name="title" value={form.title} onChange={handleChange} />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">開催日時(開始) <span className="text-red-500">*</span></label>
+          <input className={inputCls} type="datetime-local" name="date" value={form.date} onChange={handleChange} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">終了時刻</label>
+          <input className={inputCls} type="time" name="endTime" value={form.endTime || ''} onChange={handleChange} placeholder="例: 12:00" />
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">主催者 <span className="text-red-500">*</span></label>
+          <input className={inputCls} name="organizer" value={form.organizer || ''} onChange={handleChange} />
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">研修概要 <span className="text-red-500">*</span></label>
+        <textarea className={inputCls} name="summary" value={form.summary || ''} onChange={handleChange} rows={2} />
+      </div>
+
+      <div>
+        {renderFieldHeader('詳細説明', 'description')}
+        {isFieldOn('description') ? (
+          <textarea className={inputCls} name="description" value={form.description || ''} onChange={handleChange} rows={4} />
+        ) : (
+          renderOffHint()
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">開催場所 <span className="text-red-500">*</span></label>
+          <input className={inputCls} name="location" value={form.location} onChange={handleChange} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">定員 <span className="text-red-500">*</span></label>
+          <input className={inputCls} type="number" min={0} name="capacity" value={form.capacity} onChange={handleChange} />
+        </div>
+      </div>
+
+      <div>
+        {renderFieldHeader('研修費用', 'fees')}
+        {isFieldOn('fees') ? (
+          <div className="space-y-2">
+            {(form.fees ?? []).map((fee, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <input
+                  className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-40"
+                  placeholder="費用名"
+                  value={fee.label}
+                  onChange={(e) => handleFeeChange(idx, 'label', e.target.value)}
+                />
+                <input
+                  className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-32"
+                  type="number"
+                  min={0}
+                  value={fee.amount}
+                  onChange={(e) => handleFeeChange(idx, 'amount', e.target.value)}
+                />
+                <span className="text-sm text-slate-500">円</span>
+                {(form.fees ?? []).length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeFee(idx)}
+                    className="text-slate-400 hover:text-red-500"
+                    title="削除"
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            ))}
+            <button type="button" onClick={addFee} className="text-sm text-primary-600 hover:text-primary-700 inline-flex items-center gap-1">
+              <PlusIcon className="w-4 h-4" />費用行を追加
+            </button>
+          </div>
+        ) : (
+          <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-3 py-2 mt-1">
+            参加費無料として申込者に表示されます。費用を設定する場合はスイッチをONにしてください。
+          </p>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          {renderFieldHeader('申込開始日', 'applicationOpenDate')}
+          {isFieldOn('applicationOpenDate') ? (
+            <input className={inputCls} type="date" name="applicationOpenDate" value={form.applicationOpenDate || ''} onChange={handleChange} />
+          ) : (
+            renderOffHint()
+          )}
+        </div>
+        <div>
+          {renderFieldHeader('申込締切日', 'applicationCloseDate')}
+          {isFieldOn('applicationCloseDate') ? (
+            <input className={inputCls} type="date" name="applicationCloseDate" value={form.applicationCloseDate || ''} onChange={handleChange} />
+          ) : (
+            renderOffHint()
+          )}
+        </div>
+      </div>
+
+      <div>
+        {renderFieldHeader('講師', 'instructor')}
+        {isFieldOn('instructor') ? (
+          <input className={inputCls} name="instructor" value={form.instructor || ''} onChange={handleChange} />
+        ) : (
+          renderOffHint()
+        )}
+      </div>
+
+      <div>
+        {renderFieldHeader('案内PDF(最大5MB)', 'guidePdfUrl')}
+        {isFieldOn('guidePdfUrl') ? (
+          <div className="flex items-center gap-3">
+            <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-700 hover:bg-slate-50">
+              {uploading ? 'アップロード中...' : 'ファイルを選択'}
+              <input ref={fileInputRef} type="file" accept=".pdf,image/*" className="hidden" onChange={handleFileChange} disabled={uploading} />
+            </label>
+            {(uploadedFileName || form.guidePdfUrl) && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm text-slate-600">
+                  {uploadedFileName && <span className="truncate max-w-40">{uploadedFileName}</span>}
+                  {form.guidePdfUrl && (
+                    <a href={form.guidePdfUrl} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline text-xs">
+                      ファイルを開く
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForm((prev) => ({ ...prev, guidePdfUrl: '', thumbnailUrl: '' }));
+                      setUploadedFileName('');
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}
+                    className="text-slate-400 hover:text-red-500"
+                    title="削除"
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
+                </div>
+                {form.guidePdfUrl && (
+                  <div className="max-w-sm space-y-2">
+                    {form.thumbnailUrl ? (
+                      <PdfThumbnail
+                        thumbnailUrl={form.thumbnailUrl}
+                        fileUrl={form.guidePdfUrl}
+                        fetchThumbnail={api.getFileThumbnail.bind(api)}
+                        height={130}
+                        onPreview={form.guidePdfUrl ? () => setPdfPreviewOpen(true) : undefined}
+                      />
+                    ) : (
+                      <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded p-2">
+                        サムネイル画像はまだ生成されていません。
+                      </p>
+                    )}
+                    {(thumbnailStatusMsg || thumbnailStatus !== 'idle') && (
+                      <p className={`text-xs ${thumbnailStatus === 'failed' ? 'text-red-600' : 'text-amber-700'}`}>
+                        {thumbnailStatusMsg}
+                      </p>
+                    )}
+                    {form.id && (
+                      <button
+                        type="button"
+                        disabled={thumbnailStatus === 'regenerating'}
+                        onClick={async () => {
+                          setThumbnailStatus('regenerating');
+                          setThumbnailStatusMsg('サムネイルを再生成中...');
+                          try {
+                            const r = await api.regenerateThumbnailForTraining(form.id!);
+                            if (r.thumbnailGenerationStatus === 'generated' && r.thumbnailUrl) {
+                              setForm((prev) => ({ ...prev, thumbnailUrl: r.thumbnailUrl }));
+                              setThumbnailStatus('idle');
+                              setThumbnailStatusMsg('サムネイルを再生成しました。');
+                            } else if (r.thumbnailGenerationStatus === 'pending') {
+                              setThumbnailStatus('pending');
+                              setThumbnailStatusMsg('Drive 側のサムネイル生成がまだ完了していません。1〜5 分待って再試行してください。');
+                            } else {
+                              setThumbnailStatus('failed');
+                              setThumbnailStatusMsg(`サムネイル再生成に失敗しました: ${r.reason || r.thumbnailGenerationStatus}`);
+                            }
+                          } catch (e) {
+                            setThumbnailStatus('failed');
+                            setThumbnailStatusMsg(e instanceof Error ? e.message : 'サムネイル再生成に失敗しました。');
+                          }
+                        }}
+                        className="inline-flex min-h-[44px] items-center gap-2 px-3 py-2 text-xs rounded border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        {thumbnailStatus === 'regenerating' ? '再生成中...' : 'サムネイル再生成'}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          renderOffHint()
+        )}
+      </div>
+
+      <div className="flex items-center gap-3">
+        <input
+          type="checkbox"
+          id="cancelAllowed"
+          name="cancelAllowed"
+          checked={form.cancelAllowed === true}
+          onChange={handleChange}
+          className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+        />
+        <label htmlFor="cancelAllowed" className="text-sm text-slate-700">この研修は申込キャンセルを許可する</label>
+      </div>
+
+      <div className="border border-slate-200 rounded-lg p-4 bg-slate-50 space-y-3">
+        <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">問い合わせ窓口</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">担当者 <span className="text-red-500">*</span></label>
+            <input className={inputCls} name="inquiryPerson" value={form.inquiryPerson || ''} onChange={handleChange} placeholder="例: 事務局 田中" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              電話番号 <span className="text-slate-400 text-xs">(どちらか必須)</span>
+            </label>
+            <input className={inputCls} type="tel" name="inquiryPhone" value={form.inquiryPhone || ''} onChange={handleChange} placeholder="072-000-0000" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              メールアドレス <span className="text-slate-400 text-xs">(どちらか必須)</span>
+            </label>
+            <input className={inputCls} type="email" name="inquiryEmail" value={form.inquiryEmail || ''} onChange={handleChange} placeholder="support@example.com" />
+          </div>
+        </div>
+      </div>
+
+      {saveError && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">{saveError}</div>}
+      {saveSuccess && <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg p-3">保存しました。</div>}
+
+      <div className="flex justify-end pt-2">
+        <button
+          type="submit"
+          disabled={saving || uploading}
+          className="bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg text-sm font-medium"
+        >
+          {saving ? '保存中...' : isNew ? '登録する' : '変更を保存'}
+        </button>
+      </div>
+    </form>
+  );
+
+  // v376.11: タブ + 削除/復元 ボタン群（inline で使わず、モーダル header にのみ表示）。
+  const tabsJsx = !isNew ? (
+    <div className="flex gap-1 flex-nowrap">
+      <button
+        type="button"
+        onClick={() => setPanelView('roster')}
+        className={`text-sm px-3 py-2 min-h-[44px] rounded-lg border font-medium transition-colors ${panelView === 'roster' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
+      >名簿 / 出欠</button>
+      <button
+        type="button"
+        onClick={() => setPanelView('mail')}
+        className={`text-sm px-3 py-2 min-h-[44px] rounded-lg border font-medium transition-colors ${panelView === 'mail' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
+      >メール送信</button>
+      <button
+        type="button"
+        onClick={() => setPanelView('form')}
+        className={`text-sm px-3 py-2 min-h-[44px] rounded-lg border font-medium transition-colors ${panelView === 'form' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
+      >編集</button>
+      {!form.isDeleted && onDelete && (
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={deleting}
+          className="text-sm px-3 py-2 min-h-[44px] rounded-lg border border-red-300 text-red-600 hover:bg-red-50 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="この研修を削除"
+        >{deleting ? '処理中...' : '🗑 削除'}</button>
+      )}
+      {form.isDeleted && onRestore && (
+        <button
+          type="button"
+          onClick={handleRestore}
+          disabled={deleting}
+          className="text-sm px-3 py-2 min-h-[44px] rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="この研修を復元"
+        >{deleting ? '処理中...' : '↺ 復元'}</button>
+      )}
+    </div>
+  ) : null;
+
   return (
     <div className="space-y-6">
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
@@ -503,54 +856,25 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
           </ul>
         </div>
 
+        {/* v376.11: 既存研修選択時はモーダルで大画面表示。新規登録のみ inline で右パネルに表示 */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm">
-          <div className="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
-            {/* v376.8: タブで view コンテキスト明示済のため見出しは研修タイトル単体に集約（二重表示を回避） */}
-            <h3 className="text-lg font-bold text-slate-800 truncate">
-              {isNew ? '新規研修登録' : (form.title || '(未入力)')}
-            </h3>
-            {/* v376.10: 業務頻度に合わせ 名簿/出欠 → メール送信 → 編集 → 削除 の順に並べ替え */}
-            {!isNew && (
-              <div className="flex gap-1 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setPanelView('roster')}
-                  className={`text-sm px-3 py-2 min-h-[44px] rounded-lg border font-medium transition-colors ${panelView === 'roster' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
-                >名簿 / 出欠</button>
-                <button
-                  type="button"
-                  onClick={() => setPanelView('mail')}
-                  className={`text-sm px-3 py-2 min-h-[44px] rounded-lg border font-medium transition-colors ${panelView === 'mail' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
-                >メール送信</button>
-                <button
-                  type="button"
-                  onClick={() => setPanelView('form')}
-                  className={`text-sm px-3 py-2 min-h-[44px] rounded-lg border font-medium transition-colors ${panelView === 'form' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
-                >編集</button>
-                {/* v376.7: 削除 / 復元ボタン */}
-                {!form.isDeleted && onDelete && (
-                  <button
-                    type="button"
-                    onClick={handleDelete}
-                    disabled={deleting}
-                    className="text-sm px-3 py-2 min-h-[44px] rounded-lg border border-red-300 text-red-600 hover:bg-red-50 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    aria-label="この研修を削除"
-                  >{deleting ? '処理中...' : '🗑 削除'}</button>
-                )}
-                {form.isDeleted && onRestore && (
-                  <button
-                    type="button"
-                    onClick={handleRestore}
-                    disabled={deleting}
-                    className="text-sm px-3 py-2 min-h-[44px] rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    aria-label="この研修を復元"
-                  >{deleting ? '処理中...' : '↺ 復元'}</button>
-                )}
+          {!isNew && !detailModalOpen ? (
+            // 既存研修選択待ち（プレースホルダ）
+            <div className="flex items-center justify-center min-h-[400px] p-8 text-center">
+              <div className="text-slate-400">
+                <svg className="w-12 h-12 mx-auto mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+                <p className="text-sm">左の一覧から研修を選択するか<br/>「+ 新規登録」を押してください。</p>
               </div>
-            )}
-          </div>
-
-          {panelView === 'roster' && !isNew ? (
+            </div>
+          ) : isNew ? (
+            // 新規登録：inline で従来通り表示
+            <>
+              <div className="p-4 border-b border-slate-100">
+                <h3 className="text-lg font-bold text-slate-800">新規研修登録</h3>
+              </div>
+              {panelView === 'roster' && !isNew ? (
             <div className="p-4">
               <TrainingRoster
                 trainingId={form.id}
@@ -568,314 +892,40 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
               />
             </div>
           ) : (
-          <form onSubmit={handleSubmit} className="p-6 space-y-5">
-            <div className="border border-slate-200 rounded-lg overflow-hidden">
-              <button
-                type="button"
-                onClick={() => setSettingsOpen((prev) => !prev)}
-                className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 text-sm font-medium text-slate-700"
-              >
-                <span>表示項目設定（任意項目）</span>
-                <span className="text-xs text-slate-500">
-                  {TRAINING_OPTIONAL_FIELD_DEFS.filter((f) => isFieldOn(f.key)).length}/{TRAINING_OPTIONAL_FIELD_DEFS.length}
-                </span>
-              </button>
-              {settingsOpen && (
-                <div className="px-4 py-4 border-t border-slate-200 bg-white">
-                  <p className="text-xs text-slate-500 mb-3">各項目の表示状態は「表示中/非表示中」スイッチ、または以下一覧から切り替えできます。</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {TRAINING_OPTIONAL_FIELD_DEFS.map(({ key, label }) => (
-                      <label key={key} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={isFieldOn(key)}
-                          onChange={() => toggleField(key)}
-                          className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                        />
-                        {label}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
-                <input
-                  type="checkbox"
-                  id="isNonMandatory"
-                  name="isNonMandatory"
-                  checked={form.isNonMandatory || false}
-                  onChange={handleChange}
-                  className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                />
-                法定外研修として登録する
-              </label>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">研修タイトル <span className="text-red-500">*</span></label>
-              <input className={inputCls} name="title" value={form.title} onChange={handleChange} />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">開催日時（開始） <span className="text-red-500">*</span></label>
-                <input className={inputCls} type="datetime-local" name="date" value={form.date} onChange={handleChange} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">終了時刻</label>
-                <input className={inputCls} type="time" name="endTime" value={form.endTime || ''} onChange={handleChange} placeholder="例: 12:00" />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">主催者 <span className="text-red-500">*</span></label>
-                <input className={inputCls} name="organizer" value={form.organizer || ''} onChange={handleChange} />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">研修概要 <span className="text-red-500">*</span></label>
-              <textarea className={inputCls} name="summary" value={form.summary || ''} onChange={handleChange} rows={2} />
-            </div>
-
-            <div>
-              {renderFieldHeader('詳細説明', 'description')}
-              {isFieldOn('description') ? (
-                <textarea className={inputCls} name="description" value={form.description || ''} onChange={handleChange} rows={4} />
-              ) : (
-                renderOffHint()
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">開催場所 <span className="text-red-500">*</span></label>
-                <input className={inputCls} name="location" value={form.location} onChange={handleChange} />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">定員 <span className="text-red-500">*</span></label>
-                <input className={inputCls} type="number" min={0} name="capacity" value={form.capacity} onChange={handleChange} />
-              </div>
-            </div>
-
-            <div>
-              {renderFieldHeader('研修費用', 'fees')}
-              {isFieldOn('fees') ? (
-                <div className="space-y-2">
-                  {(form.fees ?? []).map((fee, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <input
-                        className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-40"
-                        placeholder="費用名"
-                        value={fee.label}
-                        onChange={(e) => handleFeeChange(idx, 'label', e.target.value)}
-                      />
-                      <input
-                        className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-32"
-                        type="number"
-                        min={0}
-                        value={fee.amount}
-                        onChange={(e) => handleFeeChange(idx, 'amount', e.target.value)}
-                      />
-                      <span className="text-sm text-slate-500">円</span>
-                      {(form.fees ?? []).length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeFee(idx)}
-                          className="text-slate-400 hover:text-red-500"
-                          title="削除"
-                        >
-                          <TrashIcon className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  <button type="button" onClick={addFee} className="text-sm text-primary-600 hover:text-primary-700 inline-flex items-center gap-1">
-                    <PlusIcon className="w-4 h-4" />費用行を追加
-                  </button>
-                </div>
-              ) : (
-                <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-3 py-2 mt-1">
-                  参加費無料として申込者に表示されます。費用を設定する場合はスイッチをONにしてください。
-                </p>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                {renderFieldHeader('申込開始日', 'applicationOpenDate')}
-                {isFieldOn('applicationOpenDate') ? (
-                  <input className={inputCls} type="date" name="applicationOpenDate" value={form.applicationOpenDate || ''} onChange={handleChange} />
-                ) : (
-                  renderOffHint()
-                )}
-              </div>
-              <div>
-                {renderFieldHeader('申込締切日', 'applicationCloseDate')}
-                {isFieldOn('applicationCloseDate') ? (
-                  <input className={inputCls} type="date" name="applicationCloseDate" value={form.applicationCloseDate || ''} onChange={handleChange} />
-                ) : (
-                  renderOffHint()
-                )}
-              </div>
-            </div>
-
-            <div>
-              {renderFieldHeader('講師', 'instructor')}
-              {isFieldOn('instructor') ? (
-                <input className={inputCls} name="instructor" value={form.instructor || ''} onChange={handleChange} />
-              ) : (
-                renderOffHint()
-              )}
-            </div>
-
-            <div>
-              {renderFieldHeader('案内PDF（最大5MB）', 'guidePdfUrl')}
-              {isFieldOn('guidePdfUrl') ? (
-                <div className="flex items-center gap-3">
-                  <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-700 hover:bg-slate-50">
-                    {uploading ? 'アップロード中（数秒〜10 秒）...' : 'ファイルを選択'}
-                    <input ref={fileInputRef} type="file" accept=".pdf,image/*" className="hidden" onChange={handleFileChange} disabled={uploading} />
-                  </label>
-                  {(uploadedFileName || form.guidePdfUrl) && (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm text-slate-600">
-                        {uploadedFileName && <span className="truncate max-w-40">{uploadedFileName}</span>}
-                        {form.guidePdfUrl && (
-                          <a href={form.guidePdfUrl} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline text-xs">
-                            ファイルを開く
-                          </a>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setForm((prev) => ({ ...prev, guidePdfUrl: '', thumbnailUrl: '' }));
-                            setUploadedFileName('');
-                            if (fileInputRef.current) fileInputRef.current.value = '';
-                          }}
-                          className="text-slate-400 hover:text-red-500"
-                          title="削除"
-                        >
-                          <TrashIcon className="w-4 h-4" />
-                        </button>
-                      </div>
-                      {/* アップロード後プレビュー + v350 即時再生成 UI */}
-                      {form.guidePdfUrl && (
-                        <div className="max-w-sm space-y-2">
-                          {form.thumbnailUrl ? (
-                            <PdfThumbnail
-                              thumbnailUrl={form.thumbnailUrl}
-                              fileUrl={form.guidePdfUrl}
-                              fetchThumbnail={api.getFileThumbnail.bind(api)}
-                              height={130}
-                              onPreview={form.guidePdfUrl ? () => setPdfPreviewOpen(true) : undefined}
-                            />
-                          ) : (
-                            <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded p-2">
-                              サムネイル画像はまだ生成されていません。
-                            </p>
-                          )}
-                          {(thumbnailStatusMsg || thumbnailStatus !== 'idle') && (
-                            <p className={`text-xs ${thumbnailStatus === 'failed' ? 'text-red-600' : 'text-amber-700'}`}>
-                              {thumbnailStatusMsg}
-                            </p>
-                          )}
-                          {form.id && (
-                            <button
-                              type="button"
-                              disabled={thumbnailStatus === 'regenerating'}
-                              onClick={async () => {
-                                setThumbnailStatus('regenerating');
-                                setThumbnailStatusMsg('サムネイルを再生成中...');
-                                try {
-                                  const r = await api.regenerateThumbnailForTraining(form.id!);
-                                  if (r.thumbnailGenerationStatus === 'generated' && r.thumbnailUrl) {
-                                    setForm((prev) => ({ ...prev, thumbnailUrl: r.thumbnailUrl }));
-                                    setThumbnailStatus('idle');
-                                    setThumbnailStatusMsg('サムネイルを再生成しました。');
-                                  } else if (r.thumbnailGenerationStatus === 'pending') {
-                                    setThumbnailStatus('pending');
-                                    setThumbnailStatusMsg('Drive 側のサムネイル生成がまだ完了していません。1〜5 分待って再試行してください。');
-                                  } else {
-                                    setThumbnailStatus('failed');
-                                    setThumbnailStatusMsg(`サムネイル再生成に失敗しました: ${r.reason || r.thumbnailGenerationStatus}`);
-                                  }
-                                } catch (e) {
-                                  setThumbnailStatus('failed');
-                                  setThumbnailStatusMsg(e instanceof Error ? e.message : 'サムネイル再生成に失敗しました。');
-                                }
-                              }}
-                              className="inline-flex min-h-[44px] items-center gap-2 px-3 py-2 text-xs rounded border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-50"
-                            >
-                              {thumbnailStatus === 'regenerating' ? '再生成中...' : 'サムネイル再生成'}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                renderOffHint()
-              )}
-            </div>
-
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                id="cancelAllowed"
-                name="cancelAllowed"
-                checked={form.cancelAllowed === true}
-                onChange={handleChange}
-                className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-              />
-              <label htmlFor="cancelAllowed" className="text-sm text-slate-700">この研修は申込キャンセルを許可する</label>
-            </div>
-
-            <div className="border border-slate-200 rounded-lg p-4 bg-slate-50 space-y-3">
-              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">問い合わせ窓口</p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">担当者 <span className="text-red-500">*</span></label>
-                  <input className={inputCls} name="inquiryPerson" value={form.inquiryPerson || ''} onChange={handleChange} placeholder="例: 事務局 田中" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    電話番号 <span className="text-slate-400 text-xs">（どちらか必須）</span>
-                  </label>
-                  <input className={inputCls} type="tel" name="inquiryPhone" value={form.inquiryPhone || ''} onChange={handleChange} placeholder="072-000-0000" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    メールアドレス <span className="text-slate-400 text-xs">（どちらか必須）</span>
-                  </label>
-                  <input className={inputCls} type="email" name="inquiryEmail" value={form.inquiryEmail || ''} onChange={handleChange} placeholder="support@example.com" />
-                </div>
-              </div>
-            </div>
-
-            {saveError && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">{saveError}</div>}
-            {saveSuccess && <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg p-3">保存しました。</div>}
-
-            <div className="flex justify-end pt-2">
-              <button
-                type="submit"
-                disabled={saving || uploading}
-                className="bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg text-sm font-medium"
-              >
-                {saving ? '保存中...' : isNew ? '登録する' : '変更を保存'}
-              </button>
-            </div>
-          </form>
+            renderEditForm()
           )}
+            </>
+          ) : null}
         </div>
       </div>
+
+      {/* v376.11: 既存研修詳細を大画面モーダルで表示。新規登録は inline で従来通り */}
+      <TrainingDetailModal
+        open={detailModalOpen && !isNew}
+        title={form.title || '(未入力)'}
+        onClose={() => setDetailModalOpen(false)}
+        headerActions={tabsJsx}
+      >
+        {detailModalOpen && !isNew && (
+          panelView === 'roster' ? (
+            <TrainingRoster
+              trainingId={form.id}
+              trainingTitle={form.title}
+              trainingDate={form.date}
+              onBack={() => setPanelView('form')}
+            />
+          ) : panelView === 'mail' ? (
+            <TrainingMailSender
+              trainingId={form.id}
+              trainingTitle={form.title}
+              onBack={() => setPanelView('form')}
+            />
+          ) : (
+            renderEditForm()
+          )
+        )}
+      </TrainingDetailModal>
+
       {/* v358: PDF プレビュー lightbox (高解像度 PNG モーダル) */}
       <PdfPreviewModal
         open={pdfPreviewOpen}

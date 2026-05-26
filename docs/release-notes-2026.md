@@ -13,6 +13,20 @@
 
 ---
 
+## v376.11 — 2026-05-26 🎨 研修詳細を大画面モーダルへ
+
+| 種別 | 内容 |
+|---|---|
+| 🎨 | 既存研修選択時を画面右パネルの圧迫表示から **大画面モーダル** へ移行（モバイル full-screen / デスクトップ 95vw × 95vh max-w-1600px） |
+| 🎨 | `TrainingDetailModal.tsx` を新規作成 — ESC / backdrop / focus restore / body scroll lock / sticky header + tabs / iOS safe-area 対応 |
+| 🎨 | 編集 form を `renderEditForm()` 関数に extract — inline (新規登録) とモーダル (既存編集) で同じ JSX を共有 |
+| 🎨 | inline 右パネルは新規登録時のみ表示。既存選択時はプレースホルダ「← 研修一覧から選択してください」 |
+| 📝 | グローバル best practice 準拠 — UXPin 2026 modal a11y guide / WCAG 2.2 / Material UI responsive pattern |
+
+デプロイ: admin `@169`。仕様変更ゼロ・API 不変・新規登録機能は従来通り。
+
+---
+
 ## v376.10 — 2026-05-26 🎨 研修管理 UX 微調整
 
 | 種別 | 内容 |
