@@ -13,6 +13,20 @@
 
 ---
 
+## v376.8 (sync) — 2026-05-26 🔧 ドキュメント・成果物整合性
+
+| 種別 | 内容 |
+|---|---|
+| 🔧 | v376.1〜v376.8 の累積 build 成果物（backend / gas/member / gas/admin Code.gs + index.html）を git に同期。runtime と source の差分ゼロに |
+| 🔧 | member split `@106` 再デプロイ（`mapTrainingRowsForApi_` の isDeleted field 追加 + `clearTrainingManagementCache_` 二重 key 対応を反映。member 側は機能影響なし、source-runtime sync 目的） |
+| 🔒 | `scripts/audit-admin-boundary.mjs` allow-list に v376 系で追加した admin editor 関数 5 つ + dispatcher action 2 つを登録（prerelease gate PASS 復旧） |
+| 📝 | HANDOVER.md / docs/00_DOC_INDEX.md / docs/09_DEPLOYMENT_POLICY.md / release-notes 全てを最新 deployment と整合 |
+| 📝 | feedback memory 3 件追加: admin editor keep-list / editor ▶ 引数なし制約 / async busy 解除位置 |
+
+デプロイ後の固定 deployment: public `@348` x2 / member `@106` / admin `@166`。
+
+---
+
 ## v376.8 — 2026-05-26 🎨 研修管理 — 名簿・メール送信 UX 改修
 
 | 種別 | 内容 |

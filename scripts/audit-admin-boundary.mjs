@@ -33,6 +33,12 @@ const allowedTopLevelFunctions = [
   'executeDryRunApplicationCleanup',
   // v373.5: Secret Manager 連携ヘルスチェック（operator が Apps Script editor から 1 回 Run）
   'healthCheckPasswordPepper',
+  // v376.1〜.4: フリガナ migration + テストデータ棚卸し（operator が Apps Script editor から手動 Run）
+  'backfillKanaToFullwidth',
+  'backfillKanaToFullwidth_APPLY',
+  'inspectDryRunManifest_LOG',
+  'deleteTestDataPreview_LOG',
+  'deleteTestData_APPLY',
 ];
 const allowedAdminLoginActions = ['checkAdminBySession', 'adminLoginWithData'];
 const allowedAdminActions = [
@@ -59,6 +65,9 @@ const allowedAdminActions = [
   'saveAnnualFeeRecord',
   'saveAnnualFeeRecordsBatch',
   'saveTraining',
+  // v376.7: 研修 soft delete / restore
+  'softDeleteTraining',
+  'restoreTraining',
   'uploadTrainingFile',
   'setupTrainingFileFolder',
   'getTrainingManagementData',

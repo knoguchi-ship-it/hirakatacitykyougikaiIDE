@@ -913,6 +913,8 @@ function processApiRequest(action, payload) {
 
 
 
+    // v376.7: 研修 soft delete / restore
+
 
 
 
@@ -2300,6 +2302,14 @@ function toBoolean_(v) {
 
 
 
+
+// v376.7: 研修の soft delete（削除フラグ=true）。物理削除しない。
+//   payload: { trainingId: string }
+//   返却: { trainingId, applicantCount, deleted: true }
+//   申込実績がある場合も削除可能（呼出側で警告表示 → 確認後実行する設計）。
+//   削除後は公開ポータル/admin dashboard から自動非表示（既存の !削除フラグ filter 経由）。
+
+// v376.7: 研修の復元（削除フラグ=false）。soft delete の取消。
 
 /**
  * 研修を新規登録または更新する。
@@ -5192,6 +5202,17 @@ function normalizeStaffNameFields_(rowLike) {
     kana: fullKana,
   };
 }
+
+// v376.4: 過去運用で投入されたデモアカウント + T_外部申込者 テスト 3 件の棚卸し・soft delete。
+//   対象（保守的に ID 厳格マッチ）:
+//   - T_認証アカウント: ログインID が demo- で始まる
+//   - T_会員: 上記認証に紐づく 会員ID + 'DEMO-' プレフィックス
+//   - T_事業所職員: 上記認証に紐づく 職員ID + 上記会員に属する職員
+//   - T_外部申込者: 氏名 or フリガナ が「テスト」「ガイブ」「セイゴウカクニン」のいずれかを含む
+//   いずれも soft delete（削除フラグ=true）のみ。
+
+
+
 
 function backfillBusinessStaffNameColumns_(ss) {
   var targetSs = ss || getOrCreateDatabase_();
