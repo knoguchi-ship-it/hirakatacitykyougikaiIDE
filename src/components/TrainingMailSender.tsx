@@ -64,9 +64,11 @@ const TrainingMailSender: React.FC<Props> = ({ trainingId, trainingTitle, onBack
 
   const toggleSelect = (applyId: string) => {
     if (selectedIds === null) {
-      // 全員 → 個別除外モードに切替
+      // v376.13 fix: 全員選択モード（excludedIds による除外管理）で、再クリック時に
+      //   除外を解除できないバグを修正。has なら delete (再選択)、無ければ add (除外)。
       const next = new Set(excludedIds);
-      next.add(applyId);
+      if (next.has(applyId)) next.delete(applyId);
+      else next.add(applyId);
       setExcludedIds(next);
     } else {
       // 個別選択モード

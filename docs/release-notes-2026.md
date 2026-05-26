@@ -13,6 +13,17 @@
 
 ---
 
+## v376.13 — 2026-05-26 🐛 メール送信のチェックボックス再選択バグ修正
+
+| 種別 | 内容 |
+|---|---|
+| 🐛 | TrainingMailSender の `toggleSelect` で「全員選択モード（excludedIds による除外管理）」のとき、一度 click で除外した行を再 click しても除外解除されないバグを修正 |
+| 🔧 | null-branch のロジックを `next.add(applyId)` から `has(applyId) ? delete : add` (toggle) に変更。状態遷移が対称になり、check ↔ uncheck が両方向で動作 |
+
+デプロイ: admin `@171`。UI バグのみ・API/DB 影響なし。
+
+---
+
 ## v376.12 — 2026-05-26 🐛 メール送信: 事業所職員の誤送信修正
 
 | 種別 | 内容 |
