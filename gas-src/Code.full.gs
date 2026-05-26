@@ -25887,6 +25887,279 @@ function auditTrainingApplicationsAfterV360_(ss) {
 var DRYRUN_PREFIX = 'DRYRUN_';
 var DRYRUN_EMAIL_DOMAIN = '@example.invalid';  // RFC 2606 reserved
 var DRYRUN_MANIFEST_KEY = 'DRYRUN_APPLICATION_MANIFEST_V1';
+var DRYRUN_TRAINING_MGMT_MANIFEST_KEY = 'DRYRUN_TRAINING_MGMT_MANIFEST_V1';
+
+// ============================================================================
+// v376.14: 研修管理 全機能ドライランテスト（operator が Apps Script editor から実行）
+//   dryRunTrainingManagement()        — 全機能テスト実行 + Logger 出力 + manifest 保存
+//   cleanupDryRunTrainingManagement() — テストで作成したデータを物理削除
+//   いずれもメール送信は行わない（getTrainingApplicants_ の対象解決のみ検証）。
+// ============================================================================
+
+function dryRunTrainingManagement() {
+  var ss = getOrCreateDatabase_();
+  var stamp = String(Date.now()).slice(-6);
+  var report = { startedAt: new Date().toISOString(), results: [], passed: 0, failed: 0, manifest: {} };
+  var manifest = { trainingId: '', applyIds: [], externalIds: [] };
+
+  function record(name, ok, detail) {
+    report.results.push({ test: name, result: ok ? 'PASS' : 'FAIL', detail: detail || '' });
+    if (ok) report.passed += 1; else report.failed += 1;
+  }
+  function safe(name, fn) {
+    try { return fn(); }
+    catch (e) { record(name, false, 'EXCEPTION: ' + (e && e.message ? e.message : String(e))); return null; }
+  }
+
+  // ── 1. CREATE ──────────────────────────────────────────────────────────
+  var trainingId = safe('1.研修作成(CREATE)', function () {
+    var openDate = Utilities.formatDate(new Date(Date.now() - 86400000), 'Asia/Tokyo', 'yyyy-MM-dd');
+    var closeDate = Utilities.formatDate(new Date(Date.now() + 30 * 86400000), 'Asia/Tokyo', 'yyyy-MM-dd');
+    var saved = saveTraining_({
+      title: DRYRUN_PREFIX + 'テスト研修_' + stamp,
+      date: Utilities.formatDate(new Date(Date.now() + 14 * 86400000), 'Asia/Tokyo', "yyyy-MM-dd'T'HH:mm"),
+      organizer: '枚方市介護支援専門員連絡協議会',
+      summary: 'ドライランテスト用研修（自動削除対象）',
+      location: 'テスト会場',
+      capacity: 50,
+      applicationOpenDate: openDate,
+      applicationCloseDate: closeDate,
+      inquiryPerson: '事務局テスト',
+      inquiryEmail: 'dryrun' + DRYRUN_EMAIL_DOMAIN,
+      fees: [{ label: '会員', amount: 0 }],
+    });
+    var id = saved && saved.id ? String(saved.id) : '';
+    if (!id) throw new Error('id が返却されない');
+    record('1.研修作成(CREATE)', true, 'trainingId=' + id);
+    return id;
+  });
+  if (!trainingId) { report.finishedAt = new Date().toISOString(); Logger.log(JSON.stringify(report, null, 2)); return report; }
+  manifest.trainingId = trainingId;
+
+  // ── 2. READ (一覧) ─────────────────────────────────────────────────────
+  safe('2.研修一覧取得(READ)', function () {
+    clearTrainingManagementCache_();
+    var list = getTrainingManagementData_();
+    var found = (list || []).filter(function (t) { return String(t.id) === trainingId; })[0];
+    if (!found) throw new Error('一覧に作成研修が無い');
+    if (found.isDeleted) throw new Error('新規作成なのに isDeleted=true');
+    record('2.研修一覧取得(READ)', true, 'title=' + found.title + ' isDeleted=' + found.isDeleted);
+  });
+
+  // ── 3. UPDATE ──────────────────────────────────────────────────────────
+  safe('3.研修更新(UPDATE)', function () {
+    saveTraining_({
+      id: trainingId,
+      title: DRYRUN_PREFIX + 'テスト研修_更新済_' + stamp,
+      date: Utilities.formatDate(new Date(Date.now() + 14 * 86400000), 'Asia/Tokyo', "yyyy-MM-dd'T'HH:mm"),
+      organizer: '枚方市介護支援専門員連絡協議会',
+      summary: '更新後サマリ',
+      location: 'テスト会場2',
+      capacity: 99,
+      inquiryPerson: '事務局テスト',
+      inquiryEmail: 'dryrun' + DRYRUN_EMAIL_DOMAIN,
+      fees: [{ label: '会員', amount: 0 }],
+    });
+    clearTrainingManagementCache_();
+    var list = getTrainingManagementData_();
+    var found = (list || []).filter(function (t) { return String(t.id) === trainingId; })[0];
+    if (!found || found.capacity !== 99) throw new Error('定員更新が反映されない (capacity=' + (found ? found.capacity : 'N/A') + ')');
+    record('3.研修更新(UPDATE)', true, 'capacity=99 title=' + found.title);
+  });
+
+  // ── 4. ゲスト追加 (EXTERNAL) ───────────────────────────────────────────
+  var guestApplyId = safe('4.ゲスト追加', function () {
+    var res = addGuestRosterEntry_({
+      trainingId: trainingId,
+      guest: { name: DRYRUN_PREFIX + 'ゲスト太郎', kana: 'ゲストタロウ', email: 'guest' + DRYRUN_EMAIL_DOMAIN, officeName: 'テスト事業所' },
+      memo: 'dryrun guest',
+    });
+    if (!res || !res.ok || !res.applyId) throw new Error('ゲスト追加失敗: ' + JSON.stringify(res));
+    manifest.applyIds.push(res.applyId);
+    if (res.externalId) manifest.externalIds.push(res.externalId);
+    record('4.ゲスト追加', true, 'applyId=' + res.applyId);
+    return res.applyId;
+  });
+
+  // ── 5. STAFF 申込挿入（v376.12 回帰確認用） ────────────────────────────
+  var staffApplyId = safe('5.STAFF申込挿入', function () {
+    var staffRows = getRowsAsObjects_(ss, 'T_事業所職員').filter(function (r) {
+      return !toBoolean_(r['削除フラグ']) && String(r['職員状態コード'] || 'ENROLLED') === 'ENROLLED' &&
+             String(r['メールアドレス'] || '').trim();
+    });
+    if (!staffRows.length) { record('5.STAFF申込挿入', true, 'SKIP: 有効な職員が存在しない'); return null; }
+    var staff = staffRows[0];
+    var apId = 'AP-' + Utilities.getUuid().slice(0, 8).toUpperCase();
+    var now = new Date().toISOString();
+    appendRowsByHeaders_(ss, 'T_研修申込', [{
+      申込ID: apId, 研修ID: trainingId, 会員ID: String(staff['会員ID'] || ''), 職員ID: String(staff['職員ID'] || ''),
+      外部申込者ID: '', 申込者区分コード: 'STAFF', 申込者ID: String(staff['職員ID'] || ''),
+      申込状態コード: 'APPLIED', 申込日時: now, 取消日時: '', 備考: 'dryrun staff',
+      出欠状態コード: 'UNRECORDED', 出欠記録日時: '', 出欠記録者メール: '', 事務局メモ: '',
+      作成日時: now, 更新日時: now, 削除フラグ: false,
+    }]);
+    manifest.applyIds.push(apId);
+    clearAllDataCache_();
+    record('5.STAFF申込挿入', true, 'applyId=' + apId + ' staffId=' + staff['職員ID'] + ' staffEmail=' + staff['メールアドレス']);
+    return apId;
+  });
+
+  // ── 6. 名簿取得（区分解決確認） ────────────────────────────────────────
+  safe('6.名簿取得', function () {
+    var detail = getTrainingRosterDetail_({ trainingId: trainingId });
+    var rows = (detail && detail.applicants) || [];
+    var guest = rows.filter(function (r) { return r.applyId === guestApplyId; })[0];
+    if (!guest) throw new Error('ゲストが名簿に無い');
+    if (guest.applicantType !== 'EXTERNAL') throw new Error('ゲストの区分が EXTERNAL でない: ' + guest.applicantType);
+    var staffDetail = '';
+    if (staffApplyId) {
+      var staffRow = rows.filter(function (r) { return r.applyId === staffApplyId; })[0];
+      if (!staffRow || staffRow.applicantType !== 'STAFF') throw new Error('STAFF 区分解決失敗: ' + (staffRow ? staffRow.applicantType : 'なし'));
+      staffDetail = ' / STAFF=' + staffRow.name + '<' + staffRow.email + '>';
+    }
+    record('6.名簿取得', true, 'EXTERNAL=' + guest.name + staffDetail);
+  });
+
+  // ── 7. メール対象解決（v376.12 回帰） ──────────────────────────────────
+  safe('7.メール対象解決', function () {
+    var raw = getTrainingApplicants_({ trainingId: trainingId });
+    var parsed = JSON.parse(raw);
+    if (!parsed.success) throw new Error('getTrainingApplicants_ 失敗: ' + parsed.error);
+    var rows = parsed.data || [];
+    if (staffApplyId) {
+      var staffRow = rows.filter(function (r) { return r.applyId === staffApplyId; })[0];
+      if (!staffRow) throw new Error('STAFF がメール対象に無い');
+      if (staffRow.applicantType !== 'STAFF') throw new Error('メール対象 STAFF 区分誤り: ' + staffRow.applicantType);
+      if (!staffRow.email || staffRow.email.indexOf('@') < 0) throw new Error('STAFF メール解決失敗（事業所代表メール宛バグ再発の疑い）: ' + staffRow.email);
+      record('7.メール対象解決', true, 'STAFF email=' + staffRow.email + '（職員個人メールで解決・v376.12 回帰OK）');
+    } else {
+      var guestRow = rows.filter(function (r) { return r.applyId === guestApplyId; })[0];
+      record('7.メール対象解決', !!guestRow, guestRow ? 'EXTERNAL email=' + guestRow.email : 'ゲスト解決失敗');
+    }
+  });
+
+  // ── 8. 出欠記録（単） ──────────────────────────────────────────────────
+  safe('8.出欠記録(単)', function () {
+    if (!guestApplyId) throw new Error('対象 applyId 無し');
+    var res = saveAttendance_({ applyId: guestApplyId, status: 'PRESENT' });
+    if (res && res.error) throw new Error(res.error);
+    record('8.出欠記録(単)', true, 'guest→PRESENT');
+  });
+
+  // ── 9. 出欠記録（一括） ────────────────────────────────────────────────
+  safe('9.出欠記録(一括)', function () {
+    var entries = manifest.applyIds.map(function (id) { return { applyId: id, status: 'ABSENT' }; });
+    var res = saveAttendanceBatch_(entries);
+    if (res && res.error) throw new Error(res.error);
+    record('9.出欠記録(一括)', true, manifest.applyIds.length + ' 件→ABSENT');
+  });
+
+  // ── 10. 集計 ───────────────────────────────────────────────────────────
+  safe('10.集計', function () {
+    var stats = getTrainingStats_({ trainingId: trainingId });
+    if (stats && stats.error) throw new Error(stats.error);
+    record('10.集計', true, '申込=' + stats.applicantCount + ' 定員=' + stats.capacity + ' 出席率=' + stats.attendanceRate + '%');
+  });
+
+  // ── 11. メモ更新 ───────────────────────────────────────────────────────
+  safe('11.メモ更新', function () {
+    if (!guestApplyId) throw new Error('対象 applyId 無し');
+    var res = updateRosterEntry_({ applyId: guestApplyId, adminMemo: 'dryrunメモ更新確認' });
+    if (res && res.error) throw new Error(res.error);
+    record('11.メモ更新', true, 'adminMemo set');
+  });
+
+  // ── 12. 申込キャンセル ─────────────────────────────────────────────────
+  safe('12.申込キャンセル', function () {
+    if (!guestApplyId) throw new Error('対象 applyId 無し');
+    var res = cancelRosterEntry_({ applyId: guestApplyId, reason: 'dryrun cancel' });
+    if (res && res.error) throw new Error(res.error);
+    record('12.申込キャンセル', true, 'guest→CANCELED');
+  });
+
+  // ── 13. soft delete ────────────────────────────────────────────────────
+  safe('13.soft delete', function () {
+    var res = softDeleteTraining_({ trainingId: trainingId });
+    if (!res || !res.deleted) throw new Error('soft delete 失敗');
+    record('13.soft delete', true, 'applicantCount=' + res.applicantCount);
+  });
+
+  // ── 14. 一覧除外確認 ───────────────────────────────────────────────────
+  safe('14.一覧除外確認', function () {
+    clearTrainingManagementCache_();
+    var list = getTrainingManagementData_();
+    var found = (list || []).filter(function (t) { return String(t.id) === trainingId; })[0];
+    if (!found) throw new Error('admin 一覧から消えた（admin は削除済も isDeleted で表示すべき）');
+    if (!found.isDeleted) throw new Error('soft delete 後も isDeleted=false');
+    record('14.一覧除外確認', true, 'isDeleted=true で識別');
+  });
+
+  // ── 15. 復元 ───────────────────────────────────────────────────────────
+  safe('15.復元', function () {
+    var res = restoreTraining_({ trainingId: trainingId });
+    if (!res || !res.restored) throw new Error('restore 失敗');
+    clearTrainingManagementCache_();
+    var list = getTrainingManagementData_();
+    var found = (list || []).filter(function (t) { return String(t.id) === trainingId; })[0];
+    if (!found || found.isDeleted) throw new Error('復元後も isDeleted=true');
+    record('15.復元', true, 'isDeleted=false に復元');
+  });
+
+  // manifest 保存（cleanup 用）
+  report.manifest = manifest;
+  PropertiesService.getScriptProperties().setProperty(DRYRUN_TRAINING_MGMT_MANIFEST_KEY, JSON.stringify(manifest));
+  report.finishedAt = new Date().toISOString();
+
+  Logger.log('=== dryRunTrainingManagement ===');
+  Logger.log('PASS ' + report.passed + ' / FAIL ' + report.failed);
+  Logger.log(JSON.stringify(report, null, 2));
+  Logger.log('--- 次に cleanupDryRunTrainingManagement() を実行してテストデータを物理削除してください ---');
+  return report;
+}
+
+// テストで作成した training / 申込 / 外部申込者 を物理削除（行削除）。
+function cleanupDryRunTrainingManagement() {
+  var raw = PropertiesService.getScriptProperties().getProperty(DRYRUN_TRAINING_MGMT_MANIFEST_KEY);
+  if (!raw) { Logger.log('cleanupDryRunTrainingManagement: manifest 未保存（dryRun 未実行 or cleanup 済）'); return { deleted: {}, message: 'no manifest' }; }
+  var manifest = JSON.parse(raw);
+  var ss = getOrCreateDatabase_();
+
+  var result = {
+    deleted: {
+      training: dryRun_physicalDeleteRowsByKey_(ss, 'T_研修', '研修ID', manifest.trainingId ? [manifest.trainingId] : []),
+      applications: dryRun_physicalDeleteRowsByKey_(ss, 'T_研修申込', '申込ID', manifest.applyIds || []),
+      external: dryRun_physicalDeleteRowsByKey_(ss, 'T_外部申込者', '外部申込者ID', manifest.externalIds || []),
+    },
+  };
+  PropertiesService.getScriptProperties().deleteProperty(DRYRUN_TRAINING_MGMT_MANIFEST_KEY);
+  clearAllDataCache_();
+  clearAdminDashboardCache_();
+  clearTrainingManagementCache_();
+  Logger.log('=== cleanupDryRunTrainingManagement ===');
+  Logger.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+// 指定キーに一致する行を物理削除（行番号降順で deleteRow して index ずれを回避）。
+function dryRun_physicalDeleteRowsByKey_(ss, sheetName, keyColumn, ids) {
+  if (!ids || !ids.length) return 0;
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet || sheet.getLastRow() < 2) return 0;
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var keyIdx = -1;
+  for (var i = 0; i < headers.length; i++) { if (String(headers[i]) === keyColumn) keyIdx = i; }
+  if (keyIdx === -1) return 0;
+  var idSet = {};
+  ids.forEach(function (id) { idSet[String(id)] = true; });
+  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  var rowsToDelete = [];
+  for (var r = 0; r < data.length; r++) {
+    if (idSet[String(data[r][keyIdx] || '')]) rowsToDelete.push(r + 2);
+  }
+  rowsToDelete.sort(function (a, b) { return b - a; }); // 降順
+  rowsToDelete.forEach(function (rowNum) { sheet.deleteRow(rowNum); });
+  return rowsToDelete.length;
+}
 
 function dryRun_assertAdminOperator_() {
   // 設計判断: clasp run 経由でのみ呼ばれる関数のため、admin ホワイトリスト照合より

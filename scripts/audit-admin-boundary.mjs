@@ -39,6 +39,9 @@ const allowedTopLevelFunctions = [
   'inspectDryRunManifest_LOG',
   'deleteTestDataPreview_LOG',
   'deleteTestData_APPLY',
+  // v376.14: 研修管理 全機能ドライランテスト（operator が Apps Script editor から実行）
+  'dryRunTrainingManagement',
+  'cleanupDryRunTrainingManagement',
 ];
 const allowedAdminLoginActions = ['checkAdminBySession', 'adminLoginWithData'];
 const allowedAdminActions = [

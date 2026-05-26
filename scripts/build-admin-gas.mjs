@@ -553,6 +553,8 @@ function buildAdminCode(source) {
     'inspectDryRunManifest_LOG',
     'deleteTestDataPreview_LOG',
     'deleteTestData_APPLY',
+    'dryRunTrainingManagement',
+    'cleanupDryRunTrainingManagement',
   ], 'build-admin-gas');
   code = removeTopLevelFunctionDeclarations(code, [
     'rebuildDatabaseSchema',
@@ -585,6 +587,8 @@ function buildAdminCode(source) {
     'inspectDryRunManifest_LOG',
     'deleteTestDataPreview_LOG',
     'deleteTestData_APPLY',
+    'dryRunTrainingManagement',
+    'cleanupDryRunTrainingManagement',
   ], 'build-admin-gas');
   return code;
 }
