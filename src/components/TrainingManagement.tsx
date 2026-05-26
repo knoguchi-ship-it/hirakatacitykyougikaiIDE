@@ -217,7 +217,8 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
     setSaveError(null);
     setSaveSuccess(false);
     setUploadedFileName('');
-    setPanelView('form');
+    // v376.10: 研修選択時の既定ビューは「名簿・出欠」（業務頻度の最も高い操作）
+    setPanelView('roster');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -508,13 +509,9 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
             <h3 className="text-lg font-bold text-slate-800 truncate">
               {isNew ? '新規研修登録' : (form.title || '(未入力)')}
             </h3>
+            {/* v376.10: 業務頻度に合わせ 名簿/出欠 → メール送信 → 編集 → 削除 の順に並べ替え */}
             {!isNew && (
               <div className="flex gap-1 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setPanelView('form')}
-                  className={`text-sm px-3 py-2 min-h-[44px] rounded-lg border font-medium transition-colors ${panelView === 'form' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
-                >編集</button>
                 <button
                   type="button"
                   onClick={() => setPanelView('roster')}
@@ -525,6 +522,11 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
                   onClick={() => setPanelView('mail')}
                   className={`text-sm px-3 py-2 min-h-[44px] rounded-lg border font-medium transition-colors ${panelView === 'mail' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
                 >メール送信</button>
+                <button
+                  type="button"
+                  onClick={() => setPanelView('form')}
+                  className={`text-sm px-3 py-2 min-h-[44px] rounded-lg border font-medium transition-colors ${panelView === 'form' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
+                >編集</button>
                 {/* v376.7: 削除 / 復元ボタン */}
                 {!form.isDeleted && onDelete && (
                   <button
