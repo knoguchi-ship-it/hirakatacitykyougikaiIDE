@@ -13,6 +13,27 @@
 
 ---
 
+## v376.4 — 2026-05-26
+
+| 種別 | 内容 |
+|---|---|
+| 🧹 | テストデータ棚卸し・soft delete 機能を追加（`deleteTestDataPreview_LOG` / `deleteTestData_APPLY`）。条件: T_認証アカウント `demo-*` / T_会員 `DEMO-*` / 上記に紐づく職員 / T_外部申込者 氏名・フリガナに「テスト/ガイブ/セイゴウカクニン」を含む |
+| 🎉 | 本番 DB のテストデータ削除実施 — T_外部申込者 3 件（`テスト タロウ` / `ガイブ テストイチロウ` / `セイゴウカクニン タロウ`）を soft delete。demo-* / DEMO-* は検出ゼロ（過去に cleanup 済 or 未投入）|
+
+デプロイ: admin `@162`。
+
+---
+
+## v376.3 — 2026-05-26
+
+| 種別 | 内容 |
+|---|---|
+| 🔧 | `inspectDryRunManifest_LOG` を追加（`previewDryRunApplicationCleanup` が return のみで Logger.log しない仕様への補助）。実行結果: manifest 未保存を確認（過去 dryRun テストデータの残骸ゼロ）|
+
+デプロイ: admin `@161`。
+
+---
+
 ## v376.2 — 2026-05-25
 
 | 種別 | 内容 |

@@ -11636,6 +11636,164 @@ function backfillKanaToFullwidth_APPLY() {
   return backfillKanaToFullwidth({ dryRun: false });
 }
 
+// v376.4: 過去運用で投入されたデモアカウント + T_外部申込者 テスト 3 件の棚卸し・soft delete。
+//   対象（保守的に ID 厳格マッチ）:
+//   - T_認証アカウント: ログインID が demo- で始まる
+//   - T_会員: 上記認証に紐づく 会員ID + 'DEMO-' プレフィックス
+//   - T_事業所職員: 上記認証に紐づく 職員ID + 上記会員に属する職員
+//   - T_外部申込者: 氏名 or フリガナ が「テスト」「ガイブ」「セイゴウカクニン」のいずれかを含む
+//   いずれも soft delete（削除フラグ=true）のみ。
+function _collectTestDataTargets_(ss) {
+  var rows = function (name) { return getRowsAsObjects_(ss, name); };
+  var authAll = rows('T_認証アカウント');
+  var memberAll = rows('T_会員');
+  var staffAll = rows('T_事業所職員');
+  var extAll = rows('T_外部申込者');
+
+  var matchedAuth = authAll.filter(function (r) {
+    return !toBoolean_(r['削除フラグ']) &&
+           /^demo-/i.test(String(r['ログインID'] || ''));
+  });
+  var memberIdsFromAuth = {};
+  var staffIdsFromAuth = {};
+  matchedAuth.forEach(function (r) {
+    if (r['会員ID']) memberIdsFromAuth[String(r['会員ID'])] = true;
+    if (r['職員ID']) staffIdsFromAuth[String(r['職員ID'])] = true;
+  });
+
+  var matchedMembers = memberAll.filter(function (r) {
+    if (toBoolean_(r['削除フラグ'])) return false;
+    var id = String(r['会員ID'] || '');
+    if (/^DEMO-/i.test(id)) return true;
+    if (memberIdsFromAuth[id]) return true;
+    return false;
+  });
+  var memberIdSet = {};
+  matchedMembers.forEach(function (m) { memberIdSet[String(m['会員ID'])] = true; });
+
+  var matchedStaff = staffAll.filter(function (r) {
+    if (toBoolean_(r['削除フラグ'])) return false;
+    var sid = String(r['職員ID'] || '');
+    var mid = String(r['会員ID'] || '');
+    if (staffIdsFromAuth[sid]) return true;
+    if (memberIdSet[mid]) return true; // demo 会員に属する全職員
+    return false;
+  });
+
+  var matchedExt = extAll.filter(function (r) {
+    if (toBoolean_(r['削除フラグ'])) return false;
+    var name = String(r['氏名'] || '');
+    var kana = String(r['フリガナ'] || '');
+    return /テスト|ガイブ|セイゴウカクニン/.test(name) ||
+           /テスト|ガイブ|セイゴウカクニン/.test(kana);
+  });
+
+  return {
+    auth: matchedAuth,
+    members: matchedMembers,
+    staff: matchedStaff,
+    external: matchedExt,
+  };
+}
+
+function deleteTestDataPreview_LOG() {
+  var ss = getOrCreateDatabase_();
+  var t = _collectTestDataTargets_(ss);
+  var summary = {
+    counts: {
+      auth: t.auth.length,
+      members: t.members.length,
+      staff: t.staff.length,
+      external: t.external.length,
+    },
+    auth: t.auth.map(function (r) {
+      return { 認証ID: r['認証ID'], ログインID: r['ログインID'], 会員ID: r['会員ID'], 職員ID: r['職員ID'] };
+    }),
+    members: t.members.map(function (r) {
+      return { 会員ID: r['会員ID'], 姓: r['姓'], 名: r['名'], セイ: r['セイ'], 勤務先名: r['勤務先名'] };
+    }),
+    staff: t.staff.map(function (r) {
+      return { 職員ID: r['職員ID'], 会員ID: r['会員ID'], 姓: r['姓'], 名: r['名'] };
+    }),
+    external: t.external.map(function (r) {
+      return { 外部申込者ID: r['外部申込者ID'], 氏名: r['氏名'], フリガナ: r['フリガナ'] };
+    }),
+  };
+  Logger.log('=== deleteTestDataPreview_LOG ===');
+  Logger.log(JSON.stringify(summary, null, 2));
+  return summary;
+}
+
+function deleteTestData_APPLY() {
+  var ss = getOrCreateDatabase_();
+  var t = _collectTestDataTargets_(ss);
+  var authIds = t.auth.map(function (r) { return String(r['認証ID']); });
+  var memberIds = t.members.map(function (r) { return String(r['会員ID']); });
+  var staffIds = t.staff.map(function (r) { return String(r['職員ID']); });
+  var extIds = t.external.map(function (r) { return String(r['外部申込者ID']); });
+
+  var result = {
+    deleted: {
+      auth: dryRun_softDeleteByKey_(ss, 'T_認証アカウント', '認証ID', authIds),
+      members: dryRun_softDeleteByKey_(ss, 'T_会員', '会員ID', memberIds),
+      staff: dryRun_softDeleteByKey_(ss, 'T_事業所職員', '職員ID', staffIds),
+      external: dryRun_softDeleteByKey_(ss, 'T_外部申込者', '外部申込者ID', extIds),
+    },
+    appliedIds: {
+      auth: authIds,
+      members: memberIds,
+      staff: staffIds,
+      external: extIds,
+    },
+  };
+  try { clearAllDataCache_(); } catch (e) {}
+  try { clearAdminDashboardCache_(); } catch (e) {}
+  Logger.log('=== deleteTestData_APPLY ===');
+  Logger.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+// v376.3: editor で実行結果を Logger.log に出すラッパー（previewDryRunApplicationCleanup は return のみで log しない仕様）。
+function inspectDryRunManifest_LOG() {
+  var raw = PropertiesService.getScriptProperties().getProperty(DRYRUN_MANIFEST_KEY);
+  Logger.log('=== inspectDryRunManifest_LOG ===');
+  if (!raw) {
+    Logger.log('DRYRUN_MANIFEST: 未保存（dryRunApplicationScenarios 未実行 / すでに cleanup 済）');
+    return null;
+  }
+  try {
+    var parsed = JSON.parse(raw);
+    var runs = (parsed && parsed.runs) || [];
+    var memberSet = {}, staffSet = {}, authSet = {}, requestSet = {};
+    for (var i = 0; i < runs.length; i++) {
+      (runs[i].memberIds || []).forEach(function (id) { memberSet[id] = true; });
+      (runs[i].staffIds || []).forEach(function (id) { staffSet[id] = true; });
+      (runs[i].authIds || []).forEach(function (id) { authSet[id] = true; });
+      (runs[i].requestIds || []).forEach(function (id) { requestSet[id] = true; });
+    }
+    var summary = {
+      runs: runs.length,
+      counts: {
+        members: Object.keys(memberSet).length,
+        staff: Object.keys(staffSet).length,
+        auth: Object.keys(authSet).length,
+        changeRequests: Object.keys(requestSet).length,
+      },
+      sampleMemberIds: Object.keys(memberSet).slice(0, 10),
+      sampleAuthIds: Object.keys(authSet).slice(0, 10),
+      runsTimeline: runs.map(function (r) {
+        return { runId: r.runId, startedAt: r.startedAt, finishedAt: r.finishedAt };
+      }),
+    };
+    Logger.log(JSON.stringify(summary, null, 2));
+    return summary;
+  } catch (e) {
+    Logger.log('parse 失敗: ' + (e && e.message));
+    Logger.log('raw: ' + raw);
+    return null;
+  }
+}
+
 function backfillKanaToFullwidth(options) {
   var opts = options || {};
   var dryRun = opts.dryRun !== false; // 既定 dryRun=true（安全側）

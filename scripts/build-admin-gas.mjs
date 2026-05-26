@@ -547,6 +547,9 @@ function buildAdminCode(source) {
     // v376: フリガナ一括正規化 migration（operator が Apps Script editor から実行）
     'backfillKanaToFullwidth',
     'backfillKanaToFullwidth_APPLY',
+    'inspectDryRunManifest_LOG',
+    'deleteTestDataPreview_LOG',
+    'deleteTestData_APPLY',
   ], 'build-admin-gas');
   code = removeTopLevelFunctionDeclarations(code, [
     'rebuildDatabaseSchema',
@@ -576,6 +579,9 @@ function buildAdminCode(source) {
     // v376
     'backfillKanaToFullwidth',
     'backfillKanaToFullwidth_APPLY',
+    'inspectDryRunManifest_LOG',
+    'deleteTestDataPreview_LOG',
+    'deleteTestData_APPLY',
   ], 'build-admin-gas');
   return code;
 }
