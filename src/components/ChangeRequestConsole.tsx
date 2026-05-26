@@ -163,7 +163,6 @@ const ChangeRequestConsole: React.FC = () => {
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<Record<string, string>>({});
   const [actionError, setActionError] = useState<Record<string, string>>({});
-  const [actionResult, setActionResult] = useState<Record<string, any>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -194,14 +193,17 @@ const ChangeRequestConsole: React.FC = () => {
     setActionError(prev => ({ ...prev, [req.requestId]: '' }));
     try {
       const result = await callApi<any>('approveAdminChangeRequest', { requestId: req.requestId, note: note[req.requestId] || '' });
-      // v367: inner success が false の場合は失敗として扱う（旧: 常に成功 alert 表示していた）
+      // v367: inner success が false の場合は失敗として扱う
       if (result && result.success === false) {
         setActionError(prev => ({ ...prev, [req.requestId]: result.error || '承認に失敗しました' }));
         return;
       }
-      setActionResult(prev => ({ ...prev, [req.requestId]: result?.result || result || {} }));
+      // v376.5: busy 解除を load() 前に行う（ボタン「処理中…」滞留の防止）。
+      //         また、承認結果 JSON の画面表示は廃止（alert で完了通知済 + 空オブジェクトが冗長表示されるバグ回避）。
       window.alert(`承認処理が完了しました。\n申請ID: ${req.requestId}`);
+      setBusy(null);
       await load();
+      return;
     } catch (e) {
       setActionError(prev => ({ ...prev, [req.requestId]: e instanceof Error ? e.message : '承認に失敗しました' }));
     } finally {
@@ -217,7 +219,10 @@ const ChangeRequestConsole: React.FC = () => {
     setActionError(prev => ({ ...prev, [req.requestId]: '' }));
     try {
       await callApi('rejectAdminChangeRequest', { requestId: req.requestId, note: reason });
+      // v376.5: busy 解除を load() 前に行う
+      setBusy(null);
       await load();
+      return;
     } catch (e) {
       setActionError(prev => ({ ...prev, [req.requestId]: e instanceof Error ? e.message : '却下に失敗しました' }));
     } finally {
@@ -322,11 +327,6 @@ const ChangeRequestConsole: React.FC = () => {
                 </div>
                 {actionError[req.requestId] && (
                   <p className="mb-3 text-xs text-red-600">{actionError[req.requestId]}</p>
-                )}
-                {actionResult[req.requestId] && (
-                  <pre className="mb-3 max-h-40 overflow-auto rounded-lg border border-green-200 bg-green-50 p-3 text-xs text-green-900">
-                    {JSON.stringify(actionResult[req.requestId], null, 2)}
-                  </pre>
                 )}
                 <div className="flex flex-wrap gap-3">
                   <button onClick={() => handleApprove(req)} disabled={busy === req.requestId}

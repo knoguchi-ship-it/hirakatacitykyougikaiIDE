@@ -13,6 +13,18 @@
 
 ---
 
+## v376.5 — 2026-05-26
+
+| 種別 | 内容 |
+|---|---|
+| 🐛 | 変更申請の承認/却下後に「処理中…」ボタン文字列が滞留するバグ修正。`setBusy(null)` を `await load()` の前に移動 |
+| 🐛 | 承認成功時に空オブジェクト `{}` が緑色のコードブロックで冗長表示されるバグ修正。`actionResult` state + JSON.stringify プリレンダー削除（既に alert で完了通知済） |
+| 🔧 | 不要 API 往復洗い出し: 承認後の `await load()` は他 admin との並行整合性のため残置。`loading` / `actionError` / `expanded` state は必須機能のため残置。最終判断: メイン 2 点のみ修正 |
+
+デプロイ: admin `@163`。影響範囲は `src/components/ChangeRequestConsole.tsx` のみ（バックエンド・データロジック影響ゼロ）。
+
+---
+
 ## v376.4 — 2026-05-26
 
 | 種別 | 内容 |
