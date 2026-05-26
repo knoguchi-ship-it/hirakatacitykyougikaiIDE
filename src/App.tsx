@@ -1353,7 +1353,8 @@ const App: React.FC = () => {
         setMemberDetailModalOpen(true);
         return;
       }
-      const { members: freshMembers } = await loadAppData({ includeAdminSettings: true, force: true });
+      // v376.9 perf: 会員詳細を開くだけなので getSystemSettings は不要（initial load 時に取得済み）
+      const { members: freshMembers } = await loadAppData({ force: true });
       const found = freshMembers.find(m => m.id === memberId);
       if (!found) {
         alert('会員データの取得に失敗しました。');
@@ -1464,14 +1465,16 @@ const App: React.FC = () => {
       setBusinessStaffDrafts({});
       setBusinessStaffSaveMessage(`${savedCount}件の職員情報を保存しました。`);
       loadAdminDashboardData({ force: true }).catch(() => undefined);
-      await loadAppData({ includeAdminSettings: true, force: true, silent: true });
+      // v376.9 perf: 職員情報保存では SystemSettings は不変。getSystemSettings の往復を省略
+      await loadAppData({ force: true, silent: true });
     } catch (e) {
       setBusinessStaffSaveError(e instanceof Error ? e.message : '職員情報の保存に失敗しました。');
       if (savedCount > 0) {
         setBusinessStaffSaveMessage(`${savedCount}件は保存済みです。未保存の行を確認してください。`);
       }
       loadAdminDashboardData({ force: true }).catch(() => undefined);
-      loadAppData({ includeAdminSettings: true, force: true, silent: true }).catch(() => undefined);
+      // v376.9 perf: 同上（保存失敗パスでも settings は不変）
+      loadAppData({ force: true, silent: true }).catch(() => undefined);
     } finally {
       setBusinessStaffSaving(false);
     }

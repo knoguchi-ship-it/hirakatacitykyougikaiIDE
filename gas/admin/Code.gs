@@ -10727,9 +10727,11 @@ function approveAdminChangeRequest_(payload) {
       approvalResult.staffAddResults.push(mixedAddResult);
     }
     var staffToRemoveMixed = changeData.staffRemove || [];
+    // v376.9 perf: staffToRemoveMixed.length 回の T_事業所職員 sheet 読込を 1 回にホイスト
+    var allStaffRowsForRemoval = staffToRemoveMixed.length > 0 ? getRowsAsObjects_(ss, 'T_事業所職員') : [];
     for (var kr = 0; kr < staffToRemoveMixed.length; kr++) {
       var srm = staffToRemoveMixed[kr];
-      var staffRowsMixed = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) {
+      var staffRowsMixed = allStaffRowsForRemoval.filter(function(r) {
         return !toBoolean_(r['削除フラグ']) &&
                String(r['会員ID'] || '') === memberId &&
                String(r['職員状態コード'] || '') === 'ENROLLED' &&

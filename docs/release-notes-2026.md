@@ -13,6 +13,19 @@
 
 ---
 
+## v376.9 — 2026-05-26 ⚡ パフォーマンス監査 + 最適化
+
+| 種別 | 内容 |
+|---|---|
+| ⚡ | **backend** `approveAdminChangeRequest_` の staffRemove ループ内の `getRowsAsObjects_(ss, 'T_事業所職員')` をループ外にホイスト。N 名削除時の sheet 読込回数を N → 1 回に削減 |
+| ⚡ | **frontend** 3 箇所の `loadAppData({includeAdminSettings: true})` を `false` に変更。SystemSettings 不変なシナリオで `getSystemSettings` の API 往復を削減（会員詳細を開く時 / 職員一括保存 成功時・エラー時） |
+| 📝 | グローバル best practice 準拠 — Google Apps Script: batch read 推奨 + 「Reduce calls to other services」、React 19: useEffect 不要再実行 / dependency 安定化（React Compiler 自動メモ化への準備） |
+| 📝 | 採用しなかった項目（記録のみ）: `getMemberPortalData_` の per-user cache 化（invalidation 複雑度 ↑）/ `addPublicStaffMember_` 内 sheet 読込（API 変更必要） |
+
+デプロイ: member `@107` / admin `@167`。public は backend/Code.gs 無変更のため `@348` 維持。仕様変更ゼロ・DB 操作なし・セキュリティ影響なし。
+
+---
+
 ## v376.8 (sync) — 2026-05-26 🔧 ドキュメント・成果物整合性
 
 | 種別 | 内容 |
