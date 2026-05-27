@@ -5074,6 +5074,8 @@ function cleanupNonSchemaSheets_(ss) {
 /**
  * シートの全行をオブジェクト配列として返す（getRowsAsObjects_ のシートオブジェクト版）。
  */
+// v376.20: getSheetData_ は getRowsAsObjectsFromSheet_ と機能同一だったため統合・削除。
+//   呼び出しは getRowsAsObjectsFromSheet_ に置換済み。
 
 
 /**

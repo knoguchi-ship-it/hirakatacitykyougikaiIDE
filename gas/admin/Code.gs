@@ -10093,23 +10093,8 @@ function cleanupNonSchemaSheets_(ss) {
 /**
  * シートの全行をオブジェクト配列として返す（getRowsAsObjects_ のシートオブジェクト版）。
  */
-function getSheetData_(sheet) {
-  if (!sheet) return [];
-  var lastRow = sheet.getLastRow();
-  var lastCol = sheet.getLastColumn();
-  if (lastRow < 2 || lastCol < 1) return [];
-  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  var values = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
-  var rows = [];
-  for (var r = 0; r < values.length; r += 1) {
-    var obj = {};
-    for (var c = 0; c < headers.length; c += 1) {
-      obj[headers[c]] = values[r][c];
-    }
-    rows.push(obj);
-  }
-  return rows;
-}
+// v376.20: getSheetData_ は getRowsAsObjectsFromSheet_ と機能同一だったため統合・削除。
+//   呼び出しは getRowsAsObjectsFromSheet_ に置換済み。
 
 function getLastRowsAsObjects_(ss, sheetName, count) {
   var sheet = ss.getSheetByName(sheetName);
@@ -11083,16 +11068,16 @@ function getTrainingApplicants_(payload) {
   var applyRows = getTrainingApplicationRows_(db, { trainingId: trainingId });
 
   var memberSheet = db.getSheetByName('T_会員');
-  var memberRows = getSheetData_(memberSheet);
+  var memberRows = getRowsAsObjectsFromSheet_(memberSheet);
   var memberMap = {};
   memberRows.forEach(function(r) { memberMap[String(r['会員ID'] || '')] = r; });
 
   var staffSheet = db.getSheetByName('T_事業所職員');
   var staffMap = {};
-  (staffSheet ? getSheetData_(staffSheet) : []).forEach(function(r) { staffMap[String(r['職員ID'] || '')] = r; });
+  (staffSheet ? getRowsAsObjectsFromSheet_(staffSheet) : []).forEach(function(r) { staffMap[String(r['職員ID'] || '')] = r; });
 
   var externalSheet = db.getSheetByName('T_外部申込者');
-  var externalRows = getSheetData_(externalSheet);
+  var externalRows = getRowsAsObjectsFromSheet_(externalSheet);
   var externalMap = {};
   externalRows.forEach(function(r) { externalMap[String(r['外部申込者ID'] || '')] = r; });
 
@@ -11338,15 +11323,15 @@ function sendTrainingMail_(payload) {
     var applyRows = getTrainingApplicationRows_(db, { trainingId: trainingId });
     var memberSheet = db.getSheetByName('T_会員');
     var memberMap = {};
-    getSheetData_(memberSheet).forEach(function(r) { memberMap[String(r['会員ID'] || '')] = r; });
+    getRowsAsObjectsFromSheet_(memberSheet).forEach(function(r) { memberMap[String(r['会員ID'] || '')] = r; });
     var staffSheetForSend = db.getSheetByName('T_事業所職員');
     var staffMapForSend = {};
-    (staffSheetForSend ? getSheetData_(staffSheetForSend) : []).forEach(function(r) {
+    (staffSheetForSend ? getRowsAsObjectsFromSheet_(staffSheetForSend) : []).forEach(function(r) {
       staffMapForSend[String(r['職員ID'] || '')] = r;
     });
     var externalSheet = db.getSheetByName('T_外部申込者');
     var externalMap = {};
-    getSheetData_(externalSheet).forEach(function(r) { externalMap[String(r['外部申込者ID'] || '')] = r; });
+    getRowsAsObjectsFromSheet_(externalSheet).forEach(function(r) { externalMap[String(r['外部申込者ID'] || '')] = r; });
 
     var targetSet = {};
     targetApplyIds.forEach(function(id) { targetSet[String(id)] = true; });
@@ -12277,8 +12262,8 @@ function getMembersForBulkMail_(payload) {
 
   var memberSheet = ss.getSheetByName('T_会員');
   var staffSheet  = ss.getSheetByName('T_事業所職員');
-  var members     = getSheetData_(memberSheet);
-  var staffRows   = getSheetData_(staffSheet);
+  var members     = getRowsAsObjectsFromSheet_(memberSheet);
+  var staffRows   = getRowsAsObjectsFromSheet_(staffSheet);
 
   // 事業所会員マップ（会員ID → 会員行）
   var bizMemberMap = {};
@@ -12411,8 +12396,8 @@ function buildMailingListCandidates_(payload) {
   var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
   var memberSheet = ss.getSheetByName('T_会員');
   var feeSheet = ss.getSheetByName('T_年会費納入履歴');
-  var members = getSheetData_(memberSheet);
-  var feeRows = feeSheet ? getSheetData_(feeSheet) : [];
+  var members = getRowsAsObjectsFromSheet_(memberSheet);
+  var feeRows = feeSheet ? getRowsAsObjectsFromSheet_(feeSheet) : [];
 
   // 全年度の feeMap を構築（v310: 年度別複数条件フィルター対応）
   var feeMap = {};        // 選択年度: { memberId: status }
@@ -12875,7 +12860,7 @@ function getEmailSendLog_(payload) {
   var logSheet = getLogSs_().getSheetByName('T_メール送信ログ');
   if (!logSheet || logSheet.getLastRow() < 2) return [];
 
-  var rows = getSheetData_(logSheet).filter(function(r) {
+  var rows = getRowsAsObjectsFromSheet_(logSheet).filter(function(r) {
     return !toBoolean_(r['削除フラグ']);
   });
   rows.sort(function(a, b) {
@@ -13000,9 +12985,9 @@ function getRosterDesignerData_(payload) {
   var staffSheet  = ss.getSheetByName('T_事業所職員');
   var feeSheet    = ss.getSheetByName('T_年会費納入履歴');
 
-  var members   = getSheetData_(memberSheet);
-  var staffRows = staffSheet ? getSheetData_(staffSheet) : [];
-  var feeRows   = feeSheet   ? getSheetData_(feeSheet)   : [];
+  var members   = getRowsAsObjectsFromSheet_(memberSheet);
+  var staffRows = staffSheet ? getRowsAsObjectsFromSheet_(staffSheet) : [];
+  var feeRows   = feeSheet   ? getRowsAsObjectsFromSheet_(feeSheet)   : [];
 
   var feeMap = {};
   var feeMapByYear = {};
