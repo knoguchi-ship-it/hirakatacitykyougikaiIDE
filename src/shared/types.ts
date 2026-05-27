@@ -89,16 +89,7 @@ export interface TrainingStats {
   officeBreakdown: Array<{ officeName: string; count: number }>;
 }
 
-export interface TrainingHistoryEntry {
-  applyId: string;
-  trainingId: string;
-  trainingName: string;
-  trainingDate: string;
-  location: string;
-  status: string;
-  attendanceStatus: AttendanceStatus;
-  applyDate: string;
-}
+// v376.19: TrainingHistoryEntry は唯一の消費者 api.getMemberTrainingHistory 削除に伴い撤去。
 
 // v376.17: 研修メール segment 送信（sendTrainingMailSegmented）は未使用のため削除。
 //   現役の研修メール送信は sendTrainingMail (TrainingMailPayload) に一本化。

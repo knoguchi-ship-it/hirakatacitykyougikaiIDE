@@ -13,6 +13,22 @@
 
 ---
 
+## v376.19 — 2026-05-27 🔧 二重管理の解消②: 未使用 frontend API メソッド削除
+
+全機能の二重管理監査の是正 第2弾。frontend `api.ts` で**どのコンポーネントからも呼ばれていない 6 メソッド**を削除（grep で呼び出しゼロを検証済）。**機能変更なし・本番再デプロイ不要**（dead code 除去のみ。bundle が縮小するだけで挙動不変）。
+
+| 削除した API メソッド | 備考 |
+|---|---|
+| `adminLoginWithData` / `memberLoginWithData` | v150 のログイン+ポータル統合 API。`checkAdminBySession` / `memberLogin` に置換済の廃止予定コード |
+| `createMember` | 会員作成。入会は公開申込 + 承認フロー（`createMemberApplicationDirect_`）が正路 |
+| `updateMembersBatch` | 一括更新。未配線 |
+| `getMemberTrainingHistory` | 研修履歴取得。未配線。孤立した型 `TrainingHistoryEntry` も撤去 |
+| `getFileBytes` | v357 PDF lightbox 用 bytes proxy。現状は `getFileThumbnail` で代替 |
+
+検証: 各メソッドは backend dispatch handler 以外に内部呼び出しが無いことも確認済（完全デッド）。ただし backend endpoint・権限/許可リストの削除は、同じ action レジストリを触る A-3（action 名の単一情報源化）でまとめて実施するため**本リリースでは frontend のみ**。typecheck + prerelease 全通過。
+
+---
+
 ## v376.18 — 2026-05-27 🔧 二重管理の解消①: admin build keep-list の単一情報源化
 
 全機能の二重管理監査（メール送信以外）の是正 第1弾。**生成物に変更はなく本番再デプロイ不要**（build / audit ツールのみの整理。`gas/admin/Code.gs` はバイト単位で不変を確認）。

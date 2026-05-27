@@ -9,7 +9,6 @@ import {
   // v360
   TrainingRosterRow,
   TrainingStats,
-  TrainingHistoryEntry,
   AttendanceStatus,
   // v374.1: 公式LINE投稿依頼
   LinePostRequest,
@@ -82,11 +81,8 @@ export interface ApiClient {
   getMemberPortalData(lookup: MemberPortalLookup): Promise<{ members: Member[], trainings: Training[], resolvedMemberId?: string, resolvedStaffId?: string }>;
   getAdminDashboardData(): Promise<AdminDashboardData>;
   getAdminInitData(): Promise<{ dashboard: AdminDashboardData; settings: SystemSettings }>;
-  adminLoginWithData(): Promise<{ auth: AdminLoginResult; portal: { members: Member[]; trainings: Training[] } }>;
-  memberLoginWithData(loginId: string, password: string): Promise<{ auth: MemberLoginResult; portal: { members: Member[]; trainings: Training[] } }>;
   getTrainingManagementData(): Promise<Training[]>;
   updateMember(member: Member): Promise<void>;
-  updateMembersBatch(members: Array<Partial<Member> & Pick<Member, 'id'>>): Promise<Array<{ updated: boolean; memberId: string }>>;
   updateMemberSelf(member: Member, loginId: string): Promise<void>;
   changePassword(loginId: string, currentPassword: string, newPassword: string): Promise<void>;
   requestPasswordReset(loginId: string, email: string): Promise<{ message: string; expiresInMinutes: number }>;
@@ -129,8 +125,6 @@ export interface ApiClient {
   // v344: 案内PDF サムネイルを GAS proxy 経由で base64 data URL として取得（hotlink 制限回避）
   // v358: 第2引数 size を渡すと高解像度版（Drive thumbnailLink を w<size> で再取得）を返す
   getFileThumbnail(fileUrl: string, size?: number): Promise<string | null>;
-  // v357: PDF 本体 bytes を GAS proxy 経由で base64 として取得（lightbox 内 iframe 用、10MB 上限）
-  getFileBytes(fileUrl: string): Promise<{ base64: string | null; mimeType?: string; name?: string; size?: number; error?: string }>;
   // v350: 案内PDF サムネイル手動再生成（編集モーダルから 1 クリック）
   regenerateThumbnailForTraining(trainingId: string): Promise<{ trainingId: string; thumbnailUrl: string; thumbnailGenerationStatus: 'generated' | 'pending' | 'failed' | 'skipped'; reason?: string }>;
   applyTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ applicationId: string; applicants: number; duplicate?: boolean }>;
@@ -147,8 +141,6 @@ export interface ApiClient {
   cancelRosterEntry(payload: { applyId: string; reason?: string }): Promise<{ ok: boolean; error?: string }>;
   updateRosterEntry(payload: { applyId: string; adminMemo?: string }): Promise<{ ok: boolean; error?: string }>;
   getTrainingStats(trainingId: string): Promise<TrainingStats>;
-  getMemberTrainingHistory(payload: { memberId?: string; staffId?: string; externalId?: string }): Promise<{ history: TrainingHistoryEntry[] }>;
-  createMember(payload: Partial<Member> & { type: string }): Promise<{ created: boolean; memberId: string; loginId: string; defaultPassword: string }>;
   withdrawMember(memberId: string, withdrawnDate?: string, midYearWithdrawal?: boolean): Promise<{ withdrawn: boolean; memberId: string; withdrawnDate: string }>;
   withdrawSelf(loginId: string, password: string, memberId: string): Promise<{ scheduled: boolean; memberId: string; withdrawnDate: string }>;
   cancelWithdrawalSelf(loginId: string, password: string, memberId: string): Promise<{ canceled: boolean; memberId: string }>;
@@ -590,31 +582,6 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async updateMembersBatch(members: Array<Partial<Member> & Pick<Member, 'id'>>): Promise<Array<{ updated: boolean; memberId: string }>> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) {
-              resolve(parsed.data || []);
-            } else {
-              reject(new Error(parsed.error || 'API Error'));
-            }
-          } catch {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('updateMembersBatch', JSON.stringify({ records: members }));
-    });
-  }
-
   async updateMemberSelf(member: Member, loginId: string): Promise<void> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
@@ -856,20 +823,6 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  // v150: ログイン+ポータルデータ統合API
-  async memberLoginWithData(loginId: string, password: string): Promise<{ auth: MemberLoginResult; portal: { members: Member[]; trainings: Training[] } }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const parsed = JSON.parse(result); if (parsed.success) resolve(parsed.data); else reject(new Error(parsed.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('memberLoginWithData', JSON.stringify({ loginId, password }));
-    });
-  }
-
   async checkAdminBySession(): Promise<AdminLoginResult> {
     return new Promise<AdminLoginResult>((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
@@ -888,20 +841,6 @@ class GasApiClient implements ApiClient {
         })
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('checkAdminBySession', null);
-    });
-  }
-
-  // v150: 管理者ログイン+ポータルデータ統合API
-  async adminLoginWithData(): Promise<{ auth: AdminLoginResult; portal: { members: Member[]; trainings: Training[] } }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const parsed = JSON.parse(result); if (parsed.success) resolve(parsed.data); else reject(new Error(parsed.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('adminLoginWithData', null);
     });
   }
 
@@ -1086,27 +1025,6 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async getFileBytes(fileUrl: string): Promise<{ base64: string | null; mimeType?: string; name?: string; size?: number; error?: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data || { base64: null });
-            else reject(new Error(parsed.error || 'API Error'));
-          } catch {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getFileBytes', JSON.stringify({ fileUrl, ...this.memberSessionPayload() }));
-    });
-  }
-
   async getFileThumbnail(fileUrl: string, size?: number): Promise<string | null> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
@@ -1282,31 +1200,6 @@ class GasApiClient implements ApiClient {
   getTrainingStats(trainingId: string) {
     return this.callAction<TrainingStats>('getTrainingStats', { trainingId });
   }
-  getMemberTrainingHistory(payload: { memberId?: string; staffId?: string; externalId?: string }) {
-    return this.callAction<{ history: TrainingHistoryEntry[] }>('getMemberTrainingHistory', payload);
-  }
-
-  async createMember(payload: Partial<Member> & { type: string }): Promise<{ created: boolean; memberId: string; loginId: string; defaultPassword: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data);
-            else reject(new Error(parsed.error || 'API Error'));
-          } catch {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('createMember', JSON.stringify(payload));
-    });
-  }
-
   async submitMemberApplication(payload: any): Promise<any> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
