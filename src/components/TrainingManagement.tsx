@@ -100,6 +100,9 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
   const [panelView, setPanelView] = useState<PanelView>('form');
   // v376.11: 既存研修選択時の大画面モーダル制御
   const [detailModalOpen, setDetailModalOpen] = useState(false);
+  // v376.16: 新規登録の入力中に既存研修を選んでもデータを失わないよう、新規入力を退避する。
+  // 画面を開いている間は保持し、モーダルを閉じると右ペインへ復元する。
+  const [pendingNewForm, setPendingNewForm] = useState<Training | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // v376.7: 一覧フィルター（admin のみ）
@@ -155,7 +158,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
     try {
       await onDelete(form.id);
       window.alert('研修を削除しました。');
-      startNew();
+      closeDetail(); // v376.16: モーダルを閉じ、退避中の新規入力を復元
     } catch (e) {
       window.alert('削除に失敗しました: ' + (e instanceof Error ? e.message : String(e)));
     } finally {
@@ -170,7 +173,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
     try {
       await onRestore(form.id);
       window.alert('研修を復元しました。');
-      startNew();
+      closeDetail(); // v376.16: モーダルを閉じ、退避中の新規入力を復元
     } catch (e) {
       window.alert('復元に失敗しました: ' + (e instanceof Error ? e.message : String(e)));
     } finally {
@@ -197,6 +200,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
 
   const startNew = () => {
     setForm(buildEmptyForm(effectiveDefault));
+    setPendingNewForm(null); // v376.16: 明示的な新規開始では退避中の入力も破棄
     setIsNew(true);
     setSaveError(null);
     setSaveSuccess(false);
@@ -208,6 +212,8 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
   };
 
   const loadTraining = (training: Training) => {
+    // v376.16: 新規入力中だった内容を退避（既に編集モードならそのまま既存退避を維持）
+    if (isNew) setPendingNewForm(form);
     setForm({
       ...training,
       date: normalizeDateTime(training.date),
@@ -225,6 +231,20 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
     setPanelView('roster');
     // v376.11: 既存研修選択時は大画面モーダルで表示
     setDetailModalOpen(true);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // v376.16: 既存研修モーダルを閉じる。退避していた新規入力があれば右ペインへ復元する。
+  const closeDetail = () => {
+    setDetailModalOpen(false);
+    setForm(pendingNewForm ?? buildEmptyForm(effectiveDefault));
+    setPendingNewForm(null);
+    setIsNew(true);
+    setSaveError(null);
+    setSaveSuccess(false);
+    setUploadedFileName('');
+    setSettingsOpen(false);
+    setPanelView('form');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -343,6 +363,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const wasNew = isNew; // v376.16: 新規作成か既存更新かを送信時点で確定
 
     if (!form.title.trim()) {
       setSaveError('研修タイトルを入力してください。');
@@ -407,8 +428,17 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
         inquiryContactValue: primaryContact,
         inquiryContactType: primaryType,
       });
-      setForm({ ...saved, date: normalizeDateTime(saved.date) });
-      setIsNew(false);
+      if (wasNew) {
+        // v376.16: 新規作成（inline 右ペイン）成功後は空の新規フォームへ戻し、次の登録に備える。
+        // 右ペインは isNew のときのみ表示されるため、ここで isNew を維持しないと空白化する。
+        setForm(buildEmptyForm(effectiveDefault));
+        setUploadedFileName('');
+        setSettingsOpen(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      } else {
+        // 既存更新（モーダル）はモーダルを開いたまま最新値を反映
+        setForm({ ...saved, date: normalizeDateTime(saved.date) });
+      }
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (error) {
@@ -874,7 +904,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
       <TrainingDetailModal
         open={detailModalOpen && !isNew}
         title={form.title || '(未入力)'}
-        onClose={startNew}
+        onClose={closeDetail}
         headerActions={tabsJsx}
       >
         {detailModalOpen && !isNew && (
