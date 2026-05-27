@@ -13,6 +13,24 @@
 
 ---
 
+## v376.21 — 2026-05-27 🛡 二重管理の解消④: 申込者解決のガードレール（敢えて統合しない判断）
+
+監査で「申込者解決ロジックの重複」とされた箇所を精読した結果、**真の重複ではなく異なる 2 モデルの併存**と判明したため、機械的統合は行わず誤用防止のガードレールを追加した（方針: 無理にまとめない）。
+
+| モデル | 関数 | 用途 |
+|---|---|---|
+| canonical（v360・STAFF 独立 type） | `getCanonicalApplicantRef_` | 送信先メール・名簿表示・本人解決 |
+| legacy（MEMBER + 別途 職員ID） | `getApplicationApplicantType_` / `getApplicationApplicantId_` / `getMemberIdFromApplication_` | 整合性検証 `getTrainingApplicationIntegrityIssues_`・会員申込フィルタ |
+
+| 種別 | 内容 |
+|---|---|
+| 🛡 | legacy 3 関数と `getCanonicalApplicantRef_` に使い分けの警告コメントを追加。「送信先・名簿・本人解決は必ず canonical を使う／legacy を使うと STAFF 申込が会員誤解決され事業所代表メールへ誤送信（v376.12 で実際に発生）」を明文化 |
+| 📝 | 整合性検証は MEMBER/EXTERNAL の 2 分岐のみで legacy モデル前提に組まれており、canonical への機械的置換は検証ロジックを壊す（＝申込有効性ゲートに影響）と確認。よって統合せず温存 |
+
+**コメントのみ・挙動不変**（非コメントのコード行変更ゼロを git diff で確認）。デプロイは A-2 と同様、次の backend 機能変更時に同梱。prerelease 全通過。
+
+---
+
 ## v376.20 — 2026-05-27 🔧 二重管理の解消③: シート読取ヘルパーを一本化
 
 backend `gas-src/Code.full.gs` で機能同一だった 2 つのシート読取ヘルパーを統合。`getSheetData_(sheet)`（ヘッダ行→オブジェクト配列化、19 箇所で使用）を、同一実装の `getRowsAsObjectsFromSheet_(sheet)` に置換し `getSheetData_` を削除。

@@ -4036,9 +4036,9 @@ function backfillApplicationApplicantIdentity_(ss) {
   }
   return updated;
 }
-
 function getApplicationApplicantType_(rowObj) {
-  // v360: 3-FK XOR を優先的に評価し、空ならば legacy 申込者区分コードへフォールバック
+  // legacy モデル: 3-FK XOR を優先評価し、空ならば legacy 申込者区分コードへフォールバック。
+  // STAFF を独立解決しない（送信先・名簿解決には使わない / 上記ガードレール参照）。
   var externalId = String(rowObj['外部申込者ID'] || '').trim();
   if (externalId) return 'EXTERNAL';
   var applicantType = String(rowObj['申込者区分コード'] || '').trim();
@@ -4047,7 +4047,7 @@ function getApplicationApplicantType_(rowObj) {
 }
 
 function getApplicationApplicantId_(rowObj) {
-  // v360: 3-FK XOR 優先
+  // legacy モデル（getApplicationApplicantType_ と対。送信先・名簿解決には使わない）
   var externalId = String(rowObj['外部申込者ID'] || '').trim();
   if (externalId) return externalId;
   var applicantId = String(rowObj['申込者ID'] || '').trim();
@@ -4055,8 +4055,8 @@ function getApplicationApplicantId_(rowObj) {
   return String(rowObj['会員ID'] || '').trim();
 }
 
-// v360: 申込者の正本参照を取得（3-FK XOR 優先）
-
+// v360: 申込者の正本参照を取得（3-FK XOR 優先・STAFF を独立 type として返す）。
+// 送信先メール・名簿表示・本人解決はすべてこの関数を使うこと（上記ガードレール参照）。
 function getMemberIdFromApplication_(rowObj) {
   var applicantType = getApplicationApplicantType_(rowObj);
   if (applicantType !== 'MEMBER') return '';
