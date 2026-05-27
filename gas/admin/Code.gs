@@ -16680,24 +16680,53 @@ function dryRunTrainingManagement() {
 }
 
 // テストで作成した training / 申込 / 外部申込者 を物理削除（行削除）。
+// v376.14.2: manifest だけでなく DRYRUN_ プレフィックスの研修・外部申込者を sweep し、
+//   過去 run の孤児データ（manifest 上書きで参照が外れた分）も含めて確実に削除する。
 function cleanupDryRunTrainingManagement() {
-  var raw = PropertiesService.getScriptProperties().getProperty(DRYRUN_TRAINING_MGMT_MANIFEST_KEY);
-  if (!raw) { Logger.log('cleanupDryRunTrainingManagement: manifest 未保存（dryRun 未実行 or cleanup 済）'); return { deleted: {}, message: 'no manifest' }; }
-  var manifest = JSON.parse(raw);
   var ss = getOrCreateDatabase_();
+
+  // 1. manifest（最新 run）から ID 収集
+  var trainingIds = {}, applyIds = {}, externalIds = {};
+  var raw = PropertiesService.getScriptProperties().getProperty(DRYRUN_TRAINING_MGMT_MANIFEST_KEY);
+  if (raw) {
+    try {
+      var manifest = JSON.parse(raw);
+      if (manifest.trainingId) trainingIds[String(manifest.trainingId)] = true;
+      (manifest.applyIds || []).forEach(function (id) { applyIds[String(id)] = true; });
+      (manifest.externalIds || []).forEach(function (id) { externalIds[String(id)] = true; });
+    } catch (e) {}
+  }
+
+  // 2. DRYRUN_ プレフィックスの研修を sweep（孤児対策）
+  getRowsAsObjects_(ss, 'T_研修').forEach(function (r) {
+    if (String(r['研修名'] || '').indexOf(DRYRUN_PREFIX) === 0) trainingIds[String(r['研修ID'] || '')] = true;
+  });
+
+  // 3. 上記研修に紐づく申込を全収集 + DRYRUN_ ゲストの外部申込者も収集
+  getRowsAsObjects_(ss, 'T_研修申込').forEach(function (r) {
+    if (trainingIds[String(r['研修ID'] || '')]) {
+      applyIds[String(r['申込ID'] || '')] = true;
+      var extId = String(r['外部申込者ID'] || '');
+      if (extId) externalIds[extId] = true;
+    }
+  });
+  getRowsAsObjects_(ss, 'T_外部申込者').forEach(function (r) {
+    if (String(r['氏名'] || '').indexOf(DRYRUN_PREFIX) === 0) externalIds[String(r['外部申込者ID'] || '')] = true;
+  });
 
   var result = {
     deleted: {
-      training: dryRun_physicalDeleteRowsByKey_(ss, 'T_研修', '研修ID', manifest.trainingId ? [manifest.trainingId] : []),
-      applications: dryRun_physicalDeleteRowsByKey_(ss, 'T_研修申込', '申込ID', manifest.applyIds || []),
-      external: dryRun_physicalDeleteRowsByKey_(ss, 'T_外部申込者', '外部申込者ID', manifest.externalIds || []),
+      training: dryRun_physicalDeleteRowsByKey_(ss, 'T_研修', '研修ID', Object.keys(trainingIds)),
+      applications: dryRun_physicalDeleteRowsByKey_(ss, 'T_研修申込', '申込ID', Object.keys(applyIds)),
+      external: dryRun_physicalDeleteRowsByKey_(ss, 'T_外部申込者', '外部申込者ID', Object.keys(externalIds)),
     },
+    sweptTrainingIds: Object.keys(trainingIds),
   };
   PropertiesService.getScriptProperties().deleteProperty(DRYRUN_TRAINING_MGMT_MANIFEST_KEY);
   clearAllDataCache_();
   clearAdminDashboardCache_();
   clearTrainingManagementCache_();
-  Logger.log('=== cleanupDryRunTrainingManagement ===');
+  Logger.log('=== cleanupDryRunTrainingManagement (manifest + DRYRUN_ prefix sweep) ===');
   Logger.log(JSON.stringify(result, null, 2));
   return result;
 }

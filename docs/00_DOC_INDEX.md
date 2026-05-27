@@ -1,7 +1,7 @@
 # Document Index
 
 更新日: 2026-05-26
-現行本番: **`v376.14.1`**（integrated-public `@348` x2 / member split `@107` / admin split `@173`）
+現行本番: **`v376.14.2`**（integrated-public `@348` x2 / member split `@107` / admin split `@174`）
 
 このプロジェクトのドキュメントは **[Diátaxis フレームワーク](https://diataxis.fr/)** に従って 4 カテゴリ + 補助 2 カテゴリで構成しています。
 **目的別に最短経路で必要な情報に到達できる**ことを保証しています。
