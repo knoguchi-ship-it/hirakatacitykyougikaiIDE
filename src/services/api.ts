@@ -10,9 +10,6 @@ import {
   TrainingRosterRow,
   TrainingStats,
   TrainingHistoryEntry,
-  TrainingMailSegmentedPayload,
-  TrainingMailLogHeader,
-  TrainingMailLogDetail,
   AttendanceStatus,
   // v374.1: 公式LINE投稿依頼
   LinePostRequest,
@@ -151,8 +148,6 @@ export interface ApiClient {
   updateRosterEntry(payload: { applyId: string; adminMemo?: string }): Promise<{ ok: boolean; error?: string }>;
   getTrainingStats(trainingId: string): Promise<TrainingStats>;
   getMemberTrainingHistory(payload: { memberId?: string; staffId?: string; externalId?: string }): Promise<{ history: TrainingHistoryEntry[] }>;
-  sendTrainingMailSegmented(payload: TrainingMailSegmentedPayload): Promise<{ logId: string; sent: number; failed: number; total: number }>;
-  getTrainingMailSendLogs(trainingId: string): Promise<{ headers: TrainingMailLogHeader[]; details: TrainingMailLogDetail[] }>;
   createMember(payload: Partial<Member> & { type: string }): Promise<{ created: boolean; memberId: string; loginId: string; defaultPassword: string }>;
   withdrawMember(memberId: string, withdrawnDate?: string, midYearWithdrawal?: boolean): Promise<{ withdrawn: boolean; memberId: string; withdrawnDate: string }>;
   withdrawSelf(loginId: string, password: string, memberId: string): Promise<{ scheduled: boolean; memberId: string; withdrawnDate: string }>;
@@ -1289,12 +1284,6 @@ class GasApiClient implements ApiClient {
   }
   getMemberTrainingHistory(payload: { memberId?: string; staffId?: string; externalId?: string }) {
     return this.callAction<{ history: TrainingHistoryEntry[] }>('getMemberTrainingHistory', payload);
-  }
-  sendTrainingMailSegmented(payload: TrainingMailSegmentedPayload) {
-    return this.callAction<{ logId: string; sent: number; failed: number; total: number }>('sendTrainingMailSegmented', payload);
-  }
-  getTrainingMailSendLogs(trainingId: string) {
-    return this.callAction<{ headers: TrainingMailLogHeader[]; details: TrainingMailLogDetail[] }>('getTrainingMailSendLogs', { trainingId });
   }
 
   async createMember(payload: Partial<Member> & { type: string }): Promise<{ created: boolean; memberId: string; loginId: string; defaultPassword: string }> {

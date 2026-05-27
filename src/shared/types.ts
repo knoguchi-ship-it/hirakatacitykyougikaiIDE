@@ -100,43 +100,8 @@ export interface TrainingHistoryEntry {
   applyDate: string;
 }
 
-export interface TrainingMailSegment {
-  attendance?: AttendanceStatus[];
-  applicantTypes?: ApplicantType[];
-  officeNames?: string[];
-  applyIds?: string[];
-}
-
-export interface TrainingMailSegmentedPayload {
-  trainingId: string;
-  subject: string;
-  body: string;
-  from: string;
-  fromName?: string;
-  segment: TrainingMailSegment;
-}
-
-export interface TrainingMailLogHeader {
-  logId: string;
-  sentAt: string;
-  senderEmail: string;
-  subjectTemplate: string;
-  recipients: number;
-  succeeded: number;
-  failed: number;
-  type: string;
-}
-
-export interface TrainingMailLogDetail {
-  detailId: string;
-  logId: string;
-  recipientType: ApplicantType;
-  recipientId: string;
-  recipientEmail: string;
-  result: 'SENT' | 'FAILED';
-  errorDetail: string;
-  createdAt: string;
-}
+// v376.17: 研修メール segment 送信（sendTrainingMailSegmented）は未使用のため削除。
+//   現役の研修メール送信は sendTrainingMail (TrainingMailPayload) に一本化。
 
 // v373.6 (S5): RosterTarget interface 撤去（旧 RosterExport 削除に伴う、新 Roster Designer は RosterDesignerRow を使用）
 

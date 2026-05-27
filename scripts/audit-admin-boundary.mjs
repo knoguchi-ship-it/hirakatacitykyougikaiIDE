@@ -167,8 +167,6 @@ const allowedAdminActions = [
   'updateRosterEntry',
   'getTrainingStats',
   'getMemberTrainingHistory',
-  'sendTrainingMailSegmented',
-  'getTrainingMailSendLogs',
 ];
 const forbiddenTopLevelFunctions = [
   'rebuildDatabaseSchema',

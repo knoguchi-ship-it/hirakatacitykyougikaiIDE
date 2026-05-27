@@ -1324,12 +1324,6 @@ function processApiRequest(action, payload) {
     if (action === 'getMemberTrainingHistory') {
       return JSON.stringify({ success: true, data: getMemberTrainingHistory_(parsedPayload) });
     }
-    if (action === 'sendTrainingMailSegmented') {
-      return sendTrainingMailSegmented_(parsedPayload);
-    }
-    if (action === 'getTrainingMailSendLogs') {
-      return JSON.stringify({ success: true, data: getTrainingMailSendLogs_(parsedPayload) });
-    }
 
     // v188: Gemini AI案内メール生成（APIキーはScriptPropertiesで管理、フロントに露出しない）
     if (action === 'generateTrainingEmail') {
@@ -11406,8 +11400,9 @@ function sendTrainingMail_(payload) {
   for (var i = 0; i < recipients.length; i += 1) {
     var rec = recipients[i];
     try {
-      var personalSubject = subject.replace(/\{\{氏名\}\}/g, rec.name).replace(/\{\{事業所名\}\}/g, rec.officeName || '');
-      var personalBody = body.replace(/\{\{氏名\}\}/g, rec.name).replace(/\{\{事業所名\}\}/g, rec.officeName || '');
+      var mergeVars = { '氏名': rec.name, '事業所名': rec.officeName || '' };
+      var personalSubject = renderBizEmailTemplate_(subject, mergeVars);
+      var personalBody = renderBizEmailTemplate_(body, mergeVars);
       var allAttachments = commonAttachments.slice();
       if (driveFileIds[rec.applyId]) {
         try {
@@ -12786,14 +12781,9 @@ function sendBulkMemberMail_(payload) {
 
     try {
       // 差し込みタグ置換
-      var personalSubject = subject
-        .replace(/\{\{氏名\}\}/g,   rec.displayName)
-        .replace(/\{\{事業所名\}\}/g, rec.officeName || '')
-        .replace(/\{\{会員番号\}\}/g, rec.memberId   || '');
-      var personalBody = body
-        .replace(/\{\{氏名\}\}/g,   rec.displayName)
-        .replace(/\{\{事業所名\}\}/g, rec.officeName || '')
-        .replace(/\{\{会員番号\}\}/g, rec.memberId   || '');
+      var mergeVars = { '氏名': rec.displayName, '事業所名': rec.officeName || '', '会員番号': rec.memberId || '' };
+      var personalSubject = renderBizEmailTemplate_(subject, mergeVars);
+      var personalBody = renderBizEmailTemplate_(body, mergeVars);
 
       var allAttachments = commonAttachments.slice();
 
@@ -16223,165 +16213,6 @@ function getMemberTrainingHistory_(payload) {
   });
   history.sort(function(a, b) { return (b.trainingDate || '').localeCompare(a.trainingDate || ''); });
   return { history: history };
-}
-
-/**
- * セグメント送信（研修申込者をフィルタした上で一括メール送信 + 明細ログ）。
- * payload: { trainingId, subject, body, from, segment: { type, attendance?, applicantTypes?, officeNames? } }
- */
-function sendTrainingMailSegmented_(payload) {
-  if (!checkAdminBySession_()) return JSON.stringify({ success: false, error: 'unauthorized' });
-  if (!payload || !payload.trainingId) return JSON.stringify({ success: false, error: 'trainingId required' });
-  var subject = String(payload.subject || '').trim();
-  var body = String(payload.body || '').trim();
-  if (!subject || !body) return JSON.stringify({ success: false, error: 'subject and body required' });
-
-  var detail = getTrainingRosterDetail_({ trainingId: payload.trainingId });
-  if (detail.error) return JSON.stringify({ success: false, error: detail.error });
-
-  var segment = payload.segment || {};
-  var targets = detail.applicants.filter(function(a) {
-    if (a.status !== 'APPLIED') return false;
-    if (!a.email) return false;
-    if (segment.attendance && Array.isArray(segment.attendance) && segment.attendance.indexOf(a.attendanceStatus) < 0) return false;
-    if (segment.applicantTypes && Array.isArray(segment.applicantTypes) && segment.applicantTypes.indexOf(a.applicantType) < 0) return false;
-    if (segment.officeNames && Array.isArray(segment.officeNames) && segment.officeNames.indexOf(a.officeName) < 0) return false;
-    if (segment.applyIds && Array.isArray(segment.applyIds) && segment.applyIds.indexOf(a.applyId) < 0) return false;
-    return true;
-  });
-
-  var operatorEmail = Session.getActiveUser().getEmail();
-  var now = new Date().toISOString();
-  var logId = 'ML-' + Utilities.getUuid().slice(0, 12).toUpperCase();
-  var from = String(payload.from || operatorEmail);
-
-  var ss = getOrCreateDatabase_();
-  var trainingRows = getRowsAsObjects_(ss, 'T_研修');
-  var training = null;
-  for (var i = 0; i < trainingRows.length; i++) {
-    if (String(trainingRows[i]['研修ID'] || '') === payload.trainingId) { training = trainingRows[i]; break; }
-  }
-
-  var sent = 0;
-  var failed = 0;
-  var details = [];
-  for (var t = 0; t < targets.length; t++) {
-    var target = targets[t];
-    var mergedBody = body
-      .replace(/\{\{氏名\}\}/g, target.name)
-      .replace(/\{\{事業所名\}\}/g, target.officeName || '')
-      .replace(/\{\{研修名\}\}/g, training ? String(training['研修名'] || '') : '')
-      .replace(/\{\{開催日\}\}/g, training ? String(training['開催日'] || '') : '')
-      .replace(/\{\{会場\}\}/g, training ? String(training['開催場所'] || '') : '');
-    var mergedSubject = subject
-      .replace(/\{\{氏名\}\}/g, target.name)
-      .replace(/\{\{研修名\}\}/g, training ? String(training['研修名'] || '') : '');
-    var sendResult = 'SENT';
-    var errorDetail = '';
-    try {
-      var options = { name: payload.fromName || from };
-      if (from && from !== operatorEmail) options.from = from;
-      var deliveryRes = deliverMail_('TRAINING_REMINDER', target.email, mergedSubject, mergedBody, options);
-      if (deliveryRes && deliveryRes.sent) {
-        sent++;
-      } else {
-        sendResult = 'SUPPRESSED';
-        errorDetail = (deliveryRes && deliveryRes.reason) || 'suppressed';
-        failed++;
-      }
-    } catch (e) {
-      sendResult = 'FAILED';
-      errorDetail = String(e && e.message ? e.message : e);
-      failed++;
-    }
-    details.push({
-      明細ID: 'MLD-' + Utilities.getUuid().slice(0, 12).toUpperCase(),
-      ログID: logId,
-      研修ID: payload.trainingId,
-      受信者区分: target.applicantType,
-      受信者ID: target.applicantId,
-      受信者メール: target.email,
-      送信結果: sendResult,
-      エラー詳細: errorDetail,
-      作成日時: new Date().toISOString(),
-      削除フラグ: false,
-    });
-  }
-
-  // Header (T_メール送信ログ) + Detail (T_メール送信明細) 書込
-  try {
-    var logSs = getLogSs_();
-    appendRowsByHeaders_(logSs, 'T_メール送信ログ', [{
-      'ログID': logId,
-      '送信日時': now,
-      '送信者メール': operatorEmail,
-      '件名テンプレート': subject.slice(0, 200),
-      '宛先数': targets.length,
-      '成功数': sent,
-      'エラー数': failed,
-      '送信種別': 'TRAINING_BULK',
-      '研修ID': payload.trainingId,
-      '削除フラグ': false,
-    }]);
-    if (details.length > 0) {
-      appendRowsByHeaders_(logSs, 'T_メール送信明細', details);
-    }
-  } catch (e) {
-    Logger.log('[sendTrainingMailSegmented] log write failed: ' + e.message);
-  }
-
-  return JSON.stringify({ success: true, data: { logId: logId, sent: sent, failed: failed, total: targets.length } });
-}
-
-/**
- * 研修ごとのメール送信ログ（ヘッダー＋明細）を返す。
- */
-function getTrainingMailSendLogs_(payload) {
-  if (!checkAdminBySession_()) return { error: 'unauthorized' };
-  if (!payload || !payload.trainingId) return { error: 'trainingId required' };
-  var trainingId = String(payload.trainingId).trim();
-  try {
-    var logSs = getLogSs_();
-    var headerRows = getRowsAsObjects_(logSs, 'T_メール送信ログ').filter(function(r) {
-      if (toBoolean_(r['削除フラグ'])) return false;
-      return String(r['研修ID'] || '') === trainingId;
-    });
-    var headerLogIds = {};
-    headerRows.forEach(function(r) { headerLogIds[String(r['ログID'] || '')] = true; });
-    var detailRows = getRowsAsObjects_(logSs, 'T_メール送信明細').filter(function(r) {
-      if (toBoolean_(r['削除フラグ'])) return false;
-      return headerLogIds[String(r['ログID'] || '')] === true;
-    });
-    headerRows.sort(function(a, b) { return String(b['送信日時'] || '').localeCompare(String(a['送信日時'] || '')); });
-    return {
-      headers: headerRows.map(function(r) {
-        return {
-          logId: String(r['ログID'] || ''),
-          sentAt: String(r['送信日時'] || ''),
-          senderEmail: String(r['送信者メール'] || ''),
-          subjectTemplate: String(r['件名テンプレート'] || ''),
-          recipients: Number(r['宛先数'] || 0),
-          succeeded: Number(r['成功数'] || 0),
-          failed: Number(r['エラー数'] || 0),
-          type: String(r['送信種別'] || ''),
-        };
-      }),
-      details: detailRows.map(function(r) {
-        return {
-          detailId: String(r['明細ID'] || ''),
-          logId: String(r['ログID'] || ''),
-          recipientType: String(r['受信者区分'] || ''),
-          recipientId: String(r['受信者ID'] || ''),
-          recipientEmail: String(r['受信者メール'] || ''),
-          result: String(r['送信結果'] || ''),
-          errorDetail: String(r['エラー詳細'] || ''),
-          createdAt: String(r['作成日時'] || ''),
-        };
-      }),
-    };
-  } catch (e) {
-    return { error: 'log SS access failed: ' + e.message };
-  }
 }
 
 function auditTrainingApplicationsAfterV360_(ss) {

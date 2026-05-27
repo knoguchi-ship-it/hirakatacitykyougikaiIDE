@@ -511,8 +511,6 @@ function buildAdminCode(source) {
     'updateRosterEntry',
     'getTrainingStats',
     'getMemberTrainingHistory',
-    'sendTrainingMailSegmented',
-    'getTrainingMailSendLogs',
     // v374.1: 公式LINE投稿依頼
     'listLinePostRequests',
     'getLinePostRequest',

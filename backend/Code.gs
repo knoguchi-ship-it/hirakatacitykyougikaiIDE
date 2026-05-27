@@ -5738,17 +5738,15 @@ var CLAIM_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
  * payload: { memberId? | staffId? | externalId? }
  */
 
-/**
- * セグメント送信（研修申込者をフィルタした上で一括メール送信 + 明細ログ）。
- * payload: { trainingId, subject, body, from, segment: { type, attendance?, applicantTypes?, officeNames? } }
- */
-
-/**
- * 研修ごとのメール送信ログ（ヘッダー＋明細）を返す。
- */
-
 var DRYRUN_EMAIL_DOMAIN = '@example.invalid';  // RFC 2606 reserved
 var DRYRUN_MANIFEST_KEY = 'DRYRUN_APPLICATION_MANIFEST_V1';
+var DRYRUN_TRAINING_MGMT_MANIFEST_KEY = 'DRYRUN_TRAINING_MGMT_MANIFEST_V1';
+
+// テストで作成した training / 申込 / 外部申込者 を物理削除（行削除）。
+// v376.14.2: manifest だけでなく DRYRUN_ プレフィックスの研修・外部申込者を sweep し、
+//   過去 run の孤児データ（manifest 上書きで参照が外れた分）も含めて確実に削除する。
+
+// 指定キーに一致する行を物理削除（行番号降順で deleteRow して index ずれを回避）。
 
 
 

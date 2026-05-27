@@ -13,6 +13,20 @@
 
 ---
 
+## v376.17 — 2026-05-27 🔧 メール送信の整理（差し込み一本化 + 未使用 segment 削除）
+
+メール送信機能の棚卸し。送信の最下層は従来どおり `deliverMail_` → `sendEmailWithValidatedFrom_` → `MailApp/GmailApp` に完全集約されており（全送信箇所が `deliverMail_` 経由）、ここは変更していない。1 段上の重複のみ整理した。
+
+| 種別 | 内容 |
+|---|---|
+| 🔧 | 差し込みタグ置換（`{{氏名}}` `{{事業所名}}` `{{会員番号}}` 等）を、`sendTrainingMail_` / `sendBulkMemberMail_` のインライン `.replace(/\{\{…\}\}/g, …)` チェーンから、汎用の `renderBizEmailTemplate_(template, vars)` に一本化。タグ追加時の漏れ・不整合を防止。`null/undefined` は空文字に正規化（従来の `"undefined"` 混入も解消） |
+| 🔧 | frontend から一切呼ばれていなかった研修メール segment 送信を削除し、研修メール送信を現役の `sendTrainingMail_` に一本化。削除対象: backend `sendTrainingMailSegmented_` / `getTrainingMailSendLogs_` と action handler、`api.ts` の同名メソッド、`types.ts` の `TrainingMailSegment` / `TrainingMailSegmentedPayload` / `TrainingMailLogHeader` / `TrainingMailLogDetail`、`build-admin-gas.mjs` / `audit-admin-boundary.mjs` の許可リスト |
+| 📝 | 「まとめない」判断: 宛先構築ロジック（研修=3-FK XOR 申込者解決 / 一括=年度別メーリングリスト）と添付方式（applyId 別 Drive / 姓名部分一致の自動添付）は本質的に異なるため、各送信関数で個別維持（無理な共通化はしない） |
+
+機能変更は admin のみ。デプロイ: admin `@177`（member/public はコメント/bundle 再生成差分のみで未 redeploy、次回機能リリース時に同期）。
+
+---
+
 ## v376.16 — 2026-05-27 🐛 研修管理 新規入力を画面表示中は保持
 
 | 種別 | 内容 |
