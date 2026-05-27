@@ -13,7 +13,30 @@
 
 ---
 
-## v376.14 — 2026-05-27 ✅ 研修管理 全機能ドライランテスト
+## v376.14.2 — 2026-05-27 ✅ ドライランテスト 実施完了 + cleanup 強化
+
+| 種別 | 内容 |
+|---|---|
+| 🎉 | 研修管理 全機能ドライランテストを本番 DB で実施 → **15/15 PASS**（v376.12 の STAFF メール個人解決の回帰確認を含む）。テストデータは全 run 分を物理削除済（残骸ゼロ） |
+| 🔧 | `cleanupDryRunTrainingManagement` を「manifest 参照のみ」から「manifest + DRYRUN_ プレフィックス全研修 sweep」に強化。cleanup 前に再実行して manifest が上書きされても孤児データを確実に回収・物理削除（冪等） |
+
+デプロイ: admin `@174`。
+
+---
+
+## v376.14.1 — 2026-05-27 🐛 ドライランテスト関数の自己バグ修正
+
+| 種別 | 内容 |
+|---|---|
+| 🐛 | 初回 run で 3 件 FAIL（いずれもテスト構築側の不備、本番コードは正常）。STAFF 申込挿入を `申込者区分コード='STAFF'`（`isTrainingApplicationRowValid_` が弾く）から本番同型（`区分コード='MEMBER'` + `申込者ID=親会員ID` + `職員ID` 併記、canonical ref が職員ID優先で STAFF 解決）に修正 |
+| 🐛 | `saveAttendanceBatch_` の payload を生配列から `{ entries: [...] }` 形式に修正 |
+| 📝 | この FAIL は `isTrainingApplicationRowValid_`（integrity 検証）が不正な区分コードを正しく除外している証拠でもあった |
+
+デプロイ: admin `@173`。
+
+---
+
+## v376.14 — 2026-05-27 ✅ 研修管理 全機能ドライランテスト基盤
 
 | 種別 | 内容 |
 |---|---|
