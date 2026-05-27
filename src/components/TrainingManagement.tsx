@@ -856,46 +856,17 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
           </ul>
         </div>
 
-        {/* v376.11: 既存研修選択時はモーダルで大画面表示。新規登録のみ inline で右パネルに表示 */}
+        {/* v376.15: 右ペインは「新規登録専用エリア」として固定。既存研修の編集・名簿・メールは
+            すべてモーダルで扱うため、右ペインはモーダル非表示時（=isNew）に新規登録フォームのみ表示する。 */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm">
-          {!isNew && !detailModalOpen ? (
-            // 既存研修選択待ち（プレースホルダ）
-            <div className="flex items-center justify-center min-h-[400px] p-8 text-center">
-              <div className="text-slate-400">
-                <svg className="w-12 h-12 mx-auto mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                </svg>
-                <p className="text-sm">左の一覧から研修を選択するか<br/>「+ 新規登録」を押してください。</p>
-              </div>
-            </div>
-          ) : isNew ? (
-            // 新規登録：inline で従来通り表示
+          {isNew && (
             <>
               <div className="p-4 border-b border-slate-100">
                 <h3 className="text-lg font-bold text-slate-800">新規研修登録</h3>
               </div>
-              {panelView === 'roster' && !isNew ? (
-            <div className="p-4">
-              <TrainingRoster
-                trainingId={form.id}
-                trainingTitle={form.title}
-                trainingDate={form.date}
-                onBack={() => setPanelView('form')}
-              />
-            </div>
-          ) : panelView === 'mail' && !isNew ? (
-            <div className="p-4">
-              <TrainingMailSender
-                trainingId={form.id}
-                trainingTitle={form.title}
-                onBack={() => setPanelView('form')}
-              />
-            </div>
-          ) : (
-            renderEditForm()
-          )}
+              {renderEditForm()}
             </>
-          ) : null}
+          )}
         </div>
       </div>
 
@@ -903,7 +874,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
       <TrainingDetailModal
         open={detailModalOpen && !isNew}
         title={form.title || '(未入力)'}
-        onClose={() => setDetailModalOpen(false)}
+        onClose={startNew}
         headerActions={tabsJsx}
       >
         {detailModalOpen && !isNew && (
