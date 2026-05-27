@@ -1431,7 +1431,6 @@ var PUBLIC_ALLOWED_ACTIONS = {
   getPublicTrainings: true,
   getPublicPortalSettings: true,
   getFileThumbnail: true,   // v272: Drive ファイルサムネイルを base64 で返す
-  getFileBytes: true,       // v357: PDF lightbox 用 bytes proxy (10MB 上限)
   applyTrainingExternal: true,
   cancelTrainingExternal: true,
   submitMemberApplication: true,
@@ -1454,7 +1453,6 @@ var PUBLIC_ALLOWED_ACTIONS = {
 
 var MEMBER_ALLOWED_ACTIONS = {
   memberLogin: true,
-  memberLoginWithData: true,
   requestPasswordReset: true,
   completePasswordReset: true,
   getMemberPortalData: true,
@@ -1478,16 +1476,12 @@ var MEMBER_ALLOWED_ACTIONS = {
   // v344: 案内PDFサムネイルを Drive proxy 経由で取得（drive.google.com/uc?... の hotlink 制限回避）。
   // ファイルは ANYONE_WITH_LINK 共有で既に公開済みのため、追加リーク無し。
   getFileThumbnail: true,
-  // v357: PDF lightbox プレビュー用に PDF bytes を base64 で返す。10MB 上限。
-  // ANYONE_WITH_LINK 共有済みファイルなので追加リーク無し。
-  getFileBytes: true,
 };
 
 // 管理者ログイン専用アクション: Session.getActiveUser() による自己完結型認証のため、
 // 事前の admin session 検証を必要としない。関数内で認証を完結させる。
 var ADMIN_LOGIN_ACTIONS = {
   checkAdminBySession: true,
-  adminLoginWithData: true,
 };
 
 var ADMIN_ACTION_PERMISSIONS = {
@@ -1501,8 +1495,6 @@ var ADMIN_ACTION_PERMISSIONS = {
   'getAdminDashboardData': ['MASTER','ADMIN'],
   'getAdminInitData': ['MASTER','ADMIN'],
   'updateMember': ['MASTER','ADMIN'],
-  'updateMembersBatch': ['MASTER','ADMIN'],
-  'createMember': ['MASTER','ADMIN'],
   'withdrawMember': ['MASTER','ADMIN'],
   'scheduleWithdrawMember': ['MASTER','ADMIN'],
   'cancelScheduledWithdraw': ['MASTER','ADMIN'],
@@ -1588,8 +1580,6 @@ var ADMIN_ACTION_PERMISSIONS = {
   'saveSharedMemo': ['MASTER','ADMIN'],
   // v344: 案内PDFサムネイルを管理者画面でも Drive proxy 経由で取得（hotlink 制限回避）。
   'getFileThumbnail': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR','GENERAL'],
-  // v357: PDF lightbox プレビュー用 bytes proxy
-  'getFileBytes': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR','GENERAL'],
   // v373.7 (S5 Phase 2): 旧 v316 テンプレートライブラリ ACTION 群撤去
   // v372: 名簿出力 Visual Template Designer
   'getRosterFieldDictionary': ['MASTER','ADMIN'],
@@ -1614,9 +1604,6 @@ var ADMIN_ACTION_PERMISSIONS = {
   'cancelRosterEntry': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
   'updateRosterEntry': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
   'getTrainingStats': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
-  'getMemberTrainingHistory': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
-  'sendTrainingMailSegmented': ['MASTER','ADMIN','TRAINING_MANAGER'],
-  'getTrainingMailSendLogs': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
 };
 
 function getActionRegistryForCurrentApp_() {
@@ -1671,7 +1658,7 @@ function processApiRequest(action, payload) {
     }
     // 会員セッショントークン検証: ログイン以外の MEMBER_ALLOWED_ACTIONS は
     // サーバー側セッションキャッシュからのみ principal を解決し、クライアント申告を信頼しない
-    var LOGIN_ONLY_MEMBER_ACTIONS = { memberLogin: true, memberLoginWithData: true, requestPasswordReset: true, completePasswordReset: true };
+    var LOGIN_ONLY_MEMBER_ACTIONS = { memberLogin: true, requestPasswordReset: true, completePasswordReset: true };
     if (isMemberAction && !LOGIN_ONLY_MEMBER_ACTIONS[action]) {
       var memberToken = String(parsedPayload.sessionToken || '').trim();
       if (!memberToken) {
@@ -1763,17 +1750,6 @@ function processApiRequest(action, payload) {
       });
     }
 
-    if (action === 'updateMembersBatch') {
-      return JSON.stringify({
-        success: true,
-        data: updateMembersBatch_(parsedPayload),
-      });
-    }
-
-    if (action === 'createMember') {
-      return JSON.stringify({ success: true, data: createMember_(parsedPayload) });
-    }
-
     if (action === 'withdrawMember') {
       return JSON.stringify({ success: true, data: withdrawMember_(parsedPayload) });
     }
@@ -1834,22 +1810,8 @@ function processApiRequest(action, payload) {
       return JSON.stringify({ success: true, data: memberLogin_(parsedPayload) });
     }
 
-    // v150: ログイン+ポータルデータ統合API（round-trip削減）
-    if (action === 'memberLoginWithData') {
-      var loginResult = memberLogin_(parsedPayload);
-      var portalData = getMemberPortalData_({ loginId: loginResult.loginId });
-      return JSON.stringify({ success: true, data: { auth: loginResult, portal: portalData } });
-    }
-
     if (action === 'checkAdminBySession') {
       return JSON.stringify({ success: true, data: checkAdminBySession_() });
-    }
-
-    // v150: 管理者ログイン+ポータルデータ統合API（round-trip削減）
-    if (action === 'adminLoginWithData') {
-      var adminResult = checkAdminBySession_();
-      var adminPortalData = getMemberPortalData_({ memberId: adminResult.memberId });
-      return JSON.stringify({ success: true, data: { auth: adminResult, portal: adminPortalData } });
     }
 
     if (action === 'getSystemSettings') {
@@ -1998,10 +1960,6 @@ function processApiRequest(action, payload) {
       return JSON.stringify({ success: true, data: getFileThumbnail_(parsedPayload) });
     }
 
-    if (action === 'getFileBytes') {
-      return JSON.stringify({ success: true, data: getFileBytes_(parsedPayload) });
-    }
-
     if (action === 'getPublicPortalSettings') {
       return getPublicPortalSettings_();
     }
@@ -2116,9 +2074,6 @@ function processApiRequest(action, payload) {
     }
     if (action === 'getTrainingStats') {
       return JSON.stringify({ success: true, data: getTrainingStats_(parsedPayload) });
-    }
-    if (action === 'getMemberTrainingHistory') {
-      return JSON.stringify({ success: true, data: getMemberTrainingHistory_(parsedPayload) });
     }
 
     // v188: Gemini AI案内メール生成（APIキーはScriptPropertiesで管理、フロントに露出しない）

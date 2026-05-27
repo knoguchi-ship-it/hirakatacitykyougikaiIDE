@@ -50,7 +50,6 @@ function buildPublicCode(source) {
     'getPublicTrainings',
     'getPublicPortalSettings',
     'getFileThumbnail',
-    'getFileBytes',
     'applyTrainingExternal',
     'cancelTrainingExternal',
     'submitMemberApplication',

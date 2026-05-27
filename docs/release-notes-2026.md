@@ -13,6 +13,27 @@
 
 ---
 
+## v376.22 — 2026-05-27 🔧 二重管理の解消⑤: 未使用 backend endpoint の削除（B-1 backend）
+
+v376.19 で frontend から削除した未使用 6 API の **backend 側 endpoint と全許可リストを削除**。3 境界（admin/member/public）の dispatch・権限/許可マップ・build/audit スクリプトから一掃。
+
+| 削除 action | 削除箇所 |
+|---|---|
+| `createMember` / `updateMembersBatch` / `getMemberTrainingHistory` | dispatch + `ADMIN_ACTION_PERMISSIONS` + build-admin/audit-admin 許可リスト |
+| `getFileBytes` | dispatch + `PUBLIC_ALLOWED_ACTIONS` + `MEMBER_ALLOWED_ACTIONS` + `ADMIN_ACTION_PERMISSIONS` + build/audit ×3（admin/member/public 全境界） |
+| `adminLoginWithData` | dispatch + `ADMIN_LOGIN_ACTIONS` + build-admin/audit-admin |
+| `memberLoginWithData` | dispatch + `MEMBER_ALLOWED_ACTIONS` + `LOGIN_ONLY_MEMBER_ACTIONS` + build-member/audit-member |
+
+| 種別 | 内容 |
+|---|---|
+| 🔧 | 上記に加え、v376.17 で消し忘れていた `sendTrainingMailSegmented` / `getTrainingMailSendLogs` の `ADMIN_ACTION_PERMISSIONS` dead エントリも除去（audit は perm マップを検証しないため見逃されていた） |
+| 📝 | 関数本体 `createMember_` / `updateMembersBatch_` / `getFileBytes_` / `getMemberTrainingHistory_` は build pruner が全 3 生成物から自動除去（検証: 生成 Code.gs 内 0 件）。source には残置（切り離された機能実装であり再利用余地あり・二重管理ではない）。完全な source 撤去は軽微なフォローアップ |
+| ✅ | 3 split ビルド + prerelease 全通過。3 境界の audit が dispatch==許可リスト整合を検証 |
+
+**挙動変更**: 上記 endpoint は呼ぶと unauthorized/未定義になる（いずれも呼び出し元ゼロを検証済のため実害なし）。**デプロイは全 3 split 必要**（A-2/A-1 の挙動不変分も同梱）。本コミット時点では未デプロイ。
+
+---
+
 ## v376.21 — 2026-05-27 🛡 二重管理の解消④: 申込者解決のガードレール（敢えて統合しない判断）
 
 監査で「申込者解決ロジックの重複」とされた箇所を精読した結果、**真の重複ではなく異なる 2 モデルの併存**と判明したため、機械的統合は行わず誤用防止のガードレールを追加した（方針: 無理にまとめない）。

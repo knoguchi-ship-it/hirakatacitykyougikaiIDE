@@ -390,7 +390,6 @@ function buildAdminCode(source) {
   code = replaceObjectLiteral(code, 'MEMBER_ALLOWED_ACTIONS', '{}');
   code = removeDisallowedActionHandlers(code, [
     'checkAdminBySession',
-    'adminLoginWithData',
     'getDbInfo',
     'getSystemSettings',
     'updateSystemSettings',
@@ -400,8 +399,6 @@ function buildAdminCode(source) {
     'getAdminDashboardData',
     'getAdminInitData',
     'updateMember',
-    'updateMembersBatch',
-    'createMember',
     'withdrawMember',
     'scheduleWithdrawMember',
     'cancelScheduledWithdraw',
@@ -503,8 +500,6 @@ function buildAdminCode(source) {
     'getFileThumbnail',
     // v350: 失敗時の手動サムネイル再生成
     'regenerateThumbnailForTraining',
-    // v357: PDF lightbox 用 bytes proxy
-    'getFileBytes',
     // v360: 研修名簿・出欠・受講履歴・一括メール明細
     'getTrainingRosterDetail',
     'saveAttendance',
@@ -514,7 +509,6 @@ function buildAdminCode(source) {
     'cancelRosterEntry',
     'updateRosterEntry',
     'getTrainingStats',
-    'getMemberTrainingHistory',
     // v374.1: 公式LINE投稿依頼
     'listLinePostRequests',
     'getLinePostRequest',

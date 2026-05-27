@@ -810,7 +810,6 @@ var PUBLIC_ALLOWED_ACTIONS = {};
 
 var MEMBER_ALLOWED_ACTIONS = {
   memberLogin: true,
-  memberLoginWithData: true,
   requestPasswordReset: true,
   completePasswordReset: true,
   getMemberPortalData: true,
@@ -834,9 +833,6 @@ var MEMBER_ALLOWED_ACTIONS = {
   // v344: 案内PDFサムネイルを Drive proxy 経由で取得（drive.google.com/uc?... の hotlink 制限回避）。
   // ファイルは ANYONE_WITH_LINK 共有で既に公開済みのため、追加リーク無し。
   getFileThumbnail: true,
-  // v357: PDF lightbox プレビュー用に PDF bytes を base64 で返す。10MB 上限。
-  // ANYONE_WITH_LINK 共有済みファイルなので追加リーク無し。
-  getFileBytes: true,
 };
 
 // 管理者ログイン専用アクション: Session.getActiveUser() による自己完結型認証のため、
@@ -886,7 +882,7 @@ function processApiRequest(action, payload) {
     }
         // 会員セッショントークン検証: ログイン以外の MEMBER_ALLOWED_ACTIONS は
     // サーバー側セッションキャッシュからのみ principal を解決し、クライアント申告を信頼しない
-    var LOGIN_ONLY_MEMBER_ACTIONS = { memberLogin: true, memberLoginWithData: true, requestPasswordReset: true, completePasswordReset: true };
+    var LOGIN_ONLY_MEMBER_ACTIONS = { memberLogin: true, requestPasswordReset: true, completePasswordReset: true };
     if (isMemberAction && !LOGIN_ONLY_MEMBER_ACTIONS[action]) {
       var memberToken = String(parsedPayload.sessionToken || '').trim();
       if (!memberToken) {
@@ -952,8 +948,6 @@ function processApiRequest(action, payload) {
 
 
 
-
-
     if (action === 'updateMemberSelf') {
       return JSON.stringify({ success: true, data: updateMemberSelfByPrincipal_(parsedPayload) });
     }
@@ -974,15 +968,6 @@ function processApiRequest(action, payload) {
       return JSON.stringify({ success: true, data: memberLogin_(parsedPayload) });
     }
 
-    // v150: ログイン+ポータルデータ統合API（round-trip削減）
-    if (action === 'memberLoginWithData') {
-      var loginResult = memberLogin_(parsedPayload);
-      var portalData = getMemberPortalData_({ loginId: loginResult.loginId });
-      return JSON.stringify({ success: true, data: { auth: loginResult, portal: portalData } });
-    }
-
-
-    // v150: 管理者ログイン+ポータルデータ統合API（round-trip削減）
 
 
 
@@ -1018,10 +1003,6 @@ function processApiRequest(action, payload) {
 
     if (action === 'getFileThumbnail') {
       return JSON.stringify({ success: true, data: getFileThumbnail_(parsedPayload) });
-    }
-
-    if (action === 'getFileBytes') {
-      return JSON.stringify({ success: true, data: getFileBytes_(parsedPayload) });
     }
 
 
@@ -5243,58 +5224,6 @@ function isTrainingGuideDriveFileAllowed_(fileId) {
  * 10MB 超のファイルは error code で返して client に「別タブで開く」案内へ
  * 切り替えてもらう。
  */
-function getFileBytes_(payload) {
-  var fileUrl = String((payload && payload.fileUrl) || '').trim();
-  if (!fileUrl) return { base64: null, error: 'empty_url' };
-  var fileId = extractDriveFileId_(fileUrl);
-  if (!fileId) {
-    Logger.log('getFileBytes_: cannot extract fileId from url=' + fileUrl);
-    return { base64: null, error: 'unparseable_url' };
-  }
-  if (!isTrainingGuideDriveFileAllowed_(fileId)) {
-    Logger.log('getFileBytes_: denied non-training fileId=' + fileId);
-    return { base64: null, error: 'access_denied' };
-  }
-
-  var authHeaders = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
-  try {
-    var metaResp = UrlFetchApp.fetch(
-      'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(fileId) +
-      '?fields=size,mimeType,name&supportsAllDrives=true',
-      { muteHttpExceptions: true, headers: authHeaders }
-    );
-    if (metaResp.getResponseCode() !== 200) {
-      Logger.log('getFileBytes_ meta non-200 code=' + metaResp.getResponseCode() + ' fileId=' + fileId);
-      return { base64: null, error: 'meta_failed' };
-    }
-    var meta = JSON.parse(metaResp.getContentText());
-    var sizeBytes = Number(meta.size || 0);
-    if (sizeBytes > 10 * 1024 * 1024) {
-      Logger.log('getFileBytes_ too large: ' + sizeBytes + ' fileId=' + fileId);
-      return { base64: null, error: 'file_too_large', size: sizeBytes };
-    }
-
-    var bytesResp = UrlFetchApp.fetch(
-      'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(fileId) +
-      '?alt=media&supportsAllDrives=true',
-      { muteHttpExceptions: true, headers: authHeaders, followRedirects: true }
-    );
-    if (bytesResp.getResponseCode() !== 200) {
-      Logger.log('getFileBytes_ media non-200 code=' + bytesResp.getResponseCode() + ' fileId=' + fileId);
-      return { base64: null, error: 'media_failed' };
-    }
-    var blob = bytesResp.getBlob();
-    return {
-      base64: Utilities.base64Encode(blob.getBytes()),
-      mimeType: blob.getContentType() || meta.mimeType || 'application/pdf',
-      name: meta.name || '',
-      size: sizeBytes,
-    };
-  } catch (e) {
-    Logger.log('getFileBytes_ error: ' + e.message + ' fileId=' + fileId);
-    return { base64: null, error: 'exception' };
-  }
-}
 
 function makePdfSvgPlaceholder_(name) {
   var safe = String(name || 'PDF')

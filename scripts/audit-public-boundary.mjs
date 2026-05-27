@@ -15,7 +15,6 @@ const allowedPublicActions = [
   'submitMemberApplication',
   'getPublicTrainings',
   'getFileThumbnail',
-  'getFileBytes',
   'getPublicPortalSettings',
   'applyTrainingExternal',
   'cancelTrainingExternal',

@@ -15,7 +15,7 @@ const htmlPath = join(root, 'gas', 'admin', 'index.html');
 // v376.18: 許可 top-level リストは gas-boundary-utils.mjs の ADMIN_TOP_LEVEL_FUNCTIONS に
 // 単一情報源化（build-admin-gas.mjs の seed / assertAllowed と共有）。
 const allowedTopLevelFunctions = ADMIN_TOP_LEVEL_FUNCTIONS;
-const allowedAdminLoginActions = ['checkAdminBySession', 'adminLoginWithData'];
+const allowedAdminLoginActions = ['checkAdminBySession'];
 const allowedAdminActions = [
   'getDbInfo',
   'getSystemSettings',
@@ -26,8 +26,6 @@ const allowedAdminActions = [
   'getAdminDashboardData',
   'getAdminInitData',
   'updateMember',
-  'updateMembersBatch',
-  'createMember',
   'withdrawMember',
   'scheduleWithdrawMember',
   'cancelScheduledWithdraw',
@@ -127,8 +125,6 @@ const allowedAdminActions = [
   'getFileThumbnail',
   // v350: 失敗時の手動サムネイル再生成
   'regenerateThumbnailForTraining',
-  // v357: PDF lightbox 用 bytes proxy
-  'getFileBytes',
   // v360: 研修名簿・出欠・受講履歴・一括メール明細
   'getTrainingRosterDetail',
   'saveAttendance',
@@ -138,7 +134,6 @@ const allowedAdminActions = [
   'cancelRosterEntry',
   'updateRosterEntry',
   'getTrainingStats',
-  'getMemberTrainingHistory',
 ];
 // v376.18: ADMIN_FORBIDDEN_TOP_LEVEL_FUNCTIONS（build-admin-gas.mjs と共有）に単一情報源化。
 const forbiddenTopLevelFunctions = ADMIN_FORBIDDEN_TOP_LEVEL_FUNCTIONS;

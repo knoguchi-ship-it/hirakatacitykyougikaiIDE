@@ -397,7 +397,6 @@ function buildMemberCode(source) {
   code = replaceObjectLiteral(code, 'ADMIN_ACTION_PERMISSIONS', '{}');
   code = removeDisallowedActionHandlers(code, [
     'memberLogin',
-    'memberLoginWithData',
     'requestPasswordReset',
     'completePasswordReset',
     'getMemberPortalData',
@@ -420,8 +419,6 @@ function buildMemberCode(source) {
     'getOfficerMasterData',
     // v344: 案内PDFサムネイル Drive proxy
     'getFileThumbnail',
-    // v357: PDF lightbox 用 bytes proxy
-    'getFileBytes',
   ]);
   code = removeIfBlock(code, 'requiredPerms');
   code = pruneUnreachableFunctionDeclarations(code, ['doGet', 'processApiRequest'], 'build-member-gas');

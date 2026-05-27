@@ -814,7 +814,6 @@ var MEMBER_ALLOWED_ACTIONS = {};
 // 事前の admin session 検証を必要としない。関数内で認証を完結させる。
 var ADMIN_LOGIN_ACTIONS = {
   checkAdminBySession: true,
-  adminLoginWithData: true,
 };
 
 var ADMIN_ACTION_PERMISSIONS = {
@@ -828,8 +827,6 @@ var ADMIN_ACTION_PERMISSIONS = {
   'getAdminDashboardData': ['MASTER','ADMIN'],
   'getAdminInitData': ['MASTER','ADMIN'],
   'updateMember': ['MASTER','ADMIN'],
-  'updateMembersBatch': ['MASTER','ADMIN'],
-  'createMember': ['MASTER','ADMIN'],
   'withdrawMember': ['MASTER','ADMIN'],
   'scheduleWithdrawMember': ['MASTER','ADMIN'],
   'cancelScheduledWithdraw': ['MASTER','ADMIN'],
@@ -915,8 +912,6 @@ var ADMIN_ACTION_PERMISSIONS = {
   'saveSharedMemo': ['MASTER','ADMIN'],
   // v344: 案内PDFサムネイルを管理者画面でも Drive proxy 経由で取得（hotlink 制限回避）。
   'getFileThumbnail': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR','GENERAL'],
-  // v357: PDF lightbox プレビュー用 bytes proxy
-  'getFileBytes': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR','GENERAL'],
   // v373.7 (S5 Phase 2): 旧 v316 テンプレートライブラリ ACTION 群撤去
   // v372: 名簿出力 Visual Template Designer
   'getRosterFieldDictionary': ['MASTER','ADMIN'],
@@ -941,9 +936,6 @@ var ADMIN_ACTION_PERMISSIONS = {
   'cancelRosterEntry': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
   'updateRosterEntry': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
   'getTrainingStats': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
-  'getMemberTrainingHistory': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
-  'sendTrainingMailSegmented': ['MASTER','ADMIN','TRAINING_MANAGER'],
-  'getTrainingMailSendLogs': ['MASTER','ADMIN','TRAINING_MANAGER','TRAINING_REGISTRAR'],
 };
 
 function getActionRegistryForCurrentApp_() {
@@ -998,7 +990,7 @@ function processApiRequest(action, payload) {
     }
     // 会員セッショントークン検証: ログイン以外の MEMBER_ALLOWED_ACTIONS は
     // サーバー側セッションキャッシュからのみ principal を解決し、クライアント申告を信頼しない
-    var LOGIN_ONLY_MEMBER_ACTIONS = { memberLogin: true, memberLoginWithData: true, requestPasswordReset: true, completePasswordReset: true };
+    var LOGIN_ONLY_MEMBER_ACTIONS = { memberLogin: true, requestPasswordReset: true, completePasswordReset: true };
         // ─────────────────────────────────────────────────────────
 
     if (action === 'fetchAllData') {
@@ -1047,17 +1039,6 @@ function processApiRequest(action, payload) {
       });
     }
 
-    if (action === 'updateMembersBatch') {
-      return JSON.stringify({
-        success: true,
-        data: updateMembersBatch_(parsedPayload),
-      });
-    }
-
-    if (action === 'createMember') {
-      return JSON.stringify({ success: true, data: createMember_(parsedPayload) });
-    }
-
     if (action === 'withdrawMember') {
       return JSON.stringify({ success: true, data: withdrawMember_(parsedPayload) });
     }
@@ -1100,17 +1081,8 @@ function processApiRequest(action, payload) {
 
 
 
-    // v150: ログイン+ポータルデータ統合API（round-trip削減）
-
     if (action === 'checkAdminBySession') {
       return JSON.stringify({ success: true, data: checkAdminBySession_() });
-    }
-
-    // v150: 管理者ログイン+ポータルデータ統合API（round-trip削減）
-    if (action === 'adminLoginWithData') {
-      var adminResult = checkAdminBySession_();
-      var adminPortalData = getMemberPortalData_({ memberId: adminResult.memberId });
-      return JSON.stringify({ success: true, data: { auth: adminResult, portal: adminPortalData } });
     }
 
     if (action === 'getSystemSettings') {
@@ -1247,10 +1219,6 @@ function processApiRequest(action, payload) {
       return JSON.stringify({ success: true, data: getFileThumbnail_(parsedPayload) });
     }
 
-    if (action === 'getFileBytes') {
-      return JSON.stringify({ success: true, data: getFileBytes_(parsedPayload) });
-    }
-
 
 
 
@@ -1320,9 +1288,6 @@ function processApiRequest(action, payload) {
     }
     if (action === 'getTrainingStats') {
       return JSON.stringify({ success: true, data: getTrainingStats_(parsedPayload) });
-    }
-    if (action === 'getMemberTrainingHistory') {
-      return JSON.stringify({ success: true, data: getMemberTrainingHistory_(parsedPayload) });
     }
 
     // v188: Gemini AI案内メール生成（APIキーはScriptPropertiesで管理、フロントに露出しない）
@@ -2013,82 +1978,6 @@ function fetchAllDataFromDbFresh_() {
 // v235: loginId をセッションアンカーとして受け取り、T_認証アカウントから現在の memberId/staffId を解決する。
 // ロール変換後にフロントエンドのセッションが古い memberId を持っていても自動補正される。
 // 後方互換: loginId のみ指定時は T_認証アカウントから解決。memberId のみ指定（旧形式）も引き続き動作。
-function getMemberPortalData_(payload) {
-  var ss = getOrCreateDatabase_();
-  var memberId = '';
-  var staffId = '';
-  var resolvedByLoginId = false;
-
-  var loginId = String(payload && payload.loginId || '').trim();
-  if (loginId) {
-    // loginId から現在の有効な認証アカウントを解決する（セッションアンカー方式）
-    var authRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) {
-      return !toBoolean_(r['削除フラグ'])
-        && toBoolean_(r['アカウント有効フラグ'])
-        && String(r['ログインID'] || '').trim() === loginId
-        && String(r['認証方式'] || '') === 'PASSWORD';
-    });
-    if (!authRows.length) {
-      throw new Error('認証アカウントが見つかりません（loginId: ' + loginId + '）。再ログインしてください。');
-    }
-    memberId = String(authRows[0]['会員ID'] || '').trim();
-    staffId = String(authRows[0]['職員ID'] || '').trim();
-    resolvedByLoginId = true;
-  } else {
-    // 後方互換: memberId 直接指定（管理者が代理参照する場合など）
-    memberId = String(payload && payload.memberId || '').trim();
-  }
-
-  if (!memberId) {
-    throw new Error('loginId または memberId が未指定です。');
-  }
-
-  var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(r) {
-    return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
-  });
-  if (!memberRows.length) {
-    throw new Error('対象会員が見つかりません（memberId: ' + memberId + '）。');
-  }
-  var staffRows = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) {
-    return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
-  });
-  var memberAuthRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) {
-    return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
-  });
-  var applicationRows = getTrainingApplicationRows_(ss, { appliedOnly: true, memberId: memberId });
-  // B-01: 申し込み済み研修IDセットを事前構築し、全件スキャンを回避する
-  var appliedIdSet = {};
-  for (var ai = 0; ai < applicationRows.length; ai++) {
-    appliedIdSet[String(applicationRows[ai]['研修ID'] || '')] = true;
-  }
-  var nowTs = Date.now();
-  var trainingRows = getRowsAsObjects_(ss, 'T_研修').filter(function(r) {
-    if (toBoolean_(r['削除フラグ'])) return false;
-    // 申し込み済みは必ず含める（履歴表示のため）
-    if (appliedIdSet[String(r['研修ID'] || '')]) return true;
-    var availability = computeTrainingAvailability_(r, { now: new Date(nowTs) });
-    if (availability.lifecycleStatus !== 'PUBLISHED') return false;
-    if (availability.isApplicationOpen || availability.applicationStatus === 'NOT_STARTED') return true;
-    return false;
-  });
-  var feeRows = getRowsAsObjects_(ss, 'T_年会費納入履歴').filter(function(r) {
-    return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
-  });
-  var memberTypeFeeMap = getAnnualFeeAmountMap_(ss);
-
-  var result = {
-    members: mapMembersForApi_(ss, memberRows, staffRows, memberAuthRows, applicationRows, feeRows, memberTypeFeeMap),
-    trainings: mapTrainingRowsForApi_(trainingRows),
-  };
-
-  // loginId 解決時は現在の memberId/staffId をレスポンスに含め、フロントエンドがセッションを自動補正できるようにする
-  if (resolvedByLoginId) {
-    result.resolvedMemberId = memberId;
-    result.resolvedStaffId = staffId;
-  }
-
-  return result;
-}
 
 function mapMembersForApi_(ss, memberRows, staffRows, authRows, applicationRows, feeRows, memberTypeFeeMap, options) {
   var includeAdminStatusNote = options && options.includeAdminStatusNote === true;
@@ -4738,117 +4627,6 @@ function clearUnusedIndividualApplicationAddressDefaults_(payload, memberTypeCod
 }
 
 // ── 入会処理 ──────────────────────────────────────────
-function createMember_(payload) {
-  if (!payload) throw new Error('ペイロードが空です。');
-  var memberTypeCode = String(payload.type || 'INDIVIDUAL');
-  if (['INDIVIDUAL', 'BUSINESS', 'SUPPORT'].indexOf(memberTypeCode) === -1) {
-    throw new Error('会員種別が不正です: ' + memberTypeCode);
-  }
-  payload = clearUnusedIndividualApplicationAddressDefaults_(payload, memberTypeCode);
-  validateMemberPayload_(payload, memberTypeCode);
-
-  var ss = getOrCreateDatabase_();
-  var sheet = ss.getSheetByName('T_会員');
-  if (!sheet) throw new Error('T_会員 シートが見つかりません。');
-
-  // 8桁会員ID生成（UUID先頭8桁の数値化）
-  var memberId = payload.id || generateMemberId_();
-  // 重複チェック
-  if (findRowByColumnValue_(sheet, '会員ID', memberId)) {
-    throw new Error('会員ID ' + memberId + ' は既に使用されています。');
-  }
-
-  var now = new Date().toISOString();
-  var joinedDate = normalizeDateInput_(payload.joinedDate) || Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
-  var columns = テーブル定義.T_会員;
-  var newRow = columns.map(function(col) {
-    switch (col) {
-      case '会員ID': return memberId;
-      case '会員種別コード': return memberTypeCode;
-      case '会員状態コード': return 'ACTIVE';
-      case '入会日': return joinedDate;
-      case '退会日': return '';
-      case '姓': return String(payload.lastName || '');
-      case '名': return String(payload.firstName || '');
-      // v376: kana 列を全角カタカナへ正規化
-      case 'セイ': return normalizeAndValidateKana_(payload.lastKana || '', '個人会員のセイ');
-      case 'メイ': return normalizeAndValidateKana_(payload.firstKana || '', '個人会員のメイ');
-      case '代表メールアドレス': return String(payload.email || '');
-      case '携帯電話番号': return String(payload.mobilePhone || '');
-      case '勤務先名': return String(payload.officeName || '');
-      case '勤務先郵便番号': return String(payload.officePostCode || '');
-      case '勤務先都道府県': return String(payload.officePrefecture || '');
-      case '勤務先市区町村': return String(payload.officeCity || '');
-      case '勤務先住所': return String(payload.officeAddressLine || '');
-      case '勤務先住所2': return String(payload.officeAddressLine2 || '');
-      case '勤務先電話番号': return String(payload.phone || '');
-      case '勤務先FAX番号': return String(payload.fax || '');
-      case '自宅郵便番号': return String(payload.homePostCode || '');
-      case '自宅都道府県': return String(payload.homePrefecture || '');
-      case '自宅市区町村': return String(payload.homeCity || '');
-      case '自宅住所': return String(payload.homeAddressLine || '');
-      case '自宅住所2': return String(payload.homeAddressLine2 || '');
-      case '発送方法コード': return String(payload.mailingPreference || 'EMAIL');
-      case '郵送先区分コード': return String(payload.preferredMailDestination || 'OFFICE');
-      case '職員数上限': return memberTypeCode === 'BUSINESS' ? (Number(payload.staffLimit) || 10) : '';
-      case '作成日時': return now;
-      case '更新日時': return now;
-      case '削除フラグ': return false;
-      case '介護支援専門員番号': return String(payload.careManagerNumber || '');
-      case '事業所番号': return String(payload.officeNumber || '');
-      default: return '';
-    }
-  });
-  sheet.appendRow(newRow);
-
-  // パスワード認証レコード作成
-  var loginId = String(payload.careManagerNumber || '').trim() || memberId;
-  var defaultPassword = generateRandomPassword_();
-  var authSheet = ss.getSheetByName('T_認証アカウント');
-  if (authSheet) {
-    var salt = generateSalt_();
-    var hashed = hashPasswordPbkdf2_(defaultPassword, salt);
-    var authColumns = テーブル定義.T_認証アカウント;
-    var authRow = authColumns.map(function(col) {
-      switch (col) {
-        case '認証ID': return Utilities.getUuid();
-        case '認証方式': return 'PASSWORD';
-        case 'ログインID': return loginId;
-        case 'パスワードハッシュ': return hashed;
-        case 'パスワードソルト': return salt;
-        case 'GoogleユーザーID': return '';
-        case 'Googleメール': return '';
-        case 'システムロールコード': return 'MEMBER';
-        case '会員ID': return memberId;
-        case '職員ID': return '';
-        case '最終ログイン日時': return '';
-        case 'パスワード更新日時': return now;
-        case 'アカウント有効フラグ': return true;
-        case 'ログイン失敗回数': return 0;
-        case 'ロック状態': return false;
-        case '作成日時': return now;
-        case '更新日時': return now;
-        case '削除フラグ': return false;
-        default: return '';
-      }
-    });
-    authSheet.appendRow(authRow);
-  }
-
-  // 事業所会員の場合、初期職員レコード作成
-  if (memberTypeCode === 'BUSINESS' && payload.staff && payload.staff.length > 0) {
-    syncBusinessStaffRows_(ss, memberId, memberTypeCode, payload.staff);
-  }
-
-  clearAllDataCache_();
-  clearAdminDashboardCache_();
-  return {
-    created: true,
-    memberId: memberId,
-    loginId: loginId,
-    defaultPassword: defaultPassword,
-  };
-}
 
 // ── 入会申込処理（統合フォーム用）──────────────────────────
 function enqueueMemberApplicationChangeRequest_(payload) {
@@ -7340,17 +7118,6 @@ var STAFF_WRITABLE_FIELDS_SELF_ = ['id','name','kana','email'];
 
 
 
-function sanitizeAdminBatchMemberPayload_(payload) {
-  if (!payload || !payload.id) throw new Error('会員IDが未指定です。');
-  var sanitized = { id: String(payload.id) };
-  for (var i = 0; i < ADMIN_BATCH_WRITABLE_FIELDS_.length; i += 1) {
-    var key = ADMIN_BATCH_WRITABLE_FIELDS_[i];
-    if (key !== 'id' && Object.prototype.hasOwnProperty.call(payload, key)) {
-      sanitized[key] = payload[key];
-    }
-  }
-  return sanitized;
-}
 
 // v143: 管理者会員詳細編集用サニタイズ — ADMIN_MEMBER_WRITABLE_FIELDS_ でフィルタ
 function sanitizeAdminMemberPayload_(payload) {
@@ -7393,37 +7160,6 @@ function appendAdminAuditLog_(ss, adminEmail, memberId, changes) {
   }
 }
 
-function updateMembersBatch_(payload) {
-  if (!payload || !Array.isArray(payload.records) || payload.records.length === 0) {
-    throw new Error('保存対象の会員データがありません。');
-  }
-  if (payload.records.length > 100) {
-    throw new Error('会員一括編集は最大100件までです。');
-  }
-
-  var adminSession = checkAdminBySession_();
-  var ss = getOrCreateDatabase_();
-  var lock = LockService.getScriptLock();
-  lock.waitLock(15000);
-  try {
-    var results = [];
-    for (var i = 0; i < payload.records.length; i += 1) {
-      var sanitized = sanitizeAdminBatchMemberPayload_(payload.records[i]);
-      results.push(updateMember_(sanitized, {
-        skipAdminCheck: true,
-        adminSession: adminSession,
-        ss: ss,
-        skipCacheClear: true,
-      }));
-    }
-    clearAllDataCache_();
-    clearAdminDashboardCache_();
-    clearTrainingManagementCache_();
-    return results;
-  } finally {
-    lock.releaseLock();
-  }
-}
 
 // ── v125: フラット人物リスト取得（個人会員+事業所職員を混合） ──
 function getAdminPersonList_() {
@@ -10359,58 +10095,6 @@ function isTrainingGuideDriveFileAllowed_(fileId) {
  * 10MB 超のファイルは error code で返して client に「別タブで開く」案内へ
  * 切り替えてもらう。
  */
-function getFileBytes_(payload) {
-  var fileUrl = String((payload && payload.fileUrl) || '').trim();
-  if (!fileUrl) return { base64: null, error: 'empty_url' };
-  var fileId = extractDriveFileId_(fileUrl);
-  if (!fileId) {
-    Logger.log('getFileBytes_: cannot extract fileId from url=' + fileUrl);
-    return { base64: null, error: 'unparseable_url' };
-  }
-  if (!isTrainingGuideDriveFileAllowed_(fileId)) {
-    Logger.log('getFileBytes_: denied non-training fileId=' + fileId);
-    return { base64: null, error: 'access_denied' };
-  }
-
-  var authHeaders = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
-  try {
-    var metaResp = UrlFetchApp.fetch(
-      'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(fileId) +
-      '?fields=size,mimeType,name&supportsAllDrives=true',
-      { muteHttpExceptions: true, headers: authHeaders }
-    );
-    if (metaResp.getResponseCode() !== 200) {
-      Logger.log('getFileBytes_ meta non-200 code=' + metaResp.getResponseCode() + ' fileId=' + fileId);
-      return { base64: null, error: 'meta_failed' };
-    }
-    var meta = JSON.parse(metaResp.getContentText());
-    var sizeBytes = Number(meta.size || 0);
-    if (sizeBytes > 10 * 1024 * 1024) {
-      Logger.log('getFileBytes_ too large: ' + sizeBytes + ' fileId=' + fileId);
-      return { base64: null, error: 'file_too_large', size: sizeBytes };
-    }
-
-    var bytesResp = UrlFetchApp.fetch(
-      'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(fileId) +
-      '?alt=media&supportsAllDrives=true',
-      { muteHttpExceptions: true, headers: authHeaders, followRedirects: true }
-    );
-    if (bytesResp.getResponseCode() !== 200) {
-      Logger.log('getFileBytes_ media non-200 code=' + bytesResp.getResponseCode() + ' fileId=' + fileId);
-      return { base64: null, error: 'media_failed' };
-    }
-    var blob = bytesResp.getBlob();
-    return {
-      base64: Utilities.base64Encode(blob.getBytes()),
-      mimeType: blob.getContentType() || meta.mimeType || 'application/pdf',
-      name: meta.name || '',
-      size: sizeBytes,
-    };
-  } catch (e) {
-    Logger.log('getFileBytes_ error: ' + e.message + ' fileId=' + fileId);
-    return { base64: null, error: 'exception' };
-  }
-}
 
 function makePdfSvgPlaceholder_(name) {
   var safe = String(name || 'PDF')
@@ -16185,42 +15869,6 @@ function getTrainingStats_(payload) {
  * 会員ごとの受講履歴を返す。
  * payload: { memberId? | staffId? | externalId? }
  */
-function getMemberTrainingHistory_(payload) {
-  if (!checkAdminBySession_()) return { error: 'unauthorized' };
-  if (!payload) return { error: 'invalid payload' };
-  var memberId = String(payload.memberId || '').trim();
-  var staffId = String(payload.staffId || '').trim();
-  var externalId = String(payload.externalId || '').trim();
-  if (!memberId && !staffId && !externalId) return { error: 'memberId/staffId/externalId required' };
-
-  var ss = getOrCreateDatabase_();
-  var apps = getRowsAsObjects_(ss, 'T_研修申込').filter(function(r) {
-    if (toBoolean_(r['削除フラグ'])) return false;
-    var ref = getCanonicalApplicantRef_(r);
-    if (memberId && ref.type === 'MEMBER' && ref.id === memberId) return true;
-    if (staffId && ref.type === 'STAFF' && ref.id === staffId) return true;
-    if (externalId && ref.type === 'EXTERNAL' && ref.id === externalId) return true;
-    return false;
-  });
-  var trainingRows = getRowsAsObjects_(ss, 'T_研修');
-  var trainingMap = {};
-  trainingRows.forEach(function(t) { trainingMap[String(t['研修ID'] || '')] = t; });
-  var history = apps.map(function(r) {
-    var t = trainingMap[String(r['研修ID'] || '')] || {};
-    return {
-      applyId: String(r['申込ID'] || ''),
-      trainingId: String(r['研修ID'] || ''),
-      trainingName: String(t['研修名'] || ''),
-      trainingDate: String(t['開催日'] || ''),
-      location: String(t['開催場所'] || ''),
-      status: String(r['申込状態コード'] || ''),
-      attendanceStatus: String(r['出欠状態コード'] || 'UNRECORDED'),
-      applyDate: String(r['申込日時'] || ''),
-    };
-  });
-  history.sort(function(a, b) { return (b.trainingDate || '').localeCompare(a.trainingDate || ''); });
-  return { history: history };
-}
 
 function auditTrainingApplicationsAfterV360_(ss) {
   var sheet = ss.getSheetByName('T_研修申込');
