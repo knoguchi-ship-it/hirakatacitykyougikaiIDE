@@ -16547,11 +16547,14 @@ function dryRunTrainingManagement() {
     });
     if (!staffRows.length) { record('5.STAFF申込挿入', true, 'SKIP: 有効な職員が存在しない'); return null; }
     var staff = staffRows[0];
+    var parentMemberId = String(staff['会員ID'] || '');
     var apId = 'AP-' + Utilities.getUuid().slice(0, 8).toUpperCase();
     var now = new Date().toISOString();
+    // v376.14-fix: 本番の職員申込と同型に構築（区分コード=MEMBER + 申込者ID=親会員ID + 職員ID 併記）。
+    //   isTrainingApplicationRowValid_ を通過しつつ getCanonicalApplicantRef_ が 職員ID 優先で STAFF 解決する。
     appendRowsByHeaders_(ss, 'T_研修申込', [{
-      申込ID: apId, 研修ID: trainingId, 会員ID: String(staff['会員ID'] || ''), 職員ID: String(staff['職員ID'] || ''),
-      外部申込者ID: '', 申込者区分コード: 'STAFF', 申込者ID: String(staff['職員ID'] || ''),
+      申込ID: apId, 研修ID: trainingId, 会員ID: parentMemberId, 職員ID: String(staff['職員ID'] || ''),
+      外部申込者ID: '', 申込者区分コード: 'MEMBER', 申込者ID: parentMemberId,
       申込状態コード: 'APPLIED', 申込日時: now, 取消日時: '', 備考: 'dryrun staff',
       出欠状態コード: 'UNRECORDED', 出欠記録日時: '', 出欠記録者メール: '', 事務局メモ: '',
       作成日時: now, 更新日時: now, 削除フラグ: false,
@@ -16606,8 +16609,9 @@ function dryRunTrainingManagement() {
 
   // ── 9. 出欠記録（一括） ────────────────────────────────────────────────
   safe('9.出欠記録(一括)', function () {
+    // v376.14-fix: saveAttendanceBatch_ は { entries: [...] } 形式を期待する
     var entries = manifest.applyIds.map(function (id) { return { applyId: id, status: 'ABSENT' }; });
-    var res = saveAttendanceBatch_(entries);
+    var res = saveAttendanceBatch_({ entries: entries });
     if (res && res.error) throw new Error(res.error);
     record('9.出欠記録(一括)', true, manifest.applyIds.length + ' 件→ABSENT');
   });
