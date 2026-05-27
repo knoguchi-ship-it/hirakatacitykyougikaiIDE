@@ -1,3 +1,52 @@
+// admin build が残す top-level callable 関数（doGet / processApiRequest +
+// operator が Apps Script editor / clasp run から実行する backfill・診断・dryRun ツール）。
+// このリストは pruning の seed（保持する根）かつ build / audit の許可 whitelist の
+// 唯一の正本。以前は build-admin-gas.mjs の seed・assertAllowed・audit-admin-boundary.mjs の
+// 3 箇所に同一配列が手書きされていたため、追加漏れで build / audit がズレる温床だった（単一情報源化）。
+export const ADMIN_TOP_LEVEL_FUNCTIONS = [
+  'doGet',
+  'processApiRequest',
+  // v349/v350: サムネイル backfill（clasp run 専用）/ time-based trigger / 1 回登録
+  'regenerateAllThumbnails',
+  'processPendingThumbnails',
+  'setupPendingThumbnailsTrigger',
+  // v370.1: PENDING 入会申込の診断とクリーンアップ（operator 実行用）
+  'diagnoseStaleApplicationForV370',
+  'diagnoseAllStaleApplicationsForV370',
+  'cleanupStaleBusinessApplicationForV370',
+  'runCleanupPartialBusinessV370_53779700',
+  // v360 schema migration（operator が Apps Script editor から 1 回 Run）
+  'runRebuildSchemaForV360',
+  // v372.6: 文字化け変更申請レコードの一括 soft delete
+  'cleanupCorruptChangeRequestsV372',
+  // 2026-05-17: dryRun synthetic transaction test runner（clasp run 専用）
+  'dryRunApplicationScenarios',
+  'previewDryRunApplicationCleanup',
+  'executeDryRunApplicationCleanup',
+  // v373.5: Secret Manager 連携ヘルスチェック（operator 実行用）
+  'healthCheckPasswordPepper',
+  // v376.1〜.4: フリガナ migration + テストデータ棚卸し（operator 手動 Run）
+  'backfillKanaToFullwidth',
+  'backfillKanaToFullwidth_APPLY',
+  'inspectDryRunManifest_LOG',
+  'deleteTestDataPreview_LOG',
+  'deleteTestData_APPLY',
+  // v376.14: 研修管理 全機能ドライランテスト（operator 実行用）
+  'dryRunTrainingManagement',
+  'cleanupDryRunTrainingManagement',
+];
+
+// admin build から強制削除する（pruning で残ってはならない）危険な top-level 関数。
+// 以前は build-admin-gas.mjs と audit-admin-boundary.mjs に同一配列が二重管理されていた。
+export const ADMIN_FORBIDDEN_TOP_LEVEL_FUNCTIONS = [
+  'rebuildDatabaseSchema',
+  'cleanupDatabaseSheets',
+  'buildDefinedScopeOnly',
+  'getDbInfo',
+  'seedDemoData',
+  'addDeleteLogSheet',
+];
+
 export function replaceObjectLiteral(source, name, replacement) {
   const pattern = new RegExp(`var ${name} = \\{[\\s\\S]*?\\n\\};`);
   if (!pattern.test(source)) {

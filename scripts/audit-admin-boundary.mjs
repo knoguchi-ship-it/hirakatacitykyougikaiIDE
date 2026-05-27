@@ -1,48 +1,20 @@
 import { existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { collectFunctionDeclarations } from './gas-boundary-utils.mjs';
+import {
+  collectFunctionDeclarations,
+  ADMIN_TOP_LEVEL_FUNCTIONS,
+  ADMIN_FORBIDDEN_TOP_LEVEL_FUNCTIONS,
+} from './gas-boundary-utils.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
 const codePath = join(root, 'gas', 'admin', 'Code.gs');
 const htmlPath = join(root, 'gas', 'admin', 'index.html');
 
-// v349: regenerateAllThumbnails は clasp run 専用の MASTER 一括 backfill ツール。
-// v350: processPendingThumbnails と setupPendingThumbnailsTrigger は時間ベース
-// トリガー (10 分毎の pending backfill) 用 / 1 回登録用。いずれも admin のみ
-// top-level callable として残す（member/public からは pruning）。
-const allowedTopLevelFunctions = [
-  'doGet',
-  'processApiRequest',
-  'regenerateAllThumbnails',
-  'processPendingThumbnails',
-  'setupPendingThumbnailsTrigger',
-  // v370.1: PENDING 入会申込の診断とクリーンアップ（operator 実行用）
-  'diagnoseStaleApplicationForV370',
-  'diagnoseAllStaleApplicationsForV370',
-  'cleanupStaleBusinessApplicationForV370',
-  'runCleanupPartialBusinessV370_53779700',
-  // v360 schema migration (operator が Apps Script editor から 1 回 Run)
-  'runRebuildSchemaForV360',
-  // v372.6: 文字化け変更申請レコードの一括 soft delete
-  'cleanupCorruptChangeRequestsV372',
-  // 2026-05-17: dryRun synthetic transaction test runner
-  'dryRunApplicationScenarios',
-  'previewDryRunApplicationCleanup',
-  'executeDryRunApplicationCleanup',
-  // v373.5: Secret Manager 連携ヘルスチェック（operator が Apps Script editor から 1 回 Run）
-  'healthCheckPasswordPepper',
-  // v376.1〜.4: フリガナ migration + テストデータ棚卸し（operator が Apps Script editor から手動 Run）
-  'backfillKanaToFullwidth',
-  'backfillKanaToFullwidth_APPLY',
-  'inspectDryRunManifest_LOG',
-  'deleteTestDataPreview_LOG',
-  'deleteTestData_APPLY',
-  // v376.14: 研修管理 全機能ドライランテスト（operator が Apps Script editor から実行）
-  'dryRunTrainingManagement',
-  'cleanupDryRunTrainingManagement',
-];
+// v376.18: 許可 top-level リストは gas-boundary-utils.mjs の ADMIN_TOP_LEVEL_FUNCTIONS に
+// 単一情報源化（build-admin-gas.mjs の seed / assertAllowed と共有）。
+const allowedTopLevelFunctions = ADMIN_TOP_LEVEL_FUNCTIONS;
 const allowedAdminLoginActions = ['checkAdminBySession', 'adminLoginWithData'];
 const allowedAdminActions = [
   'getDbInfo',
@@ -168,14 +140,8 @@ const allowedAdminActions = [
   'getTrainingStats',
   'getMemberTrainingHistory',
 ];
-const forbiddenTopLevelFunctions = [
-  'rebuildDatabaseSchema',
-  'cleanupDatabaseSheets',
-  'buildDefinedScopeOnly',
-  'getDbInfo',
-  'seedDemoData',
-  'addDeleteLogSheet',
-];
+// v376.18: ADMIN_FORBIDDEN_TOP_LEVEL_FUNCTIONS（build-admin-gas.mjs と共有）に単一情報源化。
+const forbiddenTopLevelFunctions = ADMIN_FORBIDDEN_TOP_LEVEL_FUNCTIONS;
 const forbiddenActions = [
   'memberLogin',
   'memberLoginWithData',

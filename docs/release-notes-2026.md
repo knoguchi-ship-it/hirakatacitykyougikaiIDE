@@ -13,6 +13,20 @@
 
 ---
 
+## v376.18 — 2026-05-27 🔧 二重管理の解消①: admin build keep-list の単一情報源化
+
+全機能の二重管理監査（メール送信以外）の是正 第1弾。**生成物に変更はなく本番再デプロイ不要**（build / audit ツールのみの整理。`gas/admin/Code.gs` はバイト単位で不変を確認）。
+
+| 種別 | 内容 |
+|---|---|
+| 🔧 | admin build が残す top-level callable 関数の許可リスト（22項目）が、`build-admin-gas.mjs` の pruning seed・assertAllowed・`audit-admin-boundary.mjs` の3箇所に同一配列で手書きされていた。`gas-boundary-utils.mjs` の `ADMIN_TOP_LEVEL_FUNCTIONS` に単一情報源化 |
+| 🔧 | 強制削除する forbidden top-level 関数リスト（6項目）の build / audit 2コピーを `ADMIN_FORBIDDEN_TOP_LEVEL_FUNCTIONS` に単一情報源化 |
+| 📝 | 検証: リファクタ後に `build:gas:admin` を再実行し `gas/admin/Code.gs` の md5 が変化しないこと（挙動不変）+ prerelease 全通過を確認 |
+
+※ `build-admin-gas.mjs` が `gas-boundary-utils.mjs` の utility 関数群（`collectFunctionDeclarations` 等）の独自コピーを持ち実装が乖離している件は別レイヤの重複として残課題（挙動変化リスクがあるため本リリースでは非対象）。
+
+---
+
 ## v376.17 — 2026-05-27 🔧 メール送信の整理（差し込み一本化 + 未使用 segment 削除）
 
 メール送信機能の棚卸し。送信の最下層は従来どおり `deliverMail_` → `sendEmailWithValidatedFrom_` → `MailApp/GmailApp` に完全集約されており（全送信箇所が `deliverMail_` 経由）、ここは変更していない。1 段上の重複のみ整理した。

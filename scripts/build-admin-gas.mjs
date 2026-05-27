@@ -10,6 +10,10 @@ import {
 } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import {
+  ADMIN_TOP_LEVEL_FUNCTIONS,
+  ADMIN_FORBIDDEN_TOP_LEVEL_FUNCTIONS,
+} from './gas-boundary-utils.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
@@ -520,74 +524,11 @@ function buildAdminCode(source) {
     'deleteLinePostRequest',
   ]);
   code = removeIfBlock(code, "isMemberAction && !LOGIN_ONLY_MEMBER_ACTIONS[action]");
-  // v349: regenerateAllThumbnails は clasp run 専用の admin backfill ツール。
-  // v350: processPendingThumbnails は time-based trigger、setupPendingThumbnailsTrigger
-  // は 1 回登録。いずれも seed に加える。
-  code = pruneUnreachableFunctionDeclarations(code, [
-    'doGet',
-    'processApiRequest',
-    'regenerateAllThumbnails',
-    'processPendingThumbnails',
-    'setupPendingThumbnailsTrigger',
-    // v370.1: PENDING 入会申込の診断とクリーンアップ（operator が Apps Script editor から実行）
-    'diagnoseStaleApplicationForV370',
-    'diagnoseAllStaleApplicationsForV370',
-    'cleanupStaleBusinessApplicationForV370',
-    // v370.1 one-shot: 53779700 専用 wrapper（次リリースで削除）
-    'runCleanupPartialBusinessV370_53779700',
-    // v360 schema migration (operator が Apps Script editor から 1 回 Run)
-    'runRebuildSchemaForV360',
-    // v372.6: 文字化け変更申請レコードの一括 soft delete
-    'cleanupCorruptChangeRequestsV372',
-    // 2026-05-17: dryRun synthetic transaction test runner (clasp run 専用)
-    'dryRunApplicationScenarios',
-    'previewDryRunApplicationCleanup',
-    'executeDryRunApplicationCleanup',
-    // v373.5: Secret Manager 連携ヘルスチェック（operator が Apps Script editor から実行）
-    'healthCheckPasswordPepper',
-    // v376: フリガナ一括正規化 migration（operator が Apps Script editor から実行）
-    'backfillKanaToFullwidth',
-    'backfillKanaToFullwidth_APPLY',
-    'inspectDryRunManifest_LOG',
-    'deleteTestDataPreview_LOG',
-    'deleteTestData_APPLY',
-    'dryRunTrainingManagement',
-    'cleanupDryRunTrainingManagement',
-  ], 'build-admin-gas');
-  code = removeTopLevelFunctionDeclarations(code, [
-    'rebuildDatabaseSchema',
-    'cleanupDatabaseSheets',
-    'buildDefinedScopeOnly',
-    'getDbInfo',
-    'seedDemoData',
-    'addDeleteLogSheet',
-  ], 'build-admin-gas');
-  assertAllowedTopLevelFunctions(code, [
-    'doGet',
-    'processApiRequest',
-    'regenerateAllThumbnails',
-    'processPendingThumbnails',
-    'setupPendingThumbnailsTrigger',
-    // v370.1
-    'diagnoseStaleApplicationForV370',
-    'diagnoseAllStaleApplicationsForV370',
-    'cleanupStaleBusinessApplicationForV370',
-    'runCleanupPartialBusinessV370_53779700',
-    'runRebuildSchemaForV360',
-    'cleanupCorruptChangeRequestsV372',
-    'dryRunApplicationScenarios',
-    'previewDryRunApplicationCleanup',
-    'executeDryRunApplicationCleanup',
-    'healthCheckPasswordPepper',
-    // v376
-    'backfillKanaToFullwidth',
-    'backfillKanaToFullwidth_APPLY',
-    'inspectDryRunManifest_LOG',
-    'deleteTestDataPreview_LOG',
-    'deleteTestData_APPLY',
-    'dryRunTrainingManagement',
-    'cleanupDryRunTrainingManagement',
-  ], 'build-admin-gas');
+  // v376.18: seed（保持する根）と assertAllowed（許可 whitelist）は同一集合なので
+  // gas-boundary-utils.mjs の ADMIN_TOP_LEVEL_FUNCTIONS に単一情報源化した。
+  code = pruneUnreachableFunctionDeclarations(code, ADMIN_TOP_LEVEL_FUNCTIONS, 'build-admin-gas');
+  code = removeTopLevelFunctionDeclarations(code, ADMIN_FORBIDDEN_TOP_LEVEL_FUNCTIONS, 'build-admin-gas');
+  assertAllowedTopLevelFunctions(code, ADMIN_TOP_LEVEL_FUNCTIONS, 'build-admin-gas');
   return code;
 }
 
