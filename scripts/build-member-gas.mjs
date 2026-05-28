@@ -10,6 +10,7 @@ import {
 } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { MEMBER_ALLOWED_ACTIONS_LIST } from './gas-boundary-utils.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
@@ -395,31 +396,7 @@ function buildMemberCode(source) {
   code = replaceObjectLiteral(code, 'PUBLIC_ALLOWED_ACTIONS', '{}');
   code = replaceObjectLiteral(code, 'ADMIN_LOGIN_ACTIONS', '{}');
   code = replaceObjectLiteral(code, 'ADMIN_ACTION_PERMISSIONS', '{}');
-  code = removeDisallowedActionHandlers(code, [
-    'memberLogin',
-    'requestPasswordReset',
-    'completePasswordReset',
-    'getMemberPortalData',
-    'updateMemberSelf',
-    'changePassword',
-    'applyTraining',
-    'cancelTraining',
-    'withdrawSelf',
-    'cancelWithdrawalSelf',
-    // v295: 役員自己サービス
-    'getMyOfficerStatus',
-    'saveMyBankAccount',
-    // v296: 請求（役員のみ）
-    'getMyClaims',
-    'submitClaim',
-    'deleteMyClaim',
-    'uploadClaimAttachment',
-    'removeClaimAttachment',
-    // v331: 請求フォームの選択肢（読み取り専用）
-    'getOfficerMasterData',
-    // v344: 案内PDFサムネイル Drive proxy
-    'getFileThumbnail',
-  ]);
+  code = removeDisallowedActionHandlers(code, MEMBER_ALLOWED_ACTIONS_LIST);
   code = removeIfBlock(code, 'requiredPerms');
   code = pruneUnreachableFunctionDeclarations(code, ['doGet', 'processApiRequest'], 'build-member-gas');
   code = removeTopLevelFunctionDeclarations(code, [

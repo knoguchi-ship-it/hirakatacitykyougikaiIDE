@@ -47,6 +47,180 @@ export const ADMIN_FORBIDDEN_TOP_LEVEL_FUNCTIONS = [
   'addDeleteLogSheet',
 ];
 
+// v376.23: 各境界の processApiRequest action 許可リストの単一情報源。
+// 以前は build-{admin,member,gas}.mjs の removeDisallowedActionHandlers 引数と
+// audit-{admin,member,public}-boundary.mjs の expected リストに同一集合が手書き分散し、
+// 追加漏れ・撤去漏れでズレる温床だった（build-admin には撤去済 action の stale entry も残存していた）。
+// ここを正本とし、build と audit の双方が import する。新 action 追加/削除はこの 1 箇所のみ更新する。
+export const PUBLIC_ALLOWED_ACTIONS_LIST = [
+  'submitMemberApplication',
+  'getPublicTrainings',
+  'getFileThumbnail',
+  'getPublicPortalSettings',
+  'applyTrainingExternal',
+  'cancelTrainingExternal',
+  'sendPublicOtp',
+  'verifyPublicOtp',
+  'lookupMemberForPublicUpdate',
+  'submitPublicMemberUpdate',
+  'submitPublicBusinessUpdate',
+  'addPublicStaffMember',
+  'removePublicStaffByCmNumber',
+  'submitPublicWithdrawalRequest',
+  'verifyMemberIdentityForPublic',
+  'submitPublicChangeRequest',
+  'getPublicAvailableStaffSlots',
+  'getPublicEnrolledStaffList',
+];
+
+export const MEMBER_ALLOWED_ACTIONS_LIST = [
+  'memberLogin',
+  'requestPasswordReset',
+  'completePasswordReset',
+  'getMemberPortalData',
+  'updateMemberSelf',
+  'changePassword',
+  'applyTraining',
+  'cancelTraining',
+  'withdrawSelf',
+  'cancelWithdrawalSelf',
+  // v295: 役員自己サービス（役員のみ — サーバー側で isActiveOfficer_ を追加検証）
+  'getMyOfficerStatus',
+  'saveMyBankAccount',
+  // v296: 請求（役員のみ）
+  'getMyClaims',
+  'submitClaim',
+  'deleteMyClaim',
+  'uploadClaimAttachment',
+  'removeClaimAttachment',
+  // v331: 請求フォームの選択肢（読み取り専用、会員公開でも安全）
+  'getOfficerMasterData',
+  // v344: 案内PDFサムネイル Drive proxy
+  'getFileThumbnail',
+];
+
+// 管理者ログイン専用アクション（Session.getActiveUser() で自己完結認証・事前 session 検証不要）
+export const ADMIN_LOGIN_ACTIONS_LIST = [
+  'checkAdminBySession',
+];
+
+export const ADMIN_ALLOWED_ACTIONS_LIST = [
+  'getDbInfo',
+  'getSystemSettings',
+  'updateSystemSettings',
+  'getAdminPermissionData',
+  'saveAdminPermission',
+  'deleteAdminPermission',
+  'getAdminDashboardData',
+  'getAdminInitData',
+  'updateMember',
+  'withdrawMember',
+  'scheduleWithdrawMember',
+  'cancelScheduledWithdraw',
+  'removeStaffFromOffice',
+  'updateStaff',
+  'getAdminPersonList',
+  'updatePersonsBatch',
+  'convertMemberType',
+  'getAnnualFeeAdminData',
+  'saveAnnualFeeRecord',
+  'saveAnnualFeeRecordsBatch',
+  'saveTraining',
+  // v376.7: 研修 soft delete / restore
+  'softDeleteTraining',
+  'restoreTraining',
+  'uploadTrainingFile',
+  'setupTrainingFileFolder',
+  'getTrainingManagementData',
+  'getTrainingApplicants',
+  'sendTrainingReminder',
+  'getAdminEmailAliases',
+  'sendTrainingMail',
+  'generateTrainingEmail',
+  'getMembersForBulkMail',
+  'sendBulkMemberMail',
+  'getEmailSendLog',
+  'getCredentialEmailTemplates',
+  'saveCredentialEmailTemplate',
+  'deleteCredentialEmailTemplate',
+  'getBulkMailTemplates',
+  'saveBulkMailTemplate',
+  'deleteBulkMailTemplate',
+  'searchMembersForDelete',
+  'previewDeleteMember',
+  'executeDeleteMember',
+  'getDeleteLogs',
+  'repairDuplicateStaffRecords',
+  'repairTrainingApplicationApplicantIds',
+  'repairMemberCareManagerDuplicates',
+  'fetchAllData',
+  'getMailingListTargets',
+  'generateMailingListExcel',
+  'getAdminChangeRequests',
+  'approveAdminChangeRequest',
+  'rejectAdminChangeRequest',
+  // v296: 請求管理
+  'getClaims',
+  'approveClaim',
+  'rejectClaim',
+  'adminDeleteClaim',
+  // v295: 役員管理マスタ
+  'getOfficerMasterData',
+  'saveOrganization',
+  'deleteOrganization',
+  'saveOfficerRole',
+  'deleteOfficerRole',
+  'savePaymentType',
+  'deletePaymentType',
+  'saveWorkCategory',
+  'deleteWorkCategory',
+  'backupMigrationTargets',
+  // v295: 役員割当て管理
+  'getOfficerManagementData',
+  'assignOfficer',
+  'resignOfficer',
+  'updateOfficerLinkage',
+  'updateOfficerRecord',
+  // v295: 振込口座管理
+  'getAdminBankAccount',
+  'saveAdminBankAccount',
+  'deleteAdminBankAccount',
+  // v295: 支払い履歴管理
+  'getPaymentHistory',
+  'savePayment',
+  'deletePayment',
+  // v309: 共有メモ（申し送りホワイトボード）
+  'getSharedMemo',
+  'saveSharedMemo',
+  // v372: 名簿出力 Visual Template Designer
+  'getRosterFieldDictionary',
+  'getRosterDesignerData',
+  'loadRosterTemplatesV2',
+  'saveRosterTemplateV2',
+  'deleteRosterTemplateV2',
+  'duplicateRosterTemplateV2',
+  // v374.1: 公式LINE投稿依頼
+  'listLinePostRequests',
+  'getLinePostRequest',
+  'saveLinePostRequest',
+  'uploadLinePostAttachment',
+  'transitionLinePostRequest',
+  'deleteLinePostRequest',
+  // v344: 案内PDFサムネイル Drive proxy
+  'getFileThumbnail',
+  // v350: 失敗時の手動サムネイル再生成
+  'regenerateThumbnailForTraining',
+  // v360: 研修名簿・出欠・受講履歴・一括メール明細
+  'getTrainingRosterDetail',
+  'saveAttendance',
+  'saveAttendanceBatch',
+  'addRosterEntry',
+  'addGuestRosterEntry',
+  'cancelRosterEntry',
+  'updateRosterEntry',
+  'getTrainingStats',
+];
+
 export function replaceObjectLiteral(source, name, replacement) {
   const pattern = new RegExp(`var ${name} = \\{[\\s\\S]*?\\n\\};`);
   if (!pattern.test(source)) {

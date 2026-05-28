@@ -13,6 +13,20 @@
 
 ---
 
+## v376.23 — 2026-05-28 🔧 二重管理の解消⑥: action 許可リストの単一情報源化（A-3）
+
+各境界の `processApiRequest` action 許可リストが build×3（`build-{admin,member,gas}.mjs` の `removeDisallowedActionHandlers` 引数）と audit×3（`audit-{admin,member,public}-boundary.mjs` の expected リスト）の**計6箇所に手書き分散**していたのを、`gas-boundary-utils.mjs` の4定数（`PUBLIC_/MEMBER_/ADMIN_ALLOWED_ACTIONS_LIST` + `ADMIN_LOGIN_ACTIONS_LIST`）に単一情報源化。**生成物に変更なし・再デプロイ不要**。
+
+| 種別 | 内容 |
+|---|---|
+| 🔧 | build と audit が同一の共有定数を import。新 action 追加/削除は 1 箇所のみ更新すればよくなった（従来は build と audit の両方更新が必要で、漏れると build 成功・audit 失敗のズレが発生していた） |
+| 🐛 | `build-admin-gas.mjs` の許可リストに、v373.7 等で撤去済みの action（`getMembersForRoster` / `generateRosterZip` / `validateTemplateSpreadsheet` / `initRosterExport` / `processRosterChunk` / `finalizeRosterExport` / `cleanupRosterExport` / v316 `getRosterTemplateList` 群）が **stale entry として残存**していた（`removeDisallowedActionHandlers` は存在しない action を無視するため no-op で見逃されていた）。共有定数化（実態 = audit リストを正本）により自然に解消 |
+| ✅ | 検証: リファクタ後に 3 split をリビルドし `backend/gas-admin/gas-member の Code.gs` が md5 完全一致（build 挙動不変）+ prerelease 全 audit PASS を確認 |
+
+※ frontend `api.ts` 呼び出し ↔ backend `processApiRequest` dispatch の codegen 連動は将来課題として見送り（軽量版スコープ）。
+
+---
+
 ## v376.22 — 2026-05-27 🔧 二重管理の解消⑤: 未使用 backend endpoint の削除（B-1 backend）
 
 v376.19 で frontend から削除した未使用 6 API の **backend 側 endpoint と全許可リストを削除**。3 境界（admin/member/public）の dispatch・権限/許可マップ・build/audit スクリプトから一掃。

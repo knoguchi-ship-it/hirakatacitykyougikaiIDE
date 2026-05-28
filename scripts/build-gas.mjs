@@ -12,6 +12,7 @@ import {
   removeIfBlock,
   replaceObjectLiteral,
   replaceScriptRoutesWithPublicOnly,
+  PUBLIC_ALLOWED_ACTIONS_LIST,
 } from './gas-boundary-utils.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -46,26 +47,7 @@ function buildPublicCode(source) {
     /function getActionRegistryForCurrentApp_\(\) \{[\s\S]*?\n\}/,
     "function getActionRegistryForCurrentApp_() {\n  return {\n    publicActions: PUBLIC_ALLOWED_ACTIONS,\n    memberActions: {},\n    adminLoginActions: {},\n    adminPermissions: {},\n  };\n}",
   );
-  code = removeDisallowedActionHandlers(code, [
-    'getPublicTrainings',
-    'getPublicPortalSettings',
-    'getFileThumbnail',
-    'applyTrainingExternal',
-    'cancelTrainingExternal',
-    'submitMemberApplication',
-    'sendPublicOtp',
-    'verifyPublicOtp',
-    'lookupMemberForPublicUpdate',
-    'submitPublicMemberUpdate',
-    'submitPublicBusinessUpdate',
-    'addPublicStaffMember',
-    'removePublicStaffByCmNumber',
-    'submitPublicWithdrawalRequest',
-    'verifyMemberIdentityForPublic',
-    'submitPublicChangeRequest',
-    'getPublicAvailableStaffSlots',
-    'getPublicEnrolledStaffList',
-  ]);
+  code = removeDisallowedActionHandlers(code, PUBLIC_ALLOWED_ACTIONS_LIST);
   code = removeIfBlock(code, 'requiredPerms');
   code = removeIfBlock(code, "isMemberAction && !LOGIN_ONLY_MEMBER_ACTIONS[action]");
   code = code.replace(

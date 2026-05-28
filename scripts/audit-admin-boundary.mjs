@@ -5,6 +5,8 @@ import {
   collectFunctionDeclarations,
   ADMIN_TOP_LEVEL_FUNCTIONS,
   ADMIN_FORBIDDEN_TOP_LEVEL_FUNCTIONS,
+  ADMIN_LOGIN_ACTIONS_LIST,
+  ADMIN_ALLOWED_ACTIONS_LIST,
 } from './gas-boundary-utils.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -15,126 +17,9 @@ const htmlPath = join(root, 'gas', 'admin', 'index.html');
 // v376.18: 許可 top-level リストは gas-boundary-utils.mjs の ADMIN_TOP_LEVEL_FUNCTIONS に
 // 単一情報源化（build-admin-gas.mjs の seed / assertAllowed と共有）。
 const allowedTopLevelFunctions = ADMIN_TOP_LEVEL_FUNCTIONS;
-const allowedAdminLoginActions = ['checkAdminBySession'];
-const allowedAdminActions = [
-  'getDbInfo',
-  'getSystemSettings',
-  'updateSystemSettings',
-  'getAdminPermissionData',
-  'saveAdminPermission',
-  'deleteAdminPermission',
-  'getAdminDashboardData',
-  'getAdminInitData',
-  'updateMember',
-  'withdrawMember',
-  'scheduleWithdrawMember',
-  'cancelScheduledWithdraw',
-  'removeStaffFromOffice',
-  'updateStaff',
-  'getAdminPersonList',
-  'updatePersonsBatch',
-  'convertMemberType',
-  'getAnnualFeeAdminData',
-  'saveAnnualFeeRecord',
-  'saveAnnualFeeRecordsBatch',
-  'saveTraining',
-  // v376.7: 研修 soft delete / restore
-  'softDeleteTraining',
-  'restoreTraining',
-  'uploadTrainingFile',
-  'setupTrainingFileFolder',
-  'getTrainingManagementData',
-  'getTrainingApplicants',
-  'sendTrainingReminder',
-  'getAdminEmailAliases',
-  'sendTrainingMail',
-  'generateTrainingEmail',
-  // v373.7 (S5 Phase 2): getMembersForRoster / validateTemplateSpreadsheet 撤去
-  'getMembersForBulkMail',
-  'sendBulkMemberMail',
-  'getEmailSendLog',
-  'getCredentialEmailTemplates',
-  'saveCredentialEmailTemplate',
-  'deleteCredentialEmailTemplate',
-  'getBulkMailTemplates',
-  'saveBulkMailTemplate',
-  'deleteBulkMailTemplate',
-  'searchMembersForDelete',
-  'previewDeleteMember',
-  'executeDeleteMember',
-  'getDeleteLogs',
-  'repairDuplicateStaffRecords',
-  'repairTrainingApplicationApplicantIds',
-  'repairMemberCareManagerDuplicates',
-  'fetchAllData',
-  // v373.7 (S5 Phase 2): initRosterExport / processRosterChunk / finalizeRosterExport / cleanupRosterExport 撤去
-  'getMailingListTargets',
-  'generateMailingListExcel',
-  'getAdminChangeRequests',
-  'approveAdminChangeRequest',
-  'rejectAdminChangeRequest',
-  // v296: 請求管理
-  'getClaims',
-  'approveClaim',
-  'rejectClaim',
-  'adminDeleteClaim',
-  // v295: 役員管理マスタ
-  'getOfficerMasterData',
-  'saveOrganization',
-  'deleteOrganization',
-  'saveOfficerRole',
-  'deleteOfficerRole',
-  'savePaymentType',
-  'deletePaymentType',
-  'saveWorkCategory',
-  'deleteWorkCategory',
-  'backupMigrationTargets',
-  // v295: 役員割当て管理
-  'getOfficerManagementData',
-  'assignOfficer',
-  'resignOfficer',
-  'updateOfficerLinkage',
-  'updateOfficerRecord',
-  // v295: 振込口座管理
-  'getAdminBankAccount',
-  'saveAdminBankAccount',
-  'deleteAdminBankAccount',
-  // v295: 支払い履歴管理
-  'getPaymentHistory',
-  'savePayment',
-  'deletePayment',
-  // v309: 共有メモ（申し送りホワイトボード）
-  'getSharedMemo',
-  'saveSharedMemo',
-  // v373.7 (S5 Phase 2): v316 テンプレートライブラリ ACTION 群撤去
-  // v372: 名簿出力 Visual Template Designer
-  'getRosterFieldDictionary',
-  'getRosterDesignerData',
-  'loadRosterTemplatesV2',
-  'saveRosterTemplateV2',
-  'deleteRosterTemplateV2',
-  'duplicateRosterTemplateV2',
-  // v374.1: 公式LINE投稿依頼
-  'listLinePostRequests',
-  'getLinePostRequest',
-  'saveLinePostRequest',
-  'uploadLinePostAttachment',
-  'transitionLinePostRequest',
-  'deleteLinePostRequest',
-  // v344: 案内PDFサムネイル Drive proxy
-  'getFileThumbnail',
-  // v350: 失敗時の手動サムネイル再生成
-  'regenerateThumbnailForTraining',
-  // v360: 研修名簿・出欠・受講履歴・一括メール明細
-  'getTrainingRosterDetail',
-  'saveAttendance',
-  'saveAttendanceBatch',
-  'addRosterEntry',
-  'addGuestRosterEntry',
-  'cancelRosterEntry',
-  'updateRosterEntry',
-  'getTrainingStats',
-];
+// v376.23: action 許可リストは gas-boundary-utils.mjs に単一情報源化（build-admin-gas.mjs と共有）。
+const allowedAdminLoginActions = ADMIN_LOGIN_ACTIONS_LIST;
+const allowedAdminActions = ADMIN_ALLOWED_ACTIONS_LIST;
 // v376.18: ADMIN_FORBIDDEN_TOP_LEVEL_FUNCTIONS（build-admin-gas.mjs と共有）に単一情報源化。
 const forbiddenTopLevelFunctions = ADMIN_FORBIDDEN_TOP_LEVEL_FUNCTIONS;
 const forbiddenActions = [

@@ -13,6 +13,8 @@ import { fileURLToPath } from 'url';
 import {
   ADMIN_TOP_LEVEL_FUNCTIONS,
   ADMIN_FORBIDDEN_TOP_LEVEL_FUNCTIONS,
+  ADMIN_LOGIN_ACTIONS_LIST,
+  ADMIN_ALLOWED_ACTIONS_LIST,
 } from './gas-boundary-utils.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -388,134 +390,12 @@ function buildAdminCode(source) {
   let code = source.replace("var APP_SECURITY_BOUNDARY = 'public';", "var APP_SECURITY_BOUNDARY = 'admin';");
   code = replaceObjectLiteral(code, 'PUBLIC_ALLOWED_ACTIONS', '{}');
   code = replaceObjectLiteral(code, 'MEMBER_ALLOWED_ACTIONS', '{}');
+  // v376.23: action 許可リストを gas-boundary-utils.mjs に単一情報源化（audit と共有）。
+  // 以前ここに残っていた撤去済 action の stale entry（getMembersForRoster / initRosterExport /
+  // v316 テンプレート群など）は実体ハンドラが無く no-op だったため、共有定数化で自然に解消。
   code = removeDisallowedActionHandlers(code, [
-    'checkAdminBySession',
-    'getDbInfo',
-    'getSystemSettings',
-    'updateSystemSettings',
-    'getAdminPermissionData',
-    'saveAdminPermission',
-    'deleteAdminPermission',
-    'getAdminDashboardData',
-    'getAdminInitData',
-    'updateMember',
-    'withdrawMember',
-    'scheduleWithdrawMember',
-    'cancelScheduledWithdraw',
-    'removeStaffFromOffice',
-    'updateStaff',
-    'getAdminPersonList',
-    'updatePersonsBatch',
-    'convertMemberType',
-    'getAnnualFeeAdminData',
-    'saveAnnualFeeRecord',
-    'saveAnnualFeeRecordsBatch',
-    'saveTraining',
-    // v376.7: 研修 soft delete / restore
-    'softDeleteTraining',
-    'restoreTraining',
-    'uploadTrainingFile',
-    'setupTrainingFileFolder',
-    'getTrainingManagementData',
-    'getTrainingApplicants',
-    'sendTrainingReminder',
-    'getAdminEmailAliases',
-    'sendTrainingMail',
-    'generateTrainingEmail',
-    'getMembersForRoster',
-    'generateRosterZip',
-    'validateTemplateSpreadsheet',
-    'getMembersForBulkMail',
-    'sendBulkMemberMail',
-    'getEmailSendLog',
-    'getCredentialEmailTemplates',
-    'saveCredentialEmailTemplate',
-    'deleteCredentialEmailTemplate',
-    'getBulkMailTemplates',
-    'saveBulkMailTemplate',
-    'deleteBulkMailTemplate',
-    'searchMembersForDelete',
-    'previewDeleteMember',
-    'executeDeleteMember',
-    'getDeleteLogs',
-    'repairDuplicateStaffRecords',
-    'repairTrainingApplicationApplicantIds',
-    'repairMemberCareManagerDuplicates',
-    'fetchAllData',
-    'initRosterExport',
-    'processRosterChunk',
-    'finalizeRosterExport',
-    'cleanupRosterExport',
-    'getMailingListTargets',
-    'generateMailingListExcel',
-    'getAdminChangeRequests',
-    'approveAdminChangeRequest',
-    'rejectAdminChangeRequest',
-    // v295: 役員管理マスタ
-    'getOfficerMasterData',
-    'saveOrganization',
-    'deleteOrganization',
-    'saveOfficerRole',
-    'deleteOfficerRole',
-    'savePaymentType',
-    'deletePaymentType',
-    'saveWorkCategory',
-    'deleteWorkCategory',
-    'backupMigrationTargets',
-    // v295/v297: 役員割当て管理
-    'getOfficerManagementData',
-    'assignOfficer',
-    'resignOfficer',
-    'updateOfficerLinkage',
-    'updateOfficerRecord',
-    // v295: 振込口座管理
-    'getAdminBankAccount',
-    'saveAdminBankAccount',
-    'deleteAdminBankAccount',
-    // v295: 支払い履歴管理
-    'getPaymentHistory',
-    'savePayment',
-    'deletePayment',
-    // v296: 請求管理（管理者）
-    'getClaims',
-    'approveClaim',
-    'rejectClaim',
-    'adminDeleteClaim',
-    // v309: 共有メモ（申し送りホワイトボード）
-    'getSharedMemo',
-    'saveSharedMemo',
-    // v316: テンプレートライブラリ
-    'getRosterTemplateList',
-    'saveRosterTemplate',
-    'deleteRosterTemplate',
-    'setDefaultRosterTemplate',
-    // v372: 名簿出力 Visual Template Designer
-    'getRosterFieldDictionary',
-    'getRosterDesignerData',
-    'loadRosterTemplatesV2',
-    'saveRosterTemplateV2',
-    'deleteRosterTemplateV2',
-    'duplicateRosterTemplateV2',
-    // v344: 案内PDFサムネイル Drive proxy
-    'getFileThumbnail',
-    // v350: 失敗時の手動サムネイル再生成
-    'regenerateThumbnailForTraining',
-    // v360: 研修名簿・出欠・受講履歴・一括メール明細
-    'getTrainingRosterDetail',
-    'saveAttendance',
-    'saveAttendanceBatch',
-    'addRosterEntry',
-    'addGuestRosterEntry',
-    'cancelRosterEntry',
-    'updateRosterEntry',
-    'getTrainingStats',
-    // v374.1: 公式LINE投稿依頼
-    'listLinePostRequests',
-    'getLinePostRequest',
-    'saveLinePostRequest',
-    'uploadLinePostAttachment',
-    'transitionLinePostRequest',
-    'deleteLinePostRequest',
+    ...ADMIN_LOGIN_ACTIONS_LIST,
+    ...ADMIN_ALLOWED_ACTIONS_LIST,
   ]);
   code = removeIfBlock(code, "isMemberAction && !LOGIN_ONLY_MEMBER_ACTIONS[action]");
   // v376.18: seed（保持する根）と assertAllowed（許可 whitelist）は同一集合なので

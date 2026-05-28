@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { collectFunctionDeclarations } from './gas-boundary-utils.mjs';
+import { collectFunctionDeclarations, PUBLIC_ALLOWED_ACTIONS_LIST } from './gas-boundary-utils.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
@@ -11,26 +11,8 @@ const publicHtmlPath = join(backendDir, 'index_public.html');
 const publicSourceDir = join(root, 'src', 'public-portal');
 
 const allowedTopLevelFunctions = ['doGet', 'healthCheck', 'processApiRequest'];
-const allowedPublicActions = [
-  'submitMemberApplication',
-  'getPublicTrainings',
-  'getFileThumbnail',
-  'getPublicPortalSettings',
-  'applyTrainingExternal',
-  'cancelTrainingExternal',
-  'sendPublicOtp',
-  'verifyPublicOtp',
-  'lookupMemberForPublicUpdate',
-  'submitPublicMemberUpdate',
-  'submitPublicBusinessUpdate',
-  'addPublicStaffMember',
-  'removePublicStaffByCmNumber',
-  'submitPublicWithdrawalRequest',
-  'verifyMemberIdentityForPublic',
-  'submitPublicChangeRequest',
-  'getPublicAvailableStaffSlots',
-  'getPublicEnrolledStaffList',
-];
+// v376.23: action 許可リストは gas-boundary-utils.mjs に単一情報源化（build-gas.mjs と共有）。
+const allowedPublicActions = PUBLIC_ALLOWED_ACTIONS_LIST;
 
 const forbiddenTopLevelFunctions = [
   'rebuildDatabaseSchema',

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { collectFunctionDeclarations } from './gas-boundary-utils.mjs';
+import { collectFunctionDeclarations, MEMBER_ALLOWED_ACTIONS_LIST } from './gas-boundary-utils.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
@@ -9,31 +9,8 @@ const codePath = join(root, 'gas', 'member', 'Code.gs');
 const htmlPath = join(root, 'gas', 'member', 'index.html');
 
 const allowedTopLevelFunctions = ['doGet', 'processApiRequest'];
-const allowedMemberActions = [
-  'memberLogin',
-  'requestPasswordReset',
-  'completePasswordReset',
-  'getMemberPortalData',
-  'updateMemberSelf',
-  'changePassword',
-  'applyTraining',
-  'cancelTraining',
-  'withdrawSelf',
-  'cancelWithdrawalSelf',
-  // v295: 役員自己サービス（役員のみ — サーバー側で isActiveOfficer_ を追加検証）
-  'getMyOfficerStatus',
-  'saveMyBankAccount',
-  // v296: 請求（役員のみ）
-  'getMyClaims',
-  'submitClaim',
-  'deleteMyClaim',
-  'uploadClaimAttachment',
-  'removeClaimAttachment',
-  // v331: 請求フォームの選択肢（組織・役職・支払い種別）描画用 — 読み取り専用、会員公開でも安全
-  'getOfficerMasterData',
-  // v344: 案内PDFサムネイルを Drive proxy 経由で取得（hotlink 制限回避）— ファイルは ANYONE_WITH_LINK 共有済み
-  'getFileThumbnail',
-];
+// v376.23: action 許可リストは gas-boundary-utils.mjs に単一情報源化（build-member-gas.mjs と共有）。
+const allowedMemberActions = MEMBER_ALLOWED_ACTIONS_LIST;
 const forbiddenTopLevelFunctions = [
   'rebuildDatabaseSchema',
   'cleanupDatabaseSheets',
