@@ -3176,7 +3176,11 @@ function getRoleByIdCached_(ss, roleId) {
  */
 function seedInitialPermissionRoles_(ss) {
   var sheet = ss.getSheetByName('T_権限ロール');
-  if (!sheet) return { seeded: false, reason: 'T_権限ロール シート未作成' };
+  if (!sheet) {
+    // 防御的にシート作成 + ヘッダ書込（v376.28.1 hotfix: normalizeTableColumns_ がシート作成しない問題への対応）
+    sheet = ss.insertSheet('T_権限ロール');
+    writeSheetHeaders_(sheet, テーブル定義['T_権限ロール']);
+  }
   if (sheet.getLastRow() >= 2) return { seeded: false, reason: '既存ロールあり（seed スキップ）', existing: sheet.getLastRow() - 1 };
   var defs = INITIAL_ROLE_DEFINITIONS || [];
   if (defs.length === 0) return { seeded: false, reason: 'INITIAL_ROLE_DEFINITIONS が空' };
@@ -3212,9 +3216,19 @@ function runRebuildSchemaForV246() {
   var ss = getOrCreateDatabase_();
   var report = { schemaVersion: DB_SCHEMA_VERSION, steps: [] };
 
-  // Step 1: T_権限ロール シート作成（既存なら no-op）
+  // Step 1a: T_権限ロール シートを作成（無ければ insertSheet + ヘッダ書込）
+  // normalizeTableColumns_ は既存シートしか扱わないため、ここで明示的にシート作成する。
+  var roleSheet = ss.getSheetByName('T_権限ロール');
+  if (!roleSheet) {
+    roleSheet = ss.insertSheet('T_権限ロール');
+    writeSheetHeaders_(roleSheet, テーブル定義['T_権限ロール']);
+    report.steps.push({ step: 'T_権限ロール シート新規作成 + ヘッダ書込' });
+  } else {
+    report.steps.push({ step: 'T_権限ロール シート既存（スキップ）' });
+  }
+  // Step 1b: 列正規化（既存シートに列追加があれば反映）
   normalizeTableColumns_(ss, 'T_権限ロール');
-  report.steps.push({ step: 'T_権限ロール 列正規化', table: 'T_権限ロール' });
+  report.steps.push({ step: 'T_権限ロール 列正規化' });
 
   // Step 2: T_管理者Googleホワイトリスト の ロールID 列追加（既存データ保持）
   normalizeTableColumns_(ss, 'T_管理者Googleホワイトリスト');
