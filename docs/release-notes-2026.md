@@ -13,6 +13,31 @@
 
 ---
 
+## v376.25.1 — 2026-05-28 🎉 メニュー単位 RBAC Phase 1-B 完全完了（DB migration 適用）
+
+`docs/246` Phase 1-B の最終締め。operator スクリプトに `Logger.log` 追加で出力可視化（v376.25 で漏れていたため再デプロイ）+ DB migration 完了確認。
+
+| 種別 | 内容 |
+|---|---|
+| 🐛 | v376.25 operator スクリプト 3 個（`runRebuildSchemaForV246` / `migrateToRoleBasedRBAC_v246_DRYRUN` / `_APPLY`）が戻り値だけで Logger.log を呼んでいなかったため、Apps Script editor の「実行ログ」に何も出ない問題を修正。`_LOG` 慣習に揃えて Logger.log 追加 |
+| 🎉 | DB migration 適用完了。`T_権限ロール` 5 行 seed + ホワイトリスト 4 行（MASTER 2 + ADMIN 2）すべて適正 roleId へ紐付け |
+| ✅ | `migrateToRoleBasedRBAC_v246_DRYRUN` 再実行で全行 `SKIP（既に正しい）` 確認 = ロールID 経路稼働中。`権限コード` 列は rollback 用に保持 |
+| 🚀 | デプロイ: admin split @181（operator script の Logger.log 追加のみ。挙動変更なし）|
+
+### 移行結果
+
+| wlId | email | 旧 permCode | 新 roleId |
+|---|---|---|---|
+| WL-001 | k.noguchi@hcm-n.org | MASTER | role-master-builtin |
+| WL-53aba256 | c.yoshizaki@hcm-n.org | MASTER | role-master-builtin |
+| WL-cb77cdb2 | h.otuka@hcm-n.org | ADMIN | role-admin-initial |
+| WL-dead6b45 | k.sakurai@hcm-n.org | ADMIN | role-admin-initial |
+
+### Phase 1 完了。次は Phase 2（権限管理コンソール UI）
+ロール CRUD + 権限マトリクス UI + masterOnly enforcement + 監査ログ。`docs/246` §6 参照。
+
+---
+
 ## v376.25 — 2026-05-28 🆕 メニュー単位 RBAC Phase 1-B コード反映（schema + fallback chain）
 
 `docs/246` Phase 1-B のコード反映。**実 DB migration は operator が次セッションで段階実行**するため、この commit/deploy 単独では挙動完全維持。admin split のみ @180。

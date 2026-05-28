@@ -1,7 +1,7 @@
 # 246. 設計: メニュー単位カスタムロール RBAC
 
 作成日: 2026-05-28
-ステータス: **Phase 1-A 完了 (v376.24 @179)** / **Phase 1-B コード反映完了 (v376.25 @180)** / Phase 1-B 実 migration は operator 作業待ち
+ステータス: **Phase 1 完了** (Phase 1-A v376.24 @179 + Phase 1-B v376.25.1 @181 + DB migration 適用済) / Phase 2 着手予定
 種別: Explanation（設計書）
 関連正本: `docs/05_AUTH_AND_ROLE_SPEC.md`（実装後に反映）, `docs/02_ARCHITECTURE.md`, `docs/03_DATA_MODEL.md`
 
@@ -72,6 +72,22 @@ admin split @180 デプロイ後、Apps Script editor (admin split) を開き、
 ### 次フェーズ予定
 - **Phase 2**: 権限管理コンソール UI（admin frontend）— ロール CRUD + 権限マトリクス + masterOnly enforcement + 監査ログ
 - **Phase 3**: Sidebar 動的化 + permission-aware routing（admin frontend）+ `isFullAdmin/isTrainingOnly` 撤去
+
+## Phase 1-B 完全完了記録（2026-05-28 / v376.25.1）
+
+operator が admin split @181 (Logger.log 追加版) で migration スクリプトを実行し、DB 反映完了:
+
+### 反映後の DRYRUN 検証結果（全 4 行 SKIP）
+
+| wlId | email | 旧 permCode | 新 roleId | action |
+|---|---|---|---|---|
+| WL-001 | k.noguchi@hcm-n.org | MASTER | role-master-builtin | SKIP（既に正しい）|
+| WL-53aba256 | c.yoshizaki@hcm-n.org | MASTER | role-master-builtin | SKIP（既に正しい）|
+| WL-cb77cdb2 | h.otuka@hcm-n.org | ADMIN | role-admin-initial | SKIP（既に正しい）|
+| WL-dead6b45 | k.sakurai@hcm-n.org | ADMIN | role-admin-initial | SKIP（既に正しい）|
+
+`checkAdminBySession_` は `ロールID` 経路で稼働中。`権限コード` 列は rollback 用に保持。
+
 
 
 ## 0. 目的と背景

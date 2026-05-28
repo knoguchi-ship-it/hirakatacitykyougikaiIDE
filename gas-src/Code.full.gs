@@ -5539,7 +5539,9 @@ function runRebuildSchemaForV246() {
   clearAdminPermissionCaches_();
   report.steps.push({ step: 'admin permission caches クリア' });
 
-  return JSON.stringify(report, null, 2);
+  var out = JSON.stringify(report, null, 2);
+  Logger.log('[runRebuildSchemaForV246] ' + out);
+  return out;
 }
 
 /**
@@ -5568,12 +5570,14 @@ function migrateToRoleBasedRBAC_v246_DRYRUN() {
         : '新規設定（' + newRoleId + '）',
     });
   }
-  return JSON.stringify({
+  var out = JSON.stringify({
     総ホワイトリスト件数: preview.length,
     プレビュー: preview,
     mapping参考: LEGACY_CODE_TO_INITIAL_ROLE_ID,
     注意事項: '実反映には migrateToRoleBasedRBAC_v246_APPLY を実行してください。',
   }, null, 2);
+  Logger.log('[migrateToRoleBasedRBAC_v246_DRYRUN] ' + out);
+  return out;
 }
 
 /**
@@ -5618,7 +5622,9 @@ function migrateToRoleBasedRBAC_v246_APPLY() {
     range.setValues(values);
   }
   clearAdminPermissionCaches_();
-  return JSON.stringify({ updated: updated, skipped: skipped, log: log, appliedAt: nowIso }, null, 2);
+  var out = JSON.stringify({ updated: updated, skipped: skipped, log: log, appliedAt: nowIso }, null, 2);
+  Logger.log('[migrateToRoleBasedRBAC_v246_APPLY] ' + out);
+  return out;
 }
 
 
