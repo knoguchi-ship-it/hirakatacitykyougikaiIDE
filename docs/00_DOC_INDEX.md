@@ -123,6 +123,7 @@
 | [228_ROSTER_REDESIGN_2026-05-19.md](228_ROSTER_REDESIGN_2026-05-19.md) | 名簿出力 Visual Designer 全面刷新設計（Sprint S1-S5、完了） |
 | [240_DESIGN_CLOUD_RUN_ARGON2ID_2026-05-20.md](240_DESIGN_CLOUD_RUN_ARGON2ID_2026-05-20.md) | Cloud Run Argon2id 外部 KDF 完全設計 + 実装雛形（GCP 利用判断時に反映） |
 | [227_MAIL_KILL_SWITCH_2026-05-18.md](227_MAIL_KILL_SWITCH_2026-05-18.md) | メール送信 4 階層ガード設計 |
+| [246_DESIGN_MENU_BASED_CUSTOM_ROLES_RBAC_2026-05-28.md](246_DESIGN_MENU_BASED_CUSTOM_ROLES_RBAC_2026-05-28.md) | メニュー単位カスタムロール RBAC 設計（固定5ロール→マスター定義のカスタムロール。Phase1-3） |
 
 ### 第三者評価 / セキュリティ
 
