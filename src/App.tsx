@@ -400,12 +400,14 @@ const App: React.FC = () => {
     googleEmail: string;
     linkedAuthId: string;
     permissionLevel: AdminPermissionLevel;
+    roleId?: string; // docs/246 Phase 2-C
     enabled: boolean;
   }>>({});
   const [newAdminPermission, setNewAdminPermission] = useState({
     googleEmail: '',
     linkedAuthId: '',
     permissionLevel: 'ADMIN' as AdminPermissionLevel,
+    roleId: '' as string, // docs/246 Phase 2-C: 新 RBAC ロール選択
     enabled: true,
   });
   const [adminPermissionLevel, setAdminPermissionLevel] = useState<AdminPermissionLevel | null>(null);
@@ -1888,7 +1890,7 @@ const App: React.FC = () => {
 
   const updateAdminPermissionDraft = (
     id: string,
-    patch: Partial<{ googleEmail: string; linkedAuthId: string; permissionLevel: AdminPermissionLevel; enabled: boolean }>,
+    patch: Partial<{ googleEmail: string; linkedAuthId: string; permissionLevel: AdminPermissionLevel; roleId: string; enabled: boolean }>,
   ) => {
     setAdminPermissionDrafts((prev) => ({
       ...prev,
@@ -1908,6 +1910,7 @@ const App: React.FC = () => {
     googleEmail: string;
     linkedAuthId: string;
     permissionLevel: AdminPermissionLevel;
+    roleId?: string; // docs/246 Phase 2-C
     enabled: boolean;
   }) => {
     await api.saveAdminPermission(payload);
@@ -2030,16 +2033,47 @@ const App: React.FC = () => {
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">権限</label>
-            <select
-              value={newAdminPermission.permissionLevel}
-              onChange={(e) => setNewAdminPermission((prev) => ({ ...prev, permissionLevel: e.target.value as AdminPermissionLevel }))}
-              className="w-full border border-slate-300 rounded px-3 py-2"
-            >
-              {permissionLevelOptions.map((level) => (
-                <option key={level} value={level}>{permissionLevelLabel(level)}</option>
-              ))}
-            </select>
+            <label className="block text-sm font-medium text-slate-700 mb-1">ロール</label>
+            {adminPermissionData?.roles && adminPermissionData.roles.length > 0 ? (
+              <select
+                value={newAdminPermission.roleId || ''}
+                onChange={(e) => {
+                  const roleId = e.target.value;
+                  // ロール選択時、対応する legacy permissionLevel を逆引きして同期（後方互換）
+                  const role = adminPermissionData?.roles?.find((r) => r.roleId === roleId);
+                  const legacyMap: Record<string, AdminPermissionLevel> = {
+                    'role-master-builtin': 'MASTER',
+                    'role-admin-initial': 'ADMIN',
+                    'role-training-manager-initial': 'TRAINING_MANAGER',
+                    'role-training-registrar-initial': 'TRAINING_REGISTRAR',
+                    'role-general-initial': 'GENERAL',
+                  };
+                  const fallbackLevel: AdminPermissionLevel = legacyMap[roleId] || (role?.isMaster ? 'MASTER' : 'ADMIN');
+                  setNewAdminPermission((prev) => ({ ...prev, roleId, permissionLevel: fallbackLevel }));
+                }}
+                className="w-full border border-slate-300 rounded px-3 py-2"
+              >
+                <option value="">— ロールを選択 —</option>
+                {adminPermissionData.roles
+                  .filter((r) => r.roleId !== 'role-general-initial') // GENERAL は admin login 不可
+                  .map((r) => (
+                    <option key={r.roleId} value={r.roleId}>
+                      {r.roleName}{r.isBuiltIn ? ' [組込]' : ''}{r.description ? ` — ${r.description}` : ''}
+                    </option>
+                  ))}
+              </select>
+            ) : (
+              // Phase 1-A 互換 fallback: roles データが取得できない場合は legacy permissionLevel ドロップダウン
+              <select
+                value={newAdminPermission.permissionLevel}
+                onChange={(e) => setNewAdminPermission((prev) => ({ ...prev, permissionLevel: e.target.value as AdminPermissionLevel }))}
+                className="w-full border border-slate-300 rounded px-3 py-2"
+              >
+                {permissionLevelOptions.map((level) => (
+                  <option key={level} value={level}>{permissionLevelLabel(level)}</option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
         <div className="mt-4 flex items-center justify-between gap-4">
@@ -2054,19 +2088,22 @@ const App: React.FC = () => {
           <button
             type="button"
             className="px-4 py-2 rounded bg-slate-800 text-white disabled:opacity-50"
-            disabled={!newAdminPermission.googleEmail.trim() || !newAdminPermission.linkedAuthId}
+            disabled={!newAdminPermission.googleEmail.trim() || !newAdminPermission.linkedAuthId
+              || (adminPermissionData?.roles && adminPermissionData.roles.length > 0 && !newAdminPermission.roleId)}
             onClick={async () => {
               try {
                 await saveAdminPermission({
                   googleEmail: newAdminPermission.googleEmail.trim(),
                   linkedAuthId: newAdminPermission.linkedAuthId,
                   permissionLevel: newAdminPermission.permissionLevel,
+                  roleId: newAdminPermission.roleId || undefined, // Phase 2-C: 選択されていれば送信
                   enabled: newAdminPermission.enabled,
                 });
                 setNewAdminPermission({
                   googleEmail: '',
                   linkedAuthId: '',
                   permissionLevel: 'ADMIN' as AdminPermissionLevel,
+                  roleId: '',
                   enabled: true,
                 });
                 setNewPermissionIdentitySearch('');
@@ -2161,6 +2198,7 @@ const App: React.FC = () => {
                     googleEmail: entry.googleEmail || '',
                     linkedAuthId: entry.linkedAuthId || '',
                     permissionLevel: entry.permissionLevel || 'ADMIN',
+                    roleId: entry.roleId || '',
                     enabled: entry.enabled,
                   };
                   const editSearch = editPermissionIdentitySearches[entry.id] ?? '';
@@ -2272,16 +2310,45 @@ const App: React.FC = () => {
                                 )}
                               </div>
                               <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">権限</label>
-                                <select
-                                  value={draft.permissionLevel}
-                                  onChange={(e) => updateAdminPermissionDraft(entry.id, { permissionLevel: e.target.value as AdminPermissionLevel })}
-                                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-                                >
-                                  {permissionLevelOptions.map((level) => (
-                                    <option key={level} value={level}>{permissionLevelLabel(level)}</option>
-                                  ))}
-                                </select>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">ロール</label>
+                                {adminPermissionData?.roles && adminPermissionData.roles.length > 0 ? (
+                                  <select
+                                    value={draft.roleId || ''}
+                                    onChange={(e) => {
+                                      const roleId = e.target.value;
+                                      const legacyMap: Record<string, AdminPermissionLevel> = {
+                                        'role-master-builtin': 'MASTER',
+                                        'role-admin-initial': 'ADMIN',
+                                        'role-training-manager-initial': 'TRAINING_MANAGER',
+                                        'role-training-registrar-initial': 'TRAINING_REGISTRAR',
+                                        'role-general-initial': 'GENERAL',
+                                      };
+                                      const role = adminPermissionData?.roles?.find((r) => r.roleId === roleId);
+                                      const fallbackLevel: AdminPermissionLevel = legacyMap[roleId] || (role?.isMaster ? 'MASTER' : 'ADMIN');
+                                      updateAdminPermissionDraft(entry.id, { roleId, permissionLevel: fallbackLevel });
+                                    }}
+                                    className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                                  >
+                                    <option value="">— ロールを選択 —</option>
+                                    {adminPermissionData.roles
+                                      .filter((r) => r.roleId !== 'role-general-initial')
+                                      .map((r) => (
+                                        <option key={r.roleId} value={r.roleId}>
+                                          {r.roleName}{r.isBuiltIn ? ' [組込]' : ''}
+                                        </option>
+                                      ))}
+                                  </select>
+                                ) : (
+                                  <select
+                                    value={draft.permissionLevel}
+                                    onChange={(e) => updateAdminPermissionDraft(entry.id, { permissionLevel: e.target.value as AdminPermissionLevel })}
+                                    className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                                  >
+                                    {permissionLevelOptions.map((level) => (
+                                      <option key={level} value={level}>{permissionLevelLabel(level)}</option>
+                                    ))}
+                                  </select>
+                                )}
                               </div>
                             </div>
                             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mt-4">
@@ -2305,6 +2372,7 @@ const App: React.FC = () => {
                                         googleEmail: draft.googleEmail.trim(),
                                         linkedAuthId: draft.linkedAuthId,
                                         permissionLevel: draft.permissionLevel,
+                                        roleId: draft.roleId || undefined, // Phase 2-C
                                         enabled: draft.enabled,
                                       });
                                       setEditingPermissionId(null);
