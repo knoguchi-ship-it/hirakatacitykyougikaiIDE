@@ -816,6 +816,248 @@ var ADMIN_LOGIN_ACTIONS = {
   checkAdminBySession: true,
 };
 
+// docs/246 Phase 1-A: メニュー単位 RBAC の認可レジストリ。
+// 以下 4 vars は build 時に scripts/menu-registry.mjs の serializeMenuRegistryForGas() で
+// 上書き注入される。ここではソースの parse 健全性のために空の placeholder を置いている。
+// 単一情報源は scripts/menu-registry.mjs（frontend からも import）。
+// __MENU_REGISTRY_BUILD_INJECT_START__
+var MENU_REGISTRY = [
+  {
+    "id": "members-list",
+    "label": "会員一覧",
+    "group": "会員管理"
+  },
+  {
+    "id": "change-requests",
+    "label": "変更申請管理",
+    "group": "会員管理"
+  },
+  {
+    "id": "annual-fee",
+    "label": "年会費管理",
+    "group": "財務・帳票"
+  },
+  {
+    "id": "payment-history",
+    "label": "支払い履歴管理",
+    "group": "財務・帳票"
+  },
+  {
+    "id": "claim-management",
+    "label": "請求管理",
+    "group": "財務・帳票"
+  },
+  {
+    "id": "roster-export",
+    "label": "名簿出力",
+    "group": "財務・帳票"
+  },
+  {
+    "id": "mailing-list-export",
+    "label": "宛名リスト出力",
+    "group": "財務・帳票"
+  },
+  {
+    "id": "training-manage",
+    "label": "研修管理",
+    "group": "研修・通知"
+  },
+  {
+    "id": "bulk-mail",
+    "label": "一括メール送信",
+    "group": "研修・通知"
+  },
+  {
+    "id": "line-post",
+    "label": "公式LINE投稿依頼",
+    "group": "研修・通知"
+  },
+  {
+    "id": "officer-management",
+    "label": "役員管理",
+    "group": "組織管理"
+  },
+  {
+    "id": "admin-settings",
+    "label": "システム設定",
+    "group": "システム"
+  },
+  {
+    "id": "system-permissions",
+    "label": "権限管理",
+    "group": "システム",
+    "masterOnly": true
+  },
+  {
+    "id": "data-management",
+    "label": "データ管理",
+    "group": "システム",
+    "masterOnly": true
+  },
+  {
+    "id": "common-shared",
+    "label": "共通機能（共有メモ参照・PDFサムネ・データ取得）",
+    "group": "共通"
+  }
+];
+var ACTION_TO_MENU = {
+  "updateMember": "members-list",
+  "withdrawMember": "members-list",
+  "scheduleWithdrawMember": "members-list",
+  "cancelScheduledWithdraw": "members-list",
+  "removeStaffFromOffice": "members-list",
+  "updateStaff": "members-list",
+  "getAdminPersonList": "members-list",
+  "updatePersonsBatch": "members-list",
+  "convertMemberType": "members-list",
+  "getAdminChangeRequests": "change-requests",
+  "approveAdminChangeRequest": "change-requests",
+  "rejectAdminChangeRequest": "change-requests",
+  "getAnnualFeeAdminData": "annual-fee",
+  "saveAnnualFeeRecord": "annual-fee",
+  "saveAnnualFeeRecordsBatch": "annual-fee",
+  "getPaymentHistory": "payment-history",
+  "savePayment": "payment-history",
+  "deletePayment": "payment-history",
+  "getAdminBankAccount": "payment-history",
+  "saveAdminBankAccount": "payment-history",
+  "deleteAdminBankAccount": "payment-history",
+  "getClaims": "claim-management",
+  "approveClaim": "claim-management",
+  "rejectClaim": "claim-management",
+  "adminDeleteClaim": "claim-management",
+  "getRosterFieldDictionary": "roster-export",
+  "getRosterDesignerData": "roster-export",
+  "loadRosterTemplatesV2": "roster-export",
+  "saveRosterTemplateV2": "roster-export",
+  "deleteRosterTemplateV2": "roster-export",
+  "duplicateRosterTemplateV2": "roster-export",
+  "getMailingListTargets": "mailing-list-export",
+  "generateMailingListExcel": "mailing-list-export",
+  "saveTraining": "training-manage",
+  "softDeleteTraining": "training-manage",
+  "restoreTraining": "training-manage",
+  "uploadTrainingFile": "training-manage",
+  "regenerateThumbnailForTraining": "training-manage",
+  "setupTrainingFileFolder": "training-manage",
+  "getTrainingManagementData": "training-manage",
+  "getTrainingApplicants": "training-manage",
+  "sendTrainingReminder": "training-manage",
+  "getAdminEmailAliases": "training-manage",
+  "sendTrainingMail": "training-manage",
+  "generateTrainingEmail": "training-manage",
+  "getTrainingRosterDetail": "training-manage",
+  "saveAttendance": "training-manage",
+  "saveAttendanceBatch": "training-manage",
+  "addRosterEntry": "training-manage",
+  "addGuestRosterEntry": "training-manage",
+  "cancelRosterEntry": "training-manage",
+  "updateRosterEntry": "training-manage",
+  "getTrainingStats": "training-manage",
+  "getMembersForBulkMail": "bulk-mail",
+  "sendBulkMemberMail": "bulk-mail",
+  "getEmailSendLog": "bulk-mail",
+  "getCredentialEmailTemplates": "bulk-mail",
+  "saveCredentialEmailTemplate": "bulk-mail",
+  "deleteCredentialEmailTemplate": "bulk-mail",
+  "getBulkMailTemplates": "bulk-mail",
+  "saveBulkMailTemplate": "bulk-mail",
+  "deleteBulkMailTemplate": "bulk-mail",
+  "listLinePostRequests": "line-post",
+  "getLinePostRequest": "line-post",
+  "saveLinePostRequest": "line-post",
+  "uploadLinePostAttachment": "line-post",
+  "transitionLinePostRequest": "line-post",
+  "deleteLinePostRequest": "line-post",
+  "getOfficerMasterData": "officer-management",
+  "saveOrganization": "officer-management",
+  "deleteOrganization": "officer-management",
+  "saveOfficerRole": "officer-management",
+  "deleteOfficerRole": "officer-management",
+  "savePaymentType": "officer-management",
+  "deletePaymentType": "officer-management",
+  "saveWorkCategory": "officer-management",
+  "deleteWorkCategory": "officer-management",
+  "getOfficerManagementData": "officer-management",
+  "assignOfficer": "officer-management",
+  "resignOfficer": "officer-management",
+  "updateOfficerLinkage": "officer-management",
+  "updateOfficerRecord": "officer-management",
+  "getDbInfo": "admin-settings",
+  "getSystemSettings": "admin-settings",
+  "updateSystemSettings": "admin-settings",
+  "getAdminDashboardData": "admin-settings",
+  "getAdminInitData": "admin-settings",
+  "getAdminPermissionData": "system-permissions",
+  "saveAdminPermission": "system-permissions",
+  "deleteAdminPermission": "system-permissions",
+  "seedDemoData": "data-management",
+  "searchMembersForDelete": "data-management",
+  "previewDeleteMember": "data-management",
+  "executeDeleteMember": "data-management",
+  "getDeleteLogs": "data-management",
+  "repairDuplicateStaffRecords": "data-management",
+  "repairTrainingApplicationApplicantIds": "data-management",
+  "repairMemberCareManagerDuplicates": "data-management",
+  "backupMigrationTargets": "data-management",
+  "fetchAllData": "common-shared",
+  "getSharedMemo": "common-shared",
+  "getFileThumbnail": "common-shared",
+  "saveSharedMemo": "admin-settings"
+};
+var LEGACY_ROLE_TO_MENUS = {
+  "ADMIN": [
+    "members-list",
+    "change-requests",
+    "annual-fee",
+    "payment-history",
+    "claim-management",
+    "roster-export",
+    "mailing-list-export",
+    "training-manage",
+    "bulk-mail",
+    "line-post",
+    "officer-management",
+    "admin-settings",
+    "system-permissions",
+    "common-shared"
+  ],
+  "TRAINING_MANAGER": [
+    "training-manage",
+    "common-shared"
+  ],
+  "TRAINING_REGISTRAR": [
+    "training-manage",
+    "common-shared"
+  ],
+  "GENERAL": [
+    "common-shared"
+  ]
+};
+var LEGACY_ROLE_TRAINING_SCOPE = {
+  "MASTER": "ALL",
+  "ADMIN": "ALL",
+  "TRAINING_MANAGER": "ALL",
+  "TRAINING_REGISTRAR": "OWN",
+  "GENERAL": "ALL"
+};
+// __MENU_REGISTRY_BUILD_INJECT_END__
+
+// docs/246 Phase 1-A: action 認可判定。
+// 規則: role === 'MASTER' は全許可。それ以外は ACTION_TO_MENU[action] が
+// LEGACY_ROLE_TO_MENUS[role] に含まれる場合のみ許可（未マップ action は fail-closed）。
+// scripts/test-menu-registry.mjs が旧 ADMIN_ACTION_PERMISSIONS との等価性を保証する。
+function isActionAllowedByMenu_(action, roleCode) {
+  if (roleCode === 'MASTER') return true;
+  var menuId = ACTION_TO_MENU[action];
+  if (!menuId) return false;
+  var allowed = LEGACY_ROLE_TO_MENUS[roleCode] || [];
+  for (var i = 0; i < allowed.length; i += 1) {
+    if (allowed[i] === menuId) return true;
+  }
+  return false;
+}
+
 var ADMIN_ACTION_PERMISSIONS = {
   'getDbInfo': ['MASTER','ADMIN'],
   'getSystemSettings': ['MASTER','ADMIN'],
@@ -983,7 +1225,10 @@ function processApiRequest(action, payload) {
         return JSON.stringify({ success: false, error: 'unauthorized' });
       }
       var permLevel = String(sessionResult.adminPermissionLevel || 'ADMIN');
-      if (requiredPerms.indexOf(permLevel) === -1) {
+      // docs/246 Phase 1-A: 旧 requiredPerms.indexOf(permLevel) 判定を menu-based に置換。
+      // 等価性は scripts/test-menu-registry.mjs（snapshot test）が保証する。
+      // ADMIN_ACTION_PERMISSIONS は action 集合の whitelist 用途として残置（Phase 1-B で撤去予定）。
+      if (!isActionAllowedByMenu_(action, permLevel)) {
         return JSON.stringify({ success: false, error: 'insufficient_permission' });
       }
       parsedPayload.__adminSession = sessionResult;
@@ -2692,6 +2937,14 @@ function checkAdminBySession_() {
   var nowIso = new Date().toISOString();
   appendLoginHistory_(ss, authId, email, 'GOOGLE', 'SUCCESS', '管理者セッション認証成功（' + permCode + '）');
 
+  // docs/246 Phase 1-A: menu-based 認可向けの追加フィールド。
+  // 既存 adminPermissionLevel は後方互換のため維持。
+  var isMaster = permCode === 'MASTER';
+  var allowedMenus = isMaster
+    ? (MENU_REGISTRY || []).map(function(m) { return m.id; })
+    : (LEGACY_ROLE_TO_MENUS[permCode] || []).slice();
+  var trainingEditScope = String(LEGACY_ROLE_TRAINING_SCOPE[permCode] || 'ALL').toUpperCase();
+
   return {
     authMethod: 'GOOGLE',
     loginId: email,
@@ -2700,6 +2953,12 @@ function checkAdminBySession_() {
     roleCode: roleCode,
     canAccessAdminPage: true,
     adminPermissionLevel: permCode,
+    // docs/246 Phase 1-A 追加フィールド
+    roleId: permCode, // Phase 1-A では legacy code をそのまま使用。Phase 1-B で T_権限ロール の UUID へ移行
+    roleName: permCode,
+    isMaster: isMaster,
+    allowedMenus: allowedMenus,
+    trainingEditScope: trainingEditScope,
     displayName: derivedDisplayName,
     authenticatedAt: nowIso,
   };
@@ -8259,8 +8518,10 @@ function saveTraining_(payload) {
     var cols = found.columns;
     var row = found.row.slice();
 
-    // TRAINING_REGISTRAR は自分が登録した研修のみ編集可
-    if (adminPerm === 'TRAINING_REGISTRAR') {
+    // docs/246 Phase 1-A: 旧 'TRAINING_REGISTRAR' ハードコードを trainingEditScope='OWN' 判定へ置換。
+    // 挙動完全維持（LEGACY_ROLE_TRAINING_SCOPE で TR のみ OWN、他は ALL）。
+    var trainingScope = adminSession ? String(adminSession.trainingEditScope || 'ALL').toUpperCase() : 'ALL';
+    if (trainingScope === 'OWN') {
       var registrarEmail = String(cols['登録者メール'] != null ? row[cols['登録者メール']] : '' || '').trim().toLowerCase();
       if (!registrarEmail || registrarEmail !== adminEmail.toLowerCase()) {
         throw new Error('研修登録者は自身が登録した研修のみ編集可能です。');

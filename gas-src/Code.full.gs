@@ -1484,6 +1484,32 @@ var ADMIN_LOGIN_ACTIONS = {
   checkAdminBySession: true,
 };
 
+// docs/246 Phase 1-A: メニュー単位 RBAC の認可レジストリ。
+// 以下 4 vars は build 時に scripts/menu-registry.mjs の serializeMenuRegistryForGas() で
+// 上書き注入される。ここではソースの parse 健全性のために空の placeholder を置いている。
+// 単一情報源は scripts/menu-registry.mjs（frontend からも import）。
+// __MENU_REGISTRY_BUILD_INJECT_START__
+var MENU_REGISTRY = [];
+var ACTION_TO_MENU = {};
+var LEGACY_ROLE_TO_MENUS = {};
+var LEGACY_ROLE_TRAINING_SCOPE = {};
+// __MENU_REGISTRY_BUILD_INJECT_END__
+
+// docs/246 Phase 1-A: action 認可判定。
+// 規則: role === 'MASTER' は全許可。それ以外は ACTION_TO_MENU[action] が
+// LEGACY_ROLE_TO_MENUS[role] に含まれる場合のみ許可（未マップ action は fail-closed）。
+// scripts/test-menu-registry.mjs が旧 ADMIN_ACTION_PERMISSIONS との等価性を保証する。
+function isActionAllowedByMenu_(action, roleCode) {
+  if (roleCode === 'MASTER') return true;
+  var menuId = ACTION_TO_MENU[action];
+  if (!menuId) return false;
+  var allowed = LEGACY_ROLE_TO_MENUS[roleCode] || [];
+  for (var i = 0; i < allowed.length; i += 1) {
+    if (allowed[i] === menuId) return true;
+  }
+  return false;
+}
+
 var ADMIN_ACTION_PERMISSIONS = {
   'getDbInfo': ['MASTER','ADMIN'],
   'getSystemSettings': ['MASTER','ADMIN'],
@@ -1651,7 +1677,10 @@ function processApiRequest(action, payload) {
         return JSON.stringify({ success: false, error: 'unauthorized' });
       }
       var permLevel = String(sessionResult.adminPermissionLevel || 'ADMIN');
-      if (requiredPerms.indexOf(permLevel) === -1) {
+      // docs/246 Phase 1-A: 旧 requiredPerms.indexOf(permLevel) 判定を menu-based に置換。
+      // 等価性は scripts/test-menu-registry.mjs（snapshot test）が保証する。
+      // ADMIN_ACTION_PERMISSIONS は action 集合の whitelist 用途として残置（Phase 1-B で撤去予定）。
+      if (!isActionAllowedByMenu_(action, permLevel)) {
         return JSON.stringify({ success: false, error: 'insufficient_permission' });
       }
       parsedPayload.__adminSession = sessionResult;
@@ -5327,6 +5356,14 @@ function checkAdminBySession_() {
   var nowIso = new Date().toISOString();
   appendLoginHistory_(ss, authId, email, 'GOOGLE', 'SUCCESS', '管理者セッション認証成功（' + permCode + '）');
 
+  // docs/246 Phase 1-A: menu-based 認可向けの追加フィールド。
+  // 既存 adminPermissionLevel は後方互換のため維持。
+  var isMaster = permCode === 'MASTER';
+  var allowedMenus = isMaster
+    ? (MENU_REGISTRY || []).map(function(m) { return m.id; })
+    : (LEGACY_ROLE_TO_MENUS[permCode] || []).slice();
+  var trainingEditScope = String(LEGACY_ROLE_TRAINING_SCOPE[permCode] || 'ALL').toUpperCase();
+
   return {
     authMethod: 'GOOGLE',
     loginId: email,
@@ -5335,6 +5372,12 @@ function checkAdminBySession_() {
     roleCode: roleCode,
     canAccessAdminPage: true,
     adminPermissionLevel: permCode,
+    // docs/246 Phase 1-A 追加フィールド
+    roleId: permCode, // Phase 1-A では legacy code をそのまま使用。Phase 1-B で T_権限ロール の UUID へ移行
+    roleName: permCode,
+    isMaster: isMaster,
+    allowedMenus: allowedMenus,
+    trainingEditScope: trainingEditScope,
     displayName: derivedDisplayName,
     authenticatedAt: nowIso,
   };
@@ -11628,8 +11671,10 @@ function saveTraining_(payload) {
     var cols = found.columns;
     var row = found.row.slice();
 
-    // TRAINING_REGISTRAR は自分が登録した研修のみ編集可
-    if (adminPerm === 'TRAINING_REGISTRAR') {
+    // docs/246 Phase 1-A: 旧 'TRAINING_REGISTRAR' ハードコードを trainingEditScope='OWN' 判定へ置換。
+    // 挙動完全維持（LEGACY_ROLE_TRAINING_SCOPE で TR のみ OWN、他は ALL）。
+    var trainingScope = adminSession ? String(adminSession.trainingEditScope || 'ALL').toUpperCase() : 'ALL';
+    if (trainingScope === 'OWN') {
       var registrarEmail = String(cols['登録者メール'] != null ? row[cols['登録者メール']] : '' || '').trim().toLowerCase();
       if (!registrarEmail || registrarEmail !== adminEmail.toLowerCase()) {
         throw new Error('研修登録者は自身が登録した研修のみ編集可能です。');

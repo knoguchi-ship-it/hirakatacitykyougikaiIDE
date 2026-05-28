@@ -15,7 +15,9 @@ import {
   ADMIN_FORBIDDEN_TOP_LEVEL_FUNCTIONS,
   ADMIN_LOGIN_ACTIONS_LIST,
   ADMIN_ALLOWED_ACTIONS_LIST,
+  injectMenuRegistryPlaceholders,
 } from './gas-boundary-utils.mjs';
+import { serializeMenuRegistryForGas } from './menu-registry.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
@@ -387,7 +389,8 @@ function removeIfBlock(source, conditionText) {
 }
 
 function buildAdminCode(source) {
-  let code = source.replace("var APP_SECURITY_BOUNDARY = 'public';", "var APP_SECURITY_BOUNDARY = 'admin';");
+  let code = injectMenuRegistryPlaceholders(source, serializeMenuRegistryForGas());
+  code = code.replace("var APP_SECURITY_BOUNDARY = 'public';", "var APP_SECURITY_BOUNDARY = 'admin';");
   code = replaceObjectLiteral(code, 'PUBLIC_ALLOWED_ACTIONS', '{}');
   code = replaceObjectLiteral(code, 'MEMBER_ALLOWED_ACTIONS', '{}');
   // v376.23: action 許可リストを gas-boundary-utils.mjs に単一情報源化（audit と共有）。

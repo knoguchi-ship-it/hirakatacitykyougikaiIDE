@@ -10,7 +10,8 @@ import {
 } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { MEMBER_ALLOWED_ACTIONS_LIST } from './gas-boundary-utils.mjs';
+import { MEMBER_ALLOWED_ACTIONS_LIST, injectMenuRegistryPlaceholders } from './gas-boundary-utils.mjs';
+import { serializeMenuRegistryForGas } from './menu-registry.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
@@ -392,7 +393,8 @@ function removeIfBlock(source, conditionText) {
 }
 
 function buildMemberCode(source) {
-  let code = source.replace("var APP_SECURITY_BOUNDARY = 'public';", "var APP_SECURITY_BOUNDARY = 'member';");
+  let code = injectMenuRegistryPlaceholders(source, serializeMenuRegistryForGas());
+  code = code.replace("var APP_SECURITY_BOUNDARY = 'public';", "var APP_SECURITY_BOUNDARY = 'member';");
   code = replaceObjectLiteral(code, 'PUBLIC_ALLOWED_ACTIONS', '{}');
   code = replaceObjectLiteral(code, 'ADMIN_LOGIN_ACTIONS', '{}');
   code = replaceObjectLiteral(code, 'ADMIN_ACTION_PERMISSIONS', '{}');

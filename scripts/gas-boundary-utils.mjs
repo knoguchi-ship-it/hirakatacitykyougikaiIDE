@@ -221,6 +221,22 @@ export const ADMIN_ALLOWED_ACTIONS_LIST = [
   'getTrainingStats',
 ];
 
+// docs/246 Phase 1-A: gas-src/Code.full.gs の MENU_REGISTRY/ACTION_TO_MENU/LEGACY_*
+// placeholder ブロックを、scripts/menu-registry.mjs の serializeMenuRegistryForGas() で
+// 生成した実体に置換する。3 split build 全てから呼ぶ。
+export function injectMenuRegistryPlaceholders(source, serialized) {
+  const startMarker = '// __MENU_REGISTRY_BUILD_INJECT_START__';
+  const endMarker = '// __MENU_REGISTRY_BUILD_INJECT_END__';
+  const startIdx = source.indexOf(startMarker);
+  const endIdx = source.indexOf(endMarker);
+  if (startIdx === -1 || endIdx === -1) {
+    throw new Error('MENU_REGISTRY build inject placeholders が見つかりません（gas-src/Code.full.gs の構造変更を確認）');
+  }
+  const before = source.slice(0, startIdx + startMarker.length);
+  const after = source.slice(endIdx);
+  return `${before}\n${serialized}\n${after}`;
+}
+
 export function replaceObjectLiteral(source, name, replacement) {
   const pattern = new RegExp(`var ${name} = \\{[\\s\\S]*?\\n\\};`);
   if (!pattern.test(source)) {

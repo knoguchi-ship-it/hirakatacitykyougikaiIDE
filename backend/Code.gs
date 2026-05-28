@@ -833,6 +833,133 @@ var PUBLIC_ALLOWED_ACTIONS = {
 // 管理者ログイン専用アクション: Session.getActiveUser() による自己完結型認証のため、
 // 事前の admin session 検証を必要としない。関数内で認証を完結させる。
 
+// docs/246 Phase 1-A: メニュー単位 RBAC の認可レジストリ。
+// 以下 4 vars は build 時に scripts/menu-registry.mjs の serializeMenuRegistryForGas() で
+// 上書き注入される。ここではソースの parse 健全性のために空の placeholder を置いている。
+// 単一情報源は scripts/menu-registry.mjs（frontend からも import）。
+// __MENU_REGISTRY_BUILD_INJECT_START__
+var MENU_REGISTRY = [
+  {
+    "id": "members-list",
+    "label": "会員一覧",
+    "group": "会員管理"
+  },
+  {
+    "id": "change-requests",
+    "label": "変更申請管理",
+    "group": "会員管理"
+  },
+  {
+    "id": "annual-fee",
+    "label": "年会費管理",
+    "group": "財務・帳票"
+  },
+  {
+    "id": "payment-history",
+    "label": "支払い履歴管理",
+    "group": "財務・帳票"
+  },
+  {
+    "id": "claim-management",
+    "label": "請求管理",
+    "group": "財務・帳票"
+  },
+  {
+    "id": "roster-export",
+    "label": "名簿出力",
+    "group": "財務・帳票"
+  },
+  {
+    "id": "mailing-list-export",
+    "label": "宛名リスト出力",
+    "group": "財務・帳票"
+  },
+  {
+    "id": "training-manage",
+    "label": "研修管理",
+    "group": "研修・通知"
+  },
+  {
+    "id": "bulk-mail",
+    "label": "一括メール送信",
+    "group": "研修・通知"
+  },
+  {
+    "id": "line-post",
+    "label": "公式LINE投稿依頼",
+    "group": "研修・通知"
+  },
+  {
+    "id": "officer-management",
+    "label": "役員管理",
+    "group": "組織管理"
+  },
+  {
+    "id": "admin-settings",
+    "label": "システム設定",
+    "group": "システム"
+  },
+  {
+    "id": "system-permissions",
+    "label": "権限管理",
+    "group": "システム",
+    "masterOnly": true
+  },
+  {
+    "id": "data-management",
+    "label": "データ管理",
+    "group": "システム",
+    "masterOnly": true
+  },
+  {
+    "id": "common-shared",
+    "label": "共通機能（共有メモ参照・PDFサムネ・データ取得）",
+    "group": "共通"
+  }
+];
+var LEGACY_ROLE_TO_MENUS = {
+  "ADMIN": [
+    "members-list",
+    "change-requests",
+    "annual-fee",
+    "payment-history",
+    "claim-management",
+    "roster-export",
+    "mailing-list-export",
+    "training-manage",
+    "bulk-mail",
+    "line-post",
+    "officer-management",
+    "admin-settings",
+    "system-permissions",
+    "common-shared"
+  ],
+  "TRAINING_MANAGER": [
+    "training-manage",
+    "common-shared"
+  ],
+  "TRAINING_REGISTRAR": [
+    "training-manage",
+    "common-shared"
+  ],
+  "GENERAL": [
+    "common-shared"
+  ]
+};
+var LEGACY_ROLE_TRAINING_SCOPE = {
+  "MASTER": "ALL",
+  "ADMIN": "ALL",
+  "TRAINING_MANAGER": "ALL",
+  "TRAINING_REGISTRAR": "OWN",
+  "GENERAL": "ALL"
+};
+// __MENU_REGISTRY_BUILD_INJECT_END__
+
+// docs/246 Phase 1-A: action 認可判定。
+// 規則: role === 'MASTER' は全許可。それ以外は ACTION_TO_MENU[action] が
+// LEGACY_ROLE_TO_MENUS[role] に含まれる場合のみ許可（未マップ action は fail-closed）。
+// scripts/test-menu-registry.mjs が旧 ADMIN_ACTION_PERMISSIONS との等価性を保証する。
+
 
 function getActionRegistryForCurrentApp_() {
   return {

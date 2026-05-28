@@ -7,6 +7,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import {
   assertAllowedTopLevelFunctions,
+  injectMenuRegistryPlaceholders,
   pruneUnreachableFunctionDeclarations,
   removeDisallowedActionHandlers,
   removeIfBlock,
@@ -14,6 +15,7 @@ import {
   replaceScriptRoutesWithPublicOnly,
   PUBLIC_ALLOWED_ACTIONS_LIST,
 } from './gas-boundary-utils.mjs';
+import { serializeMenuRegistryForGas } from './menu-registry.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
@@ -34,7 +36,8 @@ function run(cmd, env = {}) {
 }
 
 function buildPublicCode(source) {
-  let code = source.replace("var APP_SECURITY_BOUNDARY = 'public';", "var APP_SECURITY_BOUNDARY = 'public';");
+  let code = injectMenuRegistryPlaceholders(source, serializeMenuRegistryForGas());
+  code = code.replace("var APP_SECURITY_BOUNDARY = 'public';", "var APP_SECURITY_BOUNDARY = 'public';");
   code = replaceScriptRoutesWithPublicOnly(code);
   code = replaceObjectLiteral(code, 'MEMBER_ALLOWED_ACTIONS', '{}');
   code = replaceObjectLiteral(code, 'ADMIN_LOGIN_ACTIONS', '{}');
