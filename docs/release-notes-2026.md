@@ -13,6 +13,38 @@
 
 ---
 
+## v376.30 — 2026-05-29 🆕 研修登録に「申込URL」任意項目を追加（外部申込フォーム対応）
+
+Google フォーム等の外部申込フォーム URL を研修に紐付けられるようにする任意項目追加。設定すると公開ポータルの「申し込む」ボタンが外部フォームへのリンクに置換され、内部申込フローをバイパスできる。
+
+| 種別 | 内容 |
+|---|---|
+| 🆕 | T_研修 schema 末尾に「申込URL」列追加。`normalizeTableColumns_` の name-based shift により既存 5 行データを完全保持 |
+| 🆕 | `DB_SCHEMA_VERSION` を `'2026-05-29-training-application-url-v376.30'` に更新 → 次回 admin login 時に `initializeSchemaIfNeeded_` が走り新列を自動追加 |
+| 🆕 | `src/types.ts`: `Training.applicationUrl?` / `TrainingFieldConfig.applicationUrl` 追加、`DEFAULT_FIELD_CONFIG.applicationUrl = true`（デフォルト表示）|
+| 🆕 | `src/shared/types.ts::PublicTraining.applicationUrl?` 追加 |
+| 🆕 | `src/components/TrainingManagement.tsx`: `TRAINING_OPTIONAL_FIELD_DEFS` に追加、`buildEmptyForm` 初期値、案内PDF 直後に URL 入力欄（placeholder + 説明文）|
+| 🆕 | `src/public-portal/components/PublicTrainingList.tsx`: `t.applicationUrl` 設定時に「申し込む」ボタンを `target="_blank" rel="noopener noreferrer"` の「申込フォームへ」リンクに置換（外部リンクアイコン + aria-label）|
+| 🔧 | `gas-src/Code.full.gs::saveTraining_`: 既存/新規両方の path で 申込URL 列に書込 |
+| 🔧 | `fetchAllDataFromDb_`: `applicationUrl` を training オブジェクトで返却 |
+| 🔧 | `getPublicTrainings_`: applicationUrl を公開ポータルに返却 |
+| ✅ | typecheck / build:gas / build:gas:member / build:gas:admin 全成功 |
+| ✅ | security:public/member/admin-boundary 全 PASS |
+| 🚀 | デプロイ: 全 3 split（統合 public @350, member @109, admin @188）|
+
+### 使い方
+1. admin → 研修管理 → 新規登録 or 既存研修編集 → 「申込URL」入力欄に Google フォーム等の URL を貼付
+2. 保存
+3. 公開ポータルで該当研修カードの CTA ボタンが「申込フォームへ」に変わり、クリックすると外部フォームが新タブで開く
+
+### 設計判断
+- 既存「案内状URL」（PDF アップロード成果物）と並立する別フィールド。混同しないよう列追加で対応
+- 任意項目システム（`fieldConfig`）に統合 — admin form で表示/非表示トグル可
+- 外部 URL が設定されていれば内部フローを完全バイパス（並列表示しない — UX の明確性優先）
+- 値が空文字列なら従来挙動（変更なし）
+
+---
+
 ## v376.29 — 2026-05-28 🎉 メニュー単位 RBAC Phase 3 完了（Sidebar 動的化 + permission-aware routing）
 
 `docs/246` Phase 3 完了。これで Phase 1（認可レイヤー）+ Phase 2（ロール CRUD UI）+ Phase 3（動的 Sidebar/Routing）の **全ロードマップが完了**。admin split @187。
