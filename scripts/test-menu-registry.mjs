@@ -21,6 +21,7 @@ import {
   INITIAL_ROLE_DEFINITIONS,
   LEGACY_CODE_TO_INITIAL_ROLE_ID,
   isActionAllowedByMenu,
+  isActionAllowedForSession,
 } from './menu-registry.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -180,6 +181,32 @@ test('INITIAL_ROLE_DEFINITIONS: 各 role の allowedMenus は LEGACY_ROLE_TO_MEN
     assert.equal(d.trainingEditScope, LEGACY_ROLE_TRAINING_SCOPE[d.legacyCode],
       `${d.roleName} の trainingEditScope が LEGACY と不一致`);
   }
+});
+
+test('isActionAllowedForSession: INITIAL_ROLE_DEFINITIONS の各 session で legacy 等価', () => {
+  const legacy = parseLegacyActionPermissions();
+  const unexpected = [];
+  for (const role of INITIAL_ROLE_DEFINITIONS) {
+    // session を作って action 全件で legacy === resolved を確認（INITIAL ロール = legacy 完全等価）
+    const session = {
+      isMaster: role.isMaster,
+      allowedMenus: role.allowedMenus,
+    };
+    for (const action of Object.keys(legacy)) {
+      const resolvedAllow = isActionAllowedForSession(action, session);
+      const legacyAllow = legacy[action].indexOf(role.legacyCode) !== -1;
+      if (resolvedAllow !== legacyAllow) {
+        // 許容デルタリストに含まれていれば OK
+        const accepted = LEGACY_ROLE_DELTA_ACCEPTED.some(
+          (d) => d.action === action && d.role === role.legacyCode && d.oldAllow === legacyAllow && d.newAllow === resolvedAllow,
+        );
+        if (!accepted) {
+          unexpected.push({ action, role: role.legacyCode, legacy: legacyAllow, resolved: resolvedAllow });
+        }
+      }
+    }
+  }
+  assert.deepEqual(unexpected, [], `INITIAL ロール session 経路の判定が legacy と乖離（許容デルタ外）: ${JSON.stringify(unexpected)}`);
 });
 
 test('LEGACY_ROLE_TO_MENUS の menu id が MENU_REGISTRY に存在する', async () => {

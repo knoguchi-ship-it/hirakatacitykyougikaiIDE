@@ -1152,15 +1152,22 @@ var LEGACY_CODE_TO_INITIAL_ROLE_ID = {
 };
 // __MENU_REGISTRY_BUILD_INJECT_END__
 
-// docs/246 Phase 1-A: action 認可判定。
-// 規則: role === 'MASTER' は全許可。それ以外は ACTION_TO_MENU[action] が
-// LEGACY_ROLE_TO_MENUS[role] に含まれる場合のみ許可（未マップ action は fail-closed）。
-// scripts/test-menu-registry.mjs が旧 ADMIN_ACTION_PERMISSIONS との等価性を保証する。
-function isActionAllowedByMenu_(action, roleCode) {
-  if (roleCode === 'MASTER') return true;
+// docs/246 Phase 1-A: action 認可判定（legacy 権限コード ベース）。
+// Phase 2 hotfix v376.28.2: 主要パスは isActionAllowedForSession_ へ移行。
+// この関数は snapshot test / fallback パス用に残置（直接呼び出し非推奨）。
+
+// docs/246 Phase 2 hotfix v376.28.2: 認可は checkAdminBySession_ で解決済の
+// session (isMaster + allowedMenus) を直接参照する。これにより:
+//   - whitelist.ロールID が埋まっていれば T_権限ロール の値が authoritative
+//   - 無ければ legacy 権限コードからの fallback（Phase 1-B fallback chain と整合）
+//   - カスタムロールの allowedMenus が実トラフィックの認可判定に反映される
+// MASTER は session.isMaster=true により従来通り全許可（user 確認済の設計意図）。
+function isActionAllowedForSession_(action, sessionResult) {
+  if (!sessionResult) return false;
+  if (sessionResult.isMaster) return true;
   var menuId = ACTION_TO_MENU[action];
   if (!menuId) return false;
-  var allowed = LEGACY_ROLE_TO_MENUS[roleCode] || [];
+  var allowed = sessionResult.allowedMenus || [];
   for (var i = 0; i < allowed.length; i += 1) {
     if (allowed[i] === menuId) return true;
   }
@@ -1338,11 +1345,13 @@ function processApiRequest(action, payload) {
       if (!sessionResult) {
         return JSON.stringify({ success: false, error: 'unauthorized' });
       }
-      var permLevel = String(sessionResult.adminPermissionLevel || 'ADMIN');
-      // docs/246 Phase 1-A: 旧 requiredPerms.indexOf(permLevel) 判定を menu-based に置換。
-      // 等価性は scripts/test-menu-registry.mjs（snapshot test）が保証する。
-      // ADMIN_ACTION_PERMISSIONS は action 集合の whitelist 用途として残置（Phase 1-B で撤去予定）。
-      if (!isActionAllowedByMenu_(action, permLevel)) {
+      // docs/246 Phase 2 hotfix v376.28.2: 認可判定を session resolved ロールベースへ。
+      // checkAdminBySession_ 内で:
+      //   - whitelist.ロールID 埋まり → T_権限ロール の値が authoritative
+      //   - 無ければ → legacy 権限コードからの fallback
+      // どちらの場合も sessionResult.isMaster / allowedMenus が正しく設定されているので、
+      // これを直接見ることでカスタムロールの allowedMenus を実トラフィックに反映する。
+      if (!isActionAllowedForSession_(action, sessionResult)) {
         return JSON.stringify({ success: false, error: 'insufficient_permission' });
       }
       parsedPayload.__adminSession = sessionResult;

@@ -335,6 +335,7 @@ export const LEGACY_CODE_TO_INITIAL_ROLE_ID = Object.freeze(
 );
 
 // ── 認可判定（共通ロジック — GAS / Node 双方で同一）───────────────
+// Phase 1-A: legacy 権限コードからの判定（snapshot test 用に保持）。
 export function isActionAllowedByMenu(action, roleCode, opts) {
   const isMaster = roleCode === 'MASTER';
   if (isMaster) return true;
@@ -342,6 +343,17 @@ export function isActionAllowedByMenu(action, roleCode, opts) {
   if (!menuId) return false; // 未マップ action は deny（fail-closed）
   const allowedMenus = LEGACY_ROLE_TO_MENUS[roleCode] || [];
   return allowedMenus.indexOf(menuId) !== -1;
+}
+
+// Phase 2 hotfix v376.28.2: session resolved ロールベースの判定（GAS の isActionAllowedForSession_ と同一実装）。
+// session: { isMaster: boolean, allowedMenus: string[] }
+export function isActionAllowedForSession(action, session) {
+  if (!session) return false;
+  if (session.isMaster) return true;
+  const menuId = ACTION_TO_MENU[action];
+  if (!menuId) return false;
+  const allowed = session.allowedMenus || [];
+  return allowed.indexOf(menuId) !== -1;
 }
 
 // ── GAS 埋め込み用シリアライザ ────────────────────────────────────
