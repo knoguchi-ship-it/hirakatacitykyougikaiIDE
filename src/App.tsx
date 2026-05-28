@@ -15,6 +15,7 @@ import PaymentHistoryConsole from './components/PaymentHistoryConsole';
 import ClaimManagementConsole from './components/ClaimManagementConsole';
 import MemberDeleteConsole from './components/MemberDeleteConsole';
 import ChangeRequestConsole from './components/ChangeRequestConsole';
+import { RoleManagementPanel } from './components/RoleManagementPanel';
 import MemberDetailAdmin from './components/MemberDetailAdmin';
 import StaffDetailAdmin from './components/StaffDetailAdmin';
 import { AdminDashboardData, AdminDashboardMemberRow, AdminDashboardStaffRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, Staff, StaffRole, SystemSettings, Training, TrainingFieldConfig, DEFAULT_FIELD_CONFIG } from './types';
@@ -1970,6 +1971,14 @@ const App: React.FC = () => {
       {adminPermissionError && (
         <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">{adminPermissionError}</div>
       )}
+
+      {/* docs/246 Phase 2-B: ロール管理（権限マトリクス） */}
+      <RoleManagementPanel
+        initialRoles={adminPermissionData?.roles}
+        initialMenuRegistry={adminPermissionData?.menuRegistry}
+        currentPermissionLevel={adminPermissionLevel}
+        onChanged={() => loadAdminPermissionData({ force: true }).catch(() => undefined)}
+      />
 
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <h3 className="text-lg font-bold text-slate-800 mb-4">管理者権限を追加</h3>

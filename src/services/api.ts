@@ -17,7 +17,7 @@ import {
   LinePostAttachmentKind,
   LinePostAttachmentUploadResult,
 } from '../shared/types';
-import { AdminDashboardData, AdminPermissionData, AnnualFeeAdminData, AnnualFeeAdminRecord } from '../types';
+import { AdminDashboardData, AdminPermissionData, AnnualFeeAdminData, AnnualFeeAdminRecord, RoleDefinition, MenuRegistryEntry } from '../types';
 
 export interface TrainingMailPayload {
   trainingId: string;
@@ -114,9 +114,21 @@ export interface ApiClient {
     googleEmail: string;
     linkedAuthId: string;
     permissionLevel: AdminPermissionLevel;
+    roleId?: string; // docs/246 Phase 2-A: 新 RBAC ロールID（後方互換）
     enabled: boolean;
   }): Promise<void>;
   deleteAdminPermission(id: string): Promise<void>;
+  // docs/246 Phase 2-A: ロール CRUD
+  listRoles(): Promise<{ roles: RoleDefinition[]; menuRegistry: MenuRegistryEntry[] }>;
+  saveRole(payload: {
+    roleId?: string;
+    roleName: string;
+    description?: string;
+    allowedMenus: string[];
+    trainingEditScope: 'ALL' | 'OWN';
+  }): Promise<{ saved: true; roleId: string; isNew: boolean }>;
+  deleteRole(roleId: string): Promise<{ deleted: true; roleId: string }>;
+  duplicateRole(payload: { sourceRoleId: string; newRoleName?: string }): Promise<{ saved: true; roleId: string; isNew: boolean }>;
   saveTraining(training: Training): Promise<Training>;
   // v376.7: 研修 soft delete / restore
   softDeleteTraining(trainingId: string): Promise<{ trainingId: string; applicantCount: number; deleted: true; alreadyDeleted?: boolean }>;
@@ -914,6 +926,50 @@ class GasApiClient implements ApiClient {
         .withFailureHandler((error: Error) => reject(error))
         .processApiRequest('deleteAdminPermission', JSON.stringify({ id }));
     });
+  }
+
+  // docs/246 Phase 2-A: ロール CRUD（汎用 dispatcher で簡潔に）
+  private async runAction<T>(action: string, payload: object | null): Promise<T> {
+    return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script) {
+        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
+        return;
+      }
+      google.script.run
+        .withSuccessHandler((result: string) => {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success) resolve(parsed.data as T);
+            else reject(new Error(parsed.error || 'API Error'));
+          } catch {
+            reject(new Error('Failed to parse response from GAS'));
+          }
+        })
+        .withFailureHandler((error: Error) => reject(error))
+        .processApiRequest(action, payload === null ? null : JSON.stringify(payload));
+    });
+  }
+
+  async listRoles(): Promise<{ roles: RoleDefinition[]; menuRegistry: MenuRegistryEntry[] }> {
+    return this.runAction('listRoles', {});
+  }
+
+  async saveRole(payload: {
+    roleId?: string;
+    roleName: string;
+    description?: string;
+    allowedMenus: string[];
+    trainingEditScope: 'ALL' | 'OWN';
+  }): Promise<{ saved: true; roleId: string; isNew: boolean }> {
+    return this.runAction('saveRole', payload);
+  }
+
+  async deleteRole(roleId: string): Promise<{ deleted: true; roleId: string }> {
+    return this.runAction('deleteRole', { roleId });
+  }
+
+  async duplicateRole(payload: { sourceRoleId: string; newRoleName?: string }): Promise<{ saved: true; roleId: string; isNew: boolean }> {
+    return this.runAction('duplicateRole', payload);
   }
 
   async saveTraining(training: Training): Promise<Training> {

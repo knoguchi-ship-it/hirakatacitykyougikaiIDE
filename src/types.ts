@@ -421,10 +421,31 @@ export interface AdminPermissionEntry {
   linkedRoleCode: string;
   linkedIdentityLabel: string;
   permissionLevel: AdminPermissionLevel;
+  roleId?: string; // docs/246 Phase 2-A: 新 RBAC のロールID（legacy permissionLevel と並行）
   enabled: boolean;
   updatedAt: string;
   updatedByEmail?: string;
   updatedByAt?: string;
+}
+
+// docs/246 Phase 2: メニュー単位 RBAC
+export interface MenuRegistryEntry {
+  id: string;
+  label: string;
+  group: string;
+  masterOnly?: boolean;
+}
+
+export interface RoleDefinition {
+  roleId: string;
+  roleName: string;
+  description: string;
+  allowedMenus: string[];
+  trainingEditScope: 'ALL' | 'OWN';
+  isBuiltIn: boolean;
+  isMaster: boolean;
+  sortOrder: number;
+  assignedCount: number;
 }
 
 export interface AdminPermissionData {
@@ -432,6 +453,9 @@ export interface AdminPermissionData {
   identityOptions: AdminPermissionIdentityOption[];
   currentSessionEmail: string;
   currentSessionPermissionLevel: AdminPermissionLevel;
+  // docs/246 Phase 2-A 追加（後方互換 — 旧 UI は無視可）
+  roles?: RoleDefinition[];
+  menuRegistry?: MenuRegistryEntry[];
 }
 
 export type StaffRole = 'REPRESENTATIVE' | 'ADMIN' | 'STAFF';
