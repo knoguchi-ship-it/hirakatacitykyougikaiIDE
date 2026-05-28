@@ -1,7 +1,7 @@
 # 246. 設計: メニュー単位カスタムロール RBAC
 
 作成日: 2026-05-28
-ステータス: **Phase 1 + Phase 2 全完了 (動作確認済)** (Phase 1-A @179 / Phase 1-B @181 + DB migration / Phase 2-A v376.26 @182 / Phase 2-B v376.27 @183 / Phase 2-C v376.28 @184 / hotfix v376.28.1 @185 schema sheet 作成 / hotfix v376.28.2 @186 session-based authz) / Phase 3 着手予定
+ステータス: **🎉 Phase 1〜3 全完了** (Phase 1-A @179 / Phase 1-B @181 + DB migration / Phase 2-A〜C @182〜@184 / hotfix @185-@186 / Phase 3 v376.29 @187)
 種別: Explanation（設計書）
 関連正本: `docs/05_AUTH_AND_ROLE_SPEC.md`（実装後に反映）, `docs/02_ARCHITECTURE.md`, `docs/03_DATA_MODEL.md`
 
@@ -94,6 +94,33 @@ admin split @180 デプロイ後、Apps Script editor (admin split) を開き、
 - 動的に `adminPermissionData.roles` から選択肢生成（GENERAL 除外、組込バッジ）
 - 選択時 legacy permissionLevel を自動同期（whitelist 権限コード列との後方互換）
 - roles 未取得時は legacy ドロップダウンに自動 fallback
+
+## Phase 3 完了記録（2026-05-28 / v376.29 @187）
+
+### Sidebar 動的化（Phase 3-A）
+- `src/components/Sidebar.tsx` の各 `NavItem` に `menuId` フィールド追加（view id ↔ menu id 明示マッピング）
+- Props `allowedMenus` / `isMaster` / `roleName` を受け取り、`isItemVisible` で動的描画
+- 空グループは非表示、system group も同様
+- カスタムロール user の Sidebar に **自分の許可メニューのみ表示** される
+
+### permission-aware routing（Phase 3-B）
+- `viewToMenuId` 逆引きテーブル（src/App.tsx 内）
+- `handleViewChange` で対象 view が allowedMenus にあるか確認、無ければ拒否（console.warn）
+- `pickInitialAdminView` でログイン直後の初期 view を許可済み中から優先順位選択
+- member 系 view（profile / training-apply）は menuId 無しで素通り
+
+### Legacy isFullAdmin/isTrainingOnly の扱い（Phase 3-C）
+- 主要パスは動的描画に移行
+- ただし session 未取得時（admin shell 認証直後の一瞬）の白ちら防止のため、**fallback として残置**
+- 完全撤去は将来課題（白ちら問題を別途解決してから）
+
+### 全体の動作（Phase 1〜3 通し）
+- **MASTER user**: 全メニュー表示・全 view 許可（変わらず）
+- **管理者 (ADMIN, role-admin-initial)**: 既存挙動完全維持（Phase 1-A LEGACY 互換 allowedMenus）
+- **カスタムロール user**:
+  - Sidebar に自分の許可メニューのみ表示
+  - URL 直叩きも UI ガード（handleViewChange）+ server ガード（isActionAllowedForSession_）の両層で拒否
+  - ロール名（経理担当 等）が user 情報 detail に表示
 
 ## Phase 1-B 完全完了記録（2026-05-28 / v376.25.1）
 

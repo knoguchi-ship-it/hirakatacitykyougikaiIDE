@@ -13,6 +13,34 @@
 
 ---
 
+## v376.29 — 2026-05-28 🎉 メニュー単位 RBAC Phase 3 完了（Sidebar 動的化 + permission-aware routing）
+
+`docs/246` Phase 3 完了。これで Phase 1（認可レイヤー）+ Phase 2（ロール CRUD UI）+ Phase 3（動的 Sidebar/Routing）の **全ロードマップが完了**。admin split @187。
+
+| 種別 | 内容 |
+|---|---|
+| 🆕 | `src/components/Sidebar.tsx` 動的描画モード — 各 `NavItem` に `menuId` フィールド追加。`allowedMenus` props と照合して該当 item を絞り込み、空グループは非表示 |
+| 🆕 | 新 props: `isMaster` / `allowedMenus` / `roleName`（後方互換 optional）|
+| 🆕 | `src/App.tsx` 新 state `adminSessionRbac` で session 内 RBAC 情報を保持 |
+| 🆕 | `pickInitialAdminView` ヘルパー — ログイン直後の初期 view を allowedMenus に基づき優先順位で選択（members-list → training-manage → annual-fee → admin-settings → allowedMenus 先頭）|
+| 🆕 | `handleViewChange` に `isViewAllowed` ガード — `viewToMenuId` 逆引きで対象 menu 判定 → 非 MASTER かつ menu ∉ allowedMenus なら遷移拒否（permission-aware routing）|
+| 🆕 | Sidebar 表示名 detail に `roleName` 反映 — カスタムロール「経理担当」などが label に出る |
+| 🔧 | `src/services/api.ts` の `AdminLoginResult` に optional `roleId` / `roleName` / `isMaster` / `allowedMenus` / `trainingEditScope` 追加（backend は v376.25 から返却済、型を追従）|
+| 🔧 | Legacy `isFullAdmin` / `isTrainingOnly` 経路は `allowedMenus` 未取得時の fallback として残置（admin shell 認証直後の白ちら防止）。Sidebar 主要パスは動的描画に移行 |
+| ✅ | typecheck / security:admin-boundary PASS、build:gas:admin 成功 |
+
+### Phase 1〜3 通しでの動作
+- **MASTER user**: 全メニュー表示・全 view 許可（変わらず）
+- **管理者 (ADMIN, role-admin-initial)**: 既存挙動完全維持（Phase 1-A LEGACY 互換 allowedMenus）
+- **カスタムロール user**: Sidebar に**自分の許可メニューのみ**表示、URL 直叩きも UI/server 両層で拒否、画面遷移時も routing ガードで防止
+
+### Phase 4 以降（将来課題、docs/246 §10）
+- frontend `api.ts` ↔ backend dispatch の codegen 連動
+- メニュー × 操作粒度（CRUD）への拡張
+- ABAC / ReBAC（事業所スコープ等）への発展余地
+
+---
+
 ## v376.28.1 / v376.28.2 — 2026-05-28 🐛 RBAC Phase 2 hotfix 2 件
 
 Phase 2 デプロイ後、本番動作確認で発見した 2 件のバグを修正。admin split @185 → @186。
