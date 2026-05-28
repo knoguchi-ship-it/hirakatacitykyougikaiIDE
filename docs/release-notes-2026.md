@@ -13,6 +13,42 @@
 
 ---
 
+## v376.25 — 2026-05-28 🆕 メニュー単位 RBAC Phase 1-B コード反映（schema + fallback chain）
+
+`docs/246` Phase 1-B のコード反映。**実 DB migration は operator が次セッションで段階実行**するため、この commit/deploy 単独では挙動完全維持。admin split のみ @180。
+
+| 種別 | 内容 |
+|---|---|
+| 🆕 | `T_権限ロール` テーブル新設（11 列: ロールID/ロール名/説明/許可メニューJSON/研修編集スコープ/組込フラグ/マスターフラグ/表示順/作成日時/更新日時/削除フラグ）|
+| 🆕 | `T_管理者Googleホワイトリスト` に `ロールID` 列追加（並行運用、`権限コード` 列保持） |
+| 🆕 | `INITIAL_ROLE_DEFINITIONS` (5 ロール) を `scripts/menu-registry.mjs` で定義。MASTER は `isBuiltIn=true` で編集削除不可。他 4 ロールは編集可能カスタムロール。**allowedMenus は Phase 1-A LEGACY_ROLE_TO_MENUS と完全一致**（挙動完全維持）。決定論的 roleId (`role-master-builtin` 等) で再投入冪等 |
+| 🆕 | `LEGACY_CODE_TO_INITIAL_ROLE_ID` mapping (whitelist 移行用) |
+| 🆕 | `getRoleByIdCached_(ss, roleId)` — `T_権限ロール` キャッシュ参照 (TTL 300s, `admin_roles_v1`) |
+| 🆕 | `seedInitialPermissionRoles_(ss)` — 空テーブル時のみ seed（冪等。既存編集を消さない）|
+| 🆕 | `runRebuildSchemaForV246()` (admin top-level) — schema 適用 + ロール seed |
+| 🆕 | `migrateToRoleBasedRBAC_v246_DRYRUN()` (admin top-level) — 変換プレビュー JSON |
+| 🆕 | `migrateToRoleBasedRBAC_v246_APPLY()` (admin top-level) — ホワイトリストの`ロールID`列を実書込み（冪等。`権限コード`列は保持）|
+| 🔧 | `checkAdminBySession_` に fallback chain: `ロールID` 列があれば `T_権限ロール` の値が authoritative、無ければ Phase 1-A LEGACY_ROLE_TO_MENUS にフォールバック。既存 `adminPermissionLevel` フィールドは後方互換維持 |
+| 🔧 | `initializeSchema_` に `normalizeTableColumns_(T_権限ロール)` + `seedInitialPermissionRoles_` を組み込み |
+| 🔧 | `clearAdminPermissionCaches_` に `admin_roles_v1` キー追加 |
+| ✅ | snapshot test 9/9 PASS（INITIAL_ROLE_DEFINITIONS の roleId 一意性 + MASTER 組込 + legacy mapping + allowedMenus 完全一致 をすべて assert）|
+| ✅ | typecheck / test:formula / test:search / test:kana 全 PASS。security:public/member/admin-boundary 全 PASS。build:gas / build:gas:member / build:gas:admin 全成功 |
+| 🚀 | デプロイ: admin split のみ @180（外部 API 表面は不変。member/public 未 redeploy）|
+
+### 操作者引継ぎ（次セッション）
+
+admin デプロイ (@180) 完了後、Apps Script editor (admin split) を開き、以下を順に ▶ Run:
+
+| Step | 関数 | 目的 | 安全性 |
+|---|---|---|---|
+| 1 | `runRebuildSchemaForV246` | T_権限ロール シート作成 + ロールID 列追加 + 5 ロール seed | 冪等・既存編集を保護 |
+| 2 | `migrateToRoleBasedRBAC_v246_DRYRUN` | ホワイトリスト全行の権限コード→ロールID 変換プレビューを JSON で取得 | 書込なし |
+| 3 | (preview を user と確認後) `migrateToRoleBasedRBAC_v246_APPLY` | ホワイトリストの ロールID 列を実書込み | 冪等。権限コード列は保持 |
+| 4 | admin login テスト | 挙動完全維持（ロールID 経由 = legacy 経由が同じ結果）| - |
+| Rollback | T_管理者Googleホワイトリスト の ロールID 列を全行クリア | fallback chain により legacy 経路に自動復帰 | - |
+
+---
+
 ## v376.24 — 2026-05-28 🆕 メニュー単位 RBAC Phase 1-A（認可レイヤー内部置換）
 
 `docs/246` で設計確定したメニュー単位カスタムロール RBAC の **Phase 1-A** を実装。旧 `ADMIN_ACTION_PERMISSIONS` による `action→role` 固定マップ判定を、新 `action→menu→role.allowedMenus` 評価へ内部置換した。**外部 API 表面・DB schema・whitelist 列構成は不変**で、Phase 1-B (T_権限ロール 新設) は次回着手予定。

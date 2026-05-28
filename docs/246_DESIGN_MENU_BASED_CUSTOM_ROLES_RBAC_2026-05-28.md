@@ -1,7 +1,7 @@
 # 246. 設計: メニュー単位カスタムロール RBAC
 
 作成日: 2026-05-28
-ステータス: **Phase 1-A 完了 (v376.24 @179)** / Phase 1-B 着手予定
+ステータス: **Phase 1-A 完了 (v376.24 @179)** / **Phase 1-B コード反映完了 (v376.25 @180)** / Phase 1-B 実 migration は operator 作業待ち
 種別: Explanation（設計書）
 関連正本: `docs/05_AUTH_AND_ROLE_SPEC.md`（実装後に反映）, `docs/02_ARCHITECTURE.md`, `docs/03_DATA_MODEL.md`
 
@@ -24,8 +24,54 @@
 - GENERAL の fetchAllData は到達不能（`checkAdminBySession_` で GENERAL は弾かれる）
 
 ### Phase 1-A 完了後の残置と次の作業
-- `ADMIN_ACTION_PERMISSIONS` (gas-src/Code.full.gs:1487-1607) は action 集合の whitelist 用途で残置。値（role 配列）は dead code。Phase 1-B で撤去予定
-- Phase 1-B: `T_権限ロール` 新設 + whitelist にロールID列追加（並行運用、権限コード列保持）+ 初期4ロール（編集可能）+ MASTER built-in + operator 移行スクリプト `migrateToRoleBasedRBAC_v246_DRYRUN`/`_APPLY`
+- `ADMIN_ACTION_PERMISSIONS` (gas-src/Code.full.gs) は action 集合の whitelist 用途で残置。値（role 配列）は dead code。将来 Phase で撤去予定
+- → Phase 1-B コード反映完了。下記参照
+
+## Phase 1-B コード反映記録（2026-05-28 / v376.25）
+
+実 DB migration は operator が次セッションで段階実行。**コード反映単独では挙動完全維持**。
+
+| 項目 | 内容 |
+|---|---|
+| デプロイ | admin split @180（外部 API 表面・既存 DB データは不変。member/public 未 redeploy）|
+| schema 追加 | `T_権限ロール`（11 列）を `テーブル定義` に追加 + `initializeSchema_` 経由で normalize/seed |
+| ホワイトリスト列追加 | `ロールID` 列（並行運用、`権限コード` 列保持）|
+| 初期ロール | `INITIAL_ROLE_DEFINITIONS` 5 ロール: MASTER built-in (isBuiltIn=true, isMaster=true) + 管理者/研修管理者/研修登録者/一般 (編集可能カスタムロール)。**allowedMenus は Phase 1-A LEGACY_ROLE_TO_MENUS と完全一致**（挙動完全維持） |
+| 決定論 ID | `role-master-builtin` / `role-admin-initial` / `role-training-manager-initial` / `role-training-registrar-initial` / `role-general-initial` |
+| fallback chain | `checkAdminBySession_`: `ロールID` 列が埋まれば `T_権限ロール` 参照、無ければ legacy 権限コード fallback。既存 `adminPermissionLevel` フィールドは後方互換維持 |
+| operator 新規関数（admin keep-list） | `runRebuildSchemaForV246` / `migrateToRoleBasedRBAC_v246_DRYRUN` / `migrateToRoleBasedRBAC_v246_APPLY` |
+| 検証 | snapshot test 9/9 PASS（INITIAL_ROLE_DEFINITIONS の整合 + LEGACY 完全一致を含む）|
+
+### Phase 1-B 操作者引継ぎ
+
+admin split @180 デプロイ後、Apps Script editor (admin split) を開き、以下を順に ▶ Run。各 step の実行ログ JSON を確認しながら進める。
+
+1. **`runRebuildSchemaForV246`** — スキーマ + 初期ロール seed
+   - T_権限ロール シート作成（既存なら no-op）
+   - ロールID 列追加（既存ホワイトリストデータは保持）
+   - 5 ロール seed（既存ロールがあれば seed スキップ — 冪等）
+   - admin permission caches クリア
+2. **`migrateToRoleBasedRBAC_v246_DRYRUN`** — 変換プレビュー
+   - ホワイトリスト全行を読み、権限コード→ロールID 変換プランを JSON で出力
+   - 何も書き換えない
+   - 出力例: `{ wlId, email, currentPermCode, currentRoleId, newRoleId, action: '新規設定 / 上書き / SKIP' }`
+   - **この出力を user に提示して承認を取る**
+3. **`migrateToRoleBasedRBAC_v246_APPLY`** — 実反映（user 承認後）
+   - ホワイトリスト各行の `ロールID` 列を書込み
+   - `権限コード` 列は保持（rollback 用）
+   - 冪等（既に正しい値の行は SKIP）
+   - 結果は `{ updated, skipped, log, appliedAt }` JSON
+4. **admin login テスト**
+   - admin URL を開く → Google ログイン → 管理者ポータル表示確認
+   - サイドメニュー・各 API 呼び出しが従来通り動作することを確認（挙動完全維持）
+5. **rollback したい場合**
+   - T_管理者Googleホワイトリスト の ロールID 列を全行クリア
+   - fallback chain により自動的に legacy 権限コード経路に戻る
+   - `権限コード` 列を保持しているため復帰可能
+
+### 次フェーズ予定
+- **Phase 2**: 権限管理コンソール UI（admin frontend）— ロール CRUD + 権限マトリクス + masterOnly enforcement + 監査ログ
+- **Phase 3**: Sidebar 動的化 + permission-aware routing（admin frontend）+ `isFullAdmin/isTrainingOnly` 撤去
 
 
 ## 0. 目的と背景
