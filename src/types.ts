@@ -599,6 +599,8 @@ export interface TrainingFieldConfig {
   applicationCloseDate: boolean;
   fees: boolean;
   guidePdfUrl: boolean;
+  // v376.30: 外部申込フォーム URL（Google フォーム等）
+  applicationUrl: boolean;
 }
 
 export const DEFAULT_FIELD_CONFIG: TrainingFieldConfig = {
@@ -612,6 +614,7 @@ export const DEFAULT_FIELD_CONFIG: TrainingFieldConfig = {
   applicationCloseDate: true,
   fees: true,
   guidePdfUrl: true,
+  applicationUrl: true,
 };
 
 export const DEFAULT_FEES: TrainingFee[] = [
@@ -645,6 +648,8 @@ export interface Training {
   applicationOpenDate?: string;
   applicationCloseDate?: string;
   instructor?: string;
+  // v376.30: 外部申込フォーム URL（Google フォーム等、optional）
+  applicationUrl?: string;
   fieldConfig?: TrainingFieldConfig;
   cancelAllowed?: boolean;
   inquiryPerson?: string;

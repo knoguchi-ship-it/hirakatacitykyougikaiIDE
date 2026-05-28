@@ -248,20 +248,35 @@ const PublicTrainingList: React.FC<Props> = ({ trainings, onApply }) => {
                   </div>
                 )}
 
-                {/* CTA */}
+                {/* CTA — v376.30: applicationUrl が設定されていれば外部申込フォームへのリンクに置換 */}
                 <div className="mt-auto pt-3 border-t border-slate-100 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => onApply(t)}
-                    disabled={isFull}
-                    className="inline-flex min-h-[44px] items-center justify-center gap-1 px-6 py-2 bg-primary-600 text-white text-sm font-bold rounded-md hover:bg-primary-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors"
-                    aria-label={`${t.name} に申し込む`}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                    </svg>
-                    {isFull ? '満員' : '申し込む'}
-                  </button>
+                  {t.applicationUrl ? (
+                    <a
+                      href={t.applicationUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex min-h-[44px] items-center justify-center gap-1 px-6 py-2 bg-primary-600 text-white text-sm font-bold rounded-md hover:bg-primary-700 transition-colors"
+                      aria-label={`${t.name} の申込フォームを別タブで開く`}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                      申込フォームへ
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => onApply(t)}
+                      disabled={isFull}
+                      className="inline-flex min-h-[44px] items-center justify-center gap-1 px-6 py-2 bg-primary-600 text-white text-sm font-bold rounded-md hover:bg-primary-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors"
+                      aria-label={`${t.name} に申し込む`}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                      </svg>
+                      {isFull ? '満員' : '申し込む'}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

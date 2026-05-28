@@ -16,6 +16,8 @@ export interface PublicTraining {
   instructor: string;
   fileUrl: string;
   thumbnailUrl: string;
+  // v376.30: 外部申込フォーム URL（Google フォーム等）。空文字なら内部申込フロー
+  applicationUrl?: string;
   organizer: string;
   fieldConfig: string;
 }

@@ -13,7 +13,7 @@ var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
 var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
-var DB_SCHEMA_VERSION = '2026-05-19-roster-designer-v372';
+var DB_SCHEMA_VERSION = '2026-05-29-training-application-url-v376.30';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
 var MEMBER_PORTAL_URL = 'https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec';
@@ -504,6 +504,9 @@ var テーブル定義 = {
     '作成日時',
     '更新日時',
     '削除フラグ',
+    // v376.30: 外部申込フォーム URL（Google フォーム等、任意項目）
+    // 末尾追加: normalizeTableColumns_ + writeSheetHeaders_ name-based shift で既存データ保持
+    '申込URL',
   ],
   T_研修申込: [
     '申込ID',
@@ -4355,6 +4358,7 @@ function mapTrainingRowsForApi_(trainingRows) {
       description: String(t['研修内容'] || ''),
       guidePdfUrl: String(t['案内状URL'] || ''),
       thumbnailUrl: String(t['案内状サムネイルURL'] || ''),
+      applicationUrl: String(t['申込URL'] || ''), // v376.30: 外部申込フォーム URL
       // v376.7: admin 一覧で削除済フィルタを表示するため isDeleted を公開（公開ポータルは別パス）
       isDeleted: toBoolean_(t['削除フラグ']),
       date: formatDateForApi_(t['開催日']),
@@ -12245,6 +12249,7 @@ function saveTraining_(payload) {
     setCol('講師', payload.instructor || '');
     setCol('案内状URL', payload.guidePdfUrl || '');
     setCol('案内状サムネイルURL', payload.thumbnailUrl || '');
+    setCol('申込URL', payload.applicationUrl || ''); // v376.30: 外部申込フォーム URL
     setCol('項目設定JSON', serializeTrainingOptions_(
       payload.fieldConfig,
       payload.cancelAllowed,
@@ -12284,6 +12289,7 @@ function saveTraining_(payload) {
     '講師': payload.instructor || '',
     '案内状URL': payload.guidePdfUrl || '',
     '案内状サムネイルURL': payload.thumbnailUrl || '',
+    '申込URL': payload.applicationUrl || '', // v376.30: 外部申込フォーム URL
     '項目設定JSON': serializeTrainingOptions_(
       payload.fieldConfig,
       payload.cancelAllowed,
@@ -14814,6 +14820,7 @@ function getPublicTrainings_() {
       instructor: String(r['講師'] || ''),
       fileUrl: String(r['案内状URL'] || ''),
       thumbnailUrl: String(r['案内状サムネイルURL'] || ''),
+      applicationUrl: String(r['申込URL'] || ''), // v376.30: 外部申込フォーム URL
       organizer: String(r['主催者'] || ''),
       fieldConfig: String(r['項目設定JSON'] || ''),
     };

@@ -38,6 +38,8 @@ export const TRAINING_OPTIONAL_FIELD_DEFS: { key: keyof TrainingFieldConfig; lab
   { key: 'applicationCloseDate', label: '申込締切日' },
   { key: 'fees', label: '研修費用' },
   { key: 'guidePdfUrl', label: '案内PDF' },
+  // v376.30: 外部申込フォーム URL（Google フォーム等）
+  { key: 'applicationUrl', label: '申込URL' },
 ];
 
 const toDateString = (d: Date) => d.toISOString().slice(0, 10);
@@ -69,6 +71,7 @@ const buildEmptyForm = (fieldConfig: TrainingFieldConfig): Training => {
     instructor: '',
     guidePdfUrl: '',
     thumbnailUrl: '',
+    applicationUrl: '', // v376.30: 外部申込フォーム URL
     cancelAllowed: false,
     inquiryPerson: '',
     inquiryPhone: '',
@@ -705,6 +708,28 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
               </div>
             )}
           </div>
+        ) : (
+          renderOffHint()
+        )}
+      </div>
+
+      {/* v376.30: 外部申込フォーム URL（Google フォーム等）。設定すると公開ポータルの「申し込む」ボタンが外部リンクに置換される */}
+      <div>
+        {renderFieldHeader('申込URL', 'applicationUrl')}
+        {isFieldOn('applicationUrl') ? (
+          <>
+            <input
+              type="url"
+              className={inputCls}
+              name="applicationUrl"
+              value={form.applicationUrl || ''}
+              onChange={handleChange}
+              placeholder="https://forms.gle/... または https://docs.google.com/forms/..."
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              入力すると公開ポータルの「申し込む」ボタンが外部申込フォームへのリンクに置換されます。空欄にすると内部申込フローを使用します。
+            </p>
+          </>
         ) : (
           renderOffHint()
         )}

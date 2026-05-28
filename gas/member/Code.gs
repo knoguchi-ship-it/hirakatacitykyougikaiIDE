@@ -13,7 +13,7 @@ var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
 var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
-var DB_SCHEMA_VERSION = '2026-05-19-roster-designer-v372';
+var DB_SCHEMA_VERSION = '2026-05-29-training-application-url-v376.30';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
 var MEMBER_PORTAL_URL = 'https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec';
@@ -504,6 +504,9 @@ var テーブル定義 = {
     '作成日時',
     '更新日時',
     '削除フラグ',
+    // v376.30: 外部申込フォーム URL（Google フォーム等、任意項目）
+    // 末尾追加: normalizeTableColumns_ + writeSheetHeaders_ name-based shift で既存データ保持
+    '申込URL',
   ],
   T_研修申込: [
     '申込ID',
@@ -1173,12 +1176,6 @@ var LEGACY_CODE_TO_INITIAL_ROLE_ID = {
   "TRAINING_REGISTRAR": "role-training-registrar-initial",
   "GENERAL": "role-general-initial"
 };
-// __MENU_REGISTRY_BUILD_INJECT_END__
-
-// docs/246 Phase 1-A: action 認可判定。
-// 規則: role === 'MASTER' は全許可。それ以外は ACTION_TO_MENU[action] が
-// LEGACY_ROLE_TO_MENUS[role] に含まれる場合のみ許可（未マップ action は fail-closed）。
-// scripts/test-menu-registry.mjs が旧 ADMIN_ACTION_PERMISSIONS との等価性を保証する。
 
 var ADMIN_ACTION_PERMISSIONS = {};
 
@@ -1912,6 +1909,7 @@ function mapTrainingRowsForApi_(trainingRows) {
       description: String(t['研修内容'] || ''),
       guidePdfUrl: String(t['案内状URL'] || ''),
       thumbnailUrl: String(t['案内状サムネイルURL'] || ''),
+      applicationUrl: String(t['申込URL'] || ''), // v376.30: 外部申込フォーム URL
       // v376.7: admin 一覧で削除済フィルタを表示するため isDeleted を公開（公開ポータルは別パス）
       isDeleted: toBoolean_(t['削除フラグ']),
       date: formatDateForApi_(t['開催日']),
@@ -2563,7 +2561,11 @@ function memberLogin_(request) {
  */
 function seedInitialPermissionRoles_(ss) {
   var sheet = ss.getSheetByName('T_権限ロール');
-  if (!sheet) return { seeded: false, reason: 'T_権限ロール シート未作成' };
+  if (!sheet) {
+    // 防御的にシート作成 + ヘッダ書込（v376.28.1 hotfix: normalizeTableColumns_ がシート作成しない問題への対応）
+    sheet = ss.insertSheet('T_権限ロール');
+    writeSheetHeaders_(sheet, テーブル定義['T_権限ロール']);
+  }
   if (sheet.getLastRow() >= 2) return { seeded: false, reason: '既存ロールあり（seed スキップ）', existing: sheet.getLastRow() - 1 };
   var defs = INITIAL_ROLE_DEFINITIONS || [];
   if (defs.length === 0) return { seeded: false, reason: 'INITIAL_ROLE_DEFINITIONS が空' };
