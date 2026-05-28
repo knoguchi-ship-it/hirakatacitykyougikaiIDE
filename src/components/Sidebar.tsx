@@ -24,13 +24,18 @@ interface SidebarProps {
   showMemberPages?: boolean;
   adminPermissionLevel?: AdminPermissionLevel | null;
   pendingChangeRequestCount?: number;
+  // docs/246 Phase 3: 動的 allowedMenus ベース描画用
+  isMaster?: boolean;
+  allowedMenus?: string[];
+  roleName?: string;
   /** Mobile drawer state. md+ ignores this and always shows the sidebar. */
   mobileOpen?: boolean;
   onMobileClose?: () => void;
 }
 
 interface NavItem {
-  id: string;
+  id: string;          // view id (onChangeView に渡す値)
+  menuId: string;      // docs/246 RBAC menu id (allowedMenus との照合に使う)
   label: string;
   masterOnly?: boolean;
   badge?: number;
@@ -70,11 +75,17 @@ const Sidebar: React.FC<SidebarProps> = ({
   showMemberPages = true,
   adminPermissionLevel,
   pendingChangeRequestCount = 0,
+  isMaster: isMasterProp,
+  allowedMenus,
+  roleName,
   mobileOpen = false,
   onMobileClose,
 }) => {
+  // docs/246 Phase 3: allowedMenus が渡されていれば動的描画モード。
+  // 渡されていない（旧 API caller、または session 未取得）場合は legacy 二択分岐に fallback。
+  const hasDynamicMenus = Array.isArray(allowedMenus);
+  const isMaster = isMasterProp ?? (adminPermissionLevel === 'MASTER');
   const isFullAdmin = adminPermissionLevel === 'MASTER' || adminPermissionLevel === 'ADMIN';
-  const isMaster = adminPermissionLevel === 'MASTER';
   const isTrainingOnly =
     adminPermissionLevel === 'TRAINING_MANAGER' ||
     adminPermissionLevel === 'TRAINING_REGISTRAR';
@@ -86,8 +97,8 @@ const Sidebar: React.FC<SidebarProps> = ({
       icon: <UsersIcon className="w-4 h-4" />,
       defaultOpen: true,
       items: [
-        { id: 'admin', label: '会員一覧' },
-        { id: 'change-requests', label: '変更申請管理', badge: pendingChangeRequestCount },
+        { id: 'admin',             menuId: 'members-list',         label: '会員一覧' },
+        { id: 'change-requests',   menuId: 'change-requests',      label: '変更申請管理', badge: pendingChangeRequestCount },
       ],
     },
     {
@@ -96,11 +107,11 @@ const Sidebar: React.FC<SidebarProps> = ({
       icon: <BanknoteIcon className="w-4 h-4" />,
       defaultOpen: true,
       items: [
-        { id: 'annual-fee-manage', label: '年会費管理' },
-        { id: 'payment-history', label: '支払い履歴管理' },
-        { id: 'claim-management', label: '請求管理' },
-        { id: 'roster-export', label: '名簿出力' },
-        { id: 'mailing-list-export', label: '宛名リスト出力' },
+        { id: 'annual-fee-manage',  menuId: 'annual-fee',          label: '年会費管理' },
+        { id: 'payment-history',    menuId: 'payment-history',     label: '支払い履歴管理' },
+        { id: 'claim-management',   menuId: 'claim-management',    label: '請求管理' },
+        { id: 'roster-export',      menuId: 'roster-export',       label: '名簿出力' },
+        { id: 'mailing-list-export',menuId: 'mailing-list-export', label: '宛名リスト出力' },
       ],
     },
     {
@@ -109,9 +120,9 @@ const Sidebar: React.FC<SidebarProps> = ({
       icon: <CalendarIcon className="w-4 h-4" />,
       defaultOpen: true,
       items: [
-        { id: 'training-manage', label: '研修管理' },
-        { id: 'bulk-mail', label: '一括メール送信' },
-        { id: 'line-post', label: '📱 公式LINE投稿依頼' },
+        { id: 'training-manage', menuId: 'training-manage', label: '研修管理' },
+        { id: 'bulk-mail',       menuId: 'bulk-mail',       label: '一括メール送信' },
+        { id: 'line-post',       menuId: 'line-post',       label: '📱 公式LINE投稿依頼' },
       ],
     },
     {
@@ -120,7 +131,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       icon: <BuildingIcon className="w-4 h-4" />,
       defaultOpen: true,
       items: [
-        { id: 'officer-management', label: '役員管理' },
+        { id: 'officer-management', menuId: 'officer-management', label: '役員管理' },
       ],
     },
   ];
@@ -131,11 +142,25 @@ const Sidebar: React.FC<SidebarProps> = ({
     icon: <SettingsIcon className="w-4 h-4" />,
     defaultOpen: false,
     items: [
-      { id: 'admin-settings', label: 'システム設定' },
-      { id: 'system-permissions', label: '権限管理' },
-      ...(isMaster ? [{ id: 'member-delete', label: 'データ管理', masterOnly: true }] : []),
+      { id: 'admin-settings',     menuId: 'admin-settings',     label: 'システム設定' },
+      { id: 'system-permissions', menuId: 'system-permissions', label: '権限管理', masterOnly: true },
+      { id: 'member-delete',      menuId: 'data-management',    label: 'データ管理', masterOnly: true },
     ],
   };
+
+  // docs/246 Phase 3: allowedMenus に基づき items を絞り込み。空グループは非表示。
+  const isItemVisible = (item: NavItem): boolean => {
+    if (!hasDynamicMenus) {
+      // legacy fallback — masterOnly は MASTER のみ
+      if (item.masterOnly && !isMaster) return false;
+      return true;
+    }
+    if (isMaster) return true;                                  // MASTER 全許可
+    return (allowedMenus as string[]).indexOf(item.menuId) !== -1;
+  };
+  const filterGroup = (g: NavGroup): NavGroup => ({ ...g, items: g.items.filter(isItemVisible) });
+  const visibleAdminGroups = adminGroups.map(filterGroup).filter((g) => g.items.length > 0);
+  const visibleSystemGroup = filterGroup(systemGroup);
 
   const allGroups = [...adminGroups, systemGroup];
 
@@ -192,7 +217,10 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const getUserDisplayDetail = () => {
     if (role === 'ADMIN' && adminPermissionLevel) {
-      const pLabel = permissionLabel(adminPermissionLevel);
+      // docs/246 Phase 3: ロール名が判明していれば優先表示（カスタムロールも反映）
+      const pLabel = roleName && roleName !== adminPermissionLevel
+        ? roleName
+        : permissionLabel(adminPermissionLevel);
       if (currentUser) return `管理者権限: ${pLabel}`;
       return `管理者権限: ${pLabel}`;
     }
@@ -279,8 +307,37 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
 
-        {/* 管理者メニュー（グルーピング） */}
-        {showAdminPage && isFullAdmin && (
+        {/* 管理者メニュー（docs/246 Phase 3: allowedMenus ベース動的描画 / 旧ロールは legacy fallback） */}
+        {showAdminPage && hasDynamicMenus && (
+          <>
+            {visibleAdminGroups.map((group) => (
+              <NavGroupSection
+                key={group.id}
+                group={group}
+                currentView={currentView}
+                open={!!openGroups[group.id]}
+                onToggle={() => toggleGroup(group.id)}
+                onChangeView={handleNavChange}
+              />
+            ))}
+            {visibleSystemGroup.items.length > 0 && (
+              <>
+                <div className="mx-3 my-2 border-t border-slate-700/60" />
+                <NavGroupSection
+                  group={visibleSystemGroup}
+                  currentView={currentView}
+                  open={!!openGroups[visibleSystemGroup.id]}
+                  onToggle={() => toggleGroup(visibleSystemGroup.id)}
+                  onChangeView={handleNavChange}
+                  dimmed
+                />
+              </>
+            )}
+          </>
+        )}
+
+        {/* Legacy fallback: allowedMenus 未取得時のみ旧 2 択分岐で描画（session 取得前の一瞬を吸収） */}
+        {showAdminPage && !hasDynamicMenus && isFullAdmin && (
           <>
             {adminGroups.map((group) => (
               <NavGroupSection
@@ -292,22 +349,18 @@ const Sidebar: React.FC<SidebarProps> = ({
                 onChangeView={handleNavChange}
               />
             ))}
-
-            {/* システム グループ（区切り線あり） */}
             <div className="mx-3 my-2 border-t border-slate-700/60" />
             <NavGroupSection
-              group={systemGroup}
+              group={{ ...systemGroup, items: systemGroup.items.filter((it) => !it.masterOnly || isMaster) }}
               currentView={currentView}
               open={!!openGroups[systemGroup.id]}
               onToggle={() => toggleGroup(systemGroup.id)}
-              onChangeView={onChangeView}
+              onChangeView={handleNavChange}
               dimmed
             />
           </>
         )}
-
-        {/* 研修専用権限 */}
-        {showAdminPage && isTrainingOnly && (
+        {showAdminPage && !hasDynamicMenus && isTrainingOnly && (
           <div className="px-2">
             <NavItemButton
               id="training-manage"

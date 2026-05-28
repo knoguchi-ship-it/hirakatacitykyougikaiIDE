@@ -411,6 +411,13 @@ const App: React.FC = () => {
     enabled: true,
   });
   const [adminPermissionLevel, setAdminPermissionLevel] = useState<AdminPermissionLevel | null>(null);
+  // docs/246 Phase 3: 動的 Sidebar / routing 用に session の RBAC 情報を保持
+  const [adminSessionRbac, setAdminSessionRbac] = useState<{
+    isMaster: boolean;
+    allowedMenus: string[];
+    roleName?: string;
+    trainingEditScope?: 'ALL' | 'OWN';
+  } | null>(null);
   const [systemSettingsLoaded, setSystemSettingsLoaded] = useState(false);
   const annualFeeLeaveDialogRef = useRef<HTMLDialogElement | null>(null);
   const appDataRequestRef = useRef<Promise<{ members: Member[]; trainings: Training[] }> | null>(null);
@@ -1508,7 +1515,15 @@ const App: React.FC = () => {
   };
 
   const applyAuthContext = (
-    ctx: Pick<MemberLoginResult | AdminLoginResult, 'authMethod' | 'memberId' | 'staffId' | 'loginId' | 'canAccessAdminPage'> & { adminPermissionLevel?: AdminPermissionLevel; sessionToken?: string },
+    ctx: Pick<MemberLoginResult | AdminLoginResult, 'authMethod' | 'memberId' | 'staffId' | 'loginId' | 'canAccessAdminPage'> & {
+      adminPermissionLevel?: AdminPermissionLevel;
+      sessionToken?: string;
+      // docs/246 Phase 3: ロール解決後の RBAC 情報（admin session のみ）
+      isMaster?: boolean;
+      allowedMenus?: string[];
+      roleName?: string;
+      trainingEditScope?: 'ALL' | 'OWN';
+    },
     availableMembers: Member[] = members,
   ) => {
     const identities = buildLoginIdentities(availableMembers);
@@ -1523,19 +1538,69 @@ const App: React.FC = () => {
     setSelectedIdentityId(resolveIdentityId(ctx, identities));
     const permLevel = ctx.adminPermissionLevel || null;
     setAdminPermissionLevel(permLevel);
+    // docs/246 Phase 3: RBAC 情報を session state へ
+    if (ctx.allowedMenus && typeof ctx.isMaster === 'boolean') {
+      setAdminSessionRbac({
+        isMaster: ctx.isMaster,
+        allowedMenus: ctx.allowedMenus,
+        roleName: ctx.roleName,
+        trainingEditScope: ctx.trainingEditScope,
+      });
+    } else {
+      setAdminSessionRbac(null);
+    }
+    // docs/246 Phase 3-B: 初期 view を allowedMenus に基づいて選択（許可されないと profile fallback）
     if (permLevel === 'GENERAL' || !ctx.canAccessAdminPage) {
       setUserRole('MEMBER');
       setCurrentView('profile');
-    } else if (permLevel === 'TRAINING_MANAGER' || permLevel === 'TRAINING_REGISTRAR') {
-      setUserRole('ADMIN');
-      setCurrentView('training-manage');
     } else {
       setUserRole('ADMIN');
-      setCurrentView('admin');
+      const initial = pickInitialAdminView(ctx.isMaster, ctx.allowedMenus, permLevel);
+      setCurrentView(initial);
     }
     setIsAuthenticated(true);
     setAuthError(null);
   };
+
+  // docs/246 Phase 3-B: ログイン直後の初期 view 選択。
+  // 優先度: members-list（admin） → training-manage → admin-settings → 最初の許可メニュー → 'profile'。
+  // session に allowedMenus が無い場合は legacy 二択 fallback。
+  function pickInitialAdminView(
+    isMaster: boolean | undefined,
+    allowedMenus: string[] | undefined,
+    legacyLevel: AdminPermissionLevel | null,
+  ): string {
+    if (allowedMenus && typeof isMaster === 'boolean') {
+      const ok = (menuId: string) => isMaster || allowedMenus.indexOf(menuId) !== -1;
+      const preferred: Array<[string, string]> = [
+        ['members-list', 'admin'],
+        ['training-manage', 'training-manage'],
+        ['annual-fee', 'annual-fee-manage'],
+        ['admin-settings', 'admin-settings'],
+      ];
+      for (const [menu, view] of preferred) {
+        if (ok(menu)) return view;
+      }
+      // 上記いずれも無い場合、allowedMenus 最初のものから view 解決
+      const menuToView: Record<string, string> = {
+        'members-list': 'admin', 'change-requests': 'change-requests',
+        'annual-fee': 'annual-fee-manage', 'payment-history': 'payment-history',
+        'claim-management': 'claim-management', 'roster-export': 'roster-export',
+        'mailing-list-export': 'mailing-list-export',
+        'training-manage': 'training-manage', 'bulk-mail': 'bulk-mail', 'line-post': 'line-post',
+        'officer-management': 'officer-management',
+        'admin-settings': 'admin-settings', 'system-permissions': 'system-permissions',
+        'data-management': 'member-delete',
+      };
+      for (const m of allowedMenus) {
+        if (menuToView[m]) return menuToView[m];
+      }
+      return 'profile';
+    }
+    // legacy fallback
+    if (legacyLevel === 'TRAINING_MANAGER' || legacyLevel === 'TRAINING_REGISTRAR') return 'training-manage';
+    return 'admin';
+  }
 
   // 管理者 shell: ページロード時にGoogle セッションを自動確認し認証を試みる。
   // 成功 → 管理ダッシュボードへ即遷移。失敗 → 404 表示（管理機能の存在を隠蔽）。
@@ -1560,15 +1625,23 @@ const App: React.FC = () => {
         setSelectedIdentityId(resolveIdentityId(auth, identities));
         const permLevel = auth.adminPermissionLevel || null;
         setAdminPermissionLevel(permLevel);
+        // docs/246 Phase 3: RBAC 情報も保存
+        if (auth.allowedMenus && typeof auth.isMaster === 'boolean') {
+          setAdminSessionRbac({
+            isMaster: auth.isMaster,
+            allowedMenus: auth.allowedMenus,
+            roleName: auth.roleName,
+            trainingEditScope: auth.trainingEditScope,
+          });
+        } else {
+          setAdminSessionRbac(null);
+        }
         if (permLevel === 'GENERAL' || !auth.canAccessAdminPage) {
           setUserRole('MEMBER');
           setCurrentView('profile');
-        } else if (permLevel === 'TRAINING_MANAGER' || permLevel === 'TRAINING_REGISTRAR') {
-          setUserRole('ADMIN');
-          setCurrentView('training-manage');
         } else {
           setUserRole('ADMIN');
-          setCurrentView('admin');
+          setCurrentView(pickInitialAdminView(auth.isMaster, auth.allowedMenus, permLevel));
         }
         setIsAuthenticated(true);
         setAuthError(null);
@@ -1804,6 +1877,7 @@ const App: React.FC = () => {
       enabled: true,
     });
     setAdminPermissionLevel(null);
+    setAdminSessionRbac(null); // docs/246 Phase 3
     setSystemSettingsLoaded(false);
   };
 
@@ -1817,10 +1891,38 @@ const App: React.FC = () => {
     if (!dialog.open) dialog.showModal();
   }, [pendingAnnualFeeAction]);
 
+  // docs/246 Phase 3-B: view id → menu id 逆引き（permission-aware routing で使用）
+  const viewToMenuId: Record<string, string> = {
+    'admin': 'members-list', 'member-detail': 'members-list', 'staff-detail': 'members-list',
+    'change-requests': 'change-requests',
+    'annual-fee-manage': 'annual-fee', 'payment-history': 'payment-history',
+    'claim-management': 'claim-management',
+    'roster-export': 'roster-export', 'mailing-list-export': 'mailing-list-export',
+    'training-manage': 'training-manage', 'bulk-mail': 'bulk-mail', 'line-post': 'line-post',
+    'officer-management': 'officer-management',
+    'admin-settings': 'admin-settings', 'system-permissions': 'system-permissions',
+    'member-delete': 'data-management',
+    // member-side views（admin role でも触れる）は menuId 無しで素通り
+    'profile': '', 'training-apply': '',
+  };
+
+  const isViewAllowed = (view: string): boolean => {
+    if (!adminSessionRbac) return true; // session 未取得時は素通り（legacy 互換）
+    if (adminSessionRbac.isMaster) return true;
+    const menuId = viewToMenuId[view];
+    if (!menuId) return true; // mapping 無しは常に許可（member ページや未定義 view）
+    return adminSessionRbac.allowedMenus.indexOf(menuId) !== -1;
+  };
+
   const handleViewChange = (view: string) => {
     const nextView = view as View;
     if (currentView === 'annual-fee-manage' && annualFeeHasUnsavedChanges && nextView !== currentView) {
       setPendingAnnualFeeAction({ type: 'view', view: nextView });
+      return;
+    }
+    // docs/246 Phase 3-B: 許可外 view への遷移を弾く（Sidebar からは届かないが念のため）
+    if (userRole === 'ADMIN' && !isViewAllowed(view)) {
+      console.warn('[Phase 3-B] denied view change to', view, '(not in allowedMenus)');
       return;
     }
     setCurrentView(nextView);
@@ -5071,6 +5173,9 @@ const App: React.FC = () => {
           showAdminPage={userRole === 'ADMIN'}
           showMemberPages={!isAdminShell}
           adminPermissionLevel={adminPermissionLevel}
+          isMaster={adminSessionRbac?.isMaster}
+          allowedMenus={adminSessionRbac?.allowedMenus}
+          roleName={adminSessionRbac?.roleName}
           pendingChangeRequestCount={pendingChangeRequestCount}
           onLogout={handleLogoutClick}
           mobileOpen={mobileMenuOpen}

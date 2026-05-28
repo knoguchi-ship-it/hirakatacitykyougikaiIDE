@@ -50,6 +50,12 @@ export interface AdminLoginResult {
   roleCode: string;
   canAccessAdminPage: boolean;
   adminPermissionLevel?: AdminPermissionLevel;
+  // docs/246 Phase 1-B 以降: ロール解決後の RBAC 情報（後方互換のため optional）
+  roleId?: string;
+  roleName?: string;
+  isMaster?: boolean;
+  allowedMenus?: string[];
+  trainingEditScope?: 'ALL' | 'OWN';
   displayName?: string;
   authenticatedAt: string;
 }
