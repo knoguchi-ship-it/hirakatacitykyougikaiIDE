@@ -13,6 +13,58 @@
 
 ---
 
+## v376.26〜.28 — 2026-05-28 🎉 メニュー単位 RBAC Phase 2 全完了
+
+`docs/246` Phase 2 を 3 段階で完了。admin split @182 → @183 → @184。
+
+### v376.26 — Phase 2-A: backend ロール CRUD API
+
+| 種別 | 内容 |
+|---|---|
+| 🆕 | `listRoles` action — T_権限ロール 全件 + MENU_REGISTRY + 各ロールの assignedCount を返却 |
+| 🆕 | `saveRole` action — 新規作成/編集（roleId 有無で分岐）|
+| 🆕 | `deleteRole` action — soft delete（assignedCount>0 / isBuiltIn=true は拒否）|
+| 🆕 | `duplicateRole` action — saveRole_ を再利用してテンプレ複製 |
+| 🔒 | server-side で MASTER 限定（`requireMasterForRoleWrite_` — 特権昇格防止）|
+| 🔒 | ガードレール: "MASTER" 予約 / 同名禁止 / masterOnly 拒否 / 組込編集削除拒否 / 削除前 assigned チェック |
+| 🆕 | `appendRoleAuditLog_` — T_監査ログ に ROLE_CREATE / ROLE_UPDATE / ROLE_DELETE / ROLE_DUPLICATE を記録 |
+| 🔧 | `getAdminPermissionData_` の戻り値に `roles` / `menuRegistry` 追加（既存フィールド維持）|
+| 🔧 | `saveAdminPermission_` に optional `roleId` 受領。指定があれば validate して ロールID 列書込。未指定なら legacy permissionLevel から `LEGACY_CODE_TO_INITIAL_ROLE_ID` 経由で自動マップ + 同期書込 |
+| 🔧 | `getAdminPermissionEntries_` の各エントリに `roleId` 追加 |
+
+### v376.27 — Phase 2-B: ロール管理 UI
+
+| 種別 | 内容 |
+|---|---|
+| 🆕 | `src/components/RoleManagementPanel.tsx` 新設 |
+| 🆕 | 権限管理画面（system-permissions view）の「管理者権限を追加」直前に挿入 |
+| 🎨 | ロール一覧テーブル: 名前 / 説明 / 許可メニュー数 / 研修編集スコープ / 割当数 / 操作ボタン（編集/複製/削除）|
+| 🎨 | 編集モーダル: ロール名 + 説明 + 研修編集スコープラジオ + 権限マトリクス（メニュー × チェック、group ごとにグルーピング）|
+| 🔒 | UI ガードレール: 組込/非MASTER caller では操作ボタン非活性。masterOnly メニューはチェックボックス disabled + tooltip + バッジ表示。assignedCount > 0 のとき削除ボタン非活性 + tooltip |
+| 🔧 | `src/types.ts`: `MenuRegistryEntry` / `RoleDefinition` 型を新規定義。`AdminPermissionData.roles` / `menuRegistry` を optional 追加 |
+| 🔧 | `src/services/api.ts`: `listRoles` / `saveRole` / `deleteRole` / `duplicateRole` 実装。private `runAction<T>()` ヘルパーで dispatcher を共通化 |
+
+### v376.28 — Phase 2-C: 管理者追加フォーム roleId 選択化
+
+| 種別 | 内容 |
+|---|---|
+| 🔧 | 「管理者権限を追加」フォーム + 既存管理者編集行の権限選択ドロップダウンを permissionLevel → roleId 選択へ移行 |
+| 🔧 | `adminPermissionData.roles` から GENERAL を除外して動的選択肢化。組込ロールには [組込] バッジ |
+| 🔧 | 選択時に対応する legacy permissionLevel を自動同期（whitelist 権限コード列との後方互換）|
+| 🔧 | roles 未取得時は legacy permissionLevel ドロップダウンに自動 fallback（v376.25.1 以前との互換）|
+| 🔧 | `newAdminPermission` state + `adminPermissionDrafts` state + `updateAdminPermissionDraft` ヘルパー + `saveAdminPermission` 型に roleId 追加 |
+
+### 検証
+- typecheck / test:menu-registry (9/9) / formula / search / kana 全 PASS
+- security:public/member/admin-boundary 全 PASS
+- build:gas / build:gas:member / build:gas:admin 全成功
+- admin Code.gs に全新規関数（listRoles_ / saveRole_ / deleteRole_ / duplicateRole_ / appendRoleAuditLog_ / requireMasterForRoleWrite_ / validateRolePayload_）の注入を grep で確認
+
+### 次フェーズ
+Phase 3: Sidebar 動的化 + permission-aware routing + `isFullAdmin`/`isTrainingOnly` 撤去
+
+---
+
 ## v376.25.1 — 2026-05-28 🎉 メニュー単位 RBAC Phase 1-B 完全完了（DB migration 適用）
 
 `docs/246` Phase 1-B の最終締め。operator スクリプトに `Logger.log` 追加で出力可視化（v376.25 で漏れていたため再デプロイ）+ DB migration 完了確認。

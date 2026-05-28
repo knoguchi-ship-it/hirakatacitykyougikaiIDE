@@ -1,7 +1,7 @@
 # 246. 設計: メニュー単位カスタムロール RBAC
 
 作成日: 2026-05-28
-ステータス: **Phase 1 完了** (Phase 1-A v376.24 @179 + Phase 1-B v376.25.1 @181 + DB migration 適用済) / Phase 2 着手予定
+ステータス: **Phase 1 + Phase 2 全完了** (Phase 1-A @179 + Phase 1-B @181 + DB migration / Phase 2-A v376.26 @182 + Phase 2-B v376.27 @183 + Phase 2-C v376.28 @184) / Phase 3 着手予定
 種別: Explanation（設計書）
 関連正本: `docs/05_AUTH_AND_ROLE_SPEC.md`（実装後に反映）, `docs/02_ARCHITECTURE.md`, `docs/03_DATA_MODEL.md`
 
@@ -70,8 +70,30 @@ admin split @180 デプロイ後、Apps Script editor (admin split) を開き、
    - `権限コード` 列を保持しているため復帰可能
 
 ### 次フェーズ予定
-- **Phase 2**: 権限管理コンソール UI（admin frontend）— ロール CRUD + 権限マトリクス + masterOnly enforcement + 監査ログ
+- **Phase 2**: 完了（下記参照）
 - **Phase 3**: Sidebar 動的化 + permission-aware routing（admin frontend）+ `isFullAdmin/isTrainingOnly` 撤去
+
+## Phase 2 完了記録（2026-05-28 / v376.26-.28）
+
+### Phase 2-A (v376.26 @182): backend ロール CRUD API + ガードレール + 監査ログ
+- 新 action: `listRoles` / `saveRole` / `deleteRole` / `duplicateRole`（admin-allowed、system-permissions menu 配下）
+- server-side MASTER 限定 enforcement（`requireMasterForRoleWrite_` — 特権昇格防止 / docs/246 §7）
+- ガードレール: "MASTER" 予約 / 同名禁止 / masterOnly 拒否 / 組込編集削除拒否 / 削除前 assigned チェック
+- 監査ログ: `appendRoleAuditLog_` → T_監査ログ
+- `getAdminPermissionData_` に roles / menuRegistry 追加（後方互換）
+- `saveAdminPermission_` に optional roleId 受領（後方互換、legacy permissionLevel から自動マップ）
+
+### Phase 2-B (v376.27 @183): フロントエンド ロール管理 UI
+- `src/components/RoleManagementPanel.tsx` 新設
+- ロール一覧テーブル + 編集モーダル + 権限マトリクス（メニュー × チェックボックス、group ごと）
+- UI ガードレール: 組込 read-only / masterOnly 非活性 + バッジ + tooltip / 割当中 削除無効 / 非 MASTER caller では操作ボタン無効
+- `MenuRegistryEntry` / `RoleDefinition` 型を `src/types.ts` に新規定義
+
+### Phase 2-C (v376.28 @184): 管理者追加/編集フォームを roleId 選択へ移行
+- 「管理者権限を追加」フォームと既存管理者編集行の権限ドロップダウンを roleId 選択に変更
+- 動的に `adminPermissionData.roles` から選択肢生成（GENERAL 除外、組込バッジ）
+- 選択時 legacy permissionLevel を自動同期（whitelist 権限コード列との後方互換）
+- roles 未取得時は legacy ドロップダウンに自動 fallback
 
 ## Phase 1-B 完全完了記録（2026-05-28 / v376.25.1）
 
