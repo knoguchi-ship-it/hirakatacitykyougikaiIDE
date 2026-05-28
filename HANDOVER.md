@@ -5,7 +5,7 @@
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
 最終更新: **2026-05-28**
-最新リリース: **`v376.23`**（二重管理是正シリーズ完了 — action 許可リスト単一情報源化。build ツールのみ・生成物不変で再デプロイ不要。本番反映済みは v376.22 = @349/@108/@178）
+最新リリース: **`v376.24`**（メニュー単位 RBAC Phase 1-A — 認可レイヤー内部置換。admin split のみ @179 へ反映。挙動完全維持 + snapshot test 7 件 PASS + 既知デルタ 7 件明示承認済）
 
 ---
 
@@ -16,7 +16,7 @@
 | 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@349** |
 | 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@349** |
 | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@108** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@178** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@179** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 
@@ -28,9 +28,14 @@
 
 | タスク | 状態 | 参照 |
 |---|---|---|
-| **メニュー単位カスタムロール RBAC — Phase 1 着手** | 設計確定・実装前。次セッションで `docs/246` を起点に開始 | `docs/246_DESIGN_MENU_BASED_CUSTOM_ROLES_RBAC_2026-05-28.md`（確定6方針・ガードレール・Phase1-3・移行手順） |
+| **メニュー単位カスタムロール RBAC — Phase 1-A 完了 (v376.24 @179)** | 認可レイヤー内部置換完了。挙動完全維持 + snapshot test 7 件 PASS + 許容デルタ 7 件明示承認 | `scripts/menu-registry.mjs`, `scripts/test-menu-registry.mjs`, `docs/246` §Phase 1-A 完了記録 |
+| **メニュー単位カスタムロール RBAC — Phase 1-B 着手予定** | Step 1-A 安定後に着手。`T_権限ロール` 新設 + whitelist にロールID列追加（並行運用）+ 初期4ロール + MASTER built-in + operator 移行スクリプト | `docs/246` §4, §8 |
 
-> Phase 1 = 認可モデル全面置換（`ADMIN_ACTION_PERMISSIONS`→メニューベース強制）+ `T_権限ロール` 新設 + ホワイトリスト移行 + 全3 split デプロイ。**セキュリティクリティカルなため挙動完全維持を検証して進める**。
+> Phase 1-A 完了内容: `ADMIN_ACTION_PERMISSIONS` の判定ロジックを `action→menu→role.allowedMenus` 評価へ内部置換。外部 API 表面・DB スキーマ・whitelist 列構成は不変。`scripts/menu-registry.mjs` を単一情報源とし、build 時に全 3 split の Code.gs に MENU_REGISTRY を埋め込む。snapshot test が旧 ADMIN_ACTION_PERMISSIONS との等価性を機械検証。
+>
+> 既知デルタ（LEGACY_ROLE_DELTA_ACCEPTED 7 件、すべて TR/TM が training-manage menu 経由で旧不許可 action にアクセス可能化する単一方向のみ。MA は完全に挙動不変）。
+>
+> Phase 1-B = DB schema 追加 + 移行。Phase 2 = 権限管理コンソール UI。Phase 3 = Sidebar 動的化。
 
 ### 2-1. 未完了（優先度 High → Low）
 
@@ -137,6 +142,7 @@ npm run test:responsive:member             # 要 storageState
 
 | Version | 日付 | 概要 |
 |---|---|---|
+| **v376.24** | 2026-05-28 | **メニュー単位 RBAC Phase 1-A** — 認可レイヤー内部置換（docs/246）。`ADMIN_ACTION_PERMISSIONS` の判定ロジックを `action→menu→role.allowedMenus` 評価へ。`scripts/menu-registry.mjs` を単一情報源化（v376.23 パターン踏襲、build 時に全 3 split の Code.gs に注入）。`scripts/test-menu-registry.mjs` 7 件 PASS で旧モデル等価性を機械検証。`checkAdminBySession_` に `roleId`/`roleName`/`isMaster`/`allowedMenus`/`trainingEditScope` 追加（既存 `adminPermissionLevel` は後方互換維持）。`saveTraining_` の `TRAINING_REGISTRAR` ハードコード(11631-11637)を `trainingEditScope==='OWN'` 判定へ置換。許容デルタ 7 件（TR/TM が training-manage menu 経由で旧不許可 action にアクセス可能化、MA は完全に挙動不変）。admin split のみ @179（外部 API 表面・DB schema・whitelist 列は不変のため member/public 未 redeploy）。Phase 1-B (T_権限ロール 新設 + 移行) は次回着手 |
 | **v376.18〜.23** | 2026-05-27〜28 | **二重管理是正シリーズ**（メール送信以外の全機能監査の是正）。.18 admin build keep-list 単一情報源化 / .19 未使用 frontend API 6件削除 / .20 シート読取ヘルパー一本化 / .21 申込者解決ガードレール（敢えて統合せず・2モデル併存と判断）/ .22 未使用 backend endpoint 6件削除（全境界）/ .23 action 許可リスト単一情報源化（build×3+audit×3 → `gas-boundary-utils.mjs`）。通算約1,500行削減。.22 のみ挙動変更で全3 split デプロイ（@349/@108/@178）、他は挙動不変（生成物 md5 不変を検証）。残フォローアップ: source 4 dead 関数（`createMember_`/`updateMembersBatch_`/`getFileBytes_`/`getMemberTrainingHistory_`）の撤去 — build pruner が全生成物から既に除外済（本番影響なし）。詳細 `docs/release-notes-2026.md` |
 | v376.17 | 2026-05-27 | メール送信の整理。①差し込みタグ置換（`{{氏名}}`等）を `sendTrainingMail_` / `sendBulkMemberMail_` のインライン `.replace` から汎用 `renderBizEmailTemplate_(template, vars)` に一本化。②frontend 未使用の研修メール segment 送信（`sendTrainingMailSegmented_` / `getTrainingMailSendLogs_` と api.ts/types/scripts 定義）を削除し研修メールを `sendTrainingMail_` に一本化。送信実体は従来どおり `deliverMail_` → `sendEmailWithValidatedFrom_` に集約済（変更なし）。機能変更は admin のみ @177（member/public はコメント/bundle 再生成差分のみで未 redeploy） |
 | v376.16 | 2026-05-27 | 研修管理（管理者）新規研修登録の入力中に一覧から既存研修を選んでも入力が消えないよう、新規入力を `pendingNewForm` へ退避し、詳細モーダルを閉じると右ペインへ復元（画面を開いている間は保持）。新規作成成功後は空フォームへ戻し連続登録に対応（v376.15 で混入した作成後の右ペイン空白化も解消）。削除・復元後も退避中の新規入力を保持。admin split のみ @176 |

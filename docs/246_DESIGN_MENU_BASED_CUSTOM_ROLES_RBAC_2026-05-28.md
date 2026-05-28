@@ -1,9 +1,32 @@
 # 246. 設計: メニュー単位カスタムロール RBAC
 
 作成日: 2026-05-28
-ステータス: 設計確定（実装前）/ Phase 1 着手予定
+ステータス: **Phase 1-A 完了 (v376.24 @179)** / Phase 1-B 着手予定
 種別: Explanation（設計書）
 関連正本: `docs/05_AUTH_AND_ROLE_SPEC.md`（実装後に反映）, `docs/02_ARCHITECTURE.md`, `docs/03_DATA_MODEL.md`
+
+## Phase 1-A 完了記録（2026-05-28 / v376.24）
+
+| 項目 | 内容 |
+|---|---|
+| デプロイ | admin split @179（外部 API 表面・DB schema・whitelist 列は不変のため member/public は未 redeploy） |
+| 単一情報源 | `scripts/menu-registry.mjs`（MENU_REGISTRY / ACTION_TO_MENU / LEGACY_ROLE_TO_MENUS / LEGACY_ROLE_TRAINING_SCOPE / LEGACY_ROLE_DELTA_ACCEPTED / `serializeMenuRegistryForGas()`） |
+| build 注入 | `scripts/gas-boundary-utils.mjs::injectMenuRegistryPlaceholders` を build:gas / build:gas:member / build:gas:admin から呼び、`gas-src/Code.full.gs` の placeholder を上書き |
+| 認可ロジック | `processApiRequest` 内の `requiredPerms.indexOf(permLevel) === -1` を `!isActionAllowedByMenu_(action, permLevel)` へ置換。MASTER は全許可、他は ACTION_TO_MENU[action] ∈ role.allowedMenus を評価 |
+| session 拡張 | `checkAdminBySession_` 戻り値に `roleId`/`roleName`/`isMaster`/`allowedMenus`/`trainingEditScope` を追加。既存 `adminPermissionLevel` は後方互換維持（Phase 1-B で T_権限ロール の UUID へ移行） |
+| TR scope | `saveTraining_` (旧 11631-11637) の `adminPerm === 'TRAINING_REGISTRAR'` ハードコードを `trainingEditScope === 'OWN'` 判定へ置換 |
+| 検証 | `scripts/test-menu-registry.mjs` 7 件 全 PASS（snapshot 等価性 + 未マップ action 検出 + 古い delta entry 検出 + MASTER 全許可 + menu id 整合）。prerelease に統合 |
+| 許容デルタ（LEGACY_ROLE_DELTA_ACCEPTED, 7 件） | すべて TR/TM が training-manage menu 経由で旧不許可 action にアクセス可能化する単一方向。MA は完全に挙動不変。逆方向（許可→deny）デルタは 0 件 |
+
+### 許容デルタ内訳
+- TR が softDeleteTraining / restoreTraining / sendTrainingReminder / getAdminEmailAliases / sendTrainingMail / setupTrainingFileFolder にアクセス可能化（OWN scope で `saveTraining_` は引き続き保護）
+- TM が setupTrainingFileFolder にアクセス可能化（冪等な初回フォルダ設定）
+- GENERAL の fetchAllData は到達不能（`checkAdminBySession_` で GENERAL は弾かれる）
+
+### Phase 1-A 完了後の残置と次の作業
+- `ADMIN_ACTION_PERMISSIONS` (gas-src/Code.full.gs:1487-1607) は action 集合の whitelist 用途で残置。値（role 配列）は dead code。Phase 1-B で撤去予定
+- Phase 1-B: `T_権限ロール` 新設 + whitelist にロールID列追加（並行運用、権限コード列保持）+ 初期4ロール（編集可能）+ MASTER built-in + operator 移行スクリプト `migrateToRoleBasedRBAC_v246_DRYRUN`/`_APPLY`
+
 
 ## 0. 目的と背景
 

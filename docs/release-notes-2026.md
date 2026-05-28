@@ -13,6 +13,34 @@
 
 ---
 
+## v376.24 — 2026-05-28 🆕 メニュー単位 RBAC Phase 1-A（認可レイヤー内部置換）
+
+`docs/246` で設計確定したメニュー単位カスタムロール RBAC の **Phase 1-A** を実装。旧 `ADMIN_ACTION_PERMISSIONS` による `action→role` 固定マップ判定を、新 `action→menu→role.allowedMenus` 評価へ内部置換した。**外部 API 表面・DB schema・whitelist 列構成は不変**で、Phase 1-B (T_権限ロール 新設) は次回着手予定。
+
+| 種別 | 内容 |
+|---|---|
+| 🆕 | `scripts/menu-registry.mjs` 新設（v376.23 単一情報源パターン踏襲）。MENU_REGISTRY（14 メニュー）/ ACTION_TO_MENU / LEGACY_ROLE_TO_MENUS / LEGACY_ROLE_TRAINING_SCOPE / LEGACY_ROLE_DELTA_ACCEPTED を一元管理 |
+| 🆕 | `scripts/test-menu-registry.mjs` 新設（snapshot test 7 件）。旧 ADMIN_ACTION_PERMISSIONS と新 menu-based 認可の **全 (action × role) 等価性を機械検証**。許容デルタ以外があれば FAIL でリリースを止める fail-safe。prerelease に統合 |
+| 🆕 | `scripts/gas-boundary-utils.mjs::injectMenuRegistryPlaceholders` 追加。build:gas / build:gas:member / build:gas:admin から呼び、`gas-src/Code.full.gs` の placeholder ブロックを実体に置換 |
+| 🔧 | `processApiRequest`: `requiredPerms.indexOf(permLevel) === -1` → `!isActionAllowedByMenu_(action, permLevel)`。等価性は snapshot test が保証。`ADMIN_ACTION_PERMISSIONS` は action 集合の whitelist 用途として残置（Phase 1-B で撤去予定） |
+| 🔧 | `checkAdminBySession_`: 戻り値に `roleId`/`roleName`/`isMaster`/`allowedMenus`/`trainingEditScope` を追加。既存 `adminPermissionLevel` は後方互換維持（Phase 1-B で T_権限ロール の UUID へ移行） |
+| 🔧 | `saveTraining_` (旧 11631-11637) の `adminPerm === 'TRAINING_REGISTRAR'` ハードコードを `trainingEditScope === 'OWN'` 判定へ置換 |
+| ⚠️ | 既知デルタ 7 件（LEGACY_ROLE_DELTA_ACCEPTED に明示承認済）。すべて TR/TM が training-manage menu 経由で旧不許可 action にアクセス可能化する単一方向。MA は完全に挙動不変。逆方向（許可→deny）デルタは 0 件 |
+| ✅ | 検証: typecheck / test:formula / test:search / test:kana / test:menu-registry 全 PASS。security:public/member/admin-boundary 全 PASS。build:gas / build:gas:member / build:gas:admin 全成功 |
+| 🚀 | デプロイ: admin split のみ @179（外部 API 表面・DB schema・whitelist 列が不変のため member/public 未 redeploy） |
+
+### 許容デルタ内訳
+- TR: softDeleteTraining / restoreTraining / sendTrainingReminder / getAdminEmailAliases / sendTrainingMail / setupTrainingFileFolder（OWN scope で saveTraining_ は引き続き保護）
+- TM: setupTrainingFileFolder（冪等な初回フォルダ設定）
+- GENERAL: fetchAllData（GENERAL は `checkAdminBySession_` で弾かれるため到達不能）
+
+### 次回（Phase 1-B）作業
+- `T_権限ロール` 新設 + whitelist にロールID列追加（並行運用、権限コード列保持）
+- 初期4ロール（ADMIN / TRAINING_MANAGER / TRAINING_REGISTRAR / GENERAL = 編集可能なカスタムロール）+ MASTER built-in
+- operator 移行スクリプト `migrateToRoleBasedRBAC_v246_DRYRUN` / `_APPLY`
+
+---
+
 ## v376.23 — 2026-05-28 🔧 二重管理の解消⑥: action 許可リストの単一情報源化（A-3）
 
 各境界の `processApiRequest` action 許可リストが build×3（`build-{admin,member,gas}.mjs` の `removeDisallowedActionHandlers` 引数）と audit×3（`audit-{admin,member,public}-boundary.mjs` の expected リスト）の**計6箇所に手書き分散**していたのを、`gas-boundary-utils.mjs` の4定数（`PUBLIC_/MEMBER_/ADMIN_ALLOWED_ACTIONS_LIST` + `ADMIN_LOGIN_ACTIONS_LIST`）に単一情報源化。**生成物に変更なし・再デプロイ不要**。
