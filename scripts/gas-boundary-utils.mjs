@@ -115,6 +115,11 @@ export const ADMIN_ALLOWED_ACTIONS_LIST = [
   'getAdminPermissionData',
   'saveAdminPermission',
   'deleteAdminPermission',
+  // docs/246 Phase 2-A: ロール CRUD
+  'listRoles',
+  'saveRole',
+  'deleteRole',
+  'duplicateRole',
   'getAdminDashboardData',
   'getAdminInitData',
   'updateMember',

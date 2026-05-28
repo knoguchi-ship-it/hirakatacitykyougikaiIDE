@@ -153,6 +153,11 @@ export const ACTION_TO_MENU = {
   getAdminPermissionData: 'system-permissions',
   saveAdminPermission: 'system-permissions',
   deleteAdminPermission: 'system-permissions',
+  // docs/246 Phase 2-A: ロール CRUD API
+  listRoles: 'system-permissions',
+  saveRole: 'system-permissions',
+  deleteRole: 'system-permissions',
+  duplicateRole: 'system-permissions',
   // data-management（MASTER 専用メニュー — 削除/repair/backup/seed）
   seedDemoData: 'data-management',
   searchMembersForDelete: 'data-management',

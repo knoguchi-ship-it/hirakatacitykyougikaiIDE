@@ -1032,6 +1032,10 @@ var ACTION_TO_MENU = {
   "getAdminPermissionData": "system-permissions",
   "saveAdminPermission": "system-permissions",
   "deleteAdminPermission": "system-permissions",
+  "listRoles": "system-permissions",
+  "saveRole": "system-permissions",
+  "deleteRole": "system-permissions",
+  "duplicateRole": "system-permissions",
   "seedDemoData": "data-management",
   "searchMembersForDelete": "data-management",
   "previewDeleteMember": "data-management",
@@ -1310,6 +1314,8 @@ function processApiRequest(action, payload) {
 
 
 
+
+    // docs/246 Phase 2-A: ロール CRUD
 
 
 
@@ -2613,6 +2619,23 @@ var MASTER_ONLY_SETTING_KEYS = ['EMAIL_LOG_VIEWER_ROLE'];
 
 // T_システム設定のスネークアッパーケースキーを camelCase に変換する
 // 例: 'EMAIL_LOG_VIEWER_ROLE' → 'emailLogViewerRole'
+
+
+
+
+
+// ─── docs/246 Phase 2-A: ロール CRUD ─────────────────────────────────
+
+/**
+ * T_監査ログ にロール CRUD を追記する。
+ * appendAdminAuditLog_ は T_会員 専用なので別関数とする。
+ */
+
+/**
+ * T_権限ロール 全件 + メニュー定義 + 各ロールの assignedCount を返す。
+ * Caller: 任意の admin（system-permissions menu アクセス権者）。
+ */
+
 
 
 

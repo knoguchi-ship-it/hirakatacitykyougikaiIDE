@@ -1009,6 +1009,10 @@ var ACTION_TO_MENU = {
   "getAdminPermissionData": "system-permissions",
   "saveAdminPermission": "system-permissions",
   "deleteAdminPermission": "system-permissions",
+  "listRoles": "system-permissions",
+  "saveRole": "system-permissions",
+  "deleteRole": "system-permissions",
+  "duplicateRole": "system-permissions",
   "seedDemoData": "data-management",
   "searchMembersForDelete": "data-management",
   "previewDeleteMember": "data-management",
@@ -1170,6 +1174,11 @@ var ADMIN_ACTION_PERMISSIONS = {
   'getAdminPermissionData': ['MASTER','ADMIN'],
   'saveAdminPermission': ['MASTER','ADMIN'],
   'deleteAdminPermission': ['MASTER','ADMIN'],
+  // docs/246 Phase 2-A: ロール CRUD（listRoles は ADMIN/MASTER、書込系は server で MASTER only を二重防御）
+  'listRoles': ['MASTER','ADMIN'],
+  'saveRole': ['MASTER','ADMIN'],
+  'deleteRole': ['MASTER','ADMIN'],
+  'duplicateRole': ['MASTER','ADMIN'],
   'seedDemoData': ['MASTER'],
   'getAdminDashboardData': ['MASTER','ADMIN'],
   'getAdminInitData': ['MASTER','ADMIN'],
@@ -1456,6 +1465,20 @@ function processApiRequest(action, payload) {
 
     if (action === 'deleteAdminPermission') {
       return JSON.stringify({ success: true, data: deleteAdminPermission_(parsedPayload) });
+    }
+
+    // docs/246 Phase 2-A: ロール CRUD
+    if (action === 'listRoles') {
+      return JSON.stringify({ success: true, data: listRoles_(parsedPayload) });
+    }
+    if (action === 'saveRole') {
+      return JSON.stringify({ success: true, data: saveRole_(parsedPayload) });
+    }
+    if (action === 'deleteRole') {
+      return JSON.stringify({ success: true, data: deleteRole_(parsedPayload) });
+    }
+    if (action === 'duplicateRole') {
+      return JSON.stringify({ success: true, data: duplicateRole_(parsedPayload) });
     }
 
     if (action === 'getAnnualFeeAdminData') {
@@ -3982,11 +4005,16 @@ function getAdminPermissionData_(callerSession) {
   } else {
     callerEmail = String(Session.getActiveUser().getEmail() || '').toLowerCase();
   }
+  // docs/246 Phase 2-A: roles + menuRegistry も同梱（フロントの一括取得用、後方互換のため追加フィールド）
+  var rolesData = listRoles_({ __adminSession: callerSession });
   return {
     entries: getAdminPermissionEntries_(ss),
     identityOptions: getAdminPermissionIdentityOptions_(ss),
     currentSessionEmail: callerEmail,
     currentSessionPermissionLevel: callerPermLevel,
+    // 追加フィールド（既存 UI は無視可、Phase 2-B 以降で利用）
+    roles: rolesData.roles,
+    menuRegistry: rolesData.menuRegistry,
   };
 }
 
@@ -4014,6 +4042,16 @@ function saveAdminPermission_(payload) {
   var permissionLevel = String(payload.permissionLevel || 'ADMIN').trim();
   if (validPerms.indexOf(permissionLevel) === -1) {
     throw new Error('無効な権限コードです: ' + permissionLevel);
+  }
+
+  // docs/246 Phase 2-A: roleId が指定されていれば validate（後方互換: 未指定なら legacy code から導出）
+  var assignedRoleId = String(payload.roleId || '').trim();
+  if (assignedRoleId) {
+    var role = getRoleByIdCached_(ss, assignedRoleId);
+    if (!role) throw new Error('無効な roleId です: ' + assignedRoleId);
+  } else {
+    // legacy permissionLevel から initial role id へ自動マップ（ある場合のみ）
+    assignedRoleId = LEGACY_CODE_TO_INITIAL_ROLE_ID[permissionLevel] || '';
   }
 
   var authSheet = ss.getSheetByName('T_認証アカウント');
@@ -4083,7 +4121,8 @@ function saveAdminPermission_(payload) {
     Googleメール: normalizedEmail,
     紐付け認証ID: linkedAuthId,
     紐付け会員ID: linkedMemberId,
-    権限コード: permissionLevel,
+    権限コード: permissionLevel, // 後方互換のため保持（rollback 用）
+    ロールID: assignedRoleId,    // docs/246 Phase 2-A: authoritative
     有効フラグ: payload.enabled !== false,
     変更者メール: callerEmail,
     変更日時: nowIso,
@@ -4153,6 +4192,232 @@ function deleteAdminPermission_(payload) {
   return { deleted: true, id: id };
 }
 
+// ─── docs/246 Phase 2-A: ロール CRUD ─────────────────────────────────
+
+/**
+ * T_監査ログ にロール CRUD を追記する。
+ * appendAdminAuditLog_ は T_会員 専用なので別関数とする。
+ */
+function appendRoleAuditLog_(adminEmail, roleId, op, fieldName, oldValue, newValue) {
+  try {
+    var sheet = getLogSs_().getSheetByName('T_監査ログ');
+    if (!sheet) return;
+    sheet.appendRow([
+      Utilities.getUuid(),
+      new Date().toISOString(),
+      adminEmail || '',
+      op, // 'ROLE_CREATE' / 'ROLE_UPDATE' / 'ROLE_DELETE' / 'ROLE_DUPLICATE'
+      'T_権限ロール',
+      roleId,
+      fieldName,
+      oldValue == null ? '' : String(oldValue),
+      newValue == null ? '' : String(newValue),
+    ]);
+  } catch (e) { /* schema 未整備時は silent skip */ }
+}
+
+/**
+ * T_権限ロール 全件 + メニュー定義 + 各ロールの assignedCount を返す。
+ * Caller: 任意の admin（system-permissions menu アクセス権者）。
+ */
+function listRoles_(payload) {
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  var roleRows = getRowsAsObjects_(ss, 'T_権限ロール').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var wlRows = getRowsAsObjects_(ss, 'T_管理者Googleホワイトリスト').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) && toBoolean_(r['有効フラグ']);
+  });
+  var assignedCountByRoleId = {};
+  for (var i = 0; i < wlRows.length; i += 1) {
+    var rid = String(wlRows[i]['ロールID'] || '');
+    if (!rid) continue;
+    assignedCountByRoleId[rid] = (assignedCountByRoleId[rid] || 0) + 1;
+  }
+  var roles = roleRows.map(function(r) {
+    var rid = String(r['ロールID'] || '');
+    var allowedMenus = [];
+    try { var p = JSON.parse(String(r['許可メニューJSON'] || '[]')); if (Array.isArray(p)) allowedMenus = p.map(String); } catch (e) {}
+    return {
+      roleId: rid,
+      roleName: String(r['ロール名'] || ''),
+      description: String(r['説明'] || ''),
+      allowedMenus: allowedMenus,
+      trainingEditScope: String(r['研修編集スコープ'] || 'ALL').toUpperCase(),
+      isBuiltIn: toBoolean_(r['組込フラグ']),
+      isMaster: toBoolean_(r['マスターフラグ']),
+      sortOrder: Number(r['表示順'] || 0),
+      assignedCount: assignedCountByRoleId[rid] || 0,
+    };
+  }).sort(function(a, b) { return (a.sortOrder || 0) - (b.sortOrder || 0); });
+  return { roles: roles, menuRegistry: MENU_REGISTRY };
+}
+
+function validateRolePayload_(payload, isUpdate) {
+  var roleName = String((payload && payload.roleName) || '').trim();
+  if (!roleName) throw new Error('ロール名は必須です。');
+  if (roleName === 'MASTER') throw new Error('"MASTER" は予約語のため使用できません。');
+  if (roleName.length > 50) throw new Error('ロール名は50文字以内にしてください。');
+  var description = String((payload && payload.description) || '').trim();
+  var allowedMenus = Array.isArray(payload && payload.allowedMenus) ? payload.allowedMenus.map(String) : [];
+  // 未知 menu id は拒否
+  var validIds = {};
+  for (var i = 0; i < MENU_REGISTRY.length; i += 1) validIds[MENU_REGISTRY[i].id] = MENU_REGISTRY[i];
+  var masterOnlyHit = [];
+  for (var j = 0; j < allowedMenus.length; j += 1) {
+    var menu = validIds[allowedMenus[j]];
+    if (!menu) throw new Error('未知のメニューid: ' + allowedMenus[j]);
+    if (menu.masterOnly) masterOnlyHit.push(allowedMenus[j]);
+  }
+  if (masterOnlyHit.length > 0) {
+    throw new Error('masterOnly メニューはカスタムロールに付与できません: ' + masterOnlyHit.join(', '));
+  }
+  var scope = String((payload && payload.trainingEditScope) || 'ALL').toUpperCase();
+  if (scope !== 'ALL' && scope !== 'OWN') throw new Error('研修編集スコープは ALL または OWN のみ。');
+  return { roleName: roleName, description: description, allowedMenus: allowedMenus, trainingEditScope: scope };
+}
+
+function requireMasterForRoleWrite_(payload) {
+  var session = payload && payload.__adminSession;
+  if (!session) throw new Error('管理者セッションが無効です。');
+  // 二重防御: server-side で MASTER 限定（特権昇格防止 — docs/246 §7）
+  if (!session.isMaster && String(session.adminPermissionLevel || '') !== 'MASTER') {
+    throw new Error('ロールの作成・編集・削除はマスター権限者のみ実行できます。');
+  }
+  return String(session.loginId || '');
+}
+
+function saveRole_(payload) {
+  var callerEmail = requireMasterForRoleWrite_(payload);
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  var sheet = ss.getSheetByName('T_権限ロール');
+  if (!sheet) throw new Error('T_権限ロール シートが見つかりません。');
+
+  var existingRoleId = String((payload && payload.roleId) || '').trim();
+  var isUpdate = !!existingRoleId;
+  var v = validateRolePayload_(payload, isUpdate);
+
+  // ロール名重複チェック（自分以外）
+  var existingRows = getRowsAsObjects_(ss, 'T_権限ロール').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  for (var i = 0; i < existingRows.length; i += 1) {
+    if (String(existingRows[i]['ロール名'] || '').trim() === v.roleName && String(existingRows[i]['ロールID'] || '') !== existingRoleId) {
+      throw new Error('同名のロールが既に存在します: ' + v.roleName);
+    }
+  }
+
+  var nowIso = new Date().toISOString();
+  if (isUpdate) {
+    var found = findRowByColumnValue_(sheet, 'ロールID', existingRoleId);
+    if (!found) throw new Error('編集対象のロールが見つかりません: ' + existingRoleId);
+    if (toBoolean_(found.row[found.columns['組込フラグ']])) {
+      throw new Error('組込ロール（MASTER）は編集できません。');
+    }
+    var row = found.row.slice();
+    var oldName = String(row[found.columns['ロール名']] || '');
+    var oldDesc = String(row[found.columns['説明']] || '');
+    var oldMenus = String(row[found.columns['許可メニューJSON']] || '');
+    var oldScope = String(row[found.columns['研修編集スコープ']] || '');
+    row[found.columns['ロール名']] = v.roleName;
+    row[found.columns['説明']] = v.description;
+    row[found.columns['許可メニューJSON']] = JSON.stringify(v.allowedMenus);
+    row[found.columns['研修編集スコープ']] = v.trainingEditScope;
+    row[found.columns['更新日時']] = nowIso;
+    sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+    // 監査
+    if (oldName !== v.roleName) appendRoleAuditLog_(callerEmail, existingRoleId, 'ROLE_UPDATE', 'ロール名', oldName, v.roleName);
+    if (oldDesc !== v.description) appendRoleAuditLog_(callerEmail, existingRoleId, 'ROLE_UPDATE', '説明', oldDesc, v.description);
+    if (oldMenus !== JSON.stringify(v.allowedMenus)) appendRoleAuditLog_(callerEmail, existingRoleId, 'ROLE_UPDATE', '許可メニューJSON', oldMenus, JSON.stringify(v.allowedMenus));
+    if (oldScope !== v.trainingEditScope) appendRoleAuditLog_(callerEmail, existingRoleId, 'ROLE_UPDATE', '研修編集スコープ', oldScope, v.trainingEditScope);
+    clearAdminPermissionCaches_();
+    return { saved: true, roleId: existingRoleId, isNew: false };
+  } else {
+    // 新規作成
+    var newRoleId = 'role-' + Utilities.getUuid().slice(0, 8) + '-custom';
+    var maxSort = 0;
+    for (var s = 0; s < existingRows.length; s += 1) {
+      var so = Number(existingRows[s]['表示順'] || 0);
+      if (so > maxSort) maxSort = so;
+    }
+    appendRowsByHeaders_(ss, 'T_権限ロール', [{
+      'ロールID': newRoleId,
+      'ロール名': v.roleName,
+      '説明': v.description,
+      '許可メニューJSON': JSON.stringify(v.allowedMenus),
+      '研修編集スコープ': v.trainingEditScope,
+      '組込フラグ': false,
+      'マスターフラグ': false,
+      '表示順': maxSort + 10,
+      '作成日時': nowIso,
+      '更新日時': nowIso,
+      '削除フラグ': false,
+    }]);
+    appendRoleAuditLog_(callerEmail, newRoleId, 'ROLE_CREATE', '新規ロール', '', v.roleName);
+    clearAdminPermissionCaches_();
+    return { saved: true, roleId: newRoleId, isNew: true };
+  }
+}
+
+function deleteRole_(payload) {
+  var callerEmail = requireMasterForRoleWrite_(payload);
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  var roleId = String((payload && payload.roleId) || '').trim();
+  if (!roleId) throw new Error('roleId は必須です。');
+  var sheet = ss.getSheetByName('T_権限ロール');
+  if (!sheet) throw new Error('T_権限ロール シートが見つかりません。');
+  var found = findRowByColumnValue_(sheet, 'ロールID', roleId);
+  if (!found) throw new Error('削除対象のロールが見つかりません: ' + roleId);
+  if (toBoolean_(found.row[found.columns['組込フラグ']])) {
+    throw new Error('組込ロール（MASTER）は削除できません。');
+  }
+  // 使用中チェック
+  var wlRows = getRowsAsObjects_(ss, 'T_管理者Googleホワイトリスト').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) && toBoolean_(r['有効フラグ']);
+  });
+  var assigned = 0;
+  for (var i = 0; i < wlRows.length; i += 1) {
+    if (String(wlRows[i]['ロールID'] || '') === roleId) assigned += 1;
+  }
+  if (assigned > 0) {
+    throw new Error('このロールは ' + assigned + ' 件のアカウントに割当中のため削除できません。先に再割当を行ってください。');
+  }
+  var row = found.row.slice();
+  var oldName = String(row[found.columns['ロール名']] || '');
+  row[found.columns['削除フラグ']] = true;
+  row[found.columns['更新日時']] = new Date().toISOString();
+  sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  appendRoleAuditLog_(callerEmail, roleId, 'ROLE_DELETE', 'ロール名', oldName, '(削除)');
+  clearAdminPermissionCaches_();
+  return { deleted: true, roleId: roleId };
+}
+
+function duplicateRole_(payload) {
+  var callerEmail = requireMasterForRoleWrite_(payload);
+  var sourceRoleId = String((payload && payload.sourceRoleId) || '').trim();
+  if (!sourceRoleId) throw new Error('sourceRoleId は必須です。');
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_権限ロール');
+  if (!sheet) throw new Error('T_権限ロール シートが見つかりません。');
+  var found = findRowByColumnValue_(sheet, 'ロールID', sourceRoleId);
+  if (!found) throw new Error('複製元ロールが見つかりません: ' + sourceRoleId);
+  var srcName = String(found.row[found.columns['ロール名']] || '');
+  var srcDesc = String(found.row[found.columns['説明']] || '');
+  var srcMenus = [];
+  try { var p = JSON.parse(String(found.row[found.columns['許可メニューJSON']] || '[]')); if (Array.isArray(p)) srcMenus = p.map(String); } catch (e) {}
+  var srcScope = String(found.row[found.columns['研修編集スコープ']] || 'ALL').toUpperCase();
+  var newName = String((payload && payload.newRoleName) || (srcName + ' (コピー)')).trim();
+  // saveRole_ を再利用 — masterOnly 等の検証を共通化
+  var result = saveRole_({
+    __adminSession: payload.__adminSession,
+    roleName: newName,
+    description: srcDesc,
+    allowedMenus: srcMenus,
+    trainingEditScope: srcScope,
+  });
+  appendRoleAuditLog_(callerEmail, result.roleId, 'ROLE_DUPLICATE', '複製元', sourceRoleId, result.roleId);
+  return result;
+}
+
 function getAdminPermissionEntries_(ss) {
   var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(row) { return !toBoolean_(row['削除フラグ']); });
   var staffRows = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(row) { return !toBoolean_(row['削除フラグ']); });
@@ -4202,6 +4467,7 @@ function getAdminPermissionEntries_(ss) {
         linkedRoleCode: String((linkedAuth && linkedAuth['システムロールコード']) || ''),
         linkedIdentityLabel: buildAdminPermissionIdentityLabel_(memberMap[linkedMemberId], staffMap[linkedStaffId], linkedAuth),
         permissionLevel: permLevel,
+        roleId: String(row['ロールID'] || ''), // docs/246 Phase 2-A 追加
         enabled: toBoolean_(row['有効フラグ']),
         updatedAt: String(row['更新日時'] || ''),
         updatedByEmail: String(row['変更者メール'] || ''),

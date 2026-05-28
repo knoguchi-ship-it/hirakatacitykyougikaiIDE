@@ -1125,6 +1125,8 @@ function processApiRequest(action, payload) {
 
 
 
+    // docs/246 Phase 2-A: ロール CRUD
+
 
 
 
@@ -1597,6 +1599,16 @@ var MASTER_ONLY_SETTING_KEYS = ['EMAIL_LOG_VIEWER_ROLE'];
 
 // T_システム設定のスネークアッパーケースキーを camelCase に変換する
 // 例: 'EMAIL_LOG_VIEWER_ROLE' → 'emailLogViewerRole'
+
+
+
+
+
+/**
+ * T_権限ロール 全件 + メニュー定義 + 各ロールの assignedCount を返す。
+ * Caller: 任意の admin（system-permissions menu アクセス権者）。
+ */
+
 
 
 
