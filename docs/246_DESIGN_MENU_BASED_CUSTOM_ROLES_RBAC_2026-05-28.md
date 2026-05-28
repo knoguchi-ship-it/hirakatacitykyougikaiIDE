@@ -1,7 +1,7 @@
 # 246. 設計: メニュー単位カスタムロール RBAC
 
 作成日: 2026-05-28
-ステータス: **Phase 1 + Phase 2 全完了** (Phase 1-A @179 + Phase 1-B @181 + DB migration / Phase 2-A v376.26 @182 + Phase 2-B v376.27 @183 + Phase 2-C v376.28 @184) / Phase 3 着手予定
+ステータス: **Phase 1 + Phase 2 全完了 (動作確認済)** (Phase 1-A @179 / Phase 1-B @181 + DB migration / Phase 2-A v376.26 @182 / Phase 2-B v376.27 @183 / Phase 2-C v376.28 @184 / hotfix v376.28.1 @185 schema sheet 作成 / hotfix v376.28.2 @186 session-based authz) / Phase 3 着手予定
 種別: Explanation（設計書）
 関連正本: `docs/05_AUTH_AND_ROLE_SPEC.md`（実装後に反映）, `docs/02_ARCHITECTURE.md`, `docs/03_DATA_MODEL.md`
 

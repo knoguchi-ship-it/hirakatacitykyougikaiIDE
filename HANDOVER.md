@@ -5,7 +5,7 @@
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
 最終更新: **2026-05-28**
-最新リリース: **`v376.28`**（メニュー単位 RBAC Phase 2 全完了 — admin split @184。Phase 2-A backend ロール CRUD API + ガードレール + 監査ログ / Phase 2-B 権限マトリクス UI / Phase 2-C 管理者追加フォーム roleId 選択化）
+最新リリース: **`v376.28.2`**（メニュー単位 RBAC Phase 2 全完了 + 2 hotfix — admin split @186。Phase 2-A backend ロール CRUD / Phase 2-B 権限マトリクス UI / Phase 2-C 管理者追加フォーム roleId 選択化 / .28.1 schema 適用関数のシート作成漏れ修正 / .28.2 processApiRequest 認可を session resolved ロールベースへ転換し、カスタムロールの allowedMenus が server enforcement に反映されるようバグ修正）
 
 ---
 
@@ -16,7 +16,7 @@
 | 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@349** |
 | 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@349** |
 | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@108** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@184** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@186** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 
@@ -30,8 +30,8 @@
 |---|---|---|
 | **メニュー単位カスタムロール RBAC — Phase 1-A 完了 (v376.24 @179)** | 認可レイヤー内部置換完了。挙動完全維持 + snapshot test 7 件 PASS + 許容デルタ 7 件明示承認 | `scripts/menu-registry.mjs`, `scripts/test-menu-registry.mjs`, `docs/246` §Phase 1-A 完了記録 |
 | **メニュー単位カスタムロール RBAC — Phase 1-B 完全完了 (v376.25.1 @181)** | T_権限ロール schema + ロールID 列 + 5 ロール seed + fallback chain + DB migration 適用完了。DRYRUN 結果: 4 行全て SKIP（既に正しい）= ロールID 経路で稼働中 | `docs/246` §Phase 1-B 完全完了記録 |
-| **メニュー単位カスタムロール RBAC — Phase 2 全完了 (v376.26-.28 @182-@184)** | 2-A backend CRUD + 2-B 権限マトリクス UI + 2-C 管理者追加フォーム roleId 選択化。MASTER 限定 server enforcement / masterOnly UI 非活性 / 削除前 assigned チェック / 監査ログ | `docs/246` §Phase 2 完了記録 |
-| **メニュー単位カスタムロール RBAC — Phase 3 着手予定** | Sidebar 動的化 + permission-aware routing + `isFullAdmin/isTrainingOnly` 撤去 | `docs/246` §9 |
+| **メニュー単位カスタムロール RBAC — Phase 2 全完了 (v376.26〜.28.2 @182〜@186)** | 2-A backend CRUD + 2-B 権限マトリクス UI + 2-C 管理者追加フォーム roleId 選択化 + .28.1/.28.2 hotfix（シート作成 + session resolved authz）。MASTER 限定 server enforcement / masterOnly UI 非活性 / 削除前 assigned チェック / 監査ログ / カスタムロールの server enforcement | `docs/246` §Phase 2 完了記録 |
+| **メニュー単位カスタムロール RBAC — Phase 3 着手予定** | Sidebar 動的化 + permission-aware routing + `isFullAdmin/isTrainingOnly` 撤去（frontend 中心、現状サイドバーは legacy 表示のまま）| `docs/246` §9 |
 
 > Phase 1-A 完了内容: `ADMIN_ACTION_PERMISSIONS` の判定ロジックを `action→menu→role.allowedMenus` 評価へ内部置換。外部 API 表面・DB スキーマ・whitelist 列構成は不変。`scripts/menu-registry.mjs` を単一情報源とし、build 時に全 3 split の Code.gs に MENU_REGISTRY を埋め込む。snapshot test が旧 ADMIN_ACTION_PERMISSIONS との等価性を機械検証。
 >
@@ -144,6 +144,7 @@ npm run test:responsive:member             # 要 storageState
 
 | Version | 日付 | 概要 |
 |---|---|---|
+| **v376.28.1〜.28.2** | 2026-05-28 | **RBAC Phase 2 hotfix 2 件**（admin @185 → @186）。**.28.1**: `runRebuildSchemaForV246` が `normalizeTableColumns_` のみ呼んでおり T_権限ロール シート自体を作成していなかった問題を修正（既存シート作成 + `seedInitialPermissionRoles_` 防御的シート作成も追加）。operator が再 Run することで T_権限ロール に 5 ロール seed 完了。**.28.2**: `processApiRequest` の認可判定が `checkAdminBySession_` の session 解決結果を捨てて legacy `permissionLevel` で再判定していたバグ修正。新ヘルパー `isActionAllowedForSession_(action, sessionResult)` を導入し、session.isMaster / session.allowedMenus を直接参照。これによりカスタムロールの allowedMenus が実トラフィックの server enforcement に反映されるように。snapshot test 10/10 PASS（既存 4 ユーザーへの影響なしを機械検証）|
 | **v376.26〜.28** | 2026-05-28 | **メニュー単位 RBAC Phase 2 全完了**（docs/246）— admin split @182→@184。**.26 Phase 2-A**: backend ロール CRUD 4 action 新設（`listRoles` / `saveRole` / `deleteRole` / `duplicateRole`）+ ガードレール（MASTER 限定 server enforcement / "MASTER" 予約 / 同名禁止 / masterOnly 拒否 / 組込編集削除拒否 / 削除前 assigned チェック）+ T_監査ログ への ROLE_CREATE/UPDATE/DELETE/DUPLICATE 記録 + `getAdminPermissionData` に `roles`/`menuRegistry` 追加 + `saveAdminPermission_` に optional `roleId` 受領（後方互換）。**.27 Phase 2-B**: `src/components/RoleManagementPanel.tsx` 新設。権限管理画面にロール一覧テーブル + 編集モーダル + 権限マトリクス（メニュー×チェック、masterOnly 非活性、研修編集スコープラジオ）追加。組込/割当中/非 MASTER caller での操作ボタン抑制。**.28 Phase 2-C**: 「管理者権限を追加」+ 既存管理者編集行の permissionLevel ドロップダウンを動的 roleId 選択へ移行（roles 未取得時は legacy ドロップダウンへ自動 fallback、permissionLevel も同期書込で後方互換）|
 | **v376.25.1** | 2026-05-28 | **メニュー単位 RBAC Phase 1-B 完全完了**（docs/246）— admin split @181（operator スクリプトに `Logger.log` 追加で出力可視化）+ DB migration 完了。`runRebuildSchemaForV246` で `T_権限ロール` 5 行 seed + ホワイトリスト `ロールID` 列追加。`migrateToRoleBasedRBAC_v246_APPLY` で 4 行（MASTER 2 + ADMIN 2）すべて適正 roleId に紐付け済。DRYRUN 再実行で全行 SKIP 確認 = ロールID 経路稼働中。`権限コード` 列は rollback 用に保持。次フェーズ: Phase 2（権限管理コンソール UI） |
 | **v376.25** | 2026-05-28 | **メニュー単位 RBAC Phase 1-B コード反映**（docs/246）。`T_権限ロール` テーブル新設 + `T_管理者Googleホワイトリスト` に`ロールID`列追加（並行運用、権限コード列保持）。`INITIAL_ROLE_DEFINITIONS` 5 ロール（MASTER built-in + 管理者/研修管理者/研修登録者/一般 = 編集可能カスタムロール）を Phase 1-A LEGACY_ROLE_TO_MENUS と完全一致する allowedMenus で定義（挙動完全維持）。`checkAdminBySession_` に fallback chain：ロールID 列があれば `T_権限ロール` 参照、無ければ legacy 権限コード fallback。新 operator スクリプト 3 個（`runRebuildSchemaForV246` / `migrateToRoleBasedRBAC_v246_DRYRUN` / `_APPLY`）を admin keep-list に追加。snapshot test 9/9 PASS（INITIAL_ROLE_DEFINITIONS 整合 + LEGACY 完全一致）。admin split のみ @180（DB migration は operator が次セッションで段階実行）|

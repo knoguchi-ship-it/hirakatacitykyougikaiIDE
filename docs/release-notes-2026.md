@@ -13,6 +13,39 @@
 
 ---
 
+## v376.28.1 / v376.28.2 — 2026-05-28 🐛 RBAC Phase 2 hotfix 2 件
+
+Phase 2 デプロイ後、本番動作確認で発見した 2 件のバグを修正。admin split @185 → @186。
+
+### v376.28.1 — 🐛 runRebuildSchemaForV246 が T_権限ロール シートを作成していなかった
+
+| 種別 | 内容 |
+|---|---|
+| 🐛 | Phase 1-B の `runRebuildSchemaForV246` が `normalizeTableColumns_` のみ呼んでいたが、これは既存シートの列正規化専用で、シート自体の作成は別関数（`ensureTableSheetsExist_`）経由のため、T_権限ロール シートが作られていなかった |
+| 🔧 | `runRebuildSchemaForV246`: `normalizeTableColumns_` の前に `ss.insertSheet('T_権限ロール') + writeSheetHeaders_` を実行する step を追加 |
+| 🔧 | `seedInitialPermissionRoles_`: 防御的にシート未作成なら `insertSheet + writeSheetHeaders_` する処理を追加（idempotent）|
+| 💡 | 既存 admin login は Phase 1-B fallback chain により legacy 権限コード経路で稼働継続中だったため、admin ポータルへのアクセスに支障なし |
+
+operator が再度 `runRebuildSchemaForV246` を ▶ Run することで T_権限ロール シート新規作成 + 5 ロール seed 完了。
+
+### v376.28.2 — 🐛 processApiRequest 認可が legacy permLevel を見ていた致命的バグ
+
+| 種別 | 内容 |
+|---|---|
+| 🐛 | `checkAdminBySession_` で T_権限ロール を正しく解決して session.isMaster / allowedMenus を設定していたのに、`processApiRequest` が session を捨てて legacy `permissionLevel` (whitelist.権限コード) を再参照して `isActionAllowedByMenu_(action, permLevel)` で判定していた |
+| 🐛 | 結果: カスタムロールを作成して既存 ADMIN ユーザーに割り当てても、server は LEGACY_ROLE_TO_MENUS の固定マッピングで判定 → カスタムロールの allowedMenus が server enforcement に反映されない |
+| 🆕 | 新ヘルパー `isActionAllowedForSession_(action, sessionResult)`: session.isMaster=true なら全許可（MASTER 全権原則維持）、else `ACTION_TO_MENU[action] ∈ session.allowedMenus` を直接評価 |
+| 🔧 | `processApiRequest` を `isActionAllowedByMenu_` から `isActionAllowedForSession_` へ切替 |
+| 🔧 | `scripts/menu-registry.mjs` にも `isActionAllowedForSession` を追加（GAS と同一実装）|
+| ✅ | snapshot test に 10 番目のテスト追加: 「INITIAL_ROLE_DEFINITIONS の各 session 経路で legacy ≡ session resolved」を機械検証 → 10/10 PASS（既存 4 ユーザーへの影響なしを保証）|
+
+### user 確認済設計（最終形）
+- **MASTER は必ず全権限**（マスト）→ `session.isMaster=true` で全許可、これは絶対
+- **管理者 (ADMIN) は現状のまま** → 初期ロール `role-admin-initial` の allowedMenus が LEGACY 互換のため挙動不変
+- **その他カスタムロール** → MASTER が「ロール管理」UI で経理担当・研修委員 等を自由定義 → server enforcement が効く
+
+---
+
 ## v376.26〜.28 — 2026-05-28 🎉 メニュー単位 RBAC Phase 2 全完了
 
 `docs/246` Phase 2 を 3 段階で完了。admin split @182 → @183 → @184。
