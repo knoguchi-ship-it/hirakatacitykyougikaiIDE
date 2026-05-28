@@ -4,6 +4,8 @@
 対象: 第三者評価 2026-05-20 指摘 #1（Drive bytes / thumbnail proxy の任意 fileId 化リスク）
 本番反映: `v372.7` / integrated-public `@341` x2 / member split `@99` / admin split `@143`
 
+> **更新（v376.22 / 2026-05-28）**: `getFileBytes` action は frontend 未使用のため全境界の許可リスト・dispatch から削除した（PDF プレビューは `getFileThumbnail` で代替）。本書の allowlist 設計は現役の `getFileThumbnail_()` に引き続き適用される。`getFileBytes_()` 関数本体は build pruner が全生成物から除外（source 残置）。
+
 ## 1. 背景
 
 `getFileThumbnail_()` / `getFileBytes_()` は Drive fileId を受け取り、GAS WebApp の実行者権限で Drive ファイルを取得する。

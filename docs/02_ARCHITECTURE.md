@@ -150,8 +150,7 @@
   - `warmUp()` トリガー関数でキャッシュをプリウォームできる。
 - **複合 API（v150）**: ログイン直後の round-trip を削減するため、以下の統合 API を提供する。
   - `getAdminInitData`: ダッシュボード + 設定を 1 回で返す
-  - `memberLoginWithData`: 会員認証 + ポータルデータを 1 回で返す
-  - `adminLoginWithData`: 管理者認証 + ポータルデータを 1 回で返す
+  - ※ `memberLoginWithData` / `adminLoginWithData` は frontend 未使用のため v376.22 で削除（会員は `memberLogin`、管理者は `checkAdminBySession` を使用）。
 - **スケルトン UI（v150）**: ローディング中に骨格表示（WCAG 2.2 準拠）を行い、体感速度を改善する。
 
 ## 5. API アクション一覧（`processApiRequest` ルーティング）
@@ -166,14 +165,10 @@
 | `getTrainingManagementData` | 研修管理コンソール用の研修一覧取得 | 管理者（研修権限含む） |
 | `getMemberPortalData` | 会員マイページ/研修申込画面用の対象会員データ取得 | 会員/管理者 |
 | `memberLogin` | 会員ログイン（ID + PW） | 未認証 |
-| `memberLoginWithData` | 会員ログイン+ポータルデータ統合API（round-trip削減）(v150) | 未認証 |
 | `checkAdminBySession` | 管理者 Google ログイン（セッション方式・本番標準） | 未認証 |
-| `adminLoginWithData` | 管理者ログイン+ポータルデータ統合API（round-trip削減）(v150) | 未認証 |
 | `changePassword` | パスワード変更（現在PW照合あり） | 会員 |
 | `updateMember` | 会員情報更新（管理者用 allowlist でサニタイズ）(v143) | MASTER/ADMIN |
-| `updateMembersBatch` | 会員一括更新（最大100件） | MASTER/ADMIN |
 | `updateMemberSelf` | 会員自身のプロフィール更新（サーバーサイド allowlist フィルタ、`memberPortalLoginId` を優先して `loginId→会員ID` を照合） | 会員 |
-| `createMember` | 入会処理（会員+認証レコード作成） | MASTER/ADMIN |
 | `withdrawMember` | 退会処理（管理者操作） | MASTER/ADMIN |
 | `scheduleWithdrawMember` | 退会予約（翌年度4/1に退会） | MASTER/ADMIN |
 | `cancelScheduledWithdraw` | 退会予約の取消（管理者操作） | MASTER/ADMIN |
