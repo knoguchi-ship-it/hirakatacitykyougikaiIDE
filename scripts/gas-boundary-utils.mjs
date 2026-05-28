@@ -34,6 +34,10 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   // v376.14: 研修管理 全機能ドライランテスト（operator 実行用）
   'dryRunTrainingManagement',
   'cleanupDryRunTrainingManagement',
+  // docs/246 Phase 1-B: メニュー単位カスタムロール RBAC schema + 移行（operator 実行用）
+  'runRebuildSchemaForV246',
+  'migrateToRoleBasedRBAC_v246_DRYRUN',
+  'migrateToRoleBasedRBAC_v246_APPLY',
 ];
 
 // admin build から強制削除する（pruning で残ってはならない）危険な top-level 関数。

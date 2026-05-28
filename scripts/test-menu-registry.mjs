@@ -18,6 +18,8 @@ import {
   LEGACY_ROLE_TO_MENUS,
   LEGACY_ROLE_TRAINING_SCOPE,
   LEGACY_ROLE_DELTA_ACCEPTED,
+  INITIAL_ROLE_DEFINITIONS,
+  LEGACY_CODE_TO_INITIAL_ROLE_ID,
   isActionAllowedByMenu,
 } from './menu-registry.mjs';
 
@@ -149,6 +151,35 @@ test('LEGACY_ROLE_TRAINING_SCOPE は全 role を網羅', () => {
     );
   }
   assert.equal(LEGACY_ROLE_TRAINING_SCOPE.TRAINING_REGISTRAR, 'OWN');
+});
+
+test('INITIAL_ROLE_DEFINITIONS: roleId 一意性 + MASTER 組込 + legacy mapping', () => {
+  const ids = new Set();
+  for (const d of INITIAL_ROLE_DEFINITIONS) {
+    assert.ok(d.roleId && typeof d.roleId === 'string', 'roleId 空');
+    assert.ok(!ids.has(d.roleId), `roleId 重複: ${d.roleId}`);
+    ids.add(d.roleId);
+  }
+  const master = INITIAL_ROLE_DEFINITIONS.find((d) => d.roleName === 'MASTER');
+  assert.ok(master, 'MASTER 定義が見つからない');
+  assert.equal(master.isBuiltIn, true, 'MASTER は isBuiltIn=true');
+  assert.equal(master.isMaster, true, 'MASTER は isMaster=true');
+  // legacy mapping: 5 ロール全て legacyCode が埋まり、LEGACY_CODE_TO_INITIAL_ROLE_ID と一致
+  for (const d of INITIAL_ROLE_DEFINITIONS) {
+    assert.ok(d.legacyCode, `${d.roleName} に legacyCode が無い`);
+    assert.equal(LEGACY_CODE_TO_INITIAL_ROLE_ID[d.legacyCode], d.roleId);
+  }
+});
+
+test('INITIAL_ROLE_DEFINITIONS: 各 role の allowedMenus は LEGACY_ROLE_TO_MENUS と完全一致（挙動完全維持）', () => {
+  for (const d of INITIAL_ROLE_DEFINITIONS) {
+    if (d.roleName === 'MASTER') continue; // MASTER は isMaster で全許可
+    const legacy = LEGACY_ROLE_TO_MENUS[d.legacyCode] || [];
+    assert.deepEqual(d.allowedMenus.slice().sort(), legacy.slice().sort(),
+      `${d.roleName} (legacy=${d.legacyCode}) の allowedMenus が LEGACY_ROLE_TO_MENUS と不一致`);
+    assert.equal(d.trainingEditScope, LEGACY_ROLE_TRAINING_SCOPE[d.legacyCode],
+      `${d.roleName} の trainingEditScope が LEGACY と不一致`);
+  }
 });
 
 test('LEGACY_ROLE_TO_MENUS の menu id が MENU_REGISTRY に存在する', async () => {

@@ -247,6 +247,88 @@ export const LEGACY_ROLE_DELTA_ACCEPTED = [
   { action: 'fetchAllData',               role: 'GENERAL',            oldAllow: false, newAllow: true,  reason: 'GENERAL は admin login 不可（到達不能）' },
 ];
 
+// ── Phase 1-B: 初期ロール定義（T_権限ロール の seed データ）─────────
+// docs/246 §8 (Migration step 3) の「編集可能な初期カスタムロール」生成元。
+// **完全挙動維持のため Phase 1-A LEGACY_ROLE_TO_MENUS の集合をそのまま採用**する
+// （docs/246 §8 #3 で示唆される masterOnly 除外案より conservative）。
+// MASTER 以外のロールは Phase 2 の権限管理コンソール UI から編集可能。
+//
+// 各エントリ:
+//   roleId         — 決定論的 ID（再投入冪等性のため UUID 非採用）。MASTER と初期4ロールは予約。
+//   roleName       — 人間可読名。"MASTER" は予約語
+//   description    — 説明
+//   legacyCode     — 旧 ADMIN_ACTION_PERMISSIONS の権限コード（whitelist 移行用 mapping key）
+//   allowedMenus   — 許可メニューid 配列（isBuiltIn=true かつ isMaster は無視され全許可）
+//   trainingEditScope — 'ALL' | 'OWN'
+//   isBuiltIn      — true = MASTER（編集・削除不可）/ false = カスタム（編集可）
+//   isMaster       — true のとき全メニュー許可（allowedMenus は無視）
+//   sortOrder      — 表示順
+export const INITIAL_ROLE_DEFINITIONS = [
+  {
+    roleId: 'role-master-builtin',
+    roleName: 'MASTER',
+    description: 'マスター（全権・組込・編集削除不可）',
+    legacyCode: 'MASTER',
+    allowedMenus: [],
+    trainingEditScope: 'ALL',
+    isBuiltIn: true,
+    isMaster: true,
+    sortOrder: 1,
+  },
+  {
+    roleId: 'role-admin-initial',
+    roleName: '管理者',
+    description: '管理者（Phase 1-A 互換マッピング — 権限管理含む全機能）',
+    legacyCode: 'ADMIN',
+    allowedMenus: LEGACY_ROLE_TO_MENUS.ADMIN.slice(),
+    trainingEditScope: 'ALL',
+    isBuiltIn: false,
+    isMaster: false,
+    sortOrder: 10,
+  },
+  {
+    roleId: 'role-training-manager-initial',
+    roleName: '研修管理者',
+    description: '研修管理者（研修管理 + 共通機能）',
+    legacyCode: 'TRAINING_MANAGER',
+    allowedMenus: LEGACY_ROLE_TO_MENUS.TRAINING_MANAGER.slice(),
+    trainingEditScope: 'ALL',
+    isBuiltIn: false,
+    isMaster: false,
+    sortOrder: 20,
+  },
+  {
+    roleId: 'role-training-registrar-initial',
+    roleName: '研修登録者',
+    description: '研修登録者（自登録研修のみ編集可・OWN scope）',
+    legacyCode: 'TRAINING_REGISTRAR',
+    allowedMenus: LEGACY_ROLE_TO_MENUS.TRAINING_REGISTRAR.slice(),
+    trainingEditScope: 'OWN',
+    isBuiltIn: false,
+    isMaster: false,
+    sortOrder: 30,
+  },
+  {
+    roleId: 'role-general-initial',
+    roleName: '一般',
+    description: '一般（admin login 不可・予約）',
+    legacyCode: 'GENERAL',
+    allowedMenus: LEGACY_ROLE_TO_MENUS.GENERAL.slice(),
+    trainingEditScope: 'ALL',
+    isBuiltIn: false,
+    isMaster: false,
+    sortOrder: 90,
+  },
+];
+
+// legacy 権限コード → 初期ロールID マッピング（whitelist 移行用）
+export const LEGACY_CODE_TO_INITIAL_ROLE_ID = Object.freeze(
+  INITIAL_ROLE_DEFINITIONS.reduce((acc, def) => {
+    if (def.legacyCode) acc[def.legacyCode] = def.roleId;
+    return acc;
+  }, {}),
+);
+
 // ── 認可判定（共通ロジック — GAS / Node 双方で同一）───────────────
 export function isActionAllowedByMenu(action, roleCode, opts) {
   const isMaster = roleCode === 'MASTER';
@@ -267,5 +349,7 @@ export function serializeMenuRegistryForGas() {
     `var ACTION_TO_MENU = ${json(ACTION_TO_MENU)};`,
     `var LEGACY_ROLE_TO_MENUS = ${json(LEGACY_ROLE_TO_MENUS)};`,
     `var LEGACY_ROLE_TRAINING_SCOPE = ${json(LEGACY_ROLE_TRAINING_SCOPE)};`,
+    `var INITIAL_ROLE_DEFINITIONS = ${json(INITIAL_ROLE_DEFINITIONS)};`,
+    `var LEGACY_CODE_TO_INITIAL_ROLE_ID = ${json(LEGACY_CODE_TO_INITIAL_ROLE_ID)};`,
   ].join('\n');
 }

@@ -442,9 +442,27 @@ var テーブル定義 = {
     '紐付け認証ID',
     '紐付け会員ID',
     '権限コード',
+    // docs/246 Phase 1-B: 新 RBAC 用ロールID 列（並行運用）。
+    // 移行 APPLY 完了後はこちらが authoritative、権限コード は legacy 後方互換用として保持。
+    'ロールID',
     '有効フラグ',
     '変更者メール',
     '変更日時',
+    '作成日時',
+    '更新日時',
+    '削除フラグ',
+  ],
+  // docs/246 Phase 1-B: メニュー単位カスタムロールの永続化テーブル。
+  // 値は scripts/menu-registry.mjs::INITIAL_ROLE_DEFINITIONS を seed として投入。
+  T_権限ロール: [
+    'ロールID',
+    'ロール名',
+    '説明',
+    '許可メニューJSON',
+    '研修編集スコープ',
+    '組込フラグ',
+    'マスターフラグ',
+    '表示順',
     '作成日時',
     '更新日時',
     '削除フラグ',
@@ -1493,6 +1511,8 @@ var MENU_REGISTRY = [];
 var ACTION_TO_MENU = {};
 var LEGACY_ROLE_TO_MENUS = {};
 var LEGACY_ROLE_TRAINING_SCOPE = {};
+var INITIAL_ROLE_DEFINITIONS = [];
+var LEGACY_CODE_TO_INITIAL_ROLE_ID = {};
 // __MENU_REGISTRY_BUILD_INJECT_END__
 
 // docs/246 Phase 1-A: action 認可判定。
@@ -5358,11 +5378,33 @@ function checkAdminBySession_() {
 
   // docs/246 Phase 1-A: menu-based 認可向けの追加フィールド。
   // 既存 adminPermissionLevel は後方互換のため維持。
-  var isMaster = permCode === 'MASTER';
-  var allowedMenus = isMaster
-    ? (MENU_REGISTRY || []).map(function(m) { return m.id; })
-    : (LEGACY_ROLE_TO_MENUS[permCode] || []).slice();
-  var trainingEditScope = String(LEGACY_ROLE_TRAINING_SCOPE[permCode] || 'ALL').toUpperCase();
+  // Phase 1-B: ロールID 列があれば T_権限ロール を優先参照、無ければ legacy 権限コード fallback。
+  var roleIdFromWl = String(matched['ロールID'] || '').trim();
+  var resolvedRole = roleIdFromWl ? getRoleByIdCached_(ss, roleIdFromWl) : null;
+  var isMaster;
+  var allowedMenus;
+  var trainingEditScope;
+  var effectiveRoleId;
+  var effectiveRoleName;
+  if (resolvedRole) {
+    // Phase 1-B 移行後: T_権限ロール の値が authoritative
+    isMaster = !!resolvedRole.isMaster;
+    allowedMenus = isMaster
+      ? (MENU_REGISTRY || []).map(function(m) { return m.id; })
+      : (resolvedRole.allowedMenus || []).slice();
+    trainingEditScope = String(resolvedRole.trainingEditScope || 'ALL').toUpperCase();
+    effectiveRoleId = resolvedRole.roleId;
+    effectiveRoleName = resolvedRole.roleName;
+  } else {
+    // Phase 1-A 互換 fallback: legacy 権限コード ベース
+    isMaster = permCode === 'MASTER';
+    allowedMenus = isMaster
+      ? (MENU_REGISTRY || []).map(function(m) { return m.id; })
+      : (LEGACY_ROLE_TO_MENUS[permCode] || []).slice();
+    trainingEditScope = String(LEGACY_ROLE_TRAINING_SCOPE[permCode] || 'ALL').toUpperCase();
+    effectiveRoleId = permCode;
+    effectiveRoleName = permCode;
+  }
 
   return {
     authMethod: 'GOOGLE',
@@ -5372,9 +5414,9 @@ function checkAdminBySession_() {
     roleCode: roleCode,
     canAccessAdminPage: true,
     adminPermissionLevel: permCode,
-    // docs/246 Phase 1-A 追加フィールド
-    roleId: permCode, // Phase 1-A では legacy code をそのまま使用。Phase 1-B で T_権限ロール の UUID へ移行
-    roleName: permCode,
+    // docs/246 Phase 1-A/1-B 追加フィールド
+    roleId: effectiveRoleId,
+    roleName: effectiveRoleName,
     isMaster: isMaster,
     allowedMenus: allowedMenus,
     trainingEditScope: trainingEditScope,
@@ -5388,7 +5430,195 @@ function clearAdminPermissionCaches_() {
     var cache = CacheService.getScriptCache();
     cache.remove('admin_wl_v1');
     cache.remove('admin_auth_v1');
+    cache.remove('admin_roles_v1'); // docs/246 Phase 1-B
   } catch (e) {}
+}
+
+// ─── docs/246 Phase 1-B: T_権限ロール 関連ヘルパー ─────────────────────────
+
+/**
+ * T_権限ロール の全行をキャッシュ付きで取得し、roleId → role object に解決する。
+ * 行が見つからない / 削除済 / 未マッチの場合は null。
+ */
+function getRoleByIdCached_(ss, roleId) {
+  if (!roleId) return null;
+  var cache = CacheService.getScriptCache();
+  var rolesById = null;
+  var cached = cache.get('admin_roles_v1');
+  if (cached) {
+    try { rolesById = JSON.parse(cached); } catch (e) { rolesById = null; }
+  }
+  if (!rolesById) {
+    rolesById = {};
+    var sheet = ss.getSheetByName('T_権限ロール');
+    if (sheet) {
+      var rows = getRowsAsObjects_(ss, 'T_権限ロール');
+      for (var i = 0; i < rows.length; i += 1) {
+        var r = rows[i];
+        if (toBoolean_(r['削除フラグ'])) continue;
+        var rid = String(r['ロールID'] || '');
+        if (!rid) continue;
+        var allowedMenus = [];
+        try {
+          var raw = String(r['許可メニューJSON'] || '[]');
+          var parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) allowedMenus = parsed.map(function(x) { return String(x); });
+        } catch (e) { allowedMenus = []; }
+        rolesById[rid] = {
+          roleId: rid,
+          roleName: String(r['ロール名'] || ''),
+          description: String(r['説明'] || ''),
+          allowedMenus: allowedMenus,
+          trainingEditScope: String(r['研修編集スコープ'] || 'ALL').toUpperCase(),
+          isBuiltIn: toBoolean_(r['組込フラグ']),
+          isMaster: toBoolean_(r['マスターフラグ']),
+          sortOrder: Number(r['表示順'] || 0),
+        };
+      }
+    }
+    try { cache.put('admin_roles_v1', JSON.stringify(rolesById), 300); } catch (e) {}
+  }
+  return rolesById[roleId] || null;
+}
+
+/**
+ * T_権限ロール が空ならば INITIAL_ROLE_DEFINITIONS を seed する（冪等）。
+ * 既存行があれば一切上書きしない（操作者編集が消えないように）。
+ */
+function seedInitialPermissionRoles_(ss) {
+  var sheet = ss.getSheetByName('T_権限ロール');
+  if (!sheet) return { seeded: false, reason: 'T_権限ロール シート未作成' };
+  if (sheet.getLastRow() >= 2) return { seeded: false, reason: '既存ロールあり（seed スキップ）', existing: sheet.getLastRow() - 1 };
+  var defs = INITIAL_ROLE_DEFINITIONS || [];
+  if (defs.length === 0) return { seeded: false, reason: 'INITIAL_ROLE_DEFINITIONS が空' };
+  var nowIso = new Date().toISOString();
+  var rows = defs.map(function(d) {
+    return {
+      'ロールID': d.roleId,
+      'ロール名': d.roleName,
+      '説明': d.description || '',
+      '許可メニューJSON': JSON.stringify(d.allowedMenus || []),
+      '研修編集スコープ': String(d.trainingEditScope || 'ALL').toUpperCase(),
+      '組込フラグ': !!d.isBuiltIn,
+      'マスターフラグ': !!d.isMaster,
+      '表示順': Number(d.sortOrder || 0),
+      '作成日時': nowIso,
+      '更新日時': nowIso,
+      '削除フラグ': false,
+    };
+  });
+  appendRowsByHeaders_(ss, 'T_権限ロール', rows);
+  try { CacheService.getScriptCache().remove('admin_roles_v1'); } catch (e) {}
+  return { seeded: true, count: rows.length };
+}
+
+/**
+ * operator 実行用: T_権限ロール スキーマ + ロールID 列 + 初期ロール seed を一括で適用。
+ * 既存スキーマには影響なし（idempotent）。
+ *
+ * 実行手順: Apps Script editor（admin split）から ▶ Run。
+ * 出力: 適用結果サマリ JSON。
+ */
+function runRebuildSchemaForV246() {
+  var ss = getOrCreateDatabase_();
+  var report = { schemaVersion: DB_SCHEMA_VERSION, steps: [] };
+
+  // Step 1: T_権限ロール シート作成（既存なら no-op）
+  normalizeTableColumns_(ss, 'T_権限ロール');
+  report.steps.push({ step: 'T_権限ロール 列正規化', table: 'T_権限ロール' });
+
+  // Step 2: T_管理者Googleホワイトリスト の ロールID 列追加（既存データ保持）
+  normalizeTableColumns_(ss, 'T_管理者Googleホワイトリスト');
+  report.steps.push({ step: 'T_管理者Googleホワイトリスト 列正規化（ロールID 列追加）' });
+
+  // Step 3: 初期ロール seed
+  var seedResult = seedInitialPermissionRoles_(ss);
+  report.steps.push({ step: '初期ロール seed', result: seedResult });
+
+  // Step 4: キャッシュ無効化
+  clearAdminPermissionCaches_();
+  report.steps.push({ step: 'admin permission caches クリア' });
+
+  return JSON.stringify(report, null, 2);
+}
+
+/**
+ * operator 実行用: ホワイトリスト各行の権限コード → ロールID 変換プレビュー。
+ * 何も書き換えず、変換結果を JSON で返す。
+ */
+function migrateToRoleBasedRBAC_v246_DRYRUN() {
+  var ss = getOrCreateDatabase_();
+  var rows = getRowsAsObjects_(ss, 'T_管理者Googleホワイトリスト');
+  var preview = [];
+  for (var i = 0; i < rows.length; i += 1) {
+    var r = rows[i];
+    if (toBoolean_(r['削除フラグ'])) continue;
+    var code = String(r['権限コード'] || '');
+    var currentRoleId = String(r['ロールID'] || '');
+    var newRoleId = LEGACY_CODE_TO_INITIAL_ROLE_ID[code] || '';
+    preview.push({
+      wlId: String(r['ホワイトリストID'] || ''),
+      email: String(r['Googleメール'] || ''),
+      currentPermCode: code,
+      currentRoleId: currentRoleId,
+      newRoleId: newRoleId,
+      action: !newRoleId ? 'SKIP（未マップ権限コード）'
+        : currentRoleId === newRoleId ? 'SKIP（既に正しい）'
+        : currentRoleId ? '上書き（' + currentRoleId + ' → ' + newRoleId + '）'
+        : '新規設定（' + newRoleId + '）',
+    });
+  }
+  return JSON.stringify({
+    総ホワイトリスト件数: preview.length,
+    プレビュー: preview,
+    mapping参考: LEGACY_CODE_TO_INITIAL_ROLE_ID,
+    注意事項: '実反映には migrateToRoleBasedRBAC_v246_APPLY を実行してください。',
+  }, null, 2);
+}
+
+/**
+ * operator 実行用: ホワイトリスト各行の権限コード → ロールID を実書込み。
+ * 冪等（既に正しい値なら no-op）。権限コード列は保持（並行運用）。
+ */
+function migrateToRoleBasedRBAC_v246_APPLY() {
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_管理者Googleホワイトリスト');
+  if (!sheet) throw new Error('T_管理者Googleホワイトリスト シートが見つかりません。');
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var idCol = headers.indexOf('ホワイトリストID');
+  var codeCol = headers.indexOf('権限コード');
+  var roleIdCol = headers.indexOf('ロールID');
+  var delFlagCol = headers.indexOf('削除フラグ');
+  var updatedAtCol = headers.indexOf('更新日時');
+  if (idCol < 0 || codeCol < 0 || roleIdCol < 0) {
+    throw new Error('ホワイトリストの列構成が想定外（ロールID 列が無い場合は runRebuildSchemaForV246 を先に実行）。');
+  }
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return JSON.stringify({ updated: 0, skipped: 0, note: 'ホワイトリスト空' });
+  var range = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn());
+  var values = range.getValues();
+  var nowIso = new Date().toISOString();
+  var updated = 0;
+  var skipped = 0;
+  var log = [];
+  for (var i = 0; i < values.length; i += 1) {
+    var row = values[i];
+    if (delFlagCol >= 0 && toBoolean_(row[delFlagCol])) { skipped += 1; continue; }
+    var code = String(row[codeCol] || '');
+    var newRoleId = LEGACY_CODE_TO_INITIAL_ROLE_ID[code] || '';
+    var currentRoleId = String(row[roleIdCol] || '');
+    if (!newRoleId) { skipped += 1; log.push({ wlId: String(row[idCol] || ''), reason: '未マップ権限コード: ' + code }); continue; }
+    if (currentRoleId === newRoleId) { skipped += 1; continue; }
+    row[roleIdCol] = newRoleId;
+    if (updatedAtCol >= 0) row[updatedAtCol] = nowIso;
+    updated += 1;
+    log.push({ wlId: String(row[idCol] || ''), email: String(row[1] || ''), from: currentRoleId || '(空)', to: newRoleId });
+  }
+  if (updated > 0) {
+    range.setValues(values);
+  }
+  clearAdminPermissionCaches_();
+  return JSON.stringify({ updated: updated, skipped: skipped, log: log, appliedAt: nowIso }, null, 2);
 }
 
 
@@ -13073,6 +13303,9 @@ function initializeSchema_(ss) {
   normalizeTableColumns_(ss, 'T_年会費納入履歴');
   normalizeTableColumns_(ss, 'T_年会費更新履歴');
   normalizeTableColumns_(ss, 'T_管理者Googleホワイトリスト');
+  // docs/246 Phase 1-B: メニュー単位カスタムロール RBAC
+  normalizeTableColumns_(ss, 'T_権限ロール');
+  seedInitialPermissionRoles_(ss);
   normalizeTableColumns_(ss, 'T_認証アカウント');
   normalizeTableColumns_(ss, 'T_ログイン履歴');
   normalizeTableColumns_(ss, 'T_研修申込');

@@ -442,9 +442,27 @@ var テーブル定義 = {
     '紐付け認証ID',
     '紐付け会員ID',
     '権限コード',
+    // docs/246 Phase 1-B: 新 RBAC 用ロールID 列（並行運用）。
+    // 移行 APPLY 完了後はこちらが authoritative、権限コード は legacy 後方互換用として保持。
+    'ロールID',
     '有効フラグ',
     '変更者メール',
     '変更日時',
+    '作成日時',
+    '更新日時',
+    '削除フラグ',
+  ],
+  // docs/246 Phase 1-B: メニュー単位カスタムロールの永続化テーブル。
+  // 値は scripts/menu-registry.mjs::INITIAL_ROLE_DEFINITIONS を seed として投入。
+  T_権限ロール: [
+    'ロールID',
+    'ロール名',
+    '説明',
+    '許可メニューJSON',
+    '研修編集スコープ',
+    '組込フラグ',
+    'マスターフラグ',
+    '表示順',
     '作成日時',
     '更新日時',
     '削除フラグ',
@@ -1063,6 +1081,93 @@ var LEGACY_ROLE_TRAINING_SCOPE = {
   "TRAINING_MANAGER": "ALL",
   "TRAINING_REGISTRAR": "OWN",
   "GENERAL": "ALL"
+};
+var INITIAL_ROLE_DEFINITIONS = [
+  {
+    "roleId": "role-master-builtin",
+    "roleName": "MASTER",
+    "description": "マスター（全権・組込・編集削除不可）",
+    "legacyCode": "MASTER",
+    "allowedMenus": [],
+    "trainingEditScope": "ALL",
+    "isBuiltIn": true,
+    "isMaster": true,
+    "sortOrder": 1
+  },
+  {
+    "roleId": "role-admin-initial",
+    "roleName": "管理者",
+    "description": "管理者（Phase 1-A 互換マッピング — 権限管理含む全機能）",
+    "legacyCode": "ADMIN",
+    "allowedMenus": [
+      "members-list",
+      "change-requests",
+      "annual-fee",
+      "payment-history",
+      "claim-management",
+      "roster-export",
+      "mailing-list-export",
+      "training-manage",
+      "bulk-mail",
+      "line-post",
+      "officer-management",
+      "admin-settings",
+      "system-permissions",
+      "common-shared"
+    ],
+    "trainingEditScope": "ALL",
+    "isBuiltIn": false,
+    "isMaster": false,
+    "sortOrder": 10
+  },
+  {
+    "roleId": "role-training-manager-initial",
+    "roleName": "研修管理者",
+    "description": "研修管理者（研修管理 + 共通機能）",
+    "legacyCode": "TRAINING_MANAGER",
+    "allowedMenus": [
+      "training-manage",
+      "common-shared"
+    ],
+    "trainingEditScope": "ALL",
+    "isBuiltIn": false,
+    "isMaster": false,
+    "sortOrder": 20
+  },
+  {
+    "roleId": "role-training-registrar-initial",
+    "roleName": "研修登録者",
+    "description": "研修登録者（自登録研修のみ編集可・OWN scope）",
+    "legacyCode": "TRAINING_REGISTRAR",
+    "allowedMenus": [
+      "training-manage",
+      "common-shared"
+    ],
+    "trainingEditScope": "OWN",
+    "isBuiltIn": false,
+    "isMaster": false,
+    "sortOrder": 30
+  },
+  {
+    "roleId": "role-general-initial",
+    "roleName": "一般",
+    "description": "一般（admin login 不可・予約）",
+    "legacyCode": "GENERAL",
+    "allowedMenus": [
+      "common-shared"
+    ],
+    "trainingEditScope": "ALL",
+    "isBuiltIn": false,
+    "isMaster": false,
+    "sortOrder": 90
+  }
+];
+var LEGACY_CODE_TO_INITIAL_ROLE_ID = {
+  "MASTER": "role-master-builtin",
+  "ADMIN": "role-admin-initial",
+  "TRAINING_MANAGER": "role-training-manager-initial",
+  "TRAINING_REGISTRAR": "role-training-registrar-initial",
+  "GENERAL": "role-general-initial"
 };
 // __MENU_REGISTRY_BUILD_INJECT_END__
 
@@ -2438,6 +2543,62 @@ function memberLogin_(request) {
  * 権限コードに応じた adminPermissionLevel を返す。
  */
 
+
+// ─── docs/246 Phase 1-B: T_権限ロール 関連ヘルパー ─────────────────────────
+
+/**
+ * T_権限ロール の全行をキャッシュ付きで取得し、roleId → role object に解決する。
+ * 行が見つからない / 削除済 / 未マッチの場合は null。
+ */
+
+/**
+ * T_権限ロール が空ならば INITIAL_ROLE_DEFINITIONS を seed する（冪等）。
+ * 既存行があれば一切上書きしない（操作者編集が消えないように）。
+ */
+function seedInitialPermissionRoles_(ss) {
+  var sheet = ss.getSheetByName('T_権限ロール');
+  if (!sheet) return { seeded: false, reason: 'T_権限ロール シート未作成' };
+  if (sheet.getLastRow() >= 2) return { seeded: false, reason: '既存ロールあり（seed スキップ）', existing: sheet.getLastRow() - 1 };
+  var defs = INITIAL_ROLE_DEFINITIONS || [];
+  if (defs.length === 0) return { seeded: false, reason: 'INITIAL_ROLE_DEFINITIONS が空' };
+  var nowIso = new Date().toISOString();
+  var rows = defs.map(function(d) {
+    return {
+      'ロールID': d.roleId,
+      'ロール名': d.roleName,
+      '説明': d.description || '',
+      '許可メニューJSON': JSON.stringify(d.allowedMenus || []),
+      '研修編集スコープ': String(d.trainingEditScope || 'ALL').toUpperCase(),
+      '組込フラグ': !!d.isBuiltIn,
+      'マスターフラグ': !!d.isMaster,
+      '表示順': Number(d.sortOrder || 0),
+      '作成日時': nowIso,
+      '更新日時': nowIso,
+      '削除フラグ': false,
+    };
+  });
+  appendRowsByHeaders_(ss, 'T_権限ロール', rows);
+  try { CacheService.getScriptCache().remove('admin_roles_v1'); } catch (e) {}
+  return { seeded: true, count: rows.length };
+}
+
+/**
+ * operator 実行用: T_権限ロール スキーマ + ロールID 列 + 初期ロール seed を一括で適用。
+ * 既存スキーマには影響なし（idempotent）。
+ *
+ * 実行手順: Apps Script editor（admin split）から ▶ Run。
+ * 出力: 適用結果サマリ JSON。
+ */
+
+/**
+ * operator 実行用: ホワイトリスト各行の権限コード → ロールID 変換プレビュー。
+ * 何も書き換えず、変換結果を JSON で返す。
+ */
+
+/**
+ * operator 実行用: ホワイトリスト各行の権限コード → ロールID を実書込み。
+ * 冪等（既に正しい値なら no-op）。権限コード列は保持（並行運用）。
+ */
 
 
 // ─── v309: 共有メモ（申し送りホワイトボード）────────────────────────────────
@@ -4625,6 +4786,9 @@ function initializeSchema_(ss) {
   normalizeTableColumns_(ss, 'T_年会費納入履歴');
   normalizeTableColumns_(ss, 'T_年会費更新履歴');
   normalizeTableColumns_(ss, 'T_管理者Googleホワイトリスト');
+  // docs/246 Phase 1-B: メニュー単位カスタムロール RBAC
+  normalizeTableColumns_(ss, 'T_権限ロール');
+  seedInitialPermissionRoles_(ss);
   normalizeTableColumns_(ss, 'T_認証アカウント');
   normalizeTableColumns_(ss, 'T_ログイン履歴');
   normalizeTableColumns_(ss, 'T_研修申込');
