@@ -13,6 +13,25 @@
 
 ---
 
+## v376.30.1 / v376.30.2 — 2026-05-29 🐛 v376.30 hotfix（schema 診断 + 強制マーク救済）
+
+v376.30 デプロイ後、admin の「研修管理」を開くと「範囲の列数には 1 以上を指定してください」エラーで一覧が表示できない状態が発生。診断の結果、T_研修 schema 自体は 24 列 + 申込URL 列追加 + 5 件データ保持で正常に migrate 済だったが、`DB_SCHEMA_INITIALIZED_VERSION` Property が `2026-05-19-roster-designer-v372`（旧値）のままで、毎リクエストで `initializeSchemaIfNeeded_` が再走 → `initializeSchema_` 内の後処理 step で例外 → エラー画面、というループに陥っていた。
+
+| 種別 | 内容 |
+|---|---|
+| 🆕 v376.30.1 | `diagnoseSchemaStateV376_30()` — 読取のみの診断関数。`DB_SCHEMA_VERSION` / Properties / 各シート（T_研修・T_権限ロール・whitelist）の列数・行数・実ヘッダ・temp シート残骸を一括出力 |
+| 🆕 v376.30.2 | `forceMarkSchemaInitializedToCurrent()` — `DB_SCHEMA_INITIALIZED` = 'true'、`DB_SCHEMA_INITIALIZED_VERSION` = 現在の `DB_SCHEMA_VERSION` に強制セット。シートは触らない（書込は Properties 2 行のみ）|
+| ✅ | 両関数を `ADMIN_TOP_LEVEL_FUNCTIONS` keep-list に追加 |
+| 🚀 | admin split @189 → @190 |
+| 🔍 | 根本原因の特定（initializeSchema_ のどの step が例外を投げているか）は次回 hotfix 候補として未着手。step ごとに try/catch + Logger.log を仕込めば次回 schema 更新時にログから特定可能 |
+
+### 操作者対応（実施済）
+1. admin @190 の Apps Script editor から `forceMarkSchemaInitializedToCurrent` を ▶ Run
+2. 結果ログで `before.DB_SCHEMA_INITIALIZED_VERSION = '2026-05-19-roster-designer-v372'` → `after.DB_SCHEMA_INITIALIZED_VERSION = '2026-05-29-training-application-url-v376.30'` 確認
+3. admin 画面リロード → 研修管理が回復
+
+---
+
 ## v376.30 — 2026-05-29 🆕 研修登録に「申込URL」任意項目を追加（外部申込フォーム対応）
 
 Google フォーム等の外部申込フォーム URL を研修に紐付けられるようにする任意項目追加。設定すると公開ポータルの「申し込む」ボタンが外部フォームへのリンクに置換され、内部申込フローをバイパスできる。

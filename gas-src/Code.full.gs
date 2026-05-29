@@ -5683,6 +5683,87 @@ function migrateToRoleBasedRBAC_v246_APPLY() {
   return out;
 }
 
+/**
+ * v376.30 hotfix: DB_SCHEMA_INITIALIZED_VERSION を現在の DB_SCHEMA_VERSION に強制マークする。
+ *
+ * 用途: initializeSchemaIfNeeded_ が初期化途中の例外で markSchemaInitialized_ に到達できず、
+ * スキーマ自体は既に正しい状態だが Properties が古いままで毎回再初期化が走る状況の救済。
+ * diagnoseSchemaStateV376_30 でスキーマが期待値に一致していることを確認した上で実行すること。
+ *
+ * 書込み: PropertiesService の 2 キーのみ。シートは触らない（破壊なし）。
+ */
+function forceMarkSchemaInitializedToCurrent() {
+  var props = PropertiesService.getScriptProperties();
+  var before = {
+    DB_SCHEMA_INITIALIZED: props.getProperty('DB_SCHEMA_INITIALIZED'),
+    DB_SCHEMA_INITIALIZED_VERSION: props.getProperty('DB_SCHEMA_INITIALIZED_VERSION'),
+  };
+  props.setProperty('DB_SCHEMA_INITIALIZED', 'true');
+  props.setProperty('DB_SCHEMA_INITIALIZED_VERSION', DB_SCHEMA_VERSION);
+  var after = {
+    DB_SCHEMA_INITIALIZED: props.getProperty('DB_SCHEMA_INITIALIZED'),
+    DB_SCHEMA_INITIALIZED_VERSION: props.getProperty('DB_SCHEMA_INITIALIZED_VERSION'),
+  };
+  var out = JSON.stringify({
+    before: before,
+    after: after,
+    note: '以降 initializeSchemaIfNeeded_ は no-op になります。研修管理など再試行可能。',
+  }, null, 2);
+  Logger.log('[forceMarkSchemaInitializedToCurrent] ' + out);
+  return out;
+}
+
+/**
+ * v376.30 hotfix 診断: T_研修 シートの現状を返す。
+ * - 期待列数: 21（v376.30 で 申込URL 追加）
+ * - 既存行数（ヘッダ含めない）
+ * - schema 初期化フラグの現状値
+ * - 各シートの存在チェック
+ *
+ * operator が admin Apps Script editor の関数選択ドロップダウンから ▶ Run。
+ */
+function diagnoseSchemaStateV376_30() {
+  var ss = getOrCreateDatabase_();
+  var report = {
+    dbSchemaVersionInCode: DB_SCHEMA_VERSION,
+    scriptProperties: {
+      DB_SCHEMA_INITIALIZED: PropertiesService.getScriptProperties().getProperty('DB_SCHEMA_INITIALIZED'),
+      DB_SCHEMA_INITIALIZED_VERSION: PropertiesService.getScriptProperties().getProperty('DB_SCHEMA_INITIALIZED_VERSION'),
+    },
+    sheets: {},
+    expected: {
+      'T_研修_columns': テーブル定義['T_研修'].length,
+      'T_研修_headers': テーブル定義['T_研修'],
+      'T_権限ロール_columns': テーブル定義['T_権限ロール'].length,
+    },
+  };
+  ['T_研修', 'T_権限ロール', 'T_管理者Googleホワイトリスト'].forEach(function(name) {
+    var sh = ss.getSheetByName(name);
+    if (!sh) {
+      report.sheets[name] = { exists: false };
+      return;
+    }
+    var lastCol = sh.getLastColumn();
+    var lastRow = sh.getLastRow();
+    var headers = lastCol > 0 ? sh.getRange(1, 1, 1, lastCol).getValues()[0] : [];
+    report.sheets[name] = {
+      exists: true,
+      lastRow: lastRow,
+      lastColumn: lastCol,
+      maxRows: sh.getMaxRows(),
+      maxColumns: sh.getMaxColumns(),
+      headers: headers,
+    };
+  });
+  // テーブル定義のキー一覧（temp シートが残っていないか）
+  var allSheetNames = ss.getSheets().map(function(s) { return s.getName(); });
+  report.allSheetNames = allSheetNames;
+  report.suspiciousTempSheets = allSheetNames.filter(function(n) { return n.indexOf('__TMP_') === 0; });
+  var out = JSON.stringify(report, null, 2);
+  Logger.log('[diagnoseSchemaStateV376_30] ' + out);
+  return out;
+}
+
 
 // ─── v309: 共有メモ（申し送りホワイトボード）────────────────────────────────
 

@@ -16,7 +16,7 @@
 | 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@350** |
 | 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@350** |
 | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@109** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@188** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@190** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 
@@ -145,6 +145,7 @@ npm run test:responsive:member             # 要 storageState
 
 | Version | 日付 | 概要 |
 |---|---|---|
+| **v376.30.1 / .30.2** | 2026-05-29 | **v376.30 hotfix 2 件**（admin @189 → @190）。**.30.1**: schema 状態診断関数 `diagnoseSchemaStateV376_30` を追加。**.30.2**: 救済関数 `forceMarkSchemaInitializedToCurrent` を追加。`initializeSchema_` が schema migration を成功完了したのに最終 `markSchemaInitialized_` まで到達せず `DB_SCHEMA_INITIALIZED_VERSION` が古い値のまま残り、毎リクエストで `initializeSchemaIfNeeded_` が走って後処理ステップでエラー再発する状況を解消。スキーマ自体（T_研修 24列・申込URL 含む・5件データ保持）は正常で、Properties の 2 行を強制マークしただけ。次回 hotfix 候補: `initializeSchema_` の各 step に try/catch + Logger.log を入れて根本原因（どの step で例外が出ていたか）を特定 |
 | **v376.30** | 2026-05-29 | **研修登録に「申込URL」任意項目追加**（全 3 split @350/@109/@188）。Google フォーム等の外部申込フォーム URL を任意項目（デフォルト表示）として導入。T_研修 schema 末尾に「申込URL」列追加（normalizeTableColumns_ の name-based shift で既存 5 行データ保持、DB_SCHEMA_VERSION 更新で次回 admin login 時に自動 migrate）。types.ts に Training.applicationUrl?/TrainingFieldConfig.applicationUrl + DEFAULT_FIELD_CONFIG。TRAINING_OPTIONAL_FIELD_DEFS に追加し他の任意項目と同じ表示/非表示トグルに対応。admin form: 案内PDF 直後に URL 入力欄。公開ポータル: t.applicationUrl が設定されていれば「申し込む」ボタンを target="_blank" の「申込フォームへ」外部リンクに置換（未設定時は従来の内部申込ボタン） |
 | **v376.29** | 2026-05-28 | **メニュー単位 RBAC Phase 3 完了**（docs/246）— admin split @187。**Sidebar 動的化**: `src/components/Sidebar.tsx` の各 NavItem に `menuId` フィールド追加し、props 経由で受け取った `allowedMenus` と照合して描画。空グループ非表示。masterOnly メニューは MASTER のみ表示。**permission-aware routing**: `handleViewChange` に `isViewAllowed` ガード追加。`viewToMenuId` 逆引きで対象 menu 判定 → 非 MASTER かつ menu ∉ allowedMenus なら遷移拒否。**初期 view 選択**: `pickInitialAdminView` で優先メニュー順（members-list → training-manage → annual-fee → admin-settings）+ allowedMenus 先頭から逆引き。**ロール名表示**: Sidebar の user 情報に `roleName` を反映（カスタムロールの「経理担当」など表示）。**Legacy fallback**: `allowedMenus` 未取得時のみ旧 `isFullAdmin`/`isTrainingOnly` 経路で描画（admin shell 認証直後の白ちら防止）。**結果**: UI と server enforcement が完全一致 — カスタムロール user はサイドバーに自分の許可メニューのみ表示され、URL 直叩きも UI/server 両層で拒否される |
 | **v376.28.1〜.28.2** | 2026-05-28 | **RBAC Phase 2 hotfix 2 件**（admin @185 → @186）。**.28.1**: `runRebuildSchemaForV246` が `normalizeTableColumns_` のみ呼んでおり T_権限ロール シート自体を作成していなかった問題を修正（既存シート作成 + `seedInitialPermissionRoles_` 防御的シート作成も追加）。operator が再 Run することで T_権限ロール に 5 ロール seed 完了。**.28.2**: `processApiRequest` の認可判定が `checkAdminBySession_` の session 解決結果を捨てて legacy `permissionLevel` で再判定していたバグ修正。新ヘルパー `isActionAllowedForSession_(action, sessionResult)` を導入し、session.isMaster / session.allowedMenus を直接参照。これによりカスタムロールの allowedMenus が実トラフィックの server enforcement に反映されるように。snapshot test 10/10 PASS（既存 4 ユーザーへの影響なしを機械検証）|
