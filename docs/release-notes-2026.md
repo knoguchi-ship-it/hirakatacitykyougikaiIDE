@@ -13,6 +13,30 @@
 
 ---
 
+## v376.31 — 2026-05-29 🔒 initializeSchema_ 堅牢化（v376.30.x 根本対応）
+
+v376.30 で再現した「`範囲の列数には 1 以上を指定してください` で研修管理が開けないループ」の根本原因を解消。これで今後の schema 更新時に同じ事象が起きない。
+
+### 根本原因
+`protectHeaderRows_` および `applyDataValidationRules_` が `sheet.getRange(1, 1, 1, sheet.getLastColumn())` を空シート（lastColumn=0）で呼ぶと Google Sheets API が `範囲の列数には 1 以上を指定してください` を throw する。一度でも空シートが混入すると `initializeSchema_` 全体が中断され `markSchemaInitialized_` 未到達 → `DB_SCHEMA_INITIALIZED_VERSION` が古いまま残る → 以降毎リクエストで再初期化ループ。
+
+### 対策（2 段構え）
+
+| 種別 | 内容 |
+|---|---|
+| 🔒 計装 | `initializeSchema_` の各 step を critical/post 2 種に分離。critical（migration / seed）は例外伝播でロールバック維持、post（validation 適用 / 保護 / cleanup / audit）は Logger.log のみで続行 — 補助処理の軽微なエラーで初期化全体を止めない |
+| 🔒 空シート防御 | `protectHeaderRows_`: `lastColumn < 1` のシートを skip + Logger.log。`applyDataValidationRules_`: 同じく `lastColumn < 1` の tableSheet を skip + Logger.log |
+| 📊 観測性 | `[initializeSchema_] passed=N criticalFailed=M postFailed=K (post detail: [...])` をログ出力 — 次回 schema 更新時に問題発生 step を即座に特定可能 |
+| 🚀 デプロイ | 全 3 split（initializeSchema_ は共有コード — 統合 public @351 / member @110 / admin @191）|
+| ✅ | typecheck / security:public/member/admin-boundary 全 PASS |
+
+### 既存挙動への影響
+- critical 側は変わらず（migration の整合性は引き続き保証）
+- post 側は失敗時もログだけ残して続行 → これまで「再初期化ループ」を引き起こしていた条件が無効化
+- `DB_SCHEMA_INITIALIZED_VERSION` が確実に更新されるようになり、同じ事象は再発しない
+
+---
+
 ## v376.30.1 / v376.30.2 — 2026-05-29 🐛 v376.30 hotfix（schema 診断 + 強制マーク救済）
 
 v376.30 デプロイ後、admin の「研修管理」を開くと「範囲の列数には 1 以上を指定してください」エラーで一覧が表示できない状態が発生。診断の結果、T_研修 schema 自体は 24 列 + 申込URL 列追加 + 5 件データ保持で正常に migrate 済だったが、`DB_SCHEMA_INITIALIZED_VERSION` Property が `2026-05-19-roster-designer-v372`（旧値）のままで、毎リクエストで `initializeSchemaIfNeeded_` が再走 → `initializeSchema_` 内の後処理 step で例外 → エラー画面、というループに陥っていた。
