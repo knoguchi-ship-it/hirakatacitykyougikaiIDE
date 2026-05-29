@@ -28,6 +28,7 @@
     "test:formula": "node --experimental-strip-types --no-warnings --test scripts/test-formula-eval.mts",
     "test:kana": "node --experimental-strip-types --no-warnings --test scripts/test-kana-normalize.mts",
     "test:menu-registry": "node --test scripts/test-menu-registry.mjs",
+    "build:docs-portal": "node scripts/build-docs-portal.mjs",
     "test:a11y": "node scripts/test-a11y.mjs",
     "test:responsive": "node scripts/responsive-test.mjs",
     "test:responsive:admin": "node scripts/responsive-test-admin.mjs",

@@ -1,0 +1,798 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ER 図 | 枚方市介護支援専門員連絡協議会 会員システム</title>
+<style>
+:root {
+  --bg: #f4f1ea;
+  --panel: #fffdf8;
+  --ink: #1f2937;
+  --muted: #5b6575;
+  --line: #d8cfbf;
+  --accent: #0f766e;
+  --accent-soft: #d9f3ef;
+  --warm: #8b5e34;
+  --shadow: 0 18px 40px rgba(31, 41, 55, 0.08);
+  --radius: 20px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at top left, #efe6d7 0, transparent 28%),
+    linear-gradient(180deg, #f8f4ec 0%, var(--bg) 100%);
+  line-height: 1.7;
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding: 32px 20px 56px; }
+.hero {
+  background: linear-gradient(135deg, rgba(15, 118, 110, 0.95), rgba(24, 94, 146, 0.95));
+  color: white;
+  border-radius: 28px;
+  padding: 36px;
+  box-shadow: var(--shadow);
+  margin-bottom: 28px;
+}
+.hero h1 { margin: 0 0 12px; font-size: clamp(1.8rem, 4vw, 2.8rem); line-height: 1.2; }
+.hero p { margin: 0; opacity: 0.92; }
+nav.topnav {
+  position: sticky; top: 0;
+  background: rgba(255, 253, 248, 0.95);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--line);
+  padding: 12px 20px;
+  z-index: 10;
+  margin: -32px -20px 28px;
+}
+nav.topnav a {
+  color: var(--accent);
+  text-decoration: none;
+  margin-right: 20px;
+  font-weight: 600;
+}
+nav.topnav a:hover { text-decoration: underline; }
+section.card {
+  background: var(--panel);
+  border-radius: var(--radius);
+  padding: 28px 32px;
+  box-shadow: var(--shadow);
+  margin-bottom: 24px;
+}
+section.card h2 {
+  margin: 0 0 16px;
+  font-size: 1.6rem;
+  color: var(--accent);
+  border-bottom: 2px solid var(--accent-soft);
+  padding-bottom: 8px;
+}
+section.card h3 { margin: 24px 0 12px; color: var(--warm); }
+section.card ul, section.card ol { padding-left: 20px; }
+section.card code {
+  background: var(--accent-soft);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+section.card pre {
+  background: #1e293b;
+  color: #e5e7eb;
+  padding: 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 0.85em;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+}
+th, td {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  text-align: left;
+  font-size: 0.93em;
+}
+th { background: var(--accent-soft); font-weight: 700; }
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.78em;
+  font-weight: 700;
+  background: var(--accent-soft);
+  color: var(--accent);
+  margin-left: 6px;
+}
+.badge.warn { background: #fef3c7; color: #92400e; }
+.badge.danger { background: #fee2e2; color: #991b1b; }
+footer {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.85em;
+  text-align: center;
+}
+.mermaid-wrap {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  margin: 20px 0;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+}
+@media (max-width: 720px) {
+  .wrap { padding: 16px 12px 36px; }
+  nav.topnav { margin: -16px -12px 20px; }
+  section.card { padding: 20px; }
+}
+</style>
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true, theme: 'default', securityLevel: 'loose', er: { fontSize: 12 } });
+</script>
+</head>
+<body>
+<div class="wrap">
+
+<nav class="topnav">
+  <a href="index.html">📘 ポータル TOP</a>
+  <a href="er-diagram.html">🗂️ ER 図</a>
+  <a href="specifications.html">📋 仕様書サマリ</a>
+  <a href="../../HANDOVER.md">📝 HANDOVER (Markdown)</a>
+</nav>
+
+<div class="hero">
+  <h1>🗂️ ER 図（データモデル可視化）</h1>
+  <p>docs/03_DATA_MODEL.md から自動抽出した Mermaid ER 図。テーブル間の関係 / FK / カラム制約を視覚確認できます。</p>
+</div>
+
+      <section class="card">
+        <h2>図 1: 2. Mermaid ER 図</h2>
+        <p style="color: var(--muted); font-size: 0.88em;">
+          ソース: <code>docs/03_DATA_MODEL.md</code> line 30〜
+        </p>
+        <div class="mermaid-wrap">
+          <pre class="mermaid">erDiagram
+
+%% ===== マスタ =====
+M_会員種別 {
+  string コード PK
+  string 名称
+  int 表示順
+  boolean 有効フラグ
+  int 年会費金額
+}
+M_会員状態 {
+  string コード PK
+  string 名称
+}
+M_発送方法 {
+  string コード PK
+  string 名称
+}
+M_郵送先区分 {
+  string コード PK
+  string 名称
+}
+M_職員権限 {
+  string コード PK
+  string 名称
+}
+M_職員状態 {
+  string コード PK
+  string 名称
+}
+M_システムロール {
+  string コード PK
+  string 名称
+}
+M_研修状態 {
+  string コード PK
+  string 名称
+}
+M_申込状態 {
+  string コード PK
+  string 名称
+}
+M_会費納入状態 {
+  string コード PK
+  string 名称
+}
+M_申込者区分 {
+  string コード PK
+  string 名称
+}
+M_管理者権限 {
+  string コード PK
+  string 名称
+}
+M_出欠状態 {
+  string コード PK
+  string 名称
+  int 表示順
+  boolean 有効フラグ
+}
+M_組織マスタ {
+  string 組織コード PK
+  string 組織名
+  string 組織種別
+  int 表示順
+  boolean 全役員表示フラグ
+  boolean 有効フラグ
+}
+M_役職マスタ {
+  string 役職コード PK
+  string 役職名
+  string 組織コード FK
+  boolean 委員長フラグ
+  int 表示順
+  boolean 有効フラグ
+}
+M_支払い種別マスタ {
+  string 種別コード PK
+  string 種別名
+  string 対象区分
+  int 表示順
+  boolean 有効フラグ
+}
+M_業務分類 {
+  string 業務分類コード PK
+  string 業務分類名
+  string 組織コード FK
+  int 単価
+  int 表示順
+  boolean 有効フラグ
+}
+
+%% ===== メインテーブル =====
+T_会員 {
+  string 会員ID PK
+  string 会員種別コード FK
+  string 会員状態コード FK
+  date 入会日
+  date 退会日
+  date 移行日
+  date 退会処理日
+  string 姓
+  string 名
+  string セイ
+  string メイ
+  string 代表メールアドレス
+  string 携帯電話番号
+  string 勤務先名
+  string 勤務先郵便番号
+  string 勤務先都道府県
+  string 勤務先市区町村
+  string 勤務先住所
+  string 勤務先住所2
+  string 勤務先電話番号
+  string 勤務先FAX番号
+  string 自宅郵便番号
+  string 自宅都道府県
+  string 自宅市区町村
+  string 自宅住所
+  string 自宅住所2
+  string 発送方法コード FK
+  string 郵送先区分コード FK
+  int 職員数上限
+  datetime 作成日時
+  datetime 更新日時
+  boolean 削除フラグ
+  string 介護支援専門員番号 &quot;基本8桁数字/admin例外1-10桁英数字 (v372.4)&quot;
+  string 事業所番号
+  string ステータスメモ
+}
+
+T_事業所職員 {
+  string 職員ID PK
+  string 会員ID FK
+  string 姓
+  string 名
+  string セイ
+  string メイ
+  string 氏名
+  string フリガナ
+  string メールアドレス
+  string 職員権限コード FK
+  string 職員状態コード FK
+  date 入会日
+  date 退会日
+  string 介護支援専門員番号 &quot;基本8桁数字/admin例外1-10桁英数字 (v372.4)&quot;
+  string メール配信希望コード
+  datetime 作成日時
+  datetime 更新日時
+  boolean 削除フラグ
+}
+
+T_認証アカウント {
+  string 認証ID PK
+  string 認証方式
+  string ログインID
+  string パスワードハッシュ
+  string パスワードソルト
+  string GoogleユーザーID
+  string Googleメール
+  string システムロールコード FK
+  string 会員ID FK
+  string 職員ID FK
+  datetime 最終ログイン日時
+  datetime パスワード更新日時
+  boolean アカウント有効フラグ
+  int ログイン失敗回数
+  boolean ロック状態
+  datetime 作成日時
+  datetime 更新日時
+  boolean 削除フラグ
+}
+
+T_管理者Googleホワイトリスト {
+  string ホワイトリストID PK
+  string GoogleユーザーID
+  string Googleメール
+  string 表示名
+  string 紐付け認証ID FK
+  string 紐付け会員ID FK
+  boolean 有効フラグ
+  datetime 作成日時
+  datetime 更新日時
+  boolean 削除フラグ
+}
+
+T_研修 {
+  string 研修ID PK
+  string 研修名
+  date 開催日
+  string 開催終了時刻
+  int 定員
+  int 申込者数
+  string 開催場所
+  string 研修状態コード FK
+  string 主催者
+  boolean 法定外研修フラグ
+  string 研修概要
+  string 研修内容
+  string 費用JSON
+  date 申込開始日
+  date 申込締切日
+  string 講師
+  string 案内状URL
+  string 項目設定JSON
+  datetime 作成日時
+  datetime 更新日時
+  boolean 削除フラグ
+}
+
+T_研修申込 {
+  string 申込ID PK
+  string 研修ID FK
+  string 会員ID FK &quot;2-FK v360&quot;
+  string 職員ID FK &quot;2-FK v360&quot;
+  string 外部申込者ID FK &quot;2-FK v360 新規&quot;
+  string 申込者区分コード FK &quot;deprecated v360&quot;
+  string 申込者ID &quot;deprecated v360&quot;
+  string 申込状態コード FK
+  datetime 申込日時
+  datetime 取消日時
+  string 出欠状態コード FK &quot;v360新規&quot;
+  datetime 出欠記録日時 &quot;v360新規&quot;
+  string 出欠記録者メール &quot;v360新規&quot;
+  string 事務局メモ &quot;v360新規 管理者専用&quot;
+  string 備考
+  datetime 作成日時
+  datetime 更新日時
+  boolean 削除フラグ
+}
+
+T_外部申込者 {
+  string 外部申込者ID PK
+  string 氏名
+  string フリガナ
+  string メールアドレス
+  string 電話番号
+  string 事業所名
+  datetime 同意日時
+  datetime 作成日時
+  datetime 更新日時
+  boolean 削除フラグ
+}
+
+T_年会費納入履歴 {
+  string 年会費履歴ID PK
+  string 会員ID FK
+  string 対象年度
+  string 会費納入状態コード FK
+  date 納入確認日
+  int 金額
+  string 備考
+  datetime 作成日時
+  datetime 更新日時
+  boolean 削除フラグ
+}
+
+T_年会費更新履歴 {
+  string 年会費更新履歴ID PK
+  string 年会費履歴ID FK
+  string 会員ID FK
+  string 対象年度
+  string 操作種別
+  string 更新前JSON
+  string 更新後JSON
+  string 実行者メール
+  datetime 実行日時
+}
+
+T_役員 {
+  string 役員ID PK
+  string 会員ID FK
+  string 職員ID FK
+  string 役職コード FK
+  string 組織コード FK
+  date 就任日
+  date 退任日
+  string 備考
+  boolean 削除フラグ
+  datetime 作成日時
+  datetime 更新日時
+}
+
+T_振込口座 {
+  string 口座ID PK
+  string 会員ID FK
+  string 職員ID FK
+  string 金融機関名
+  string 金融機関コード
+  string 支店名
+  string 支店コード
+  string 口座種別
+  string 口座番号
+  string 口座名義カナ
+  string 備考
+  boolean 削除フラグ
+  datetime 作成日時
+  datetime 更新日時
+}
+
+T_支払い {
+  string 支払いID PK
+  string 会員ID FK
+  date 支払い日
+  string 支払い方法
+  int 合計金額
+  string 振込先口座JSON
+  string 登録者メール
+  string 備考
+  boolean 削除フラグ
+  datetime 作成日時
+  datetime 更新日時
+}
+
+T_支払い明細 {
+  string 明細ID PK
+  string 支払いID FK
+  string 請求ID FK
+  string 役職コード FK
+  string 組織コード FK
+  string 種別コード FK
+  int 金額
+  date 対象期間FROM
+  date 対象期間TO
+  string 摘要
+  boolean 削除フラグ
+  datetime 作成日時
+  datetime 更新日時
+}
+
+T_請求 {
+  string 請求ID PK
+  string 会員ID FK
+  string 職員ID FK
+  string 役職コード FK
+  string 組織コード FK
+  string 種別コード FK
+  string 請求種別
+  string 業務分類コード FK
+  int 単価
+  int 数量
+  int 請求金額
+  date 活動日
+  string 活動内容
+  string 添付ファイルURL
+  string 請求状態
+  string 却下理由
+  string 承認者メール
+  datetime 承認日時
+  boolean 削除フラグ
+  datetime 作成日時
+  datetime 更新日時
+}
+
+T_システム設定 {
+  string 設定キー PK
+  string 設定値
+  string 説明
+  datetime 更新日時
+}
+
+%% v309: 管理者共有メモ（申し送りホワイトボード）
+%% 他テーブルとのFK関係なし（更新者メールはスナップショット値）
+%% 削除フラグ・作成日時なし（シングルトン運用のため不要）
+T_共有メモ {
+  string キー PK
+  string 内容
+  string 更新者メール
+  string 更新者名
+  datetime 更新日時
+  int バージョン
+}
+
+T_画面項目権限 {
+  string 権限定義ID PK
+  string システムロールコード FK
+  string 画面コード
+  string 項目コード
+  boolean 閲覧可
+  boolean 登録可
+  boolean 変更可
+  boolean 削除可
+  datetime 作成日時
+  datetime 更新日時
+  boolean 削除フラグ
+}
+
+%% ===== アーカイブシート（メインDB内・退会会員移動先）=====
+T_会員_archive {
+  string 会員ID PK
+  string 会員種別コード
+  string 会員状態コード
+  date 退会日
+}
+
+T_事業所職員_archive {
+  string 職員ID PK
+  string 会員ID
+  string 職員状態コード
+}
+
+%% ===== ログSS（別スプレッドシート）=====
+T_ログイン履歴 {
+  string ログイン履歴ID PK
+  string 認証ID FK
+  string ログインID
+  string 認証方式
+  string ログイン結果
+  string 失敗理由
+  string 接続元IP
+  string ユーザーエージェント
+  datetime 実行日時
+}
+
+T_監査ログ {
+  string 監査ログID PK
+  string 操作者メール
+  string 操作種別
+  string 対象テーブル
+  string 対象ID
+  string 変更前JSON
+  string 変更後JSON
+  datetime 実行日時
+}
+
+T_メール送信ログ {
+  string ログID PK
+  datetime 送信日時
+  string 送信者メール
+  string 件名テンプレート
+  int 宛先数
+  int 成功数
+  int エラー数
+  string 送信種別
+  string 研修ID FK &quot;v360拡張 nullable&quot;
+  boolean 削除フラグ
+}
+
+%% v360 新規: T_メール送信ログ の per-recipient 明細
+T_メール送信明細 {
+  string 明細ID PK
+  string ログID FK
+  string 研修ID FK &quot;nullable&quot;
+  string 受信者区分 &quot;MEMBER/STAFF/EXTERNAL&quot;
+  string 受信者ID &quot;ポリモーフィック: 会員ID/職員ID/外部申込者ID&quot;
+  string 受信者メール
+  string 送信結果 &quot;SENT/FAILED&quot;
+  string エラー詳細
+  datetime 作成日時
+  boolean 削除フラグ
+}
+
+%% ===== リレーション =====
+T_会員 }o--|| M_会員種別 : &quot;会員種別コード&quot;
+T_会員 }o--|| M_会員状態 : &quot;会員状態コード&quot;
+T_会員 }o--o| M_発送方法 : &quot;発送方法コード&quot;
+T_会員 }o--o| M_郵送先区分 : &quot;郵送先区分コード&quot;
+
+T_事業所職員 }o--|| T_会員 : &quot;会員ID&quot;
+T_事業所職員 }o--|| M_職員権限 : &quot;職員権限コード&quot;
+T_事業所職員 }o--|| M_職員状態 : &quot;職員状態コード&quot;
+
+T_認証アカウント }o--|| T_会員 : &quot;会員ID&quot;
+T_認証アカウント }o--o| T_事業所職員 : &quot;職員ID&quot;
+T_認証アカウント }o--|| M_システムロール : &quot;システムロールコード&quot;
+
+T_管理者Googleホワイトリスト }o--o| T_認証アカウント : &quot;紐付け認証ID&quot;
+T_管理者Googleホワイトリスト }o--o| T_会員 : &quot;紐付け会員ID&quot;
+
+T_研修申込 }o--|| T_研修 : &quot;研修ID&quot;
+T_研修申込 }o--o| T_会員 : &quot;会員ID(v360 2-FK)&quot;
+T_研修申込 }o--o| T_事業所職員 : &quot;職員ID(v360 2-FK)&quot;
+T_研修申込 }o--o| T_外部申込者 : &quot;外部申込者ID(v360 2-FK 新規)&quot;
+T_研修申込 }o--|| M_出欠状態 : &quot;出欠状態コード(v360新規)&quot;
+T_研修申込 }o--|| M_申込者区分 : &quot;申込者区分コード(deprecated v360)&quot;
+T_研修申込 }o--o| M_申込状態 : &quot;申込状態コード&quot;
+
+T_メール送信明細 }o--|| T_メール送信ログ : &quot;ログID(v360新規)&quot;
+T_メール送信明細 }o--o| T_研修 : &quot;研修ID(v360新規)&quot;
+
+T_研修 }o--|| M_研修状態 : &quot;研修状態コード&quot;
+
+T_年会費納入履歴 }o--|| T_会員 : &quot;会員ID&quot;
+T_年会費納入履歴 }o--|| M_会費納入状態 : &quot;会費納入状態コード&quot;
+
+T_年会費更新履歴 }o--|| T_年会費納入履歴 : &quot;年会費履歴ID&quot;
+T_年会費更新履歴 }o--|| T_会員 : &quot;会員ID&quot;
+
+M_役職マスタ }o--|| M_組織マスタ : &quot;組織コード&quot;
+M_業務分類 }o--|| M_組織マスタ : &quot;組織コード&quot;
+T_役員 }o--o| T_会員 : &quot;会員ID&quot;
+T_役員 }o--o| T_事業所職員 : &quot;職員ID&quot;
+T_役員 }o--|| M_役職マスタ : &quot;役職コード&quot;
+T_役員 }o--|| M_組織マスタ : &quot;組織コード&quot;
+T_振込口座 }o--o| T_会員 : &quot;会員ID&quot;
+T_振込口座 }o--o| T_事業所職員 : &quot;職員ID&quot;
+T_支払い }o--|| T_会員 : &quot;会員ID&quot;
+T_支払い明細 }o--|| T_支払い : &quot;支払いID&quot;
+T_支払い明細 }o--o| T_請求 : &quot;請求ID&quot;
+T_支払い明細 }o--|| M_役職マスタ : &quot;役職コード&quot;
+T_支払い明細 }o--|| M_組織マスタ : &quot;組織コード&quot;
+T_支払い明細 }o--|| M_支払い種別マスタ : &quot;種別コード&quot;
+T_請求 }o--o| T_会員 : &quot;会員ID&quot;
+T_請求 }o--o| T_事業所職員 : &quot;職員ID&quot;
+T_請求 }o--|| M_役職マスタ : &quot;役職コード&quot;
+T_請求 }o--|| M_組織マスタ : &quot;組織コード&quot;
+T_請求 }o--|| M_支払い種別マスタ : &quot;種別コード&quot;
+T_請求 }o--o| M_業務分類 : &quot;業務分類コード&quot;
+
+T_画面項目権限 }o--|| M_システムロール : &quot;システムロールコード&quot;
+
+T_ログイン履歴 }o--o| T_認証アカウント : &quot;認証ID&quot;</pre>
+        </div>
+      </section>
+    
+
+      <section class="card">
+        <h2>図 2: v305 ER Supplement</h2>
+        <p style="color: var(--muted); font-size: 0.88em;">
+          ソース: <code>docs/03_DATA_MODEL.md</code> line 1035〜
+        </p>
+        <div class="mermaid-wrap">
+          <pre class="mermaid">erDiagram
+  T_MEMBER {
+    string member_id PK &quot;会員ID&quot;
+    string member_type_code FK &quot;会員種別コード&quot;
+    string member_status_code FK &quot;会員状態コード&quot;
+    date joined_date &quot;入会日&quot;
+    date withdrawn_date &quot;退会日&quot;
+    boolean deleted &quot;削除フラグ&quot;
+  }
+
+  T_ANNUAL_FEE_HISTORY {
+    string annual_fee_history_id PK &quot;年会費履歴ID&quot;
+    string member_id FK &quot;会員ID&quot;
+    string fiscal_year &quot;対象年度&quot;
+    string annual_fee_status_code FK &quot;会費納入状態コード&quot;
+    date confirmed_date &quot;納入確認日&quot;
+  }
+
+  M_ANNUAL_FEE_STATUS {
+    string code PK &quot;会費納入状態コード&quot;
+    string name &quot;名称&quot;
+  }
+
+  MEMBER_FISCAL_SNAPSHOT {
+    string member_id &quot;derived&quot;
+    string fiscal_year &quot;request&quot;
+    boolean eligible &quot;derived&quot;
+    string fiscal_status &quot;ACTIVE/WITHDRAWAL_SCHEDULED/WITHDRAWN&quot;
+    date joined_date &quot;source&quot;
+    date withdrawn_date &quot;source&quot;
+  }
+
+  MAILING_LIST_TARGET {
+    string target_key &quot;derived&quot;
+    string member_id &quot;derived&quot;
+    string fiscal_year &quot;request&quot;
+    string annual_fee_status &quot;recorded or UNPAID supplement&quot;
+    string delivery_method &quot;derived&quot;
+  }
+
+  T_MEMBER ||--o{ T_ANNUAL_FEE_HISTORY : &quot;member_id&quot;
+  T_ANNUAL_FEE_HISTORY }o--|| M_ANNUAL_FEE_STATUS : &quot;annual_fee_status_code&quot;
+  T_MEMBER ||--o{ MEMBER_FISCAL_SNAPSHOT : &quot;computed per fiscal year&quot;
+  MEMBER_FISCAL_SNAPSHOT ||--o{ MAILING_LIST_TARGET : &quot;eligible members only&quot;
+  T_ANNUAL_FEE_HISTORY }o--o{ MAILING_LIST_TARGET : &quot;same member and fiscal year&quot;</pre>
+        </div>
+      </section>
+    
+
+      <section class="card">
+        <h2>図 3: 11.8 ER 差分図（追加部分のみ）</h2>
+        <p style="color: var(--muted); font-size: 0.88em;">
+          ソース: <code>docs/03_DATA_MODEL.md</code> line 1178〜
+        </p>
+        <div class="mermaid-wrap">
+          <pre class="mermaid">erDiagram
+  T_研修申込 {
+    string 申込ID PK
+    string 研修ID FK
+    string 会員ID FK &quot;v360 2-FK&quot;
+    string 職員ID FK &quot;v360 2-FK&quot;
+    string 外部申込者ID FK &quot;v360 新規&quot;
+    string 出欠状態コード FK &quot;v360 新規&quot;
+    datetime 出欠記録日時 &quot;v360 新規&quot;
+    string 出欠記録者メール &quot;v360 新規&quot;
+    string 事務局メモ &quot;v360 新規 管理者専用&quot;
+  }
+  M_出欠状態 {
+    string コード PK &quot;v360 新規マスタ&quot;
+    string 名称
+    int 表示順
+    boolean 有効フラグ
+  }
+  T_メール送信ログ {
+    string ログID PK &quot;既存(ログSS)&quot;
+    string 送信種別 &quot;+TRAINING_BULK&quot;
+    string 研修ID FK &quot;v360 拡張&quot;
+  }
+  T_メール送信明細 {
+    string 明細ID PK &quot;v360 新規(ログSS)&quot;
+    string ログID FK
+    string 研修ID FK
+    string 受信者区分
+    string 受信者ID
+    string 受信者メール
+    string 送信結果
+    string エラー詳細
+  }
+  T_外部申込者 {
+    string 外部申込者ID PK &quot;既存・流用&quot;
+  }
+
+  T_研修申込 }o--o| T_外部申込者 : &quot;外部申込者ID(v360)&quot;
+  T_研修申込 }o--|| M_出欠状態 : &quot;出欠状態コード(v360)&quot;
+  T_メール送信明細 }o--|| T_メール送信ログ : &quot;ログID(v360)&quot;
+  T_メール送信明細 }o--o| T_研修 : &quot;研修ID(v360)&quot;</pre>
+        </div>
+      </section>
+    
+<section class="card">
+  <h2>更新方法</h2>
+  <p>スキーマ変更（テーブル定義 / カラム追加 / 列順変更）を行った際は:</p>
+  <ol>
+    <li><code>gas-src/Code.full.gs</code> の <code>テーブル定義</code> を更新</li>
+    <li><code>docs/03_DATA_MODEL.md</code> の Mermaid ER 図ブロックを同期</li>
+    <li><code>node scripts/build-docs-portal.mjs</code> を実行</li>
+    <li>本ファイル（docs/portal/er-diagram.html）が再生成されることを確認</li>
+    <li>git commit で同ターン反映（AGENTS.md §3 / §4.6 同期則）</li>
+  </ol>
+</section>
+
+<footer>
+  生成: 2026-05-29 | scripts/build-docs-portal.mjs より自動生成 | AGENTS.md §4.6 準拠
+</footer>
+
+</div>
+</body>
+</html>

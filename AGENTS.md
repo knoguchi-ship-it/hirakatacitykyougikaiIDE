@@ -114,8 +114,12 @@
 
 ### 4.6 ドキュメント形式規約
 
-- **ER 図 / テーブル設計書は HTML 形式必須**: `docs/03_DATA_MODEL.md` 等で扱う ER 図・テーブル設計書（テーブル間関係 / カラム定義 / 制約）は、Markdown 単独で完結させず、レンダリング済 HTML を併設する（Mermaid / PlantUML / dbdiagram の export など、ツールは案件で統一）。HTML は git に commit し、ブラウザで開けば即座にビジュアル確認可能であること。スキーマ変更（テーブル定義 / カラム追加 / 列順変更）を行ったら**同ターン**で HTML も再生成・コミットする（§3 ドキュメント・コード整合性同期則に従う）。
-- **人間可読版の同時保存**: AI が読む用の構造化フォーマット（YAML / JSON / 機械可読 Markdown）と、人間がブラウザで読みやすい HTML / 整形済 Markdown を併設する。複雑な図表・設計書は HTML 版を作って一覧性を確保。一方のみの保存は不完全とみなす。
+- **ER 図 / テーブル設計書は HTML 形式必須**: `docs/03_DATA_MODEL.md` の Mermaid ER 図ブロックは `docs/portal/er-diagram.html` にレンダリング済 HTML として併設する（Mermaid via CDN）。スキーマ変更（テーブル定義 / カラム追加 / 列順変更）を行ったら**同ターン**で `npm run build:docs-portal` を実行し、再生成された HTML を同コミットに含める（§3 ドキュメント・コード整合性同期則に従う）。
+- **人間可読版の同時保存**: AI が読む用の構造化 Markdown と、人間がブラウザで読みやすい HTML を併設する。本案件では `docs/portal/` がそのエントリ:
+  - `docs/portal/index.html` — TOC + 主要原典へのリンク集
+  - `docs/portal/er-diagram.html` — Mermaid ER 図（自動生成）
+  - `docs/portal/specifications.html` — PRD / アーキテクチャ / 認証 / RBAC / デプロイ / セキュリティのサマリ
+- **再生成コマンド**: `npm run build:docs-portal`（`scripts/build-docs-portal.mjs` が `docs/portal/` 配下 3 ファイルを生成）。Markdown を手で書き換えた後は必ず実行し、HTML との差分を解消する。
 - **文字コードと文字化け**: §3 の「文書作成・更新時の文字コード統一」「文字化け復旧優先」が本 subsection 配下のドキュメント全てに適用される（HTML / Markdown / text 全て UTF-8）。
 
 ## 5. 完了条件
