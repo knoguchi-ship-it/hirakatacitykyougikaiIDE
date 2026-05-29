@@ -119,11 +119,52 @@ footer {
 .mermaid-wrap {
   background: white;
   border-radius: 12px;
-  padding: 20px;
-  margin: 20px 0;
-  overflow-x: auto;
+  padding: 12px;
+  margin: 16px 0;
   border: 1px solid var(--line);
+  position: relative;
+  /* 拡大/縮小/パン操作のための固定高 + svg-pan-zoom コンテナ化 */
+  height: 78vh;
+  min-height: 540px;
+  max-height: 1000px;
+  overflow: hidden;
 }
+.mermaid-wrap > .mermaid,
+.mermaid-wrap > svg { width: 100% !important; height: 100% !important; display: block; }
+.diagram-help {
+  font-size: 0.82em;
+  color: var(--muted);
+  margin: 8px 0 4px;
+  padding: 6px 10px;
+  background: var(--accent-soft);
+  border-radius: 6px;
+  border-left: 3px solid var(--accent);
+}
+.zoom-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+.zoom-controls button {
+  cursor: pointer;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.85em;
+  font-weight: 600;
+  min-height: 36px;
+  transition: background 0.15s;
+}
+.zoom-controls button:hover { background: #0d5d56; }
+.zoom-controls button.secondary {
+  background: white;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+.zoom-controls button.secondary:hover { background: var(--accent-soft); }
 @media (max-width: 720px) {
   .wrap { padding: 16px 12px 36px; }
   nav.topnav { margin: -16px -12px 20px; }

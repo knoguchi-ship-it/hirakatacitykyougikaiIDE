@@ -119,20 +119,137 @@ footer {
 .mermaid-wrap {
   background: white;
   border-radius: 12px;
-  padding: 20px;
-  margin: 20px 0;
-  overflow-x: auto;
+  padding: 12px;
+  margin: 16px 0;
   border: 1px solid var(--line);
+  position: relative;
+  /* 拡大/縮小/パン操作のための固定高 + svg-pan-zoom コンテナ化 */
+  height: 78vh;
+  min-height: 540px;
+  max-height: 1000px;
+  overflow: hidden;
 }
+.mermaid-wrap > .mermaid,
+.mermaid-wrap > svg { width: 100% !important; height: 100% !important; display: block; }
+.diagram-help {
+  font-size: 0.82em;
+  color: var(--muted);
+  margin: 8px 0 4px;
+  padding: 6px 10px;
+  background: var(--accent-soft);
+  border-radius: 6px;
+  border-left: 3px solid var(--accent);
+}
+.zoom-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+.zoom-controls button {
+  cursor: pointer;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.85em;
+  font-weight: 600;
+  min-height: 36px;
+  transition: background 0.15s;
+}
+.zoom-controls button:hover { background: #0d5d56; }
+.zoom-controls button.secondary {
+  background: white;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+.zoom-controls button.secondary:hover { background: var(--accent-soft); }
 @media (max-width: 720px) {
   .wrap { padding: 16px 12px 36px; }
   nav.topnav { margin: -16px -12px 20px; }
   section.card { padding: 20px; }
 }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.2/dist/svg-pan-zoom.min.js"></script>
 <script type="module">
   import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-  mermaid.initialize({ startOnLoad: true, theme: 'default', securityLevel: 'loose', er: { fontSize: 12 } });
+  // startOnLoad=false で manual run、render 後に svg-pan-zoom を attach する
+  mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose', er: { fontSize: 14, useMaxWidth: false } });
+
+  // diagram index → svgPanZoom instance
+  const panInstances = {};
+
+  async function renderAll() {
+    try {
+      await mermaid.run({ querySelector: '.mermaid' });
+    } catch (e) {
+      console.error('[mermaid.run] failed', e);
+    }
+    // SVG を探して svg-pan-zoom を attach
+    document.querySelectorAll('.mermaid-wrap').forEach((wrap) => {
+      const svg = wrap.querySelector('svg');
+      if (!svg) return;
+      const idx = parseInt(wrap.id.replace('diagram-wrap-', ''), 10);
+      // Mermaid 既定の max-width を解除して固定枠内で拡大できるようにする
+      svg.style.maxWidth = 'none';
+      svg.style.height = '100%';
+      svg.style.width = '100%';
+      // svg-pan-zoom が viewBox を必要とする（無ければ getBBox から生成）
+      if (!svg.getAttribute('viewBox')) {
+        try {
+          const bbox = svg.getBBox();
+          svg.setAttribute('viewBox', `${bbox.x} ${bbox.y} ${bbox.width} ${bbox.height}`);
+        } catch (e) { /* fallback: viewBox なしでも svg-pan-zoom は動く */ }
+      }
+      try {
+        const pan = svgPanZoom(svg, {
+          zoomEnabled: true,
+          panEnabled: true,
+          controlIconsEnabled: false,
+          fit: true,
+          center: true,
+          minZoom: 0.1,
+          maxZoom: 20,
+          zoomScaleSensitivity: 0.3,
+          dblClickZoomEnabled: true,
+          mouseWheelZoomEnabled: true,
+          preventMouseEventsDefault: true,
+        });
+        panInstances[idx] = pan;
+      } catch (e) {
+        console.error('[svgPanZoom] failed for diagram', idx, e);
+      }
+    });
+  }
+
+  // diagram control function (button onclick から呼ぶ)
+  window.diagramCtl = function(idx, action) {
+    const pan = panInstances[idx];
+    if (!pan) return;
+    switch (action) {
+      case 'in':     pan.zoomIn(); break;
+      case 'out':    pan.zoomOut(); break;
+      case 'fit':    pan.fit(); pan.center(); break;
+      case 'center': pan.center(); break;
+      case 'reset':  pan.resetZoom(); pan.resetPan(); pan.fit(); pan.center(); break;
+    }
+  };
+
+  // ウィンドウサイズ変更で fit を維持
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      Object.values(panInstances).forEach((p) => { try { p.resize(); p.fit(); p.center(); } catch(e){} });
+    }, 200);
+  });
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderAll);
+  } else {
+    renderAll();
+  }
 </script>
 </head>
 <body>
@@ -155,8 +272,18 @@ footer {
         <p style="color: var(--muted); font-size: 0.88em;">
           ソース: <code>docs/03_DATA_MODEL.md</code> line 30〜
         </p>
-        <div class="mermaid-wrap">
-          <pre class="mermaid">erDiagram
+        <div class="diagram-help">
+          🖱️ マウスホイール = 拡大/縮小  ｜  ドラッグ = パン（移動）  ｜  下のボタンでも操作可
+        </div>
+        <div class="zoom-controls">
+          <button onclick="window.diagramCtl(0, 'in')" aria-label="拡大">＋ 拡大</button>
+          <button onclick="window.diagramCtl(0, 'out')" aria-label="縮小">－ 縮小</button>
+          <button class="secondary" onclick="window.diagramCtl(0, 'fit')" aria-label="全体表示">⤢ 全体表示（俯瞰）</button>
+          <button class="secondary" onclick="window.diagramCtl(0, 'center')" aria-label="センタリング">⊕ センタリング</button>
+          <button class="secondary" onclick="window.diagramCtl(0, 'reset')" aria-label="リセット">↺ リセット</button>
+        </div>
+        <div class="mermaid-wrap" id="diagram-wrap-0">
+          <pre class="mermaid" data-diagram-idx="0">erDiagram
 
 %% ===== マスタ =====
 M_会員種別 {
@@ -677,8 +804,18 @@ T_ログイン履歴 }o--o| T_認証アカウント : &quot;認証ID&quot;</pre>
         <p style="color: var(--muted); font-size: 0.88em;">
           ソース: <code>docs/03_DATA_MODEL.md</code> line 1035〜
         </p>
-        <div class="mermaid-wrap">
-          <pre class="mermaid">erDiagram
+        <div class="diagram-help">
+          🖱️ マウスホイール = 拡大/縮小  ｜  ドラッグ = パン（移動）  ｜  下のボタンでも操作可
+        </div>
+        <div class="zoom-controls">
+          <button onclick="window.diagramCtl(1, 'in')" aria-label="拡大">＋ 拡大</button>
+          <button onclick="window.diagramCtl(1, 'out')" aria-label="縮小">－ 縮小</button>
+          <button class="secondary" onclick="window.diagramCtl(1, 'fit')" aria-label="全体表示">⤢ 全体表示（俯瞰）</button>
+          <button class="secondary" onclick="window.diagramCtl(1, 'center')" aria-label="センタリング">⊕ センタリング</button>
+          <button class="secondary" onclick="window.diagramCtl(1, 'reset')" aria-label="リセット">↺ リセット</button>
+        </div>
+        <div class="mermaid-wrap" id="diagram-wrap-1">
+          <pre class="mermaid" data-diagram-idx="1">erDiagram
   T_MEMBER {
     string member_id PK &quot;会員ID&quot;
     string member_type_code FK &quot;会員種別コード&quot;
@@ -732,8 +869,18 @@ T_ログイン履歴 }o--o| T_認証アカウント : &quot;認証ID&quot;</pre>
         <p style="color: var(--muted); font-size: 0.88em;">
           ソース: <code>docs/03_DATA_MODEL.md</code> line 1178〜
         </p>
-        <div class="mermaid-wrap">
-          <pre class="mermaid">erDiagram
+        <div class="diagram-help">
+          🖱️ マウスホイール = 拡大/縮小  ｜  ドラッグ = パン（移動）  ｜  下のボタンでも操作可
+        </div>
+        <div class="zoom-controls">
+          <button onclick="window.diagramCtl(2, 'in')" aria-label="拡大">＋ 拡大</button>
+          <button onclick="window.diagramCtl(2, 'out')" aria-label="縮小">－ 縮小</button>
+          <button class="secondary" onclick="window.diagramCtl(2, 'fit')" aria-label="全体表示">⤢ 全体表示（俯瞰）</button>
+          <button class="secondary" onclick="window.diagramCtl(2, 'center')" aria-label="センタリング">⊕ センタリング</button>
+          <button class="secondary" onclick="window.diagramCtl(2, 'reset')" aria-label="リセット">↺ リセット</button>
+        </div>
+        <div class="mermaid-wrap" id="diagram-wrap-2">
+          <pre class="mermaid" data-diagram-idx="2">erDiagram
   T_研修申込 {
     string 申込ID PK
     string 研修ID FK
