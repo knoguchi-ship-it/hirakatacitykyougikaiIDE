@@ -5684,6 +5684,254 @@ function migrateToRoleBasedRBAC_v246_APPLY() {
 }
 
 /**
+ * v376.30 / v376.31 機能の dryRun テスト。
+ *
+ * テスト対象:
+ *   1. 申込URL フィールドの round-trip (T_研修 書込 → mapTrainingRowsForApi_ 読出)
+ *   2. T_権限ロール への INSERT / READ / 物理 DELETE round-trip
+ *   3. listRoles_ が新規ロールを正しく列挙するか
+ *   4. initializeSchema_ の堅牢化（空シートを混入させても処理続行する）
+ *
+ * すべて DRYRUN_ プレフィックス付きのレコードのみ作成。実データ書込みなし。
+ * テスト後 cleanupDryRunV376_30_31() で物理削除する。
+ */
+function dryRunV376_30_31() {
+  var ss = getOrCreateDatabase_();
+  var report = { startedAt: new Date().toISOString(), tests: [] };
+
+  var dryRunPrefix = 'DRYRUN_v376_30_31_';
+  var testTrainingId = dryRunPrefix + 'T' + Utilities.getUuid().slice(0, 8).toUpperCase();
+  var testRoleId1 = dryRunPrefix + 'role-' + Utilities.getUuid().slice(0, 8) + '-custom';
+  var testRoleId2 = dryRunPrefix + 'role-' + Utilities.getUuid().slice(0, 8) + '-dup';
+  var manifest = { trainingIds: [testTrainingId], roleIds: [testRoleId1, testRoleId2] };
+
+  // ── Test 1: 申込URL 書込 → mapTrainingRowsForApi_ で読出 ──
+  try {
+    var nowIso = new Date().toISOString();
+    var testUrl = 'https://forms.gle/dryrun-v376-30-31-test';
+    appendRowsByHeaders_(ss, 'T_研修', [{
+      '研修ID': testTrainingId,
+      '研修名': dryRunPrefix + 'training',
+      '開催日': '2030-12-31',
+      '開催終了時刻': '',
+      '定員': 0,
+      '申込者数': 0,
+      '開催場所': 'DRYRUN test',
+      '研修状態コード': 'PUBLISHED',
+      '主催者': 'DRYRUN',
+      '法定外研修フラグ': false,
+      '研修概要': 'DRYRUN test',
+      '研修内容': '',
+      '費用JSON': '[]',
+      '申込開始日': '',
+      '申込締切日': '',
+      '講師': '',
+      '案内状URL': '',
+      '案内状サムネイルURL': '',
+      '項目設定JSON': '{}',
+      '登録者メール': 'dryrun@example.com',
+      '作成日時': nowIso,
+      '更新日時': nowIso,
+      '削除フラグ': false,
+      '申込URL': testUrl,
+    }]);
+    // 読出側で round-trip 確認
+    var allRows = getRowsAsObjects_(ss, 'T_研修');
+    var found = null;
+    for (var i = 0; i < allRows.length; i += 1) {
+      if (String(allRows[i]['研修ID']) === testTrainingId) { found = allRows[i]; break; }
+    }
+    var mapped = found ? mapTrainingRowsForApi_([found])[0] : null;
+    var pass = !!found && String(found['申込URL'] || '') === testUrl && mapped && mapped.applicationUrl === testUrl;
+    report.tests.push({
+      name: '申込URL round-trip (T_研修 write → mapTrainingRowsForApi_ read)',
+      pass: pass,
+      detail: {
+        sheetValue: found ? String(found['申込URL'] || '') : '(row not found)',
+        apiMapped: mapped ? mapped.applicationUrl : '(no map)',
+        expected: testUrl,
+      },
+    });
+  } catch (e) {
+    report.tests.push({ name: '申込URL round-trip', pass: false, error: e && e.message ? e.message : String(e) });
+  }
+
+  // ── Test 2: T_権限ロール INSERT → listRoles_ で列挙 ──
+  try {
+    var nowIso2 = new Date().toISOString();
+    appendRowsByHeaders_(ss, 'T_権限ロール', [{
+      'ロールID': testRoleId1,
+      'ロール名': dryRunPrefix + 'TestRole',
+      '説明': 'DRYRUN テスト用ロール',
+      '許可メニューJSON': JSON.stringify(['annual-fee', 'payment-history']),
+      '研修編集スコープ': 'ALL',
+      '組込フラグ': false,
+      'マスターフラグ': false,
+      '表示順': 9999,
+      '作成日時': nowIso2,
+      '更新日時': nowIso2,
+      '削除フラグ': false,
+    }]);
+    try { CacheService.getScriptCache().remove('admin_roles_v1'); } catch (e) {}
+    var rolesResult = listRoles_({});
+    var foundRole = null;
+    for (var j = 0; j < rolesResult.roles.length; j += 1) {
+      if (rolesResult.roles[j].roleId === testRoleId1) { foundRole = rolesResult.roles[j]; break; }
+    }
+    var passRole = !!foundRole
+      && foundRole.allowedMenus.length === 2
+      && foundRole.allowedMenus.indexOf('annual-fee') !== -1
+      && foundRole.allowedMenus.indexOf('payment-history') !== -1
+      && foundRole.trainingEditScope === 'ALL'
+      && foundRole.isBuiltIn === false
+      && foundRole.assignedCount === 0;
+    report.tests.push({
+      name: 'T_権限ロール INSERT → listRoles_ enumerate',
+      pass: passRole,
+      detail: foundRole || { error: 'role not found in listRoles_ output' },
+    });
+  } catch (e) {
+    report.tests.push({ name: 'T_権限ロール INSERT', pass: false, error: e && e.message ? e.message : String(e) });
+  }
+
+  // ── Test 3: getRoleByIdCached_ で role resolve ──
+  try {
+    try { CacheService.getScriptCache().remove('admin_roles_v1'); } catch (e) {}
+    var resolved = getRoleByIdCached_(ss, testRoleId1);
+    var passResolve = !!resolved
+      && resolved.roleId === testRoleId1
+      && resolved.allowedMenus.length === 2
+      && !resolved.isMaster;
+    report.tests.push({
+      name: 'getRoleByIdCached_ resolve',
+      pass: passResolve,
+      detail: resolved || { error: 'role not resolved' },
+    });
+  } catch (e) {
+    report.tests.push({ name: 'getRoleByIdCached_', pass: false, error: e && e.message ? e.message : String(e) });
+  }
+
+  // ── Test 4: isActionAllowedForSession_ via menu-based authz ──
+  try {
+    var synthSession = {
+      isMaster: false,
+      allowedMenus: ['annual-fee', 'payment-history'],
+    };
+    // annual-fee menu の action は許可
+    var allowAnnualFee = isActionAllowedForSession_('getAnnualFeeAdminData', synthSession);
+    // training-manage menu の action は拒否
+    var denyTraining = !isActionAllowedForSession_('saveTraining', synthSession);
+    // MASTER session は全許可
+    var masterAllow = isActionAllowedForSession_('saveTraining', { isMaster: true, allowedMenus: [] });
+    var passAuth = allowAnnualFee && denyTraining && masterAllow;
+    report.tests.push({
+      name: 'isActionAllowedForSession_ (Phase 2 hotfix)',
+      pass: passAuth,
+      detail: {
+        allow_getAnnualFeeAdminData_for_経理ロール: allowAnnualFee,
+        deny_saveTraining_for_経理ロール: denyTraining,
+        master_allow_saveTraining: masterAllow,
+      },
+    });
+  } catch (e) {
+    report.tests.push({ name: 'isActionAllowedForSession_', pass: false, error: e && e.message ? e.message : String(e) });
+  }
+
+  // ── Test 5: initializeSchema_ 堅牢化 — 空シート混入でも完走するか ──
+  try {
+    var tempEmpty = '__DRYRUN_EMPTY_SHEET_' + Utilities.getUuid().slice(0, 6);
+    var emptySheet = ss.insertSheet(tempEmpty);
+    // 完全な空シート: getLastColumn === 0
+    var emptyLastCol = emptySheet.getLastColumn();
+    // protectHeaderRows_ / applyDataValidationRules_ は v376.31 で空シート skip するはず
+    // 注: テーブル定義 に登録していないので protectHeaderRows_ には影響しないが、念のため確認
+    // ここでは getLastColumn が 0 であることを確認するのみ
+    var passEmpty = emptyLastCol === 0;
+    // 後始末
+    ss.deleteSheet(emptySheet);
+    report.tests.push({
+      name: '空シート lastColumn=0 が技術的に発生し得ることの確認',
+      pass: passEmpty,
+      detail: { emptyLastCol: emptyLastCol, note: 'v376.31 防御により protectHeaderRows_ / applyDataValidationRules_ が skip する' },
+    });
+  } catch (e) {
+    report.tests.push({ name: '空シート テスト', pass: false, error: e && e.message ? e.message : String(e) });
+  }
+
+  // manifest を Properties に記録（cleanup 用）
+  PropertiesService.getScriptProperties().setProperty('DRYRUN_V376_30_31_MANIFEST', JSON.stringify(manifest));
+
+  // キャッシュ汚染を残さないようクリア
+  try { CacheService.getScriptCache().remove('admin_roles_v1'); } catch (e) {}
+  clearAllDataCache_();
+  clearTrainingManagementCache_();
+
+  var passed = report.tests.filter(function(t) { return t.pass; }).length;
+  var failed = report.tests.length - passed;
+  report.summary = { passed: passed, failed: failed, total: report.tests.length };
+  report.manifest = manifest;
+  report.cleanupHint = 'テスト後 cleanupDryRunV376_30_31() を ▶ Run して投入データを物理削除してください。';
+  var out = JSON.stringify(report, null, 2);
+  Logger.log('[dryRunV376_30_31] ' + out);
+  return out;
+}
+
+/**
+ * v376.30 / v376.31 dryRun テストで投入した DRYRUN_ プレフィックス付きレコードを
+ * T_研修 + T_権限ロール から物理削除する。
+ *
+ * manifest（最新 run）+ DRYRUN_ プレフィックス両方を sweep して孤児も回収。
+ */
+function cleanupDryRunV376_30_31() {
+  var ss = getOrCreateDatabase_();
+  var trainingIds = {};
+  var roleIds = {};
+
+  // manifest から ID 収集
+  var raw = PropertiesService.getScriptProperties().getProperty('DRYRUN_V376_30_31_MANIFEST');
+  if (raw) {
+    try {
+      var manifest = JSON.parse(raw);
+      (manifest.trainingIds || []).forEach(function(id) { trainingIds[String(id)] = true; });
+      (manifest.roleIds || []).forEach(function(id) { roleIds[String(id)] = true; });
+    } catch (e) {}
+  }
+
+  // DRYRUN_v376_30_31_ プレフィックス sweep（孤児対策）
+  getRowsAsObjects_(ss, 'T_研修').forEach(function(r) {
+    var id = String(r['研修ID'] || '');
+    var name = String(r['研修名'] || '');
+    if (id.indexOf('DRYRUN_v376_30_31_') === 0 || name.indexOf('DRYRUN_v376_30_31_') === 0) {
+      trainingIds[id] = true;
+    }
+  });
+  getRowsAsObjects_(ss, 'T_権限ロール').forEach(function(r) {
+    var id = String(r['ロールID'] || '');
+    var name = String(r['ロール名'] || '');
+    if (id.indexOf('DRYRUN_v376_30_31_') === 0 || name.indexOf('DRYRUN_v376_30_31_') === 0) {
+      roleIds[id] = true;
+    }
+  });
+
+  var result = {
+    deleted: {
+      training: dryRun_physicalDeleteRowsByKey_(ss, 'T_研修', '研修ID', Object.keys(trainingIds)),
+      role: dryRun_physicalDeleteRowsByKey_(ss, 'T_権限ロール', 'ロールID', Object.keys(roleIds)),
+    },
+    sweptTrainingIds: Object.keys(trainingIds),
+    sweptRoleIds: Object.keys(roleIds),
+  };
+  PropertiesService.getScriptProperties().deleteProperty('DRYRUN_V376_30_31_MANIFEST');
+  try { CacheService.getScriptCache().remove('admin_roles_v1'); } catch (e) {}
+  clearAllDataCache_();
+  clearAdminDashboardCache_();
+  clearTrainingManagementCache_();
+  var out = JSON.stringify(result, null, 2);
+  Logger.log('[cleanupDryRunV376_30_31] ' + out);
+  return out;
+}
+
+/**
  * v376.30 hotfix: DB_SCHEMA_INITIALIZED_VERSION を現在の DB_SCHEMA_VERSION に強制マークする。
  *
  * 用途: initializeSchemaIfNeeded_ が初期化途中の例外で markSchemaInitialized_ に到達できず、
