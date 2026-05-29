@@ -10138,39 +10138,68 @@ function getLogSs_() {
   }
 }
 function initializeSchema_(ss) {
-  createMasterSheets_(ss);
-  ensureMemberTypeAnnualFeeAmounts_(ss);
-  ensureTableSheetsExist_(ss);
-  normalizeTableColumns_(ss, 'T_会員');
-  normalizeTableColumns_(ss, 'T_事業所職員');
-  normalizeTableColumns_(ss, 'T_研修');
-  normalizeTableColumns_(ss, 'T_年会費納入履歴');
-  normalizeTableColumns_(ss, 'T_年会費更新履歴');
-  normalizeTableColumns_(ss, 'T_管理者Googleホワイトリスト');
+  // v376.31: 各 step を try/catch + Logger.log で計装。
+  //   - "critical" step（migration / 列追加 / seed）はエラーを伝播してロールバック (markSchemaInitialized_ 未到達)
+  //   - "post" step（validation 適用 / 保護 / cleanup / audit）はログのみで続行
+  //     → 後処理ステップの軽微なエラーで毎リクエスト再初期化ループに陥る v376.30 の事象を回避
+  //   - 計装サマリは Logger に「[initializeSchema_] passed N / failed M (post: K)」で出力
+  var passed = 0;
+  var critFailed = [];
+  var postFailed = [];
+
+  function critical(label, fn) {
+    try { fn(); passed += 1; } catch (e) {
+      critFailed.push({ step: label, error: e && e.message ? e.message : String(e) });
+      Logger.log('[initializeSchema_][CRITICAL FAIL] ' + label + ': ' + (e && e.message ? e.message : String(e)));
+      throw e; // 伝播してロールバック
+    }
+  }
+  function post(label, fn) {
+    try { fn(); passed += 1; } catch (e) {
+      postFailed.push({ step: label, error: e && e.message ? e.message : String(e) });
+      Logger.log('[initializeSchema_][POST FAIL] ' + label + ': ' + (e && e.message ? e.message : String(e)));
+      // post-step は伝播しない（処理続行）
+    }
+  }
+
+  // ── critical: スキーマ整備 ───────────────────────────
+  critical('createMasterSheets_',                 function() { createMasterSheets_(ss); });
+  critical('ensureMemberTypeAnnualFeeAmounts_',   function() { ensureMemberTypeAnnualFeeAmounts_(ss); });
+  critical('ensureTableSheetsExist_',             function() { ensureTableSheetsExist_(ss); });
+  critical('normalize T_会員',                    function() { normalizeTableColumns_(ss, 'T_会員'); });
+  critical('normalize T_事業所職員',              function() { normalizeTableColumns_(ss, 'T_事業所職員'); });
+  critical('normalize T_研修',                    function() { normalizeTableColumns_(ss, 'T_研修'); });
+  critical('normalize T_年会費納入履歴',          function() { normalizeTableColumns_(ss, 'T_年会費納入履歴'); });
+  critical('normalize T_年会費更新履歴',          function() { normalizeTableColumns_(ss, 'T_年会費更新履歴'); });
+  critical('normalize T_管理者Googleホワイトリスト', function() { normalizeTableColumns_(ss, 'T_管理者Googleホワイトリスト'); });
   // docs/246 Phase 1-B: メニュー単位カスタムロール RBAC
-  normalizeTableColumns_(ss, 'T_権限ロール');
-  seedInitialPermissionRoles_(ss);
-  normalizeTableColumns_(ss, 'T_認証アカウント');
-  normalizeTableColumns_(ss, 'T_ログイン履歴');
-  normalizeTableColumns_(ss, 'T_研修申込');
-  normalizeTableColumns_(ss, 'T_監査ログ');
-  normalizeTableColumns_(ss, 'T_会員_archive');
-  normalizeTableColumns_(ss, 'T_事業所職員_archive');
-  normalizeTableColumns_(ss, 'T_変更申請');
-  normalizeTableColumns_(ss, 'T_人物統合ログ');
-  // v295: 役員管理テーブル
-  normalizeTableColumns_(ss, 'T_役員');
-  normalizeTableColumns_(ss, 'T_振込口座');
-  normalizeTableColumns_(ss, 'T_支払い');
-  normalizeTableColumns_(ss, 'T_支払い明細');
-  normalizeTableColumns_(ss, 'T_請求');
-  ensureSystemSettingsRows_(ss);
-  seedPermissionMatrixIfNeeded_(ss);
-  applyDataValidationRules_(ss);
-  protectHeaderRows_(ss);
-  cleanupNonSchemaSheets_(ss);
-  backfillBusinessStaffNameColumns_(ss);
-  auditDeleteFlagColumns_(ss);
+  critical('normalize T_権限ロール',              function() { normalizeTableColumns_(ss, 'T_権限ロール'); });
+  critical('seedInitialPermissionRoles_',         function() { seedInitialPermissionRoles_(ss); });
+  critical('normalize T_認証アカウント',          function() { normalizeTableColumns_(ss, 'T_認証アカウント'); });
+  critical('normalize T_ログイン履歴',            function() { normalizeTableColumns_(ss, 'T_ログイン履歴'); });
+  critical('normalize T_研修申込',                function() { normalizeTableColumns_(ss, 'T_研修申込'); });
+  critical('normalize T_監査ログ',                function() { normalizeTableColumns_(ss, 'T_監査ログ'); });
+  critical('normalize T_会員_archive',            function() { normalizeTableColumns_(ss, 'T_会員_archive'); });
+  critical('normalize T_事業所職員_archive',      function() { normalizeTableColumns_(ss, 'T_事業所職員_archive'); });
+  critical('normalize T_変更申請',                function() { normalizeTableColumns_(ss, 'T_変更申請'); });
+  critical('normalize T_人物統合ログ',            function() { normalizeTableColumns_(ss, 'T_人物統合ログ'); });
+  critical('normalize T_役員',                    function() { normalizeTableColumns_(ss, 'T_役員'); });
+  critical('normalize T_振込口座',                function() { normalizeTableColumns_(ss, 'T_振込口座'); });
+  critical('normalize T_支払い',                  function() { normalizeTableColumns_(ss, 'T_支払い'); });
+  critical('normalize T_支払い明細',              function() { normalizeTableColumns_(ss, 'T_支払い明細'); });
+  critical('normalize T_請求',                    function() { normalizeTableColumns_(ss, 'T_請求'); });
+  critical('ensureSystemSettingsRows_',           function() { ensureSystemSettingsRows_(ss); });
+  critical('seedPermissionMatrixIfNeeded_',       function() { seedPermissionMatrixIfNeeded_(ss); });
+
+  // ── post: 補助処理（失敗してもスキーマ整合は保たれるためログのみで続行）─────
+  post('applyDataValidationRules_',              function() { applyDataValidationRules_(ss); });
+  post('protectHeaderRows_',                     function() { protectHeaderRows_(ss); });
+  post('cleanupNonSchemaSheets_',                function() { cleanupNonSchemaSheets_(ss); });
+  post('backfillBusinessStaffNameColumns_',      function() { backfillBusinessStaffNameColumns_(ss); });
+  post('auditDeleteFlagColumns_',                function() { auditDeleteFlagColumns_(ss); });
+
+  Logger.log('[initializeSchema_] passed=' + passed + ' criticalFailed=' + critFailed.length + ' postFailed=' + postFailed.length +
+    (postFailed.length > 0 ? ' (post detail: ' + JSON.stringify(postFailed) + ')' : ''));
 }
 
 /**
@@ -10718,7 +10747,13 @@ function applyDataValidationRules_(ss) {
       continue;
     }
 
-    var headerRow = tableSheet.getRange(1, 1, 1, tableSheet.getLastColumn()).getValues()[0];
+    // v376.31: 空 tableSheet（lastColumn=0）を skip（getRange が throw して初期化失敗するのを防ぐ）
+    var tableLastCol = tableSheet.getLastColumn();
+    if (tableLastCol < 1) {
+      Logger.log('applyDataValidationRules_: skip empty sheet "' + tableName + '" (lastColumn=0)');
+      continue;
+    }
+    var headerRow = tableSheet.getRange(1, 1, 1, tableLastCol).getValues()[0];
     var columnIndex = headerRow.indexOf(columnName) + 1;
     if (columnIndex <= 0) {
       continue;
@@ -10748,7 +10783,14 @@ function protectHeaderRows_(ss) {
     if (!sheet) {
       continue;
     }
-    var headerRange = sheet.getRange(1, 1, 1, sheet.getLastColumn());
+    // v376.31: 空シート（lastColumn=0）を skip。これに当たると getRange が
+    //   "範囲の列数には 1 以上を指定してください" を throw して初期化全体が失敗していた。
+    var lastCol = sheet.getLastColumn();
+    if (lastCol < 1) {
+      Logger.log('protectHeaderRows_: skip empty sheet "' + allSheetNames[i] + '" (lastColumn=0)');
+      continue;
+    }
+    var headerRange = sheet.getRange(1, 1, 1, lastCol);
     var protections = sheet.getProtections(SpreadsheetApp.ProtectionType.RANGE);
     var exists = false;
     for (var p = 0; p < protections.length; p += 1) {
