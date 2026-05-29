@@ -59,18 +59,26 @@
 - 文字化け、参照切れ、版ずれ、古い入口があれば先に直す。
 
 ## 4. この案件で崩してはいけない固定運用
+
+### 4.1 Deploy SOP
 - 現行本番 version と fixed deployment の向き先は `HANDOVER.md` と `docs/09_DEPLOYMENT_POLICY.md` を正とし、この文書には固定で埋め込まない。
-- 認証、認可、DB 整合、deployment 検証は Apps Script 実行系で確認する。
-- 会員ログインは `loginId + password` のみ。
-- 管理者ログインは Google アカウント + whitelist 検証。
 - fixed deployment 2 本運用を維持し、片系だけ更新しない。
 - production の fixed deployment 同期は `npx clasp redeploy` を標準とし、Apps Script UI の `Manage deployments` 手更新は障害復旧時の補助手段としてのみ扱う。
 - `npx clasp version` / `npx clasp redeploy` / `npx clasp deployments --json` / `npx clasp run ...` など Apps Script API に到達する本番系コマンドは、同じネットワーク失敗を避けるため、最初から承認済みの安定した実行経路で流す。失敗してから通常経路→昇格経路の二度打ちを標準にしない。
+- 認証、認可、DB 整合、deployment 検証は Apps Script 実行系で確認する。
+
+### 4.2 認証フロー（不変）
+- 会員ログインは `loginId + password` のみ。
+- 管理者ログインは Google アカウント + whitelist 検証。
 - demo login、mock member route、画面内 demo selector は復活させない。
 - business member の代表者情報は `staff.role='REPRESENTATIVE'` を正本とする。
-- `seedDemoData` は production DB を破壊する操作として扱い、完全バックアップと明示承認なしでは実行しない。
-- **パスワード hash pepper の本番前提**: versioned PBKDF2-HMAC-SHA256 + verifier-side pepper を含む認証変更は、本番反映前に integrated/public・member split・admin split の全 Apps Script project へ同一の強乱数 Script Property `PASSWORD_HASH_PEPPER_V1` が設定済みであることを必須条件とする。pepper の値は Git、handover、docs、ログ、チャット、生成物へ記録しない。`.env` は Apps Script 本番 runtime の正本にせず、必要な場合でも未コミットのローカル運用補助に限定する。未設定 project がある状態で push / version / redeploy してはならない。
+
+### 4.3 セキュリティ運用
+- `seedDemoData` は production DB を破壊する操作として扱い、完全バックアップと明示承認なしでは実行しない（§6 不可逆操作 一般則の最頻 例外）。
+- **パスワード hash pepper の本番前提**: versioned PBKDF2-HMAC-SHA256 + verifier-side pepper を含む認証変更は、本番反映前に integrated/public・member split・admin split の全 Apps Script project へ同一の強乱数 Script Property `PASSWORD_HASH_PEPPER_V1` が設定済みであることを必須条件とする（値そのものの取扱いは §0 シークレット保管に準拠。`.env` は Apps Script 本番 runtime の正本にせず、必要な場合でも未コミットのローカル運用補助に限定）。未設定 project がある状態で push / version / redeploy してはならない。
 - **保留中だが必須の security backlog**: pepper を Script Properties から Google Cloud Secret Manager へ移行し、さらに Apps Script 内 PBKDF2 制約を解消する外部 KDF / managed identity の採否を決定するタスクは、保留にしてよいが破棄してはならない。次回以降のセキュリティ改善計画で必ず再開し、完了または明示的な代替設計決定まで `HANDOVER.md` と関連仕様に残す。
+
+### 4.4 UI/UX 規約
 - **公開ポータルカード追加時の必須セット実装**: 公開ポータル（`src/public-portal/App.tsx`）にカードを追加する場合、必ず管理設定（`src/App.tsx` の公開ポータル設定セクション）に以下をセットで実装すること:
   1. メニュー表示トグル（表示/非表示）
   2. 補助ラベル（バッジ）の表示トグルと文言
@@ -88,6 +96,9 @@
   6. **WCAG 2.2 §1.4.10 リフロー**: 320px 幅・200% ズーム時に横スクロールなく、機能損失なく利用できることを設計時に意識する。
   7. **完了条件**: モバイル幅（360〜414px）で実機またはブラウザ devtools により表示・操作確認したことを最低条件とする。スマホ未確認のまま「完了」と報告しない。
   - 上記いずれかが満たされない実装は不完全とみなし、完了条件を満たさない。
+
+### 4.5 ランタイム契約
+
 - **boot loader 契約（v375〜確定）**: `scripts/compress-html.mjs` が admin / member / public 3 split の HTML に注入する起動ローダーは以下 6 要素を必ず備えること。1 つでも欠落させてはならない（Safari iOS 初回ホワイトアウト再発防止のため）。
   1. **CSS-only loading splash**: `<body>` 直後に `<div id="__boot_splash__">` を注入。spinner + 進捗ラベル + サブラベルを HTML/CSS のみで描画。JS 評価開始前から可視であること。
   2. **try/catch + 可視エラー UI**: async IIFE 全体・decompress promise・`new Function()` eval をすべて try/catch で包み、失敗時は splash を `.__err` 状態にして「再読み込みする」ボタン付きの明示エラー UI に切り替える。silent fail 禁止。
@@ -110,8 +121,8 @@
 - 未検証、残課題、承認待ちは必ず明記する。
 
 ## 6. セキュリティと承認
-- 本番 deploy、DB 更新、権限変更、外部送信、不可逆操作は人間承認を前提とする。
-- pepper、token、鍵、認証情報などの secret value は Git、handover、docs、ログ、チャット、生成物へ記録しない。設定名だけを記録し、値は各実行環境の secret / property store で管理する。
+- 本番 deploy、DB 更新、権限変更、外部送信、不可逆操作は人間承認を前提とする（具体的破壊操作の運用注意は §4.3 参照）。
+- secret value の取扱いは §0 を絶対正本とする（pepper、token、鍵、認証情報、その他あらゆる秘密値）。
 - AI / agent 特有のリスクも通常のアプリケーションセキュリティと同じ優先度で扱う。
 - 外部入力は不信入力として扱い、モデル出力をそのまま shell、SQL、HTML、デプロイ設定へ流し込まない。
 - **確定済みセキュリティ境界への逆行案提示禁止**: 第三者評価（`docs/109`）や設計決定（`docs/111`）で確定した認証境界・アクセス制御・プロジェクト分離に反する案を「選択肢の一つ」として対等に提示してはならない。利便性はセキュリティ境界を崩す理由にならない。やむを得ず言及する場合は「**非推奨・セキュリティリスクあり**」を冒頭に明示し、推奨しないことを基本姿勢とする。
