@@ -13,6 +13,29 @@
 
 ---
 
+## v376.31.1 — 2026-05-29 ✅ dryRun テスト 5/5 PASS + 物理削除完了
+
+本日実装機能（v376.26〜v376.31）の round-trip 検証を operator が ▶ Run して実施し、全テスト PASS。投入したテストデータ（DRYRUN_v376_30_31_ プレフィックス付き）は物理削除済。
+
+| Test | 検証内容 | 結果 |
+|---|---|---|
+| 1 | 申込URL round-trip (T_研修 書込 → mapTrainingRowsForApi_ で applicationUrl 読出) | ✅ PASS |
+| 2 | T_権限ロール INSERT → listRoles_ で allowedMenus/scope/assignedCount 列挙 | ✅ PASS |
+| 3 | getRoleByIdCached_ で roleId resolve（Phase 1-B fallback chain） | ✅ PASS |
+| 4 | isActionAllowedForSession_ — 経理ロール (annual-fee 許可 / saveTraining 拒否), MASTER 全許可（Phase 2 hotfix.2 session-resolved authz） | ✅ PASS |
+| 5 | 空シート lastColumn=0 が発生し得ることの確認（v376.31 空シート防御の根拠） | ✅ PASS |
+
+### Cleanup 実施結果
+- T_研修: 1 行物理削除 (DRYRUN_v376_30_31_T34847518)
+- T_権限ロール: 1 行物理削除 (DRYRUN_v376_30_31_role-e9464af5-custom)
+- DRYRUN_V376_30_31_MANIFEST Property 削除
+- admin_roles_v1 / all_data / training_management / dashboard キャッシュクリア
+- 残存テストデータ: なし
+
+これで v376.26 RBAC Phase 2-A 〜 v376.31 schema 堅牢化までの全機能が機械検証 + 物理削除完了状態。
+
+---
+
 ## v376.31 — 2026-05-29 🔒 initializeSchema_ 堅牢化（v376.30.x 根本対応）
 
 v376.30 で再現した「`範囲の列数には 1 以上を指定してください` で研修管理が開けないループ」の根本原因を解消。これで今後の schema 更新時に同じ事象が起きない。
