@@ -281,7 +281,8 @@ const COMMON_NAV = `
 <nav class="topnav">
   <a href="index.html">📘 ポータル TOP</a>
   <a href="tables.html">📊 テーブル設計書</a>
-  <a href="er-diagram.html">🗂️ ER 図（俯瞰）</a>
+  <a href="er-diagram.html">🗂️ ER 図（ドメイン）</a>
+  <a href="dbml-export.html">🚀 DBML → 専用ツール</a>
   <a href="specifications.html">📋 仕様書サマリ</a>
   <a href="../../HANDOVER.md">📝 HANDOVER (Markdown)</a>
 </nav>
@@ -647,6 +648,160 @@ function selectKeyColumns(entity) {
   return result.slice(0, 8);
 }
 
+// 各エンティティの「全カラム」を返す（domain ER の full モード用）
+function selectAllColumns(entity) {
+  return entity.columns;
+}
+
+// DBML (Database Markup Language) 形式でエクスポート
+// dbdiagram.io / ChartDB / DbSchema で import 可能。プロ品質の ER 図を即生成。
+function exportToDbml(entities, relationships) {
+  const lines = [
+    '// 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能',
+    '// 元: docs/03_DATA_MODEL.md',
+    `// 生成日時: ${new Date().toISOString()}`,
+    '',
+  ];
+
+  // Project header
+  lines.push('Project hcmn_member_system {');
+  lines.push('  database_type: "Google Spreadsheet (logical)"');
+  lines.push('  Note: """枚方市介護支援専門員連絡協議会 会員システム — 論理スキーマ"""');
+  lines.push('}');
+  lines.push('');
+
+  // Group by master / table prefix
+  const masters = Object.keys(entities).filter((n) => n.startsWith('M_')).sort();
+  const tables = Object.keys(entities).filter((n) => n.startsWith('T_')).sort();
+
+  // Mermaid 型 → DBML 型変換
+  const mapType = (t) => {
+    const m = String(t || '').toLowerCase();
+    if (m === 'int' || m === 'integer') return 'int';
+    if (m === 'string' || m === 'varchar') return 'varchar';
+    if (m === 'date') return 'date';
+    if (m === 'datetime' || m === 'timestamp') return 'timestamp';
+    if (m === 'boolean' || m === 'bool') return 'boolean';
+    if (m === 'json') return 'json';
+    if (m === 'text') return 'text';
+    if (m === 'float' || m === 'double' || m === 'decimal') return 'decimal';
+    return 'varchar';
+  };
+
+  // DBML テーブル生成
+  const renderTable = (name) => {
+    const e = entities[name];
+    lines.push(`Table "${name}" {`);
+    for (const c of e.columns) {
+      const attrs = [];
+      if (c.key === 'PK' || c.key === 'PK,FK' || c.key === 'FK,PK') attrs.push('pk');
+      // DBML は列単位の FK 指定が必要 (Ref で別途参照を書くか、列定義に [ref: > T_xxx.col] を書く)
+      // ここでは列名から類推して [note: 'FK'] のみ付与（厳密な ref は relationships セクションで生成）
+      if (c.key === 'FK' || c.key === 'PK,FK' || c.key === 'FK,PK') attrs.push("note: 'FK'");
+      const attrStr = attrs.length > 0 ? ` [${attrs.join(', ')}]` : '';
+      lines.push(`  "${c.name}" ${mapType(c.type)}${attrStr}`);
+    }
+    lines.push('}');
+    lines.push('');
+  };
+
+  // Master 群
+  lines.push('// =====================================');
+  lines.push('// マスタテーブル群');
+  lines.push('// =====================================');
+  lines.push('');
+  masters.forEach(renderTable);
+
+  // メインテーブル群
+  lines.push('// =====================================');
+  lines.push('// メインテーブル群');
+  lines.push('// =====================================');
+  lines.push('');
+  tables.forEach(renderTable);
+
+  // リレーション（DBML Ref 記法）
+  lines.push('// =====================================');
+  lines.push('// リレーション');
+  lines.push('// =====================================');
+  lines.push('');
+  // FK 列を名前マッチで賢く特定するヘルパー
+  // 例: 親=T_会員 (PK=会員ID), 子=T_事業所職員 (FK 候補: 会員ID) → "会員ID" でマッチ
+  function findFkColumn(parentEntity, childEntity) {
+    const parentPk = parentEntity.columns.find((c) => c.key === 'PK' || c.key === 'PK,FK' || c.key === 'FK,PK');
+    if (!parentPk) return null;
+    // 1. 完全一致 + FK マーク
+    let fk = childEntity.columns.find((c) =>
+      (c.key === 'FK' || c.key === 'PK,FK' || c.key === 'FK,PK') && c.name === parentPk.name);
+    if (fk) return { pk: parentPk, fk };
+    // 2. 完全一致のみ（マーク無くても）
+    fk = childEntity.columns.find((c) => c.name === parentPk.name);
+    if (fk) return { pk: parentPk, fk };
+    // 3. 親エンティティ名の prefix を除いたパターン: T_会員 → "会員ID" / M_会員種別 → "会員種別コード"
+    const parentName = parentEntity.name.replace(/^[TM]_/, '');
+    const candidates = [`${parentName}ID`, `${parentName}コード`, `${parentName}id`];
+    for (const cand of candidates) {
+      fk = childEntity.columns.find((c) => c.name === cand);
+      if (fk) return { pk: parentPk, fk };
+    }
+    // 4. ラベルから "会員ID" "組織コード" 等を抽出（ラベルに親エンティティの ID 名が含まれる場合）
+    return null;
+  }
+
+  // カーディナリティから親/子方向を判定（PK 側 = "1" 側 = parent）
+  function detectParentSide(cardinality) {
+    // 左端が "1" 系（||）= 左が parent、右が child
+    const leftIsParent = /^\|/.test(cardinality);
+    // 右端が "1" 系（||）= 右が parent、左が child
+    const rightIsParent = /\|$/.test(cardinality);
+    if (leftIsParent && !rightIsParent) return 'left';
+    if (rightIsParent && !leftIsParent) return 'right';
+    if (leftIsParent && rightIsParent) return 'left'; // 1:1 はどちらでも良い、左を採用
+    return null; // many-to-many or 不明
+  }
+
+  for (const r of relationships) {
+    // mermaid cardinality を DBML 記号にマップ:
+    // ||--|| (one to one) → -
+    // ||--o{ / }o--|| (one to many) → >
+    // }o--o{ (many to many) → <>
+    let op = '>';
+    if (r.cardinality.includes('||--||')) op = '-';
+    else if (r.cardinality.startsWith('}o') && r.cardinality.endsWith('o{')) op = '<>';
+
+    const leftEntity = entities[r.left];
+    const rightEntity = entities[r.right];
+    if (!leftEntity || !rightEntity) continue;
+
+    const parentSide = detectParentSide(r.cardinality);
+    let parent, child;
+    if (parentSide === 'left') { parent = leftEntity; child = rightEntity; }
+    else if (parentSide === 'right') { parent = rightEntity; child = leftEntity; }
+    else {
+      // many-to-many: 両方向試す
+      let m = findFkColumn(leftEntity, rightEntity);
+      if (!m) m = findFkColumn(rightEntity, leftEntity);
+      if (m) lines.push(`Ref: "${r.right}"."${m.fk.name}" ${op} "${r.left}"."${m.pk.name}" // ${r.label}`);
+      else lines.push(`// 自動推定失敗(many-to-many): ${r.left} ${r.cardinality} ${r.right} : ${r.label}`);
+      continue;
+    }
+
+    const match = findFkColumn(parent, child);
+    if (match) {
+      // 子.FK > 親.PK
+      lines.push(`Ref: "${child.name}"."${match.fk.name}" ${op} "${parent.name}"."${match.pk.name}" // ${r.label}`);
+    } else {
+      // 逆方向 fallback
+      const altMatch = findFkColumn(child, parent);
+      if (altMatch) {
+        lines.push(`Ref: "${parent.name}"."${altMatch.fk.name}" ${op} "${child.name}"."${altMatch.pk.name}" // ${r.label} (方向反転)`);
+      } else {
+        lines.push(`// 自動推定失敗: ${r.left} ${r.cardinality} ${r.right} : ${r.label}`);
+      }
+    }
+  }
+  return lines.join('\n');
+}
+
 // ドメイン別に concise mermaid ER 図ソースを生成（ELK layout 付き frontmatter）
 function buildDomainErdSource(domain, allEntities, allRelationships) {
   // エンティティ抽出
@@ -685,13 +840,15 @@ function buildDomainErdSource(domain, allEntities, allRelationships) {
     'erDiagram',
     '',
   ];
-  // ドメイン内エンティティを concise 表示
+  // ドメイン内エンティティ表示
+  // ドメインサイズに応じて全カラム or 概要表示を切替（10 entity 以下なら全カラム可）
+  const useFullColumns = inScopeNames.length <= 10;
   for (const name of inScopeNames) {
     const e = allEntities[name];
     if (!e) continue;
-    const keyCols = selectKeyColumns(e);
+    const cols = useFullColumns ? selectAllColumns(e) : selectKeyColumns(e);
     lines.push(`  ${name} {`);
-    for (const c of keyCols) {
+    for (const c of cols) {
       const keyMark = c.key ? ` ${c.key}` : '';
       lines.push(`    ${c.type} ${c.name}${keyMark}`);
     }
@@ -1153,11 +1310,15 @@ ${COMMON_NAV}
   <div class="toc-grid">
     <a href="tables.html"><div class="toc-card" style="border-left-color: #dc2626;">
       <h3>📊 テーブル設計書（理路整然版）</h3>
-      <p><b>推奨</b>。各テーブルの列定義 + FK 関係をクリッカブルで辿れる正規ビュー</p>
+      <p><b>普段使い推奨</b>。各テーブルの列定義 + FK 関係をクリッカブルで辿れる正規ビュー</p>
+    </div></a>
+    <a href="dbml-export.html"><div class="toc-card" style="border-left-color: #f59e0b;">
+      <h3>🚀 DBML エクスポート(プロ品質)</h3>
+      <p><b>全カラム × 全テーブル × 美麗</b>。ChartDB / dbdiagram.io にコピペで業界スタンダード ER 図</p>
     </div></a>
     <a href="er-diagram.html"><div class="toc-card">
-      <h3>🗂️ ER 図（俯瞰）</h3>
-      <p>Mermaid 可視化（俯瞰用、線の交差あり）。詳細は左の「テーブル設計書」へ</p>
+      <h3>🗂️ ER 図(ドメイン別)</h3>
+      <p>Mermaid + ELK でドメイン別に分割表示。10 entity 以下のドメインは全カラム表示</p>
     </div></a>
     <a href="specifications.html"><div class="toc-card">
       <h3>📋 仕様書サマリ</h3>
@@ -1221,19 +1382,177 @@ ${FOOTER}
 </html>`;
 }
 
+// DBML エクスポート + 外部ツール誘導ページ生成
+function buildDbmlExportPage() {
+  const dataModelPath = join(docsDir, '03_DATA_MODEL.md');
+  const md = readFileSync(dataModelPath, 'utf8');
+  const blocks = extractMermaidBlocks(md);
+  const mainBlock = blocks.reduce((max, b) => (b.source.length > (max?.source.length || 0) ? b : max), null);
+  const { entities, relationships } = mainBlock ? parseErdSource(mainBlock.source) : { entities: {}, relationships: [] };
+  const dbmlSource = exportToDbml(entities, relationships);
+
+  return `<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DBML エクスポート(専用ツール用) | 枚方市介護支援専門員連絡協議会 会員システム</title>
+<style>${CSS}
+.dbml-output {
+  position: relative;
+  margin: 16px 0;
+}
+.dbml-output pre {
+  max-height: 480px;
+  overflow: auto;
+  font-size: 0.8em;
+}
+.copy-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85em;
+  z-index: 2;
+}
+.copy-btn:hover { background: #0d5d56; }
+.tool-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin: 16px 0; }
+.tool-card {
+  background: white;
+  border: 2px solid var(--accent-soft);
+  border-radius: 10px;
+  padding: 16px;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.tool-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.tool-card h4 { margin: 0 0 8px; color: var(--accent); }
+.tool-card .tool-pros { font-size: 0.85em; color: var(--muted); margin: 8px 0; }
+.tool-card a { display: inline-block; background: var(--accent); color: white; text-decoration: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 0.85em; margin-top: 6px; }
+.tool-card a:hover { background: #0d5d56; }
+.recommended { border-color: #dc2626 !important; }
+.recommended::before { content: '⭐ 推奨'; display: inline-block; background: #dc2626; color: white; padding: 2px 10px; border-radius: 999px; font-size: 0.75em; font-weight: 700; margin-bottom: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+${COMMON_NAV}
+<div class="hero">
+  <h1>🚀 DBML エクスポート — プロ品質 ER 図への入口</h1>
+  <p>本ポータルの Mermaid ER 図は git に同梱できる軽量解ですが、40+ テーブルの全カラムを含むプロ品質 ER 図には<b>専用ツール</b>が業界スタンダードです。</p>
+  <p style="margin-top: 10px; font-size: 0.92em; opacity: 0.95;">下記の DBML テキストをコピーして、 dbdiagram.io / ChartDB 等にペーストすれば即座にプロ品質 ER 図が描画されます。</p>
+</div>
+
+<section class="card">
+  <h2>📋 DBML ソース(コピー → 専用ツールへペースト)</h2>
+  <p>下のテキストを<b>「コピー」ボタン</b>で取得し、後述の専用ツールにペーストしてください。git にコミット済 (docs/portal/schema.dbml) のため再利用も可能です。</p>
+  <div class="dbml-output">
+    <button class="copy-btn" onclick="copyDbml()">📋 全文コピー</button>
+    <pre id="dbml-src">${htmlEscape(dbmlSource)}</pre>
+  </div>
+  <p style="font-size: 0.85em; color: var(--muted);">行数: ${dbmlSource.split('\n').length} / 容量: ${(dbmlSource.length / 1024).toFixed(1)} KB</p>
+</section>
+
+<section class="card">
+  <h2>🛠️ 推奨ツール(2026 業界グローバルスタンダード)</h2>
+  <p>以下のツールに上記 DBML をペーストすれば、ネット上で見られる「きれいな ER 図」を即座に得られます。すべて無料 or 無料枠あり、認証不要のものもあります。</p>
+  <div class="tool-grid">
+    <div class="tool-card recommended">
+      <h4>ChartDB</h4>
+      <p class="tool-pros">OSS / AI-powered / 自己ホスト可 / 完全無料 / 40+ テーブル動作確認済。2026 Best ERD Tools 上位。</p>
+      <a href="https://chartdb.io/" target="_blank" rel="noopener noreferrer">ChartDB を開く →</a>
+    </div>
+    <div class="tool-card">
+      <h4>dbdiagram.io</h4>
+      <p class="tool-pros">DBML 公式エディタ。ペーストすれば即座にレンダリング。グルーピング・色分け・PNG/PDF エクスポート可。</p>
+      <a href="https://dbdiagram.io/d" target="_blank" rel="noopener noreferrer">dbdiagram.io を開く →</a>
+    </div>
+    <div class="tool-card">
+      <h4>DbSchema</h4>
+      <p class="tool-pros">大規模スキーマに最強。複数図への自動分割。Git-friendly。デスクトップ版あり。</p>
+      <a href="https://dbschema.com/" target="_blank" rel="noopener noreferrer">DbSchema を開く →</a>
+    </div>
+    <div class="tool-card">
+      <h4>Liam ERD</h4>
+      <p class="tool-pros">React Flow ベース。100+ テーブル対応の最新 OSS。GitHub Stars 急上昇中(2025-2026)。</p>
+      <a href="https://liambx.com/" target="_blank" rel="noopener noreferrer">Liam ERD を開く →</a>
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>📖 使い方ガイド(ChartDB の例)</h2>
+  <ol>
+    <li>このページの「📋 全文コピー」ボタンで DBML を取得</li>
+    <li><a href="https://chartdb.io/" target="_blank" rel="noopener noreferrer">ChartDB</a> を新タブで開く</li>
+    <li>「New Diagram」→「Import from DBML」を選択</li>
+    <li>DBML をペースト → 「Import」</li>
+    <li>40 テーブル全てが配置された綺麗な ER 図が描画される</li>
+    <li>テーブルをドラッグして好みのレイアウトに調整可能</li>
+    <li>PNG / PDF / SVG にエクスポート可能(オフライン保存用)</li>
+  </ol>
+  <p style="background: #fef3c7; padding: 12px; border-radius: 6px; font-size: 0.88em;">
+    💡 <b>tip</b>: ChartDB は完全クライアントサイド処理のためサーバに DBML が送信されません。
+    機密スキーマでも安心して利用可能(AGENTS.md §0 シークレット保管準拠の観点でも OK)。
+  </p>
+</section>
+
+<section class="card">
+  <h2>♻️ 再生成</h2>
+  <p>docs/03_DATA_MODEL.md のスキーマを更新したら以下で再生成。生成物は docs/portal/schema.dbml + docs/portal/dbml-export.html。</p>
+  <pre><code>npm run build:docs-portal</code></pre>
+</section>
+
+${FOOTER}
+</div>
+
+<script>
+function copyDbml() {
+  const src = document.getElementById('dbml-src').textContent;
+  navigator.clipboard.writeText(src).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    const orig = btn.textContent;
+    btn.textContent = '✓ コピー完了';
+    btn.style.background = '#16a34a';
+    setTimeout(() => { btn.textContent = orig; btn.style.background = ''; }, 2000);
+  }).catch((e) => alert('クリップボードコピー失敗: ' + e.message));
+}
+</script>
+</body>
+</html>`;
+}
+
 // ── 実行 ─────────────────────────────────────────────────────
 const indexHtml = buildIndexPage();
 const erHtml = buildErDiagramPage();
 const tablesHtml = buildTablesPage();
 const specHtml = buildSpecificationsPage();
+const dbmlExportHtml = buildDbmlExportPage();
+
+// DBML ソース単体も別ファイル化（ツール import 用に直接利用可能）
+const dataModelPath = join(docsDir, '03_DATA_MODEL.md');
+const mdContent = readFileSync(dataModelPath, 'utf8');
+const allBlocks = extractMermaidBlocks(mdContent);
+const mainBlock = allBlocks.reduce((max, b) => (b.source.length > (max?.source.length || 0) ? b : max), null);
+const { entities: allEntities, relationships: allRels } = mainBlock ? parseErdSource(mainBlock.source) : { entities: {}, relationships: [] };
+const dbmlSource = exportToDbml(allEntities, allRels);
 
 writeFileSync(join(portalDir, 'index.html'), indexHtml, 'utf8');
 writeFileSync(join(portalDir, 'er-diagram.html'), erHtml, 'utf8');
 writeFileSync(join(portalDir, 'tables.html'), tablesHtml, 'utf8');
 writeFileSync(join(portalDir, 'specifications.html'), specHtml, 'utf8');
+writeFileSync(join(portalDir, 'dbml-export.html'), dbmlExportHtml, 'utf8');
+writeFileSync(join(portalDir, 'schema.dbml'), dbmlSource, 'utf8');
 
 console.log('[build-docs-portal] generated:');
 console.log('  - docs/portal/index.html');
-console.log('  - docs/portal/er-diagram.html');
+console.log('  - docs/portal/er-diagram.html (ELK + full columns for small domains)');
 console.log('  - docs/portal/tables.html');
 console.log('  - docs/portal/specifications.html');
+console.log('  - docs/portal/dbml-export.html (専用ツール誘導 + DBML コピー)');
+console.log('  - docs/portal/schema.dbml (' + (dbmlSource.length / 1024).toFixed(1) + ' KB)');

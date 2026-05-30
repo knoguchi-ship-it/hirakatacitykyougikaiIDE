@@ -1,0 +1,511 @@
+// 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能
+// 元: docs/03_DATA_MODEL.md
+// 生成日時: 2026-05-30T04:36:53.321Z
+
+Project hcmn_member_system {
+  database_type: "Google Spreadsheet (logical)"
+  Note: """枚方市介護支援専門員連絡協議会 会員システム — 論理スキーマ"""
+}
+
+// =====================================
+// マスタテーブル群
+// =====================================
+
+Table "M_システムロール" {
+  "コード" varchar [pk]
+  "名称" varchar
+}
+
+Table "M_会員状態" {
+  "コード" varchar [pk]
+  "名称" varchar
+}
+
+Table "M_会員種別" {
+  "コード" varchar [pk]
+  "名称" varchar
+  "表示順" int
+  "有効フラグ" boolean
+  "年会費金額" int
+}
+
+Table "M_会費納入状態" {
+  "コード" varchar [pk]
+  "名称" varchar
+}
+
+Table "M_出欠状態" {
+  "コード" varchar [pk]
+  "名称" varchar
+  "表示順" int
+  "有効フラグ" boolean
+}
+
+Table "M_役職マスタ" {
+  "役職コード" varchar [pk]
+  "役職名" varchar
+  "組織コード" varchar [note: 'FK']
+  "委員長フラグ" boolean
+  "表示順" int
+  "有効フラグ" boolean
+}
+
+Table "M_支払い種別マスタ" {
+  "種別コード" varchar [pk]
+  "種別名" varchar
+  "対象区分" varchar
+  "表示順" int
+  "有効フラグ" boolean
+}
+
+Table "M_業務分類" {
+  "業務分類コード" varchar [pk]
+  "業務分類名" varchar
+  "組織コード" varchar [note: 'FK']
+  "単価" int
+  "表示順" int
+  "有効フラグ" boolean
+}
+
+Table "M_申込状態" {
+  "コード" varchar [pk]
+  "名称" varchar
+}
+
+Table "M_申込者区分" {
+  "コード" varchar [pk]
+  "名称" varchar
+}
+
+Table "M_発送方法" {
+  "コード" varchar [pk]
+  "名称" varchar
+}
+
+Table "M_研修状態" {
+  "コード" varchar [pk]
+  "名称" varchar
+}
+
+Table "M_管理者権限" {
+  "コード" varchar [pk]
+  "名称" varchar
+}
+
+Table "M_組織マスタ" {
+  "組織コード" varchar [pk]
+  "組織名" varchar
+  "組織種別" varchar
+  "表示順" int
+  "全役員表示フラグ" boolean
+  "有効フラグ" boolean
+}
+
+Table "M_職員権限" {
+  "コード" varchar [pk]
+  "名称" varchar
+}
+
+Table "M_職員状態" {
+  "コード" varchar [pk]
+  "名称" varchar
+}
+
+Table "M_郵送先区分" {
+  "コード" varchar [pk]
+  "名称" varchar
+}
+
+// =====================================
+// メインテーブル群
+// =====================================
+
+Table "T_システム設定" {
+  "設定キー" varchar [pk]
+  "設定値" varchar
+  "説明" varchar
+  "更新日時" timestamp
+}
+
+Table "T_メール送信ログ" {
+  "ログID" varchar [pk]
+  "送信日時" timestamp
+  "送信者メール" varchar
+  "件名テンプレート" varchar
+  "宛先数" int
+  "成功数" int
+  "エラー数" int
+  "送信種別" varchar
+  "削除フラグ" boolean
+}
+
+Table "T_メール送信明細" {
+  "明細ID" varchar [pk]
+  "ログID" varchar [note: 'FK']
+  "受信者メール" varchar
+  "エラー詳細" varchar
+  "作成日時" timestamp
+  "削除フラグ" boolean
+}
+
+Table "T_ログイン履歴" {
+  "ログイン履歴ID" varchar [pk]
+  "認証ID" varchar [note: 'FK']
+  "ログインID" varchar
+  "認証方式" varchar
+  "ログイン結果" varchar
+  "失敗理由" varchar
+  "接続元IP" varchar
+  "ユーザーエージェント" varchar
+  "実行日時" timestamp
+}
+
+Table "T_事業所職員" {
+  "職員ID" varchar [pk]
+  "会員ID" varchar [note: 'FK']
+  "姓" varchar
+  "名" varchar
+  "セイ" varchar
+  "メイ" varchar
+  "氏名" varchar
+  "フリガナ" varchar
+  "メールアドレス" varchar
+  "職員権限コード" varchar [note: 'FK']
+  "職員状態コード" varchar [note: 'FK']
+  "入会日" date
+  "退会日" date
+  "メール配信希望コード" varchar
+  "作成日時" timestamp
+  "更新日時" timestamp
+  "削除フラグ" boolean
+}
+
+Table "T_事業所職員_archive" {
+  "職員ID" varchar [pk]
+  "会員ID" varchar
+  "職員状態コード" varchar
+}
+
+Table "T_会員" {
+  "会員ID" varchar [pk]
+  "会員種別コード" varchar [note: 'FK']
+  "会員状態コード" varchar [note: 'FK']
+  "入会日" date
+  "退会日" date
+  "移行日" date
+  "退会処理日" date
+  "姓" varchar
+  "名" varchar
+  "セイ" varchar
+  "メイ" varchar
+  "代表メールアドレス" varchar
+  "携帯電話番号" varchar
+  "勤務先名" varchar
+  "勤務先郵便番号" varchar
+  "勤務先都道府県" varchar
+  "勤務先市区町村" varchar
+  "勤務先住所" varchar
+  "勤務先住所2" varchar
+  "勤務先電話番号" varchar
+  "勤務先FAX番号" varchar
+  "自宅郵便番号" varchar
+  "自宅都道府県" varchar
+  "自宅市区町村" varchar
+  "自宅住所" varchar
+  "自宅住所2" varchar
+  "発送方法コード" varchar [note: 'FK']
+  "郵送先区分コード" varchar [note: 'FK']
+  "職員数上限" int
+  "作成日時" timestamp
+  "更新日時" timestamp
+  "削除フラグ" boolean
+  "事業所番号" varchar
+  "ステータスメモ" varchar
+}
+
+Table "T_会員_archive" {
+  "会員ID" varchar [pk]
+  "会員種別コード" varchar
+  "会員状態コード" varchar
+  "退会日" date
+}
+
+Table "T_共有メモ" {
+  "キー" varchar [pk]
+  "内容" varchar
+  "更新者メール" varchar
+  "更新者名" varchar
+  "更新日時" timestamp
+  "バージョン" int
+}
+
+Table "T_外部申込者" {
+  "外部申込者ID" varchar [pk]
+  "氏名" varchar
+  "フリガナ" varchar
+  "メールアドレス" varchar
+  "電話番号" varchar
+  "事業所名" varchar
+  "同意日時" timestamp
+  "作成日時" timestamp
+  "更新日時" timestamp
+  "削除フラグ" boolean
+}
+
+Table "T_年会費更新履歴" {
+  "年会費更新履歴ID" varchar [pk]
+  "年会費履歴ID" varchar [note: 'FK']
+  "会員ID" varchar [note: 'FK']
+  "対象年度" varchar
+  "操作種別" varchar
+  "更新前JSON" varchar
+  "更新後JSON" varchar
+  "実行者メール" varchar
+  "実行日時" timestamp
+}
+
+Table "T_年会費納入履歴" {
+  "年会費履歴ID" varchar [pk]
+  "会員ID" varchar [note: 'FK']
+  "対象年度" varchar
+  "会費納入状態コード" varchar [note: 'FK']
+  "納入確認日" date
+  "金額" int
+  "備考" varchar
+  "作成日時" timestamp
+  "更新日時" timestamp
+  "削除フラグ" boolean
+}
+
+Table "T_役員" {
+  "役員ID" varchar [pk]
+  "会員ID" varchar [note: 'FK']
+  "職員ID" varchar [note: 'FK']
+  "役職コード" varchar [note: 'FK']
+  "組織コード" varchar [note: 'FK']
+  "就任日" date
+  "退任日" date
+  "備考" varchar
+  "削除フラグ" boolean
+  "作成日時" timestamp
+  "更新日時" timestamp
+}
+
+Table "T_振込口座" {
+  "口座ID" varchar [pk]
+  "会員ID" varchar [note: 'FK']
+  "職員ID" varchar [note: 'FK']
+  "金融機関名" varchar
+  "金融機関コード" varchar
+  "支店名" varchar
+  "支店コード" varchar
+  "口座種別" varchar
+  "口座番号" varchar
+  "口座名義カナ" varchar
+  "備考" varchar
+  "削除フラグ" boolean
+  "作成日時" timestamp
+  "更新日時" timestamp
+}
+
+Table "T_支払い" {
+  "支払いID" varchar [pk]
+  "会員ID" varchar [note: 'FK']
+  "支払い日" date
+  "支払い方法" varchar
+  "合計金額" int
+  "振込先口座JSON" varchar
+  "登録者メール" varchar
+  "備考" varchar
+  "削除フラグ" boolean
+  "作成日時" timestamp
+  "更新日時" timestamp
+}
+
+Table "T_支払い明細" {
+  "明細ID" varchar [pk]
+  "支払いID" varchar [note: 'FK']
+  "請求ID" varchar [note: 'FK']
+  "役職コード" varchar [note: 'FK']
+  "組織コード" varchar [note: 'FK']
+  "種別コード" varchar [note: 'FK']
+  "金額" int
+  "対象期間FROM" date
+  "対象期間TO" date
+  "摘要" varchar
+  "削除フラグ" boolean
+  "作成日時" timestamp
+  "更新日時" timestamp
+}
+
+Table "T_画面項目権限" {
+  "権限定義ID" varchar [pk]
+  "システムロールコード" varchar [note: 'FK']
+  "画面コード" varchar
+  "項目コード" varchar
+  "閲覧可" boolean
+  "登録可" boolean
+  "変更可" boolean
+  "削除可" boolean
+  "作成日時" timestamp
+  "更新日時" timestamp
+  "削除フラグ" boolean
+}
+
+Table "T_監査ログ" {
+  "監査ログID" varchar [pk]
+  "操作者メール" varchar
+  "操作種別" varchar
+  "対象テーブル" varchar
+  "対象ID" varchar
+  "変更前JSON" varchar
+  "変更後JSON" varchar
+  "実行日時" timestamp
+}
+
+Table "T_研修" {
+  "研修ID" varchar [pk]
+  "研修名" varchar
+  "開催日" date
+  "開催終了時刻" varchar
+  "定員" int
+  "申込者数" int
+  "開催場所" varchar
+  "研修状態コード" varchar [note: 'FK']
+  "主催者" varchar
+  "法定外研修フラグ" boolean
+  "研修概要" varchar
+  "研修内容" varchar
+  "費用JSON" varchar
+  "申込開始日" date
+  "申込締切日" date
+  "講師" varchar
+  "案内状URL" varchar
+  "項目設定JSON" varchar
+  "作成日時" timestamp
+  "更新日時" timestamp
+  "削除フラグ" boolean
+}
+
+Table "T_研修申込" {
+  "申込ID" varchar [pk]
+  "研修ID" varchar [note: 'FK']
+  "申込状態コード" varchar [note: 'FK']
+  "申込日時" timestamp
+  "取消日時" timestamp
+  "備考" varchar
+  "作成日時" timestamp
+  "更新日時" timestamp
+  "削除フラグ" boolean
+}
+
+Table "T_管理者Googleホワイトリスト" {
+  "ホワイトリストID" varchar [pk]
+  "GoogleユーザーID" varchar
+  "Googleメール" varchar
+  "表示名" varchar
+  "紐付け認証ID" varchar [note: 'FK']
+  "紐付け会員ID" varchar [note: 'FK']
+  "有効フラグ" boolean
+  "作成日時" timestamp
+  "更新日時" timestamp
+  "削除フラグ" boolean
+}
+
+Table "T_認証アカウント" {
+  "認証ID" varchar [pk]
+  "認証方式" varchar
+  "ログインID" varchar
+  "パスワードハッシュ" varchar
+  "パスワードソルト" varchar
+  "GoogleユーザーID" varchar
+  "Googleメール" varchar
+  "システムロールコード" varchar [note: 'FK']
+  "会員ID" varchar [note: 'FK']
+  "職員ID" varchar [note: 'FK']
+  "最終ログイン日時" timestamp
+  "パスワード更新日時" timestamp
+  "アカウント有効フラグ" boolean
+  "ログイン失敗回数" int
+  "ロック状態" boolean
+  "作成日時" timestamp
+  "更新日時" timestamp
+  "削除フラグ" boolean
+}
+
+Table "T_請求" {
+  "請求ID" varchar [pk]
+  "会員ID" varchar [note: 'FK']
+  "職員ID" varchar [note: 'FK']
+  "役職コード" varchar [note: 'FK']
+  "組織コード" varchar [note: 'FK']
+  "種別コード" varchar [note: 'FK']
+  "請求種別" varchar
+  "業務分類コード" varchar [note: 'FK']
+  "単価" int
+  "数量" int
+  "請求金額" int
+  "活動日" date
+  "活動内容" varchar
+  "添付ファイルURL" varchar
+  "請求状態" varchar
+  "却下理由" varchar
+  "承認者メール" varchar
+  "承認日時" timestamp
+  "削除フラグ" boolean
+  "作成日時" timestamp
+  "更新日時" timestamp
+}
+
+// =====================================
+// リレーション
+// =====================================
+
+Ref: "T_会員"."会員種別コード" > "M_会員種別"."コード" // 会員種別コード
+Ref: "T_会員"."会員状態コード" > "M_会員状態"."コード" // 会員状態コード
+Ref: "T_会員"."発送方法コード" > "M_発送方法"."コード" // 発送方法コード
+Ref: "T_会員"."郵送先区分コード" > "M_郵送先区分"."コード" // 郵送先区分コード
+Ref: "T_事業所職員"."会員ID" > "T_会員"."会員ID" // 会員ID
+Ref: "T_事業所職員"."職員権限コード" > "M_職員権限"."コード" // 職員権限コード
+Ref: "T_事業所職員"."職員状態コード" > "M_職員状態"."コード" // 職員状態コード
+Ref: "T_認証アカウント"."会員ID" > "T_会員"."会員ID" // 会員ID
+Ref: "T_認証アカウント"."職員ID" > "T_事業所職員"."職員ID" // 職員ID
+Ref: "T_認証アカウント"."システムロールコード" > "M_システムロール"."コード" // システムロールコード
+// 自動推定失敗: T_管理者Googleホワイトリスト }o--o| T_認証アカウント : 紐付け認証ID
+// 自動推定失敗: T_管理者Googleホワイトリスト }o--o| T_会員 : 紐付け会員ID
+Ref: "T_研修申込"."研修ID" > "T_研修"."研修ID" // 研修ID
+// 自動推定失敗: T_研修申込 }o--o| T_会員 : 会員ID(v360 2-FK)
+// 自動推定失敗: T_研修申込 }o--o| T_事業所職員 : 職員ID(v360 2-FK)
+// 自動推定失敗: T_研修申込 }o--o| T_外部申込者 : 外部申込者ID(v360 2-FK 新規)
+// 自動推定失敗: T_研修申込 }o--|| M_出欠状態 : 出欠状態コード(v360新規)
+// 自動推定失敗: T_研修申込 }o--|| M_申込者区分 : 申込者区分コード(deprecated v360)
+Ref: "T_研修申込"."申込状態コード" > "M_申込状態"."コード" // 申込状態コード
+Ref: "T_メール送信明細"."ログID" > "T_メール送信ログ"."ログID" // ログID(v360新規)
+// 自動推定失敗: T_メール送信明細 }o--o| T_研修 : 研修ID(v360新規)
+Ref: "T_研修"."研修状態コード" > "M_研修状態"."コード" // 研修状態コード
+Ref: "T_年会費納入履歴"."会員ID" > "T_会員"."会員ID" // 会員ID
+Ref: "T_年会費納入履歴"."会費納入状態コード" > "M_会費納入状態"."コード" // 会費納入状態コード
+Ref: "T_年会費更新履歴"."年会費履歴ID" > "T_年会費納入履歴"."年会費履歴ID" // 年会費履歴ID
+Ref: "T_年会費更新履歴"."会員ID" > "T_会員"."会員ID" // 会員ID
+Ref: "M_役職マスタ"."組織コード" > "M_組織マスタ"."組織コード" // 組織コード
+Ref: "M_業務分類"."組織コード" > "M_組織マスタ"."組織コード" // 組織コード
+Ref: "T_役員"."会員ID" > "T_会員"."会員ID" // 会員ID
+Ref: "T_役員"."職員ID" > "T_事業所職員"."職員ID" // 職員ID
+Ref: "T_役員"."役職コード" > "M_役職マスタ"."役職コード" // 役職コード
+Ref: "T_役員"."組織コード" > "M_組織マスタ"."組織コード" // 組織コード
+Ref: "T_振込口座"."会員ID" > "T_会員"."会員ID" // 会員ID
+Ref: "T_振込口座"."職員ID" > "T_事業所職員"."職員ID" // 職員ID
+Ref: "T_支払い"."会員ID" > "T_会員"."会員ID" // 会員ID
+Ref: "T_支払い明細"."支払いID" > "T_支払い"."支払いID" // 支払いID
+Ref: "T_支払い明細"."請求ID" > "T_請求"."請求ID" // 請求ID
+Ref: "T_支払い明細"."役職コード" > "M_役職マスタ"."役職コード" // 役職コード
+Ref: "T_支払い明細"."組織コード" > "M_組織マスタ"."組織コード" // 組織コード
+Ref: "T_支払い明細"."種別コード" > "M_支払い種別マスタ"."種別コード" // 種別コード
+Ref: "T_請求"."会員ID" > "T_会員"."会員ID" // 会員ID
+Ref: "T_請求"."職員ID" > "T_事業所職員"."職員ID" // 職員ID
+Ref: "T_請求"."役職コード" > "M_役職マスタ"."役職コード" // 役職コード
+Ref: "T_請求"."組織コード" > "M_組織マスタ"."組織コード" // 組織コード
+Ref: "T_請求"."種別コード" > "M_支払い種別マスタ"."種別コード" // 種別コード
+Ref: "T_請求"."業務分類コード" > "M_業務分類"."業務分類コード" // 業務分類コード
+Ref: "T_画面項目権限"."システムロールコード" > "M_システムロール"."コード" // システムロールコード
+Ref: "T_ログイン履歴"."認証ID" > "T_認証アカウント"."認証ID" // 認証ID

@@ -1,0 +1,910 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DBML エクスポート(専用ツール用) | 枚方市介護支援専門員連絡協議会 会員システム</title>
+<style>
+:root {
+  --bg: #f4f1ea;
+  --panel: #fffdf8;
+  --ink: #1f2937;
+  --muted: #5b6575;
+  --line: #d8cfbf;
+  --accent: #0f766e;
+  --accent-soft: #d9f3ef;
+  --warm: #8b5e34;
+  --shadow: 0 18px 40px rgba(31, 41, 55, 0.08);
+  --radius: 20px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at top left, #efe6d7 0, transparent 28%),
+    linear-gradient(180deg, #f8f4ec 0%, var(--bg) 100%);
+  line-height: 1.7;
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding: 32px 20px 56px; }
+.hero {
+  background: linear-gradient(135deg, rgba(15, 118, 110, 0.95), rgba(24, 94, 146, 0.95));
+  color: white;
+  border-radius: 28px;
+  padding: 36px;
+  box-shadow: var(--shadow);
+  margin-bottom: 28px;
+}
+.hero h1 { margin: 0 0 12px; font-size: clamp(1.8rem, 4vw, 2.8rem); line-height: 1.2; }
+.hero p { margin: 0; opacity: 0.92; }
+nav.topnav {
+  position: sticky; top: 0;
+  background: rgba(255, 253, 248, 0.95);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--line);
+  padding: 12px 20px;
+  z-index: 10;
+  margin: -32px -20px 28px;
+}
+nav.topnav a {
+  color: var(--accent);
+  text-decoration: none;
+  margin-right: 20px;
+  font-weight: 600;
+}
+nav.topnav a:hover { text-decoration: underline; }
+section.card {
+  background: var(--panel);
+  border-radius: var(--radius);
+  padding: 28px 32px;
+  box-shadow: var(--shadow);
+  margin-bottom: 24px;
+}
+section.card h2 {
+  margin: 0 0 16px;
+  font-size: 1.6rem;
+  color: var(--accent);
+  border-bottom: 2px solid var(--accent-soft);
+  padding-bottom: 8px;
+}
+section.card h3 { margin: 24px 0 12px; color: var(--warm); }
+section.card ul, section.card ol { padding-left: 20px; }
+section.card code {
+  background: var(--accent-soft);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+section.card pre {
+  background: #1e293b;
+  color: #e5e7eb;
+  padding: 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 0.85em;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+}
+th, td {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  text-align: left;
+  font-size: 0.93em;
+}
+th { background: var(--accent-soft); font-weight: 700; }
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.78em;
+  font-weight: 700;
+  background: var(--accent-soft);
+  color: var(--accent);
+  margin-left: 6px;
+}
+.badge.warn { background: #fef3c7; color: #92400e; }
+.badge.danger { background: #fee2e2; color: #991b1b; }
+footer {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.85em;
+  text-align: center;
+}
+.mermaid-wrap {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 12px;
+  margin: 16px 0;
+  border: 1px solid var(--line);
+  position: relative;
+  /* 拡大/縮小/パン操作のための固定高 + svg-pan-zoom コンテナ化 */
+  height: 78vh;
+  min-height: 540px;
+  max-height: 1000px;
+  overflow: hidden;
+}
+.mermaid-wrap > .mermaid,
+.mermaid-wrap > svg { width: 100% !important; height: 100% !important; display: block; }
+
+/* ── ER 図の視認性強化（v376.32: 白背景固定 + リレーション線をアクセント色で太く目立たせる）── */
+
+/* SVG 全体を純白背景に強制（透過部分がダーク表示される問題を解消） */
+.mermaid-wrap svg { background: #ffffff !important; }
+
+/* デフォルトで全ての rect を白塗り（クラス指定が漏れた要素もカバー） */
+.mermaid-wrap svg g > rect,
+.mermaid-wrap svg rect:not([class*="relationshipLabel"]) {
+  fill: #ffffff !important;
+}
+
+/* エンティティ全体の枠 */
+.mermaid-wrap svg .er.entityBox,
+.mermaid-wrap svg rect.er.entityBox {
+  fill: #ffffff !important;
+  stroke: #0f172a !important;
+  stroke-width: 2px !important;
+}
+
+/* 属性行の縞模様 */
+.mermaid-wrap svg .er.attributeBoxOdd,
+.mermaid-wrap svg rect.er.attributeBoxOdd {
+  fill: #f1f5f9 !important;
+  stroke: #cbd5e1 !important;
+  stroke-width: 0.8px !important;
+}
+.mermaid-wrap svg .er.attributeBoxEven,
+.mermaid-wrap svg rect.er.attributeBoxEven {
+  fill: #ffffff !important;
+  stroke: #cbd5e1 !important;
+  stroke-width: 0.8px !important;
+}
+
+/* テーブル名（エンティティラベル）ヘッダ */
+.mermaid-wrap svg .er.entityLabelBox,
+.mermaid-wrap svg rect.er.entityLabelBox {
+  fill: #0f766e !important;
+  stroke: #0f172a !important;
+  stroke-width: 2px !important;
+}
+.mermaid-wrap svg .er.entityLabel,
+.mermaid-wrap svg text.er.entityLabel {
+  fill: #ffffff !important;
+  font-weight: 700 !important;
+  font-size: 16px !important;
+}
+
+/* リレーション線（最重要）: アクセント色で太く、視認性最大化 */
+.mermaid-wrap svg .er.relationshipLine,
+.mermaid-wrap svg path.er.relationshipLine,
+.mermaid-wrap svg line.er.relationshipLine,
+.mermaid-wrap svg g.relationshipLine > path,
+.mermaid-wrap svg path[class*="relationship"] {
+  stroke: #dc2626 !important;       /* 赤系で他の線と区別 */
+  stroke-width: 2.5px !important;
+  fill: none !important;
+  opacity: 1 !important;
+}
+
+/* リレーション端点マーカー（◯ など） */
+.mermaid-wrap svg .er.relationshipLine circle,
+.mermaid-wrap svg circle[class*="relationship"] {
+  stroke: #dc2626 !important;
+  fill: #ffffff !important;
+  stroke-width: 2.5px !important;
+}
+
+/* リレーションラベル（"||--o{" などの記号 + テキスト） */
+.mermaid-wrap svg .er.relationshipLabelBox,
+.mermaid-wrap svg rect.er.relationshipLabelBox {
+  fill: #fef2f2 !important;
+  stroke: #dc2626 !important;
+  stroke-width: 1px !important;
+}
+.mermaid-wrap svg .er.relationshipLabel,
+.mermaid-wrap svg text.er.relationshipLabel {
+  fill: #991b1b !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+}
+
+/* 属性のテキスト */
+.mermaid-wrap svg text {
+  fill: #1f2937 !important;
+  font-family: "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif !important;
+}
+.diagram-help {
+  font-size: 0.82em;
+  color: var(--muted);
+  margin: 8px 0 4px;
+  padding: 6px 10px;
+  background: var(--accent-soft);
+  border-radius: 6px;
+  border-left: 3px solid var(--accent);
+}
+.zoom-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+.zoom-controls button {
+  cursor: pointer;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.85em;
+  font-weight: 600;
+  min-height: 36px;
+  transition: background 0.15s;
+}
+.zoom-controls button:hover { background: #0d5d56; }
+.zoom-controls button.secondary {
+  background: white;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+.zoom-controls button.secondary:hover { background: var(--accent-soft); }
+@media (max-width: 720px) {
+  .wrap { padding: 16px 12px 36px; }
+  nav.topnav { margin: -16px -12px 20px; }
+  section.card { padding: 20px; }
+}
+
+.dbml-output {
+  position: relative;
+  margin: 16px 0;
+}
+.dbml-output pre {
+  max-height: 480px;
+  overflow: auto;
+  font-size: 0.8em;
+}
+.copy-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85em;
+  z-index: 2;
+}
+.copy-btn:hover { background: #0d5d56; }
+.tool-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin: 16px 0; }
+.tool-card {
+  background: white;
+  border: 2px solid var(--accent-soft);
+  border-radius: 10px;
+  padding: 16px;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.tool-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.tool-card h4 { margin: 0 0 8px; color: var(--accent); }
+.tool-card .tool-pros { font-size: 0.85em; color: var(--muted); margin: 8px 0; }
+.tool-card a { display: inline-block; background: var(--accent); color: white; text-decoration: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 0.85em; margin-top: 6px; }
+.tool-card a:hover { background: #0d5d56; }
+.recommended { border-color: #dc2626 !important; }
+.recommended::before { content: '⭐ 推奨'; display: inline-block; background: #dc2626; color: white; padding: 2px 10px; border-radius: 999px; font-size: 0.75em; font-weight: 700; margin-bottom: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<nav class="topnav">
+  <a href="index.html">📘 ポータル TOP</a>
+  <a href="tables.html">📊 テーブル設計書</a>
+  <a href="er-diagram.html">🗂️ ER 図（ドメイン）</a>
+  <a href="dbml-export.html">🚀 DBML → 専用ツール</a>
+  <a href="specifications.html">📋 仕様書サマリ</a>
+  <a href="../../HANDOVER.md">📝 HANDOVER (Markdown)</a>
+</nav>
+
+<div class="hero">
+  <h1>🚀 DBML エクスポート — プロ品質 ER 図への入口</h1>
+  <p>本ポータルの Mermaid ER 図は git に同梱できる軽量解ですが、40+ テーブルの全カラムを含むプロ品質 ER 図には<b>専用ツール</b>が業界スタンダードです。</p>
+  <p style="margin-top: 10px; font-size: 0.92em; opacity: 0.95;">下記の DBML テキストをコピーして、 dbdiagram.io / ChartDB 等にペーストすれば即座にプロ品質 ER 図が描画されます。</p>
+</div>
+
+<section class="card">
+  <h2>📋 DBML ソース(コピー → 専用ツールへペースト)</h2>
+  <p>下のテキストを<b>「コピー」ボタン</b>で取得し、後述の専用ツールにペーストしてください。git にコミット済 (docs/portal/schema.dbml) のため再利用も可能です。</p>
+  <div class="dbml-output">
+    <button class="copy-btn" onclick="copyDbml()">📋 全文コピー</button>
+    <pre id="dbml-src">// 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能
+// 元: docs/03_DATA_MODEL.md
+// 生成日時: 2026-05-30T04:36:53.319Z
+
+Project hcmn_member_system {
+  database_type: &quot;Google Spreadsheet (logical)&quot;
+  Note: &quot;&quot;&quot;枚方市介護支援専門員連絡協議会 会員システム — 論理スキーマ&quot;&quot;&quot;
+}
+
+// =====================================
+// マスタテーブル群
+// =====================================
+
+Table &quot;M_システムロール&quot; {
+  &quot;コード&quot; varchar [pk]
+  &quot;名称&quot; varchar
+}
+
+Table &quot;M_会員状態&quot; {
+  &quot;コード&quot; varchar [pk]
+  &quot;名称&quot; varchar
+}
+
+Table &quot;M_会員種別&quot; {
+  &quot;コード&quot; varchar [pk]
+  &quot;名称&quot; varchar
+  &quot;表示順&quot; int
+  &quot;有効フラグ&quot; boolean
+  &quot;年会費金額&quot; int
+}
+
+Table &quot;M_会費納入状態&quot; {
+  &quot;コード&quot; varchar [pk]
+  &quot;名称&quot; varchar
+}
+
+Table &quot;M_出欠状態&quot; {
+  &quot;コード&quot; varchar [pk]
+  &quot;名称&quot; varchar
+  &quot;表示順&quot; int
+  &quot;有効フラグ&quot; boolean
+}
+
+Table &quot;M_役職マスタ&quot; {
+  &quot;役職コード&quot; varchar [pk]
+  &quot;役職名&quot; varchar
+  &quot;組織コード&quot; varchar [note: &#39;FK&#39;]
+  &quot;委員長フラグ&quot; boolean
+  &quot;表示順&quot; int
+  &quot;有効フラグ&quot; boolean
+}
+
+Table &quot;M_支払い種別マスタ&quot; {
+  &quot;種別コード&quot; varchar [pk]
+  &quot;種別名&quot; varchar
+  &quot;対象区分&quot; varchar
+  &quot;表示順&quot; int
+  &quot;有効フラグ&quot; boolean
+}
+
+Table &quot;M_業務分類&quot; {
+  &quot;業務分類コード&quot; varchar [pk]
+  &quot;業務分類名&quot; varchar
+  &quot;組織コード&quot; varchar [note: &#39;FK&#39;]
+  &quot;単価&quot; int
+  &quot;表示順&quot; int
+  &quot;有効フラグ&quot; boolean
+}
+
+Table &quot;M_申込状態&quot; {
+  &quot;コード&quot; varchar [pk]
+  &quot;名称&quot; varchar
+}
+
+Table &quot;M_申込者区分&quot; {
+  &quot;コード&quot; varchar [pk]
+  &quot;名称&quot; varchar
+}
+
+Table &quot;M_発送方法&quot; {
+  &quot;コード&quot; varchar [pk]
+  &quot;名称&quot; varchar
+}
+
+Table &quot;M_研修状態&quot; {
+  &quot;コード&quot; varchar [pk]
+  &quot;名称&quot; varchar
+}
+
+Table &quot;M_管理者権限&quot; {
+  &quot;コード&quot; varchar [pk]
+  &quot;名称&quot; varchar
+}
+
+Table &quot;M_組織マスタ&quot; {
+  &quot;組織コード&quot; varchar [pk]
+  &quot;組織名&quot; varchar
+  &quot;組織種別&quot; varchar
+  &quot;表示順&quot; int
+  &quot;全役員表示フラグ&quot; boolean
+  &quot;有効フラグ&quot; boolean
+}
+
+Table &quot;M_職員権限&quot; {
+  &quot;コード&quot; varchar [pk]
+  &quot;名称&quot; varchar
+}
+
+Table &quot;M_職員状態&quot; {
+  &quot;コード&quot; varchar [pk]
+  &quot;名称&quot; varchar
+}
+
+Table &quot;M_郵送先区分&quot; {
+  &quot;コード&quot; varchar [pk]
+  &quot;名称&quot; varchar
+}
+
+// =====================================
+// メインテーブル群
+// =====================================
+
+Table &quot;T_システム設定&quot; {
+  &quot;設定キー&quot; varchar [pk]
+  &quot;設定値&quot; varchar
+  &quot;説明&quot; varchar
+  &quot;更新日時&quot; timestamp
+}
+
+Table &quot;T_メール送信ログ&quot; {
+  &quot;ログID&quot; varchar [pk]
+  &quot;送信日時&quot; timestamp
+  &quot;送信者メール&quot; varchar
+  &quot;件名テンプレート&quot; varchar
+  &quot;宛先数&quot; int
+  &quot;成功数&quot; int
+  &quot;エラー数&quot; int
+  &quot;送信種別&quot; varchar
+  &quot;削除フラグ&quot; boolean
+}
+
+Table &quot;T_メール送信明細&quot; {
+  &quot;明細ID&quot; varchar [pk]
+  &quot;ログID&quot; varchar [note: &#39;FK&#39;]
+  &quot;受信者メール&quot; varchar
+  &quot;エラー詳細&quot; varchar
+  &quot;作成日時&quot; timestamp
+  &quot;削除フラグ&quot; boolean
+}
+
+Table &quot;T_ログイン履歴&quot; {
+  &quot;ログイン履歴ID&quot; varchar [pk]
+  &quot;認証ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;ログインID&quot; varchar
+  &quot;認証方式&quot; varchar
+  &quot;ログイン結果&quot; varchar
+  &quot;失敗理由&quot; varchar
+  &quot;接続元IP&quot; varchar
+  &quot;ユーザーエージェント&quot; varchar
+  &quot;実行日時&quot; timestamp
+}
+
+Table &quot;T_事業所職員&quot; {
+  &quot;職員ID&quot; varchar [pk]
+  &quot;会員ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;姓&quot; varchar
+  &quot;名&quot; varchar
+  &quot;セイ&quot; varchar
+  &quot;メイ&quot; varchar
+  &quot;氏名&quot; varchar
+  &quot;フリガナ&quot; varchar
+  &quot;メールアドレス&quot; varchar
+  &quot;職員権限コード&quot; varchar [note: &#39;FK&#39;]
+  &quot;職員状態コード&quot; varchar [note: &#39;FK&#39;]
+  &quot;入会日&quot; date
+  &quot;退会日&quot; date
+  &quot;メール配信希望コード&quot; varchar
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+  &quot;削除フラグ&quot; boolean
+}
+
+Table &quot;T_事業所職員_archive&quot; {
+  &quot;職員ID&quot; varchar [pk]
+  &quot;会員ID&quot; varchar
+  &quot;職員状態コード&quot; varchar
+}
+
+Table &quot;T_会員&quot; {
+  &quot;会員ID&quot; varchar [pk]
+  &quot;会員種別コード&quot; varchar [note: &#39;FK&#39;]
+  &quot;会員状態コード&quot; varchar [note: &#39;FK&#39;]
+  &quot;入会日&quot; date
+  &quot;退会日&quot; date
+  &quot;移行日&quot; date
+  &quot;退会処理日&quot; date
+  &quot;姓&quot; varchar
+  &quot;名&quot; varchar
+  &quot;セイ&quot; varchar
+  &quot;メイ&quot; varchar
+  &quot;代表メールアドレス&quot; varchar
+  &quot;携帯電話番号&quot; varchar
+  &quot;勤務先名&quot; varchar
+  &quot;勤務先郵便番号&quot; varchar
+  &quot;勤務先都道府県&quot; varchar
+  &quot;勤務先市区町村&quot; varchar
+  &quot;勤務先住所&quot; varchar
+  &quot;勤務先住所2&quot; varchar
+  &quot;勤務先電話番号&quot; varchar
+  &quot;勤務先FAX番号&quot; varchar
+  &quot;自宅郵便番号&quot; varchar
+  &quot;自宅都道府県&quot; varchar
+  &quot;自宅市区町村&quot; varchar
+  &quot;自宅住所&quot; varchar
+  &quot;自宅住所2&quot; varchar
+  &quot;発送方法コード&quot; varchar [note: &#39;FK&#39;]
+  &quot;郵送先区分コード&quot; varchar [note: &#39;FK&#39;]
+  &quot;職員数上限&quot; int
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+  &quot;削除フラグ&quot; boolean
+  &quot;事業所番号&quot; varchar
+  &quot;ステータスメモ&quot; varchar
+}
+
+Table &quot;T_会員_archive&quot; {
+  &quot;会員ID&quot; varchar [pk]
+  &quot;会員種別コード&quot; varchar
+  &quot;会員状態コード&quot; varchar
+  &quot;退会日&quot; date
+}
+
+Table &quot;T_共有メモ&quot; {
+  &quot;キー&quot; varchar [pk]
+  &quot;内容&quot; varchar
+  &quot;更新者メール&quot; varchar
+  &quot;更新者名&quot; varchar
+  &quot;更新日時&quot; timestamp
+  &quot;バージョン&quot; int
+}
+
+Table &quot;T_外部申込者&quot; {
+  &quot;外部申込者ID&quot; varchar [pk]
+  &quot;氏名&quot; varchar
+  &quot;フリガナ&quot; varchar
+  &quot;メールアドレス&quot; varchar
+  &quot;電話番号&quot; varchar
+  &quot;事業所名&quot; varchar
+  &quot;同意日時&quot; timestamp
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+  &quot;削除フラグ&quot; boolean
+}
+
+Table &quot;T_年会費更新履歴&quot; {
+  &quot;年会費更新履歴ID&quot; varchar [pk]
+  &quot;年会費履歴ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;会員ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;対象年度&quot; varchar
+  &quot;操作種別&quot; varchar
+  &quot;更新前JSON&quot; varchar
+  &quot;更新後JSON&quot; varchar
+  &quot;実行者メール&quot; varchar
+  &quot;実行日時&quot; timestamp
+}
+
+Table &quot;T_年会費納入履歴&quot; {
+  &quot;年会費履歴ID&quot; varchar [pk]
+  &quot;会員ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;対象年度&quot; varchar
+  &quot;会費納入状態コード&quot; varchar [note: &#39;FK&#39;]
+  &quot;納入確認日&quot; date
+  &quot;金額&quot; int
+  &quot;備考&quot; varchar
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+  &quot;削除フラグ&quot; boolean
+}
+
+Table &quot;T_役員&quot; {
+  &quot;役員ID&quot; varchar [pk]
+  &quot;会員ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;職員ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;役職コード&quot; varchar [note: &#39;FK&#39;]
+  &quot;組織コード&quot; varchar [note: &#39;FK&#39;]
+  &quot;就任日&quot; date
+  &quot;退任日&quot; date
+  &quot;備考&quot; varchar
+  &quot;削除フラグ&quot; boolean
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+}
+
+Table &quot;T_振込口座&quot; {
+  &quot;口座ID&quot; varchar [pk]
+  &quot;会員ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;職員ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;金融機関名&quot; varchar
+  &quot;金融機関コード&quot; varchar
+  &quot;支店名&quot; varchar
+  &quot;支店コード&quot; varchar
+  &quot;口座種別&quot; varchar
+  &quot;口座番号&quot; varchar
+  &quot;口座名義カナ&quot; varchar
+  &quot;備考&quot; varchar
+  &quot;削除フラグ&quot; boolean
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+}
+
+Table &quot;T_支払い&quot; {
+  &quot;支払いID&quot; varchar [pk]
+  &quot;会員ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;支払い日&quot; date
+  &quot;支払い方法&quot; varchar
+  &quot;合計金額&quot; int
+  &quot;振込先口座JSON&quot; varchar
+  &quot;登録者メール&quot; varchar
+  &quot;備考&quot; varchar
+  &quot;削除フラグ&quot; boolean
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+}
+
+Table &quot;T_支払い明細&quot; {
+  &quot;明細ID&quot; varchar [pk]
+  &quot;支払いID&quot; varchar [note: &#39;FK&#39;]
+  &quot;請求ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;役職コード&quot; varchar [note: &#39;FK&#39;]
+  &quot;組織コード&quot; varchar [note: &#39;FK&#39;]
+  &quot;種別コード&quot; varchar [note: &#39;FK&#39;]
+  &quot;金額&quot; int
+  &quot;対象期間FROM&quot; date
+  &quot;対象期間TO&quot; date
+  &quot;摘要&quot; varchar
+  &quot;削除フラグ&quot; boolean
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+}
+
+Table &quot;T_画面項目権限&quot; {
+  &quot;権限定義ID&quot; varchar [pk]
+  &quot;システムロールコード&quot; varchar [note: &#39;FK&#39;]
+  &quot;画面コード&quot; varchar
+  &quot;項目コード&quot; varchar
+  &quot;閲覧可&quot; boolean
+  &quot;登録可&quot; boolean
+  &quot;変更可&quot; boolean
+  &quot;削除可&quot; boolean
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+  &quot;削除フラグ&quot; boolean
+}
+
+Table &quot;T_監査ログ&quot; {
+  &quot;監査ログID&quot; varchar [pk]
+  &quot;操作者メール&quot; varchar
+  &quot;操作種別&quot; varchar
+  &quot;対象テーブル&quot; varchar
+  &quot;対象ID&quot; varchar
+  &quot;変更前JSON&quot; varchar
+  &quot;変更後JSON&quot; varchar
+  &quot;実行日時&quot; timestamp
+}
+
+Table &quot;T_研修&quot; {
+  &quot;研修ID&quot; varchar [pk]
+  &quot;研修名&quot; varchar
+  &quot;開催日&quot; date
+  &quot;開催終了時刻&quot; varchar
+  &quot;定員&quot; int
+  &quot;申込者数&quot; int
+  &quot;開催場所&quot; varchar
+  &quot;研修状態コード&quot; varchar [note: &#39;FK&#39;]
+  &quot;主催者&quot; varchar
+  &quot;法定外研修フラグ&quot; boolean
+  &quot;研修概要&quot; varchar
+  &quot;研修内容&quot; varchar
+  &quot;費用JSON&quot; varchar
+  &quot;申込開始日&quot; date
+  &quot;申込締切日&quot; date
+  &quot;講師&quot; varchar
+  &quot;案内状URL&quot; varchar
+  &quot;項目設定JSON&quot; varchar
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+  &quot;削除フラグ&quot; boolean
+}
+
+Table &quot;T_研修申込&quot; {
+  &quot;申込ID&quot; varchar [pk]
+  &quot;研修ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;申込状態コード&quot; varchar [note: &#39;FK&#39;]
+  &quot;申込日時&quot; timestamp
+  &quot;取消日時&quot; timestamp
+  &quot;備考&quot; varchar
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+  &quot;削除フラグ&quot; boolean
+}
+
+Table &quot;T_管理者Googleホワイトリスト&quot; {
+  &quot;ホワイトリストID&quot; varchar [pk]
+  &quot;GoogleユーザーID&quot; varchar
+  &quot;Googleメール&quot; varchar
+  &quot;表示名&quot; varchar
+  &quot;紐付け認証ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;紐付け会員ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;有効フラグ&quot; boolean
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+  &quot;削除フラグ&quot; boolean
+}
+
+Table &quot;T_認証アカウント&quot; {
+  &quot;認証ID&quot; varchar [pk]
+  &quot;認証方式&quot; varchar
+  &quot;ログインID&quot; varchar
+  &quot;パスワードハッシュ&quot; varchar
+  &quot;パスワードソルト&quot; varchar
+  &quot;GoogleユーザーID&quot; varchar
+  &quot;Googleメール&quot; varchar
+  &quot;システムロールコード&quot; varchar [note: &#39;FK&#39;]
+  &quot;会員ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;職員ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;最終ログイン日時&quot; timestamp
+  &quot;パスワード更新日時&quot; timestamp
+  &quot;アカウント有効フラグ&quot; boolean
+  &quot;ログイン失敗回数&quot; int
+  &quot;ロック状態&quot; boolean
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+  &quot;削除フラグ&quot; boolean
+}
+
+Table &quot;T_請求&quot; {
+  &quot;請求ID&quot; varchar [pk]
+  &quot;会員ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;職員ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;役職コード&quot; varchar [note: &#39;FK&#39;]
+  &quot;組織コード&quot; varchar [note: &#39;FK&#39;]
+  &quot;種別コード&quot; varchar [note: &#39;FK&#39;]
+  &quot;請求種別&quot; varchar
+  &quot;業務分類コード&quot; varchar [note: &#39;FK&#39;]
+  &quot;単価&quot; int
+  &quot;数量&quot; int
+  &quot;請求金額&quot; int
+  &quot;活動日&quot; date
+  &quot;活動内容&quot; varchar
+  &quot;添付ファイルURL&quot; varchar
+  &quot;請求状態&quot; varchar
+  &quot;却下理由&quot; varchar
+  &quot;承認者メール&quot; varchar
+  &quot;承認日時&quot; timestamp
+  &quot;削除フラグ&quot; boolean
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+}
+
+// =====================================
+// リレーション
+// =====================================
+
+Ref: &quot;T_会員&quot;.&quot;会員種別コード&quot; &gt; &quot;M_会員種別&quot;.&quot;コード&quot; // 会員種別コード
+Ref: &quot;T_会員&quot;.&quot;会員状態コード&quot; &gt; &quot;M_会員状態&quot;.&quot;コード&quot; // 会員状態コード
+Ref: &quot;T_会員&quot;.&quot;発送方法コード&quot; &gt; &quot;M_発送方法&quot;.&quot;コード&quot; // 発送方法コード
+Ref: &quot;T_会員&quot;.&quot;郵送先区分コード&quot; &gt; &quot;M_郵送先区分&quot;.&quot;コード&quot; // 郵送先区分コード
+Ref: &quot;T_事業所職員&quot;.&quot;会員ID&quot; &gt; &quot;T_会員&quot;.&quot;会員ID&quot; // 会員ID
+Ref: &quot;T_事業所職員&quot;.&quot;職員権限コード&quot; &gt; &quot;M_職員権限&quot;.&quot;コード&quot; // 職員権限コード
+Ref: &quot;T_事業所職員&quot;.&quot;職員状態コード&quot; &gt; &quot;M_職員状態&quot;.&quot;コード&quot; // 職員状態コード
+Ref: &quot;T_認証アカウント&quot;.&quot;会員ID&quot; &gt; &quot;T_会員&quot;.&quot;会員ID&quot; // 会員ID
+Ref: &quot;T_認証アカウント&quot;.&quot;職員ID&quot; &gt; &quot;T_事業所職員&quot;.&quot;職員ID&quot; // 職員ID
+Ref: &quot;T_認証アカウント&quot;.&quot;システムロールコード&quot; &gt; &quot;M_システムロール&quot;.&quot;コード&quot; // システムロールコード
+// 自動推定失敗: T_管理者Googleホワイトリスト }o--o| T_認証アカウント : 紐付け認証ID
+// 自動推定失敗: T_管理者Googleホワイトリスト }o--o| T_会員 : 紐付け会員ID
+Ref: &quot;T_研修申込&quot;.&quot;研修ID&quot; &gt; &quot;T_研修&quot;.&quot;研修ID&quot; // 研修ID
+// 自動推定失敗: T_研修申込 }o--o| T_会員 : 会員ID(v360 2-FK)
+// 自動推定失敗: T_研修申込 }o--o| T_事業所職員 : 職員ID(v360 2-FK)
+// 自動推定失敗: T_研修申込 }o--o| T_外部申込者 : 外部申込者ID(v360 2-FK 新規)
+// 自動推定失敗: T_研修申込 }o--|| M_出欠状態 : 出欠状態コード(v360新規)
+// 自動推定失敗: T_研修申込 }o--|| M_申込者区分 : 申込者区分コード(deprecated v360)
+Ref: &quot;T_研修申込&quot;.&quot;申込状態コード&quot; &gt; &quot;M_申込状態&quot;.&quot;コード&quot; // 申込状態コード
+Ref: &quot;T_メール送信明細&quot;.&quot;ログID&quot; &gt; &quot;T_メール送信ログ&quot;.&quot;ログID&quot; // ログID(v360新規)
+// 自動推定失敗: T_メール送信明細 }o--o| T_研修 : 研修ID(v360新規)
+Ref: &quot;T_研修&quot;.&quot;研修状態コード&quot; &gt; &quot;M_研修状態&quot;.&quot;コード&quot; // 研修状態コード
+Ref: &quot;T_年会費納入履歴&quot;.&quot;会員ID&quot; &gt; &quot;T_会員&quot;.&quot;会員ID&quot; // 会員ID
+Ref: &quot;T_年会費納入履歴&quot;.&quot;会費納入状態コード&quot; &gt; &quot;M_会費納入状態&quot;.&quot;コード&quot; // 会費納入状態コード
+Ref: &quot;T_年会費更新履歴&quot;.&quot;年会費履歴ID&quot; &gt; &quot;T_年会費納入履歴&quot;.&quot;年会費履歴ID&quot; // 年会費履歴ID
+Ref: &quot;T_年会費更新履歴&quot;.&quot;会員ID&quot; &gt; &quot;T_会員&quot;.&quot;会員ID&quot; // 会員ID
+Ref: &quot;M_役職マスタ&quot;.&quot;組織コード&quot; &gt; &quot;M_組織マスタ&quot;.&quot;組織コード&quot; // 組織コード
+Ref: &quot;M_業務分類&quot;.&quot;組織コード&quot; &gt; &quot;M_組織マスタ&quot;.&quot;組織コード&quot; // 組織コード
+Ref: &quot;T_役員&quot;.&quot;会員ID&quot; &gt; &quot;T_会員&quot;.&quot;会員ID&quot; // 会員ID
+Ref: &quot;T_役員&quot;.&quot;職員ID&quot; &gt; &quot;T_事業所職員&quot;.&quot;職員ID&quot; // 職員ID
+Ref: &quot;T_役員&quot;.&quot;役職コード&quot; &gt; &quot;M_役職マスタ&quot;.&quot;役職コード&quot; // 役職コード
+Ref: &quot;T_役員&quot;.&quot;組織コード&quot; &gt; &quot;M_組織マスタ&quot;.&quot;組織コード&quot; // 組織コード
+Ref: &quot;T_振込口座&quot;.&quot;会員ID&quot; &gt; &quot;T_会員&quot;.&quot;会員ID&quot; // 会員ID
+Ref: &quot;T_振込口座&quot;.&quot;職員ID&quot; &gt; &quot;T_事業所職員&quot;.&quot;職員ID&quot; // 職員ID
+Ref: &quot;T_支払い&quot;.&quot;会員ID&quot; &gt; &quot;T_会員&quot;.&quot;会員ID&quot; // 会員ID
+Ref: &quot;T_支払い明細&quot;.&quot;支払いID&quot; &gt; &quot;T_支払い&quot;.&quot;支払いID&quot; // 支払いID
+Ref: &quot;T_支払い明細&quot;.&quot;請求ID&quot; &gt; &quot;T_請求&quot;.&quot;請求ID&quot; // 請求ID
+Ref: &quot;T_支払い明細&quot;.&quot;役職コード&quot; &gt; &quot;M_役職マスタ&quot;.&quot;役職コード&quot; // 役職コード
+Ref: &quot;T_支払い明細&quot;.&quot;組織コード&quot; &gt; &quot;M_組織マスタ&quot;.&quot;組織コード&quot; // 組織コード
+Ref: &quot;T_支払い明細&quot;.&quot;種別コード&quot; &gt; &quot;M_支払い種別マスタ&quot;.&quot;種別コード&quot; // 種別コード
+Ref: &quot;T_請求&quot;.&quot;会員ID&quot; &gt; &quot;T_会員&quot;.&quot;会員ID&quot; // 会員ID
+Ref: &quot;T_請求&quot;.&quot;職員ID&quot; &gt; &quot;T_事業所職員&quot;.&quot;職員ID&quot; // 職員ID
+Ref: &quot;T_請求&quot;.&quot;役職コード&quot; &gt; &quot;M_役職マスタ&quot;.&quot;役職コード&quot; // 役職コード
+Ref: &quot;T_請求&quot;.&quot;組織コード&quot; &gt; &quot;M_組織マスタ&quot;.&quot;組織コード&quot; // 組織コード
+Ref: &quot;T_請求&quot;.&quot;種別コード&quot; &gt; &quot;M_支払い種別マスタ&quot;.&quot;種別コード&quot; // 種別コード
+Ref: &quot;T_請求&quot;.&quot;業務分類コード&quot; &gt; &quot;M_業務分類&quot;.&quot;業務分類コード&quot; // 業務分類コード
+Ref: &quot;T_画面項目権限&quot;.&quot;システムロールコード&quot; &gt; &quot;M_システムロール&quot;.&quot;コード&quot; // システムロールコード
+Ref: &quot;T_ログイン履歴&quot;.&quot;認証ID&quot; &gt; &quot;T_認証アカウント&quot;.&quot;認証ID&quot; // 認証ID</pre>
+  </div>
+  <p style="font-size: 0.85em; color: var(--muted);">行数: 511 / 容量: 10.0 KB</p>
+</section>
+
+<section class="card">
+  <h2>🛠️ 推奨ツール(2026 業界グローバルスタンダード)</h2>
+  <p>以下のツールに上記 DBML をペーストすれば、ネット上で見られる「きれいな ER 図」を即座に得られます。すべて無料 or 無料枠あり、認証不要のものもあります。</p>
+  <div class="tool-grid">
+    <div class="tool-card recommended">
+      <h4>ChartDB</h4>
+      <p class="tool-pros">OSS / AI-powered / 自己ホスト可 / 完全無料 / 40+ テーブル動作確認済。2026 Best ERD Tools 上位。</p>
+      <a href="https://chartdb.io/" target="_blank" rel="noopener noreferrer">ChartDB を開く →</a>
+    </div>
+    <div class="tool-card">
+      <h4>dbdiagram.io</h4>
+      <p class="tool-pros">DBML 公式エディタ。ペーストすれば即座にレンダリング。グルーピング・色分け・PNG/PDF エクスポート可。</p>
+      <a href="https://dbdiagram.io/d" target="_blank" rel="noopener noreferrer">dbdiagram.io を開く →</a>
+    </div>
+    <div class="tool-card">
+      <h4>DbSchema</h4>
+      <p class="tool-pros">大規模スキーマに最強。複数図への自動分割。Git-friendly。デスクトップ版あり。</p>
+      <a href="https://dbschema.com/" target="_blank" rel="noopener noreferrer">DbSchema を開く →</a>
+    </div>
+    <div class="tool-card">
+      <h4>Liam ERD</h4>
+      <p class="tool-pros">React Flow ベース。100+ テーブル対応の最新 OSS。GitHub Stars 急上昇中(2025-2026)。</p>
+      <a href="https://liambx.com/" target="_blank" rel="noopener noreferrer">Liam ERD を開く →</a>
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>📖 使い方ガイド(ChartDB の例)</h2>
+  <ol>
+    <li>このページの「📋 全文コピー」ボタンで DBML を取得</li>
+    <li><a href="https://chartdb.io/" target="_blank" rel="noopener noreferrer">ChartDB</a> を新タブで開く</li>
+    <li>「New Diagram」→「Import from DBML」を選択</li>
+    <li>DBML をペースト → 「Import」</li>
+    <li>40 テーブル全てが配置された綺麗な ER 図が描画される</li>
+    <li>テーブルをドラッグして好みのレイアウトに調整可能</li>
+    <li>PNG / PDF / SVG にエクスポート可能(オフライン保存用)</li>
+  </ol>
+  <p style="background: #fef3c7; padding: 12px; border-radius: 6px; font-size: 0.88em;">
+    💡 <b>tip</b>: ChartDB は完全クライアントサイド処理のためサーバに DBML が送信されません。
+    機密スキーマでも安心して利用可能(AGENTS.md §0 シークレット保管準拠の観点でも OK)。
+  </p>
+</section>
+
+<section class="card">
+  <h2>♻️ 再生成</h2>
+  <p>docs/03_DATA_MODEL.md のスキーマを更新したら以下で再生成。生成物は docs/portal/schema.dbml + docs/portal/dbml-export.html。</p>
+  <pre><code>npm run build:docs-portal</code></pre>
+</section>
+
+
+<footer>
+  生成: 2026-05-30 | scripts/build-docs-portal.mjs より自動生成 | AGENTS.md §4.6 準拠
+</footer>
+
+</div>
+
+<script>
+function copyDbml() {
+  const src = document.getElementById('dbml-src').textContent;
+  navigator.clipboard.writeText(src).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    const orig = btn.textContent;
+    btn.textContent = '✓ コピー完了';
+    btn.style.background = '#16a34a';
+    setTimeout(() => { btn.textContent = orig; btn.style.background = ''; }, 2000);
+  }).catch((e) => alert('クリップボードコピー失敗: ' + e.message));
+}
+</script>
+</body>
+</html>

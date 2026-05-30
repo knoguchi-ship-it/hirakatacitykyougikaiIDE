@@ -433,7 +433,8 @@ footer {
 <nav class="topnav">
   <a href="index.html">📘 ポータル TOP</a>
   <a href="tables.html">📊 テーブル設計書</a>
-  <a href="er-diagram.html">🗂️ ER 図（俯瞰）</a>
+  <a href="er-diagram.html">🗂️ ER 図（ドメイン）</a>
+  <a href="dbml-export.html">🚀 DBML → 専用ツール</a>
   <a href="specifications.html">📋 仕様書サマリ</a>
   <a href="../../HANDOVER.md">📝 HANDOVER (Markdown)</a>
 </nav>
@@ -475,30 +476,76 @@ erDiagram
     string 会員ID PK
     string 会員種別コード FK
     string 会員状態コード FK
+    date 入会日
+    date 退会日
+    date 移行日
+    date 退会処理日
     string 姓
     string 名
+    string セイ
+    string メイ
     string 代表メールアドレス
+    string 携帯電話番号
+    string 勤務先名
+    string 勤務先郵便番号
+    string 勤務先都道府県
+    string 勤務先市区町村
+    string 勤務先住所
+    string 勤務先住所2
+    string 勤務先電話番号
+    string 勤務先FAX番号
+    string 自宅郵便番号
+    string 自宅都道府県
+    string 自宅市区町村
+    string 自宅住所
+    string 自宅住所2
     string 発送方法コード FK
     string 郵送先区分コード FK
+    int 職員数上限
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
+    string 事業所番号
+    string ステータスメモ
   }
   T_事業所職員 {
     string 職員ID PK
     string 会員ID FK
     string 姓
     string 名
+    string セイ
+    string メイ
     string 氏名
+    string フリガナ
     string メールアドレス
     string 職員権限コード FK
     string 職員状態コード FK
+    date 入会日
+    date 退会日
+    string メール配信希望コード
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
   }
   T_認証アカウント {
     string 認証ID PK
+    string 認証方式
     string ログインID
+    string パスワードハッシュ
+    string パスワードソルト
     string GoogleユーザーID
     string Googleメール
     string システムロールコード FK
     string 会員ID FK
     string 職員ID FK
+    datetime 最終ログイン日時
+    datetime パスワード更新日時
+    boolean アカウント有効フラグ
+    int ログイン失敗回数
+    boolean ロック状態
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
   }
   T_管理者Googleホワイトリスト {
     string ホワイトリストID PK
@@ -507,16 +554,27 @@ erDiagram
     string 表示名
     string 紐付け認証ID FK
     string 紐付け会員ID FK
+    boolean 有効フラグ
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
   }
   T_ログイン履歴 {
     string ログイン履歴ID PK
     string 認証ID FK
     string ログインID
+    string 認証方式
+    string ログイン結果
+    string 失敗理由
+    string 接続元IP
+    string ユーザーエージェント
+    datetime 実行日時
   }
   T_会員_archive {
     string 会員ID PK
     string 会員種別コード
     string 会員状態コード
+    date 退会日
   }
   T_事業所職員_archive {
     string 職員ID PK
@@ -620,28 +678,67 @@ erDiagram
   T_研修 {
     string 研修ID PK
     string 研修名
+    date 開催日
+    string 開催終了時刻
+    int 定員
+    int 申込者数
+    string 開催場所
     string 研修状態コード FK
+    string 主催者
+    boolean 法定外研修フラグ
+    string 研修概要
+    string 研修内容
+    string 費用JSON
+    date 申込開始日
+    date 申込締切日
+    string 講師
+    string 案内状URL
+    string 項目設定JSON
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
   }
   T_研修申込 {
     string 申込ID PK
     string 研修ID FK
     string 申込状態コード FK
+    datetime 申込日時
+    datetime 取消日時
+    string 備考
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
   }
   T_外部申込者 {
     string 外部申込者ID PK
     string 氏名
+    string フリガナ
     string メールアドレス
+    string 電話番号
     string 事業所名
+    datetime 同意日時
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
   }
   T_メール送信ログ {
     string ログID PK
+    datetime 送信日時
     string 送信者メール
     string 件名テンプレート
+    int 宛先数
+    int 成功数
+    int エラー数
+    string 送信種別
+    boolean 削除フラグ
   }
   T_メール送信明細 {
     string 明細ID PK
     string ログID FK
     string 受信者メール
+    string エラー詳細
+    datetime 作成日時
+    boolean 削除フラグ
   }
   T_会員 {
     string id PK
@@ -705,6 +802,12 @@ erDiagram
     string 職員ID FK
     string 役職コード FK
     string 組織コード FK
+    date 就任日
+    date 退任日
+    string 備考
+    boolean 削除フラグ
+    datetime 作成日時
+    datetime 更新日時
   }
   T_振込口座 {
     string 口座ID PK
@@ -713,11 +816,27 @@ erDiagram
     string 金融機関名
     string 金融機関コード
     string 支店名
+    string 支店コード
+    string 口座種別
+    string 口座番号
+    string 口座名義カナ
+    string 備考
+    boolean 削除フラグ
+    datetime 作成日時
+    datetime 更新日時
   }
   T_支払い {
     string 支払いID PK
     string 会員ID FK
+    date 支払い日
+    string 支払い方法
+    int 合計金額
+    string 振込先口座JSON
     string 登録者メール
+    string 備考
+    boolean 削除フラグ
+    datetime 作成日時
+    datetime 更新日時
   }
   T_支払い明細 {
     string 明細ID PK
@@ -726,6 +845,13 @@ erDiagram
     string 役職コード FK
     string 組織コード FK
     string 種別コード FK
+    int 金額
+    date 対象期間FROM
+    date 対象期間TO
+    string 摘要
+    boolean 削除フラグ
+    datetime 作成日時
+    datetime 更新日時
   }
   T_請求 {
     string 請求ID PK
@@ -734,7 +860,21 @@ erDiagram
     string 役職コード FK
     string 組織コード FK
     string 種別コード FK
+    string 請求種別
     string 業務分類コード FK
+    int 単価
+    int 数量
+    int 請求金額
+    date 活動日
+    string 活動内容
+    string 添付ファイルURL
+    string 請求状態
+    string 却下理由
+    string 承認者メール
+    datetime 承認日時
+    boolean 削除フラグ
+    datetime 作成日時
+    datetime 更新日時
   }
   T_会員 {
     string id PK
@@ -803,18 +943,33 @@ erDiagram
   T_年会費納入履歴 {
     string 年会費履歴ID PK
     string 会員ID FK
+    string 対象年度
     string 会費納入状態コード FK
+    date 納入確認日
+    int 金額
+    string 備考
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
   }
   T_年会費更新履歴 {
     string 年会費更新履歴ID PK
     string 年会費履歴ID FK
     string 会員ID FK
+    string 対象年度
+    string 操作種別
+    string 更新前JSON
+    string 更新後JSON
     string 実行者メール
+    datetime 実行日時
   }
   T_共有メモ {
     string キー PK
+    string 内容
     string 更新者メール
     string 更新者名
+    datetime 更新日時
+    int バージョン
   }
   T_会員 {
     string id PK
@@ -857,7 +1012,12 @@ erDiagram
   T_監査ログ {
     string 監査ログID PK
     string 操作者メール
+    string 操作種別
+    string 対象テーブル
     string 対象ID
+    string 変更前JSON
+    string 変更後JSON
+    datetime 実行日時
   }
 </pre>
         </div>
