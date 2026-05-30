@@ -280,11 +280,11 @@ footer {
 const COMMON_NAV = `
 <nav class="topnav">
   <a href="index.html">📘 ポータル TOP</a>
+  <a href="interactive-er.html">🔬 インタラクティブ ER</a>
   <a href="tables.html">📊 テーブル設計書</a>
-  <a href="er-diagram.html">🗂️ ER 図（ドメイン）</a>
-  <a href="dbml-export.html">🚀 DBML → 専用ツール</a>
+  <a href="er-diagram.html">🗂️ ER ドメイン</a>
+  <a href="dbml-export.html">🚀 DBML 出力</a>
   <a href="specifications.html">📋 仕様書サマリ</a>
-  <a href="../../HANDOVER.md">📝 HANDOVER (Markdown)</a>
 </nav>
 `;
 
@@ -1308,6 +1308,10 @@ ${COMMON_NAV}
 <section class="card">
   <h2>🗺️ クイックナビ</h2>
   <div class="toc-grid">
+    <a href="interactive-er.html"><div class="toc-card" style="border-left-color: #dc2626; background: linear-gradient(135deg, #fef2f2, #d9f3ef);">
+      <h3>🔬 インタラクティブ ER ビューア(NEW)</h3>
+      <p><b>ChartDB 同等品質</b>。React Flow + ELK で全カラム × 全テーブルをドラッグ可能。クリックで関連のみハイライト</p>
+    </div></a>
     <a href="tables.html"><div class="toc-card" style="border-left-color: #dc2626;">
       <h3>📊 テーブル設計書（理路整然版）</h3>
       <p><b>普段使い推奨</b>。各テーブルの列定義 + FK 関係をクリッカブルで辿れる正規ビュー</p>
@@ -1527,6 +1531,19 @@ function copyDbml() {
 </html>`;
 }
 
+// インタラクティブ ER ビューア (React Flow + ELK) 用のスキーマ JSON 埋込み（冪等）
+// interactive-er.html 内の <script id="schema-data" ...> ... </script> の中身を毎回書換え。
+function buildInteractiveErPage(entities, relationships) {
+  const tplPath = join(portalDir, 'interactive-er.html');
+  if (!existsSync(tplPath)) return null;
+  const tpl = readFileSync(tplPath, 'utf8');
+  const schemaJson = JSON.stringify({ entities, relationships });
+  return tpl.replace(
+    /(<script id="schema-data" type="application\/json">)[\s\S]*?(<\/script>)/,
+    `$1\n${schemaJson}\n$2`
+  );
+}
+
 // ── 実行 ─────────────────────────────────────────────────────
 const indexHtml = buildIndexPage();
 const erHtml = buildErDiagramPage();
@@ -1549,6 +1566,12 @@ writeFileSync(join(portalDir, 'specifications.html'), specHtml, 'utf8');
 writeFileSync(join(portalDir, 'dbml-export.html'), dbmlExportHtml, 'utf8');
 writeFileSync(join(portalDir, 'schema.dbml'), dbmlSource, 'utf8');
 
+// インタラクティブ ER (React Flow + ELK) は別途テンプレ管理しているため、スキーマだけ差込み再保存
+const interactiveErHtml = buildInteractiveErPage(allEntities, allRels);
+if (interactiveErHtml) {
+  writeFileSync(join(portalDir, 'interactive-er.html'), interactiveErHtml, 'utf8');
+}
+
 console.log('[build-docs-portal] generated:');
 console.log('  - docs/portal/index.html');
 console.log('  - docs/portal/er-diagram.html (ELK + full columns for small domains)');
@@ -1556,3 +1579,4 @@ console.log('  - docs/portal/tables.html');
 console.log('  - docs/portal/specifications.html');
 console.log('  - docs/portal/dbml-export.html (専用ツール誘導 + DBML コピー)');
 console.log('  - docs/portal/schema.dbml (' + (dbmlSource.length / 1024).toFixed(1) + ' KB)');
+if (interactiveErHtml) console.log('  - docs/portal/interactive-er.html (React Flow + ELK)');
