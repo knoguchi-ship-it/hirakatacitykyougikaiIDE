@@ -132,46 +132,91 @@ footer {
 .mermaid-wrap > .mermaid,
 .mermaid-wrap > svg { width: 100% !important; height: 100% !important; display: block; }
 
-/* ── ER 図の視認性強化（v376.32: 線・枠を濃く太く、エンティティ背景は純白）── */
+/* ── ER 図の視認性強化（v376.32: 白背景固定 + リレーション線をアクセント色で太く目立たせる）── */
+
+/* SVG 全体を純白背景に強制（透過部分がダーク表示される問題を解消） */
+.mermaid-wrap svg { background: #ffffff !important; }
+
+/* デフォルトで全ての rect を白塗り（クラス指定が漏れた要素もカバー） */
+.mermaid-wrap svg g > rect,
+.mermaid-wrap svg rect:not([class*="relationshipLabel"]) {
+  fill: #ffffff !important;
+}
+
+/* エンティティ全体の枠 */
 .mermaid-wrap svg .er.entityBox,
 .mermaid-wrap svg rect.er.entityBox {
   fill: #ffffff !important;
-  stroke: #1f2937 !important;
-  stroke-width: 1.6px !important;
+  stroke: #0f172a !important;
+  stroke-width: 2px !important;
 }
+
+/* 属性行の縞模様 */
 .mermaid-wrap svg .er.attributeBoxOdd,
-.mermaid-wrap svg .er.attributeBoxEven {
-  stroke: #94a3b8 !important;
+.mermaid-wrap svg rect.er.attributeBoxOdd {
+  fill: #f1f5f9 !important;
+  stroke: #cbd5e1 !important;
   stroke-width: 0.8px !important;
 }
-.mermaid-wrap svg .er.attributeBoxOdd { fill: #fafafa !important; }
-.mermaid-wrap svg .er.attributeBoxEven { fill: #ffffff !important; }
-.mermaid-wrap svg .er.entityLabel {
-  fill: #0f172a !important;
-  font-weight: 700 !important;
-  font-size: 15px !important;
-}
-.mermaid-wrap svg .er.relationshipLabel,
-.mermaid-wrap svg .er.relationshipLabelBox {
+.mermaid-wrap svg .er.attributeBoxEven,
+.mermaid-wrap svg rect.er.attributeBoxEven {
   fill: #ffffff !important;
+  stroke: #cbd5e1 !important;
+  stroke-width: 0.8px !important;
 }
-.mermaid-wrap svg .er.relationshipLabel { fill: #0f766e !important; font-weight: 600 !important; }
+
+/* テーブル名（エンティティラベル）ヘッダ */
+.mermaid-wrap svg .er.entityLabelBox,
+.mermaid-wrap svg rect.er.entityLabelBox {
+  fill: #0f766e !important;
+  stroke: #0f172a !important;
+  stroke-width: 2px !important;
+}
+.mermaid-wrap svg .er.entityLabel,
+.mermaid-wrap svg text.er.entityLabel {
+  fill: #ffffff !important;
+  font-weight: 700 !important;
+  font-size: 16px !important;
+}
+
+/* リレーション線（最重要）: アクセント色で太く、視認性最大化 */
 .mermaid-wrap svg .er.relationshipLine,
 .mermaid-wrap svg path.er.relationshipLine,
-.mermaid-wrap svg line.er.relationshipLine {
-  stroke: #0f172a !important;
-  stroke-width: 1.8px !important;
+.mermaid-wrap svg line.er.relationshipLine,
+.mermaid-wrap svg g.relationshipLine > path,
+.mermaid-wrap svg path[class*="relationship"] {
+  stroke: #dc2626 !important;       /* 赤系で他の線と区別 */
+  stroke-width: 2.5px !important;
+  fill: none !important;
+  opacity: 1 !important;
 }
+
+/* リレーション端点マーカー（◯ など） */
+.mermaid-wrap svg .er.relationshipLine circle,
+.mermaid-wrap svg circle[class*="relationship"] {
+  stroke: #dc2626 !important;
+  fill: #ffffff !important;
+  stroke-width: 2.5px !important;
+}
+
+/* リレーションラベル（"||--o{" などの記号 + テキスト） */
+.mermaid-wrap svg .er.relationshipLabelBox,
+.mermaid-wrap svg rect.er.relationshipLabelBox {
+  fill: #fef2f2 !important;
+  stroke: #dc2626 !important;
+  stroke-width: 1px !important;
+}
+.mermaid-wrap svg .er.relationshipLabel,
+.mermaid-wrap svg text.er.relationshipLabel {
+  fill: #991b1b !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+}
+
+/* 属性のテキスト */
 .mermaid-wrap svg text {
   fill: #1f2937 !important;
   font-family: "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif !important;
-}
-/* エンティティラベル背景（テーブル名ヘッダ）にアクセントカラー */
-.mermaid-wrap svg .er.entityLabelBox,
-.mermaid-wrap svg rect.er.entityLabelBox {
-  fill: #d9f3ef !important;
-  stroke: #1f2937 !important;
-  stroke-width: 1.6px !important;
 }
 .diagram-help {
   font-size: 0.82em;
