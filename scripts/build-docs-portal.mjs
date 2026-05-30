@@ -280,7 +280,8 @@ footer {
 const COMMON_NAV = `
 <nav class="topnav">
   <a href="index.html">📘 ポータル TOP</a>
-  <a href="er-diagram.html">🗂️ ER 図</a>
+  <a href="tables.html">📊 テーブル設計書</a>
+  <a href="er-diagram.html">🗂️ ER 図（俯瞰）</a>
   <a href="specifications.html">📋 仕様書サマリ</a>
   <a href="../../HANDOVER.md">📝 HANDOVER (Markdown)</a>
 </nav>
@@ -299,6 +300,263 @@ function htmlEscape(s) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+// ── Mermaid ER ソースから構造化情報を抽出 ─────────────────────
+//
+// 入力（mermaid ER 構文の例）:
+//   T_会員 {
+//     string 会員ID PK
+//     string 会員種別コード FK
+//     date 入会日
+//   }
+//   T_会員 ||--o{ T_事業所職員 : "1人の会員は0..N人の事業所職員"
+//
+// 出力:
+//   { entities: { 'T_会員': { name, columns:[{name,type,key}], comments } },
+//     relationships: [{ left, right, cardinality, label }] }
+function parseErdSource(src) {
+  const entities = {};
+  const relationships = [];
+  const lines = src.split(/\r?\n/);
+  let currentEntity = null;
+  let currentComment = '';
+  for (let i = 0; i < lines.length; i += 1) {
+    let line = lines[i];
+    // セクションコメント "%% ===== マスタ =====" を保持
+    const sec = line.match(/^\s*%%\s*=+\s*(.+?)\s*=+\s*$/);
+    if (sec) { currentComment = sec[1]; continue; }
+    // skip 通常 mermaid コメント
+    if (/^\s*%%/.test(line)) continue;
+    line = line.replace(/^\s+|\s+$/g, '');
+    if (!line) continue;
+    // entity 定義開始: `EntityName {` （日本語含む識別子を許容）
+    // Mermaid の entity 名は \S+ で十分（先頭の Markdown コードブロック行はもう除外済み）
+    const startEntity = line.match(/^(\S+)\s*\{$/);
+    if (startEntity) {
+      currentEntity = { name: startEntity[1], columns: [], group: currentComment };
+      entities[currentEntity.name] = currentEntity;
+      continue;
+    }
+    // entity 定義終了
+    if (currentEntity && line === '}') {
+      currentEntity = null;
+      continue;
+    }
+    // entity 内: 列定義 "type name PK|FK?" (type / name は日本語含む)
+    if (currentEntity) {
+      const m = line.match(/^(\S+)\s+(\S+?)(?:\s+(PK|FK|PK,FK|FK,PK))?$/);
+      if (m) {
+        currentEntity.columns.push({
+          type: m[1],
+          name: m[2],
+          key: m[3] || '',
+        });
+      }
+      continue;
+    }
+    // リレーション "E1 cardinality E2 : label" (E1/E2 は日本語含む \S+)
+    const rel = line.match(/^(\S+)\s+([}{|o<>0-9\-]+--[}{|o<>0-9\-]+)\s+(\S+)\s*:\s*"?([^"]*)"?$/);
+    if (rel) {
+      relationships.push({
+        left: rel[1],
+        cardinality: rel[2],
+        right: rel[3],
+        label: rel[4] || '',
+      });
+      continue;
+    }
+  }
+  return { entities, relationships };
+}
+
+// テーブル設計書ページ生成（理路整然とした参照用）
+function buildTablesPage() {
+  const dataModelPath = join(docsDir, '03_DATA_MODEL.md');
+  const md = readFileSync(dataModelPath, 'utf8');
+  const blocks = extractMermaidBlocks(md);
+  // 最大のブロック（line 30〜543 のメイン ER）を使用
+  const mainBlock = blocks.reduce((max, b) => (b.source.length > (max?.source.length || 0) ? b : max), null);
+  if (!mainBlock) {
+    return '<html><body>Mermaid ER ソースが見つかりませんでした。</body></html>';
+  }
+  const { entities, relationships } = parseErdSource(mainBlock.source);
+
+  // テーブル → 参照される側 / 参照する側 を逆引き
+  const referencedBy = {}; // 'T_会員' → [{ from: 'T_事業所職員', label: '...' }]
+  const references = {};    // 'T_事業所職員' → [{ to: 'T_会員', label: '...' }]
+  for (const r of relationships) {
+    if (!referencedBy[r.right]) referencedBy[r.right] = [];
+    if (!references[r.left]) references[r.left] = [];
+    referencedBy[r.right].push({ from: r.left, cardinality: r.cardinality, label: r.label });
+    references[r.left].push({ to: r.right, cardinality: r.cardinality, label: r.label });
+  }
+
+  // グループ別に並べ替え
+  const byGroup = {};
+  const groupOrder = [];
+  Object.values(entities).forEach((e) => {
+    const g = e.group || 'その他';
+    if (!byGroup[g]) { byGroup[g] = []; groupOrder.push(g); }
+    byGroup[g].push(e);
+  });
+
+  // 目次
+  const tocHtml = groupOrder.map((g) => `
+    <div style="margin-bottom: 12px;">
+      <h3 style="margin: 0 0 6px; color: var(--warm);">${htmlEscape(g)}</h3>
+      <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+        ${byGroup[g].map((e) => `<a href="#tbl-${htmlEscape(e.name)}" class="toc-tag">${htmlEscape(e.name)}</a>`).join('')}
+      </div>
+    </div>
+  `).join('');
+
+  // 各テーブルのカード HTML
+  const cardsHtml = groupOrder.map((g) => `
+    <h2 style="color: var(--warm); margin: 36px 0 16px; border-bottom: 2px solid var(--warm); padding-bottom: 6px;">${htmlEscape(g)}</h2>
+    ${byGroup[g].map((e) => renderTableCard(e, referencedBy[e.name] || [], references[e.name] || [])).join('')}
+  `).join('');
+
+  return `<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>テーブル設計書 | 枚方市介護支援専門員連絡協議会 会員システム</title>
+<style>${CSS}
+.toc-tag {
+  display: inline-block;
+  padding: 4px 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  text-decoration: none;
+  border-radius: 6px;
+  font-size: 0.85em;
+  font-weight: 600;
+  font-family: "Consolas", "Menlo", monospace;
+}
+.toc-tag:hover { background: var(--accent); color: white; }
+.tbl-card {
+  background: white;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  margin: 14px 0;
+  overflow: hidden;
+  scroll-margin-top: 80px;
+}
+.tbl-card-head {
+  background: linear-gradient(135deg, #0f766e, #14b8a6);
+  color: white;
+  padding: 12px 18px;
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+}
+.tbl-card-head h4 { margin: 0; font-family: "Consolas", "Menlo", monospace; font-size: 1.05em; }
+.tbl-card-head .col-count { font-size: 0.78em; opacity: 0.9; background: rgba(255,255,255,0.2); padding: 2px 10px; border-radius: 10px; }
+.tbl-card-body { padding: 14px 18px; }
+.tbl-card table { margin: 0; }
+.tbl-card th { background: #f1f5f9; font-size: 0.82em; }
+.tbl-card td { font-size: 0.88em; }
+.tbl-card .col-name { font-family: "Consolas", "Menlo", monospace; font-weight: 600; }
+.tbl-card .col-type { font-family: "Consolas", "Menlo", monospace; color: var(--muted); font-size: 0.82em; }
+.tbl-card .key-pk { background: #fef3c7; color: #92400e; padding: 1px 8px; border-radius: 4px; font-size: 0.75em; font-weight: 700; }
+.tbl-card .key-fk { background: #d9f3ef; color: #0f766e; padding: 1px 8px; border-radius: 4px; font-size: 0.75em; font-weight: 700; }
+.tbl-rel-section { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.tbl-rel-section h5 { margin: 0 0 8px; font-size: 0.85em; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.tbl-rel-item {
+  display: inline-block;
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 10px;
+  margin: 2px 4px 2px 0;
+  font-size: 0.85em;
+}
+.tbl-rel-item a { color: var(--accent); text-decoration: none; font-family: "Consolas", "Menlo", monospace; font-weight: 600; }
+.tbl-rel-item a:hover { text-decoration: underline; }
+.tbl-rel-item .card { color: var(--muted); font-size: 0.85em; margin: 0 4px; font-family: "Consolas", "Menlo", monospace; }
+.tbl-rel-item .lbl { color: var(--ink); font-size: 0.85em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+${COMMON_NAV}
+<div class="hero">
+  <h1>📊 テーブル設計書（理路整然版）</h1>
+  <p>各テーブルの列定義 + FK 関係を整理された形式で表示します。Mermaid ER 図の線が絡まる問題を回避した、参照用の正規ビューです。</p>
+  <p style="margin-top: 8px; font-size: 0.88em; opacity: 0.85;">📌 全 ${Object.keys(entities).length} テーブル | 全 ${relationships.length} リレーション</p>
+</div>
+
+<section class="card">
+  <h2>📑 目次（グループ別）</h2>
+  ${tocHtml}
+</section>
+
+<section class="card">
+  <h2>📖 凡例</h2>
+  <ul style="line-height: 2;">
+    <li><span class="key-pk">PK</span> = Primary Key（主キー、テーブル内一意識別子）</li>
+    <li><span class="key-fk">FK</span> = Foreign Key（外部キー、他テーブルへの参照）</li>
+    <li>📥 <b>このテーブルを参照する側</b>: 他テーブルの FK がこのテーブルを指している関係</li>
+    <li>📤 <b>このテーブルが参照する側</b>: このテーブルの FK が他テーブルを指している関係</li>
+    <li>各リレーションの cardinality（記号: <code>||--o{</code> など）は mermaid 記法</li>
+  </ul>
+</section>
+
+${cardsHtml}
+
+${FOOTER}
+</div>
+</body>
+</html>`;
+}
+
+function renderTableCard(entity, incoming, outgoing) {
+  const colsHtml = entity.columns.map((c) => {
+    const keyBadge = c.key === 'PK' ? '<span class="key-pk">PK</span>'
+                    : c.key === 'FK' ? '<span class="key-fk">FK</span>'
+                    : (c.key === 'PK,FK' || c.key === 'FK,PK') ? '<span class="key-pk">PK</span> <span class="key-fk">FK</span>'
+                    : '';
+    return `<tr>
+      <td class="col-name">${htmlEscape(c.name)}</td>
+      <td class="col-type">${htmlEscape(c.type)}</td>
+      <td>${keyBadge}</td>
+    </tr>`;
+  }).join('');
+
+  const incomingHtml = incoming.length === 0 ? '<span style="color: var(--muted); font-size: 0.85em;">なし</span>' :
+    incoming.map((r) => `<span class="tbl-rel-item">
+      <a href="#tbl-${htmlEscape(r.from)}">${htmlEscape(r.from)}</a>
+      <span class="card">${htmlEscape(r.cardinality)}</span>
+      <span class="lbl">${htmlEscape(r.label)}</span>
+    </span>`).join('');
+  const outgoingHtml = outgoing.length === 0 ? '<span style="color: var(--muted); font-size: 0.85em;">なし</span>' :
+    outgoing.map((r) => `<span class="tbl-rel-item">
+      <span class="card">${htmlEscape(r.cardinality)}</span>
+      <a href="#tbl-${htmlEscape(r.to)}">${htmlEscape(r.to)}</a>
+      <span class="lbl">${htmlEscape(r.label)}</span>
+    </span>`).join('');
+
+  return `
+  <div class="tbl-card" id="tbl-${htmlEscape(entity.name)}">
+    <div class="tbl-card-head">
+      <h4>${htmlEscape(entity.name)}</h4>
+      <span class="col-count">${entity.columns.length} 列</span>
+    </div>
+    <div class="tbl-card-body">
+      <table>
+        <thead><tr><th>列名</th><th>型</th><th>キー</th></tr></thead>
+        <tbody>${colsHtml}</tbody>
+      </table>
+      <div class="tbl-rel-section">
+        <h5>📥 このテーブルを参照する側 (${incoming.length})</h5>
+        ${incomingHtml}
+      </div>
+      <div class="tbl-rel-section">
+        <h5>📤 このテーブルが参照する側 (${outgoing.length})</h5>
+        ${outgoingHtml}
+      </div>
+    </div>
+  </div>`;
 }
 
 // ── ER 図ページ生成 ────────────────────────────────────────────
@@ -539,8 +797,13 @@ function buildErDiagramPage() {
 <div class="wrap">
 ${COMMON_NAV}
 <div class="hero">
-  <h1>🗂️ ER 図（データモデル可視化）</h1>
-  <p>docs/03_DATA_MODEL.md から自動抽出した Mermaid ER 図。テーブル間の関係 / FK / カラム制約を視覚確認できます。</p>
+  <h1>🗂️ ER 図（俯瞰用）</h1>
+  <p>docs/03_DATA_MODEL.md から自動抽出した Mermaid ER 図。テーブル全体の俯瞰用です。</p>
+  <p style="margin-top: 10px; font-size: 0.92em; opacity: 0.95;">
+    ⚠️ <b>テーブル数が多いため、関係線が交差・重なる場合があります</b>。<br>
+    各テーブルの列定義・参照先 FK を整理して見るには
+    👉 <a href="tables.html" style="color: #fde68a; font-weight: 700; text-decoration: underline;">📊 テーブル設計書（理路整然版）</a> をご覧ください。
+  </p>
 </div>
 ${body}
 <section class="card">
@@ -757,9 +1020,13 @@ ${COMMON_NAV}
 <section class="card">
   <h2>🗺️ クイックナビ</h2>
   <div class="toc-grid">
+    <a href="tables.html"><div class="toc-card" style="border-left-color: #dc2626;">
+      <h3>📊 テーブル設計書（理路整然版）</h3>
+      <p><b>推奨</b>。各テーブルの列定義 + FK 関係をクリッカブルで辿れる正規ビュー</p>
+    </div></a>
     <a href="er-diagram.html"><div class="toc-card">
-      <h3>🗂️ ER 図</h3>
-      <p>Mermaid 可視化されたデータベース ER 図（テーブル間関係・FK・カラム制約）</p>
+      <h3>🗂️ ER 図（俯瞰）</h3>
+      <p>Mermaid 可視化（俯瞰用、線の交差あり）。詳細は左の「テーブル設計書」へ</p>
     </div></a>
     <a href="specifications.html"><div class="toc-card">
       <h3>📋 仕様書サマリ</h3>
@@ -826,13 +1093,16 @@ ${FOOTER}
 // ── 実行 ─────────────────────────────────────────────────────
 const indexHtml = buildIndexPage();
 const erHtml = buildErDiagramPage();
+const tablesHtml = buildTablesPage();
 const specHtml = buildSpecificationsPage();
 
 writeFileSync(join(portalDir, 'index.html'), indexHtml, 'utf8');
 writeFileSync(join(portalDir, 'er-diagram.html'), erHtml, 'utf8');
+writeFileSync(join(portalDir, 'tables.html'), tablesHtml, 'utf8');
 writeFileSync(join(portalDir, 'specifications.html'), specHtml, 'utf8');
 
 console.log('[build-docs-portal] generated:');
 console.log('  - docs/portal/index.html');
 console.log('  - docs/portal/er-diagram.html');
+console.log('  - docs/portal/tables.html');
 console.log('  - docs/portal/specifications.html');

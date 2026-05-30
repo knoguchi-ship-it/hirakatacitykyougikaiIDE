@@ -423,14 +423,20 @@ footer {
 
 <nav class="topnav">
   <a href="index.html">📘 ポータル TOP</a>
-  <a href="er-diagram.html">🗂️ ER 図</a>
+  <a href="tables.html">📊 テーブル設計書</a>
+  <a href="er-diagram.html">🗂️ ER 図（俯瞰）</a>
   <a href="specifications.html">📋 仕様書サマリ</a>
   <a href="../../HANDOVER.md">📝 HANDOVER (Markdown)</a>
 </nav>
 
 <div class="hero">
-  <h1>🗂️ ER 図（データモデル可視化）</h1>
-  <p>docs/03_DATA_MODEL.md から自動抽出した Mermaid ER 図。テーブル間の関係 / FK / カラム制約を視覚確認できます。</p>
+  <h1>🗂️ ER 図（俯瞰用）</h1>
+  <p>docs/03_DATA_MODEL.md から自動抽出した Mermaid ER 図。テーブル全体の俯瞰用です。</p>
+  <p style="margin-top: 10px; font-size: 0.92em; opacity: 0.95;">
+    ⚠️ <b>テーブル数が多いため、関係線が交差・重なる場合があります</b>。<br>
+    各テーブルの列定義・参照先 FK を整理して見るには
+    👉 <a href="tables.html" style="color: #fde68a; font-weight: 700; text-decoration: underline;">📊 テーブル設計書（理路整然版）</a> をご覧ください。
+  </p>
 </div>
 
       <section class="card">
