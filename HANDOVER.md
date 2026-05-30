@@ -4,8 +4,9 @@
 > 経緯・履歴・設計詳細は別ドキュメントへ。リンク先は §6 参照順序を参照。
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
-最終更新: **2026-05-29**
-最新リリース: **`v376.31`**（initializeSchema_ 堅牢化 — 全 3 split @351/@110/@191。各 step を critical/post に分離し try/catch + Logger.log で計装、post-step 失敗は initialization 完了を妨げない。protectHeaderRows_ / applyDataValidationRules_ に空シート防御追加。v376.30 で発生した「範囲の列数には 1 以上を指定してください」事象の根本対応）
+最終更新: **2026-05-30**
+最新リリース: **`v376.31`**（initializeSchema_ 堅牢化 — 全 3 split @351/@110/@191。本番コードは v376.31 以降未変更）
+最終作業: **`docs/portal/`** ドキュメントポータル新設・拡充（AGENTS.md §4.6 ドキュメント形式規約準拠）+ AGENTS.md にユーザー指定追加ルール 6 件反映
 
 ---
 
@@ -24,10 +25,11 @@
 
 ## 2. 操作者の即時対応タスク
 
-### 2-0. 次の開発予定（最優先・設計確定済み）
+### 2-0. 次の開発予定
 
 | タスク | 状態 | 参照 |
 |---|---|---|
+| **ER エディタ&ビューアの深化（次セッション最優先）** | MVP 完成（`docs/portal/er-editor.html`）。SQL CREATE TABLE 解析・Monaco エディタ・undo履歴・複数スキーマ管理・スクリーンショット書出し等の拡張余地多数。汎用 OSS ツールとして外出し可能性も | `docs/portal/er-editor.html`, MEMORY `feedback_oss_license_audit.md` |
 | **メニュー単位カスタムロール RBAC — Phase 1-A 完了 (v376.24 @179)** | 認可レイヤー内部置換完了。挙動完全維持 + snapshot test 7 件 PASS + 許容デルタ 7 件明示承認 | `scripts/menu-registry.mjs`, `scripts/test-menu-registry.mjs`, `docs/246` §Phase 1-A 完了記録 |
 | **メニュー単位カスタムロール RBAC — Phase 1-B 完全完了 (v376.25.1 @181)** | T_権限ロール schema + ロールID 列 + 5 ロール seed + fallback chain + DB migration 適用完了。DRYRUN 結果: 4 行全て SKIP（既に正しい）= ロールID 経路で稼働中 | `docs/246` §Phase 1-B 完全完了記録 |
 | **メニュー単位カスタムロール RBAC — Phase 2 全完了 (v376.26〜.28.2 @182〜@186)** | 2-A backend CRUD + 2-B 権限マトリクス UI + 2-C 管理者追加フォーム roleId 選択化 + .28.1/.28.2 hotfix（シート作成 + session resolved authz）| `docs/246` §Phase 2 完了記録 |
@@ -90,6 +92,9 @@ npm run test:a11y                          # 公開ポータルのみ（auth 不
 npm run test:responsive                    # 公開ポータルのみ
 npm run test:responsive:admin              # 要 storageState
 npm run test:responsive:member             # 要 storageState
+
+# ドキュメントポータル再生成（AGENTS.md §4.6 同期則 — スキーマ・仕様変更時必須）
+npm run build:docs-portal                  # docs/portal/*.html + schema.dbml を一括生成
 ```
 
 ---
@@ -129,7 +134,8 @@ npm run test:responsive:member             # 要 storageState
 |---|---|---|
 | 1 | `AGENTS.md` §0 | シークレット絶対ルール（破ったら即時是正） |
 | 2 | 本 `HANDOVER.md` | 現状把握（このファイル） |
-| 3 | `docs/00_DOC_INDEX.md` | 全ドキュメントの Diataxis 索引 |
+| 3a | **`docs/portal/index.html`**（ブラウザで開く）| **人間向け HTML ポータル**（ER 図 / テーブル設計書 / 仕様書サマリ / インタラクティブ ER / ER エディタ）|
+| 3 | `docs/00_DOC_INDEX.md` | 全ドキュメントの Diataxis 索引（一次資料 Markdown）|
 | 4 | `docs/ONBOARDING.md` | 新規開発者向け（Day 1 / Week 1 / Week 2-3 / Week 4） |
 | 5 | `docs/02_ARCHITECTURE.md` / `docs/03_DATA_MODEL.md` / `docs/05_AUTH_AND_ROLE_SPEC.md` | リファレンス（必要時） |
 | 6 | `docs/12_ENGINEERING_RULEBOOK.md` / `docs/09_DEPLOYMENT_POLICY.md` | 開発・デプロイ規約 |
@@ -145,6 +151,7 @@ npm run test:responsive:member             # 要 storageState
 
 | Version | 日付 | 概要 |
 |---|---|---|
+| **(本番コード変更なし)** | 2026-05-30 | **ドキュメントポータル拡充 + AGENTS.md グランドルール整理**（本番デプロイなし、コミット 10 件）。**新設**: `docs/portal/` 配下の人間可読 HTML ポータル 6 ページ — TOP / インタラクティブ ER (React Flow + ELK) / ER エディタ&ビューア(汎用、DBML+Mermaid 編集ライブプレビュー) / テーブル設計書(クリッカブル) / ER ドメイン別(Mermaid + ELK) / DBML エクスポート(ChartDB/dbdiagram.io 連携) / 仕様書サマリ。`scripts/build-docs-portal.mjs` を単一情報源とし、`npm run build:docs-portal` で再生成。**AGENTS.md 整理**: §4 を 5 サブセクション化 (Deploy SOP / 認証フロー / セキュリティ運用 / UI/UX / ランタイム契約 / **§4.6 ドキュメント形式規約 (新設)**)、§6 重複削減、ユーザー指定追加ルール 6 件反映 (DRY 原則 / ハードコーディング禁止 / 影響範囲確認 / セキュアコーディング 5 視点 / ER 図 HTML 必須 / 人間可読版併設)。**MEMORY フィードバック整理**: Layer 別 subheading で並び替え。**ライセンス監査**: ChartDB AGPL v3 を回避し React Flow MIT を採用 |
 | **v376.31** | 2026-05-29 | **initializeSchema_ 堅牢化（v376.30.x 根本対応）**（全 3 split @351/@110/@191）。**計装**: `initializeSchema_` の各 step を critical（migration / seed — 例外伝播）と post（validation 適用 / 保護 / cleanup / audit — Logger.log のみ続行）に分離。完了時に passed/criticalFailed/postFailed 集計をログ出力。**空シート防御**: `protectHeaderRows_` と `applyDataValidationRules_` で `lastColumn < 1` のシートを skip + Logger.log。v376.30 では post-step（おそらく protectHeaderRows_）が空シートに当たって throw し、initialization が中断 → markSchemaInitialized_ 未到達 → 毎リクエスト再初期化ループ、という事象が発生していたが、今後は post-step の軽微なエラーで全体が止まらない |
 | **v376.30.1 / .30.2** | 2026-05-29 | **v376.30 hotfix 2 件**（admin @189 → @190）。**.30.1**: schema 状態診断関数 `diagnoseSchemaStateV376_30` を追加。**.30.2**: 救済関数 `forceMarkSchemaInitializedToCurrent` を追加。`initializeSchema_` が schema migration を成功完了したのに最終 `markSchemaInitialized_` まで到達せず `DB_SCHEMA_INITIALIZED_VERSION` が古い値のまま残り、毎リクエストで `initializeSchemaIfNeeded_` が走って後処理ステップでエラー再発する状況を解消。スキーマ自体（T_研修 24列・申込URL 含む・5件データ保持）は正常で、Properties の 2 行を強制マークしただけ。次回 hotfix 候補: `initializeSchema_` の各 step に try/catch + Logger.log を入れて根本原因（どの step で例外が出ていたか）を特定 |
 | **v376.30** | 2026-05-29 | **研修登録に「申込URL」任意項目追加**（全 3 split @350/@109/@188）。Google フォーム等の外部申込フォーム URL を任意項目（デフォルト表示）として導入。T_研修 schema 末尾に「申込URL」列追加（normalizeTableColumns_ の name-based shift で既存 5 行データ保持、DB_SCHEMA_VERSION 更新で次回 admin login 時に自動 migrate）。types.ts に Training.applicationUrl?/TrainingFieldConfig.applicationUrl + DEFAULT_FIELD_CONFIG。TRAINING_OPTIONAL_FIELD_DEFS に追加し他の任意項目と同じ表示/非表示トグルに対応。admin form: 案内PDF 直後に URL 入力欄。公開ポータル: t.applicationUrl が設定されていれば「申し込む」ボタンを target="_blank" の「申込フォームへ」外部リンクに置換（未設定時は従来の内部申込ボタン） |

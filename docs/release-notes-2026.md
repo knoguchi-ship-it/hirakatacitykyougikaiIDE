@@ -13,6 +13,59 @@
 
 ---
 
+## 2026-05-30 📘 ドキュメントポータル拡充 + AGENTS.md 整理（本番コード変更なし）
+
+本日は本番デプロイは行わず、ドキュメントとグランドルール整理に集中。コミット 10 件、本番への影響ゼロ。
+
+### docs/portal/ ドキュメントポータル新設・拡充
+- `index.html` — TOC + クイックナビ
+- **`interactive-er.html`** — React Flow + ELK で本案件 40 テーブルを全カラム表示、ドラッグ可、クリックでハイライト
+- **`er-editor.html`** — **汎用 ER エディタ&ビューア**（DBML/Mermaid 編集、ライブプレビュー、ファイル D&D 対応、サンプル投入、保存ダウンロード）
+- `tables.html` — 構造化テキスト設計書（FK 関係クリッカブル）
+- `er-diagram.html` — ドメイン別 Mermaid + ELK（6 ドメインに分割）
+- `dbml-export.html` — ChartDB / dbdiagram.io / DbSchema / Liam ERD への DBML エクスポート + 誘導
+- `specifications.html` — PRD / アーキ / 認証 RBAC / デプロイ / セキュリティ 5 視点 サマリ
+- `schema.dbml` — `parseErdSource` 経由で自動生成 (40 table + 40 Ref)
+- `scripts/build-docs-portal.mjs` — 単一情報源、 `npm run build:docs-portal` で一括再生成
+- 採用 OSS は全て MIT/EPL/BSD（許可的）。ChartDB AGPL は意図的に回避
+
+### AGENTS.md グランドルール整理
+- §4 を 5 サブセクション化 (Deploy SOP / 認証フロー / セキュリティ運用 / UI/UX / ランタイム契約 / §4.6 ドキュメント形式規約 新設)
+- §6 重複削減（§0 と被る pepper/token 記録禁止を一本化）
+- ユーザー指定追加ルール 6 件反映:
+  1. DRY 原則を実装の基本とする
+  2. ハードコーディング原則禁止（シークレットは絶対禁止）
+  3. 影響範囲の事前確認 + 既存挙動を破壊しないことの保証
+  4. セキュアコーディング 5 視点（入力検証 / 認証認可 / 機密データ保護 / エラー処理 / セキュア通信）
+  5. ER 図・テーブル設計書は HTML 形式必須（§4.6）
+  6. AI 用と人間可読版の併設（§4.6）
+
+### MEMORY 整理 + 新規 feedback
+- フィードバックメモリを Layer 別 subheading で並び替え（L0 → L3 → L4 → L5 → L6）
+- 新規 [外部 OSS 採用前にライセンス監査必須](feedback_oss_license_audit.md) — AGPL 回避、MIT/EPL/BSD 安全
+- 新規 [docs/portal/ アーキ概要](project_docs_portal_architecture.md) — 6 ページ構成 + 採用ライセンス
+
+### コミット 10 件
+- 2327b64 fix: v376.31 initializeSchema_ 堅牢化
+- 2e18f59 docs: v376.31 反映
+- ffbc2a3 test: dryRun 5/5 + cleanup
+- 2a1a07c docs: dryRun PASS 記録
+- 50cc0ff docs: AGENTS.md §4 subsection 化 + §6 重複削減
+- 64d7a1a docs: AGENTS.md 追加ルール 6 件反映
+- 7d18aad docs: 人間向け HTML ポータル新設
+- 28e0402 fix: ER 図 拡大縮小パン (svg-pan-zoom)
+- 5dd5f9e / 0ed5f44 fix: ER 視認性改善
+- 34eb384 feat: tables.html 理路整然版
+- e5d3be9 feat: ER ドメイン分割 + ELK
+- 981628d feat: DBML エクスポート
+- f70d347 feat: ChartDB 互換 interactive-er.html (React Flow + ELK / MIT)
+- 7b84e73 feat: 汎用 ER エディタ er-editor.html
+
+### 次セッション最優先候補
+ER エディタの深化（SQL CREATE TABLE 解析 / Monaco エディタ / undo / 複数スキーマ管理 / PNG エクスポート）。 OSS として外出し可能性も検討余地。
+
+---
+
 ## v376.31.1 — 2026-05-29 ✅ dryRun テスト 5/5 PASS + 物理削除完了
 
 本日実装機能（v376.26〜v376.31）の round-trip 検証を operator が ▶ Run して実施し、全テスト PASS。投入したテストデータ（DRYRUN_v376_30_31_ プレフィックス付き）は物理削除済。
