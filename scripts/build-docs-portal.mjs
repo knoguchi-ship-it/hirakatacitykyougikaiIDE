@@ -594,37 +594,159 @@ function extractMermaidBlocks(mdContent) {
   return blocks;
 }
 
+// ── ドメイン定義（グローバルスタンダード: 各図 10-15 entity 以内）──
+// 大規模 ER 図は ELK レイアウトでも 30+ entity だと破綻するため、ドメイン別に分割する。
+const DOMAINS = [
+  {
+    id: 'member',
+    label: '会員・職員ドメイン',
+    description: '会員・事業所職員・認証・管理者ホワイトリスト・権限ロール・変更申請',
+    entities: ['T_会員', 'T_事業所職員', 'T_認証アカウント', 'T_管理者Googleホワイトリスト', 'T_権限ロール', 'T_変更申請', 'T_ログイン履歴', 'T_会員_archive', 'T_事業所職員_archive', 'T_人物統合ログ'],
+  },
+  {
+    id: 'training',
+    label: '研修ドメイン',
+    description: '研修マスタ・申込・外部申込者・出欠管理',
+    entities: ['T_研修', 'T_研修申込', 'T_外部申込者', 'T_メール送信ログ', 'T_メール送信明細'],
+  },
+  {
+    id: 'officer',
+    label: '役員・財務ドメイン',
+    description: '役員割当・振込口座・支払い・請求',
+    entities: ['T_役員', 'T_振込口座', 'T_支払い', 'T_支払い明細', 'T_請求'],
+  },
+  {
+    id: 'annual-fee',
+    label: '年会費・共有メモドメイン',
+    description: '年会費納入履歴・更新履歴・共有メモ',
+    entities: ['T_年会費納入履歴', 'T_年会費更新履歴', 'T_共有メモ'],
+  },
+  {
+    id: 'audit',
+    label: '監査・LINE 投稿ドメイン',
+    description: '監査ログ・LINE 投稿依頼・削除ログ',
+    entities: ['T_監査ログ', 'T_LINE投稿依頼', 'T_削除ログ'],
+  },
+  {
+    id: 'master',
+    label: 'マスタテーブル群',
+    description: '会員種別 / 会員状態 / 職員権限 / 研修状態 / 申込状態 / 出欠状態 等',
+    entities: null, // M_* で始まる全テーブル
+  },
+];
+
+// 各エンティティから「概要表示用」のカラムを抽出（PK/FK + 識別子っぽい列）
+function selectKeyColumns(entity) {
+  const isIdentity = (name) => /ID|コード|名|姓|名前|タイトル|status|ステータス|状態|email|メール/i.test(name);
+  const result = [];
+  for (const c of entity.columns) {
+    if (c.key) result.push(c); // PK/FK は必ず含める
+    else if (isIdentity(c.name) && result.length < 6) result.push(c); // 識別子っぽいものを最大 6 列まで
+  }
+  // 最大 8 列で打ち切り（過剰な属性表示を抑制）
+  return result.slice(0, 8);
+}
+
+// ドメイン別に concise mermaid ER 図ソースを生成（ELK layout 付き frontmatter）
+function buildDomainErdSource(domain, allEntities, allRelationships) {
+  // エンティティ抽出
+  let inScopeNames;
+  if (domain.entities === null) {
+    // マスタ: M_ で始まる全エンティティ
+    inScopeNames = Object.keys(allEntities).filter((n) => n.startsWith('M_'));
+  } else {
+    inScopeNames = domain.entities.filter((n) => allEntities[n]);
+  }
+  if (inScopeNames.length === 0) return null;
+  const inScope = new Set(inScopeNames);
+
+  // ドメイン内のリレーション（両端ともドメイン内）+ ドメイン境界をまたぐもの
+  const internalRels = allRelationships.filter((r) => inScope.has(r.left) && inScope.has(r.right));
+  const boundaryRels = allRelationships.filter((r) =>
+    (inScope.has(r.left) && !inScope.has(r.right)) || (!inScope.has(r.left) && inScope.has(r.right))
+  );
+
+  // 境界をまたぐ関係に出てくる外部エンティティも（参照先として）含める
+  const externalEntities = new Set();
+  boundaryRels.forEach((r) => {
+    if (!inScope.has(r.left)) externalEntities.add(r.left);
+    if (!inScope.has(r.right)) externalEntities.add(r.right);
+  });
+
+  // mermaid ソース構築（frontmatter で ELK 指定）
+  const lines = [
+    '---',
+    'config:',
+    '  layout: elk',
+    '  elk:',
+    '    nodePlacementStrategy: BRANDES_KOEPF',
+    '    mergeEdges: true',
+    '---',
+    'erDiagram',
+    '',
+  ];
+  // ドメイン内エンティティを concise 表示
+  for (const name of inScopeNames) {
+    const e = allEntities[name];
+    if (!e) continue;
+    const keyCols = selectKeyColumns(e);
+    lines.push(`  ${name} {`);
+    for (const c of keyCols) {
+      const keyMark = c.key ? ` ${c.key}` : '';
+      lines.push(`    ${c.type} ${c.name}${keyMark}`);
+    }
+    lines.push('  }');
+  }
+  // 境界外エンティティは「shell」表示（中身なしのプレースホルダ）
+  for (const name of externalEntities) {
+    lines.push(`  ${name} {`);
+    lines.push(`    string id PK`);
+    lines.push(`  }`);
+  }
+  lines.push('');
+  // リレーション（内部 + 境界）
+  for (const r of [...internalRels, ...boundaryRels]) {
+    lines.push(`  ${r.left} ${r.cardinality} ${r.right} : "${r.label}"`);
+  }
+  return lines.join('\n');
+}
+
 function buildErDiagramPage() {
   const dataModelPath = join(docsDir, '03_DATA_MODEL.md');
   const md = readFileSync(dataModelPath, 'utf8');
   const blocks = extractMermaidBlocks(md);
+  const mainBlock = blocks.reduce((max, b) => (b.source.length > (max?.source.length || 0) ? b : max), null);
+  const { entities, relationships } = mainBlock ? parseErdSource(mainBlock.source) : { entities: {}, relationships: [] };
 
-  let body = '';
-  if (blocks.length === 0) {
-    body = '<p>Mermaid ブロックが docs/03_DATA_MODEL.md に見つかりませんでした。</p>';
-  } else {
-    body = blocks.map((b, idx) => `
+  // ドメイン別ソース生成
+  const domainSources = DOMAINS.map((d) => ({
+    ...d,
+    source: buildDomainErdSource(d, entities, relationships),
+    entityCount: d.entities === null
+      ? Object.keys(entities).filter((n) => n.startsWith('M_')).length
+      : d.entities.filter((n) => entities[n]).length,
+  })).filter((d) => d.source);
+
+  // 各ドメインを diagram-wrap カードとして render
+  const body = domainSources.map((d, idx) => `
       <section class="card">
-        <h2>図 ${idx + 1}: ${htmlEscape(b.heading)}</h2>
-        <p style="color: var(--muted); font-size: 0.88em;">
-          ソース: <code>docs/03_DATA_MODEL.md</code> line ${b.startLine}〜
-        </p>
+        <h2>${idx + 1}. ${htmlEscape(d.label)} <span class="badge">${d.entityCount} entity</span></h2>
+        <p style="color: var(--muted); font-size: 0.92em;">${htmlEscape(d.description)}</p>
         <div class="diagram-help">
-          🖱️ マウスホイール = 拡大/縮小  ｜  ドラッグ = パン（移動）  ｜  下のボタンでも操作可
+          🖱️ マウスホイール = 拡大/縮小 ｜ ドラッグ = パン ｜ ELK レイアウト適用済（線の交差を最小化）
         </div>
         <div class="zoom-controls">
-          <button onclick="window.diagramCtl(${idx}, 'in')" aria-label="拡大">＋ 拡大</button>
-          <button onclick="window.diagramCtl(${idx}, 'out')" aria-label="縮小">－ 縮小</button>
-          <button class="secondary" onclick="window.diagramCtl(${idx}, 'fit')" aria-label="全体表示">⤢ 全体表示（俯瞰）</button>
-          <button class="secondary" onclick="window.diagramCtl(${idx}, 'center')" aria-label="センタリング">⊕ センタリング</button>
-          <button class="secondary" onclick="window.diagramCtl(${idx}, 'reset')" aria-label="リセット">↺ リセット</button>
+          <button onclick="window.diagramCtl(${idx}, 'in')">＋ 拡大</button>
+          <button onclick="window.diagramCtl(${idx}, 'out')">－ 縮小</button>
+          <button class="secondary" onclick="window.diagramCtl(${idx}, 'fit')">⤢ 全体表示</button>
+          <button class="secondary" onclick="window.diagramCtl(${idx}, 'center')">⊕ センタリング</button>
+          <button class="secondary" onclick="window.diagramCtl(${idx}, 'reset')">↺ リセット</button>
         </div>
         <div class="mermaid-wrap" id="diagram-wrap-${idx}">
-          <pre class="mermaid" data-diagram-idx="${idx}">${htmlEscape(b.source)}</pre>
+          <pre class="mermaid" data-diagram-idx="${idx}">${htmlEscape(d.source)}</pre>
         </div>
       </section>
-    `).join('\n');
-  }
+  `).join('\n');
 
   return `<!doctype html>
 <html lang="ja">
@@ -636,12 +758,21 @@ function buildErDiagramPage() {
 <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.2/dist/svg-pan-zoom.min.js"></script>
 <script type="module">
   import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  // ELK レイアウトを登録（グローバルスタンダード: Dagre より大規模 ER 向き）
+  try {
+    const elkLayouts = await import('https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.7/dist/mermaid-layout-elk.esm.min.mjs');
+    mermaid.registerLayoutLoaders(elkLayouts.default || elkLayouts);
+    console.log('[mermaid] ELK layout registered');
+  } catch (e) {
+    console.warn('[mermaid] ELK layout 登録失敗、Dagre fallback', e);
+  }
   // startOnLoad=false で manual run、render 後に svg-pan-zoom を attach する
   // theme: 'base' + themeVariables で高コントラスト ER 配色（白背景 + 濃線）
   mermaid.initialize({
     startOnLoad: false,
     theme: 'base',
     securityLevel: 'loose',
+    look: 'classic',
     themeVariables: {
       // 基本色
       primaryColor: '#ffffff',
@@ -797,12 +928,12 @@ function buildErDiagramPage() {
 <div class="wrap">
 ${COMMON_NAV}
 <div class="hero">
-  <h1>🗂️ ER 図（俯瞰用）</h1>
-  <p>docs/03_DATA_MODEL.md から自動抽出した Mermaid ER 図。テーブル全体の俯瞰用です。</p>
-  <p style="margin-top: 10px; font-size: 0.92em; opacity: 0.95;">
-    ⚠️ <b>テーブル数が多いため、関係線が交差・重なる場合があります</b>。<br>
-    各テーブルの列定義・参照先 FK を整理して見るには
-    👉 <a href="tables.html" style="color: #fde68a; font-weight: 700; text-decoration: underline;">📊 テーブル設計書（理路整然版）</a> をご覧ください。
+  <h1>🗂️ ER 図（ドメイン別）</h1>
+  <p>グローバルスタンダードのベストプラクティスに基づき、ドメイン別に 5-15 entity 以内の小さな図に分割。</p>
+  <p style="margin-top: 10px; font-size: 0.9em; opacity: 0.92;">
+    🔧 <b>適用技術</b>: Mermaid v11 + ELK レイアウト (Eclipse Layout Kernel) で線の交差を最小化。<br>
+    各エンティティは PK/FK + 識別子 列のみ concise 表示（全列定義は
+    <a href="tables.html" style="color: #fde68a; font-weight: 700; text-decoration: underline;">📊 テーブル設計書</a> 参照）。
   </p>
 </div>
 ${body}
