@@ -135,7 +135,7 @@ footer {
   text-align: center;
 }
 .mermaid-wrap {
-  background: white;
+  background: #ffffff;
   border-radius: 12px;
   padding: 12px;
   margin: 16px 0;
@@ -149,6 +149,48 @@ footer {
 }
 .mermaid-wrap > .mermaid,
 .mermaid-wrap > svg { width: 100% !important; height: 100% !important; display: block; }
+
+/* ── ER 図の視認性強化（v376.32: 線・枠を濃く太く、エンティティ背景は純白）── */
+.mermaid-wrap svg .er.entityBox,
+.mermaid-wrap svg rect.er.entityBox {
+  fill: #ffffff !important;
+  stroke: #1f2937 !important;
+  stroke-width: 1.6px !important;
+}
+.mermaid-wrap svg .er.attributeBoxOdd,
+.mermaid-wrap svg .er.attributeBoxEven {
+  stroke: #94a3b8 !important;
+  stroke-width: 0.8px !important;
+}
+.mermaid-wrap svg .er.attributeBoxOdd { fill: #fafafa !important; }
+.mermaid-wrap svg .er.attributeBoxEven { fill: #ffffff !important; }
+.mermaid-wrap svg .er.entityLabel {
+  fill: #0f172a !important;
+  font-weight: 700 !important;
+  font-size: 15px !important;
+}
+.mermaid-wrap svg .er.relationshipLabel,
+.mermaid-wrap svg .er.relationshipLabelBox {
+  fill: #ffffff !important;
+}
+.mermaid-wrap svg .er.relationshipLabel { fill: #0f766e !important; font-weight: 600 !important; }
+.mermaid-wrap svg .er.relationshipLine,
+.mermaid-wrap svg path.er.relationshipLine,
+.mermaid-wrap svg line.er.relationshipLine {
+  stroke: #0f172a !important;
+  stroke-width: 1.8px !important;
+}
+.mermaid-wrap svg text {
+  fill: #1f2937 !important;
+  font-family: "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif !important;
+}
+/* エンティティラベル背景（テーブル名ヘッダ）にアクセントカラー */
+.mermaid-wrap svg .er.entityLabelBox,
+.mermaid-wrap svg rect.er.entityLabelBox {
+  fill: #d9f3ef !important;
+  stroke: #1f2937 !important;
+  stroke-width: 1.6px !important;
+}
 .diagram-help {
   font-size: 0.82em;
   color: var(--muted);
@@ -292,7 +334,40 @@ function buildErDiagramPage() {
 <script type="module">
   import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
   // startOnLoad=false で manual run、render 後に svg-pan-zoom を attach する
-  mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose', er: { fontSize: 14, useMaxWidth: false } });
+  // theme: 'base' + themeVariables で高コントラスト ER 配色（白背景 + 濃線）
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'base',
+    securityLevel: 'loose',
+    themeVariables: {
+      // 基本色
+      primaryColor: '#ffffff',
+      primaryTextColor: '#0f172a',
+      primaryBorderColor: '#1f2937',
+      lineColor: '#0f172a',
+      textColor: '#1f2937',
+      // ER 図用
+      mainBkg: '#ffffff',
+      secondBkg: '#d9f3ef',
+      tertiaryColor: '#d9f3ef',
+      attributeBackgroundColorOdd: '#fafafa',
+      attributeBackgroundColorEven: '#ffffff',
+      // フォント
+      fontFamily: '"Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif',
+      fontSize: '14px',
+    },
+    er: {
+      fontSize: 14,
+      useMaxWidth: false,
+      diagramPadding: 24,
+      layoutDirection: 'TB',
+      minEntityWidth: 120,
+      minEntityHeight: 80,
+      entityPadding: 18,
+      stroke: '#1f2937',
+      fill: '#ffffff',
+    },
+  });
 
   // diagram index → svgPanZoom instance
   const panInstances = {};
