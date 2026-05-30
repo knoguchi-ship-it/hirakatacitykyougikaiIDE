@@ -1,0 +1,755 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ER エディタ &amp; ビューア — スタンドアロン ER 設計ツール</title>
+<link rel="stylesheet" href="https://esm.sh/@xyflow/react@12.3.5/dist/style.css">
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.3.1",
+    "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
+    "react-dom": "https://esm.sh/react-dom@18.3.1",
+    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+    "@xyflow/react": "https://esm.sh/@xyflow/react@12.3.5?external=react",
+    "elkjs": "https://esm.sh/elkjs@0.9.3",
+    "htm": "https://esm.sh/htm@3.1.1"
+  }
+}
+</script>
+<style>
+:root {
+  --bg: #f4f1ea;
+  --panel: #fffdf8;
+  --ink: #1f2937;
+  --muted: #5b6575;
+  --line: #d8cfbf;
+  --accent: #0f766e;
+  --accent-soft: #d9f3ef;
+  --warm: #8b5e34;
+  --danger: #dc2626;
+  --shadow: 0 18px 40px rgba(31, 41, 55, 0.08);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; font-family: "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif; color: var(--ink); background: var(--bg); overflow: hidden; }
+
+.app {
+  display: grid;
+  grid-template-rows: 50px 1fr;
+  height: 100vh;
+}
+
+.topbar {
+  background: linear-gradient(135deg, rgba(15, 118, 110, 0.95), rgba(24, 94, 146, 0.95));
+  color: white;
+  padding: 0 16px;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  box-shadow: var(--shadow);
+}
+.topbar h1 { margin: 0; font-size: 1rem; font-weight: 700; }
+.topbar nav a { color: white; opacity: 0.9; text-decoration: none; margin-left: 14px; font-size: 0.88em; font-weight: 600; }
+.topbar nav a:hover { opacity: 1; text-decoration: underline; }
+
+.main {
+  display: grid;
+  grid-template-columns: 440px 6px 1fr;
+  min-height: 0;
+  height: 100%;
+}
+
+/* リサイザー */
+.resizer {
+  background: var(--line);
+  cursor: col-resize;
+  transition: background 0.15s;
+}
+.resizer:hover, .resizer.active { background: var(--accent); }
+
+.editor-pane {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-width: 0;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+}
+.editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px;
+  background: white;
+  border-bottom: 1px solid var(--line);
+  align-items: center;
+}
+.editor-toolbar select,
+.editor-toolbar button {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 0.82em;
+  cursor: pointer;
+  font-weight: 600;
+  min-height: 30px;
+}
+.editor-toolbar button { color: var(--accent); }
+.editor-toolbar button.primary { background: var(--accent); color: white; border-color: var(--accent); }
+.editor-toolbar button:hover { background: var(--accent-soft); }
+.editor-toolbar button.primary:hover { background: #0d5d56; }
+.editor-toolbar button.danger { color: var(--danger); border-color: var(--danger); }
+.editor-toolbar button.danger:hover { background: #fef2f2; }
+.editor-toolbar .spacer { flex: 1; }
+.editor-toolbar label { font-size: 0.78em; color: var(--muted); }
+
+#editor {
+  width: 100%; height: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 12px;
+  font-family: "Consolas", "Menlo", "Hiragino Sans", monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink);
+  background: white;
+  tab-size: 2;
+}
+.editor-statusbar {
+  background: #f8fafc;
+  border-top: 1px solid var(--line);
+  padding: 6px 12px;
+  font-size: 0.78em;
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.editor-statusbar .status-err { color: var(--danger); font-weight: 600; }
+.editor-statusbar .status-ok { color: var(--accent); font-weight: 600; }
+
+.viewer-pane {
+  position: relative;
+  background: #f8fafc;
+  min-width: 0;
+}
+#root { width: 100%; height: 100%; }
+.loading {
+  display: flex; align-items: center; justify-content: center;
+  height: 100%;
+  color: var(--muted);
+  font-size: 0.92em;
+}
+
+/* React Flow custom node styles */
+.table-node {
+  background: white;
+  border: 2px solid #0f172a;
+  border-radius: 8px;
+  font-family: "Consolas", "Menlo", "Hiragino Sans", monospace;
+  min-width: 240px;
+  max-width: 340px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  overflow: hidden;
+}
+.table-node.highlighted { border-color: var(--danger); border-width: 3px; box-shadow: 0 0 0 4px rgba(220,38,38,0.2); }
+.table-node.dimmed { opacity: 0.25; }
+.table-node-head {
+  background: linear-gradient(135deg, #0f766e, #14b8a6);
+  color: white;
+  padding: 8px 12px;
+  font-weight: 700;
+  font-size: 0.95em;
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+}
+.table-node-head .count { background: rgba(255,255,255,0.25); padding: 2px 8px; border-radius: 8px; font-size: 0.72em; }
+.table-node-rows { font-size: 0.78em; line-height: 1.6; }
+.col-row {
+  display: flex;
+  padding: 3px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  gap: 6px;
+}
+.col-row:nth-child(even) { background: #fafafa; }
+.col-row:hover { background: var(--accent-soft); }
+.col-row .col-key { width: 28px; font-weight: 700; font-size: 0.78em; }
+.col-row .key-pk { color: #d97706; }
+.col-row .key-fk { color: #0f766e; }
+.col-row .col-name { flex: 1; color: #1f2937; font-weight: 600; }
+.col-row .col-type { color: var(--muted); font-size: 0.85em; }
+
+.react-flow__handle { width: 8px !important; height: 8px !important; background: var(--danger) !important; border: 2px solid white !important; opacity: 0; }
+.table-node:hover .react-flow__handle { opacity: 1; }
+.react-flow__edge-path { stroke: var(--danger); stroke-width: 2; }
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:hover .react-flow__edge-path { stroke: #b91c1c; stroke-width: 3; }
+.react-flow__edge-text { font-size: 11px; fill: #991b1b; font-weight: 600; }
+.react-flow__edge-textbg { fill: white; }
+.react-flow__minimap { background: white; border: 1px solid var(--line); }
+
+/* ドロップターゲット */
+.drop-overlay {
+  position: absolute; inset: 0;
+  background: rgba(15, 118, 110, 0.9);
+  color: white;
+  display: none;
+  align-items: center; justify-content: center;
+  font-size: 1.3em; font-weight: 700;
+  z-index: 100;
+  pointer-events: none;
+  border: 4px dashed white;
+}
+.drop-overlay.show { display: flex; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="topbar">
+    <h1>🛠️ ER エディタ &amp; ビューア — スタンドアロン版</h1>
+    <nav>
+      <a href="index.html">📘 ポータル TOP</a>
+      <a href="interactive-er.html">🔬 本案件 ER (固定)</a>
+    </nav>
+  </div>
+
+  <div class="main">
+    <div class="editor-pane">
+      <div class="editor-toolbar">
+        <label>形式:</label>
+        <select id="format">
+          <option value="auto">自動判定</option>
+          <option value="dbml">DBML</option>
+          <option value="mermaid">Mermaid ER</option>
+        </select>
+        <button id="btn-load" title=".dbml / .md / .txt をローカルから読込">📂 開く</button>
+        <input type="file" id="file-input" accept=".dbml,.md,.txt,.mermaid" hidden>
+        <button id="btn-save" title="現在のテキストを .dbml としてダウンロード">💾 保存</button>
+        <button id="btn-sample-dbml" title="DBML サンプルを読込">🎯 DBML サンプル</button>
+        <button id="btn-sample-mermaid" title="Mermaid サンプルを読込">🎯 Mermaid サンプル</button>
+        <button id="btn-clear" class="danger" title="エディタをクリア">🗑️ クリア</button>
+        <span class="spacer"></span>
+        <button id="btn-fit" title="ビュアー全体表示">⤢ 全体表示</button>
+        <button id="btn-relayout" class="primary" title="ELK で再レイアウト">🔄 再レイアウト</button>
+      </div>
+
+      <textarea id="editor" placeholder="DBML または Mermaid erDiagram をここに貼付けてください。
+ファイルをドラッグ＆ドロップしても OK。
+
+📂「開く」ボタン → ローカル .dbml / .md / .txt を読込
+💾「保存」ボタン → 現在のテキストを .dbml としてダウンロード
+🎯「サンプル」ボタン → 形式別の最小例を投入
+🔄「再レイアウト」ボタン → ビュアー側を ELK で再配置
+
+⏱️ 入力 500ms 後に自動でビュアー反映されます。"></textarea>
+
+      <div class="editor-statusbar">
+        <span id="status">準備完了 — テキストを貼付け or サンプル ボタンで開始</span>
+        <span id="char-count">0 文字</span>
+      </div>
+    </div>
+
+    <div class="resizer" id="resizer"></div>
+
+    <div class="viewer-pane">
+      <div id="root">
+        <div class="loading">⏳ React Flow + ELK 読込中...</div>
+      </div>
+      <div class="drop-overlay" id="drop-overlay">📂 ドロップしてファイル読込</div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { createRoot } from 'react-dom/client';
+import { ReactFlow, Background, Controls, MiniMap, Handle, Position, useNodesState, useEdgesState, ReactFlowProvider, useReactFlow } from '@xyflow/react';
+import ELK from 'elkjs';
+import htm from 'htm';
+
+const html = htm.bind(React.createElement);
+
+// ═══════════════════════════════════════════════════════════
+// パーサ
+// ═══════════════════════════════════════════════════════════
+
+// ── DBML パーサ（最小実装）──
+// 対応: Project { ... }, Table "name" { "col" type [pk, ref: ..., note: ...] }, Ref: "t1"."c" > "t2"."c"
+function parseDbml(src) {
+  const entities = {};
+  const relationships = [];
+  const lines = src.split(/\r?\n/);
+  let currentTable = null;
+  let inProject = false;
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const line = raw.replace(/^\s+|\s+$/g, '');
+    if (!line) continue;
+    if (line.startsWith('//')) continue;
+    // Project block (skip)
+    if (/^Project\s+/.test(line)) { inProject = true; continue; }
+    if (inProject) {
+      if (line === '}') inProject = false;
+      continue;
+    }
+    // Table block start
+    const tblMatch = line.match(/^Table\s+(?:"([^"]+)"|(\S+))\s*(?:as\s+\S+)?\s*\{/i);
+    if (tblMatch) {
+      const name = tblMatch[1] || tblMatch[2];
+      currentTable = { name, columns: [] };
+      entities[name] = currentTable;
+      continue;
+    }
+    if (currentTable && line === '}') { currentTable = null; continue; }
+    // Column in table
+    if (currentTable) {
+      // "col_name" type [attrs] or col_name type [attrs]
+      const m = line.match(/^(?:"([^"]+)"|(\S+))\s+(\S+?)(?:\s*\[(.*)\])?\s*$/);
+      if (m) {
+        const colName = m[1] || m[2];
+        const colType = m[3];
+        const attrs = (m[4] || '').toLowerCase();
+        let key = '';
+        if (/\bpk\b/.test(attrs) || /\bprimary key\b/.test(attrs)) key = 'PK';
+        if (/\bfk\b/.test(attrs) || /\bref\s*:/.test(attrs)) key = key === 'PK' ? 'PK,FK' : 'FK';
+        currentTable.columns.push({ type: colType, name: colName, key });
+        // [ref: > other.col] の inline ref も拾う
+        const refMatch = attrs.match(/ref\s*:\s*([><\-]+)\s*"?([^".\s]+)"?\.\s*"?([^".\s\]]+)"?/);
+        if (refMatch) {
+          const op = refMatch[1];
+          const op2card = op === '-' ? '||--||' : op === '<>' ? '}o--o{' : '}o--||';
+          relationships.push({
+            left: refMatch[2], right: currentTable.name, cardinality: op2card, label: '',
+          });
+        }
+      }
+      continue;
+    }
+    // 独立 Ref 行: Ref: "t1"."c" > "t2"."c"
+    const refMatch = line.match(/^Ref(?:\s+\S+)?\s*:\s*"?([^".]+)"?\.\s*"?([^".\s]+)"?\s*([><\-]+)\s*"?([^".]+)"?\.\s*"?([^".\s/]+)"?(?:\s*\/\/\s*(.*))?$/);
+    if (refMatch) {
+      const op = refMatch[3];
+      const op2card = op === '-' ? '||--||' : op === '<>' ? '}o--o{' : '}o--||';
+      // DBML の Ref では「左 [op] 右」を「子.fk [op] 親.pk」と読む
+      relationships.push({
+        left: refMatch[4], right: refMatch[1], cardinality: op2card,
+        label: refMatch[6] || '',
+      });
+    }
+  }
+  return { entities, relationships };
+}
+
+// ── Mermaid erDiagram パーサ ──
+function parseMermaidErd(src) {
+  const entities = {};
+  const relationships = [];
+  // frontmatter ブロックは除外
+  let body = src;
+  if (body.startsWith('---')) {
+    const end = body.indexOf('---', 3);
+    if (end !== -1) body = body.slice(end + 3);
+  }
+  // erDiagram ヘッダ除去
+  body = body.replace(/^\s*erDiagram\s*$/m, '');
+  const lines = body.split(/\r?\n/);
+  let cur = null;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].replace(/^\s+|\s+$/g, '');
+    if (!line || line.startsWith('%%')) continue;
+    const startE = line.match(/^(\S+)\s*\{$/);
+    if (startE) { cur = { name: startE[1], columns: [] }; entities[cur.name] = cur; continue; }
+    if (cur && line === '}') { cur = null; continue; }
+    if (cur) {
+      const m = line.match(/^(\S+)\s+(\S+?)(?:\s+(PK|FK|PK,FK|FK,PK))?$/);
+      if (m) cur.columns.push({ type: m[1], name: m[2], key: m[3] || '' });
+      continue;
+    }
+    const rel = line.match(/^(\S+)\s+([}{|o<>0-9\-]+--[}{|o<>0-9\-]+)\s+(\S+)\s*:\s*"?([^"]*)"?$/);
+    if (rel) relationships.push({ left: rel[1], cardinality: rel[2], right: rel[3], label: rel[4] || '' });
+  }
+  return { entities, relationships };
+}
+
+// 形式自動判定
+function detectFormat(src) {
+  if (/^\s*Table\s+/m.test(src) || /^\s*Ref\s*:/m.test(src) || /^\s*Project\s+/m.test(src)) return 'dbml';
+  if (/^\s*erDiagram\s*$/m.test(src) || /\|\|--o?\{|\|\|--\|\||\}o--o?\{|\}o--\|\|/.test(src)) return 'mermaid';
+  return 'dbml'; // default
+}
+
+function parse(src, format) {
+  const fmt = format === 'auto' ? detectFormat(src) : format;
+  try {
+    return { format: fmt, ...(fmt === 'mermaid' ? parseMermaidErd(src) : parseDbml(src)), error: null };
+  } catch (e) {
+    return { format: fmt, entities: {}, relationships: [], error: e.message };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// React Flow + ELK 共通
+// ═══════════════════════════════════════════════════════════
+function TableNode({ data }) {
+  const { columns, name, highlighted, dimmed } = data;
+  const cls = `table-node${highlighted ? ' highlighted' : ''}${dimmed ? ' dimmed' : ''}`;
+  return html`
+    <div className=${cls}>
+      <${Handle} type="target" position=${Position.Left} style=${{ top: 16 }} />
+      <${Handle} type="source" position=${Position.Right} style=${{ top: 16 }} />
+      <div className="table-node-head">
+        <span>${name}</span>
+        <span className="count">${columns.length} 列</span>
+      </div>
+      <div className="table-node-rows">
+        ${columns.map((c) => html`
+          <div className="col-row" key=${c.name}>
+            <span className=${`col-key ${c.key === 'PK' ? 'key-pk' : c.key.includes('FK') ? 'key-fk' : ''}`}>${c.key || ''}</span>
+            <span className="col-name">${c.name}</span>
+            <span className="col-type">${c.type}</span>
+          </div>
+        `)}
+      </div>
+    </div>
+  `;
+}
+const nodeTypes = { table: TableNode };
+
+const elk = new ELK();
+async function computeLayout(nodes, edges) {
+  const elkGraph = {
+    id: 'root',
+    layoutOptions: {
+      'elk.algorithm': 'layered',
+      'elk.direction': 'RIGHT',
+      'elk.layered.spacing.nodeNodeBetweenLayers': '80',
+      'elk.spacing.nodeNode': '60',
+      'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
+    },
+    children: nodes.map((n) => ({
+      id: n.id, width: 280,
+      height: Math.min(36 + (n.data?.columns?.length || 0) * 20, 620),
+    })),
+    edges: edges.map((e) => ({ id: e.id, sources: [e.source], targets: [e.target] })),
+  };
+  const layouted = await elk.layout(elkGraph);
+  const positions = {};
+  for (const child of layouted.children || []) positions[child.id] = { x: child.x, y: child.y };
+  return nodes.map((n) => ({ ...n, position: positions[n.id] || { x: 0, y: 0 } }));
+}
+
+function buildGraph(schema) {
+  const nodes = [];
+  for (const [name, entity] of Object.entries(schema.entities || {})) {
+    nodes.push({ id: name, type: 'table', position: { x: 0, y: 0 }, data: { name, columns: entity.columns } });
+  }
+  const edges = [];
+  (schema.relationships || []).forEach((r, i) => {
+    if (!schema.entities[r.left] || !schema.entities[r.right]) return;
+    edges.push({ id: `e${i}`, source: r.left, target: r.right, label: r.label, type: 'smoothstep' });
+  });
+  return { nodes, edges };
+}
+
+// ═══════════════════════════════════════════════════════════
+// メイン React Flow ビュアー App
+// ═══════════════════════════════════════════════════════════
+function ErViewer({ schema, layoutTrigger, onStatus }) {
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const { fitView } = useReactFlow();
+
+  // schema 変更時にレイアウト再計算
+  useEffect(() => {
+    (async () => {
+      if (!schema || !schema.entities || Object.keys(schema.entities).length === 0) {
+        setNodes([]); setEdges([]); return;
+      }
+      onStatus?.('レイアウト計算中...');
+      try {
+        const { nodes: rawNodes, edges: rawEdges } = buildGraph(schema);
+        const positioned = await computeLayout(rawNodes, rawEdges);
+        setNodes(positioned);
+        setEdges(rawEdges);
+        setTimeout(() => { try { fitView({ padding: 0.1, duration: 400 }); } catch(e){} }, 100);
+        onStatus?.(`✅ ${Object.keys(schema.entities).length} テーブル × ${(schema.relationships || []).length} リレーション`);
+      } catch (e) {
+        onStatus?.('レイアウト失敗: ' + e.message);
+      }
+    })();
+  }, [schema, layoutTrigger]);
+
+  // クリックハイライト
+  const onNodeClick = useCallback((evt, node) => {
+    const related = new Set([node.id]);
+    edges.forEach((e) => { if (e.source === node.id) related.add(e.target); if (e.target === node.id) related.add(e.source); });
+    setNodes((ns) => ns.map((n) => ({
+      ...n,
+      data: { ...n.data, highlighted: n.id === node.id, dimmed: !related.has(n.id) },
+    })));
+  }, [edges, setNodes]);
+
+  const resetHighlight = useCallback(() => {
+    setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, highlighted: false, dimmed: false } })));
+  }, [setNodes]);
+
+  // ボタン hook 配線
+  useEffect(() => {
+    const btnFit = document.getElementById('btn-fit');
+    if (btnFit) btnFit.onclick = () => { try { fitView({ padding: 0.1, duration: 400 }); } catch(e){} };
+  }, [fitView]);
+
+  return html`
+    <${ReactFlow}
+      nodes=${nodes} edges=${edges}
+      onNodesChange=${onNodesChange} onEdgesChange=${onEdgesChange}
+      onNodeClick=${onNodeClick} onPaneClick=${resetHighlight}
+      nodeTypes=${nodeTypes}
+      fitView minZoom=${0.05} maxZoom=${4}
+      defaultEdgeOptions=${{ type: 'smoothstep' }}
+    >
+      <${Background} variant="dots" gap=${20} size=${1} />
+      <${Controls} />
+      <${MiniMap} nodeColor=${() => '#0f766e'} maskColor="rgba(241, 245, 249, 0.7)" />
+    </${ReactFlow}>
+  `;
+}
+
+// ═══════════════════════════════════════════════════════════
+// アプリ統合 (エディタとビュアーを React state で連携)
+// ═══════════════════════════════════════════════════════════
+function App() {
+  const [schema, setSchema] = useState({ entities: {}, relationships: [] });
+  const [layoutTrigger, setLayoutTrigger] = useState(0);
+  const editorRef = useRef(null);
+  const formatRef = useRef('auto');
+  const debTimerRef = useRef(null);
+
+  // status 更新ヘルパー
+  const setStatus = useCallback((text, isError) => {
+    const el = document.getElementById('status');
+    if (el) { el.textContent = text; el.className = isError ? 'status-err' : 'status-ok'; }
+  }, []);
+
+  // 文字数
+  const updateCharCount = useCallback(() => {
+    const ed = editorRef.current;
+    const out = document.getElementById('char-count');
+    if (ed && out) out.textContent = `${ed.value.length} 文字`;
+  }, []);
+
+  // パース + state 反映
+  const parseAndUpdate = useCallback(() => {
+    const ed = editorRef.current;
+    if (!ed) return;
+    const src = ed.value;
+    updateCharCount();
+    if (!src.trim()) { setSchema({ entities: {}, relationships: [] }); setStatus('入力待ち'); return; }
+    const result = parse(src, formatRef.current);
+    if (result.error) { setStatus(`❌ パース失敗 (${result.format}): ${result.error}`, true); return; }
+    const entCount = Object.keys(result.entities).length;
+    if (entCount === 0) { setStatus(`⚠️ パース成功だが entity 0 件 (${result.format})。形式選択を確認`, true); return; }
+    setSchema({ entities: result.entities, relationships: result.relationships });
+    setStatus(`✅ パース成功: ${result.format.toUpperCase()} / ${entCount} テーブル / ${result.relationships.length} リレーション`);
+  }, [updateCharCount, setStatus]);
+
+  // editor input イベントを debounce
+  useEffect(() => {
+    const ed = document.getElementById('editor');
+    editorRef.current = ed;
+    const fmt = document.getElementById('format');
+    const onInput = () => {
+      clearTimeout(debTimerRef.current);
+      debTimerRef.current = setTimeout(parseAndUpdate, 500);
+    };
+    ed.addEventListener('input', onInput);
+    fmt.addEventListener('change', () => { formatRef.current = fmt.value; parseAndUpdate(); });
+    updateCharCount();
+    return () => ed.removeEventListener('input', onInput);
+  }, [parseAndUpdate, updateCharCount]);
+
+  // ボタン hook
+  useEffect(() => {
+    const btn = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+    btn('btn-load', () => document.getElementById('file-input').click());
+    document.getElementById('file-input').onchange = (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => { editorRef.current.value = reader.result; parseAndUpdate(); setStatus(`📂 読込: ${file.name}`); };
+      reader.readAsText(file, 'utf-8');
+    };
+    btn('btn-save', () => {
+      const text = editorRef.current.value;
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `er-${new Date().toISOString().slice(0,10)}.dbml`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      setStatus('💾 保存しました');
+    });
+    btn('btn-sample-dbml', () => {
+      editorRef.current.value = SAMPLE_DBML;
+      document.getElementById('format').value = 'dbml';
+      formatRef.current = 'dbml';
+      parseAndUpdate();
+    });
+    btn('btn-sample-mermaid', () => {
+      editorRef.current.value = SAMPLE_MERMAID;
+      document.getElementById('format').value = 'mermaid';
+      formatRef.current = 'mermaid';
+      parseAndUpdate();
+    });
+    btn('btn-clear', () => {
+      if (!confirm('エディタの内容を全て削除します。よろしいですか？')) return;
+      editorRef.current.value = '';
+      setSchema({ entities: {}, relationships: [] });
+      setStatus('クリア');
+      updateCharCount();
+    });
+    btn('btn-relayout', () => setLayoutTrigger(t => t + 1));
+  }, [parseAndUpdate, updateCharCount, setStatus]);
+
+  // ドラッグ&ドロップ
+  useEffect(() => {
+    const dropOverlay = document.getElementById('drop-overlay');
+    const viewer = document.querySelector('.viewer-pane');
+    const editorPane = document.querySelector('.editor-pane');
+    let dragCounter = 0;
+    const onDragEnter = (e) => { e.preventDefault(); dragCounter++; dropOverlay.classList.add('show'); };
+    const onDragLeave = (e) => { e.preventDefault(); dragCounter--; if (dragCounter <= 0) { dragCounter = 0; dropOverlay.classList.remove('show'); }};
+    const onDragOver = (e) => e.preventDefault();
+    const onDrop = (e) => {
+      e.preventDefault();
+      dragCounter = 0;
+      dropOverlay.classList.remove('show');
+      const file = e.dataTransfer.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => { editorRef.current.value = reader.result; parseAndUpdate(); setStatus(`📂 ドロップ読込: ${file.name}`); };
+      reader.readAsText(file, 'utf-8');
+    };
+    [viewer, editorPane].forEach(el => {
+      el.addEventListener('dragenter', onDragEnter);
+      el.addEventListener('dragleave', onDragLeave);
+      el.addEventListener('dragover', onDragOver);
+      el.addEventListener('drop', onDrop);
+    });
+  }, [parseAndUpdate, setStatus]);
+
+  // リサイザー
+  useEffect(() => {
+    const resizer = document.getElementById('resizer');
+    const main = document.querySelector('.main');
+    let dragging = false;
+    const onDown = (e) => { dragging = true; resizer.classList.add('active'); document.body.style.userSelect = 'none'; };
+    const onMove = (e) => {
+      if (!dragging) return;
+      const w = Math.max(280, Math.min(800, e.clientX));
+      main.style.gridTemplateColumns = `${w}px 6px 1fr`;
+    };
+    const onUp = () => { dragging = false; resizer.classList.remove('active'); document.body.style.userSelect = ''; };
+    resizer.addEventListener('mousedown', onDown);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, []);
+
+  return html`<${ReactFlowProvider}><${ErViewer} schema=${schema} layoutTrigger=${layoutTrigger} onStatus=${setStatus} /></${ReactFlowProvider}>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// サンプルデータ
+// ═══════════════════════════════════════════════════════════
+const SAMPLE_DBML = `// DBML サンプル — ブログ風スキーマ
+Project blog_demo {
+  Note: "DBML 構文の最小例"
+}
+
+Table users {
+  id int [pk]
+  email varchar
+  name varchar
+  created_at timestamp
+}
+
+Table posts {
+  id int [pk]
+  user_id int [note: 'FK']
+  title varchar
+  body text
+  published_at timestamp
+}
+
+Table comments {
+  id int [pk]
+  post_id int [note: 'FK']
+  user_id int [note: 'FK']
+  body text
+  created_at timestamp
+}
+
+Table tags {
+  id int [pk]
+  name varchar
+}
+
+Table post_tags {
+  post_id int [pk]
+  tag_id int [pk]
+}
+
+Ref: "posts"."user_id" > "users"."id"
+Ref: "comments"."post_id" > "posts"."id"
+Ref: "comments"."user_id" > "users"."id"
+Ref: "post_tags"."post_id" > "posts"."id"
+Ref: "post_tags"."tag_id" > "tags"."id"
+`;
+
+const SAMPLE_MERMAID = `erDiagram
+
+CUSTOMER {
+  string id PK
+  string name
+  string email
+  string phone
+}
+
+ORDER {
+  string id PK
+  string customer_id FK
+  date order_date
+  decimal total
+}
+
+ORDER_ITEM {
+  string id PK
+  string order_id FK
+  string product_id FK
+  int quantity
+  decimal price
+}
+
+PRODUCT {
+  string id PK
+  string sku
+  string name
+  decimal price
+  int stock
+}
+
+CUSTOMER ||--o{ ORDER : "places"
+ORDER ||--|{ ORDER_ITEM : "contains"
+PRODUCT ||--o{ ORDER_ITEM : "appears in"
+`;
+
+// ═══════════════════════════════════════════════════════════
+// マウント
+// ═══════════════════════════════════════════════════════════
+createRoot(document.getElementById('root')).render(html`<${App} />`);
+</script>
+
+</body>
+</html>
