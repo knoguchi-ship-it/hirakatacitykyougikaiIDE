@@ -13,6 +13,28 @@
 
 ---
 
+## v376.34 — 2026-06-01 🆕 研修任意項目トグルを「有効/無効」化し公開申込画面に反映（全 3 split @354/@113/@195）
+
+研修の任意項目トグル（admin の「表示中」スイッチ）が **admin 編集フォームの表示制御のみ**で公開側に効かず、「`申込URL` を無効にできない（値を消すしかない）」状態だった。config-driven UI の単一情報源化で解消。
+
+### 仕様
+- admin トグルを「表示中/非表示中」→「**有効/無効**」に改称（NN/g toggle guidelines）。補助文に「無効にすると申込画面に表示されない」旨を明記。
+- 無効にした任意項目は**申込画面（公開ポータル）に表示しない**（Hidden-vs-Disabled: 操作不能な項目は公開側で非表示）。対象: 講師 / 案内PDF / 申込締切 / 詳細内容 / 費用 / 申込URL。
+- **`申込URL` は無効時、値が残っていても外部リンク化せず内部申込フロー**へ（可視性と挙動の連動）。値は保持し可逆。
+
+### 実装
+- 新規 `src/shared/trainingOptions.ts`: `isTrainingFieldEnabled(optionsJson, key)` / `effectiveApplicationUrl(t)`（項目設定JSON のネスト `fieldConfig` を解釈、未設定/旧データはデフォルト有効）。
+- `PublicTrainingList.tsx`: 各任意項目を `isTrainingFieldEnabled` で gate、CTA は `effectiveApplicationUrl` で内部/外部を分岐。
+- `App.tsx`（公開 deep-link）: `effectiveApplicationUrl` を使用（無効なら `?t=` で申込画面へ直行）。
+- `TrainingManagement.tsx`: トグル表示・title・補助文を有効/無効へ。
+
+### 検証 / デプロイ
+- `npm run typecheck` / build / boundary 監査 PASS（純フロント・GAS Code.gs 不変）。
+- 全 3 split redeploy：integrated/public `@354` x2 / member `@113` / admin `@195`。`npx clasp deployments --json` で一致確認。
+- 会員マイページ（`TrainingApply`）の研修情報表示への同種 gate は未適用（フォローアップ候補。member は applicationUrl 非使用・内部申込のみ）。
+
+---
+
 ## v376.33 — 2026-06-01 🐛 研修編集モーダルの入力フォーカス喪失バグ修正（全 3 split @353/@112/@194）
 
 研修編集モーダルで `申込URL` / 問い合わせ窓口（担当者・電話番号・メールアドレス）等に**1文字入力するごとにフォーカスが外れ**、フォームが実質入力不能だった事象を修正。受付開始（必須項目入力）ができない原因でもあった。
