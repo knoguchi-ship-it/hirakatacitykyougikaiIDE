@@ -8,6 +8,7 @@ import CancelForm from './components/CancelForm';
 import MemberUpdateForm from './components/MemberUpdateForm';
 import WithdrawalRequestForm from './components/WithdrawalRequestForm';
 import { readDeepLink, consumeDeepLink } from '../utils/deepLink';
+import { effectiveApplicationUrl } from '../shared/trainingOptions';
 
 type PublicPortalContentSettings = {
   heroBadgeEnabled: boolean;
@@ -259,7 +260,8 @@ const PublicApp: React.FC = () => {
     consumeDeepLink();
     if (dl.trainingId) {
       const found = trainings.find((t) => t.id === dl.trainingId);
-      if (found && !found.applicationUrl) {
+      const externalUrl = found ? effectiveApplicationUrl(found) : '';
+      if (found && !externalUrl) {
         setSelectedTraining(found);
         setView('training-apply');
       } else if (found) {

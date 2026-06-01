@@ -3,6 +3,7 @@ import { PublicTraining } from '../../shared/types';
 import PdfThumbnail from '../../components/PdfThumbnail';
 import PdfPreviewModal from '../../components/PdfPreviewModal';
 import { callApi } from '../../shared/api-base';
+import { isTrainingFieldEnabled, effectiveApplicationUrl } from '../../shared/trainingOptions';
 
 const fetchPublicThumbnail = (fileUrl: string): Promise<string | null> =>
   callApi<{ thumbnail: string | null }>('getFileThumbnail', { fileUrl })
@@ -101,6 +102,13 @@ const PublicTrainingList: React.FC<Props> = ({ trainings, onApply }) => {
         const costs = parseCost(t.cost);
         const inquiry = parseInquiry(t.fieldConfig);
         const isFull = false; // サーバー側で判定済み
+        // v376.34: 任意項目トグル（無効なら申込画面に表示しない）
+        const showInstructor = isTrainingFieldEnabled(t.fieldConfig, 'instructor');
+        const showPdf = isTrainingFieldEnabled(t.fieldConfig, 'guidePdfUrl');
+        const showCloseDate = isTrainingFieldEnabled(t.fieldConfig, 'applicationCloseDate');
+        const showContent = isTrainingFieldEnabled(t.fieldConfig, 'description');
+        const showFees = isTrainingFieldEnabled(t.fieldConfig, 'fees');
+        const externalApplyUrl = effectiveApplicationUrl(t); // 無効時は '' → 内部フロー
 
         return (
           <article
@@ -120,7 +128,8 @@ const PublicTrainingList: React.FC<Props> = ({ trainings, onApply }) => {
             </header>
 
             <div className="flex flex-col sm:flex-row gap-5 p-4 sm:p-6">
-              {/* 左カラム: A4 縦 PDF サムネイル */}
+              {/* 左カラム: A4 縦 PDF サムネイル（案内PDF が無効なら非表示） */}
+              {showPdf && (
               <div className="w-full max-w-[180px] sm:max-w-[200px] mx-auto sm:mx-0 flex-shrink-0">
                 {t.thumbnailUrl ? (
                   <PdfThumbnail
@@ -154,6 +163,7 @@ const PublicTrainingList: React.FC<Props> = ({ trainings, onApply }) => {
                   </a>
                 )}
               </div>
+              )}
 
               {/* 右カラム: 詳細情報 */}
               <div className="flex-1 flex flex-col gap-3 min-w-0">
@@ -187,7 +197,7 @@ const PublicTrainingList: React.FC<Props> = ({ trainings, onApply }) => {
                       <dd className="text-slate-800 break-words">{t.organizer}</dd>
                     </div>
                   )}
-                  {t.instructor && (
+                  {showInstructor && t.instructor && (
                     <div className="flex gap-2">
                       <dt className="font-medium text-slate-500 whitespace-nowrap min-w-[4rem]">講師</dt>
                       <dd className="text-slate-800 break-words">{t.instructor}</dd>
@@ -199,7 +209,7 @@ const PublicTrainingList: React.FC<Props> = ({ trainings, onApply }) => {
                       <dd className="text-slate-800">{t.capacity}名</dd>
                     </div>
                   )}
-                  {endDateWareki && (
+                  {showCloseDate && endDateWareki && (
                     <div className="flex gap-2">
                       <dt className="font-medium text-slate-500 whitespace-nowrap min-w-[4rem]">申込締切</dt>
                       <dd className="text-slate-800">{endDateWareki}</dd>
@@ -208,14 +218,14 @@ const PublicTrainingList: React.FC<Props> = ({ trainings, onApply }) => {
                 </dl>
 
                 {/* 詳細内容 */}
-                {t.content && (
+                {showContent && t.content && (
                   <div className="bg-slate-50 border border-slate-100 rounded-md p-3 text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
                     {t.content}
                   </div>
                 )}
 
                 {/* 費用 */}
-                {costs.length > 0 && (
+                {showFees && costs.length > 0 && (
                   <div className="text-sm text-slate-700">
                     <span className="font-medium text-slate-500">参加費</span>
                     {costs.map((c, i) => (
@@ -248,11 +258,12 @@ const PublicTrainingList: React.FC<Props> = ({ trainings, onApply }) => {
                   </div>
                 )}
 
-                {/* CTA — v376.30: applicationUrl が設定されていれば外部申込フォームへのリンクに置換 */}
+                {/* CTA — v376.30: applicationUrl が設定されていれば外部申込フォームへのリンクに置換
+                    v376.34: 申込URL トグルが無効なら値があっても内部フロー（effectiveApplicationUrl='' ） */}
                 <div className="mt-auto pt-3 border-t border-slate-100 flex justify-end">
-                  {t.applicationUrl ? (
+                  {externalApplyUrl ? (
                     <a
-                      href={t.applicationUrl}
+                      href={externalApplyUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex min-h-[44px] items-center justify-center gap-1 px-6 py-2 bg-primary-600 text-white text-sm font-bold rounded-md hover:bg-primary-700 transition-colors"

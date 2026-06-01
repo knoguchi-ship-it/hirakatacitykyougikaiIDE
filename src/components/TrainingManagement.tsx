@@ -343,18 +343,18 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
       <label className="block text-sm font-medium text-slate-700">{label}</label>
       <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
         <span className={`text-[11px] font-semibold ${isFieldOn(key) ? 'text-emerald-700' : 'text-slate-500'}`}>
-          {isFieldOn(key) ? '表示中' : '非表示中'}
+          {isFieldOn(key) ? '有効' : '無効'}
         </span>
         <button
           type="button"
           role="switch"
           aria-checked={isFieldOn(key)}
-          aria-label={`${label}の表示切替`}
+          aria-label={`${label}の有効/無効切替`}
           onClick={() => toggleField(key)}
           className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 ${
             isFieldOn(key) ? 'bg-primary-600' : 'bg-slate-300'
           }`}
-          title={isFieldOn(key) ? 'この項目を非表示にする' : 'この項目を表示する'}
+          title={isFieldOn(key) ? 'この項目を無効にする（申込画面に表示しない）' : 'この項目を有効にする'}
         >
           <span
             className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
@@ -367,7 +367,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
   );
 
   const renderOffHint = () => (
-    <p className="text-xs text-slate-500 mt-1">この項目は現在非表示です。スイッチをONにすると入力欄が表示されます。</p>
+    <p className="text-xs text-slate-500 mt-1">この項目は<span className="font-semibold">無効</span>です。申込画面（公開ポータル）にも表示されません。スイッチをONにすると有効化され、入力・公開表示されます。</p>
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -476,7 +476,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
         </button>
         {settingsOpen && (
           <div className="px-4 py-4 border-t border-slate-200 bg-white">
-            <p className="text-xs text-slate-500 mb-3">各項目の表示状態は「表示中/非表示中」スイッチ、または以下一覧から切り替えできます。</p>
+            <p className="text-xs text-slate-500 mb-3">各項目の有効/無効は「有効/無効」スイッチ、または以下一覧から切り替えできます。<span className="font-semibold">無効にした項目は申込画面（公開ポータル）に表示されません</span>（申込URL は無効にすると内部申込フローになります）。</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {TRAINING_OPTIONAL_FIELD_DEFS.map(({ key, label }) => (
                 <label key={key} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
