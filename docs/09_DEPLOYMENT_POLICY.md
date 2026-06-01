@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-05-26
-Production: `v376.14.2` / integrated-public fixed deployments `@348` x2 / member split `@107` / admin split `@174`
+Updated: 2026-06-01
+Production: integrated-public `@351` x2 (`v376.31`) / member split `@110` (`v376.31`) / admin split `@192` (`v376.31.1`)
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -19,15 +19,15 @@ Production: `v376.14.2` / integrated-public fixed deployments `@348` x2 / member
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@348` (`v376`, public は v376.9 で無変更) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@348` (`v376`, public は v376.9 で無変更) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@351` (`v376.31`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@351` (`v376.31`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@107` (`v376.9`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@174` (`v376.14.2`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@110` (`v376.31`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@192` (`v376.31.1`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -144,7 +144,11 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-05-20 `v372.9` ← current production
+> 現行本番状態は本書冒頭ヘッダおよび `HANDOVER.md` を正とする。
+> `v373` 以降の個別 release 記録は `docs/release-notes-2026.md` を参照。
+> 以下は `v372.9` 以前の歴史的記録（historical records）。
+
+### 2026-05-20 `v372.9`
 - Scope: 名簿出力 Visual Designer S2。出力列を `@dnd-kit` で drag-drop 並び替え可能化。既存の ↑/↓ ボタンも残置。admin split のみ変更。
 - Integrated fixed deployments: `@341` x2（変更なし）
 - Member split: `@99`（変更なし）

@@ -122,6 +122,11 @@ ER エディタの深化（SQL CREATE TABLE 解析 / Monaco エディタ / undo 
 
 これで v376.26 RBAC Phase 2-A 〜 v376.31 schema 堅牢化までの全機能が機械検証 + 物理削除完了状態。
 
+### デプロイ
+- dryRun / cleanup の operator 関数（`dryRunV376_30_31` / `cleanupDryRunV376_30_31`）は admin split のみに追加。admin fixed deployment を **@192**（description: `v376.31.1 dryRun test`）へ redeploy 済。
+- integrated/public（@351 ×2）・member split（@110）は v376.31 のまま変更なし。本番ユーザー向け機能挙動は v376.31 から不変（追加分は editor から ▶ Run する検証/cleanup 補助関数のみ）。
+- ※ 2026-06-01 引継ぎ整合確認で `clasp deployments --json` により admin live=@192 を確認し、HANDOVER / 09 / 00 の admin 版数を @192 に整合（それまで @191 と記載されていた版ずれを是正）。
+
 ---
 
 ## v376.31 — 2026-05-29 🔒 initializeSchema_ 堅牢化（v376.30.x 根本対応）

@@ -1,7 +1,7 @@
 # Document Index
 
-更新日: 2026-05-26
-現行本番: **`v376.14.2`**（integrated-public `@348` x2 / member split `@107` / admin split `@174`）
+更新日: 2026-06-01
+現行本番: integrated-public **`@351`** x2 (`v376.31`) / member split **`@110`** (`v376.31`) / admin split **`@192`** (`v376.31.1`)
 
 このプロジェクトのドキュメントは **[Diátaxis フレームワーク](https://diataxis.fr/)** に従って 4 カテゴリ + 補助 2 カテゴリで構成しています。
 **目的別に最短経路で必要な情報に到達できる**ことを保証しています。
@@ -82,7 +82,7 @@
 | [10_SOW.md](10_SOW.md) | Statement of Work |
 | [63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md](63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md) | 名簿 PDF + 一括メール SOW |
 | [37_GAS_QUOTAS_AND_LIMITS.md](37_GAS_QUOTAS_AND_LIMITS.md) | GAS 制約一覧 |
-| [12_ENGINEERING_RULEBOOK.md](12_ENGINEERING_RULEBOOK.md) | エンジニアリングルール最上位（※ファイル名要確認） |
+| [../GLOBAL_GROUND_RULES/docs/AI_RULES/10_WORKFLOW_AND_QUALITY.md](../GLOBAL_GROUND_RULES/docs/AI_RULES/10_WORKFLOW_AND_QUALITY.md) | エンジニアリングルール最上位（旧 `docs/12_ENGINEERING_RULEBOOK.md` は commit `c572ed7` で `GLOBAL_GROUND_RULES/` へ移行・入口は `AGENTS.md`） |
 
 ### 適合・コンプライアンス
 

@@ -4,8 +4,8 @@
 > 経緯・履歴・設計詳細は別ドキュメントへ。リンク先は §6 参照順序を参照。
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
-最終更新: **2026-05-30**
-最新リリース: **`v376.31`**（initializeSchema_ 堅牢化 — 全 3 split @351/@110/@191。本番コードは v376.31 以降未変更）
+最終更新: **2026-06-01**
+最新リリース: **`v376.31.1`**（admin split のみ @192 — v376.30〜.31 機能の dryRun 検証 5/5 PASS + cleanup 用 operator 関数を反映。integrated/member は v376.31 @351/@110 のまま。本番ユーザー向け機能は v376.31 以降不変）
 最終作業: **ER エディタ双方向編集化** — `docs/portal/er-editor.html` を表示専用から直感編集（キャンバス直編集＋FK ドラッグ＋双方向同期＋localStorage 永続化）へ刷新（本番コード変更なし・ライセンス安全 React Flow MIT のみ）
 
 ---
@@ -17,7 +17,7 @@
 | 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@351** |
 | 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@351** |
 | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@110** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@191** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@192**（v376.31.1）|
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 
@@ -138,7 +138,7 @@ npm run build:docs-portal                  # docs/portal/*.html + schema.dbml �
 | 3 | `docs/00_DOC_INDEX.md` | 全ドキュメントの Diataxis 索引（一次資料 Markdown）|
 | 4 | `docs/ONBOARDING.md` | 新規開発者向け（Day 1 / Week 1 / Week 2-3 / Week 4） |
 | 5 | `docs/02_ARCHITECTURE.md` / `docs/03_DATA_MODEL.md` / `docs/05_AUTH_AND_ROLE_SPEC.md` | リファレンス（必要時） |
-| 6 | `docs/12_ENGINEERING_RULEBOOK.md` / `docs/09_DEPLOYMENT_POLICY.md` | 開発・デプロイ規約 |
+| 6 | `GLOBAL_GROUND_RULES/docs/AI_RULES/10_WORKFLOW_AND_QUALITY.md` / `docs/09_DEPLOYMENT_POLICY.md` | 開発・デプロイ規約（旧 `docs/12_ENGINEERING_RULEBOOK.md` は `GLOBAL_GROUND_RULES/` へ移行済）|
 | 7 | `docs/release-notes-2026.md` | 直近の release history（時系列ログ） |
 | 8 | `docs/244_WCAG_2.2_AA_CONFORMANCE_STATEMENT_2026-05-21.md` | WCAG 適合状態 |
 | 9 | `docs/245_UI_ACCESSIBILITY_REGRESSION_CHECKLIST_2026-05-21.md` | 新 UI 追加時の必須セット |
