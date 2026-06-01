@@ -26,6 +26,12 @@ const TrainingDetailModal: React.FC<TrainingDetailModalProps> = ({
 }) => {
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  // v376.33: onClose を ref 経由で参照し、effect 依存から外す。
+  // 親が onClose を useCallback していないと毎レンダーで参照が変わり、依存に含めると
+  // 入力1文字ごとに effect が再実行 → cleanup の focus 復元 + closeButton への再フォーカスで
+  // 入力欄からフォーカスが奪われる（フォーム入力不能）バグの原因だった。
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
@@ -33,7 +39,7 @@ const TrainingDetailModal: React.FC<TrainingDetailModalProps> = ({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        onClose();
+        onCloseRef.current();
       }
     };
     document.addEventListener('keydown', onKey);
@@ -45,7 +51,9 @@ const TrainingDetailModal: React.FC<TrainingDetailModalProps> = ({
       document.body.style.overflow = prevOverflow;
       previousFocusRef.current?.focus?.();
     };
-  }, [open, onClose]);
+    // open の変化時のみ実行（onClose は ref 経由で最新を参照）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   if (!open) return null;
 

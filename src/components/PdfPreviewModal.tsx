@@ -46,6 +46,9 @@ const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const fetchRef = useRef(fetchHighResImage);
   useEffect(() => { fetchRef.current = fetchHighResImage; });
+  // v376.33: onClose を ref 経由で参照し focus effect の依存から外す（TrainingDetailModal と同根の対策）。
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
@@ -57,7 +60,7 @@ const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        onClose();
+        onCloseRef.current();
       }
     };
     document.addEventListener('keydown', onKey);
@@ -69,7 +72,8 @@ const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({
       document.body.style.overflow = prevOverflow;
       previousFocusRef.current?.focus?.();
     };
-  }, [open, onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // open 時に高解像度 PNG を fetch
   useEffect(() => {
