@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-06-01
-Production: integrated-public `@351` x2 (`v376.31`) / member split `@110` (`v376.31`) / admin split `@192` (`v376.31.1`)
+Production: `v376.32` / integrated-public `@352` x2 / member split `@111` / admin split `@193`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -19,15 +19,15 @@ Production: integrated-public `@351` x2 (`v376.31`) / member split `@110` (`v376
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@351` (`v376.31`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@351` (`v376.31`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@352` (`v376.32`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@352` (`v376.32`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@110` (`v376.31`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@192` (`v376.31.1`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@111` (`v376.32`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@193` (`v376.32`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -143,6 +143,13 @@ Real-browser verification is performed by the operator by default. The agent rec
 - Do not redeploy historical admin split `@47` physical pruning output.
 
 ## 6. Current Recorded State
+
+### 2026-06-01 `v376.32` ← current production
+- Scope: 公開ポータル研修ディープリンク。`doGet` が `e.parameter`（`t`=研修ID / `p`=page）を許可制 sanitize して `window.__DEEPLINK__` 注入。公開 SPA がロード後に1回適用。admin 研修管理に「申込リンク」コピー（正式 public URL を `src/config/publicPortal.ts` で定数化）。GAS 予約語 `c`/`sid` 不使用。
+- Integrated fixed deployments: `@352` x2
+- Member split: `@111`（共通 doGet 注入のみ・挙動不変）
+- Admin split: `@193`
+- Verification: `npm run typecheck` / build / `security:public-boundary`・`security:split-boundary` PASS（public top-level は `doGet`/`healthCheck`/`processApiRequest` のまま不変）。`npx clasp deployments --json` で全 fixed deployment の version 一致を確認。実ブラウザ確認は操作者（`HANDOVER.md` §2-1 #1）。
 
 > 現行本番状態は本書冒頭ヘッダおよび `HANDOVER.md` を正とする。
 > `v373` 以降の個別 release 記録は `docs/release-notes-2026.md` を参照。

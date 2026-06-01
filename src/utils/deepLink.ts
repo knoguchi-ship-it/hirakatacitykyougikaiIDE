@@ -1,66 +1,46 @@
-// v363: 新タブで会員詳細を開くための deep link ユーティリティ。
-// GAS HtmlService の iframe 内では window.location が iframe 内部 URL になるため、
-// サーバー側 doGet が window.__APP_URL__ に exec URL を注入する仕組みを利用する。
+// v376.32: 公開ポータルのディープリンク。
+// サーバ doGet が URL パラメータを許可制で window.__DEEPLINK__ に注入する。
+//   ?t=<研修ID> → 該当研修の申込画面へ直行
+//   ?p=<page>   → 指定画面へ直行
+// GAS の二重 iframe では window.location が内側 iframe（script.googleusercontent.com）を
+// 指すため、外側 exec URL のパラメータ/ハッシュを内側から直接読むことはできない。
+// よってサーバ注入（__DEEPLINK__）を正本とする。
+// （旧 v363 の window.location.hash 直読みは内側 iframe では常に空で機能しなかったため撤去）。
 
 declare global {
   interface Window {
     __APP_URL__?: string;
+    __DEEPLINK__?: { t?: string; p?: string };
   }
 }
 
-const MEMBER_HASH_PREFIX = 'member=';
-const TRAINING_HASH_PREFIX = 'training=';
+export type DeepLink = { trainingId?: string; page?: string };
 
-/**
- * 注入された exec URL を返す。未注入時（開発時など）は空文字。
- */
-export const getAppUrl = (): string => {
-  if (typeof window === 'undefined') return '';
-  return window.__APP_URL__ || '';
+/** サーバが注入した exec URL を返す。未注入時（開発時など）は空文字。 */
+export const getAppUrl = (): string =>
+  (typeof window !== 'undefined' && window.__APP_URL__) || '';
+
+/** boot 時にディープリンク指定を読み取る。 */
+export const readDeepLink = (): DeepLink => {
+  if (typeof window === 'undefined' || !window.__DEEPLINK__) return {};
+  const { t, p } = window.__DEEPLINK__;
+  return { trainingId: t || undefined, page: p || undefined };
 };
 
-/**
- * 会員詳細用の deep link URL を返す。新タブで開いた際に React が hash を読み取って遷移する。
- * 例: https://script.google.com/.../exec#member=ABC123
- */
-export const buildMemberDetailUrl = (memberId: string): string => {
-  const base = getAppUrl();
-  if (!base) return ''; // URL 不明時は空。<a> 表示側で同一タブ navigation にフォールバック
-  return base + '#' + MEMBER_HASH_PREFIX + encodeURIComponent(memberId);
+/** 適用後に消去し、再レンダーでの二重適用を防ぐ。 */
+export const consumeDeepLink = (): void => {
+  if (typeof window !== 'undefined') window.__DEEPLINK__ = undefined;
 };
 
-/**
- * 現在の location.hash から会員 ID を抽出する。boot 時に呼んで初期遷移用。
- * 戻り値: 'ABC123' or null
- */
-export const readMemberIdFromHash = (): string | null => {
-  if (typeof window === 'undefined') return null;
-  const hash = window.location.hash.replace(/^#/, '');
-  if (!hash.startsWith(MEMBER_HASH_PREFIX)) return null;
-  const raw = hash.slice(MEMBER_HASH_PREFIX.length);
-  try {
-    return decodeURIComponent(raw);
-  } catch {
-    return raw;
-  }
-};
-
-/**
- * hash を消去する（deep link で開いた後、ユーザーが他画面に移った時の URL クリーンアップ用）。
- */
-export const clearMemberHash = (): void => {
-  if (typeof window === 'undefined') return;
-  if (window.location.hash) {
-    try {
-      history.replaceState(null, '', window.location.pathname + window.location.search);
-    } catch {
-      window.location.hash = '';
-    }
-  }
-};
-
-export const buildTrainingDetailUrl = (trainingId: string): string => {
+const withParam = (key: string, value: string): string => {
   const base = getAppUrl();
   if (!base) return '';
-  return base + '#' + TRAINING_HASH_PREFIX + encodeURIComponent(trainingId);
+  const sep = base.indexOf('?') === -1 ? '?' : '&';
+  return base + sep + key + '=' + encodeURIComponent(value);
 };
+
+/** 特定研修の申込画面への共有リンク（…/exec?t=<研修ID>）。 */
+export const buildTrainingApplyUrl = (trainingId: string): string => withParam('t', trainingId);
+
+/** 指定ページへの共有リンク（…/exec?p=<page>）。 */
+export const buildPageUrl = (page: string): string => withParam('p', page);

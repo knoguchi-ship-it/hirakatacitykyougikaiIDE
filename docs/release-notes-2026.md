@@ -13,6 +13,29 @@
 
 ---
 
+## v376.32 — 2026-06-01 🆕 公開ポータル研修ディープリンク（全 3 split @352/@111/@193）
+
+公開ポータルが URL パラメータで特定研修・特定画面へ直行できるようになった。従来は `doGet` が「URL パラメータは無視」設計で、どんなパラメータ/ハッシュを付けても常にポータルトップで起動していた（v363 の deep link util は `window.location.hash` を内側 iframe で直読みしており、GAS の二重 iframe では常に空＝機能していなかった）。
+
+### 仕様
+- `…/exec?t=<研修ID>` → 該当研修の申込画面（ExternalApplyForm）へ直行。外部申込フォーム（`applicationUrl`）研修は一覧へ誘導、未発見/受付終了は一覧＋通知。
+- `…/exec?p=<page>` → 指定画面へ直行。`page` = `training-list` / `member-application` / `member-update` / `withdrawal-request` / `training-cancel`（別名 `trainings`/`join`/`update`/`withdraw`/`cancel`）。
+- GAS 予約語 `c` / `sid` は不使用（使用すると 405）。
+
+### 実装
+- `gas-src/Code.full.gs` `doGet`: `e.parameter` を許可制 sanitize（英数・`-`・`_`・最大80字・deny-by-default、`sanitizeDeepLinkValue_`）して `window.__DEEPLINK__` を注入。正規表現リテラル不使用（build pruner 罠回避）。
+- `src/utils/deepLink.ts`: 壊れた hash 直読みを撤去し `readDeepLink()`/`consumeDeepLink()`/`buildTrainingApplyUrl()`/`buildPageUrl()` へ作り直し。
+- `src/public-portal/App.tsx`: ロード完了後に1回だけ deep link を適用（未発見時は一覧＋通知）。
+- admin: `src/components/TrainingManagement.tsx` 編集モーダルに「🔗 申込リンク」コピー。クリップボード不可環境では URL を表示し手動コピー可。正式 public URL は `src/config/publicPortal.ts` で定数化（ハードコード回避）。
+
+### 検証 / デプロイ
+- `npm run typecheck` PASS / frontend build OK / `security:public-boundary`・`security:split-boundary` PASS（public top-level は `doGet`/`healthCheck`/`processApiRequest` のまま・**新規露出なし**）。
+- 圧縮バンドルを `inflateRawSync` で展開し deep link コード実在を確認。
+- 全 3 split を redeploy：integrated/public `@352` x2 / member `@111`（共通 doGet 注入のみ・挙動不変）/ admin `@193`。`npx clasp deployments --json` で一致確認。
+- 実ブラウザ確認は操作者（`HANDOVER.md` §2-1 #1）。
+
+---
+
 ## 2026-05-30〜06-01 🛠️ ER エディタ双方向編集化 + 別プロジェクト化決定（本番コード変更なし）
 
 ### 2026-06-01 — 作業区切り + 引継ぎ

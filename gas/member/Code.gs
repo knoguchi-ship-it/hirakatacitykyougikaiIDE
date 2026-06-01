@@ -718,8 +718,8 @@ function doGet(e) {
     // UI表示を優先し、初期化失敗時もWebアプリは返す
   }
 
-  // v251: scriptId でプロジェクトを識別し配信ページを固定。URL パラメータは無視。
-  // 各 split プロジェクトは自身の HTML のみを持ち、常に同一ページを返す。
+  // v251: scriptId でプロジェクトを識別し配信ページを固定。各 split は自身の HTML のみを返す。
+  // v376.32: 公開ポータルは URL パラメータでディープリンクする（下部で __DEEPLINK__ を注入）。
   var SCRIPT_ID_ROUTES = {
     '1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ': { file: 'index',        title: '会員マイページ｜枚方市ケアマネ協議会',          favicon: 'member' },
     '1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi': { file: 'index',        title: '管理者ポータル｜枚方市ケアマネ協議会',          favicon: 'member' },
@@ -732,18 +732,30 @@ function doGet(e) {
   // モバイル表示（白ページ防止／レスポンシブ動作）には server-side addMetaTag が必須。
   var rawHtml = HtmlService.createHtmlOutputFromFile(route.file).getContent();
 
-  // v363: 新タブ deep link 用に exec URL を client へ注入する。
-  // iframe 内では window.location が iframe 内部 URL になるため、
-  // クライアント側で window.open(__APP_URL__ + '#member=...') を組み立てる際に
-  // ScriptApp.getService().getUrl() を正本として参照する。
+  // exec URL を client へ注入する。GAS の二重 iframe では window.location が
+  // 内側 iframe を指すため、共有リンク生成は ScriptApp.getService().getUrl() を正本にする。
   try {
     var appUrl = ScriptApp.getService().getUrl();
     if (appUrl) {
-      var injection = '<script>window.__APP_URL__=' + JSON.stringify(appUrl) + ';</script>';
-      rawHtml = injection + rawHtml;
+      rawHtml = '<script>window.__APP_URL__=' + JSON.stringify(appUrl) + ';</script>' + rawHtml;
     }
   } catch (ex) {
-    // getUrl() 失敗時は注入をスキップ（ハッシュ未指定で同一タブ navigation にフォールバック）
+    // getUrl() 失敗時は注入をスキップ
+  }
+
+  // v376.32: ディープリンク用 URL パラメータを許可制で client へ注入する。
+  //   ?t=<研修ID> → 該当研修の申込画面へ直行 / ?p=<page> → 指定画面へ直行。
+  //   GAS 予約語 c / sid は使わない（使用すると 405）。deny-by-default で既知キーのみ反映。
+  try {
+    var dlParams = (e && e.parameter) || {};
+    var deepLink = {};
+    var dlT = sanitizeDeepLinkValue_(dlParams.t);
+    if (dlT) deepLink.t = dlT;
+    var dlP = sanitizeDeepLinkValue_(dlParams.p);
+    if (dlP) deepLink.p = dlP;
+    rawHtml = '<script>window.__DEEPLINK__=' + JSON.stringify(deepLink) + ';</script>' + rawHtml;
+  } catch (ex) {
+    // パラメータ解釈失敗時はディープリンクなしで通常起動
   }
 
   var output = HtmlService.createHtmlOutput(rawHtml)
@@ -764,6 +776,24 @@ function doGet(e) {
   } catch (ex) {}
 
   return output;
+}
+
+/**
+ * v376.32: ディープリンク用 URL パラメータ値の sanitize。
+ * deny-by-default。英数・ハイフン・アンダースコアのみ許可し最大 80 文字。
+ * 研修ID(UUID) / ページキー(training-list 等) を想定し、注入・XSS の余地を断つ。
+ * ※ build pruner 対策で正規表現リテラルは使わない（MEMORY: build_pruner_regex_action_traps）。
+ */
+function sanitizeDeepLinkValue_(raw) {
+  if (raw == null) return '';
+  var s = String(raw).trim();
+  if (!s) return '';
+  if (s.length > 80) s = s.slice(0, 80);
+  var allowed = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-';
+  for (var i = 0; i < s.length; i++) {
+    if (allowed.indexOf(s.charAt(i)) === -1) return '';
+  }
+  return s;
 }
 
 /**
@@ -2606,6 +2636,13 @@ function seedInitialPermissionRoles_(ss) {
 /**
  * operator 実行用: ホワイトリスト各行の権限コード → ロールID を実書込み。
  * 冪等（既に正しい値なら no-op）。権限コード列は保持（並行運用）。
+ */
+
+/**
+ * v376.30 / v376.31 dryRun テストで投入した DRYRUN_ プレフィックス付きレコードを
+ * T_研修 + T_権限ロール から物理削除する。
+ *
+ * manifest（最新 run）+ DRYRUN_ プレフィックス両方を sweep して孤児も回収。
  */
 
 /**

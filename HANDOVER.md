@@ -5,8 +5,8 @@
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
 最終更新: **2026-06-01**
-最新リリース: **`v376.31.1`**（admin split のみ @192 — v376.30〜.31 機能の dryRun 検証 5/5 PASS + cleanup 用 operator 関数を反映。integrated/member は v376.31 @351/@110 のまま。本番ユーザー向け機能は v376.31 以降不変）
-最終作業: **ER エディタ双方向編集化** — `docs/portal/er-editor.html` を表示専用から直感編集（キャンバス直編集＋FK ドラッグ＋双方向同期＋localStorage 永続化）へ刷新（本番コード変更なし・ライセンス安全 React Flow MIT のみ）
+最新リリース: **`v376.32`**（公開ポータル研修ディープリンク — 全 3 split @352/@111/@193）
+最終作業: **研修ディープリンク** — 公開ポータルが URL パラメータ `?t=<研修ID>` で該当研修の申込画面へ直行、`?p=<page>` で指定画面へ直行（`doGet` が `e.parameter` を許可制 sanitize して `window.__DEEPLINK__` 注入）。admin 研修管理に「申込リンクをコピー」ボタン（正式 public URL の定数化）。従来 `doGet` が URL パラメータを破棄しトップ固定だった問題を解消
 
 ---
 
@@ -14,10 +14,10 @@
 
 | 配信 | Deployment ID | Version |
 |---|---|---|
-| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@351** |
-| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@351** |
-| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@110** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@192**（v376.31.1）|
+| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@352** |
+| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@352** |
+| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@111** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@193** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 
@@ -46,7 +46,8 @@
 
 | # | タスク | 詳細 / 参照 |
 |---|---|---|
-| 1 | v375 実機 Safari iOS 確認 | 本番 URL（admin / member / public 全 3）を Safari iOS から再読込なしで開き、splash → React マウントまで滞りなく進むこと、初期化中文字が一瞬出るが白画面ではないことを確認 |
+| 1 | **v376.32 ディープリンク実機確認** | 公開ポータル `…/exec?t=<受付中研修のID>` を開き、該当研修の申込画面へ直行すること（未発見IDで一覧＋通知、`?p=member-application` 等で各画面へ直行）。admin 研修管理モーダルで「🔗 申込リンク」を押し、生成URL（正式 public + `?t=`）が正しいこと。研修IDは admin で確認 |
+| 2 | v375 実機 Safari iOS 確認 | 本番 URL（admin / member / public 全 3）を Safari iOS から再読込なしで開き、splash → React マウントまで滞りなく進むこと、初期化中文字が一瞬出るが白画面ではないことを確認 |
 
 ### 2-2. 延期中（再開条件付き）
 
@@ -151,6 +152,7 @@ npm run build:docs-portal                  # docs/portal/*.html + schema.dbml �
 
 | Version | 日付 | 概要 |
 |---|---|---|
+| **v376.32** | 2026-06-01 | **公開ポータル研修ディープリンク**（全 3 split @352/@111/@193）。`doGet` が `e.parameter` を許可制 sanitize（英数・`-`・`_`・80字・deny-by-default・正規表現リテラル不使用）して `window.__DEEPLINK__` 注入。公開 SPA がロード後に1回適用：`?t=<研修ID>`→該当研修の申込画面へ直行（外部フォーム研修は一覧誘導／未発見は一覧＋通知）、`?p=<page>`（training-list/member-application/member-update/withdrawal-request/training-cancel＋別名）→指定画面へ直行。壊れていた v363 hash 直読み（内側iframeで常に空）を撤去。admin 研修管理に「🔗 申込リンク」コピー（正式 public URL を `src/config/publicPortal.ts` で定数化）。境界不変（public top-level は `doGet/healthCheck/processApiRequest` のまま） |
 | **(本番コード変更なし)** | 2026-05-31〜06-01 | **ER エディタ第3次強化 + 別プロジェクト化決定**。**第3次**: ① cardinality 編集（接続線クリックで `EdgeEditor` ポップオーバー、1対1 / 1対多 / 多対多 切替・向き反転・ラベル編集・削除）— cardinality を文字列依存から種別（`one-one`/`one-many`/`many-many`）へ正規化し、DBML (`-`/`>`/`<>`) と Mermaid (`||--||`/`||--o{`/`}o--o{`) 双方向往復をロスレス化。②テーブル移動後も線を引きやすく — 各列の左右両側にハンドル（id に `L:`/`R:` 接頭辞）+ `connectionMode="loose"`、エッジは位置関係で近い側のハンドルへ自動接続。Playwright で全機能検証済（多対多 = 両端 crow's foot + DBML `<>`、向き反転、移動後接続 Ref 5→6、loose 接続）。**MEMORY 化**: `project_er_editor_standalone.md` で独立 OSS プロダクト化構想を別プロジェクト記憶として分離（本案件と独立管理）。SQL CREATE TABLE 解析 / Monaco エディタ / undo・redo / 複数スキーマ管理 / PNG・SVG 書出し等が拡張余地 |
 | **(本番コード変更なし)** | 2026-05-30 | **ER エディタ双方向編集化**（`docs/portal/er-editor.html`、本番デプロイなし）。表示専用だった ER エディタを直感編集ツールへ刷新。内部モデルを単一情報源とし、①キャンバス上でテーブル/列の追加・改名・削除・型編集・PK トグル、②列ハンドル間ドラッグで FK 作成・接続線クリックで削除、③編集→DBML/Mermaid テキスト即時再生成＋テキスト→キャンバス再パースの双方向同期、④localStorage 自動保存・リロード復元 を実装。Mermaid カーディナリティを親(左)→子(右)で正規化し往復ロスレス化。新規 OSS 依存なし（React Flow MIT のみ・ChartDB/drawDB の AGPL は不採用）。Playwright で取込→編集→FK ドラッグ(trusted mouse)→形式往復→リロード復元まで検証済。**同日第2次**でユーザー FB 対応: ①crow's foot カーディナリティ記号（1=バー/多=鳥の足）②接続線に列リンクラベル（`子列 → 親列`）③テーブル追加を右端外側へ配置＋自動フォーカス。カスタムエッジ（BaseEdge+EdgeLabelRenderer+getSmoothStepPath）と SVG marker(orient=auto-start-reverse)で実装、視覚確認済 |
 | **(本番コード変更なし)** | 2026-05-30 | **ドキュメントポータル拡充 + AGENTS.md グランドルール整理**（本番デプロイなし、コミット 10 件）。**新設**: `docs/portal/` 配下の人間可読 HTML ポータル 6 ページ — TOP / インタラクティブ ER (React Flow + ELK) / ER エディタ&ビューア(汎用、DBML+Mermaid 編集ライブプレビュー) / テーブル設計書(クリッカブル) / ER ドメイン別(Mermaid + ELK) / DBML エクスポート(ChartDB/dbdiagram.io 連携) / 仕様書サマリ。`scripts/build-docs-portal.mjs` を単一情報源とし、`npm run build:docs-portal` で再生成。**AGENTS.md 整理**: §4 を 5 サブセクション化 (Deploy SOP / 認証フロー / セキュリティ運用 / UI/UX / ランタイム契約 / **§4.6 ドキュメント形式規約 (新設)**)、§6 重複削減、ユーザー指定追加ルール 6 件反映 (DRY 原則 / ハードコーディング禁止 / 影響範囲確認 / セキュアコーディング 5 視点 / ER 図 HTML 必須 / 人間可読版併設)。**MEMORY フィードバック整理**: Layer 別 subheading で並び替え。**ライセンス監査**: ChartDB AGPL v3 を回避し React Flow MIT を採用 |

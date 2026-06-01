@@ -7,6 +7,7 @@ import ExternalApplyForm from './components/ExternalApplyForm';
 import CancelForm from './components/CancelForm';
 import MemberUpdateForm from './components/MemberUpdateForm';
 import WithdrawalRequestForm from './components/WithdrawalRequestForm';
+import { readDeepLink, consumeDeepLink } from '../utils/deepLink';
 
 type PublicPortalContentSettings = {
   heroBadgeEnabled: boolean;
@@ -65,6 +66,20 @@ type View =
   | 'member-application'
   | 'member-update'
   | 'withdrawal-request';
+
+// v376.32: ディープリンク ?p=<page> → View マッピング（別名対応・許可制）。
+const PAGE_PARAM_TO_VIEW: Partial<Record<string, View>> = {
+  'training-list': 'training-list',
+  'trainings': 'training-list',
+  'member-application': 'member-application',
+  'join': 'member-application',
+  'member-update': 'member-update',
+  'update': 'member-update',
+  'withdrawal-request': 'withdrawal-request',
+  'withdraw': 'withdrawal-request',
+  'training-cancel': 'training-cancel',
+  'cancel': 'training-cancel',
+};
 
 const DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS: PublicPortalContentSettings = {
   heroBadgeEnabled: false,
@@ -130,6 +145,8 @@ const PublicApp: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
+  const [deepLinkNotice, setDeepLinkNotice] = useState('');
+  const deepLinkAppliedRef = useRef(false);
   // null = 未確定（ローディング中）。設定確定前は一切描画しない（FOIC防止）
   const [trainingMenuEnabled, setTrainingMenuEnabled] = useState<boolean | null>(null);
   const [membershipMenuEnabled, setMembershipMenuEnabled] = useState<boolean | null>(null);
@@ -234,7 +251,35 @@ const PublicApp: React.FC = () => {
     load();
   }, []);
 
+  // v376.32: ロード完了後に一度だけディープリンク（?t / ?p）を適用する。
+  useEffect(() => {
+    if (isLoading || deepLinkAppliedRef.current) return;
+    deepLinkAppliedRef.current = true;
+    const dl = readDeepLink();
+    consumeDeepLink();
+    if (dl.trainingId) {
+      const found = trainings.find((t) => t.id === dl.trainingId);
+      if (found && !found.applicationUrl) {
+        setSelectedTraining(found);
+        setView('training-apply');
+      } else if (found) {
+        // 外部申込フォームの研修は内部申込画面を出さず、一覧の外部リンクへ誘導する。
+        setView('training-list');
+        setDeepLinkNotice('この研修は外部の申込フォームをご利用ください。下の一覧の「申込フォームへ」からお進みください。');
+      } else {
+        setView('training-list');
+        setDeepLinkNotice('指定された研修が見つかりませんでした。受付中の研修からお選びください。');
+      }
+      return;
+    }
+    if (dl.page) {
+      const v = PAGE_PARAM_TO_VIEW[dl.page];
+      if (v) setView(v);
+    }
+  }, [isLoading, trainings]);
+
   const handleApplyClick = (training: PublicTraining) => {
+    setDeepLinkNotice('');
     setSelectedTraining(training);
     setView('training-apply');
   };
@@ -457,6 +502,12 @@ const PublicApp: React.FC = () => {
           申込を取消する
         </button>
       </div>
+
+      {deepLinkNotice && (
+        <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">
+          {deepLinkNotice}
+        </div>
+      )}
 
       {isLoading ? (
         <div className="rounded-2xl border border-slate-200 bg-white py-12 text-center text-slate-500 shadow-sm">

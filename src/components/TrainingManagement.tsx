@@ -7,6 +7,7 @@ import TrainingRoster from './TrainingRoster';
 import PdfThumbnail from './PdfThumbnail';
 import PdfPreviewModal from './PdfPreviewModal';
 import TrainingDetailModal from './TrainingDetailModal';
+import { buildPublicTrainingApplyUrl } from '../config/publicPortal';
 
 interface Props {
   trainings: Training[];
@@ -103,6 +104,9 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
   const [panelView, setPanelView] = useState<PanelView>('form');
   // v376.11: 既存研修選択時の大画面モーダル制御
   const [detailModalOpen, setDetailModalOpen] = useState(false);
+  // v376.32: 申込ディープリンクのコピー用（クリップボード不可環境でも手動コピーできるよう URL も保持）
+  const [applyLinkUrl, setApplyLinkUrl] = useState('');
+  const [applyLinkMsg, setApplyLinkMsg] = useState('');
   // v376.16: 新規登録の入力中に既存研修を選んでもデータを失わないよう、新規入力を退避する。
   // 画面を開いている間は保持し、モーダルを閉じると右ペインへ復元する。
   const [pendingNewForm, setPendingNewForm] = useState<Training | null>(null);
@@ -230,6 +234,8 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
     setSaveError(null);
     setSaveSuccess(false);
     setUploadedFileName('');
+    setApplyLinkUrl(''); // v376.32: 別研修の申込リンク表示を持ち越さない
+    setApplyLinkMsg('');
     // v376.10: 研修選択時の既定ビューは「名簿・出欠」（業務頻度の最も高い操作）
     setPanelView('roster');
     // v376.11: 既存研修選択時は大画面モーダルで表示
@@ -784,8 +790,23 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
     </form>
   );
 
+  // v376.32: 申込ディープリンク（…/exec?t=<研修ID>）をコピー。
+  // GAS iframe ではクリップボード API が拒否され得るため、失敗時は URL を表示して手動コピーさせる。
+  const handleCopyApplyLink = async () => {
+    if (!form.id) return;
+    const url = buildPublicTrainingApplyUrl(form.id);
+    setApplyLinkUrl(url);
+    try {
+      await navigator.clipboard.writeText(url);
+      setApplyLinkMsg('✓ 申込リンクをコピーしました');
+    } catch {
+      setApplyLinkMsg('コピーできませんでした。下のリンクを選択して手動でコピーしてください。');
+    }
+  };
+
   // v376.11: タブ + 削除/復元 ボタン群（inline で使わず、モーダル header にのみ表示）。
   const tabsJsx = !isNew ? (
+    <div className="flex flex-col gap-2">
     <div className="flex gap-1 flex-nowrap">
       <button
         type="button"
@@ -820,6 +841,27 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
           aria-label="この研修を復元"
         >{deleting ? '処理中...' : '↺ 復元'}</button>
       )}
+      {!form.isDeleted && form.id && (
+        <button
+          type="button"
+          onClick={handleCopyApplyLink}
+          className="text-sm px-3 py-2 min-h-[44px] rounded-lg border border-sky-300 text-sky-700 hover:bg-sky-50 font-medium transition-colors"
+          aria-label="申込ページの共有リンク（ディープリンク）をコピー"
+        >🔗 申込リンク</button>
+      )}
+    </div>
+    {applyLinkUrl && (
+      <div className="text-xs text-slate-600">
+        <div className="mb-1">{applyLinkMsg}</div>
+        <input
+          readOnly
+          value={applyLinkUrl}
+          onFocus={(e) => e.currentTarget.select()}
+          className="w-full rounded border border-slate-300 px-2 py-1 font-mono text-[11px]"
+          aria-label="申込共有リンク"
+        />
+      </div>
+    )}
     </div>
   ) : null;
 
