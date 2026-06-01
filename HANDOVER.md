@@ -5,8 +5,8 @@
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
 最終更新: **2026-06-01**
-最新リリース: **`v376.32`**（公開ポータル研修ディープリンク — 全 3 split @352/@111/@193）
-最終作業: **研修ディープリンク** — 公開ポータルが URL パラメータ `?t=<研修ID>` で該当研修の申込画面へ直行、`?p=<page>` で指定画面へ直行（`doGet` が `e.parameter` を許可制 sanitize して `window.__DEEPLINK__` 注入）。admin 研修管理に「申込リンクをコピー」ボタン（正式 public URL の定数化）。従来 `doGet` が URL パラメータを破棄しトップ固定だった問題を解消
+最新リリース: **`v376.33`**（モーダル入力フォーカス喪失バグ修正 — 全 3 split @353/@112/@194）
+最終作業: **研修編集モーダルのフォーカス喪失バグ修正** — `TrainingDetailModal`/`PdfPreviewModal` の focus 管理 `useEffect` が `onClose` を依存に含み、親が `onClose` を `useCallback` していないため入力1文字ごとに effect 再実行→フォーカスがボタンへ奪われていた。`onClose` を ref 参照にし依存を `[open]` のみへ変更して解消（純フロント・GAS 不変）。前段の v376.32 は公開ポータル研修ディープリンク（`?t=`/`?p=`）
 
 ---
 
@@ -14,10 +14,10 @@
 
 | 配信 | Deployment ID | Version |
 |---|---|---|
-| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@352** |
-| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@352** |
-| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@111** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@193** |
+| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@353** |
+| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@353** |
+| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@112** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@194** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 
@@ -152,6 +152,7 @@ npm run build:docs-portal                  # docs/portal/*.html + schema.dbml �
 
 | Version | 日付 | 概要 |
 |---|---|---|
+| **v376.33** | 2026-06-01 | **モーダル入力フォーカス喪失バグ修正**（全 3 split @353/@112/@194）。`TrainingDetailModal` / `PdfPreviewModal` の focus 管理 `useEffect` が依存配列に `onClose` を含み、親 `TrainingManagement` が `onClose`(`closeDetail`) を `useCallback` していないため毎レンダーで参照変化→**入力1文字ごとに effect 再実行→cleanup の focus 復元 + closeButton 再フォーカスで入力欄からフォーカスが奪われ**研修編集フォームが入力不能だった。`onClose` を `onCloseRef` 経由参照にし effect 依存を `[open]` のみへ変更（呼出側のメモ化有無に非依存）。admin が報告バグ本体、member/public は `PdfPreviewModal` の同根予防修正。純フロント（GAS Code.gs 不変）|
 | **v376.32** | 2026-06-01 | **公開ポータル研修ディープリンク**（全 3 split @352/@111/@193）。`doGet` が `e.parameter` を許可制 sanitize（英数・`-`・`_`・80字・deny-by-default・正規表現リテラル不使用）して `window.__DEEPLINK__` 注入。公開 SPA がロード後に1回適用：`?t=<研修ID>`→該当研修の申込画面へ直行（外部フォーム研修は一覧誘導／未発見は一覧＋通知）、`?p=<page>`（training-list/member-application/member-update/withdrawal-request/training-cancel＋別名）→指定画面へ直行。壊れていた v363 hash 直読み（内側iframeで常に空）を撤去。admin 研修管理に「🔗 申込リンク」コピー（正式 public URL を `src/config/publicPortal.ts` で定数化）。境界不変（public top-level は `doGet/healthCheck/processApiRequest` のまま） |
 | **(本番コード変更なし)** | 2026-05-31〜06-01 | **ER エディタ第3次強化 + 別プロジェクト化決定**。**第3次**: ① cardinality 編集（接続線クリックで `EdgeEditor` ポップオーバー、1対1 / 1対多 / 多対多 切替・向き反転・ラベル編集・削除）— cardinality を文字列依存から種別（`one-one`/`one-many`/`many-many`）へ正規化し、DBML (`-`/`>`/`<>`) と Mermaid (`||--||`/`||--o{`/`}o--o{`) 双方向往復をロスレス化。②テーブル移動後も線を引きやすく — 各列の左右両側にハンドル（id に `L:`/`R:` 接頭辞）+ `connectionMode="loose"`、エッジは位置関係で近い側のハンドルへ自動接続。Playwright で全機能検証済（多対多 = 両端 crow's foot + DBML `<>`、向き反転、移動後接続 Ref 5→6、loose 接続）。**MEMORY 化**: `project_er_editor_standalone.md` で独立 OSS プロダクト化構想を別プロジェクト記憶として分離（本案件と独立管理）。SQL CREATE TABLE 解析 / Monaco エディタ / undo・redo / 複数スキーマ管理 / PNG・SVG 書出し等が拡張余地 |
 | **(本番コード変更なし)** | 2026-05-30 | **ER エディタ双方向編集化**（`docs/portal/er-editor.html`、本番デプロイなし）。表示専用だった ER エディタを直感編集ツールへ刷新。内部モデルを単一情報源とし、①キャンバス上でテーブル/列の追加・改名・削除・型編集・PK トグル、②列ハンドル間ドラッグで FK 作成・接続線クリックで削除、③編集→DBML/Mermaid テキスト即時再生成＋テキスト→キャンバス再パースの双方向同期、④localStorage 自動保存・リロード復元 を実装。Mermaid カーディナリティを親(左)→子(右)で正規化し往復ロスレス化。新規 OSS 依存なし（React Flow MIT のみ・ChartDB/drawDB の AGPL は不採用）。Playwright で取込→編集→FK ドラッグ(trusted mouse)→形式往復→リロード復元まで検証済。**同日第2次**でユーザー FB 対応: ①crow's foot カーディナリティ記号（1=バー/多=鳥の足）②接続線に列リンクラベル（`子列 → 親列`）③テーブル追加を右端外側へ配置＋自動フォーカス。カスタムエッジ（BaseEdge+EdgeLabelRenderer+getSmoothStepPath）と SVG marker(orient=auto-start-reverse)で実装、視覚確認済 |

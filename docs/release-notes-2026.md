@@ -13,6 +13,25 @@
 
 ---
 
+## v376.33 — 2026-06-01 🐛 研修編集モーダルの入力フォーカス喪失バグ修正（全 3 split @353/@112/@194）
+
+研修編集モーダルで `申込URL` / 問い合わせ窓口（担当者・電話番号・メールアドレス）等に**1文字入力するごとにフォーカスが外れ**、フォームが実質入力不能だった事象を修正。受付開始（必須項目入力）ができない原因でもあった。
+
+### 根本原因
+`TrainingDetailModal` / `PdfPreviewModal` の focus 管理 `useEffect` が依存配列に `onClose` を含んでいた。親 `TrainingManagement` の `onClose`(`closeDetail`) は `useCallback` されておらず毎レンダーで参照が変わるため、入力1文字 → `setForm` → 親再レンダー → `onClose` 参照変化 → effect が**毎キーストロークで再実行**。cleanup の `previousFocusRef.current?.focus?.()` と再実行時の `setTimeout(() => closeButtonRef.current?.focus())` で入力欄からフォーカスが閉じるボタンへ奪われていた。
+
+### 対策
+`onClose` を `onCloseRef` 経由で参照し、focus/scroll-lock/ESC の effect 依存を `[open]` のみに変更（`open` の遷移時のみ実行）。呼出側のメモ化有無に依存しない堅牢な形。
+- `TrainingDetailModal`: 報告バグ本体（研修編集フォーム入力不能）を解消 — admin
+- `PdfPreviewModal`: 同根の潜在バグ（入力欄が無いため非顕在）も予防修正 — admin/member/public で使用
+
+### 検証 / デプロイ
+- `npm run typecheck` / build / boundary 監査 PASS（純フロント・GAS Code.gs 不変）。
+- 全 3 split redeploy：integrated/public `@353` x2 / member `@112` / admin `@194`。`npx clasp deployments --json` で一致確認。
+- 実ブラウザ確認は操作者。
+
+---
+
 ## v376.32 — 2026-06-01 🆕 公開ポータル研修ディープリンク（全 3 split @352/@111/@193）
 
 公開ポータルが URL パラメータで特定研修・特定画面へ直行できるようになった。従来は `doGet` が「URL パラメータは無視」設計で、どんなパラメータ/ハッシュを付けても常にポータルトップで起動していた（v363 の deep link util は `window.location.hash` を内側 iframe で直読みしており、GAS の二重 iframe では常に空＝機能していなかった）。

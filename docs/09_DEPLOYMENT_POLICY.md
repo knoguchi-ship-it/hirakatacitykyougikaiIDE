@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-06-01
-Production: `v376.32` / integrated-public `@352` x2 / member split `@111` / admin split `@193`
+Production: `v376.33` / integrated-public `@353` x2 / member split `@112` / admin split `@194`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -19,15 +19,15 @@ Production: `v376.32` / integrated-public `@352` x2 / member split `@111` / admi
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@352` (`v376.32`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@352` (`v376.32`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@353` (`v376.33`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@353` (`v376.33`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@111` (`v376.32`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@193` (`v376.32`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@112` (`v376.33`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@194` (`v376.33`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -144,7 +144,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-06-01 `v376.32` ← current production
+### 2026-06-01 `v376.33` ← current production
+- Scope: 研修編集モーダルの入力フォーカス喪失バグ修正。`TrainingDetailModal` / `PdfPreviewModal` の focus 管理 `useEffect` 依存から `onClose` を外し（ref 経由参照・依存 `[open]` のみ）、入力1文字ごとの effect 再実行によるフォーカス奪取を解消。純フロント（GAS Code.gs 不変）。
+- Integrated fixed deployments: `@353` x2（`PdfPreviewModal` 修正）
+- Member split: `@112`（`PdfPreviewModal` 修正）
+- Admin split: `@194`（`TrainingDetailModal` = 報告バグ本体 + `PdfPreviewModal`）
+- Verification: `npm run typecheck` / build / boundary 監査 PASS（GAS コード不変）。`npx clasp deployments --json` で全 fixed deployment 一致確認。実ブラウザ確認は操作者。
+
+### 2026-06-01 `v376.32`
 - Scope: 公開ポータル研修ディープリンク。`doGet` が `e.parameter`（`t`=研修ID / `p`=page）を許可制 sanitize して `window.__DEEPLINK__` 注入。公開 SPA がロード後に1回適用。admin 研修管理に「申込リンク」コピー（正式 public URL を `src/config/publicPortal.ts` で定数化）。GAS 予約語 `c`/`sid` 不使用。
 - Integrated fixed deployments: `@352` x2
 - Member split: `@111`（共通 doGet 注入のみ・挙動不変）
