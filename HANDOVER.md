@@ -6,7 +6,7 @@
 
 最終更新: **2026-05-30**
 最新リリース: **`v376.31`**（initializeSchema_ 堅牢化 — 全 3 split @351/@110/@191。本番コードは v376.31 以降未変更）
-最終作業: **`docs/portal/`** ドキュメントポータル新設・拡充（AGENTS.md §4.6 ドキュメント形式規約準拠）+ AGENTS.md にユーザー指定追加ルール 6 件反映
+最終作業: **ER エディタ双方向編集化** — `docs/portal/er-editor.html` を表示専用から直感編集（キャンバス直編集＋FK ドラッグ＋双方向同期＋localStorage 永続化）へ刷新（本番コード変更なし・ライセンス安全 React Flow MIT のみ）
 
 ---
 
@@ -29,7 +29,7 @@
 
 | タスク | 状態 | 参照 |
 |---|---|---|
-| **ER エディタ&ビューアの深化（次セッション最優先）** | MVP 完成（`docs/portal/er-editor.html`）。SQL CREATE TABLE 解析・Monaco エディタ・undo履歴・複数スキーマ管理・スクリーンショット書出し等の拡張余地多数。汎用 OSS ツールとして外出し可能性も | `docs/portal/er-editor.html`, MEMORY `feedback_oss_license_audit.md` |
+| **ER エディタの深化（継続）** | 双方向編集 MVP 完成（2026-05-30）: モデル単一情報源化・キャンバス直編集（テーブル/列 CRUD・PK トグル）・列ハンドル間ドラッグで FK 作成・線クリックで削除・DBML/Mermaid 双方向同期・localStorage 自動保存復元。**+ 第2次（同日）**: crow's foot カーディナリティ表示（1側=バー / 多側=鳥の足、SVG marker + orient=auto-start-reverse）・接続線中央に列リンクラベル（`子列 → 親列`）・テーブル追加を右端外側へ配置＋自動フォーカス・**ドラッグ中の接続プレビュー線を強調**（既定の薄グレー1pxで埋もれていたのを赤破線2.5pxへ：`connectionLineStyle` + CSS `.react-flow__connection-path`）。**+ 第3次（同日）**: ①カーディナリティ編集 — 接続線クリックで編集ポップオーバー（`EdgeEditor`）、**1対1/1対多/多対多** 切替・**向き反転**・ラベル編集・削除。cardinality を文字列依存から種別（`one-one`/`one-many`/`many-many`）へ正規化（向き反転を破綻なく実装。DBML は `-`/`>`/`<>`、Mermaid は `||--||`/`||--o{`/`}o--o{` に対応）。②**テーブル移動後も線を引きやすく** — 各列の左右両側にハンドル（id に `L:`/`R:` 接頭辞）+ `connectionMode="loose"`、エッジは位置関係で近い側のハンドルへ自動接続。Playwright で全機能検証済（多対多=両端crow's foot+DBML `<>`、向き反転、移動後接続 Ref 5→6、loose 接続を確認）。**残拡張余地**: SQL CREATE TABLE 解析・undo/redo・複数スキーマ管理・PNG/SVG 書出し | `docs/portal/er-editor.html`, MEMORY `feedback_oss_license_audit.md` |
 | **メニュー単位カスタムロール RBAC — Phase 1-A 完了 (v376.24 @179)** | 認可レイヤー内部置換完了。挙動完全維持 + snapshot test 7 件 PASS + 許容デルタ 7 件明示承認 | `scripts/menu-registry.mjs`, `scripts/test-menu-registry.mjs`, `docs/246` §Phase 1-A 完了記録 |
 | **メニュー単位カスタムロール RBAC — Phase 1-B 完全完了 (v376.25.1 @181)** | T_権限ロール schema + ロールID 列 + 5 ロール seed + fallback chain + DB migration 適用完了。DRYRUN 結果: 4 行全て SKIP（既に正しい）= ロールID 経路で稼働中 | `docs/246` §Phase 1-B 完全完了記録 |
 | **メニュー単位カスタムロール RBAC — Phase 2 全完了 (v376.26〜.28.2 @182〜@186)** | 2-A backend CRUD + 2-B 権限マトリクス UI + 2-C 管理者追加フォーム roleId 選択化 + .28.1/.28.2 hotfix（シート作成 + session resolved authz）| `docs/246` §Phase 2 完了記録 |
@@ -151,6 +151,7 @@ npm run build:docs-portal                  # docs/portal/*.html + schema.dbml �
 
 | Version | 日付 | 概要 |
 |---|---|---|
+| **(本番コード変更なし)** | 2026-05-30 | **ER エディタ双方向編集化**（`docs/portal/er-editor.html`、本番デプロイなし）。表示専用だった ER エディタを直感編集ツールへ刷新。内部モデルを単一情報源とし、①キャンバス上でテーブル/列の追加・改名・削除・型編集・PK トグル、②列ハンドル間ドラッグで FK 作成・接続線クリックで削除、③編集→DBML/Mermaid テキスト即時再生成＋テキスト→キャンバス再パースの双方向同期、④localStorage 自動保存・リロード復元 を実装。Mermaid カーディナリティを親(左)→子(右)で正規化し往復ロスレス化。新規 OSS 依存なし（React Flow MIT のみ・ChartDB/drawDB の AGPL は不採用）。Playwright で取込→編集→FK ドラッグ(trusted mouse)→形式往復→リロード復元まで検証済。**同日第2次**でユーザー FB 対応: ①crow's foot カーディナリティ記号（1=バー/多=鳥の足）②接続線に列リンクラベル（`子列 → 親列`）③テーブル追加を右端外側へ配置＋自動フォーカス。カスタムエッジ（BaseEdge+EdgeLabelRenderer+getSmoothStepPath）と SVG marker(orient=auto-start-reverse)で実装、視覚確認済 |
 | **(本番コード変更なし)** | 2026-05-30 | **ドキュメントポータル拡充 + AGENTS.md グランドルール整理**（本番デプロイなし、コミット 10 件）。**新設**: `docs/portal/` 配下の人間可読 HTML ポータル 6 ページ — TOP / インタラクティブ ER (React Flow + ELK) / ER エディタ&ビューア(汎用、DBML+Mermaid 編集ライブプレビュー) / テーブル設計書(クリッカブル) / ER ドメイン別(Mermaid + ELK) / DBML エクスポート(ChartDB/dbdiagram.io 連携) / 仕様書サマリ。`scripts/build-docs-portal.mjs` を単一情報源とし、`npm run build:docs-portal` で再生成。**AGENTS.md 整理**: §4 を 5 サブセクション化 (Deploy SOP / 認証フロー / セキュリティ運用 / UI/UX / ランタイム契約 / **§4.6 ドキュメント形式規約 (新設)**)、§6 重複削減、ユーザー指定追加ルール 6 件反映 (DRY 原則 / ハードコーディング禁止 / 影響範囲確認 / セキュアコーディング 5 視点 / ER 図 HTML 必須 / 人間可読版併設)。**MEMORY フィードバック整理**: Layer 別 subheading で並び替え。**ライセンス監査**: ChartDB AGPL v3 を回避し React Flow MIT を採用 |
 | **v376.31** | 2026-05-29 | **initializeSchema_ 堅牢化（v376.30.x 根本対応）**（全 3 split @351/@110/@191）。**計装**: `initializeSchema_` の各 step を critical（migration / seed — 例外伝播）と post（validation 適用 / 保護 / cleanup / audit — Logger.log のみ続行）に分離。完了時に passed/criticalFailed/postFailed 集計をログ出力。**空シート防御**: `protectHeaderRows_` と `applyDataValidationRules_` で `lastColumn < 1` のシートを skip + Logger.log。v376.30 では post-step（おそらく protectHeaderRows_）が空シートに当たって throw し、initialization が中断 → markSchemaInitialized_ 未到達 → 毎リクエスト再初期化ループ、という事象が発生していたが、今後は post-step の軽微なエラーで全体が止まらない |
 | **v376.30.1 / .30.2** | 2026-05-29 | **v376.30 hotfix 2 件**（admin @189 → @190）。**.30.1**: schema 状態診断関数 `diagnoseSchemaStateV376_30` を追加。**.30.2**: 救済関数 `forceMarkSchemaInitializedToCurrent` を追加。`initializeSchema_` が schema migration を成功完了したのに最終 `markSchemaInitialized_` まで到達せず `DB_SCHEMA_INITIALIZED_VERSION` が古い値のまま残り、毎リクエストで `initializeSchemaIfNeeded_` が走って後処理ステップでエラー再発する状況を解消。スキーマ自体（T_研修 24列・申込URL 含む・5件データ保持）は正常で、Properties の 2 行を強制マークしただけ。次回 hotfix 候補: `initializeSchema_` の各 step に try/catch + Logger.log を入れて根本原因（どの step で例外が出ていたか）を特定 |

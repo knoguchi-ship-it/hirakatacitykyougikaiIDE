@@ -97,6 +97,8 @@ html, body { margin: 0; padding: 0; height: 100%; font-family: "Segoe UI", "Hira
 .editor-toolbar button.primary { background: var(--accent); color: white; border-color: var(--accent); }
 .editor-toolbar button:hover { background: var(--accent-soft); }
 .editor-toolbar button.primary:hover { background: #0d5d56; }
+.editor-toolbar button.add { background: var(--warm); color: white; border-color: var(--warm); }
+.editor-toolbar button.add:hover { background: #754f2c; }
 .editor-toolbar button.danger { color: var(--danger); border-color: var(--danger); }
 .editor-toolbar button.danger:hover { background: #fef2f2; }
 .editor-toolbar .spacer { flex: 1; }
@@ -142,51 +144,174 @@ html, body { margin: 0; padding: 0; height: 100%; font-family: "Segoe UI", "Hira
   font-size: 0.92em;
 }
 
+/* キャンバス上の操作ヒント */
+.canvas-hint {
+  position: absolute;
+  top: 10px; left: 50%; transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.82);
+  color: white;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.74em;
+  z-index: 50;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: var(--shadow);
+}
+
 /* React Flow custom node styles */
 .table-node {
   background: white;
   border: 2px solid #0f172a;
   border-radius: 8px;
   font-family: "Consolas", "Menlo", "Hiragino Sans", monospace;
-  min-width: 240px;
-  max-width: 340px;
+  width: 280px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-  overflow: hidden;
+  overflow: visible;
 }
 .table-node.highlighted { border-color: var(--danger); border-width: 3px; box-shadow: 0 0 0 4px rgba(220,38,38,0.2); }
-.table-node.dimmed { opacity: 0.25; }
+.table-node.dimmed { opacity: 0.3; }
 .table-node-head {
   background: linear-gradient(135deg, #0f766e, #14b8a6);
   color: white;
-  padding: 8px 12px;
+  padding: 6px 8px;
   font-weight: 700;
-  font-size: 0.95em;
-  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  display: flex; align-items: center; gap: 6px;
+  height: 34px;
+  border-radius: 5px 5px 0 0;
 }
-.table-node-head .count { background: rgba(255,255,255,0.25); padding: 2px 8px; border-radius: 8px; font-size: 0.72em; }
-.table-node-rows { font-size: 0.78em; line-height: 1.6; }
+.table-node-head .count { background: rgba(255,255,255,0.25); padding: 2px 7px; border-radius: 8px; font-size: 0.68em; white-space: nowrap; }
+.table-node-rows { font-size: 0.78em; }
 .col-row {
   display: flex;
-  padding: 3px 12px;
+  align-items: center;
+  height: 26px;
+  padding: 0 8px;
   border-bottom: 1px solid #f1f5f9;
-  gap: 6px;
+  gap: 4px;
 }
 .col-row:nth-child(even) { background: #fafafa; }
 .col-row:hover { background: var(--accent-soft); }
-.col-row .col-key { width: 28px; font-weight: 700; font-size: 0.78em; }
-.col-row .key-pk { color: #d97706; }
-.col-row .key-fk { color: #0f766e; }
-.col-row .col-name { flex: 1; color: #1f2937; font-weight: 600; }
-.col-row .col-type { color: var(--muted); font-size: 0.85em; }
 
-.react-flow__handle { width: 8px !important; height: 8px !important; background: var(--danger) !important; border: 2px solid white !important; opacity: 0; }
-.table-node:hover .react-flow__handle { opacity: 1; }
-.react-flow__edge-path { stroke: var(--danger); stroke-width: 2; }
+/* ノード内インライン編集 */
+.tn-input {
+  border: 1px solid transparent;
+  background: transparent;
+  font: inherit;
+  padding: 1px 4px;
+  border-radius: 4px;
+  min-width: 0;
+}
+.tn-input:hover { border-color: #e2e8f0; }
+.tn-input:focus { border-color: var(--accent); background: white; outline: none; }
+.col-name-input { flex: 1; font-weight: 600; color: #1f2937; width: 0; }
+.col-type-input { width: 76px; color: var(--muted); font-size: 0.92em; flex: none; }
+.tn-name-input {
+  flex: 1; width: 0;
+  font-weight: 700; color: white; font-size: 0.95em;
+  background: rgba(255,255,255,0.14);
+  border: 1px solid transparent;
+}
+.tn-name-input::placeholder { color: rgba(255,255,255,0.65); }
+.tn-name-input:hover { border-color: rgba(255,255,255,0.4); }
+.tn-name-input:focus { background: white; color: #0f172a; border-color: white; }
+.pk-btn {
+  width: 30px; flex: none;
+  font-size: 0.62em; font-weight: 700;
+  border: 1px solid var(--line); border-radius: 4px;
+  background: white; cursor: pointer; color: #cbd5e1;
+  padding: 2px 1px; line-height: 1.2;
+}
+.pk-btn.on-pk { color: #d97706; border-color: #f59e0b; background: #fffbeb; }
+.fk-badge { color: var(--accent); font-weight: 700; font-size: 0.62em; width: 18px; flex: none; text-align: center; }
+.col-del {
+  width: 18px; flex: none;
+  color: #cbd5e1; border: none; background: transparent; cursor: pointer;
+  font-size: 1em; line-height: 1; padding: 0;
+}
+.col-del:hover { color: var(--danger); }
+.tn-del {
+  background: rgba(255,255,255,0.2); border: none; color: white; cursor: pointer;
+  border-radius: 4px; width: 22px; height: 22px; flex: none; font-size: 0.9em; line-height: 1;
+}
+.tn-del:hover { background: var(--danger); }
+.tn-addcol {
+  width: 100%; border: none; border-top: 1px dashed var(--line);
+  background: #f8fafc; color: var(--accent); cursor: pointer;
+  padding: 5px; font-size: 0.76em; font-weight: 700;
+  border-radius: 0 0 5px 5px;
+}
+.tn-addcol:hover { background: var(--accent-soft); }
+
+.react-flow__handle { width: 9px !important; height: 9px !important; background: var(--accent) !important; border: 2px solid white !important; opacity: 0; transition: opacity 0.12s; }
+.react-flow__handle-left { left: -5px !important; }
+.react-flow__handle-right { right: -5px !important; }
+.table-node:hover .react-flow__handle { opacity: 0.85; }
+.react-flow__handle:hover { opacity: 1 !important; background: var(--danger) !important; transform: scale(1.4); }
+.react-flow__edge-path { stroke: var(--accent); stroke-width: 2; }
 .react-flow__edge.selected .react-flow__edge-path,
-.react-flow__edge:hover .react-flow__edge-path { stroke: #b91c1c; stroke-width: 3; }
-.react-flow__edge-text { font-size: 11px; fill: #991b1b; font-weight: 600; }
+.react-flow__edge:hover .react-flow__edge-path { stroke: var(--danger); stroke-width: 3; cursor: pointer; }
+/* ドラッグ中の接続プレビュー線（既定の薄グレーだと見えないため強調） */
+.react-flow__connectionline .react-flow__connection-path,
+.react-flow__connection-path {
+  stroke: #dc2626 !important;
+  stroke-width: 2.5 !important;
+  stroke-dasharray: 6 3;
+  fill: none;
+}
+.react-flow__edge-text { font-size: 11px; fill: #0f5249; font-weight: 600; }
 .react-flow__edge-textbg { fill: white; }
 .react-flow__minimap { background: white; border: 1px solid var(--line); }
+
+/* crow's foot マーカー定義コンテナ（非表示） */
+.er-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* 接続線中央の列リンクラベル */
+.er-edge-label {
+  position: absolute;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1px 7px;
+  font-size: 10px;
+  font-family: "Consolas", "Menlo", "Hiragino Sans", monospace;
+  color: #0f5249;
+  font-weight: 700;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+/* リレーション編集ポップオーバー */
+.edge-editor {
+  position: fixed;
+  z-index: 200;
+  width: 232px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 10px 12px;
+  font-size: 0.82em;
+}
+.ee-head { display: flex; justify-content: space-between; align-items: center; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+.ee-x { border: none; background: transparent; cursor: pointer; color: var(--muted); font-size: 1em; }
+.ee-x:hover { color: var(--danger); }
+.ee-rel { font-size: 0.92em; color: var(--ink); background: #f8fafc; border: 1px solid var(--line); border-radius: 6px; padding: 5px 7px; margin-bottom: 8px; word-break: break-all; }
+.ee-1 { color: #d97706; font-size: 0.85em; font-weight: 700; }
+.ee-n { color: var(--accent); font-size: 0.85em; font-weight: 700; }
+.ee-label { font-size: 0.76em; color: var(--muted); font-weight: 700; margin: 4px 0 3px; }
+.ee-cards { display: flex; gap: 5px; }
+.ee-card { flex: 1; border: 1px solid var(--line); background: white; border-radius: 6px; padding: 6px 2px; cursor: pointer; font-weight: 700; font-size: 0.92em; color: var(--muted); }
+.ee-card:hover { background: var(--accent-soft); }
+.ee-card.on { background: var(--accent); color: white; border-color: var(--accent); }
+.ee-input { width: 100%; border: 1px solid var(--line); border-radius: 6px; padding: 5px 7px; font: inherit; outline: none; }
+.ee-input:focus { border-color: var(--accent); }
+.ee-actions { display: flex; gap: 6px; margin-top: 10px; }
+.ee-btn { flex: 1; border: 1px solid var(--line); background: white; border-radius: 6px; padding: 6px 4px; cursor: pointer; font-weight: 700; font-size: 0.9em; color: var(--accent); }
+.ee-btn:hover { background: var(--accent-soft); }
+.ee-del { color: var(--danger); border-color: var(--danger); }
+.ee-del:hover { background: #fef2f2; }
 
 /* ドロップターゲット */
 .drop-overlay {
@@ -217,8 +342,9 @@ html, body { margin: 0; padding: 0; height: 100%; font-family: "Segoe UI", "Hira
   <div class="main">
     <div class="editor-pane">
       <div class="editor-toolbar">
+        <button id="btn-add-table" class="add" title="新しいテーブルをキャンバスに追加">＋ テーブル追加</button>
         <label>形式:</label>
-        <select id="format">
+        <select id="format" title="入力の解釈とテキスト書出しの形式">
           <option value="auto">自動判定</option>
           <option value="dbml">DBML</option>
           <option value="mermaid">Mermaid ER</option>
@@ -226,26 +352,28 @@ html, body { margin: 0; padding: 0; height: 100%; font-family: "Segoe UI", "Hira
         <button id="btn-load" title=".dbml / .md / .txt をローカルから読込">📂 開く</button>
         <input type="file" id="file-input" accept=".dbml,.md,.txt,.mermaid" hidden>
         <button id="btn-save" title="現在のテキストを .dbml としてダウンロード">💾 保存</button>
-        <button id="btn-sample-dbml" title="DBML サンプルを読込">🎯 DBML サンプル</button>
-        <button id="btn-sample-mermaid" title="Mermaid サンプルを読込">🎯 Mermaid サンプル</button>
-        <button id="btn-clear" class="danger" title="エディタをクリア">🗑️ クリア</button>
+        <button id="btn-sample-dbml" title="DBML サンプルを読込">🎯 DBML例</button>
+        <button id="btn-sample-mermaid" title="Mermaid サンプルを読込">🎯 Mermaid例</button>
+        <button id="btn-clear" class="danger" title="エディタを空にする">🗑️ クリア</button>
         <span class="spacer"></span>
         <button id="btn-fit" title="ビュアー全体表示">⤢ 全体表示</button>
-        <button id="btn-relayout" class="primary" title="ELK で再レイアウト">🔄 再レイアウト</button>
+        <button id="btn-relayout" class="primary" title="ELK で自動再配置">🔄 自動整列</button>
       </div>
 
-      <textarea id="editor" placeholder="DBML または Mermaid erDiagram をここに貼付けてください。
+      <textarea id="editor" placeholder="ここに DBML / Mermaid erDiagram を貼付けると、右のキャンバスに反映されます。
 ファイルをドラッグ＆ドロップしても OK。
 
-📂「開く」ボタン → ローカル .dbml / .md / .txt を読込
-💾「保存」ボタン → 現在のテキストを .dbml としてダウンロード
-🎯「サンプル」ボタン → 形式別の最小例を投入
-🔄「再レイアウト」ボタン → ビュアー側を ELK で再配置
+▼ 直感操作（キャンバス側）
+・「＋ テーブル追加」でテーブルを作成
+・ノード内のテキストを直接クリックして名前・型を編集
+・列の「PK」ボタンで主キー切替、「×」で列削除
+・列の端のハンドル（●）を別テーブルの列へドラッグして FK 接続
+・接続線をクリックすると削除
 
-⏱️ 入力 500ms 後に自動でビュアー反映されます。"></textarea>
+⏱️ テキスト入力は 500ms 後に自動反映。キャンバス編集は即テキストへ反映（双方向）。"></textarea>
 
       <div class="editor-statusbar">
-        <span id="status">準備完了 — テキストを貼付け or サンプル ボタンで開始</span>
+        <span id="status">準備完了 — ＋テーブル追加 か サンプル ボタンで開始</span>
         <span id="char-count">0 文字</span>
       </div>
     </div>
@@ -262,20 +390,37 @@ html, body { margin: 0; padding: 0; height: 100%; font-family: "Segoe UI", "Hira
 </div>
 
 <script type="module">
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ReactFlow, Background, Controls, MiniMap, Handle, Position, useNodesState, useEdgesState, ReactFlowProvider, useReactFlow } from '@xyflow/react';
+import { ReactFlow, Background, Controls, MiniMap, Handle, Position, ReactFlowProvider, useReactFlow, BaseEdge, EdgeLabelRenderer, getSmoothStepPath } from '@xyflow/react';
 import ELK from 'elkjs';
 import htm from 'htm';
 
 const html = htm.bind(React.createElement);
 
+const STORAGE_KEY = 'er-editor-state-v2';
+const HEAD_H = 34;     // ヘッダ高さ(px) — ハンドル位置計算に使用
+const ROW_H = 26;      // 列行高さ(px)
+const T_HANDLE = '__table__'; // テーブルレベル(列未指定)接続用ハンドル id
+
+// id 生成（このファイルはブラウザ実行のため Date/Math.random 利用可）
+let idSeq = 0;
+const uid = (p) => `${p}_${(++idSeq).toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+
 // ═══════════════════════════════════════════════════════════
-// パーサ
+// パーサ（テキスト → schema）
+//   relationship = { parent, child, parentCol, childCol, cardinality, label }
+//   parent = 1(PK)側テーブル名 / child = 多(FK)側テーブル名 / *Col は列名 or null
 // ═══════════════════════════════════════════════════════════
 
-// ── DBML パーサ（最小実装）──
-// 対応: Project { ... }, Table "name" { "col" type [pk, ref: ..., note: ...] }, Ref: "t1"."c" > "t2"."c"
+// カーディナリティは「親(左, 1側) -- 子(右, 多側)」の向きで統一する
+function opToCardinality(op) {
+  if (op === '-') return '||--||';   // 1対1
+  if (op === '<>') return '}o--o{';  // 多対多
+  return '||--o{';                   // 1対多（親1 → 子多）
+}
+
+// ── DBML パーサ ──
 function parseDbml(src) {
   const entities = {};
   const relationships = [];
@@ -283,17 +428,10 @@ function parseDbml(src) {
   let currentTable = null;
   let inProject = false;
   for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i];
-    const line = raw.replace(/^\s+|\s+$/g, '');
-    if (!line) continue;
-    if (line.startsWith('//')) continue;
-    // Project block (skip)
+    const line = lines[i].replace(/^\s+|\s+$/g, '');
+    if (!line || line.startsWith('//')) continue;
     if (/^Project\s+/.test(line)) { inProject = true; continue; }
-    if (inProject) {
-      if (line === '}') inProject = false;
-      continue;
-    }
-    // Table block start
+    if (inProject) { if (line === '}') inProject = false; continue; }
     const tblMatch = line.match(/^Table\s+(?:"([^"]+)"|(\S+))\s*(?:as\s+\S+)?\s*\{/i);
     if (tblMatch) {
       const name = tblMatch[1] || tblMatch[2];
@@ -302,9 +440,7 @@ function parseDbml(src) {
       continue;
     }
     if (currentTable && line === '}') { currentTable = null; continue; }
-    // Column in table
     if (currentTable) {
-      // "col_name" type [attrs] or col_name type [attrs]
       const m = line.match(/^(?:"([^"]+)"|(\S+))\s+(\S+?)(?:\s*\[(.*)\])?\s*$/);
       if (m) {
         const colName = m[1] || m[2];
@@ -314,27 +450,26 @@ function parseDbml(src) {
         if (/\bpk\b/.test(attrs) || /\bprimary key\b/.test(attrs)) key = 'PK';
         if (/\bfk\b/.test(attrs) || /\bref\s*:/.test(attrs)) key = key === 'PK' ? 'PK,FK' : 'FK';
         currentTable.columns.push({ type: colType, name: colName, key });
-        // [ref: > other.col] の inline ref も拾う
-        const refMatch = attrs.match(/ref\s*:\s*([><\-]+)\s*"?([^".\s]+)"?\.\s*"?([^".\s\]]+)"?/);
+        // inline ref: [ref: > parent.col]
+        const refMatch = (m[4] || '').match(/ref\s*:\s*([><\-]+)\s*"?([^".\s]+)"?\.\s*"?([^".\s\]]+)"?/i);
         if (refMatch) {
-          const op = refMatch[1];
-          const op2card = op === '-' ? '||--||' : op === '<>' ? '}o--o{' : '}o--||';
           relationships.push({
-            left: refMatch[2], right: currentTable.name, cardinality: op2card, label: '',
+            parent: refMatch[2], parentCol: refMatch[3],
+            child: currentTable.name, childCol: colName,
+            cardinality: opToCardinality(refMatch[1]), label: '',
           });
         }
       }
       continue;
     }
-    // 独立 Ref 行: Ref: "t1"."c" > "t2"."c"
-    const refMatch = line.match(/^Ref(?:\s+\S+)?\s*:\s*"?([^".]+)"?\.\s*"?([^".\s]+)"?\s*([><\-]+)\s*"?([^".]+)"?\.\s*"?([^".\s/]+)"?(?:\s*\/\/\s*(.*))?$/);
+    // 独立 Ref: "child"."c" > "parent"."c"
+    const refMatch = line.match(/^Ref(?:\s+\S+)?\s*:\s*"?([^".]+)"?\.\s*"?([^".\s]+)"?\s*([><\-]+)\s*"?([^".]+)"?\.\s*"?([^".\s\/]+)"?(?:\s*\/\/\s*(.*))?$/);
     if (refMatch) {
-      const op = refMatch[3];
-      const op2card = op === '-' ? '||--||' : op === '<>' ? '}o--o{' : '}o--||';
-      // DBML の Ref では「左 [op] 右」を「子.fk [op] 親.pk」と読む
       relationships.push({
-        left: refMatch[4], right: refMatch[1], cardinality: op2card,
-        label: refMatch[6] || '',
+        child: refMatch[1], childCol: refMatch[2],
+        parent: refMatch[4], parentCol: refMatch[5],
+        cardinality: opToCardinality(refMatch[3]),
+        label: (refMatch[6] || '').trim(),
       });
     }
   }
@@ -345,13 +480,11 @@ function parseDbml(src) {
 function parseMermaidErd(src) {
   const entities = {};
   const relationships = [];
-  // frontmatter ブロックは除外
   let body = src;
   if (body.startsWith('---')) {
     const end = body.indexOf('---', 3);
     if (end !== -1) body = body.slice(end + 3);
   }
-  // erDiagram ヘッダ除去
   body = body.replace(/^\s*erDiagram\s*$/m, '');
   const lines = body.split(/\r?\n/);
   let cur = null;
@@ -366,17 +499,17 @@ function parseMermaidErd(src) {
       if (m) cur.columns.push({ type: m[1], name: m[2], key: m[3] || '' });
       continue;
     }
+    // parent card child : label  （Mermaid は左が1(PK)側、右が多(FK)側）
     const rel = line.match(/^(\S+)\s+([}{|o<>0-9\-]+--[}{|o<>0-9\-]+)\s+(\S+)\s*:\s*"?([^"]*)"?$/);
-    if (rel) relationships.push({ left: rel[1], cardinality: rel[2], right: rel[3], label: rel[4] || '' });
+    if (rel) relationships.push({ parent: rel[1], child: rel[3], parentCol: null, childCol: null, cardinality: rel[2], label: rel[4] || '' });
   }
   return { entities, relationships };
 }
 
-// 形式自動判定
 function detectFormat(src) {
   if (/^\s*Table\s+/m.test(src) || /^\s*Ref\s*:/m.test(src) || /^\s*Project\s+/m.test(src)) return 'dbml';
   if (/^\s*erDiagram\s*$/m.test(src) || /\|\|--o?\{|\|\|--\|\||\}o--o?\{|\}o--\|\|/.test(src)) return 'mermaid';
-  return 'dbml'; // default
+  return 'dbml';
 }
 
 function parse(src, format) {
@@ -389,229 +522,697 @@ function parse(src, format) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// React Flow + ELK 共通
+// 内部モデル（単一情報源）
+//   model = { tables: [{id,name,x,y,cols:[{id,name,type,pk}]}],
+//             rels:   [{id,parentId,childId,parentCol,childCol,cardinality,label}] }
 // ═══════════════════════════════════════════════════════════
-function TableNode({ data }) {
-  const { columns, name, highlighted, dimmed } = data;
-  const cls = `table-node${highlighted ? ' highlighted' : ''}${dimmed ? ' dimmed' : ''}`;
-  return html`
-    <div className=${cls}>
-      <${Handle} type="target" position=${Position.Left} style=${{ top: 16 }} />
-      <${Handle} type="source" position=${Position.Right} style=${{ top: 16 }} />
-      <div className="table-node-head">
-        <span>${name}</span>
-        <span className="count">${columns.length} 列</span>
-      </div>
-      <div className="table-node-rows">
-        ${columns.map((c) => html`
-          <div className="col-row" key=${c.name}>
-            <span className=${`col-key ${c.key === 'PK' ? 'key-pk' : c.key.includes('FK') ? 'key-fk' : ''}`}>${c.key || ''}</span>
-            <span className="col-name">${c.name}</span>
-            <span className="col-type">${c.type}</span>
-          </div>
-        `)}
-      </div>
-    </div>
-  `;
-}
-const nodeTypes = { table: TableNode };
 
+function schemaToModel(schema) {
+  const tables = [];
+  const nameToTable = {};
+  for (const [name, entity] of Object.entries(schema.entities || {})) {
+    const cols = (entity.columns || []).map((c) => ({
+      id: uid('col'), name: c.name, type: c.type || '', pk: /PK/.test(c.key || ''),
+    }));
+    const t = { id: uid('tbl'), name, x: 0, y: 0, cols };
+    tables.push(t);
+    nameToTable[name] = t;
+  }
+  const findCol = (t, colName) => {
+    if (!t || !colName) return null;
+    const c = t.cols.find((c) => c.name === colName);
+    return c ? c.id : null;
+  };
+  const rels = [];
+  for (const r of (schema.relationships || [])) {
+    const pt = nameToTable[r.parent];
+    const ct = nameToTable[r.child];
+    if (!pt || !ct) continue;
+    rels.push({
+      id: uid('rel'),
+      parentId: pt.id, childId: ct.id,
+      parentCol: findCol(pt, r.parentCol),
+      childCol: findCol(ct, r.childCol),
+      card: cardFromString(r.cardinality),
+      label: r.label || '',
+    });
+  }
+  return { tables, rels };
+}
+
+// FK 判定: ある列が何らかの rel の child 側列なら FK
+function fkColIdSet(model) {
+  const s = new Set();
+  for (const r of model.rels) if (r.childCol) s.add(`${r.childId}:${r.childCol}`);
+  return s;
+}
+
+// 名前のクオート要否（英数字_のみなら裸でOK）
+const needsQuote = (n) => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(n || '');
+const q = (n) => (needsQuote(n) ? `"${n}"` : n);
+
+function modelToDbml(model) {
+  const lines = [];
+  lines.push('// ER エディタで生成 (DBML)');
+  for (const t of model.tables) {
+    lines.push(`Table ${q(t.name || 'table')} {`);
+    if (t.cols.length === 0) lines.push('  id int [pk]');
+    for (const c of t.cols) {
+      const attrs = c.pk ? ' [pk]' : '';
+      lines.push(`  ${q(c.name || 'col')} ${c.type || 'text'}${attrs}`);
+    }
+    lines.push('}');
+    lines.push('');
+  }
+  const nameById = Object.fromEntries(model.tables.map((t) => [t.id, t]));
+  const colName = (t, colId) => (t && colId ? (t.cols.find((c) => c.id === colId) || {}).name : null);
+  for (const r of model.rels) {
+    const ct = nameById[r.childId], pt = nameById[r.parentId];
+    if (!ct || !pt) continue;
+    const cc = colName(ct, r.childCol);
+    const pc = colName(pt, r.parentCol);
+    const op = CARD_DBML_OP[r.card] || '>';
+    const note = r.label ? ` // ${r.label}` : '';
+    if (cc && pc) {
+      lines.push(`Ref: ${q(ct.name)}.${q(cc)} ${op} ${q(pt.name)}.${q(pc)}${note}`);
+    } else {
+      // 列未指定（テーブルレベル）の関連は DBML では表現できないためコメントで保持
+      lines.push(`// Ref(列未指定): ${q(ct.name)} ${op} ${q(pt.name)}${note}`);
+    }
+  }
+  return lines.join('\n') + '\n';
+}
+
+function modelToMermaid(model) {
+  const lines = ['erDiagram', ''];
+  const fkSet = fkColIdSet(model);
+  for (const t of model.tables) {
+    lines.push(`${t.name || 'table'} {`);
+    if (t.cols.length === 0) lines.push('  int id PK');
+    for (const c of t.cols) {
+      const isFk = fkSet.has(`${t.id}:${c.id}`);
+      const key = c.pk ? (isFk ? 'PK,FK' : 'PK') : (isFk ? 'FK' : '');
+      lines.push(`  ${c.type || 'text'} ${c.name || 'col'}${key ? ' ' + key : ''}`);
+    }
+    lines.push('}');
+    lines.push('');
+  }
+  const nameById = Object.fromEntries(model.tables.map((t) => [t.id, t]));
+  for (const r of model.rels) {
+    const ct = nameById[r.childId], pt = nameById[r.parentId];
+    if (!ct || !pt) continue;
+    // Mermaid 規約: 左=親(1側) / 右=子(多側)
+    lines.push(`${pt.name} ${CARD_MERMAID[r.card] || '||--o{'} ${ct.name} : "${r.label || ''}"`);
+  }
+  return lines.join('\n') + '\n';
+}
+
+function serialize(model, fmt) {
+  return fmt === 'mermaid' ? modelToMermaid(model) : modelToDbml(model);
+}
+
+// ═══════════════════════════════════════════════════════════
+// ELK 自動レイアウト
+// ═══════════════════════════════════════════════════════════
 const elk = new ELK();
-async function computeLayout(nodes, edges) {
+const tableHeight = (t) => HEAD_H + Math.max(t.cols.length, 1) * ROW_H + 28;
+
+async function computeLayout(model) {
   const elkGraph = {
     id: 'root',
     layoutOptions: {
       'elk.algorithm': 'layered',
       'elk.direction': 'RIGHT',
-      'elk.layered.spacing.nodeNodeBetweenLayers': '80',
+      'elk.layered.spacing.nodeNodeBetweenLayers': '90',
       'elk.spacing.nodeNode': '60',
       'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
     },
-    children: nodes.map((n) => ({
-      id: n.id, width: 280,
-      height: Math.min(36 + (n.data?.columns?.length || 0) * 20, 620),
-    })),
-    edges: edges.map((e) => ({ id: e.id, sources: [e.source], targets: [e.target] })),
+    children: model.tables.map((t) => ({ id: t.id, width: 280, height: tableHeight(t) })),
+    edges: model.rels
+      .filter((r) => r.childId && r.parentId)
+      .map((r) => ({ id: r.id, sources: [r.childId], targets: [r.parentId] })),
   };
   const layouted = await elk.layout(elkGraph);
-  const positions = {};
-  for (const child of layouted.children || []) positions[child.id] = { x: child.x, y: child.y };
-  return nodes.map((n) => ({ ...n, position: positions[n.id] || { x: 0, y: 0 } }));
-}
-
-function buildGraph(schema) {
-  const nodes = [];
-  for (const [name, entity] of Object.entries(schema.entities || {})) {
-    nodes.push({ id: name, type: 'table', position: { x: 0, y: 0 }, data: { name, columns: entity.columns } });
-  }
-  const edges = [];
-  (schema.relationships || []).forEach((r, i) => {
-    if (!schema.entities[r.left] || !schema.entities[r.right]) return;
-    edges.push({ id: `e${i}`, source: r.left, target: r.right, label: r.label, type: 'smoothstep' });
-  });
-  return { nodes, edges };
+  const pos = {};
+  for (const child of layouted.children || []) pos[child.id] = { x: child.x, y: child.y };
+  return model.tables.map((t) => ({ ...t, x: pos[t.id]?.x ?? t.x, y: pos[t.id]?.y ?? t.y }));
 }
 
 // ═══════════════════════════════════════════════════════════
-// メイン React Flow ビュアー App
+// 編集可能 TableNode
 // ═══════════════════════════════════════════════════════════
-function ErViewer({ schema, layoutTrigger, onStatus }) {
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+function TableNode({ data }) {
+  const { table, fkSet, highlighted, dimmed, actions } = data;
+  const cls = `table-node${highlighted ? ' highlighted' : ''}${dimmed ? ' dimmed' : ''}`;
+  const stop = (e) => e.stopPropagation();
+  return html`
+    <div className=${cls}>
+      <${Handle} type="target" position=${Position.Left} id=${`L:${T_HANDLE}`} style=${{ top: 17 }} />
+      <${Handle} type="source" position=${Position.Right} id=${`R:${T_HANDLE}`} style=${{ top: 17 }} />
+      <div className="table-node-head">
+        <input
+          className="tn-input tn-name-input nodrag"
+          value=${table.name}
+          placeholder="テーブル名"
+          onChange=${(e) => actions.renameTable(table.id, e.target.value)}
+          onMouseDown=${stop}
+        />
+        <span className="count">${table.cols.length}列</span>
+        <button className="tn-del nodrag" title="テーブル削除" onMouseDown=${stop} onClick=${() => actions.deleteTable(table.id)}>✕</button>
+      </div>
+      <div className="table-node-rows">
+        ${table.cols.map((c, i) => {
+          const isFk = fkSet.has(`${table.id}:${c.id}`);
+          const top = HEAD_H + i * ROW_H + ROW_H / 2;
+          return html`
+            <div className="col-row" key=${c.id}>
+              <${Handle} type="target" position=${Position.Left} id=${`L:${c.id}`} style=${{ top }} />
+              <button
+                className=${`pk-btn nodrag${c.pk ? ' on-pk' : ''}`}
+                title="主キー切替"
+                onMouseDown=${stop}
+                onClick=${() => actions.togglePk(table.id, c.id)}
+              >PK</button>
+              <input
+                className="tn-input col-name-input nodrag"
+                value=${c.name}
+                placeholder="列名"
+                onChange=${(e) => actions.editColumn(table.id, c.id, { name: e.target.value })}
+                onMouseDown=${stop}
+              />
+              <input
+                className="tn-input col-type-input nodrag"
+                value=${c.type}
+                placeholder="型"
+                onChange=${(e) => actions.editColumn(table.id, c.id, { type: e.target.value })}
+                onMouseDown=${stop}
+              />
+              <span className="fk-badge">${isFk ? 'FK' : ''}</span>
+              <button className="col-del nodrag" title="列削除" onMouseDown=${stop} onClick=${() => actions.deleteColumn(table.id, c.id)}>×</button>
+              <${Handle} type="source" position=${Position.Right} id=${`R:${c.id}`} style=${{ top }} />
+            </div>
+          `;
+        })}
+      </div>
+      <button className="tn-addcol nodrag" onMouseDown=${stop} onClick=${() => actions.addColumn(table.id)}>＋ 列を追加</button>
+    </div>
+  `;
+}
+const nodeTypes = { table: TableNode };
+
+// ═══════════════════════════════════════════════════════════
+// カスタムエッジ（crow's foot マーカー + 列名ラベル）
+// ═══════════════════════════════════════════════════════════
+// カーディナリティは種別で正規化（親/子は parentId/childId で表現）
+//   'one-one' | 'one-many'(親1→子多) | 'many-many'
+const CARD_MERMAID = { 'one-one': '||--||', 'one-many': '||--o{', 'many-many': '}o--o{' };
+const CARD_DBML_OP = { 'one-one': '-', 'one-many': '>', 'many-many': '<>' };
+const CARD_LABEL = { 'one-one': '1対1', 'one-many': '1対多', 'many-many': '多対多' };
+
+// Mermaid/DBML 由来のカーディナリティ文字列 → 種別
+function cardFromString(cardinality) {
+  const [l, r] = String(cardinality || '||--o{').split('--');
+  const many = (g) => /[{}]/.test(g || '');
+  if (many(l) && many(r)) return 'many-many';
+  if (!many(l) && !many(r)) return 'one-one';
+  return 'one-many';
+}
+
+// 種別 → 端ごとのマーカー記号（親=PK側 / 子=FK側）
+function markersFor(card) {
+  return {
+    parent: card === 'many-many' ? 'many' : 'one',
+    child: card === 'one-one' ? 'one' : 'many',
+  };
+}
+
+function ErEdge(props) {
+  const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerStart, markerEnd, data, style } = props;
+  const [path, labelX, labelY] = getSmoothStepPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, borderRadius: 8 });
+  return html`
+    <${BaseEdge} id=${id} path=${path} markerStart=${markerStart} markerEnd=${markerEnd} style=${style} />
+    ${data?.label ? html`
+      <${EdgeLabelRenderer}>
+        <div
+          className="er-edge-label nodrag nopan"
+          style=${{ transform: `translate(-50%,-50%) translate(${labelX}px, ${labelY}px)`, opacity: data.dimmed ? 0.15 : 1 }}
+        >${data.label}</div>
+      </${EdgeLabelRenderer}>
+    ` : null}
+  `;
+}
+const edgeTypes = { er: ErEdge };
+
+// crow's foot マーカー定義（document 内に一度だけ注入し url(#id) で参照）
+function ErMarkerDefs() {
+  return html`
+    <svg className="er-defs" aria-hidden="true">
+      <defs>
+        <marker id="erd-one" viewBox="0 0 22 22" markerWidth=${22} markerHeight=${22} refX=${20} refY=${11} orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+          <path d="M12,3 L12,19" fill="none" stroke="#0f766e" strokeWidth=${1.8} strokeLinecap="round" />
+        </marker>
+        <marker id="erd-many" viewBox="0 0 22 22" markerWidth=${22} markerHeight=${22} refX=${20} refY=${11} orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+          <path d="M20,3 L5,11 M20,11 L5,11 M20,19 L5,11" fill="none" stroke="#0f766e" strokeWidth=${1.8} strokeLinecap="round" strokeLinejoin="round" />
+        </marker>
+      </defs>
+    </svg>
+  `;
+}
+
+// ═══════════════════════════════════════════════════════════
+// ビュアー（モデルから nodes/edges を派生・編集を model 経由で反映）
+// ═══════════════════════════════════════════════════════════
+function ErViewer({ model, setModel, actions, layoutTrigger, fitTrigger, highlightId, setHighlightId, onStatus }) {
   const { fitView } = useReactFlow();
+  const fkSet = useMemo(() => fkColIdSet(model), [model]);
+  const [editEdge, setEditEdge] = useState(null); // { id, x, y }
 
-  // schema 変更時にレイアウト再計算
+  // 関連テーブル（ハイライト用）
+  const relatedIds = useMemo(() => {
+    if (!highlightId) return null;
+    const s = new Set([highlightId]);
+    for (const r of model.rels) {
+      if (r.childId === highlightId) s.add(r.parentId);
+      if (r.parentId === highlightId) s.add(r.childId);
+    }
+    return s;
+  }, [highlightId, model.rels]);
+
+  const nodes = useMemo(() => model.tables.map((t) => ({
+    id: t.id,
+    type: 'table',
+    position: { x: t.x, y: t.y },
+    data: {
+      table: t,
+      fkSet,
+      highlighted: highlightId === t.id,
+      dimmed: relatedIds ? !relatedIds.has(t.id) : false,
+      actions,
+    },
+  })), [model.tables, fkSet, highlightId, relatedIds, actions]);
+
+  const edges = useMemo(() => {
+    const tById = Object.fromEntries(model.tables.map((t) => [t.id, t]));
+    const colNm = (t, colId) => (t && colId ? (t.cols.find((c) => c.id === colId) || {}).name : null);
+    return model.rels.map((r) => {
+      const ct = tById[r.childId], pt = tById[r.parentId];
+      const cc = colNm(ct, r.childCol);
+      const pc = colNm(pt, r.parentCol);
+      const g = markersFor(r.card);
+      // ラベル: 「子列 → 親列」。列未指定はテーブルレベル接続
+      let label = r.label || '';
+      if (cc && pc) label = `${cc} → ${pc}`;
+      else if (cc || pc) label = `${cc || '?'} → ${pc || '?'}`;
+      const dimmed = relatedIds ? !(relatedIds.has(r.childId) && relatedIds.has(r.parentId)) : false;
+      // 位置関係に応じて「近い側」のハンドルへ接続（線が回り込まないように）
+      const cx = ct ? ct.x : 0, px = pt ? pt.x : 0;
+      const childSide = cx <= px ? 'R' : 'L';
+      const parentSide = px < cx ? 'R' : 'L';
+      return {
+        id: r.id,
+        source: r.childId,
+        sourceHandle: `${childSide}:${r.childCol || T_HANDLE}`,
+        target: r.parentId,
+        targetHandle: `${parentSide}:${r.parentCol || T_HANDLE}`,
+        type: 'er',
+        markerStart: `erd-${g.child}`,  // 子側(FK・多) — React Flow が url('#...') を付与
+        markerEnd: `erd-${g.parent}`,   // 親側(PK・1)
+        data: { label, dimmed },
+        style: dimmed ? { opacity: 0.18 } : undefined,
+      };
+    });
+  }, [model.rels, model.tables, relatedIds]);
+
+  // ELK 自動整列
   useEffect(() => {
+    if (!layoutTrigger) return;
     (async () => {
-      if (!schema || !schema.entities || Object.keys(schema.entities).length === 0) {
-        setNodes([]); setEdges([]); return;
-      }
-      onStatus?.('レイアウト計算中...');
+      onStatus?.('自動整列中...');
       try {
-        const { nodes: rawNodes, edges: rawEdges } = buildGraph(schema);
-        const positioned = await computeLayout(rawNodes, rawEdges);
-        setNodes(positioned);
-        setEdges(rawEdges);
-        setTimeout(() => { try { fitView({ padding: 0.1, duration: 400 }); } catch(e){} }, 100);
-        onStatus?.(`✅ ${Object.keys(schema.entities).length} テーブル × ${(schema.relationships || []).length} リレーション`);
-      } catch (e) {
-        onStatus?.('レイアウト失敗: ' + e.message);
-      }
+        const positioned = await computeLayout(model);
+        setModel((m) => ({ ...m, tables: m.tables.map((t) => {
+          const p = positioned.find((x) => x.id === t.id);
+          return p ? { ...t, x: p.x, y: p.y } : t;
+        }) }), { sync: false });
+        setTimeout(() => { try { fitView({ padding: 0.12, duration: 400 }); } catch (e) {} }, 80);
+        onStatus?.(`✅ ${model.tables.length} テーブル × ${model.rels.length} リレーション`);
+      } catch (e) { onStatus?.('整列失敗: ' + e.message, true); }
     })();
-  }, [schema, layoutTrigger]);
+  }, [layoutTrigger]);
 
-  // クリックハイライト
-  const onNodeClick = useCallback((evt, node) => {
-    const related = new Set([node.id]);
-    edges.forEach((e) => { if (e.source === node.id) related.add(e.target); if (e.target === node.id) related.add(e.source); });
-    setNodes((ns) => ns.map((n) => ({
-      ...n,
-      data: { ...n.data, highlighted: n.id === node.id, dimmed: !related.has(n.id) },
-    })));
-  }, [edges, setNodes]);
-
-  const resetHighlight = useCallback(() => {
-    setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, highlighted: false, dimmed: false } })));
-  }, [setNodes]);
-
-  // ボタン hook 配線
+  // 全体表示ボタン
   useEffect(() => {
-    const btnFit = document.getElementById('btn-fit');
-    if (btnFit) btnFit.onclick = () => { try { fitView({ padding: 0.1, duration: 400 }); } catch(e){} };
+    const btn = document.getElementById('btn-fit');
+    if (btn) btn.onclick = () => { try { fitView({ padding: 0.12, duration: 400 }); } catch (e) {} };
   }, [fitView]);
 
+  // 保存位置を保ったまま全体表示（復元時など）
+  useEffect(() => {
+    if (!fitTrigger) return;
+    setTimeout(() => { try { fitView({ padding: 0.12, duration: 400 }); } catch (e) {} }, 80);
+  }, [fitTrigger]);
+
+  // ノード変更（ドラッグ位置・削除）を model に反映
+  const onNodesChange = useCallback((changes) => {
+    setModel((m) => {
+      let tables = m.tables;
+      for (const ch of changes) {
+        if (ch.type === 'position' && ch.position) {
+          tables = tables.map((t) => (t.id === ch.id ? { ...t, x: ch.position.x, y: ch.position.y } : t));
+        } else if (ch.type === 'remove') {
+          tables = tables.filter((t) => t.id !== ch.id);
+        }
+      }
+      if (tables === m.tables) return m;
+      return { ...m, tables };
+      // 位置のみの変更はテキスト非影響だが、削除はテキスト同期が要る → sync 既定 true
+    }, { sync: changes.some((c) => c.type === 'remove') });
+  }, [setModel]);
+
+  // FK 接続（列→列 もしくは テーブル→テーブル）。ハンドル id の側プレフィックス(L:/R:)を除去
+  const stripSide = (h) => (h ? h.replace(/^[LR]:/, '') : null);
+  const onConnect = useCallback((conn) => {
+    const childId = conn.source, parentId = conn.target;
+    if (!childId || !parentId) return;
+    const sh = stripSide(conn.sourceHandle), th = stripSide(conn.targetHandle);
+    const childCol = sh && sh !== T_HANDLE ? sh : null;
+    const parentCol = th && th !== T_HANDLE ? th : null;
+    actions.addRelation({ parentId, childId, parentCol, childCol });
+  }, [actions]);
+
+  // 接続線クリックで編集ポップオーバーを開く
+  const onEdgeClick = useCallback((evt, edge) => {
+    evt.stopPropagation();
+    setEditEdge({ id: edge.id, x: evt.clientX, y: evt.clientY });
+  }, [setEditEdge]);
+
+  // ノードクリックでハイライト（編集要素クリックは無視）
+  const onNodeClick = useCallback((evt, node) => {
+    if (evt.target.closest('input, button, .react-flow__handle')) return;
+    setHighlightId((cur) => (cur === node.id ? null : node.id));
+  }, [setHighlightId]);
+
   return html`
+    <${ErMarkerDefs} />
     <${ReactFlow}
       nodes=${nodes} edges=${edges}
-      onNodesChange=${onNodesChange} onEdgesChange=${onEdgesChange}
-      onNodeClick=${onNodeClick} onPaneClick=${resetHighlight}
       nodeTypes=${nodeTypes}
-      fitView minZoom=${0.05} maxZoom=${4}
-      defaultEdgeOptions=${{ type: 'smoothstep' }}
+      edgeTypes=${edgeTypes}
+      onNodesChange=${onNodesChange}
+      onConnect=${onConnect}
+      onEdgeClick=${onEdgeClick}
+      onNodeClick=${onNodeClick}
+      onPaneClick=${() => { setHighlightId(null); setEditEdge(null); }}
+      deleteKeyCode=${null}
+      connectionMode="loose"
+      minZoom=${0.05} maxZoom=${4}
+      fitView
+      defaultEdgeOptions=${{ type: 'er' }}
+      connectionLineType="smoothstep"
+      connectionLineStyle=${{ stroke: '#dc2626', strokeWidth: 2.5, strokeDasharray: '6 3' }}
     >
       <${Background} variant="dots" gap=${20} size=${1} />
       <${Controls} />
       <${MiniMap} nodeColor=${() => '#0f766e'} maskColor="rgba(241, 245, 249, 0.7)" />
     </${ReactFlow}>
+    <div className="canvas-hint">列端の●を別テーブルの列へドラッグ → 接続（両側OK）／ 線クリック → 種別・向き・削除を編集</div>
+    ${editEdge ? html`<${EdgeEditor} editEdge=${editEdge} model=${model} actions=${actions} onClose=${() => setEditEdge(null)} />` : null}
+  `;
+}
+
+// 接続線クリックで開く編集ポップオーバー（カーディナリティ種別 / 向き反転 / ラベル / 削除）
+function EdgeEditor({ editEdge, model, actions, onClose }) {
+  const rel = model.rels.find((r) => r.id === editEdge.id);
+  if (!rel) return null;
+  const tById = Object.fromEntries(model.tables.map((t) => [t.id, t]));
+  const colNm = (tid, colId) => (colId ? (tById[tid]?.cols.find((c) => c.id === colId) || {}).name : null);
+  const ctName = tById[rel.childId]?.name || '?';
+  const ptName = tById[rel.parentId]?.name || '?';
+  const cc = colNm(rel.childId, rel.childCol), pc = colNm(rel.parentId, rel.parentCol);
+  const stop = (e) => e.stopPropagation();
+  const left = Math.min(editEdge.x, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 240);
+  const top = Math.min(editEdge.y, (typeof window !== 'undefined' ? window.innerHeight : 800) - 230);
+  return html`
+    <div className="edge-editor" style=${{ left: `${left}px`, top: `${top}px` }} onMouseDown=${stop} onClick=${stop}>
+      <div className="ee-head">
+        <span>リレーション編集</span>
+        <button className="ee-x" onClick=${onClose} title="閉じる">✕</button>
+      </div>
+      <div className="ee-rel">
+        <b>${ptName}${pc ? '.' + pc : ''}</b><span className="ee-1"> (1側/親) </span>
+        ⟶
+        <b>${ctName}${cc ? '.' + cc : ''}</b><span className="ee-n"> (多側/子) </span>
+      </div>
+      <div className="ee-label">カーディナリティ</div>
+      <div className="ee-cards">
+        ${['one-one', 'one-many', 'many-many'].map((k) => html`
+          <button
+            key=${k}
+            className=${`ee-card${rel.card === k ? ' on' : ''}`}
+            onClick=${() => actions.setCard(rel.id, k)}
+          >${CARD_LABEL[k]}</button>
+        `)}
+      </div>
+      <div className="ee-label">ラベル（任意）</div>
+      <input className="ee-input" value=${rel.label || ''} placeholder="例: 所属 / 注文" onChange=${(e) => actions.setRelLabel(rel.id, e.target.value)} />
+      <div className="ee-actions">
+        <button className="ee-btn" onClick=${() => actions.swapRelation(rel.id)} title="親(1側)と子(多側)を入れ替え">⇄ 向き反転</button>
+        <button className="ee-btn ee-del" onClick=${() => { actions.deleteRelation(rel.id); onClose(); }}>🗑️ 削除</button>
+      </div>
+    </div>
   `;
 }
 
 // ═══════════════════════════════════════════════════════════
-// アプリ統合 (エディタとビュアーを React state で連携)
+// アプリ統合
 // ═══════════════════════════════════════════════════════════
 function App() {
-  const [schema, setSchema] = useState({ entities: {}, relationships: [] });
+  const [model, setModelRaw] = useState({ tables: [], rels: [] });
   const [layoutTrigger, setLayoutTrigger] = useState(0);
+  const [fitTrigger, setFitTrigger] = useState(0);
+  const [highlightId, setHighlightId] = useState(null);
   const editorRef = useRef(null);
   const formatRef = useRef('auto');
   const debTimerRef = useRef(null);
+  const saveTimerRef = useRef(null);
+  const modelRef = useRef(model);
+  modelRef.current = model;
 
-  // status 更新ヘルパー
   const setStatus = useCallback((text, isError) => {
     const el = document.getElementById('status');
     if (el) { el.textContent = text; el.className = isError ? 'status-err' : 'status-ok'; }
   }, []);
 
-  // 文字数
   const updateCharCount = useCallback(() => {
     const ed = editorRef.current;
     const out = document.getElementById('char-count');
     if (ed && out) out.textContent = `${ed.value.length} 文字`;
   }, []);
 
-  // パース + state 反映
-  const parseAndUpdate = useCallback(() => {
+  const outFormat = useCallback(() => {
+    const f = formatRef.current;
+    if (f === 'mermaid') return 'mermaid';
+    if (f === 'dbml') return 'dbml';
+    // auto: テキストから推定（空なら dbml）
+    const src = editorRef.current?.value || '';
+    return src.trim() ? detectFormat(src) : 'dbml';
+  }, []);
+
+  // localStorage 保存（debounce）
+  const persist = useCallback((m) => {
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          model: m, text: editorRef.current?.value || '', format: formatRef.current,
+        }));
+      } catch (e) {}
+    }, 400);
+  }, []);
+
+  // モデル更新の中核。opts.sync=true でテキスト再生成（キャンバス編集起点）
+  const setModel = useCallback((updater, opts = {}) => {
+    const sync = opts.sync !== false; // 既定 true
+    setModelRaw((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (next === prev) return prev;
+      if (sync && editorRef.current) {
+        editorRef.current.value = serialize(next, outFormat());
+        updateCharCount();
+        setStatus(`✏️ 編集を反映: ${next.tables.length} テーブル / ${next.rels.length} リレーション`);
+      }
+      persist(next);
+      return next;
+    });
+  }, [outFormat, updateCharCount, setStatus, persist]);
+
+  // テキスト → モデル（再パース + ELK 整列）
+  const parseTextToModel = useCallback(async () => {
     const ed = editorRef.current;
     if (!ed) return;
     const src = ed.value;
     updateCharCount();
-    if (!src.trim()) { setSchema({ entities: {}, relationships: [] }); setStatus('入力待ち'); return; }
+    if (!src.trim()) { setModel({ tables: [], rels: [] }, { sync: false }); setStatus('入力待ち'); return; }
     const result = parse(src, formatRef.current);
     if (result.error) { setStatus(`❌ パース失敗 (${result.format}): ${result.error}`, true); return; }
     const entCount = Object.keys(result.entities).length;
     if (entCount === 0) { setStatus(`⚠️ パース成功だが entity 0 件 (${result.format})。形式選択を確認`, true); return; }
-    setSchema({ entities: result.entities, relationships: result.relationships });
-    setStatus(`✅ パース成功: ${result.format.toUpperCase()} / ${entCount} テーブル / ${result.relationships.length} リレーション`);
-  }, [updateCharCount, setStatus]);
+    let m = schemaToModel({ entities: result.entities, relationships: result.relationships });
+    try {
+      const positioned = await computeLayout(m);
+      m = { ...m, tables: positioned };
+    } catch (e) {}
+    setModel(m, { sync: false });
+    setStatus(`✅ ${result.format.toUpperCase()} を取込: ${entCount} テーブル / ${m.rels.length} リレーション`);
+    setLayoutTrigger((t) => t + 1);
+  }, [setModel, updateCharCount, setStatus]);
 
-  // editor input イベントを debounce
+  // ── 編集アクション群（model 経由・テキスト同期）──
+  const actions = useMemo(() => ({
+    renameTable: (id, name) => setModel((m) => ({ ...m, tables: m.tables.map((t) => t.id === id ? { ...t, name } : t) })),
+    deleteTable: (id) => {
+      const t = modelRef.current.tables.find((x) => x.id === id);
+      if (t && !confirm(`テーブル「${t.name || ''}」を削除しますか？関連するリレーションも削除されます。`)) return;
+      setModel((m) => ({
+        tables: m.tables.filter((t) => t.id !== id),
+        rels: m.rels.filter((r) => r.childId !== id && r.parentId !== id),
+      }));
+    },
+    addColumn: (tableId) => setModel((m) => ({ ...m, tables: m.tables.map((t) => t.id === tableId
+      ? { ...t, cols: [...t.cols, { id: uid('col'), name: 'column', type: 'text', pk: false }] } : t) })),
+    editColumn: (tableId, colId, patch) => setModel((m) => ({ ...m, tables: m.tables.map((t) => t.id === tableId
+      ? { ...t, cols: t.cols.map((c) => c.id === colId ? { ...c, ...patch } : c) } : t) })),
+    deleteColumn: (tableId, colId) => setModel((m) => ({
+      tables: m.tables.map((t) => t.id === tableId ? { ...t, cols: t.cols.filter((c) => c.id !== colId) } : t),
+      rels: m.rels.filter((r) => !(r.childId === tableId && r.childCol === colId) && !(r.parentId === tableId && r.parentCol === colId)),
+    })),
+    togglePk: (tableId, colId) => setModel((m) => ({ ...m, tables: m.tables.map((t) => t.id === tableId
+      ? { ...t, cols: t.cols.map((c) => c.id === colId ? { ...c, pk: !c.pk } : c) } : t) })),
+    addRelation: ({ parentId, childId, parentCol, childCol }) => setModel((m) => {
+      // 同一エンドポイントの重複・自己参照を排除
+      if (parentId === childId && parentCol === childCol) return m;
+      const dup = m.rels.some((r) => r.parentId === parentId && r.childId === childId && r.parentCol === parentCol && r.childCol === childCol);
+      if (dup) return m;
+      return { ...m, rels: [...m.rels, { id: uid('rel'), parentId, childId, parentCol, childCol, card: 'one-many', label: '' }] };
+    }),
+    setCard: (relId, card) => setModel((m) => ({ ...m, rels: m.rels.map((r) => r.id === relId ? { ...r, card } : r) })),
+    setRelLabel: (relId, label) => setModel((m) => ({ ...m, rels: m.rels.map((r) => r.id === relId ? { ...r, label } : r) })),
+    // 親(1側)↔子(多側) を入れ替え（card 種別は役割相対なので維持）
+    swapRelation: (relId) => setModel((m) => ({ ...m, rels: m.rels.map((r) => r.id === relId
+      ? { ...r, parentId: r.childId, childId: r.parentId, parentCol: r.childCol, childCol: r.parentCol } : r) })),
+    deleteRelation: (relId) => setModel((m) => ({ ...m, rels: m.rels.filter((r) => r.id !== relId) })),
+  }), [setModel]);
+
+  // ＋テーブル追加
+  const addTable = useCallback(() => {
+    setModel((m) => {
+      const n = m.tables.length;
+      // 既存テーブルに重ならないよう右端の外側へ配置（縦は段階的にずらす）
+      let x = 80, y = 80;
+      if (m.tables.length) {
+        const maxX = Math.max(...m.tables.map((t) => t.x));
+        x = maxX + 340;
+        y = 80 + (n % 4) * 70;
+      }
+      const t = {
+        id: uid('tbl'), name: `table_${n + 1}`,
+        x, y,
+        cols: [{ id: uid('col'), name: 'id', type: 'int', pk: true }],
+      };
+      return { ...m, tables: [...m.tables, t] };
+    });
+    setStatus('＋ テーブルを追加しました（右端に配置・全体表示でフォーカス）');
+    setTimeout(() => setFitTrigger((t) => t + 1), 70);
+  }, [setModel, setStatus, setFitTrigger]);
+
+  // 初期化: localStorage 復元 + エディタ配線
   useEffect(() => {
     const ed = document.getElementById('editor');
     editorRef.current = ed;
     const fmt = document.getElementById('format');
+
+    // 復元
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+      if (saved && saved.model && Array.isArray(saved.model.tables) && saved.model.tables.length) {
+        formatRef.current = saved.format || 'auto';
+        fmt.value = formatRef.current;
+        ed.value = saved.text || serialize(saved.model, formatRef.current === 'mermaid' ? 'mermaid' : 'dbml');
+        // id 連番が衝突しないよう seq を進める
+        setModelRaw(saved.model);
+        setStatus(`💾 前回の作業を復元: ${saved.model.tables.length} テーブル`);
+        setTimeout(() => setFitTrigger((t) => t + 1), 50);
+      }
+    } catch (e) {}
+    updateCharCount();
+
     const onInput = () => {
       clearTimeout(debTimerRef.current);
-      debTimerRef.current = setTimeout(parseAndUpdate, 500);
+      debTimerRef.current = setTimeout(parseTextToModel, 500);
     };
     ed.addEventListener('input', onInput);
-    fmt.addEventListener('change', () => { formatRef.current = fmt.value; parseAndUpdate(); });
-    updateCharCount();
-    return () => ed.removeEventListener('input', onInput);
-  }, [parseAndUpdate, updateCharCount]);
+    const onFmt = () => {
+      formatRef.current = fmt.value;
+      // 形式切替時は現モデルを新形式でテキスト再生成
+      if (modelRef.current.tables.length) {
+        ed.value = serialize(modelRef.current, outFormat());
+        updateCharCount();
+        setStatus(`形式を ${fmt.value} に変更`);
+      }
+    };
+    fmt.addEventListener('change', onFmt);
+    return () => { ed.removeEventListener('input', onInput); fmt.removeEventListener('change', onFmt); };
+  }, [parseTextToModel, updateCharCount, setStatus, outFormat]);
 
-  // ボタン hook
+  // ツールバー配線
   useEffect(() => {
     const btn = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+    btn('btn-add-table', addTable);
     btn('btn-load', () => document.getElementById('file-input').click());
     document.getElementById('file-input').onchange = (e) => {
       const file = e.target.files?.[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = () => { editorRef.current.value = reader.result; parseAndUpdate(); setStatus(`📂 読込: ${file.name}`); };
+      reader.onload = () => { editorRef.current.value = reader.result; parseTextToModel(); setStatus(`📂 読込: ${file.name}`); };
       reader.readAsText(file, 'utf-8');
+      e.target.value = '';
     };
     btn('btn-save', () => {
-      const text = editorRef.current.value;
+      const text = serialize(modelRef.current, outFormat());
+      editorRef.current.value = text;
+      updateCharCount();
+      const ext = outFormat() === 'mermaid' ? 'mmd' : 'dbml';
       const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `er-${new Date().toISOString().slice(0,10)}.dbml`;
+      a.download = `er-${new Date().toISOString().slice(0, 10)}.${ext}`;
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
-      setStatus('💾 保存しました');
+      setStatus(`💾 ${ext.toUpperCase()} で保存しました`);
     });
     btn('btn-sample-dbml', () => {
       editorRef.current.value = SAMPLE_DBML;
       document.getElementById('format').value = 'dbml';
       formatRef.current = 'dbml';
-      parseAndUpdate();
+      parseTextToModel();
     });
     btn('btn-sample-mermaid', () => {
       editorRef.current.value = SAMPLE_MERMAID;
       document.getElementById('format').value = 'mermaid';
       formatRef.current = 'mermaid';
-      parseAndUpdate();
+      parseTextToModel();
     });
     btn('btn-clear', () => {
-      if (!confirm('エディタの内容を全て削除します。よろしいですか？')) return;
+      if (!confirm('エディタとキャンバスを全て空にします。よろしいですか？')) return;
       editorRef.current.value = '';
-      setSchema({ entities: {}, relationships: [] });
-      setStatus('クリア');
+      setModel({ tables: [], rels: [] }, { sync: false });
+      setHighlightId(null);
+      setStatus('クリアしました');
       updateCharCount();
     });
-    btn('btn-relayout', () => setLayoutTrigger(t => t + 1));
-  }, [parseAndUpdate, updateCharCount, setStatus]);
+    btn('btn-relayout', () => setLayoutTrigger((t) => t + 1));
+  }, [addTable, parseTextToModel, outFormat, updateCharCount, setStatus, setModel]);
 
   // ドラッグ&ドロップ
   useEffect(() => {
@@ -620,7 +1221,7 @@ function App() {
     const editorPane = document.querySelector('.editor-pane');
     let dragCounter = 0;
     const onDragEnter = (e) => { e.preventDefault(); dragCounter++; dropOverlay.classList.add('show'); };
-    const onDragLeave = (e) => { e.preventDefault(); dragCounter--; if (dragCounter <= 0) { dragCounter = 0; dropOverlay.classList.remove('show'); }};
+    const onDragLeave = (e) => { e.preventDefault(); dragCounter--; if (dragCounter <= 0) { dragCounter = 0; dropOverlay.classList.remove('show'); } };
     const onDragOver = (e) => e.preventDefault();
     const onDrop = (e) => {
       e.preventDefault();
@@ -629,23 +1230,23 @@ function App() {
       const file = e.dataTransfer.files?.[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = () => { editorRef.current.value = reader.result; parseAndUpdate(); setStatus(`📂 ドロップ読込: ${file.name}`); };
+      reader.onload = () => { editorRef.current.value = reader.result; parseTextToModel(); setStatus(`📂 ドロップ読込: ${file.name}`); };
       reader.readAsText(file, 'utf-8');
     };
-    [viewer, editorPane].forEach(el => {
+    [viewer, editorPane].forEach((el) => {
       el.addEventListener('dragenter', onDragEnter);
       el.addEventListener('dragleave', onDragLeave);
       el.addEventListener('dragover', onDragOver);
       el.addEventListener('drop', onDrop);
     });
-  }, [parseAndUpdate, setStatus]);
+  }, [parseTextToModel, setStatus]);
 
   // リサイザー
   useEffect(() => {
     const resizer = document.getElementById('resizer');
     const main = document.querySelector('.main');
     let dragging = false;
-    const onDown = (e) => { dragging = true; resizer.classList.add('active'); document.body.style.userSelect = 'none'; };
+    const onDown = () => { dragging = true; resizer.classList.add('active'); document.body.style.userSelect = 'none'; };
     const onMove = (e) => {
       if (!dragging) return;
       const w = Math.max(280, Math.min(800, e.clientX));
@@ -657,7 +1258,14 @@ function App() {
     document.addEventListener('mouseup', onUp);
   }, []);
 
-  return html`<${ReactFlowProvider}><${ErViewer} schema=${schema} layoutTrigger=${layoutTrigger} onStatus=${setStatus} /></${ReactFlowProvider}>`;
+  return html`<${ReactFlowProvider}>
+    <${ErViewer}
+      model=${model} setModel=${setModel} actions=${actions}
+      layoutTrigger=${layoutTrigger} fitTrigger=${fitTrigger}
+      highlightId=${highlightId} setHighlightId=${setHighlightId}
+      onStatus=${setStatus}
+    />
+  </${ReactFlowProvider}>`;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -677,7 +1285,7 @@ Table users {
 
 Table posts {
   id int [pk]
-  user_id int [note: 'FK']
+  user_id int
   title varchar
   body text
   published_at timestamp
@@ -685,8 +1293,8 @@ Table posts {
 
 Table comments {
   id int [pk]
-  post_id int [note: 'FK']
-  user_id int [note: 'FK']
+  post_id int
+  user_id int
   body text
   created_at timestamp
 }
