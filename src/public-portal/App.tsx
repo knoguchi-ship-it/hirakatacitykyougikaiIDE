@@ -8,7 +8,7 @@ import CancelForm from './components/CancelForm';
 import MemberUpdateForm from './components/MemberUpdateForm';
 import WithdrawalRequestForm from './components/WithdrawalRequestForm';
 import { readDeepLink, consumeDeepLink } from '../utils/deepLink';
-import { effectiveApplicationUrl } from '../shared/trainingOptions';
+import { resolveApplyCta } from '../shared/trainingOptions';
 
 type PublicPortalContentSettings = {
   heroBadgeEnabled: boolean;
@@ -260,14 +260,20 @@ const PublicApp: React.FC = () => {
     consumeDeepLink();
     if (dl.trainingId) {
       const found = trainings.find((t) => t.id === dl.trainingId);
-      const externalUrl = found ? effectiveApplicationUrl(found) : '';
-      if (found && !externalUrl) {
-        setSelectedTraining(found);
-        setView('training-apply');
-      } else if (found) {
-        // 外部申込フォームの研修は内部申込画面を出さず、一覧の外部リンクへ誘導する。
-        setView('training-list');
-        setDeepLinkNotice('この研修は外部の申込フォームをご利用ください。下の一覧の「申込フォームへ」からお進みください。');
+      if (found) {
+        const cta = resolveApplyCta(found);
+        if (cta === 'internal') {
+          setSelectedTraining(found);
+          setView('training-apply');
+        } else if (cta === 'external') {
+          // 外部申込フォームの研修は内部申込画面を出さず、一覧の外部リンクへ誘導する。
+          setView('training-list');
+          setDeepLinkNotice('この研修は外部の申込フォームをご利用ください。下の一覧の「申込フォームへ」からお進みください。');
+        } else {
+          // 'none' = 申込URL 無効（オンライン申込を受け付けていない＝閲覧のみ）
+          setView('training-list');
+          setDeepLinkNotice('この研修は現在オンライン申込を受け付けていません。一覧で内容をご確認ください。');
+        }
       } else {
         setView('training-list');
         setDeepLinkNotice('指定された研修が見つかりませんでした。受付中の研修からお選びください。');

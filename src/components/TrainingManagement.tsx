@@ -476,7 +476,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
         </button>
         {settingsOpen && (
           <div className="px-4 py-4 border-t border-slate-200 bg-white">
-            <p className="text-xs text-slate-500 mb-3">各項目の有効/無効は「有効/無効」スイッチ、または以下一覧から切り替えできます。<span className="font-semibold">無効にした項目は申込画面（公開ポータル）に表示されません</span>（申込URL は無効にすると内部申込フローになります）。</p>
+            <p className="text-xs text-slate-500 mb-3">各項目の有効/無効は「有効/無効」スイッチ、または以下一覧から切り替えできます。<span className="font-semibold">無効にした項目は申込画面（公開ポータル）に表示されません</span>。<br /><span className="font-semibold">申込URL</span> を無効にすると公開ポータルで<span className="font-semibold">申込ボタン自体を表示しません（閲覧のみ）</span>。有効＋URL空＝内部申込フォーム、有効＋URL設定＝外部フォームへのリンク。</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {TRAINING_OPTIONAL_FIELD_DEFS.map(({ key, label }) => (
                 <label key={key} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">

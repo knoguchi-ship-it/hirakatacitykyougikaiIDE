@@ -3,7 +3,7 @@ import { PublicTraining } from '../../shared/types';
 import PdfThumbnail from '../../components/PdfThumbnail';
 import PdfPreviewModal from '../../components/PdfPreviewModal';
 import { callApi } from '../../shared/api-base';
-import { isTrainingFieldEnabled, effectiveApplicationUrl } from '../../shared/trainingOptions';
+import { isTrainingFieldEnabled, resolveApplyCta } from '../../shared/trainingOptions';
 
 const fetchPublicThumbnail = (fileUrl: string): Promise<string | null> =>
   callApi<{ thumbnail: string | null }>('getFileThumbnail', { fileUrl })
@@ -108,7 +108,9 @@ const PublicTrainingList: React.FC<Props> = ({ trainings, onApply }) => {
         const showCloseDate = isTrainingFieldEnabled(t.fieldConfig, 'applicationCloseDate');
         const showContent = isTrainingFieldEnabled(t.fieldConfig, 'description');
         const showFees = isTrainingFieldEnabled(t.fieldConfig, 'fees');
-        const externalApplyUrl = effectiveApplicationUrl(t); // 無効時は '' → 内部フロー
+        // v376.35: 申込URL 無効 → 'none'（申込ボタン非表示）／有効+値→'external'／有効+空→'internal'
+        const applyCta = resolveApplyCta(t);
+        const applyExternalUrl = (t.applicationUrl || '').trim();
 
         return (
           <article
@@ -259,11 +261,12 @@ const PublicTrainingList: React.FC<Props> = ({ trainings, onApply }) => {
                 )}
 
                 {/* CTA — v376.30: applicationUrl が設定されていれば外部申込フォームへのリンクに置換
-                    v376.34: 申込URL トグルが無効なら値があっても内部フロー（effectiveApplicationUrl='' ） */}
+                    v376.35: 申込URL トグルが無効（applyCta==='none'）なら申込ボタン自体を表示しない（閲覧のみ） */}
+                {applyCta !== 'none' && (
                 <div className="mt-auto pt-3 border-t border-slate-100 flex justify-end">
-                  {externalApplyUrl ? (
+                  {applyCta === 'external' ? (
                     <a
-                      href={externalApplyUrl}
+                      href={applyExternalUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex min-h-[44px] items-center justify-center gap-1 px-6 py-2 bg-primary-600 text-white text-sm font-bold rounded-md hover:bg-primary-700 transition-colors"
@@ -289,6 +292,7 @@ const PublicTrainingList: React.FC<Props> = ({ trainings, onApply }) => {
                     </button>
                   )}
                 </div>
+                )}
               </div>
             </div>
           </article>
