@@ -1,6 +1,6 @@
 // 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能
 // 元: docs/03_DATA_MODEL.md
-// 生成日時: 2026-06-03T06:43:56.894Z
+// 生成日時: 2026-06-03T09:18:25.200Z
 
 Project hcmn_member_system {
   database_type: "Google Spreadsheet (logical)"
@@ -14,11 +14,15 @@ Project hcmn_member_system {
 Table "M_システムロール" {
   "コード" varchar [pk]
   "名称" varchar
+  "表示順" varchar
+  "有効フラグ" varchar
 }
 
 Table "M_会員状態" {
   "コード" varchar [pk]
   "名称" varchar
+  "表示順" varchar
+  "有効フラグ" varchar
 }
 
 Table "M_会員種別" {
@@ -32,6 +36,8 @@ Table "M_会員種別" {
 Table "M_会費納入状態" {
   "コード" varchar [pk]
   "名称" varchar
+  "表示順" varchar
+  "有効フラグ" varchar
 }
 
 Table "M_出欠状態" {
@@ -48,6 +54,9 @@ Table "M_役職マスタ" {
   "委員長フラグ" boolean
   "表示順" int
   "有効フラグ" boolean
+  "削除フラグ" varchar
+  "作成日時" varchar
+  "更新日時" varchar
 }
 
 Table "M_支払い種別マスタ" {
@@ -56,6 +65,9 @@ Table "M_支払い種別マスタ" {
   "対象区分" varchar
   "表示順" int
   "有効フラグ" boolean
+  "削除フラグ" varchar
+  "作成日時" varchar
+  "更新日時" varchar
 }
 
 Table "M_業務分類" {
@@ -65,31 +77,44 @@ Table "M_業務分類" {
   "単価" int
   "表示順" int
   "有効フラグ" boolean
+  "削除フラグ" varchar
+  "作成日時" varchar
+  "更新日時" varchar
 }
 
 Table "M_申込状態" {
   "コード" varchar [pk]
   "名称" varchar
+  "表示順" varchar
+  "有効フラグ" varchar
 }
 
 Table "M_申込者区分" {
   "コード" varchar [pk]
   "名称" varchar
+  "表示順" varchar
+  "削除フラグ" varchar
 }
 
 Table "M_発送方法" {
   "コード" varchar [pk]
   "名称" varchar
+  "表示順" varchar
+  "有効フラグ" varchar
 }
 
 Table "M_研修状態" {
   "コード" varchar [pk]
   "名称" varchar
+  "表示順" varchar
+  "有効フラグ" varchar
 }
 
 Table "M_管理者権限" {
   "コード" varchar [pk]
   "名称" varchar
+  "表示順" varchar
+  "有効フラグ" varchar
 }
 
 Table "M_組織マスタ" {
@@ -99,26 +124,55 @@ Table "M_組織マスタ" {
   "表示順" int
   "全役員表示フラグ" boolean
   "有効フラグ" boolean
+  "削除フラグ" varchar
+  "作成日時" varchar
+  "更新日時" varchar
 }
 
 Table "M_職員権限" {
   "コード" varchar [pk]
   "名称" varchar
+  "表示順" varchar
+  "有効フラグ" varchar
 }
 
 Table "M_職員状態" {
   "コード" varchar [pk]
   "名称" varchar
+  "表示順" varchar
+  "有効フラグ" varchar
 }
 
 Table "M_郵送先区分" {
   "コード" varchar [pk]
   "名称" varchar
+  "表示順" varchar
+  "有効フラグ" varchar
 }
 
 // =====================================
 // メインテーブル群
 // =====================================
+
+Table "T_LINE投稿依頼" {
+  "投稿依頼ID" varchar
+  "ステータス" varchar
+  "テキスト" varchar
+  "研修申込リンク" varchar
+  "添付ファイルURL" varchar
+  "添付ファイル種別" varchar
+  "添付ファイル名" varchar
+  "対象種別" varchar
+  "対象ID" varchar
+  "作成者メール" varchar
+  "作成日時" varchar
+  "更新日時" varchar
+  "投稿依頼日時" varchar
+  "投稿日時" varchar
+  "投稿マーク者メール" varchar
+  "備考" varchar
+  "削除フラグ" varchar
+}
 
 Table "T_システム設定" {
   "設定キー" varchar [pk]
@@ -187,11 +241,42 @@ Table "T_事業所職員" {
 }
 
 Table "T_事業所職員_archive" {
-  "アーカイブID" varchar [pk]
   "職員ID" varchar
   "会員ID" varchar
+  "姓" varchar
+  "名" varchar
+  "セイ" varchar
+  "メイ" varchar
+  "氏名" varchar
+  "フリガナ" varchar
+  "メールアドレス" varchar
+  "職員権限コード" varchar
   "職員状態コード" varchar
+  "入会日" varchar
+  "退会日" varchar
+  "介護支援専門員番号" varchar
+  "メール配信希望コード" varchar
+  "作成日時" varchar
+  "更新日時" varchar
+  "削除フラグ" varchar
+  "アーカイブID" varchar [pk]
   "アーカイブ日時" timestamp
+}
+
+Table "T_人物統合ログ" {
+  "ログID" varchar
+  "処理種別" varchar
+  "介護支援専門員番号" varchar
+  "旧会員ID" varchar
+  "旧職員ID" varchar
+  "新会員ID" varchar
+  "新職員ID" varchar
+  "結果コード" varchar
+  "詳細JSON" varchar
+  "実行者メール" varchar
+  "実行日時" varchar
+  "作成日時" varchar
+  "削除フラグ" varchar
 }
 
 Table "T_会員" {
@@ -233,11 +318,42 @@ Table "T_会員" {
 }
 
 Table "T_会員_archive" {
-  "アーカイブID" varchar [pk]
   "会員ID" varchar
   "会員種別コード" varchar
   "会員状態コード" varchar
+  "入会日" varchar
   "退会日" date
+  "移行日" varchar
+  "退会処理日" varchar
+  "姓" varchar
+  "名" varchar
+  "セイ" varchar
+  "メイ" varchar
+  "代表メールアドレス" varchar
+  "携帯電話番号" varchar
+  "勤務先名" varchar
+  "勤務先郵便番号" varchar
+  "勤務先都道府県" varchar
+  "勤務先市区町村" varchar
+  "勤務先住所" varchar
+  "勤務先住所2" varchar
+  "勤務先電話番号" varchar
+  "勤務先FAX番号" varchar
+  "自宅郵便番号" varchar
+  "自宅都道府県" varchar
+  "自宅市区町村" varchar
+  "自宅住所" varchar
+  "自宅住所2" varchar
+  "発送方法コード" varchar
+  "郵送先区分コード" varchar
+  "職員数上限" varchar
+  "作成日時" varchar
+  "更新日時" varchar
+  "削除フラグ" varchar
+  "介護支援専門員番号" varchar
+  "事業所番号" varchar
+  "ステータスメモ" varchar
+  "アーカイブID" varchar [pk]
   "アーカイブ日時" timestamp
 }
 
@@ -248,6 +364,32 @@ Table "T_共有メモ" {
   "更新者名" varchar
   "更新日時" timestamp
   "バージョン" int
+}
+
+Table "T_削除ログ" {
+  "ログID" varchar
+  "操作日時" varchar
+  "操作者メール" varchar
+  "対象会員IDリスト" varchar
+  "削除前スナップショットJSON" varchar
+}
+
+Table "T_変更申請" {
+  "申請ID" varchar
+  "会員ID" varchar
+  "会員種別コード" varchar
+  "申請種別コード" varchar
+  "申請状態コード" varchar
+  "申請内容JSON" varchar
+  "連絡先メールアドレス" varchar
+  "申請者表示名" varchar
+  "申請日時" varchar
+  "処理日時" varchar
+  "処理者メールアドレス" varchar
+  "処理備考" varchar
+  "作成日時" varchar
+  "更新日時" varchar
+  "削除フラグ" varchar
 }
 
 Table "T_外部申込者" {
@@ -349,6 +491,20 @@ Table "T_支払い明細" {
   "更新日時" timestamp
 }
 
+Table "T_権限ロール" {
+  "ロールID" varchar
+  "ロール名" varchar
+  "説明" varchar
+  "許可メニューJSON" varchar
+  "研修編集スコープ" varchar
+  "組込フラグ" varchar
+  "マスターフラグ" varchar
+  "表示順" varchar
+  "作成日時" varchar
+  "更新日時" varchar
+  "削除フラグ" varchar
+}
+
 Table "T_画面項目権限" {
   "権限定義ID" varchar [pk]
   "システムロールコード" varchar [note: 'FK']
@@ -365,13 +521,14 @@ Table "T_画面項目権限" {
 
 Table "T_監査ログ" {
   "監査ログID" varchar [pk]
+  "操作日時" varchar
   "操作者メール" varchar
   "操作種別" varchar
   "対象テーブル" varchar
-  "対象ID" varchar
-  "変更前JSON" varchar
-  "変更後JSON" varchar
-  "実行日時" timestamp
+  "対象レコードID" varchar
+  "フィールド名" varchar
+  "旧値" varchar
+  "新値" varchar
 }
 
 Table "T_研修" {
@@ -406,30 +563,32 @@ Table "T_研修申込" {
   "研修ID" varchar [note: 'FK']
   "会員ID" varchar [note: 'FK']
   "職員ID" varchar [note: 'FK']
-  "外部申込者ID" varchar [note: 'FK']
-  "申込者区分コード" varchar [note: 'FK']
-  "申込者ID" varchar
   "申込状態コード" varchar [note: 'FK']
   "申込日時" timestamp
   "取消日時" timestamp
+  "備考" varchar
+  "申込者区分コード" varchar [note: 'FK']
+  "申込者ID" varchar
+  "作成日時" timestamp
+  "更新日時" timestamp
+  "削除フラグ" boolean
+  "外部申込者ID" varchar [note: 'FK']
   "出欠状態コード" varchar [note: 'FK']
   "出欠記録日時" timestamp
   "出欠記録者メール" varchar
   "事務局メモ" varchar
-  "備考" varchar
-  "作成日時" timestamp
-  "更新日時" timestamp
-  "削除フラグ" boolean
 }
 
 Table "T_管理者Googleホワイトリスト" {
   "ホワイトリストID" varchar [pk]
-  "GoogleユーザーID" varchar
   "Googleメール" varchar
-  "表示名" varchar
   "紐付け認証ID" varchar [note: 'FK']
   "紐付け会員ID" varchar [note: 'FK']
+  "権限コード" varchar
+  "ロールID" varchar
   "有効フラグ" boolean
+  "変更者メール" varchar
+  "変更日時" varchar
   "作成日時" timestamp
   "更新日時" timestamp
   "削除フラグ" boolean

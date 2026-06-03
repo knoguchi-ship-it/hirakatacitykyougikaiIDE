@@ -324,7 +324,7 @@ footer {
     <button class="copy-btn" onclick="copyDbml()">📋 全文コピー</button>
     <pre id="dbml-src">// 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能
 // 元: docs/03_DATA_MODEL.md
-// 生成日時: 2026-06-03T06:43:56.893Z
+// 生成日時: 2026-06-03T09:18:25.197Z
 
 Project hcmn_member_system {
   database_type: &quot;Google Spreadsheet (logical)&quot;
@@ -338,11 +338,15 @@ Project hcmn_member_system {
 Table &quot;M_システムロール&quot; {
   &quot;コード&quot; varchar [pk]
   &quot;名称&quot; varchar
+  &quot;表示順&quot; varchar
+  &quot;有効フラグ&quot; varchar
 }
 
 Table &quot;M_会員状態&quot; {
   &quot;コード&quot; varchar [pk]
   &quot;名称&quot; varchar
+  &quot;表示順&quot; varchar
+  &quot;有効フラグ&quot; varchar
 }
 
 Table &quot;M_会員種別&quot; {
@@ -356,6 +360,8 @@ Table &quot;M_会員種別&quot; {
 Table &quot;M_会費納入状態&quot; {
   &quot;コード&quot; varchar [pk]
   &quot;名称&quot; varchar
+  &quot;表示順&quot; varchar
+  &quot;有効フラグ&quot; varchar
 }
 
 Table &quot;M_出欠状態&quot; {
@@ -372,6 +378,9 @@ Table &quot;M_役職マスタ&quot; {
   &quot;委員長フラグ&quot; boolean
   &quot;表示順&quot; int
   &quot;有効フラグ&quot; boolean
+  &quot;削除フラグ&quot; varchar
+  &quot;作成日時&quot; varchar
+  &quot;更新日時&quot; varchar
 }
 
 Table &quot;M_支払い種別マスタ&quot; {
@@ -380,6 +389,9 @@ Table &quot;M_支払い種別マスタ&quot; {
   &quot;対象区分&quot; varchar
   &quot;表示順&quot; int
   &quot;有効フラグ&quot; boolean
+  &quot;削除フラグ&quot; varchar
+  &quot;作成日時&quot; varchar
+  &quot;更新日時&quot; varchar
 }
 
 Table &quot;M_業務分類&quot; {
@@ -389,31 +401,44 @@ Table &quot;M_業務分類&quot; {
   &quot;単価&quot; int
   &quot;表示順&quot; int
   &quot;有効フラグ&quot; boolean
+  &quot;削除フラグ&quot; varchar
+  &quot;作成日時&quot; varchar
+  &quot;更新日時&quot; varchar
 }
 
 Table &quot;M_申込状態&quot; {
   &quot;コード&quot; varchar [pk]
   &quot;名称&quot; varchar
+  &quot;表示順&quot; varchar
+  &quot;有効フラグ&quot; varchar
 }
 
 Table &quot;M_申込者区分&quot; {
   &quot;コード&quot; varchar [pk]
   &quot;名称&quot; varchar
+  &quot;表示順&quot; varchar
+  &quot;削除フラグ&quot; varchar
 }
 
 Table &quot;M_発送方法&quot; {
   &quot;コード&quot; varchar [pk]
   &quot;名称&quot; varchar
+  &quot;表示順&quot; varchar
+  &quot;有効フラグ&quot; varchar
 }
 
 Table &quot;M_研修状態&quot; {
   &quot;コード&quot; varchar [pk]
   &quot;名称&quot; varchar
+  &quot;表示順&quot; varchar
+  &quot;有効フラグ&quot; varchar
 }
 
 Table &quot;M_管理者権限&quot; {
   &quot;コード&quot; varchar [pk]
   &quot;名称&quot; varchar
+  &quot;表示順&quot; varchar
+  &quot;有効フラグ&quot; varchar
 }
 
 Table &quot;M_組織マスタ&quot; {
@@ -423,26 +448,55 @@ Table &quot;M_組織マスタ&quot; {
   &quot;表示順&quot; int
   &quot;全役員表示フラグ&quot; boolean
   &quot;有効フラグ&quot; boolean
+  &quot;削除フラグ&quot; varchar
+  &quot;作成日時&quot; varchar
+  &quot;更新日時&quot; varchar
 }
 
 Table &quot;M_職員権限&quot; {
   &quot;コード&quot; varchar [pk]
   &quot;名称&quot; varchar
+  &quot;表示順&quot; varchar
+  &quot;有効フラグ&quot; varchar
 }
 
 Table &quot;M_職員状態&quot; {
   &quot;コード&quot; varchar [pk]
   &quot;名称&quot; varchar
+  &quot;表示順&quot; varchar
+  &quot;有効フラグ&quot; varchar
 }
 
 Table &quot;M_郵送先区分&quot; {
   &quot;コード&quot; varchar [pk]
   &quot;名称&quot; varchar
+  &quot;表示順&quot; varchar
+  &quot;有効フラグ&quot; varchar
 }
 
 // =====================================
 // メインテーブル群
 // =====================================
+
+Table &quot;T_LINE投稿依頼&quot; {
+  &quot;投稿依頼ID&quot; varchar
+  &quot;ステータス&quot; varchar
+  &quot;テキスト&quot; varchar
+  &quot;研修申込リンク&quot; varchar
+  &quot;添付ファイルURL&quot; varchar
+  &quot;添付ファイル種別&quot; varchar
+  &quot;添付ファイル名&quot; varchar
+  &quot;対象種別&quot; varchar
+  &quot;対象ID&quot; varchar
+  &quot;作成者メール&quot; varchar
+  &quot;作成日時&quot; varchar
+  &quot;更新日時&quot; varchar
+  &quot;投稿依頼日時&quot; varchar
+  &quot;投稿日時&quot; varchar
+  &quot;投稿マーク者メール&quot; varchar
+  &quot;備考&quot; varchar
+  &quot;削除フラグ&quot; varchar
+}
 
 Table &quot;T_システム設定&quot; {
   &quot;設定キー&quot; varchar [pk]
@@ -511,11 +565,42 @@ Table &quot;T_事業所職員&quot; {
 }
 
 Table &quot;T_事業所職員_archive&quot; {
-  &quot;アーカイブID&quot; varchar [pk]
   &quot;職員ID&quot; varchar
   &quot;会員ID&quot; varchar
+  &quot;姓&quot; varchar
+  &quot;名&quot; varchar
+  &quot;セイ&quot; varchar
+  &quot;メイ&quot; varchar
+  &quot;氏名&quot; varchar
+  &quot;フリガナ&quot; varchar
+  &quot;メールアドレス&quot; varchar
+  &quot;職員権限コード&quot; varchar
   &quot;職員状態コード&quot; varchar
+  &quot;入会日&quot; varchar
+  &quot;退会日&quot; varchar
+  &quot;介護支援専門員番号&quot; varchar
+  &quot;メール配信希望コード&quot; varchar
+  &quot;作成日時&quot; varchar
+  &quot;更新日時&quot; varchar
+  &quot;削除フラグ&quot; varchar
+  &quot;アーカイブID&quot; varchar [pk]
   &quot;アーカイブ日時&quot; timestamp
+}
+
+Table &quot;T_人物統合ログ&quot; {
+  &quot;ログID&quot; varchar
+  &quot;処理種別&quot; varchar
+  &quot;介護支援専門員番号&quot; varchar
+  &quot;旧会員ID&quot; varchar
+  &quot;旧職員ID&quot; varchar
+  &quot;新会員ID&quot; varchar
+  &quot;新職員ID&quot; varchar
+  &quot;結果コード&quot; varchar
+  &quot;詳細JSON&quot; varchar
+  &quot;実行者メール&quot; varchar
+  &quot;実行日時&quot; varchar
+  &quot;作成日時&quot; varchar
+  &quot;削除フラグ&quot; varchar
 }
 
 Table &quot;T_会員&quot; {
@@ -557,11 +642,42 @@ Table &quot;T_会員&quot; {
 }
 
 Table &quot;T_会員_archive&quot; {
-  &quot;アーカイブID&quot; varchar [pk]
   &quot;会員ID&quot; varchar
   &quot;会員種別コード&quot; varchar
   &quot;会員状態コード&quot; varchar
+  &quot;入会日&quot; varchar
   &quot;退会日&quot; date
+  &quot;移行日&quot; varchar
+  &quot;退会処理日&quot; varchar
+  &quot;姓&quot; varchar
+  &quot;名&quot; varchar
+  &quot;セイ&quot; varchar
+  &quot;メイ&quot; varchar
+  &quot;代表メールアドレス&quot; varchar
+  &quot;携帯電話番号&quot; varchar
+  &quot;勤務先名&quot; varchar
+  &quot;勤務先郵便番号&quot; varchar
+  &quot;勤務先都道府県&quot; varchar
+  &quot;勤務先市区町村&quot; varchar
+  &quot;勤務先住所&quot; varchar
+  &quot;勤務先住所2&quot; varchar
+  &quot;勤務先電話番号&quot; varchar
+  &quot;勤務先FAX番号&quot; varchar
+  &quot;自宅郵便番号&quot; varchar
+  &quot;自宅都道府県&quot; varchar
+  &quot;自宅市区町村&quot; varchar
+  &quot;自宅住所&quot; varchar
+  &quot;自宅住所2&quot; varchar
+  &quot;発送方法コード&quot; varchar
+  &quot;郵送先区分コード&quot; varchar
+  &quot;職員数上限&quot; varchar
+  &quot;作成日時&quot; varchar
+  &quot;更新日時&quot; varchar
+  &quot;削除フラグ&quot; varchar
+  &quot;介護支援専門員番号&quot; varchar
+  &quot;事業所番号&quot; varchar
+  &quot;ステータスメモ&quot; varchar
+  &quot;アーカイブID&quot; varchar [pk]
   &quot;アーカイブ日時&quot; timestamp
 }
 
@@ -572,6 +688,32 @@ Table &quot;T_共有メモ&quot; {
   &quot;更新者名&quot; varchar
   &quot;更新日時&quot; timestamp
   &quot;バージョン&quot; int
+}
+
+Table &quot;T_削除ログ&quot; {
+  &quot;ログID&quot; varchar
+  &quot;操作日時&quot; varchar
+  &quot;操作者メール&quot; varchar
+  &quot;対象会員IDリスト&quot; varchar
+  &quot;削除前スナップショットJSON&quot; varchar
+}
+
+Table &quot;T_変更申請&quot; {
+  &quot;申請ID&quot; varchar
+  &quot;会員ID&quot; varchar
+  &quot;会員種別コード&quot; varchar
+  &quot;申請種別コード&quot; varchar
+  &quot;申請状態コード&quot; varchar
+  &quot;申請内容JSON&quot; varchar
+  &quot;連絡先メールアドレス&quot; varchar
+  &quot;申請者表示名&quot; varchar
+  &quot;申請日時&quot; varchar
+  &quot;処理日時&quot; varchar
+  &quot;処理者メールアドレス&quot; varchar
+  &quot;処理備考&quot; varchar
+  &quot;作成日時&quot; varchar
+  &quot;更新日時&quot; varchar
+  &quot;削除フラグ&quot; varchar
 }
 
 Table &quot;T_外部申込者&quot; {
@@ -673,6 +815,20 @@ Table &quot;T_支払い明細&quot; {
   &quot;更新日時&quot; timestamp
 }
 
+Table &quot;T_権限ロール&quot; {
+  &quot;ロールID&quot; varchar
+  &quot;ロール名&quot; varchar
+  &quot;説明&quot; varchar
+  &quot;許可メニューJSON&quot; varchar
+  &quot;研修編集スコープ&quot; varchar
+  &quot;組込フラグ&quot; varchar
+  &quot;マスターフラグ&quot; varchar
+  &quot;表示順&quot; varchar
+  &quot;作成日時&quot; varchar
+  &quot;更新日時&quot; varchar
+  &quot;削除フラグ&quot; varchar
+}
+
 Table &quot;T_画面項目権限&quot; {
   &quot;権限定義ID&quot; varchar [pk]
   &quot;システムロールコード&quot; varchar [note: &#39;FK&#39;]
@@ -689,13 +845,14 @@ Table &quot;T_画面項目権限&quot; {
 
 Table &quot;T_監査ログ&quot; {
   &quot;監査ログID&quot; varchar [pk]
+  &quot;操作日時&quot; varchar
   &quot;操作者メール&quot; varchar
   &quot;操作種別&quot; varchar
   &quot;対象テーブル&quot; varchar
-  &quot;対象ID&quot; varchar
-  &quot;変更前JSON&quot; varchar
-  &quot;変更後JSON&quot; varchar
-  &quot;実行日時&quot; timestamp
+  &quot;対象レコードID&quot; varchar
+  &quot;フィールド名&quot; varchar
+  &quot;旧値&quot; varchar
+  &quot;新値&quot; varchar
 }
 
 Table &quot;T_研修&quot; {
@@ -730,30 +887,32 @@ Table &quot;T_研修申込&quot; {
   &quot;研修ID&quot; varchar [note: &#39;FK&#39;]
   &quot;会員ID&quot; varchar [note: &#39;FK&#39;]
   &quot;職員ID&quot; varchar [note: &#39;FK&#39;]
-  &quot;外部申込者ID&quot; varchar [note: &#39;FK&#39;]
-  &quot;申込者区分コード&quot; varchar [note: &#39;FK&#39;]
-  &quot;申込者ID&quot; varchar
   &quot;申込状態コード&quot; varchar [note: &#39;FK&#39;]
   &quot;申込日時&quot; timestamp
   &quot;取消日時&quot; timestamp
+  &quot;備考&quot; varchar
+  &quot;申込者区分コード&quot; varchar [note: &#39;FK&#39;]
+  &quot;申込者ID&quot; varchar
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+  &quot;削除フラグ&quot; boolean
+  &quot;外部申込者ID&quot; varchar [note: &#39;FK&#39;]
   &quot;出欠状態コード&quot; varchar [note: &#39;FK&#39;]
   &quot;出欠記録日時&quot; timestamp
   &quot;出欠記録者メール&quot; varchar
   &quot;事務局メモ&quot; varchar
-  &quot;備考&quot; varchar
-  &quot;作成日時&quot; timestamp
-  &quot;更新日時&quot; timestamp
-  &quot;削除フラグ&quot; boolean
 }
 
 Table &quot;T_管理者Googleホワイトリスト&quot; {
   &quot;ホワイトリストID&quot; varchar [pk]
-  &quot;GoogleユーザーID&quot; varchar
   &quot;Googleメール&quot; varchar
-  &quot;表示名&quot; varchar
   &quot;紐付け認証ID&quot; varchar [note: &#39;FK&#39;]
   &quot;紐付け会員ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;権限コード&quot; varchar
+  &quot;ロールID&quot; varchar
   &quot;有効フラグ&quot; boolean
+  &quot;変更者メール&quot; varchar
+  &quot;変更日時&quot; varchar
   &quot;作成日時&quot; timestamp
   &quot;更新日時&quot; timestamp
   &quot;削除フラグ&quot; boolean
@@ -857,7 +1016,7 @@ Ref: &quot;T_請求&quot;.&quot;業務分類コード&quot; &gt; &quot;M_業務�
 Ref: &quot;T_画面項目権限&quot;.&quot;システムロールコード&quot; &gt; &quot;M_システムロール&quot;.&quot;コード&quot; // システムロールコード
 Ref: &quot;T_ログイン履歴&quot;.&quot;認証ID&quot; &gt; &quot;T_認証アカウント&quot;.&quot;認証ID&quot; // 認証ID</pre>
   </div>
-  <p style="font-size: 0.85em; color: var(--muted);">行数: 534 / 容量: 10.6 KB</p>
+  <p style="font-size: 0.85em; color: var(--muted);">行数: 693 / 容量: 13.2 KB</p>
 </section>
 
 <section class="card">

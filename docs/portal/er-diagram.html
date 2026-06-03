@@ -450,7 +450,7 @@ footer {
 </div>
 
       <section class="card">
-        <h2>1. 会員・職員ドメイン <span class="badge">7 entity</span></h2>
+        <h2>1. 会員・職員ドメイン <span class="badge">10 entity</span></h2>
         <p style="color: var(--muted); font-size: 0.92em;">会員・事業所職員・認証・管理者ホワイトリスト・権限ロール・変更申請</p>
         <div class="diagram-help">
           🖱️ マウスホイール = 拡大/縮小 ｜ ドラッグ = パン ｜ ELK レイアウト適用済（線の交差を最小化）
@@ -551,15 +551,47 @@ erDiagram
   }
   T_管理者Googleホワイトリスト {
     string ホワイトリストID PK
-    string GoogleユーザーID
     string Googleメール
-    string 表示名
     string 紐付け認証ID FK
     string 紐付け会員ID FK
+    string 権限コード
+    string ロールID
     boolean 有効フラグ
+    string 変更者メール
+    string 変更日時
     datetime 作成日時
     datetime 更新日時
     boolean 削除フラグ
+  }
+  T_権限ロール {
+    string ロールID
+    string ロール名
+    string 説明
+    string 許可メニューJSON
+    string 研修編集スコープ
+    string 組込フラグ
+    string マスターフラグ
+    string 表示順
+    string 作成日時
+    string 更新日時
+    string 削除フラグ
+  }
+  T_変更申請 {
+    string 申請ID
+    string 会員ID
+    string 会員種別コード
+    string 申請種別コード
+    string 申請状態コード
+    string 申請内容JSON
+    string 連絡先メールアドレス
+    string 申請者表示名
+    string 申請日時
+    string 処理日時
+    string 処理者メールアドレス
+    string 処理備考
+    string 作成日時
+    string 更新日時
+    string 削除フラグ
   }
   T_ログイン履歴 {
     string ログイン履歴ID PK
@@ -573,19 +605,80 @@ erDiagram
     datetime 実行日時
   }
   T_会員_archive {
-    string アーカイブID PK
     string 会員ID
     string 会員種別コード
     string 会員状態コード
+    string 入会日
     date 退会日
+    string 移行日
+    string 退会処理日
+    string 姓
+    string 名
+    string セイ
+    string メイ
+    string 代表メールアドレス
+    string 携帯電話番号
+    string 勤務先名
+    string 勤務先郵便番号
+    string 勤務先都道府県
+    string 勤務先市区町村
+    string 勤務先住所
+    string 勤務先住所2
+    string 勤務先電話番号
+    string 勤務先FAX番号
+    string 自宅郵便番号
+    string 自宅都道府県
+    string 自宅市区町村
+    string 自宅住所
+    string 自宅住所2
+    string 発送方法コード
+    string 郵送先区分コード
+    string 職員数上限
+    string 作成日時
+    string 更新日時
+    string 削除フラグ
+    string 介護支援専門員番号
+    string 事業所番号
+    string ステータスメモ
+    string アーカイブID PK
     datetime アーカイブ日時
   }
   T_事業所職員_archive {
-    string アーカイブID PK
     string 職員ID
     string 会員ID
+    string 姓
+    string 名
+    string セイ
+    string メイ
+    string 氏名
+    string フリガナ
+    string メールアドレス
+    string 職員権限コード
     string 職員状態コード
+    string 入会日
+    string 退会日
+    string 介護支援専門員番号
+    string メール配信希望コード
+    string 作成日時
+    string 更新日時
+    string 削除フラグ
+    string アーカイブID PK
     datetime アーカイブ日時
+  }
+  T_人物統合ログ {
+    string ログID
+    string 処理種別
+    string 介護支援専門員番号
+    string 旧会員ID
+    string 旧職員ID
+    string 新会員ID
+    string 新職員ID
+    string 結果コード
+    string 詳細JSON
+    string 実行者メール
+    string 実行日時
+    string 作成日時
+    string 削除フラグ
   }
   M_会員種別 {
     string id PK
@@ -712,20 +805,20 @@ erDiagram
     string 研修ID FK
     string 会員ID FK
     string 職員ID FK
-    string 外部申込者ID FK
-    string 申込者区分コード FK
-    string 申込者ID
     string 申込状態コード FK
     datetime 申込日時
     datetime 取消日時
+    string 備考
+    string 申込者区分コード FK
+    string 申込者ID
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
+    string 外部申込者ID FK
     string 出欠状態コード FK
     datetime 出欠記録日時
     string 出欠記録者メール
     string 事務局メモ
-    string 備考
-    datetime 作成日時
-    datetime 更新日時
-    boolean 削除フラグ
   }
   T_外部申込者 {
     string 外部申込者ID PK
@@ -1010,7 +1103,7 @@ erDiagram
   
 
       <section class="card">
-        <h2>5. 監査・LINE 投稿ドメイン <span class="badge">1 entity</span></h2>
+        <h2>5. 監査・LINE 投稿ドメイン <span class="badge">3 entity</span></h2>
         <p style="color: var(--muted); font-size: 0.92em;">監査ログ・LINE 投稿依頼・削除ログ</p>
         <div class="diagram-help">
           🖱️ マウスホイール = 拡大/縮小 ｜ ドラッグ = パン ｜ ELK レイアウト適用済（線の交差を最小化）
@@ -1034,13 +1127,40 @@ erDiagram
 
   T_監査ログ {
     string 監査ログID PK
+    string 操作日時
     string 操作者メール
     string 操作種別
     string 対象テーブル
+    string 対象レコードID
+    string フィールド名
+    string 旧値
+    string 新値
+  }
+  T_LINE投稿依頼 {
+    string 投稿依頼ID
+    string ステータス
+    string テキスト
+    string 研修申込リンク
+    string 添付ファイルURL
+    string 添付ファイル種別
+    string 添付ファイル名
+    string 対象種別
     string 対象ID
-    string 変更前JSON
-    string 変更後JSON
-    datetime 実行日時
+    string 作成者メール
+    string 作成日時
+    string 更新日時
+    string 投稿依頼日時
+    string 投稿日時
+    string 投稿マーク者メール
+    string 備考
+    string 削除フラグ
+  }
+  T_削除ログ {
+    string ログID
+    string 操作日時
+    string 操作者メール
+    string 対象会員IDリスト
+    string 削除前スナップショットJSON
   }
 </pre>
         </div>

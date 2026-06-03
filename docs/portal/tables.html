@@ -326,7 +326,7 @@ footer {
 <div class="hero">
   <h1>📊 テーブル設計書（理路整然版）</h1>
   <p>各テーブルの列定義 + FK 関係を整理された形式で表示します。Mermaid ER 図の線が絡まる問題を回避した、参照用の正規ビューです。</p>
-  <p style="margin-top: 8px; font-size: 0.88em; opacity: 0.85;">📌 全 40 テーブル | 全 48 リレーション</p>
+  <p style="margin-top: 8px; font-size: 0.88em; opacity: 0.85;">📌 全 45 テーブル | 全 48 リレーション</p>
 </div>
 
 <section class="card">
@@ -356,7 +356,7 @@ footer {
     <div style="margin-bottom: 12px;">
       <h3 style="margin: 0 0 6px; color: var(--warm);">ログSS（別スプレッドシート）</h3>
       <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-        <a href="#tbl-T_ログイン履歴" class="toc-tag">T_ログイン履歴</a><a href="#tbl-T_監査ログ" class="toc-tag">T_監査ログ</a><a href="#tbl-T_メール送信ログ" class="toc-tag">T_メール送信ログ</a><a href="#tbl-T_メール送信明細" class="toc-tag">T_メール送信明細</a>
+        <a href="#tbl-T_ログイン履歴" class="toc-tag">T_ログイン履歴</a><a href="#tbl-T_監査ログ" class="toc-tag">T_監査ログ</a><a href="#tbl-T_メール送信ログ" class="toc-tag">T_メール送信ログ</a><a href="#tbl-T_メール送信明細" class="toc-tag">T_メール送信明細</a><a href="#tbl-T_権限ロール" class="toc-tag">T_権限ロール</a><a href="#tbl-T_削除ログ" class="toc-tag">T_削除ログ</a><a href="#tbl-T_変更申請" class="toc-tag">T_変更申請</a><a href="#tbl-T_人物統合ログ" class="toc-tag">T_人物統合ログ</a><a href="#tbl-T_LINE投稿依頼" class="toc-tag">T_LINE投稿依頼</a>
       </div>
     </div>
   
@@ -423,7 +423,7 @@ footer {
   <div class="tbl-card" id="tbl-M_会員状態">
     <div class="tbl-card-head">
       <h4>M_会員状態</h4>
-      <span class="col-count">2 列</span>
+      <span class="col-count">4 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -434,6 +434,14 @@ footer {
       <td><span class="key-pk">PK</span></td>
     </tr><tr>
       <td class="col-name">名称</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">表示順</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">有効フラグ</td>
       <td class="col-type">string</td>
       <td></td>
     </tr></tbody>
@@ -455,7 +463,7 @@ footer {
   <div class="tbl-card" id="tbl-M_発送方法">
     <div class="tbl-card-head">
       <h4>M_発送方法</h4>
-      <span class="col-count">2 列</span>
+      <span class="col-count">4 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -466,6 +474,14 @@ footer {
       <td><span class="key-pk">PK</span></td>
     </tr><tr>
       <td class="col-name">名称</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">表示順</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">有効フラグ</td>
       <td class="col-type">string</td>
       <td></td>
     </tr></tbody>
@@ -487,7 +503,7 @@ footer {
   <div class="tbl-card" id="tbl-M_郵送先区分">
     <div class="tbl-card-head">
       <h4>M_郵送先区分</h4>
-      <span class="col-count">2 列</span>
+      <span class="col-count">4 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -498,6 +514,14 @@ footer {
       <td><span class="key-pk">PK</span></td>
     </tr><tr>
       <td class="col-name">名称</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">表示順</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">有効フラグ</td>
       <td class="col-type">string</td>
       <td></td>
     </tr></tbody>
@@ -519,7 +543,7 @@ footer {
   <div class="tbl-card" id="tbl-M_職員権限">
     <div class="tbl-card-head">
       <h4>M_職員権限</h4>
-      <span class="col-count">2 列</span>
+      <span class="col-count">4 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -530,6 +554,14 @@ footer {
       <td><span class="key-pk">PK</span></td>
     </tr><tr>
       <td class="col-name">名称</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">表示順</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">有効フラグ</td>
       <td class="col-type">string</td>
       <td></td>
     </tr></tbody>
@@ -551,7 +583,7 @@ footer {
   <div class="tbl-card" id="tbl-M_職員状態">
     <div class="tbl-card-head">
       <h4>M_職員状態</h4>
-      <span class="col-count">2 列</span>
+      <span class="col-count">4 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -562,6 +594,14 @@ footer {
       <td><span class="key-pk">PK</span></td>
     </tr><tr>
       <td class="col-name">名称</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">表示順</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">有効フラグ</td>
       <td class="col-type">string</td>
       <td></td>
     </tr></tbody>
@@ -583,7 +623,7 @@ footer {
   <div class="tbl-card" id="tbl-M_システムロール">
     <div class="tbl-card-head">
       <h4>M_システムロール</h4>
-      <span class="col-count">2 列</span>
+      <span class="col-count">4 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -594,6 +634,14 @@ footer {
       <td><span class="key-pk">PK</span></td>
     </tr><tr>
       <td class="col-name">名称</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">表示順</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">有効フラグ</td>
       <td class="col-type">string</td>
       <td></td>
     </tr></tbody>
@@ -619,7 +667,7 @@ footer {
   <div class="tbl-card" id="tbl-M_研修状態">
     <div class="tbl-card-head">
       <h4>M_研修状態</h4>
-      <span class="col-count">2 列</span>
+      <span class="col-count">4 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -630,6 +678,14 @@ footer {
       <td><span class="key-pk">PK</span></td>
     </tr><tr>
       <td class="col-name">名称</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">表示順</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">有効フラグ</td>
       <td class="col-type">string</td>
       <td></td>
     </tr></tbody>
@@ -651,7 +707,7 @@ footer {
   <div class="tbl-card" id="tbl-M_申込状態">
     <div class="tbl-card-head">
       <h4>M_申込状態</h4>
-      <span class="col-count">2 列</span>
+      <span class="col-count">4 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -662,6 +718,14 @@ footer {
       <td><span class="key-pk">PK</span></td>
     </tr><tr>
       <td class="col-name">名称</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">表示順</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">有効フラグ</td>
       <td class="col-type">string</td>
       <td></td>
     </tr></tbody>
@@ -683,7 +747,7 @@ footer {
   <div class="tbl-card" id="tbl-M_会費納入状態">
     <div class="tbl-card-head">
       <h4>M_会費納入状態</h4>
-      <span class="col-count">2 列</span>
+      <span class="col-count">4 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -694,6 +758,14 @@ footer {
       <td><span class="key-pk">PK</span></td>
     </tr><tr>
       <td class="col-name">名称</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">表示順</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">有効フラグ</td>
       <td class="col-type">string</td>
       <td></td>
     </tr></tbody>
@@ -715,7 +787,7 @@ footer {
   <div class="tbl-card" id="tbl-M_申込者区分">
     <div class="tbl-card-head">
       <h4>M_申込者区分</h4>
-      <span class="col-count">2 列</span>
+      <span class="col-count">4 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -726,6 +798,14 @@ footer {
       <td><span class="key-pk">PK</span></td>
     </tr><tr>
       <td class="col-name">名称</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">表示順</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">削除フラグ</td>
       <td class="col-type">string</td>
       <td></td>
     </tr></tbody>
@@ -747,7 +827,7 @@ footer {
   <div class="tbl-card" id="tbl-M_管理者権限">
     <div class="tbl-card-head">
       <h4>M_管理者権限</h4>
-      <span class="col-count">2 列</span>
+      <span class="col-count">4 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -758,6 +838,14 @@ footer {
       <td><span class="key-pk">PK</span></td>
     </tr><tr>
       <td class="col-name">名称</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">表示順</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">有効フラグ</td>
       <td class="col-type">string</td>
       <td></td>
     </tr></tbody>
@@ -815,7 +903,7 @@ footer {
   <div class="tbl-card" id="tbl-M_組織マスタ">
     <div class="tbl-card-head">
       <h4>M_組織マスタ</h4>
-      <span class="col-count">6 列</span>
+      <span class="col-count">9 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -843,6 +931,18 @@ footer {
     </tr><tr>
       <td class="col-name">有効フラグ</td>
       <td class="col-type">boolean</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">削除フラグ</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">作成日時</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">更新日時</td>
+      <td class="col-type">string</td>
       <td></td>
     </tr></tbody>
       </table>
@@ -879,7 +979,7 @@ footer {
   <div class="tbl-card" id="tbl-M_役職マスタ">
     <div class="tbl-card-head">
       <h4>M_役職マスタ</h4>
-      <span class="col-count">6 列</span>
+      <span class="col-count">9 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -907,6 +1007,18 @@ footer {
     </tr><tr>
       <td class="col-name">有効フラグ</td>
       <td class="col-type">boolean</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">削除フラグ</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">作成日時</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">更新日時</td>
+      <td class="col-type">string</td>
       <td></td>
     </tr></tbody>
       </table>
@@ -939,7 +1051,7 @@ footer {
   <div class="tbl-card" id="tbl-M_支払い種別マスタ">
     <div class="tbl-card-head">
       <h4>M_支払い種別マスタ</h4>
-      <span class="col-count">5 列</span>
+      <span class="col-count">8 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -964,6 +1076,18 @@ footer {
       <td class="col-name">有効フラグ</td>
       <td class="col-type">boolean</td>
       <td></td>
+    </tr><tr>
+      <td class="col-name">削除フラグ</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">作成日時</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">更新日時</td>
+      <td class="col-type">string</td>
+      <td></td>
     </tr></tbody>
       </table>
       <div class="tbl-rel-section">
@@ -987,7 +1111,7 @@ footer {
   <div class="tbl-card" id="tbl-M_業務分類">
     <div class="tbl-card-head">
       <h4>M_業務分類</h4>
-      <span class="col-count">6 列</span>
+      <span class="col-count">9 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -1015,6 +1139,18 @@ footer {
     </tr><tr>
       <td class="col-name">有効フラグ</td>
       <td class="col-type">boolean</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">削除フラグ</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">作成日時</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">更新日時</td>
+      <td class="col-type">string</td>
       <td></td>
     </tr></tbody>
       </table>
@@ -1494,7 +1630,7 @@ footer {
   <div class="tbl-card" id="tbl-T_管理者Googleホワイトリスト">
     <div class="tbl-card-head">
       <h4>T_管理者Googleホワイトリスト</h4>
-      <span class="col-count">10 列</span>
+      <span class="col-count">12 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -1504,15 +1640,7 @@ footer {
       <td class="col-type">string</td>
       <td><span class="key-pk">PK</span></td>
     </tr><tr>
-      <td class="col-name">GoogleユーザーID</td>
-      <td class="col-type">string</td>
-      <td></td>
-    </tr><tr>
       <td class="col-name">Googleメール</td>
-      <td class="col-type">string</td>
-      <td></td>
-    </tr><tr>
-      <td class="col-name">表示名</td>
       <td class="col-type">string</td>
       <td></td>
     </tr><tr>
@@ -1524,8 +1652,24 @@ footer {
       <td class="col-type">string</td>
       <td><span class="key-fk">FK</span></td>
     </tr><tr>
+      <td class="col-name">権限コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">ロールID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
       <td class="col-name">有効フラグ</td>
       <td class="col-type">boolean</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">変更者メール</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">変更日時</td>
+      <td class="col-type">string</td>
       <td></td>
     </tr><tr>
       <td class="col-name">作成日時</td>
@@ -1712,18 +1856,6 @@ footer {
       <td class="col-type">string</td>
       <td><span class="key-fk">FK</span></td>
     </tr><tr>
-      <td class="col-name">外部申込者ID</td>
-      <td class="col-type">string</td>
-      <td><span class="key-fk">FK</span></td>
-    </tr><tr>
-      <td class="col-name">申込者区分コード</td>
-      <td class="col-type">string</td>
-      <td><span class="key-fk">FK</span></td>
-    </tr><tr>
-      <td class="col-name">申込者ID</td>
-      <td class="col-type">string</td>
-      <td></td>
-    </tr><tr>
       <td class="col-name">申込状態コード</td>
       <td class="col-type">string</td>
       <td><span class="key-fk">FK</span></td>
@@ -1735,6 +1867,34 @@ footer {
       <td class="col-name">取消日時</td>
       <td class="col-type">datetime</td>
       <td></td>
+    </tr><tr>
+      <td class="col-name">備考</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">申込者区分コード</td>
+      <td class="col-type">string</td>
+      <td><span class="key-fk">FK</span></td>
+    </tr><tr>
+      <td class="col-name">申込者ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">作成日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">更新日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">削除フラグ</td>
+      <td class="col-type">boolean</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">外部申込者ID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-fk">FK</span></td>
     </tr><tr>
       <td class="col-name">出欠状態コード</td>
       <td class="col-type">string</td>
@@ -1750,22 +1910,6 @@ footer {
     </tr><tr>
       <td class="col-name">事務局メモ</td>
       <td class="col-type">string</td>
-      <td></td>
-    </tr><tr>
-      <td class="col-name">備考</td>
-      <td class="col-type">string</td>
-      <td></td>
-    </tr><tr>
-      <td class="col-name">作成日時</td>
-      <td class="col-type">datetime</td>
-      <td></td>
-    </tr><tr>
-      <td class="col-name">更新日時</td>
-      <td class="col-type">datetime</td>
-      <td></td>
-    </tr><tr>
-      <td class="col-name">削除フラグ</td>
-      <td class="col-type">boolean</td>
       <td></td>
     </tr></tbody>
       </table>
@@ -2621,16 +2765,12 @@ footer {
   <div class="tbl-card" id="tbl-T_会員_archive">
     <div class="tbl-card-head">
       <h4>T_会員_archive</h4>
-      <span class="col-count">6 列</span>
+      <span class="col-count">37 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
         <thead><tr><th>列名</th><th>型</th><th>キー</th></tr></thead>
         <tbody><tr>
-      <td class="col-name">アーカイブID</td>
-      <td class="col-type">string</td>
-      <td><span class="key-pk">PK</span></td>
-    </tr><tr>
       <td class="col-name">会員ID</td>
       <td class="col-type">string</td>
       <td></td>
@@ -2643,9 +2783,137 @@ footer {
       <td class="col-type">string</td>
       <td></td>
     </tr><tr>
+      <td class="col-name">入会日</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
       <td class="col-name">退会日</td>
       <td class="col-type">date</td>
       <td></td>
+    </tr><tr>
+      <td class="col-name">移行日</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">退会処理日</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">姓</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">名</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">セイ</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">メイ</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">代表メールアドレス</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">携帯電話番号</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">勤務先名</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">勤務先郵便番号</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">勤務先都道府県</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">勤務先市区町村</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">勤務先住所</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">勤務先住所2</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">勤務先電話番号</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">勤務先FAX番号</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">自宅郵便番号</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">自宅都道府県</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">自宅市区町村</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">自宅住所</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">自宅住所2</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">発送方法コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">郵送先区分コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">職員数上限</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">作成日時</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">更新日時</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">削除フラグ</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">介護支援専門員番号</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">事業所番号</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">ステータスメモ</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">アーカイブID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-pk">PK</span></td>
     </tr><tr>
       <td class="col-name">アーカイブ日時</td>
       <td class="col-type">datetime</td>
@@ -2665,16 +2933,12 @@ footer {
   <div class="tbl-card" id="tbl-T_事業所職員_archive">
     <div class="tbl-card-head">
       <h4>T_事業所職員_archive</h4>
-      <span class="col-count">5 列</span>
+      <span class="col-count">20 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
         <thead><tr><th>列名</th><th>型</th><th>キー</th></tr></thead>
         <tbody><tr>
-      <td class="col-name">アーカイブID</td>
-      <td class="col-type">string</td>
-      <td><span class="key-pk">PK</span></td>
-    </tr><tr>
       <td class="col-name">職員ID</td>
       <td class="col-type">string</td>
       <td></td>
@@ -2683,9 +2947,73 @@ footer {
       <td class="col-type">string</td>
       <td></td>
     </tr><tr>
+      <td class="col-name">姓</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">名</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">セイ</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">メイ</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">氏名</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">フリガナ</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">メールアドレス</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">職員権限コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
       <td class="col-name">職員状態コード</td>
       <td class="col-type">string</td>
       <td></td>
+    </tr><tr>
+      <td class="col-name">入会日</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">退会日</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">介護支援専門員番号</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">メール配信希望コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">作成日時</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">更新日時</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">削除フラグ</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">アーカイブID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-pk">PK</span></td>
     </tr><tr>
       <td class="col-name">アーカイブ日時</td>
       <td class="col-type">datetime</td>
@@ -2768,7 +3096,7 @@ footer {
   <div class="tbl-card" id="tbl-T_監査ログ">
     <div class="tbl-card-head">
       <h4>T_監査ログ</h4>
-      <span class="col-count">8 列</span>
+      <span class="col-count">9 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -2777,6 +3105,10 @@ footer {
       <td class="col-name">監査ログID</td>
       <td class="col-type">string</td>
       <td><span class="key-pk">PK</span></td>
+    </tr><tr>
+      <td class="col-name">操作日時</td>
+      <td class="col-type">string</td>
+      <td></td>
     </tr><tr>
       <td class="col-name">操作者メール</td>
       <td class="col-type">string</td>
@@ -2790,20 +3122,20 @@ footer {
       <td class="col-type">string</td>
       <td></td>
     </tr><tr>
-      <td class="col-name">対象ID</td>
+      <td class="col-name">対象レコードID</td>
       <td class="col-type">string</td>
       <td></td>
     </tr><tr>
-      <td class="col-name">変更前JSON</td>
+      <td class="col-name">フィールド名</td>
       <td class="col-type">string</td>
       <td></td>
     </tr><tr>
-      <td class="col-name">変更後JSON</td>
+      <td class="col-name">旧値</td>
       <td class="col-type">string</td>
       <td></td>
     </tr><tr>
-      <td class="col-name">実行日時</td>
-      <td class="col-type">datetime</td>
+      <td class="col-name">新値</td>
+      <td class="col-type">string</td>
       <td></td>
     </tr></tbody>
       </table>
@@ -2946,6 +3278,350 @@ footer {
       <a href="#tbl-T_研修">T_研修</a>
       <span class="lbl">研修ID(v360新規)</span>
     </span>
+      </div>
+    </div>
+  </div>
+  <div class="tbl-card" id="tbl-T_権限ロール">
+    <div class="tbl-card-head">
+      <h4>T_権限ロール</h4>
+      <span class="col-count">11 列</span>
+    </div>
+    <div class="tbl-card-body">
+      <table>
+        <thead><tr><th>列名</th><th>型</th><th>キー</th></tr></thead>
+        <tbody><tr>
+      <td class="col-name">ロールID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">ロール名</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">説明</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">許可メニューJSON</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">研修編集スコープ</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">組込フラグ</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">マスターフラグ</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">表示順</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">作成日時</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">更新日時</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">削除フラグ</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr></tbody>
+      </table>
+      <div class="tbl-rel-section">
+        <h5>📥 このテーブルを参照する側 (0)</h5>
+        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+      </div>
+      <div class="tbl-rel-section">
+        <h5>📤 このテーブルが参照する側 (0)</h5>
+        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+      </div>
+    </div>
+  </div>
+  <div class="tbl-card" id="tbl-T_削除ログ">
+    <div class="tbl-card-head">
+      <h4>T_削除ログ</h4>
+      <span class="col-count">5 列</span>
+    </div>
+    <div class="tbl-card-body">
+      <table>
+        <thead><tr><th>列名</th><th>型</th><th>キー</th></tr></thead>
+        <tbody><tr>
+      <td class="col-name">ログID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">操作日時</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">操作者メール</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">対象会員IDリスト</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">削除前スナップショットJSON</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr></tbody>
+      </table>
+      <div class="tbl-rel-section">
+        <h5>📥 このテーブルを参照する側 (0)</h5>
+        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+      </div>
+      <div class="tbl-rel-section">
+        <h5>📤 このテーブルが参照する側 (0)</h5>
+        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+      </div>
+    </div>
+  </div>
+  <div class="tbl-card" id="tbl-T_変更申請">
+    <div class="tbl-card-head">
+      <h4>T_変更申請</h4>
+      <span class="col-count">15 列</span>
+    </div>
+    <div class="tbl-card-body">
+      <table>
+        <thead><tr><th>列名</th><th>型</th><th>キー</th></tr></thead>
+        <tbody><tr>
+      <td class="col-name">申請ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">会員ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">会員種別コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">申請種別コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">申請状態コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">申請内容JSON</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">連絡先メールアドレス</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">申請者表示名</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">申請日時</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">処理日時</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">処理者メールアドレス</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">処理備考</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">作成日時</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">更新日時</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">削除フラグ</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr></tbody>
+      </table>
+      <div class="tbl-rel-section">
+        <h5>📥 このテーブルを参照する側 (0)</h5>
+        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+      </div>
+      <div class="tbl-rel-section">
+        <h5>📤 このテーブルが参照する側 (0)</h5>
+        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+      </div>
+    </div>
+  </div>
+  <div class="tbl-card" id="tbl-T_人物統合ログ">
+    <div class="tbl-card-head">
+      <h4>T_人物統合ログ</h4>
+      <span class="col-count">13 列</span>
+    </div>
+    <div class="tbl-card-body">
+      <table>
+        <thead><tr><th>列名</th><th>型</th><th>キー</th></tr></thead>
+        <tbody><tr>
+      <td class="col-name">ログID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">処理種別</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">介護支援専門員番号</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">旧会員ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">旧職員ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">新会員ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">新職員ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">結果コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">詳細JSON</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">実行者メール</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">実行日時</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">作成日時</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">削除フラグ</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr></tbody>
+      </table>
+      <div class="tbl-rel-section">
+        <h5>📥 このテーブルを参照する側 (0)</h5>
+        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+      </div>
+      <div class="tbl-rel-section">
+        <h5>📤 このテーブルが参照する側 (0)</h5>
+        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+      </div>
+    </div>
+  </div>
+  <div class="tbl-card" id="tbl-T_LINE投稿依頼">
+    <div class="tbl-card-head">
+      <h4>T_LINE投稿依頼</h4>
+      <span class="col-count">17 列</span>
+    </div>
+    <div class="tbl-card-body">
+      <table>
+        <thead><tr><th>列名</th><th>型</th><th>キー</th></tr></thead>
+        <tbody><tr>
+      <td class="col-name">投稿依頼ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">ステータス</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">テキスト</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">研修申込リンク</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">添付ファイルURL</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">添付ファイル種別</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">添付ファイル名</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">対象種別</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">対象ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">作成者メール</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">作成日時</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">更新日時</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">投稿依頼日時</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">投稿日時</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">投稿マーク者メール</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">備考</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">削除フラグ</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr></tbody>
+      </table>
+      <div class="tbl-rel-section">
+        <h5>📥 このテーブルを参照する側 (0)</h5>
+        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+      </div>
+      <div class="tbl-rel-section">
+        <h5>📤 このテーブルが参照する側 (0)</h5>
+        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
       </div>
     </div>
   </div>

@@ -1,0 +1,2153 @@
+{
+  "tableOrder": [
+    "M_会員種別",
+    "M_会員状態",
+    "M_発送方法",
+    "M_郵送先区分",
+    "M_職員権限",
+    "M_職員状態",
+    "M_システムロール",
+    "M_研修状態",
+    "M_申込状態",
+    "M_会費納入状態",
+    "M_申込者区分",
+    "M_管理者権限",
+    "M_出欠状態",
+    "M_組織マスタ",
+    "M_役職マスタ",
+    "M_支払い種別マスタ",
+    "M_業務分類",
+    "T_会員",
+    "T_事業所職員",
+    "T_認証アカウント",
+    "T_管理者Googleホワイトリスト",
+    "T_研修",
+    "T_研修申込",
+    "T_外部申込者",
+    "T_年会費納入履歴",
+    "T_年会費更新履歴",
+    "T_役員",
+    "T_振込口座",
+    "T_支払い",
+    "T_支払い明細",
+    "T_請求",
+    "T_システム設定",
+    "T_共有メモ",
+    "T_画面項目権限",
+    "T_会員_archive",
+    "T_事業所職員_archive",
+    "T_ログイン履歴",
+    "T_監査ログ",
+    "T_メール送信ログ",
+    "T_メール送信明細"
+  ],
+  "sectionByTable": {
+    "M_会員種別": "マスタ",
+    "M_会員状態": "マスタ",
+    "M_発送方法": "マスタ",
+    "M_郵送先区分": "マスタ",
+    "M_職員権限": "マスタ",
+    "M_職員状態": "マスタ",
+    "M_システムロール": "マスタ",
+    "M_研修状態": "マスタ",
+    "M_申込状態": "マスタ",
+    "M_会費納入状態": "マスタ",
+    "M_申込者区分": "マスタ",
+    "M_管理者権限": "マスタ",
+    "M_出欠状態": "マスタ",
+    "M_組織マスタ": "マスタ",
+    "M_役職マスタ": "マスタ",
+    "M_支払い種別マスタ": "マスタ",
+    "M_業務分類": "マスタ",
+    "T_会員": "メインテーブル",
+    "T_事業所職員": "メインテーブル",
+    "T_認証アカウント": "メインテーブル",
+    "T_管理者Googleホワイトリスト": "メインテーブル",
+    "T_研修": "メインテーブル",
+    "T_研修申込": "メインテーブル",
+    "T_外部申込者": "メインテーブル",
+    "T_年会費納入履歴": "メインテーブル",
+    "T_年会費更新履歴": "メインテーブル",
+    "T_役員": "メインテーブル",
+    "T_振込口座": "メインテーブル",
+    "T_支払い": "メインテーブル",
+    "T_支払い明細": "メインテーブル",
+    "T_請求": "メインテーブル",
+    "T_システム設定": "メインテーブル",
+    "T_共有メモ": "メインテーブル",
+    "T_画面項目権限": "メインテーブル",
+    "T_会員_archive": "アーカイブシート（メインDB内・退会会員移動先。元テーブルと同スキーマ + サロゲート列）",
+    "T_事業所職員_archive": "アーカイブシート（メインDB内・退会会員移動先。元テーブルと同スキーマ + サロゲート列）",
+    "T_ログイン履歴": "ログSS（別スプレッドシート）",
+    "T_監査ログ": "ログSS（別スプレッドシート）",
+    "T_メール送信ログ": "ログSS（別スプレッドシート）",
+    "T_メール送信明細": "ログSS（別スプレッドシート）"
+  },
+  "columns": {
+    "M_会員種別": {
+      "コード": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "名称": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "表示順": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "有効フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "年会費金額": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "M_会員状態": {
+      "コード": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "名称": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "M_発送方法": {
+      "コード": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "名称": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "M_郵送先区分": {
+      "コード": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "名称": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "M_職員権限": {
+      "コード": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "名称": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "M_職員状態": {
+      "コード": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "名称": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "M_システムロール": {
+      "コード": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "名称": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "M_研修状態": {
+      "コード": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "名称": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "M_申込状態": {
+      "コード": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "名称": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "M_会費納入状態": {
+      "コード": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "名称": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "M_申込者区分": {
+      "コード": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "名称": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "M_管理者権限": {
+      "コード": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "名称": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "M_出欠状態": {
+      "コード": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "名称": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "表示順": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "有効フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "M_組織マスタ": {
+      "組織コード": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "組織名": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "組織種別": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "表示順": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "全役員表示フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "有効フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "M_役職マスタ": {
+      "役職コード": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "役職名": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "組織コード": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "委員長フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "表示順": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "有効フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "M_支払い種別マスタ": {
+      "種別コード": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "種別名": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "対象区分": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "表示順": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "有効フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "M_業務分類": {
+      "業務分類コード": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "業務分類名": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "組織コード": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "単価": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "表示順": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "有効フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_会員": {
+      "会員ID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "会員種別コード": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "会員状態コード": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "入会日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "退会日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "移行日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "退会処理日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "姓": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "名": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "セイ": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "メイ": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "代表メールアドレス": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "携帯電話番号": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "勤務先名": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "勤務先郵便番号": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "勤務先都道府県": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "勤務先市区町村": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "勤務先住所": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "勤務先住所2": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "勤務先電話番号": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "勤務先FAX番号": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "自宅郵便番号": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "自宅都道府県": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "自宅市区町村": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "自宅住所": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "自宅住所2": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "発送方法コード": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "郵送先区分コード": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "職員数上限": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "介護支援専門員番号": {
+        "type": "string",
+        "key": "",
+        "comment": "基本8桁数字/admin例外1-10桁英数字 (v372.4)"
+      },
+      "事業所番号": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "ステータスメモ": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_事業所職員": {
+      "職員ID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "会員ID": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "姓": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "名": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "セイ": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "メイ": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "氏名": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "フリガナ": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "メールアドレス": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "職員権限コード": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "職員状態コード": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "入会日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "退会日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "介護支援専門員番号": {
+        "type": "string",
+        "key": "",
+        "comment": "基本8桁数字/admin例外1-10桁英数字 (v372.4)"
+      },
+      "メール配信希望コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_認証アカウント": {
+      "認証ID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "認証方式": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "ログインID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "パスワードハッシュ": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "パスワードソルト": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "GoogleユーザーID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "Googleメール": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "システムロールコード": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "会員ID": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "職員ID": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "最終ログイン日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "パスワード更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "アカウント有効フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "ログイン失敗回数": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "ロック状態": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_管理者Googleホワイトリスト": {
+      "ホワイトリストID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "Googleメール": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "紐付け認証ID": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "紐付け会員ID": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "有効フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_研修": {
+      "研修ID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "研修名": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "開催日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "開催終了時刻": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "定員": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "申込者数": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "開催場所": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "研修状態コード": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "主催者": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "法定外研修フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "研修概要": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "研修内容": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "費用JSON": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "申込開始日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "申込締切日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "講師": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "案内状URL": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "案内状サムネイルURL": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "項目設定JSON": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "登録者メール": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "申込URL": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_研修申込": {
+      "申込ID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "研修ID": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "会員ID": {
+        "type": "string",
+        "key": "FK",
+        "comment": "2-FK v360"
+      },
+      "職員ID": {
+        "type": "string",
+        "key": "FK",
+        "comment": "2-FK v360"
+      },
+      "外部申込者ID": {
+        "type": "string",
+        "key": "FK",
+        "comment": "2-FK v360 新規"
+      },
+      "申込者区分コード": {
+        "type": "string",
+        "key": "FK",
+        "comment": "deprecated v360"
+      },
+      "申込者ID": {
+        "type": "string",
+        "key": "",
+        "comment": "deprecated v360"
+      },
+      "申込状態コード": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "申込日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "取消日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "出欠状態コード": {
+        "type": "string",
+        "key": "FK",
+        "comment": "v360新規"
+      },
+      "出欠記録日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": "v360新規"
+      },
+      "出欠記録者メール": {
+        "type": "string",
+        "key": "",
+        "comment": "v360新規"
+      },
+      "事務局メモ": {
+        "type": "string",
+        "key": "",
+        "comment": "v360新規 管理者専用"
+      },
+      "備考": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_外部申込者": {
+      "外部申込者ID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "氏名": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "フリガナ": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "メールアドレス": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "電話番号": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "事業所名": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "同意日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_年会費納入履歴": {
+      "年会費履歴ID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "会員ID": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "対象年度": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "会費納入状態コード": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "納入確認日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "金額": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "備考": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_年会費更新履歴": {
+      "年会費更新履歴ID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "年会費履歴ID": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "会員ID": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "対象年度": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "操作種別": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "更新前JSON": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "更新後JSON": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "実行者メール": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "実行日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_役員": {
+      "役員ID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "会員ID": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "職員ID": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "役職コード": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "組織コード": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "就任日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "退任日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "備考": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_振込口座": {
+      "口座ID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "会員ID": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "職員ID": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "金融機関名": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "金融機関コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "支店名": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "支店コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "口座種別": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "口座番号": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "口座名義カナ": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "備考": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_支払い": {
+      "支払いID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "会員ID": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "支払い日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "支払い方法": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "合計金額": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "振込先口座JSON": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "登録者メール": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "備考": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_支払い明細": {
+      "明細ID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "支払いID": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "請求ID": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "役職コード": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "組織コード": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "種別コード": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "金額": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "対象期間FROM": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "対象期間TO": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "摘要": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_請求": {
+      "請求ID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "会員ID": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "職員ID": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "役職コード": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "組織コード": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "種別コード": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "請求種別": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "業務分類コード": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "単価": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "数量": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "請求金額": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "活動日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "活動内容": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "添付ファイルURL": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "請求状態": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "却下理由": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "承認者メール": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "承認日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_システム設定": {
+      "設定キー": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "設定値": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "説明": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_共有メモ": {
+      "キー": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "内容": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "更新者メール": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "更新者名": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "バージョン": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_画面項目権限": {
+      "権限定義ID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "システムロールコード": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "画面コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "項目コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "閲覧可": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "登録可": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "変更可": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "削除可": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_会員_archive": {
+      "アーカイブID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "会員ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "会員種別コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "会員状態コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "退会日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "アーカイブ日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_事業所職員_archive": {
+      "アーカイブID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "職員ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "会員ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "職員状態コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "アーカイブ日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_ログイン履歴": {
+      "ログイン履歴ID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "認証ID": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "ログインID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "認証方式": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "ログイン結果": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "失敗理由": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "接続元IP": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "ユーザーエージェント": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "実行日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_監査ログ": {
+      "監査ログID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "操作者メール": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "操作種別": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "対象テーブル": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_メール送信ログ": {
+      "ログID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "送信日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "送信者メール": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "件名テンプレート": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "宛先数": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "成功数": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "エラー数": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "送信種別": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "研修ID": {
+        "type": "string",
+        "key": "FK",
+        "comment": "v360拡張 nullable"
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_メール送信明細": {
+      "明細ID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "ログID": {
+        "type": "string",
+        "key": "FK",
+        "comment": ""
+      },
+      "研修ID": {
+        "type": "string",
+        "key": "FK",
+        "comment": "nullable"
+      },
+      "受信者区分": {
+        "type": "string",
+        "key": "",
+        "comment": "MEMBER/STAFF/EXTERNAL"
+      },
+      "受信者ID": {
+        "type": "string",
+        "key": "",
+        "comment": "ポリモーフィック: 会員ID/職員ID/外部申込者ID"
+      },
+      "受信者メール": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "送信結果": {
+        "type": "string",
+        "key": "",
+        "comment": "SENT/FAILED"
+      },
+      "エラー詳細": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      }
+    }
+  },
+  "relationships": [
+    {
+      "left": "T_会員",
+      "cardinality": "}o--||",
+      "right": "M_会員種別",
+      "label": "会員種別コード"
+    },
+    {
+      "left": "T_会員",
+      "cardinality": "}o--||",
+      "right": "M_会員状態",
+      "label": "会員状態コード"
+    },
+    {
+      "left": "T_会員",
+      "cardinality": "}o--o|",
+      "right": "M_発送方法",
+      "label": "発送方法コード"
+    },
+    {
+      "left": "T_会員",
+      "cardinality": "}o--o|",
+      "right": "M_郵送先区分",
+      "label": "郵送先区分コード"
+    },
+    {
+      "left": "T_事業所職員",
+      "cardinality": "}o--||",
+      "right": "T_会員",
+      "label": "会員ID"
+    },
+    {
+      "left": "T_事業所職員",
+      "cardinality": "}o--||",
+      "right": "M_職員権限",
+      "label": "職員権限コード"
+    },
+    {
+      "left": "T_事業所職員",
+      "cardinality": "}o--||",
+      "right": "M_職員状態",
+      "label": "職員状態コード"
+    },
+    {
+      "left": "T_認証アカウント",
+      "cardinality": "}o--||",
+      "right": "T_会員",
+      "label": "会員ID"
+    },
+    {
+      "left": "T_認証アカウント",
+      "cardinality": "}o--o|",
+      "right": "T_事業所職員",
+      "label": "職員ID"
+    },
+    {
+      "left": "T_認証アカウント",
+      "cardinality": "}o--||",
+      "right": "M_システムロール",
+      "label": "システムロールコード"
+    },
+    {
+      "left": "T_管理者Googleホワイトリスト",
+      "cardinality": "}o--o|",
+      "right": "T_認証アカウント",
+      "label": "紐付け認証ID"
+    },
+    {
+      "left": "T_管理者Googleホワイトリスト",
+      "cardinality": "}o--o|",
+      "right": "T_会員",
+      "label": "紐付け会員ID"
+    },
+    {
+      "left": "T_研修申込",
+      "cardinality": "}o--||",
+      "right": "T_研修",
+      "label": "研修ID"
+    },
+    {
+      "left": "T_研修申込",
+      "cardinality": "}o--o|",
+      "right": "T_会員",
+      "label": "会員ID(v360 2-FK)"
+    },
+    {
+      "left": "T_研修申込",
+      "cardinality": "}o--o|",
+      "right": "T_事業所職員",
+      "label": "職員ID(v360 2-FK)"
+    },
+    {
+      "left": "T_研修申込",
+      "cardinality": "}o--o|",
+      "right": "T_外部申込者",
+      "label": "外部申込者ID(v360 2-FK 新規)"
+    },
+    {
+      "left": "T_研修申込",
+      "cardinality": "}o--||",
+      "right": "M_出欠状態",
+      "label": "出欠状態コード(v360新規)"
+    },
+    {
+      "left": "T_研修申込",
+      "cardinality": "}o--||",
+      "right": "M_申込者区分",
+      "label": "申込者区分コード(deprecated v360)"
+    },
+    {
+      "left": "T_研修申込",
+      "cardinality": "}o--o|",
+      "right": "M_申込状態",
+      "label": "申込状態コード"
+    },
+    {
+      "left": "T_メール送信明細",
+      "cardinality": "}o--||",
+      "right": "T_メール送信ログ",
+      "label": "ログID(v360新規)"
+    },
+    {
+      "left": "T_メール送信明細",
+      "cardinality": "}o--o|",
+      "right": "T_研修",
+      "label": "研修ID(v360新規)"
+    },
+    {
+      "left": "T_研修",
+      "cardinality": "}o--||",
+      "right": "M_研修状態",
+      "label": "研修状態コード"
+    },
+    {
+      "left": "T_年会費納入履歴",
+      "cardinality": "}o--||",
+      "right": "T_会員",
+      "label": "会員ID"
+    },
+    {
+      "left": "T_年会費納入履歴",
+      "cardinality": "}o--||",
+      "right": "M_会費納入状態",
+      "label": "会費納入状態コード"
+    },
+    {
+      "left": "T_年会費更新履歴",
+      "cardinality": "}o--||",
+      "right": "T_年会費納入履歴",
+      "label": "年会費履歴ID"
+    },
+    {
+      "left": "T_年会費更新履歴",
+      "cardinality": "}o--||",
+      "right": "T_会員",
+      "label": "会員ID"
+    },
+    {
+      "left": "M_役職マスタ",
+      "cardinality": "}o--||",
+      "right": "M_組織マスタ",
+      "label": "組織コード"
+    },
+    {
+      "left": "M_業務分類",
+      "cardinality": "}o--||",
+      "right": "M_組織マスタ",
+      "label": "組織コード"
+    },
+    {
+      "left": "T_役員",
+      "cardinality": "}o--o|",
+      "right": "T_会員",
+      "label": "会員ID"
+    },
+    {
+      "left": "T_役員",
+      "cardinality": "}o--o|",
+      "right": "T_事業所職員",
+      "label": "職員ID"
+    },
+    {
+      "left": "T_役員",
+      "cardinality": "}o--||",
+      "right": "M_役職マスタ",
+      "label": "役職コード"
+    },
+    {
+      "left": "T_役員",
+      "cardinality": "}o--||",
+      "right": "M_組織マスタ",
+      "label": "組織コード"
+    },
+    {
+      "left": "T_振込口座",
+      "cardinality": "}o--o|",
+      "right": "T_会員",
+      "label": "会員ID"
+    },
+    {
+      "left": "T_振込口座",
+      "cardinality": "}o--o|",
+      "right": "T_事業所職員",
+      "label": "職員ID"
+    },
+    {
+      "left": "T_支払い",
+      "cardinality": "}o--||",
+      "right": "T_会員",
+      "label": "会員ID"
+    },
+    {
+      "left": "T_支払い明細",
+      "cardinality": "}o--||",
+      "right": "T_支払い",
+      "label": "支払いID"
+    },
+    {
+      "left": "T_支払い明細",
+      "cardinality": "}o--o|",
+      "right": "T_請求",
+      "label": "請求ID"
+    },
+    {
+      "left": "T_支払い明細",
+      "cardinality": "}o--||",
+      "right": "M_役職マスタ",
+      "label": "役職コード"
+    },
+    {
+      "left": "T_支払い明細",
+      "cardinality": "}o--||",
+      "right": "M_組織マスタ",
+      "label": "組織コード"
+    },
+    {
+      "left": "T_支払い明細",
+      "cardinality": "}o--||",
+      "right": "M_支払い種別マスタ",
+      "label": "種別コード"
+    },
+    {
+      "left": "T_請求",
+      "cardinality": "}o--o|",
+      "right": "T_会員",
+      "label": "会員ID"
+    },
+    {
+      "left": "T_請求",
+      "cardinality": "}o--o|",
+      "right": "T_事業所職員",
+      "label": "職員ID"
+    },
+    {
+      "left": "T_請求",
+      "cardinality": "}o--||",
+      "right": "M_役職マスタ",
+      "label": "役職コード"
+    },
+    {
+      "left": "T_請求",
+      "cardinality": "}o--||",
+      "right": "M_組織マスタ",
+      "label": "組織コード"
+    },
+    {
+      "left": "T_請求",
+      "cardinality": "}o--||",
+      "right": "M_支払い種別マスタ",
+      "label": "種別コード"
+    },
+    {
+      "left": "T_請求",
+      "cardinality": "}o--o|",
+      "right": "M_業務分類",
+      "label": "業務分類コード"
+    },
+    {
+      "left": "T_画面項目権限",
+      "cardinality": "}o--||",
+      "right": "M_システムロール",
+      "label": "システムロールコード"
+    },
+    {
+      "left": "T_ログイン履歴",
+      "cardinality": "}o--o|",
+      "right": "T_認証アカウント",
+      "label": "認証ID"
+    }
+  ]
+}

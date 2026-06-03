@@ -29,525 +29,683 @@
 
 ```mermaid
 erDiagram
+  %% ⚠ AUTO-GENERATED — 手書き禁止。正本は gas-src テーブル定義(列) + docs/er-metadata.json(型/キー/コメント/リレーション)。再生成: npm run build:docs-portal
+  %% ===== マスタ =====
+  M_会員種別 {
+    string コード PK
+    string 名称
+    int 表示順
+    boolean 有効フラグ
+    int 年会費金額
+  }
 
-%% ===== マスタ =====
-M_会員種別 {
-  string コード PK
-  string 名称
-  int 表示順
-  boolean 有効フラグ
-  int 年会費金額
-}
-M_会員状態 {
-  string コード PK
-  string 名称
-}
-M_発送方法 {
-  string コード PK
-  string 名称
-}
-M_郵送先区分 {
-  string コード PK
-  string 名称
-}
-M_職員権限 {
-  string コード PK
-  string 名称
-}
-M_職員状態 {
-  string コード PK
-  string 名称
-}
-M_システムロール {
-  string コード PK
-  string 名称
-}
-M_研修状態 {
-  string コード PK
-  string 名称
-}
-M_申込状態 {
-  string コード PK
-  string 名称
-}
-M_会費納入状態 {
-  string コード PK
-  string 名称
-}
-M_申込者区分 {
-  string コード PK
-  string 名称
-}
-M_管理者権限 {
-  string コード PK
-  string 名称
-}
-M_出欠状態 {
-  string コード PK
-  string 名称
-  int 表示順
-  boolean 有効フラグ
-}
-M_組織マスタ {
-  string 組織コード PK
-  string 組織名
-  string 組織種別
-  int 表示順
-  boolean 全役員表示フラグ
-  boolean 有効フラグ
-}
-M_役職マスタ {
-  string 役職コード PK
-  string 役職名
-  string 組織コード FK
-  boolean 委員長フラグ
-  int 表示順
-  boolean 有効フラグ
-}
-M_支払い種別マスタ {
-  string 種別コード PK
-  string 種別名
-  string 対象区分
-  int 表示順
-  boolean 有効フラグ
-}
-M_業務分類 {
-  string 業務分類コード PK
-  string 業務分類名
-  string 組織コード FK
-  int 単価
-  int 表示順
-  boolean 有効フラグ
-}
+  M_会員状態 {
+    string コード PK
+    string 名称
+    string 表示順
+    string 有効フラグ
+  }
 
-%% ===== メインテーブル =====
-T_会員 {
-  string 会員ID PK
-  string 会員種別コード FK
-  string 会員状態コード FK
-  date 入会日
-  date 退会日
-  date 移行日
-  date 退会処理日
-  string 姓
-  string 名
-  string セイ
-  string メイ
-  string 代表メールアドレス
-  string 携帯電話番号
-  string 勤務先名
-  string 勤務先郵便番号
-  string 勤務先都道府県
-  string 勤務先市区町村
-  string 勤務先住所
-  string 勤務先住所2
-  string 勤務先電話番号
-  string 勤務先FAX番号
-  string 自宅郵便番号
-  string 自宅都道府県
-  string 自宅市区町村
-  string 自宅住所
-  string 自宅住所2
-  string 発送方法コード FK
-  string 郵送先区分コード FK
-  int 職員数上限
-  datetime 作成日時
-  datetime 更新日時
-  boolean 削除フラグ
-  string 介護支援専門員番号 "基本8桁数字/admin例外1-10桁英数字 (v372.4)"
-  string 事業所番号
-  string ステータスメモ
-}
+  M_発送方法 {
+    string コード PK
+    string 名称
+    string 表示順
+    string 有効フラグ
+  }
 
-T_事業所職員 {
-  string 職員ID PK
-  string 会員ID FK
-  string 姓
-  string 名
-  string セイ
-  string メイ
-  string 氏名
-  string フリガナ
-  string メールアドレス
-  string 職員権限コード FK
-  string 職員状態コード FK
-  date 入会日
-  date 退会日
-  string 介護支援専門員番号 "基本8桁数字/admin例外1-10桁英数字 (v372.4)"
-  string メール配信希望コード
-  datetime 作成日時
-  datetime 更新日時
-  boolean 削除フラグ
-}
+  M_郵送先区分 {
+    string コード PK
+    string 名称
+    string 表示順
+    string 有効フラグ
+  }
 
-T_認証アカウント {
-  string 認証ID PK
-  string 認証方式
-  string ログインID
-  string パスワードハッシュ
-  string パスワードソルト
-  string GoogleユーザーID
-  string Googleメール
-  string システムロールコード FK
-  string 会員ID FK
-  string 職員ID FK
-  datetime 最終ログイン日時
-  datetime パスワード更新日時
-  boolean アカウント有効フラグ
-  int ログイン失敗回数
-  boolean ロック状態
-  datetime 作成日時
-  datetime 更新日時
-  boolean 削除フラグ
-}
+  M_職員権限 {
+    string コード PK
+    string 名称
+    string 表示順
+    string 有効フラグ
+  }
 
-T_管理者Googleホワイトリスト {
-  string ホワイトリストID PK
-  string GoogleユーザーID
-  string Googleメール
-  string 表示名
-  string 紐付け認証ID FK
-  string 紐付け会員ID FK
-  boolean 有効フラグ
-  datetime 作成日時
-  datetime 更新日時
-  boolean 削除フラグ
-}
+  M_職員状態 {
+    string コード PK
+    string 名称
+    string 表示順
+    string 有効フラグ
+  }
 
-T_研修 {
-  string 研修ID PK
-  string 研修名
-  date 開催日
-  string 開催終了時刻
-  int 定員
-  int 申込者数
-  string 開催場所
-  string 研修状態コード FK
-  string 主催者
-  boolean 法定外研修フラグ
-  string 研修概要
-  string 研修内容
-  string 費用JSON
-  date 申込開始日
-  date 申込締切日
-  string 講師
-  string 案内状URL
-  string 案内状サムネイルURL
-  string 項目設定JSON
-  string 登録者メール
-  datetime 作成日時
-  datetime 更新日時
-  boolean 削除フラグ
-  string 申込URL
-}
+  M_システムロール {
+    string コード PK
+    string 名称
+    string 表示順
+    string 有効フラグ
+  }
 
-T_研修申込 {
-  string 申込ID PK
-  string 研修ID FK
-  string 会員ID FK "2-FK v360"
-  string 職員ID FK "2-FK v360"
-  string 外部申込者ID FK "2-FK v360 新規"
-  string 申込者区分コード FK "deprecated v360"
-  string 申込者ID "deprecated v360"
-  string 申込状態コード FK
-  datetime 申込日時
-  datetime 取消日時
-  string 出欠状態コード FK "v360新規"
-  datetime 出欠記録日時 "v360新規"
-  string 出欠記録者メール "v360新規"
-  string 事務局メモ "v360新規 管理者専用"
-  string 備考
-  datetime 作成日時
-  datetime 更新日時
-  boolean 削除フラグ
-}
+  M_研修状態 {
+    string コード PK
+    string 名称
+    string 表示順
+    string 有効フラグ
+  }
 
-T_外部申込者 {
-  string 外部申込者ID PK
-  string 氏名
-  string フリガナ
-  string メールアドレス
-  string 電話番号
-  string 事業所名
-  datetime 同意日時
-  datetime 作成日時
-  datetime 更新日時
-  boolean 削除フラグ
-}
+  M_申込状態 {
+    string コード PK
+    string 名称
+    string 表示順
+    string 有効フラグ
+  }
 
-T_年会費納入履歴 {
-  string 年会費履歴ID PK
-  string 会員ID FK
-  string 対象年度
-  string 会費納入状態コード FK
-  date 納入確認日
-  int 金額
-  string 備考
-  datetime 作成日時
-  datetime 更新日時
-  boolean 削除フラグ
-}
+  M_会費納入状態 {
+    string コード PK
+    string 名称
+    string 表示順
+    string 有効フラグ
+  }
 
-T_年会費更新履歴 {
-  string 年会費更新履歴ID PK
-  string 年会費履歴ID FK
-  string 会員ID FK
-  string 対象年度
-  string 操作種別
-  string 更新前JSON
-  string 更新後JSON
-  string 実行者メール
-  datetime 実行日時
-}
+  M_申込者区分 {
+    string コード PK
+    string 名称
+    string 表示順
+    string 削除フラグ
+  }
 
-T_役員 {
-  string 役員ID PK
-  string 会員ID FK
-  string 職員ID FK
-  string 役職コード FK
-  string 組織コード FK
-  date 就任日
-  date 退任日
-  string 備考
-  boolean 削除フラグ
-  datetime 作成日時
-  datetime 更新日時
-}
+  M_管理者権限 {
+    string コード PK
+    string 名称
+    string 表示順
+    string 有効フラグ
+  }
 
-T_振込口座 {
-  string 口座ID PK
-  string 会員ID FK
-  string 職員ID FK
-  string 金融機関名
-  string 金融機関コード
-  string 支店名
-  string 支店コード
-  string 口座種別
-  string 口座番号
-  string 口座名義カナ
-  string 備考
-  boolean 削除フラグ
-  datetime 作成日時
-  datetime 更新日時
-}
+  M_出欠状態 {
+    string コード PK
+    string 名称
+    int 表示順
+    boolean 有効フラグ
+  }
 
-T_支払い {
-  string 支払いID PK
-  string 会員ID FK
-  date 支払い日
-  string 支払い方法
-  int 合計金額
-  string 振込先口座JSON
-  string 登録者メール
-  string 備考
-  boolean 削除フラグ
-  datetime 作成日時
-  datetime 更新日時
-}
+  M_組織マスタ {
+    string 組織コード PK
+    string 組織名
+    string 組織種別
+    int 表示順
+    boolean 全役員表示フラグ
+    boolean 有効フラグ
+    string 削除フラグ
+    string 作成日時
+    string 更新日時
+  }
 
-T_支払い明細 {
-  string 明細ID PK
-  string 支払いID FK
-  string 請求ID FK
-  string 役職コード FK
-  string 組織コード FK
-  string 種別コード FK
-  int 金額
-  date 対象期間FROM
-  date 対象期間TO
-  string 摘要
-  boolean 削除フラグ
-  datetime 作成日時
-  datetime 更新日時
-}
+  M_役職マスタ {
+    string 役職コード PK
+    string 役職名
+    string 組織コード FK
+    boolean 委員長フラグ
+    int 表示順
+    boolean 有効フラグ
+    string 削除フラグ
+    string 作成日時
+    string 更新日時
+  }
 
-T_請求 {
-  string 請求ID PK
-  string 会員ID FK
-  string 職員ID FK
-  string 役職コード FK
-  string 組織コード FK
-  string 種別コード FK
-  string 請求種別
-  string 業務分類コード FK
-  int 単価
-  int 数量
-  int 請求金額
-  date 活動日
-  string 活動内容
-  string 添付ファイルURL
-  string 請求状態
-  string 却下理由
-  string 承認者メール
-  datetime 承認日時
-  boolean 削除フラグ
-  datetime 作成日時
-  datetime 更新日時
-}
+  M_支払い種別マスタ {
+    string 種別コード PK
+    string 種別名
+    string 対象区分
+    int 表示順
+    boolean 有効フラグ
+    string 削除フラグ
+    string 作成日時
+    string 更新日時
+  }
 
-T_システム設定 {
-  string 設定キー PK
-  string 設定値
-  string 説明
-  datetime 更新日時
-}
+  M_業務分類 {
+    string 業務分類コード PK
+    string 業務分類名
+    string 組織コード FK
+    int 単価
+    int 表示順
+    boolean 有効フラグ
+    string 削除フラグ
+    string 作成日時
+    string 更新日時
+  }
 
-%% v309: 管理者共有メモ（申し送りホワイトボード）
-%% 他テーブルとのFK関係なし（更新者メールはスナップショット値）
-%% 削除フラグ・作成日時なし（シングルトン運用のため不要）
-T_共有メモ {
-  string キー PK
-  string 内容
-  string 更新者メール
-  string 更新者名
-  datetime 更新日時
-  int バージョン
-}
+  %% ===== メインテーブル =====
+  T_会員 {
+    string 会員ID PK
+    string 会員種別コード FK
+    string 会員状態コード FK
+    date 入会日
+    date 退会日
+    date 移行日
+    date 退会処理日
+    string 姓
+    string 名
+    string セイ
+    string メイ
+    string 代表メールアドレス
+    string 携帯電話番号
+    string 勤務先名
+    string 勤務先郵便番号
+    string 勤務先都道府県
+    string 勤務先市区町村
+    string 勤務先住所
+    string 勤務先住所2
+    string 勤務先電話番号
+    string 勤務先FAX番号
+    string 自宅郵便番号
+    string 自宅都道府県
+    string 自宅市区町村
+    string 自宅住所
+    string 自宅住所2
+    string 発送方法コード FK
+    string 郵送先区分コード FK
+    int 職員数上限
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
+    string 介護支援専門員番号 "基本8桁数字/admin例外1-10桁英数字 (v372.4)"
+    string 事業所番号
+    string ステータスメモ
+  }
 
-T_画面項目権限 {
-  string 権限定義ID PK
-  string システムロールコード FK
-  string 画面コード
-  string 項目コード
-  boolean 閲覧可
-  boolean 登録可
-  boolean 変更可
-  boolean 削除可
-  datetime 作成日時
-  datetime 更新日時
-  boolean 削除フラグ
-}
+  T_事業所職員 {
+    string 職員ID PK
+    string 会員ID FK
+    string 姓
+    string 名
+    string セイ
+    string メイ
+    string 氏名
+    string フリガナ
+    string メールアドレス
+    string 職員権限コード FK
+    string 職員状態コード FK
+    date 入会日
+    date 退会日
+    string 介護支援専門員番号 "基本8桁数字/admin例外1-10桁英数字 (v372.4)"
+    string メール配信希望コード
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
+  }
 
-%% ===== アーカイブシート（メインDB内・退会会員移動先。元テーブルと同スキーマ + サロゲート列）=====
-%% v376.36: アーカイブID(surrogate PK) / アーカイブ日時 を末尾付与。会員ID/職員ID は業務キー。
-T_会員_archive {
-  string アーカイブID PK
-  string 会員ID
-  string 会員種別コード
-  string 会員状態コード
-  date 退会日
-  datetime アーカイブ日時
-}
+  T_認証アカウント {
+    string 認証ID PK
+    string 認証方式
+    string ログインID
+    string パスワードハッシュ
+    string パスワードソルト
+    string GoogleユーザーID
+    string Googleメール
+    string システムロールコード FK
+    string 会員ID FK
+    string 職員ID FK
+    datetime 最終ログイン日時
+    datetime パスワード更新日時
+    boolean アカウント有効フラグ
+    int ログイン失敗回数
+    boolean ロック状態
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
+  }
 
-T_事業所職員_archive {
-  string アーカイブID PK
-  string 職員ID
-  string 会員ID
-  string 職員状態コード
-  datetime アーカイブ日時
-}
+  T_管理者Googleホワイトリスト {
+    string ホワイトリストID PK
+    string Googleメール
+    string 紐付け認証ID FK
+    string 紐付け会員ID FK
+    string 権限コード
+    string ロールID
+    boolean 有効フラグ
+    string 変更者メール
+    string 変更日時
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
+  }
 
-%% ===== ログSS（別スプレッドシート）=====
-T_ログイン履歴 {
-  string ログイン履歴ID PK
-  string 認証ID FK
-  string ログインID
-  string 認証方式
-  string ログイン結果
-  string 失敗理由
-  string 接続元IP
-  string ユーザーエージェント
-  datetime 実行日時
-}
+  T_研修 {
+    string 研修ID PK
+    string 研修名
+    date 開催日
+    string 開催終了時刻
+    int 定員
+    int 申込者数
+    string 開催場所
+    string 研修状態コード FK
+    string 主催者
+    boolean 法定外研修フラグ
+    string 研修概要
+    string 研修内容
+    string 費用JSON
+    date 申込開始日
+    date 申込締切日
+    string 講師
+    string 案内状URL
+    string 案内状サムネイルURL
+    string 項目設定JSON
+    string 登録者メール
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
+    string 申込URL
+  }
 
-T_監査ログ {
-  string 監査ログID PK
-  string 操作者メール
-  string 操作種別
-  string 対象テーブル
-  string 対象ID
-  string 変更前JSON
-  string 変更後JSON
-  datetime 実行日時
-}
+  T_研修申込 {
+    string 申込ID PK
+    string 研修ID FK
+    string 会員ID FK "2-FK v360"
+    string 職員ID FK "2-FK v360"
+    string 申込状態コード FK
+    datetime 申込日時
+    datetime 取消日時
+    string 備考
+    string 申込者区分コード FK "deprecated v360"
+    string 申込者ID "deprecated v360"
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
+    string 外部申込者ID FK "2-FK v360 新規"
+    string 出欠状態コード FK "v360新規"
+    datetime 出欠記録日時 "v360新規"
+    string 出欠記録者メール "v360新規"
+    string 事務局メモ "v360新規 管理者専用"
+  }
 
-T_メール送信ログ {
-  string ログID PK
-  datetime 送信日時
-  string 送信者メール
-  string 件名テンプレート
-  int 宛先数
-  int 成功数
-  int エラー数
-  string 送信種別
-  string 研修ID FK "v360拡張 nullable"
-  boolean 削除フラグ
-}
+  T_外部申込者 {
+    string 外部申込者ID PK
+    string 氏名
+    string フリガナ
+    string メールアドレス
+    string 電話番号
+    string 事業所名
+    datetime 同意日時
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
+  }
 
-%% v360 新規: T_メール送信ログ の per-recipient 明細
-T_メール送信明細 {
-  string 明細ID PK
-  string ログID FK
-  string 研修ID FK "nullable"
-  string 受信者区分 "MEMBER/STAFF/EXTERNAL"
-  string 受信者ID "ポリモーフィック: 会員ID/職員ID/外部申込者ID"
-  string 受信者メール
-  string 送信結果 "SENT/FAILED"
-  string エラー詳細
-  datetime 作成日時
-  boolean 削除フラグ
-}
+  T_年会費納入履歴 {
+    string 年会費履歴ID PK
+    string 会員ID FK
+    string 対象年度
+    string 会費納入状態コード FK
+    date 納入確認日
+    int 金額
+    string 備考
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
+  }
 
-%% ===== リレーション =====
-T_会員 }o--|| M_会員種別 : "会員種別コード"
-T_会員 }o--|| M_会員状態 : "会員状態コード"
-T_会員 }o--o| M_発送方法 : "発送方法コード"
-T_会員 }o--o| M_郵送先区分 : "郵送先区分コード"
+  T_年会費更新履歴 {
+    string 年会費更新履歴ID PK
+    string 年会費履歴ID FK
+    string 会員ID FK
+    string 対象年度
+    string 操作種別
+    string 更新前JSON
+    string 更新後JSON
+    string 実行者メール
+    datetime 実行日時
+  }
 
-T_事業所職員 }o--|| T_会員 : "会員ID"
-T_事業所職員 }o--|| M_職員権限 : "職員権限コード"
-T_事業所職員 }o--|| M_職員状態 : "職員状態コード"
+  T_役員 {
+    string 役員ID PK
+    string 会員ID FK
+    string 職員ID FK
+    string 役職コード FK
+    string 組織コード FK
+    date 就任日
+    date 退任日
+    string 備考
+    boolean 削除フラグ
+    datetime 作成日時
+    datetime 更新日時
+  }
 
-T_認証アカウント }o--|| T_会員 : "会員ID"
-T_認証アカウント }o--o| T_事業所職員 : "職員ID"
-T_認証アカウント }o--|| M_システムロール : "システムロールコード"
+  T_振込口座 {
+    string 口座ID PK
+    string 会員ID FK
+    string 職員ID FK
+    string 金融機関名
+    string 金融機関コード
+    string 支店名
+    string 支店コード
+    string 口座種別
+    string 口座番号
+    string 口座名義カナ
+    string 備考
+    boolean 削除フラグ
+    datetime 作成日時
+    datetime 更新日時
+  }
 
-T_管理者Googleホワイトリスト }o--o| T_認証アカウント : "紐付け認証ID"
-T_管理者Googleホワイトリスト }o--o| T_会員 : "紐付け会員ID"
+  T_支払い {
+    string 支払いID PK
+    string 会員ID FK
+    date 支払い日
+    string 支払い方法
+    int 合計金額
+    string 振込先口座JSON
+    string 登録者メール
+    string 備考
+    boolean 削除フラグ
+    datetime 作成日時
+    datetime 更新日時
+  }
 
-T_研修申込 }o--|| T_研修 : "研修ID"
-T_研修申込 }o--o| T_会員 : "会員ID(v360 2-FK)"
-T_研修申込 }o--o| T_事業所職員 : "職員ID(v360 2-FK)"
-T_研修申込 }o--o| T_外部申込者 : "外部申込者ID(v360 2-FK 新規)"
-T_研修申込 }o--|| M_出欠状態 : "出欠状態コード(v360新規)"
-T_研修申込 }o--|| M_申込者区分 : "申込者区分コード(deprecated v360)"
-T_研修申込 }o--o| M_申込状態 : "申込状態コード"
+  T_支払い明細 {
+    string 明細ID PK
+    string 支払いID FK
+    string 請求ID FK
+    string 役職コード FK
+    string 組織コード FK
+    string 種別コード FK
+    int 金額
+    date 対象期間FROM
+    date 対象期間TO
+    string 摘要
+    boolean 削除フラグ
+    datetime 作成日時
+    datetime 更新日時
+  }
 
-T_メール送信明細 }o--|| T_メール送信ログ : "ログID(v360新規)"
-T_メール送信明細 }o--o| T_研修 : "研修ID(v360新規)"
+  T_請求 {
+    string 請求ID PK
+    string 会員ID FK
+    string 職員ID FK
+    string 役職コード FK
+    string 組織コード FK
+    string 種別コード FK
+    string 請求種別
+    string 業務分類コード FK
+    int 単価
+    int 数量
+    int 請求金額
+    date 活動日
+    string 活動内容
+    string 添付ファイルURL
+    string 請求状態
+    string 却下理由
+    string 承認者メール
+    datetime 承認日時
+    boolean 削除フラグ
+    datetime 作成日時
+    datetime 更新日時
+  }
 
-T_研修 }o--|| M_研修状態 : "研修状態コード"
+  T_システム設定 {
+    string 設定キー PK
+    string 設定値
+    string 説明
+    datetime 更新日時
+  }
 
-T_年会費納入履歴 }o--|| T_会員 : "会員ID"
-T_年会費納入履歴 }o--|| M_会費納入状態 : "会費納入状態コード"
+  T_共有メモ {
+    string キー PK
+    string 内容
+    string 更新者メール
+    string 更新者名
+    datetime 更新日時
+    int バージョン
+  }
 
-T_年会費更新履歴 }o--|| T_年会費納入履歴 : "年会費履歴ID"
-T_年会費更新履歴 }o--|| T_会員 : "会員ID"
+  T_画面項目権限 {
+    string 権限定義ID PK
+    string システムロールコード FK
+    string 画面コード
+    string 項目コード
+    boolean 閲覧可
+    boolean 登録可
+    boolean 変更可
+    boolean 削除可
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
+  }
 
-M_役職マスタ }o--|| M_組織マスタ : "組織コード"
-M_業務分類 }o--|| M_組織マスタ : "組織コード"
-T_役員 }o--o| T_会員 : "会員ID"
-T_役員 }o--o| T_事業所職員 : "職員ID"
-T_役員 }o--|| M_役職マスタ : "役職コード"
-T_役員 }o--|| M_組織マスタ : "組織コード"
-T_振込口座 }o--o| T_会員 : "会員ID"
-T_振込口座 }o--o| T_事業所職員 : "職員ID"
-T_支払い }o--|| T_会員 : "会員ID"
-T_支払い明細 }o--|| T_支払い : "支払いID"
-T_支払い明細 }o--o| T_請求 : "請求ID"
-T_支払い明細 }o--|| M_役職マスタ : "役職コード"
-T_支払い明細 }o--|| M_組織マスタ : "組織コード"
-T_支払い明細 }o--|| M_支払い種別マスタ : "種別コード"
-T_請求 }o--o| T_会員 : "会員ID"
-T_請求 }o--o| T_事業所職員 : "職員ID"
-T_請求 }o--|| M_役職マスタ : "役職コード"
-T_請求 }o--|| M_組織マスタ : "組織コード"
-T_請求 }o--|| M_支払い種別マスタ : "種別コード"
-T_請求 }o--o| M_業務分類 : "業務分類コード"
+  %% ===== アーカイブシート（メインDB内・退会会員移動先。元テーブルと同スキーマ + サロゲート列） =====
+  T_会員_archive {
+    string 会員ID
+    string 会員種別コード
+    string 会員状態コード
+    string 入会日
+    date 退会日
+    string 移行日
+    string 退会処理日
+    string 姓
+    string 名
+    string セイ
+    string メイ
+    string 代表メールアドレス
+    string 携帯電話番号
+    string 勤務先名
+    string 勤務先郵便番号
+    string 勤務先都道府県
+    string 勤務先市区町村
+    string 勤務先住所
+    string 勤務先住所2
+    string 勤務先電話番号
+    string 勤務先FAX番号
+    string 自宅郵便番号
+    string 自宅都道府県
+    string 自宅市区町村
+    string 自宅住所
+    string 自宅住所2
+    string 発送方法コード
+    string 郵送先区分コード
+    string 職員数上限
+    string 作成日時
+    string 更新日時
+    string 削除フラグ
+    string 介護支援専門員番号
+    string 事業所番号
+    string ステータスメモ
+    string アーカイブID PK
+    datetime アーカイブ日時
+  }
 
-T_画面項目権限 }o--|| M_システムロール : "システムロールコード"
+  T_事業所職員_archive {
+    string 職員ID
+    string 会員ID
+    string 姓
+    string 名
+    string セイ
+    string メイ
+    string 氏名
+    string フリガナ
+    string メールアドレス
+    string 職員権限コード
+    string 職員状態コード
+    string 入会日
+    string 退会日
+    string 介護支援専門員番号
+    string メール配信希望コード
+    string 作成日時
+    string 更新日時
+    string 削除フラグ
+    string アーカイブID PK
+    datetime アーカイブ日時
+  }
 
-T_ログイン履歴 }o--o| T_認証アカウント : "認証ID"
+  %% ===== ログSS（別スプレッドシート） =====
+  T_ログイン履歴 {
+    string ログイン履歴ID PK
+    string 認証ID FK
+    string ログインID
+    string 認証方式
+    string ログイン結果
+    string 失敗理由
+    string 接続元IP
+    string ユーザーエージェント
+    datetime 実行日時
+  }
+
+  T_監査ログ {
+    string 監査ログID PK
+    string 操作日時
+    string 操作者メール
+    string 操作種別
+    string 対象テーブル
+    string 対象レコードID
+    string フィールド名
+    string 旧値
+    string 新値
+  }
+
+  T_メール送信ログ {
+    string ログID PK
+    datetime 送信日時
+    string 送信者メール
+    string 件名テンプレート
+    int 宛先数
+    int 成功数
+    int エラー数
+    string 送信種別
+    string 研修ID FK "v360拡張 nullable"
+    boolean 削除フラグ
+  }
+
+  T_メール送信明細 {
+    string 明細ID PK
+    string ログID FK
+    string 研修ID FK "nullable"
+    string 受信者区分 "MEMBER/STAFF/EXTERNAL"
+    string 受信者ID "ポリモーフィック: 会員ID/職員ID/外部申込者ID"
+    string 受信者メール
+    string 送信結果 "SENT/FAILED"
+    string エラー詳細
+    datetime 作成日時
+    boolean 削除フラグ
+  }
+
+  T_権限ロール {
+    string ロールID
+    string ロール名
+    string 説明
+    string 許可メニューJSON
+    string 研修編集スコープ
+    string 組込フラグ
+    string マスターフラグ
+    string 表示順
+    string 作成日時
+    string 更新日時
+    string 削除フラグ
+  }
+
+  T_削除ログ {
+    string ログID
+    string 操作日時
+    string 操作者メール
+    string 対象会員IDリスト
+    string 削除前スナップショットJSON
+  }
+
+  T_変更申請 {
+    string 申請ID
+    string 会員ID
+    string 会員種別コード
+    string 申請種別コード
+    string 申請状態コード
+    string 申請内容JSON
+    string 連絡先メールアドレス
+    string 申請者表示名
+    string 申請日時
+    string 処理日時
+    string 処理者メールアドレス
+    string 処理備考
+    string 作成日時
+    string 更新日時
+    string 削除フラグ
+  }
+
+  T_人物統合ログ {
+    string ログID
+    string 処理種別
+    string 介護支援専門員番号
+    string 旧会員ID
+    string 旧職員ID
+    string 新会員ID
+    string 新職員ID
+    string 結果コード
+    string 詳細JSON
+    string 実行者メール
+    string 実行日時
+    string 作成日時
+    string 削除フラグ
+  }
+
+  T_LINE投稿依頼 {
+    string 投稿依頼ID
+    string ステータス
+    string テキスト
+    string 研修申込リンク
+    string 添付ファイルURL
+    string 添付ファイル種別
+    string 添付ファイル名
+    string 対象種別
+    string 対象ID
+    string 作成者メール
+    string 作成日時
+    string 更新日時
+    string 投稿依頼日時
+    string 投稿日時
+    string 投稿マーク者メール
+    string 備考
+    string 削除フラグ
+  }
+
+  T_会員 }o--|| M_会員種別 : "会員種別コード"
+  T_会員 }o--|| M_会員状態 : "会員状態コード"
+  T_会員 }o--o| M_発送方法 : "発送方法コード"
+  T_会員 }o--o| M_郵送先区分 : "郵送先区分コード"
+  T_事業所職員 }o--|| T_会員 : "会員ID"
+  T_事業所職員 }o--|| M_職員権限 : "職員権限コード"
+  T_事業所職員 }o--|| M_職員状態 : "職員状態コード"
+  T_認証アカウント }o--|| T_会員 : "会員ID"
+  T_認証アカウント }o--o| T_事業所職員 : "職員ID"
+  T_認証アカウント }o--|| M_システムロール : "システムロールコード"
+  T_管理者Googleホワイトリスト }o--o| T_認証アカウント : "紐付け認証ID"
+  T_管理者Googleホワイトリスト }o--o| T_会員 : "紐付け会員ID"
+  T_研修申込 }o--|| T_研修 : "研修ID"
+  T_研修申込 }o--o| T_会員 : "会員ID(v360 2-FK)"
+  T_研修申込 }o--o| T_事業所職員 : "職員ID(v360 2-FK)"
+  T_研修申込 }o--o| T_外部申込者 : "外部申込者ID(v360 2-FK 新規)"
+  T_研修申込 }o--|| M_出欠状態 : "出欠状態コード(v360新規)"
+  T_研修申込 }o--|| M_申込者区分 : "申込者区分コード(deprecated v360)"
+  T_研修申込 }o--o| M_申込状態 : "申込状態コード"
+  T_メール送信明細 }o--|| T_メール送信ログ : "ログID(v360新規)"
+  T_メール送信明細 }o--o| T_研修 : "研修ID(v360新規)"
+  T_研修 }o--|| M_研修状態 : "研修状態コード"
+  T_年会費納入履歴 }o--|| T_会員 : "会員ID"
+  T_年会費納入履歴 }o--|| M_会費納入状態 : "会費納入状態コード"
+  T_年会費更新履歴 }o--|| T_年会費納入履歴 : "年会費履歴ID"
+  T_年会費更新履歴 }o--|| T_会員 : "会員ID"
+  M_役職マスタ }o--|| M_組織マスタ : "組織コード"
+  M_業務分類 }o--|| M_組織マスタ : "組織コード"
+  T_役員 }o--o| T_会員 : "会員ID"
+  T_役員 }o--o| T_事業所職員 : "職員ID"
+  T_役員 }o--|| M_役職マスタ : "役職コード"
+  T_役員 }o--|| M_組織マスタ : "組織コード"
+  T_振込口座 }o--o| T_会員 : "会員ID"
+  T_振込口座 }o--o| T_事業所職員 : "職員ID"
+  T_支払い }o--|| T_会員 : "会員ID"
+  T_支払い明細 }o--|| T_支払い : "支払いID"
+  T_支払い明細 }o--o| T_請求 : "請求ID"
+  T_支払い明細 }o--|| M_役職マスタ : "役職コード"
+  T_支払い明細 }o--|| M_組織マスタ : "組織コード"
+  T_支払い明細 }o--|| M_支払い種別マスタ : "種別コード"
+  T_請求 }o--o| T_会員 : "会員ID"
+  T_請求 }o--o| T_事業所職員 : "職員ID"
+  T_請求 }o--|| M_役職マスタ : "役職コード"
+  T_請求 }o--|| M_組織マスタ : "組織コード"
+  T_請求 }o--|| M_支払い種別マスタ : "種別コード"
+  T_請求 }o--o| M_業務分類 : "業務分類コード"
+  T_画面項目権限 }o--|| M_システムロール : "システムロールコード"
+  T_ログイン履歴 }o--o| T_認証アカウント : "認証ID"
 ```
 
 ---
