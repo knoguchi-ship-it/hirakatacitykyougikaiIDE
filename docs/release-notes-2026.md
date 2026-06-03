@@ -13,6 +13,29 @@
 
 ---
 
+## v376.35 — 2026-06-03 🔧 申込URL 無効時は公開ポータルの申込ボタン自体を非表示（全 3 split @355/@114/@196）
+
+v376.34 では「申込URL 無効＝外部リンクをやめて内部申込ボタンへフォールバック」だったが、利用者の意図（無効にしたら申込ボタンが消えるべき）に合わせ、**申込URL 無効＝公開ポータルでの申込受付 OFF（申込ボタン自体を出さない＝閲覧のみ）**へ仕様変更。
+
+### 申込URL トグルの意味（確定）
+| 状態 | 公開ポータルの CTA |
+|---|---|
+| 有効 ＋ URL 設定あり | 「申込フォームへ」外部リンク |
+| 有効 ＋ URL 空 | 「＋申し込む」内部申込フォーム |
+| **無効** | **申込ボタンなし（閲覧のみ）** |
+
+### 実装
+- `src/shared/trainingOptions.ts`: `effectiveApplicationUrl` を `resolveApplyCta(t): 'none'|'external'|'internal'` へ置換。
+- `PublicTrainingList.tsx`: `applyCta==='none'` のとき CTA ブロック自体を描画しない。
+- `App.tsx`（公開 deep-link）: `none` は申込画面へ飛ばさず一覧＋「この研修は現在オンライン申込を受け付けていません」通知。
+- `TrainingManagement.tsx`: 任意項目設定パネルの説明を新挙動に更新。
+
+### 検証 / デプロイ
+- `npm run typecheck` / build / boundary 監査 PASS（純フロント・GAS Code.gs 不変）。回帰なし（`applicationUrl` 既定 `true`・未設定は有効扱いのため既存研修は申込ボタン表示維持）。
+- 全 3 split redeploy：integrated/public `@355` x2 / member `@114` / admin `@196`。`npx clasp deployments --json` で一致確認（途中 clasp RAPT 失効で再ログイン後に再開）。
+
+---
+
 ## v376.34 — 2026-06-01 🆕 研修任意項目トグルを「有効/無効」化し公開申込画面に反映（全 3 split @354/@113/@195）
 
 研修の任意項目トグル（admin の「表示中」スイッチ）が **admin 編集フォームの表示制御のみ**で公開側に効かず、「`申込URL` を無効にできない（値を消すしかない）」状態だった。config-driven UI の単一情報源化で解消。

@@ -232,10 +232,13 @@ T_研修 {
   date 申込締切日
   string 講師
   string 案内状URL
+  string 案内状サムネイルURL
   string 項目設定JSON
+  string 登録者メール
   datetime 作成日時
   datetime 更新日時
   boolean 削除フラグ
+  string 申込URL
 }
 
 T_研修申込 {
@@ -689,13 +692,27 @@ T_ログイン履歴 }o--o| T_認証アカウント : "認証ID"
 #### `項目設定JSON` スキーマ
 ```json
 {
-  "fieldConfig": { "organizer": true, "summary": true, "fees": true, ... },
+  "fieldConfig": {
+    "organizer": true, "isNonMandatory": true, "summary": true, "description": true,
+    "location": true, "instructor": true, "applicationOpenDate": true,
+    "applicationCloseDate": true, "fees": true, "guidePdfUrl": true, "applicationUrl": true
+  },
   "cancelAllowed": true,
   "inquiryPerson": "事務局 田中",
   "inquiryContactType": "EMAIL",
-  "inquiryContactValue": "support@example.com"
+  "inquiryContactValue": "support@example.com",
+  "inquiryPhone": "072-000-0000",
+  "inquiryEmail": "support@example.com"
 }
 ```
+
+- `fieldConfig` は研修の任意項目トグル（admin 研修管理の「有効/無効」スイッチ）。`true`=有効、`false`=無効。**キー欠落・旧データはデフォルト有効**（`isTrainingFieldEnabled` が `!== false` 判定）。
+- **公開表示への影響（v376.34〜）**: `fieldConfig` は admin 編集フォームだけでなく**公開ポータルの申込画面**の単一情報源。無効の情報項目（講師 / 案内PDF / 申込締切 / 詳細内容 / 費用）は公開ポータルに表示されない。
+- **`applicationUrl` の特別な意味（v376.35〜）**: 公開ポータルの申込 CTA を 3 状態で制御する（`resolveApplyCta`）。
+  - 有効 ＋ `申込URL` 列に値あり → 「申込フォームへ」外部リンク
+  - 有効 ＋ `申込URL` 列が空 → 「＋申し込む」内部申込フォーム
+  - **無効** → **申込ボタンを表示しない（公開での申込受付 OFF・閲覧のみ）**
+- `inquiryPhone` / `inquiryEmail` は v265〜の事業所メール設定差し込み等で参照。`inquiryContactType`/`Value` はプライマリ問合せ先（後方互換）。
 
 ### 4.6 `T_研修申込` — メインDB
 
