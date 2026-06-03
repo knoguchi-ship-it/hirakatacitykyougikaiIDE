@@ -13,6 +13,25 @@
 
 ---
 
+## v376.36 — 2026-06-03 📝 _archive データモデル整備 + 移動ジョブ堅牢化（**未デプロイ / 本番は v376.35 のまま**）
+
+退会会員アーカイブ（`T_会員_archive` / `T_事業所職員_archive`）に関するデータモデル調査・文書化と、移動ジョブのソース堅牢化。**移動ジョブ（`runArchiveOldWithdrawnMembers` / `moveWithdrawnRowsToArchive_`）は build pruner で全 split から除外された dead code**で本番未稼働（archive シートは常に空）。
+
+### 調査結果（重要）
+- アーカイブは「退会から3年超 → 本テーブルから**物理削除**して archive へ**移動**」する設計（追記履歴ではない）。よって `会員ID`/`職員ID` は本テーブルと archive の片方にのみ存在し重複しない。
+- ただし**移動ジョブは現状 pruned（未デプロイ）**のため、実際には移動は一度も起きていない。
+
+### 変更（source + docs のみ）
+- `gas-src` テーブル定義: `T_*_archive` に surrogate `アーカイブID`（PK）+ `アーカイブ日時` を末尾付与。
+- `moveWithdrawnRowsToArchive_`: keyCol 冪等化（既archive済はソース除去のみ）/ dst ヘッダーマップ + サロゲート・日時付与 / archive追記を先・ソース削除を後（データ消失防止）。※pruned のため実行時挙動は不変。
+- `docs/03_DATA_MODEL.md`: ER に archive surrogate 列追加、§4.10 全面改訂（move 設計 / PK 根拠 / dead-code 状態 / 復活手順 / 履歴との区別）。`docs/portal/*` 再生成。
+
+### デプロイ状態
+- **未デプロイ**。実行時挙動が変わらない dormant 変更（移動関数 pruned・`DB_SCHEMA_VERSION` 不変で migration も走らない）かつ clasp RAPT 失効のため、no-op デプロイは見送り。git 側に dormant 差分として保持し、**次の機能リリース、または archive 機能の正式復活時**に同時反映する。
+- archive 機能の活性化（pruner keep-list 追加 + 物理削除実行）は破壊的操作のため別途承認事項（`docs/03` §4.10 復活手順参照）。
+
+---
+
 ## v376.35 — 2026-06-03 🔧 申込URL 無効時は公開ポータルの申込ボタン自体を非表示（全 3 split @355/@114/@196）
 
 v376.34 では「申込URL 無効＝外部リンクをやめて内部申込ボタンへフォールバック」だったが、利用者の意図（無効にしたら申込ボタンが消えるべき）に合わせ、**申込URL 無効＝公開ポータルでの申込受付 OFF（申込ボタン自体を出さない＝閲覧のみ）**へ仕様変更。

@@ -55,6 +55,8 @@
 |---|---|---|
 | GCP Secret Manager セットアップ + Cloud Run Argon2id 反映 | GCP 利用判断時 | `docs/239` (手順), `docs/240` (Cloud Run 設計), `docs/172` (必須・破棄禁止 backlog) |
 | WCAG 2.2 AA 手動検証（NVDA / VoiceOver / キーボード） | 半期レビュー (2026-11) or 大規模 UI 改修時 | `docs/244` §3, `docs/245` §3 |
+| **v376.36 dormant 差分の同梱デプロイ**（_archive surrogate 列定義） | 次の機能リリース時に自動同梱（個別デプロイ不要・実行時挙動不変） | release-notes v376.36 |
+| **退会会員アーカイブ機能の活性化**（移動ジョブを keep-list 追加・物理削除実行） | 運用判断時（破壊的操作＝完全バックアップ＋明示承認必須） | `docs/03_DATA_MODEL.md` §4.10 復活手順 |
 
 ### 2-3. 半期レビュー（5 月 / 11 月）
 
@@ -153,6 +155,7 @@ npm run build:docs-portal                  # docs/portal/*.html + schema.dbml �
 
 | Version | 日付 | 概要 |
 |---|---|---|
+| **v376.36** | 2026-06-03 | **_archive データモデル整備 + 移動ジョブ堅牢化（⚠️ 未デプロイ・本番は v376.35）**。退会会員アーカイブは「3年超で本テーブルから物理削除し archive へ移動」設計だが、移動ジョブ（`runArchiveOldWithdrawnMembers`/`moveWithdrawnRowsToArchive_`）は **build pruner で全 split から除外された dead code**＝本番未稼働（archive シートは常に空）であることを確認。source 堅牢化（surrogate `アーカイブID`/`アーカイブ日時` 列、keyCol 冪等化、archive先書き）+ `docs/03` §4.10 全面改訂 + portal 再生成。**dormant 変更（実行時挙動不変・DB_SCHEMA_VERSION 不変）かつ clasp RAPT 失効のためデプロイ見送り**。git に dormant 差分保持、次の機能リリース/archive 復活時に同時反映。活性化は破壊的操作で別途承認 |
 | **v376.35** | 2026-06-03 | **申込URL 無効時は公開ポータルの申込ボタン自体を非表示**（全 3 split @355/@114/@196）。v376.34 では申込URL無効=内部申込ボタンへフォールバックだったが、要望により「申込URL 無効＝公開での申込受付OFF（申込ボタンを出さない＝閲覧のみ）」へ変更。`trainingOptions.ts` の `effectiveApplicationUrl` を `resolveApplyCta()`（`'none'`/`'external'`/`'internal'` の3状態）へ。`PublicTrainingList` は `none` 時に CTA ブロック自体を非描画、公開 deep-link も `none` は申込画面に飛ばさず一覧＋通知。admin 設定説明を新挙動に修正。回帰なし（`applicationUrl` 既定 true・未設定は有効扱い）。純フロント（GAS 不変）|
 | **v376.34** | 2026-06-01 | **研修任意項目トグルを「有効/無効」化し公開申込画面へ反映**（全 3 split @354/@113/@195）。従来 `fieldConfig`（任意項目トグル）は admin 編集フォームの表示制御のみで公開側に効かず「申込URL を無効にできない」状態だった。config-driven UI の単一情報源化で解消。新規 `src/shared/trainingOptions.ts`（`isTrainingFieldEnabled`/`effectiveApplicationUrl`、項目設定JSON のネスト fieldConfig 解釈）。`PublicTrainingList` で 講師/案内PDF/申込締切/詳細内容/費用/申込URL CTA を各トグルで gate（無効=申込画面に非表示）。**申込URL 無効時は値があっても内部申込フローへ**（外部リンク化しない）。公開 deep-link も `effectiveApplicationUrl` 使用。admin トグルを「表示中/非表示中」→「有効/無効」に改称＋補助文。値は保持し可逆。純フロント（GAS 不変） |
 | **v376.33** | 2026-06-01 | **モーダル入力フォーカス喪失バグ修正**（全 3 split @353/@112/@194）。`TrainingDetailModal` / `PdfPreviewModal` の focus 管理 `useEffect` が依存配列に `onClose` を含み、親 `TrainingManagement` が `onClose`(`closeDetail`) を `useCallback` していないため毎レンダーで参照変化→**入力1文字ごとに effect 再実行→cleanup の focus 復元 + closeButton 再フォーカスで入力欄からフォーカスが奪われ**研修編集フォームが入力不能だった。`onClose` を `onCloseRef` 経由参照にし effect 依存を `[open]` のみへ変更（呼出側のメモ化有無に非依存）。admin が報告バグ本体、member/public は `PdfPreviewModal` の同根予防修正。純フロント（GAS Code.gs 不変）|
