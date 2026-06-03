@@ -114,12 +114,19 @@
 
 ### 4.6 ドキュメント形式規約
 
-- **ER 図 / テーブル設計書は HTML 形式必須**: `docs/03_DATA_MODEL.md` の Mermaid ER 図ブロックは `docs/portal/er-diagram.html` にレンダリング済 HTML として併設する（Mermaid via CDN）。スキーマ変更（テーブル定義 / カラム追加 / 列順変更）を行ったら**同ターン**で `npm run build:docs-portal` を実行し、再生成された HTML を同コミットに含める（§3 ドキュメント・コード整合性同期則に従う）。
+- **ER 図は単一情報源から自動生成（v376.37〜・手書き禁止）**: `docs/03_DATA_MODEL.md` の最初の `mermaid` ER ブロックは **`gas-src テーブル定義`（列の存在/順序＝正本）＋ `docs/er-metadata.json`（型/PK/FK/コメント/リレーション/分類）から自動生成**される（`AUTO-GENERATED` バナー付）。**この ER ブロックを手書き編集してはならない**。
+  - スキーマ変更（`テーブル定義`/`マスタ定義` のカラム追加・列順変更）時の手順（**同ターン**・§3 同期則）:
+    1. `gas-src/Code.full.gs` の `テーブル定義`/`マスタ定義` を更新（列の正本）
+    2. 必要なら `docs/er-metadata.json` に新列の型/キー/コメント・リレーションを追記（未設定は `string` 既定）
+    3. `npm run build:docs-portal`（内部で `scripts/generate-er.mjs` が ER 再生成 → portal 生成）
+    4. `npm run test:er-sync`（ドリフトゲート: stale メタ/不正リレーションを FAIL）を確認し同コミットに含める
+  - `### v305 ER Supplement` 等の**補助 mermaid ブロック**（概念図）は自動生成対象外で手書き可。
+- **テーブル設計書も HTML 併設**: 上記から `docs/portal/tables.html` / `er-diagram.html` / `schema.dbml` を生成（Mermaid/DBML）。
 - **人間可読版の同時保存**: AI が読む用の構造化 Markdown と、人間がブラウザで読みやすい HTML を併設する。本案件では `docs/portal/` がそのエントリ:
   - `docs/portal/index.html` — TOC + 主要原典へのリンク集
   - `docs/portal/er-diagram.html` — Mermaid ER 図（自動生成）
   - `docs/portal/specifications.html` — PRD / アーキテクチャ / 認証 / RBAC / デプロイ / セキュリティのサマリ
-- **再生成コマンド**: `npm run build:docs-portal`（`scripts/build-docs-portal.mjs` が `docs/portal/` 配下 3 ファイルを生成）。Markdown を手で書き換えた後は必ず実行し、HTML との差分を解消する。
+- **再生成コマンド**: `npm run build:docs-portal`（`scripts/generate-er.mjs` で docs/03 ER を再生成後、`scripts/build-docs-portal.mjs` が `docs/portal/` を生成）。スキーマ・仕様を更新したら必ず実行し、`npm run test:er-sync` で ER とテーブル定義の整合を確認する。
 - **文字コードと文字化け**: §3 の「文書作成・更新時の文字コード統一」「文字化け復旧優先」が本 subsection 配下のドキュメント全てに適用される（HTML / Markdown / text 全て UTF-8）。
 
 ## 5. 完了条件

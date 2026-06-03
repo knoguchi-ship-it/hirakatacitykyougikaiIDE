@@ -13,6 +13,27 @@
 
 ---
 
+## v376.37 — 2026-06-03 🏗️ ER 単一情報源化（A+B ハイブリッド）+ ドリフトゲート（**docs/build ツーリングのみ・本番非該当**）
+
+ER 図（docs/03 main + portal）が `gas-src テーブル定義` と乖離する構造問題を根絶。設計→モデリング確認→仕様確認→実装の順で対応。
+
+### アーキテクチャ
+- **列の存在/順序** = `gas-src テーブル定義`＋`マスタ定義`（正本・不変）
+- **型/PK/FK/コメント/リレーション(48)/分類** = `docs/er-metadata.json`（新規・手書き正本。現行 ER から bootstrap）
+- `docs/03` の最初の mermaid ER は **自動生成**（`scripts/generate-er.mjs`・AUTO-GENERATED バナー・手書き禁止）→ build-docs-portal が portal 化
+- **ドリフトゲート** `scripts/test-er-sync.mjs`（prerelease 追加）: stale メタ/不正リレーションを FAIL、型未設定を WARN
+
+### ゲートが検出・是正した実ドリフト
+- T_会員/T_事業所職員 の `介護支援専門員番号` 等コメント付き列が portal に復活（前段 v376 portal parser fix と合わせ完全反映）
+- 旧 ER の誤り列を排除: `T_管理者Googleホワイトリスト` の `GoogleユーザーID`(v118廃止)/`表示名`、`T_監査ログ` の `対象ID/変更前JSON/変更後JSON/実行日時` → 実列（`Googleメール`/`操作日時`/`対象レコードID`/`旧値`/`新値`）へ
+- ER 掲載テーブル 40→45（テーブル定義の全テーブル網羅）
+
+### 状態
+- `test:er-sync` PASS（45 テーブル/48 リレーション/stale=0）。残 WARN 115（主に M_ マスタ列の型未設定・default string 出力）は情報レベルで順次 metadata 補強。
+- **docs/build ツーリングのみ**（GAS テーブル定義 不変・本番デプロイ非該当）。`AGENTS.md §4.6` を「ER は手書き禁止・テーブル定義+er-metadata.json から生成」に改訂。
+
+---
+
 ## v376.36 — 2026-06-03 📝 _archive データモデル整備 + 移動ジョブ堅牢化（**未デプロイ / 本番は v376.35 のまま**）
 
 退会会員アーカイブ（`T_会員_archive` / `T_事業所職員_archive`）に関するデータモデル調査・文書化と、移動ジョブのソース堅牢化。**移動ジョブ（`runArchiveOldWithdrawnMembers` / `moveWithdrawnRowsToArchive_`）は build pruner で全 split から除外された dead code**で本番未稼働（archive シートは常に空）。

@@ -57,6 +57,7 @@
 | WCAG 2.2 AA 手動検証（NVDA / VoiceOver / キーボード） | 半期レビュー (2026-11) or 大規模 UI 改修時 | `docs/244` §3, `docs/245` §3 |
 | **v376.36 dormant 差分の同梱デプロイ**（_archive surrogate 列定義） | 次の機能リリース時に自動同梱（個別デプロイ不要・実行時挙動不変） | release-notes v376.36 |
 | **退会会員アーカイブ機能の活性化**（移動ジョブを keep-list 追加・物理削除実行） | 運用判断時（破壊的操作＝完全バックアップ＋明示承認必須） | `docs/03_DATA_MODEL.md` §4.10 復活手順 |
+| **ER metadata の型補強**（`test:er-sync` WARN 115 件＝主に M_ マスタ列が `string` 既定出力） | 任意・随時。`docs/er-metadata.json` に型/キーを追記して ER 精度向上 | release-notes v376.37 |
 
 ### 2-3. 半期レビュー（5 月 / 11 月）
 
@@ -155,6 +156,7 @@ npm run build:docs-portal                  # docs/portal/*.html + schema.dbml �
 
 | Version | 日付 | 概要 |
 |---|---|---|
+| **v376.37** | 2026-06-03 | **ER 単一情報源化（A+B ハイブリッド）+ ドリフトゲート（docs/build ツーリングのみ・本番非該当）**。ER（docs/03 main + portal）の手書きドリフトを根絶。列の存在/順序＝`gas-src テーブル定義`(正本)、型/PK/FK/コメント/リレーション/分類＝`docs/er-metadata.json`(新規手書き正本)。`scripts/generate-er.mjs` が docs/03 ER を**自動生成**（手書き禁止・AUTO-GENERATED バナー）→ portal 化。`scripts/test-er-sync.mjs`(prerelease) が stale メタ/不正リレーションを FAIL。ゲートが実ドリフト是正（旧 ER の `GoogleユーザーID`(v118廃止)/`表示名`/`T_監査ログ` 誤り列を実列へ、`介護支援専門員番号` 等復活、40→45 テーブル網羅）。`AGENTS.md §4.6` 改訂。GAS 不変・本番デプロイ非該当 |
 | **v376.36** | 2026-06-03 | **_archive データモデル整備 + 移動ジョブ堅牢化（⚠️ 未デプロイ・本番は v376.35）**。退会会員アーカイブは「3年超で本テーブルから物理削除し archive へ移動」設計だが、移動ジョブ（`runArchiveOldWithdrawnMembers`/`moveWithdrawnRowsToArchive_`）は **build pruner で全 split から除外された dead code**＝本番未稼働（archive シートは常に空）であることを確認。source 堅牢化（surrogate `アーカイブID`/`アーカイブ日時` 列、keyCol 冪等化、archive先書き）+ `docs/03` §4.10 全面改訂 + portal 再生成。**dormant 変更（実行時挙動不変・DB_SCHEMA_VERSION 不変）かつ clasp RAPT 失効のためデプロイ見送り**。git に dormant 差分保持、次の機能リリース/archive 復活時に同時反映。活性化は破壊的操作で別途承認 |
 | **v376.35** | 2026-06-03 | **申込URL 無効時は公開ポータルの申込ボタン自体を非表示**（全 3 split @355/@114/@196）。v376.34 では申込URL無効=内部申込ボタンへフォールバックだったが、要望により「申込URL 無効＝公開での申込受付OFF（申込ボタンを出さない＝閲覧のみ）」へ変更。`trainingOptions.ts` の `effectiveApplicationUrl` を `resolveApplyCta()`（`'none'`/`'external'`/`'internal'` の3状態）へ。`PublicTrainingList` は `none` 時に CTA ブロック自体を非描画、公開 deep-link も `none` は申込画面に飛ばさず一覧＋通知。admin 設定説明を新挙動に修正。回帰なし（`applicationUrl` 既定 true・未設定は有効扱い）。純フロント（GAS 不変）|
 | **v376.34** | 2026-06-01 | **研修任意項目トグルを「有効/無効」化し公開申込画面へ反映**（全 3 split @354/@113/@195）。従来 `fieldConfig`（任意項目トグル）は admin 編集フォームの表示制御のみで公開側に効かず「申込URL を無効にできない」状態だった。config-driven UI の単一情報源化で解消。新規 `src/shared/trainingOptions.ts`（`isTrainingFieldEnabled`/`effectiveApplicationUrl`、項目設定JSON のネスト fieldConfig 解釈）。`PublicTrainingList` で 講師/案内PDF/申込締切/詳細内容/費用/申込URL CTA を各トグルで gate（無効=申込画面に非表示）。**申込URL 無効時は値があっても内部申込フローへ**（外部リンク化しない）。公開 deep-link も `effectiveApplicationUrl` 使用。admin トグルを「表示中/非表示中」→「有効/無効」に改称＋補助文。値は保持し可逆。純フロント（GAS 不変） |
