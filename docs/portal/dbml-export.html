@@ -324,7 +324,7 @@ footer {
     <button class="copy-btn" onclick="copyDbml()">📋 全文コピー</button>
     <pre id="dbml-src">// 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能
 // 元: docs/03_DATA_MODEL.md
-// 生成日時: 2026-06-03T02:59:34.844Z
+// 生成日時: 2026-06-03T06:27:09.709Z
 
 Project hcmn_member_system {
   database_type: &quot;Google Spreadsheet (logical)&quot;
@@ -505,9 +505,11 @@ Table &quot;T_事業所職員&quot; {
 }
 
 Table &quot;T_事業所職員_archive&quot; {
-  &quot;職員ID&quot; varchar [pk]
+  &quot;アーカイブID&quot; varchar [pk]
+  &quot;職員ID&quot; varchar
   &quot;会員ID&quot; varchar
   &quot;職員状態コード&quot; varchar
+  &quot;アーカイブ日時&quot; timestamp
 }
 
 Table &quot;T_会員&quot; {
@@ -548,10 +550,12 @@ Table &quot;T_会員&quot; {
 }
 
 Table &quot;T_会員_archive&quot; {
-  &quot;会員ID&quot; varchar [pk]
+  &quot;アーカイブID&quot; varchar [pk]
+  &quot;会員ID&quot; varchar
   &quot;会員種別コード&quot; varchar
   &quot;会員状態コード&quot; varchar
   &quot;退会日&quot; date
+  &quot;アーカイブ日時&quot; timestamp
 }
 
 Table &quot;T_共有メモ&quot; {
@@ -837,7 +841,7 @@ Ref: &quot;T_請求&quot;.&quot;業務分類コード&quot; &gt; &quot;M_業務�
 Ref: &quot;T_画面項目権限&quot;.&quot;システムロールコード&quot; &gt; &quot;M_システムロール&quot;.&quot;コード&quot; // システムロールコード
 Ref: &quot;T_ログイン履歴&quot;.&quot;認証ID&quot; &gt; &quot;T_認証アカウント&quot;.&quot;認証ID&quot; // 認証ID</pre>
   </div>
-  <p style="font-size: 0.85em; color: var(--muted);">行数: 514 / 容量: 10.0 KB</p>
+  <p style="font-size: 0.85em; color: var(--muted);">行数: 518 / 容量: 10.1 KB</p>
 </section>
 
 <section class="card">

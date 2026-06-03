@@ -571,15 +571,19 @@ erDiagram
     datetime 実行日時
   }
   T_会員_archive {
-    string 会員ID PK
+    string アーカイブID PK
+    string 会員ID
     string 会員種別コード
     string 会員状態コード
     date 退会日
+    datetime アーカイブ日時
   }
   T_事業所職員_archive {
-    string 職員ID PK
+    string アーカイブID PK
+    string 職員ID
     string 会員ID
     string 職員状態コード
+    datetime アーカイブ日時
   }
   M_会員種別 {
     string id PK

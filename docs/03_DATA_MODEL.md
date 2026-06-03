@@ -418,18 +418,23 @@ T_画面項目権限 {
   boolean 削除フラグ
 }
 
-%% ===== アーカイブシート（メインDB内・退会会員移動先）=====
+%% ===== アーカイブシート（メインDB内・退会会員移動先。元テーブルと同スキーマ + サロゲート列）=====
+%% v376.36: アーカイブID(surrogate PK) / アーカイブ日時 を末尾付与。会員ID/職員ID は業務キー。
 T_会員_archive {
-  string 会員ID PK
+  string アーカイブID PK
+  string 会員ID
   string 会員種別コード
   string 会員状態コード
   date 退会日
+  datetime アーカイブ日時
 }
 
 T_事業所職員_archive {
-  string 職員ID PK
+  string アーカイブID PK
+  string 職員ID
   string 会員ID
   string 職員状態コード
+  datetime アーカイブ日時
 }
 
 %% ===== ログSS（別スプレッドシート）=====
@@ -785,10 +790,34 @@ v360 以降、研修申込者の識別は **3 つの独立した FK 列の XOR �
 - `TRAINING_FILE_FOLDER_ID` / `CLAIM_ATTACHMENT_FOLDER_ID`
 - `BULK_MAIL_AUTO_ATTACH_FOLDER_ID` / `EMAIL_LOG_VIEWER_ROLE`（MASTER 限定）
 
-### 4.10 `T_会員_archive` / `T_事業所職員_archive` — メインDB（v261追加）
+### 4.10 `T_会員_archive` / `T_事業所職員_archive` — メインDB（v261追加 / v376.36 改訂）
 
-- 退会日から3年超の WITHDRAWN 会員を `runArchiveOldWithdrawnMembers()` で定期移動（月次推奨）。
-- 同一スプレッドシート内の別シート。スキーマは元テーブルと同一。
+同一スプレッドシート内の別シート。スキーマは元テーブル + サロゲート列（`アーカイブID` / `アーカイブ日時`）。
+
+#### 設計モデル: 「移動（move）」であって追記履歴ではない
+退会会員の扱いは **2 段階**:
+
+| 段階 | 操作 | 元テーブル(T_会員) | archive |
+|---|---|---|---|
+| 退会時 | **ソフト削除**（`削除フラグ=true`・退会日記録） | 残る（退会日まで利用可・復元可） | 無し |
+| 退会から3年超 | `moveWithdrawnRowsToArchive_` が archive へ追記 ＋ **元テーブルから物理削除** | **物理削除（行除去）** | 1 行 |
+
+→ ある `会員ID`/`職員ID` は **元テーブルと archive のどちらか片方にのみ存在**する（移動のため）。したがって自然キー（会員ID）でも重複しない。**追記履歴モデルなら同一 ID が複数行になり自然キーは PK になり得ない**が、本設計は move なのでその問題は起きない。
+
+#### 主キー（v376.36〜）
+- **`アーカイブID`（surrogate, `ARC-` + UUID12）を主キー**とする。`会員ID`/`職員ID` は業務キー（移動モデル上は一意だが、Spreadsheet は一意制約を強制できないためサロゲートを併設）。
+- `アーカイブ日時`（ISO）でいつ移動したかを記録。
+- `moveWithdrawnRowsToArchive_` は **冪等**: 既に archive 済みの key は二重追記せず元テーブルから除去（前回ジョブの部分失敗からの自己修復）。archive 追記を先に行い成功後に元テーブルを削除（データ消失防止）。
+
+#### ⚠️ 現在の稼働状態（重要）
+- **`runArchiveOldWithdrawnMembers()` / `moveWithdrawnRowsToArchive_` は build pruner により全 split の生成物から除外されている（dead code）。** したがって**移動ジョブは本番で一度も実行されず、archive シートは常に空**である（シート定義と `normalizeTableColumns_` は deploy 済なのでシート自体は存在しうる）。
+- 物理削除を伴うため、**有効化は破壊的操作（§4.3 / §6 相当）**。有効化する場合の手順:
+  1. `scripts/build-admin-gas.mjs` の keep-list に `runArchiveOldWithdrawnMembers` を追加 → build → admin 再デプロイ
+  2. `rebuildDatabaseSchema`（または DB_SCHEMA_VERSION bump）で archive シートに `アーカイブID`/`アーカイブ日時` 列を反映
+  3. 完全バックアップ＋明示承認のうえ `runArchiveOldWithdrawnMembers` を実行（cutoff=退会から3年）
+
+#### 履歴・監査が必要な場合
+変更履歴（誰がいつ何を変えたか）が必要になったら、archive ではなく **append-only の監査テーブル**（surrogate PK + スナップショット日時、元データは残置）を別途用意する。本案件では `T_監査ログ` / `T_人物統合ログ` がその役割。archive（コールドストレージ）と監査（履歴）を混同しない。
 
 ### 4.11 `T_変更申請` — メインDB（v264追加）
 

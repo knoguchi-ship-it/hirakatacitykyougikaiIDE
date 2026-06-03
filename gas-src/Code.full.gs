@@ -613,9 +613,13 @@ var テーブル定義 = {
   ],
 };
 
-// v259: 退会済み会員のアーカイブシート（メインDB内。同スキーマ）
-テーブル定義['T_会員_archive'] = テーブル定義['T_会員'].slice();
-テーブル定義['T_事業所職員_archive'] = テーブル定義['T_事業所職員'].slice();
+// v259: 退会済み会員のアーカイブシート（メインDB内。元テーブルと同スキーマ + アーカイブ用サロゲート列）
+// v376.36: surrogate `アーカイブID`（主キー的に一意）と `アーカイブ日時` を末尾付与。
+//   退会済み会員は本テーブルから物理削除して archive へ「移動」するため、会員ID/職員ID は
+//   本テーブルと archive のどちらか片方にのみ存在し重複しない（=natural key でも成立）が、
+//   Spreadsheet は一意制約を強制できないため、冪等性・追跡性のためサロゲート列を併設する。
+テーブル定義['T_会員_archive'] = テーブル定義['T_会員'].slice().concat(['アーカイブID', 'アーカイブ日時']);
+テーブル定義['T_事業所職員_archive'] = テーブル定義['T_事業所職員'].slice().concat(['アーカイブID', 'アーカイブ日時']);
 // v264: 公開ポータル変更申請テーブル（管理者承認待ちキュー）
 テーブル定義['T_変更申請'] = [
   '申請ID', '会員ID', '会員種別コード', '申請種別コード', '申請状態コード',
@@ -24032,51 +24036,89 @@ function runArchiveOldWithdrawnMembers() {
   var cutoffStr = cutoff.toISOString().slice(0, 10);
 
   var results = {
-    members: moveWithdrawnRowsToArchive_(ss, 'T_会員', 'T_会員_archive', '退会日', cutoffStr),
-    staff: moveWithdrawnRowsToArchive_(ss, 'T_事業所職員', 'T_事業所職員_archive', '退会日', cutoffStr),
+    members: moveWithdrawnRowsToArchive_(ss, 'T_会員', 'T_会員_archive', '退会日', cutoffStr, '会員ID'),
+    staff: moveWithdrawnRowsToArchive_(ss, 'T_事業所職員', 'T_事業所職員_archive', '退会日', cutoffStr, '職員ID'),
   };
   invalidateAllDataCache_();
   return { status: 'done', cutoff: cutoffStr, moved: results };
 }
 
-function moveWithdrawnRowsToArchive_(ss, srcName, dstName, dateCol, cutoffStr) {
+// v376.36: 退会済み行を archive へ「移動」（追記 + ソースから物理削除）。
+//   - keyCol（会員ID/職員ID）で冪等化: 既に archive 済みの key は二重追記せずソースから除去（自己修復）
+//   - archive 行は dst ヘッダー順にマップして構築し、surrogate `アーカイブID` と `アーカイブ日時` を付与
+//   - dst スキーマを実行時に normalizeTableColumns_ で最新化（アーカイブ列を保証）
+function moveWithdrawnRowsToArchive_(ss, srcName, dstName, dateCol, cutoffStr, keyCol) {
   var srcSheet = ss.getSheetByName(srcName);
   var dstSheet = ss.getSheetByName(dstName);
   if (!srcSheet || !dstSheet || srcSheet.getLastRow() < 2) return 0;
 
+  // archive スキーマを最新化（アーカイブID/アーカイブ日時 列を保証）
+  try { normalizeTableColumns_(ss, dstName); } catch (e) { Logger.log('moveWithdrawnRowsToArchive_ normalize skipped: ' + e); }
+
   var headers = srcSheet.getRange(1, 1, 1, srcSheet.getLastColumn()).getValues()[0];
   var cols = {};
   for (var h = 0; h < headers.length; h++) cols[headers[h]] = h;
+  var dstHeaders = dstSheet.getRange(1, 1, 1, dstSheet.getLastColumn()).getValues()[0];
+
+  // 既存 archive の key 集合（冪等性: 二重移動・二重追記を防止）
+  var existingKeys = {};
+  if (keyCol && dstSheet.getLastRow() >= 2) {
+    var dKeyIdx = dstHeaders.indexOf(keyCol);
+    if (dKeyIdx >= 0) {
+      var dKeys = dstSheet.getRange(2, dKeyIdx + 1, dstSheet.getLastRow() - 1, 1).getValues();
+      for (var k = 0; k < dKeys.length; k++) {
+        var kv = String(dKeys[k][0] || '').trim();
+        if (kv) existingKeys[kv] = true;
+      }
+    }
+  }
 
   var data = srcSheet.getRange(2, 1, srcSheet.getLastRow() - 1, srcSheet.getLastColumn()).getValues();
   var keepRows = [];
   var archiveRows = [];
+  var nowIso = new Date().toISOString();
 
   for (var r = 0; r < data.length; r++) {
     var isDeleted = toBoolean_(data[r][cols['削除フラグ']]);
     var withdrawnDate = cols[dateCol] != null ? normalizeDateInput_(data[r][cols[dateCol]]) : '';
-    // 削除済み かつ 退会日が cutoff より前 → アーカイブ対象
-    if (isDeleted && withdrawnDate && withdrawnDate <= cutoffStr) {
-      archiveRows.push(data[r]);
-    } else {
-      keepRows.push(data[r]);
+    var isCandidate = isDeleted && withdrawnDate && withdrawnDate <= cutoffStr;
+    if (!isCandidate) { keepRows.push(data[r]); continue; }
+
+    var keyVal = keyCol && cols[keyCol] != null ? String(data[r][cols[keyCol]] || '').trim() : '';
+    if (keyVal && existingKeys[keyVal]) {
+      // 既に archive 済（前回の部分失敗等）→ 二重追記せずソースから除去（冪等な自己修復）
+      Logger.log('moveWithdrawnRowsToArchive_: duplicate key already archived, removing from source: ' + dstName + ' / ' + keyVal);
+      continue;
     }
+    // dst ヘッダー順に行を構築（source 値はヘッダー名でマップ、サロゲート/日時を付与）
+    var archiveId = 'ARC-' + Utilities.getUuid().split('-').join('').substring(0, 12).toUpperCase();
+    var row = [];
+    for (var c = 0; c < dstHeaders.length; c++) {
+      var hn = dstHeaders[c];
+      if (hn === 'アーカイブID') row.push(archiveId);
+      else if (hn === 'アーカイブ日時') row.push(nowIso);
+      else if (cols[hn] != null) row.push(data[r][cols[hn]]);
+      else row.push('');
+    }
+    archiveRows.push(row);
+    if (keyVal) existingKeys[keyVal] = true;
   }
 
-  if (archiveRows.length === 0) return 0;
+  // 候補も重複除去も無ければ何もしない
+  if (archiveRows.length === 0 && keepRows.length === data.length) return 0;
 
-  // アーカイブシートに追記
-  var dstLast = dstSheet.getLastRow();
-  var startRow = dstLast + 1;
-  var neededRows = startRow + archiveRows.length - 1;
-  if (neededRows > dstSheet.getMaxRows()) {
-    dstSheet.insertRowsAfter(dstSheet.getMaxRows(), neededRows - dstSheet.getMaxRows());
+  // archive シートに先に追記（保存成功後にソースを削除＝データ消失防止）
+  if (archiveRows.length > 0) {
+    var startRow = dstSheet.getLastRow() + 1;
+    var neededRows = startRow + archiveRows.length - 1;
+    if (neededRows > dstSheet.getMaxRows()) {
+      dstSheet.insertRowsAfter(dstSheet.getMaxRows(), neededRows - dstSheet.getMaxRows());
+    }
+    dstSheet.getRange(startRow, 1, archiveRows.length, dstHeaders.length).setValues(archiveRows);
   }
-  dstSheet.getRange(startRow, 1, archiveRows.length, archiveRows[0].length).setValues(archiveRows);
 
-  // ソースシートを更新（アーカイブ済み行を削除）
-  var newData = keepRows.length > 0 ? keepRows : [new Array(headers.length).fill('')];
-  srcSheet.getRange(2, 1, srcSheet.getLastRow() - 1, srcSheet.getLastColumn()).clearContent();
+  // ソースの整理（archive 追記成功後に keepRows のみ残す）
+  srcSheet.getRange(2, 1, data.length, srcSheet.getLastColumn()).clearContent();
   if (keepRows.length > 0) {
     srcSheet.getRange(2, 1, keepRows.length, headers.length).setValues(keepRows);
   }

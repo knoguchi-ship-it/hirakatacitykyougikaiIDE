@@ -1,6 +1,6 @@
 // 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能
 // 元: docs/03_DATA_MODEL.md
-// 生成日時: 2026-06-03T02:59:34.846Z
+// 生成日時: 2026-06-03T06:27:09.711Z
 
 Project hcmn_member_system {
   database_type: "Google Spreadsheet (logical)"
@@ -181,9 +181,11 @@ Table "T_事業所職員" {
 }
 
 Table "T_事業所職員_archive" {
-  "職員ID" varchar [pk]
+  "アーカイブID" varchar [pk]
+  "職員ID" varchar
   "会員ID" varchar
   "職員状態コード" varchar
+  "アーカイブ日時" timestamp
 }
 
 Table "T_会員" {
@@ -224,10 +226,12 @@ Table "T_会員" {
 }
 
 Table "T_会員_archive" {
-  "会員ID" varchar [pk]
+  "アーカイブID" varchar [pk]
+  "会員ID" varchar
   "会員種別コード" varchar
   "会員状態コード" varchar
   "退会日" date
+  "アーカイブ日時" timestamp
 }
 
 Table "T_共有メモ" {

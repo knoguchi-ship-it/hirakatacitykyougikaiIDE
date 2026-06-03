@@ -347,7 +347,7 @@ footer {
     </div>
   
     <div style="margin-bottom: 12px;">
-      <h3 style="margin: 0 0 6px; color: var(--warm);">アーカイブシート（メインDB内・退会会員移動先）</h3>
+      <h3 style="margin: 0 0 6px; color: var(--warm);">アーカイブシート（メインDB内・退会会員移動先。元テーブルと同スキーマ + サロゲート列）</h3>
       <div style="display: flex; flex-wrap: wrap; gap: 6px;">
         <a href="#tbl-T_会員_archive" class="toc-tag">T_会員_archive</a><a href="#tbl-T_事業所職員_archive" class="toc-tag">T_事業所職員_archive</a>
       </div>
@@ -2572,20 +2572,24 @@ footer {
     </div>
   </div>
   
-    <h2 style="color: var(--warm); margin: 36px 0 16px; border-bottom: 2px solid var(--warm); padding-bottom: 6px;">アーカイブシート（メインDB内・退会会員移動先）</h2>
+    <h2 style="color: var(--warm); margin: 36px 0 16px; border-bottom: 2px solid var(--warm); padding-bottom: 6px;">アーカイブシート（メインDB内・退会会員移動先。元テーブルと同スキーマ + サロゲート列）</h2>
     
   <div class="tbl-card" id="tbl-T_会員_archive">
     <div class="tbl-card-head">
       <h4>T_会員_archive</h4>
-      <span class="col-count">4 列</span>
+      <span class="col-count">6 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
         <thead><tr><th>列名</th><th>型</th><th>キー</th></tr></thead>
         <tbody><tr>
-      <td class="col-name">会員ID</td>
+      <td class="col-name">アーカイブID</td>
       <td class="col-type">string</td>
       <td><span class="key-pk">PK</span></td>
+    </tr><tr>
+      <td class="col-name">会員ID</td>
+      <td class="col-type">string</td>
+      <td></td>
     </tr><tr>
       <td class="col-name">会員種別コード</td>
       <td class="col-type">string</td>
@@ -2597,6 +2601,10 @@ footer {
     </tr><tr>
       <td class="col-name">退会日</td>
       <td class="col-type">date</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">アーカイブ日時</td>
+      <td class="col-type">datetime</td>
       <td></td>
     </tr></tbody>
       </table>
@@ -2613,15 +2621,19 @@ footer {
   <div class="tbl-card" id="tbl-T_事業所職員_archive">
     <div class="tbl-card-head">
       <h4>T_事業所職員_archive</h4>
-      <span class="col-count">3 列</span>
+      <span class="col-count">5 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
         <thead><tr><th>列名</th><th>型</th><th>キー</th></tr></thead>
         <tbody><tr>
-      <td class="col-name">職員ID</td>
+      <td class="col-name">アーカイブID</td>
       <td class="col-type">string</td>
       <td><span class="key-pk">PK</span></td>
+    </tr><tr>
+      <td class="col-name">職員ID</td>
+      <td class="col-type">string</td>
+      <td></td>
     </tr><tr>
       <td class="col-name">会員ID</td>
       <td class="col-type">string</td>
@@ -2629,6 +2641,10 @@ footer {
     </tr><tr>
       <td class="col-name">職員状態コード</td>
       <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">アーカイブ日時</td>
+      <td class="col-type">datetime</td>
       <td></td>
     </tr></tbody>
       </table>
