@@ -1,6 +1,6 @@
 // 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能
 // 元: docs/03_DATA_MODEL.md
-// 生成日時: 2026-06-03T06:27:09.711Z
+// 生成日時: 2026-06-03T06:43:56.894Z
 
 Project hcmn_member_system {
   database_type: "Google Spreadsheet (logical)"
@@ -136,13 +136,18 @@ Table "T_メール送信ログ" {
   "成功数" int
   "エラー数" int
   "送信種別" varchar
+  "研修ID" varchar [note: 'FK']
   "削除フラグ" boolean
 }
 
 Table "T_メール送信明細" {
   "明細ID" varchar [pk]
   "ログID" varchar [note: 'FK']
+  "研修ID" varchar [note: 'FK']
+  "受信者区分" varchar
+  "受信者ID" varchar
   "受信者メール" varchar
+  "送信結果" varchar
   "エラー詳細" varchar
   "作成日時" timestamp
   "削除フラグ" boolean
@@ -174,6 +179,7 @@ Table "T_事業所職員" {
   "職員状態コード" varchar [note: 'FK']
   "入会日" date
   "退会日" date
+  "介護支援専門員番号" varchar
   "メール配信希望コード" varchar
   "作成日時" timestamp
   "更新日時" timestamp
@@ -221,6 +227,7 @@ Table "T_会員" {
   "作成日時" timestamp
   "更新日時" timestamp
   "削除フラグ" boolean
+  "介護支援専門員番号" varchar
   "事業所番号" varchar
   "ステータスメモ" varchar
 }
@@ -397,9 +404,18 @@ Table "T_研修" {
 Table "T_研修申込" {
   "申込ID" varchar [pk]
   "研修ID" varchar [note: 'FK']
+  "会員ID" varchar [note: 'FK']
+  "職員ID" varchar [note: 'FK']
+  "外部申込者ID" varchar [note: 'FK']
+  "申込者区分コード" varchar [note: 'FK']
+  "申込者ID" varchar
   "申込状態コード" varchar [note: 'FK']
   "申込日時" timestamp
   "取消日時" timestamp
+  "出欠状態コード" varchar [note: 'FK']
+  "出欠記録日時" timestamp
+  "出欠記録者メール" varchar
+  "事務局メモ" varchar
   "備考" varchar
   "作成日時" timestamp
   "更新日時" timestamp
@@ -481,14 +497,14 @@ Ref: "T_認証アカウント"."システムロールコード" > "M_システ�
 // 自動推定失敗: T_管理者Googleホワイトリスト }o--o| T_認証アカウント : 紐付け認証ID
 // 自動推定失敗: T_管理者Googleホワイトリスト }o--o| T_会員 : 紐付け会員ID
 Ref: "T_研修申込"."研修ID" > "T_研修"."研修ID" // 研修ID
-// 自動推定失敗: T_研修申込 }o--o| T_会員 : 会員ID(v360 2-FK)
-// 自動推定失敗: T_研修申込 }o--o| T_事業所職員 : 職員ID(v360 2-FK)
-// 自動推定失敗: T_研修申込 }o--o| T_外部申込者 : 外部申込者ID(v360 2-FK 新規)
-// 自動推定失敗: T_研修申込 }o--|| M_出欠状態 : 出欠状態コード(v360新規)
-// 自動推定失敗: T_研修申込 }o--|| M_申込者区分 : 申込者区分コード(deprecated v360)
+Ref: "T_研修申込"."会員ID" > "T_会員"."会員ID" // 会員ID(v360 2-FK)
+Ref: "T_研修申込"."職員ID" > "T_事業所職員"."職員ID" // 職員ID(v360 2-FK)
+Ref: "T_研修申込"."外部申込者ID" > "T_外部申込者"."外部申込者ID" // 外部申込者ID(v360 2-FK 新規)
+Ref: "T_研修申込"."出欠状態コード" > "M_出欠状態"."コード" // 出欠状態コード(v360新規)
+Ref: "T_研修申込"."申込者区分コード" > "M_申込者区分"."コード" // 申込者区分コード(deprecated v360)
 Ref: "T_研修申込"."申込状態コード" > "M_申込状態"."コード" // 申込状態コード
 Ref: "T_メール送信明細"."ログID" > "T_メール送信ログ"."ログID" // ログID(v360新規)
-// 自動推定失敗: T_メール送信明細 }o--o| T_研修 : 研修ID(v360新規)
+Ref: "T_メール送信明細"."研修ID" > "T_研修"."研修ID" // 研修ID(v360新規)
 Ref: "T_研修"."研修状態コード" > "M_研修状態"."コード" // 研修状態コード
 Ref: "T_年会費納入履歴"."会員ID" > "T_会員"."会員ID" // 会員ID
 Ref: "T_年会費納入履歴"."会費納入状態コード" > "M_会費納入状態"."コード" // 会費納入状態コード

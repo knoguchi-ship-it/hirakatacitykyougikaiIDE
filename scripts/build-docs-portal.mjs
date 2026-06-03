@@ -344,14 +344,17 @@ function parseErdSource(src) {
       currentEntity = null;
       continue;
     }
-    // entity 内: 列定義 "type name PK|FK?" (type / name は日本語含む)
+    // entity 内: 列定義 `type name [PK|FK] ["comment"]` (type / name は日本語含む)
+    // v376.37 fix: Mermaid の引用符コメント付き列（例: `string 介護支援専門員番号 "基本8桁..."`）を
+    //   取りこぼして portal/schema.dbml から列が脱落していたため、コメントを許容して捕捉する。
     if (currentEntity) {
-      const m = line.match(/^(\S+)\s+(\S+?)(?:\s+(PK|FK|PK,FK|FK,PK))?$/);
+      const m = line.match(/^(\S+)\s+(\S+?)(?:\s+(PK|FK|PK,FK|FK,PK))?(?:\s+"([^"]*)")?$/);
       if (m) {
         currentEntity.columns.push({
           type: m[1],
           name: m[2],
           key: m[3] || '',
+          comment: m[4] || '',
         });
       }
       continue;

@@ -505,6 +505,7 @@ erDiagram
     datetime 作成日時
     datetime 更新日時
     boolean 削除フラグ
+    string 介護支援専門員番号
     string 事業所番号
     string ステータスメモ
   }
@@ -522,6 +523,7 @@ erDiagram
     string 職員状態コード FK
     date 入会日
     date 退会日
+    string 介護支援専門員番号
     string メール配信希望コード
     datetime 作成日時
     datetime 更新日時
@@ -708,9 +710,18 @@ erDiagram
   T_研修申込 {
     string 申込ID PK
     string 研修ID FK
+    string 会員ID FK
+    string 職員ID FK
+    string 外部申込者ID FK
+    string 申込者区分コード FK
+    string 申込者ID
     string 申込状態コード FK
     datetime 申込日時
     datetime 取消日時
+    string 出欠状態コード FK
+    datetime 出欠記録日時
+    string 出欠記録者メール
+    string 事務局メモ
     string 備考
     datetime 作成日時
     datetime 更新日時
@@ -737,12 +748,17 @@ erDiagram
     int 成功数
     int エラー数
     string 送信種別
+    string 研修ID FK
     boolean 削除フラグ
   }
   T_メール送信明細 {
     string 明細ID PK
     string ログID FK
+    string 研修ID FK
+    string 受信者区分
+    string 受信者ID
     string 受信者メール
+    string 送信結果
     string エラー詳細
     datetime 作成日時
     boolean 削除フラグ

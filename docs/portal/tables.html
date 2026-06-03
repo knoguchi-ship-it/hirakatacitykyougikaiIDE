@@ -1042,7 +1042,7 @@ footer {
   <div class="tbl-card" id="tbl-T_会員">
     <div class="tbl-card-head">
       <h4>T_会員</h4>
-      <span class="col-count">34 列</span>
+      <span class="col-count">35 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -1176,6 +1176,10 @@ footer {
       <td class="col-type">boolean</td>
       <td></td>
     </tr><tr>
+      <td class="col-name">介護支援専門員番号</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
       <td class="col-name">事業所番号</td>
       <td class="col-type">string</td>
       <td></td>
@@ -1254,7 +1258,7 @@ footer {
   <div class="tbl-card" id="tbl-T_事業所職員">
     <div class="tbl-card-head">
       <h4>T_事業所職員</h4>
-      <span class="col-count">17 列</span>
+      <span class="col-count">18 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -1310,6 +1314,10 @@ footer {
     </tr><tr>
       <td class="col-name">退会日</td>
       <td class="col-type">date</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">介護支援専門員番号</td>
+      <td class="col-type">string</td>
       <td></td>
     </tr><tr>
       <td class="col-name">メール配信希望コード</td>
@@ -1682,7 +1690,7 @@ footer {
   <div class="tbl-card" id="tbl-T_研修申込">
     <div class="tbl-card-head">
       <h4>T_研修申込</h4>
-      <span class="col-count">9 列</span>
+      <span class="col-count">18 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -1696,6 +1704,26 @@ footer {
       <td class="col-type">string</td>
       <td><span class="key-fk">FK</span></td>
     </tr><tr>
+      <td class="col-name">会員ID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-fk">FK</span></td>
+    </tr><tr>
+      <td class="col-name">職員ID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-fk">FK</span></td>
+    </tr><tr>
+      <td class="col-name">外部申込者ID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-fk">FK</span></td>
+    </tr><tr>
+      <td class="col-name">申込者区分コード</td>
+      <td class="col-type">string</td>
+      <td><span class="key-fk">FK</span></td>
+    </tr><tr>
+      <td class="col-name">申込者ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
       <td class="col-name">申込状態コード</td>
       <td class="col-type">string</td>
       <td><span class="key-fk">FK</span></td>
@@ -1706,6 +1734,22 @@ footer {
     </tr><tr>
       <td class="col-name">取消日時</td>
       <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">出欠状態コード</td>
+      <td class="col-type">string</td>
+      <td><span class="key-fk">FK</span></td>
+    </tr><tr>
+      <td class="col-name">出欠記録日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">出欠記録者メール</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">事務局メモ</td>
+      <td class="col-type">string</td>
       <td></td>
     </tr><tr>
       <td class="col-name">備考</td>
@@ -2776,7 +2820,7 @@ footer {
   <div class="tbl-card" id="tbl-T_メール送信ログ">
     <div class="tbl-card-head">
       <h4>T_メール送信ログ</h4>
-      <span class="col-count">9 列</span>
+      <span class="col-count">10 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -2814,6 +2858,10 @@ footer {
       <td class="col-type">string</td>
       <td></td>
     </tr><tr>
+      <td class="col-name">研修ID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-fk">FK</span></td>
+    </tr><tr>
       <td class="col-name">削除フラグ</td>
       <td class="col-type">boolean</td>
       <td></td>
@@ -2836,7 +2884,7 @@ footer {
   <div class="tbl-card" id="tbl-T_メール送信明細">
     <div class="tbl-card-head">
       <h4>T_メール送信明細</h4>
-      <span class="col-count">6 列</span>
+      <span class="col-count">10 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -2850,7 +2898,23 @@ footer {
       <td class="col-type">string</td>
       <td><span class="key-fk">FK</span></td>
     </tr><tr>
+      <td class="col-name">研修ID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-fk">FK</span></td>
+    </tr><tr>
+      <td class="col-name">受信者区分</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">受信者ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
       <td class="col-name">受信者メール</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">送信結果</td>
       <td class="col-type">string</td>
       <td></td>
     </tr><tr>

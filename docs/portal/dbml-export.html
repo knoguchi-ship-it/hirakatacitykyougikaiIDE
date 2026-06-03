@@ -324,7 +324,7 @@ footer {
     <button class="copy-btn" onclick="copyDbml()">📋 全文コピー</button>
     <pre id="dbml-src">// 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能
 // 元: docs/03_DATA_MODEL.md
-// 生成日時: 2026-06-03T06:27:09.709Z
+// 生成日時: 2026-06-03T06:43:56.893Z
 
 Project hcmn_member_system {
   database_type: &quot;Google Spreadsheet (logical)&quot;
@@ -460,13 +460,18 @@ Table &quot;T_メール送信ログ&quot; {
   &quot;成功数&quot; int
   &quot;エラー数&quot; int
   &quot;送信種別&quot; varchar
+  &quot;研修ID&quot; varchar [note: &#39;FK&#39;]
   &quot;削除フラグ&quot; boolean
 }
 
 Table &quot;T_メール送信明細&quot; {
   &quot;明細ID&quot; varchar [pk]
   &quot;ログID&quot; varchar [note: &#39;FK&#39;]
+  &quot;研修ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;受信者区分&quot; varchar
+  &quot;受信者ID&quot; varchar
   &quot;受信者メール&quot; varchar
+  &quot;送信結果&quot; varchar
   &quot;エラー詳細&quot; varchar
   &quot;作成日時&quot; timestamp
   &quot;削除フラグ&quot; boolean
@@ -498,6 +503,7 @@ Table &quot;T_事業所職員&quot; {
   &quot;職員状態コード&quot; varchar [note: &#39;FK&#39;]
   &quot;入会日&quot; date
   &quot;退会日&quot; date
+  &quot;介護支援専門員番号&quot; varchar
   &quot;メール配信希望コード&quot; varchar
   &quot;作成日時&quot; timestamp
   &quot;更新日時&quot; timestamp
@@ -545,6 +551,7 @@ Table &quot;T_会員&quot; {
   &quot;作成日時&quot; timestamp
   &quot;更新日時&quot; timestamp
   &quot;削除フラグ&quot; boolean
+  &quot;介護支援専門員番号&quot; varchar
   &quot;事業所番号&quot; varchar
   &quot;ステータスメモ&quot; varchar
 }
@@ -721,9 +728,18 @@ Table &quot;T_研修&quot; {
 Table &quot;T_研修申込&quot; {
   &quot;申込ID&quot; varchar [pk]
   &quot;研修ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;会員ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;職員ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;外部申込者ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;申込者区分コード&quot; varchar [note: &#39;FK&#39;]
+  &quot;申込者ID&quot; varchar
   &quot;申込状態コード&quot; varchar [note: &#39;FK&#39;]
   &quot;申込日時&quot; timestamp
   &quot;取消日時&quot; timestamp
+  &quot;出欠状態コード&quot; varchar [note: &#39;FK&#39;]
+  &quot;出欠記録日時&quot; timestamp
+  &quot;出欠記録者メール&quot; varchar
+  &quot;事務局メモ&quot; varchar
   &quot;備考&quot; varchar
   &quot;作成日時&quot; timestamp
   &quot;更新日時&quot; timestamp
@@ -805,14 +821,14 @@ Ref: &quot;T_認証アカウント&quot;.&quot;システムロールコード&qu
 // 自動推定失敗: T_管理者Googleホワイトリスト }o--o| T_認証アカウント : 紐付け認証ID
 // 自動推定失敗: T_管理者Googleホワイトリスト }o--o| T_会員 : 紐付け会員ID
 Ref: &quot;T_研修申込&quot;.&quot;研修ID&quot; &gt; &quot;T_研修&quot;.&quot;研修ID&quot; // 研修ID
-// 自動推定失敗: T_研修申込 }o--o| T_会員 : 会員ID(v360 2-FK)
-// 自動推定失敗: T_研修申込 }o--o| T_事業所職員 : 職員ID(v360 2-FK)
-// 自動推定失敗: T_研修申込 }o--o| T_外部申込者 : 外部申込者ID(v360 2-FK 新規)
-// 自動推定失敗: T_研修申込 }o--|| M_出欠状態 : 出欠状態コード(v360新規)
-// 自動推定失敗: T_研修申込 }o--|| M_申込者区分 : 申込者区分コード(deprecated v360)
+Ref: &quot;T_研修申込&quot;.&quot;会員ID&quot; &gt; &quot;T_会員&quot;.&quot;会員ID&quot; // 会員ID(v360 2-FK)
+Ref: &quot;T_研修申込&quot;.&quot;職員ID&quot; &gt; &quot;T_事業所職員&quot;.&quot;職員ID&quot; // 職員ID(v360 2-FK)
+Ref: &quot;T_研修申込&quot;.&quot;外部申込者ID&quot; &gt; &quot;T_外部申込者&quot;.&quot;外部申込者ID&quot; // 外部申込者ID(v360 2-FK 新規)
+Ref: &quot;T_研修申込&quot;.&quot;出欠状態コード&quot; &gt; &quot;M_出欠状態&quot;.&quot;コード&quot; // 出欠状態コード(v360新規)
+Ref: &quot;T_研修申込&quot;.&quot;申込者区分コード&quot; &gt; &quot;M_申込者区分&quot;.&quot;コード&quot; // 申込者区分コード(deprecated v360)
 Ref: &quot;T_研修申込&quot;.&quot;申込状態コード&quot; &gt; &quot;M_申込状態&quot;.&quot;コード&quot; // 申込状態コード
 Ref: &quot;T_メール送信明細&quot;.&quot;ログID&quot; &gt; &quot;T_メール送信ログ&quot;.&quot;ログID&quot; // ログID(v360新規)
-// 自動推定失敗: T_メール送信明細 }o--o| T_研修 : 研修ID(v360新規)
+Ref: &quot;T_メール送信明細&quot;.&quot;研修ID&quot; &gt; &quot;T_研修&quot;.&quot;研修ID&quot; // 研修ID(v360新規)
 Ref: &quot;T_研修&quot;.&quot;研修状態コード&quot; &gt; &quot;M_研修状態&quot;.&quot;コード&quot; // 研修状態コード
 Ref: &quot;T_年会費納入履歴&quot;.&quot;会員ID&quot; &gt; &quot;T_会員&quot;.&quot;会員ID&quot; // 会員ID
 Ref: &quot;T_年会費納入履歴&quot;.&quot;会費納入状態コード&quot; &gt; &quot;M_会費納入状態&quot;.&quot;コード&quot; // 会費納入状態コード
@@ -841,7 +857,7 @@ Ref: &quot;T_請求&quot;.&quot;業務分類コード&quot; &gt; &quot;M_業務�
 Ref: &quot;T_画面項目権限&quot;.&quot;システムロールコード&quot; &gt; &quot;M_システムロール&quot;.&quot;コード&quot; // システムロールコード
 Ref: &quot;T_ログイン履歴&quot;.&quot;認証ID&quot; &gt; &quot;T_認証アカウント&quot;.&quot;認証ID&quot; // 認証ID</pre>
   </div>
-  <p style="font-size: 0.85em; color: var(--muted);">行数: 518 / 容量: 10.1 KB</p>
+  <p style="font-size: 0.85em; color: var(--muted);">行数: 534 / 容量: 10.6 KB</p>
 </section>
 
 <section class="card">
