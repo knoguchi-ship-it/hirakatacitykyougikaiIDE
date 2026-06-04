@@ -42,78 +42,78 @@ erDiagram
   M_会員状態 {
     string コード PK
     string 名称
-    string 表示順
-    string 有効フラグ
+    int 表示順
+    boolean 有効フラグ
   }
 
   M_発送方法 {
     string コード PK
     string 名称
-    string 表示順
-    string 有効フラグ
+    int 表示順
+    boolean 有効フラグ
   }
 
   M_郵送先区分 {
     string コード PK
     string 名称
-    string 表示順
-    string 有効フラグ
+    int 表示順
+    boolean 有効フラグ
   }
 
   M_職員権限 {
     string コード PK
     string 名称
-    string 表示順
-    string 有効フラグ
+    int 表示順
+    boolean 有効フラグ
   }
 
   M_職員状態 {
     string コード PK
     string 名称
-    string 表示順
-    string 有効フラグ
+    int 表示順
+    boolean 有効フラグ
   }
 
   M_システムロール {
     string コード PK
     string 名称
-    string 表示順
-    string 有効フラグ
+    int 表示順
+    boolean 有効フラグ
   }
 
   M_研修状態 {
     string コード PK
     string 名称
-    string 表示順
-    string 有効フラグ
+    int 表示順
+    boolean 有効フラグ
   }
 
   M_申込状態 {
     string コード PK
     string 名称
-    string 表示順
-    string 有効フラグ
+    int 表示順
+    boolean 有効フラグ
   }
 
   M_会費納入状態 {
     string コード PK
     string 名称
-    string 表示順
-    string 有効フラグ
+    int 表示順
+    boolean 有効フラグ
   }
 
   M_申込者区分 {
     string コード PK
     string 名称
-    string 表示順
-    string 削除フラグ
+    int 表示順
+    boolean 削除フラグ
   }
 
   M_管理者権限 {
     string コード PK
     string 名称
-    string 表示順
-    string 有効フラグ
+    int 表示順
+    boolean 有効フラグ
   }
 
   M_出欠状態 {
@@ -130,9 +130,9 @@ erDiagram
     int 表示順
     boolean 全役員表示フラグ
     boolean 有効フラグ
-    string 削除フラグ
-    string 作成日時
-    string 更新日時
+    boolean 削除フラグ
+    datetime 作成日時
+    datetime 更新日時
   }
 
   M_役職マスタ {
@@ -142,9 +142,9 @@ erDiagram
     boolean 委員長フラグ
     int 表示順
     boolean 有効フラグ
-    string 削除フラグ
-    string 作成日時
-    string 更新日時
+    boolean 削除フラグ
+    datetime 作成日時
+    datetime 更新日時
   }
 
   M_支払い種別マスタ {
@@ -153,9 +153,9 @@ erDiagram
     string 対象区分
     int 表示順
     boolean 有効フラグ
-    string 削除フラグ
-    string 作成日時
-    string 更新日時
+    boolean 削除フラグ
+    datetime 作成日時
+    datetime 更新日時
   }
 
   M_業務分類 {
@@ -165,9 +165,9 @@ erDiagram
     int 単価
     int 表示順
     boolean 有効フラグ
-    string 削除フラグ
-    string 作成日時
-    string 更新日時
+    boolean 削除フラグ
+    datetime 作成日時
+    datetime 更新日時
   }
 
   %% ===== メインテーブル =====
@@ -260,7 +260,7 @@ erDiagram
     string ロールID
     boolean 有効フラグ
     string 変更者メール
-    string 変更日時
+    datetime 変更日時
     datetime 作成日時
     datetime 更新日時
     boolean 削除フラグ
@@ -472,10 +472,10 @@ erDiagram
     string 会員ID
     string 会員種別コード
     string 会員状態コード
-    string 入会日
+    date 入会日
     date 退会日
-    string 移行日
-    string 退会処理日
+    date 移行日
+    date 退会処理日
     string 姓
     string 名
     string セイ
@@ -497,10 +497,10 @@ erDiagram
     string 自宅住所2
     string 発送方法コード
     string 郵送先区分コード
-    string 職員数上限
-    string 作成日時
-    string 更新日時
-    string 削除フラグ
+    int 職員数上限
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
     string 介護支援専門員番号
     string 事業所番号
     string ステータスメモ
@@ -520,13 +520,13 @@ erDiagram
     string メールアドレス
     string 職員権限コード
     string 職員状態コード
-    string 入会日
-    string 退会日
+    date 入会日
+    date 退会日
     string 介護支援専門員番号
     string メール配信希望コード
-    string 作成日時
-    string 更新日時
-    string 削除フラグ
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
     string アーカイブID PK
     datetime アーカイブ日時
   }
@@ -546,7 +546,7 @@ erDiagram
 
   T_監査ログ {
     string 監査ログID PK
-    string 操作日時
+    datetime 操作日時
     string 操作者メール
     string 操作種別
     string 対象テーブル
@@ -582,30 +582,31 @@ erDiagram
     boolean 削除フラグ
   }
 
+  %% ===== その他 =====
   T_権限ロール {
-    string ロールID
+    string ロールID PK
     string ロール名
     string 説明
     string 許可メニューJSON
     string 研修編集スコープ
-    string 組込フラグ
-    string マスターフラグ
-    string 表示順
-    string 作成日時
-    string 更新日時
-    string 削除フラグ
+    boolean 組込フラグ
+    boolean マスターフラグ
+    int 表示順
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
   }
 
   T_削除ログ {
-    string ログID
-    string 操作日時
+    string ログID PK
+    datetime 操作日時
     string 操作者メール
     string 対象会員IDリスト
     string 削除前スナップショットJSON
   }
 
   T_変更申請 {
-    string 申請ID
+    string 申請ID PK
     string 会員ID
     string 会員種別コード
     string 申請種別コード
@@ -613,17 +614,17 @@ erDiagram
     string 申請内容JSON
     string 連絡先メールアドレス
     string 申請者表示名
-    string 申請日時
-    string 処理日時
+    datetime 申請日時
+    datetime 処理日時
     string 処理者メールアドレス
     string 処理備考
-    string 作成日時
-    string 更新日時
-    string 削除フラグ
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
   }
 
   T_人物統合ログ {
-    string ログID
+    string ログID PK
     string 処理種別
     string 介護支援専門員番号
     string 旧会員ID
@@ -633,13 +634,13 @@ erDiagram
     string 結果コード
     string 詳細JSON
     string 実行者メール
-    string 実行日時
-    string 作成日時
-    string 削除フラグ
+    datetime 実行日時
+    datetime 作成日時
+    boolean 削除フラグ
   }
 
   T_LINE投稿依頼 {
-    string 投稿依頼ID
+    string 投稿依頼ID PK
     string ステータス
     string テキスト
     string 研修申込リンク
@@ -649,13 +650,13 @@ erDiagram
     string 対象種別
     string 対象ID
     string 作成者メール
-    string 作成日時
-    string 更新日時
-    string 投稿依頼日時
-    string 投稿日時
+    datetime 作成日時
+    datetime 更新日時
+    datetime 投稿依頼日時
+    datetime 投稿日時
     string 投稿マーク者メール
     string 備考
-    string 削除フラグ
+    boolean 削除フラグ
   }
 
   T_会員 }o--|| M_会員種別 : "会員種別コード"

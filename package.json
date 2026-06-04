@@ -31,6 +31,7 @@
     "test:er-sync": "node scripts/test-er-sync.mjs",
     "test:menu-registry": "node --test scripts/test-menu-registry.mjs",
     "er:bootstrap": "node scripts/bootstrap-er-metadata.mjs",
+    "er:enrich": "node scripts/enrich-er-metadata.mjs",
     "build:docs-portal": "node scripts/generate-er.mjs && node scripts/build-docs-portal.mjs",
     "test:a11y": "node scripts/test-a11y.mjs",
     "test:responsive": "node scripts/responsive-test.mjs",

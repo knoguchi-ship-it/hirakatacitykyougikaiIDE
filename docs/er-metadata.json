@@ -39,7 +39,12 @@
     "T_ログイン履歴",
     "T_監査ログ",
     "T_メール送信ログ",
-    "T_メール送信明細"
+    "T_メール送信明細",
+    "T_権限ロール",
+    "T_削除ログ",
+    "T_変更申請",
+    "T_人物統合ログ",
+    "T_LINE投稿依頼"
   ],
   "sectionByTable": {
     "M_会員種別": "マスタ",
@@ -81,7 +86,12 @@
     "T_ログイン履歴": "ログSS（別スプレッドシート）",
     "T_監査ログ": "ログSS（別スプレッドシート）",
     "T_メール送信ログ": "ログSS（別スプレッドシート）",
-    "T_メール送信明細": "ログSS（別スプレッドシート）"
+    "T_メール送信明細": "ログSS（別スプレッドシート）",
+    "T_権限ロール": "その他",
+    "T_削除ログ": "その他",
+    "T_変更申請": "その他",
+    "T_人物統合ログ": "その他",
+    "T_LINE投稿依頼": "その他"
   },
   "columns": {
     "M_会員種別": {
@@ -121,6 +131,16 @@
         "type": "string",
         "key": "",
         "comment": ""
+      },
+      "表示順": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "有効フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
       }
     },
     "M_発送方法": {
@@ -131,6 +151,16 @@
       },
       "名称": {
         "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "表示順": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "有効フラグ": {
+        "type": "boolean",
         "key": "",
         "comment": ""
       }
@@ -145,6 +175,16 @@
         "type": "string",
         "key": "",
         "comment": ""
+      },
+      "表示順": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "有効フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
       }
     },
     "M_職員権限": {
@@ -155,6 +195,16 @@
       },
       "名称": {
         "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "表示順": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "有効フラグ": {
+        "type": "boolean",
         "key": "",
         "comment": ""
       }
@@ -169,6 +219,16 @@
         "type": "string",
         "key": "",
         "comment": ""
+      },
+      "表示順": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "有効フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
       }
     },
     "M_システムロール": {
@@ -179,6 +239,16 @@
       },
       "名称": {
         "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "表示順": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "有効フラグ": {
+        "type": "boolean",
         "key": "",
         "comment": ""
       }
@@ -193,6 +263,16 @@
         "type": "string",
         "key": "",
         "comment": ""
+      },
+      "表示順": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "有効フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
       }
     },
     "M_申込状態": {
@@ -203,6 +283,16 @@
       },
       "名称": {
         "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "表示順": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "有効フラグ": {
+        "type": "boolean",
         "key": "",
         "comment": ""
       }
@@ -217,6 +307,16 @@
         "type": "string",
         "key": "",
         "comment": ""
+      },
+      "表示順": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "有効フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
       }
     },
     "M_申込者区分": {
@@ -229,6 +329,16 @@
         "type": "string",
         "key": "",
         "comment": ""
+      },
+      "表示順": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
       }
     },
     "M_管理者権限": {
@@ -239,6 +349,16 @@
       },
       "名称": {
         "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "表示順": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "有効フラグ": {
+        "type": "boolean",
         "key": "",
         "comment": ""
       }
@@ -295,6 +415,21 @@
         "type": "boolean",
         "key": "",
         "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
       }
     },
     "M_役職マスタ": {
@@ -327,6 +462,21 @@
         "type": "boolean",
         "key": "",
         "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
       }
     },
     "M_支払い種別マスタ": {
@@ -352,6 +502,21 @@
       },
       "有効フラグ": {
         "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
         "key": "",
         "comment": ""
       }
@@ -384,6 +549,21 @@
       },
       "有効フラグ": {
         "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
         "key": "",
         "comment": ""
       }
@@ -787,6 +967,26 @@
       },
       "削除フラグ": {
         "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "権限コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "ロールID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "変更者メール": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "変更日時": {
+        "type": "datetime",
         "key": "",
         "comment": ""
       }
@@ -1657,6 +1857,161 @@
         "type": "datetime",
         "key": "",
         "comment": ""
+      },
+      "入会日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "移行日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "退会処理日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "姓": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "名": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "セイ": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "メイ": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "代表メールアドレス": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "携帯電話番号": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "勤務先名": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "勤務先郵便番号": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "勤務先都道府県": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "勤務先市区町村": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "勤務先住所": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "勤務先住所2": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "勤務先電話番号": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "勤務先FAX番号": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "自宅郵便番号": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "自宅都道府県": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "自宅市区町村": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "自宅住所": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "自宅住所2": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "発送方法コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "郵送先区分コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "職員数上限": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "介護支援専門員番号": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "事業所番号": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "ステータスメモ": {
+        "type": "string",
+        "key": "",
+        "comment": ""
       }
     },
     "T_事業所職員_archive": {
@@ -1682,6 +2037,81 @@
       },
       "アーカイブ日時": {
         "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "姓": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "名": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "セイ": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "メイ": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "氏名": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "フリガナ": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "メールアドレス": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "職員権限コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "入会日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "退会日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "介護支援専門員番号": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "メール配信希望コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
         "key": "",
         "comment": ""
       }
@@ -1750,6 +2180,31 @@
         "comment": ""
       },
       "対象テーブル": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "操作日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "対象レコードID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "フィールド名": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "旧値": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "新値": {
         "type": "string",
         "key": "",
         "comment": ""
@@ -1850,6 +2305,321 @@
       },
       "作成日時": {
         "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_権限ロール": {
+      "ロールID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "ロール名": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "説明": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "許可メニューJSON": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "研修編集スコープ": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "組込フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "マスターフラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "表示順": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_削除ログ": {
+      "ログID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "操作日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "操作者メール": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "対象会員IDリスト": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "削除前スナップショットJSON": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_変更申請": {
+      "申請ID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "会員ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "会員種別コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "申請種別コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "申請状態コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "申請内容JSON": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "連絡先メールアドレス": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "申請者表示名": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "申請日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "処理日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "処理者メールアドレス": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "処理備考": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_人物統合ログ": {
+      "ログID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "処理種別": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "介護支援専門員番号": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "旧会員ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "旧職員ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "新会員ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "新職員ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "結果コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "詳細JSON": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "実行者メール": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "実行日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_LINE投稿依頼": {
+      "投稿依頼ID": {
+        "type": "string",
+        "key": "PK",
+        "comment": ""
+      },
+      "ステータス": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "テキスト": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "研修申込リンク": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "添付ファイルURL": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "添付ファイル種別": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "添付ファイル名": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "対象種別": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "対象ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "作成者メール": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "投稿依頼日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "投稿日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "投稿マーク者メール": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "備考": {
+        "type": "string",
         "key": "",
         "comment": ""
       },
