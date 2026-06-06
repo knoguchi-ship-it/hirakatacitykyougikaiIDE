@@ -377,7 +377,7 @@ const PublicApp: React.FC = () => {
               className="group rounded-[20px] border border-sky-200 bg-[linear-gradient(135deg,#eff6ff_0%,#ffffff_70%)] p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:rounded-[28px] sm:p-7"
             >
               {content.trainingBadgeEnabled && (
-                <div className="mb-5 inline-flex rounded-full bg-sky-600 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-white">
+                <div className="mb-5 inline-flex rounded-full bg-sky-700 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-white">
                   {content.trainingBadgeLabel}
                 </div>
               )}
@@ -594,7 +594,7 @@ const PublicApp: React.FC = () => {
             <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
               <button
                 onClick={handleBackToTrainingList}
-                className="rounded-full bg-sky-600 px-6 py-3 text-sm font-medium text-white transition hover:bg-sky-700"
+                className="rounded-full bg-sky-700 px-6 py-3 text-sm font-medium text-white transition hover:bg-sky-800"
               >
                 研修一覧に戻る
               </button>
