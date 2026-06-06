@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-06-01
-Production: `v376.35` / integrated-public `@355` x2 / member split `@114` / admin split `@196`
+Production: `v376.38` / integrated-public `@356` x2 / member split `@115` / admin split `@197`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -19,15 +19,15 @@ Production: `v376.35` / integrated-public `@355` x2 / member split `@114` / admi
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@355` (`v376.35`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@355` (`v376.35`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@356` (`v376.38`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@356` (`v376.38`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@114` (`v376.35`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@196` (`v376.35`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@115` (`v376.38`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@197` (`v376.38`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -144,7 +144,12 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-06-03 `v376.35` ← current production
+### 2026-06-06 `v376.38` ← current production
+- Scope: テスト観点表評価（`docs/247`）+ a11y AA コントラスト是正（`bg-sky-600`→`bg-sky-700`、`src/public-portal/App.tsx`）+ `npm audit fix`（moderate 7→5）。Code.gs に v376.36 archive 表定義(dormant・DB_SCHEMA_VERSION 不変)も同梱。
+- Integrated fixed deployments: `@356` x2 ／ Member split: `@115` ／ Admin split: `@197`
+- Verification: typecheck/build/boundary PASS。`npx clasp deployments --json` 一致確認。`npm run test:a11y` で critical/serious/moderate/minor=0 を live 再確認、`test:responsive` 全7VP PASS。
+
+### 2026-06-03 `v376.35`
 - Scope: 申込URL 無効時は公開ポータルの申込ボタン自体を非表示（閲覧のみ）。`trainingOptions.ts` を `resolveApplyCta()`（none/external/internal）へ。`PublicTrainingList` は none で CTA 非描画、公開 deep-link も none は申込画面に飛ばさない。admin 設定説明を更新。純フロント（GAS 不変）。
 - Integrated fixed deployments: `@355` x2 ／ Member split: `@114` ／ Admin split: `@196`
 - Verification: typecheck / build / boundary 監査 PASS。`npx clasp deployments --json` で一致確認。途中 clasp RAPT 失効（`invalid_rapt`）で再ログイン後に再開。

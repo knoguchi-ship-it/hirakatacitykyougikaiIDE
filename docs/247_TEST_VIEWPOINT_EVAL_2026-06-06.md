@@ -19,7 +19,7 @@
 | 3.3 | 回帰: 既存研修の申込ボタン維持 | v376.34/35 | コード論理(既定有効) | ○ | 全研修ライブ網羅は未 |
 | 4.1 | 使用性: deep-link 着地UX/通知 | deep-link | ライブE2E | ◎ | |
 | 4.3 | 使用性: レスポンシブ 320–1920 | 公開UI | `test:responsive`(本日実施) | **◎** | **全7ビューポート横スクロール無し PASS** |
-| 4.4 | a11y: WCAG 2.2 AA | 公開UI | `test:a11y`(本日実施) | **○** | critical=0。**serious 1件(色コントラスト)を本日是正**（下記 §C） |
+| 4.4 | a11y: WCAG 2.2 AA | 公開UI | `test:a11y`(本日実施) | **◎** | 是正後 **critical/serious/moderate/minor=0**（§C・v376.38 デプロイ済で live 再確認） |
 | 5.1 | 信頼性: cold-start で UI 初期化後に適用 | deep-link | ライブE2E | ◎ | |
 | 5.2 | 信頼性: archive 移動の堅牢性 | v376.36 | source のみ | **✗** | 移動関数 pruned=未稼働・runtime 未検証(dead code) |
 | 6.1 | セキュリティ: 入力 sanitize(allowlist/XSS拒否) | deep-link | 単体+ライブXSS E2E(alert不発) | ◎ | OWASP allowlist 準拠を実証 |
@@ -46,7 +46,7 @@
 
 ## C. 本評価で検出・是正した事項（2026-06-06）
 
-1. **a11y serious（色コントラスト）→ 是正**: 公開ホームの「TRAINING」バッジ等 `bg-sky-600`＋白文字 ≈ 3.9:1（WCAG 2 AA 4.5:1 未達）。`bg-sky-700`（≈5.3:1）へ変更（v374 の emerald-700 化と同方針。`src/public-portal/App.tsx` 2 箇所）。→ **v376.38 で反映**。
+1. **a11y serious（色コントラスト）→ 是正**: 公開ホームの「TRAINING」バッジ等 `bg-sky-600`＋白文字 ≈ 3.9:1（WCAG 2 AA 4.5:1 未達）。`bg-sky-700`（≈5.3:1）へ変更（v374 の emerald-700 化と同方針。`src/public-portal/App.tsx` 2 箇所）。→ **v376.38 でデプロイ済（public @356）。`test:a11y` で critical/serious/moderate/minor=0 を live 再確認**。
 2. **npm 依存**: `npm audit fix` で moderate 7→5。残5は `--force`（breaking）要のため見送り、high/critical=0 を維持。
 
 ## D. 残ギャップと推奨次アクション（優先度順）
