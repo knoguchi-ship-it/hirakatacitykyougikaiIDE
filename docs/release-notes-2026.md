@@ -13,6 +13,16 @@
 
 ---
 
+## v376.38 — 2026-06-06 🧪 テスト観点表評価 + a11y AA コントラスト是正 + npm audit fix（**コミット済・デプロイ待ち**）
+
+テスト観点表（ISO/IEC 25010:2023）でコード・ドキュメントを評価し、実行可能なギャップを実測・是正。`docs/247_TEST_VIEWPOINT_EVAL_2026-06-06.md` 参照。
+
+- 実測（公開 live @355）: `test:responsive` 全7ビューポート(320-1920) PASS / `test:a11y` critical=0・serious 1件検出。
+- 是正: 公開ホーム「TRAINING」バッジ等 `bg-sky-600`+白(≈3.9:1) → `bg-sky-700`(≈5.3:1) で WCAG 2 AA 達成（`src/public-portal/App.tsx` 2箇所）。`npm audit fix` で moderate 7→5（残5は breaking 要・high/critical=0）。
+- **デプロイ状態**: a11y は公開 UI の機能変更だが clasp RAPT 失効でデプロイ未了。**本番は v376.35 のまま**。次回 `npx clasp login` 後に public 再デプロイで反映（v376.36 dormant / v376.37 tooling の git 差分も同梱される）。typecheck/build/boundary 全 PASS。
+
+---
+
 ## v376.37 — 2026-06-03 🏗️ ER 単一情報源化（A+B ハイブリッド）+ ドリフトゲート（**docs/build ツーリングのみ・本番非該当**）
 
 ER 図（docs/03 main + portal）が `gas-src テーブル定義` と乖離する構造問題を根絶。設計→モデリング確認→仕様確認→実装の順で対応。
