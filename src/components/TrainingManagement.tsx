@@ -7,7 +7,9 @@ import TrainingRoster from './TrainingRoster';
 import PdfThumbnail from './PdfThumbnail';
 import PdfPreviewModal from './PdfPreviewModal';
 import TrainingDetailModal from './TrainingDetailModal';
+import LinePostEditorModal, { LinePostEditorForm } from './LinePostEditorModal';
 import { buildPublicTrainingApplyUrl } from '../config/publicPortal';
+import { buildTrainingLinePostDraft } from '../shared/lineTemplate';
 
 interface Props {
   trainings: Training[];
@@ -107,6 +109,8 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
   // v376.32: 申込ディープリンクのコピー用（クリップボード不可環境でも手動コピーできるよう URL も保持）
   const [applyLinkUrl, setApplyLinkUrl] = useState('');
   const [applyLinkMsg, setApplyLinkMsg] = useState('');
+  // v376.39: 公式LINE投稿依頼を当該研修に紐づけた状態でポップアップ（null=非表示）
+  const [lineEditorInitial, setLineEditorInitial] = useState<Partial<LinePostEditorForm> | null>(null);
   // v376.16: 新規登録の入力中に既存研修を選んでもデータを失わないよう、新規入力を退避する。
   // 画面を開いている間は保持し、モーダルを閉じると右ペインへ復元する。
   const [pendingNewForm, setPendingNewForm] = useState<Training | null>(null);
@@ -804,6 +808,18 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
     }
   };
 
+  // v376.39: 当該研修に紐づけた公式LINE投稿依頼を事前入力で開く（文脈起点の作成）。
+  // 申込リンクは trainingApplyUrl に格納（本文には重複させない）。保存後は DRAFT で投稿依頼コンソールに合流。
+  const handleCreateLinePost = () => {
+    if (!form.id) return;
+    setLineEditorInitial({
+      targetType: 'TRAINING',
+      targetId: form.id,
+      trainingApplyUrl: buildPublicTrainingApplyUrl(form.id),
+      text: buildTrainingLinePostDraft({ title: form.title, date: form.date, location: form.location }),
+    });
+  };
+
   // v376.11: タブ + 削除/復元 ボタン群（inline で使わず、モーダル header にのみ表示）。
   const tabsJsx = !isNew ? (
     <div className="flex flex-col gap-2">
@@ -848,6 +864,14 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
           className="text-sm px-3 py-2 min-h-[44px] rounded-lg border border-sky-300 text-sky-700 hover:bg-sky-50 font-medium transition-colors"
           aria-label="申込ページの共有リンク（ディープリンク）をコピー"
         >🔗 申込リンク</button>
+      )}
+      {!form.isDeleted && form.id && (
+        <button
+          type="button"
+          onClick={handleCreateLinePost}
+          className="text-sm px-3 py-2 min-h-[44px] rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 font-medium transition-colors"
+          aria-label="この研修に紐づけて公式LINE投稿依頼を作成"
+        >📱 LINE投稿依頼</button>
       )}
     </div>
     {applyLinkUrl && (
@@ -1002,6 +1026,18 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
         title={form.title || '案内PDFプレビュー'}
         fetchHighResImage={(url) => api.getFileThumbnail(url, 2000)}
       />
+
+      {/* v376.39: 当該研修に紐づけた公式LINE投稿依頼ポップアップ（z-[60] で研修モーダルの上に重畳） */}
+      {lineEditorInitial !== null && (
+        <LinePostEditorModal
+          key={lineEditorInitial.targetId || 'line-new'}
+          api={api}
+          trainings={trainings}
+          initial={lineEditorInitial}
+          onClose={() => setLineEditorInitial(null)}
+          onSaved={() => setLineEditorInitial(null)}
+        />
+      )}
     </div>
   );
 };

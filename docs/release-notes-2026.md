@@ -13,6 +13,19 @@
 
 ---
 
+## v376.39 — 2026-06-07 🆕 研修管理から公式LINE投稿依頼を研修紐付けで作成（contextual creation・admin split のみ @198）
+
+研修管理画面から、その研修に紐づいた公式LINE投稿依頼を「文脈起点の作成（contextual creation）」でシームレスに作成できるようにした。要望は「自動で研修に紐づけられた状態で新規投稿依頼がポップアップ」。
+
+- **調査（本日付け Web）**: LINE VOOM/メッセージへの**外部システムからの自動投稿 API は存在しない**（投稿は LINE Official Account Manager / VOOM Studio の手動・予約のみ。Messaging API の VOOM 同時投稿は有料プラン＋従量課金＋単一吹き出し制約）。→ 既存の**手動「投稿依頼」ワークフロー維持が最適**と確認。今回は API 連携ではなく UX 統合に限定。
+- **UX**: 研修編集モーダルのアクション列に「📱 LINE投稿依頼」ボタンを追加。押下で `LinePostEditorModal` を**事前入力**で起動：`targetType='TRAINING'` / `targetId=研修ID` / `trainingApplyUrl=buildPublicTrainingApplyUrl(研修ID)` / 本文テンプレ（研修名・開催日・会場）。`z-[60]` で研修モーダル(z-50)上に重畳（新タブ禁止 `feedback_gas_new_tab_auth_trap` 準拠）。保存後 `DRAFT` で投稿依頼コンソールに合流。
+- **DRY**: 投稿依頼の編集モーダル＋プレビューを `src/components/LinePostEditorModal.tsx` に抽出し、`LinePostConsole` と研修管理で共用。本文テンプレは `src/shared/lineTemplate.ts`（`buildTrainingLinePostDraft`）に集約（申込リンクは本文に重複させず別フィールドへ）。
+- **副次バグ修正** 🐛: `LinePostConsole` の研修ピッカー/ラベルが `t.name`（`Training` に存在せず undefined 表示）→ `t.title` に是正。
+- **境界/スコープ**: 純フロント。admin Code.gs の boundary・top-level callable（doGet/processApiRequest ほか）不変。member/public は本機能対象外で**未 redeploy**。
+- **検証 / デプロイ**: `prerelease` 全ゲート PASS（security audit/boundary×3・typecheck・test:search/formula/kana/deeplink・er-sync・menu-registry）。`build` → `build:gas:admin`（boot loader 契約維持）。admin split を push → version 198 → `redeploy @198`、`clasp deployments` で `@198` 同期確認。実機確認（admin）は操作者タスク（HANDOVER §2-1 #1）。
+
+---
+
 ## v376.38 — 2026-06-06 🧪 テスト観点表評価 + a11y AA コントラスト是正 + npm audit fix（全 3 split @356/@115/@197）
 
 テスト観点表（ISO/IEC 25010:2023）でコード・ドキュメントを評価し、実行可能なギャップを実測・是正。`docs/247_TEST_VIEWPOINT_EVAL_2026-06-06.md` 参照。
