@@ -13,6 +13,20 @@
 
 ---
 
+## v376.41 — 2026-06-09 🐛🔧 公式LINE投稿依頼コンソール 研修選択不具合の修正 + ピッカー UX 改善（admin split のみ @200）
+
+公式LINE投稿依頼コンソールで「研修の投稿」の研修プルダウンが空で選択できない不具合の修正と、運用者要望の UX 改善をまとめて対応。
+
+- **【バグ修正】研修プルダウンが空** 🐛: `src/App.tsx` のデータ読込 effect で、admin の `line-post` ビューが `loadSystemSettings` のみ呼んで**早期 return** しており、`loadAppData`（= `fetchAllData` → trainings）に到達していなかった。そのため `研修管理` や `ダッシュボード`等 trainings を読む画面を先に開いていない限りコンソールの研修候補が常に 0 件だった。`line-post` を早期 return 群から分離し、systemSettings に加えて `loadAppData({ silent:true })` も呼ぶよう修正。
+- **研修名で検索できる combobox 化** 🔧: `<select>` を `TrainingPicker`（`src/components/LinePostEditorModal.tsx` 内）に置換。研修名で部分一致検索、キーボード操作（↑↓/Enter/Esc）、選択中チップ＋「選択解除」対応。
+- **開催日が過ぎた研修を非表示** 🔧: 当日含む未来の研修のみ候補化（`isPastTraining`：開催日 < 今日0時 を past 判定）。`isDeleted` 除外。**現在選択中の研修は過去・削除済でも候補に保持**（研修管理モーダル経由で過去研修に紐付け編集する場合に表示が消えない）。開催日昇順ソート。
+- **「対象」ラジオの既定を TRAINING に** 🔧: `emptyLinePostForm` の既定 `targetType` を `GENERAL` → `TRAINING`（研修の投稿）へ。研修起点の文脈作成は従来どおり initial で明示指定のため不変。
+- **添付ファイルをドラッグ&ドロップ対応** 🔧: クリックでファイル選択する `<input type=file>` を、border-dashed のドロップゾーン（onDragOver/onDrop で `handleFile`）＋「ファイルを選択」クリック併存に変更。上限・形式チェック（画像/PDF・10MB）は従来の `handleFile` を共用。
+- **境界/スコープ**: 純フロント。line-post ビューは admin 専用で App.tsx 変更も当該ビューに限定。admin Code.gs の boundary・top-level callable 不変。member/public は本機能対象外で**未 redeploy**。
+- **検証 / デプロイ**: `prerelease` 全ゲート PASS（security audit/boundary×3・typecheck・test:search/formula/kana/deeplink・er-sync・menu-registry 10/10）。`build` → `build:gas:admin`（boot loader 契約維持・top-level callable セット不変）。admin split を push → version 200 → `redeploy @200`、`clasp deployments --json` で `@200`（description "v376.41"）同期確認。実機確認（admin）は操作者タスク（HANDOVER §2-1 #0）。
+
+---
+
 ## v376.40 — 2026-06-09 🔧 公式LINE投稿依頼 UI 文言調整（対象ラベル変更/並び替え + リンク欄の対象連動動的化・admin split のみ @199）
 
 運用者要望に基づく公式LINE投稿依頼まわりの文言・並び順の調整。機能・データ・挙動は不変で、表示文言と並び順のみを変更する純フロント改修。

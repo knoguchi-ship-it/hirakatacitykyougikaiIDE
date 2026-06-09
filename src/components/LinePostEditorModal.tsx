@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { ApiClient } from '../services/api';
 import { Training } from '../types';
 import { LinePostTargetType, LinePostAttachmentKind } from '../shared/types';
@@ -30,7 +30,7 @@ export const emptyLinePostForm = (): LinePostEditorForm => ({
   attachmentUrl: '',
   attachmentKind: '',
   attachmentName: '',
-  targetType: 'GENERAL',
+  targetType: 'TRAINING',
   targetId: '',
   memo: '',
   clearAttachment: false,
@@ -46,11 +46,156 @@ interface LinePostEditorModalProps {
   onSaved: () => void;
 }
 
+// 研修開催日時（datetime-local 形式 "2026-06-15T14:00" 等）を表示用に整形。
+const formatTrainingDate = (s: string): string => {
+  if (!s) return '';
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return s;
+  const hasTime = /T\d/.test(s);
+  return d.toLocaleString('ja-JP', hasTime
+    ? { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }
+    : { year: 'numeric', month: '2-digit', day: '2-digit' });
+};
+
+const trainingPickerLabel = (t: Training): string => {
+  const d = formatTrainingDate(t.date);
+  return d ? `${t.title}（${d}）` : t.title;
+};
+
+// 開催日が「過ぎた」研修か（当日は未来扱いで残す＝開催日 < 今日0時 のとき past）。日付不明は残す。
+const isPastTraining = (s: string): boolean => {
+  if (!s) return false;
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return false;
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  return d.getTime() < startOfToday.getTime();
+};
+
+// 研修名で検索して選択する combobox（研修の投稿用）。
+const TrainingPicker: React.FC<{
+  trainings: Training[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+}> = ({ trainings, selectedId, onSelect }) => {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  const selected = trainings.find((t) => t.id === selectedId) || null;
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const base = q ? trainings.filter((t) => t.title.toLowerCase().includes(q)) : trainings;
+    return base.slice(0, 50);
+  }, [query, trainings]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  useEffect(() => { setActiveIdx(0); }, [query, open]);
+
+  const choose = (id: string) => {
+    onSelect(id);
+    setQuery('');
+    setOpen(false);
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); setActiveIdx((i) => Math.min(i + 1, filtered.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx((i) => Math.max(i - 1, 0)); }
+    else if (e.key === 'Enter') { if (open && filtered[activeIdx]) { e.preventDefault(); choose(filtered[activeIdx].id); } }
+    else if (e.key === 'Escape') { setOpen(false); }
+  };
+
+  return (
+    <div ref={boxRef} className="relative">
+      <input
+        type="text"
+        role="combobox"
+        aria-expanded={open}
+        aria-controls="training-picker-list"
+        aria-autocomplete="list"
+        value={query}
+        onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={onKeyDown}
+        placeholder={selected ? '別の研修を検索…' : '研修名で検索して選択…'}
+        className="w-full rounded border border-slate-300 px-3 py-1.5 text-sm min-h-[40px]"
+        aria-label="対象研修を研修名で検索して選択"
+      />
+      {selected && (
+        <div className="mt-1 flex items-center gap-2 rounded border border-sky-200 bg-sky-50 px-2 py-1 text-sm text-sky-800">
+          <span className="truncate">🎓 {trainingPickerLabel(selected)}</span>
+          <button
+            type="button"
+            onClick={() => onSelect('')}
+            className="ml-auto shrink-0 rounded border border-slate-300 bg-white px-2 py-0.5 text-xs text-slate-600 hover:bg-slate-50"
+            aria-label="研修の選択を解除"
+          >
+            選択解除
+          </button>
+        </div>
+      )}
+      {open && (
+        <ul
+          id="training-picker-list"
+          role="listbox"
+          className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded border border-slate-300 bg-white shadow-lg"
+        >
+          {filtered.length === 0 ? (
+            <li className="px-3 py-2 text-sm text-slate-400">該当する開催予定の研修がありません</li>
+          ) : (
+            filtered.map((t, idx) => (
+              <li
+                key={t.id}
+                role="option"
+                aria-selected={t.id === selectedId}
+                onMouseDown={(e) => { e.preventDefault(); choose(t.id); }}
+                onMouseEnter={() => setActiveIdx(idx)}
+                className={`cursor-pointer px-3 py-2 text-sm ${idx === activeIdx ? 'bg-sky-50' : ''} ${t.id === selectedId ? 'font-semibold text-sky-800' : 'text-slate-700'}`}
+              >
+                {trainingPickerLabel(t)}
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+    </div>
+  );
+};
+
 const LinePostEditorModal: React.FC<LinePostEditorModalProps> = ({ api, trainings, initial, onClose, onSaved }) => {
   const [editing, setEditing] = useState<LinePostEditorForm>(() => ({ ...emptyLinePostForm(), ...initial }));
   const [editError, setEditError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+
+  // 研修ピッカー候補: 削除済を除外し、開催日が過ぎた研修を非表示にする。
+  // ただし現在選択中の研修は（過去・削除済でも）候補に残し、表示が消えないようにする。
+  const visibleTrainings = useMemo(() => {
+    const list = trainings.filter((t) => !t.isDeleted && !isPastTraining(t.date));
+    if (editing.targetId && !list.some((t) => t.id === editing.targetId)) {
+      const sel = trainings.find((t) => t.id === editing.targetId);
+      if (sel) list.unshift(sel);
+    }
+    return [...list].sort((a, b) => {
+      const da = new Date(a.date).getTime();
+      const db = new Date(b.date).getTime();
+      if (Number.isNaN(da) && Number.isNaN(db)) return 0;
+      if (Number.isNaN(da)) return 1;
+      if (Number.isNaN(db)) return -1;
+      return da - db;
+    });
+  }, [trainings, editing.targetId]);
 
   const charCount = editing.text.length;
   const remaining = LINE_POST_TEXT_MAX - charCount;
@@ -173,17 +318,11 @@ const LinePostEditorModal: React.FC<LinePostEditorModalProps> = ({ api, training
               </label>
             </div>
             {editing.targetType === 'TRAINING' && (
-              <select
-                value={editing.targetId}
-                onChange={(e) => setEditing({ ...editing, targetId: e.target.value })}
-                className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm min-h-[40px]"
-                aria-label="対象研修を選択"
-              >
-                <option value="">— 研修を選択 —</option>
-                {trainings.map((t) => (
-                  <option key={t.id} value={t.id}>{t.title}{t.date ? ` (${t.date})` : ''}</option>
-                ))}
-              </select>
+              <TrainingPicker
+                trainings={visibleTrainings}
+                selectedId={editing.targetId}
+                onSelect={(id) => setEditing({ ...editing, targetId: id })}
+              />
             )}
           </fieldset>
 
@@ -246,14 +385,34 @@ const LinePostEditorModal: React.FC<LinePostEditorModalProps> = ({ api, training
                 </button>
               </div>
             ) : (
-              <input
-                type="file"
-                accept="image/*,application/pdf"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f); }}
-                disabled={uploading}
-                className="block text-sm min-h-[44px]"
-                aria-label="添付ファイルをアップロード"
-              />
+              <div
+                onDragOver={(e) => { e.preventDefault(); if (!uploading) setDragOver(true); }}
+                onDragEnter={(e) => { e.preventDefault(); if (!uploading) setDragOver(true); }}
+                onDragLeave={(e) => { e.preventDefault(); setDragOver(false); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOver(false);
+                  if (uploading) return;
+                  const f = e.dataTransfer.files?.[0];
+                  if (f) void handleFile(f);
+                }}
+                className={`rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors ${dragOver ? 'border-sky-400 bg-sky-50' : 'border-slate-300 bg-slate-50'}`}
+              >
+                <p className="text-sm text-slate-600">ここにファイルをドラッグ&ドロップ</p>
+                <p className="mt-0.5 text-xs text-slate-400">または</p>
+                <label className="mt-2 inline-block cursor-pointer rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 min-h-[44px]">
+                  ファイルを選択
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f); e.target.value = ''; }}
+                    disabled={uploading}
+                    className="hidden"
+                    aria-label="添付ファイルをアップロード"
+                  />
+                </label>
+                <p className="mt-2 text-xs text-slate-400">画像（jpg/png/gif/webp）または PDF・10MB 以内</p>
+              </div>
             )}
             {uploading && <p className="text-xs text-slate-500">アップロード中…</p>}
           </div>

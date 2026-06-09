@@ -1077,8 +1077,18 @@ const App: React.FC = () => {
       return;
     }
 
-    if (userRole === 'ADMIN' && (currentView === 'admin-settings' || currentView === 'bulk-mail' || currentView === 'roster-export' || currentView === 'mailing-list-export' || currentView === 'line-post')) {
+    if (userRole === 'ADMIN' && (currentView === 'admin-settings' || currentView === 'bulk-mail' || currentView === 'roster-export' || currentView === 'mailing-list-export')) {
       loadSystemSettings(false).catch(() => undefined);
+      return;
+    }
+
+    // v376.41: 公式LINE投稿依頼コンソールは「研修の投稿」ピッカーに T_研修 が必要なため、
+    // systemSettings に加えて loadAppData（trainings）も読み込む（早期 return しない）。
+    if (userRole === 'ADMIN' && currentView === 'line-post') {
+      loadSystemSettings(false).catch(() => undefined);
+      if (!fullDataLoaded) {
+        loadAppData({ includeAdminSettings: false, force: true, silent: true }).catch(() => undefined);
+      }
       return;
     }
 
