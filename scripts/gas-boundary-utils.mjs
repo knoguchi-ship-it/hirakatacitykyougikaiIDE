@@ -44,6 +44,8 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   // v376.30 / v376.31 機能の dryRun テスト + cleanup
   'dryRunV376_30_31',
   'cleanupDryRunV376_30_31',
+  // v376.43 (Phase B): 全メールテンプレート差し込み描画の dryRun E2E（operator 実行用・非送信）
+  'dryRunMailTemplatesV376_43_LOG',
 ];
 
 // admin build から強制削除する（pruning で残ってはならない）危険な top-level 関数。

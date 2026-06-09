@@ -13,7 +13,7 @@ var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
 var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
-var DB_SCHEMA_VERSION = '2026-06-10-mail-template-table-v376.42';
+var DB_SCHEMA_VERSION = '2026-06-10-mail-template-phaseb-v376.43';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
 var MEMBER_PORTAL_URL = 'https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec';
@@ -150,6 +150,109 @@ var STAFF_ADD_REP_EMAIL_DEFAULT_BODY = [
   '─────────────────────────────',
   '枚方市介護支援専門員連絡協議会',
 ].join('\n');
+// v376.43 (Phase B): 従来ハードコードだった6メールの差し込みタグ付きデフォルト。
+// 送信実体は renderConfiguredMail_ で <CAT>_SUBJECT/BODY 設定値（無ければ下記既定）を読み、差し込み置換する。
+var TRAINING_APPLY_RECEIPT_DEFAULT_SUBJECT = '【研修申込確認】{{研修名}}';
+var TRAINING_APPLY_RECEIPT_DEFAULT_BODY = [
+  '{{申込者名}} 様',
+  '',
+  '以下の研修へお申込いただきありがとうございます。',
+  '',
+  '研修名: {{研修名}}',
+  '開催日: {{開催日}}',
+  '',
+  '申込IDは以下の通りです。取消の際に必要ですので保管してください。',
+  '申込ID: {{申込ID}}',
+  '',
+  '何かご不明な点は主催者までお問い合わせください。',
+].join('\n');
+
+var TRAINING_REMINDER_DEFAULT_SUBJECT = '【研修リマインド】{{研修名}}';
+var TRAINING_REMINDER_DEFAULT_BODY = [
+  '会員各位',
+  '',
+  '平素よりお世話になっております。',
+  '枚方市介護支援専門員連絡協議会 事務局です。',
+  '',
+  'お申し込み済みの研修が近づいていますので、ご案内いたします。',
+  '',
+  '■研修名',
+  '{{研修名}}',
+  '',
+  '■開催日',
+  '{{開催日}}',
+  '',
+  '■会場',
+  '{{会場}}',
+  '',
+  '当日の案内資料と詳細は、配布済みのご案内をご確認ください。',
+  '',
+  '何卒よろしくお願いいたします。',
+  '',
+  '枚方市介護支援専門員連絡協議会 事務局',
+].join('\n');
+
+var AUTH_OTP_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】{{用途}} 確認コード';
+var AUTH_OTP_DEFAULT_BODY = [
+  '{{会員名}} 様',
+  '',
+  '{{用途}}の認証コードをお送りします。',
+  '',
+  '認証コード: {{認証コード}}',
+  '',
+  'このコードは{{有効期限}}有効です。',
+  'お心当たりのない場合は事務局までご連絡ください。',
+  '',
+  '枚方市介護支援専門員連絡協議会',
+].join('\n');
+
+// 会員情報変更確認メール（個人会員が公開ポータルで自身の登録情報を変更した際の確認）。
+// ※事業所登録情報変更・職員追加/除籍に伴う内部通知は別文面（固定）で送られる別サブケース。
+var MEMBER_UPDATE_CONFIRM_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】会員登録情報変更のご確認';
+var MEMBER_UPDATE_CONFIRM_DEFAULT_BODY = [
+  '{{氏名}} 様',
+  '',
+  '会員登録情報の変更を受け付けました。',
+  '内容にお心当たりのない場合は事務局までご連絡ください。',
+  '',
+  '枚方市介護支援専門員連絡協議会',
+].join('\n');
+
+var WITHDRAWAL_CONFIRM_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】退会申請受付のご確認';
+var WITHDRAWAL_CONFIRM_DEFAULT_BODY = [
+  '{{会員名}} 様',
+  '',
+  '退会申請を受け付けました。',
+  '',
+  '退会予定日: {{退会予定日}}（年度末）',
+  '',
+  '退会予定日までは引き続き会員マイページにログインできます。',
+  '退会を撤回される場合は、会員マイページよりお手続きください。',
+  'お心当たりのない場合は事務局までご連絡ください。',
+  '',
+  '枚方市介護支援専門員連絡協議会',
+].join('\n');
+
+var PASSWORD_RESET_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】パスワード再設定手続き';
+var PASSWORD_RESET_DEFAULT_BODY = [
+  '{{ユーザー名}} 様',
+  '',
+  '会員マイページのパスワード再設定を受け付けました。',
+  '以下の確認コードを画面に入力し、新しいパスワードを設定してください。',
+  '',
+  '確認コード: {{確認コード}}',
+  '有効期限: {{有効期限}}',
+  '',
+  'この手続きに心当たりがない場合は、このメールを破棄してください。',
+  '確認コードを他の人に伝えないでください。',
+  '',
+  '会員マイページURL:',
+  '{{会員マイページURL}}',
+  '',
+  '─────────────────────────────',
+  '枚方市介護支援専門員連絡協議会',
+].join('\n');
+
 var PUBLIC_PORTAL_DEFAULTS = {
   heroBadgeEnabled: false,
   heroBadgeLabel: 'お申込みポータル',
@@ -468,9 +571,11 @@ var テーブル定義 = {
     '削除フラグ',
   ],
   // v376.42: 全メール種別のテンプレート管理（名前付きスナップショット）を集約する単一テーブル。
-  // カテゴリ列で種別を区別し、汎用 CRUD（listMailTemplates_/saveMailTemplate_/deleteMailTemplate_）で操作する。
-  // 旧 CREDENTIAL_EMAIL_TEMPLATES（T_システム設定の JSON）は migrateCredentialTemplatesToTable_ で本テーブルへ移行。
-  // runtime のメール本文は従来どおり T_システム設定の <CAT>_SUBJECT/BODY を使用し、本テーブルは保存/読込専用。
+  // ※このリテラル内コメントに関数名（末尾アンダースコア識別子）を書かないこと。
+  //   build pruner が public/member ビルドで unreachable 関数名をコメント誤マッチし、
+  //   テーブル定義ごと削除する既知バグ（feedback_build_pruning_bug）の trigger になるため。
+  // カテゴリ列で種別を区別し、汎用 CRUD で操作。旧 JSON 保存分はスキーマ初期化時に本テーブルへ移行。
+  // runtime のメール本文は従来どおり T_システム設定を使用し、本テーブルは保存/読込専用。
   T_メールテンプレート: [
     'テンプレートID',
     'カテゴリ',
@@ -2463,11 +2568,16 @@ function sendTrainingReminder_(request) {
     throw new Error('No email recipients found for training: ' + trainingId);
   }
 
-  if (!subject) {
-    subject = '【研修リマインド】' + String(training.title || '');
-  }
-  if (!body) {
-    body = buildTrainingReminderBody_(training);
+  // v376.43: subject/body 未指定時は設定値（無ければ既定）から差し込み描画。
+  if (!subject || !body) {
+    var remMail = renderConfiguredMail_(getOrCreateDatabase_(), 'TRAINING_REMINDER_SUBJECT', 'TRAINING_REMINDER_BODY',
+      TRAINING_REMINDER_DEFAULT_SUBJECT, TRAINING_REMINDER_DEFAULT_BODY, {
+        '研修名': String(training.title || ''),
+        '開催日': formatTrainingDate_(training.date),
+        '会場': String(training.location || ''),
+      });
+    if (!subject) subject = remMail.subject;
+    if (!body) body = remMail.body;
   }
 
   var result = {
@@ -5114,26 +5224,15 @@ function resolvePasswordResetTarget_(ss, loginId) {
 function sendPasswordResetCodeEmail_(target, code) {
   var ss = getOrCreateDatabase_();
   var from = String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_FROM') || '').trim();
-  var subject = '【枚方市介護支援専門員連絡協議会】パスワード再設定手続き';
-  var body = [
-    target.displayName + ' 様',
-    '',
-    '会員マイページのパスワード再設定を受け付けました。',
-    '以下の確認コードを画面に入力し、新しいパスワードを設定してください。',
-    '',
-    '確認コード: ' + code,
-    '有効期限: ' + PASSWORD_RESET_CODE_TTL_MINUTES + '分',
-    '',
-    'この手続きに心当たりがない場合は、このメールを破棄してください。',
-    '確認コードを他の人に伝えないでください。',
-    '',
-    '会員マイページURL:',
-    MEMBER_PORTAL_URL,
-    '',
-    '─────────────────────────────',
-    '枚方市介護支援専門員連絡協議会',
-  ].join('\n');
-  deliverMail_('PASSWORD_RESET', target.email, subject, body, {
+  // v376.43: 件名/本文を設定値（無ければ既定）から差し込み描画。確認コード欠落を安全ガード。
+  var mail = renderConfiguredMail_(ss, 'PASSWORD_RESET_SUBJECT', 'PASSWORD_RESET_BODY',
+    PASSWORD_RESET_DEFAULT_SUBJECT, PASSWORD_RESET_DEFAULT_BODY, {
+      'ユーザー名': target.displayName,
+      '確認コード': code,
+      '有効期限': PASSWORD_RESET_CODE_TTL_MINUTES + '分',
+      '会員マイページURL': MEMBER_PORTAL_URL,
+    }, code);
+  deliverMail_('PASSWORD_RESET', target.email, mail.subject, mail.body, {
     from: from,
     replyTo: from || '',
     name: '枚方市介護支援専門員連絡協議会',
@@ -6395,6 +6494,19 @@ function getSystemSettings_() {
     rejectionNotificationEnabled: (function(){ var v = m['REJECTION_NOTIFICATION_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
     rejectionNotificationSubject: String(m['REJECTION_NOTIFICATION_SUBJECT'] || '') || REJECTION_NOTIFICATION_DEFAULT_SUBJECT,
     rejectionNotificationBody:    String(m['REJECTION_NOTIFICATION_BODY'] || '') || REJECTION_NOTIFICATION_DEFAULT_BODY,
+    // v376.43 (Phase B): 従来ハードコード6メールの件名/本文
+    trainingApplyReceiptSubject:  String(m['TRAINING_APPLY_RECEIPT_SUBJECT'] || '') || TRAINING_APPLY_RECEIPT_DEFAULT_SUBJECT,
+    trainingApplyReceiptBody:     String(m['TRAINING_APPLY_RECEIPT_BODY'] || '') || TRAINING_APPLY_RECEIPT_DEFAULT_BODY,
+    trainingReminderSubject:      String(m['TRAINING_REMINDER_SUBJECT'] || '') || TRAINING_REMINDER_DEFAULT_SUBJECT,
+    trainingReminderBody:         String(m['TRAINING_REMINDER_BODY'] || '') || TRAINING_REMINDER_DEFAULT_BODY,
+    authOtpSubject:               String(m['AUTH_OTP_SUBJECT'] || '') || AUTH_OTP_DEFAULT_SUBJECT,
+    authOtpBody:                  String(m['AUTH_OTP_BODY'] || '') || AUTH_OTP_DEFAULT_BODY,
+    memberUpdateConfirmSubject:   String(m['MEMBER_UPDATE_CONFIRM_SUBJECT'] || '') || MEMBER_UPDATE_CONFIRM_DEFAULT_SUBJECT,
+    memberUpdateConfirmBody:      String(m['MEMBER_UPDATE_CONFIRM_BODY'] || '') || MEMBER_UPDATE_CONFIRM_DEFAULT_BODY,
+    withdrawalConfirmSubject:     String(m['WITHDRAWAL_CONFIRM_SUBJECT'] || '') || WITHDRAWAL_CONFIRM_DEFAULT_SUBJECT,
+    withdrawalConfirmBody:        String(m['WITHDRAWAL_CONFIRM_BODY'] || '') || WITHDRAWAL_CONFIRM_DEFAULT_BODY,
+    passwordResetSubject:         String(m['PASSWORD_RESET_SUBJECT'] || '') || PASSWORD_RESET_DEFAULT_SUBJECT,
+    passwordResetBody:            String(m['PASSWORD_RESET_BODY'] || '') || PASSWORD_RESET_DEFAULT_BODY,
     // v371: メール送信 4 階層ガード（GLOBAL / MODE / ALLOWLIST / CATEGORY 6 種）
     mailGlobalEnabled:            (function(){ var v = m['MAIL_GLOBAL_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
     mailDeliveryMode:             String(m['MAIL_DELIVERY_MODE'] || 'LIVE').toUpperCase(),
@@ -6709,6 +6821,43 @@ function updateSystemSettings_(request, callerPermLevel) {
   }
   if (request.rejectionNotificationBody != null) {
     updates.push({ key: 'REJECTION_NOTIFICATION_BODY', value: String(request.rejectionNotificationBody) || REJECTION_NOTIFICATION_DEFAULT_BODY, description: '管理者却下時：却下通知メール本文' });
+  }
+  // v376.43 (Phase B): 従来ハードコード6メールの件名/本文
+  if (request.trainingApplyReceiptSubject != null) {
+    updates.push({ key: 'TRAINING_APPLY_RECEIPT_SUBJECT', value: String(request.trainingApplyReceiptSubject).trim() || TRAINING_APPLY_RECEIPT_DEFAULT_SUBJECT, description: '研修申込確認メール件名' });
+  }
+  if (request.trainingApplyReceiptBody != null) {
+    updates.push({ key: 'TRAINING_APPLY_RECEIPT_BODY', value: String(request.trainingApplyReceiptBody) || TRAINING_APPLY_RECEIPT_DEFAULT_BODY, description: '研修申込確認メール本文' });
+  }
+  if (request.trainingReminderSubject != null) {
+    updates.push({ key: 'TRAINING_REMINDER_SUBJECT', value: String(request.trainingReminderSubject).trim() || TRAINING_REMINDER_DEFAULT_SUBJECT, description: '研修リマインダーメール件名' });
+  }
+  if (request.trainingReminderBody != null) {
+    updates.push({ key: 'TRAINING_REMINDER_BODY', value: String(request.trainingReminderBody) || TRAINING_REMINDER_DEFAULT_BODY, description: '研修リマインダーメール本文' });
+  }
+  if (request.authOtpSubject != null) {
+    updates.push({ key: 'AUTH_OTP_SUBJECT', value: String(request.authOtpSubject).trim() || AUTH_OTP_DEFAULT_SUBJECT, description: '公開ポータルOTPメール件名' });
+  }
+  if (request.authOtpBody != null) {
+    updates.push({ key: 'AUTH_OTP_BODY', value: String(request.authOtpBody) || AUTH_OTP_DEFAULT_BODY, description: '公開ポータルOTPメール本文' });
+  }
+  if (request.memberUpdateConfirmSubject != null) {
+    updates.push({ key: 'MEMBER_UPDATE_CONFIRM_SUBJECT', value: String(request.memberUpdateConfirmSubject).trim() || MEMBER_UPDATE_CONFIRM_DEFAULT_SUBJECT, description: '会員情報変更確認メール件名' });
+  }
+  if (request.memberUpdateConfirmBody != null) {
+    updates.push({ key: 'MEMBER_UPDATE_CONFIRM_BODY', value: String(request.memberUpdateConfirmBody) || MEMBER_UPDATE_CONFIRM_DEFAULT_BODY, description: '会員情報変更確認メール本文' });
+  }
+  if (request.withdrawalConfirmSubject != null) {
+    updates.push({ key: 'WITHDRAWAL_CONFIRM_SUBJECT', value: String(request.withdrawalConfirmSubject).trim() || WITHDRAWAL_CONFIRM_DEFAULT_SUBJECT, description: '退会申請受付確認メール件名' });
+  }
+  if (request.withdrawalConfirmBody != null) {
+    updates.push({ key: 'WITHDRAWAL_CONFIRM_BODY', value: String(request.withdrawalConfirmBody) || WITHDRAWAL_CONFIRM_DEFAULT_BODY, description: '退会申請受付確認メール本文' });
+  }
+  if (request.passwordResetSubject != null) {
+    updates.push({ key: 'PASSWORD_RESET_SUBJECT', value: String(request.passwordResetSubject).trim() || PASSWORD_RESET_DEFAULT_SUBJECT, description: 'パスワード再設定コードメール件名' });
+  }
+  if (request.passwordResetBody != null) {
+    updates.push({ key: 'PASSWORD_RESET_BODY', value: String(request.passwordResetBody) || PASSWORD_RESET_DEFAULT_BODY, description: 'パスワード再設定コードメール本文' });
   }
   // v371: メール送信 4 階層ガード
   if (request.mailGlobalEnabled != null) {
@@ -9227,6 +9376,69 @@ function renderBizEmailTemplate_(template, vars) {
     result = result.replace(new RegExp('\\{\\{' + k + '\\}\\}', 'g'), String(vars[k] == null ? '' : vars[k]));
   }
   return result;
+}
+
+// v376.43 (Phase B): T_システム設定の <CAT>_SUBJECT/BODY（無ければ既定）を読み、差し込み置換して返す。
+// requiredValue 指定時（OTP/確認コード等）、置換後の本文にその値が含まれなければ既定本文へフォールバックし、
+// 管理者が誤って差し込みタグを消しても認証コードが欠落しないことを保証する（安全ガード）。
+function renderConfiguredMail_(ss, subjectKey, bodyKey, defaultSubject, defaultBody, vars, requiredValue) {
+  var map = {};
+  try { map = getSystemSettingMap_(ss); } catch (e) { map = {}; }
+  var subjTpl = String(map[subjectKey] || '') || defaultSubject;
+  var bodyTpl = String(map[bodyKey] || '') || defaultBody;
+  var subject = renderBizEmailTemplate_(subjTpl, vars);
+  var body = renderBizEmailTemplate_(bodyTpl, vars);
+  if (requiredValue && body.indexOf(String(requiredValue)) < 0) {
+    subject = renderBizEmailTemplate_(defaultSubject, vars);
+    body = renderBizEmailTemplate_(defaultBody, vars);
+  }
+  return { subject: subject, body: body };
+}
+
+// v376.43 (Phase B): 全メール差し込み描画の dryRun E2E（非送信）。operator が editor ▶ で実行し、
+// 各メールの件名/本文が設定値（無ければ既定）から正しく差し込み描画され、重要トークン（OTP/確認コード等）が
+// 欠落しないことを検証する。実送信は行わない（renderConfiguredMail_ のみ呼ぶ）。
+function dryRunMailTemplatesV376_43_LOG() {
+  var ss = getOrCreateDatabase_();
+  var results = [];
+  function check(label, mail, mustContain) {
+    var ok = true; var missing = [];
+    (mustContain || []).forEach(function(v) {
+      if (mail.subject.indexOf(String(v)) < 0 && mail.body.indexOf(String(v)) < 0) { ok = false; missing.push(v); }
+    });
+    results.push({ category: label, ok: ok, missing: missing, subject: mail.subject });
+  }
+  check('TRAINING_APPLY_RECEIPT', renderConfiguredMail_(ss, 'TRAINING_APPLY_RECEIPT_SUBJECT', 'TRAINING_APPLY_RECEIPT_BODY',
+    TRAINING_APPLY_RECEIPT_DEFAULT_SUBJECT, TRAINING_APPLY_RECEIPT_DEFAULT_BODY,
+    { '申込者名': '山田太郎', '研修名': 'テスト研修', '開催日': '2026-07-01', '申込ID': 'APP-TEST-001' }),
+    ['山田太郎', 'テスト研修', 'APP-TEST-001']);
+  check('TRAINING_REMINDER', renderConfiguredMail_(ss, 'TRAINING_REMINDER_SUBJECT', 'TRAINING_REMINDER_BODY',
+    TRAINING_REMINDER_DEFAULT_SUBJECT, TRAINING_REMINDER_DEFAULT_BODY,
+    { '研修名': 'テスト研修', '開催日': '2026-07-01 14:00', '会場': '枚方市民会館' }),
+    ['テスト研修', '枚方市民会館']);
+  check('AUTH_OTP', renderConfiguredMail_(ss, 'AUTH_OTP_SUBJECT', 'AUTH_OTP_BODY',
+    AUTH_OTP_DEFAULT_SUBJECT, AUTH_OTP_DEFAULT_BODY,
+    { '会員名': '山田太郎', '用途': '会員情報変更', '認証コード': '123456', '有効期限': '10分間' }, '123456'),
+    ['123456']);
+  check('MEMBER_UPDATE_CONFIRM', renderConfiguredMail_(ss, 'MEMBER_UPDATE_CONFIRM_SUBJECT', 'MEMBER_UPDATE_CONFIRM_BODY',
+    MEMBER_UPDATE_CONFIRM_DEFAULT_SUBJECT, MEMBER_UPDATE_CONFIRM_DEFAULT_BODY, { '氏名': '山田太郎' }),
+    ['山田太郎']);
+  check('WITHDRAWAL_CONFIRM', renderConfiguredMail_(ss, 'WITHDRAWAL_CONFIRM_SUBJECT', 'WITHDRAWAL_CONFIRM_BODY',
+    WITHDRAWAL_CONFIRM_DEFAULT_SUBJECT, WITHDRAWAL_CONFIRM_DEFAULT_BODY,
+    { '会員名': '山田太郎', '退会予定日': '2027-03-31', '会員マイページURL': MEMBER_PORTAL_URL }),
+    ['山田太郎', '2027-03-31']);
+  check('PASSWORD_RESET', renderConfiguredMail_(ss, 'PASSWORD_RESET_SUBJECT', 'PASSWORD_RESET_BODY',
+    PASSWORD_RESET_DEFAULT_SUBJECT, PASSWORD_RESET_DEFAULT_BODY,
+    { 'ユーザー名': '山田太郎', '確認コード': '654321', '有効期限': '30分', '会員マイページURL': MEMBER_PORTAL_URL }, '654321'),
+    ['654321']);
+
+  // 安全ガード健全性: OTP/PW のデフォルト本文に必須タグが含まれること（含まれなければフォールバックが機能しない）。
+  var guardOk = AUTH_OTP_DEFAULT_BODY.indexOf('{{認証コード}}') >= 0 && PASSWORD_RESET_DEFAULT_BODY.indexOf('{{確認コード}}') >= 0;
+
+  var allOk = guardOk && results.every(function(r) { return r.ok; });
+  var report = { passed: allOk, guardOk: guardOk, results: results };
+  Logger.log('[dryRunMailTemplatesV376_43_LOG] ' + JSON.stringify(report));
+  return report;
 }
 
 // v368: 変更申請の人間可読サマリーを生成する
@@ -14591,6 +14803,19 @@ function ensureSystemSettingsRows_(ss) {
     { key: 'REJECTION_NOTIFICATION_ENABLED', value: 'true', desc: '管理者却下時：却下通知メール送信ON/OFF' },
     { key: 'REJECTION_NOTIFICATION_SUBJECT', value: REJECTION_NOTIFICATION_DEFAULT_SUBJECT, desc: '管理者却下時：却下通知メール件名' },
     { key: 'REJECTION_NOTIFICATION_BODY',    value: REJECTION_NOTIFICATION_DEFAULT_BODY,    desc: '管理者却下時：却下通知メール本文' },
+    // v376.43 (Phase B): 従来ハードコード6メールの件名/本文
+    { key: 'TRAINING_APPLY_RECEIPT_SUBJECT', value: TRAINING_APPLY_RECEIPT_DEFAULT_SUBJECT,  desc: '研修申込確認メール件名' },
+    { key: 'TRAINING_APPLY_RECEIPT_BODY',    value: TRAINING_APPLY_RECEIPT_DEFAULT_BODY,     desc: '研修申込確認メール本文' },
+    { key: 'TRAINING_REMINDER_SUBJECT',      value: TRAINING_REMINDER_DEFAULT_SUBJECT,       desc: '研修リマインダーメール件名' },
+    { key: 'TRAINING_REMINDER_BODY',         value: TRAINING_REMINDER_DEFAULT_BODY,          desc: '研修リマインダーメール本文' },
+    { key: 'AUTH_OTP_SUBJECT',               value: AUTH_OTP_DEFAULT_SUBJECT,                desc: '公開ポータルOTPメール件名' },
+    { key: 'AUTH_OTP_BODY',                  value: AUTH_OTP_DEFAULT_BODY,                   desc: '公開ポータルOTPメール本文' },
+    { key: 'MEMBER_UPDATE_CONFIRM_SUBJECT',  value: MEMBER_UPDATE_CONFIRM_DEFAULT_SUBJECT,   desc: '会員情報変更確認メール件名' },
+    { key: 'MEMBER_UPDATE_CONFIRM_BODY',     value: MEMBER_UPDATE_CONFIRM_DEFAULT_BODY,      desc: '会員情報変更確認メール本文' },
+    { key: 'WITHDRAWAL_CONFIRM_SUBJECT',     value: WITHDRAWAL_CONFIRM_DEFAULT_SUBJECT,      desc: '退会申請受付確認メール件名' },
+    { key: 'WITHDRAWAL_CONFIRM_BODY',        value: WITHDRAWAL_CONFIRM_DEFAULT_BODY,         desc: '退会申請受付確認メール本文' },
+    { key: 'PASSWORD_RESET_SUBJECT',         value: PASSWORD_RESET_DEFAULT_SUBJECT,          desc: 'パスワード再設定コードメール件名' },
+    { key: 'PASSWORD_RESET_BODY',            value: PASSWORD_RESET_DEFAULT_BODY,             desc: 'パスワード再設定コードメール本文' },
   ];
   changeRequestEmailDefaults.forEach(function(item) {
     if (!byKey[item.key]) {
@@ -15501,12 +15726,15 @@ function applyTrainingExternal_(payload) {
     clearAdminDashboardCache_();
 
     try {
-      deliverMail_(
-        'TRAINING_APPLY_RECEIPT',
-        email,
-        '【研修申込確認】' + String(training['研修名'] || ''),
-        name + ' 様\n\n以下の研修へお申込いただきありがとうございます。\n\n研修名: ' + String(training['研修名'] || '') + '\n開催日: ' + formatDateForApi_(training['開催日']) + '\n\n申込IDは以下の通りです。取消の際に必要ですので保管してください。\n申込ID: ' + applyId + '\n\n何かご不明な点は主催者までお問い合わせください。'
-      );
+      // v376.43: 件名/本文を設定値（無ければ既定）から差し込み描画。
+      var applyMail = renderConfiguredMail_(db, 'TRAINING_APPLY_RECEIPT_SUBJECT', 'TRAINING_APPLY_RECEIPT_BODY',
+        TRAINING_APPLY_RECEIPT_DEFAULT_SUBJECT, TRAINING_APPLY_RECEIPT_DEFAULT_BODY, {
+          '申込者名': name,
+          '研修名': String(training['研修名'] || ''),
+          '開催日': formatDateForApi_(training['開催日']),
+          '申込ID': applyId,
+        });
+      deliverMail_('TRAINING_APPLY_RECEIPT', email, applyMail.subject, applyMail.body);
     } catch (e) {
       Logger.log('申込確認メール送信失敗: ' + e.message);
     }
@@ -15680,23 +15908,15 @@ function sendPublicOtp_(payload) {
   cache.put(otpKey, JSON.stringify({ otp: otp, memberId: memberId, attempts: 0 }), 600);
 
   var purposeLabel = purpose === 'withdrawal' ? '退会申請' : '会員情報変更';
-  deliverMail_(
-    'AUTH_OTP',
-    email,
-    '【枚方市介護支援専門員連絡協議会】' + purposeLabel + ' 確認コード',
-    [
-      memberName + ' 様',
-      '',
-      purposeLabel + 'の認証コードをお送りします。',
-      '',
-      '認証コード: ' + otp,
-      '',
-      'このコードは10分間有効です。',
-      'お心当たりのない場合は事務局までご連絡ください。',
-      '',
-      '枚方市介護支援専門員連絡協議会',
-    ].join('\n')
-  );
+  // v376.43: 件名/本文を設定値（無ければ既定）から差し込み描画。認証コード欠落を安全ガード。
+  var otpMail = renderConfiguredMail_(ss, 'AUTH_OTP_SUBJECT', 'AUTH_OTP_BODY',
+    AUTH_OTP_DEFAULT_SUBJECT, AUTH_OTP_DEFAULT_BODY, {
+      '会員名': memberName,
+      '用途': purposeLabel,
+      '認証コード': otp,
+      '有効期限': '10分間',
+    }, otp);
+  deliverMail_('AUTH_OTP', email, otpMail.subject, otpMail.body);
 
   return { sent: true };
 }
@@ -15781,19 +16001,10 @@ function submitPublicMemberUpdate_(payload) {
     var toEmail = String(mRow[mCols['代表メールアドレス']] || '').trim();
     var memberName2 = (String(mRow[mCols['姓']] || '') + ' ' + String(mRow[mCols['名']] || '')).trim();
     if (toEmail) {
-      deliverMail_(
-        'MEMBER_UPDATE_CONFIRM',
-        toEmail,
-        '【枚方市介護支援専門員連絡協議会】会員登録情報変更のご確認',
-        [
-          memberName2 + ' 様',
-          '',
-          '会員登録情報の変更を受け付けました。',
-          '内容にお心当たりのない場合は事務局までご連絡ください。',
-          '',
-          '枚方市介護支援専門員連絡協議会',
-        ].join('\n')
-      );
+      // v376.43: 件名/本文を設定値（無ければ既定）から差し込み描画。
+      var updMail = renderConfiguredMail_(ss, 'MEMBER_UPDATE_CONFIRM_SUBJECT', 'MEMBER_UPDATE_CONFIRM_BODY',
+        MEMBER_UPDATE_CONFIRM_DEFAULT_SUBJECT, MEMBER_UPDATE_CONFIRM_DEFAULT_BODY, { '氏名': memberName2 });
+      deliverMail_('MEMBER_UPDATE_CONFIRM', toEmail, updMail.subject, updMail.body);
     }
   }
 
@@ -15847,24 +16058,14 @@ function submitPublicWithdrawalRequest_(payload) {
   var toEmail = String(mRow[mCols['代表メールアドレス']] || '').trim();
   var memberName3 = (String(mRow[mCols['姓']] || '') + ' ' + String(mRow[mCols['名']] || '')).trim();
   if (toEmail) {
-    deliverMail_(
-      'WITHDRAWAL_CONFIRM',
-      toEmail,
-      '【枚方市介護支援専門員連絡協議会】退会申請受付のご確認',
-      [
-        memberName3 + ' 様',
-        '',
-        '退会申請を受け付けました。',
-        '',
-        '退会予定日: ' + withdrawnDate + '（年度末）',
-        '',
-        '退会予定日までは引き続き会員マイページにログインできます。',
-        '退会を撤回される場合は、会員マイページよりお手続きください。',
-        'お心当たりのない場合は事務局までご連絡ください。',
-        '',
-        '枚方市介護支援専門員連絡協議会',
-      ].join('\n')
-    );
+    // v376.43: 件名/本文を設定値（無ければ既定）から差し込み描画。
+    var wdMail = renderConfiguredMail_(ss, 'WITHDRAWAL_CONFIRM_SUBJECT', 'WITHDRAWAL_CONFIRM_BODY',
+      WITHDRAWAL_CONFIRM_DEFAULT_SUBJECT, WITHDRAWAL_CONFIRM_DEFAULT_BODY, {
+        '会員名': memberName3,
+        '退会予定日': withdrawnDate,
+        '会員マイページURL': MEMBER_PORTAL_URL,
+      });
+    deliverMail_('WITHDRAWAL_CONFIRM', toEmail, wdMail.subject, wdMail.body);
   }
 
   return { success: true, withdrawnDate: withdrawnDate };

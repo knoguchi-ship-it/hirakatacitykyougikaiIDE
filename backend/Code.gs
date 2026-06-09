@@ -13,7 +13,7 @@ var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
 var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
-var DB_SCHEMA_VERSION = '2026-06-10-mail-template-table-v376.42';
+var DB_SCHEMA_VERSION = '2026-06-10-mail-template-phaseb-v376.43';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
 var MEMBER_PORTAL_URL = 'https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec';
@@ -150,6 +150,109 @@ var STAFF_ADD_REP_EMAIL_DEFAULT_BODY = [
   '─────────────────────────────',
   '枚方市介護支援専門員連絡協議会',
 ].join('\n');
+// v376.43 (Phase B): 従来ハードコードだった6メールの差し込みタグ付きデフォルト。
+// 送信実体は renderConfiguredMail_ で <CAT>_SUBJECT/BODY 設定値（無ければ下記既定）を読み、差し込み置換する。
+var TRAINING_APPLY_RECEIPT_DEFAULT_SUBJECT = '【研修申込確認】{{研修名}}';
+var TRAINING_APPLY_RECEIPT_DEFAULT_BODY = [
+  '{{申込者名}} 様',
+  '',
+  '以下の研修へお申込いただきありがとうございます。',
+  '',
+  '研修名: {{研修名}}',
+  '開催日: {{開催日}}',
+  '',
+  '申込IDは以下の通りです。取消の際に必要ですので保管してください。',
+  '申込ID: {{申込ID}}',
+  '',
+  '何かご不明な点は主催者までお問い合わせください。',
+].join('\n');
+
+var TRAINING_REMINDER_DEFAULT_SUBJECT = '【研修リマインド】{{研修名}}';
+var TRAINING_REMINDER_DEFAULT_BODY = [
+  '会員各位',
+  '',
+  '平素よりお世話になっております。',
+  '枚方市介護支援専門員連絡協議会 事務局です。',
+  '',
+  'お申し込み済みの研修が近づいていますので、ご案内いたします。',
+  '',
+  '■研修名',
+  '{{研修名}}',
+  '',
+  '■開催日',
+  '{{開催日}}',
+  '',
+  '■会場',
+  '{{会場}}',
+  '',
+  '当日の案内資料と詳細は、配布済みのご案内をご確認ください。',
+  '',
+  '何卒よろしくお願いいたします。',
+  '',
+  '枚方市介護支援専門員連絡協議会 事務局',
+].join('\n');
+
+var AUTH_OTP_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】{{用途}} 確認コード';
+var AUTH_OTP_DEFAULT_BODY = [
+  '{{会員名}} 様',
+  '',
+  '{{用途}}の認証コードをお送りします。',
+  '',
+  '認証コード: {{認証コード}}',
+  '',
+  'このコードは{{有効期限}}有効です。',
+  'お心当たりのない場合は事務局までご連絡ください。',
+  '',
+  '枚方市介護支援専門員連絡協議会',
+].join('\n');
+
+// 会員情報変更確認メール（個人会員が公開ポータルで自身の登録情報を変更した際の確認）。
+// ※事業所登録情報変更・職員追加/除籍に伴う内部通知は別文面（固定）で送られる別サブケース。
+var MEMBER_UPDATE_CONFIRM_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】会員登録情報変更のご確認';
+var MEMBER_UPDATE_CONFIRM_DEFAULT_BODY = [
+  '{{氏名}} 様',
+  '',
+  '会員登録情報の変更を受け付けました。',
+  '内容にお心当たりのない場合は事務局までご連絡ください。',
+  '',
+  '枚方市介護支援専門員連絡協議会',
+].join('\n');
+
+var WITHDRAWAL_CONFIRM_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】退会申請受付のご確認';
+var WITHDRAWAL_CONFIRM_DEFAULT_BODY = [
+  '{{会員名}} 様',
+  '',
+  '退会申請を受け付けました。',
+  '',
+  '退会予定日: {{退会予定日}}（年度末）',
+  '',
+  '退会予定日までは引き続き会員マイページにログインできます。',
+  '退会を撤回される場合は、会員マイページよりお手続きください。',
+  'お心当たりのない場合は事務局までご連絡ください。',
+  '',
+  '枚方市介護支援専門員連絡協議会',
+].join('\n');
+
+var PASSWORD_RESET_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】パスワード再設定手続き';
+var PASSWORD_RESET_DEFAULT_BODY = [
+  '{{ユーザー名}} 様',
+  '',
+  '会員マイページのパスワード再設定を受け付けました。',
+  '以下の確認コードを画面に入力し、新しいパスワードを設定してください。',
+  '',
+  '確認コード: {{確認コード}}',
+  '有効期限: {{有効期限}}',
+  '',
+  'この手続きに心当たりがない場合は、このメールを破棄してください。',
+  '確認コードを他の人に伝えないでください。',
+  '',
+  '会員マイページURL:',
+  '{{会員マイページURL}}',
+  '',
+  '─────────────────────────────',
+  '枚方市介護支援専門員連絡協議会',
+].join('\n');
+
 var PUBLIC_PORTAL_DEFAULTS = {
   heroBadgeEnabled: false,
   heroBadgeLabel: 'お申込みポータル',
@@ -338,6 +441,295 @@ var マスタ初期値 = {
     ['ABSENT', '欠席', 3, true],
     ['LATE', '遅刻', 4, true],
     ['SAMEDAY_CANCEL', '当日キャンセル', 5, true],
+  ],
+};
+
+var テーブル定義 = {
+  T_会員: [
+    '会員ID',
+    '会員種別コード',
+    '会員状態コード',
+    '入会日',
+    '退会日',
+    '移行日',
+    '退会処理日',
+    '姓',
+    '名',
+    'セイ',
+    'メイ',
+    '代表メールアドレス',
+    '携帯電話番号',
+    '勤務先名',
+    '勤務先郵便番号',
+    '勤務先都道府県',
+    '勤務先市区町村',
+    '勤務先住所',
+    '勤務先住所2',
+    '勤務先電話番号',
+    '勤務先FAX番号',
+    '自宅郵便番号',
+    '自宅都道府県',
+    '自宅市区町村',
+    '自宅住所',
+    '自宅住所2',
+    '発送方法コード',
+    '郵送先区分コード',
+    '職員数上限',
+    '作成日時',
+    '更新日時',
+    '削除フラグ',
+    '介護支援専門員番号',
+    '事業所番号',
+    'ステータスメモ',
+  ],
+  T_システム設定: [
+    '設定キー',
+    '設定値',
+    '説明',
+    '更新日時',
+  ],
+  T_事業所職員: [
+    '職員ID',
+    '会員ID',
+    '姓',
+    '名',
+    'セイ',
+    'メイ',
+    '氏名',
+    'フリガナ',
+    'メールアドレス',
+    '職員権限コード',
+    '職員状態コード',
+    '入会日',
+    '退会日',
+    '介護支援専門員番号',
+    'メール配信希望コード',
+    '作成日時',
+    '更新日時',
+    '削除フラグ',
+  ],
+  T_認証アカウント: [
+    '認証ID',
+    '認証方式',
+    'ログインID',
+    'パスワードハッシュ',
+    'パスワードソルト',
+    'GoogleユーザーID',
+    'Googleメール',
+    'システムロールコード',
+    '会員ID',
+    '職員ID',
+    '最終ログイン日時',
+    'パスワード更新日時',
+    'アカウント有効フラグ',
+    'ログイン失敗回数',
+    'ロック状態',
+    '作成日時',
+    '更新日時',
+    '削除フラグ',
+  ],
+  T_ログイン履歴: [
+    'ログイン履歴ID',
+    '認証ID',
+    'ログインID',
+    '認証方式',
+    'ログイン結果',
+    '失敗理由',
+    '接続元IP',
+    'ユーザーエージェント',
+    '実行日時',
+  ],
+  T_管理者Googleホワイトリスト: [
+    'ホワイトリストID',
+    'Googleメール',
+    '紐付け認証ID',
+    '紐付け会員ID',
+    '権限コード',
+    // docs/246 Phase 1-B: 新 RBAC 用ロールID 列（並行運用）。
+    // 移行 APPLY 完了後はこちらが authoritative、権限コード は legacy 後方互換用として保持。
+    'ロールID',
+    '有効フラグ',
+    '変更者メール',
+    '変更日時',
+    '作成日時',
+    '更新日時',
+    '削除フラグ',
+  ],
+  // docs/246 Phase 1-B: メニュー単位カスタムロールの永続化テーブル。
+  // 値は scripts/menu-registry.mjs::INITIAL_ROLE_DEFINITIONS を seed として投入。
+  T_権限ロール: [
+    'ロールID',
+    'ロール名',
+    '説明',
+    '許可メニューJSON',
+    '研修編集スコープ',
+    '組込フラグ',
+    'マスターフラグ',
+    '表示順',
+    '作成日時',
+    '更新日時',
+    '削除フラグ',
+  ],
+  // v376.42: 全メール種別のテンプレート管理（名前付きスナップショット）を集約する単一テーブル。
+  // ※このリテラル内コメントに関数名（末尾アンダースコア識別子）を書かないこと。
+  //   build pruner が public/member ビルドで unreachable 関数名をコメント誤マッチし、
+  //   テーブル定義ごと削除する既知バグ（feedback_build_pruning_bug）の trigger になるため。
+  // カテゴリ列で種別を区別し、汎用 CRUD で操作。旧 JSON 保存分はスキーマ初期化時に本テーブルへ移行。
+  // runtime のメール本文は従来どおり T_システム設定を使用し、本テーブルは保存/読込専用。
+  T_メールテンプレート: [
+    'テンプレートID',
+    'カテゴリ',
+    '名前',
+    '件名',
+    '本文',
+    '既定フラグ',
+    '作成日時',
+    '更新日時',
+    '削除フラグ',
+  ],
+  T_画面項目権限: [
+    '権限定義ID',
+    'システムロールコード',
+    '画面コード',
+    '項目コード',
+    '閲覧可',
+    '登録可',
+    '変更可',
+    '削除可',
+    '作成日時',
+    '更新日時',
+    '削除フラグ',
+  ],
+  T_研修: [
+    '研修ID',
+    '研修名',
+    '開催日',
+    '開催終了時刻',
+    '定員',
+    '申込者数',
+    '開催場所',
+    '研修状態コード',
+    '主催者',
+    '法定外研修フラグ',
+    '研修概要',
+    '研修内容',
+    '費用JSON',
+    '申込開始日',
+    '申込締切日',
+    '講師',
+    '案内状URL',
+    '案内状サムネイルURL',
+    '項目設定JSON',
+    '登録者メール',
+    '作成日時',
+    '更新日時',
+    '削除フラグ',
+    // v376.30: 外部申込フォーム URL（Google フォーム等、任意項目）
+    // 末尾追加: normalizeTableColumns_ + writeSheetHeaders_ name-based shift で既存データ保持
+    '申込URL',
+  ],
+  T_研修申込: [
+    '申込ID',
+    '研修ID',
+    '会員ID',
+    '職員ID',
+    '申込状態コード',
+    '申込日時',
+    '取消日時',
+    '備考',
+    '申込者区分コード',
+    '申込者ID',
+    '作成日時',
+    '更新日時',
+    '削除フラグ',
+    // v360: 2-FK XOR 化 + 出欠管理（末尾追加・schema-shift guard 経由で安全に migrate）
+    '外部申込者ID',
+    '出欠状態コード',
+    '出欠記録日時',
+    '出欠記録者メール',
+    '事務局メモ',
+  ],
+  T_外部申込者: [
+    '外部申込者ID',
+    '氏名',
+    'フリガナ',
+    'メールアドレス',
+    '電話番号',
+    '事業所名',
+    '同意日時',
+    '作成日時',
+    '更新日時',
+    '削除フラグ',
+  ],
+  T_年会費納入履歴: [
+    '年会費履歴ID',
+    '会員ID',
+    '対象年度',
+    '会費納入状態コード',
+    '納入確認日',
+    '金額',
+    '備考',
+    '作成日時',
+    '更新日時',
+    '削除フラグ',
+  ],
+  T_年会費更新履歴: [
+    '年会費更新履歴ID',
+    '年会費履歴ID',
+    '会員ID',
+    '対象年度',
+    '操作種別',
+    '更新前JSON',
+    '更新後JSON',
+    '実行者メール',
+    '実行日時',
+  ],
+  // v194: メール一括送信ログ（append-only。個人メールアドレス・本文は記録しない）
+  // v360: 研修ID 列を追加（nullable・研修関連送信時のみ populate）
+  T_メール送信ログ: [
+    'ログID',
+    '送信日時',
+    '送信者メール',
+    '件名テンプレート',
+    '宛先数',
+    '成功数',
+    'エラー数',
+    '送信種別',
+    '研修ID',
+    '削除フラグ',
+  ],
+  // v360: メール送信明細（per-recipient detail）— Header-Detail パターン
+  T_メール送信明細: [
+    '明細ID',
+    'ログID',
+    '研修ID',
+    '受信者区分',
+    '受信者ID',
+    '受信者メール',
+    '送信結果',
+    'エラー詳細',
+    '作成日時',
+    '削除フラグ',
+  ],
+  // v143: 管理者操作の監査ログ（append-only）
+  T_監査ログ: [
+    '監査ログID',
+    '操作日時',
+    '操作者メール',
+    '操作種別',
+    '対象テーブル',
+    '対象レコードID',
+    'フィールド名',
+    '旧値',
+    '新値',
+  ],
+  // v232: 物理削除ログ（MASTER権限専用。append-only）
+  T_削除ログ: [
+    'ログID',
+    '操作日時',
+    '操作者メール',
+    '対象会員IDリスト',
+    '削除前スナップショットJSON',
   ],
 };
 
@@ -1559,6 +1951,27 @@ function renderBizEmailTemplate_(template, vars) {
   }
   return result;
 }
+
+// v376.43 (Phase B): T_システム設定の <CAT>_SUBJECT/BODY（無ければ既定）を読み、差し込み置換して返す。
+// requiredValue 指定時（OTP/確認コード等）、置換後の本文にその値が含まれなければ既定本文へフォールバックし、
+// 管理者が誤って差し込みタグを消しても認証コードが欠落しないことを保証する（安全ガード）。
+function renderConfiguredMail_(ss, subjectKey, bodyKey, defaultSubject, defaultBody, vars, requiredValue) {
+  var map = {};
+  try { map = getSystemSettingMap_(ss); } catch (e) { map = {}; }
+  var subjTpl = String(map[subjectKey] || '') || defaultSubject;
+  var bodyTpl = String(map[bodyKey] || '') || defaultBody;
+  var subject = renderBizEmailTemplate_(subjTpl, vars);
+  var body = renderBizEmailTemplate_(bodyTpl, vars);
+  if (requiredValue && body.indexOf(String(requiredValue)) < 0) {
+    subject = renderBizEmailTemplate_(defaultSubject, vars);
+    body = renderBizEmailTemplate_(defaultBody, vars);
+  }
+  return { subject: subject, body: body };
+}
+
+// v376.43 (Phase B): 全メール差し込み描画の dryRun E2E（非送信）。operator が editor ▶ で実行し、
+// 各メールの件名/本文が設定値（無ければ既定）から正しく差し込み描画され、重要トークン（OTP/確認コード等）が
+// 欠落しないことを検証する。実送信は行わない（renderConfiguredMail_ のみ呼ぶ）。
 
 // v368: 変更申請の人間可読サマリーを生成する
 //   changeData: { fields?: {key:value}, staffAdd?: [...], staffRemove?: [...], applicationPayload?: {...} }
@@ -3270,6 +3683,19 @@ function ensureSystemSettingsRows_(ss) {
     { key: 'REJECTION_NOTIFICATION_ENABLED', value: 'true', desc: '管理者却下時：却下通知メール送信ON/OFF' },
     { key: 'REJECTION_NOTIFICATION_SUBJECT', value: REJECTION_NOTIFICATION_DEFAULT_SUBJECT, desc: '管理者却下時：却下通知メール件名' },
     { key: 'REJECTION_NOTIFICATION_BODY',    value: REJECTION_NOTIFICATION_DEFAULT_BODY,    desc: '管理者却下時：却下通知メール本文' },
+    // v376.43 (Phase B): 従来ハードコード6メールの件名/本文
+    { key: 'TRAINING_APPLY_RECEIPT_SUBJECT', value: TRAINING_APPLY_RECEIPT_DEFAULT_SUBJECT,  desc: '研修申込確認メール件名' },
+    { key: 'TRAINING_APPLY_RECEIPT_BODY',    value: TRAINING_APPLY_RECEIPT_DEFAULT_BODY,     desc: '研修申込確認メール本文' },
+    { key: 'TRAINING_REMINDER_SUBJECT',      value: TRAINING_REMINDER_DEFAULT_SUBJECT,       desc: '研修リマインダーメール件名' },
+    { key: 'TRAINING_REMINDER_BODY',         value: TRAINING_REMINDER_DEFAULT_BODY,          desc: '研修リマインダーメール本文' },
+    { key: 'AUTH_OTP_SUBJECT',               value: AUTH_OTP_DEFAULT_SUBJECT,                desc: '公開ポータルOTPメール件名' },
+    { key: 'AUTH_OTP_BODY',                  value: AUTH_OTP_DEFAULT_BODY,                   desc: '公開ポータルOTPメール本文' },
+    { key: 'MEMBER_UPDATE_CONFIRM_SUBJECT',  value: MEMBER_UPDATE_CONFIRM_DEFAULT_SUBJECT,   desc: '会員情報変更確認メール件名' },
+    { key: 'MEMBER_UPDATE_CONFIRM_BODY',     value: MEMBER_UPDATE_CONFIRM_DEFAULT_BODY,      desc: '会員情報変更確認メール本文' },
+    { key: 'WITHDRAWAL_CONFIRM_SUBJECT',     value: WITHDRAWAL_CONFIRM_DEFAULT_SUBJECT,      desc: '退会申請受付確認メール件名' },
+    { key: 'WITHDRAWAL_CONFIRM_BODY',        value: WITHDRAWAL_CONFIRM_DEFAULT_BODY,         desc: '退会申請受付確認メール本文' },
+    { key: 'PASSWORD_RESET_SUBJECT',         value: PASSWORD_RESET_DEFAULT_SUBJECT,          desc: 'パスワード再設定コードメール件名' },
+    { key: 'PASSWORD_RESET_BODY',            value: PASSWORD_RESET_DEFAULT_BODY,             desc: 'パスワード再設定コードメール本文' },
   ];
   changeRequestEmailDefaults.forEach(function(item) {
     if (!byKey[item.key]) {
@@ -4042,12 +4468,15 @@ function applyTrainingExternal_(payload) {
     clearAllDataCache_();
 
     try {
-      deliverMail_(
-        'TRAINING_APPLY_RECEIPT',
-        email,
-        '【研修申込確認】' + String(training['研修名'] || ''),
-        name + ' 様\n\n以下の研修へお申込いただきありがとうございます。\n\n研修名: ' + String(training['研修名'] || '') + '\n開催日: ' + formatDateForApi_(training['開催日']) + '\n\n申込IDは以下の通りです。取消の際に必要ですので保管してください。\n申込ID: ' + applyId + '\n\n何かご不明な点は主催者までお問い合わせください。'
-      );
+      // v376.43: 件名/本文を設定値（無ければ既定）から差し込み描画。
+      var applyMail = renderConfiguredMail_(db, 'TRAINING_APPLY_RECEIPT_SUBJECT', 'TRAINING_APPLY_RECEIPT_BODY',
+        TRAINING_APPLY_RECEIPT_DEFAULT_SUBJECT, TRAINING_APPLY_RECEIPT_DEFAULT_BODY, {
+          '申込者名': name,
+          '研修名': String(training['研修名'] || ''),
+          '開催日': formatDateForApi_(training['開催日']),
+          '申込ID': applyId,
+        });
+      deliverMail_('TRAINING_APPLY_RECEIPT', email, applyMail.subject, applyMail.body);
     } catch (e) {
       Logger.log('申込確認メール送信失敗: ' + e.message);
     }
@@ -4217,23 +4646,15 @@ function sendPublicOtp_(payload) {
   cache.put(otpKey, JSON.stringify({ otp: otp, memberId: memberId, attempts: 0 }), 600);
 
   var purposeLabel = purpose === 'withdrawal' ? '退会申請' : '会員情報変更';
-  deliverMail_(
-    'AUTH_OTP',
-    email,
-    '【枚方市介護支援専門員連絡協議会】' + purposeLabel + ' 確認コード',
-    [
-      memberName + ' 様',
-      '',
-      purposeLabel + 'の認証コードをお送りします。',
-      '',
-      '認証コード: ' + otp,
-      '',
-      'このコードは10分間有効です。',
-      'お心当たりのない場合は事務局までご連絡ください。',
-      '',
-      '枚方市介護支援専門員連絡協議会',
-    ].join('\n')
-  );
+  // v376.43: 件名/本文を設定値（無ければ既定）から差し込み描画。認証コード欠落を安全ガード。
+  var otpMail = renderConfiguredMail_(ss, 'AUTH_OTP_SUBJECT', 'AUTH_OTP_BODY',
+    AUTH_OTP_DEFAULT_SUBJECT, AUTH_OTP_DEFAULT_BODY, {
+      '会員名': memberName,
+      '用途': purposeLabel,
+      '認証コード': otp,
+      '有効期限': '10分間',
+    }, otp);
+  deliverMail_('AUTH_OTP', email, otpMail.subject, otpMail.body);
 
   return { sent: true };
 }
@@ -4318,19 +4739,10 @@ function submitPublicMemberUpdate_(payload) {
     var toEmail = String(mRow[mCols['代表メールアドレス']] || '').trim();
     var memberName2 = (String(mRow[mCols['姓']] || '') + ' ' + String(mRow[mCols['名']] || '')).trim();
     if (toEmail) {
-      deliverMail_(
-        'MEMBER_UPDATE_CONFIRM',
-        toEmail,
-        '【枚方市介護支援専門員連絡協議会】会員登録情報変更のご確認',
-        [
-          memberName2 + ' 様',
-          '',
-          '会員登録情報の変更を受け付けました。',
-          '内容にお心当たりのない場合は事務局までご連絡ください。',
-          '',
-          '枚方市介護支援専門員連絡協議会',
-        ].join('\n')
-      );
+      // v376.43: 件名/本文を設定値（無ければ既定）から差し込み描画。
+      var updMail = renderConfiguredMail_(ss, 'MEMBER_UPDATE_CONFIRM_SUBJECT', 'MEMBER_UPDATE_CONFIRM_BODY',
+        MEMBER_UPDATE_CONFIRM_DEFAULT_SUBJECT, MEMBER_UPDATE_CONFIRM_DEFAULT_BODY, { '氏名': memberName2 });
+      deliverMail_('MEMBER_UPDATE_CONFIRM', toEmail, updMail.subject, updMail.body);
     }
   }
 
@@ -4382,24 +4794,14 @@ function submitPublicWithdrawalRequest_(payload) {
   var toEmail = String(mRow[mCols['代表メールアドレス']] || '').trim();
   var memberName3 = (String(mRow[mCols['姓']] || '') + ' ' + String(mRow[mCols['名']] || '')).trim();
   if (toEmail) {
-    deliverMail_(
-      'WITHDRAWAL_CONFIRM',
-      toEmail,
-      '【枚方市介護支援専門員連絡協議会】退会申請受付のご確認',
-      [
-        memberName3 + ' 様',
-        '',
-        '退会申請を受け付けました。',
-        '',
-        '退会予定日: ' + withdrawnDate + '（年度末）',
-        '',
-        '退会予定日までは引き続き会員マイページにログインできます。',
-        '退会を撤回される場合は、会員マイページよりお手続きください。',
-        'お心当たりのない場合は事務局までご連絡ください。',
-        '',
-        '枚方市介護支援専門員連絡協議会',
-      ].join('\n')
-    );
+    // v376.43: 件名/本文を設定値（無ければ既定）から差し込み描画。
+    var wdMail = renderConfiguredMail_(ss, 'WITHDRAWAL_CONFIRM_SUBJECT', 'WITHDRAWAL_CONFIRM_BODY',
+      WITHDRAWAL_CONFIRM_DEFAULT_SUBJECT, WITHDRAWAL_CONFIRM_DEFAULT_BODY, {
+        '会員名': memberName3,
+        '退会予定日': withdrawnDate,
+        '会員マイページURL': MEMBER_PORTAL_URL,
+      });
+    deliverMail_('WITHDRAWAL_CONFIRM', toEmail, wdMail.subject, wdMail.body);
   }
 
   return { success: true, withdrawnDate: withdrawnDate };

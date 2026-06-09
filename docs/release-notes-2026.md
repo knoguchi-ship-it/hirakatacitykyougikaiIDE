@@ -13,6 +13,20 @@
 
 ---
 
+## v376.43 / v376.43.1 — 2026-06-10 🆕🔧🐛 全メール種別テンプレート管理 Phase B（ハードコード6メール差し込み化）+ build pruner hotfix（全3split @358/@117/@203）
+
+Phase A（v376.42）で整備した基盤の上に、従来ハードコードだった6メールを差し込みタグ化し、件名/本文編集＋テンプレート管理に対応させた（全メール種別が完了）。E2E回帰でデプロイ後に build pruner 回帰を検知し hotfix。
+
+- **対象6メール（Tier2）の差し込み化** 🆕: 研修申込確認(`TRAINING_APPLY_RECEIPT`) / 研修リマインダー(`TRAINING_REMINDER`) / 公開ポータルOTP(`AUTH_OTP`) / 会員情報変更確認(`MEMBER_UPDATE_CONFIRM`) / 退会申請受付(`WITHDRAWAL_CONFIRM`) / パスワード再設定(`PASSWORD_RESET`)。各々 `<CAT>_DEFAULT_SUBJECT/BODY` 定数（現行文面を `{{タグ}}` 化）を追加し、送信実体を `renderConfiguredMail_(ss, subjKey, bodyKey, defSubj, defBody, vars, requiredValue?)` 経由に rewire。`getSystemSettings_`/`updateSystemSettings_`/`ensureSystemSettingsRows_` に 12 キー追加。
+- **安全フォールバック（重要）** 🔒: `renderConfiguredMail_` は `requiredValue`（OTP/確認コード）が描画後本文に含まれない場合、管理者編集テンプレを破棄して既定文面へフォールバック。**管理者が誤って `{{認証コード}}`/`{{確認コード}}` を消してもコードが必ず送信される**。`test:mailrender`(5件) で機械検証。
+- **MEMBER_UPDATE_CONFIRM のスコープ**: 個人会員が公開ポータルで自身の登録情報を変更した際の確認メールを対象。事業所登録情報変更・職員追加/除籍に伴う内部通知は別文面（固定）で対象外（意図的分離）。
+- **フロント** 🔧: `src/App.tsx` メール通知に「▍その他の自動通知メール」グループを新設し 6 カード（件名/本文エディタ＋`MailTemplateManager`＋`MAIL_TEMPLATE_MERGE_TAGS` 凡例）。ON/OFF は既存カテゴリ別フラグと連動。`types.ts` に 6 Subject/Body。
+- **dryRun E2E** 🆕: `dryRunMailTemplatesV376_43_LOG`（非送信・operator が editor ▶ 実行）で全6メールの差し込み描画と必須トークン（OTP/コード）の存在を検証。build keep-list (`gas-boundary-utils.mjs`) に登録。
+- **検証**: `typecheck` / `test:mailrender`(5/5) / `prerelease` 全ゲート PASS。デプロイ後 **公開 Playwright `test:a11y`(違反 critical/serious/moderate/minor=0)・`test:responsive`(7 VP)** PASS で公開ポータル非破壊を確認。
+- **🐛 hotfix v376.43.1**: v376.43 初版で `テーブル定義` オブジェクトリテラル内のコメントに pruned 関数名（`listMailTemplates_` 等・末尾アンダースコア識別子）を記載。public/member ビルドは admin action 分岐を剥がすためこれらが unreachable 判定となり、build pruner の removable 判定 `\b${name}\b` が**コメント文字列に誤マッチ**して `var テーブル定義 = {…}` 宣言ごと削除。結果 `ReferenceError: テーブル定義 is not defined` で public/member が起動エラー（MEMBER_UPDATE/OTP/退会/申込/PW いずれの doGet も白画面）。**E2E回帰（test:a11y のフレーム未出現→ WebFetch で ReferenceError 確認）で検知**。対応: 即時 public@356 / member@115 へロールバック→ リテラル内コメントから関数名を除去（+ 再発防止コメント明記）→ 再ビルドで全3split に `テーブル定義` 復活を grep 確認 → 再デプロイ（@358/@117/@203）→ 公開 a11y/responsive 再 PASS。`feedback_build_pruning_bug` の再発。**教訓: トップレベルのオブジェクトリテラル/変数宣言の中のコメントに `_` 接尾の関数名を書かない**。
+
+---
+
 ## v376.42 — 2026-06-10 🆕🔧 全メール種別テンプレート管理 基盤（Phase A）+ 上書き保存（admin split のみ @201）
 
 メール通知設定のテンプレート管理（名前付きスナップショットの保存/読込/削除）を、従来の「入会メール（個人・賛助）」だけでなく全メール種別へ拡張する基盤を整備。あわせて「上書き編集できない（保存すると常に新規テンプレートが増える）」不具合を解消。Web 調査（2026-06）の「テンプレートは集中バージョン管理し、差し込みは変数/トークンで」という指針に沿い、専用テーブルへ集約した。

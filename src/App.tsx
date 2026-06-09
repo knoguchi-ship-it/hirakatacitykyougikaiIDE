@@ -24,6 +24,7 @@ import { api, type AdminLoginResult, type MemberLoginResult, type MemberPortalLo
 import { callApi } from './shared/api-base';
 import { EmailCard, MasterOffBanner, MergeTags, ToggleSwitch } from './components/EmailSettingsCard';
 import MailTemplateManager from './components/MailTemplateManager';
+import { MAIL_TEMPLATE_MERGE_TAGS } from './shared/mailTemplates';
 import { matchesSearchQuery } from './utils/search';
 
 type Role = 'ADMIN' | 'MEMBER';
@@ -581,6 +582,25 @@ const App: React.FC = () => {
   const [memberUpdateConfirmEnabledInput, setMemberUpdateConfirmEnabledInput] = useState(true);
   const [withdrawalConfirmEnabledInput, setWithdrawalConfirmEnabledInput] = useState(true);
   const [passwordResetEnabledInput, setPasswordResetEnabledInput] = useState(true);
+  // v376.43 (Phase B): 従来ハードコード6メールの件名/本文（差し込みタグ対応）。既定件名はサーバ既定と一致。
+  const TRAINING_APPLY_RECEIPT_SUBJECT_DEFAULT = '【研修申込確認】{{研修名}}';
+  const TRAINING_REMINDER_SUBJECT_DEFAULT = '【研修リマインド】{{研修名}}';
+  const AUTH_OTP_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】{{用途}} 確認コード';
+  const MEMBER_UPDATE_CONFIRM_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】会員登録情報変更のご確認';
+  const WITHDRAWAL_CONFIRM_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】退会申請受付のご確認';
+  const PASSWORD_RESET_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】パスワード再設定手続き';
+  const [trainingApplyReceiptSubjectInput, setTrainingApplyReceiptSubjectInput] = useState(TRAINING_APPLY_RECEIPT_SUBJECT_DEFAULT);
+  const [trainingApplyReceiptBodyInput, setTrainingApplyReceiptBodyInput] = useState('');
+  const [trainingReminderSubjectInput, setTrainingReminderSubjectInput] = useState(TRAINING_REMINDER_SUBJECT_DEFAULT);
+  const [trainingReminderBodyInput, setTrainingReminderBodyInput] = useState('');
+  const [authOtpSubjectInput, setAuthOtpSubjectInput] = useState(AUTH_OTP_SUBJECT_DEFAULT);
+  const [authOtpBodyInput, setAuthOtpBodyInput] = useState('');
+  const [memberUpdateConfirmSubjectInput, setMemberUpdateConfirmSubjectInput] = useState(MEMBER_UPDATE_CONFIRM_SUBJECT_DEFAULT);
+  const [memberUpdateConfirmBodyInput, setMemberUpdateConfirmBodyInput] = useState('');
+  const [withdrawalConfirmSubjectInput, setWithdrawalConfirmSubjectInput] = useState(WITHDRAWAL_CONFIRM_SUBJECT_DEFAULT);
+  const [withdrawalConfirmBodyInput, setWithdrawalConfirmBodyInput] = useState('');
+  const [passwordResetSubjectInput, setPasswordResetSubjectInput] = useState(PASSWORD_RESET_SUBJECT_DEFAULT);
+  const [passwordResetBodyInput, setPasswordResetBodyInput] = useState('');
   const [bizStaffEmailEnabledInput, setBizStaffEmailEnabledInput] = useState(true);
   const [bizStaffEmailSubjectInput, setBizStaffEmailSubjectInput] = useState(BIZ_STAFF_SUBJECT_DEFAULT);
   const [bizStaffEmailBodyInput, setBizStaffEmailBodyInput] = useState('');
@@ -716,6 +736,19 @@ const App: React.FC = () => {
     setRejectionNotificationEnabledInput(systemSettings.rejectionNotificationEnabled ?? true);
     setRejectionNotificationSubjectInput(systemSettings.rejectionNotificationSubject ?? REJECTION_NOTIFICATION_SUBJECT_DEFAULT);
     setRejectionNotificationBodyInput(systemSettings.rejectionNotificationBody ?? '');
+    // v376.43 (Phase B): 従来ハードコード6メールの件名/本文ロード
+    setTrainingApplyReceiptSubjectInput(systemSettings.trainingApplyReceiptSubject ?? TRAINING_APPLY_RECEIPT_SUBJECT_DEFAULT);
+    setTrainingApplyReceiptBodyInput(systemSettings.trainingApplyReceiptBody ?? '');
+    setTrainingReminderSubjectInput(systemSettings.trainingReminderSubject ?? TRAINING_REMINDER_SUBJECT_DEFAULT);
+    setTrainingReminderBodyInput(systemSettings.trainingReminderBody ?? '');
+    setAuthOtpSubjectInput(systemSettings.authOtpSubject ?? AUTH_OTP_SUBJECT_DEFAULT);
+    setAuthOtpBodyInput(systemSettings.authOtpBody ?? '');
+    setMemberUpdateConfirmSubjectInput(systemSettings.memberUpdateConfirmSubject ?? MEMBER_UPDATE_CONFIRM_SUBJECT_DEFAULT);
+    setMemberUpdateConfirmBodyInput(systemSettings.memberUpdateConfirmBody ?? '');
+    setWithdrawalConfirmSubjectInput(systemSettings.withdrawalConfirmSubject ?? WITHDRAWAL_CONFIRM_SUBJECT_DEFAULT);
+    setWithdrawalConfirmBodyInput(systemSettings.withdrawalConfirmBody ?? '');
+    setPasswordResetSubjectInput(systemSettings.passwordResetSubject ?? PASSWORD_RESET_SUBJECT_DEFAULT);
+    setPasswordResetBodyInput(systemSettings.passwordResetBody ?? '');
     setBizStaffEmailEnabledInput(systemSettings.bizStaffEmailEnabled ?? true);
     setBizStaffEmailSubjectInput(systemSettings.bizStaffEmailSubject ?? BIZ_STAFF_SUBJECT_DEFAULT);
     setBizStaffEmailBodyInput(systemSettings.bizStaffEmailBody ?? '');
@@ -4207,6 +4240,102 @@ const App: React.FC = () => {
                         onLoad={(s, b) => { setRejectionNotificationSubjectInput(s); setRejectionNotificationBodyInput(b); setSettingsIsDirty(true); }} />
                     } />
                 </div>
+
+                {/* v376.43 (Phase B): その他の自動通知メール（従来ハードコード→差し込み化） */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-slate-700 border-b border-slate-200 pb-1">▍その他の自動通知メール（研修・OTP・変更/退会確認・パスワード再設定）</h4>
+                  <p className="text-xs text-slate-500">ON/OFF は上部「メール送信制御 → カテゴリ別 ON/OFF」と連動します。件名・本文を差し込みタグ付きで編集でき、テンプレート管理（上書き保存／新規保存）に対応します。<strong>OTP・パスワード再設定の認証コードは、本文から該当タグを消しても安全装置によりデフォルト文面で必ず送信されます。</strong></p>
+
+                  <MergeTags items={MAIL_TEMPLATE_MERGE_TAGS.TRAINING_APPLY_RECEIPT} />
+                  <EmailCard badge="研修申込確認" title="研修申込確認メール（外部申込者へ）"
+                    enabled={trainingApplyReceiptEnabledInput}
+                    onToggle={() => { setTrainingApplyReceiptEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    subject={trainingApplyReceiptSubjectInput}
+                    onSubjectChange={v => { setTrainingApplyReceiptSubjectInput(v); setSettingsIsDirty(true); }}
+                    defaultSubject={TRAINING_APPLY_RECEIPT_SUBJECT_DEFAULT}
+                    body={trainingApplyReceiptBodyInput}
+                    onBodyChange={v => { setTrainingApplyReceiptBodyInput(v); setSettingsIsDirty(true); }}
+                    extra={
+                      <MailTemplateManager api={api} category="TRAINING_APPLY_RECEIPT"
+                        subject={trainingApplyReceiptSubjectInput} body={trainingApplyReceiptBodyInput}
+                        onLoad={(s, b) => { setTrainingApplyReceiptSubjectInput(s); setTrainingApplyReceiptBodyInput(b); setSettingsIsDirty(true); }} />
+                    } />
+
+                  <MergeTags items={MAIL_TEMPLATE_MERGE_TAGS.TRAINING_REMINDER} />
+                  <EmailCard badge="研修リマインダー" title="研修リマインダーメール（申込者へ）"
+                    enabled={trainingReminderEnabledInput}
+                    onToggle={() => { setTrainingReminderEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    subject={trainingReminderSubjectInput}
+                    onSubjectChange={v => { setTrainingReminderSubjectInput(v); setSettingsIsDirty(true); }}
+                    defaultSubject={TRAINING_REMINDER_SUBJECT_DEFAULT}
+                    body={trainingReminderBodyInput}
+                    onBodyChange={v => { setTrainingReminderBodyInput(v); setSettingsIsDirty(true); }}
+                    extra={
+                      <MailTemplateManager api={api} category="TRAINING_REMINDER"
+                        subject={trainingReminderSubjectInput} body={trainingReminderBodyInput}
+                        onLoad={(s, b) => { setTrainingReminderSubjectInput(s); setTrainingReminderBodyInput(b); setSettingsIsDirty(true); }} />
+                    } />
+
+                  <MergeTags items={MAIL_TEMPLATE_MERGE_TAGS.AUTH_OTP} />
+                  <EmailCard badge="公開ポータルOTP" title="公開ポータル 本人確認コード（OTP）メール"
+                    enabled={authOtpEnabledInput}
+                    onToggle={() => { setAuthOtpEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    subject={authOtpSubjectInput}
+                    onSubjectChange={v => { setAuthOtpSubjectInput(v); setSettingsIsDirty(true); }}
+                    defaultSubject={AUTH_OTP_SUBJECT_DEFAULT}
+                    body={authOtpBodyInput}
+                    onBodyChange={v => { setAuthOtpBodyInput(v); setSettingsIsDirty(true); }}
+                    extra={
+                      <MailTemplateManager api={api} category="AUTH_OTP"
+                        subject={authOtpSubjectInput} body={authOtpBodyInput}
+                        onLoad={(s, b) => { setAuthOtpSubjectInput(s); setAuthOtpBodyInput(b); setSettingsIsDirty(true); }} />
+                    } />
+
+                  <MergeTags items={MAIL_TEMPLATE_MERGE_TAGS.MEMBER_UPDATE_CONFIRM} />
+                  <EmailCard badge="会員情報変更確認" title="会員情報変更確認メール（個人会員の自己変更時）"
+                    enabled={memberUpdateConfirmEnabledInput}
+                    onToggle={() => { setMemberUpdateConfirmEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    subject={memberUpdateConfirmSubjectInput}
+                    onSubjectChange={v => { setMemberUpdateConfirmSubjectInput(v); setSettingsIsDirty(true); }}
+                    defaultSubject={MEMBER_UPDATE_CONFIRM_SUBJECT_DEFAULT}
+                    body={memberUpdateConfirmBodyInput}
+                    onBodyChange={v => { setMemberUpdateConfirmBodyInput(v); setSettingsIsDirty(true); }}
+                    extra={
+                      <MailTemplateManager api={api} category="MEMBER_UPDATE_CONFIRM"
+                        subject={memberUpdateConfirmSubjectInput} body={memberUpdateConfirmBodyInput}
+                        onLoad={(s, b) => { setMemberUpdateConfirmSubjectInput(s); setMemberUpdateConfirmBodyInput(b); setSettingsIsDirty(true); }} />
+                    } />
+
+                  <MergeTags items={MAIL_TEMPLATE_MERGE_TAGS.WITHDRAWAL_CONFIRM} />
+                  <EmailCard badge="退会申請受付" title="退会申請受付確認メール（申請会員へ）"
+                    enabled={withdrawalConfirmEnabledInput}
+                    onToggle={() => { setWithdrawalConfirmEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    subject={withdrawalConfirmSubjectInput}
+                    onSubjectChange={v => { setWithdrawalConfirmSubjectInput(v); setSettingsIsDirty(true); }}
+                    defaultSubject={WITHDRAWAL_CONFIRM_SUBJECT_DEFAULT}
+                    body={withdrawalConfirmBodyInput}
+                    onBodyChange={v => { setWithdrawalConfirmBodyInput(v); setSettingsIsDirty(true); }}
+                    extra={
+                      <MailTemplateManager api={api} category="WITHDRAWAL_CONFIRM"
+                        subject={withdrawalConfirmSubjectInput} body={withdrawalConfirmBodyInput}
+                        onLoad={(s, b) => { setWithdrawalConfirmSubjectInput(s); setWithdrawalConfirmBodyInput(b); setSettingsIsDirty(true); }} />
+                    } />
+
+                  <MergeTags items={MAIL_TEMPLATE_MERGE_TAGS.PASSWORD_RESET} />
+                  <EmailCard badge="パスワード再設定" title="パスワード再設定コードメール（会員へ）"
+                    enabled={passwordResetEnabledInput}
+                    onToggle={() => { setPasswordResetEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    subject={passwordResetSubjectInput}
+                    onSubjectChange={v => { setPasswordResetSubjectInput(v); setSettingsIsDirty(true); }}
+                    defaultSubject={PASSWORD_RESET_SUBJECT_DEFAULT}
+                    body={passwordResetBodyInput}
+                    onBodyChange={v => { setPasswordResetBodyInput(v); setSettingsIsDirty(true); }}
+                    extra={
+                      <MailTemplateManager api={api} category="PASSWORD_RESET"
+                        subject={passwordResetSubjectInput} body={passwordResetBodyInput}
+                        onLoad={(s, b) => { setPasswordResetSubjectInput(s); setPasswordResetBodyInput(b); setSettingsIsDirty(true); }} />
+                    } />
+                </div>
               </div>
           </AdminSettingsSection>}
 
@@ -4899,6 +5028,19 @@ const App: React.FC = () => {
                         rejectionNotificationEnabled: rejectionNotificationEnabledInput,
                         rejectionNotificationSubject: rejectionNotificationSubjectInput,
                         rejectionNotificationBody: rejectionNotificationBodyInput,
+                        // v376.43 (Phase B): 従来ハードコード6メールの件名/本文
+                        trainingApplyReceiptSubject: trainingApplyReceiptSubjectInput,
+                        trainingApplyReceiptBody: trainingApplyReceiptBodyInput,
+                        trainingReminderSubject: trainingReminderSubjectInput,
+                        trainingReminderBody: trainingReminderBodyInput,
+                        authOtpSubject: authOtpSubjectInput,
+                        authOtpBody: authOtpBodyInput,
+                        memberUpdateConfirmSubject: memberUpdateConfirmSubjectInput,
+                        memberUpdateConfirmBody: memberUpdateConfirmBodyInput,
+                        withdrawalConfirmSubject: withdrawalConfirmSubjectInput,
+                        withdrawalConfirmBody: withdrawalConfirmBodyInput,
+                        passwordResetSubject: passwordResetSubjectInput,
+                        passwordResetBody: passwordResetBodyInput,
                         // v371: メール送信 4 階層ガード
                         mailGlobalEnabled: mailGlobalEnabledInput,
                         mailDeliveryMode: mailDeliveryModeInput,

@@ -245,6 +245,19 @@ export interface SystemSettings {
   rejectionNotificationEnabled?: boolean;
   rejectionNotificationSubject?: string;
   rejectionNotificationBody?: string;
+  // v376.43 (Phase B): 従来ハードコード6メールの件名/本文（ON/OFF は下の *Enabled を流用）
+  trainingApplyReceiptSubject?: string;
+  trainingApplyReceiptBody?: string;
+  trainingReminderSubject?: string;
+  trainingReminderBody?: string;
+  authOtpSubject?: string;
+  authOtpBody?: string;
+  memberUpdateConfirmSubject?: string;
+  memberUpdateConfirmBody?: string;
+  withdrawalConfirmSubject?: string;
+  withdrawalConfirmBody?: string;
+  passwordResetSubject?: string;
+  passwordResetBody?: string;
   // v371: メール送信 4 階層ガード（GLOBAL / MODE / ALLOWLIST / CATEGORY）
   mailGlobalEnabled?: boolean;
   mailDeliveryMode?: 'LIVE' | 'REDIRECT' | 'SUPPRESS';
