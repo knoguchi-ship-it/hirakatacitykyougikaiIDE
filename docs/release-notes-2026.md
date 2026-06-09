@@ -13,6 +13,18 @@
 
 ---
 
+## v376.40 — 2026-06-09 🔧 公式LINE投稿依頼 UI 文言調整（対象ラベル変更/並び替え + リンク欄の対象連動動的化・admin split のみ @199）
+
+運用者要望に基づく公式LINE投稿依頼まわりの文言・並び順の調整。機能・データ・挙動は不変で、表示文言と並び順のみを変更する純フロント改修。
+
+- **「対象」ラジオの文言変更＋並び替え** 🔧: `src/components/LinePostEditorModal.tsx`。`研修に紐付け`(TRAINING) → **`研修の投稿`** に改称し**先頭**へ、`一般投稿`(GENERAL) → **`登録研修以外`** に改称し**後**へ。`value`（`TRAINING`/`GENERAL`）・onChange・対象研修ピッカー表示条件は不変。
+- **コンソール絞り込みフィルタの統一** 🔧: `src/components/LinePostConsole.tsx` の「対象:」絞り込みも同文言・同順へ（`研修` → `研修の投稿`、`一般` → `登録研修以外`、研修を先頭に）。同一概念の用語ドリフトを解消。
+- **リンク欄ラベルを「対象」連動の動的表示に** 🔧: GENERAL（登録研修以外）選択時のみ `掲載リンク（資料・申込リンク等）（任意・http(s):// で始まる URL）`、TRAINING（研修の投稿）時は従来どおり `研修申込リンク（任意・…）`。入力フィールド（`trainingApplyUrl`）・`id`・`type="url"` バリデーション・プレビューの 🔗 リンク表示は共通のまま不変。
+- **境界/スコープ**: 純フロント。admin Code.gs の boundary・top-level callable 不変。member/public は本機能対象外で**未 redeploy**。
+- **検証 / デプロイ**: `prerelease` 全ゲート PASS（security audit/boundary×3・typecheck・test:search/formula/kana/deeplink・er-sync・menu-registry 10/10）。`build` → `build:gas:admin`（boot loader 契約維持）。admin split を push → version 199 → `redeploy @199`、`clasp deployments --json` で `@199`（description "v376.40"）同期確認。実機確認（admin）は操作者タスク（HANDOVER §2-1 #0）。
+
+---
+
 ## v376.39 — 2026-06-07 🆕 研修管理から公式LINE投稿依頼を研修紐付けで作成（contextual creation・admin split のみ @198）
 
 研修管理画面から、その研修に紐づいた公式LINE投稿依頼を「文脈起点の作成（contextual creation）」でシームレスに作成できるようにした。要望は「自動で研修に紐づけられた状態で新規投稿依頼がポップアップ」。

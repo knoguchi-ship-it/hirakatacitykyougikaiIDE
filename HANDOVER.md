@@ -4,9 +4,9 @@
 > 経緯・履歴・設計詳細は別ドキュメントへ。リンク先は §6 参照順序を参照。
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
-最終更新: **2026-06-07**
-最新リリース: **`v376.39`**（研修管理から公式LINE投稿依頼を研修紐付けで作成 — admin split のみ @198）
-最終作業: **研修×公式LINE投稿依頼の文脈起点作成（contextual creation）をデプロイ** — 研修編集モーダルに「📱 LINE投稿依頼」ボタンを追加し、当該研修に自動紐付け（`targetType=TRAINING`/`targetId`/申込ディープリンク）＋研修情報からの本文テンプレ自動生成を事前入力したポップアップ（`z-[60]` 重畳）を表示。投稿依頼の編集モーダルを `LinePostEditorModal` に抽出し投稿依頼コンソールと共用（DRY）。LinePostConsole の研修ピッカー `t.name`（Training に無く undefined 表示だった既存バグ）を `t.title` に是正。Web 調査で「LINE への外部自動投稿 API は無し＝現行の手動投稿依頼ワークフロー維持が最適」を確認済。純フロント（GAS Code.gs の admin 境界・top-level callable 不変、member/public 非該当）。前段: v376.38 a11y AA 是正 / v376.37 ER 単一情報源化 / 〜v376.32 研修ディープリンク
+最終更新: **2026-06-09**
+最新リリース: **`v376.40`**（公式LINE投稿依頼の「対象」ラベル文言/並び替え + リンク欄を対象連動の動的ラベル化 — admin split のみ @199）
+最終作業: **公式LINE投稿依頼 UI 文言の調整をデプロイ** — ①「対象」ラジオを `研修の投稿`(TRAINING、先頭)/`登録研修以外`(GENERAL、後)へ文言変更＋並び替え（旧: 一般投稿/研修に紐付け）。②投稿依頼コンソールの絞り込みフィルタも同文言・同順に統一（旧: 一般/研修）。③リンク欄ラベルを「対象」連動で動的化 — GENERAL 時のみ `掲載リンク（資料・申込リンク等）`、TRAINING 時は従来どおり `研修申込リンク`。`value`(TRAINING/GENERAL)・入力フィールド・挙動は不変。純フロント（GAS Code.gs の admin 境界・top-level callable 不変、member/public 非該当）。前段: v376.39 研修紐付け LINE 投稿依頼 / v376.38 a11y AA 是正 / v376.37 ER 単一情報源化
 
 ---
 
@@ -17,7 +17,7 @@
 | 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@356** |
 | 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@356** |
 | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@115** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@198** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@199** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 
@@ -49,6 +49,7 @@
 
 | # | タスク | 詳細 / 参照 |
 |---|---|---|
+| 0 | **v376.40 LINE投稿依頼 文言変更の実機確認**（admin @199） | 公式LINE投稿依頼コンソール／研修起点ポップアップで、①「対象」ラジオが `研修の投稿` → `登録研修以外` の順で表示されること、②「登録研修以外」を選ぶとリンク欄ラベルが **`掲載リンク（資料・申込リンク等）`** に変わり、「研修の投稿」では `研修申込リンク` に戻ること、③コンソール上部の「対象:」絞り込みも `研修の投稿`/`登録研修以外` 表記になっていること。値・保存挙動が従来どおりであること |
 | 1 | **v376.39 LINE投稿依頼の研修紐付け実機確認**（admin） | 研修管理 → 既存研修を開く → 「📱 LINE投稿依頼」押下で、対象=研修・対象研修=当該研修・申込リンク・本文テンプレ（研修名/開催日/会場）が**事前入力済み**のポップアップが研修モーダルの上に重なって開くこと。保存 → 公式LINE投稿依頼コンソールに当該研修紐付けの `作成中(DRAFT)` が出現すること。重畳モーダルのスクロール・✕/キャンセル/背景クリックで閉じることも確認 |
 | 2 | **v376.32 ディープリンク実機確認** | 公開ポータル `…/exec?t=<受付中研修のID>` を開き、該当研修の申込画面へ直行すること（未発見IDで一覧＋通知、`?p=member-application` 等で各画面へ直行）。admin 研修管理モーダルで「🔗 申込リンク」を押し、生成URL（正式 public + `?t=`）が正しいこと。研修IDは admin で確認 |
 | 3 | **当セッション(v376.33〜.38) の admin/member 実機確認**（§0 で AI 未確認分） | ①研修編集モーダルで 担当者/電話番号/メール/申込URL に**連続入力できる**こと（フォーカス喪失修正 v376.33）。②任意項目トグルを**無効→保存**し公開ポータルでその項目が非表示、**申込URL 無効→申込ボタン非表示**（v376.34/.35）。③admin/member ポータルが正常表示。※公開側の a11y(全0)/レスポンシブ(全7VP)/deep-link は AI 実測済（`docs/247`） |
@@ -161,6 +162,7 @@ npm run build:docs-portal                  # docs/portal/*.html + schema.dbml �
 
 | Version | 日付 | 概要 |
 |---|---|---|
+| **v376.40** | 2026-06-09 | **公式LINE投稿依頼 UI 文言調整**（admin split のみ @199）。①「対象」ラジオを文言変更＋並び替え：`研修の投稿`(TRAINING・先頭)／`登録研修以外`(GENERAL・後)（旧 一般投稿/研修に紐付け）。②投稿依頼コンソールの「対象:」絞り込みフィルタも同文言・同順に統一（旧 一般/研修）。③リンク欄ラベルを「対象」連動の動的表示に：GENERAL 時のみ `掲載リンク（資料・申込リンク等）`、TRAINING 時は従来どおり `研修申込リンク`。`value`(TRAINING/GENERAL)・`trainingApplyUrl` 入力・プレビュー・保存挙動は不変。`src/components/LinePostEditorModal.tsx` + `src/components/LinePostConsole.tsx` の純フロント変更（GAS Code.gs の admin 境界・top-level callable 不変、member/public 非該当） |
 | **v376.39** | 2026-06-07 | **研修管理から公式LINE投稿依頼を研修紐付けで作成（contextual creation）**（admin split のみ @198）。研修編集モーダルに「📱 LINE投稿依頼」ボタンを追加 → 当該研修に自動紐付け（`targetType=TRAINING`/`targetId`/申込ディープリンク `buildPublicTrainingApplyUrl`）＋研修情報からの本文テンプレ（`src/shared/lineTemplate.ts` の `buildTrainingLinePostDraft`：研修名/開催日/会場）を事前入力したポップアップ（`z-[60]` で研修モーダル(z-50)上に重畳・新タブ禁止 `feedback_gas_new_tab_auth_trap` 準拠）。保存後 `DRAFT` で投稿依頼コンソールに合流。**DRY**: 投稿依頼の編集モーダルを `src/components/LinePostEditorModal.tsx` に抽出し `LinePostConsole` と共用。**副次バグ修正**: LinePostConsole の研修ピッカーが `t.name`（Training に無く undefined 表示）→ `t.title` に是正。Web 調査で LINE 外部自動投稿 API 不在＝手動投稿依頼ワークフロー維持が最適と確認。純フロント（admin Code.gs の境界・top-level callable 不変、member/public 非該当） |
 | **v376.38** | 2026-06-06 | **テスト観点表評価 + a11y AA 是正 + npm audit fix**（全 3 split @356/@115/@197）。ISO/IEC 25010:2023 でコード/ドキュメント評価（`docs/247`）。公開 live で `test:responsive` 全7VP PASS・`test:a11y` serious 1件(色コントラスト)検出→`bg-sky-600`→`bg-sky-700`(WCAG 2 AA)是正をデプロイし **a11y 全 0 を live 再確認**。`npm audit fix` で moderate 7→5。Code.gs に v376.36 archive 表定義(dormant)も同梱（DB_SCHEMA_VERSION 不変＝未適用） |
 | **v376.37** | 2026-06-03 | **ER 単一情報源化（A+B ハイブリッド）+ ドリフトゲート（docs/build ツーリングのみ・本番非該当）**。ER（docs/03 main + portal）の手書きドリフトを根絶。列の存在/順序＝`gas-src テーブル定義`(正本)、型/PK/FK/コメント/リレーション/分類＝`docs/er-metadata.json`(新規手書き正本)。`scripts/generate-er.mjs` が docs/03 ER を**自動生成**（手書き禁止・AUTO-GENERATED バナー）→ portal 化。`scripts/test-er-sync.mjs`(prerelease) が stale メタ/不正リレーションを FAIL。ゲートが実ドリフト是正（旧 ER の `GoogleユーザーID`(v118廃止)/`表示名`/`T_監査ログ` 誤り列を実列へ、`介護支援専門員番号` 等復活、40→45 テーブル網羅）。`AGENTS.md §4.6` 改訂。GAS 不変・本番デプロイ非該当 |

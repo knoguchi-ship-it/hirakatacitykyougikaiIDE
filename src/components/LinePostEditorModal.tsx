@@ -155,21 +155,21 @@ const LinePostEditorModal: React.FC<LinePostEditorModalProps> = ({ api, training
                 <input
                   type="radio"
                   name="targetType"
-                  value="GENERAL"
-                  checked={editing.targetType === 'GENERAL'}
-                  onChange={() => setEditing({ ...editing, targetType: 'GENERAL', targetId: '' })}
+                  value="TRAINING"
+                  checked={editing.targetType === 'TRAINING'}
+                  onChange={() => setEditing({ ...editing, targetType: 'TRAINING' })}
                 />
-                一般投稿
+                研修の投稿
               </label>
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <input
                   type="radio"
                   name="targetType"
-                  value="TRAINING"
-                  checked={editing.targetType === 'TRAINING'}
-                  onChange={() => setEditing({ ...editing, targetType: 'TRAINING' })}
+                  value="GENERAL"
+                  checked={editing.targetType === 'GENERAL'}
+                  onChange={() => setEditing({ ...editing, targetType: 'GENERAL', targetId: '' })}
                 />
-                研修に紐付け
+                登録研修以外
               </label>
             </div>
             {editing.targetType === 'TRAINING' && (
@@ -211,10 +211,12 @@ const LinePostEditorModal: React.FC<LinePostEditorModalProps> = ({ api, training
             />
           </div>
 
-          {/* 研修申込リンク */}
+          {/* リンク欄（対象により文言が変わる：研修の投稿=研修申込リンク／登録研修以外=掲載リンク） */}
           <div className="space-y-1">
             <label htmlFor="line-post-url" className="text-sm font-medium text-slate-700">
-              研修申込リンク（任意・http(s):// で始まる URL）
+              {editing.targetType === 'GENERAL'
+                ? '掲載リンク（資料・申込リンク等）（任意・http(s):// で始まる URL）'
+                : '研修申込リンク（任意・http(s):// で始まる URL）'}
             </label>
             <input
               id="line-post-url"

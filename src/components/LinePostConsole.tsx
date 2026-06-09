@@ -160,8 +160,8 @@ const LinePostConsole: React.FC<LinePostConsoleProps> = ({ api, trainings }) => 
             aria-label="対象種別で絞り込み"
           >
             <option value="">すべて</option>
-            <option value="GENERAL">一般</option>
-            <option value="TRAINING">研修</option>
+            <option value="TRAINING">研修の投稿</option>
+            <option value="GENERAL">登録研修以外</option>
           </select>
         </label>
         <input
