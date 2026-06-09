@@ -118,6 +118,10 @@ export const ACTION_TO_MENU = {
   getCredentialEmailTemplates: 'bulk-mail',
   saveCredentialEmailTemplate: 'bulk-mail',
   deleteCredentialEmailTemplate: 'bulk-mail',
+  // v376.42: 全メール種別テンプレート管理（システム設定→メール通知 画面）
+  listMailTemplates: 'admin-settings',
+  saveMailTemplate: 'admin-settings',
+  deleteMailTemplate: 'admin-settings',
   getBulkMailTemplates: 'bulk-mail',
   saveBulkMailTemplate: 'bulk-mail',
   deleteBulkMailTemplate: 'bulk-mail',

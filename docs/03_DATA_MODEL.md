@@ -597,6 +597,18 @@ erDiagram
     boolean 削除フラグ
   }
 
+  T_メールテンプレート {
+    string テンプレートID PK "UUID"
+    string カテゴリ "CREDENTIAL/BIZ_REP/... メール種別"
+    string 名前 "テンプレート名"
+    string 件名
+    string 本文 "{{タグ}} 差し込み対応"
+    boolean 既定フラグ "将来用"
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
+  }
+
   T_削除ログ {
     string ログID PK
     datetime 操作日時

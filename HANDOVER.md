@@ -4,9 +4,9 @@
 > 経緯・履歴・設計詳細は別ドキュメントへ。リンク先は §6 参照順序を参照。
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
-最終更新: **2026-06-09**
-最新リリース: **`v376.41`**（公式LINE投稿依頼の研修ピッカー改善 + 研修読込バグ修正 + 既定TRAINING + 添付D&D — admin split のみ @200）
-最終作業: **公式LINE投稿依頼コンソールの研修選択不具合の修正と UX 改善をデプロイ** — ①【バグ修正】line-post ビューが `loadSystemSettings` のみで早期 return し `loadAppData`(trainings) を呼んでいなかったため研修プルダウンが空だった問題を修正（App.tsx で line-post も trainings を silent 読込）。②研修選択を `<select>` から **研修名で検索できる combobox**（`TrainingPicker`）に置換。③**開催日が過ぎた研修を非表示**（当日含む未来のみ・削除済除外・選択中の研修は過去でも保持・開催日昇順）。④「対象」ラジオの**既定を「研修の投稿」(TRAINING)** に変更。⑤添付ファイルを**ドラッグ&ドロップ対応**（クリック選択も併存・border-dashed ドロップゾーン）。`LinePostEditorModal.tsx` + `App.tsx` の純フロント変更（GAS Code.gs の admin 境界・top-level callable 不変、member/public 非該当）。前段: v376.40 LINE 対象ラベル文言調整 / v376.39 研修紐付け LINE 投稿依頼 / v376.38 a11y AA 是正
+最終更新: **2026-06-10**
+最新リリース: **`v376.42`**（全メール種別テンプレート管理 基盤 Phase A + 上書き保存 — admin split のみ @201）
+最終作業: **メール通知のテンプレート管理を全種別へ拡張する基盤（Phase A）をデプロイ** — 専用テーブル `T_メールテンプレート` を新設（カテゴリ列で種別区別・DB_SCHEMA_VERSION bump・次回 admin login 時に自動生成＋旧 `CREDENTIAL_EMAIL_TEMPLATES`(JSON) を冪等移行）。汎用 CRUD `listMailTemplates_/saveMailTemplate_/deleteMailTemplate_`（id 一致で**上書き update**、無ければ新規 insert）＋ admin action 3つ。フロントは汎用 `MailTemplateManager.tsx` を抽出し**「上書き保存」＋「＋新規保存」の2ボタン**化。credential に加え Tier1 7種（事業所代表/メンバー・職員追加職員/代表者・変更申請受付/承認/却下）の各 EmailCard に付与。`src/shared/mailTemplates.ts` にカテゴリ enum＋マージタグ表を集約。**ハードコード6種(研修申込確認/リマインダー/OTP/会員情報変更/退会受付/PW再設定)の差し込み化＝Phase B（未着手）**。member/public は本機能非該当で未 redeploy（gas-src 由来の inert 差分のみ）。⚠️**要: 操作者が admin にログインしてスキーマ移行をトリガ**（§2-1 #0）。前段: v376.41 LINE 研修ピッカー / v376.40 LINE 文言調整
 
 ---
 
@@ -17,7 +17,7 @@
 | 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@356** |
 | 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@356** |
 | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@115** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@200** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@201** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 
@@ -49,12 +49,20 @@
 
 | # | タスク | 詳細 / 参照 |
 |---|---|---|
-| 0 | **v376.41 LINE投稿依頼 研修ピッカー/D&D の実機確認**（admin @200） | 公式LINE投稿依頼コンソール → 「＋新規作成」で、①既定で「研修の投稿」が選択され、②研修ピッカーが**研修名で検索でき**、③**開催日が過ぎた研修が出ない**（開催予定のみ）こと。④研修を選んで保存できること。⑤添付ファイル欄に画像/PDF を**ドラッグ&ドロップ**でき（点線ゾーン）、「ファイルを選択」クリックでも従来通り選べること。⑥研修管理モーダルの「📱 LINE投稿依頼」経由でも当該研修が選択済みで開くこと（過去開催でも表示維持） |
+| 0 | **v376.42 メールテンプレート管理 基盤(Phase A) のスキーマ移行トリガ＋実機確認**（admin @201） | ①**admin にログイン**して `initializeSchemaIfNeeded_` を走らせ、DB に `T_メールテンプレート` シートが生成され、旧 `CREDENTIAL_EMAIL_TEMPLATES`（入会メール保存済みテンプレ「会員マイページオープン前」等）が**カテゴリ=CREDENTIAL で移行**されていることを確認（件数一致）。②システム設定→メール通知→入会・登録メール設定 で、credential＋Tier1 7種（事業所代表/メンバー・職員追加職員/代表者・変更申請受付/承認/却下）の各カードに「テンプレート管理」が表示され、**読み込む→編集→「上書き保存」で同テンプレが更新**され（新規増殖しない）、「＋新規保存」で別名保存・削除も動くこと。③360px 幅で崩れないこと。※Tier2 6種(研修/OTP/退会/PW等)は Phase B 未実装 | `docs/release-notes-2026.md` v376.42 |
+| 0b | **v376.41 LINE投稿依頼 研修ピッカー/D&D の実機確認**（admin @200→@201 に内包） | 公式LINE投稿依頼コンソール → 「＋新規作成」で、①既定で「研修の投稿」が選択され、②研修ピッカーが**研修名で検索でき**、③**開催日が過ぎた研修が出ない**（開催予定のみ）こと。④研修を選んで保存できること。⑤添付ファイル欄に画像/PDF を**ドラッグ&ドロップ**でき（点線ゾーン）、「ファイルを選択」クリックでも従来通り選べること。⑥研修管理モーダルの「📱 LINE投稿依頼」経由でも当該研修が選択済みで開くこと（過去開催でも表示維持） |
 | 0b | **v376.40 LINE投稿依頼 文言変更の実機確認**（admin @199→@200 に内包） | 公式LINE投稿依頼コンソール／研修起点ポップアップで、①「対象」ラジオが `研修の投稿` → `登録研修以外` の順で表示されること、②「登録研修以外」を選ぶとリンク欄ラベルが **`掲載リンク（資料・申込リンク等）`** に変わり、「研修の投稿」では `研修申込リンク` に戻ること、③コンソール上部の「対象:」絞り込みも `研修の投稿`/`登録研修以外` 表記になっていること。値・保存挙動が従来どおりであること |
 | 1 | **v376.39 LINE投稿依頼の研修紐付け実機確認**（admin） | 研修管理 → 既存研修を開く → 「📱 LINE投稿依頼」押下で、対象=研修・対象研修=当該研修・申込リンク・本文テンプレ（研修名/開催日/会場）が**事前入力済み**のポップアップが研修モーダルの上に重なって開くこと。保存 → 公式LINE投稿依頼コンソールに当該研修紐付けの `作成中(DRAFT)` が出現すること。重畳モーダルのスクロール・✕/キャンセル/背景クリックで閉じることも確認 |
 | 2 | **v376.32 ディープリンク実機確認** | 公開ポータル `…/exec?t=<受付中研修のID>` を開き、該当研修の申込画面へ直行すること（未発見IDで一覧＋通知、`?p=member-application` 等で各画面へ直行）。admin 研修管理モーダルで「🔗 申込リンク」を押し、生成URL（正式 public + `?t=`）が正しいこと。研修IDは admin で確認 |
 | 3 | **当セッション(v376.33〜.38) の admin/member 実機確認**（§0 で AI 未確認分） | ①研修編集モーダルで 担当者/電話番号/メール/申込URL に**連続入力できる**こと（フォーカス喪失修正 v376.33）。②任意項目トグルを**無効→保存**し公開ポータルでその項目が非表示、**申込URL 無効→申込ボタン非表示**（v376.34/.35）。③admin/member ポータルが正常表示。※公開側の a11y(全0)/レスポンシブ(全7VP)/deep-link は AI 実測済（`docs/247`） |
 | 4 | v375 実機 Safari iOS 確認 | 本番 URL（admin / member / public 全 3）を Safari iOS から再読込なしで開き、splash → React マウントまで滞りなく進むこと、初期化中文字が一瞬出るが白画面ではないことを確認 |
+
+### 2-1b. 進行中の大型機能（Phase 分割）
+
+| タスク | 状態 | 参照 |
+|---|---|---|
+| **全メール種別テンプレート管理 — Phase A 完了 (v376.42 @201)** | 基盤（T_メールテンプレート集約・汎用 CRUD・上書き保存・credential＋Tier1 7種への横展開）デプロイ済。スキーマ移行は操作者 admin login でトリガ（§2-1 #0） | `docs/release-notes-2026.md` v376.42 |
+| **全メール種別テンプレート管理 — Phase B 未着手** | ハードコード6種（研修申込確認/研修リマインダー/公開ポータルOTP/会員情報変更確認/退会申請受付/パスワード再設定）の**差し込みタグ化**（DEFAULT 定数化・SystemSettings `<CAT>_SUBJECT/BODY` 追加・送信実体 rewire・UI カード追加）。OTP/PW 再設定コードの欠落は重大→ドライラン必須。Phase A 実機確認後に着手 | プラン: `~/.claude/plans/cozy-fluttering-hammock.md` |
 
 ### 2-2. 延期中（再開条件付き）
 
@@ -163,6 +171,7 @@ npm run build:docs-portal                  # docs/portal/*.html + schema.dbml �
 
 | Version | 日付 | 概要 |
 |---|---|---|
+| **v376.42** | 2026-06-10 | **全メール種別テンプレート管理 基盤（Phase A）+ 上書き保存**（admin split のみ @201）。専用テーブル `T_メールテンプレート`（テンプレートID/カテゴリ/名前/件名/本文/既定フラグ/作成更新日時/削除フラグ）を新設し、`ensureTableSheetsExist_` で自動生成（DB_SCHEMA_VERSION bump→次回 admin login で migrate）。汎用 CRUD `listMailTemplates_/saveMailTemplate_/deleteMailTemplate_`（**id 一致で上書き update**・無ければ insert）＋ admin action 3つ。旧 `CREDENTIAL_EMAIL_TEMPLATES`(JSON) を `migrateCredentialTemplatesToTable_` で冪等移行（id 重複スキップ・旧 JSON は rollback 用に残置）。旧 credential 3 action は汎用関数へ委譲（後方互換・単一情報源）。フロントは汎用 `MailTemplateManager.tsx` を抽出し**「上書き保存」＋「＋新規保存」2 ボタン**化、credential＋Tier1 7種の EmailCard に付与。`src/shared/mailTemplates.ts` にカテゴリ enum＋マージタグ表集約。ER metadata/portal 再生成（46 テーブル・er-sync PASS）。**Tier2 6種の差し込み化は Phase B（未着手）**。member/public 非該当（gas-src 由来 inert 差分のみ・未 redeploy） |
 | **v376.41** | 2026-06-09 | **公式LINE投稿依頼コンソール 研修選択不具合の修正 + ピッカー UX 改善**（admin split のみ @200）。①【バグ修正】`App.tsx` の line-post ビューが `loadSystemSettings` のみ呼んで早期 return し `loadAppData`(trainings) 未呼出のため研修プルダウンが空だった（研修管理等を先に開かないと候補ゼロ）→ line-post でも trainings を silent 読込。②研修選択を `<select>` → **研修名 検索可能な combobox** `TrainingPicker`（`LinePostEditorModal.tsx`）。③**開催日が過ぎた研修を非表示**（当日含む未来のみ・`isDeleted` 除外・選択中は過去でも保持・開催日昇順）。④「対象」ラジオ**既定を TRAINING（研修の投稿）** に。⑤添付ファイルを**ドラッグ&ドロップ対応**（border-dashed ドロップゾーン＋クリック選択併存）。純フロント（admin 境界・top-level callable 不変、member/public 非該当） |
 | **v376.40** | 2026-06-09 | **公式LINE投稿依頼 UI 文言調整**（admin split のみ @199）。①「対象」ラジオを文言変更＋並び替え：`研修の投稿`(TRAINING・先頭)／`登録研修以外`(GENERAL・後)（旧 一般投稿/研修に紐付け）。②投稿依頼コンソールの「対象:」絞り込みフィルタも同文言・同順に統一（旧 一般/研修）。③リンク欄ラベルを「対象」連動の動的表示に：GENERAL 時のみ `掲載リンク（資料・申込リンク等）`、TRAINING 時は従来どおり `研修申込リンク`。`value`(TRAINING/GENERAL)・`trainingApplyUrl` 入力・プレビュー・保存挙動は不変。`src/components/LinePostEditorModal.tsx` + `src/components/LinePostConsole.tsx` の純フロント変更（GAS Code.gs の admin 境界・top-level callable 不変、member/public 非該当） |
 | **v376.39** | 2026-06-07 | **研修管理から公式LINE投稿依頼を研修紐付けで作成（contextual creation）**（admin split のみ @198）。研修編集モーダルに「📱 LINE投稿依頼」ボタンを追加 → 当該研修に自動紐付け（`targetType=TRAINING`/`targetId`/申込ディープリンク `buildPublicTrainingApplyUrl`）＋研修情報からの本文テンプレ（`src/shared/lineTemplate.ts` の `buildTrainingLinePostDraft`：研修名/開催日/会場）を事前入力したポップアップ（`z-[60]` で研修モーダル(z-50)上に重畳・新タブ禁止 `feedback_gas_new_tab_auth_trap` 準拠）。保存後 `DRAFT` で投稿依頼コンソールに合流。**DRY**: 投稿依頼の編集モーダルを `src/components/LinePostEditorModal.tsx` に抽出し `LinePostConsole` と共用。**副次バグ修正**: LinePostConsole の研修ピッカーが `t.name`（Training に無く undefined 表示）→ `t.title` に是正。Web 調査で LINE 外部自動投稿 API 不在＝手動投稿依頼ワークフロー維持が最適と確認。純フロント（admin Code.gs の境界・top-level callable 不変、member/public 非該当） |

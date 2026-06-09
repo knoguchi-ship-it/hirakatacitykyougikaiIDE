@@ -23,6 +23,7 @@ import { TRAINING_OPTIONAL_FIELD_DEFS } from './components/TrainingManagement';
 import { api, type AdminLoginResult, type MemberLoginResult, type MemberPortalLookup } from './services/api';
 import { callApi } from './shared/api-base';
 import { EmailCard, MasterOffBanner, MergeTags, ToggleSwitch } from './components/EmailSettingsCard';
+import MailTemplateManager from './components/MailTemplateManager';
 import { matchesSearchQuery } from './utils/search';
 
 type Role = 'ADMIN' | 'MEMBER';
@@ -4089,55 +4090,14 @@ const App: React.FC = () => {
                     body={credentialEmailBodyInput}
                     onBodyChange={v => { setCredentialEmailBodyInput(v); setSettingsIsDirty(true); }}
                     extra={
-                      <div className="mt-2 border border-slate-200 rounded-lg p-3 bg-slate-50">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-semibold text-slate-700">テンプレート管理</span>
-                          <button type="button"
-                            className="text-xs px-2 py-1 rounded bg-primary-50 border border-primary-300 text-primary-700 hover:bg-primary-100"
-                            onClick={() => { setShowTemplateSaveForm(f => !f); setTemplateSaveNameInput(''); }}>
-                            ＋ 現在の内容を保存
-                          </button>
-                        </div>
-                        {showTemplateSaveForm && (
-                          <div className="flex gap-2 mb-2">
-                            <input type="text" value={templateSaveNameInput} onChange={e => setTemplateSaveNameInput(e.target.value)}
-                              placeholder="テンプレート名" className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs" maxLength={50} />
-                            <button type="button" disabled={templateSaving || !templateSaveNameInput.trim()}
-                              className="px-3 py-1 text-xs rounded bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50"
-                              onClick={async () => {
-                                if (!templateSaveNameInput.trim()) return;
-                                setTemplateSaving(true);
-                                try {
-                                  const saved = await api.saveCredentialEmailTemplate({ name: templateSaveNameInput.trim(), subject: credentialEmailSubjectInput, body: credentialEmailBodyInput });
-                                  setEmailTemplates(prev => { const idx = prev.findIndex(t => t.id === saved.id); return idx >= 0 ? prev.map(t => t.id === saved.id ? saved : t) : [...prev, saved]; });
-                                  setShowTemplateSaveForm(false); setTemplateSaveNameInput('');
-                                } catch { alert('保存に失敗しました'); } finally { setTemplateSaving(false); }
-                              }}>{templateSaving ? '保存中…' : '保存'}</button>
-                            <button type="button" className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-500"
-                              onClick={() => { setShowTemplateSaveForm(false); setTemplateSaveNameInput(''); }}>キャンセル</button>
-                          </div>
-                        )}
-                        {emailTemplates.length === 0 ? <p className="text-xs text-slate-400">保存済みテンプレートはありません</p> : (
-                          <ul className="space-y-1">
-                            {emailTemplates.map(t => (
-                              <li key={t.id} className="flex items-center gap-2 text-xs border border-slate-200 rounded px-2 py-1.5 bg-white">
-                                <span className="flex-1 font-medium text-slate-700 truncate">{t.name}</span>
-                                <span className="text-slate-400 shrink-0">{t.savedAt.slice(0, 10)}</span>
-                                <button type="button" className="px-2 py-0.5 rounded border border-primary-300 text-primary-700 hover:bg-primary-50"
-                                  onClick={() => { if (!window.confirm(`「${t.name}」を読み込みますか？`)) return; setCredentialEmailSubjectInput(t.subject); setCredentialEmailBodyInput(t.body); setSettingsIsDirty(true); }}>読み込む</button>
-                                <button type="button" disabled={templateDeleting === t.id}
-                                  className="px-2 py-0.5 rounded border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50"
-                                  onClick={async () => { if (!window.confirm(`「${t.name}」を削除しますか？`)) return; setTemplateDeleting(t.id); try { await api.deleteCredentialEmailTemplate(t.id); setEmailTemplates(prev => prev.filter(x => x.id !== t.id)); } catch { alert('削除に失敗しました'); } finally { setTemplateDeleting(null); } }}
-                                >{templateDeleting === t.id ? '…' : '削除'}</button>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                        <div className="flex justify-end mt-1">
-                          <button type="button" onClick={() => { setCredentialEmailBodyInput(CREDENTIAL_EMAIL_DEFAULT_BODY); setSettingsIsDirty(true); }}
-                            className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50">デフォルトに戻す</button>
-                        </div>
-                      </div>
+                      <MailTemplateManager
+                        api={api}
+                        category="CREDENTIAL"
+                        subject={credentialEmailSubjectInput}
+                        body={credentialEmailBodyInput}
+                        onLoad={(s, b) => { setCredentialEmailSubjectInput(s); setCredentialEmailBodyInput(b); setSettingsIsDirty(true); }}
+                        defaultBody={CREDENTIAL_EMAIL_DEFAULT_BODY}
+                      />
                     } />
 
                   {/* 事業所 代表者 */}
@@ -4149,7 +4109,12 @@ const App: React.FC = () => {
                     onSubjectChange={v => { setBizRepEmailSubjectInput(v); setSettingsIsDirty(true); }}
                     defaultSubject={BIZ_REP_SUBJECT_DEFAULT}
                     body={bizRepEmailBodyInput}
-                    onBodyChange={v => { setBizRepEmailBodyInput(v); setSettingsIsDirty(true); }} />
+                    onBodyChange={v => { setBizRepEmailBodyInput(v); setSettingsIsDirty(true); }}
+                    extra={
+                      <MailTemplateManager api={api} category="BIZ_REP"
+                        subject={bizRepEmailSubjectInput} body={bizRepEmailBodyInput}
+                        onLoad={(s, b) => { setBizRepEmailSubjectInput(s); setBizRepEmailBodyInput(b); setSettingsIsDirty(true); }} />
+                    } />
                   <EmailCard badge="事業所・メンバー" title="事業所会員 メンバー（代表者以外）向け"
                     enabled={bizStaffEmailEnabledInput}
                     onToggle={() => { setBizStaffEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
@@ -4157,7 +4122,12 @@ const App: React.FC = () => {
                     onSubjectChange={v => { setBizStaffEmailSubjectInput(v); setSettingsIsDirty(true); }}
                     defaultSubject={BIZ_STAFF_SUBJECT_DEFAULT}
                     body={bizStaffEmailBodyInput}
-                    onBodyChange={v => { setBizStaffEmailBodyInput(v); setSettingsIsDirty(true); }} />
+                    onBodyChange={v => { setBizStaffEmailBodyInput(v); setSettingsIsDirty(true); }}
+                    extra={
+                      <MailTemplateManager api={api} category="BIZ_STAFF"
+                        subject={bizStaffEmailSubjectInput} body={bizStaffEmailBodyInput}
+                        onLoad={(s, b) => { setBizStaffEmailSubjectInput(s); setBizStaffEmailBodyInput(b); setSettingsIsDirty(true); }} />
+                    } />
                 </div>
 
                 {/* ─── 職員追加承認時のメール ─── */}
@@ -4171,7 +4141,12 @@ const App: React.FC = () => {
                     onSubjectChange={v => { setStaffAddStaffEmailSubjectInput(v); setSettingsIsDirty(true); }}
                     defaultSubject={STAFF_ADD_STAFF_SUBJECT_DEFAULT}
                     body={staffAddStaffEmailBodyInput}
-                    onBodyChange={v => { setStaffAddStaffEmailBodyInput(v); setSettingsIsDirty(true); }} />
+                    onBodyChange={v => { setStaffAddStaffEmailBodyInput(v); setSettingsIsDirty(true); }}
+                    extra={
+                      <MailTemplateManager api={api} category="STAFF_ADD_STAFF"
+                        subject={staffAddStaffEmailSubjectInput} body={staffAddStaffEmailBodyInput}
+                        onLoad={(s, b) => { setStaffAddStaffEmailSubjectInput(s); setStaffAddStaffEmailBodyInput(b); setSettingsIsDirty(true); }} />
+                    } />
                   <EmailCard badge="代表者通知" title="事業所代表者への追加通知メール"
                     enabled={staffAddRepEmailEnabledInput}
                     onToggle={() => { setStaffAddRepEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
@@ -4179,7 +4154,12 @@ const App: React.FC = () => {
                     onSubjectChange={v => { setStaffAddRepEmailSubjectInput(v); setSettingsIsDirty(true); }}
                     defaultSubject={STAFF_ADD_REP_SUBJECT_DEFAULT}
                     body={staffAddRepEmailBodyInput}
-                    onBodyChange={v => { setStaffAddRepEmailBodyInput(v); setSettingsIsDirty(true); }} />
+                    onBodyChange={v => { setStaffAddRepEmailBodyInput(v); setSettingsIsDirty(true); }}
+                    extra={
+                      <MailTemplateManager api={api} category="STAFF_ADD_REP"
+                        subject={staffAddRepEmailSubjectInput} body={staffAddRepEmailBodyInput}
+                        onLoad={(s, b) => { setStaffAddRepEmailSubjectInput(s); setStaffAddRepEmailBodyInput(b); setSettingsIsDirty(true); }} />
+                    } />
                 </div>
 
                 {/* v369: ─── 変更申請ワークフロー (受付・承認・却下) のメール ─── */}
@@ -4194,7 +4174,12 @@ const App: React.FC = () => {
                     onSubjectChange={v => { setApplicationReceiptSubjectInput(v); setSettingsIsDirty(true); }}
                     defaultSubject={APPLICATION_RECEIPT_SUBJECT_DEFAULT}
                     body={applicationReceiptBodyInput}
-                    onBodyChange={v => { setApplicationReceiptBodyInput(v); setSettingsIsDirty(true); }} />
+                    onBodyChange={v => { setApplicationReceiptBodyInput(v); setSettingsIsDirty(true); }}
+                    extra={
+                      <MailTemplateManager api={api} category="APPLICATION_RECEIPT"
+                        subject={applicationReceiptSubjectInput} body={applicationReceiptBodyInput}
+                        onLoad={(s, b) => { setApplicationReceiptSubjectInput(s); setApplicationReceiptBodyInput(b); setSettingsIsDirty(true); }} />
+                    } />
                   <EmailCard badge="②承認通知" title="管理者承認時：承認通知メール（申請者へ）"
                     enabled={approvalNotificationEnabledInput}
                     onToggle={() => { setApprovalNotificationEnabledInput(v => !v); setSettingsIsDirty(true); }}
@@ -4202,7 +4187,12 @@ const App: React.FC = () => {
                     onSubjectChange={v => { setApprovalNotificationSubjectInput(v); setSettingsIsDirty(true); }}
                     defaultSubject={APPROVAL_NOTIFICATION_SUBJECT_DEFAULT}
                     body={approvalNotificationBodyInput}
-                    onBodyChange={v => { setApprovalNotificationBodyInput(v); setSettingsIsDirty(true); }} />
+                    onBodyChange={v => { setApprovalNotificationBodyInput(v); setSettingsIsDirty(true); }}
+                    extra={
+                      <MailTemplateManager api={api} category="APPROVAL_NOTIFICATION"
+                        subject={approvalNotificationSubjectInput} body={approvalNotificationBodyInput}
+                        onLoad={(s, b) => { setApprovalNotificationSubjectInput(s); setApprovalNotificationBodyInput(b); setSettingsIsDirty(true); }} />
+                    } />
                   <EmailCard badge="③却下通知" title="管理者却下時：却下通知メール（申請者へ）"
                     enabled={rejectionNotificationEnabledInput}
                     onToggle={() => { setRejectionNotificationEnabledInput(v => !v); setSettingsIsDirty(true); }}
@@ -4210,7 +4200,12 @@ const App: React.FC = () => {
                     onSubjectChange={v => { setRejectionNotificationSubjectInput(v); setSettingsIsDirty(true); }}
                     defaultSubject={REJECTION_NOTIFICATION_SUBJECT_DEFAULT}
                     body={rejectionNotificationBodyInput}
-                    onBodyChange={v => { setRejectionNotificationBodyInput(v); setSettingsIsDirty(true); }} />
+                    onBodyChange={v => { setRejectionNotificationBodyInput(v); setSettingsIsDirty(true); }}
+                    extra={
+                      <MailTemplateManager api={api} category="REJECTION_NOTIFICATION"
+                        subject={rejectionNotificationSubjectInput} body={rejectionNotificationBodyInput}
+                        onLoad={(s, b) => { setRejectionNotificationSubjectInput(s); setRejectionNotificationBodyInput(b); setSettingsIsDirty(true); }} />
+                    } />
                 </div>
               </div>
           </AdminSettingsSection>}

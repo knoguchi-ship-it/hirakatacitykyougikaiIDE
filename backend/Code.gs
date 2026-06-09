@@ -13,7 +13,7 @@ var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
 var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
-var DB_SCHEMA_VERSION = '2026-05-29-training-application-url-v376.30';
+var DB_SCHEMA_VERSION = '2026-06-10-mail-template-table-v376.42';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
 var MEMBER_PORTAL_URL = 'https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec';
@@ -338,278 +338,6 @@ var マスタ初期値 = {
     ['ABSENT', '欠席', 3, true],
     ['LATE', '遅刻', 4, true],
     ['SAMEDAY_CANCEL', '当日キャンセル', 5, true],
-  ],
-};
-
-var テーブル定義 = {
-  T_会員: [
-    '会員ID',
-    '会員種別コード',
-    '会員状態コード',
-    '入会日',
-    '退会日',
-    '移行日',
-    '退会処理日',
-    '姓',
-    '名',
-    'セイ',
-    'メイ',
-    '代表メールアドレス',
-    '携帯電話番号',
-    '勤務先名',
-    '勤務先郵便番号',
-    '勤務先都道府県',
-    '勤務先市区町村',
-    '勤務先住所',
-    '勤務先住所2',
-    '勤務先電話番号',
-    '勤務先FAX番号',
-    '自宅郵便番号',
-    '自宅都道府県',
-    '自宅市区町村',
-    '自宅住所',
-    '自宅住所2',
-    '発送方法コード',
-    '郵送先区分コード',
-    '職員数上限',
-    '作成日時',
-    '更新日時',
-    '削除フラグ',
-    '介護支援専門員番号',
-    '事業所番号',
-    'ステータスメモ',
-  ],
-  T_システム設定: [
-    '設定キー',
-    '設定値',
-    '説明',
-    '更新日時',
-  ],
-  T_事業所職員: [
-    '職員ID',
-    '会員ID',
-    '姓',
-    '名',
-    'セイ',
-    'メイ',
-    '氏名',
-    'フリガナ',
-    'メールアドレス',
-    '職員権限コード',
-    '職員状態コード',
-    '入会日',
-    '退会日',
-    '介護支援専門員番号',
-    'メール配信希望コード',
-    '作成日時',
-    '更新日時',
-    '削除フラグ',
-  ],
-  T_認証アカウント: [
-    '認証ID',
-    '認証方式',
-    'ログインID',
-    'パスワードハッシュ',
-    'パスワードソルト',
-    'GoogleユーザーID',
-    'Googleメール',
-    'システムロールコード',
-    '会員ID',
-    '職員ID',
-    '最終ログイン日時',
-    'パスワード更新日時',
-    'アカウント有効フラグ',
-    'ログイン失敗回数',
-    'ロック状態',
-    '作成日時',
-    '更新日時',
-    '削除フラグ',
-  ],
-  T_ログイン履歴: [
-    'ログイン履歴ID',
-    '認証ID',
-    'ログインID',
-    '認証方式',
-    'ログイン結果',
-    '失敗理由',
-    '接続元IP',
-    'ユーザーエージェント',
-    '実行日時',
-  ],
-  T_管理者Googleホワイトリスト: [
-    'ホワイトリストID',
-    'Googleメール',
-    '紐付け認証ID',
-    '紐付け会員ID',
-    '権限コード',
-    // docs/246 Phase 1-B: 新 RBAC 用ロールID 列（並行運用）。
-    // 移行 APPLY 完了後はこちらが authoritative、権限コード は legacy 後方互換用として保持。
-    'ロールID',
-    '有効フラグ',
-    '変更者メール',
-    '変更日時',
-    '作成日時',
-    '更新日時',
-    '削除フラグ',
-  ],
-  // docs/246 Phase 1-B: メニュー単位カスタムロールの永続化テーブル。
-  // 値は scripts/menu-registry.mjs::INITIAL_ROLE_DEFINITIONS を seed として投入。
-  T_権限ロール: [
-    'ロールID',
-    'ロール名',
-    '説明',
-    '許可メニューJSON',
-    '研修編集スコープ',
-    '組込フラグ',
-    'マスターフラグ',
-    '表示順',
-    '作成日時',
-    '更新日時',
-    '削除フラグ',
-  ],
-  T_画面項目権限: [
-    '権限定義ID',
-    'システムロールコード',
-    '画面コード',
-    '項目コード',
-    '閲覧可',
-    '登録可',
-    '変更可',
-    '削除可',
-    '作成日時',
-    '更新日時',
-    '削除フラグ',
-  ],
-  T_研修: [
-    '研修ID',
-    '研修名',
-    '開催日',
-    '開催終了時刻',
-    '定員',
-    '申込者数',
-    '開催場所',
-    '研修状態コード',
-    '主催者',
-    '法定外研修フラグ',
-    '研修概要',
-    '研修内容',
-    '費用JSON',
-    '申込開始日',
-    '申込締切日',
-    '講師',
-    '案内状URL',
-    '案内状サムネイルURL',
-    '項目設定JSON',
-    '登録者メール',
-    '作成日時',
-    '更新日時',
-    '削除フラグ',
-    // v376.30: 外部申込フォーム URL（Google フォーム等、任意項目）
-    // 末尾追加: normalizeTableColumns_ + writeSheetHeaders_ name-based shift で既存データ保持
-    '申込URL',
-  ],
-  T_研修申込: [
-    '申込ID',
-    '研修ID',
-    '会員ID',
-    '職員ID',
-    '申込状態コード',
-    '申込日時',
-    '取消日時',
-    '備考',
-    '申込者区分コード',
-    '申込者ID',
-    '作成日時',
-    '更新日時',
-    '削除フラグ',
-    // v360: 2-FK XOR 化 + 出欠管理（末尾追加・schema-shift guard 経由で安全に migrate）
-    '外部申込者ID',
-    '出欠状態コード',
-    '出欠記録日時',
-    '出欠記録者メール',
-    '事務局メモ',
-  ],
-  T_外部申込者: [
-    '外部申込者ID',
-    '氏名',
-    'フリガナ',
-    'メールアドレス',
-    '電話番号',
-    '事業所名',
-    '同意日時',
-    '作成日時',
-    '更新日時',
-    '削除フラグ',
-  ],
-  T_年会費納入履歴: [
-    '年会費履歴ID',
-    '会員ID',
-    '対象年度',
-    '会費納入状態コード',
-    '納入確認日',
-    '金額',
-    '備考',
-    '作成日時',
-    '更新日時',
-    '削除フラグ',
-  ],
-  T_年会費更新履歴: [
-    '年会費更新履歴ID',
-    '年会費履歴ID',
-    '会員ID',
-    '対象年度',
-    '操作種別',
-    '更新前JSON',
-    '更新後JSON',
-    '実行者メール',
-    '実行日時',
-  ],
-  // v194: メール一括送信ログ（append-only。個人メールアドレス・本文は記録しない）
-  // v360: 研修ID 列を追加（nullable・研修関連送信時のみ populate）
-  T_メール送信ログ: [
-    'ログID',
-    '送信日時',
-    '送信者メール',
-    '件名テンプレート',
-    '宛先数',
-    '成功数',
-    'エラー数',
-    '送信種別',
-    '研修ID',
-    '削除フラグ',
-  ],
-  // v360: メール送信明細（per-recipient detail）— Header-Detail パターン
-  T_メール送信明細: [
-    '明細ID',
-    'ログID',
-    '研修ID',
-    '受信者区分',
-    '受信者ID',
-    '受信者メール',
-    '送信結果',
-    'エラー詳細',
-    '作成日時',
-    '削除フラグ',
-  ],
-  // v143: 管理者操作の監査ログ（append-only）
-  T_監査ログ: [
-    '監査ログID',
-    '操作日時',
-    '操作者メール',
-    '操作種別',
-    '対象テーブル',
-    '対象レコードID',
-    'フィールド名',
-    '旧値',
-    '新値',
-  ],
-  // v232: 物理削除ログ（MASTER権限専用。append-only）
-  T_削除ログ: [
-    'ログID',
-    '操作日時',
-    '操作者メール',
-    '対象会員IDリスト',
-    '削除前スナップショットJSON',
   ],
 };
 
@@ -1262,6 +990,8 @@ function processApiRequest(action, payload) {
 
     // v219: 入会メール テンプレート管理
 
+    // v376.42: 全メール種別 テンプレート管理（汎用・カテゴリ別）
+
     // v224: 一括メール テンプレート管理
 
     // v207: 宛名リスト Excel 出力
@@ -1872,10 +1602,65 @@ function sendApplicationReceiptMail_(ss, params) {
 // v265: 事業所メール設定をまとめて取得するヘルパー（T_システム設定から）
 
 
-// ── 入会メール テンプレート管理（v219）──────────────────
-// T_システム設定 の CREDENTIAL_EMAIL_TEMPLATES キーに JSON 配列で保存
-// [{id, name, subject, body, savedAt}, ...]
+// ── メールテンプレート管理（v376.42 で全メール種別へ汎用化）─────────────
+// T_メールテンプレート テーブルに集約。カテゴリ列で種別を区別する。
+// runtime のメール本文は従来どおり T_システム設定 の <CAT>_SUBJECT/BODY を使用し、
+// 本テーブルは名前付きスナップショットの保存/読込専用（送信経路の正本にはしない）。
+// 上書き保存 = payload.id 一致で update、無ければ新規 insert。
 
+var MAIL_TEMPLATE_CATEGORIES_ = [
+  'CREDENTIAL', 'BIZ_REP', 'BIZ_STAFF', 'STAFF_ADD_STAFF', 'STAFF_ADD_REP',
+  'APPLICATION_RECEIPT', 'APPROVAL_NOTIFICATION', 'REJECTION_NOTIFICATION',
+  'TRAINING_APPLY_RECEIPT', 'TRAINING_REMINDER', 'AUTH_OTP',
+  'MEMBER_UPDATE_CONFIRM', 'WITHDRAWAL_CONFIRM', 'PASSWORD_RESET'
+];
+
+
+
+// 汎用一覧取得。payload.category 指定時はそのカテゴリのみ。更新日時の降順。
+
+// 汎用保存。payload.id 一致で上書き update、無ければ新規 insert。
+
+// 汎用削除（soft delete）。
+
+// 旧 T_システム設定 の CREDENTIAL_EMAIL_TEMPLATES（JSON 配列）を T_メールテンプレート へ移行。
+// id 一致で重複スキップするため冪等。旧 JSON キーはロールバック用に削除しない。
+function migrateCredentialTemplatesToTable_(ss) {
+  var sheet = ss.getSheetByName('T_メールテンプレート');
+  if (!sheet) return;
+  var raw = getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_TEMPLATES');
+  if (!raw) return;
+  var legacy;
+  try { legacy = JSON.parse(raw); } catch (e) { return; }
+  if (!Array.isArray(legacy) || legacy.length === 0) return;
+  var existing = getRowsAsObjects_(ss, 'T_メールテンプレート');
+  var existingIds = {};
+  for (var i = 0; i < existing.length; i += 1) existingIds[String(existing[i]['テンプレートID'] || '')] = true;
+  var toAppend = [];
+  for (var j = 0; j < legacy.length; j += 1) {
+    var t = legacy[j] || {};
+    var id = String(t.id || '');
+    if (!id || existingIds[id]) continue;
+    var savedAt = String(t.savedAt || new Date().toISOString());
+    toAppend.push({
+      'テンプレートID': id,
+      'カテゴリ': 'CREDENTIAL',
+      '名前': String(t.name || ''),
+      '件名': String(t.subject || ''),
+      '本文': String(t.body || ''),
+      '既定フラグ': false,
+      '作成日時': savedAt,
+      '更新日時': savedAt,
+      '削除フラグ': false,
+    });
+  }
+  if (toAppend.length > 0) {
+    appendRowsByHeaders_(ss, 'T_メールテンプレート', toAppend);
+    Logger.log('[migrateCredentialTemplatesToTable_] migrated ' + toAppend.length + ' credential templates to T_メールテンプレート');
+  }
+}
+
+// ── 後方互換: 旧 credential 専用 action は汎用関数へ委譲（単一情報源を維持）──
 
 
 
@@ -3062,6 +2847,9 @@ function initializeSchema_(ss) {
   // docs/246 Phase 1-B: メニュー単位カスタムロール RBAC
   critical('normalize T_権限ロール',              function() { normalizeTableColumns_(ss, 'T_権限ロール'); });
   critical('seedInitialPermissionRoles_',         function() { seedInitialPermissionRoles_(ss); });
+  // v376.42: 全メール種別テンプレート管理テーブル + 旧 credential JSON の移行
+  critical('normalize T_メールテンプレート',      function() { normalizeTableColumns_(ss, 'T_メールテンプレート'); });
+  critical('migrateCredentialTemplatesToTable_',  function() { migrateCredentialTemplatesToTable_(ss); });
   critical('normalize T_認証アカウント',          function() { normalizeTableColumns_(ss, 'T_認証アカウント'); });
   critical('normalize T_ログイン履歴',            function() { normalizeTableColumns_(ss, 'T_ログイン履歴'); });
   critical('normalize T_研修申込',                function() { normalizeTableColumns_(ss, 'T_研修申込'); });

@@ -326,7 +326,7 @@ footer {
 <div class="hero">
   <h1>📊 テーブル設計書（理路整然版）</h1>
   <p>各テーブルの列定義 + FK 関係を整理された形式で表示します。Mermaid ER 図の線が絡まる問題を回避した、参照用の正規ビューです。</p>
-  <p style="margin-top: 8px; font-size: 0.88em; opacity: 0.85;">📌 全 45 テーブル | 全 48 リレーション</p>
+  <p style="margin-top: 8px; font-size: 0.88em; opacity: 0.85;">📌 全 46 テーブル | 全 48 リレーション</p>
 </div>
 
 <section class="card">
@@ -363,7 +363,7 @@ footer {
     <div style="margin-bottom: 12px;">
       <h3 style="margin: 0 0 6px; color: var(--warm);">その他</h3>
       <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-        <a href="#tbl-T_権限ロール" class="toc-tag">T_権限ロール</a><a href="#tbl-T_削除ログ" class="toc-tag">T_削除ログ</a><a href="#tbl-T_変更申請" class="toc-tag">T_変更申請</a><a href="#tbl-T_人物統合ログ" class="toc-tag">T_人物統合ログ</a><a href="#tbl-T_LINE投稿依頼" class="toc-tag">T_LINE投稿依頼</a>
+        <a href="#tbl-T_権限ロール" class="toc-tag">T_権限ロール</a><a href="#tbl-T_メールテンプレート" class="toc-tag">T_メールテンプレート</a><a href="#tbl-T_削除ログ" class="toc-tag">T_削除ログ</a><a href="#tbl-T_変更申請" class="toc-tag">T_変更申請</a><a href="#tbl-T_人物統合ログ" class="toc-tag">T_人物統合ログ</a><a href="#tbl-T_LINE投稿依頼" class="toc-tag">T_LINE投稿依頼</a>
       </div>
     </div>
   
@@ -3355,6 +3355,62 @@ footer {
       </div>
     </div>
   </div>
+  <div class="tbl-card" id="tbl-T_メールテンプレート">
+    <div class="tbl-card-head">
+      <h4>T_メールテンプレート</h4>
+      <span class="col-count">9 列</span>
+    </div>
+    <div class="tbl-card-body">
+      <table>
+        <thead><tr><th>列名</th><th>型</th><th>キー</th></tr></thead>
+        <tbody><tr>
+      <td class="col-name">テンプレートID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-pk">PK</span></td>
+    </tr><tr>
+      <td class="col-name">カテゴリ</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">名前</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">件名</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">本文</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">既定フラグ</td>
+      <td class="col-type">boolean</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">作成日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">更新日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">削除フラグ</td>
+      <td class="col-type">boolean</td>
+      <td></td>
+    </tr></tbody>
+      </table>
+      <div class="tbl-rel-section">
+        <h5>📥 このテーブルを参照する側 (0)</h5>
+        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+      </div>
+      <div class="tbl-rel-section">
+        <h5>📤 このテーブルが参照する側 (0)</h5>
+        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+      </div>
+    </div>
+  </div>
   <div class="tbl-card" id="tbl-T_削除ログ">
     <div class="tbl-card-head">
       <h4>T_削除ログ</h4>
@@ -3639,7 +3695,7 @@ footer {
 
 
 <footer>
-  生成: 2026-06-04 | scripts/build-docs-portal.mjs より自動生成 | AGENTS.md §4.6 準拠
+  生成: 2026-06-09 | scripts/build-docs-portal.mjs より自動生成 | AGENTS.md §4.6 準拠
 </footer>
 
 </div>

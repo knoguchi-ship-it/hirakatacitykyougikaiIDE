@@ -137,13 +137,18 @@ export interface RosterDesignerRow {
   [key: string]: string | number | undefined | Record<number, 'PAID' | 'UNPAID'>;
 }
 
-// v219: 入会メールテンプレート
+// v219: 入会メールテンプレート（v376.42 で全メール種別へ汎用化）
 export interface EmailTemplate {
   id: string;
   name: string;
   subject: string;
   body: string;
   savedAt: string;
+  // v376.42: T_メールテンプレート 集約に伴う追加フィールド（後方互換のため任意）
+  category?: string;
+  updatedAt?: string;
+  createdAt?: string;
+  isDefault?: boolean;
 }
 
 // v373.6 (S5): RosterTemplate interface 撤去（旧 RosterExport 削除に伴う）。

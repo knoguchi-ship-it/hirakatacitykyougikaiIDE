@@ -1,6 +1,6 @@
 // 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能
 // 元: docs/03_DATA_MODEL.md
-// 生成日時: 2026-06-04T03:30:23.299Z
+// 生成日時: 2026-06-09T15:22:31.773Z
 
 Project hcmn_member_system {
   database_type: "Google Spreadsheet (logical)"
@@ -179,6 +179,18 @@ Table "T_システム設定" {
   "設定値" varchar
   "説明" varchar
   "更新日時" timestamp
+}
+
+Table "T_メールテンプレート" {
+  "テンプレートID" varchar [pk]
+  "カテゴリ" varchar
+  "名前" varchar
+  "件名" varchar
+  "本文" varchar
+  "既定フラグ" boolean
+  "作成日時" timestamp
+  "更新日時" timestamp
+  "削除フラグ" boolean
 }
 
 Table "T_メール送信ログ" {

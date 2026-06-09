@@ -13,7 +13,7 @@ var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
 var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
-var DB_SCHEMA_VERSION = '2026-05-29-training-application-url-v376.30';
+var DB_SCHEMA_VERSION = '2026-06-10-mail-template-table-v376.42';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
 var MEMBER_PORTAL_URL = 'https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec';
@@ -463,6 +463,21 @@ var テーブル定義 = {
     '組込フラグ',
     'マスターフラグ',
     '表示順',
+    '作成日時',
+    '更新日時',
+    '削除フラグ',
+  ],
+  // v376.42: 全メール種別のテンプレート管理（名前付きスナップショット）を集約する単一テーブル。
+  // カテゴリ列で種別を区別し、汎用 CRUD（listMailTemplates_/saveMailTemplate_/deleteMailTemplate_）で操作する。
+  // 旧 CREDENTIAL_EMAIL_TEMPLATES（T_システム設定の JSON）は migrateCredentialTemplatesToTable_ で本テーブルへ移行。
+  // runtime のメール本文は従来どおり T_システム設定の <CAT>_SUBJECT/BODY を使用し、本テーブルは保存/読込専用。
+  T_メールテンプレート: [
+    'テンプレートID',
+    'カテゴリ',
+    '名前',
+    '件名',
+    '本文',
+    '既定フラグ',
     '作成日時',
     '更新日時',
     '削除フラグ',
@@ -1632,6 +1647,9 @@ var ADMIN_ACTION_PERMISSIONS = {
   'getCredentialEmailTemplates': ['MASTER','ADMIN'],
   'saveCredentialEmailTemplate': ['MASTER','ADMIN'],
   'deleteCredentialEmailTemplate': ['MASTER','ADMIN'],
+  'listMailTemplates': ['MASTER','ADMIN'],
+  'saveMailTemplate': ['MASTER','ADMIN'],
+  'deleteMailTemplate': ['MASTER','ADMIN'],
   'getBulkMailTemplates': ['MASTER','ADMIN'],
   'saveBulkMailTemplate': ['MASTER','ADMIN'],
   'deleteBulkMailTemplate': ['MASTER','ADMIN'],
@@ -2231,6 +2249,17 @@ function processApiRequest(action, payload) {
     }
     if (action === 'deleteCredentialEmailTemplate') {
       return JSON.stringify({ success: true, data: deleteCredentialEmailTemplate_(parsedPayload) });
+    }
+
+    // v376.42: 全メール種別 テンプレート管理（汎用・カテゴリ別）
+    if (action === 'listMailTemplates') {
+      return JSON.stringify({ success: true, data: listMailTemplates_(parsedPayload) });
+    }
+    if (action === 'saveMailTemplate') {
+      return JSON.stringify({ success: true, data: saveMailTemplate_(parsedPayload) });
+    }
+    if (action === 'deleteMailTemplate') {
+      return JSON.stringify({ success: true, data: deleteMailTemplate_(parsedPayload) });
     }
 
     // v224: 一括メール テンプレート管理
@@ -9390,53 +9419,182 @@ function sendCredentialEmail_(toEmail, loginId, password, memberName, opts) {
   });
 }
 
-// ── 入会メール テンプレート管理（v219）──────────────────
-// T_システム設定 の CREDENTIAL_EMAIL_TEMPLATES キーに JSON 配列で保存
-// [{id, name, subject, body, savedAt}, ...]
+// ── メールテンプレート管理（v376.42 で全メール種別へ汎用化）─────────────
+// T_メールテンプレート テーブルに集約。カテゴリ列で種別を区別する。
+// runtime のメール本文は従来どおり T_システム設定 の <CAT>_SUBJECT/BODY を使用し、
+// 本テーブルは名前付きスナップショットの保存/読込専用（送信経路の正本にはしない）。
+// 上書き保存 = payload.id 一致で update、無ければ新規 insert。
 
-function getCredentialEmailTemplates_() {
+var MAIL_TEMPLATE_CATEGORIES_ = [
+  'CREDENTIAL', 'BIZ_REP', 'BIZ_STAFF', 'STAFF_ADD_STAFF', 'STAFF_ADD_REP',
+  'APPLICATION_RECEIPT', 'APPROVAL_NOTIFICATION', 'REJECTION_NOTIFICATION',
+  'TRAINING_APPLY_RECEIPT', 'TRAINING_REMINDER', 'AUTH_OTP',
+  'MEMBER_UPDATE_CONFIRM', 'WITHDRAWAL_CONFIRM', 'PASSWORD_RESET'
+];
+
+function normalizeMailTemplateCategory_(category) {
+  var c = String(category || '').trim().toUpperCase();
+  if (MAIL_TEMPLATE_CATEGORIES_.indexOf(c) < 0) {
+    throw new Error('不正なメールテンプレートカテゴリです: ' + c);
+  }
+  return c;
+}
+
+function mailTemplateRecordFromRow_(r) {
+  var updatedAt = String(r['更新日時'] || '');
+  var createdAt = String(r['作成日時'] || '');
+  return {
+    id: String(r['テンプレートID'] || ''),
+    category: String(r['カテゴリ'] || ''),
+    name: String(r['名前'] || ''),
+    subject: String(r['件名'] || ''),
+    body: String(r['本文'] || ''),
+    isDefault: toBoolean_(r['既定フラグ']),
+    savedAt: updatedAt || createdAt,
+    updatedAt: updatedAt,
+    createdAt: createdAt,
+  };
+}
+
+// 汎用一覧取得。payload.category 指定時はそのカテゴリのみ。更新日時の降順。
+function listMailTemplates_(payload) {
   var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  var category = (payload && payload.category) ? normalizeMailTemplateCategory_(payload.category) : '';
+  var rows = getRowsAsObjects_(ss, 'T_メールテンプレート').filter(function(r) {
+    if (toBoolean_(r['削除フラグ'])) return false;
+    if (category && String(r['カテゴリ'] || '').toUpperCase() !== category) return false;
+    return true;
+  });
+  var list = rows.map(mailTemplateRecordFromRow_);
+  list.sort(function(a, b) { return String(b.updatedAt).localeCompare(String(a.updatedAt)); });
+  return { templates: list };
+}
+
+// 汎用保存。payload.id 一致で上書き update、無ければ新規 insert。
+function saveMailTemplate_(payload) {
+  if (!payload) throw new Error('payload が空です。');
+  var category = normalizeMailTemplateCategory_(payload.category);
+  if (!String(payload.name || '').trim()) throw new Error('テンプレート名は必須です。');
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  var sheet = ss.getSheetByName('T_メールテンプレート');
+  if (!sheet) throw new Error('T_メールテンプレート シートが見つかりません。');
+  var nowIso = new Date().toISOString();
+  var name = String(payload.name).trim();
+  var subject = String(payload.subject || '');
+  var body = String(payload.body || '');
+  var id = payload.id ? String(payload.id) : '';
+
+  if (id) {
+    // 上書き update
+    var found = findRowByColumnValue_(sheet, 'テンプレートID', id);
+    if (!found || toBoolean_(found.row[found.columns['削除フラグ']])) {
+      throw new Error('更新対象のテンプレートが見つかりません。');
+    }
+    var existingCategory = String(found.row[found.columns['カテゴリ']] || '').toUpperCase();
+    var createdAt = String(found.row[found.columns['作成日時']] || '');
+    var isDefault = toBoolean_(found.row[found.columns['既定フラグ']]);
+    var row = found.row.slice();
+    row[found.columns['名前']] = name;
+    row[found.columns['件名']] = subject;
+    row[found.columns['本文']] = body;
+    row[found.columns['更新日時']] = nowIso;
+    sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+    return {
+      id: id, category: existingCategory || category, name: name, subject: subject, body: body,
+      isDefault: isDefault, savedAt: nowIso, updatedAt: nowIso, createdAt: createdAt,
+    };
+  }
+
+  // 新規 insert
+  var newId = Utilities.getUuid();
+  appendRowsByHeaders_(ss, 'T_メールテンプレート', [{
+    'テンプレートID': newId,
+    'カテゴリ': category,
+    '名前': name,
+    '件名': subject,
+    '本文': body,
+    '既定フラグ': false,
+    '作成日時': nowIso,
+    '更新日時': nowIso,
+    '削除フラグ': false,
+  }]);
+  return {
+    id: newId, category: category, name: name, subject: subject, body: body,
+    isDefault: false, savedAt: nowIso, updatedAt: nowIso, createdAt: nowIso,
+  };
+}
+
+// 汎用削除（soft delete）。
+function deleteMailTemplate_(payload) {
+  if (!payload || !payload.id) throw new Error('テンプレートIDは必須です。');
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  var sheet = ss.getSheetByName('T_メールテンプレート');
+  if (!sheet) throw new Error('T_メールテンプレート シートが見つかりません。');
+  var found = findRowByColumnValue_(sheet, 'テンプレートID', String(payload.id));
+  if (!found || toBoolean_(found.row[found.columns['削除フラグ']])) {
+    throw new Error('指定テンプレートが見つかりません。');
+  }
+  var row = found.row.slice();
+  row[found.columns['削除フラグ']] = true;
+  row[found.columns['更新日時']] = new Date().toISOString();
+  sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  return { deletedId: String(payload.id) };
+}
+
+// 旧 T_システム設定 の CREDENTIAL_EMAIL_TEMPLATES（JSON 配列）を T_メールテンプレート へ移行。
+// id 一致で重複スキップするため冪等。旧 JSON キーはロールバック用に削除しない。
+function migrateCredentialTemplatesToTable_(ss) {
+  var sheet = ss.getSheetByName('T_メールテンプレート');
+  if (!sheet) return;
   var raw = getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_TEMPLATES');
-  if (!raw) return [];
-  try { return JSON.parse(raw); } catch (e) { return []; }
+  if (!raw) return;
+  var legacy;
+  try { legacy = JSON.parse(raw); } catch (e) { return; }
+  if (!Array.isArray(legacy) || legacy.length === 0) return;
+  var existing = getRowsAsObjects_(ss, 'T_メールテンプレート');
+  var existingIds = {};
+  for (var i = 0; i < existing.length; i += 1) existingIds[String(existing[i]['テンプレートID'] || '')] = true;
+  var toAppend = [];
+  for (var j = 0; j < legacy.length; j += 1) {
+    var t = legacy[j] || {};
+    var id = String(t.id || '');
+    if (!id || existingIds[id]) continue;
+    var savedAt = String(t.savedAt || new Date().toISOString());
+    toAppend.push({
+      'テンプレートID': id,
+      'カテゴリ': 'CREDENTIAL',
+      '名前': String(t.name || ''),
+      '件名': String(t.subject || ''),
+      '本文': String(t.body || ''),
+      '既定フラグ': false,
+      '作成日時': savedAt,
+      '更新日時': savedAt,
+      '削除フラグ': false,
+    });
+  }
+  if (toAppend.length > 0) {
+    appendRowsByHeaders_(ss, 'T_メールテンプレート', toAppend);
+    Logger.log('[migrateCredentialTemplatesToTable_] migrated ' + toAppend.length + ' credential templates to T_メールテンプレート');
+  }
+}
+
+// ── 後方互換: 旧 credential 専用 action は汎用関数へ委譲（単一情報源を維持）──
+function getCredentialEmailTemplates_() {
+  return listMailTemplates_({ category: 'CREDENTIAL' }).templates;
 }
 
 function saveCredentialEmailTemplate_(payload) {
-  if (!payload || !String(payload.name || '').trim()) throw new Error('テンプレート名は必須です。');
-  var ss = getOrCreateDatabase_();
-  var templates = getCredentialEmailTemplates_();
-  var id = payload.id ? String(payload.id) : Utilities.getUuid();
-  var now = new Date().toISOString();
-  var idx = templates.findIndex(function(t) { return t.id === id; });
-  var record = {
-    id: id,
-    name: String(payload.name).trim(),
-    subject: String(payload.subject || ''),
-    body: String(payload.body || ''),
-    savedAt: now,
-  };
-  if (idx >= 0) {
-    templates[idx] = record;
-  } else {
-    templates.push(record);
-  }
-  batchUpsertSystemSettings_(ss, [
-    { key: 'CREDENTIAL_EMAIL_TEMPLATES', value: JSON.stringify(templates), description: '入会メールテンプレート一覧（JSON）' }
-  ]);
-  return record;
+  payload = payload || {};
+  return saveMailTemplate_({
+    id: payload.id, category: 'CREDENTIAL', name: payload.name, subject: payload.subject, body: payload.body,
+  });
 }
 
 function deleteCredentialEmailTemplate_(payload) {
-  if (!payload || !payload.id) throw new Error('テンプレートIDは必須です。');
-  var ss = getOrCreateDatabase_();
-  var templates = getCredentialEmailTemplates_();
-  var before = templates.length;
-  templates = templates.filter(function(t) { return t.id !== String(payload.id); });
-  if (templates.length === before) throw new Error('指定テンプレートが見つかりません。');
-  batchUpsertSystemSettings_(ss, [
-    { key: 'CREDENTIAL_EMAIL_TEMPLATES', value: JSON.stringify(templates), description: '入会メールテンプレート一覧（JSON）' }
-  ]);
-  return { deletedId: payload.id };
+  return deleteMailTemplate_(payload);
 }
 
 // ── 一括メール テンプレート管理（v224）──────────────────
@@ -14001,6 +14159,9 @@ function initializeSchema_(ss) {
   // docs/246 Phase 1-B: メニュー単位カスタムロール RBAC
   critical('normalize T_権限ロール',              function() { normalizeTableColumns_(ss, 'T_権限ロール'); });
   critical('seedInitialPermissionRoles_',         function() { seedInitialPermissionRoles_(ss); });
+  // v376.42: 全メール種別テンプレート管理テーブル + 旧 credential JSON の移行
+  critical('normalize T_メールテンプレート',      function() { normalizeTableColumns_(ss, 'T_メールテンプレート'); });
+  critical('migrateCredentialTemplatesToTable_',  function() { migrateCredentialTemplatesToTable_(ss); });
   critical('normalize T_認証アカウント',          function() { normalizeTableColumns_(ss, 'T_認証アカウント'); });
   critical('normalize T_ログイン履歴',            function() { normalizeTableColumns_(ss, 'T_ログイン履歴'); });
   critical('normalize T_研修申込',                function() { normalizeTableColumns_(ss, 'T_研修申込'); });

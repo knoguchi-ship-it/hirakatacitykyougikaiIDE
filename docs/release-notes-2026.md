@@ -13,6 +13,21 @@
 
 ---
 
+## v376.42 — 2026-06-10 🆕🔧 全メール種別テンプレート管理 基盤（Phase A）+ 上書き保存（admin split のみ @201）
+
+メール通知設定のテンプレート管理（名前付きスナップショットの保存/読込/削除）を、従来の「入会メール（個人・賛助）」だけでなく全メール種別へ拡張する基盤を整備。あわせて「上書き編集できない（保存すると常に新規テンプレートが増える）」不具合を解消。Web 調査（2026-06）の「テンプレートは集中バージョン管理し、差し込みは変数/トークンで」という指針に沿い、専用テーブルへ集約した。
+
+- **データモデル**: 専用テーブル `T_メールテンプレート`（`テンプレートID`/`カテゴリ`/`名前`/`件名`/`本文`/`既定フラグ`/`作成日時`/`更新日時`/`削除フラグ`）を新設。`テーブル定義` 追加＋`DB_SCHEMA_VERSION` bump で、`ensureTableSheetsExist_` が次回 admin login の `initializeSchemaIfNeeded_` 時に自動生成。`runtime` のメール本文は従来どおり `T_システム設定` の `<CAT>_SUBJECT/BODY`（編集フォーム現行値）を使用し、本テーブルは保存/読込専用（送信経路の正本にはしない＝既存挙動不変）。
+- **汎用 CRUD** 🔧: `listMailTemplates_(category)` / `saveMailTemplate_({id?,category,name,subject,body})` / `deleteMailTemplate_({id})`。**`saveMailTemplate_` は payload.id 一致で上書き update、無ければ UUID 新規 insert**（＝上書き保存の実体）。削除は soft delete。`processApiRequest` に admin action 3つ（`listMailTemplates`/`saveMailTemplate`/`deleteMailTemplate`）を `action === '...'` 完全一致で追加（build pruner 罠回避）。`scripts/gas-boundary-utils.mjs`（admin 許可 action）＋ `scripts/menu-registry.mjs`（admin-settings menu）に登録。
+- **移行** 🔧: `migrateCredentialTemplatesToTable_` が旧 `CREDENTIAL_EMAIL_TEMPLATES`（T_システム設定 の JSON 配列）を `カテゴリ=CREDENTIAL` で本テーブルへ移行。id 重複スキップで冪等。旧 JSON キーは rollback 用に残置。旧 credential 3 action（`getCredentialEmailTemplates`/`save`/`delete`）は汎用関数へ委譲し後方互換＋単一情報源を維持。
+- **フロント（DRY）** 🔧: 汎用 `src/components/MailTemplateManager.tsx` を抽出（カテゴリ単位で自前に一覧 fetch、global state 非共有）。**「上書き保存」（読込中テンプレを id 指定で更新・確認ダイアログ）＋「＋新規保存」（名前付き別保存）の2ボタン**、読み込む/削除、任意で「デフォルトに戻す」。`EmailCard` の `extra` スロットへ差し込み。credential＋Tier1 7種（事業所代表/メンバー・職員追加職員/代表者・変更申請受付/承認/却下）に付与。`src/shared/mailTemplates.ts` にカテゴリ enum＋「カテゴリ→マージタグ」表を集約。`src/types.ts` の `EmailTemplate` に category/updatedAt 等を後方互換追加。`api.ts` に 3 メソッド追加。
+- **既存重複の扱い**: システム設定 'portal' サブタブ内に旧 credential メール編集ブロック（重複）が残存するが、委譲関数経由で動作継続するため Phase A では非改修（要望外）。
+- **境界/スコープ**: メール設定は admin 専用。admin Code.gs の boundary・top-level callable 不変。member/public は本機能非該当のため**未 redeploy**（gas-src 由来の inert 差分＝新テーブル定義のみ。旧コードのままなら schema 再初期化は走らず共有 DB の新シートも安全）。
+- **Phase B（未着手）**: ハードコード6種（研修申込確認/研修リマインダー/公開ポータルOTP/会員情報変更確認/退会申請受付/パスワード再設定）の差し込みタグ化（DEFAULT 定数化・SystemSettings `<CAT>_SUBJECT/BODY` 追加・送信実体 rewire・UI カード追加）。OTP/PW 再設定コードの欠落は重大のためドライラン必須。
+- **検証 / デプロイ**: `typecheck` / `test:menu-registry` 10/10 / `test:er-sync` PASS（46 テーブル・stale=0）/ `prerelease` 全ゲート PASS。`build` → `build:gas`(×3) → `build:docs-portal`（ER 再生成）。admin split を push → version 201 → `redeploy @201`、`clasp deployments --json` で `@201`（"v376.42"）同期確認。**スキーマ移行は操作者 admin login でトリガ**（HANDOVER §2-1 #0）。
+
+---
+
 ## v376.41 — 2026-06-09 🐛🔧 公式LINE投稿依頼コンソール 研修選択不具合の修正 + ピッカー UX 改善（admin split のみ @200）
 
 公式LINE投稿依頼コンソールで「研修の投稿」の研修プルダウンが空で選択できない不具合の修正と、運用者要望の UX 改善をまとめて対応。

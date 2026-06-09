@@ -324,7 +324,7 @@ footer {
     <button class="copy-btn" onclick="copyDbml()">📋 全文コピー</button>
     <pre id="dbml-src">// 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能
 // 元: docs/03_DATA_MODEL.md
-// 生成日時: 2026-06-04T03:30:23.296Z
+// 生成日時: 2026-06-09T15:22:31.771Z
 
 Project hcmn_member_system {
   database_type: &quot;Google Spreadsheet (logical)&quot;
@@ -503,6 +503,18 @@ Table &quot;T_システム設定&quot; {
   &quot;設定値&quot; varchar
   &quot;説明&quot; varchar
   &quot;更新日時&quot; timestamp
+}
+
+Table &quot;T_メールテンプレート&quot; {
+  &quot;テンプレートID&quot; varchar [pk]
+  &quot;カテゴリ&quot; varchar
+  &quot;名前&quot; varchar
+  &quot;件名&quot; varchar
+  &quot;本文&quot; varchar
+  &quot;既定フラグ&quot; boolean
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+  &quot;削除フラグ&quot; boolean
 }
 
 Table &quot;T_メール送信ログ&quot; {
@@ -1016,7 +1028,7 @@ Ref: &quot;T_請求&quot;.&quot;業務分類コード&quot; &gt; &quot;M_業務�
 Ref: &quot;T_画面項目権限&quot;.&quot;システムロールコード&quot; &gt; &quot;M_システムロール&quot;.&quot;コード&quot; // システムロールコード
 Ref: &quot;T_ログイン履歴&quot;.&quot;認証ID&quot; &gt; &quot;T_認証アカウント&quot;.&quot;認証ID&quot; // 認証ID</pre>
   </div>
-  <p style="font-size: 0.85em; color: var(--muted);">行数: 693 / 容量: 13.2 KB</p>
+  <p style="font-size: 0.85em; color: var(--muted);">行数: 705 / 容量: 13.4 KB</p>
 </section>
 
 <section class="card">
@@ -1071,7 +1083,7 @@ Ref: &quot;T_ログイン履歴&quot;.&quot;認証ID&quot; &gt; &quot;T_認証�
 
 
 <footer>
-  生成: 2026-06-04 | scripts/build-docs-portal.mjs より自動生成 | AGENTS.md §4.6 準拠
+  生成: 2026-06-09 | scripts/build-docs-portal.mjs より自動生成 | AGENTS.md §4.6 準拠
 </footer>
 
 </div>
