@@ -2676,6 +2676,16 @@
         "type": "boolean",
         "key": "",
         "comment": ""
+      },
+      "作成者名": {
+        "type": "string",
+        "key": "",
+        "comment": "依頼者表示名（v376.45）"
+      },
+      "投稿マーク者名": {
+        "type": "string",
+        "key": "",
+        "comment": "投稿者表示名（v376.45）"
       }
     }
   },

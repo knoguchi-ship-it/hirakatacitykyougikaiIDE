@@ -48,6 +48,8 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   'dryRunMailTemplatesV376_43_LOG',
   // v376.44: 公式LINE投稿依頼 保存フロー dryRun E2E（operator 実行用）
   'dryRunLinePostV376_44_LOG',
+  // v376.45: LINE投稿 権限二層+可視範囲+submitRequest dryRun E2E（operator 実行用）
+  'dryRunLinePostV376_45_LOG',
 ];
 
 // admin build から強制削除する（pruning で残ってはならない）危険な top-level 関数。

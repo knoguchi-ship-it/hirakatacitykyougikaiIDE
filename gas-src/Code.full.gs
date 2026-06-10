@@ -13,7 +13,7 @@ var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
 var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
-var DB_SCHEMA_VERSION = '2026-06-10-mail-template-phaseb-v376.43';
+var DB_SCHEMA_VERSION = '2026-06-10-line-post-rbac-v376.45';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
 var MEMBER_PORTAL_URL = 'https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec';
@@ -800,6 +800,8 @@ var テーブル定義 = {
   '作成者メール', '作成日時', '更新日時',
   '投稿依頼日時', '投稿日時', '投稿マーク者メール',
   '備考', '削除フラグ',
+  // v376.45: 依頼者/投稿者の表示名をデノーマライズ（read 時 lookup 不要）
+  '作成者名', '投稿マーク者名',
 ];
 
 var 入力規則定義 = [
@@ -14374,6 +14376,8 @@ function initializeSchema_(ss) {
   // v376.42: 全メール種別テンプレート管理テーブル + 旧 credential JSON の移行
   critical('normalize T_メールテンプレート',      function() { normalizeTableColumns_(ss, 'T_メールテンプレート'); });
   critical('migrateCredentialTemplatesToTable_',  function() { migrateCredentialTemplatesToTable_(ss); });
+  // v376.45: 公式LINE投稿依頼に 作成者名/投稿マーク者名 列を追加（name-based shift で既存行保持）
+  critical('normalize T_LINE投稿依頼',            function() { normalizeTableColumns_(ss, 'T_LINE投稿依頼'); });
   critical('normalize T_認証アカウント',          function() { normalizeTableColumns_(ss, 'T_認証アカウント'); });
   critical('normalize T_ログイン履歴',            function() { normalizeTableColumns_(ss, 'T_ログイン履歴'); });
   critical('normalize T_研修申込',                function() { normalizeTableColumns_(ss, 'T_研修申込'); });
@@ -23466,13 +23470,27 @@ function rowToLinePostRequest_(row) {
     targetType: String(row['対象種別'] || LINE_POST_TARGET_GENERAL),
     targetId: String(row['対象ID'] || ''),
     createdByEmail: String(row['作成者メール'] || ''),
+    createdByName: String(row['作成者名'] || ''),
     createdAt: String(row['作成日時'] || ''),
     updatedAt: String(row['更新日時'] || ''),
     requestedAt: String(row['投稿依頼日時'] || ''),
     postedAt: String(row['投稿日時'] || ''),
     postedByEmail: String(row['投稿マーク者メール'] || ''),
+    postedByName: String(row['投稿マーク者名'] || ''),
     memo: String(row['備考'] || ''),
   };
+}
+
+// v376.45: LINE投稿「管理」権限（全件閲覧・投稿済みマーク・状態変更）の判定。
+// MASTER または allowedMenus に line-post-manage を持つ session のみ true。
+function lineCanManage_(session) {
+  if (!session) return false;
+  if (session.isMaster) return true;
+  var menus = session.allowedMenus || [];
+  for (var i = 0; i < menus.length; i += 1) {
+    if (menus[i] === 'line-post-manage') return true;
+  }
+  return false;
 }
 
 function listLinePostRequests_(payload) {
@@ -23484,11 +23502,16 @@ function listLinePostRequests_(payload) {
 
   var ss = getOrCreateDatabase_();
   ensureLinePostRequestSheet_(ss);
+  // v376.45: 可視範囲 — 管理権限が無ければ自分が作成した依頼のみ。
+  var session = p.__adminSession || null;
+  var canManage = lineCanManage_(session);
+  var callerEmail = String((session && session.loginId) || Session.getActiveUser().getEmail() || '').toLowerCase();
   var rows = getRowsAsObjects_(ss, 'T_LINE投稿依頼');
   var items = [];
   for (var i = 0; i < rows.length; i++) {
     var row = rows[i];
     if (String(row['削除フラグ'] || '').toLowerCase() === 'true') continue;
+    if (!canManage && String(row['作成者メール'] || '').toLowerCase() !== callerEmail) continue;
     if (statusFilter && String(row['ステータス']) !== statusFilter) continue;
     if (targetTypeFilter && String(row['対象種別']) !== targetTypeFilter) continue;
     if (keyword) {
@@ -23500,17 +23523,25 @@ function listLinePostRequests_(payload) {
   // 作成日時降順
   items.sort(function (a, b) { return (a.createdAt < b.createdAt) ? 1 : (a.createdAt > b.createdAt ? -1 : 0); });
   if (items.length > limit) items = items.slice(0, limit);
-  return { items: items, total: items.length, statusFilter: statusFilter, targetTypeFilter: targetTypeFilter };
+  return { items: items, total: items.length, statusFilter: statusFilter, targetTypeFilter: targetTypeFilter, canManage: canManage };
 }
 
 function getLinePostRequest_(payload) {
-  var id = String((payload || {}).id || '').trim();
+  var p = payload || {};
+  var id = String(p.id || '').trim();
   if (!id) throw new Error('投稿依頼IDが必要です。');
+  // v376.45: 外部 action 経由（__adminSession あり）のみ所有権ガード。内部呼び出し（save/transition の戻り）は素通り。
+  var session = p.__adminSession || null;
+  var enforceOwnership = !!session && !lineCanManage_(session);
+  var callerEmail = String((session && session.loginId) || '').toLowerCase();
   var ss = getOrCreateDatabase_();
   ensureLinePostRequestSheet_(ss);
   var rows = getRowsAsObjects_(ss, 'T_LINE投稿依頼');
   for (var i = 0; i < rows.length; i++) {
     if (String(rows[i]['投稿依頼ID']) === id) {
+      if (enforceOwnership && String(rows[i]['作成者メール'] || '').toLowerCase() !== callerEmail) {
+        throw new Error('この投稿依頼を閲覧する権限がありません。');
+      }
       if (String(rows[i]['削除フラグ'] || '').toLowerCase() === 'true') {
         throw new Error('削除済みの投稿依頼です。');
       }
@@ -23533,7 +23564,10 @@ function getLinePostRequest_(payload) {
 
 function saveLinePostRequest_(payload) {
   var p = payload || {};
-  var caller = String(Session.getActiveUser().getEmail() || '').toLowerCase();
+  var session = p.__adminSession || null;
+  var caller = String((session && session.loginId) || Session.getActiveUser().getEmail() || '').toLowerCase();
+  var callerName = String((session && session.displayName) || '');
+  var canManage = lineCanManage_(session);
   var ss = getOrCreateDatabase_();
   ensureLinePostRequestSheet_(ss);
   var text = String(p.text || '');
@@ -23565,6 +23599,10 @@ function saveLinePostRequest_(payload) {
       if (String(rows[i]['投稿依頼ID']) === id) { foundIndex = i; break; }
     }
     if (foundIndex < 0) throw new Error('編集対象の投稿依頼が見つかりません。');
+    // v376.45: 管理権限が無ければ自分の依頼のみ編集可（IDOR 防止）
+    if (!canManage && String(rows[foundIndex]['作成者メール'] || '').toLowerCase() !== caller) {
+      throw new Error('この投稿依頼を編集する権限がありません。');
+    }
     if (String(rows[foundIndex]['ステータス']) !== LINE_POST_STATUS_DRAFT) {
       throw new Error('作成中（DRAFT）の投稿依頼のみ編集できます。先に「取り下げ」を実行してください。');
     }
@@ -23590,11 +23628,12 @@ function saveLinePostRequest_(payload) {
     updateRowByKey_(saveSheet, テーブル定義['T_LINE投稿依頼'], '投稿依頼ID', id, updates);
     return getLinePostRequest_({ id: id });
   } else {
-    // 新規作成
+    // 新規作成。v376.45: submitRequest=true なら即「投稿依頼中(REQUESTED)」で作成し通知。
     var newId = Utilities.getUuid();
+    var doSubmit = p.submitRequest === true;
     var newRow = {
       '投稿依頼ID': newId,
-      'ステータス': LINE_POST_STATUS_DRAFT,
+      'ステータス': doSubmit ? LINE_POST_STATUS_REQUESTED : LINE_POST_STATUS_DRAFT,
       'テキスト': text,
       '研修申込リンク': trainingApplyUrl,
       '添付ファイルURL': String(p.attachmentUrl || ''),
@@ -23605,13 +23644,18 @@ function saveLinePostRequest_(payload) {
       '作成者メール': caller,
       '作成日時': now,
       '更新日時': now,
-      '投稿依頼日時': '',
+      '投稿依頼日時': doSubmit ? now : '',
       '投稿日時': '',
       '投稿マーク者メール': '',
       '備考': String(p.memo || ''),
       '削除フラグ': 'false',
+      '作成者名': callerName,
+      '投稿マーク者名': '',
     };
     appendRowsByHeaders_(ss, 'T_LINE投稿依頼', [newRow]);
+    if (doSubmit) {
+      try { notifyLinePostRequest_(ss, newId, newRow, caller); } catch (e) { Logger.log('[saveLinePostRequest_] notify failed: ' + e.message); }
+    }
     return getLinePostRequest_({ id: newId });
   }
 }
@@ -23647,6 +23691,22 @@ function uploadLinePostAttachment_(payload) {
   };
 }
 
+// v376.45: 投稿依頼登録の通知メール（saveLinePostRequest_ の submitRequest と transition 'request' で共用）。
+function notifyLinePostRequest_(ss, id, row, caller) {
+  var notifyEmail = String(getSystemSettingValue_(ss, 'LINE_POST_NOTIFY_EMAIL') || '').trim();
+  if (!notifyEmail) return;
+  var now = new Date().toISOString();
+  var subject = '【LINE投稿依頼】新規依頼が登録されました';
+  var body = '公式LINE への投稿依頼が登録されました。\n\n'
+    + '【投稿依頼ID】' + id + '\n'
+    + '【依頼者】' + (String(row['作成者名'] || '') ? (String(row['作成者名']) + '（' + caller + '）') : caller) + '\n'
+    + '【依頼日時】' + now + '\n\n'
+    + '----- 本文 -----\n' + String(row['テキスト'] || '') + '\n\n'
+    + (String(row['研修申込リンク'] || '') ? '【研修申込リンク】' + String(row['研修申込リンク']) + '\n' : '')
+    + (String(row['添付ファイルURL'] || '') ? '【添付ファイル】' + String(row['添付ファイル名'] || '') + '\n' + String(row['添付ファイルURL']) + '\n' : '');
+  deliverMail_('LINE_POST_REQUEST', notifyEmail, subject, body, {});
+}
+
 function transitionLinePostRequest_(payload) {
   var p = payload || {};
   var id = String(p.id || '').trim();
@@ -23654,7 +23714,10 @@ function transitionLinePostRequest_(payload) {
   // パラメータ名は `transAction` を使用（payload.action は外部 API 名で固定のため受信側のみ別名）
   var transAction = String(p.action || '').trim(); // 'request' / 'post' / 'withdraw'
   if (!id) throw new Error('投稿依頼IDが必要です。');
-  var caller = String(Session.getActiveUser().getEmail() || '').toLowerCase();
+  var session = p.__adminSession || null;
+  var caller = String((session && session.loginId) || Session.getActiveUser().getEmail() || '').toLowerCase();
+  var callerName = String((session && session.displayName) || '');
+  var canManage = lineCanManage_(session);
   var ss = getOrCreateDatabase_();
   ensureLinePostRequestSheet_(ss);
   var rows = getRowsAsObjects_(ss, 'T_LINE投稿依頼');
@@ -23663,6 +23726,13 @@ function transitionLinePostRequest_(payload) {
     if (String(rows[i]['投稿依頼ID']) === id) { found = rows[i]; break; }
   }
   if (!found) throw new Error('投稿依頼が見つかりません。');
+  var isOwner = String(found['作成者メール'] || '').toLowerCase() === caller;
+  // v376.45: post（投稿済みマーク）は管理権限のみ。request/withdraw は所有者 or 管理権限。
+  if (transAction === 'post') {
+    if (!canManage) throw new Error('「投稿済み」にする権限がありません（LINE投稿 管理権限が必要です）。');
+  } else if (transAction === 'request' || transAction === 'withdraw') {
+    if (!canManage && !isOwner) throw new Error('この投稿依頼を操作する権限がありません。');
+  }
   var now = new Date().toISOString();
   var currentStatus = String(found['ステータス']);
   var updates = { '更新日時': now };
@@ -23672,23 +23742,7 @@ function transitionLinePostRequest_(payload) {
     }
     updates['ステータス'] = LINE_POST_STATUS_REQUESTED;
     updates['投稿依頼日時'] = now;
-    // メール通知
-    var notifyEmail = String(getSystemSettingValue_(ss, 'LINE_POST_NOTIFY_EMAIL') || '').trim();
-    if (notifyEmail) {
-      try {
-        var subject = '【LINE投稿依頼】新規依頼が登録されました';
-        var body = '公式LINE への投稿依頼が登録されました。\n\n'
-          + '【投稿依頼ID】' + id + '\n'
-          + '【依頼者】' + caller + '\n'
-          + '【依頼日時】' + now + '\n\n'
-          + '----- 本文 -----\n' + String(found['テキスト']) + '\n\n'
-          + (String(found['研修申込リンク']) ? '【研修申込リンク】' + String(found['研修申込リンク']) + '\n' : '')
-          + (String(found['添付ファイルURL']) ? '【添付ファイル】' + String(found['添付ファイル名']) + '\n' + String(found['添付ファイルURL']) + '\n' : '');
-        deliverMail_('LINE_POST_REQUEST', notifyEmail, subject, body, {});
-      } catch (mailErr) {
-        Logger.log('[transitionLinePostRequest_] mail notify failed: ' + mailErr.message);
-      }
-    }
+    try { notifyLinePostRequest_(ss, id, found, caller); } catch (mailErr) { Logger.log('[transitionLinePostRequest_] notify failed: ' + mailErr.message); }
   } else if (transAction === 'post') {
     if (currentStatus !== LINE_POST_STATUS_REQUESTED) {
       throw new Error('投稿依頼中（REQUESTED）の依頼のみ「投稿済み」に移行できます。');
@@ -23696,6 +23750,7 @@ function transitionLinePostRequest_(payload) {
     updates['ステータス'] = LINE_POST_STATUS_POSTED;
     updates['投稿日時'] = now;
     updates['投稿マーク者メール'] = caller;
+    updates['投稿マーク者名'] = callerName;
   } else if (transAction === 'withdraw') {
     if (currentStatus === LINE_POST_STATUS_POSTED) {
       throw new Error('投稿済みの依頼は取下げできません。');
@@ -23711,10 +23766,22 @@ function transitionLinePostRequest_(payload) {
 }
 
 function deleteLinePostRequest_(payload) {
-  var id = String((payload || {}).id || '').trim();
+  var p = payload || {};
+  var id = String(p.id || '').trim();
   if (!id) throw new Error('投稿依頼IDが必要です。');
   var ss = getOrCreateDatabase_();
   ensureLinePostRequestSheet_(ss);
+  // v376.45: 管理権限が無ければ自分の依頼のみ削除可
+  var session = p.__adminSession || null;
+  if (session && !lineCanManage_(session)) {
+    var callerEmail = String(session.loginId || '').toLowerCase();
+    var rows = getRowsAsObjects_(ss, 'T_LINE投稿依頼');
+    var owns = false;
+    for (var i = 0; i < rows.length; i++) {
+      if (String(rows[i]['投稿依頼ID']) === id) { owns = String(rows[i]['作成者メール'] || '').toLowerCase() === callerEmail; break; }
+    }
+    if (!owns) throw new Error('この投稿依頼を削除する権限がありません。');
+  }
   var delSheet = ss.getSheetByName('T_LINE投稿依頼');
   updateRowByKey_(delSheet, テーブル定義['T_LINE投稿依頼'], '投稿依頼ID', id, {
     '削除フラグ': 'true',
@@ -23745,6 +23812,52 @@ function dryRunLinePostV376_44_LOG() {
     report.error = e && e.message ? e.message : String(e);
   }
   Logger.log('[dryRunLinePostV376_44_LOG] ' + JSON.stringify(report));
+  return report;
+}
+
+// v376.45: LINE投稿 権限二層 + 可視範囲 + submitRequest + 名前/日時 の dryRun E2E（operator が editor ▶）。
+// 合成 __adminSession を渡して、非管理者の可視スコープと post 権限ガードを実 DB で検証する（非送信）。
+function dryRunLinePostV376_45_LOG() {
+  var ss = getOrCreateDatabase_();
+  var report = { steps: [], passed: false };
+  try {
+    // (0) lineCanManage_ ロジック
+    var mgmtLogic = lineCanManage_({ isMaster: true, allowedMenus: [] }) === true
+      && lineCanManage_({ isMaster: false, allowedMenus: ['line-post-manage'] }) === true
+      && lineCanManage_({ isMaster: false, allowedMenus: ['line-post'] }) === false;
+    report.steps.push({ step: 'lineCanManage_logic', ok: mgmtLogic });
+
+    var userA = { loginId: 'dryrun-a@example.com', displayName: 'ドライランA', isMaster: false, allowedMenus: ['line-post'] };
+    var userB = { loginId: 'dryrun-b@example.com', displayName: 'ドライランB', isMaster: false, allowedMenus: ['line-post'] };
+    var mgr = { loginId: 'dryrun-mgr@example.com', displayName: 'ドライラン管理', isMaster: false, allowedMenus: ['line-post', 'line-post-manage'] };
+
+    // (1) userA が submitRequest で作成 → REQUESTED + 作成者名 + 投稿依頼日時
+    var saved = saveLinePostRequest_({ text: 'DRYRUN_V376_45 投稿依頼検証', targetType: LINE_POST_TARGET_GENERAL, submitRequest: true, __adminSession: userA });
+    var submitOk = saved && saved.status === LINE_POST_STATUS_REQUESTED && saved.createdByName === 'ドライランA' && !!saved.requestedAt;
+    report.steps.push({ step: 'submitRequest', id: saved && saved.id, status: saved && saved.status, createdByName: saved && saved.createdByName, ok: submitOk });
+
+    // (2) 可視範囲: userB（非管理・別人）には見えない / userA には見える / mgr には見える
+    var seenByB = listLinePostRequests_({ __adminSession: userB }).items.some(function (x) { return x.id === saved.id; });
+    var seenByA = listLinePostRequests_({ __adminSession: userA }).items.some(function (x) { return x.id === saved.id; });
+    var seenByMgr = listLinePostRequests_({ __adminSession: mgr }).items.some(function (x) { return x.id === saved.id; });
+    report.steps.push({ step: 'visibility', seenByB: seenByB, seenByA: seenByA, seenByMgr: seenByMgr, ok: !seenByB && seenByA && seenByMgr });
+
+    // (3) post 権限: userA（非管理）は不可、mgr は可
+    var postBlocked = false;
+    try { transitionLinePostRequest_({ id: saved.id, action: 'post', __adminSession: userA }); } catch (e1) { postBlocked = true; }
+    var posted = transitionLinePostRequest_({ id: saved.id, action: 'post', __adminSession: mgr });
+    var postOk = postBlocked && posted && posted.status === LINE_POST_STATUS_POSTED && posted.postedByName === 'ドライラン管理';
+    report.steps.push({ step: 'postPermission', postBlockedForNonManager: postBlocked, postedByName: posted && posted.postedByName, ok: postOk });
+
+    // (4) cleanup（mgr 権限で soft delete）
+    deleteLinePostRequest_({ id: saved.id, __adminSession: mgr });
+    report.steps.push({ step: 'cleanup', ok: true });
+
+    report.passed = mgmtLogic && submitOk && (!seenByB && seenByA && seenByMgr) && postOk;
+  } catch (e) {
+    report.error = e && e.message ? e.message : String(e);
+  }
+  Logger.log('[dryRunLinePostV376_45_LOG] ' + JSON.stringify(report));
   return report;
 }
 

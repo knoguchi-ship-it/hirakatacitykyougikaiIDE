@@ -5218,10 +5218,17 @@ const App: React.FC = () => {
 
     // v374.1: 公式LINE投稿依頼
     if (currentView === 'line-post') {
-      if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
+      // v376.45: メニュー単位 RBAC に整合（isMaster or allowedMenus に line-post / legacy MASTER・ADMIN）
+      const lineAllowed = adminSessionRbac
+        ? (adminSessionRbac.isMaster || adminSessionRbac.allowedMenus.indexOf('line-post') !== -1)
+        : ['MASTER', 'ADMIN'].includes(adminPermissionLevel || '');
+      if (userRole !== 'ADMIN' || !lineAllowed) {
         return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
       }
-      return <LinePostConsole api={api} trainings={trainings} />;
+      const canManageLine = adminSessionRbac
+        ? (adminSessionRbac.isMaster || adminSessionRbac.allowedMenus.indexOf('line-post-manage') !== -1)
+        : ['MASTER', 'ADMIN'].includes(adminPermissionLevel || '');
+      return <LinePostConsole api={api} trainings={trainings} canManage={canManageLine} />;
     }
 
     if (currentView === 'officer-management') {

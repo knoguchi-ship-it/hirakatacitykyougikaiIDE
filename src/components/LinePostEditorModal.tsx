@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { ApiClient } from '../services/api';
 import { Training } from '../types';
 import { LinePostTargetType, LinePostAttachmentKind } from '../shared/types';
+import { buildPublicTrainingApplyUrl } from '../config/publicPortal';
 
 // v376.39: 公式LINE投稿依頼の編集モーダルを LinePostConsole から抽出し、
 // 研修管理画面（文脈起点の作成）とコンソールで共用する（DRY）。
@@ -204,10 +205,12 @@ const LinePostEditorModal: React.FC<LinePostEditorModalProps> = ({ api, training
     if (!saving && !uploading) onClose();
   };
 
-  const handleSave = async () => {
+  // v376.45: submit=true で新規を即「投稿依頼中」にする（既存編集時は submit 無効＝下書き更新のみ）。
+  const handleSave = async (submit: boolean) => {
     if (!editing.text.trim()) { setEditError('テキストを入力してください。'); return; }
     if (editing.text.length > LINE_POST_TEXT_MAX) { setEditError(`テキストは${LINE_POST_TEXT_MAX}文字以内で入力してください。`); return; }
     if (editing.targetType === 'TRAINING' && !editing.targetId) { setEditError('対象研修を選択してください。'); return; }
+    if (submit && !editing.id && !window.confirm('この内容で投稿依頼をします。よろしいですか？')) return;
     setSaving(true);
     setEditError(null);
     try {
@@ -222,6 +225,7 @@ const LinePostEditorModal: React.FC<LinePostEditorModalProps> = ({ api, training
         targetId: editing.targetId,
         memo: editing.memo,
         clearAttachment: editing.clearAttachment,
+        submitRequest: submit && !editing.id,
       });
       onSaved();
     } catch (e) {
@@ -321,7 +325,13 @@ const LinePostEditorModal: React.FC<LinePostEditorModalProps> = ({ api, training
               <TrainingPicker
                 trainings={visibleTrainings}
                 selectedId={editing.targetId}
-                onSelect={(id) => setEditing({ ...editing, targetId: id })}
+                onSelect={(id) => {
+                  // v376.45: 研修選択時に「研修申込リンク」を自動入力（申込URL→無ければ公開申込ディープリンク）。
+                  if (!id) { setEditing({ ...editing, targetId: '' }); return; }
+                  const t = trainings.find((x) => x.id === id);
+                  const url = String((t && t.applicationUrl) || '').trim() || buildPublicTrainingApplyUrl(id);
+                  setEditing({ ...editing, targetId: id, trainingApplyUrl: url });
+                }}
               />
             )}
           </fieldset>
@@ -453,12 +463,22 @@ const LinePostEditorModal: React.FC<LinePostEditorModalProps> = ({ api, training
           </button>
           <button
             type="button"
-            onClick={handleSave}
+            onClick={() => handleSave(false)}
             disabled={saving || uploading}
-            className="rounded bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 min-h-[44px] disabled:opacity-50"
+            className="rounded border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 min-h-[44px] disabled:opacity-50"
           >
-            {saving ? '保存中…' : '保存'}
+            {saving ? '保存中…' : '下書き保存'}
           </button>
+          {!editing.id && (
+            <button
+              type="button"
+              onClick={() => handleSave(true)}
+              disabled={saving || uploading}
+              className="rounded bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 min-h-[44px] disabled:opacity-50"
+            >
+              {saving ? '保存中…' : '投稿依頼をする'}
+            </button>
+          )}
         </div>
       </div>
     </div>

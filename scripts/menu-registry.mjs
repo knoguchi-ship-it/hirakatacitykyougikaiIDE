@@ -35,6 +35,8 @@ export const MENU_REGISTRY = [
   { id: 'training-manage',      label: '研修管理',          group: '研修・通知' },
   { id: 'bulk-mail',            label: '一括メール送信',    group: '研修・通知' },
   { id: 'line-post',            label: '公式LINE投稿依頼',  group: '研修・通知' },
+  // v376.45: LINE投稿「管理」capability（全件閲覧・投稿済みマーク・状態変更）。nav item は持たず権限マトリクス専用。
+  { id: 'line-post-manage',     label: '公式LINE投稿 管理（全件閲覧・投稿済みマーク）', group: '研修・通知' },
   // 組織管理
   { id: 'officer-management',   label: '役員管理',          group: '組織管理' },
   // システム
@@ -188,7 +190,7 @@ export const LEGACY_ROLE_TO_MENUS = {
     'members-list', 'change-requests',
     'annual-fee', 'payment-history', 'claim-management',
     'roster-export', 'mailing-list-export',
-    'training-manage', 'bulk-mail', 'line-post',
+    'training-manage', 'bulk-mail', 'line-post', 'line-post-manage',
     'officer-management',
     'admin-settings',
     // Phase 1-A: ADMIN は現状 system-permissions / data-management(一部) にアクセス可。

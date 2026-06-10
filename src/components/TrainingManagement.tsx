@@ -815,7 +815,8 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
     setLineEditorInitial({
       targetType: 'TRAINING',
       targetId: form.id,
-      trainingApplyUrl: buildPublicTrainingApplyUrl(form.id),
+      // v376.45: 研修の申込URL→無ければ公開申込ディープリンクを自動入力
+      trainingApplyUrl: String(form.applicationUrl || '').trim() || buildPublicTrainingApplyUrl(form.id),
       text: buildTrainingLinePostDraft({ title: form.title, date: form.date, location: form.location }),
     });
   };

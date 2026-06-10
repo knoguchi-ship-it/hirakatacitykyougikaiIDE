@@ -13,7 +13,7 @@ var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
 var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
-var DB_SCHEMA_VERSION = '2026-06-10-mail-template-phaseb-v376.43';
+var DB_SCHEMA_VERSION = '2026-06-10-line-post-rbac-v376.45';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
 var MEMBER_PORTAL_URL = 'https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec';
@@ -800,6 +800,8 @@ var テーブル定義 = {
   '作成者メール', '作成日時', '更新日時',
   '投稿依頼日時', '投稿日時', '投稿マーク者メール',
   '備考', '削除フラグ',
+  // v376.45: 依頼者/投稿者の表示名をデノーマライズ（read 時 lookup 不要）
+  '作成者名', '投稿マーク者名',
 ];
 
 var 入力規則定義 = [
@@ -1065,6 +1067,11 @@ var MENU_REGISTRY = [
     "group": "研修・通知"
   },
   {
+    "id": "line-post-manage",
+    "label": "公式LINE投稿 管理（全件閲覧・投稿済みマーク）",
+    "group": "研修・通知"
+  },
+  {
     "id": "officer-management",
     "label": "役員管理",
     "group": "組織管理"
@@ -1104,6 +1111,7 @@ var LEGACY_ROLE_TO_MENUS = {
     "training-manage",
     "bulk-mail",
     "line-post",
+    "line-post-manage",
     "officer-management",
     "admin-settings",
     "system-permissions",
@@ -1156,6 +1164,7 @@ var INITIAL_ROLE_DEFINITIONS = [
       "training-manage",
       "bulk-mail",
       "line-post",
+      "line-post-manage",
       "officer-management",
       "admin-settings",
       "system-permissions",
@@ -3263,6 +3272,8 @@ function initializeSchema_(ss) {
   // v376.42: 全メール種別テンプレート管理テーブル + 旧 credential JSON の移行
   critical('normalize T_メールテンプレート',      function() { normalizeTableColumns_(ss, 'T_メールテンプレート'); });
   critical('migrateCredentialTemplatesToTable_',  function() { migrateCredentialTemplatesToTable_(ss); });
+  // v376.45: 公式LINE投稿依頼に 作成者名/投稿マーク者名 列を追加（name-based shift で既存行保持）
+  critical('normalize T_LINE投稿依頼',            function() { normalizeTableColumns_(ss, 'T_LINE投稿依頼'); });
   critical('normalize T_認証アカウント',          function() { normalizeTableColumns_(ss, 'T_認証アカウント'); });
   critical('normalize T_ログイン履歴',            function() { normalizeTableColumns_(ss, 'T_ログイン履歴'); });
   critical('normalize T_研修申込',                function() { normalizeTableColumns_(ss, 'T_研修申込'); });
@@ -5985,6 +5996,9 @@ var LINE_POST_ATTACHMENT_KIND_PDF = 'PDF';
 
 
 
+// v376.45: LINE投稿「管理」権限（全件閲覧・投稿済みマーク・状態変更）の判定。
+// MASTER または allowedMenus に line-post-manage を持つ session のみ true。
+
 
 
 
@@ -5994,6 +6008,9 @@ var LINE_POST_ATTACHMENT_KIND_PDF = 'PDF';
 // v376.44: 公式LINE投稿依頼の保存フロー dryRun E2E（operator が editor ▶ で実行）。
 // ヘッダー自己修復 → 新規保存 → 取得 → soft delete を実 DB で検証する（非送信・テスト行は削除済で残る）。
 // v376.44 の「T_LINE投稿依頼 がヘッダー欠落で保存不可（範囲の列数エラー）」回帰を捕捉する目的。
+
+// v376.45: LINE投稿 権限二層 + 可視範囲 + submitRequest + 名前/日時 の dryRun E2E（operator が editor ▶）。
+// 合成 __adminSession を渡して、非管理者の可視スコープと post 権限ガードを実 DB で検証する（非送信）。
 
 
 

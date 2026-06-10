@@ -16,6 +16,7 @@ import LinePostEditorModal, { LinePreview, LinePostEditorForm } from './LinePost
 interface LinePostConsoleProps {
   api: ApiClient;
   trainings: Training[];                 // T_研修 から渡される候補（targetType=TRAINING 用 picker）
+  canManage?: boolean;                   // v376.45: LINE投稿 管理権限（全件閲覧・投稿済みマーク）。falseは自分の依頼のみ
 }
 
 const STATUS_LABEL: Record<LinePostStatus, string> = {
@@ -42,7 +43,7 @@ const formatDate = (s: string): string => {
   }
 };
 
-const LinePostConsole: React.FC<LinePostConsoleProps> = ({ api, trainings }) => {
+const LinePostConsole: React.FC<LinePostConsoleProps> = ({ api, trainings, canManage = false }) => {
   const [items, setItems] = useState<LinePostRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -213,6 +214,11 @@ const LinePostConsole: React.FC<LinePostConsoleProps> = ({ api, trainings }) => 
                   <span className="ml-auto shrink-0 text-xs text-slate-400">{formatDate(item.createdAt)}</span>
                 </div>
                 <p className="mt-2 whitespace-pre-wrap text-sm text-slate-800 line-clamp-3">{item.text}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  依頼者: {item.createdByName || item.createdByEmail || '—'}
+                  {item.requestedAt && <>　/　依頼日時: {formatDate(item.requestedAt)}</>}
+                  {item.status === 'POSTED' && <>　/　投稿者: {item.postedByName || item.postedByEmail || '—'}（{formatDate(item.postedAt)}）</>}
+                </p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -241,13 +247,15 @@ const LinePostConsole: React.FC<LinePostConsoleProps> = ({ api, trainings }) => 
                   )}
                   {item.status === 'REQUESTED' && (
                     <>
-                      <button
-                        type="button"
-                        onClick={() => handleTransition(item.id, 'post')}
-                        className="rounded bg-emerald-700 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-800 min-h-[32px]"
-                      >
-                        ✅ 投稿済みにする
-                      </button>
+                      {canManage && (
+                        <button
+                          type="button"
+                          onClick={() => handleTransition(item.id, 'post')}
+                          className="rounded bg-emerald-700 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-800 min-h-[32px]"
+                        >
+                          ✅ 投稿済みにする
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => handleTransition(item.id, 'withdraw')}
@@ -308,11 +316,11 @@ const LinePostConsole: React.FC<LinePostConsoleProps> = ({ api, trainings }) => 
               </div>
               <LinePreview text={detailItem.text} trainingApplyUrl={detailItem.trainingApplyUrl} attachmentUrl={detailItem.attachmentUrl} attachmentKind={detailItem.attachmentKind} attachmentName={detailItem.attachmentName} />
               <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600">
-                <div><dt className="font-semibold">作成者</dt><dd>{detailItem.createdByEmail}</dd></div>
+                <div><dt className="font-semibold">依頼者</dt><dd>{detailItem.createdByName || detailItem.createdByEmail || '—'}{detailItem.createdByName && detailItem.createdByEmail ? `（${detailItem.createdByEmail}）` : ''}</dd></div>
                 <div><dt className="font-semibold">作成日時</dt><dd>{formatDate(detailItem.createdAt)}</dd></div>
                 <div><dt className="font-semibold">依頼日時</dt><dd>{formatDate(detailItem.requestedAt)}</dd></div>
                 <div><dt className="font-semibold">投稿日時</dt><dd>{formatDate(detailItem.postedAt)}</dd></div>
-                <div className="sm:col-span-2"><dt className="font-semibold">投稿者</dt><dd>{detailItem.postedByEmail || '—'}</dd></div>
+                <div className="sm:col-span-2"><dt className="font-semibold">投稿者</dt><dd>{detailItem.postedByName || detailItem.postedByEmail || '—'}{detailItem.postedByName && detailItem.postedByEmail ? `（${detailItem.postedByEmail}）` : ''}</dd></div>
                 {detailItem.memo && <div className="sm:col-span-2"><dt className="font-semibold">備考</dt><dd className="whitespace-pre-wrap">{detailItem.memo}</dd></div>}
               </dl>
             </div>

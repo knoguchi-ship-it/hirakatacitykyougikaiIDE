@@ -13,6 +13,22 @@
 
 ---
 
+## v376.45 — 2026-06-10 🆕🔒 公式LINE投稿: 投稿依頼ワークフロー + LINE投稿権限(RBAC二層) + 可視範囲 + 申込URL自動入力 + 担当者名/日時（admin split のみ @205）
+
+公式LINE投稿依頼コンソールに運用要件を追加。既存のメニュー単位ロール RBAC（`MENU_REGISTRY`/`T_権限ロール`/`checkAdminBySession_`/`isActionAllowedForSession_`）と `T_LINE投稿依頼` データモデルに融合。
+
+- **投稿依頼ワークフロー** 🆕: 新規作成モーダルのフッターを「下書き保存」（DRAFT）＋「投稿依頼をする」（`submitRequest:true`→即 REQUESTED＋通知）の2ボタンに。未投稿のまま放置されず依頼まで一気に行える。`saveLinePostRequest_` に `submitRequest`、通知を `notifyLinePostRequest_` に抽出し transition 'request' と共用（DRY）。
+- **LINE投稿権限の二層化（RBAC）** 🔒: ①`line-post`（既存メニュー）＝コンソール閲覧・依頼作成・投稿依頼・**自分の依頼のみ**閲覧/編集/削除。②**新設 `line-post-manage`**＝全件閲覧・「投稿済み」マーク・状態変更（他者依頼含む）。`scripts/menu-registry.mjs` の `MENU_REGISTRY` に追加（権限マトリクスに自動表示・付与可。nav item なしの capability メニュー）。MASTER は allowedMenus=全メニューで自動保持。`LEGACY_ROLE_TO_MENUS.ADMIN`＋`INITIAL_ROLE_DEFINITIONS` の ADMIN に付与（legacy 経路＋新規 seed は全件閲覧維持）。
+- **サーバ側強制（二重防御）** 🔒: ヘルパー `lineCanManage_(session)`（MASTER or allowedMenus∋line-post-manage）。`processApiRequest` が渡す `parsedPayload.__adminSession` を各ハンドラで参照。`listLinePostRequests_`＝非 manage は `作成者メール===caller` のみ。`transitionLinePostRequest_`＝`post` は manage 必須／`request`/`withdraw` は所有者 or manage。`saveLinePostRequest_`/`getLinePostRequest_`/`deleteLinePostRequest_`＝非 manage は自分の依頼のみ（IDOR 防止）。フロント（`LinePostConsole` canManage prop）でも「投稿済みにする」を非表示にし UI/サーバ一致。
+- **研修申込リンク自動入力（バグ修正）** 🐛: 研修紐づけ時に「研修申込リンク」が空白だった問題を修正。研修選択（`TrainingPicker.onSelect`）と研修起点（`TrainingManagement.handleCreateLinePost`）の両方で `training.applicationUrl`（あれば）→無ければ `buildPublicTrainingApplyUrl(id)`（公開申込ディープリンク）を自動入力。
+- **担当者名・依頼日時** 🆕: `T_LINE投稿依頼` に `作成者名`/`投稿マーク者名` 列を追加（`__adminSession.displayName` をデノーマライズ・DB_SCHEMA_VERSION bump・`initializeSchema_` の `normalizeTableColumns_` で name-based shift＝既存行保持）。`rowToLinePostRequest_` に `createdByName`/`postedByName`。`LinePostConsole` 一覧/詳細に **依頼者名・投稿者名・依頼日時** を表示。
+- **回帰検知 E2E**: `dryRunLinePostV376_45_LOG`（operator ▶）を追加。合成 `__adminSession` で (a) submitRequest→REQUESTED＋作成者名、(b) 非 manage 他者依頼が見えない可視スコープ、(c) post は manage のみ可、(d) 投稿マーク者名記録、を**実 DB で**検証。`lineCanManage_` ロジックも検証。build keep-list 登録。
+- **検証**: `typecheck` / `prerelease` 全 PASS / `test:menu-registry` 10/10 / `test:er-sync`。3 split 生成物に `var テーブル定義` 残存 grep 確認（AGENTS §5）。公開 `test:a11y`（違反 0）で公開ポータル非破壊確認。admin push → version 205 → `redeploy @205`。
+- **境界/スコープ**: 公式LINE投稿は admin 専用。admin split のみ @205。member/public は gas-src 由来 inert 差分のみ（未 redeploy・DB_SCHEMA_VERSION 旧のまま再 init せず安全）。共有 DB の列追加は admin の次回 login で適用。
+- **操作者要対応**: MASTER が 設定→権限管理 の権限マトリクスで `公式LINE投稿 管理`（line-post-manage）を必要なロールへ付与（既存 `T_権限ロール` 行には自動付与されないため。付与しないと該当ロールは自分の依頼のみ閲覧・投稿済みマーク不可）。
+
+---
+
 ## v376.44 — 2026-06-10 🐛 公式LINE投稿依頼の保存不可エラー + プレビュー画像化け修正（admin split のみ @204）
 
 公式LINE投稿依頼コンソールで「保存」が「範囲の列数には1以上を指定してください」で失敗し、添付画像プレビューが壊れて表示される 2 件を修正。E2E回帰の漏れ（admin 書込フロー未テスト）が見逃し原因だったため、その是正も実施。

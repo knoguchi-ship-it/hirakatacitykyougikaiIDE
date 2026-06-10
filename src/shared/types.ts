@@ -426,11 +426,13 @@ export interface LinePostRequest {
   targetId: string;
   targetLabel?: string;       // backend が getLinePostRequest_ で同送（targetType=TRAINING 時）
   createdByEmail: string;
+  createdByName?: string;   // v376.45: 依頼者表示名
   createdAt: string;
   updatedAt: string;
   requestedAt: string;
   postedAt: string;
   postedByEmail: string;
+  postedByName?: string;    // v376.45: 投稿者表示名
   memo: string;
 }
 

@@ -669,6 +669,8 @@ erDiagram
     string 投稿マーク者メール
     string 備考
     boolean 削除フラグ
+    string 作成者名 "依頼者表示名（v376.45）"
+    string 投稿マーク者名 "投稿者表示名（v376.45）"
   }
 
   T_会員 }o--|| M_会員種別 : "会員種別コード"

@@ -272,7 +272,7 @@ export interface ApiClient {
   deleteRosterTemplateV2(id: string): Promise<{ ok: boolean; templates: import('../types').RosterTemplateV2[] }>;
   duplicateRosterTemplateV2(id: string): Promise<{ ok: boolean; templates: import('../types').RosterTemplateV2[] }>;
   // v374.1: 公式LINE投稿依頼
-  listLinePostRequests(payload: { status?: LinePostStatus | ''; targetType?: LinePostTargetType | ''; keyword?: string; limit?: number }): Promise<{ items: LinePostRequest[]; total: number }>;
+  listLinePostRequests(payload: { status?: LinePostStatus | ''; targetType?: LinePostTargetType | ''; keyword?: string; limit?: number }): Promise<{ items: LinePostRequest[]; total: number; canManage?: boolean }>;
   getLinePostRequest(id: string): Promise<{ item: LinePostRequest }>;
   saveLinePostRequest(payload: {
     id?: string;
@@ -285,6 +285,7 @@ export interface ApiClient {
     targetId?: string;
     memo?: string;
     clearAttachment?: boolean;
+    submitRequest?: boolean;
   }): Promise<{ item: LinePostRequest }>;
   uploadLinePostAttachment(payload: { base64: string; mimeType: string; fileName: string }): Promise<LinePostAttachmentUploadResult>;
   transitionLinePostRequest(payload: { id: string; action: 'request' | 'post' | 'withdraw' }): Promise<{ item: LinePostRequest }>;
@@ -2194,7 +2195,7 @@ class GasApiClient implements ApiClient {
 
   // v374.1: 公式LINE投稿依頼
   async listLinePostRequests(payload: { status?: LinePostStatus | ''; targetType?: LinePostTargetType | ''; keyword?: string; limit?: number }) {
-    return this.callAction<{ items: LinePostRequest[]; total: number }>('listLinePostRequests', payload);
+    return this.callAction<{ items: LinePostRequest[]; total: number; canManage?: boolean }>('listLinePostRequests', payload);
   }
   async getLinePostRequest(id: string) {
     return this.callAction<{ item: LinePostRequest }>('getLinePostRequest', { id });
@@ -2210,6 +2211,7 @@ class GasApiClient implements ApiClient {
     targetId?: string;
     memo?: string;
     clearAttachment?: boolean;
+    submitRequest?: boolean;
   }) {
     return this.callAction<{ item: LinePostRequest }>('saveLinePostRequest', payload);
   }

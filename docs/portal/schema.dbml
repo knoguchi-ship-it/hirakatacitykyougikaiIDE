@@ -1,6 +1,6 @@
 // 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能
 // 元: docs/03_DATA_MODEL.md
-// 生成日時: 2026-06-09T15:22:31.773Z
+// 生成日時: 2026-06-10T01:24:08.157Z
 
 Project hcmn_member_system {
   database_type: "Google Spreadsheet (logical)"
@@ -172,6 +172,8 @@ Table "T_LINE投稿依頼" {
   "投稿マーク者メール" varchar
   "備考" varchar
   "削除フラグ" boolean
+  "作成者名" varchar
+  "投稿マーク者名" varchar
 }
 
 Table "T_システム設定" {
