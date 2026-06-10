@@ -1,9 +1,11 @@
 # データモデル設計書（スプレッドシートDB版）
 
-更新日: 2026-05-17
-スキーマバージョン: 2026-05-16-training-roster-v360（v370 本番コード反映済み／admin split の手動 schema migration `runRebuildSchemaForV360` のみ未実行）
+更新日: 2026-06-10
+スキーマバージョン: 2026-06-10-line-post-rbac-v376.45（本番 admin split @205 反映済）
 
-> v360 で追加した研修名簿・出欠管理・一括メール明細ログのスキーマ変更を反映。v361 で xlsx を除去し CSV 出力へ切替。v362〜v370 はスキーマ追加（kana 列、previousYear*、APPLICATION_RECEIPT_* 設定キー）と bug fix のみで物理 schema 変更なし。詳細は §9 スキーマバージョン履歴 / §11 v360 Addendum / §12 v362-v370 Addendum を参照。
+> 下記 ER は `gas-src テーブル定義`（列の正本）＋ `docs/er-metadata.json` から自動生成（AGENTS §4.6）。手書き編集禁止。
+> 直近のスキーマ変更: **v376.42** `T_メールテンプレート` 新設（全メール種別テンプレート管理の集約・旧 CREDENTIAL_EMAIL_TEMPLATES JSON から移行）／**v376.43** ハードコード6メール（研修申込確認・研修リマインダー・OTP・会員情報変更確認・退会受付・パスワード再設定）の差し込み化に伴う `T_システム設定` 設定キー追加（物理テーブル変更なし）／**v376.45** `T_LINE投稿依頼` に `作成者名`・`投稿マーク者名` の2列追加。
+> それ以前: v360 で研修名簿・出欠・一括メール明細ログを追加、v362〜v370 は kana 列・previousYear*・APPLICATION_RECEIPT_* 設定キー追加と bug fix のみ。詳細は §9 スキーマバージョン履歴 / §11 v360 Addendum / §12 v362-v370 Addendum を参照。
 
 ---
 
@@ -1196,6 +1198,8 @@ GAS コードは `getLogSs_()` 経由でアクセスする。`LOG_SPREADSHEET_ID
 
 | バージョン | 日付 | 変更概要 |
 |---|---|---|
+| 2026-06-10-line-post-rbac-v376.45 | 2026-06-10 | v376.45 本番反映（admin split @205）。`T_LINE投稿依頼` に `作成者名`・`投稿マーク者名` の2列を末尾追加（依頼者/投稿者の表示名デノーマライズ）。`normalizeTableColumns_('T_LINE投稿依頼')` を初期化 critical に追加し name-based shift で既存行保持。あわせて LINE投稿権限の二層化（`line-post` / 新設 `line-post-manage`）と可視範囲制御を実装（物理スキーマは上記2列のみ）。 |
+| 2026-06-10-mail-template-table-v376.42 | 2026-06-10 | v376.42 本番反映（admin split @201）。全メール種別テンプレート管理の集約テーブル `T_メールテンプレート`（テンプレートID/カテゴリ/名前/件名/本文/既定フラグ/作成日時/更新日時/削除フラグ）を新設。旧 `T_システム設定.CREDENTIAL_EMAIL_TEMPLATES`(JSON) を `migrateCredentialTemplatesToTable_` で冪等移行。v376.43 でハードコード6メールの差し込み化に伴い `T_システム設定` に各 `<CAT>_SUBJECT/BODY` 設定キーを追加（物理テーブル変更なし）。 |
 | 2026-05-20-public-staff-update-v372.5 | 2026-05-20 | v372.5〜v372.6.1 本番反映。公開ポータルの「会員登録情報を変更する」フローに **「職員情報を変更する」** を追加（事業所会員のみ）。`T_変更申請.申請内容JSON` の構造に `staffUpdate: Array<{staffId, lastName?, firstName?, lastKana?, firstKana?, email?, careManagerNumber?}>` を追加（カラム追加はなし）。承認時に `updateStaff_` 経由で適用。メール変更時は旧アドレス・新アドレス両方に通知。v372.6 で HMAC token UTF-8 charset 明示で日本語化け修正、全空申請の拒否、デザイン整合性改善。v372.6.1 で送信ボタン disable + ヒント表示。 |
 | 2026-05-19-cm-relaxed-admin-v372.4 | 2026-05-19 | v372.4 本番反映。介護支援専門員番号のバリデーションを **基本 8 桁半角数字** に維持しつつ、admin（MASTER/ADMIN）の `MemberDetailAdmin` / `StaffDetailAdmin` 編集画面でのみ **例外として 1〜10 桁の半角英数字**を許容。地域包括支援センターに所属する介護支援専門員以外（看護師: HN+番号下8桁 / 社会福祉士: HS+番号下8桁）の登録に対応。DB 保存時に大文字化、`normalizeCmNumberForKey_` で重複検索も大文字統一。既存純数字データは正規化後も同値で互換。 |
 | 2026-05-19-roster-designer-v372 | 2026-05-19 | v372 S1 本番反映。名簿出力 Visual Designer 第1段階。`T_システム設定.ROSTER_TEMPLATE_LIBRARY_V2`（JSON 配列）を新規追加。旧 `ROSTER_TEMPLATE_LIST` は legacy として残置（S5 で削除予定）。 |
