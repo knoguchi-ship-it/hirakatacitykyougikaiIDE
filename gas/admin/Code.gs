@@ -11019,7 +11019,15 @@ function ensureTableSheetsExist_(ss) {
   var tableNames = Object.keys(テーブル定義);
   for (var i = 0; i < tableNames.length; i += 1) {
     var tableName = tableNames[i];
-    if (ss.getSheetByName(tableName)) continue;
+    var existing = ss.getSheetByName(tableName);
+    if (existing) {
+      // v376.44: 既存だがヘッダー欠落（列数0）のシートを自己修復する。
+      // getOrCreateSheet_ 等でヘッダー無しに作られたシートが永久に壊れたまま残るのを防ぐ。
+      if (existing.getLastColumn() < 1) {
+        writeSheetHeaders_(existing, テーブル定義[tableName]);
+      }
+      continue;
+    }
     var sheet = ss.insertSheet(tableName);
     writeSheetHeaders_(sheet, テーブル定義[tableName]);
   }
@@ -14614,7 +14622,18 @@ var LINE_POST_ATTACHMENT_KIND_IMAGE = 'IMAGE';
 var LINE_POST_ATTACHMENT_KIND_PDF = 'PDF';
 
 function ensureLinePostRequestSheet_(ss) {
-  return getOrCreateSheet_(ss, 'T_LINE投稿依頼');
+  // v376.44: ヘッダー自己修復。getOrCreateSheet_ はヘッダーを書かないため、
+  // シート未作成 or ヘッダー欠落（列数0）の場合は テーブル定義 からヘッダー行を書く。
+  // これを欠くと appendRowsByHeaders_ の getRange(1,1,1,0) が
+  // 「範囲の列数には1以上を指定してください」を投げ、保存が必ず失敗する。
+  var sheet = ss.getSheetByName('T_LINE投稿依頼');
+  if (!sheet) sheet = ss.insertSheet('T_LINE投稿依頼');
+  if (sheet.getLastColumn() < 1) {
+    var cols = テーブル定義['T_LINE投稿依頼'];
+    sheet.getRange(1, 1, 1, cols.length).setValues([cols]);
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
 }
 
 function getLinePostAssetsFolder_() {
@@ -14896,6 +14915,31 @@ function deleteLinePostRequest_(payload) {
     '更新日時': new Date().toISOString(),
   });
   return { ok: true, id: id };
+}
+
+// v376.44: 公式LINE投稿依頼の保存フロー dryRun E2E（operator が editor ▶ で実行）。
+// ヘッダー自己修復 → 新規保存 → 取得 → soft delete を実 DB で検証する（非送信・テスト行は削除済で残る）。
+// v376.44 の「T_LINE投稿依頼 がヘッダー欠落で保存不可（範囲の列数エラー）」回帰を捕捉する目的。
+function dryRunLinePostV376_44_LOG() {
+  var ss = getOrCreateDatabase_();
+  var report = { steps: [], passed: false };
+  try {
+    ensureLinePostRequestSheet_(ss);
+    var lastCol = ss.getSheetByName('T_LINE投稿依頼').getLastColumn();
+    report.steps.push({ step: 'ensureSheet', lastColumn: lastCol, ok: lastCol >= 1 });
+    var saved = saveLinePostRequest_({ text: 'DRYRUN_V376_44 LINE保存検証', targetType: LINE_POST_TARGET_GENERAL });
+    report.steps.push({ step: 'save', id: saved && saved.id, status: saved && saved.status, ok: !!(saved && saved.id) });
+    var fetched = getLinePostRequest_({ id: saved.id });
+    var fetchOk = !!(fetched && fetched.id === saved.id);
+    report.steps.push({ step: 'fetch', ok: fetchOk });
+    deleteLinePostRequest_({ id: saved.id });
+    report.steps.push({ step: 'softDelete', ok: true });
+    report.passed = lastCol >= 1 && !!(saved && saved.id) && fetchOk;
+  } catch (e) {
+    report.error = e && e.message ? e.message : String(e);
+  }
+  Logger.log('[dryRunLinePostV376_44_LOG] ' + JSON.stringify(report));
+  return report;
 }
 
 function getDeleteMemberDisplayName_(memberRow) {

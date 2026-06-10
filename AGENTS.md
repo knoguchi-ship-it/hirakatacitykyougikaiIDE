@@ -135,8 +135,8 @@
 - **新機能実装・既存機能改修・リファクタの release では E2E 回帰テストを必須とする（既存挙動を壊さないことの担保）。** 「新機能が動く」だけでなく「既存機能が壊れていない」ことを E2E で確認するまで完了としない。最低限、以下を実施し結果を完了報告に明記する:
   1. **全ゲート**: `npm run prerelease`（security audit / boundary×3 / typecheck / 各 unit test / er-sync / menu-registry）を PASS させる。送信・描画・変換など純ロジックを変更した場合は、その回帰を機械検証する unit test（`scripts/test-*.mts`）を追加し prerelease 連鎖に組み込む。
   2. **公開 E2E（live・認証不要）**: デプロイ後に `npm run test:a11y`（違反 0）と `npm run test:responsive`（全 VP）を実行し、公開ポータルが起動・描画・操作可能で非破壊であることを確認する。**初回はコールドスタートのスキーマ初期化で 45〜60s 超のタイムアウトが起こり得るため、ウォーム後に再実行して判定する**（タイムアウト＝即失敗とみなさない）。
-  3. **会員/管理 E2E**: storageState が用意できる場合は `test:responsive:member` / `test:responsive:admin` を実行。用意できない場合は操作者確認に引き継ぐ範囲として明記する。
-  4. **GAS 送信系・スキーマ系の E2E**: 実送信を伴うものは非送信の dryRun 関数（例 `dryRun*_LOG`）を用意し、operator が editor から実行して検証できる状態にする。実送信検証は `MAIL_GLOBAL_ENABLED=false` / `REDIRECT` 下でのみ行う。
+  3. **会員/管理の書込フロー E2E（必須・漏れ厳禁）**: admin/member の作成・更新・削除など**書込フローを変更・新設した場合**、storageState が用意できる時は `test:responsive:member` / `test:responsive:admin` を実行する。**storageState が無く Playwright E2E を実行できない場合は、その書込フローを通す backend dryRun（保存→取得→削除を実 DB で検証する `dryRun*_LOG`）を必ず用意し、operator が editor から実行して検証する**。「公開ポータルの a11y/responsive だけ実行して admin/member 書込を未検証のまま完了」とするのは禁止（v376.44 の LINE 投稿保存不可の見逃し再発防止）。
+  4. **GAS 送信系・スキーマ系・DB 状態起因の E2E**: 実送信を伴うものは非送信の dryRun（例 `dryRun*_LOG`）を用意し operator が実行できる状態にする。**シートのヘッダー欠落・列ドリフト等の「DB 状態起因」バグはコード単体テストでは捕捉できないため、実 DB に対する dryRun E2E（行を作って読んで消す）で必ずカバーする**。実送信検証は `MAIL_GLOBAL_ENABLED=false` / `REDIRECT` 下でのみ行う。
   5. **3 split 生成物の健全性（デプロイ前必須）**: gas-src を変更したら `build:gas` / `build:gas:member` / `build:gas:admin` 後に、トップレベル定義（例 `var テーブル定義 = {`、`processApiRequest` 等の seed callable）と新規追加関数が **public・member・admin の 3 つの生成 Code.gs すべてに残存**することを grep で確認してから push する（build pruner による誤削除の早期検知。`feedback_build_pruning_bug` 参照）。
   - E2E 回帰でデプロイ後に重大な不具合（白画面・`ReferenceError`・認証/送信不能）を検知した場合は、原因調査より先に **`npx clasp redeploy ... --versionNumber <直前の正常版>` で即時ロールバックして本番を復旧**し、その後に修正する。
 - **push 前に `git diff` で作業ツリー全体を確認し、自分の変更以外の未コミット変更が存在する場合はその影響範囲を評価する。** 問題がある場合はファイル単位で push 範囲を限定するかユーザーに確認してから進む。

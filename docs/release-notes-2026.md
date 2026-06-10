@@ -13,6 +13,19 @@
 
 ---
 
+## v376.44 — 2026-06-10 🐛 公式LINE投稿依頼の保存不可エラー + プレビュー画像化け修正（admin split のみ @204）
+
+公式LINE投稿依頼コンソールで「保存」が「範囲の列数には1以上を指定してください」で失敗し、添付画像プレビューが壊れて表示される 2 件を修正。E2E回帰の漏れ（admin 書込フロー未テスト）が見逃し原因だったため、その是正も実施。
+
+- **🐛 保存不可（範囲の列数エラー）**: `saveLinePostRequest_` の新規挿入は `appendRowsByHeaders_('T_LINE投稿依頼')` → `sheet.getRange(1,1,1,sheet.getLastColumn())`。`T_LINE投稿依頼` が**ヘッダー欠落（列数0）**状態だと `getLastColumn()===0` で GAS が「範囲の列数には1以上を指定してください」を throw。**根本原因**は `getOrCreateSheet_`（`ensureLinePostRequestSheet_` が使用）が `insertSheet` のみでヘッダーを書かず、`ensureTableSheetsExist_` も既存シートをスキップするため、一度ヘッダー無しで作られると永久に自己修復しない構造的欠陥（v374.1 以来の潜在バグ。直近のメールテンプレート改修とは別コード経路で、その回帰ではない）。**修正**: `ensureLinePostRequestSheet_` を「シート未作成 or 列数0なら テーブル定義 からヘッダー行を書く」自己修復に変更（保存の冒頭で毎回呼ばれるため次回保存で即復旧）。`ensureTableSheetsExist_` も既存だが列数0のシートにヘッダーを補修するよう一般化（将来の同種事故の防御）。DB_SCHEMA_VERSION は不変（保存時自己修復のため再初期化不要）。
+- **🐛 プレビュー画像化け**: `LinePreview` が `<img src={attachmentUrl}>` に Drive の `file.getUrl()`（= `/d/<id>/view` のビューアHTMLページ）を渡しており、画像バイトでないため壊れて表示。新規 `driveImageSrc(url)` でファイルIDを抽出し `https://drive.google.com/thumbnail?id=<id>&sz=w1000` へ変換して描画（編集モーダル・投稿依頼詳細の両プレビューに適用）。
+- **回帰検知 E2E 追加**: `dryRunLinePostV376_44_LOG`（operator が editor ▶ 実行）でヘッダー自己修復→新規保存→取得→soft delete を**実 DB で**検証。本バグは「シートのヘッダー欠落」という DB 状態起因のためコード単体テストでは捕捉できず、実 DB E2E が必要。build keep-list に登録。
+- **テスト方法の漏れ是正** 📝: 今回の見逃し原因は **admin 書込フローの E2E 未実施**（v376.43 の E2E は公開ポータルの a11y/responsive のみ＝認証不要のため。admin/member は storageState 不在で Playwright 未実行）。対策として `AGENTS.md §5` を強化: **storageState が用意できない admin/member の書込フローは、対応する backend dryRun（`dryRun*_LOG`）を用意し operator が実行して検証することを必須**とし、純コード unit test では捕捉できない DB 状態起因バグを実 DB E2E でカバーする方針を明文化。
+- **境界/スコープ**: 公式LINE投稿は admin 専用機能。`ensureLinePostRequestSheet_` 自己修復＋`driveImageSrc` は admin 経路。`ensureTableSheetsExist_` 堅牢化は共有 gas-src（次回 member/public デプロイ時に同梱・挙動は idempotent）。admin split のみ @204。共有 DB の `T_LINE投稿依頼` は admin の次回保存/初期化で自己修復され member/public 側も裨益。
+- **検証**: `typecheck` / `prerelease` 全 PASS / 3 split 生成物に `var テーブル定義` 残存 grep 確認（AGENTS §5）。admin push → version 204 → `redeploy @204`。
+
+---
+
 ## v376.43 / v376.43.1 — 2026-06-10 🆕🔧🐛 全メール種別テンプレート管理 Phase B（ハードコード6メール差し込み化）+ build pruner hotfix（全3split @358/@117/@203）
 
 Phase A（v376.42）で整備した基盤の上に、従来ハードコードだった6メールを差し込みタグ化し、件名/本文編集＋テンプレート管理に対応させた（全メール種別が完了）。E2E回帰でデプロイ後に build pruner 回帰を検知し hotfix。

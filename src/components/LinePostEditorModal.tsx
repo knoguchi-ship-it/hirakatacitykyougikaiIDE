@@ -465,6 +465,14 @@ const LinePostEditorModal: React.FC<LinePostEditorModalProps> = ({ api, training
   );
 };
 
+// v376.44: Drive の attachmentUrl はビューアURL（/d/<id>/view = HTMLページ）のため <img src> に直接渡すと
+// 画像が表示されない。ファイルIDを抽出し、画像配信に使える thumbnail エンドポイントへ変換する。
+export function driveImageSrc(url: string): string {
+  if (!url) return url;
+  const m = url.match(/\/d\/([a-zA-Z0-9_-]{10,})/) || url.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
+  return m ? `https://drive.google.com/thumbnail?id=${m[1]}&sz=w1000` : url;
+}
+
 export const LinePreview: React.FC<{
   text: string;
   trainingApplyUrl: string;
@@ -480,7 +488,7 @@ export const LinePreview: React.FC<{
       </div>
       <div className="bg-white rounded-lg p-3 space-y-2 shadow-sm">
         {attachmentUrl && attachmentKind === 'IMAGE' && (
-          <img src={attachmentUrl} alt={attachmentName} className="w-full rounded max-h-64 object-contain" loading="lazy" />
+          <img src={driveImageSrc(attachmentUrl)} alt={attachmentName} className="w-full rounded max-h-64 object-contain" loading="lazy" />
         )}
         {attachmentUrl && attachmentKind === 'PDF' && (
           <div className="border border-slate-300 rounded p-3 text-sm flex items-center gap-2 bg-slate-50">

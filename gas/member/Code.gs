@@ -5319,7 +5319,15 @@ function ensureTableSheetsExist_(ss) {
   var tableNames = Object.keys(テーブル定義);
   for (var i = 0; i < tableNames.length; i += 1) {
     var tableName = tableNames[i];
-    if (ss.getSheetByName(tableName)) continue;
+    var existing = ss.getSheetByName(tableName);
+    if (existing) {
+      // v376.44: 既存だがヘッダー欠落（列数0）のシートを自己修復する。
+      // getOrCreateSheet_ 等でヘッダー無しに作られたシートが永久に壊れたまま残るのを防ぐ。
+      if (existing.getLastColumn() < 1) {
+        writeSheetHeaders_(existing, テーブル定義[tableName]);
+      }
+      continue;
+    }
     var sheet = ss.insertSheet(tableName);
     writeSheetHeaders_(sheet, テーブル定義[tableName]);
   }
@@ -6696,6 +6704,10 @@ var LINE_POST_ATTACHMENT_KIND_PDF = 'PDF';
 
 
 
+
+// v376.44: 公式LINE投稿依頼の保存フロー dryRun E2E（operator が editor ▶ で実行）。
+// ヘッダー自己修復 → 新規保存 → 取得 → soft delete を実 DB で検証する（非送信・テスト行は削除済で残る）。
+// v376.44 の「T_LINE投稿依頼 がヘッダー欠落で保存不可（範囲の列数エラー）」回帰を捕捉する目的。
 
 
 
