@@ -25,6 +25,7 @@ import { callApi } from './shared/api-base';
 import { EmailCard, MasterOffBanner, MergeTags, ToggleSwitch } from './components/EmailSettingsCard';
 import MailTemplateManager from './components/MailTemplateManager';
 import { MAIL_TEMPLATE_MERGE_TAGS } from './shared/mailTemplates';
+import { computeMemberFiscalStatus } from './shared/memberFiscalStatus.mjs';
 import { matchesSearchQuery } from './utils/search';
 
 type Role = 'ADMIN' | 'MEMBER';
@@ -86,36 +87,26 @@ const getFiscalYearBounds = (fiscalYear: number) => ({
   end: new Date(fiscalYear + 1, 2, 31, 12, 0, 0, 0),
 });
 
+// 日付文字列を 'YYYY-MM-DD'（不正/空は ''）へ正規化。単一情報源 computeMemberFiscalStatus 入力用。
+const toIsoDateString = (value?: string): string => {
+  const d = parseDateString(value);
+  if (!d) return '';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+// v376.46: 会計年度ステータス判定は単一情報源 computeMemberFiscalStatus に委譲（宛先リストと同一ロジック）。
 const getMemberStatusAtFiscalYear = (
   member: AdminDashboardMemberRow,
   fiscalYear: number | null,
   currentFiscalYear: number,
 ): DisplayMemberStatus | null => {
   if (fiscalYear === null) return member.status;
-
-  const joined = parseDateString(member.joinedDate);
-  // joinedDate が空の会員はデータ不備扱いにせず在籍扱いとする（宛名リストとの整合）
-  const { start, end } = getFiscalYearBounds(fiscalYear);
-  if (joined && joined > end) return null;
-
-  const withdrawn = parseDateString(member.withdrawnDate);
-  if (withdrawn) {
-    if (withdrawn < start) return null;
-    if (withdrawn <= end) return 'WITHDRAWN';
-  }
-
-  if (member.status === 'WITHDRAWAL_SCHEDULED' && fiscalYear >= currentFiscalYear) {
-    return 'WITHDRAWAL_SCHEDULED';
-  }
-
-  if (member.status === 'WITHDRAWN' && !withdrawn) {
-    return 'WITHDRAWN';
-  }
-  if (member.status === 'TRANSFERRED') {
-    return 'TRANSFERRED';
-  }
-
-  return 'ACTIVE';
+  const r = computeMemberFiscalStatus(
+    { status: member.status, joinedDate: toIsoDateString(member.joinedDate), withdrawnDate: toIsoDateString(member.withdrawnDate) },
+    fiscalYear,
+    currentFiscalYear,
+  );
+  return r.status === 'NOT_IN_YEAR' ? null : (r.status as DisplayMemberStatus);
 };
 
 const getStaffStatusAtFiscalYear = (

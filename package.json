@@ -29,6 +29,7 @@
     "test:kana": "node --experimental-strip-types --no-warnings --test scripts/test-kana-normalize.mts",
     "test:deeplink": "node --experimental-strip-types --no-warnings --test scripts/test-deeplink.mts",
     "test:mailrender": "node --experimental-strip-types --no-warnings --test scripts/test-mail-template-render.mts",
+    "test:member-fiscal-status": "node --experimental-strip-types --no-warnings --test scripts/test-member-fiscal-status.mts",
     "test:er-sync": "node scripts/test-er-sync.mjs",
     "test:menu-registry": "node --test scripts/test-menu-registry.mjs",
     "er:bootstrap": "node scripts/bootstrap-er-metadata.mjs",
@@ -38,7 +39,7 @@
     "test:responsive": "node scripts/responsive-test.mjs",
     "test:responsive:admin": "node scripts/responsive-test-admin.mjs",
     "test:responsive:member": "node scripts/responsive-test-member.mjs",
-    "prerelease": "npm run security:audit && npm run security:public-boundary && npm run security:split-boundary && npm run typecheck && npm run test:search && npm run test:formula && npm run test:kana && npm run test:deeplink && npm run test:mailrender && npm run test:er-sync && npm run test:menu-registry"
+    "prerelease": "npm run security:audit && npm run security:public-boundary && npm run security:split-boundary && npm run typecheck && npm run test:search && npm run test:formula && npm run test:kana && npm run test:deeplink && npm run test:mailrender && npm run test:member-fiscal-status && npm run test:er-sync && npm run test:menu-registry"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

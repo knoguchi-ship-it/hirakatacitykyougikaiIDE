@@ -13,6 +13,22 @@
 
 ---
 
+## v376.46 — 2026-06-11 🔧🐛 会計年度ステータス判定の単一情報源化（DRY 是正）— 「在籍中」人数のぶれ解消（実装・検証済 / admin デプロイは clasp 再認証待ち）
+
+「在籍中」で絞った人数が **会員リスト** と **宛先リスト出力** で食い違う不具合を、根本原因（DRY 違反）から是正。
+
+- **根本原因**: 会計年度基準の会員ステータス判定が **2 箇所に重複実装**され分岐がドリフト — フロント `src/App.tsx::getMemberStatusAtFiscalYear` と GAS `gas-src/Code.full.gs::getMemberFiscalSnapshot_`。GAS 側に **TRANSFERRED（移行済み）分岐が無く**、移行済み会員が `ACTIVE` に落ちて宛先リストの「在籍中」に混入。加えて `WITHDRAWAL_SCHEDULED` の年度ガード（`fiscalYear>=現年度`）有無も相違。
+- **単一情報源化（DRY）** 🔧: `src/shared/memberFiscalStatus.mjs` に正準関数 `computeMemberFiscalStatus(input, fiscalYear, currentFiscalYear) → {status, includeInMailing}` を新設（ISO 日付文字列・辞書順比較で TZ 非依存・自己完結）。
+  - **フロント**: 直接 import（`allowJs`+`bundler`）。`getMemberStatusAtFiscalYear` は委譲のみに。
+  - **GAS**: build 時に `serializeMemberFiscalStatusForGas()`（`.toString()` を private 名 `computeMemberFiscalStatus_` にリネーム）を `gas-src` のマーカーブロックへ注入（`scripts/gas-boundary-utils.mjs::injectMemberFiscalStatusPlaceholders`、`menu-registry.mjs` と同方式）。`getMemberFiscalSnapshot_` は委譲のみに（返り値形 `{eligible,memberStatus,...}` は維持＝呼出3箇所互換）。3 build スクリプトに注入を配線。
+  - 正準ロジックは旧フロント実装が母体（TRANSFERRED・年度ガードを正しく保持）。**会員リストは挙動不変、宛先リストが正準へ寄って一致**。移行済み会員は宛先（在籍中）から除外（別人物へ統合済みのため妥当）。
+- **回帰テスト** 🐛: `scripts/test-member-fiscal-status.mts`（11 ケース・prerelease 追加）。ACTIVE/退会予定(当年度・過去年度)/当年度退会/前年度以前退会/**移行済み**/当年度入会/翌年度入会/削除 を検証し、**「TRANSFERRED は決して ACTIVE/宛先対象にならない」を回帰固定**。
+- **検証**: `typecheck` / `test:member-fiscal-status`(11) / `prerelease` 全 PASS。`build:gas`×3 後、注入された `computeMemberFiscalStatus_`（`NOT_IN_YEAR` 含む実ロジック）が admin/member の Code.gs に存在・public は未参照で pruned（ダングリング無し）・`var テーブル定義` は3split健在を grep 確認。
+- **境界/スコープ**: 会員リスト・宛先リスト・年会費はいずれも admin。DB_SCHEMA_VERSION 不変。**admin split のみデプロイ予定**。member/public は gas-src 由来 inert 差分のみ。
+- **デプロイ状況** ⚠️: 実装・ビルド・全ゲート完了済だが、**clasp の RAPT トークン失効（`invalid_rapt`）でデプロイ未完**。操作者が `npx clasp login` で再認証後に admin を push→version→redeploy（HANDOVER §2-1 #0）。
+
+---
+
 ## v376.45 — 2026-06-10 🆕🔒 公式LINE投稿: 投稿依頼ワークフロー + LINE投稿権限(RBAC二層) + 可視範囲 + 申込URL自動入力 + 担当者名/日時（admin split のみ @205）
 
 公式LINE投稿依頼コンソールに運用要件を追加。既存のメニュー単位ロール RBAC（`MENU_REGISTRY`/`T_権限ロール`/`checkAdminBySession_`/`isActionAllowedForSession_`）と `T_LINE投稿依頼` データモデルに融合。

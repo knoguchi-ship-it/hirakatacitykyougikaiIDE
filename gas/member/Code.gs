@@ -2827,22 +2827,56 @@ function getCurrentFiscalYear_() {
   return month >= 4 ? now.getFullYear() : now.getFullYear() - 1;
 }
 
-function getAnnualFeeFiscalYearPreviousEndDate_(fiscalYear) {
-  return String(Number(fiscalYear || 0)) + '-03-31';
-}
 
 
-function getAnnualFeeFiscalYearEndDate_(fiscalYear) {
-  return String(Number(fiscalYear || 0) + 1) + '-03-31';
+
+// v376.46: 会計年度ステータス判定の単一情報源 computeMemberFiscalStatus を
+// src/shared/memberFiscalStatus.mjs から build 時に注入する（フロントと同一ロジック）。
+// 下記マーカー間の stub は build（injectMemberFiscalStatusPlaceholders）で実体へ置換される。
+// __MEMBER_FISCAL_STATUS_BUILD_INJECT_START__
+function computeMemberFiscalStatus_(input, fiscalYear, currentFiscalYear) {
+  var status = String((input && input.status) || 'ACTIVE');
+  var joined = String((input && input.joinedDate) || '');
+  var withdrawn = String((input && input.withdrawnDate) || '');
+  var deleted = !!(input && input.deleted);
+  var fy = Number(fiscalYear || 0);
+  var cfy = Number(currentFiscalYear || 0);
+  var prevEnd = String(fy) + '-03-31';        // 前年度末（= 当年度開始 Y-04-01 の直前）
+  var yearEnd = String(fy + 1) + '-03-31';     // 当年度末
+
+  // 1) その年度に在籍していない（削除 / 年度末より後に入会 / 前年度末以前に退会）
+  if (deleted) return { status: 'NOT_IN_YEAR', includeInMailing: false };
+  if (joined && joined > yearEnd) return { status: 'NOT_IN_YEAR', includeInMailing: false };
+  if (withdrawn && withdrawn <= prevEnd) return { status: 'NOT_IN_YEAR', includeInMailing: false };
+
+  // 2) 移行済み（別人物へ統合）: 在籍中に数えない・宛先対象外
+  if (status === 'TRANSFERRED') return { status: 'TRANSFERRED', includeInMailing: false };
+
+  // 3) 退会済みだが退会日未設定: 退会扱い・宛先対象外
+  if (status === 'WITHDRAWN' && !withdrawn) return { status: 'WITHDRAWN', includeInMailing: false };
+
+  // 4) 退会予定（当年度以降のみ「退会予定」扱い。過去年度ではその年度の在籍状況へ落とす）
+  if (status === 'WITHDRAWAL_SCHEDULED' && fy >= cfy) {
+    return { status: 'WITHDRAWAL_SCHEDULED', includeInMailing: true };
+  }
+
+  // 5) 当年度内に退会
+  if (withdrawn && withdrawn <= yearEnd) return { status: 'WITHDRAWN', includeInMailing: true };
+
+  // 6) 在籍中
+  return { status: 'ACTIVE', includeInMailing: true };
 }
+// __MEMBER_FISCAL_STATUS_BUILD_INJECT_END__
 
 function getMemberFiscalSnapshot_(memberRow, fiscalYear) {
   var normalizedYear = Number(fiscalYear || 0);
+  var joinedIso = normalizeDateInput_(memberRow && memberRow['入会日']);
+  var withdrawnIso = normalizeDateInput_(memberRow && memberRow['退会日']);
   var result = {
     eligible: false,
     memberStatus: 'OUT_OF_YEAR',
-    joinedDate: normalizeDateInput_(memberRow && memberRow['入会日']),
-    withdrawnDate: normalizeDateInput_(memberRow && memberRow['退会日']),
+    joinedDate: joinedIso,
+    withdrawnDate: withdrawnIso,
     fiscalYear: normalizedYear,
     reason: '',
   };
@@ -2850,43 +2884,20 @@ function getMemberFiscalSnapshot_(memberRow, fiscalYear) {
     result.reason = 'NO_MEMBER';
     return result;
   }
-  if (toBoolean_(memberRow['削除フラグ'])) {
-    result.reason = 'DELETED';
-    return result;
-  }
   if (!isFinite(normalizedYear) || normalizedYear < 2000 || normalizedYear > 2100) {
     result.reason = 'INVALID_YEAR';
     return result;
   }
-
-  var memberStatus = String(memberRow['会員状態コード'] || 'ACTIVE');
-  var previousFiscalYearEnd = getAnnualFeeFiscalYearPreviousEndDate_(normalizedYear);
-  var fiscalYearEnd = getAnnualFeeFiscalYearEndDate_(normalizedYear);
-
-  if (result.withdrawnDate && result.withdrawnDate <= previousFiscalYearEnd) {
-    result.reason = 'WITHDRAWN_BEFORE_YEAR';
-    result.memberStatus = 'WITHDRAWN';
-    return result;
-  }
-  if (!result.withdrawnDate && memberStatus === 'WITHDRAWN') {
-    result.reason = 'WITHDRAWN_WITHOUT_DATE';
-    result.memberStatus = 'WITHDRAWN';
-    return result;
-  }
-  if (result.joinedDate && result.joinedDate > fiscalYearEnd) {
-    result.reason = 'JOINED_AFTER_YEAR';
-    result.memberStatus = 'NOT_YET_JOINED';
-    return result;
-  }
-
-  result.eligible = true;
-  if (memberStatus === 'WITHDRAWAL_SCHEDULED') {
-    result.memberStatus = 'WITHDRAWAL_SCHEDULED';
-  } else if (result.withdrawnDate && result.withdrawnDate <= fiscalYearEnd) {
-    result.memberStatus = 'WITHDRAWN';
-  } else {
-    result.memberStatus = 'ACTIVE';
-  }
+  // 単一情報源へ委譲（フロント getMemberStatusAtFiscalYear と同一ロジック）
+  var r = computeMemberFiscalStatus_({
+    status: String(memberRow['会員状態コード'] || 'ACTIVE'),
+    joinedDate: joinedIso,
+    withdrawnDate: withdrawnIso,
+    deleted: toBoolean_(memberRow['削除フラグ']),
+  }, normalizedYear, getCurrentFiscalYear_());
+  result.eligible = r.includeInMailing;
+  result.memberStatus = (r.status === 'NOT_IN_YEAR') ? 'OUT_OF_YEAR' : r.status;
+  result.reason = r.status;
   return result;
 }
 

@@ -248,17 +248,38 @@ export const ADMIN_ALLOWED_ACTIONS_LIST = [
 // docs/246 Phase 1-A: gas-src/Code.full.gs の MENU_REGISTRY/ACTION_TO_MENU/LEGACY_*
 // placeholder ブロックを、scripts/menu-registry.mjs の serializeMenuRegistryForGas() で
 // 生成した実体に置換する。3 split build 全てから呼ぶ。
-export function injectMenuRegistryPlaceholders(source, serialized) {
-  const startMarker = '// __MENU_REGISTRY_BUILD_INJECT_START__';
-  const endMarker = '// __MENU_REGISTRY_BUILD_INJECT_END__';
+// 汎用マーカーブロック注入: source 内の startMarker〜endMarker の間を serialized で置換する。
+// マーカー自体は残す（再 build で再注入可能）。
+export function injectMarkerBlock(source, startMarker, endMarker, serialized, label) {
   const startIdx = source.indexOf(startMarker);
   const endIdx = source.indexOf(endMarker);
   if (startIdx === -1 || endIdx === -1) {
-    throw new Error('MENU_REGISTRY build inject placeholders が見つかりません（gas-src/Code.full.gs の構造変更を確認）');
+    throw new Error(`${label || 'build inject'} placeholders が見つかりません（gas-src/Code.full.gs の構造変更を確認）`);
   }
   const before = source.slice(0, startIdx + startMarker.length);
   const after = source.slice(endIdx);
   return `${before}\n${serialized}\n${after}`;
+}
+
+export function injectMenuRegistryPlaceholders(source, serialized) {
+  return injectMarkerBlock(
+    source,
+    '// __MENU_REGISTRY_BUILD_INJECT_START__',
+    '// __MENU_REGISTRY_BUILD_INJECT_END__',
+    serialized,
+    'MENU_REGISTRY',
+  );
+}
+
+// v376.46: 会計年度ステータス判定 computeMemberFiscalStatus を単一情報源から注入。
+export function injectMemberFiscalStatusPlaceholders(source, serialized) {
+  return injectMarkerBlock(
+    source,
+    '// __MEMBER_FISCAL_STATUS_BUILD_INJECT_START__',
+    '// __MEMBER_FISCAL_STATUS_BUILD_INJECT_END__',
+    serialized,
+    'MEMBER_FISCAL_STATUS',
+  );
 }
 
 export function replaceObjectLiteral(source, name, replacement) {

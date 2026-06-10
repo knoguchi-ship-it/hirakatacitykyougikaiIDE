@@ -1805,6 +1805,12 @@ var MASTER_ONLY_SETTING_KEYS = ['EMAIL_LOG_VIEWER_ROLE'];
 
 
 
+// v376.46: 会計年度ステータス判定の単一情報源 computeMemberFiscalStatus を
+// src/shared/memberFiscalStatus.mjs から build 時に注入する（フロントと同一ロジック）。
+// 下記マーカー間の stub は build（injectMemberFiscalStatusPlaceholders）で実体へ置換される。
+// __MEMBER_FISCAL_STATUS_BUILD_INJECT_START__
+// __MEMBER_FISCAL_STATUS_BUILD_INJECT_END__
+
 
 
 
