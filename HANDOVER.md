@@ -6,7 +6,22 @@
 
 最終更新: **2026-06-11**
 最新リリース: **`v376.46`**（会計年度ステータス判定の単一情報源化＝DRY是正・「在籍中」ぶれ解消。admin split のみ @206）
-最終作業: **「在籍中」人数が会員リストと宛先リスト出力でぶれる不具合を DRY 是正で解消しデプロイ** — 原因は会計年度ステータス判定の2重実装ドリフト（GAS `getMemberFiscalSnapshot_` に TRANSFERRED 分岐が無く移行済み会員が在籍中に混入・WITHDRAWAL_SCHEDULED 年度ガード相違）。**単一情報源 `src/shared/memberFiscalStatus.mjs::computeMemberFiscalStatus` を新設**し、フロントは import、GAS は build 時に `computeMemberFiscalStatus_` として注入（menu-registry と同方式・`injectMemberFiscalStatusPlaceholders`）。会員リスト/宛先リスト双方が同一ロジックを共有＝一致。回帰テスト `test:member-fiscal-status`(11) を prerelease に追加。DBスキーマ不変・admin のみ @206。前段: v376.45 LINE投稿運用機能（admin @205） — ①新規作成に「下書き保存」＋「投稿依頼をする」(即REQUESTED)の2ボタン。②**LINE投稿権限を二層化**: 既存 `line-post`(作成+自分の依頼のみ閲覧+投稿依頼)、新設 `line-post-manage`(全件閲覧+投稿済みマーク+状態変更)を `MENU_REGISTRY` に追加し権限マトリクスで付与可。MASTER は自動保持。サーバ側 `lineCanManage_`/`__adminSession` で可視範囲・操作を二重防御。③研修選択時に「研修申込リンク」を自動入力(applicationUrl→無ければ公開申込ディープリンク)。④`T_LINE投稿依頼` に `作成者名`/`投稿マーク者名` 列追加(DB_SCHEMA_VERSION bump・normalize で既存行保持)、一覧/詳細に依頼者名・投稿者名・依頼日時を表示。⑤dryRun E2E `dryRunLinePostV376_45_LOG` 追加。回帰: prerelease 全PASS・3split grep・公開 a11y(0)。⚠️**操作者**: MASTERが権限マトリクスで `line-post-manage` を必要ロール(既存ADMIN含む)へ付与要(§2-1 #0)。前段: v376.44 LINE保存不可修正 — ①【保存不可】`T_LINE投稿依頼` がヘッダー欠落（列数0）状態だと `appendRowsByHeaders_` の `getRange(1,1,1,0)` が「範囲の列数には1以上を指定してください」を投げ保存失敗。根本原因は `getOrCreateSheet_` がヘッダーを書かず、`ensureTableSheetsExist_` も既存シートをスキップするため一度ヘッダー無しで作られると永久に自己修復しない構造的欠陥（v374.1 以来の潜在バグ・メール改修とは別経路）。`ensureLinePostRequestSheet_` を**ヘッダー自己修復**（列数0なら テーブル定義 からヘッダー書込）に修正、`ensureTableSheetsExist_` も既存0列シートを補修するよう堅牢化。保存毎に走るため次回保存で自動復旧。②【画像化け】プレビューが Drive ビューアURL を `<img src>` に渡していた→ `driveImageSrc()` で thumbnail エンドポイントへ変換。**回帰検知**: `dryRunLinePostV376_44_LOG`（保存→取得→削除の実DB E2E）追加。**テスト漏れの是正**: admin 書込フローは storageState 不在で Playwright E2E 未実施だったのが今回の見逃し原因（§2-1b/AGENTS §5 参照）。前段: v376.43.1 メールPhaseB / v376.42 PhaseA
+最終作業: **「在籍中」人数が会員リストと宛先リスト出力でぶれる不具合を DRY 是正で解消しデプロイ（v376.46 / admin @206）** — 会計年度ステータス判定の2重実装ドリフト（GAS に TRANSFERRED 分岐欠落＝移行済み会員が在籍中に混入）を、単一情報源 `src/shared/memberFiscalStatus.mjs::computeMemberFiscalStatus`（フロント import / GAS build 注入）へ集約して解消。回帰テスト追加・DBスキーマ不変。
+> 直近の経緯・各リリース詳細は §7 リリース表 と `docs/release-notes-2026.md` を正本とする（v376.40〜v376.46）。
+
+---
+
+## 0. 次の担当者へ（キャッチアップ・まず1分でここ）
+
+- **本番は正常稼働中**。現行: public @358 / member @117 / **admin @206**（§1）。直近セッション（2026-06-06〜06-11）は **公式LINE投稿依頼の機能拡充** と **メール通知のテンプレート管理全種化** と **「在籍中」集計の DRY 是正** が中心（詳細 §7 v376.40〜.46）。
+- **まず読む**: 本書 §1（本番版）→ §2（即時対応＝操作者の実機確認＆権限付与が数件たまっている）→ §6（読む順序）。設計の背景は `docs/release-notes-2026.md`、落とし穴は `MEMORY`（下記）。
+- **まずやる（操作者タスク・§2-1）**: ①v376.45 で MASTER が権限マトリクスから新権限 **`公式LINE投稿 管理(line-post-manage)`** を必要ロールへ付与。②v376.42 メールテンプレ移行を admin login でトリガ確認。③v376.46「在籍中」が会員リスト＝宛先リストで一致するか確認。④各機能の実機確認（§2-1 の表）。
+- **触る前に必読の落とし穴（MEMORY）**:
+  - `feedback_build_pruning_bug` — gas-src のトップレベル定義/リテラル内コメントに **`_` 付き関数名を書かない**（build pruner が public/member で誤削除し `テーブル定義` ごと飛ぶ）。push 前に3split の `var テーブル定義 = {` 残存を grep。
+  - `feedback_getorcreatesheet_headerless_trap` — `getOrCreateSheet_` はヘッダー未書込。ensure 系は列数0自己修復必須。
+  - `project_front_back_shared_logic` — 在籍中判定/メニュー等の front↔GAS 共有ロジックは **単一情報源（shared .mjs＋build注入）**。修正は1箇所。新規共有関数の追加レシピ有り。
+- **開発ルールの更新**: `AGENTS.md §5` に **新機能は E2E 回帰必須**（公開は a11y/responsive、admin/member 書込は backend `dryRun*_LOG`、3split 生成物 grep）を明文化。守ること。
+- **未デプロイ差分**: member/public は gas-src 由来の inert 差分を抱える（admin 専用機能のため未 redeploy）。次に member/public を触る機能を出す時に同梱でデプロイ。
 
 ---
 
