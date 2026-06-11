@@ -13,7 +13,7 @@
 
 ---
 
-## v376.46 — 2026-06-11 🔧🐛 会計年度ステータス判定の単一情報源化（DRY 是正）— 「在籍中」人数のぶれ解消（実装・検証済 / admin デプロイは clasp 再認証待ち）
+## v376.46 — 2026-06-11 🔧🐛 会計年度ステータス判定の単一情報源化（DRY 是正）— 「在籍中」人数のぶれ解消（admin split のみ @206）
 
 「在籍中」で絞った人数が **会員リスト** と **宛先リスト出力** で食い違う不具合を、根本原因（DRY 違反）から是正。
 
@@ -25,7 +25,7 @@
 - **回帰テスト** 🐛: `scripts/test-member-fiscal-status.mts`（11 ケース・prerelease 追加）。ACTIVE/退会予定(当年度・過去年度)/当年度退会/前年度以前退会/**移行済み**/当年度入会/翌年度入会/削除 を検証し、**「TRANSFERRED は決して ACTIVE/宛先対象にならない」を回帰固定**。
 - **検証**: `typecheck` / `test:member-fiscal-status`(11) / `prerelease` 全 PASS。`build:gas`×3 後、注入された `computeMemberFiscalStatus_`（`NOT_IN_YEAR` 含む実ロジック）が admin/member の Code.gs に存在・public は未参照で pruned（ダングリング無し）・`var テーブル定義` は3split健在を grep 確認。
 - **境界/スコープ**: 会員リスト・宛先リスト・年会費はいずれも admin。DB_SCHEMA_VERSION 不変。**admin split のみデプロイ予定**。member/public は gas-src 由来 inert 差分のみ。
-- **デプロイ状況** ⚠️: 実装・ビルド・全ゲート完了済だが、**clasp の RAPT トークン失効（`invalid_rapt`）でデプロイ未完**。操作者が `npx clasp login` で再認証後に admin を push→version→redeploy（HANDOVER §2-1 #0）。
+- **デプロイ**: admin split を push → version 206 → `redeploy @206`、`clasp deployments --json` で `@206`（"v376.46"）同期確認。（初回 push 時 clasp RAPT 失効に遭遇 → 操作者 `clasp login` 再認証後にデプロイ完了。）実機確認（会員リスト在籍中＝宛先リスト在籍中の一致）は操作者タスク（HANDOVER §2-1 #0）。
 
 ---
 
