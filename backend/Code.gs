@@ -5932,8 +5932,9 @@ function backfillBusinessStaffNameColumns_(ss) {
 /**
  * v207/v291: 宛名リスト Excel（.xlsx）出力
  *
- * payload: { filterType: 'KOHOUSHI' | 'OSHIRASE', year?: number, targetKeys?: string[] }
+ * payload: { filterType: 'KOHOUSHI' | 'KOHOUSHI_ONLY' | 'OSHIRASE', year?: number, targetKeys?: string[] }
  *   KOHOUSHI: 広報誌発送 — ACTIVE + WITHDRAWAL_SCHEDULED の全会員
+ *   KOHOUSHI_ONLY: 広報誌のみ発送 — KOHOUSHI のうち OSHIRASE 対象外
  *   OSHIRASE: お知らせ発送 — 事業所会員全員 + 個人/賛助のうち 発送方法コード='POST'
  *
  * targetKeys 指定時は、バックエンドで再計算した発送対象候補との交差だけを出力する。

@@ -72,8 +72,9 @@
   - 上限50件（6分制限対策）。事業所会員は REPRESENTATIVE→ADMIN→STAFF 順で職員一覧をPDF内展開。
   - スコープ: `https://www.googleapis.com/auth/drive`（v194 で追加済み）。
 - **宛名リスト出力機能（v291 ローカル変更）**: `SpreadsheetApp` + `UrlFetchApp`
-  - `getMailingListTargets` で発送区分・年度ごとの候補を取得し、画面上で年度処理、種別、状態、住所不備を確認して出力対象を選択する。
+  - `getMailingListTargets` で発送区分（広報誌発送 / 広報誌のみ発送 / お知らせ発送）・年度ごとの候補を取得し、画面上で年度処理、種別、状態、住所不備を確認して出力対象を選択する。
   - 年度基準の会員対象判定は `getMemberFiscalSnapshot_()` を正とし、年度途中退会者は対象に含め、年度開始前退会者・年度末後入会者は対象外とする。年会費履歴なしを `UNPAID` とみなすのは年度内会員に限る。
+  - 発送区分の判定は GAS 側で再計算する。`OSHIRASE` は事業所会員全員または個人・賛助会員の `発送方法コード='POST'`、`KOHOUSHI_ONLY` は広報誌発送候補のうち `OSHIRASE` 対象外を表す。
   - キーワード検索はフロントエンドで表示候補を絞る。Excel 出力時は選択された `targetKeys` を GAS 側で再計算済み候補と照合し、条件外 ID を信用しない。
   - 氏名検索は共通検索正規化を使い、`姓 名` / `姓名` のスペース有無に依存しない。
   - `generateMailingListExcel` は選択済み候補のみを一時スプレッドシートへ出力し、xlsx に変換して返す。

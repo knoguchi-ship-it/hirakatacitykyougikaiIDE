@@ -89,6 +89,11 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
       description: '選択年度に会員だった全会員（年度内退会を含む）が対象です。',
     },
     {
+      value: 'KOHOUSHI_ONLY',
+      label: '広報誌のみ発送',
+      description: '広報誌発送のうち、お知らせ発送対象ではない個人・賛助会員が対象です。',
+    },
+    {
       value: 'OSHIRASE',
       label: 'お知らせ発送',
       description: '事業所会員の全員 + 個人・賛助会員のうち発送方法が「郵送」の方が対象です。',
@@ -564,7 +569,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
               </div>
             </div>
 
-            {/* 他の列フィルター（4列） */}
+            {/* 他の列フィルター */}
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
 
               <div>

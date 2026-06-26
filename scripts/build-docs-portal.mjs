@@ -1162,7 +1162,7 @@ ${COMMON_NAV}
   <ul>
     <li>Frontend: React 19 + TypeScript + Vite + Tailwind CSS</li>
     <li>Backend: Google Apps Script (GAS) + Google Spreadsheet</li>
-    <li>メール送信: <code>MailApp.sendEmail</code>（GAS ネイティブ）</li>
+    <li>メール送信: <code>MailApp.sendEmail</code>（通常送信） / <code>GmailApp.sendEmail</code>（admin split のエイリアス送信）</li>
     <li>パスワードハッシュ: PBKDF2-HMAC-SHA256（10,000 反復）+ verifier-side pepper</li>
   </ul>
   <h3>原典</h3>

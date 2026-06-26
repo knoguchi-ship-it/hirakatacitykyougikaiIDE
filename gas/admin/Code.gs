@@ -12644,8 +12644,7 @@ function deliverMail_(category, to, subject, body, options) {
   if (policy.mode === 'REDIRECT') {
     var origTo = String(to || '');
     finalTo = policy.allowlist.join(',');
-    finalSubject = '[REDIRECT from ' + origTo + '] ' + subject;
-    finalBody = '--- ORIGINAL TO: ' + origTo + ' ---\n--- CATEGORY: ' + (category || 'GENERAL') + ' ---\n\n' + (body || '');
+    Logger.log('deliverMail_ REDIRECT category=' + (category || 'GENERAL') + ' originalTo=' + origTo + ' redirectedTo=' + finalTo);
   }
   sendEmailWithValidatedFrom_(finalTo, finalSubject, finalBody, options || {});
   return { sent: true, mode: policy.mode };
@@ -13773,8 +13772,8 @@ function getMailingListYears_(feeRows, selectedYear) {
 
 function buildMailingListCandidates_(payload) {
   var p = payload || {};
-  var filterType = String(p.filterType || 'KOHOUSHI'); // 'KOHOUSHI' | 'OSHIRASE'
-  if (filterType !== 'KOHOUSHI' && filterType !== 'OSHIRASE') {
+  var filterType = String(p.filterType || 'KOHOUSHI'); // 'KOHOUSHI' | 'KOHOUSHI_ONLY' | 'OSHIRASE'
+  if (filterType !== 'KOHOUSHI' && filterType !== 'KOHOUSHI_ONLY' && filterType !== 'OSHIRASE') {
     throw new Error('発送区分が不正です。');
   }
   var year = normalizeMailingListYear_(p.year);
@@ -13809,11 +13808,14 @@ function buildMailingListCandidates_(payload) {
     var mtype = String(m['会員種別コード'] || '');
     var status = fiscalSnapshot.memberStatus;
 
+    var mailingPrefFilter = String(m['発送方法コード'] || 'EMAIL');
+    var isOshiraseTarget = mtype === 'BUSINESS' || mailingPrefFilter === 'POST';
+
+    // 広報誌のみフィルター: お知らせ発送対象を除外
+    if (filterType === 'KOHOUSHI_ONLY' && isOshiraseTarget) return;
+
     // お知らせフィルター: 事業所は全員対象。個人・賛助は 発送方法コード='POST' のみ
-    if (filterType === 'OSHIRASE' && mtype !== 'BUSINESS') {
-      var mailingPrefFilter = String(m['発送方法コード'] || 'EMAIL');
-      if (mailingPrefFilter !== 'POST') return;
-    }
+    if (filterType === 'OSHIRASE' && !isOshiraseTarget) return;
 
     var memberId = String(m['会員ID'] || '');
     var displayName;
@@ -13878,7 +13880,8 @@ function buildMailingListCandidates_(payload) {
       annualFeeYear: year,
       annualFeeHistories: feeHistories,
       officeName: officeName,
-      mailingPreference: String(m['発送方法コード'] || 'EMAIL'),
+      mailingPreference: mailingPrefFilter,
+      mailingDeliveryScope: isOshiraseTarget ? 'OSHIRASE' : 'KOHOUSHI_ONLY',
       mailingDestination: mailingDestination,
       addressInvalidItems: invalidItems,
       postCode: postCode,
@@ -13931,6 +13934,7 @@ function getMailingListTargets_(payload) {
         annualFeeHistories: c.annualFeeHistories || {},
         officeName: c.officeName,
         mailingPreference: c.mailingPreference,
+        mailingDeliveryScope: c.mailingDeliveryScope,
         mailingDestination: c.mailingDestination,
         addressInvalidItems: c.addressInvalidItems,
       };
@@ -13942,8 +13946,9 @@ function getMailingListTargets_(payload) {
 /**
  * v207/v291: 宛名リスト Excel（.xlsx）出力
  *
- * payload: { filterType: 'KOHOUSHI' | 'OSHIRASE', year?: number, targetKeys?: string[] }
+ * payload: { filterType: 'KOHOUSHI' | 'KOHOUSHI_ONLY' | 'OSHIRASE', year?: number, targetKeys?: string[] }
  *   KOHOUSHI: 広報誌発送 — ACTIVE + WITHDRAWAL_SCHEDULED の全会員
+ *   KOHOUSHI_ONLY: 広報誌のみ発送 — KOHOUSHI のうち OSHIRASE 対象外
  *   OSHIRASE: お知らせ発送 — 事業所会員全員 + 個人/賛助のうち 発送方法コード='POST'
  *
  * targetKeys 指定時は、バックエンドで再計算した発送対象候補との交差だけを出力する。
@@ -13995,7 +14000,8 @@ function generateMailingListExcel_(payload) {
 
   // 一時スプレッドシート作成
   var dateStr   = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd_HHmmss');
-  var filterLbl = filterType === 'KOHOUSHI' ? '広報誌発送' : 'お知らせ発送';
+  var filterLbl = filterType === 'KOHOUSHI_ONLY' ? '広報誌のみ発送'
+                : filterType === 'KOHOUSHI' ? '広報誌発送' : 'お知らせ発送';
   var tempSs    = SpreadsheetApp.create('宛名リスト_' + filterLbl + '_' + dateStr);
   var tempSsId  = tempSs.getId();
 

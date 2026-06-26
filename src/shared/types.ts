@@ -132,7 +132,7 @@ export interface EmailSendLog {
 // （旧 TemplateValidationPanel 削除に伴う）
 
 // v207: 宛名リスト Excel 出力
-export type MailingListFilterType = 'KOHOUSHI' | 'OSHIRASE';
+export type MailingListFilterType = 'KOHOUSHI' | 'KOHOUSHI_ONLY' | 'OSHIRASE';
 
 export interface MailingListTarget {
   targetKey: string;
@@ -148,6 +148,8 @@ export interface MailingListTarget {
   annualFeeHistories: Record<number, 'PAID' | 'UNPAID'>;
   officeName: string;
   mailingPreference: string;
+  /** OSHIRASE はお知らせ発送対象、KOHOUSHI_ONLY は広報誌のみ発送対象 */
+  mailingDeliveryScope?: 'OSHIRASE' | 'KOHOUSHI_ONLY';
   mailingDestination: string;
   addressInvalidItems: string[];
 }

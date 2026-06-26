@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-06-01
-Production: `v376.38` / integrated-public `@356` x2 / member split `@115` / admin split `@197`
+Updated: 2026-06-26
+Production: `v376.50` / integrated-public `@358` x2 / member split `@117` / admin split `@210`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -19,15 +19,15 @@ Production: `v376.38` / integrated-public `@356` x2 / member split `@115` / admi
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@356` (`v376.38`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@356` (`v376.38`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@358` (`v376.43.1` artifact; current production set `v376.46`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@358` (`v376.43.1` artifact; current production set `v376.46`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@115` (`v376.38`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@197` (`v376.38`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@117` (`v376.43.1` artifact; current production set `v376.46`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@210` (`v376.50`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -144,7 +144,43 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-06-06 `v376.38` ← current production
+### 2026-06-26 `v376.50` ← current production
+- Scope: REDIRECT モードの件名・本文注釈を廃止。宛先は allowlist に集約しつつ、件名・本文は実送信時と同じ表示にする。元宛先・カテゴリは Apps Script log に記録。DB schema 不変、admin split のみ更新。
+- Integrated fixed deployments: `@358` x2 ／ Member split: `@117` ／ Admin split: `@210`
+- Verification: `build:gas:admin` / REDIRECT 注釈文字列 grep（該当なし） / admin 生成物の `var テーブル定義` and `processApiRequest` grep / `typecheck` / `test:mailing-list` / `prerelease` PASS。admin `npx clasp deployments --json` で `@210` 同期確認。操作者実機確認で REDIRECT 注釈が表示されないことを確認済。
+- Detail: `docs/release-notes-2026.md` v376.50。
+
+### 2026-06-26 `v376.49`
+- Scope: admin split の Gmail send scope 復旧。一括メール送信で送信元 `from` 指定時に `GmailApp.sendEmail` へ分岐するが、admin manifest に `gmail.send` が欠落していたため全件権限不足で失敗していた。DB schema 不変、admin split のみ更新。
+- Integrated fixed deployments: `@358` x2 ／ Member split: `@117` ／ Admin split: `@209`
+- Verification: admin manifest JSON check / `build:docs-portal` / `test:er-sync` / `typecheck` / `test:mailing-list` / `prerelease` PASS。admin `npx clasp deployments --json` で `@209` 同期確認。`npx clasp run healthCheck --json` は Execution API 実行権限で失敗。操作者実機確認で一括メール送受信と添付ファイル送信が成功することを確認済。
+- Detail: `docs/release-notes-2026.md` v376.49。
+
+### 2026-06-18 `v376.48`
+- Scope: 宛名リスト出力コンソールの「発送区分の選択」を `広報誌発送` / `広報誌のみ発送` / `お知らせ発送` の 3 択に修正。v376.47 の下段 `発送対象` フィルター案を廃止。DB schema 不変、admin split のみ更新。
+- Integrated fixed deployments: `@358` x2 ／ Member split: `@117` ／ Admin split: `@208`
+- Verification: `typecheck` / `test:mailing-list` 5 件 / 3 split build / 3 split `var テーブル定義` and `processApiRequest` grep / `prerelease` PASS。admin `npx clasp deployments --json` で `@208` 同期確認。`npm run test:responsive:admin` は再実行したが、保存済み storageState が Google ログインへ戻され `App frame did not appear within 50s` のため未 PASS。
+- Detail: `docs/release-notes-2026.md` v376.48。
+
+### 2026-06-18 `v376.47` (superseded by v376.48)
+- Scope: 宛名リスト出力コンソールに発送対象フィルター（広報誌のみ / お知らせ発送対象）を追加。DB schema 不変、admin split のみ更新。
+- Integrated fixed deployments: `@358` x2 ／ Member split: `@117` ／ Admin split: `@207`
+- Verification: `test:mailing-list` 4 件追加、`prerelease` PASS、admin `npx clasp deployments --json` で `@207` 同期確認。`npx clasp run healthCheck` は Execution API 実行権限で失敗。`npm run test:responsive:admin` は通常経路で `ERR_NETWORK_ACCESS_DENIED`、承認経路で timeout のため未完了。実ブラウザ確認は `HANDOVER.md` §2-1 に操作者タスクとして残存。
+- Detail: `docs/release-notes-2026.md` v376.47。
+
+### 2026-06-11 `v376.46`
+- Scope: 会計年度ステータス判定の単一情報源化（DRY 是正）。会員リストと宛先リスト出力の「在籍中」人数ぶれを解消。DB schema 不変、admin split のみ更新。
+- Integrated fixed deployments: `@358` x2 ／ Member split: `@117` ／ Admin split: `@206`
+- Verification: `test:member-fiscal-status` 11 件 PASS、`prerelease` PASS、admin `npx clasp deployments --json` で `@206` 同期確認。実機確認（会員リスト在籍中＝宛先リスト在籍中の一致）は `HANDOVER.md` §2-1 に操作者タスクとして残存。
+- Detail: `docs/release-notes-2026.md` v376.46。
+
+### 2026-06-10 `v376.43.1` current public/member artifact
+- Scope: 全メール種別テンプレート管理 Phase B + build pruner hotfix。public/member 起動エラーをロールバック後に修正し、3 split に再反映。
+- Integrated fixed deployments: `@358` x2 ／ Member split: `@117` ／ Admin split: `@203`
+- Verification: 全 3 split に `var テーブル定義` 残存 grep 確認、公開 `test:a11y` 0 違反、`test:responsive` 7 VP PASS。
+- Detail: `docs/release-notes-2026.md` v376.43 / v376.43.1。
+
+### 2026-06-06 `v376.38`
 - Scope: テスト観点表評価（`docs/247`）+ a11y AA コントラスト是正（`bg-sky-600`→`bg-sky-700`、`src/public-portal/App.tsx`）+ `npm audit fix`（moderate 7→5）。Code.gs に v376.36 archive 表定義(dormant・DB_SCHEMA_VERSION 不変)も同梱。
 - Integrated fixed deployments: `@356` x2 ／ Member split: `@115` ／ Admin split: `@197`
 - Verification: typecheck/build/boundary PASS。`npx clasp deployments --json` 一致確認。`npm run test:a11y` で critical/serious/moderate/minor=0 を live 再確認、`test:responsive` 全7VP PASS。

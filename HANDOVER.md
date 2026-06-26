@@ -4,17 +4,17 @@
 > 経緯・履歴・設計詳細は別ドキュメントへ。リンク先は §6 参照順序を参照。
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
-最終更新: **2026-06-11**
-最新リリース: **`v376.46`**（会計年度ステータス判定の単一情報源化＝DRY是正・「在籍中」ぶれ解消。admin split のみ @206）
-最終作業: **「在籍中」人数が会員リストと宛先リスト出力でぶれる不具合を DRY 是正で解消しデプロイ（v376.46 / admin @206）** — 会計年度ステータス判定の2重実装ドリフト（GAS に TRANSFERRED 分岐欠落＝移行済み会員が在籍中に混入）を、単一情報源 `src/shared/memberFiscalStatus.mjs::computeMemberFiscalStatus`（フロント import / GAS build 注入）へ集約して解消。回帰テスト追加・DBスキーマ不変。
-> 直近の経緯・各リリース詳細は §7 リリース表 と `docs/release-notes-2026.md` を正本とする（v376.40〜v376.46）。
+最終更新: **2026-06-26**
+最新リリース: **`v376.50`**（REDIRECT モードの件名・本文注釈を廃止。admin split のみ @210）
+最終作業: **一括メールの REDIRECT テスト送信時に件名・本文へ乗っていた注釈を廃止しデプロイ（v376.50 / admin @210）** — REDIRECT モードは宛先だけ allowlist に切り替え、件名・本文は実送信時と同じ表示にした。元宛先・カテゴリは Apps Script log に記録。DBスキーマ不変。
+> 直近の経緯・各リリース詳細は §7 リリース表 と `docs/release-notes-2026.md` を正本とする（v376.40〜v376.50）。
 
 ---
 
 ## 0. 次の担当者へ（キャッチアップ・まず1分でここ）
 
-- **本番は正常稼働中**。現行: public @358 / member @117 / **admin @206**（§1）。直近セッション（2026-06-06〜06-11）は **公式LINE投稿依頼の機能拡充** と **メール通知のテンプレート管理全種化** と **「在籍中」集計の DRY 是正** が中心（詳細 §7 v376.40〜.46）。
-- **まず読む**: 本書 §1（本番版）→ §2（即時対応＝操作者の実機確認＆権限付与が数件たまっている）→ §6（読む順序）。設計の背景は `docs/release-notes-2026.md`、落とし穴は `MEMORY`（下記）。
+- **本番は admin @210 に更新済み**。現行: public @358 / member @117 / **admin @210**（§1）。直近セッション（2026-06-06〜06-26）は **公式LINE投稿依頼の機能拡充** と **メール通知のテンプレート管理全種化** と **「在籍中」集計の DRY 是正** と **宛名リスト発送区分3択化** と **一括メール送信 scope 復旧 / REDIRECT 表示改善** が中心（詳細 §7 v376.40〜.50）。
+- **まず読む**: 本書 §1（本番版）→ §2（即時対応＝操作者の実機確認・再同意・権限付与が数件たまっている）→ §6（読む順序）。設計の背景は `docs/release-notes-2026.md`、落とし穴は `MEMORY`（下記）。
 - **まずやる（操作者タスク・§2-1）**: ①v376.45 で MASTER が権限マトリクスから新権限 **`公式LINE投稿 管理(line-post-manage)`** を必要ロールへ付与。②v376.42 メールテンプレ移行を admin login でトリガ確認。③v376.46「在籍中」が会員リスト＝宛先リストで一致するか確認。④各機能の実機確認（§2-1 の表）。
 - **触る前に必読の落とし穴（MEMORY）**:
   - `feedback_build_pruning_bug` — gas-src のトップレベル定義/リテラル内コメントに **`_` 付き関数名を書かない**（build pruner が public/member で誤削除し `テーブル定義` ごと飛ぶ）。push 前に3split の `var テーブル定義 = {` 残存を grep。
@@ -32,7 +32,7 @@
 | 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@358** |
 | 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@358** |
 | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@117** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@206** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@210** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 
@@ -64,6 +64,9 @@
 
 | # | タスク | 詳細 / 参照 |
 |---|---|---|
+| 0 | **v376.50 一括メール REDIRECT 表示確認**（admin @210） | **操作者確認済（2026-06-26）**: REDIRECT モードで一括メールを安全な検証宛先に送信し、件名に `[REDIRECT from ...]` が付かず、本文先頭に `--- ORIGINAL TO` / `--- CATEGORY` が入らないことを確認済。REDIRECT 中は実宛先ではなく allowlist 宛に集約される点は従来通り |
+| 0 | **v376.49 一括メール送信の実機確認・必要なら Google 再同意**（admin @209） | **操作者確認済（2026-06-26）**: admin split の `gmail.send` scope 復旧後、一括メールの送受信と添付ファイル送信が成功することを確認済。`clasp run healthCheck --json` は Execution API 実行権限で失敗したが、実送信で復旧確認済 |
+| 0 | **v376.48 宛名リスト 発送区分3択 実機確認**（admin @208） | 宛名リスト出力コンソールの「発送区分の選択」に `広報誌発送` / `広報誌のみ発送` / `お知らせ発送` が表示されること。`広報誌のみ発送` でお知らせ発送対象（事業所会員全員＋個人/賛助の郵送希望）が除外されること。`お知らせ発送` で事業所会員全員＋個人/賛助の郵送希望だけが対象になること。表示中を選択→Excel 出力で選択件数だけ出力されること。360px 幅でも選択 UI が崩れないこと。AI 実行の `test:responsive:admin` は保存済み storageState 期限切れで未 PASS のため、操作者側で再ログイン後に確認すること |
 | 0 | **v376.46 「在籍中」一致の実機確認**（admin @206） | 会員リストで「在籍中」に絞った人数と、宛先リスト出力で「在籍中」に絞った人数が（同一年度選択時）**一致**すること。特に移行済み(TRANSFERRED)会員が宛先リストの在籍中に混入しないこと。退会予定・当年度退会・前年度退会の各境界も両画面で同じ件数になること |
 | 0a | **v376.45 LINE投稿 権限/投稿依頼/可視範囲の実機確認＋権限付与**（admin @205→@206 に内包） | ①**[要対応] MASTER が 設定→権限管理 で `公式LINE投稿 管理` (line-post-manage) を必要なロール（全件閲覧・投稿済みマークさせたい担当ロール／従来通りなら ADMIN ロール）へ付与**（既存 T_権限ロール 行には自動付与されない）。②admin login で schema 移行（`T_LINE投稿依頼` に 作成者名/投稿マーク者名 列追加・既存行保持）を確認。③新規作成で「下書き保存」「投稿依頼をする」の2ボタン動作、投稿依頼で REQUESTED 化。④研修選択で「研修申込リンク」が自動入力される。⑤管理権限なしユーザーは自分の依頼のみ・「投稿済みにする」非表示、管理権限ありは全件＋投稿済み可。⑥一覧/詳細に依頼者名・投稿者名・依頼日時。⑦`dryRunLinePostV376_45_LOG` を ▶ 実行し `passed:true`。※テスト行は soft delete 済 | `docs/release-notes-2026.md` v376.45 |
 | 0a | **v376.44 公式LINE投稿依頼の実機確認**（admin @204→@205 に内包） | ①新規投稿依頼を作成し**保存できる**こと（「範囲の列数には1以上」エラーが出ない＝ヘッダー自己修復）。②画像添付のプレビュー（編集モーダル＋投稿依頼詳細）で**画像が正しく表示**されること（化けない）。③編集（既存DRAFT）保存・削除も動くこと。④admin editor で `dryRunLinePostV376_44_LOG` を ▶ 実行し `passed:true`（保存→取得→soft delete が成功）を確認推奨。※テスト行 `DRYRUN_V376_44…` は soft delete 済 |
@@ -189,6 +192,10 @@ npm run build:docs-portal                  # docs/portal/*.html + schema.dbml �
 
 | Version | 日付 | 概要 |
 |---|---|---|
+| **v376.50** | 2026-06-26 | **REDIRECT モードの件名・本文注釈廃止**（admin split のみ @210）。テスト送信時に受信メールへ `[REDIRECT from ...]` と `--- ORIGINAL TO` / `--- CATEGORY` が表示されていたため、REDIRECT 時は宛先だけ allowlist に変更し、件名・本文は加工しない仕様へ変更。元宛先・カテゴリは `Logger.log('deliverMail_ REDIRECT ...')` に記録。`prerelease` PASS、admin `clasp deployments --json` で @210 同期確認。操作者実機確認済（不要注釈なし） |
+| **v376.49** | 2026-06-26 | **一括メール送信の Gmail send scope 復旧**（admin split のみ @209）。admin `appsscript.json` に `gmail.send` が欠落しており、`from` 指定時の `GmailApp.sendEmail` 分岐で全件 `Specified permissions are not sufficient` 失敗。`https://www.googleapis.com/auth/gmail.send` を admin manifest に追加し、`MailApp` 通常送信 / `GmailApp` エイリアス送信の実装前提を正本・docs portal に反映。`prerelease` PASS、admin `clasp deployments --json` で @209 同期確認。操作者実機確認済（送受信・添付成功） |
+| **v376.48** | 2026-06-18 | **宛名リスト出力コンソール 発送区分3択化**（admin split のみ @208）。画像指摘に合わせ、上段「発送区分の選択」で `広報誌発送` / `広報誌のみ発送` / `お知らせ発送` を直接切り分ける設計に修正。v376.47 の下段 `発送対象` フィルター案は廃止。GAS `buildMailingListCandidates_` は `KOHOUSHI_ONLY` を含む発送区分で候補を再計算。`test:mailing-list` 5件を prerelease に組込。DBスキーマ不変。`test:responsive:admin` は storageState 期限切れで Google ログインへ戻され未 PASS のため、実ブラウザ確認は操作者タスク |
+| **v376.47** | 2026-06-18 | **宛名リスト出力コンソール 発送対象フィルター追加**（admin split のみ @207、v376.48 で置換済み）。広報誌発送候補の中から `広報誌のみ` / `お知らせ発送対象` を下段フィルターで絞り込む実装だったが、UI 設計として不適切と判断し v376.48 で発送区分 3 択に修正 |
 | **v376.46** | 2026-06-11 | **会計年度ステータス判定の単一情報源化（DRY 是正）— 「在籍中」人数が会員リストと宛先リスト出力でぶれる不具合の解消**（admin split のみ @206）。原因は判定ロジックの2重実装ドリフト（GAS `getMemberFiscalSnapshot_` に TRANSFERRED 分岐欠落→移行済み会員が在籍中に混入、WITHDRAWAL_SCHEDULED 年度ガード相違）。単一情報源 `src/shared/memberFiscalStatus.mjs::computeMemberFiscalStatus` を新設し、フロント import／GAS は build 注入（`computeMemberFiscalStatus_`・`injectMemberFiscalStatusPlaceholders`、menu-registry と同方式）。両画面が同一ロジック共有＝一致。`test:member-fiscal-status`(11) を prerelease 追加。DB スキーマ不変 |
 | **v376.45** | 2026-06-10 | **公式LINE投稿: 投稿依頼ワークフロー + LINE投稿権限(RBAC二層) + 可視範囲 + 申込URL自動入力 + 担当者名/日時**（admin split のみ @205）。①新規作成「下書き保存」＋「投稿依頼をする」(submitRequest→REQUESTED)。②権限二層: `line-post`(作成/自分の依頼/投稿依頼)＋新設 `line-post-manage`(全件/投稿済み/状態変更) を MENU_REGISTRY 追加→権限マトリクスで付与可・MASTER 自動。`lineCanManage_`＋`__adminSession` でサーバ強制（list=自分のみ/全件、post=manage必須、編集削除=所有権）。③研修選択で申込URL自動入力(applicationUrl→公開ディープリンク)。④`T_LINE投稿依頼`+2列(作成者名/投稿マーク者名)・一覧/詳細に依頼者/投稿者名・依頼日時。⑤dryRun `dryRunLinePostV376_45_LOG`。**操作者要対応**: MASTER が権限マトリクスで line-post-manage を必要ロールに付与（既存行は自動付与なし）。LEGACY/INITIAL の ADMIN 定義には付与済(legacy経路/新規seed) |
 | **v376.44** | 2026-06-10 | **公式LINE投稿依頼の保存不可＋プレビュー画像化け修正**（admin split のみ @204）。①保存時「範囲の列数には1以上を指定してください」: `T_LINE投稿依頼` がヘッダー欠落（列数0）だと `appendRowsByHeaders_` の `getRange(1,1,1,0)` が throw。原因は `getOrCreateSheet_` がヘッダー未書込＋`ensureTableSheetsExist_` が既存シートをスキップする構造的欠陥（v374.1 以来の潜在・メール改修と別経路）。`ensureLinePostRequestSheet_` をヘッダー自己修復化（保存毎に走るので次回保存で復旧）＋`ensureTableSheetsExist_` も既存0列シートを補修。②プレビュー画像化け: `<img src>` が Drive ビューアURL（HTMLページ）→`driveImageSrc()` で `thumbnail?id=` へ変換。③回帰検知 `dryRunLinePostV376_44_LOG`（保存→取得→削除の実DB E2E）追加。**テスト漏れ是正**: admin 書込フローの E2E 欠如が見逃し原因と特定し AGENTS §5 強化 |
@@ -253,7 +260,7 @@ npm run build:docs-portal                  # docs/portal/*.html + schema.dbml �
 | Frontend | React 19 + TypeScript + Vite + Tailwind CSS |
 | Backend | Google Apps Script (GAS) + Google Spreadsheet (DB) |
 | 認証 | 会員 ID/PW、管理者 Session + ホワイトリスト |
-| Mail | `MailApp.sendEmail` (GAS ネイティブ・GmailApp 不使用) |
+| Mail | `MailApp.sendEmail`（通常送信） / `GmailApp.sendEmail`（admin split のエイリアス送信） |
 | GCP プロジェクト | `hcmn-member-system-prod` (#88737175415) |
 | DB スプレッドシート | `1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs` (固定) |
 | 運用アカウント | `k.noguchi@hcm-n.org` |

@@ -13,6 +13,50 @@
 
 ---
 
+## v376.50 — 2026-06-26 🔧 REDIRECT モードの件名・本文注釈廃止（admin split のみ @210）
+
+一括メールのテスト送信時に、受信メールの件名へ `[REDIRECT from ...]`、本文先頭へ `--- ORIGINAL TO` / `--- CATEGORY` が表示されていたため、受信者視点の表示確認を妨げていた。
+
+- **修正** 🔧: REDIRECT モードでは宛先だけ `MAIL_REDIRECT_ALLOWLIST` に切り替え、件名・本文は加工しない。元宛先・カテゴリは Apps Script log の `deliverMail_ REDIRECT category=... originalTo=... redirectedTo=...` に記録する。
+- **運用文書** 🔧: `docs/227_MAIL_KILL_SWITCH_2026-05-18.md` の REDIRECT 説明を「件名・本文は加工しない」仕様へ更新。
+- **検証 / デプロイ**: `build:gas:admin` / REDIRECT 注釈文字列 grep（該当なし） / admin 生成物の `var テーブル定義` / `processApiRequest` / `gmail.send` grep / `typecheck` / `test:mailing-list` / `prerelease` PASS。admin split を push → version 210 → `redeploy @210`、`clasp deployments --json` で `@210`（"v376.50 transparent mail redirect"）同期確認。操作者実機確認で REDIRECT 注釈が表示されないことを確認済。
+
+---
+
+## v376.49 — 2026-06-26 🐛 一括メール送信の Gmail send scope 復旧（admin split のみ @209）
+
+管理ポータルの一括メール送信で、全宛先が `Specified permissions are not sufficient to perform the action` により失敗する障害を修正した。
+
+- **原因** 🐛: admin split の `gas/admin/appsscript.json` に `https://www.googleapis.com/auth/gmail.send` が欠落していた。送信元 `from` を指定する一括メール送信は `sendEmailWithValidatedFrom_()` から `GmailApp.sendEmail` に分岐するため、全件が Gmail 送信 scope 不足で失敗していた。
+- **修正** 🔧: admin split manifest に `gmail.send` を復旧。`MailApp.sendEmail`（通常送信） / `GmailApp.sendEmail`（admin split のエイリアス送信）という現行実装前提を `HANDOVER.md` と docs portal 生成元に反映。
+- **検証 / デプロイ**: admin manifest JSON check / `build:docs-portal` / `test:er-sync` / `typecheck` / `test:mailing-list` / `prerelease` PASS。`build:gas:admin` 後に admin 生成物の `var テーブル定義` / `processApiRequest` / `MailApp.sendEmail` / `GmailApp.sendEmail` / `gmail.send` を grep 確認。admin split を push → version 209 → `redeploy @209`、`clasp deployments --json` で `@209`（"v376.49 admin Gmail send scope restore"）同期確認。
+- **実機確認**: `clasp run healthCheck --json` は Execution API 実行権限で失敗したが、操作者実機確認で一括メール送受信と添付ファイル送信が成功することを確認済。
+
+---
+
+## v376.48 — 2026-06-18 🔧 宛名リスト出力コンソール 発送区分3択化（admin split のみ @208）
+
+v376.47 の下段 `発送対象` フィルター案は、画面構成上の意味が弱いため廃止した。画像指摘どおり、上段の **「発送区分の選択」** で `広報誌発送` / `広報誌のみ発送` / `お知らせ発送` を直接切り分ける設計に修正した。
+
+- **発送区分の追加** 🔧: `MailingListFilterType` に `KOHOUSHI_ONLY` を追加。`KOHOUSHI` は年度対象の全会員、`KOHOUSHI_ONLY` はそのうちお知らせ発送対象外、`OSHIRASE` は事業所会員全員 + 個人/賛助の `発送方法コード='POST'` として GAS 側で再計算する。
+- **フロント UI 修正** 🔧: `src/components/MailingListExport.tsx` の上段ラジオに `広報誌のみ発送` を追加し、下段の `発送対象` フィルターは廃止。出力時は従来どおり選択済み `targetKeys` を GAS 側の再計算候補と照合する。
+- **テスト**: `scripts/test-mailing-list.mts` を 5 件へ更新し、発送区分 3 択と `広報誌のみ発送` が `お知らせ発送` 対象を除外することを固定。
+- **検証 / デプロイ**: `typecheck` / `test:mailing-list` / 3 split build / 3 split `var テーブル定義` and `processApiRequest` grep / `prerelease` PASS。admin split を push → version 208 → `redeploy @208`、`clasp deployments --json` で `@208`（"v376.48"）同期確認。`test:responsive:admin` は再実行したが、保存済み storageState が Google ログインへ戻され全 viewport `App frame did not appear within 50s` のため未 PASS。
+
+---
+
+## v376.47 — 2026-06-18 🔧 宛名リスト出力コンソール 発送対象フィルター追加（admin split のみ @207 / v376.48 で置換済み）
+
+宛名リスト出力コンソールで、広報誌発送候補の中から **`広報誌のみ`** の会員だけを絞り込めるようにした。
+
+- **発送対象分類の追加** 🔧: GAS `buildMailingListCandidates_` で、既存の「お知らせ発送」判定（事業所会員全員、または個人・賛助会員で `発送方法コード='POST'`）を候補属性 `mailingDeliveryScope` として返却。`OSHIRASE` はお知らせ発送対象、`KOHOUSHI_ONLY` は広報誌のみ発送対象。
+- **フロント UI** 🔧: `src/components/MailingListExport.tsx` の絞り込みフィルターに `発送対象` を追加。`広報誌のみ` / `お知らせ発送対象` で表示候補を切り替え、既存の `表示中を選択` → Excel 出力の流れで選択対象のみ出力できる。キーワード検索にも両ラベルを追加。
+- **DRY / 後方互換** 🔧: 分類フォールバックを `src/shared/mailingList.mjs::resolveMailingDeliveryScope` に集約し、GAS から新フィールドが返らない旧レスポンスでも同じ規則で判定。`src/shared/types.ts` に optional field として追加。
+- **テスト**: `scripts/test-mailing-list.mts` 4件を追加し `npm run prerelease` に組込。事業所会員は常にお知らせ発送対象、個人・賛助は `POST` ならお知らせ発送対象、`EMAIL` なら広報誌のみ、GAS レスポンスの分類済みフィールド優先を固定。
+- **検証 / デプロイ**: `typecheck` / 3 split build / 3 split `var テーブル定義` 残存 grep / `prerelease` PASS。`npm audit fix`（非 force）で high 脆弱性を解消し、残りは `@google/clasp` 経由の moderate のみ。admin split を push → version 207 → `redeploy @207`、`clasp deployments --json` で `@207`（"v376.47"）同期確認。`clasp run healthCheck` は Execution API 実行権限で失敗。`test:responsive:admin` は通常経路で `ERR_NETWORK_ACCESS_DENIED`、承認経路で timeout のため未完了。実ブラウザ確認は操作者タスク（HANDOVER §2-1 #0）。
+
+---
+
 ## v376.46 — 2026-06-11 🔧🐛 会計年度ステータス判定の単一情報源化（DRY 是正）— 「在籍中」人数のぶれ解消（admin split のみ @206）
 
 「在籍中」で絞った人数が **会員リスト** と **宛先リスト出力** で食い違う不具合を、根本原因（DRY 違反）から是正。

@@ -27,7 +27,7 @@ Web 検索（2026-05-18 取得）に基づくベストプラクティス：
 1. **カテゴリ別フラグ** が false なら早期 SUPPRESS、ログのみ
 2. **GLOBAL ENABLED** が false なら SUPPRESS
 3. **MODE = SUPPRESS** なら SUPPRESS
-4. **MODE = REDIRECT** なら allowlist に転送（件名・本文に元宛先を保持）
+4. **MODE = REDIRECT** なら allowlist に転送（件名・本文は加工せず、元宛先は Apps Script log に保持）
 5. **MODE = LIVE**（default）なら通常送信
 
 ## 3. 動作モード一覧
@@ -35,7 +35,7 @@ Web 検索（2026-05-18 取得）に基づくベストプラクティス：
 | シナリオ | GLOBAL | MODE | ALLOWLIST | 結果 |
 |---|---|---|---|---|
 | **本番運用** | true | LIVE | — | 通常送信。カテゴリ別フラグに従う |
-| **dryRun テスト** | true | REDIRECT | `kenta-noguchi@tadakayo.jp` | 全メールが allowlist 宛のみ。件名に `[REDIRECT from xxx]` |
+| **dryRun テスト** | true | REDIRECT | `kenta-noguchi@tadakayo.jp` | 全メールが allowlist 宛のみ。件名・本文は加工せず、元宛先は log で確認 |
 | **静粛モード** | true | SUPPRESS | — | 全カテゴリ抑止、Logger に記録のみ |
 | **緊急パニック** | false | (any) | — | 全停止（最優先・他設定無視） |
 
@@ -99,7 +99,7 @@ Web 検索（2026-05-18 取得）に基づくベストプラクティス：
 3. 配信モード を `REDIRECT` に
 4. Redirect allowlist に `kenta-noguchi@tadakayo.jp` を入力
 5. 「設定を保存」
-6. → 全カテゴリのメールが野口さん宛のみに集約。件名に `[REDIRECT from <元宛先>]` が付与される
+6. → 全カテゴリのメールが野口さん宛のみに集約。件名・本文は実送信時と同じ表示になる
 
 ### 本番運用復帰
 1. グローバルキルスイッチ ON
@@ -115,7 +115,7 @@ Web 検索（2026-05-18 取得）に基づくベストプラクティス：
 ## 8. 既知の制約
 
 1. **入会承認時の credential メール（事業所職員・個人賛助）** は `deliverMail_` 経由ではないため GLOBAL/MODE/REDIRECT が効かない。既存 `CREDENTIAL_EMAIL_ENABLED` 等で個別制御。次期リリースで `deliverMail_` 経由に統一予定。
-2. **REDIRECT 時の本文**: 元の HTML/添付は base64 保持しない（plain text の prefix のみ）。添付の元宛先がわからなくなる軽微な制約。
+2. **REDIRECT 時の元宛先確認**: 件名・本文は実送信時と同じ表示にするため加工しない。元宛先は Apps Script log の `deliverMail_ REDIRECT ... originalTo=...` で確認する。
 3. **キャッシュ TTL**: getSystemSettingMap_ は内部キャッシュ TTL 5 分。設定変更後 5 分以内に反映するため、急ぎなら admin で「設定を保存」を再実行（`clearAllDataCache_` が走る）。
 
 ## 9. ロールバック手順
