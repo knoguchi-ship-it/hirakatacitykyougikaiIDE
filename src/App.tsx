@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue } from 'react';
 import Sidebar from './components/Sidebar';
+import RolePreviewBar from './components/RolePreviewBar';
 import MemberBatchEditor from './MemberBatchEditor';
 import MemberForm from './components/MemberForm';
 import TrainingManagement from './components/TrainingManagement';
@@ -18,9 +19,9 @@ import ChangeRequestConsole from './components/ChangeRequestConsole';
 import { RoleManagementPanel } from './components/RoleManagementPanel';
 import MemberDetailAdmin from './components/MemberDetailAdmin';
 import StaffDetailAdmin from './components/StaffDetailAdmin';
-import { AdminDashboardData, AdminDashboardMemberRow, AdminDashboardStaffRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, Staff, StaffRole, SystemSettings, Training, TrainingFieldConfig, DEFAULT_FIELD_CONFIG } from './types';
+import { AdminDashboardData, AdminDashboardMemberRow, AdminDashboardStaffRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, Staff, StaffRole, SystemSettings, Training, TrainingFieldConfig, DEFAULT_FIELD_CONFIG, RoleDefinition, MenuRegistryEntry } from './types';
 import { TRAINING_OPTIONAL_FIELD_DEFS } from './components/TrainingManagement';
-import { api, type AdminLoginResult, type MemberLoginResult, type MemberPortalLookup } from './services/api';
+import { api, setApiPreviewReadOnly, type AdminLoginResult, type MemberLoginResult, type MemberPortalLookup } from './services/api';
 import { callApi } from './shared/api-base';
 import { EmailCard, MasterOffBanner, MergeTags, ToggleSwitch } from './components/EmailSettingsCard';
 import MailTemplateManager from './components/MailTemplateManager';
@@ -411,6 +412,24 @@ const App: React.FC = () => {
     roleName?: string;
     trainingEditScope?: 'ALL' | 'OWN';
   } | null>(null);
+  // docs/246 View-as-role: MASTER 専用「ロール視点プレビュー」。サーバー権限は MASTER のまま、
+  // フロント描画（Sidebar / routing / 機能可視）だけを選択ロールの見え方に切替える。
+  const [previewRoleId, setPreviewRoleId] = useState<string | null>(null);
+  const [previewRoles, setPreviewRoles] = useState<RoleDefinition[] | null>(null);
+  const [previewMenuRegistry, setPreviewMenuRegistry] = useState<MenuRegistryEntry[] | null>(null);
+  const [previewRolesLoading, setPreviewRolesLoading] = useState(false);
+  // プレビュー中はこのロールの見え方を実効値として使う（未選択時は実セッション）。
+  const previewedRole = previewRoleId && previewRoles
+    ? (previewRoles.find((r) => r.roleId === previewRoleId && !r.isMaster) || null)
+    : null;
+  const effectiveRbac = previewedRole
+    ? {
+        isMaster: false,
+        allowedMenus: previewedRole.allowedMenus,
+        roleName: previewedRole.roleName,
+        trainingEditScope: previewedRole.trainingEditScope,
+      }
+    : adminSessionRbac;
   const [systemSettingsLoaded, setSystemSettingsLoaded] = useState(false);
   const annualFeeLeaveDialogRef = useRef<HTMLDialogElement | null>(null);
   const appDataRequestRef = useRef<Promise<{ members: Member[]; trainings: Training[] }> | null>(null);
@@ -1942,12 +1961,52 @@ const App: React.FC = () => {
   };
 
   const isViewAllowed = (view: string): boolean => {
-    if (!adminSessionRbac) return true; // session 未取得時は素通り（legacy 互換）
-    if (adminSessionRbac.isMaster) return true;
+    if (!effectiveRbac) return true; // session 未取得時は素通り（legacy 互換）
+    if (effectiveRbac.isMaster) return true;
     const menuId = viewToMenuId[view];
     if (!menuId) return true; // mapping 無しは常に許可（member ページや未定義 view）
-    return adminSessionRbac.allowedMenus.indexOf(menuId) !== -1;
+    return effectiveRbac.allowedMenus.indexOf(menuId) !== -1;
   };
+
+  // docs/246 View-as-role: ロール一覧の遅延ロード（プレビューバーの初回操作時）。
+  const loadPreviewRoles = () => {
+    if (previewRoles !== null || previewRolesLoading) return;
+    setPreviewRolesLoading(true);
+    api.listRoles()
+      .then((res) => {
+        setPreviewRoles(res.roles || []);
+        setPreviewMenuRegistry(res.menuRegistry || null);
+      })
+      .catch((e) => {
+        console.warn('[RolePreview] listRoles failed', e);
+        setPreviewRoles([]); // 再フェッチループ回避（必要なら再読込）
+      })
+      .finally(() => setPreviewRolesLoading(false));
+  };
+
+  // ロール選択（null=MASTER 復帰＝プレビュー終了）。書込ガードの ON/OFF と、
+  // 許可外 view にいた場合の許可内 view への退避を行う。
+  const handleSelectPreviewRole = (roleId: string | null) => {
+    setPreviewRoleId(roleId);
+    setApiPreviewReadOnly(!!roleId);
+    if (roleId && previewRoles) {
+      const role = previewRoles.find((r) => r.roleId === roleId && !r.isMaster);
+      if (role) {
+        const menuId = viewToMenuId[currentView];
+        if (menuId && role.allowedMenus.indexOf(menuId) === -1) {
+          setCurrentView(pickInitialAdminView(false, role.allowedMenus, adminPermissionLevel) as View);
+        }
+      }
+    }
+  };
+
+  // ログアウト・非 MASTER 化でプレビューと書込ガードを必ず解除（module フラグの取り残し防止）。
+  useEffect(() => {
+    if (!isAuthenticated || userRole !== 'ADMIN' || !adminSessionRbac?.isMaster) {
+      if (previewRoleId !== null) setPreviewRoleId(null);
+      setApiPreviewReadOnly(false);
+    }
+  }, [isAuthenticated, userRole, adminSessionRbac?.isMaster, previewRoleId]);
 
   const handleViewChange = (view: string) => {
     const nextView = view as View;
@@ -5210,14 +5269,14 @@ const App: React.FC = () => {
     // v374.1: 公式LINE投稿依頼
     if (currentView === 'line-post') {
       // v376.45: メニュー単位 RBAC に整合（isMaster or allowedMenus に line-post / legacy MASTER・ADMIN）
-      const lineAllowed = adminSessionRbac
-        ? (adminSessionRbac.isMaster || adminSessionRbac.allowedMenus.indexOf('line-post') !== -1)
+      const lineAllowed = effectiveRbac
+        ? (effectiveRbac.isMaster || effectiveRbac.allowedMenus.indexOf('line-post') !== -1)
         : ['MASTER', 'ADMIN'].includes(adminPermissionLevel || '');
       if (userRole !== 'ADMIN' || !lineAllowed) {
         return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
       }
-      const canManageLine = adminSessionRbac
-        ? (adminSessionRbac.isMaster || adminSessionRbac.allowedMenus.indexOf('line-post-manage') !== -1)
+      const canManageLine = effectiveRbac
+        ? (effectiveRbac.isMaster || effectiveRbac.allowedMenus.indexOf('line-post-manage') !== -1)
         : ['MASTER', 'ADMIN'].includes(adminPermissionLevel || '');
       return <LinePostConsole api={api} trainings={trainings} canManage={canManageLine} />;
     }
@@ -5302,7 +5361,19 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 font-sans">
+    <div className="flex flex-col h-screen overflow-hidden bg-slate-50 font-sans">
+      {/* docs/246 View-as-role: MASTER 本人のみ表示（プレビュー中も実 isMaster を見るので退出可能） */}
+      {isAuthenticated && isAdminShell && userRole === 'ADMIN' && !!adminSessionRbac?.isMaster && (
+        <RolePreviewBar
+          roles={previewRoles}
+          loading={previewRolesLoading}
+          previewRoleId={previewRoleId}
+          onRequestRoles={loadPreviewRoles}
+          onSelectRole={handleSelectPreviewRole}
+          menuRegistryCount={previewMenuRegistry?.length}
+        />
+      )}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
       {isAuthenticated && (
         <Sidebar
           currentView={currentView}
@@ -5318,9 +5389,9 @@ const App: React.FC = () => {
           showAdminPage={userRole === 'ADMIN'}
           showMemberPages={!isAdminShell}
           adminPermissionLevel={adminPermissionLevel}
-          isMaster={adminSessionRbac?.isMaster}
-          allowedMenus={adminSessionRbac?.allowedMenus}
-          roleName={adminSessionRbac?.roleName}
+          isMaster={effectiveRbac?.isMaster}
+          allowedMenus={effectiveRbac?.allowedMenus}
+          roleName={effectiveRbac?.roleName}
           pendingChangeRequestCount={pendingChangeRequestCount}
           onLogout={handleLogoutClick}
           mobileOpen={mobileMenuOpen}
@@ -5462,6 +5533,7 @@ const App: React.FC = () => {
           </div>
         </dialog>
       </main>
+      </div>
     </div>
   );
 };

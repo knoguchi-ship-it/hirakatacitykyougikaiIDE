@@ -4,16 +4,16 @@
 > 経緯・履歴・設計詳細は別ドキュメントへ。リンク先は §6 参照順序を参照。
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
-最終更新: **2026-06-26**
-最新リリース: **`v376.50`**（REDIRECT モードの件名・本文注釈を廃止。admin split のみ @210）
-最終作業: **一括メールの REDIRECT テスト送信時に件名・本文へ乗っていた注釈を廃止しデプロイ（v376.50 / admin @210）** — REDIRECT モードは宛先だけ allowlist に切り替え、件名・本文は実送信時と同じ表示にした。元宛先・カテゴリは Apps Script log に記録。DBスキーマ不変。
-> 直近の経緯・各リリース詳細は §7 リリース表 と `docs/release-notes-2026.md` を正本とする（v376.40〜v376.50）。
+最終更新: **2026-06-30**
+最新リリース: **`v376.51`**（ロール視点プレビュー＝MASTER 専用デバッグ機能。admin split のみ @211）
+最終作業: **MASTER が各ロール/権限ごとの「見え方」に切り替えて確認できるロール視点プレビューを追加しデプロイ（v376.51 / admin @211）** — 上部固定バー（`src/components/RolePreviewBar.tsx`）でロール選択→Sidebar/ルーティング/機能可視を選択ロールの `effectiveRbac` に差し替え。サーバー権限は MASTER のまま不変（なりすましではない）。プレビュー中は API 書込を deny-by-default で遮断し「閲覧のみ」を担保（`setApiPreviewReadOnly` in `src/services/api.ts`）。DBスキーマ不変・backend 不変（純フロント）。member/public は inert 差分のみ未 redeploy。
+> 直近の経緯・各リリース詳細は §7 リリース表 と `docs/release-notes-2026.md` を正本とする（v376.40〜v376.51）。
 
 ---
 
 ## 0. 次の担当者へ（キャッチアップ・まず1分でここ）
 
-- **本番は admin @210 に更新済み**。現行: public @358 / member @117 / **admin @210**（§1）。直近セッション（2026-06-06〜06-26）は **公式LINE投稿依頼の機能拡充** と **メール通知のテンプレート管理全種化** と **「在籍中」集計の DRY 是正** と **宛名リスト発送区分3択化** と **一括メール送信 scope 復旧 / REDIRECT 表示改善** が中心（詳細 §7 v376.40〜.50）。
+- **本番は admin @211 に更新済み**。現行: public @358 / member @117 / **admin @211**（§1）。直近セッション（2026-06-30）は **ロール視点プレビュー（MASTER 専用デバッグ機能）** を追加。MASTER が全ロールの見え方をワンクリックで切替確認でき、プレビュー中は書込が遮断される（閲覧のみ）。それ以前（2026-06-06〜06-26）は LINE投稿拡充 / メールテンプレ全種化 / 在籍中 DRY 是正 / 宛名区分3択 / 一括メール scope 復旧（詳細 §7 v376.40〜.51）。
 - **まず読む**: 本書 §1（本番版）→ §2（即時対応＝操作者の実機確認・再同意・権限付与が数件たまっている）→ §6（読む順序）。設計の背景は `docs/release-notes-2026.md`、落とし穴は `MEMORY`（下記）。
 - **まずやる（操作者タスク・§2-1）**: ①v376.45 で MASTER が権限マトリクスから新権限 **`公式LINE投稿 管理(line-post-manage)`** を必要ロールへ付与。②v376.42 メールテンプレ移行を admin login でトリガ確認。③v376.46「在籍中」が会員リスト＝宛先リストで一致するか確認。④各機能の実機確認（§2-1 の表）。
 - **触る前に必読の落とし穴（MEMORY）**:
@@ -32,7 +32,7 @@
 | 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@358** |
 | 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@358** |
 | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@117** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@210** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@211** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 
@@ -64,6 +64,7 @@
 
 | # | タスク | 詳細 / 参照 |
 |---|---|---|
+| 0 | **v376.51 ロール視点プレビュー 実機確認**（admin @211・MASTER のみ） | MASTER でログインし画面最上部に「👁 ロール視点プレビュー」バーが表示されること。①ドロップダウンで各ロール（管理者/研修管理者/研修登録者/一般/カスタム）を選ぶと、Sidebar が当該ロールの許可メニューだけになり「表示メニュー N件／非表示 M件」が出ること。②許可外 view を開いていた場合は許可内 view に自動退避すること。③プレビュー中に保存・送信・削除を試みると「閲覧のみ」エラーで実行されないこと（実 DB は不変）。④「プレビューを終了」で MASTER の通常表示に即復帰。⑤リロードで自動的に MASTER 表示へ戻ること。⑥360px 幅でバーが崩れないこと。※非 MASTER 管理者・会員にはバーが出ないこと。AI 実行の `test:responsive:admin` は storageState 期限切れで未 PASS のため操作者確認 | `docs/release-notes-2026.md` v376.51 |
 | 0 | **v376.50 一括メール REDIRECT 表示確認**（admin @210） | **操作者確認済（2026-06-26）**: REDIRECT モードで一括メールを安全な検証宛先に送信し、件名に `[REDIRECT from ...]` が付かず、本文先頭に `--- ORIGINAL TO` / `--- CATEGORY` が入らないことを確認済。REDIRECT 中は実宛先ではなく allowlist 宛に集約される点は従来通り |
 | 0 | **v376.49 一括メール送信の実機確認・必要なら Google 再同意**（admin @209） | **操作者確認済（2026-06-26）**: admin split の `gmail.send` scope 復旧後、一括メールの送受信と添付ファイル送信が成功することを確認済。`clasp run healthCheck --json` は Execution API 実行権限で失敗したが、実送信で復旧確認済 |
 | 0 | **v376.48 宛名リスト 発送区分3択 実機確認**（admin @208） | 宛名リスト出力コンソールの「発送区分の選択」に `広報誌発送` / `広報誌のみ発送` / `お知らせ発送` が表示されること。`広報誌のみ発送` でお知らせ発送対象（事業所会員全員＋個人/賛助の郵送希望）が除外されること。`お知らせ発送` で事業所会員全員＋個人/賛助の郵送希望だけが対象になること。表示中を選択→Excel 出力で選択件数だけ出力されること。360px 幅でも選択 UI が崩れないこと。AI 実行の `test:responsive:admin` は保存済み storageState 期限切れで未 PASS のため、操作者側で再ログイン後に確認すること |
@@ -192,6 +193,7 @@ npm run build:docs-portal                  # docs/portal/*.html + schema.dbml �
 
 | Version | 日付 | 概要 |
 |---|---|---|
+| **v376.51** | 2026-06-30 | **ロール視点プレビュー（MASTER 専用デバッグ機能）**（admin split のみ @211）。MASTER が各ロール/権限ごとの「見え方」をワンクリックで切替確認できる上部固定バー（`src/components/RolePreviewBar.tsx`）を追加。選択ロールの `effectiveRbac`（allowedMenus/isMaster=false/roleName/trainingEditScope）で Sidebar・`isViewAllowed`・line-post 可視を差し替え、許可外 view からは自動退避。**なりすまし(impersonation)ではなくフロント描画のみの模擬**でサーバー強制（`isActionAllowedForSession_`）は MASTER のまま不変＝確定済み認証境界を維持（AGENTS §4.2/§6）。ベストプラクティス準拠（常時バナー/ワンクリック退出/可視・非表示サマリー/閲覧のみ/ephemeral/a11y/レスポンシブ）。プレビュー中は API シングルトンの書込メソッドを deny-by-default で遮断し「閲覧のみ」を担保（`setApiPreviewReadOnly`・読取接頭辞 get/list/search/fetch/check/load/preview 以外をブロック・新規 mutation も自動カバー）。`prerelease` 全 PASS・typecheck・3split build 健全・圧縮 bundle inflate 検証済。DB スキーマ/backend 不変（純フロント）。member/public は inert 差分で未 redeploy |
 | **v376.50** | 2026-06-26 | **REDIRECT モードの件名・本文注釈廃止**（admin split のみ @210）。テスト送信時に受信メールへ `[REDIRECT from ...]` と `--- ORIGINAL TO` / `--- CATEGORY` が表示されていたため、REDIRECT 時は宛先だけ allowlist に変更し、件名・本文は加工しない仕様へ変更。元宛先・カテゴリは `Logger.log('deliverMail_ REDIRECT ...')` に記録。`prerelease` PASS、admin `clasp deployments --json` で @210 同期確認。操作者実機確認済（不要注釈なし） |
 | **v376.49** | 2026-06-26 | **一括メール送信の Gmail send scope 復旧**（admin split のみ @209）。admin `appsscript.json` に `gmail.send` が欠落しており、`from` 指定時の `GmailApp.sendEmail` 分岐で全件 `Specified permissions are not sufficient` 失敗。`https://www.googleapis.com/auth/gmail.send` を admin manifest に追加し、`MailApp` 通常送信 / `GmailApp` エイリアス送信の実装前提を正本・docs portal に反映。`prerelease` PASS、admin `clasp deployments --json` で @209 同期確認。操作者実機確認済（送受信・添付成功） |
 | **v376.48** | 2026-06-18 | **宛名リスト出力コンソール 発送区分3択化**（admin split のみ @208）。画像指摘に合わせ、上段「発送区分の選択」で `広報誌発送` / `広報誌のみ発送` / `お知らせ発送` を直接切り分ける設計に修正。v376.47 の下段 `発送対象` フィルター案は廃止。GAS `buildMailingListCandidates_` は `KOHOUSHI_ONLY` を含む発送区分で候補を再計算。`test:mailing-list` 5件を prerelease に組込。DBスキーマ不変。`test:responsive:admin` は storageState 期限切れで Google ログインへ戻され未 PASS のため、実ブラウザ確認は操作者タスク |

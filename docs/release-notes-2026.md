@@ -13,6 +13,19 @@
 
 ---
 
+## v376.51 — 2026-06-30 🆕 ロール視点プレビュー（MASTER 専用デバッグ機能・admin split のみ @211）
+
+管理コンソールで、MASTER が各ロール/権限ごとの「見え方」をワンクリックで切り替えて確認できるデバッグ機能を追加した。従来は MASTER 自身の全権ビューしか見られず、カスタムロールや各権限のサイドバー・到達可能画面を実際に確認できなかった課題に対応する。
+
+- **設計方針（重要）** 🔒: **なりすまし（user/role impersonation）ではなく「ロール視点プレビュー（View-as-role）」** を採用。サーバー権限は MASTER のまま不変で、**フロント描画（Sidebar / ルーティング / 機能可視）だけ**を選択ロールの見え方に模擬する。これにより監査証跡の汚染やサーバー強制の弱体化を回避し、確定済み認証境界（admin DOMAIN+Google+whitelist、サーバー強制 `isActionAllowedForSession_`）を一切崩さない（AGENTS §4.2 / §6 準拠）。本日付の一次情報（Authress「full impersonation は回避し permission/専用ダッシュボードを優先」、OneUptime / Microsoft Power Platform / Harness の impersonation ベストプラクティス）に基づく。
+- **UI** 🆕: 上部固定バー `src/components/RolePreviewBar.tsx`。ロール選択ドロップダウン（MASTER 復帰＋全ロール・組込/カスタム明示）／プレビュー中は琥珀色バナー化＋「表示メニュー N件／非表示 M件」サマリー／「閲覧のみ」明示／ワンクリック退出。ベストプラクティス上乗せ：常時バナー・即時ロールスイッチ・ephemeral（リロードで自動 MASTER 復帰）・`role="status"`+`aria-live`・44px タップターゲット・360px〜レスポンシブ・色＋テキスト二重識別。
+- **状態/配線** 🆕: `src/App.tsx` に `previewRoleId` と `effectiveRbac`（プレビュー時は選択ロールの `allowedMenus`/`isMaster=false`/`roleName`/`trainingEditScope` に差し替え）を追加。`Sidebar` props・`isViewAllowed`・line-post 可視フラグを `effectiveRbac` 駆動化。許可外 view にいた場合は `pickInitialAdminView` で許可内へ自動退避。ログアウト/非 MASTER 化で自動解除。レイアウトを縦 flex 化しバーを挿入（`Sidebar` の `md:h-screen`→`md:h-full`）。バーは実 `isMaster` で表示判定（プレビュー中も退出可能）。
+- **閲覧のみガード** 🔒: `src/services/api.ts` に `setApiPreviewReadOnly()` を追加し、API シングルトンの書込メソッドをプレビュー中 deny-by-default で遮断（読取接頭辞 `get`/`list`/`search`/`fetch`/`check`/`load`/`preview` 以外をブロック）。新規追加の書込 API も自動的にブロックされ keep-list ドリフトを起こさない（private dispatch/同期ヘルパーは対象外）。誤操作で実 DB に書込まれる事故を物理的に防止。
+- **既知の境界**: メニュー可視性＋ナビゲーションのプレビューであり、サーバー側の拒否そのものの検証ではない（その用途は実アカウントで）。ページ内の旧 `permissionLevel` ベース個別ガードはプレビュー中ルーティングで到達不可のため別途模擬しない（見え方は忠実）。
+- **検証 / デプロイ**: `typecheck` / `prerelease`（security audit・boundary×3・unit×7・er-sync・menu-registry 10/10）全 PASS。`build` → `build:gas:admin` / `build:gas:member` で 3split 健全（top-level callable 残存・pruner 誤削除なし）。圧縮 bundle を `inflateRawSync` 展開し機能コード混入（ロール視点プレビュー／閲覧のみガード文字列）を確認。admin split を push → version 211 → `redeploy @211`、`clasp deployments --json` で fixed admin deployment が `versionNumber: 211` に同期したことを確認。**純フロント（DB スキーマ/backend 不変）。member/public は gas-src 由来の inert 差分のみで未 redeploy（次の機能リリースで同梱）。実ブラウザ確認は操作者タスク（storageState 期限切れで AI 未 PASS）**。
+
+---
+
 ## v376.50 — 2026-06-26 🔧 REDIRECT モードの件名・本文注釈廃止（admin split のみ @210）
 
 一括メールのテスト送信時に、受信メールの件名へ `[REDIRECT from ...]`、本文先頭へ `--- ORIGINAL TO` / `--- CATEGORY` が表示されていたため、受信者視点の表示確認を妨げていた。

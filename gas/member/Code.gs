@@ -6171,8 +6171,7 @@ function deliverMail_(category, to, subject, body, options) {
   if (policy.mode === 'REDIRECT') {
     var origTo = String(to || '');
     finalTo = policy.allowlist.join(',');
-    finalSubject = '[REDIRECT from ' + origTo + '] ' + subject;
-    finalBody = '--- ORIGINAL TO: ' + origTo + ' ---\n--- CATEGORY: ' + (category || 'GENERAL') + ' ---\n\n' + (body || '');
+    Logger.log('deliverMail_ REDIRECT category=' + (category || 'GENERAL') + ' originalTo=' + origTo + ' redirectedTo=' + finalTo);
   }
   sendEmailWithValidatedFrom_(finalTo, finalSubject, finalBody, options || {});
   return { sent: true, mode: policy.mode };

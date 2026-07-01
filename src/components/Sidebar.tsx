@@ -251,7 +251,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         className={`bg-slate-900 text-white flex flex-col shadow-xl overflow-hidden z-50
           fixed inset-y-0 left-0 w-64 transform transition-transform duration-200 ease-out
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
-          md:relative md:translate-x-0 md:w-56 md:h-screen md:sticky md:top-0`}
+          md:relative md:translate-x-0 md:w-56 md:h-full md:sticky md:top-0`}
       >
       {/* ヘッダー */}
       <div className="px-5 py-4 border-b border-slate-700/60">

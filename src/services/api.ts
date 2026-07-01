@@ -2268,3 +2268,46 @@ class GasApiClient implements ApiClient {
 // API クライアントは GAS 実行環境専用とする。
 // ローカルモック運用は廃止したため、常に GAS クライアントを使用する。
 export const api: ApiClient = new GasApiClient();
+
+// ── ロール視点プレビュー（MASTER 専用）の閲覧専用ガード ───────────────────────
+// docs/246 View-as-role: MASTER が他ロールの見え方をプレビュー中は、サーバー権限は
+// MASTER のまま（フロント描画のみ模擬）だが、ベストプラクティス「誤操作防止＝閲覧優先」に
+// 従い、書込系 API をクライアント側で遮断して "閲覧のみ" を担保する。
+//
+// 方式: 読取接頭辞（get/list/search/fetch/check/load/preview）以外の API メソッドを
+// preview 中ブロックする deny-by-default。新規追加された書込 API も自動的にブロックされ、
+// keep-list 的なドリフト（feedback_admin_editor_keep_list）を起こさない。
+// private dispatch / 同期ヘルパーだけは決して包まない（読取系も巻き添えにしないため）。
+let previewReadOnlyActive = false;
+export function setApiPreviewReadOnly(on: boolean): void { previewReadOnlyActive = on; }
+export function isApiPreviewReadOnly(): boolean { return previewReadOnlyActive; }
+export const PREVIEW_READONLY_MESSAGE =
+  'ロール視点プレビュー中は閲覧のみです（保存・送信・削除は実行されません）。プレビューを終了してから操作してください。';
+
+const PREVIEW_READ_PREFIXES = ['get', 'list', 'search', 'fetch', 'check', 'load', 'preview'];
+// 包んではいけない非書込メンバー（同期 setter / private dispatch / private ヘルパー）。
+const PREVIEW_NEVER_GUARD = new Set([
+  'constructor',
+  'setMemberSessionToken',
+  'memberSessionPayload',
+  'runAction',
+  'callAction',
+]);
+
+(function installPreviewWriteGuard(): void {
+  const proto = Object.getPrototypeOf(api) as Record<string, unknown>;
+  for (const name of Object.getOwnPropertyNames(proto)) {
+    if (PREVIEW_NEVER_GUARD.has(name)) continue;
+    const original = proto[name];
+    if (typeof original !== 'function') continue;
+    // 読取系（get/list/... 接頭辞）は preview 中も常に許可。
+    if (PREVIEW_READ_PREFIXES.some((p) => name.startsWith(p))) continue;
+    const fn = original as (...args: unknown[]) => unknown;
+    (api as unknown as Record<string, unknown>)[name] = function previewGuardedApiMethod(this: unknown, ...args: unknown[]) {
+      if (previewReadOnlyActive) {
+        return Promise.reject(new Error(PREVIEW_READONLY_MESSAGE));
+      }
+      return fn.apply(this, args);
+    };
+  }
+})();
