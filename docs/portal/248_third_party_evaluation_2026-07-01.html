@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第三者評価レポート（2026-07-01・v376.51）｜枚方市ケアマネ協議会 会員システム</title>
+<style>
+  :root{
+    --bg:#0f172a; --card:#ffffff; --ink:#1e293b; --muted:#64748b; --line:#e2e8f0;
+    --crit:#dc2626; --high:#ea580c; --med:#d97706; --low:#64748b; --good:#16a34a; --accent:#0891b2;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Kaku Gothic ProN","Yu Gothic UI",Meiryo,sans-serif;
+       color:var(--ink);background:#f1f5f9;line-height:1.7;-webkit-text-size-adjust:100%}
+  header{background:linear-gradient(135deg,#0f172a,#155e75);color:#fff;padding:28px 20px}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 16px}
+  header h1{margin:0 0 6px;font-size:1.4rem;line-height:1.4}
+  header .meta{color:#cbd5e1;font-size:.82rem}
+  .topnav{background:#0b1220;padding:8px 16px;display:flex;flex-wrap:wrap;gap:6px}
+  .topnav a{color:#cbd5e1;text-decoration:none;font-size:.8rem;padding:6px 10px;border-radius:6px}
+  .topnav a:hover{background:#1e293b;color:#fff}
+  main{padding:24px 0 60px}
+  section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin:0 0 18px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  h2{margin:0 0 14px;font-size:1.15rem;border-left:5px solid var(--accent);padding-left:10px}
+  h3{margin:18px 0 8px;font-size:1rem;color:#0f172a}
+  p{margin:.4em 0}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:8px 0}
+  .kpi{border:1px solid var(--line);border-radius:12px;padding:14px;background:#f8fafc}
+  .kpi .v{font-size:1.5rem;font-weight:800}
+  .kpi .l{font-size:.78rem;color:var(--muted)}
+  .tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{border-collapse:collapse;width:100%;font-size:.85rem;min-width:560px}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:#f1f5f9;font-weight:700;position:sticky;top:0}
+  code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:.85em;word-break:break-all}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;color:#fff;font-size:.72rem;font-weight:700;white-space:nowrap}
+  .b-crit{background:var(--crit)} .b-high{background:var(--high)} .b-med{background:var(--med)}
+  .b-low{background:var(--low)} .b-good{background:var(--good)} .b-info{background:var(--accent)}
+  .note{background:#fef9c3;border:1px solid #fde047;border-radius:10px;padding:12px 14px;font-size:.85rem;margin:10px 0}
+  .fix{background:#ecfeff;border:1px solid #a5f3fc;border-radius:10px;padding:12px 14px;font-size:.85rem;margin:10px 0}
+  .rating{font-weight:800}
+  .r-good{color:var(--good)} .r-ok{color:#0891b2} .r-warn{color:var(--med)} .r-bad{color:var(--crit)}
+  ul{margin:.4em 0;padding-left:1.3em} li{margin:.2em 0}
+  footer{color:var(--muted);font-size:.78rem;text-align:center;padding:20px}
+  .legend{font-size:.78rem;color:var(--muted);margin-top:6px}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>第三者評価レポート — 大型アップデート前（v376.51 時点）</h1>
+    <div class="meta">枚方市介護支援専門員連絡協議会 会員システム ｜ 作成 2026-07-01（検証・訂正 2026-07-02）｜ read-only 第三者監査（5観点並列＋実コード裏取り）</div>
+  </div>
+</header>
+<nav class="topnav">
+  <a href="index.html">📘 ポータル TOP</a>
+  <a href="tables.html">📊 テーブル設計書</a>
+  <a href="er-diagram.html">🗂️ ER</a>
+  <a href="specifications.html">📋 仕様サマリ</a>
+  <a href="../248_THIRD_PARTY_EVALUATION_2026-07-01.md">📄 本評価の Markdown 正本</a>
+</nav>
+
+<main class="wrap">
+
+  <section>
+    <h2>0. 総合サマリー</h2>
+    <div class="grid">
+      <div class="kpi"><div class="v" style="color:var(--good)">0</div><div class="l">Critical（docs/109 の3件は v261-263 で是正済）</div></div>
+      <div class="kpi"><div class="v" style="color:var(--high)">3</div><div class="l">High（自己検証で 5→3 に訂正）</div></div>
+      <div class="kpi"><div class="v" style="color:var(--med)">9</div><div class="l">Medium 級（要改善）</div></div>
+      <div class="kpi"><div class="v" style="color:var(--good)">4</div><div class="l">単一情報源化の模範モジュール</div></div>
+    </div>
+    <div class="tblwrap">
+    <table>
+      <tr><th>評価軸</th><th>判定</th><th>要点</th></tr>
+      <tr><td>リレーション整合性</td><td class="rating r-warn">△</td><td>Spreadsheet=FK制約なし。孤児/多態参照/削除連鎖がコード依存。削除コンソールは部分 cascade あり（訂正済）</td></tr>
+      <tr><td>DRY 原則</td><td class="rating r-warn">○→△</td><td>単一情報源化の良例あり。API層・権限判定・カナ正規化で約2,000行の重複余地</td></tr>
+      <tr><td>ハードコーディング</td><td class="rating r-ok">○</td><td>✅ シークレット直書き無し。ID/URL の本体直書きが数件（要定数/Properties 化）</td></tr>
+      <tr><td>セキュリティ（5視点）</td><td class="rating r-ok">○</td><td>Critical 全是正済。残 High 1＝PBKDF2 強度（GCP で根治）</td></tr>
+      <tr><td>GCP 実装 readiness</td><td class="rating r-ok">○</td><td>破壊的移行不要。Phase 0（Secret Manager+Argon2id）は今すぐ低リスク</td></tr>
+    </table>
+    </div>
+    <div class="note">⚠ <strong>検証メモ</strong>：初版は5観点並列 read-only 監査。大型UP判断の根拠となるため主要 High/Med 所見を実コードで裏取りし <strong>4 件を訂正</strong>（High 5→3）。詳細は末尾「検証・訂正ログ」。</div>
+  </section>
+
+  <section>
+    <h2>1. テスト観点表（ISO/IEC 25010 系 ＋ 依頼4軸）</h2>
+    <p class="legend">凡例: <span class="rating r-good">◎</span> 良好 / <span class="rating r-ok">○</span> 概ね良好・軽微 / <span class="rating r-warn">△</span> 要改善 / <span class="rating r-bad">✕</span> 重大</p>
+    <div class="tblwrap">
+    <table>
+      <tr><th>#</th><th>品質特性 / 観点</th><th>評価</th><th>主要所見（重大度）</th></tr>
+      <tr><td>1</td><td>機能適合性・正確性</td><td class="r-ok">○</td><td>申込者解決2モデルの誤用余地 <span class="badge b-high">High</span>（v376.12 実害）</td></tr>
+      <tr><td>2</td><td>信頼性＝リレーション整合性</td><td class="r-warn">△</td><td>FK制約なし・部分 cascade（残関連は孤児化し得る）<span class="badge b-med">Med</span> ／ 申込者参照の相互排他は概ね検証済 <span class="badge b-med">Med</span> ／ 役員 XOR 未検証 <span class="badge b-med">Med</span></td></tr>
+      <tr><td>3</td><td>└ データ整合の自己修復依存</td><td class="r-warn">△</td><td><code>repair*</code> が手動実行前提 <span class="badge b-med">Med</span></td></tr>
+      <tr><td>4</td><td>└ アーカイブ/退会移行</td><td class="r-warn">△</td><td>自動3年移動ジョブは dead code。削除コンソール経由では <code>_archive</code> へ書込む（常時空ではない）<span class="badge b-med">Med</span></td></tr>
+      <tr><td>5</td><td>保守性＝DRY</td><td class="r-warn">△</td><td>api.ts 約83%が helper 未使用の重複 <span class="badge b-high">High</span> ／ 権限判定 front 再実装 <span class="badge b-high">High</span></td></tr>
+      <tr><td>6</td><td>└ 単一情報源化の到達度</td><td class="r-good">◎</td><td>会計年度 / menu-registry / mailTemplates / trainingOptions は良好</td></tr>
+      <tr><td>7</td><td>└ カナ正規化 front/back</td><td class="r-warn">△</td><td>front実装済だが API前検証で未使用 <span class="badge b-med">Med</span>（UX）</td></tr>
+      <tr><td>8</td><td>保守性＝ハードコーディング</td><td class="r-ok">○</td><td>Spreadsheet ID/Script ID routes/MEMBER_PORTAL_URL 本体直書き <span class="badge b-high">High</span></td></tr>
+      <tr><td>9</td><td>└ シークレット管理</td><td class="r-good">◎</td><td>直書き無し・<code>getPasswordPepper_()</code> 経由・<code>.env*</code> gitignore</td></tr>
+      <tr><td>10</td><td>└ stale 定数</td><td class="r-warn">△</td><td>旧アカウント直書きが移行/診断ヘルパー内に残存 <span class="badge b-low">Low</span></td></tr>
+      <tr><td>11</td><td>セキュリティ＝入力検証</td><td class="r-ok">○</td><td>deny-by-default／deep-link sanitize／PW正規表現 良好。全endpoint一貫性やや不足 <span class="badge b-med">Med</span></td></tr>
+      <tr><td>12</td><td>セキュリティ＝認証認可</td><td class="r-good">◎</td><td>server強制RBAC・session principal override（IDOR是正済）。v376.51 preview は権限昇格なし</td></tr>
+      <tr><td>13</td><td>└ v376.51 preview 境界</td><td class="r-ok">○</td><td>client-only 書込ガード＝UI信頼向上（server は MASTER 不変で安全）<span class="badge b-med">Med</span></td></tr>
+      <tr><td>14</td><td>セキュリティ＝機密保護</td><td class="r-warn">△</td><td>PBKDF2 1万反復＜OWASP 60万目標 <span class="badge b-high">High</span>（pepperで緩和・GCPで根治）</td></tr>
+      <tr><td>15</td><td>セキュリティ＝エラー/ログ</td><td class="r-ok">○</td><td>fail-close徹底・PII非記録。REDIRECT ログの宛先出力は要確認 <span class="badge b-low">Low</span></td></tr>
+      <tr><td>16</td><td>セキュリティ＝通信/依存</td><td class="r-ok">○</td><td>HTTPS強制・npm audit 0・XFrame ALLOWALL <span class="badge b-med">Med</span>／member に drive+cloud-platform 残存 <span class="badge b-med">Med</span></td></tr>
+      <tr><td>17</td><td>性能効率性</td><td class="r-warn">△</td><td>google.script.run 由来 API 応答が重い（GCP Phase2 で改善見込・数値は推定）</td></tr>
+      <tr><td>18</td><td>移植性＝GCP readiness</td><td class="r-ok">○</td><td>段階移行設計済（docs/239/240/172）。Phase0 低リスク</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. 観点別・所見と修正案</h2>
+
+    <h3>A. リレーション整合性（信頼性）</h3>
+    <p>構造的前提: Spreadsheet を DB とするため <strong>FK 制約・トランザクション・cascade が存在せず参照整合性はコード依存</strong>。<code>repair*</code> 関数の存在自体が過去の崩壊の証跡。</p>
+    <div class="tblwrap">
+    <table>
+      <tr><th>所見</th><th>重大度</th><th>修正案</th></tr>
+      <tr><td>部分 cascade（研修申込/年会費/役員/請求 は非連鎖→孤児化し得る）</td><td><span class="badge b-med">Med</span> <small>(訂正:初版High)</small></td><td><code>executeDeleteMember_</code> は会員/職員/認証/whitelist を archive・年会費/研修申込を snapshot するが残関連は非連鎖。<code>deleteWithCascade_</code> に連鎖 soft delete 追加</td></tr>
+      <tr><td>申込者参照の相互排他が宣言的でなく一部混在が未検出</td><td><span class="badge b-med">Med</span> <small>(訂正:初版High)</small></td><td>実際は外部×職員混在・会員×職員不一致を検証済。会員+職員併存は正当。narrow ケースを宣言的制約＋<code>test:er-sync</code> で補強</td></tr>
+      <tr><td>申込者解決 legacy 関数の誤用余地（v376.12 実害源）</td><td><span class="badge b-high">High</span> <small>(緩和済)</small></td><td>legacy に <code>@deprecated</code>、送信/名簿/本人解決は canonical 統一を grep gate 化、v377 で撤去</td></tr>
+      <tr><td>役員 linkage の member/staff XOR 未検証</td><td><span class="badge b-med">Med</span></td><td><code>assignOfficer</code>/<code>updateOfficerLinkage</code> に XOR 検証追加</td></tr>
+      <tr><td><code>_archive</code> 自動3年移動ジョブが dead code（常時空は誤り）</td><td><span class="badge b-med">Med</span> <small>(既知/延期)</small></td><td>削除コンソール経由では書込まれる。自動移動の活性化は破壊的＝要バックアップ+承認</td></tr>
+      <tr><td>CM番号/職員重複が修復ジョブ依存</td><td><span class="badge b-med">Med</span></td><td>bulk import 前の重複プレビュー画面</td></tr>
+      <tr><td>列順ドリフト（T_研修申込）</td><td><span class="badge b-med">Med</span></td><td><code>test:er-sync</code> に列順チェック追加</td></tr>
+      <tr><td>会計年度ステータス front/back 統一</td><td><span class="badge b-good">◎</span></td><td>変更不要（単一情報源＋build注入の模範）</td></tr>
+    </table>
+    </div>
+
+    <h3>B. DRY 原則</h3>
+    <div class="tblwrap">
+    <table>
+      <tr><th>所見</th><th>重大度</th><th>修正案</th></tr>
+      <tr><td>api.ts の約83%が <code>runAction</code>/<code>callAction</code> 未使用で boilerplate 重複</td><td><span class="badge b-high">High</span></td><td>全 mutation を helper 経由へ統一（~1,500行削減・低リスク・書込ガードと整合確認）</td></tr>
+      <tr><td>権限判定の frontend 再実装（<code>canManageLine</code> inline 等）</td><td><span class="badge b-high">High</span></td><td><code>src/shared/rbac-util.mjs</code> へ集約し front import（v376.51 の inline も対象）</td></tr>
+      <tr><td>カナ正規化が API 前検証で未使用</td><td><span class="badge b-med">Med</span></td><td><code>src/shared/kanaNormalize.mjs</code> 化＋form pre-validation 適用</td></tr>
+      <tr><td>検証正規表現の front↔back 二重定義</td><td><span class="badge b-med">Med</span></td><td><code>src/shared/validators.ts</code> に集約・GAS 注入</td></tr>
+      <tr><td>既存の単一情報源化（fiscal/menu-registry/mailTemplates/trainingOptions）</td><td><span class="badge b-good">◎</span></td><td>変更不要（模範パターン）</td></tr>
+    </table>
+    </div>
+
+    <h3>C. ハードコーディング</h3>
+    <div class="tblwrap">
+    <table>
+      <tr><th>所見</th><th>重大度</th><th>修正案</th></tr>
+      <tr><td>Spreadsheet ID / Script ID routes / MEMBER_PORTAL_URL 本体直書き</td><td><span class="badge b-high">High</span></td><td>Script Properties 経由取得＋public 側 <code>src/config/publicPortal.ts</code> と同パターンで定数化</td></tr>
+      <tr><td>旧アカウント直書き（移行/診断ヘルパー内）</td><td><span class="badge b-low">Low</span></td><td>ライブ認可に無関係（毎リクエストは whitelist テーブル参照）。stale 除去 or 整理</td></tr>
+      <tr><td>lock timeout 等マジック数値</td><td><span class="badge b-low">Low</span></td><td>定数化</td></tr>
+      <tr><td>シークレット直書き</td><td><span class="badge b-good">◎</span></td><td>検出無し（良好維持）</td></tr>
+    </table>
+    </div>
+
+    <h3>D. セキュリティ（5視点）</h3>
+    <ul>
+      <li><strong>Critical: 0</strong>（docs/109 の3件は v261-263 で是正: deny-by-default / session principal override / PBKDF2+pepper）</li>
+      <li><span class="badge b-high">High</span> <strong>H1 パスワード KDF 強度</strong>: PBKDF2 1万反復 &lt; OWASP 60万+。pepper で緩和中 → <strong>GCP Phase 0（Argon2id/Cloud Run）が根治</strong></li>
+      <li><span class="badge b-med">Med</span> M1 XFrame <code>ALLOWALL</code> が3 split 共通（L889）→ member/admin は <code>DENY</code> に</li>
+      <li><span class="badge b-med">Med</span> M2 OAuth scope: <strong>member split に drive+cloud-platform が残存（裏取り済・削除候補）</strong>。cloud-platform は連携境界に限定</li>
+      <li><span class="badge b-med">Med</span> M3 v376.51 preview の client-only 書込ガード → 権限昇格なし（server は MASTER 不変）で実リスク低。server flag 突合で強化可</li>
+      <li><span class="badge b-low">Low</span> email 正規表現簡易 / webapp access 混在の手順化 / REDIRECT ログ宛先確認</li>
+    </ul>
+    <div class="fix">準拠度: OWASP ASVS L1 <strong>PASS</strong> / L2 部分 / Top10:2021 主要 Compliant / NIST CSF・SSDF は Govern/Protect 良好、Detect(継続監視)・CI gate 自動化が運用確認待ち。</div>
+  </section>
+
+  <section>
+    <h2>3. GCP 実装を見据えた評価（段階案）</h2>
+    <div class="tblwrap">
+    <table>
+      <tr><th>Phase</th><th>内容</th><th>効果</th><th>リスク/rollback</th><th>推奨時期</th></tr>
+      <tr><td><strong>0</strong></td><td>pepper→Secret Manager＋Argon2id/Cloud Run（docs/239/240）</td><td>H1 根治・OWASP準拠</td><td>低・Script Properties fallback</td><td>🟢 今すぐ</td></tr>
+      <tr><td><strong>1</strong></td><td>GAS 側 API 認可の恒久強化＋E2E gate 常設</td><td>ASVS L2 下地</td><td>低〜中・feature flag</td><td>🟡 本大型UPと同梱</td></tr>
+      <tr><td><strong>2</strong></td><td>DB を Spreadsheet→Firestore / Cloud SQL</td><td><strong>FK/トランザクション獲得（§2-A の構造的解決）</strong>＋性能</td><td>中・二重化整合</td><td>🟠 将来</td></tr>
+      <tr><td><strong>3-4</strong></td><td>Firebase Hosting / GAS 削減</td><td>保守性・provider統一</td><td>中〜高</td><td>🔴 v2.0 以降</td></tr>
+    </table>
+    </div>
+    <div class="note">結論: 破壊的移行は不要。大型UPに合わせるなら <strong>Phase 0（必須 backlog・docs/172）＋ Phase 1</strong> の同梱が費用対効果最良。Phase 2 は §2-A のリレーション整合性を構造的に解決するため信頼性観点でも価値大。性能数値（10-30倍等）は推定（出典 docs/33 は実在せず）— 確定前にベンチ実測を推奨。</div>
+  </section>
+
+  <section>
+    <h2>4. 統合ロードマップ（優先度）</h2>
+    <h3>即時（大型UP着手前・低コスト・高効果）</h3>
+    <ul>
+      <li><code>src/shared/rbac-util.mjs</code> に権限判定集約（front重複解消＋v376.51 inline 是正）— DRY High</li>
+      <li>Script ID / Spreadsheet ID / URL の Properties/定数化 — ハードコーディング High</li>
+      <li>pepper 3-split 設定の再確認（AGENTS §4.3・値は非表示）</li>
+    </ul>
+    <h3>大型UPと同梱（恒久是正）</h3>
+    <ul>
+      <li>api.ts boilerplate を helper 統一（~1,500行減・書込ガード整合）— DRY High</li>
+      <li>残関連の cascade soft delete＋役員 XOR 検証＋<code>test:er-sync</code> 拡張 — 整合性 Med</li>
+      <li>GCP Phase 0（Secret Manager+Argon2id）で H1 根治 — セキュリティ High</li>
+      <li>XFrame を member/admin <code>DENY</code> 化＋member split の drive/cloud-platform scope 削減 — セキュリティ Med</li>
+    </ul>
+    <h3>将来</h3>
+    <ul>
+      <li>GCP Phase 2（Firestore/Cloud SQL）＝リレーション整合性の構造的解決＋性能</li>
+      <li>カナ正規化/検証正規表現の shared 化、<code>_archive</code> 自動移動の活性化判断（破壊的＝要承認）</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>検証・訂正ログ（2026-07-02 自己レビュー・実コード裏取り）</h2>
+    <p>初版（5観点並列 read-only 監査）の主要所見を実コードで裏取りし、以下を訂正（High 5→3）。</p>
+    <div class="tblwrap">
+    <table>
+      <tr><th>#</th><th>所見</th><th>初版</th><th>検証結果</th><th>訂正後</th></tr>
+      <tr><td>V1</td><td>Cascade 削除なし</td><td><span class="badge b-high">High</span></td><td><code>executeDeleteMember_</code>(24345-24404) が会員/職員/認証/whitelist を archive・年会費/研修申込を snapshot＝<strong>部分 cascade あり</strong>。残関連は非連鎖</td><td><span class="badge b-med">Med</span></td></tr>
+      <tr><td>V2</td><td><code>_archive</code> 常時空・dead code</td><td><span class="badge b-high">High</span></td><td>自動3年移動は dead code だが、<strong>削除コンソールが <code>archiveMembersByIds_</code> で書込む</strong>＝常時空は誤り</td><td><span class="badge b-med">Med</span></td></tr>
+      <tr><td>V3</td><td>研修申込 3-FK 厳格 XOR 未検証</td><td><span class="badge b-high">High</span></td><td>外部×職員混在・会員×職員不一致を検証済。会員+職員併存は正当。未検出は narrow ケースのみ</td><td><span class="badge b-med">Med</span></td></tr>
+      <tr><td>V4</td><td>OAuth cloud-platform 要精査（一般）</td><td><span class="badge b-med">Med</span></td><td><strong>member split が drive+cloud-platform 保持を実ファイルで確認</strong>＝具体的削除候補に強化</td><td><span class="badge b-med">Med</span>(具体化)</td></tr>
+      <tr><td>V5</td><td>XFrame ALLOWALL（3 split）</td><td><span class="badge b-med">Med</span></td><td>gas-src L889 に1箇所＝3 split 全反映。所見どおり</td><td><span class="badge b-med">Med</span></td></tr>
+      <tr><td>V6</td><td>api.ts 約82% インライン重複</td><td><span class="badge b-high">High</span></td><td>runAction 4 + callAction 14 = 18／processApiRequest 105 ＝約83%。所見どおり</td><td><span class="badge b-high">High</span></td></tr>
+      <tr><td>V7</td><td>旧アカウント直書き＝ライブ認可</td><td>—</td><td>一回限りの移行/診断ヘルパー内＝ライブ認可に無関係</td><td><span class="badge b-low">Low</span></td></tr>
+      <tr><td>—</td><td>GCP latency 出典 <code>docs/33</code></td><td>—</td><td><strong>docs/33 は実在しない</strong>（docs/37 GAS quotas は実在）。数値は推定扱い</td><td>注記</td></tr>
+    </table>
+    </div>
+    <div class="note"><strong>評価プロセスへの含意</strong>: 並列監査は網羅性に優れるが単体では重大度を過大評価しがち（特に「〜なし/常時〜」の断定）。<strong>重大度 High 以上は着手前に実コード裏取りを必須</strong>とする（本ログがその実施記録）。</div>
+  </section>
+
+</main>
+
+<footer>
+  read-only 第三者監査（5観点並列＋実コード裏取り）｜ 正本 Markdown: <code>docs/248_THIRD_PARTY_EVALUATION_2026-07-01.md</code> ｜ 次回再評価: GCP Phase 0 実施後 or 大型UP完了時
+</footer>
+</body>
+</html>

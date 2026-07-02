@@ -130,7 +130,7 @@
 
 | 文書 | 内容 |
 |---|---|
-| [248_THIRD_PARTY_EVALUATION_2026-07-01.md](248_THIRD_PARTY_EVALUATION_2026-07-01.md) | **大型UP前 第三者評価**（v376.51・リレーション整合性/DRY/ハードコーディング/セキュリティ5視点/GCP readiness・テスト観点表＋修正案＋ロードマップ） |
+| [248_THIRD_PARTY_EVALUATION_2026-07-01.md](248_THIRD_PARTY_EVALUATION_2026-07-01.md) | **大型UP前 第三者評価**（v376.51・リレーション整合性/DRY/ハードコーディング/セキュリティ5視点/GCP readiness・テスト観点表＋修正案＋ロードマップ＋検証訂正ログ）。人間可読 HTML: [portal/248_third_party_evaluation_2026-07-01.html](portal/248_third_party_evaluation_2026-07-01.html) |
 | [109_THIRD_PARTY_ASSESSMENT_2026-04-20.md](109_THIRD_PARTY_ASSESSMENT_2026-04-20.md) | 第三者セキュリティ評価 (D / High Risk → v261-v263 で是正) |
 | [167_THIRD_PARTY_ASSESSMENT_PUBLIC_SEPARATION_2026-04-28.md](167_THIRD_PARTY_ASSESSMENT_PUBLIC_SEPARATION_2026-04-28.md) | 公開ポータル分離評価 (v288 不合格 → v289 で是正) |
 | [171_PASSWORD_HASH_STANDARD_ALIGNMENT_2026-04-30.md](171_PASSWORD_HASH_STANDARD_ALIGNMENT_2026-04-30.md) | PBKDF2 移行の標準整合 |

@@ -285,6 +285,7 @@ const COMMON_NAV = `
   <a href="tables.html">📊 テーブル設計書</a>
   <a href="er-diagram.html">🗂️ ER ドメイン</a>
   <a href="dbml-export.html">🚀 DBML 出力</a>
+  <a href="248_third_party_evaluation_2026-07-01.html">🔍 第三者評価(2026-07)</a>
 </nav>
 `;
 

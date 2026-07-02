@@ -22,7 +22,9 @@
 | セキュリティ（5視点） | ○（C→条件付き運用） | Critical 全是正済（`docs/109`）。残 High 1＝PBKDF2 強度（GCP で根治） |
 | GCP 実装 readiness | 段階的推奨 | 破壊的移行不要。Phase 0（Secret Manager+Argon2id）は今すぐ低リスク |
 
-**Critical 該当: 0 件**（`docs/109` の3件は v261-263 で是正済）。**High: 5 件**（下記）。
+**Critical 該当: 0 件**（`docs/109` の3件は v261-263 で是正済）。**High: 3 件**（下記）。
+
+> **2026-07-02 追記**: 初版（5観点並列 read-only 監査）の主要所見を実コードで裏取りし、**4 件を訂正**（High 5→3）。詳細は末尾「検証・訂正ログ」を参照。
 
 ---
 
@@ -33,9 +35,9 @@
 | # | 品質特性 / 観点 | 評価 | 主要所見（重大度） |
 |---|---|:---:|---|
 | 1 | 機能適合性・正確性 | ○ | 申込者解決2モデルの誤用余地（High・v376.12 実害） |
-| 2 | 信頼性＝リレーション整合性 | △ | FK制約なし・**Cascade削除なし→孤児蓄積**（High）／3-FK XOR未検証（High）／役員linkage XOR未検証（Med） |
-| 3 | 　└ データ整合の自己修復依存 | △ | `repair*`/整合修復ジョブが**常時必要な設計**＝崩壊前提（High） |
-| 4 | 　└ アーカイブ/退会移行 | △ | `_archive` 移動ジョブが **dead code**（build pruner 除外）で常時空（High・既知/延期） |
+| 2 | 信頼性＝リレーション整合性 | △ | FK制約なし・**部分 cascade**（会員/職員/認証/whitelist は削除コンソールで archive、研修申込/年会費/役員/請求は非cascade→孤児化し得る）（Med）／申込者参照の相互排他は概ね検証済・一部未検出（Med）／役員linkage XOR未検証（Med） |
+| 3 | 　└ データ整合の自己修復依存 | △ | `repair*`/整合修復ジョブが**手動実行前提**（Med） |
+| 4 | 　└ アーカイブ/退会移行 | △ | 自動3年移動ジョブは **dead code**（build pruner 除外）。ただし **MASTER 削除コンソール経由では `_archive` へ書込まれる**（＝常時空ではない）（Med・既知/延期） |
 | 5 | 保守性＝DRY | △ | `api.ts` 約82%が helper 未使用の重複（High・~1,500行）／権限判定 front再実装（High） |
 | 6 | 　└ 単一情報源化の到達度 | ◎ | 会計年度/menu-registry/mailTemplates/trainingOptions は良好 |
 | 7 | 　└ カナ正規化 front/back | △ | front実装済だが API前検証で未使用→往路チェック不可（Med・UX） |
@@ -61,11 +63,11 @@
 
 | 所見 | 重大度 | 参考位置 | 修正案 |
 |---|:---:|---|---|
-| Cascade 削除なし → 孤児レコード蓄積 | **High** | 各削除関数（soft delete のみ） | `deleteWithCascade_(tableKey, id)` を単一実装し、会員/職員削除時に FK 関連（申込/年会費/役員/請求）を soft delete 連鎖 |
-| 研修申込 3-FK XOR が明示検証されず修復ジョブ依存 | **High** | `getTrainingApplicationIntegrityIssues_`（gas-src 約13345-13402） | XOR（会員ID/職員ID/外部申込者ID の同時填充禁止）を明示検証に追加＋`test:er-sync` へ制約テスト |
+| **部分 cascade**（研修申込/年会費/役員/請求 は非cascade→孤児化し得る） | **Med**（訂正: 初版 High） | `executeDeleteMember_`（gas-src 約24345-24404） | 削除コンソールは会員/職員/認証/whitelist を archive・年会費/研修申込を snapshot するが、**研修申込/年会費/役員/請求 の soft delete/archive までは連鎖しない**。`deleteWithCascade_` に残関連の連鎖 soft delete を追加。研修申込の孤児は `repairTrainingApplicationIntegrity_` で検出可（手動） |
+| 申込者参照の相互排他が宣言的でなく、一部混在が未検出 | **Med**（訂正: 初版 High） | `getTrainingApplicationIntegrityIssues_`（gas-src 約13345-13398） | **実際は外部×職員混在(13390)・会員×職員不一致(13380)等を検証済**。会員+職員の併存は正当（v360 canonical）。未検出は「MEMBER 行に外部申込者ID が紛れ込む」等の narrow ケースのみ→宣言的制約＋`test:er-sync` で補強 |
 | 申込者解決 legacy 関数の誤用余地（v376.12 実害源） | **High**→緩和済 | `getApplicationApplicantType_`（約13292）/ `getCanonicalApplicantRef_`（約13313） | legacy に `@deprecated`、送信/名簿/本人解決は canonical へ統一を lint/grep gate 化、v377 で撤去（※`MEMORY project_applicant_resolution_two_models` の「意図的併存」は尊重しつつ誤用防止を強化） |
 | 役員 linkage の member/staff XOR 未検証 | **Med** | `assignOfficer`/`updateOfficerLinkage` | XOR 検証を追加（両方填充を拒否） |
-| `_archive` 移動ジョブ dead code（常時空） | **High**（既知/延期） | `moveWithdrawnRowsToArchive_`（build pruner 除外） | 活性化は破壊的＝完全バックアップ+明示承認（現状維持で可・`docs/03 §4.10`） |
+| `_archive` の**自動**3年移動ジョブが dead code | **Med**（訂正: 初版 High・「常時空」は誤り） | 自動: `moveWithdrawnRowsToArchive_`（pruner 除外）／ライブ: `archiveMembersByIds_` 等（`executeDeleteMember_` 24401-24404 から呼ばれ稼働） | **MASTER 削除コンソール経由では `_archive` に書込まれる**（常時空ではない）。自動移動ジョブ活性化は破壊的＝完全バックアップ+明示承認（`docs/03 §4.10`） |
 | CM番号/職員重複が修復ジョブ依存 | **Med** | `repairDuplicateStaffRecords_`/`repairMemberCareManagerDuplicates_` | bulk import 前の重複プレビュー画面 |
 | 列順ドリフト（T_研修申込 定義 vs er-metadata） | **Med** | gas-src 約631 vs `er-metadata.json` | `test:er-sync` に列順チェック追加 |
 | 会計年度ステータス front/back 統一 | ◎ 良好 | `src/shared/memberFiscalStatus.mjs` | 変更不要（単一情報源＋build注入の模範） |
@@ -103,7 +105,7 @@ AGENTS.md §3: 識別子はソース本体に直接埋め込まない（定数�
 - **High（H1）: パスワード KDF 強度** — PBKDF2-HMAC-SHA256 **1万反復 < OWASP 目標 60万+**。GAS V8 計算制約が原因。pepper（Script Property）で追加層があるが原本強度は限定 → **GCP Phase 0（Argon2id/Cloud Run・`docs/240`）が根治策**
 - **Medium**:
   - M1 `HtmlService.XFrameOptionsMode.ALLOWALL` が3 split 共通 → **member/admin は `DENY`**、public のみ ALLOWALL に
-  - M2 OAuth `cloud-platform` scope の最小化再確認（Secret Manager 連携時は必須・それ以外は削減検討）
+  - M2 OAuth scope 最小化（**裏取り済・要削減**）: **member split が `drive` と `cloud-platform` を保持**（`gas/member/appsscript.json`）。会員マイページは Drive 直接操作も Secret Manager も使わないため**削除候補**。`cloud-platform` は 3 split すべてに付与されており、Secret Manager 連携が要る境界（pepper 取得を行う境界）に限定するのが最小権限。admin は `gmail.send`/`gmail.settings.basic`/`userinfo.email` を追加保持（用途あり・正当）
   - M3 v376.51 role preview の client-only 書込ガード → **権限昇格なし（server は MASTER 不変）で実リスク低**。強化案: server response に `previewMode` flag を載せ client と突合
 - **Low**: email 正規表現簡易（実送信 bounce で自己修正）、webapp access レベル混在の運用手順化、REDIRECT ログの宛先出力確認
 - **AI/Agent 固有**（prompt injection / excessive agency / memory poisoning）: いずれも Low（eval 不使用・OAuth scope 明示・§0 シークレット徹底）
@@ -136,7 +138,7 @@ AGENTS.md §3: 識別子はソース本体に直接埋め込まない（定数�
 
 **大型UPと同梱（恒久是正）**
 4. `api.ts` boilerplate を helper 統一（~1,500行減・書込ガード整合） … DRY High
-5. Cascade 削除の単一実装＋3-FK/役員 XOR 検証＋`test:er-sync` 拡張 … 整合性 High
+5. 残関連（研修申込/年会費/役員/請求）の cascade soft delete 追加＋役員 XOR 検証＋`test:er-sync` 拡張 … 整合性 Med
 6. **GCP Phase 0**（Secret Manager+Argon2id）で H1 根治 … セキュリティ High
 7. XFrame を member/admin `DENY` 化 … セキュリティ Med
 
@@ -145,6 +147,23 @@ AGENTS.md §3: 識別子はソース本体に直接埋め込まない（定数�
 9. カナ正規化/検証正規表現の shared 化、`_archive` 活性化判断（破壊的＝要承認）
 
 ---
+
+## 検証・訂正ログ（2026-07-02 自己レビュー・実コード裏取り）
+
+初版は5観点並列の read-only 監査であり、`file:line` 未検証を明示していた。大型アップデートの判断根拠となるため主要所見を実コードで裏取りし、以下を訂正した。
+
+| # | 所見 | 初版 | 検証結果 | 訂正後 |
+|---|---|:---:|---|:---:|
+| V1 | Cascade 削除なし | High | `executeDeleteMember_`(24345-24404) は会員/職員/認証/whitelist を archive・年会費/研修申込を snapshot＝**部分 cascade あり**。残関連(研修申込/年会費/役員/請求)は非連鎖 | **Med** |
+| V2 | `_archive` 常時空・dead code | High | 自動3年移動ジョブは dead code だが、**削除コンソールが `archiveMembersByIds_` 等で `_archive` に書込む**＝常時空は誤り | **Med** |
+| V3 | 研修申込 3-FK 厳格 XOR 未検証 | High | `getTrainingApplicationIntegrityIssues_` は外部×職員混在・会員×職員不一致等を**検証済**。会員+職員併存は正当。未検出は narrow ケースのみ | **Med** |
+| V4 | OAuth `cloud-platform` 要精査（一般） | Med | **member split が `drive`+`cloud-platform` 保持を実ファイルで確認**＝具体的削除候補として強化 | **Med（具体化）** |
+| V5 | XFrame ALLOWALL（3 split） | Med | gas-src L889 に1箇所＝3 split 全反映を確認。**所見どおり** | Med（変更なし） |
+| V6 | api.ts 約82% がインライン重複 | High | runAction 4 + callAction 14 = 18／processApiRequest 105 ＝**約83%**。**所見どおり** | High（変更なし） |
+| V7 | 旧アカウント直書き＝ライブ認可 | （初版で既訂正） | `migrateAdminPermissions`/`repairWhitelistData` 内の一回限りヘルパー＝ライブ認可に無関係 | Low（訂正済） |
+| — | GCP latency「10-30倍」等の出典 `docs/33` | — | **`docs/33` は実在しない**（`docs/37` GAS quotas は実在）。数値は推定として扱い、確定前にベンチ実測 | 注記済 |
+
+**評価プロセスへの含意**: 並列監査は網羅性に優れるが、単体では所見の重大度を過大評価しがち（特に「〜なし/常時〜」の断定）。**重大度 High 以上は着手前に実コード裏取りを必須**とする（本ログがその実施記録）。
 
 ## 5. 参照
 
