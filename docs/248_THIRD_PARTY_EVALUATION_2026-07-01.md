@@ -24,7 +24,7 @@
 
 **Critical 該当: 0 件**（`docs/109` の3件は v261-263 で是正済）。**High: 3 件**（下記）。
 
-> **2026-07-02 追記**: 初版（5観点並列 read-only 監査）の主要所見を実コードで裏取りし、**4 件を訂正**（High 5→3）。詳細は末尾「検証・訂正ログ」を参照。
+> **2026-07-02 追記**: 初版（5観点並列 read-only 監査）の主要所見を実コードで裏取りし訂正（末尾「検証・訂正ログ」）。**さらに削除モデルの設計精査（`docs/249`）で C1-C3 の深い実態が判明し、Cascade/孤児を High に再是正**（現 High: 4）。削除関連の権威ある分析は `docs/249` を正とする。
 
 ---
 
@@ -37,7 +37,7 @@
 | 1 | 機能適合性・正確性 | ○ | 申込者解決2モデルの誤用余地（High・v376.12 実害） |
 | 2 | 信頼性＝リレーション整合性 | △ | FK制約なし・**部分 cascade**（会員/職員/認証/whitelist は削除コンソールで archive、研修申込/年会費/役員/請求は非cascade→孤児化し得る）（Med）／申込者参照の相互排他は概ね検証済・一部未検出（Med）／役員linkage XOR未検証（Med） |
 | 3 | 　└ データ整合の自己修復依存 | △ | `repair*`/整合修復ジョブが**手動実行前提**（Med） |
-| 4 | 　└ アーカイブ/退会移行 | △ | 自動3年移動ジョブは **dead code**（build pruner 除外）。ただし **MASTER 削除コンソール経由では `_archive` へ書込まれる**（＝常時空ではない）（Med・既知/延期） |
+| 4 | 　└ アーカイブ/退会移行 | △ | `_archive` は**実質常に空**。`archive*ByIds_` は名に反し **in-place soft delete**（行移動なし）で、`_archive` へ書込むのは dead code の自動3年移動のみ（Med・詳細 `docs/249` C1-C2） |
 | 5 | 保守性＝DRY | △ | `api.ts` 約82%が helper 未使用の重複（High・~1,500行）／権限判定 front再実装（High） |
 | 6 | 　└ 単一情報源化の到達度 | ◎ | 会計年度/menu-registry/mailTemplates/trainingOptions は良好 |
 | 7 | 　└ カナ正規化 front/back | △ | front実装済だが API前検証で未使用→往路チェック不可（Med・UX） |
@@ -63,11 +63,11 @@
 
 | 所見 | 重大度 | 参考位置 | 修正案 |
 |---|:---:|---|---|
-| **部分 cascade**（研修申込/年会費/役員/請求 は非cascade→孤児化し得る） | **Med**（訂正: 初版 High） | `executeDeleteMember_`（gas-src 約24345-24404） | 削除コンソールは会員/職員/認証/whitelist を archive・年会費/研修申込を snapshot するが、**研修申込/年会費/役員/請求 の soft delete/archive までは連鎖しない**。`deleteWithCascade_` に残関連の連鎖 soft delete を追加。研修申込の孤児は `repairTrainingApplicationIntegrity_` で検出可（手動） |
+| **cascade がほぼ未実装＝子レコードの広範な孤児化** | **High**（再是正: 初版High→一次訂正Med→精査で High 復帰） | `executeDeleteMember_`（gas-src 24345-24404） | 実体は会員/職員/認証/whitelist を **in-place soft delete のみ**。年会費/研修申込は削除ログに snapshot だが **live 無処理**。**役員/請求/振込口座/支払い/変更申請は snapshot も soft delete もされず完全放置**（真の孤児）。→ a1 cascade アーカイブへ再設計（**`docs/249`**） |
 | 申込者参照の相互排他が宣言的でなく、一部混在が未検出 | **Med**（訂正: 初版 High） | `getTrainingApplicationIntegrityIssues_`（gas-src 約13345-13398） | **実際は外部×職員混在(13390)・会員×職員不一致(13380)等を検証済**。会員+職員の併存は正当（v360 canonical）。未検出は「MEMBER 行に外部申込者ID が紛れ込む」等の narrow ケースのみ→宣言的制約＋`test:er-sync` で補強 |
 | 申込者解決 legacy 関数の誤用余地（v376.12 実害源） | **High**→緩和済 | `getApplicationApplicantType_`（約13292）/ `getCanonicalApplicantRef_`（約13313） | legacy に `@deprecated`、送信/名簿/本人解決は canonical へ統一を lint/grep gate 化、v377 で撤去（※`MEMORY project_applicant_resolution_two_models` の「意図的併存」は尊重しつつ誤用防止を強化） |
 | 役員 linkage の member/staff XOR 未検証 | **Med** | `assignOfficer`/`updateOfficerLinkage` | XOR 検証を追加（両方填充を拒否） |
-| `_archive` の**自動**3年移動ジョブが dead code | **Med**（訂正: 初版 High・「常時空」は誤り） | 自動: `moveWithdrawnRowsToArchive_`（pruner 除外）／ライブ: `archiveMembersByIds_` 等（`executeDeleteMember_` 24401-24404 から呼ばれ稼働） | **MASTER 削除コンソール経由では `_archive` に書込まれる**（常時空ではない）。自動移動ジョブ活性化は破壊的＝完全バックアップ+明示承認（`docs/03 §4.10`） |
+| `_archive` が**実質常に空**＋`archive*ByIds_` の命名詐称 | **Med** | `archiveMembersByIds_`(24130) 等は行移動でなく **in-place soft delete**（`_archive` へ書込まない）。`_archive` へ書込むのは dead code の自動移動 `moveWithdrawnRowsToArchive_`(24563) のみ | a1 cascade アーカイブへ再設計（**`docs/249`**）。関数名を move へ是正。活性化は破壊的＝要バックアップ+承認 |
 | CM番号/職員重複が修復ジョブ依存 | **Med** | `repairDuplicateStaffRecords_`/`repairMemberCareManagerDuplicates_` | bulk import 前の重複プレビュー画面 |
 | 列順ドリフト（T_研修申込 定義 vs er-metadata） | **Med** | gas-src 約631 vs `er-metadata.json` | `test:er-sync` に列順チェック追加 |
 | 会計年度ステータス front/back 統一 | ◎ 良好 | `src/shared/memberFiscalStatus.mjs` | 変更不要（単一情報源＋build注入の模範） |
@@ -154,8 +154,8 @@ AGENTS.md §3: 識別子はソース本体に直接埋め込まない（定数�
 
 | # | 所見 | 初版 | 検証結果 | 訂正後 |
 |---|---|:---:|---|:---:|
-| V1 | Cascade 削除なし | High | `executeDeleteMember_`(24345-24404) は会員/職員/認証/whitelist を archive・年会費/研修申込を snapshot＝**部分 cascade あり**。残関連(研修申込/年会費/役員/請求)は非連鎖 | **Med** |
-| V2 | `_archive` 常時空・dead code | High | 自動3年移動ジョブは dead code だが、**削除コンソールが `archiveMembersByIds_` 等で `_archive` に書込む**＝常時空は誤り | **Med** |
+| V1 | Cascade 削除なし | High | **一次訂正(Med)は誤り**（`archive*ByIds_` の名を信用した）。実体は in-place soft delete。年会費/研修申込は snapshot のみ live 無処理、役員/請求/振込口座/支払い/変更申請は完全放置＝**広範な孤児**（`docs/249` C3） | **High（復帰）** |
+| V2 | `_archive` 常時空・dead code | High | **一次訂正は誤り**: `archiveMembersByIds_` は `_archive` へ書込まず in-place soft delete。`_archive` は実質常に空＝**初版が正しかった**。命名詐称を `docs/249` C1 で是正 | **Med（命名/設計）** |
 | V3 | 研修申込 3-FK 厳格 XOR 未検証 | High | `getTrainingApplicationIntegrityIssues_` は外部×職員混在・会員×職員不一致等を**検証済**。会員+職員併存は正当。未検出は narrow ケースのみ | **Med** |
 | V4 | OAuth `cloud-platform` 要精査（一般） | Med | **member split が `drive`+`cloud-platform` 保持を実ファイルで確認**＝具体的削除候補として強化 | **Med（具体化）** |
 | V5 | XFrame ALLOWALL（3 split） | Med | gas-src L889 に1箇所＝3 split 全反映を確認。**所見どおり** | Med（変更なし） |

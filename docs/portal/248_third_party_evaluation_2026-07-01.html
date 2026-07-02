@@ -66,7 +66,7 @@
     <h2>0. 総合サマリー</h2>
     <div class="grid">
       <div class="kpi"><div class="v" style="color:var(--good)">0</div><div class="l">Critical（docs/109 の3件は v261-263 で是正済）</div></div>
-      <div class="kpi"><div class="v" style="color:var(--high)">3</div><div class="l">High（自己検証で 5→3 に訂正）</div></div>
+      <div class="kpi"><div class="v" style="color:var(--high)">4</div><div class="l">High（初版5→一次訂正3→精査でCascade復帰4・docs/249）</div></div>
       <div class="kpi"><div class="v" style="color:var(--med)">9</div><div class="l">Medium 級（要改善）</div></div>
       <div class="kpi"><div class="v" style="color:var(--good)">4</div><div class="l">単一情報源化の模範モジュール</div></div>
     </div>
@@ -80,7 +80,7 @@
       <tr><td>GCP 実装 readiness</td><td class="rating r-ok">○</td><td>破壊的移行不要。Phase 0（Secret Manager+Argon2id）は今すぐ低リスク</td></tr>
     </table>
     </div>
-    <div class="note">⚠ <strong>検証メモ</strong>：初版は5観点並列 read-only 監査。大型UP判断の根拠となるため主要 High/Med 所見を実コードで裏取りし <strong>4 件を訂正</strong>（High 5→3）。詳細は末尾「検証・訂正ログ」。</div>
+    <div class="note">⚠ <strong>検証メモ</strong>：初版は5観点並列 read-only 監査。主要所見を実コードで裏取りし訂正（末尾「検証・訂正ログ」）。さらに削除モデル設計精査（<code>docs/249</code>）で Cascade/孤児の深い実態が判明し High に再是正（現 High: 4）。削除関連は <code>docs/249</code> を正とする。</div>
   </section>
 
   <section>
@@ -92,7 +92,7 @@
       <tr><td>1</td><td>機能適合性・正確性</td><td class="r-ok">○</td><td>申込者解決2モデルの誤用余地 <span class="badge b-high">High</span>（v376.12 実害）</td></tr>
       <tr><td>2</td><td>信頼性＝リレーション整合性</td><td class="r-warn">△</td><td>FK制約なし・部分 cascade（残関連は孤児化し得る）<span class="badge b-med">Med</span> ／ 申込者参照の相互排他は概ね検証済 <span class="badge b-med">Med</span> ／ 役員 XOR 未検証 <span class="badge b-med">Med</span></td></tr>
       <tr><td>3</td><td>└ データ整合の自己修復依存</td><td class="r-warn">△</td><td><code>repair*</code> が手動実行前提 <span class="badge b-med">Med</span></td></tr>
-      <tr><td>4</td><td>└ アーカイブ/退会移行</td><td class="r-warn">△</td><td>自動3年移動ジョブは dead code。削除コンソール経由では <code>_archive</code> へ書込む（常時空ではない）<span class="badge b-med">Med</span></td></tr>
+      <tr><td>4</td><td>└ アーカイブ/退会移行</td><td class="r-warn">△</td><td><code>_archive</code> は実質常に空。<code>archive*ByIds_</code> は名に反し in-place soft delete（行移動なし）<span class="badge b-med">Med</span>（docs/249 C1-C2）</td></tr>
       <tr><td>5</td><td>保守性＝DRY</td><td class="r-warn">△</td><td>api.ts 約83%が helper 未使用の重複 <span class="badge b-high">High</span> ／ 権限判定 front 再実装 <span class="badge b-high">High</span></td></tr>
       <tr><td>6</td><td>└ 単一情報源化の到達度</td><td class="r-good">◎</td><td>会計年度 / menu-registry / mailTemplates / trainingOptions は良好</td></tr>
       <tr><td>7</td><td>└ カナ正規化 front/back</td><td class="r-warn">△</td><td>front実装済だが API前検証で未使用 <span class="badge b-med">Med</span>（UX）</td></tr>
@@ -119,11 +119,11 @@
     <div class="tblwrap">
     <table>
       <tr><th>所見</th><th>重大度</th><th>修正案</th></tr>
-      <tr><td>部分 cascade（研修申込/年会費/役員/請求 は非連鎖→孤児化し得る）</td><td><span class="badge b-med">Med</span> <small>(訂正:初版High)</small></td><td><code>executeDeleteMember_</code> は会員/職員/認証/whitelist を archive・年会費/研修申込を snapshot するが残関連は非連鎖。<code>deleteWithCascade_</code> に連鎖 soft delete 追加</td></tr>
+      <tr><td>cascade がほぼ未実装＝子レコードの広範な孤児化</td><td><span class="badge b-high">High</span> <small>(初版High→一次Med→精査で復帰)</small></td><td>実体は会員/職員/認証/whitelist を in-place soft delete のみ。年会費/研修申込は snapshot だが live 無処理。<strong>役員/請求/振込口座/支払い/変更申請は完全放置＝真の孤児</strong>。a1 cascade アーカイブへ再設計（<code>docs/249</code>）</td></tr>
       <tr><td>申込者参照の相互排他が宣言的でなく一部混在が未検出</td><td><span class="badge b-med">Med</span> <small>(訂正:初版High)</small></td><td>実際は外部×職員混在・会員×職員不一致を検証済。会員+職員併存は正当。narrow ケースを宣言的制約＋<code>test:er-sync</code> で補強</td></tr>
       <tr><td>申込者解決 legacy 関数の誤用余地（v376.12 実害源）</td><td><span class="badge b-high">High</span> <small>(緩和済)</small></td><td>legacy に <code>@deprecated</code>、送信/名簿/本人解決は canonical 統一を grep gate 化、v377 で撤去</td></tr>
       <tr><td>役員 linkage の member/staff XOR 未検証</td><td><span class="badge b-med">Med</span></td><td><code>assignOfficer</code>/<code>updateOfficerLinkage</code> に XOR 検証追加</td></tr>
-      <tr><td><code>_archive</code> 自動3年移動ジョブが dead code（常時空は誤り）</td><td><span class="badge b-med">Med</span> <small>(既知/延期)</small></td><td>削除コンソール経由では書込まれる。自動移動の活性化は破壊的＝要バックアップ+承認</td></tr>
+      <tr><td><code>_archive</code> が実質常に空＋<code>archive*ByIds_</code> の命名詐称</td><td><span class="badge b-med">Med</span></td><td><code>archiveMembersByIds_</code>(24130) 等は行移動でなく in-place soft delete。<code>_archive</code> へ書込むのは dead code のみ。a1 へ再設計＋命名を move へ是正（<code>docs/249</code>）</td></tr>
       <tr><td>CM番号/職員重複が修復ジョブ依存</td><td><span class="badge b-med">Med</span></td><td>bulk import 前の重複プレビュー画面</td></tr>
       <tr><td>列順ドリフト（T_研修申込）</td><td><span class="badge b-med">Med</span></td><td><code>test:er-sync</code> に列順チェック追加</td></tr>
       <tr><td>会計年度ステータス front/back 統一</td><td><span class="badge b-good">◎</span></td><td>変更不要（単一情報源＋build注入の模範）</td></tr>
@@ -207,8 +207,8 @@
     <div class="tblwrap">
     <table>
       <tr><th>#</th><th>所見</th><th>初版</th><th>検証結果</th><th>訂正後</th></tr>
-      <tr><td>V1</td><td>Cascade 削除なし</td><td><span class="badge b-high">High</span></td><td><code>executeDeleteMember_</code>(24345-24404) が会員/職員/認証/whitelist を archive・年会費/研修申込を snapshot＝<strong>部分 cascade あり</strong>。残関連は非連鎖</td><td><span class="badge b-med">Med</span></td></tr>
-      <tr><td>V2</td><td><code>_archive</code> 常時空・dead code</td><td><span class="badge b-high">High</span></td><td>自動3年移動は dead code だが、<strong>削除コンソールが <code>archiveMembersByIds_</code> で書込む</strong>＝常時空は誤り</td><td><span class="badge b-med">Med</span></td></tr>
+      <tr><td>V1</td><td>Cascade 削除なし</td><td><span class="badge b-high">High</span></td><td><strong>一次訂正(Med)は誤り</strong>（<code>archive*ByIds_</code> の名を信用）。実体は in-place soft delete。年会費/研修申込は snapshot のみ live 無処理、役員/請求/振込口座/支払い/変更申請は完全放置＝<strong>広範な孤児</strong>（docs/249 C3）</td><td><span class="badge b-high">High(復帰)</span></td></tr>
+      <tr><td>V2</td><td><code>_archive</code> 常時空・dead code</td><td><span class="badge b-high">High</span></td><td><strong>一次訂正は誤り</strong>: <code>archiveMembersByIds_</code> は <code>_archive</code> へ書込まず in-place soft delete。<code>_archive</code> は実質常に空＝<strong>初版が正しかった</strong>。命名詐称を docs/249 C1 で是正</td><td><span class="badge b-med">Med</span></td></tr>
       <tr><td>V3</td><td>研修申込 3-FK 厳格 XOR 未検証</td><td><span class="badge b-high">High</span></td><td>外部×職員混在・会員×職員不一致を検証済。会員+職員併存は正当。未検出は narrow ケースのみ</td><td><span class="badge b-med">Med</span></td></tr>
       <tr><td>V4</td><td>OAuth cloud-platform 要精査（一般）</td><td><span class="badge b-med">Med</span></td><td><strong>member split が drive+cloud-platform 保持を実ファイルで確認</strong>＝具体的削除候補に強化</td><td><span class="badge b-med">Med</span>(具体化)</td></tr>
       <tr><td>V5</td><td>XFrame ALLOWALL（3 split）</td><td><span class="badge b-med">Med</span></td><td>gas-src L889 に1箇所＝3 split 全反映。所見どおり</td><td><span class="badge b-med">Med</span></td></tr>
