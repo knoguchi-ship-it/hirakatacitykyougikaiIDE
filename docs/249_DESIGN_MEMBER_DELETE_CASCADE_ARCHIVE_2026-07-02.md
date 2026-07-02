@@ -32,6 +32,9 @@
 2. 退避方式は **a1（各テーブルに `_archive` を設け構造保存）** を採用。
 3. スコープは**会員系のみ**（M_ マスタ〈役職・組織・支払種別等〉は対象外）。
 4. **削除された会員の過去実績（研修受講・年会費等）は集計から消える**（＝真の削除。履歴を残したい場合は「退会」で扱う）。
+5. **T_ログイン履歴は物理 purge**（`_archive` に残さない。削除アカウントのログイン痕跡は不要・PII 最小化）。
+6. **復元は会員単位のみ**。各 `_archive` 行に **`削除バッチID`（削除ログの `ログID`）** を刻み「同一 `削除バッチID` の全行を戻す」でアトミック復元。
+7. **バックフィル移行は任意**。先に read-only 診断で現 DB の負債量（soft-delete 済み会員・孤児件数）を実測し、整合が取れ有益なら実施。現 DB 状態で困難なら**無理に行わない**。
 
 ---
 
@@ -74,7 +77,7 @@
 | T_変更申請 | 会員ID∈M | **T_変更申請_archive** | 新規 |
 
 **対象外（会員系でない／別扱い）**:
-- **T_ログイン履歴**: 高volume・低価値。**アーカイブせず物理 purge**（削除対象認証IDの履歴を削除）を提案（要確認・§7）。
+- **T_ログイン履歴**: 高volume・低価値・PII。**物理 purge（確定）**（削除対象認証IDの履歴を live から削除し `_archive` に残さない）。
 - **T_外部申込者**: 会員に紐づかない独立実体。会員削除の cascade 対象にしない（外部申込者自体の削除は別機能）。
 - M_ マスタ、T_システム設定、T_権限ロール、T_メールテンプレート、T_監査ログ、T_共有メモ、T_LINE投稿依頼: 会員実体ではないため対象外。
 
@@ -84,7 +87,7 @@
 // 疑似コード（実装は gas-src。命名は _archive 詐称を避け「move」を用いる）
 function moveRowsToArchiveByMatch_(ss, srcName, dstName, matchFn, nowIso) {
   // 1. src 読取 → matchFn で対象行を分離
-  // 2. 対象行に アーカイブID(UUID)/アーカイブ日時 を付与し dst へ append（ヘッダー整合・欠落自己修復）
+  // 2. 対象行に アーカイブID(UUID)/削除バッチID(=削除ログの ログID)/アーカイブ日時 を付与し dst へ append（ヘッダー整合・欠落自己修復）
   // 3. src を「非対象行のみ」で書き直し（＝live から除去）
   // 4. lock/バッチ/冪等（既に dst に同アーカイブ元キーがあればスキップ）
   // 5. 移動件数を返す
@@ -97,7 +100,7 @@ function moveRowsToArchiveByMatch_(ss, srcName, dstName, matchFn, nowIso) {
 
 ### 4.3 復元（undo）
 
-- `restoreDeletedMember_(logId)`: 削除ログの `ログID` から対象を特定し、各 `_archive` の該当 `アーカイブID` 行を live へ戻す（アーカイブ列を落として再挿入）。
+- `restoreDeletedMember_(logId)`: 各 `_archive` の **`削除バッチID == logId`** の行を live へ戻す（アーカイブ3列を落として再挿入）。会員単位でアトミック。
 - 削除は稀・MASTER 限定のため、復元は operator 実行の editor 関数（`restoreDeletedMember_LOG` ラッパー）で提供（`feedback_editor_run_no_args` 準拠）。
 
 ### 4.4 退会（withdrawal）との厳格な分離
@@ -109,7 +112,7 @@ function moveRowsToArchiveByMatch_(ss, srcName, dstName, matchFn, nowIso) {
 
 ## 5. スキーマ・ビルド変更
 
-1. `gas-src/Code.full.gs` の `テーブル定義` に §4.1 の新規 `_archive` を追加（既存 2 本と同様 `.slice().concat(['アーカイブID','アーカイブ日時'])`）。**C5 回避**: 追加時、リテラル内コメントに `_` 付き関数名を書かない。
+1. `gas-src/Code.full.gs` の `テーブル定義` に §4.1 の新規 `_archive` を追加。アーカイブ列は **`.slice().concat(['アーカイブID','削除バッチID','アーカイブ日時'])`**（既存2本〈会員/職員〉にも `削除バッチID` を追加しスキーマ統一。`normalizeTableColumns_` の name-based shift で既存の空アーカイブは温存）。**C5 回避**: 追加時、リテラル内コメントに `_` 付き関数名を書かない。
 2. `ensureTableSheetsExist_` / `normalizeTableColumns_` に新 `_archive` を登録し、**ヘッダー自己修復**を保証（C6 回避）。
 3. `DB_SCHEMA_VERSION` bump → 次回 admin login で migrate。
 4. `docs/er-metadata.json` に新 `_archive` テーブルとリレーション（各 live → `_archive` の「アーカイブ元」関係）を追記 → `npm run build:docs-portal`（generate-er）→ `npm run test:er-sync` PASS を同コミットに含める（`AGENTS §4.6`）。
@@ -133,11 +136,15 @@ function moveRowsToArchiveByMatch_(ss, srcName, dstName, matchFn, nowIso) {
 
 ## 7. 未決事項・要確認
 
-1. **T_ログイン履歴**: アーカイブ（構造保存）か **物理 purge**（推奨・高volume低価値）か。→ 既定案: purge。
-2. **既存の“中途半端に削除済み”データの後処理**: 現状 in-place soft delete された会員が既に存在する場合、新モデルへ**バックフィル移行**するか（別 migration・要承認）。
-3. **支払い明細**の親子（支払い→明細）の移動順序と孤児防止（親を先に集合解決）。
-4. 復元の粒度（会員単位のみ／個別テーブル単位も許すか）。
+### 確定（2026-07-02・ユーザー承認済）
+1. ✅ **T_ログイン履歴 = 物理 purge**（`_archive` に残さない）。
+2. ✅ **復元 = 会員単位のみ**＋各 `_archive` に **`削除バッチID`（ログID）** を刻む。
+3. ✅ **バックフィル移行 = 任意**。先に read-only 診断で負債量を実測 → 整合が取れ有益なら実施。現 DB 状態で困難なら**実施しない**（無理にしない）。
+
+### 残（実装時に対応）
+4. **支払い明細**の親子（支払い→明細）の移動順序と孤児防止（親を先に集合解決）。
 5. 本設計の**実装・本番反映は破壊的**（live からの行除去）につき、**完全バックアップ（スプレッドシート版歴）＋明示承認**を実装着手前に取得（`AGENTS §4.3/§6`）。
+6. **実装の第一歩は read-only 診断関数**（`diagnoseMemberDeleteDebt_LOG`: soft-delete 済み会員数・テーブル別孤児件数を集計）。非破壊なので先行実装可。結果でバックフィル要否を判断。
 
 ---
 
