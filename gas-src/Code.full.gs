@@ -13,7 +13,7 @@ var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
 var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
-var DB_SCHEMA_VERSION = '2026-06-10-line-post-rbac-v376.45';
+var DB_SCHEMA_VERSION = '2026-07-03-cascade-archive-schema-v376.52';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
 var MEMBER_PORTAL_URL = 'https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec';
@@ -733,13 +733,6 @@ var テーブル定義 = {
   ],
 };
 
-// v259: 退会済み会員のアーカイブシート（メインDB内。元テーブルと同スキーマ + アーカイブ用サロゲート列）
-// v376.36: surrogate `アーカイブID`（主キー的に一意）と `アーカイブ日時` を末尾付与。
-//   退会済み会員は本テーブルから物理削除して archive へ「移動」するため、会員ID/職員ID は
-//   本テーブルと archive のどちらか片方にのみ存在し重複しない（=natural key でも成立）が、
-//   Spreadsheet は一意制約を強制できないため、冪等性・追跡性のためサロゲート列を併設する。
-テーブル定義['T_会員_archive'] = テーブル定義['T_会員'].slice().concat(['アーカイブID', 'アーカイブ日時']);
-テーブル定義['T_事業所職員_archive'] = テーブル定義['T_事業所職員'].slice().concat(['アーカイブID', 'アーカイブ日時']);
 // v264: 公開ポータル変更申請テーブル（管理者承認待ちキュー）
 テーブル定義['T_変更申請'] = [
   '申請ID', '会員ID', '会員種別コード', '申請種別コード', '申請状態コード',
@@ -803,6 +796,24 @@ var テーブル定義 = {
   // v376.45: 依頼者/投稿者の表示名をデノーマライズ（read 時 lookup 不要）
   '作成者名', '投稿マーク者名',
 ];
+
+// ── 会員系削除の cascade アーカイブ（docs/249・a1 単一化モデル）───────────────
+// v259/v376.36 の T_会員/T_事業所職員 の2本から、会員系13テーブルへ拡張（v376.52）。
+// 削除時は live から行を除去し、元テーブルと同スキーマ + サロゲート3列の archive へ「移動」する。
+// - アーカイブID: 行個別の一意キー（UUID。Spreadsheet は一意制約を強制できないため冪等性・追跡性用）
+// - 削除バッチID: T_削除ログ の ログID。復元は「同一 削除バッチID の全行を戻す」＝会員単位でアトミック
+// - アーカイブ日時: 移動時刻 ISO
+// 注意: T_ログイン履歴 は archive せず物理 purge（高volume・PII 最小化。docs/249 §4.1）。
+var ARCHIVE_SURROGATE_COLUMNS = ['アーカイブID', '削除バッチID', 'アーカイブ日時'];
+var ARCHIVE_SOURCE_TABLES = [
+  'T_会員', 'T_事業所職員', 'T_認証アカウント', 'T_管理者Googleホワイトリスト',
+  'T_研修申込', 'T_年会費納入履歴', 'T_年会費更新履歴', 'T_役員',
+  'T_振込口座', 'T_支払い', 'T_支払い明細', 'T_請求', 'T_変更申請',
+];
+for (var archiveSrcIdx = 0; archiveSrcIdx < ARCHIVE_SOURCE_TABLES.length; archiveSrcIdx += 1) {
+  var archiveSrcName = ARCHIVE_SOURCE_TABLES[archiveSrcIdx];
+  テーブル定義[archiveSrcName + '_archive'] = テーブル定義[archiveSrcName].slice().concat(ARCHIVE_SURROGATE_COLUMNS);
+}
 
 var 入力規則定義 = [
   ['T_会員', '会員種別コード', 'M_会員種別'],
@@ -14370,8 +14381,12 @@ function initializeSchema_(ss) {
   critical('normalize T_ログイン履歴',            function() { normalizeTableColumns_(ss, 'T_ログイン履歴'); });
   critical('normalize T_研修申込',                function() { normalizeTableColumns_(ss, 'T_研修申込'); });
   critical('normalize T_監査ログ',                function() { normalizeTableColumns_(ss, 'T_監査ログ'); });
-  critical('normalize T_会員_archive',            function() { normalizeTableColumns_(ss, 'T_会員_archive'); });
-  critical('normalize T_事業所職員_archive',      function() { normalizeTableColumns_(ss, 'T_事業所職員_archive'); });
+  // v376.52: cascade アーカイブ13本（docs/249）。ARCHIVE_SOURCE_TABLES を単一情報源にループ整備
+  critical('normalize *_archive (13)',            function() {
+    for (var ai = 0; ai < ARCHIVE_SOURCE_TABLES.length; ai += 1) {
+      normalizeTableColumns_(ss, ARCHIVE_SOURCE_TABLES[ai] + '_archive');
+    }
+  });
   critical('normalize T_変更申請',                function() { normalizeTableColumns_(ss, 'T_変更申請'); });
   critical('normalize T_人物統合ログ',            function() { normalizeTableColumns_(ss, 'T_人物統合ログ'); });
   critical('normalize T_役員',                    function() { normalizeTableColumns_(ss, 'T_役員'); });

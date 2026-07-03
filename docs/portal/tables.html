@@ -321,12 +321,13 @@ footer {
   <a href="tables.html">📊 テーブル設計書</a>
   <a href="er-diagram.html">🗂️ ER ドメイン</a>
   <a href="dbml-export.html">🚀 DBML 出力</a>
+  <a href="248_third_party_evaluation_2026-07-01.html">🔍 第三者評価(2026-07)</a>
 </nav>
 
 <div class="hero">
   <h1>📊 テーブル設計書（理路整然版）</h1>
   <p>各テーブルの列定義 + FK 関係を整理された形式で表示します。Mermaid ER 図の線が絡まる問題を回避した、参照用の正規ビューです。</p>
-  <p style="margin-top: 8px; font-size: 0.88em; opacity: 0.85;">📌 全 46 テーブル | 全 48 リレーション</p>
+  <p style="margin-top: 8px; font-size: 0.88em; opacity: 0.85;">📌 全 57 テーブル | 全 61 リレーション</p>
 </div>
 
 <section class="card">
@@ -347,9 +348,9 @@ footer {
     </div>
   
     <div style="margin-bottom: 12px;">
-      <h3 style="margin: 0 0 6px; color: var(--warm);">アーカイブシート（メインDB内・退会会員移動先。元テーブルと同スキーマ + サロゲート列）</h3>
+      <h3 style="margin: 0 0 6px; color: var(--warm);">アーカイブシート（メインDB内・削除cascade退避先。元テーブルと同スキーマ + サロゲート3列。docs/249）</h3>
       <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-        <a href="#tbl-T_会員_archive" class="toc-tag">T_会員_archive</a><a href="#tbl-T_事業所職員_archive" class="toc-tag">T_事業所職員_archive</a>
+        <a href="#tbl-T_会員_archive" class="toc-tag">T_会員_archive</a><a href="#tbl-T_事業所職員_archive" class="toc-tag">T_事業所職員_archive</a><a href="#tbl-T_認証アカウント_archive" class="toc-tag">T_認証アカウント_archive</a><a href="#tbl-T_管理者Googleホワイトリスト_archive" class="toc-tag">T_管理者Googleホワイトリスト_archive</a><a href="#tbl-T_研修申込_archive" class="toc-tag">T_研修申込_archive</a><a href="#tbl-T_年会費納入履歴_archive" class="toc-tag">T_年会費納入履歴_archive</a><a href="#tbl-T_年会費更新履歴_archive" class="toc-tag">T_年会費更新履歴_archive</a><a href="#tbl-T_役員_archive" class="toc-tag">T_役員_archive</a><a href="#tbl-T_振込口座_archive" class="toc-tag">T_振込口座_archive</a><a href="#tbl-T_支払い_archive" class="toc-tag">T_支払い_archive</a><a href="#tbl-T_支払い明細_archive" class="toc-tag">T_支払い明細_archive</a><a href="#tbl-T_請求_archive" class="toc-tag">T_請求_archive</a><a href="#tbl-T_変更申請_archive" class="toc-tag">T_変更申請_archive</a>
       </div>
     </div>
   
@@ -2767,12 +2768,12 @@ footer {
     </div>
   </div>
   
-    <h2 style="color: var(--warm); margin: 36px 0 16px; border-bottom: 2px solid var(--warm); padding-bottom: 6px;">アーカイブシート（メインDB内・退会会員移動先。元テーブルと同スキーマ + サロゲート列）</h2>
+    <h2 style="color: var(--warm); margin: 36px 0 16px; border-bottom: 2px solid var(--warm); padding-bottom: 6px;">アーカイブシート（メインDB内・削除cascade退避先。元テーブルと同スキーマ + サロゲート3列。docs/249）</h2>
     
   <div class="tbl-card" id="tbl-T_会員_archive">
     <div class="tbl-card-head">
       <h4>T_会員_archive</h4>
-      <span class="col-count">37 列</span>
+      <span class="col-count">38 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -2922,6 +2923,10 @@ footer {
       <td class="col-type">string</td>
       <td><span class="key-pk">PK</span></td>
     </tr><tr>
+      <td class="col-name">削除バッチID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-fk">FK</span></td>
+    </tr><tr>
       <td class="col-name">アーカイブ日時</td>
       <td class="col-type">datetime</td>
       <td></td>
@@ -2932,15 +2937,19 @@ footer {
         <span style="color: var(--muted); font-size: 0.85em;">なし</span>
       </div>
       <div class="tbl-rel-section">
-        <h5>📤 このテーブルが参照する側 (0)</h5>
-        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+        <h5>📤 このテーブルが参照する側 (1)</h5>
+        <span class="tbl-rel-item">
+      <span class="card">}o--o|</span>
+      <a href="#tbl-T_削除ログ">T_削除ログ</a>
+      <span class="lbl">削除バッチID</span>
+    </span>
       </div>
     </div>
   </div>
   <div class="tbl-card" id="tbl-T_事業所職員_archive">
     <div class="tbl-card-head">
       <h4>T_事業所職員_archive</h4>
-      <span class="col-count">20 列</span>
+      <span class="col-count">21 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -3022,6 +3031,10 @@ footer {
       <td class="col-type">string</td>
       <td><span class="key-pk">PK</span></td>
     </tr><tr>
+      <td class="col-name">削除バッチID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-fk">FK</span></td>
+    </tr><tr>
       <td class="col-name">アーカイブ日時</td>
       <td class="col-type">datetime</td>
       <td></td>
@@ -3032,8 +3045,1016 @@ footer {
         <span style="color: var(--muted); font-size: 0.85em;">なし</span>
       </div>
       <div class="tbl-rel-section">
-        <h5>📤 このテーブルが参照する側 (0)</h5>
+        <h5>📤 このテーブルが参照する側 (1)</h5>
+        <span class="tbl-rel-item">
+      <span class="card">}o--o|</span>
+      <a href="#tbl-T_削除ログ">T_削除ログ</a>
+      <span class="lbl">削除バッチID</span>
+    </span>
+      </div>
+    </div>
+  </div>
+  <div class="tbl-card" id="tbl-T_認証アカウント_archive">
+    <div class="tbl-card-head">
+      <h4>T_認証アカウント_archive</h4>
+      <span class="col-count">21 列</span>
+    </div>
+    <div class="tbl-card-body">
+      <table>
+        <thead><tr><th>列名</th><th>型</th><th>キー</th></tr></thead>
+        <tbody><tr>
+      <td class="col-name">認証ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">認証方式</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">ログインID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">パスワードハッシュ</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">パスワードソルト</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">GoogleユーザーID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">Googleメール</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">システムロールコード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">会員ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">職員ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">最終ログイン日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">パスワード更新日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">アカウント有効フラグ</td>
+      <td class="col-type">boolean</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">ログイン失敗回数</td>
+      <td class="col-type">int</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">ロック状態</td>
+      <td class="col-type">boolean</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">作成日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">更新日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">削除フラグ</td>
+      <td class="col-type">boolean</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">アーカイブID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-pk">PK</span></td>
+    </tr><tr>
+      <td class="col-name">削除バッチID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-fk">FK</span></td>
+    </tr><tr>
+      <td class="col-name">アーカイブ日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr></tbody>
+      </table>
+      <div class="tbl-rel-section">
+        <h5>📥 このテーブルを参照する側 (0)</h5>
         <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+      </div>
+      <div class="tbl-rel-section">
+        <h5>📤 このテーブルが参照する側 (1)</h5>
+        <span class="tbl-rel-item">
+      <span class="card">}o--o|</span>
+      <a href="#tbl-T_削除ログ">T_削除ログ</a>
+      <span class="lbl">削除バッチID</span>
+    </span>
+      </div>
+    </div>
+  </div>
+  <div class="tbl-card" id="tbl-T_管理者Googleホワイトリスト_archive">
+    <div class="tbl-card-head">
+      <h4>T_管理者Googleホワイトリスト_archive</h4>
+      <span class="col-count">15 列</span>
+    </div>
+    <div class="tbl-card-body">
+      <table>
+        <thead><tr><th>列名</th><th>型</th><th>キー</th></tr></thead>
+        <tbody><tr>
+      <td class="col-name">ホワイトリストID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">Googleメール</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">紐付け認証ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">紐付け会員ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">権限コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">ロールID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">有効フラグ</td>
+      <td class="col-type">boolean</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">変更者メール</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">変更日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">作成日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">更新日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">削除フラグ</td>
+      <td class="col-type">boolean</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">アーカイブID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-pk">PK</span></td>
+    </tr><tr>
+      <td class="col-name">削除バッチID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-fk">FK</span></td>
+    </tr><tr>
+      <td class="col-name">アーカイブ日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr></tbody>
+      </table>
+      <div class="tbl-rel-section">
+        <h5>📥 このテーブルを参照する側 (0)</h5>
+        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+      </div>
+      <div class="tbl-rel-section">
+        <h5>📤 このテーブルが参照する側 (1)</h5>
+        <span class="tbl-rel-item">
+      <span class="card">}o--o|</span>
+      <a href="#tbl-T_削除ログ">T_削除ログ</a>
+      <span class="lbl">削除バッチID</span>
+    </span>
+      </div>
+    </div>
+  </div>
+  <div class="tbl-card" id="tbl-T_研修申込_archive">
+    <div class="tbl-card-head">
+      <h4>T_研修申込_archive</h4>
+      <span class="col-count">21 列</span>
+    </div>
+    <div class="tbl-card-body">
+      <table>
+        <thead><tr><th>列名</th><th>型</th><th>キー</th></tr></thead>
+        <tbody><tr>
+      <td class="col-name">申込ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">研修ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">会員ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">職員ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">申込状態コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">申込日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">取消日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">備考</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">申込者区分コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">申込者ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">作成日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">更新日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">削除フラグ</td>
+      <td class="col-type">boolean</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">外部申込者ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">出欠状態コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">出欠記録日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">出欠記録者メール</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">事務局メモ</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">アーカイブID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-pk">PK</span></td>
+    </tr><tr>
+      <td class="col-name">削除バッチID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-fk">FK</span></td>
+    </tr><tr>
+      <td class="col-name">アーカイブ日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr></tbody>
+      </table>
+      <div class="tbl-rel-section">
+        <h5>📥 このテーブルを参照する側 (0)</h5>
+        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+      </div>
+      <div class="tbl-rel-section">
+        <h5>📤 このテーブルが参照する側 (1)</h5>
+        <span class="tbl-rel-item">
+      <span class="card">}o--o|</span>
+      <a href="#tbl-T_削除ログ">T_削除ログ</a>
+      <span class="lbl">削除バッチID</span>
+    </span>
+      </div>
+    </div>
+  </div>
+  <div class="tbl-card" id="tbl-T_年会費納入履歴_archive">
+    <div class="tbl-card-head">
+      <h4>T_年会費納入履歴_archive</h4>
+      <span class="col-count">13 列</span>
+    </div>
+    <div class="tbl-card-body">
+      <table>
+        <thead><tr><th>列名</th><th>型</th><th>キー</th></tr></thead>
+        <tbody><tr>
+      <td class="col-name">年会費履歴ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">会員ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">対象年度</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">会費納入状態コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">納入確認日</td>
+      <td class="col-type">date</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">金額</td>
+      <td class="col-type">int</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">備考</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">作成日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">更新日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">削除フラグ</td>
+      <td class="col-type">boolean</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">アーカイブID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-pk">PK</span></td>
+    </tr><tr>
+      <td class="col-name">削除バッチID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-fk">FK</span></td>
+    </tr><tr>
+      <td class="col-name">アーカイブ日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr></tbody>
+      </table>
+      <div class="tbl-rel-section">
+        <h5>📥 このテーブルを参照する側 (0)</h5>
+        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+      </div>
+      <div class="tbl-rel-section">
+        <h5>📤 このテーブルが参照する側 (1)</h5>
+        <span class="tbl-rel-item">
+      <span class="card">}o--o|</span>
+      <a href="#tbl-T_削除ログ">T_削除ログ</a>
+      <span class="lbl">削除バッチID</span>
+    </span>
+      </div>
+    </div>
+  </div>
+  <div class="tbl-card" id="tbl-T_年会費更新履歴_archive">
+    <div class="tbl-card-head">
+      <h4>T_年会費更新履歴_archive</h4>
+      <span class="col-count">12 列</span>
+    </div>
+    <div class="tbl-card-body">
+      <table>
+        <thead><tr><th>列名</th><th>型</th><th>キー</th></tr></thead>
+        <tbody><tr>
+      <td class="col-name">年会費更新履歴ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">年会費履歴ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">会員ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">対象年度</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">操作種別</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">更新前JSON</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">更新後JSON</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">実行者メール</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">実行日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">アーカイブID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-pk">PK</span></td>
+    </tr><tr>
+      <td class="col-name">削除バッチID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-fk">FK</span></td>
+    </tr><tr>
+      <td class="col-name">アーカイブ日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr></tbody>
+      </table>
+      <div class="tbl-rel-section">
+        <h5>📥 このテーブルを参照する側 (0)</h5>
+        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+      </div>
+      <div class="tbl-rel-section">
+        <h5>📤 このテーブルが参照する側 (1)</h5>
+        <span class="tbl-rel-item">
+      <span class="card">}o--o|</span>
+      <a href="#tbl-T_削除ログ">T_削除ログ</a>
+      <span class="lbl">削除バッチID</span>
+    </span>
+      </div>
+    </div>
+  </div>
+  <div class="tbl-card" id="tbl-T_役員_archive">
+    <div class="tbl-card-head">
+      <h4>T_役員_archive</h4>
+      <span class="col-count">14 列</span>
+    </div>
+    <div class="tbl-card-body">
+      <table>
+        <thead><tr><th>列名</th><th>型</th><th>キー</th></tr></thead>
+        <tbody><tr>
+      <td class="col-name">役員ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">会員ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">職員ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">役職コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">組織コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">就任日</td>
+      <td class="col-type">date</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">退任日</td>
+      <td class="col-type">date</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">備考</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">削除フラグ</td>
+      <td class="col-type">boolean</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">作成日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">更新日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">アーカイブID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-pk">PK</span></td>
+    </tr><tr>
+      <td class="col-name">削除バッチID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-fk">FK</span></td>
+    </tr><tr>
+      <td class="col-name">アーカイブ日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr></tbody>
+      </table>
+      <div class="tbl-rel-section">
+        <h5>📥 このテーブルを参照する側 (0)</h5>
+        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+      </div>
+      <div class="tbl-rel-section">
+        <h5>📤 このテーブルが参照する側 (1)</h5>
+        <span class="tbl-rel-item">
+      <span class="card">}o--o|</span>
+      <a href="#tbl-T_削除ログ">T_削除ログ</a>
+      <span class="lbl">削除バッチID</span>
+    </span>
+      </div>
+    </div>
+  </div>
+  <div class="tbl-card" id="tbl-T_振込口座_archive">
+    <div class="tbl-card-head">
+      <h4>T_振込口座_archive</h4>
+      <span class="col-count">17 列</span>
+    </div>
+    <div class="tbl-card-body">
+      <table>
+        <thead><tr><th>列名</th><th>型</th><th>キー</th></tr></thead>
+        <tbody><tr>
+      <td class="col-name">口座ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">会員ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">職員ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">金融機関名</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">金融機関コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">支店名</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">支店コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">口座種別</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">口座番号</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">口座名義カナ</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">備考</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">削除フラグ</td>
+      <td class="col-type">boolean</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">作成日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">更新日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">アーカイブID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-pk">PK</span></td>
+    </tr><tr>
+      <td class="col-name">削除バッチID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-fk">FK</span></td>
+    </tr><tr>
+      <td class="col-name">アーカイブ日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr></tbody>
+      </table>
+      <div class="tbl-rel-section">
+        <h5>📥 このテーブルを参照する側 (0)</h5>
+        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+      </div>
+      <div class="tbl-rel-section">
+        <h5>📤 このテーブルが参照する側 (1)</h5>
+        <span class="tbl-rel-item">
+      <span class="card">}o--o|</span>
+      <a href="#tbl-T_削除ログ">T_削除ログ</a>
+      <span class="lbl">削除バッチID</span>
+    </span>
+      </div>
+    </div>
+  </div>
+  <div class="tbl-card" id="tbl-T_支払い_archive">
+    <div class="tbl-card-head">
+      <h4>T_支払い_archive</h4>
+      <span class="col-count">14 列</span>
+    </div>
+    <div class="tbl-card-body">
+      <table>
+        <thead><tr><th>列名</th><th>型</th><th>キー</th></tr></thead>
+        <tbody><tr>
+      <td class="col-name">支払いID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">会員ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">支払い日</td>
+      <td class="col-type">date</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">支払い方法</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">合計金額</td>
+      <td class="col-type">int</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">振込先口座JSON</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">登録者メール</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">備考</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">削除フラグ</td>
+      <td class="col-type">boolean</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">作成日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">更新日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">アーカイブID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-pk">PK</span></td>
+    </tr><tr>
+      <td class="col-name">削除バッチID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-fk">FK</span></td>
+    </tr><tr>
+      <td class="col-name">アーカイブ日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr></tbody>
+      </table>
+      <div class="tbl-rel-section">
+        <h5>📥 このテーブルを参照する側 (0)</h5>
+        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+      </div>
+      <div class="tbl-rel-section">
+        <h5>📤 このテーブルが参照する側 (1)</h5>
+        <span class="tbl-rel-item">
+      <span class="card">}o--o|</span>
+      <a href="#tbl-T_削除ログ">T_削除ログ</a>
+      <span class="lbl">削除バッチID</span>
+    </span>
+      </div>
+    </div>
+  </div>
+  <div class="tbl-card" id="tbl-T_支払い明細_archive">
+    <div class="tbl-card-head">
+      <h4>T_支払い明細_archive</h4>
+      <span class="col-count">16 列</span>
+    </div>
+    <div class="tbl-card-body">
+      <table>
+        <thead><tr><th>列名</th><th>型</th><th>キー</th></tr></thead>
+        <tbody><tr>
+      <td class="col-name">明細ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">支払いID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">請求ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">役職コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">組織コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">種別コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">金額</td>
+      <td class="col-type">int</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">対象期間FROM</td>
+      <td class="col-type">date</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">対象期間TO</td>
+      <td class="col-type">date</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">摘要</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">削除フラグ</td>
+      <td class="col-type">boolean</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">作成日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">更新日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">アーカイブID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-pk">PK</span></td>
+    </tr><tr>
+      <td class="col-name">削除バッチID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-fk">FK</span></td>
+    </tr><tr>
+      <td class="col-name">アーカイブ日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr></tbody>
+      </table>
+      <div class="tbl-rel-section">
+        <h5>📥 このテーブルを参照する側 (0)</h5>
+        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+      </div>
+      <div class="tbl-rel-section">
+        <h5>📤 このテーブルが参照する側 (1)</h5>
+        <span class="tbl-rel-item">
+      <span class="card">}o--o|</span>
+      <a href="#tbl-T_削除ログ">T_削除ログ</a>
+      <span class="lbl">削除バッチID</span>
+    </span>
+      </div>
+    </div>
+  </div>
+  <div class="tbl-card" id="tbl-T_請求_archive">
+    <div class="tbl-card-head">
+      <h4>T_請求_archive</h4>
+      <span class="col-count">24 列</span>
+    </div>
+    <div class="tbl-card-body">
+      <table>
+        <thead><tr><th>列名</th><th>型</th><th>キー</th></tr></thead>
+        <tbody><tr>
+      <td class="col-name">請求ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">会員ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">職員ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">役職コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">組織コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">種別コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">請求種別</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">業務分類コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">単価</td>
+      <td class="col-type">int</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">数量</td>
+      <td class="col-type">int</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">請求金額</td>
+      <td class="col-type">int</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">活動日</td>
+      <td class="col-type">date</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">活動内容</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">添付ファイルURL</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">請求状態</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">却下理由</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">承認者メール</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">承認日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">削除フラグ</td>
+      <td class="col-type">boolean</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">作成日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">更新日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">アーカイブID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-pk">PK</span></td>
+    </tr><tr>
+      <td class="col-name">削除バッチID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-fk">FK</span></td>
+    </tr><tr>
+      <td class="col-name">アーカイブ日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr></tbody>
+      </table>
+      <div class="tbl-rel-section">
+        <h5>📥 このテーブルを参照する側 (0)</h5>
+        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+      </div>
+      <div class="tbl-rel-section">
+        <h5>📤 このテーブルが参照する側 (1)</h5>
+        <span class="tbl-rel-item">
+      <span class="card">}o--o|</span>
+      <a href="#tbl-T_削除ログ">T_削除ログ</a>
+      <span class="lbl">削除バッチID</span>
+    </span>
+      </div>
+    </div>
+  </div>
+  <div class="tbl-card" id="tbl-T_変更申請_archive">
+    <div class="tbl-card-head">
+      <h4>T_変更申請_archive</h4>
+      <span class="col-count">18 列</span>
+    </div>
+    <div class="tbl-card-body">
+      <table>
+        <thead><tr><th>列名</th><th>型</th><th>キー</th></tr></thead>
+        <tbody><tr>
+      <td class="col-name">申請ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">会員ID</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">会員種別コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">申請種別コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">申請状態コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">申請内容JSON</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">連絡先メールアドレス</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">申請者表示名</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">申請日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">処理日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">処理者メールアドレス</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">処理備考</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">作成日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">更新日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">削除フラグ</td>
+      <td class="col-type">boolean</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">アーカイブID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-pk">PK</span></td>
+    </tr><tr>
+      <td class="col-name">削除バッチID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-fk">FK</span></td>
+    </tr><tr>
+      <td class="col-name">アーカイブ日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr></tbody>
+      </table>
+      <div class="tbl-rel-section">
+        <h5>📥 このテーブルを参照する側 (0)</h5>
+        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+      </div>
+      <div class="tbl-rel-section">
+        <h5>📤 このテーブルが参照する側 (1)</h5>
+        <span class="tbl-rel-item">
+      <span class="card">}o--o|</span>
+      <a href="#tbl-T_削除ログ">T_削除ログ</a>
+      <span class="lbl">削除バッチID</span>
+    </span>
       </div>
     </div>
   </div>
@@ -3442,8 +4463,60 @@ footer {
     </tr></tbody>
       </table>
       <div class="tbl-rel-section">
-        <h5>📥 このテーブルを参照する側 (0)</h5>
-        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+        <h5>📥 このテーブルを参照する側 (13)</h5>
+        <span class="tbl-rel-item">
+      <a href="#tbl-T_会員_archive">T_会員_archive</a>
+      <span class="card">}o--o|</span>
+      <span class="lbl">削除バッチID</span>
+    </span><span class="tbl-rel-item">
+      <a href="#tbl-T_事業所職員_archive">T_事業所職員_archive</a>
+      <span class="card">}o--o|</span>
+      <span class="lbl">削除バッチID</span>
+    </span><span class="tbl-rel-item">
+      <a href="#tbl-T_認証アカウント_archive">T_認証アカウント_archive</a>
+      <span class="card">}o--o|</span>
+      <span class="lbl">削除バッチID</span>
+    </span><span class="tbl-rel-item">
+      <a href="#tbl-T_管理者Googleホワイトリスト_archive">T_管理者Googleホワイトリスト_archive</a>
+      <span class="card">}o--o|</span>
+      <span class="lbl">削除バッチID</span>
+    </span><span class="tbl-rel-item">
+      <a href="#tbl-T_研修申込_archive">T_研修申込_archive</a>
+      <span class="card">}o--o|</span>
+      <span class="lbl">削除バッチID</span>
+    </span><span class="tbl-rel-item">
+      <a href="#tbl-T_年会費納入履歴_archive">T_年会費納入履歴_archive</a>
+      <span class="card">}o--o|</span>
+      <span class="lbl">削除バッチID</span>
+    </span><span class="tbl-rel-item">
+      <a href="#tbl-T_年会費更新履歴_archive">T_年会費更新履歴_archive</a>
+      <span class="card">}o--o|</span>
+      <span class="lbl">削除バッチID</span>
+    </span><span class="tbl-rel-item">
+      <a href="#tbl-T_役員_archive">T_役員_archive</a>
+      <span class="card">}o--o|</span>
+      <span class="lbl">削除バッチID</span>
+    </span><span class="tbl-rel-item">
+      <a href="#tbl-T_振込口座_archive">T_振込口座_archive</a>
+      <span class="card">}o--o|</span>
+      <span class="lbl">削除バッチID</span>
+    </span><span class="tbl-rel-item">
+      <a href="#tbl-T_支払い_archive">T_支払い_archive</a>
+      <span class="card">}o--o|</span>
+      <span class="lbl">削除バッチID</span>
+    </span><span class="tbl-rel-item">
+      <a href="#tbl-T_支払い明細_archive">T_支払い明細_archive</a>
+      <span class="card">}o--o|</span>
+      <span class="lbl">削除バッチID</span>
+    </span><span class="tbl-rel-item">
+      <a href="#tbl-T_請求_archive">T_請求_archive</a>
+      <span class="card">}o--o|</span>
+      <span class="lbl">削除バッチID</span>
+    </span><span class="tbl-rel-item">
+      <a href="#tbl-T_変更申請_archive">T_変更申請_archive</a>
+      <span class="card">}o--o|</span>
+      <span class="lbl">削除バッチID</span>
+    </span>
       </div>
       <div class="tbl-rel-section">
         <h5>📤 このテーブルが参照する側 (0)</h5>
@@ -3703,7 +4776,7 @@ footer {
 
 
 <footer>
-  生成: 2026-06-26 | scripts/build-docs-portal.mjs より自動生成 | AGENTS.md §4.6 準拠
+  生成: 2026-07-03 | scripts/build-docs-portal.mjs より自動生成 | AGENTS.md §4.6 準拠
 </footer>
 
 </div>

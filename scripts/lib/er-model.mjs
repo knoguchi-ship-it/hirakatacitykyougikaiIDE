@@ -43,6 +43,19 @@ export function extractTableDefs(gasSrcPath) {
     const base = defs[m[2]] || [];
     defs[m[1]] = base.concat(colsFromBody(m[3]));
   }
+
+  // 4) v376.52 cascade アーカイブ生成ループ（docs/249）:
+  //    gas-src は ARCHIVE_SOURCE_TABLES（単一情報源）を for ループで展開して
+  //    SRC_archive = SRC 列 + ARCHIVE_SURROGATE_COLUMNS を定義する。
+  //    ここでは同じ2配列を静的に読んで同一の展開を再現する。
+  const surrM = src.match(/var ARCHIVE_SURROGATE_COLUMNS\s*=\s*\[([\s\S]*?)\];/);
+  const srcsM = src.match(/var ARCHIVE_SOURCE_TABLES\s*=\s*\[([\s\S]*?)\];/);
+  if (surrM && srcsM) {
+    const surrogate = colsFromBody(surrM[1]);
+    for (const name of colsFromBody(srcsM[1])) {
+      if (defs[name]) defs[name + '_archive'] = defs[name].concat(surrogate);
+    }
+  }
   return defs;
 }
 

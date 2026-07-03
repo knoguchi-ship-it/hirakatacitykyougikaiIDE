@@ -309,6 +309,7 @@ footer {
   <a href="tables.html">📊 テーブル設計書</a>
   <a href="er-diagram.html">🗂️ ER ドメイン</a>
   <a href="dbml-export.html">🚀 DBML 出力</a>
+  <a href="248_third_party_evaluation_2026-07-01.html">🔍 第三者評価(2026-07)</a>
 </nav>
 
 <div class="hero">
@@ -324,7 +325,7 @@ footer {
     <button class="copy-btn" onclick="copyDbml()">📋 全文コピー</button>
     <pre id="dbml-src">// 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能
 // 元: docs/03_DATA_MODEL.md
-// 生成日時: 2026-06-26T05:16:07.584Z
+// 生成日時: 2026-07-03T00:26:53.780Z
 
 Project hcmn_member_system {
   database_type: &quot;Google Spreadsheet (logical)&quot;
@@ -598,6 +599,7 @@ Table &quot;T_事業所職員_archive&quot; {
   &quot;更新日時&quot; timestamp
   &quot;削除フラグ&quot; boolean
   &quot;アーカイブID&quot; varchar [pk]
+  &quot;削除バッチID&quot; varchar [note: &#39;FK&#39;]
   &quot;アーカイブ日時&quot; timestamp
 }
 
@@ -692,6 +694,7 @@ Table &quot;T_会員_archive&quot; {
   &quot;事業所番号&quot; varchar
   &quot;ステータスメモ&quot; varchar
   &quot;アーカイブID&quot; varchar [pk]
+  &quot;削除バッチID&quot; varchar [note: &#39;FK&#39;]
   &quot;アーカイブ日時&quot; timestamp
 }
 
@@ -730,6 +733,27 @@ Table &quot;T_変更申請&quot; {
   &quot;削除フラグ&quot; boolean
 }
 
+Table &quot;T_変更申請_archive&quot; {
+  &quot;申請ID&quot; varchar
+  &quot;会員ID&quot; varchar
+  &quot;会員種別コード&quot; varchar
+  &quot;申請種別コード&quot; varchar
+  &quot;申請状態コード&quot; varchar
+  &quot;申請内容JSON&quot; varchar
+  &quot;連絡先メールアドレス&quot; varchar
+  &quot;申請者表示名&quot; varchar
+  &quot;申請日時&quot; timestamp
+  &quot;処理日時&quot; timestamp
+  &quot;処理者メールアドレス&quot; varchar
+  &quot;処理備考&quot; varchar
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+  &quot;削除フラグ&quot; boolean
+  &quot;アーカイブID&quot; varchar [pk]
+  &quot;削除バッチID&quot; varchar [note: &#39;FK&#39;]
+  &quot;アーカイブ日時&quot; timestamp
+}
+
 Table &quot;T_外部申込者&quot; {
   &quot;外部申込者ID&quot; varchar [pk]
   &quot;氏名&quot; varchar
@@ -755,6 +779,21 @@ Table &quot;T_年会費更新履歴&quot; {
   &quot;実行日時&quot; timestamp
 }
 
+Table &quot;T_年会費更新履歴_archive&quot; {
+  &quot;年会費更新履歴ID&quot; varchar
+  &quot;年会費履歴ID&quot; varchar
+  &quot;会員ID&quot; varchar
+  &quot;対象年度&quot; varchar
+  &quot;操作種別&quot; varchar
+  &quot;更新前JSON&quot; varchar
+  &quot;更新後JSON&quot; varchar
+  &quot;実行者メール&quot; varchar
+  &quot;実行日時&quot; timestamp
+  &quot;アーカイブID&quot; varchar [pk]
+  &quot;削除バッチID&quot; varchar [note: &#39;FK&#39;]
+  &quot;アーカイブ日時&quot; timestamp
+}
+
 Table &quot;T_年会費納入履歴&quot; {
   &quot;年会費履歴ID&quot; varchar [pk]
   &quot;会員ID&quot; varchar [note: &#39;FK&#39;]
@@ -766,6 +805,22 @@ Table &quot;T_年会費納入履歴&quot; {
   &quot;作成日時&quot; timestamp
   &quot;更新日時&quot; timestamp
   &quot;削除フラグ&quot; boolean
+}
+
+Table &quot;T_年会費納入履歴_archive&quot; {
+  &quot;年会費履歴ID&quot; varchar
+  &quot;会員ID&quot; varchar
+  &quot;対象年度&quot; varchar
+  &quot;会費納入状態コード&quot; varchar
+  &quot;納入確認日&quot; date
+  &quot;金額&quot; int
+  &quot;備考&quot; varchar
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+  &quot;削除フラグ&quot; boolean
+  &quot;アーカイブID&quot; varchar [pk]
+  &quot;削除バッチID&quot; varchar [note: &#39;FK&#39;]
+  &quot;アーカイブ日時&quot; timestamp
 }
 
 Table &quot;T_役員&quot; {
@@ -780,6 +835,23 @@ Table &quot;T_役員&quot; {
   &quot;削除フラグ&quot; boolean
   &quot;作成日時&quot; timestamp
   &quot;更新日時&quot; timestamp
+}
+
+Table &quot;T_役員_archive&quot; {
+  &quot;役員ID&quot; varchar
+  &quot;会員ID&quot; varchar
+  &quot;職員ID&quot; varchar
+  &quot;役職コード&quot; varchar
+  &quot;組織コード&quot; varchar
+  &quot;就任日&quot; date
+  &quot;退任日&quot; date
+  &quot;備考&quot; varchar
+  &quot;削除フラグ&quot; boolean
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+  &quot;アーカイブID&quot; varchar [pk]
+  &quot;削除バッチID&quot; varchar [note: &#39;FK&#39;]
+  &quot;アーカイブ日時&quot; timestamp
 }
 
 Table &quot;T_振込口座&quot; {
@@ -799,6 +871,26 @@ Table &quot;T_振込口座&quot; {
   &quot;更新日時&quot; timestamp
 }
 
+Table &quot;T_振込口座_archive&quot; {
+  &quot;口座ID&quot; varchar
+  &quot;会員ID&quot; varchar
+  &quot;職員ID&quot; varchar
+  &quot;金融機関名&quot; varchar
+  &quot;金融機関コード&quot; varchar
+  &quot;支店名&quot; varchar
+  &quot;支店コード&quot; varchar
+  &quot;口座種別&quot; varchar
+  &quot;口座番号&quot; varchar
+  &quot;口座名義カナ&quot; varchar
+  &quot;備考&quot; varchar
+  &quot;削除フラグ&quot; boolean
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+  &quot;アーカイブID&quot; varchar [pk]
+  &quot;削除バッチID&quot; varchar [note: &#39;FK&#39;]
+  &quot;アーカイブ日時&quot; timestamp
+}
+
 Table &quot;T_支払い&quot; {
   &quot;支払いID&quot; varchar [pk]
   &quot;会員ID&quot; varchar [note: &#39;FK&#39;]
@@ -811,6 +903,23 @@ Table &quot;T_支払い&quot; {
   &quot;削除フラグ&quot; boolean
   &quot;作成日時&quot; timestamp
   &quot;更新日時&quot; timestamp
+}
+
+Table &quot;T_支払い_archive&quot; {
+  &quot;支払いID&quot; varchar
+  &quot;会員ID&quot; varchar
+  &quot;支払い日&quot; date
+  &quot;支払い方法&quot; varchar
+  &quot;合計金額&quot; int
+  &quot;振込先口座JSON&quot; varchar
+  &quot;登録者メール&quot; varchar
+  &quot;備考&quot; varchar
+  &quot;削除フラグ&quot; boolean
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+  &quot;アーカイブID&quot; varchar [pk]
+  &quot;削除バッチID&quot; varchar [note: &#39;FK&#39;]
+  &quot;アーカイブ日時&quot; timestamp
 }
 
 Table &quot;T_支払い明細&quot; {
@@ -827,6 +936,25 @@ Table &quot;T_支払い明細&quot; {
   &quot;削除フラグ&quot; boolean
   &quot;作成日時&quot; timestamp
   &quot;更新日時&quot; timestamp
+}
+
+Table &quot;T_支払い明細_archive&quot; {
+  &quot;明細ID&quot; varchar
+  &quot;支払いID&quot; varchar
+  &quot;請求ID&quot; varchar
+  &quot;役職コード&quot; varchar
+  &quot;組織コード&quot; varchar
+  &quot;種別コード&quot; varchar
+  &quot;金額&quot; int
+  &quot;対象期間FROM&quot; date
+  &quot;対象期間TO&quot; date
+  &quot;摘要&quot; varchar
+  &quot;削除フラグ&quot; boolean
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+  &quot;アーカイブID&quot; varchar [pk]
+  &quot;削除バッチID&quot; varchar [note: &#39;FK&#39;]
+  &quot;アーカイブ日時&quot; timestamp
 }
 
 Table &quot;T_権限ロール&quot; {
@@ -917,6 +1045,30 @@ Table &quot;T_研修申込&quot; {
   &quot;事務局メモ&quot; varchar
 }
 
+Table &quot;T_研修申込_archive&quot; {
+  &quot;申込ID&quot; varchar
+  &quot;研修ID&quot; varchar
+  &quot;会員ID&quot; varchar
+  &quot;職員ID&quot; varchar
+  &quot;申込状態コード&quot; varchar
+  &quot;申込日時&quot; timestamp
+  &quot;取消日時&quot; timestamp
+  &quot;備考&quot; varchar
+  &quot;申込者区分コード&quot; varchar
+  &quot;申込者ID&quot; varchar
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+  &quot;削除フラグ&quot; boolean
+  &quot;外部申込者ID&quot; varchar
+  &quot;出欠状態コード&quot; varchar
+  &quot;出欠記録日時&quot; timestamp
+  &quot;出欠記録者メール&quot; varchar
+  &quot;事務局メモ&quot; varchar
+  &quot;アーカイブID&quot; varchar [pk]
+  &quot;削除バッチID&quot; varchar [note: &#39;FK&#39;]
+  &quot;アーカイブ日時&quot; timestamp
+}
+
 Table &quot;T_管理者Googleホワイトリスト&quot; {
   &quot;ホワイトリストID&quot; varchar [pk]
   &quot;Googleメール&quot; varchar
@@ -930,6 +1082,24 @@ Table &quot;T_管理者Googleホワイトリスト&quot; {
   &quot;作成日時&quot; timestamp
   &quot;更新日時&quot; timestamp
   &quot;削除フラグ&quot; boolean
+}
+
+Table &quot;T_管理者Googleホワイトリスト_archive&quot; {
+  &quot;ホワイトリストID&quot; varchar
+  &quot;Googleメール&quot; varchar
+  &quot;紐付け認証ID&quot; varchar
+  &quot;紐付け会員ID&quot; varchar
+  &quot;権限コード&quot; varchar
+  &quot;ロールID&quot; varchar
+  &quot;有効フラグ&quot; boolean
+  &quot;変更者メール&quot; varchar
+  &quot;変更日時&quot; timestamp
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+  &quot;削除フラグ&quot; boolean
+  &quot;アーカイブID&quot; varchar [pk]
+  &quot;削除バッチID&quot; varchar [note: &#39;FK&#39;]
+  &quot;アーカイブ日時&quot; timestamp
 }
 
 Table &quot;T_認証アカウント&quot; {
@@ -951,6 +1121,30 @@ Table &quot;T_認証アカウント&quot; {
   &quot;作成日時&quot; timestamp
   &quot;更新日時&quot; timestamp
   &quot;削除フラグ&quot; boolean
+}
+
+Table &quot;T_認証アカウント_archive&quot; {
+  &quot;認証ID&quot; varchar
+  &quot;認証方式&quot; varchar
+  &quot;ログインID&quot; varchar
+  &quot;パスワードハッシュ&quot; varchar
+  &quot;パスワードソルト&quot; varchar
+  &quot;GoogleユーザーID&quot; varchar
+  &quot;Googleメール&quot; varchar
+  &quot;システムロールコード&quot; varchar
+  &quot;会員ID&quot; varchar
+  &quot;職員ID&quot; varchar
+  &quot;最終ログイン日時&quot; timestamp
+  &quot;パスワード更新日時&quot; timestamp
+  &quot;アカウント有効フラグ&quot; boolean
+  &quot;ログイン失敗回数&quot; int
+  &quot;ロック状態&quot; boolean
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+  &quot;削除フラグ&quot; boolean
+  &quot;アーカイブID&quot; varchar [pk]
+  &quot;削除バッチID&quot; varchar [note: &#39;FK&#39;]
+  &quot;アーカイブ日時&quot; timestamp
 }
 
 Table &quot;T_請求&quot; {
@@ -975,6 +1169,33 @@ Table &quot;T_請求&quot; {
   &quot;削除フラグ&quot; boolean
   &quot;作成日時&quot; timestamp
   &quot;更新日時&quot; timestamp
+}
+
+Table &quot;T_請求_archive&quot; {
+  &quot;請求ID&quot; varchar
+  &quot;会員ID&quot; varchar
+  &quot;職員ID&quot; varchar
+  &quot;役職コード&quot; varchar
+  &quot;組織コード&quot; varchar
+  &quot;種別コード&quot; varchar
+  &quot;請求種別&quot; varchar
+  &quot;業務分類コード&quot; varchar
+  &quot;単価&quot; int
+  &quot;数量&quot; int
+  &quot;請求金額&quot; int
+  &quot;活動日&quot; date
+  &quot;活動内容&quot; varchar
+  &quot;添付ファイルURL&quot; varchar
+  &quot;請求状態&quot; varchar
+  &quot;却下理由&quot; varchar
+  &quot;承認者メール&quot; varchar
+  &quot;承認日時&quot; timestamp
+  &quot;削除フラグ&quot; boolean
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+  &quot;アーカイブID&quot; varchar [pk]
+  &quot;削除バッチID&quot; varchar [note: &#39;FK&#39;]
+  &quot;アーカイブ日時&quot; timestamp
 }
 
 // =====================================
@@ -1028,9 +1249,22 @@ Ref: &quot;T_請求&quot;.&quot;組織コード&quot; &gt; &quot;M_組織マス�
 Ref: &quot;T_請求&quot;.&quot;種別コード&quot; &gt; &quot;M_支払い種別マスタ&quot;.&quot;種別コード&quot; // 種別コード
 Ref: &quot;T_請求&quot;.&quot;業務分類コード&quot; &gt; &quot;M_業務分類&quot;.&quot;業務分類コード&quot; // 業務分類コード
 Ref: &quot;T_画面項目権限&quot;.&quot;システムロールコード&quot; &gt; &quot;M_システムロール&quot;.&quot;コード&quot; // システムロールコード
-Ref: &quot;T_ログイン履歴&quot;.&quot;認証ID&quot; &gt; &quot;T_認証アカウント&quot;.&quot;認証ID&quot; // 認証ID</pre>
+Ref: &quot;T_ログイン履歴&quot;.&quot;認証ID&quot; &gt; &quot;T_認証アカウント&quot;.&quot;認証ID&quot; // 認証ID
+// 自動推定失敗: T_会員_archive }o--o| T_削除ログ : 削除バッチID
+// 自動推定失敗: T_事業所職員_archive }o--o| T_削除ログ : 削除バッチID
+// 自動推定失敗: T_認証アカウント_archive }o--o| T_削除ログ : 削除バッチID
+// 自動推定失敗: T_管理者Googleホワイトリスト_archive }o--o| T_削除ログ : 削除バッチID
+// 自動推定失敗: T_研修申込_archive }o--o| T_削除ログ : 削除バッチID
+// 自動推定失敗: T_年会費納入履歴_archive }o--o| T_削除ログ : 削除バッチID
+// 自動推定失敗: T_年会費更新履歴_archive }o--o| T_削除ログ : 削除バッチID
+// 自動推定失敗: T_役員_archive }o--o| T_削除ログ : 削除バッチID
+// 自動推定失敗: T_振込口座_archive }o--o| T_削除ログ : 削除バッチID
+// 自動推定失敗: T_支払い_archive }o--o| T_削除ログ : 削除バッチID
+// 自動推定失敗: T_支払い明細_archive }o--o| T_削除ログ : 削除バッチID
+// 自動推定失敗: T_請求_archive }o--o| T_削除ログ : 削除バッチID
+// 自動推定失敗: T_変更申請_archive }o--o| T_削除ログ : 削除バッチID</pre>
   </div>
-  <p style="font-size: 0.85em; color: var(--muted);">行数: 707 / 容量: 13.4 KB</p>
+  <p style="font-size: 0.85em; color: var(--muted);">行数: 940 / 容量: 18.0 KB</p>
 </section>
 
 <section class="card">
@@ -1085,7 +1319,7 @@ Ref: &quot;T_ログイン履歴&quot;.&quot;認証ID&quot; &gt; &quot;T_認証�
 
 
 <footer>
-  生成: 2026-06-26 | scripts/build-docs-portal.mjs より自動生成 | AGENTS.md §4.6 準拠
+  生成: 2026-07-03 | scripts/build-docs-portal.mjs より自動生成 | AGENTS.md §4.6 準拠
 </footer>
 
 </div>

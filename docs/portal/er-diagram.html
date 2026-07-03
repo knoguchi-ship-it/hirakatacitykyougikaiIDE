@@ -437,6 +437,7 @@ footer {
   <a href="tables.html">📊 テーブル設計書</a>
   <a href="er-diagram.html">🗂️ ER ドメイン</a>
   <a href="dbml-export.html">🚀 DBML 出力</a>
+  <a href="248_third_party_evaluation_2026-07-01.html">🔍 第三者評価(2026-07)</a>
 </nav>
 
 <div class="hero">
@@ -641,6 +642,7 @@ erDiagram
     string 事業所番号
     string ステータスメモ
     string アーカイブID PK
+    string 削除バッチID FK
     datetime アーカイブ日時
   }
   T_事業所職員_archive {
@@ -663,6 +665,7 @@ erDiagram
     datetime 更新日時
     boolean 削除フラグ
     string アーカイブID PK
+    string 削除バッチID FK
     datetime アーカイブ日時
   }
   T_人物統合ログ {
@@ -722,6 +725,9 @@ erDiagram
   T_請求 {
     string id PK
   }
+  T_削除ログ {
+    string id PK
+  }
 
   T_事業所職員 }o--|| T_会員 : &quot;会員ID&quot;
   T_認証アカウント }o--|| T_会員 : &quot;会員ID&quot;
@@ -746,7 +752,9 @@ erDiagram
   T_振込口座 }o--o| T_事業所職員 : &quot;職員ID&quot;
   T_支払い }o--|| T_会員 : &quot;会員ID&quot;
   T_請求 }o--o| T_会員 : &quot;会員ID&quot;
-  T_請求 }o--o| T_事業所職員 : &quot;職員ID&quot;</pre>
+  T_請求 }o--o| T_事業所職員 : &quot;職員ID&quot;
+  T_会員_archive }o--o| T_削除ログ : &quot;削除バッチID&quot;
+  T_事業所職員_archive }o--o| T_削除ログ : &quot;削除バッチID&quot;</pre>
         </div>
       </section>
   
@@ -1164,7 +1172,59 @@ erDiagram
     string 対象会員IDリスト
     string 削除前スナップショットJSON
   }
-</pre>
+  T_会員_archive {
+    string id PK
+  }
+  T_事業所職員_archive {
+    string id PK
+  }
+  T_認証アカウント_archive {
+    string id PK
+  }
+  T_管理者Googleホワイトリスト_archive {
+    string id PK
+  }
+  T_研修申込_archive {
+    string id PK
+  }
+  T_年会費納入履歴_archive {
+    string id PK
+  }
+  T_年会費更新履歴_archive {
+    string id PK
+  }
+  T_役員_archive {
+    string id PK
+  }
+  T_振込口座_archive {
+    string id PK
+  }
+  T_支払い_archive {
+    string id PK
+  }
+  T_支払い明細_archive {
+    string id PK
+  }
+  T_請求_archive {
+    string id PK
+  }
+  T_変更申請_archive {
+    string id PK
+  }
+
+  T_会員_archive }o--o| T_削除ログ : &quot;削除バッチID&quot;
+  T_事業所職員_archive }o--o| T_削除ログ : &quot;削除バッチID&quot;
+  T_認証アカウント_archive }o--o| T_削除ログ : &quot;削除バッチID&quot;
+  T_管理者Googleホワイトリスト_archive }o--o| T_削除ログ : &quot;削除バッチID&quot;
+  T_研修申込_archive }o--o| T_削除ログ : &quot;削除バッチID&quot;
+  T_年会費納入履歴_archive }o--o| T_削除ログ : &quot;削除バッチID&quot;
+  T_年会費更新履歴_archive }o--o| T_削除ログ : &quot;削除バッチID&quot;
+  T_役員_archive }o--o| T_削除ログ : &quot;削除バッチID&quot;
+  T_振込口座_archive }o--o| T_削除ログ : &quot;削除バッチID&quot;
+  T_支払い_archive }o--o| T_削除ログ : &quot;削除バッチID&quot;
+  T_支払い明細_archive }o--o| T_削除ログ : &quot;削除バッチID&quot;
+  T_請求_archive }o--o| T_削除ログ : &quot;削除バッチID&quot;
+  T_変更申請_archive }o--o| T_削除ログ : &quot;削除バッチID&quot;</pre>
         </div>
       </section>
   
@@ -1333,7 +1393,7 @@ erDiagram
 </section>
 
 <footer>
-  生成: 2026-06-26 | scripts/build-docs-portal.mjs より自動生成 | AGENTS.md §4.6 準拠
+  生成: 2026-07-03 | scripts/build-docs-portal.mjs より自動生成 | AGENTS.md §4.6 準拠
 </footer>
 
 </div>

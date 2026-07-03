@@ -36,6 +36,17 @@
     "T_画面項目権限",
     "T_会員_archive",
     "T_事業所職員_archive",
+    "T_認証アカウント_archive",
+    "T_管理者Googleホワイトリスト_archive",
+    "T_研修申込_archive",
+    "T_年会費納入履歴_archive",
+    "T_年会費更新履歴_archive",
+    "T_役員_archive",
+    "T_振込口座_archive",
+    "T_支払い_archive",
+    "T_支払い明細_archive",
+    "T_請求_archive",
+    "T_変更申請_archive",
     "T_ログイン履歴",
     "T_監査ログ",
     "T_メール送信ログ",
@@ -82,8 +93,8 @@
     "T_システム設定": "メインテーブル",
     "T_共有メモ": "メインテーブル",
     "T_画面項目権限": "メインテーブル",
-    "T_会員_archive": "アーカイブシート（メインDB内・退会会員移動先。元テーブルと同スキーマ + サロゲート列）",
-    "T_事業所職員_archive": "アーカイブシート（メインDB内・退会会員移動先。元テーブルと同スキーマ + サロゲート列）",
+    "T_会員_archive": "アーカイブシート（メインDB内・削除cascade退避先。元テーブルと同スキーマ + サロゲート3列。docs/249）",
+    "T_事業所職員_archive": "アーカイブシート（メインDB内・削除cascade退避先。元テーブルと同スキーマ + サロゲート3列。docs/249）",
     "T_ログイン履歴": "ログSS（別スプレッドシート）",
     "T_監査ログ": "ログSS（別スプレッドシート）",
     "T_メール送信ログ": "ログSS（別スプレッドシート）",
@@ -93,7 +104,18 @@
     "T_削除ログ": "その他",
     "T_変更申請": "その他",
     "T_人物統合ログ": "その他",
-    "T_LINE投稿依頼": "その他"
+    "T_LINE投稿依頼": "その他",
+    "T_認証アカウント_archive": "アーカイブシート（メインDB内・削除cascade退避先。元テーブルと同スキーマ + サロゲート3列。docs/249）",
+    "T_管理者Googleホワイトリスト_archive": "アーカイブシート（メインDB内・削除cascade退避先。元テーブルと同スキーマ + サロゲート3列。docs/249）",
+    "T_研修申込_archive": "アーカイブシート（メインDB内・削除cascade退避先。元テーブルと同スキーマ + サロゲート3列。docs/249）",
+    "T_年会費納入履歴_archive": "アーカイブシート（メインDB内・削除cascade退避先。元テーブルと同スキーマ + サロゲート3列。docs/249）",
+    "T_年会費更新履歴_archive": "アーカイブシート（メインDB内・削除cascade退避先。元テーブルと同スキーマ + サロゲート3列。docs/249）",
+    "T_役員_archive": "アーカイブシート（メインDB内・削除cascade退避先。元テーブルと同スキーマ + サロゲート3列。docs/249）",
+    "T_振込口座_archive": "アーカイブシート（メインDB内・削除cascade退避先。元テーブルと同スキーマ + サロゲート3列。docs/249）",
+    "T_支払い_archive": "アーカイブシート（メインDB内・削除cascade退避先。元テーブルと同スキーマ + サロゲート3列。docs/249）",
+    "T_支払い明細_archive": "アーカイブシート（メインDB内・削除cascade退避先。元テーブルと同スキーマ + サロゲート3列。docs/249）",
+    "T_請求_archive": "アーカイブシート（メインDB内・削除cascade退避先。元テーブルと同スキーマ + サロゲート3列。docs/249）",
+    "T_変更申請_archive": "アーカイブシート（メインDB内・削除cascade退避先。元テーブルと同スキーマ + サロゲート3列。docs/249）"
   },
   "columns": {
     "M_会員種別": {
@@ -1830,11 +1852,6 @@
       }
     },
     "T_会員_archive": {
-      "アーカイブID": {
-        "type": "string",
-        "key": "PK",
-        "comment": ""
-      },
       "会員ID": {
         "type": "string",
         "key": "",
@@ -1850,17 +1867,12 @@
         "key": "",
         "comment": ""
       },
-      "退会日": {
+      "入会日": {
         "type": "date",
         "key": "",
         "comment": ""
       },
-      "アーカイブ日時": {
-        "type": "datetime",
-        "key": "",
-        "comment": ""
-      },
-      "入会日": {
+      "退会日": {
         "type": "date",
         "key": "",
         "comment": ""
@@ -2003,7 +2015,7 @@
       "介護支援専門員番号": {
         "type": "string",
         "key": "",
-        "comment": ""
+        "comment": "基本8桁数字/admin例外1-10桁英数字 (v372.4)"
       },
       "事業所番号": {
         "type": "string",
@@ -2014,14 +2026,24 @@
         "type": "string",
         "key": "",
         "comment": ""
-      }
-    },
-    "T_事業所職員_archive": {
+      },
       "アーカイブID": {
         "type": "string",
         "key": "PK",
-        "comment": ""
+        "comment": "行個別の一意キー(UUID)"
       },
+      "削除バッチID": {
+        "type": "string",
+        "key": "FK",
+        "comment": "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
+      },
+      "アーカイブ日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_事業所職員_archive": {
       "職員ID": {
         "type": "string",
         "key": "",
@@ -2029,16 +2051,6 @@
       },
       "会員ID": {
         "type": "string",
-        "key": "",
-        "comment": ""
-      },
-      "職員状態コード": {
-        "type": "string",
-        "key": "",
-        "comment": ""
-      },
-      "アーカイブ日時": {
-        "type": "datetime",
         "key": "",
         "comment": ""
       },
@@ -2082,6 +2094,11 @@
         "key": "",
         "comment": ""
       },
+      "職員状態コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
       "入会日": {
         "type": "date",
         "key": "",
@@ -2095,7 +2112,7 @@
       "介護支援専門員番号": {
         "type": "string",
         "key": "",
-        "comment": ""
+        "comment": "基本8桁数字/admin例外1-10桁英数字 (v372.4)"
       },
       "メール配信希望コード": {
         "type": "string",
@@ -2114,6 +2131,21 @@
       },
       "削除フラグ": {
         "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "アーカイブID": {
+        "type": "string",
+        "key": "PK",
+        "comment": "行個別の一意キー(UUID)"
+      },
+      "削除バッチID": {
+        "type": "string",
+        "key": "FK",
+        "comment": "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
+      },
+      "アーカイブ日時": {
+        "type": "datetime",
         "key": "",
         "comment": ""
       }
@@ -2687,6 +2719,953 @@
         "key": "",
         "comment": "投稿者表示名（v376.45）"
       }
+    },
+    "T_認証アカウント_archive": {
+      "認証ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "認証方式": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "ログインID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "パスワードハッシュ": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "パスワードソルト": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "GoogleユーザーID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "Googleメール": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "システムロールコード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "会員ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "職員ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "最終ログイン日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "パスワード更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "アカウント有効フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "ログイン失敗回数": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "ロック状態": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "アーカイブID": {
+        "type": "string",
+        "key": "PK",
+        "comment": "行個別の一意キー(UUID)"
+      },
+      "削除バッチID": {
+        "type": "string",
+        "key": "FK",
+        "comment": "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
+      },
+      "アーカイブ日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_管理者Googleホワイトリスト_archive": {
+      "ホワイトリストID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "Googleメール": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "紐付け認証ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "紐付け会員ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "有効フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "権限コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "ロールID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "変更者メール": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "変更日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "アーカイブID": {
+        "type": "string",
+        "key": "PK",
+        "comment": "行個別の一意キー(UUID)"
+      },
+      "削除バッチID": {
+        "type": "string",
+        "key": "FK",
+        "comment": "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
+      },
+      "アーカイブ日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_研修申込_archive": {
+      "申込ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "研修ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "会員ID": {
+        "type": "string",
+        "key": "",
+        "comment": "2-FK v360"
+      },
+      "職員ID": {
+        "type": "string",
+        "key": "",
+        "comment": "2-FK v360"
+      },
+      "外部申込者ID": {
+        "type": "string",
+        "key": "",
+        "comment": "2-FK v360 新規"
+      },
+      "申込者区分コード": {
+        "type": "string",
+        "key": "",
+        "comment": "deprecated v360"
+      },
+      "申込者ID": {
+        "type": "string",
+        "key": "",
+        "comment": "deprecated v360"
+      },
+      "申込状態コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "申込日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "取消日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "出欠状態コード": {
+        "type": "string",
+        "key": "",
+        "comment": "v360新規"
+      },
+      "出欠記録日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": "v360新規"
+      },
+      "出欠記録者メール": {
+        "type": "string",
+        "key": "",
+        "comment": "v360新規"
+      },
+      "事務局メモ": {
+        "type": "string",
+        "key": "",
+        "comment": "v360新規 管理者専用"
+      },
+      "備考": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "アーカイブID": {
+        "type": "string",
+        "key": "PK",
+        "comment": "行個別の一意キー(UUID)"
+      },
+      "削除バッチID": {
+        "type": "string",
+        "key": "FK",
+        "comment": "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
+      },
+      "アーカイブ日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_年会費納入履歴_archive": {
+      "年会費履歴ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "会員ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "対象年度": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "会費納入状態コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "納入確認日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "金額": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "備考": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "アーカイブID": {
+        "type": "string",
+        "key": "PK",
+        "comment": "行個別の一意キー(UUID)"
+      },
+      "削除バッチID": {
+        "type": "string",
+        "key": "FK",
+        "comment": "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
+      },
+      "アーカイブ日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_年会費更新履歴_archive": {
+      "年会費更新履歴ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "年会費履歴ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "会員ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "対象年度": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "操作種別": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "更新前JSON": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "更新後JSON": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "実行者メール": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "実行日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "アーカイブID": {
+        "type": "string",
+        "key": "PK",
+        "comment": "行個別の一意キー(UUID)"
+      },
+      "削除バッチID": {
+        "type": "string",
+        "key": "FK",
+        "comment": "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
+      },
+      "アーカイブ日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_役員_archive": {
+      "役員ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "会員ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "職員ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "役職コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "組織コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "就任日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "退任日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "備考": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "アーカイブID": {
+        "type": "string",
+        "key": "PK",
+        "comment": "行個別の一意キー(UUID)"
+      },
+      "削除バッチID": {
+        "type": "string",
+        "key": "FK",
+        "comment": "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
+      },
+      "アーカイブ日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_振込口座_archive": {
+      "口座ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "会員ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "職員ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "金融機関名": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "金融機関コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "支店名": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "支店コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "口座種別": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "口座番号": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "口座名義カナ": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "備考": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "アーカイブID": {
+        "type": "string",
+        "key": "PK",
+        "comment": "行個別の一意キー(UUID)"
+      },
+      "削除バッチID": {
+        "type": "string",
+        "key": "FK",
+        "comment": "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
+      },
+      "アーカイブ日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_支払い_archive": {
+      "支払いID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "会員ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "支払い日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "支払い方法": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "合計金額": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "振込先口座JSON": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "登録者メール": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "備考": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "アーカイブID": {
+        "type": "string",
+        "key": "PK",
+        "comment": "行個別の一意キー(UUID)"
+      },
+      "削除バッチID": {
+        "type": "string",
+        "key": "FK",
+        "comment": "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
+      },
+      "アーカイブ日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_支払い明細_archive": {
+      "明細ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "支払いID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "請求ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "役職コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "組織コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "種別コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "金額": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "対象期間FROM": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "対象期間TO": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "摘要": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "アーカイブID": {
+        "type": "string",
+        "key": "PK",
+        "comment": "行個別の一意キー(UUID)"
+      },
+      "削除バッチID": {
+        "type": "string",
+        "key": "FK",
+        "comment": "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
+      },
+      "アーカイブ日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_請求_archive": {
+      "請求ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "会員ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "職員ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "役職コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "組織コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "種別コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "請求種別": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "業務分類コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "単価": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "数量": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "請求金額": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "活動日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "活動内容": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "添付ファイルURL": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "請求状態": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "却下理由": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "承認者メール": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "承認日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "アーカイブID": {
+        "type": "string",
+        "key": "PK",
+        "comment": "行個別の一意キー(UUID)"
+      },
+      "削除バッチID": {
+        "type": "string",
+        "key": "FK",
+        "comment": "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
+      },
+      "アーカイブ日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      }
+    },
+    "T_変更申請_archive": {
+      "申請ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "会員ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "会員種別コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "申請種別コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "申請状態コード": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "申請内容JSON": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "連絡先メールアドレス": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "申請者表示名": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "申請日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "処理日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "処理者メールアドレス": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "処理備考": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": ""
+      },
+      "アーカイブID": {
+        "type": "string",
+        "key": "PK",
+        "comment": "行個別の一意キー(UUID)"
+      },
+      "削除バッチID": {
+        "type": "string",
+        "key": "FK",
+        "comment": "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
+      },
+      "アーカイブ日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      }
     }
   },
   "relationships": [
@@ -2977,6 +3956,84 @@
       "cardinality": "}o--o|",
       "right": "T_認証アカウント",
       "label": "認証ID"
+    },
+    {
+      "left": "T_会員_archive",
+      "cardinality": "}o--o|",
+      "right": "T_削除ログ",
+      "label": "削除バッチID"
+    },
+    {
+      "left": "T_事業所職員_archive",
+      "cardinality": "}o--o|",
+      "right": "T_削除ログ",
+      "label": "削除バッチID"
+    },
+    {
+      "left": "T_認証アカウント_archive",
+      "cardinality": "}o--o|",
+      "right": "T_削除ログ",
+      "label": "削除バッチID"
+    },
+    {
+      "left": "T_管理者Googleホワイトリスト_archive",
+      "cardinality": "}o--o|",
+      "right": "T_削除ログ",
+      "label": "削除バッチID"
+    },
+    {
+      "left": "T_研修申込_archive",
+      "cardinality": "}o--o|",
+      "right": "T_削除ログ",
+      "label": "削除バッチID"
+    },
+    {
+      "left": "T_年会費納入履歴_archive",
+      "cardinality": "}o--o|",
+      "right": "T_削除ログ",
+      "label": "削除バッチID"
+    },
+    {
+      "left": "T_年会費更新履歴_archive",
+      "cardinality": "}o--o|",
+      "right": "T_削除ログ",
+      "label": "削除バッチID"
+    },
+    {
+      "left": "T_役員_archive",
+      "cardinality": "}o--o|",
+      "right": "T_削除ログ",
+      "label": "削除バッチID"
+    },
+    {
+      "left": "T_振込口座_archive",
+      "cardinality": "}o--o|",
+      "right": "T_削除ログ",
+      "label": "削除バッチID"
+    },
+    {
+      "left": "T_支払い_archive",
+      "cardinality": "}o--o|",
+      "right": "T_削除ログ",
+      "label": "削除バッチID"
+    },
+    {
+      "left": "T_支払い明細_archive",
+      "cardinality": "}o--o|",
+      "right": "T_削除ログ",
+      "label": "削除バッチID"
+    },
+    {
+      "left": "T_請求_archive",
+      "cardinality": "}o--o|",
+      "right": "T_削除ログ",
+      "label": "削除バッチID"
+    },
+    {
+      "left": "T_変更申請_archive",
+      "cardinality": "}o--o|",
+      "right": "T_削除ログ",
+      "label": "削除バッチID"
     }
   ]
 }

@@ -1,10 +1,10 @@
 # データモデル設計書（スプレッドシートDB版）
 
-更新日: 2026-06-10
-スキーマバージョン: 2026-06-10-line-post-rbac-v376.45（本番 admin split @205 反映済）
+更新日: 2026-07-03
+スキーマバージョン: 2026-07-03-cascade-archive-schema-v376.52（**コード反映済・未デプロイ**。本番は v376.45 スキーマ / admin @211）
 
 > 下記 ER は `gas-src テーブル定義`（列の正本）＋ `docs/er-metadata.json` から自動生成（AGENTS §4.6）。手書き編集禁止。
-> 直近のスキーマ変更: **v376.42** `T_メールテンプレート` 新設（全メール種別テンプレート管理の集約・旧 CREDENTIAL_EMAIL_TEMPLATES JSON から移行）／**v376.43** ハードコード6メール（研修申込確認・研修リマインダー・OTP・会員情報変更確認・退会受付・パスワード再設定）の差し込み化に伴う `T_システム設定` 設定キー追加（物理テーブル変更なし）／**v376.45** `T_LINE投稿依頼` に `作成者名`・`投稿マーク者名` の2列追加。
+> 直近のスキーマ変更: **v376.52** 会員系削除 cascade アーカイブ（`docs/249`・a1 単一化）— `_archive` を 2 本→**13 本**へ拡張（＋認証アカウント/ホワイトリスト/研修申込/年会費納入・更新履歴/役員/振込口座/支払い/支払い明細/請求/変更申請）。サロゲート列を `アーカイブID`/**`削除バッチID`**/`アーカイブ日時` の3列に統一（`削除バッチID`=T_削除ログ.ログID・会員単位復元のバッチキー）。定義は gas-src の `ARCHIVE_SOURCE_TABLES`（単一情報源）からループ生成／**v376.45** `T_LINE投稿依頼` に `作成者名`・`投稿マーク者名` の2列追加／**v376.42-.43** `T_メールテンプレート` 新設＋設定キー追加。
 > それ以前: v360 で研修名簿・出欠・一括メール明細ログを追加、v362〜v370 は kana 列・previousYear*・APPLICATION_RECEIPT_* 設定キー追加と bug fix のみ。詳細は §9 スキーマバージョン履歴 / §11 v360 Addendum / §12 v362-v370 Addendum を参照。
 
 ---
@@ -469,7 +469,7 @@ erDiagram
     boolean 削除フラグ
   }
 
-  %% ===== アーカイブシート（メインDB内・退会会員移動先。元テーブルと同スキーマ + サロゲート列） =====
+  %% ===== アーカイブシート（メインDB内・削除cascade退避先。元テーブルと同スキーマ + サロゲート3列。docs/249） =====
   T_会員_archive {
     string 会員ID
     string 会員種別コード
@@ -503,10 +503,11 @@ erDiagram
     datetime 作成日時
     datetime 更新日時
     boolean 削除フラグ
-    string 介護支援専門員番号
+    string 介護支援専門員番号 "基本8桁数字/admin例外1-10桁英数字 (v372.4)"
     string 事業所番号
     string ステータスメモ
-    string アーカイブID PK
+    string アーカイブID PK "行個別の一意キー(UUID)"
+    string 削除バッチID FK "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
     datetime アーカイブ日時
   }
 
@@ -524,12 +525,231 @@ erDiagram
     string 職員状態コード
     date 入会日
     date 退会日
-    string 介護支援専門員番号
+    string 介護支援専門員番号 "基本8桁数字/admin例外1-10桁英数字 (v372.4)"
     string メール配信希望コード
     datetime 作成日時
     datetime 更新日時
     boolean 削除フラグ
-    string アーカイブID PK
+    string アーカイブID PK "行個別の一意キー(UUID)"
+    string 削除バッチID FK "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
+    datetime アーカイブ日時
+  }
+
+  T_認証アカウント_archive {
+    string 認証ID
+    string 認証方式
+    string ログインID
+    string パスワードハッシュ
+    string パスワードソルト
+    string GoogleユーザーID
+    string Googleメール
+    string システムロールコード
+    string 会員ID
+    string 職員ID
+    datetime 最終ログイン日時
+    datetime パスワード更新日時
+    boolean アカウント有効フラグ
+    int ログイン失敗回数
+    boolean ロック状態
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
+    string アーカイブID PK "行個別の一意キー(UUID)"
+    string 削除バッチID FK "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
+    datetime アーカイブ日時
+  }
+
+  T_管理者Googleホワイトリスト_archive {
+    string ホワイトリストID
+    string Googleメール
+    string 紐付け認証ID
+    string 紐付け会員ID
+    string 権限コード
+    string ロールID
+    boolean 有効フラグ
+    string 変更者メール
+    datetime 変更日時
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
+    string アーカイブID PK "行個別の一意キー(UUID)"
+    string 削除バッチID FK "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
+    datetime アーカイブ日時
+  }
+
+  T_研修申込_archive {
+    string 申込ID
+    string 研修ID
+    string 会員ID "2-FK v360"
+    string 職員ID "2-FK v360"
+    string 申込状態コード
+    datetime 申込日時
+    datetime 取消日時
+    string 備考
+    string 申込者区分コード "deprecated v360"
+    string 申込者ID "deprecated v360"
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
+    string 外部申込者ID "2-FK v360 新規"
+    string 出欠状態コード "v360新規"
+    datetime 出欠記録日時 "v360新規"
+    string 出欠記録者メール "v360新規"
+    string 事務局メモ "v360新規 管理者専用"
+    string アーカイブID PK "行個別の一意キー(UUID)"
+    string 削除バッチID FK "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
+    datetime アーカイブ日時
+  }
+
+  T_年会費納入履歴_archive {
+    string 年会費履歴ID
+    string 会員ID
+    string 対象年度
+    string 会費納入状態コード
+    date 納入確認日
+    int 金額
+    string 備考
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
+    string アーカイブID PK "行個別の一意キー(UUID)"
+    string 削除バッチID FK "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
+    datetime アーカイブ日時
+  }
+
+  T_年会費更新履歴_archive {
+    string 年会費更新履歴ID
+    string 年会費履歴ID
+    string 会員ID
+    string 対象年度
+    string 操作種別
+    string 更新前JSON
+    string 更新後JSON
+    string 実行者メール
+    datetime 実行日時
+    string アーカイブID PK "行個別の一意キー(UUID)"
+    string 削除バッチID FK "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
+    datetime アーカイブ日時
+  }
+
+  T_役員_archive {
+    string 役員ID
+    string 会員ID
+    string 職員ID
+    string 役職コード
+    string 組織コード
+    date 就任日
+    date 退任日
+    string 備考
+    boolean 削除フラグ
+    datetime 作成日時
+    datetime 更新日時
+    string アーカイブID PK "行個別の一意キー(UUID)"
+    string 削除バッチID FK "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
+    datetime アーカイブ日時
+  }
+
+  T_振込口座_archive {
+    string 口座ID
+    string 会員ID
+    string 職員ID
+    string 金融機関名
+    string 金融機関コード
+    string 支店名
+    string 支店コード
+    string 口座種別
+    string 口座番号
+    string 口座名義カナ
+    string 備考
+    boolean 削除フラグ
+    datetime 作成日時
+    datetime 更新日時
+    string アーカイブID PK "行個別の一意キー(UUID)"
+    string 削除バッチID FK "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
+    datetime アーカイブ日時
+  }
+
+  T_支払い_archive {
+    string 支払いID
+    string 会員ID
+    date 支払い日
+    string 支払い方法
+    int 合計金額
+    string 振込先口座JSON
+    string 登録者メール
+    string 備考
+    boolean 削除フラグ
+    datetime 作成日時
+    datetime 更新日時
+    string アーカイブID PK "行個別の一意キー(UUID)"
+    string 削除バッチID FK "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
+    datetime アーカイブ日時
+  }
+
+  T_支払い明細_archive {
+    string 明細ID
+    string 支払いID
+    string 請求ID
+    string 役職コード
+    string 組織コード
+    string 種別コード
+    int 金額
+    date 対象期間FROM
+    date 対象期間TO
+    string 摘要
+    boolean 削除フラグ
+    datetime 作成日時
+    datetime 更新日時
+    string アーカイブID PK "行個別の一意キー(UUID)"
+    string 削除バッチID FK "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
+    datetime アーカイブ日時
+  }
+
+  T_請求_archive {
+    string 請求ID
+    string 会員ID
+    string 職員ID
+    string 役職コード
+    string 組織コード
+    string 種別コード
+    string 請求種別
+    string 業務分類コード
+    int 単価
+    int 数量
+    int 請求金額
+    date 活動日
+    string 活動内容
+    string 添付ファイルURL
+    string 請求状態
+    string 却下理由
+    string 承認者メール
+    datetime 承認日時
+    boolean 削除フラグ
+    datetime 作成日時
+    datetime 更新日時
+    string アーカイブID PK "行個別の一意キー(UUID)"
+    string 削除バッチID FK "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
+    datetime アーカイブ日時
+  }
+
+  T_変更申請_archive {
+    string 申請ID
+    string 会員ID
+    string 会員種別コード
+    string 申請種別コード
+    string 申請状態コード
+    string 申請内容JSON
+    string 連絡先メールアドレス
+    string 申請者表示名
+    datetime 申請日時
+    datetime 処理日時
+    string 処理者メールアドレス
+    string 処理備考
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ
+    string アーカイブID PK "行個別の一意キー(UUID)"
+    string 削除バッチID FK "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
     datetime アーカイブ日時
   }
 
@@ -723,6 +943,19 @@ erDiagram
   T_請求 }o--o| M_業務分類 : "業務分類コード"
   T_画面項目権限 }o--|| M_システムロール : "システムロールコード"
   T_ログイン履歴 }o--o| T_認証アカウント : "認証ID"
+  T_会員_archive }o--o| T_削除ログ : "削除バッチID"
+  T_事業所職員_archive }o--o| T_削除ログ : "削除バッチID"
+  T_認証アカウント_archive }o--o| T_削除ログ : "削除バッチID"
+  T_管理者Googleホワイトリスト_archive }o--o| T_削除ログ : "削除バッチID"
+  T_研修申込_archive }o--o| T_削除ログ : "削除バッチID"
+  T_年会費納入履歴_archive }o--o| T_削除ログ : "削除バッチID"
+  T_年会費更新履歴_archive }o--o| T_削除ログ : "削除バッチID"
+  T_役員_archive }o--o| T_削除ログ : "削除バッチID"
+  T_振込口座_archive }o--o| T_削除ログ : "削除バッチID"
+  T_支払い_archive }o--o| T_削除ログ : "削除バッチID"
+  T_支払い明細_archive }o--o| T_削除ログ : "削除バッチID"
+  T_請求_archive }o--o| T_削除ログ : "削除バッチID"
+  T_変更申請_archive }o--o| T_削除ログ : "削除バッチID"
 ```
 
 ---
@@ -1198,6 +1431,7 @@ GAS コードは `getLogSs_()` 経由でアクセスする。`LOG_SPREADSHEET_ID
 
 | バージョン | 日付 | 変更概要 |
 |---|---|---|
+| 2026-07-03-cascade-archive-schema-v376.52 | 2026-07-03 | **コード反映済・未デプロイ**。会員系削除 cascade アーカイブのスキーマ整備（`docs/249`・a1 単一化）。`_archive` を 2 本→13 本へ拡張（認証アカウント/管理者Googleホワイトリスト/研修申込/年会費納入履歴/年会費更新履歴/役員/振込口座/支払い/支払い明細/請求/変更申請 を追加）。サロゲート列を `アーカイブID`/`削除バッチID`/`アーカイブ日時` の3列に統一（既存2本にも `削除バッチID` を name-based shift で追加。`削除バッチID`=T_削除ログ.ログID＝会員単位復元のバッチキー）。定義は gas-src `ARCHIVE_SOURCE_TABLES`（単一情報源）からループ生成し、`scripts/lib/er-model.mjs` の extractTableDefs をループパターン対応に拡張（er-sync 57テーブル PASS）。T_ログイン履歴は archive 対象外（削除時に物理 purge）。移動ロジック（cascade 本体）は次フェーズ（破壊的・要承認）。 |
 | 2026-06-10-line-post-rbac-v376.45 | 2026-06-10 | v376.45 本番反映（admin split @205）。`T_LINE投稿依頼` に `作成者名`・`投稿マーク者名` の2列を末尾追加（依頼者/投稿者の表示名デノーマライズ）。`normalizeTableColumns_('T_LINE投稿依頼')` を初期化 critical に追加し name-based shift で既存行保持。あわせて LINE投稿権限の二層化（`line-post` / 新設 `line-post-manage`）と可視範囲制御を実装（物理スキーマは上記2列のみ）。 |
 | 2026-06-10-mail-template-table-v376.42 | 2026-06-10 | v376.42 本番反映（admin split @201）。全メール種別テンプレート管理の集約テーブル `T_メールテンプレート`（テンプレートID/カテゴリ/名前/件名/本文/既定フラグ/作成日時/更新日時/削除フラグ）を新設。旧 `T_システム設定.CREDENTIAL_EMAIL_TEMPLATES`(JSON) を `migrateCredentialTemplatesToTable_` で冪等移行。v376.43 でハードコード6メールの差し込み化に伴い `T_システム設定` に各 `<CAT>_SUBJECT/BODY` 設定キーを追加（物理テーブル変更なし）。 |
 | 2026-05-20-public-staff-update-v372.5 | 2026-05-20 | v372.5〜v372.6.1 本番反映。公開ポータルの「会員登録情報を変更する」フローに **「職員情報を変更する」** を追加（事業所会員のみ）。`T_変更申請.申請内容JSON` の構造に `staffUpdate: Array<{staffId, lastName?, firstName?, lastKana?, firstKana?, email?, careManagerNumber?}>` を追加（カラム追加はなし）。承認時に `updateStaff_` 経由で適用。メール変更時は旧アドレス・新アドレス両方に通知。v372.6 で HMAC token UTF-8 charset 明示で日本語化け修正、全空申請の拒否、デザイン整合性改善。v372.6.1 で送信ボタン disable + ヒント表示。 |
