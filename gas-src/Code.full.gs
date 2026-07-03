@@ -13300,6 +13300,11 @@ function backfillApplicationApplicantIdentity_(ss) {
 //    会員として誤解決され、事業所代表メールへ誤送信される（v376.12 で実際に発生）。
 //    送信先・表示・本人解決は必ず (1) getCanonicalApplicantRef_ を使う。
 // ============================================================
+/**
+ * @deprecated v376.52〜（docs/248 是正）。legacy「MEMBER + 別途 職員ID」モデル。
+ * 用途は整合性検証・会員申込フィルタに限定（上記ガードレール参照）。
+ * 送信先・名簿・本人解決に使うことは禁止。新規呼出は追加しない（v377 で撤去予定）。
+ */
 function getApplicationApplicantType_(rowObj) {
   // legacy モデル: 3-FK XOR を優先評価し、空ならば legacy 申込者区分コードへフォールバック。
   // STAFF を独立解決しない（送信先・名簿解決には使わない / 上記ガードレール参照）。
@@ -22931,6 +22936,9 @@ function sendBulkMemberMail_(payload) {
   var errors          = [];
   var autoAttachMissed = [];
   var sentCount       = 0;
+  // 2026-07-03 是正: REDIRECT/SUPPRESS を「成功」と偽装しない（メール誤集約事故の再発防止）。
+  var suppressedCount = 0;
+  var deliveryMode    = 'LIVE';
   var fileNames       = Object.keys(autoAttachMap);
   var indvAttachMap   = payload.individualAttachments || {};
 
@@ -22974,13 +22982,18 @@ function sendBulkMemberMail_(payload) {
         allAttachments.push(Utilities.newBlob(indvBytes, indvAtt.mimeType, indvAtt.name));
       }
 
-      deliverMail_('BULK_MAIL', rec.email, personalSubject, personalBody, {
+      var bulkSendRes = deliverMail_('BULK_MAIL', rec.email, personalSubject, personalBody, {
         from: from,
         replyTo: from,
         name: '枚方市介護支援専門員連絡協議会',
         attachments: allAttachments,
       });
-      sentCount += 1;
+      if (bulkSendRes && bulkSendRes.sent) {
+        sentCount += 1;
+        if (bulkSendRes.mode && bulkSendRes.mode !== 'LIVE') deliveryMode = bulkSendRes.mode;
+      } else {
+        suppressedCount += 1;
+      }
     } catch (e) {
       errors.push({ recipientKey: rec.recipientKey, displayName: rec.displayName, error: e.message });
     }
@@ -22999,7 +23012,8 @@ function sendBulkMemberMail_(payload) {
       '宛先数':       targetRecipients.length,
       '成功数':       sentCount,
       'エラー数':     errors.length,
-      '送信種別':     'BULK_MEMBER',
+      // 2026-07-03 是正: REDIRECT 送信をログ上も区別する（実宛先未達を「成功」と記録しない）
+      '送信種別':     deliveryMode === 'REDIRECT' ? 'BULK_MEMBER_REDIRECT' : 'BULK_MEMBER',
       '削除フラグ':   false,
     }]);
   } catch (le) {
@@ -23012,6 +23026,8 @@ function sendBulkMemberMail_(payload) {
     errors:           errors.map(function(e) { return e.displayName + ': ' + e.error; }),
     autoAttachMissed: autoAttachMissed,
     logId:            logId,
+    deliveryMode:     deliveryMode,
+    suppressedCount:  suppressedCount,
   };
 }
 

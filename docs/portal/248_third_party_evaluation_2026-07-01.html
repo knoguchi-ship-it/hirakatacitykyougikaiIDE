@@ -90,7 +90,7 @@
     <table>
       <tr><th>#</th><th>品質特性 / 観点</th><th>評価</th><th>主要所見（重大度）</th></tr>
       <tr><td>1</td><td>機能適合性・正確性</td><td class="r-ok">○</td><td>申込者解決2モデルの誤用余地 <span class="badge b-high">High</span>（v376.12 実害）</td></tr>
-      <tr><td>2</td><td>信頼性＝リレーション整合性</td><td class="r-warn">△</td><td>FK制約なし・部分 cascade（残関連は孤児化し得る）<span class="badge b-med">Med</span> ／ 申込者参照の相互排他は概ね検証済 <span class="badge b-med">Med</span> ／ 役員 XOR 未検証 <span class="badge b-med">Med</span></td></tr>
+      <tr><td>2</td><td>信頼性＝リレーション整合性</td><td class="r-warn">△</td><td>FK制約なし・部分 cascade（残関連は孤児化し得る）<span class="badge b-med">Med</span> ／ 申込者参照の相互排他は概ね検証済 <span class="badge b-med">Med</span> ／ 役員 XOR は検証済（誤所見・V8）</td></tr>
       <tr><td>3</td><td>└ データ整合の自己修復依存</td><td class="r-warn">△</td><td><code>repair*</code> が手動実行前提 <span class="badge b-med">Med</span></td></tr>
       <tr><td>4</td><td>└ アーカイブ/退会移行</td><td class="r-warn">△</td><td><code>_archive</code> は実質常に空。<code>archive*ByIds_</code> は名に反し in-place soft delete（行移動なし）<span class="badge b-med">Med</span>（docs/249 C1-C2）</td></tr>
       <tr><td>5</td><td>保守性＝DRY</td><td class="r-warn">△</td><td>api.ts 約83%が helper 未使用の重複 <span class="badge b-high">High</span> ／ 権限判定 front 再実装 <span class="badge b-high">High</span></td></tr>
@@ -122,7 +122,7 @@
       <tr><td>cascade がほぼ未実装＝子レコードの広範な孤児化</td><td><span class="badge b-high">High</span> <small>(初版High→一次Med→精査で復帰)</small></td><td>実体は会員/職員/認証/whitelist を in-place soft delete のみ。年会費/研修申込は snapshot だが live 無処理。<strong>役員/請求/振込口座/支払い/変更申請は完全放置＝真の孤児</strong>。a1 cascade アーカイブへ再設計（<code>docs/249</code>）</td></tr>
       <tr><td>申込者参照の相互排他が宣言的でなく一部混在が未検出</td><td><span class="badge b-med">Med</span> <small>(訂正:初版High)</small></td><td>実際は外部×職員混在・会員×職員不一致を検証済。会員+職員併存は正当。narrow ケースを宣言的制約＋<code>test:er-sync</code> で補強</td></tr>
       <tr><td>申込者解決 legacy 関数の誤用余地（v376.12 実害源）</td><td><span class="badge b-high">High</span> <small>(緩和済)</small></td><td>legacy に <code>@deprecated</code>、送信/名簿/本人解決は canonical 統一を grep gate 化、v377 で撤去</td></tr>
-      <tr><td>役員 linkage の member/staff XOR 未検証</td><td><span class="badge b-med">Med</span></td><td><code>assignOfficer</code>/<code>updateOfficerLinkage</code> に XOR 検証追加</td></tr>
+      <tr><td>役員 linkage の member/staff XOR</td><td><span class="badge b-good">誤所見(検証済)</span></td><td><strong>XOR 検証は実装済</strong>: <code>assignOfficer_</code>(25683-25685) / <code>updateOfficerLinkage_</code>(26524-26526)。初回監査の「不存在」は誤り（V8）</td></tr>
       <tr><td><code>_archive</code> が実質常に空＋<code>archive*ByIds_</code> の命名詐称</td><td><span class="badge b-med">Med</span></td><td><code>archiveMembersByIds_</code>(24130) 等は行移動でなく in-place soft delete。<code>_archive</code> へ書込むのは dead code のみ。a1 へ再設計＋命名を move へ是正（<code>docs/249</code>）</td></tr>
       <tr><td>CM番号/職員重複が修復ジョブ依存</td><td><span class="badge b-med">Med</span></td><td>bulk import 前の重複プレビュー画面</td></tr>
       <tr><td>列順ドリフト（T_研修申込）</td><td><span class="badge b-med">Med</span></td><td><code>test:er-sync</code> に列順チェック追加</td></tr>
@@ -190,7 +190,7 @@
     <h3>大型UPと同梱（恒久是正）</h3>
     <ul>
       <li>api.ts boilerplate を helper 統一（~1,500行減・書込ガード整合）— DRY High</li>
-      <li>残関連の cascade soft delete＋役員 XOR 検証＋<code>test:er-sync</code> 拡張 — 整合性 Med</li>
+      <li>残関連の cascade アーカイブ（v376.52 実装済・未デプロイ）＋<code>test:er-sync</code> 拡張 — 整合性 Med</li>
       <li>GCP Phase 0（Secret Manager+Argon2id）で H1 根治 — セキュリティ High</li>
       <li>XFrame を member/admin <code>DENY</code> 化＋member split の drive/cloud-platform scope 削減 — セキュリティ Med</li>
     </ul>

@@ -195,7 +195,7 @@ export interface ApiClient {
     staffStatus?: string;
     mailingFilter?: string;
     excludeNoEmail?: boolean;
-  }): Promise<{ sent: number; total: number; errors: string[]; autoAttachMissed: string[]; logId: string }>;
+  }): Promise<{ sent: number; total: number; errors: string[]; autoAttachMissed: string[]; logId: string; deliveryMode?: string; suppressedCount?: number }>;
   getEmailSendLog(): Promise<EmailSendLog[]>;
   // v207: 宛名リスト Excel 出力
   getMailingListTargets(payload: { filterType: MailingListFilterType; year?: number }): Promise<MailingListTargetsResult>;

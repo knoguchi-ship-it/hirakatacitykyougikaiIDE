@@ -66,7 +66,7 @@
 | **cascade がほぼ未実装＝子レコードの広範な孤児化** | **High**（再是正: 初版High→一次訂正Med→精査で High 復帰） | `executeDeleteMember_`（gas-src 24345-24404） | 実体は会員/職員/認証/whitelist を **in-place soft delete のみ**。年会費/研修申込は削除ログに snapshot だが **live 無処理**。**役員/請求/振込口座/支払い/変更申請は snapshot も soft delete もされず完全放置**（真の孤児）。→ a1 cascade アーカイブへ再設計（**`docs/249`**） |
 | 申込者参照の相互排他が宣言的でなく、一部混在が未検出 | **Med**（訂正: 初版 High） | `getTrainingApplicationIntegrityIssues_`（gas-src 約13345-13398） | **実際は外部×職員混在(13390)・会員×職員不一致(13380)等を検証済**。会員+職員の併存は正当（v360 canonical）。未検出は「MEMBER 行に外部申込者ID が紛れ込む」等の narrow ケースのみ→宣言的制約＋`test:er-sync` で補強 |
 | 申込者解決 legacy 関数の誤用余地（v376.12 実害源） | **High**→緩和済 | `getApplicationApplicantType_`（約13292）/ `getCanonicalApplicantRef_`（約13313） | legacy に `@deprecated`、送信/名簿/本人解決は canonical へ統一を lint/grep gate 化、v377 で撤去（※`MEMORY project_applicant_resolution_two_models` の「意図的併存」は尊重しつつ誤用防止を強化） |
-| 役員 linkage の member/staff XOR 未検証 | **Med** | `assignOfficer`/`updateOfficerLinkage` | XOR 検証を追加（両方填充を拒否） |
+| 役員 linkage の member/staff XOR | **誤所見（訂正: 検証済）** | `assignOfficer_`(25683-25685) / `updateOfficerLinkage_`(26524-26526) | **XOR 検証は実装済**（両方指定→エラー・どちらも無し→エラー・存在/退職チェック付き）。初回監査の「検証ロジック不存在」は誤り（V8） |
 | `_archive` が**実質常に空**＋`archive*ByIds_` の命名詐称 | **Med** | `archiveMembersByIds_`(24130) 等は行移動でなく **in-place soft delete**（`_archive` へ書込まない）。`_archive` へ書込むのは dead code の自動移動 `moveWithdrawnRowsToArchive_`(24563) のみ | a1 cascade アーカイブへ再設計（**`docs/249`**）。関数名を move へ是正。活性化は破壊的＝要バックアップ+承認 |
 | CM番号/職員重複が修復ジョブ依存 | **Med** | `repairDuplicateStaffRecords_`/`repairMemberCareManagerDuplicates_` | bulk import 前の重複プレビュー画面 |
 | 列順ドリフト（T_研修申込 定義 vs er-metadata） | **Med** | gas-src 約631 vs `er-metadata.json` | `test:er-sync` に列順チェック追加 |
@@ -161,6 +161,7 @@ AGENTS.md §3: 識別子はソース本体に直接埋め込まない（定数�
 | V5 | XFrame ALLOWALL（3 split） | Med | gas-src L889 に1箇所＝3 split 全反映を確認。**所見どおり** | Med（変更なし） |
 | V6 | api.ts 約82% がインライン重複 | High | runAction 4 + callAction 14 = 18／processApiRequest 105 ＝**約83%**。**所見どおり** | High（変更なし） |
 | V7 | 旧アカウント直書き＝ライブ認可 | （初版で既訂正） | `migrateAdminPermissions`/`repairWhitelistData` 内の一回限りヘルパー＝ライブ認可に無関係 | Low（訂正済） |
+| V8 | 役員 linkage XOR 未検証 | Med | **誤所見**。`assignOfficer_`(25683-25685)・`updateOfficerLinkage_`(26524-26526) に XOR 検証（同時指定拒否・必須・存在/退職チェック）が**実装済**（2026-07-03 実コード確認） | **解消（誤報）** |
 | — | GCP latency「10-30倍」等の出典 `docs/33` | — | **`docs/33` は実在しない**（`docs/37` GAS quotas は実在）。数値は推定として扱い、確定前にベンチ実測 | 注記済 |
 
 **評価プロセスへの含意**: 並列監査は網羅性に優れるが、単体では所見の重大度を過大評価しがち（特に「〜なし/常時〜」の断定）。**重大度 High 以上は着手前に実コード裏取りを必須**とする（本ログがその実施記録）。

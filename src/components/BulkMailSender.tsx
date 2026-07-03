@@ -317,9 +317,32 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
 
   const hasFolder = Boolean(settings.bulkMailAutoAttachFolderId);
 
+  // 2026-07-03 メール誤集約事故の恒久是正: 配信モードが LIVE 以外なら常時警告する。
+  // REDIRECT は宛先が allowlist に差し替わり実宛先へ届かない（v376.50 で受信側の目印を
+  // 廃止したため、送信側 UI で必ず可視化する）。SUPPRESS/キルスイッチ OFF は送信されない。
+  const mailMode = String(settings.mailDeliveryMode || 'LIVE').toUpperCase();
+  const mailBlocked = settings.mailGlobalEnabled === false || mailMode === 'SUPPRESS';
+  const mailRedirected = !mailBlocked && mailMode === 'REDIRECT';
+  const mailModeWarning = mailBlocked
+    ? '⚠ メール送信は現在停止中です（キルスイッチ OFF または SUPPRESS モード）。送信しても誰にも届きません。'
+    : mailRedirected
+      ? `⚠ REDIRECT モード中 — 全メールが Redirect 宛先（${settings.mailRedirectAllowlist || '未設定'}）に集約され、実宛先には届きません。本番送信の前に「システム設定 → メール通知 → メール送信制御」で LIVE に戻してください。`
+      : null;
+
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-bold text-slate-800">一括メール送信コンソール</h2>
+
+      {mailModeWarning && (
+        <div
+          role="alert"
+          className={`rounded-xl border-2 px-4 py-3 text-sm font-semibold ${
+            mailBlocked ? 'border-red-400 bg-red-50 text-red-800' : 'border-amber-400 bg-amber-50 text-amber-900'
+          }`}
+        >
+          {mailModeWarning}
+        </div>
+      )}
 
       {/* ── フィルタパネル ── */}
       <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
@@ -723,6 +746,11 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4 space-y-4">
             <h4 className="text-lg font-bold text-slate-800">送信確認</h4>
             <div className="space-y-2 text-sm text-slate-700">
+              {mailModeWarning && (
+                <div className={`rounded px-3 py-2 font-semibold ${mailBlocked ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-900'}`}>
+                  {mailModeWarning}
+                </div>
+              )}
               <div><span className="font-medium">宛先数:</span> {effectiveTargets.length}名</div>
               <div><span className="font-medium">送信元:</span> {from}</div>
               <div><span className="font-medium">件名:</span> {subject}</div>
@@ -758,6 +786,16 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
           )}
           {sendResult && (
             <>
+              {sendResult.deliveryMode === 'REDIRECT' && (
+                <p role="alert" className="text-sm font-semibold text-amber-900 bg-amber-50 border border-amber-300 rounded px-3 py-2">
+                  ⚠ REDIRECT モードで送信されました — 実宛先には届いていません（Redirect 宛先に集約）。LIVE に戻して再送してください。
+                </p>
+              )}
+              {(sendResult.suppressedCount ?? 0) > 0 && (
+                <p role="alert" className="text-sm font-semibold text-red-800 bg-red-50 border border-red-300 rounded px-3 py-2">
+                  ⚠ {sendResult.suppressedCount}件は送信抑止されました（キルスイッチ/モード/カテゴリ設定）。
+                </p>
+              )}
               <p className="text-sm">
                 <span className="text-green-700 font-semibold">成功: {sendResult.sent}名</span>
                 {sendResult.errors.length > 0 && (
