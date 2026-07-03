@@ -3,7 +3,7 @@
 作成日: **2026-07-02**
 対象: 枚方市介護支援専門員連絡協議会 会員システム（GAS + Google Spreadsheet DB）
 関連: `docs/248`（第三者評価・§2-A リレーション整合性）／`docs/03_DATA_MODEL.md`（スキーマ正本）／`docs/04_DB_OPERATION_RUNBOOK.md`
-状態: **設計（実装前・要承認）**。破壊的操作を含むため実装・本番反映は明示承認と完全バックアップを前提とする（`AGENTS.md §4.3/§6`）。
+状態: **実装済・未デプロイ（2026-07-03）**。本番反映（admin redeploy + 初回 migrate）は明示承認と完全バックアップを前提とする（`AGENTS.md §4.3/§6`）。実装記録は §8 参照。
 
 > 本書は `docs/248` の High/Med 所見（Cascade・孤児・`_archive` 未活用）に対する恒久設計。**まず設計を確定し、実装は別途承認後**。
 
@@ -148,7 +148,24 @@ function moveRowsToArchiveByMatch_(ss, srcName, dstName, matchFn, nowIso) {
 
 ---
 
-## 8. 参照
+## 8. 実装記録（2026-07-03・v376.52・未デプロイ）
+
+| 項目 | 実体 |
+|---|---|
+| スキーマ | `ARCHIVE_SOURCE_TABLES`（gas-src・単一情報源）から `_archive` 13本をループ生成。サロゲート3列 `アーカイブID/削除バッチID/アーカイブ日時`。`DB_SCHEMA_VERSION=2026-07-03-cascade-archive-schema-v376.52` |
+| 一致条件 | `getCascadeMatchers_`（cascade と検証の共通定義・§4.1 の表と1:1） |
+| 共通ムーバ | `moveRowsToArchiveByMatch_`（live 除去→archive append・ヘッダー欠落自己修復・C6対応） |
+| purge | `purgeLoginHistoryByAuthIds_`（log スプレッドシートから物理削除） |
+| オーケストレータ | `runDeleteCascade_`（支払いID/認証ID を移動前解決→13テーブル移動→purge）。`executeDeleteMember_` から呼出し（旧 in-place soft delete 4関数〈archive*ByIds〉は撤去＝C1解消） |
+| 復元 | `restoreArchiveBatch_`（削除バッチID 一致行を live へ・サロゲート3列除去）＋ operator 用 `restoreLastArchiveBatch_APPLY`／`listArchiveBatches_LOG` |
+| 診断 | `diagnoseMemberDeleteDebt_LOG`（read-only・削除済み会員/職員数＋テーブル別 refSoftDeleted/refMissing。バックフィル要否判断用） |
+| dryRun E2E | `dryRunDeleteCascadeV376_52_LOG`（投入→cascade→live0/archive13/purge1 検証→復元→復元検証→物理 sweep。冪等）＋`cleanupDryRunDeleteCascade` |
+| keep-list | `ADMIN_TOP_LEVEL_FUNCTIONS` に operator 5関数を登録（単一情報源） |
+| UI | `MemberDeleteConsole.tsx` の文言を新挙動（アーカイブ移動/purge/バッチ復元）へ更新 |
+| 検証 | prerelease 全PASS（8 suite fail0・boundary×3・er-sync 57テーブル）。cascade 関数群は admin 生成物のみに存在（public/member へ漏れなし）を grep 確認 |
+| 残作業 | ①本番デプロイ（admin @212・要承認＋完全バックアップ）②operator: `dryRunDeleteCascadeV376_52_LOG` ▶実行で実DB E2E→`diagnoseMemberDeleteDebt_LOG` で負債実測→バックフィル要否判断 |
+
+## 9. 参照
 
 - `docs/248_THIRD_PARTY_EVALUATION_2026-07-01.md` §2-A（本設計の起点）
 - `docs/03_DATA_MODEL.md` §4.10（退会会員アーカイブ・現行記述）／`docs/er-metadata.json`

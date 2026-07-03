@@ -22,6 +22,7 @@
   - `project_front_back_shared_logic` — 在籍中判定/メニュー等の front↔GAS 共有ロジックは **単一情報源（shared .mjs＋build注入）**。修正は1箇所。新規共有関数の追加レシピ有り。
 - **開発ルールの更新**: `AGENTS.md §5` に **新機能は E2E 回帰必須**（公開は a11y/responsive、admin/member 書込は backend `dryRun*_LOG`、3split 生成物 grep）を明文化。守ること。
 - **未デプロイ差分**: member/public は gas-src 由来の inert 差分を抱える（admin 専用機能のため未 redeploy）。次に member/public を触る機能を出す時に同梱でデプロイ。
+- **⚠ v376.52 実装済・未デプロイ（2026-07-03）**: 会員系削除 cascade アーカイブ（`docs/249`）— `_archive` 13本スキーマ＋cascade/purge/復元/診断/dryRun 実装済・prerelease 全PASS。**本番反映（admin redeploy＋初回 migrate）は完全バックアップ＋明示承認後**。デプロイ後 operator: `dryRunDeleteCascadeV376_52_LOG` ▶（実DB E2E）→ `diagnoseMemberDeleteDebt_LOG` ▶（削除負債の実測→バックフィル要否判断）。
 
 ---
 

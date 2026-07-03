@@ -6043,9 +6043,41 @@ var LINE_POST_ATTACHMENT_KIND_PDF = 'PDF';
 
 
 
+// ══ v376.52: 会員系削除 cascade アーカイブ（docs/249・a1 単一化）═══════════════
+// 削除対象の会員/職員に紐づく行を live から除去し <table>_archive へ「移動」する。
+// - 退避行にはサロゲート3列（アーカイブID/削除バッチID/アーカイブ日時）を付与
+// - 削除バッチID = T_削除ログ.ログID。復元は同一バッチの全行を戻す（会員単位アトミック）
+// - T_ログイン履歴 は archive せず物理 purge（高volume・PII 最小化）
+// - 退会フロー（withdrawMember 系）はこの cascade を呼ばない（履歴保持・docs/249 §4.4）
+
+// テーブル → 「live 行が削除対象会員系に属するか」の一致条件（cascade と診断の共通定義）
+
+// 共通ムーバ: matchFn に一致する行を live から除去し <table>_archive へ append する。
+// archive シートのヘッダー欠落（列数0）は自己修復する。戻り値は移動件数。
+
+// 削除対象認証IDのログイン履歴を log スプレッドシートから物理削除する（docs/249: purge 確定）
+
+// cascade オーケストレータ: 支払いID/認証ID を移動前に解決 → 13テーブル移動 → ログイン履歴 purge
+
+// 復元: 各 archive から 削除バッチID 一致行を live へ戻す（サロゲート3列は落とす）
+
+// operator 実行（▶ 引数なし）: 直近の削除バッチ（T_削除ログ 最終行）を復元する
+
+// operator 実行（▶ 引数なし）: archive 内の削除バッチ一覧（バッチID別件数 + 削除ログ情報）
+
+// operator 実行（▶ 引数なし・read-only）: 現 DB の削除負債を診断する（docs/249 §7）。
+// 旧削除実装（in-place soft delete）で live に残った削除済み会員/職員と、
+// それらを参照して取り残された子テーブル行（孤児候補）を計測する。非破壊。
+
+// ── dryRun E2E（operator 実行・実DB・自己完結: 投入→cascade→検証→復元→検証→掃除）──
+var DRYRUN_CASCADE_TAG = 'DRYRUN_CASCADE';
 
 
+// dryRun fixture 行のカウント（liveOnly=false で live 側 / true で archive 側）
 
+// dryRun 残骸の物理 sweep（live/archive/削除ログ/ログSS から DRYRUN_CASCADE 行を除去・冪等）
+
+// いずれかのセルが prefix で始まる行を物理削除する（dryRun sweep 用）
 
 
 

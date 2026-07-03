@@ -50,6 +50,12 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   'dryRunLinePostV376_44_LOG',
   // v376.45: LINE投稿 権限二層+可視範囲+submitRequest dryRun E2E（operator 実行用）
   'dryRunLinePostV376_45_LOG',
+  // v376.52: 会員系削除 cascade アーカイブ（docs/249）— 診断/バッチ一覧/復元/dryRun E2E/掃除
+  'diagnoseMemberDeleteDebt_LOG',
+  'listArchiveBatches_LOG',
+  'restoreLastArchiveBatch_APPLY',
+  'dryRunDeleteCascadeV376_52_LOG',
+  'cleanupDryRunDeleteCascade',
 ];
 
 // admin build から強制削除する（pruning で残ってはならない）危険な top-level 関数。

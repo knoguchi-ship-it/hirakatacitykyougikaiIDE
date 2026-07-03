@@ -24142,134 +24142,431 @@ function buildLogicalDeletePlan_(ss, targetKeys) {
   };
 }
 
-function archiveMembersByIds_(ss, memberIds, today, nowIso) {
-  if (!memberIds || memberIds.length === 0) return 0;
-  var memberIdSet = {};
-  for (var i = 0; i < memberIds.length; i++) memberIdSet[String(memberIds[i])] = true;
-  var sheet = ss.getSheetByName('T_会員');
-  if (!sheet || sheet.getLastRow() < 2) return 0;
-  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  var cols = {};
-  for (var h = 0; h < headers.length; h++) cols[headers[h]] = h;
-  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
-  var changed = 0;
-  for (var r = 0; r < data.length; r++) {
-    var memberId = String(data[r][cols['会員ID']] || '');
-    if (!memberIdSet[memberId]) continue;
-    var nextChanged = false;
-    if (String(data[r][cols['会員状態コード']] || 'ACTIVE') !== 'WITHDRAWN') {
-      data[r][cols['会員状態コード']] = 'WITHDRAWN';
-      nextChanged = true;
-    }
-    if (!normalizeDateInput_(data[r][cols['退会日']])) {
-      data[r][cols['退会日']] = today;
-      nextChanged = true;
-    }
-    if (!toBoolean_(data[r][cols['削除フラグ']])) {
-      data[r][cols['削除フラグ']] = true;
-      nextChanged = true;
-    }
-    if (cols['更新日時'] != null) data[r][cols['更新日時']] = nowIso;
-    if (nextChanged) changed++;
+// ══ v376.52: 会員系削除 cascade アーカイブ（docs/249・a1 単一化）═══════════════
+// 削除対象の会員/職員に紐づく行を live から除去し <table>_archive へ「移動」する。
+// - 退避行にはサロゲート3列（アーカイブID/削除バッチID/アーカイブ日時）を付与
+// - 削除バッチID = T_削除ログ.ログID。復元は同一バッチの全行を戻す（会員単位アトミック）
+// - T_ログイン履歴 は archive せず物理 purge（高volume・PII 最小化）
+// - 退会フロー（withdrawMember 系）はこの cascade を呼ばない（履歴保持・docs/249 §4.4）
+
+// テーブル → 「live 行が削除対象会員系に属するか」の一致条件（cascade と診断の共通定義）
+function getCascadeMatchers_(memberIdSet, staffIdSet, paymentIdSet) {
+  function byMember(col) {
+    return function(row) { return !!memberIdSet[String(row[col] || '')]; };
   }
-  if (changed > 0) sheet.getRange(2, 1, data.length, sheet.getLastColumn()).setValues(data);
-  return changed;
+  function byMemberOrStaff(mCol, sCol) {
+    return function(row) {
+      return !!memberIdSet[String(row[mCol] || '')] || !!staffIdSet[String(row[sCol] || '')];
+    };
+  }
+  // 子 → 親の順（支払い明細は支払いより先）。ID 集合は事前解決済みだが安全側の明示順。
+  return [
+    ['T_研修申込', function(row) {
+      return !!memberIdSet[String(row['会員ID'] || '')] ||
+        !!staffIdSet[String(row['職員ID'] || '')] ||
+        !!memberIdSet[String(row['申込者ID'] || '')];
+    }],
+    ['T_年会費納入履歴', byMember('会員ID')],
+    ['T_年会費更新履歴', byMember('会員ID')],
+    ['T_役員', byMemberOrStaff('会員ID', '職員ID')],
+    ['T_振込口座', byMemberOrStaff('会員ID', '職員ID')],
+    ['T_支払い明細', function(row) { return !!paymentIdSet[String(row['支払いID'] || '')]; }],
+    ['T_支払い', byMember('会員ID')],
+    ['T_請求', byMemberOrStaff('会員ID', '職員ID')],
+    ['T_変更申請', byMember('会員ID')],
+    ['T_管理者Googleホワイトリスト', byMember('紐付け会員ID')],
+    ['T_認証アカウント', byMemberOrStaff('会員ID', '職員ID')],
+    ['T_事業所職員', byMemberOrStaff('会員ID', '職員ID')],
+    ['T_会員', byMember('会員ID')],
+  ];
 }
 
-function archiveStaffsByIds_(ss, staffIds, today, nowIso) {
-  if (!staffIds || staffIds.length === 0) return 0;
-  var staffIdSet = {};
-  for (var i = 0; i < staffIds.length; i++) staffIdSet[String(staffIds[i])] = true;
-  var sheet = ss.getSheetByName('T_事業所職員');
-  if (!sheet || sheet.getLastRow() < 2) return 0;
-  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  var cols = {};
-  for (var h = 0; h < headers.length; h++) cols[headers[h]] = h;
-  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
-  var changed = 0;
+// 共通ムーバ: matchFn に一致する行を live から除去し <table>_archive へ append する。
+// archive シートのヘッダー欠落（列数0）は自己修復する。戻り値は移動件数。
+function moveRowsToArchiveByMatch_(ss, tableName, matchFn, batchId, nowIso) {
+  var srcSheet = ss.getSheetByName(tableName);
+  if (!srcSheet || srcSheet.getLastRow() < 2) return 0;
+  var dstName = tableName + '_archive';
+  var dstSheet = ss.getSheetByName(dstName);
+  if (!dstSheet) dstSheet = ss.insertSheet(dstName);
+  if (dstSheet.getLastColumn() < 1) writeSheetHeaders_(dstSheet, テーブル定義[dstName]);
+
+  var lastCol = srcSheet.getLastColumn();
+  var headers = srcSheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var data = srcSheet.getRange(2, 1, srcSheet.getLastRow() - 1, lastCol).getValues();
+  var keepRows = [];
+  var movedObjs = [];
   for (var r = 0; r < data.length; r++) {
-    var staffId = String(data[r][cols['職員ID']] || '');
-    if (!staffIdSet[staffId]) continue;
-    var nextChanged = false;
-    if (String(data[r][cols['職員状態コード']] || 'ENROLLED') !== 'LEFT') {
-      data[r][cols['職員状態コード']] = 'LEFT';
-      nextChanged = true;
+    var obj = {};
+    for (var c = 0; c < headers.length; c++) obj[headers[c]] = data[r][c];
+    if (matchFn(obj)) {
+      obj['アーカイブID'] = Utilities.getUuid();
+      obj['削除バッチID'] = batchId;
+      obj['アーカイブ日時'] = nowIso;
+      movedObjs.push(obj);
+    } else {
+      keepRows.push(data[r]);
     }
-    if (!normalizeDateInput_(data[r][cols['退会日']])) {
-      data[r][cols['退会日']] = today;
-      nextChanged = true;
-    }
-    if (!toBoolean_(data[r][cols['削除フラグ']])) {
-      data[r][cols['削除フラグ']] = true;
-      nextChanged = true;
-    }
-    if (cols['更新日時'] != null) data[r][cols['更新日時']] = nowIso;
-    if (nextChanged) changed++;
   }
-  if (changed > 0) sheet.getRange(2, 1, data.length, sheet.getLastColumn()).setValues(data);
-  return changed;
+  if (movedObjs.length === 0) return 0;
+  appendRowsByHeaders_(ss, dstName, movedObjs);
+  srcSheet.getRange(2, 1, data.length, lastCol).clearContent();
+  if (keepRows.length > 0) srcSheet.getRange(2, 1, keepRows.length, lastCol).setValues(keepRows);
+  return movedObjs.length;
 }
 
-function archiveAuthAccountsForTargets_(ss, memberIds, staffIds, nowIso) {
-  var memberIdSet = {};
-  var staffIdSet = {};
-  for (var i = 0; i < memberIds.length; i++) memberIdSet[String(memberIds[i])] = true;
-  for (var j = 0; j < staffIds.length; j++) staffIdSet[String(staffIds[j])] = true;
-  var sheet = ss.getSheetByName('T_認証アカウント');
+// 削除対象認証IDのログイン履歴を log スプレッドシートから物理削除する（docs/249: purge 確定）
+function purgeLoginHistoryByAuthIds_(authIdSet) {
+  var authIds = Object.keys(authIdSet || {});
+  if (authIds.length === 0) return 0;
+  var logSs = getLogSs_();
+  var sheet = logSs.getSheetByName('T_ログイン履歴');
   if (!sheet || sheet.getLastRow() < 2) return 0;
-  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  var cols = {};
-  for (var h = 0; h < headers.length; h++) cols[headers[h]] = h;
-  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
-  var changed = 0;
+  var lastCol = sheet.getLastColumn();
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var authCol = headers.indexOf('認証ID');
+  if (authCol < 0) return 0;
+  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, lastCol).getValues();
+  var keepRows = [];
+  var purged = 0;
   for (var r = 0; r < data.length; r++) {
-    var memberId = String(data[r][cols['会員ID']] || '');
-    var staffId = cols['職員ID'] != null ? String(data[r][cols['職員ID']] || '') : '';
-    if (!memberIdSet[memberId] && !(staffId && staffIdSet[staffId])) continue;
-    var nextChanged = false;
-    if (cols['アカウント有効フラグ'] != null && toBoolean_(data[r][cols['アカウント有効フラグ']])) {
-      data[r][cols['アカウント有効フラグ']] = false;
-      nextChanged = true;
-    }
-    if (cols['削除フラグ'] != null && !toBoolean_(data[r][cols['削除フラグ']])) {
-      data[r][cols['削除フラグ']] = true;
-      nextChanged = true;
-    }
-    if (cols['更新日時'] != null) data[r][cols['更新日時']] = nowIso;
-    if (nextChanged) changed++;
+    if (authIdSet[String(data[r][authCol] || '')]) { purged++; continue; }
+    keepRows.push(data[r]);
   }
-  if (changed > 0) sheet.getRange(2, 1, data.length, sheet.getLastColumn()).setValues(data);
-  return changed;
+  if (purged === 0) return 0;
+  sheet.getRange(2, 1, data.length, lastCol).clearContent();
+  if (keepRows.length > 0) sheet.getRange(2, 1, keepRows.length, lastCol).setValues(keepRows);
+  return purged;
 }
 
-function archiveAdminWhitelistsByMemberIds_(ss, memberIds, nowIso) {
-  if (!memberIds || memberIds.length === 0) return 0;
-  var memberIdSet = {};
-  for (var i = 0; i < memberIds.length; i++) memberIdSet[String(memberIds[i])] = true;
-  var sheet = ss.getSheetByName('T_管理者Googleホワイトリスト');
-  if (!sheet || sheet.getLastRow() < 2) return 0;
-  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  var cols = {};
-  for (var h = 0; h < headers.length; h++) cols[headers[h]] = h;
-  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
-  var changed = 0;
-  for (var r = 0; r < data.length; r++) {
-    var linkedMemberId = String(data[r][cols['紐付け会員ID']] || '');
-    if (!memberIdSet[linkedMemberId]) continue;
-    var nextChanged = false;
-    if (cols['有効フラグ'] != null && toBoolean_(data[r][cols['有効フラグ']])) {
-      data[r][cols['有効フラグ']] = false;
-      nextChanged = true;
+// cascade オーケストレータ: 支払いID/認証ID を移動前に解決 → 13テーブル移動 → ログイン履歴 purge
+function runDeleteCascade_(ss, memberIdSet, staffIdSet, batchId, nowIso) {
+  var paymentIdSet = {};
+  var payRows = getRowsAsObjects_(ss, 'T_支払い');
+  for (var p = 0; p < payRows.length; p++) {
+    if (memberIdSet[String(payRows[p]['会員ID'] || '')]) {
+      var payId = String(payRows[p]['支払いID'] || '');
+      if (payId) paymentIdSet[payId] = true;
     }
-    if (cols['削除フラグ'] != null && !toBoolean_(data[r][cols['削除フラグ']])) {
-      data[r][cols['削除フラグ']] = true;
-      nextChanged = true;
-    }
-    if (cols['更新日時'] != null) data[r][cols['更新日時']] = nowIso;
-    if (nextChanged) changed++;
   }
-  if (changed > 0) sheet.getRange(2, 1, data.length, sheet.getLastColumn()).setValues(data);
-  return changed;
+  var authIdSet = {};
+  var authRows = getRowsAsObjects_(ss, 'T_認証アカウント');
+  for (var a = 0; a < authRows.length; a++) {
+    var authRow = authRows[a];
+    if (memberIdSet[String(authRow['会員ID'] || '')] || staffIdSet[String(authRow['職員ID'] || '')]) {
+      var authIdVal = String(authRow['認証ID'] || '');
+      if (authIdVal) authIdSet[authIdVal] = true;
+    }
+  }
+
+  var matchers = getCascadeMatchers_(memberIdSet, staffIdSet, paymentIdSet);
+  var moved = {};
+  for (var i = 0; i < matchers.length; i++) {
+    moved[matchers[i][0]] = moveRowsToArchiveByMatch_(ss, matchers[i][0], matchers[i][1], batchId, nowIso);
+  }
+  var purgedLoginHistory = purgeLoginHistoryByAuthIds_(authIdSet);
+  return { batchId: batchId, moved: moved, purgedLoginHistory: purgedLoginHistory };
+}
+
+// 復元: 各 archive から 削除バッチID 一致行を live へ戻す（サロゲート3列は落とす）
+function restoreArchiveBatch_(batchId) {
+  var targetBatchId = String(batchId || '');
+  if (!targetBatchId) throw new Error('削除バッチID が空です。');
+  var ss = getOrCreateDatabase_();
+  var restored = {};
+  for (var i = 0; i < ARCHIVE_SOURCE_TABLES.length; i++) {
+    var srcName = ARCHIVE_SOURCE_TABLES[i];
+    var sheet = ss.getSheetByName(srcName + '_archive');
+    restored[srcName] = 0;
+    if (!sheet || sheet.getLastRow() < 2) continue;
+    var lastCol = sheet.getLastColumn();
+    var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    var batchCol = headers.indexOf('削除バッチID');
+    if (batchCol < 0) continue;
+    var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, lastCol).getValues();
+    var keepRows = [];
+    var backObjs = [];
+    for (var r = 0; r < data.length; r++) {
+      if (String(data[r][batchCol] || '') === targetBatchId) {
+        var obj = {};
+        for (var c = 0; c < headers.length; c++) obj[headers[c]] = data[r][c];
+        delete obj['アーカイブID'];
+        delete obj['削除バッチID'];
+        delete obj['アーカイブ日時'];
+        backObjs.push(obj);
+      } else {
+        keepRows.push(data[r]);
+      }
+    }
+    if (backObjs.length === 0) continue;
+    appendRowsByHeaders_(ss, srcName, backObjs);
+    sheet.getRange(2, 1, data.length, lastCol).clearContent();
+    if (keepRows.length > 0) sheet.getRange(2, 1, keepRows.length, lastCol).setValues(keepRows);
+    restored[srcName] = backObjs.length;
+  }
+  clearAllDataCache_();
+  clearAdminDashboardCache_();
+  clearTrainingManagementCache_();
+  return { batchId: targetBatchId, restored: restored };
+}
+
+// operator 実行（▶ 引数なし）: 直近の削除バッチ（T_削除ログ 最終行）を復元する
+function restoreLastArchiveBatch_APPLY() {
+  var ss = getOrCreateDatabase_();
+  var logs = getRowsAsObjects_(ss, 'T_削除ログ');
+  if (logs.length === 0) throw new Error('T_削除ログ が空です（復元対象なし）。');
+  var lastLogId = String(logs[logs.length - 1]['ログID'] || '');
+  var result = restoreArchiveBatch_(lastLogId);
+  Logger.log(JSON.stringify(result, null, 2));
+  return JSON.stringify(result);
+}
+
+// operator 実行（▶ 引数なし）: archive 内の削除バッチ一覧（バッチID別件数 + 削除ログ情報）
+function listArchiveBatches_LOG() {
+  var ss = getOrCreateDatabase_();
+  var byBatch = {};
+  for (var i = 0; i < ARCHIVE_SOURCE_TABLES.length; i++) {
+    var srcName = ARCHIVE_SOURCE_TABLES[i];
+    var rows = getRowsAsObjects_(ss, srcName + '_archive');
+    for (var r = 0; r < rows.length; r++) {
+      var bid = String(rows[r]['削除バッチID'] || '(none)');
+      if (!byBatch[bid]) byBatch[bid] = { total: 0, tables: {} };
+      byBatch[bid].total++;
+      byBatch[bid].tables[srcName] = (byBatch[bid].tables[srcName] || 0) + 1;
+    }
+  }
+  var logs = getRowsAsObjects_(ss, 'T_削除ログ');
+  for (var l = 0; l < logs.length; l++) {
+    var logIdVal = String(logs[l]['ログID'] || '');
+    if (byBatch[logIdVal]) {
+      byBatch[logIdVal].deletedAt = String(logs[l]['操作日時'] || '');
+      byBatch[logIdVal].operator = String(logs[l]['操作者メール'] || '');
+      byBatch[logIdVal].targetKeys = String(logs[l]['対象会員IDリスト'] || '');
+    }
+  }
+  var result = { batches: byBatch, generatedAt: new Date().toISOString() };
+  Logger.log(JSON.stringify(result, null, 2));
+  return JSON.stringify(result);
+}
+
+// operator 実行（▶ 引数なし・read-only）: 現 DB の削除負債を診断する（docs/249 §7）。
+// 旧削除実装（in-place soft delete）で live に残った削除済み会員/職員と、
+// それらを参照して取り残された子テーブル行（孤児候補）を計測する。非破壊。
+function diagnoseMemberDeleteDebt_LOG() {
+  var ss = getOrCreateDatabase_();
+  var members = getRowsAsObjects_(ss, 'T_会員');
+  var staffs = getRowsAsObjects_(ss, 'T_事業所職員');
+  var liveMemberIds = {};
+  var deletedMemberIds = {};
+  for (var m = 0; m < members.length; m++) {
+    var mid = String(members[m]['会員ID'] || '');
+    if (!mid) continue;
+    if (toBoolean_(members[m]['削除フラグ'])) deletedMemberIds[mid] = true;
+    else liveMemberIds[mid] = true;
+  }
+  var liveStaffIds = {};
+  var deletedStaffIds = {};
+  for (var s = 0; s < staffs.length; s++) {
+    var sid = String(staffs[s]['職員ID'] || '');
+    if (!sid) continue;
+    if (toBoolean_(staffs[s]['削除フラグ'])) deletedStaffIds[sid] = true;
+    else liveStaffIds[sid] = true;
+  }
+
+  // 子テーブル別に「削除済み会員/職員を参照」「存在しないIDを参照」の live 行を数える
+  var childRefSpecs = [
+    ['T_研修申込', ['会員ID'], ['職員ID']],
+    ['T_年会費納入履歴', ['会員ID'], []],
+    ['T_年会費更新履歴', ['会員ID'], []],
+    ['T_役員', ['会員ID'], ['職員ID']],
+    ['T_振込口座', ['会員ID'], ['職員ID']],
+    ['T_支払い', ['会員ID'], []],
+    ['T_請求', ['会員ID'], ['職員ID']],
+    ['T_変更申請', ['会員ID'], []],
+    ['T_管理者Googleホワイトリスト', ['紐付け会員ID'], []],
+    ['T_認証アカウント', ['会員ID'], ['職員ID']],
+  ];
+  var orphans = {};
+  for (var t = 0; t < childRefSpecs.length; t++) {
+    var tableName = childRefSpecs[t][0];
+    var memberCols = childRefSpecs[t][1];
+    var staffCols = childRefSpecs[t][2];
+    var rows = getRowsAsObjects_(ss, tableName);
+    var refDeleted = 0;
+    var refMissing = 0;
+    var liveRowCount = 0;
+    for (var r2 = 0; r2 < rows.length; r2++) {
+      if (toBoolean_(rows[r2]['削除フラグ'])) continue;
+      liveRowCount++;
+      var flaggedDeleted = false;
+      var flaggedMissing = false;
+      for (var mc = 0; mc < memberCols.length; mc++) {
+        var refM = String(rows[r2][memberCols[mc]] || '');
+        if (!refM) continue;
+        if (deletedMemberIds[refM]) flaggedDeleted = true;
+        else if (!liveMemberIds[refM]) flaggedMissing = true;
+      }
+      for (var sc = 0; sc < staffCols.length; sc++) {
+        var refS = String(rows[r2][staffCols[sc]] || '');
+        if (!refS) continue;
+        if (deletedStaffIds[refS]) flaggedDeleted = true;
+        else if (!liveStaffIds[refS]) flaggedMissing = true;
+      }
+      if (flaggedDeleted) refDeleted++;
+      else if (flaggedMissing) refMissing++;
+    }
+    orphans[tableName] = { liveRows: liveRowCount, refSoftDeleted: refDeleted, refMissing: refMissing };
+  }
+
+  var report = {
+    schemaVersion: DB_SCHEMA_VERSION,
+    generatedAt: new Date().toISOString(),
+    members: {
+      total: members.length,
+      live: Object.keys(liveMemberIds).length,
+      softDeleted: Object.keys(deletedMemberIds).length,
+    },
+    staffs: {
+      total: staffs.length,
+      live: Object.keys(liveStaffIds).length,
+      softDeleted: Object.keys(deletedStaffIds).length,
+    },
+    orphans: orphans,
+    note: 'refSoftDeleted=削除済み会員/職員を参照する live 行, refMissing=存在しないIDを参照する live 行。バックフィル要否判断用（docs/249 §7）',
+  };
+  Logger.log(JSON.stringify(report, null, 2));
+  return JSON.stringify(report);
+}
+
+// ── dryRun E2E（operator 実行・実DB・自己完結: 投入→cascade→検証→復元→検証→掃除）──
+var DRYRUN_CASCADE_TAG = 'DRYRUN_CASCADE';
+
+function dryRunDeleteCascadeV376_52_LOG() {
+  var ss = getOrCreateDatabase_();
+  var tag = DRYRUN_CASCADE_TAG;
+  var nowIso = new Date().toISOString();
+  var memberId = tag + '_M1';
+  var staffId = tag + '_S1';
+  var authId = tag + '_A1';
+  var payId = tag + '_P1';
+  var out = { passed: false, checks: [] };
+  function check(name, ok, detail) {
+    out.checks.push({ name: name, ok: !!ok, detail: detail === undefined ? '' : detail });
+    if (!ok) out.passed = false;
+  }
+  try {
+    cleanupDryRunDeleteCascade();
+
+    // 1. fixture 投入（各テーブル最小行。appendRowsByHeaders は未知キー無視・欠損は空欄）
+    appendRowsByHeaders_(ss, 'T_会員', [{ '会員ID': memberId, '会員種別コード': 'INDIVIDUAL', '会員状態コード': 'ACTIVE', '姓': tag, '名': 'テスト', '削除フラグ': false, '作成日時': nowIso, '更新日時': nowIso }]);
+    appendRowsByHeaders_(ss, 'T_事業所職員', [{ '職員ID': staffId, '会員ID': memberId, '氏名': tag + ' テスト', '職員状態コード': 'ENROLLED', '削除フラグ': false, '作成日時': nowIso, '更新日時': nowIso }]);
+    appendRowsByHeaders_(ss, 'T_認証アカウント', [{ '認証ID': authId, '認証方式': 'PASSWORD', 'ログインID': tag + '_LOGIN', '会員ID': memberId, 'アカウント有効フラグ': false, '削除フラグ': false, '作成日時': nowIso, '更新日時': nowIso }]);
+    appendRowsByHeaders_(ss, 'T_研修申込', [{ '申込ID': tag + '_AP1', '研修ID': tag + '_T1', '会員ID': memberId, '申込者区分コード': 'MEMBER', '申込者ID': memberId, '申込状態コード': 'CANCELED', '削除フラグ': false, '作成日時': nowIso, '更新日時': nowIso }]);
+    appendRowsByHeaders_(ss, 'T_年会費納入履歴', [{ '会員ID': memberId, '削除フラグ': false, '作成日時': nowIso, '更新日時': nowIso }]);
+    appendRowsByHeaders_(ss, 'T_年会費更新履歴', [{ '会員ID': memberId, '作成日時': nowIso }]);
+    appendRowsByHeaders_(ss, 'T_役員', [{ '役員ID': tag + '_O1', '会員ID': memberId, '削除フラグ': false, '作成日時': nowIso, '更新日時': nowIso }]);
+    appendRowsByHeaders_(ss, 'T_振込口座', [{ '口座ID': tag + '_B1', '会員ID': memberId, '削除フラグ': false, '作成日時': nowIso, '更新日時': nowIso }]);
+    appendRowsByHeaders_(ss, 'T_支払い', [{ '支払いID': payId, '会員ID': memberId, '削除フラグ': false, '作成日時': nowIso, '更新日時': nowIso }]);
+    appendRowsByHeaders_(ss, 'T_支払い明細', [{ '明細ID': tag + '_PD1', '支払いID': payId, '削除フラグ': false, '作成日時': nowIso, '更新日時': nowIso }]);
+    appendRowsByHeaders_(ss, 'T_請求', [{ '請求ID': tag + '_C1', '会員ID': memberId, '削除フラグ': false, '作成日時': nowIso, '更新日時': nowIso }]);
+    appendRowsByHeaders_(ss, 'T_変更申請', [{ '申請ID': tag + '_R1', '会員ID': memberId, '削除フラグ': false, '作成日時': nowIso, '更新日時': nowIso }]);
+    appendRowsByHeaders_(ss, 'T_管理者Googleホワイトリスト', [{ 'ホワイトリストID': tag + '_W1', 'Googleメール': tag.toLowerCase() + '@example.invalid', '紐付け会員ID': memberId, '有効フラグ': false, '削除フラグ': false, '作成日時': nowIso, '更新日時': nowIso }]);
+    appendRowsByHeaders_(getLogSs_(), 'T_ログイン履歴', [{ 'ログイン履歴ID': tag + '_LH1', '認証ID': authId, 'ログイン結果': 'SUCCESS', '実行日時': nowIso }]);
+
+    // 2. cascade 実行
+    var mSet = {}; mSet[memberId] = true;
+    var sSet = {}; sSet[staffId] = true;
+    var batchId = tag + '_BATCH_' + Utilities.getUuid().substring(0, 8).toUpperCase();
+    out.batchId = batchId;
+    var cascade = runDeleteCascade_(ss, mSet, sSet, batchId, nowIso);
+    out.cascade = cascade;
+
+    // 3. 検証: 13テーブルすべて移動件数1・live 残存0・archive 側にバッチ行あり・purge 1件
+    out.passed = true;
+    var expectedTables = getCascadeMatchers_(mSet, sSet, {});
+    for (var i = 0; i < expectedTables.length; i++) {
+      var tbl = expectedTables[i][0];
+      check('moved:' + tbl, cascade.moved[tbl] === 1, 'moved=' + cascade.moved[tbl]);
+    }
+    check('purge:T_ログイン履歴', cascade.purgedLoginHistory === 1, 'purged=' + cascade.purgedLoginHistory);
+    var residue = countDryRunCascadeRows_(ss, tag, false);
+    check('live残存0', residue === 0, 'liveResidue=' + residue);
+    var archived = countDryRunCascadeRows_(ss, tag, true);
+    check('archive移動13', archived === 13, 'archivedRows=' + archived);
+
+    // 4. 復元 → live に13行戻り archive からバッチ消滅
+    var restoreResult = restoreArchiveBatch_(batchId);
+    out.restore = restoreResult;
+    var restoredLive = countDryRunCascadeRows_(ss, tag, false);
+    check('復元後live13', restoredLive === 13, 'liveAfterRestore=' + restoredLive);
+    var archivedAfter = countDryRunCascadeRows_(ss, tag, true);
+    check('復元後archive0', archivedAfter === 0, 'archiveAfterRestore=' + archivedAfter);
+  } catch (e) {
+    out.passed = false;
+    out.error = String((e && e.stack) || e);
+  } finally {
+    try { cleanupDryRunDeleteCascade(); } catch (e2) { out.cleanupError = String(e2); }
+  }
+  Logger.log(JSON.stringify(out, null, 2));
+  return JSON.stringify(out);
+}
+
+// dryRun fixture 行のカウント（liveOnly=false で live 側 / true で archive 側）
+function countDryRunCascadeRows_(ss, tag, archiveSide) {
+  var total = 0;
+  for (var i = 0; i < ARCHIVE_SOURCE_TABLES.length; i++) {
+    var name = archiveSide ? ARCHIVE_SOURCE_TABLES[i] + '_archive' : ARCHIVE_SOURCE_TABLES[i];
+    var sheet = ss.getSheetByName(name);
+    if (!sheet || sheet.getLastRow() < 2) continue;
+    var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+    for (var r = 0; r < data.length; r++) {
+      for (var c = 0; c < data[r].length; c++) {
+        if (String(data[r][c]).indexOf(tag) === 0) { total++; break; }
+      }
+    }
+  }
+  return total;
+}
+
+// dryRun 残骸の物理 sweep（live/archive/削除ログ/ログSS から DRYRUN_CASCADE 行を除去・冪等）
+function cleanupDryRunDeleteCascade() {
+  var ss = getOrCreateDatabase_();
+  var tag = DRYRUN_CASCADE_TAG;
+  var removed = 0;
+  var sheetNames = [];
+  for (var i = 0; i < ARCHIVE_SOURCE_TABLES.length; i++) {
+    sheetNames.push(ARCHIVE_SOURCE_TABLES[i]);
+    sheetNames.push(ARCHIVE_SOURCE_TABLES[i] + '_archive');
+  }
+  sheetNames.push('T_削除ログ');
+  for (var n = 0; n < sheetNames.length; n++) {
+    removed += removeRowsWithCellPrefix_(ss, sheetNames[n], tag);
+  }
+  removed += removeRowsWithCellPrefix_(getLogSs_(), 'T_ログイン履歴', tag);
+  Logger.log('[cleanupDryRunDeleteCascade] removed=' + removed);
+  return removed;
+}
+
+// いずれかのセルが prefix で始まる行を物理削除する（dryRun sweep 用）
+function removeRowsWithCellPrefix_(ss, sheetName, prefix) {
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet || sheet.getLastRow() < 2) return 0;
+  var lastCol = sheet.getLastColumn();
+  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, lastCol).getValues();
+  var keepRows = [];
+  var removed = 0;
+  for (var r = 0; r < data.length; r++) {
+    var hit = false;
+    for (var c = 0; c < data[r].length; c++) {
+      if (String(data[r][c]).indexOf(prefix) === 0) { hit = true; break; }
+    }
+    if (hit) removed++;
+    else keepRows.push(data[r]);
+  }
+  if (removed === 0) return 0;
+  sheet.getRange(2, 1, data.length, lastCol).clearContent();
+  if (keepRows.length > 0) sheet.getRange(2, 1, keepRows.length, lastCol).setValues(keepRows);
+  return removed;
 }
 
 function searchMembersForDelete_(payload) {
@@ -24411,12 +24708,12 @@ function executeDeleteMember_(payload) {
     '削除前スナップショットJSON': JSON.stringify(snap),
   }]);
 
+  // v376.52 cascade アーカイブ（docs/249・a1 単一化）: 旧実装（in-place soft delete のみで
+  // live に行が残り、役員/請求/振込口座/支払い/変更申請は放置＝孤児化）を廃止し、
+  // 会員系13テーブルを live から除去して *_archive へ移動する。ログイン履歴は物理 purge。
+  // 削除バッチID = 削除ログの logId（復元は同一バッチの全行を戻す＝会員単位アトミック）。
   var nowIso = new Date().toISOString();
-  var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
-  archiveMembersByIds_(ss, plan.memberIds, today, nowIso);
-  archiveStaffsByIds_(ss, plan.staffIds, today, nowIso);
-  archiveAuthAccountsForTargets_(ss, plan.memberIds, plan.staffIds, nowIso);
-  archiveAdminWhitelistsByMemberIds_(ss, plan.memberIds, nowIso);
+  var cascade = runDeleteCascade_(ss, memberIdSet, staffIdSet, logId, nowIso);
 
   clearAllDataCache_();
   clearAdminDashboardCache_();
@@ -24427,6 +24724,7 @@ function executeDeleteMember_(payload) {
     archivedTargetKeys: plan.targetKeys,
     affectedCounts: plan.counts,
     retainedCounts: plan.retainedCounts,
+    cascade: cascade,
   };
 }
 

@@ -234,8 +234,9 @@ const MemberDeleteConsole: React.FC = () => {
         <h2 className="text-xl font-bold text-slate-900">データ管理コンソール（論理削除）</h2>
         <p className="text-sm leading-6 text-slate-700">
           個人会員、賛助会員、事業所会員、事業所会員メンバーを検索し、
-          <strong className="mx-1 text-slate-900">退会・退職 + 削除フラグ + 認証無効化</strong>
-          を一括で実行します。履歴テーブルは保持し、`T_削除ログ` に操作前スナップショットを残します。
+          <strong className="mx-1 text-slate-900">会員系関連レコードのアーカイブ移動（単一化）+ 認証無効化</strong>
+          を一括で実行します。対象の関連レコードは live から各アーカイブへ移動し（削除バッチ単位で復元可能）、
+          ログイン履歴は削除されます。`T_削除ログ` に操作前スナップショットを残します。
         </p>
       </div>
 
@@ -341,7 +342,7 @@ const MemberDeleteConsole: React.FC = () => {
 
               {selectedKeys.size > 0 && (
                 <div className="flex items-center justify-between pt-2">
-                  <p className="text-sm text-slate-600">選択した対象の更新件数と保持履歴を確認します。</p>
+                  <p className="text-sm text-slate-600">選択した対象の更新件数とアーカイブ移動対象を確認します。</p>
                   <button
                     type="button"
                     onClick={handlePreview}
@@ -369,7 +370,7 @@ const MemberDeleteConsole: React.FC = () => {
             <h3 className="font-semibold text-slate-900">Step 2: 論理削除プレビュー</h3>
             <p className="text-sm text-slate-600">
               更新対象 {preview.totalUpdatedRows} 件、関連履歴 {Object.values(preview.retainedCounts).reduce<number>((sum, value) => sum + Number(value || 0), 0)} 件を確認します。
-              関連履歴は削除せず保持します。
+              関連レコードは live からアーカイブへ移動します（削除バッチ単位で復元可能）。ログイン履歴は削除されます。
             </p>
           </div>
 
@@ -413,7 +414,7 @@ const MemberDeleteConsole: React.FC = () => {
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-              <h4 className="font-semibold text-slate-900">保持される関連履歴</h4>
+              <h4 className="font-semibold text-slate-900">関連履歴（アーカイブへ移動 / ログイン履歴は削除）</h4>
               <table className="w-full text-sm">
                 <tbody className="divide-y divide-slate-200">
                   {RETAINED_TABLE_ORDER.map(table => {
@@ -458,12 +459,12 @@ const MemberDeleteConsole: React.FC = () => {
           <div className="space-y-1">
             <h3 className="font-semibold text-red-800">Step 3: 最終確認</h3>
             <p className="text-sm text-red-700">
-              対象を即時に退会・退職扱いへ更新し、認証を無効化します。履歴は保持されますが、通常画面からは除外されます。
+              対象と会員系関連レコードを live からアーカイブへ移動し、認証を無効化します。実行後、通常画面には表示されません。
             </p>
           </div>
 
           <div className="rounded-2xl bg-red-50 border border-red-200 p-4 text-sm text-red-800 space-y-1">
-            <p>・物理削除は行いません。</p>
+            <p>・関連レコードは各アーカイブシートへ移動し、削除バッチ単位で復元できます（ログイン履歴のみ削除・復元不可）。</p>
             <p>・代表者職員は単体では論理削除できません。必要な場合は事業所会員全体を対象にしてください。</p>
             <p>・対象: <strong>{preview.targets.map(target => target.displayName).join('、')}</strong></p>
             <p>・更新レコード合計: <strong>{preview.totalUpdatedRows} 件</strong></p>
