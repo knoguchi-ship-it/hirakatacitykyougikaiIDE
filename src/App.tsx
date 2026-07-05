@@ -5240,6 +5240,11 @@ const App: React.FC = () => {
         annualFeeTransferAccount: annualFeeTransferAccount,
         bulkMailAutoAttachFolderId: bulkMailAutoAttachFolderIdInput,
         emailLogViewerRole: emailLogViewerRoleInput,
+        // v376.53.2: REDIRECT/停止 警告バナー用（v376.53.1 で settings に含め漏れ → バナー不点灯バグ）。
+        // loadSystemSettings 時に保存値で初期化される state を渡す（bulk-mail 画面では編集されない）
+        mailGlobalEnabled: mailGlobalEnabledInput,
+        mailDeliveryMode: mailDeliveryModeInput,
+        mailRedirectAllowlist: mailRedirectAllowlistInput,
       };
       return (
         <BulkMailSender

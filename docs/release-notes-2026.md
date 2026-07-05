@@ -13,6 +13,14 @@
 
 ---
 
+## v376.53.2 — 2026-07-05 🐛 REDIRECT 警告バナー不点灯 hotfix（admin @215・live 検証済）
+
+- **バグ** 🐛: v376.53.1 の警告バナーが REDIRECT 中でも表示されない。原因は `App.tsx` の `bulkMailSettings`（手組みオブジェクト）に `mailGlobalEnabled`/`mailDeliveryMode`/`mailRedirectAllowlist` の3値が含まれておらず、バナー条件が常に false だったため。**Playwright MCP の live テスト（実際に REDIRECT へ切替→画面確認→即 LIVE 復旧）が検知**。
+- **修正**: `bulkMailSettings` に メール制御3値（loadSystemSettings 時に保存値で初期化される state）を追加。
+- **live 実証（@215）**: REDIRECT 切替→バナータイトル/本文表示 ✅・「メール送信制御を開く」ボタン表示+クリックでシステム設定へ遷移 ✅・LIVE 復旧後は非表示 ✅・**検証終了時 mailDeliveryMode=LIVE を API で再確認**（露出約1分・日曜午前）。
+
+---
+
 ## v376.53.1 — 2026-07-05 🔧 REDIRECT 警告バナー UX 強化（admin split のみ @214）
 
 一括メール送信コンソールの配信モード警告を、本日付 Web 調査（NN/g Error-Message Guidelines / Red Hat Design System Alert / Mobbin Banner patterns / Google Cloud Console 系の解決アクション付き警告）に基づき日本の標準的ユーザビリティ水準へ引き上げ。
