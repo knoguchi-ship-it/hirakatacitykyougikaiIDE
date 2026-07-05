@@ -13,16 +13,20 @@
 
 ## 0. 次の担当者へ（キャッチアップ・まず1分でここ）
 
-- **本番は v376.53 全3split 更新済み**。現行: **public @359×2 / member @118 / admin @213**（§1）。v376.52 cascade は @212→@213 に内包・実DB E2E passed:true / 負債診断 16行（AI が Playwright MCP 認証済セッションから直接検証済）。直近セッション（2026-06-30）は **ロール視点プレビュー（MASTER 専用デバッグ機能）** を追加。MASTER が全ロールの見え方をワンクリックで切替確認でき、プレビュー中は書込が遮断される（閲覧のみ）。それ以前（2026-06-06〜06-26）は LINE投稿拡充 / メールテンプレ全種化 / 在籍中 DRY 是正 / 宛名区分3択 / 一括メール scope 復旧（詳細 §7 v376.40〜.51）。
-- **まず読む**: 本書 §1（本番版）→ §2（即時対応＝操作者の実機確認・再同意・権限付与が数件たまっている）→ §6（読む順序）。設計の背景は `docs/release-notes-2026.md`、落とし穴は `MEMORY`（下記）。
-- **まずやる（操作者タスク・§2-1）**: ①v376.45 で MASTER が権限マトリクスから新権限 **`公式LINE投稿 管理(line-post-manage)`** を必要ロールへ付与。②v376.42 メールテンプレ移行を admin login でトリガ確認。③v376.46「在籍中」が会員リスト＝宛先リストで一致するか確認。④各機能の実機確認（§2-1 の表）。
-- **触る前に必読の落とし穴（MEMORY）**:
-  - `feedback_build_pruning_bug` — gas-src のトップレベル定義/リテラル内コメントに **`_` 付き関数名を書かない**（build pruner が public/member で誤削除し `テーブル定義` ごと飛ぶ）。push 前に3split の `var テーブル定義 = {` 残存を grep。
-  - `feedback_getorcreatesheet_headerless_trap` — `getOrCreateSheet_` はヘッダー未書込。ensure 系は列数0自己修復必須。
-  - `project_front_back_shared_logic` — 在籍中判定/メニュー等の front↔GAS 共有ロジックは **単一情報源（shared .mjs＋build注入）**。修正は1箇所。新規共有関数の追加レシピ有り。
-- **開発ルールの更新**: `AGENTS.md §5` に **新機能は E2E 回帰必須**（公開は a11y/responsive、admin/member 書込は backend `dryRun*_LOG`、3split 生成物 grep）を明文化。守ること。
-- **未デプロイ差分**: member/public は gas-src 由来の inert 差分を抱える（admin 専用機能のため未 redeploy）。次に member/public を触る機能を出す時に同梱でデプロイ。
-- **v376.52 デプロイ済（2026-07-05・admin @212）**: cascade アーカイブ＋メール REDIRECT 是正。**operator 残タスク**: ①admin ログイン（migrate トリガ）②`dryRunDeleteCascadeV376_52_LOG` ▶（実DB E2E・passed:true 確認）③`diagnoseMemberDeleteDebt_LOG` ▶（削除負債実測→バックフィル要否判断）④一括メール画面で REDIRECT 警告バナー確認（§2-1 #0）。
+- **本番**: public **@359×2** / member **@118** / admin **@215**（v376.53.2・§1）。全 fixed deployment 同期確認済・稼働正常。
+- **直近セッション（2026-06-30〜07-05）の成果**（詳細 §7 / `docs/release-notes-2026.md` v376.51〜.53.2）:
+  - v376.51 ロール視点プレビュー（MASTER専用）／v376.52 **会員系削除 cascade アーカイブ**（docs/249・実DB E2E 18/18 PASS・削除負債実測16行のみ）／v376.53 DRY・ハードコーディング・XFrame 一括是正（api.ts **-940行**・rbac-util/validators 集約・ID/URL の Properties override 化）／.53.1-.53.2 REDIRECT 警告バナー（live 実証済）。
+  - **メール事故対応済**: 6/26〜7/3 の間 `MAIL_DELIVERY_MODE=REDIRECT` 残置で全メールが旧アドレスに集約されていた（実宛先未達）。LIVE 復旧済・再発防止バナー/ログ正直化デプロイ済。**未達期間の再送要否は運用判断が残っている可能性あり**（`T_メール送信ログ` の 6/26〜7/3 BULK_MEMBER 行を確認）。
+  - 第三者評価: `docs/248`（テスト観点表・検証訂正ログ付）→ 主要 High/Med は全て是正済。残は GCP 行き（PBKDF2/性能）と小粒のみ。
+- **🚀 進行中: GCP 移行 Phase 0** — 作業場は **`C:\VSCode\CloudePL\hirakatacitykyougikaiGCP`**（独立Git・GitHub private `knoguchi-ship-it/hirakatacitykyougikaiGCP`）。**本番完全分離**（切り分け規約=同作業場 AGENTS.md §1 が正本・本番 GAS/DB/deployment に触れない・GCP リソースは追加のみ）。
+  - 済: password-hash サービス実装＋レビュー是正＋unit 5/5 PASS／infra/setup-phase0.sh（operator 手順）
+  - **次: operator が `infra/setup-phase0.sh` を gcloud 実行**（API有効化→pepper secret 対話投入→SA→Cloud Run deploy→audience→IAM）→ Service URL 共有 → その後**本番側リリース**（openid scope＋Argon2 関数＋`ARGON2_ENABLED` flag・docs/reference/240 §4-5）
+- **次の担当者の落とし穴**:
+  - git push は **gh アカウント `knoguchi-ship-it`** に switch（`kenta-noguchi-tadakayo-sys` は 403）。push 後は元に戻す運用。
+  - clasp は **`k.noguchi@hcm-n.org`**（勝手に tadakayo に戻っていることがある→ `show-authorized-user` 確認）。
+  - **Playwright MCP 認証済ブラウザから `google.script.run` で dryRun/診断関数を直接実行できる**（operator ▶ 代行・MEMORY `feedback_playwright_gas_run_verification` 参照）。ユーザーに admin ログインしてもらってから使う。
+- **残タスク（小粒・次期）**: 孤児16行のバックフィル（任意・診断済）／kana form 前検証適用／er-sync 列順・相互排他拡張／CM番号 import プレビュー／legacy `getApplicationApplicantType_` 物理撤去（v377）／stale 旧アカウント定数除去（Low）。§2-1 の旧 operator 実機確認（v376.45 line-post-manage 権限付与等）も未消化分あり。
+- **まず読む**: 本書 §1→§2→`docs/248`（評価）→`docs/249`（削除設計）→ GCP 作業場 README/AGENTS。落とし穴は MEMORY。
 
 ---
 
