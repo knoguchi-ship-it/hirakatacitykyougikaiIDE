@@ -13,6 +13,19 @@
 
 ---
 
+## v376.52 — 2026-07-05 🆕🔒 会員系削除 cascade アーカイブ + メール REDIRECT 恒久是正（admin split のみ @212）
+
+`docs/248` 第三者評価のリレーション整合性 High 所見（cascade 未実装＝孤児発生・`_archive` dead code・命名詐称）の恒久是正（設計正本 `docs/249`・a1 単一化モデル）と、2026-07-03 に発覚したメール誤集約事故の再発防止を同梱。
+
+- **スキーマ** 🆕: `_archive` を 2→**13 本**へ拡張（＋認証アカウント/ホワイトリスト/研修申込/年会費納入・更新履歴/役員/振込口座/支払い/支払い明細/請求/変更申請）。gas-src `ARCHIVE_SOURCE_TABLES`（単一情報源）からループ生成し、`scripts/lib/er-model.mjs` をループパターン静的解析に対応（er-sync 57テーブル PASS）。サロゲート3列 `アーカイブID`/**`削除バッチID`**（=T_削除ログ.ログID・会員単位復元キー）/`アーカイブ日時`。`DB_SCHEMA_VERSION=2026-07-03-cascade-archive-schema-v376.52` → admin ログインで migrate（**追加のみ・既存データ不変**）。
+- **cascade 本体** 🆕: `executeDeleteMember_` → `runDeleteCascade_` — 支払いID/認証IDを移動前解決し、13テーブルを live から archive へ移動（`moveRowsToArchiveByMatch_`・ヘッダー欠落自己修復）。**T_ログイン履歴は物理 purge**（高volume・PII最小化）。**旧実装の是正**: in-place soft delete のみで 役員/請求/振込口座/支払い/変更申請 が放置され孤児化していた構造欠陥（docs/249 C3）と、`_archive` へ移動しない命名詐称 `archive*ByIds` 4関数（C1）を撤去。
+- **復元・運用** 🆕: `restoreArchiveBatch_`（同一 `削除バッチID` の全行を戻す＝会員単位アトミック）＋ operator 5関数（`diagnoseMemberDeleteDebt_LOG` 削除負債診断 / `listArchiveBatches_LOG` / `restoreLastArchiveBatch_APPLY` / `dryRunDeleteCascadeV376_52_LOG` 実DB E2E / `cleanupDryRunDeleteCascade`）。keep-list（`ADMIN_TOP_LEVEL_FUNCTIONS` 単一情報源）登録。退会フローは従来どおり（cascade 不使用・履歴保持）。
+- **メール REDIRECT 恒久是正** 🔒: 6/26 のテスト後 `MAIL_DELIVERY_MODE=REDIRECT` が残置され、以降の全メールが Redirect 宛先（旧アドレス）へ集約・実宛先未達なのに UI/送信ログは「成功」と表示していた事故（7/3 発覚・操作者が LIVE 復旧済み）。再発防止: ①`BulkMailSender` に配信モードが LIVE 以外のとき**常時警告バナー**（画面上部＋送信確認ダイアログ）②`sendBulkMemberMail_` が `deliverMail_` の mode/suppressed を無視していた欠陥を修正 — REDIRECT は送信ログ `送信種別=BULK_MEMBER_REDIRECT`、抑止分は成功に数えず、戻り値 `deliveryMode`/`suppressedCount` を UI で警告表示。v376.50 の教訓（受信側の目印廃止）を送信側 UI で担保。
+- **その他** 🔧: `getApplicationApplicantType_` に `@deprecated`（v377 撤去予定・新規呼出禁止）。役員 linkage XOR「未検証」は**誤所見**（`assignOfficer_`/`updateOfficerLinkage_` に実装済）と実コード確認し docs/248 V8 訂正。`MemberDeleteConsole` 文言を新挙動（アーカイブ移動/purge/バッチ復元）へ更新。
+- **検証 / デプロイ**: prerelease 全PASS（8 suite fail0・boundary×3・er-sync）・3split 生成物 grep 健全（cascade は admin のみ・public/member 漏れなし）。**デプロイ前に DB スプレッドシート複製バックアップ実施**。admin push → version 212 → `redeploy @212`、`clasp deployments --json` で同期確認。**operator 残タスク**（HANDOVER §2-1 #0）: admin ログイン（migrate）→ `dryRunDeleteCascadeV376_52_LOG` ▶ passed:true → `diagnoseMemberDeleteDebt_LOG` ▶ 負債実測（バックフィル要否判断）→ REDIRECT バナー実機確認。member/public は inert 差分のみ未 redeploy。
+
+---
+
 ## v376.51 — 2026-06-30 🆕 ロール視点プレビュー（MASTER 専用デバッグ機能・admin split のみ @211）
 
 管理コンソールで、MASTER が各ロール/権限ごとの「見え方」をワンクリックで切り替えて確認できるデバッグ機能を追加した。従来は MASTER 自身の全権ビューしか見られず、カスタムロールや各権限のサイドバー・到達可能画面を実際に確認できなかった課題に対応する。

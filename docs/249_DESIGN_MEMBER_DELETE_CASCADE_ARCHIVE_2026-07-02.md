@@ -3,7 +3,7 @@
 作成日: **2026-07-02**
 対象: 枚方市介護支援専門員連絡協議会 会員システム（GAS + Google Spreadsheet DB）
 関連: `docs/248`（第三者評価・§2-A リレーション整合性）／`docs/03_DATA_MODEL.md`（スキーマ正本）／`docs/04_DB_OPERATION_RUNBOOK.md`
-状態: **実装済・未デプロイ（2026-07-03）**。本番反映（admin redeploy + 初回 migrate）は明示承認と完全バックアップを前提とする（`AGENTS.md §4.3/§6`）。実装記録は §8 参照。
+状態: **本番デプロイ済（2026-07-05・admin @212）**。DB 複製バックアップ実施→承認→デプロイ。migrate は次回 admin ログインで自動実行。operator 検証（dryRun E2E / 負債診断）は `HANDOVER §2-1 #0`。実装記録は §8 参照。
 
 > 本書は `docs/248` の High/Med 所見（Cascade・孤児・`_archive` 未活用）に対する恒久設計。**まず設計を確定し、実装は別途承認後**。
 

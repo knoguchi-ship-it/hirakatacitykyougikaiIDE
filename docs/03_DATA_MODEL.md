@@ -1,7 +1,7 @@
 # データモデル設計書（スプレッドシートDB版）
 
-更新日: 2026-07-03
-スキーマバージョン: 2026-07-03-cascade-archive-schema-v376.52（**コード反映済・未デプロイ**。本番は v376.45 スキーマ / admin @211）
+更新日: 2026-07-05
+スキーマバージョン: 2026-07-03-cascade-archive-schema-v376.52（**本番 admin @212 デプロイ済**。migrate は次回 admin ログインで自動実行・追加のみ非破壊）
 
 > 下記 ER は `gas-src テーブル定義`（列の正本）＋ `docs/er-metadata.json` から自動生成（AGENTS §4.6）。手書き編集禁止。
 > 直近のスキーマ変更: **v376.52** 会員系削除 cascade アーカイブ（`docs/249`・a1 単一化）— `_archive` を 2 本→**13 本**へ拡張（＋認証アカウント/ホワイトリスト/研修申込/年会費納入・更新履歴/役員/振込口座/支払い/支払い明細/請求/変更申請）。サロゲート列を `アーカイブID`/**`削除バッチID`**/`アーカイブ日時` の3列に統一（`削除バッチID`=T_削除ログ.ログID・会員単位復元のバッチキー）。定義は gas-src の `ARCHIVE_SOURCE_TABLES`（単一情報源）からループ生成／**v376.45** `T_LINE投稿依頼` に `作成者名`・`投稿マーク者名` の2列追加／**v376.42-.43** `T_メールテンプレート` 新設＋設定キー追加。
@@ -1431,7 +1431,7 @@ GAS コードは `getLogSs_()` 経由でアクセスする。`LOG_SPREADSHEET_ID
 
 | バージョン | 日付 | 変更概要 |
 |---|---|---|
-| 2026-07-03-cascade-archive-schema-v376.52 | 2026-07-03 | **コード反映済・未デプロイ**。会員系削除 cascade アーカイブのスキーマ整備（`docs/249`・a1 単一化）。`_archive` を 2 本→13 本へ拡張（認証アカウント/管理者Googleホワイトリスト/研修申込/年会費納入履歴/年会費更新履歴/役員/振込口座/支払い/支払い明細/請求/変更申請 を追加）。サロゲート列を `アーカイブID`/`削除バッチID`/`アーカイブ日時` の3列に統一（既存2本にも `削除バッチID` を name-based shift で追加。`削除バッチID`=T_削除ログ.ログID＝会員単位復元のバッチキー）。定義は gas-src `ARCHIVE_SOURCE_TABLES`（単一情報源）からループ生成し、`scripts/lib/er-model.mjs` の extractTableDefs をループパターン対応に拡張（er-sync 57テーブル PASS）。T_ログイン履歴は archive 対象外（削除時に物理 purge）。移動ロジック（cascade 本体）は次フェーズ（破壊的・要承認）。 |
+| 2026-07-03-cascade-archive-schema-v376.52 | 2026-07-03 | **本番 admin @212 デプロイ済(2026-07-05)**。会員系削除 cascade アーカイブのスキーマ整備（`docs/249`・a1 単一化）。`_archive` を 2 本→13 本へ拡張（認証アカウント/管理者Googleホワイトリスト/研修申込/年会費納入履歴/年会費更新履歴/役員/振込口座/支払い/支払い明細/請求/変更申請 を追加）。サロゲート列を `アーカイブID`/`削除バッチID`/`アーカイブ日時` の3列に統一（既存2本にも `削除バッチID` を name-based shift で追加。`削除バッチID`=T_削除ログ.ログID＝会員単位復元のバッチキー）。定義は gas-src `ARCHIVE_SOURCE_TABLES`（単一情報源）からループ生成し、`scripts/lib/er-model.mjs` の extractTableDefs をループパターン対応に拡張（er-sync 57テーブル PASS）。T_ログイン履歴は archive 対象外（削除時に物理 purge）。移動ロジック（cascade 本体）は次フェーズ（破壊的・要承認）。 |
 | 2026-06-10-line-post-rbac-v376.45 | 2026-06-10 | v376.45 本番反映（admin split @205）。`T_LINE投稿依頼` に `作成者名`・`投稿マーク者名` の2列を末尾追加（依頼者/投稿者の表示名デノーマライズ）。`normalizeTableColumns_('T_LINE投稿依頼')` を初期化 critical に追加し name-based shift で既存行保持。あわせて LINE投稿権限の二層化（`line-post` / 新設 `line-post-manage`）と可視範囲制御を実装（物理スキーマは上記2列のみ）。 |
 | 2026-06-10-mail-template-table-v376.42 | 2026-06-10 | v376.42 本番反映（admin split @201）。全メール種別テンプレート管理の集約テーブル `T_メールテンプレート`（テンプレートID/カテゴリ/名前/件名/本文/既定フラグ/作成日時/更新日時/削除フラグ）を新設。旧 `T_システム設定.CREDENTIAL_EMAIL_TEMPLATES`(JSON) を `migrateCredentialTemplatesToTable_` で冪等移行。v376.43 でハードコード6メールの差し込み化に伴い `T_システム設定` に各 `<CAT>_SUBJECT/BODY` 設定キーを追加（物理テーブル変更なし）。 |
 | 2026-05-20-public-staff-update-v372.5 | 2026-05-20 | v372.5〜v372.6.1 本番反映。公開ポータルの「会員登録情報を変更する」フローに **「職員情報を変更する」** を追加（事業所会員のみ）。`T_変更申請.申請内容JSON` の構造に `staffUpdate: Array<{staffId, lastName?, firstName?, lastKana?, firstKana?, email?, careManagerNumber?}>` を追加（カラム追加はなし）。承認時に `updateStaff_` 経由で適用。メール変更時は旧アドレス・新アドレス両方に通知。v372.6 で HMAC token UTF-8 charset 明示で日本語化け修正、全空申請の拒否、デザイン整合性改善。v372.6.1 で送信ボタン disable + ヒント表示。 |

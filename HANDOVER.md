@@ -4,16 +4,16 @@
 > 経緯・履歴・設計詳細は別ドキュメントへ。リンク先は §6 参照順序を参照。
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
-最終更新: **2026-06-30**
-最新リリース: **`v376.51`**（ロール視点プレビュー＝MASTER 専用デバッグ機能。admin split のみ @211）
-最終作業: **MASTER が各ロール/権限ごとの「見え方」に切り替えて確認できるロール視点プレビューを追加しデプロイ（v376.51 / admin @211）** — 上部固定バー（`src/components/RolePreviewBar.tsx`）でロール選択→Sidebar/ルーティング/機能可視を選択ロールの `effectiveRbac` に差し替え。サーバー権限は MASTER のまま不変（なりすましではない）。プレビュー中は API 書込を deny-by-default で遮断し「閲覧のみ」を担保（`setApiPreviewReadOnly` in `src/services/api.ts`）。DBスキーマ不変・backend 不変（純フロント）。member/public は inert 差分のみ未 redeploy。
-> 直近の経緯・各リリース詳細は §7 リリース表 と `docs/release-notes-2026.md` を正本とする（v376.40〜v376.51）。
+最終更新: **2026-07-05**
+最新リリース: **`v376.52`**（会員系削除 cascade アーカイブ＋メール REDIRECT 恒久是正。admin split のみ @212）
+最終作業: **会員系削除の cascade アーカイブ（`docs/249`・a1 単一化）とメール誤集約事故の恒久是正をデプロイ（v376.52 / admin @212）** — ①削除コンソール実行時に会員系13テーブルを live から `*_archive` へ移動（`削除バッチID`=削除ログID・会員単位アトミック復元可）、ログイン履歴は物理 purge。旧 in-place soft delete（孤児発生源）と命名詐称 `archive*ByIds` を撤去。②2026-07-03 の REDIRECT 残置事故（全メールが Redirect 宛先へ集約・UI/ログは成功表示）の再発防止: 一括メール画面に配信モード常時警告バナー＋送信結果/送信ログの正直化（`BULK_MEMBER_REDIRECT` 記録・抑止分を成功に数えない）。③legacy 申込者解決 `@deprecated`（v377 撤去予定）。DB migrate（`_archive` 11本新設+既存2本に列追加・追加のみ非破壊）は次回 admin ログインで自動実行。デプロイ前に DB スプレッドシート複製バックアップ実施済み。
+> 直近の経緯・各リリース詳細は §7 リリース表 と `docs/release-notes-2026.md` を正本とする（v376.40〜v376.52）。
 
 ---
 
 ## 0. 次の担当者へ（キャッチアップ・まず1分でここ）
 
-- **本番は admin @211 に更新済み**。現行: public @358 / member @117 / **admin @211**（§1）。直近セッション（2026-06-30）は **ロール視点プレビュー（MASTER 専用デバッグ機能）** を追加。MASTER が全ロールの見え方をワンクリックで切替確認でき、プレビュー中は書込が遮断される（閲覧のみ）。それ以前（2026-06-06〜06-26）は LINE投稿拡充 / メールテンプレ全種化 / 在籍中 DRY 是正 / 宛名区分3択 / 一括メール scope 復旧（詳細 §7 v376.40〜.51）。
+- **本番は admin @212 に更新済み**。現行: public @358 / member @117 / **admin @212**（§1）。直近セッション（2026-06-30）は **ロール視点プレビュー（MASTER 専用デバッグ機能）** を追加。MASTER が全ロールの見え方をワンクリックで切替確認でき、プレビュー中は書込が遮断される（閲覧のみ）。それ以前（2026-06-06〜06-26）は LINE投稿拡充 / メールテンプレ全種化 / 在籍中 DRY 是正 / 宛名区分3択 / 一括メール scope 復旧（詳細 §7 v376.40〜.51）。
 - **まず読む**: 本書 §1（本番版）→ §2（即時対応＝操作者の実機確認・再同意・権限付与が数件たまっている）→ §6（読む順序）。設計の背景は `docs/release-notes-2026.md`、落とし穴は `MEMORY`（下記）。
 - **まずやる（操作者タスク・§2-1）**: ①v376.45 で MASTER が権限マトリクスから新権限 **`公式LINE投稿 管理(line-post-manage)`** を必要ロールへ付与。②v376.42 メールテンプレ移行を admin login でトリガ確認。③v376.46「在籍中」が会員リスト＝宛先リストで一致するか確認。④各機能の実機確認（§2-1 の表）。
 - **触る前に必読の落とし穴（MEMORY）**:
@@ -22,7 +22,7 @@
   - `project_front_back_shared_logic` — 在籍中判定/メニュー等の front↔GAS 共有ロジックは **単一情報源（shared .mjs＋build注入）**。修正は1箇所。新規共有関数の追加レシピ有り。
 - **開発ルールの更新**: `AGENTS.md §5` に **新機能は E2E 回帰必須**（公開は a11y/responsive、admin/member 書込は backend `dryRun*_LOG`、3split 生成物 grep）を明文化。守ること。
 - **未デプロイ差分**: member/public は gas-src 由来の inert 差分を抱える（admin 専用機能のため未 redeploy）。次に member/public を触る機能を出す時に同梱でデプロイ。
-- **⚠ v376.52 実装済・未デプロイ（2026-07-03）**: 会員系削除 cascade アーカイブ（`docs/249`）— `_archive` 13本スキーマ＋cascade/purge/復元/診断/dryRun 実装済・prerelease 全PASS。**本番反映（admin redeploy＋初回 migrate）は完全バックアップ＋明示承認後**。デプロイ後 operator: `dryRunDeleteCascadeV376_52_LOG` ▶（実DB E2E）→ `diagnoseMemberDeleteDebt_LOG` ▶（削除負債の実測→バックフィル要否判断）。
+- **v376.52 デプロイ済（2026-07-05・admin @212）**: cascade アーカイブ＋メール REDIRECT 是正。**operator 残タスク**: ①admin ログイン（migrate トリガ）②`dryRunDeleteCascadeV376_52_LOG` ▶（実DB E2E・passed:true 確認）③`diagnoseMemberDeleteDebt_LOG` ▶（削除負債実測→バックフィル要否判断）④一括メール画面で REDIRECT 警告バナー確認（§2-1 #0）。
 
 ---
 
@@ -33,7 +33,7 @@
 | 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@358** |
 | 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@358** |
 | member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@117** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@211** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@212** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 
@@ -65,6 +65,7 @@
 
 | # | タスク | 詳細 / 参照 |
 |---|---|---|
+| 0 | **v376.52 cascade アーカイブ＋メール是正の検証**（admin @212・MASTER） | ①admin にログイン（DB migrate 自動実行: `_archive` 11本新設+既存2本に `削除バッチID` 列追加。既存データ不変）。②admin editor で `dryRunDeleteCascadeV376_52_LOG` ▶ → `passed:true`（実DB E2E: 投入→cascade→live0/archive13/purge1→復元→sweep）。③`diagnoseMemberDeleteDebt_LOG` ▶ → 削除負債（refSoftDeleted/refMissing）を実測し、バックフィル要否を判断（`docs/249 §7`）。④一括メール画面: 配信モードを一時 REDIRECT にすると画面上部＋送信確認に琥珀色警告が出ること（確認後 LIVE に戻す）。⑤削除コンソールの説明文が「アーカイブ移動」表記になっていること。※cascade は削除コンソール実行時のみ発動（通常運用に影響なし） | `docs/249` §8 |
 | 0 | **v376.51 ロール視点プレビュー 実機確認**（admin @211・MASTER のみ） | MASTER でログインし画面最上部に「👁 ロール視点プレビュー」バーが表示されること。①ドロップダウンで各ロール（管理者/研修管理者/研修登録者/一般/カスタム）を選ぶと、Sidebar が当該ロールの許可メニューだけになり「表示メニュー N件／非表示 M件」が出ること。②許可外 view を開いていた場合は許可内 view に自動退避すること。③プレビュー中に保存・送信・削除を試みると「閲覧のみ」エラーで実行されないこと（実 DB は不変）。④「プレビューを終了」で MASTER の通常表示に即復帰。⑤リロードで自動的に MASTER 表示へ戻ること。⑥360px 幅でバーが崩れないこと。※非 MASTER 管理者・会員にはバーが出ないこと。AI 実行の `test:responsive:admin` は storageState 期限切れで未 PASS のため操作者確認 | `docs/release-notes-2026.md` v376.51 |
 | 0 | **v376.50 一括メール REDIRECT 表示確認**（admin @210） | **操作者確認済（2026-06-26）**: REDIRECT モードで一括メールを安全な検証宛先に送信し、件名に `[REDIRECT from ...]` が付かず、本文先頭に `--- ORIGINAL TO` / `--- CATEGORY` が入らないことを確認済。REDIRECT 中は実宛先ではなく allowlist 宛に集約される点は従来通り |
 | 0 | **v376.49 一括メール送信の実機確認・必要なら Google 再同意**（admin @209） | **操作者確認済（2026-06-26）**: admin split の `gmail.send` scope 復旧後、一括メールの送受信と添付ファイル送信が成功することを確認済。`clasp run healthCheck --json` は Execution API 実行権限で失敗したが、実送信で復旧確認済 |
@@ -194,6 +195,7 @@ npm run build:docs-portal                  # docs/portal/*.html + schema.dbml �
 
 | Version | 日付 | 概要 |
 |---|---|---|
+| **v376.52** | 2026-07-05 | **会員系削除 cascade アーカイブ（docs/249・a1 単一化）＋メール REDIRECT 恒久是正**（admin split のみ @212）。①スキーマ: `_archive` を 2→13 本へ拡張（`ARCHIVE_SOURCE_TABLES` 単一情報源からループ生成）、サロゲート3列 `アーカイブID/削除バッチID/アーカイブ日時`。DB_SCHEMA_VERSION bump→admin ログインで migrate（追加のみ非破壊）。②cascade: `executeDeleteMember_` が `runDeleteCascade_` で13テーブルを live→archive 移動＋ログイン履歴 purge。旧 in-place soft delete（孤児発生源）と命名詐称 `archive*ByIds` 4関数を撤去。復元 `restoreArchiveBatch_`（バッチ単位アトミック）＋operator 関数5本（診断/一覧/復元/dryRun/掃除）。③メール是正: 2026-07-03 REDIRECT 残置事故の再発防止 — BulkMailSender に配信モード常時警告、`sendBulkMemberMail_` の mode 無視欠陥修正（`BULK_MEMBER_REDIRECT` ログ・suppressed を成功に数えない・`deliveryMode`/`suppressedCount` 返却）。④`getApplicationApplicantType_` に `@deprecated`（v377 撤去予定）。役員 XOR「未検証」は誤所見と確認（docs/248 V8）。prerelease 全PASS・er-sync 57テーブル・デプロイ前 DB 複製バックアップ実施 |
 | **v376.51** | 2026-06-30 | **ロール視点プレビュー（MASTER 専用デバッグ機能）**（admin split のみ @211）。MASTER が各ロール/権限ごとの「見え方」をワンクリックで切替確認できる上部固定バー（`src/components/RolePreviewBar.tsx`）を追加。選択ロールの `effectiveRbac`（allowedMenus/isMaster=false/roleName/trainingEditScope）で Sidebar・`isViewAllowed`・line-post 可視を差し替え、許可外 view からは自動退避。**なりすまし(impersonation)ではなくフロント描画のみの模擬**でサーバー強制（`isActionAllowedForSession_`）は MASTER のまま不変＝確定済み認証境界を維持（AGENTS §4.2/§6）。ベストプラクティス準拠（常時バナー/ワンクリック退出/可視・非表示サマリー/閲覧のみ/ephemeral/a11y/レスポンシブ）。プレビュー中は API シングルトンの書込メソッドを deny-by-default で遮断し「閲覧のみ」を担保（`setApiPreviewReadOnly`・読取接頭辞 get/list/search/fetch/check/load/preview 以外をブロック・新規 mutation も自動カバー）。`prerelease` 全 PASS・typecheck・3split build 健全・圧縮 bundle inflate 検証済。DB スキーマ/backend 不変（純フロント）。member/public は inert 差分で未 redeploy |
 | **v376.50** | 2026-06-26 | **REDIRECT モードの件名・本文注釈廃止**（admin split のみ @210）。テスト送信時に受信メールへ `[REDIRECT from ...]` と `--- ORIGINAL TO` / `--- CATEGORY` が表示されていたため、REDIRECT 時は宛先だけ allowlist に変更し、件名・本文は加工しない仕様へ変更。元宛先・カテゴリは `Logger.log('deliverMail_ REDIRECT ...')` に記録。`prerelease` PASS、admin `clasp deployments --json` で @210 同期確認。操作者実機確認済（不要注釈なし） |
 | **v376.49** | 2026-06-26 | **一括メール送信の Gmail send scope 復旧**（admin split のみ @209）。admin `appsscript.json` に `gmail.send` が欠落しており、`from` 指定時の `GmailApp.sendEmail` 分岐で全件 `Specified permissions are not sufficient` 失敗。`https://www.googleapis.com/auth/gmail.send` を admin manifest に追加し、`MailApp` 通常送信 / `GmailApp` エイリアス送信の実装前提を正本・docs portal に反映。`prerelease` PASS、admin `clasp deployments --json` で @209 同期確認。操作者実機確認済（送受信・添付成功） |
