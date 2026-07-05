@@ -1,6 +1,16 @@
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
-var DB_SPREADSHEET_ID_FIXED = '1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs';
+// AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
+// DB_SPREADSHEET_ID_OVERRIDE で上書き可能とし、未設定時のみ現行本番の既定値を使う
+// （環境切替・DB 移行時にコード改変不要）。IIFE 直書きなのは build pruner の
+// 到達性解析に依存しないための意図（feedback_build_pruning_bug）。
+var DB_SPREADSHEET_ID_FIXED = (function() {
+  try {
+    var v = PropertiesService.getScriptProperties().getProperty('DB_SPREADSHEET_ID_OVERRIDE');
+    if (v) return v;
+  } catch (e) {}
+  return '1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs';
+})();
 var DB_BACKUP_SPREADSHEET_NAME_PREFIX = '枚方市ケアマネ協議会_DB_Backup';
 var DB_BACKUP_MANIFEST_SHEET = '_BACKUP_MANIFEST';
 var LAST_EXTERNAL_BACKUP_SPREADSHEET_ID_KEY = 'LAST_EXTERNAL_BACKUP_SPREADSHEET_ID';
@@ -11,12 +21,20 @@ var SCHEMA_INITIALIZED_VERSION_KEY = 'DB_SCHEMA_INITIALIZED_VERSION';
 var WITHDRAWAL_POLICY_LAST_APPLIED_DATE_KEY = 'WITHDRAWAL_POLICY_LAST_APPLIED_DATE';
 var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
 var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
+var LOCK_WAIT_TIMEOUT_MS = 10000; // AGENTS §3: LockService 待機の共通タイムアウト
 var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
 var DB_SCHEMA_VERSION = '2026-07-03-cascade-archive-schema-v376.52';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
-var MEMBER_PORTAL_URL = 'https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec';
+// AGENTS §3: Script Properties の MEMBER_PORTAL_URL_OVERRIDE で上書き可能（deployment 変更時にコード改変不要）
+var MEMBER_PORTAL_URL = (function() {
+  try {
+    var v = PropertiesService.getScriptProperties().getProperty('MEMBER_PORTAL_URL_OVERRIDE');
+    if (v) return v;
+  } catch (e) {}
+  return 'https://script.google.com/macros/s/AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g/exec';
+})();
 var CREDENTIAL_EMAIL_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】会員登録完了のお知らせ';
 var CREDENTIAL_EMAIL_DEFAULT_BODY = '{{氏名}} 様\n\n会員登録が完了しました。\n以下のログイン情報で会員マイページにアクセスできます。\n\nログインID: {{ログインID}}\n初期パスワード: {{パスワード}}\n\n会員マイページURL:\n{{会員マイページURL}}\n\n初回ログイン後、パスワードの変更をお勧めします。\n\n※このメールに心当たりがない場合は、お手数ですが削除してください。\n─────────────────────────────\n枚方市介護支援専門員連絡協議会\n';
 
@@ -857,11 +875,21 @@ function doGet(e) {
 
   // v251: scriptId でプロジェクトを識別し配信ページを固定。各 split は自身の HTML のみを返す。
   // v376.32: 公開ポータルは URL パラメータでディープリンクする（下部で __DEEPLINK__ を注入）。
-  var SCRIPT_ID_ROUTES = {
-    '1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ': { file: 'index',        title: '会員マイページ｜枚方市ケアマネ協議会',          favicon: 'member' },
-    '1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi': { file: 'index',        title: '管理者ポータル｜枚方市ケアマネ協議会',          favicon: 'member' },
-    '11YRlyWVgWRFw5_zByfLnA_vUlZzLeBSgiaanQCvZZoHMAfay8yK7RdkL':  { file: 'index_public', title: '研修・入会申込ポータル｜枚方市ケアマネ協議会', favicon: 'public' },
-  };
+  // AGENTS §3: Script ID は Script Properties の SCRIPT_ID_MEMBER / SCRIPT_ID_ADMIN /
+  // SCRIPT_ID_PUBLIC で上書き可能（未設定時は現行3プロジェクトの既定値。移行時にコード改変不要）。
+  var routeIdMember = '1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ';
+  var routeIdAdmin  = '1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi';
+  var routeIdPublic = '11YRlyWVgWRFw5_zByfLnA_vUlZzLeBSgiaanQCvZZoHMAfay8yK7RdkL';
+  try {
+    var routeProps = PropertiesService.getScriptProperties();
+    routeIdMember = routeProps.getProperty('SCRIPT_ID_MEMBER') || routeIdMember;
+    routeIdAdmin  = routeProps.getProperty('SCRIPT_ID_ADMIN')  || routeIdAdmin;
+    routeIdPublic = routeProps.getProperty('SCRIPT_ID_PUBLIC') || routeIdPublic;
+  } catch (routeErr) {}
+  var SCRIPT_ID_ROUTES = {};
+  SCRIPT_ID_ROUTES[routeIdMember] = { file: 'index',        title: '会員マイページ｜枚方市ケアマネ協議会',          favicon: 'member' };
+  SCRIPT_ID_ROUTES[routeIdAdmin]  = { file: 'index',        title: '管理者ポータル｜枚方市ケアマネ協議会',          favicon: 'member' };
+  SCRIPT_ID_ROUTES[routeIdPublic] = { file: 'index_public', title: '研修・入会申込ポータル｜枚方市ケアマネ協議会', favicon: 'public' };
   var route = SCRIPT_ID_ROUTES[ScriptApp.getScriptId()]
     || { file: 'index_public', title: '研修・入会申込ポータル｜枚方市ケアマネ協議会', favicon: 'public' };
 
@@ -895,9 +923,14 @@ function doGet(e) {
     // パラメータ解釈失敗時はディープリンクなしで通常起動
   }
 
+  // docs/248 M1 是正（2026-07-05）: ALLOWALL は第三者サイト埋込を想定する公開ポータルのみ。
+  // member/admin は clickjacking/UI redressing 面を閉じるため DEFAULT（外部 frame 埋込拒否）。
+  var xframeMode = route.file === 'index_public'
+    ? HtmlService.XFrameOptionsMode.ALLOWALL
+    : HtmlService.XFrameOptionsMode.DEFAULT;
   var output = HtmlService.createHtmlOutput(rawHtml)
     .setTitle(route.title)
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+    .setXFrameOptionsMode(xframeMode)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
 
   try {

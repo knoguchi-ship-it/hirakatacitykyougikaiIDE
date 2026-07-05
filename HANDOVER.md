@@ -5,7 +5,7 @@
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
 最終更新: **2026-07-05**
-最新リリース: **`v376.52`**（会員系削除 cascade アーカイブ＋メール REDIRECT 恒久是正。admin split のみ @212）
+最新リリース: **`v376.53`**（DRY/ハードコーディング/XFrame 是正。全3split: public @359×2 / member @118 / admin @213）
 最終作業: **会員系削除の cascade アーカイブ（`docs/249`・a1 単一化）とメール誤集約事故の恒久是正をデプロイ（v376.52 / admin @212）** — ①削除コンソール実行時に会員系13テーブルを live から `*_archive` へ移動（`削除バッチID`=削除ログID・会員単位アトミック復元可）、ログイン履歴は物理 purge。旧 in-place soft delete（孤児発生源）と命名詐称 `archive*ByIds` を撤去。②2026-07-03 の REDIRECT 残置事故（全メールが Redirect 宛先へ集約・UI/ログは成功表示）の再発防止: 一括メール画面に配信モード常時警告バナー＋送信結果/送信ログの正直化（`BULK_MEMBER_REDIRECT` 記録・抑止分を成功に数えない）。③legacy 申込者解決 `@deprecated`（v377 撤去予定）。DB migrate（`_archive` 11本新設+既存2本に列追加・追加のみ非破壊）は次回 admin ログインで自動実行。デプロイ前に DB スプレッドシート複製バックアップ実施済み。
 > 直近の経緯・各リリース詳細は §7 リリース表 と `docs/release-notes-2026.md` を正本とする（v376.40〜v376.52）。
 
@@ -13,7 +13,7 @@
 
 ## 0. 次の担当者へ（キャッチアップ・まず1分でここ）
 
-- **本番は admin @212 に更新済み**。現行: public @358 / member @117 / **admin @212**（§1）。直近セッション（2026-06-30）は **ロール視点プレビュー（MASTER 専用デバッグ機能）** を追加。MASTER が全ロールの見え方をワンクリックで切替確認でき、プレビュー中は書込が遮断される（閲覧のみ）。それ以前（2026-06-06〜06-26）は LINE投稿拡充 / メールテンプレ全種化 / 在籍中 DRY 是正 / 宛名区分3択 / 一括メール scope 復旧（詳細 §7 v376.40〜.51）。
+- **本番は v376.53 全3split 更新済み**。現行: **public @359×2 / member @118 / admin @213**（§1）。v376.52 cascade は @212→@213 に内包・実DB E2E passed:true / 負債診断 16行（AI が Playwright MCP 認証済セッションから直接検証済）。直近セッション（2026-06-30）は **ロール視点プレビュー（MASTER 専用デバッグ機能）** を追加。MASTER が全ロールの見え方をワンクリックで切替確認でき、プレビュー中は書込が遮断される（閲覧のみ）。それ以前（2026-06-06〜06-26）は LINE投稿拡充 / メールテンプレ全種化 / 在籍中 DRY 是正 / 宛名区分3択 / 一括メール scope 復旧（詳細 §7 v376.40〜.51）。
 - **まず読む**: 本書 §1（本番版）→ §2（即時対応＝操作者の実機確認・再同意・権限付与が数件たまっている）→ §6（読む順序）。設計の背景は `docs/release-notes-2026.md`、落とし穴は `MEMORY`（下記）。
 - **まずやる（操作者タスク・§2-1）**: ①v376.45 で MASTER が権限マトリクスから新権限 **`公式LINE投稿 管理(line-post-manage)`** を必要ロールへ付与。②v376.42 メールテンプレ移行を admin login でトリガ確認。③v376.46「在籍中」が会員リスト＝宛先リストで一致するか確認。④各機能の実機確認（§2-1 の表）。
 - **触る前に必読の落とし穴（MEMORY）**:
@@ -30,10 +30,10 @@
 
 | 配信 | Deployment ID | Version |
 |---|---|---|
-| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@358** |
-| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@358** |
-| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@117** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@212** |
+| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@359** |
+| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@359** |
+| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@118** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@213** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 
@@ -195,6 +195,7 @@ npm run build:docs-portal                  # docs/portal/*.html + schema.dbml �
 
 | Version | 日付 | 概要 |
 |---|---|---|
+| **v376.53** | 2026-07-05 | **DRY/ハードコーディング/XFrame 是正（docs/248 一括クローズ）**（全3split @359×2/@118/@213）。①DRY: `api.ts` の boilerplate 90メソッドを `callAction` 統一（**-940行**・runAction は委譲化）／権限判定を `src/shared/rbac-util.ts` に集約（App/Sidebar の inline 撤去）／検証 regex を `src/shared/validators.ts` に集約。②ハードコーディング: DB Spreadsheet ID・MEMBER_PORTAL_URL・Script ID routes を **Script Properties override 可**（`*_OVERRIDE`/`SCRIPT_ID_*`・未設定時は既定値 fallback＝挙動不変）、`waitLock` を `LOCK_WAIT_TIMEOUT_MS` 定数化。public ビルドの route 置換（`replaceScriptRoutesWithPublicOnly`）を新形状対応（member/admin ID を public bundle から除去維持）。③XFrame: public のみ ALLOWALL・**member/admin は DEFAULT**（clickjacking 面閉鎖・docs/248 M1）。④member の drive/cloud-platform scope 削減は**誤所見と判明し中止**（請求添付で drive 実使用・docs/248 V9）。検証: prerelease 全PASS・3split live 描画確認（Playwright）・public a11y 全0/responsive 21view 全PASS。**v376.52 の operator 検証も AI が認証済ブラウザから完了**: dryRun cascade passed:true(18/18)・負債診断（孤児16行・refMissing 0）・ロール視点プレビュー実機動作 |
 | **v376.52** | 2026-07-05 | **会員系削除 cascade アーカイブ（docs/249・a1 単一化）＋メール REDIRECT 恒久是正**（admin split のみ @212）。①スキーマ: `_archive` を 2→13 本へ拡張（`ARCHIVE_SOURCE_TABLES` 単一情報源からループ生成）、サロゲート3列 `アーカイブID/削除バッチID/アーカイブ日時`。DB_SCHEMA_VERSION bump→admin ログインで migrate（追加のみ非破壊）。②cascade: `executeDeleteMember_` が `runDeleteCascade_` で13テーブルを live→archive 移動＋ログイン履歴 purge。旧 in-place soft delete（孤児発生源）と命名詐称 `archive*ByIds` 4関数を撤去。復元 `restoreArchiveBatch_`（バッチ単位アトミック）＋operator 関数5本（診断/一覧/復元/dryRun/掃除）。③メール是正: 2026-07-03 REDIRECT 残置事故の再発防止 — BulkMailSender に配信モード常時警告、`sendBulkMemberMail_` の mode 無視欠陥修正（`BULK_MEMBER_REDIRECT` ログ・suppressed を成功に数えない・`deliveryMode`/`suppressedCount` 返却）。④`getApplicationApplicantType_` に `@deprecated`（v377 撤去予定）。役員 XOR「未検証」は誤所見と確認（docs/248 V8）。prerelease 全PASS・er-sync 57テーブル・デプロイ前 DB 複製バックアップ実施 |
 | **v376.51** | 2026-06-30 | **ロール視点プレビュー（MASTER 専用デバッグ機能）**（admin split のみ @211）。MASTER が各ロール/権限ごとの「見え方」をワンクリックで切替確認できる上部固定バー（`src/components/RolePreviewBar.tsx`）を追加。選択ロールの `effectiveRbac`（allowedMenus/isMaster=false/roleName/trainingEditScope）で Sidebar・`isViewAllowed`・line-post 可視を差し替え、許可外 view からは自動退避。**なりすまし(impersonation)ではなくフロント描画のみの模擬**でサーバー強制（`isActionAllowedForSession_`）は MASTER のまま不変＝確定済み認証境界を維持（AGENTS §4.2/§6）。ベストプラクティス準拠（常時バナー/ワンクリック退出/可視・非表示サマリー/閲覧のみ/ephemeral/a11y/レスポンシブ）。プレビュー中は API シングルトンの書込メソッドを deny-by-default で遮断し「閲覧のみ」を担保（`setApiPreviewReadOnly`・読取接頭辞 get/list/search/fetch/check/load/preview 以外をブロック・新規 mutation も自動カバー）。`prerelease` 全 PASS・typecheck・3split build 健全・圧縮 bundle inflate 検証済。DB スキーマ/backend 不変（純フロント）。member/public は inert 差分で未 redeploy |
 | **v376.50** | 2026-06-26 | **REDIRECT モードの件名・本文注釈廃止**（admin split のみ @210）。テスト送信時に受信メールへ `[REDIRECT from ...]` と `--- ORIGINAL TO` / `--- CATEGORY` が表示されていたため、REDIRECT 時は宛先だけ allowlist に変更し、件名・本文は加工しない仕様へ変更。元宛先・カテゴリは `Logger.log('deliverMail_ REDIRECT ...')` に記録。`prerelease` PASS、admin `clasp deployments --json` で @210 同期確認。操作者実機確認済（不要注釈なし） |

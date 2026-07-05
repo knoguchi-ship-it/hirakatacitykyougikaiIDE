@@ -8,6 +8,7 @@
 参照標準: ISO/IEC 25010 系品質特性 / OWASP ASVS 5.0 / OWASP Top 10:2021 / NIST CSF 2.0 / SSDF 1.1
 
 > **本書の位置づけ**: 次の「大型アップデート」着手前の現況棚卸し。所見と修正案を正本化し、実装計画（別途）の入力とする。
+> **2026-07-05 更新**: v376.52（cascade・@212）/ v376.53（DRY/HC/XFrame・全3split）で主要 High/Med を是正。各所見の最新状態は `docs/release-notes-2026.md` v376.52-.53 を正とする。
 > **検証メモ（重要）**: 本書の `file:line` と一部の性能数値は read-only 監査による参考値。実装着手時に spot 検証すること。所見の趣旨・方向性は5観点で相互整合している。
 
 ---
@@ -161,6 +162,7 @@ AGENTS.md §3: 識別子はソース本体に直接埋め込まない（定数�
 | V5 | XFrame ALLOWALL（3 split） | Med | gas-src L889 に1箇所＝3 split 全反映を確認。**所見どおり** | Med（変更なし） |
 | V6 | api.ts 約82% がインライン重複 | High | runAction 4 + callAction 14 = 18／processApiRequest 105 ＝**約83%**。**所見どおり** | High（変更なし） |
 | V7 | 旧アカウント直書き＝ライブ認可 | （初版で既訂正） | `migrateAdminPermissions`/`repairWhitelistData` 内の一回限りヘルパー＝ライブ認可に無関係 | Low（訂正済） |
+| V9 | member split の drive/cloud-platform は削除候補 | Med | **誤所見**。`drive` は請求添付ファイル（v296 役員自己サービス・DriveApp 7箇所）で実使用、`cloud-platform` は pepper Secret Manager 経路で使用（Phase D 前提）。削減すると機能破壊（2026-07-05 実コード確認・削減中止） | **訂正（削除不可）** |
 | V8 | 役員 linkage XOR 未検証 | Med | **誤所見**。`assignOfficer_`(25683-25685)・`updateOfficerLinkage_`(26524-26526) に XOR 検証（同時指定拒否・必須・存在/退職チェック）が**実装済**（2026-07-03 実コード確認） | **解消（誤報）** |
 | — | GCP latency「10-30倍」等の出典 `docs/33` | — | **`docs/33` は実在しない**（`docs/37` GAS quotas は実在）。数値は推定として扱い、確定前にベンチ実測 | 注記済 |
 

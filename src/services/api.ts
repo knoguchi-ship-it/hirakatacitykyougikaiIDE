@@ -17,6 +17,7 @@ import {
   LinePostAttachmentKind,
   LinePostAttachmentUploadResult,
 } from '../shared/types';
+import { EMAIL_PATTERN, PHONE_PATTERN, CARE_MANAGER_NO_PATTERN } from '../shared/validators';
 import { AdminDashboardData, AdminPermissionData, AnnualFeeAdminData, AnnualFeeAdminRecord, RoleDefinition, MenuRegistryEntry } from '../types';
 
 export interface TrainingMailPayload {
@@ -340,9 +341,6 @@ export interface DeleteLogEntry {
   totalAffectedRows: number;
 }
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_PATTERN = /^[0-9+\-() ー−]{6,}$/;
-const CARE_MANAGER_NO_PATTERN = /^\d{8}$/;
 
 const seedToDigit = (seed: string): string => {
   let hash = 0;
@@ -532,27 +530,7 @@ class GasApiClient implements ApiClient {
 
   // v150: 管理者初期データ統合API（1回のround-tripでdashboard+settingsを取得）
   async getAdminInitData(): Promise<{ dashboard: AdminDashboardData; settings: SystemSettings }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) {
-              resolve(parsed.data);
-            } else {
-              reject(new Error(parsed.error || 'API Error'));
-            }
-          } catch {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getAdminInitData', null);
-    });
+    return this.callAction('getAdminInitData', null);
   }
 
   async getTrainingManagementData(): Promise<Training[]> {
@@ -581,78 +559,15 @@ class GasApiClient implements ApiClient {
   }
 
   async updateMember(member: Member): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) {
-              resolve();
-            } else {
-              reject(new Error(parsed.error || 'API Error'));
-            }
-          } catch (e) {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('updateMember', JSON.stringify(member));
-    });
+    return this.callAction('updateMember', member);
   }
 
   async updateMemberSelf(member: Member, loginId: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) {
-              resolve();
-            } else {
-              reject(new Error(parsed.error || 'API Error'));
-            }
-          } catch (e) {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('updateMemberSelf', JSON.stringify({ ...member, loginId, ...this.memberSessionPayload() }));
-    });
+    return this.callAction('updateMemberSelf', { ...member, loginId, ...this.memberSessionPayload() });
   }
 
   async changePassword(loginId: string, currentPassword: string, newPassword: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) {
-              resolve();
-            } else {
-              reject(new Error(parsed.error || 'API Error'));
-            }
-          } catch (e) {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('changePassword', JSON.stringify({ loginId, currentPassword, newPassword, ...this.memberSessionPayload() }));
-    });
+    return this.callAction('changePassword', { loginId, currentPassword, newPassword, ...this.memberSessionPayload() });
   }
 
   async getSystemSettings(): Promise<SystemSettings> {
@@ -729,27 +644,7 @@ class GasApiClient implements ApiClient {
     confirmedDate?: string;
     note?: string;
   }): Promise<AnnualFeeAdminRecord> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) {
-              resolve(parsed.data);
-            } else {
-              reject(new Error(parsed.error || 'API Error'));
-            }
-          } catch {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('saveAnnualFeeRecord', JSON.stringify(record));
-    });
+    return this.callAction('saveAnnualFeeRecord', record);
   }
 
   async saveAnnualFeeRecordsBatch(records: Array<{
@@ -760,111 +655,23 @@ class GasApiClient implements ApiClient {
     confirmedDate?: string;
     note?: string;
   }>): Promise<{ savedRecords: AnnualFeeAdminRecord[]; withdrawnMemberIds: string[] }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) {
-              resolve(parsed.data);
-            } else {
-              reject(new Error(parsed.error || 'API Error'));
-            }
-          } catch {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('saveAnnualFeeRecordsBatch', JSON.stringify({ records }));
-    });
+    return this.callAction('saveAnnualFeeRecordsBatch', { records });
   }
 
   async memberLogin(loginId: string, password: string): Promise<MemberLoginResult> {
-    return new Promise<MemberLoginResult>((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data);
-            else reject(new Error(parsed.error || 'API Error'));
-          } catch {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('memberLogin', JSON.stringify({ loginId, password }));
-    });
+    return this.callAction('memberLogin', { loginId, password });
   }
 
   async requestPasswordReset(loginId: string, email: string): Promise<{ message: string; expiresInMinutes: number }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data);
-            else reject(new Error(parsed.error || 'API Error'));
-          } catch {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('requestPasswordReset', JSON.stringify({ loginId, email }));
-    });
+    return this.callAction('requestPasswordReset', { loginId, email });
   }
 
   async completePasswordReset(loginId: string, code: string, newPassword: string): Promise<{ message: string; updatedAt: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data);
-            else reject(new Error(parsed.error || 'API Error'));
-          } catch {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('completePasswordReset', JSON.stringify({ loginId, code, newPassword }));
-    });
+    return this.callAction('completePasswordReset', { loginId, code, newPassword });
   }
 
   async checkAdminBySession(): Promise<AdminLoginResult> {
-    return new Promise<AdminLoginResult>((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data);
-            else reject(new Error(parsed.error || 'API Error'));
-          } catch {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('checkAdminBySession', null);
-    });
+    return this.callAction('checkAdminBySession', null);
   }
 
   async getAdminPermissionData(): Promise<AdminPermissionData> {
@@ -898,67 +705,17 @@ class GasApiClient implements ApiClient {
     permissionLevel: AdminPermissionLevel;
     enabled: boolean;
   }): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) resolve();
-            else reject(new Error(parsed.error || 'API Error'));
-          } catch {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('saveAdminPermission', JSON.stringify(payload));
-    });
+    return this.callAction('saveAdminPermission', payload);
   }
 
   async deleteAdminPermission(id: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) resolve();
-            else reject(new Error(parsed.error || 'API Error'));
-          } catch {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('deleteAdminPermission', JSON.stringify({ id }));
-    });
+    return this.callAction('deleteAdminPermission', { id });
   }
 
   // docs/246 Phase 2-A: ロール CRUD（汎用 dispatcher で簡潔に）
+  // callAction と同一実装だった重複 helper を委譲に一本化（2026-07-05 DRY 是正・docs/248 行5）
   private async runAction<T>(action: string, payload: object | null): Promise<T> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data as T);
-            else reject(new Error(parsed.error || 'API Error'));
-          } catch {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest(action, payload === null ? null : JSON.stringify(payload));
-    });
+    return this.callAction<T>(action, payload);
   }
 
   async listRoles(): Promise<{ roles: RoleDefinition[]; menuRegistry: MenuRegistryEntry[] }> {
@@ -984,112 +741,25 @@ class GasApiClient implements ApiClient {
   }
 
   async saveTraining(training: Training): Promise<Training> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data);
-            else reject(new Error(parsed.error || 'API Error'));
-          } catch {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: unknown) => {
-          const msg = error instanceof Error ? error.message
-            : (typeof error === 'object' && error !== null && 'message' in error)
-              ? String((error as { message: unknown }).message)
-              : String(error);
-          reject(new Error('[GAS] ' + msg));
-        })
-        .processApiRequest('saveTraining', JSON.stringify(training));
-    });
+    return this.callAction('saveTraining', training);
   }
 
   // v376.7: 研修 soft delete
   async softDeleteTraining(trainingId: string): Promise<{ trainingId: string; applicantCount: number; deleted: true; alreadyDeleted?: boolean }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data);
-            else reject(new Error(parsed.error || 'API Error'));
-          } catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('softDeleteTraining', JSON.stringify({ trainingId }));
-    });
+    return this.callAction('softDeleteTraining', { trainingId });
   }
 
   // v376.7: 研修 restore（削除取消）
   async restoreTraining(trainingId: string): Promise<{ trainingId: string; restored: true; alreadyActive?: boolean }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data);
-            else reject(new Error(parsed.error || 'API Error'));
-          } catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('restoreTraining', JSON.stringify({ trainingId }));
-    });
+    return this.callAction('restoreTraining', { trainingId });
   }
 
   async uploadTrainingFile(base64: string, filename: string, mimeType: string): Promise<{ url: string; driveFileId?: string; thumbnailUrl?: string; thumbnailGenerationStatus?: 'generated' | 'pending' | 'failed' | 'skipped' }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data);
-            else reject(new Error(parsed.error || 'API Error'));
-          } catch {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('uploadTrainingFile', JSON.stringify({ base64, filename, mimeType }));
-    });
+    return this.callAction('uploadTrainingFile', { base64, filename, mimeType });
   }
 
   async regenerateThumbnailForTraining(trainingId: string): Promise<{ trainingId: string; thumbnailUrl: string; thumbnailGenerationStatus: 'generated' | 'pending' | 'failed' | 'skipped'; reason?: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data);
-            else reject(new Error(parsed.error || 'API Error'));
-          } catch {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('regenerateThumbnailForTraining', JSON.stringify({ trainingId }));
-    });
+    return this.callAction('regenerateThumbnailForTraining', { trainingId });
   }
 
   async getFileThumbnail(fileUrl: string, size?: number): Promise<string | null> {
@@ -1117,45 +787,11 @@ class GasApiClient implements ApiClient {
   }
 
   async applyTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ applicationId: string; applicants: number; duplicate?: boolean }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data);
-            else reject(new Error(parsed.error || 'API Error'));
-          } catch {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('applyTraining', JSON.stringify({ ...request, ...this.memberSessionPayload() }));
-    });
+    return this.callAction('applyTraining', { ...request, ...this.memberSessionPayload() });
   }
 
   async cancelTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ canceled: boolean; applicants: number }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data);
-            else reject(new Error(parsed.error || 'API Error'));
-          } catch {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('cancelTraining', JSON.stringify({ ...request, ...this.memberSessionPayload() }));
-    });
+    return this.callAction('cancelTraining', { ...request, ...this.memberSessionPayload() });
   }
 
   async getTrainingApplicants(trainingId: string): Promise<TrainingApplicantRow[]> {
@@ -1201,24 +837,7 @@ class GasApiClient implements ApiClient {
   }
 
   async sendTrainingMail(payload: TrainingMailPayload): Promise<{ sent: number; errors: string[] }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data);
-            else reject(new Error(parsed.error || 'API Error'));
-          } catch {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('sendTrainingMail', JSON.stringify(payload));
-    });
+    return this.callAction('sendTrainingMail', payload);
   }
 
   // ── v360: 研修名簿管理 API ──────────────────────────────────────
@@ -1268,199 +887,59 @@ class GasApiClient implements ApiClient {
     return this.callAction<TrainingStats>('getTrainingStats', { trainingId });
   }
   async submitMemberApplication(payload: any): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data);
-            else reject(new Error(parsed.error || 'API Error'));
-          } catch {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('submitMemberApplication', JSON.stringify(payload));
-    });
+    return this.callAction('submitMemberApplication', payload);
   }
 
   async withdrawMember(memberId: string, withdrawnDate?: string, midYearWithdrawal?: boolean): Promise<{ withdrawn: boolean; memberId: string; withdrawnDate: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data);
-            else reject(new Error(parsed.error || 'API Error'));
-          } catch {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('withdrawMember', JSON.stringify({ memberId, withdrawnDate, midYearWithdrawal }));
-    });
+    return this.callAction('withdrawMember', { memberId, withdrawnDate, midYearWithdrawal });
   }
 
   async withdrawSelf(loginId: string, password: string, memberId: string): Promise<{ scheduled: boolean; memberId: string; withdrawnDate: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data);
-            else reject(new Error(parsed.error || 'API Error'));
-          } catch {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('withdrawSelf', JSON.stringify({ loginId, password, memberId, ...this.memberSessionPayload() }));
-    });
+    return this.callAction('withdrawSelf', { loginId, password, memberId, ...this.memberSessionPayload() });
   }
 
   async cancelWithdrawalSelf(loginId: string, password: string, memberId: string): Promise<{ canceled: boolean; memberId: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) {
-        reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));
-        return;
-      }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try {
-            const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data);
-            else reject(new Error(parsed.error || 'API Error'));
-          } catch {
-            reject(new Error('Failed to parse response from GAS'));
-          }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('cancelWithdrawalSelf', JSON.stringify({ loginId, password, memberId, ...this.memberSessionPayload() }));
-    });
+    return this.callAction('cancelWithdrawalSelf', { loginId, password, memberId, ...this.memberSessionPayload() });
   }
 
   // v125: 事業所職員の除籍
   async removeStaffFromOffice(memberId: string, staffId: string): Promise<{ removed: boolean; staffId: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('removeStaffFromOffice', JSON.stringify({ memberId, staffId }));
-    });
+    return this.callAction('removeStaffFromOffice', { memberId, staffId });
   }
 
   // v125: フラット人物リスト取得
   async getAdminPersonList(): Promise<{ persons: AdminPersonRow[] }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getAdminPersonList', JSON.stringify({}));
-    });
+    return this.callAction('getAdminPersonList', {});
   }
 
   // v125: フラット人物一括更新
   async updatePersonsBatch(records: Array<Record<string, any>>): Promise<Array<Record<string, any>>> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('updatePersonsBatch', JSON.stringify({ records }));
-    });
+    return this.callAction('updatePersonsBatch', { records });
   }
 
   // v125: 会員種別変更
   async convertMemberType(payload: ConvertMemberTypePayload): Promise<ConvertMemberTypeResult> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('convertMemberType', JSON.stringify(payload));
-    });
+    return this.callAction('convertMemberType', payload);
   }
 
   // v126: 事業所会員の予約退会
   async scheduleWithdrawMember(memberId: string): Promise<{ scheduled: boolean; memberId: string; withdrawnDate: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('scheduleWithdrawMember', JSON.stringify({ memberId }));
-    });
+    return this.callAction('scheduleWithdrawMember', { memberId });
   }
 
   // v126: 予約退会キャンセル
   async cancelScheduledWithdraw(memberId: string): Promise<{ cancelled: boolean; memberId: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('cancelScheduledWithdraw', JSON.stringify({ memberId }));
-    });
+    return this.callAction('cancelScheduledWithdraw', { memberId });
   }
 
   // v127: 職員個別更新（status 対応追加）/ v133: mailingPreference 追加
   async updateStaff(payload: { staffId: string; memberId: string; lastName?: string; firstName?: string; lastKana?: string; firstKana?: string; name?: string; kana?: string; email?: string; careManagerNumber?: string; role?: string; status?: string; joinedDate?: string; withdrawnDate?: string; mailingPreference?: string }): Promise<{ updated: boolean; staffId: string; memberId: string; status?: string; role?: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('updateStaff', JSON.stringify(payload));
-    });
+    return this.callAction('updateStaff', payload);
   }
 
   // v188: AI案内メール生成（GASサーバー側でGemini APIを呼ぶ）
   async generateTrainingEmail(payload: { training: Training; recipientName?: string }): Promise<{ ok: boolean; text: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('generateTrainingEmail', JSON.stringify(payload));
-    });
+    return this.callAction('generateTrainingEmail', payload);
   }
 
   // v194: 会員一括メール送信
@@ -1471,16 +950,7 @@ class GasApiClient implements ApiClient {
     mailingFilter?: string;
     excludeNoEmail?: boolean;
   }): Promise<BulkMailRecipient[]> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getMembersForBulkMail', JSON.stringify(payload));
-    });
+    return this.callAction('getMembersForBulkMail', payload);
   }
 
   async sendBulkMemberMail(payload: {
@@ -1497,493 +967,162 @@ class GasApiClient implements ApiClient {
     mailingFilter?: string;
     excludeNoEmail?: boolean;
   }): Promise<{ sent: number; total: number; errors: string[]; autoAttachMissed: string[]; logId: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('sendBulkMemberMail', JSON.stringify(payload));
-    });
+    return this.callAction('sendBulkMemberMail', payload);
   }
 
   async getEmailSendLog(): Promise<EmailSendLog[]> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getEmailSendLog', JSON.stringify({}));
-    });
+    return this.callAction('getEmailSendLog', {});
   }
 
   // v207/v291: 宛名リスト対象取得・Excel 出力
   async getMailingListTargets(payload: { filterType: MailingListFilterType; year?: number }): Promise<MailingListTargetsResult> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getMailingListTargets', JSON.stringify(payload));
-    });
+    return this.callAction('getMailingListTargets', payload);
   }
 
   async generateMailingListExcel(payload: { filterType: MailingListFilterType; year?: number; targetKeys?: string[] }): Promise<MailingListExcelResult> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('generateMailingListExcel', JSON.stringify(payload));
-    });
+    return this.callAction('generateMailingListExcel', payload);
   }
 
   // v219: 入会メール テンプレート管理
   async getCredentialEmailTemplates(): Promise<import('../types').EmailTemplate[]> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getCredentialEmailTemplates', JSON.stringify({}));
-    });
+    return this.callAction('getCredentialEmailTemplates', {});
   }
 
   async saveCredentialEmailTemplate(payload: { id?: string; name: string; subject: string; body: string }): Promise<import('../types').EmailTemplate> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('saveCredentialEmailTemplate', JSON.stringify(payload));
-    });
+    return this.callAction('saveCredentialEmailTemplate', payload);
   }
 
   async deleteCredentialEmailTemplate(id: string): Promise<{ deletedId: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('deleteCredentialEmailTemplate', JSON.stringify({ id }));
-    });
+    return this.callAction('deleteCredentialEmailTemplate', { id });
   }
 
   // v376.42: 全メール種別 テンプレート管理（汎用・カテゴリ別）
   async listMailTemplates(category: string): Promise<{ templates: import('../types').EmailTemplate[] }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('listMailTemplates', JSON.stringify({ category }));
-    });
+    return this.callAction('listMailTemplates', { category });
   }
 
   async saveMailTemplate(payload: { id?: string; category: string; name: string; subject: string; body: string }): Promise<import('../types').EmailTemplate> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('saveMailTemplate', JSON.stringify(payload));
-    });
+    return this.callAction('saveMailTemplate', payload);
   }
 
   async deleteMailTemplate(id: string): Promise<{ deletedId: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('deleteMailTemplate', JSON.stringify({ id }));
-    });
+    return this.callAction('deleteMailTemplate', { id });
   }
 
   // v224: 一括メール テンプレート管理
   async getBulkMailTemplates(): Promise<import('../types').EmailTemplate[]> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getBulkMailTemplates', JSON.stringify({}));
-    });
+    return this.callAction('getBulkMailTemplates', {});
   }
 
   async saveBulkMailTemplate(payload: { id?: string; name: string; subject: string; body: string }): Promise<import('../types').EmailTemplate> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('saveBulkMailTemplate', JSON.stringify(payload));
-    });
+    return this.callAction('saveBulkMailTemplate', payload);
   }
 
   async deleteBulkMailTemplate(id: string): Promise<{ deletedId: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('deleteBulkMailTemplate', JSON.stringify({ id }));
-    });
+    return this.callAction('deleteBulkMailTemplate', { id });
   }
 
   // v258: 論理削除
   async searchMembersForDelete(query: string): Promise<import('./api').MemberDeleteSearchResult[]> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('searchMembersForDelete', JSON.stringify({ query }));
-    });
+    return this.callAction('searchMembersForDelete', { query });
   }
 
   async previewDeleteMember(targetKeys: string[]): Promise<import('./api').MemberDeletePreview> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('previewDeleteMember', JSON.stringify({ targetKeys }));
-    });
+    return this.callAction('previewDeleteMember', { targetKeys });
   }
 
   async executeDeleteMember(targetKeys: string[], confirmText: string): Promise<import('./api').MemberDeleteResult> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('executeDeleteMember', JSON.stringify({ targetKeys, confirmText }));
-    });
+    return this.callAction('executeDeleteMember', { targetKeys, confirmText });
   }
 
   async getDeleteLogs(limit = 20): Promise<import('./api').DeleteLogEntry[]> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getDeleteLogs', JSON.stringify({ limit }));
-    });
+    return this.callAction('getDeleteLogs', { limit });
   }
 
   async repairDuplicateStaffRecords(): Promise<{ repaired: number }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('repairDuplicateStaffRecords', JSON.stringify({}));
-    });
+    return this.callAction('repairDuplicateStaffRecords', {});
   }
 
   async repairTrainingApplicationApplicantIds(): Promise<{ repaired: number; skipped: number }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('repairTrainingApplicationApplicantIds', JSON.stringify({}));
-    });
+    return this.callAction('repairTrainingApplicationApplicantIds', {});
   }
 
   async repairMemberCareManagerDuplicates(): Promise<{ repaired: number; details: { memberId: string; careManagerNumber: string }[] }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('repairMemberCareManagerDuplicates', JSON.stringify({}));
-    });
+    return this.callAction('repairMemberCareManagerDuplicates', {});
   }
 
   // ---- v295: 役員管理マスタ ----
 
   async getOfficerMasterData(): Promise<import('../shared/types').OfficerMasterData> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        // v331: 会員側からも呼ばれるため sessionToken を必ず付与（admin shell では空オブジェクト）
-        .processApiRequest('getOfficerMasterData', JSON.stringify(this.memberSessionPayload()));
-    });
+    return this.callAction('getOfficerMasterData', this.memberSessionPayload());
   }
 
   async saveOrganization(payload: { organizationCode: string; organizationName: string; organizationType?: string; displayOrder?: number; allOfficerVisible?: boolean; enabled?: boolean }): Promise<{ organizationCode: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('saveOrganization', JSON.stringify(payload));
-    });
+    return this.callAction('saveOrganization', payload);
   }
 
   async deleteOrganization(payload: { organizationCode: string }): Promise<{ deleted: boolean; organizationCode: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('deleteOrganization', JSON.stringify(payload));
-    });
+    return this.callAction('deleteOrganization', payload);
   }
 
   async saveOfficerRole(payload: { roleCode: string; roleName: string; organizationCode: string; isChairman?: boolean; displayOrder?: number; enabled?: boolean }): Promise<{ roleCode: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('saveOfficerRole', JSON.stringify(payload));
-    });
+    return this.callAction('saveOfficerRole', payload);
   }
 
   async deleteOfficerRole(payload: { roleCode: string }): Promise<{ deleted: boolean; roleCode: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('deleteOfficerRole', JSON.stringify(payload));
-    });
+    return this.callAction('deleteOfficerRole', payload);
   }
 
   async savePaymentType(payload: { typeCode: string; typeName: string; scope?: string; displayOrder?: number; enabled?: boolean }): Promise<{ typeCode: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('savePaymentType', JSON.stringify(payload));
-    });
+    return this.callAction('savePaymentType', payload);
   }
 
   async deletePaymentType(payload: { typeCode: string }): Promise<{ deleted: boolean; typeCode: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('deletePaymentType', JSON.stringify(payload));
-    });
+    return this.callAction('deletePaymentType', payload);
   }
 
   async saveWorkCategory(payload: { categoryCode: string; categoryName: string; organizationCode: string; unitPrice: number; displayOrder?: number; enabled?: boolean }): Promise<{ categoryCode: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('saveWorkCategory', JSON.stringify(payload));
-    });
+    return this.callAction('saveWorkCategory', payload);
   }
 
   async deleteWorkCategory(payload: { categoryCode: string }): Promise<{ deleted: boolean; categoryCode: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('deleteWorkCategory', JSON.stringify(payload));
-    });
+    return this.callAction('deleteWorkCategory', payload);
   }
 
   // ---- v295: 役員割当て管理 ----
 
   async getOfficerManagementData(): Promise<import('../shared/types').OfficerManagementData> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getOfficerManagementData', JSON.stringify({}));
-    });
+    return this.callAction('getOfficerManagementData', {});
   }
 
   async updateOfficerLinkage(payload: { officerId: string; newMemberId?: string; newStaffId?: string }): Promise<{ updated: boolean; officerId: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
-        .withFailureHandler((e: Error) => reject(e))
-        .processApiRequest('updateOfficerLinkage', JSON.stringify(payload));
-    });
+    return this.callAction('updateOfficerLinkage', payload);
   }
 
   async assignOfficer(payload: { memberId?: string; staffId?: string; roleCode: string; appointedDate?: string; note?: string }): Promise<{ officerId: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('assignOfficer', JSON.stringify(payload));
-    });
+    return this.callAction('assignOfficer', payload);
   }
 
   async resignOfficer(payload: { officerId: string; resignationDate?: string }): Promise<{ resigned: boolean; officerId: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('resignOfficer', JSON.stringify(payload));
-    });
+    return this.callAction('resignOfficer', payload);
   }
 
   async updateOfficerRecord(payload: { officerId: string; roleCode?: string; appointedDate?: string; resignationDate?: string; note?: string }): Promise<{ updated: boolean; officerId: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('updateOfficerRecord', JSON.stringify(payload));
-    });
+    return this.callAction('updateOfficerRecord', payload);
   }
 
   // ---- v295: 振込口座管理（管理者用）----
 
   async getAdminBankAccount(payload: { memberId?: string; staffId?: string }): Promise<import('../shared/types').BankAccount | null> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getAdminBankAccount', JSON.stringify(payload));
-    });
+    return this.callAction('getAdminBankAccount', payload);
   }
 
   async saveAdminBankAccount(payload: import('../shared/types').SaveBankAccountPayload): Promise<{ accountId: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('saveAdminBankAccount', JSON.stringify(payload));
-    });
+    return this.callAction('saveAdminBankAccount', payload);
   }
 
   async deleteAdminBankAccount(payload: { memberId?: string; staffId?: string }): Promise<{ deleted: boolean }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('deleteAdminBankAccount', JSON.stringify(payload));
-    });
+    return this.callAction('deleteAdminBankAccount', payload);
   }
 
   // ---- v295: 支払い履歴管理 ----
@@ -2002,94 +1141,37 @@ class GasApiClient implements ApiClient {
   }
 
   async savePayment(payload: import('../shared/types').SavePaymentPayload): Promise<{ paymentId: string; totalAmount: number }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('savePayment', JSON.stringify(payload));
-    });
+    return this.callAction('savePayment', payload);
   }
 
   async deletePayment(payload: { paymentId: string }): Promise<{ deleted: boolean; paymentId: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('deletePayment', JSON.stringify(payload));
-    });
+    return this.callAction('deletePayment', payload);
   }
 
   // ---- v295: 会員自己サービス（役員のみ）----
 
   async getMyOfficerStatus(): Promise<import('../shared/types').MemberOfficerStatus> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getMyOfficerStatus', JSON.stringify(this.memberSessionPayload()));
-    });
+    return this.callAction('getMyOfficerStatus', this.memberSessionPayload());
   }
 
   async getMyClaims(): Promise<import('../shared/types').ClaimRecord[]> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
-        .withFailureHandler((e: Error) => reject(e))
-        .processApiRequest('getMyClaims', JSON.stringify(this.memberSessionPayload()));
-    });
+    return this.callAction('getMyClaims', this.memberSessionPayload());
   }
 
   async submitClaim(payload: import('../shared/types').SaveClaimPayload): Promise<{ claimId: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
-        .withFailureHandler((e: Error) => reject(e))
-        .processApiRequest('submitClaim', JSON.stringify({ ...payload, ...this.memberSessionPayload() }));
-    });
+    return this.callAction('submitClaim', { ...payload, ...this.memberSessionPayload() });
   }
 
   async deleteMyClaim(payload: { claimId: string }): Promise<{ deleted: boolean; claimId: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
-        .withFailureHandler((e: Error) => reject(e))
-        .processApiRequest('deleteMyClaim', JSON.stringify({ ...payload, ...this.memberSessionPayload() }));
-    });
+    return this.callAction('deleteMyClaim', { ...payload, ...this.memberSessionPayload() });
   }
 
   async uploadClaimAttachment(payload: { claimId?: string; base64: string; filename: string; mimeType: string }): Promise<import('../shared/types').ClaimAttachment> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
-        .withFailureHandler((e: Error) => reject(e))
-        .processApiRequest('uploadClaimAttachment', JSON.stringify({ ...payload, ...this.memberSessionPayload() }));
-    });
+    return this.callAction('uploadClaimAttachment', { ...payload, ...this.memberSessionPayload() });
   }
 
   async removeClaimAttachment(payload: { claimId: string; fileId: string }): Promise<{ removed: boolean; fileId: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
-        .withFailureHandler((e: Error) => reject(e))
-        .processApiRequest('removeClaimAttachment', JSON.stringify({ ...payload, ...this.memberSessionPayload() }));
-    });
+    return this.callAction('removeClaimAttachment', { ...payload, ...this.memberSessionPayload() });
   }
 
   async getClaims(payload?: { status?: string; memberId?: string }): Promise<import('../shared/types').ClaimRecord[]> {
@@ -2103,94 +1185,40 @@ class GasApiClient implements ApiClient {
   }
 
   async approveClaim(payload: { claimId: string }): Promise<{ approved: boolean; claimId: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
-        .withFailureHandler((e: Error) => reject(e))
-        .processApiRequest('approveClaim', JSON.stringify(payload));
-    });
+    return this.callAction('approveClaim', payload);
   }
 
   async rejectClaim(payload: { claimId: string; reason: string }): Promise<{ rejected: boolean; claimId: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
-        .withFailureHandler((e: Error) => reject(e))
-        .processApiRequest('rejectClaim', JSON.stringify(payload));
-    });
+    return this.callAction('rejectClaim', payload);
   }
 
   async adminDeleteClaim(payload: { claimId: string }): Promise<{ deleted: boolean; claimId: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
-        .withFailureHandler((e: Error) => reject(e))
-        .processApiRequest('adminDeleteClaim', JSON.stringify(payload));
-    });
+    return this.callAction('adminDeleteClaim', payload);
   }
 
   // v372: 名簿出力 Visual Template Designer
   async getRosterFieldDictionary(): Promise<import('../types').RosterFieldDef[]> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
-        .withFailureHandler((e: Error) => reject(e))
-        .processApiRequest('getRosterFieldDictionary', '{}');
-    });
+    return this.callAction('getRosterFieldDictionary', {});
   }
 
   async getRosterDesignerData(payload: { memberTypes?: string[]; memberStatus?: string; year?: number; outputUnit?: import('../types').RosterOutputUnit }): Promise<{ rows: import('../types').RosterDesignerRow[]; years: number[]; year: number; outputUnit?: import('../types').RosterOutputUnit }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
-        .withFailureHandler((e: Error) => reject(e))
-        .processApiRequest('getRosterDesignerData', JSON.stringify(payload));
-    });
+    return this.callAction('getRosterDesignerData', payload);
   }
 
   async loadRosterTemplatesV2(): Promise<{ templates: import('../types').RosterTemplateV2[] }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
-        .withFailureHandler((e: Error) => reject(e))
-        .processApiRequest('loadRosterTemplatesV2', '{}');
-    });
+    return this.callAction('loadRosterTemplatesV2', {});
   }
 
   async saveRosterTemplateV2(template: import('../types').RosterTemplateV2): Promise<{ ok: boolean; templates: import('../types').RosterTemplateV2[] }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
-        .withFailureHandler((e: Error) => reject(e))
-        .processApiRequest('saveRosterTemplateV2', JSON.stringify({ template }));
-    });
+    return this.callAction('saveRosterTemplateV2', { template });
   }
 
   async deleteRosterTemplateV2(id: string): Promise<{ ok: boolean; templates: import('../types').RosterTemplateV2[] }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
-        .withFailureHandler((e: Error) => reject(e))
-        .processApiRequest('deleteRosterTemplateV2', JSON.stringify({ id }));
-    });
+    return this.callAction('deleteRosterTemplateV2', { id });
   }
 
   async duplicateRosterTemplateV2(id: string): Promise<{ ok: boolean; templates: import('../types').RosterTemplateV2[] }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
-        .withFailureHandler((e: Error) => reject(e))
-        .processApiRequest('duplicateRosterTemplateV2', JSON.stringify({ id }));
-    });
+    return this.callAction('duplicateRosterTemplateV2', { id });
   }
 
   // v374.1: 公式LINE投稿依頼
@@ -2226,42 +1254,15 @@ class GasApiClient implements ApiClient {
   }
 
   async getSharedMemo(key: string): Promise<SharedMemo> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getSharedMemo', JSON.stringify({ key }));
-    });
+    return this.callAction('getSharedMemo', { key });
   }
 
   async saveSharedMemo(key: string, content: string, version: number): Promise<SharedMemoSaveResult> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('saveSharedMemo', JSON.stringify({ key, content, version }));
-    });
+    return this.callAction('saveSharedMemo', { key, content, version });
   }
 
   async saveMyBankAccount(payload: Omit<import('../shared/types').SaveBankAccountPayload, 'memberId'>): Promise<{ accountId: string }> {
-    return new Promise((resolve, reject) => {
-      if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
-      google.script.run
-        .withSuccessHandler((result: string) => {
-          try { const p = JSON.parse(result); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); }
-          catch { reject(new Error('Failed to parse response from GAS')); }
-        })
-        .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('saveMyBankAccount', JSON.stringify({ ...payload, ...this.memberSessionPayload() }));
-    });
+    return this.callAction('saveMyBankAccount', { ...payload, ...this.memberSessionPayload() });
   }
 }
 

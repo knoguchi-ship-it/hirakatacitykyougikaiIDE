@@ -11,6 +11,7 @@ import {
   UsersIcon,
 } from './Icons';
 import { Member, MemberType, AdminPermissionLevel } from '../types';
+import { canAccessMenu } from '../shared/rbac-util';
 
 interface SidebarProps {
   currentView: string;
@@ -155,8 +156,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       if (item.masterOnly && !isMaster) return false;
       return true;
     }
-    if (isMaster) return true;                                  // MASTER 全許可
-    return (allowedMenus as string[]).indexOf(item.menuId) !== -1;
+    return canAccessMenu({ isMaster, allowedMenus: allowedMenus as string[] }, item.menuId);
   };
   const filterGroup = (g: NavGroup): NavGroup => ({ ...g, items: g.items.filter(isItemVisible) });
   const visibleAdminGroups = adminGroups.map(filterGroup).filter((g) => g.items.length > 0);

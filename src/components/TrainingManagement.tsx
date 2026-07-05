@@ -10,6 +10,7 @@ import TrainingDetailModal from './TrainingDetailModal';
 import LinePostEditorModal, { LinePostEditorForm } from './LinePostEditorModal';
 import { buildPublicTrainingApplyUrl } from '../config/publicPortal';
 import { buildTrainingLinePostDraft } from '../shared/lineTemplate';
+import { EMAIL_PATTERN, PHONE_PATTERN } from '../shared/validators';
 
 interface Props {
   trainings: Training[];
@@ -83,8 +84,6 @@ const buildEmptyForm = (fieldConfig: TrainingFieldConfig): Training => {
   };
 };
 
-const PHONE_PATTERN = /^[0-9+\-() ー−]{6,}$/;
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type PanelView = 'form' | 'mail' | 'roster';
 

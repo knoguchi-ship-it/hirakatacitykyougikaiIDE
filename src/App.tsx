@@ -22,6 +22,7 @@ import StaffDetailAdmin from './components/StaffDetailAdmin';
 import { AdminDashboardData, AdminDashboardMemberRow, AdminDashboardStaffRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, Staff, StaffRole, SystemSettings, Training, TrainingFieldConfig, DEFAULT_FIELD_CONFIG, RoleDefinition, MenuRegistryEntry } from './types';
 import { TRAINING_OPTIONAL_FIELD_DEFS } from './components/TrainingManagement';
 import { api, setApiPreviewReadOnly, type AdminLoginResult, type MemberLoginResult, type MemberPortalLookup } from './services/api';
+import { canAccessMenu, canUseLinePost, canManageLinePost } from './shared/rbac-util';
 import { callApi } from './shared/api-base';
 import { EmailCard, MasterOffBanner, MergeTags, ToggleSwitch } from './components/EmailSettingsCard';
 import MailTemplateManager from './components/MailTemplateManager';
@@ -1625,7 +1626,8 @@ const App: React.FC = () => {
     legacyLevel: AdminPermissionLevel | null,
   ): string {
     if (allowedMenus && typeof isMaster === 'boolean') {
-      const ok = (menuId: string) => isMaster || allowedMenus.indexOf(menuId) !== -1;
+      const rbacView = { isMaster, allowedMenus };
+      const ok = (menuId: string) => canAccessMenu(rbacView, menuId);
       const preferred: Array<[string, string]> = [
         ['members-list', 'admin'],
         ['training-manage', 'training-manage'],
@@ -1962,10 +1964,9 @@ const App: React.FC = () => {
 
   const isViewAllowed = (view: string): boolean => {
     if (!effectiveRbac) return true; // session 未取得時は素通り（legacy 互換）
-    if (effectiveRbac.isMaster) return true;
     const menuId = viewToMenuId[view];
     if (!menuId) return true; // mapping 無しは常に許可（member ページや未定義 view）
-    return effectiveRbac.allowedMenus.indexOf(menuId) !== -1;
+    return canAccessMenu(effectiveRbac, menuId);
   };
 
   // docs/246 View-as-role: ロール一覧の遅延ロード（プレビューバーの初回操作時）。
@@ -5270,13 +5271,13 @@ const App: React.FC = () => {
     if (currentView === 'line-post') {
       // v376.45: メニュー単位 RBAC に整合（isMaster or allowedMenus に line-post / legacy MASTER・ADMIN）
       const lineAllowed = effectiveRbac
-        ? (effectiveRbac.isMaster || effectiveRbac.allowedMenus.indexOf('line-post') !== -1)
+        ? canUseLinePost(effectiveRbac)
         : ['MASTER', 'ADMIN'].includes(adminPermissionLevel || '');
       if (userRole !== 'ADMIN' || !lineAllowed) {
         return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
       }
       const canManageLine = effectiveRbac
-        ? (effectiveRbac.isMaster || effectiveRbac.allowedMenus.indexOf('line-post-manage') !== -1)
+        ? canManageLinePost(effectiveRbac)
         : ['MASTER', 'ADMIN'].includes(adminPermissionLevel || '');
       return <LinePostConsole api={api} trainings={trainings} canManage={canManageLine} />;
     }

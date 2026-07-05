@@ -13,6 +13,20 @@
 
 ---
 
+## v376.53 — 2026-07-05 🔧🔒 DRY/ハードコーディング/XFrame 一括是正（全3split @359×2 / @118 / @213）
+
+`docs/248` 第三者評価の残 High/Med を一括クローズするリファクタ＋設定化リリース（挙動互換）。
+
+- **DRY** 🔧: ①`src/services/api.ts` の `google.script.run` boilerplate **90 メソッドを `callAction` へ機械統一（-940 行・2,270→1,332行）**。カスタム既定値/変換を持つ 13 メソッドは意図的に残置。重複 helper `runAction` は委譲化。②メニュー権限判定を `src/shared/rbac-util.ts`（`canAccessMenu`/`canUseLinePost`/`canManageLinePost`）へ集約し、App.tsx（isViewAllowed/pickInitialAdminView/line-post 可視）と Sidebar の inline 再実装を撤去。③検証 regex（EMAIL/PHONE/CM番号）を `src/shared/validators.ts` に集約（api.ts / TrainingManagement の重複定義撤去。GAS 側は pruner regex 罠のため意図的に非注入・コメントで相互参照）。
+- **ハードコーディング** 🔧: DB Spreadsheet ID / MEMBER_PORTAL_URL を Script Properties（`DB_SPREADSHEET_ID_OVERRIDE` / `MEMBER_PORTAL_URL_OVERRIDE`）で上書き可能な IIFE 化、doGet の Script ID routes を `SCRIPT_ID_MEMBER/ADMIN/PUBLIC` Properties 対応の動的構築へ（**未設定時は現行既定値 fallback＝挙動不変**）。`waitLock(10000)`×5 を `LOCK_WAIT_TIMEOUT_MS` 定数化。public ビルドの `replaceScriptRoutesWithPublicOnly` を新形状に追従（旧 regex が新形状を誤マッチし doGet を破壊→audit-public-boundary FAIL で検知・修正。member/admin Script ID の public bundle 非混入は grep 0 件で維持確認）。
+- **XFrame（docs/248 M1）** 🔒: `setXFrameOptionsMode` を route 条件付き化 — public のみ `ALLOWALL`（第三者サイト埋込想定）、**member/admin は `DEFAULT`**（clickjacking/UI redressing 面を閉鎖）。デプロイ後に admin（認証済）/member/public の 3 画面 live 描画を Playwright で確認し白画面なし。
+- **中止判断（docs/248 V9 訂正）**: member split の `drive`/`cloud-platform` scope 削減は**実施せず** — 実コード確認で `drive` は請求添付ファイル（v296 役員自己サービス）で実使用、`cloud-platform` は pepper Secret Manager 経路（Phase D で使用）と判明。M2 所見を訂正。
+- **v376.52 の operator 検証を AI が代行完了** 🎉: Playwright MCP の認証済ブラウザから `google.script.run` 直接呼出しで — `dryRunDeleteCascadeV376_52_LOG` **passed:true（18/18 チェック）**（13テーブル移動/purge/live残0/archive13/バッチ復元）・`diagnoseMemberDeleteDebt_LOG`（負債実測: soft-del 会員18/職員30・**孤児参照 16 行のみ**〈年会費3+認証13〉・refMissing 0）・ロール視点プレビュー実機動作（7ロール・一般選択→メニュー1件/非表示15件→復帰）。migrate（`_archive` 13本）も本番適用確認。
+- **検証 / デプロイ**: prerelease 全PASS（8 suite fail0・boundary×3・er-sync 57）。public @359（2 deployment）/ member @118 / admin @213 に redeploy。デプロイ後 live: admin/member/public 描画 OK・public a11y 全0（warm）・responsive 21view 全PASS・console エラー0。
+- **残課題**: バックフィル（孤児16行・任意）／kana form 前検証適用／CM番号 import プレビュー／er-sync 列順・相互排他拡張／legacy 申込者解決の物理撤去（v377）／PBKDF2→GCP Phase 0（docs/239/240・operator 併走）。
+
+---
+
 ## v376.52 — 2026-07-05 🆕🔒 会員系削除 cascade アーカイブ + メール REDIRECT 恒久是正（admin split のみ @212）
 
 `docs/248` 第三者評価のリレーション整合性 High 所見（cascade 未実装＝孤児発生・`_archive` dead code・命名詐称）の恒久是正（設計正本 `docs/249`・a1 単一化モデル）と、2026-07-03 に発覚したメール誤集約事故の再発防止を同梱。

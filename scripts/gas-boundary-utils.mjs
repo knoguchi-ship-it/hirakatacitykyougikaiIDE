@@ -678,10 +678,21 @@ export function removeIfBlock(source, conditionText) {
 }
 
 export function replaceScriptRoutesWithPublicOnly(source) {
-  const pattern = /var SCRIPT_ID_ROUTES = \{[\s\S]*?\n  \};/;
-  const replacement = "var SCRIPT_ID_ROUTES = {\n    '11YRlyWVgWRFw5_zByfLnA_vUlZzLeBSgiaanQCvZZoHMAfay8yK7RdkL': { file: 'index_public', title: '研修・入会申込ポータル｜枚方市ケアマネ協議会', favicon: 'public' },\n  };";
+  // 2026-07-05: gas-src の routes は Script Properties override 対応の動的構築へ変更（AGENTS §3）。
+  // public ビルドでは member/admin の Script ID を bundle に残さないため、
+  // routeIdMember 宣言〜最後の SCRIPT_ID_ROUTES 代入までを public-only 版に置換する。
+  const pattern = /var routeIdMember = [\s\S]*?SCRIPT_ID_ROUTES\[routeIdPublic\] = \{[^}]*\};/;
+  const replacement = [
+    "var routeIdPublic = '11YRlyWVgWRFw5_zByfLnA_vUlZzLeBSgiaanQCvZZoHMAfay8yK7RdkL';",
+    '  try {',
+    '    var routeProps = PropertiesService.getScriptProperties();',
+    "    routeIdPublic = routeProps.getProperty('SCRIPT_ID_PUBLIC') || routeIdPublic;",
+    '  } catch (routeErr) {}',
+    '  var SCRIPT_ID_ROUTES = {};',
+    "  SCRIPT_ID_ROUTES[routeIdPublic] = { file: 'index_public', title: '研修・入会申込ポータル｜枚方市ケアマネ協議会', favicon: 'public' };",
+  ].join('\n');
   if (!pattern.test(source)) {
-    throw new Error('Could not find SCRIPT_ID_ROUTES object literal in Code.gs');
+    throw new Error('Could not find SCRIPT_ID_ROUTES dynamic block in Code.gs');
   }
   return source.replace(pattern, replacement);
 }
