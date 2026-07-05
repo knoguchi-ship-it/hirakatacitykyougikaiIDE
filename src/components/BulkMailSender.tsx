@@ -9,6 +9,8 @@ interface BulkMailSenderProps {
   api: ApiClient;
   settings: SystemSettings;
   adminPermissionLevel?: AdminPermissionLevel | null;
+  /** 「メール送信制御を開く」アクション（システム設定画面へ遷移）。未指定時はボタン非表示 */
+  onOpenMailSettings?: () => void;
 }
 
 type AttachmentBlob = { name: string; mimeType: string; base64: string };
@@ -37,7 +39,7 @@ const inputCls =
 const btnCls =
   'rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
 
-const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPermissionLevel }) => {
+const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPermissionLevel, onOpenMailSettings }) => {
   // ── フィルタ状態 ────────────────────────────────────────────
   const [filterTypes, setFilterTypes]           = useState<string[]>(['INDIVIDUAL', 'BUSINESS', 'SUPPORT']);
   const [filterMemberStatus, setFilterMemberStatus] = useState('ACTIVE');
@@ -320,27 +322,59 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
   // 2026-07-03 メール誤集約事故の恒久是正: 配信モードが LIVE 以外なら常時警告する。
   // REDIRECT は宛先が allowlist に差し替わり実宛先へ届かない（v376.50 で受信側の目印を
   // 廃止したため、送信側 UI で必ず可視化する）。SUPPRESS/キルスイッチ OFF は送信されない。
+  //
+  // 表示ポリシー（2026-07-05 確定・ユーザビリティ最優先）:
+  // - この警告は「管理者以上が使う送信コンソール」専用。member/公開ポータルや、
+  //   申込確認・OTP 等のユーザー向け自動返信フローには一切表示しない（エンドユーザーに
+  //   意味不明な警告を見せない）。サーバー側 deliverMail_ は静かに policy を適用する。
+  // - NN/g・Red Hat DS・Google Cloud Console 系のパターン準拠:
+  //   sticky 常時表示 / 非 dismissible / 「何が起きるか+どうすれば直るか」明示 /
+  //   解決アクションボタンは1つ / 設定権限が無いロールには連絡先案内へ出し分け。
   const mailMode = String(settings.mailDeliveryMode || 'LIVE').toUpperCase();
   const mailBlocked = settings.mailGlobalEnabled === false || mailMode === 'SUPPRESS';
   const mailRedirected = !mailBlocked && mailMode === 'REDIRECT';
-  const mailModeWarning = mailBlocked
-    ? '⚠ メール送信は現在停止中です（キルスイッチ OFF または SUPPRESS モード）。送信しても誰にも届きません。'
+  const canFixMailSettings = adminPermissionLevel === 'MASTER' || adminPermissionLevel === 'ADMIN';
+  const mailModeTitle = mailBlocked
+    ? 'メール送信は現在停止中です'
+    : mailRedirected ? 'テスト用モード（REDIRECT）で動作中です' : null;
+  const mailModeBody = mailBlocked
+    ? 'キルスイッチ OFF または SUPPRESS モードのため、送信しても誰にも届きません。'
     : mailRedirected
-      ? `⚠ REDIRECT モード中 — 全メールが Redirect 宛先（${settings.mailRedirectAllowlist || '未設定'}）に集約され、実宛先には届きません。本番送信の前に「システム設定 → メール通知 → メール送信制御」で LIVE に戻してください。`
+      ? `すべてのメールが検証用宛先（${settings.mailRedirectAllowlist || '未設定'}）に集約され、会員の実宛先には届きません。`
       : null;
 
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-bold text-slate-800">一括メール送信コンソール</h2>
 
-      {mailModeWarning && (
+      {mailModeTitle && (
         <div
           role="alert"
-          className={`rounded-xl border-2 px-4 py-3 text-sm font-semibold ${
-            mailBlocked ? 'border-red-400 bg-red-50 text-red-800' : 'border-amber-400 bg-amber-50 text-amber-900'
+          className={`sticky top-2 z-20 rounded-xl border-2 px-4 py-3 shadow-md ${
+            mailBlocked ? 'border-red-400 bg-red-50' : 'border-amber-400 bg-amber-50'
           }`}
         >
-          {mailModeWarning}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span aria-hidden="true" className="text-xl leading-none">{mailBlocked ? '⛔' : '⚠️'}</span>
+            <div className="flex-1 min-w-[200px]">
+              <p className={`text-sm font-bold ${mailBlocked ? 'text-red-800' : 'text-amber-900'}`}>{mailModeTitle}</p>
+              <p className={`text-xs mt-0.5 ${mailBlocked ? 'text-red-700' : 'text-amber-800'}`}>
+                {mailModeBody}
+                {!canFixMailSettings && ' 解除が必要な場合はマスター/管理者へご連絡ください。'}
+              </p>
+            </div>
+            {canFixMailSettings && onOpenMailSettings && (
+              <button
+                type="button"
+                onClick={onOpenMailSettings}
+                className={`shrink-0 inline-flex min-h-[44px] items-center rounded-lg px-4 py-2 text-sm font-bold text-white transition-colors ${
+                  mailBlocked ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'
+                }`}
+              >
+                メール送信制御を開く
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -746,9 +780,10 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4 space-y-4">
             <h4 className="text-lg font-bold text-slate-800">送信確認</h4>
             <div className="space-y-2 text-sm text-slate-700">
-              {mailModeWarning && (
-                <div className={`rounded px-3 py-2 font-semibold ${mailBlocked ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-900'}`}>
-                  {mailModeWarning}
+              {mailModeTitle && (
+                <div className={`rounded px-3 py-2 ${mailBlocked ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-900'}`}>
+                  <span className="font-bold">{mailBlocked ? '⛔' : '⚠️'} {mailModeTitle}</span>
+                  <span className="block text-xs mt-0.5">{mailModeBody}</span>
                 </div>
               )}
               <div><span className="font-medium">宛先数:</span> {effectiveTargets.length}名</div>

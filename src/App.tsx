@@ -5246,6 +5246,7 @@ const App: React.FC = () => {
           api={api}
           settings={bulkMailSettings}
           adminPermissionLevel={adminPermissionLevel}
+          onOpenMailSettings={() => handleViewChange('admin-settings')}
         />
       );
     }
