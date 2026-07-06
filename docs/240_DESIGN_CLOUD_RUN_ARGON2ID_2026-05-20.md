@@ -285,3 +285,25 @@ gcloud run services add-iam-policy-binding hcmn-password-hash \
 - OWASP Password Storage Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
 - Cloud Run service-to-service auth: https://docs.cloud.google.com/run/docs/authenticating/service-to-service
 - Apps Script identity tokens: https://developers.google.com/apps-script/guides/services/cloud-run
+
+## 11. 【追記 2026-07-06】Phase 0（GCP 側）完了記録と Phase B 引継ぎ
+
+> 実施場所は GCP 作業場 `C:\VSCode\CloudePL\hirakatacitykyougikaiGCP`（独立 Git・状態の正本は同作業場 README）。
+> 本節は「本設計書 §4-5 を Phase B で実装する開発者」向けの差分情報のみ記す。
+
+### 完了状態（§8 残作業の #1-4・#7 前半に相当）
+
+- サービス実装はレビュー是正済＋unit 5/5 PASS（`services/password-hash`・GCP 作業場）
+- Cloud Run `hcmn-password-hash` デプロイ済・稼働中: **`https://hcmn-password-hash-axku24p5ja-an.a.run.app`**（asia-northeast1・`--no-allow-unauthenticated`・min 0/max 3・SA `hcmn-password-hash-sa`・invoker=`k.noguchi@hcm-n.org`・`EXPECTED_AUDIENCE`=上記 URL）
+- Secret Manager `PASSWORD_HASH_PEPPER_V1` **登録完了（version 1 enabled・値は operator 投入・Script Properties と同一値）**
+- 課金: 課金アカウントリンク済・予算アラート月 500 円（50/90/100% 通知）。ゼロスケール構成で恒常無料枠内見込み
+- 検証済: 認証付き `GET /health` → 200、未認証 → 403（fail-closed）
+
+### 実装差分（本文 §1-5 からの変更点・Phase B 実装時に注意）
+
+1. **health エンドポイントは `/health`**（本文の `/healthz` から変更）。`/healthz` は run.app の Google Frontend 予約パスで、Cloud Run に届く前にエッジが 404 を返すことを実測確認（2026-07-06）。ヘルスチェック・監視 URL には `/health` を使うこと。
+2. **【Phase B 着手前に要設計確定】identity token の audience 整合**: `ScriptApp.getIdentityToken()` が返すトークンの `aud` は **GAS プロジェクトに紐づく OAuth クライアント ID** であり、service URL ではない。一方 Cloud Run の IAM 層はデフォルトで `aud`=service URL を要求するため、**このままでは GAS からの呼び出しが IAM 層で 401 になる可能性が高い**。対応candidates:
+   - Cloud Run の **custom audiences**（`gcloud run services update hcmn-password-hash --add-custom-audiences=<GAS OAuth クライアント ID>`）を設定し、アプリ側 `EXPECTED_AUDIENCE` も同値に更新する（推奨・追加のみで可逆）
+   - GAS の OAuth クライアント ID は Apps Script プロジェクトの GCP 紐づけ（`hcmn-member-system-prod`）配下。3 split で ID が異なる場合は custom audiences に複数登録（カンマ区切り・最大 32）
+   - 実トークンの `aud` 値は Phase B の dryRun 関数内で `getIdentityToken()` を decode（JWT payload の base64）して確認するのが確実（トークン自体はログ出力しない）
+3. §8 の残作業 #5-6・#7 後半（Script Properties）・#8-10 が Phase B スコープ（本番リポジトリの通常リリースフロー）。

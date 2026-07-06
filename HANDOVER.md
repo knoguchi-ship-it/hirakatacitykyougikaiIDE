@@ -4,9 +4,10 @@
 > 経緯・履歴・設計詳細は別ドキュメントへ。リンク先は §6 参照順序を参照。
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
-最終更新: **2026-07-05**
+最終更新: **2026-07-06**
 最新リリース: **`v376.53.2`**（REDIRECT 警告バナー UX 強化+不点灯 hotfix・live 実証済。admin @215 / public @359×2 / member @118）
-最終作業: **会員系削除の cascade アーカイブ（`docs/249`・a1 単一化）とメール誤集約事故の恒久是正をデプロイ（v376.52 / admin @212）** — ①削除コンソール実行時に会員系13テーブルを live から `*_archive` へ移動（`削除バッチID`=削除ログID・会員単位アトミック復元可）、ログイン履歴は物理 purge。旧 in-place soft delete（孤児発生源）と命名詐称 `archive*ByIds` を撤去。②2026-07-03 の REDIRECT 残置事故（全メールが Redirect 宛先へ集約・UI/ログは成功表示）の再発防止: 一括メール画面に配信モード常時警告バナー＋送信結果/送信ログの正直化（`BULK_MEMBER_REDIRECT` 記録・抑止分を成功に数えない）。③legacy 申込者解決 `@deprecated`（v377 撤去予定）。DB migrate（`_archive` 11本新設+既存2本に列追加・追加のみ非破壊）は次回 admin ログインで自動実行。デプロイ前に DB スプレッドシート複製バックアップ実施済み。
+最終作業（2026-07-06）: **GCP 移行 Phase 0 の GCP 側作業を全完了**（本番 GAS は無変更・docs のみ更新。詳細 §0 / `docs/240` §11 / GCP 作業場 README）。
+前回作業: **会員系削除の cascade アーカイブ（`docs/249`・a1 単一化）とメール誤集約事故の恒久是正をデプロイ（v376.52 / admin @212）** — ①削除コンソール実行時に会員系13テーブルを live から `*_archive` へ移動（`削除バッチID`=削除ログID・会員単位アトミック復元可）、ログイン履歴は物理 purge。旧 in-place soft delete（孤児発生源）と命名詐称 `archive*ByIds` を撤去。②2026-07-03 の REDIRECT 残置事故（全メールが Redirect 宛先へ集約・UI/ログは成功表示）の再発防止: 一括メール画面に配信モード常時警告バナー＋送信結果/送信ログの正直化（`BULK_MEMBER_REDIRECT` 記録・抑止分を成功に数えない）。③legacy 申込者解決 `@deprecated`（v377 撤去予定）。DB migrate（`_archive` 11本新設+既存2本に列追加・追加のみ非破壊）は次回 admin ログインで自動実行。デプロイ前に DB スプレッドシート複製バックアップ実施済み。
 > 直近の経緯・各リリース詳細は §7 リリース表 と `docs/release-notes-2026.md` を正本とする（v376.40〜v376.52）。
 
 ---
@@ -18,10 +19,10 @@
   - v376.51 ロール視点プレビュー（MASTER専用）／v376.52 **会員系削除 cascade アーカイブ**（docs/249・実DB E2E 18/18 PASS・削除負債実測16行のみ）／v376.53 DRY・ハードコーディング・XFrame 一括是正（api.ts **-940行**・rbac-util/validators 集約・ID/URL の Properties override 化）／.53.1-.53.2 REDIRECT 警告バナー（live 実証済）。
   - **メール事故対応済**: 6/26〜7/3 の間 `MAIL_DELIVERY_MODE=REDIRECT` 残置で全メールが旧アドレスに集約されていた（実宛先未達）。LIVE 復旧済・再発防止バナー/ログ正直化デプロイ済。**未達期間の再送要否は運用判断が残っている可能性あり**（`T_メール送信ログ` の 6/26〜7/3 BULK_MEMBER 行を確認）。
   - 第三者評価: `docs/248`（テスト観点表・検証訂正ログ付）→ 主要 High/Med は全て是正済。残は GCP 行き（PBKDF2/性能）と小粒のみ。
-- **🚀 進行中: GCP 移行 Phase 0** — 作業場は **`C:\VSCode\CloudePL\hirakatacitykyougikaiGCP`**（独立Git・GitHub private `knoguchi-ship-it/hirakatacitykyougikaiGCP`）。**本番完全分離**（切り分け規約=同作業場 AGENTS.md §1 が正本・本番 GAS/DB/deployment に触れない・GCP リソースは追加のみ）。
-  - 済（2026-07-06）: GCP セットアップ A0-A7 完了 — 課金リンク＋予算アラート／API 有効化／pepper シークレット器／SA／**Cloud Run `hcmn-password-hash` デプロイ＋healthcheck PASS**（詳細・URL は GCP 作業場 README が正本）。⚠ `/healthz` は run.app GFE 予約パスでエッジ 404 → `/health` 使用。
-  - 済（2026-07-06）: pepper 値も Secret Manager 登録完了（version 1 enabled・operator 投入）。**Phase 0 の GCP 側は全完了**。
-  - **次: Phase B＝本番側リリース**（openid scope＋Argon2 関数＋`ARGON2_ENABLED` flag・docs/reference/240 §4-5。GAS identity token の aud と Cloud Run custom audiences の整合設計を事前確定）
+- **🚀 GCP 移行: Phase 0（GCP 側）全完了・次は Phase B（本番 GAS 接続リリース）** — 作業場は **`C:\VSCode\CloudePL\hirakatacitykyougikaiGCP`**（独立Git・GitHub private `knoguchi-ship-it/hirakatacitykyougikaiGCP`）。**本番完全分離**（切り分け規約=同作業場 AGENTS.md §1 が正本・GCP リソースは追加のみ）。
+  - **Phase 0 完了（2026-07-06）**: 課金リンク＋予算アラート月500円／API 有効化／Secret Manager `PASSWORD_HASH_PEPPER_V1` **値まで登録済（version 1 enabled）**／SA／**Cloud Run `hcmn-password-hash` 稼働中・healthcheck PASS**（認証付き `/health`=200・未認証=403）。状態の正本は GCP 作業場 README。
+  - **Phase B（次担当者のタスク・本番リポジトリの通常リリースフロー）**: 実装ガイドは **`docs/240` §11（2026-07-06 追記）が入口**。①**着手前に audience 整合を設計確定**（GAS `getIdentityToken()` の aud=OAuth クライアント ID ⇔ Cloud Run custom audiences。§11 に対応案記載）→ ②openid scope（3 split）→ ③Argon2 関数＋`verifyPassword_` 分岐（rehash-on-login・fail-closed）→ ④Script Properties（`CLOUD_RUN_HASH_SERVICE_URL` / `ARGON2_ENABLED=false`）→ ⑤dryRun E2E → prerelease → 3 split redeploy → 段階移行（`docs/240` §5 Step8）。
+  - Phase 0 の落とし穴記録: `/healthz` は run.app GFE 予約パスでエッジ 404（`/health` を使用）／gcloud は要 `k.noguchi@hcm-n.org`（トークン失効時は operator が `gcloud auth login`）。
 - **次の担当者の落とし穴**:
   - git push は **gh アカウント `knoguchi-ship-it`** に switch（`kenta-noguchi-tadakayo-sys` は 403）。push 後は元に戻す運用。
   - clasp は **`k.noguchi@hcm-n.org`**（勝手に tadakayo に戻っていることがある→ `show-authorized-user` 確認）。
@@ -48,8 +49,8 @@
 
 ### 2-0. 次の開発予定
 
-> **GCP 移行 Phase 0 開始（2026-07-05）**: 作業場を `C:\VSCode\CloudePL\hirakatacitykyougikaiGCP`（独立 Git リポジトリ）に新設。本番 GAS は現状のまま稼働継続・完全分離（切り分け規約は同作業場の AGENTS.md §1 が正本）。本リポジトリ側で行うのは将来の「GAS 接続リリース」のみ。
-> **確定した次の開発予定は無し**（下表は完了済みの直近大型機能＝履歴）。当セッション（〜2026-06-06）の成果は §7 リリース表（v376.32〜.38）を参照。新規依頼が出たら §2-1 へ追記する。
+> **GCP 移行 Phase 0 完了（2026-07-06）→ 確定した次の開発予定は Phase B（GAS 接続リリース）**: Cloud Run `hcmn-password-hash`・Secret Manager pepper は稼働準備完了（§0 / GCP 作業場 README 参照）。本リポジトリ側で行う Phase B の実装ガイドは `docs/240` §11。着手前に audience 整合の設計確定が必須。
+> それ以外の確定した開発予定は無し（下表は完了済みの直近大型機能＝履歴）。新規依頼が出たら §2-1 へ追記する。
 > ER エディタ深化は**別プロジェクト**（任意・MEMORY `project_er_editor_standalone`）で、本案件の必須予定ではない。
 
 | タスク | 状態 | 参照 |
