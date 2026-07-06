@@ -20,7 +20,8 @@
   - 第三者評価: `docs/248`（テスト観点表・検証訂正ログ付）→ 主要 High/Med は全て是正済。残は GCP 行き（PBKDF2/性能）と小粒のみ。
 - **🚀 進行中: GCP 移行 Phase 0** — 作業場は **`C:\VSCode\CloudePL\hirakatacitykyougikaiGCP`**（独立Git・GitHub private `knoguchi-ship-it/hirakatacitykyougikaiGCP`）。**本番完全分離**（切り分け規約=同作業場 AGENTS.md §1 が正本・本番 GAS/DB/deployment に触れない・GCP リソースは追加のみ）。
   - 済（2026-07-06）: GCP セットアップ A0-A7 完了 — 課金リンク＋予算アラート／API 有効化／pepper シークレット器／SA／**Cloud Run `hcmn-password-hash` デプロイ＋healthcheck PASS**（詳細・URL は GCP 作業場 README が正本）。⚠ `/healthz` は run.app GFE 予約パスでエッジ 404 → `/health` 使用。
-  - **次: ①operator が pepper 値を Secret Manager へ投入**（`gcloud secrets versions add PASSWORD_HASH_PEPPER_V1 --data-file=-`・AI 非関与）→ ②**本番側リリース**（openid scope＋Argon2 関数＋`ARGON2_ENABLED` flag・docs/reference/240 §4-5。GAS identity token の aud と custom audiences の整合設計を事前確定）
+  - 済（2026-07-06）: pepper 値も Secret Manager 登録完了（version 1 enabled・operator 投入）。**Phase 0 の GCP 側は全完了**。
+  - **次: Phase B＝本番側リリース**（openid scope＋Argon2 関数＋`ARGON2_ENABLED` flag・docs/reference/240 §4-5。GAS identity token の aud と Cloud Run custom audiences の整合設計を事前確定）
 - **次の担当者の落とし穴**:
   - git push は **gh アカウント `knoguchi-ship-it`** に switch（`kenta-noguchi-tadakayo-sys` は 403）。push 後は元に戻す運用。
   - clasp は **`k.noguchi@hcm-n.org`**（勝手に tadakayo に戻っていることがある→ `show-authorized-user` 確認）。
