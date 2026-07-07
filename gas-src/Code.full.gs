@@ -25034,7 +25034,12 @@ var PASSWORD_HASH_PEPPER_ID = 'v1';
 // `PASSWORD_HASH_PEPPER_GCP_PROJECT` が未設定なら hcmn-member-system-prod を既定値とする
 var PASSWORD_HASH_PEPPER_GCP_PROJECT_PROPERTY = 'PASSWORD_HASH_PEPPER_GCP_PROJECT';
 var PASSWORD_HASH_PEPPER_GCP_PROJECT_DEFAULT = 'hcmn-member-system-prod';
-var PASSWORD_HASH_PEPPER_SECRET_NAME = 'password-hash-pepper-v1';
+// v376.54 (GCP Phase B): secret 名は GCP 実体 `PASSWORD_HASH_PEPPER_V1` に一致させる（docs/250 §5 Phase B 手順7）。
+// Script Property `PASSWORD_HASH_PEPPER_SECRET_NAME` で上書き可能（getPasswordPepperSecretName_ 参照）。
+var PASSWORD_HASH_PEPPER_SECRET_NAME_PROPERTY = 'PASSWORD_HASH_PEPPER_SECRET_NAME';
+var PASSWORD_HASH_PEPPER_SECRET_NAME_DEFAULT = 'PASSWORD_HASH_PEPPER_V1';
+// v376.54 (GCP Phase B): Cloud Run password-hash service の URL（値は Script Properties のみ・コード埋め込み禁止）
+var CLOUD_RUN_HASH_SERVICE_URL_PROPERTY = 'CLOUD_RUN_HASH_SERVICE_URL';
 var PASSWORD_HASH_PEPPER_CACHE_KEY = 'pepper:v1';
 var PASSWORD_HASH_PEPPER_CACHE_TTL_SECONDS = 300; // 5 min
 
@@ -25188,6 +25193,19 @@ function getPasswordPepper_() {
  * 失敗時は throw する（呼び出し側で fail-soft 判定）。
  * 値は base64 で返るため Utilities.base64Decode → string 化する。
  */
+/**
+ * v376.54 (GCP Phase B): Secret Manager の secret 名を解決する。
+ * Script Property `PASSWORD_HASH_PEPPER_SECRET_NAME` があればそれを優先し、
+ * 未設定なら GCP 実体と同名の既定値 `PASSWORD_HASH_PEPPER_V1` を返す。
+ */
+function getPasswordPepperSecretName_() {
+  var fromProps = '';
+  try {
+    fromProps = String(PropertiesService.getScriptProperties().getProperty(PASSWORD_HASH_PEPPER_SECRET_NAME_PROPERTY) || '').trim();
+  } catch (e) { /* fall through to default */ }
+  return fromProps || PASSWORD_HASH_PEPPER_SECRET_NAME_DEFAULT;
+}
+
 function fetchPepperFromSecretManager_() {
   var projectId = String(
     PropertiesService.getScriptProperties().getProperty(PASSWORD_HASH_PEPPER_GCP_PROJECT_PROPERTY)
@@ -25198,7 +25216,7 @@ function fetchPepperFromSecretManager_() {
   }
   var url = 'https://secretmanager.googleapis.com/v1/projects/'
     + encodeURIComponent(projectId)
-    + '/secrets/' + encodeURIComponent(PASSWORD_HASH_PEPPER_SECRET_NAME)
+    + '/secrets/' + encodeURIComponent(getPasswordPepperSecretName_())
     + '/versions/latest:access';
   var response = UrlFetchApp.fetch(url, {
     method: 'get',
@@ -25266,6 +25284,77 @@ function healthCheckPasswordPepper() {
     : resolved ? 'unknown' : 'none';
   report.push({ resolved_via: effectiveSource, length: resolved.length });
   Logger.log('[healthCheckPasswordPepper] %s', JSON.stringify(report));
+  return report;
+}
+
+/**
+ * v376.54 (GCP Phase B / docs/250 §10-6): GAS→Cloud Run 接続の事前診断。
+ * operator が admin の Apps Script editor から手動 Run する（admin build のみ残存）。
+ *
+ * 確認内容（AGENTS.md §0 準拠 — token 値・pepper 値は絶対に出力しない）:
+ *   1. identity token: 取得可否と payload の aud / iss / email 有無のみ
+ *      （aud = 本 script の OAuth クライアント ID。Cloud Run custom audiences 登録に使う）
+ *   2. Secret Manager: pepper 取得可否・使用 secret 名・長さのみ
+ *   3. Cloud Run /health: Script Property CLOUD_RUN_HASH_SERVICE_URL 設定時のみ、
+ *      identity token 認証での HTTP status を確認（未設定なら skip・失敗扱いにしない）
+ */
+function dryRunGcpPhaseB_LOG() {
+  var report = { passed: true, checks: [] };
+
+  // 1. identity token payload（値そのものは出力しない）
+  var idToken = '';
+  try {
+    idToken = ScriptApp.getIdentityToken();
+    if (!idToken) throw new Error('getIdentityToken() が空を返した（openid scope 未反映の可能性）');
+    var payloadPart = String(idToken).split('.')[1];
+    var payload = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(payloadPart)).getDataAsString());
+    report.checks.push({
+      check: 'identityToken',
+      ok: true,
+      aud: String(payload.aud || ''),
+      iss: String(payload.iss || ''),
+      hasEmail: !!payload.email,
+      emailVerified: payload.email_verified === true,
+    });
+  } catch (tokenErr) {
+    report.passed = false;
+    report.checks.push({ check: 'identityToken', ok: false, error: String(tokenErr.message || tokenErr) });
+  }
+
+  // 2. Secret Manager 取得可否（値は出さない・長さのみ）
+  try {
+    var pepper = fetchPepperFromSecretManager_();
+    report.checks.push({ check: 'secretManager', ok: !!pepper, secretName: getPasswordPepperSecretName_(), length: pepper ? pepper.length : 0 });
+    if (!pepper) report.passed = false;
+  } catch (smErr) {
+    report.passed = false;
+    report.checks.push({ check: 'secretManager', ok: false, secretName: getPasswordPepperSecretName_(), error: String(smErr.message || smErr) });
+  }
+
+  // 3. Cloud Run /health（IAM 通過確認。URL 未設定時は skip）
+  try {
+    var serviceUrl = String(PropertiesService.getScriptProperties().getProperty(CLOUD_RUN_HASH_SERVICE_URL_PROPERTY) || '').trim();
+    if (!serviceUrl) {
+      report.checks.push({ check: 'cloudRunHealth', skipped: true, reason: 'Script Property ' + CLOUD_RUN_HASH_SERVICE_URL_PROPERTY + ' 未設定' });
+    } else if (!idToken) {
+      report.checks.push({ check: 'cloudRunHealth', ok: false, error: 'identity token 未取得のため実行不可' });
+      report.passed = false;
+    } else {
+      var res = UrlFetchApp.fetch(serviceUrl.replace(/\/+$/, '') + '/health', {
+        method: 'get',
+        headers: { 'Authorization': 'Bearer ' + idToken },
+        muteHttpExceptions: true,
+      });
+      var status = res.getResponseCode();
+      report.checks.push({ check: 'cloudRunHealth', ok: status === 200, httpStatus: status });
+      if (status !== 200) report.passed = false;
+    }
+  } catch (crErr) {
+    report.passed = false;
+    report.checks.push({ check: 'cloudRunHealth', ok: false, error: String(crErr.message || crErr) });
+  }
+
+  Logger.log('[dryRunGcpPhaseB_LOG] %s', JSON.stringify(report, null, 2));
   return report;
 }
 

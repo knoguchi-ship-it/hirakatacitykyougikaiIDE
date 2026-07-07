@@ -6870,7 +6870,12 @@ var PASSWORD_HASH_PEPPER_ID = 'v1';
 // `PASSWORD_HASH_PEPPER_GCP_PROJECT` が未設定なら hcmn-member-system-prod を既定値とする
 var PASSWORD_HASH_PEPPER_GCP_PROJECT_PROPERTY = 'PASSWORD_HASH_PEPPER_GCP_PROJECT';
 var PASSWORD_HASH_PEPPER_GCP_PROJECT_DEFAULT = 'hcmn-member-system-prod';
-var PASSWORD_HASH_PEPPER_SECRET_NAME = 'password-hash-pepper-v1';
+// v376.54 (GCP Phase B): secret 名は GCP 実体 `PASSWORD_HASH_PEPPER_V1` に一致させる（docs/250 §5 Phase B 手順7）。
+// Script Property `PASSWORD_HASH_PEPPER_SECRET_NAME` で上書き可能（getPasswordPepperSecretName_ 参照）。
+var PASSWORD_HASH_PEPPER_SECRET_NAME_PROPERTY = 'PASSWORD_HASH_PEPPER_SECRET_NAME';
+var PASSWORD_HASH_PEPPER_SECRET_NAME_DEFAULT = 'PASSWORD_HASH_PEPPER_V1';
+// v376.54 (GCP Phase B): Cloud Run password-hash service の URL（値は Script Properties のみ・コード埋め込み禁止）
+var CLOUD_RUN_HASH_SERVICE_URL_PROPERTY = 'CLOUD_RUN_HASH_SERVICE_URL';
 var PASSWORD_HASH_PEPPER_CACHE_KEY = 'pepper:v1';
 var PASSWORD_HASH_PEPPER_CACHE_TTL_SECONDS = 300; // 5 min
 
@@ -7008,6 +7013,19 @@ function getPasswordPepper_() {
  * 失敗時は throw する（呼び出し側で fail-soft 判定）。
  * 値は base64 で返るため Utilities.base64Decode → string 化する。
  */
+/**
+ * v376.54 (GCP Phase B): Secret Manager の secret 名を解決する。
+ * Script Property `PASSWORD_HASH_PEPPER_SECRET_NAME` があればそれを優先し、
+ * 未設定なら GCP 実体と同名の既定値 `PASSWORD_HASH_PEPPER_V1` を返す。
+ */
+function getPasswordPepperSecretName_() {
+  var fromProps = '';
+  try {
+    fromProps = String(PropertiesService.getScriptProperties().getProperty(PASSWORD_HASH_PEPPER_SECRET_NAME_PROPERTY) || '').trim();
+  } catch (e) { /* fall through to default */ }
+  return fromProps || PASSWORD_HASH_PEPPER_SECRET_NAME_DEFAULT;
+}
+
 function fetchPepperFromSecretManager_() {
   var projectId = String(
     PropertiesService.getScriptProperties().getProperty(PASSWORD_HASH_PEPPER_GCP_PROJECT_PROPERTY)
@@ -7018,7 +7036,7 @@ function fetchPepperFromSecretManager_() {
   }
   var url = 'https://secretmanager.googleapis.com/v1/projects/'
     + encodeURIComponent(projectId)
-    + '/secrets/' + encodeURIComponent(PASSWORD_HASH_PEPPER_SECRET_NAME)
+    + '/secrets/' + encodeURIComponent(getPasswordPepperSecretName_())
     + '/versions/latest:access';
   var response = UrlFetchApp.fetch(url, {
     method: 'get',
@@ -7049,6 +7067,18 @@ function fetchPepperFromSecretManager_() {
  * 値は出力せず、source / length / SHA-256 fingerprint のみ Logger に返す。
  * operator が Secret Manager セットアップ後に Apps Script editor から実行して検証する。
  * admin split のみ top-level callable として残す（member/public からは pruning）。
+ */
+
+/**
+ * v376.54 (GCP Phase B / docs/250 §10-6): GAS→Cloud Run 接続の事前診断。
+ * operator が admin の Apps Script editor から手動 Run する（admin build のみ残存）。
+ *
+ * 確認内容（AGENTS.md §0 準拠 — token 値・pepper 値は絶対に出力しない）:
+ *   1. identity token: 取得可否と payload の aud / iss / email 有無のみ
+ *      （aud = 本 script の OAuth クライアント ID。Cloud Run custom audiences 登録に使う）
+ *   2. Secret Manager: pepper 取得可否・使用 secret 名・長さのみ
+ *   3. Cloud Run /health: Script Property CLOUD_RUN_HASH_SERVICE_URL 設定時のみ、
+ *      identity token 認証での HTTP status を確認（未設定なら skip・失敗扱いにしない）
  */
 
 function hmacSha256Hex_(message, secret) {

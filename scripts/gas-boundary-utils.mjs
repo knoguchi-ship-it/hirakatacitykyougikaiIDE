@@ -56,6 +56,8 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   'restoreLastArchiveBatch_APPLY',
   'dryRunDeleteCascadeV376_52_LOG',
   'cleanupDryRunDeleteCascade',
+  // v376.54 (GCP Phase B / docs/250 §10-6): GAS→Cloud Run 接続の事前診断（operator 実行用・token/pepper 値は出力しない）
+  'dryRunGcpPhaseB_LOG',
 ];
 
 // admin build から強制削除する（pruning で残ってはならない）危険な top-level 関数。
