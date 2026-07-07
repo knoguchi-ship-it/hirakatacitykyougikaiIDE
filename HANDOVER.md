@@ -4,9 +4,9 @@
 > 経緯・履歴・設計詳細は別ドキュメントへ。リンク先は §6 参照順序を参照。
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
-最終更新: **2026-07-06**
+最終更新: **2026-07-07**
 最新リリース: **`v376.53.2`**（REDIRECT 警告バナー UX 強化+不点灯 hotfix・live 実証済。admin @215 / public @359×2 / member @118）
-最終作業（2026-07-06）: **GCP 移行 Phase 0 の GCP 側作業を全完了**（本番 GAS は無変更・docs のみ更新。詳細 §0 / `docs/240` §11 / GCP 作業場 README）。
+最終作業（2026-07-07）: **GCP 並走移行計画を作成・第三者レビュー反映**（本番 GAS は無変更・docs のみ更新。全体計画の正本は `docs/250_GCP_MIGRATION_PARALLEL_RUN_PLAN_2026-07-07.md`。Phase B 詳細は `docs/240` §11）。
 前回作業: **会員系削除の cascade アーカイブ（`docs/249`・a1 単一化）とメール誤集約事故の恒久是正をデプロイ（v376.52 / admin @212）** — ①削除コンソール実行時に会員系13テーブルを live から `*_archive` へ移動（`削除バッチID`=削除ログID・会員単位アトミック復元可）、ログイン履歴は物理 purge。旧 in-place soft delete（孤児発生源）と命名詐称 `archive*ByIds` を撤去。②2026-07-03 の REDIRECT 残置事故（全メールが Redirect 宛先へ集約・UI/ログは成功表示）の再発防止: 一括メール画面に配信モード常時警告バナー＋送信結果/送信ログの正直化（`BULK_MEMBER_REDIRECT` 記録・抑止分を成功に数えない）。③legacy 申込者解決 `@deprecated`（v377 撤去予定）。DB migrate（`_archive` 11本新設+既存2本に列追加・追加のみ非破壊）は次回 admin ログインで自動実行。デプロイ前に DB スプレッドシート複製バックアップ実施済み。
 > 直近の経緯・各リリース詳細は §7 リリース表 と `docs/release-notes-2026.md` を正本とする（v376.40〜v376.52）。
 
@@ -19,16 +19,17 @@
   - v376.51 ロール視点プレビュー（MASTER専用）／v376.52 **会員系削除 cascade アーカイブ**（docs/249・実DB E2E 18/18 PASS・削除負債実測16行のみ）／v376.53 DRY・ハードコーディング・XFrame 一括是正（api.ts **-940行**・rbac-util/validators 集約・ID/URL の Properties override 化）／.53.1-.53.2 REDIRECT 警告バナー（live 実証済）。
   - **メール事故対応済**: 6/26〜7/3 の間 `MAIL_DELIVERY_MODE=REDIRECT` 残置で全メールが旧アドレスに集約されていた（実宛先未達）。LIVE 復旧済・再発防止バナー/ログ正直化デプロイ済。**未達期間の再送要否は運用判断が残っている可能性あり**（`T_メール送信ログ` の 6/26〜7/3 BULK_MEMBER 行を確認）。
   - 第三者評価: `docs/248`（テスト観点表・検証訂正ログ付）→ 主要 High/Med は全て是正済。残は GCP 行き（PBKDF2/性能）と小粒のみ。
-- **🚀 GCP 移行: Phase 0（GCP 側）全完了・次は Phase B（本番 GAS 接続リリース）** — 作業場は **`C:\VSCode\CloudePL\hirakatacitykyougikaiGCP`**（独立Git・GitHub private `knoguchi-ship-it/hirakatacitykyougikaiGCP`）。**本番完全分離**（切り分け規約=同作業場 AGENTS.md §1 が正本・GCP リソースは追加のみ）。
+- **🚀 GCP 移行: 全体計画の正本は `docs/250`。Phase 0（GCP 側）全完了・次は Phase B（本番 GAS 接続リリース）** — 作業場は **`C:\VSCode\CloudePL\hirakatacitykyougikaiGCP`**（独立Git・GitHub private `knoguchi-ship-it/hirakatacitykyougikaiGCP`）。**本番完全分離**（切り分け規約=同作業場 AGENTS.md §1 が正本・GCP リソースは追加のみ）。
   - **Phase 0 完了（2026-07-06）**: 課金リンク＋予算アラート月500円／API 有効化／Secret Manager `PASSWORD_HASH_PEPPER_V1` **値まで登録済（version 1 enabled）**／SA／**Cloud Run `hcmn-password-hash` 稼働中・healthcheck PASS**（認証付き `/health`=200・未認証=403）。状態の正本は GCP 作業場 README。
-  - **Phase B（次担当者のタスク・本番リポジトリの通常リリースフロー）**: 実装ガイドは **`docs/240` §11（2026-07-06 追記）が入口**。①**着手前に audience 整合を設計確定**（GAS `getIdentityToken()` の aud=OAuth クライアント ID ⇔ Cloud Run custom audiences。§11 に対応案記載）→ ②openid scope（3 split）→ ③Argon2 関数＋`verifyPassword_` 分岐（rehash-on-login・fail-closed）→ ④Script Properties（`CLOUD_RUN_HASH_SERVICE_URL` / `ARGON2_ENABLED=false`）→ ⑤dryRun E2E → prerelease → 3 split redeploy → 段階移行（`docs/240` §5 Step8）。
+  - **Phase B（次担当者のタスク・本番リポジトリの通常リリースフロー）**: 入口は **`docs/250` §5 Phase B / §10**。password-hash 詳細設計は **`docs/240` §11**。着手前ゲートは ①audience 整合（GAS `getIdentityToken()` の aud=OAuth クライアント ID ⇔ Cloud Run custom audiences）②`ALLOWED_INVOKERS` を維持するなら `userinfo.email` scope を 3 split に追加 ③Cloud Run IAM `roles/run.invoker` の付与先を dryRun で確認した caller principal と一致 ④Secret 名不一致（GCP `PASSWORD_HASH_PEPPER_V1` vs GAS `password-hash-pepper-v1`）解消 ⑤複数 audience 拒否 test 追加。
+  - **Phase B 実装順序**: `openid`/必要なら`userinfo.email` scope → token 値を出さない dryRun → Cloud Run custom audiences/IAM/env 調整 → Argon2 関数＋`verifyPassword_` 分岐 → Script Properties（`CLOUD_RUN_HASH_SERVICE_URL` / `ARGON2_ENABLED=false`）→ dryRun E2E → prerelease → 3 split redeploy → operator 承認後に `ARGON2_ENABLED=true`。
   - Phase 0 の落とし穴記録: `/healthz` は run.app GFE 予約パスでエッジ 404（`/health` を使用）／gcloud は要 `k.noguchi@hcm-n.org`（トークン失効時は operator が `gcloud auth login`）。
 - **次の担当者の落とし穴**:
   - git push は **gh アカウント `knoguchi-ship-it`** に switch（`kenta-noguchi-tadakayo-sys` は 403）。push 後は元に戻す運用。
   - clasp は **`k.noguchi@hcm-n.org`**（勝手に tadakayo に戻っていることがある→ `show-authorized-user` 確認）。
   - **Playwright MCP 認証済ブラウザから `google.script.run` で dryRun/診断関数を直接実行できる**（operator ▶ 代行・MEMORY `feedback_playwright_gas_run_verification` 参照）。ユーザーに admin ログインしてもらってから使う。
 - **残タスク（小粒・次期）**: 孤児16行のバックフィル（任意・診断済）／kana form 前検証適用／er-sync 列順・相互排他拡張／CM番号 import プレビュー／legacy `getApplicationApplicantType_` 物理撤去（v377）／stale 旧アカウント定数除去（Low）。§2-1 の旧 operator 実機確認（v376.45 line-post-manage 権限付与等）も未消化分あり。
-- **まず読む**: 本書 §1→§2→`docs/248`（評価）→`docs/249`（削除設計）→ GCP 作業場 README/AGENTS。落とし穴は MEMORY。
+- **まず読む**: 本書 §0→§1→§2→`docs/250`（GCP並走移行計画・正本）→`docs/240` §11（password-hash Phase B詳細）→ GCP 作業場 README/AGENTS。削除設計は `docs/249`、第三者評価は `docs/248`。落とし穴は MEMORY。
 
 ---
 
@@ -49,7 +50,7 @@
 
 ### 2-0. 次の開発予定
 
-> **GCP 移行 Phase 0 完了（2026-07-06）→ 確定した次の開発予定は Phase B（GAS 接続リリース）**: Cloud Run `hcmn-password-hash`・Secret Manager pepper は稼働準備完了（§0 / GCP 作業場 README 参照）。本リポジトリ側で行う Phase B の実装ガイドは `docs/240` §11。着手前に audience 整合の設計確定が必須。
+> **GCP 移行 Phase 0 完了（2026-07-06）→ 確定した次の開発予定は Phase B（GAS 接続リリース）**: Cloud Run `hcmn-password-hash`・Secret Manager pepper は稼働準備完了（§0 / GCP 作業場 README 参照）。GCP 並走移行全体の正本は `docs/250`。password-hash の詳細設計は `docs/240` §11。Phase B 着手前に audience / `userinfo.email` / Cloud Run IAM principal / Secret 名不一致を解消する。
 > それ以外の確定した開発予定は無し（下表は完了済みの直近大型機能＝履歴）。新規依頼が出たら §2-1 へ追記する。
 > ER エディタ深化は**別プロジェクト**（任意・MEMORY `project_er_editor_standalone`）で、本案件の必須予定ではない。
 
@@ -99,7 +100,7 @@
 
 | タスク | 再開条件 | 参照 |
 |---|---|---|
-| GCP Secret Manager セットアップ + Cloud Run Argon2id 反映 | GCP 利用判断時 | `docs/239` (手順), `docs/240` (Cloud Run 設計), `docs/172` (必須・破棄禁止 backlog) |
+| GCP Secret Manager セットアップ + Cloud Run Argon2id 反映 | Phase B 再開時。全体計画は `docs/250`、password-hash 詳細は `docs/240` §11。`userinfo.email` / audience / IAM principal / Secret 名不一致を先に確定 | `docs/250`, `docs/240`, `docs/172` |
 | WCAG 2.2 AA 手動検証（NVDA / VoiceOver / キーボード） | 半期レビュー (2026-11) or 大規模 UI 改修時 | `docs/244` §3, `docs/245` §3 |
 | **v376.36 dormant 差分の同梱デプロイ**（_archive surrogate 列定義） | 次の機能リリース時に自動同梱（個別デプロイ不要・実行時挙動不変） | release-notes v376.36 |
 | **退会会員アーカイブ機能の活性化**（移動ジョブを keep-list 追加・物理削除実行） | 運用判断時（破壊的操作＝完全バックアップ＋明示承認必須） | `docs/03_DATA_MODEL.md` §4.10 復活手順 |

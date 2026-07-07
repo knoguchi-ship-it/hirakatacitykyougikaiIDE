@@ -290,6 +290,7 @@ gcloud run services add-iam-policy-binding hcmn-password-hash \
 
 > 実施場所は GCP 作業場 `C:\VSCode\CloudePL\hirakatacitykyougikaiGCP`（独立 Git・状態の正本は同作業場 README）。
 > 本節は「本設計書 §4-5 を Phase B で実装する開発者」向けの差分情報のみ記す。
+> 2026-07-07 以降の **GAS 本番を維持した並走移行全体計画** は `docs/250_GCP_MIGRATION_PARALLEL_RUN_PLAN_2026-07-07.md` を正本とする。本書は password-hash service / Phase B の詳細設計であり、全体移行計画そのものではない。
 
 ### 完了状態（§8 残作業の #1-4・#7 前半に相当）
 
@@ -306,4 +307,6 @@ gcloud run services add-iam-policy-binding hcmn-password-hash \
    - Cloud Run の **custom audiences**（`gcloud run services update hcmn-password-hash --add-custom-audiences=<GAS OAuth クライアント ID>`）を設定し、アプリ側 `EXPECTED_AUDIENCE` も同値に更新する（推奨・追加のみで可逆）
    - GAS の OAuth クライアント ID は Apps Script プロジェクトの GCP 紐づけ（`hcmn-member-system-prod`）配下。3 split で ID が異なる場合は custom audiences に複数登録（カンマ区切り・最大 32）
    - 実トークンの `aud` 値は Phase B の dryRun 関数内で `getIdentityToken()` を decode（JWT payload の base64）して確認するのが確実（トークン自体はログ出力しない）
-3. §8 の残作業 #5-6・#7 後半（Script Properties）・#8-10 が Phase B スコープ（本番リポジトリの通常リリースフロー）。
+3. **【Phase B 着手前に要是正】Secret Manager secret 名の不一致**: 2026-07-07 実体確認では GCP に存在する secret は `PASSWORD_HASH_PEPPER_V1` のみ。一方、現行 `gas-src/Code.full.gs` は `PASSWORD_HASH_PEPPER_SECRET_NAME = 'password-hash-pepper-v1'` を参照している。このままでは Secret Manager 経路は 404 になり Script Properties fallback に倒れる。Phase B では secret 名を一致させる、または Script Property で secret 名を明示設定できるようにする。
+4. **【Phase B 着手前に要設計確定】email claim と invoker の整合**: 本書の Cloud Run app は `ALLOWED_INVOKERS` による email allowlist を前提にしている。Apps Script identity token に email claim を含めるには `userinfo.email` scope が必要なため、現行 allowlist を維持するなら 3 split manifest に `openid` だけでなく `userinfo.email` も追加する。email claim に依存しない設計へ変える場合は、Cloud Run app 側の allowlist 仕様と unit test を先に更新する。Cloud Run IAM `roles/run.invoker` は dryRun で確認した caller principal に最小権限で付与し、`allUsers` / `allAuthenticatedUsers` は使わない。
+5. §8 の残作業 #5-6・#7 後半（Script Properties）・#8-10 が Phase B スコープ（本番リポジトリの通常リリースフロー）。

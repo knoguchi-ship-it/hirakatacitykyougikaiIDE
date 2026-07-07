@@ -1,7 +1,7 @@
 # Document Index
 
-更新日: 2026-06-01
-現行本番: **`v376.38`**（integrated-public `@356` x2 / member split `@115` / admin split `@197`）
+更新日: 2026-07-07
+現行本番: **`v376.53.2`**（integrated-public `@359` x2 / member split `@118` / admin split `@215`）
 
 このプロジェクトのドキュメントは **[Diátaxis フレームワーク](https://diataxis.fr/)** に従って 4 カテゴリ + 補助 2 カテゴリで構成しています。
 **目的別に最短経路で必要な情報に到達できる**ことを保証しています。
@@ -123,6 +123,7 @@
 | [111_IMPLEMENTATION_BLUEPRINT_PROJECT_SPLIT_2026-04-20.md](111_IMPLEMENTATION_BLUEPRINT_PROJECT_SPLIT_2026-04-20.md) | 3 プロジェクト分離設計 |
 | [228_ROSTER_REDESIGN_2026-05-19.md](228_ROSTER_REDESIGN_2026-05-19.md) | 名簿出力 Visual Designer 全面刷新設計（Sprint S1-S5、完了） |
 | [240_DESIGN_CLOUD_RUN_ARGON2ID_2026-05-20.md](240_DESIGN_CLOUD_RUN_ARGON2ID_2026-05-20.md) | Cloud Run Argon2id 外部 KDF 完全設計 + 実装雛形（GCP 利用判断時に反映） |
+| [250_GCP_MIGRATION_PARALLEL_RUN_PLAN_2026-07-07.md](250_GCP_MIGRATION_PARALLEL_RUN_PLAN_2026-07-07.md) | GCP 移行期の GAS 本番並走計画（本番正本・API互換・切替/rollback・GCP作業場の役割分離） |
 | [227_MAIL_KILL_SWITCH_2026-05-18.md](227_MAIL_KILL_SWITCH_2026-05-18.md) | メール送信 4 階層ガード設計 |
 | [246_DESIGN_MENU_BASED_CUSTOM_ROLES_RBAC_2026-05-28.md](246_DESIGN_MENU_BASED_CUSTOM_ROLES_RBAC_2026-05-28.md) | メニュー単位カスタムロール RBAC 設計（固定5ロール→マスター定義のカスタムロール。Phase1-3） |
 | [249_DESIGN_MEMBER_DELETE_CASCADE_ARCHIVE_2026-07-02.md](249_DESIGN_MEMBER_DELETE_CASCADE_ARCHIVE_2026-07-02.md) | **会員系削除の cascade アーカイブ設計（a1・単一化）**＋現状実装の矛盾点(C1-C7: archive 命名詐称/子レコード孤児化)。docs/248 §2-A の恒久設計・実装前/要承認 |
