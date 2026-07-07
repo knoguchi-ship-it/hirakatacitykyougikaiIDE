@@ -6146,6 +6146,8 @@ var PASSWORD_HASH_PEPPER_GCP_PROJECT_DEFAULT = 'hcmn-member-system-prod';
 var PASSWORD_HASH_PEPPER_SECRET_NAME_DEFAULT = 'PASSWORD_HASH_PEPPER_V1';
 // v376.54 (GCP Phase B): Cloud Run password-hash service の URL（値は Script Properties のみ・コード埋め込み禁止）
 var CLOUD_RUN_HASH_SERVICE_URL_PROPERTY = 'CLOUD_RUN_HASH_SERVICE_URL';
+// v376.54 (GCP Phase B): Argon2id 段階移行 feature flag（'true' で新規 hash が Argon2id・rehash-on-login 開始）
+var ARGON2_ENABLED_PROPERTY = 'ARGON2_ENABLED';
 var PASSWORD_HASH_PEPPER_CACHE_KEY = 'pepper:v1';
 var PASSWORD_HASH_PEPPER_CACHE_TTL_SECONDS = 300; // 5 min
 
@@ -6217,11 +6219,22 @@ var PBKDF2_ITERATIONS = 10000;
  */
 
 
+// ============================================================
+// v376.54 (GCP Phase B / docs/240 §4, docs/250 §5): Cloud Run Argon2id 連携
+// ============================================================
+
+
+
 /**
- * パスワード検証。ハッシュ方式を自動判別する。
- * - "pbkdf2:sha256:" prefix → PBKDF2 で検証
- * - それ以外 → 旧 SHA-256 で検証
- * 旧方式で一致した場合は rehash 用フラグを返す。
+ * Cloud Run password-hash service の共通呼び出し。
+ * - 認証: ScriptApp.getIdentityToken()（openid scope 必須・aud は Cloud Run custom audiences 登録済）
+ * - 失敗時は throw（fail-closed）。token / password / pepper / response body は例外メッセージ・ログに出さない（AGENTS §0）。
+ */
+
+/**
+ * Cloud Run Argon2id でパスワードをハッシュする。
+ * salt 引数は PHC 文字列（$argon2id$...）内に salt が含まれるため未使用（PBKDF2 系との drop-in 互換用）。
+ * 返り値: "argon2id:v1:$argon2id$v=19$m=19456,t=2,p=1$..."
  */
 
 // ============================================================

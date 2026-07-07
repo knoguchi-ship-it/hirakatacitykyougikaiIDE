@@ -3602,7 +3602,7 @@ function upsertPasswordAuthAccount_(ss, spec, plainPassword, nowIso) {
   }
 
   var salt = generateSalt_();
-  var hash = hashPasswordPbkdf2_(String(plainPassword || ''), salt);
+  var hash = hashPasswordCurrent_(String(plainPassword || ''), salt);
 
   if (!found) {
     appendRowsByHeaders_(ss, 'T_認証アカウント', [
@@ -3664,7 +3664,7 @@ function createPasswordAuthRow_(authId, loginId, roleCode, memberId, staffId, pl
     認証ID: authId,
     認証方式: 'PASSWORD',
     ログインID: loginId,
-    パスワードハッシュ: hashPasswordPbkdf2_(plainPassword, salt),
+    パスワードハッシュ: hashPasswordCurrent_(plainPassword, salt),
     パスワードソルト: salt,
     GoogleユーザーID: '',
     Googleメール: '',
@@ -3970,7 +3970,7 @@ function reissueCredentialPasswords(options) {
     if (!targetByAuthId[authId]) continue;
     var plainPassword = generateCredentialTempPassword_();
     var salt = generateSalt_();
-    rows[r][cols['パスワードハッシュ']] = hashPasswordPbkdf2_(plainPassword, salt);
+    rows[r][cols['パスワードハッシュ']] = hashPasswordCurrent_(plainPassword, salt);
     rows[r][cols['パスワードソルト']] = salt;
     rows[r][cols['パスワード更新日時']] = nowIso;
     rows[r][cols['アカウント有効フラグ']] = true;
@@ -5156,13 +5156,13 @@ function changePassword_(request) {
   }
   if (verifyChangeResult.needsRehash) {
     var rehashSalt = generateSalt_();
-    var rehashValue = hashPasswordPbkdf2_(currentPassword, rehashSalt);
+    var rehashValue = hashPasswordCurrent_(currentPassword, rehashSalt);
     authSheet.getRange(authRowInfo.rowNumber, columns['パスワードソルト'] + 1).setValue(rehashSalt);
     authSheet.getRange(authRowInfo.rowNumber, columns['パスワードハッシュ'] + 1).setValue(rehashValue);
   }
 
   var newSalt = generateSalt_();
-  var newHash = hashPasswordPbkdf2_(newPassword, newSalt);
+  var newHash = hashPasswordCurrent_(newPassword, newSalt);
   var nowIso = new Date().toISOString();
 
   authSheet.getRange(authRowInfo.rowNumber, columns['パスワードソルト'] + 1).setValue(newSalt);
@@ -5376,7 +5376,7 @@ function completePasswordReset_(request) {
   requireColumns_(cols, ['パスワードハッシュ', 'パスワードソルト', 'パスワード更新日時', 'ログイン失敗回数', 'ロック状態', '更新日時']);
   var nowIso = new Date().toISOString();
   var newSalt = generateSalt_();
-  var newHash = hashPasswordPbkdf2_(newPassword, newSalt);
+  var newHash = hashPasswordCurrent_(newPassword, newSalt);
   target.authSheet.getRange(target.authRowInfo.rowNumber, cols['パスワードソルト'] + 1).setValue(newSalt);
   target.authSheet.getRange(target.authRowInfo.rowNumber, cols['パスワードハッシュ'] + 1).setValue(newHash);
   target.authSheet.getRange(target.authRowInfo.rowNumber, cols['パスワード更新日時'] + 1).setValue(nowIso);
@@ -5473,7 +5473,7 @@ function memberLogin_(request) {
   // 旧 SHA-256 で一致した場合は PBKDF2 へ再ハッシュ（ログイン成功時のみ）
   if (verifyResult.needsRehash) {
     var newSalt = generateSalt_();
-    var newHash = hashPasswordPbkdf2_(password, newSalt);
+    var newHash = hashPasswordCurrent_(password, newSalt);
     authSheet.getRange(authRowInfo.rowNumber, columns['パスワードソルト'] + 1).setValue(newSalt);
     authSheet.getRange(authRowInfo.rowNumber, columns['パスワードハッシュ'] + 1).setValue(newHash);
   }
@@ -8487,7 +8487,7 @@ function createMember_(payload) {
   var authSheet = ss.getSheetByName('T_認証アカウント');
   if (authSheet) {
     var salt = generateSalt_();
-    var hashed = hashPasswordPbkdf2_(defaultPassword, salt);
+    var hashed = hashPasswordCurrent_(defaultPassword, salt);
     var authColumns = テーブル定義.T_認証アカウント;
     var authRow = authColumns.map(function(col) {
       switch (col) {
@@ -8874,7 +8874,7 @@ function createMemberApplicationDirect_(payload) {
       var defaultPassword = generateRandomPassword_();
       if (authSheet) {
         var salt = generateSalt_();
-        var hashed = hashPasswordPbkdf2_(defaultPassword, salt);
+        var hashed = hashPasswordCurrent_(defaultPassword, salt);
         var authColumns = テーブル定義.T_認証アカウント;
         var authRow = authColumns.map(function(col) {
           switch (col) {
@@ -8949,7 +8949,7 @@ function createMemberApplicationDirect_(payload) {
     var authSheet = ss.getSheetByName('T_認証アカウント');
     if (authSheet) {
       var salt = generateSalt_();
-      var hashed = hashPasswordPbkdf2_(defaultPassword, salt);
+      var hashed = hashPasswordCurrent_(defaultPassword, salt);
       var authColumns = テーブル定義.T_認証アカウント;
       var authRow = authColumns.map(function(col) {
         switch (col) {
@@ -17735,7 +17735,7 @@ function provisionDemoAccountsJson() {
   var now = new Date().toISOString();
 
   function makeSalt() { return generateSalt_(); }
-  function makeHash(pw, salt) { return hashPasswordPbkdf2_(pw, salt); }
+  function makeHash(pw, salt) { return hashPasswordCurrent_(pw, salt); }
 
   var demoPw = 'demo1234';
 
@@ -20197,7 +20197,7 @@ function migrateRoster2025_(options) {
     allLoginIds.push(loginId);
     var plainPassword = generateRandomPassword_();
     var salt = generateSalt_();
-    var hashed = hashPasswordPbkdf2_(plainPassword, salt);
+    var hashed = hashPasswordCurrent_(plainPassword, salt);
 
     authRecords.push({
       認証ID: Utilities.getUuid(),
@@ -20372,7 +20372,7 @@ function migrateRoster2025_(options) {
       allLoginIds.push(stLoginId);
       var stPassword = generateRandomPassword_();
       var stSalt = generateSalt_();
-      var stHashed = hashPasswordPbkdf2_(stPassword, stSalt);
+      var stHashed = hashPasswordCurrent_(stPassword, stSalt);
 
       authRecords.push({
         認証ID: Utilities.getUuid(),
@@ -25040,6 +25040,10 @@ var PASSWORD_HASH_PEPPER_SECRET_NAME_PROPERTY = 'PASSWORD_HASH_PEPPER_SECRET_NAM
 var PASSWORD_HASH_PEPPER_SECRET_NAME_DEFAULT = 'PASSWORD_HASH_PEPPER_V1';
 // v376.54 (GCP Phase B): Cloud Run password-hash service の URL（値は Script Properties のみ・コード埋め込み禁止）
 var CLOUD_RUN_HASH_SERVICE_URL_PROPERTY = 'CLOUD_RUN_HASH_SERVICE_URL';
+// v376.54 (GCP Phase B): Argon2id 段階移行 feature flag（'true' で新規 hash が Argon2id・rehash-on-login 開始）
+var ARGON2_ENABLED_PROPERTY = 'ARGON2_ENABLED';
+// Argon2id hash の保存形式 prefix（verifyPassword_ の方式自動判別に使用）
+var ARGON2_HASH_PREFIX = 'argon2id:v1:';
 var PASSWORD_HASH_PEPPER_CACHE_KEY = 'pepper:v1';
 var PASSWORD_HASH_PEPPER_CACHE_TTL_SECONDS = 300; // 5 min
 
@@ -25354,12 +25358,136 @@ function dryRunGcpPhaseB_LOG() {
     report.checks.push({ check: 'cloudRunHealth', ok: false, error: String(crErr.message || crErr) });
   }
 
+  // 4. Argon2 hash→verify 往復（実 DB 非破壊・ダミーパスワードのみ。URL 未設定なら skip）
+  //    docs/250 §7: 実サービスでの hash/verify latency もここで実測する
+  try {
+    if (!getCloudRunHashServiceUrl_()) {
+      report.checks.push({ check: 'argon2RoundTrip', skipped: true, reason: 'Script Property ' + CLOUD_RUN_HASH_SERVICE_URL_PROPERTY + ' 未設定' });
+    } else {
+      var dummyPassword = 'dryrun-dummy-password-v376_54';
+      var tHash0 = new Date().getTime();
+      var testHash = hashPasswordArgon2_(dummyPassword, 'unused-salt');
+      var hashMs = new Date().getTime() - tHash0;
+      var tVerify0 = new Date().getTime();
+      var okVerify = verifyPasswordArgon2_(dummyPassword, testHash);
+      var ngVerify = verifyPasswordArgon2_('wrong-password-dummy', testHash);
+      var verifyMs = Math.round((new Date().getTime() - tVerify0) / 2);
+      var roundTripOk = okVerify.match === true && ngVerify.match === false;
+      report.checks.push({
+        check: 'argon2RoundTrip',
+        ok: roundTripOk,
+        matchExpectedTrue: okVerify.match,
+        matchExpectedFalse: ngVerify.match,
+        needsRehash: okVerify.needsRehash,
+        phcFormatOk: testHash.indexOf(ARGON2_HASH_PREFIX + '$argon2id$v=19$m=19456,t=2,p=1$') === 0,
+        hashMs: hashMs,
+        verifyMsAvg: verifyMs,
+        argon2Enabled: isArgon2Enabled_(),
+      });
+      if (!roundTripOk) report.passed = false;
+    }
+  } catch (argonErr) {
+    report.passed = false;
+    report.checks.push({ check: 'argon2RoundTrip', ok: false, error: String(argonErr.message || argonErr) });
+  }
+
   Logger.log('[dryRunGcpPhaseB_LOG] %s', JSON.stringify(report, null, 2));
   return report;
 }
 
 function hmacSha256Hex_(message, secret) {
   return bytesToHex_(Utilities.computeHmacSha256Signature(String(message || ''), String(secret || '')));
+}
+
+// ============================================================
+// v376.54 (GCP Phase B / docs/240 §4, docs/250 §5): Cloud Run Argon2id 連携
+// ============================================================
+
+function isArgon2Enabled_() {
+  try {
+    return String(PropertiesService.getScriptProperties().getProperty(ARGON2_ENABLED_PROPERTY) || '').toLowerCase() === 'true';
+  } catch (e) {
+    return false; // Properties 読取不能時は従来 PBKDF2 に倒す（生成側 fail-soft・検証側は方式自動判別で影響なし）
+  }
+}
+
+function getCloudRunHashServiceUrl_() {
+  return String(PropertiesService.getScriptProperties().getProperty(CLOUD_RUN_HASH_SERVICE_URL_PROPERTY) || '').trim();
+}
+
+/**
+ * Cloud Run password-hash service の共通呼び出し。
+ * - 認証: ScriptApp.getIdentityToken()（openid scope 必須・aud は Cloud Run custom audiences 登録済）
+ * - 失敗時は throw（fail-closed）。token / password / pepper / response body は例外メッセージ・ログに出さない（AGENTS §0）。
+ */
+function callCloudRunHashService_(path, payloadObj) {
+  var url = getCloudRunHashServiceUrl_();
+  if (!url) {
+    throw new Error('Cloud Run hash service URL 未設定（Script Property ' + CLOUD_RUN_HASH_SERVICE_URL_PROPERTY + '）');
+  }
+  var idToken = ScriptApp.getIdentityToken();
+  if (!idToken) {
+    throw new Error('identity token を取得できません（openid scope 未反映の可能性）');
+  }
+  var response = UrlFetchApp.fetch(url.replace(/\/+$/, '') + path, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { 'Authorization': 'Bearer ' + idToken },
+    payload: JSON.stringify(payloadObj),
+    muteHttpExceptions: true,
+  });
+  var code = response.getResponseCode();
+  if (code !== 200) {
+    throw new Error('Argon2 hash service HTTP ' + code);
+  }
+  var parsed;
+  try {
+    parsed = JSON.parse(response.getContentText());
+  } catch (parseErr) {
+    throw new Error('Argon2 hash service invalid JSON response');
+  }
+  return parsed;
+}
+
+/**
+ * Cloud Run Argon2id でパスワードをハッシュする。
+ * salt 引数は PHC 文字列（$argon2id$...）内に salt が含まれるため未使用（PBKDF2 系との drop-in 互換用）。
+ * 返り値: "argon2id:v1:$argon2id$v=19$m=19456,t=2,p=1$..."
+ */
+function hashPasswordArgon2_(password, salt) {
+  var pepper = getPasswordPepper_();
+  var body = callCloudRunHashService_('/v1/hash', { password: String(password || ''), pepper: pepper });
+  if (!body || typeof body.phc !== 'string' || body.phc.indexOf('$argon2id$') !== 0) {
+    throw new Error('Argon2 hash service unexpected response');
+  }
+  return ARGON2_HASH_PREFIX + body.phc;
+}
+
+/**
+ * Cloud Run Argon2id でパスワードを検証する。
+ * 返り値: { match: boolean, needsRehash: boolean }（verifyPassword_ と同一契約）
+ */
+function verifyPasswordArgon2_(password, storedHash) {
+  if (String(storedHash || '').indexOf(ARGON2_HASH_PREFIX) !== 0) {
+    throw new Error('not an argon2id hash');
+  }
+  var phc = String(storedHash).substring(ARGON2_HASH_PREFIX.length);
+  var pepper = getPasswordPepper_();
+  var body = callCloudRunHashService_('/v1/verify', { password: String(password || ''), phc: phc, pepper: pepper });
+  return { match: body.match === true, needsRehash: body.needsRehash === true };
+}
+
+/**
+ * v376.54 (GCP Phase B / docs/240 §4): パスワードハッシュ生成の単一スイッチ。
+ * `ARGON2_ENABLED=true` なら Cloud Run Argon2id、それ以外は PBKDF2（既定・従来挙動不変）。
+ * Argon2 有効時に Cloud Run へ到達できない場合は fail-closed（throw）— docs/240 §6。
+ * 生成箇所は必ず本関数を経由し、hashPasswordPbkdf2_ / hashPasswordArgon2_ を直接呼ばない。
+ */
+function hashPasswordCurrent_(password, salt) {
+  if (isArgon2Enabled_()) {
+    return hashPasswordArgon2_(password, salt);
+  }
+  return hashPasswordPbkdf2_(password, salt);
 }
 
 /**
@@ -25379,11 +25507,16 @@ function hashPasswordPbkdf2_(password, salt) {
 
 /**
  * パスワード検証。ハッシュ方式を自動判別する。
+ * - "argon2id:v1:" prefix → Cloud Run Argon2id で検証（v376.54・ARGON2_ENABLED に関わらず常時有効 = rollback 後も既存 Argon2 hash でログイン可）
  * - "pbkdf2:sha256:" prefix → PBKDF2 で検証
  * - それ以外 → 旧 SHA-256 で検証
- * 旧方式で一致した場合は rehash 用フラグを返す。
+ * 旧方式で一致した場合は rehash 用フラグを返す。ARGON2_ENABLED=true 中は PBKDF2 一致にも
+ * needsRehash=true を返し、呼び出し側の rehash-on-login（hashPasswordCurrent_）で Argon2id へ移行する。
  */
 function verifyPassword_(password, salt, storedHash) {
+  if (storedHash && String(storedHash).indexOf(ARGON2_HASH_PREFIX) === 0) {
+    return verifyPasswordArgon2_(password, storedHash);
+  }
   if (storedHash && storedHash.indexOf('pbkdf2:sha256:') === 0) {
     var parts = String(storedHash).split(':');
     if (parts.length === 6 && parts[3] === 'pepper') {
@@ -25396,7 +25529,7 @@ function verifyPassword_(password, salt, storedHash) {
       var mac = hmacSha256Hex_(dkPepper, pepper);
       return {
         match: secureCompareString_(mac, parts[5]),
-        needsRehash: pepperIterations !== PBKDF2_ITERATIONS || parts[4] !== PASSWORD_HASH_PEPPER_ID,
+        needsRehash: pepperIterations !== PBKDF2_ITERATIONS || parts[4] !== PASSWORD_HASH_PEPPER_ID || isArgon2Enabled_(),
       };
     }
     if (parts.length === 4) {
