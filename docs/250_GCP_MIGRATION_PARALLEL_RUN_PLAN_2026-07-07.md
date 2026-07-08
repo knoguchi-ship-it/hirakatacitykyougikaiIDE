@@ -337,6 +337,8 @@ GCP API は GAS API を無理に永続化しない。ただし移行期は front
 - Firebase Auth
 - session cookie + server side verification
 
+**設計原則（2026-07-08 operator 合意）**: admin 境界は **IAP / Cloud Run IAM 等の Google エッジ認証を第一候補**とする。無権限アクセスがコンテナ到達前に遮断され課金ゼロとなり、現行 GAS `access: DOMAIN` と同じコスト特性を維持できる（アプリ内 OAuth 実装だと全アクセスが課金対象になる）。member（ID/PW・不特定多数）は必然的にアプリ層認証＝全アクセス課金となるため、§11 Cost guard の公開前必須設計とセットで決める。
+
 いずれも以下を満たすこと。
 
 - admin / member / public 境界を混ぜない。
