@@ -415,6 +415,37 @@ GCP 側は Cloud Run revision と traffic split を必ず release 記録に残�
 | DNS / public URL | 既存 GAS URL 併用期間と GCP URL の公開方法 |
 | Cost guard | 500 円 budget alert の継続、min instances 設定可否。**公開段階（Phase 1 以降）の追加設計必須（2026-07-08 operator 指摘）**: IAM で閉じた現行 Cloud Run と異なり、公開 frontend / API は未認証リクエストも全て課金対象に到達する。max instances 上限・予算アラート強化・Cloud Armor 等のレート制限/WAF・reCAPTCHA/App Check・ログイン試行ロック再設計（上記行）をセットで決めてから公開する |
 
+## 11-1. Denial of Wallet / EDoS 対策（公開段階の必須設計・2026-07-08 Web 一次情報調査）
+
+GCP 完全移行で public/member を GCP 上に公開した後は、従量課金を標的とする攻撃が現実的脅威になる。§11 Cost guard を具体化した公開前チェックリストを本節に置く。
+
+### 脅威の種類
+
+- **Denial of Wallet (DoW)**: 可用性ではなく課金を標的化。オートスケール＋従量課金を悪用し、サービスは正常動作したまま請求額のみ膨張させる（1 req $0.0001 でも数百万 req で数分〜数千ドル）。
+- **EDoS (Economic Denial of Sustainability)**: DoW の上位概念。DoS/DDoS を課金枯渇の形へ転じたもの。
+- **主ベクトル**: ①リクエスト洪水（インスタンス数・実行時間課金の膨張）②データ egress 悪用（割高な下り通信費）③ストレージ操作課金（※GCS は未認証 403 が非課金で AWS S3 より有利）④**レート制限すり抜け型**（従来のリクエスト数閾値の下を低速・分散でかいくぐり、可用性アラートを鳴らさず静かに予算を食う）⑤AI/トークン枯渇型（将来 LLM 機能追加時）。
+
+### 対策（多層・公開前チェックリスト）
+
+- [ ] **予算アラート → 自動 billing 無効化 killswitch**: GCP 予算アラートは通知のみ・最大 1 日遅延で自動停止しない。Pub/Sub + Cloud Function で予算超過時に請求アカウントを自動切断する killswitch を構成（公式手順あり）。※本番サービス停止の副作用を許容できる境界にのみ適用。
+- [ ] **クォータ上限**: リソース使用量に上限（通常使用の少し上・暴走時の天井）。予算アラートより即効性のある安全網。
+- [ ] **Cloud Run max instances 上限**: 同時起動数を制限し課金天井を構造的に固定（現行 password-hash は max 3）。min instances 0 で待機課金ゼロを維持。
+- [ ] **Cloud Armor（WAF + レート制限）**: エッジで閾値ベース遮断。Managed Protection Plus 契約時は "Bill Protection"（DDoS 起因課金の保護）付き。
+- [ ] **コスト意識型レート制限**: リクエスト数だけでなくトークン/リソース消費量ベースで絞る（すり抜け型対策）。
+- [ ] **認証をエッジへ寄せる**: IAM/IAP で弾けるものは弾く（未認証はコンテナ未到達＝課金外）。admin 境界は §7 の原則どおり IAP/IAM + グループ最小付与。
+- [ ] **egress 抑制**: 静的コンテンツは CDN キャッシュ、大容量ダウンロードに上限・認証。
+- [ ] **異常検知**: Cloud Audit Logs / 課金メトリクスの急変監視・アラート。
+
+### 参考（一次情報 2026-07-08 確認）
+
+- Denial of Wallet 概説: <https://devsecopsschool.com/blog/denial-of-wallet-attack-complete-guide/>
+- GCS は未認証 403 非課金（AWS S3 との差）: <https://medium.com/google-cloud/billed-for-unauthorized-requests-google-cloud-storage-vs-aws-s3-8d4d6551fe72>
+- serverless DoW 包括レビュー（arXiv 2508.19284）: <https://arxiv.org/html/2508.19284v1>
+- GCP 予算超過時の自動 billing 無効化: <https://docs.cloud.google.com/billing/docs/how-to/disable-billing-with-notifications>
+- 予算・アラート（ハード上限ではない旨）: <https://docs.cloud.google.com/billing/docs/how-to/budgets>
+- Cloud Armor レート制限: <https://codelabs.developers.google.com/codelabs/cloud-armor-rate-limiting>
+- killswitch 構成例: <https://medium.com/google-cloud/how-to-avoid-a-massive-cloud-bill-41a76251caba>
+
 ## 12. 関連資料
 
 - `HANDOVER.md`
