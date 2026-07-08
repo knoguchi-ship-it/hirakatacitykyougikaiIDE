@@ -417,6 +417,8 @@ GCP 側は Cloud Run revision と traffic split を必ず release 記録に残�
 
 ## 11-1. Denial of Wallet / EDoS 対策（公開段階の必須設計・2026-07-08 Web 一次情報調査）
 
+> **【優先事項指定（2026-07-08 operator）】GCP 移行後に仕様書を見直し・再検討する際は、本節を最優先の検討項目とする。** Phase 1（公開 frontend/API 設計）の設計レビューは本節チェックリストの消化を開始条件とする。
+
 GCP 完全移行で public/member を GCP 上に公開した後は、従量課金を標的とする攻撃が現実的脅威になる。§11 Cost guard を具体化した公開前チェックリストを本節に置く。
 
 ### 脅威の種類

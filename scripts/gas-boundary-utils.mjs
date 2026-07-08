@@ -3,6 +3,9 @@
 // このリストは pruning の seed（保持する根）かつ build / audit の許可 whitelist の
 // 唯一の正本。以前は build-admin-gas.mjs の seed・assertAllowed・audit-admin-boundary.mjs の
 // 3 箇所に同一配列が手書きされていたため、追加漏れで build / audit がズレる温床だった（単一情報源化）。
+// v376.55: 完了済み一回性ツール 12 関数（v360/v370/v372/v246/v376.30-31 の migration・hotfix 診断）を
+// gas-src ごと削除し棚卸し。継続利用ツールは build 時に gas/admin/dryrun.gs へ分離される
+// （ADMIN_OPERATOR_TOOL_FUNCTIONS 参照）。
 export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   'doGet',
   'processApiRequest',
@@ -10,22 +13,13 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   'regenerateAllThumbnails',
   'processPendingThumbnails',
   'setupPendingThumbnailsTrigger',
-  // v370.1: PENDING 入会申込の診断とクリーンアップ（operator 実行用）
-  'diagnoseStaleApplicationForV370',
-  'diagnoseAllStaleApplicationsForV370',
-  'cleanupStaleBusinessApplicationForV370',
-  'runCleanupPartialBusinessV370_53779700',
-  // v360 schema migration（operator が Apps Script editor から 1 回 Run）
-  'runRebuildSchemaForV360',
-  // v372.6: 文字化け変更申請レコードの一括 soft delete
-  'cleanupCorruptChangeRequestsV372',
   // 2026-05-17: dryRun synthetic transaction test runner（clasp run 専用）
   'dryRunApplicationScenarios',
   'previewDryRunApplicationCleanup',
   'executeDryRunApplicationCleanup',
   // v373.5: Secret Manager 連携ヘルスチェック（operator 実行用）
   'healthCheckPasswordPepper',
-  // v376.1〜.4: フリガナ migration + テストデータ棚卸し（operator 手動 Run）
+  // v376.1〜.4: フリガナ backfill + テストデータ棚卸し（kana form 前検証が入るまで再利用）
   'backfillKanaToFullwidth',
   'backfillKanaToFullwidth_APPLY',
   'inspectDryRunManifest_LOG',
@@ -34,16 +28,8 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   // v376.14: 研修管理 全機能ドライランテスト（operator 実行用）
   'dryRunTrainingManagement',
   'cleanupDryRunTrainingManagement',
-  // docs/246 Phase 1-B: メニュー単位カスタムロール RBAC schema + 移行（operator 実行用）
-  'runRebuildSchemaForV246',
-  'migrateToRoleBasedRBAC_v246_DRYRUN',
-  'migrateToRoleBasedRBAC_v246_APPLY',
-  // v376.30 hotfix 診断 + 救済
-  'diagnoseSchemaStateV376_30',
+  // v376.30: スキーマ初期化フラグの救済ツール（汎用・再利用）
   'forceMarkSchemaInitializedToCurrent',
-  // v376.30 / v376.31 機能の dryRun テスト + cleanup
-  'dryRunV376_30_31',
-  'cleanupDryRunV376_30_31',
   // v376.43 (Phase B): 全メールテンプレート差し込み描画の dryRun E2E（operator 実行用・非送信）
   'dryRunMailTemplatesV376_43_LOG',
   // v376.44: 公式LINE投稿依頼 保存フロー dryRun E2E（operator 実行用）
@@ -59,6 +45,12 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   // v376.54 (GCP Phase B / docs/250 §10-6): GAS→Cloud Run 接続の事前診断（operator 実行用・token/pepper 値は出力しない）
   'dryRunGcpPhaseB_LOG',
 ];
+
+// v376.55: operator ツール（editor ▶ 実行用）。build-admin-gas.mjs が Code.gs から抽出して
+// gas/admin/dryrun.gs に分離する（editor で見つけやすくするため）。doGet / processApiRequest 以外の全て。
+export const ADMIN_OPERATOR_TOOL_FUNCTIONS = ADMIN_TOP_LEVEL_FUNCTIONS.filter(
+  (name) => name !== 'doGet' && name !== 'processApiRequest',
+);
 
 // admin build から強制削除する（pruning で残ってはならない）危険な top-level 関数。
 // 以前は build-admin-gas.mjs と audit-admin-boundary.mjs に同一配列が二重管理されていた。

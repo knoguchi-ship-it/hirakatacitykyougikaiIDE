@@ -1774,40 +1774,21 @@ function seedInitialPermissionRoles_(ss) {
   return { seeded: true, count: rows.length };
 }
 
+
+
+
+
+
 /**
- * operator 実行用: T_権限ロール スキーマ + ロールID 列 + 初期ロール seed を一括で適用。
- * 既存スキーマには影響なし（idempotent）。
+ * v376.30 hotfix: DB_SCHEMA_INITIALIZED_VERSION を現在の DB_SCHEMA_VERSION に強制マークする。
  *
- * 実行手順: Apps Script editor（admin split）から ▶ Run。
- * 出力: 適用結果サマリ JSON。
- */
-
-/**
- * operator 実行用: ホワイトリスト各行の権限コード → ロールID 変換プレビュー。
- * 何も書き換えず、変換結果を JSON で返す。
- */
-
-/**
- * operator 実行用: ホワイトリスト各行の権限コード → ロールID を実書込み。
- * 冪等（既に正しい値なら no-op）。権限コード列は保持（並行運用）。
- */
-
-/**
- * v376.30 / v376.31 dryRun テストで投入した DRYRUN_ プレフィックス付きレコードを
- * T_研修 + T_権限ロール から物理削除する。
+ * 用途: initializeSchemaIfNeeded_ が初期化途中の例外で markSchemaInitialized_ に到達できず、
+ * スキーマ自体は既に正しい状態だが Properties が古いままで毎回再初期化が走る状況の救済。
+ * diagnoseSchemaStateV376_30 でスキーマが期待値に一致していることを確認した上で実行すること。
  *
- * manifest（最新 run）+ DRYRUN_ プレフィックス両方を sweep して孤児も回収。
+ * 書込み: PropertiesService の 2 キーのみ。シートは触らない（破壊なし）。
  */
 
-/**
- * v376.30 hotfix 診断: T_研修 シートの現状を返す。
- * - 期待列数: 21（v376.30 で 申込URL 追加）
- * - 既存行数（ヘッダ含めない）
- * - schema 初期化フラグの現状値
- * - 各シートの存在チェック
- *
- * operator が admin Apps Script editor の関数選択ドロップダウンから ▶ Run。
- */
 
 
 // ─── v309: 共有メモ（申し送りホワイトボード）────────────────────────────────
@@ -6322,37 +6303,6 @@ var CLAIM_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
  * T_請求 の過去レコードは元の紐づけのまま保持（履歴として有効）。
  */
 
-/**
- * 全 PENDING 入会申込を一括診断する
- */
-
-/**
- * v370.1 one-shot: 申請 CR1778920612878_22c197b0 の partial 会員 53779700 をクリーンアップ
- * （Apps Script editor で引数渡し不可のため、固定引数 wrapper として 1 回限り使用）
- * 実行後この wrapper は次リリースで削除予定。
- */
-
-/**
- * v372.6: createPublicIdentityToken_ の UTF-8 charset 未指定バグで申請者表示名が
- * '???...' になった変更申請レコードを一括 soft-delete する。
- * Apps Script editor から手動 Run。
- */
-
-
-// ─── v360: 研修名簿・出欠・一括メール明細 スキーマ移行 ─────────────────
-/**
- * v360 のスキーマ変更を本番 DB へ反映する。Apps Script editor から手動 1 回実行する。
- *
- * 実行内容:
- *  1. マスタシート M_出欠状態 を作成・初期値投入
- *  2. T_研修申込 に 5 列追加（外部申込者ID / 出欠状態コード / 出欠記録日時 / 出欠記録者メール / 事務局メモ）
- *  3. ログ SS に T_メール送信明細 を作成（Header-Detail パターン）
- *  4. T_メール送信ログ に 研修ID 列を追加
- *  5. 既存 T_研修申込 行を 2-FK 化（申込者区分=EXTERNAL の 申込者ID を 外部申込者ID へ複写）
- *  6. 既存 T_研修申込 行の 出欠状態コード を UNRECORDED で backfill
- *  7. (v373.7 で撤去) ROSTER_TEMPLATE_LIST category 追加 — 操作者確認済みで dead code 化
- *  8. 整合性監査結果を Logger に記録
- */
 
 /**
  * T_研修申込 の既存行を 2-FK 化:

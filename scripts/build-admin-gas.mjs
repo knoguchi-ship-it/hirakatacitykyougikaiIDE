@@ -12,9 +12,11 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import {
   ADMIN_TOP_LEVEL_FUNCTIONS,
+  ADMIN_OPERATOR_TOOL_FUNCTIONS,
   ADMIN_FORBIDDEN_TOP_LEVEL_FUNCTIONS,
   ADMIN_LOGIN_ACTIONS_LIST,
   ADMIN_ALLOWED_ACTIONS_LIST,
+  collectFunctionDeclarations as collectFunctionDeclarationsShared,
   injectMenuRegistryPlaceholders,
   injectMemberFiscalStatusPlaceholders,
 } from './gas-boundary-utils.mjs';
@@ -412,6 +414,39 @@ function buildAdminCode(source) {
   return code;
 }
 
+// v376.55: operator ツール（editor ▶ 実行用）を Code.gs から抽出して dryrun.gs へ分離する。
+// GAS は同一プロジェクト内の全 .gs がグローバルスコープを共有するため、
+// dryrun.gs の関数は Code.gs 内の helper / 定数をそのまま参照できる（実行時挙動不変）。
+function splitOperatorTools(code) {
+  const toolNames = new Set(ADMIN_OPERATOR_TOOL_FUNCTIONS);
+  const decls = collectFunctionDeclarationsShared(code).filter((decl) => toolNames.has(decl.name));
+  const foundNames = new Set(decls.map((decl) => decl.name));
+  const missing = ADMIN_OPERATOR_TOOL_FUNCTIONS.filter((name) => !foundNames.has(name));
+  if (missing.length) {
+    throw new Error(`[build-admin-gas] operator tool functions missing from generated code: ${missing.join(', ')}`);
+  }
+  const sortedDecls = [...decls].sort((a, b) => a.start - b.start);
+  let main = '';
+  let cursor = 0;
+  const tools = [];
+  for (const decl of sortedDecls) {
+    main += code.slice(cursor, decl.start);
+    tools.push(code.slice(decl.start, decl.end));
+    cursor = decl.end;
+  }
+  main += code.slice(cursor);
+  const header = [
+    '// ============================================================',
+    '// dryrun.gs — operator ツール集（build-admin-gas.mjs が自動生成・手編集禁止）',
+    '// Apps Script editor の関数ドロップダウンから ▶ 実行する診断 / dryRun / backfill ツール。',
+    '// helper / 定数は Code.gs 側に残っており、同一プロジェクトのグローバルスコープで参照される。',
+    '// 許可リストの正本: scripts/gas-boundary-utils.mjs ADMIN_OPERATOR_TOOL_FUNCTIONS',
+    '// ============================================================',
+    '',
+  ].join('\n');
+  return { main, tools: header + tools.join('\n') };
+}
+
 function ensureAdminGasDir() {
   if (!existsSync(adminGasDir)) {
     mkdirSync(adminGasDir, { recursive: true });
@@ -432,12 +467,11 @@ run('npx vite build', { VITE_APP: 'admin' });
 run('node scripts/compress-html.mjs');
 
 const backendCode = readFileSync(fullSourcePath, 'utf8');
-writeFileSync(
-  join(adminGasDir, 'Code.gs'),
-  buildAdminCode(backendCode),
-  'utf8',
-);
-console.log('Generated gas/admin/Code.gs from gas-src/Code.full.gs with admin boundary, registry, and action handlers');
+const { main: adminMainCode, tools: adminToolsCode } = splitOperatorTools(buildAdminCode(backendCode));
+writeFileSync(join(adminGasDir, 'Code.gs'), adminMainCode, 'utf8');
+writeFileSync(join(adminGasDir, 'dryrun.gs'), adminToolsCode, 'utf8');
+console.log('Generated gas/admin/Code.gs + dryrun.gs from gas-src/Code.full.gs with admin boundary, registry, and action handlers');
+console.log(`Operator tools in dryrun.gs: ${ADMIN_OPERATOR_TOOL_FUNCTIONS.join(', ')}`);
 
 // appsscript.json は gas/admin/ の固有設定ファイルを使用（backend からコピーしない）
 console.log('Kept gas/admin/appsscript.json (project-specific, not overwritten)');

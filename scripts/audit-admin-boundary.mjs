@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import {
   collectFunctionDeclarations,
   ADMIN_TOP_LEVEL_FUNCTIONS,
+  ADMIN_OPERATOR_TOOL_FUNCTIONS,
   ADMIN_FORBIDDEN_TOP_LEVEL_FUNCTIONS,
   ADMIN_LOGIN_ACTIONS_LIST,
   ADMIN_ALLOWED_ACTIONS_LIST,
@@ -12,6 +13,9 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
 const codePath = join(root, 'gas', 'admin', 'Code.gs');
+// v376.55: operator ツールは dryrun.gs に分離（GAS は全 .gs がグローバルスコープ共有）。
+// 監査は「結合コード」に対して従来通り行い、加えてファイルごとの分離状態も検査する。
+const dryrunPath = join(root, 'gas', 'admin', 'dryrun.gs');
 const htmlPath = join(root, 'gas', 'admin', 'index.html');
 
 // v376.18: 許可 top-level リストは gas-boundary-utils.mjs の ADMIN_TOP_LEVEL_FUNCTIONS に
@@ -63,15 +67,28 @@ function compareSets(actual, expected, label) {
 }
 
 if (!existsSync(codePath)) fail('gas/admin/Code.gs is missing');
+if (!existsSync(dryrunPath)) fail('gas/admin/dryrun.gs is missing');
 if (!existsSync(htmlPath)) fail('gas/admin/index.html is missing');
 
-const code = existsSync(codePath) ? readFileSync(codePath, 'utf8') : '';
+const mainCode = existsSync(codePath) ? readFileSync(codePath, 'utf8') : '';
+const dryrunCode = existsSync(dryrunPath) ? readFileSync(dryrunPath, 'utf8') : '';
+const code = `${mainCode}\n${dryrunCode}`;
 const html = existsSync(htmlPath) ? readFileSync(htmlPath, 'utf8') : '';
 
 const topLevelFunctions = collectFunctionDeclarations(code)
   .map((decl) => decl.name)
   .filter((name) => !name.endsWith('_'));
 compareSets(topLevelFunctions, allowedTopLevelFunctions, 'admin top-level functions');
+
+// v376.55: ファイル分離の検査 — Code.gs は doGet/processApiRequest のみ、dryrun.gs はツールのみ
+const mainPublic = collectFunctionDeclarations(mainCode)
+  .map((decl) => decl.name)
+  .filter((name) => !name.endsWith('_'));
+compareSets(mainPublic, ['doGet', 'processApiRequest'], 'Code.gs public top-level (operator tools must live in dryrun.gs)');
+const dryrunPublic = collectFunctionDeclarations(dryrunCode)
+  .map((decl) => decl.name)
+  .filter((name) => !name.endsWith('_'));
+compareSets(dryrunPublic, ADMIN_OPERATOR_TOOL_FUNCTIONS, 'dryrun.gs operator tools');
 
 for (const name of forbiddenTopLevelFunctions) {
   if (new RegExp(`^function\\s+${name}\\s*\\(`, 'm').test(code)) {

@@ -106,6 +106,7 @@
 | GCP Secret Manager セットアップ + Cloud Run Argon2id 反映 | Phase B 再開時。全体計画は `docs/250`、password-hash 詳細は `docs/240` §11。`userinfo.email` / audience / IAM principal / Secret 名不一致を先に確定 | `docs/250`, `docs/240`, `docs/172` |
 | WCAG 2.2 AA 手動検証（NVDA / VoiceOver / キーボード） | 半期レビュー (2026-11) or 大規模 UI 改修時 | `docs/244` §3, `docs/245` §3 |
 | **v376.36 dormant 差分の同梱デプロイ**（_archive surrogate 列定義） | 次の機能リリース時に自動同梱（個別デプロイ不要・実行時挙動不変） | release-notes v376.36 |
+| **dryRun 棚卸し dormant 差分の同梱デプロイ**（2026-07-08・HEAD 反映済） | 次の機能リリース時に自動同梱（web app 挙動不変・operator ツールはエディタ=HEAD 実行のため既に利用可）。内容: ①完了済み一回性ツール 12 関数を gas-src ごと削除（v360/v370/v372/v246/v376.30-31 の migration・hotfix 診断）②継続利用 24 ツールを build で `gas/admin/dryrun.gs` へ自動分離（editor で見つけやすく）③audit-admin-boundary に分離検査追加（Code.gs=doGet/processApiRequest のみ・dryrun.gs=ツールのみ） | `scripts/gas-boundary-utils.mjs` `ADMIN_OPERATOR_TOOL_FUNCTIONS` |
 | **退会会員アーカイブ機能の活性化**（移動ジョブを keep-list 追加・物理削除実行） | 運用判断時（破壊的操作＝完全バックアップ＋明示承認必須） | `docs/03_DATA_MODEL.md` §4.10 復活手順 |
 | **ER metadata の型補強**（`test:er-sync` WARN 115 件＝主に M_ マスタ列が `string` 既定出力） | 任意・随時。`docs/er-metadata.json` に型/キーを追記して ER 精度向上 | release-notes v376.37 |
 
