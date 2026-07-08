@@ -4,9 +4,9 @@
 > 経緯・履歴・設計詳細は別ドキュメントへ。リンク先は §6 参照順序を参照。
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
-最終更新: **2026-07-07**
-最新リリース: **`v376.53.2`**（REDIRECT 警告バナー UX 強化+不点灯 hotfix・live 実証済。admin @215 / public @359×2 / member @118）
-最終作業（2026-07-07）: **GCP 並走移行計画を作成・第三者レビュー反映**（本番 GAS は無変更・docs のみ更新。全体計画の正本は `docs/250_GCP_MIGRATION_PARALLEL_RUN_PLAN_2026-07-07.md`。Phase B 詳細は `docs/240` §11）。
+最終更新: **2026-07-08**
+最新リリース: **`v376.54`**（GCP Phase B: Cloud Run Argon2id 連携基盤・`ARGON2_ENABLED=false`＝挙動不変。public @360×2 / member @119 / admin @216）
+最終作業（2026-07-08）: **GCP Phase B（docs/250 §5 手順 1〜11）完了**: scope 追加・secret 名是正・Argon2 関数＋方式自動判別・dryRun 全 PASS（GAS→Cloud Run 経路全通・Argon2 往復 hash 646ms/verify 315ms）・Cloud Run rev 00005（複数 audience+3 split クライアント ID）・live a11y 0/responsive 7VP PASS。**残: operator の会員ログイン非破壊スポット確認と、承認後の `ARGON2_ENABLED=true` 化（§2-0）**。
 前回作業: **会員系削除の cascade アーカイブ（`docs/249`・a1 単一化）とメール誤集約事故の恒久是正をデプロイ（v376.52 / admin @212）** — ①削除コンソール実行時に会員系13テーブルを live から `*_archive` へ移動（`削除バッチID`=削除ログID・会員単位アトミック復元可）、ログイン履歴は物理 purge。旧 in-place soft delete（孤児発生源）と命名詐称 `archive*ByIds` を撤去。②2026-07-03 の REDIRECT 残置事故（全メールが Redirect 宛先へ集約・UI/ログは成功表示）の再発防止: 一括メール画面に配信モード常時警告バナー＋送信結果/送信ログの正直化（`BULK_MEMBER_REDIRECT` 記録・抑止分を成功に数えない）。③legacy 申込者解決 `@deprecated`（v377 撤去予定）。DB migrate（`_archive` 11本新設+既存2本に列追加・追加のみ非破壊）は次回 admin ログインで自動実行。デプロイ前に DB スプレッドシート複製バックアップ実施済み。
 > 直近の経緯・各リリース詳細は §7 リリース表 と `docs/release-notes-2026.md` を正本とする（v376.40〜v376.52）。
 
@@ -14,7 +14,7 @@
 
 ## 0. 次の担当者へ（キャッチアップ・まず1分でここ）
 
-- **本番**: public **@359×2** / member **@118** / admin **@215**（v376.53.2・§1）。全 fixed deployment 同期確認済・稼働正常。
+- **本番**: public **@360×2** / member **@119** / admin **@216**（v376.54・§1）。全 fixed deployment 同期確認済・稼働正常（`ARGON2_ENABLED=false`＝ログイン挙動は従来 PBKDF2 と同一）。
 - **直近セッション（2026-06-30〜07-05）の成果**（詳細 §7 / `docs/release-notes-2026.md` v376.51〜.53.2）:
   - v376.51 ロール視点プレビュー（MASTER専用）／v376.52 **会員系削除 cascade アーカイブ**（docs/249・実DB E2E 18/18 PASS・削除負債実測16行のみ）／v376.53 DRY・ハードコーディング・XFrame 一括是正（api.ts **-940行**・rbac-util/validators 集約・ID/URL の Properties override 化）／.53.1-.53.2 REDIRECT 警告バナー（live 実証済）。
   - **メール事故対応済**: 6/26〜7/3 の間 `MAIL_DELIVERY_MODE=REDIRECT` 残置で全メールが旧アドレスに集約されていた（実宛先未達）。LIVE 復旧済・再発防止バナー/ログ正直化デプロイ済。**未達期間の再送要否は運用判断が残っている可能性あり**（`T_メール送信ログ` の 6/26〜7/3 BULK_MEMBER 行を確認）。
@@ -24,7 +24,8 @@
   - **Phase B（次担当者のタスク・本番リポジトリの通常リリースフロー）**: 入口は **`docs/250` §5 Phase B / §10**。password-hash 詳細設計は **`docs/240` §11**。着手前ゲートは ①audience 整合（GAS `getIdentityToken()` の aud=OAuth クライアント ID ⇔ Cloud Run custom audiences）②`ALLOWED_INVOKERS` を維持するなら `userinfo.email` scope を 3 split に追加 ③Cloud Run IAM `roles/run.invoker` の付与先を dryRun で確認した caller principal と一致 ④Secret 名不一致（GCP `PASSWORD_HASH_PEPPER_V1` vs GAS `password-hash-pepper-v1`）解消 ⑤複数 audience 拒否 test 追加。
   - **Phase B 実装順序**: `openid`/必要なら`userinfo.email` scope → token 値を出さない dryRun → Cloud Run custom audiences/IAM/env 調整 → Argon2 関数＋`verifyPassword_` 分岐 → Script Properties（`CLOUD_RUN_HASH_SERVICE_URL` / `ARGON2_ENABLED=false`）→ dryRun E2E → prerelease → 3 split redeploy → operator 承認後に `ARGON2_ENABLED=true`。
   - **Phase B 実装（2026-07-07〜08・手順1〜10 完了・未リリース）**: ①3 split manifest に `openid`＋public/member に `userinfo.email` 追加・3 split push・再同意済②secret 名是正（既定 `PASSWORD_HASH_PEPPER_V1`・Property `PASSWORD_HASH_PEPPER_SECRET_NAME` で上書き可）→ **dryRun で Secret Manager 取得成功実測**③`dryRunGcpPhaseB_LOG`（admin）で **GAS→Cloud Run 認証経路 全通実測**: aud=`88737175415-94k0…`（admin の OAuth クライアント ID）・email claim あり・`/health`=200④Cloud Run rev **00004**: `EXPECTED_AUDIENCE` 複数対応（拒否 unit test 6/6）＋custom audiences に admin クライアント ID 登録（GCP 作業場 `5f72470`）⑤**Argon2 GAS 側実装済**: `hashPasswordCurrent_`（生成13箇所を単一スイッチ化・`ARGON2_ENABLED=false`→PBKDF2 従来挙動不変）／`verifyPassword_` に `argon2id:v1:` 自動判別（flag 無関係に常時検証可＝rollback 安全）／PBKDF2 一致時 `isArgon2Enabled_()` なら needsRehash=true（rehash-on-login）／fail-closed・値非出力／dryRun に hash→verify 往復＋latency 診断追加。
-  - **Phase B 残り（リリースと有効化）**: ①admin Script Property に `ARGON2_ENABLED=false` 明示設定（`CLOUD_RUN_HASH_SERVICE_URL` は設定済）→ dryRun 往復 PASS 確認 ②**member split の OAuth クライアント ID を custom audiences へ追加**（Cloud Run を呼ぶのは member/admin のみ・public はパスワードハッシュ経路なしで不要。member の aud は GCP コンソール credential 一覧で確認）＋member にも Property 2 種設定 ③通常リリース（version/redeploy 3 split・PBKDF2 ログイン非破壊 E2E）④operator 承認後 `ARGON2_ENABLED=true`（rollback=false に戻すだけ。既存 Argon2 hash は flag 無関係に検証可）。**ログイン試行ロックは現行仕様（5 回→無期限ロック・検証前判定＝Cloud Run 呼び出しはアカウント毎最大 5 回）で限定承認（2026-07-08）— GCP 本番オープン時に 3 回化+時限解除を再検討（docs/250 §11）**。
+  - **Phase B リリース完了（2026-07-08・v376.54 @360×2/@119/@216）**: dryRun 4 チェック全 PASS（aud 実測・SM 取得成功・`/health`=200・**Argon2 往復 hash 646ms / verify 315ms・PHC=OWASP 推奨**）→ 3 split version/redeploy → live a11y 0・responsive 7VP PASS。Cloud Run は rev **00005**（custom audiences=3 split 全クライアント ID・`EXPECTED_AUDIENCE` 複数対応+拒否 test 6/6）。
+  - **Phase B 残り（有効化・operator 承認制）**: ①会員ログイン 1 回の非破壊スポット確認（PBKDF2 経路不変）②有効化前に member/admin の Script Properties へ `CLOUD_RUN_HASH_SERVICE_URL`＋`ARGON2_ENABLED` を設定（admin は設定済・member 未）③限定時間で `ARGON2_ENABLED=true` → ログイン/PW 変更/credential 発行の実機確認 → rehash-on-login 開始（rollback=false に戻すだけ。既存 Argon2 hash は flag 無関係に検証可）。**ログイン試行ロックは現行仕様（5 回→無期限ロック・検証前判定＝Cloud Run 呼び出しはアカウント毎最大 5 回）で限定承認（2026-07-08）— GCP 本番オープン時に 3 回化+時限解除を再検討（docs/250 §11）**。
   - Phase 0 の落とし穴記録: `/healthz` は run.app GFE 予約パスでエッジ 404（`/health` を使用）／gcloud は要 `k.noguchi@hcm-n.org`（トークン失効時は operator が `gcloud auth login`）。
 - **次の担当者の落とし穴**:
   - git push は **gh アカウント `knoguchi-ship-it`** に switch（`kenta-noguchi-tadakayo-sys` は 403）。push 後は元に戻す運用。
@@ -39,10 +40,10 @@
 
 | 配信 | Deployment ID | Version |
 |---|---|---|
-| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@359** |
-| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@359** |
-| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@118** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@215** |
+| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@360** |
+| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@360** |
+| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@119** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@216** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 

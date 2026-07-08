@@ -13,6 +13,22 @@
 
 ---
 
+## v376.54 — 2026-07-08 🔒🎉 GCP Phase B: Cloud Run Argon2id 連携基盤（全3split @360×2 / @119 / @216・挙動不変）
+
+`docs/250` §5 Phase B 手順 1〜11 を完了。**`ARGON2_ENABLED=false`（既定）のためログイン・credential 発行の挙動は現行 PBKDF2 と完全同一**。有効化は operator 承認後に別途実施（rollback は flag を false に戻すだけ）。
+
+- **scope** 🔒: 3 split manifest に `openid`（identity token 取得用）、public/member に `userinfo.email` 追加（Cloud Run app の `ALLOWED_INVOKERS` email allowlist 維持の設計決定・operator 再同意済・匿名利用者影響なし）。
+- **Secret 名是正** 🔧: GAS の Secret Manager 参照を GCP 実体 `PASSWORD_HASH_PEPPER_V1` に一致（旧 `password-hash-pepper-v1` は 404→Properties fallback に倒れていた）。Script Property `PASSWORD_HASH_PEPPER_SECRET_NAME` で上書き可。**dryRun で Secret Manager 経路の取得成功を実測**（これまで実質 Properties 運用だったものが SM 優先に）。
+- **Argon2id 連携** 🆕: `hashPasswordCurrent_`（生成13箇所を単一スイッチへ集約・flag OFF=PBKDF2）／`hashPasswordArgon2_`・`verifyPasswordArgon2_`・`callCloudRunHashService_`（identity token 認証・fail-closed・token/password/pepper 値は例外・ログに非出力）／`verifyPassword_` に `argon2id:v1:` prefix 自動判別（flag 無関係に常時検証可＝rollback 後も Argon2 化済ユーザーはログイン可能）＋ PBKDF2 一致時 `isArgon2Enabled_()` なら needsRehash=true（rehash-on-login）。
+- **診断** 🆕: `dryRunGcpPhaseB_LOG`（admin build のみ・DB 非破壊）— identity token payload（aud/iss/email 有無）・Secret Manager 取得可否・Cloud Run `/health`・**Argon2 hash→verify 往復＋latency**。実測: 全 PASS・aud=admin OAuth クライアント ID・`/health`=200・hash 646ms / verify 平均 315ms・PHC=OWASP 推奨 `m=19456,t=2,p=1`。
+- **Cloud Run 側**（GCP 作業場 rev 00003→00005）: `EXPECTED_AUDIENCE` 複数対応＋`isAudienceAllowed` 二重検証（許可外 audience 拒否 unit test 6/6 PASS）・custom audiences に 3 split 全 OAuth クライアント ID 登録・IAM invoker は実測 principal と一致（変更なし）・未認証 `/health`=403 維持実測。
+- **build pruner 罠の修正** 🐛: `ARGON2_HASH_PREFIX` 定数の直前コメントに関数名（admin で pruning される `verifyPassword_`）を書いたため定数ごと削除され admin dryRun が `not defined` で失敗 → コメントから関数名排除で解消（`feedback_build_pruning_bug` と同族の新パターン: **top-level 定数のコメントにも関数名を書かない**）。
+- **運用決定** 📝: ログイン試行ロックは現行仕様（5 回連続失敗→無期限ロック・**検証前判定のため Argon2 有効化後も Cloud Run 呼び出しはアカウント毎最大 5 回で頭打ち**）を限定承認。GCP 本番オープン時に 3 回化+時限解除を再検討（`docs/250` §11）。Cloud Run は `--no-allow-unauthenticated`＝IAM 拒否リクエストはコンテナ未到達・課金対象外（一次情報確認済）。
+- **検証**: prerelease 全ゲート PASS／3 生成物への関数・定数残存 grep 確認／dryRun E2E 全 PASS（上記）／デプロイ後 live `test:a11y` 違反 0・`test:responsive` 7VP overflow 0。**操作者確認残**: 会員ログイン 1 回の非破壊スポット確認（PBKDF2 経路不変の実機確認）。
+- **有効化前ゲート（`ARGON2_ENABLED=true` にする前に）**: ①member/admin の Script Properties に `CLOUD_RUN_HASH_SERVICE_URL`（admin 設定済）＋`ARGON2_ENABLED` を設定 ②限定時間で切替→ログイン/PW変更/credential 発行の実機確認 ③ログイン試行ロック仕様の再確認（docs/250 §11）。
+
+---
+
 ## v376.53.2 — 2026-07-05 🐛 REDIRECT 警告バナー不点灯 hotfix（admin @215・live 検証済）
 
 - **バグ** 🐛: v376.53.1 の警告バナーが REDIRECT 中でも表示されない。原因は `App.tsx` の `bulkMailSettings`（手組みオブジェクト）に `mailGlobalEnabled`/`mailDeliveryMode`/`mailRedirectAllowlist` の3値が含まれておらず、バナー条件が常に false だったため。**Playwright MCP の live テスト（実際に REDIRECT へ切替→画面確認→即 LIVE 復旧）が検知**。
