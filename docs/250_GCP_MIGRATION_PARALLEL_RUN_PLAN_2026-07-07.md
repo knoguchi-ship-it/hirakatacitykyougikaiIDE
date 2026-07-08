@@ -404,6 +404,7 @@ GCP 側は Cloud Run revision と traffic split を必ず release 記録に残�
 
 | 項目 | 決めること |
 |---|---|
+| ログイン試行ロック仕様 | 現行「5 回連続失敗→無期限ロック（管理者解除）」を**限定承認（2026-07-08・operator 決定）**のまま Phase B を進める。ロック判定はパスワード検証前のため Argon2 有効化後も Cloud Run 呼び出しは 1 アカウント最大 5 回で頭打ち。**GCP 本番環境オープン時（Phase 6 切替前）に再検討必須**: 閾値 3 回化・時限自動解除（15 分等）・正規会員締め出し DoS とのバランス |
 | GCP frontend hosting | Firebase Hosting / Cloud Run static / Cloud Storage + CDN のどれを使うか |
 | Browser auth | Firebase Auth / Google OAuth / custom session のどれを使うか |
 | DB | Firestore / Cloud SQL / hybrid のどれを使うか |
