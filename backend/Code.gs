@@ -6148,6 +6148,9 @@ var PASSWORD_HASH_PEPPER_SECRET_NAME_DEFAULT = 'PASSWORD_HASH_PEPPER_V1';
 var CLOUD_RUN_HASH_SERVICE_URL_PROPERTY = 'CLOUD_RUN_HASH_SERVICE_URL';
 // v376.54 (GCP Phase B): Argon2id 段階移行 feature flag（'true' で新規 hash が Argon2id・rehash-on-login 開始）
 var ARGON2_ENABLED_PROPERTY = 'ARGON2_ENABLED';
+// Argon2id hash の保存形式 prefix（保存 hash の方式自動判別に使用。
+// 注意: この直前コメントに関数名を書くと build pruner が「削除関数への参照」と誤認して定数ごと消すため書かない）
+var ARGON2_HASH_PREFIX = 'argon2id:v1:';
 var PASSWORD_HASH_PEPPER_CACHE_KEY = 'pepper:v1';
 var PASSWORD_HASH_PEPPER_CACHE_TTL_SECONDS = 300; // 5 min
 
