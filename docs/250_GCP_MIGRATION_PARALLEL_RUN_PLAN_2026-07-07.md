@@ -338,6 +338,7 @@ GCP API は GAS API を無理に永続化しない。ただし移行期は front
 - session cookie + server side verification
 
 **設計原則（2026-07-08 operator 合意）**: admin 境界は **IAP / Cloud Run IAM 等の Google エッジ認証を第一候補**とする。無権限アクセスがコンテナ到達前に遮断され課金ゼロとなり、現行 GAS `access: DOMAIN` と同じコスト特性を維持できる（アプリ内 OAuth 実装だと全アクセスが課金対象になる）。member（ID/PW・不特定多数）は必然的にアプリ層認証＝全アクセス課金となるため、§11 Cost guard の公開前必須設計とセットで決める。
+**付与単位の原則（同日追記）**: IAP / IAM の権限は**管理者グループ（Google Group）単位の最小付与**とし、**ドメイン（Workspace 組織）全体への付与は禁止**する。これにより Workspace 内の無権限アカウントも組織外と同様にエッジで遮断（課金ゼロ・アプリ未到達）となり、現行 GAS `DOMAIN`（組織内全員が doGet まで到達し whitelist 判定がスクリプト内で走る）より厳格になる。アプリ層 RBAC は二重防御として維持。拒否ログは Cloud Audit Logs で監査。
 
 いずれも以下を満たすこと。
 
