@@ -13,6 +13,19 @@
 
 ---
 
+## v376.55 — 2026-07-08 🆕 管理者による会員パスワードリセット + dryRun 棚卸し（実装済・**未デプロイ/operator検証待ち**）
+
+会員がパスワードを失念し OTP も使えない場合の救済、およびテスト用会員の資格情報整備のため、admin が会員のパスワードをリセットできる機能を追加。**既存の認証・会員処理は一切変更せず新規 action 追加のみ**（回帰リスク最小）。
+
+- **新 action（admin・MASTER/ADMIN のみ・会員管理メニュー配下）** 🆕:
+  - `getMemberAuthAccounts`（read）: 会員に紐づく認証アカウントを列挙（`認証ID`/`ログインID`/`認証方式`/有効/ロック/単位[会員本人・職員]/氏名）。**会員種別からの推測をせず実データ（会員ID一致）で紐付けを列挙**。機密（ハッシュ/ソルト）は返さない。
+  - `adminResetMemberPassword`（write）: **`認証ID`（内部一意キー）必須**で対象を一意特定（operator 指摘反映・会員ID/種別からの推測は廃止=誤リセット防止）。新パスワードを `generateCredentialTempPassword_`（安全乱数15文字）で生成→`hashPasswordCurrent_` でハッシュ（ARGON2_ENABLED 状態に自動追従）。同時にロック解除/失敗回数0。平文は戻り値で1度だけ返し、ログ・監査に平文/ハッシュは記録しない（AGENTS §0）。PASSWORD 方式のみ・削除済は不可。監査は `T_監査ログ` に `PASSWORD_RESET`（値非記録）。
+- **UI** 🆕: 会員詳細（`MemberDetailAdmin`）に「🔑 パスワード管理」パネル。認証アカウントを遅延読込で一覧表示→行ごとに「パスワードリセット」→新パスワードを一度だけモーダル表示（コピー可）。ログインID=顧客表示用、認証ID=内部特定用の役割分担を UI に反映。
+- **dryRun 棚卸し（別コミット `f805a96`・同梱）** 🔧: 完了済み一回性ツール12関数を削除、継続利用24ツールを build 時に `gas/admin/dryrun.gs` へ自動分離。audit-admin-boundary に分離検査を追加。
+- **検証**: typecheck / prerelease 全ゲート PASS（security audit・boundary×3・全 unit・er-sync・menu-registry）。3 生成物 grep で admin のみに関数配置・member/public 非露出・dryrun.gs 非混入を確認。**残（operator）**: ①3 split デプロイ承認 ②ダミー会員作成→本機能でパスワードリセット→`.env.test` 設定→`test:responsive:member` で会員ログイン E2E 実証。
+
+---
+
 ## v376.54 — 2026-07-08 🔒🎉 GCP Phase B: Cloud Run Argon2id 連携基盤（全3split @360×2 / @119 / @216・挙動不変）
 
 `docs/250` §5 Phase B 手順 1〜11 を完了。**`ARGON2_ENABLED=false`（既定）のためログイン・credential 発行の挙動は現行 PBKDF2 と完全同一**。有効化は operator 承認後に別途実施（rollback は flag を false に戻すだけ）。

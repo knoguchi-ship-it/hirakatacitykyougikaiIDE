@@ -92,6 +92,8 @@ export interface ApiClient {
   updateMember(member: Member): Promise<void>;
   updateMemberSelf(member: Member, loginId: string): Promise<void>;
   changePassword(loginId: string, currentPassword: string, newPassword: string): Promise<void>;
+  getMemberAuthAccounts(memberId: string): Promise<Array<{ authId: string; loginId: string; method: string; active: boolean; locked: boolean; unit: 'MEMBER' | 'STAFF'; personName: string }>>;
+  adminResetMemberPassword(authId: string): Promise<{ loginId: string; newPassword: string; resetAt: string }>;
   requestPasswordReset(loginId: string, email: string): Promise<{ message: string; expiresInMinutes: number }>;
   completePasswordReset(loginId: string, code: string, newPassword: string): Promise<{ message: string; updatedAt: string }>;
   getSystemSettings(): Promise<SystemSettings>;
@@ -568,6 +570,14 @@ class GasApiClient implements ApiClient {
 
   async changePassword(loginId: string, currentPassword: string, newPassword: string): Promise<void> {
     return this.callAction('changePassword', { loginId, currentPassword, newPassword, ...this.memberSessionPayload() });
+  }
+
+  async getMemberAuthAccounts(memberId: string): Promise<Array<{ authId: string; loginId: string; method: string; active: boolean; locked: boolean; unit: 'MEMBER' | 'STAFF'; personName: string }>> {
+    return this.callAction('getMemberAuthAccounts', { memberId });
+  }
+
+  async adminResetMemberPassword(authId: string): Promise<{ loginId: string; newPassword: string; resetAt: string }> {
+    return this.callAction('adminResetMemberPassword', { authId });
   }
 
   async getSystemSettings(): Promise<SystemSettings> {

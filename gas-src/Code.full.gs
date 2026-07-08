@@ -1766,6 +1766,9 @@ var ADMIN_ACTION_PERMISSIONS = {
   'getAdminDashboardData': ['MASTER','ADMIN'],
   'getAdminInitData': ['MASTER','ADMIN'],
   'updateMember': ['MASTER','ADMIN'],
+  // v376.55: 会員認証アカウント一覧（read）+ パスワードリセット（重要操作のため MASTER/ADMIN のみ・会員管理メニュー配下）
+  'getMemberAuthAccounts': ['MASTER','ADMIN'],
+  'adminResetMemberPassword': ['MASTER','ADMIN'],
   'withdrawMember': ['MASTER','ADMIN'],
   'scheduleWithdrawMember': ['MASTER','ADMIN'],
   'cancelScheduledWithdraw': ['MASTER','ADMIN'],
@@ -2075,6 +2078,14 @@ function processApiRequest(action, payload) {
 
     if (action === 'changePassword') {
       return JSON.stringify({ success: true, data: changePassword_(parsedPayload) });
+    }
+
+    if (action === 'getMemberAuthAccounts') {
+      return JSON.stringify({ success: true, data: getMemberAuthAccounts_(parsedPayload) });
+    }
+
+    if (action === 'adminResetMemberPassword') {
+      return JSON.stringify({ success: true, data: adminResetMemberPassword_(parsedPayload) });
     }
 
     if (action === 'requestPasswordReset') {
@@ -5184,6 +5195,158 @@ function changePassword_(request) {
     loginId: loginId,
     updatedAt: nowIso,
   };
+}
+
+/**
+ * v376.55: 管理者による会員パスワードリセット。
+ * 会員がパスワードを失念し OTP 経路も使えない場合の救済、およびテスト会員の資格情報整備に使う。
+ *
+ * 特徴:
+ * - 現行パスワードの入力は不要（admin 権限で強制リセット）。RBAC は processApiRequest 側 + 本関数内 checkAdminBySession_ で二重防御。
+ * - 新パスワードは generateCredentialTempPassword_（安全乱数 15 文字）で自動生成し、hashPasswordCurrent_ で現行方式ハッシュ化。
+ *   → ARGON2_ENABLED の状態に自動追従（false=PBKDF2 / true=Argon2id）。
+ * - リセットと同時に ロック状態=false / ログイン失敗回数=0 に戻す。
+ * - 平文パスワードは戻り値で 1 度だけ返す（呼び出し元が画面に表示）。ログ・監査には平文・ハッシュとも一切記録しない（AGENTS §0）。
+ *
+ * 対象特定: **認証ID（内部一意キー）必須**。会員種別・会員IDからの推測は一切しない（誤リセット防止・operator 指摘 2026-07-08）。
+ * operator は getMemberAuthAccounts_ が返す認証アカウント一覧から対象を選び、その行の認証IDで本関数を呼ぶ。
+ * ログインID は顧客に見える表示用、認証ID はシステム内部の一意キー。書込対象の特定は必ず認証IDで行う。
+ * 認証方式は PASSWORD のみリセット可（Google 認証等は対象外）。
+ */
+function adminResetMemberPassword_(payload) {
+  var adminSession = checkAdminBySession_();
+  if (!adminSession) {
+    throw new Error('管理者認証が確認できません。');
+  }
+  var authIdInput = payload && payload.authId != null ? String(payload.authId).trim() : '';
+  if (!authIdInput) {
+    throw new Error('リセット対象の認証IDを指定してください。');
+  }
+
+  var ss = getOrCreateDatabase_();
+  var authSheet = ss.getSheetByName('T_認証アカウント');
+  if (!authSheet) {
+    throw new Error('認証アカウントテーブルが見つかりません。');
+  }
+
+  var authRowInfo = findRowByColumnValue_(authSheet, '認証ID', authIdInput);
+  if (!authRowInfo) {
+    throw new Error('指定された認証IDのアカウントが見つかりません。');
+  }
+  var columns = authRowInfo.columns;
+  requireColumns_(columns, [
+    '認証ID',
+    'ログインID',
+    '認証方式',
+    'パスワードハッシュ',
+    'パスワードソルト',
+    'パスワード更新日時',
+    'ログイン失敗回数',
+    'ロック状態',
+    '更新日時',
+    '削除フラグ',
+  ]);
+  var row = authRowInfo.row;
+  if (toBoolean_(row[columns['削除フラグ']])) {
+    throw new Error('削除済みの認証アカウントはリセットできません。');
+  }
+  if (String(row[columns['認証方式']] || '') !== 'PASSWORD') {
+    throw new Error('パスワード認証以外のアカウントはリセットできません。');
+  }
+  var authId = row[columns['認証ID']];
+  var targetLoginId = String(row[columns['ログインID']] || '');
+
+  var newPassword = generateCredentialTempPassword_();
+  var newSalt = generateSalt_();
+  var newHash = hashPasswordCurrent_(newPassword, newSalt);
+  var nowIso = new Date().toISOString();
+
+  authSheet.getRange(authRowInfo.rowNumber, columns['パスワードソルト'] + 1).setValue(newSalt);
+  authSheet.getRange(authRowInfo.rowNumber, columns['パスワードハッシュ'] + 1).setValue(newHash);
+  authSheet.getRange(authRowInfo.rowNumber, columns['パスワード更新日時'] + 1).setValue(nowIso);
+  authSheet.getRange(authRowInfo.rowNumber, columns['ログイン失敗回数'] + 1).setValue(0);
+  authSheet.getRange(authRowInfo.rowNumber, columns['ロック状態'] + 1).setValue(false);
+  authSheet.getRange(authRowInfo.rowNumber, columns['更新日時'] + 1).setValue(nowIso);
+
+  // 監査ログ（T_監査ログ）— 平文・ハッシュとも記録しない（AGENTS §0）
+  try {
+    var logSheet = getLogSs_().getSheetByName('T_監査ログ');
+    if (logSheet) {
+      logSheet.appendRow([
+        Utilities.getUuid(),
+        nowIso,
+        String(adminSession.email || ''),
+        'PASSWORD_RESET',
+        'T_認証アカウント',
+        String(authId),
+        'パスワード',
+        '(リセット実行)',
+        '(新パスワード発行・値は非記録)',
+      ]);
+    }
+  } catch (auditErr) {
+    // 監査ログ失敗はリセット本体を止めない（値は出さない）
+    try { Logger.log('[adminResetMemberPassword_] audit log failed: ' + auditErr.message); } catch (e) {}
+  }
+
+  return {
+    loginId: targetLoginId,
+    newPassword: newPassword,
+    resetAt: nowIso,
+  };
+}
+
+/**
+ * v376.55: 会員に紐づく認証アカウント一覧（read 専用）。
+ * 会員種別からの推測をせず、実データ（T_認証アカウント の 会員ID 一致）で紐付きを列挙する。
+ * operator はこの一覧から対象を目視選択し、認証ID で adminResetMemberPassword_ を呼ぶ。
+ * パスワードハッシュ・ソルト等の機密は返さない（AGENTS §0）。
+ * 返り値: [{ authId, loginId, method, active, locked, unit: 'MEMBER'|'STAFF', personName }]
+ */
+function getMemberAuthAccounts_(payload) {
+  var adminSession = checkAdminBySession_();
+  if (!adminSession) {
+    throw new Error('管理者認証が確認できません。');
+  }
+  var memberId = payload && payload.memberId != null ? String(payload.memberId).trim() : '';
+  if (!memberId) {
+    throw new Error('会員IDを指定してください。');
+  }
+
+  var ss = getOrCreateDatabase_();
+  var authRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
+  });
+
+  var staffById = {};
+  getRowsAsObjects_(ss, 'T_事業所職員').forEach(function(s) {
+    staffById[String(s['職員ID'] || '')] = s;
+  });
+  var memberById = {};
+  getRowsAsObjects_(ss, 'T_会員').forEach(function(m) {
+    memberById[String(m['会員ID'] || '')] = m;
+  });
+
+  return authRows.map(function(r) {
+    var staffId = String(r['職員ID'] || '').trim();
+    var personName = '';
+    if (staffId && staffById[staffId]) {
+      var nf = normalizeStaffNameFields_(staffById[staffId]);
+      personName = nf && nf.name ? nf.name : '';
+    } else if (memberById[memberId]) {
+      var m = memberById[memberId];
+      personName = joinHumanNameParts_(m['姓'], m['名']) || String(m['事業所名'] || '');
+    }
+    return {
+      authId: String(r['認証ID'] || ''),
+      loginId: String(r['ログインID'] || ''),
+      method: String(r['認証方式'] || ''),
+      active: toBoolean_(r['アカウント有効フラグ']),
+      locked: toBoolean_(r['ロック状態']),
+      unit: staffId ? 'STAFF' : 'MEMBER',
+      personName: personName,
+    };
+  });
 }
 
 var PASSWORD_RESET_CODE_TTL_SECONDS = 30 * 60;

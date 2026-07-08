@@ -260,6 +260,10 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  // v376.55: パスワードリセット — 認証アカウント一覧 / 結果モーダル
+  const [authAccounts, setAuthAccounts] = useState<Array<{ authId: string; loginId: string; method: string; active: boolean; locked: boolean; unit: 'MEMBER' | 'STAFF'; personName: string }> | null>(null);
+  const [authAccountsLoading, setAuthAccountsLoading] = useState(false);
+  const [resetResult, setResetResult] = useState<{ loginId: string; newPassword: string } | null>(null);
   // v126: blur バリデーション用 touched 状態
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
@@ -740,6 +744,36 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       setAnnualFeeErrors((prev) => ({ ...prev, [draft.year]: e instanceof Error ? e.message : '年会費情報の保存に失敗しました。' }));
     } finally {
       setAnnualFeeSavingYear(null);
+    }
+  };
+
+  // ── v376.55: パスワード管理（認証アカウント一覧の遅延読込 → 認証IDでリセット） ──
+  const handleLoadAuthAccounts = async () => {
+    try {
+      setAuthAccountsLoading(true);
+      setError(null);
+      const accounts = await api.getMemberAuthAccounts(String(form.id));
+      setAuthAccounts(accounts);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '認証アカウントの取得に失敗しました。');
+    } finally {
+      setAuthAccountsLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (authId: string, loginId: string) => {
+    if (!confirm(`ログインID「${loginId}」のパスワードをリセットしますか？\n\n新しいパスワードが発行され、現在のパスワードは無効になります。ロックも解除されます。`)) return;
+    try {
+      setActionLoading('reset-' + authId);
+      setError(null);
+      const res = await api.adminResetMemberPassword(authId);
+      setResetResult({ loginId: res.loginId, newPassword: res.newPassword });
+      // 一覧のロック状態表示を更新（再取得）
+      await handleLoadAuthAccounts();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'パスワードリセットに失敗しました。');
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -1890,6 +1924,84 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                 事業所メンバーに転籍
               </button>
               <span className="text-xs text-slate-500">既存の事業所にメンバーとして移動します</span>
+            </div>
+          )}
+
+          {/* v376.55: パスワード管理（認証アカウント一覧を read してから認証IDでリセット・会員種別からの推測はしない） */}
+          <div className="border border-slate-200 rounded-lg p-3">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <span className="text-sm font-medium text-slate-700">🔑 パスワード管理</span>
+              {authAccounts === null ? (
+                <button
+                  onClick={handleLoadAuthAccounts}
+                  disabled={authAccountsLoading}
+                  className="px-3 py-2 min-h-[44px] rounded-lg border border-slate-300 text-slate-700 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
+                >
+                  {authAccountsLoading ? '読込中...' : '認証アカウントを表示'}
+                </button>
+              ) : (
+                <button
+                  onClick={handleLoadAuthAccounts}
+                  disabled={authAccountsLoading}
+                  className="text-xs text-primary-600 hover:underline disabled:opacity-50"
+                >
+                  {authAccountsLoading ? '更新中...' : '再読込'}
+                </button>
+              )}
+            </div>
+            {authAccounts !== null && authAccounts.length === 0 && (
+              <p className="text-xs text-slate-500 mt-2">この会員に紐づく認証アカウントはありません。</p>
+            )}
+            {authAccounts !== null && authAccounts.length > 0 && (
+              <div className="mt-2 space-y-2">
+                {authAccounts.map((acc) => (
+                  <div key={acc.authId} className="flex items-center justify-between gap-3 flex-wrap border-t border-slate-100 pt-2">
+                    <div className="text-sm text-slate-700 break-all">
+                      <span className="font-medium">{acc.loginId || '(ログインID未設定)'}</span>
+                      <span className="ml-2 text-xs text-slate-500">{acc.personName}{acc.unit === 'STAFF' ? '（職員）' : '（会員本人）'}</span>
+                      <span className="ml-2 text-xs text-slate-400">{acc.method}</span>
+                      {acc.locked && <span className="ml-2 text-xs text-red-600">ロック中</span>}
+                      {!acc.active && <span className="ml-2 text-xs text-amber-600">無効</span>}
+                    </div>
+                    <button
+                      onClick={() => handleResetPassword(acc.authId, acc.loginId)}
+                      disabled={actionLoading === 'reset-' + acc.authId || acc.method !== 'PASSWORD'}
+                      className="px-3 py-2 min-h-[44px] rounded-lg border border-amber-300 text-amber-700 text-sm font-medium hover:bg-amber-50 disabled:opacity-50"
+                      title={acc.method !== 'PASSWORD' ? 'パスワード認証以外はリセットできません' : ''}
+                    >
+                      {actionLoading === 'reset-' + acc.authId ? '処理中...' : 'パスワードリセット'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* v376.55: リセット結果モーダル（新パスワードは一度だけ表示） */}
+          {resetResult && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
+              <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-5 space-y-4">
+                <h3 className="text-lg font-bold text-slate-800">パスワードをリセットしました</h3>
+                <p className="text-sm text-slate-600">この新しいパスワードは<strong>この画面でしか確認できません</strong>。会員へ安全な方法でお伝えください。</p>
+                <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-sm space-y-1 break-all">
+                  <div><span className="text-slate-500">ログインID:</span> <span className="font-mono font-medium">{resetResult.loginId}</span></div>
+                  <div><span className="text-slate-500">新しいパスワード:</span> <span className="font-mono font-medium">{resetResult.newPassword}</span></div>
+                </div>
+                <div className="flex justify-end gap-2 flex-wrap">
+                  <button
+                    onClick={() => { if (navigator.clipboard) void navigator.clipboard.writeText(resetResult.newPassword); }}
+                    className="px-3 py-2 min-h-[44px] rounded-lg border border-slate-300 text-slate-700 text-sm font-medium hover:bg-slate-50"
+                  >
+                    パスワードをコピー
+                  </button>
+                  <button
+                    onClick={() => setResetResult(null)}
+                    className="px-4 py-2 min-h-[44px] rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700"
+                  >
+                    閉じる
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>

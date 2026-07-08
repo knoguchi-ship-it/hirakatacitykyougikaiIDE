@@ -54,6 +54,8 @@ export const MENU_REGISTRY = [
 export const ACTION_TO_MENU = {
   // members-list
   updateMember: 'members-list',
+  getMemberAuthAccounts: 'members-list', // v376.55: 会員認証アカウント一覧（read）
+  adminResetMemberPassword: 'members-list', // v376.55: 会員パスワードリセット
   withdrawMember: 'members-list',
   scheduleWithdrawMember: 'members-list',
   cancelScheduledWithdraw: 'members-list',
