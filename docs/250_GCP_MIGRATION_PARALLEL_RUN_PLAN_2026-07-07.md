@@ -410,7 +410,7 @@ GCP 側は Cloud Run revision と traffic split を必ず release 記録に残�
 | DB | Firestore / Cloud SQL / hybrid のどれを使うか |
 | Mail / Drive | GAS bridge を残すか、GCP 側へ置換するか |
 | DNS / public URL | 既存 GAS URL 併用期間と GCP URL の公開方法 |
-| Cost guard | 500 円 budget alert の継続、min instances 設定可否 |
+| Cost guard | 500 円 budget alert の継続、min instances 設定可否。**公開段階（Phase 1 以降）の追加設計必須（2026-07-08 operator 指摘）**: IAM で閉じた現行 Cloud Run と異なり、公開 frontend / API は未認証リクエストも全て課金対象に到達する。max instances 上限・予算アラート強化・Cloud Armor 等のレート制限/WAF・reCAPTCHA/App Check・ログイン試行ロック再設計（上記行）をセットで決めてから公開する |
 
 ## 12. 関連資料
 
