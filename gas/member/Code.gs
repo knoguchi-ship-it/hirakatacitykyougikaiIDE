@@ -1153,6 +1153,7 @@ var ACTION_TO_MENU = {
   "updateMember": "members-list",
   "getMemberAuthAccounts": "members-list",
   "adminResetMemberPassword": "members-list",
+  "adminIssueMemberCredential": "members-list",
   "withdrawMember": "members-list",
   "scheduleWithdrawMember": "members-list",
   "cancelScheduledWithdraw": "members-list",
@@ -1505,6 +1506,7 @@ function processApiRequest(action, payload) {
     if (action === 'changePassword') {
       return JSON.stringify({ success: true, data: changePassword_(parsedPayload) });
     }
+
 
 
 

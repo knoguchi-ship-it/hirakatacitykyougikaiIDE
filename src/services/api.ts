@@ -92,8 +92,9 @@ export interface ApiClient {
   updateMember(member: Member): Promise<void>;
   updateMemberSelf(member: Member, loginId: string): Promise<void>;
   changePassword(loginId: string, currentPassword: string, newPassword: string): Promise<void>;
-  getMemberAuthAccounts(memberId: string): Promise<Array<{ authId: string; loginId: string; method: string; active: boolean; locked: boolean; unit: 'MEMBER' | 'STAFF'; personName: string }>>;
+  getMemberAuthAccounts(memberId: string): Promise<Array<{ issued: boolean; authId: string; loginId: string; method: string; active: boolean; locked: boolean; unit: 'MEMBER' | 'STAFF'; memberId: string; staffId: string; personName: string }>>;
   adminResetMemberPassword(authId: string): Promise<{ loginId: string; newPassword: string; resetAt: string }>;
+  adminIssueMemberCredential(memberId: string, staffId?: string): Promise<{ authId: string; loginId: string; newPassword: string; issuedAt: string; personName: string }>;
   requestPasswordReset(loginId: string, email: string): Promise<{ message: string; expiresInMinutes: number }>;
   completePasswordReset(loginId: string, code: string, newPassword: string): Promise<{ message: string; updatedAt: string }>;
   getSystemSettings(): Promise<SystemSettings>;
@@ -572,12 +573,16 @@ class GasApiClient implements ApiClient {
     return this.callAction('changePassword', { loginId, currentPassword, newPassword, ...this.memberSessionPayload() });
   }
 
-  async getMemberAuthAccounts(memberId: string): Promise<Array<{ authId: string; loginId: string; method: string; active: boolean; locked: boolean; unit: 'MEMBER' | 'STAFF'; personName: string }>> {
+  async getMemberAuthAccounts(memberId: string): Promise<Array<{ issued: boolean; authId: string; loginId: string; method: string; active: boolean; locked: boolean; unit: 'MEMBER' | 'STAFF'; memberId: string; staffId: string; personName: string }>> {
     return this.callAction('getMemberAuthAccounts', { memberId });
   }
 
   async adminResetMemberPassword(authId: string): Promise<{ loginId: string; newPassword: string; resetAt: string }> {
     return this.callAction('adminResetMemberPassword', { authId });
+  }
+
+  async adminIssueMemberCredential(memberId: string, staffId?: string): Promise<{ authId: string; loginId: string; newPassword: string; issuedAt: string; personName: string }> {
+    return this.callAction('adminIssueMemberCredential', { memberId, staffId: staffId || '' });
   }
 
   async getSystemSettings(): Promise<SystemSettings> {

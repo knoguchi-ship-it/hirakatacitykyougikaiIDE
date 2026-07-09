@@ -1130,6 +1130,7 @@ var ACTION_TO_MENU = {
   "updateMember": "members-list",
   "getMemberAuthAccounts": "members-list",
   "adminResetMemberPassword": "members-list",
+  "adminIssueMemberCredential": "members-list",
   "withdrawMember": "members-list",
   "scheduleWithdrawMember": "members-list",
   "cancelScheduledWithdraw": "members-list",
@@ -1405,9 +1406,10 @@ var ADMIN_ACTION_PERMISSIONS = {
   'getAdminDashboardData': ['MASTER','ADMIN'],
   'getAdminInitData': ['MASTER','ADMIN'],
   'updateMember': ['MASTER','ADMIN'],
-  // v376.55: 会員認証アカウント一覧（read）+ パスワードリセット（重要操作のため MASTER/ADMIN のみ・会員管理メニュー配下）
+  // v376.55/56: 会員認証アカウント一覧（read）+ パスワードリセット + 新規発行（重要操作のため MASTER/ADMIN のみ・会員管理メニュー配下）
   'getMemberAuthAccounts': ['MASTER','ADMIN'],
   'adminResetMemberPassword': ['MASTER','ADMIN'],
+  'adminIssueMemberCredential': ['MASTER','ADMIN'],
   'withdrawMember': ['MASTER','ADMIN'],
   'scheduleWithdrawMember': ['MASTER','ADMIN'],
   'cancelScheduledWithdraw': ['MASTER','ADMIN'],
@@ -1673,6 +1675,10 @@ function processApiRequest(action, payload) {
 
     if (action === 'adminResetMemberPassword') {
       return JSON.stringify({ success: true, data: adminResetMemberPassword_(parsedPayload) });
+    }
+
+    if (action === 'adminIssueMemberCredential') {
+      return JSON.stringify({ success: true, data: adminIssueMemberCredential_(parsedPayload) });
     }
 
 
@@ -2263,6 +2269,29 @@ function formatDateForApi_(rawDate) {
 
 
 
+function createPasswordAuthRow_(authId, loginId, roleCode, memberId, staffId, plainPassword, now) {
+  var salt = generateSalt_();
+  return {
+    認証ID: authId,
+    認証方式: 'PASSWORD',
+    ログインID: loginId,
+    パスワードハッシュ: hashPasswordCurrent_(plainPassword, salt),
+    パスワードソルト: salt,
+    GoogleユーザーID: '',
+    Googleメール: '',
+    システムロールコード: roleCode,
+    会員ID: memberId,
+    職員ID: staffId || '',
+    最終ログイン日時: '',
+    パスワード更新日時: now,
+    アカウント有効フラグ: true,
+    ログイン失敗回数: 0,
+    ロック状態: false,
+    作成日時: now,
+    更新日時: now,
+    削除フラグ: false,
+  };
+}
 
 
 
@@ -3265,11 +3294,12 @@ function adminResetMemberPassword_(payload) {
 }
 
 /**
- * v376.55: 会員に紐づく認証アカウント一覧（read 専用）。
+ * v376.55/56: 会員に紐づく認証アカウント一覧（read 専用）。
  * 会員種別からの推測をせず、実データ（T_認証アカウント の 会員ID 一致）で紐付きを列挙する。
- * operator はこの一覧から対象を目視選択し、認証ID で adminResetMemberPassword_ を呼ぶ。
+ * v376.56: 認証アカウントが「未発行」のユニット（個人/賛助=会員本人、事業所=各職員）も列挙する。
+ *   issued=true は adminResetMemberPassword_（認証ID）でリセット、issued=false は adminIssueMemberCredential_ で発行。
  * パスワードハッシュ・ソルト等の機密は返さない（AGENTS §0）。
- * 返り値: [{ authId, loginId, method, active, locked, unit: 'MEMBER'|'STAFF', personName }]
+ * 返り値: [{ issued, authId, loginId, method, active, locked, unit:'MEMBER'|'STAFF', memberId, staffId, personName }]
  */
 function getMemberAuthAccounts_(payload) {
   var adminSession = checkAdminBySession_();
@@ -3285,36 +3315,184 @@ function getMemberAuthAccounts_(payload) {
   var authRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) {
     return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
   });
-
+  var staffRows = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(s) {
+    return !toBoolean_(s['削除フラグ']) && String(s['会員ID'] || '') === memberId;
+  });
   var staffById = {};
-  getRowsAsObjects_(ss, 'T_事業所職員').forEach(function(s) {
-    staffById[String(s['職員ID'] || '')] = s;
+  staffRows.forEach(function(s) { staffById[String(s['職員ID'] || '')] = s; });
+  var memberRow = null;
+  getRowsAsObjects_(ss, 'T_会員').some(function(m) {
+    if (String(m['会員ID'] || '') === memberId) { memberRow = m; return true; }
+    return false;
   });
-  var memberById = {};
-  getRowsAsObjects_(ss, 'T_会員').forEach(function(m) {
-    memberById[String(m['会員ID'] || '')] = m;
-  });
+  var memberType = memberRow ? String(memberRow['会員種別コード'] || 'INDIVIDUAL') : 'INDIVIDUAL';
+  var memberDisplayName = memberRow
+    ? (joinHumanNameParts_(memberRow['姓'], memberRow['名']) || String(memberRow['事業所名'] || ''))
+    : '';
 
-  return authRows.map(function(r) {
+  var result = [];
+  var existingStaffIds = {};
+  var hasMemberSelf = false;
+
+  // 発行済み（既存認証アカウント）
+  authRows.forEach(function(r) {
     var staffId = String(r['職員ID'] || '').trim();
+    if (staffId) { existingStaffIds[staffId] = true; } else { hasMemberSelf = true; }
     var personName = '';
     if (staffId && staffById[staffId]) {
       var nf = normalizeStaffNameFields_(staffById[staffId]);
       personName = nf && nf.name ? nf.name : '';
-    } else if (memberById[memberId]) {
-      var m = memberById[memberId];
-      personName = joinHumanNameParts_(m['姓'], m['名']) || String(m['事業所名'] || '');
+    } else {
+      personName = memberDisplayName;
     }
-    return {
+    result.push({
+      issued: true,
       authId: String(r['認証ID'] || ''),
       loginId: String(r['ログインID'] || ''),
       method: String(r['認証方式'] || ''),
       active: toBoolean_(r['アカウント有効フラグ']),
       locked: toBoolean_(r['ロック状態']),
       unit: staffId ? 'STAFF' : 'MEMBER',
+      memberId: memberId,
+      staffId: staffId,
+      personName: personName,
+    });
+  });
+
+  // 未発行ユニット
+  if (memberType === 'BUSINESS') {
+    staffRows.forEach(function(s) {
+      var sid = String(s['職員ID'] || '').trim();
+      if (!sid || existingStaffIds[sid]) return;
+      var nf = normalizeStaffNameFields_(s);
+      result.push({
+        issued: false, authId: '', loginId: '', method: 'PASSWORD',
+        active: false, locked: false, unit: 'STAFF',
+        memberId: memberId, staffId: sid,
+        personName: nf && nf.name ? nf.name : '',
+      });
+    });
+  } else if (!hasMemberSelf) {
+    result.push({
+      issued: false, authId: '', loginId: '', method: 'PASSWORD',
+      active: false, locked: false, unit: 'MEMBER',
+      memberId: memberId, staffId: '',
+      personName: memberDisplayName,
+    });
+  }
+
+  return result;
+}
+
+/**
+ * v376.56: 認証アカウントが無い会員本人/事業所職員へ、ログインID+初期パスワードを新規発行する。
+ * 既に PASSWORD 認証がある対象は発行不可（adminResetMemberPassword_ を使う）。
+ * 会員種別からの推測はせず、個人/賛助=会員本人（staffId なし）、事業所=職員（staffId 必須）を明示指定。
+ * 平文は戻り値で 1 度だけ返す。ログ・監査に平文/ハッシュは記録しない（AGENTS §0）。
+ */
+function adminIssueMemberCredential_(payload) {
+  var adminSession = checkAdminBySession_();
+  if (!adminSession) {
+    throw new Error('管理者認証が確認できません。');
+  }
+  var memberId = payload && payload.memberId != null ? String(payload.memberId).trim() : '';
+  var staffId = payload && payload.staffId != null ? String(payload.staffId).trim() : '';
+  if (!memberId) {
+    throw new Error('会員IDを指定してください。');
+  }
+
+  var ss = getOrCreateDatabase_();
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var memberRow = null;
+    getRowsAsObjects_(ss, 'T_会員').some(function(m) {
+      if (String(m['会員ID'] || '') === memberId && !toBoolean_(m['削除フラグ'])) { memberRow = m; return true; }
+      return false;
+    });
+    if (!memberRow) {
+      throw new Error('会員が見つかりません。');
+    }
+    var memberType = String(memberRow['会員種別コード'] || 'INDIVIDUAL');
+
+    var allAuth = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) {
+      return !toBoolean_(r['削除フラグ']);
+    });
+    var existingLoginIds = allAuth.map(function(r) { return String(r['ログインID'] || ''); }).filter(Boolean);
+
+    var roleCode, cmNumber, personName;
+    if (staffId) {
+      var staff = null;
+      getRowsAsObjects_(ss, 'T_事業所職員').some(function(s) {
+        if (String(s['職員ID'] || '') === staffId && String(s['会員ID'] || '') === memberId && !toBoolean_(s['削除フラグ'])) { staff = s; return true; }
+        return false;
+      });
+      if (!staff) {
+        throw new Error('指定された職員が見つかりません。');
+      }
+      var dupStaff = allAuth.some(function(r) {
+        return String(r['職員ID'] || '') === staffId && String(r['認証方式'] || '') === 'PASSWORD';
+      });
+      if (dupStaff) {
+        throw new Error('この職員には既に認証アカウントがあります。パスワードリセットを使用してください。');
+      }
+      roleCode = String(staff['職員権限コード'] || '') === 'REPRESENTATIVE' ? 'BUSINESS_ADMIN' : 'BUSINESS_MEMBER';
+      cmNumber = String(staff['介護支援専門員番号'] || '');
+      var snf = normalizeStaffNameFields_(staff);
+      personName = snf && snf.name ? snf.name : '';
+    } else {
+      if (memberType === 'BUSINESS') {
+        throw new Error('事業所会員は職員IDを指定してください（会員本人ログインは持ちません）。');
+      }
+      var dupSelf = allAuth.some(function(r) {
+        return String(r['会員ID'] || '') === memberId && !String(r['職員ID'] || '').trim() && String(r['認証方式'] || '') === 'PASSWORD';
+      });
+      if (dupSelf) {
+        throw new Error('この会員には既に認証アカウントがあります。パスワードリセットを使用してください。');
+      }
+      roleCode = 'INDIVIDUAL_MEMBER';
+      cmNumber = String(memberRow['介護支援専門員番号'] || '');
+      personName = joinHumanNameParts_(memberRow['姓'], memberRow['名']) || String(memberRow['事業所名'] || '');
+    }
+
+    var loginId = generateCmBasedLoginId_(cmNumber, existingLoginIds);
+    var newPassword = generateCredentialTempPassword_();
+    var authId = Utilities.getUuid();
+    var nowIso = new Date().toISOString();
+    appendRowsByHeaders_(ss, 'T_認証アカウント', [
+      createPasswordAuthRow_(authId, loginId, roleCode, memberId, staffId || '', newPassword, nowIso),
+    ]);
+
+    // 監査ログ（値は記録しない）
+    try {
+      var logSheet = getLogSs_().getSheetByName('T_監査ログ');
+      if (logSheet) {
+        logSheet.appendRow([
+          Utilities.getUuid(),
+          nowIso,
+          String(adminSession.email || ''),
+          'CREDENTIAL_ISSUE',
+          'T_認証アカウント',
+          String(authId),
+          '認証アカウント発行',
+          '(なし)',
+          '(ログインID発番・新パスワード発行・値は非記録)',
+        ]);
+      }
+    } catch (auditErr) {
+      try { Logger.log('[adminIssueMemberCredential_] audit log failed: ' + auditErr.message); } catch (e) {}
+    }
+
+    return {
+      authId: authId,
+      loginId: loginId,
+      newPassword: newPassword,
+      issuedAt: nowIso,
       personName: personName,
     };
-  });
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 var PASSWORD_RESET_CODE_TTL_SECONDS = 30 * 60;
@@ -12929,7 +13107,26 @@ function generateRandomPassword_() {
 /**
  * CM番号がない場合の9桁ログインID自動生成（先頭9 + 8桁ランダム）
  */
+function generateAutoLoginId_(existingIds) {
+  var maxAttempts = 1000;
+  for (var i = 0; i < maxAttempts; i++) {
+    var id = '9' + String(Math.floor(Math.random() * 100000000)).padStart(8, '0');
+    if (existingIds.indexOf(id) === -1) return id;
+  }
+  throw new Error('ログインID自動生成に失敗（重複回避上限超過）');
+}
 
+function generateCmBasedLoginId_(cmNumber, existingIds) {
+  var baseCm = String(cmNumber || '').replace(/[^0-9]/g, '');
+  if (!baseCm) return generateAutoLoginId_(existingIds);
+  if (baseCm.length !== 8) return generateAutoLoginId_(existingIds);
+  if (existingIds.indexOf(baseCm) === -1) return baseCm;
+  for (var prefix = 1; prefix <= 9; prefix++) {
+    var duplicateId = String(prefix) + baseCm;
+    if (existingIds.indexOf(duplicateId) === -1) return duplicateId;
+  }
+  throw new Error('CM番号重複の9桁ログインID採番に失敗: ' + baseCm);
+}
 
 
 // ── メイン移行関数 ──

@@ -135,9 +135,10 @@ export const ADMIN_ALLOWED_ACTIONS_LIST = [
   'getAdminDashboardData',
   'getAdminInitData',
   'updateMember',
-  // v376.55: 会員認証アカウント一覧（read）+ 管理者による会員パスワードリセット
+  // v376.55/56: 会員認証アカウント一覧（read）+ パスワードリセット + 新規発行
   'getMemberAuthAccounts',
   'adminResetMemberPassword',
+  'adminIssueMemberCredential',
   'withdrawMember',
   'scheduleWithdrawMember',
   'cancelScheduledWithdraw',
