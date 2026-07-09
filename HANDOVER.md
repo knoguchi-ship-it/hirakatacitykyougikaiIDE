@@ -4,9 +4,9 @@
 > 経緯・履歴・設計詳細は別ドキュメントへ。リンク先は §6 参照順序を参照。
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
-最終更新: **2026-07-08**
-最新リリース: **`v376.54`**（GCP Phase B: Cloud Run Argon2id 連携基盤・`ARGON2_ENABLED=false`＝挙動不変。public @360×2 / member @119 / admin @216）
-最終作業（2026-07-08）: **GCP Phase B（docs/250 §5 手順 1〜11）完了**: scope 追加・secret 名是正・Argon2 関数＋方式自動判別・dryRun 全 PASS（GAS→Cloud Run 経路全通・Argon2 往復 hash 646ms/verify 315ms）・Cloud Run rev 00005（複数 audience+3 split クライアント ID）・live a11y 0/responsive 7VP PASS。**残: operator の会員ログイン非破壊スポット確認と、承認後の `ARGON2_ENABLED=true` 化（§2-0）**。
+最終更新: **2026-07-09**
+最新リリース: **`v376.55`**（管理者による会員パスワードリセット[認証ID必須]＋認証アカウント一覧read＋dryRun棚卸し。public @361×2 / member @120 / admin @217）
+最終作業（2026-07-09）: **v376.55 デプロイ**（会員パスワードリセット機能・既存無変更の新規action追加のみ・prerelease全PASS・デプロイ後 live 公開E2E[a11y 0/responsive 7VP]非破壊確認）。**残: この機能でダミー会員をリセット→会員ログインE2E実証（§2-1 #0）**。前リリース v376.54（GCP Phase B・Argon2連携基盤・`ARGON2_ENABLED=false`＝挙動不変）は §7/release-notes 参照。
 前回作業: **会員系削除の cascade アーカイブ（`docs/249`・a1 単一化）とメール誤集約事故の恒久是正をデプロイ（v376.52 / admin @212）** — ①削除コンソール実行時に会員系13テーブルを live から `*_archive` へ移動（`削除バッチID`=削除ログID・会員単位アトミック復元可）、ログイン履歴は物理 purge。旧 in-place soft delete（孤児発生源）と命名詐称 `archive*ByIds` を撤去。②2026-07-03 の REDIRECT 残置事故（全メールが Redirect 宛先へ集約・UI/ログは成功表示）の再発防止: 一括メール画面に配信モード常時警告バナー＋送信結果/送信ログの正直化（`BULK_MEMBER_REDIRECT` 記録・抑止分を成功に数えない）。③legacy 申込者解決 `@deprecated`（v377 撤去予定）。DB migrate（`_archive` 11本新設+既存2本に列追加・追加のみ非破壊）は次回 admin ログインで自動実行。デプロイ前に DB スプレッドシート複製バックアップ実施済み。
 > 直近の経緯・各リリース詳細は §7 リリース表 と `docs/release-notes-2026.md` を正本とする（v376.40〜v376.52）。
 
@@ -14,7 +14,7 @@
 
 ## 0. 次の担当者へ（キャッチアップ・まず1分でここ）
 
-- **本番**: public **@360×2** / member **@119** / admin **@216**（v376.54・§1）。全 fixed deployment 同期確認済・稼働正常（`ARGON2_ENABLED=false`＝ログイン挙動は従来 PBKDF2 と同一）。
+- **本番**: public **@361×2** / member **@120** / admin **@217**（v376.55・§1）。全 fixed deployment 同期確認済・稼働正常（`ARGON2_ENABLED=false`＝ログイン挙動は従来 PBKDF2 と同一）。
 - **直近セッション（2026-06-30〜07-05）の成果**（詳細 §7 / `docs/release-notes-2026.md` v376.51〜.53.2）:
   - v376.51 ロール視点プレビュー（MASTER専用）／v376.52 **会員系削除 cascade アーカイブ**（docs/249・実DB E2E 18/18 PASS・削除負債実測16行のみ）／v376.53 DRY・ハードコーディング・XFrame 一括是正（api.ts **-940行**・rbac-util/validators 集約・ID/URL の Properties override 化）／.53.1-.53.2 REDIRECT 警告バナー（live 実証済）。
   - **メール事故対応済**: 6/26〜7/3 の間 `MAIL_DELIVERY_MODE=REDIRECT` 残置で全メールが旧アドレスに集約されていた（実宛先未達）。LIVE 復旧済・再発防止バナー/ログ正直化デプロイ済。**未達期間の再送要否は運用判断が残っている可能性あり**（`T_メール送信ログ` の 6/26〜7/3 BULK_MEMBER 行を確認）。
@@ -40,10 +40,10 @@
 
 | 配信 | Deployment ID | Version |
 |---|---|---|
-| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@360** |
-| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@360** |
-| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@119** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@216** |
+| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@361** |
+| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@361** |
+| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@120** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@217** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 
@@ -76,7 +76,7 @@
 
 | # | タスク | 詳細 / 参照 |
 |---|---|---|
-| 0 | **v376.55 会員パスワードリセット機能のデプロイ+検証**（実装済・**未デプロイ**） | admin に会員パスワードリセット機能を実装（`getMemberAuthAccounts` read + `adminResetMemberPassword` write・**認証ID必須で対象特定**・新PW自動生成→一度だけ画面表示・ロック解除・監査ログは値非記録）。gas-src/api.ts/MemberDetailAdmin/menu-registry/boundary 更新済。typecheck・prerelease 全 PASS・生成物 grep 確認済。**残**: ①operator 承認で 3 split デプロイ（build→push→version→redeploy）②ダミー会員作成→本機能でPWリセット→`.env.test` 設定→`test:responsive:member` で会員ログイン E2E 実証（HANDOVER 積年の「member E2E storageState 期限切れ未 PASS」の解消手段）。設計論点は解決済（会員種別からの推測を廃し認証IDで一意特定）| `docs/release-notes-2026.md` v376.55 |
+| 0 | **v376.55 会員パスワードリセット機能の会員ログインE2E実証**（**デプロイ済 @217/@120/@361**・公開E2E非破壊確認済） | admin に会員パスワードリセット機能を実装・デプロイ済（`getMemberAuthAccounts` read + `adminResetMemberPassword` write・**認証ID必須で対象特定**・新PW自動生成→一度だけ画面表示・ロック解除・監査ログは値非記録）。**残（operator）**: admin 会員詳細の「🔑 パスワード管理」でダミー会員（無ければ作成）の認証アカウントを表示→パスワードリセット→表示された新PWとログインIDを `.env.test`（`MEMBER_LOGIN_ID`/`MEMBER_PASSWORD`）に記入→`npm run test:responsive:member` で会員ログイン E2E を PASS 確認（積年の「member E2E storageState 期限切れ未 PASS」の解消手段）。設計論点は解決済（会員種別からの推測を廃し認証IDで一意特定）| `docs/release-notes-2026.md` v376.55 |
 | 0 | **v376.52 cascade アーカイブ＋メール是正の検証**（admin @212・MASTER） | ①admin にログイン（DB migrate 自動実行: `_archive` 11本新設+既存2本に `削除バッチID` 列追加。既存データ不変）。②admin editor で `dryRunDeleteCascadeV376_52_LOG` ▶ → `passed:true`（実DB E2E: 投入→cascade→live0/archive13/purge1→復元→sweep）。③`diagnoseMemberDeleteDebt_LOG` ▶ → 削除負債（refSoftDeleted/refMissing）を実測し、バックフィル要否を判断（`docs/249 §7`）。④一括メール画面: 配信モードを一時 REDIRECT にすると画面上部＋送信確認に琥珀色警告が出ること（確認後 LIVE に戻す）。⑤削除コンソールの説明文が「アーカイブ移動」表記になっていること。※cascade は削除コンソール実行時のみ発動（通常運用に影響なし） | `docs/249` §8 |
 | 0 | **v376.51 ロール視点プレビュー 実機確認**（admin @211・MASTER のみ） | MASTER でログインし画面最上部に「👁 ロール視点プレビュー」バーが表示されること。①ドロップダウンで各ロール（管理者/研修管理者/研修登録者/一般/カスタム）を選ぶと、Sidebar が当該ロールの許可メニューだけになり「表示メニュー N件／非表示 M件」が出ること。②許可外 view を開いていた場合は許可内 view に自動退避すること。③プレビュー中に保存・送信・削除を試みると「閲覧のみ」エラーで実行されないこと（実 DB は不変）。④「プレビューを終了」で MASTER の通常表示に即復帰。⑤リロードで自動的に MASTER 表示へ戻ること。⑥360px 幅でバーが崩れないこと。※非 MASTER 管理者・会員にはバーが出ないこと。AI 実行の `test:responsive:admin` は storageState 期限切れで未 PASS のため操作者確認 | `docs/release-notes-2026.md` v376.51 |
 | 0 | **v376.50 一括メール REDIRECT 表示確認**（admin @210） | **操作者確認済（2026-06-26）**: REDIRECT モードで一括メールを安全な検証宛先に送信し、件名に `[REDIRECT from ...]` が付かず、本文先頭に `--- ORIGINAL TO` / `--- CATEGORY` が入らないことを確認済。REDIRECT 中は実宛先ではなく allowlist 宛に集約される点は従来通り |
