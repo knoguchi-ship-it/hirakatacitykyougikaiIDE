@@ -4,9 +4,9 @@
 > 経緯・履歴・設計詳細は別ドキュメントへ。リンク先は §6 参照順序を参照。
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
-最終更新: **2026-07-09**
-最新リリース: **`v376.55`**（管理者による会員パスワードリセット[認証ID必須]＋認証アカウント一覧read＋dryRun棚卸し。public @361×2 / member @120 / admin @217）
-最終作業（2026-07-09）: **v376.55 デプロイ**（会員パスワードリセット機能・既存無変更の新規action追加のみ・prerelease全PASS・デプロイ後 live 公開E2E[a11y 0/responsive 7VP]非破壊確認）。**残: この機能でダミー会員をリセット→会員ログインE2E実証（§2-1 #0）**。前リリース v376.54（GCP Phase B・Argon2連携基盤・`ARGON2_ENABLED=false`＝挙動不変）は §7/release-notes 参照。
+最終更新: **2026-07-10**
+最新リリース: **`v376.56`**（認証アカウント新規発行[未発行の会員本人・事業所職員へ]＋一覧に未発行ユニット表示。public @362×2 / member @121 / admin @218）
+最終作業（2026-07-10）: **v376.56 デプロイ**（認証アカウント発行 `adminIssueMemberCredential`・既存無変更の新規action追加のみ・prerelease全PASS・デプロイ後 live 公開E2E[a11y 0/responsive 7VP]非破壊確認）。v376.55（会員パスワードリセット・認証ID必須）と合わせ、**未発行の会員/職員・テスト会員へ資格情報を発行→リセットできる**。**残: この機能でダミー会員へ発行→会員ログインE2E実証（§2-1 #0）**。GCP Phase B（v376.54・`ARGON2_ENABLED=false`＝挙動不変）は §7/release-notes 参照。
 前回作業: **会員系削除の cascade アーカイブ（`docs/249`・a1 単一化）とメール誤集約事故の恒久是正をデプロイ（v376.52 / admin @212）** — ①削除コンソール実行時に会員系13テーブルを live から `*_archive` へ移動（`削除バッチID`=削除ログID・会員単位アトミック復元可）、ログイン履歴は物理 purge。旧 in-place soft delete（孤児発生源）と命名詐称 `archive*ByIds` を撤去。②2026-07-03 の REDIRECT 残置事故（全メールが Redirect 宛先へ集約・UI/ログは成功表示）の再発防止: 一括メール画面に配信モード常時警告バナー＋送信結果/送信ログの正直化（`BULK_MEMBER_REDIRECT` 記録・抑止分を成功に数えない）。③legacy 申込者解決 `@deprecated`（v377 撤去予定）。DB migrate（`_archive` 11本新設+既存2本に列追加・追加のみ非破壊）は次回 admin ログインで自動実行。デプロイ前に DB スプレッドシート複製バックアップ実施済み。
 > 直近の経緯・各リリース詳細は §7 リリース表 と `docs/release-notes-2026.md` を正本とする（v376.40〜v376.52）。
 
@@ -14,7 +14,7 @@
 
 ## 0. 次の担当者へ（キャッチアップ・まず1分でここ）
 
-- **本番**: public **@361×2** / member **@120** / admin **@217**（v376.55・§1）。全 fixed deployment 同期確認済・稼働正常（`ARGON2_ENABLED=false`＝ログイン挙動は従来 PBKDF2 と同一）。
+- **本番**: public **@362×2** / member **@121** / admin **@218**（v376.56・§1）。全 fixed deployment 同期確認済・稼働正常（`ARGON2_ENABLED=false`＝ログイン挙動は従来 PBKDF2 と同一）。
 - **直近セッション（2026-06-30〜07-05）の成果**（詳細 §7 / `docs/release-notes-2026.md` v376.51〜.53.2）:
   - v376.51 ロール視点プレビュー（MASTER専用）／v376.52 **会員系削除 cascade アーカイブ**（docs/249・実DB E2E 18/18 PASS・削除負債実測16行のみ）／v376.53 DRY・ハードコーディング・XFrame 一括是正（api.ts **-940行**・rbac-util/validators 集約・ID/URL の Properties override 化）／.53.1-.53.2 REDIRECT 警告バナー（live 実証済）。
   - **メール事故対応済**: 6/26〜7/3 の間 `MAIL_DELIVERY_MODE=REDIRECT` 残置で全メールが旧アドレスに集約されていた（実宛先未達）。LIVE 復旧済・再発防止バナー/ログ正直化デプロイ済。**未達期間の再送要否は運用判断が残っている可能性あり**（`T_メール送信ログ` の 6/26〜7/3 BULK_MEMBER 行を確認）。
@@ -76,7 +76,7 @@
 
 | # | タスク | 詳細 / 参照 |
 |---|---|---|
-| 0 | **v376.56 認証アカウント発行機能のデプロイ+会員ログインE2E実証**（実装済・**未デプロイ**・v376.55 はデプロイ済 @217/@120/@361） | v376.55（パスワードリセット・認証ID必須）に加え、v376.56 で**認証アカウント新規発行**（`adminIssueMemberCredential`）を追加＝未発行の会員本人・事業所職員・テスト会員へログインID+初期PWを発行可能に。`getMemberAuthAccounts` は未発行ユニットも列挙、UI は発行/リセットを出し分け。typecheck・prerelease 全PASS・生成物 grep 確認済。**残（operator）**: ①3 split デプロイ承認（build→push→version→redeploy）②admin 会員詳細「🔑 パスワード管理」でダミー会員（個人）へ**発行**→表示された ログインID/新PW を `.env.test`（`MEMBER_LOGIN_ID`/`MEMBER_PASSWORD`）に記入→`npm run test:responsive:member` で会員ログイン E2E PASS 確認（積年の「member E2E 未 PASS」解消）| `docs/release-notes-2026.md` v376.55 / v376.56 |
+| 0 | **v376.56 認証アカウント発行/リセット機能の会員ログインE2E実証**（**デプロイ済 @218/@121/@362**・公開E2E非破壊確認済） | v376.55（パスワードリセット・認証ID必須）＋v376.56（**認証アカウント新規発行** `adminIssueMemberCredential`）をデプロイ済＝未発行の会員本人・事業所職員・テスト会員へログインID+初期PWを発行可能。**残（operator）**: admin 会員詳細「🔑 パスワード管理」でダミー個人会員（無ければ作成）へ**「ログインID・パスワードを発行」**→表示された ログインID/新PW を `.env.test`（`MEMBER_LOGIN_ID`/`MEMBER_PASSWORD`）に記入→`npm run test:responsive:member` で会員ログイン E2E PASS 確認（積年の「member E2E 未 PASS」解消）| `docs/release-notes-2026.md` v376.55 / v376.56 |
 | 0 | **v376.52 cascade アーカイブ＋メール是正の検証**（admin @212・MASTER） | ①admin にログイン（DB migrate 自動実行: `_archive` 11本新設+既存2本に `削除バッチID` 列追加。既存データ不変）。②admin editor で `dryRunDeleteCascadeV376_52_LOG` ▶ → `passed:true`（実DB E2E: 投入→cascade→live0/archive13/purge1→復元→sweep）。③`diagnoseMemberDeleteDebt_LOG` ▶ → 削除負債（refSoftDeleted/refMissing）を実測し、バックフィル要否を判断（`docs/249 §7`）。④一括メール画面: 配信モードを一時 REDIRECT にすると画面上部＋送信確認に琥珀色警告が出ること（確認後 LIVE に戻す）。⑤削除コンソールの説明文が「アーカイブ移動」表記になっていること。※cascade は削除コンソール実行時のみ発動（通常運用に影響なし） | `docs/249` §8 |
 | 0 | **v376.51 ロール視点プレビュー 実機確認**（admin @211・MASTER のみ） | MASTER でログインし画面最上部に「👁 ロール視点プレビュー」バーが表示されること。①ドロップダウンで各ロール（管理者/研修管理者/研修登録者/一般/カスタム）を選ぶと、Sidebar が当該ロールの許可メニューだけになり「表示メニュー N件／非表示 M件」が出ること。②許可外 view を開いていた場合は許可内 view に自動退避すること。③プレビュー中に保存・送信・削除を試みると「閲覧のみ」エラーで実行されないこと（実 DB は不変）。④「プレビューを終了」で MASTER の通常表示に即復帰。⑤リロードで自動的に MASTER 表示へ戻ること。⑥360px 幅でバーが崩れないこと。※非 MASTER 管理者・会員にはバーが出ないこと。AI 実行の `test:responsive:admin` は storageState 期限切れで未 PASS のため操作者確認 | `docs/release-notes-2026.md` v376.51 |
 | 0 | **v376.50 一括メール REDIRECT 表示確認**（admin @210） | **操作者確認済（2026-06-26）**: REDIRECT モードで一括メールを安全な検証宛先に送信し、件名に `[REDIRECT from ...]` が付かず、本文先頭に `--- ORIGINAL TO` / `--- CATEGORY` が入らないことを確認済。REDIRECT 中は実宛先ではなく allowlist 宛に集約される点は従来通り |

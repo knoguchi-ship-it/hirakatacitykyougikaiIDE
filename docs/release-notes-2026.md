@@ -13,14 +13,14 @@
 
 ---
 
-## v376.56 — 2026-07-09 🆕 認証アカウントの新規発行（未発行の会員本人・事業所職員へ）※実装済・**未デプロイ**
+## v376.56 — 2026-07-10 🆕 認証アカウントの新規発行（未発行の会員本人・事業所職員へ）（全3split @362×2 / @121 / @218・公開E2E非破壊確認済／会員ログインE2Eはoperator検証待ち）
 
 v376.55 のパスワードリセットは「既存の認証アカウント」しか対象にできず、①一度も認証発行されていない会員 ②公開ポータルで後から追加された事業所職員（`addPublicStaffMember_` は認証を作らない設計）③テスト会員 に対して**パスワードを発行できない**という制約があった（operator 指摘）。これを解消する「発行」機能を追加。
 
 - **新 action `adminIssueMemberCredential`（write・MASTER/ADMIN・会員管理メニュー配下）** 🆕: 認証アカウントが無い対象へログインID（CM番号ベース or 自動発番・重複回避）＋初期パスワード（安全乱数15文字）を発行し `T_認証アカウント` に新規行作成。`createPasswordAuthRow_`（`hashPasswordCurrent_` 使用＝ARGON2追従）を再利用。**会員種別からの推測はせず**、個人/賛助=会員本人（staffId なし）・事業所=職員（staffId 必須）を明示指定。代表者は `職員権限コード='REPRESENTATIVE'`→`BUSINESS_ADMIN`、他は `BUSINESS_MEMBER`。既に PASSWORD 認証がある対象は発行不可（リセットへ誘導）。LockService で採番競合防止。平文は戻り値で1度だけ・ログ/監査に値非記録（§0・`CREDENTIAL_ISSUE`）。
 - **`getMemberAuthAccounts` 拡張** 🔧: 発行済み（`issued:true`）に加え、**未発行ユニット**（個人/賛助=会員本人、事業所=各職員）を `issued:false` で列挙。
 - **UI** 🔧: 「🔑 パスワード管理」パネルで未発行行に「ログインID・パスワードを発行」ボタン、発行済み行に「パスワードリセット」。結果モーダルは発行/リセット共通（新パスワードを一度だけ表示）。
-- **検証**: typecheck / prerelease 全ゲート PASS（menu-registry 含む）。3 生成物 grep で admin 限定・dryrun.gs 非混入・member/public 非露出を確認。**残（operator）**: 3 split デプロイ承認 → これでダミー/実会員・職員へ資格情報を発行 → 会員ログイン E2E 実証。
+- **検証**: typecheck / prerelease 全ゲート PASS（menu-registry 含む）。3 生成物 grep で admin 限定・dryrun.gs 非混入・member/public 非露出を確認。**デプロイ済（2026-07-10・全3split）＋デプロイ後 live 公開E2E（a11y 0・responsive 7VP overflow 0）で非破壊確認**。**残（operator）**: ダミー/実会員・職員へ資格情報を発行 → `.env.test` 設定 → 会員ログイン E2E 実証。
 
 ---
 
