@@ -20,7 +20,7 @@ v376.55 のパスワードリセットは「既存の認証アカウント」し
 - **新 action `adminIssueMemberCredential`（write・MASTER/ADMIN・会員管理メニュー配下）** 🆕: 認証アカウントが無い対象へログインID（CM番号ベース or 自動発番・重複回避）＋初期パスワード（安全乱数15文字）を発行し `T_認証アカウント` に新規行作成。`createPasswordAuthRow_`（`hashPasswordCurrent_` 使用＝ARGON2追従）を再利用。**会員種別からの推測はせず**、個人/賛助=会員本人（staffId なし）・事業所=職員（staffId 必須）を明示指定。代表者は `職員権限コード='REPRESENTATIVE'`→`BUSINESS_ADMIN`、他は `BUSINESS_MEMBER`。既に PASSWORD 認証がある対象は発行不可（リセットへ誘導）。LockService で採番競合防止。平文は戻り値で1度だけ・ログ/監査に値非記録（§0・`CREDENTIAL_ISSUE`）。
 - **`getMemberAuthAccounts` 拡張** 🔧: 発行済み（`issued:true`）に加え、**未発行ユニット**（個人/賛助=会員本人、事業所=各職員）を `issued:false` で列挙。
 - **UI** 🔧: 「🔑 パスワード管理」パネルで未発行行に「ログインID・パスワードを発行」ボタン、発行済み行に「パスワードリセット」。結果モーダルは発行/リセット共通（新パスワードを一度だけ表示）。
-- **検証**: typecheck / prerelease 全ゲート PASS（menu-registry 含む）。3 生成物 grep で admin 限定・dryrun.gs 非混入・member/public 非露出を確認。**デプロイ済（2026-07-10・全3split）＋デプロイ後 live 公開E2E（a11y 0・responsive 7VP overflow 0）で非破壊確認**。**残（operator）**: ダミー/実会員・職員へ資格情報を発行 → `.env.test` 設定 → 会員ログイン E2E 実証。
+- **検証**: typecheck / prerelease 全ゲート PASS（menu-registry 含む）。3 生成物 grep で admin 限定・dryrun.gs 非混入・member/public 非露出を確認。**デプロイ済（2026-07-10・全3split）＋デプロイ後 live 公開E2E（a11y 0・responsive 7VP overflow 0）で非破壊確認**。**会員ログイン E2E 完全 PASS（2026-07-10・全7VP）**: operator が本機能でダミー会員へ資格情報を発行→その ログインID/PW でログイン→マイページ・研修申込まで描画・overflow 0・login fatal 0（console error 1 は無害な report-only CSP frame-ancestors）。**積年の「member E2E storageState 期限切れ未 PASS」を解消**。パスワード経路（`ARGON2_ENABLED=false`=PBKDF2）の非破壊も同時に実証。
 
 ---
 
