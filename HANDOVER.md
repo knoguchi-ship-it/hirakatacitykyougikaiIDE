@@ -104,6 +104,7 @@
 
 | タスク | 再開条件 | 参照 |
 |---|---|---|
+| **member E2E 用ダミー会員の物理削除**（現在は恒久テスト fixture として保持・operator 決定 2026-07-10） | **テストアカウントとしての運用終了時**（削除は前提・保持は暫定）。削除時は物理削除で `T_会員`＋`T_認証アカウント`＋関連行を各シートから直接削除し、`.env.test` のダミー資格情報も除去。※通常削除コンソールは cascade アーカイブ（`*_archive` 残置）で物理削除ではない点に注意 | `docs/release-notes-2026.md` v376.56 |
 | GCP Secret Manager セットアップ + Cloud Run Argon2id 反映 | Phase B 再開時。全体計画は `docs/250`、password-hash 詳細は `docs/240` §11。`userinfo.email` / audience / IAM principal / Secret 名不一致を先に確定 | `docs/250`, `docs/240`, `docs/172` |
 | WCAG 2.2 AA 手動検証（NVDA / VoiceOver / キーボード） | 半期レビュー (2026-11) or 大規模 UI 改修時 | `docs/244` §3, `docs/245` §3 |
 | **v376.36 dormant 差分の同梱デプロイ**（_archive surrogate 列定義） | 次の機能リリース時に自動同梱（個別デプロイ不要・実行時挙動不変） | release-notes v376.36 |
