@@ -54,9 +54,26 @@
 
 ### 2-0. 次の開発予定
 
-> **GCP 移行: Phase 0＋Phase B（password-hash 接続・v376.54）完了。次はターゲット構成に基づく本体移行（Phase 1〜）**。**ターゲット構成は 2026-07-11 に確定＝`docs/250` §12 が実装入口**（DB=Firestore／認証=IAP(admin)+Firebase Auth カスタムトークン(member)+匿名(public)／hosting=Firebase Hosting＋admin=Cloud Run に IAP 直付け／サーバー共有キャッシュ＋フィールド単位更新／移行順 portal→member→admin）。
+> **🔶 v376.57 release 進行中（2026-07-11 セッション切れによる中断・次担当はここから再開）**
+>
+> **内容**: GCP 移行 Phase 1（docs/250 §12.7-1）＝ frontend transport 分離。`src/services/api.ts` に `createApiClient(config)` factory＋`GcpApiClient` の器（全 method は GasApiClient prototype から自動導出した未実装 reject stub）＋`window.__APP_CONFIG__` 型を追加。`scripts/compress-html.mjs` が GAS 配信 build に `window.__APP_CONFIG__={apiRuntime:'gas'}` を注入。**既定は GasApiClient のままで挙動不変（非破壊）**。gas-src/Code.gs は不変・schema 変更なし・認証変更なし。
+>
+> **完了済み**: 実装 commit 済み／`npm run prerelease` 全ゲート PASS／typecheck PASS／3 split build＋生成物 grep（`__APP_CONFIG__` 注入 3/3・boot loader 契約 6 要素残存・importmap 除去）PASS／`npx clasp login` 再認証済み（invalid_rapt 解消）。
+>
+> **残作業（docs/09 §3 の標準手順どおり）**:
+> 1. root で `npx clasp push --force` → `npx clasp version "v376.57 GCP migration Phase 1: createApiClient/GcpApiClient transport separation (GAS default, non-breaking)"`
+> 2. `gas/member` で同様に push→version、`gas/admin` で同様に push→version
+> 3. fixed deployment 4 本を新 version へ `npx clasp redeploy`（ID は docs/09 §2。integrated×2 は root、member/admin は各ディレクトリで）
+> 4. `npx clasp deployments --json` ×3 で version 一致確認
+> 5. live E2E 回帰: `npm run test:a11y`（違反 0）＋`npm run test:responsive`（全 VP・コールドスタートのタイムアウトはウォーム後再判定）。storageState があれば `test:responsive:member` / `test:responsive:admin` も実行
+> 6. 本欄の進行中ブロックを削除し、HANDOVER §0 の version 記録・docs/09 §7 に v376.57 release 記録を追記して commit
+>
+> **ロールバック**: 問題時は直前版（public `@362`×2／member `@121`／admin `@218`）へ `npx clasp redeploy ... --versionNumber` で即時復旧。
+> **参考**: 本セッションで docs/250 に確定反映済み＝サブドメイン（portal/member）・admin=run.app・旧URL転送は Phase 6 最終・max-instances=1 採用・Cloud Armor 不採用。
+
+> **GCP 移行: Phase 0＋Phase B（password-hash 接続・v376.54）完了。次はターゲット構成に基づく本体移行（Phase 1〜）**。**ターゲット構成は 2026-07-11 に確定＝`docs/250` §12 が実装入口**（DB=Firestore／認証=IAP(admin)+Firebase Auth カスタムトークン(member)+匿名(public)／hosting=Firebase Hosting＋admin=Cloud Run に IAP 直付け／サーバー共有キャッシュ＋フィールド単位更新／移行順 portal→member→admin）。**セカンドオピニオン反映（2026-07-11）**: API サービスは **max-instances=1**（Pub/Sub 通知は全インスタンスに届かず不成立と判明→1台固定でキャッシュ一貫性と DoW 課金天井を同時解決）／**Cloud Armor 不採用**（LB 必須と判明・代替=App Check+max-instances=1+予算killswitch+アプリ内レート制限）。
 > **後任の着手手順**: ①`docs/250` §12 を読む（動機＝ロード時間短縮・確定事項・検証済み事実・コスト早見）②**着手前に現行の実データ量と実ロード時間を実測**（§12.6・遅さが画面配信 A か データ取得 B かを数値化）③**Phase 1（非破壊）＝`createApiClient`/`GcpApiClient` の器づくり**（GasApiClient 既定温存・GAS E2E 通過が完了ゲート）④公開前に §11-1 DoW/EDoS 対策を消化。
-> **保留中**: GCP `ARGON2_ENABLED=true` 化（Phase B 最終・operator 承認制）／Mail・Drive の GCP 置換（Phase 4 以降）／DNS・公開 URL 方式（未決）。password-hash 詳細は `docs/240` §11。
+> **保留中**: GCP `ARGON2_ENABLED=true` 化（Phase B 最終・operator 承認制）／Mail・Drive の GCP 置換（Phase 4 以降）。DNS・公開 URL 方式は**確定**（2026-07-11: Workspace 登録済みドメインのサブドメイン利用 public=`portal.<ドメイン>`/member=`member.<ドメイン>`・admin=`*.run.app` のまま・周知は旧 GAS URL の JS 自動転送で代替＝Phase 6 最終・現本番撤去時に転送ページ化、それまで旧 URL 不変更。`docs/250` §5 Phase 6/§11）。password-hash 詳細は `docs/240` §11。
 > それ以外の確定した開発予定は無し（下表は完了済みの直近大型機能＝履歴）。新規依頼が出たら §2-1 へ追記する。
 > ER エディタ深化は**別プロジェクト**（任意・MEMORY `project_er_editor_standalone`）で、本案件の必須予定ではない。
 

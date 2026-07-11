@@ -1281,9 +1281,66 @@ class GasApiClient implements ApiClient {
   }
 }
 
-// API クライアントは GAS 実行環境専用とする。
-// ローカルモック運用は廃止したため、常に GAS クライアントを使用する。
-export const api: ApiClient = new GasApiClient();
+// --- GCP Implementation (docs/250 Phase 1: transport の器のみ・実 API 接続は Phase 2) ---
+const GCP_RUNTIME_NOT_IMPLEMENTED_MESSAGE =
+  'GCP API runtime は未実装です（docs/250 Phase 2 で接続予定）。現行の GAS 版をご利用ください。';
+
+// declaration merging: 実装本体は下の stub 導出ループが張るため、型面だけ ApiClient を満たす。
+interface GcpApiClient extends ApiClient {}
+class GcpApiClient {
+  /** Phase 2 で Cloud Run API への Authorization 付与に使用する（現段階では保持のみ） */
+  memberSessionToken: string | null = null;
+  /** GCP runtime 専用の API base URL（Phase 2 で fetch 先として使用） */
+  readonly apiBaseUrl: string;
+
+  // parameter property は Node --experimental-strip-types 非対応構文のため使わない（unit test で import するため）
+  constructor(apiBaseUrl: string) {
+    this.apiBaseUrl = apiBaseUrl;
+  }
+
+  setMemberSessionToken(token: string | null): void {
+    this.memberSessionToken = token;
+  }
+}
+// ApiClient 全 method の stub を GasApiClient の prototype から導出して張る。
+// 手書きの写経をしないことで、interface へ method が増えても GCP 側が型ごと追随し
+// keep-list ドリフト（feedback_admin_editor_keep_list と同種）を起こさない。
+for (const name of Object.getOwnPropertyNames(GasApiClient.prototype)) {
+  if (name === 'constructor') continue;
+  if (Object.prototype.hasOwnProperty.call(GcpApiClient.prototype, name)) continue;
+  (GcpApiClient.prototype as unknown as Record<string, unknown>)[name] =
+    function gcpRuntimeNotImplemented(): Promise<never> {
+      return Promise.reject(new Error(GCP_RUNTIME_NOT_IMPLEMENTED_MESSAGE));
+    };
+}
+
+// --- Runtime selection (docs/250 Phase 1: GAS / GCP transport 分離) ---
+export type ApiRuntime = 'gas' | 'gcp';
+
+export interface AppRuntimeConfig {
+  apiRuntime?: ApiRuntime;
+  /** GCP runtime 専用の API base URL。GAS 配信では設定しない */
+  apiBaseUrl?: string;
+}
+
+declare global {
+  interface Window {
+    __APP_CONFIG__?: AppRuntimeConfig;
+  }
+}
+
+// 既定は 'gas'（現行本番）。'gcp' は config で明示された場合のみ選択する。
+export function createApiClient(config?: AppRuntimeConfig): ApiClient {
+  if (config?.apiRuntime === 'gcp') {
+    return new GcpApiClient(config.apiBaseUrl || '');
+  }
+  return new GasApiClient();
+}
+
+// GAS 配信時は build 時に window.__APP_CONFIG__={apiRuntime:'gas'} が注入される（scripts/compress-html.mjs）。
+// 未注入の環境（vite dev 等）でも既定 'gas' に fallback するため従来挙動と同一。
+// ローカルモック運用は廃止済みのため、GAS 実行環境外では従来どおり実行時エラーとなる。
+export const api: ApiClient = createApiClient(typeof window !== 'undefined' ? window.__APP_CONFIG__ : undefined);
 
 // ── ロール視点プレビュー（MASTER 専用）の閲覧専用ガード ───────────────────────
 // docs/246 View-as-role: MASTER が他ロールの見え方をプレビュー中は、サーバー権限は

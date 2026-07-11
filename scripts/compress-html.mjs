@@ -136,7 +136,11 @@ function compressHtmlFile(inputPath) {
   const compressed = zlib.deflateRawSync(scriptBytes, { level: zlib.constants.Z_BEST_COMPRESSION });
   const encoded = compressed.toString('base64');
 
+  // docs/250 Phase 1: GAS 配信 build には apiRuntime='gas' を server side injection する。
+  // アプリ bundle は boot loader の eval で後から実行されるため、ここで先行定義すれば
+  // src/services/api.ts の createApiClient() が読む時点で必ず存在する。
   const decompressor =
+    `<script>window.__APP_CONFIG__={apiRuntime:'gas'};</script>\n` +
     `<script id="__app_data__" type="application/octet-stream">${encoded}</script>\n` +
     `<script>${BOOT_LOADER_BODY}</script>`;
 
