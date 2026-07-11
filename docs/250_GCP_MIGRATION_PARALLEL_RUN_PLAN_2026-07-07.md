@@ -507,9 +507,14 @@ Mail/Drive  : 移行期は GAS bridge 維持（Phase 4 以降で置換判断）
 2. **member**（ID/PW 認証・書込あり）
 3. **admin 最後**（メニュー RBAC・cascade 削除・帳票が最も複雑）
 
-### 12.6 実測してから着手（推奨・未実施）
+### 12.6 実測してから着手（✅ 実測完了 2026-07-11・v376.57 本番に対し Playwright 実測）
 
 - 着手前に**現行の実データ量（各テーブル行数）と実ロード時間**を Playwright 等で計測し、①無料枠に収まるか ②遅さが A(画面配信)/B(データ取得) どちらか を数値確定する。A 支配なら Firebase Hosting 化だけで大半解決（低リスク・即効）。
+- **実測結果（2026-07-11・計測スクリプト `.test-out/measure-perf-12-6.mjs`[gitignored]・件数/バイト/ms のみ記録・各2回実行）**:
+  - **データ量**: 会員 **222**・事業所職員 **157**・研修 4（管理データ5）。bulk payload 最大は `fetchAllData` の **約 325KB**（`getAdminDashboardData` 115KB）。→ **①Firestore 無料枠（1日読取5万）に余裕で収まる**（全件でも数百 doc・サーバー共有キャッシュ併用なら実質ゼロ）。
+  - **A（画面配信・boot）**: navigation→app 操作可能まで **public 約 3.0〜3.1s**／**admin 約 8.4〜11.6s**（2.4MB バンドルの解凍・マウント含む。splash 表示は public 3.0s / admin 4.1〜4.5s）。
+  - **B（データ取得・`google.script.run` 1呼び出しの実測 RTT）**: **どんなに小さい payload でも 1 呼び出し 1.8〜5s**（`getPublicTrainings` 26 bytes で 1.8〜1.9s・`getSystemSettings` 10KB で 5.1s）。bulk は **`fetchAllData` 4.9s(ウォーム)〜11.1s(初回)**・`getAdminDashboardData` 5.1〜11.2s。
+  - **②結論: A・B 両方が支配的**。B は「データ量」ではなく **GAS 呼び出しの固定オーバーヘッド＋シート全件スキャン**が原因（26 bytes でも ~2s）。→ Firebase Hosting/CDN で A を、Cloud Run(API)+Firestore+サーバー共有キャッシュで B を解消する確定構成（§12.2）の妥当性を数値で裏付け。Hosting 化「だけ」では admin の体感（B が 1 画面あたり数呼び出し×5s）は解決しない。
 
 ### 12.7 後任への実装ステップ（Phase 1 入口）
 
