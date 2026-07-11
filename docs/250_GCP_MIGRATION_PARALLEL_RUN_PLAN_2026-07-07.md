@@ -519,7 +519,7 @@ Mail/Drive  : 移行期は GAS bridge 維持（Phase 4 以降で置換判断）
 ### 12.7 後任への実装ステップ（Phase 1 入口）
 
 1. **Phase 1（非破壊・本リポジトリ）**: `src/services/api.ts` は既に `ApiClient` interface＋`GasApiClient`＋単一 `api` エクスポートで、component は `google.script.run` を直接呼ばない（確認済）。残りは `createApiClient(config)` factory と `GcpApiClient` の器、`window.__APP_CONFIG__.apiRuntime` 注入。**GasApiClient を既定に温存**し GAS E2E が通ることを完了ゲートに。
-2. **Phase 2（GCP 作業場）**: Firestore データモデル設計（コレクション/文書・非正規化・cascade/soft-delete/archive[docs/249] 再実装）＋ read-only 互換 API。移行期に「スプレッドシートを読み続ける互換層」か「早期に Firestore を立てて同期」かは Phase 2 着手時に決める。**member/public の SPA→API は Firebase Hosting の rewrites で `/api/**` を Cloud Run へプロキシする方式を推奨**（同一オリジン化で CORS 不要・run.app URL の隠蔽・2026-07-11 セカンドオピニオン）。
+2. **Phase 2（GCP 作業場）**: Firestore データモデル設計（コレクション/文書・非正規化・cascade/soft-delete/archive[docs/249] 再実装）＋ read-only 互換 API。~~移行期に「スプレッドシートを読み続ける互換層」か「早期に Firestore を立てて同期」かは Phase 2 着手時に決める~~ → **operator 決定（2026-07-11）: 早期 Firestore＋一方向同期を採用**（スプレッドシート→Firestore のバッチ/手動同期で投入し read-only API は Firestore を読む。単一情報源は引き続きスプレッドシート＝write 正本、ドリフトは Phase 3 read shadow で検証。Sheets API 互換層は速度改善が限定的なため不採用）。**member/public の SPA→API は Firebase Hosting の rewrites で `/api/**` を Cloud Run へプロキシする方式を推奨**（同一オリジン化で CORS 不要・run.app URL の隠蔽・2026-07-11 セカンドオピニオン）。
 3. **Phase 3〜5**: read shadow → 限定書込 → DB 移行（行数/チェックサム/参照整合レポート・dual-write・write-freeze・rollback）。スプレッドシートは整合証明まで write 正本。
 4. **公開前ゲート**: §11-1 DoW/EDoS 対策（Cloud Armor Standard・App Check・予算 killswitch・max instances）を必ず消化。
 
