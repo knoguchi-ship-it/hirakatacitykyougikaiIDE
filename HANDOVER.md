@@ -6,7 +6,7 @@
 
 最終更新: **2026-07-11**
 最新リリース: **`v376.57`**（GCP 移行 Phase 1: frontend transport 分離 `createApiClient`/`GcpApiClient` の器＋`__APP_CONFIG__` 注入。**既定 GAS 経路で挙動不変（非破壊）**。public @363×2 / member @122 / admin @219）
-最終作業（2026-07-11 後半）: **v376.57 をデプロイ完了**（前セッション中断分の再開）。3 split push→version→fixed deployment 4 本 redeploy→`deployments --json` 一致確認→live E2E（公開 a11y 0・responsive 7VP・**member 7VP PASS**）。admin E2E は storageState の Google セッション失効で実行不能（既知事象・operator 実機確認は §2-1 参照）。
+最終作業（2026-07-11 後半）: **v376.57 をデプロイ完了**（前セッション中断分の再開）。3 split push→version→fixed deployment 4 本 redeploy→`deployments --json` 一致確認→live E2E（公開 a11y 0・responsive 7VP・**member 7VP PASS・admin 7VP×8 コンソール=56 view PASS**＝3 split 全て非破壊を機械検証。admin は operator ログインで storageState 再取得後に実行）。
 同日前半: **GCP 移行のターゲット構成を確定**（docs のみ更新）。operator 決定で **DB=Firestore／認証=IAP(admin)+Firebase Auth カスタムトークン(member)+匿名(public)／hosting=Firebase Hosting＋admin は Cloud Run に IAP 直付け** に確定。動機は**アプリのロード時間短縮**（整合性強化は主目的でない）。キャッシュ（サーバー共有）・同時編集（フィールド単位更新）・移行順（portal→member→admin）・コスト（最小構成ほぼ¥0）まで含め **`docs/250` §12（確定ターゲット構成）が後任の実装入口**。実装は未着手。前リリース v376.56 デプロイ（認証アカウント発行/リセット）は §7/release-notes 参照。
 前回作業: **会員系削除の cascade アーカイブ（`docs/249`・a1 単一化）とメール誤集約事故の恒久是正をデプロイ（v376.52 / admin @212）** — ①削除コンソール実行時に会員系13テーブルを live から `*_archive` へ移動（`削除バッチID`=削除ログID・会員単位アトミック復元可）、ログイン履歴は物理 purge。旧 in-place soft delete（孤児発生源）と命名詐称 `archive*ByIds` を撤去。②2026-07-03 の REDIRECT 残置事故（全メールが Redirect 宛先へ集約・UI/ログは成功表示）の再発防止: 一括メール画面に配信モード常時警告バナー＋送信結果/送信ログの正直化（`BULK_MEMBER_REDIRECT` 記録・抑止分を成功に数えない）。③legacy 申込者解決 `@deprecated`（v377 撤去予定）。DB migrate（`_archive` 11本新設+既存2本に列追加・追加のみ非破壊）は次回 admin ログインで自動実行。デプロイ前に DB スプレッドシート複製バックアップ実施済み。
 > 直近の経緯・各リリース詳細は §7 リリース表 と `docs/release-notes-2026.md` を正本とする（v376.40〜v376.52）。
@@ -55,7 +55,7 @@
 
 ### 2-0. 次の開発予定
 
-> **✅ v376.57 release 完了（2026-07-11）＝ GCP 移行 Phase 1（frontend transport 分離）デプロイ済**。公開 a11y 0・responsive 7VP・member 7VP PASS。admin は storageState の Google セッション失効で AI 実行不能→ **operator 実機確認: admin ポータルが従来どおり表示・操作できること**（transport 分離は全 split 共通の frontend 変更のため。ロールバック先 admin `@218`）。次は Phase 2 以降（`docs/250` §12.7）。
+> **✅ v376.57 release 完了（2026-07-11）＝ GCP 移行 Phase 1（frontend transport 分離）デプロイ済・E2E 3 split 全 PASS**。公開 a11y 0・responsive 7VP・member 7VP・admin 7VP×8 コンソール=56 view（storageState は operator ログインで再取得済＝以後 admin E2E 実行可能）。次は Phase 2 以降（`docs/250` §12.7・着手前に §12.6 実測）。
 > **参考**: 2026-07-11 前半セッションで docs/250 に確定反映済み＝サブドメイン（portal/member）・admin=run.app・旧URL転送は Phase 6 最終・max-instances=1 採用・Cloud Armor 不採用。
 
 > **GCP 移行: Phase 0＋Phase B（password-hash 接続・v376.54）＋Phase 1（transport 分離・v376.57）完了。次は Phase 2 以降**。**ターゲット構成は 2026-07-11 に確定＝`docs/250` §12 が実装入口**（DB=Firestore／認証=IAP(admin)+Firebase Auth カスタムトークン(member)+匿名(public)／hosting=Firebase Hosting＋admin=Cloud Run に IAP 直付け／サーバー共有キャッシュ＋フィールド単位更新／移行順 portal→member→admin）。**セカンドオピニオン反映（2026-07-11）**: API サービスは **max-instances=1**（Pub/Sub 通知は全インスタンスに届かず不成立と判明→1台固定でキャッシュ一貫性と DoW 課金天井を同時解決）／**Cloud Armor 不採用**（LB 必須と判明・代替=App Check+max-instances=1+予算killswitch+アプリ内レート制限）。
@@ -83,7 +83,7 @@
 
 | # | タスク | 詳細 / 参照 |
 |---|---|---|
-| 0 | **v376.57 admin ポータル表示の実機確認**（admin @219） | admin にログインし、①ポータルが従来どおり表示・操作できること（transport 分離は frontend 全 split 共通変更・既定 GAS 経路で挙動不変のはず）②異常があれば `npx clasp redeploy <admin ID> --versionNumber 218` で即ロールバック。AI 実行の `test:responsive:admin` は storageState の Google セッション失効（accounts.google.com へリダイレクト実測）で実行不能。**ついでに `node scripts/auth-bootstrap-admin.mjs` で storageState を再取得すると以後の admin E2E が復活**。public/member は E2E 実測済（a11y 0・各 7VP PASS） | `docs/release-notes-2026.md` v376.57 |
+| ✅ | **v376.57 admin E2E 回帰（完了・2026-07-11）** | operator ログインで storageState 再取得後、`test:responsive:admin` を新 admin @219 に対し実行 → **全 7VP × 8 コンソール（会員一覧/変更申請/研修管理/年会費/名簿出力/宛名リスト/システム設定 等）= 56 view 全 PASS**（横スクロール 0・タップターゲット違反 0・console error 0・fatal 0）。public/member E2E と合わせ、v376.57 transport 分離の非破壊を 3 split すべてで機械検証済 | `docs/release-notes-2026.md` v376.57 |
 | ✅ | **v376.56 認証アカウント発行/リセット機能（完了・@218/@121/@362）** | v376.55（リセット・認証ID必須）＋v376.56（発行 `adminIssueMemberCredential`）デプロイ済・公開E2E非破壊・**会員ログイン E2E 完全 PASS（2026-07-10・全7VP）**。member E2E は本機能で発行したダミー会員資格情報＋`.env.test` で稼働可能に（積年の未 PASS 解消）。**運用メモ**: 検証用ダミー会員の扱い（恒久テスト fixture として保持 or 物理削除）は operator 判断（下記 §2-1b 参照）| `docs/release-notes-2026.md` v376.55 / v376.56 |
 | 0 | **v376.52 cascade アーカイブ＋メール是正の検証**（admin @212・MASTER） | ①admin にログイン（DB migrate 自動実行: `_archive` 11本新設+既存2本に `削除バッチID` 列追加。既存データ不変）。②admin editor で `dryRunDeleteCascadeV376_52_LOG` ▶ → `passed:true`（実DB E2E: 投入→cascade→live0/archive13/purge1→復元→sweep）。③`diagnoseMemberDeleteDebt_LOG` ▶ → 削除負債（refSoftDeleted/refMissing）を実測し、バックフィル要否を判断（`docs/249 §7`）。④一括メール画面: 配信モードを一時 REDIRECT にすると画面上部＋送信確認に琥珀色警告が出ること（確認後 LIVE に戻す）。⑤削除コンソールの説明文が「アーカイブ移動」表記になっていること。※cascade は削除コンソール実行時のみ発動（通常運用に影響なし） | `docs/249` §8 |
 | 0 | **v376.51 ロール視点プレビュー 実機確認**（admin @211・MASTER のみ） | MASTER でログインし画面最上部に「👁 ロール視点プレビュー」バーが表示されること。①ドロップダウンで各ロール（管理者/研修管理者/研修登録者/一般/カスタム）を選ぶと、Sidebar が当該ロールの許可メニューだけになり「表示メニュー N件／非表示 M件」が出ること。②許可外 view を開いていた場合は許可内 view に自動退避すること。③プレビュー中に保存・送信・削除を試みると「閲覧のみ」エラーで実行されないこと（実 DB は不変）。④「プレビューを終了」で MASTER の通常表示に即復帰。⑤リロードで自動的に MASTER 表示へ戻ること。⑥360px 幅でバーが崩れないこと。※非 MASTER 管理者・会員にはバーが出ないこと。AI 実行の `test:responsive:admin` は storageState 期限切れで未 PASS のため操作者確認 | `docs/release-notes-2026.md` v376.51 |

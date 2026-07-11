@@ -147,7 +147,7 @@ Real-browser verification is performed by the operator by default. The agent rec
 ### 2026-07-11 `v376.57` ← current production
 - Scope: GCP 移行 Phase 1（docs/250 §12.7-1）frontend transport 分離。`src/services/api.ts` に `createApiClient(config)` factory＋`GcpApiClient` の器（未実装 reject stub）＋`window.__APP_CONFIG__` 型を追加し、`scripts/compress-html.mjs` が GAS 配信 build に `apiRuntime:'gas'` を注入。既定は GasApiClient のままで挙動不変（非破壊）。gas-src/Code.gs・DB schema・認証は不変。全 3 split 更新。
 - Integrated fixed deployments: `@363` x2 ／ Member split: `@122` ／ Admin split: `@219`
-- Verification: `prerelease` 全ゲート / typecheck / 3 split build 再現性（rebuild 後 git clean） / 生成物 grep（`__APP_CONFIG__` 3/3・`var テーブル定義` 3/3・boot splash 残存・importmap 除去）PASS。3 project の `npx clasp deployments --json` で @363×2/@122/@219 同期確認。デプロイ後 live: 公開 `test:a11y` 違反 0・`test:responsive` 全 7VP PASS・`test:responsive:member` 全 7VP PASS（新 @122 で会員ログイン〜描画非破壊）。`test:responsive:admin` は storageState の Google セッション失効（accounts.google.com リダイレクト実測）で実行不能のため、admin 実機確認は操作者タスク（v376.48 と同一の既知事象）。
+- Verification: `prerelease` 全ゲート / typecheck / 3 split build 再現性（rebuild 後 git clean） / 生成物 grep（`__APP_CONFIG__` 3/3・`var テーブル定義` 3/3・boot splash 残存・importmap 除去）PASS。3 project の `npx clasp deployments --json` で @363×2/@122/@219 同期確認。デプロイ後 live: 公開 `test:a11y` 違反 0・`test:responsive` 全 7VP PASS・`test:responsive:member` 全 7VP PASS（新 @122 で会員ログイン〜描画非破壊）。`test:responsive:admin` は同日 operator ログインで storageState 再取得後に実行し、全 7VP × 8 コンソール = 56 view 全 PASS（横スクロール 0・タップターゲット違反 0・console error 0）。3 split すべてで非破壊を機械検証済。
 - Rollback: public `@362` x2 ／ member `@121` ／ admin `@218` へ `npx clasp redeploy --versionNumber`。
 - Detail: `docs/release-notes-2026.md` v376.57。
 

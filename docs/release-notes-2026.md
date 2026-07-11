@@ -21,7 +21,7 @@ GCP 移行（`docs/250` §12.7 Phase 1・非破壊）の第一歩として、fro
 - **`GcpApiClient` の器**: 全 method を GasApiClient prototype から自動導出した未実装 reject stub として用意（Phase 2 以降で実装を差し替え）。現時点で本番から到達不能。
 - **`window.__APP_CONFIG__` 型定義追加**＋`scripts/compress-html.mjs` が GAS 配信 build に `window.__APP_CONFIG__={apiRuntime:'gas'}` を注入（3 split 生成物 grep で 3/3 確認）。
 - **検証**: `prerelease` 全ゲート PASS／typecheck PASS／3 split build 再現性確認（rebuild 後 `git status` clean）／生成物 grep（`__APP_CONFIG__` 3/3・`var テーブル定義` 3/3・boot loader splash 残存・デプロイ生成物の importmap 除去）PASS。
-- **デプロイ後 live E2E**: 公開 `test:a11y` 違反 0／`test:responsive` 全 7VP PASS（横スクロールなし・タップターゲット 44px 以上）／**`test:responsive:member` 全 7VP PASS**（ダミー会員 fixture 経由・新 @122 で会員ログイン〜描画の非破壊を実証）。`test:responsive:admin` は storageState が Google セッション失効（accounts.google.com へリダイレクト実測）で実行不能＝**admin 実機確認は operator タスク**（v376.48 と同一の既知事象・v376.57 起因ではない）。
+- **デプロイ後 live E2E**: 公開 `test:a11y` 違反 0／`test:responsive` 全 7VP PASS（横スクロールなし・タップターゲット 44px 以上）／**`test:responsive:member` 全 7VP PASS**（ダミー会員 fixture 経由・新 @122 で会員ログイン〜描画の非破壊を実証）。`test:responsive:admin` は当初 storageState の Google セッション失効（accounts.google.com へリダイレクト実測）で実行不能だったが、**同日 operator ログインで storageState を再取得し実行 → 全 7VP × 8 コンソール = 56 view 全 PASS**（横スクロール 0・タップターゲット違反 0・console error 0）。3 split すべてで非破壊を機械検証済。
 - ロールバック先: public `@362`×2／member `@121`／admin `@218`。
 
 ---
