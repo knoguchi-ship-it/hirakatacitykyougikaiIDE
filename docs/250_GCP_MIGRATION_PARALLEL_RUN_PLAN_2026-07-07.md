@@ -405,15 +405,17 @@ GCP 側は Cloud Run revision と traffic split を必ず release 記録に残�
 
 ## 11. 未決事項
 
-| 項目 | 決めること |
+> **2026-07-11 operator 決定**: DB / Browser auth / hosting を確定（下記 §12）。残る未決は Mail/Drive・DNS のみ。
+
+| 項目 | 状態 / 決めること |
 |---|---|
-| ログイン試行ロック仕様 | 現行「5 回連続失敗→無期限ロック（管理者解除）」を**限定承認（2026-07-08・operator 決定）**のまま Phase B を進める。ロック判定はパスワード検証前のため Argon2 有効化後も Cloud Run 呼び出しは 1 アカウント最大 5 回で頭打ち。**GCP 本番環境オープン時（Phase 6 切替前）に再検討必須**: 閾値 3 回化・時限自動解除（15 分等）・正規会員締め出し DoS とのバランス |
-| GCP frontend hosting | Firebase Hosting / Cloud Run static / Cloud Storage + CDN のどれを使うか |
-| Browser auth | Firebase Auth / Google OAuth / custom session のどれを使うか |
-| DB | Firestore / Cloud SQL / hybrid のどれを使うか |
-| Mail / Drive | GAS bridge を残すか、GCP 側へ置換するか |
-| DNS / public URL | 既存 GAS URL 併用期間と GCP URL の公開方法 |
-| Cost guard | 500 円 budget alert の継続、min instances 設定可否。**公開段階（Phase 1 以降）の追加設計必須（2026-07-08 operator 指摘）**: IAM で閉じた現行 Cloud Run と異なり、公開 frontend / API は未認証リクエストも全て課金対象に到達する。max instances 上限・予算アラート強化・Cloud Armor 等のレート制限/WAF・reCAPTCHA/App Check・ログイン試行ロック再設計（上記行）をセットで決めてから公開する |
+| **DB** | ✅ **確定＝Firestore**（2026-07-11・§12）。理由・コスト・キャッシュ/同時編集設計は §12 |
+| **Browser auth** | ✅ **確定**（§12）: admin=IAP 直付け（Cloud Run）／member=Firebase Auth カスタムトークン（既存 Cloud Run Argon2 で検証）／public=匿名+App Check |
+| **GCP frontend hosting** | ✅ **確定**（§12）: member/public=Firebase Hosting（クラシック）／admin=Cloud Run（SPA+API）に IAP 直付け |
+| ログイン試行ロック仕様 | 現行「5 回連続失敗→無期限ロック（管理者解除）」を**限定承認（2026-07-08）**のまま。**GCP 本番オープン時（Phase 6 前）に再検討必須**: 閾値 3 回化・時限自動解除・正規会員締め出し DoS とのバランス |
+| Mail / Drive | **未決**: GAS bridge を残すか GCP 置換か。移行期は GAS bridge 維持で、Phase 4 以降に判断 |
+| DNS / public URL | **未決**: 既存 GAS URL 併用期間と GCP URL の公開方法 |
+| Cost guard | **公開段階（Phase 1 以降）の追加設計必須（2026-07-08）**: 未認証リクエストも課金対象に到達する。max instances 上限・予算アラート強化・Cloud Armor（Standard）・reCAPTCHA/App Check・ログイン試行ロック再設計をセットで（§11-1） |
 
 ## 11-1. Denial of Wallet / EDoS 対策（公開段階の必須設計・2026-07-08 Web 一次情報調査）
 
@@ -448,7 +450,84 @@ GCP 完全移行で public/member を GCP 上に公開した後は、従量課�
 - Cloud Armor レート制限: <https://codelabs.developers.google.com/codelabs/cloud-armor-rate-limiting>
 - killswitch 構成例: <https://medium.com/google-cloud/how-to-avoid-a-massive-cloud-bill-41a76251caba>
 
-## 12. 関連資料
+## 12. 確定ターゲット構成（2026-07-11 operator 決定・後任向けハンドオフ）
+
+> 2026-07-08〜11 の設計協議で、DB・認証・hosting・キャッシュ/同時編集方針を確定した。本節が Phase 1 以降の実装の入口。動機は **アプリのロード時間短縮**（整合性強化は主目的ではない）。
+
+### 12.1 目的（最重要・判断の軸）
+
+- **本当の動機＝速度（ロード時間）**。GAS が遅い原因は2つに切り分け済み:
+  - **A. 画面配信**: HtmlService が SPA を iframe 配信＋起動時に圧縮バンドルを解凍。→ **Firebase Hosting/CDN で解決（無料・体感の主改善）**。
+  - **B. データ取得**: `getRowsAsObjectsFromSheet_`（`sheet.getDataRange().getValues()`）が**毎回シート全体をフルスキャン**（Code.full.gs:4241 で実コード確認済）。→ **実DB＋サーバー共有キャッシュで解決**。
+- 整合性(FK)は主目的でない。**現行スプレッドシートも FK 無し**なので、Firestore（アプリ担保）は GAS と同等レベルで機能パリティを満たす。
+
+### 12.2 確定アーキテクチャ
+
+```
+admin  → Cloud Run(SPA+API・IAP 直付け※LB不要・追加費用なし) → Firestore ＋ 継続RBAC(docs/246)
+member → Firebase Hosting(SPA) → Cloud Run(member API) → Firestore
+          └ ログイン: 既存 Cloud Run Argon2(/v1/verify) で検証 → Firebase Auth カスタムトークン発行
+public → Firebase Hosting(SPA) → Cloud Run(public API・匿名+App Check+Cloud Armor Standard) → Firestore
+DB          : Firestore（Native mode）
+Backup(DR)  : Firestore ネイティブ（PITR 7日＋スケジュールバックアップ 最大14週）
+Analytics   : BigQuery（任意・extension で増分ミラー・ログ/帳票/監査分析。※アプリ稼働DBには使わない）
+Operator可読: Spreadsheet 定期エクスポート（任意・目視/確認用の二次コピー・DR用ではない）
+Secret      : Secret Manager（pepper 既存）
+Mail/Drive  : 移行期は GAS bridge 維持（Phase 4 以降で置換判断）
+```
+
+### 12.3 認証（境界ごとに分離・混在禁止＝docs/109/111 準拠）
+
+- **admin**: **IAP を Cloud Run に直接有効化**（2026 はワンクリック・LB不要・追加費用なし）。※IAP は Firebase Hosting 静的配信は保護できないため admin は Cloud Run 配信にする。IAP は「admin グループの一員か」の粗いゲートのみで、**メニュー単位 RBAC（docs/246）はサーバー側で継続強制**（ロール表を Firestore に保持）。付与は **Google グループ単位の最小付与・ドメイン全体付与禁止**（§7）。
+- **member**: **Firebase Auth カスタムトークン**。loginID+パスワードを我々のデータ＋**既存 Cloud Run Argon2 サービス**で検証し、成功時にカスタムトークン発行（uid=会員ID）。クラシック Firebase Auth は無料。※新 member API の SA を hash サービスの `ALLOWED_INVOKERS`＋custom audiences に追加（追加のみ）。PBKDF2 は Node ローカル・argon2 は hash サービス委譲で現 `verifyPassword_` と等価に。
+- **public**: 匿名＋App Check/reCAPTCHA＋Cloud Armor Standard（DoW 対策・§11-1）。
+
+### 12.4 DB＝Firestore：コスト・キャッシュ・同時編集の確定方針
+
+- **コスト**: Firestore はドキュメント単位課金（フィールド数無関係）。無料枠 1日 読取5万/書込2万/削除2万・保存1GB。**本規模＋サーバー共有キャッシュなら実質 ¥0〜数百/月**。固定の月額下限が無いのが Cloud SQL との差。**有料強化（Redis・min-instances・外部検索・Cloud SQL）は"必須ではなく後付けオプション"**。
+- **検索**: 現行かな検索（`src/utils/search.ts` `matchesSearchQuery`）は**純 JS・クライアント側フィルタ**（実コード確認済）で、DB 側検索を使っていない。**Firestore でも同方式がそのまま動く＝外部検索サービス不要**（この規模）。※以前「Algolia 等が必須級」と評価したが**実コード確認で過大と判明・訂正済**。
+- **キャッシュ（必須）**: **クライアント側（PCごと）でなくサーバー側共有キャッシュ**（Cloud Run メモリ／必要なら Redis）を採用。閲覧の読取を実質0にする。300〜数千件はメモリに載る。
+- **同時編集（operator 要件）**: 「DB ロック不可→後勝ち」は**誤解で、Firestore は楽観的トランザクション＋自動リトライを持つ**（現行 GAS も LockService で直列化済）。採用方針は:
+  1. **フィールド単位の部分更新**（変更フィールドだけ書く）→ 別フィールドの同時編集は**両方生存・lost update なし・ロック不要**。「レコード丸ごと後勝ち」は採らない。
+  2. 直列化は**レコード単位トランザクション**で（グローバル直列は不要）。
+  3. 任意で**楽観的バージョンチェック**（`updated_at`/`version`）→ 同一フィールド衝突を"警告"（黙って上書きしない）。
+- **書込＋キャッシュの流れ**: ①DBに変更フィールドだけ書込（トランザクション）→ ②共有キャッシュの該当レコード該当フィールドのみ差替え → ③Pub/Sub で他インスタンスへ「この1件更新」を通知（安価）。
+
+### 12.5 移行順（リスク最小・パイロット先行）
+
+1. **public/portal 先行**（完全匿名・read＋申込 write のみ・RBAC なし＝最小。read shadow で差分検証しやすい）
+2. **member**（ID/PW 認証・書込あり）
+3. **admin 最後**（メニュー RBAC・cascade 削除・帳票が最も複雑）
+
+### 12.6 実測してから着手（推奨・未実施）
+
+- 着手前に**現行の実データ量（各テーブル行数）と実ロード時間**を Playwright 等で計測し、①無料枠に収まるか ②遅さが A(画面配信)/B(データ取得) どちらか を数値確定する。A 支配なら Firebase Hosting 化だけで大半解決（低リスク・即効）。
+
+### 12.7 後任への実装ステップ（Phase 1 入口）
+
+1. **Phase 1（非破壊・本リポジトリ）**: `src/services/api.ts` は既に `ApiClient` interface＋`GasApiClient`＋単一 `api` エクスポートで、component は `google.script.run` を直接呼ばない（確認済）。残りは `createApiClient(config)` factory と `GcpApiClient` の器、`window.__APP_CONFIG__.apiRuntime` 注入。**GasApiClient を既定に温存**し GAS E2E が通ることを完了ゲートに。
+2. **Phase 2（GCP 作業場）**: Firestore データモデル設計（コレクション/文書・非正規化・cascade/soft-delete/archive[docs/249] 再実装）＋ read-only 互換 API。移行期に「スプレッドシートを読み続ける互換層」か「早期に Firestore を立てて同期」かは Phase 2 着手時に決める。
+3. **Phase 3〜5**: read shadow → 限定書込 → DB 移行（行数/チェックサム/参照整合レポート・dual-write・write-freeze・rollback）。スプレッドシートは整合証明まで write 正本。
+4. **公開前ゲート**: §11-1 DoW/EDoS 対策（Cloud Armor Standard・App Check・予算 killswitch・max instances）を必ず消化。
+
+### 12.8 検証済みの事実（実コード確認・2026-07-11）
+
+- 検索は純 JS・クライアント側フィルタ（`src/utils/search.ts`）。
+- データ取得はシート全件フルスキャン（`getRowsAsObjectsFromSheet_`・Code.full.gs:4241）＝遅さの主因B。
+- transport は `google.script.run` が api 層のみ（component 直呼びなし）。
+- 現行は FK/整合性なし（スプレッドシート）＝Firestore と同レベル。
+- 現行 GAS は LockService で書込直列化済（＝「DB ロック不可」は誤り）。
+
+### 12.9 コスト早見（本規模・1$≈¥150 概算）
+
+| 構成 | 月額 | 備考 |
+|---|---|---|
+| 最小（Firebase Hosting＋Cloud Run scale-to-zero＋Firestore 無料枠＋Firebase Auth＋自前JS検索） | **¥0〜数百** | GAS 相当＋速度改善を実質無料で。宿題=アイドル初回コールドスタート数秒 |
+| ＋min-instances=1（コールドスタート除去） | ＋数千/月（要確認） | 体感問題が出たら後付け |
+| ＋Memorystore Redis（厳密な多インスタンス一貫性） | ＋約¥5,300/月〜 | Pub/Sub 通知で代替すればほぼ無料 |
+| ＋外部検索（Algolia/Typesense） | 本規模は**不要**（自前JS検索で足りる） | 数万件級になったら検討 |
+
+## 13. 関連資料
 
 - `HANDOVER.md`
 - `docs/09_DEPLOYMENT_POLICY.md`

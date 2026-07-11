@@ -4,9 +4,9 @@
 > 経緯・履歴・設計詳細は別ドキュメントへ。リンク先は §6 参照順序を参照。
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
-最終更新: **2026-07-10**
+最終更新: **2026-07-11**
 最新リリース: **`v376.56`**（認証アカウント新規発行[未発行の会員本人・事業所職員へ]＋一覧に未発行ユニット表示。public @362×2 / member @121 / admin @218）
-最終作業（2026-07-10）: **v376.56 デプロイ**（認証アカウント発行 `adminIssueMemberCredential`・既存無変更の新規action追加のみ・prerelease全PASS・デプロイ後 live 公開E2E[a11y 0/responsive 7VP]非破壊確認）。v376.55（会員パスワードリセット・認証ID必須）と合わせ、**未発行の会員/職員・テスト会員へ資格情報を発行→リセットできる**。**残: この機能でダミー会員へ発行→会員ログインE2E実証（§2-1 #0）**。GCP Phase B（v376.54・`ARGON2_ENABLED=false`＝挙動不変）は §7/release-notes 参照。
+最終作業（2026-07-11）: **GCP 移行のターゲット構成を確定**（本番 GAS は無変更・docs のみ更新）。operator 決定で **DB=Firestore／認証=IAP(admin)+Firebase Auth カスタムトークン(member)+匿名(public)／hosting=Firebase Hosting＋admin は Cloud Run に IAP 直付け** に確定。動機は**アプリのロード時間短縮**（整合性強化は主目的でない）。キャッシュ（サーバー共有）・同時編集（フィールド単位更新）・移行順（portal→member→admin）・コスト（最小構成ほぼ¥0）まで含め **`docs/250` §12（確定ターゲット構成）が後任の実装入口**。実装は未着手。前リリース v376.56 デプロイ（認証アカウント発行/リセット）は §7/release-notes 参照。
 前回作業: **会員系削除の cascade アーカイブ（`docs/249`・a1 単一化）とメール誤集約事故の恒久是正をデプロイ（v376.52 / admin @212）** — ①削除コンソール実行時に会員系13テーブルを live から `*_archive` へ移動（`削除バッチID`=削除ログID・会員単位アトミック復元可）、ログイン履歴は物理 purge。旧 in-place soft delete（孤児発生源）と命名詐称 `archive*ByIds` を撤去。②2026-07-03 の REDIRECT 残置事故（全メールが Redirect 宛先へ集約・UI/ログは成功表示）の再発防止: 一括メール画面に配信モード常時警告バナー＋送信結果/送信ログの正直化（`BULK_MEMBER_REDIRECT` 記録・抑止分を成功に数えない）。③legacy 申込者解決 `@deprecated`（v377 撤去予定）。DB migrate（`_archive` 11本新設+既存2本に列追加・追加のみ非破壊）は次回 admin ログインで自動実行。デプロイ前に DB スプレッドシート複製バックアップ実施済み。
 > 直近の経緯・各リリース詳細は §7 リリース表 と `docs/release-notes-2026.md` を正本とする（v376.40〜v376.52）。
 
@@ -19,7 +19,8 @@
   - v376.51 ロール視点プレビュー（MASTER専用）／v376.52 **会員系削除 cascade アーカイブ**（docs/249・実DB E2E 18/18 PASS・削除負債実測16行のみ）／v376.53 DRY・ハードコーディング・XFrame 一括是正（api.ts **-940行**・rbac-util/validators 集約・ID/URL の Properties override 化）／.53.1-.53.2 REDIRECT 警告バナー（live 実証済）。
   - **メール事故対応済**: 6/26〜7/3 の間 `MAIL_DELIVERY_MODE=REDIRECT` 残置で全メールが旧アドレスに集約されていた（実宛先未達）。LIVE 復旧済・再発防止バナー/ログ正直化デプロイ済。**未達期間の再送要否は運用判断が残っている可能性あり**（`T_メール送信ログ` の 6/26〜7/3 BULK_MEMBER 行を確認）。
   - 第三者評価: `docs/248`（テスト観点表・検証訂正ログ付）→ 主要 High/Med は全て是正済。残は GCP 行き（PBKDF2/性能）と小粒のみ。
-- **🚀 GCP 移行: 全体計画の正本は `docs/250`。Phase 0（GCP 側）全完了・次は Phase B（本番 GAS 接続リリース）** — 作業場は **`C:\VSCode\CloudePL\hirakatacitykyougikaiGCP`**（独立Git・GitHub private `knoguchi-ship-it/hirakatacitykyougikaiGCP`）。**本番完全分離**（切り分け規約=同作業場 AGENTS.md §1 が正本・GCP リソースは追加のみ）。
+- **🚀 GCP 移行: 全体計画の正本は `docs/250`。Phase 0＋Phase B（password-hash 接続・v376.54）完了。ターゲット構成 確定（2026-07-11・`docs/250` §12）＝次は本体移行 Phase 1〜** — 作業場は **`C:\VSCode\CloudePL\hirakatacitykyougikaiGCP`**（独立Git・GitHub private `knoguchi-ship-it/hirakatacitykyougikaiGCP`）。**本番完全分離**（切り分け規約=同作業場 AGENTS.md §1 が正本・GCP リソースは追加のみ）。
+  - **【後任はまずここ】確定ターゲット構成＝`docs/250` §12**（2026-07-11 operator 決定）: 動機=**ロード時間短縮**。DB=**Firestore**（コスト実質¥0・サーバー共有キャッシュ＋フィールド単位更新で同時編集安全化）／認証=**IAP直付け(admin)＋Firebase Auth カスタムトークン(member・既存 Cloud Run Argon2 で検証)＋匿名+App Check(public)**／hosting=**Firebase Hosting**（admin は Cloud Run に IAP 直付け）／移行順=**portal→member→admin**。検証済み事実（かな検索は純JSクライアント側フィルタ＝外部検索不要／遅さの主因は全件フルスキャン）も §12 に記録。**着手前に現行の実データ量と実ロード時間を実測**（§12.6）。実装は未着手。
   - **Phase 0 完了（2026-07-06）**: 課金リンク＋予算アラート月500円／API 有効化／Secret Manager `PASSWORD_HASH_PEPPER_V1` **値まで登録済（version 1 enabled）**／SA／**Cloud Run `hcmn-password-hash` 稼働中・healthcheck PASS**（認証付き `/health`=200・未認証=403）。状態の正本は GCP 作業場 README。
   - **Phase B（次担当者のタスク・本番リポジトリの通常リリースフロー）**: 入口は **`docs/250` §5 Phase B / §10**。password-hash 詳細設計は **`docs/240` §11**。着手前ゲートは ①audience 整合（GAS `getIdentityToken()` の aud=OAuth クライアント ID ⇔ Cloud Run custom audiences）②`ALLOWED_INVOKERS` を維持するなら `userinfo.email` scope を 3 split に追加 ③Cloud Run IAM `roles/run.invoker` の付与先を dryRun で確認した caller principal と一致 ④Secret 名不一致（GCP `PASSWORD_HASH_PEPPER_V1` vs GAS `password-hash-pepper-v1`）解消 ⑤複数 audience 拒否 test 追加。
   - **Phase B 実装順序**: `openid`/必要なら`userinfo.email` scope → token 値を出さない dryRun → Cloud Run custom audiences/IAM/env 調整 → Argon2 関数＋`verifyPassword_` 分岐 → Script Properties（`CLOUD_RUN_HASH_SERVICE_URL` / `ARGON2_ENABLED=false`）→ dryRun E2E → prerelease → 3 split redeploy → operator 承認後に `ARGON2_ENABLED=true`。
@@ -53,7 +54,9 @@
 
 ### 2-0. 次の開発予定
 
-> **GCP 移行 Phase 0 完了（2026-07-06）→ 確定した次の開発予定は Phase B（GAS 接続リリース）**: Cloud Run `hcmn-password-hash`・Secret Manager pepper は稼働準備完了（§0 / GCP 作業場 README 参照）。GCP 並走移行全体の正本は `docs/250`。password-hash の詳細設計は `docs/240` §11。Phase B 着手前に audience / `userinfo.email` / Cloud Run IAM principal / Secret 名不一致を解消する。
+> **GCP 移行: Phase 0＋Phase B（password-hash 接続・v376.54）完了。次はターゲット構成に基づく本体移行（Phase 1〜）**。**ターゲット構成は 2026-07-11 に確定＝`docs/250` §12 が実装入口**（DB=Firestore／認証=IAP(admin)+Firebase Auth カスタムトークン(member)+匿名(public)／hosting=Firebase Hosting＋admin=Cloud Run に IAP 直付け／サーバー共有キャッシュ＋フィールド単位更新／移行順 portal→member→admin）。
+> **後任の着手手順**: ①`docs/250` §12 を読む（動機＝ロード時間短縮・確定事項・検証済み事実・コスト早見）②**着手前に現行の実データ量と実ロード時間を実測**（§12.6・遅さが画面配信 A か データ取得 B かを数値化）③**Phase 1（非破壊）＝`createApiClient`/`GcpApiClient` の器づくり**（GasApiClient 既定温存・GAS E2E 通過が完了ゲート）④公開前に §11-1 DoW/EDoS 対策を消化。
+> **保留中**: GCP `ARGON2_ENABLED=true` 化（Phase B 最終・operator 承認制）／Mail・Drive の GCP 置換（Phase 4 以降）／DNS・公開 URL 方式（未決）。password-hash 詳細は `docs/240` §11。
 > それ以外の確定した開発予定は無し（下表は完了済みの直近大型機能＝履歴）。新規依頼が出たら §2-1 へ追記する。
 > ER エディタ深化は**別プロジェクト**（任意・MEMORY `project_er_editor_standalone`）で、本案件の必須予定ではない。
 
