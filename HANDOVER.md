@@ -5,8 +5,9 @@
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
 最終更新: **2026-07-11**
-最新リリース: **`v376.56`**（認証アカウント新規発行[未発行の会員本人・事業所職員へ]＋一覧に未発行ユニット表示。public @362×2 / member @121 / admin @218）
-最終作業（2026-07-11）: **GCP 移行のターゲット構成を確定**（本番 GAS は無変更・docs のみ更新）。operator 決定で **DB=Firestore／認証=IAP(admin)+Firebase Auth カスタムトークン(member)+匿名(public)／hosting=Firebase Hosting＋admin は Cloud Run に IAP 直付け** に確定。動機は**アプリのロード時間短縮**（整合性強化は主目的でない）。キャッシュ（サーバー共有）・同時編集（フィールド単位更新）・移行順（portal→member→admin）・コスト（最小構成ほぼ¥0）まで含め **`docs/250` §12（確定ターゲット構成）が後任の実装入口**。実装は未着手。前リリース v376.56 デプロイ（認証アカウント発行/リセット）は §7/release-notes 参照。
+最新リリース: **`v376.57`**（GCP 移行 Phase 1: frontend transport 分離 `createApiClient`/`GcpApiClient` の器＋`__APP_CONFIG__` 注入。**既定 GAS 経路で挙動不変（非破壊）**。public @363×2 / member @122 / admin @219）
+最終作業（2026-07-11 後半）: **v376.57 をデプロイ完了**（前セッション中断分の再開）。3 split push→version→fixed deployment 4 本 redeploy→`deployments --json` 一致確認→live E2E（公開 a11y 0・responsive 7VP・**member 7VP PASS**）。admin E2E は storageState の Google セッション失効で実行不能（既知事象・operator 実機確認は §2-1 参照）。
+同日前半: **GCP 移行のターゲット構成を確定**（docs のみ更新）。operator 決定で **DB=Firestore／認証=IAP(admin)+Firebase Auth カスタムトークン(member)+匿名(public)／hosting=Firebase Hosting＋admin は Cloud Run に IAP 直付け** に確定。動機は**アプリのロード時間短縮**（整合性強化は主目的でない）。キャッシュ（サーバー共有）・同時編集（フィールド単位更新）・移行順（portal→member→admin）・コスト（最小構成ほぼ¥0）まで含め **`docs/250` §12（確定ターゲット構成）が後任の実装入口**。実装は未着手。前リリース v376.56 デプロイ（認証アカウント発行/リセット）は §7/release-notes 参照。
 前回作業: **会員系削除の cascade アーカイブ（`docs/249`・a1 単一化）とメール誤集約事故の恒久是正をデプロイ（v376.52 / admin @212）** — ①削除コンソール実行時に会員系13テーブルを live から `*_archive` へ移動（`削除バッチID`=削除ログID・会員単位アトミック復元可）、ログイン履歴は物理 purge。旧 in-place soft delete（孤児発生源）と命名詐称 `archive*ByIds` を撤去。②2026-07-03 の REDIRECT 残置事故（全メールが Redirect 宛先へ集約・UI/ログは成功表示）の再発防止: 一括メール画面に配信モード常時警告バナー＋送信結果/送信ログの正直化（`BULK_MEMBER_REDIRECT` 記録・抑止分を成功に数えない）。③legacy 申込者解決 `@deprecated`（v377 撤去予定）。DB migrate（`_archive` 11本新設+既存2本に列追加・追加のみ非破壊）は次回 admin ログインで自動実行。デプロイ前に DB スプレッドシート複製バックアップ実施済み。
 > 直近の経緯・各リリース詳細は §7 リリース表 と `docs/release-notes-2026.md` を正本とする（v376.40〜v376.52）。
 
@@ -14,7 +15,7 @@
 
 ## 0. 次の担当者へ（キャッチアップ・まず1分でここ）
 
-- **本番**: public **@362×2** / member **@121** / admin **@218**（v376.56・§1）。全 fixed deployment 同期確認済・稼働正常（`ARGON2_ENABLED=false`＝ログイン挙動は従来 PBKDF2 と同一）。
+- **本番**: public **@363×2** / member **@122** / admin **@219**（v376.57・§1）。全 fixed deployment 同期確認済・稼働正常（`ARGON2_ENABLED=false`＝ログイン挙動は従来 PBKDF2 と同一）。GCP 移行 Phase 1（transport 分離）反映済みだが既定は GAS 経路＝挙動不変。
 - **直近セッション（2026-06-30〜07-05）の成果**（詳細 §7 / `docs/release-notes-2026.md` v376.51〜.53.2）:
   - v376.51 ロール視点プレビュー（MASTER専用）／v376.52 **会員系削除 cascade アーカイブ**（docs/249・実DB E2E 18/18 PASS・削除負債実測16行のみ）／v376.53 DRY・ハードコーディング・XFrame 一括是正（api.ts **-940行**・rbac-util/validators 集約・ID/URL の Properties override 化）／.53.1-.53.2 REDIRECT 警告バナー（live 実証済）。
   - **メール事故対応済**: 6/26〜7/3 の間 `MAIL_DELIVERY_MODE=REDIRECT` 残置で全メールが旧アドレスに集約されていた（実宛先未達）。LIVE 復旧済・再発防止バナー/ログ正直化デプロイ済。**未達期間の再送要否は運用判断が残っている可能性あり**（`T_メール送信ログ` の 6/26〜7/3 BULK_MEMBER 行を確認）。
@@ -41,10 +42,10 @@
 
 | 配信 | Deployment ID | Version |
 |---|---|---|
-| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@361** |
-| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@361** |
-| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@120** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@217** |
+| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@363** |
+| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@363** |
+| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@122** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@219** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 
@@ -54,25 +55,11 @@
 
 ### 2-0. 次の開発予定
 
-> **🔶 v376.57 release 進行中（2026-07-11 セッション切れによる中断・次担当はここから再開）**
->
-> **内容**: GCP 移行 Phase 1（docs/250 §12.7-1）＝ frontend transport 分離。`src/services/api.ts` に `createApiClient(config)` factory＋`GcpApiClient` の器（全 method は GasApiClient prototype から自動導出した未実装 reject stub）＋`window.__APP_CONFIG__` 型を追加。`scripts/compress-html.mjs` が GAS 配信 build に `window.__APP_CONFIG__={apiRuntime:'gas'}` を注入。**既定は GasApiClient のままで挙動不変（非破壊）**。gas-src/Code.gs は不変・schema 変更なし・認証変更なし。
->
-> **完了済み**: 実装 commit 済み／`npm run prerelease` 全ゲート PASS／typecheck PASS／3 split build＋生成物 grep（`__APP_CONFIG__` 注入 3/3・boot loader 契約 6 要素残存・importmap 除去）PASS／`npx clasp login` 再認証済み（invalid_rapt 解消）。
->
-> **残作業（docs/09 §3 の標準手順どおり）**:
-> 1. root で `npx clasp push --force` → `npx clasp version "v376.57 GCP migration Phase 1: createApiClient/GcpApiClient transport separation (GAS default, non-breaking)"`
-> 2. `gas/member` で同様に push→version、`gas/admin` で同様に push→version
-> 3. fixed deployment 4 本を新 version へ `npx clasp redeploy`（ID は docs/09 §2。integrated×2 は root、member/admin は各ディレクトリで）
-> 4. `npx clasp deployments --json` ×3 で version 一致確認
-> 5. live E2E 回帰: `npm run test:a11y`（違反 0）＋`npm run test:responsive`（全 VP・コールドスタートのタイムアウトはウォーム後再判定）。storageState があれば `test:responsive:member` / `test:responsive:admin` も実行
-> 6. 本欄の進行中ブロックを削除し、HANDOVER §0 の version 記録・docs/09 §7 に v376.57 release 記録を追記して commit
->
-> **ロールバック**: 問題時は直前版（public `@362`×2／member `@121`／admin `@218`）へ `npx clasp redeploy ... --versionNumber` で即時復旧。
-> **参考**: 本セッションで docs/250 に確定反映済み＝サブドメイン（portal/member）・admin=run.app・旧URL転送は Phase 6 最終・max-instances=1 採用・Cloud Armor 不採用。
+> **✅ v376.57 release 完了（2026-07-11）＝ GCP 移行 Phase 1（frontend transport 分離）デプロイ済**。公開 a11y 0・responsive 7VP・member 7VP PASS。admin は storageState の Google セッション失効で AI 実行不能→ **operator 実機確認: admin ポータルが従来どおり表示・操作できること**（transport 分離は全 split 共通の frontend 変更のため。ロールバック先 admin `@218`）。次は Phase 2 以降（`docs/250` §12.7）。
+> **参考**: 2026-07-11 前半セッションで docs/250 に確定反映済み＝サブドメイン（portal/member）・admin=run.app・旧URL転送は Phase 6 最終・max-instances=1 採用・Cloud Armor 不採用。
 
-> **GCP 移行: Phase 0＋Phase B（password-hash 接続・v376.54）完了。次はターゲット構成に基づく本体移行（Phase 1〜）**。**ターゲット構成は 2026-07-11 に確定＝`docs/250` §12 が実装入口**（DB=Firestore／認証=IAP(admin)+Firebase Auth カスタムトークン(member)+匿名(public)／hosting=Firebase Hosting＋admin=Cloud Run に IAP 直付け／サーバー共有キャッシュ＋フィールド単位更新／移行順 portal→member→admin）。**セカンドオピニオン反映（2026-07-11）**: API サービスは **max-instances=1**（Pub/Sub 通知は全インスタンスに届かず不成立と判明→1台固定でキャッシュ一貫性と DoW 課金天井を同時解決）／**Cloud Armor 不採用**（LB 必須と判明・代替=App Check+max-instances=1+予算killswitch+アプリ内レート制限）。
-> **後任の着手手順**: ①`docs/250` §12 を読む（動機＝ロード時間短縮・確定事項・検証済み事実・コスト早見）②**着手前に現行の実データ量と実ロード時間を実測**（§12.6・遅さが画面配信 A か データ取得 B かを数値化）③**Phase 1（非破壊）＝`createApiClient`/`GcpApiClient` の器づくり**（GasApiClient 既定温存・GAS E2E 通過が完了ゲート）④公開前に §11-1 DoW/EDoS 対策を消化。
+> **GCP 移行: Phase 0＋Phase B（password-hash 接続・v376.54）＋Phase 1（transport 分離・v376.57）完了。次は Phase 2 以降**。**ターゲット構成は 2026-07-11 に確定＝`docs/250` §12 が実装入口**（DB=Firestore／認証=IAP(admin)+Firebase Auth カスタムトークン(member)+匿名(public)／hosting=Firebase Hosting＋admin=Cloud Run に IAP 直付け／サーバー共有キャッシュ＋フィールド単位更新／移行順 portal→member→admin）。**セカンドオピニオン反映（2026-07-11）**: API サービスは **max-instances=1**（Pub/Sub 通知は全インスタンスに届かず不成立と判明→1台固定でキャッシュ一貫性と DoW 課金天井を同時解決）／**Cloud Armor 不採用**（LB 必須と判明・代替=App Check+max-instances=1+予算killswitch+アプリ内レート制限）。
+> **後任の着手手順**: ①`docs/250` §12 を読む（動機＝ロード時間短縮・確定事項・検証済み事実・コスト早見）②**着手前に現行の実データ量と実ロード時間を実測**（§12.6・遅さが画面配信 A か データ取得 B かを数値化・**未実施**）③~~Phase 1（非破壊）＝`createApiClient`/`GcpApiClient` の器づくり~~ **→ v376.57 で完了（2026-07-11・GAS E2E 通過済）**④公開前に §11-1 DoW/EDoS 対策を消化。
 > **保留中**: GCP `ARGON2_ENABLED=true` 化（Phase B 最終・operator 承認制）／Mail・Drive の GCP 置換（Phase 4 以降）。DNS・公開 URL 方式は**確定**（2026-07-11: Workspace 登録済みドメインのサブドメイン利用 public=`portal.<ドメイン>`/member=`member.<ドメイン>`・admin=`*.run.app` のまま・周知は旧 GAS URL の JS 自動転送で代替＝Phase 6 最終・現本番撤去時に転送ページ化、それまで旧 URL 不変更。`docs/250` §5 Phase 6/§11）。password-hash 詳細は `docs/240` §11。
 > それ以外の確定した開発予定は無し（下表は完了済みの直近大型機能＝履歴）。新規依頼が出たら §2-1 へ追記する。
 > ER エディタ深化は**別プロジェクト**（任意・MEMORY `project_er_editor_standalone`）で、本案件の必須予定ではない。
@@ -96,6 +83,7 @@
 
 | # | タスク | 詳細 / 参照 |
 |---|---|---|
+| 0 | **v376.57 admin ポータル表示の実機確認**（admin @219） | admin にログインし、①ポータルが従来どおり表示・操作できること（transport 分離は frontend 全 split 共通変更・既定 GAS 経路で挙動不変のはず）②異常があれば `npx clasp redeploy <admin ID> --versionNumber 218` で即ロールバック。AI 実行の `test:responsive:admin` は storageState の Google セッション失効（accounts.google.com へリダイレクト実測）で実行不能。**ついでに `node scripts/auth-bootstrap-admin.mjs` で storageState を再取得すると以後の admin E2E が復活**。public/member は E2E 実測済（a11y 0・各 7VP PASS） | `docs/release-notes-2026.md` v376.57 |
 | ✅ | **v376.56 認証アカウント発行/リセット機能（完了・@218/@121/@362）** | v376.55（リセット・認証ID必須）＋v376.56（発行 `adminIssueMemberCredential`）デプロイ済・公開E2E非破壊・**会員ログイン E2E 完全 PASS（2026-07-10・全7VP）**。member E2E は本機能で発行したダミー会員資格情報＋`.env.test` で稼働可能に（積年の未 PASS 解消）。**運用メモ**: 検証用ダミー会員の扱い（恒久テスト fixture として保持 or 物理削除）は operator 判断（下記 §2-1b 参照）| `docs/release-notes-2026.md` v376.55 / v376.56 |
 | 0 | **v376.52 cascade アーカイブ＋メール是正の検証**（admin @212・MASTER） | ①admin にログイン（DB migrate 自動実行: `_archive` 11本新設+既存2本に `削除バッチID` 列追加。既存データ不変）。②admin editor で `dryRunDeleteCascadeV376_52_LOG` ▶ → `passed:true`（実DB E2E: 投入→cascade→live0/archive13/purge1→復元→sweep）。③`diagnoseMemberDeleteDebt_LOG` ▶ → 削除負債（refSoftDeleted/refMissing）を実測し、バックフィル要否を判断（`docs/249 §7`）。④一括メール画面: 配信モードを一時 REDIRECT にすると画面上部＋送信確認に琥珀色警告が出ること（確認後 LIVE に戻す）。⑤削除コンソールの説明文が「アーカイブ移動」表記になっていること。※cascade は削除コンソール実行時のみ発動（通常運用に影響なし） | `docs/249` §8 |
 | 0 | **v376.51 ロール視点プレビュー 実機確認**（admin @211・MASTER のみ） | MASTER でログインし画面最上部に「👁 ロール視点プレビュー」バーが表示されること。①ドロップダウンで各ロール（管理者/研修管理者/研修登録者/一般/カスタム）を選ぶと、Sidebar が当該ロールの許可メニューだけになり「表示メニュー N件／非表示 M件」が出ること。②許可外 view を開いていた場合は許可内 view に自動退避すること。③プレビュー中に保存・送信・削除を試みると「閲覧のみ」エラーで実行されないこと（実 DB は不変）。④「プレビューを終了」で MASTER の通常表示に即復帰。⑤リロードで自動的に MASTER 表示へ戻ること。⑥360px 幅でバーが崩れないこと。※非 MASTER 管理者・会員にはバーが出ないこと。AI 実行の `test:responsive:admin` は storageState 期限切れで未 PASS のため操作者確認 | `docs/release-notes-2026.md` v376.51 |

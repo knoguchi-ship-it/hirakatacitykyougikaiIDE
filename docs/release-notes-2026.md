@@ -13,6 +13,19 @@
 
 ---
 
+## v376.57 — 2026-07-11 🔧 GCP 移行 Phase 1: frontend transport 分離（全3split @363×2 / @122 / @219・挙動不変・公開E2E＋会員E2E非破壊確認済）
+
+GCP 移行（`docs/250` §12.7 Phase 1・非破壊）の第一歩として、frontend の API 呼び出し層を transport 抽象化した。**既定は従来どおり GAS 経路（GasApiClient）で挙動不変**。gas-src/Code.gs・DB schema・認証は一切不変。
+
+- **`src/services/api.ts` に `createApiClient(config)` factory** 🔧: `window.__APP_CONFIG__.apiRuntime` が `'gcp'` のときのみ `GcpApiClient` を返し、それ以外（`'gas'`・未設定・不正値）は従来の `GasApiClient` を返す fail-safe 設計。
+- **`GcpApiClient` の器**: 全 method を GasApiClient prototype から自動導出した未実装 reject stub として用意（Phase 2 以降で実装を差し替え）。現時点で本番から到達不能。
+- **`window.__APP_CONFIG__` 型定義追加**＋`scripts/compress-html.mjs` が GAS 配信 build に `window.__APP_CONFIG__={apiRuntime:'gas'}` を注入（3 split 生成物 grep で 3/3 確認）。
+- **検証**: `prerelease` 全ゲート PASS／typecheck PASS／3 split build 再現性確認（rebuild 後 `git status` clean）／生成物 grep（`__APP_CONFIG__` 3/3・`var テーブル定義` 3/3・boot loader splash 残存・デプロイ生成物の importmap 除去）PASS。
+- **デプロイ後 live E2E**: 公開 `test:a11y` 違反 0／`test:responsive` 全 7VP PASS（横スクロールなし・タップターゲット 44px 以上）／**`test:responsive:member` 全 7VP PASS**（ダミー会員 fixture 経由・新 @122 で会員ログイン〜描画の非破壊を実証）。`test:responsive:admin` は storageState が Google セッション失効（accounts.google.com へリダイレクト実測）で実行不能＝**admin 実機確認は operator タスク**（v376.48 と同一の既知事象・v376.57 起因ではない）。
+- ロールバック先: public `@362`×2／member `@121`／admin `@218`。
+
+---
+
 ## v376.56 — 2026-07-10 🆕 認証アカウントの新規発行（未発行の会員本人・事業所職員へ）（全3split @362×2 / @121 / @218・公開E2E非破壊確認済／会員ログインE2Eはoperator検証待ち）
 
 v376.55 のパスワードリセットは「既存の認証アカウント」しか対象にできず、①一度も認証発行されていない会員 ②公開ポータルで後から追加された事業所職員（`addPublicStaffMember_` は認証を作らない設計）③テスト会員 に対して**パスワードを発行できない**という制約があった（operator 指摘）。これを解消する「発行」機能を追加。

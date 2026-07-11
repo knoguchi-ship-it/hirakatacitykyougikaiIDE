@@ -19,15 +19,15 @@ Production: `v376.50` / integrated-public `@358` x2 / member split `@117` / admi
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@358` (`v376.43.1` artifact; current production set `v376.46`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@358` (`v376.43.1` artifact; current production set `v376.46`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@363` (`v376.57`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@363` (`v376.57`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@117` (`v376.43.1` artifact; current production set `v376.46`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@210` (`v376.50`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@122` (`v376.57`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@219` (`v376.57`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -144,7 +144,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-06-26 `v376.50` ← current production
+### 2026-07-11 `v376.57` ← current production
+- Scope: GCP 移行 Phase 1（docs/250 §12.7-1）frontend transport 分離。`src/services/api.ts` に `createApiClient(config)` factory＋`GcpApiClient` の器（未実装 reject stub）＋`window.__APP_CONFIG__` 型を追加し、`scripts/compress-html.mjs` が GAS 配信 build に `apiRuntime:'gas'` を注入。既定は GasApiClient のままで挙動不変（非破壊）。gas-src/Code.gs・DB schema・認証は不変。全 3 split 更新。
+- Integrated fixed deployments: `@363` x2 ／ Member split: `@122` ／ Admin split: `@219`
+- Verification: `prerelease` 全ゲート / typecheck / 3 split build 再現性（rebuild 後 git clean） / 生成物 grep（`__APP_CONFIG__` 3/3・`var テーブル定義` 3/3・boot splash 残存・importmap 除去）PASS。3 project の `npx clasp deployments --json` で @363×2/@122/@219 同期確認。デプロイ後 live: 公開 `test:a11y` 違反 0・`test:responsive` 全 7VP PASS・`test:responsive:member` 全 7VP PASS（新 @122 で会員ログイン〜描画非破壊）。`test:responsive:admin` は storageState の Google セッション失効（accounts.google.com リダイレクト実測）で実行不能のため、admin 実機確認は操作者タスク（v376.48 と同一の既知事象）。
+- Rollback: public `@362` x2 ／ member `@121` ／ admin `@218` へ `npx clasp redeploy --versionNumber`。
+- Detail: `docs/release-notes-2026.md` v376.57。
+
+### 2026-06-26 `v376.50`
 - Scope: REDIRECT モードの件名・本文注釈を廃止。宛先は allowlist に集約しつつ、件名・本文は実送信時と同じ表示にする。元宛先・カテゴリは Apps Script log に記録。DB schema 不変、admin split のみ更新。
 - Integrated fixed deployments: `@358` x2 ／ Member split: `@117` ／ Admin split: `@210`
 - Verification: `build:gas:admin` / REDIRECT 注釈文字列 grep（該当なし） / admin 生成物の `var テーブル定義` and `processApiRequest` grep / `typecheck` / `test:mailing-list` / `prerelease` PASS。admin `npx clasp deployments --json` で `@210` 同期確認。操作者実機確認で REDIRECT 注釈が表示されないことを確認済。
