@@ -18,6 +18,7 @@ import {
   LinePostAttachmentUploadResult,
 } from '../shared/types';
 import { EMAIL_PATTERN, PHONE_PATTERN, CARE_MANAGER_NO_PATTERN } from '../shared/validators';
+import { callGcpApi } from '../shared/api-base';
 import { AdminDashboardData, AdminPermissionData, AnnualFeeAdminData, AnnualFeeAdminRecord, RoleDefinition, MenuRegistryEntry } from '../types';
 
 export interface TrainingMailPayload {
@@ -1301,6 +1302,18 @@ class GcpApiClient {
   setMemberSessionToken(token: string | null): void {
     this.memberSessionToken = token;
   }
+
+  // docs/250 Phase 3: read-only action に限る fetch transport（PHASE3_DESIGN §3）。
+  // allowlist（GCP_READ_ACTIONS）外は callGcpApi 側で deny-by-default reject するため、
+  // ApiClient interface の各 method は下の stub 導出ループの「未実装」reject のまま変わらない。
+  // member read 拡張（PHASE3_DESIGN §6）はこの呼び口に Authorization を差し替えて使う。
+  callAction<T>(action: string, payload: unknown): Promise<T> {
+    return callGcpApi<T>(action, payload, {
+      apiRuntime: 'gcp',
+      apiBaseUrl: this.apiBaseUrl,
+      apiAuthToken: typeof window !== 'undefined' ? window.__APP_CONFIG__?.apiAuthToken : undefined,
+    });
+  }
 }
 // ApiClient 全 method の stub を GasApiClient の prototype から導出して張る。
 // 手書きの写経をしないことで、interface へ method が増えても GCP 側が型ごと追随し
@@ -1321,6 +1334,8 @@ export interface AppRuntimeConfig {
   apiRuntime?: ApiRuntime;
   /** GCP runtime 専用の API base URL。GAS 配信では設定しない */
   apiBaseUrl?: string;
+  /** GCP runtime のローカル検証専用 Bearer token。build 生成物には決して注入しない（PHASE3_DESIGN §3） */
+  apiAuthToken?: string;
 }
 
 declare global {
