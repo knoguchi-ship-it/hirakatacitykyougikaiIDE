@@ -631,7 +631,7 @@ member → Firebase Hosting(SPA) → Cloud Run(member API) → Firestore
           └ ログイン: 既存 Cloud Run Argon2(/v1/verify) で検証 → Firebase Auth カスタムトークン発行
 public → Firebase Hosting(SPA) → Cloud Run(public API・匿名+App Check。Cloud Armor は不採用=LB 必須と判明・2026-07-11) → Firestore
 DB          : Firestore（Native mode）
-Backup(DR)  : Firestore ネイティブ（PITR 7日＋スケジュールバックアップ 最大14週。※無料枠対象外＝課金必須機能。1GiB 規模なら月数十円程度）
+Backup(DR)  : ~~Firestore ネイティブ（PITR 7日＋スケジュールバックアップ 最大14週）~~ → **operator 決定（2026-07-19）: Phase 4 入口からは一旦除外し、バックアップは別設計で検討する**（PITR/スケジュールバックアップは無料枠対象外＝課金必須機能のため採否含め別途判断。Phase 4 で write を GCP へ移す前に代替バックアップ設計を確定させること＝write 移行の前提条件として残す）
 Analytics   : BigQuery（任意・extension で増分ミラー・ログ/帳票/監査分析。※アプリ稼働DBには使わない）
 Operator可読: Spreadsheet 定期エクスポート（任意・目視/確認用の二次コピー・DR用ではない）
 Secret      : Secret Manager（pepper 既存）
