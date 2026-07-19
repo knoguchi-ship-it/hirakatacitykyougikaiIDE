@@ -19,15 +19,15 @@ Production: `v376.50` / integrated-public `@358` x2 / member split `@117` / admi
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@363` (`v376.57`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@363` (`v376.57`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@364` (`v376.58`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@364` (`v376.58`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@122` (`v376.57`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@219` (`v376.57`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@123` (`v376.58`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@220` (`v376.58`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -144,7 +144,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-07-11 `v376.57` ← current production
+### 2026-07-19 `v376.58` ← current production
+- Scope: GCP 移行 Phase 3（docs/250 §5・GCP 作業場 PHASE3_DESIGN §3）GcpApiClient read 実装。`src/shared/api-base.ts` の `callApi` に runtime 分岐（'gcp' 明示 config 時のみ `callGcpApi` fetch・allowlist は portal-api と同一の public 2 read action・allowlist 外 deny-by-default reject）、`GcpApiClient.callAction` を `callGcpApi` 委譲で実装、`AppRuntimeConfig.apiAuthToken`（ローカル検証専用・生成物非注入）追加。既定 'gas' 不変＝GAS 配信挙動不変。gas-src/Code.gs・DB schema・認証は不変。全 3 split 更新。
+- Integrated fixed deployments: `@364` x2 ／ Member split: `@123` ／ Admin split: `@220`
+- Verification: 新設 `test:gcp-transport` unit 10/10 を prerelease 連鎖へ追加し全ゲート PASS。3 split 生成物 grep（`__APP_CONFIG__={apiRuntime:'gas'}` のみ・apiAuthToken 値非注入・`var テーブル定義` 3/3・boot splash 残存・importmap 除去）PASS。3 project の `npx clasp deployments --json` で @364×2/@123/@220 同期確認。デプロイ後 live: 公開 `test:a11y` 違反 0・`test:responsive` 全 7VP PASS。member/admin は書込フロー変更なし（stub 到達不能）のため公開 E2E＋prerelease で非破壊判定。
+- Rollback: public `@363` x2 ／ member `@122` ／ admin `@219` へ `npx clasp redeploy --versionNumber`。
+- Detail: `docs/release-notes-2026.md` v376.58。
+
+### 2026-07-11 `v376.57`
 - Scope: GCP 移行 Phase 1（docs/250 §12.7-1）frontend transport 分離。`src/services/api.ts` に `createApiClient(config)` factory＋`GcpApiClient` の器（未実装 reject stub）＋`window.__APP_CONFIG__` 型を追加し、`scripts/compress-html.mjs` が GAS 配信 build に `apiRuntime:'gas'` を注入。既定は GasApiClient のままで挙動不変（非破壊）。gas-src/Code.gs・DB schema・認証は不変。全 3 split 更新。
 - Integrated fixed deployments: `@363` x2 ／ Member split: `@122` ／ Admin split: `@219`
 - Verification: `prerelease` 全ゲート / typecheck / 3 split build 再現性（rebuild 後 git clean） / 生成物 grep（`__APP_CONFIG__` 3/3・`var テーブル定義` 3/3・boot splash 残存・importmap 除去）PASS。3 project の `npx clasp deployments --json` で @363×2/@122/@219 同期確認。デプロイ後 live: 公開 `test:a11y` 違反 0・`test:responsive` 全 7VP PASS・`test:responsive:member` 全 7VP PASS（新 @122 で会員ログイン〜描画非破壊）。`test:responsive:admin` は同日 operator ログインで storageState 再取得後に実行し、全 7VP × 8 コンソール = 56 view 全 PASS（横スクロール 0・タップターゲット違反 0・console error 0）。3 split すべてで非破壊を機械検証済。

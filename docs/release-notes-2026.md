@@ -13,6 +13,18 @@
 
 ---
 
+## v376.58 — 2026-07-19 🔧 GCP 移行 Phase 3: GcpApiClient read 実装（全3split @364×2 / @123 / @220・既定 GAS 経路で挙動不変・公開E2E非破壊確認済）
+
+GCP 移行 Phase 3（`docs/250` §5・GCP 作業場 `docs/PHASE3_DESIGN.md` §3）: Phase 1 で用意した transport の器に、**read-only 2 action に限る fetch 実装**を追加した。**既定は従来どおり GAS 経路（GasApiClient）で挙動不変**。gas-src/Code.gs・DB schema・認証は一切不変。
+
+- **`src/shared/api-base.ts` に GCP runtime 分岐** 🔧: `callApi` は `window.__APP_CONFIG__.apiRuntime==='gcp'` の明示時のみ `callGcpApi`（`POST {apiBaseUrl}/api {action,payload}` → GAS 同一 `{success,data|error}` envelope unwrap）へ。**allowlist は portal-api サーバー側と同一の `getPublicTrainings`/`getPublicPortalSettings` のみ**で、allowlist 外 action は fetch を呼ばず deny-by-default reject（クライアント/サーバー二重防御）。
+- **`GcpApiClient.callAction` 実装** 🔧: `callGcpApi` への委譲（PHASE3_DESIGN §6 member-read 拡張の呼び口）。`ApiClient` interface の各 method は stub「未実装」reject のまま＝member/admin 挙動不変。`AppRuntimeConfig.apiAuthToken`（ローカル検証専用 Bearer・build 生成物へ非注入）を追加。
+- **検証**: 新設 `test:gcp-transport` unit 10/10（envelope unwrap／HTTP エラー経路／apiBaseUrl 未設定／deny-by-default／runtime 分岐＝既定 GAS 経路不変）を prerelease 連鎖に追加し全ゲート PASS。3 split 生成物 grep（`__APP_CONFIG__={apiRuntime:'gas'}` のみ 3/3・apiAuthToken 値非注入・`var テーブル定義` 3/3・boot splash 残存・importmap 除去）PASS。
+- **デプロイ後 live E2E**: 公開 `test:a11y` 違反 0／`test:responsive` 全 7VP PASS。member/admin は書込フロー変更なし（transport 追加のみ・stub 到達不能）のため公開 E2E＋prerelease で非破壊を判定。
+- ロールバック先: public `@363`×2／member `@122`／admin `@219`。
+
+---
+
 ## v376.57 — 2026-07-11 🔧 GCP 移行 Phase 1: frontend transport 分離（全3split @363×2 / @122 / @219・挙動不変・公開E2E＋会員E2E非破壊確認済）
 
 GCP 移行（`docs/250` §12.7 Phase 1・非破壊）の第一歩として、frontend の API 呼び出し層を transport 抽象化した。**既定は従来どおり GAS 経路（GasApiClient）で挙動不変**。gas-src/Code.gs・DB schema・認証は一切不変。
