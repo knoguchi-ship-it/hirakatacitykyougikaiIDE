@@ -324,6 +324,162 @@ Rollback:
 
 GCP API は GAS API を無理に永続化しない。ただし移行期は frontend から見える contract を一致させる。
 
+### 6.1 ApiClient 全 method 棚卸し分類表（Phase 3 §7-5・2026-07-19 作成）
+
+`src/services/api.ts` の `ApiClient` interface 全 **125 method** を機械抽出し分類した（分類のみ・実装しない）。公開ポータルが `src/shared/api-base.ts` の `callApi` で直接呼ぶ interface 外 action は表末尾の補遺に記載。
+
+分類の凡例:
+- **✅済**: Phase 3 で GCP read 実装済（portal-api allowlist）
+- **P3-shadow**: read-only。member/admin read の shadow 候補（member 系は Firebase Auth カスタムトークン設計 §12.3 が前提、admin 系は IAP 設計が前提）
+- **P4-write**: Phase 4 以降の write 対象
+- **GAS残留**: 移行期は GAS 残留（GAS 固有サービス依存: Drive / Gmail / Gemini / シート直結修復。最終処遇は Phase 4 入口で再判定）
+- **廃止候補**: 置換予定（§12 確定構成で不要になる）
+- **transport内部**: API ではなくクライアント内部 setter
+
+| # | method | 分類 | 備考 |
+|---|---|---|---|
+| 1 | setMemberSessionToken | transport内部 | session token 保持のみ・サーバー到達なし |
+| 2 | fetchAllData | 廃止候補 | 全件フルスキャン（325KB・遅さの主因 §12.6）。§12 の細粒度 read へ置換 |
+| 3 | getMemberPortalData | P3-shadow (member) | 会員マイページ主 read。認証設計 §12.3 先行が前提 |
+| 4 | getAdminDashboardData | P3-shadow (admin) | |
+| 5 | getAdminInitData | P3-shadow (admin) | dashboard+settings 統合 read |
+| 6 | getTrainingManagementData | P3-shadow (admin) | |
+| 7 | updateMember | P4-write | |
+| 8 | updateMemberSelf | P4-write | member 認証必須 |
+| 9 | changePassword | P4-write | Phase B（password-hash Cloud Run）連携 |
+| 10 | getMemberAuthAccounts | P3-shadow (admin) | 認証メタのみ・hash 値は返さない |
+| 11 | adminResetMemberPassword | P4-write | 平文初期 PW 発行経路＝§0 規律の最重要 write |
+| 12 | adminIssueMemberCredential | P4-write | 同上 |
+| 13 | requestPasswordReset | P4-write | メール送信副作用（移行期の送信自体は GAS MailApp） |
+| 14 | completePasswordReset | P4-write | |
+| 15 | getSystemSettings | P3-shadow (admin) | |
+| 16 | updateSystemSettings | P4-write | |
+| 17 | getAnnualFeeAdminData | P3-shadow (admin) | |
+| 18 | saveAnnualFeeRecord | P4-write | |
+| 19 | saveAnnualFeeRecordsBatch | P4-write | |
+| 20 | memberLogin | P4-write（認証置換） | §12.3 Firebase Auth カスタムトークンへ置換予定 |
+| 21 | checkAdminBySession | GAS残留→認証置換 | Google セッション依存。§12.3 IAP 直付けへ置換予定 |
+| 22 | getAdminPermissionData | P3-shadow (admin) | |
+| 23 | saveAdminPermission | P4-write | |
+| 24 | deleteAdminPermission | P4-write | |
+| 25 | listRoles | P3-shadow (admin) | |
+| 26 | saveRole | P4-write | |
+| 27 | deleteRole | P4-write | |
+| 28 | duplicateRole | P4-write | |
+| 29 | saveTraining | P4-write | |
+| 30 | softDeleteTraining | P4-write | |
+| 31 | restoreTraining | P4-write | |
+| 32 | uploadTrainingFile | GAS残留 | Drive 保存。GCS 置換は Phase 4 入口で判定 |
+| 33 | getFileThumbnail | GAS残留 | Drive thumbnail proxy（hotlink 回避） |
+| 34 | regenerateThumbnailForTraining | GAS残留 | Drive 依存 |
+| 35 | applyTraining | P4-write | Contract test 必須（§6 冒頭） |
+| 36 | cancelTraining | P4-write | |
+| 37 | getTrainingApplicants | P3-shadow (admin) | |
+| 38 | getAdminEmailAliases | GAS残留 | GmailApp alias 列挙に依存 |
+| 39 | sendTrainingMail | GAS残留 | Gmail 送信。メール基盤移行は Phase 4 以降の独立判断 |
+| 40 | getTrainingRosterDetail | P3-shadow (admin) | |
+| 41 | saveAttendance | P4-write | |
+| 42 | saveAttendanceBatch | P4-write | |
+| 43 | addRosterEntry | P4-write | |
+| 44 | addGuestRosterEntry | P4-write | |
+| 45 | cancelRosterEntry | P4-write | |
+| 46 | updateRosterEntry | P4-write | |
+| 47 | getTrainingStats | P3-shadow (admin) | |
+| 48 | withdrawMember | P4-write | |
+| 49 | withdrawSelf | P4-write | |
+| 50 | cancelWithdrawalSelf | P4-write | |
+| 51 | submitMemberApplication | P4-write | 公開 write＝DoW ゲート §11-1 消化が前提 |
+| 52 | removeStaffFromOffice | P4-write | |
+| 53 | getAdminPersonList | P3-shadow (admin) | |
+| 54 | updatePersonsBatch | P4-write | |
+| 55 | convertMemberType | P4-write | |
+| 56 | scheduleWithdrawMember | P4-write | |
+| 57 | cancelScheduledWithdraw | P4-write | |
+| 58 | updateStaff | P4-write | |
+| 59 | generateTrainingEmail | GAS残留 | GAS サーバー側 Gemini API 呼び出し |
+| 60 | getMembersForBulkMail | P3-shadow (admin) | |
+| 61 | sendBulkMemberMail | GAS残留 | Gmail 送信・REDIRECT/allowlist 運用と一体 |
+| 62 | getEmailSendLog | P3-shadow (admin) | |
+| 63 | getMailingListTargets | P3-shadow (admin) | |
+| 64 | generateMailingListExcel | GAS残留 | Drive 上の Excel 生成 |
+| 65 | getCredentialEmailTemplates | P3-shadow (admin) | |
+| 66 | saveCredentialEmailTemplate | P4-write | |
+| 67 | deleteCredentialEmailTemplate | P4-write | |
+| 68 | listMailTemplates | P3-shadow (admin) | |
+| 69 | saveMailTemplate | P4-write | |
+| 70 | deleteMailTemplate | P4-write | |
+| 71 | getBulkMailTemplates | P3-shadow (admin) | |
+| 72 | saveBulkMailTemplate | P4-write | |
+| 73 | deleteBulkMailTemplate | P4-write | |
+| 74 | searchMembersForDelete | P3-shadow (admin) | MASTER 専用 |
+| 75 | previewDeleteMember | P3-shadow (admin) | read（プレビュー）・MASTER 専用 |
+| 76 | executeDeleteMember | P4-write | 不可逆系＝§9 rollback 設計必須・MASTER 専用 |
+| 77 | getDeleteLogs | P3-shadow (admin) | |
+| 78 | repairDuplicateStaffRecords | GAS残留 | シート直結の修復運用ツール（MASTER） |
+| 79 | repairTrainingApplicationApplicantIds | GAS残留 | 同上 |
+| 80 | repairMemberCareManagerDuplicates | GAS残留 | 同上 |
+| 81 | getOfficerMasterData | P3-shadow (member/admin) | |
+| 82 | saveOrganization | P4-write | |
+| 83 | deleteOrganization | P4-write | |
+| 84 | saveOfficerRole | P4-write | |
+| 85 | deleteOfficerRole | P4-write | |
+| 86 | savePaymentType | P4-write | |
+| 87 | deletePaymentType | P4-write | |
+| 88 | saveWorkCategory | P4-write | |
+| 89 | deleteWorkCategory | P4-write | |
+| 90 | getOfficerManagementData | P3-shadow (admin) | |
+| 91 | assignOfficer | P4-write | |
+| 92 | resignOfficer | P4-write | |
+| 93 | updateOfficerLinkage | P4-write | |
+| 94 | updateOfficerRecord | P4-write | |
+| 95 | getAdminBankAccount | P3-shadow (admin) | 口座情報＝機微。shadow 時も値非ログ規律を維持 |
+| 96 | saveAdminBankAccount | P4-write | |
+| 97 | deleteAdminBankAccount | P4-write | |
+| 98 | getPaymentHistory | P3-shadow (admin) | |
+| 99 | savePayment | P4-write | |
+| 100 | deletePayment | P4-write | |
+| 101 | getMyOfficerStatus | P3-shadow (member) | |
+| 102 | saveMyBankAccount | P4-write | |
+| 103 | getMyClaims | P3-shadow (member) | |
+| 104 | submitClaim | P4-write | |
+| 105 | deleteMyClaim | P4-write | |
+| 106 | uploadClaimAttachment | GAS残留 | Drive 添付 |
+| 107 | removeClaimAttachment | GAS残留 | Drive 添付 |
+| 108 | getClaims | P3-shadow (admin) | |
+| 109 | approveClaim | P4-write | |
+| 110 | rejectClaim | P4-write | |
+| 111 | adminDeleteClaim | P4-write | |
+| 112 | getSharedMemo | P3-shadow (admin) | |
+| 113 | saveSharedMemo | P4-write | 楽観ロック version 付き |
+| 114 | getRosterFieldDictionary | P3-shadow (admin) | |
+| 115 | getRosterDesignerData | P3-shadow (admin) | |
+| 116 | loadRosterTemplatesV2 | P3-shadow (admin) | |
+| 117 | saveRosterTemplateV2 | P4-write | |
+| 118 | deleteRosterTemplateV2 | P4-write | |
+| 119 | duplicateRosterTemplateV2 | P4-write | |
+| 120 | listLinePostRequests | P3-shadow (admin) | |
+| 121 | getLinePostRequest | P3-shadow (admin) | |
+| 122 | saveLinePostRequest | P4-write | |
+| 123 | uploadLinePostAttachment | GAS残留 | Drive 添付 |
+| 124 | transitionLinePostRequest | P4-write | |
+| 125 | deleteLinePostRequest | P4-write | |
+
+集計: ✅済 0（interface 外の公開 2 action が済）／P3-shadow 41（member 4・admin 36・member/admin 1）／P4-write 66／GAS残留 15／廃止候補 1／transport内部 1／認証置換系 2（#20 #21 は P4-write・GAS残留に重複計上）。
+
+**補遺: interface 外の公開ポータル action（`src/shared/api-base.ts` `callApi` 直呼び）**
+
+| action | 分類 | 備考 |
+|---|---|---|
+| getPublicTrainings | **✅済（v376.58）** | portal-api allowlist・shadow 済 |
+| getPublicPortalSettings | **✅済（v376.58）** | 同上 |
+| verifyMemberIdentityForPublic | P4-write（公開） | 本人確認 token 発行。DoW ゲート §11-1 前提 |
+| getPublicAvailableStaffSlots | P3-shadow (public) | token 必須 read |
+| getPublicEnrolledStaffList | P3-shadow (public) | token 必須 read |
+| submitPublicChangeRequest | P4-write（公開） | DoW ゲート前提 |
+| applyTrainingExternal | P4-write（公開） | DoW ゲート前提 |
+| cancelTrainingExternal | P4-write（公開） | DoW ゲート前提 |
+| getFileThumbnail（公開経路） | GAS残留 | Drive proxy（#33 と同一実装） |
+
 ## 7. Security / Auth 方針
 
 ### GAS -> Cloud Run
