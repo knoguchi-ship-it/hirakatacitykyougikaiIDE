@@ -597,7 +597,7 @@ GCP 完全移行で public/member を GCP 上に公開した後は、従量課�
 - [—] **クォータ上限**: リソース使用量に上限（通常使用の少し上・暴走時の天井）。予算アラートより即効性のある安全網。**2026-07-22 operator 決定＝現段階スキップ（公開直前に App Check とセットで再検討）**: max-instances=1 が compute 課金天井を構造的に固定済み・未認証到達経路がまだ無い・Firestore 操作は無料枠＋予算¥500＋killswitch の三重で保護済みのため、いま明示クォータを載せる実益が小さい。
 - [ ] **Cloud Run max instances 上限**: 同時起動数を制限し課金天井を構造的に固定（現行 password-hash は max 3）。min instances 0 で待機課金ゼロを維持。**→ 新 API サービスは max-instances=1 で確定（2026-07-11・§12.4。キャッシュ一貫性と課金天井を同時に解決）**。
 - ~~Cloud Armor（WAF + レート制限）~~ **不採用（2026-07-11 決定）**: Cloud Armor は外部 Application LB が必須で Cloud Run 直付け不可と検証で判明（月 $18〜25 の LB 費用がコスト目標と矛盾）。代替 = App Check + max-instances=1 + 予算 killswitch + アプリ内レート制限。Firebase Hosting 静的配信は Google エッジの DDoS 吸収で元々保護あり。
-- [ ] **コスト意識型レート制限（アプリ内実装）**: リクエスト数だけでなくトークン/リソース消費量ベースで絞る（すり抜け型対策）。Cloud Armor 不採用のため public API 内のレート制限実装は必須。
+- [進行中] **コスト意識型レート制限（アプリ内実装）**: リクエスト数だけでなくトークン/リソース消費量ベースで絞る（すり抜け型対策）。Cloud Armor 不採用のため public/member API 内のレート制限実装は必須。**member 認証向けに多層防御を具体化（2026-07-22・詳細は GCP 作業場 `docs/PHASE4_DESIGN.md` §4b-1 が正本）**: 第0層=max-instances=1 の単一インメモリ・レート制限（IP/loginID/全体の3層・超過は Firestore/ログ書込なしで 429）／第3層=高頻度イベントは Cloud Logging・Firestore auditLogs は有界な遷移のみ／第4層=**アカウント単位・日次ログイン上限（既定100・loginID 単位・超過で翌JST日まで自動解除ロック）**で有効資格情報の濫用経路を封鎖。列挙リーク是正（外部エラー統一）・ロック時 refresh token 失効・入力長上限も同設計に含む。
 - [ ] **認証をエッジへ寄せる**: IAM/IAP で弾けるものは弾く（未認証はコンテナ未到達＝課金外）。admin 境界は §7 の原則どおり IAP/IAM + グループ最小付与。
 - [ ] **egress 抑制**: 静的コンテンツは CDN キャッシュ、大容量ダウンロードに上限・認証。
 - [ ] **異常検知**: Cloud Audit Logs / 課金メトリクスの急変監視・アラート。
@@ -641,7 +641,7 @@ Mail/Drive  : 移行期は GAS bridge 維持（Phase 4 以降で置換判断）
 ### 12.3 認証（境界ごとに分離・混在禁止＝docs/109/111 準拠）
 
 - **admin**: **IAP を Cloud Run に直接有効化**（2026 はワンクリック・LB不要・追加費用なし）。※IAP は Firebase Hosting 静的配信は保護できないため admin は Cloud Run 配信にする。IAP は「admin グループの一員か」の粗いゲートのみで、**メニュー単位 RBAC（docs/246）はサーバー側で継続強制**（ロール表を Firestore に保持）。付与は **Google グループ単位の最小付与・ドメイン全体付与禁止**（§7）。
-- **member**: **Firebase Auth カスタムトークン**。loginID+パスワードを我々のデータ＋**既存 Cloud Run Argon2 サービス**で検証し、成功時にカスタムトークン発行（uid=会員ID）。クラシック Firebase Auth は無料。※新 member API の SA を hash サービスの `ALLOWED_INVOKERS`＋custom audiences に追加（追加のみ）。PBKDF2 は Node ローカル・argon2 は hash サービス委譲で現 `verifyPassword_` と等価に。
+- **member**: **Firebase Auth カスタムトークン**。loginID+パスワードを我々のデータ＋**既存 Cloud Run Argon2 サービス**で検証し、成功時にカスタムトークン発行（uid=会員ID）。クラシック Firebase Auth は無料。※新 member API の SA を hash サービスの `ALLOWED_INVOKERS`＋custom audiences に追加（追加のみ）。PBKDF2 は Node ローカル・argon2 は hash サービス委譲で現 `verifyPassword_` と等価に。**承認 #4=承認済（2026-07-22）で着手（member 先行・Firebase Auth 有効化済）。並走中は検証専用（失敗カウンタ=インメモリ・ロック/最終ログインはカットオーバーまでシート正本）。Firestore アクセスは API 経由のみ（クライアント直アクセス不可・Security Rules 全拒否）。脅威モデルと多層防御の正本は GCP 作業場 `docs/PHASE4_DESIGN.md` §4b-1**（§11-1 と相互参照）。
 - **public**: 匿名＋App Check/reCAPTCHA＋max-instances=1 の課金天井＋予算 killswitch＋アプリ内レート制限（DoW 対策・§11-1）。**Cloud Armor は不採用**（2026-07-11 検証: Cloud Armor は外部 Application LB にしか付けられず Cloud Run 直付け不可。LB は月 $18〜25 でコスト目標と矛盾。Firebase Hosting の静的配信は Google エッジで DDoS 吸収されるため元々保護あり）。
 
 ### 12.4 DB＝Firestore：コスト・キャッシュ・同時編集の確定方針
