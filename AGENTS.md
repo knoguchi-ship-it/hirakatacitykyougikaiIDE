@@ -129,6 +129,18 @@
 - **再生成コマンド**: `npm run build:docs-portal`（`scripts/generate-er.mjs` で docs/03 ER を再生成後、`scripts/build-docs-portal.mjs` が `docs/portal/` を生成）。スキーマ・仕様を更新したら必ず実行し、`npm run test:er-sync` で ER とテーブル定義の整合を確認する。
 - **文字コードと文字化け**: §3 の「文書作成・更新時の文字コード統一」「文字化け復旧優先」が本 subsection 配下のドキュメント全てに適用される（HTML / Markdown / text 全て UTF-8）。
 
+### 4.7 開発拠点と保守モード（2026-08-02 operator 決定）
+
+- **本リポジトリ（GAS 本番）は「保守モード」に移行した**。新規機能開発の拠点は GCP 作業場 `C:\VSCode\CloudePL\hirakatacitykyougikaiGCP`（独立 Git・GitHub private `knoguchi-ship-it/hirakatacitykyougikaiGCP`）とする。
+- **保守モードの定義（受ける／受けない）**:
+  - **受ける**: 障害・不具合の修正、セキュリティ是正、運用要求（メール文言・権限付与・設定値・データ修正など）、GCP 移行に必要な本番側の接続作業（Phase B のような GAS→GCP 接続、Phase 6 の転送化）、ドキュメント正本の更新。
+  - **受けない（原則）**: 新規の大型機能追加・大規模リファクタ。移行対象（`docs/250` §6.1 の未移行 write 66 method）を増やし Phase 4〜5 のコストを膨らませるため。**どうしても必要な場合は、GCP 側へ二重実装する前提と工数を operator に説明した上で承認を取る**。
+- **保守モードは「凍結（変更禁止）」ではない**。本番 GAS 3 split は全業務機能の**唯一の稼働系**であり、いつでもリリースできる状態を維持する。したがって以下は保守モード中も従来どおり必須とする:
+  - §5 の完了条件（prerelease 全ゲート → 3 split 生成物 grep → push/version/redeploy → live E2E → 正本更新）。「保守だから簡略化してよい」は成立しない。
+  - `HANDOVER.md` §1 の fixed deployment 4 本の同期維持と、ロールバック先 version の把握。
+- **凍結（変更禁止）への移行時期**: `docs/250` §5 Phase 6 の「旧 GAS URL の JS 自動転送化」＝GAS アプリ本体の廃止と同時に判断する。転送化後も現行 fixed deployment は一定期間 fallback として残すため、**Phase 6 到達までは凍結しない**。
+- **正本の所在（二重管理しない）**: GCP 側の実装状態・再開手順は GCP 作業場 `README.md` と `docs/*` を正本とし、本リポジトリ `HANDOVER.md` には「存在と参照」だけを書く。逆に移行計画全体（`docs/250`）と本番 GAS の現況は本リポジトリを正本とする。
+
 ## 5. 完了条件
 - 「動いた」だけでは完了としない。
 - release 完了条件は `build -> push -> version -> fixed deployment sync -> verification -> document update`。
