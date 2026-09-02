@@ -96,9 +96,9 @@
 
 | 文書 | 内容 |
 |---|---|
+| [256_RELEASE_STATE_v376.63_2026-09-02.md](256_RELEASE_STATE_v376.63_2026-09-02.md) | v376.63 管理画面の日本語表記統一・保守モード解除 |
 | [254_RELEASE_STATE_v376.62_2026-09-02.md](254_RELEASE_STATE_v376.62_2026-09-02.md) | v376.62 テンプレート一覧取得失敗の是正・build pruner 根本修正 |
 | [253_RELEASE_STATE_v376.61_2026-09-02.md](253_RELEASE_STATE_v376.61_2026-09-02.md) | v376.61 研修 endTime 実害バグ是正 |
-| [252_RELEASE_STATE_v376.60_2026-09-02.md](252_RELEASE_STATE_v376.60_2026-09-02.md) | v376.60 メール設定・自動送信の是正 |
 
 > **これ以前のリリース記録は [`archive/release_history/`](archive/00_ARCHIVE_INDEX.md) に移した**（143 件）。
 > 「いつ何が入ったか」は release-notes-2026.md を見れば足りる。個別の詳細が要るときだけアーカイブを開く。

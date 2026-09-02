@@ -13,6 +13,19 @@
 
 ---
 
+## v376.63 — 2026-09-02 🔧 管理画面の日本語表記統一＋保守モード解除（全3split @368×2 / @127 / @224）
+
+operator 指摘「わざわざ英語を入れる必要はない／むやみに英語をデフォルトにしない」を受け、管理画面の表示文言を日本語基準に統一した。ロジック・スキーマ・API は無変更。
+
+- **運用ルール変更**: 2026-08-02 に設定した GAS 側「保守モード」を**解除**（運用継続と、GCP 移行完了までの実装需要のため）。以後は通常開発モード。大型の新規 write 機能だけ着手前に GAS/GCP どちらで作るかを operator 確認する。正本 `AGENTS.md` §4.7。
+- **語句ルールを明文化**: `AGENTS.md` §4.4 冒頭に「画面表示は日本語を既定とする」を新設（装飾英語禁止／英字は内部値・識別子と定着語のみ／その場合も日本語を主・英字を従／日本語見出しへの `uppercase` 禁止）。
+- **是正内容**: `System Settings` 削除、`allowlist`→許可リスト、`ON/OFF`→有効／無効（トグル 19 箇所）、配信モード `LIVE/REDIRECT/SUPPRESS`→通常送信／テスト集約／送信抑止（英字併記）、`Step 1/2/3`→手順1/2/3、`Visual Designer`→レイアウト設計、`FROM/TO`→開始／終了、`AND`/`NOT`/`opt-out`/`SOW` の平文化、日本語要素の `uppercase` 28 箇所除去。対象 17 ファイル。
+- **公開ポータル既定値**: `trainingBadgeLabel` を `TRAINING`→`研修申込`（DB 保存値は不変のため、必要なら設定画面で上書き）。
+- **検証**: prerelease 全ゲート PASS・3 split 生成物 grep PASS。デプロイ後 live E2E は 公開 a11y 0／公開 responsive 7VP／member responsive 7VP×3画面／admin responsive 56 view／メール設定 E2E 5/5 いずれも PASS（console error 0）。
+- 詳細は `docs/256_RELEASE_STATE_v376.63_2026-09-02.md`。
+
+---
+
 ## v376.62 — 2026-09-02 🐛 メールテンプレート一覧が常に取得失敗していた本番障害の是正（全3split @367×2 / @126 / @223）
 
 管理画面「メール通知」の各カードに出ていた `テンプレート一覧の取得に失敗しました` を是正した。**v376.42 の機能追加以降ずっと発生していた**（実測: `listMailTemplates` が全 14 カテゴリで `mailTemplateRecordFromRow_ is not defined`）。
@@ -49,7 +62,7 @@
 - **自動メールの送信元を一元化**: 自動通知だけは共通送信元設定を使用する。明示的な一括メール・手動送信の送信元は上書きしない。
 - **OFF中のテンプレート編集を可能化**: 通知をOFFにしたまま、メール内容・保存済みテンプレートを開いて読み込み・編集できる。
 - **検証**: 専用unit test、3 split生成物確認、fixed deployment同期、公開a11y（違反0）を完了。管理画面E2EとExecution API dry-runは認証権限待ちのため、FAIL/BLOCKEDとしてHTML記録へ明記。
-- 詳細: docs/252_RELEASE_STATE_v376.60_2026-09-02.md / docs/portal/test-report.html
+- 詳細: docs/archive/release_history/252_RELEASE_STATE_v376.60_2026-09-02.md / docs/portal/test-report.html
 
 ---
 

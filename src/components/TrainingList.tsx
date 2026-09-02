@@ -69,7 +69,7 @@ const TrainingList: React.FC<TrainingListProps> = ({ trainings }) => {
           
           <div className="grid md:grid-cols-3 gap-6">
             <div className="md:col-span-1 space-y-4 text-sm text-slate-400">
-              <p>Geminiモデル (Flash) を使用して、SOWで定義された「開催3日前のリマインドメール」を下書きします。</p>
+              <p>AI（Gemini）で「開催 3 日前のリマインドメール」の下書きを作成します。</p>
               <ul className="list-disc list-inside space-y-2">
                 <li>件名の自動生成</li>
                 <li>オンライン/オフラインの状況判断</li>

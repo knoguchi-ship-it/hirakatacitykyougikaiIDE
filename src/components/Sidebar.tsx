@@ -461,7 +461,7 @@ const NavGroupSection: React.FC<NavGroupSectionProps> = ({
         <span className={`shrink-0 ${hasActive && !dimmed ? 'text-slate-300' : ''}`}>
           {group.icon}
         </span>
-        <span className="flex-1 text-left uppercase">{group.label}</span>
+        <span className="flex-1 text-left">{group.label}</span>
         <ChevronDownIcon
           className={`w-3 h-3 shrink-0 transition-transform duration-200 ${open ? '' : '-rotate-90'}`}
         />

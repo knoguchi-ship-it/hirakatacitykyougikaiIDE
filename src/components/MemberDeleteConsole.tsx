@@ -243,7 +243,7 @@ const MemberDeleteConsole: React.FC = () => {
       {step === 'search' && (
         <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm">
           <div className="space-y-1">
-            <h3 className="font-semibold text-slate-900">Step 1: 論理削除対象を検索</h3>
+            <h3 className="font-semibold text-slate-900">手順1: 削除対象を検索</h3>
             <p className="text-xs text-slate-500">
               会員ID、職員ID、氏名、事業所名、ログインID、メールアドレス、事業所番号で部分一致検索します。
             </p>
@@ -367,7 +367,7 @@ const MemberDeleteConsole: React.FC = () => {
       {step === 'preview' && preview && (
         <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-5 shadow-sm">
           <div className="space-y-1">
-            <h3 className="font-semibold text-slate-900">Step 2: 論理削除プレビュー</h3>
+            <h3 className="font-semibold text-slate-900">手順2: 削除内容の確認</h3>
             <p className="text-sm text-slate-600">
               更新対象 {preview.totalUpdatedRows} 件、関連履歴 {Object.values(preview.retainedCounts).reduce<number>((sum, value) => sum + Number(value || 0), 0)} 件を確認します。
               関連レコードは live からアーカイブへ移動します（削除バッチ単位で復元可能）。ログイン履歴は削除されます。
@@ -457,7 +457,7 @@ const MemberDeleteConsole: React.FC = () => {
       {step === 'confirm' && preview && (
         <div className="bg-white border border-red-300 rounded-2xl p-5 space-y-4 shadow-sm">
           <div className="space-y-1">
-            <h3 className="font-semibold text-red-800">Step 3: 最終確認</h3>
+            <h3 className="font-semibold text-red-800">手順3: 最終確認</h3>
             <p className="text-sm text-red-700">
               対象と会員系関連レコードを live からアーカイブへ移動し、認証を無効化します。実行後、通常画面には表示されません。
             </p>

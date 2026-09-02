@@ -522,7 +522,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
                       <td className="px-4 py-2 font-medium text-slate-800">
                         {r.displayName}
                         {r.mailingOptOut && (
-                          <span className="ml-1 text-xs text-amber-600">⚠opt-out</span>
+                          <span className="ml-1 text-xs text-amber-600">⚠配信停止希望</span>
                         )}
                       </td>
                       <td className="px-4 py-2 text-slate-600">{MEMBER_TYPE_LABELS[r.memberType] ?? r.memberType}</td>

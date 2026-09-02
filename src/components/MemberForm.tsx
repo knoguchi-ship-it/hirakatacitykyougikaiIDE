@@ -1199,10 +1199,10 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                 <table className="min-w-full divide-y divide-slate-200">
                     <thead className="bg-slate-50">
                         <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">開催日</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">研修名</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">開催場所</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">状態</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 tracking-wider">開催日</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 tracking-wider">研修名</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 tracking-wider">開催場所</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 tracking-wider">状態</th>
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-slate-200">
@@ -1464,7 +1464,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                 <div key={staff.id} className={`rounded-lg border ${draftStaff.isNew ? 'border-primary-300 bg-primary-50' : isOwnStaff && currentStaff?.role === 'STAFF' ? 'border-primary-200 bg-white' : 'border-slate-200 bg-white'} p-4 space-y-3`}>
                                     {/* 行ヘッダー */}
                                     <div className="flex items-center justify-between">
-                                      <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                                      <span className="text-xs font-semibold text-slate-600 tracking-wide">
                                         {draftStaff.isNew ? '新規追加' : isRepresentativeRow ? '代表者' : isOwnStaff ? '自分' : '職員'}
                                       </span>
                                       {draftStaff.isNew && (

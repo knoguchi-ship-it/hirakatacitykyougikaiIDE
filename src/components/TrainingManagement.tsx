@@ -757,7 +757,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
       </div>
 
       <div className="border border-slate-200 rounded-lg p-4 bg-slate-50 space-y-3">
-        <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">問い合わせ窓口</p>
+        <p className="text-xs font-semibold text-slate-600 tracking-wide">問い合わせ窓口</p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">担当者 <span className="text-red-500">*</span></label>

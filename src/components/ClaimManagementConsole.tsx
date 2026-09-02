@@ -280,11 +280,11 @@ const ClaimManagementConsole: React.FC<ClaimManagementConsoleProps> = ({ api, on
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">活動日（FROM）</label>
+          <label className="mb-1 block text-xs font-medium text-slate-600">活動日（開始）</label>
           <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className={inputCls} />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">活動日（TO）</label>
+          <label className="mb-1 block text-xs font-medium text-slate-600">活動日（終了）</label>
           <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className={inputCls} />
         </div>
         {isFiltered && (

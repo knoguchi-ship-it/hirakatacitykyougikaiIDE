@@ -914,9 +914,9 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
   return (
     <div className="space-y-4 p-4 sm:p-6">
       <header className="space-y-1">
-        <h2 className="text-2xl font-bold text-slate-900">名簿出力（Visual Designer）</h2>
+        <h2 className="text-2xl font-bold text-slate-900">名簿出力（レイアウト設計）</h2>
         <p className="text-sm text-slate-600">
-          <strong>v372.2 S1.6</strong>: タブで設計と出力を分離 / 出力単位（会員・職員・混合）/ 統合フィールドで自動切替 / 列フィルタ
+          タブで設計と出力を分けています。出力単位（会員・職員・混合）や統合フィールドの自動切替、列ごとの絞り込みに対応します。
         </p>
       </header>
 
@@ -1020,7 +1020,7 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
               {/* 利用可能フィールド (折りたたみ式 + 検索 + バッジ) */}
               <div className="rounded border border-slate-200 bg-slate-50 p-3 space-y-2 max-h-[600px] overflow-y-auto">
                 <div className="sticky top-0 bg-slate-50 pb-2 space-y-2 -mx-3 px-3 z-10">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">利用可能フィールド</p>
+                  <p className="text-xs font-semibold tracking-wide text-slate-500">利用可能フィールド</p>
                   <input
                     type="search"
                     value={fieldSearch}
@@ -1080,7 +1080,7 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
 
               {/* 出力列 */}
               <div className="rounded border border-slate-200 bg-white p-3 space-y-2 max-h-[600px] overflow-y-auto">
-                <p className="sticky top-0 bg-white pb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 z-10">
+                <p className="sticky top-0 bg-white pb-2 text-xs font-semibold tracking-wide text-slate-500 z-10">
                   出力列（{working.columns.length} 列）
                 </p>
                 {working.columns.length === 0 && (
@@ -1694,7 +1694,7 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                 {activeFilters.map((af) => (
                   <span key={af.colId} className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-white px-2 py-0.5 text-xs text-amber-800">
                     <span className="font-medium">{af.label}</span>
-                    {af.negate && <span className="text-rose-600 font-semibold">NOT</span>}
+                    {af.negate && <span className="text-rose-600 font-semibold">以外</span>}
                     <span className="text-slate-500">{af.opLabel}</span>
                     {af.valStr && <span className="text-slate-700">{af.valStr}</span>}
                     <button type="button"

@@ -265,7 +265,7 @@ const PUBLIC_PORTAL_DEFAULTS = {
   completionNoCredentialNotice: 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
   completionCredentialNotice: 'ログイン情報をご登録のメールアドレスに送信しました。',
   trainingBadgeEnabled: true,
-  trainingBadgeLabel: 'TRAINING',
+  trainingBadgeLabel: '研修申込',
   trainingTitleEnabled: true,
   trainingTitle: '研修を申し込む',
   trainingDescriptionEnabled: true,
@@ -2376,7 +2376,7 @@ const App: React.FC = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead>
-                <tr className="bg-slate-50 text-left text-xs text-slate-600 uppercase tracking-wider">
+                <tr className="bg-slate-50 text-left text-xs text-slate-600 tracking-wider">
                   <th className="px-3 py-2 border-b border-slate-200">Googleメール</th>
                   <th className="px-3 py-2 border-b border-slate-200">表示名</th>
                   <th className="px-3 py-2 border-b border-slate-200">紐付け先</th>
@@ -2997,10 +2997,10 @@ const App: React.FC = () => {
         <table className="min-w-full divide-y divide-slate-200">
           <thead className="bg-slate-50">
             <tr>
-              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">研修名</th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">開催日</th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">状態</th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">申込数</th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">研修名</th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">開催日</th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">状態</th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">申込数</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-slate-200">
@@ -3470,8 +3470,8 @@ const App: React.FC = () => {
           {/* ページヘッダー */}
           <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-medium text-sky-700 uppercase tracking-wide">System Settings</p>
-              <h2 className="mt-0.5 text-2xl font-bold text-slate-900">設定</h2>
+              <h2 className="text-2xl font-bold text-slate-900">設定</h2>
+              <p className="mt-0.5 text-xs text-slate-500">運用で使う共通値・メール・公開ポータル・マスタをここでまとめて管理します。</p>
             </div>
             <div className="flex items-center gap-3">
               <span className={`rounded-full px-3 py-1 text-xs font-semibold ${settingsIsDirty ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
@@ -3889,7 +3889,7 @@ const App: React.FC = () => {
                 {/* 研修カード文言設定 */}
                 <div className="border-t border-slate-200 pt-4">
                   <h6 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
-                    <span className="inline-flex rounded-full bg-sky-600 px-2 py-0.5 text-xs font-semibold text-white">TRAINING</span>
+                    <span className="inline-flex rounded-full bg-sky-600 px-2 py-0.5 text-xs font-semibold text-white">研修</span>
                     研修カードの文言
                   </h6>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
@@ -3909,7 +3909,7 @@ const App: React.FC = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">補助ラベル</label>
-                      <input type="text" value={publicPortalTrainingBadgeLabelInput} onChange={(e) => { setPublicPortalTrainingBadgeLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: TRAINING" />
+                      <input type="text" value={publicPortalTrainingBadgeLabelInput} onChange={(e) => { setPublicPortalTrainingBadgeLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 研修申込" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">見出し</label>
@@ -4019,30 +4019,30 @@ const App: React.FC = () => {
           {/* ── v371: メール送信制御（4 階層ガード）── */}
           {settingsSub === 'email' && <AdminSettingsSection
             id="settings-mail-control"
-            title="メール送信制御（4階層ガード）"
-            description="グローバルキルスイッチ + 配信モード + Redirect allowlist + カテゴリ別 ON/OFF。テスト時はRedirect 宛先を自分のメールに固定すると全メールが自分宛のみに集約されます。"
+            title="メール送信制御（4段階の安全装置）"
+            description="全体停止スイッチ＋配信方法＋転送先の許可リスト＋種別ごとの有効／無効の 4 段階で守ります。テスト時は転送先を自分のメールアドレスに固定すると、全メールが自分宛にだけ集まります。"
             badge="メール制御"
             defaultOpen
           >
             <div className="space-y-6">
               {/* ─── [1] グローバルキルスイッチ ─── */}
               <div className={`rounded-xl border-2 p-4 space-y-3 ${mailGlobalEnabledInput ? 'border-emerald-300 bg-emerald-50' : 'border-red-400 bg-red-50'}`}>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">[1] グローバルキルスイッチ</p>
-                <p className="text-xs text-slate-600">OFF にするとカテゴリ・モードに関わらず<strong>全メール送信を即時停止</strong>します。テスト環境では OFF にしておくことを推奨します。</p>
+                <p className="text-xs font-semibold tracking-wide text-slate-600">[1] 全体停止スイッチ</p>
+                <p className="text-xs text-slate-600">無効にすると、種別・配信方法に関わらず<strong>全メール送信を即時停止</strong>します。テスト環境では無効にしておくことを推奨します。</p>
                 <ToggleSwitch color={mailGlobalEnabledInput ? 'emerald' : 'slate'}
                   enabled={mailGlobalEnabledInput}
                   onToggle={() => { setMailGlobalEnabledInput(v => !v); setSettingsIsDirty(true); }}
-                  onLabel="メール送信を有効化（ON）"
-                  offLabel="全メール停止中（OFF）— 安全状態" />
+                  onLabel="メール送信を有効にする"
+                  offLabel="全メール停止中（無効）— 安全状態" />
                 {!mailGlobalEnabledInput && (
-                  <p className="text-xs text-red-700 font-semibold">⚠️ 現在すべてのメール送信が停止されています。ドライランや本番運用に必要なときのみ ON に切り替えてください。</p>
+                  <p className="text-xs text-red-700 font-semibold">⚠️ 現在すべてのメール送信が停止されています。動作確認や本番運用に必要なときだけ有効に切り替えてください。</p>
                 )}
               </div>
 
               {/* ─── [2] 配信モード ─── */}
               <div className="rounded-xl border-2 border-slate-300 bg-white p-4 space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">[2] 配信モード</p>
-                <p className="text-xs text-slate-500">グローバル ON 時のメール処理方式を選択します。</p>
+                <p className="text-xs font-semibold tracking-wide text-slate-600">[2] 配信方法</p>
+                <p className="text-xs text-slate-500">全体停止スイッチが有効なときの、メールの扱い方を選びます。</p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {(['LIVE', 'REDIRECT', 'SUPPRESS'] as const).map((modeOpt) => (
                     <label key={modeOpt} className={`flex items-start gap-2 p-3 rounded border cursor-pointer transition-colors min-h-[44px] ${mailDeliveryModeInput === modeOpt ? 'border-primary-500 bg-primary-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
@@ -4050,11 +4050,15 @@ const App: React.FC = () => {
                         onChange={() => { setMailDeliveryModeInput(modeOpt); setSettingsIsDirty(true); }}
                         className="mt-1" />
                       <div>
-                        <p className="text-sm font-semibold text-slate-800">{modeOpt}</p>
+                        <p className="text-sm font-semibold text-slate-800">{
+                          modeOpt === 'LIVE' ? '通常送信'
+                          : modeOpt === 'REDIRECT' ? 'テスト集約'
+                          : '送信抑止'
+                        }<span className="ml-1 text-[11px] font-normal text-slate-400">{modeOpt}</span></p>
                         <p className="text-xs text-slate-500">{
-                          modeOpt === 'LIVE' ? '通常送信（カテゴリ別フラグに従う）'
-                          : modeOpt === 'REDIRECT' ? '全メールを Redirect 宛先に集約（テスト用）'
-                          : '全カテゴリ送信抑止（ログのみ）'
+                          modeOpt === 'LIVE' ? '実際の宛先へ送信します（種別ごとの設定に従う）'
+                          : modeOpt === 'REDIRECT' ? '全メールを下の転送先へ集約します（テスト用）'
+                          : '全種別の送信を止めます（記録だけ残す）'
                         }</p>
                       </div>
                     </label>
@@ -4064,43 +4068,43 @@ const App: React.FC = () => {
 
               {/* ─── [3] Redirect Allowlist ─── */}
               <div className={`rounded-xl border-2 p-4 space-y-3 ${mailDeliveryModeInput === 'REDIRECT' ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">[3] Redirect 宛先 allowlist</p>
-                <p className="text-xs text-slate-600">REDIRECT モード時、全メールがここに記入された宛先（複数可・カンマ区切り）へ集約されます。LIVE/SUPPRESS モードでは無視されます。空欄かつ REDIRECT モードの場合は実質 SUPPRESS と同等の挙動。</p>
+                <p className="text-xs font-semibold tracking-wide text-slate-600">[3] 転送先の許可リスト（テスト集約用）</p>
+                <p className="text-xs text-slate-600">「テスト集約」を選んでいるとき、全メールがここに書いた宛先（複数可・カンマ区切り）へ集約されます。「通常送信」「送信抑止」のときは使われません。空欄のまま「テスト集約」にすると、実質「送信抑止」と同じ動きになります。</p>
                 <input type="text" value={mailRedirectAllowlistInput}
                   onChange={(e) => { setMailRedirectAllowlistInput(e.target.value); setSettingsIsDirty(true); }}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
                   placeholder="例: kenta-noguchi@tadakayo.jp, test@example.com" />
                 {mailDeliveryModeInput === 'REDIRECT' && !mailRedirectAllowlistInput.trim() && (
-                  <p className="text-xs text-red-600">⚠️ REDIRECT モード選択中ですが allowlist が空です。このままだとメールは送信されません。</p>
+                  <p className="text-xs text-red-600">⚠️「テスト集約」を選んでいますが、転送先が空です。このままだとメールは送信されません。</p>
                 )}
               </div>
 
               {/* ─── [4] カテゴリ別 ON/OFF ─── */}
               <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">[4] カテゴリ別 ON/OFF（補完カテゴリ）</p>
-                <p className="text-xs text-slate-500">既存の認証情報メール／事業所メール／変更申請ワークフローメール以外の補完カテゴリです。それぞれ ON/OFF を切替可能。</p>
+                <p className="text-xs font-semibold tracking-wide text-slate-600">[4] 種別ごとの有効／無効（補完分）</p>
+                <p className="text-xs text-slate-500">認証情報メール／事業所メール／変更申請の通知以外の種別です。1 件ずつ有効・無効を切り替えられます。</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
                   <ToggleSwitch color="emerald" enabled={trainingApplyReceiptEnabledInput}
                     onToggle={() => { setTrainingApplyReceiptEnabledInput(v => !v); setSettingsIsDirty(true); }}
-                    onLabel="研修申込確認メール（ON）" offLabel="研修申込確認メール（OFF）" />
+                    onLabel="研修申込確認メール（有効）" offLabel="研修申込確認メール（無効）" />
                   <ToggleSwitch color="emerald" enabled={trainingReminderEnabledInput}
                     onToggle={() => { setTrainingReminderEnabledInput(v => !v); setSettingsIsDirty(true); }}
-                    onLabel="研修リマインダーメール（ON）" offLabel="研修リマインダーメール（OFF）" />
+                    onLabel="研修リマインダーメール（有効）" offLabel="研修リマインダーメール（無効）" />
                   <ToggleSwitch color="emerald" enabled={bulkMailEnabledInput}
                     onToggle={() => { setBulkMailEnabledInput(v => !v); setSettingsIsDirty(true); }}
-                    onLabel="一括メール送信（ON）" offLabel="一括メール送信（OFF）" />
+                    onLabel="一括メール送信（有効）" offLabel="一括メール送信（無効）" />
                   <ToggleSwitch color="emerald" enabled={authOtpEnabledInput}
                     onToggle={() => { setAuthOtpEnabledInput(v => !v); setSettingsIsDirty(true); }}
-                    onLabel="公開ポータルOTPメール（ON）" offLabel="公開ポータルOTPメール（OFF）" />
+                    onLabel="公開ポータル 本人確認コード（OTP）メール（有効）" offLabel="公開ポータル 本人確認コード（OTP）メール（無効）" />
                   <ToggleSwitch color="emerald" enabled={memberUpdateConfirmEnabledInput}
                     onToggle={() => { setMemberUpdateConfirmEnabledInput(v => !v); setSettingsIsDirty(true); }}
-                    onLabel="会員情報変更確認メール（ON）" offLabel="会員情報変更確認メール（OFF）" />
+                    onLabel="会員情報変更確認メール（有効）" offLabel="会員情報変更確認メール（無効）" />
                   <ToggleSwitch color="emerald" enabled={withdrawalConfirmEnabledInput}
                     onToggle={() => { setWithdrawalConfirmEnabledInput(v => !v); setSettingsIsDirty(true); }}
-                    onLabel="退会申請受付確認メール（ON）" offLabel="退会申請受付確認メール（OFF）" />
+                    onLabel="退会申請受付確認メール（有効）" offLabel="退会申請受付確認メール（無効）" />
                   <ToggleSwitch color="emerald" enabled={passwordResetEnabledInput}
                     onToggle={() => { setPasswordResetEnabledInput(v => !v); setSettingsIsDirty(true); }}
-                    onLabel="パスワード再設定コードメール（ON）" offLabel="パスワード再設定コードメール（OFF）" />
+                    onLabel="パスワード再設定コードメール（有効）" offLabel="パスワード再設定コードメール（無効）" />
                 </div>
                 <p className="text-xs text-slate-500 mt-2">※既存の認証情報・事業所・変更申請ワークフローのメール設定は下の「入会・登録メール設定」セクションを使用してください。</p>
               </div>
@@ -4111,7 +4115,7 @@ const App: React.FC = () => {
           {settingsSub === 'email' && <AdminSettingsSection
             id="settings-all-email"
             title="入会・登録メール設定"
-            description="上部のメール送信制御が全メールの安全停止です。ここでは入会・登録と変更申請の通知ごとに、ON/OFF・宛先ルール・件名・本文・テンプレートを設定します。"
+            description="上部のメール送信制御が全メールの安全停止です。ここでは入会・登録と変更申請の通知ごとに、送信の有無・宛先ルール・件名・本文・テンプレートを設定します。"
             badge="メール設定"
             defaultOpen
           >
@@ -4121,29 +4125,29 @@ const App: React.FC = () => {
             <div className="space-y-6">
                 {/* ─── 入会・登録情報メールの共通スイッチ ─── */}
                 <div className="rounded-xl border-2 border-slate-300 bg-white p-4 space-y-3">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">入会・登録情報メールの共通スイッチ</p>
-                  <p className="text-xs text-slate-500">OFF にすると、下の入会完了・事業所登録・職員追加メールが停止されます。受付・承認・却下などの変更申請通知は、それぞれのカードで設定します。全メールを止める場合は上部の「メール送信制御」を使用してください。</p>
+                  <p className="text-xs font-semibold text-slate-500 tracking-wide">入会・登録情報メールの共通スイッチ</p>
+                  <p className="text-xs text-slate-500">無効にすると、下の入会完了・事業所登録・職員追加メールが停止されます。受付・承認・却下などの変更申請通知は、それぞれのカードで設定します。全メールを止める場合は上部の「メール送信制御」を使用してください。</p>
                   <ToggleSwitch color="emerald"
                     enabled={credentialEmailEnabledInput}
                     onToggle={() => { setCredentialEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
-                    onLabel="入会・登録メールを送信する（ON）"
-                    offLabel="入会・登録情報メール停止中（OFF）— 準備が整ったら ON へ戻してください" />
+                    onLabel="入会・登録メールを送信する（有効）"
+                    offLabel="入会・登録情報メール停止中（無効）— 準備が整ったら有効へ戻してください" />
                   {!credentialEmailEnabledInput && (
-                    <p className="text-xs text-red-600">現在 OFF です。このグループの入会・登録情報メールは送信されません。</p>
+                    <p className="text-xs text-red-600">現在は無効です。このグループの入会・登録情報メールは送信されません。</p>
                   )}
                 </div>
 
                 {/* ─── 送信元アドレス（共通） ─── */}
                 <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
                   <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">自動通知の送信元アドレス（共通）</p>
+                  <p className="text-xs font-semibold text-slate-500 tracking-wide">自動通知の送信元アドレス（共通）</p>
                     <button type="button" onClick={() => { void loadCredentialEmailAliases(); }}
                       disabled={credentialEmailAliasLoading}
                       className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 disabled:opacity-50">
                       {credentialEmailAliasLoading ? '読込中...' : '更新'}
                     </button>
                   </div>
-                  <p className="text-xs text-slate-500">受付・承認・却下・入会完了・OTPなどの自動通知に共通適用します。Gmail「Send mail as」に登録済みのアドレスから選択します。一括メールは送信画面で個別に選択します。</p>
+                  <p className="text-xs text-slate-500">受付・承認・却下・入会完了・本人確認コードなどの自動通知に共通で使います。Gmail の「送信元アドレス（Send mail as）」に登録済みのアドレスから選べます。一括メールは送信画面で個別に選択します。</p>
                   <select value={credentialEmailFromInput}
                     onChange={(e) => { setCredentialEmailFromInput(e.target.value); setSettingsIsDirty(true); }}
                     className="w-full border border-slate-300 rounded px-3 py-2 text-sm bg-white"
@@ -4294,8 +4298,8 @@ const App: React.FC = () => {
 
                 {/* v376.43 (Phase B): その他の自動通知メール（従来ハードコード→差し込み化） */}
                 <div className="space-y-3">
-                  <h4 className="text-sm font-semibold text-slate-700 border-b border-slate-200 pb-1">▍その他の自動通知メール（研修・OTP・変更/退会確認・パスワード再設定）</h4>
-                  <p className="text-xs text-slate-500">ON/OFF は上部「メール送信制御 → カテゴリ別 ON/OFF」と連動します。件名・本文を差し込みタグ付きで編集でき、テンプレート管理（上書き保存／新規保存）に対応します。<strong>OTP・パスワード再設定の認証コードは、本文から該当タグを消しても安全装置によりデフォルト文面で必ず送信されます。</strong></p>
+                  <h4 className="text-sm font-semibold text-slate-700 border-b border-slate-200 pb-1">▍その他の自動通知メール（研修・本人確認コード・変更／退会確認・パスワード再設定）</h4>
+                  <p className="text-xs text-slate-500">送信の有無は上部「メール送信制御 → 種別ごとの有効／無効」と連動します。件名・本文を差し込みタグ付きで編集でき、テンプレート管理（上書き保存／新規保存）に対応します。<strong>本人確認コード・パスワード再設定コードは、本文から該当タグを消しても安全装置により既定の文面で必ず送信されます。</strong></p>
 
                   <MergeTags items={MAIL_TEMPLATE_MERGE_TAGS.TRAINING_APPLY_RECEIPT} />
                   <EmailCard badge="研修申込確認" title="研修申込確認メール（外部申込者へ）"
@@ -4400,8 +4404,8 @@ const App: React.FC = () => {
               <div>
                 {/* ① 入会完了画面 - 今後のご案内 */}
                 <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 space-y-3">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">② 入会完了画面 — 今後のご案内</p>
-                  <p className="text-xs text-slate-500">完了画面の「今後のご案内」ブロック全体の表示有無と本文を設定します。本文はメール送信 ON/OFF で分けて管理します。</p>
+                  <p className="text-xs font-semibold text-slate-500 tracking-wide">② 入会完了画面 — 今後のご案内</p>
+                  <p className="text-xs text-slate-500">完了画面の「今後のご案内」ブロック全体の表示有無と本文を設定します。本文はメール送信の有効時・無効時で分けて管理します。</p>
                   <label className="flex items-center gap-3 cursor-pointer w-fit">
                     <div className="relative">
                       <input
@@ -4463,7 +4467,7 @@ const App: React.FC = () => {
 
                 {/* ③ ログイン情報カードの表示・非表示 */}
                 <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 space-y-4">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">③ ログイン情報カードの表示・非表示</p>
+                  <p className="text-xs font-semibold text-slate-500 tracking-wide mb-3">③ ログイン情報カードの表示・非表示</p>
                   <p className="text-xs text-slate-500">ログイン情報ブロック全体の表示有無、ログインID自体を画面に出すか、補足本文を設定します。</p>
                   <label className="flex items-center gap-3 cursor-pointer w-fit">
                     <div className="relative">

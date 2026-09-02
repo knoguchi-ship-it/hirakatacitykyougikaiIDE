@@ -114,7 +114,7 @@ const DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS: PublicPortalContentSettings = {
   completionCredentialNotice: 'ログイン情報をご登録のメールアドレスに送信しました。',
   credentialEmailEnabled: true,
   trainingBadgeEnabled: true,
-  trainingBadgeLabel: 'TRAINING',
+  trainingBadgeLabel: '研修申込',
   trainingTitleEnabled: true,
   trainingTitle: '研修を申し込む',
   trainingDescriptionEnabled: true,

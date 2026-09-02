@@ -563,7 +563,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
                     + 条件を追加
                   </button>
                   {feeConditions.filter((c) => c.year !== '' && c.status !== '').length > 1 && (
-                    <span className="text-xs text-slate-400">※ 複数条件はすべて AND で絞り込みます</span>
+                    <span className="text-xs text-slate-400">※ 複数条件はすべて満たす行だけを抽出します</span>
                   )}
                 </div>
               </div>

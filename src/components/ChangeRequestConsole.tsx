@@ -83,7 +83,7 @@ const ChangeDataView: React.FC<{ data: ChangeData; requestType: string }> = ({ d
     <div className="space-y-4">
       {fieldEntries.length > 0 && (
         <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">変更フィールド</p>
+          <p className="mb-2 text-xs font-semibold tracking-wide text-slate-500">変更フィールド</p>
           <dl className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
             {fieldEntries.map(([k, v]) => (
               <div key={k} className="flex items-start gap-3 px-4 py-2 text-sm">
@@ -103,7 +103,7 @@ const ChangeDataView: React.FC<{ data: ChangeData; requestType: string }> = ({ d
 
       {requestType === 'MEMBER_APPLICATION' && data.applicationPayload && (
         <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">入会申込内容</p>
+          <p className="mb-2 text-xs font-semibold tracking-wide text-slate-500">入会申込内容</p>
           <dl className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
             {Object.entries(data.applicationPayload)
               .filter(([, value]) => value !== '' && value !== null && value !== undefined && !Array.isArray(value))
@@ -123,7 +123,7 @@ const ChangeDataView: React.FC<{ data: ChangeData; requestType: string }> = ({ d
 
       {staffAdd.length > 0 && (
         <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">職員追加（{staffAdd.length}名）</p>
+          <p className="mb-2 text-xs font-semibold tracking-wide text-slate-500">職員追加（{staffAdd.length}名）</p>
           <div className="space-y-2">
             {staffAdd.map((s, i) => (
               <div key={i} className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm">
@@ -137,7 +137,7 @@ const ChangeDataView: React.FC<{ data: ChangeData; requestType: string }> = ({ d
 
       {staffRemove.length > 0 && (
         <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">職員除籍（{staffRemove.length}名）</p>
+          <p className="mb-2 text-xs font-semibold tracking-wide text-slate-500">職員除籍（{staffRemove.length}名）</p>
           <div className="space-y-2">
             {staffRemove.map((s, i) => (
               <div key={i} className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm">

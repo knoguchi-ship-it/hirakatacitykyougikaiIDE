@@ -362,9 +362,9 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
               <table className="min-w-full divide-y divide-slate-200">
                 <thead className="bg-slate-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">開催日時</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">研修名</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">詳細</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 tracking-wider">開催日時</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 tracking-wider">研修名</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 tracking-wider">詳細</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-slate-200">

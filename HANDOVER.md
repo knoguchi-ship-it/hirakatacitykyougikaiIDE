@@ -1,5 +1,17 @@
 # 開発引継ぎ（Current State）
 
+## 2026-09-02 v376.63 リリース
+
+- **保守モード解除（operator 決定）**: 運用継続と GCP 移行完了までの実装需要のため、本リポジトリは通常開発モードへ戻した。ルール正本は `AGENTS.md` §4.7。
+- **管理画面の日本語表記統一**: 画面タイトル上の装飾英語 `System Settings` を削除、`allowlist`→「許可リスト」、`ON/OFF`→「有効／無効」、配信モード `LIVE/REDIRECT/SUPPRESS` を
+  「通常送信／テスト集約／送信抑止」＋英字併記（日本語を主・英字を従）へ。`Step 1/2/3`→「手順1/2/3」、`Visual Designer`→「レイアウト設計」、`FROM/TO`→「開始／終了」、
+  `AND`/`NOT`/`opt-out`/`SOW` 等の社内英語も平文化。日本語要素に効いていなかった `uppercase` 28 箇所も除去。対象 17 ファイル。
+- **語句ルールを明文化**: `AGENTS.md` §4.4 の先頭に「画面表示は日本語を既定とする（装飾英語禁止・英字は内部値/識別子と定着語のみ・その場合も日本語を主）」を新設。
+- 公開ポータルの研修カード補助ラベル既定値のみ `TRAINING`→`研修申込`（**本番 DB に保存済みの値は変わらないため、必要なら 設定→公開ポータル で上書き保存**）。
+- 本番 fixed deployment は **public @368×2 / member @127 / admin @224** に同期済み。
+- live E2E: 公開 a11y 違反 0・公開 responsive 7VP・member responsive 7VP×3画面・admin responsive 7VP×8 コンソール=56 view・メール設定 E2E 5/5 いずれも PASS（console error 0）。
+- 詳細は docs/256_RELEASE_STATE_v376.63_2026-09-02.md。
+
 ## 2026-09-02 v376.62 リリース
 
 - **本番障害の是正**: 管理画面のメールテンプレート一覧が **v376.42 以降ずっと取得失敗**していた
@@ -36,7 +48,7 @@
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
 最終更新: **2026-09-02**
-最新リリース: **v376.62**（テンプレート一覧取得失敗の是正・build pruner 根本修正・public @367×2 / member @126 / admin @223）
+最新リリース: **v376.63**（保守モード解除・管理画面の日本語表記統一・public @368×2 / member @127 / admin @224）
 最終作業（2026-09-02）: **本番 GAS 側で v376.60 の検証負債を解消し、v376.61 / v376.62 の 2 リリースを実施**（研修 endTime の実害バグ、テンプレート一覧が v376.42 以降ずっと壊れていた本番障害）。本番データの壊れたセル 3 件も operator 承認のうえ復元。あわせて docs を全面整理（直下 80→44 文書）し、テスト記録を `docs/portal/test-report.html` に一本化した。**GCP 側は本セッションでは再突合のみ実施（書込なし）**。
 GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member 認証）のフル環境まで構築・デプロイ完了。本番 GAS/DB は一切非破壊**（作業は GCP 作業場のみ）。member-auth サービス（Cloud Run `hcmn-member-auth`・rev00003・private・App Check 強制 ON・max=1・専用 SA 最小権限）に、防御コア（第0層レート制限／第1層ロック尊重／第4層日次上限／列挙リーク是正／fail-closed）＋本番 `verifyPassword_` の厳密移植（KAT で GAS 等価を機械証明）＋資格情報ミラー 342 件（**テストコピー由来**）＋Firebase カスタムトークン発行（鍵レス signBlob）＋監査/失効を実装。unit 46/46。**この中断点は 2026-08-03 に解消済（rev00006 でフル経路 end-to-end PASS）。当時「あと 1 手」とされていたのは誤認で、実際は `admin.appCheck()` の初期化順序というサーバ側バグの修正が必要だった。以降 Step A（member-api rev00001）まで進行**。再開手順・GCP リソース一覧・env 再構築・落とし穴の正本は GCP 作業場 `docs/HANDOFF_2026-07-25_member-auth.md`。
 同期間の Phase 4a（2026-07-19〜22）: 予算 killswitch **完了**（予算→topic 接続＋実イベント `under_budget` 初回受信を実測）／日次エクスポート（Firestore→シート BK）を Cloud Run Job で構築し本番 DB シートのコピーで実データ検証 PASS（Scheduler 稼働開始はカットオーバー直前に延期）／portal-api に起動時一括ウォームアップ実装（110+5 doc を 848ms で prefetch・rev00002 実測）／共有 project の IAM 変更後に**本番 3 split live E2E で非影響を実測**（public a11y 0＋7VP／member 21／admin 56 全 PASS）。
@@ -50,7 +62,7 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 
 ## 0. 次の担当者へ（キャッチアップ・まず1分でここ）
 
-- **本番**: public **@367×2** / member **@126** / admin **@223**（v376.62・§1）。全 fixed deployment 同期確認済・稼働正常。ロールバック先は public @366×2 / member @125 / admin @222。
+- **本番**: public **@368×2** / member **@127** / admin **@224**（v376.63・§1）。全 fixed deployment 同期確認済・稼働正常。ロールバック先は public @367×2 / member @126 / admin @223。
 - **検証状況は 1 ページで見られる**: [`docs/portal/test-report.html`](docs/portal/test-report.html)（16 項目・PASS 15・要フォロー 1）。再生成は `npm run report:tests`。
 - **文書の入口**: [`docs/00_DOC_INDEX.md`](docs/00_DOC_INDEX.md)。2026-09-02 に全面整理し、`docs/` 直下は現役 44 文書のみ・完了記録 224 件は [`docs/archive/`](docs/archive/00_ARCHIVE_INDEX.md) へ移した。
 - **直近セッション（2026-09-02）の成果** — 本番 GAS 側で 3 リリース。詳細は `docs/release-notes-2026.md` と各 release state:
@@ -62,7 +74,7 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
   - v376.51 ロール視点プレビュー（MASTER専用）／v376.52 **会員系削除 cascade アーカイブ**（docs/249・実DB E2E 18/18 PASS・削除負債実測16行のみ）／v376.53 DRY・ハードコーディング・XFrame 一括是正（api.ts **-940行**・rbac-util/validators 集約・ID/URL の Properties override 化）／.53.1-.53.2 REDIRECT 警告バナー（live 実証済）。
   - **メール事故対応済**: 6/26〜7/3 の間 `MAIL_DELIVERY_MODE=REDIRECT` 残置で全メールが旧アドレスに集約されていた（実宛先未達）。LIVE 復旧済・再発防止バナー/ログ正直化デプロイ済。**未達期間の再送要否は運用判断が残っている可能性あり**（`T_メール送信ログ` の 6/26〜7/3 BULK_MEMBER 行を確認）。
   - 第三者評価: `docs/248`（テスト観点表・検証訂正ログ付）→ 主要 High/Med は全て是正済。残は GCP 行き（PBKDF2/性能）と小粒のみ。
-- **⚠️ 現在の作業拠点は GCP 作業場（`C:\VSCode\CloudePL\hirakatacitykyougikaiGCP`）。ただし本番主系は依然 GAS＝この本番リポジトリは凍結しない**（2026-08-02 判断）。理由: 移行は Phase 4 の入口（member 認証パイロット＋低リスク write 準備）までで、**ユーザー系 write は 1 件も GCP へ移っていない**（`docs/250` §6.1 棚卸し: P4-write **66 method** 未着手・4c 第一号 write=共有メモは operator 承認 #5 待ち）。Phase 5（DB 移行）・Phase 6（切替/GAS 縮退）は未着手で、GAS 3 split が全機能の唯一の稼働系。**GAS 側は 2026-08-02 operator 決定で「保守モード」へ移行**（新規大型機能は原則載せない／障害修正・セキュリティ是正・運用要求・移行に必要な接続作業は受ける）。**凍結（変更禁止）ではない**ため、リリース時の完了条件（prerelease 全ゲート・3 split 同期・live E2E）は従来どおり必須。**ルール正本は `AGENTS.md` §4.7**。凍結判断は Phase 6 の旧 URL 転送化（`docs/250` §5 Phase 6）と同時に行う。
+- **⚠️ 現在の作業拠点は GCP 作業場（`C:\VSCode\CloudePL\hirakatacitykyougikaiGCP`）。ただし本番主系は依然 GAS＝この本番リポジトリは凍結しない**（2026-08-02 判断）。理由: 移行は Phase 4 の入口（member 認証パイロット＋低リスク write 準備）までで、**ユーザー系 write は 1 件も GCP へ移っていない**（`docs/250` §6.1 棚卸し: P4-write **66 method** 未着手・4c 第一号 write=共有メモは operator 承認 #5 待ち）。Phase 5（DB 移行）・Phase 6（切替/GAS 縮退）は未着手で、GAS 3 split が全機能の唯一の稼働系。**GAS 側の「保守モード」は 2026-09-02 operator 決定で解除した**（理由: 運用を継続する必要があり、GCP へ移し終えるまでは本リポジトリ側での新規実装も必要になったため）。以後は**通常開発モード**で新規機能追加・改修を受ける。ただし GAS へ write 系を足すと `docs/250` §6.1 の未移行 write（66 method）が増えるため、**大型の新規 write 機能は着手前に「GAS/GCP どちらで作るか・二重実装の工数」を operator に提示して方針確認する**（小〜中規模・障害修正・運用要求は確認不要）。**凍結（変更禁止）ではない**ため、リリース時の完了条件（prerelease 全ゲート・3 split 同期・live E2E）は従来どおり必須。**ルール正本は `AGENTS.md` §4.7**。凍結判断は Phase 6 の旧 URL 転送化（`docs/250` §5 Phase 6）と同時に行う。
 - **🚀 GCP 移行: 全体計画の正本は `docs/250`。Phase 0＋Phase B（v376.54）＋Phase 1（transport 分離・v376.57）完了。Phase 2（Firestore+read-only 互換 API）完全終結（2026-07-12）。Phase 3（read shadow）**完了（2026-07-19）**: shadow 2/2 MATCH×2回・GcpApiClient read 実装 v376.58 リリース・両 runtime UI 検証 2VP PASS・棚卸し分類表 `docs/250` §6.1（125 method）・完了ゲート 1〜3 判定は GCP 作業場 README「Phase 3 完了判定」節が正本。**Phase 4 着手（2026-07-19）**: operator 決定=最終形は Firestore 正本/シート日次エクスポート BK＋即時ボタン（Scheduler の Sheet→Firestore 同期と Firestore PITR は不採用）。設計正本は GCP 作業場 `docs/PHASE4_DESIGN.md`。killswitch は**完了・完全稼働（2026-07-20・予算→topic 接続＋実予算イベント初回受信 `under_budget` 実測。経緯は GCP 作業場 `services/billing-killswitch/README.md` 検証記録）**。**Phase 4a（2026-07-20〜22）完了分**: 日次エクスポート Cloud Run Job（本番 DB シートのコピーで verified:true・Scheduler 開始はカットオーバー直前へ延期）／portal-api 起動時一括ウォームアップ（`docs/250` §12.4 確定）／クォータ上限は現段階スキップ（§11-1・max-instances=1 の課金天井＋未認証到達なし＋無料枠/予算/killswitch 三重保護。公開直前に App Check とセットで再検討）。**Phase 4b member 認証（2026-07-22〜25・検証専用パイロット）**: Cloud Run `hcmn-member-auth` rev00003（private・App Check 強制 ON・max=1・専用 SA）で防御コア＋`verifyPassword_` 厳密移植（KAT で GAS 等価証明）＋342 件ミラー（テストコピー由来）＋カスタムトークン発行＋監査/失効まで稼働。unit 46/46。**並走中は検証専用＝ロック/最終ログイン/rehash の正本はシート（GAS）のまま・GCP は書かない**。**2026-08-03 に `signInOk:true` を実測し技術検証完了（rev00006）。以降 Step A（member 研修 read の member-api rev00001）まで進行**。現況の正本は GCP 作業場 README と `docs/HANDOFF_2026-07-25_member-auth.md`。再開手順・GCP リソース一覧・env 再構築・落とし穴は **GCP 作業場 `docs/HANDOFF_2026-07-25_member-auth.md` が正本**** — 作業場は **`C:\VSCode\CloudePL\hirakatacitykyougikaiGCP`**（独立Git・GitHub private `knoguchi-ship-it/hirakatacitykyougikaiGCP`）。**本番完全分離**（切り分け規約=同作業場 AGENTS.md §1 が正本・GCP リソースは追加のみ）。
   - **Phase 2 の現況（2026-07-12・詳細と再開手順は GCP 作業場 README「Phase 2 次担当者の再開手順」が正本）**: Firestore Native 作成済（freeTier）／同期 SA `hcmn-sheets-sync-sa`（鍵レス impersonation・DB シートへ閲覧者共有済）／初回同期済（T_研修 5・T_システム設定 110）／`portal-api` の 2 read action が **GAS 実応答と contract-check で完全一致**・unit 18/18／**Cloud Run `hcmn-portal-api` デプロイ完了（2026-07-12・operator 承認済・rev 00001・未認証公開しない・max-instances=1・専用 SA=datastore.viewer のみ・デプロイ済み実サービスで両 action GAS fixture MATCH 実測）**。**trainings 非空突合も完了（2026-07-12・T004 2セル一時未来日付化→受付中1件でローカル/デプロイ済み両方 MATCH→原状復帰を機械検証）＝Phase 2 技術作業完了**。後片付け（同期 SA の DB シート共有の閲覧者復帰）も完了（2026-07-12・読取200/書込403 機械検証）＝**Phase 2 完全終結**。Phase 3（read shadow）は 2026-07-15 着手・進行中。設計正本は GCP 作業場 `docs/PHASE2_DESIGN.md`、operator 決定（早期 Firestore＋一方向同期）は `docs/250` §12.7-2 に記録済。落とし穴（gcloud の Sheets scope は管理者でも解除不可→SA 方式／この PC の ADC パス）は MEMORY と GCP README に記録。
   - **【後任はまずここ】確定ターゲット構成＝`docs/250` §12**（2026-07-11 operator 決定）: 動機=**ロード時間短縮**。DB=**Firestore**（コスト実質¥0・サーバー共有キャッシュ＋フィールド単位更新で同時編集安全化）／認証=**IAP直付け(admin)＋Firebase Auth カスタムトークン(member・既存 Cloud Run Argon2 で検証)＋匿名+App Check(public)**／hosting=**Firebase Hosting**（admin は Cloud Run に IAP 直付け）／移行順=**portal→member→admin**。検証済み事実（かな検索は純JSクライアント側フィルタ＝外部検索不要／遅さの主因は全件フルスキャン）も §12 に記録。**着手前に現行の実データ量と実ロード時間を実測**（§12.6）。実装は未着手。
@@ -86,10 +98,10 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 
 | 配信 | Deployment ID | Version |
 |---|---|---|
-| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@367** |
-| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@367** |
-| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@126** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@223** |
+| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@368** |
+| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@368** |
+| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@127** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@224** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 
@@ -100,7 +112,8 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 ### 2-0. 次の開発予定
 
 > **🚩 次の一手（2026-09-02 時点）**
-> 1. **本番 GAS 側に着手待ちの開発は無い**。障害修正・運用要求が出たときだけ通常のリリースフローで対応する（保守モード＝AGENTS §4.7。凍結ではないので完了条件は従来どおり）。
+> 1. **保守モードは 2026-09-02 に解除（operator 決定）。本リポジトリは通常開発モード**＝新規機能追加・改修を通常のリリースフローで受ける（ルール正本 AGENTS §4.7）。大型の新規 write 機能だけ、着手前に GAS/GCP のどちらで作るかを operator に確認する。
+> 1-b. **v376.63 デプロイ済（2026-09-02）**: 管理画面の日本語表記統一。live E2E は公開／member／admin の 3 split すべて PASS（下記 §2-1）。残作業は公開ポータルの研修カード補助ラベル（DB 保存値が `TRAINING` のままなら 設定→公開ポータル で上書き）だけ。
 > 2. **保留中の 1 件**: Firestore ミラーの `T_研修` 再同期（§2-1 の「課題C」）。GCP 側の書込のため operator 判断待ちで、本番 GAS には影響しない。
 > 3. **GCP 移行の続き**は GCP 作業場が正本。最優先は **公開ローンチ準備（member-auth の公開可否＝operator の launch 判断）** と **App Check 本番化＋デバッグトークン全削除**。手順は GCP 作業場 `docs/HANDOFF_2026-07-25_member-auth.md` §5。この PC は gcloud/ADC が 1〜2 日で失効するので、着手前に `! gcloud auth login`（Node から Firestore を触るなら `! gcloud auth application-default login` も）。
 >
@@ -136,6 +149,7 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 
 | # | タスク | 詳細 / 参照 |
 |---|---|---|
+| ✅ | **v376.63 完了（保守モード解除＋管理画面の日本語表記統一）** | public @368×2 / member @127 / admin @224 に同期済（`deployments` 一致確認）。live E2E: 公開 a11y 違反 0・公開 responsive 7VP・**member responsive 7VP×3画面**・**admin responsive 7VP×8 コンソール=56 view**・**メール設定 E2E 5/5**（いずれも console error 0・横スクロール 0・タップターゲット違反 0）。member の初回実行で 1VP がログインタイムアウトしたが、ウォーム後の再実行で 7VP 全 PASS＝コールドスタートの揺れと確定 | `docs/256_RELEASE_STATE_v376.63_2026-09-02.md` |
 | ✅ | **v376.62 完了（テンプレート一覧取得失敗の本番障害＋pruner 根本修正）** | public @367×2 / member @126 / admin @223 に同期済。**デプロイ後の実測で全 14 カテゴリの `listMailTemplates` が `status:ok`**（修正前は全件 `mailTemplateRecordFromRow_ is not defined`）。live E2E: 公開 a11y 0・公開 responsive 7VP・member responsive 7VP・admin responsive 56 view・mail-settings E2E 5/5・dryRun（endTime / テンプレート）ともに `passed:true` | `docs/254_RELEASE_STATE_v376.62_2026-09-02.md` |
 | ✅ | **v376.61 完了（研修 endTime 実害バグ）** | デプロイ＋live E2E に加え、admin editor で `dryRunTrainingEndTimeV376_61_LOG` を実行し **`passed:true` / `testRowCleanedUp:true` / `corruptedEndTimeCount:0` / `emptyEndTimeCount:0`**（2026-09-02 12:45）。作成→読み戻し→再保存→物理削除まで実DBで検証済 | `docs/253_RELEASE_STATE_v376.61_2026-09-02.md` |
 | 0 | **課題C: GCP ミラーの再同期（残り 1 手）** | 2026-09-02 に `tools/contract-check-member/mapping.mjs` を再実行。**件数 5/5・ID・並び順一致、`date` は全件一致**で、31 フィールド中の差分は **`endTime` × 3 件（T001 / T004 / T473A9682）のみ**＝本日セルを復元した当の 3 件。**Firestore ミラーが復元前のスナップショットのため**で、マッピング不一致ではない。解消には `tools/sync-sheets-to-firestore` で `T_研修` を再同期する（`DB_SPREADSHEET_ID` / `SYNC_IMPERSONATE_SA` の供給が要るため operator 判断）| GCP 作業場 `tools/contract-check-member/results/mapping.jsonl` |

@@ -302,7 +302,7 @@ var PUBLIC_PORTAL_DEFAULTS = {
   completionNoCredentialNotice: 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
   completionCredentialNotice: 'ログイン情報をご登録のメールアドレスに送信しました。',
   trainingBadgeEnabled: true,
-  trainingBadgeLabel: 'TRAINING',
+  trainingBadgeLabel: '研修申込',
   trainingTitleEnabled: true,
   trainingTitle: '研修を申し込む',
   trainingDescriptionEnabled: true,

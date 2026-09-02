@@ -541,7 +541,7 @@ const MemberAddDialog: React.FC<{ trainingId: string; onClose: () => void; onAdd
           </div>
           <Field label={mode === 'member' ? '会員ID' : '職員ID'} value={id} onChange={setId} />
           <Field label="事務局メモ" value={memo} onChange={setMemo} />
-          <p className="text-xs text-gray-500">※ 会員一覧から ID を確認のうえ入力してください。検索 UI は今後拡張予定です。</p>
+          <p className="text-xs text-gray-500">※ 会員一覧から会員 ID を確認のうえ入力してください。検索画面は今後拡張予定です。</p>
         </div>
         <div className="flex gap-2 mt-4 justify-end">
           <button onClick={onClose} disabled={busy} className="px-4 py-2 min-h-[44px] border rounded">キャンセル</button>

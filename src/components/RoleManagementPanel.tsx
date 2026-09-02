@@ -190,7 +190,7 @@ export function RoleManagementPanel({ initialRoles, initialMenuRegistry, current
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse">
           <thead>
-            <tr className="bg-slate-50 text-left text-xs text-slate-600 uppercase tracking-wider">
+            <tr className="bg-slate-50 text-left text-xs text-slate-600 tracking-wider">
               <th className="px-3 py-2 border-b border-slate-200">ロール名</th>
               <th className="px-3 py-2 border-b border-slate-200">説明</th>
               <th className="px-3 py-2 border-b border-slate-200 text-center">許可メニュー数</th>
@@ -294,7 +294,7 @@ export function RoleManagementPanel({ initialRoles, initialMenuRegistry, current
                     /> 自分が登録した研修のみ
                   </label>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">※ training-manage メニューを付与した場合のみ意味を持ちます。</p>
+                <p className="text-xs text-slate-500 mt-1">※「研修管理」メニュー（training-manage）を付与した場合のみ意味を持ちます。</p>
               </div>
 
               <div>

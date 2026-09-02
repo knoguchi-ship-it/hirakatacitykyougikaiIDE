@@ -198,11 +198,11 @@ const PaymentHistoryConsole: React.FC<PaymentHistoryConsoleProps> = ({ api }) =>
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">支払い日（FROM）</label>
+          <label className="mb-1 block text-xs font-medium text-slate-600">支払い日（開始）</label>
           <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className={inputCls} />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">支払い日（TO）</label>
+          <label className="mb-1 block text-xs font-medium text-slate-600">支払い日（終了）</label>
           <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className={inputCls} />
         </div>
         {(filterMemberId || filterDateFrom || filterDateTo) && (
@@ -721,7 +721,7 @@ const PaymentForm: React.FC<{
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">対象期間FROM</label>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">対象期間（開始）</label>
                     <input
                       type="date"
                       value={line.periodFrom}
@@ -731,7 +731,7 @@ const PaymentForm: React.FC<{
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">対象期間TO</label>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">対象期間（終了）</label>
                     <input
                       type="date"
                       value={line.periodTo}
