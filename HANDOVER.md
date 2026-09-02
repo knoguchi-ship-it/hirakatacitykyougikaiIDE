@@ -12,8 +12,8 @@
 > 経緯・履歴・設計詳細は別ドキュメントへ。リンク先は §6 参照順序を参照。
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
-最終更新: **2026-08-02**
-最新リリース: **`v376.58`**（2026-07-19・GCP 移行 Phase 3: GcpApiClient read 実装＝public 2 read action 限定の fetch transport＋deny-by-default。**既定 GAS 経路で挙動不変（非破壊）**。public @364×2 / member @123 / admin @220）
+最終更新: **2026-09-02**
+最新リリース: **v376.60**（メール送信設定是正・public @365×2 / member @124 / admin @221）
 最終作業（2026-07-25）: **GCP 移行 Phase 4b（member 認証）のフル環境まで構築・デプロイ完了。本番 GAS/DB は一切非破壊**（作業は GCP 作業場のみ）。member-auth サービス（Cloud Run `hcmn-member-auth`・rev00003・private・App Check 強制 ON・max=1・専用 SA 最小権限）に、防御コア（第0層レート制限／第1層ロック尊重／第4層日次上限／列挙リーク是正／fail-closed）＋本番 `verifyPassword_` の厳密移植（KAT で GAS 等価を機械証明）＋資格情報ミラー 342 件（**テストコピー由来**）＋Firebase カスタムトークン発行（鍵レス signBlob）＋監査/失効を実装。unit 46/46。**中断点＝operator のブラウザで `/test` を開き `signInOk:true` を確認するのみ（未実施）**。再開手順・GCP リソース一覧・env 再構築・落とし穴の正本は GCP 作業場 `docs/HANDOFF_2026-07-25_member-auth.md`。
 同期間の Phase 4a（2026-07-19〜22）: 予算 killswitch **完了**（予算→topic 接続＋実イベント `under_budget` 初回受信を実測）／日次エクスポート（Firestore→シート BK）を Cloud Run Job で構築し本番 DB シートのコピーで実データ検証 PASS（Scheduler 稼働開始はカットオーバー直前に延期）／portal-api に起動時一括ウォームアップ実装（110+5 doc を 848ms で prefetch・rev00002 実測）／共有 project の IAM 変更後に**本番 3 split live E2E で非影響を実測**（public a11y 0＋7VP／member 21／admin 56 全 PASS）。
 2026-07-11 終盤の作業: **GCP 移行 Phase 2 に着手し中核を完了**（本番 GAS/DB 無変更・作業場は GCP リポジトリ）。①Firestore Native 作成（asia-northeast1・freeTier・operator 承認）②SA impersonation による一方向同期で T_研修 5 doc＋T_システム設定 110 doc をミラー③read-only 互換 API `portal-api` を実装し **`getPublicTrainings`/`getPublicPortalSettings` の両 action が GAS 本番実応答と field 単位で完全一致（contract-check MATCH・settings 47 フィールド）**・warm 113ms（GAS 1.8〜1.9s の約 1/16）。**状態・再開手順の正本は GCP 作業場 README**。
@@ -26,7 +26,7 @@
 
 ## 0. 次の担当者へ（キャッチアップ・まず1分でここ）
 
-- **本番**: public **@364×2** / member **@123** / admin **@220**（v376.58・§1）。全 fixed deployment 同期確認済・稼働正常（`ARGON2_ENABLED=false`＝ログイン挙動は従来 PBKDF2 と同一）。GCP 移行 Phase 3（GcpApiClient read 実装）反映済みだが既定は GAS 経路＝挙動不変（'gcp' は明示 config でのみ・本番非注入）。
+- **本番**: public **@365×2** / member **@124** / admin **@221**（v376.60・§1）。全 fixed deployment 同期確認済・稼働正常。メール設定是正の詳細と残検証は v376.60 release-state および HTML テスト記録を参照。
 - **直近セッション（2026-06-30〜07-05）の成果**（詳細 §7 / `docs/release-notes-2026.md` v376.51〜.53.2）:
   - v376.51 ロール視点プレビュー（MASTER専用）／v376.52 **会員系削除 cascade アーカイブ**（docs/249・実DB E2E 18/18 PASS・削除負債実測16行のみ）／v376.53 DRY・ハードコーディング・XFrame 一括是正（api.ts **-940行**・rbac-util/validators 集約・ID/URL の Properties override 化）／.53.1-.53.2 REDIRECT 警告バナー（live 実証済）。
   - **メール事故対応済**: 6/26〜7/3 の間 `MAIL_DELIVERY_MODE=REDIRECT` 残置で全メールが旧アドレスに集約されていた（実宛先未達）。LIVE 復旧済・再発防止バナー/ログ正直化デプロイ済。**未達期間の再送要否は運用判断が残っている可能性あり**（`T_メール送信ログ` の 6/26〜7/3 BULK_MEMBER 行を確認）。
