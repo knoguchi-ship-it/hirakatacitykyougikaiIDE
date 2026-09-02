@@ -37,7 +37,8 @@
 
 最終更新: **2026-09-02**
 最新リリース: **v376.62**（テンプレート一覧取得失敗の是正・build pruner 根本修正・public @367×2 / member @126 / admin @223）
-最終作業（2026-07-25）: **GCP 移行 Phase 4b（member 認証）のフル環境まで構築・デプロイ完了。本番 GAS/DB は一切非破壊**（作業は GCP 作業場のみ）。member-auth サービス（Cloud Run `hcmn-member-auth`・rev00003・private・App Check 強制 ON・max=1・専用 SA 最小権限）に、防御コア（第0層レート制限／第1層ロック尊重／第4層日次上限／列挙リーク是正／fail-closed）＋本番 `verifyPassword_` の厳密移植（KAT で GAS 等価を機械証明）＋資格情報ミラー 342 件（**テストコピー由来**）＋Firebase カスタムトークン発行（鍵レス signBlob）＋監査/失効を実装。unit 46/46。**この中断点は 2026-08-03 に解消済（rev00006 でフル経路 end-to-end PASS）。当時「あと 1 手」とされていたのは誤認で、実際は `admin.appCheck()` の初期化順序というサーバ側バグの修正が必要だった。以降 Step A（member-api rev00001）まで進行**。再開手順・GCP リソース一覧・env 再構築・落とし穴の正本は GCP 作業場 `docs/HANDOFF_2026-07-25_member-auth.md`。
+最終作業（2026-09-02）: **本番 GAS 側で v376.60 の検証負債を解消し、v376.61 / v376.62 の 2 リリースを実施**（研修 endTime の実害バグ、テンプレート一覧が v376.42 以降ずっと壊れていた本番障害）。本番データの壊れたセル 3 件も operator 承認のうえ復元。あわせて docs を全面整理（直下 80→44 文書）し、テスト記録を `docs/portal/test-report.html` に一本化した。**GCP 側は本セッションでは再突合のみ実施（書込なし）**。
+GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member 認証）のフル環境まで構築・デプロイ完了。本番 GAS/DB は一切非破壊**（作業は GCP 作業場のみ）。member-auth サービス（Cloud Run `hcmn-member-auth`・rev00003・private・App Check 強制 ON・max=1・専用 SA 最小権限）に、防御コア（第0層レート制限／第1層ロック尊重／第4層日次上限／列挙リーク是正／fail-closed）＋本番 `verifyPassword_` の厳密移植（KAT で GAS 等価を機械証明）＋資格情報ミラー 342 件（**テストコピー由来**）＋Firebase カスタムトークン発行（鍵レス signBlob）＋監査/失効を実装。unit 46/46。**この中断点は 2026-08-03 に解消済（rev00006 でフル経路 end-to-end PASS）。当時「あと 1 手」とされていたのは誤認で、実際は `admin.appCheck()` の初期化順序というサーバ側バグの修正が必要だった。以降 Step A（member-api rev00001）まで進行**。再開手順・GCP リソース一覧・env 再構築・落とし穴の正本は GCP 作業場 `docs/HANDOFF_2026-07-25_member-auth.md`。
 同期間の Phase 4a（2026-07-19〜22）: 予算 killswitch **完了**（予算→topic 接続＋実イベント `under_budget` 初回受信を実測）／日次エクスポート（Firestore→シート BK）を Cloud Run Job で構築し本番 DB シートのコピーで実データ検証 PASS（Scheduler 稼働開始はカットオーバー直前に延期）／portal-api に起動時一括ウォームアップ実装（110+5 doc を 848ms で prefetch・rev00002 実測）／共有 project の IAM 変更後に**本番 3 split live E2E で非影響を実測**（public a11y 0＋7VP／member 21／admin 56 全 PASS）。
 2026-07-11 終盤の作業: **GCP 移行 Phase 2 に着手し中核を完了**（本番 GAS/DB 無変更・作業場は GCP リポジトリ）。①Firestore Native 作成（asia-northeast1・freeTier・operator 承認）②SA impersonation による一方向同期で T_研修 5 doc＋T_システム設定 110 doc をミラー③read-only 互換 API `portal-api` を実装し **`getPublicTrainings`/`getPublicPortalSettings` の両 action が GAS 本番実応答と field 単位で完全一致（contract-check MATCH・settings 47 フィールド）**・warm 113ms（GAS 1.8〜1.9s の約 1/16）。**状態・再開手順の正本は GCP 作業場 README**。
 同日中盤: **v376.57 をデプロイ完了**（前セッション中断分の再開）。3 split push→version→fixed deployment 4 本 redeploy→`deployments --json` 一致確認→live E2E（公開 a11y 0・responsive 7VP・**member 7VP PASS・admin 7VP×8 コンソール=56 view PASS**＝3 split 全て非破壊を機械検証。admin は operator ログインで storageState 再取得後に実行）。§12.6 実測（会員222/職員157・B=1呼び出し1.8〜5s固定オーバーヘッド支配）も記録。
@@ -49,8 +50,15 @@
 
 ## 0. 次の担当者へ（キャッチアップ・まず1分でここ）
 
-- **本番**: public **@367×2** / member **@126** / admin **@223**（v376.62・§1）。全 fixed deployment 同期確認済・稼働正常。ロールバック先は public @366×2 / member @125 / admin @222。メール設定是正の詳細と残検証は v376.60 release-state および HTML テスト記録を参照。
-- **直近セッション（2026-06-30〜07-05）の成果**（詳細 §7 / `docs/release-notes-2026.md` v376.51〜.53.2）:
+- **本番**: public **@367×2** / member **@126** / admin **@223**（v376.62・§1）。全 fixed deployment 同期確認済・稼働正常。ロールバック先は public @366×2 / member @125 / admin @222。
+- **検証状況は 1 ページで見られる**: [`docs/portal/test-report.html`](docs/portal/test-report.html)（16 項目・PASS 15・要フォロー 1）。再生成は `npm run report:tests`。
+- **文書の入口**: [`docs/00_DOC_INDEX.md`](docs/00_DOC_INDEX.md)。2026-09-02 に全面整理し、`docs/` 直下は現役 44 文書のみ・完了記録 224 件は [`docs/archive/`](docs/archive/00_ARCHIVE_INDEX.md) へ移した。
+- **直近セッション（2026-09-02）の成果** — 本番 GAS 側で 3 リリース。詳細は `docs/release-notes-2026.md` と各 release state:
+  - **v376.60** メール設定・自動送信の是正（前セッション分）。**残っていた検証負債を全て解消**し、テスト記録は全 13 行 PASS になった。
+  - **v376.61** 研修 `endTime` の実害バグ是正（GCP 申し送り「課題A」）。管理画面の `<input type="time">` が空表示になり**保存すると終了時刻が消える**状態だった。あわせて壊れていた本番セル 3 件を operator 承認のうえ復元（課題B 完了）。
+  - **v376.62** **テンプレート一覧が v376.42 以降ずっと取得失敗していた本番障害**の是正。build pruner が値渡しの関数参照を到達性と見なさず、helper を 3 split すべてから削除していた。根本原因を直し、**生成物の未定義参照を検出する新ゲート `test:gas-artifact-refs`** を prerelease に追加。同ゲートが member split の `normalizeClaimRecord_` 欠落も検出・解消した。
+  - **文書整理**: `docs/` 直下 80 → 44 文書。決定記録 5 本を `06_DECISION_RECORDS.md` に統合、テスト記録を `portal/test-report.html` に一本化、番号衝突を解消（LINE 設計 246→**251** / メール設定テスト計画 248→**255**）。整理ルールは AGENTS §4.6 に明文化。
+- **その前のセッション（2026-06-30〜07-05）の成果**（詳細 §7 / `docs/release-notes-2026.md` v376.51〜.53.2）:
   - v376.51 ロール視点プレビュー（MASTER専用）／v376.52 **会員系削除 cascade アーカイブ**（docs/249・実DB E2E 18/18 PASS・削除負債実測16行のみ）／v376.53 DRY・ハードコーディング・XFrame 一括是正（api.ts **-940行**・rbac-util/validators 集約・ID/URL の Properties override 化）／.53.1-.53.2 REDIRECT 警告バナー（live 実証済）。
   - **メール事故対応済**: 6/26〜7/3 の間 `MAIL_DELIVERY_MODE=REDIRECT` 残置で全メールが旧アドレスに集約されていた（実宛先未達）。LIVE 復旧済・再発防止バナー/ログ正直化デプロイ済。**未達期間の再送要否は運用判断が残っている可能性あり**（`T_メール送信ログ` の 6/26〜7/3 BULK_MEMBER 行を確認）。
   - 第三者評価: `docs/248`（テスト観点表・検証訂正ログ付）→ 主要 High/Med は全て是正済。残は GCP 行き（PBKDF2/性能）と小粒のみ。
@@ -91,9 +99,14 @@
 
 ### 2-0. 次の開発予定
 
-> **🚩 現在の開発は GCP 作業場で進行中（本番 GAS は保守モード）。次の一手は operator 作業＝Phase 4b member 認証の手動テスト確認**（proxy 起動 → `http://127.0.0.1:8910/test` → ダミー会員ログイン → `signInOk:true`）。手順の正本は GCP 作業場 `docs/HANDOFF_2026-07-25_member-auth.md` §0。この PC は gcloud/ADC が 1〜2 日で `invalid_rapt` 失効するため、着手前に `gcloud auth login` が必要。
-> **🔧 本番リポジトリ側で実施する 3 課題（GCP 作業場からの申し送り・2026-08-31 operator 決定「実行する」）**: ①**課題A = `mapTrainingRowsForApi_` の endTime 実害バグ** → **是正済・v376.61 として本番反映完了（2026-09-02）**。②**課題B = `T_研修` の壊れた 3 セルの復元**（operator 手作業・復元値は導出済で要現物突合。T001→12:00 / T004→16:30 / T473A9682→12:40）。③**課題C = GAS 実応答との再突合**（GCP 作業場で `tools/contract-check-member/mapping.mjs` を再実行）。根拠と手順の正本は GCP 作業場 `docs/PHASE4B_AUTH_DEFENSE_DESIGN.md`、本番側の実施記録は `docs/253_RELEASE_STATE_v376.61_2026-09-02.md`。
-> **上記 3 課題以外に、本番 GAS リポジトリ（本書）側で確定した新規開発予定は無い**。障害修正・運用要求が出た場合のみ通常リリースフローで対応する（凍結ではない。凍結判断は Phase 6 と同時＝§0 参照）。
+> **🚩 次の一手（2026-09-02 時点）**
+> 1. **本番 GAS 側に着手待ちの開発は無い**。障害修正・運用要求が出たときだけ通常のリリースフローで対応する（保守モード＝AGENTS §4.7。凍結ではないので完了条件は従来どおり）。
+> 2. **保留中の 1 件**: Firestore ミラーの `T_研修` 再同期（§2-1 の「課題C」）。GCP 側の書込のため operator 判断待ちで、本番 GAS には影響しない。
+> 3. **GCP 移行の続き**は GCP 作業場が正本。最優先は **公開ローンチ準備（member-auth の公開可否＝operator の launch 判断）** と **App Check 本番化＋デバッグトークン全削除**。手順は GCP 作業場 `docs/HANDOFF_2026-07-25_member-auth.md` §5。この PC は gcloud/ADC が 1〜2 日で失効するので、着手前に `! gcloud auth login`（Node から Firestore を触るなら `! gcloud auth application-default login` も）。
+>
+> **作業を始める前に**: 管理画面の Playwright E2E を回すには admin の Google セッションが要る。`node .test-out/auth-bootstrap-admin-auto.mjs` を実行して operator がログインすると `.test-out/auth-admin.json` が更新される（**セッションは短命で、同日中に失効することがある**）。
+> **✅ GCP 作業場からの申し送り 3 課題（2026-08-31 operator 決定）は 2026-09-02 に決着**: ①課題A（`mapTrainingRowsForApi_` の endTime 実害バグ）→ **v376.61 で是正・デプロイ済** ②課題B（`T_研修` の壊れた 3 セル）→ **復元済**（T001=12:00 / T004=16:30 / T473A9682=12:40・dry-run で `corruptedEndTimeCount:0` を確認）③課題C（GAS 実応答との再突合）→ **実施済**。`date` は全件一致し、残差分は `endTime` × 3 件のみ＝**Firestore ミラーが復元前スナップショットのため**。解消には `T_研修` の再同期が要る（保留・§2-1）。
+> **本番 GAS リポジトリ（本書）側で確定した新規開発予定は無い**。障害修正・運用要求が出た場合のみ通常リリースフローで対応する（凍結ではない。凍結判断は Phase 6 と同時＝§0 参照）。
 > **✅ v376.58 release 完了（2026-07-19）＝ GCP 移行 Phase 3: GcpApiClient read 実装（public 2 read action 限定 fetch transport・deny-by-default・既定 GAS 経路不変）デプロイ済**。prerelease 全ゲート＋新設 `test:gcp-transport` 10/10・生成物 grep 3/3・デプロイ後 live 公開 a11y 0/responsive 7VP PASS。詳細は `docs/release-notes-2026.md` v376.58。
 > **✅ v376.57 release 完了（2026-07-11）＝ GCP 移行 Phase 1（frontend transport 分離）デプロイ済・E2E 3 split 全 PASS**。公開 a11y 0・responsive 7VP・member 7VP・admin 7VP×8 コンソール=56 view（storageState は operator ログインで再取得済＝以後 admin E2E 実行可能）。§12.6 実測も完了済。
 > **参考**: 2026-07-11 前半セッションで docs/250 に確定反映済み＝サブドメイン（portal/member）・admin=run.app・旧URL転送は Phase 6 最終・max-instances=1 採用・Cloud Armor 不採用。
@@ -188,6 +201,7 @@ npm run test:search                        # 16 unit tests
 npm run security:public-boundary           # public top-level callable 監査
 npm run security:split-boundary            # member + admin 監査
 npm run prerelease                         # 全 release gate（上記をまとめて）
+npm run test:gas-artifact-refs             # v376.62 新設: 生成物の未定義関数参照を検出（prerelease に内包）
 
 # 本番デプロイ（3 split それぞれ）
 npm run build:gas                          # public ビルド
@@ -200,11 +214,30 @@ npm run build:gas:admin                    # admin ビルド
 npm run test:a11y                          # 公開ポータルのみ（auth 不要）
 npm run test:responsive                    # 公開ポータルのみ
 npm run test:responsive:admin              # 要 storageState
-npm run test:responsive:member             # 要 storageState
+npm run test:responsive:member             # .env.test の会員資格情報で自動ログイン
+npm run test:mail-settings:e2e             # 管理画面のメール通知設定（非破壊・要 storageState）
+node .test-out/auth-bootstrap-admin-auto.mjs   # admin セッション取得（ブラウザが開く→operator がログイン）
+
+# テスト結果レポート（人間向け HTML）
+npm run report:tests                       # docs/portal/test-report.html を再生成
 
 # ドキュメントポータル再生成（AGENTS.md §4.6 同期則 — スキーマ・仕様変更時必須）
 npm run build:docs-portal                  # docs/portal/*.html + schema.dbml を一括生成
 ```
+
+---
+
+## 3-2. 今回のセッションで得た教訓（次の担当者への申し送り）
+
+| 教訓 | 内容 |
+|---|---|
+| **boundary 監査は helper の解決までは見ていない** | `listMailTemplates` は v376.42 以降ずっと本番で `ReferenceError` だったが、prerelease も生成物 grep も通っていた。build pruner が `rows.map(fn_)` の**値渡し参照**を到達性と見なさず helper を消していたため。v376.62 で `test:gas-artifact-refs` を追加した。**gas-src を触ったらこのゲートを必ず通す**。 |
+| **pruner は 3 ファイルに複製されている** | `gas-boundary-utils.mjs` / `build-admin-gas.mjs` / `build-member-gas.mjs`。片方だけ直すと split で挙動が割れる。一本化は未実施の負債（`docs/254` §残課題）。 |
+| **画面に出ているエラー文言は追跡の起点になる** | 今回の障害の端緒は E2E ではなく、管理画面に出ていた「テンプレート一覧の取得に失敗しました」。`src/**` を文言で grep すれば発生条件に直行できる。 |
+| **テストハーネスの固定待ちは偽 FAIL を生む** | 公開レスポンシブとメール設定 E2E が「アプリの不具合」ではなくハーネス側の理由で FAIL していた（固定待ち・期待文言の不一致・最外側 div への一致）。**FAIL を見たらまずハーネスを疑い、同一ビルドで再現するか確かめる**。 |
+| **admin の Google セッションは短命** | 同日中に失効することがある。デプロイ直後に管理画面へ到達できなくても、まず `Signed out` でないかを確認する（今回それをロールバック事由と誤認しかけた）。 |
+| **Apps Script エディタは合成クリックを受け付けない** | `page.evaluate` 内の `.click()` では関数選択が反映されず、**意図しない関数が実行される**（今回 `forceMarkSchemaInitializedToCurrent` が 1 回走った。データ変更のない関数で実害なし）。Playwright の実ポインタクリックを使い、**選択中の関数名を画面で照合してから実行する**（`.test-out/run-dryrun-editor.mjs` はそのガード入り）。 |
+| **Bash のヒアドキュメントはバックスラッシュを落とす** | 正規表現やエスケープを含むコード生成は Write/Edit ツールで行う。 |
 
 ---
 
@@ -253,6 +286,7 @@ npm run build:docs-portal                  # docs/portal/*.html + schema.dbml �
 | 1 | `AGENTS.md` §0 | シークレット絶対ルール（破ったら即時是正） |
 | 2 | 本 `HANDOVER.md` | 現状把握（このファイル） |
 | 3a | **`docs/portal/index.html`**（ブラウザで開く）| **人間向け HTML ポータル**（ER 図 / テーブル設計書 / 仕様書サマリ / インタラクティブ ER / ER エディタ）|
+| 3b | **`docs/portal/test-report.html`**（ブラウザで開く）| **テスト結果レポート**（最新リリースの検証状況を 1 ページで確認。`npm run report:tests` で再生成）|
 | 3 | `docs/00_DOC_INDEX.md` | 全ドキュメントの Diataxis 索引（一次資料 Markdown）|
 | 4 | `docs/ONBOARDING.md` | 新規開発者向け（Day 1 / Week 1 / Week 2-3 / Week 4） |
 | 5 | `docs/02_ARCHITECTURE.md` / `docs/03_DATA_MODEL.md` / `docs/05_AUTH_AND_ROLE_SPEC.md` | リファレンス（必要時） |
