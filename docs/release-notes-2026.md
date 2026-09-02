@@ -13,6 +13,19 @@
 
 ---
 
+## v376.60 — 2026-09-02 🐛 メール設定・自動送信の是正（全3split @365×2 / @124 / @221）
+
+公開ポータルの入会・変更申請に関する自動メールを、設定画面どおりに制御できるよう是正した。
+
+- **受付確認メールのOFFを厳密化**: 保存された Boolean false を未設定扱いしないよう修正。OFFのときは受付確認メールを送らない。
+- **事業所の送信先を代表者へ固定**: 申込 staff の先頭ではなく、role=REPRESENTATIVE の職員メールを解決する。代表者が見つからない場合は送らずエラーにする。
+- **自動メールの送信元を一元化**: 自動通知だけは共通送信元設定を使用する。明示的な一括メール・手動送信の送信元は上書きしない。
+- **OFF中のテンプレート編集を可能化**: 通知をOFFにしたまま、メール内容・保存済みテンプレートを開いて読み込み・編集できる。
+- **検証**: 専用unit test、3 split生成物確認、fixed deployment同期、公開a11y（違反0）を完了。管理画面E2EとExecution API dry-runは認証権限待ちのため、FAIL/BLOCKEDとしてHTML記録へ明記。
+- 詳細: docs/252_RELEASE_STATE_v376.60_2026-09-02.md / docs/portal/mail-settings-test-report.html
+
+---
+
 ## v376.58 — 2026-07-19 🔧 GCP 移行 Phase 3: GcpApiClient read 実装（全3split @364×2 / @123 / @220・既定 GAS 経路で挙動不変・公開E2E非破壊確認済）
 
 GCP 移行 Phase 3（`docs/250` §5・GCP 作業場 `docs/PHASE3_DESIGN.md` §3）: Phase 1 で用意した transport の器に、**read-only 2 action に限る fetch 実装**を追加した。**既定は従来どおり GAS 経路（GasApiClient）で挙動不変**。gas-src/Code.gs・DB schema・認証は一切不変。

@@ -3044,7 +3044,10 @@ function getSystemSettingValue_(ss, key) {
   var found = findRowByColumnValue_(sheet, '設定キー', key);
   if (!found) return '';
   var idx = found.columns['設定値'];
-  return idx == null ? '' : String(found.row[idx] || '');
+  // Boolean false は設定値として有効であり、未設定ではない。
+  // `value || ''` にすると false が空文字へ化け、OFF の通知が送信される。
+  var value = idx == null ? null : found.row[idx];
+  return value === null || value === undefined ? '' : String(value);
 }
 
 // T_システム設定を1回の読み込みで全設定を {key: value} マップとして返す（N+1回避）
@@ -3196,6 +3199,19 @@ var REQUEST_TYPE_LABEL_ = {
   STAFF_ADD: '職員追加申請',
   STAFF_REMOVE: '職員除籍申請',
 };
+
+// 事業所入会申込の申請者連絡先は、職員入力順ではなく REPRESENTATIVE のメールアドレス。
+// 代表者不在・メール未入力は空文字で返し、呼出元で fail-close する。
+
+// シート由来の設定値は文字列だけでなく Boolean になる場合がある。
+// Boolean false を `|| true` で既定値へすり替えないよう、未設定だけを既定値にする。
+
+
+// v376.59: 申請者通知の宛先と OFF 設定を、実送信せず確認する operator 用 dry-run。
+// 実 DB は設定の読取りだけで、行追加・更新・メール送信はいっさい行わない。
+
+// v376.60: メール設定の実DB監査。テンプレート本文・名前・メールアドレスを出力せず、
+// 設定・カテゴリ・送信元の解決状態だけを確認する非送信・非書込 dryRun。
 
 // v368: 申込受付メール送信ヘルパー（公開ポータル申請受付時に使用）
 
@@ -6208,8 +6224,51 @@ function deliverMail_(category, to, subject, body, options) {
     finalTo = policy.allowlist.join(',');
     Logger.log('deliverMail_ REDIRECT category=' + (category || 'GENERAL') + ' originalTo=' + origTo + ' redirectedTo=' + finalTo);
   }
-  sendEmailWithValidatedFrom_(finalTo, finalSubject, finalBody, options || {});
+  var finalOptions = options || {};
+  if (isAutomatedMailCategory_(category) && !String(finalOptions.from || '').trim()) {
+    finalOptions = buildAutomatedMailOptions_(getOrCreateDatabase_(), finalOptions);
+  }
+  sendEmailWithValidatedFrom_(finalTo, finalSubject, finalBody, finalOptions);
   return { sent: true, mode: policy.mode };
+}
+
+// 一括メールやLINE通知は操作者が送信元を選ぶため対象外。自動通知だけを共通設定へ集約する。
+function isAutomatedMailCategory_(category) {
+  var automatic = {
+    APPLICATION_RECEIPT: true,
+    APPROVAL_NOTIFICATION: true,
+    REJECTION_NOTIFICATION: true,
+    CREDENTIAL_EMAIL: true,
+    BIZ_REP_EMAIL: true,
+    BIZ_STAFF_EMAIL: true,
+    STAFF_ADD_STAFF_EMAIL: true,
+    STAFF_ADD_REP_EMAIL: true,
+    TRAINING_APPLY_RECEIPT: true,
+    TRAINING_REMINDER: true,
+    AUTH_OTP: true,
+    MEMBER_UPDATE_CONFIRM: true,
+    WITHDRAWAL_CONFIRM: true,
+    PASSWORD_RESET: true,
+  };
+  return !!automatic[String(category || '').toUpperCase()];
+}
+
+// 既存 CREDENTIAL_EMAIL_FROM を「自動通知の共通送信元」として後方互換で利用する。
+// 空欄時は GAS の標準送信元を使う。指定済み alias が使えない場合は GmailApp が例外にし、
+// 実行者アドレスへ黙ってフォールバックさせない。
+function buildAutomatedMailOptions_(ss, options) {
+  var configuredFrom = String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_FROM') || '').trim();
+  var merged = {};
+  var src = options || {};
+  for (var key in src) {
+    if (Object.prototype.hasOwnProperty.call(src, key)) merged[key] = src[key];
+  }
+  if (configuredFrom && !String(merged.from || '').trim()) {
+    merged.from = configuredFrom;
+    if (!String(merged.replyTo || '').trim()) merged.replyTo = configuredFrom;
+  }
+  if (!String(merged.name || '').trim()) merged.name = '枚方市介護支援専門員連絡協議会';
+  return merged;
 }
 
 function sendEmailWithValidatedFrom_(to, subject, body, options) {

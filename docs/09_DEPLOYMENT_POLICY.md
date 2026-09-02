@@ -144,7 +144,21 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-07-19 `v376.58` ← current production
+### 2026-09-02 v376.60 ← current production
+- Scope: mail-delivery setting consolidation and application receipt correction.
+  Persisted Boolean false now remains OFF; business application email resolves
+  the REPRESENTATIVE staff role; automatic notifications use the configured
+  shared automatic sender; templates remain editable while a notification is
+  OFF. Explicit bulk/manual sender selection remains unchanged.
+- Fixed deployments: integrated/public @365 x2 / member @124 / admin @221.
+- Verification: pre-release gate and dedicated mail unit tests passed; generated
+  artifacts were checked in all 3 splits; deployment-version verification passed;
+  production public a11y passed with zero violations. Admin browser E2E and
+  Execution API dry-runs remain recorded as FAIL/BLOCKED pending authenticated
+  browser state and Execution API permission. See docs/252_RELEASE_STATE_v376.60_2026-09-02.md.
+- Rollback: integrated/public @364 x2 / member @123 / admin @220.
+
+### 2026-07-19 v376.58
 - Scope: GCP 移行 Phase 3（docs/250 §5・GCP 作業場 PHASE3_DESIGN §3）GcpApiClient read 実装。`src/shared/api-base.ts` の `callApi` に runtime 分岐（'gcp' 明示 config 時のみ `callGcpApi` fetch・allowlist は portal-api と同一の public 2 read action・allowlist 外 deny-by-default reject）、`GcpApiClient.callAction` を `callGcpApi` 委譲で実装、`AppRuntimeConfig.apiAuthToken`（ローカル検証専用・生成物非注入）追加。既定 'gas' 不変＝GAS 配信挙動不変。gas-src/Code.gs・DB schema・認証は不変。全 3 split 更新。
 - Integrated fixed deployments: `@364` x2 ／ Member split: `@123` ／ Admin split: `@220`
 - Verification: 新設 `test:gcp-transport` unit 10/10 を prerelease 連鎖へ追加し全ゲート PASS。3 split 生成物 grep（`__APP_CONFIG__={apiRuntime:'gas'}` のみ・apiAuthToken 値非注入・`var テーブル定義` 3/3・boot splash 残存・importmap 除去）PASS。3 project の `npx clasp deployments --json` で @364×2/@123/@220 同期確認。デプロイ後 live: 公開 `test:a11y` 違反 0・`test:responsive` 全 7VP PASS。member/admin は書込フロー変更なし（stub 到達不能）のため公開 E2E＋prerelease で非破壊判定。

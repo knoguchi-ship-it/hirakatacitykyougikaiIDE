@@ -68,6 +68,64 @@ function dryRunMailTemplatesV376_43_LOG() {
   return report;
 }
 
+function dryRunApplicationReceiptRoutingV376_59_LOG() {
+  var fixtureStaff = [
+    { role: 'STAFF', email: 'member@example.invalid' },
+    { role: 'REPRESENTATIVE', email: 'representative@example.invalid' },
+  ];
+  var representativeEmail = resolveBusinessApplicationRepresentativeEmail_(fixtureStaff);
+  var ss = getOrCreateDatabase_();
+  var checks = [
+    { name: 'boolean_false_stops_receipt', passed: !isSystemSettingValueEnabled_(false, true) },
+    { name: 'string_false_stops_receipt', passed: !isSystemSettingValueEnabled_('false', true) },
+    { name: 'business_receipt_uses_representative', passed: representativeEmail === 'representative@example.invalid' },
+    { name: 'live_application_receipt_setting_readable', passed: typeof isSystemSettingEnabled_(ss, 'APPLICATION_RECEIPT_ENABLED', true) === 'boolean' },
+  ];
+  var report = {
+    version: 'v376.59',
+    dryRun: true,
+    mailSent: false,
+    dbWritten: false,
+    passed: checks.every(function(check) { return check.passed; }),
+    checks: checks,
+    liveApplicationReceiptEnabled: isSystemSettingEnabled_(ss, 'APPLICATION_RECEIPT_ENABLED', true),
+  };
+  Logger.log('[dryRunApplicationReceiptRoutingV376_59_LOG] ' + JSON.stringify(report));
+  return report;
+}
+
+function dryRunMailSettingsV376_60_LOG() {
+  var ss = getOrCreateDatabase_();
+  var templateSheet = ss.getSheetByName('T_メールテンプレート');
+  var templates = templateSheet ? getRowsAsObjects_(ss, 'T_メールテンプレート').filter(function(row) {
+    return !toBoolean_(row['削除フラグ']);
+  }) : [];
+  var categoryCounts = {};
+  templates.forEach(function(row) {
+    var category = String(row['カテゴリ'] || '').trim().toUpperCase();
+    if (!category) category = 'UNKNOWN';
+    categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+  });
+  var checks = [
+    { name: 'template_table_readable', passed: !!templateSheet },
+    { name: 'workflow_off_value_is_boolean', passed: typeof isSystemSettingEnabled_(ss, 'APPLICATION_RECEIPT_ENABLED', true) === 'boolean' },
+    { name: 'automatic_sender_option_resolves', passed: typeof buildAutomatedMailOptions_(ss, {}).from === 'string' || buildAutomatedMailOptions_(ss, {}).from === undefined },
+  ];
+  var report = {
+    version: 'v376.60',
+    dryRun: true,
+    mailSent: false,
+    dbWritten: false,
+    passed: checks.every(function(check) { return check.passed; }),
+    checks: checks,
+    activeTemplateCounts: categoryCounts,
+    automaticSenderConfigured: !!String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_FROM') || '').trim(),
+    applicationReceiptEnabled: isSystemSettingEnabled_(ss, 'APPLICATION_RECEIPT_ENABLED', true),
+  };
+  Logger.log('[dryRunMailSettingsV376_60_LOG] ' + JSON.stringify(report));
+  return report;
+}
+
 function processPendingThumbnails() {
   try {
     var ss = getOrCreateDatabase_();

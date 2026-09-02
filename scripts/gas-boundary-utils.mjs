@@ -32,6 +32,10 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   'forceMarkSchemaInitializedToCurrent',
   // v376.43 (Phase B): 全メールテンプレート差し込み描画の dryRun E2E（operator 実行用・非送信）
   'dryRunMailTemplatesV376_43_LOG',
+  // v376.59: 入会申込の代表者宛先固定とワークフローメール OFF ガード（operator 実行用・非送信）
+  'dryRunApplicationReceiptRoutingV376_59_LOG',
+  // v376.60: メール設定・テンプレート・自動送信元の実DB監査（operator 実行用・非送信）
+  'dryRunMailSettingsV376_60_LOG',
   // v376.44: 公式LINE投稿依頼 保存フロー dryRun E2E（operator 実行用）
   'dryRunLinePostV376_44_LOG',
   // v376.45: LINE投稿 権限二層+可視範囲+submitRequest dryRun E2E（operator 実行用）

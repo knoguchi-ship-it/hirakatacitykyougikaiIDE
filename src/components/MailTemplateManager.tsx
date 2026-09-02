@@ -104,7 +104,7 @@ const MailTemplateManager: React.FC<MailTemplateManagerProps> = ({
       </div>
 
       {loadedTemplate && (
-        <p className="text-[11px] text-emerald-700 mb-2">編集中のテンプレート: <span className="font-semibold">{loadedTemplate.name}</span></p>
+        <p className="text-[11px] text-emerald-700 mb-2">編集中のテンプレート: <span className="font-semibold">{loadedTemplate.name}</span>。画面下部の「設定を保存」でこの通知へ適用されます。</p>
       )}
 
       {showNew && (

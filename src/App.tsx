@@ -4111,7 +4111,7 @@ const App: React.FC = () => {
           {settingsSub === 'email' && <AdminSettingsSection
             id="settings-all-email"
             title="入会・登録メール設定"
-            description="全体マスタースイッチで一括停止、その下で種別ごとに ON/OFF・件名・本文を個別設定します。事業所会員と個人・賛助会員でテンプレートを使い分けできます。"
+            description="上部のメール送信制御が全メールの安全停止です。ここでは入会・登録と変更申請の通知ごとに、ON/OFF・宛先ルール・件名・本文・テンプレートを設定します。"
             badge="メール設定"
             defaultOpen
           >
@@ -4119,31 +4119,31 @@ const App: React.FC = () => {
                 EmailSettingsCard.tsx に定義。App 内 IIFE での定義は
                 毎レンダーで新型が生成されフォーカスが失われるため禁止。 */}
             <div className="space-y-6">
-                {/* ─── 全体マスタースイッチ ─── */}
+                {/* ─── 入会・登録情報メールの共通スイッチ ─── */}
                 <div className="rounded-xl border-2 border-slate-300 bg-white p-4 space-y-3">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">全体マスタースイッチ</p>
-                  <p className="text-xs text-slate-500">OFF にすると以下の全メール設定に関わらず、すべての入会・登録メールが停止されます。</p>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">入会・登録情報メールの共通スイッチ</p>
+                  <p className="text-xs text-slate-500">OFF にすると、下の入会完了・事業所登録・職員追加メールが停止されます。受付・承認・却下などの変更申請通知は、それぞれのカードで設定します。全メールを止める場合は上部の「メール送信制御」を使用してください。</p>
                   <ToggleSwitch color="emerald"
                     enabled={credentialEmailEnabledInput}
                     onToggle={() => { setCredentialEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     onLabel="入会・登録メールを送信する（ON）"
-                    offLabel="全メール停止中（OFF）— 準備が整ったら ON へ戻してください" />
+                    offLabel="入会・登録情報メール停止中（OFF）— 準備が整ったら ON へ戻してください" />
                   {!credentialEmailEnabledInput && (
-                    <p className="text-xs text-red-600">現在 OFF です。全ての入会・登録メールが送信されません。</p>
+                    <p className="text-xs text-red-600">現在 OFF です。このグループの入会・登録情報メールは送信されません。</p>
                   )}
                 </div>
 
                 {/* ─── 送信元アドレス（共通） ─── */}
                 <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">送信元アドレス（全メール共通）</p>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">自動通知の送信元アドレス（共通）</p>
                     <button type="button" onClick={() => { void loadCredentialEmailAliases(); }}
                       disabled={credentialEmailAliasLoading}
                       className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 disabled:opacity-50">
                       {credentialEmailAliasLoading ? '読込中...' : '更新'}
                     </button>
                   </div>
-                  <p className="text-xs text-slate-500">Gmail「Send mail as」に登録済みのアドレスから選択します。</p>
+                  <p className="text-xs text-slate-500">受付・承認・却下・入会完了・OTPなどの自動通知に共通適用します。Gmail「Send mail as」に登録済みのアドレスから選択します。一括メールは送信画面で個別に選択します。</p>
                   <select value={credentialEmailFromInput}
                     onChange={(e) => { setCredentialEmailFromInput(e.target.value); setSettingsIsDirty(true); }}
                     className="w-full border border-slate-300 rounded px-3 py-2 text-sm bg-white"

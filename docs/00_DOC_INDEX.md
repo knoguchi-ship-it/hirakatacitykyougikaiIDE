@@ -1,7 +1,7 @@
 # Document Index
 
-更新日: 2026-07-10
-現行本番: **`v376.56`**（integrated-public `@362` x2 / member split `@121` / admin split `@218`）
+更新日: 2026-09-02
+現行本番: **v376.60**（integrated-public @365 x2 / member split @124 / admin split @221）
 
 このプロジェクトのドキュメントは **[Diátaxis フレームワーク](https://diataxis.fr/)** に従って 4 カテゴリ + 補助 2 カテゴリで構成しています。
 **目的別に最短経路で必要な情報に到達できる**ことを保証しています。
@@ -45,6 +45,7 @@
 
 | 文書 | 内容 |
 |---|---|
+| [248_MAIL_SETTINGS_TEST_PLAN_2026-09-02.md](248_MAIL_SETTINGS_TEST_PLAN_2026-09-02.md) | メール設定是正のテスト表。HTML実行記録: [portal/mail-settings-test-report.html](portal/mail-settings-test-report.html) |
 | [245_UI_ACCESSIBILITY_REGRESSION_CHECKLIST_2026-05-21.md](245_UI_ACCESSIBILITY_REGRESSION_CHECKLIST_2026-05-21.md) | 新 UI 追加時の必須チェック（a11y + responsive） |
 | [247_TEST_VIEWPOINT_EVAL_2026-06-06.md](247_TEST_VIEWPOINT_EVAL_2026-06-06.md) | テスト観点表評価（v376.32〜.37・ISO/IEC 25010:2023 準拠・a11y/レスポンシブ/依存 実測） |
 | [17_ROOT_CAUSE_ERROR_RESPONSE_PLAYBOOK.md](17_ROOT_CAUSE_ERROR_RESPONSE_PLAYBOOK.md) | 障害対応フロー（根本原因→修正→再発防止） |
@@ -164,6 +165,7 @@
 
 | 文書 | バージョン |
 |---|---|
+| [252_RELEASE_STATE_v376.60_2026-09-02.md](252_RELEASE_STATE_v376.60_2026-09-02.md) | v376.60 メール設定・送信元・テンプレート編集是正 |
 | [245_UI_ACCESSIBILITY_REGRESSION_CHECKLIST_2026-05-21.md](245_UI_ACCESSIBILITY_REGRESSION_CHECKLIST_2026-05-21.md) | v374 チェックリスト |
 | [244_WCAG_2.2_AA_CONFORMANCE_STATEMENT_2026-05-21.md](244_WCAG_2.2_AA_CONFORMANCE_STATEMENT_2026-05-21.md) | v374 conformance |
 | [243_RELEASE_STATE_v373.7_ROSTER_S5_GAS_CLEANUP_2026-05-20.md](243_RELEASE_STATE_v373.7_ROSTER_S5_GAS_CLEANUP_2026-05-20.md) | v373.7 |

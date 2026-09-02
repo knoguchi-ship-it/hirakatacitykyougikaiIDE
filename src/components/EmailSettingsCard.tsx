@@ -36,7 +36,7 @@ export const MasterOffBanner: React.FC<{ masterEnabled: boolean }> = ({ masterEn
   if (masterEnabled) return null;
   return (
     <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-      全体マスタースイッチが <strong>OFF</strong> のため、以下の設定に関わらず全メールが停止されます。
+      このグループの共通スイッチが <strong>OFF</strong> のため、以下の設定に関わらず対象メールが停止されます。
     </div>
   );
 };
@@ -77,8 +77,12 @@ export const EmailCard: React.FC<EmailCardProps> = ({
       <span className="text-sm font-semibold text-slate-800">{title}</span>
     </div>
     <ToggleSwitch enabled={enabled} onToggle={onToggle} onLabel="送信する（ON）" offLabel="送信しない（OFF）" />
-    {enabled && (
-      <>
+    <details className="rounded-lg border border-slate-200 bg-white p-3" open={enabled}>
+      <summary className="cursor-pointer text-xs font-medium text-slate-600">
+        {enabled ? 'メール内容・テンプレートを編集する' : 'OFFのままメール内容・テンプレートを編集する'}
+      </summary>
+      {!enabled && <p className="mt-2 text-xs text-slate-500">送信をOFFにしたまま文面の準備、保存済みテンプレートの読込・編集ができます。実際に送信するには、この通知をONにしてください。</p>}
+      <div className="mt-3 space-y-3">
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">件名</label>
           <div className="flex gap-2">
@@ -108,7 +112,7 @@ export const EmailCard: React.FC<EmailCardProps> = ({
           />
           {extra}
         </div>
-      </>
-    )}
+      </div>
+    </details>
   </div>
 );

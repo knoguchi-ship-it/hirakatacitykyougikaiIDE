@@ -1,5 +1,13 @@
 # 開発引継ぎ（Current State）
 
+## 2026-09-02 v376.60 リリース
+
+- 本番 fixed deployment は public @365 ×2、member @124、admin @221 に同期済み。
+- 対象: 受付メールOFF判定、事業所代表者宛先、共通自動送信元、OFF中テンプレート編集。
+- 公開 a11y は PASS。管理画面 Playwright E2E と非送信 dry-run は、ブラウザ／Execution API の認可待ち。
+  詳細は docs/252_RELEASE_STATE_v376.60_2026-09-02.md と
+  docs/portal/mail-settings-test-report.html を参照。
+
 > このファイルは「**現時点で本番がどうなっているか / 何をすべきか**」だけを記載します。
 > 経緯・履歴・設計詳細は別ドキュメントへ。リンク先は §6 参照順序を参照。
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。

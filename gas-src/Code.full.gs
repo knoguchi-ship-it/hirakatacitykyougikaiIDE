@@ -1373,7 +1373,7 @@ function insertSystemSettingKeysForV209() {
   });
   var newKeys = [
     { key: 'CREDENTIAL_EMAIL_ENABLED', value: 'true', desc: '入会申込時にログイン情報メールを送信するか（true / false）' },
-    { key: 'CREDENTIAL_EMAIL_FROM', value: '', desc: '入会時認証情報メールの送信元アドレス（空欄時は実行ユーザーの主メールアドレス）' },
+    { key: 'CREDENTIAL_EMAIL_FROM', value: '', desc: '自動通知メール共通の送信元アドレス（空欄時は実行ユーザーの主メールアドレス）' },
     { key: 'CREDENTIAL_EMAIL_SUBJECT', value: CREDENTIAL_EMAIL_DEFAULT_SUBJECT, desc: '入会時認証情報メールの件名' },
     { key: 'CREDENTIAL_EMAIL_BODY', value: CREDENTIAL_EMAIL_DEFAULT_BODY, desc: '入会時認証情報メールの本文（マージタグ: {{氏名}} {{ログインID}} {{パスワード}} {{会員マイページURL}}）' },
   ];
@@ -6537,7 +6537,7 @@ function updateSystemSettings_(request, callerPermLevel) {
     var ownerEmail = Session.getEffectiveUser().getEmail();
     var requestedFrom = String(request.credentialEmailFrom || '').trim();
     var validatedFrom = validateRequestedFromAddress_(requestedFrom, ownerEmail);
-    updates.push({ key: 'CREDENTIAL_EMAIL_FROM', value: validatedFrom === ownerEmail ? '' : validatedFrom, description: '入会時認証情報メールの送信元アドレス' });
+    updates.push({ key: 'CREDENTIAL_EMAIL_FROM', value: validatedFrom === ownerEmail ? '' : validatedFrom, description: '自動通知メール共通の送信元アドレス' });
   }
   if (request.credentialEmailSubject != null) {
     var subj = String(request.credentialEmailSubject).trim();
@@ -8168,7 +8168,10 @@ function getSystemSettingValue_(ss, key) {
   var found = findRowByColumnValue_(sheet, '設定キー', key);
   if (!found) return '';
   var idx = found.columns['設定値'];
-  return idx == null ? '' : String(found.row[idx] || '');
+  // Boolean false は設定値として有効であり、未設定ではない。
+  // `value || ''` にすると false が空文字へ化け、OFF の通知が送信される。
+  var value = idx == null ? null : found.row[idx];
+  return value === null || value === undefined ? '' : String(value);
 }
 
 // T_システム設定を1回の読み込みで全設定を {key: value} マップとして返す（N+1回避）
@@ -8436,10 +8439,11 @@ function enqueueMemberApplicationChangeRequest_(payload) {
   if (['INDIVIDUAL', 'BUSINESS', 'SUPPORT'].indexOf(memberType) === -1) {
     throw new Error('会員種別が不正です。');
   }
-  var contactEmail = String(payload.email || payload.representativeEmail || '').trim();
-  if (!contactEmail && memberType === 'BUSINESS' && Array.isArray(payload.staff) && payload.staff.length > 0) {
-    contactEmail = String(payload.staff[0].email || '').trim();
-  }
+  // 受付確認・承認・却下の連絡先は、事業所会員では代表者を正本とする。
+  // 職員配列の先頭を使うと、入力順によって一般メンバーへ誤送信されるため禁止する。
+  var contactEmail = memberType === 'BUSINESS'
+    ? resolveBusinessApplicationRepresentativeEmail_(payload.staff)
+    : String(payload.email || '').trim();
   if (!contactEmail) throw new Error('連絡先メールアドレスが必要です。');
 
   var applicantName = memberType === 'BUSINESS'
@@ -9441,12 +9445,96 @@ var REQUEST_TYPE_LABEL_ = {
   STAFF_REMOVE: '職員除籍申請',
 };
 
+// 事業所入会申込の申請者連絡先は、職員入力順ではなく REPRESENTATIVE のメールアドレス。
+// 代表者不在・メール未入力は空文字で返し、呼出元で fail-close する。
+function resolveBusinessApplicationRepresentativeEmail_(staff) {
+  if (!Array.isArray(staff)) return '';
+  for (var i = 0; i < staff.length; i++) {
+    var row = staff[i] || {};
+    if (String(row.role || '').trim() !== 'REPRESENTATIVE') continue;
+    return String(row.email || '').trim();
+  }
+  return '';
+}
+
+// シート由来の設定値は文字列だけでなく Boolean になる場合がある。
+// Boolean false を `|| true` で既定値へすり替えないよう、未設定だけを既定値にする。
+function isSystemSettingValueEnabled_(raw, defaultValue) {
+  if (raw === '' || raw === null || raw === undefined) return !!defaultValue;
+  return String(raw).trim().toLowerCase() !== 'false';
+}
+
+function isSystemSettingEnabled_(ss, key, defaultValue) {
+  return isSystemSettingValueEnabled_(getSystemSettingValue_(ss, key), defaultValue);
+}
+
+// v376.59: 申請者通知の宛先と OFF 設定を、実送信せず確認する operator 用 dry-run。
+// 実 DB は設定の読取りだけで、行追加・更新・メール送信はいっさい行わない。
+function dryRunApplicationReceiptRoutingV376_59_LOG() {
+  var fixtureStaff = [
+    { role: 'STAFF', email: 'member@example.invalid' },
+    { role: 'REPRESENTATIVE', email: 'representative@example.invalid' },
+  ];
+  var representativeEmail = resolveBusinessApplicationRepresentativeEmail_(fixtureStaff);
+  var ss = getOrCreateDatabase_();
+  var checks = [
+    { name: 'boolean_false_stops_receipt', passed: !isSystemSettingValueEnabled_(false, true) },
+    { name: 'string_false_stops_receipt', passed: !isSystemSettingValueEnabled_('false', true) },
+    { name: 'business_receipt_uses_representative', passed: representativeEmail === 'representative@example.invalid' },
+    { name: 'live_application_receipt_setting_readable', passed: typeof isSystemSettingEnabled_(ss, 'APPLICATION_RECEIPT_ENABLED', true) === 'boolean' },
+  ];
+  var report = {
+    version: 'v376.59',
+    dryRun: true,
+    mailSent: false,
+    dbWritten: false,
+    passed: checks.every(function(check) { return check.passed; }),
+    checks: checks,
+    liveApplicationReceiptEnabled: isSystemSettingEnabled_(ss, 'APPLICATION_RECEIPT_ENABLED', true),
+  };
+  Logger.log('[dryRunApplicationReceiptRoutingV376_59_LOG] ' + JSON.stringify(report));
+  return report;
+}
+
+// v376.60: メール設定の実DB監査。テンプレート本文・名前・メールアドレスを出力せず、
+// 設定・カテゴリ・送信元の解決状態だけを確認する非送信・非書込 dryRun。
+function dryRunMailSettingsV376_60_LOG() {
+  var ss = getOrCreateDatabase_();
+  var templateSheet = ss.getSheetByName('T_メールテンプレート');
+  var templates = templateSheet ? getRowsAsObjects_(ss, 'T_メールテンプレート').filter(function(row) {
+    return !toBoolean_(row['削除フラグ']);
+  }) : [];
+  var categoryCounts = {};
+  templates.forEach(function(row) {
+    var category = String(row['カテゴリ'] || '').trim().toUpperCase();
+    if (!category) category = 'UNKNOWN';
+    categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+  });
+  var checks = [
+    { name: 'template_table_readable', passed: !!templateSheet },
+    { name: 'workflow_off_value_is_boolean', passed: typeof isSystemSettingEnabled_(ss, 'APPLICATION_RECEIPT_ENABLED', true) === 'boolean' },
+    { name: 'automatic_sender_option_resolves', passed: typeof buildAutomatedMailOptions_(ss, {}).from === 'string' || buildAutomatedMailOptions_(ss, {}).from === undefined },
+  ];
+  var report = {
+    version: 'v376.60',
+    dryRun: true,
+    mailSent: false,
+    dbWritten: false,
+    passed: checks.every(function(check) { return check.passed; }),
+    checks: checks,
+    activeTemplateCounts: categoryCounts,
+    automaticSenderConfigured: !!String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_FROM') || '').trim(),
+    applicationReceiptEnabled: isSystemSettingEnabled_(ss, 'APPLICATION_RECEIPT_ENABLED', true),
+  };
+  Logger.log('[dryRunMailSettingsV376_60_LOG] ' + JSON.stringify(report));
+  return report;
+}
+
 // v368: 申込受付メール送信ヘルパー（公開ポータル申請受付時に使用）
 function sendApplicationReceiptMail_(ss, params) {
   // params: { contactEmail, applicantName, requestId, requestType, memberTypeLabel, receivedAt }
   if (!params || !params.contactEmail) return;
-  var enabledRaw = String(getSystemSettingValue_(ss, 'APPLICATION_RECEIPT_ENABLED') || 'true');
-  if (enabledRaw === 'false') return;
+  if (!isSystemSettingEnabled_(ss, 'APPLICATION_RECEIPT_ENABLED', true)) return;
   var subjectTpl = String(getSystemSettingValue_(ss, 'APPLICATION_RECEIPT_SUBJECT') || '') || APPLICATION_RECEIPT_DEFAULT_SUBJECT;
   var bodyTpl = String(getSystemSettingValue_(ss, 'APPLICATION_RECEIPT_BODY') || '') || APPLICATION_RECEIPT_DEFAULT_BODY;
   var vars = {
@@ -9467,8 +9555,7 @@ function sendApplicationReceiptMail_(ss, params) {
 function sendApprovalNotificationMail_(ss, params) {
   // params: { contactEmail, applicantName, requestId, requestType, processedAt, processorName, changeSummary }
   if (!params || !params.contactEmail) return;
-  var enabledRaw = String(getSystemSettingValue_(ss, 'APPROVAL_NOTIFICATION_ENABLED') || 'true');
-  if (enabledRaw === 'false') return;
+  if (!isSystemSettingEnabled_(ss, 'APPROVAL_NOTIFICATION_ENABLED', true)) return;
   var subjectTpl = String(getSystemSettingValue_(ss, 'APPROVAL_NOTIFICATION_SUBJECT') || '') || APPROVAL_NOTIFICATION_DEFAULT_SUBJECT;
   var bodyTpl = String(getSystemSettingValue_(ss, 'APPROVAL_NOTIFICATION_BODY') || '') || APPROVAL_NOTIFICATION_DEFAULT_BODY;
   var vars = {
@@ -9491,8 +9578,7 @@ function sendApprovalNotificationMail_(ss, params) {
 function sendRejectionNotificationMail_(ss, params) {
   // params: { contactEmail, applicantName, requestId, requestType, processedAt, processorName, note }
   if (!params || !params.contactEmail) return;
-  var enabledRaw = String(getSystemSettingValue_(ss, 'REJECTION_NOTIFICATION_ENABLED') || 'true');
-  if (enabledRaw === 'false') return;
+  if (!isSystemSettingEnabled_(ss, 'REJECTION_NOTIFICATION_ENABLED', true)) return;
   var subjectTpl = String(getSystemSettingValue_(ss, 'REJECTION_NOTIFICATION_SUBJECT') || '') || REJECTION_NOTIFICATION_DEFAULT_SUBJECT;
   var bodyTpl = String(getSystemSettingValue_(ss, 'REJECTION_NOTIFICATION_BODY') || '') || REJECTION_NOTIFICATION_DEFAULT_BODY;
   var vars = {
@@ -17250,8 +17336,51 @@ function deliverMail_(category, to, subject, body, options) {
     finalTo = policy.allowlist.join(',');
     Logger.log('deliverMail_ REDIRECT category=' + (category || 'GENERAL') + ' originalTo=' + origTo + ' redirectedTo=' + finalTo);
   }
-  sendEmailWithValidatedFrom_(finalTo, finalSubject, finalBody, options || {});
+  var finalOptions = options || {};
+  if (isAutomatedMailCategory_(category) && !String(finalOptions.from || '').trim()) {
+    finalOptions = buildAutomatedMailOptions_(getOrCreateDatabase_(), finalOptions);
+  }
+  sendEmailWithValidatedFrom_(finalTo, finalSubject, finalBody, finalOptions);
   return { sent: true, mode: policy.mode };
+}
+
+// 一括メールやLINE通知は操作者が送信元を選ぶため対象外。自動通知だけを共通設定へ集約する。
+function isAutomatedMailCategory_(category) {
+  var automatic = {
+    APPLICATION_RECEIPT: true,
+    APPROVAL_NOTIFICATION: true,
+    REJECTION_NOTIFICATION: true,
+    CREDENTIAL_EMAIL: true,
+    BIZ_REP_EMAIL: true,
+    BIZ_STAFF_EMAIL: true,
+    STAFF_ADD_STAFF_EMAIL: true,
+    STAFF_ADD_REP_EMAIL: true,
+    TRAINING_APPLY_RECEIPT: true,
+    TRAINING_REMINDER: true,
+    AUTH_OTP: true,
+    MEMBER_UPDATE_CONFIRM: true,
+    WITHDRAWAL_CONFIRM: true,
+    PASSWORD_RESET: true,
+  };
+  return !!automatic[String(category || '').toUpperCase()];
+}
+
+// 既存 CREDENTIAL_EMAIL_FROM を「自動通知の共通送信元」として後方互換で利用する。
+// 空欄時は GAS の標準送信元を使う。指定済み alias が使えない場合は GmailApp が例外にし、
+// 実行者アドレスへ黙ってフォールバックさせない。
+function buildAutomatedMailOptions_(ss, options) {
+  var configuredFrom = String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_FROM') || '').trim();
+  var merged = {};
+  var src = options || {};
+  for (var key in src) {
+    if (Object.prototype.hasOwnProperty.call(src, key)) merged[key] = src[key];
+  }
+  if (configuredFrom && !String(merged.from || '').trim()) {
+    merged.from = configuredFrom;
+    if (!String(merged.replyTo || '').trim()) merged.replyTo = configuredFrom;
+  }
+  if (!String(merged.name || '').trim()) merged.name = '枚方市介護支援専門員連絡協議会';
+  return merged;
 }
 
 function sendEmailWithValidatedFrom_(to, subject, body, options) {
