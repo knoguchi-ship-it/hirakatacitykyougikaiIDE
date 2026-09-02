@@ -592,7 +592,7 @@
 
 # Latest Addendum: 2026-04-28 public portal remaining separation plan
 
-- 次フェーズの正本計画は `docs/165_HANDOVER_PUBLIC_PORTAL_SEPARATION_PLAN_2026-04-28.md` とする。
+- 次フェーズの正本計画は `docs/archive/historical/165_HANDOVER_PUBLIC_PORTAL_SEPARATION_PLAN_2026-04-28.md` とする。
 - 目的は、現在の public URL を維持しながら integrated project の push artifact を public-only `Code.gs` に縮退し、admin/member の action registry、handler、認証処理、処理実体へ public から到達できないようにすること。
 - 既存 web app deployment ID を別 Apps Script project へ移管することはできないため、「project 移管」ではなく「artifact 縮退」として進める。
 - admin `@47` はホワイトアウト済みのため、admin physical pruning は原因特定と seed list 保護設計が完了するまで再デプロイしない。

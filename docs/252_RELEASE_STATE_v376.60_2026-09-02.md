@@ -30,7 +30,7 @@
 - Production public accessibility scan: passed with zero violations.
 - Production public responsive scan, admin UI E2E, and Execution API dry-runs:
   not release-closing passes. Their actual FAIL/BLOCKED statuses and safe
-  evidence are recorded in docs/portal/mail-settings-test-report.html.
+  evidence are recorded in docs/portal/test-report.html.
 
 ## Follow-up
 

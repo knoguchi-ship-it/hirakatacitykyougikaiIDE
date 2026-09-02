@@ -1344,7 +1344,7 @@ v360 以降、研修申込者の識別は **3 つの独立した FK 列の XOR �
 
 #### `T_LINE投稿依頼` — v374.1追加
 
-- **用途**: 公式LINE への投稿コンテンツ依頼を集約（手動投稿運用の支援）。詳細設計は `docs/246_DESIGN_LINE_POST_REQUEST_2026-05-21.md`。
+- **用途**: 公式LINE への投稿コンテンツ依頼を集約（手動投稿運用の支援）。詳細設計は `docs/251_DESIGN_LINE_POST_REQUEST_2026-05-21.md`。
 - **主キー**: `投稿依頼ID`（UUID）。
 - **列**: `投稿依頼ID`, `ステータス`, `テキスト`, `研修申込リンク`, `添付ファイルURL`, `添付ファイル種別`, `添付ファイル名`, `対象種別`, `対象ID`, `作成者メール`, `作成日時`, `更新日時`, `投稿依頼日時`, `投稿日時`, `投稿マーク者メール`, `備考`, `削除フラグ`。
 - **ステータス**: `DRAFT`（作成中）/ `REQUESTED`（投稿依頼中・LINE 担当者へメール通知済）/ `POSTED`（投稿済み）。状態遷移: DRAFT→REQUESTED→POSTED、REQUESTED→DRAFT（取り下げ）。
@@ -1746,7 +1746,7 @@ v368 で導入した Logger.log の変数名間違い（`srcMemberId` → `sourc
 
 ### 12.7 関連ドキュメント
 
-- 包括 release state: `docs/225_RELEASE_STATE_v360_to_v370_2026-05-17.md`
+- 包括 release state: `docs/archive/release_history/225_RELEASE_STATE_v360_to_v370_2026-05-17.md`
 - HTML 概要: `docs/learning/16_system_overview_v370_2026-05-17.html`
-- v360 詳細: `docs/223_RELEASE_STATE_v360_2026-05-16.md`
+- v360 詳細: `docs/archive/release_history/223_RELEASE_STATE_v360_2026-05-16.md`
 - v360 データモデル HTML: `docs/learning/14_data_model_v360_2026-05-16.html`

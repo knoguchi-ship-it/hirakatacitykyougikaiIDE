@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>テスト結果レポート — 枚方市介護支援専門員連絡協議会 会員システム</title>
+<style>
+  :root { color-scheme: light dark; --bg:#f6f8fb; --card:#fff; --ink:#16202e; --muted:#5a6b80; --line:#dde4ec;
+          --ok:#0a7d46; --ok-bg:#e6f6ed; --ng:#b42318; --ng-bg:#fdeceb; --warn:#8a5b00; --warn-bg:#fdf3e2; --idle:#5a6b80; --idle-bg:#eef1f5; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#11161d; --card:#1a212b; --ink:#e8eef6; --muted:#9fb0c4; --line:#2b3644;
+            --ok:#4ade80; --ok-bg:#10301f; --ng:#fca5a5; --ng-bg:#331717; --warn:#fcd34d; --warn-bg:#332715; --idle:#9fb0c4; --idle-bg:#232c38; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:0 16px 64px; background:var(--bg); color:var(--ink);
+         font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,system-ui,sans-serif; line-height:1.7; }
+  .wrap { max-width:1080px; margin:0 auto; }
+  header { padding:32px 0 8px; }
+  h1 { font-size:1.6rem; margin:0 0 4px; }
+  .sub { color:var(--muted); margin:0 0 24px; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin:0 0 28px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  .card .n { font-size:2rem; font-weight:700; line-height:1.2; }
+  .card .l { color:var(--muted); font-size:.85rem; }
+  .card.ok .n { color:var(--ok); } .card.ng .n { color:var(--ng); } .card.warn .n { color:var(--warn); }
+  section { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px; margin:0 0 20px; }
+  h2 { font-size:1.1rem; margin:0 0 12px; }
+  .scroll { overflow-x:auto; }
+  table { border-collapse:collapse; width:100%; font-size:.92rem; min-width:640px; }
+  th,td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:600; font-size:.82rem; letter-spacing:.02em; }
+  tr:last-child td { border-bottom:none; }
+  .badge { display:inline-block; padding:2px 10px; border-radius:999px; font-size:.78rem; font-weight:700; white-space:nowrap; }
+  .badge.ok { color:var(--ok); background:var(--ok-bg); } .badge.ng { color:var(--ng); background:var(--ng-bg); }
+  .badge.warn { color:var(--warn); background:var(--warn-bg); } .badge.idle { color:var(--idle); background:var(--idle-bg); }
+  .name { font-weight:600; }
+  .how { color:var(--muted); font-size:.8rem; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; word-break:break-all; }
+  .when { color:var(--muted); font-size:.8rem; white-space:nowrap; }
+  dl.rel { display:grid; grid-template-columns:auto 1fr; gap:4px 16px; margin:0; }
+  dl.rel dt { color:var(--muted); font-size:.85rem; } dl.rel dd { margin:0; font-weight:600; }
+  .note { color:var(--muted); font-size:.86rem; }
+  footer { color:var(--muted); font-size:.82rem; text-align:center; padding:24px 0; }
+  a { color:inherit; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>テスト結果レポート</h1>
+  <p class="sub">枚方市介護支援専門員連絡協議会 会員システム / 生成 2026-09-02 06:38:15 UTC</p>
+</header>
+
+<section>
+  <h2>現在の本番</h2>
+  <dl class="rel">
+    <dt>リリース</dt><dd>v376.62（2026-09-02）</dd>
+    <dt>公開ポータル</dt><dd>@367 (x2)</dd>
+    <dt>会員ポータル</dt><dd>@126</dd>
+    <dt>管理ポータル</dt><dd>@223</dd>
+    <dt>ロールバック先</dt><dd>public @366 (x2) / member @125 / admin @222</dd>
+  </dl>
+</section>
+
+<div class="cards">
+  <div class="card ok"><div class="n">15</div><div class="l">PASS</div></div>
+  <div class="card ng"><div class="n">0</div><div class="l">FAIL</div></div>
+  <div class="card warn"><div class="n">1</div><div class="l">要フォロー</div></div>
+  <div class="card"><div class="n">0</div><div class="l">未実行</div></div>
+</div>
+
+<section>
+  <h2>公開ポータル（認証不要）</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th style="width:38%">確認内容</th><th style="width:10%">判定</th><th style="width:14%">実施</th><th>内容・根拠</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><div class="name">アクセシビリティ</div><div class="how">npm run test:a11y</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">—</td>
+        <td>axe-core (WCAG 2.2 AA) 違反 0 件（critical 0 / serious 0 / moderate 0 / minor 0）・3 画面</td>
+      </tr>
+      <tr>
+        <td><div class="name">レスポンシブ</div><div class="how">npm run test:responsive</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-02 05:57:57 UTC</td>
+        <td>7 ビューポート / 21 画面を計測。横スクロール 0 件・タップターゲット違反 0 件・console error 0 件</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+<section>
+  <h2>会員ポータル</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th style="width:38%">確認内容</th><th style="width:10%">判定</th><th style="width:14%">実施</th><th>内容・根拠</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><div class="name">レスポンシブ（ログイン込み）</div><div class="how">npm run test:responsive:member</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-02 06:03:43 UTC</td>
+        <td>7 ビューポート / 21 画面を計測。横スクロール 0 件・タップターゲット違反 0 件・console error 0 件</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+<section>
+  <h2>管理ポータル</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th style="width:38%">確認内容</th><th style="width:10%">判定</th><th style="width:14%">実施</th><th>内容・根拠</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><div class="name">レスポンシブ（8 コンソール）</div><div class="how">npm run test:responsive:admin</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-02 06:10:18 UTC</td>
+        <td>7 ビューポート / 56 画面を計測。横スクロール 0 件・タップターゲット違反 0 件・console error 0 件</td>
+      </tr>
+      <tr>
+        <td><div class="name">メール通知設定 E2E-01: Open system settings</div><div class="how">npm run test:mail-settings:e2e</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-02 06:10:29 UTC</td>
+        <td>非破壊（保存も送信もしない）</td>
+      </tr>
+      <tr>
+        <td><div class="name">メール通知設定 E2E-02: Open mail settings</div><div class="how">npm run test:mail-settings:e2e</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-02 06:10:29 UTC</td>
+        <td>非破壊（保存も送信もしない）</td>
+      </tr>
+      <tr>
+        <td><div class="name">メール通知設定 E2E-03: Receipt card remains editable while OFF</div><div class="how">npm run test:mail-settings:e2e</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-02 06:10:29 UTC</td>
+        <td>非破壊（保存も送信もしない）</td>
+      </tr>
+      <tr>
+        <td><div class="name">メール通知設定 E2E-04: Template manager remains accessible while OFF</div><div class="how">npm run test:mail-settings:e2e</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-02 06:10:29 UTC</td>
+        <td>非破壊（保存も送信もしない）</td>
+      </tr>
+      <tr>
+        <td><div class="name">メール通知設定 E2E-05: Shared automatic sender label is visible</div><div class="how">npm run test:mail-settings:e2e</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-02 06:10:29 UTC</td>
+        <td>非破壊（保存も送信もしない）</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+<section>
+  <h2>GAS dry-run（非送信）</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th style="width:38%">確認内容</th><th style="width:10%">判定</th><th style="width:14%">実施</th><th>内容・根拠</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><div class="name">研修 endTime の実DB往復</div><div class="how">dryRunTrainingEndTimeV376_61_LOG / Apps Script エディタ</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-02 15:11</td>
+        <td>passed:true / testRowCleanedUp:true / mailSent:false。checks 4 件（作成・読み戻し 16:30・再保存 16:30・物理削除）すべて PASS。corruptedEndTimeCount:0 / emptyEndTimeCount:0</td>
+      </tr>
+      <tr>
+        <td><div class="name">全メールテンプレートの差し込み描画</div><div class="how">dryRunMailTemplatesV376_43_LOG / Apps Script エディタ</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-02 15:15</td>
+        <td>passed:true / guardOk:true。Tier2 6 カテゴリすべて ok:true・差し込み欠落なし</td>
+      </tr>
+      <tr>
+        <td><div class="name">メール設定・テンプレート・自動送信元の実DB監査</div><div class="how">dryRunMailSettingsV376_60_LOG / Apps Script エディタ</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-02 12:53</td>
+        <td>passed:true / mailSent:false / dbWritten:false。activeTemplateCounts CREDENTIAL:1・STAFF_ADD_REP:1</td>
+      </tr>
+      <tr>
+        <td><div class="name">入会申込の受付通知ルーティング</div><div class="how">dryRunApplicationReceiptRoutingV376_59_LOG / Apps Script エディタ</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-02 12:49</td>
+        <td>passed:true / mailSent:false / dbWritten:false。Boolean・文字列 false の停止、代表者宛先の固定を確認</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+<section>
+  <h2>本番 API 実測</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th style="width:38%">確認内容</th><th style="width:10%">判定</th><th style="width:14%">実施</th><th>内容・根拠</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><div class="name">メールテンプレート一覧の取得（全 14 カテゴリ）</div><div class="how">管理アプリの listMailTemplates を逐次・一括の 2 パターンで実測</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-02 15:07</td>
+        <td>全 14 カテゴリ status:ok。件数も DB 実態と一致（CREDENTIAL:1 / STAFF_ADD_REP:1、他 0）。v376.62 適用前は 14 件すべて ReferenceError だった</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+<section>
+  <h2>本番データ復旧</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th style="width:38%">確認内容</th><th style="width:10%">判定</th><th style="width:14%">実施</th><th>内容・根拠</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><div class="name">T_研修 開催終了時刻の壊れた 3 セル復元</div><div class="how">研修管理モーダルの実 UI から入力 → 管理 API 再読込で検証（operator 承認済）</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-02 12:2x</td>
+        <td>T001=12:00 / T004=16:30 / T473A9682=12:40。T002=17:00・T003=16:00 は元から正常で導出式の検証根拠と一致。復元後の dry-run でも corruptedEndTimeCount:0</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+<section>
+  <h2>GCP 突合</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th style="width:38%">確認内容</th><th style="width:10%">判定</th><th style="width:14%">実施</th><th>内容・根拠</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><div class="name">研修マッピングの GAS 実応答との等価検証</div><div class="how">GCP 作業場 tools/contract-check-member/mapping.mjs</div></td>
+        <td><span class="badge warn">PARTIAL</span></td>
+        <td class="when">2026-09-02 14:10</td>
+        <td>件数 5/5・ID 集合・並び順一致、date は全件一致。31 フィールド中 endTime のみ差分（T001/T004/T473A9682）＝Firestore ミラーが復元前スナップショットのため。マッピング不一致ではない。解消には T_研修 の再同期が必要（保留中）</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>このレポートの読み方</h2>
+  <p class="note">
+    自動テストの判定（アクセシビリティ / レスポンシブ / メール通知設定 E2E）は
+    <code>.test-out/</code> と <code>output/playwright/</code> の実行結果ファイルから機械的に生成しています。
+    Apps Script エディタで実行する dry-run や本番 API の実測など、ファイルに残らない検証は
+    <code>docs/test-evidence.json</code> に記録し、ここに合流させています。
+    再生成は <code>npm run report:tests</code>。
+  </p>
+  <p class="note">
+    <strong>PARTIAL</strong> は「実行して結果は把握しているが、完全一致には追加作業が残っている」ことを示します。
+    本文・メールアドレス・資格情報の類は一切記録していません（AGENTS §0）。
+  </p>
+</section>
+
+<footer>枚方市介護支援専門員連絡協議会 会員システム / docs/portal/test-report.html</footer>
+</div>
+</body>
+</html>

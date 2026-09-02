@@ -1384,6 +1384,7 @@ ${COMMON_NAV}
     <li><code>docs/portal/index.html</code> — 本ファイル</li>
     <li><code>docs/portal/er-diagram.html</code> — ER 図（docs/03 から自動抽出）</li>
     <li><code>docs/portal/specifications.html</code> — 仕様書サマリ</li>
+    <li><code>docs/portal/test-report.html</code> — テスト結果レポート（<code>npm run report:tests</code> で生成）</li>
   </ul>
   <p>AGENTS.md §4.6 同期則: コード/スキーマ変更時は<b>同ターン</b>で本ポータルも再生成・コミットする。</p>
 </section>

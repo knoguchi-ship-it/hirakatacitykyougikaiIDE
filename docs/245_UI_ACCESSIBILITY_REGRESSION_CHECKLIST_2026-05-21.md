@@ -149,5 +149,5 @@ operator + 開発者で実施:
 ## 7. 関連ドキュメント
 
 - `docs/244_WCAG_2.2_AA_CONFORMANCE_STATEMENT_2026-05-21.md` — 適合声明
-- `docs/198_RESPONSIVE_TEST_REPORT_2026-05-11.md` — 自動レスポンシブ 98/98 セル合格
+- `docs/archive/historical/198_RESPONSIVE_TEST_REPORT_2026-05-11.md` — 自動レスポンシブ 98/98 セル合格
 - `AGENTS.md` §4 — レスポンシブ必須ルール（GAS viewport meta / mobile-first / 44px target / 100dvh 等）

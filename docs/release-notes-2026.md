@@ -49,7 +49,7 @@
 - **自動メールの送信元を一元化**: 自動通知だけは共通送信元設定を使用する。明示的な一括メール・手動送信の送信元は上書きしない。
 - **OFF中のテンプレート編集を可能化**: 通知をOFFにしたまま、メール内容・保存済みテンプレートを開いて読み込み・編集できる。
 - **検証**: 専用unit test、3 split生成物確認、fixed deployment同期、公開a11y（違反0）を完了。管理画面E2EとExecution API dry-runは認証権限待ちのため、FAIL/BLOCKEDとしてHTML記録へ明記。
-- 詳細: docs/252_RELEASE_STATE_v376.60_2026-09-02.md / docs/portal/mail-settings-test-report.html
+- 詳細: docs/252_RELEASE_STATE_v376.60_2026-09-02.md / docs/portal/test-report.html
 
 ---
 
@@ -534,8 +534,8 @@ v376.34 では「申込URL 無効＝外部リンクをやめて内部申込ボ�
 
 ### MEMORY 整理 + 新規 feedback
 - フィードバックメモリを Layer 別 subheading で並び替え（L0 → L3 → L4 → L5 → L6）
-- 新規 [外部 OSS 採用前にライセンス監査必須](feedback_oss_license_audit.md) — AGPL 回避、MIT/EPL/BSD 安全
-- 新規 [docs/portal/ アーキ概要](project_docs_portal_architecture.md) — 6 ページ構成 + 採用ライセンス
+- 新規 外部 OSS 採用前にライセンス監査必須（MEMORY `feedback_oss_license_audit`） — AGPL 回避、MIT/EPL/BSD 安全
+- 新規 docs/portal/ アーキ概要（MEMORY `project_docs_portal_architecture`） — 6 ページ構成 + 採用ライセンス
 
 ### コミット 10 件
 - 2327b64 fix: v376.31 initializeSchema_ 堅牢化
@@ -1229,7 +1229,7 @@ backend `gas-src/Code.full.gs` で機能同一だった 2 つのシート読取�
 
 | 種別 | 内容 | 参照 |
 |---|---|---|
-| 🆕 | **公式LINE投稿依頼コンソール**を管理者ポータルに新規追加。3 状態ライフサイクル（DRAFT → REQUESTED → POSTED）+ Drive 添付（画像/PDF・10MB）+ Polymorphic association（GENERAL / TRAINING、将来拡張可）+ LINE 風プレビュー | `docs/246_DESIGN_LINE_POST_REQUEST_2026-05-21.md` |
+| 🆕 | **公式LINE投稿依頼コンソール**を管理者ポータルに新規追加。3 状態ライフサイクル（DRAFT → REQUESTED → POSTED）+ Drive 添付（画像/PDF・10MB）+ Polymorphic association（GENERAL / TRAINING、将来拡張可）+ LINE 風プレビュー | `docs/251_DESIGN_LINE_POST_REQUEST_2026-05-21.md` |
 | 🆕 | T_LINE投稿依頼テーブル / 2 SystemSettings (`LINE_POST_ASSETS_FOLDER_ID` / `LINE_POST_NOTIFY_EMAIL`) / 6 admin API actions | `docs/03_DATA_MODEL.md` §4 |
 | 🐛 | build pruner が関数内 `if (action === ...)` を dispatcher case と誤認する問題を回避するため、handler のパラメータ名を `action` → `transAction` に変更 | — |
 | 🐛 | build parser が regex literal `/.../` を line comment と誤認する問題を回避するため、handler 内 regex を String 操作に置換 | — |
@@ -1262,7 +1262,7 @@ backend `gas-src/Code.full.gs` で機能同一だった 2 つのシート読取�
 | 🔧 | `initializeSchema_` の旧キー seed 撤去、`SystemSettings.rosterTemplateSsId` pass-through 撤去 |
 | 🔧 | `T_システム設定` の旧キー行は data 保全のため残置 |
 
-詳細: `docs/243_RELEASE_STATE_v373.7_ROSTER_S5_GAS_CLEANUP_2026-05-20.md`
+詳細: `docs/archive/release_history/243_RELEASE_STATE_v373.7_ROSTER_S5_GAS_CLEANUP_2026-05-20.md`
 デプロイ: integrated/public `@344` x2 / member `@102` / admin `@153`
 
 ---
@@ -1274,7 +1274,7 @@ backend `gas-src/Code.full.gs` で機能同一だった 2 つのシート読取�
 | 🔧 | 名簿出力 Sprint S5 第 1 弾: 旧 RosterExport の front-end を完全削除（4 component / 137 行の UI / 10 ApiClient メソッド / 5 旧型定義、計 -2,447 行） |
 | 🔧 | `T_システム設定` の旧キー行は data 保全のため残置 |
 
-詳細: `docs/242_RELEASE_STATE_v373.6_ROSTER_S5_FRONTEND_CLEANUP_2026-05-20.md`
+詳細: `docs/archive/release_history/242_RELEASE_STATE_v373.6_ROSTER_S5_FRONTEND_CLEANUP_2026-05-20.md`
 
 ---
 
@@ -1288,7 +1288,7 @@ backend `gas-src/Code.full.gs` で機能同一だった 2 つのシート読取�
 | 📝 | 次段階 Cloud Run Argon2id 外部 KDF の完全設計書 + 実装雛形（`cloud-run/password-hash-service/`） |
 
 operator 対応: GCP 利用判断時に `docs/239` 30 分手順を実施。
-詳細: `docs/241_RELEASE_STATE_v373.5_SECRET_MANAGER_2026-05-20.md` / `docs/240_DESIGN_CLOUD_RUN_ARGON2ID_2026-05-20.md`
+詳細: `docs/archive/release_history/241_RELEASE_STATE_v373.5_SECRET_MANAGER_2026-05-20.md` / `docs/240_DESIGN_CLOUD_RUN_ARGON2ID_2026-05-20.md`
 
 ---
 
@@ -1298,7 +1298,7 @@ operator 対応: GCP 利用判断時に `docs/239` 30 分手順を実施。
 |---|---|
 | 🔧 | 名簿出力 行フィルタ no-code UI 化（演算子記号 `=, >, <, ≥, ≤` を日本語ラベル化、enum/boolean 演算子廃止、年度フィールド除外、否定全廃） |
 
-詳細: `docs/238_RELEASE_STATE_v373.4_ROSTER_ROW_FILTER_NOCODE_2026-05-20.md`
+詳細: `docs/archive/release_history/238_RELEASE_STATE_v373.4_ROSTER_ROW_FILTER_NOCODE_2026-05-20.md`
 
 ---
 
@@ -1308,7 +1308,7 @@ operator 対応: GCP 利用判断時に `docs/239` 30 分手順を実施。
 |---|---|
 | 🔧 | 条件付き書式 UX 微調整（year picker / equals 削除 / 否定削除 / filterYear 自動 prefill） |
 
-詳細: `docs/237_RELEASE_STATE_v373.3_ROSTER_STYLE_RULE_SIMPLIFY_2026-05-20.md`
+詳細: `docs/archive/release_history/237_RELEASE_STATE_v373.3_ROSTER_STYLE_RULE_SIMPLIFY_2026-05-20.md`
 
 ---
 
@@ -1321,7 +1321,7 @@ operator 対応: GCP 利用判断時に `docs/239` 30 分手順を実施。
 | 🔧 | 計算列を 8 プリセット選択化、textarea 廃止 |
 | 🔧 | drag handle 改善（左端に全高 grip カラム、`cursor: grab/grabbing`） |
 
-詳細: `docs/236_RELEASE_STATE_v373.2_ROSTER_UX_OVERHAUL_2026-05-20.md`
+詳細: `docs/archive/release_history/236_RELEASE_STATE_v373.2_ROSTER_UX_OVERHAUL_2026-05-20.md`
 
 ---
 
@@ -1332,7 +1332,7 @@ operator 対応: GCP 利用判断時に `docs/239` 30 分手順を実施。
 | 🆕 | 名簿出力 PDF 出力（`window.print()` + 動的 `@page` CSS、用紙 A4/A3/B5・縦横・フォントサイズ） |
 | 🐛 | v373.2 で PDF Portal 化に修正 |
 
-詳細: `docs/235_RELEASE_STATE_v373.1_ROSTER_S4_2026-05-20.md`
+詳細: `docs/archive/release_history/235_RELEASE_STATE_v373.1_ROSTER_S4_2026-05-20.md`
 
 ---
 
@@ -1343,7 +1343,7 @@ operator 対応: GCP 利用判断時に `docs/239` 30 分手順を実施。
 | 🆕 | 名簿出力 計算式 + 条件付き書式（jsep + 自前 AST walker、eval/Function/MemberExpression 全 reject、関数 allowlist 16 種、AST 深さ 32 上限、攻撃シナリオ含む 33 unit tests） |
 | 🔒 | Web 検索 2026-05-20 ベースで `expr-eval`(RCE 2026) / `jse-eval`(no sandbox) を不採用、`jsep` のみ採用 |
 
-詳細: `docs/234_RELEASE_STATE_v373_ROSTER_S3_2026-05-20.md`
+詳細: `docs/archive/release_history/234_RELEASE_STATE_v373_ROSTER_S3_2026-05-20.md`
 
 ---
 
@@ -1353,7 +1353,7 @@ operator 対応: GCP 利用判断時に `docs/239` 30 分手順を実施。
 |---|---|
 | 🆕 | 名簿出力 出力列を `@dnd-kit` で drag-drop 並び替え |
 
-デプロイ: admin split `@145`。詳細: `docs/232_RELEASE_STATE_v372.9_ROSTER_S2_DRAG_DROP_2026-05-20.md`
+デプロイ: admin split `@145`。詳細: `docs/archive/release_history/232_RELEASE_STATE_v372.9_ROSTER_S2_DRAG_DROP_2026-05-20.md`
 
 ---
 
@@ -1363,7 +1363,7 @@ operator 対応: GCP 利用判断時に `docs/239` 30 分手順を実施。
 |---|---|
 | 🆕 | 名簿出力 列幅 (60-320px) + 日付/数値書式設定 |
 
-詳細: `docs/231_RELEASE_STATE_v372.8_ROSTER_S2_FORMAT_WIDTH_2026-05-20.md`
+詳細: `docs/archive/release_history/231_RELEASE_STATE_v372.8_ROSTER_S2_FORMAT_WIDTH_2026-05-20.md`
 
 ---
 
@@ -1387,7 +1387,7 @@ operator 対応: GCP 利用判断時に `docs/239` 30 分手順を実施。
 | 🔧 | CM 番号 admin 例外バリデーション緩和 |
 | 🐛 | 公開ポータル変更申請 送信ボタン disable + ヒント表示 |
 
-詳細: `docs/229_RELEASE_STATE_v372_to_v372.6.1_2026-05-20.md`
+詳細: `docs/archive/release_history/229_RELEASE_STATE_v372_to_v372.6.1_2026-05-20.md`
 
 ---
 
@@ -1406,7 +1406,7 @@ operator 対応: GCP 利用判断時に `docs/239` 30 分手順を実施。
 
 研修名簿・出欠管理・一括メール明細・DB schema 変更・dryRun synthetic transaction フレームワーク・転籍時バグ修正。
 
-詳細: `docs/225_RELEASE_STATE_v360_to_v370_2026-05-17.md`（統合 release state）/ `docs/223` / `docs/226`
+詳細: `docs/archive/release_history/225_RELEASE_STATE_v360_to_v370_2026-05-17.md`（統合 release state）/ `docs/223` / `docs/226`
 
 ---
 

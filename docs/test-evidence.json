@@ -1,0 +1,82 @@
+{
+  "note": "自動テストの生ファイル (.test-out / output/playwright) から拾えない検証記録をここに書く。scripts/build-test-report.mjs が読み、docs/portal/test-report.html を生成する。値・本文・アドレス・資格情報は書かない（AGENTS §0）。",
+  "release": {
+    "version": "v376.62",
+    "date": "2026-09-02",
+    "deployments": {
+      "public": "@367 (x2)",
+      "member": "@126",
+      "admin": "@223"
+    },
+    "rollback": {
+      "public": "@366 (x2)",
+      "member": "@125",
+      "admin": "@222"
+    }
+  },
+  "manualRuns": [
+    {
+      "id": "DR-01",
+      "group": "GAS dry-run（非送信）",
+      "name": "研修 endTime の実DB往復",
+      "how": "dryRunTrainingEndTimeV376_61_LOG / Apps Script エディタ",
+      "when": "2026-09-02 15:11",
+      "status": "PASS",
+      "detail": "passed:true / testRowCleanedUp:true / mailSent:false。checks 4 件（作成・読み戻し 16:30・再保存 16:30・物理削除）すべて PASS。corruptedEndTimeCount:0 / emptyEndTimeCount:0"
+    },
+    {
+      "id": "DR-02",
+      "group": "GAS dry-run（非送信）",
+      "name": "全メールテンプレートの差し込み描画",
+      "how": "dryRunMailTemplatesV376_43_LOG / Apps Script エディタ",
+      "when": "2026-09-02 15:15",
+      "status": "PASS",
+      "detail": "passed:true / guardOk:true。Tier2 6 カテゴリすべて ok:true・差し込み欠落なし"
+    },
+    {
+      "id": "DR-03",
+      "group": "GAS dry-run（非送信）",
+      "name": "メール設定・テンプレート・自動送信元の実DB監査",
+      "how": "dryRunMailSettingsV376_60_LOG / Apps Script エディタ",
+      "when": "2026-09-02 12:53",
+      "status": "PASS",
+      "detail": "passed:true / mailSent:false / dbWritten:false。activeTemplateCounts CREDENTIAL:1・STAFF_ADD_REP:1"
+    },
+    {
+      "id": "DR-04",
+      "group": "GAS dry-run（非送信）",
+      "name": "入会申込の受付通知ルーティング",
+      "how": "dryRunApplicationReceiptRoutingV376_59_LOG / Apps Script エディタ",
+      "when": "2026-09-02 12:49",
+      "status": "PASS",
+      "detail": "passed:true / mailSent:false / dbWritten:false。Boolean・文字列 false の停止、代表者宛先の固定を確認"
+    },
+    {
+      "id": "API-01",
+      "group": "本番 API 実測",
+      "name": "メールテンプレート一覧の取得（全 14 カテゴリ）",
+      "how": "管理アプリの listMailTemplates を逐次・一括の 2 パターンで実測",
+      "when": "2026-09-02 15:07",
+      "status": "PASS",
+      "detail": "全 14 カテゴリ status:ok。件数も DB 実態と一致（CREDENTIAL:1 / STAFF_ADD_REP:1、他 0）。v376.62 適用前は 14 件すべて ReferenceError だった"
+    },
+    {
+      "id": "DATA-01",
+      "group": "本番データ復旧",
+      "name": "T_研修 開催終了時刻の壊れた 3 セル復元",
+      "how": "研修管理モーダルの実 UI から入力 → 管理 API 再読込で検証（operator 承認済）",
+      "when": "2026-09-02 12:2x",
+      "status": "PASS",
+      "detail": "T001=12:00 / T004=16:30 / T473A9682=12:40。T002=17:00・T003=16:00 は元から正常で導出式の検証根拠と一致。復元後の dry-run でも corruptedEndTimeCount:0"
+    },
+    {
+      "id": "CC-01",
+      "group": "GCP 突合",
+      "name": "研修マッピングの GAS 実応答との等価検証",
+      "how": "GCP 作業場 tools/contract-check-member/mapping.mjs",
+      "when": "2026-09-02 14:10",
+      "status": "PARTIAL",
+      "detail": "件数 5/5・ID 集合・並び順一致、date は全件一致。31 フィールド中 endTime のみ差分（T001/T004/T473A9682）＝Firestore ミラーが復元前スナップショットのため。マッピング不一致ではない。解消には T_研修 の再同期が必要（保留中）"
+    }
+  ]
+}

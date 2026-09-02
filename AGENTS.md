@@ -126,6 +126,12 @@
   - `docs/portal/index.html` — TOC + 主要原典へのリンク集
   - `docs/portal/er-diagram.html` — Mermaid ER 図（自動生成）
   - `docs/portal/specifications.html` — PRD / アーキテクチャ / 認証 / RBAC / デプロイ / セキュリティのサマリ
+  - `docs/portal/test-report.html` — テスト結果レポート（自動テスト＋dry-run＋本番実測を統合。`npm run report:tests` で再生成）
+- **文書の整理ルール（2026-09-02 全面整理）**: `docs/` 直下は**現役の文書だけ**を置く。完了した一過性の記録
+  （リリース記録・インシデント・修正記録・旧引継ぎ・旧世代の学習ノート）は `docs/archive/` の該当サブフォルダへ移し、
+  [`docs/00_DOC_INDEX.md`](docs/00_DOC_INDEX.md) と [`docs/archive/00_ARCHIVE_INDEX.md`](docs/archive/00_ARCHIVE_INDEX.md)
+  を同ターンで更新する。**リリース記録は直近 3 件だけを直下に残す**。同種の文書が増えたら統合を検討する
+  （例: 決定記録 5 件 → `06_DECISION_RECORDS.md`、テスト記録 → `docs/portal/test-report.html`）。
 - **再生成コマンド**: `npm run build:docs-portal`（`scripts/generate-er.mjs` で docs/03 ER を再生成後、`scripts/build-docs-portal.mjs` が `docs/portal/` を生成）。スキーマ・仕様を更新したら必ず実行し、`npm run test:er-sync` で ER とテーブル定義の整合を確認する。
 - **文字コードと文字化け**: §3 の「文書作成・更新時の文字コード統一」「文字化け復旧優先」が本 subsection 配下のドキュメント全てに適用される（HTML / Markdown / text 全て UTF-8）。
 

@@ -68,7 +68,7 @@
 
 ### B. `clasp run` が失敗
 1. `npx clasp show-authorized-user` で運用アカウントか確認する。
-2. `docs/16_INCIDENT_clasp_run_permission_2026-03-14.md` の復旧手順で再認証する。
+2. `docs/archive/incidents/16_INCIDENT_clasp_run_permission_2026-03-14.md` の復旧手順で再認証する。
 3. `npx clasp run healthCheck` と `npx clasp run getDbInfo` を再確認する。
 
 ### C. デプロイは成功したが片系だけ古い
@@ -127,9 +127,9 @@
 - `HANDOVER.md` または正本ドキュメントに、次担当者向けの短い判断基準が残っていること。
 
 ## 6. 既知事例
-- DriveApp 全操作失敗（Google Drive API 未有効化）: `docs/153_INCIDENT_DRIVE_PERMISSION_2026-04-27.md`
+- DriveApp 全操作失敗（Google Drive API 未有効化）: `docs/archive/incidents/153_INCIDENT_DRIVE_PERMISSION_2026-04-27.md`
 - 公開取消障害: `docs/15_INCIDENT_LOG_2026-03-14_v76.md`
-- `clasp run` 権限障害: `docs/16_INCIDENT_clasp_run_permission_2026-03-14.md`
+- `clasp run` 権限障害: `docs/archive/incidents/16_INCIDENT_clasp_run_permission_2026-03-14.md`
 
 ## 7. 今回の教訓（2026-04-27）
 - Google API 依存機能では、根本原因はコードより先に GCP API 有効化・OAuth・Workspace 管理設定にあることがある。

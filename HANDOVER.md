@@ -29,7 +29,7 @@
 - 対象: 受付メールOFF判定、事業所代表者宛先、共通自動送信元、OFF中テンプレート編集。
 - **2026-09-02 に全 13 行 PASS で決着**（管理画面 E2E は storageState 再取得後に実行、dry-run 2 本は Apps Script エディタから実行し `passed:true`・送信なし・書込なし）。
   詳細は docs/252_RELEASE_STATE_v376.60_2026-09-02.md と
-  docs/portal/mail-settings-test-report.html を参照。
+  docs/portal/test-report.html を参照。
 
 > このファイルは「**現時点で本番がどうなっているか / 何をすべきか**」だけを記載します。
 > 経緯・履歴・設計詳細は別ドキュメントへ。リンク先は §6 参照順序を参照。
@@ -239,6 +239,14 @@ npm run build:docs-portal                  # docs/portal/*.html + schema.dbml �
 ---
 
 ## 6. 次担当者が読む順序
+
+> **2026-09-02 に docs を全面整理した**。`docs/` 直下は現役の 44 文書だけにし、完了した記録 224 件は
+> `docs/archive/`（release_history / historical / incidents / learning_history / docs_history / obsolete）へ移した。
+> 入口は [`docs/00_DOC_INDEX.md`](docs/00_DOC_INDEX.md)、過去の記録は [`docs/archive/00_ARCHIVE_INDEX.md`](docs/archive/00_ARCHIVE_INDEX.md)。
+> 決定記録 5 件は [`docs/06_DECISION_RECORDS.md`](docs/06_DECISION_RECORDS.md) に統合、テスト記録は
+> [`docs/portal/test-report.html`](docs/portal/test-report.html) に一本化した（`npm run report:tests`）。
+> 番号衝突していた 2 件を改番: LINE 投稿設計 246→**251**、メール設定テスト計画 248→**255**。
+
 
 | # | ドキュメント | 目的 |
 |---|---|---|

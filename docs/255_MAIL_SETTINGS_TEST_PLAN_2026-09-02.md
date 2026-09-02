@@ -33,8 +33,8 @@
 2. fixed deployment 4本を同一の新versionへ同期する。
 3. admin project で2つのdryRunを実行する。どちらもメール送信・DB書込をしない。
 4. Playwright E2E、公開 a11y / responsive、管理 responsive を実行する。
-5. `npm run report:mail-settings` を実行し、HTML記録を更新する。
+5. `npm run report:tests` を実行し、HTML記録を更新する。
 
 ## HTML記録
 
-実行結果は [mail-settings-test-report.html](portal/mail-settings-test-report.html) に保存する。Playwrightの生データはローカルの `output/playwright/` に置き、認証情報・本文・メールアドレスは記録しない。
+実行結果は [test-report.html](portal/test-report.html) に保存する。Playwrightの生データはローカルの `output/playwright/` に置き、認証情報・本文・メールアドレスは記録しない。

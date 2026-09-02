@@ -290,7 +290,7 @@ Real-browser verification is performed by the operator by default. The agent rec
 - Integrated fixed deployments: `@341` x2（変更なし）
 - Member split: `@99`（変更なし）
 - Admin split: `@145`
-- Detail: `docs/232_RELEASE_STATE_v372.9_ROSTER_S2_DRAG_DROP_2026-05-20.md`
+- Detail: `docs/archive/release_history/232_RELEASE_STATE_v372.9_ROSTER_S2_DRAG_DROP_2026-05-20.md`
 - Verification: `npm run prerelease` PASS、`npx clasp deployments --json` で admin fixed deployment `@145` を確認済み。
 
 ### 2026-05-20 `v372.8`
@@ -298,7 +298,7 @@ Real-browser verification is performed by the operator by default. The agent rec
 - Integrated fixed deployments: `@341` x2（変更なし）
 - Member split: `@99`（変更なし）
 - Admin split: `@144`
-- Detail: `docs/231_RELEASE_STATE_v372.8_ROSTER_S2_FORMAT_WIDTH_2026-05-20.md`
+- Detail: `docs/archive/release_history/231_RELEASE_STATE_v372.8_ROSTER_S2_FORMAT_WIDTH_2026-05-20.md`
 - Verification: `npm run prerelease` PASS、`npx clasp deployments --json` で admin fixed deployment `@144` を確認済み。
 
 ### 2026-05-20 `v372.7`
@@ -314,7 +314,7 @@ Real-browser verification is performed by the operator by default. The agent rec
 - Integrated fixed deployments: `@329` x2
 - Member split: `@87`
 - Admin split: `@129`
-- Detail: `docs/225_RELEASE_STATE_v360_to_v370_2026-05-17.md`
+- Detail: `docs/archive/release_history/225_RELEASE_STATE_v360_to_v370_2026-05-17.md`
 - Pending: `runRebuildSchemaForV360` の operator 実行、`runCleanupPartialBusinessV370_53779700` の operator 実行と再承認、v361 以降の実ブラウザ確認。
 
 ### 2026-05-16 `v361`
@@ -322,7 +322,7 @@ Real-browser verification is performed by the operator by default. The agent rec
 - Integrated fixed deployments: `@319` x2
 - Member split: `@76`
 - Admin split: `@117`
-- Detail: `docs/224_RESUME_v360_2026-05-16.md` and `docs/223_RELEASE_STATE_v360_2026-05-16.md`
+- Detail: `docs/224_RESUME_v360_2026-05-16.md` and `docs/archive/release_history/223_RELEASE_STATE_v360_2026-05-16.md`
 - Pending: admin split で `runRebuildSchemaForV360` を 1 回実行し、Logger.log の `xorViolations: 0` と実ブラウザ動作を確認する。
 
 ### 2026-05-16 `v359`
@@ -337,7 +337,7 @@ Real-browser verification is performed by the operator by default. The agent rec
 - Integrated fixed deployments: `@316` x2
 - Member split: `@73`
 - Admin split: `@114`
-- Detail: `docs/221_RELEASE_STATE_v354_to_v358_2026-05-16.md` (v354〜v358 統合)
+- Detail: `docs/archive/release_history/221_RELEASE_STATE_v354_to_v358_2026-05-16.md` (v354〜v358 統合)
 
 ### 2026-05-15 `v353`
 - Scope: 会員マイページの「受付中の研修」(`src/components/TrainingApply.tsx`) を v352 と同じ A4 縦サムネイル + 詳細情報 2 カラムカードへ改修。v352 では誤って public portal を改修していた認識違いを修正。member split のみ更新。
@@ -474,7 +474,7 @@ Real-browser verification is performed by the operator by default. The agent rec
 - Integrated fixed deployments: `@296` x2
 - Member split: `@52`
 - Admin split: `@90`
-- Detail: `docs/199_RELEASE_STATE_v320_to_v332_2026-05-11.md`
+- Detail: `docs/archive/release_history/199_RELEASE_STATE_v320_to_v332_2026-05-11.md`
 
 ### 2026-05-06 `v308`
 

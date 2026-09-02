@@ -67,7 +67,7 @@ operator のログインで admin ブラウザセッションを取り直した�
 | `dryRunMailSettingsV376_60_LOG`（D-01） | **`passed:true`**・`mailSent:false`・`dbWritten:false`・`activeTemplateCounts {CREDENTIAL:1, STAFF_ADD_REP:1}` |
 | `dryRunApplicationReceiptRoutingV376_59_LOG`（D-02） | **`passed:true`**・`mailSent:false`・`dbWritten:false` |
 
-これにより v376.60 のテスト記録（`docs/portal/mail-settings-test-report.html`）は **全 13 行 PASS** となった。
+これにより v376.60 のテスト記録（`docs/portal/test-report.html`）は **全 13 行 PASS** となった。
 
 ### 課題B の実施記録（operator 承認済・本番データ変更）
 

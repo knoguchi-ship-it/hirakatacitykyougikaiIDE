@@ -197,10 +197,10 @@ npx clasp deployments --json                   # 反映確認
 |---|---|
 | ビルドエラー | `npm run typecheck` で詳細 → [`docs/17_ROOT_CAUSE_ERROR_RESPONSE_PLAYBOOK.md`](17_ROOT_CAUSE_ERROR_RESPONSE_PLAYBOOK.md) |
 | clasp `invalid_grant` | `npx clasp login` で再ログイン |
-| clasp `Unable to run script function` | [`docs/16_INCIDENT_clasp_run_permission_2026-03-14.md`](16_INCIDENT_clasp_run_permission_2026-03-14.md) |
+| clasp `Unable to run script function` | [`docs/archive/incidents/16_INCIDENT_clasp_run_permission_2026-03-14.md`](archive/incidents/16_INCIDENT_clasp_run_permission_2026-03-14.md) |
 | GAS デプロイで URL が変わった | `clasp deploy` を使った → 禁止 ([`docs/09`](09_DEPLOYMENT_POLICY.md)) |
 | admin の変更が反映されない | `build:gas` だけ実行した → `build:gas:admin` を別途実行 |
-| pdfjs / xlsx で `import.meta` SyntaxError | v351 / v361 の罠 → [`docs/218`](218_RELEASE_STATE_v351_2026-05-14.md) |
+| pdfjs / xlsx で `import.meta` SyntaxError | v351 / v361 の罠 → [`docs/218`](archive/release_history/218_RELEASE_STATE_v351_2026-05-14.md) |
 | 文字化け | UTF-8 で保存されているか確認 → AGENTS.md §3 |
 | GAS の認証エラー | OAuth スコープ追加時は myaccount.google.com で再承認要 |
 
