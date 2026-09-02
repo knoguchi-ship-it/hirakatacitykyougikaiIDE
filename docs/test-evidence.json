@@ -1,20 +1,29 @@
 {
   "note": "自動テストの生ファイル (.test-out / output/playwright) から拾えない検証記録をここに書く。scripts/build-test-report.mjs が読み、docs/portal/test-report.html を生成する。値・本文・アドレス・資格情報は書かない（AGENTS §0）。",
   "release": {
-    "version": "v376.64",
+    "version": "v376.65.1",
     "date": "2026-09-02",
     "deployments": {
+      "public": "@371 (x2)",
+      "member": "@130",
+      "admin": "@227"
+    },
+    "rollback": {
       "public": "@369 (x2)",
       "member": "@128",
       "admin": "@225"
-    },
-    "rollback": {
-      "public": "@368 (x2)",
-      "member": "@127",
-      "admin": "@224"
     }
   },
   "manualRuns": [
+    {
+      "id": "DR-REG",
+      "group": "GAS dry-run（非送信）",
+      "name": "規程・重要事項マスタの実DB往復",
+      "how": "dryRunRegulationsV376_65_LOG / Apps Script エディタ",
+      "when": "2026-09-02 19:45",
+      "status": "PASS",
+      "detail": "passed:true / testRowCleanedUp:true。10 チェック全 PASS（既存 5 件読取→作成→読み戻し→版数+1→据え置き→公開設定に反映→非公開で公開側から消える→不正リンク拒否→物理削除→件数 5 に復帰）"
+    },
     {
       "id": "DR-FEE",
       "group": "GAS dry-run（非送信）",

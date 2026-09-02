@@ -35,6 +35,7 @@
     "test:mailing-list": "node --experimental-strip-types --no-warnings --test scripts/test-mailing-list.mts",
     "test:training-time": "node --experimental-strip-types --no-warnings --test scripts/test-training-time.mts",
     "test:membership-fee": "node --experimental-strip-types --no-warnings --test scripts/test-membership-fee.mts",
+    "test:regulations": "node --experimental-strip-types --no-warnings --test scripts/test-regulations.mts",
     "test:gcp-transport": "node --experimental-strip-types --no-warnings --test scripts/test-gcp-transport.mts",
     "test:er-sync": "node scripts/test-er-sync.mjs",
     "test:gas-artifact-refs": "node scripts/test-gas-artifact-refs.mjs",
@@ -48,7 +49,7 @@
     "test:responsive:member": "node scripts/responsive-test-member.mjs",
     "test:mail-settings:e2e": "node scripts/test-mail-settings-e2e.mjs",
     "report:tests": "node scripts/build-test-report.mjs",
-    "prerelease": "npm run security:audit && npm run security:public-boundary && npm run security:split-boundary && npm run typecheck && npm run test:search && npm run test:formula && npm run test:kana && npm run test:deeplink && npm run test:mailrender && npm run test:application-receipt && npm run test:mail-settings && npm run test:member-fiscal-status && npm run test:mailing-list && npm run test:training-time && npm run test:membership-fee && npm run test:gcp-transport && npm run test:er-sync && npm run test:gas-artifact-refs && npm run test:menu-registry"
+    "prerelease": "npm run security:audit && npm run security:public-boundary && npm run security:split-boundary && npm run typecheck && npm run test:search && npm run test:formula && npm run test:kana && npm run test:deeplink && npm run test:mailrender && npm run test:application-receipt && npm run test:mail-settings && npm run test:member-fiscal-status && npm run test:mailing-list && npm run test:training-time && npm run test:membership-fee && npm run test:regulations && npm run test:gcp-transport && npm run test:er-sync && npm run test:gas-artifact-refs && npm run test:menu-registry"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

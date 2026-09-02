@@ -56,7 +56,8 @@
     "T_削除ログ",
     "T_変更申請",
     "T_人物統合ログ",
-    "T_LINE投稿依頼"
+    "T_LINE投稿依頼",
+    "T_規程"
   ],
   "sectionByTable": {
     "M_会員種別": "マスタ",
@@ -115,7 +116,8 @@
     "T_支払い_archive": "アーカイブシート（メインDB内・削除cascade退避先。元テーブルと同スキーマ + サロゲート3列。docs/249）",
     "T_支払い明細_archive": "アーカイブシート（メインDB内・削除cascade退避先。元テーブルと同スキーマ + サロゲート3列。docs/249）",
     "T_請求_archive": "アーカイブシート（メインDB内・削除cascade退避先。元テーブルと同スキーマ + サロゲート3列。docs/249）",
-    "T_変更申請_archive": "アーカイブシート（メインDB内・削除cascade退避先。元テーブルと同スキーマ + サロゲート3列。docs/249）"
+    "T_変更申請_archive": "アーカイブシート（メインDB内・削除cascade退避先。元テーブルと同スキーマ + サロゲート3列。docs/249）",
+    "T_規程": "その他"
   },
   "columns": {
     "M_会員種別": {
@@ -3666,6 +3668,83 @@
         "key": "",
         "comment": ""
       }
+    },
+    "T_規程": {
+      "規程ID": {
+        "type": "string",
+        "key": "PK",
+        "comment": "REG-001 形式"
+      },
+      "区分コード": {
+        "type": "string",
+        "key": "",
+        "comment": "NOTICE=重要事項 / REGULATION=規程・定款"
+      },
+      "タイトル": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "本文": {
+        "type": "string",
+        "key": "",
+        "comment": "20,000 文字以内"
+      },
+      "外部リンクURL": {
+        "type": "string",
+        "key": "",
+        "comment": "https:// のみ"
+      },
+      "外部リンク文言": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "対象会員種別": {
+        "type": "string",
+        "key": "FK",
+        "comment": "ALL または M_会員種別.コード"
+      },
+      "版数": {
+        "type": "int",
+        "key": "",
+        "comment": "本文・タイトル・リンク変更時に +1（Phase 2 の同意記録が指す版）"
+      },
+      "施行日": {
+        "type": "date",
+        "key": "",
+        "comment": ""
+      },
+      "表示順": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "公開フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": "公開ポータルに出すか"
+      },
+      "更新者メール": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": "soft delete"
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      }
     }
   },
   "relationships": [
@@ -4034,6 +4113,12 @@
       "cardinality": "}o--o|",
       "right": "T_削除ログ",
       "label": "削除バッチID"
+    },
+    {
+      "left": "T_規程",
+      "cardinality": "}o--o|",
+      "right": "M_会員種別",
+      "label": "対象会員種別"
     }
   ]
 }

@@ -47,23 +47,23 @@
 <div class="wrap">
 <header>
   <h1>テスト結果レポート</h1>
-  <p class="sub">枚方市介護支援専門員連絡協議会 会員システム / 生成 2026-09-02 09:54:53 UTC</p>
+  <p class="sub">枚方市介護支援専門員連絡協議会 会員システム / 生成 2026-09-02 12:14:48 UTC</p>
 </header>
 
 <section>
   <h2>現在の本番</h2>
   <dl class="rel">
-    <dt>リリース</dt><dd>v376.64（2026-09-02）</dd>
-    <dt>公開ポータル</dt><dd>@369 (x2)</dd>
-    <dt>会員ポータル</dt><dd>@128</dd>
-    <dt>管理ポータル</dt><dd>@225</dd>
-    <dt>ロールバック先</dt><dd>public @368 (x2) / member @127 / admin @224</dd>
+    <dt>リリース</dt><dd>v376.65.1（2026-09-02）</dd>
+    <dt>公開ポータル</dt><dd>@371 (x2)</dd>
+    <dt>会員ポータル</dt><dd>@130</dd>
+    <dt>管理ポータル</dt><dd>@227</dd>
+    <dt>ロールバック先</dt><dd>public @369 (x2) / member @128 / admin @225</dd>
   </dl>
 </section>
 
 <div class="cards">
   <div class="card ok"><div class="n">16</div><div class="l">PASS</div></div>
-  <div class="card ng"><div class="n">0</div><div class="l">FAIL</div></div>
+  <div class="card ng"><div class="n">1</div><div class="l">FAIL</div></div>
   <div class="card warn"><div class="n">1</div><div class="l">要フォロー</div></div>
   <div class="card"><div class="n">0</div><div class="l">未実行</div></div>
 </div>
@@ -83,7 +83,7 @@
       <tr>
         <td><div class="name">レスポンシブ</div><div class="how">npm run test:responsive</div></td>
         <td><span class="badge ok">PASS</span></td>
-        <td class="when">2026-09-02 09:10:44 UTC</td>
+        <td class="when">2026-09-02 12:03:21 UTC</td>
         <td>7 ビューポート / 21 画面を計測。横スクロール 0 件・タップターゲット違反 0 件・console error 0 件</td>
       </tr>
     </tbody>
@@ -114,38 +114,38 @@
     <tbody>
       <tr>
         <td><div class="name">レスポンシブ（8 コンソール）</div><div class="how">npm run test:responsive:admin</div></td>
-        <td><span class="badge ok">PASS</span></td>
-        <td class="when">2026-09-02 09:47:38 UTC</td>
-        <td>7 ビューポート / 56 画面を計測。横スクロール 0 件・タップターゲット違反 0 件・console error 0 件</td>
+        <td><span class="badge ng">FAIL</span></td>
+        <td class="when">2026-09-02 12:09:51 UTC</td>
+        <td>7 ビューポート / 0 画面を計測。横スクロール 0 件・タップターゲット違反 0 件・console error 0 件 / 到達不可: 320x568_iPhoneSE, 360x640_AndroidS, 390x844_iPhone14, 414x896_iPhonePM, 768x1024_iPad, 1280x800_Laptop, 1920x1080_Desktop</td>
       </tr>
       <tr>
         <td><div class="name">メール通知設定 E2E-01: Open system settings</div><div class="how">npm run test:mail-settings:e2e</div></td>
         <td><span class="badge ok">PASS</span></td>
-        <td class="when">2026-09-02 09:44:05 UTC</td>
+        <td class="when">2026-09-02 10:50:07 UTC</td>
         <td>非破壊（保存も送信もしない）</td>
       </tr>
       <tr>
         <td><div class="name">メール通知設定 E2E-02: Open mail settings</div><div class="how">npm run test:mail-settings:e2e</div></td>
         <td><span class="badge ok">PASS</span></td>
-        <td class="when">2026-09-02 09:44:05 UTC</td>
+        <td class="when">2026-09-02 10:50:07 UTC</td>
         <td>非破壊（保存も送信もしない）</td>
       </tr>
       <tr>
         <td><div class="name">メール通知設定 E2E-03: Receipt card remains editable while OFF</div><div class="how">npm run test:mail-settings:e2e</div></td>
         <td><span class="badge ok">PASS</span></td>
-        <td class="when">2026-09-02 09:44:05 UTC</td>
+        <td class="when">2026-09-02 10:50:07 UTC</td>
         <td>非破壊（保存も送信もしない）</td>
       </tr>
       <tr>
         <td><div class="name">メール通知設定 E2E-04: Template manager remains accessible while OFF</div><div class="how">npm run test:mail-settings:e2e</div></td>
         <td><span class="badge ok">PASS</span></td>
-        <td class="when">2026-09-02 09:44:05 UTC</td>
+        <td class="when">2026-09-02 10:50:07 UTC</td>
         <td>非破壊（保存も送信もしない）</td>
       </tr>
       <tr>
         <td><div class="name">メール通知設定 E2E-05: Shared automatic sender label is visible</div><div class="how">npm run test:mail-settings:e2e</div></td>
         <td><span class="badge ok">PASS</span></td>
-        <td class="when">2026-09-02 09:44:05 UTC</td>
+        <td class="when">2026-09-02 10:50:07 UTC</td>
         <td>非破壊（保存も送信もしない）</td>
       </tr>
     </tbody>
@@ -158,6 +158,12 @@
   <table>
     <thead><tr><th style="width:38%">確認内容</th><th style="width:10%">判定</th><th style="width:14%">実施</th><th>内容・根拠</th></tr></thead>
     <tbody>
+      <tr>
+        <td><div class="name">規程・重要事項マスタの実DB往復</div><div class="how">dryRunRegulationsV376_65_LOG / Apps Script エディタ</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-02 19:45</td>
+        <td>passed:true / testRowCleanedUp:true。10 チェック全 PASS（既存 5 件読取→作成→読み戻し→版数+1→据え置き→公開設定に反映→非公開で公開側から消える→不正リンク拒否→物理削除→件数 5 に復帰）</td>
+      </tr>
       <tr>
         <td><div class="name">会費設定（会員種別ごとの年会費）の実DB往復</div><div class="how">dryRunMembershipFeeV376_64_LOG / Apps Script エディタ</div></td>
         <td><span class="badge ok">PASS</span></td>

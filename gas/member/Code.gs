@@ -24,7 +24,7 @@ var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var LOCK_WAIT_TIMEOUT_MS = 10000; // AGENTS §3: LockService 待機の共通タイムアウト
 var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
-var DB_SCHEMA_VERSION = '2026-07-03-cascade-archive-schema-v376.52';
+var DB_SCHEMA_VERSION = '2026-09-02-regulations-v376.65';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
 // AGENTS §3: Script Properties の MEMBER_PORTAL_URL_OVERRIDE で上書き可能（deployment 変更時にコード改変不要）
@@ -752,6 +752,19 @@ var テーブル定義 = {
 };
 
 // v264: 公開ポータル変更申請テーブル（管理者承認待ちキュー）
+// v376.65（案C Phase 1）: 規程・重要事項マスタ。
+// 入会申込画面の「事務局からのお願い（重要事項）」と定款リンクの正本。
+// 従来はフロント（MEMBERSHIP_NOTICE_HIGHLIGHTS / INCORPORATION_URL）にハードコードされており
+// 事務局が改定できなかった。本文の正本はこのテーブル 1 箇所に集約する。
+// 区分コード: NOTICE=重要事項カード / REGULATION=規程・定款（外部リンク中心）
+// 対象会員種別: ALL / INDIVIDUAL / BUSINESS / SUPPORT（M_会員種別.コード + ALL）
+// 版数・施行日は Phase 2（同意記録）で「どの版に同意したか」を指すために使う。
+テーブル定義['T_規程'] = [
+  '規程ID', '区分コード', 'タイトル', '本文',
+  '外部リンクURL', '外部リンク文言', '対象会員種別',
+  '版数', '施行日', '表示順', '公開フラグ',
+  '更新者メール', '削除フラグ', '作成日時', '更新日時',
+];
 テーブル定義['T_変更申請'] = [
   '申請ID', '会員ID', '会員種別コード', '申請種別コード', '申請状態コード',
   '申請内容JSON', '連絡先メールアドレス', '申請者表示名', '申請日時',
@@ -1206,6 +1219,9 @@ var ACTION_TO_MENU = {
   "getCredentialEmailTemplates": "bulk-mail",
   "saveCredentialEmailTemplate": "bulk-mail",
   "deleteCredentialEmailTemplate": "bulk-mail",
+  "listRegulations": "admin-settings",
+  "saveRegulation": "admin-settings",
+  "deleteRegulation": "admin-settings",
   "listMailTemplates": "admin-settings",
   "saveMailTemplate": "admin-settings",
   "deleteMailTemplate": "admin-settings",
@@ -1587,6 +1603,7 @@ function processApiRequest(action, payload) {
     // v219: 入会メール テンプレート管理
 
     // v376.42: 全メール種別 テンプレート管理（汎用・カテゴリ別）
+    // v376.65（案C Phase 1）: 規程・重要事項マスタ CRUD
 
     // v224: 一括メール テンプレート管理
 
@@ -3235,6 +3252,68 @@ var REQUEST_TYPE_LABEL_ = {
 // v376.64: 会費設定（会員種別ごとの年会費）の実DB往復 dryRun。
 // 現在値を退避 → 検証値で保存 → 管理設定・公開ポータル設定の両方から読み戻し → 必ず原状復帰する。
 // メールは送らない。DB は最終的に実行前の状態へ戻す（passed だけでなく restored も確認すること）。
+
+// ============================================================
+// v376.65（案C Phase 1）: 規程・重要事項マスタ
+// 本文の正本は T_規程 の 1 箇所。公開ポータルの入会申込画面と管理設定が同じ行を読む。
+// ============================================================
+
+var REGULATION_KINDS = ['NOTICE', 'REGULATION'];
+var REGULATION_TARGETS = ['ALL', 'INDIVIDUAL', 'BUSINESS', 'SUPPORT'];
+
+// 初期 seed（従来フロントにハードコードされていた文面をそのまま移行する）。
+// 既に行があるときは何もしない＝事務局の改定を上書きしない。
+var REGULATION_SEED = [
+  { kind: 'NOTICE', title: '会費の返還について', body: '納入後の会費は、いかなる理由があっても返還できません。', url: '', urlLabel: '', target: 'ALL', order: 1 },
+  { kind: 'NOTICE', title: '個人情報の利用目的', body: '登録情報は、台帳管理、定例会・研修会等の周知、受付確認、広報発送など、協議会運営に必要な範囲でのみ利用します。', url: '', urlLabel: '', target: 'ALL', order: 2 },
+  { kind: 'NOTICE', title: '変更・退会の手続き', body: '登録情報の変更や退会は、協議会ホームページからお手続きください。', url: 'https://sites.google.com/view/starhirakata/%E5%85%A5%E4%BC%9A%E9%80%80%E4%BC%9A?authuser=0', urlLabel: '入会・退会案内を開く', target: 'ALL', order: 3 },
+  { kind: 'NOTICE', title: '退会の締切', body: '退会は年度切替前の3月末までに完了してください。手続きがない場合は継続扱いとなり、当該年度の会費納入が必要です。', url: '', urlLabel: '', target: 'ALL', order: 4 },
+  { kind: 'REGULATION', title: '協議会の定款', body: '入会前に、協議会の基本規程も確認できます。', url: 'https://sites.google.com/view/starhirakata/%E5%AE%9A%E6%AC%BE?authuser=0', urlLabel: '定款を確認する', target: 'ALL', order: 5 }
+];
+
+function seedRegulationsIfEmpty_(ss) {
+  var sheet = ss.getSheetByName('T_規程');
+  if (!sheet) return;
+  if (sheet.getLastRow() >= 2) return; // 既存行があれば触らない
+  var now = new Date().toISOString();
+  var rows = [];
+  for (var i = 0; i < REGULATION_SEED.length; i += 1) {
+    var seed = REGULATION_SEED[i];
+    rows.push({
+      '規程ID': 'REG-' + ('000' + (i + 1)).slice(-3),
+      '区分コード': seed.kind,
+      'タイトル': seed.title,
+      '本文': seed.body,
+      '外部リンクURL': seed.url,
+      '外部リンク文言': seed.urlLabel,
+      '対象会員種別': seed.target,
+      '版数': 1,
+      '施行日': '',
+      '表示順': seed.order,
+      '公開フラグ': true,
+      '更新者メール': '',
+      '削除フラグ': false,
+      '作成日時': now,
+      '更新日時': now
+    });
+  }
+  appendRowsByHeaders_(ss, 'T_規程', rows);
+}
+
+
+// 規程を表示順で返す。publishedOnly=true のときは公開フラグの立った行だけ（公開ポータル用）。
+
+
+// 新規追加 / 既存更新。本文・タイトル・リンクが変わったときだけ版数を +1 する
+// （Phase 2 の同意記録が「どの版に同意したか」を指せるようにするため）。
+
+// soft delete（削除フラグ）。会員に紐づかないため cascade アーカイブの対象外。
+
+// v376.65（案C Phase 1）: 規程・重要事項マスタの実DB往復 dryRun。
+// 検証用の行を作成 → 読み戻し → 更新（版数 +1）→ 公開ポータル設定に出るか確認 → 物理削除で原状復帰。
+// メールは送らない。既存の規程行には一切触れない。
+
+// dryRun 専用: 検証で作った T_規程 の行を物理削除する（通常運用では soft delete のみ）。
 
 // v368: 申込受付メール送信ヘルパー（公開ポータル申請受付時に使用）
 
@@ -5181,6 +5260,9 @@ function initializeSchema_(ss) {
   critical('migrateCredentialTemplatesToTable_',  function() { migrateCredentialTemplatesToTable_(ss); });
   // v376.45: 公式LINE投稿依頼に 作成者名/投稿マーク者名 列を追加（name-based shift で既存行保持）
   critical('normalize T_LINE投稿依頼',            function() { normalizeTableColumns_(ss, 'T_LINE投稿依頼'); });
+  // v376.65（案C Phase 1）: 規程・重要事項マスタ。初回のみ現行のハードコード文面を移行 seed する。
+  critical('normalize T_規程',                    function() { normalizeTableColumns_(ss, 'T_規程'); });
+  critical('seedRegulationsIfEmpty_',             function() { seedRegulationsIfEmpty_(ss); });
   critical('normalize T_認証アカウント',          function() { normalizeTableColumns_(ss, 'T_認証アカウント'); });
   critical('normalize T_ログイン履歴',            function() { normalizeTableColumns_(ss, 'T_ログイン履歴'); });
   critical('normalize T_研修申込',                function() { normalizeTableColumns_(ss, 'T_研修申込'); });

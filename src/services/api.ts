@@ -210,6 +210,10 @@ export interface ApiClient {
   saveCredentialEmailTemplate(payload: { id?: string; name: string; subject: string; body: string }): Promise<import('../types').EmailTemplate>;
   deleteCredentialEmailTemplate(id: string): Promise<{ deletedId: string }>;
   // v376.42: 全メール種別 テンプレート管理（汎用・カテゴリ別）
+  // v376.65: 規程・重要事項マスタ
+  listRegulations(): Promise<import('../types').Regulation[]>;
+  saveRegulation(payload: Partial<import('../types').Regulation>): Promise<{ id: string; version: number; created: boolean }>;
+  deleteRegulation(id: string): Promise<{ id: string; deleted: boolean }>;
   listMailTemplates(category: string): Promise<{ templates: import('../types').EmailTemplate[] }>;
   saveMailTemplate(payload: { id?: string; category: string; name: string; subject: string; body: string }): Promise<import('../types').EmailTemplate>;
   deleteMailTemplate(id: string): Promise<{ deletedId: string }>;
@@ -1013,6 +1017,18 @@ class GasApiClient implements ApiClient {
   }
 
   // v376.42: 全メール種別 テンプレート管理（汎用・カテゴリ別）
+  async listRegulations(): Promise<import('../types').Regulation[]> {
+    return this.callAction('listRegulations', {});
+  }
+
+  async saveRegulation(payload: Partial<import('../types').Regulation>): Promise<{ id: string; version: number; created: boolean }> {
+    return this.callAction('saveRegulation', payload);
+  }
+
+  async deleteRegulation(id: string): Promise<{ id: string; deleted: boolean }> {
+    return this.callAction('deleteRegulation', { id });
+  }
+
   async listMailTemplates(category: string): Promise<{ templates: import('../types').EmailTemplate[] }> {
     return this.callAction('listMailTemplates', { category });
   }

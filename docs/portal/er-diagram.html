@@ -1352,6 +1352,9 @@ erDiagram
   T_画面項目権限 {
     string id PK
   }
+  T_規程 {
+    string id PK
+  }
 
   M_役職マスタ }o--|| M_組織マスタ : &quot;組織コード&quot;
   M_業務分類 }o--|| M_組織マスタ : &quot;組織コード&quot;
@@ -1376,7 +1379,8 @@ erDiagram
   T_請求 }o--|| M_組織マスタ : &quot;組織コード&quot;
   T_請求 }o--|| M_支払い種別マスタ : &quot;種別コード&quot;
   T_請求 }o--o| M_業務分類 : &quot;業務分類コード&quot;
-  T_画面項目権限 }o--|| M_システムロール : &quot;システムロールコード&quot;</pre>
+  T_画面項目権限 }o--|| M_システムロール : &quot;システムロールコード&quot;
+  T_規程 }o--o| M_会員種別 : &quot;対象会員種別&quot;</pre>
         </div>
       </section>
   

@@ -302,6 +302,130 @@ function dryRunMembershipFeeV376_64_LOG() {
   return report;
 }
 
+function dryRunRegulationsV376_65_LOG() {
+  var ss = getOrCreateDatabase_();
+  var checks = [];
+  var cleanedUp = false;
+  var stamp = String(Date.now()).slice(-6);
+  var createdId = '';
+  function record(name, passed, detail) {
+    checks.push({ name: name, passed: !!passed, detail: detail || '' });
+  }
+  function findById(list, id) {
+    for (var i = 0; i < list.length; i += 1) if (list[i].id === id) return list[i];
+    return null;
+  }
+
+  var before = listRegulations_(ss, false);
+  record('既存の規程を読める', before.length >= 0, '件数=' + before.length);
+
+  try {
+    // 1) 作成
+    var created = saveRegulation_({
+      kind: 'NOTICE',
+      title: DRYRUN_PREFIX + '規程検証_' + stamp,
+      body: '検証用の本文です。実行後に削除されます。',
+      linkUrl: 'https://example.com/dryrun',
+      linkLabel: '検証リンク',
+      target: 'ALL',
+      sortOrder: 900,
+      published: true
+    }, 'dryrun');
+    createdId = created.id;
+    record('新規作成できる（版数=1）', !!createdId && created.version === 1, JSON.stringify(created));
+
+    // 2) 読み戻し
+    var afterCreate = findById(listRegulations_(ss, false), createdId);
+    record('作成した規程を読み戻せる',
+      !!afterCreate && afterCreate.title.indexOf(DRYRUN_PREFIX) === 0 && afterCreate.linkUrl === 'https://example.com/dryrun',
+      afterCreate ? afterCreate.title : '(not found)');
+
+    // 3) 本文変更で版数が上がる
+    var updated = saveRegulation_({
+      id: createdId,
+      kind: 'NOTICE',
+      title: DRYRUN_PREFIX + '規程検証_' + stamp,
+      body: '本文を書き換えました。',
+      linkUrl: 'https://example.com/dryrun',
+      linkLabel: '検証リンク',
+      target: 'ALL',
+      sortOrder: 900,
+      published: true
+    }, 'dryrun');
+    record('本文変更で版数が +1 される', updated.version === 2, JSON.stringify(updated));
+
+    // 4) 内容が同じなら版数は上がらない
+    var unchanged = saveRegulation_({
+      id: createdId,
+      kind: 'NOTICE',
+      title: DRYRUN_PREFIX + '規程検証_' + stamp,
+      body: '本文を書き換えました。',
+      linkUrl: 'https://example.com/dryrun',
+      linkLabel: '検証リンク',
+      target: 'ALL',
+      sortOrder: 901,
+      published: true
+    }, 'dryrun');
+    record('内容が同じなら版数は据え置き', unchanged.version === 2, JSON.stringify(unchanged));
+
+    // 5) 公開ポータル設定に出る
+    var publicPayload = JSON.parse(getPublicPortalSettings_());
+    var publicList = publicPayload && publicPayload.data ? publicPayload.data.regulations : [];
+    record('公開ポータル設定に公開中の規程が出る',
+      !!findById(publicList || [], createdId),
+      '公開件数=' + ((publicList || []).length));
+
+    // 6) 非公開にすると公開側から消える
+    saveRegulation_({
+      id: createdId,
+      kind: 'NOTICE',
+      title: DRYRUN_PREFIX + '規程検証_' + stamp,
+      body: '本文を書き換えました。',
+      linkUrl: 'https://example.com/dryrun',
+      linkLabel: '検証リンク',
+      target: 'ALL',
+      sortOrder: 901,
+      published: false
+    }, 'dryrun');
+    var publicPayload2 = JSON.parse(getPublicPortalSettings_());
+    var publicList2 = publicPayload2 && publicPayload2.data ? publicPayload2.data.regulations : [];
+    record('★非公開にすると公開側に出ない', !findById(publicList2 || [], createdId), '公開件数=' + ((publicList2 || []).length));
+
+    // 7) 不正な外部リンクは拒否
+    var rejected = false;
+    try {
+      saveRegulation_({ title: DRYRUN_PREFIX + 'bad', body: '', linkUrl: 'javascript:alert(1)' }, 'dryrun');
+    } catch (e) { rejected = true; }
+    record('不正な外部リンクは拒否される', rejected, '');
+  } finally {
+    // 8) 検証行を物理削除して原状復帰（soft delete では行が残るため）
+    try {
+      if (createdId) {
+        cleanedUp = purgeRegulationRowForDryRun_(ss, createdId);
+      } else {
+        cleanedUp = true;
+      }
+      record('検証行を物理削除した', cleanedUp, createdId);
+      var after = listRegulations_(ss, false);
+      record('既存の規程件数が元に戻っている', after.length === before.length, before.length + ' -> ' + after.length);
+    } catch (e) {
+      record('検証行を物理削除した', false, e && e.message ? e.message : String(e));
+    }
+  }
+
+  var report = {
+    version: 'v376.65',
+    dryRun: true,
+    mailSent: false,
+    testRowCleanedUp: cleanedUp,
+    passed: checks.every(function(c) { return c.passed; }) && cleanedUp,
+    checks: checks,
+    regulationCountBefore: before.length
+  };
+  Logger.log('[dryRunRegulationsV376_65_LOG] ' + JSON.stringify(report));
+  return report;
+}
+
 function processPendingThumbnails() {
   try {
     var ss = getOrCreateDatabase_();

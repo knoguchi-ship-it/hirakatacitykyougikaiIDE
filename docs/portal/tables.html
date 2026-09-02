@@ -327,7 +327,7 @@ footer {
 <div class="hero">
   <h1>📊 テーブル設計書（理路整然版）</h1>
   <p>各テーブルの列定義 + FK 関係を整理された形式で表示します。Mermaid ER 図の線が絡まる問題を回避した、参照用の正規ビューです。</p>
-  <p style="margin-top: 8px; font-size: 0.88em; opacity: 0.85;">📌 全 57 テーブル | 全 61 リレーション</p>
+  <p style="margin-top: 8px; font-size: 0.88em; opacity: 0.85;">📌 全 58 テーブル | 全 62 リレーション</p>
 </div>
 
 <section class="card">
@@ -364,7 +364,7 @@ footer {
     <div style="margin-bottom: 12px;">
       <h3 style="margin: 0 0 6px; color: var(--warm);">その他</h3>
       <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-        <a href="#tbl-T_権限ロール" class="toc-tag">T_権限ロール</a><a href="#tbl-T_メールテンプレート" class="toc-tag">T_メールテンプレート</a><a href="#tbl-T_削除ログ" class="toc-tag">T_削除ログ</a><a href="#tbl-T_変更申請" class="toc-tag">T_変更申請</a><a href="#tbl-T_人物統合ログ" class="toc-tag">T_人物統合ログ</a><a href="#tbl-T_LINE投稿依頼" class="toc-tag">T_LINE投稿依頼</a>
+        <a href="#tbl-T_権限ロール" class="toc-tag">T_権限ロール</a><a href="#tbl-T_メールテンプレート" class="toc-tag">T_メールテンプレート</a><a href="#tbl-T_削除ログ" class="toc-tag">T_削除ログ</a><a href="#tbl-T_変更申請" class="toc-tag">T_変更申請</a><a href="#tbl-T_人物統合ログ" class="toc-tag">T_人物統合ログ</a><a href="#tbl-T_LINE投稿依頼" class="toc-tag">T_LINE投稿依頼</a><a href="#tbl-T_規程" class="toc-tag">T_規程</a>
       </div>
     </div>
   
@@ -415,11 +415,15 @@ footer {
     </tr></tbody>
       </table>
       <div class="tbl-rel-section">
-        <h5>📥 このテーブルを参照する側 (1)</h5>
+        <h5>📥 このテーブルを参照する側 (2)</h5>
         <span class="tbl-rel-item">
       <a href="#tbl-T_会員">T_会員</a>
       <span class="card">}o--||</span>
       <span class="lbl">会員種別コード</span>
+    </span><span class="tbl-rel-item">
+      <a href="#tbl-T_規程">T_規程</a>
+      <span class="card">}o--o|</span>
+      <span class="lbl">対象会員種別</span>
     </span>
       </div>
       <div class="tbl-rel-section">
@@ -4769,6 +4773,90 @@ footer {
       <div class="tbl-rel-section">
         <h5>📤 このテーブルが参照する側 (0)</h5>
         <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+      </div>
+    </div>
+  </div>
+  <div class="tbl-card" id="tbl-T_規程">
+    <div class="tbl-card-head">
+      <h4>T_規程</h4>
+      <span class="col-count">15 列</span>
+    </div>
+    <div class="tbl-card-body">
+      <table>
+        <thead><tr><th>列名</th><th>型</th><th>キー</th></tr></thead>
+        <tbody><tr>
+      <td class="col-name">規程ID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-pk">PK</span></td>
+    </tr><tr>
+      <td class="col-name">区分コード</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">タイトル</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">本文</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">外部リンクURL</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">外部リンク文言</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">対象会員種別</td>
+      <td class="col-type">string</td>
+      <td><span class="key-fk">FK</span></td>
+    </tr><tr>
+      <td class="col-name">版数</td>
+      <td class="col-type">int</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">施行日</td>
+      <td class="col-type">date</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">表示順</td>
+      <td class="col-type">int</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">公開フラグ</td>
+      <td class="col-type">boolean</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">更新者メール</td>
+      <td class="col-type">string</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">削除フラグ</td>
+      <td class="col-type">boolean</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">作成日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">更新日時</td>
+      <td class="col-type">datetime</td>
+      <td></td>
+    </tr></tbody>
+      </table>
+      <div class="tbl-rel-section">
+        <h5>📥 このテーブルを参照する側 (0)</h5>
+        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+      </div>
+      <div class="tbl-rel-section">
+        <h5>📤 このテーブルが参照する側 (1)</h5>
+        <span class="tbl-rel-item">
+      <span class="card">}o--o|</span>
+      <a href="#tbl-M_会員種別">M_会員種別</a>
+      <span class="lbl">対象会員種別</span>
+    </span>
       </div>
     </div>
   </div>

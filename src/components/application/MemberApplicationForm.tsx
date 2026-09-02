@@ -13,6 +13,8 @@ import PostalCodeInput from '../PostalCodeInput';
 import { normalizeKana } from '../../utils/kanaNormalize';
 
 interface MemberApplicationFormProps {
+  // v376.65: 規程・重要事項（正本は T_規程。空配列のときは従来のハードコード文面へフォールバック）
+  regulations?: import('../../types').Regulation[];
   // v376.64: 会員種別カードに表示する年会費（設定画面「会費設定」で変更可能）
   memberTypeFees?: { INDIVIDUAL: number; BUSINESS: number; SUPPORT: number };
   showMemberTypeFees?: boolean;
@@ -74,26 +76,16 @@ const PREFECTURES = [
 ];
 const MEMBERSHIP_GUIDE_URL = 'https://sites.google.com/view/starhirakata/%E5%85%A5%E4%BC%9A%E9%80%80%E4%BC%9A?authuser=0';
 const INCORPORATION_URL = 'https://sites.google.com/view/starhirakata/incorporation';
-const MEMBERSHIP_NOTICE_HIGHLIGHTS = [
-  {
-    title: '会費の返還について',
-    body: '納入後の会費は、いかなる理由があっても返還できません。',
-  },
-  {
-    title: '個人情報の利用目的',
-    body: '登録情報は、台帳管理、定例会・研修会等の周知、受付確認、広報発送など、協議会運営に必要な範囲でのみ利用します。',
-  },
-  {
-    title: '変更・退会の手続き',
-    body: '登録情報の変更や退会は、協議会ホームページからお手続きください。',
-    actionLabel: '入会・退会案内を開く',
-    actionHref: MEMBERSHIP_GUIDE_URL,
-  },
-  {
-    title: '退会の締切',
-    body: '退会は年度切替前の3月末までに完了してください。手続きがない場合は継続扱いとなり、当該年度の会費納入が必要です。',
-  },
-] as const;
+// v376.65: 規程・重要事項の正本は GAS の T_規程。ここは **フォールバック専用**
+// （初回スキーマ同期前や通信失敗で規程を取得できないときだけ表示する）。
+// 文面を直したいときはソースではなく 管理画面 設定 → 規程・重要事項 で編集する。
+const FALLBACK_REGULATIONS: import('../../types').Regulation[] = [
+  { id: 'FB-001', kind: 'NOTICE', title: '会費の返還について', body: '納入後の会費は、いかなる理由があっても返還できません。', linkUrl: '', linkLabel: '', target: 'ALL', version: 1, effectiveDate: '', sortOrder: 1, published: true },
+  { id: 'FB-002', kind: 'NOTICE', title: '個人情報の利用目的', body: '登録情報は、台帳管理、定例会・研修会等の周知、受付確認、広報発送など、協議会運営に必要な範囲でのみ利用します。', linkUrl: '', linkLabel: '', target: 'ALL', version: 1, effectiveDate: '', sortOrder: 2, published: true },
+  { id: 'FB-003', kind: 'NOTICE', title: '変更・退会の手続き', body: '登録情報の変更や退会は、協議会ホームページからお手続きください。', linkUrl: MEMBERSHIP_GUIDE_URL, linkLabel: '入会・退会案内を開く', target: 'ALL', version: 1, effectiveDate: '', sortOrder: 3, published: true },
+  { id: 'FB-004', kind: 'NOTICE', title: '退会の締切', body: '退会は年度切替前の3月末までに完了してください。手続きがない場合は継続扱いとなり、当該年度の会費納入が必要です。', linkUrl: '', linkLabel: '', target: 'ALL', version: 1, effectiveDate: '', sortOrder: 4, published: true },
+  { id: 'FB-005', kind: 'REGULATION', title: '協議会の定款', body: '入会前に、協議会の基本規程も確認できます。', linkUrl: INCORPORATION_URL, linkLabel: '定款を確認する', target: 'ALL', version: 1, effectiveDate: '', sortOrder: 5, published: true },
+];
 const DEFAULT_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_SENT = [
   'ログイン情報をご登録のメールアドレスに送信しました。',
   '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
@@ -336,6 +328,7 @@ function validateConfirmation(_form: ApplicationFormData, errs: ValidationErrors
 
 // ─── メインコンポーネント ────────────────────────────────
 const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
+  regulations,
   memberTypeFees,
   showMemberTypeFees = true,
   memberTypeFeeNote = '',
@@ -356,6 +349,12 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
   completionCredentialNotice = 'ログイン情報をご登録のメールアドレスに送信しました。',
 }) => {
   const fees = { ...DEFAULT_MEMBER_TYPE_FEES, ...(memberTypeFees || {}) };
+  // 規程は T_規程 が正本。取得できないとき（初回同期前・通信失敗）だけ従来の文面を出す。
+  const regulationList = (regulations && regulations.length > 0)
+    ? regulations
+    : FALLBACK_REGULATIONS;
+  const noticeItems = regulationList.filter((r) => r.kind !== 'REGULATION');
+  const regulationItems = regulationList.filter((r) => r.kind === 'REGULATION');
   const [form, setForm] = useState<ApplicationFormData>({ ...INITIAL_FORM_DATA });
   const [step, setStep] = useState(0);
   const [errors, setErrors] = useState<ValidationErrors>({});
@@ -654,42 +653,50 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
 
                 <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6 sm:py-6">
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    {MEMBERSHIP_NOTICE_HIGHLIGHTS.map(item => (
-                      <div key={item.title} className="rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-sm">
+                    {noticeItems.map(item => (
+                      <div key={item.id} className="rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-sm">
                         <p className="text-sm font-semibold text-slate-900">{item.title}</p>
-                        <p className="mt-2 text-sm leading-7 text-slate-600">{item.body}</p>
-                        {'actionHref' in item && item.actionHref && (
+                        <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-600">{item.body}</p>
+                        {item.effectiveDate && (
+                          <p className="mt-2 text-xs text-slate-400">{item.effectiveDate} 施行（第 {item.version} 版）</p>
+                        )}
+                        {item.linkUrl && (
                           <a
-                            href={item.actionHref}
+                            href={item.linkUrl}
                             target="_blank"
                             rel="noreferrer"
                             className="mt-4 inline-flex min-h-[44px] items-center rounded-full border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-semibold text-primary-700 transition hover:border-primary-300 hover:bg-primary-100"
                           >
-                            {item.actionLabel}
+                            {item.linkLabel || 'くわしく見る'}
                           </a>
                         )}
                       </div>
                     ))}
                   </div>
 
-                  <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">協議会の定款</p>
-                        <p className="mt-1 text-sm leading-6 text-slate-600">
-                          入会前に、協議会の基本規程も確認できます。
-                        </p>
+                  {regulationItems.map(item => (
+                    <div key={item.id} className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                          <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-600">{item.body}</p>
+                          {item.effectiveDate && (
+                            <p className="mt-2 text-xs text-slate-400">{item.effectiveDate} 施行（第 {item.version} 版）</p>
+                          )}
+                        </div>
+                        {item.linkUrl && (
+                          <a
+                            href={item.linkUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:text-slate-900"
+                          >
+                            {item.linkLabel || '内容を確認する'}
+                          </a>
+                        )}
                       </div>
-                      <a
-                        href={INCORPORATION_URL}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex min-h-[44px] items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:text-slate-900"
-                      >
-                        定款を確認する
-                      </a>
                     </div>
-                  </div>
+                  ))}
 
                   <label className="mt-5 flex items-start gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-4">
                     <input

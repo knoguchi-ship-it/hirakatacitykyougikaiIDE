@@ -24,7 +24,7 @@ var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var LOCK_WAIT_TIMEOUT_MS = 10000; // AGENTS §3: LockService 待機の共通タイムアウト
 var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
-var DB_SCHEMA_VERSION = '2026-07-03-cascade-archive-schema-v376.52';
+var DB_SCHEMA_VERSION = '2026-09-02-regulations-v376.65';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
 // AGENTS §3: Script Properties の MEMBER_PORTAL_URL_OVERRIDE で上書き可能（deployment 変更時にコード改変不要）
@@ -752,6 +752,19 @@ var テーブル定義 = {
 };
 
 // v264: 公開ポータル変更申請テーブル（管理者承認待ちキュー）
+// v376.65（案C Phase 1）: 規程・重要事項マスタ。
+// 入会申込画面の「事務局からのお願い（重要事項）」と定款リンクの正本。
+// 従来はフロント（MEMBERSHIP_NOTICE_HIGHLIGHTS / INCORPORATION_URL）にハードコードされており
+// 事務局が改定できなかった。本文の正本はこのテーブル 1 箇所に集約する。
+// 区分コード: NOTICE=重要事項カード / REGULATION=規程・定款（外部リンク中心）
+// 対象会員種別: ALL / INDIVIDUAL / BUSINESS / SUPPORT（M_会員種別.コード + ALL）
+// 版数・施行日は Phase 2（同意記録）で「どの版に同意したか」を指すために使う。
+テーブル定義['T_規程'] = [
+  '規程ID', '区分コード', 'タイトル', '本文',
+  '外部リンクURL', '外部リンク文言', '対象会員種別',
+  '版数', '施行日', '表示順', '公開フラグ',
+  '更新者メール', '削除フラグ', '作成日時', '更新日時',
+];
 テーブル定義['T_変更申請'] = [
   '申請ID', '会員ID', '会員種別コード', '申請種別コード', '申請状態コード',
   '申請内容JSON', '連絡先メールアドレス', '申請者表示名', '申請日時',
@@ -1802,6 +1815,9 @@ var ADMIN_ACTION_PERMISSIONS = {
   'getCredentialEmailTemplates': ['MASTER','ADMIN'],
   'saveCredentialEmailTemplate': ['MASTER','ADMIN'],
   'deleteCredentialEmailTemplate': ['MASTER','ADMIN'],
+  'listRegulations': ['MASTER','ADMIN'],
+  'saveRegulation': ['MASTER','ADMIN'],
+  'deleteRegulation': ['MASTER','ADMIN'],
   'listMailTemplates': ['MASTER','ADMIN'],
   'saveMailTemplate': ['MASTER','ADMIN'],
   'deleteMailTemplate': ['MASTER','ADMIN'],
@@ -2419,6 +2435,16 @@ function processApiRequest(action, payload) {
     }
 
     // v376.42: 全メール種別 テンプレート管理（汎用・カテゴリ別）
+    // v376.65（案C Phase 1）: 規程・重要事項マスタ CRUD
+    if (action === 'listRegulations') {
+      return JSON.stringify({ success: true, data: listRegulations_(null, false) });
+    }
+    if (action === 'saveRegulation') {
+      return JSON.stringify({ success: true, data: saveRegulation_(parsedPayload, parsedPayload.__adminSession ? parsedPayload.__adminSession.loginId : '') });
+    }
+    if (action === 'deleteRegulation') {
+      return JSON.stringify({ success: true, data: deleteRegulation_(parsedPayload, parsedPayload.__adminSession ? parsedPayload.__adminSession.loginId : '') });
+    }
     if (action === 'listMailTemplates') {
       return JSON.stringify({ success: true, data: listMailTemplates_(parsedPayload) });
     }
@@ -9754,6 +9780,342 @@ function dryRunMembershipFeeV376_64_LOG() {
   return report;
 }
 
+// ============================================================
+// v376.65（案C Phase 1）: 規程・重要事項マスタ
+// 本文の正本は T_規程 の 1 箇所。公開ポータルの入会申込画面と管理設定が同じ行を読む。
+// ============================================================
+
+var REGULATION_KINDS = ['NOTICE', 'REGULATION'];
+var REGULATION_TARGETS = ['ALL', 'INDIVIDUAL', 'BUSINESS', 'SUPPORT'];
+
+// 初期 seed（従来フロントにハードコードされていた文面をそのまま移行する）。
+// 既に行があるときは何もしない＝事務局の改定を上書きしない。
+var REGULATION_SEED = [
+  { kind: 'NOTICE', title: '会費の返還について', body: '納入後の会費は、いかなる理由があっても返還できません。', url: '', urlLabel: '', target: 'ALL', order: 1 },
+  { kind: 'NOTICE', title: '個人情報の利用目的', body: '登録情報は、台帳管理、定例会・研修会等の周知、受付確認、広報発送など、協議会運営に必要な範囲でのみ利用します。', url: '', urlLabel: '', target: 'ALL', order: 2 },
+  { kind: 'NOTICE', title: '変更・退会の手続き', body: '登録情報の変更や退会は、協議会ホームページからお手続きください。', url: 'https://sites.google.com/view/starhirakata/%E5%85%A5%E4%BC%9A%E9%80%80%E4%BC%9A?authuser=0', urlLabel: '入会・退会案内を開く', target: 'ALL', order: 3 },
+  { kind: 'NOTICE', title: '退会の締切', body: '退会は年度切替前の3月末までに完了してください。手続きがない場合は継続扱いとなり、当該年度の会費納入が必要です。', url: '', urlLabel: '', target: 'ALL', order: 4 },
+  { kind: 'REGULATION', title: '協議会の定款', body: '入会前に、協議会の基本規程も確認できます。', url: 'https://sites.google.com/view/starhirakata/%E5%AE%9A%E6%AC%BE?authuser=0', urlLabel: '定款を確認する', target: 'ALL', order: 5 }
+];
+
+function seedRegulationsIfEmpty_(ss) {
+  var sheet = ss.getSheetByName('T_規程');
+  if (!sheet) return;
+  if (sheet.getLastRow() >= 2) return; // 既存行があれば触らない
+  var now = new Date().toISOString();
+  var rows = [];
+  for (var i = 0; i < REGULATION_SEED.length; i += 1) {
+    var seed = REGULATION_SEED[i];
+    rows.push({
+      '規程ID': 'REG-' + ('000' + (i + 1)).slice(-3),
+      '区分コード': seed.kind,
+      'タイトル': seed.title,
+      '本文': seed.body,
+      '外部リンクURL': seed.url,
+      '外部リンク文言': seed.urlLabel,
+      '対象会員種別': seed.target,
+      '版数': 1,
+      '施行日': '',
+      '表示順': seed.order,
+      '公開フラグ': true,
+      '更新者メール': '',
+      '削除フラグ': false,
+      '作成日時': now,
+      '更新日時': now
+    });
+  }
+  appendRowsByHeaders_(ss, 'T_規程', rows);
+}
+
+function regulationRowToObject_(row) {
+  return {
+    id: String(row['規程ID'] || ''),
+    kind: String(row['区分コード'] || 'NOTICE'),
+    title: String(row['タイトル'] || ''),
+    body: String(row['本文'] || ''),
+    linkUrl: String(row['外部リンクURL'] || ''),
+    linkLabel: String(row['外部リンク文言'] || ''),
+    target: String(row['対象会員種別'] || 'ALL'),
+    version: Number(row['版数'] || 1),
+    effectiveDate: String(row['施行日'] || ''),
+    sortOrder: Number(row['表示順'] || 0),
+    published: toBoolean_(row['公開フラグ']),
+    updatedBy: String(row['更新者メール'] || ''),
+    updatedAt: String(row['更新日時'] || '')
+  };
+}
+
+// 規程を表示順で返す。publishedOnly=true のときは公開フラグの立った行だけ（公開ポータル用）。
+function listRegulations_(ss, publishedOnly) {
+  var target = ss || getOrCreateDatabase_();
+  if (!target.getSheetByName('T_規程')) return [];
+  var rows = getRowsAsObjects_(target, 'T_規程').filter(function(row) {
+    if (toBoolean_(row['削除フラグ'])) return false;
+    if (publishedOnly && !toBoolean_(row['公開フラグ'])) return false;
+    return true;
+  });
+  var list = rows.map(regulationRowToObject_);
+  list.sort(function(a, b) {
+    if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+    return a.id < b.id ? -1 : (a.id > b.id ? 1 : 0);
+  });
+  return list;
+}
+
+function validateRegulationPayload_(payload) {
+  var title = String((payload && payload.title) || '').trim();
+  var body = String((payload && payload.body) || '');
+  var kind = String((payload && payload.kind) || 'NOTICE');
+  var targetType = String((payload && payload.target) || 'ALL');
+  var linkUrl = String((payload && payload.linkUrl) || '').trim();
+  var linkLabel = String((payload && payload.linkLabel) || '').trim();
+  if (!title) throw new Error('タイトルを入力してください。');
+  if (title.length > 100) throw new Error('タイトルは 100 文字以内で入力してください。');
+  if (body.length > 20000) throw new Error('本文は 20,000 文字以内で入力してください。');
+  if (REGULATION_KINDS.indexOf(kind) < 0) throw new Error('区分の値が不正です。');
+  if (REGULATION_TARGETS.indexOf(targetType) < 0) throw new Error('対象会員種別の値が不正です。');
+  if (linkUrl && linkUrl.indexOf('https://') !== 0) throw new Error('外部リンクは https:// で始まる URL を入力してください。');
+  if (linkUrl.length > 500) throw new Error('外部リンクは 500 文字以内で入力してください。');
+  if (linkLabel.length > 40) throw new Error('外部リンクの文言は 40 文字以内で入力してください。');
+  return { title: title, body: body, kind: kind, target: targetType, linkUrl: linkUrl, linkLabel: linkLabel };
+}
+
+// 新規追加 / 既存更新。本文・タイトル・リンクが変わったときだけ版数を +1 する
+// （Phase 2 の同意記録が「どの版に同意したか」を指せるようにするため）。
+function saveRegulation_(payload, operatorEmail) {
+  var v = validateRegulationPayload_(payload);
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  var sheet = ss.getSheetByName('T_規程');
+  if (!sheet) throw new Error('T_規程 が初期化されていません。');
+  var now = new Date().toISOString();
+  var id = String((payload && payload.id) || '').trim();
+  var sortOrder = Number((payload && payload.sortOrder) || 0);
+  if (!isFinite(sortOrder) || sortOrder < 0 || sortOrder > 999) sortOrder = 0;
+  var published = payload && payload.published != null ? !!payload.published : true;
+  var effectiveDate = String((payload && payload.effectiveDate) || '').trim();
+
+  if (!id) {
+    var existing = getRowsAsObjects_(ss, 'T_規程');
+    var maxSeq = 0;
+    for (var i = 0; i < existing.length; i += 1) {
+      var m = /^REG-(\d+)$/.exec(String(existing[i]['規程ID'] || ''));
+      if (m) maxSeq = Math.max(maxSeq, parseInt(m[1], 10) || 0);
+    }
+    var newId = 'REG-' + ('000' + (maxSeq + 1)).slice(-3);
+    appendRowsByHeaders_(ss, 'T_規程', [{
+      '規程ID': newId,
+      '区分コード': v.kind,
+      'タイトル': v.title,
+      '本文': v.body,
+      '外部リンクURL': v.linkUrl,
+      '外部リンク文言': v.linkLabel,
+      '対象会員種別': v.target,
+      '版数': 1,
+      '施行日': effectiveDate,
+      '表示順': sortOrder,
+      '公開フラグ': published,
+      '更新者メール': String(operatorEmail || ''),
+      '削除フラグ': false,
+      '作成日時': now,
+      '更新日時': now
+    }]);
+    return { id: newId, version: 1, created: true };
+  }
+
+  var cols = buildColumnIndex_(sheet);
+  requireColumns_(cols, ['規程ID', 'タイトル', '本文', '版数', '更新日時']);
+  var values = sheet.getRange(2, 1, Math.max(0, sheet.getLastRow() - 1), sheet.getLastColumn()).getValues();
+  for (var r = 0; r < values.length; r += 1) {
+    if (String(values[r][cols['規程ID']] || '') !== id) continue;
+    var contentChanged = String(values[r][cols['タイトル']] || '') !== v.title
+      || String(values[r][cols['本文']] || '') !== v.body
+      || String(values[r][cols['外部リンクURL']] || '') !== v.linkUrl
+      || String(values[r][cols['外部リンク文言']] || '') !== v.linkLabel;
+    var nextVersion = Number(values[r][cols['版数']] || 1) + (contentChanged ? 1 : 0);
+    values[r][cols['区分コード']] = v.kind;
+    values[r][cols['タイトル']] = v.title;
+    values[r][cols['本文']] = v.body;
+    values[r][cols['外部リンクURL']] = v.linkUrl;
+    values[r][cols['外部リンク文言']] = v.linkLabel;
+    values[r][cols['対象会員種別']] = v.target;
+    values[r][cols['版数']] = nextVersion;
+    values[r][cols['施行日']] = effectiveDate;
+    values[r][cols['表示順']] = sortOrder;
+    values[r][cols['公開フラグ']] = published;
+    values[r][cols['更新者メール']] = String(operatorEmail || '');
+    values[r][cols['更新日時']] = now;
+    sheet.getRange(2, 1, values.length, sheet.getLastColumn()).setValues(values);
+    return { id: id, version: nextVersion, created: false, versionBumped: contentChanged };
+  }
+  throw new Error('対象の規程が見つかりません: ' + id);
+}
+
+// soft delete（削除フラグ）。会員に紐づかないため cascade アーカイブの対象外。
+function deleteRegulation_(payload, operatorEmail) {
+  var id = String((payload && payload.id) || '').trim();
+  if (!id) throw new Error('規程IDが空です。');
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_規程');
+  if (!sheet) throw new Error('T_規程 が初期化されていません。');
+  var cols = buildColumnIndex_(sheet);
+  requireColumns_(cols, ['規程ID', '削除フラグ', '更新日時']);
+  var values = sheet.getRange(2, 1, Math.max(0, sheet.getLastRow() - 1), sheet.getLastColumn()).getValues();
+  for (var r = 0; r < values.length; r += 1) {
+    if (String(values[r][cols['規程ID']] || '') !== id) continue;
+    values[r][cols['削除フラグ']] = true;
+    values[r][cols['更新者メール']] = String(operatorEmail || '');
+    values[r][cols['更新日時']] = new Date().toISOString();
+    sheet.getRange(2, 1, values.length, sheet.getLastColumn()).setValues(values);
+    return { id: id, deleted: true };
+  }
+  throw new Error('対象の規程が見つかりません: ' + id);
+}
+
+// v376.65（案C Phase 1）: 規程・重要事項マスタの実DB往復 dryRun。
+// 検証用の行を作成 → 読み戻し → 更新（版数 +1）→ 公開ポータル設定に出るか確認 → 物理削除で原状復帰。
+// メールは送らない。既存の規程行には一切触れない。
+function dryRunRegulationsV376_65_LOG() {
+  var ss = getOrCreateDatabase_();
+  var checks = [];
+  var cleanedUp = false;
+  var stamp = String(Date.now()).slice(-6);
+  var createdId = '';
+  function record(name, passed, detail) {
+    checks.push({ name: name, passed: !!passed, detail: detail || '' });
+  }
+  function findById(list, id) {
+    for (var i = 0; i < list.length; i += 1) if (list[i].id === id) return list[i];
+    return null;
+  }
+
+  var before = listRegulations_(ss, false);
+  record('既存の規程を読める', before.length >= 0, '件数=' + before.length);
+
+  try {
+    // 1) 作成
+    var created = saveRegulation_({
+      kind: 'NOTICE',
+      title: DRYRUN_PREFIX + '規程検証_' + stamp,
+      body: '検証用の本文です。実行後に削除されます。',
+      linkUrl: 'https://example.com/dryrun',
+      linkLabel: '検証リンク',
+      target: 'ALL',
+      sortOrder: 900,
+      published: true
+    }, 'dryrun');
+    createdId = created.id;
+    record('新規作成できる（版数=1）', !!createdId && created.version === 1, JSON.stringify(created));
+
+    // 2) 読み戻し
+    var afterCreate = findById(listRegulations_(ss, false), createdId);
+    record('作成した規程を読み戻せる',
+      !!afterCreate && afterCreate.title.indexOf(DRYRUN_PREFIX) === 0 && afterCreate.linkUrl === 'https://example.com/dryrun',
+      afterCreate ? afterCreate.title : '(not found)');
+
+    // 3) 本文変更で版数が上がる
+    var updated = saveRegulation_({
+      id: createdId,
+      kind: 'NOTICE',
+      title: DRYRUN_PREFIX + '規程検証_' + stamp,
+      body: '本文を書き換えました。',
+      linkUrl: 'https://example.com/dryrun',
+      linkLabel: '検証リンク',
+      target: 'ALL',
+      sortOrder: 900,
+      published: true
+    }, 'dryrun');
+    record('本文変更で版数が +1 される', updated.version === 2, JSON.stringify(updated));
+
+    // 4) 内容が同じなら版数は上がらない
+    var unchanged = saveRegulation_({
+      id: createdId,
+      kind: 'NOTICE',
+      title: DRYRUN_PREFIX + '規程検証_' + stamp,
+      body: '本文を書き換えました。',
+      linkUrl: 'https://example.com/dryrun',
+      linkLabel: '検証リンク',
+      target: 'ALL',
+      sortOrder: 901,
+      published: true
+    }, 'dryrun');
+    record('内容が同じなら版数は据え置き', unchanged.version === 2, JSON.stringify(unchanged));
+
+    // 5) 公開ポータル設定に出る
+    var publicPayload = JSON.parse(getPublicPortalSettings_());
+    var publicList = publicPayload && publicPayload.data ? publicPayload.data.regulations : [];
+    record('公開ポータル設定に公開中の規程が出る',
+      !!findById(publicList || [], createdId),
+      '公開件数=' + ((publicList || []).length));
+
+    // 6) 非公開にすると公開側から消える
+    saveRegulation_({
+      id: createdId,
+      kind: 'NOTICE',
+      title: DRYRUN_PREFIX + '規程検証_' + stamp,
+      body: '本文を書き換えました。',
+      linkUrl: 'https://example.com/dryrun',
+      linkLabel: '検証リンク',
+      target: 'ALL',
+      sortOrder: 901,
+      published: false
+    }, 'dryrun');
+    var publicPayload2 = JSON.parse(getPublicPortalSettings_());
+    var publicList2 = publicPayload2 && publicPayload2.data ? publicPayload2.data.regulations : [];
+    record('★非公開にすると公開側に出ない', !findById(publicList2 || [], createdId), '公開件数=' + ((publicList2 || []).length));
+
+    // 7) 不正な外部リンクは拒否
+    var rejected = false;
+    try {
+      saveRegulation_({ title: DRYRUN_PREFIX + 'bad', body: '', linkUrl: 'javascript:alert(1)' }, 'dryrun');
+    } catch (e) { rejected = true; }
+    record('不正な外部リンクは拒否される', rejected, '');
+  } finally {
+    // 8) 検証行を物理削除して原状復帰（soft delete では行が残るため）
+    try {
+      if (createdId) {
+        cleanedUp = purgeRegulationRowForDryRun_(ss, createdId);
+      } else {
+        cleanedUp = true;
+      }
+      record('検証行を物理削除した', cleanedUp, createdId);
+      var after = listRegulations_(ss, false);
+      record('既存の規程件数が元に戻っている', after.length === before.length, before.length + ' -> ' + after.length);
+    } catch (e) {
+      record('検証行を物理削除した', false, e && e.message ? e.message : String(e));
+    }
+  }
+
+  var report = {
+    version: 'v376.65',
+    dryRun: true,
+    mailSent: false,
+    testRowCleanedUp: cleanedUp,
+    passed: checks.every(function(c) { return c.passed; }) && cleanedUp,
+    checks: checks,
+    regulationCountBefore: before.length
+  };
+  Logger.log('[dryRunRegulationsV376_65_LOG] ' + JSON.stringify(report));
+  return report;
+}
+
+// dryRun 専用: 検証で作った T_規程 の行を物理削除する（通常運用では soft delete のみ）。
+function purgeRegulationRowForDryRun_(ss, id) {
+  var sheet = ss.getSheetByName('T_規程');
+  if (!sheet || sheet.getLastRow() < 2) return false;
+  var cols = buildColumnIndex_(sheet);
+  requireColumns_(cols, ['規程ID', 'タイトル']);
+  var values = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  for (var r = values.length - 1; r >= 0; r -= 1) {
+    if (String(values[r][cols['規程ID']] || '') !== String(id)) continue;
+    // 安全弁: dryRun が作った行以外は絶対に消さない
+    if (String(values[r][cols['タイトル']] || '').indexOf(DRYRUN_PREFIX) !== 0) return false;
+    sheet.deleteRow(r + 2);
+    return true;
+  }
+  return false;
+}
+
 // v368: 申込受付メール送信ヘルパー（公開ポータル申請受付時に使用）
 function sendApplicationReceiptMail_(ss, params) {
   // params: { contactEmail, applicantName, requestId, requestType, memberTypeLabel, receivedAt }
@@ -14624,6 +14986,9 @@ function initializeSchema_(ss) {
   critical('migrateCredentialTemplatesToTable_',  function() { migrateCredentialTemplatesToTable_(ss); });
   // v376.45: 公式LINE投稿依頼に 作成者名/投稿マーク者名 列を追加（name-based shift で既存行保持）
   critical('normalize T_LINE投稿依頼',            function() { normalizeTableColumns_(ss, 'T_LINE投稿依頼'); });
+  // v376.65（案C Phase 1）: 規程・重要事項マスタ。初回のみ現行のハードコード文面を移行 seed する。
+  critical('normalize T_規程',                    function() { normalizeTableColumns_(ss, 'T_規程'); });
+  critical('seedRegulationsIfEmpty_',             function() { seedRegulationsIfEmpty_(ss); });
   critical('normalize T_認証アカウント',          function() { normalizeTableColumns_(ss, 'T_認証アカウント'); });
   critical('normalize T_ログイン履歴',            function() { normalizeTableColumns_(ss, 'T_ログイン履歴'); });
   critical('normalize T_研修申込',                function() { normalizeTableColumns_(ss, 'T_研修申込'); });
@@ -15593,6 +15958,8 @@ function getPublicPortalSettings_() {
   var ppWithdrawalDescriptionEnabled = ppWithdrawalDescriptionEnabledRaw === undefined || ppWithdrawalDescriptionEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled : String(ppWithdrawalDescriptionEnabledRaw) !== 'false';
   var ppWithdrawalDescription = String(map['PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalDescription;
   var ppWithdrawalCtaLabel = String(map['PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel;
+  // v376.65（案C Phase 1）: 入会申込画面に出す規程・重要事項（公開フラグの立った行のみ）
+  var ppRegulations = listRegulations_(db, true);
   // v376.64: 入会申込の会員種別カードに表示する年会費（正本は M_会員種別.年会費金額）
   var ppMembershipFees = readMemberTypeAnnualFees_(db);
   var ppMembershipFeeVisibleRaw = map['MEMBERSHIP_FEE_PUBLIC_VISIBLE'];
@@ -15603,6 +15970,7 @@ function getPublicPortalSettings_() {
   return JSON.stringify({
     success: true,
     data: {
+      regulations: ppRegulations,
       membershipFees: ppMembershipFees,
       membershipFeeVisible: ppMembershipFeeVisible,
       membershipFeeNote: ppMembershipFeeNote,

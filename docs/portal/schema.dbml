@@ -1,6 +1,6 @@
 // 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能
 // 元: docs/03_DATA_MODEL.md
-// 生成日時: 2026-09-02T06:43:50.904Z
+// 生成日時: 2026-09-02T10:03:06.086Z
 
 Project hcmn_member_system {
   database_type: "Google Spreadsheet (logical)"
@@ -777,6 +777,24 @@ Table "T_管理者Googleホワイトリスト_archive" {
   "アーカイブ日時" timestamp
 }
 
+Table "T_規程" {
+  "規程ID" varchar [pk]
+  "区分コード" varchar
+  "タイトル" varchar
+  "本文" varchar
+  "外部リンクURL" varchar
+  "外部リンク文言" varchar
+  "対象会員種別" varchar [note: 'FK']
+  "版数" int
+  "施行日" date
+  "表示順" int
+  "公開フラグ" boolean
+  "更新者メール" varchar
+  "削除フラグ" boolean
+  "作成日時" timestamp
+  "更新日時" timestamp
+}
+
 Table "T_認証アカウント" {
   "認証ID" varchar [pk]
   "認証方式" varchar
@@ -938,3 +956,4 @@ Ref: "T_ログイン履歴"."認証ID" > "T_認証アカウント"."認証ID" //
 // 自動推定失敗: T_支払い明細_archive }o--o| T_削除ログ : 削除バッチID
 // 自動推定失敗: T_請求_archive }o--o| T_削除ログ : 削除バッチID
 // 自動推定失敗: T_変更申請_archive }o--o| T_削除ログ : 削除バッチID
+// 自動推定失敗: T_規程 }o--o| M_会員種別 : 対象会員種別

@@ -325,7 +325,7 @@ footer {
     <button class="copy-btn" onclick="copyDbml()">📋 全文コピー</button>
     <pre id="dbml-src">// 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能
 // 元: docs/03_DATA_MODEL.md
-// 生成日時: 2026-09-02T06:43:50.900Z
+// 生成日時: 2026-09-02T10:03:06.079Z
 
 Project hcmn_member_system {
   database_type: &quot;Google Spreadsheet (logical)&quot;
@@ -1102,6 +1102,24 @@ Table &quot;T_管理者Googleホワイトリスト_archive&quot; {
   &quot;アーカイブ日時&quot; timestamp
 }
 
+Table &quot;T_規程&quot; {
+  &quot;規程ID&quot; varchar [pk]
+  &quot;区分コード&quot; varchar
+  &quot;タイトル&quot; varchar
+  &quot;本文&quot; varchar
+  &quot;外部リンクURL&quot; varchar
+  &quot;外部リンク文言&quot; varchar
+  &quot;対象会員種別&quot; varchar [note: &#39;FK&#39;]
+  &quot;版数&quot; int
+  &quot;施行日&quot; date
+  &quot;表示順&quot; int
+  &quot;公開フラグ&quot; boolean
+  &quot;更新者メール&quot; varchar
+  &quot;削除フラグ&quot; boolean
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+}
+
 Table &quot;T_認証アカウント&quot; {
   &quot;認証ID&quot; varchar [pk]
   &quot;認証方式&quot; varchar
@@ -1262,9 +1280,10 @@ Ref: &quot;T_ログイン履歴&quot;.&quot;認証ID&quot; &gt; &quot;T_認証�
 // 自動推定失敗: T_支払い_archive }o--o| T_削除ログ : 削除バッチID
 // 自動推定失敗: T_支払い明細_archive }o--o| T_削除ログ : 削除バッチID
 // 自動推定失敗: T_請求_archive }o--o| T_削除ログ : 削除バッチID
-// 自動推定失敗: T_変更申請_archive }o--o| T_削除ログ : 削除バッチID</pre>
+// 自動推定失敗: T_変更申請_archive }o--o| T_削除ログ : 削除バッチID
+// 自動推定失敗: T_規程 }o--o| M_会員種別 : 対象会員種別</pre>
   </div>
-  <p style="font-size: 0.85em; color: var(--muted);">行数: 940 / 容量: 18.0 KB</p>
+  <p style="font-size: 0.85em; color: var(--muted);">行数: 959 / 容量: 18.3 KB</p>
 </section>
 
 <section class="card">

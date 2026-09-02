@@ -1,5 +1,21 @@
 # 開発引継ぎ（Current State）
 
+## 2026-09-02 v376.65 / v376.65.1 リリース
+
+- **規程・重要事項マスタ `T_規程` を新設**（案C Phase 1）。入会申込画面の「事務局からのお願い」と定款リンクは
+  従来フロントにハードコードされていて事務局が改定できなかった。**本文の正本を DB の 1 箇所へ移し**、
+  管理画面 設定 → **規程・重要事項** から追加・編集・削除・公開/非公開・表示順を操作できるようにした。
+- 初期データは**現行のハードコード文面 5 件をそのまま seed**（内容は従来と同一）。空のときだけ seed し、改定を上書きしない。
+- 版数は**タイトル・本文・リンクが変わった保存でだけ +1**（Phase 2 の同意記録が「どの版に同意したか」を指すため）。
+- **同意記録（`T_規程同意`）は Phase 2 で未着手**。着手時は cascade アーカイブ登録・ER リレーション・GCP 移行方針の
+  3 点を必ず処理する（`docs/258` §2）。
+- **落とし穴**: 新テーブル追加時は `DB_SCHEMA_VERSION` の bump が必須。初回 @370 で忘れてテーブルが作られず、
+  公開側はフォールバック文面を出していたため画面上は正常に見えていた（dryRun で検知）。v376.65.1 @371 で解消。
+- 本番 fixed deployment は **public @371×2 / member @130 / admin @227** に同期済み。
+- live E2E: 公開 a11y 違反 0・公開 responsive 21 view・重要事項ダイアログの表示を実測・メール設定 E2E 5/5・
+  `dryRunRegulationsV376_65_LOG` 10 チェック全 PASS（検証行は物理削除して原状復帰）。**管理 responsive のみ未実行**。
+- 詳細は docs/258_RELEASE_STATE_v376.65_2026-09-02.md。
+
 ## 2026-09-02 v376.64 リリース
 
 - **会費設定を新設**: 会員種別ごとの年会費（個人 3,000 / 事業所 8,000 / 賛助 5,000）を管理画面 設定 → **会費設定** から変更できるようにした。
@@ -62,7 +78,7 @@
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
 最終更新: **2026-09-02**
-最新リリース: **v376.64**（会費設定＝会員種別ごとの年会費を設定画面から変更・入会申込カードに表示・public @369×2 / member @128 / admin @225）
+最新リリース: **v376.65.1**（規程・重要事項マスタ＝案C Phase 1・public @371×2 / member @130 / admin @227）
 最終作業（2026-09-02）: **本番 GAS 側で v376.60 の検証負債を解消し、v376.61 / v376.62 の 2 リリースを実施**（研修 endTime の実害バグ、テンプレート一覧が v376.42 以降ずっと壊れていた本番障害）。本番データの壊れたセル 3 件も operator 承認のうえ復元。あわせて docs を全面整理（直下 80→44 文書）し、テスト記録を `docs/portal/test-report.html` に一本化した。**GCP 側は本セッションでは再突合のみ実施（書込なし）**。
 GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member 認証）のフル環境まで構築・デプロイ完了。本番 GAS/DB は一切非破壊**（作業は GCP 作業場のみ）。member-auth サービス（Cloud Run `hcmn-member-auth`・rev00003・private・App Check 強制 ON・max=1・専用 SA 最小権限）に、防御コア（第0層レート制限／第1層ロック尊重／第4層日次上限／列挙リーク是正／fail-closed）＋本番 `verifyPassword_` の厳密移植（KAT で GAS 等価を機械証明）＋資格情報ミラー 342 件（**テストコピー由来**）＋Firebase カスタムトークン発行（鍵レス signBlob）＋監査/失効を実装。unit 46/46。**この中断点は 2026-08-03 に解消済（rev00006 でフル経路 end-to-end PASS）。当時「あと 1 手」とされていたのは誤認で、実際は `admin.appCheck()` の初期化順序というサーバ側バグの修正が必要だった。以降 Step A（member-api rev00001）まで進行**。再開手順・GCP リソース一覧・env 再構築・落とし穴の正本は GCP 作業場 `docs/HANDOFF_2026-07-25_member-auth.md`。
 同期間の Phase 4a（2026-07-19〜22）: 予算 killswitch **完了**（予算→topic 接続＋実イベント `under_budget` 初回受信を実測）／日次エクスポート（Firestore→シート BK）を Cloud Run Job で構築し本番 DB シートのコピーで実データ検証 PASS（Scheduler 稼働開始はカットオーバー直前に延期）／portal-api に起動時一括ウォームアップ実装（110+5 doc を 848ms で prefetch・rev00002 実測）／共有 project の IAM 変更後に**本番 3 split live E2E で非影響を実測**（public a11y 0＋7VP／member 21／admin 56 全 PASS）。
@@ -76,7 +92,8 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 
 ## 0. 次の担当者へ（キャッチアップ・まず1分でここ）
 
-- **本番**: public **@369×2** / member **@128** / admin **@225**（v376.64・§1）。全 fixed deployment 同期確認済。ロールバック先は public @368×2 / member @127 / admin @224。
+- **本番**: public **@371×2** / member **@130** / admin **@227**（v376.65.1・§1）。全 fixed deployment 同期確認済。ロールバック先は public @369×2 / member @128 / admin @225。
+- **v376.65（規程マスタ）の管理 responsive E2E だけ未実行**（admin セッションが約 1 時間で再失効。公開 E2E・メール設定 E2E・dryRun は PASS 済）。`node .test-out/auth-bootstrap-admin-auto.mjs` → `npm run test:responsive:admin` で消化する。
 - **v376.64 の検証は完了**（管理セッション再取得後に実施）: admin responsive 56 view・メール設定 E2E 5/5・`dryRunMembershipFeeV376_64_LOG` が `passed:true` / `restored:true`。公開側は入会申込カードに 3,000 / 8,000 / 5,000 円の表示を実測。
 - **検証状況は 1 ページで見られる**: [`docs/portal/test-report.html`](docs/portal/test-report.html)（16 項目・PASS 15・要フォロー 1）。再生成は `npm run report:tests`。
 - **文書の入口**: [`docs/00_DOC_INDEX.md`](docs/00_DOC_INDEX.md)。2026-09-02 に全面整理し、`docs/` 直下は現役 44 文書のみ・完了記録 224 件は [`docs/archive/`](docs/archive/00_ARCHIVE_INDEX.md) へ移した。
@@ -113,10 +130,10 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 
 | 配信 | Deployment ID | Version |
 |---|---|---|
-| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@369** |
-| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@369** |
-| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@128** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@225** |
+| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@371** |
+| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@371** |
+| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@130** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@227** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 
@@ -164,6 +181,8 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 
 | # | タスク | 詳細 / 参照 |
 |---|---|---|
+| 0 | **v376.65 管理 responsive E2E（残作業）** | 公開 E2E・メール設定 E2E・dryRun は PASS 済。admin セッションが約 1 時間で再失効したため `npm run test:responsive:admin` のみ未実行。`node .test-out/auth-bootstrap-admin-auto.mjs` でログインし直して実行する | `docs/258_RELEASE_STATE_v376.65_2026-09-02.md` |
+| ✅ | **v376.65 完了（規程・重要事項マスタ＝案C Phase 1）** | public @371×2 / member @130 / admin @227 に同期済。`T_規程` 新設・管理 UI・公開表示・seed 5 件。`dryRunRegulationsV376_65_LOG` 10 チェック全 PASS。**Phase 2（同意記録）は未着手** | `docs/258_RELEASE_STATE_v376.65_2026-09-02.md` |
 | ✅ | **v376.64 完了（会費設定・会員種別ごとの年会費）** | public @369×2 / member @128 / admin @225 に同期済。live E2E: 公開 a11y 0・公開 responsive 7VP・**入会申込カードに 3,000/8,000/5,000 円の表示を実測**・admin responsive 56 view・メール設定 E2E 5/5・`dryRunMembershipFeeV376_64_LOG` **`passed:true` / `restored:true`**（7 チェック全 PASS・実行後に金額は原状復帰）。**残る運用作業**: 実際の会費が既定値と異なる場合に 設定 → 会費設定 で更新すること | `docs/257_RELEASE_STATE_v376.64_2026-09-02.md` |
 | ✅ | **v376.63 完了（保守モード解除＋管理画面の日本語表記統一）** | public @368×2 / member @127 / admin @224 に同期済（`deployments` 一致確認）。live E2E: 公開 a11y 違反 0・公開 responsive 7VP・**member responsive 7VP×3画面**・**admin responsive 7VP×8 コンソール=56 view**・**メール設定 E2E 5/5**（いずれも console error 0・横スクロール 0・タップターゲット違反 0）。member の初回実行で 1VP がログインタイムアウトしたが、ウォーム後の再実行で 7VP 全 PASS＝コールドスタートの揺れと確定 | `docs/256_RELEASE_STATE_v376.63_2026-09-02.md` |
 | ✅ | **v376.62 完了（テンプレート一覧取得失敗の本番障害＋pruner 根本修正）** | public @367×2 / member @126 / admin @223 に同期済。**デプロイ後の実測で全 14 カテゴリの `listMailTemplates` が `status:ok`**（修正前は全件 `mailTemplateRecordFromRow_ is not defined`）。live E2E: 公開 a11y 0・公開 responsive 7VP・member responsive 7VP・admin responsive 56 view・mail-settings E2E 5/5・dryRun（endTime / テンプレート）ともに `passed:true` | `docs/254_RELEASE_STATE_v376.62_2026-09-02.md` |

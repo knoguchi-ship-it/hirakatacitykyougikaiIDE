@@ -895,6 +895,24 @@ erDiagram
     string 投稿マーク者名 "投稿者表示名（v376.45）"
   }
 
+  T_規程 {
+    string 規程ID PK "REG-001 形式"
+    string 区分コード "NOTICE=重要事項 / REGULATION=規程・定款"
+    string タイトル
+    string 本文 "20,000 文字以内"
+    string 外部リンクURL "https:// のみ"
+    string 外部リンク文言
+    string 対象会員種別 FK "ALL または M_会員種別.コード"
+    int 版数 "本文・タイトル・リンク変更時に +1（Phase 2 の同意記録が指す版）"
+    date 施行日
+    int 表示順
+    boolean 公開フラグ "公開ポータルに出すか"
+    string 更新者メール
+    boolean 削除フラグ "soft delete"
+    datetime 作成日時
+    datetime 更新日時
+  }
+
   T_会員 }o--|| M_会員種別 : "会員種別コード"
   T_会員 }o--|| M_会員状態 : "会員状態コード"
   T_会員 }o--o| M_発送方法 : "発送方法コード"
@@ -956,6 +974,7 @@ erDiagram
   T_支払い明細_archive }o--o| T_削除ログ : "削除バッチID"
   T_請求_archive }o--o| T_削除ログ : "削除バッチID"
   T_変更申請_archive }o--o| T_削除ログ : "削除バッチID"
+  T_規程 }o--o| M_会員種別 : "対象会員種別"
 ```
 
 ---

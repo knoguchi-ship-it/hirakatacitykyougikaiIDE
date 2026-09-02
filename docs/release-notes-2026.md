@@ -13,6 +13,24 @@
 
 ---
 
+## v376.65 / v376.65.1 — 2026-09-02 🆕 規程・重要事項マスタ（案C Phase 1）（全3split @371×2 / @130 / @227）
+
+入会申込画面の規定・重要事項を DB 管理にし、事務局が改定できるようにした。同意記録は Phase 2 で未着手。
+
+- **`T_規程` を新設**: 区分（重要事項 / 規程・定款）・タイトル・本文・外部リンク・対象会員種別・版数・施行日・表示順・公開フラグ。
+- **本文の正本を 1 箇所へ**: 従来フロントにハードコードされていた `MEMBERSHIP_NOTICE_HIGHLIGHTS` / `INCORPORATION_URL` を廃し、
+  取得できないときだけ使う `FALLBACK_REGULATIONS` に降格。初期 seed は現行文面 5 件そのままで**表示内容は不変**。
+- **管理 UI**: 設定 → 規程・重要事項（追加・編集・削除・公開/非公開・表示順）。action は `admin-settings` メニュー配下に登録。
+- **公開境界は不変**: 読みは `getPublicPortalSettings` に相乗り（公開フラグの立った行のみ）、書きは admin action のみ。**public action は増やしていない**。
+- **版数**: タイトル・本文・リンクが変わった保存でだけ +1（Phase 2 の同意記録が指す版）。
+- **🐛 v376.65.1**: 新テーブル追加時の `DB_SCHEMA_VERSION` bump 漏れで `T_規程` が作られていなかった（公開側はフォールバック表示のため
+  画面上は正常に見えていた。dryRun で検知）。bump して解消。
+- **検証**: prerelease 全ゲート PASS（新ゲート `test:regulations` 9 件）。live E2E は 公開 a11y 0／公開 responsive 21 view／
+  重要事項ダイアログの表示を実測／メール設定 E2E 5/5／`dryRunRegulationsV376_65_LOG` 10 チェック全 PASS。管理 responsive のみ未実行（セッション失効）。
+- 詳細は `docs/258_RELEASE_STATE_v376.65_2026-09-02.md`。
+
+---
+
 ## v376.64 — 2026-09-02 🆕 会費設定（会員種別ごとの年会費を設定画面から変更・入会申込カードに表示）＋既存不具合の是正（全3split @369×2 / @128 / @225）
 
 公開ポータルの入会申込画面に会員種別ごとの会費を表示し、その金額を管理画面から変更できるようにした。
@@ -49,7 +67,7 @@ operator 指摘「わざわざ英語を入れる必要はない／むやみに�
 - **新ゲート**: `test:gas-artifact-refs` を新設し `prerelease` に組込。生成物が参照する gas-src 関数を、その生成物が宣言しているかを検査する（admin は `Code.gs`＋`dryrun.gs` を同一スコープ扱い）。
 - **同時に解消した欠落**（新ゲートが検出）: member split の `normalizeClaimRecord_`（請求記録正規化が ReferenceError になる経路）と、admin の `addDeleteLogSheet`（`T_削除ログ` 未作成時のみ発火する潜在 ReferenceError。private 実体 `addDeleteLogSheet_` に分離して解消）。
 - **検証**: prerelease 全ゲート PASS（新ゲートは修正前生成物で FAIL することを実測）。生成物は縮小（member −644B・admin −196B）。デプロイ後 live で**全 14 カテゴリ `status:ok`**、公開 a11y 0・公開 responsive 7VP・member responsive 7VP・admin responsive 56 view・mail-settings E2E 5/5・dryRun 2 種 `passed:true`。
-- 詳細: docs/254_RELEASE_STATE_v376.62_2026-09-02.md
+- 詳細: docs/archive/release_history/254_RELEASE_STATE_v376.62_2026-09-02.md
 
 ---
 

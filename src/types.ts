@@ -154,6 +154,26 @@ export interface EmailTemplate {
 // v373.6 (S5): RosterTemplate interface 撤去（旧 RosterExport 削除に伴う）。
 // SystemSettings.rosterTemplates は型からは外したが、GAS 側 T_システム設定 行は次セッションで撤去予定。
 
+// v376.65（案C Phase 1）: 規程・重要事項（正本は GAS の T_規程）
+export type RegulationKind = 'NOTICE' | 'REGULATION';
+export type RegulationTarget = 'ALL' | 'INDIVIDUAL' | 'BUSINESS' | 'SUPPORT';
+
+export interface Regulation {
+  id: string;
+  kind: RegulationKind;
+  title: string;
+  body: string;
+  linkUrl: string;
+  linkLabel: string;
+  target: RegulationTarget;
+  version: number;
+  effectiveDate: string;
+  sortOrder: number;
+  published: boolean;
+  updatedBy?: string;
+  updatedAt?: string;
+}
+
 export type MemberTypeAnnualFees = {
   INDIVIDUAL: number;
   BUSINESS: number;

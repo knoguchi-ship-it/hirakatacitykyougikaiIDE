@@ -19,7 +19,7 @@ import ChangeRequestConsole from './components/ChangeRequestConsole';
 import { RoleManagementPanel } from './components/RoleManagementPanel';
 import MemberDetailAdmin from './components/MemberDetailAdmin';
 import StaffDetailAdmin from './components/StaffDetailAdmin';
-import { AdminDashboardData, AdminDashboardMemberRow, AdminDashboardStaffRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, Staff, StaffRole, SystemSettings, Training, TrainingFieldConfig, DEFAULT_FIELD_CONFIG, RoleDefinition, MenuRegistryEntry } from './types';
+import { AdminDashboardData, AdminDashboardMemberRow, AdminDashboardStaffRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, Staff, StaffRole, SystemSettings, Training, TrainingFieldConfig, DEFAULT_FIELD_CONFIG, RoleDefinition, MenuRegistryEntry, Regulation } from './types';
 import { TRAINING_OPTIONAL_FIELD_DEFS } from './components/TrainingManagement';
 import { api, setApiPreviewReadOnly, type AdminLoginResult, type MemberLoginResult, type MemberPortalLookup } from './services/api';
 import { canAccessMenu, canUseLinePost, canManageLinePost } from './shared/rbac-util';
@@ -488,6 +488,24 @@ const App: React.FC = () => {
   };
   const [annualFeeTransferAccount, setAnnualFeeTransferAccount] = useState<SystemSettings['annualFeeTransferAccount']>(emptyAnnualFeeTransferAccount);
   const [annualFeeTransferAccountInput, setAnnualFeeTransferAccountInput] = useState<SystemSettings['annualFeeTransferAccount']>(emptyAnnualFeeTransferAccount);
+  // v376.65（案C Phase 1）: 規程・重要事項（正本は T_規程）。一括保存バーではなく行単位で保存する。
+  const [regulations, setRegulations] = useState<Regulation[]>([]);
+  const [regulationsLoading, setRegulationsLoading] = useState(false);
+  const [regulationsError, setRegulationsError] = useState<string | null>(null);
+  const [regulationDraft, setRegulationDraft] = useState<Regulation | null>(null);
+  const [regulationBusy, setRegulationBusy] = useState(false);
+  const loadRegulations = React.useCallback(async () => {
+    setRegulationsLoading(true);
+    setRegulationsError(null);
+    try {
+      const list = await api.listRegulations();
+      setRegulations(Array.isArray(list) ? list : []);
+    } catch (e) {
+      setRegulationsError(e instanceof Error ? e.message : '規程の取得に失敗しました。');
+    } finally {
+      setRegulationsLoading(false);
+    }
+  }, []);
   // v376.64: 会費設定（金額の正本は M_会員種別.年会費金額）
   const [memberTypeAnnualFeesInput, setMemberTypeAnnualFeesInput] = useState<Record<'INDIVIDUAL' | 'BUSINESS' | 'SUPPORT', string>>({ INDIVIDUAL: '', BUSINESS: '', SUPPORT: '' });
   const [membershipFeePublicVisibleInput, setMembershipFeePublicVisibleInput] = useState(true);
@@ -504,7 +522,13 @@ const App: React.FC = () => {
       SUPPORT: String(fees?.SUPPORT ?? MEMBER_TYPE_ANNUAL_FEE_FALLBACK.SUPPORT),
     });
   }, []);
-  const [settingsSub, setSettingsSub] = useState<'basic' | 'fees' | 'output' | 'email' | 'portal' | 'masters'>('basic');
+  const [settingsSub, setSettingsSub] = useState<'basic' | 'fees' | 'regulations' | 'output' | 'email' | 'portal' | 'masters'>('basic');
+  // v376.65: 規程タブを開いたときに一覧を取得する（初回のみ・失敗時は再読込ボタン）
+  React.useEffect(() => {
+    if (settingsSub !== 'regulations') return;
+    if (regulations.length > 0 || regulationsLoading || regulationsError) return;
+    void loadRegulations();
+  }, [settingsSub, regulations.length, regulationsLoading, regulationsError, loadRegulations]);
   // v319: 変更申請 PENDING バッジカウント
   const [pendingChangeRequestCount, setPendingChangeRequestCount] = useState<number>(0);
   // v194: PDF名簿出力 & 一括メール送信設定
@@ -3483,6 +3507,7 @@ const App: React.FC = () => {
       const settingsSubNav: { id: typeof settingsSub; label: string; desc: string }[] = [
         { id: 'basic',   label: '基本設定',     desc: '上限・研修フォーム既定' },
         { id: 'fees',    label: '会費設定',     desc: '種別ごとの年会費・納入案内' },
+        { id: 'regulations', label: '規程・重要事項', desc: '入会申込画面の掲載文' },
         { id: 'output',  label: '帳票出力',     desc: 'テンプレート・Drive' },
         { id: 'email',   label: 'メール通知',   desc: '入会メール・事業所メール' },
         { id: 'portal',  label: '公開ポータル', desc: 'カード設定・文言' },
@@ -3570,6 +3595,244 @@ const App: React.FC = () => {
                   </label>
                 ))}
               </div>
+            </div>
+          </AdminSettingsSection>}
+
+          {/* ── 規程・重要事項（v376.65・案C Phase 1） ── */}
+          {settingsSub === 'regulations' && <AdminSettingsSection
+            id="settings-regulations"
+            title="規程・重要事項"
+            description="公開ポータルの入会申込画面「事務局からのお願い」に出る文面と、定款などの規程リンクをここで管理します。ここが文面の正本です（従来はソースに直接書かれていました）。"
+            badge="公開文面"
+            defaultOpen
+          >
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-slate-600">
+                  区分「重要事項」はカードとして並び、「規程・定款」は下部のリンク枠として表示されます。表示順の小さいものが先に出ます。
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { void loadRegulations(); }}
+                    disabled={regulationsLoading}
+                    className="min-h-[44px] rounded border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    {regulationsLoading ? '読込中...' : '再読込'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRegulationDraft({
+                      id: '', kind: 'NOTICE', title: '', body: '', linkUrl: '', linkLabel: '',
+                      target: 'ALL', version: 1, effectiveDate: '', sortOrder: (regulations.length + 1) * 1, published: true,
+                    })}
+                    className="min-h-[44px] rounded bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700"
+                  >
+                    ＋ 新規追加
+                  </button>
+                </div>
+              </div>
+
+              {regulationsError && (
+                <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{regulationsError}</p>
+              )}
+
+              {regulations.length === 0 && !regulationsLoading && !regulationsError && (
+                <p className="rounded border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
+                  規程がまだ登録されていません。「再読込」を押すか、管理画面を開き直すと初期文面が自動登録されます。
+                </p>
+              )}
+
+              <div className="space-y-3">
+                {regulations.map((item) => (
+                  <div key={item.id} className="rounded-lg border border-slate-200 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${item.kind === 'REGULATION' ? 'bg-violet-100 text-violet-700' : 'bg-sky-100 text-sky-700'}`}>
+                            {item.kind === 'REGULATION' ? '規程・定款' : '重要事項'}
+                          </span>
+                          <span className={`rounded-full px-2 py-0.5 text-xs ${item.published ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
+                            {item.published ? '公開中' : '非公開'}
+                          </span>
+                          <span className="text-xs text-slate-500">第 {item.version} 版</span>
+                          <span className="text-xs text-slate-400">表示順 {item.sortOrder}</span>
+                        </div>
+                        <p className="mt-2 text-sm font-semibold text-slate-800">{item.title}</p>
+                        <p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-600">{item.body}</p>
+                        {item.linkUrl && (
+                          <p className="mt-1 break-all text-xs text-slate-500">{item.linkLabel || 'リンク'}: {item.linkUrl}</p>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setRegulationDraft({ ...item })}
+                          className="min-h-[44px] rounded border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                        >
+                          編集
+                        </button>
+                        <button
+                          type="button"
+                          disabled={regulationBusy}
+                          onClick={async () => {
+                            if (!window.confirm(`「${item.title}」を削除します。よろしいですか。`)) return;
+                            try {
+                              setRegulationBusy(true);
+                              await api.deleteRegulation(item.id);
+                              await loadRegulations();
+                            } catch (e) {
+                              setRegulationsError(e instanceof Error ? e.message : '削除に失敗しました。');
+                            } finally {
+                              setRegulationBusy(false);
+                            }
+                          }}
+                          className="min-h-[44px] rounded border border-red-300 px-3 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          削除
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {regulationDraft && (
+                <div className="rounded-lg border-2 border-primary-200 bg-primary-50/40 p-4">
+                  <h4 className="mb-3 text-sm font-semibold text-slate-800">
+                    {regulationDraft.id ? '規程を編集' : '規程を追加'}
+                  </h4>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">区分</label>
+                      <select
+                        value={regulationDraft.kind}
+                        onChange={(e) => setRegulationDraft({ ...regulationDraft, kind: e.target.value as Regulation['kind'] })}
+                        className="w-full rounded border border-slate-300 bg-white px-3 py-2"
+                      >
+                        <option value="NOTICE">重要事項（カード表示）</option>
+                        <option value="REGULATION">規程・定款（リンク枠）</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">対象会員種別</label>
+                      <select
+                        value={regulationDraft.target}
+                        onChange={(e) => setRegulationDraft({ ...regulationDraft, target: e.target.value as Regulation['target'] })}
+                        className="w-full rounded border border-slate-300 bg-white px-3 py-2"
+                      >
+                        <option value="ALL">すべての会員</option>
+                        <option value="INDIVIDUAL">個人会員</option>
+                        <option value="BUSINESS">事業所会員</option>
+                        <option value="SUPPORT">賛助会員</option>
+                      </select>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="mb-1 block text-sm font-medium text-slate-700">タイトル</label>
+                      <input
+                        type="text"
+                        value={regulationDraft.title}
+                        onChange={(e) => setRegulationDraft({ ...regulationDraft, title: e.target.value })}
+                        className="w-full rounded border border-slate-300 px-3 py-2"
+                        placeholder="例: 会費の返還について"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="mb-1 block text-sm font-medium text-slate-700">本文</label>
+                      <textarea
+                        value={regulationDraft.body}
+                        onChange={(e) => setRegulationDraft({ ...regulationDraft, body: e.target.value })}
+                        rows={5}
+                        className="w-full rounded border border-slate-300 px-3 py-2"
+                        placeholder="申込者に伝える内容を入力します。改行はそのまま表示されます。"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">外部リンク（任意・https のみ）</label>
+                      <input
+                        type="text"
+                        value={regulationDraft.linkUrl}
+                        onChange={(e) => setRegulationDraft({ ...regulationDraft, linkUrl: e.target.value })}
+                        className="w-full rounded border border-slate-300 px-3 py-2"
+                        placeholder="https://..."
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">リンクのボタン文言</label>
+                      <input
+                        type="text"
+                        value={regulationDraft.linkLabel}
+                        onChange={(e) => setRegulationDraft({ ...regulationDraft, linkLabel: e.target.value })}
+                        className="w-full rounded border border-slate-300 px-3 py-2"
+                        placeholder="例: 定款を確認する"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">施行日（任意）</label>
+                      <input
+                        type="date"
+                        value={regulationDraft.effectiveDate}
+                        onChange={(e) => setRegulationDraft({ ...regulationDraft, effectiveDate: e.target.value })}
+                        className="w-full rounded border border-slate-300 px-3 py-2"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">表示順</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={999}
+                        value={regulationDraft.sortOrder}
+                        onChange={(e) => setRegulationDraft({ ...regulationDraft, sortOrder: Number(e.target.value || 0) })}
+                        className="w-full rounded border border-slate-300 px-3 py-2"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="flex cursor-pointer select-none items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={regulationDraft.published}
+                          onChange={(e) => setRegulationDraft({ ...regulationDraft, published: e.target.checked })}
+                          className="accent-primary-600"
+                        />
+                        <span className="text-sm text-slate-700">公開ポータルの入会申込画面に表示する</span>
+                      </label>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs text-slate-500">
+                    タイトル・本文・リンクを変更して保存すると版数が 1 つ上がります（どの版を掲示していたかを追えるようにするため）。
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={regulationBusy}
+                      onClick={async () => {
+                        try {
+                          setRegulationBusy(true);
+                          setRegulationsError(null);
+                          await api.saveRegulation(regulationDraft);
+                          setRegulationDraft(null);
+                          await loadRegulations();
+                        } catch (e) {
+                          setRegulationsError(e instanceof Error ? e.message : '保存に失敗しました。');
+                        } finally {
+                          setRegulationBusy(false);
+                        }
+                      }}
+                      className="min-h-[44px] rounded bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
+                    >
+                      {regulationBusy ? '保存中...' : 'この規程を保存'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRegulationDraft(null)}
+                      className="min-h-[44px] rounded border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                    >
+                      キャンセル
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </AdminSettingsSection>}
 

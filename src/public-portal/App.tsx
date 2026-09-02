@@ -11,6 +11,7 @@ import { readDeepLink, consumeDeepLink } from '../utils/deepLink';
 import { resolveApplyCta } from '../shared/trainingOptions';
 
 type PublicPortalContentSettings = {
+  regulations: import('../types').Regulation[];
   membershipFees: { INDIVIDUAL: number; BUSINESS: number; SUPPORT: number };
   membershipFeeVisible: boolean;
   membershipFeeNote: string;
@@ -86,6 +87,7 @@ const PAGE_PARAM_TO_VIEW: Partial<Record<string, View>> = {
 };
 
 const DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS: PublicPortalContentSettings = {
+  regulations: [],
   membershipFees: { INDIVIDUAL: 3000, BUSINESS: 8000, SUPPORT: 5000 },
   membershipFeeVisible: true,
   membershipFeeNote: '',
@@ -200,6 +202,7 @@ const PublicApp: React.FC = () => {
           setTrainingMenuEnabled(portalSettings.value.trainingMenuEnabled !== false);
           setMembershipMenuEnabled(portalSettings.value.membershipMenuEnabled !== false);
           setPortalContentSettings({
+            regulations: Array.isArray(portalSettings.value.regulations) ? portalSettings.value.regulations : [],
             membershipFees: {
               INDIVIDUAL: Number(portalSettings.value.membershipFees?.INDIVIDUAL ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipFees.INDIVIDUAL),
               BUSINESS: Number(portalSettings.value.membershipFees?.BUSINESS ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipFees.BUSINESS),
@@ -631,6 +634,7 @@ const PublicApp: React.FC = () => {
 
         {view === 'member-application' && (
           <MemberApplicationForm
+            regulations={portalContentSettings?.regulations ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.regulations}
             memberTypeFees={portalContentSettings?.membershipFees ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipFees}
             showMemberTypeFees={portalContentSettings?.membershipFeeVisible ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipFeeVisible}
             memberTypeFeeNote={portalContentSettings?.membershipFeeNote ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipFeeNote}
