@@ -15,7 +15,7 @@
 
 - 本番 fixed deployment は public @365 ×2、member @124、admin @221 に同期済み。
 - 対象: 受付メールOFF判定、事業所代表者宛先、共通自動送信元、OFF中テンプレート編集。
-- 公開 a11y は PASS。管理画面 Playwright E2E と非送信 dry-run は、ブラウザ／Execution API の認可待ち。
+- **2026-09-02 に全 13 行 PASS で決着**（管理画面 E2E は storageState 再取得後に実行、dry-run 2 本は Apps Script エディタから実行し `passed:true`・送信なし・書込なし）。
   詳細は docs/252_RELEASE_STATE_v376.60_2026-09-02.md と
   docs/portal/mail-settings-test-report.html を参照。
 
@@ -111,8 +111,9 @@
 
 | # | タスク | 詳細 / 参照 |
 |---|---|---|
-| 0 | **v376.61 デプロイ済（研修 endTime 実害バグ）— 残: operator の dryRun 実行** | push→version→fixed deployment 4 本 redeploy→`deployments --json` 一致確認→公開 a11y 0・公開 responsive 7VP・member responsive 7VP まで完了。**残タスク: admin editor で `dryRunTrainingEndTimeV376_61_LOG` を ▶ 実行し `passed:true` を確認**（非送信・検証行は物理削除）。同時出力の `corruptedEndTimeIds` が下記課題B の対象研修 ID | `docs/253_RELEASE_STATE_v376.61_2026-09-02.md` |
-| 0 | **課題B: `T_研修` の壊れた 3 セル復元（operator 手作業）** | `開催終了時刻` にセル値として JS Date の文字列表現が入っている 3 件。復元値は導出済（T001→**12:00** / T004→**16:30** / T473A9682→**12:40**。正しい値が入る 2 件で式を検証済）。**入力前に案内状・実施記録と突合すること**。同期 SA は本番シートに閲覧者のみのため GCP 側から書込不可。v376.61 適用後、当該セルは API 上「空文字」になる（誤文字列は消えるが値は空のまま）| `docs/253` / GCP 作業場 `docs/PHASE4B_AUTH_DEFENSE_DESIGN.md` |
+| 🚨 High | **本番障害: メールテンプレート一覧が常に取得失敗（v376.42 以降・未修正）** | 管理画面「メール通知」の各カードで `テンプレート一覧の取得に失敗しました` が出る。実測: `listMailTemplates` が **全 14 カテゴリで `mailTemplateRecordFromRow_ is not defined`**（2026-09-02・本番 admin @222 で確認。DB には有効テンプレートが 2 件ある＝`activeTemplateCounts {CREDENTIAL:1, STAFF_ADD_REP:1}`）。**原因**: `scripts/gas-boundary-utils.mjs` の `collectReachableFunctions` が `name(` の呼び出し構文しか到達性として数えないため、`rows.map(mailTemplateRecordFromRow_)` のように**関数を値として渡す参照**が検出されず、build pruner が当該関数を 3 split すべてから削除している（`git log -S` で **生成物に一度も入っていない**ことを確認）。**修正案**: ①gas-src 側を `rows.map(function(r){ return mailTemplateRecordFromRow_(r); })` にする（最小差分）②pruner の到達性判定を裸の識別子参照にも広げる ③生成物内の未定義関数参照を検出する gate を prerelease に追加。**保守モードの「障害修正」に該当** | `src/components/MailTemplateManager.tsx:43`, `gas-src/Code.full.gs:9801`, `scripts/gas-boundary-utils.mjs:513` |
+| ✅ | **v376.61 完了（研修 endTime 実害バグ）** | デプロイ＋live E2E に加え、admin editor で `dryRunTrainingEndTimeV376_61_LOG` を実行し **`passed:true` / `testRowCleanedUp:true` / `corruptedEndTimeCount:0` / `emptyEndTimeCount:0`**（2026-09-02 12:45）。作成→読み戻し→再保存→物理削除まで実DBで検証済 | `docs/253_RELEASE_STATE_v376.61_2026-09-02.md` |
+| ✅ | **課題B 完了: `T_研修` の壊れた 3 セル復元（2026-09-02）** | operator 承認のうえ研修管理モーダルの実 UI 経由で入力し、API 再読込で検証: **T001=12:00 / T004=16:30 / T473A9682=12:40**（T002=17:00・T003=16:00 は元から正常＝導出式の検証根拠）。dryRun でも `corruptedEndTimeCount:0` を確認。**残るは課題C（GCP 作業場での再突合）のみ** | `docs/253` / GCP 作業場 `docs/PHASE4B_AUTH_DEFENSE_DESIGN.md` |
 | ✅ | **v376.57 admin E2E 回帰（完了・2026-07-11）** | operator ログインで storageState 再取得後、`test:responsive:admin` を新 admin @219 に対し実行 → **全 7VP × 8 コンソール（会員一覧/変更申請/研修管理/年会費/名簿出力/宛名リスト/システム設定 等）= 56 view 全 PASS**（横スクロール 0・タップターゲット違反 0・console error 0・fatal 0）。public/member E2E と合わせ、v376.57 transport 分離の非破壊を 3 split すべてで機械検証済 | `docs/release-notes-2026.md` v376.57 |
 | ✅ | **v376.56 認証アカウント発行/リセット機能（完了・@218/@121/@362）** | v376.55（リセット・認証ID必須）＋v376.56（発行 `adminIssueMemberCredential`）デプロイ済・公開E2E非破壊・**会員ログイン E2E 完全 PASS（2026-07-10・全7VP）**。member E2E は本機能で発行したダミー会員資格情報＋`.env.test` で稼働可能に（積年の未 PASS 解消）。**運用メモ**: 検証用ダミー会員の扱い（恒久テスト fixture として保持 or 物理削除）は operator 判断（下記 §2-1b 参照）| `docs/release-notes-2026.md` v376.55 / v376.56 |
 | 0 | **v376.52 cascade アーカイブ＋メール是正の検証**（admin @212・MASTER） | ①admin にログイン（DB migrate 自動実行: `_archive` 11本新設+既存2本に `削除バッチID` 列追加。既存データ不変）。②admin editor で `dryRunDeleteCascadeV376_52_LOG` ▶ → `passed:true`（実DB E2E: 投入→cascade→live0/archive13/purge1→復元→sweep）。③`diagnoseMemberDeleteDebt_LOG` ▶ → 削除負債（refSoftDeleted/refMissing）を実測し、バックフィル要否を判断（`docs/249 §7`）。④一括メール画面: 配信モードを一時 REDIRECT にすると画面上部＋送信確認に琥珀色警告が出ること（確認後 LIVE に戻す）。⑤削除コンソールの説明文が「アーカイブ移動」表記になっていること。※cascade は削除コンソール実行時のみ発動（通常運用に影響なし） | `docs/249` §8 |

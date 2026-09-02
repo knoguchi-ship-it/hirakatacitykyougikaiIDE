@@ -15,23 +15,49 @@ const LABELS = {
   mail: '\u30e1\u30fc\u30eb\u901a\u77e5',
   receipt: '\u7533\u8acb\u53d7\u4ed8\u6642\uff1a\u53d7\u4ed8\u78ba\u8a8d\u30e1\u30fc\u30eb',
   template: '\u30c6\u30f3\u30d7\u30ec\u30fc\u30c8\u7ba1\u7406',
-  sharedSender: '\u81ea\u52d5\u901a\u77e5\u306e\u5171\u901a\u9001\u4fe1\u5143\u30a2\u30c9\u30ec\u30b9',
+  // The card renders this exact label; the previous literal never existed in the UI.
+  sharedSender: '\u81ea\u52d5\u901a\u77e5\u306e\u9001\u4fe1\u5143\u30a2\u30c9\u30ec\u30b9\uff08\u5171\u901a\uff09',
 };
 
-async function visibleButton(frame, text) {
-  return frame.evaluate((label) => Array.from(document.querySelectorAll('button')).some((button) => {
+// Tab buttons render their label together with a sub caption, e.g.
+// "メール通知 入会メール・事業所メール". Exact matching missed them and reported a
+// structural FAIL, so callers can opt into prefix matching.
+async function visibleButton(frame, text, loose = false) {
+  return frame.evaluate(([label, isLoose]) => Array.from(document.querySelectorAll('button')).some((button) => {
     const rect = button.getBoundingClientRect();
-    return rect.width > 0 && rect.height > 0 && (button.innerText || '').trim() === label;
-  }), text);
+    const value = (button.innerText || '').trim();
+    const hit = isLoose ? value.startsWith(label) : value === label;
+    return rect.width > 0 && rect.height > 0 && hit;
+  }), [text, loose]);
 }
 
-async function clickButton(frame, text) {
-  return frame.evaluate((label) => {
-    const button = Array.from(document.querySelectorAll('button')).find((item) => (item.innerText || '').trim() === label);
+async function waitForButton(frame, page, text, seconds = 40, loose = false) {
+  for (let attempt = 0; attempt < seconds; attempt += 1) {
+    if (await visibleButton(frame, text, loose)) return true;
+    await page.waitForTimeout(1000);
+  }
+  return false;
+}
+
+async function waitForText(frame, page, text, seconds = 30) {
+  for (let attempt = 0; attempt < seconds; attempt += 1) {
+    const seen = await frame.evaluate((needle) => String(document.body?.innerText || '').includes(needle), text);
+    if (seen) return true;
+    await page.waitForTimeout(1000);
+  }
+  return false;
+}
+
+async function clickButton(frame, text, loose = false) {
+  return frame.evaluate(([label, isLoose]) => {
+    const button = Array.from(document.querySelectorAll('button')).find((item) => {
+      const value = (item.innerText || '').trim();
+      return isLoose ? value.startsWith(label) : value === label;
+    });
     if (!button) return false;
     button.click();
     return true;
-  }, text);
+  }, [text, loose]);
 }
 
 async function getAdminFrame(page) {
@@ -74,22 +100,43 @@ async function main() {
     const openedSettings = await clickButton(frame, LABELS.settings);
     result.cases.push({ id: 'E2E-01', name: 'Open system settings', pass: openedSettings });
     if (!openedSettings) throw new Error('System settings navigation is unavailable.');
-    await page.waitForTimeout(1200);
+    // The settings console renders after a GAS round-trip (1.8-5s per HANDOVER 12.6).
+    // A fixed wait produced false FAILs, so wait for the mail tab to actually appear.
+    await waitForButton(frame, page, LABELS.mail, 40, true);
 
-    const openedMail = await clickButton(frame, LABELS.mail);
+    const openedMail = await clickButton(frame, LABELS.mail, true);
     result.cases.push({ id: 'E2E-02', name: 'Open mail settings', pass: openedMail });
     if (!openedMail) throw new Error('Mail settings tab is unavailable.');
-    await page.waitForTimeout(900);
+    await waitForText(frame, page, LABELS.receipt);
+
+    // Every ancestor div also "contains" the receipt label, and its first
+    // <details> belongs to another card. Pick the smallest matching container.
+    await frame.evaluate(() => {
+      window.pickReceiptCard = (receipt) => Array.from(document.querySelectorAll('div'))
+        .filter((el) => (el.textContent || '').includes(receipt) && !!el.querySelector('details'))
+        .sort((x, y) => (x.textContent || '').length - (y.textContent || '').length)[0] || null;
+    });
+
+    // The template manager inside the OFF card is rendered only after the
+    // disclosure is opened, so open it first (read-only interaction).
+    await frame.evaluate((labels) => {
+      const card = pickReceiptCard(labels.receipt);
+      const details = card ? card.querySelector('details') : null;
+      const summary = details ? details.querySelector('summary') : null;
+      if (summary) summary.click();
+    }, LABELS);
+    await waitForText(frame, page, LABELS.template, 20);
 
     const uiChecks = await frame.evaluate((labels) => {
-      const card = Array.from(document.querySelectorAll('div')).find((element) =>
-        (element.innerText || '').includes(labels.receipt) && !!element.querySelector('details'));
+      const card = pickReceiptCard(labels.receipt);
       const details = card ? card.querySelector('details') : null;
       const summary = details ? details.querySelector('summary') : null;
       return {
         cardFound: !!card,
         detailFound: !!details && !!summary,
-        templateInDetail: !!details && (details.innerText || '').includes(labels.template),
+        // A collapsed <details> exposes only its summary through innerText, so the
+        // template manager must be looked up in the DOM text, not the rendered text.
+        templateInDetail: !!details && (details.textContent || '').includes(labels.template),
         senderLabel: (document.body.innerText || '').includes(labels.sharedSender),
       };
     }, LABELS);

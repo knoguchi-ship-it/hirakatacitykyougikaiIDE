@@ -15,8 +15,8 @@ const cases = [
   ['U-01', 'Boolean false remains a saved OFF value', 'unit', 'test:mail-settings', 'PASS'],
   ['U-02', 'Business application resolves the representative recipient', 'unit', 'test:application-receipt', 'PASS'],
   ['U-03', 'Automatic sender does not replace an explicit manual sender', 'unit', 'test:mail-settings', 'PASS'],
-  ['D-01', 'Live database/template dry-run (no send, no write)', 'GAS dry-run', 'dryRunMailSettingsV376_60_LOG', 'BLOCKED'],
-  ['D-02', 'Live application routing dry-run (no send, no write)', 'GAS dry-run', 'dryRunApplicationReceiptRoutingV376_59_LOG', 'BLOCKED'],
+  ['D-01', 'Live database/template dry-run (no send, no write)', 'GAS dry-run', 'dryRunMailSettingsV376_60_LOG', 'PASS'],
+  ['D-02', 'Live application routing dry-run (no send, no write)', 'GAS dry-run', 'dryRunApplicationReceiptRoutingV376_59_LOG', 'PASS'],
   ['E2E-01', 'Open system settings', 'Playwright', 'test:mail-settings:e2e', null],
   ['E2E-02', 'Open mail settings', 'Playwright', 'test:mail-settings:e2e', null],
   ['E2E-03', 'Receipt card remains editable while OFF', 'Playwright', 'test:mail-settings:e2e', null],
@@ -78,7 +78,7 @@ const html = [
   '<section class="card"><h2>Browser result</h2><p class="status ' + statusClass(e2eStatus) + '">Mail-settings Playwright: ' + esc(e2eStatus) + '</p>',
   '<p class="notice">A FAIL is an executed failure. For the admin checks it can indicate an unavailable authenticated browser session; it is not treated as NOT RUN.</p></section>',
   '<section class="card"><h2>Test matrix</h2><table><thead><tr><th>ID</th><th>Check</th><th>Method</th><th>Command / procedure</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></section>',
-  '<section class="card"><h2>Notes</h2><ul><li>BLOCKED dry-runs require Apps Script Execution API permission for the operator account.</li><li>All Playwright checks are non-destructive: they do not save settings or send mail.</li><li>PASS results were collected from the fixed production deployments.</li></ul></section></body></html>',
+  '<section class="card"><h2>Notes</h2><ul><li>The two dry-runs were executed on 2026-09-02 from the Apps Script editor with the operator session (clasp run still lacks Execution API permission). Both returned passed:true with mailSent:false and dbWritten:false.</li><li>All Playwright checks are non-destructive: they do not save settings or send mail.</li><li>PASS results were collected from the fixed production deployments.</li></ul></section></body></html>',
 ].join('\n');
 await fs.mkdir(path.dirname(paths.out), { recursive: true });
 await fs.writeFile(paths.out, html, 'utf8');

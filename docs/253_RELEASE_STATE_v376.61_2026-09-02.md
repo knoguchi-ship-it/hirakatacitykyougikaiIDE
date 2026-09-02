@@ -55,14 +55,41 @@
 3. `npx clasp deployments --json` を 3 project で実行し、4 本すべてが上記 version を指すことを確認。
 4. デプロイ後に公開 a11y / 公開 responsive / member responsive を実行し全 PASS（上記「検証」）。
 
-## 残タスク（operator）
+## デプロイ後の検証（2026-09-02・追補）
 
-- admin editor で `dryRunTrainingEndTimeV376_61_LOG` を ▶ 実行し `passed:true` を確認する（**メール送信なし**・検証行は物理削除）。
-  同時に出力される `corruptedEndTimeIds` が課題B の対象研修 ID。
+operator のログインで admin ブラウザセッションを取り直したうえで、以下をすべて実施した。
+
+| 項目 | 結果 |
+|---|---|
+| `dryRunTrainingEndTimeV376_61_LOG`（admin editor から実行） | **`passed:true`** / `testRowCleanedUp:true` / `mailSent:false`。checks は create_returns_id・read_endTime_is_hhmm(16:30)・resave_keeps_endTime(16:30)・cleanup_done がすべて PASS。あわせて `corruptedEndTimeCount:0` / `emptyEndTimeCount:0` |
+| `test:responsive:admin`（R-03） | **7VP × 8 コンソール = 56 view 全 PASS**（横スクロール 0・タップターゲット違反 0・console error 0） |
+| `test:mail-settings:e2e`（E2E-01〜05） | **全 PASS** |
+| `dryRunMailSettingsV376_60_LOG`（D-01） | **`passed:true`**・`mailSent:false`・`dbWritten:false`・`activeTemplateCounts {CREDENTIAL:1, STAFF_ADD_REP:1}` |
+| `dryRunApplicationReceiptRoutingV376_59_LOG`（D-02） | **`passed:true`**・`mailSent:false`・`dbWritten:false` |
+
+これにより v376.60 のテスト記録（`docs/portal/mail-settings-test-report.html`）は **全 13 行 PASS** となった。
+
+### 課題B の実施記録（operator 承認済・本番データ変更）
+
+研修管理モーダルの実 UI（終了時刻 → 変更を保存）から入力し、管理 API の再読込で検証した。
+
+| 研修ID | 変更前 | 入力値 | 再読込 |
+|---|---|---|---|
+| T001 | 空 | 12:00 | **12:00** |
+| T004 | 空 | 16:30 | **16:30** |
+| T473A9682（削除済） | 空 | 12:40 | **12:40** |
+
+T002=17:00 / T003=16:00 は元から正常で、導出式の検証根拠と一致していることを実測で再確認した。
+実施後の dryRun でも `corruptedEndTimeCount:0` となり、壊れたセルは残っていない。
+
+### 検証ハーネスの是正（同日）
+
+- `scripts/test-mail-settings-e2e.mjs`: ①`システム設定` 描画後の固定待ちを条件待ちに変更 ②タブのラベルが実 UI では副題付き（`メール通知 入会メール・事業所メール`）のため前方一致に変更 ③受付カードの特定が最外側の div に一致していたため最小一致へ ④共通送信元の期待文言を実 UI の `自動通知の送信元アドレス（共通）` に修正 ⑤閉じた `<details>` 内のテンプレート管理を開いてから判定。**いずれもハーネス側の誤りで、アプリの不具合ではない**。
 
 ## フォローアップ
 
-1. **課題B（本番データ復元・operator 作業）**: `T_研修` の `開催終了時刻` が壊れている 3 セル。復元値は GCP 作業場で導出済み（T001→12:00 / T004→16:30 / T473A9682→12:40。正しい時刻値が入っている 2 件で式を検証済）。**書き込む前に案内状・実施記録と突き合わせること。** 同期 SA は本番シートに閲覧者のみのため GCP 側からは書き込めない。
+1. ~~**課題B（本番データ復元）**~~ → **完了（2026-09-02・上記実施記録）**。以下は当初の記載。: `T_研修` の `開催終了時刻` が壊れている 3 セル。復元値は GCP 作業場で導出済み（T001→12:00 / T004→16:30 / T473A9682→12:40。正しい時刻値が入っている 2 件で式を検証済）。**書き込む前に案内状・実施記録と突き合わせること。** 同期 SA は本番シートに閲覧者のみのため GCP 側からは書き込めない。
    - 本修正の適用後、壊れたセルは API 上「空文字」になる（誤った文字列は出なくなるが、値は空のまま）。**セルを直して初めて終了時刻が表示・保存される。**
 2. **課題C（GCP 作業場）**: `tools/contract-check-member/mapping.mjs` を再実行し、`date` 全件一致と `endTime` 差分の解消を確認する。
-3. v376.60 から継続: 管理画面 storageState の再取得 → admin E2E 再実行、Execution API 実行権限の復旧 → D-01 / D-02 の dryRun 実行。あわせて本リリースの `dryRunTrainingEndTimeV376_61_LOG` も実行する。
+3. ~~v376.60 から継続の検証負債~~ → **完了（2026-09-02）**。ただし `clasp run` の Execution API 権限は未復旧のままで、dry-run は Apps Script エディタ経由で実行した。CLI から回したい場合は権限復旧が必要。
+4. **新規に発見した本番障害（未修正）**: `listMailTemplates` が全カテゴリで `mailTemplateRecordFromRow_ is not defined` を返す。build pruner の到達性判定が `rows.map(mailTemplateRecordFromRow_)` のような値渡し参照を検出できず、v376.42 以降 3 split すべてで当該関数が欠落している。詳細と修正案は `HANDOVER.md` §2-1 の High 行。
