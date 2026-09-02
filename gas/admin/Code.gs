@@ -984,12 +984,6 @@ function sanitizeDeepLinkValue_(raw) {
  */
 
 /**
- * T_会員 に 勤務先住所2 / 自宅住所2 列を追加するマイグレーション。
- * 既にカラムが存在する場合はスキップする（冪等）。
- * 実行後は rebuildDatabaseSchema() のヘッダー保護を再適用することを推奨。
- */
-
-/**
  * DBスキーマを再構築する。
  * 既存の定義外シートは削除し、定義シートのヘッダー/入力規則/保護を再適用する。
  */
@@ -7176,6 +7170,21 @@ function normalizeMailTemplateCategory_(category) {
   return c;
 }
 
+function mailTemplateRecordFromRow_(r) {
+  var updatedAt = String(r['更新日時'] || '');
+  var createdAt = String(r['作成日時'] || '');
+  return {
+    id: String(r['テンプレートID'] || ''),
+    category: String(r['カテゴリ'] || ''),
+    name: String(r['名前'] || ''),
+    subject: String(r['件名'] || ''),
+    body: String(r['本文'] || ''),
+    isDefault: toBoolean_(r['既定フラグ']),
+    savedAt: updatedAt || createdAt,
+    updatedAt: updatedAt,
+    createdAt: createdAt,
+  };
+}
 
 // 汎用一覧取得。payload.category 指定時はそのカテゴリのみ。更新日時の降順。
 function listMailTemplates_(payload) {
@@ -10583,20 +10592,6 @@ function trashFileFromUrlIfPossible_(url) {
  * Drive のサムネイルが生成済みであれば取得・保存・更新する。
  * 1回の実行で最大 MAX_BATCH 件処理（GASタイムアウト防止）。
  */
-function setupThumbnailGenerationTrigger_() {
-  // 既存の同名トリガーを削除
-  ScriptApp.getProjectTriggers().forEach(function(t) {
-    if (t.getHandlerFunction() === 'runThumbnailGeneration') {
-      ScriptApp.deleteTrigger(t);
-    }
-  });
-  // 10分ごとに実行するトリガーを登録
-  ScriptApp.newTrigger('runThumbnailGeneration')
-    .timeBased()
-    .everyMinutes(10)
-    .create();
-  Logger.log('Thumbnail generation trigger set (every 10 min).');
-}
 
 /**
  * GASが参照するDBスプレッドシートIDを明示設定する。
@@ -14753,6 +14748,18 @@ function deleteLinePostRequest_(payload) {
 // v376.45: LINE投稿 権限二層 + 可視範囲 + submitRequest + 名前/日時 の dryRun E2E（operator が editor ▶）。
 // 合成 __adminSession を渡して、非管理者の可視スコープと post 権限ガードを実 DB で検証する（非送信）。
 
+function addDeleteLogSheet_() {
+  var ss = getOrCreateDatabase_();
+  var sheetName = 'T_削除ログ';
+  if (!ss.getSheetByName(sheetName)) {
+    var sheet = ss.insertSheet(sheetName);
+    var cols = テーブル定義[sheetName];
+    sheet.getRange(1, 1, 1, cols.length).setValues([cols]);
+    sheet.setFrozenRows(1);
+  }
+  return { status: 'ok', sheet: sheetName };
+}
+
 function getDeleteMemberDisplayName_(memberRow) {
   var memberType = String(memberRow['会員種別コード'] || '');
   var fullName = joinHumanNameParts_(memberRow['姓'], memberRow['名']).trim();
@@ -15347,7 +15354,7 @@ function executeDeleteMember_(payload) {
   });
 
   if (!ss.getSheetByName('T_削除ログ')) {
-    addDeleteLogSheet();
+    addDeleteLogSheet_();
   }
 
   var logId = Utilities.getUuid();
@@ -15410,12 +15417,6 @@ function getDeleteLogs_(payload) {
  * ログSSのスキーマを再構築する（既存ログSSのシートが壊れた場合など）。
  */
 
-
-/**
- * 退会済み会員（指定年数以上前）をアーカイブシートに移動する（定期実行用）。
- * デフォルトは退会から3年以上経過した会員をアーカイブ対象とする。
- * 実行前に rebuildDatabaseSchema() でアーカイブシートが作成済みであること。
- */
 
 // v376.36: 退会済み行を archive へ「移動」（追記 + ソースから物理削除）。
 //   - keyCol（会員ID/職員ID）で冪等化: 既に archive 済みの key は二重追記せずソースから除去（自己修復）

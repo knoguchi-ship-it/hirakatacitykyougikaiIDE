@@ -17,6 +17,7 @@ import {
   ADMIN_LOGIN_ACTIONS_LIST,
   ADMIN_ALLOWED_ACTIONS_LIST,
   collectFunctionDeclarations as collectFunctionDeclarationsShared,
+  maskCommentsAndStrings,
   injectMenuRegistryPlaceholders,
   injectMemberFiscalStatusPlaceholders,
 } from './gas-boundary-utils.mjs';
@@ -267,20 +268,34 @@ function collectReachableFunctions(source, seedNames) {
   const declaredNames = new Set(declarationByName.keys());
   const reachable = new Set(seedNames.filter((name) => declaredNames.has(name)));
   const queue = [...reachable];
+  // AGENTS DRY note: this pruner is duplicated in build-admin-gas.mjs /
+  // build-member-gas.mjs / gas-boundary-utils.mjs. Keep the three in step.
+  // A function used as a value (e.g. rows.map(recordFromRow_)) is a real
+  // reference too. Counting only call syntax pruned such helpers out of every
+  // split and broke listMailTemplates in production from v376.42 to v376.61.
   const callPattern = /\b([A-Za-z0-9_]+)\s*\(/g;
+  const referencePattern = /(^|[^.\w$])([A-Za-z0-9_]+)\b(?!\s*\()/g;
 
   while (queue.length) {
     const name = queue.shift();
     const declaration = declarationByName.get(name);
     if (!declaration) continue;
-    let match;
-    while ((match = callPattern.exec(declaration.body)) !== null) {
-      const callee = match[1];
+    // Comments and string literals must not create reachability: a function name
+    // mentioned in a comment used to keep dead code alive (and, with reference
+    // scanning, could retain a forbidden top-level callable).
+    const body = maskCommentsAndStrings(declaration.body);
+    const visit = (callee) => {
       if (declaredNames.has(callee) && !reachable.has(callee)) {
         reachable.add(callee);
         queue.push(callee);
       }
-    }
+    };
+    callPattern.lastIndex = 0;
+    let match;
+    while ((match = callPattern.exec(body)) !== null) visit(match[1]);
+    referencePattern.lastIndex = 0;
+    let reference;
+    while ((reference = referencePattern.exec(body)) !== null) visit(reference[2]);
   }
   return { declarations, reachable };
 }

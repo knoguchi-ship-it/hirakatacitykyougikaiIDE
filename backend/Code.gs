@@ -6135,6 +6135,7 @@ var LINE_POST_ATTACHMENT_KIND_PDF = 'PDF';
 
 
 
+
 // ══ v376.52: 会員系削除 cascade アーカイブ（docs/249・a1 単一化）═══════════════
 // 削除対象の会員/職員に紐づく行を live から除去し <table>_archive へ「移動」する。
 // - 退避行にはサロゲート3列（アーカイブID/削除バッチID/アーカイブ日時）を付与

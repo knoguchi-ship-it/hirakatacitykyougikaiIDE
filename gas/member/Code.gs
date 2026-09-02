@@ -984,12 +984,6 @@ function sanitizeDeepLinkValue_(raw) {
  */
 
 /**
- * T_会員 に 勤務先住所2 / 自宅住所2 列を追加するマイグレーション。
- * 既にカラムが存在する場合はスキップする（冪等）。
- * 実行後は rebuildDatabaseSchema() のヘッダー保護を再適用することを推奨。
- */
-
-/**
  * DBスキーマを再構築する。
  * 既存の定義外シートは削除し、定義シートのヘッダー/入力規則/保護を再適用する。
  */
@@ -5086,20 +5080,6 @@ function computeTrainingAvailability_(trainingRow, options) {
  * Drive のサムネイルが生成済みであれば取得・保存・更新する。
  * 1回の実行で最大 MAX_BATCH 件処理（GASタイムアウト防止）。
  */
-function setupThumbnailGenerationTrigger_() {
-  // 既存の同名トリガーを削除
-  ScriptApp.getProjectTriggers().forEach(function(t) {
-    if (t.getHandlerFunction() === 'runThumbnailGeneration') {
-      ScriptApp.deleteTrigger(t);
-    }
-  });
-  // 10分ごとに実行するトリガーを登録
-  ScriptApp.newTrigger('runThumbnailGeneration')
-    .timeBased()
-    .everyMinutes(10)
-    .create();
-  Logger.log('Thumbnail generation trigger set (every 10 min).');
-}
 
 /**
  * GASが参照するDBスプレッドシートIDを明示設定する。
@@ -6858,6 +6838,7 @@ var LINE_POST_ATTACHMENT_KIND_PDF = 'PDF';
 
 
 
+
 // ══ v376.52: 会員系削除 cascade アーカイブ（docs/249・a1 単一化）═══════════════
 // 削除対象の会員/職員に紐づく行を live から除去し <table>_archive へ「移動」する。
 // - 退避行にはサロゲート3列（アーカイブID/削除バッチID/アーカイブ日時）を付与
@@ -6902,12 +6883,6 @@ var DRYRUN_CASCADE_TAG = 'DRYRUN_CASCADE';
  * ログSSのスキーマを再構築する（既存ログSSのシートが壊れた場合など）。
  */
 
-
-/**
- * 退会済み会員（指定年数以上前）をアーカイブシートに移動する（定期実行用）。
- * デフォルトは退会から3年以上経過した会員をアーカイブ対象とする。
- * 実行前に rebuildDatabaseSchema() でアーカイブシートが作成済みであること。
- */
 
 // v376.36: 退会済み行を archive へ「移動」（追記 + ソースから物理削除）。
 //   - keyCol（会員ID/職員ID）で冪等化: 既に archive 済みの key は二重追記せずソースから除去（自己修復）
@@ -7484,6 +7459,14 @@ function getOfficerSelectableOrganizationCodes_(memberId, staffId, ss) {
   return codes;
 }
 
+function normalizeClaimRecord_(record) {
+  var out = Object.assign({}, record);
+  if (!String(out['請求種別'] || '').trim()) out['請求種別'] = 'EXPENSE_CLAIM';
+  if (!String(out['数量'] || '').trim()) out['数量'] = 1;
+  if (!String(out['単価'] || '').trim()) out['単価'] = Number(out['請求金額'] || 0);
+  if (!String(out['業務分類コード'] || '').trim()) out['業務分類コード'] = '';
+  return out;
+}
 
 function saveMemberBankAccount_(payload) {
   var memberId = String(payload.memberId || '').trim();

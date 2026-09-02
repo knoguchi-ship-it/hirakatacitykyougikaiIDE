@@ -24055,8 +24055,16 @@ function dryRunLinePostV376_45_LOG() {
 /**
  * T_削除ログ シートが存在しなければ作成する。setupDatabase 非実行環境向けのマイグレーション。
  * clasp run addDeleteLogSheet で単独実行可能。
+ *
+ * v376.62: 実体を private 側 (addDeleteLogSheet_) に分離した。公開名 addDeleteLogSheet は
+ * ADMIN_FORBIDDEN_TOP_LEVEL_FUNCTIONS により admin 生成物から削除されるため、削除 cascade の
+ * 実行時パスがこれを呼ぶと T_削除ログ 未作成時に ReferenceError になっていた（未定義参照 gate で検出）。
  */
 function addDeleteLogSheet() {
+  return addDeleteLogSheet_();
+}
+
+function addDeleteLogSheet_() {
   var ss = getOrCreateDatabase_();
   var sheetName = 'T_削除ログ';
   if (!ss.getSheetByName(sheetName)) {
@@ -24868,7 +24876,7 @@ function executeDeleteMember_(payload) {
   });
 
   if (!ss.getSheetByName('T_削除ログ')) {
-    addDeleteLogSheet();
+    addDeleteLogSheet_();
   }
 
   var logId = Utilities.getUuid();
