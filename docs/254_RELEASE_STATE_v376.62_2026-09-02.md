@@ -1,9 +1,16 @@
-# Release state: v376.62（2026-09-02・デプロイ承認待ち）
+# Release state: v376.62（2026-09-02・リリース済）
 
 ## 状態
 
-**コード修正・全ゲート通過・3 split 生成物検証まで完了。本番反映は operator 承認待ち。**
-本番は v376.61（public @366×2 / member @125 / admin @222）で稼働中。
+**本番反映完了。** fixed deployment 4 本を同期済み。
+
+| 配信 | Version |
+|---|---|
+| 統合 public legacy / 正式 | **@367**（2 本とも） |
+| member split | **@126** |
+| admin split | **@223** |
+
+ロールバック先: public **@366×2** / member **@125** / admin **@222**。
 
 ## 背景（発見の経緯）
 
@@ -59,13 +66,27 @@ pruner 修正と新ゲートが実ケースで検証されなくなるため、�
   正しく削除された分、むしろ縮小している（member の pruned 数 559→570、admin 320→322）。
 - 境界監査は public / member / admin すべて PASS。member のトップレベルは `doGet, processApiRequest` のまま。
 
-## デプロイ手順（承認後）
+## デプロイ実施記録（2026-09-02）
 
-1. 3 split の push → `npx clasp version` → fixed deployment **4 本**を redeploy → `deployments --json` で一致確認。
-2. デプロイ後 live: 公開 `test:a11y` / `test:responsive`、`test:responsive:admin`、`test:mail-settings:e2e`。
-3. **本件の直接確認**: 管理画面「メール通知」の任意のカードでテンプレート管理を開き、
-   `テンプレート一覧の取得に失敗しました` が出ないこと（DB に 2 件あるので一覧に出るはず）。
-   `.test-out/probe-templates.mjs` 相当の実測（全 14 カテゴリで `status:ok`）でも機械検証できる。
+1. 3 split を push → `npx clasp version "v376.62 pruner reachability fix (listMailTemplates)"`
+   → public **@367** / member **@126** / admin **@223**。
+2. fixed deployment 4 本を redeploy し、3 project の `deployments --json` で一致を確認。
+
+## デプロイ後の live 検証
+
+| 項目 | 結果 |
+|---|---|
+| **本件の直接確認**: 全 14 カテゴリの `listMailTemplates`（逐次＋一括の 2 パターン） | **全件 `status:ok`**。件数も DB 実態と一致（CREDENTIAL:1 / STAFF_ADD_REP:1、他 0）。**修正前は全 14 件が `mailTemplateRecordFromRow_ is not defined`** |
+| 公開 `test:a11y` | 違反 **0** |
+| 公開 `test:responsive` | **7VP 全 PASS**（スキップ 0・console error 0） |
+| `test:responsive:member` | **7VP 全 PASS**（1 回目に 1VP がログインタイムアウト＝連続ログインによる一過性。再実行で解消） |
+| `test:responsive:admin` | **7VP × 8 コンソール = 56 view 全 PASS**（横スクロール 0・タップターゲット違反 0・console error 0） |
+| `test:mail-settings:e2e` | **E2E-01〜05 全 PASS** |
+| `dryRunTrainingEndTimeV376_61_LOG` | **`passed:true`**・`testRowCleanedUp:true`・`corruptedEndTimeCount:0`・`emptyEndTimeCount:0` |
+| `dryRunMailTemplatesV376_43_LOG` | **`passed:true`**・`guardOk:true`・Tier2 6 カテゴリすべて `ok:true`（差し込み欠落なし） |
+
+デプロイ直後に管理画面へ到達できない事象が出たが、原因は**保存済み Google セッションの失効**（画面は `Signed out`）で、
+デプロイ起因ではない。operator の再ログイン後は上記のとおり全て PASS。
 
 ## 残課題
 

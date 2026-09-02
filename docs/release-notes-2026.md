@@ -13,6 +13,19 @@
 
 ---
 
+## v376.62 — 2026-09-02 🐛 メールテンプレート一覧が常に取得失敗していた本番障害の是正（全3split @367×2 / @126 / @223）
+
+管理画面「メール通知」の各カードに出ていた `テンプレート一覧の取得に失敗しました` を是正した。**v376.42 の機能追加以降ずっと発生していた**（実測: `listMailTemplates` が全 14 カテゴリで `mailTemplateRecordFromRow_ is not defined`）。
+
+- **根本原因**: build pruner の到達性判定が `name(` の呼び出し構文しか参照と見なしておらず、`rows.map(mailTemplateRecordFromRow_)` のように**関数を値として渡す参照**を検出できなかった。結果、当該関数は到達不能と判断され 3 split すべてから削除されていた（`git log -S` で生成物に一度も入っていないことを確認）。既存の boundary 監査はトップレベル callable と action 許可リストを見るもので、helper が解決できるかは見ていないため検知できなかった。
+- **修正**: 到達性判定に値参照を追加。pruner は `gas-boundary-utils.mjs` / `build-admin-gas.mjs` / `build-member-gas.mjs` に**三重複製**されているため 3 箇所すべてに同一修正。あわせて参照走査をコメント/文字列マスク経由に変更（値参照を数え始めると、コメント内の言及だけで死にコードや禁止トップレベル関数が残るため）。
+- **新ゲート**: `test:gas-artifact-refs` を新設し `prerelease` に組込。生成物が参照する gas-src 関数を、その生成物が宣言しているかを検査する（admin は `Code.gs`＋`dryrun.gs` を同一スコープ扱い）。
+- **同時に解消した欠落**（新ゲートが検出）: member split の `normalizeClaimRecord_`（請求記録正規化が ReferenceError になる経路）と、admin の `addDeleteLogSheet`（`T_削除ログ` 未作成時のみ発火する潜在 ReferenceError。private 実体 `addDeleteLogSheet_` に分離して解消）。
+- **検証**: prerelease 全ゲート PASS（新ゲートは修正前生成物で FAIL することを実測）。生成物は縮小（member −644B・admin −196B）。デプロイ後 live で**全 14 カテゴリ `status:ok`**、公開 a11y 0・公開 responsive 7VP・member responsive 7VP・admin responsive 56 view・mail-settings E2E 5/5・dryRun 2 種 `passed:true`。
+- 詳細: docs/254_RELEASE_STATE_v376.62_2026-09-02.md
+
+---
+
 ## v376.61 — 2026-09-02 🐛 研修「開催終了時刻」の実害バグ是正（全3split @366×2 / @125 / @222）
 
 管理画面で研修の開催終了時刻が空表示になり、そのまま保存すると値が消える不具合を是正した。GCP 作業場からの申し送り「課題A」（2026-08-31 operator 決定）への対応。

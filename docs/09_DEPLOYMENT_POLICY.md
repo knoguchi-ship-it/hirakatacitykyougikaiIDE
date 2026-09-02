@@ -19,15 +19,15 @@ Production: `v376.60` / integrated-public `@365` x2 / member split `@124` / admi
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@366` (`v376.61`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@366` (`v376.61`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@367` (`v376.62`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@367` (`v376.62`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@125` (`v376.61`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@222` (`v376.61`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@126` (`v376.62`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@223` (`v376.62`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -144,7 +144,30 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-09-02 v376.61 ← current production
+### 2026-09-02 v376.62 ← current production
+- Scope: production defect fix. listMailTemplates failed for every category with
+  "mailTemplateRecordFromRow_ is not defined" from v376.42 onward, because the
+  build pruner counted only call syntax as a reference and therefore deleted a
+  helper that is passed as a value (rows.map(mailTemplateRecordFromRow_)) from
+  all three splits. Reachability now counts value references, the admin/member
+  pruner copies scan a comment-masked body, addDeleteLogSheet gained a private
+  implementation for the delete-cascade path, and a new gate
+  (test:gas-artifact-refs) fails the release when a generated bundle references
+  a gas-src function it does not declare. No schema change, no auth change.
+- Fixed deployments: integrated/public @367 x2 / member @126 / admin @223.
+- Verification: full pre-release gate passed, including the new gate, which was
+  itself mutation-checked (it fails against the pre-fix artifacts). Generated
+  artifacts re-verified in all 3 splits; artifacts got smaller, not larger
+  (member -644 bytes, admin -196 bytes). Post-deployment live: all 14
+  listMailTemplates categories returned status ok with counts matching the
+  database; public a11y zero violations; public responsive 7/7; member
+  responsive 7/7; admin responsive 7 viewports x 8 consoles = 56 views; mail
+  settings E2E 5/5; dryRunTrainingEndTimeV376_61_LOG and
+  dryRunMailTemplatesV376_43_LOG both passed:true. See
+  docs/254_RELEASE_STATE_v376.62_2026-09-02.md.
+- Rollback: integrated/public @366 x2 / member @125 / admin @222.
+
+### 2026-09-02 v376.61
 - Scope: training end-time (endTime) normalization. mapTrainingRowsForApi_ now
   returns HH:mm through the existing formatTimeOnly_ helper instead of passing a
   raw cell value through String(). A Date cell previously reached the admin

@@ -1,5 +1,17 @@
 # 開発引継ぎ（Current State）
 
+## 2026-09-02 v376.62 リリース
+
+- **本番障害の是正**: 管理画面のメールテンプレート一覧が **v376.42 以降ずっと取得失敗**していた
+  （`listMailTemplates` が全 14 カテゴリで `mailTemplateRecordFromRow_ is not defined`）。
+  原因は build pruner の到達性判定が `name(` の呼び出し構文しか見ておらず、`rows.map(mailTemplateRecordFromRow_)`
+  の値渡し参照を検出できなかったこと。pruner 複製 3 箇所すべてを修正した。
+- 新ゲート `test:gas-artifact-refs`（生成物が参照する gas-src 関数を宣言しているか検査）を prerelease に追加。
+  同ゲートが member split の `normalizeClaimRecord_` 欠落と `addDeleteLogSheet` の潜在 ReferenceError も検出し、同時に解消。
+- 本番 fixed deployment は **public @367×2 / member @126 / admin @223** に同期済み。
+- **本件の直接確認**: 全 14 カテゴリの `listMailTemplates` が `status:ok`（件数も DB 実態 CREDENTIAL:1 / STAFF_ADD_REP:1 と一致）。
+- 詳細は docs/254_RELEASE_STATE_v376.62_2026-09-02.md。
+
 ## 2026-09-02 v376.61 リリース
 
 - 研修の開催終了時刻（endTime）の実害バグを修正。GCP 作業場からの申し送り「課題A」（2026-08-31 operator 決定）に対応。
@@ -24,7 +36,7 @@
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
 最終更新: **2026-09-02**
-最新リリース: **v376.61**（研修 endTime 実害バグ是正・public @366×2 / member @125 / admin @222）
+最新リリース: **v376.62**（テンプレート一覧取得失敗の是正・build pruner 根本修正・public @367×2 / member @126 / admin @223）
 最終作業（2026-07-25）: **GCP 移行 Phase 4b（member 認証）のフル環境まで構築・デプロイ完了。本番 GAS/DB は一切非破壊**（作業は GCP 作業場のみ）。member-auth サービス（Cloud Run `hcmn-member-auth`・rev00003・private・App Check 強制 ON・max=1・専用 SA 最小権限）に、防御コア（第0層レート制限／第1層ロック尊重／第4層日次上限／列挙リーク是正／fail-closed）＋本番 `verifyPassword_` の厳密移植（KAT で GAS 等価を機械証明）＋資格情報ミラー 342 件（**テストコピー由来**）＋Firebase カスタムトークン発行（鍵レス signBlob）＋監査/失効を実装。unit 46/46。**この中断点は 2026-08-03 に解消済（rev00006 でフル経路 end-to-end PASS）。当時「あと 1 手」とされていたのは誤認で、実際は `admin.appCheck()` の初期化順序というサーバ側バグの修正が必要だった。以降 Step A（member-api rev00001）まで進行**。再開手順・GCP リソース一覧・env 再構築・落とし穴の正本は GCP 作業場 `docs/HANDOFF_2026-07-25_member-auth.md`。
 同期間の Phase 4a（2026-07-19〜22）: 予算 killswitch **完了**（予算→topic 接続＋実イベント `under_budget` 初回受信を実測）／日次エクスポート（Firestore→シート BK）を Cloud Run Job で構築し本番 DB シートのコピーで実データ検証 PASS（Scheduler 稼働開始はカットオーバー直前に延期）／portal-api に起動時一括ウォームアップ実装（110+5 doc を 848ms で prefetch・rev00002 実測）／共有 project の IAM 変更後に**本番 3 split live E2E で非影響を実測**（public a11y 0＋7VP／member 21／admin 56 全 PASS）。
 2026-07-11 終盤の作業: **GCP 移行 Phase 2 に着手し中核を完了**（本番 GAS/DB 無変更・作業場は GCP リポジトリ）。①Firestore Native 作成（asia-northeast1・freeTier・operator 承認）②SA impersonation による一方向同期で T_研修 5 doc＋T_システム設定 110 doc をミラー③read-only 互換 API `portal-api` を実装し **`getPublicTrainings`/`getPublicPortalSettings` の両 action が GAS 本番実応答と field 単位で完全一致（contract-check MATCH・settings 47 フィールド）**・warm 113ms（GAS 1.8〜1.9s の約 1/16）。**状態・再開手順の正本は GCP 作業場 README**。
@@ -37,7 +49,7 @@
 
 ## 0. 次の担当者へ（キャッチアップ・まず1分でここ）
 
-- **本番**: public **@366×2** / member **@125** / admin **@222**（v376.61・§1）。全 fixed deployment 同期確認済・稼働正常。ロールバック先は public @365×2 / member @124 / admin @221。メール設定是正の詳細と残検証は v376.60 release-state および HTML テスト記録を参照。
+- **本番**: public **@367×2** / member **@126** / admin **@223**（v376.62・§1）。全 fixed deployment 同期確認済・稼働正常。ロールバック先は public @366×2 / member @125 / admin @222。メール設定是正の詳細と残検証は v376.60 release-state および HTML テスト記録を参照。
 - **直近セッション（2026-06-30〜07-05）の成果**（詳細 §7 / `docs/release-notes-2026.md` v376.51〜.53.2）:
   - v376.51 ロール視点プレビュー（MASTER専用）／v376.52 **会員系削除 cascade アーカイブ**（docs/249・実DB E2E 18/18 PASS・削除負債実測16行のみ）／v376.53 DRY・ハードコーディング・XFrame 一括是正（api.ts **-940行**・rbac-util/validators 集約・ID/URL の Properties override 化）／.53.1-.53.2 REDIRECT 警告バナー（live 実証済）。
   - **メール事故対応済**: 6/26〜7/3 の間 `MAIL_DELIVERY_MODE=REDIRECT` 残置で全メールが旧アドレスに集約されていた（実宛先未達）。LIVE 復旧済・再発防止バナー/ログ正直化デプロイ済。**未達期間の再送要否は運用判断が残っている可能性あり**（`T_メール送信ログ` の 6/26〜7/3 BULK_MEMBER 行を確認）。
@@ -66,10 +78,10 @@
 
 | 配信 | Deployment ID | Version |
 |---|---|---|
-| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@366** |
-| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@366** |
-| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@125** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@222** |
+| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@367** |
+| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@367** |
+| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@126** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@223** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 
@@ -111,7 +123,7 @@
 
 | # | タスク | 詳細 / 参照 |
 |---|---|---|
-| 0 | **v376.62 デプロイ承認待ち（テンプレート一覧取得失敗の本番障害＋pruner 根本修正）** | `listMailTemplates` が全 14 カテゴリで `mailTemplateRecordFromRow_ is not defined` を返していた（v376.42 以降・生成物に一度も入っていなかった）。原因は build pruner の到達性判定が `name(` の呼び出し構文しか見ず、`rows.map(mailTemplateRecordFromRow_)` の値渡し参照を検出できなかったこと。**修正**: 到達性に値参照を追加（pruner 複製 3 箇所すべて）＋参照走査をコメント/文字列マスク経由に変更＋`addDeleteLogSheet` を private 実体に分離。**新ゲート `test:gas-artifact-refs`**（生成物が参照する gas-src 関数を宣言しているか検査）を prerelease に追加し、同時に member split の `normalizeClaimRecord_` 欠落も検出・解消。prerelease 全ゲート PASS・3 split 生成物確認済。**本番反映は未実施** | `docs/254_RELEASE_STATE_v376.62_2026-09-02.md` |
+| ✅ | **v376.62 完了（テンプレート一覧取得失敗の本番障害＋pruner 根本修正）** | public @367×2 / member @126 / admin @223 に同期済。**デプロイ後の実測で全 14 カテゴリの `listMailTemplates` が `status:ok`**（修正前は全件 `mailTemplateRecordFromRow_ is not defined`）。live E2E: 公開 a11y 0・公開 responsive 7VP・member responsive 7VP・admin responsive 56 view・mail-settings E2E 5/5・dryRun（endTime / テンプレート）ともに `passed:true` | `docs/254_RELEASE_STATE_v376.62_2026-09-02.md` |
 | ✅ | **v376.61 完了（研修 endTime 実害バグ）** | デプロイ＋live E2E に加え、admin editor で `dryRunTrainingEndTimeV376_61_LOG` を実行し **`passed:true` / `testRowCleanedUp:true` / `corruptedEndTimeCount:0` / `emptyEndTimeCount:0`**（2026-09-02 12:45）。作成→読み戻し→再保存→物理削除まで実DBで検証済 | `docs/253_RELEASE_STATE_v376.61_2026-09-02.md` |
 | 0 | **課題C: GCP ミラーの再同期（残り 1 手）** | 2026-09-02 に `tools/contract-check-member/mapping.mjs` を再実行。**件数 5/5・ID・並び順一致、`date` は全件一致**で、31 フィールド中の差分は **`endTime` × 3 件（T001 / T004 / T473A9682）のみ**＝本日セルを復元した当の 3 件。**Firestore ミラーが復元前のスナップショットのため**で、マッピング不一致ではない。解消には `tools/sync-sheets-to-firestore` で `T_研修` を再同期する（`DB_SPREADSHEET_ID` / `SYNC_IMPERSONATE_SA` の供給が要るため operator 判断）| GCP 作業場 `tools/contract-check-member/results/mapping.jsonl` |
 | ✅ | **課題B 完了: `T_研修` の壊れた 3 セル復元（2026-09-02）** | operator 承認のうえ研修管理モーダルの実 UI 経由で入力し、API 再読込で検証: **T001=12:00 / T004=16:30 / T473A9682=12:40**（T002=17:00・T003=16:00 は元から正常＝導出式の検証根拠）。dryRun でも `corruptedEndTimeCount:0` を確認。**残るは課題C（GCP 作業場での再突合）のみ** | `docs/253` / GCP 作業場 `docs/PHASE4B_AUTH_DEFENSE_DESIGN.md` |
