@@ -13,6 +13,20 @@
 
 ---
 
+## v376.64 — 2026-09-02 🆕 会費設定（会員種別ごとの年会費を設定画面から変更・入会申込カードに表示）＋既存不具合の是正（全3split @369×2 / @128 / @225）
+
+公開ポータルの入会申込画面に会員種別ごとの会費を表示し、その金額を管理画面から変更できるようにした。
+
+- **正本を増やさない設計**: 金額は既存の `M_会員種別.年会費金額` の 1 列のみ（年会費請求・メール差し込みと同じ列）。`T_システム設定` に増やしたのは表示制御 `MEMBERSHIP_FEE_PUBLIC_VISIBLE` / `MEMBERSHIP_FEE_NOTE` だけで、**金額は二重に持たない**（unit test でソース契約として固定）。
+- **管理 UI**: 設定サブナビに「会費設定」を新設（種別ごとの金額 0〜1,000,000 円・公開表示トグル・補足文）。「年会費の納入案内」「共通振込先」も基本設定からここへ移設。
+- **公開 UI**: 入会申込の会員種別カードに「年会費 N,NNN円」を表示。カードを `sm:` から 3 列化。
+- **🐛 既存不具合の是正**: `ensureMemberTypeAnnualFeeAmounts_` がスキーマ初期化のたびに 3000/8000/5000 で**無条件上書き**しており、設定しても次回 admin ログインで元に戻る状態だった。「未設定のときだけ補完」に変更し、空欄と 0 円（会費無料）を区別。
+- **公開境界は不変**: 会費の読みは `getPublicPortalSettings` に相乗り、書きは既存 `updateSystemSettings` のみ。**新しい public action は追加していない**。
+- **検証**: prerelease 全ゲート PASS（新ゲート `test:membership-fee` 6 件を追加）。live E2E は 公開 a11y 0／公開 responsive 7VP／**入会申込カードに 3,000・8,000・5,000 円の表示を実測**／admin responsive 56 view／メール設定 E2E 5/5／`dryRunMembershipFeeV376_64_LOG` が `passed:true`・`restored:true`。
+- 詳細は `docs/257_RELEASE_STATE_v376.64_2026-09-02.md`。
+
+---
+
 ## v376.63 — 2026-09-02 🔧 管理画面の日本語表記統一＋保守モード解除（全3split @368×2 / @127 / @224）
 
 operator 指摘「わざわざ英語を入れる必要はない／むやみに英語をデフォルトにしない」を受け、管理画面の表示文言を日本語基準に統一した。ロジック・スキーマ・API は無変更。
@@ -49,7 +63,7 @@ operator 指摘「わざわざ英語を入れる必要はない／むやみに�
 - **テストハーネス是正**: 公開レスポンシブ計測が固定待ち時間のため VP ごとに偽 FAIL していた（同一ビルドで FAIL 集合が変動）。主要 CTA の出現を条件待ちしてから計測するよう変更。
 - **検証**: prerelease 全ゲート PASS、3 split 生成物 grep PASS、fixed deployment 4 本同期確認、デプロイ後 live で公開 a11y 違反 0・公開 responsive 7VP・member responsive 7VP 全 PASS。管理画面 E2E と Execution API dry-run は認証・権限待ち。
 - **残**: `T_研修` の壊れた 3 セルの復元（課題B・operator 手作業）／GCP 側の再突合（課題C）。
-- 詳細: docs/253_RELEASE_STATE_v376.61_2026-09-02.md
+- 詳細: docs/archive/release_history/253_RELEASE_STATE_v376.61_2026-09-02.md
 
 ---
 

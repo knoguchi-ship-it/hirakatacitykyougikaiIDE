@@ -234,6 +234,14 @@ const buildLoginIdentities = (members: Member[]): LoginIdentity[] =>
     }));
   });
 
+// v376.64: 会費設定（画面入力の初期値。実値は GAS の M_会員種別.年会費金額 が正本）
+const MEMBER_TYPE_ANNUAL_FEE_FALLBACK = { INDIVIDUAL: 3000, BUSINESS: 8000, SUPPORT: 5000 } as const;
+const MEMBER_TYPE_FEE_FIELDS = [
+  { code: 'INDIVIDUAL' as const, label: '個人会員' },
+  { code: 'BUSINESS' as const, label: '事業所会員' },
+  { code: 'SUPPORT' as const, label: '賛助会員' },
+];
+
 const PUBLIC_PORTAL_DEFAULTS = {
   heroBadgeEnabled: false,
   heroBadgeLabel: 'お申込みポータル',
@@ -480,12 +488,23 @@ const App: React.FC = () => {
   };
   const [annualFeeTransferAccount, setAnnualFeeTransferAccount] = useState<SystemSettings['annualFeeTransferAccount']>(emptyAnnualFeeTransferAccount);
   const [annualFeeTransferAccountInput, setAnnualFeeTransferAccountInput] = useState<SystemSettings['annualFeeTransferAccount']>(emptyAnnualFeeTransferAccount);
+  // v376.64: 会費設定（金額の正本は M_会員種別.年会費金額）
+  const [memberTypeAnnualFeesInput, setMemberTypeAnnualFeesInput] = useState<Record<'INDIVIDUAL' | 'BUSINESS' | 'SUPPORT', string>>({ INDIVIDUAL: '', BUSINESS: '', SUPPORT: '' });
+  const [membershipFeePublicVisibleInput, setMembershipFeePublicVisibleInput] = useState(true);
+  const [membershipFeeNoteInput, setMembershipFeeNoteInput] = useState('');
   const [trainingDefaultFieldConfig, setTrainingDefaultFieldConfig] = useState<TrainingFieldConfig>({ ...DEFAULT_FIELD_CONFIG });
   const [trainingDefaultFieldConfigInput, setTrainingDefaultFieldConfigInput] = useState<TrainingFieldConfig>({ ...DEFAULT_FIELD_CONFIG });
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [settingsIsDirty, setSettingsIsDirty] = useState(false);
   // v317: システム設定サブナビ
-  const [settingsSub, setSettingsSub] = useState<'basic' | 'output' | 'email' | 'portal' | 'masters'>('basic');
+  const applyMemberTypeAnnualFeesToInputs = React.useCallback((fees: SystemSettings['memberTypeAnnualFees']) => {
+    setMemberTypeAnnualFeesInput({
+      INDIVIDUAL: String(fees?.INDIVIDUAL ?? MEMBER_TYPE_ANNUAL_FEE_FALLBACK.INDIVIDUAL),
+      BUSINESS: String(fees?.BUSINESS ?? MEMBER_TYPE_ANNUAL_FEE_FALLBACK.BUSINESS),
+      SUPPORT: String(fees?.SUPPORT ?? MEMBER_TYPE_ANNUAL_FEE_FALLBACK.SUPPORT),
+    });
+  }, []);
+  const [settingsSub, setSettingsSub] = useState<'basic' | 'fees' | 'output' | 'email' | 'portal' | 'masters'>('basic');
   // v319: 変更申請 PENDING バッジカウント
   const [pendingChangeRequestCount, setPendingChangeRequestCount] = useState<number>(0);
   // v194: PDF名簿出力 & 一括メール送信設定
@@ -666,6 +685,9 @@ const App: React.FC = () => {
     setAnnualFeePaymentGuidanceInput(guidance);
     setAnnualFeeTransferAccount(transferAccount);
     setAnnualFeeTransferAccountInput(transferAccount);
+    applyMemberTypeAnnualFeesToInputs(systemSettings.memberTypeAnnualFees);
+    setMembershipFeePublicVisibleInput(systemSettings.membershipFeePublicVisible ?? true);
+    setMembershipFeeNoteInput(systemSettings.membershipFeeNote ?? '');
     const tdfConfig = systemSettings.trainingDefaultFieldConfig ?? { ...DEFAULT_FIELD_CONFIG };
     setTrainingDefaultFieldConfig(tdfConfig);
     setTrainingDefaultFieldConfigInput(tdfConfig);
@@ -3459,7 +3481,8 @@ const App: React.FC = () => {
       }
       // v317: 設定ページ サブナビ定義
       const settingsSubNav: { id: typeof settingsSub; label: string; desc: string }[] = [
-        { id: 'basic',   label: '基本設定',     desc: '上限・年会費・振込先' },
+        { id: 'basic',   label: '基本設定',     desc: '上限・研修フォーム既定' },
+        { id: 'fees',    label: '会費設定',     desc: '種別ごとの年会費・納入案内' },
         { id: 'output',  label: '帳票出力',     desc: 'テンプレート・Drive' },
         { id: 'email',   label: 'メール通知',   desc: '入会メール・事業所メール' },
         { id: 'portal',  label: '公開ポータル', desc: 'カード設定・文言' },
@@ -3517,7 +3540,7 @@ const App: React.FC = () => {
           {settingsSub === 'basic' && <AdminSettingsSection
             id="settings-core"
             title="基本設定"
-            description="日常運用で使う共通値です。全体上限、研修履歴の表示期間、研修フォームの既定項目をここで管理します。"
+            description="日常運用で使う共通値です。全体上限、研修履歴の表示期間、研修フォームの既定項目をここで管理します。年会費は「会費設定」にあります。"
             badge="頻出"
             defaultOpen
           >
@@ -3529,6 +3552,78 @@ const App: React.FC = () => {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">研修履歴の表示期間（月）</label>
                 <input type="number" min={1} max={60} value={historyLookbackInput} onChange={(e) => { setHistoryLookbackInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" />
+              </div>
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-slate-800 mb-1">研修フォーム　項目表示デフォルト設定</h4>
+              <p className="text-sm text-slate-600 mb-3">新規研修登録時に表示する項目のデフォルトを設定します。研修ごとに個別変更可能です。</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {TRAINING_OPTIONAL_FIELD_DEFS.map(({ key, label }) => (
+                  <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={trainingDefaultFieldConfigInput[key] !== false}
+                      onChange={(e) => { setTrainingDefaultFieldConfigInput((prev) => ({ ...prev, [key]: e.target.checked })); setSettingsIsDirty(true); }}
+                      className="accent-primary-600"
+                    />
+                    <span className="text-sm text-slate-700">{label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </AdminSettingsSection>}
+
+          {/* ── 会費設定（v376.64） ── */}
+          {settingsSub === 'fees' && <AdminSettingsSection
+            id="settings-fees"
+            title="会費設定"
+            description="会員種別ごとの年会費と、未納会員向けの納入案内・振込先をここで管理します。年会費は入会申込画面の会員種別カードにも表示されます。"
+            badge="会費"
+            defaultOpen
+          >
+            <div className="mb-4 rounded-lg border border-slate-200 p-4">
+              <h4 className="text-sm font-semibold text-slate-800 mb-1">会員種別ごとの年会費</h4>
+              <p className="text-sm text-slate-600 mb-3">
+                ここで保存した金額が、公開ポータルの入会申込画面・年会費請求・メール差し込みのすべてで使われます（保存先はマスタ「M_会員種別」の年会費金額）。
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {MEMBER_TYPE_FEE_FIELDS.map(({ code, label }) => (
+                  <div key={code}>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        max={1000000}
+                        step={100}
+                        value={memberTypeAnnualFeesInput[code]}
+                        onChange={(e) => { setMemberTypeAnnualFeesInput((prev) => ({ ...prev, [code]: e.target.value })); setSettingsIsDirty(true); }}
+                        className="w-full border border-slate-300 rounded px-3 py-2"
+                      />
+                      <span className="shrink-0 text-sm text-slate-600">円</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 space-y-3">
+                <ToggleSwitch
+                  color="emerald"
+                  enabled={membershipFeePublicVisibleInput}
+                  onToggle={() => { setMembershipFeePublicVisibleInput((v) => !v); setSettingsIsDirty(true); }}
+                  onLabel="入会申込画面に年会費を表示する"
+                  offLabel="入会申込画面に年会費を表示しない"
+                />
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">入会申込画面に添える補足</label>
+                  <input
+                    type="text"
+                    value={membershipFeeNoteInput}
+                    onChange={(e) => { setMembershipFeeNoteInput(e.target.value); setSettingsIsDirty(true); }}
+                    className="w-full border border-slate-300 rounded px-3 py-2"
+                    placeholder="例: 年会費は入会後、事務局からのご案内にしたがってお納めください。"
+                  />
+                  <p className="mt-2 text-sm text-slate-600">空欄のときは既定の案内文が表示されます。</p>
+                </div>
               </div>
             </div>
             <div className="mb-4">
@@ -3608,23 +3703,6 @@ const App: React.FC = () => {
               <p className="mt-2 text-sm text-slate-600">
                 `T_システム設定.ANNUAL_FEE_TRANSFER_ACCOUNT` に保存され、未納会員の納入方法表示に利用されます。
               </p>
-            </div>
-            <div>
-              <h4 className="text-sm font-semibold text-slate-800 mb-1">研修フォーム　項目表示デフォルト設定</h4>
-              <p className="text-sm text-slate-600 mb-3">新規研修登録時に表示する項目のデフォルトを設定します。研修ごとに個別変更可能です。</p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {TRAINING_OPTIONAL_FIELD_DEFS.map(({ key, label }) => (
-                  <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={trainingDefaultFieldConfigInput[key] !== false}
-                      onChange={(e) => { setTrainingDefaultFieldConfigInput((prev) => ({ ...prev, [key]: e.target.checked })); setSettingsIsDirty(true); }}
-                      className="accent-primary-600"
-                    />
-                    <span className="text-sm text-slate-700">{label}</span>
-                  </label>
-                ))}
-              </div>
             </div>
           </AdminSettingsSection>}
 
@@ -5005,6 +5083,13 @@ const App: React.FC = () => {
                         trainingHistoryLookbackMonths: Number(historyLookbackInput || 18),
                         annualFeePaymentGuidance: annualFeePaymentGuidanceInput,
                         annualFeeTransferAccount: annualFeeTransferAccountInput,
+                        memberTypeAnnualFees: {
+                          INDIVIDUAL: Number(memberTypeAnnualFeesInput.INDIVIDUAL || 0),
+                          BUSINESS: Number(memberTypeAnnualFeesInput.BUSINESS || 0),
+                          SUPPORT: Number(memberTypeAnnualFeesInput.SUPPORT || 0),
+                        },
+                        membershipFeePublicVisible: membershipFeePublicVisibleInput,
+                        membershipFeeNote: membershipFeeNoteInput,
                         trainingDefaultFieldConfig: trainingDefaultFieldConfigInput,
                         bulkMailAutoAttachFolderId: bulkMailAutoAttachFolderIdInput,
                         emailLogViewerRole: emailLogViewerRoleInput,
@@ -5116,6 +5201,9 @@ const App: React.FC = () => {
                       setAnnualFeePaymentGuidanceInput(saved.annualFeePaymentGuidance);
                       setAnnualFeeTransferAccount(saved.annualFeeTransferAccount);
                       setAnnualFeeTransferAccountInput(saved.annualFeeTransferAccount);
+                      applyMemberTypeAnnualFeesToInputs(saved.memberTypeAnnualFees);
+                      setMembershipFeePublicVisibleInput(saved.membershipFeePublicVisible ?? true);
+                      setMembershipFeeNoteInput(saved.membershipFeeNote ?? '');
                       const tdfSaved = saved.trainingDefaultFieldConfig ?? { ...DEFAULT_FIELD_CONFIG };
                       setTrainingDefaultFieldConfig(tdfSaved);
                       setTrainingDefaultFieldConfigInput(tdfSaved);

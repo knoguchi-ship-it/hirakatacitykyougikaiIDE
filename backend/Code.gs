@@ -1863,6 +1863,36 @@ function buildColumnIndex_(sheet) {
 
 
 
+function getAnnualFeeAmountMap_(ss) {
+  var rows = getRowsAsObjects_(ss, 'M_会員種別');
+  var result = {};
+  for (var i = 0; i < rows.length; i += 1) {
+    var row = rows[i];
+    var code = String(row['コード'] || '');
+    if (!code) continue;
+    result[code] = Number(row['年会費金額'] || 0);
+  }
+  return result;
+}
+
+// v376.64: 会費設定の既定値（金額の既定は MEMBER_TYPE_ANNUAL_FEE_DEFAULTS）
+var MEMBERSHIP_FEE_DEFAULTS = {
+  publicVisible: true,
+  note: '',
+};
+
+// 会員種別ごとの年会費を、公開・管理どちらでも同じ形（コード→金額）で返す。
+function readMemberTypeAnnualFees_(ss) {
+  var map = getAnnualFeeAmountMap_(ss);
+  var result = {};
+  var codes = Object.keys(MEMBER_TYPE_ANNUAL_FEE_DEFAULTS);
+  for (var i = 0; i < codes.length; i += 1) {
+    var code = codes[i];
+    var amount = Number(map[code]);
+    result[code] = isFinite(amount) && amount >= 0 ? Math.floor(amount) : MEMBER_TYPE_ANNUAL_FEE_DEFAULTS[code];
+  }
+  return result;
+}
 
 
 
@@ -2061,6 +2091,10 @@ function isSystemSettingEnabled_(ss, key, defaultValue) {
 // v376.61: 研修の開催終了時刻(endTime)の実DB往復 dryRun。
 // 実害バグ（endTime が JS Date 文字列のまま API に出て <input type="time"> が空表示になり、
 // 保存で終了時刻が消える）の回帰を実DBで検証する。行を作って読んで消す。メールは送らない。
+
+// v376.64: 会費設定（会員種別ごとの年会費）の実DB往復 dryRun。
+// 現在値を退避 → 検証値で保存 → 管理設定・公開ポータル設定の両方から読み戻し → 必ず原状復帰する。
+// メールは送らない。DB は最終的に実行前の状態へ戻す（passed だけでなく restored も確認すること）。
 
 // v368: 申込受付メール送信ヘルパー（公開ポータル申請受付時に使用）
 function sendApplicationReceiptMail_(ss, params) {
@@ -3535,25 +3569,42 @@ function createMasterSheets_(ss) {
   }
 }
 
+// v376.64: 年会費金額は設定画面（会費設定）から変更できる運用値になったため、
+// スキーマ初期化では「未設定（空欄・非数値・0以下）のときだけ既定値を補完」する。
+// 以前は毎回 3000/8000/5000 で上書きしていたため、管理者が変更しても次回ログインの
+// initializeSchema_ で元に戻ってしまう（設定として成立しない）。
+var MEMBER_TYPE_ANNUAL_FEE_DEFAULTS = {
+  INDIVIDUAL: 3000,
+  BUSINESS: 8000,
+  SUPPORT: 5000,
+};
+
 function ensureMemberTypeAnnualFeeAmounts_(ss) {
   var sheet = ss.getSheetByName('M_会員種別');
   if (!sheet || sheet.getLastRow() < 2) return;
   var cols = buildColumnIndex_(sheet);
   requireColumns_(cols, ['コード', '年会費金額']);
   var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
-  var amountByCode = {
-    INDIVIDUAL: 3000,
-    BUSINESS: 8000,
-    SUPPORT: 5000,
-  };
+  var changed = false;
   for (var i = 0; i < rows.length; i += 1) {
     var row = rows[i];
     var code = String(row[cols['コード']] || '');
-    if (!Object.prototype.hasOwnProperty.call(amountByCode, code)) continue;
-    row[cols['年会費金額']] = Number(amountByCode[code]);
+    if (!Object.prototype.hasOwnProperty.call(MEMBER_TYPE_ANNUAL_FEE_DEFAULTS, code)) continue;
+    // 空欄（未設定）と 0 円（会費無料として設定済み）を区別する。
+    // Number('') は 0 になるため、生値が空かどうかを先に見る。
+    var rawAmount = row[cols['年会費金額']];
+    var isBlank = rawAmount === '' || rawAmount === null || rawAmount === undefined;
+    var current = Number(rawAmount);
+    if (!isBlank && isFinite(current) && current >= 0) continue; // 設定済みの金額は尊重する
+    row[cols['年会費金額']] = Number(MEMBER_TYPE_ANNUAL_FEE_DEFAULTS[code]);
+    changed = true;
   }
-  sheet.getRange(2, 1, rows.length, sheet.getLastColumn()).setValues(rows);
+  if (changed) sheet.getRange(2, 1, rows.length, sheet.getLastColumn()).setValues(rows);
 }
+
+// 会員種別ごとの年会費を M_会員種別 に書き込む（設定画面「会費設定」から呼ばれる）。
+// 正本は M_会員種別.年会費金額 の 1 箇所のみ（年会費請求・メール差し込みも同じ列を読む）。
+
 
 
 function ensureTableSheetsExist_(ss) {
@@ -4202,9 +4253,19 @@ function getPublicPortalSettings_() {
   var ppWithdrawalDescriptionEnabled = ppWithdrawalDescriptionEnabledRaw === undefined || ppWithdrawalDescriptionEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled : String(ppWithdrawalDescriptionEnabledRaw) !== 'false';
   var ppWithdrawalDescription = String(map['PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalDescription;
   var ppWithdrawalCtaLabel = String(map['PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel;
+  // v376.64: 入会申込の会員種別カードに表示する年会費（正本は M_会員種別.年会費金額）
+  var ppMembershipFees = readMemberTypeAnnualFees_(db);
+  var ppMembershipFeeVisibleRaw = map['MEMBERSHIP_FEE_PUBLIC_VISIBLE'];
+  var ppMembershipFeeVisible = ppMembershipFeeVisibleRaw === undefined || ppMembershipFeeVisibleRaw === ''
+    ? MEMBERSHIP_FEE_DEFAULTS.publicVisible
+    : String(ppMembershipFeeVisibleRaw) !== 'false';
+  var ppMembershipFeeNote = map['MEMBERSHIP_FEE_NOTE'] == null ? MEMBERSHIP_FEE_DEFAULTS.note : String(map['MEMBERSHIP_FEE_NOTE']);
   return JSON.stringify({
     success: true,
     data: {
+      membershipFees: ppMembershipFees,
+      membershipFeeVisible: ppMembershipFeeVisible,
+      membershipFeeNote: ppMembershipFeeNote,
       trainingMenuEnabled: publicPortalTrainingMenuEnabled,
       membershipMenuEnabled: publicPortalMembershipMenuEnabled,
       heroBadgeEnabled: publicPortalHeroBadgeEnabled,

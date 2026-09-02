@@ -11,6 +11,9 @@ import { readDeepLink, consumeDeepLink } from '../utils/deepLink';
 import { resolveApplyCta } from '../shared/trainingOptions';
 
 type PublicPortalContentSettings = {
+  membershipFees: { INDIVIDUAL: number; BUSINESS: number; SUPPORT: number };
+  membershipFeeVisible: boolean;
+  membershipFeeNote: string;
   heroBadgeEnabled: boolean;
   heroBadgeLabel: string;
   heroTitle: string;
@@ -83,6 +86,9 @@ const PAGE_PARAM_TO_VIEW: Partial<Record<string, View>> = {
 };
 
 const DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS: PublicPortalContentSettings = {
+  membershipFees: { INDIVIDUAL: 3000, BUSINESS: 8000, SUPPORT: 5000 },
+  membershipFeeVisible: true,
+  membershipFeeNote: '',
   heroBadgeEnabled: false,
   heroBadgeLabel: 'お申込みポータル',
   heroTitle: '研修申込・申込取消・新規入会申込を受け付けています',
@@ -194,6 +200,13 @@ const PublicApp: React.FC = () => {
           setTrainingMenuEnabled(portalSettings.value.trainingMenuEnabled !== false);
           setMembershipMenuEnabled(portalSettings.value.membershipMenuEnabled !== false);
           setPortalContentSettings({
+            membershipFees: {
+              INDIVIDUAL: Number(portalSettings.value.membershipFees?.INDIVIDUAL ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipFees.INDIVIDUAL),
+              BUSINESS: Number(portalSettings.value.membershipFees?.BUSINESS ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipFees.BUSINESS),
+              SUPPORT: Number(portalSettings.value.membershipFees?.SUPPORT ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipFees.SUPPORT),
+            },
+            membershipFeeVisible: portalSettings.value.membershipFeeVisible ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipFeeVisible,
+            membershipFeeNote: portalSettings.value.membershipFeeNote ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipFeeNote,
             heroBadgeEnabled: portalSettings.value.heroBadgeEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.heroBadgeEnabled,
             heroBadgeLabel: portalSettings.value.heroBadgeLabel || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.heroBadgeLabel,
             heroTitle: portalSettings.value.heroTitle || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.heroTitle,
@@ -618,6 +631,9 @@ const PublicApp: React.FC = () => {
 
         {view === 'member-application' && (
           <MemberApplicationForm
+            memberTypeFees={portalContentSettings?.membershipFees ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipFees}
+            showMemberTypeFees={portalContentSettings?.membershipFeeVisible ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipFeeVisible}
+            memberTypeFeeNote={portalContentSettings?.membershipFeeNote ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipFeeNote}
             onBack={handleBackToHome}
             onComplete={handleBackToHome}
             title="新規入会申込"

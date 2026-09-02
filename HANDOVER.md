@@ -1,5 +1,19 @@
 # 開発引継ぎ（Current State）
 
+## 2026-09-02 v376.64 リリース
+
+- **会費設定を新設**: 会員種別ごとの年会費（個人 3,000 / 事業所 8,000 / 賛助 5,000）を管理画面 設定 → **会費設定** から変更できるようにした。
+  公開ポータルの入会申込カードに年会費を表示（表示可否トグル・補足文つき）。「年会費の納入案内」「共通振込先」も基本設定から会費設定へ移設。
+- **正本は増やしていない**: 金額は既存の `M_会員種別.年会費金額` の 1 列のみ（年会費請求・メール差し込みと同じ列）。`T_システム設定` には
+  `MEMBERSHIP_FEE_PUBLIC_VISIBLE` / `MEMBERSHIP_FEE_NOTE` だけを追加し、**金額は二重に持たない**。
+- **既存障害の是正**: `ensureMemberTypeAnnualFeeAmounts_` がスキーマ初期化のたびに金額を 3000/8000/5000 で**無条件に上書き**していた
+  （設定画面から変えても次回 admin ログインで元に戻る）。「未設定のときだけ補完」に変更し、0 円（会費無料）と空欄を区別するようにした。
+- 新ゲート `test:membership-fee`（6 件）を prerelease に追加。実 DB 往復の非送信 dryRun `dryRunMembershipFeeV376_64_LOG`（原状復帰つき）を新設。
+- 本番 fixed deployment は **public @369×2 / member @128 / admin @225** に同期済み。
+- live E2E: 公開 a11y 違反 0・公開 responsive 7VP 全 PASS・**入会申込カードに 3,000円 / 8,000円 / 5,000円 の表示を実測**（console error 0）。
+  **管理側 E2E は admin セッション期限切れのため未実行**（要フォロー・§2-1）。
+- 詳細は docs/257_RELEASE_STATE_v376.64_2026-09-02.md。
+
 ## 2026-09-02 v376.63 リリース
 
 - **保守モード解除（operator 決定）**: 運用継続と GCP 移行完了までの実装需要のため、本リポジトリは通常開発モードへ戻した。ルール正本は `AGENTS.md` §4.7。
@@ -48,7 +62,7 @@
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
 最終更新: **2026-09-02**
-最新リリース: **v376.63**（保守モード解除・管理画面の日本語表記統一・public @368×2 / member @127 / admin @224）
+最新リリース: **v376.64**（会費設定＝会員種別ごとの年会費を設定画面から変更・入会申込カードに表示・public @369×2 / member @128 / admin @225）
 最終作業（2026-09-02）: **本番 GAS 側で v376.60 の検証負債を解消し、v376.61 / v376.62 の 2 リリースを実施**（研修 endTime の実害バグ、テンプレート一覧が v376.42 以降ずっと壊れていた本番障害）。本番データの壊れたセル 3 件も operator 承認のうえ復元。あわせて docs を全面整理（直下 80→44 文書）し、テスト記録を `docs/portal/test-report.html` に一本化した。**GCP 側は本セッションでは再突合のみ実施（書込なし）**。
 GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member 認証）のフル環境まで構築・デプロイ完了。本番 GAS/DB は一切非破壊**（作業は GCP 作業場のみ）。member-auth サービス（Cloud Run `hcmn-member-auth`・rev00003・private・App Check 強制 ON・max=1・専用 SA 最小権限）に、防御コア（第0層レート制限／第1層ロック尊重／第4層日次上限／列挙リーク是正／fail-closed）＋本番 `verifyPassword_` の厳密移植（KAT で GAS 等価を機械証明）＋資格情報ミラー 342 件（**テストコピー由来**）＋Firebase カスタムトークン発行（鍵レス signBlob）＋監査/失効を実装。unit 46/46。**この中断点は 2026-08-03 に解消済（rev00006 でフル経路 end-to-end PASS）。当時「あと 1 手」とされていたのは誤認で、実際は `admin.appCheck()` の初期化順序というサーバ側バグの修正が必要だった。以降 Step A（member-api rev00001）まで進行**。再開手順・GCP リソース一覧・env 再構築・落とし穴の正本は GCP 作業場 `docs/HANDOFF_2026-07-25_member-auth.md`。
 同期間の Phase 4a（2026-07-19〜22）: 予算 killswitch **完了**（予算→topic 接続＋実イベント `under_budget` 初回受信を実測）／日次エクスポート（Firestore→シート BK）を Cloud Run Job で構築し本番 DB シートのコピーで実データ検証 PASS（Scheduler 稼働開始はカットオーバー直前に延期）／portal-api に起動時一括ウォームアップ実装（110+5 doc を 848ms で prefetch・rev00002 実測）／共有 project の IAM 変更後に**本番 3 split live E2E で非影響を実測**（public a11y 0＋7VP／member 21／admin 56 全 PASS）。
@@ -62,7 +76,8 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 
 ## 0. 次の担当者へ（キャッチアップ・まず1分でここ）
 
-- **本番**: public **@368×2** / member **@127** / admin **@224**（v376.63・§1）。全 fixed deployment 同期確認済・稼働正常。ロールバック先は public @367×2 / member @126 / admin @223。
+- **本番**: public **@369×2** / member **@128** / admin **@225**（v376.64・§1）。全 fixed deployment 同期確認済。ロールバック先は public @368×2 / member @127 / admin @224。
+- **v376.64 の検証は完了**（管理セッション再取得後に実施）: admin responsive 56 view・メール設定 E2E 5/5・`dryRunMembershipFeeV376_64_LOG` が `passed:true` / `restored:true`。公開側は入会申込カードに 3,000 / 8,000 / 5,000 円の表示を実測。
 - **検証状況は 1 ページで見られる**: [`docs/portal/test-report.html`](docs/portal/test-report.html)（16 項目・PASS 15・要フォロー 1）。再生成は `npm run report:tests`。
 - **文書の入口**: [`docs/00_DOC_INDEX.md`](docs/00_DOC_INDEX.md)。2026-09-02 に全面整理し、`docs/` 直下は現役 44 文書のみ・完了記録 224 件は [`docs/archive/`](docs/archive/00_ARCHIVE_INDEX.md) へ移した。
 - **直近セッション（2026-09-02）の成果** — 本番 GAS 側で 3 リリース。詳細は `docs/release-notes-2026.md` と各 release state:
@@ -98,10 +113,10 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 
 | 配信 | Deployment ID | Version |
 |---|---|---|
-| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@368** |
-| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@368** |
-| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@127** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@224** |
+| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@369** |
+| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@369** |
+| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@128** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@225** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 
@@ -149,6 +164,7 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 
 | # | タスク | 詳細 / 参照 |
 |---|---|---|
+| ✅ | **v376.64 完了（会費設定・会員種別ごとの年会費）** | public @369×2 / member @128 / admin @225 に同期済。live E2E: 公開 a11y 0・公開 responsive 7VP・**入会申込カードに 3,000/8,000/5,000 円の表示を実測**・admin responsive 56 view・メール設定 E2E 5/5・`dryRunMembershipFeeV376_64_LOG` **`passed:true` / `restored:true`**（7 チェック全 PASS・実行後に金額は原状復帰）。**残る運用作業**: 実際の会費が既定値と異なる場合に 設定 → 会費設定 で更新すること | `docs/257_RELEASE_STATE_v376.64_2026-09-02.md` |
 | ✅ | **v376.63 完了（保守モード解除＋管理画面の日本語表記統一）** | public @368×2 / member @127 / admin @224 に同期済（`deployments` 一致確認）。live E2E: 公開 a11y 違反 0・公開 responsive 7VP・**member responsive 7VP×3画面**・**admin responsive 7VP×8 コンソール=56 view**・**メール設定 E2E 5/5**（いずれも console error 0・横スクロール 0・タップターゲット違反 0）。member の初回実行で 1VP がログインタイムアウトしたが、ウォーム後の再実行で 7VP 全 PASS＝コールドスタートの揺れと確定 | `docs/256_RELEASE_STATE_v376.63_2026-09-02.md` |
 | ✅ | **v376.62 完了（テンプレート一覧取得失敗の本番障害＋pruner 根本修正）** | public @367×2 / member @126 / admin @223 に同期済。**デプロイ後の実測で全 14 カテゴリの `listMailTemplates` が `status:ok`**（修正前は全件 `mailTemplateRecordFromRow_ is not defined`）。live E2E: 公開 a11y 0・公開 responsive 7VP・member responsive 7VP・admin responsive 56 view・mail-settings E2E 5/5・dryRun（endTime / テンプレート）ともに `passed:true` | `docs/254_RELEASE_STATE_v376.62_2026-09-02.md` |
 | ✅ | **v376.61 完了（研修 endTime 実害バグ）** | デプロイ＋live E2E に加え、admin editor で `dryRunTrainingEndTimeV376_61_LOG` を実行し **`passed:true` / `testRowCleanedUp:true` / `corruptedEndTimeCount:0` / `emptyEndTimeCount:0`**（2026-09-02 12:45）。作成→読み戻し→再保存→物理削除まで実DBで検証済 | `docs/253_RELEASE_STATE_v376.61_2026-09-02.md` |

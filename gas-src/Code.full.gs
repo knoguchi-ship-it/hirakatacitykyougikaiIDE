@@ -6352,11 +6352,21 @@ function getSystemSettings_() {
   var publicPortalWithdrawalDescriptionEnabled = withdrawalDescriptionEnabledRaw === undefined || withdrawalDescriptionEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled : String(withdrawalDescriptionEnabledRaw) !== 'false';
   var publicPortalWithdrawalDescription = String(m['PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalDescription;
   var publicPortalWithdrawalCtaLabel = String(m['PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel;
+  // v376.64: 会費設定（金額の正本は M_会員種別.年会費金額）
+  var memberTypeAnnualFees = readMemberTypeAnnualFees_(ss);
+  var membershipFeePublicVisibleRaw = m['MEMBERSHIP_FEE_PUBLIC_VISIBLE'];
+  var membershipFeePublicVisible = membershipFeePublicVisibleRaw === undefined || membershipFeePublicVisibleRaw === ''
+    ? MEMBERSHIP_FEE_DEFAULTS.publicVisible
+    : String(membershipFeePublicVisibleRaw) !== 'false';
+  var membershipFeeNote = m['MEMBERSHIP_FEE_NOTE'] == null ? MEMBERSHIP_FEE_DEFAULTS.note : String(m['MEMBERSHIP_FEE_NOTE']);
   return {
     defaultBusinessStaffLimit: value,
     trainingHistoryLookbackMonths: lookback,
     annualFeePaymentGuidance: guidance,
     annualFeeTransferAccount: transferAccount,
+    memberTypeAnnualFees: memberTypeAnnualFees,
+    membershipFeePublicVisible: membershipFeePublicVisible,
+    membershipFeeNote: membershipFeeNote,
     trainingDefaultFieldConfig: trainingDefaultFieldConfig,
     // v373.7 (S5 Phase 2): rosterTemplateSsId / reminderTemplateSsId / rosterTemplates 撤去
     bulkMailAutoAttachFolderId: bulkMailAutoAttachFolderId,
@@ -6516,6 +6526,19 @@ function updateSystemSettings_(request, callerPermLevel) {
   ];
   if (request.trainingDefaultFieldConfig != null) {
     updates.push({ key: 'TRAINING_DEFAULT_FIELD_CONFIG', value: JSON.stringify(request.trainingDefaultFieldConfig), description: '研修フォームのデフォルト表示項目設定' });
+  }
+  // v376.64: 会費設定（金額の正本は M_会員種別.年会費金額・表示可否と補足は T_システム設定）
+  // 検証を先に済ませてからシートへ書く（途中失敗で金額だけ書き換わるのを防ぐ）
+  if (request.membershipFeePublicVisible != null) {
+    updates.push({ key: 'MEMBERSHIP_FEE_PUBLIC_VISIBLE', value: request.membershipFeePublicVisible ? 'true' : 'false', description: '公開ポータルの入会申込画面に年会費を表示するか' });
+  }
+  if (request.membershipFeeNote != null) {
+    var feeNote = String(request.membershipFeeNote);
+    if (feeNote.length > 200) throw new Error('会費の補足説明は 200 文字以内で設定してください。');
+    updates.push({ key: 'MEMBERSHIP_FEE_NOTE', value: feeNote, description: '入会申込画面に表示する会費の補足説明' });
+  }
+  if (request.memberTypeAnnualFees != null) {
+    setMemberTypeAnnualFeeAmounts_(ss, request.memberTypeAnnualFees);
   }
   // v194: PDF名簿出力 & 一括メール設定（MASTER/ADMIN 共通可変）
   // v373.7 (S5 Phase 2): rosterTemplateSsId / reminderTemplateSsId pass-through 撤去
@@ -8145,6 +8168,25 @@ function getAnnualFeeAmountMap_(ss) {
   return result;
 }
 
+// v376.64: 会費設定の既定値（金額の既定は MEMBER_TYPE_ANNUAL_FEE_DEFAULTS）
+var MEMBERSHIP_FEE_DEFAULTS = {
+  publicVisible: true,
+  note: '',
+};
+
+// 会員種別ごとの年会費を、公開・管理どちらでも同じ形（コード→金額）で返す。
+function readMemberTypeAnnualFees_(ss) {
+  var map = getAnnualFeeAmountMap_(ss);
+  var result = {};
+  var codes = Object.keys(MEMBER_TYPE_ANNUAL_FEE_DEFAULTS);
+  for (var i = 0; i < codes.length; i += 1) {
+    var code = codes[i];
+    var amount = Number(map[code]);
+    result[code] = isFinite(amount) && amount >= 0 ? Math.floor(amount) : MEMBER_TYPE_ANNUAL_FEE_DEFAULTS[code];
+  }
+  return result;
+}
+
 function resolveAnnualFeeAmount_(memberRow, amountMap, fallbackAmount) {
   var memberType = String((memberRow && memberRow['会員種別コード']) || 'INDIVIDUAL');
   var configured = Number((amountMap && amountMap[memberType]) || 0);
@@ -9628,6 +9670,87 @@ function dryRunTrainingEndTimeV376_61_LOG() {
     emptyEndTimeCount: emptyCount
   };
   Logger.log('[dryRunTrainingEndTimeV376_61_LOG] ' + JSON.stringify(report));
+  return report;
+}
+
+// v376.64: 会費設定（会員種別ごとの年会費）の実DB往復 dryRun。
+// 現在値を退避 → 検証値で保存 → 管理設定・公開ポータル設定の両方から読み戻し → 必ず原状復帰する。
+// メールは送らない。DB は最終的に実行前の状態へ戻す（passed だけでなく restored も確認すること）。
+function dryRunMembershipFeeV376_64_LOG() {
+  var ss = getOrCreateDatabase_();
+  var checks = [];
+  var restored = false;
+  function record(name, passed, detail) {
+    checks.push({ name: name, passed: !!passed, detail: detail || '' });
+  }
+
+  var before = readMemberTypeAnnualFees_(ss);
+  var beforeVisible = isSystemSettingEnabled_(ss, 'MEMBERSHIP_FEE_PUBLIC_VISIBLE', MEMBERSHIP_FEE_DEFAULTS.publicVisible);
+  var beforeNote = String(getSystemSettingValue_(ss, 'MEMBERSHIP_FEE_NOTE') || '');
+  record('現在値を退避できる',
+    isFinite(before.INDIVIDUAL) && isFinite(before.BUSINESS) && isFinite(before.SUPPORT),
+    JSON.stringify(before));
+
+  try {
+    // 1) 検証値で保存（既存値と必ず異なる値にする）
+    var probe = {
+      INDIVIDUAL: before.INDIVIDUAL + 11,
+      BUSINESS: before.BUSINESS + 22,
+      SUPPORT: before.SUPPORT + 33,
+    };
+    setMemberTypeAnnualFeeAmounts_(ss, probe);
+    var afterWrite = readMemberTypeAnnualFees_(ss);
+    record('保存した金額が読み戻せる',
+      afterWrite.INDIVIDUAL === probe.INDIVIDUAL && afterWrite.BUSINESS === probe.BUSINESS && afterWrite.SUPPORT === probe.SUPPORT,
+      JSON.stringify(afterWrite));
+
+    // 2) 公開ポータル設定 API にも同じ金額が出る（申込カードの表示元）
+    var publicPayload = JSON.parse(getPublicPortalSettings_());
+    var publicFees = publicPayload && publicPayload.data ? publicPayload.data.membershipFees : null;
+    record('公開ポータル設定に同じ金額が出る',
+      !!publicFees && publicFees.INDIVIDUAL === probe.INDIVIDUAL && publicFees.BUSINESS === probe.BUSINESS && publicFees.SUPPORT === probe.SUPPORT,
+      JSON.stringify(publicFees));
+    record('公開ポータル設定に表示可否と補足が出る',
+      !!publicPayload.data && typeof publicPayload.data.membershipFeeVisible === 'boolean' && typeof publicPayload.data.membershipFeeNote === 'string',
+      'visible=' + (publicPayload.data && publicPayload.data.membershipFeeVisible) );
+
+    // 3) スキーマ初期化を通しても設定値が戻らない（v376.64 の要点）
+    ensureMemberTypeAnnualFeeAmounts_(ss);
+    var afterEnsure = readMemberTypeAnnualFees_(ss);
+    record('★スキーマ初期化が設定値を上書きしない',
+      afterEnsure.INDIVIDUAL === probe.INDIVIDUAL && afterEnsure.BUSINESS === probe.BUSINESS && afterEnsure.SUPPORT === probe.SUPPORT,
+      JSON.stringify(afterEnsure));
+
+    // 4) 範囲外は拒否される
+    var rejected = false;
+    try { setMemberTypeAnnualFeeAmounts_(ss, { INDIVIDUAL: -1 }); } catch (e) { rejected = true; }
+    record('範囲外の金額は拒否される', rejected, '');
+  } finally {
+    // 5) 必ず原状復帰
+    try {
+      setMemberTypeAnnualFeeAmounts_(ss, before);
+      var restoredFees = readMemberTypeAnnualFees_(ss);
+      restored = restoredFees.INDIVIDUAL === before.INDIVIDUAL
+        && restoredFees.BUSINESS === before.BUSINESS
+        && restoredFees.SUPPORT === before.SUPPORT;
+      record('原状復帰した', restored, JSON.stringify(restoredFees));
+    } catch (e) {
+      record('原状復帰した', false, e && e.message ? e.message : String(e));
+    }
+  }
+
+  var report = {
+    version: 'v376.64',
+    dryRun: true,
+    mailSent: false,
+    restored: restored,
+    passed: checks.every(function(check) { return check.passed; }) && restored,
+    checks: checks,
+    feesBefore: before,
+    publicVisibleBefore: beforeVisible,
+    noteLengthBefore: beforeNote.length
+  };
+  Logger.log('[dryRunMembershipFeeV376_64_LOG] ' + JSON.stringify(report));
   return report;
 }
 
@@ -14696,24 +14819,67 @@ function createMasterSheets_(ss) {
   }
 }
 
+// v376.64: 年会費金額は設定画面（会費設定）から変更できる運用値になったため、
+// スキーマ初期化では「未設定（空欄・非数値・0以下）のときだけ既定値を補完」する。
+// 以前は毎回 3000/8000/5000 で上書きしていたため、管理者が変更しても次回ログインの
+// initializeSchema_ で元に戻ってしまう（設定として成立しない）。
+var MEMBER_TYPE_ANNUAL_FEE_DEFAULTS = {
+  INDIVIDUAL: 3000,
+  BUSINESS: 8000,
+  SUPPORT: 5000,
+};
+
 function ensureMemberTypeAnnualFeeAmounts_(ss) {
   var sheet = ss.getSheetByName('M_会員種別');
   if (!sheet || sheet.getLastRow() < 2) return;
   var cols = buildColumnIndex_(sheet);
   requireColumns_(cols, ['コード', '年会費金額']);
   var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
-  var amountByCode = {
-    INDIVIDUAL: 3000,
-    BUSINESS: 8000,
-    SUPPORT: 5000,
-  };
+  var changed = false;
   for (var i = 0; i < rows.length; i += 1) {
     var row = rows[i];
     var code = String(row[cols['コード']] || '');
-    if (!Object.prototype.hasOwnProperty.call(amountByCode, code)) continue;
-    row[cols['年会費金額']] = Number(amountByCode[code]);
+    if (!Object.prototype.hasOwnProperty.call(MEMBER_TYPE_ANNUAL_FEE_DEFAULTS, code)) continue;
+    // 空欄（未設定）と 0 円（会費無料として設定済み）を区別する。
+    // Number('') は 0 になるため、生値が空かどうかを先に見る。
+    var rawAmount = row[cols['年会費金額']];
+    var isBlank = rawAmount === '' || rawAmount === null || rawAmount === undefined;
+    var current = Number(rawAmount);
+    if (!isBlank && isFinite(current) && current >= 0) continue; // 設定済みの金額は尊重する
+    row[cols['年会費金額']] = Number(MEMBER_TYPE_ANNUAL_FEE_DEFAULTS[code]);
+    changed = true;
   }
-  sheet.getRange(2, 1, rows.length, sheet.getLastColumn()).setValues(rows);
+  if (changed) sheet.getRange(2, 1, rows.length, sheet.getLastColumn()).setValues(rows);
+}
+
+// 会員種別ごとの年会費を M_会員種別 に書き込む（設定画面「会費設定」から呼ばれる）。
+// 正本は M_会員種別.年会費金額 の 1 箇所のみ（年会費請求・メール差し込みも同じ列を読む）。
+function setMemberTypeAnnualFeeAmounts_(ss, feeMap) {
+  if (!feeMap) return;
+  var sheet = ss.getSheetByName('M_会員種別');
+  if (!sheet || sheet.getLastRow() < 2) throw new Error('M_会員種別 が初期化されていません。');
+  var cols = buildColumnIndex_(sheet);
+  requireColumns_(cols, ['コード', '年会費金額']);
+  var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  var changed = false;
+  for (var i = 0; i < rows.length; i += 1) {
+    var row = rows[i];
+    var code = String(row[cols['コード']] || '');
+    if (!code || !Object.prototype.hasOwnProperty.call(feeMap, code)) continue;
+    row[cols['年会費金額']] = normalizeAnnualFeeAmount_(feeMap[code], code);
+    changed = true;
+  }
+  if (changed) sheet.getRange(2, 1, rows.length, sheet.getLastColumn()).setValues(rows);
+}
+
+function normalizeAnnualFeeAmount_(raw, code) {
+  var amount = Number(raw);
+  if (!isFinite(amount)) throw new Error('年会費（' + code + '）は数値で入力してください。');
+  amount = Math.floor(amount);
+  if (amount < 0 || amount > 1000000) {
+    throw new Error('年会費（' + code + '）は 0〜1,000,000 円の範囲で設定してください。');
+  }
+  return amount;
 }
 
 function createTableSheets_(ss) {
@@ -15427,9 +15593,19 @@ function getPublicPortalSettings_() {
   var ppWithdrawalDescriptionEnabled = ppWithdrawalDescriptionEnabledRaw === undefined || ppWithdrawalDescriptionEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled : String(ppWithdrawalDescriptionEnabledRaw) !== 'false';
   var ppWithdrawalDescription = String(map['PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalDescription;
   var ppWithdrawalCtaLabel = String(map['PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel;
+  // v376.64: 入会申込の会員種別カードに表示する年会費（正本は M_会員種別.年会費金額）
+  var ppMembershipFees = readMemberTypeAnnualFees_(db);
+  var ppMembershipFeeVisibleRaw = map['MEMBERSHIP_FEE_PUBLIC_VISIBLE'];
+  var ppMembershipFeeVisible = ppMembershipFeeVisibleRaw === undefined || ppMembershipFeeVisibleRaw === ''
+    ? MEMBERSHIP_FEE_DEFAULTS.publicVisible
+    : String(ppMembershipFeeVisibleRaw) !== 'false';
+  var ppMembershipFeeNote = map['MEMBERSHIP_FEE_NOTE'] == null ? MEMBERSHIP_FEE_DEFAULTS.note : String(map['MEMBERSHIP_FEE_NOTE']);
   return JSON.stringify({
     success: true,
     data: {
+      membershipFees: ppMembershipFees,
+      membershipFeeVisible: ppMembershipFeeVisible,
+      membershipFeeNote: ppMembershipFeeNote,
       trainingMenuEnabled: publicPortalTrainingMenuEnabled,
       membershipMenuEnabled: publicPortalMembershipMenuEnabled,
       heroBadgeEnabled: publicPortalHeroBadgeEnabled,

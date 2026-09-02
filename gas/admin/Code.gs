@@ -4030,11 +4030,21 @@ function getSystemSettings_() {
   var publicPortalWithdrawalDescriptionEnabled = withdrawalDescriptionEnabledRaw === undefined || withdrawalDescriptionEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled : String(withdrawalDescriptionEnabledRaw) !== 'false';
   var publicPortalWithdrawalDescription = String(m['PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalDescription;
   var publicPortalWithdrawalCtaLabel = String(m['PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel;
+  // v376.64: 会費設定（金額の正本は M_会員種別.年会費金額）
+  var memberTypeAnnualFees = readMemberTypeAnnualFees_(ss);
+  var membershipFeePublicVisibleRaw = m['MEMBERSHIP_FEE_PUBLIC_VISIBLE'];
+  var membershipFeePublicVisible = membershipFeePublicVisibleRaw === undefined || membershipFeePublicVisibleRaw === ''
+    ? MEMBERSHIP_FEE_DEFAULTS.publicVisible
+    : String(membershipFeePublicVisibleRaw) !== 'false';
+  var membershipFeeNote = m['MEMBERSHIP_FEE_NOTE'] == null ? MEMBERSHIP_FEE_DEFAULTS.note : String(m['MEMBERSHIP_FEE_NOTE']);
   return {
     defaultBusinessStaffLimit: value,
     trainingHistoryLookbackMonths: lookback,
     annualFeePaymentGuidance: guidance,
     annualFeeTransferAccount: transferAccount,
+    memberTypeAnnualFees: memberTypeAnnualFees,
+    membershipFeePublicVisible: membershipFeePublicVisible,
+    membershipFeeNote: membershipFeeNote,
     trainingDefaultFieldConfig: trainingDefaultFieldConfig,
     // v373.7 (S5 Phase 2): rosterTemplateSsId / reminderTemplateSsId / rosterTemplates 撤去
     bulkMailAutoAttachFolderId: bulkMailAutoAttachFolderId,
@@ -4194,6 +4204,19 @@ function updateSystemSettings_(request, callerPermLevel) {
   ];
   if (request.trainingDefaultFieldConfig != null) {
     updates.push({ key: 'TRAINING_DEFAULT_FIELD_CONFIG', value: JSON.stringify(request.trainingDefaultFieldConfig), description: '研修フォームのデフォルト表示項目設定' });
+  }
+  // v376.64: 会費設定（金額の正本は M_会員種別.年会費金額・表示可否と補足は T_システム設定）
+  // 検証を先に済ませてからシートへ書く（途中失敗で金額だけ書き換わるのを防ぐ）
+  if (request.membershipFeePublicVisible != null) {
+    updates.push({ key: 'MEMBERSHIP_FEE_PUBLIC_VISIBLE', value: request.membershipFeePublicVisible ? 'true' : 'false', description: '公開ポータルの入会申込画面に年会費を表示するか' });
+  }
+  if (request.membershipFeeNote != null) {
+    var feeNote = String(request.membershipFeeNote);
+    if (feeNote.length > 200) throw new Error('会費の補足説明は 200 文字以内で設定してください。');
+    updates.push({ key: 'MEMBERSHIP_FEE_NOTE', value: feeNote, description: '入会申込画面に表示する会費の補足説明' });
+  }
+  if (request.memberTypeAnnualFees != null) {
+    setMemberTypeAnnualFeeAmounts_(ss, request.memberTypeAnnualFees);
   }
   // v194: PDF名簿出力 & 一括メール設定（MASTER/ADMIN 共通可変）
   // v373.7 (S5 Phase 2): rosterTemplateSsId / reminderTemplateSsId pass-through 撤去
@@ -5849,6 +5872,25 @@ function getAnnualFeeAmountMap_(ss) {
   return result;
 }
 
+// v376.64: 会費設定の既定値（金額の既定は MEMBER_TYPE_ANNUAL_FEE_DEFAULTS）
+var MEMBERSHIP_FEE_DEFAULTS = {
+  publicVisible: true,
+  note: '',
+};
+
+// 会員種別ごとの年会費を、公開・管理どちらでも同じ形（コード→金額）で返す。
+function readMemberTypeAnnualFees_(ss) {
+  var map = getAnnualFeeAmountMap_(ss);
+  var result = {};
+  var codes = Object.keys(MEMBER_TYPE_ANNUAL_FEE_DEFAULTS);
+  for (var i = 0; i < codes.length; i += 1) {
+    var code = codes[i];
+    var amount = Number(map[code]);
+    result[code] = isFinite(amount) && amount >= 0 ? Math.floor(amount) : MEMBER_TYPE_ANNUAL_FEE_DEFAULTS[code];
+  }
+  return result;
+}
+
 function resolveAnnualFeeAmount_(memberRow, amountMap, fallbackAmount) {
   var memberType = String((memberRow && memberRow['会員種別コード']) || 'INDIVIDUAL');
   var configured = Number((amountMap && amountMap[memberType]) || 0);
@@ -7028,6 +7070,10 @@ function isSystemSettingEnabled_(ss, key, defaultValue) {
 // v376.61: 研修の開催終了時刻(endTime)の実DB往復 dryRun。
 // 実害バグ（endTime が JS Date 文字列のまま API に出て <input type="time"> が空表示になり、
 // 保存で終了時刻が消える）の回帰を実DBで検証する。行を作って読んで消す。メールは送らない。
+
+// v376.64: 会費設定（会員種別ごとの年会費）の実DB往復 dryRun。
+// 現在値を退避 → 検証値で保存 → 管理設定・公開ポータル設定の両方から読み戻し → 必ず原状復帰する。
+// メールは送らない。DB は最終的に実行前の状態へ戻す（passed だけでなく restored も確認すること）。
 
 // v368: 申込受付メール送信ヘルパー（公開ポータル申請受付時に使用）
 function sendApplicationReceiptMail_(ss, params) {
@@ -10876,24 +10922,67 @@ function createMasterSheets_(ss) {
   }
 }
 
+// v376.64: 年会費金額は設定画面（会費設定）から変更できる運用値になったため、
+// スキーマ初期化では「未設定（空欄・非数値・0以下）のときだけ既定値を補完」する。
+// 以前は毎回 3000/8000/5000 で上書きしていたため、管理者が変更しても次回ログインの
+// initializeSchema_ で元に戻ってしまう（設定として成立しない）。
+var MEMBER_TYPE_ANNUAL_FEE_DEFAULTS = {
+  INDIVIDUAL: 3000,
+  BUSINESS: 8000,
+  SUPPORT: 5000,
+};
+
 function ensureMemberTypeAnnualFeeAmounts_(ss) {
   var sheet = ss.getSheetByName('M_会員種別');
   if (!sheet || sheet.getLastRow() < 2) return;
   var cols = buildColumnIndex_(sheet);
   requireColumns_(cols, ['コード', '年会費金額']);
   var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
-  var amountByCode = {
-    INDIVIDUAL: 3000,
-    BUSINESS: 8000,
-    SUPPORT: 5000,
-  };
+  var changed = false;
   for (var i = 0; i < rows.length; i += 1) {
     var row = rows[i];
     var code = String(row[cols['コード']] || '');
-    if (!Object.prototype.hasOwnProperty.call(amountByCode, code)) continue;
-    row[cols['年会費金額']] = Number(amountByCode[code]);
+    if (!Object.prototype.hasOwnProperty.call(MEMBER_TYPE_ANNUAL_FEE_DEFAULTS, code)) continue;
+    // 空欄（未設定）と 0 円（会費無料として設定済み）を区別する。
+    // Number('') は 0 になるため、生値が空かどうかを先に見る。
+    var rawAmount = row[cols['年会費金額']];
+    var isBlank = rawAmount === '' || rawAmount === null || rawAmount === undefined;
+    var current = Number(rawAmount);
+    if (!isBlank && isFinite(current) && current >= 0) continue; // 設定済みの金額は尊重する
+    row[cols['年会費金額']] = Number(MEMBER_TYPE_ANNUAL_FEE_DEFAULTS[code]);
+    changed = true;
   }
-  sheet.getRange(2, 1, rows.length, sheet.getLastColumn()).setValues(rows);
+  if (changed) sheet.getRange(2, 1, rows.length, sheet.getLastColumn()).setValues(rows);
+}
+
+// 会員種別ごとの年会費を M_会員種別 に書き込む（設定画面「会費設定」から呼ばれる）。
+// 正本は M_会員種別.年会費金額 の 1 箇所のみ（年会費請求・メール差し込みも同じ列を読む）。
+function setMemberTypeAnnualFeeAmounts_(ss, feeMap) {
+  if (!feeMap) return;
+  var sheet = ss.getSheetByName('M_会員種別');
+  if (!sheet || sheet.getLastRow() < 2) throw new Error('M_会員種別 が初期化されていません。');
+  var cols = buildColumnIndex_(sheet);
+  requireColumns_(cols, ['コード', '年会費金額']);
+  var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  var changed = false;
+  for (var i = 0; i < rows.length; i += 1) {
+    var row = rows[i];
+    var code = String(row[cols['コード']] || '');
+    if (!code || !Object.prototype.hasOwnProperty.call(feeMap, code)) continue;
+    row[cols['年会費金額']] = normalizeAnnualFeeAmount_(feeMap[code], code);
+    changed = true;
+  }
+  if (changed) sheet.getRange(2, 1, rows.length, sheet.getLastColumn()).setValues(rows);
+}
+
+function normalizeAnnualFeeAmount_(raw, code) {
+  var amount = Number(raw);
+  if (!isFinite(amount)) throw new Error('年会費（' + code + '）は数値で入力してください。');
+  amount = Math.floor(amount);
+  if (amount < 0 || amount > 1000000) {
+    throw new Error('年会費（' + code + '）は 0〜1,000,000 円の範囲で設定してください。');
+  }
+  return amount;
 }
 
 
@@ -11448,6 +11537,173 @@ function updateRowByKey_(sheet, cols, keyColumn, keyValue, updates) {
 // ─── 公開ポータル API ─────────────────────────────────────────────────────────
 
 // v210: 公開ポータルの表示設定（認証不要・公開API）
+function getPublicPortalSettings_() {
+  var db = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var map = getSystemSettingMap_(db);
+  var trainingMenuEnabledRaw = map['PUBLIC_PORTAL_TRAINING_MENU_ENABLED'];
+  var publicPortalTrainingMenuEnabled = trainingMenuEnabledRaw === undefined || trainingMenuEnabledRaw === ''
+    ? true
+    : String(trainingMenuEnabledRaw) !== 'false';
+  var membershipMenuEnabledRaw = map['PUBLIC_PORTAL_MEMBERSHIP_MENU_ENABLED'];
+  var publicPortalMembershipMenuEnabled = membershipMenuEnabledRaw === undefined || membershipMenuEnabledRaw === ''
+    ? true
+    : String(membershipMenuEnabledRaw) !== 'false';
+  var heroBadgeEnabledRaw = map['PUBLIC_PORTAL_HERO_BADGE_ENABLED'];
+  var publicPortalHeroBadgeEnabled = heroBadgeEnabledRaw === undefined || heroBadgeEnabledRaw === ''
+    ? PUBLIC_PORTAL_DEFAULTS.heroBadgeEnabled
+    : String(heroBadgeEnabledRaw) !== 'false';
+  var publicPortalHeroBadgeLabel = String(map['PUBLIC_PORTAL_HERO_BADGE_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.heroBadgeLabel;
+  var publicPortalHeroTitle = String(map['PUBLIC_PORTAL_HERO_TITLE'] || '') || PUBLIC_PORTAL_DEFAULTS.heroTitle;
+  var heroDescriptionEnabledRaw = map['PUBLIC_PORTAL_HERO_DESCRIPTION_ENABLED'];
+  var publicPortalHeroDescriptionEnabled = heroDescriptionEnabledRaw === undefined || heroDescriptionEnabledRaw === ''
+    ? PUBLIC_PORTAL_DEFAULTS.heroDescriptionEnabled
+    : String(heroDescriptionEnabledRaw) !== 'false';
+  var publicPortalHeroDescription = String(map['PUBLIC_PORTAL_HERO_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.heroDescription;
+  var membershipBadgeEnabledRaw = map['PUBLIC_PORTAL_MEMBERSHIP_BADGE_ENABLED'];
+  var publicPortalMembershipBadgeEnabled = membershipBadgeEnabledRaw === undefined || membershipBadgeEnabledRaw === ''
+    ? PUBLIC_PORTAL_DEFAULTS.membershipBadgeEnabled
+    : String(membershipBadgeEnabledRaw) !== 'false';
+  var publicPortalMembershipBadgeLabel = String(map['PUBLIC_PORTAL_MEMBERSHIP_BADGE_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.membershipBadgeLabel;
+  var membershipTitleEnabledRaw = map['PUBLIC_PORTAL_MEMBERSHIP_TITLE_ENABLED'];
+  var publicPortalMembershipTitleEnabled = membershipTitleEnabledRaw === undefined || membershipTitleEnabledRaw === ''
+    ? PUBLIC_PORTAL_DEFAULTS.membershipTitleEnabled
+    : String(membershipTitleEnabledRaw) !== 'false';
+  var publicPortalMembershipTitle = String(map['PUBLIC_PORTAL_MEMBERSHIP_TITLE'] || '') || PUBLIC_PORTAL_DEFAULTS.membershipTitle;
+  var membershipDescriptionEnabledRaw = map['PUBLIC_PORTAL_MEMBERSHIP_DESCRIPTION_ENABLED'];
+  var publicPortalMembershipDescriptionEnabled = membershipDescriptionEnabledRaw === undefined || membershipDescriptionEnabledRaw === ''
+    ? PUBLIC_PORTAL_DEFAULTS.membershipDescriptionEnabled
+    : String(membershipDescriptionEnabledRaw) !== 'false';
+  var publicPortalMembershipDescription = String(map['PUBLIC_PORTAL_MEMBERSHIP_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.membershipDescription;
+  var publicPortalMembershipCtaLabel = String(map['PUBLIC_PORTAL_MEMBERSHIP_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel;
+  var completionGuidanceVisibleRaw = map['PUBLIC_PORTAL_COMPLETION_GUIDANCE_VISIBLE'];
+  var publicPortalCompletionGuidanceVisible = completionGuidanceVisibleRaw === undefined || completionGuidanceVisibleRaw === ''
+    ? PUBLIC_PORTAL_DEFAULTS.completionGuidanceVisible
+    : String(completionGuidanceVisibleRaw) !== 'false';
+  var completionLoginInfoVisibleRaw = map['PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_VISIBLE'];
+  var publicPortalCompletionLoginInfoVisible = completionLoginInfoVisibleRaw === undefined || completionLoginInfoVisibleRaw === ''
+    ? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible
+    : String(completionLoginInfoVisibleRaw) !== 'false';
+  var completionLoginInfoBlockVisibleRaw = map['PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BLOCK_VISIBLE'];
+  var publicPortalCompletionLoginInfoBlockVisible = completionLoginInfoBlockVisibleRaw === undefined || completionLoginInfoBlockVisibleRaw === ''
+    ? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBlockVisible
+    : String(completionLoginInfoBlockVisibleRaw) !== 'false';
+  var legacyCompletionNoCredentialNotice = String(map['PUBLIC_PORTAL_COMPLETION_NO_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice;
+  var legacyCompletionCredentialNotice = String(map['PUBLIC_PORTAL_COMPLETION_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice;
+  var publicPortalCompletionGuidanceBodyWhenCredentialSent = String(map['PUBLIC_PORTAL_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_SENT'] || '') || [
+    legacyCompletionCredentialNotice,
+    '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
+    '申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。'
+  ].join('\n');
+  var publicPortalCompletionGuidanceBodyWhenCredentialNotSent = String(map['PUBLIC_PORTAL_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_NOT_SENT'] || '') || [
+    legacyCompletionNoCredentialNotice,
+    '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
+    '申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。'
+  ].join('\n');
+  var publicPortalCompletionLoginInfoBodyWhenCredentialSent = String(map['PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_SENT'] || '') || PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialSent;
+  var publicPortalCompletionLoginInfoBodyWhenCredentialNotSent = String(map['PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_NOT_SENT'] || '') || PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialNotSent;
+  var publicPortalCompletionNoCredentialNotice = String(map['PUBLIC_PORTAL_COMPLETION_NO_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice;
+  var publicPortalCompletionCredentialNotice = String(map['PUBLIC_PORTAL_COMPLETION_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice;
+  var credentialEmailEnabledRaw = map['CREDENTIAL_EMAIL_ENABLED'];
+  var credentialEmailEnabled = credentialEmailEnabledRaw === '' || credentialEmailEnabledRaw === null
+    ? true
+    : String(credentialEmailEnabledRaw) !== 'false';
+  var ppTrainingBadgeEnabledRaw = map['PUBLIC_PORTAL_TRAINING_BADGE_ENABLED'];
+  var ppTrainingBadgeEnabled = ppTrainingBadgeEnabledRaw === undefined || ppTrainingBadgeEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.trainingBadgeEnabled : String(ppTrainingBadgeEnabledRaw) !== 'false';
+  var ppTrainingBadgeLabel = String(map['PUBLIC_PORTAL_TRAINING_BADGE_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.trainingBadgeLabel;
+  var ppTrainingTitleEnabledRaw = map['PUBLIC_PORTAL_TRAINING_TITLE_ENABLED'];
+  var ppTrainingTitleEnabled = ppTrainingTitleEnabledRaw === undefined || ppTrainingTitleEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.trainingTitleEnabled : String(ppTrainingTitleEnabledRaw) !== 'false';
+  var ppTrainingTitle = String(map['PUBLIC_PORTAL_TRAINING_TITLE'] || '') || PUBLIC_PORTAL_DEFAULTS.trainingTitle;
+  var ppTrainingDescriptionEnabledRaw = map['PUBLIC_PORTAL_TRAINING_DESCRIPTION_ENABLED'];
+  var ppTrainingDescriptionEnabled = ppTrainingDescriptionEnabledRaw === undefined || ppTrainingDescriptionEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.trainingDescriptionEnabled : String(ppTrainingDescriptionEnabledRaw) !== 'false';
+  var ppTrainingDescription = String(map['PUBLIC_PORTAL_TRAINING_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.trainingDescription;
+  var ppTrainingCtaLabel = String(map['PUBLIC_PORTAL_TRAINING_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.trainingCtaLabel;
+  var ppMemberUpdateMenuEnabledRaw = map['PUBLIC_PORTAL_MEMBER_UPDATE_MENU_ENABLED'];
+  var ppMemberUpdateMenuEnabled = ppMemberUpdateMenuEnabledRaw === undefined || ppMemberUpdateMenuEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.memberUpdateMenuEnabled : String(ppMemberUpdateMenuEnabledRaw) !== 'false';
+  var ppMemberUpdateBadgeEnabledRaw = map['PUBLIC_PORTAL_MEMBER_UPDATE_BADGE_ENABLED'];
+  var ppMemberUpdateBadgeEnabled = ppMemberUpdateBadgeEnabledRaw === undefined || ppMemberUpdateBadgeEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeEnabled : String(ppMemberUpdateBadgeEnabledRaw) !== 'false';
+  var ppMemberUpdateBadgeLabel = String(map['PUBLIC_PORTAL_MEMBER_UPDATE_BADGE_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeLabel;
+  var ppMemberUpdateTitleEnabledRaw = map['PUBLIC_PORTAL_MEMBER_UPDATE_TITLE_ENABLED'];
+  var ppMemberUpdateTitleEnabled = ppMemberUpdateTitleEnabledRaw === undefined || ppMemberUpdateTitleEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.memberUpdateTitleEnabled : String(ppMemberUpdateTitleEnabledRaw) !== 'false';
+  var ppMemberUpdateTitle = String(map['PUBLIC_PORTAL_MEMBER_UPDATE_TITLE'] || '') || PUBLIC_PORTAL_DEFAULTS.memberUpdateTitle;
+  var ppMemberUpdateDescriptionEnabledRaw = map['PUBLIC_PORTAL_MEMBER_UPDATE_DESCRIPTION_ENABLED'];
+  var ppMemberUpdateDescriptionEnabled = ppMemberUpdateDescriptionEnabledRaw === undefined || ppMemberUpdateDescriptionEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.memberUpdateDescriptionEnabled : String(ppMemberUpdateDescriptionEnabledRaw) !== 'false';
+  var ppMemberUpdateDescription = String(map['PUBLIC_PORTAL_MEMBER_UPDATE_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.memberUpdateDescription;
+  var ppMemberUpdateCtaLabel = String(map['PUBLIC_PORTAL_MEMBER_UPDATE_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.memberUpdateCtaLabel;
+  var ppWithdrawalMenuEnabledRaw = map['PUBLIC_PORTAL_WITHDRAWAL_MENU_ENABLED'];
+  var ppWithdrawalMenuEnabled = ppWithdrawalMenuEnabledRaw === undefined || ppWithdrawalMenuEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalMenuEnabled : String(ppWithdrawalMenuEnabledRaw) !== 'false';
+  var ppWithdrawalBadgeEnabledRaw = map['PUBLIC_PORTAL_WITHDRAWAL_BADGE_ENABLED'];
+  var ppWithdrawalBadgeEnabled = ppWithdrawalBadgeEnabledRaw === undefined || ppWithdrawalBadgeEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeEnabled : String(ppWithdrawalBadgeEnabledRaw) !== 'false';
+  var ppWithdrawalBadgeLabel = String(map['PUBLIC_PORTAL_WITHDRAWAL_BADGE_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeLabel;
+  var ppWithdrawalTitleEnabledRaw = map['PUBLIC_PORTAL_WITHDRAWAL_TITLE_ENABLED'];
+  var ppWithdrawalTitleEnabled = ppWithdrawalTitleEnabledRaw === undefined || ppWithdrawalTitleEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalTitleEnabled : String(ppWithdrawalTitleEnabledRaw) !== 'false';
+  var ppWithdrawalTitle = String(map['PUBLIC_PORTAL_WITHDRAWAL_TITLE'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalTitle;
+  var ppWithdrawalDescriptionEnabledRaw = map['PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION_ENABLED'];
+  var ppWithdrawalDescriptionEnabled = ppWithdrawalDescriptionEnabledRaw === undefined || ppWithdrawalDescriptionEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled : String(ppWithdrawalDescriptionEnabledRaw) !== 'false';
+  var ppWithdrawalDescription = String(map['PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalDescription;
+  var ppWithdrawalCtaLabel = String(map['PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel;
+  // v376.64: 入会申込の会員種別カードに表示する年会費（正本は M_会員種別.年会費金額）
+  var ppMembershipFees = readMemberTypeAnnualFees_(db);
+  var ppMembershipFeeVisibleRaw = map['MEMBERSHIP_FEE_PUBLIC_VISIBLE'];
+  var ppMembershipFeeVisible = ppMembershipFeeVisibleRaw === undefined || ppMembershipFeeVisibleRaw === ''
+    ? MEMBERSHIP_FEE_DEFAULTS.publicVisible
+    : String(ppMembershipFeeVisibleRaw) !== 'false';
+  var ppMembershipFeeNote = map['MEMBERSHIP_FEE_NOTE'] == null ? MEMBERSHIP_FEE_DEFAULTS.note : String(map['MEMBERSHIP_FEE_NOTE']);
+  return JSON.stringify({
+    success: true,
+    data: {
+      membershipFees: ppMembershipFees,
+      membershipFeeVisible: ppMembershipFeeVisible,
+      membershipFeeNote: ppMembershipFeeNote,
+      trainingMenuEnabled: publicPortalTrainingMenuEnabled,
+      membershipMenuEnabled: publicPortalMembershipMenuEnabled,
+      heroBadgeEnabled: publicPortalHeroBadgeEnabled,
+      heroBadgeLabel: publicPortalHeroBadgeLabel,
+      heroTitle: publicPortalHeroTitle,
+      heroDescriptionEnabled: publicPortalHeroDescriptionEnabled,
+      heroDescription: publicPortalHeroDescription,
+      membershipBadgeEnabled: publicPortalMembershipBadgeEnabled,
+      membershipBadgeLabel: publicPortalMembershipBadgeLabel,
+      membershipTitleEnabled: publicPortalMembershipTitleEnabled,
+      membershipTitle: publicPortalMembershipTitle,
+      membershipDescriptionEnabled: publicPortalMembershipDescriptionEnabled,
+      membershipDescription: publicPortalMembershipDescription,
+      membershipCtaLabel: publicPortalMembershipCtaLabel,
+      completionGuidanceVisible: publicPortalCompletionGuidanceVisible,
+      completionGuidanceBodyWhenCredentialSent: publicPortalCompletionGuidanceBodyWhenCredentialSent,
+      completionGuidanceBodyWhenCredentialNotSent: publicPortalCompletionGuidanceBodyWhenCredentialNotSent,
+      completionLoginInfoBlockVisible: publicPortalCompletionLoginInfoBlockVisible,
+      completionLoginInfoVisible: publicPortalCompletionLoginInfoVisible,
+      completionLoginInfoBodyWhenCredentialSent: publicPortalCompletionLoginInfoBodyWhenCredentialSent,
+      completionLoginInfoBodyWhenCredentialNotSent: publicPortalCompletionLoginInfoBodyWhenCredentialNotSent,
+      completionNoCredentialNotice: publicPortalCompletionNoCredentialNotice,
+      completionCredentialNotice: publicPortalCompletionCredentialNotice,
+      credentialEmailEnabled: credentialEmailEnabled,
+      trainingBadgeEnabled: ppTrainingBadgeEnabled,
+      trainingBadgeLabel: ppTrainingBadgeLabel,
+      trainingTitleEnabled: ppTrainingTitleEnabled,
+      trainingTitle: ppTrainingTitle,
+      trainingDescriptionEnabled: ppTrainingDescriptionEnabled,
+      trainingDescription: ppTrainingDescription,
+      trainingCtaLabel: ppTrainingCtaLabel,
+      memberUpdateMenuEnabled: ppMemberUpdateMenuEnabled,
+      memberUpdateBadgeEnabled: ppMemberUpdateBadgeEnabled,
+      memberUpdateBadgeLabel: ppMemberUpdateBadgeLabel,
+      memberUpdateTitleEnabled: ppMemberUpdateTitleEnabled,
+      memberUpdateTitle: ppMemberUpdateTitle,
+      memberUpdateDescriptionEnabled: ppMemberUpdateDescriptionEnabled,
+      memberUpdateDescription: ppMemberUpdateDescription,
+      memberUpdateCtaLabel: ppMemberUpdateCtaLabel,
+      withdrawalMenuEnabled: ppWithdrawalMenuEnabled,
+      withdrawalBadgeEnabled: ppWithdrawalBadgeEnabled,
+      withdrawalBadgeLabel: ppWithdrawalBadgeLabel,
+      withdrawalTitleEnabled: ppWithdrawalTitleEnabled,
+      withdrawalTitle: ppWithdrawalTitle,
+      withdrawalDescriptionEnabled: ppWithdrawalDescriptionEnabled,
+      withdrawalDescription: ppWithdrawalDescription,
+      withdrawalCtaLabel: ppWithdrawalCtaLabel,
+    }
+  });
+}
 
 // v345: Google Drive ファイルのサムネイルを base64 data URL で返す。
 //

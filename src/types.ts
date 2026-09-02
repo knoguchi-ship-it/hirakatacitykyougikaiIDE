@@ -154,11 +154,21 @@ export interface EmailTemplate {
 // v373.6 (S5): RosterTemplate interface 撤去（旧 RosterExport 削除に伴う）。
 // SystemSettings.rosterTemplates は型からは外したが、GAS 側 T_システム設定 行は次セッションで撤去予定。
 
+export type MemberTypeAnnualFees = {
+  INDIVIDUAL: number;
+  BUSINESS: number;
+  SUPPORT: number;
+};
+
 export interface SystemSettings {
   defaultBusinessStaffLimit: number;
   trainingHistoryLookbackMonths: number;
   annualFeePaymentGuidance: string;
   annualFeeTransferAccount: TransferAccountInfo;
+  // v376.64: 会費設定（金額の正本は M_会員種別.年会費金額）
+  memberTypeAnnualFees?: MemberTypeAnnualFees;
+  membershipFeePublicVisible?: boolean;
+  membershipFeeNote?: string;
   trainingDefaultFieldConfig?: TrainingFieldConfig | null;
   // v194: PDF名簿出力 & 一括メール送信設定
   // v373.7 (S5 Phase 2): rosterTemplateSsId / reminderTemplateSsId / rosterTemplates 撤去

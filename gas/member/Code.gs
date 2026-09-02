@@ -3028,6 +3028,14 @@ function getAnnualFeeAmountMap_(ss) {
   return result;
 }
 
+// v376.64: 会費設定の既定値（金額の既定は MEMBER_TYPE_ANNUAL_FEE_DEFAULTS）
+var MEMBERSHIP_FEE_DEFAULTS = {
+  publicVisible: true,
+  note: '',
+};
+
+// 会員種別ごとの年会費を、公開・管理どちらでも同じ形（コード→金額）で返す。
+
 function resolveAnnualFeeAmount_(memberRow, amountMap, fallbackAmount) {
   var memberType = String((memberRow && memberRow['会員種別コード']) || 'INDIVIDUAL');
   var configured = Number((amountMap && amountMap[memberType]) || 0);
@@ -3223,6 +3231,10 @@ var REQUEST_TYPE_LABEL_ = {
 // v376.61: 研修の開催終了時刻(endTime)の実DB往復 dryRun。
 // 実害バグ（endTime が JS Date 文字列のまま API に出て <input type="time"> が空表示になり、
 // 保存で終了時刻が消える）の回帰を実DBで検証する。行を作って読んで消す。メールは送らない。
+
+// v376.64: 会費設定（会員種別ごとの年会費）の実DB往復 dryRun。
+// 現在値を退避 → 検証値で保存 → 管理設定・公開ポータル設定の両方から読み戻し → 必ず原状復帰する。
+// メールは送らない。DB は最終的に実行前の状態へ戻す（passed だけでなく restored も確認すること）。
 
 // v368: 申込受付メール送信ヘルパー（公開ポータル申請受付時に使用）
 
@@ -5364,25 +5376,42 @@ function createMasterSheets_(ss) {
   }
 }
 
+// v376.64: 年会費金額は設定画面（会費設定）から変更できる運用値になったため、
+// スキーマ初期化では「未設定（空欄・非数値・0以下）のときだけ既定値を補完」する。
+// 以前は毎回 3000/8000/5000 で上書きしていたため、管理者が変更しても次回ログインの
+// initializeSchema_ で元に戻ってしまう（設定として成立しない）。
+var MEMBER_TYPE_ANNUAL_FEE_DEFAULTS = {
+  INDIVIDUAL: 3000,
+  BUSINESS: 8000,
+  SUPPORT: 5000,
+};
+
 function ensureMemberTypeAnnualFeeAmounts_(ss) {
   var sheet = ss.getSheetByName('M_会員種別');
   if (!sheet || sheet.getLastRow() < 2) return;
   var cols = buildColumnIndex_(sheet);
   requireColumns_(cols, ['コード', '年会費金額']);
   var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
-  var amountByCode = {
-    INDIVIDUAL: 3000,
-    BUSINESS: 8000,
-    SUPPORT: 5000,
-  };
+  var changed = false;
   for (var i = 0; i < rows.length; i += 1) {
     var row = rows[i];
     var code = String(row[cols['コード']] || '');
-    if (!Object.prototype.hasOwnProperty.call(amountByCode, code)) continue;
-    row[cols['年会費金額']] = Number(amountByCode[code]);
+    if (!Object.prototype.hasOwnProperty.call(MEMBER_TYPE_ANNUAL_FEE_DEFAULTS, code)) continue;
+    // 空欄（未設定）と 0 円（会費無料として設定済み）を区別する。
+    // Number('') は 0 になるため、生値が空かどうかを先に見る。
+    var rawAmount = row[cols['年会費金額']];
+    var isBlank = rawAmount === '' || rawAmount === null || rawAmount === undefined;
+    var current = Number(rawAmount);
+    if (!isBlank && isFinite(current) && current >= 0) continue; // 設定済みの金額は尊重する
+    row[cols['年会費金額']] = Number(MEMBER_TYPE_ANNUAL_FEE_DEFAULTS[code]);
+    changed = true;
   }
-  sheet.getRange(2, 1, rows.length, sheet.getLastColumn()).setValues(rows);
+  if (changed) sheet.getRange(2, 1, rows.length, sheet.getLastColumn()).setValues(rows);
 }
+
+// 会員種別ごとの年会費を M_会員種別 に書き込む（設定画面「会費設定」から呼ばれる）。
+// 正本は M_会員種別.年会費金額 の 1 箇所のみ（年会費請求・メール差し込みも同じ列を読む）。
+
 
 
 function ensureTableSheetsExist_(ss) {

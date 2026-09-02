@@ -224,6 +224,84 @@ function dryRunTrainingEndTimeV376_61_LOG() {
   return report;
 }
 
+function dryRunMembershipFeeV376_64_LOG() {
+  var ss = getOrCreateDatabase_();
+  var checks = [];
+  var restored = false;
+  function record(name, passed, detail) {
+    checks.push({ name: name, passed: !!passed, detail: detail || '' });
+  }
+
+  var before = readMemberTypeAnnualFees_(ss);
+  var beforeVisible = isSystemSettingEnabled_(ss, 'MEMBERSHIP_FEE_PUBLIC_VISIBLE', MEMBERSHIP_FEE_DEFAULTS.publicVisible);
+  var beforeNote = String(getSystemSettingValue_(ss, 'MEMBERSHIP_FEE_NOTE') || '');
+  record('現在値を退避できる',
+    isFinite(before.INDIVIDUAL) && isFinite(before.BUSINESS) && isFinite(before.SUPPORT),
+    JSON.stringify(before));
+
+  try {
+    // 1) 検証値で保存（既存値と必ず異なる値にする）
+    var probe = {
+      INDIVIDUAL: before.INDIVIDUAL + 11,
+      BUSINESS: before.BUSINESS + 22,
+      SUPPORT: before.SUPPORT + 33,
+    };
+    setMemberTypeAnnualFeeAmounts_(ss, probe);
+    var afterWrite = readMemberTypeAnnualFees_(ss);
+    record('保存した金額が読み戻せる',
+      afterWrite.INDIVIDUAL === probe.INDIVIDUAL && afterWrite.BUSINESS === probe.BUSINESS && afterWrite.SUPPORT === probe.SUPPORT,
+      JSON.stringify(afterWrite));
+
+    // 2) 公開ポータル設定 API にも同じ金額が出る（申込カードの表示元）
+    var publicPayload = JSON.parse(getPublicPortalSettings_());
+    var publicFees = publicPayload && publicPayload.data ? publicPayload.data.membershipFees : null;
+    record('公開ポータル設定に同じ金額が出る',
+      !!publicFees && publicFees.INDIVIDUAL === probe.INDIVIDUAL && publicFees.BUSINESS === probe.BUSINESS && publicFees.SUPPORT === probe.SUPPORT,
+      JSON.stringify(publicFees));
+    record('公開ポータル設定に表示可否と補足が出る',
+      !!publicPayload.data && typeof publicPayload.data.membershipFeeVisible === 'boolean' && typeof publicPayload.data.membershipFeeNote === 'string',
+      'visible=' + (publicPayload.data && publicPayload.data.membershipFeeVisible) );
+
+    // 3) スキーマ初期化を通しても設定値が戻らない（v376.64 の要点）
+    ensureMemberTypeAnnualFeeAmounts_(ss);
+    var afterEnsure = readMemberTypeAnnualFees_(ss);
+    record('★スキーマ初期化が設定値を上書きしない',
+      afterEnsure.INDIVIDUAL === probe.INDIVIDUAL && afterEnsure.BUSINESS === probe.BUSINESS && afterEnsure.SUPPORT === probe.SUPPORT,
+      JSON.stringify(afterEnsure));
+
+    // 4) 範囲外は拒否される
+    var rejected = false;
+    try { setMemberTypeAnnualFeeAmounts_(ss, { INDIVIDUAL: -1 }); } catch (e) { rejected = true; }
+    record('範囲外の金額は拒否される', rejected, '');
+  } finally {
+    // 5) 必ず原状復帰
+    try {
+      setMemberTypeAnnualFeeAmounts_(ss, before);
+      var restoredFees = readMemberTypeAnnualFees_(ss);
+      restored = restoredFees.INDIVIDUAL === before.INDIVIDUAL
+        && restoredFees.BUSINESS === before.BUSINESS
+        && restoredFees.SUPPORT === before.SUPPORT;
+      record('原状復帰した', restored, JSON.stringify(restoredFees));
+    } catch (e) {
+      record('原状復帰した', false, e && e.message ? e.message : String(e));
+    }
+  }
+
+  var report = {
+    version: 'v376.64',
+    dryRun: true,
+    mailSent: false,
+    restored: restored,
+    passed: checks.every(function(check) { return check.passed; }) && restored,
+    checks: checks,
+    feesBefore: before,
+    publicVisibleBefore: beforeVisible,
+    noteLengthBefore: beforeNote.length
+  };
+  Logger.log('[dryRunMembershipFeeV376_64_LOG] ' + JSON.stringify(report));
+  return report;
+}
+
 function processPendingThumbnails() {
   try {
     var ss = getOrCreateDatabase_();

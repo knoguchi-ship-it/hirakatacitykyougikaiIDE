@@ -38,6 +38,8 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   'dryRunMailSettingsV376_60_LOG',
   // v376.61: 研修 endTime の実DB往復 dryRun（operator 実行用・非送信・検証行は物理削除）
   'dryRunTrainingEndTimeV376_61_LOG',
+  // v376.64: 会費設定（会員種別ごとの年会費）の実DB往復 dryRun（operator 実行用・非送信・原状復帰）
+  'dryRunMembershipFeeV376_64_LOG',
   // v376.44: 公式LINE投稿依頼 保存フロー dryRun E2E（operator 実行用）
   'dryRunLinePostV376_44_LOG',
   // v376.45: LINE投稿 権限二層+可視範囲+submitRequest dryRun E2E（operator 実行用）

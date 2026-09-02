@@ -13,6 +13,10 @@ import PostalCodeInput from '../PostalCodeInput';
 import { normalizeKana } from '../../utils/kanaNormalize';
 
 interface MemberApplicationFormProps {
+  // v376.64: 会員種別カードに表示する年会費（設定画面「会費設定」で変更可能）
+  memberTypeFees?: { INDIVIDUAL: number; BUSINESS: number; SUPPORT: number };
+  showMemberTypeFees?: boolean;
+  memberTypeFeeNote?: string;
   onBack: () => void;
   onComplete: () => void;
   title?: string;
@@ -39,6 +43,9 @@ function getStepLabels(type: ApplicationMemberType | ''): string[] {
   if (type === 'SUPPORT') return STEPS_SUPPORT;
   return STEPS_INDIVIDUAL;
 }
+
+const DEFAULT_MEMBER_TYPE_FEES = { INDIVIDUAL: 3000, BUSINESS: 8000, SUPPORT: 5000 };
+const formatFeeAmount = (amount: number): string => `${Math.max(0, Math.floor(Number(amount) || 0)).toLocaleString('ja-JP')}円`;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CARE_MANAGER_RE = /^\d{8}$/;
@@ -329,6 +336,9 @@ function validateConfirmation(_form: ApplicationFormData, errs: ValidationErrors
 
 // ─── メインコンポーネント ────────────────────────────────
 const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
+  memberTypeFees,
+  showMemberTypeFees = true,
+  memberTypeFeeNote = '',
   onBack,
   onComplete,
   title = '入会申込',
@@ -345,6 +355,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
   completionNoCredentialNotice = 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
   completionCredentialNotice = 'ログイン情報をご登録のメールアドレスに送信しました。',
 }) => {
+  const fees = { ...DEFAULT_MEMBER_TYPE_FEES, ...(memberTypeFees || {}) };
   const [form, setForm] = useState<ApplicationFormData>({ ...INITIAL_FORM_DATA });
   const [step, setStep] = useState(0);
   const [errors, setErrors] = useState<ValidationErrors>({});
@@ -735,7 +746,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
             </p>
           </div>
           {errors.memberType && <p className={errorClass + ' text-center'}>{errors.memberType}</p>}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {([
               { type: 'INDIVIDUAL' as const, label: '個人会員', desc: '介護支援専門員として個人で入会される方', icon: '👤' },
               { type: 'BUSINESS' as const, label: '事業所会員', desc: '事業所単位で入会される方（複数名登録可）', icon: '🏢' },
@@ -756,9 +767,22 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
                 <div className="text-3xl mb-3">{item.icon}</div>
                 <h4 className={`font-bold mb-1 ${noticeAccepted ? 'text-slate-800' : 'text-slate-500'}`}>{item.label}</h4>
                 <p className={`text-xs ${noticeAccepted ? 'text-slate-500' : 'text-slate-400'}`}>{item.desc}</p>
+                {showMemberTypeFees && (
+                  <p className={`mt-3 border-t pt-2 text-sm font-semibold ${noticeAccepted ? 'border-slate-200 text-primary-700' : 'border-slate-200 text-slate-400'}`}>
+                    <span className="mr-1 text-xs font-medium text-slate-500">年会費</span>
+                    {formatFeeAmount(fees[item.type])}
+                  </p>
+                )}
               </button>
             ))}
           </div>
+          {showMemberTypeFees && (
+            <p className="mt-4 text-center text-xs text-slate-500">
+              {memberTypeFeeNote
+                ? memberTypeFeeNote
+                : '年会費は入会後、事務局からのご案内にしたがってお納めください。'}
+            </p>
+          )}
         </div>
       );
     }

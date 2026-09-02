@@ -1,20 +1,29 @@
 {
   "note": "自動テストの生ファイル (.test-out / output/playwright) から拾えない検証記録をここに書く。scripts/build-test-report.mjs が読み、docs/portal/test-report.html を生成する。値・本文・アドレス・資格情報は書かない（AGENTS §0）。",
   "release": {
-    "version": "v376.63",
+    "version": "v376.64",
     "date": "2026-09-02",
     "deployments": {
+      "public": "@369 (x2)",
+      "member": "@128",
+      "admin": "@225"
+    },
+    "rollback": {
       "public": "@368 (x2)",
       "member": "@127",
       "admin": "@224"
-    },
-    "rollback": {
-      "public": "@367 (x2)",
-      "member": "@126",
-      "admin": "@223"
     }
   },
   "manualRuns": [
+    {
+      "id": "DR-FEE",
+      "group": "GAS dry-run（非送信）",
+      "name": "会費設定（会員種別ごとの年会費）の実DB往復",
+      "how": "dryRunMembershipFeeV376_64_LOG / Apps Script エディタ",
+      "when": "2026-09-02 18:52",
+      "status": "PASS",
+      "detail": "passed:true / restored:true / mailSent:false。7 チェック全 PASS（退避→保存→読み戻し→公開ポータル設定に同値→スキーマ初期化で戻らない→範囲外拒否→原状復帰 3000/8000/5000）"
+    },
     {
       "id": "DR-01",
       "group": "GAS dry-run（非送信）",
