@@ -1,12 +1,12 @@
 {
   "note": "自動テストの生ファイル (.test-out / output/playwright) から拾えない検証記録をここに書く。scripts/build-test-report.mjs が読み、docs/portal/test-report.html を生成する。値・本文・アドレス・資格情報は書かない（AGENTS §0）。",
   "release": {
-    "version": "v376.65.1",
+    "version": "v376.65.2",
     "date": "2026-09-02",
     "deployments": {
-      "public": "@371 (x2)",
-      "member": "@130",
-      "admin": "@227"
+      "public": "@372 (x2)",
+      "member": "@131",
+      "admin": "@228"
     },
     "rollback": {
       "public": "@369 (x2)",
@@ -15,6 +15,15 @@
     }
   },
   "manualRuns": [
+    {
+      "id": "REG-UI",
+      "group": "管理ポータル（live 実測）",
+      "name": "設定 → 規程・重要事項 の一覧描画",
+      "how": "Playwright（保存はしない読み取りのみ）",
+      "when": "2026-09-02 22:30",
+      "status": "PASS",
+      "detail": "seed 5 件（会費の返還／個人情報の利用目的／変更・退会の手続き／退会の締切／協議会の定款）が区分・公開状態・版数・表示順つきで描画。console error 0"
+    },
     {
       "id": "DR-REG",
       "group": "GAS dry-run（非送信）",

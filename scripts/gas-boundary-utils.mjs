@@ -181,6 +181,10 @@ export const ADMIN_ALLOWED_ACTIONS_LIST = [
   'listMailTemplates',
   'saveMailTemplate',
   'deleteMailTemplate',
+  // v376.65（案C Phase 1）: 規程・重要事項マスタ CRUD
+  'listRegulations',
+  'saveRegulation',
+  'deleteRegulation',
   'getBulkMailTemplates',
   'saveBulkMailTemplate',
   'deleteBulkMailTemplate',

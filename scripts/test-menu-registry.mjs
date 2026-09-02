@@ -218,3 +218,18 @@ test('LEGACY_ROLE_TO_MENUS の menu id が MENU_REGISTRY に存在する', async
     }
   }
 });
+
+// ── v376.65 追加ゲート ───────────────────────────────────────
+// admin action を実装し ACTION_TO_MENU に登録しても、ADMIN_ALLOWED_ACTIONS_LIST への
+// 登録を忘れると、build で dispatch が落ちて実行時に「未実装アクションです」が返る
+// （v376.65 の listRegulations で実際に発生。画面は「読込中...」のまま固まる）。
+// boundary 監査も menu-registry の等価性テストもこの穴を見ていなかったため、ここで固定する。
+test('ACTION_TO_MENU の admin action は ADMIN_ALLOWED_ACTIONS_LIST に登録されている', async () => {
+  const boundary = await import('./gas-boundary-utils.mjs');
+  const allowed = new Set(boundary.ADMIN_ALLOWED_ACTIONS_LIST);
+  // seedDemoData は破壊的操作のため意図的に web app の許可リストへ載せない（AGENTS §4.3）
+  const INTENTIONALLY_NOT_EXPOSED = new Set(['seedDemoData']);
+  const missing = Object.keys(ACTION_TO_MENU)
+    .filter((a) => !allowed.has(a) && !INTENTIONALLY_NOT_EXPOSED.has(a));
+  assert.deepEqual(missing, [], `admin split の許可リストに無い action: ${missing.join(', ')}`);
+});

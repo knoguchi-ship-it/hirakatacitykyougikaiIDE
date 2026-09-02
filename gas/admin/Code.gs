@@ -1955,6 +1955,15 @@ function processApiRequest(action, payload) {
 
     // v376.42: 全メール種別 テンプレート管理（汎用・カテゴリ別）
     // v376.65（案C Phase 1）: 規程・重要事項マスタ CRUD
+    if (action === 'listRegulations') {
+      return JSON.stringify({ success: true, data: listRegulations_(null, false) });
+    }
+    if (action === 'saveRegulation') {
+      return JSON.stringify({ success: true, data: saveRegulation_(parsedPayload, parsedPayload.__adminSession ? parsedPayload.__adminSession.loginId : '') });
+    }
+    if (action === 'deleteRegulation') {
+      return JSON.stringify({ success: true, data: deleteRegulation_(parsedPayload, parsedPayload.__adminSession ? parsedPayload.__adminSession.loginId : '') });
+    }
     if (action === 'listMailTemplates') {
       return JSON.stringify({ success: true, data: listMailTemplates_(parsedPayload) });
     }
@@ -7267,6 +7276,25 @@ function saveRegulation_(payload, operatorEmail) {
 }
 
 // soft delete（削除フラグ）。会員に紐づかないため cascade アーカイブの対象外。
+function deleteRegulation_(payload, operatorEmail) {
+  var id = String((payload && payload.id) || '').trim();
+  if (!id) throw new Error('規程IDが空です。');
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName('T_規程');
+  if (!sheet) throw new Error('T_規程 が初期化されていません。');
+  var cols = buildColumnIndex_(sheet);
+  requireColumns_(cols, ['規程ID', '削除フラグ', '更新日時']);
+  var values = sheet.getRange(2, 1, Math.max(0, sheet.getLastRow() - 1), sheet.getLastColumn()).getValues();
+  for (var r = 0; r < values.length; r += 1) {
+    if (String(values[r][cols['規程ID']] || '') !== id) continue;
+    values[r][cols['削除フラグ']] = true;
+    values[r][cols['更新者メール']] = String(operatorEmail || '');
+    values[r][cols['更新日時']] = new Date().toISOString();
+    sheet.getRange(2, 1, values.length, sheet.getLastColumn()).setValues(values);
+    return { id: id, deleted: true };
+  }
+  throw new Error('対象の規程が見つかりません: ' + id);
+}
 
 // v376.65（案C Phase 1）: 規程・重要事項マスタの実DB往復 dryRun。
 // 検証用の行を作成 → 読み戻し → 更新（版数 +1）→ 公開ポータル設定に出るか確認 → 物理削除で原状復帰。

@@ -63,7 +63,14 @@ async function clickConsole(frame, label) {
 async function runViewport(browser, vp, consoleErrors) {
   const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, storageState: STATE });
   const page = await context.newPage();
-  page.on('console', (msg) => { if (msg.type() === 'error') consoleErrors.push({ vp: vp.name, text: msg.text() }); });
+  // v376.65: Google 側が出す report-only CSP 通知（GAS の二重 iframe 構造に由来）は
+  // アプリの不具合ではないため除外する。数えると admin だけ恒常的に偽 FAIL になる。
+  page.on('console', (msg) => {
+    if (msg.type() !== 'error') return;
+    const text = msg.text();
+    if (/report-only Content Security Policy/i.test(text) && /frame-ancestors/i.test(text)) return;
+    consoleErrors.push({ vp: vp.name, text });
+  });
   const result = { vp: vp.name, width: vp.width, height: vp.height, views: {} };
   try {
     await page.goto(ADMIN_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });

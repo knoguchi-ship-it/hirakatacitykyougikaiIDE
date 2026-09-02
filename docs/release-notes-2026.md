@@ -13,7 +13,7 @@
 
 ---
 
-## v376.65 / v376.65.1 — 2026-09-02 🆕 規程・重要事項マスタ（案C Phase 1）（全3split @371×2 / @130 / @227）
+## v376.65 / .65.1 / .65.2 — 2026-09-02 🆕 規程・重要事項マスタ（案C Phase 1）（全3split @372×2 / @131 / @228）
 
 入会申込画面の規定・重要事項を DB 管理にし、事務局が改定できるようにした。同意記録は Phase 2 で未着手。
 
@@ -25,8 +25,11 @@
 - **版数**: タイトル・本文・リンクが変わった保存でだけ +1（Phase 2 の同意記録が指す版）。
 - **🐛 v376.65.1**: 新テーブル追加時の `DB_SCHEMA_VERSION` bump 漏れで `T_規程` が作られていなかった（公開側はフォールバック表示のため
   画面上は正常に見えていた。dryRun で検知）。bump して解消。
+- **🐛 v376.65.2**: `ADMIN_ALLOWED_ACTIONS_LIST` への登録漏れで、`listRegulations` が実行時に `未実装アクションです` を返し
+  管理画面が「読込中...」のまま固まっていた（`ACTION_TO_MENU` / `ADMIN_ACTION_PERMISSIONS` には登録済みだった）。
+  許可リストへ追加して解消し、**`test:menu-registry` に「ACTION_TO_MENU の admin action は許可リストにある」ゲートを新設**して再発を防いだ。
 - **検証**: prerelease 全ゲート PASS（新ゲート `test:regulations` 9 件）。live E2E は 公開 a11y 0／公開 responsive 21 view／
-  重要事項ダイアログの表示を実測／メール設定 E2E 5/5／`dryRunRegulationsV376_65_LOG` 10 チェック全 PASS。管理 responsive のみ未実行（セッション失効）。
+  重要事項ダイアログの表示を実測／**admin responsive 56 view**／メール設定 E2E 5/5／`dryRunRegulationsV376_65_LOG` 10 チェック全 PASS／管理画面に規程 5 件が並ぶことを実測。
 - 詳細は `docs/258_RELEASE_STATE_v376.65_2026-09-02.md`。
 
 ---
