@@ -29,6 +29,7 @@ GCP 移行期も、現行 GAS 本番環境は維持する。
 - DB: Google Spreadsheet
 - 境界: public / member / admin の 3 split
 - 正本: `HANDOVER.md`, `docs/09_DEPLOYMENT_POLICY.md`
+- 現行本番（2026-09-02）: v376.60 / public @365 x2 / member @124 / admin @221。
 
 現行本番は移行期間中も利用者向けの主系とする。
 
