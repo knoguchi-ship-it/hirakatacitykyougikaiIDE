@@ -13,6 +13,20 @@
 
 ---
 
+## v376.61 — 2026-09-02 🐛 研修「開催終了時刻」の実害バグ是正（全3split @366×2 / @125 / @222）
+
+管理画面で研修の開催終了時刻が空表示になり、そのまま保存すると値が消える不具合を是正した。GCP 作業場からの申し送り「課題A」（2026-08-31 operator 決定）への対応。
+
+- **endTime の正規化**: `mapTrainingRowsForApi_` がシートのセル値を `String()` で素通ししていたため、セルが Date のとき JS Date の文字列表現が API 応答に出ていた。既存の `formatTimeOnly_()`（`Asia/Tokyo` の `HH:mm`）経由に変更。`<input type="time">` は `HH:mm` しか受け付けないため、これが空表示→保存で終了時刻消失の直接原因だった。公開ポータル側の mapper は元から正しく、admin 系のみ未対応だった。
+- **回帰ゲート新設**: `test:training-time` を `prerelease` 連鎖へ追加。`formatTimeOnly_` を **gas-src の実ソースから抽出して評価**し、さらに「シート列から作る endTime は必ず `formatTimeOnly_` を通す」というソース契約を固定。修正前コードで FAIL することを実測して有効性を確認済み。
+- **operator 用 dryRun**: `dryRunTrainingEndTimeV376_61_LOG`（非送信）。検証行を作成→管理画面と同じ経路で読み戻し→再保存→物理削除。あわせて壊れたセルを持つ研修 ID を列挙する。
+- **テストハーネス是正**: 公開レスポンシブ計測が固定待ち時間のため VP ごとに偽 FAIL していた（同一ビルドで FAIL 集合が変動）。主要 CTA の出現を条件待ちしてから計測するよう変更。
+- **検証**: prerelease 全ゲート PASS、3 split 生成物 grep PASS、fixed deployment 4 本同期確認、デプロイ後 live で公開 a11y 違反 0・公開 responsive 7VP・member responsive 7VP 全 PASS。管理画面 E2E と Execution API dry-run は認証・権限待ち。
+- **残**: `T_研修` の壊れた 3 セルの復元（課題B・operator 手作業）／GCP 側の再突合（課題C）。
+- 詳細: docs/253_RELEASE_STATE_v376.61_2026-09-02.md
+
+---
+
 ## v376.60 — 2026-09-02 🐛 メール設定・自動送信の是正（全3split @365×2 / @124 / @221）
 
 公開ポータルの入会・変更申請に関する自動メールを、設定画面どおりに制御できるよう是正した。

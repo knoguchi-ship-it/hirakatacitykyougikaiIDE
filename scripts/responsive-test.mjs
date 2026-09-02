@@ -57,6 +57,22 @@ async function getAppFrame(page, debugTag) {
   throw new Error('App frame did not appear within 45s');
 }
 
+// The app frame can be detected while the portal is still fetching its settings
+// (GAS round-trip is 1.8-5s per HANDOVER 12.6). Collecting metrics at that point
+// measures a half-rendered home view and produces false FAILs. Wait for the
+// primary CTA to exist before measuring.
+async function waitForHomeReady(frame) {
+  for (let i = 0; i < 60; i++) {
+    try {
+      const ready = await frame.evaluate(() => Array.from(document.querySelectorAll('button'))
+        .some((b) => (b.innerText || '').includes('新規入会を申し込む')));
+      if (ready) return true;
+    } catch { /* frame navigating */ }
+    await frame.page().waitForTimeout(500);
+  }
+  return false;
+}
+
 async function collectMetrics(frame, page, viewportWidth) {
   return await frame.evaluate((vw) => {
     const doc = document.documentElement;
@@ -142,6 +158,8 @@ async function runViewport(browser, vp, consoleErrors) {
   try {
     await page.goto(PORTAL_URL, { waitUntil: 'domcontentloaded', timeout: 45000 });
     const frame = await getAppFrame(page, vp.name);
+    const homeReady = await waitForHomeReady(frame);
+    if (!homeReady) result.homeReadyTimeout = true;
     await page.waitForTimeout(800);
 
     // VIEW: home

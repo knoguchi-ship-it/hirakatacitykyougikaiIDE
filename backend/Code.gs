@@ -2058,6 +2058,10 @@ function isSystemSettingEnabled_(ss, key, defaultValue) {
 // v376.60: メール設定の実DB監査。テンプレート本文・名前・メールアドレスを出力せず、
 // 設定・カテゴリ・送信元の解決状態だけを確認する非送信・非書込 dryRun。
 
+// v376.61: 研修の開催終了時刻(endTime)の実DB往復 dryRun。
+// 実害バグ（endTime が JS Date 文字列のまま API に出て <input type="time"> が空表示になり、
+// 保存で終了時刻が消える）の回帰を実DBで検証する。行を作って読んで消す。メールは送らない。
+
 // v368: 申込受付メール送信ヘルパー（公開ポータル申請受付時に使用）
 function sendApplicationReceiptMail_(ss, params) {
   // params: { contactEmail, applicantName, requestId, requestType, memberTypeLabel, receivedAt }

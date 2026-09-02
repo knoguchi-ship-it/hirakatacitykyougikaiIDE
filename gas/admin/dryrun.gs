@@ -126,6 +126,104 @@ function dryRunMailSettingsV376_60_LOG() {
   return report;
 }
 
+function dryRunTrainingEndTimeV376_61_LOG() {
+  var ss = getOrCreateDatabase_();
+  var stamp = String(Date.now()).slice(-6);
+  var checks = [];
+  var trainingId = '';
+  var cleanedUp = false;
+
+  function record(name, passed, detail) {
+    checks.push({ name: name, passed: !!passed, detail: detail || '' });
+  }
+  function findById(id) {
+    clearTrainingManagementCache_();
+    var list = getTrainingManagementData_() || [];
+    for (var i = 0; i < list.length; i++) {
+      if (String(list[i].id) === String(id)) return list[i];
+    }
+    return null;
+  }
+  function basePayload(extra) {
+    var payload = {
+      title: DRYRUN_PREFIX + 'endTime検証_' + stamp,
+      date: Utilities.formatDate(new Date(Date.now() + 14 * 86400000), 'Asia/Tokyo', "yyyy-MM-dd'T'HH:mm"),
+      endTime: '16:30',
+      organizer: '枚方市介護支援専門員連絡協議会',
+      summary: 'ドライラン用（自動削除対象）',
+      location: 'テスト会場',
+      capacity: 10,
+      applicationOpenDate: Utilities.formatDate(new Date(Date.now() - 86400000), 'Asia/Tokyo', 'yyyy-MM-dd'),
+      applicationCloseDate: Utilities.formatDate(new Date(Date.now() + 30 * 86400000), 'Asia/Tokyo', 'yyyy-MM-dd'),
+      inquiryPerson: '事務局テスト',
+      inquiryEmail: 'dryrun' + DRYRUN_EMAIL_DOMAIN,
+      fees: [{ label: '会員', amount: 0 }]
+    };
+    if (extra) {
+      for (var key in extra) {
+        if (Object.prototype.hasOwnProperty.call(extra, key)) payload[key] = extra[key];
+      }
+    }
+    return payload;
+  }
+
+  try {
+    // 1. CREATE — endTime=16:30 で作成
+    var saved = saveTraining_(basePayload());
+    trainingId = saved && saved.id ? String(saved.id) : '';
+    record('create_returns_id', !!trainingId, 'trainingId=' + trainingId);
+
+    if (trainingId) {
+      // 2. READ — 管理画面と同じ経路(mapTrainingRowsForApi_)で HH:mm が返ること
+      var afterCreate = findById(trainingId);
+      var readEndTime = afterCreate ? String(afterCreate.endTime || '') : '';
+      record('read_endTime_is_hhmm', readEndTime === '16:30', 'endTime=' + readEndTime);
+
+      // 3. RESAVE — 読み戻した値をそのまま保存（管理画面のモーダル保存と同じ形）しても消えないこと
+      saveTraining_(basePayload({ id: trainingId, endTime: readEndTime }));
+      var afterResave = findById(trainingId);
+      var resavedEndTime = afterResave ? String(afterResave.endTime || '') : '';
+      record('resave_keeps_endTime', resavedEndTime === '16:30', 'endTime=' + resavedEndTime);
+    }
+  } catch (e) {
+    record('exception', false, String(e && e.message ? e.message : e));
+  } finally {
+    // 4. CLEANUP — 作成した検証行を物理削除
+    if (trainingId) {
+      try {
+        cleanedUp = dryRun_physicalDeleteRowsByKey_(ss, 'T_研修', '研修ID', [trainingId]) > 0;
+      } catch (e2) {
+        record('cleanup', false, String(e2 && e2.message ? e2.message : e2));
+      }
+      clearTrainingManagementCache_();
+    }
+  }
+  record('cleanup_done', !trainingId || cleanedUp, 'trainingId=' + trainingId);
+
+  // 5. 既存行の監査 — セルに壊れた文字列が入っている研修 ID を列挙（課題B の対象特定用・書込なし）
+  var corruptedIds = [];
+  var emptyCount = 0;
+  getRowsAsObjects_(ss, 'T_研修').forEach(function(row) {
+    var raw = row['開催終了時刻'];
+    if (raw === '' || raw === null || raw === undefined) { emptyCount += 1; return; }
+    if (!formatTimeOnly_(raw)) corruptedIds.push(String(row['研修ID'] || ''));
+  });
+
+  var report = {
+    version: 'v376.61',
+    dryRun: true,
+    mailSent: false,
+    testRowCleanedUp: cleanedUp,
+    passed: checks.every(function(check) { return check.passed; }),
+    checks: checks,
+    corruptedEndTimeIds: corruptedIds,
+    corruptedEndTimeCount: corruptedIds.length,
+    emptyEndTimeCount: emptyCount
+  };
+  Logger.log('[dryRunTrainingEndTimeV376_61_LOG] ' + JSON.stringify(report));
+  return report;
+}
+
 function processPendingThumbnails() {
   try {
     var ss = getOrCreateDatabase_();

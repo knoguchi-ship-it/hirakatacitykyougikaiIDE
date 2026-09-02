@@ -1651,6 +1651,19 @@ function formatDateForApi_(rawDate) {
 }
 
 /** 時刻セル（HH:mm）を文字列で返す。Date型もシート上の時刻セルも正しく処理する */
+function formatTimeOnly_(val) {
+  if (!val) return '';
+  if (Object.prototype.toString.call(val) === '[object Date]') {
+    return Utilities.formatDate(val, 'Asia/Tokyo', 'HH:mm');
+  }
+  var s = String(val).trim();
+  if (/^\d{2}:\d{2}$/.test(s)) return s;
+  if (/^\d{1,2}:\d{2}$/.test(s)) {
+    var parts = s.split(':');
+    return ('0' + parts[0]).slice(-2) + ':' + parts[1];
+  }
+  return '';
+}
 
 /** DBスプレッドシートのタイムゾーンをAsia/Tokyoに設定する（一度だけ実行）*/
 
@@ -2131,7 +2144,7 @@ function mapTrainingRowsForApi_(trainingRows) {
       // v376.7: admin 一覧で削除済フィルタを表示するため isDeleted を公開（公開ポータルは別パス）
       isDeleted: toBoolean_(t['削除フラグ']),
       date: formatDateForApi_(t['開催日']),
-      endTime: String(t['開催終了時刻'] || ''),
+      endTime: formatTimeOnly_(t['開催終了時刻']),
       capacity: Number(t['定員'] || 0),
       applicants: Number(t['申込者数'] || 0),
       location: String(t['開催場所'] || ''),
@@ -3212,6 +3225,10 @@ var REQUEST_TYPE_LABEL_ = {
 
 // v376.60: メール設定の実DB監査。テンプレート本文・名前・メールアドレスを出力せず、
 // 設定・カテゴリ・送信元の解決状態だけを確認する非送信・非書込 dryRun。
+
+// v376.61: 研修の開催終了時刻(endTime)の実DB往復 dryRun。
+// 実害バグ（endTime が JS Date 文字列のまま API に出て <input type="time"> が空表示になり、
+// 保存で終了時刻が消える）の回帰を実DBで検証する。行を作って読んで消す。メールは送らない。
 
 // v368: 申込受付メール送信ヘルパー（公開ポータル申請受付時に使用）
 

@@ -19,15 +19,15 @@ Production: `v376.60` / integrated-public `@365` x2 / member split `@124` / admi
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@365` (`v376.60`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@365` (`v376.60`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@366` (`v376.61`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@366` (`v376.61`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@124` (`v376.60`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@221` (`v376.60`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@125` (`v376.61`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@222` (`v376.61`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -144,7 +144,28 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-09-02 v376.60 ← current production
+### 2026-09-02 v376.61 ← current production
+- Scope: training end-time (endTime) normalization. mapTrainingRowsForApi_ now
+  returns HH:mm through the existing formatTimeOnly_ helper instead of passing a
+  raw cell value through String(). A Date cell previously reached the admin
+  console as a JS Date string, which the <input type="time"> control cannot
+  accept, so the field rendered empty and saving cleared the stored end time.
+  Adds a source-driven unit test and a non-sending operator dry-run
+  (dryRunTrainingEndTimeV376_61_LOG). No schema change, no auth change.
+- Fixed deployments: integrated/public @366 x2 / member @125 / admin @222.
+- Verification: full pre-release gate passed, including the new
+  test:training-time; the gate was mutation-checked (it fails against the
+  pre-fix source). Generated artifacts verified in all 3 splits (top-level
+  definitions retained, endTime normalized, no endTime: String( remaining, new
+  dry-run separated into gas/admin/dryrun.gs). Deployment versions verified for
+  all four fixed deployments. Post-deployment live checks: public a11y zero
+  violations, public responsive 7/7 viewports, member portal responsive 7/7
+  viewports with zero console errors. Admin browser E2E and Execution API
+  dry-runs remain pending authenticated browser state and Execution API
+  permission. See docs/253_RELEASE_STATE_v376.61_2026-09-02.md.
+- Rollback: integrated/public @365 x2 / member @124 / admin @221.
+
+### 2026-09-02 v376.60
 - Scope: mail-delivery setting consolidation and application receipt correction.
   Persisted Boolean false now remains OFF; business application email resolves
   the REPRESENTATIVE staff role; automatic notifications use the configured
