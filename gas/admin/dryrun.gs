@@ -426,6 +426,94 @@ function dryRunRegulationsV376_65_LOG() {
   return report;
 }
 
+function dryRunMailMergeTagsV376_66_LOG() {
+  var ss = getOrCreateDatabase_();
+  var checks = [];
+  function record(name, passed, detail) {
+    checks.push({ name: name, passed: !!passed, detail: detail || '' });
+  }
+
+  // 1) 会員種別マスタから種別ラベルと年会費を引く（メール送信と同じ経路）
+  var master = {};
+  var rows = getRowsAsObjects_(ss, 'M_会員種別');
+  for (var i = 0; i < rows.length; i += 1) {
+    var code = String(rows[i]['コード'] || '');
+    if (!code) continue;
+    master[code] = {
+      label: String(rows[i]['名称'] || code),
+      fee: parseInt(String(rows[i]['年会費金額'] || '0'), 10) || 0
+    };
+  }
+  record('会員種別マスタから種別と年会費を取得できる',
+    !!(master.INDIVIDUAL && master.BUSINESS && master.SUPPRESS !== undefined || master.SUPPORT),
+    JSON.stringify(master));
+
+  var probeTemplate = '{{氏名}} 様の会員種別は{{会員種別}}となります。\nその為、年会費は{{年会費}}となります。\nログインID: {{ログインID}}';
+
+  // 2) 事業所（代表者/メンバー）の経路: renderBizEmailTemplate_ + bizVars 相当
+  var bizFee = master.BUSINESS ? master.BUSINESS.fee : 0;
+  var bizVars = {
+    氏名: 'ドライラン 太郎',
+    ログインID: 'DRYRUN-LOGIN',
+    パスワード: '(非表示)',
+    会員マイページURL: MEMBER_PORTAL_URL,
+    事業所名: 'ドライラン事業所',
+    会員種別: master.BUSINESS ? master.BUSINESS.label : '',
+    年会費: formatAnnualFeeForMail_(bizFee)
+  };
+  var bizRendered = renderBizEmailTemplate_(probeTemplate, bizVars);
+  record('★事業所メールで {{会員種別}} が解決する',
+    bizRendered.indexOf('{{会員種別}}') < 0 && bizRendered.indexOf(bizVars.会員種別) >= 0, bizVars.会員種別);
+  record('★事業所メールで {{年会費}} が解決する',
+    bizRendered.indexOf('{{年会費}}') < 0 && bizVars.年会費 !== '' && bizRendered.indexOf(bizVars.年会費) >= 0, bizVars.年会費);
+  record('事業所メールに未解決タグが残らない', bizRendered.indexOf('{{') < 0, '');
+
+  // 3) 個人の経路: sendCredentialEmail_ と同じ置換規則
+  var indFee = master.INDIVIDUAL ? master.INDIVIDUAL.fee : 0;
+  var indLabel = master.INDIVIDUAL ? master.INDIVIDUAL.label : '';
+  var indRendered = probeTemplate
+    .replace(/\{\{氏名\}\}/g, 'ドライラン 花子')
+    .replace(/\{\{ログインID\}\}/g, 'DRYRUN-LOGIN')
+    .replace(/\{\{会員マイページURL\}\}/g, MEMBER_PORTAL_URL)
+    .replace(/\{\{会員種別\}\}/g, indLabel)
+    .replace(/\{\{年会費\}\}/g, formatAnnualFeeForMail_(indFee));
+  record('個人メールも従来どおり解決する（非退行）',
+    indRendered.indexOf('{{') < 0 && indRendered.indexOf(indLabel) >= 0, indLabel + ' / ' + formatAnnualFeeForMail_(indFee));
+
+  // 4) 最後の砦: 未知タグは送信直前に除去される
+  var stripped = stripUnresolvedMergeTags_('未知の{{存在しないタグ}}と{{会員種別}}', 'DRYRUN', 'body');
+  record('★未解決タグは送信直前に除去される', stripped.indexOf('{{') < 0, stripped);
+
+  // 5) 実際に設定されている事業所テンプレートを描画して未解決タグを検出
+  var bizSettings = getBizEmailSettings_(ss);
+  var liveTargets = [
+    { name: '事業所 代表者向け 本文', text: bizSettings.bizRepEmailBody },
+    { name: '事業所 代表者向け 件名', text: bizSettings.bizRepEmailSubject },
+    { name: '事業所 メンバー向け 本文', text: bizSettings.bizStaffEmailBody },
+    { name: '事業所 メンバー向け 件名', text: bizSettings.bizStaffEmailSubject }
+  ];
+  var leftovers = [];
+  for (var t = 0; t < liveTargets.length; t += 1) {
+    var rendered = renderBizEmailTemplate_(String(liveTargets[t].text || ''), bizVars);
+    var m = rendered.match(/\{\{[^{}]{1,60}\}\}/g);
+    if (m && m.length) leftovers.push(liveTargets[t].name + ': ' + m.join(','));
+  }
+  record('★現在保存されている事業所テンプレートに未解決タグが無い', leftovers.length === 0, leftovers.join(' / '));
+
+  var report = {
+    version: 'v376.66',
+    dryRun: true,
+    mailSent: false,
+    dbWritten: false,
+    passed: checks.every(function(c) { return c.passed; }),
+    checks: checks,
+    memberTypeMaster: master,
+    unresolvedInLiveTemplates: leftovers
+  };
+  Logger.log('[dryRunMailMergeTagsV376_66_LOG] ' + JSON.stringify(report));
+  return report;
+}
+
 function processPendingThumbnails() {
   try {
     var ss = getOrCreateDatabase_();

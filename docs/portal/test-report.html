@@ -47,22 +47,22 @@
 <div class="wrap">
 <header>
   <h1>テスト結果レポート</h1>
-  <p class="sub">枚方市介護支援専門員連絡協議会 会員システム / 生成 2026-09-02 14:58:27 UTC</p>
+  <p class="sub">枚方市介護支援専門員連絡協議会 会員システム / 生成 2026-09-03 02:39:47 UTC</p>
 </header>
 
 <section>
   <h2>現在の本番</h2>
   <dl class="rel">
-    <dt>リリース</dt><dd>v376.65.2（2026-09-02）</dd>
-    <dt>公開ポータル</dt><dd>@372 (x2)</dd>
-    <dt>会員ポータル</dt><dd>@131</dd>
-    <dt>管理ポータル</dt><dd>@228</dd>
-    <dt>ロールバック先</dt><dd>public @369 (x2) / member @128 / admin @225</dd>
+    <dt>リリース</dt><dd>v376.66（2026-09-03）</dd>
+    <dt>公開ポータル</dt><dd>@373 (x2)</dd>
+    <dt>会員ポータル</dt><dd>@132</dd>
+    <dt>管理ポータル</dt><dd>@229</dd>
+    <dt>ロールバック先</dt><dd>public @372 (x2) / member @131 / admin @228</dd>
   </dl>
 </section>
 
 <div class="cards">
-  <div class="card ok"><div class="n">18</div><div class="l">PASS</div></div>
+  <div class="card ok"><div class="n">19</div><div class="l">PASS</div></div>
   <div class="card ng"><div class="n">0</div><div class="l">FAIL</div></div>
   <div class="card warn"><div class="n">1</div><div class="l">要フォロー</div></div>
   <div class="card"><div class="n">0</div><div class="l">未実行</div></div>
@@ -121,48 +121,32 @@
       <tr>
         <td><div class="name">メール通知設定 E2E-01: Open system settings</div><div class="how">npm run test:mail-settings:e2e</div></td>
         <td><span class="badge ok">PASS</span></td>
-        <td class="when">2026-09-02 13:25:37 UTC</td>
+        <td class="when">2026-09-03 02:39:03 UTC</td>
         <td>非破壊（保存も送信もしない）</td>
       </tr>
       <tr>
         <td><div class="name">メール通知設定 E2E-02: Open mail settings</div><div class="how">npm run test:mail-settings:e2e</div></td>
         <td><span class="badge ok">PASS</span></td>
-        <td class="when">2026-09-02 13:25:37 UTC</td>
+        <td class="when">2026-09-03 02:39:03 UTC</td>
         <td>非破壊（保存も送信もしない）</td>
       </tr>
       <tr>
         <td><div class="name">メール通知設定 E2E-03: Receipt card remains editable while OFF</div><div class="how">npm run test:mail-settings:e2e</div></td>
         <td><span class="badge ok">PASS</span></td>
-        <td class="when">2026-09-02 13:25:37 UTC</td>
+        <td class="when">2026-09-03 02:39:03 UTC</td>
         <td>非破壊（保存も送信もしない）</td>
       </tr>
       <tr>
         <td><div class="name">メール通知設定 E2E-04: Template manager remains accessible while OFF</div><div class="how">npm run test:mail-settings:e2e</div></td>
         <td><span class="badge ok">PASS</span></td>
-        <td class="when">2026-09-02 13:25:37 UTC</td>
+        <td class="when">2026-09-03 02:39:03 UTC</td>
         <td>非破壊（保存も送信もしない）</td>
       </tr>
       <tr>
         <td><div class="name">メール通知設定 E2E-05: Shared automatic sender label is visible</div><div class="how">npm run test:mail-settings:e2e</div></td>
         <td><span class="badge ok">PASS</span></td>
-        <td class="when">2026-09-02 13:25:37 UTC</td>
+        <td class="when">2026-09-03 02:39:03 UTC</td>
         <td>非破壊（保存も送信もしない）</td>
-      </tr>
-    </tbody>
-  </table>
-  </div>
-</section>
-<section>
-  <h2>管理ポータル（live 実測）</h2>
-  <div class="scroll">
-  <table>
-    <thead><tr><th style="width:38%">確認内容</th><th style="width:10%">判定</th><th style="width:14%">実施</th><th>内容・根拠</th></tr></thead>
-    <tbody>
-      <tr>
-        <td><div class="name">設定 → 規程・重要事項 の一覧描画</div><div class="how">Playwright（保存はしない読み取りのみ）</div></td>
-        <td><span class="badge ok">PASS</span></td>
-        <td class="when">2026-09-02 22:30</td>
-        <td>seed 5 件（会費の返還／個人情報の利用目的／変更・退会の手続き／退会の締切／協議会の定款）が区分・公開状態・版数・表示順つきで描画。console error 0</td>
       </tr>
     </tbody>
   </table>
@@ -174,6 +158,12 @@
   <table>
     <thead><tr><th style="width:38%">確認内容</th><th style="width:10%">判定</th><th style="width:14%">実施</th><th>内容・根拠</th></tr></thead>
     <tbody>
+      <tr>
+        <td><div class="name">入会承認メールの差し込みタグ解決（事業所/個人）</div><div class="how">dryRunMailMergeTagsV376_66_LOG / Apps Script エディタ</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-03 11:38</td>
+        <td>passed:true / mailSent:false / dbWritten:false。7 チェック全 PASS（事業所で 会員種別=事業所会員・年会費=8,000円 が解決／個人=個人会員・3,000円 で非退行／未解決タグは送信直前に除去／現在保存中の事業所テンプレートに未解決タグ 0）</td>
+      </tr>
       <tr>
         <td><div class="name">規程・重要事項マスタの実DB往復</div><div class="how">dryRunRegulationsV376_65_LOG / Apps Script エディタ</div></td>
         <td><span class="badge ok">PASS</span></td>
@@ -209,6 +199,22 @@
         <td><span class="badge ok">PASS</span></td>
         <td class="when">2026-09-02 12:49</td>
         <td>passed:true / mailSent:false / dbWritten:false。Boolean・文字列 false の停止、代表者宛先の固定を確認</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+<section>
+  <h2>管理ポータル（live 実測）</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th style="width:38%">確認内容</th><th style="width:10%">判定</th><th style="width:14%">実施</th><th>内容・根拠</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><div class="name">設定 → 規程・重要事項 の一覧描画</div><div class="how">Playwright（保存はしない読み取りのみ）</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-02 22:30</td>
+        <td>seed 5 件（会費の返還／個人情報の利用目的／変更・退会の手続き／退会の締切／協議会の定款）が区分・公開状態・版数・表示順つきで描画。console error 0</td>
       </tr>
     </tbody>
   </table>

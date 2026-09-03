@@ -1,5 +1,19 @@
 # 開発引継ぎ（Current State）
 
+## 2026-09-03 v376.66 リリース（本番障害の是正）
+
+- **事業所会員の入会承認メールで `{{会員種別}}` `{{年会費}}` がタグのまま届いていた**（operator 報告）。個人会員は正常だった。
+- **根本原因**: 承認メールの送信経路が会員種別で 2 本に分かれており、事業所側（`renderBizEmailTemplate_`）に
+  両変数を渡していなかった。同関数は渡された key だけを置換するため、未知のタグは原文のまま残る。
+  値そのものは直前で `M_会員種別` から取得済みで、個人向け `credEmailOpts` にだけ載せていた取りこぼし。
+- **修正**: ①事業所メールへ `会員種別` / `年会費` を追加 ②年会費の整形を `formatAnnualFeeForMail_` に共通化
+  ③**全メール共通の出口 `deliverMail_` で未解決タグを送信直前に除去**（ログに category とタグ名を残す）
+  ④管理画面のタグ案内を送信側と一致させた。
+- 新ゲート `test:mail-merge-tags`（9 件）と非送信 dryRun `dryRunMailMergeTagsV376_66_LOG` を追加。
+- 本番 fixed deployment は **public @373×2 / member @132 / admin @229** に同期済み。
+- live 検証: **`dryRunMailMergeTagsV376_66_LOG` 7 チェック全 PASS**（事業所=事業所会員/8,000円・個人=個人会員/3,000円・現在保存中の事業所テンプレートに未解決タグ 0）、メール設定 E2E 5/5 PASS。
+- 詳細は docs/259_RELEASE_STATE_v376.66_2026-09-03.md。
+
 ## 2026-09-02 v376.65 / v376.65.1 リリース
 
 - **規程・重要事項マスタ `T_規程` を新設**（案C Phase 1）。入会申込画面の「事務局からのお願い」と定款リンクは
@@ -43,7 +57,7 @@
 - 公開ポータルの研修カード補助ラベル既定値のみ `TRAINING`→`研修申込`（**本番 DB に保存済みの値は変わらないため、必要なら 設定→公開ポータル で上書き保存**）。
 - 本番 fixed deployment は **public @368×2 / member @127 / admin @224** に同期済み。
 - live E2E: 公開 a11y 違反 0・公開 responsive 7VP・member responsive 7VP×3画面・admin responsive 7VP×8 コンソール=56 view・メール設定 E2E 5/5 いずれも PASS（console error 0）。
-- 詳細は docs/256_RELEASE_STATE_v376.63_2026-09-02.md。
+- 詳細は docs/archive/release_history/256_RELEASE_STATE_v376.63_2026-09-02.md。
 
 ## 2026-09-02 v376.62 リリース
 
@@ -81,7 +95,7 @@
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
 最終更新: **2026-09-03**
-最新リリース: **v376.65.2**（規程・重要事項マスタ＝案C Phase 1・public @372×2 / member @131 / admin @228）
+最新リリース: **v376.66**（事業所メールの差し込みタグ未置換を是正・public @373×2 / member @132 / admin @229）
 最終作業（2026-09-02）: **本番 GAS 側で v376.60 の検証負債を解消し、v376.61 / v376.62 の 2 リリースを実施**（研修 endTime の実害バグ、テンプレート一覧が v376.42 以降ずっと壊れていた本番障害）。本番データの壊れたセル 3 件も operator 承認のうえ復元。あわせて docs を全面整理（直下 80→44 文書）し、テスト記録を `docs/portal/test-report.html` に一本化した。**GCP 側は本セッションでは再突合のみ実施（書込なし）**。
 GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member 認証）のフル環境まで構築・デプロイ完了。本番 GAS/DB は一切非破壊**（作業は GCP 作業場のみ）。member-auth サービス（Cloud Run `hcmn-member-auth`・rev00003・private・App Check 強制 ON・max=1・専用 SA 最小権限）に、防御コア（第0層レート制限／第1層ロック尊重／第4層日次上限／列挙リーク是正／fail-closed）＋本番 `verifyPassword_` の厳密移植（KAT で GAS 等価を機械証明）＋資格情報ミラー 342 件（**テストコピー由来**）＋Firebase カスタムトークン発行（鍵レス signBlob）＋監査/失効を実装。unit 46/46。**この中断点は 2026-08-03 に解消済（rev00006 でフル経路 end-to-end PASS）。当時「あと 1 手」とされていたのは誤認で、実際は `admin.appCheck()` の初期化順序というサーバ側バグの修正が必要だった。以降 Step A（member-api rev00001）まで進行**。再開手順・GCP リソース一覧・env 再構築・落とし穴の正本は GCP 作業場 `docs/HANDOFF_2026-07-25_member-auth.md`。
 同期間の Phase 4a（2026-07-19〜22）: 予算 killswitch **完了**（予算→topic 接続＋実イベント `under_budget` 初回受信を実測）／日次エクスポート（Firestore→シート BK）を Cloud Run Job で構築し本番 DB シートのコピーで実データ検証 PASS（Scheduler 稼働開始はカットオーバー直前に延期）／portal-api に起動時一括ウォームアップ実装（110+5 doc を 848ms で prefetch・rev00002 実測）／共有 project の IAM 変更後に**本番 3 split live E2E で非影響を実測**（public a11y 0＋7VP／member 21／admin 56 全 PASS）。
@@ -101,7 +115,7 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
   **GAS では作れても GCP へ移行できない仕様は採用しない（NG）**。設計時に「GCP では何で実装するか」を 1 行で書けることが設計完了の条件。
   判断表と NG パターンは `AGENTS.md` §4.8.2 / §4.8.3、決定の背景は `docs/06_DECISION_RECORDS.md`（2026-09-03）。
 
-- **本番**: public **@372×2** / member **@131** / admin **@228**（v376.65.2・§1）。全 fixed deployment 同期確認済。ロールバック先は public @369×2 / member @128 / admin @225（v376.64）。
+- **本番**: public **@373×2** / member **@132** / admin **@229**（v376.66・§1）。全 fixed deployment 同期確認済。ロールバック先は public @372×2 / member @131 / admin @228（v376.65.2）。
 - **v376.64 の検証は完了**（管理セッション再取得後に実施）: admin responsive 56 view・メール設定 E2E 5/5・`dryRunMembershipFeeV376_64_LOG` が `passed:true` / `restored:true`。公開側は入会申込カードに 3,000 / 8,000 / 5,000 円の表示を実測。
 - **検証状況は 1 ページで見られる**: [`docs/portal/test-report.html`](docs/portal/test-report.html)（16 項目・PASS 15・要フォロー 1）。再生成は `npm run report:tests`。
 - **文書の入口**: [`docs/00_DOC_INDEX.md`](docs/00_DOC_INDEX.md)。2026-09-02 に全面整理し、`docs/` 直下は現役 44 文書のみ・完了記録 224 件は [`docs/archive/`](docs/archive/00_ARCHIVE_INDEX.md) へ移した。
@@ -138,10 +152,10 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 
 | 配信 | Deployment ID | Version |
 |---|---|---|
-| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@372** |
-| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@372** |
-| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@131** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@228** |
+| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@373** |
+| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@373** |
+| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@132** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@229** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 
@@ -189,9 +203,10 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 
 | # | タスク | 詳細 / 参照 |
 |---|---|---|
+| ✅ | **v376.66 完了（事業所メールの差し込みタグ未置換の是正）** | public @373×2 / member @132 / admin @229 に同期済。`dryRunMailMergeTagsV376_66_LOG` **7 チェック全 PASS**（事業所で 会員種別/年会費 が解決・個人は非退行・現在保存中の事業所テンプレートに未解決タグ 0）、メール設定 E2E 5/5。**残る運用判断**: 実送信での最終確認（配信モードを一時「テスト集約」にして事業所会員の承認を 1 件通す）と、既にタグのまま届いた分の再送要否 | `docs/259_RELEASE_STATE_v376.66_2026-09-03.md` |
 | ✅ | **v376.65〜.65.2 完了（規程・重要事項マスタ＝案C Phase 1）** | public @372×2 / member @131 / admin @228 に同期済。`T_規程` 新設・管理 UI・公開表示・seed 5 件。live E2E 全 PASS（公開 a11y 0／公開 responsive 21 view／admin responsive 56 view／メール設定 5/5／dryRun 10 チェック／管理画面に規程 5 件の描画を実測）。**Phase 2（同意記録）は未着手** | `docs/258_RELEASE_STATE_v376.65_2026-09-02.md` |
 | ✅ | **v376.64 完了（会費設定・会員種別ごとの年会費）** | public @369×2 / member @128 / admin @225 に同期済。live E2E: 公開 a11y 0・公開 responsive 7VP・**入会申込カードに 3,000/8,000/5,000 円の表示を実測**・admin responsive 56 view・メール設定 E2E 5/5・`dryRunMembershipFeeV376_64_LOG` **`passed:true` / `restored:true`**（7 チェック全 PASS・実行後に金額は原状復帰）。**残る運用作業**: 実際の会費が既定値と異なる場合に 設定 → 会費設定 で更新すること | `docs/257_RELEASE_STATE_v376.64_2026-09-02.md` |
-| ✅ | **v376.63 完了（保守モード解除＋管理画面の日本語表記統一）** | public @368×2 / member @127 / admin @224 に同期済（`deployments` 一致確認）。live E2E: 公開 a11y 違反 0・公開 responsive 7VP・**member responsive 7VP×3画面**・**admin responsive 7VP×8 コンソール=56 view**・**メール設定 E2E 5/5**（いずれも console error 0・横スクロール 0・タップターゲット違反 0）。member の初回実行で 1VP がログインタイムアウトしたが、ウォーム後の再実行で 7VP 全 PASS＝コールドスタートの揺れと確定 | `docs/256_RELEASE_STATE_v376.63_2026-09-02.md` |
+| ✅ | **v376.63 完了（保守モード解除＋管理画面の日本語表記統一）** | public @368×2 / member @127 / admin @224 に同期済（`deployments` 一致確認）。live E2E: 公開 a11y 違反 0・公開 responsive 7VP・**member responsive 7VP×3画面**・**admin responsive 7VP×8 コンソール=56 view**・**メール設定 E2E 5/5**（いずれも console error 0・横スクロール 0・タップターゲット違反 0）。member の初回実行で 1VP がログインタイムアウトしたが、ウォーム後の再実行で 7VP 全 PASS＝コールドスタートの揺れと確定 | `docs/archive/release_history/256_RELEASE_STATE_v376.63_2026-09-02.md` |
 | ✅ | **v376.62 完了（テンプレート一覧取得失敗の本番障害＋pruner 根本修正）** | public @367×2 / member @126 / admin @223 に同期済。**デプロイ後の実測で全 14 カテゴリの `listMailTemplates` が `status:ok`**（修正前は全件 `mailTemplateRecordFromRow_ is not defined`）。live E2E: 公開 a11y 0・公開 responsive 7VP・member responsive 7VP・admin responsive 56 view・mail-settings E2E 5/5・dryRun（endTime / テンプレート）ともに `passed:true` | `docs/254_RELEASE_STATE_v376.62_2026-09-02.md` |
 | ✅ | **v376.61 完了（研修 endTime 実害バグ）** | デプロイ＋live E2E に加え、admin editor で `dryRunTrainingEndTimeV376_61_LOG` を実行し **`passed:true` / `testRowCleanedUp:true` / `corruptedEndTimeCount:0` / `emptyEndTimeCount:0`**（2026-09-02 12:45）。作成→読み戻し→再保存→物理削除まで実DBで検証済 | `docs/253_RELEASE_STATE_v376.61_2026-09-02.md` |
 | 0 | **課題C: GCP ミラーの再同期（残り 1 手）** | 2026-09-02 に `tools/contract-check-member/mapping.mjs` を再実行。**件数 5/5・ID・並び順一致、`date` は全件一致**で、31 フィールド中の差分は **`endTime` × 3 件（T001 / T004 / T473A9682）のみ**＝本日セルを復元した当の 3 件。**Firestore ミラーが復元前のスナップショットのため**で、マッピング不一致ではない。解消には `tools/sync-sheets-to-firestore` で `T_研修` を再同期する（`DB_SPREADSHEET_ID` / `SYNC_IMPERSONATE_SA` の供給が要るため operator 判断）| GCP 作業場 `tools/contract-check-member/results/mapping.jsonl` |

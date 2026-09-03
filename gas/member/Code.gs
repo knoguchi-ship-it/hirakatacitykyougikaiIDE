@@ -3315,6 +3315,11 @@ function seedRegulationsIfEmpty_(ss) {
 
 // dryRun 専用: 検証で作った T_規程 の行を物理削除する（通常運用では soft delete のみ）。
 
+// v376.66: 入会承認メールの差し込みタグ解決 dryRun（非送信）。
+// 実害（事業所会員のメールで {{会員種別}} {{年会費}} がタグのまま届いた）の回帰を実 DB で検証する。
+// 実際の会員種別マスタから値を取り、個人 / 事業所代表者 / 事業所メンバー の 3 経路で
+// テンプレートを描画して未解決タグが残らないことを確認する。メールは送らない・DB も書かない。
+
 // v368: 申込受付メール送信ヘルパー（公開ポータル申請受付時に使用）
 
 // v368: 承認通知メール送信ヘルパー
@@ -3322,6 +3327,9 @@ function seedRegulationsIfEmpty_(ss) {
 // v368: 却下通知メール送信ヘルパー
 
 // v265: 事業所メール設定をまとめて取得するヘルパー（T_システム設定から）
+
+// v376.66: 年会費の表示整形（「3,000円」）。会員種別ごとの金額の正本は M_会員種別.年会費金額。
+// 個人/賛助の認証情報メールと事業所メールの両方が同じ整形を通るよう共通化した。
 
 
 // ── メールテンプレート管理（v376.42 で全メール種別へ汎用化）─────────────
@@ -6304,6 +6312,24 @@ function mailDispatchPolicy_() {
 // category: 'BULK_MAIL' / 'TRAINING_REMINDER' 等。null/未指定なら GENERAL 扱いで GLOBAL/MODE のみ判定。
 // to/subject/body/options: 既存 sendEmailWithValidatedFrom_ と互換
 // 戻り値: { sent: bool, suppressed?: bool, reason?: string, mode?: string }
+// v376.66: 未置換の差し込みタグ {{...}} を除去して返す。除去したタグ名だけをログに残す
+// （本文・宛先は出さない＝AGENTS §0）。差し込み漏れは「タグがそのまま届く」という
+// 目に見える事故になるため、送信直前で必ず落とす。
+function stripUnresolvedMergeTags_(text, category, part) {
+  var src = String(text == null ? '' : text);
+  if (src.indexOf('{{') < 0) return src;
+  var found = [];
+  var stripped = src.replace(/\{\{\s*([^{}]{1,60}?)\s*\}\}/g, function(_all, name) {
+    found.push(String(name));
+    return '';
+  });
+  if (found.length) {
+    Logger.log('[mail/unresolved-merge-tag] category=' + (category || 'GENERAL')
+      + ' part=' + part + ' tags=' + found.join(',') );
+  }
+  return stripped;
+}
+
 function deliverMail_(category, to, subject, body, options) {
   // [4] カテゴリ別フラグ
   if (category) {
@@ -6319,6 +6345,11 @@ function deliverMail_(category, to, subject, body, options) {
       // カテゴリ判定失敗時は default 通過（GLOBAL/MODE で受け止める）
     }
   }
+  // v376.66: 差し込み漏れの {{タグ}} をそのまま会員へ送らない（最後の砦）。
+  // v376.66 以前は、送信側が知らないタグを本文に書くと raw の「{{会員種別}}」が届いていた。
+  // ここで除去し、どのカテゴリでどのタグが未解決だったかをログに残す（値は出さない）。
+  subject = stripUnresolvedMergeTags_(subject, category, 'subject');
+  body = stripUnresolvedMergeTags_(body, category, 'body');
   var policy = mailDispatchPolicy_();
   if (policy.mode === 'SUPPRESS') {
     Logger.log('[mail/' + policy.reason + '] suppressed category=' + (category || 'GENERAL') + ' to=' + to + ' subject=' + subject);

@@ -4530,7 +4530,8 @@ const App: React.FC = () => {
                     } />
 
                   {/* 事業所 代表者 */}
-                  <MergeTags items={[['{{氏名}}','氏名'],['{{ログインID}}','ログインID'],['{{パスワード}}','初期パスワード'],['{{会員マイページURL}}','マイページURL'],['{{事業所名}}','事業所名']]} />
+                  {/* v376.66: 事業所メールも 会員種別 / 年会費 の差し込みに対応 */}
+                  <MergeTags items={[['{{氏名}}','氏名'],['{{ログインID}}','ログインID'],['{{パスワード}}','初期パスワード'],['{{会員マイページURL}}','マイページURL'],['{{事業所名}}','事業所名'],['{{会員種別}}','事業所会員など'],['{{年会費}}','8,000円など']]} />
                   <EmailCard badge="事業所・代表者" title="事業所会員 代表者向け"
                     enabled={bizRepEmailEnabledInput}
                     onToggle={() => { setBizRepEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}

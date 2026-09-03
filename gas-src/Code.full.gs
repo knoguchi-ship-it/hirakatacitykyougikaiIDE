@@ -8875,12 +8875,17 @@ function createMemberApplicationDirect_(payload) {
 
       // v265: 事業所メール送信 — 全体フラグ最優先、代表者/メンバー別テンプレート
       if (credEmailEnabled) {
+        // v376.66: 事業所メールにも 会員種別 / 年会費 を差し込む。
+        // 従来は個人/賛助の認証情報メール（sendCredentialEmail_）だけが対応しており、
+        // 事業所メールの本文に {{会員種別}} {{年会費}} を書くとタグのまま会員へ届いていた。
         var bizVars = {
           氏名: staffName.trim(),
           ログインID: loginId,
           パスワード: defaultPassword,
           会員マイページURL: MEMBER_PORTAL_URL,
           事業所名: bizOfficeName,
+          会員種別: credEmailOpts.memberTypeLabel || '',
+          年会費: formatAnnualFeeForMail_(credEmailOpts.annualFee),
         };
         var fromAddr = credEmailOpts.from || '';
         try {
@@ -10116,6 +10121,98 @@ function purgeRegulationRowForDryRun_(ss, id) {
   return false;
 }
 
+// v376.66: 入会承認メールの差し込みタグ解決 dryRun（非送信）。
+// 実害（事業所会員のメールで {{会員種別}} {{年会費}} がタグのまま届いた）の回帰を実 DB で検証する。
+// 実際の会員種別マスタから値を取り、個人 / 事業所代表者 / 事業所メンバー の 3 経路で
+// テンプレートを描画して未解決タグが残らないことを確認する。メールは送らない・DB も書かない。
+function dryRunMailMergeTagsV376_66_LOG() {
+  var ss = getOrCreateDatabase_();
+  var checks = [];
+  function record(name, passed, detail) {
+    checks.push({ name: name, passed: !!passed, detail: detail || '' });
+  }
+
+  // 1) 会員種別マスタから種別ラベルと年会費を引く（メール送信と同じ経路）
+  var master = {};
+  var rows = getRowsAsObjects_(ss, 'M_会員種別');
+  for (var i = 0; i < rows.length; i += 1) {
+    var code = String(rows[i]['コード'] || '');
+    if (!code) continue;
+    master[code] = {
+      label: String(rows[i]['名称'] || code),
+      fee: parseInt(String(rows[i]['年会費金額'] || '0'), 10) || 0
+    };
+  }
+  record('会員種別マスタから種別と年会費を取得できる',
+    !!(master.INDIVIDUAL && master.BUSINESS && master.SUPPRESS !== undefined || master.SUPPORT),
+    JSON.stringify(master));
+
+  var probeTemplate = '{{氏名}} 様の会員種別は{{会員種別}}となります。\nその為、年会費は{{年会費}}となります。\nログインID: {{ログインID}}';
+
+  // 2) 事業所（代表者/メンバー）の経路: renderBizEmailTemplate_ + bizVars 相当
+  var bizFee = master.BUSINESS ? master.BUSINESS.fee : 0;
+  var bizVars = {
+    氏名: 'ドライラン 太郎',
+    ログインID: 'DRYRUN-LOGIN',
+    パスワード: '(非表示)',
+    会員マイページURL: MEMBER_PORTAL_URL,
+    事業所名: 'ドライラン事業所',
+    会員種別: master.BUSINESS ? master.BUSINESS.label : '',
+    年会費: formatAnnualFeeForMail_(bizFee)
+  };
+  var bizRendered = renderBizEmailTemplate_(probeTemplate, bizVars);
+  record('★事業所メールで {{会員種別}} が解決する',
+    bizRendered.indexOf('{{会員種別}}') < 0 && bizRendered.indexOf(bizVars.会員種別) >= 0, bizVars.会員種別);
+  record('★事業所メールで {{年会費}} が解決する',
+    bizRendered.indexOf('{{年会費}}') < 0 && bizVars.年会費 !== '' && bizRendered.indexOf(bizVars.年会費) >= 0, bizVars.年会費);
+  record('事業所メールに未解決タグが残らない', bizRendered.indexOf('{{') < 0, '');
+
+  // 3) 個人の経路: sendCredentialEmail_ と同じ置換規則
+  var indFee = master.INDIVIDUAL ? master.INDIVIDUAL.fee : 0;
+  var indLabel = master.INDIVIDUAL ? master.INDIVIDUAL.label : '';
+  var indRendered = probeTemplate
+    .replace(/\{\{氏名\}\}/g, 'ドライラン 花子')
+    .replace(/\{\{ログインID\}\}/g, 'DRYRUN-LOGIN')
+    .replace(/\{\{会員マイページURL\}\}/g, MEMBER_PORTAL_URL)
+    .replace(/\{\{会員種別\}\}/g, indLabel)
+    .replace(/\{\{年会費\}\}/g, formatAnnualFeeForMail_(indFee));
+  record('個人メールも従来どおり解決する（非退行）',
+    indRendered.indexOf('{{') < 0 && indRendered.indexOf(indLabel) >= 0, indLabel + ' / ' + formatAnnualFeeForMail_(indFee));
+
+  // 4) 最後の砦: 未知タグは送信直前に除去される
+  var stripped = stripUnresolvedMergeTags_('未知の{{存在しないタグ}}と{{会員種別}}', 'DRYRUN', 'body');
+  record('★未解決タグは送信直前に除去される', stripped.indexOf('{{') < 0, stripped);
+
+  // 5) 実際に設定されている事業所テンプレートを描画して未解決タグを検出
+  var bizSettings = getBizEmailSettings_(ss);
+  var liveTargets = [
+    { name: '事業所 代表者向け 本文', text: bizSettings.bizRepEmailBody },
+    { name: '事業所 代表者向け 件名', text: bizSettings.bizRepEmailSubject },
+    { name: '事業所 メンバー向け 本文', text: bizSettings.bizStaffEmailBody },
+    { name: '事業所 メンバー向け 件名', text: bizSettings.bizStaffEmailSubject }
+  ];
+  var leftovers = [];
+  for (var t = 0; t < liveTargets.length; t += 1) {
+    var rendered = renderBizEmailTemplate_(String(liveTargets[t].text || ''), bizVars);
+    var m = rendered.match(/\{\{[^{}]{1,60}\}\}/g);
+    if (m && m.length) leftovers.push(liveTargets[t].name + ': ' + m.join(','));
+  }
+  record('★現在保存されている事業所テンプレートに未解決タグが無い', leftovers.length === 0, leftovers.join(' / '));
+
+  var report = {
+    version: 'v376.66',
+    dryRun: true,
+    mailSent: false,
+    dbWritten: false,
+    passed: checks.every(function(c) { return c.passed; }),
+    checks: checks,
+    memberTypeMaster: master,
+    unresolvedInLiveTemplates: leftovers
+  };
+  Logger.log('[dryRunMailMergeTagsV376_66_LOG] ' + JSON.stringify(report));
+  return report;
+}
+
 // v368: 申込受付メール送信ヘルパー（公開ポータル申請受付時に使用）
 function sendApplicationReceiptMail_(ss, params) {
   // params: { contactEmail, applicantName, requestId, requestType, memberTypeLabel, receivedAt }
@@ -10206,19 +10303,21 @@ function getBizEmailSettings_(ss) {
   };
 }
 
+// v376.66: 年会費の表示整形（「3,000円」）。会員種別ごとの金額の正本は M_会員種別.年会費金額。
+// 個人/賛助の認証情報メールと事業所メールの両方が同じ整形を通るよう共通化した。
+function formatAnnualFeeForMail_(rawAmount) {
+  var feeNum = parseInt(String(rawAmount == null ? '' : rawAmount), 10);
+  if (isNaN(feeNum) || feeNum <= 0) return '';
+  return feeNum.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '円';
+}
+
 function sendCredentialEmail_(toEmail, loginId, password, memberName, opts) {
   opts = opts || {};
   var from = String(opts.from || '').trim();
   var subject = (opts.subject && opts.subject.trim()) ? opts.subject : CREDENTIAL_EMAIL_DEFAULT_SUBJECT;
   var bodyTemplate = (opts.body && opts.body.trim()) ? opts.body : CREDENTIAL_EMAIL_DEFAULT_BODY;
-  // v219: 年会費を「3,000円」形式にフォーマット
-  var annualFeeStr = '';
-  if (opts.annualFee) {
-    var feeNum = parseInt(String(opts.annualFee), 10);
-    if (!isNaN(feeNum) && feeNum > 0) {
-      annualFeeStr = feeNum.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '円';
-    }
-  }
+  // v219: 年会費を「3,000円」形式にフォーマット（v376.66 で共通関数化）
+  var annualFeeStr = formatAnnualFeeForMail_(opts.annualFee);
   var body = bodyTemplate
     .replace(/\{\{氏名\}\}/g, memberName)
     .replace(/\{\{ログインID\}\}/g, loginId)
@@ -17953,6 +18052,24 @@ function mailDispatchPolicy_() {
 // category: 'BULK_MAIL' / 'TRAINING_REMINDER' 等。null/未指定なら GENERAL 扱いで GLOBAL/MODE のみ判定。
 // to/subject/body/options: 既存 sendEmailWithValidatedFrom_ と互換
 // 戻り値: { sent: bool, suppressed?: bool, reason?: string, mode?: string }
+// v376.66: 未置換の差し込みタグ {{...}} を除去して返す。除去したタグ名だけをログに残す
+// （本文・宛先は出さない＝AGENTS §0）。差し込み漏れは「タグがそのまま届く」という
+// 目に見える事故になるため、送信直前で必ず落とす。
+function stripUnresolvedMergeTags_(text, category, part) {
+  var src = String(text == null ? '' : text);
+  if (src.indexOf('{{') < 0) return src;
+  var found = [];
+  var stripped = src.replace(/\{\{\s*([^{}]{1,60}?)\s*\}\}/g, function(_all, name) {
+    found.push(String(name));
+    return '';
+  });
+  if (found.length) {
+    Logger.log('[mail/unresolved-merge-tag] category=' + (category || 'GENERAL')
+      + ' part=' + part + ' tags=' + found.join(',') );
+  }
+  return stripped;
+}
+
 function deliverMail_(category, to, subject, body, options) {
   // [4] カテゴリ別フラグ
   if (category) {
@@ -17968,6 +18085,11 @@ function deliverMail_(category, to, subject, body, options) {
       // カテゴリ判定失敗時は default 通過（GLOBAL/MODE で受け止める）
     }
   }
+  // v376.66: 差し込み漏れの {{タグ}} をそのまま会員へ送らない（最後の砦）。
+  // v376.66 以前は、送信側が知らないタグを本文に書くと raw の「{{会員種別}}」が届いていた。
+  // ここで除去し、どのカテゴリでどのタグが未解決だったかをログに残す（値は出さない）。
+  subject = stripUnresolvedMergeTags_(subject, category, 'subject');
+  body = stripUnresolvedMergeTags_(body, category, 'body');
   var policy = mailDispatchPolicy_();
   if (policy.mode === 'SUPPRESS') {
     Logger.log('[mail/' + policy.reason + '] suppressed category=' + (category || 'GENERAL') + ' to=' + to + ' subject=' + subject);

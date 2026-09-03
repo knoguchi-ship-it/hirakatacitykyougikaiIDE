@@ -5,12 +5,13 @@
 
 > 合計 **224 件**。
 
-## リリース記録 — `release_history/`（146 件）
+## リリース記録 — `release_history/`（147 件）
 
 各リリースの詳細（バージョン・スコープ・検証・ロールバック先）。時系列の要約は `docs/release-notes-2026.md` にあるので、個別の詳細が要るときだけ開く。
 
 | 新しいもの順 |
 |---|
+| [256_RELEASE_STATE_v376.63_2026-09-02.md](release_history/256_RELEASE_STATE_v376.63_2026-09-02.md) |
 | [254_RELEASE_STATE_v376.62_2026-09-02.md](release_history/254_RELEASE_STATE_v376.62_2026-09-02.md) |
 | [253_RELEASE_STATE_v376.61_2026-09-02.md](release_history/253_RELEASE_STATE_v376.61_2026-09-02.md) |
 | [252_RELEASE_STATE_v376.60_2026-09-02.md](release_history/252_RELEASE_STATE_v376.60_2026-09-02.md) |

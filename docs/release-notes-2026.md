@@ -13,6 +13,25 @@
 
 ---
 
+## v376.66 — 2026-09-03 🐛 事業所会員の入会承認メールで差し込みタグが未置換だった本番障害の是正（全3split @373×2 / @132 / @229）
+
+事業所会員へ送る入会承認メールの本文が `平井 ○○様の会員種別は{{会員種別}}となります。その為、年会費は{{年会費}}となります。`
+のままで届いていた（operator 報告）。個人会員は正常だった。
+
+- **根本原因**: 承認メールの送信経路が会員種別で 2 本に分かれている。個人/賛助は `sendCredentialEmail_`（両タグを置換）、
+  事業所は `renderBizEmailTemplate_(template, bizVars)`。後者は**渡された key だけ**を置換する実装で、
+  `bizVars` に `会員種別` / `年会費` が無かったため未知タグとして素通りしていた。値自体は直前で `M_会員種別` から
+  取得済み（`memberTypeLabelForEmail` / `annualFeeForEmail`）で、個人向けの `credEmailOpts` にだけ載せていた取りこぼし。
+- **修正**: ①`bizVars` に `会員種別` / `年会費` を追加（代表者・メンバー両方）②年会費の整形を `formatAnnualFeeForMail_`
+  へ共通化（`3000`→`3,000円`・0/不正値は空文字）③**全メール共通の出口 `deliverMail_` で未解決タグを送信直前に除去**し
+  `[mail/unresolved-merge-tag]` をログに残す（本文・宛先は出さない）④管理画面の差し込みタグ案内を送信側と一致させた。
+- **クラスの欠陥を塞いだ**: これまでは、どのテンプレートでもタグを打ち間違えれば生の `{{...}}` が会員へ届く状態だった。
+- **検証**: prerelease 全ゲート PASS（新ゲート `test:mail-merge-tags` 9 件）。**live 検証（dryRun / メール設定 E2E）は
+  admin セッション失効のため未実施**（`HANDOVER.md` §2-1 に残作業として記載）。
+- 詳細は `docs/259_RELEASE_STATE_v376.66_2026-09-03.md`。
+
+---
+
 ## v376.65 / .65.1 / .65.2 — 2026-09-02 🆕 規程・重要事項マスタ（案C Phase 1）（全3split @372×2 / @131 / @228）
 
 入会申込画面の規定・重要事項を DB 管理にし、事務局が改定できるようにした。同意記録は Phase 2 で未着手。
@@ -57,7 +76,7 @@ operator 指摘「わざわざ英語を入れる必要はない／むやみに�
 - **是正内容**: `System Settings` 削除、`allowlist`→許可リスト、`ON/OFF`→有効／無効（トグル 19 箇所）、配信モード `LIVE/REDIRECT/SUPPRESS`→通常送信／テスト集約／送信抑止（英字併記）、`Step 1/2/3`→手順1/2/3、`Visual Designer`→レイアウト設計、`FROM/TO`→開始／終了、`AND`/`NOT`/`opt-out`/`SOW` の平文化、日本語要素の `uppercase` 28 箇所除去。対象 17 ファイル。
 - **公開ポータル既定値**: `trainingBadgeLabel` を `TRAINING`→`研修申込`（DB 保存値は不変のため、必要なら設定画面で上書き）。
 - **検証**: prerelease 全ゲート PASS・3 split 生成物 grep PASS。デプロイ後 live E2E は 公開 a11y 0／公開 responsive 7VP／member responsive 7VP×3画面／admin responsive 56 view／メール設定 E2E 5/5 いずれも PASS（console error 0）。
-- 詳細は `docs/256_RELEASE_STATE_v376.63_2026-09-02.md`。
+- 詳細は `docs/archive/release_history/256_RELEASE_STATE_v376.63_2026-09-02.md`。
 
 ---
 

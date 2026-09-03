@@ -1,20 +1,29 @@
 {
   "note": "自動テストの生ファイル (.test-out / output/playwright) から拾えない検証記録をここに書く。scripts/build-test-report.mjs が読み、docs/portal/test-report.html を生成する。値・本文・アドレス・資格情報は書かない（AGENTS §0）。",
   "release": {
-    "version": "v376.65.2",
-    "date": "2026-09-02",
+    "version": "v376.66",
+    "date": "2026-09-03",
     "deployments": {
+      "public": "@373 (x2)",
+      "member": "@132",
+      "admin": "@229"
+    },
+    "rollback": {
       "public": "@372 (x2)",
       "member": "@131",
       "admin": "@228"
-    },
-    "rollback": {
-      "public": "@369 (x2)",
-      "member": "@128",
-      "admin": "@225"
     }
   },
   "manualRuns": [
+    {
+      "id": "DR-TAG",
+      "group": "GAS dry-run（非送信）",
+      "name": "入会承認メールの差し込みタグ解決（事業所/個人）",
+      "how": "dryRunMailMergeTagsV376_66_LOG / Apps Script エディタ",
+      "when": "2026-09-03 11:38",
+      "status": "PASS",
+      "detail": "passed:true / mailSent:false / dbWritten:false。7 チェック全 PASS（事業所で 会員種別=事業所会員・年会費=8,000円 が解決／個人=個人会員・3,000円 で非退行／未解決タグは送信直前に除去／現在保存中の事業所テンプレートに未解決タグ 0）"
+    },
     {
       "id": "REG-UI",
       "group": "管理ポータル（live 実測）",
