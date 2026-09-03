@@ -604,6 +604,20 @@ export interface AdminPersonRow {
   staffRole: string | null;
   careManagerNumber: string;
   accountEnabled: boolean;
+  // v376.69: 一括編集の対象拡張（個人・賛助会員のみ。職員は列を持たない）
+  phone?: string;
+  fax?: string;
+  mobilePhone?: string;
+  officePostCode?: string;
+  officePrefecture?: string;
+  officeCity?: string;
+  officeAddressLine?: string;
+  officeAddressLine2?: string;
+  homePostCode?: string;
+  homePrefecture?: string;
+  homeCity?: string;
+  homeAddressLine?: string;
+  homeAddressLine2?: string;
 }
 
 // v125: 会員種別変更

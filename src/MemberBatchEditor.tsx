@@ -10,6 +10,8 @@ interface MemberBatchEditorProps {
 type PersonTypeFilter = 'ALL' | AdminPersonType;
 type StatusFilter = 'ALL' | 'ACTIVE' | 'ENROLLED' | 'WITHDRAWN' | 'LEFT';
 
+// v376.69: 一括編集の対象を 6 項目から拡張（docs/261 T-07 B）。
+// 追加分は **個人・賛助会員のみ**。事業所職員は電話・住所の列を持たないため対象外。
 type EditablePerson = {
   email: string;
   mailingPreference: string;
@@ -17,7 +19,49 @@ type EditablePerson = {
   status: string;
   joinedDate: string;
   withdrawnDate: string;
+  // 連絡先
+  phone: string;
+  fax: string;
+  mobilePhone: string;
+  // 勤務先
+  officeName: string;
+  officePostCode: string;
+  officePrefecture: string;
+  officeCity: string;
+  officeAddressLine: string;
+  officeAddressLine2: string;
+  // 自宅
+  homePostCode: string;
+  homePrefecture: string;
+  homeCity: string;
+  homeAddressLine: string;
+  homeAddressLine2: string;
 };
+
+// 会員のみ編集できる項目（職員行では入力させない）
+const MEMBER_ONLY_FIELDS: Array<keyof EditablePerson> = [
+  'phone', 'fax', 'mobilePhone',
+  'officeName', 'officePostCode', 'officePrefecture', 'officeCity', 'officeAddressLine', 'officeAddressLine2',
+  'homePostCode', 'homePrefecture', 'homeCity', 'homeAddressLine', 'homeAddressLine2',
+];
+
+// 拡張入力の並び（ラベル・キー・幅）
+const EXTENDED_FIELD_DEFS: Array<{ key: keyof EditablePerson; label: string; group: '連絡先' | '勤務先' | '自宅'; width: string }> = [
+  { key: 'phone',              label: '勤務先電話',   group: '連絡先', width: 'w-32' },
+  { key: 'fax',                label: 'FAX',          group: '連絡先', width: 'w-32' },
+  { key: 'mobilePhone',        label: '携帯',         group: '連絡先', width: 'w-32' },
+  { key: 'officeName',         label: '勤務先名',     group: '勤務先', width: 'w-48' },
+  { key: 'officePostCode',     label: '郵便番号',     group: '勤務先', width: 'w-28' },
+  { key: 'officePrefecture',   label: '都道府県',     group: '勤務先', width: 'w-24' },
+  { key: 'officeCity',         label: '市区町村',     group: '勤務先', width: 'w-32' },
+  { key: 'officeAddressLine',  label: '住所',         group: '勤務先', width: 'w-48' },
+  { key: 'officeAddressLine2', label: '建物名等',     group: '勤務先', width: 'w-40' },
+  { key: 'homePostCode',       label: '郵便番号',     group: '自宅',   width: 'w-28' },
+  { key: 'homePrefecture',     label: '都道府県',     group: '自宅',   width: 'w-24' },
+  { key: 'homeCity',           label: '市区町村',     group: '自宅',   width: 'w-32' },
+  { key: 'homeAddressLine',    label: '住所',         group: '自宅',   width: 'w-48' },
+  { key: 'homeAddressLine2',   label: '建物名等',     group: '自宅',   width: 'w-40' },
+];
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 const MESSAGE_AUTO_CLEAR_MS = 4000;
@@ -53,6 +97,21 @@ const buildEditableRows = (persons: AdminPersonRow[]): Record<string, EditablePe
       status: p.status || 'ACTIVE',
       joinedDate: p.joinedDate || '',
       withdrawnDate: p.withdrawnDate || '',
+      // v376.69: 拡張項目（会員のみ。職員は空のまま使わない）
+      phone: p.phone || '',
+      fax: p.fax || '',
+      mobilePhone: p.mobilePhone || '',
+      officeName: p.officeName || '',
+      officePostCode: p.officePostCode || '',
+      officePrefecture: p.officePrefecture || '',
+      officeCity: p.officeCity || '',
+      officeAddressLine: p.officeAddressLine || '',
+      officeAddressLine2: p.officeAddressLine2 || '',
+      homePostCode: p.homePostCode || '',
+      homePrefecture: p.homePrefecture || '',
+      homeCity: p.homeCity || '',
+      homeAddressLine: p.homeAddressLine || '',
+      homeAddressLine2: p.homeAddressLine2 || '',
     };
   });
   return next;
@@ -67,6 +126,12 @@ const isDirty = (person: AdminPersonRow, draft: EditablePerson): boolean => {
   if ((draft.status || '') !== (person.status || '')) return true;
   if ((draft.joinedDate || '') !== (person.joinedDate || '')) return true;
   if ((draft.withdrawnDate || '') !== (person.withdrawnDate || '')) return true;
+  // v376.69: 拡張項目（会員のみ）
+  if (person.personType !== 'OFFICE_STAFF') {
+    for (const key of MEMBER_ONLY_FIELDS) {
+      if ((draft[key] || '') !== ((person as unknown as Record<string, string>)[key] || '')) return true;
+    }
+  }
   return false;
 };
 
@@ -81,6 +146,8 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
   const [pageSize, setPageSize] = useState<number>(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [editableRows, setEditableRows] = useState<Record<string, EditablePerson>>({});
+  // v376.69: 連絡先・住所は列数が多いため既定は折りたたみ。必要なときだけ展開する。
+  const [showExtended, setShowExtended] = useState(false);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [batchSaving, setBatchSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -198,6 +265,10 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
     if (person.personType !== 'OFFICE_STAFF') {
       base.mailingPreference = draft.mailingPreference;
       base.preferredMailDestination = draft.preferredMailDestination;
+      // v376.69: 連絡先・勤務先・自宅（職員は列を持たないため送らない）
+      for (const key of MEMBER_ONLY_FIELDS) {
+        base[key] = (draft[key] || '').trim();
+      }
     }
     return base;
   };
@@ -373,7 +444,22 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
             ))}
           </select>
         </div>
+        <div className="flex items-end">
+          {/* v376.69: 連絡先・住所の一括編集。列数が多いため既定は折りたたみ */}
+          <button
+            type="button"
+            onClick={() => setShowExtended((v) => !v)}
+            className={`min-h-[44px] rounded border px-3 py-2 text-sm ${showExtended ? 'border-primary-300 bg-primary-50 text-primary-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
+          >
+            {showExtended ? '連絡先・住所を隠す' : '連絡先・住所も編集する'}
+          </button>
+        </div>
       </div>
+      {showExtended && (
+        <p className="text-xs text-slate-500">
+          連絡先・住所は<strong>個人会員・賛助会員のみ</strong>編集できます。事業所職員はこれらの項目を持たず、勤務先の情報は所属事業所側で管理します。
+        </p>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
@@ -433,7 +519,8 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
                 const stripe = index % 2 === 1 ? 'bg-slate-50/60' : 'bg-white';
                 const isOfficeStaff = isStaff(person);
                 return (
-                  <tr key={person.personKey} className={`${stripe} ${dirty ? 'ring-1 ring-inset ring-primary-100' : ''}`}>
+                  <React.Fragment key={person.personKey}>
+                  <tr className={`${stripe} ${dirty ? 'ring-1 ring-inset ring-primary-100' : ''}`}>
                     <td className="px-3 py-2.5 text-sm align-top">
                       {onOpenDetail ? (
                         <button
@@ -576,6 +663,34 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
                       </div>
                     </td>
                   </tr>
+                  {showExtended && !isOfficeStaff && (
+                    <tr className={stripe}>
+                      <td colSpan={9} className="px-3 pb-3 pt-0">
+                        <div className="rounded-lg border border-slate-200 bg-white p-3">
+                          {(['連絡先', '勤務先', '自宅'] as const).map((group) => (
+                            <div key={group} className="mb-2 last:mb-0">
+                              <p className="mb-1 text-xs font-semibold text-slate-500">{group}</p>
+                              <div className="flex flex-wrap gap-2">
+                                {EXTENDED_FIELD_DEFS.filter((f) => f.group === group).map((f) => (
+                                  <label key={String(f.key)} className="text-xs text-slate-600">
+                                    <span className="mb-0.5 block">{f.label}</span>
+                                    <input
+                                      type="text"
+                                      value={draft[f.key] || ''}
+                                      disabled={isBusy}
+                                      onChange={(e) => updateDraft(person.personKey, { [f.key]: e.target.value } as Partial<EditablePerson>)}
+                                      className={`${f.width} rounded border border-slate-300 px-2 py-1.5 text-sm disabled:bg-slate-100`}
+                                    />
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
                 );
               })}
             </tbody>

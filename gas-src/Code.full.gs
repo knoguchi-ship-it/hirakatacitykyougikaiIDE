@@ -12557,6 +12557,20 @@ function getAdminPersonList_() {
       staffRole: null,
       careManagerNumber: String(member['介護支援専門員番号'] || ''),
       accountEnabled: authByMemberId[memberId] !== undefined ? authByMemberId[memberId] : true,
+      // v376.69: 一括編集の対象拡張（連絡先・勤務先・自宅）
+      phone: String(member['勤務先電話番号'] || ''),
+      fax: String(member['勤務先FAX番号'] || ''),
+      mobilePhone: String(member['携帯電話番号'] || ''),
+      officePostCode: String(member['勤務先郵便番号'] || ''),
+      officePrefecture: String(member['勤務先都道府県'] || ''),
+      officeCity: String(member['勤務先市区町村'] || ''),
+      officeAddressLine: String(member['勤務先住所'] || ''),
+      officeAddressLine2: String(member['勤務先住所2'] || ''),
+      homePostCode: String(member['自宅郵便番号'] || ''),
+      homePrefecture: String(member['自宅都道府県'] || ''),
+      homeCity: String(member['自宅市区町村'] || ''),
+      homeAddressLine: String(member['自宅住所'] || ''),
+      homeAddressLine2: String(member['自宅住所2'] || ''),
     });
   }
 
@@ -12593,10 +12607,26 @@ function getAdminPersonList_() {
 }
 
 // ── v125: フラット人物の一括更新 ──
+// v376.69: 一括編集で更新できる項目。
+// 以前は 6 項目だけで、住所や電話をまとめて直す手段が無く「スプレッドシートを直接開く」しかなかった。
+// GCP 移行後はシートを開けなくなるため（docs/261 T-07）、連絡先・住所まで拡張する。
+//
+// **意図的に含めないもの**（一括で書き換えると事故が大きい・別画面で扱う）:
+//   氏名 / カナ / 介護支援専門員番号（本人特定と会員ログイン ID に直結）
+//   会員種別 / 事業所の所属（移行機能で扱う）／職員数上限（事業所設定）
 var ADMIN_BATCH_PERSON_WRITABLE_INDIVIDUAL_ = [
   'email', 'mailingPreference', 'preferredMailDestination',
   'status', 'joinedDate', 'withdrawnDate',
+  // v376.69: 連絡先
+  'phone', 'fax', 'mobilePhone',
+  // v376.69: 勤務先
+  'officeName', 'officePostCode', 'officePrefecture', 'officeCity', 'officeAddressLine', 'officeAddressLine2',
+  // v376.69: 自宅
+  'homePostCode', 'homePrefecture', 'homeCity', 'homeAddressLine', 'homeAddressLine2',
 ];
+// 職員（T_事業所職員）は列が氏名・カナ・メール・権限・状態・入会/退会日・専門員番号のみで、
+// **電話や住所の列を持たない**（連絡先は所属事業所＝T_会員 側が正本）。
+// そのため一括編集の対象も従来どおり 4 項目に留める。列を増やす場合はスキーマ変更が先。
 var ADMIN_BATCH_PERSON_WRITABLE_STAFF_ = [
   'email', 'status', 'joinedDate', 'withdrawnDate',
 ];

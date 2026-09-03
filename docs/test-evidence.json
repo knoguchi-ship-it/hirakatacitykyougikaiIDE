@@ -1,20 +1,29 @@
 {
   "note": "自動テストの生ファイル (.test-out / output/playwright) から拾えない検証記録をここに書く。scripts/build-test-report.mjs が読み、docs/portal/test-report.html を生成する。値・本文・アドレス・資格情報は書かない（AGENTS §0）。",
   "release": {
-    "version": "v376.68.2",
+    "version": "v376.69",
     "date": "2026-09-03",
     "deployments": {
+      "public": "@378 (x2)",
+      "member": "@137",
+      "admin": "@234"
+    },
+    "rollback": {
       "public": "@377 (x2)",
       "member": "@136",
       "admin": "@233"
-    },
-    "rollback": {
-      "public": "@374 (x2)",
-      "member": "@133",
-      "admin": "@230"
     }
   },
   "manualRuns": [
+    {
+      "id": "BATCH-API",
+      "group": "管理ポータル（live 実測）",
+      "name": "一括編集の拡張項目が API から返る",
+      "how": "Playwright から google.script.run で getAdminPersonList を実行（読み取りのみ）",
+      "when": "2026-09-03 18:05",
+      "status": "PASS",
+      "detail": "345 件を取得。会員行は phone / fax / mobilePhone / officePostCode / officeCity / homePostCode / homeCity を含み、職員行には含まれない（列を持たないため）。console error 0"
+    },
     {
       "id": "DR-EXPORT",
       "group": "GAS dry-run（非送信）",
