@@ -146,6 +146,8 @@ const Sidebar: React.FC<SidebarProps> = ({
       { id: 'admin-settings',     menuId: 'admin-settings',     label: 'システム設定' },
       { id: 'system-permissions', menuId: 'system-permissions', label: '権限管理', masterOnly: true },
       { id: 'member-delete',      menuId: 'data-management',    label: 'データ管理', masterOnly: true },
+      // v376.68: 既定は MASTER のみ。MASTER が 権限管理 から data-export を付与すれば他ロールにも表示される
+      { id: 'data-export',        menuId: 'data-export',        label: 'データ出力（CSV）' },
     ],
   };
 

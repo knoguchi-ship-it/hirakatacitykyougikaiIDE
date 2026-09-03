@@ -44,6 +44,8 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   'dryRunRegulationsV376_65_LOG',
   // v376.66: 入会承認メールの差し込みタグ解決 dryRun（非送信・DB 書込なし）
   'dryRunMailMergeTagsV376_66_LOG',
+  // v376.68: 汎用データエクスポートの権限ガード検証（読み取りのみ）
+  'dryRunDataExportV376_68_LOG',
   // v376.44: 公式LINE投稿依頼 保存フロー dryRun E2E（operator 実行用）
   'dryRunLinePostV376_44_LOG',
   // v376.45: LINE投稿 権限二層+可視範囲+submitRequest dryRun E2E（operator 実行用）
@@ -183,6 +185,9 @@ export const ADMIN_ALLOWED_ACTIONS_LIST = [
   'listMailTemplates',
   'saveMailTemplate',
   'deleteMailTemplate',
+  // v376.68: 汎用データエクスポート（CSV）
+  'listExportableTables',
+  'exportTableCsv',
   // v376.65（案C Phase 1）: 規程・重要事項マスタ CRUD
   'listRegulations',
   'saveRegulation',

@@ -1,20 +1,38 @@
 {
   "note": "自動テストの生ファイル (.test-out / output/playwright) から拾えない検証記録をここに書く。scripts/build-test-report.mjs が読み、docs/portal/test-report.html を生成する。値・本文・アドレス・資格情報は書かない（AGENTS §0）。",
   "release": {
-    "version": "v376.67",
+    "version": "v376.68.2",
     "date": "2026-09-03",
     "deployments": {
+      "public": "@377 (x2)",
+      "member": "@136",
+      "admin": "@233"
+    },
+    "rollback": {
       "public": "@374 (x2)",
       "member": "@133",
       "admin": "@230"
-    },
-    "rollback": {
-      "public": "@373 (x2)",
-      "member": "@132",
-      "admin": "@229"
     }
   },
   "manualRuns": [
+    {
+      "id": "DR-EXPORT",
+      "group": "GAS dry-run（非送信）",
+      "name": "汎用データエクスポートの権限ガード",
+      "how": "dryRunDataExportV376_68_LOG / Apps Script エディタ",
+      "when": "2026-09-03 17:16",
+      "status": "PASS",
+      "detail": "passed:true / dbWritten:false。10 チェック全 PASS（MASTER 56 件・非 MASTER 49 件／認証テーブルとそのアーカイブは MASTER でも拒否／ログ系は非 MASTER で拒否／未知名を拒否／実データ出力とファイル名付与）"
+    },
+    {
+      "id": "EXPORT-UI",
+      "group": "管理ポータル（live 実測）",
+      "name": "データ出力（CSV）の画面と実出力",
+      "how": "Playwright（読み取り＋M_会員種別 の実出力）",
+      "when": "2026-09-03 17:24",
+      "status": "PASS",
+      "detail": "一覧 56 件・マスター限定バッジ 7 件・認証テーブル非表示・注意喚起表示・console error 0。実 CSV の内容とヘッダーを確認（5.9 秒）。一覧 API は 20.0 秒→5.5 秒へ改善"
+    },
     {
       "id": "DR-TAG",
       "group": "GAS dry-run（非送信）",

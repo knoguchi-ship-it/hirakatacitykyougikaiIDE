@@ -97,6 +97,7 @@
 | 文書 | 内容 |
 |---|---|
 | [260_SINGLE_SOURCE_AUDIT_2026-09-03.md](260_SINGLE_SOURCE_AUDIT_2026-09-03.md) | **単一情報源（DRY）棚卸し監査**（v376.67・実測ベース。正本レジストリは AGENTS §3） |
+| [262_RELEASE_STATE_v376.68_2026-09-03.md](262_RELEASE_STATE_v376.68_2026-09-03.md) | v376.68 汎用データエクスポート（CSV）|
 | [261_SPEC_CODE_DIFF_2026-09-03.md](261_SPEC_CODE_DIFF_2026-09-03.md) | **仕様書巻き直しの作業台帳**（仕様⇄コード差分 D-xx／不足情報とタスク G-xx。判定は operator 記入） |
 | [259_RELEASE_STATE_v376.66_2026-09-03.md](259_RELEASE_STATE_v376.66_2026-09-03.md) | v376.66 事業所メールの差し込みタグ未置換の是正 |
 | [258_RELEASE_STATE_v376.65_2026-09-02.md](258_RELEASE_STATE_v376.65_2026-09-02.md) | v376.65 規程・重要事項マスタ（案C Phase 1） |

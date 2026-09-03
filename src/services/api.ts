@@ -210,6 +210,9 @@ export interface ApiClient {
   saveCredentialEmailTemplate(payload: { id?: string; name: string; subject: string; body: string }): Promise<import('../types').EmailTemplate>;
   deleteCredentialEmailTemplate(id: string): Promise<{ deletedId: string }>;
   // v376.42: 全メール種別 テンプレート管理（汎用・カテゴリ別）
+  // v376.68: 汎用データエクスポート（CSV）
+  listExportableTables(): Promise<{ tables: Array<{ name: string; kind: 'TABLE' | 'MASTER'; masterOnly: boolean; exists: boolean }>; maxRows: number }>;
+  exportTableCsv(tableName: string, includeDeleted: boolean): Promise<{ tableName: string; filename: string; csv: string; rowCount: number; skippedDeleted: number; truncated: boolean; maxRows: number }>;
   // v376.65: 規程・重要事項マスタ
   listRegulations(): Promise<import('../types').Regulation[]>;
   saveRegulation(payload: Partial<import('../types').Regulation>): Promise<{ id: string; version: number; created: boolean }>;
@@ -1017,6 +1020,14 @@ class GasApiClient implements ApiClient {
   }
 
   // v376.42: 全メール種別 テンプレート管理（汎用・カテゴリ別）
+  async listExportableTables(): Promise<{ tables: Array<{ name: string; kind: 'TABLE' | 'MASTER'; masterOnly: boolean; exists: boolean }>; maxRows: number }> {
+    return this.callAction('listExportableTables', {});
+  }
+
+  async exportTableCsv(tableName: string, includeDeleted: boolean): Promise<{ tableName: string; filename: string; csv: string; rowCount: number; skippedDeleted: number; truncated: boolean; maxRows: number }> {
+    return this.callAction('exportTableCsv', { tableName, includeDeleted });
+  }
+
   async listRegulations(): Promise<import('../types').Regulation[]> {
     return this.callAction('listRegulations', {});
   }

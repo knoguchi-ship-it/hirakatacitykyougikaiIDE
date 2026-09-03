@@ -514,6 +514,92 @@ function dryRunMailMergeTagsV376_66_LOG() {
   return report;
 }
 
+function dryRunDataExportV376_68_LOG() {
+  var checks = [];
+  function record(name, passed, detail) {
+    checks.push({ name: name, passed: !!passed, detail: detail || '' });
+  }
+  var masterSession = { isMaster: true, loginId: 'dryrun-master' };
+  var adminSession = { isMaster: false, loginId: 'dryrun-admin' };
+
+  // 1) 一覧: MASTER と非 MASTER で見える範囲が違う
+  var listMaster = listExportableTables_(masterSession);
+  var listAdmin = listExportableTables_(adminSession);
+  record('MASTER のほうが出力できるテーブルが多い',
+    listMaster.tables.length > listAdmin.tables.length,
+    'master=' + listMaster.tables.length + ' / admin=' + listAdmin.tables.length);
+
+  // 2) 認証テーブルはどちらの一覧にも出ない
+  function hasTable(list, name) {
+    for (var i = 0; i < list.tables.length; i += 1) if (list.tables[i].name === name) return true;
+    return false;
+  }
+  record('★認証テーブルは一覧に出ない（MASTER でも）',
+    !hasTable(listMaster, 'T_認証アカウント') && !hasTable(listAdmin, 'T_認証アカウント'), '');
+
+  // 3) ログ系は非 MASTER の一覧に出ない
+  record('★ログ系は非 MASTER の一覧に出ない',
+    !hasTable(listAdmin, 'T_監査ログ') && !hasTable(listAdmin, 'T_ログイン履歴')
+      && hasTable(listMaster, 'T_監査ログ'), '');
+
+  // 4) 認証テーブルの出力は MASTER でも拒否される
+  var authBlocked = false;
+  try { exportTableCsv_({ tableName: 'T_認証アカウント' }, masterSession); }
+  catch (e) { authBlocked = true; }
+  record('★認証テーブルの出力は MASTER でも拒否される', authBlocked, '');
+
+  // 5) ログ系の出力は非 MASTER で拒否される
+  var logBlocked = false;
+  try { exportTableCsv_({ tableName: 'T_監査ログ' }, adminSession); }
+  catch (e) { logBlocked = true; }
+  record('★ログ系の出力は非 MASTER で拒否される', logBlocked, '');
+
+  // 5-2) ★アーカイブテーブルも元テーブルと同じ制限を受ける
+  record('★認証アーカイブは一覧に出ない（MASTER でも）',
+    !hasTable(listMaster, 'T_認証アカウント_archive') && !hasTable(listAdmin, 'T_認証アカウント_archive'), '');
+  var authArchiveBlocked = false;
+  try { exportTableCsv_({ tableName: 'T_認証アカウント_archive' }, masterSession); }
+  catch (e) { authArchiveBlocked = true; }
+  record('★認証アーカイブの出力は MASTER でも拒否される', authArchiveBlocked, '');
+
+  // 6) 未知のテーブル名は拒否される
+  var unknownBlocked = false;
+  try { exportTableCsv_({ tableName: 'T_存在しない' }, masterSession); }
+  catch (e) { unknownBlocked = true; }
+  record('未知のテーブル名は拒否される', unknownBlocked, '');
+
+  // 7) 実データを 1 件出力できる（中身は出さず、ヘッダー名と行数だけ確認）
+  var sample = null;
+  try {
+    sample = exportTableCsv_({ tableName: 'M_会員種別' }, adminSession);
+  } catch (e) {
+    record('マスタを CSV 出力できる', false, e && e.message ? e.message : String(e));
+  }
+  if (sample) {
+    var firstLine = String(sample.csv || '').split('\r\n')[0];
+    record('マスタを CSV 出力できる',
+      sample.rowCount > 0 && firstLine.indexOf('コード') >= 0,
+      'rows=' + sample.rowCount + ' / header=' + firstLine);
+    record('ファイル名が付与される',
+      sample.filename.indexOf('M_会員種別_') === 0 && sample.filename.indexOf('.csv') > 0,
+      sample.filename);
+  }
+
+  var report = {
+    version: 'v376.68',
+    dryRun: true,
+    mailSent: false,
+    dbWritten: false,
+    passed: checks.every(function(c) { return c.passed; }),
+    checks: checks,
+    exportableForMaster: listMaster.tables.length,
+    exportableForAdmin: listAdmin.tables.length,
+    maxRows: listMaster.maxRows
+  };
+  Logger.log('[dryRunDataExportV376_68_LOG] ' + JSON.stringify(report));
+  return report;
+}
+
 function processPendingThumbnails() {
   try {
     var ss = getOrCreateDatabase_();

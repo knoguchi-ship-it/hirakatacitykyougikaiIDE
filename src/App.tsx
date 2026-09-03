@@ -16,6 +16,7 @@ import OfficerManagement from './components/OfficerManagement';
 import PaymentHistoryConsole from './components/PaymentHistoryConsole';
 import ClaimManagementConsole from './components/ClaimManagementConsole';
 import MemberDeleteConsole from './components/MemberDeleteConsole';
+import DataExportConsole from './components/DataExportConsole';
 import ChangeRequestConsole from './components/ChangeRequestConsole';
 import { RoleManagementPanel } from './components/RoleManagementPanel';
 import MemberDetailAdmin from './components/MemberDetailAdmin';
@@ -1706,6 +1707,7 @@ const App: React.FC = () => {
         'officer-management': 'officer-management',
         'admin-settings': 'admin-settings', 'system-permissions': 'system-permissions',
         'data-management': 'member-delete',
+        'data-export': 'data-export',
       };
       for (const m of allowedMenus) {
         if (menuToView[m]) return menuToView[m];
@@ -2017,6 +2019,7 @@ const App: React.FC = () => {
     'officer-management': 'officer-management',
     'admin-settings': 'admin-settings', 'system-permissions': 'system-permissions',
     'member-delete': 'data-management',
+    'data-export': 'data-export',
     // member-side views（admin role でも触れる）は menuId 無しで素通り
     'profile': '', 'training-apply': '',
   };
@@ -5685,6 +5688,15 @@ const App: React.FC = () => {
         return <div className="text-red-500 p-4">この機能はMASTER権限専用です。</div>;
       }
       return <MemberDeleteConsole />;
+    }
+
+    // v376.68: 汎用データエクスポート（CSV）。既定は MASTER のみで、
+    // 事務局へ渡す場合は MASTER が 権限管理 から data-export メニューを付与する。
+    if (currentView === 'data-export') {
+      if (userRole !== 'ADMIN' || !isViewAllowed('data-export')) {
+        return <div className="text-red-500 p-4">この機能を利用する権限がありません。</div>;
+      }
+      return <DataExportConsole />;
     }
 
     if (currentView === 'change-requests') {

@@ -1116,6 +1116,11 @@ var MENU_REGISTRY = [
     "group": "システム"
   },
   {
+    "id": "data-export",
+    "label": "データ出力（CSV）",
+    "group": "システム"
+  },
+  {
     "id": "system-permissions",
     "label": "権限管理",
     "group": "システム",
@@ -1196,6 +1201,8 @@ var ACTION_TO_MENU = {
   "getCredentialEmailTemplates": "bulk-mail",
   "saveCredentialEmailTemplate": "bulk-mail",
   "deleteCredentialEmailTemplate": "bulk-mail",
+  "listExportableTables": "data-export",
+  "exportTableCsv": "data-export",
   "listRegulations": "admin-settings",
   "saveRegulation": "admin-settings",
   "deleteRegulation": "admin-settings",
@@ -1452,6 +1459,11 @@ var ADMIN_ACTION_PERMISSIONS = {
   'getCredentialEmailTemplates': ['MASTER','ADMIN'],
   'saveCredentialEmailTemplate': ['MASTER','ADMIN'],
   'deleteCredentialEmailTemplate': ['MASTER','ADMIN'],
+  // v376.68: 汎用データエクスポートは既定で MASTER のみ。
+  // 会員の個人情報を丸ごと持ち出せる操作のため deny-by-default とし、
+  // 事務局へ渡す場合は MASTER が 権限管理 から data-export メニューを明示的に付与する。
+  'listExportableTables': ['MASTER'],
+  'exportTableCsv': ['MASTER'],
   'listRegulations': ['MASTER','ADMIN'],
   'saveRegulation': ['MASTER','ADMIN'],
   'deleteRegulation': ['MASTER','ADMIN'],
@@ -1954,6 +1966,14 @@ function processApiRequest(action, payload) {
     }
 
     // v376.42: 全メール種別 テンプレート管理（汎用・カテゴリ別）
+    // v376.68: 汎用データエクスポート（CSV）
+    if (action === 'listExportableTables') {
+      return JSON.stringify({ success: true, data: listExportableTables_(parsedPayload.__adminSession) });
+    }
+    if (action === 'exportTableCsv') {
+      return JSON.stringify({ success: true, data: exportTableCsv_(parsedPayload, parsedPayload.__adminSession) });
+    }
+
     // v376.65（案C Phase 1）: 規程・重要事項マスタ CRUD
     if (action === 'listRegulations') {
       return JSON.stringify({ success: true, data: listRegulations_(null, false) });
@@ -7356,6 +7376,206 @@ function purgeRegulationRowForDryRun_(ss, id) {
 // 実害（事業所会員のメールで {{会員種別}} {{年会費}} がタグのまま届いた）の回帰を実 DB で検証する。
 // 実際の会員種別マスタから値を取り、個人 / 事業所代表者 / 事業所メンバー の 3 経路で
 // テンプレートを描画して未解決タグが残らないことを確認する。メールは送らない・DB も書かない。
+
+// ============================================================
+// v376.68: 汎用データエクスポート（CSV）
+//
+// 背景（docs/261 T-07）: GCP 移行後は事務局がスプレッドシートを直接開けなくなる。
+// 現状の代替手段は一括編集 6 項目と名簿系の出力しかなく、
+// 「任意のテーブルを Excel で確認・分析する」手段が無い。移行を待たず GAS 側で先に実装する。
+//
+// 設計方針:
+//   - 出力は CSV（UTF-8 BOM 付き）。Excel でそのまま開けること
+//   - 権限は menu 単位 RBAC に載せる（menu: data-export）。MASTER は常に可
+//   - **T_認証アカウントは常に出力禁止**（パスワードハッシュ・ソルトを含むため）
+//   - ログ系と T_システム設定 は **MASTER 限定**（個人情報・運用値を含むため）
+//   - 誰が何を出力したかを監査ログへ残す（個人情報の持ち出し記録）
+//   - GCP 移植性: シート読み出しと文字列生成のみ。Firestore へ移しても同一ロジックで動く
+// ============================================================
+
+// 常に出力を禁止するテーブル（秘密値を含む）
+var EXPORT_FORBIDDEN_TABLES_ = ['T_認証アカウント'];
+
+// MASTER のみ出力できるテーブル（個人情報の追跡記録・運用設定）
+var EXPORT_MASTER_ONLY_TABLES_ = [
+  'T_監査ログ', 'T_ログイン履歴', 'T_メール送信ログ', 'T_メール送信明細',
+  'T_削除ログ', 'T_人物統合ログ', 'T_システム設定',
+];
+
+// 1 回の出力で扱う最大行数（GAS の実行時間を超えないための安全弁）
+var EXPORT_MAX_ROWS_ = 20000;
+
+// テーブル名から `_archive` を外した「元テーブル名」を返す。
+// v376.68 修正: 削除アーカイブ（`<テーブル名>_archive`）は元テーブルと同じ列を持つため、
+// **元テーブルと同じ制限を適用しなければならない**。
+// 実際に `T_認証アカウント_archive` がパスワードハッシュ・ソルトを保持したまま
+// 出力対象に混入していた（live 確認で検出）。
+function exportBaseTableName_(name) {
+  var n = String(name || '');
+  var suffix = '_archive';
+  if (n.length > suffix.length && n.slice(-suffix.length) === suffix) {
+    return n.slice(0, n.length - suffix.length);
+  }
+  return n;
+}
+
+function isExportForbiddenTable_(name) {
+  return EXPORT_FORBIDDEN_TABLES_.indexOf(exportBaseTableName_(name)) >= 0;
+}
+
+function isExportMasterOnlyTable_(name) {
+  return EXPORT_MASTER_ONLY_TABLES_.indexOf(exportBaseTableName_(name)) >= 0;
+}
+
+// 出力可能なテーブル一覧を返す。権限に応じて masterOnly を落とす。
+function listExportableTables_(session) {
+  var isMaster = !!(session && session.isMaster);
+  var ss = getOrCreateDatabase_();
+  var names = [];
+  var tableNames = Object.keys(テーブル定義);
+  for (var i = 0; i < tableNames.length; i += 1) names.push(tableNames[i]);
+  var masterNames = Object.keys(マスタ定義);
+  for (var m = 0; m < masterNames.length; m += 1) names.push(masterNames[m]);
+
+  // v376.68.2 修正: 一覧で各シートの行数まで取ると 56 シート分の往復が積み上がり、
+  // 実測 20 秒（getSheets 1 回にまとめた後でも 20 秒）かかっていた。
+  // **一覧では行数を返さない**。件数は出力後の結果（rowCount）で示せば足りる。
+  var existing = {};
+  var sheets = ss.getSheets();
+  for (var sIdx = 0; sIdx < sheets.length; sIdx += 1) {
+    existing[sheets[sIdx].getName()] = true;
+  }
+
+  var result = [];
+  for (var n = 0; n < names.length; n += 1) {
+    var name = names[n];
+    if (isExportForbiddenTable_(name)) continue;
+    var masterOnly = isExportMasterOnlyTable_(name);
+    if (masterOnly && !isMaster) continue;
+    result.push({
+      name: name,
+      kind: name.indexOf('M_') === 0 ? 'MASTER' : 'TABLE',
+      masterOnly: masterOnly,
+      exists: !!existing[name],
+    });
+  }
+  result.sort(function(a, b) {
+    if (a.kind !== b.kind) return a.kind === 'TABLE' ? -1 : 1;
+    return a.name < b.name ? -1 : (a.name > b.name ? 1 : 0);
+  });
+  return { tables: result, maxRows: EXPORT_MAX_ROWS_ };
+}
+
+// CSV の 1 セルをエスケープする（RFC 4180）。
+// 先頭が = + - @ の場合は数式として解釈されないよう ' を前置する（CSV インジェクション対策）。
+function csvEscapeCell_(value) {
+  var v = value == null ? '' : String(value);
+  // 【重要】ここで正規表現リテラルを使わないこと。
+  // 二重引用符を含む regex は build のパーサ（collectFunctionDeclarationsShared）を壊し、
+  // 以降のすべての関数が検出されなくなる（v376.68 で実際に発生し operator tool 4 件が消えた）。
+  var first = v.charAt(0);
+  if (first === '=' || first === '+' || first === '-' || first === '@') v = "'" + v;
+  var needsQuote = v.indexOf(',') >= 0
+    || v.indexOf('"') >= 0
+    || v.indexOf(String.fromCharCode(13)) >= 0
+    || v.indexOf(String.fromCharCode(10)) >= 0;
+  if (needsQuote) v = '"' + v.split('"').join('""') + '"';
+  return v;
+}
+
+// 出力の事実を T_監査ログ へ残す（列構成は既存の appendRoleAuditLog_ と同一）。
+// 中身は残さず、テーブル名・行数・条件のみ記録する（持ち出し記録が目的）。
+function appendExportAuditLog_(adminEmail, tableName, rowCount, includeDeleted, truncated) {
+  try {
+    var sheet = getLogSs_().getSheetByName('T_監査ログ');
+    if (!sheet) return;
+    sheet.appendRow([
+      Utilities.getUuid(),
+      new Date().toISOString(),
+      adminEmail || '',
+      'EXPORT_TABLE_CSV',
+      tableName,
+      '',
+      'rowCount',
+      '',
+      JSON.stringify({ rows: rowCount, includeDeleted: !!includeDeleted, truncated: !!truncated }),
+    ]);
+  } catch (e) { /* schema 未整備時は silent skip */ }
+}
+
+// 指定テーブルを CSV 文字列で返す。
+function exportTableCsv_(payload, session) {
+  var name = String((payload && payload.tableName) || '').trim();
+  if (!name) throw new Error('テーブル名が指定されていません。');
+  if (isExportForbiddenTable_(name)) {
+    throw new Error('このテーブルは出力できません（秘密情報を含むため）: ' + name);
+  }
+  var known = Object.prototype.hasOwnProperty.call(テーブル定義, name)
+    || Object.prototype.hasOwnProperty.call(マスタ定義, name);
+  if (!known) throw new Error('未知のテーブルです: ' + name);
+
+  var isMaster = !!(session && session.isMaster);
+  if (isExportMasterOnlyTable_(name) && !isMaster) {
+    throw new Error('このテーブルの出力はマスター権限が必要です: ' + name);
+  }
+
+  var includeDeleted = !!(payload && payload.includeDeleted);
+  var ss = getOrCreateDatabase_();
+  var sheet = ss.getSheetByName(name);
+  if (!sheet) throw new Error('シートが見つかりません: ' + name);
+
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 1 || lastCol < 1) throw new Error('シートが空です: ' + name);
+
+  var values = sheet.getRange(1, 1, lastRow, lastCol).getValues();
+  var headers = values[0].map(function(h) { return String(h == null ? '' : h); });
+  var deletedIdx = headers.indexOf('削除フラグ');
+
+  var lines = [headers.map(csvEscapeCell_).join(',')];
+  var exported = 0;
+  var skippedDeleted = 0;
+  for (var r = 1; r < values.length; r += 1) {
+    var row = values[r];
+    if (!includeDeleted && deletedIdx >= 0 && toBoolean_(row[deletedIdx])) {
+      skippedDeleted += 1;
+      continue;
+    }
+    if (exported >= EXPORT_MAX_ROWS_) break;
+    var cells = [];
+    for (var c = 0; c < headers.length; c += 1) {
+      var cell = row[c];
+      // 日付は ISO 文字列へ寄せる（Excel のロケール差で表示が揺れないように）
+      if (cell instanceof Date) {
+        cells.push(csvEscapeCell_(Utilities.formatDate(cell, 'Asia/Tokyo', "yyyy-MM-dd'T'HH:mm:ss")));
+      } else {
+        cells.push(csvEscapeCell_(cell));
+      }
+    }
+    lines.push(cells.join(','));
+    exported += 1;
+  }
+
+  var truncated = (values.length - 1 - skippedDeleted) > exported;
+  var stamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd_HHmm');
+
+  // 個人情報の持ち出し記録として監査ログへ残す（行数のみ。中身は残さない）
+  appendExportAuditLog_(String((session && session.loginId) || ''), name, exported, includeDeleted, truncated);
+
+  return {
+    tableName: name,
+    filename: name + '_' + stamp + '.csv',
+    csv: lines.join('\r\n'),
+    rowCount: exported,
+    skippedDeleted: skippedDeleted,
+    truncated: truncated,
+    maxRows: EXPORT_MAX_ROWS_,
+  };
+}
+
+// v376.68: 汎用データエクスポートの実 DB dryRun（非送信・DB 書込なし・読み取りのみ）。
+// 会員の個人情報を扱う機能のため、権限ガードが実際に効くことを本番 DB で確認する。
+// **CSV の中身はログに出さない**（行数と先頭ヘッダー名のみ）。
 
 // v368: 申込受付メール送信ヘルパー（公開ポータル申請受付時に使用）
 function sendApplicationReceiptMail_(ss, params) {

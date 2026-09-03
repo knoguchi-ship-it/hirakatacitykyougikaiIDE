@@ -1,5 +1,22 @@
 # 開発引継ぎ（Current State）
 
+## 2026-09-03 v376.68 / .68.1 / .68.2 リリース（汎用データエクスポート）
+
+- **GCP 移行の前提機能を GAS 側で先行実装**（`docs/261` T-07・operator 判断）。移行後はスプレッドシートを
+  直接開けなくなるため、任意のテーブルを CSV で取り出す手段を先に用意した。
+- 管理ポータル → システム → **データ出力（CSV）**。**既定は MASTER のみ**で、事務局へ渡す場合は
+  MASTER が 権限管理 から `data-export` メニューを明示付与する（会員の個人情報を丸ごと持ち出せる操作のため）。
+- 安全設計: **認証テーブルとそのアーカイブは MASTER でも出力不可**／ログ系と設定は MASTER 限定／
+  未知テーブル名は拒否／**持ち出しを監査ログに記録**（中身は残さない）／CSV インジェクション対策／1 回 20,000 行の上限。
+- **途中で 2 件の不具合を検出・是正**: ①`T_認証アカウント_archive` が出力対象に混入（完全一致判定だったため）
+  →`_archive` を外して判定する共通関数へ ②一覧表示に 20 秒→**5.5 秒**（56 シート分の行数取得をやめた）。
+- **ビルドの罠**: 二重引用符を含む正規表現を書くと関数抽出パーサが壊れ、以降の関数が生成物から消える
+  （operator ツール 4 件が消失して発覚）。正規表現を使わない実装に変更し、ソースに警告コメントを残した。
+- 本番 fixed deployment は **public @377×2 / member @136 / admin @233** に同期済み。
+- live 検証: dryRun 10 チェック全 PASS／管理画面の実動作 PASS／**実 CSV の中身まで確認**／
+  admin responsive 56 view／メール設定 E2E 5/5／公開 a11y 0・responsive 21 view。
+- 詳細は docs/262_RELEASE_STATE_v376.68_2026-09-03.md。
+
 ## 2026-09-03 v376.67 リリース（DRY 全面是正・単一情報源へ集約）
 
 - **operator 指示による棚卸し監査**（「同じ処理が別ルートを通る箇所を根本から是正」）。実測に基づく監査結果と
@@ -112,7 +129,7 @@
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
 最終更新: **2026-09-03**
-最新リリース: **v376.67**（DRY 是正＝単一情報源へ集約・研修リマインダーのカテゴリ誤り修正・public @374×2 / member @133 / admin @230）
+最新リリース: **v376.68.2**（汎用データエクスポート＝GCP 移行の前提機能を GAS 先行実装・public @377×2 / member @136 / admin @233）
 最終作業（2026-09-02）: **本番 GAS 側で v376.60 の検証負債を解消し、v376.61 / v376.62 の 2 リリースを実施**（研修 endTime の実害バグ、テンプレート一覧が v376.42 以降ずっと壊れていた本番障害）。本番データの壊れたセル 3 件も operator 承認のうえ復元。あわせて docs を全面整理（直下 80→44 文書）し、テスト記録を `docs/portal/test-report.html` に一本化した。**GCP 側は本セッションでは再突合のみ実施（書込なし）**。
 GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member 認証）のフル環境まで構築・デプロイ完了。本番 GAS/DB は一切非破壊**（作業は GCP 作業場のみ）。member-auth サービス（Cloud Run `hcmn-member-auth`・rev00003・private・App Check 強制 ON・max=1・専用 SA 最小権限）に、防御コア（第0層レート制限／第1層ロック尊重／第4層日次上限／列挙リーク是正／fail-closed）＋本番 `verifyPassword_` の厳密移植（KAT で GAS 等価を機械証明）＋資格情報ミラー 342 件（**テストコピー由来**）＋Firebase カスタムトークン発行（鍵レス signBlob）＋監査/失効を実装。unit 46/46。**この中断点は 2026-08-03 に解消済（rev00006 でフル経路 end-to-end PASS）。当時「あと 1 手」とされていたのは誤認で、実際は `admin.appCheck()` の初期化順序というサーバ側バグの修正が必要だった。以降 Step A（member-api rev00001）まで進行**。再開手順・GCP リソース一覧・env 再構築・落とし穴の正本は GCP 作業場 `docs/HANDOFF_2026-07-25_member-auth.md`。
 同期間の Phase 4a（2026-07-19〜22）: 予算 killswitch **完了**（予算→topic 接続＋実イベント `under_budget` 初回受信を実測）／日次エクスポート（Firestore→シート BK）を Cloud Run Job で構築し本番 DB シートのコピーで実データ検証 PASS（Scheduler 稼働開始はカットオーバー直前に延期）／portal-api に起動時一括ウォームアップ実装（110+5 doc を 848ms で prefetch・rev00002 実測）／共有 project の IAM 変更後に**本番 3 split live E2E で非影響を実測**（public a11y 0＋7VP／member 21／admin 56 全 PASS）。
@@ -132,7 +149,7 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
   **GAS では作れても GCP へ移行できない仕様は採用しない（NG）**。設計時に「GCP では何で実装するか」を 1 行で書けることが設計完了の条件。
   判断表と NG パターンは `AGENTS.md` §4.8.2 / §4.8.3、決定の背景は `docs/06_DECISION_RECORDS.md`（2026-09-03）。
 
-- **本番**: public **@374×2** / member **@133** / admin **@230**（v376.67・§1）。全 fixed deployment 同期確認済。ロールバック先は public @373×2 / member @132 / admin @229（v376.66）。
+- **本番**: public **@377×2** / member **@136** / admin **@233**（v376.68.2・§1）。全 fixed deployment 同期確認済。ロールバック先は public @374×2 / member @133 / admin @230（v376.67）。
 - **v376.64 の検証は完了**（管理セッション再取得後に実施）: admin responsive 56 view・メール設定 E2E 5/5・`dryRunMembershipFeeV376_64_LOG` が `passed:true` / `restored:true`。公開側は入会申込カードに 3,000 / 8,000 / 5,000 円の表示を実測。
 - **検証状況は 1 ページで見られる**: [`docs/portal/test-report.html`](docs/portal/test-report.html)（16 項目・PASS 15・要フォロー 1）。再生成は `npm run report:tests`。
 - **文書の入口**: [`docs/00_DOC_INDEX.md`](docs/00_DOC_INDEX.md)。2026-09-02 に全面整理し、`docs/` 直下は現役 44 文書のみ・完了記録 224 件は [`docs/archive/`](docs/archive/00_ARCHIVE_INDEX.md) へ移した。
@@ -169,10 +186,10 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 
 | 配信 | Deployment ID | Version |
 |---|---|---|
-| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@374** |
-| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@374** |
-| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@133** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@230** |
+| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@377** |
+| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@377** |
+| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@136** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@233** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 
@@ -225,6 +242,9 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 | # | タスク | 詳細 / 参照 |
 |---|---|---|
 | 0 | **研修メール送信のカテゴリ（operator 判断）** | v376.67 で研修リマインダーを `TRAINING_REMINDER` に是正した結果、**手動の「研修メール送信」も同じトグルに乗る**。分けるなら新カテゴリ（設定キー＋UI トグル）の追加が必要。運用が 1 つ増えるため判断を仰ぐ（`docs/260` §4-1） |
+| 0 | **データ出力の権限付与（運用判断）** | `data-export` メニューは現在 **MASTER のみ**。事務局（管理者ロール）に渡すかは operator 判断。渡す場合は 設定 → 権限管理 から付与する | `docs/262` |
+| 0 | **B: 一括編集の対象拡張 / C: CSV インポート（未着手）** | T-07 で GAS 先行実装と決めた 3 機能のうち A（汎用エクスポート）のみ完了。B は現在 6 項目→住所・電話・事業所情報まで拡張、C は要設計（誤操作リスクが高くプレビュー必須） | `docs/261` T-07 |
+| ✅ | **v376.68 完了（汎用データエクスポート）** | public @377×2 / member @136 / admin @233。dryRun 10 チェック全 PASS・実 CSV の中身まで確認・admin 56 view・メール設定 5/5・公開 a11y 0/21 view。実装中に認証アーカイブの混入と一覧 20 秒を検出・是正 | `docs/262_RELEASE_STATE_v376.68_2026-09-03.md` |
 | ✅ | **v376.67 完了（DRY 是正・単一情報源へ集約）** | public @374×2 / member @133 / admin @230。是正 7 件＋新ゲート `test:single-source`（8 検査）。live E2E 全 PASS（公開 a11y 0／公開 21 view／admin 56 view／メール設定 5/5／dryRun 7 チェック） | `docs/260_SINGLE_SOURCE_AUDIT_2026-09-03.md` |
 | ✅ | **v376.66 完了（事業所メールの差し込みタグ未置換の是正）** | public @373×2 / member @132 / admin @229 に同期済。`dryRunMailMergeTagsV376_66_LOG` **7 チェック全 PASS**（事業所で 会員種別/年会費 が解決・個人は非退行・現在保存中の事業所テンプレートに未解決タグ 0）、メール設定 E2E 5/5。**残る運用判断**: 実送信での最終確認（配信モードを一時「テスト集約」にして事業所会員の承認を 1 件通す）と、既にタグのまま届いた分の再送要否 | `docs/259_RELEASE_STATE_v376.66_2026-09-03.md` |
 | ✅ | **v376.65〜.65.2 完了（規程・重要事項マスタ＝案C Phase 1）** | public @372×2 / member @131 / admin @228 に同期済。`T_規程` 新設・管理 UI・公開表示・seed 5 件。live E2E 全 PASS（公開 a11y 0／公開 responsive 21 view／admin responsive 56 view／メール設定 5/5／dryRun 10 チェック／管理画面に規程 5 件の描画を実測）。**Phase 2（同意記録）は未着手** | `docs/258_RELEASE_STATE_v376.65_2026-09-02.md` |

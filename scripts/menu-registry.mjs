@@ -41,6 +41,9 @@ export const MENU_REGISTRY = [
   { id: 'officer-management',   label: '役員管理',          group: '組織管理' },
   // システム
   { id: 'admin-settings',       label: 'システム設定',      group: 'システム' },
+  // v376.68: 汎用データエクスポート。既定ではどの初期ロールにも付与しない（MASTER のみ可）。
+  // 事務局へ渡す場合は MASTER が 権限管理 から明示的に付与する。
+  { id: 'data-export',          label: 'データ出力（CSV）', group: 'システム' },
   { id: 'system-permissions',   label: '権限管理',          group: 'システム', masterOnly: true },
   { id: 'data-management',      label: 'データ管理',        group: 'システム', masterOnly: true },
   // 共通（任意のadmin role に付与）— 横断 read 系（共有メモ参照・PDFサムネ・全データ取得）
@@ -124,6 +127,9 @@ export const ACTION_TO_MENU = {
   saveCredentialEmailTemplate: 'bulk-mail',
   deleteCredentialEmailTemplate: 'bulk-mail',
   // v376.42: 全メール種別テンプレート管理（システム設定→メール通知 画面）
+  // v376.68: 汎用データエクスポート
+  listExportableTables: 'data-export',
+  exportTableCsv: 'data-export',
   // v376.65（案C Phase 1）: 規程・重要事項マスタ CRUD
   listRegulations: 'admin-settings',
   saveRegulation: 'admin-settings',
