@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { MEMBER_TYPE_LABELS } from '../shared/memberTypes.mjs';
 import { AdminPermissionLevel, SystemSettings } from '../types';
 import { BulkMailRecipient, EmailSendLog } from '../shared/types';
 import { ApiClient } from '../services/api';
@@ -16,12 +17,6 @@ interface BulkMailSenderProps {
 type AttachmentBlob = { name: string; mimeType: string; base64: string };
 
 const MERGE_TAGS = ['{{氏名}}', '{{事業所名}}', '{{会員番号}}'];
-
-const MEMBER_TYPE_LABELS: Record<string, string> = {
-  INDIVIDUAL: '個人',
-  BUSINESS:   '事業所',
-  SUPPORT:    '賛助',
-};
 
 const readFileAsBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -394,7 +389,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
                   checked={filterTypes.includes(t)}
                   onChange={() => toggleType(t)}
                 />
-                {MEMBER_TYPE_LABELS[t]}会員
+                {MEMBER_TYPE_LABELS[t]}
               </label>
             ))}
           </div>

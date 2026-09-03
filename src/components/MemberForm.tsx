@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Member, MailingPreference, MailDestination, MemberType, PaymentStatus, Staff, StaffRole, Training, TransferAccountInfo } from '../types';
+import { EMAIL_PATTERN, CARE_MANAGER_NO_PATTERN, POSTAL_CODE_PATTERN, PHONE_PATTERN } from '../shared/validators';
 import { AlertTriangleIcon, MailIcon, CheckCircleIcon, BookOpenIcon, UsersIcon, HomeIcon, PlusIcon, SparklesIcon } from './Icons';
 import { api } from '../services/api';
 import StaffTrainingView from './StaffTrainingView';
@@ -10,10 +11,11 @@ import { normalizeKana } from '../utils/kanaNormalize';
 type DraftStaff = Staff & { isNew?: boolean };
 
 const HALF_WIDTH_KANA_RE = /^[ｦ-ﾟ\s]+$/u;
-const CARE_MANAGER_RE = /^\d{8}$/;
-const POST_CODE_RE = /^\d{3}-?\d{4}$/;
-const PHONE_RE = /^[0-9-]+$/;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// v376.67 DRY 是正: 検証パターンは src/shared/validators.ts が単一情報源
+const CARE_MANAGER_RE = CARE_MANAGER_NO_PATTERN;
+const POST_CODE_RE = POSTAL_CODE_PATTERN;
+const PHONE_RE = PHONE_PATTERN;
+const EMAIL_RE = EMAIL_PATTERN;
 const hasTransferAccountInfo = (account?: TransferAccountInfo | null): account is TransferAccountInfo => {
   if (!account) return false;
   return Boolean(

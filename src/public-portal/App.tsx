@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { MEMBER_TYPE_ANNUAL_FEE_DEFAULTS } from '../shared/memberTypes.mjs';
 import { PublicTraining } from '../shared/types';
 import { callApi } from '../shared/api-base';
 import MemberApplicationForm from '../components/application/MemberApplicationForm';
@@ -88,7 +89,7 @@ const PAGE_PARAM_TO_VIEW: Partial<Record<string, View>> = {
 
 const DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS: PublicPortalContentSettings = {
   regulations: [],
-  membershipFees: { INDIVIDUAL: 3000, BUSINESS: 8000, SUPPORT: 5000 },
+  membershipFees: MEMBER_TYPE_ANNUAL_FEE_DEFAULTS,
   membershipFeeVisible: true,
   membershipFeeNote: '',
   heroBadgeEnabled: false,

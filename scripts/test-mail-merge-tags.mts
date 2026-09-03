@@ -5,8 +5,8 @@
  * 事業所会員の入会承認メールで `{{会員種別}}` `{{年会費}}` が**タグのまま会員へ届いた**。
  * 個人会員は正常だった。原因は送信経路が 2 本に分かれていたこと:
  *   - 個人 / 賛助 → sendCredentialEmail_（{{会員種別}} {{年会費}} を置換する）
- *   - 事業所     → renderBizEmailTemplate_(template, bizVars)（bizVars に両タグが無い＝素通り）
- * renderBizEmailTemplate_ は「渡された key だけ」を置換するため、未知のタグは原文のまま残る。
+ *   - 事業所     → renderMergeTags_(template, bizVars)（bizVars に両タグが無い＝素通り）
+ * renderMergeTags_ は「渡された key だけ」を置換するため、未知のタグは原文のまま残る。
  *
  * 本テストは gas-src の実ソースから関数を抽出して評価し、次の 3 点を固定する:
  *   1. 事業所メールの差し込み変数に 会員種別 / 年会費 が含まれること（ソース契約）
@@ -20,6 +20,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const GAS_SRC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'gas-src', 'Code.full.gs');
+// @ts-expect-error allowJs な共有モジュール（GAS へも注入される単一情報源）
+import { formatAnnualFee } from '../src/shared/memberTypes.mjs';
 const source = fs.readFileSync(GAS_SRC, 'utf8');
 
 // 波括弧の深さ数えは本ファイル対象の関数（正規表現に {{ }} を含む）で誤作動するため、
@@ -32,12 +34,13 @@ function extractFunction(name: string): string {
   return source.slice(start, end + 3);
 }
 
-const formatAnnualFeeForMail_ = new Function(
-  `${extractFunction('formatAnnualFeeForMail_')}; return formatAnnualFeeForMail_;`,
-)() as (v: unknown) => string;
+// v376.67: 年会費の整形は src/shared/memberTypes.mjs の formatAnnualFee() が正本になり、
+// GAS へは build 時に formatAnnualFee_ として注入される（gas-src 上は stub）。
+// テストは正本の実装をそのまま評価する。
+const formatAnnualFeeForMail_ = formatAnnualFee as (v: unknown) => string;
 
-const renderBizEmailTemplate_ = new Function(
-  `${extractFunction('renderBizEmailTemplate_')}; return renderBizEmailTemplate_;`,
+const renderMergeTags_ = new Function(
+  `${extractFunction('renderMergeTags_')}; return renderMergeTags_;`,
 )() as (tpl: string, vars: Record<string, unknown>) => string;
 
 const logs: string[] = [];
@@ -64,12 +67,12 @@ test('未設定・0・不正値は空文字（「0円」と誤送しない）', 
 test('★回帰固定: 事業所メールの差し込み変数に 会員種別 / 年会費 がある', () => {
   const bizVarsBlock = source.slice(source.indexOf('var bizVars = {'), source.indexOf('var bizVars = {') + 600);
   assert.match(bizVarsBlock, /会員種別:/, '事業所メールに 会員種別 が渡っていない');
-  assert.match(bizVarsBlock, /年会費:\s*formatAnnualFeeForMail_/, '事業所メールに整形済みの 年会費 が渡っていない');
+  assert.match(bizVarsBlock, /年会費:\s*formatAnnualFee_/, '事業所メールに整形済みの 年会費 が渡っていない');
 });
 
 test('★実害再現: 変数を渡せば事業所テンプレートでもタグが解決する', () => {
   const tpl = '{{氏名}} 様の会員種別は{{会員種別}}となります。\nその為、年会費は{{年会費}}となります。';
-  const rendered = renderBizEmailTemplate_(tpl, {
+  const rendered = renderMergeTags_(tpl, {
     氏名: '平井 尚子',
     会員種別: '事業所会員',
     年会費: formatAnnualFeeForMail_(8000),
@@ -78,8 +81,8 @@ test('★実害再現: 変数を渡せば事業所テンプレートでもタグ
   assert.doesNotMatch(rendered, /\{\{/, 'タグが残っている');
 });
 
-test('renderBizEmailTemplate_ は渡されなかったタグを素通しする（＝最後の砦が必要な理由）', () => {
-  const rendered = renderBizEmailTemplate_('{{氏名}}／{{会員種別}}', { 氏名: '山田' });
+test('renderMergeTags_ は渡されなかったタグを素通しする（＝最後の砦が必要な理由）', () => {
+  const rendered = renderMergeTags_('{{氏名}}／{{会員種別}}', { 氏名: '山田' });
   assert.equal(rendered, '山田／{{会員種別}}');
 });
 
@@ -105,16 +108,22 @@ test('★送信の中枢（deliverMail_）で必ず通る', () => {
   assert.match(deliver, /body = stripUnresolvedMergeTags_\(body/, 'body が素通りしている');
 });
 
-// ── 正本の一致（UI が案内するタグ = 送信側が解決できるタグ）──
-test('★管理画面が事業所メールで案内するタグを送信側が解決できる', () => {
-  const appTsx = fs.readFileSync(
-    path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'App.tsx'), 'utf8',
+// ── 正本の一致（カタログが案内するタグ = 送信側が解決できるタグ）──
+// v376.67: UI はカタログ（src/shared/mailTemplates.ts）を参照する形へ統一したため、
+// 検査対象も「UI の直書き」からカタログ本体へ移した。
+test('★カタログが事業所メールで案内するタグを送信側が渡している', () => {
+  const catalog = fs.readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'shared', 'mailTemplates.ts'), 'utf8',
   );
-  const line = appTsx.split(/\r?\n/).find((l) => l.includes("{/* 事業所 代表者 */}"));
-  assert.ok(line !== undefined, '事業所代表者カードが見つからない');
-  const idx = appTsx.indexOf('{/* 事業所 代表者 */}');
-  const tagsBlock = appTsx.slice(idx, idx + 600);
-  for (const tag of ['会員種別', '年会費']) {
-    assert.ok(tagsBlock.includes(`{{${tag}}}`), `UI が ${tag} を案内していない`);
+  const bizVarsBlock = source.slice(source.indexOf('var bizVars = {'), source.indexOf('var bizVars = {') + 600);
+  for (const category of ['BIZ_REP', 'BIZ_STAFF']) {
+    const line = catalog.split(/\r?\n/).find((l) => l.trim().startsWith(`${category}:`));
+    assert.ok(line, `${category} がカタログに無い`);
+    const tags = [...line.matchAll(/\{\{([^}]+)\}\}/g)].map((m) => m[1]);
+    assert.ok(tags.length >= 5, `${category} のタグが少ない: ${tags.join(',')}`);
+    for (const tag of tags) {
+      assert.ok(bizVarsBlock.includes(`${tag}:`),
+        `カタログは ${category} で {{${tag}}} を案内しているが、送信側の bizVars に渡っていない`);
+    }
   }
 });

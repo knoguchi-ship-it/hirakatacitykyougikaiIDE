@@ -2187,7 +2187,11 @@ function sendTrainingReminder_(request) {
 
   for (var j = 0; j < recipients.length; j += 1) {
     var to = recipients[j].email;
-    var sendRes = deliverMail_('BULK_MAIL', to, subject, body, { name: '枚方市介護支援専門員連絡協議会 事務局' });
+    // v376.67 是正: 研修リマインダーは TRAINING_REMINDER カテゴリで送る。
+    // 従来 'BULK_MAIL' を渡していたため、設定「研修リマインダーメール」の有効/無効トグル
+    // （TRAINING_REMINDER_ENABLED）が効かず、逆に「一括メール送信」を無効にすると
+    // 研修リマインダーまで止まっていた（送信ログのカテゴリも誤記録）。
+    var sendRes = deliverMail_('TRAINING_REMINDER', to, subject, body, { name: '枚方市介護支援専門員連絡協議会 事務局' });
     if (sendRes && sendRes.sent) {
       result.sentTo.push(to);
       result.sentCount += 1;
@@ -5901,6 +5905,27 @@ function getAnnualFeeAmountMap_(ss) {
   return result;
 }
 
+// v376.67: 会員種別の【単一情報源】。ラベル・年会費既定値・整形関数を
+// src/shared/memberTypes.mjs から build 時に注入する（フロントと同一ロジック）。
+// 下記マーカー間の stub は build（injectMemberTypesPlaceholders）で実体へ置換される。
+// 表示ラベルの最終正本は DB の M_会員種別.名称。memberTypeLabel_(code, overrides) の
+// overrides にマスタ由来のラベルを渡すことでマスタが優先される。
+// __MEMBER_TYPES_BUILD_INJECT_START__
+var MEMBER_TYPE_CODES = ["INDIVIDUAL","BUSINESS","SUPPORT"];
+var MEMBER_TYPE_LABELS = {"INDIVIDUAL":"個人会員","BUSINESS":"事業所会員","SUPPORT":"賛助会員"};
+var MEMBER_TYPE_ANNUAL_FEE_DEFAULTS = {"INDIVIDUAL":3000,"BUSINESS":8000,"SUPPORT":5000};
+function memberTypeLabel_(code, overrides) {
+  var key = String(code || '');
+  if (overrides && overrides[key]) return String(overrides[key]);
+  return MEMBER_TYPE_LABELS[key] || key;
+}
+function formatAnnualFee_(rawAmount) {
+  var feeNum = parseInt(String(rawAmount == null ? '' : rawAmount), 10);
+  if (isNaN(feeNum) || feeNum <= 0) return '';
+  return feeNum.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '円';
+}
+// __MEMBER_TYPES_BUILD_INJECT_END__
+
 // v376.64: 会費設定の既定値（金額の既定は MEMBER_TYPE_ANNUAL_FEE_DEFAULTS）
 var MEMBERSHIP_FEE_DEFAULTS = {
   publicVisible: true,
@@ -6143,7 +6168,7 @@ function enqueueMemberApplicationChangeRequest_(payload) {
     applicantName: applicantName,
     requestId: requestId,
     requestType: 'MEMBER_APPLICATION',
-    memberTypeLabel: memberType === 'INDIVIDUAL' ? '個人会員' : memberType === 'BUSINESS' ? '事業所会員' : '賛助会員',
+    memberTypeLabel: memberTypeLabel_(memberType),
   });
   return { queued: true, success: true, requestId: requestId };
 }
@@ -6481,19 +6506,19 @@ function createMemberApplicationDirect_(payload) {
           会員マイページURL: MEMBER_PORTAL_URL,
           事業所名: bizOfficeName,
           会員種別: credEmailOpts.memberTypeLabel || '',
-          年会費: formatAnnualFeeForMail_(credEmailOpts.annualFee),
+          年会費: formatAnnualFee_(credEmailOpts.annualFee),
         };
         var fromAddr = credEmailOpts.from || '';
         try {
           if (staffRole === 'REPRESENTATIVE') {
             if (bizEmailSettings.bizRepEmailEnabled) {
-              var repBody = renderBizEmailTemplate_(bizEmailSettings.bizRepEmailBody, bizVars);
+              var repBody = renderMergeTags_(bizEmailSettings.bizRepEmailBody, bizVars);
               deliverMail_('BIZ_REP_EMAIL', staffEmail, bizEmailSettings.bizRepEmailSubject, repBody, { from: fromAddr });
               result.emailsSent++;
             }
           } else {
             if (bizEmailSettings.bizStaffEmailEnabled) {
-              var memberBody = renderBizEmailTemplate_(bizEmailSettings.bizStaffEmailBody, bizVars);
+              var memberBody = renderMergeTags_(bizEmailSettings.bizStaffEmailBody, bizVars);
               deliverMail_('BIZ_STAFF_EMAIL', staffEmail, bizEmailSettings.bizStaffEmailSubject, memberBody, { from: fromAddr });
               result.emailsSent++;
             }
@@ -6974,7 +6999,12 @@ function transferBusinessStaffToBusinessMember_(ss, payload) {
  * opts を省略した場合はデフォルトテンプレートを使用する。
  */
 // v265: {{変数名}} プレースホルダーを vars オブジェクトで置換するヘルパー
-function renderBizEmailTemplate_(template, vars) {
+// v376.67: 汎用の差し込みレンダラ。名前が「Biz」だったため事業所専用に見え、
+// 他機能が別ルートの置換を書く誘因になっていた（v376.66 の障害の遠因）。
+// 実際は事業所メール・研修メール・研修リマインダーが共用する共通実装。
+// **メール本文の差し込みは必ずこの関数を通すこと**（渡していないタグは
+// deliverMail_ の stripUnresolvedMergeTags_ が送信直前に除去する）。
+function renderMergeTags_(template, vars) {
   var result = String(template || '');
   var keys = Object.keys(vars);
   for (var i = 0; i < keys.length; i++) {
@@ -6992,11 +7022,11 @@ function renderConfiguredMail_(ss, subjectKey, bodyKey, defaultSubject, defaultB
   try { map = getSystemSettingMap_(ss); } catch (e) { map = {}; }
   var subjTpl = String(map[subjectKey] || '') || defaultSubject;
   var bodyTpl = String(map[bodyKey] || '') || defaultBody;
-  var subject = renderBizEmailTemplate_(subjTpl, vars);
-  var body = renderBizEmailTemplate_(bodyTpl, vars);
+  var subject = renderMergeTags_(subjTpl, vars);
+  var body = renderMergeTags_(bodyTpl, vars);
   if (requiredValue && body.indexOf(String(requiredValue)) < 0) {
-    subject = renderBizEmailTemplate_(defaultSubject, vars);
-    body = renderBizEmailTemplate_(defaultBody, vars);
+    subject = renderMergeTags_(defaultSubject, vars);
+    body = renderMergeTags_(defaultBody, vars);
   }
   return { subject: subject, body: body };
 }
@@ -7342,7 +7372,7 @@ function sendApplicationReceiptMail_(ss, params) {
     '受付日時': params.receivedAt || Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm'),
   };
   try {
-    deliverMail_('APPLICATION_RECEIPT', params.contactEmail, renderBizEmailTemplate_(subjectTpl, vars), renderBizEmailTemplate_(bodyTpl, vars));
+    deliverMail_('APPLICATION_RECEIPT', params.contactEmail, renderMergeTags_(subjectTpl, vars), renderMergeTags_(bodyTpl, vars));
   } catch (e) {
     Logger.log('[sendApplicationReceiptMail_] failed: ' + e.message);
   }
@@ -7365,7 +7395,7 @@ function sendApprovalNotificationMail_(ss, params) {
     '変更内容サマリー': params.changeSummary || '',
   };
   try {
-    deliverMail_('APPROVAL_NOTIFICATION', params.contactEmail, renderBizEmailTemplate_(subjectTpl, vars), renderBizEmailTemplate_(bodyTpl, vars));
+    deliverMail_('APPROVAL_NOTIFICATION', params.contactEmail, renderMergeTags_(subjectTpl, vars), renderMergeTags_(bodyTpl, vars));
   } catch (e) {
     Logger.log('[sendApprovalNotificationMail_] failed: ' + e.message);
   }
@@ -7388,7 +7418,7 @@ function sendRejectionNotificationMail_(ss, params) {
     '処理備考': params.note || '',
   };
   try {
-    deliverMail_('REJECTION_NOTIFICATION', params.contactEmail, renderBizEmailTemplate_(subjectTpl, vars), renderBizEmailTemplate_(bodyTpl, vars));
+    deliverMail_('REJECTION_NOTIFICATION', params.contactEmail, renderMergeTags_(subjectTpl, vars), renderMergeTags_(bodyTpl, vars));
   } catch (e) {
     Logger.log('[sendRejectionNotificationMail_] failed: ' + e.message);
   }
@@ -7417,21 +7447,13 @@ function getBizEmailSettings_(ss) {
   };
 }
 
-// v376.66: 年会費の表示整形（「3,000円」）。会員種別ごとの金額の正本は M_会員種別.年会費金額。
-// 個人/賛助の認証情報メールと事業所メールの両方が同じ整形を通るよう共通化した。
-function formatAnnualFeeForMail_(rawAmount) {
-  var feeNum = parseInt(String(rawAmount == null ? '' : rawAmount), 10);
-  if (isNaN(feeNum) || feeNum <= 0) return '';
-  return feeNum.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '円';
-}
-
 function sendCredentialEmail_(toEmail, loginId, password, memberName, opts) {
   opts = opts || {};
   var from = String(opts.from || '').trim();
   var subject = (opts.subject && opts.subject.trim()) ? opts.subject : CREDENTIAL_EMAIL_DEFAULT_SUBJECT;
   var bodyTemplate = (opts.body && opts.body.trim()) ? opts.body : CREDENTIAL_EMAIL_DEFAULT_BODY;
   // v219: 年会費を「3,000円」形式にフォーマット（v376.66 で共通関数化）
-  var annualFeeStr = formatAnnualFeeForMail_(opts.annualFee);
+  var annualFeeStr = formatAnnualFee_(opts.annualFee);
   var body = bodyTemplate
     .replace(/\{\{氏名\}\}/g, memberName)
     .replace(/\{\{ログインID\}\}/g, loginId)
@@ -11183,12 +11205,6 @@ function createMasterSheets_(ss) {
 // スキーマ初期化では「未設定（空欄・非数値・0以下）のときだけ既定値を補完」する。
 // 以前は毎回 3000/8000/5000 で上書きしていたため、管理者が変更しても次回ログインの
 // initializeSchema_ で元に戻ってしまう（設定として成立しない）。
-var MEMBER_TYPE_ANNUAL_FEE_DEFAULTS = {
-  INDIVIDUAL: 3000,
-  BUSINESS: 8000,
-  SUPPORT: 5000,
-};
-
 function ensureMemberTypeAnnualFeeAmounts_(ss) {
   var sheet = ss.getSheetByName('M_会員種別');
   if (!sheet || sheet.getLastRow() < 2) return;
@@ -12614,7 +12630,7 @@ function approveAdminChangeRequest_(payload) {
         if (bizMailSettings.staffAddStaffEmailEnabled && saEmail) {
           try {
             var staffAddVars = { 氏名: saName, ログインID: saLoginId, パスワード: saPassword, 会員マイページURL: MEMBER_PORTAL_URL, 事業所名: officeNameForEmail };
-            var staffAddBody = renderBizEmailTemplate_(bizMailSettings.staffAddStaffEmailBody, staffAddVars);
+            var staffAddBody = renderMergeTags_(bizMailSettings.staffAddStaffEmailBody, staffAddVars);
             deliverMail_('STAFF_ADD_STAFF_EMAIL', saEmail, bizMailSettings.staffAddStaffEmailSubject, staffAddBody, { from: fromAddrForStaffAdd });
           } catch (e) {
             Logger.log('staffAdd staff email failed for ' + saEmail + ': ' + e.message);
@@ -12626,7 +12642,7 @@ function approveAdminChangeRequest_(payload) {
       if (bizMailSettings.staffAddRepEmailEnabled && repEmail) {
         try {
           var repNotifyVars = { 氏名: repName, 会員マイページURL: MEMBER_PORTAL_URL, 事業所名: officeNameForEmail, 追加職員氏名: addedNames.join('、') };
-          var repNotifyBody = renderBizEmailTemplate_(bizMailSettings.staffAddRepEmailBody, repNotifyVars);
+          var repNotifyBody = renderMergeTags_(bizMailSettings.staffAddRepEmailBody, repNotifyVars);
           deliverMail_('STAFF_ADD_REP_EMAIL', repEmail, bizMailSettings.staffAddRepEmailSubject, repNotifyBody, { from: fromAddrForStaffAdd });
         } catch (e) {
           Logger.log('staffAdd rep notify email failed for ' + repEmail + ': ' + e.message);
@@ -12670,7 +12686,7 @@ function approveAdminChangeRequest_(payload) {
     applicantName: applicantName,
     requestId: requestId,
     requestType: requestType,
-    memberTypeLabel: memberType === 'INDIVIDUAL' ? '個人会員' : memberType === 'BUSINESS' ? '事業所会員' : '賛助会員',
+    memberTypeLabel: memberTypeLabel_(memberType),
     processorName: adminSession.displayName || adminSession.loginId || '事務局',
     changeSummary: buildChangeSummaryText_(changeData, requestType),
   });
@@ -13207,8 +13223,8 @@ function sendTrainingMail_(payload) {
     var rec = recipients[i];
     try {
       var mergeVars = { '氏名': rec.name, '事業所名': rec.officeName || '' };
-      var personalSubject = renderBizEmailTemplate_(subject, mergeVars);
-      var personalBody = renderBizEmailTemplate_(body, mergeVars);
+      var personalSubject = renderMergeTags_(subject, mergeVars);
+      var personalBody = renderMergeTags_(body, mergeVars);
       var allAttachments = commonAttachments.slice();
       if (driveFileIds[rec.applyId]) {
         try {
@@ -14238,8 +14254,7 @@ function generateMailingListExcel_(payload) {
 
   selectedCandidates.forEach(function(c) {
     if (c.addressInvalidItems.length > 0) {
-      var mtypeLabel = c.memberType === 'BUSINESS' ? '事業所会員'
-                     : c.memberType === 'INDIVIDUAL' ? '個人会員' : '賛助会員';
+      var mtypeLabel = memberTypeLabel_(c.memberType);
       rowsInvalid.push([c.displayName, mtypeLabel, c.addressInvalidItems.join('、')]);
       return;
     }
@@ -14417,8 +14432,8 @@ function sendBulkMemberMail_(payload) {
     try {
       // 差し込みタグ置換
       var mergeVars = { '氏名': rec.displayName, '事業所名': rec.officeName || '', '会員番号': rec.memberId || '' };
-      var personalSubject = renderBizEmailTemplate_(subject, mergeVars);
-      var personalBody = renderBizEmailTemplate_(body, mergeVars);
+      var personalSubject = renderMergeTags_(subject, mergeVars);
+      var personalBody = renderMergeTags_(body, mergeVars);
 
       var allAttachments = commonAttachments.slice();
 

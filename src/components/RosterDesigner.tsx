@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { MEMBER_TYPE_LABELS } from '../shared/memberTypes.mjs';
 import { createPortal } from 'react-dom';
 import {
   closestCenter,
@@ -45,11 +46,6 @@ interface RosterDesignerProps {
 
 // =============== 定数 ===============
 
-const MEMBER_TYPE_LABELS: Record<string, string> = {
-  INDIVIDUAL: '個人会員',
-  BUSINESS: '事業所会員',
-  SUPPORT: '賛助会員',
-};
 
 const calcCurrentFY = (): number => {
   const now = new Date();

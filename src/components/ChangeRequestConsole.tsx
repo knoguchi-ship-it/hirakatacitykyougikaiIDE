@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { MEMBER_TYPE_LABELS } from '../shared/memberTypes.mjs';
 import { callApi } from '../shared/api-base';
 
 // ── 型定義 ────────────────────────────────────────────────────────────────────
@@ -30,11 +31,6 @@ interface ChangeRequest {
 
 // ── ラベル定義 ────────────────────────────────────────────────────────────────
 
-const MEMBER_TYPE_LABEL: Record<string, string> = {
-  INDIVIDUAL: '個人会員',
-  BUSINESS: '事業所会員',
-  SUPPORT: '賛助会員',
-};
 const REQUEST_TYPE_LABEL: Record<string, string> = {
   MEMBER_APPLICATION: '入会申込',
   MEMBER_UPDATE: '登録情報変更',
@@ -279,7 +275,7 @@ const ChangeRequestConsole: React.FC = () => {
                     {STATUS_LABEL[req.status] || req.status}
                   </span>
                   <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                    {MEMBER_TYPE_LABEL[req.memberType] || req.memberType}
+                    {MEMBER_TYPE_LABELS[req.memberType] || req.memberType}
                   </span>
                   <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-medium text-violet-700">
                     {REQUEST_TYPE_LABEL[req.requestType] || req.requestType}

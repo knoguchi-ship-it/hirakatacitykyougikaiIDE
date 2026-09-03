@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { EMAIL_PATTERN, CARE_MANAGER_NO_PATTERN, CARE_MANAGER_NO_RELAXED_PATTERN, POSTAL_CODE_PATTERN, PHONE_PATTERN } from '../shared/validators';
 import { AnnualFeeRecord, Member, MemberType, PaymentStatus, Staff, StaffRole, AdminDashboardMemberRow, ConvertMemberTypePayload } from '../types';
 import { api } from '../services/api';
 import PostalCodeInput from './PostalCodeInput';
@@ -55,11 +56,12 @@ const EDITABLE_MEMBER_FIELDS = [
 
 const HALF_WIDTH_KANA_RE = /^[ｦ-ﾟ\s]+$/u;
 // v372.4: admin 例外運用 — 厳格 (8 桁半角数字) または 緩和 (1〜10 桁半角英数字) を許容
-const CARE_MANAGER_RE = /^\d{8}$/;
-const CARE_MANAGER_RELAXED_RE = /^[A-Za-z0-9]{1,10}$/;
-const POST_CODE_RE = /^\d{3}-?\d{4}$/;
-const PHONE_RE = /^[0-9-]+$/;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// v376.67 DRY 是正: 検証パターンは src/shared/validators.ts が単一情報源
+const CARE_MANAGER_RE = CARE_MANAGER_NO_PATTERN;
+const CARE_MANAGER_RELAXED_RE = CARE_MANAGER_NO_RELAXED_PATTERN;
+const POST_CODE_RE = POSTAL_CODE_PATTERN;
+const PHONE_RE = PHONE_PATTERN;
+const EMAIL_RE = EMAIL_PATTERN;
 const STATUS_NOTE_MAX_LENGTH = 2000;
 
 // 全角カナ・ひらがな → 半角カナ変換（保存時に適用）

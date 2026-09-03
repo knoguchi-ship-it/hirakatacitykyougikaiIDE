@@ -459,9 +459,9 @@ function dryRunMailMergeTagsV376_66_LOG() {
     会員マイページURL: MEMBER_PORTAL_URL,
     事業所名: 'ドライラン事業所',
     会員種別: master.BUSINESS ? master.BUSINESS.label : '',
-    年会費: formatAnnualFeeForMail_(bizFee)
+    年会費: formatAnnualFee_(bizFee)
   };
-  var bizRendered = renderBizEmailTemplate_(probeTemplate, bizVars);
+  var bizRendered = renderMergeTags_(probeTemplate, bizVars);
   record('★事業所メールで {{会員種別}} が解決する',
     bizRendered.indexOf('{{会員種別}}') < 0 && bizRendered.indexOf(bizVars.会員種別) >= 0, bizVars.会員種別);
   record('★事業所メールで {{年会費}} が解決する',
@@ -476,9 +476,9 @@ function dryRunMailMergeTagsV376_66_LOG() {
     .replace(/\{\{ログインID\}\}/g, 'DRYRUN-LOGIN')
     .replace(/\{\{会員マイページURL\}\}/g, MEMBER_PORTAL_URL)
     .replace(/\{\{会員種別\}\}/g, indLabel)
-    .replace(/\{\{年会費\}\}/g, formatAnnualFeeForMail_(indFee));
+    .replace(/\{\{年会費\}\}/g, formatAnnualFee_(indFee));
   record('個人メールも従来どおり解決する（非退行）',
-    indRendered.indexOf('{{') < 0 && indRendered.indexOf(indLabel) >= 0, indLabel + ' / ' + formatAnnualFeeForMail_(indFee));
+    indRendered.indexOf('{{') < 0 && indRendered.indexOf(indLabel) >= 0, indLabel + ' / ' + formatAnnualFee_(indFee));
 
   // 4) 最後の砦: 未知タグは送信直前に除去される
   var stripped = stripUnresolvedMergeTags_('未知の{{存在しないタグ}}と{{会員種別}}', 'DRYRUN', 'body');
@@ -494,7 +494,7 @@ function dryRunMailMergeTagsV376_66_LOG() {
   ];
   var leftovers = [];
   for (var t = 0; t < liveTargets.length; t += 1) {
-    var rendered = renderBizEmailTemplate_(String(liveTargets[t].text || ''), bizVars);
+    var rendered = renderMergeTags_(String(liveTargets[t].text || ''), bizVars);
     var m = rendered.match(/\{\{[^{}]{1,60}\}\}/g);
     if (m && m.length) leftovers.push(liveTargets[t].name + ': ' + m.join(','));
   }

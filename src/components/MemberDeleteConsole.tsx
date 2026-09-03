@@ -1,13 +1,9 @@
 import React, { useState, useCallback } from 'react';
+import { MEMBER_TYPE_LABELS } from '../shared/memberTypes.mjs';
 import { api, MemberDeleteSearchResult, MemberDeletePreview, DeleteLogEntry } from '../services/api';
 
 type Step = 'search' | 'preview' | 'confirm' | 'done';
 
-const MEMBER_TYPE_LABEL: Record<string, string> = {
-  INDIVIDUAL: '個人会員',
-  BUSINESS: '事業所会員',
-  SUPPORT: '賛助会員',
-};
 const MEMBER_STATUS_LABEL: Record<string, string> = {
   ACTIVE: '有効',
   WITHDRAWAL_SCHEDULED: '退会予定',
@@ -56,7 +52,7 @@ const renderTargetMeta = (target: MemberDeleteSearchResult | MemberDeletePreview
     ].join('・');
   }
   return [
-    MEMBER_TYPE_LABEL[target.memberType] || target.memberType,
+    MEMBER_TYPE_LABELS[target.memberType] || target.memberType,
     MEMBER_STATUS_LABEL[target.memberStatus] || target.memberStatus,
   ].join('・');
 };

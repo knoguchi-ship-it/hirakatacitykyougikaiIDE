@@ -10,9 +10,11 @@ import {
 } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { MEMBER_ALLOWED_ACTIONS_LIST, injectMenuRegistryPlaceholders, injectMemberFiscalStatusPlaceholders, maskCommentsAndStrings } from './gas-boundary-utils.mjs';
+import { MEMBER_ALLOWED_ACTIONS_LIST, injectMenuRegistryPlaceholders, injectMemberFiscalStatusPlaceholders,
+  injectMemberTypesPlaceholders, maskCommentsAndStrings } from './gas-boundary-utils.mjs';
 import { serializeMenuRegistryForGas } from './menu-registry.mjs';
 import { serializeMemberFiscalStatusForGas } from '../src/shared/memberFiscalStatus.mjs';
+import { serializeMemberTypesForGas } from '../src/shared/memberTypes.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
@@ -410,6 +412,7 @@ function removeIfBlock(source, conditionText) {
 function buildMemberCode(source) {
   let code = injectMenuRegistryPlaceholders(source, serializeMenuRegistryForGas());
   code = injectMemberFiscalStatusPlaceholders(code, serializeMemberFiscalStatusForGas());
+  code = injectMemberTypesPlaceholders(code, serializeMemberTypesForGas());
   code = code.replace("var APP_SECURITY_BOUNDARY = 'public';", "var APP_SECURITY_BOUNDARY = 'member';");
   code = replaceObjectLiteral(code, 'PUBLIC_ALLOWED_ACTIONS', '{}');
   code = replaceObjectLiteral(code, 'ADMIN_LOGIN_ACTIONS', '{}');

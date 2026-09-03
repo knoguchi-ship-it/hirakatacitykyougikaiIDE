@@ -1,38 +1,52 @@
 /**
  * v376.43 (Phase B) 回帰テスト: メール差し込み描画ロジックの単体検証。
- * gas-src/Code.full.gs の renderBizEmailTemplate_ / renderConfiguredMail_ のロジックを忠実に再現し、
  *  ① {{タグ}} 置換が正しく行われること
  *  ② 認証コード等の requiredValue が描画後本文に無い場合、デフォルト文面へフォールバックして
  *     コードが必ず含まれること（OTP/パスワード再設定の欠落防止 = 安全ガード）
  * を機械検証する。実 GAS 経路の E2E は operator が dryRunMailTemplatesV376_43_LOG で確認する。
+ *
+ * v376.67 DRY 是正: 以前はここに gas-src と「同一ロジック」のミラー実装を置いていたが、
+ * それ自体が二重管理であり、本体を直してもテストが古い挙動を守り続ける危険があった
+ * （v376.66 の障害と同じ「同じ処理が別ルートにある」構造）。
+ * 実ソースから関数を抽出して評価する方式へ変更した。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-// ── gas-src の renderBizEmailTemplate_ と同一ロジック ──
-function renderBizEmailTemplate_(template: string, vars: Record<string, string>): string {
-  let result = String(template || '');
-  for (const k of Object.keys(vars)) {
-    result = result.replace(new RegExp('\\{\\{' + k + '\\}\\}', 'g'), String(vars[k] == null ? '' : vars[k]));
-  }
-  return result;
+const source = fs.readFileSync(
+  path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'gas-src', 'Code.full.gs'), 'utf8',
+);
+
+// gas-src のトップレベル関数は閉じ括弧が行頭にある規約なのでそれで切り出す
+function extractFunction(name: string): string {
+  const start = source.indexOf(`function ${name}(`);
+  assert.notEqual(start, -1, `${name} が gas-src に見つからない`);
+  const end = source.indexOf('\n}\n', start);
+  assert.notEqual(end, -1, `${name} の終端が見つからない`);
+  return source.slice(start, end + 3);
 }
 
-// ── gas-src の renderConfiguredMail_ と同一ロジック（settings は map で注入） ──
+const renderMergeTags_ = new Function(
+  `${extractFunction('renderMergeTags_')}; return renderMergeTags_;`,
+)() as (tpl: string, vars: Record<string, string>) => string;
+
+// renderConfiguredMail_ は設定読み出し（getSystemSettingMap_）を伴うため、
+// 実ソースを抽出したうえで settings map だけスタブして評価する。
+const renderConfiguredMailRaw = new Function(
+  'getSystemSettingMap_', 'renderMergeTags_',
+  `${extractFunction('renderConfiguredMail_')}; return renderConfiguredMail_;`,
+);
+
 function renderConfiguredMail_(
   map: Record<string, string>, subjectKey: string, bodyKey: string,
   defaultSubject: string, defaultBody: string,
   vars: Record<string, string>, requiredValue?: string,
 ): { subject: string; body: string } {
-  const subjTpl = String(map[subjectKey] || '') || defaultSubject;
-  const bodyTpl = String(map[bodyKey] || '') || defaultBody;
-  let subject = renderBizEmailTemplate_(subjTpl, vars);
-  let body = renderBizEmailTemplate_(bodyTpl, vars);
-  if (requiredValue && body.indexOf(String(requiredValue)) < 0) {
-    subject = renderBizEmailTemplate_(defaultSubject, vars);
-    body = renderBizEmailTemplate_(defaultBody, vars);
-  }
-  return { subject, body };
+  const fn = renderConfiguredMailRaw(() => map, renderMergeTags_);
+  return fn({}, subjectKey, bodyKey, defaultSubject, defaultBody, vars, requiredValue);
 }
 
 const OTP_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】{{用途}} 確認コード';

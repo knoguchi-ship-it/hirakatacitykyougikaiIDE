@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { memberTypeLabel } from '../shared/memberTypes.mjs';
 import { ApiClient } from '../services/api';
 import {
   BankAccount,
@@ -727,7 +728,7 @@ const OfficerListTab: React.FC<{
                         <p className="font-semibold text-slate-800">{officer.表示名}</p>
                         {officer.所属名 && <p className="text-xs text-slate-400">{officer.所属名}</p>}
                         <span className="text-[10px] rounded bg-slate-100 px-1 text-slate-500">
-                          {officer.職員ID ? '事業所職員' : (officer.会員種別コード === 'INDIVIDUAL' ? '個人会員' : officer.会員種別コード === 'SUPPORT' ? '賛助会員' : officer.会員種別コード)}
+                          {officer.職員ID ? '事業所職員' : memberTypeLabel(String(officer.会員種別コード || ''))}
                         </span>
                       </td>
                       <td className="px-3 py-3 text-slate-700 text-xs">{orgMap[officer.組織コード] ?? officer.組織コード}</td>

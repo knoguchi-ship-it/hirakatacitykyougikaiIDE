@@ -20,9 +20,11 @@ import {
   maskCommentsAndStrings,
   injectMenuRegistryPlaceholders,
   injectMemberFiscalStatusPlaceholders,
+  injectMemberTypesPlaceholders,
 } from './gas-boundary-utils.mjs';
 import { serializeMenuRegistryForGas } from './menu-registry.mjs';
 import { serializeMemberFiscalStatusForGas } from '../src/shared/memberFiscalStatus.mjs';
+import { serializeMemberTypesForGas } from '../src/shared/memberTypes.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
@@ -410,6 +412,7 @@ function removeIfBlock(source, conditionText) {
 function buildAdminCode(source) {
   let code = injectMenuRegistryPlaceholders(source, serializeMenuRegistryForGas());
   code = injectMemberFiscalStatusPlaceholders(code, serializeMemberFiscalStatusForGas());
+  code = injectMemberTypesPlaceholders(code, serializeMemberTypesForGas());
   code = code.replace("var APP_SECURITY_BOUNDARY = 'public';", "var APP_SECURITY_BOUNDARY = 'admin';");
   code = replaceObjectLiteral(code, 'PUBLIC_ALLOWED_ACTIONS', '{}');
   code = replaceObjectLiteral(code, 'MEMBER_ALLOWED_ACTIONS', '{}');

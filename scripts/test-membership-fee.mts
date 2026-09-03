@@ -17,6 +17,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const GAS_SRC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'gas-src', 'Code.full.gs');
+// @ts-expect-error allowJs な共有モジュール（GAS へも注入される単一情報源）
+import { MEMBER_TYPE_ANNUAL_FEE_DEFAULTS } from '../src/shared/memberTypes.mjs';
 const source = fs.readFileSync(GAS_SRC, 'utf8');
 
 function extractFunction(name: string): string {
@@ -41,7 +43,10 @@ function extractVar(name: string): string {
   return source.slice(start, end + 2);
 }
 
-const DEFAULTS_SRC = extractVar('MEMBER_TYPE_ANNUAL_FEE_DEFAULTS');
+// v376.67: 年会費既定値の正本は src/shared/memberTypes.mjs へ集約し、gas-src へは build 時に注入される。
+// gas-src 上は空の stub なので、テストは正本（共有モジュール）の値を注入して評価する。
+const DEFAULTS_SRC = 'var MEMBER_TYPE_ANNUAL_FEE_DEFAULTS = '
+  + JSON.stringify(MEMBER_TYPE_ANNUAL_FEE_DEFAULTS) + ';';
 
 const normalizeAnnualFeeAmount_ = new Function(
   `${extractFunction('normalizeAnnualFeeAmount_')}; return normalizeAnnualFeeAmount_;`,

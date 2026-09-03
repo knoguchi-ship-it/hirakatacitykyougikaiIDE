@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue } from 'react';
+import { MEMBER_TYPE_LABELS, MEMBER_TYPE_ANNUAL_FEE_DEFAULTS, memberTypeLabel as sharedMemberTypeLabel } from './shared/memberTypes.mjs';
 import Sidebar from './components/Sidebar';
 import RolePreviewBar from './components/RolePreviewBar';
 import MemberBatchEditor from './MemberBatchEditor';
@@ -219,7 +220,7 @@ const buildLoginIdentities = (members: Member[]): LoginIdentity[] =>
     if (member.type !== MemberType.BUSINESS) {
       return [{
         id: member.id,
-        label: `${member.type === MemberType.SUPPORT ? '賛助会員' : '個人会員'}: ${member.lastName} ${member.firstName}`,
+        label: `${sharedMemberTypeLabel(member.type)}: ${member.lastName} ${member.firstName}`,
         memberId: member.id,
         type: member.type,
       }];
@@ -235,12 +236,25 @@ const buildLoginIdentities = (members: Member[]): LoginIdentity[] =>
   });
 
 // v376.64: 会費設定（画面入力の初期値。実値は GAS の M_会員種別.年会費金額 が正本）
-const MEMBER_TYPE_ANNUAL_FEE_FALLBACK = { INDIVIDUAL: 3000, BUSINESS: 8000, SUPPORT: 5000 } as const;
-const MEMBER_TYPE_FEE_FIELDS = [
-  { code: 'INDIVIDUAL' as const, label: '個人会員' },
-  { code: 'BUSINESS' as const, label: '事業所会員' },
-  { code: 'SUPPORT' as const, label: '賛助会員' },
-];
+// v376.67: 複数カードで 1 つの凡例を共有する箇所用。カタログを結合して重複タグを除く。
+// UI はマージタグを直書きしない（単一情報源は src/shared/mailTemplates.ts）。
+const mergeTagUnion = (...lists: [string, string][][]): [string, string][] => {
+  const seen = new Set<string>();
+  const out: [string, string][] = [];
+  for (const list of lists) {
+    for (const item of list) {
+      if (seen.has(item[0])) continue;
+      seen.add(item[0]);
+      out.push(item);
+    }
+  }
+  return out;
+};
+
+// v376.67: 会費既定値・種別ラベルは src/shared/memberTypes.mjs が単一情報源
+const MEMBER_TYPE_ANNUAL_FEE_FALLBACK = MEMBER_TYPE_ANNUAL_FEE_DEFAULTS;
+const MEMBER_TYPE_FEE_FIELDS = (['INDIVIDUAL', 'BUSINESS', 'SUPPORT'] as const)
+  .map((code) => ({ code, label: MEMBER_TYPE_LABELS[code] }));
 
 const PUBLIC_PORTAL_DEFAULTS = {
   heroBadgeEnabled: false,
@@ -1593,8 +1607,7 @@ const App: React.FC = () => {
 
   const memberPageTypeLabel = useMemo(() => {
     if (!currentIdentity) return '未選択';
-    let label = '個人会員';
-    if (currentIdentity.type === MemberType.SUPPORT) label = '賛助会員';
+    let label = sharedMemberTypeLabel(currentIdentity.type);
     if (currentIdentity.type === MemberType.BUSINESS) {
       label = currentIdentity.staffRole === 'REPRESENTATIVE' ? '事業所会員（代表者）' : currentIdentity.staffRole === 'ADMIN' ? '事業所会員（管理者）' : '事業所会員（メンバー）';
     }
@@ -2093,11 +2106,8 @@ const App: React.FC = () => {
     logout();
   };
 
-  const memberTypeLabel = (type: string) => {
-    if (type === MemberType.BUSINESS) return '事業所会員';
-    if (type === MemberType.SUPPORT) return '賛助会員';
-    return '個人会員';
-  };
+  // v376.67: 会員種別ラベルの単一情報源（src/shared/memberTypes.mjs）
+  const memberTypeLabel = (type: string) => sharedMemberTypeLabel(type);
 
   const filteredAdminPermissions = useMemo(() => {
     let list = (adminPermissionData?.entries || []).filter((e) => e.permissionLevel !== 'GENERAL');
@@ -4509,7 +4519,7 @@ const App: React.FC = () => {
                   <h4 className="text-sm font-semibold text-slate-700 border-b border-slate-200 pb-1">▍入会申し込み時のメール</h4>
 
                   {/* 個人・賛助会員 */}
-                  <MergeTags items={[['{{氏名}}','氏名'],['{{ログインID}}','ログインID'],['{{パスワード}}','初期パスワード'],['{{会員マイページURL}}','マイページURL'],['{{会員種別}}','個人会員など'],['{{年会費}}','3,000円など']]} />
+                  <MergeTags items={MAIL_TEMPLATE_MERGE_TAGS.CREDENTIAL} />
                   <EmailCard badge="個人・賛助会員" title="個人会員・賛助会員向け"
                     enabled={indSuppEmailEnabledInput}
                     onToggle={() => { setIndSuppEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
@@ -4531,7 +4541,7 @@ const App: React.FC = () => {
 
                   {/* 事業所 代表者 */}
                   {/* v376.66: 事業所メールも 会員種別 / 年会費 の差し込みに対応 */}
-                  <MergeTags items={[['{{氏名}}','氏名'],['{{ログインID}}','ログインID'],['{{パスワード}}','初期パスワード'],['{{会員マイページURL}}','マイページURL'],['{{事業所名}}','事業所名'],['{{会員種別}}','事業所会員など'],['{{年会費}}','8,000円など']]} />
+                  <MergeTags items={MAIL_TEMPLATE_MERGE_TAGS.BIZ_REP} />
                   <EmailCard badge="事業所・代表者" title="事業所会員 代表者向け"
                     enabled={bizRepEmailEnabledInput}
                     onToggle={() => { setBizRepEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
@@ -4563,7 +4573,7 @@ const App: React.FC = () => {
                 {/* ─── 職員追加承認時のメール ─── */}
                 <div className="space-y-3">
                   <h4 className="text-sm font-semibold text-slate-700 border-b border-slate-200 pb-1">▍職員追加申請 承認時のメール</h4>
-                  <MergeTags items={[['{{氏名}}','氏名'],['{{ログインID}}','ログインID'],['{{パスワード}}','初期パスワード'],['{{会員マイページURL}}','マイページURL'],['{{事業所名}}','事業所名'],['{{追加職員氏名}}','追加職員名（代表者通知用）']]} />
+                  <MergeTags items={mergeTagUnion(MAIL_TEMPLATE_MERGE_TAGS.STAFF_ADD_STAFF, MAIL_TEMPLATE_MERGE_TAGS.STAFF_ADD_REP)} />
                   <EmailCard badge="追加職員" title="追加された職員へのメール"
                     enabled={staffAddStaffEmailEnabledInput}
                     onToggle={() => { setStaffAddStaffEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
@@ -4596,7 +4606,7 @@ const App: React.FC = () => {
                 <div className="space-y-3">
                   <h4 className="text-sm font-semibold text-slate-700 border-b border-slate-200 pb-1">▍変更申請ワークフロー（受付・承認・却下）のメール</h4>
                   <p className="text-xs text-slate-500">公開ポータルからの入会・変更・退会・職員追加/除籍の申請受付時、および管理者の承認/却下時に申請者へ送信されるメールです。差込変数: <code>{`{{氏名}}`}</code> <code>{`{{会員種別ラベル}}`}</code> <code>{`{{申請種別}}`}</code> <code>{`{{申請ID}}`}</code> <code>{`{{受付日時}}`}</code> <code>{`{{処理日時}}`}</code> <code>{`{{処理者名}}`}</code> <code>{`{{変更内容サマリー}}`}</code> <code>{`{{処理備考}}`}</code></p>
-                  <MergeTags items={[['{{氏名}}','氏名'],['{{会員種別ラベル}}','会員種別ラベル'],['{{申請種別}}','申請種別ラベル'],['{{申請ID}}','申請ID'],['{{受付日時}}','受付日時'],['{{処理日時}}','処理日時'],['{{処理者名}}','処理者名'],['{{変更内容サマリー}}','変更内容サマリー（承認メール用）'],['{{処理備考}}','処理備考（却下メール用）']]} />
+                  <MergeTags items={mergeTagUnion(MAIL_TEMPLATE_MERGE_TAGS.APPLICATION_RECEIPT, MAIL_TEMPLATE_MERGE_TAGS.APPROVAL_NOTIFICATION, MAIL_TEMPLATE_MERGE_TAGS.REJECTION_NOTIFICATION)} />
                   <EmailCard badge="①受付確認" title="申請受付時：受付確認メール（申請者へ）"
                     enabled={applicationReceiptEnabledInput}
                     onToggle={() => { setApplicationReceiptEnabledInput(v => !v); setSettingsIsDirty(true); }}

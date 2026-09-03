@@ -302,6 +302,16 @@ export function injectMemberFiscalStatusPlaceholders(source, serialized) {
   );
 }
 
+export function injectMemberTypesPlaceholders(source, serialized) {
+  return injectMarkerBlock(
+    source,
+    '// __MEMBER_TYPES_BUILD_INJECT_START__',
+    '// __MEMBER_TYPES_BUILD_INJECT_END__',
+    serialized,
+    'MEMBER_TYPES',
+  );
+}
+
 export function replaceObjectLiteral(source, name, replacement) {
   const pattern = new RegExp(`var ${name} = \\{[\\s\\S]*?\\n\\};`);
   if (!pattern.test(source)) {

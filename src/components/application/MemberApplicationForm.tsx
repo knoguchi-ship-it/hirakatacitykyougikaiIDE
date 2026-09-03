@@ -1,4 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { MEMBER_TYPE_LABELS, MEMBER_TYPE_ANNUAL_FEE_DEFAULTS, memberTypeLabel, formatAnnualFee } from '../../shared/memberTypes.mjs';
+import { EMAIL_PATTERN, CARE_MANAGER_NO_PATTERN, KATAKANA_PATTERN, OFFICE_NO_PATTERN, POSTAL_CODE_PATTERN, PHONE_PATTERN } from '../../shared/validators';
 import {
   ApplicationFormData,
   ApplicationStaffEntry,
@@ -46,15 +48,19 @@ function getStepLabels(type: ApplicationMemberType | ''): string[] {
   return STEPS_INDIVIDUAL;
 }
 
-const DEFAULT_MEMBER_TYPE_FEES = { INDIVIDUAL: 3000, BUSINESS: 8000, SUPPORT: 5000 };
-const formatFeeAmount = (amount: number): string => `${Math.max(0, Math.floor(Number(amount) || 0)).toLocaleString('ja-JP')}円`;
+// v376.67: 会費既定値・種別ラベルは src/shared/memberTypes.mjs が単一情報源
+const DEFAULT_MEMBER_TYPE_FEES = MEMBER_TYPE_ANNUAL_FEE_DEFAULTS;
+const formatFeeAmount = (amount: number): string => formatAnnualFee(amount) || '—';
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const CARE_MANAGER_RE = /^\d{8}$/;
-const KATAKANA_RE = /^[ァ-ヶー－・\s　]+$/u;
-const OFFICE_NUMBER_RE = /^[A-Za-z0-9]{10}$/;
-const POST_CODE_RE = /^\d{3}-\d{4}$/;
-const PHONE_RE = /^[0-9-]+$/;
+// v376.67 DRY 是正: 検証パターンは src/shared/validators.ts が単一情報源。
+// 以前はこの 3 画面がそれぞれ独自定義しており、郵便番号（公開はハイフン必須／管理は任意）と
+// 電話（共有は 6 桁以上・+ 許容／ローカルは桁数無制限・+ 不可）で実挙動が食い違っていた。
+const EMAIL_RE = EMAIL_PATTERN;
+const CARE_MANAGER_RE = CARE_MANAGER_NO_PATTERN;
+const KATAKANA_RE = KATAKANA_PATTERN;
+const OFFICE_NUMBER_RE = OFFICE_NO_PATTERN;
+const POST_CODE_RE = POSTAL_CODE_PATTERN;
+const PHONE_RE = PHONE_PATTERN;
 const BUSINESS_OFFICE_DEFAULTS = {
   officePostCode: '573-',
   officePrefecture: '大阪府',
@@ -755,9 +761,9 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
           {errors.memberType && <p className={errorClass + ' text-center'}>{errors.memberType}</p>}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {([
-              { type: 'INDIVIDUAL' as const, label: '個人会員', desc: '介護支援専門員として個人で入会される方', icon: '👤' },
-              { type: 'BUSINESS' as const, label: '事業所会員', desc: '事業所単位で入会される方（複数名登録可）', icon: '🏢' },
-              { type: 'SUPPORT' as const, label: '賛助会員', desc: '当協議会の活動を支援してくださる方', icon: '🤝' },
+              { type: 'INDIVIDUAL' as const, label: MEMBER_TYPE_LABELS.INDIVIDUAL, desc: '介護支援専門員として個人で入会される方', icon: '👤' },
+              { type: 'BUSINESS' as const, label: MEMBER_TYPE_LABELS.BUSINESS, desc: '事業所単位で入会される方（複数名登録可）', icon: '🏢' },
+              { type: 'SUPPORT' as const, label: MEMBER_TYPE_LABELS.SUPPORT, desc: '当協議会の活動を支援してくださる方', icon: '🤝' },
             ]).map(item => (
               <button
                 key={item.type}
@@ -1368,7 +1374,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
     const isConfirmStep = step === totalSteps - 1;
     if (isConfirmStep) {
       const roleLabel = (r: string) => r === 'REPRESENTATIVE' ? '代表者' : r === 'ADMIN' ? '管理者' : 'メンバー';
-      const typeLabel = form.memberType === 'INDIVIDUAL' ? '個人会員' : form.memberType === 'BUSINESS' ? '事業所会員' : '賛助会員';
+      const typeLabel = memberTypeLabel(form.memberType);
       const destLabel = form.preferredMailDestination === 'HOME' ? '自宅' : '勤務先';
       const hasOfficeAddress = !!form.officeAddressLine.trim();
       const hasHomeAddress = !!form.homeAddressLine.trim();

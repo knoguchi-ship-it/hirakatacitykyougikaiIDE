@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { MEMBER_TYPE_LABELS } from '../shared/memberTypes.mjs';
 import { ApiClient } from '../services/api';
 import {
   MailingListFilterType,
@@ -11,12 +12,6 @@ import { matchesSearchQuery } from '../utils/search';
 interface MailingListExportProps {
   api: ApiClient;
 }
-
-const MEMBER_TYPE_LABELS: Record<string, string> = {
-  BUSINESS: '事業所会員',
-  INDIVIDUAL: '個人会員',
-  SUPPORT: '賛助会員',
-};
 
 const MEMBER_STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   ACTIVE: { label: '在籍中', cls: 'bg-emerald-50 text-emerald-700' },

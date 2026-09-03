@@ -1889,6 +1889,22 @@ function getAnnualFeeAmountMap_(ss) {
   return result;
 }
 
+// v376.67: 会員種別の【単一情報源】。ラベル・年会費既定値・整形関数を
+// src/shared/memberTypes.mjs から build 時に注入する（フロントと同一ロジック）。
+// 下記マーカー間の stub は build（injectMemberTypesPlaceholders）で実体へ置換される。
+// 表示ラベルの最終正本は DB の M_会員種別.名称。memberTypeLabel_(code, overrides) の
+// overrides にマスタ由来のラベルを渡すことでマスタが優先される。
+// __MEMBER_TYPES_BUILD_INJECT_START__
+var MEMBER_TYPE_CODES = ["INDIVIDUAL","BUSINESS","SUPPORT"];
+var MEMBER_TYPE_LABELS = {"INDIVIDUAL":"個人会員","BUSINESS":"事業所会員","SUPPORT":"賛助会員"};
+var MEMBER_TYPE_ANNUAL_FEE_DEFAULTS = {"INDIVIDUAL":3000,"BUSINESS":8000,"SUPPORT":5000};
+function memberTypeLabel_(code, overrides) {
+  var key = String(code || '');
+  if (overrides && overrides[key]) return String(overrides[key]);
+  return MEMBER_TYPE_LABELS[key] || key;
+}
+// __MEMBER_TYPES_BUILD_INJECT_END__
+
 // v376.64: 会費設定の既定値（金額の既定は MEMBER_TYPE_ANNUAL_FEE_DEFAULTS）
 var MEMBERSHIP_FEE_DEFAULTS = {
   publicVisible: true,
@@ -2003,7 +2019,7 @@ function enqueueMemberApplicationChangeRequest_(payload) {
     applicantName: applicantName,
     requestId: requestId,
     requestType: 'MEMBER_APPLICATION',
-    memberTypeLabel: memberType === 'INDIVIDUAL' ? '個人会員' : memberType === 'BUSINESS' ? '事業所会員' : '賛助会員',
+    memberTypeLabel: memberTypeLabel_(memberType),
   });
   return { queued: true, success: true, requestId: requestId };
 }
@@ -2029,7 +2045,12 @@ function submitMemberApplication_(payload) {
  * opts を省略した場合はデフォルトテンプレートを使用する。
  */
 // v265: {{変数名}} プレースホルダーを vars オブジェクトで置換するヘルパー
-function renderBizEmailTemplate_(template, vars) {
+// v376.67: 汎用の差し込みレンダラ。名前が「Biz」だったため事業所専用に見え、
+// 他機能が別ルートの置換を書く誘因になっていた（v376.66 の障害の遠因）。
+// 実際は事業所メール・研修メール・研修リマインダーが共用する共通実装。
+// **メール本文の差し込みは必ずこの関数を通すこと**（渡していないタグは
+// deliverMail_ の stripUnresolvedMergeTags_ が送信直前に除去する）。
+function renderMergeTags_(template, vars) {
   var result = String(template || '');
   var keys = Object.keys(vars);
   for (var i = 0; i < keys.length; i++) {
@@ -2047,11 +2068,11 @@ function renderConfiguredMail_(ss, subjectKey, bodyKey, defaultSubject, defaultB
   try { map = getSystemSettingMap_(ss); } catch (e) { map = {}; }
   var subjTpl = String(map[subjectKey] || '') || defaultSubject;
   var bodyTpl = String(map[bodyKey] || '') || defaultBody;
-  var subject = renderBizEmailTemplate_(subjTpl, vars);
-  var body = renderBizEmailTemplate_(bodyTpl, vars);
+  var subject = renderMergeTags_(subjTpl, vars);
+  var body = renderMergeTags_(bodyTpl, vars);
   if (requiredValue && body.indexOf(String(requiredValue)) < 0) {
-    subject = renderBizEmailTemplate_(defaultSubject, vars);
-    body = renderBizEmailTemplate_(defaultBody, vars);
+    subject = renderMergeTags_(defaultSubject, vars);
+    body = renderMergeTags_(defaultBody, vars);
   }
   return { subject: subject, body: body };
 }
@@ -2224,7 +2245,7 @@ function sendApplicationReceiptMail_(ss, params) {
     '受付日時': params.receivedAt || Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm'),
   };
   try {
-    deliverMail_('APPLICATION_RECEIPT', params.contactEmail, renderBizEmailTemplate_(subjectTpl, vars), renderBizEmailTemplate_(bodyTpl, vars));
+    deliverMail_('APPLICATION_RECEIPT', params.contactEmail, renderMergeTags_(subjectTpl, vars), renderMergeTags_(bodyTpl, vars));
   } catch (e) {
     Logger.log('[sendApplicationReceiptMail_] failed: ' + e.message);
   }
@@ -2235,9 +2256,6 @@ function sendApplicationReceiptMail_(ss, params) {
 // v368: 却下通知メール送信ヘルパー
 
 // v265: 事業所メール設定をまとめて取得するヘルパー（T_システム設定から）
-
-// v376.66: 年会費の表示整形（「3,000円」）。会員種別ごとの金額の正本は M_会員種別.年会費金額。
-// 個人/賛助の認証情報メールと事業所メールの両方が同じ整形を通るよう共通化した。
 
 
 // ── メールテンプレート管理（v376.42 で全メール種別へ汎用化）─────────────
@@ -3692,12 +3710,6 @@ function createMasterSheets_(ss) {
 // スキーマ初期化では「未設定（空欄・非数値・0以下）のときだけ既定値を補完」する。
 // 以前は毎回 3000/8000/5000 で上書きしていたため、管理者が変更しても次回ログインの
 // initializeSchema_ で元に戻ってしまう（設定として成立しない）。
-var MEMBER_TYPE_ANNUAL_FEE_DEFAULTS = {
-  INDIVIDUAL: 3000,
-  BUSINESS: 8000,
-  SUPPORT: 5000,
-};
-
 function ensureMemberTypeAnnualFeeAmounts_(ss) {
   var sheet = ss.getSheetByName('M_会員種別');
   if (!sheet || sheet.getLastRow() < 2) return;
@@ -5616,7 +5628,7 @@ function submitPublicChangeRequest_(payload) {
     applicantName: stored.applicantName,
     requestId: requestId,
     requestType: requestType,
-    memberTypeLabel: stored.memberType === 'INDIVIDUAL' ? '個人会員' : stored.memberType === 'BUSINESS' ? '事業所会員' : '賛助会員',
+    memberTypeLabel: memberTypeLabel_(stored.memberType),
   });
 
   return { success: true, requestId: requestId };

@@ -1,4 +1,5 @@
 import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { memberTypeLabel } from './/shared/memberTypes.mjs';
 import { api } from './services/api';
 import { AdminPersonRow, AdminPersonType, MailDestination, MailingPreference } from './types';
 
@@ -21,11 +22,11 @@ type EditablePerson = {
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 const MESSAGE_AUTO_CLEAR_MS = 4000;
 
-const toPersonTypeLabel = (t: AdminPersonType): string => {
-  if (t === 'INDIVIDUAL') return '個人会員';
-  if (t === 'SUPPORT') return '賛助会員';
-  return '事業所職員';
-};
+// v376.67: 会員種別ラベルは共有モジュールが単一情報源。
+// この画面は「人物単位」の一覧のため、事業所だけは会員ではなく職員として表記する。
+const toPersonTypeLabel = (t: AdminPersonType): string => (
+  t === 'OFFICE_STAFF' ? '事業所職員' : memberTypeLabel(t)
+);
 
 const toPersonTypeBadge = (t: AdminPersonType): string => {
   if (t === 'INDIVIDUAL') return 'bg-slate-100 text-slate-700';

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memberTypeLabel } from '../shared/memberTypes.mjs';
 import { api } from '../services/api';
 import {
   AdminPermissionLevel,
@@ -120,11 +121,8 @@ const createEmptyData = (): AnnualFeeAdminData => ({
   summary: createEmptySummary(),
 });
 
-const toMemberTypeLabel = (memberType: MemberType): string => {
-  if (memberType === MemberType.BUSINESS) return '事業所会員';
-  if (memberType === MemberType.SUPPORT) return '賛助会員';
-  return '個人会員';
-};
+// v376.67: 会員種別ラベルの単一情報源（src/shared/memberTypes.mjs）
+const toMemberTypeLabel = (memberType: MemberType): string => memberTypeLabel(memberType);
 
 const memberTypeBadge = (memberType: MemberType): string => {
   if (memberType === MemberType.BUSINESS) return 'bg-violet-100 text-violet-700';
