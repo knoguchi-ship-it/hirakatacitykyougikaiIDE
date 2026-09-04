@@ -129,7 +129,7 @@
 
 ### 4. スコープ変更
 
-- `docs/10_SOW.md` §1 に公開ポータル追加を記載済み（2026-03-12）。
+- `docs/archive/spec_history/10_SOW.md` §1 に公開ポータル追加を記載済み（2026-03-12）。
 - 本決定記録が追加仕様の一次ソースとなる。
 
 ### 5. 実装時の同時整合性要件（RULEBOOK §3）
@@ -367,11 +367,11 @@
 - 保存後は会員マイページの簡易履歴表示に反映されること。通常は直近2年度、当年度未納補完を先頭追加した場合は最大3件まで表示する。
 
 ### 6. 反映対象
-- `docs/01_PRD.md`
-- `docs/02_ARCHITECTURE.md`
+- `docs/archive/spec_history/01_PRD.md`
+- `docs/archive/spec_history/02_ARCHITECTURE.md`
 - `docs/03_DATA_MODEL.md`
 - `docs/04_DB_OPERATION_RUNBOOK.md`
-- `docs/05_AUTH_AND_ROLE_SPEC.md`
+- `docs/archive/spec_history/05_AUTH_AND_ROLE_SPEC.md`
 - `backend/Code.gs`
 - `src/App.tsx`
 - `src/components/*`
@@ -468,8 +468,8 @@
 - `backend/Code.gs`
   - `submitMemberApplication` を管理者限定アクションから除外
 - 正本更新
-  - `docs/01_PRD.md`
-  - `docs/02_ARCHITECTURE.md`
+  - `docs/archive/spec_history/01_PRD.md`
+  - `docs/archive/spec_history/02_ARCHITECTURE.md`
   - `docs/00_DOC_INDEX.md`
 
 ### 4. 参照した一次情報

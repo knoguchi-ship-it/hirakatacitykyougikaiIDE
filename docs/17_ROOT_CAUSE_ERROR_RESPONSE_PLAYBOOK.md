@@ -6,7 +6,7 @@
 - 以下を読了してから作業開始すること:
   - `AGENTS.md`
   - `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
-  - `docs/10_SOW.md`
+  - `docs/archive/spec_history/10_SOW.md`
   - `docs/09_DEPLOYMENT_POLICY.md`
   - 直近インシデント（`docs/15_*`, `docs/16_*`）
 - 読了確認の記録（作業ログ先頭に残す）:

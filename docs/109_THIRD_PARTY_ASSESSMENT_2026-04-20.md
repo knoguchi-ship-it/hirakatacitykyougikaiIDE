@@ -51,7 +51,7 @@
 
 - backend: `backend/Code.gs`, `backend/appsscript.json`
 - frontend: `src/App.tsx`, `src/components/*`, `src/public-portal/*`
-- 正本: `docs/01_PRD.md`, `docs/02_ARCHITECTURE.md`, `docs/03_DATA_MODEL.md`, `docs/04_DB_OPERATION_RUNBOOK.md`, `docs/05_AUTH_AND_ROLE_SPEC.md`, `HANDOVER.md`
+- 正本: `docs/archive/spec_history/01_PRD.md`, `docs/archive/spec_history/02_ARCHITECTURE.md`, `docs/03_DATA_MODEL.md`, `docs/04_DB_OPERATION_RUNBOOK.md`, `docs/archive/spec_history/05_AUTH_AND_ROLE_SPEC.md`, `HANDOVER.md`
 
 除外:
 
@@ -269,13 +269,13 @@
 
 今回、以下を現行実装に合わせて更新した。
 
-- `docs/01_PRD.md`
+- `docs/archive/spec_history/01_PRD.md`
   - 事業所会員メンバーの自己編集範囲を `氏 / 名 / セイ / メイ / メールアドレス` 単位へ更新
   - 事業所職員入力の構造化要件を追記
-- `docs/02_ARCHITECTURE.md`
+- `docs/archive/spec_history/02_ARCHITECTURE.md`
   - 事業所職員入力の構造化 UI と `氏名` / `フリガナ` 再合成を追記
   - `updateMemberSelf` の `memberPortalLoginId` 優先を反映
-- `docs/05_AUTH_AND_ROLE_SPEC.md`
+- `docs/archive/spec_history/05_AUTH_AND_ROLE_SPEC.md`
   - 事業所会員一般職員の自己編集項目を構造化入力単位へ更新
   - UI ルールと保存時バリデーションを `氏 / 名 / セイ / メイ` ベースへ更新
 

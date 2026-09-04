@@ -135,6 +135,6 @@ Web 検索（2026-05-18 取得）に基づくベストプラクティス：
   - Laravel `Mail::alwaysTo` capture-and-redirect pattern
   - Sendwithus Best Practices for Unit Testing Emails
 - 内部設計参考:
-  - `docs/05_AUTH_AND_ROLE_SPEC.md` — 3 境界モデル
+  - `docs/archive/spec_history/05_AUTH_AND_ROLE_SPEC.md` — 3 境界モデル
   - `docs/12_ENGINEERING_RULEBOOK.md` — 最上位ルール
   - `memory/feedback_no_destructive_db_ops.md` — DB 全削除許可制

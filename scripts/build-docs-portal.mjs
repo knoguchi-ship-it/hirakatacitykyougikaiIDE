@@ -1144,7 +1144,7 @@ ${COMMON_NAV}
     <li><b>非会員（公開ポータル）</b>: 新規入会申込、研修への外部申込（Google フォーム等への誘導も可）</li>
   </ul>
   <h3>原典</h3>
-  <p>📄 <a href="../01_PRD.md">docs/01_PRD.md</a></p>
+  <p>📄 <a href="../spec/01_SOW.md">docs/spec/01_SOW.md</a> / 📄 <a href="../spec/02_RD.md">docs/spec/02_RD.md</a></p>
 </section>
 
 <section class="card">
@@ -1167,7 +1167,7 @@ ${COMMON_NAV}
     <li>パスワードハッシュ: PBKDF2-HMAC-SHA256（10,000 反復）+ verifier-side pepper</li>
   </ul>
   <h3>原典</h3>
-  <p>📄 <a href="../02_ARCHITECTURE.md">docs/02_ARCHITECTURE.md</a></p>
+  <p>📄 <a href="../spec/03_TRD.md">docs/spec/03_TRD.md</a></p>
 </section>
 
 <section class="card">
@@ -1193,7 +1193,7 @@ ${COMMON_NAV}
     <li>MASTER 専用メニュー（権限管理 / データ管理）は<b>特権昇格防止</b>でカスタムロールに付与不可</li>
   </ul>
   <h3>原典</h3>
-  <p>📄 <a href="../05_AUTH_AND_ROLE_SPEC.md">docs/05_AUTH_AND_ROLE_SPEC.md</a> / 📄 <a href="../246_DESIGN_MENU_BASED_CUSTOM_ROLES_RBAC_2026-05-28.md">docs/246 (RBAC 設計)</a></p>
+  <p>📄 <a href="../spec/03_TRD.md">docs/spec/03_TRD.md（認証方式）</a> / 📄 <a href="../spec/02_RD.md">docs/spec/02_RD.md（業務ルール）</a> / 📄 <a href="../246_DESIGN_MENU_BASED_CUSTOM_ROLES_RBAC_2026-05-28.md">docs/246 (RBAC 設計)</a></p>
 </section>
 
 <section class="card">
@@ -1360,11 +1360,14 @@ ${COMMON_NAV}
   <table>
     <thead><tr><th>カテゴリ</th><th>ファイル</th><th>用途</th></tr></thead>
     <tbody>
-      <tr><td>概要</td><td><a href="../01_PRD.md">docs/01_PRD.md</a></td><td>プロダクト要件</td></tr>
-      <tr><td>設計</td><td><a href="../02_ARCHITECTURE.md">docs/02_ARCHITECTURE.md</a></td><td>システムアーキテクチャ</td></tr>
+      <tr><td>概要</td><td><a href="../spec/01_SOW.md">docs/spec/01_SOW.md</a></td><td>作業範囲・非機能目標</td></tr>
+      <tr><td>要件</td><td><a href="../spec/02_RD.md">docs/spec/02_RD.md</a></td><td>業務ルール・ユースケース</td></tr>
+      <tr><td>設計</td><td><a href="../spec/03_TRD.md">docs/spec/03_TRD.md</a></td><td>技術構成・実装方式（現行 GAS ／ GCP 移行後）</td></tr>
+      <tr><td>画面</td><td><a href="../spec/04_UIUX.md">docs/spec/04_UIUX.md</a></td><td>画面一覧・遷移・UI 規約</td></tr>
+      <tr><td>データ</td><td><a href="../spec/05_DATA_IF.md">docs/spec/05_DATA_IF.md</a></td><td>データ規約・API 契約</td></tr>
       <tr><td>設計</td><td><a href="../03_DATA_MODEL.md">docs/03_DATA_MODEL.md</a></td><td>データモデル（ER 図含む）</td></tr>
       <tr><td>運用</td><td><a href="../04_DB_OPERATION_RUNBOOK.md">docs/04_DB_OPERATION_RUNBOOK.md</a></td><td>DB 操作手順</td></tr>
-      <tr><td>認証</td><td><a href="../05_AUTH_AND_ROLE_SPEC.md">docs/05_AUTH_AND_ROLE_SPEC.md</a></td><td>認証・ロール仕様</td></tr>
+      <tr><td>認証</td><td><a href="../spec/03_TRD.md">docs/spec/03_TRD.md §1.4-1.5</a></td><td>認証の原則・パスワード運用</td></tr>
       <tr><td>運用</td><td><a href="../09_DEPLOYMENT_POLICY.md">docs/09_DEPLOYMENT_POLICY.md</a></td><td>デプロイポリシー</td></tr>
       <tr><td>ルール</td><td><a href="../12_ENGINEERING_RULEBOOK.md">docs/12_ENGINEERING_RULEBOOK.md</a></td><td>エンジニアリングルール</td></tr>
       <tr><td>RBAC</td><td><a href="../246_DESIGN_MENU_BASED_CUSTOM_ROLES_RBAC_2026-05-28.md">docs/246</a></td><td>メニュー単位 RBAC 設計</td></tr>

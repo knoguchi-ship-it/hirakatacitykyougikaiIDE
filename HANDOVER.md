@@ -1,5 +1,52 @@
 # 開発引継ぎ（Current State）
 
+## 2026-09-04 旧仕様書の整理（重複の解消）
+
+- 巻き直した 5 文書と内容が重複する**旧仕様書 6 本**を `docs/archive/spec_history/` へ移した。
+  `01_PRD` / `02_ARCHITECTURE` / `05_AUTH_AND_ROLE_SPEC` / `10_SOW` / `11_WITHDRAWAL_DELETION_POLICY` /
+  `63_SOW_ROSTER_PDF_AND_BULK_MAIL`。
+- **消したのではなく移設した**。旧文書にしか無かった内容は、先に新仕様書の該当箇所へ入れてある。
+  - RD → 会員種別ごとの権限・事業所会員の正本ルール・発送／通信・ロール変更・CM 番号ポリシー・
+    同一人物移行・**会計年度の在籍判定**・退会と削除の運用・保存時バリデーション・個人情報の取り扱い（§9〜§12）
+  - TRD 第1部 → **認証の原則（principal の決め方）**・パスワードの保存と再設定・
+    起動から表示までのデータ取得順序・ディレクトリ構成（§1.4〜§1.7）
+  - UI/UX → 会員マイページの表示ルール・年会費の表示・郵便番号入力（§8）
+- アーカイブした 6 本の先頭には「**正本はどこか**」のバナーを入れた。新旧が食い違う場合は**新仕様書が正**。
+- 現役ファイルからの参照（`AGENTS.md` / `README.md` / `ONBOARDING.md` / 設計文書 12 本 /
+  `scripts/build-docs-portal.mjs`）を**すべて新パスへ張り替え、ポータルを再生成**した。
+  docs 配下の相対リンク検査で、今回の移動による壊れリンクは 0。
+
+## 2026-09-03 仕様書の巻き直し: データ・インターフェース定義書を作成（5 文書そろった）
+
+- `docs/spec/05_DATA_IF.md` を新規作成し、**巻き直しの 5 文書がすべてそろった**。
+  内容はキーの規約・値の規約・削除の 3 方式・単一エンドポイントの契約・境界ごとの action 数
+  （public 18 / member 19 / admin 114＋1）・定型エラー・なりすまし対策・CSV 出力仕様・スキーマ変更手順。
+- **列の一覧は書き写していない**。テーブルと列の正本は `テーブル定義` と自動生成の `docs/portal/tables.html`。
+- **実装の不整合を 1 件記録**: `T_研修申込.申込ID` の採番が経路によって 2 通り（`AP-…` / 素の UUID）。
+  一意性は保たれるため実害は無いが、同じ列に 2 つの規則がある状態は `AGENTS.md` §3 に反する。
+- 次は**旧仕様書を `docs/archive/spec_history/` へ移すかどうか**の operator 判断。
+
+## 2026-09-03 仕様書の巻き直し: UI/UX 画面遷移定義書を作成
+
+- `docs/spec/04_UIUX.md` を新規作成。3 つの入口（公開 8 画面／会員 2 画面／管理 20 画面）・遷移図・
+  認証とゲート・共通 UI 規約・表記ルール・レスポンシブ基準を実装から起こして確定した。
+- **書きながら実装の不整合が 3 件見つかったので直した（本番未反映）**。
+  1. `View` 型に `'data-export'` が無かった。直前の分岐で `never` に絞られるため型検査をすり抜けていた
+  2. パンくずの対応表に `data-export` が無く、**データ出力の画面だけパンくずが出ていなかった**
+  3. ログイン画面に、描画に使われていない英語の文言変数が残っていた（`AGENTS.md` §4.4 に反する死んだコード）
+- operator 判断待ち 3 件を §8 に記載（事業所会員メール設定の「（統合済み）」表記／会員マイページの分割／
+  テンプレートヘルプの導線）。
+
+## 2026-09-03 仕様書の巻き直し: TRD 第2部（GCP 移行後）を作成
+
+- `docs/spec/03_TRD.md` に **第2部（GCP 移行後）** を追加し、TRD が完成した。
+  プロダクト対応表・目標構成・実現性評価 5 点・データ移行のマッピング原則・費用の ¥0 維持制約を確定。
+- **移行の手順／順序／並走／ロールバックは `docs/250` が正本**で、TRD には再掲していない。
+  逆に `docs/250` §4.2「最終形候補」は TRD 第2部へ移し、250 側は指し先だけを残した（重複排除）。
+- 未確定として明示したもの: レスポンス目標値の再設定／Workspace の添付上限の実値（G-15）／
+  Firestore の複合インデックス（データ・IF 定義書で確定）／監査ログの保管期間／管理者認証の実装方式。
+- **CSV インポートは operator 判断で見送り**。対象テーブル・列の切り分けだけ `docs/261` T-07 に残した。
+
 ## 2026-09-03 v376.69 リリース（一括編集の対象拡張）
 
 - **GCP 移行の前提機能 B**（`docs/261` T-07）。一括編集で直せるのは 6 項目だけだったため、
@@ -258,7 +305,10 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 |---|---|---|
 | 0 | **研修メール送信のカテゴリ（operator 判断）** | v376.67 で研修リマインダーを `TRAINING_REMINDER` に是正した結果、**手動の「研修メール送信」も同じトグルに乗る**。分けるなら新カテゴリ（設定キー＋UI トグル）の追加が必要。運用が 1 つ増えるため判断を仰ぐ（`docs/260` §4-1） |
 | ✅ | **データ出力の権限（確定）** | **MASTER のみで運用する**（operator 判断・2026-09-03）。事務局へ渡す必要が生じたら 設定 → 権限管理 から `データ出力（CSV）` を付与する | `docs/262` |
-| 0 | **C: CSV インポート（未着手・要設計）** | T-07 の 3 機能のうち A（汎用エクスポート・v376.68）と B（一括編集の拡張・v376.69）は完了。C は誤操作リスクが高く、プレビューと差分確認を必須にする設計が要る | `docs/261` T-07 |
+| ✅ | **旧仕様書の整理（完了）** | 重複していた 6 本を `docs/archive/spec_history/` へ移し、固有内容は新仕様書へ移設した。現役の参照も全て張り替え済み | `docs/archive/00_ARCHIVE_INDEX.md` |
+| 1 | **`T_研修申込.申込ID` の採番が 2 通り** | 会員からの申込は `AP-…`、外部申込者からは素の UUID。一意性は保たれるが同じ列に 2 規則は §3 違反。新規採番のみ統一する（既存は振り直さない） | `docs/spec/05_DATA_IF.md` §9-1 |
+| 0 | **UI 修正 3 件が未リリース** | `View` 型に `data-export` を追加／パンくずの欠落を修正／未使用の英語文言を削除。**本番未反映**。次のデプロイに乗せる | `docs/spec/04_UIUX.md` §5 |
+| ✅ | **C: CSV インポート = 見送り** | operator 判断（2026-09-03）。現状不要。必要になった時点で実装する。対象テーブル・列の切り分けだけ台帳に残した | `docs/261` T-07 |
 | ✅ | **v376.69 完了（一括編集の対象拡張）** | public @378×2 / member @137 / admin @234。連絡先・勤務先・自宅の 14 項目を追加（計 20）。職員は列が無いため対象外。live で API の返却を実測、admin 56 view・メール設定 5/5・公開 a11y 0/21 view | `docs/263_RELEASE_STATE_v376.69_2026-09-03.md` |
 | ✅ | **v376.68 完了（汎用データエクスポート）** | public @377×2 / member @136 / admin @233。dryRun 10 チェック全 PASS・実 CSV の中身まで確認・admin 56 view・メール設定 5/5・公開 a11y 0/21 view。実装中に認証アーカイブの混入と一覧 20 秒を検出・是正 | `docs/262_RELEASE_STATE_v376.68_2026-09-03.md` |
 | ✅ | **v376.67 完了（DRY 是正・単一情報源へ集約）** | public @374×2 / member @133 / admin @230。是正 7 件＋新ゲート `test:single-source`（8 検査）。live E2E 全 PASS（公開 a11y 0／公開 21 view／admin 56 view／メール設定 5/5／dryRun 7 チェック） | `docs/260_SINGLE_SOURCE_AUDIT_2026-09-03.md` |
@@ -397,7 +447,7 @@ npm run build:docs-portal                  # docs/portal/*.html + schema.dbml �
 | public callable 関数 | `doGet` / `processApiRequest` / `healthCheck` のみ（厳格制限） |
 | パスワードハッシュ | PBKDF2-HMAC-SHA256 10,000 反復 + pepper（v262〜）。Argon2id 移行は backlog |
 | OAuth scope | 境界ごと最小化（v263〜確定 + v373.5 で `cloud-platform` 追加） |
-| 詳細 | `docs/05_AUTH_AND_ROLE_SPEC.md`、`docs/02_ARCHITECTURE.md` |
+| 詳細 | `docs/archive/spec_history/05_AUTH_AND_ROLE_SPEC.md`、`docs/archive/spec_history/02_ARCHITECTURE.md` |
 
 ---
 
@@ -419,7 +469,7 @@ npm run build:docs-portal                  # docs/portal/*.html + schema.dbml �
 | 3b | **`docs/portal/test-report.html`**（ブラウザで開く）| **テスト結果レポート**（最新リリースの検証状況を 1 ページで確認。`npm run report:tests` で再生成）|
 | 3 | `docs/00_DOC_INDEX.md` | 全ドキュメントの Diataxis 索引（一次資料 Markdown）|
 | 4 | `docs/ONBOARDING.md` | 新規開発者向け（Day 1 / Week 1 / Week 2-3 / Week 4） |
-| 5 | `docs/02_ARCHITECTURE.md` / `docs/03_DATA_MODEL.md` / `docs/05_AUTH_AND_ROLE_SPEC.md` | リファレンス（必要時） |
+| 5 | `docs/archive/spec_history/02_ARCHITECTURE.md` / `docs/03_DATA_MODEL.md` / `docs/archive/spec_history/05_AUTH_AND_ROLE_SPEC.md` | リファレンス（必要時） |
 | 6 | `GLOBAL_GROUND_RULES/docs/AI_RULES/10_WORKFLOW_AND_QUALITY.md` / `docs/09_DEPLOYMENT_POLICY.md` | 開発・デプロイ規約（旧 `docs/12_ENGINEERING_RULEBOOK.md` は `GLOBAL_GROUND_RULES/` へ移行済）|
 | 7 | `docs/release-notes-2026.md` | 直近の release history（時系列ログ） |
 | 8 | `docs/244_WCAG_2.2_AA_CONFORMANCE_STATEMENT_2026-05-21.md` | WCAG 適合状態 |

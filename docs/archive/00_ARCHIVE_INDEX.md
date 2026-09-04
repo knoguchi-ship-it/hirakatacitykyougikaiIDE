@@ -5,6 +5,20 @@
 
 > 合計 **224 件**。
 
+## 旧仕様書 — `spec_history/`（6 件）
+
+2026-09-04 に仕様書を `docs/spec/` の 5 文書へ巻き直した際、**内容が重複するため現役から外した**もの。
+固有だった内容は新仕様書へ移設済み。**新旧が食い違う場合は新仕様書が正**。
+
+| 文書 | 現在の正本 |
+|---|---|
+| [01_PRD.md](spec_history/01_PRD.md) | `spec/01_SOW.md` ＋ `spec/02_RD.md` |
+| [02_ARCHITECTURE.md](spec_history/02_ARCHITECTURE.md) | `spec/03_TRD.md` |
+| [05_AUTH_AND_ROLE_SPEC.md](spec_history/05_AUTH_AND_ROLE_SPEC.md) | `spec/02_RD.md`（業務ルール）／`spec/03_TRD.md`（認証方式）／`spec/04_UIUX.md`（表示） |
+| [10_SOW.md](spec_history/10_SOW.md) | `spec/01_SOW.md` |
+| [11_WITHDRAWAL_DELETION_POLICY.md](spec_history/11_WITHDRAWAL_DELETION_POLICY.md) | `spec/02_RD.md` §10 |
+| [63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md](spec_history/63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md) | `spec/01_SOW.md` ／ `spec/02_RD.md` ／ `spec/05_DATA_IF.md` |
+
 ## リリース記録 — `release_history/`（147 件）
 
 各リリースの詳細（バージョン・スコープ・検証・ロールバック先）。時系列の要約は `docs/release-notes-2026.md` にあるので、個別の詳細が要るときだけ開く。

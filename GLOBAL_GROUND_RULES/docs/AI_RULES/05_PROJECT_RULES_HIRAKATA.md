@@ -11,7 +11,7 @@
 > この文書はセッション開始時点で既に読み込み済みのはずなので、以下は補足参照のみ。
 
 補足: この案件で追加で参照する文書（`AGENTS.md §2` の順序に含まれないもの）:
-- `docs/10_SOW.md` — スコープ定義と受入条件
+- `docs/archive/spec_history/10_SOW.md` — スコープ定義と受入条件
 - `docs/17_ROOT_CAUSE_ERROR_RESPONSE_PLAYBOOK.md` — 障害復旧プレイブック
 - `docs/archive/historical/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md` — 補足状態サマリ（HANDOVER.md を正本とする）
 
@@ -29,10 +29,10 @@
 - `HANDOVER.md`
 - `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
 - `HANDOVER.md` に記載された最新の release state 文書
-- `docs/10_SOW.md`
+- `docs/archive/spec_history/10_SOW.md`
 - `docs/09_DEPLOYMENT_POLICY.md`
 - `docs/17_ROOT_CAUSE_ERROR_RESPONSE_PLAYBOOK.md`
-- `docs/05_AUTH_AND_ROLE_SPEC.md`
+- `docs/archive/spec_history/05_AUTH_AND_ROLE_SPEC.md`
 - `docs/04_DB_OPERATION_RUNBOOK.md`
 - `docs/03_DATA_MODEL.md`
 - `docs/archive/historical/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`

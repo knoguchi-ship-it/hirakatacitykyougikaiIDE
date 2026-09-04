@@ -241,8 +241,8 @@
 対象:
 
 - `backend/Code.gs:processApiRequest`
-- `docs/05_AUTH_AND_ROLE_SPEC.md`
-- `docs/02_ARCHITECTURE.md`
+- `docs/archive/spec_history/05_AUTH_AND_ROLE_SPEC.md`
+- `docs/archive/spec_history/02_ARCHITECTURE.md`
 
 作業:
 
@@ -470,7 +470,7 @@
 ### 9.4 共通
 
 - `oauthScopes` が app ごとに最小化されている
-- `docs/09_DEPLOYMENT_POLICY.md`, `HANDOVER.md`, `docs/02_ARCHITECTURE.md`, `docs/05_AUTH_AND_ROLE_SPEC.md` が同期している
+- `docs/09_DEPLOYMENT_POLICY.md`, `HANDOVER.md`, `docs/archive/spec_history/02_ARCHITECTURE.md`, `docs/archive/spec_history/05_AUTH_AND_ROLE_SPEC.md` が同期している
 
 ## 10. 次担当の最初の実装タスク
 

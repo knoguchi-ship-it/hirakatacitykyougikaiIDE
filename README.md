@@ -37,7 +37,7 @@
 4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
 5. `HANDOVER.md` に記載された最新の release state 文書
 6. `docs/09_DEPLOYMENT_POLICY.md`
-7. `docs/05_AUTH_AND_ROLE_SPEC.md`
+7. `docs/archive/spec_history/05_AUTH_AND_ROLE_SPEC.md`
 8. `docs/04_DB_OPERATION_RUNBOOK.md`
 9. `docs/03_DATA_MODEL.md`
 
@@ -110,7 +110,7 @@ npx clasp run setupDatabase
 - `AGENTS.md`
 - `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
 - `docs/09_DEPLOYMENT_POLICY.md`
-- `docs/05_AUTH_AND_ROLE_SPEC.md`
+- `docs/archive/spec_history/05_AUTH_AND_ROLE_SPEC.md`
 - `docs/04_DB_OPERATION_RUNBOOK.md`
 - `docs/03_DATA_MODEL.md`
 
@@ -122,7 +122,7 @@ npx clasp run setupDatabase
 ## デプロイ運用の公式ルール（2026-03-08以降）
 - 本番URLは固定運用です。新規Deploymentを毎回作成しません。
 - 手順は `docs/09_DEPLOYMENT_POLICY.md` を唯一の正本として参照してください。
-- SOW要件は `docs/10_SOW.md` に明記しています。
+- SOW要件は `docs/archive/spec_history/10_SOW.md` に明記しています。
 
 ## オンライン前提の開発フロー
 1. `HANDOVER.md` の「最初に読むもの」を上から順に確認する。

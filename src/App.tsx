@@ -33,7 +33,7 @@ import { computeMemberFiscalStatus } from './shared/memberFiscalStatus.mjs';
 import { matchesSearchQuery } from './utils/search';
 
 type Role = 'ADMIN' | 'MEMBER';
-type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'roster-export' | 'mailing-list-export' | 'template-help' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings' | 'member-delete' | 'change-requests' | 'officer-management' | 'payment-history' | 'claim-management' | 'line-post';
+type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'roster-export' | 'mailing-list-export' | 'template-help' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings' | 'member-delete' | 'change-requests' | 'officer-management' | 'payment-history' | 'claim-management' | 'line-post' | 'data-export';
 type AuthTab = 'member' | 'admin';
 type PendingAnnualFeeAction = { type: 'view'; view: View } | { type: 'logout' } | null;
 type MemberListFilter = 'ALL' | MemberType;
@@ -333,6 +333,7 @@ const BREADCRUMB_MAP: Record<string, { group: string; label: string }> = {
   'admin-settings':     { group: 'システム',   label: 'システム設定' },
   'system-permissions': { group: 'システム',   label: '権限管理' },
   'member-delete':      { group: 'システム',   label: 'データ管理' },
+  'data-export':        { group: 'システム',   label: 'データ出力（CSV）' },
 };
 
 type AdminSettingsSectionProps = {
@@ -3190,12 +3191,6 @@ const App: React.FC = () => {
     // ─────────────────────────────────────────────────────────────────────────
 
     if (!isAuthenticated) {
-      const loginTitle = isAdminShell ? 'Admin Login' : isMemberShell ? 'Member Login' : 'Login';
-      const loginDescription = isAdminShell
-        ? 'Admin uses Google sign-in only.'
-        : isMemberShell
-        ? 'Member uses login ID and password only.'
-        : 'Member uses login ID/password. Admin uses Google sign-in only.';
       const showMemberAuth = !isAdminShell;
       const showAdminAuth = !isMemberShell;
       return (

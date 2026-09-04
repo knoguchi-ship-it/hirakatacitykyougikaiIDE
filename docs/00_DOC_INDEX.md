@@ -28,15 +28,28 @@
 
 ## ③ 仕様・設計の正本
 
+### ③-1 巻き直し中の新仕様書（`docs/spec/`・2026-09-03〜）
+
+**5 文書がそろい、重複していた旧仕様書 6 本は `docs/archive/spec_history/` へ移した（2026-09-04）。**
+旧文書に固有だった内容は、消さずに新仕様書の該当箇所へ移設済み。
+仕様の正本はこの 5 文書だけで、役割で分けており、**同じ内容を 2 つの文書に書かない**。
+
+| 文書 | 役割 | 状態 |
+|---|---|---|
+| [spec/01_SOW.md](spec/01_SOW.md) | 作業範囲・非機能の目標値 | 初版あり |
+| [spec/02_RD.md](spec/02_RD.md) | 業務ルール・ユースケース | 初版あり |
+| [spec/03_TRD.md](spec/03_TRD.md) | **技術構成・実装方式**（第1部 現行 GAS ／ 第2部 GCP 移行後） | **両部そろった（2026-09-03）** |
+| [spec/04_UIUX.md](spec/04_UIUX.md) | **画面の一覧・遷移・表示条件・UI 規約** | 初版あり（2026-09-03）|
+| [spec/05_DATA_IF.md](spec/05_DATA_IF.md) | **データ構造の規約と API 契約**（キー・型・削除・エンドポイント） | 初版あり（2026-09-03）|
+
+### ③-2 個別機能の設計記録（現役）
+
+新仕様書は「何を・なぜ」を書く。ここは**個別機能の設計判断の経緯**を残す文書で、役割が違うため重複しない。
+
 | 文書 | 内容 |
 |---|---|
-| [01_PRD.md](01_PRD.md) | プロダクト要件 |
-| [02_ARCHITECTURE.md](02_ARCHITECTURE.md) | システム構成 |
 | [03_DATA_MODEL.md](03_DATA_MODEL.md) | データモデル・ER（**ER ブロックは自動生成。手書き禁止**／AGENTS §4.6） |
-| [05_AUTH_AND_ROLE_SPEC.md](05_AUTH_AND_ROLE_SPEC.md) | 認証・権限仕様 |
 | [06_DECISION_RECORDS.md](06_DECISION_RECORDS.md) | **決定記録 5 件を統合**（認証／公開ポータル／メールコンソール／年会費／申込統合） |
-| [10_SOW.md](10_SOW.md) / [63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md](63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md) | 作業範囲（SOW） |
-| [11_WITHDRAWAL_DELETION_POLICY.md](11_WITHDRAWAL_DELETION_POLICY.md) | 退会・削除ポリシー |
 | [228_ROSTER_REDESIGN_2026-05-19.md](228_ROSTER_REDESIGN_2026-05-19.md) | 名簿出力の設計 |
 | [246_DESIGN_MENU_BASED_CUSTOM_ROLES_RBAC_2026-05-28.md](246_DESIGN_MENU_BASED_CUSTOM_ROLES_RBAC_2026-05-28.md) | メニュー単位カスタムロール RBAC（全フェーズ完了） |
 | [249_DESIGN_MEMBER_DELETE_CASCADE_ARCHIVE_2026-07-02.md](249_DESIGN_MEMBER_DELETE_CASCADE_ARCHIVE_2026-07-02.md) | 会員系削除の cascade アーカイブ |

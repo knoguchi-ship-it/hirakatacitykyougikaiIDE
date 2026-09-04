@@ -34,7 +34,7 @@ GCP 移行期も、現行 GAS 本番環境は維持する。
 - DB: Google Spreadsheet
 - 境界: public / member / admin の 3 split
 - 正本: `HANDOVER.md`, `docs/09_DEPLOYMENT_POLICY.md`
-- 現行本番（2026-09-02）: v376.60 / public @365 x2 / member @124 / admin @221。
+- 現行本番のバージョンと deployment 番号は `HANDOVER.md` が正本（本書には書き写さない）。
 
 現行本番は移行期間中も利用者向けの主系とする。
 
@@ -108,18 +108,13 @@ Browser
 
 移行期は両方の frontend が存在してよい。ただし、同一画面コンポーネントは `ApiClient` contract の上で動かす。画面が `google.script.run` や Cloud Run URL を直接知ってはいけない。
 
-### 4.2 最終形候補
+### 4.2 最終形
 
-```
-Browser
-  -> GCP hosted frontend
-    -> Cloud Run API
-      -> Firestore / Cloud SQL
-      -> Secret Manager
-      -> Mail / Drive replacement or controlled GAS bridge
-```
+**2026-09-03 に確定し、正本を `docs/spec/03_TRD.md` 第2部へ移した。本書には再掲しない。**
 
-最終形は別途判断する。Firestore / Cloud SQL / GAS bridge の採否は、本書の Phase 2 以降で実測と設計判断を行う。
+要点のみ: DB は **Firestore（`(default)` / `asia-northeast1`）**、配信は **Firebase Hosting**、
+API は **Cloud Run（JSON のみ）**、添付は **Drive 継続**（Cloud Storage は凍結）。
+Cloud SQL は採用しない。
 
 ## 5. Phase Plan
 

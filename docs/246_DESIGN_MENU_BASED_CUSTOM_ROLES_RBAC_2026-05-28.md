@@ -3,7 +3,7 @@
 作成日: 2026-05-28
 ステータス: **🎉 Phase 1〜3 全完了** (Phase 1-A @179 / Phase 1-B @181 + DB migration / Phase 2-A〜C @182〜@184 / hotfix @185-@186 / Phase 3 v376.29 @187)
 種別: Explanation（設計書）
-関連正本: `docs/05_AUTH_AND_ROLE_SPEC.md`（実装後に反映）, `docs/02_ARCHITECTURE.md`, `docs/03_DATA_MODEL.md`
+関連正本: `docs/archive/spec_history/05_AUTH_AND_ROLE_SPEC.md`（実装後に反映）, `docs/archive/spec_history/02_ARCHITECTURE.md`, `docs/03_DATA_MODEL.md`
 
 ## Phase 1-A 完了記録（2026-05-28 / v376.24）
 

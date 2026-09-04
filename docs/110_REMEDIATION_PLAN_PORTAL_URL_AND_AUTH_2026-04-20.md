@@ -357,9 +357,9 @@ member と admin を同居できる条件:
 
 ### 5.4 文書 / 運用で変更が必要な部分
 
-- `docs/01_PRD.md`
-- `docs/02_ARCHITECTURE.md`
-- `docs/05_AUTH_AND_ROLE_SPEC.md`
+- `docs/archive/spec_history/01_PRD.md`
+- `docs/archive/spec_history/02_ARCHITECTURE.md`
+- `docs/archive/spec_history/05_AUTH_AND_ROLE_SPEC.md`
 - `docs/09_DEPLOYMENT_POLICY.md`
 - `docs/00_DOC_INDEX.md`
 - `HANDOVER.md`

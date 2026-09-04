@@ -24,7 +24,7 @@
 
 1. [`AGENTS.md` §0 シークレット絶対ルール](../AGENTS.md) — 違反は即時是正 (5 分)
 2. [`HANDOVER.md` 現状](../HANDOVER.md) — 何がどう動いているか (5 分)
-3. [`docs/02_ARCHITECTURE.md`](02_ARCHITECTURE.md) — システム構造 (10 分)
+3. [`docs/archive/spec_history/02_ARCHITECTURE.md`](archive/spec_history/02_ARCHITECTURE.md) — システム構造 (10 分)
 
 ### C. 開発環境セットアップ (30 分)
 
@@ -70,7 +70,7 @@ npm run security:split-boundary                # ✅ PASS
 
 ### B. 認証・認可 (Day 3)
 
-[`docs/05_AUTH_AND_ROLE_SPEC.md`](05_AUTH_AND_ROLE_SPEC.md):
+[`docs/archive/spec_history/05_AUTH_AND_ROLE_SPEC.md`](archive/spec_history/05_AUTH_AND_ROLE_SPEC.md):
 
 - 3 境界 (public / member / admin) の役割と分離
 - 会員ログイン (ID/PW + PBKDF2 + pepper)

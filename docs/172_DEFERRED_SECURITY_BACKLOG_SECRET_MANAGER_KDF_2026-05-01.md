@@ -45,7 +45,7 @@
 
 - `docs/171_PASSWORD_HASH_STANDARD_ALIGNMENT_2026-04-30.md`
 - `docs/learning/13_password_pepper_secret_management_2026-04-30.html`
-- `docs/05_AUTH_AND_ROLE_SPEC.md`
+- `docs/archive/spec_history/05_AUTH_AND_ROLE_SPEC.md`
 - `docs/09_DEPLOYMENT_POLICY.md`
 - `AGENTS.md`
 - `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`

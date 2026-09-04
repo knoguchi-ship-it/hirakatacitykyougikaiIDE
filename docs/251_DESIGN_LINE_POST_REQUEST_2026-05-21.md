@@ -164,6 +164,6 @@ WCAG 2.2 AA 遵守（docs/245）:
 ## 13. 関連ドキュメント
 
 - `docs/03_DATA_MODEL.md` — テーブル追記
-- `docs/05_AUTH_AND_ROLE_SPEC.md` — 権限（admin 専用）
+- `docs/archive/spec_history/05_AUTH_AND_ROLE_SPEC.md` — 権限（admin 専用）
 - `docs/227_MAIL_KILL_SWITCH_2026-05-18.md` — メール送信ガード
 - `docs/245_UI_ACCESSIBILITY_REGRESSION_CHECKLIST_2026-05-21.md` — UI 適合
