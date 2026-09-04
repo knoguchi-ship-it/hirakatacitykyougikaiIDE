@@ -337,6 +337,13 @@ async function main() {
   else for (const e of consoleErrors) md.push(`- [${e.vp}] ${e.text}`);
 
   await fs.writeFile(path.join(OUT_DIR, 'report.md'), md.join('\n'));
+  // v376.71: fatal（画面に到達できない）でも exit 0 で終わっていたため、ログだけ見ると
+  // PASS と誤読できた。admin / member と同じく終了コードで落とす。
+  const fatals = results.filter((r) => r.fatal);
+  if (fatals.length) {
+    console.error('[test] FAIL: ' + fatals.length + '/' + results.length + ' viewport が fatal。先頭: ' + fatals[0].fatal);
+    process.exit(1);
+  }
   process.stderr.write(`[test] done. results=${results.length}\n`);
 }
 

@@ -24,7 +24,7 @@ var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var LOCK_WAIT_TIMEOUT_MS = 10000; // AGENTS §3: LockService 待機の共通タイムアウト
 var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
-var DB_SCHEMA_VERSION = '2026-09-02-regulations-v376.65';
+var DB_SCHEMA_VERSION = '2026-09-04-login-lockout-v376.71';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
 // AGENTS §3: Script Properties の MEMBER_PORTAL_URL_OVERRIDE で上書き可能（deployment 変更時にコード改変不要）
@@ -542,6 +542,7 @@ var テーブル定義 = {
     'アカウント有効フラグ',
     'ログイン失敗回数',
     'ロック状態',
+    'ロック解除予定日時',
     '作成日時',
     '更新日時',
     '削除フラグ',
@@ -3566,6 +3567,62 @@ var PASSWORD_RESET_GENERIC_MESSAGE = '入力内容が登録情報と一致する
 
 
 
+
+// ── ログイン失敗の時限解除（docs/261 T-04・v376.71）──────────────────
+//
+// 連続した認証失敗だけを数え、成功した時点で 0 に戻す。待機時間は段階的に伸ばし、
+// 上限を超えたら管理者の対応が要る恒久ロックにする。閾値をここ以外に書かない（AGENTS.md §3）。
+//
+// 背景: ログイン ID が介護支援専門員番号で推測できるため、以前の「5 回で無期限ロック」は
+// 第三者が故意に他人のアカウントを止められる状態だった。
+var LOGIN_LOCKOUT_POLICY = {
+  steps: [
+    { failures: 3, waitMinutes: 1 },
+    { failures: 4, waitMinutes: 5 },
+    { failures: 5, waitMinutes: 15 },
+    { failures: 6, waitMinutes: 60 },
+  ],
+  permanentAtFailures: 20,
+};
+
+function loginLockoutWaitMinutes_(failedCount) {
+  var count = Number(failedCount || 0);
+  var minutes = 0;
+  var steps = LOGIN_LOCKOUT_POLICY.steps;
+  for (var i = 0; i < steps.length; i += 1) {
+    if (count >= steps[i].failures) minutes = steps[i].waitMinutes;
+  }
+  return minutes;
+}
+
+function isLoginLockoutPermanent_(failedCount) {
+  return Number(failedCount || 0) >= LOGIN_LOCKOUT_POLICY.permanentAtFailures;
+}
+
+// 現在のロック状態を判定する。待機を過ぎていれば expired=true を返し、呼び出し側が解除する。
+// 恒久ロックは時間では解けない。解除予定が空の旧データ（無期限ロック）は解除対象として扱う。
+function evaluateLoginLockState_(lockedFlag, failedCount, lockUntilIso, nowMs) {
+  var permanent = isLoginLockoutPermanent_(failedCount);
+  if (!lockedFlag) {
+    return { locked: false, permanent: permanent, expired: false };
+  }
+  if (permanent) {
+    return { locked: true, permanent: true, expired: false };
+  }
+  var until = String(lockUntilIso || '').trim();
+  if (!until) {
+    return { locked: true, permanent: false, expired: true };
+  }
+  var untilMs = Date.parse(until);
+  if (isNaN(untilMs)) {
+    return { locked: true, permanent: false, expired: true };
+  }
+  return { locked: true, permanent: false, expired: nowMs >= untilMs };
+}
+
+// 認証失敗を 1 回加算して必要ならロックする。シートへの書き込みまで行い、新しい状態を返す。
+
+// 認証成功・自動解除・管理者解除で使う。失敗回数とロックを完全に戻す。
 
 
 
@@ -7576,6 +7633,13 @@ function exportTableCsv_(payload, session) {
 // v376.68: 汎用データエクスポートの実 DB dryRun（非送信・DB 書込なし・読み取りのみ）。
 // 会員の個人情報を扱う機能のため、権限ガードが実際に効くことを本番 DB で確認する。
 // **CSV の中身はログに出さない**（行数と先頭ヘッダー名のみ）。
+
+// v376.71: T_認証アカウント に ロック解除予定日時 を追加したため、既存行の列レイアウトを
+// 実際にずらす必要がある。起動時の初期化はキャッシュ済みバージョンで飛ばされる経路があるので、
+// operator が明示的に 1 回実行する（docs/09 の Schema migration step）。再実行しても安全。
+
+// v376.71: ログイン失敗の時限解除（docs/261 T-04）の判定を実データ無しで検証する。
+// DB への書き込みは行わない。
 
 // v368: 申込受付メール送信ヘルパー（公開ポータル申請受付時に使用）
 function sendApplicationReceiptMail_(ss, params) {

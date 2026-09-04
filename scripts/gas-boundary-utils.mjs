@@ -46,6 +46,10 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   'dryRunMailMergeTagsV376_66_LOG',
   // v376.68: 汎用データエクスポートの権限ガード検証（読み取りのみ）
   'dryRunDataExportV376_68_LOG',
+  // v376.71: ログイン失敗の時限解除（docs/261 T-04）の判定検証（読み取りのみ）
+  'dryRunLoginLockoutV376_71_LOG',
+  // v376.71: T_認証アカウント の列追加を既存行へ反映する（operator が 1 回実行・再実行可）
+  'runRebuildSchemaForV376_71',
   // v376.44: 公式LINE投稿依頼 保存フロー dryRun E2E（operator 実行用）
   'dryRunLinePostV376_44_LOG',
   // v376.45: LINE投稿 権限二層+可視範囲+submitRequest dryRun E2E（operator 実行用）

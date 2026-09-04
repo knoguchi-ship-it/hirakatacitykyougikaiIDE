@@ -1,5 +1,22 @@
 # 開発引継ぎ（Current State）
 
+## 2026-09-04 v376.71 リリース（ログイン失敗の時限解除・セキュリティ改善）
+
+- **直した問題**: 会員ログインは 5 回失敗で**無期限ロック**だった。ログイン ID は介護支援専門員番号で
+  名簿から分かるため、**第三者が狙った相手を無期限に締め出せる**状態だった。
+- **確定仕様（`docs/261` T-04）を実装**: 連続失敗のみ数え、**成功したら 0 に戻す**。
+  3 回目→1 分 / 4 回目→5 分 / 5 回目→15 分 / 6 回目以降→60 分。連続 20 回で恒久ロック。
+  **ロック中もパスワード不一致と同一文言**（ロック状態を明かさない）。
+- **スキーマ変更**: `T_認証アカウント` に `ロック解除予定日時` を追加（19 列）。
+  operator が admin エディタで `runRebuildSchemaForV376_71` を実行済み（`criticalFailed=0`）。
+- **閾値のベタ書き 2 か所を撤去**し `LOGIN_LOCKOUT_POLICY` へ集約（`AGENTS.md` §3）。
+- **移行前にロックされた行**（解除予定が空）は解除対象として扱い、締め出しを残さない。
+- 検証: prerelease **19 スイート** PASS（新ゲート `test:login-lockout` 14 件）／
+  `dryRunLoginLockoutV376_71_LOG` **11/11 PASS**／
+  **実機でロック→拒否→待機後にログイン成功までを確認**（テスト会員アカウント）／
+  公開 a11y 0・公開 responsive PASS・管理 56 view PASS。
+- 残作業: **管理画面に明示的なロック解除ボタンが無い**（現状はパスワード再発行で解除）。運用判断（`docs/265` §4）。
+
 ## 2026-09-04 docs 直下の整理（43 → 33 件）
 
 `AGENTS.md` §4.6 のルール適用のみ。判断が要る文書は動かしていない。
@@ -212,7 +229,7 @@
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
 最終更新: **2026-09-03**
-最新リリース: **v376.70**（仕様書の一本化に伴う UI 不整合の修正・public @379×2 / member @138 / admin @235）
+最新リリース: **v376.71**（ログイン失敗の時限解除＝セキュリティ改善・public @380×2 / member @139 / admin @236）
 最終作業（2026-09-02）: **本番 GAS 側で v376.60 の検証負債を解消し、v376.61 / v376.62 の 2 リリースを実施**（研修 endTime の実害バグ、テンプレート一覧が v376.42 以降ずっと壊れていた本番障害）。本番データの壊れたセル 3 件も operator 承認のうえ復元。あわせて docs を全面整理（直下 80→44 文書）し、テスト記録を `docs/portal/test-report.html` に一本化した。**GCP 側は本セッションでは再突合のみ実施（書込なし）**。
 GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member 認証）のフル環境まで構築・デプロイ完了。本番 GAS/DB は一切非破壊**（作業は GCP 作業場のみ）。member-auth サービス（Cloud Run `hcmn-member-auth`・rev00003・private・App Check 強制 ON・max=1・専用 SA 最小権限）に、防御コア（第0層レート制限／第1層ロック尊重／第4層日次上限／列挙リーク是正／fail-closed）＋本番 `verifyPassword_` の厳密移植（KAT で GAS 等価を機械証明）＋資格情報ミラー 342 件（**テストコピー由来**）＋Firebase カスタムトークン発行（鍵レス signBlob）＋監査/失効を実装。unit 46/46。**この中断点は 2026-08-03 に解消済（rev00006 でフル経路 end-to-end PASS）。当時「あと 1 手」とされていたのは誤認で、実際は `admin.appCheck()` の初期化順序というサーバ側バグの修正が必要だった。以降 Step A（member-api rev00001）まで進行**。再開手順・GCP リソース一覧・env 再構築・落とし穴の正本は GCP 作業場 `docs/HANDOFF_2026-07-25_member-auth.md`。
 同期間の Phase 4a（2026-07-19〜22）: 予算 killswitch **完了**（予算→topic 接続＋実イベント `under_budget` 初回受信を実測）／日次エクスポート（Firestore→シート BK）を Cloud Run Job で構築し本番 DB シートのコピーで実データ検証 PASS（Scheduler 稼働開始はカットオーバー直前に延期）／portal-api に起動時一括ウォームアップ実装（110+5 doc を 848ms で prefetch・rev00002 実測）／共有 project の IAM 変更後に**本番 3 split live E2E で非影響を実測**（public a11y 0＋7VP／member 21／admin 56 全 PASS）。
@@ -232,7 +249,7 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
   **GAS では作れても GCP へ移行できない仕様は採用しない（NG）**。設計時に「GCP では何で実装するか」を 1 行で書けることが設計完了の条件。
   判断表と NG パターンは `AGENTS.md` §4.8.2 / §4.8.3、決定の背景は `docs/06_DECISION_RECORDS.md`（2026-09-03）。
 
-- **本番**: public **@379×2** / member **@138** / admin **@235**（v376.70・§1）。全 fixed deployment 同期確認済。ロールバック先は public @378×2 / member @137 / admin @234（v376.69）。
+- **本番**: public **@380×2** / member **@139** / admin **@236**（v376.71・§1）。全 fixed deployment 同期確認済。ロールバック先は public @379×2 / member @138 / admin @235（v376.70）。
 - **v376.64 の検証は完了**（管理セッション再取得後に実施）: admin responsive 56 view・メール設定 E2E 5/5・`dryRunMembershipFeeV376_64_LOG` が `passed:true` / `restored:true`。公開側は入会申込カードに 3,000 / 8,000 / 5,000 円の表示を実測。
 - **検証状況は 1 ページで見られる**: [`docs/portal/test-report.html`](docs/portal/test-report.html)（16 項目・PASS 15・要フォロー 1）。再生成は `npm run report:tests`。
 - **文書の入口**: [`docs/00_DOC_INDEX.md`](docs/00_DOC_INDEX.md)。2026-09-02 に全面整理し、`docs/` 直下は現役 44 文書のみ・完了記録 224 件は [`docs/archive/`](docs/archive/00_ARCHIVE_INDEX.md) へ移した。
@@ -269,10 +286,10 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 
 | 配信 | Deployment ID | Version |
 |---|---|---|
-| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@379** |
-| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@379** |
-| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@138** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@235** |
+| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@380** |
+| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@380** |
+| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@139** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@236** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 

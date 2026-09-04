@@ -1,6 +1,6 @@
 // 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能
 // 元: docs/03_DATA_MODEL.md
-// 生成日時: 2026-09-04T01:50:04.653Z
+// 生成日時: 2026-09-04T03:30:21.327Z
 
 Project hcmn_member_system {
   database_type: "Google Spreadsheet (logical)"
@@ -811,6 +811,7 @@ Table "T_認証アカウント" {
   "アカウント有効フラグ" boolean
   "ログイン失敗回数" int
   "ロック状態" boolean
+  "ロック解除予定日時" varchar
   "作成日時" timestamp
   "更新日時" timestamp
   "削除フラグ" boolean
@@ -832,6 +833,7 @@ Table "T_認証アカウント_archive" {
   "アカウント有効フラグ" boolean
   "ログイン失敗回数" int
   "ロック状態" boolean
+  "ロック解除予定日時" varchar
   "作成日時" timestamp
   "更新日時" timestamp
   "削除フラグ" boolean

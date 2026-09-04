@@ -47,22 +47,22 @@
 <div class="wrap">
 <header>
   <h1>テスト結果レポート</h1>
-  <p class="sub">枚方市介護支援専門員連絡協議会 会員システム / 生成 2026-09-04 01:37:02 UTC</p>
+  <p class="sub">枚方市介護支援専門員連絡協議会 会員システム / 生成 2026-09-04 03:32:48 UTC</p>
 </header>
 
 <section>
   <h2>現在の本番</h2>
   <dl class="rel">
-    <dt>リリース</dt><dd>v376.70（2026-09-04）</dd>
-    <dt>公開ポータル</dt><dd>@379 (x2)</dd>
-    <dt>会員ポータル</dt><dd>@138</dd>
-    <dt>管理ポータル</dt><dd>@235</dd>
-    <dt>ロールバック先</dt><dd>public @378 (x2) / member @137 / admin @234</dd>
+    <dt>リリース</dt><dd>v376.71（2026-09-04）</dd>
+    <dt>公開ポータル</dt><dd>@380 (x2)</dd>
+    <dt>会員ポータル</dt><dd>@139</dd>
+    <dt>管理ポータル</dt><dd>@236</dd>
+    <dt>ロールバック先</dt><dd>public @379 (x2) / member @138 / admin @235</dd>
   </dl>
 </section>
 
 <div class="cards">
-  <div class="card ok"><div class="n">24</div><div class="l">PASS</div></div>
+  <div class="card ok"><div class="n">27</div><div class="l">PASS</div></div>
   <div class="card ng"><div class="n">0</div><div class="l">FAIL</div></div>
   <div class="card warn"><div class="n">1</div><div class="l">要フォロー</div></div>
   <div class="card"><div class="n">0</div><div class="l">未実行</div></div>
@@ -83,7 +83,7 @@
       <tr>
         <td><div class="name">レスポンシブ</div><div class="how">npm run test:responsive</div></td>
         <td><span class="badge ok">PASS</span></td>
-        <td class="when">2026-09-04 01:36:54 UTC</td>
+        <td class="when">2026-09-04 03:32:33 UTC</td>
         <td>7 ビューポート / 21 画面を計測。横スクロール 0 件・タップターゲット違反 0 件・console error 0 件</td>
       </tr>
     </tbody>
@@ -115,7 +115,7 @@
       <tr>
         <td><div class="name">レスポンシブ（8 コンソール）</div><div class="how">npm run test:responsive:admin</div></td>
         <td><span class="badge ok">PASS</span></td>
-        <td class="when">2026-09-04 01:33:14 UTC</td>
+        <td class="when">2026-09-04 03:19:43 UTC</td>
         <td>7 ビューポート / 56 画面を計測。横スクロール 0 件・タップターゲット違反 0 件・console error 0 件</td>
       </tr>
       <tr>
@@ -147,6 +147,44 @@
         <td><span class="badge ok">PASS</span></td>
         <td class="when">2026-09-03 08:52:15 UTC</td>
         <td>非破壊（保存も送信もしない）</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+<section>
+  <h2>会員ポータル（live 実測）</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th style="width:38%">確認内容</th><th style="width:10%">判定</th><th style="width:14%">実施</th><th>内容・根拠</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><div class="name">ログイン失敗の時限解除の実挙動</div><div class="how">member E2E 用のテスト会員アカウントで、3 回失敗 → ロック中に正しいパスワード → 約70秒待機 → 正しいパスワード</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-04 11:2x</td>
+        <td>失敗 3 回はいずれも「ログインIDまたはパスワードが正しくありません。」で統一。ロック中は正しいパスワードでも拒否され、文言も同一（ロック状態を明かさない）。待機後は自動解除されてログイン成功。</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+<section>
+  <h2>管理ポータル（operator 実行）</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th style="width:38%">確認内容</th><th style="width:10%">判定</th><th style="width:14%">実施</th><th>内容・根拠</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><div class="name">T_認証アカウント の列追加移行</div><div class="how">admin エディタで runRebuildSchemaForV376_71 を実行</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-04 12:06</td>
+        <td>hasLockUntilColumn=true / columnCount=19 / initializeSchema_ passed=35 criticalFailed=0 postFailed=0。schema-drift の警告なし。</td>
+      </tr>
+      <tr>
+        <td><div class="name">ログイン失敗の時限解除 dryRun</div><div class="how">admin エディタで dryRunLoginLockoutV376_71_LOG を実行（DB 書込なし）</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-04 12:07</td>
+        <td>passed=true。11 チェック全 PASS（段階的な待機・60分上限・連続20回で恒久ロック・待機超過の自動解除・恒久ロックは時間で解けない・解除予定が空の旧データは解除対象・列の存在）。</td>
       </tr>
     </tbody>
   </table>

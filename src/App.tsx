@@ -3272,6 +3272,11 @@ const App: React.FC = () => {
                 <button className="w-full min-h-[44px] bg-slate-800 text-white rounded px-3 py-2 inline-flex items-center justify-center gap-2 disabled:opacity-50" type="submit">
                   {authBusy ? (<><span className="animate-spin inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>ログイン中...</>) : 'ログイン'}
                 </button>
+                {/* v376.71: 時限ロックの案内。ロック中かどうかは伝えない（docs/261 T-04 #6）。 */}
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  パスワードを続けて間違えると、しばらくの間ログインできなくなります。
+                  時間をおくと自動で解除されます。
+                </p>
               </form>
             )}
             {showAdminAuth && (isAdminShell || authTab === 'admin') && (

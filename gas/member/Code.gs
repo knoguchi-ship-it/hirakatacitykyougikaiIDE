@@ -24,7 +24,7 @@ var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var LOCK_WAIT_TIMEOUT_MS = 10000; // AGENTS §3: LockService 待機の共通タイムアウト
 var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
-var DB_SCHEMA_VERSION = '2026-09-02-regulations-v376.65';
+var DB_SCHEMA_VERSION = '2026-09-04-login-lockout-v376.71';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
 // AGENTS §3: Script Properties の MEMBER_PORTAL_URL_OVERRIDE で上書き可能（deployment 変更時にコード改変不要）
@@ -542,6 +542,7 @@ var テーブル定義 = {
     'アカウント有効フラグ',
     'ログイン失敗回数',
     'ロック状態',
+    'ロック解除予定日時',
     '作成日時',
     '更新日時',
     '削除フラグ',
@@ -2306,7 +2307,16 @@ function resolvePasswordAuthContextByLoginId_(ss, loginId) {
     throw new Error('アカウントが無効化されています。');
   }
   if (toBoolean_(row[cols['ロック状態']])) {
-    throw new Error('アカウントがロックされています。');
+    // 待機時間を過ぎたロックはここでも通す（ログインだけ解除されて他が通らない状態を作らない）。
+    var selfLockState = evaluateLoginLockState_(
+      true,
+      cols['ログイン失敗回数'] != null ? row[cols['ログイン失敗回数']] : 0,
+      cols['ロック解除予定日時'] != null ? row[cols['ロック解除予定日時']] : '',
+      Date.now());
+    if (!selfLockState.expired) {
+      throw new Error('アカウントがロックされています。');
+    }
+    clearLoginLockout_(authSheet, authRowInfo.rowNumber, cols);
   }
   return {
     authSheet: authSheet,
@@ -2391,6 +2401,7 @@ function changePassword_(request) {
     'アカウント有効フラグ',
     'ログイン失敗回数',
     'ロック状態',
+    'ロック解除予定日時',
     '更新日時',
   ]);
   var authId = row[columns['認証ID']];
@@ -2416,18 +2427,11 @@ function changePassword_(request) {
 
   var verifyChangeResult = verifyPassword_(currentPassword, storedSalt, storedHash);
   if (!verifyChangeResult.match) {
-    failedCount += 1;
-    var lockNow = failedCount >= 5;
-    if (columns['ログイン失敗回数'] != null) {
-      authSheet.getRange(authRowInfo.rowNumber, columns['ログイン失敗回数'] + 1).setValue(failedCount);
-    }
-    if (columns['ロック状態'] != null) {
-      authSheet.getRange(authRowInfo.rowNumber, columns['ロック状態'] + 1).setValue(lockNow);
-    }
-    if (columns['更新日時'] != null) {
-      authSheet.getRange(authRowInfo.rowNumber, columns['更新日時'] + 1).setValue(new Date().toISOString());
-    }
-    appendLoginHistory_(ss, authId, loginId, 'PASSWORD', 'FAILURE', '現在パスワード不一致');
+    var changeFailure = applyLoginFailure_(authSheet, authRowInfo.rowNumber, columns, failedCount, Date.now());
+    appendLoginHistory_(ss, authId, loginId, 'PASSWORD', 'FAILURE',
+      '現在パスワード不一致（' + changeFailure.failedCount + '回連続'
+        + (changeFailure.locked ? ('・' + (changeFailure.permanent ? '恒久ロック' : 'ロック ' + changeFailure.waitMinutes + '分')) : '') + '）');
+    // ここは認証済みの本人操作なので、ロック状態を隠す必要はない（画面文言は変えない）。
     throw new Error('現在のパスワードが正しくありません。');
   }
   if (verifyChangeResult.needsRehash) {
@@ -2444,12 +2448,7 @@ function changePassword_(request) {
   authSheet.getRange(authRowInfo.rowNumber, columns['パスワードソルト'] + 1).setValue(newSalt);
   authSheet.getRange(authRowInfo.rowNumber, columns['パスワードハッシュ'] + 1).setValue(newHash);
   authSheet.getRange(authRowInfo.rowNumber, columns['パスワード更新日時'] + 1).setValue(nowIso);
-  if (columns['ログイン失敗回数'] != null) {
-    authSheet.getRange(authRowInfo.rowNumber, columns['ログイン失敗回数'] + 1).setValue(0);
-  }
-  if (columns['ロック状態'] != null) {
-    authSheet.getRange(authRowInfo.rowNumber, columns['ロック状態'] + 1).setValue(false);
-  }
+  clearLoginLockout_(authSheet, authRowInfo.rowNumber, columns);
   if (columns['更新日時'] != null) {
     authSheet.getRange(authRowInfo.rowNumber, columns['更新日時'] + 1).setValue(nowIso);
   }
@@ -2667,6 +2666,96 @@ function completePasswordReset_(request) {
   };
 }
 
+// ── ログイン失敗の時限解除（docs/261 T-04・v376.71）──────────────────
+//
+// 連続した認証失敗だけを数え、成功した時点で 0 に戻す。待機時間は段階的に伸ばし、
+// 上限を超えたら管理者の対応が要る恒久ロックにする。閾値をここ以外に書かない（AGENTS.md §3）。
+//
+// 背景: ログイン ID が介護支援専門員番号で推測できるため、以前の「5 回で無期限ロック」は
+// 第三者が故意に他人のアカウントを止められる状態だった。
+var LOGIN_LOCKOUT_POLICY = {
+  steps: [
+    { failures: 3, waitMinutes: 1 },
+    { failures: 4, waitMinutes: 5 },
+    { failures: 5, waitMinutes: 15 },
+    { failures: 6, waitMinutes: 60 },
+  ],
+  permanentAtFailures: 20,
+};
+
+function loginLockoutWaitMinutes_(failedCount) {
+  var count = Number(failedCount || 0);
+  var minutes = 0;
+  var steps = LOGIN_LOCKOUT_POLICY.steps;
+  for (var i = 0; i < steps.length; i += 1) {
+    if (count >= steps[i].failures) minutes = steps[i].waitMinutes;
+  }
+  return minutes;
+}
+
+function isLoginLockoutPermanent_(failedCount) {
+  return Number(failedCount || 0) >= LOGIN_LOCKOUT_POLICY.permanentAtFailures;
+}
+
+// 現在のロック状態を判定する。待機を過ぎていれば expired=true を返し、呼び出し側が解除する。
+// 恒久ロックは時間では解けない。解除予定が空の旧データ（無期限ロック）は解除対象として扱う。
+function evaluateLoginLockState_(lockedFlag, failedCount, lockUntilIso, nowMs) {
+  var permanent = isLoginLockoutPermanent_(failedCount);
+  if (!lockedFlag) {
+    return { locked: false, permanent: permanent, expired: false };
+  }
+  if (permanent) {
+    return { locked: true, permanent: true, expired: false };
+  }
+  var until = String(lockUntilIso || '').trim();
+  if (!until) {
+    return { locked: true, permanent: false, expired: true };
+  }
+  var untilMs = Date.parse(until);
+  if (isNaN(untilMs)) {
+    return { locked: true, permanent: false, expired: true };
+  }
+  return { locked: true, permanent: false, expired: nowMs >= untilMs };
+}
+
+// 認証失敗を 1 回加算して必要ならロックする。シートへの書き込みまで行い、新しい状態を返す。
+function applyLoginFailure_(sheet, rowNumber, columns, previousFailedCount, nowMs) {
+  var failedCount = Number(previousFailedCount || 0) + 1;
+  var waitMinutes = loginLockoutWaitMinutes_(failedCount);
+  var permanent = isLoginLockoutPermanent_(failedCount);
+  var locked = permanent || waitMinutes > 0;
+  var lockUntilIso = '';
+  if (locked && !permanent) {
+    lockUntilIso = new Date(nowMs + waitMinutes * 60 * 1000).toISOString();
+  }
+  if (columns['ログイン失敗回数'] != null) {
+    sheet.getRange(rowNumber, columns['ログイン失敗回数'] + 1).setValue(failedCount);
+  }
+  if (columns['ロック状態'] != null) {
+    sheet.getRange(rowNumber, columns['ロック状態'] + 1).setValue(locked);
+  }
+  if (columns['ロック解除予定日時'] != null) {
+    sheet.getRange(rowNumber, columns['ロック解除予定日時'] + 1).setValue(lockUntilIso);
+  }
+  if (columns['更新日時'] != null) {
+    sheet.getRange(rowNumber, columns['更新日時'] + 1).setValue(new Date(nowMs).toISOString());
+  }
+  return { failedCount: failedCount, locked: locked, permanent: permanent, waitMinutes: waitMinutes, lockUntil: lockUntilIso };
+}
+
+// 認証成功・自動解除・管理者解除で使う。失敗回数とロックを完全に戻す。
+function clearLoginLockout_(sheet, rowNumber, columns) {
+  if (columns['ログイン失敗回数'] != null) {
+    sheet.getRange(rowNumber, columns['ログイン失敗回数'] + 1).setValue(0);
+  }
+  if (columns['ロック状態'] != null) {
+    sheet.getRange(rowNumber, columns['ロック状態'] + 1).setValue(false);
+  }
+  if (columns['ロック解除予定日時'] != null) {
+    sheet.getRange(rowNumber, columns['ロック解除予定日時'] + 1).setValue('');
+  }
+}
+
 function memberLogin_(request) {
   if (!request || !request.loginId || !request.password) {
     throw new Error('ログインIDとパスワードを入力してください。');
@@ -2720,9 +2809,21 @@ function memberLogin_(request) {
     appendLoginHistory_(ss, authId, loginId, 'PASSWORD', 'FAILURE', 'アカウント無効');
     throw new Error('アカウントが無効です。');
   }
-  if (isLocked) {
-    appendLoginHistory_(ss, authId, loginId, 'PASSWORD', 'FAILURE', 'アカウントロック');
-    throw new Error('アカウントがロックされています。');
+  var loginNowMs = Date.now();
+  var lockState = evaluateLoginLockState_(
+    isLocked, failedCount, columns['ロック解除予定日時'] != null ? row[columns['ロック解除予定日時']] : '', loginNowMs);
+  if (lockState.locked && lockState.expired) {
+    // 待機時間を過ぎたので自動解除する。失敗回数も 0 に戻す（連続失敗のカウントであるため）。
+    clearLoginLockout_(authSheet, authRowInfo.rowNumber, columns);
+    failedCount = 0;
+    lockState = { locked: false, permanent: false, expired: false };
+    appendLoginHistory_(ss, authId, loginId, 'PASSWORD', 'FAILURE', 'ロック自動解除');
+  }
+  if (lockState.locked) {
+    appendLoginHistory_(ss, authId, loginId, 'PASSWORD', 'FAILURE',
+      lockState.permanent ? 'アカウントロック（恒久・管理者対応が必要）' : 'アカウントロック（待機中）');
+    // ロック状態を攻撃者に教えないため、パスワード不一致と同じ文言にする（docs/261 T-04 #6）。
+    throw new Error('ログインIDまたはパスワードが正しくありません。');
   }
   if (!storedSalt || !storedHash) {
     appendLoginHistory_(ss, authId, loginId, 'PASSWORD', 'FAILURE', 'パスワード未初期化');
@@ -2731,18 +2832,17 @@ function memberLogin_(request) {
 
   var verifyResult = verifyPassword_(password, storedSalt, storedHash);
   if (!verifyResult.match) {
-    failedCount += 1;
-    var lockNow = failedCount >= 5;
-    authSheet.getRange(authRowInfo.rowNumber, columns['ログイン失敗回数'] + 1).setValue(failedCount);
-    authSheet.getRange(authRowInfo.rowNumber, columns['ロック状態'] + 1).setValue(lockNow);
-    authSheet.getRange(authRowInfo.rowNumber, columns['更新日時'] + 1).setValue(new Date().toISOString());
-    appendLoginHistory_(ss, authId, loginId, 'PASSWORD', 'FAILURE', 'パスワード不一致');
+    var failureState = applyLoginFailure_(authSheet, authRowInfo.rowNumber, columns, failedCount, loginNowMs);
+    appendLoginHistory_(ss, authId, loginId, 'PASSWORD', 'FAILURE',
+      failureState.locked
+        ? ('パスワード不一致（' + failureState.failedCount + '回連続・'
+            + (failureState.permanent ? '恒久ロック' : ('ロック ' + failureState.waitMinutes + '分')) + '）')
+        : ('パスワード不一致（' + failureState.failedCount + '回連続）'));
     throw new Error('ログインIDまたはパスワードが正しくありません。');
   }
 
   var nowIso = new Date().toISOString();
-  authSheet.getRange(authRowInfo.rowNumber, columns['ログイン失敗回数'] + 1).setValue(0);
-  authSheet.getRange(authRowInfo.rowNumber, columns['ロック状態'] + 1).setValue(false);
+  clearLoginLockout_(authSheet, authRowInfo.rowNumber, columns);
   authSheet.getRange(authRowInfo.rowNumber, columns['最終ログイン日時'] + 1).setValue(nowIso);
   authSheet.getRange(authRowInfo.rowNumber, columns['更新日時'] + 1).setValue(nowIso);
 
@@ -3383,6 +3483,13 @@ var EXPORT_MAX_ROWS_ = 20000;
 // v376.68: 汎用データエクスポートの実 DB dryRun（非送信・DB 書込なし・読み取りのみ）。
 // 会員の個人情報を扱う機能のため、権限ガードが実際に効くことを本番 DB で確認する。
 // **CSV の中身はログに出さない**（行数と先頭ヘッダー名のみ）。
+
+// v376.71: T_認証アカウント に ロック解除予定日時 を追加したため、既存行の列レイアウトを
+// 実際にずらす必要がある。起動時の初期化はキャッシュ済みバージョンで飛ばされる経路があるので、
+// operator が明示的に 1 回実行する（docs/09 の Schema migration step）。再実行しても安全。
+
+// v376.71: ログイン失敗の時限解除（docs/261 T-04）の判定を実データ無しで検証する。
+// DB への書き込みは行わない。
 
 // v368: 申込受付メール送信ヘルパー（公開ポータル申請受付時に使用）
 

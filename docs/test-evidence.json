@@ -1,20 +1,47 @@
 {
   "note": "自動テストの生ファイル (.test-out / output/playwright) から拾えない検証記録をここに書く。scripts/build-test-report.mjs が読み、docs/portal/test-report.html を生成する。値・本文・アドレス・資格情報は書かない（AGENTS §0）。",
   "release": {
-    "version": "v376.70",
+    "version": "v376.71",
     "date": "2026-09-04",
     "deployments": {
+      "public": "@380 (x2)",
+      "member": "@139",
+      "admin": "@236"
+    },
+    "rollback": {
       "public": "@379 (x2)",
       "member": "@138",
       "admin": "@235"
-    },
-    "rollback": {
-      "public": "@378 (x2)",
-      "member": "@137",
-      "admin": "@234"
     }
   },
   "manualRuns": [
+    {
+      "id": "LOCKOUT-71",
+      "group": "会員ポータル（live 実測）",
+      "name": "ログイン失敗の時限解除の実挙動",
+      "how": "member E2E 用のテスト会員アカウントで、3 回失敗 → ロック中に正しいパスワード → 約70秒待機 → 正しいパスワード",
+      "when": "2026-09-04 11:2x",
+      "status": "PASS",
+      "detail": "失敗 3 回はいずれも「ログインIDまたはパスワードが正しくありません。」で統一。ロック中は正しいパスワードでも拒否され、文言も同一（ロック状態を明かさない）。待機後は自動解除されてログイン成功。"
+    },
+    {
+      "id": "SCHEMA-71",
+      "group": "管理ポータル（operator 実行）",
+      "name": "T_認証アカウント の列追加移行",
+      "how": "admin エディタで runRebuildSchemaForV376_71 を実行",
+      "when": "2026-09-04 12:06",
+      "status": "PASS",
+      "detail": "hasLockUntilColumn=true / columnCount=19 / initializeSchema_ passed=35 criticalFailed=0 postFailed=0。schema-drift の警告なし。"
+    },
+    {
+      "id": "LOCKOUT-DRYRUN-71",
+      "group": "管理ポータル（operator 実行）",
+      "name": "ログイン失敗の時限解除 dryRun",
+      "how": "admin エディタで dryRunLoginLockoutV376_71_LOG を実行（DB 書込なし）",
+      "when": "2026-09-04 12:07",
+      "status": "PASS",
+      "detail": "passed=true。11 チェック全 PASS（段階的な待機・60分上限・連続20回で恒久ロック・待機超過の自動解除・恒久ロックは時間で解けない・解除予定が空の旧データは解除対象・列の存在）。"
+    },
     {
       "id": "BREADCRUMB-70",
       "group": "管理ポータル（live 実測）",

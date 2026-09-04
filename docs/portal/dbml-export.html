@@ -325,7 +325,7 @@ footer {
     <button class="copy-btn" onclick="copyDbml()">📋 全文コピー</button>
     <pre id="dbml-src">// 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能
 // 元: docs/03_DATA_MODEL.md
-// 生成日時: 2026-09-04T01:50:04.647Z
+// 生成日時: 2026-09-04T03:30:21.319Z
 
 Project hcmn_member_system {
   database_type: &quot;Google Spreadsheet (logical)&quot;
@@ -1136,6 +1136,7 @@ Table &quot;T_認証アカウント&quot; {
   &quot;アカウント有効フラグ&quot; boolean
   &quot;ログイン失敗回数&quot; int
   &quot;ロック状態&quot; boolean
+  &quot;ロック解除予定日時&quot; varchar
   &quot;作成日時&quot; timestamp
   &quot;更新日時&quot; timestamp
   &quot;削除フラグ&quot; boolean
@@ -1157,6 +1158,7 @@ Table &quot;T_認証アカウント_archive&quot; {
   &quot;アカウント有効フラグ&quot; boolean
   &quot;ログイン失敗回数&quot; int
   &quot;ロック状態&quot; boolean
+  &quot;ロック解除予定日時&quot; varchar
   &quot;作成日時&quot; timestamp
   &quot;更新日時&quot; timestamp
   &quot;削除フラグ&quot; boolean
@@ -1283,7 +1285,7 @@ Ref: &quot;T_ログイン履歴&quot;.&quot;認証ID&quot; &gt; &quot;T_認証�
 // 自動推定失敗: T_変更申請_archive }o--o| T_削除ログ : 削除バッチID
 // 自動推定失敗: T_規程 }o--o| M_会員種別 : 対象会員種別</pre>
   </div>
-  <p style="font-size: 0.85em; color: var(--muted);">行数: 959 / 容量: 18.3 KB</p>
+  <p style="font-size: 0.85em; color: var(--muted);">行数: 961 / 容量: 18.4 KB</p>
 </section>
 
 <section class="card">

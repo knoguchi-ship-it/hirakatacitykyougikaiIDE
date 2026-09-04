@@ -248,6 +248,7 @@ erDiagram
     boolean アカウント有効フラグ
     int ログイン失敗回数
     boolean ロック状態
+    string ロック解除予定日時
     datetime 作成日時
     datetime 更新日時
     boolean 削除フラグ
@@ -551,6 +552,7 @@ erDiagram
     boolean アカウント有効フラグ
     int ログイン失敗回数
     boolean ロック状態
+    string ロック解除予定日時
     datetime 作成日時
     datetime 更新日時
     boolean 削除フラグ

@@ -600,6 +600,74 @@ function dryRunDataExportV376_68_LOG() {
   return report;
 }
 
+function runRebuildSchemaForV376_71() {
+  var ss = getOrCreateDatabase_();
+  initializeSchema_(ss);
+  var sheet = ss.getSheetByName('T_認証アカウント');
+  var headers = sheet ? sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0] : [];
+  var report = {
+    schemaVersion: DB_SCHEMA_VERSION,
+    hasLockUntilColumn: headers.indexOf('ロック解除予定日時') >= 0,
+    columnCount: headers.length,
+  };
+  Logger.log('[runRebuildSchemaForV376_71] ' + JSON.stringify(report));
+  return report;
+}
+
+function dryRunLoginLockoutV376_71_LOG() {
+  var checks = [];
+  function record(name, passed, detail) {
+    checks.push({ name: name, passed: !!passed, detail: detail || '' });
+  }
+
+  record('1〜2 回目はロックしない',
+    loginLockoutWaitMinutes_(1) === 0 && loginLockoutWaitMinutes_(2) === 0, '');
+  record('段階的に待機が伸びる（3→1分 / 4→5分 / 5→15分 / 6→60分）',
+    loginLockoutWaitMinutes_(3) === 1 && loginLockoutWaitMinutes_(4) === 5
+      && loginLockoutWaitMinutes_(5) === 15 && loginLockoutWaitMinutes_(6) === 60,
+    '3=' + loginLockoutWaitMinutes_(3) + ' 4=' + loginLockoutWaitMinutes_(4)
+      + ' 5=' + loginLockoutWaitMinutes_(5) + ' 6=' + loginLockoutWaitMinutes_(6));
+  record('待機は 60 分で頭打ち',
+    loginLockoutWaitMinutes_(10) === 60 && loginLockoutWaitMinutes_(19) === 60, '');
+  record('★連続 20 回で恒久ロック',
+    !isLoginLockoutPermanent_(19) && isLoginLockoutPermanent_(20), '');
+
+  var now = Date.UTC(2026, 8, 4, 12, 0, 0);
+  var future = new Date(now + 60000).toISOString();
+  var past = new Date(now - 60000).toISOString();
+
+  record('待機中は解除しない',
+    evaluateLoginLockState_(true, 3, future, now).locked === true
+      && evaluateLoginLockState_(true, 3, future, now).expired === false, '');
+  record('★待機を過ぎたら自動解除の対象になる',
+    evaluateLoginLockState_(true, 3, past, now).expired === true, '');
+  record('★恒久ロックは時間では解けない',
+    evaluateLoginLockState_(true, 20, past, now).expired === false
+      && evaluateLoginLockState_(true, 20, past, now).permanent === true, '');
+  record('解除予定が空の旧データ（無期限ロック）は解除対象',
+    evaluateLoginLockState_(true, 5, '', now).expired === true, '');
+  record('壊れた日時は解除対象として扱う（締め出しを残さない）',
+    evaluateLoginLockState_(true, 5, 'not-a-date', now).expired === true, '');
+  record('ロックしていなければ locked=false',
+    evaluateLoginLockState_(false, 2, '', now).locked === false, '');
+
+  var authSheet = getOrCreateDatabase_().getSheetByName('T_認証アカウント');
+  var headers = authSheet ? authSheet.getRange(1, 1, 1, authSheet.getLastColumn()).getValues()[0] : [];
+  record('★T_認証アカウント に ロック解除予定日時 列がある',
+    headers.indexOf('ロック解除予定日時') >= 0,
+    'columns=' + headers.length);
+
+  var report = {
+    dbWritten: false,
+    passed: checks.every(function(c) { return c.passed; }),
+    checks: checks,
+    policy: LOGIN_LOCKOUT_POLICY,
+    schemaVersion: DB_SCHEMA_VERSION,
+  };
+  Logger.log('[dryRunLoginLockoutV376_71_LOG] ' + JSON.stringify(report));
+  return report;
+}
+
 function processPendingThumbnails() {
   try {
     var ss = getOrCreateDatabase_();
