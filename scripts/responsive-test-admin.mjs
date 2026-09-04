@@ -123,6 +123,14 @@ async function main() {
   }
   await browser.close();
   await fs.writeFile(path.join(OUT_DIR, 'result-admin.json'), JSON.stringify({ portal: 'admin', generated: new Date().toISOString(), results, consoleErrors }, null, 2));
+  // v376.70: fatal（アプリのフレームに到達できない＝多くはセッション失効）でも exit 0 で
+  // 終わっていたため、ログだけ見ると PASS と誤読できた。終了コードで落とす。
+  const fatals = results.filter((r) => r.fatal);
+  if (fatals.length) {
+    console.error('[admin] FAIL: ' + fatals.length + '/' + results.length + ' viewport が fatal。先頭: ' + fatals[0].fatal);
+    console.error('[admin] 認証切れの可能性がある。node .test-out/auth-bootstrap-admin-auto.mjs を実行して再試行する。');
+    process.exit(1);
+  }
   process.stderr.write('[admin] done.\n');
 }
 

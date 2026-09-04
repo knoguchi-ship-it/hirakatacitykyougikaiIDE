@@ -1,20 +1,29 @@
 {
   "note": "自動テストの生ファイル (.test-out / output/playwright) から拾えない検証記録をここに書く。scripts/build-test-report.mjs が読み、docs/portal/test-report.html を生成する。値・本文・アドレス・資格情報は書かない（AGENTS §0）。",
   "release": {
-    "version": "v376.69",
-    "date": "2026-09-03",
+    "version": "v376.70",
+    "date": "2026-09-04",
     "deployments": {
+      "public": "@379 (x2)",
+      "member": "@138",
+      "admin": "@235"
+    },
+    "rollback": {
       "public": "@378 (x2)",
       "member": "@137",
       "admin": "@234"
-    },
-    "rollback": {
-      "public": "@377 (x2)",
-      "member": "@136",
-      "admin": "@233"
     }
   },
   "manualRuns": [
+    {
+      "id": "ADMIN-RESP-70",
+      "group": "管理ポータル（live 実測）",
+      "name": "v376.70 後の管理 responsive 検証",
+      "how": "npm run test:responsive:admin",
+      "when": "2026-09-04 09:5x",
+      "status": "BLOCKED",
+      "detail": "Google セッション失効により 7 viewport すべて fatal（App frame did not appear）。再認証後に実施する。なお本スクリプトは fatal でも exit 0 を返すため、終了コードで落とすよう修正が必要。"
+    },
     {
       "id": "BATCH-API",
       "group": "管理ポータル（live 実測）",

@@ -1,5 +1,16 @@
 # 開発引継ぎ（Current State）
 
+## 2026-09-04 v376.70 リリース（仕様書の一本化に伴う UI 不整合の修正）
+
+- 本番 fixed deployment は **public @379×2 / member @138 / admin @235**。スキーマ変更なし。
+- 修正 3 件（いずれも仕様書を書く過程で発見）:
+  1. `View` 型に `'data-export'` が無く、直前の分岐で `never` に絞られるため**型検査をすり抜けていた**
+  2. `BREADCRUMB_MAP` に `'data-export'` が無く、**データ出力の画面だけパンくずが出ていなかった**
+  3. ログイン画面の未使用の英語文言変数を削除
+- **画面を追加するときは 型・パンくず・サイドバー・権限マッピングの 4 か所を必ず揃える**（再発防止）。
+- 検証: prerelease 18 スイート PASS。公開ポータル a11y 違反 0 / responsive 7/7 PASS。
+  **管理ポータルの responsive は未実施**（セッション失効・上記残タスク）。
+
 ## 2026-09-04 旧仕様書の整理（重複の解消）
 
 - 巻き直した 5 文書と内容が重複する**旧仕様書 6 本**を `docs/archive/spec_history/` へ移した。
@@ -191,7 +202,7 @@
 > 更新原則: 本番デプロイのたびに §1 / §2 を更新。週次以上の頻度で見直す。
 
 最終更新: **2026-09-03**
-最新リリース: **v376.69**（一括編集の対象拡張＝連絡先・勤務先・自宅・public @378×2 / member @137 / admin @234）
+最新リリース: **v376.70**（仕様書の一本化に伴う UI 不整合の修正・public @379×2 / member @138 / admin @235）
 最終作業（2026-09-02）: **本番 GAS 側で v376.60 の検証負債を解消し、v376.61 / v376.62 の 2 リリースを実施**（研修 endTime の実害バグ、テンプレート一覧が v376.42 以降ずっと壊れていた本番障害）。本番データの壊れたセル 3 件も operator 承認のうえ復元。あわせて docs を全面整理（直下 80→44 文書）し、テスト記録を `docs/portal/test-report.html` に一本化した。**GCP 側は本セッションでは再突合のみ実施（書込なし）**。
 GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member 認証）のフル環境まで構築・デプロイ完了。本番 GAS/DB は一切非破壊**（作業は GCP 作業場のみ）。member-auth サービス（Cloud Run `hcmn-member-auth`・rev00003・private・App Check 強制 ON・max=1・専用 SA 最小権限）に、防御コア（第0層レート制限／第1層ロック尊重／第4層日次上限／列挙リーク是正／fail-closed）＋本番 `verifyPassword_` の厳密移植（KAT で GAS 等価を機械証明）＋資格情報ミラー 342 件（**テストコピー由来**）＋Firebase カスタムトークン発行（鍵レス signBlob）＋監査/失効を実装。unit 46/46。**この中断点は 2026-08-03 に解消済（rev00006 でフル経路 end-to-end PASS）。当時「あと 1 手」とされていたのは誤認で、実際は `admin.appCheck()` の初期化順序というサーバ側バグの修正が必要だった。以降 Step A（member-api rev00001）まで進行**。再開手順・GCP リソース一覧・env 再構築・落とし穴の正本は GCP 作業場 `docs/HANDOFF_2026-07-25_member-auth.md`。
 同期間の Phase 4a（2026-07-19〜22）: 予算 killswitch **完了**（予算→topic 接続＋実イベント `under_budget` 初回受信を実測）／日次エクスポート（Firestore→シート BK）を Cloud Run Job で構築し本番 DB シートのコピーで実データ検証 PASS（Scheduler 稼働開始はカットオーバー直前に延期）／portal-api に起動時一括ウォームアップ実装（110+5 doc を 848ms で prefetch・rev00002 実測）／共有 project の IAM 変更後に**本番 3 split live E2E で非影響を実測**（public a11y 0＋7VP／member 21／admin 56 全 PASS）。
@@ -211,7 +222,7 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
   **GAS では作れても GCP へ移行できない仕様は採用しない（NG）**。設計時に「GCP では何で実装するか」を 1 行で書けることが設計完了の条件。
   判断表と NG パターンは `AGENTS.md` §4.8.2 / §4.8.3、決定の背景は `docs/06_DECISION_RECORDS.md`（2026-09-03）。
 
-- **本番**: public **@378×2** / member **@137** / admin **@234**（v376.69・§1）。全 fixed deployment 同期確認済。ロールバック先は public @377×2 / member @136 / admin @233（v376.68.2）。
+- **本番**: public **@379×2** / member **@138** / admin **@235**（v376.70・§1）。全 fixed deployment 同期確認済。ロールバック先は public @378×2 / member @137 / admin @234（v376.69）。
 - **v376.64 の検証は完了**（管理セッション再取得後に実施）: admin responsive 56 view・メール設定 E2E 5/5・`dryRunMembershipFeeV376_64_LOG` が `passed:true` / `restored:true`。公開側は入会申込カードに 3,000 / 8,000 / 5,000 円の表示を実測。
 - **検証状況は 1 ページで見られる**: [`docs/portal/test-report.html`](docs/portal/test-report.html)（16 項目・PASS 15・要フォロー 1）。再生成は `npm run report:tests`。
 - **文書の入口**: [`docs/00_DOC_INDEX.md`](docs/00_DOC_INDEX.md)。2026-09-02 に全面整理し、`docs/` 直下は現役 44 文書のみ・完了記録 224 件は [`docs/archive/`](docs/archive/00_ARCHIVE_INDEX.md) へ移した。
@@ -248,10 +259,10 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 
 | 配信 | Deployment ID | Version |
 |---|---|---|
-| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@378** |
-| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@378** |
-| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@137** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@234** |
+| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@379** |
+| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@379** |
+| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@138** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@235** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 
@@ -305,6 +316,7 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 |---|---|---|
 | 0 | **研修メール送信のカテゴリ（operator 判断）** | v376.67 で研修リマインダーを `TRAINING_REMINDER` に是正した結果、**手動の「研修メール送信」も同じトグルに乗る**。分けるなら新カテゴリ（設定キー＋UI トグル）の追加が必要。運用が 1 つ増えるため判断を仰ぐ（`docs/260` §4-1） |
 | ✅ | **データ出力の権限（確定）** | **MASTER のみで運用する**（operator 判断・2026-09-03）。事務局へ渡す必要が生じたら 設定 → 権限管理 から `データ出力（CSV）` を付与する | `docs/262` |
+| 0 | **管理ポータルの live 検証が未実施** | v376.70 デプロイ後、Google セッション失効のため `test:responsive:admin` が 7 viewport すべて fatal。再認証後に実施する。あわせて **fatal でも exit 0 を返す**問題を直す | `docs/264_RELEASE_STATE_v376.70_2026-09-04.md` §5 |
 | ✅ | **旧仕様書の整理（完了）** | 重複していた 6 本を `docs/archive/spec_history/` へ移し、固有内容は新仕様書へ移設した。現役の参照も全て張り替え済み | `docs/archive/00_ARCHIVE_INDEX.md` |
 | 1 | **`T_研修申込.申込ID` の採番が 2 通り** | 会員からの申込は `AP-…`、外部申込者からは素の UUID。一意性は保たれるが同じ列に 2 規則は §3 違反。新規採番のみ統一する（既存は振り直さない） | `docs/spec/05_DATA_IF.md` §9-1 |
 | 0 | **UI 修正 3 件が未リリース** | `View` 型に `data-export` を追加／パンくずの欠落を修正／未使用の英語文言を削除。**本番未反映**。次のデプロイに乗せる | `docs/spec/04_UIUX.md` §5 |

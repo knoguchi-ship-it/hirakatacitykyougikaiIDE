@@ -110,6 +110,7 @@
 | 文書 | 内容 |
 |---|---|
 | [260_SINGLE_SOURCE_AUDIT_2026-09-03.md](260_SINGLE_SOURCE_AUDIT_2026-09-03.md) | **単一情報源（DRY）棚卸し監査**（v376.67・実測ベース。正本レジストリは AGENTS §3） |
+| [264_RELEASE_STATE_v376.70_2026-09-04.md](264_RELEASE_STATE_v376.70_2026-09-04.md) | v376.70 仕様書一本化に伴う UI 不整合の修正 |
 | [263_RELEASE_STATE_v376.69_2026-09-03.md](263_RELEASE_STATE_v376.69_2026-09-03.md) | v376.69 一括編集の対象拡張（連絡先・勤務先・自宅）|
 | [262_RELEASE_STATE_v376.68_2026-09-03.md](262_RELEASE_STATE_v376.68_2026-09-03.md) | v376.68 汎用データエクスポート（CSV）|
 | [261_SPEC_CODE_DIFF_2026-09-03.md](261_SPEC_CODE_DIFF_2026-09-03.md) | **仕様書巻き直しの作業台帳**（仕様⇄コード差分 D-xx／不足情報とタスク G-xx。判定は operator 記入） |
