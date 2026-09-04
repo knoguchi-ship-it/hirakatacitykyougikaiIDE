@@ -41,8 +41,17 @@
 | 対象 | 結果 |
 |---|---|
 | 公開ポータル アクセシビリティ | **違反 0**（critical / serious / moderate / minor すべて 0） |
-| 公開ポータル responsive（7 viewport） | **7/7 PASS** |
-| 管理ポータル responsive | **未実施**（Google セッション失効。§5-1） |
+| 公開ポータル responsive（7 viewport / 21 画面） | **PASS**（横スクロール 0・タップターゲット違反 0・console error 0） |
+| 管理ポータル responsive（7 viewport × 8 コンソール） | **56 view 全 PASS**（console error 0） |
+| **データ出力（CSV）画面のパンくず** | **PASS**。実機で「システム › データ出力（CSV）」の表示を確認。画面本体も描画され、権限拒否なし・console error 0 |
+
+> データ出力の画面は responsive テストの対象コンソール 8 種に含まれないため、
+> `.test-out/check-breadcrumb.mjs` で個別に確認した（読み取りのみ）。
+
+> 1 回目の実行では console error が 1 件記録された。内容は GAS のホスト側が出す
+> **report-only の CSP 通知**（`frame-ancestors 'self'` の違反報告。Google 側の iframe 構成に由来し、
+> 本アプリのコードとは無関係で「no further action has been taken」と明記されている）。
+> 再実行では 0 件で、断続的に出る外部要因のノイズと判断した。
 
 ## 4. 同時に入れた文書変更
 
@@ -51,7 +60,8 @@
 
 ## 5. 残作業
 
-| # | 内容 |
-|---|---|
-| 1 | **管理ポータルの live 検証**（responsive 7 viewport ＋ データ出力画面のパンくず表示確認）。Google セッション再取得後に実施 |
-| 2 | **`test:responsive:admin` が fatal でも exit 0 を返す**。アプリのフレームに到達できなくても「done.」で終わるため、ログを見ただけでは PASS と誤読する。**終了コードで落とすように直す** |
+| # | 内容 | 状態 |
+|---|---|---|
+| 1 | 管理ポータルの live 検証 | **完了**（§3.2） |
+| 2 | `test:responsive:admin` / `-member` が fatal でも exit 0 を返す | **修正済**。fatal があれば exit 1 で落とし、再認証コマンドを案内する |
+| 3 | データ出力の画面を responsive テストの対象コンソールに加えるか | 未対応（運用判断。現状は個別スクリプトで確認） |

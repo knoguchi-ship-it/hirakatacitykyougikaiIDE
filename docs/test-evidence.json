@@ -16,13 +16,22 @@
   },
   "manualRuns": [
     {
+      "id": "BREADCRUMB-70",
+      "group": "管理ポータル（live 実測）",
+      "name": "データ出力（CSV）画面のパンくず表示",
+      "how": "Playwright で admin へログインし、サイドバーから該当画面を開いて本文を検査（読み取りのみ）",
+      "when": "2026-09-04 10:1x",
+      "status": "PASS",
+      "detail": "「システム › データ出力（CSV）」のパンくずを確認。画面本体も描画され、権限拒否なし。console error 0。v376.69 までは BREADCRUMB_MAP に登録が無く、この画面だけパンくずが出ていなかった。"
+    },
+    {
       "id": "ADMIN-RESP-70",
       "group": "管理ポータル（live 実測）",
       "name": "v376.70 後の管理 responsive 検証",
-      "how": "npm run test:responsive:admin",
-      "when": "2026-09-04 09:5x",
-      "status": "BLOCKED",
-      "detail": "Google セッション失効により 7 viewport すべて fatal（App frame did not appear）。再認証後に実施する。なお本スクリプトは fatal でも exit 0 を返すため、終了コードで落とすよう修正が必要。"
+      "how": "npm run test:responsive:admin（7 viewport × 8 コンソール）",
+      "when": "2026-09-04 10:0x",
+      "status": "PASS",
+      "detail": "56 view 全 PASS・console error 0。初回はセッション失効で 7 viewport すべて fatal だったが、当時スクリプトは exit 0 を返していた。fatal で exit 1 に落とすよう修正済み。"
     },
     {
       "id": "BATCH-API",

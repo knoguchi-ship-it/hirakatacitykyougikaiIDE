@@ -47,22 +47,22 @@
 <div class="wrap">
 <header>
   <h1>テスト結果レポート</h1>
-  <p class="sub">枚方市介護支援専門員連絡協議会 会員システム / 生成 2026-09-03 08:55:55 UTC</p>
+  <p class="sub">枚方市介護支援専門員連絡協議会 会員システム / 生成 2026-09-04 01:37:02 UTC</p>
 </header>
 
 <section>
   <h2>現在の本番</h2>
   <dl class="rel">
-    <dt>リリース</dt><dd>v376.69（2026-09-03）</dd>
-    <dt>公開ポータル</dt><dd>@378 (x2)</dd>
-    <dt>会員ポータル</dt><dd>@137</dd>
-    <dt>管理ポータル</dt><dd>@234</dd>
-    <dt>ロールバック先</dt><dd>public @377 (x2) / member @136 / admin @233</dd>
+    <dt>リリース</dt><dd>v376.70（2026-09-04）</dd>
+    <dt>公開ポータル</dt><dd>@379 (x2)</dd>
+    <dt>会員ポータル</dt><dd>@138</dd>
+    <dt>管理ポータル</dt><dd>@235</dd>
+    <dt>ロールバック先</dt><dd>public @378 (x2) / member @137 / admin @234</dd>
   </dl>
 </section>
 
 <div class="cards">
-  <div class="card ok"><div class="n">22</div><div class="l">PASS</div></div>
+  <div class="card ok"><div class="n">24</div><div class="l">PASS</div></div>
   <div class="card ng"><div class="n">0</div><div class="l">FAIL</div></div>
   <div class="card warn"><div class="n">1</div><div class="l">要フォロー</div></div>
   <div class="card"><div class="n">0</div><div class="l">未実行</div></div>
@@ -83,7 +83,7 @@
       <tr>
         <td><div class="name">レスポンシブ</div><div class="how">npm run test:responsive</div></td>
         <td><span class="badge ok">PASS</span></td>
-        <td class="when">2026-09-03 08:54:07 UTC</td>
+        <td class="when">2026-09-04 01:36:54 UTC</td>
         <td>7 ビューポート / 21 画面を計測。横スクロール 0 件・タップターゲット違反 0 件・console error 0 件</td>
       </tr>
     </tbody>
@@ -115,7 +115,7 @@
       <tr>
         <td><div class="name">レスポンシブ（8 コンソール）</div><div class="how">npm run test:responsive:admin</div></td>
         <td><span class="badge ok">PASS</span></td>
-        <td class="when">2026-09-03 08:52:13 UTC</td>
+        <td class="when">2026-09-04 01:33:14 UTC</td>
         <td>7 ビューポート / 56 画面を計測。横スクロール 0 件・タップターゲット違反 0 件・console error 0 件</td>
       </tr>
       <tr>
@@ -158,6 +158,18 @@
   <table>
     <thead><tr><th style="width:38%">確認内容</th><th style="width:10%">判定</th><th style="width:14%">実施</th><th>内容・根拠</th></tr></thead>
     <tbody>
+      <tr>
+        <td><div class="name">データ出力（CSV）画面のパンくず表示</div><div class="how">Playwright で admin へログインし、サイドバーから該当画面を開いて本文を検査（読み取りのみ）</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-04 10:1x</td>
+        <td>「システム › データ出力（CSV）」のパンくずを確認。画面本体も描画され、権限拒否なし。console error 0。v376.69 までは BREADCRUMB_MAP に登録が無く、この画面だけパンくずが出ていなかった。</td>
+      </tr>
+      <tr>
+        <td><div class="name">v376.70 後の管理 responsive 検証</div><div class="how">npm run test:responsive:admin（7 viewport × 8 コンソール）</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-04 10:0x</td>
+        <td>56 view 全 PASS・console error 0。初回はセッション失効で 7 viewport すべて fatal だったが、当時スクリプトは exit 0 を返していた。fatal で exit 1 に落とすよう修正済み。</td>
+      </tr>
       <tr>
         <td><div class="name">一括編集の拡張項目が API から返る</div><div class="how">Playwright から google.script.run で getAdminPersonList を実行（読み取りのみ）</div></td>
         <td><span class="badge ok">PASS</span></td>

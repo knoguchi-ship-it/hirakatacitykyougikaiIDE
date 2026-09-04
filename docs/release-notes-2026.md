@@ -24,7 +24,9 @@
 - **再発防止**: 画面を追加したら 型 / パンくず / サイドバー / 権限マッピングの 4 か所を揃える。
 - 同時に、仕様書 5 文書の完成と旧仕様書 6 本の退避（`docs/archive/spec_history/`）を行った。
 - **検証**: prerelease 18 スイート PASS。公開 a11y 違反 0・responsive 7/7 PASS。
-  管理ポータルの responsive はセッション失効のため未実施（`docs/264` §5）。
+  管理 responsive 56 view 全 PASS（console error 0）。データ出力の画面のパンくず表示も実機で確認。
+- **あわせてゲートを修正**: `responsive-test-admin` / `-member` が fatal でも exit 0 を返しており、
+  セッション失効でアプリに到達できなくても PASS と誤読できた。fatal があれば exit 1 で落とすようにした。
 - 詳細は `docs/264_RELEASE_STATE_v376.70_2026-09-04.md`。
 
 ---
