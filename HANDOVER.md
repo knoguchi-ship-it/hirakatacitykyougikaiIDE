@@ -1,5 +1,132 @@
 # 開発引継ぎ（Current State）
 
+## ▶ 再開プラン（2026-09-04 時点・次の担当者はここから）
+
+### 0. 30 秒で現状
+
+- **本番**: public **@380×2** / member **@139** / admin **@236**（**v376.71**）。4 本すべて同期確認済。
+  ロールバック先は public @379×2 / member @138 / admin @235（v376.70）。
+- **未コミット・未 push・未デプロイの作業は無い**（最終コミット `10f96b6`）。**中断中の実装は無い**。
+- 直近セッション（2026-09-03〜04）でやったこと:
+  仕様書 5 文書の巻き直し完了 → 旧仕様書 6 本を退避 → docs 直下を整理（43→33 件。その後リリース記録とプロンプト改訂で 36 件） →
+  **v376.70**（UI 不整合 3 件）→ **v376.71**（ログイン失敗の時限解除・**スキーマ変更あり**）→
+  仕様書作成プロンプト／テンプレートを **v3.0** へ改訂。
+- **検証は 1 ページで見られる**: [`docs/portal/test-report.html`](docs/portal/test-report.html)
+  （28 行・PASS 27・FAIL 0・要フォロー 1）。再生成は `npm run report:tests`。
+
+### 1. 作業開始時にやること（毎回・順番どおり）
+
+認証は **1〜2 日で切れる**。作業前にまとめて通しておくと途中で止まらない。
+
+| # | コマンド | 何のため | 切れているときの症状 |
+|---|---|---|---|
+| 1 | `! gcloud auth login` | GCP を読むとき（この案件では任意） | `invalid_rapt` |
+| 2 | `! npx clasp login` | デプロイ | `clasp push` が `invalid_grant` |
+| 3 | `! node .test-out/auth-bootstrap-admin-auto.mjs` | 管理ポータルの E2E | responsive:admin が全 viewport `App frame did not appear` |
+
+> 1〜3 は **operator にしか実行できない**（ブラウザでの Google ログインが要る）。
+> AI 側は `!` 付きコマンドの実行を依頼すること。
+
+読む順: `AGENTS.md` → 本書 §0 → `docs/spec/`（仕様の正本 5 文書）→ `docs/00_DOC_INDEX.md`。
+
+### 2. 次にやること（優先度順）
+
+#### 【A】仕様書の整合確認とトレーサビリティ一覧（推奨・半日）
+
+**なぜ**: テンプレート v3.0 に Step 9（整合確認）を新設したが、**まだ実施していない**。
+5 文書へ ID（TM/NF/BR/MG/SCR）を振ったところまでで、全体の突き合わせが残っている。
+
+**手順**
+1. `docs/267_SPEC_AUTHORING_TEMPLATE_v3.md` §4 の 8 項目を、`docs/spec/` の 5 文書に対して確認する
+2. 結果を表で出し、落ちた項目を直す
+3. 最後に**トレーサビリティ一覧**（要件ID / 要件 / 検証方法 / 実装の所在）を出す。
+   置き場所は `docs/spec/` 直下ではなく **`docs/00_DOC_INDEX.md` から辿れる別文書**にする（5 文書を増やさない）
+
+**完了条件**: 重複ゼロ・ID 重複ゼロ・検証方法の空欄ゼロ・未確定が 1 箇所に集約されている。
+
+#### 【B】`T_研修申込.申込ID` の採番統一（小・1〜2 時間）
+
+**なぜ**: 同じ列に 2 通りの形式が入っている（会員からの申込は `AP-` ＋ UUID 10 桁、
+外部申込者からは素の UUID）。一意性は保たれるので**実害は出ていない**が、`AGENTS.md` §3 に反する。
+
+**手順**
+1. `gas-src/Code.full.gs` の `applyTraining_`（会員経路）と `applyTrainingExternal_`（外部経路）を確認
+2. **採番を 1 つの関数に集約**する（例: `generateTrainingApplyId_()`）。形式は `AP-` 側に寄せる
+3. **既存データは振り直さない**（参照している受付番号が変わるため）
+4. unit test で「2 経路が同じ関数を使っていること」を固定する
+5. 通常のリリース手順（§下記 3）
+
+**注意**: 申込 ID は**申込取消の本人確認に使われる**（公開ポータル）。形式を変えても既存 ID が
+引き続き引けることを dryRun で確認すること。
+
+#### 【C】管理画面からのロック解除（v376.71 の残・operator 判断が先）
+
+**なぜ**: 連続 20 回失敗の恒久ロックを解除する手段が、現状「資格情報の再発行」しか無い。
+**パスワードも変わってしまう**。専用の解除アクションを足すかどうかは運用判断。
+
+判断が出たら: `ACTION_TO_MENU` と `ADMIN_ALLOWED_ACTIONS_LIST` の**両方**に登録が要る（登録漏れは
+`未実装アクションです` になる。v376.65.2 で実際に踏んだ）。`npm run test:menu-registry` が検出する。
+
+#### 【D】operator 判断待ちの棚卸し（AI 側では進められない）
+
+| 項目 | 場所 |
+|---|---|
+| 研修メール送信のカテゴリを分けるか | 本書 §2・`docs/260` §4-1 |
+| 「事業所会員メール設定（統合済み）」の表記を直すか | `docs/spec/04_UIUX.md` §11 |
+| 会員マイページを画面分割するか | 同上 |
+| レスポンス目標値の再設定（移行後は現行値が緩すぎる） | `docs/spec/03_TRD.md` §19 |
+| 監査ログ・ログイン履歴の保管期間（**未設定**） | `docs/spec/01_SOW.md` §8 |
+| Workspace の添付上限の実値 | `docs/261` T-02 / G-15 |
+
+#### 【E】GCP 移行の再開（別作業場・大きい）
+
+**この作業場ではない。** `C:\VSCode\CloudePL\hirakatacitykyougikaiGCP` が拠点。
+再開の一手は GCP 作業場 `docs/HANDOFF_2026-07-25_member-auth.md`。
+本リポジトリ側の計画正本は `docs/250`、目標構成は `docs/spec/03_TRD.md` 第2部。
+
+**GAS 側に新しい write 機能を足すときは、着手前に operator へ「GAS/GCP どちらで作るか」を確認する**
+（`AGENTS.md` §4.7）。小〜中規模・障害修正・運用要求は確認不要。
+
+### 3. リリース手順（要約・正本は `docs/09_DEPLOYMENT_POLICY.md`）
+
+```
+npm run prerelease                     # 19 スイート。exit 0 が必須
+npm run build:gas && npm run build:gas:member && npm run build:gas:admin
+npx clasp push --force                 # 統合/public
+cd gas/member && npx clasp push --force
+cd ../admin && npx clasp push --force
+# ── スキーマを変えた場合はここで operator が admin エディタで
+#    runRebuildSchemaForV<版> を実行（clasp run は権限で通らない）──
+npx clasp version "<説明>"             # 3 プロジェクトそれぞれ
+npx clasp redeploy <deployment ID> --versionNumber <版> --description "<説明>"   # 4 本
+npx clasp deployments                  # 4 本が同じ版を指していることを確認
+```
+
+**`clasp deploy` は使わない**（URL が変わる）。必ず `redeploy`。
+
+### 4. 踏みやすい落とし穴（実際に踏んだものだけ）
+
+| 罠 | 症状 | 対処 |
+|---|---|---|
+| **`DB_SCHEMA_VERSION` の更新忘れ** | 新しいシートが作られず**画面が黙って空になる** | 列を変えたら必ず版を上げ、`runRebuildSchemaForV<版>` を operator に実行してもらう |
+| **`ADMIN_ALLOWED_ACTIONS_LIST` への登録漏れ** | `未実装アクションです` で画面が読込中のまま | `ACTION_TO_MENU` と両方に足す。`test:menu-registry` が検出 |
+| **responsive テストの合否をログで判断する** | fatal でも「done.」と出る（v376.71 で exit 1 に修正済だが**判定は result.json を見る**） | `.test-out/result*.json` の `fatal` と `consoleErrors` を必ず確認 |
+| **build pruner** | 値渡しの関数参照・定数直前のコメントに書いた関数名で、生成物から消える | `npm run test:gas-artifact-refs` が検出。`docs/260` §4 |
+| **正規表現に `"` を含める** | ビルドのパーサが壊れ、operator ツールが生成物から消える | `indexOf`/`split().join()` で書く |
+| **Bash heredoc のバックスラッシュ脱落** | 生成したコードの `\n` が実改行になる | コード生成は Write/Edit ツールで行う |
+| **`npm audit` のネットワークタイムアウト** | prerelease が exit 1（内容は健全） | 時間をおいて再実行。単体で `npm audit` を叩いて 0 件を確認 |
+| **push 先のアカウント** | 403 | gh は `knoguchi-ship-it`、clasp は `k.noguchi@hcm-n.org` |
+
+### 5. 触るときに気をつける場所
+
+- `gas-src/Code.full.gs` が **3 split すべての唯一のソース**。ここを直して 3 回ビルドする
+- 値・判定の正本は `AGENTS.md` §3 のレジストリ。**新しい画面でローカルに再定義しない**
+  （`npm run test:single-source` が落とす）
+- メールの出口は `deliverMail_` の 1 本だけ。`MailApp`/`GmailApp` を他所から呼ばない
+- 仕様の正本は **`docs/spec/` の 5 文書**。旧 `01_PRD` などは `docs/archive/spec_history/` にあるが**参照しない**
+
+---
+
 ## 2026-09-04 仕様書作成プロンプト／テンプレートの改訂（v2.0 → v3.0）と、5 文書への反映
 
 **きっかけ**: 作成した 5 文書の品質を実測したところ、テンプレート側に構造的な欠陥が見つかった。
@@ -277,8 +404,8 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 
 - **本番**: public **@380×2** / member **@139** / admin **@236**（v376.71・§1）。全 fixed deployment 同期確認済。ロールバック先は public @379×2 / member @138 / admin @235（v376.70）。
 - **v376.64 の検証は完了**（管理セッション再取得後に実施）: admin responsive 56 view・メール設定 E2E 5/5・`dryRunMembershipFeeV376_64_LOG` が `passed:true` / `restored:true`。公開側は入会申込カードに 3,000 / 8,000 / 5,000 円の表示を実測。
-- **検証状況は 1 ページで見られる**: [`docs/portal/test-report.html`](docs/portal/test-report.html)（16 項目・PASS 15・要フォロー 1）。再生成は `npm run report:tests`。
-- **文書の入口**: [`docs/00_DOC_INDEX.md`](docs/00_DOC_INDEX.md)。2026-09-02 に全面整理し、`docs/` 直下は現役 44 文書のみ・完了記録 224 件は [`docs/archive/`](docs/archive/00_ARCHIVE_INDEX.md) へ移した。
+- **検証状況は 1 ページで見られる**: [`docs/portal/test-report.html`](docs/portal/test-report.html)（28 行・PASS 27・FAIL 0・要フォロー 1）。再生成は `npm run report:tests`。
+- **文書の入口**: [`docs/00_DOC_INDEX.md`](docs/00_DOC_INDEX.md)。2026-09-04 時点で `docs/` 直下は現役 36 文書のみ・完了記録 237 件は [`docs/archive/`](docs/archive/00_ARCHIVE_INDEX.md) へ移した。**仕様の正本は `docs/spec/` の 5 文書**。
 - **直近セッション（2026-09-02）の成果** — 本番 GAS 側で 3 リリース。詳細は `docs/release-notes-2026.md` と各 release state:
   - **v376.60** メール設定・自動送信の是正（前セッション分）。**残っていた検証負債を全て解消**し、テスト記録は全 13 行 PASS になった。
   - **v376.61** 研修 `endTime` の実害バグ是正（GCP 申し送り「課題A」）。管理画面の `<input type="time">` が空表示になり**保存すると終了時刻が消える**状態だった。あわせて壊れていた本番セル 3 件を operator 承認のうえ復元（課題B 完了）。
