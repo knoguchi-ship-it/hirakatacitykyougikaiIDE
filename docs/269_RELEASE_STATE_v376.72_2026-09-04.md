@@ -45,7 +45,7 @@
 | 公開 a11y（live） | `npm run test:a11y` | **PASS**（critical/serious/moderate/minor すべて 0） |
 | 公開 responsive（live） | `npm run test:responsive` 7 VP | **PASS**（`result.json`: consoleErrors 0・横スクロール 0） |
 | 管理 responsive（live） | `npm run test:responsive:admin` 7 VP × 8 コンソール | **PASS**（`result-admin.json`: 延べ 56 view・不合格 0・consoleErrors 0） |
-| 会員 responsive（live） | `npm run test:responsive:member` | **未実施**（§5） |
+| 会員 responsive（live） | `npm run test:responsive:member` 7 VP | **PASS**（2026-09-05 実施。`result-member.json`: 延べ 21 view・不合格 0・consoleErrors 0） |
 
 新規テストが固定していること:
 
@@ -77,7 +77,7 @@
 
 | # | 内容 | 状態 |
 |---|---|---|
-| 1 | **会員マイページの responsive E2E が未実施** | `.env.test` の会員資格情報でログインできず（`[member] 認証切れの可能性がある`）。**operator に資格情報の確認を依頼中**。管理・公開は実施済みで、本リリースは会員側の画面・書込フローに触れていない |
+| 1 | ~~会員マイページの responsive E2E が未実施~~ | **解消（2026-09-05）**。検証用の会員アカウントを新設して実行し PASS。3 ポータルすべての live E2E が揃った（§7） |
 | 2 | 恒久ロック（連続 20 回）の管理画面からの解除手段 | 未実装。operator 判断待ち（SOW §8 U-26） |
 | 3 | 文書重複の機械検査 `test:docs-single-source` | 未実装（SOW §8 U-22） |
 
@@ -90,3 +90,23 @@
 - **注意点**: 既存データに 3 形式が混在したまま移行される。**移行スクリプトで振り直さないこと**
   （利用者の手元の受付番号が無効になる）。
 - **未移行 write の増減**: 増減なし（既存 write の内部実装の変更のみ。`docs/250` §6.1 の棚卸しに変更なし）。
+
+## 7. 検証用の会員アカウント（2026-09-05 新設）
+
+会員側 E2E を流すための資格情報が無く、`.env.test` の値では認証を通せなかった。
+**管理ポータルには会員を直接作成する機能が無い**（`ADMIN_ACTION_PERMISSIONS` に会員作成の action が無い）ため、
+唯一の安全な正規経路である**公開ポータルからの入会申込 → 事務局の承認**で作成した。
+
+- 自動化: `scripts/create-test-member.mjs`（既定は dry-run。`--submit` のときだけ送信）
+- 会員種別は**賛助会員**。介護支援専門員番号が任意で入力欄も出ないため、
+  実在の専門員番号を使わずに済み、ログイン ID は `9` ＋ 8 桁で自動採番される（RD BR-01）
+- 目印: 氏名・事業所名に `テスト` を含め、メールは RFC 6761 の予約 TLD `.invalid` を使う（外部に届かない）
+- 送信前に operator が**メール送信を停止**（申込の受付確認メールと承認時のログイン情報メールが実際に飛ぶため）
+- 資格情報は operator が `.env.test` に記入。**AI は値を見ない・出力しない・要求しない**（`AGENTS.md` §0）
+
+**後片付け**: 管理 → データ管理 → 会員削除（アーカイブ移動。削除バッチ単位で復元できる）。
+`deleteTestData_APPLY` は `demo-` / `DEMO-` 始まりの行しか拾わないため、**この会員は対象外**である点に注意。
+
+> **申し送り**: `provisionDemoAccountsJson` はソースにパスワードが固定値で埋まっている。
+> 過去に実行されていれば本番に既知パスワードのアカウントが残っている可能性がある。
+> `deleteTestDataPreview_LOG` を admin エディタで実行すれば、値を出さずに残存を確認できる（未確認）。

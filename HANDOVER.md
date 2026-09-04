@@ -13,10 +13,10 @@
   仕様書作成プロンプト／テンプレートを **v3.0** へ改訂 →
   **仕様書 5 文書の整合確認**（`docs/267` §4。実装との食い違い 4 件を修正・トレーサビリティ一覧 `docs/268` を新設）→
   **v376.72**（研修申込IDの採番統一・スキーマ変更なし。`docs/269`）。
-- **⚠️ 引き継ぐ未検証が 1 件**: **会員マイページの responsive E2E（v376.72）が未実施**。
-  `.env.test` の会員資格情報でログインできない（`[member] 認証切れの可能性がある`）。§2【0】を参照。
+- **未検証は無い**。2026-09-05 に**検証用の会員アカウントを新設**し、会員マイページの responsive E2E も PASS。
+  公開・会員・管理の 3 ポータルすべてで live E2E が揃った（`docs/269` §3・§7）。
 - **検証は 1 ページで見られる**: [`docs/portal/test-report.html`](docs/portal/test-report.html)
-  （28 行・PASS 26・**FAIL 1**・要フォロー 1。FAIL は §2【0】の会員 responsive）。再生成は `npm run report:tests`。
+  （28 行・PASS 27・FAIL 0・要フォロー 1）。再生成は `npm run report:tests`。
 
 ### 1. 作業開始時にやること（毎回・順番どおり）
 
@@ -35,21 +35,17 @@
 
 ### 2. 次にやること（優先度順）
 
-#### 【0】会員マイページの responsive E2E をやり切る（最優先・15 分）
+#### 【0】会員 E2E 用アカウント — **整備済み（2026-09-05）**
 
-**なぜ**: v376.72 のリリースで、**会員側だけ live E2E が流せていない**。公開・管理は実施済み。
-本リリースは会員側の画面に触れていないため実害の可能性は低いが、`AGENTS.md` §5-3 の完了条件を満たしていない。
+会員側 E2E の資格情報が無い問題は解消した。**検証用の賛助会員を 1 件新設**し、
+`.env.test` の `MEMBER_LOGIN_ID` / `MEMBER_PASSWORD` に設定済み（値は operator が管理）。
 
-**症状**: `npm run test:responsive:member` が
-`[member] 認証切れの可能性がある` で exit 1。ログイン画面のロック案内文が出ている。
-
-**手順**
-1. `.env.test` の `MEMBER_LOGIN_ID` / `MEMBER_PASSWORD` が現行の会員アカウントと一致しているか
-   **operator が確認する**（AI は値を見ない・要求しない。`AGENTS.md` §0）
-2. v376.71 の時限ロックに掛かっている可能性がある。**その場合は時間経過で自動解除される**ので待ってから再実行する
-3. `npm run test:responsive:member` を実行し、**判定は `.test-out/result-member.json` の
-   `fatal` と `consoleErrors` を見る**（ログの「done.」では判定しない）
-4. 結果を `docs/269` §5 と `docs/portal/test-report.html`（`npm run report:tests`）に反映する
+- 作り直しが要るときは `node scripts/create-test-member.mjs`（既定 dry-run → `--submit` で送信）。
+  **送信前に必ずメール送信を止める**こと。その後 operator が変更申請を承認 → パスワードをリセットして `.env.test` へ記入する
+- **管理ポータルに会員を直接作る機能は無い**（会員作成の action が存在しない）。作成経路は入会申込の承認だけ
+- 不要になったら 管理 → データ管理 → 会員削除で消す。
+  `deleteTestData_APPLY` は `demo-` / `DEMO-` 始まりしか拾わないため**この会員は対象外**
+- 判定は必ず `.test-out/result-member.json` の `fatal` / `consoleErrors` を見る（ログの「done.」では判定しない）
 
 #### 【A】仕様書の整合確認とトレーサビリティ一覧 — **完了（2026-09-04）**
 
@@ -414,7 +410,7 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 
 - **本番**: public **@381×2** / member **@140** / admin **@237**（v376.72・§1）。全 fixed deployment 同期確認済。ロールバック先は public @380×2 / member @139 / admin @236（v376.71）。
 - **v376.64 の検証は完了**（管理セッション再取得後に実施）: admin responsive 56 view・メール設定 E2E 5/5・`dryRunMembershipFeeV376_64_LOG` が `passed:true` / `restored:true`。公開側は入会申込カードに 3,000 / 8,000 / 5,000 円の表示を実測。
-- **検証状況は 1 ページで見られる**: [`docs/portal/test-report.html`](docs/portal/test-report.html)（28 行・PASS 26・**FAIL 1**・要フォロー 1。FAIL は §2【0】の会員 responsive）。再生成は `npm run report:tests`。
+- **検証状況は 1 ページで見られる**: [`docs/portal/test-report.html`](docs/portal/test-report.html)（28 行・PASS 27・FAIL 0・要フォロー 1）。再生成は `npm run report:tests`。
 - **文書の入口**: [`docs/00_DOC_INDEX.md`](docs/00_DOC_INDEX.md)。2026-09-04 時点で `docs/` 直下は現役 36 文書のみ・完了記録 237 件は [`docs/archive/`](docs/archive/00_ARCHIVE_INDEX.md) へ移した。**仕様の正本は `docs/spec/` の 5 文書**。
 - **直近セッション（2026-09-02）の成果** — 本番 GAS 側で 3 リリース。詳細は `docs/release-notes-2026.md` と各 release state:
   - **v376.60** メール設定・自動送信の是正（前セッション分）。**残っていた検証負債を全て解消**し、テスト記録は全 13 行 PASS になった。
