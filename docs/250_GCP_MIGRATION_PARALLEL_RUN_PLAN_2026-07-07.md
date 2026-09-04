@@ -703,6 +703,6 @@ Mail/Drive  : 移行期は GAS bridge 維持（Phase 4 以降で置換判断）
 - `docs/09_DEPLOYMENT_POLICY.md`
 - `docs/172_DEFERRED_SECURITY_BACKLOG_SECRET_MANAGER_KDF_2026-05-01.md`
 - `docs/240_DESIGN_CLOUD_RUN_ARGON2ID_2026-05-20.md`
-- `docs/248_THIRD_PARTY_EVALUATION_2026-07-01.md`
+- `docs/archive/historical/248_THIRD_PARTY_EVALUATION_2026-07-01.md`
 - `docs/archive/historical/33_GCP_MIGRATION_SPEC.md`（historical。現正本ではない）
 - `C:\VSCode\CloudePL\hirakatacitykyougikaiGCP\README.md`

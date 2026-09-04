@@ -306,7 +306,7 @@ Real-browser verification is performed by the operator by default. The agent rec
 - Integrated fixed deployments: `@341` x2
 - Member split: `@99`
 - Admin split: `@143`
-- Detail: `docs/230_SECURITY_REMEDIATION_DRIVE_PROXY_ALLOWLIST_2026-05-20.md`
+- Detail: `docs/archive/historical/230_SECURITY_REMEDIATION_DRIVE_PROXY_ALLOWLIST_2026-05-20.md`
 - Verification: `npx clasp deployments --json` で integrated/public 2 本、member split、admin split の fixed deployment version を確認済み。
 
 ### 2026-05-17 `v370`

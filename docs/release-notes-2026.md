@@ -104,7 +104,7 @@ operator 指示による棚卸し監査。実測に基づく監査結果は `doc
 - **クラスの欠陥を塞いだ**: これまでは、どのテンプレートでもタグを打ち間違えれば生の `{{...}}` が会員へ届く状態だった。
 - **検証**: prerelease 全ゲート PASS（新ゲート `test:mail-merge-tags` 9 件）。**live 検証（dryRun / メール設定 E2E）は
   admin セッション失効のため未実施**（`HANDOVER.md` §2-1 に残作業として記載）。
-- 詳細は `docs/259_RELEASE_STATE_v376.66_2026-09-03.md`。
+- 詳細は `docs/archive/release_history/259_RELEASE_STATE_v376.66_2026-09-03.md`。
 
 ---
 
@@ -125,7 +125,7 @@ operator 指示による棚卸し監査。実測に基づく監査結果は `doc
   許可リストへ追加して解消し、**`test:menu-registry` に「ACTION_TO_MENU の admin action は許可リストにある」ゲートを新設**して再発を防いだ。
 - **検証**: prerelease 全ゲート PASS（新ゲート `test:regulations` 9 件）。live E2E は 公開 a11y 0／公開 responsive 21 view／
   重要事項ダイアログの表示を実測／**admin responsive 56 view**／メール設定 E2E 5/5／`dryRunRegulationsV376_65_LOG` 10 チェック全 PASS／管理画面に規程 5 件が並ぶことを実測。
-- 詳細は `docs/258_RELEASE_STATE_v376.65_2026-09-02.md`。
+- 詳細は `docs/archive/release_history/258_RELEASE_STATE_v376.65_2026-09-02.md`。
 
 ---
 
@@ -139,7 +139,7 @@ operator 指示による棚卸し監査。実測に基づく監査結果は `doc
 - **🐛 既存不具合の是正**: `ensureMemberTypeAnnualFeeAmounts_` がスキーマ初期化のたびに 3000/8000/5000 で**無条件上書き**しており、設定しても次回 admin ログインで元に戻る状態だった。「未設定のときだけ補完」に変更し、空欄と 0 円（会費無料）を区別。
 - **公開境界は不変**: 会費の読みは `getPublicPortalSettings` に相乗り、書きは既存 `updateSystemSettings` のみ。**新しい public action は追加していない**。
 - **検証**: prerelease 全ゲート PASS（新ゲート `test:membership-fee` 6 件を追加）。live E2E は 公開 a11y 0／公開 responsive 7VP／**入会申込カードに 3,000・8,000・5,000 円の表示を実測**／admin responsive 56 view／メール設定 E2E 5/5／`dryRunMembershipFeeV376_64_LOG` が `passed:true`・`restored:true`。
-- 詳細は `docs/257_RELEASE_STATE_v376.64_2026-09-02.md`。
+- 詳細は `docs/archive/release_history/257_RELEASE_STATE_v376.64_2026-09-02.md`。
 
 ---
 
@@ -478,7 +478,7 @@ Phase A（v376.42）で整備した基盤の上に、従来ハードコードだ
 
 ## v376.38 — 2026-06-06 🧪 テスト観点表評価 + a11y AA コントラスト是正 + npm audit fix（全 3 split @356/@115/@197）
 
-テスト観点表（ISO/IEC 25010:2023）でコード・ドキュメントを評価し、実行可能なギャップを実測・是正。`docs/247_TEST_VIEWPOINT_EVAL_2026-06-06.md` 参照。
+テスト観点表（ISO/IEC 25010:2023）でコード・ドキュメントを評価し、実行可能なギャップを実測・是正。`docs/archive/historical/247_TEST_VIEWPOINT_EVAL_2026-06-06.md` 参照。
 
 - 実測（公開 live @355）: `test:responsive` 全7ビューポート(320-1920) PASS / `test:a11y` critical=0・serious 1件検出。
 - 是正: 公開ホーム「TRAINING」バッジ等 `bg-sky-600`+白(≈3.9:1) → `bg-sky-700`(≈5.3:1) で WCAG 2 AA 達成（`src/public-portal/App.tsx` 2箇所）。`npm audit fix` で moderate 7→5（残5は breaking 要・high/critical=0）。
@@ -1516,7 +1516,7 @@ operator 対応: GCP 利用判断時に `docs/239` 30 分手順を実施。
 |---|---|
 | 🔒 | 第三者評価 2026-05-20 指摘 #1 対応: `getFileThumbnail_()` / `getFileBytes_()` の Drive fileId proxy を `T_研修.案内状URL` / `案内状サムネイルURL` 登録 fileId のみに制限（fail-closed） |
 
-詳細: `docs/230_SECURITY_REMEDIATION_DRIVE_PROXY_ALLOWLIST_2026-05-20.md`
+詳細: `docs/archive/historical/230_SECURITY_REMEDIATION_DRIVE_PROXY_ALLOWLIST_2026-05-20.md`
 
 ---
 

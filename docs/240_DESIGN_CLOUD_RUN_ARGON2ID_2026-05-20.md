@@ -278,7 +278,7 @@ gcloud run services add-iam-policy-binding hcmn-password-hash \
 
 ## 10. 関連ドキュメント
 
-- `docs/109_THIRD_PARTY_ASSESSMENT_2026-04-20.md` §5.3
+- `docs/archive/historical/109_THIRD_PARTY_ASSESSMENT_2026-04-20.md` §5.3
 - `docs/171_PASSWORD_HASH_STANDARD_ALIGNMENT_2026-04-30.md` (v262 PBKDF2 移行)
 - `docs/172_DEFERRED_SECURITY_BACKLOG_SECRET_MANAGER_KDF_2026-05-01.md`
 - `docs/239_OPERATOR_GCP_SECRET_MANAGER_SETUP_2026-05-20.md` (v373.5 前段)

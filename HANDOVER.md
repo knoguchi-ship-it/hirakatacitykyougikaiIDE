@@ -1,5 +1,15 @@
 # 開発引継ぎ（Current State）
 
+## 2026-09-04 docs 直下の整理（43 → 33 件）
+
+`AGENTS.md` §4.6 のルール適用のみ。判断が要る文書は動かしていない。
+
+- **リリース記録は直近 3 件だけ残す** → 257 / 258 / 259（v376.64〜.66）を `archive/release_history/` へ
+- **完了した一過性の記録** → 109・167・248（第三者評価）／110・230（是正計画）／111（分離の実装準備）／
+  247（テスト観点評価）を `archive/historical/` へ
+- 現役参照（`09_DEPLOYMENT_POLICY` / `240` / `249` / `250` / `ONBOARDING` / release-notes / HANDOVER）の
+  リンクを張り替え、両索引を更新、ポータルを再生成。**docs 配下の壊れリンク 0**
+
 ## 2026-09-04 v376.70 リリース（仕様書の一本化に伴う UI 不整合の修正）
 
 - 本番 fixed deployment は **public @379×2 / member @138 / admin @235**。スキーマ変更なし。
@@ -119,7 +129,7 @@
 - 新ゲート `test:mail-merge-tags`（9 件）と非送信 dryRun `dryRunMailMergeTagsV376_66_LOG` を追加。
 - 本番 fixed deployment は **public @373×2 / member @132 / admin @229** に同期済み。
 - live 検証: **`dryRunMailMergeTagsV376_66_LOG` 7 チェック全 PASS**（事業所=事業所会員/8,000円・個人=個人会員/3,000円・現在保存中の事業所テンプレートに未解決タグ 0）、メール設定 E2E 5/5 PASS。
-- 詳細は docs/259_RELEASE_STATE_v376.66_2026-09-03.md。
+- 詳細は docs/archive/release_history/259_RELEASE_STATE_v376.66_2026-09-03.md。
 
 ## 2026-09-02 v376.65 / v376.65.1 リリース
 
@@ -138,7 +148,7 @@
 - 本番 fixed deployment は **public @372×2 / member @131 / admin @228** に同期済み。
 - live E2E: 公開 a11y 違反 0・公開 responsive 21 view・重要事項ダイアログの表示を実測・**admin responsive 56 view**・
   メール設定 E2E 5/5・`dryRunRegulationsV376_65_LOG` 10 チェック全 PASS・**管理画面の規程一覧に seed 5 件が並ぶことを実測**。
-- 詳細は docs/258_RELEASE_STATE_v376.65_2026-09-02.md。
+- 詳細は docs/archive/release_history/258_RELEASE_STATE_v376.65_2026-09-02.md。
 
 ## 2026-09-02 v376.64 リリース
 
@@ -152,7 +162,7 @@
 - 本番 fixed deployment は **public @369×2 / member @128 / admin @225** に同期済み。
 - live E2E: 公開 a11y 違反 0・公開 responsive 7VP 全 PASS・**入会申込カードに 3,000円 / 8,000円 / 5,000円 の表示を実測**（console error 0）。
   **管理側 E2E は admin セッション期限切れのため未実行**（要フォロー・§2-1）。
-- 詳細は docs/257_RELEASE_STATE_v376.64_2026-09-02.md。
+- 詳細は docs/archive/release_history/257_RELEASE_STATE_v376.64_2026-09-02.md。
 
 ## 2026-09-02 v376.63 リリース
 
@@ -324,9 +334,9 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 | ✅ | **v376.69 完了（一括編集の対象拡張）** | public @378×2 / member @137 / admin @234。連絡先・勤務先・自宅の 14 項目を追加（計 20）。職員は列が無いため対象外。live で API の返却を実測、admin 56 view・メール設定 5/5・公開 a11y 0/21 view | `docs/263_RELEASE_STATE_v376.69_2026-09-03.md` |
 | ✅ | **v376.68 完了（汎用データエクスポート）** | public @377×2 / member @136 / admin @233。dryRun 10 チェック全 PASS・実 CSV の中身まで確認・admin 56 view・メール設定 5/5・公開 a11y 0/21 view。実装中に認証アーカイブの混入と一覧 20 秒を検出・是正 | `docs/262_RELEASE_STATE_v376.68_2026-09-03.md` |
 | ✅ | **v376.67 完了（DRY 是正・単一情報源へ集約）** | public @374×2 / member @133 / admin @230。是正 7 件＋新ゲート `test:single-source`（8 検査）。live E2E 全 PASS（公開 a11y 0／公開 21 view／admin 56 view／メール設定 5/5／dryRun 7 チェック） | `docs/260_SINGLE_SOURCE_AUDIT_2026-09-03.md` |
-| ✅ | **v376.66 完了（事業所メールの差し込みタグ未置換の是正）** | public @373×2 / member @132 / admin @229 に同期済。`dryRunMailMergeTagsV376_66_LOG` **7 チェック全 PASS**（事業所で 会員種別/年会費 が解決・個人は非退行・現在保存中の事業所テンプレートに未解決タグ 0）、メール設定 E2E 5/5。**残る運用判断**: 実送信での最終確認（配信モードを一時「テスト集約」にして事業所会員の承認を 1 件通す）と、既にタグのまま届いた分の再送要否 | `docs/259_RELEASE_STATE_v376.66_2026-09-03.md` |
-| ✅ | **v376.65〜.65.2 完了（規程・重要事項マスタ＝案C Phase 1）** | public @372×2 / member @131 / admin @228 に同期済。`T_規程` 新設・管理 UI・公開表示・seed 5 件。live E2E 全 PASS（公開 a11y 0／公開 responsive 21 view／admin responsive 56 view／メール設定 5/5／dryRun 10 チェック／管理画面に規程 5 件の描画を実測）。**Phase 2（同意記録）は未着手** | `docs/258_RELEASE_STATE_v376.65_2026-09-02.md` |
-| ✅ | **v376.64 完了（会費設定・会員種別ごとの年会費）** | public @369×2 / member @128 / admin @225 に同期済。live E2E: 公開 a11y 0・公開 responsive 7VP・**入会申込カードに 3,000/8,000/5,000 円の表示を実測**・admin responsive 56 view・メール設定 E2E 5/5・`dryRunMembershipFeeV376_64_LOG` **`passed:true` / `restored:true`**（7 チェック全 PASS・実行後に金額は原状復帰）。**残る運用作業**: 実際の会費が既定値と異なる場合に 設定 → 会費設定 で更新すること | `docs/257_RELEASE_STATE_v376.64_2026-09-02.md` |
+| ✅ | **v376.66 完了（事業所メールの差し込みタグ未置換の是正）** | public @373×2 / member @132 / admin @229 に同期済。`dryRunMailMergeTagsV376_66_LOG` **7 チェック全 PASS**（事業所で 会員種別/年会費 が解決・個人は非退行・現在保存中の事業所テンプレートに未解決タグ 0）、メール設定 E2E 5/5。**残る運用判断**: 実送信での最終確認（配信モードを一時「テスト集約」にして事業所会員の承認を 1 件通す）と、既にタグのまま届いた分の再送要否 | `docs/archive/release_history/259_RELEASE_STATE_v376.66_2026-09-03.md` |
+| ✅ | **v376.65〜.65.2 完了（規程・重要事項マスタ＝案C Phase 1）** | public @372×2 / member @131 / admin @228 に同期済。`T_規程` 新設・管理 UI・公開表示・seed 5 件。live E2E 全 PASS（公開 a11y 0／公開 responsive 21 view／admin responsive 56 view／メール設定 5/5／dryRun 10 チェック／管理画面に規程 5 件の描画を実測）。**Phase 2（同意記録）は未着手** | `docs/archive/release_history/258_RELEASE_STATE_v376.65_2026-09-02.md` |
+| ✅ | **v376.64 完了（会費設定・会員種別ごとの年会費）** | public @369×2 / member @128 / admin @225 に同期済。live E2E: 公開 a11y 0・公開 responsive 7VP・**入会申込カードに 3,000/8,000/5,000 円の表示を実測**・admin responsive 56 view・メール設定 E2E 5/5・`dryRunMembershipFeeV376_64_LOG` **`passed:true` / `restored:true`**（7 チェック全 PASS・実行後に金額は原状復帰）。**残る運用作業**: 実際の会費が既定値と異なる場合に 設定 → 会費設定 で更新すること | `docs/archive/release_history/257_RELEASE_STATE_v376.64_2026-09-02.md` |
 | ✅ | **v376.63 完了（保守モード解除＋管理画面の日本語表記統一）** | public @368×2 / member @127 / admin @224 に同期済（`deployments` 一致確認）。live E2E: 公開 a11y 違反 0・公開 responsive 7VP・**member responsive 7VP×3画面**・**admin responsive 7VP×8 コンソール=56 view**・**メール設定 E2E 5/5**（いずれも console error 0・横スクロール 0・タップターゲット違反 0）。member の初回実行で 1VP がログインタイムアウトしたが、ウォーム後の再実行で 7VP 全 PASS＝コールドスタートの揺れと確定 | `docs/archive/release_history/256_RELEASE_STATE_v376.63_2026-09-02.md` |
 | ✅ | **v376.62 完了（テンプレート一覧取得失敗の本番障害＋pruner 根本修正）** | public @367×2 / member @126 / admin @223 に同期済。**デプロイ後の実測で全 14 カテゴリの `listMailTemplates` が `status:ok`**（修正前は全件 `mailTemplateRecordFromRow_ is not defined`）。live E2E: 公開 a11y 0・公開 responsive 7VP・member responsive 7VP・admin responsive 56 view・mail-settings E2E 5/5・dryRun（endTime / テンプレート）ともに `passed:true` | `docs/254_RELEASE_STATE_v376.62_2026-09-02.md` |
 | ✅ | **v376.61 完了（研修 endTime 実害バグ）** | デプロイ＋live E2E に加え、admin editor で `dryRunTrainingEndTimeV376_61_LOG` を実行し **`passed:true` / `testRowCleanedUp:true` / `corruptedEndTimeCount:0` / `emptyEndTimeCount:0`**（2026-09-02 12:45）。作成→読み戻し→再保存→物理削除まで実DBで検証済 | `docs/253_RELEASE_STATE_v376.61_2026-09-02.md` |

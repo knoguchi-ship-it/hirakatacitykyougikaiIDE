@@ -167,7 +167,7 @@ function moveRowsToArchiveByMatch_(ss, srcName, dstName, matchFn, nowIso) {
 
 ## 9. 参照
 
-- `docs/248_THIRD_PARTY_EVALUATION_2026-07-01.md` §2-A（本設計の起点）
+- `docs/archive/historical/248_THIRD_PARTY_EVALUATION_2026-07-01.md` §2-A（本設計の起点）
 - `docs/03_DATA_MODEL.md` §4.10（退会会員アーカイブ・現行記述）／`docs/er-metadata.json`
 - `docs/04_DB_OPERATION_RUNBOOK.md`（DB 操作・migration）
 - MEMORY: `feedback_build_pruning_bug` / `feedback_getorcreatesheet_headerless_trap` / `project_member_archive_model`

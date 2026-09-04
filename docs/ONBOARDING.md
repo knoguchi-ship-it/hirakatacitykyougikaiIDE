@@ -88,7 +88,7 @@ npm run security:split-boundary                # ✅ PASS
 
 ### D. 第三者評価とセキュリティ進化 (Day 5)
 
-- [`docs/109_THIRD_PARTY_ASSESSMENT_2026-04-20.md`](109_THIRD_PARTY_ASSESSMENT_2026-04-20.md) — 初回評価 (D / High Risk)
+- [`docs/archive/historical/109_THIRD_PARTY_ASSESSMENT_2026-04-20.md`](archive/historical/109_THIRD_PARTY_ASSESSMENT_2026-04-20.md) — 初回評価 (D / High Risk)
 - v261-v263 の是正リリース (release-notes-2026.md 参照)
 - [`docs/172_DEFERRED_SECURITY_BACKLOG_SECRET_MANAGER_KDF_2026-05-01.md`](172_DEFERRED_SECURITY_BACKLOG_SECRET_MANAGER_KDF_2026-05-01.md) — 必須・破棄禁止 backlog
 - [`docs/244_WCAG_2.2_AA_CONFORMANCE_STATEMENT_2026-05-21.md`](244_WCAG_2.2_AA_CONFORMANCE_STATEMENT_2026-05-21.md) — 現行 a11y 状態
