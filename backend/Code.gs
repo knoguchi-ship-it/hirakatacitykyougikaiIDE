@@ -2416,6 +2416,14 @@ function migrateCredentialTemplatesToTable_(ss) {
 
 
 
+// v376.72: T_研修申込.申込ID の採番はこの 1 関数に集約する（AGENTS.md §3 の DRY 原則）。
+// 以前は 4 箇所が別々に採番しており、同じ列に 3 通りの形式が混在していた
+// （会員セルフ = AP- + 10 桁 / 外部申込 = 素の UUID / 名簿への手動追加 = AP- + 8 桁）。
+// 一意性は保たれていたため既存データは振り直さない。取消は完全一致で引くため形式変更の影響を受けない。
+function generateTrainingApplyId_() {
+  return 'AP-' + Utilities.getUuid().replace(/-/g, '').substring(0, 10).toUpperCase();
+}
+
 // ── 退会処理 ──────────────────────────────────────────
 
 // ── 事業所職員の除籍処理 ──────────────────────────────────────
@@ -4837,7 +4845,7 @@ function applyTrainingExternal_(payload) {
     };
     appendRow_(externalSheet, テーブル定義.T_外部申込者, newExternal);
 
-    var applyId = Utilities.getUuid();
+    var applyId = generateTrainingApplyId_();
     var applyColsAll = テーブル定義.T_研修申込;
     var newApply = {};
     for (var m = 0; m < applyColsAll.length; m += 1) { newApply[applyColsAll[m]] = ''; }

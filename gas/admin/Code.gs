@@ -7991,6 +7991,14 @@ function generateMemberId_() {
   return String(hash % 100000000).padStart(8, '0');
 }
 
+// v376.72: T_研修申込.申込ID の採番はこの 1 関数に集約する（AGENTS.md §3 の DRY 原則）。
+// 以前は 4 箇所が別々に採番しており、同じ列に 3 通りの形式が混在していた
+// （会員セルフ = AP- + 10 桁 / 外部申込 = 素の UUID / 名簿への手動追加 = AP- + 8 桁）。
+// 一意性は保たれていたため既存データは振り直さない。取消は完全一致で引くため形式変更の影響を受けない。
+function generateTrainingApplyId_() {
+  return 'AP-' + Utilities.getUuid().replace(/-/g, '').substring(0, 10).toUpperCase();
+}
+
 // ── 退会処理 ──────────────────────────────────────────
 function withdrawMember_(payload) {
   if (!payload || !payload.memberId) throw new Error('会員IDが未指定です。');
@@ -17770,7 +17778,7 @@ function addRosterEntry_(payload) {
   var ss = getOrCreateDatabase_();
   var operatorEmail = Session.getActiveUser().getEmail();
   var now = new Date().toISOString();
-  var applyId = 'AP-' + Utilities.getUuid().slice(0, 8).toUpperCase();
+  var applyId = generateTrainingApplyId_();
   var row = {
     '申込ID': applyId,
     '研修ID': trainingId,
@@ -17826,7 +17834,7 @@ function addGuestRosterEntry_(payload) {
   appendRowsByHeaders_(ss, 'T_外部申込者', [externalRow]);
 
   // 2. T_研修申込 へ追加
-  var applyId = 'AP-' + Utilities.getUuid().slice(0, 8).toUpperCase();
+  var applyId = generateTrainingApplyId_();
   var applyRow = {
     '申込ID': applyId,
     '研修ID': String(payload.trainingId),
