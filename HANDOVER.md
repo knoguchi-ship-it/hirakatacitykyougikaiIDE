@@ -4,15 +4,19 @@
 
 ### 0. 30 秒で現状
 
-- **本番**: public **@380×2** / member **@139** / admin **@236**（**v376.71**）。4 本すべて同期確認済。
-  ロールバック先は public @379×2 / member @138 / admin @235（v376.70）。
-- **未コミット・未 push・未デプロイの作業は無い**（最終コミット `10f96b6`）。**中断中の実装は無い**。
+- **本番**: public **@381×2** / member **@140** / admin **@237**（**v376.72**）。4 本すべて同期確認済。
+  ロールバック先は public @380×2 / member @139 / admin @236（v376.71）。
+- **未 push・未デプロイの作業は無い**。**中断中の実装は無い**。
 - 直近セッション（2026-09-03〜04）でやったこと:
-  仕様書 5 文書の巻き直し完了 → 旧仕様書 6 本を退避 → docs 直下を整理（43→33 件。その後リリース記録とプロンプト改訂で 36 件） →
+  仕様書 5 文書の巻き直し完了 → 旧仕様書 6 本を退避 → docs 直下を整理 →
   **v376.70**（UI 不整合 3 件）→ **v376.71**（ログイン失敗の時限解除・**スキーマ変更あり**）→
-  仕様書作成プロンプト／テンプレートを **v3.0** へ改訂。
+  仕様書作成プロンプト／テンプレートを **v3.0** へ改訂 →
+  **仕様書 5 文書の整合確認**（`docs/267` §4。実装との食い違い 4 件を修正・トレーサビリティ一覧 `docs/268` を新設）→
+  **v376.72**（研修申込IDの採番統一・スキーマ変更なし。`docs/269`）。
+- **⚠️ 引き継ぐ未検証が 1 件**: **会員マイページの responsive E2E（v376.72）が未実施**。
+  `.env.test` の会員資格情報でログインできない（`[member] 認証切れの可能性がある`）。§2【0】を参照。
 - **検証は 1 ページで見られる**: [`docs/portal/test-report.html`](docs/portal/test-report.html)
-  （28 行・PASS 27・FAIL 0・要フォロー 1）。再生成は `npm run report:tests`。
+  （28 行・PASS 26・**FAIL 1**・要フォロー 1。FAIL は §2【0】の会員 responsive）。再生成は `npm run report:tests`。
 
 ### 1. 作業開始時にやること（毎回・順番どおり）
 
@@ -31,33 +35,35 @@
 
 ### 2. 次にやること（優先度順）
 
-#### 【A】仕様書の整合確認とトレーサビリティ一覧（推奨・半日）
+#### 【0】会員マイページの responsive E2E をやり切る（最優先・15 分）
 
-**なぜ**: テンプレート v3.0 に Step 9（整合確認）を新設したが、**まだ実施していない**。
-5 文書へ ID（TM/NF/BR/MG/SCR）を振ったところまでで、全体の突き合わせが残っている。
+**なぜ**: v376.72 のリリースで、**会員側だけ live E2E が流せていない**。公開・管理は実施済み。
+本リリースは会員側の画面に触れていないため実害の可能性は低いが、`AGENTS.md` §5-3 の完了条件を満たしていない。
 
-**手順**
-1. `docs/267_SPEC_AUTHORING_TEMPLATE_v3.md` §4 の 8 項目を、`docs/spec/` の 5 文書に対して確認する
-2. 結果を表で出し、落ちた項目を直す
-3. 最後に**トレーサビリティ一覧**（要件ID / 要件 / 検証方法 / 実装の所在）を出す。
-   置き場所は `docs/spec/` 直下ではなく **`docs/00_DOC_INDEX.md` から辿れる別文書**にする（5 文書を増やさない）
-
-**完了条件**: 重複ゼロ・ID 重複ゼロ・検証方法の空欄ゼロ・未確定が 1 箇所に集約されている。
-
-#### 【B】`T_研修申込.申込ID` の採番統一（小・1〜2 時間）
-
-**なぜ**: 同じ列に 2 通りの形式が入っている（会員からの申込は `AP-` ＋ UUID 10 桁、
-外部申込者からは素の UUID）。一意性は保たれるので**実害は出ていない**が、`AGENTS.md` §3 に反する。
+**症状**: `npm run test:responsive:member` が
+`[member] 認証切れの可能性がある` で exit 1。ログイン画面のロック案内文が出ている。
 
 **手順**
-1. `gas-src/Code.full.gs` の `applyTraining_`（会員経路）と `applyTrainingExternal_`（外部経路）を確認
-2. **採番を 1 つの関数に集約**する（例: `generateTrainingApplyId_()`）。形式は `AP-` 側に寄せる
-3. **既存データは振り直さない**（参照している受付番号が変わるため）
-4. unit test で「2 経路が同じ関数を使っていること」を固定する
-5. 通常のリリース手順（§下記 3）
+1. `.env.test` の `MEMBER_LOGIN_ID` / `MEMBER_PASSWORD` が現行の会員アカウントと一致しているか
+   **operator が確認する**（AI は値を見ない・要求しない。`AGENTS.md` §0）
+2. v376.71 の時限ロックに掛かっている可能性がある。**その場合は時間経過で自動解除される**ので待ってから再実行する
+3. `npm run test:responsive:member` を実行し、**判定は `.test-out/result-member.json` の
+   `fatal` と `consoleErrors` を見る**（ログの「done.」では判定しない）
+4. 結果を `docs/269` §5 と `docs/portal/test-report.html`（`npm run report:tests`）に反映する
 
-**注意**: 申込 ID は**申込取消の本人確認に使われる**（公開ポータル）。形式を変えても既存 ID が
-引き続き引けることを dryRun で確認すること。
+#### 【A】仕様書の整合確認とトレーサビリティ一覧 — **完了（2026-09-04）**
+
+`docs/267` §4 の 8 項目を 5 文書へ適用し、実装との食い違い 4 件・参照切れ 8 箇所・循環参照 1 件・
+重複 2 件・存在しない ID 参照 1 件を解消した。成果物は
+[`docs/268_SPEC_TRACEABILITY_2026-09-04.md`](docs/268_SPEC_TRACEABILITY_2026-09-04.md)。
+未確定事項は **SOW §8（U-01〜U-26）に集約**し、他 4 文書は索引だけを持つ形にした。
+
+#### 【B】`T_研修申込.申込ID` の採番統一 — **完了（v376.72・2026-09-04）**
+
+着手時に判明したが、**実際は 4 箇所・3 形式**だった（この引継ぎには 2 箇所と書かれていた。
+管理側の `addRosterEntry_` / `addGuestRosterEntry_` が `AP-` ＋ **8 桁**を使っていた）。
+`generateTrainingApplyId_()` に集約し `AP-` ＋ 10 桁へ統一。既存データは振り直していない。
+回帰は `npm run test:training-apply-id` が固定する。詳細は `docs/269`。
 
 #### 【C】管理画面からのロック解除（v376.71 の残・operator 判断が先）
 
@@ -69,9 +75,13 @@
 
 #### 【D】operator 判断待ちの棚卸し（AI 側では進められない）
 
+> **2026-09-04 から、未確定事項の正本は `docs/spec/01_SOW.md` §8（U-01〜U-26）**。
+> 下表はその索引であり、状態は SOW §8 と差分台帳 `docs/261` を見る。
+
 | 項目 | 場所 |
 |---|---|
 | 研修メール送信のカテゴリを分けるか | 本書 §2・`docs/260` §4-1 |
+| 恒久ロック（連続 20 回）の管理画面からの解除手段（＝【C】） | SOW §8 U-26・`docs/265` |
 | 「事業所会員メール設定（統合済み）」の表記を直すか | `docs/spec/04_UIUX.md` §11 |
 | 会員マイページを画面分割するか | 同上 |
 | レスポンス目標値の再設定（移行後は現行値が緩すぎる） | `docs/spec/03_TRD.md` §19 |
@@ -402,9 +412,9 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
   **GAS では作れても GCP へ移行できない仕様は採用しない（NG）**。設計時に「GCP では何で実装するか」を 1 行で書けることが設計完了の条件。
   判断表と NG パターンは `AGENTS.md` §4.8.2 / §4.8.3、決定の背景は `docs/06_DECISION_RECORDS.md`（2026-09-03）。
 
-- **本番**: public **@380×2** / member **@139** / admin **@236**（v376.71・§1）。全 fixed deployment 同期確認済。ロールバック先は public @379×2 / member @138 / admin @235（v376.70）。
+- **本番**: public **@381×2** / member **@140** / admin **@237**（v376.72・§1）。全 fixed deployment 同期確認済。ロールバック先は public @380×2 / member @139 / admin @236（v376.71）。
 - **v376.64 の検証は完了**（管理セッション再取得後に実施）: admin responsive 56 view・メール設定 E2E 5/5・`dryRunMembershipFeeV376_64_LOG` が `passed:true` / `restored:true`。公開側は入会申込カードに 3,000 / 8,000 / 5,000 円の表示を実測。
-- **検証状況は 1 ページで見られる**: [`docs/portal/test-report.html`](docs/portal/test-report.html)（28 行・PASS 27・FAIL 0・要フォロー 1）。再生成は `npm run report:tests`。
+- **検証状況は 1 ページで見られる**: [`docs/portal/test-report.html`](docs/portal/test-report.html)（28 行・PASS 26・**FAIL 1**・要フォロー 1。FAIL は §2【0】の会員 responsive）。再生成は `npm run report:tests`。
 - **文書の入口**: [`docs/00_DOC_INDEX.md`](docs/00_DOC_INDEX.md)。2026-09-04 時点で `docs/` 直下は現役 36 文書のみ・完了記録 237 件は [`docs/archive/`](docs/archive/00_ARCHIVE_INDEX.md) へ移した。**仕様の正本は `docs/spec/` の 5 文書**。
 - **直近セッション（2026-09-02）の成果** — 本番 GAS 側で 3 リリース。詳細は `docs/release-notes-2026.md` と各 release state:
   - **v376.60** メール設定・自動送信の是正（前セッション分）。**残っていた検証負債を全て解消**し、テスト記録は全 13 行 PASS になった。
@@ -439,10 +449,10 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 
 | 配信 | Deployment ID | Version |
 |---|---|---|
-| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@380** |
-| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@380** |
-| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@139** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@236** |
+| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@381** |
+| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@381** |
+| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@140** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@237** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 
