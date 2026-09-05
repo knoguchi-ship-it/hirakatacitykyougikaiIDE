@@ -795,7 +795,10 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
               className="mt-1 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
             />
             <span className="text-sm leading-6 text-slate-700">
-              上記のお願いと会員種別ごとのご案内を確認し、会費の返還条件、個人情報の利用目的、変更・退会手続き、退会期限、定款確認導線を理解しました。
+              {/* v376.76: 旧文言は共通項目の名前を列挙していたが、v376.75 の再編で
+                  「変更・退会手続き」「退会期限」が無くなり実態と合わなくなったため、
+                  項目名を並べずに範囲だけを示す形にした（文面を変えても追随不要になる）。 */}
+              上記の注意事項（全体および会員種別ごと）を確認し、内容を理解しました。
             </span>
           </label>
           {errors._notice && <p className={errorClass}>{errors._notice}</p>}

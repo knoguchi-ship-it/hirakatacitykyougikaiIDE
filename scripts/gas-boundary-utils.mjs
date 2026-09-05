@@ -52,6 +52,8 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   // v376.75: 注意事項の再編（共通へ寄せる。確認は読み取りのみ）
   'previewNoticeRestructureV376_75_LOG',
   'applyNoticeRestructureV376_75_APPLY',
+  // v376.76: 共通項目の表示順の是正（番号衝突で並びが割り込んでいたため）
+  'fixNoticeDisplayOrderV376_76_APPLY',
   // v376.71: ログイン失敗の時限解除（docs/261 T-04）の判定検証（読み取りのみ）
   'dryRunLoginLockoutV376_71_LOG',
   // v376.71: T_認証アカウント の列追加を既存行へ反映する（operator が 1 回実行・再実行可）

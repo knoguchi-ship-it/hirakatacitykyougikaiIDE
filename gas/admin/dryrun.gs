@@ -302,6 +302,50 @@ function dryRunMembershipFeeV376_64_LOG() {
   return report;
 }
 
+function fixNoticeDisplayOrderV376_76_APPLY() {
+  var ss = getOrCreateDatabase_();
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var sheet = ss.getSheetByName('T_規程');
+    if (!sheet) throw new Error('T_規程 シートが見つかりません。');
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var cols = {};
+    for (var h = 0; h < headers.length; h += 1) cols[headers[h]] = h;
+    requireColumns_(cols, ['タイトル', '対象会員種別', '表示順', '公開フラグ', '削除フラグ', '更新日時']);
+
+    var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+    var now = new Date().toISOString();
+    var changed = [];
+    for (var r = 0; r < data.length; r += 1) {
+      var row = data[r];
+      if (toBoolean_(row[cols['削除フラグ']])) continue;
+      if (!toBoolean_(row[cols['公開フラグ']])) continue;
+      if (String(row[cols['対象会員種別']] || '') !== 'ALL') continue;
+      var title = String(row[cols['タイトル']] || '');
+      for (var i = 0; i < NOTICE_ORDER_V376_76.length; i += 1) {
+        if (NOTICE_ORDER_V376_76[i].title !== title) continue;
+        var next = NOTICE_ORDER_V376_76[i].order;
+        if (Number(row[cols['表示順']]) !== next) {
+          changed.push(title + ': ' + row[cols['表示順']] + ' → ' + next);
+          row[cols['表示順']] = next;
+          row[cols['更新日時']] = now;
+        }
+        break;
+      }
+    }
+    sheet.getRange(2, 1, data.length, sheet.getLastColumn()).setValues(data);
+    SpreadsheetApp.flush();
+    clearAllDataCache_();
+    var result = { changed: changed.length, items: changed };
+    Logger.log('=== fixNoticeDisplayOrderV376_76_APPLY ===');
+    Logger.log(JSON.stringify(result, null, 2));
+    return result;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function previewNoticeRestructureV376_75_LOG() {
   var ss = getOrCreateDatabase_();
   var rows = getRowsAsObjects_(ss, 'T_規程').filter(function(r) { return !toBoolean_(r['削除フラグ']); });

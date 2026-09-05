@@ -209,3 +209,35 @@ test('種別ごとの案内は折りたためる（初期は開いたまま）',
     '折りたたみの初期状態が開いていない');
   assert.ok(/memberTypeNoticeOpen && memberTypeNoticeItems\.map/.test(form), '折りたたみが効いていない');
 });
+
+// ── 6. v376.76 の表示順是正・チェック文言 ─────────────────────
+test('共通項目の表示順は 入会→会費→退会→個人情報→定款', () => {
+  const start = gas.indexOf('var NOTICE_ORDER_V376_76 = [');
+  assert.notEqual(start, -1, 'NOTICE_ORDER_V376_76 が見つからない');
+  const end = gas.indexOf('\n];', start);
+  const list = new Function(`return ${gas.slice(gas.indexOf('[', start), end + 2)};`)() as Array<{ title: string; order: number }>;
+  assert.deepEqual(list.map(x => x.title), [
+    '■ 入会について', '■ 会費について', '■ 退会の手続きについて', '個人情報の利用目的', '協議会の定款',
+  ]);
+  assert.deepEqual(list.map(x => x.order), [1, 2, 3, 4, 5], '表示順が連番になっていない');
+});
+
+test('表示順の是正は公開中の共通項目だけを対象にする', () => {
+  const fn = gas.slice(gas.indexOf('function fixNoticeDisplayOrderV376_76_APPLY('));
+  const end = fn.indexOf('\nfunction ', 1);
+  const body = end > 0 ? fn.slice(0, end) : fn;
+  assert.ok(/対象会員種別'\]\] \|\| ''\) !== 'ALL'/.test(body), '共通以外も対象にしている');
+  assert.ok(/公開フラグ'\]\]\)\) continue/.test(body), '非公開の行まで書き換えている');
+  assert.ok(/getScriptLock/.test(body), 'ロックを取得していない');
+});
+
+test('確認チェックの文言に、無くなった項目名を列挙していない', () => {
+  // 画面に出る文字列だけを見る。変更理由を書いた JSX コメントには旧項目名が出てくるため
+  // （ファイル全体を grep すると、そのコメントを拾ってしまう）。
+  const jsx = form.replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
+  const at = jsx.indexOf('上記の注意事項');
+  assert.notEqual(at, -1, '新しい文言になっていない');
+  const label = jsx.slice(at, at + 120);
+  assert.ok(label.includes('全体および会員種別ごと'), '新しい文言になっていない');
+  assert.ok(!/変更・退会手続き|退会期限|定款確認導線/.test(jsx), '再編で無くなった項目名が画面に残っている');
+});
