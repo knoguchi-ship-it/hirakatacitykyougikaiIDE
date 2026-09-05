@@ -1,17 +1,17 @@
 {
   "note": "自動テストの生ファイル (.test-out / output/playwright) から拾えない検証記録をここに書く。scripts/build-test-report.mjs が読み、docs/portal/test-report.html を生成する。値・本文・アドレス・資格情報は書かない（AGENTS §0）。",
   "release": {
-    "version": "v376.77",
+    "version": "v376.78",
     "date": "2026-09-05",
     "deployments": {
+      "public": "@387 (x2)",
+      "member": "@146",
+      "admin": "@243"
+    },
+    "rollback": {
       "public": "@386 (x2)",
       "member": "@145",
       "admin": "@242"
-    },
-    "rollback": {
-      "public": "@385 (x2)",
-      "member": "@144",
-      "admin": "@241"
     }
   },
   "manualRuns": [
@@ -212,6 +212,15 @@
       "when": "2026-09-05 11:59 / 16:5x / 17:07",
       "status": "PASS",
       "detail": "投入 added:15。再編は追加3・非公開化3・削除6（論理削除）・改題3。表示順の是正 changed:1（個人情報の利用目的 2→4）。いずれも実行前に _LOG で内容を確認。"
+    },
+    {
+      "id": "UNLOCK-78",
+      "group": "管理ポータル（operator 実行）",
+      "name": "ログインロックの解除（実機確認）",
+      "how": "会員詳細 → 認証アカウント一覧の「ロック解除」ボタン（ロック中の行にのみ表示）",
+      "when": "",
+      "status": "NOT RUN",
+      "detail": "恒久ロックの状態を本番で作る必要があるため未実施。検証用アカウントで 20 回失敗させれば再現できる。パスワードが変わらないこと・ロック中の行にだけボタンが出ることを確認する（docs/272 §5）。"
     }
   ]
 }

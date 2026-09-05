@@ -47,17 +47,17 @@
 <div class="wrap">
 <header>
   <h1>テスト結果レポート</h1>
-  <p class="sub">枚方市介護支援専門員連絡協議会 会員システム / 生成 2026-09-05 08:22:13 UTC</p>
+  <p class="sub">枚方市介護支援専門員連絡協議会 会員システム / 生成 2026-09-05 08:48:52 UTC</p>
 </header>
 
 <section>
   <h2>現在の本番</h2>
   <dl class="rel">
-    <dt>リリース</dt><dd>v376.77（2026-09-05）</dd>
-    <dt>公開ポータル</dt><dd>@386 (x2)</dd>
-    <dt>会員ポータル</dt><dd>@145</dd>
-    <dt>管理ポータル</dt><dd>@242</dd>
-    <dt>ロールバック先</dt><dd>public @385 (x2) / member @144 / admin @241</dd>
+    <dt>リリース</dt><dd>v376.78（2026-09-05）</dd>
+    <dt>公開ポータル</dt><dd>@387 (x2)</dd>
+    <dt>会員ポータル</dt><dd>@146</dd>
+    <dt>管理ポータル</dt><dd>@243</dd>
+    <dt>ロールバック先</dt><dd>public @386 (x2) / member @145 / admin @242</dd>
   </dl>
 </section>
 
@@ -65,7 +65,7 @@
   <div class="card ok"><div class="n">30</div><div class="l">PASS</div></div>
   <div class="card ng"><div class="n">0</div><div class="l">FAIL</div></div>
   <div class="card warn"><div class="n">1</div><div class="l">要フォロー</div></div>
-  <div class="card"><div class="n">0</div><div class="l">未実行</div></div>
+  <div class="card"><div class="n">1</div><div class="l">未実行</div></div>
 </div>
 
 <section>
@@ -197,6 +197,12 @@
         <td><span class="badge ok">PASS</span></td>
         <td class="when">2026-09-05 11:59 / 16:5x / 17:07</td>
         <td>投入 added:15。再編は追加3・非公開化3・削除6（論理削除）・改題3。表示順の是正 changed:1（個人情報の利用目的 2→4）。いずれも実行前に _LOG で内容を確認。</td>
+      </tr>
+      <tr>
+        <td><div class="name">ログインロックの解除（実機確認）</div><div class="how">会員詳細 → 認証アカウント一覧の「ロック解除」ボタン（ロック中の行にのみ表示）</div></td>
+        <td><span class="badge idle">NOT RUN</span></td>
+        <td class="when">—</td>
+        <td>恒久ロックの状態を本番で作る必要があるため未実施。検証用アカウントで 20 回失敗させれば再現できる。パスワードが変わらないこと・ロック中の行にだけボタンが出ることを確認する（docs/272 §5）。</td>
       </tr>
     </tbody>
   </table>
