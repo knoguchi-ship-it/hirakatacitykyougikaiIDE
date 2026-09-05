@@ -1,10 +1,3 @@
-// admin build が残す top-level callable 関数（doGet / processApiRequest +
-// operator が Apps Script editor / clasp run から実行する backfill・診断・dryRun ツール）。
-// このリストは pruning の seed（保持する根）かつ build / audit の許可 whitelist の
-// 唯一の正本。以前は build-admin-gas.mjs の seed・assertAllowed・audit-admin-boundary.mjs の
-// 3 箇所に同一配列が手書きされていたため、追加漏れで build / audit がズレる温床だった（単一情報源化）。
-// v376.55: 完了済み一回性ツール 12 関数（v360/v370/v372/v246/v376.30-31 の migration・hotfix 診断）を
-// gas-src ごと削除し棚卸し。継続利用ツールは build 時に gas/admin/dryrun.gs へ分離される
 // （ADMIN_OPERATOR_TOOL_FUNCTIONS 参照）。
 export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   'doGet',
@@ -30,55 +23,19 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   'cleanupDryRunTrainingManagement',
   // v376.30: スキーマ初期化フラグの救済ツール（汎用・再利用）
   'forceMarkSchemaInitializedToCurrent',
-  // v376.43 (Phase B): 全メールテンプレート差し込み描画の dryRun E2E（operator 実行用・非送信）
-  'dryRunMailTemplatesV376_43_LOG',
-  // v376.59: 入会申込の代表者宛先固定とワークフローメール OFF ガード（operator 実行用・非送信）
-  'dryRunApplicationReceiptRoutingV376_59_LOG',
-  // v376.60: メール設定・テンプレート・自動送信元の実DB監査（operator 実行用・非送信）
-  'dryRunMailSettingsV376_60_LOG',
-  // v376.61: 研修 endTime の実DB往復 dryRun（operator 実行用・非送信・検証行は物理削除）
-  'dryRunTrainingEndTimeV376_61_LOG',
-  // v376.64: 会費設定（会員種別ごとの年会費）の実DB往復 dryRun（operator 実行用・非送信・原状復帰）
-  'dryRunMembershipFeeV376_64_LOG',
-  // v376.65: 規程・重要事項マスタの実DB往復 dryRun（operator 実行用・非送信・検証行は物理削除）
-  'dryRunRegulationsV376_65_LOG',
-  // v376.66: 入会承認メールの差し込みタグ解決 dryRun（非送信・DB 書込なし）
-  'dryRunMailMergeTagsV376_66_LOG',
-  // v376.68: 汎用データエクスポートの権限ガード検証（読み取りのみ）
-  'dryRunDataExportV376_68_LOG',
-  // v376.74: 会員種別ごとの注意事項の初期投入（確認は読み取りのみ・投入は追記のみで既存を上書きしない）
-  'previewMemberTypeNoticesV376_74_LOG',
-  'seedMemberTypeNoticesV376_74_APPLY',
-  // v376.75: 注意事項の再編（共通へ寄せる。確認は読み取りのみ）
-  'previewNoticeRestructureV376_75_LOG',
-  'applyNoticeRestructureV376_75_APPLY',
-  // v376.76: 共通項目の表示順の是正（番号衝突で並びが割り込んでいたため）
-  'fixNoticeDisplayOrderV376_76_APPLY',
-  // v376.71: ログイン失敗の時限解除（docs/261 T-04）の判定検証（読み取りのみ）
-  'dryRunLoginLockoutV376_71_LOG',
-  // v376.71: T_認証アカウント の列追加を既存行へ反映する（operator が 1 回実行・再実行可）
-  'runRebuildSchemaForV376_71',
-  // v376.44: 公式LINE投稿依頼 保存フロー dryRun E2E（operator 実行用）
-  'dryRunLinePostV376_44_LOG',
-  // v376.45: LINE投稿 権限二層+可視範囲+submitRequest dryRun E2E（operator 実行用）
-  'dryRunLinePostV376_45_LOG',
   // v376.52: 会員系削除 cascade アーカイブ（docs/249）— 診断/バッチ一覧/復元/dryRun E2E/掃除
   'diagnoseMemberDeleteDebt_LOG',
   'listArchiveBatches_LOG',
   'restoreLastArchiveBatch_APPLY',
-  'dryRunDeleteCascadeV376_52_LOG',
-  'cleanupDryRunDeleteCascade',
   // v376.54 (GCP Phase B / docs/250 §10-6): GAS→Cloud Run 接続の事前診断（operator 実行用・token/pepper 値は出力しない）
   'dryRunGcpPhaseB_LOG',
 ];
 
-// v376.55: operator ツール（editor ▶ 実行用）。build-admin-gas.mjs が Code.gs から抽出して
 // gas/admin/dryrun.gs に分離する（editor で見つけやすくするため）。doGet / processApiRequest 以外の全て。
 export const ADMIN_OPERATOR_TOOL_FUNCTIONS = ADMIN_TOP_LEVEL_FUNCTIONS.filter(
   (name) => name !== 'doGet' && name !== 'processApiRequest',
 );
 
-// admin build から強制削除する（pruning で残ってはならない）危険な top-level 関数。
 // 以前は build-admin-gas.mjs と audit-admin-boundary.mjs に同一配列が二重管理されていた。
 export const ADMIN_FORBIDDEN_TOP_LEVEL_FUNCTIONS = [
   'rebuildDatabaseSchema',
@@ -89,10 +46,6 @@ export const ADMIN_FORBIDDEN_TOP_LEVEL_FUNCTIONS = [
   'addDeleteLogSheet',
 ];
 
-// v376.23: 各境界の processApiRequest action 許可リストの単一情報源。
-// 以前は build-{admin,member,gas}.mjs の removeDisallowedActionHandlers 引数と
-// audit-{admin,member,public}-boundary.mjs の expected リストに同一集合が手書き分散し、
-// 追加漏れ・撤去漏れでズレる温床だった（build-admin には撤去済 action の stale entry も残存していた）。
 // ここを正本とし、build と audit の双方が import する。新 action 追加/削除はこの 1 箇所のみ更新する。
 export const PUBLIC_ALLOWED_ACTIONS_LIST = [
   'submitMemberApplication',
@@ -284,10 +237,6 @@ export const ADMIN_ALLOWED_ACTIONS_LIST = [
   'getTrainingStats',
 ];
 
-// docs/246 Phase 1-A: gas-src/Code.full.gs の MENU_REGISTRY/ACTION_TO_MENU/LEGACY_*
-// placeholder ブロックを、scripts/menu-registry.mjs の serializeMenuRegistryForGas() で
-// 生成した実体に置換する。3 split build 全てから呼ぶ。
-// 汎用マーカーブロック注入: source 内の startMarker〜endMarker の間を serialized で置換する。
 // マーカー自体は残す（再 build で再注入可能）。
 export function injectMarkerBlock(source, startMarker, endMarker, serialized, label) {
   const startIdx = source.indexOf(startMarker);
@@ -555,8 +504,6 @@ export function collectReachableFunctions(source, seedNames) {
   const declaredNames = new Set(declarationByName.keys());
   const reachable = new Set(seedNames.filter((name) => declaredNames.has(name)));
   const queue = [...reachable];
-  // A function used as a value (e.g. rows.map(recordFromRow_)) is a real
-  // reference too. Counting only call syntax pruned such helpers out of every
   // split and broke listMailTemplates in production from v376.42 to v376.61.
   const callPattern = /\b([A-Za-z0-9_]+)\s*\(/g;
   const referencePattern = /(^|[^.\w$])([A-Za-z0-9_]+)\b(?!\s*\()/g;
@@ -729,8 +676,6 @@ export function removeIfBlock(source, conditionText) {
 }
 
 export function replaceScriptRoutesWithPublicOnly(source) {
-  // 2026-07-05: gas-src の routes は Script Properties override 対応の動的構築へ変更（AGENTS §3）。
-  // public ビルドでは member/admin の Script ID を bundle に残さないため、
   // routeIdMember 宣言〜最後の SCRIPT_ID_ROUTES 代入までを public-only 版に置換する。
   const pattern = /var routeIdMember = [\s\S]*?SCRIPT_ID_ROUTES\[routeIdPublic\] = \{[^}]*\};/;
   const replacement = [

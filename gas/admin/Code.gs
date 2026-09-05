@@ -3674,40 +3674,10 @@ var LOGIN_LOCKOUT_POLICY = {
   permanentAtFailures: 20,
 };
 
-function loginLockoutWaitMinutes_(failedCount) {
-  var count = Number(failedCount || 0);
-  var minutes = 0;
-  var steps = LOGIN_LOCKOUT_POLICY.steps;
-  for (var i = 0; i < steps.length; i += 1) {
-    if (count >= steps[i].failures) minutes = steps[i].waitMinutes;
-  }
-  return minutes;
-}
 
-function isLoginLockoutPermanent_(failedCount) {
-  return Number(failedCount || 0) >= LOGIN_LOCKOUT_POLICY.permanentAtFailures;
-}
 
 // 現在のロック状態を判定する。待機を過ぎていれば expired=true を返し、呼び出し側が解除する。
 // 恒久ロックは時間では解けない。解除予定が空の旧データ（無期限ロック）は解除対象として扱う。
-function evaluateLoginLockState_(lockedFlag, failedCount, lockUntilIso, nowMs) {
-  var permanent = isLoginLockoutPermanent_(failedCount);
-  if (!lockedFlag) {
-    return { locked: false, permanent: permanent, expired: false };
-  }
-  if (permanent) {
-    return { locked: true, permanent: true, expired: false };
-  }
-  var until = String(lockUntilIso || '').trim();
-  if (!until) {
-    return { locked: true, permanent: false, expired: true };
-  }
-  var untilMs = Date.parse(until);
-  if (isNaN(untilMs)) {
-    return { locked: true, permanent: false, expired: true };
-  }
-  return { locked: true, permanent: false, expired: nowMs >= untilMs };
-}
 
 // 認証失敗を 1 回加算して必要ならロックする。シートへの書き込みまで行い、新しい状態を返す。
 
@@ -7324,9 +7294,6 @@ function renderConfiguredMail_(ss, subjectKey, bodyKey, defaultSubject, defaultB
   return { subject: subject, body: body };
 }
 
-// v376.43 (Phase B): 全メール差し込み描画の dryRun E2E（非送信）。operator が editor ▶ で実行し、
-// 各メールの件名/本文が設定値（無ければ既定）から正しく差し込み描画され、重要トークン（OTP/確認コード等）が
-// 欠落しないことを検証する。実送信は行わない（renderConfiguredMail_ のみ呼ぶ）。
 
 // v368: 変更申請の人間可読サマリーを生成する
 //   changeData: { fields?: {key:value}, staffAdd?: [...], staffRemove?: [...], applicationPayload?: {...} }
@@ -7418,19 +7385,9 @@ function isSystemSettingEnabled_(ss, key, defaultValue) {
   return isSystemSettingValueEnabled_(getSystemSettingValue_(ss, key), defaultValue);
 }
 
-// v376.59: 申請者通知の宛先と OFF 設定を、実送信せず確認する operator 用 dry-run。
-// 実 DB は設定の読取りだけで、行追加・更新・メール送信はいっさい行わない。
 
-// v376.60: メール設定の実DB監査。テンプレート本文・名前・メールアドレスを出力せず、
-// 設定・カテゴリ・送信元の解決状態だけを確認する非送信・非書込 dryRun。
 
-// v376.61: 研修の開催終了時刻(endTime)の実DB往復 dryRun。
-// 実害バグ（endTime が JS Date 文字列のまま API に出て <input type="time"> が空表示になり、
-// 保存で終了時刻が消える）の回帰を実DBで検証する。行を作って読んで消す。メールは送らない。
 
-// v376.64: 会費設定（会員種別ごとの年会費）の実DB往復 dryRun。
-// 現在値を退避 → 検証値で保存 → 管理設定・公開ポータル設定の両方から読み戻し → 必ず原状復帰する。
-// メールは送らない。DB は最終的に実行前の状態へ戻す（passed だけでなく restored も確認すること）。
 
 // ============================================================
 // v376.65（案C Phase 1）: 規程・重要事項マスタ
@@ -7450,121 +7407,14 @@ var REGULATION_SEED = [
   { kind: 'REGULATION', title: '協議会の定款', body: '入会前に、協議会の基本規程も確認できます。', url: 'https://sites.google.com/view/starhirakata/%E5%AE%9A%E6%AC%BE?authuser=0', urlLabel: '定款を確認する', target: 'ALL', order: 5 }
 ];
 
-// v376.74: 会員種別ごとの注意事項（入会申込のステップ 2 に出す文面）の初期投入データ。
-// 協議会サイトの掲示文を起点に、operator 確認のうえ次のとおり調整した（2026-09-05）。
-//   - 紙の「入会申込書」を前提にした表現は、本フォームでの申込に合わせて 3 種別で統一
-//   - 「変更届」「退会届」も同様に、システムからの手続きへ表現を揃えた
-//   - 金額は本文に書かず {{年会費}} で差し込む（正本は M_会員種別.年会費金額）
-// 既存の ALL 向け 5 件（会費の返還・個人情報・変更退会・退会締切・定款）はそのまま残す。
-var MEMBER_TYPE_NOTICE_SEED = [
-  { target: 'INDIVIDUAL', order: 101, title: '■ 入会について',
-    body: '○本会への入会を希望される方は、本フォームから入会の意向をお申し出ください。\n○お申込み後、役員の承認を得て会員となります。' },
-  { target: 'INDIVIDUAL', order: 102, title: '■ 会費について',
-    body: '○個人会員は年会費として、{{年会費}}の納入をお願いします。\n○会員がすでに納入した会費は、いかなる理由においても返還いたしかねます。\n○年会費は郵便局への振込みにてお願いします。' },
-  { target: 'INDIVIDUAL', order: 103, title: '■ 住所変更等された場合の手続きについて',
-    body: '○自宅、勤務先の住所等が変更された場合は、変更のあった項目を本システムからお届けください。\n○住所変更のご連絡がない場合には、協議会からの郵便物等が届きませんので、必ずご連絡ください。' },
-  { target: 'INDIVIDUAL', order: 104, title: '■ 退会の手続きについて',
-    body: '○退会される時は、必ず年度の切り替え前（3月末まで）に本システムから退会をお申し出ください。\n○ご連絡がない場合は、会員継続とさせていただき、当該年度の年会費の納入が必要となります。\n○また、会費につきましては、退会される年度の会費をお支払いいただいた上で、手続き完了とさせていただきます。' },
-
-  { target: 'BUSINESS', order: 201, title: 'ご連絡について',
-    body: '※ 事業所の情報、登録会員の変更などは本システムからお届けください。' },
-  { target: 'BUSINESS', order: 202, title: '■ 入会について',
-    body: '○本会への入会を希望される事業所は、本フォームから入会の意向をお申し出ください。\n○お申込み後、役員の承認を得て会員となります。' },
-  { target: 'BUSINESS', order: 203, title: '■ 会費について',
-    body: '○事業所会員は年会費として、1事業所につき{{年会費}}の納入をお願いします。\n○年度途中で介護支援専門員の人数に変更があった場合も、すでに納入した会費は、返還いたしかねます。\n○年会費は郵便局への振込みにてお願いします。' },
-  { target: 'BUSINESS', order: 204, title: '■ 事業所内の介護支援専門員・住所に変更があった場合の手続きについて',
-    body: '○事業所に所属する介護支援専門員（事業所メンバー）に変更があった場合は、速やかにお申し出ください。\n○入退職等で、事業所内の介護支援専門員情報に変更があった場合は、本システムからお届けください。\n○事業所の住所等が変更された場合は、変更のあった項目を本システムからお届けください。\n○住所変更のご連絡がない場合には、協議会からの郵便物等が届きませんので、必ずご連絡ください。' },
-  { target: 'BUSINESS', order: 205, title: '■ 介護支援専門員情報の登録状況の確認について',
-    body: '○年1回（3月末）、事業所の介護支援専門員情報を事務局より確認いたします。' },
-  { target: 'BUSINESS', order: 206, title: '■ 退会の手続きについて',
-    body: '○退会される時は、必ず年度の切り替え前（3月末まで）に本システムから退会をお申し出ください。\n○ご連絡がない場合は、会員継続とさせていただき、当該年度の年会費の納入が必要となります。\n○また、会費につきましては、退会される年度の会費をお支払いいただいた上で、手続き完了とさせていただきます。' },
-
-  { target: 'SUPPORT', order: 301, title: '■ 入会について',
-    body: '○本会の活動を支援してくださる方は、本フォームから入会の意向をお申し出ください。\n○お申込み後、役員の承認を得て賛助会員となります。' },
-  { target: 'SUPPORT', order: 302, title: '■ 会費について',
-    body: '○賛助会員は年会費として、1口につき{{年会費}}の納入をお願いします。\n○会員がすでに納入した会費は、いかなる理由においても返還いたしかねます。\n○年会費は郵便局への振込みにてお願いします。' },
-  { target: 'SUPPORT', order: 303, title: '■ 介護支援専門員番号について',
-    body: '○賛助会員は介護支援専門員番号の登録を任意としています。\n○お持ちでない場合は、協議会が発行するログインIDをご案内します。' },
-  { target: 'SUPPORT', order: 304, title: '■ 住所変更等された場合の手続きについて',
-    body: '○ご住所・ご連絡先が変更された場合は、変更のあった項目を本システムからお届けください。\n○ご連絡がない場合、協議会からの郵便物等が届きません。' },
-  { target: 'SUPPORT', order: 305, title: '■ 退会の手続きについて',
-    body: '○退会される時は、年度の切り替え前（3月末まで）に本システムから退会をお申し出ください。\n○ご連絡がない場合は会員継続となり、当該年度の年会費の納入が必要です。' }
-];
-
-// 投入対象のうち、まだ T_規程 に無いものを返す（タイトル＋対象会員種別が一致する行があれば「既存」）。
-// 事務局が管理画面で文面を直した後に再実行しても、その改定を上書きしない。
-function collectMissingMemberTypeNotices_(ss) {
-  var existing = getRowsAsObjects_(ss, 'T_規程').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
-  var seen = {};
-  existing.forEach(function(r) {
-    seen[String(r['対象会員種別'] || '') + '|' + String(r['タイトル'] || '')] = true;
-  });
-  return MEMBER_TYPE_NOTICE_SEED.filter(function(s) { return !seen[s.target + '|' + s.title]; });
-}
-
-// v376.75: 注意事項の再編（operator 決定・2026-09-05）。
-// v376.74 で種別ごとに 15 件入れたところ、共通側と内容が重複した。
-// 「全種別に等しくかかること」を共通へ寄せ、種別ごとは「その種別でしか言えないこと」だけにする。
-//   共通へ移す : 入会について / 会費の一般条件（返還不可・振込先）/ 退会の手続き
-//   種別に残す : 年会費の額と単位 / 住所変更の手続き（事業所は内容が大きく異なる）/ 賛助の専門員番号
-// 既存の共通 3 件（会費の返還について・退会の締切・変更・退会の手続き）は新項目が内容を包含するため非公開にする。
-// 「変更・退会の手続き」に付いていた外部リンクは引き継がない（手続きは本システムで完結するため・operator 判断）。
-var NOTICE_RESTRUCTURE_V376_75 = {
-  // 共通へ追加する項目
-  add: [
-    { target: 'ALL', order: 1, title: '■ 入会について',
-      body: '○本会への入会を希望される方は、本フォームから入会の意向をお申し出ください。\n○お申込み後、役員の承認を得て会員となります。' },
-    { target: 'ALL', order: 2, title: '■ 会費について',
-      body: '○会員がすでに納入した会費は、いかなる理由においても返還いたしかねます。\n○年会費は郵便局への振込みにてお願いします。' },
-    { target: 'ALL', order: 3, title: '■ 退会の手続きについて',
-      body: '○退会される時は、必ず年度の切り替え前（3月末まで）に本システムから退会をお申し出ください。\n○ご連絡がない場合は、会員継続とさせていただき、当該年度の年会費の納入が必要となります。\n○また、会費につきましては、退会される年度の会費をお支払いいただいた上で、手続き完了とさせていただきます。' }
-  ],
-  // 非公開にする既存の共通項目（タイトルで特定する。行は消さず公開フラグだけ下ろす）
-  unpublishTitles: ['会費の返還について', '退会の締切', '変更・退会の手続き'],
-  // 種別ごとから取り除く項目（共通へ移したもの）
-  removeTitles: [
-    { target: 'INDIVIDUAL', title: '■ 入会について' },
-    { target: 'INDIVIDUAL', title: '■ 退会の手続きについて' },
-    { target: 'BUSINESS', title: '■ 入会について' },
-    { target: 'BUSINESS', title: '■ 退会の手続きについて' },
-    { target: 'SUPPORT', title: '■ 入会について' },
-    { target: 'SUPPORT', title: '■ 退会の手続きについて' }
-  ],
-  // 種別ごとに残す会費項目は「年会費の額と単位」だけにし、共通と名前がぶつからないよう改題する
-  rewrite: [
-    { target: 'INDIVIDUAL', from: '■ 会費について', title: '■ 年会費について',
-      body: '○個人会員は年会費として、{{年会費}}の納入をお願いします。' },
-    { target: 'BUSINESS', from: '■ 会費について', title: '■ 年会費について',
-      body: '○事業所会員は年会費として、1事業所につき{{年会費}}の納入をお願いします。\n○年度途中で介護支援専門員の人数に変更があった場合も、すでに納入した会費は、返還いたしかねます。' },
-    { target: 'SUPPORT', from: '■ 会費について', title: '■ 年会費について',
-      body: '○賛助会員は年会費として、1口につき{{年会費}}の納入をお願いします。' }
-  ]
-};
-
-// v376.76: 共通（ALL）の表示順の是正。
-// v376.75 で追加した 3 項目に 1・2・3 を振ったが、既存の「個人情報の利用目的」が
-// もともと 2 番だったため番号が衝突し、共通の並びに割り込んで表示されていた。
-// 公開中の共通項目だけを対象に、意図した順番へ振り直す（非公開の行は触らない）。
-var NOTICE_ORDER_V376_76 = [
-  { title: '■ 入会について', order: 1 },
-  { title: '■ 会費について', order: 2 },
-  { title: '■ 退会の手続きについて', order: 3 },
-  { title: '個人情報の利用目的', order: 4 },
-  { title: '協議会の定款', order: 5 }
-];
 
 
-// v376.75 operator ツール: 再編で何が起きるかを確認する（読み取りのみ）。
 
-// v376.75 operator ツール: 再編を実施する。
-// 追加・非公開化・削除（論理削除）・本文の書き換えを 1 回で行う。
-// 対象は v376.74 で投入した行と、初期 seed の共通 3 件に限る。
 
-// v376.74 operator ツール: 何が追加されるかを確認する（読み取りのみ・書き込みなし）。
 
-// v376.74 operator ツール: 不足分だけを T_規程 へ追記する。
-// 既存行は一切変更しない（事務局が管理画面で直した文面を上書きしないため）。
-// 取り消したいときは管理画面から該当行を削除する。
+
+
+
 
 function seedRegulationsIfEmpty_(ss) {
   var sheet = ss.getSheetByName('T_規程');
@@ -7740,31 +7590,9 @@ function deleteRegulation_(payload, operatorEmail) {
   throw new Error('対象の規程が見つかりません: ' + id);
 }
 
-// v376.65（案C Phase 1）: 規程・重要事項マスタの実DB往復 dryRun。
-// 検証用の行を作成 → 読み戻し → 更新（版数 +1）→ 公開ポータル設定に出るか確認 → 物理削除で原状復帰。
-// メールは送らない。既存の規程行には一切触れない。
 
 // dryRun 専用: 検証で作った T_規程 の行を物理削除する（通常運用では soft delete のみ）。
-function purgeRegulationRowForDryRun_(ss, id) {
-  var sheet = ss.getSheetByName('T_規程');
-  if (!sheet || sheet.getLastRow() < 2) return false;
-  var cols = buildColumnIndex_(sheet);
-  requireColumns_(cols, ['規程ID', 'タイトル']);
-  var values = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
-  for (var r = values.length - 1; r >= 0; r -= 1) {
-    if (String(values[r][cols['規程ID']] || '') !== String(id)) continue;
-    // 安全弁: dryRun が作った行以外は絶対に消さない
-    if (String(values[r][cols['タイトル']] || '').indexOf(DRYRUN_PREFIX) !== 0) return false;
-    sheet.deleteRow(r + 2);
-    return true;
-  }
-  return false;
-}
 
-// v376.66: 入会承認メールの差し込みタグ解決 dryRun（非送信）。
-// 実害（事業所会員のメールで {{会員種別}} {{年会費}} がタグのまま届いた）の回帰を実 DB で検証する。
-// 実際の会員種別マスタから値を取り、個人 / 事業所代表者 / 事業所メンバー の 3 経路で
-// テンプレートを描画して未解決タグが残らないことを確認する。メールは送らない・DB も書かない。
 
 // ============================================================
 // v376.68: 汎用データエクスポート（CSV）
@@ -7962,16 +7790,8 @@ function exportTableCsv_(payload, session) {
   };
 }
 
-// v376.68: 汎用データエクスポートの実 DB dryRun（非送信・DB 書込なし・読み取りのみ）。
-// 会員の個人情報を扱う機能のため、権限ガードが実際に効くことを本番 DB で確認する。
-// **CSV の中身はログに出さない**（行数と先頭ヘッダー名のみ）。
 
-// v376.71: T_認証アカウント に ロック解除予定日時 を追加したため、既存行の列レイアウトを
-// 実際にずらす必要がある。起動時の初期化はキャッシュ済みバージョンで飛ばされる経路があるので、
-// operator が明示的に 1 回実行する（docs/09 の Schema migration step）。再実行しても安全。
 
-// v376.71: ログイン失敗の時限解除（docs/261 T-04）の判定を実データ無しで検証する。
-// DB への書き込みは行わない。
 
 // v368: 申込受付メール送信ヘルパー（公開ポータル申請受付時に使用）
 function sendApplicationReceiptMail_(ss, params) {
@@ -12483,176 +12303,6 @@ function updateRowByKey_(sheet, cols, keyColumn, keyValue, updates) {
 // ─── 公開ポータル API ─────────────────────────────────────────────────────────
 
 // v210: 公開ポータルの表示設定（認証不要・公開API）
-function getPublicPortalSettings_() {
-  var db = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
-  var map = getSystemSettingMap_(db);
-  var trainingMenuEnabledRaw = map['PUBLIC_PORTAL_TRAINING_MENU_ENABLED'];
-  var publicPortalTrainingMenuEnabled = trainingMenuEnabledRaw === undefined || trainingMenuEnabledRaw === ''
-    ? true
-    : String(trainingMenuEnabledRaw) !== 'false';
-  var membershipMenuEnabledRaw = map['PUBLIC_PORTAL_MEMBERSHIP_MENU_ENABLED'];
-  var publicPortalMembershipMenuEnabled = membershipMenuEnabledRaw === undefined || membershipMenuEnabledRaw === ''
-    ? true
-    : String(membershipMenuEnabledRaw) !== 'false';
-  var heroBadgeEnabledRaw = map['PUBLIC_PORTAL_HERO_BADGE_ENABLED'];
-  var publicPortalHeroBadgeEnabled = heroBadgeEnabledRaw === undefined || heroBadgeEnabledRaw === ''
-    ? PUBLIC_PORTAL_DEFAULTS.heroBadgeEnabled
-    : String(heroBadgeEnabledRaw) !== 'false';
-  var publicPortalHeroBadgeLabel = String(map['PUBLIC_PORTAL_HERO_BADGE_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.heroBadgeLabel;
-  var publicPortalHeroTitle = String(map['PUBLIC_PORTAL_HERO_TITLE'] || '') || PUBLIC_PORTAL_DEFAULTS.heroTitle;
-  var heroDescriptionEnabledRaw = map['PUBLIC_PORTAL_HERO_DESCRIPTION_ENABLED'];
-  var publicPortalHeroDescriptionEnabled = heroDescriptionEnabledRaw === undefined || heroDescriptionEnabledRaw === ''
-    ? PUBLIC_PORTAL_DEFAULTS.heroDescriptionEnabled
-    : String(heroDescriptionEnabledRaw) !== 'false';
-  var publicPortalHeroDescription = String(map['PUBLIC_PORTAL_HERO_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.heroDescription;
-  var membershipBadgeEnabledRaw = map['PUBLIC_PORTAL_MEMBERSHIP_BADGE_ENABLED'];
-  var publicPortalMembershipBadgeEnabled = membershipBadgeEnabledRaw === undefined || membershipBadgeEnabledRaw === ''
-    ? PUBLIC_PORTAL_DEFAULTS.membershipBadgeEnabled
-    : String(membershipBadgeEnabledRaw) !== 'false';
-  var publicPortalMembershipBadgeLabel = String(map['PUBLIC_PORTAL_MEMBERSHIP_BADGE_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.membershipBadgeLabel;
-  var membershipTitleEnabledRaw = map['PUBLIC_PORTAL_MEMBERSHIP_TITLE_ENABLED'];
-  var publicPortalMembershipTitleEnabled = membershipTitleEnabledRaw === undefined || membershipTitleEnabledRaw === ''
-    ? PUBLIC_PORTAL_DEFAULTS.membershipTitleEnabled
-    : String(membershipTitleEnabledRaw) !== 'false';
-  var publicPortalMembershipTitle = String(map['PUBLIC_PORTAL_MEMBERSHIP_TITLE'] || '') || PUBLIC_PORTAL_DEFAULTS.membershipTitle;
-  var membershipDescriptionEnabledRaw = map['PUBLIC_PORTAL_MEMBERSHIP_DESCRIPTION_ENABLED'];
-  var publicPortalMembershipDescriptionEnabled = membershipDescriptionEnabledRaw === undefined || membershipDescriptionEnabledRaw === ''
-    ? PUBLIC_PORTAL_DEFAULTS.membershipDescriptionEnabled
-    : String(membershipDescriptionEnabledRaw) !== 'false';
-  var publicPortalMembershipDescription = String(map['PUBLIC_PORTAL_MEMBERSHIP_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.membershipDescription;
-  var publicPortalMembershipCtaLabel = String(map['PUBLIC_PORTAL_MEMBERSHIP_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel;
-  var completionGuidanceVisibleRaw = map['PUBLIC_PORTAL_COMPLETION_GUIDANCE_VISIBLE'];
-  var publicPortalCompletionGuidanceVisible = completionGuidanceVisibleRaw === undefined || completionGuidanceVisibleRaw === ''
-    ? PUBLIC_PORTAL_DEFAULTS.completionGuidanceVisible
-    : String(completionGuidanceVisibleRaw) !== 'false';
-  var completionLoginInfoVisibleRaw = map['PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_VISIBLE'];
-  var publicPortalCompletionLoginInfoVisible = completionLoginInfoVisibleRaw === undefined || completionLoginInfoVisibleRaw === ''
-    ? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible
-    : String(completionLoginInfoVisibleRaw) !== 'false';
-  var completionLoginInfoBlockVisibleRaw = map['PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BLOCK_VISIBLE'];
-  var publicPortalCompletionLoginInfoBlockVisible = completionLoginInfoBlockVisibleRaw === undefined || completionLoginInfoBlockVisibleRaw === ''
-    ? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBlockVisible
-    : String(completionLoginInfoBlockVisibleRaw) !== 'false';
-  var legacyCompletionNoCredentialNotice = String(map['PUBLIC_PORTAL_COMPLETION_NO_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice;
-  var legacyCompletionCredentialNotice = String(map['PUBLIC_PORTAL_COMPLETION_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice;
-  var publicPortalCompletionGuidanceBodyWhenCredentialSent = String(map['PUBLIC_PORTAL_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_SENT'] || '') || [
-    legacyCompletionCredentialNotice,
-    '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
-    '申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。'
-  ].join('\n');
-  var publicPortalCompletionGuidanceBodyWhenCredentialNotSent = String(map['PUBLIC_PORTAL_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_NOT_SENT'] || '') || [
-    legacyCompletionNoCredentialNotice,
-    '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
-    '申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。'
-  ].join('\n');
-  var publicPortalCompletionLoginInfoBodyWhenCredentialSent = String(map['PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_SENT'] || '') || PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialSent;
-  var publicPortalCompletionLoginInfoBodyWhenCredentialNotSent = String(map['PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_NOT_SENT'] || '') || PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialNotSent;
-  var publicPortalCompletionNoCredentialNotice = String(map['PUBLIC_PORTAL_COMPLETION_NO_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice;
-  var publicPortalCompletionCredentialNotice = String(map['PUBLIC_PORTAL_COMPLETION_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice;
-  var credentialEmailEnabledRaw = map['CREDENTIAL_EMAIL_ENABLED'];
-  var credentialEmailEnabled = credentialEmailEnabledRaw === '' || credentialEmailEnabledRaw === null
-    ? true
-    : String(credentialEmailEnabledRaw) !== 'false';
-  var ppTrainingBadgeEnabledRaw = map['PUBLIC_PORTAL_TRAINING_BADGE_ENABLED'];
-  var ppTrainingBadgeEnabled = ppTrainingBadgeEnabledRaw === undefined || ppTrainingBadgeEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.trainingBadgeEnabled : String(ppTrainingBadgeEnabledRaw) !== 'false';
-  var ppTrainingBadgeLabel = String(map['PUBLIC_PORTAL_TRAINING_BADGE_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.trainingBadgeLabel;
-  var ppTrainingTitleEnabledRaw = map['PUBLIC_PORTAL_TRAINING_TITLE_ENABLED'];
-  var ppTrainingTitleEnabled = ppTrainingTitleEnabledRaw === undefined || ppTrainingTitleEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.trainingTitleEnabled : String(ppTrainingTitleEnabledRaw) !== 'false';
-  var ppTrainingTitle = String(map['PUBLIC_PORTAL_TRAINING_TITLE'] || '') || PUBLIC_PORTAL_DEFAULTS.trainingTitle;
-  var ppTrainingDescriptionEnabledRaw = map['PUBLIC_PORTAL_TRAINING_DESCRIPTION_ENABLED'];
-  var ppTrainingDescriptionEnabled = ppTrainingDescriptionEnabledRaw === undefined || ppTrainingDescriptionEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.trainingDescriptionEnabled : String(ppTrainingDescriptionEnabledRaw) !== 'false';
-  var ppTrainingDescription = String(map['PUBLIC_PORTAL_TRAINING_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.trainingDescription;
-  var ppTrainingCtaLabel = String(map['PUBLIC_PORTAL_TRAINING_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.trainingCtaLabel;
-  var ppMemberUpdateMenuEnabledRaw = map['PUBLIC_PORTAL_MEMBER_UPDATE_MENU_ENABLED'];
-  var ppMemberUpdateMenuEnabled = ppMemberUpdateMenuEnabledRaw === undefined || ppMemberUpdateMenuEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.memberUpdateMenuEnabled : String(ppMemberUpdateMenuEnabledRaw) !== 'false';
-  var ppMemberUpdateBadgeEnabledRaw = map['PUBLIC_PORTAL_MEMBER_UPDATE_BADGE_ENABLED'];
-  var ppMemberUpdateBadgeEnabled = ppMemberUpdateBadgeEnabledRaw === undefined || ppMemberUpdateBadgeEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeEnabled : String(ppMemberUpdateBadgeEnabledRaw) !== 'false';
-  var ppMemberUpdateBadgeLabel = String(map['PUBLIC_PORTAL_MEMBER_UPDATE_BADGE_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeLabel;
-  var ppMemberUpdateTitleEnabledRaw = map['PUBLIC_PORTAL_MEMBER_UPDATE_TITLE_ENABLED'];
-  var ppMemberUpdateTitleEnabled = ppMemberUpdateTitleEnabledRaw === undefined || ppMemberUpdateTitleEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.memberUpdateTitleEnabled : String(ppMemberUpdateTitleEnabledRaw) !== 'false';
-  var ppMemberUpdateTitle = String(map['PUBLIC_PORTAL_MEMBER_UPDATE_TITLE'] || '') || PUBLIC_PORTAL_DEFAULTS.memberUpdateTitle;
-  var ppMemberUpdateDescriptionEnabledRaw = map['PUBLIC_PORTAL_MEMBER_UPDATE_DESCRIPTION_ENABLED'];
-  var ppMemberUpdateDescriptionEnabled = ppMemberUpdateDescriptionEnabledRaw === undefined || ppMemberUpdateDescriptionEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.memberUpdateDescriptionEnabled : String(ppMemberUpdateDescriptionEnabledRaw) !== 'false';
-  var ppMemberUpdateDescription = String(map['PUBLIC_PORTAL_MEMBER_UPDATE_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.memberUpdateDescription;
-  var ppMemberUpdateCtaLabel = String(map['PUBLIC_PORTAL_MEMBER_UPDATE_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.memberUpdateCtaLabel;
-  var ppWithdrawalMenuEnabledRaw = map['PUBLIC_PORTAL_WITHDRAWAL_MENU_ENABLED'];
-  var ppWithdrawalMenuEnabled = ppWithdrawalMenuEnabledRaw === undefined || ppWithdrawalMenuEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalMenuEnabled : String(ppWithdrawalMenuEnabledRaw) !== 'false';
-  var ppWithdrawalBadgeEnabledRaw = map['PUBLIC_PORTAL_WITHDRAWAL_BADGE_ENABLED'];
-  var ppWithdrawalBadgeEnabled = ppWithdrawalBadgeEnabledRaw === undefined || ppWithdrawalBadgeEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeEnabled : String(ppWithdrawalBadgeEnabledRaw) !== 'false';
-  var ppWithdrawalBadgeLabel = String(map['PUBLIC_PORTAL_WITHDRAWAL_BADGE_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeLabel;
-  var ppWithdrawalTitleEnabledRaw = map['PUBLIC_PORTAL_WITHDRAWAL_TITLE_ENABLED'];
-  var ppWithdrawalTitleEnabled = ppWithdrawalTitleEnabledRaw === undefined || ppWithdrawalTitleEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalTitleEnabled : String(ppWithdrawalTitleEnabledRaw) !== 'false';
-  var ppWithdrawalTitle = String(map['PUBLIC_PORTAL_WITHDRAWAL_TITLE'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalTitle;
-  var ppWithdrawalDescriptionEnabledRaw = map['PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION_ENABLED'];
-  var ppWithdrawalDescriptionEnabled = ppWithdrawalDescriptionEnabledRaw === undefined || ppWithdrawalDescriptionEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled : String(ppWithdrawalDescriptionEnabledRaw) !== 'false';
-  var ppWithdrawalDescription = String(map['PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalDescription;
-  var ppWithdrawalCtaLabel = String(map['PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel;
-  // v376.65（案C Phase 1）: 入会申込画面に出す規程・重要事項（公開フラグの立った行のみ）
-  var ppRegulations = listRegulations_(db, true);
-  // v376.64: 入会申込の会員種別カードに表示する年会費（正本は M_会員種別.年会費金額）
-  var ppMembershipFees = readMemberTypeAnnualFees_(db);
-  var ppMembershipFeeVisibleRaw = map['MEMBERSHIP_FEE_PUBLIC_VISIBLE'];
-  var ppMembershipFeeVisible = ppMembershipFeeVisibleRaw === undefined || ppMembershipFeeVisibleRaw === ''
-    ? MEMBERSHIP_FEE_DEFAULTS.publicVisible
-    : String(ppMembershipFeeVisibleRaw) !== 'false';
-  var ppMembershipFeeNote = map['MEMBERSHIP_FEE_NOTE'] == null ? MEMBERSHIP_FEE_DEFAULTS.note : String(map['MEMBERSHIP_FEE_NOTE']);
-  return JSON.stringify({
-    success: true,
-    data: {
-      regulations: ppRegulations,
-      membershipFees: ppMembershipFees,
-      membershipFeeVisible: ppMembershipFeeVisible,
-      membershipFeeNote: ppMembershipFeeNote,
-      trainingMenuEnabled: publicPortalTrainingMenuEnabled,
-      membershipMenuEnabled: publicPortalMembershipMenuEnabled,
-      heroBadgeEnabled: publicPortalHeroBadgeEnabled,
-      heroBadgeLabel: publicPortalHeroBadgeLabel,
-      heroTitle: publicPortalHeroTitle,
-      heroDescriptionEnabled: publicPortalHeroDescriptionEnabled,
-      heroDescription: publicPortalHeroDescription,
-      membershipBadgeEnabled: publicPortalMembershipBadgeEnabled,
-      membershipBadgeLabel: publicPortalMembershipBadgeLabel,
-      membershipTitleEnabled: publicPortalMembershipTitleEnabled,
-      membershipTitle: publicPortalMembershipTitle,
-      membershipDescriptionEnabled: publicPortalMembershipDescriptionEnabled,
-      membershipDescription: publicPortalMembershipDescription,
-      membershipCtaLabel: publicPortalMembershipCtaLabel,
-      completionGuidanceVisible: publicPortalCompletionGuidanceVisible,
-      completionGuidanceBodyWhenCredentialSent: publicPortalCompletionGuidanceBodyWhenCredentialSent,
-      completionGuidanceBodyWhenCredentialNotSent: publicPortalCompletionGuidanceBodyWhenCredentialNotSent,
-      completionLoginInfoBlockVisible: publicPortalCompletionLoginInfoBlockVisible,
-      completionLoginInfoVisible: publicPortalCompletionLoginInfoVisible,
-      completionLoginInfoBodyWhenCredentialSent: publicPortalCompletionLoginInfoBodyWhenCredentialSent,
-      completionLoginInfoBodyWhenCredentialNotSent: publicPortalCompletionLoginInfoBodyWhenCredentialNotSent,
-      completionNoCredentialNotice: publicPortalCompletionNoCredentialNotice,
-      completionCredentialNotice: publicPortalCompletionCredentialNotice,
-      credentialEmailEnabled: credentialEmailEnabled,
-      trainingBadgeEnabled: ppTrainingBadgeEnabled,
-      trainingBadgeLabel: ppTrainingBadgeLabel,
-      trainingTitleEnabled: ppTrainingTitleEnabled,
-      trainingTitle: ppTrainingTitle,
-      trainingDescriptionEnabled: ppTrainingDescriptionEnabled,
-      trainingDescription: ppTrainingDescription,
-      trainingCtaLabel: ppTrainingCtaLabel,
-      memberUpdateMenuEnabled: ppMemberUpdateMenuEnabled,
-      memberUpdateBadgeEnabled: ppMemberUpdateBadgeEnabled,
-      memberUpdateBadgeLabel: ppMemberUpdateBadgeLabel,
-      memberUpdateTitleEnabled: ppMemberUpdateTitleEnabled,
-      memberUpdateTitle: ppMemberUpdateTitle,
-      memberUpdateDescriptionEnabled: ppMemberUpdateDescriptionEnabled,
-      memberUpdateDescription: ppMemberUpdateDescription,
-      memberUpdateCtaLabel: ppMemberUpdateCtaLabel,
-      withdrawalMenuEnabled: ppWithdrawalMenuEnabled,
-      withdrawalBadgeEnabled: ppWithdrawalBadgeEnabled,
-      withdrawalBadgeLabel: ppWithdrawalBadgeLabel,
-      withdrawalTitleEnabled: ppWithdrawalTitleEnabled,
-      withdrawalTitle: ppWithdrawalTitle,
-      withdrawalDescriptionEnabled: ppWithdrawalDescriptionEnabled,
-      withdrawalDescription: ppWithdrawalDescription,
-      withdrawalCtaLabel: ppWithdrawalCtaLabel,
-    }
-  });
-}
 
 // v345: Google Drive ファイルのサムネイルを base64 data URL で返す。
 //
@@ -15968,12 +15618,7 @@ function deleteLinePostRequest_(payload) {
   return { ok: true, id: id };
 }
 
-// v376.44: 公式LINE投稿依頼の保存フロー dryRun E2E（operator が editor ▶ で実行）。
-// ヘッダー自己修復 → 新規保存 → 取得 → soft delete を実 DB で検証する（非送信・テスト行は削除済で残る）。
-// v376.44 の「T_LINE投稿依頼 がヘッダー欠落で保存不可（範囲の列数エラー）」回帰を捕捉する目的。
 
-// v376.45: LINE投稿 権限二層 + 可視範囲 + submitRequest + 名前/日時 の dryRun E2E（operator が editor ▶）。
-// 合成 __adminSession を渡して、非管理者の可視スコープと post 権限ガードを実 DB で検証する（非送信）。
 
 function addDeleteLogSheet_() {
   var ss = getOrCreateDatabase_();
@@ -16420,45 +16065,9 @@ var DRYRUN_CASCADE_TAG = 'DRYRUN_CASCADE';
 
 
 // dryRun fixture 行のカウント（liveOnly=false で live 側 / true で archive 側）
-function countDryRunCascadeRows_(ss, tag, archiveSide) {
-  var total = 0;
-  for (var i = 0; i < ARCHIVE_SOURCE_TABLES.length; i++) {
-    var name = archiveSide ? ARCHIVE_SOURCE_TABLES[i] + '_archive' : ARCHIVE_SOURCE_TABLES[i];
-    var sheet = ss.getSheetByName(name);
-    if (!sheet || sheet.getLastRow() < 2) continue;
-    var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
-    for (var r = 0; r < data.length; r++) {
-      for (var c = 0; c < data[r].length; c++) {
-        if (String(data[r][c]).indexOf(tag) === 0) { total++; break; }
-      }
-    }
-  }
-  return total;
-}
 
-// dryRun 残骸の物理 sweep（live/archive/削除ログ/ログSS から DRYRUN_CASCADE 行を除去・冪等）
 
 // いずれかのセルが prefix で始まる行を物理削除する（dryRun sweep 用）
-function removeRowsWithCellPrefix_(ss, sheetName, prefix) {
-  var sheet = ss.getSheetByName(sheetName);
-  if (!sheet || sheet.getLastRow() < 2) return 0;
-  var lastCol = sheet.getLastColumn();
-  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, lastCol).getValues();
-  var keepRows = [];
-  var removed = 0;
-  for (var r = 0; r < data.length; r++) {
-    var hit = false;
-    for (var c = 0; c < data[r].length; c++) {
-      if (String(data[r][c]).indexOf(prefix) === 0) { hit = true; break; }
-    }
-    if (hit) removed++;
-    else keepRows.push(data[r]);
-  }
-  if (removed === 0) return 0;
-  sheet.getRange(2, 1, data.length, lastCol).clearContent();
-  if (keepRows.length > 0) sheet.getRange(2, 1, keepRows.length, lastCol).setValues(keepRows);
-  return removed;
-}
 
 function searchMembersForDelete_(payload) {
   var query = String(payload.query || '').trim();

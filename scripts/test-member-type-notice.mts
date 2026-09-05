@@ -83,126 +83,16 @@ test('未対応のタグは取り除く（{{...}} のまま利用者に見せな
   assert.ok(!renderRegulationBody('{{未知}}', 'INDIVIDUAL', FEES).includes('{{'));
 });
 
-// ── 4. 初期投入データ ─────────────────────────────────────────
-function seedEntries(): Array<{ target: string; order: number; title: string; body: string }> {
-  const start = gas.indexOf('var MEMBER_TYPE_NOTICE_SEED = [');
-  assert.notEqual(start, -1, 'MEMBER_TYPE_NOTICE_SEED が見つからない');
-  const end = gas.indexOf('\n];', start);
-  const body = gas.slice(gas.indexOf('[', start), end + 2);
-  return new Function(`return ${body};`)();
-}
-
-test('初期投入データは 3 種別分そろっている', () => {
-  const entries = seedEntries();
-  for (const target of ['INDIVIDUAL', 'BUSINESS', 'SUPPORT']) {
-    const items = entries.filter(e => e.target === target);
-    assert.ok(items.length >= 4, `${target} の項目が少ない（${items.length} 件）`);
-    assert.ok(items.some(e => e.title.includes('入会について')), `${target} に入会の案内が無い`);
-    assert.ok(items.some(e => e.title.includes('会費について')), `${target} に会費の案内が無い`);
-    assert.ok(items.some(e => e.title.includes('退会')), `${target} に退会の案内が無い`);
-  }
-});
-
-test('本文に金額をベタ書きしていない（正本は M_会員種別.年会費金額）', () => {
-  for (const e of seedEntries()) {
-    assert.ok(
-      !/[0-9０-９][,，]?[0-9０-９]{3}\s*円/.test(e.body),
-      `${e.target} 「${e.title}」の本文に金額が直接書かれている`
-    );
-    if (e.title.includes('会費について')) {
-      assert.ok(e.body.includes('{{年会費}}'), `${e.target} の会費の案内に {{年会費}} が無い`);
-    }
-  }
-});
-
-test('紙の「入会申込書」を前提にした表現が残っていない', () => {
-  for (const e of seedEntries()) {
-    assert.ok(!e.body.includes('入会申込書'), `${e.target} 「${e.title}」に入会申込書の記述が残っている`);
-    assert.ok(!e.body.includes('変更届'), `${e.target} 「${e.title}」に変更届の記述が残っている`);
-    assert.ok(!e.body.includes('退会届'), `${e.target} 「${e.title}」に退会届の記述が残っている`);
-  }
-});
-
-test('事業所には所属メンバー変更の申し出が明記されている', () => {
-  const biz = seedEntries().filter(e => e.target === 'BUSINESS');
-  assert.ok(
-    biz.some(e => e.body.includes('事業所メンバー') && e.body.includes('速やかに')),
-    '事業所メンバーの変更を速やかに申し出る旨が無い'
-  );
-});
-
-test('投入は追記のみで、既存行を上書きしない', () => {
-  const fn = gas.slice(gas.indexOf('function seedMemberTypeNoticesV376_74_APPLY('));
-  const end = fn.indexOf('\nfunction ', 1);
-  const body = end > 0 ? fn.slice(0, end) : fn;
-  assert.ok(/appendRowsByHeaders_/.test(body), '追記していない');
-  assert.ok(!/setValues|updateRowByKey_/.test(body), '既存行を書き換えている');
-  assert.ok(/collectMissingMemberTypeNotices_/.test(body), '不足分の判定を通していない');
-  assert.ok(/getScriptLock/.test(body), 'ロックを取得していない');
-});
-
-// ── 5. v376.75 の再編 ──────────────────────────────────────────
-function restructurePlan(): {
-  add: Array<{ target: string; title: string; body: string }>;
-  unpublishTitles: string[];
-  removeTitles: Array<{ target: string; title: string }>;
-  rewrite: Array<{ target: string; from: string; title: string; body: string }>;
-} {
-  const start = gas.indexOf('var NOTICE_RESTRUCTURE_V376_75 = {');
-  assert.notEqual(start, -1, 'NOTICE_RESTRUCTURE_V376_75 が見つからない');
-  const end = gas.indexOf('\n};', start);
-  return new Function(`return ${gas.slice(gas.indexOf('{', start), end + 2)};`)();
-}
-
-test('共通へ寄せるのは 入会 / 会費 / 退会 の 3 項目', () => {
-  const plan = restructurePlan();
-  const titles = plan.add.map(a => a.title);
-  assert.deepEqual(titles, ['■ 入会について', '■ 会費について', '■ 退会の手続きについて']);
-  assert.ok(plan.add.every(a => a.target === 'ALL'), '共通（ALL）以外が混ざっている');
-});
-
-test('内容を包含した既存の共通項目は非公開にする', () => {
-  const plan = restructurePlan();
-  assert.deepEqual(plan.unpublishTitles, ['会費の返還について', '退会の締切', '変更・退会の手続き']);
-});
-
-test('種別ごとからは 入会 と 退会 だけを取り除く（住所変更・専門員番号は残す）', () => {
-  const plan = restructurePlan();
-  const removed = plan.removeTitles.map(x => `${x.target}:${x.title}`).sort();
-  assert.deepEqual(removed, [
-    'BUSINESS:■ 入会について', 'BUSINESS:■ 退会の手続きについて',
-    'INDIVIDUAL:■ 入会について', 'INDIVIDUAL:■ 退会の手続きについて',
-    'SUPPORT:■ 入会について', 'SUPPORT:■ 退会の手続きについて',
-  ]);
-  assert.ok(!removed.some(r => r.includes('住所変更')), '住所変更の項目まで消している');
-  assert.ok(!removed.some(r => r.includes('介護支援専門員番号')), '賛助の専門員番号まで消している');
-});
-
-test('種別ごとの会費は「年会費のみ」に絞り、共通と名前がぶつからない', () => {
-  const plan = restructurePlan();
-  assert.equal(plan.rewrite.length, 3);
-  for (const rw of plan.rewrite) {
-    assert.equal(rw.from, '■ 会費について');
-    assert.equal(rw.title, '■ 年会費について', '共通の「■ 会費について」と同名になっている');
-    assert.ok(rw.body.includes('{{年会費}}'), `${rw.target} に {{年会費}} が無い`);
-    assert.ok(!rw.body.includes('返還いたしかねます') || rw.target === 'BUSINESS',
-      `${rw.target} に共通へ移したはずの返還条項が残っている`);
-    assert.ok(!rw.body.includes('郵便局'), `${rw.target} に共通へ移したはずの振込先が残っている`);
-  }
-  // 事業所だけは「人数が変わっても返還しない」を残す（事業所固有のため・operator 判断）
-  const biz = plan.rewrite.find(x => x.target === 'BUSINESS');
-  assert.ok(biz && biz.body.includes('人数に変更があった場合'), '事業所固有の返還条項が落ちている');
-});
-
-test('再編は論理削除で行い、行を物理的に消さない', () => {
-  const fn = gas.slice(gas.indexOf('function applyNoticeRestructureV376_75_APPLY('));
-  const end = fn.indexOf('\nfunction ', 1);
-  const body = end > 0 ? fn.slice(0, end) : fn;
-  assert.ok(/削除フラグ'\]\] = true/.test(body), '論理削除になっていない');
-  assert.ok(!/deleteRow|deleteRows/.test(body), '行を物理削除している');
-  assert.ok(/getScriptLock/.test(body), 'ロックを取得していない');
-});
-
+// ── 4. 文面と投入について ─────────────────────────────────────
+//
+// 文面の正本は **DB（T_規程）** で、管理画面から追加・編集・削除する。
+// 初期投入と再編に使った operator ツール（seedMemberTypeNotices / applyNoticeRestructure /
+// fixNoticeDisplayOrder）と、そこに埋め込んでいた文面の定数は、投入が完了したため
+// v376.80 で gas-src から削除した（AGENTS.md §4.6 の棚卸し）。
+// したがって「文面の中身」をコードに対して検査することはもうできない。
+// 実行記録は docs/271 §6・docs/272 に残っている。
+//
+// ここに残すのは、DB の内容に依存しない**画面側のふるまい**だけとする。
 test('種別ごとの案内は折りたためる（初期は閉じた状態）', () => {
   assert.ok(
     /const \[memberTypeNoticeOpen, setMemberTypeNoticeOpen\] = useState\(false\)/.test(form),
@@ -213,26 +103,6 @@ test('種別ごとの案内は折りたためる（初期は閉じた状態）',
 });
 
 // ── 6. v376.76 の表示順是正・チェック文言 ─────────────────────
-test('共通項目の表示順は 入会→会費→退会→個人情報→定款', () => {
-  const start = gas.indexOf('var NOTICE_ORDER_V376_76 = [');
-  assert.notEqual(start, -1, 'NOTICE_ORDER_V376_76 が見つからない');
-  const end = gas.indexOf('\n];', start);
-  const list = new Function(`return ${gas.slice(gas.indexOf('[', start), end + 2)};`)() as Array<{ title: string; order: number }>;
-  assert.deepEqual(list.map(x => x.title), [
-    '■ 入会について', '■ 会費について', '■ 退会の手続きについて', '個人情報の利用目的', '協議会の定款',
-  ]);
-  assert.deepEqual(list.map(x => x.order), [1, 2, 3, 4, 5], '表示順が連番になっていない');
-});
-
-test('表示順の是正は公開中の共通項目だけを対象にする', () => {
-  const fn = gas.slice(gas.indexOf('function fixNoticeDisplayOrderV376_76_APPLY('));
-  const end = fn.indexOf('\nfunction ', 1);
-  const body = end > 0 ? fn.slice(0, end) : fn;
-  assert.ok(/対象会員種別'\]\] \|\| ''\) !== 'ALL'/.test(body), '共通以外も対象にしている');
-  assert.ok(/公開フラグ'\]\]\)\) continue/.test(body), '非公開の行まで書き換えている');
-  assert.ok(/getScriptLock/.test(body), 'ロックを取得していない');
-});
-
 test('確認チェックの文言に、無くなった項目名を列挙していない', () => {
   // 画面に出る文字列だけを見る。変更理由を書いた JSX コメントには旧項目名が出てくるため
   // （ファイル全体を grep すると、そのコメントを拾ってしまう）。
