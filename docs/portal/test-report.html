@@ -47,25 +47,25 @@
 <div class="wrap">
 <header>
   <h1>テスト結果レポート</h1>
-  <p class="sub">枚方市介護支援専門員連絡協議会 会員システム / 生成 2026-09-05 08:48:52 UTC</p>
+  <p class="sub">枚方市介護支援専門員連絡協議会 会員システム / 生成 2026-09-05 11:35:59 UTC</p>
 </header>
 
 <section>
   <h2>現在の本番</h2>
   <dl class="rel">
-    <dt>リリース</dt><dd>v376.78（2026-09-05）</dd>
-    <dt>公開ポータル</dt><dd>@387 (x2)</dd>
-    <dt>会員ポータル</dt><dd>@146</dd>
-    <dt>管理ポータル</dt><dd>@243</dd>
-    <dt>ロールバック先</dt><dd>public @386 (x2) / member @145 / admin @242</dd>
+    <dt>リリース</dt><dd>v376.79（2026-09-05）</dd>
+    <dt>公開ポータル</dt><dd>@388 (x2)</dd>
+    <dt>会員ポータル</dt><dd>@147</dd>
+    <dt>管理ポータル</dt><dd>@244</dd>
+    <dt>ロールバック先</dt><dd>public @387 (x2) / member @146 / admin @243</dd>
   </dl>
 </section>
 
 <div class="cards">
-  <div class="card ok"><div class="n">30</div><div class="l">PASS</div></div>
+  <div class="card ok"><div class="n">31</div><div class="l">PASS</div></div>
   <div class="card ng"><div class="n">0</div><div class="l">FAIL</div></div>
   <div class="card warn"><div class="n">1</div><div class="l">要フォロー</div></div>
-  <div class="card"><div class="n">1</div><div class="l">未実行</div></div>
+  <div class="card"><div class="n">0</div><div class="l">未実行</div></div>
 </div>
 
 <section>
@@ -164,6 +164,12 @@
         <td class="when">2026-09-04 11:2x</td>
         <td>失敗 3 回はいずれも「ログインIDまたはパスワードが正しくありません。」で統一。ロック中は正しいパスワードでも拒否され、文言も同一（ロック状態を明かさない）。待機後は自動解除されてログイン成功。</td>
       </tr>
+      <tr>
+        <td><div class="name">ログインロックの解除と、待機をまたいだ失敗回数の保持</div><div class="how">検証用の会員アカウントで 3 回失敗 → ロック → 管理画面から「ロック解除」→ 元のパスワードでログイン。あわせて 1 分待機明けの 1 回失敗で再ロックされることを確認</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-05 19:0x</td>
+        <td>ロック中は正しいパスワードでも拒否（文言はパスワード不一致と同一）。管理画面はロック中の行にだけ「ロック解除」を表示し、押下後は表示が消える。解除後は元のパスワードでログイン成功＝パスワードが変わっていない（v376.78）。待機明けの 1 回失敗で直ちに再ロック＝失敗回数が保持されている（v376.79）。解除処理は GAS 往復で 10 秒前後かかる。</td>
+      </tr>
     </tbody>
   </table>
   </div>
@@ -197,12 +203,6 @@
         <td><span class="badge ok">PASS</span></td>
         <td class="when">2026-09-05 11:59 / 16:5x / 17:07</td>
         <td>投入 added:15。再編は追加3・非公開化3・削除6（論理削除）・改題3。表示順の是正 changed:1（個人情報の利用目的 2→4）。いずれも実行前に _LOG で内容を確認。</td>
-      </tr>
-      <tr>
-        <td><div class="name">ログインロックの解除（実機確認）</div><div class="how">会員詳細 → 認証アカウント一覧の「ロック解除」ボタン（ロック中の行にのみ表示）</div></td>
-        <td><span class="badge idle">NOT RUN</span></td>
-        <td class="when">—</td>
-        <td>恒久ロックの状態を本番で作る必要があるため未実施。検証用アカウントで 20 回失敗させれば再現できる。パスワードが変わらないこと・ロック中の行にだけボタンが出ることを確認する（docs/272 §5）。</td>
       </tr>
     </tbody>
   </table>
