@@ -183,19 +183,19 @@ erDiagram
     date 退会処理日
     string 姓
     string 名
-    string セイ
-    string メイ
+    string セイ "全角カタカナで保存（受理はひらがな・半角カナ・全角カナ。データIF §3.1）"
+    string メイ "全角カタカナで保存（受理はひらがな・半角カナ・全角カナ。データIF §3.1）"
     string 代表メールアドレス
     string 携帯電話番号
     string 勤務先名
-    string 勤務先郵便番号
+    string 勤務先郵便番号 "123-4567 形式で保存（受理はハイフン任意）"
     string 勤務先都道府県
     string 勤務先市区町村
     string 勤務先住所
     string 勤務先住所2
     string 勤務先電話番号
     string 勤務先FAX番号
-    string 自宅郵便番号
+    string 自宅郵便番号 "123-4567 形式で保存（受理はハイフン任意）"
     string 自宅都道府県
     string 自宅市区町村
     string 自宅住所
@@ -206,7 +206,7 @@ erDiagram
     datetime 作成日時
     datetime 更新日時
     boolean 削除フラグ
-    string 介護支援専門員番号 "基本8桁数字/admin例外1-10桁英数字 (v372.4)"
+    string 介護支援専門員番号 "公開申込は半角数字8桁／管理は1〜10桁英数字。会員のログインIDと連動"
     string 事業所番号
     string ステータスメモ
   }
@@ -216,16 +216,16 @@ erDiagram
     string 会員ID FK
     string 姓
     string 名
-    string セイ
-    string メイ
+    string セイ "全角カタカナで保存（受理はひらがな・半角カナ・全角カナ。データIF §3.1）"
+    string メイ "全角カタカナで保存（受理はひらがな・半角カナ・全角カナ。データIF §3.1）"
     string 氏名
-    string フリガナ
+    string フリガナ "全角カタカナで保存（受理はひらがな・半角カナ・全角カナ。データIF §3.1）"
     string メールアドレス
     string 職員権限コード FK
     string 職員状態コード FK
     date 入会日
     date 退会日
-    string 介護支援専門員番号 "基本8桁数字/admin例外1-10桁英数字 (v372.4)"
+    string 介護支援専門員番号 "公開申込は半角数字8桁／管理は1〜10桁英数字。会員のログインIDと連動"
     string メール配信希望コード
     datetime 作成日時
     datetime 更新日時
@@ -248,7 +248,7 @@ erDiagram
     boolean アカウント有効フラグ
     int ログイン失敗回数
     boolean ロック状態
-    string ロック解除予定日時
+    datetime ロック解除予定日時 "時限ロックの解除予定（ISO8601。空＝ロックなし。v376.71）"
     datetime 作成日時
     datetime 更新日時
     boolean 削除フラグ
@@ -320,7 +320,7 @@ erDiagram
   T_外部申込者 {
     string 外部申込者ID PK
     string 氏名
-    string フリガナ
+    string フリガナ "全角カタカナで保存（受理はひらがな・半角カナ・全角カナ。データIF §3.1）"
     string メールアドレス
     string 電話番号
     string 事業所名
@@ -481,19 +481,19 @@ erDiagram
     date 退会処理日
     string 姓
     string 名
-    string セイ
-    string メイ
+    string セイ "全角カタカナで保存（受理はひらがな・半角カナ・全角カナ。データIF §3.1）"
+    string メイ "全角カタカナで保存（受理はひらがな・半角カナ・全角カナ。データIF §3.1）"
     string 代表メールアドレス
     string 携帯電話番号
     string 勤務先名
-    string 勤務先郵便番号
+    string 勤務先郵便番号 "123-4567 形式で保存（受理はハイフン任意）"
     string 勤務先都道府県
     string 勤務先市区町村
     string 勤務先住所
     string 勤務先住所2
     string 勤務先電話番号
     string 勤務先FAX番号
-    string 自宅郵便番号
+    string 自宅郵便番号 "123-4567 形式で保存（受理はハイフン任意）"
     string 自宅都道府県
     string 自宅市区町村
     string 自宅住所
@@ -504,7 +504,7 @@ erDiagram
     datetime 作成日時
     datetime 更新日時
     boolean 削除フラグ
-    string 介護支援専門員番号 "基本8桁数字/admin例外1-10桁英数字 (v372.4)"
+    string 介護支援専門員番号 "公開申込は半角数字8桁／管理は1〜10桁英数字。会員のログインIDと連動"
     string 事業所番号
     string ステータスメモ
     string アーカイブID PK "行個別の一意キー(UUID)"
@@ -517,16 +517,16 @@ erDiagram
     string 会員ID
     string 姓
     string 名
-    string セイ
-    string メイ
+    string セイ "全角カタカナで保存（受理はひらがな・半角カナ・全角カナ。データIF §3.1）"
+    string メイ "全角カタカナで保存（受理はひらがな・半角カナ・全角カナ。データIF §3.1）"
     string 氏名
-    string フリガナ
+    string フリガナ "全角カタカナで保存（受理はひらがな・半角カナ・全角カナ。データIF §3.1）"
     string メールアドレス
     string 職員権限コード
     string 職員状態コード
     date 入会日
     date 退会日
-    string 介護支援専門員番号 "基本8桁数字/admin例外1-10桁英数字 (v372.4)"
+    string 介護支援専門員番号 "公開申込は半角数字8桁／管理は1〜10桁英数字。会員のログインIDと連動"
     string メール配信希望コード
     datetime 作成日時
     datetime 更新日時
@@ -552,7 +552,7 @@ erDiagram
     boolean アカウント有効フラグ
     int ログイン失敗回数
     boolean ロック状態
-    string ロック解除予定日時
+    datetime ロック解除予定日時 "時限ロックの解除予定（ISO8601。空＝ロックなし。v376.71）"
     datetime 作成日時
     datetime 更新日時
     boolean 削除フラグ

@@ -3280,6 +3280,11 @@ function getAnyPasswordLoginIdByMemberId_(ss, memberId) {
 
 // ── 入会処理 ──────────────────────────────────────────
 
+// v376.73: 入会申込のサーバ側検証。公開ポータル（認証不要）から届く値を信用しない。
+// 検証パターンは各関数内ローカルに置く方針（build pruner の regex 罠。AGENTS.md §3 の
+// 正本レジストリ「GAS 側は各関数内ローカル」に従う）。src/shared/validators.ts と
+// 同じ規則なので、片方を変えたらもう片方も同時に直すこと。
+
 // ── 入会申込処理（統合フォーム用）──────────────────────────
 
 
@@ -3577,6 +3582,11 @@ function migrateCredentialTemplatesToTable_(ss) {
 function generateTrainingApplyId_() {
   return 'AP-' + Utilities.getUuid().replace(/-/g, '').substring(0, 10).toUpperCase();
 }
+
+// v376.73: 認証アカウントの現在のログインID一覧。採番の重複回避に使う。
+// 削除フラグや有効フラグで絞らない — 無効な行でもログインIDは占有され続けるため
+// （findRowByColumnValue_ は先頭一致の 1 行しか返さない。重複すると後から作られた側が
+//  永久にログインできなくなる。退会者の再入会で実際に起こる）。
 
 // ── 退会処理 ──────────────────────────────────────────
 

@@ -25,8 +25,14 @@ export const CARE_MANAGER_NO_RELAXED_PATTERN = /^[A-Za-z0-9]{1,10}$/;
  */
 export const POSTAL_CODE_PATTERN = /^\d{3}-?\d{4}$/;
 
-/** カタカナ（全角カタカナ・長音・中黒・空白） */
-export const KATAKANA_PATTERN = /^[ァ-ヶー－・\s　]+$/u;
+// カナ（セイ / メイ / フリガナ）の正本はここではなく `src/utils/kanaNormalize.ts`。
+// 受理と保存の規則が「受理は緩く（ひらがな・半角カナ・全角カナ）、保存は全角カタカナへ正規化」
+// という 2 段構えで、単純な正規表現では表せないため、正規化関数とセットで持たせている。
+//   - 正規化:   normalizeKana()
+//   - 受理判定: normalizeAndValidateKana()（正規化してから文字集合を検査する）
+// v376.73 以前はここに KATAKANA_PATTERN（全角のみ）があり、公開申込フォームだけが
+// それを直接使っていたため、画面は全角しか通さないのにサーバは半角カナを受理する、
+// という食い違いが生じていた。同じ判定を 2 箇所で定義しないため、本ファイルからは削除した。
 
 /** 事業所番号（10 桁英数字） */
 export const OFFICE_NO_PATTERN = /^[A-Za-z0-9]{10}$/;

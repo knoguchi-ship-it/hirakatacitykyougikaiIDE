@@ -2006,6 +2006,53 @@ function getAnyPasswordLoginIdByMemberId_(ss, memberId) {
 
 // ── 入会処理 ──────────────────────────────────────────
 
+// v376.73: 入会申込のサーバ側検証。公開ポータル（認証不要）から届く値を信用しない。
+// 検証パターンは各関数内ローカルに置く方針（build pruner の regex 罠。AGENTS.md §3 の
+// 正本レジストリ「GAS 側は各関数内ローカル」に従う）。src/shared/validators.ts と
+// 同じ規則なので、片方を変えたらもう片方も同時に直すこと。
+function validateMemberApplicationPayload_(payload, memberType) {
+  var emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  var cmRe = /^[0-9]{8}$/;
+
+  function requireEmail(value, label) {
+    if (!emailRe.test(String(value || '').trim())) throw new Error(label + 'の形式が正しくありません。');
+  }
+
+  if (memberType === 'BUSINESS') {
+    var staff = Array.isArray(payload.staff) ? payload.staff : [];
+    if (staff.length === 0) throw new Error('事業所会員は最低1名の職員が必要です。');
+    for (var i = 0; i < staff.length; i++) {
+      var s = staff[i] || {};
+      var label = '職員 ' + (i + 1);
+      if (!String(s.lastName || '').trim() || !String(s.firstName || '').trim()) {
+        throw new Error(label + ' の氏名が未入力です。');
+      }
+      if (!cmRe.test(String(s.careManagerNumber || '').trim())) {
+        throw new Error(label + ' の介護支援専門員番号は半角数字8桁で入力してください。');
+      }
+      requireEmail(s.email, label + ' のメールアドレス');
+      // 保存形式（全角カタカナ）へ正規化できない文字は、ここで弾く
+      normalizeAndValidateKana_(s.lastKana || '', label + ' のセイ', { required: true });
+      normalizeAndValidateKana_(s.firstKana || '', label + ' のメイ', { required: true });
+    }
+    return;
+  }
+
+  if (!String(payload.lastName || '').trim() || !String(payload.firstName || '').trim()) {
+    throw new Error('氏名が未入力です。');
+  }
+  normalizeAndValidateKana_(payload.lastKana || '', 'セイ', { required: true });
+  normalizeAndValidateKana_(payload.firstKana || '', 'メイ', { required: true });
+  requireEmail(payload.email, 'メールアドレス');
+  // 介護支援専門員番号は個人会員のみ必須（賛助会員は任意。RD BR-01）
+  var cm = String(payload.careManagerNumber || '').trim();
+  if (memberType === 'INDIVIDUAL') {
+    if (!cmRe.test(cm)) throw new Error('介護支援専門員番号は半角数字8桁で入力してください。');
+  } else if (cm && !cmRe.test(cm)) {
+    throw new Error('介護支援専門員番号は半角数字8桁で入力してください。');
+  }
+}
+
 // ── 入会申込処理（統合フォーム用）──────────────────────────
 function enqueueMemberApplicationChangeRequest_(payload) {
   payload = payload || {};
@@ -2019,6 +2066,13 @@ function enqueueMemberApplicationChangeRequest_(payload) {
     ? resolveBusinessApplicationRepresentativeEmail_(payload.staff)
     : String(payload.email || '').trim();
   if (!contactEmail) throw new Error('連絡先メールアドレスが必要です。');
+
+  // v376.73: 申込時のサーバ側検証。
+  // これまで検証は承認時が最初で、公開エンドポイント（認証不要）は種別と連絡先しか見ていなかった。
+  // 画面の検証は入力の手助けであって単独の防御にしない（AGENTS.md §6）。
+  // ここでは「保存できない値を申請として溜めない」ことだけを担保し、
+  // 重複判定など DB 状態に依存する検査は従来どおり承認時に行う。
+  validateMemberApplicationPayload_(payload, memberType);
 
   var applicantName = memberType === 'BUSINESS'
     ? String(payload.officeName || '事業所会員申込').trim()
@@ -2423,6 +2477,11 @@ function migrateCredentialTemplatesToTable_(ss) {
 function generateTrainingApplyId_() {
   return 'AP-' + Utilities.getUuid().replace(/-/g, '').substring(0, 10).toUpperCase();
 }
+
+// v376.73: 認証アカウントの現在のログインID一覧。採番の重複回避に使う。
+// 削除フラグや有効フラグで絞らない — 無効な行でもログインIDは占有され続けるため
+// （findRowByColumnValue_ は先頭一致の 1 行しか返さない。重複すると後から作られた側が
+//  永久にログインできなくなる。退会者の再入会で実際に起こる）。
 
 // ── 退会処理 ──────────────────────────────────────────
 

@@ -6198,6 +6198,53 @@ function clearUnusedIndividualApplicationAddressDefaults_(payload, memberTypeCod
 
 // ── 入会処理 ──────────────────────────────────────────
 
+// v376.73: 入会申込のサーバ側検証。公開ポータル（認証不要）から届く値を信用しない。
+// 検証パターンは各関数内ローカルに置く方針（build pruner の regex 罠。AGENTS.md §3 の
+// 正本レジストリ「GAS 側は各関数内ローカル」に従う）。src/shared/validators.ts と
+// 同じ規則なので、片方を変えたらもう片方も同時に直すこと。
+function validateMemberApplicationPayload_(payload, memberType) {
+  var emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  var cmRe = /^[0-9]{8}$/;
+
+  function requireEmail(value, label) {
+    if (!emailRe.test(String(value || '').trim())) throw new Error(label + 'の形式が正しくありません。');
+  }
+
+  if (memberType === 'BUSINESS') {
+    var staff = Array.isArray(payload.staff) ? payload.staff : [];
+    if (staff.length === 0) throw new Error('事業所会員は最低1名の職員が必要です。');
+    for (var i = 0; i < staff.length; i++) {
+      var s = staff[i] || {};
+      var label = '職員 ' + (i + 1);
+      if (!String(s.lastName || '').trim() || !String(s.firstName || '').trim()) {
+        throw new Error(label + ' の氏名が未入力です。');
+      }
+      if (!cmRe.test(String(s.careManagerNumber || '').trim())) {
+        throw new Error(label + ' の介護支援専門員番号は半角数字8桁で入力してください。');
+      }
+      requireEmail(s.email, label + ' のメールアドレス');
+      // 保存形式（全角カタカナ）へ正規化できない文字は、ここで弾く
+      normalizeAndValidateKana_(s.lastKana || '', label + ' のセイ', { required: true });
+      normalizeAndValidateKana_(s.firstKana || '', label + ' のメイ', { required: true });
+    }
+    return;
+  }
+
+  if (!String(payload.lastName || '').trim() || !String(payload.firstName || '').trim()) {
+    throw new Error('氏名が未入力です。');
+  }
+  normalizeAndValidateKana_(payload.lastKana || '', 'セイ', { required: true });
+  normalizeAndValidateKana_(payload.firstKana || '', 'メイ', { required: true });
+  requireEmail(payload.email, 'メールアドレス');
+  // 介護支援専門員番号は個人会員のみ必須（賛助会員は任意。RD BR-01）
+  var cm = String(payload.careManagerNumber || '').trim();
+  if (memberType === 'INDIVIDUAL') {
+    if (!cmRe.test(cm)) throw new Error('介護支援専門員番号は半角数字8桁で入力してください。');
+  } else if (cm && !cmRe.test(cm)) {
+    throw new Error('介護支援専門員番号は半角数字8桁で入力してください。');
+  }
+}
+
 // ── 入会申込処理（統合フォーム用）──────────────────────────
 function enqueueMemberApplicationChangeRequest_(payload) {
   payload = payload || {};
@@ -6211,6 +6258,13 @@ function enqueueMemberApplicationChangeRequest_(payload) {
     ? resolveBusinessApplicationRepresentativeEmail_(payload.staff)
     : String(payload.email || '').trim();
   if (!contactEmail) throw new Error('連絡先メールアドレスが必要です。');
+
+  // v376.73: 申込時のサーバ側検証。
+  // これまで検証は承認時が最初で、公開エンドポイント（認証不要）は種別と連絡先しか見ていなかった。
+  // 画面の検証は入力の手助けであって単独の防御にしない（AGENTS.md §6）。
+  // ここでは「保存できない値を申請として溜めない」ことだけを担保し、
+  // 重複判定など DB 状態に依存する検査は従来どおり承認時に行う。
+  validateMemberApplicationPayload_(payload, memberType);
 
   var applicantName = memberType === 'BUSINESS'
     ? String(payload.officeName || '事業所会員申込').trim()
@@ -6254,7 +6308,20 @@ function submitMemberApplication_(payload) {
   return enqueueMemberApplicationChangeRequest_(payload);
 }
 
+// v376.73: 入会承認の本体。呼び出し側（approveAdminChangeRequest_）は 1 度に 1 件しか
+// 処理しないが、事務局が複数人で同時に承認すると会員ID・ログインIDの採番が競合するため
+// ScriptLock で直列化する（管理画面の資格情報発行 adminIssueMemberCredential_ と同じ扱い）。
 function createMemberApplicationDirect_(payload) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    return createMemberApplicationDirectLocked_(payload);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function createMemberApplicationDirectLocked_(payload) {
   if (!payload) throw new Error('ペイロードが空です。');
   var memberTypeCode = String(payload.memberType || '');
   if (['INDIVIDUAL', 'BUSINESS', 'SUPPORT'].indexOf(memberTypeCode) === -1) {
@@ -6304,6 +6371,10 @@ function createMemberApplicationDirect_(payload) {
   var registrationIndex = buildMemberApplicationRegistrationIndex_(ss);
   var transitionSummary = [];
   var isBusiness = memberTypeCode === 'BUSINESS';
+  // v376.73: 採番の重複回避に使う。この関数の中で払い出すたび push して、
+  // 同一申込内（事業所の複数職員）での衝突も防ぐ。
+  var existingLoginIds = collectExistingLoginIds_(ss);
+  var businessStaffLimit = resolveDefaultBusinessStaffLimit_(ss);
 
   if (!isBusiness) {
     var applicantCareManagerNumber = String(payload.careManagerNumber || '').trim();
@@ -6396,7 +6467,8 @@ function createMemberApplicationDirect_(payload) {
       case '自宅住所2': return String(payload.homeAddressLine2 || '');
       case '発送方法コード': return isBusiness ? '' : String(payload.mailingPreference || 'EMAIL');
       case '郵送先区分コード': return isBusiness ? 'OFFICE' : String(payload.preferredMailDestination || 'OFFICE');
-      case '職員数上限': return isBusiness ? 10 : '';
+      // v376.73: システム設定 DEFAULT_BUSINESS_STAFF_LIMIT を正本にする（従来は 10 のリテラル）
+      case '職員数上限': return isBusiness ? businessStaffLimit : '';
       case '作成日時': return now;
       case '更新日時': return now;
       case '削除フラグ': return false;
@@ -6442,10 +6514,39 @@ function createMemberApplicationDirect_(payload) {
     if (repCount === 0) throw new Error('代表者は必ず1名登録してください。');
     if (repCount > 1) throw new Error('代表者は1名のみです。');
 
+    // v376.73: 職員数の上限を承認時にも検証する。
+    // 申込フォームには人数制限が無く、承認側にも検査が無かったため、上限を超える事業所を
+    // 作れてしまっていた（作成後は T_会員.職員数上限 と矛盾した状態になる）。
+    if (staffList.length > businessStaffLimit) {
+      throw new Error('登録できる職員数の上限（' + businessStaffLimit + '名）を超えています。申込内容を確認してください。');
+    }
+
+    // v376.73: **書き込む前に全職員を検証する**。
+    // 以前はループの中で検証と appendRow を交互に行っていたため、3 人目で弾かれると
+    // 会員レコードと 1〜2 人目だけが残り、申請は PENDING のままという壊れた状態になった
+    // （再承認するとその事業所がもう 1 件できる）。スプレッドシートにトランザクションは無いので、
+    // 「落ちる条件を先に出し切る」ことで部分書き込みの窓を最小化する。
+    var seenCareManagerNumbers = {};
+    for (var v = 0; v < staffList.length; v++) {
+      var vs = staffList[v];
+      var vCm = String(vs.careManagerNumber || '').trim();
+      var vEmail = String(vs.email || '').trim();
+      if (!vCm) throw new Error('職員 ' + (v + 1) + ' の介護支援専門員番号が未入力です。');
+      if (!vEmail) throw new Error('職員 ' + (v + 1) + ' のメールアドレスが未入力です。');
+      if (seenCareManagerNumbers[vCm]) {
+        throw new Error('同じ介護支援専門員番号の職員が重複しています。職員 ' + (v + 1) + ' を確認してください。');
+      }
+      seenCareManagerNumbers[vCm] = true;
+      // カナは保存形式（全角カタカナ）に正規化できることをここで確認する。
+      // 不正文字を含む行を書き込むと、読み取り側 normalizeStaffNameFields_ が例外を投げ、
+      // 管理画面の会員一覧が丸ごと開けなくなる（v376.73 以前は公開フォームの検証のみが防いでいた）。
+      normalizeAndValidateKana_(vs.lastKana || '', '職員 ' + (v + 1) + ' のセイ');
+      normalizeAndValidateKana_(vs.firstKana || '', '職員 ' + (v + 1) + ' のメイ');
+    }
+
     var staffCredentials = [];
     var staffSheet = ss.getSheetByName('T_事業所職員');
     var authSheet = ss.getSheetByName('T_認証アカウント');
-    var seenCareManagerNumbers = {};
 
     for (var i = 0; i < staffList.length; i++) {
       var s = staffList[i];
@@ -6454,12 +6555,7 @@ function createMemberApplicationDirect_(payload) {
       var staffRole = String(s.role || 'STAFF');
       if (['REPRESENTATIVE', 'ADMIN', 'STAFF'].indexOf(staffRole) === -1) staffRole = 'STAFF';
 
-      if (!cmNumber) throw new Error('職員 ' + (i + 1) + ' の介護支援専門員番号が未入力です。');
-      if (!staffEmail) throw new Error('職員 ' + (i + 1) + ' のメールアドレスが未入力です。');
-      if (seenCareManagerNumbers[cmNumber]) {
-        throw new Error('同じ介護支援専門員番号の職員が重複しています。職員 ' + (i + 1) + ' を確認してください。');
-      }
-      seenCareManagerNumbers[cmNumber] = true;
+      // 未入力・リスト内重複・カナの検査は上の事前検証で済んでいる（書き込み前に落とすため）
 
       var duplicateMember = getSingleRegistrationCandidate_(
         registrationIndex.activeMembersByCareManager[cmNumber],
@@ -6507,7 +6603,10 @@ function createMemberApplicationDirect_(payload) {
 
       var staffId = Utilities.getUuid().substring(0, 8);
       var staffName = joinHumanNameParts_(s.lastName, s.firstName);
-      var staffKana = joinHumanNameParts_(s.lastKana, s.firstKana);
+      // v376.73: フリガナ列も正規化後の値から作る（セイ/メイ と表記が食い違わないように）
+      var staffKana = joinHumanNameParts_(
+        normalizeAndValidateKana_(s.lastKana || '', '職員のセイ'),
+        normalizeAndValidateKana_(s.firstKana || '', '職員のメイ'));
 
       // T_事業所職員に挿入
       if (staffSheet) {
@@ -6518,8 +6617,11 @@ function createMemberApplicationDirect_(payload) {
             case '会員ID': return memberId;
             case '姓': return String(s.lastName || '').trim();
             case '名': return String(s.firstName || '').trim();
-            case 'セイ': return String(s.lastKana || '').trim();
-            case 'メイ': return String(s.firstKana || '').trim();
+            // v376.73: 個人会員と同じく全角カタカナへ正規化して保存する。
+            // ここだけ素通しだったため、他経路（公開の職員追加・会員マイページ・管理画面）と
+            // 保存形式が揃わず、不正文字が入ると読み取り側で例外になる状態だった。
+            case 'セイ': return normalizeAndValidateKana_(s.lastKana || '', '職員のセイ');
+            case 'メイ': return normalizeAndValidateKana_(s.firstKana || '', '職員のメイ');
             case '氏名': return staffName.trim();
             case 'フリガナ': return staffKana.trim();
             case 'メールアドレス': return staffEmail;
@@ -6538,8 +6640,14 @@ function createMemberApplicationDirect_(payload) {
         staffSheet.appendRow(staffRow);
       }
 
-      // T_認証アカウントに挿入（ログインID = 介護支援専門員番号）
-      var loginId = cmNumber;
+      // T_認証アカウントに挿入。
+      // v376.73: 以前は `var loginId = cmNumber;` と直書きしており、既存ログインIDとの
+      // 重複を検査していなかった。退会者の認証行はログインIDを保持したまま残るため
+      // （退会は有効フラグを false にするだけ）、同じ番号で再入会すると重複行が生まれ、
+      // findRowByColumnValue_ が古い無効行を先に返して新会員がログインできなくなっていた。
+      // 管理画面の資格情報発行と同じ generateCmBasedLoginId_ を通して採番する。
+      var loginId = generateCmBasedLoginId_(cmNumber, existingLoginIds);
+      existingLoginIds.push(loginId);
       var defaultPassword = generateRandomPassword_();
       if (authSheet) {
         var salt = generateSalt_();
@@ -6615,9 +6723,13 @@ function createMemberApplicationDirect_(payload) {
 
   } else {
     // 個人 / 賛助: 会員単体の認証レコード作成
-    var loginId = memberTypeCode === 'INDIVIDUAL'
-      ? (String(payload.careManagerNumber || '').trim() || memberId)
-      : memberId;
+    // v376.73: 採番を管理画面の資格情報発行（adminIssueMemberCredential_）と同じ関数に集約した。
+    //   - 個人会員: 介護支援専門員番号（8 桁）。既存と重複する場合は先頭に 1〜9 を付けて回避
+    //   - 賛助会員: 番号を持たないことが多く、その場合は「9 + 8 桁」で採番（RD BR-01）
+    // 以前は賛助会員に会員ID（8 桁数字）をそのまま使っており、仕様と食い違ううえ、
+    // 個人会員のログインID（＝ 8 桁の専門員番号）と同じ値空間で衝突しても検出できなかった。
+    var loginId = generateCmBasedLoginId_(String(payload.careManagerNumber || '').trim(), existingLoginIds);
+    existingLoginIds.push(loginId);
     var defaultPassword = generateRandomPassword_();
 
     var authSheet = ss.getSheetByName('T_認証アカウント');
@@ -7997,6 +8109,25 @@ function generateMemberId_() {
 // 一意性は保たれていたため既存データは振り直さない。取消は完全一致で引くため形式変更の影響を受けない。
 function generateTrainingApplyId_() {
   return 'AP-' + Utilities.getUuid().replace(/-/g, '').substring(0, 10).toUpperCase();
+}
+
+// v376.73: 事業所会員の職員数上限（全体既定）の取得をここに集約する。
+// 以前は getSystemSettings_ が `Number(m['DEFAULT_BUSINESS_STAFF_LIMIT'] || 10)` で読み、
+// 入会承認は 10 をリテラルで書いていたため、設定を変えても新規申込に反映されなかった。
+function resolveDefaultBusinessStaffLimit_(ss) {
+  var map = getSystemSettingMap_(ss || getOrCreateDatabase_());
+  var raw = Number(map['DEFAULT_BUSINESS_STAFF_LIMIT']);
+  return isFinite(raw) && raw >= 1 ? Math.floor(raw) : 10;
+}
+
+// v376.73: 認証アカウントの現在のログインID一覧。採番の重複回避に使う。
+// 削除フラグや有効フラグで絞らない — 無効な行でもログインIDは占有され続けるため
+// （findRowByColumnValue_ は先頭一致の 1 行しか返さない。重複すると後から作られた側が
+//  永久にログインできなくなる。退会者の再入会で実際に起こる）。
+function collectExistingLoginIds_(ss) {
+  return getRowsAsObjects_(ss || getOrCreateDatabase_(), 'T_認証アカウント')
+    .map(function(r) { return String(r['ログインID'] || ''); })
+    .filter(Boolean);
 }
 
 // ── 退会処理 ──────────────────────────────────────────

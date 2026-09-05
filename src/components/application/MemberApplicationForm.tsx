@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { MEMBER_TYPE_LABELS, MEMBER_TYPE_ANNUAL_FEE_DEFAULTS, memberTypeLabel, formatAnnualFee } from '../../shared/memberTypes.mjs';
-import { EMAIL_PATTERN, CARE_MANAGER_NO_PATTERN, KATAKANA_PATTERN, OFFICE_NO_PATTERN, POSTAL_CODE_PATTERN, PHONE_PATTERN } from '../../shared/validators';
+import { EMAIL_PATTERN, CARE_MANAGER_NO_PATTERN, OFFICE_NO_PATTERN, POSTAL_CODE_PATTERN, PHONE_PATTERN } from '../../shared/validators';
 import {
   ApplicationFormData,
   ApplicationStaffEntry,
@@ -12,7 +12,7 @@ import {
 import type { ApplicationMemberType } from './types';
 import { api } from '../../services/api';
 import PostalCodeInput from '../PostalCodeInput';
-import { normalizeKana } from '../../utils/kanaNormalize';
+import { normalizeKana, normalizeAndValidateKana } from '../../utils/kanaNormalize';
 
 interface MemberApplicationFormProps {
   // v376.65: 規程・重要事項（正本は T_規程。空配列のときは従来のハードコード文面へフォールバック）
@@ -57,7 +57,6 @@ const formatFeeAmount = (amount: number): string => formatAnnualFee(amount) || '
 // 電話（共有は 6 桁以上・+ 許容／ローカルは桁数無制限・+ 不可）で実挙動が食い違っていた。
 const EMAIL_RE = EMAIL_PATTERN;
 const CARE_MANAGER_RE = CARE_MANAGER_NO_PATTERN;
-const KATAKANA_RE = KATAKANA_PATTERN;
 const OFFICE_NUMBER_RE = OFFICE_NO_PATTERN;
 const POST_CODE_RE = POSTAL_CODE_PATTERN;
 const PHONE_RE = PHONE_PATTERN;
@@ -184,10 +183,16 @@ function stripUnusedAddressDefaults(form: ApplicationFormData): ApplicationFormD
   return next;
 }
 
+// v376.73: ひらがな・半角カナでの入力を許可する（operator 決定・2026-09-05）。
+// 判定は「正規化してから」行う。保存形式は全角カタカナで、その変換は
+// utils/kanaNormalize.ts の normalizeKana が担う（送信直前と、ステップ移動時に適用）。
+// GAS 側 normalizeAndValidateKana_ と受理範囲を一致させるための変更でもある
+// （従来は画面が全角カタカナのみ通し、サーバだけが寛容という食い違いがあった）。
 function validateKanaValue(value: string, key: string, label: string, errs: ValidationErrors) {
-  const trimmed = value.trim();
-  if (!trimmed) return;
-  if (!KATAKANA_RE.test(trimmed)) errs[key] = `${label}はカタカナで入力してください。`;
+  const result = normalizeAndValidateKana(value);
+  if (!result.valid && result.reason === 'invalid_chars') {
+    errs[key] = `${label}はカタカナ・ひらがな・半角カナで入力してください（漢字・英数字・記号は使用できません）。`;
+  }
 }
 
 function validateOfficeNumberValue(value: string, key: string, errs: ValidationErrors) {
@@ -441,6 +446,17 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
       return;
     }
     setErrors({});
+    // v376.73: 入力はひらがな・半角カナも許可するが、保存形式は全角カタカナ。
+    // ステップを進めた時点で入力欄の表示も変換後に揃え、確認画面と保存値が一致するようにする
+    // （送信直前だけ変換すると、利用者は自分が入力した形のまま確認して別の形で保存される）。
+    setForm(prev => ({
+      ...prev,
+      lastKana: normalizeKana(prev.lastKana),
+      firstKana: normalizeKana(prev.firstKana),
+      staff: Array.isArray(prev.staff)
+        ? prev.staff.map(s => ({ ...s, lastKana: normalizeKana(s.lastKana), firstKana: normalizeKana(s.firstKana) }))
+        : prev.staff,
+    }));
     if (form.memberType === 'BUSINESS' && step === 1 && form.staff.length === 0) {
       setForm(prev => ({ ...prev, staff: createDefaultBusinessStaff() }));
     }

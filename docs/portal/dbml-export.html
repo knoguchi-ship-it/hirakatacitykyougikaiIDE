@@ -325,7 +325,7 @@ footer {
     <button class="copy-btn" onclick="copyDbml()">📋 全文コピー</button>
     <pre id="dbml-src">// 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能
 // 元: docs/03_DATA_MODEL.md
-// 生成日時: 2026-09-04T04:00:12.166Z
+// 生成日時: 2026-09-05T00:37:52.551Z
 
 Project hcmn_member_system {
   database_type: &quot;Google Spreadsheet (logical)&quot;
@@ -1136,7 +1136,7 @@ Table &quot;T_認証アカウント&quot; {
   &quot;アカウント有効フラグ&quot; boolean
   &quot;ログイン失敗回数&quot; int
   &quot;ロック状態&quot; boolean
-  &quot;ロック解除予定日時&quot; varchar
+  &quot;ロック解除予定日時&quot; timestamp
   &quot;作成日時&quot; timestamp
   &quot;更新日時&quot; timestamp
   &quot;削除フラグ&quot; boolean
@@ -1158,7 +1158,7 @@ Table &quot;T_認証アカウント_archive&quot; {
   &quot;アカウント有効フラグ&quot; boolean
   &quot;ログイン失敗回数&quot; int
   &quot;ロック状態&quot; boolean
-  &quot;ロック解除予定日時&quot; varchar
+  &quot;ロック解除予定日時&quot; timestamp
   &quot;作成日時&quot; timestamp
   &quot;更新日時&quot; timestamp
   &quot;削除フラグ&quot; boolean
@@ -1340,7 +1340,7 @@ Ref: &quot;T_ログイン履歴&quot;.&quot;認証ID&quot; &gt; &quot;T_認証�
 
 
 <footer>
-  生成: 2026-09-04 | scripts/build-docs-portal.mjs より自動生成 | AGENTS.md §4.6 準拠
+  生成: 2026-09-05 | scripts/build-docs-portal.mjs より自動生成 | AGENTS.md §4.6 準拠
 </footer>
 
 </div>
