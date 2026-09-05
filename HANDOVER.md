@@ -4,8 +4,8 @@
 
 ### 0. 30 秒で現状
 
-- **本番**: public **@388×2** / member **@147** / admin **@244**（**v376.79**）。4 本すべて同期確認済。
-  ロールバック先は public @387×2 / member @146 / admin @243（v376.78）。
+- **本番**: public **@389×2** / member **@148** / admin **@245**（**v376.80**）。4 本すべて同期確認済。
+  ロールバック先は public @388×2 / member @147 / admin @244（v376.79）。
 - **未 push・未デプロイの作業は無い**。**中断中の実装は無い**。
 - 直近セッション（2026-09-03〜04）でやったこと:
   仕様書 5 文書の巻き直し完了 → 旧仕様書 6 本を退避 → docs 直下を整理 →
@@ -16,7 +16,8 @@
   **v376.73**（入会申込フローの公開前是正。重大 2・中 3・軽微 1 を修正 ＋ カナ受理範囲の拡大。`docs/270`）→
   **v376.74〜.77**（入会申込に「注意事項」ステップを新設。種別ごとの案内を `T_規程` から出し分け。`docs/271`）→
   **v376.78**（管理画面からのログインロック解除。SOW U-26 を解消）→
-  **v376.79**（段階的な待機が機能していなかった不具合の修正。`docs/272`）。
+  **v376.79**（段階的な待機が機能していなかった不具合の修正。`docs/272`）→
+  **v376.80**（`dryrun.gs` の棚卸し 38→19 ツール・51% 削減。文書の ID 整合検査を新設。`docs/273`）。
 - **未検証は無い**。v376.73 は公開・会員・管理の 3 ポータルすべてで live E2E が PASS（`docs/270` §5）。
 - **カナの一括変換は不要と確定**（2026-09-05）。dryRun で 435 行を走査し変換対象 0 件。
   既存データは全て全角カタカナだった（`docs/270` §8）。**operator 待ちの作業は無い**。
@@ -121,7 +122,8 @@ npx clasp deployments                  # 4 本が同じ版を指しているこ�
 |---|---|---|
 | **`DB_SCHEMA_VERSION` の更新忘れ** | 新しいシートが作られず**画面が黙って空になる** | 列を変えたら必ず版を上げ、`runRebuildSchemaForV<版>` を operator に実行してもらう |
 | **`ADMIN_ALLOWED_ACTIONS_LIST` への登録漏れ** | `未実装アクションです` で画面が読込中のまま | `ACTION_TO_MENU` と両方に足す。`test:menu-registry` が検出 |
-| **responsive テストの合否をログで判断する** | fatal でも「done.」と出る（v376.71 で exit 1 に修正済だが**判定は result.json を見る**） | `.test-out/result*.json` の `fatal` と `consoleErrors` を必ず確認 |
+| **responsive テストの合否をログで判断する** | fatal でも「done.」と出る（v376.71 で exit 1 に修正済だが**判定は result.json を見る**） | `.test-out/result*.json` の `fatal`・`consoleErrors` に加えて **`views[].error`** も見る。`fatal` と `consoleErrors` だけ見て PASS と報告し、v376.74〜.80 の間ずっと公開 responsive が壊れていたことに気づかなかった（v376.80 で発覚） |
+| **画面を作り替えたのに E2E を直さない** | 廃止した要素を探し続けて全 VP が error（v376.74 のダイアログ廃止で発生） | 画面の構成を変えたら、その画面を見ている E2E も同じターンで直す |
 | **build pruner** | 値渡しの関数参照・定数直前のコメントに書いた関数名で、生成物から消える | `npm run test:gas-artifact-refs` が検出。`docs/260` §4 |
 | **正規表現に `"` を含める** | ビルドのパーサが壊れ、operator ツールが生成物から消える | `indexOf`/`split().join()` で書く |
 | **Bash heredoc のバックスラッシュ脱落** | 生成したコードの `\n` が実改行になる | コード生成は Write/Edit ツールで行う |
@@ -130,6 +132,7 @@ npx clasp deployments                  # 4 本が同じ版を指しているこ�
 | **同じ判定を経路ごとに書く** | 承認経路だけ共通処理を通らず、再入会でログイン不能・会員一覧が開けない等の実害（v376.73 で 6 件） | 値・採番・正規化は**必ず共通関数へ**。`AGENTS.md` §3 のレジストリを先に見る |
 | **仕様書に「受理」と「保存」を書き分けない** | 正規化漏れを設計レビューで検出できない | データIF §3.1 に受理形式と保存形式を必ず書く |
 | **段階的にふるまいが変わる機能を単体テストだけで確認する** | 各関数は正しいのに、つなげると成立しない（v376.71 の段階的な待機が v376.79 まで死んでいた） | 状態遷移を実際に回すテストを置く。旧挙動へ戻して落ちることも確認する |
+| **大きなソースを自作スクリプトで一括編集する** | スライス合成を誤り gas-src に 10,047 行を重複挿入した（v376.80。git checkout で復元） | 行範囲を先に確定 → 重なり検査 → 後ろから削除 → 行数と関数数を検算。既定は書き込まない（--apply 必須）。括弧の数え上げは {{タグ}} で破綻する |
 
 ### 5. 触るときに気をつける場所
 
@@ -416,7 +419,7 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
   **GAS では作れても GCP へ移行できない仕様は採用しない（NG）**。設計時に「GCP では何で実装するか」を 1 行で書けることが設計完了の条件。
   判断表と NG パターンは `AGENTS.md` §4.8.2 / §4.8.3、決定の背景は `docs/06_DECISION_RECORDS.md`（2026-09-03）。
 
-- **本番**: public **@388×2** / member **@147** / admin **@244**（v376.79・§1）。全 fixed deployment 同期確認済。ロールバック先は public @387×2 / member @146 / admin @243（v376.78）。
+- **本番**: public **@389×2** / member **@148** / admin **@245**（v376.80・§1）。全 fixed deployment 同期確認済。ロールバック先は public @388×2 / member @147 / admin @244（v376.79）。
 - **v376.64 の検証は完了**（管理セッション再取得後に実施）: admin responsive 56 view・メール設定 E2E 5/5・`dryRunMembershipFeeV376_64_LOG` が `passed:true` / `restored:true`。公開側は入会申込カードに 3,000 / 8,000 / 5,000 円の表示を実測。
 - **検証状況は 1 ページで見られる**: [`docs/portal/test-report.html`](docs/portal/test-report.html)（32 行・PASS 31・FAIL 0・要フォロー 1）。再生成は `npm run report:tests`。
 - **文書の入口**: [`docs/00_DOC_INDEX.md`](docs/00_DOC_INDEX.md)。2026-09-04 時点で `docs/` 直下は現役 36 文書のみ・完了記録 237 件は [`docs/archive/`](docs/archive/00_ARCHIVE_INDEX.md) へ移した。**仕様の正本は `docs/spec/` の 5 文書**。
@@ -453,10 +456,10 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 
 | 配信 | Deployment ID | Version |
 |---|---|---|
-| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@388** |
-| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@388** |
-| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@147** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@244** |
+| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@389** |
+| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@389** |
+| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@148** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@245** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 

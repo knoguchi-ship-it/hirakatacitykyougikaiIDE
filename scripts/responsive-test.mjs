@@ -31,7 +31,7 @@ const VIEWPORTS = [
 const VIEWS = [
   { id: 'home',            label: 'ホーム（カードメニュー）',     trigger: null },
   { id: 'memberApplication', label: '新規入会申込フォーム',         trigger: { kind: 'button', textIncludes: '新規入会を申し込む' } },
-  { id: 'noticeDialog',    label: '事務局からのお願いモーダル',   trigger: { kind: 'button', textIncludes: '入会・退会案内を開く' } },
+  { id: 'noticeStep',      label: '注意事項ステップ（種別選択後）', trigger: { kind: 'button', textIncludes: '個人会員' } },
 ];
 
 async function getAppFrame(page, debugTag) {
@@ -191,52 +191,46 @@ async function runViewport(browser, vp, consoleErrors) {
       result.views.memberApplication = { error: String(e) };
     }
 
-    // VIEW: noticeDialog — open within member application
+    // VIEW: noticeStep — 会員種別を選んだ直後の「注意事項」ステップ
+    // v376.74 で重要事項ダイアログを廃止し、内容をこのステップへ移した。
+    // 旧テストは廃止済みのモーダル起動ボタンを探しており、v376.74 以降ずっと error になっていた。
     try {
-      const clicked = await frame.evaluate(() => {
+      const selected = await frame.evaluate(() => {
         const btns = Array.from(document.querySelectorAll('button'));
-        const target = btns.find((b) => (b.innerText || '').includes('重要事項を確認する'));
-        if (target) { target.click(); return true; }
+        const card = btns.find((b) => (b.innerText || '').includes('個人会員') && !b.disabled);
+        if (card) { card.click(); return true; }
         return false;
       });
-      if (clicked) {
-        await page.waitForTimeout(700);
+      if (selected) {
+        await page.waitForTimeout(2000);
         const metrics = await collectMetrics(frame, page, vp.width);
-        // Additional check: footer reachable?
-        const dialogCheck = await frame.evaluate(() => {
-          const dialog = document.querySelector('[role="dialog"]');
-          if (!dialog) return { dialogFound: false };
-          const r = dialog.getBoundingClientRect();
-          const buttons = Array.from(dialog.querySelectorAll('button'));
-          const buttonInfo = buttons.map((b) => {
-            const br = b.getBoundingClientRect();
-            return { text: (b.innerText || '').trim().slice(0, 30), top: Math.round(br.top), bottom: Math.round(br.bottom), inViewport: br.bottom <= window.innerHeight + 1 };
-          });
-          const footerBtn = buttons.find((b) => (b.innerText || '').includes('内容を確認して閉じる'));
-          let footerReachable = false;
-          if (footerBtn) {
-            // Scroll body to bottom
-            const body = dialog.querySelector('div.overflow-y-auto');
-            if (body) body.scrollTop = body.scrollHeight;
-            const fr = footerBtn.getBoundingClientRect();
-            footerReachable = fr.bottom <= window.innerHeight + 1 && fr.top >= 0;
-          }
+        const noticeCheck = await frame.evaluate(() => {
+          const text = document.body.innerText || '';
+          const toggle = Array.from(document.querySelectorAll('button'))
+            .find((b) => (b.innerText || '').includes('会員について'));
+          const checkbox = document.querySelector('input[type="checkbox"]');
+          const next = Array.from(document.querySelectorAll('button'))
+            .find((b) => (b.innerText || '').trim() === '次へ');
+          const nextRect = next ? next.getBoundingClientRect() : null;
           return {
-            dialogFound: true,
-            dialogTop: Math.round(r.top), dialogBottom: Math.round(r.bottom),
-            innerHeight: window.innerHeight,
-            buttons: buttonInfo,
-            footerReachable,
+            // 共通の注意事項が出ていること
+            hasCommonNotice: /事務局からのお願い/.test(text),
+            // 種別ごとの折りたたみが出ていること（初期は閉じている）
+            hasTypeToggle: !!toggle,
+            typeToggleExpanded: toggle ? toggle.getAttribute('aria-expanded') : null,
+            // 確認チェックと「次へ」が画面内にあること
+            hasCheckbox: !!checkbox,
+            nextInViewport: nextRect ? nextRect.top >= 0 && nextRect.bottom <= window.innerHeight + 1 : false,
           };
         });
-        const shotPath = path.join(SHOTS_DIR, `${vp.name}__03_noticeDialog.png`);
-        await page.screenshot({ path: shotPath, fullPage: false });
-        result.views.noticeDialog = { ...metrics, dialogCheck, screenshot: shotPath };
+        const shotPath = path.join(SHOTS_DIR, `${vp.name}__03_noticeStep.png`);
+        await page.screenshot({ path: shotPath, fullPage: true });
+        result.views.noticeStep = { ...metrics, noticeCheck, screenshot: shotPath };
       } else {
-        result.views.noticeDialog = { error: 'モーダル起動ボタンが見つかりません' };
+        result.views.noticeStep = { error: '会員種別カードが見つかりません' };
       }
     } catch (e) {
-      result.views.noticeDialog = { error: String(e) };
+      result.views.noticeStep = { error: String(e) };
     }
   } catch (e) {
     result.fatal = String(e);
