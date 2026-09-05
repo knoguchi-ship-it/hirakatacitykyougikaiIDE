@@ -379,7 +379,10 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [result, setResult] = useState<ApplicationResult | null>(null);
   const [noticeAccepted, setNoticeAccepted] = useState(false);
-  const [memberTypeNoticeOpen, setMemberTypeNoticeOpen] = useState(true);
+  // v376.77: 種別ごとの案内は初期状態を「閉じる」にする（operator 決定・2026-09-05）。
+  // v376.75 で折りたたみを入れた時点では、読まれないままチェックされる懸念から開いた状態にしていた。
+  // 実物を見て、共通項目だけでも縦に長く、開いたままでは②全体が読み飛ばされやすいと判断した。
+  const [memberTypeNoticeOpen, setMemberTypeNoticeOpen] = useState(false);
   // v376.74: 注意事項ステップは 2 段構成。
   //   上段 = 全種別共通（対象 ALL）… 従来の重要事項ダイアログと同じ見せ方
   //   下段 = 選んだ種別あて（対象 INDIVIDUAL / BUSINESS / SUPPORT）

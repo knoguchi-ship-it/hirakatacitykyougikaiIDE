@@ -203,11 +203,13 @@ test('再編は論理削除で行い、行を物理的に消さない', () => {
   assert.ok(/getScriptLock/.test(body), 'ロックを取得していない');
 });
 
-test('種別ごとの案内は折りたためる（初期は開いたまま）', () => {
-  assert.ok(/useState\(true\)/.test(form.slice(form.indexOf('memberTypeNoticeOpen'))) ||
-    /const \[memberTypeNoticeOpen, setMemberTypeNoticeOpen\] = useState\(true\)/.test(form),
-    '折りたたみの初期状態が開いていない');
+test('種別ごとの案内は折りたためる（初期は閉じた状態）', () => {
+  assert.ok(
+    /const \[memberTypeNoticeOpen, setMemberTypeNoticeOpen\] = useState\(false\)/.test(form),
+    '折りたたみの初期状態が閉じていない（operator 決定・v376.77）'
+  );
   assert.ok(/memberTypeNoticeOpen && memberTypeNoticeItems\.map/.test(form), '折りたたみが効いていない');
+  assert.ok(/aria-expanded=\{memberTypeNoticeOpen\}/.test(form), '開閉状態が支援技術へ伝わらない');
 });
 
 // ── 6. v376.76 の表示順是正・チェック文言 ─────────────────────
