@@ -302,6 +302,130 @@ function dryRunMembershipFeeV376_64_LOG() {
   return report;
 }
 
+function previewNoticeRestructureV376_75_LOG() {
+  var ss = getOrCreateDatabase_();
+  var rows = getRowsAsObjects_(ss, 'T_規程').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var plan = { add: [], unpublish: [], remove: [], rewrite: [], notFound: [] };
+
+  NOTICE_RESTRUCTURE_V376_75.add.forEach(function(a) {
+    var exists = rows.some(function(r) {
+      return String(r['対象会員種別']) === a.target && String(r['タイトル']) === a.title;
+    });
+    if (!exists) plan.add.push(a.target + ' ' + a.title);
+  });
+  NOTICE_RESTRUCTURE_V376_75.unpublishTitles.forEach(function(title) {
+    var hit = rows.filter(function(r) {
+      return String(r['タイトル']) === title && toBoolean_(r['公開フラグ']);
+    });
+    hit.forEach(function(r) { plan.unpublish.push(String(r['規程ID']) + ' ' + title); });
+    if (hit.length === 0) plan.notFound.push('非公開対象なし: ' + title);
+  });
+  NOTICE_RESTRUCTURE_V376_75.removeTitles.forEach(function(x) {
+    var hit = rows.filter(function(r) {
+      return String(r['対象会員種別']) === x.target && String(r['タイトル']) === x.title;
+    });
+    hit.forEach(function(r) { plan.remove.push(String(r['規程ID']) + ' ' + x.target + ' ' + x.title); });
+    if (hit.length === 0) plan.notFound.push('削除対象なし: ' + x.target + ' ' + x.title);
+  });
+  NOTICE_RESTRUCTURE_V376_75.rewrite.forEach(function(x) {
+    var hit = rows.filter(function(r) {
+      return String(r['対象会員種別']) === x.target && String(r['タイトル']) === x.from;
+    });
+    hit.forEach(function(r) { plan.rewrite.push(String(r['規程ID']) + ' ' + x.target + ' ' + x.from + ' → ' + x.title); });
+    if (hit.length === 0) plan.notFound.push('改題対象なし: ' + x.target + ' ' + x.from);
+  });
+
+  Logger.log('=== previewNoticeRestructureV376_75_LOG ===');
+  Logger.log(JSON.stringify(plan, null, 2));
+  return plan;
+}
+
+function applyNoticeRestructureV376_75_APPLY() {
+  var ss = getOrCreateDatabase_();
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var sheet = ss.getSheetByName('T_規程');
+    if (!sheet) throw new Error('T_規程 シートが見つかりません。');
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var cols = {};
+    for (var h = 0; h < headers.length; h += 1) cols[headers[h]] = h;
+    requireColumns_(cols, ['規程ID', 'タイトル', '本文', '対象会員種別', '表示順', '公開フラグ', '削除フラグ', '更新日時']);
+
+    var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+    var now = new Date().toISOString();
+    var result = { added: 0, unpublished: 0, removed: 0, rewritten: 0 };
+
+    for (var r = 0; r < data.length; r += 1) {
+      var row = data[r];
+      if (toBoolean_(row[cols['削除フラグ']])) continue;
+      var title = String(row[cols['タイトル']] || '');
+      var target = String(row[cols['対象会員種別']] || '');
+
+      if (NOTICE_RESTRUCTURE_V376_75.unpublishTitles.indexOf(title) >= 0 && toBoolean_(row[cols['公開フラグ']])) {
+        row[cols['公開フラグ']] = false;
+        row[cols['更新日時']] = now;
+        result.unpublished += 1;
+        continue;
+      }
+      var isRemoved = NOTICE_RESTRUCTURE_V376_75.removeTitles.some(function(x) {
+        return x.target === target && x.title === title;
+      });
+      if (isRemoved) {
+        row[cols['削除フラグ']] = true;
+        row[cols['公開フラグ']] = false;
+        row[cols['更新日時']] = now;
+        result.removed += 1;
+        continue;
+      }
+      for (var w = 0; w < NOTICE_RESTRUCTURE_V376_75.rewrite.length; w += 1) {
+        var rw = NOTICE_RESTRUCTURE_V376_75.rewrite[w];
+        if (rw.target === target && rw.from === title) {
+          row[cols['タイトル']] = rw.title;
+          row[cols['本文']] = rw.body;
+          row[cols['更新日時']] = now;
+          result.rewritten += 1;
+          break;
+        }
+      }
+    }
+    sheet.getRange(2, 1, data.length, sheet.getLastColumn()).setValues(data);
+
+    var existingIds = data.map(function(row) { return String(row[cols['規程ID']] || ''); });
+    var existingKeys = {};
+    data.forEach(function(row) {
+      if (!toBoolean_(row[cols['削除フラグ']])) {
+        existingKeys[String(row[cols['対象会員種別']]) + '|' + String(row[cols['タイトル']])] = true;
+      }
+    });
+    var newRows = [];
+    NOTICE_RESTRUCTURE_V376_75.add.forEach(function(a) {
+      if (existingKeys[a.target + '|' + a.title]) return;
+      var id = 'REG-C' + a.order;
+      while (existingIds.indexOf(id) >= 0) { id = id + 'X'; }
+      existingIds.push(id);
+      newRows.push({
+        '規程ID': id, '区分コード': 'NOTICE', 'タイトル': a.title, '本文': a.body,
+        '外部リンクURL': '', '外部リンク文言': '', '対象会員種別': a.target,
+        '版数': 1, '施行日': '', '表示順': a.order, '公開フラグ': true,
+        '更新者メール': '', '削除フラグ': false, '作成日時': now, '更新日時': now
+      });
+    });
+    if (newRows.length > 0) {
+      appendRowsByHeaders_(ss, 'T_規程', newRows);
+      result.added = newRows.length;
+    }
+
+    SpreadsheetApp.flush();
+    clearAllDataCache_();
+    Logger.log('=== applyNoticeRestructureV376_75_APPLY ===');
+    Logger.log(JSON.stringify(result, null, 2));
+    return result;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function previewMemberTypeNoticesV376_74_LOG() {
   var ss = getOrCreateDatabase_();
   var missing = collectMissingMemberTypeNotices_(ss);

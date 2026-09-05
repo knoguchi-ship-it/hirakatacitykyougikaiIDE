@@ -140,3 +140,72 @@ test('投入は追記のみで、既存行を上書きしない', () => {
   assert.ok(/collectMissingMemberTypeNotices_/.test(body), '不足分の判定を通していない');
   assert.ok(/getScriptLock/.test(body), 'ロックを取得していない');
 });
+
+// ── 5. v376.75 の再編 ──────────────────────────────────────────
+function restructurePlan(): {
+  add: Array<{ target: string; title: string; body: string }>;
+  unpublishTitles: string[];
+  removeTitles: Array<{ target: string; title: string }>;
+  rewrite: Array<{ target: string; from: string; title: string; body: string }>;
+} {
+  const start = gas.indexOf('var NOTICE_RESTRUCTURE_V376_75 = {');
+  assert.notEqual(start, -1, 'NOTICE_RESTRUCTURE_V376_75 が見つからない');
+  const end = gas.indexOf('\n};', start);
+  return new Function(`return ${gas.slice(gas.indexOf('{', start), end + 2)};`)();
+}
+
+test('共通へ寄せるのは 入会 / 会費 / 退会 の 3 項目', () => {
+  const plan = restructurePlan();
+  const titles = plan.add.map(a => a.title);
+  assert.deepEqual(titles, ['■ 入会について', '■ 会費について', '■ 退会の手続きについて']);
+  assert.ok(plan.add.every(a => a.target === 'ALL'), '共通（ALL）以外が混ざっている');
+});
+
+test('内容を包含した既存の共通項目は非公開にする', () => {
+  const plan = restructurePlan();
+  assert.deepEqual(plan.unpublishTitles, ['会費の返還について', '退会の締切', '変更・退会の手続き']);
+});
+
+test('種別ごとからは 入会 と 退会 だけを取り除く（住所変更・専門員番号は残す）', () => {
+  const plan = restructurePlan();
+  const removed = plan.removeTitles.map(x => `${x.target}:${x.title}`).sort();
+  assert.deepEqual(removed, [
+    'BUSINESS:■ 入会について', 'BUSINESS:■ 退会の手続きについて',
+    'INDIVIDUAL:■ 入会について', 'INDIVIDUAL:■ 退会の手続きについて',
+    'SUPPORT:■ 入会について', 'SUPPORT:■ 退会の手続きについて',
+  ]);
+  assert.ok(!removed.some(r => r.includes('住所変更')), '住所変更の項目まで消している');
+  assert.ok(!removed.some(r => r.includes('介護支援専門員番号')), '賛助の専門員番号まで消している');
+});
+
+test('種別ごとの会費は「年会費のみ」に絞り、共通と名前がぶつからない', () => {
+  const plan = restructurePlan();
+  assert.equal(plan.rewrite.length, 3);
+  for (const rw of plan.rewrite) {
+    assert.equal(rw.from, '■ 会費について');
+    assert.equal(rw.title, '■ 年会費について', '共通の「■ 会費について」と同名になっている');
+    assert.ok(rw.body.includes('{{年会費}}'), `${rw.target} に {{年会費}} が無い`);
+    assert.ok(!rw.body.includes('返還いたしかねます') || rw.target === 'BUSINESS',
+      `${rw.target} に共通へ移したはずの返還条項が残っている`);
+    assert.ok(!rw.body.includes('郵便局'), `${rw.target} に共通へ移したはずの振込先が残っている`);
+  }
+  // 事業所だけは「人数が変わっても返還しない」を残す（事業所固有のため・operator 判断）
+  const biz = plan.rewrite.find(x => x.target === 'BUSINESS');
+  assert.ok(biz && biz.body.includes('人数に変更があった場合'), '事業所固有の返還条項が落ちている');
+});
+
+test('再編は論理削除で行い、行を物理的に消さない', () => {
+  const fn = gas.slice(gas.indexOf('function applyNoticeRestructureV376_75_APPLY('));
+  const end = fn.indexOf('\nfunction ', 1);
+  const body = end > 0 ? fn.slice(0, end) : fn;
+  assert.ok(/削除フラグ'\]\] = true/.test(body), '論理削除になっていない');
+  assert.ok(!/deleteRow|deleteRows/.test(body), '行を物理削除している');
+  assert.ok(/getScriptLock/.test(body), 'ロックを取得していない');
+});
+
+test('種別ごとの案内は折りたためる（初期は開いたまま）', () => {
+  assert.ok(/useState\(true\)/.test(form.slice(form.indexOf('memberTypeNoticeOpen'))) ||
+    /const \[memberTypeNoticeOpen, setMemberTypeNoticeOpen\] = useState\(true\)/.test(form),
+    '折りたたみの初期状態が開いていない');
+  assert.ok(/memberTypeNoticeOpen && memberTypeNoticeItems\.map/.test(form), '折りたたみが効いていない');
+});

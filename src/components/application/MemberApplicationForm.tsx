@@ -379,6 +379,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [result, setResult] = useState<ApplicationResult | null>(null);
   const [noticeAccepted, setNoticeAccepted] = useState(false);
+  const [memberTypeNoticeOpen, setMemberTypeNoticeOpen] = useState(true);
   // v376.74: 注意事項ステップは 2 段構成。
   //   上段 = 全種別共通（対象 ALL）… 従来の重要事項ダイアログと同じ見せ方
   //   下段 = 選んだ種別あて（対象 INDIVIDUAL / BUSINESS / SUPPORT）
@@ -740,10 +741,22 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
 
           {memberTypeNoticeItems.length > 0 && (
             <div className="space-y-4 border-t border-slate-200 pt-6">
-              <h4 className="text-base font-bold text-slate-900">
-                {form.memberType ? `${memberTypeLabel(form.memberType)}について` : '会員種別ごとのご案内'}
-              </h4>
-              {memberTypeNoticeItems.map(item => (
+              {/* v376.75: 種別ごとの案内は折りたためるようにする（②が縦に長くなるため）。
+                  ただし初期状態は開いたまま。閉じて始めると読まれないままチェックされる懸念があるため。 */}
+              <button
+                type="button"
+                onClick={() => setMemberTypeNoticeOpen(prev => !prev)}
+                aria-expanded={memberTypeNoticeOpen}
+                className="flex w-full min-h-[44px] items-center justify-between rounded-xl px-1 py-2 text-left hover:bg-slate-50"
+              >
+                <span className="text-base font-bold text-slate-900">
+                  {form.memberType ? `${memberTypeLabel(form.memberType)}について` : '会員種別ごとのご案内'}
+                </span>
+                <span className="ml-3 shrink-0 text-sm font-medium text-primary-700">
+                  {memberTypeNoticeOpen ? '閉じる ▲' : '開く ▼'}
+                </span>
+              </button>
+              {memberTypeNoticeOpen && memberTypeNoticeItems.map(item => (
                 <section key={item.id} className="rounded-2xl border border-slate-200 bg-white p-5">
                   <p className="text-sm font-semibold text-slate-900">{item.title}</p>
                   <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-700">

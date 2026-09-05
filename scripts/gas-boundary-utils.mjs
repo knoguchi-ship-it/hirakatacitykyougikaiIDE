@@ -49,6 +49,9 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   // v376.74: 会員種別ごとの注意事項の初期投入（確認は読み取りのみ・投入は追記のみで既存を上書きしない）
   'previewMemberTypeNoticesV376_74_LOG',
   'seedMemberTypeNoticesV376_74_APPLY',
+  // v376.75: 注意事項の再編（共通へ寄せる。確認は読み取りのみ）
+  'previewNoticeRestructureV376_75_LOG',
+  'applyNoticeRestructureV376_75_APPLY',
   // v376.71: ログイン失敗の時限解除（docs/261 T-04）の判定検証（読み取りのみ）
   'dryRunLoginLockoutV376_71_LOG',
   // v376.71: T_認証アカウント の列追加を既存行へ反映する（operator が 1 回実行・再実行可）

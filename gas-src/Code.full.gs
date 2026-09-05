@@ -10107,6 +10107,173 @@ function collectMissingMemberTypeNotices_(ss) {
   return MEMBER_TYPE_NOTICE_SEED.filter(function(s) { return !seen[s.target + '|' + s.title]; });
 }
 
+// v376.75: 注意事項の再編（operator 決定・2026-09-05）。
+// v376.74 で種別ごとに 15 件入れたところ、共通側と内容が重複した。
+// 「全種別に等しくかかること」を共通へ寄せ、種別ごとは「その種別でしか言えないこと」だけにする。
+//   共通へ移す : 入会について / 会費の一般条件（返還不可・振込先）/ 退会の手続き
+//   種別に残す : 年会費の額と単位 / 住所変更の手続き（事業所は内容が大きく異なる）/ 賛助の専門員番号
+// 既存の共通 3 件（会費の返還について・退会の締切・変更・退会の手続き）は新項目が内容を包含するため非公開にする。
+// 「変更・退会の手続き」に付いていた外部リンクは引き継がない（手続きは本システムで完結するため・operator 判断）。
+var NOTICE_RESTRUCTURE_V376_75 = {
+  // 共通へ追加する項目
+  add: [
+    { target: 'ALL', order: 1, title: '■ 入会について',
+      body: '○本会への入会を希望される方は、本フォームから入会の意向をお申し出ください。\n○お申込み後、役員の承認を得て会員となります。' },
+    { target: 'ALL', order: 2, title: '■ 会費について',
+      body: '○会員がすでに納入した会費は、いかなる理由においても返還いたしかねます。\n○年会費は郵便局への振込みにてお願いします。' },
+    { target: 'ALL', order: 3, title: '■ 退会の手続きについて',
+      body: '○退会される時は、必ず年度の切り替え前（3月末まで）に本システムから退会をお申し出ください。\n○ご連絡がない場合は、会員継続とさせていただき、当該年度の年会費の納入が必要となります。\n○また、会費につきましては、退会される年度の会費をお支払いいただいた上で、手続き完了とさせていただきます。' }
+  ],
+  // 非公開にする既存の共通項目（タイトルで特定する。行は消さず公開フラグだけ下ろす）
+  unpublishTitles: ['会費の返還について', '退会の締切', '変更・退会の手続き'],
+  // 種別ごとから取り除く項目（共通へ移したもの）
+  removeTitles: [
+    { target: 'INDIVIDUAL', title: '■ 入会について' },
+    { target: 'INDIVIDUAL', title: '■ 退会の手続きについて' },
+    { target: 'BUSINESS', title: '■ 入会について' },
+    { target: 'BUSINESS', title: '■ 退会の手続きについて' },
+    { target: 'SUPPORT', title: '■ 入会について' },
+    { target: 'SUPPORT', title: '■ 退会の手続きについて' }
+  ],
+  // 種別ごとに残す会費項目は「年会費の額と単位」だけにし、共通と名前がぶつからないよう改題する
+  rewrite: [
+    { target: 'INDIVIDUAL', from: '■ 会費について', title: '■ 年会費について',
+      body: '○個人会員は年会費として、{{年会費}}の納入をお願いします。' },
+    { target: 'BUSINESS', from: '■ 会費について', title: '■ 年会費について',
+      body: '○事業所会員は年会費として、1事業所につき{{年会費}}の納入をお願いします。\n○年度途中で介護支援専門員の人数に変更があった場合も、すでに納入した会費は、返還いたしかねます。' },
+    { target: 'SUPPORT', from: '■ 会費について', title: '■ 年会費について',
+      body: '○賛助会員は年会費として、1口につき{{年会費}}の納入をお願いします。' }
+  ]
+};
+
+// v376.75 operator ツール: 再編で何が起きるかを確認する（読み取りのみ）。
+function previewNoticeRestructureV376_75_LOG() {
+  var ss = getOrCreateDatabase_();
+  var rows = getRowsAsObjects_(ss, 'T_規程').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+  var plan = { add: [], unpublish: [], remove: [], rewrite: [], notFound: [] };
+
+  NOTICE_RESTRUCTURE_V376_75.add.forEach(function(a) {
+    var exists = rows.some(function(r) {
+      return String(r['対象会員種別']) === a.target && String(r['タイトル']) === a.title;
+    });
+    if (!exists) plan.add.push(a.target + ' ' + a.title);
+  });
+  NOTICE_RESTRUCTURE_V376_75.unpublishTitles.forEach(function(title) {
+    var hit = rows.filter(function(r) {
+      return String(r['タイトル']) === title && toBoolean_(r['公開フラグ']);
+    });
+    hit.forEach(function(r) { plan.unpublish.push(String(r['規程ID']) + ' ' + title); });
+    if (hit.length === 0) plan.notFound.push('非公開対象なし: ' + title);
+  });
+  NOTICE_RESTRUCTURE_V376_75.removeTitles.forEach(function(x) {
+    var hit = rows.filter(function(r) {
+      return String(r['対象会員種別']) === x.target && String(r['タイトル']) === x.title;
+    });
+    hit.forEach(function(r) { plan.remove.push(String(r['規程ID']) + ' ' + x.target + ' ' + x.title); });
+    if (hit.length === 0) plan.notFound.push('削除対象なし: ' + x.target + ' ' + x.title);
+  });
+  NOTICE_RESTRUCTURE_V376_75.rewrite.forEach(function(x) {
+    var hit = rows.filter(function(r) {
+      return String(r['対象会員種別']) === x.target && String(r['タイトル']) === x.from;
+    });
+    hit.forEach(function(r) { plan.rewrite.push(String(r['規程ID']) + ' ' + x.target + ' ' + x.from + ' → ' + x.title); });
+    if (hit.length === 0) plan.notFound.push('改題対象なし: ' + x.target + ' ' + x.from);
+  });
+
+  Logger.log('=== previewNoticeRestructureV376_75_LOG ===');
+  Logger.log(JSON.stringify(plan, null, 2));
+  return plan;
+}
+
+// v376.75 operator ツール: 再編を実施する。
+// 追加・非公開化・削除（論理削除）・本文の書き換えを 1 回で行う。
+// 対象は v376.74 で投入した行と、初期 seed の共通 3 件に限る。
+function applyNoticeRestructureV376_75_APPLY() {
+  var ss = getOrCreateDatabase_();
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var sheet = ss.getSheetByName('T_規程');
+    if (!sheet) throw new Error('T_規程 シートが見つかりません。');
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var cols = {};
+    for (var h = 0; h < headers.length; h += 1) cols[headers[h]] = h;
+    requireColumns_(cols, ['規程ID', 'タイトル', '本文', '対象会員種別', '表示順', '公開フラグ', '削除フラグ', '更新日時']);
+
+    var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+    var now = new Date().toISOString();
+    var result = { added: 0, unpublished: 0, removed: 0, rewritten: 0 };
+
+    for (var r = 0; r < data.length; r += 1) {
+      var row = data[r];
+      if (toBoolean_(row[cols['削除フラグ']])) continue;
+      var title = String(row[cols['タイトル']] || '');
+      var target = String(row[cols['対象会員種別']] || '');
+
+      if (NOTICE_RESTRUCTURE_V376_75.unpublishTitles.indexOf(title) >= 0 && toBoolean_(row[cols['公開フラグ']])) {
+        row[cols['公開フラグ']] = false;
+        row[cols['更新日時']] = now;
+        result.unpublished += 1;
+        continue;
+      }
+      var isRemoved = NOTICE_RESTRUCTURE_V376_75.removeTitles.some(function(x) {
+        return x.target === target && x.title === title;
+      });
+      if (isRemoved) {
+        row[cols['削除フラグ']] = true;
+        row[cols['公開フラグ']] = false;
+        row[cols['更新日時']] = now;
+        result.removed += 1;
+        continue;
+      }
+      for (var w = 0; w < NOTICE_RESTRUCTURE_V376_75.rewrite.length; w += 1) {
+        var rw = NOTICE_RESTRUCTURE_V376_75.rewrite[w];
+        if (rw.target === target && rw.from === title) {
+          row[cols['タイトル']] = rw.title;
+          row[cols['本文']] = rw.body;
+          row[cols['更新日時']] = now;
+          result.rewritten += 1;
+          break;
+        }
+      }
+    }
+    sheet.getRange(2, 1, data.length, sheet.getLastColumn()).setValues(data);
+
+    var existingIds = data.map(function(row) { return String(row[cols['規程ID']] || ''); });
+    var existingKeys = {};
+    data.forEach(function(row) {
+      if (!toBoolean_(row[cols['削除フラグ']])) {
+        existingKeys[String(row[cols['対象会員種別']]) + '|' + String(row[cols['タイトル']])] = true;
+      }
+    });
+    var newRows = [];
+    NOTICE_RESTRUCTURE_V376_75.add.forEach(function(a) {
+      if (existingKeys[a.target + '|' + a.title]) return;
+      var id = 'REG-C' + a.order;
+      while (existingIds.indexOf(id) >= 0) { id = id + 'X'; }
+      existingIds.push(id);
+      newRows.push({
+        '規程ID': id, '区分コード': 'NOTICE', 'タイトル': a.title, '本文': a.body,
+        '外部リンクURL': '', '外部リンク文言': '', '対象会員種別': a.target,
+        '版数': 1, '施行日': '', '表示順': a.order, '公開フラグ': true,
+        '更新者メール': '', '削除フラグ': false, '作成日時': now, '更新日時': now
+      });
+    });
+    if (newRows.length > 0) {
+      appendRowsByHeaders_(ss, 'T_規程', newRows);
+      result.added = newRows.length;
+    }
+
+    SpreadsheetApp.flush();
+    clearAllDataCache_();
+    Logger.log('=== applyNoticeRestructureV376_75_APPLY ===');
+    Logger.log(JSON.stringify(result, null, 2));
+    return result;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 // v376.74 operator ツール: 何が追加されるかを確認する（読み取りのみ・書き込みなし）。
 function previewMemberTypeNoticesV376_74_LOG() {
   var ss = getOrCreateDatabase_();
