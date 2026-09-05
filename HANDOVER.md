@@ -4,8 +4,8 @@
 
 ### 0. 30 秒で現状
 
-- **本番**: public **@385×2** / member **@144** / admin **@241**（**v376.76**）。4 本すべて同期確認済。
-  ロールバック先は public @382×2 / member @141 / admin @238（v376.73）。
+- **本番**: public **@386×2** / member **@145** / admin **@242**（**v376.77**）。4 本すべて同期確認済。
+  ロールバック先は public @385×2 / member @144 / admin @241（v376.76）。
 - **未 push・未デプロイの作業は無い**。**中断中の実装は無い**。
 - 直近セッション（2026-09-03〜04）でやったこと:
   仕様書 5 文書の巻き直し完了 → 旧仕様書 6 本を退避 → docs 直下を整理 →
@@ -14,7 +14,7 @@
   **仕様書 5 文書の整合確認**（`docs/267` §4。実装との食い違い 4 件を修正・トレーサビリティ一覧 `docs/268` を新設）→
   **v376.72**（研修申込IDの採番統一・スキーマ変更なし。`docs/269`）→
   **v376.73**（入会申込フローの公開前是正。重大 2・中 3・軽微 1 を修正 ＋ カナ受理範囲の拡大。`docs/270`）→
-  **v376.74〜.76**（入会申込に「注意事項」ステップを新設。種別ごとの案内を `T_規程` から出し分け。`docs/271`）。
+  **v376.74〜.77**（入会申込に「注意事項」ステップを新設。種別ごとの案内を `T_規程` から出し分け。`docs/271`）。
 - **未検証は無い**。v376.73 は公開・会員・管理の 3 ポータルすべてで live E2E が PASS（`docs/270` §5）。
 - **カナの一括変換は不要と確定**（2026-09-05）。dryRun で 435 行を走査し変換対象 0 件。
   既存データは全て全角カタカナだった（`docs/270` §8）。**operator 待ちの作業は無い**。
@@ -413,7 +413,7 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
   **GAS では作れても GCP へ移行できない仕様は採用しない（NG）**。設計時に「GCP では何で実装するか」を 1 行で書けることが設計完了の条件。
   判断表と NG パターンは `AGENTS.md` §4.8.2 / §4.8.3、決定の背景は `docs/06_DECISION_RECORDS.md`（2026-09-03）。
 
-- **本番**: public **@385×2** / member **@144** / admin **@241**（v376.76・§1）。全 fixed deployment 同期確認済。ロールバック先は public @382×2 / member @141 / admin @238（v376.73）。
+- **本番**: public **@386×2** / member **@145** / admin **@242**（v376.77・§1）。全 fixed deployment 同期確認済。ロールバック先は public @385×2 / member @144 / admin @241（v376.76）。
 - **v376.64 の検証は完了**（管理セッション再取得後に実施）: admin responsive 56 view・メール設定 E2E 5/5・`dryRunMembershipFeeV376_64_LOG` が `passed:true` / `restored:true`。公開側は入会申込カードに 3,000 / 8,000 / 5,000 円の表示を実測。
 - **検証状況は 1 ページで見られる**: [`docs/portal/test-report.html`](docs/portal/test-report.html)（31 行・PASS 30・FAIL 0・要フォロー 1）。再生成は `npm run report:tests`。
 - **文書の入口**: [`docs/00_DOC_INDEX.md`](docs/00_DOC_INDEX.md)。2026-09-04 時点で `docs/` 直下は現役 36 文書のみ・完了記録 237 件は [`docs/archive/`](docs/archive/00_ARCHIVE_INDEX.md) へ移した。**仕様の正本は `docs/spec/` の 5 文書**。
@@ -450,10 +450,10 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 
 | 配信 | Deployment ID | Version |
 |---|---|---|
-| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@385** |
-| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@385** |
-| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@144** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@241** |
+| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@386** |
+| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@386** |
+| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@145** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@242** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 
