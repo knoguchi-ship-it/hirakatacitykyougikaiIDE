@@ -15,10 +15,10 @@
   **v376.72**（研修申込IDの採番統一・スキーマ変更なし。`docs/269`）→
   **v376.73**（入会申込フローの公開前是正。重大 2・中 3・軽微 1 を修正 ＋ カナ受理範囲の拡大。`docs/270`）。
 - **未検証は無い**。v376.73 は公開・会員・管理の 3 ポータルすべてで live E2E が PASS（`docs/270` §5）。
-- **operator 作業が 1 件残っている**: 既存データのカナ一括変換
-  （admin エディタで `backfillKanaToFullwidth()` → `_APPLY()`。`docs/270` §8）。
+- **カナの一括変換は不要と確定**（2026-09-05）。dryRun で 435 行を走査し変換対象 0 件。
+  既存データは全て全角カタカナだった（`docs/270` §8）。**operator 待ちの作業は無い**。
 - **検証は 1 ページで見られる**: [`docs/portal/test-report.html`](docs/portal/test-report.html)
-  （28 行・PASS 27・FAIL 0・要フォロー 1）。再生成は `npm run report:tests`。
+  （29 行・PASS 28・FAIL 0・要フォロー 1）。再生成は `npm run report:tests`。
 
 ### 1. 作業開始時にやること（毎回・順番どおり）
 
@@ -414,7 +414,7 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 
 - **本番**: public **@382×2** / member **@141** / admin **@238**（v376.73・§1）。全 fixed deployment 同期確認済。ロールバック先は public @381×2 / member @140 / admin @237（v376.72）。
 - **v376.64 の検証は完了**（管理セッション再取得後に実施）: admin responsive 56 view・メール設定 E2E 5/5・`dryRunMembershipFeeV376_64_LOG` が `passed:true` / `restored:true`。公開側は入会申込カードに 3,000 / 8,000 / 5,000 円の表示を実測。
-- **検証状況は 1 ページで見られる**: [`docs/portal/test-report.html`](docs/portal/test-report.html)（28 行・PASS 27・FAIL 0・要フォロー 1）。再生成は `npm run report:tests`。
+- **検証状況は 1 ページで見られる**: [`docs/portal/test-report.html`](docs/portal/test-report.html)（29 行・PASS 28・FAIL 0・要フォロー 1）。再生成は `npm run report:tests`。
 - **文書の入口**: [`docs/00_DOC_INDEX.md`](docs/00_DOC_INDEX.md)。2026-09-04 時点で `docs/` 直下は現役 36 文書のみ・完了記録 237 件は [`docs/archive/`](docs/archive/00_ARCHIVE_INDEX.md) へ移した。**仕様の正本は `docs/spec/` の 5 文書**。
 - **直近セッション（2026-09-02）の成果** — 本番 GAS 側で 3 リリース。詳細は `docs/release-notes-2026.md` と各 release state:
   - **v376.60** メール設定・自動送信の是正（前セッション分）。**残っていた検証負債を全て解消**し、テスト記録は全 13 行 PASS になった。

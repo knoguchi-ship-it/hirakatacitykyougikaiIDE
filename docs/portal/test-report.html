@@ -47,7 +47,7 @@
 <div class="wrap">
 <header>
   <h1>テスト結果レポート</h1>
-  <p class="sub">枚方市介護支援専門員連絡協議会 会員システム / 生成 2026-09-05 01:28:58 UTC</p>
+  <p class="sub">枚方市介護支援専門員連絡協議会 会員システム / 生成 2026-09-05 01:33:32 UTC</p>
 </header>
 
 <section>
@@ -62,7 +62,7 @@
 </section>
 
 <div class="cards">
-  <div class="card ok"><div class="n">27</div><div class="l">PASS</div></div>
+  <div class="card ok"><div class="n">28</div><div class="l">PASS</div></div>
   <div class="card ng"><div class="n">0</div><div class="l">FAIL</div></div>
   <div class="card warn"><div class="n">1</div><div class="l">要フォロー</div></div>
   <div class="card"><div class="n">0</div><div class="l">未実行</div></div>
@@ -185,6 +185,12 @@
         <td><span class="badge ok">PASS</span></td>
         <td class="when">2026-09-04 12:07</td>
         <td>passed=true。11 チェック全 PASS（段階的な待機・60分上限・連続20回で恒久ロック・待機超過の自動解除・恒久ロックは時間で解けない・解除予定が空の旧データは解除対象・列の存在）。</td>
+      </tr>
+      <tr>
+        <td><div class="name">既存データのカナ保存形式の確認（一括変換 dryRun）</div><div class="how">admin エディタで backfillKanaToFullwidth()（dryRun=true・書き込みなし）</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-05 10:32</td>
+        <td>T_会員 243 / T_事業所職員 189 / T_外部申込者 3 = 計 435 行を走査し、変換が必要な行は 0 件・errors 0。既存データは全て全角カタカナで、_APPLY の実行は不要と確認した。</td>
       </tr>
     </tbody>
   </table>

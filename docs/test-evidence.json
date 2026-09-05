@@ -185,6 +185,15 @@
       "when": "2026-09-02 14:10",
       "status": "PARTIAL",
       "detail": "件数 5/5・ID 集合・並び順一致、date は全件一致。31 フィールド中 endTime のみ差分（T001/T004/T473A9682）＝Firestore ミラーが復元前スナップショットのため。マッピング不一致ではない。解消には T_研修 の再同期が必要（保留中）"
+    },
+    {
+      "id": "KANA-BACKFILL-73",
+      "group": "管理ポータル（operator 実行）",
+      "name": "既存データのカナ保存形式の確認（一括変換 dryRun）",
+      "how": "admin エディタで backfillKanaToFullwidth()（dryRun=true・書き込みなし）",
+      "when": "2026-09-05 10:32",
+      "status": "PASS",
+      "detail": "T_会員 243 / T_事業所職員 189 / T_外部申込者 3 = 計 435 行を走査し、変換が必要な行は 0 件・errors 0。既存データは全て全角カタカナで、_APPLY の実行は不要と確認した。"
     }
   ]
 }
