@@ -187,3 +187,73 @@ test('ロック解除は監査ログに残す（秘密値は書かない）', ()
   assert.ok(!/パスワード['"]?\s*[:+]/.test(body.replace(/パスワードは変更していない/g, '')),
     '監査ログにパスワードを書いている');
 });
+
+// ── v376.79: 状態遷移をつなげた検証（単体では通るが、つながると成立しなかった穴）──
+//
+// v376.71〜.78 は待機満了時に失敗回数まで 0 に戻していたため、カウントが 3 を超えられず
+// 段階的な待機（4回=5分 / 5回=15分 / 6回以降=60分）と恒久ロック（20回）へ到達しなかった。
+// 各関数は単体では正しく、**つなげたときだけ**破綻していたので、ここでは
+// 「失敗 → ロック → 待機満了 → 再試行」を実際に回して確認する。
+
+/** memberLogin_ / applyLoginFailure_ の状態遷移を、実ソースの判定関数を使って再現する */
+function simulate(attempts: number, opts: { waitOutLock: boolean }): { maxFailed: number; permanentReached: boolean } {
+  const state = { locked: false, failed: 0, lockUntil: '' };
+  let now = Date.parse('2026-09-05T00:00:00Z');
+  let maxFailed = 0;
+  let permanentReached = false;
+
+  for (let i = 0; i < attempts; i += 1) {
+    const lock = api.evaluateLoginLockState_(state.locked, state.failed, state.lockUntil, now);
+    if (lock.locked && lock.expired) {
+      // v376.79: ロックだけ解除し、失敗回数は保持する
+      state.locked = false;
+      state.lockUntil = '';
+    } else if (lock.locked) {
+      if (lock.permanent) permanentReached = true;
+      // ロック中の試行は失敗回数を増やさない
+      now += 1000;
+      continue;
+    }
+    // applyLoginFailure_ 相当
+    state.failed += 1;
+    const wait = api.loginLockoutWaitMinutes_(state.failed);
+    const permanent = api.isLoginLockoutPermanent_(state.failed);
+    state.locked = permanent || wait > 0;
+    state.lockUntil = state.locked && !permanent ? new Date(now + wait * 60000).toISOString() : '';
+    if (permanent) permanentReached = true;
+    maxFailed = Math.max(maxFailed, state.failed);
+
+    now = opts.waitOutLock && state.locked && state.lockUntil
+      ? Date.parse(state.lockUntil) + 1000   // 攻撃者は待機満了を待って再開する
+      : now + 1000;
+  }
+  return { maxFailed, permanentReached };
+}
+
+test('待機満了で失敗回数を 0 に戻さない（段階的な待機が機能する）', () => {
+  const { maxFailed } = simulate(30, { waitOutLock: true });
+  assert.ok(maxFailed >= 6,
+    `連続失敗が ${maxFailed} までしか伸びない。待機満了でカウントが消えている疑い（v376.79 の退行）`);
+});
+
+test('待機を挟んで試行を続ければ恒久ロックに到達する', () => {
+  const { permanentReached } = simulate(80, { waitOutLock: true });
+  assert.equal(permanentReached, true,
+    '恒久ロック（連続 20 回）へ到達しない。設定が死んでいる');
+});
+
+test('ロック中に連打しても失敗回数は増えない（待たされ損にしない）', () => {
+  const { maxFailed } = simulate(60, { waitOutLock: false });
+  assert.equal(maxFailed, 3,
+    `ロック中の試行が失敗回数を増やしている（${maxFailed}）。正当な利用者の連打で恒久ロックに落ちる`);
+});
+
+test('待機満了はロックだけを解除し、失敗回数は残す', () => {
+  const release = extractFunction('releaseLoginLockKeepingFailures_');
+  assert.ok(/ロック状態/.test(release), 'ロック状態を解除していない');
+  assert.ok(/ロック解除予定日時/.test(release), '解除予定日時を消していない');
+  assert.ok(!/ログイン失敗回数/.test(release), '失敗回数まで戻している（段階的な待機が働かなくなる）');
+
+  const login = extractFunction('memberLogin_');
+  assert.ok(/releaseLoginLockKeepingFailures_/.test(login), '待機満了で失敗回数を保持していない');
+});

@@ -3711,7 +3711,11 @@ function evaluateLoginLockState_(lockedFlag, failedCount, lockUntilIso, nowMs) {
 
 // 認証失敗を 1 回加算して必要ならロックする。シートへの書き込みまで行い、新しい状態を返す。
 
-// 認証成功・自動解除・管理者解除で使う。失敗回数とロックを完全に戻す。
+// v376.79: 待機満了時に使う。**ロックだけ**を解除し、失敗回数は残す。
+// 失敗回数まで戻すと段階的な待機と恒久ロックに到達しなくなるため、
+// カウントのリセットは clearLoginLockout_（ログイン成功・管理者解除）に限る。
+
+// 認証成功・管理者解除で使う。失敗回数とロックを完全に戻す。
 function clearLoginLockout_(sheet, rowNumber, columns) {
   if (columns['ログイン失敗回数'] != null) {
     sheet.getRange(rowNumber, columns['ログイン失敗回数'] + 1).setValue(0);

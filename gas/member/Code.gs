@@ -2317,7 +2317,9 @@ function resolvePasswordAuthContextByLoginId_(ss, loginId) {
     if (!selfLockState.expired) {
       throw new Error('アカウントがロックされています。');
     }
-    clearLoginLockout_(authSheet, authRowInfo.rowNumber, cols);
+    // v376.79: ここでも失敗回数は保持する（memberLogin_ と挙動を揃える）。
+    // 以前は 0 に戻していたため、パスワード再設定の導線を叩くだけでカウントを消せた。
+    releaseLoginLockKeepingFailures_(authSheet, authRowInfo.rowNumber, cols);
   }
   return {
     authSheet: authSheet,
@@ -2745,7 +2747,19 @@ function applyLoginFailure_(sheet, rowNumber, columns, previousFailedCount, nowM
   return { failedCount: failedCount, locked: locked, permanent: permanent, waitMinutes: waitMinutes, lockUntil: lockUntilIso };
 }
 
-// 認証成功・自動解除・管理者解除で使う。失敗回数とロックを完全に戻す。
+// v376.79: 待機満了時に使う。**ロックだけ**を解除し、失敗回数は残す。
+// 失敗回数まで戻すと段階的な待機と恒久ロックに到達しなくなるため、
+// カウントのリセットは clearLoginLockout_（ログイン成功・管理者解除）に限る。
+function releaseLoginLockKeepingFailures_(sheet, rowNumber, columns) {
+  if (columns['ロック状態'] != null) {
+    sheet.getRange(rowNumber, columns['ロック状態'] + 1).setValue(false);
+  }
+  if (columns['ロック解除予定日時'] != null) {
+    sheet.getRange(rowNumber, columns['ロック解除予定日時'] + 1).setValue('');
+  }
+}
+
+// 認証成功・管理者解除で使う。失敗回数とロックを完全に戻す。
 function clearLoginLockout_(sheet, rowNumber, columns) {
   if (columns['ログイン失敗回数'] != null) {
     sheet.getRange(rowNumber, columns['ログイン失敗回数'] + 1).setValue(0);
@@ -2815,11 +2829,19 @@ function memberLogin_(request) {
   var lockState = evaluateLoginLockState_(
     isLocked, failedCount, columns['ロック解除予定日時'] != null ? row[columns['ロック解除予定日時']] : '', loginNowMs);
   if (lockState.locked && lockState.expired) {
-    // 待機時間を過ぎたので自動解除する。失敗回数も 0 に戻す（連続失敗のカウントであるため）。
-    clearLoginLockout_(authSheet, authRowInfo.rowNumber, columns);
-    failedCount = 0;
+    // v376.79: 待機時間を過ぎたら**ロックだけ**を解除し、失敗回数は保持する。
+    //
+    // v376.71〜.78 はここで失敗回数も 0 に戻していたため、カウントが 3 を超えられず
+    // 段階的な待機（4回=5分 / 5回=15分 / 6回以降=60分）と恒久ロック（20回）に
+    // 到達しなかった（実質「3 回失敗で 1 分待ち」の固定で、1 分あたり 3 回の総当たりを
+    // 無期限に続けられる状態だった）。
+    //
+    // 失敗回数を 0 に戻すのは **ログイン成功時**（正当な利用者であることが確認できたとき）と
+    // **管理者による解除時**のみとする。これが「連続失敗のカウント」の本来の意味。
+    releaseLoginLockKeepingFailures_(authSheet, authRowInfo.rowNumber, columns);
     lockState = { locked: false, permanent: false, expired: false };
-    appendLoginHistory_(ss, authId, loginId, 'PASSWORD', 'FAILURE', 'ロック自動解除');
+    appendLoginHistory_(ss, authId, loginId, 'PASSWORD', 'FAILURE',
+      'ロック自動解除（失敗 ' + failedCount + ' 回は保持）');
   }
   if (lockState.locked) {
     appendLoginHistory_(ss, authId, loginId, 'PASSWORD', 'FAILURE',
