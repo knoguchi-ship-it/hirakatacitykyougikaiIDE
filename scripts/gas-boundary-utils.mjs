@@ -46,6 +46,9 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   'dryRunMailMergeTagsV376_66_LOG',
   // v376.68: 汎用データエクスポートの権限ガード検証（読み取りのみ）
   'dryRunDataExportV376_68_LOG',
+  // v376.74: 会員種別ごとの注意事項の初期投入（確認は読み取りのみ・投入は追記のみで既存を上書きしない）
+  'previewMemberTypeNoticesV376_74_LOG',
+  'seedMemberTypeNoticesV376_74_APPLY',
   // v376.71: ログイン失敗の時限解除（docs/261 T-04）の判定検証（読み取りのみ）
   'dryRunLoginLockoutV376_71_LOG',
   // v376.71: T_認証アカウント の列追加を既存行へ反映する（operator が 1 回実行・再実行可）

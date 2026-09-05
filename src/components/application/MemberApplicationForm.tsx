@@ -13,6 +13,7 @@ import type { ApplicationMemberType } from './types';
 import { api } from '../../services/api';
 import PostalCodeInput from '../PostalCodeInput';
 import { normalizeKana, normalizeAndValidateKana } from '../../utils/kanaNormalize';
+import { renderRegulationBody } from '../../shared/regulationText';
 
 interface MemberApplicationFormProps {
   // v376.65: 規程・重要事項（正本は T_規程。空配列のときは従来のハードコード文面へフォールバック）
@@ -38,9 +39,11 @@ interface MemberApplicationFormProps {
   completionCredentialNotice?: string;
 }
 
-const STEPS_INDIVIDUAL = ['会員種別', '基本情報', '住所・連絡情報', '入力確認'];
-const STEPS_BUSINESS = ['会員種別', '事業所情報', '職員登録', '入力確認'];
-const STEPS_SUPPORT = ['会員種別', '基本情報', '住所・連絡情報', '入力確認'];
+// v376.74: 会員種別を選んだ直後に「注意事項」ステップを置く。
+// 種別ごとの案内（T_規程 の 対象会員種別）は、種別が決まらないと出せないため。
+const STEPS_INDIVIDUAL = ['会員種別', '注意事項', '基本情報', '住所・連絡情報', '入力確認'];
+const STEPS_BUSINESS = ['会員種別', '注意事項', '事業所情報', '職員登録', '入力確認'];
+const STEPS_SUPPORT = ['会員種別', '注意事項', '基本情報', '住所・連絡情報', '入力確認'];
 
 function getStepLabels(type: ApplicationMemberType | ''): string[] {
   if (type === 'BUSINESS') return STEPS_BUSINESS;
@@ -222,14 +225,17 @@ function validateStep(step: number, form: ApplicationFormData): ValidationErrors
     return errs;
   }
 
+  // step 1 = 注意事項。入力値ではなく画面の状態（チェックの有無）なので handleNext 側で判定する
+  if (step === 1) return errs;
+
   if (t === 'BUSINESS') {
-    if (step === 1) return validateBusinessOffice(form, errs);
-    if (step === 2) return validateBusinessStaff(form, errs);
-    if (step === 3) return validateConfirmation(form, errs);
+    if (step === 2) return validateBusinessOffice(form, errs);
+    if (step === 3) return validateBusinessStaff(form, errs);
+    if (step === 4) return validateConfirmation(form, errs);
   } else {
-    if (step === 1) return validatePersonalInfo(form, errs);
-    if (step === 2) return validateAddressAndContact(form, errs);
-    if (step === 3) return validateConfirmation(form, errs);
+    if (step === 2) return validatePersonalInfo(form, errs);
+    if (step === 3) return validateAddressAndContact(form, errs);
+    if (step === 4) return validateConfirmation(form, errs);
   }
   return errs;
 }
@@ -373,19 +379,20 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [result, setResult] = useState<ApplicationResult | null>(null);
   const [noticeAccepted, setNoticeAccepted] = useState(false);
-  const [noticeDialogOpen, setNoticeDialogOpen] = useState(false);
+  // v376.74: 注意事項ステップは 2 段構成。
+  //   上段 = 全種別共通（対象 ALL）… 従来の重要事項ダイアログと同じ見せ方
+  //   下段 = 選んだ種別あて（対象 INDIVIDUAL / BUSINESS / SUPPORT）
+  // 並び順はいずれも T_規程.表示順（管理画面から並べ替えられる）。
+  const bySortOrder = (a: { sortOrder: number }, b: { sortOrder: number }) =>
+    (a.sortOrder || 0) - (b.sortOrder || 0);
+  const commonNoticeItems = noticeItems.filter((r) => r.target === 'ALL').sort(bySortOrder);
+  const commonRegulationItems = regulationItems.filter((r) => r.target === 'ALL').sort(bySortOrder);
+  const memberTypeNoticeItems = regulationList
+    .filter((r) => r.target !== 'ALL' && r.target === form.memberType)
+    .sort(bySortOrder);
 
   const stepLabels = getStepLabels(form.memberType);
   const totalSteps = stepLabels.length;
-
-  useEffect(() => {
-    if (!noticeDialogOpen) return undefined;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setNoticeDialogOpen(false);
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [noticeDialogOpen]);
 
   const set = useCallback(<K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -441,6 +448,12 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
 
   const handleNext = () => {
     const errs = validateStep(step, form);
+    // v376.74: 注意事項ステップはチェックが入るまで先へ進めない。
+    // 旧実装は会員種別カードを disabled にして止めていたが、種別ごとの案内は
+    // 種別が決まった後にしか出せないため、ゲートをこのステップへ移した。
+    if (step === 1 && !noticeAccepted) {
+      errs._notice = '注意事項を確認し、チェックを入れてください。';
+    }
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
       return;
@@ -470,10 +483,8 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
   };
 
   const handleSelectType = (t: ApplicationMemberType) => {
-    if (!noticeAccepted) {
-      setErrors(prev => ({ ...prev, memberType: '事務局からのお願いをご確認のうえ、チェックを入れてください。' }));
-      return;
-    }
+    // v376.74: 種別選択のゲート（重要事項の事前確認）は撤去した。
+    // 確認は次の「注意事項」ステップで行う（種別ごとの案内を含めて読ませるため）。
     setForm(
       t === 'BUSINESS'
         ? createBusinessFormData()
@@ -618,160 +629,10 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
     if (step === 0) {
       return (
         <div className="space-y-6">
-          <section className="rounded-2xl border border-amber-200 bg-[linear-gradient(135deg,#fffaf0_0%,#ffffff_68%)] px-5 py-5 shadow-sm">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">事務局からのお願い（ご入会にあたって）</h3>
-                <p className="mt-1 text-sm text-slate-600">
-                  入会手続きの前に、重要事項をご確認ください。
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setNoticeDialogOpen(true)}
-                className="inline-flex min-h-[44px] items-center justify-center rounded-full border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-800 transition hover:border-amber-400 hover:bg-amber-50"
-              >
-                重要事項を確認する
-              </button>
-            </div>
-            <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
-              <span className={`inline-flex items-center rounded-full px-3 py-1 font-medium ${
-                noticeAccepted ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
-              }`}>
-                {noticeAccepted ? '確認済み' : '未確認'}
-              </span>
-              <p className="text-slate-600">
-                会員種別の選択前に、ダイアログ内の内容をご確認ください。
-              </p>
-            </div>
-          </section>
-
-          {noticeDialogOpen && (
-            <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-slate-900/45 px-3 py-3 sm:items-center sm:px-4 sm:py-6">
-              <div
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="membership-notice-title"
-                className="flex max-h-[100dvh] sm:max-h-[90dvh] w-full max-w-3xl flex-col overflow-hidden rounded-[20px] sm:rounded-[28px] border border-slate-200 bg-white shadow-2xl"
-              >
-                <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6 sm:py-5">
-                  <div>
-                    <h4 id="membership-notice-title" className="text-xl font-bold text-slate-900">
-                      事務局からのお願い（ご入会にあたって）
-                    </h4>
-                    <p className="mt-1 text-sm text-slate-600">
-                      重要事項をご確認のうえ、内容を理解された場合のみ入会申込へお進みください。
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setNoticeDialogOpen(false)}
-                    aria-label="ダイアログを閉じる"
-                    className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:text-slate-800"
-                  >
-                    閉じる
-                  </button>
-                </div>
-
-                <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6 sm:py-6">
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    {noticeItems.map(item => (
-                      <div key={item.id} className="rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-sm">
-                        <p className="text-sm font-semibold text-slate-900">{item.title}</p>
-                        <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-600">{item.body}</p>
-                        {item.effectiveDate && (
-                          <p className="mt-2 text-xs text-slate-400">{item.effectiveDate} 施行（第 {item.version} 版）</p>
-                        )}
-                        {item.linkUrl && (
-                          <a
-                            href={item.linkUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="mt-4 inline-flex min-h-[44px] items-center rounded-full border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-semibold text-primary-700 transition hover:border-primary-300 hover:bg-primary-100"
-                          >
-                            {item.linkLabel || 'くわしく見る'}
-                          </a>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  {regulationItems.map(item => (
-                    <div key={item.id} className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">{item.title}</p>
-                          <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-600">{item.body}</p>
-                          {item.effectiveDate && (
-                            <p className="mt-2 text-xs text-slate-400">{item.effectiveDate} 施行（第 {item.version} 版）</p>
-                          )}
-                        </div>
-                        {item.linkUrl && (
-                          <a
-                            href={item.linkUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:text-slate-900"
-                          >
-                            {item.linkLabel || '内容を確認する'}
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-
-                  <label className="mt-5 flex items-start gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-4">
-                    <input
-                      type="checkbox"
-                      checked={noticeAccepted}
-                      onChange={e => {
-                        setNoticeAccepted(e.target.checked);
-                        setErrors(prev => {
-                          const next = { ...prev };
-                          delete next.memberType;
-                          return next;
-                        });
-                      }}
-                      className="mt-1 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                    />
-                    <span className="text-sm leading-6 text-slate-700">
-                      上記のお願いを確認し、会費の返還条件、個人情報の利用目的、変更・退会手続き、退会期限、定款確認導線を理解しました。
-                    </span>
-                  </label>
-                </div>
-
-                <div className="flex shrink-0 flex-col-reverse gap-3 border-t border-slate-200 bg-white px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-between sm:px-6">
-                  <button
-                    type="button"
-                    onClick={() => setNoticeDialogOpen(false)}
-                    className="inline-flex min-h-[44px] items-center justify-center rounded-full border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-400"
-                  >
-                    閉じる
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setNoticeAccepted(true);
-                      setErrors(prev => {
-                        const next = { ...prev };
-                        delete next.memberType;
-                        return next;
-                      });
-                      setNoticeDialogOpen(false);
-                    }}
-                    className="inline-flex min-h-[44px] items-center justify-center rounded-full bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-700"
-                  >
-                    内容を確認して閉じる
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
           <div className="text-center mb-8">
             <h3 className="text-xl font-bold text-slate-800 mb-2">会員種別を選択してください</h3>
             <p className="text-sm text-slate-500">
-              ご自身に該当する種別をお選びください。{!noticeAccepted && '先に上記の確認チェックをお願いします。'}
+              ご自身に該当する種別をお選びください。選択すると、種別ごとのご案内が表示されます。
             </p>
           </div>
           {errors.memberType && <p className={errorClass + ' text-center'}>{errors.memberType}</p>}
@@ -784,20 +645,17 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
               <button
                 key={item.type}
                 onClick={() => handleSelectType(item.type)}
-                disabled={!noticeAccepted}
                 className={`p-6 rounded-xl border-2 text-left transition-all ${
-                  !noticeAccepted
-                    ? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400'
-                    : form.memberType === item.type
-                      ? 'border-primary-500 bg-primary-50 hover:shadow-md'
-                      : 'border-slate-200 hover:border-primary-500 hover:shadow-md'
+                  form.memberType === item.type
+                    ? 'border-primary-500 bg-primary-50 hover:shadow-md'
+                    : 'border-slate-200 hover:border-primary-500 hover:shadow-md'
                 }`}
               >
                 <div className="text-3xl mb-3">{item.icon}</div>
-                <h4 className={`font-bold mb-1 ${noticeAccepted ? 'text-slate-800' : 'text-slate-500'}`}>{item.label}</h4>
-                <p className={`text-xs ${noticeAccepted ? 'text-slate-500' : 'text-slate-400'}`}>{item.desc}</p>
+                <h4 className="font-bold mb-1 text-slate-800">{item.label}</h4>
+                <p className="text-xs text-slate-500">{item.desc}</p>
                 {showMemberTypeFees && (
-                  <p className={`mt-3 border-t pt-2 text-sm font-semibold ${noticeAccepted ? 'border-slate-200 text-primary-700' : 'border-slate-200 text-slate-400'}`}>
+                  <p className="mt-3 border-t border-slate-200 pt-2 text-sm font-semibold text-primary-700">
                     <span className="mr-1 text-xs font-medium text-slate-500">年会費</span>
                     {formatFeeAmount(fees[item.type])}
                   </p>
@@ -816,8 +674,124 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
       );
     }
 
-    // ── 個人 / 賛助: Step 1 = 基本情報 ──────────────────────
-    if (form.memberType !== 'BUSINESS' && step === 1) {
+    // ── Step 1 = 注意事項（v376.74 新設・全種別共通）────────────────
+    // 上段は従来の「重要事項ダイアログ」の中身をそのまま移したもの（全種別共通＝対象 ALL）。
+    // 下段に、選んだ種別あての案内（対象 = INDIVIDUAL / BUSINESS / SUPPORT）を足す。
+    // 文面の追加・編集・削除は 管理 → 設定 → 規程・重要事項 から行う（コードに文面を持たない）。
+    if (step === 1) {
+      return (
+        <div className="space-y-6">
+          <div>
+            <h3 className="text-lg font-bold text-slate-800">事務局からのお願い（ご入会にあたって）</h3>
+            <p className="mt-1 text-sm text-slate-600">
+              ご入会にあたって大切な内容です。最後までお読みください。
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {commonNoticeItems.map(item => (
+              <div key={item.id} className="rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5">
+                <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-600">
+                  {renderRegulationBody(item.body, form.memberType, fees)}
+                </p>
+                {item.effectiveDate && (
+                  <p className="mt-2 text-xs text-slate-400">{item.effectiveDate} 施行（第 {item.version} 版）</p>
+                )}
+                {item.linkUrl && (
+                  <a
+                    href={item.linkUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-4 inline-flex min-h-[44px] items-center rounded-full border border-primary-200 bg-primary-50 px-3 py-1.5 text-sm font-medium text-primary-700 hover:bg-primary-100"
+                  >
+                    {item.linkLabel || 'くわしく見る'}
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {commonRegulationItems.map(item => (
+            <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                  <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                    {renderRegulationBody(item.body, form.memberType, fees)}
+                  </p>
+                  {item.effectiveDate && (
+                    <p className="mt-2 text-xs text-slate-400">{item.effectiveDate} 施行（第 {item.version} 版）</p>
+                  )}
+                </div>
+                {item.linkUrl && (
+                  <a
+                    href={item.linkUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                  >
+                    {item.linkLabel || '内容を確認する'}
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {memberTypeNoticeItems.length > 0 && (
+            <div className="space-y-4 border-t border-slate-200 pt-6">
+              <h4 className="text-base font-bold text-slate-900">
+                {form.memberType ? `${memberTypeLabel(form.memberType)}について` : '会員種別ごとのご案内'}
+              </h4>
+              {memberTypeNoticeItems.map(item => (
+                <section key={item.id} className="rounded-2xl border border-slate-200 bg-white p-5">
+                  <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-700">
+                    {renderRegulationBody(item.body, form.memberType, fees)}
+                  </p>
+                  {item.effectiveDate && (
+                    <p className="mt-2 text-xs text-slate-400">{item.effectiveDate} 施行（第 {item.version} 版）</p>
+                  )}
+                  {item.linkUrl && (
+                    <a
+                      href={item.linkUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-4 inline-flex min-h-[44px] items-center rounded-full border border-primary-200 bg-primary-50 px-4 py-2 text-sm font-medium text-primary-700 hover:bg-primary-100"
+                    >
+                      {item.linkLabel || '内容を確認する'}
+                    </a>
+                  )}
+                </section>
+              ))}
+            </div>
+          )}
+
+          <label className="flex items-start gap-3 rounded-2xl border border-slate-300 bg-white px-4 py-4">
+            <input
+              type="checkbox"
+              checked={noticeAccepted}
+              onChange={e => {
+                setNoticeAccepted(e.target.checked);
+                setErrors(prev => {
+                  const next = { ...prev };
+                  delete next._notice;
+                  return next;
+                });
+              }}
+              className="mt-1 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+            />
+            <span className="text-sm leading-6 text-slate-700">
+              上記のお願いと会員種別ごとのご案内を確認し、会費の返還条件、個人情報の利用目的、変更・退会手続き、退会期限、定款確認導線を理解しました。
+            </span>
+          </label>
+          {errors._notice && <p className={errorClass}>{errors._notice}</p>}
+        </div>
+      );
+    }
+
+    // ── 個人 / 賛助: Step 2 = 基本情報 ──────────────────────
+    if (form.memberType !== 'BUSINESS' && step === 2) {
       return (
         <div className="space-y-6">
           <h3 className="text-lg font-bold text-slate-800">基本情報</h3>
@@ -855,8 +829,8 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
       );
     }
 
-    // ── 個人 / 賛助: Step 2 = 住所・連絡情報 ──────────────────────
-    if (form.memberType !== 'BUSINESS' && step === 2) {
+    // ── 個人 / 賛助: Step 3 = 住所・連絡情報 ──────────────────────
+    if (form.memberType !== 'BUSINESS' && step === 3) {
       const dest = form.preferredMailDestination;
       const isOfficeDest = dest === 'OFFICE';
       const isHomeDest = dest === 'HOME';
@@ -1238,8 +1212,8 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
       );
     }
 
-    // ── 事業所: Step 1 = 事業所情報 ─────────────────────────
-    if (form.memberType === 'BUSINESS' && step === 1) {
+    // ── 事業所: Step 2 = 事業所情報 ─────────────────────────
+    if (form.memberType === 'BUSINESS' && step === 2) {
       return (
         <div className="space-y-6">
           <h3 className="text-lg font-bold text-slate-800">事業所情報</h3>
@@ -1312,8 +1286,8 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
       );
     }
 
-    // ── 事業所: Step 2 = 職員登録 ──────────────────────────
-    if (form.memberType === 'BUSINESS' && step === 2) {
+    // ── 事業所: Step 3 = 職員登録 ──────────────────────────
+    if (form.memberType === 'BUSINESS' && step === 3) {
       return (
         <div className="space-y-6">
           <div>

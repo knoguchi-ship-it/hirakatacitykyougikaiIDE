@@ -302,6 +302,67 @@ function dryRunMembershipFeeV376_64_LOG() {
   return report;
 }
 
+function previewMemberTypeNoticesV376_74_LOG() {
+  var ss = getOrCreateDatabase_();
+  var missing = collectMissingMemberTypeNotices_(ss);
+  var summary = {
+    seedTotal: MEMBER_TYPE_NOTICE_SEED.length,
+    willAdd: missing.length,
+    alreadyPresent: MEMBER_TYPE_NOTICE_SEED.length - missing.length,
+    items: missing.map(function(s) { return { target: s.target, order: s.order, title: s.title }; })
+  };
+  Logger.log('=== previewMemberTypeNoticesV376_74_LOG ===');
+  Logger.log(JSON.stringify(summary, null, 2));
+  return summary;
+}
+
+function seedMemberTypeNoticesV376_74_APPLY() {
+  var ss = getOrCreateDatabase_();
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var missing = collectMissingMemberTypeNotices_(ss);
+    if (missing.length === 0) {
+      Logger.log('=== seedMemberTypeNoticesV376_74_APPLY === 追加なし（すべて登録済み）');
+      return { added: 0 };
+    }
+    var existingIds = getRowsAsObjects_(ss, 'T_規程').map(function(r) { return String(r['規程ID'] || ''); });
+    var now = new Date().toISOString();
+    var rows = [];
+    for (var i = 0; i < missing.length; i += 1) {
+      var s = missing[i];
+      var id = 'REG-' + s.order;
+      while (existingIds.indexOf(id) >= 0) { id = id + 'X'; }
+      existingIds.push(id);
+      rows.push({
+        '規程ID': id,
+        '区分コード': 'NOTICE',
+        'タイトル': s.title,
+        '本文': s.body,
+        '外部リンクURL': '',
+        '外部リンク文言': '',
+        '対象会員種別': s.target,
+        '版数': 1,
+        '施行日': '',
+        '表示順': s.order,
+        '公開フラグ': true,
+        '更新者メール': '',
+        '削除フラグ': false,
+        '作成日時': now,
+        '更新日時': now
+      });
+    }
+    appendRowsByHeaders_(ss, 'T_規程', rows);
+    clearAllDataCache_();
+    var result = { added: rows.length, items: rows.map(function(r) { return r['規程ID'] + ' ' + r['対象会員種別'] + ' ' + r['タイトル']; }) };
+    Logger.log('=== seedMemberTypeNoticesV376_74_APPLY ===');
+    Logger.log(JSON.stringify(result, null, 2));
+    return result;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function dryRunRegulationsV376_65_LOG() {
   var ss = getOrCreateDatabase_();
   var checks = [];
