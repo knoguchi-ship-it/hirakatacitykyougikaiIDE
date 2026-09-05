@@ -47,22 +47,22 @@
 <div class="wrap">
 <header>
   <h1>テスト結果レポート</h1>
-  <p class="sub">枚方市介護支援専門員連絡協議会 会員システム / 生成 2026-09-05 01:33:32 UTC</p>
+  <p class="sub">枚方市介護支援専門員連絡協議会 会員システム / 生成 2026-09-05 08:11:05 UTC</p>
 </header>
 
 <section>
   <h2>現在の本番</h2>
   <dl class="rel">
-    <dt>リリース</dt><dd>v376.73（2026-09-05）</dd>
-    <dt>公開ポータル</dt><dd>@382 (x2)</dd>
-    <dt>会員ポータル</dt><dd>@141</dd>
-    <dt>管理ポータル</dt><dd>@238</dd>
-    <dt>ロールバック先</dt><dd>public @381 (x2) / member @140 / admin @237</dd>
+    <dt>リリース</dt><dd>v376.76（2026-09-05）</dd>
+    <dt>公開ポータル</dt><dd>@385 (x2)</dd>
+    <dt>会員ポータル</dt><dd>@144</dd>
+    <dt>管理ポータル</dt><dd>@241</dd>
+    <dt>ロールバック先</dt><dd>public @382 (x2) / member @141 / admin @238</dd>
   </dl>
 </section>
 
 <div class="cards">
-  <div class="card ok"><div class="n">28</div><div class="l">PASS</div></div>
+  <div class="card ok"><div class="n">30</div><div class="l">PASS</div></div>
   <div class="card ng"><div class="n">0</div><div class="l">FAIL</div></div>
   <div class="card warn"><div class="n">1</div><div class="l">要フォロー</div></div>
   <div class="card"><div class="n">0</div><div class="l">未実行</div></div>
@@ -191,6 +191,12 @@
         <td><span class="badge ok">PASS</span></td>
         <td class="when">2026-09-05 10:32</td>
         <td>T_会員 243 / T_事業所職員 189 / T_外部申込者 3 = 計 435 行を走査し、変換が必要な行は 0 件・errors 0。既存データは全て全角カタカナで、_APPLY の実行は不要と確認した。</td>
+      </tr>
+      <tr>
+        <td><div class="name">注意事項の投入と再編（T_規程）</div><div class="how">admin エディタで seedMemberTypeNotices → applyNoticeRestructure → fixNoticeDisplayOrder を順に実行</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-05 11:59 / 16:5x / 17:07</td>
+        <td>投入 added:15。再編は追加3・非公開化3・削除6（論理削除）・改題3。表示順の是正 changed:1（個人情報の利用目的 2→4）。いずれも実行前に _LOG で内容を確認。</td>
       </tr>
     </tbody>
   </table>
@@ -337,6 +343,22 @@
         <td><span class="badge warn">PARTIAL</span></td>
         <td class="when">2026-09-02 14:10</td>
         <td>件数 5/5・ID 集合・並び順一致、date は全件一致。31 フィールド中 endTime のみ差分（T001/T004/T473A9682）＝Firestore ミラーが復元前スナップショットのため。マッピング不一致ではない。解消には T_研修 の再同期が必要（保留中）</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+<section>
+  <h2>公開ポータル（live 実測）</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th style="width:38%">確認内容</th><th style="width:10%">判定</th><th style="width:14%">実施</th><th>内容・根拠</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><div class="name">入会申込の注意事項ステップ（3 種別）</div><div class="how">公開ポータルで個人／事業所／賛助を選び、ステップ構成・種別ごとの出し分け・差し込みタグ・チェック必須を確認</div></td>
+        <td><span class="badge ok">PASS</span></td>
+        <td class="when">2026-09-05 17:10</td>
+        <td>共通 5 項目（入会/会費/退会/個人情報/定款）の後に種別ごとが正しい順で表示。{{年会費}} は 3,000円 / 8,000円 / 5,000円 に置換。未解決タグの残存なし。種別カードは最初から押下可、未チェックでは次へ進めない。console error 0。</td>
       </tr>
     </tbody>
   </table>
