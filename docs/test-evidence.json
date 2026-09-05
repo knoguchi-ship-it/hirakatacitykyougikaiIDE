@@ -1,17 +1,17 @@
 {
   "note": "自動テストの生ファイル (.test-out / output/playwright) から拾えない検証記録をここに書く。scripts/build-test-report.mjs が読み、docs/portal/test-report.html を生成する。値・本文・アドレス・資格情報は書かない（AGENTS §0）。",
   "release": {
-    "version": "v376.72",
-    "date": "2026-09-04",
+    "version": "v376.73",
+    "date": "2026-09-05",
     "deployments": {
+      "public": "@382 (x2)",
+      "member": "@141",
+      "admin": "@238"
+    },
+    "rollback": {
       "public": "@381 (x2)",
       "member": "@140",
       "admin": "@237"
-    },
-    "rollback": {
-      "public": "@380 (x2)",
-      "member": "@139",
-      "admin": "@236"
     }
   },
   "manualRuns": [

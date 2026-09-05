@@ -4,17 +4,21 @@
 
 ### 0. 30 秒で現状
 
-- **本番**: public **@381×2** / member **@140** / admin **@237**（**v376.72**）。4 本すべて同期確認済。
-  ロールバック先は public @380×2 / member @139 / admin @236（v376.71）。
+- **本番**: public **@382×2** / member **@141** / admin **@238**（**v376.73**）。4 本すべて同期確認済。
+  ロールバック先は public @381×2 / member @140 / admin @237（v376.72）。
 - **未 push・未デプロイの作業は無い**。**中断中の実装は無い**。
 - 直近セッション（2026-09-03〜04）でやったこと:
   仕様書 5 文書の巻き直し完了 → 旧仕様書 6 本を退避 → docs 直下を整理 →
   **v376.70**（UI 不整合 3 件）→ **v376.71**（ログイン失敗の時限解除・**スキーマ変更あり**）→
   仕様書作成プロンプト／テンプレートを **v3.0** へ改訂 →
   **仕様書 5 文書の整合確認**（`docs/267` §4。実装との食い違い 4 件を修正・トレーサビリティ一覧 `docs/268` を新設）→
-  **v376.72**（研修申込IDの採番統一・スキーマ変更なし。`docs/269`）。
-- **未検証は無い**。2026-09-05 に**検証用の会員アカウントを新設**し、会員マイページの responsive E2E も PASS。
-  公開・会員・管理の 3 ポータルすべてで live E2E が揃った（`docs/269` §3・§7）。
+  **v376.72**（研修申込IDの採番統一・スキーマ変更なし。`docs/269`）→
+  **v376.73**（入会申込フローの公開前是正。重大 2・中 3・軽微 1 を修正 ＋ カナ受理範囲の拡大。`docs/270`）。
+- **⚠️ 管理ポータルの responsive E2E だけ未実施**（v376.73）。storageState が期限切れ。
+  `! node .test-out/auth-bootstrap-admin-auto.mjs` の後に `npm run test:responsive:admin` を流すこと。
+  公開・会員は PASS 済み（`docs/270` §5・§7）。
+- **operator 作業が 1 件残っている**: 既存データのカナ一括変換
+  （admin エディタで `backfillKanaToFullwidth()` → `_APPLY()`。`docs/270` §8）。
 - **検証は 1 ページで見られる**: [`docs/portal/test-report.html`](docs/portal/test-report.html)
   （28 行・PASS 27・FAIL 0・要フォロー 1）。再生成は `npm run report:tests`。
 
@@ -122,6 +126,8 @@ npx clasp deployments                  # 4 本が同じ版を指しているこ�
 | **Bash heredoc のバックスラッシュ脱落** | 生成したコードの `\n` が実改行になる | コード生成は Write/Edit ツールで行う |
 | **`npm audit` のネットワークタイムアウト** | prerelease が exit 1（内容は健全） | 時間をおいて再実行。単体で `npm audit` を叩いて 0 件を確認 |
 | **push 先のアカウント** | 403 | gh は `knoguchi-ship-it`、clasp は `k.noguchi@hcm-n.org` |
+| **同じ判定を経路ごとに書く** | 承認経路だけ共通処理を通らず、再入会でログイン不能・会員一覧が開けない等の実害（v376.73 で 6 件） | 値・採番・正規化は**必ず共通関数へ**。`AGENTS.md` §3 のレジストリを先に見る |
+| **仕様書に「受理」と「保存」を書き分けない** | 正規化漏れを設計レビューで検出できない | データIF §3.1 に受理形式と保存形式を必ず書く |
 
 ### 5. 触るときに気をつける場所
 
@@ -408,7 +414,7 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
   **GAS では作れても GCP へ移行できない仕様は採用しない（NG）**。設計時に「GCP では何で実装するか」を 1 行で書けることが設計完了の条件。
   判断表と NG パターンは `AGENTS.md` §4.8.2 / §4.8.3、決定の背景は `docs/06_DECISION_RECORDS.md`（2026-09-03）。
 
-- **本番**: public **@381×2** / member **@140** / admin **@237**（v376.72・§1）。全 fixed deployment 同期確認済。ロールバック先は public @380×2 / member @139 / admin @236（v376.71）。
+- **本番**: public **@382×2** / member **@141** / admin **@238**（v376.73・§1）。全 fixed deployment 同期確認済。ロールバック先は public @381×2 / member @140 / admin @237（v376.72）。
 - **v376.64 の検証は完了**（管理セッション再取得後に実施）: admin responsive 56 view・メール設定 E2E 5/5・`dryRunMembershipFeeV376_64_LOG` が `passed:true` / `restored:true`。公開側は入会申込カードに 3,000 / 8,000 / 5,000 円の表示を実測。
 - **検証状況は 1 ページで見られる**: [`docs/portal/test-report.html`](docs/portal/test-report.html)（28 行・PASS 27・FAIL 0・要フォロー 1）。再生成は `npm run report:tests`。
 - **文書の入口**: [`docs/00_DOC_INDEX.md`](docs/00_DOC_INDEX.md)。2026-09-04 時点で `docs/` 直下は現役 36 文書のみ・完了記録 237 件は [`docs/archive/`](docs/archive/00_ARCHIVE_INDEX.md) へ移した。**仕様の正本は `docs/spec/` の 5 文書**。
@@ -445,10 +451,10 @@ GCP 側の最終作業（2026-07-25〜08-03）: **GCP 移行 Phase 4b（member �
 
 | 配信 | Deployment ID | Version |
 |---|---|---|
-| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@381** |
-| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@381** |
-| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@140** |
-| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@237** |
+| 統合 public legacy | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | **@382** |
+| 統合 public 正式 | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | **@382** |
+| member split | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | **@141** |
+| admin split | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | **@238** |
 
 3 project 構成（integrated/public・member split・admin split）の固定 deployment 運用。詳細は `docs/09_DEPLOYMENT_POLICY.md`。
 
