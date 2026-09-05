@@ -1143,6 +1143,7 @@ var ACTION_TO_MENU = {
   "updateMember": "members-list",
   "getMemberAuthAccounts": "members-list",
   "adminResetMemberPassword": "members-list",
+  "adminUnlockMemberAccount": "members-list",
   "adminIssueMemberCredential": "members-list",
   "withdrawMember": "members-list",
   "scheduleWithdrawMember": "members-list",
@@ -1427,6 +1428,7 @@ var ADMIN_ACTION_PERMISSIONS = {
   // v376.55/56: 会員認証アカウント一覧（read）+ パスワードリセット + 新規発行（重要操作のため MASTER/ADMIN のみ・会員管理メニュー配下）
   'getMemberAuthAccounts': ['MASTER','ADMIN'],
   'adminResetMemberPassword': ['MASTER','ADMIN'],
+  'adminUnlockMemberAccount': ['MASTER','ADMIN'],
   'adminIssueMemberCredential': ['MASTER','ADMIN'],
   'withdrawMember': ['MASTER','ADMIN'],
   'scheduleWithdrawMember': ['MASTER','ADMIN'],
@@ -1699,7 +1701,10 @@ function processApiRequest(action, payload) {
       return JSON.stringify({ success: true, data: getMemberAuthAccounts_(parsedPayload) });
     }
 
-    if (action === 'adminResetMemberPassword') {
+    if (action === 'adminUnlockMemberAccount') {
+    return JSON.stringify({ success: true, data: adminUnlockMemberAccount_(parsedPayload) });
+  }
+  if (action === 'adminResetMemberPassword') {
       return JSON.stringify({ success: true, data: adminResetMemberPassword_(parsedPayload) });
     }
 
@@ -3271,6 +3276,90 @@ function parsePayload_(payload) {
  * ログインID は顧客に見える表示用、認証ID はシステム内部の一意キー。書込対象の特定は必ず認証IDで行う。
  * 認証方式は PASSWORD のみリセット可（Google 認証等は対象外）。
  */
+// v376.78: ログインロックの解除（パスワードは変えない）。
+//
+// v376.71 で時限ロックを入れたが、連続 20 回失敗で到達する恒久ロックには
+// 「資格情報の再発行」しか解除手段が無く、**パスワードまで変わってしまう**（SOW §8 U-26）。
+// 正当な利用者は成功でカウントが 0 に戻るため恒久ロックには到達しないが、
+// ログイン ID が介護支援専門員番号で推測できる以上、第三者に狙われて到達させられる可能性は残る。
+// その復旧を事務局が自力でできるようにする。
+//
+// GCP 移行後は別実装として再検討する（ランニングコストの観点。operator 判断・2026-09-05）。
+// 詳細は docs/272 の GCP 移植メモ。
+function adminUnlockMemberAccount_(payload) {
+  var adminSession = checkAdminBySession_();
+  if (!adminSession) {
+    throw new Error('管理者認証が確認できません。');
+  }
+  var authIdInput = payload && payload.authId != null ? String(payload.authId).trim() : '';
+  if (!authIdInput) {
+    throw new Error('解除対象の認証IDを指定してください。');
+  }
+
+  var ss = getOrCreateDatabase_();
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var authSheet = ss.getSheetByName('T_認証アカウント');
+    if (!authSheet) {
+      throw new Error('認証アカウントテーブルが見つかりません。');
+    }
+    var authRowInfo = findRowByColumnValue_(authSheet, '認証ID', authIdInput);
+    if (!authRowInfo) {
+      throw new Error('指定された認証IDのアカウントが見つかりません。');
+    }
+    var columns = authRowInfo.columns;
+    requireColumns_(columns, ['認証ID', 'ログインID', '認証方式', 'ログイン失敗回数', 'ロック状態', '更新日時', '削除フラグ']);
+    var row = authRowInfo.row;
+    if (toBoolean_(row[columns['削除フラグ']])) {
+      throw new Error('削除済みの認証アカウントは解除できません。');
+    }
+    if (String(row[columns['認証方式']] || '') !== 'PASSWORD') {
+      throw new Error('パスワード認証のアカウントではありません。');
+    }
+
+    var wasLocked = toBoolean_(row[columns['ロック状態']]);
+    var failedBefore = Number(row[columns['ログイン失敗回数']] || 0);
+    var nowIso = new Date().toISOString();
+
+    // ロック状態・失敗回数・解除予定日時をまとめて戻す。ログイン成功時と同じ処理を通す。
+    clearLoginLockout_(authSheet, authRowInfo.rowNumber, columns);
+    authSheet.getRange(authRowInfo.rowNumber, columns['更新日時'] + 1).setValue(nowIso);
+    SpreadsheetApp.flush();
+
+    // 監査ログ（ログインIDは記録するが、パスワード等の秘密値は扱わない）
+    try {
+      var logSheet = getLogSs_().getSheetByName('T_監査ログ');
+      if (logSheet) {
+        logSheet.appendRow([
+          Utilities.getUuid(),
+          nowIso,
+          String(adminSession.loginId || ''),
+          'ACCOUNT_UNLOCK',
+          'T_認証アカウント',
+          authIdInput,
+          'ログインロックの解除',
+          'ロック状態=' + wasLocked + ' / 失敗回数=' + failedBefore,
+          'ロック状態=false / 失敗回数=0（パスワードは変更していない）',
+        ]);
+      }
+    } catch (auditErr) {
+      try { Logger.log('[adminUnlockMemberAccount_] audit log failed: ' + auditErr.message); } catch (e) {}
+    }
+
+    clearAllDataCache_();
+    return {
+      authId: authIdInput,
+      loginId: String(row[columns['ログインID']] || ''),
+      wasLocked: wasLocked,
+      failedCountBefore: failedBefore,
+      unlockedAt: nowIso,
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function adminResetMemberPassword_(payload) {
   var adminSession = checkAdminBySession_();
   if (!adminSession) {
@@ -3623,6 +3712,17 @@ function evaluateLoginLockState_(lockedFlag, failedCount, lockUntilIso, nowMs) {
 // 認証失敗を 1 回加算して必要ならロックする。シートへの書き込みまで行い、新しい状態を返す。
 
 // 認証成功・自動解除・管理者解除で使う。失敗回数とロックを完全に戻す。
+function clearLoginLockout_(sheet, rowNumber, columns) {
+  if (columns['ログイン失敗回数'] != null) {
+    sheet.getRange(rowNumber, columns['ログイン失敗回数'] + 1).setValue(0);
+  }
+  if (columns['ロック状態'] != null) {
+    sheet.getRange(rowNumber, columns['ロック状態'] + 1).setValue(false);
+  }
+  if (columns['ロック解除予定日時'] != null) {
+    sheet.getRange(rowNumber, columns['ロック解除予定日時'] + 1).setValue('');
+  }
+}
 
 
 

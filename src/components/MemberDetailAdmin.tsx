@@ -779,6 +779,23 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     }
   };
 
+  // v376.78: ロックだけを解除する（パスワードは変えない）。
+  // 従来は解除手段が資格情報の再発行しかなく、パスワードまで変わるため
+  // 利用者へ新しいパスワードを伝え直す必要があった（SOW U-26）。
+  const handleUnlockAccount = async (authId: string, loginId: string) => {
+    if (!confirm(`ログインID「${loginId}」のロックを解除しますか？\n\nパスワードは変わりません。失敗回数を 0 に戻し、ロックを解除します。`)) return;
+    try {
+      setActionLoading('unlock-' + authId);
+      setError(null);
+      await api.adminUnlockMemberAccount(authId);
+      await handleLoadAuthAccounts();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'ロックの解除に失敗しました。');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   // v376.56: 未発行ユニットへログインID+初期パスワードを発行
   const handleIssueCredential = async (unitMemberId: string, unitStaffId: string, personName: string) => {
     if (!confirm(`${personName || '(氏名なし)'} にログインID・初期パスワードを新規発行しますか？\n\nログインIDと初期パスワードが生成されます。`)) return;
@@ -1992,14 +2009,28 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                       )}
                     </div>
                     {acc.issued ? (
-                      <button
-                        onClick={() => handleResetPassword(acc.authId, acc.loginId)}
-                        disabled={actionLoading === 'reset-' + acc.authId || acc.method !== 'PASSWORD'}
-                        className="px-3 py-2 min-h-[44px] rounded-lg border border-amber-300 text-amber-700 text-sm font-medium hover:bg-amber-50 disabled:opacity-50"
-                        title={acc.method !== 'PASSWORD' ? 'パスワード認証以外はリセットできません' : ''}
-                      >
-                        {actionLoading === 'reset-' + acc.authId ? '処理中...' : 'パスワードリセット'}
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        {/* v376.78: ロック中のときだけ「ロック解除」を出す。
+                            パスワードを変えずに復旧できるようにするため（SOW U-26）。 */}
+                        {acc.locked && (
+                          <button
+                            onClick={() => handleUnlockAccount(acc.authId, acc.loginId)}
+                            disabled={actionLoading === 'unlock-' + acc.authId || acc.method !== 'PASSWORD'}
+                            className="px-3 py-2 min-h-[44px] rounded-lg border border-red-300 text-red-700 text-sm font-medium hover:bg-red-50 disabled:opacity-50"
+                            title="パスワードは変えずに、ロックと失敗回数だけを戻します"
+                          >
+                            {actionLoading === 'unlock-' + acc.authId ? '処理中...' : 'ロック解除'}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleResetPassword(acc.authId, acc.loginId)}
+                          disabled={actionLoading === 'reset-' + acc.authId || acc.method !== 'PASSWORD'}
+                          className="px-3 py-2 min-h-[44px] rounded-lg border border-amber-300 text-amber-700 text-sm font-medium hover:bg-amber-50 disabled:opacity-50"
+                          title={acc.method !== 'PASSWORD' ? 'パスワード認証以外はリセットできません' : ''}
+                        >
+                          {actionLoading === 'reset-' + acc.authId ? '処理中...' : 'パスワードリセット'}
+                        </button>
+                      </div>
                     ) : (
                       <button
                         onClick={() => handleIssueCredential(acc.memberId, acc.staffId, acc.personName)}

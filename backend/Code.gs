@@ -1732,6 +1732,7 @@ function parsePayload_(payload) {
 
 
 
+
 var PASSWORD_RESET_CODE_TTL_SECONDS = 30 * 60;
 var PASSWORD_RESET_CODE_TTL_MINUTES = 30;
 var PASSWORD_RESET_GENERIC_MESSAGE = '入力内容が登録情報と一致する場合、手続き用メールを送信しました。メールに記載された確認コードを入力してください。';

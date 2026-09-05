@@ -1166,6 +1166,7 @@ var ACTION_TO_MENU = {
   "updateMember": "members-list",
   "getMemberAuthAccounts": "members-list",
   "adminResetMemberPassword": "members-list",
+  "adminUnlockMemberAccount": "members-list",
   "adminIssueMemberCredential": "members-list",
   "withdrawMember": "members-list",
   "scheduleWithdrawMember": "members-list",
@@ -2460,6 +2461,7 @@ function changePassword_(request) {
     updatedAt: nowIso,
   };
 }
+
 
 var PASSWORD_RESET_CODE_TTL_SECONDS = 30 * 60;
 var PASSWORD_RESET_CODE_TTL_MINUTES = 30;

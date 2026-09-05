@@ -95,6 +95,8 @@ export interface ApiClient {
   changePassword(loginId: string, currentPassword: string, newPassword: string): Promise<void>;
   getMemberAuthAccounts(memberId: string): Promise<Array<{ issued: boolean; authId: string; loginId: string; method: string; active: boolean; locked: boolean; unit: 'MEMBER' | 'STAFF'; memberId: string; staffId: string; personName: string }>>;
   adminResetMemberPassword(authId: string): Promise<{ loginId: string; newPassword: string; resetAt: string }>;
+  // v376.78: ログインロックの解除（パスワードは変えない）
+  adminUnlockMemberAccount(authId: string): Promise<{ authId: string; loginId: string; wasLocked: boolean; failedCountBefore: number; unlockedAt: string }>;
   adminIssueMemberCredential(memberId: string, staffId?: string): Promise<{ authId: string; loginId: string; newPassword: string; issuedAt: string; personName: string }>;
   requestPasswordReset(loginId: string, email: string): Promise<{ message: string; expiresInMinutes: number }>;
   completePasswordReset(loginId: string, code: string, newPassword: string): Promise<{ message: string; updatedAt: string }>;
@@ -587,6 +589,10 @@ class GasApiClient implements ApiClient {
 
   async adminResetMemberPassword(authId: string): Promise<{ loginId: string; newPassword: string; resetAt: string }> {
     return this.callAction('adminResetMemberPassword', { authId });
+  }
+
+  async adminUnlockMemberAccount(authId: string): Promise<{ authId: string; loginId: string; wasLocked: boolean; failedCountBefore: number; unlockedAt: string }> {
+    return this.callAction('adminUnlockMemberAccount', { authId });
   }
 
   async adminIssueMemberCredential(memberId: string, staffId?: string): Promise<{ authId: string; loginId: string; newPassword: string; issuedAt: string; personName: string }> {

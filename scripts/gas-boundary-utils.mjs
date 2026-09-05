@@ -164,6 +164,8 @@ export const ADMIN_ALLOWED_ACTIONS_LIST = [
   // v376.55/56: 会員認証アカウント一覧（read）+ パスワードリセット + 新規発行
   'getMemberAuthAccounts',
   'adminResetMemberPassword',
+  // v376.78: ログインロックの解除（パスワードは変えない・SOW U-26）
+  'adminUnlockMemberAccount',
   'adminIssueMemberCredential',
   'withdrawMember',
   'scheduleWithdrawMember',

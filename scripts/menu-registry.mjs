@@ -59,6 +59,7 @@ export const ACTION_TO_MENU = {
   updateMember: 'members-list',
   getMemberAuthAccounts: 'members-list', // v376.55: 会員認証アカウント一覧（read）
   adminResetMemberPassword: 'members-list', // v376.55: 会員パスワードリセット
+  adminUnlockMemberAccount: 'members-list', // v376.78: ログインロックの解除（パスワードは変えない）
   adminIssueMemberCredential: 'members-list', // v376.56: 認証アカウント新規発行
   withdrawMember: 'members-list',
   scheduleWithdrawMember: 'members-list',

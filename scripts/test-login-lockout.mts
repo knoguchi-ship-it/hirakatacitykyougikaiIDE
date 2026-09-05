@@ -149,3 +149,41 @@ test('スキーマに ロック解除予定日時 があり、スキーマ版数
   assert.ok(gas.includes("'ロック解除予定日時',"), 'テーブル定義に列が無い');
   assert.match(gas, /DB_SCHEMA_VERSION = '2026-09-04-login-lockout-v376\.71'/);
 });
+
+// ── v376.78: 管理画面からのロック解除（SOW U-26）──────────────
+function codeOnly(source: string): string {
+  return source.split('\n').filter(line => !line.trim().startsWith('//')).join('\n');
+}
+
+test('ロック解除はロック状態・失敗回数・解除予定日時を戻す', () => {
+  const body = codeOnly(extractFunction('adminUnlockMemberAccount_'));
+  assert.ok(/clearLoginLockout_\(/.test(body),
+    'ログイン成功時と同じ clearLoginLockout_ を通していない（判定を 2 箇所で持たない）');
+  const clear = codeOnly(extractFunction('clearLoginLockout_'));
+  for (const col of ['ログイン失敗回数', 'ロック状態', 'ロック解除予定日時']) {
+    assert.ok(clear.includes(col), `${col} を戻していない`);
+  }
+});
+
+test('ロック解除はパスワードを変えない', () => {
+  const body = codeOnly(extractFunction('adminUnlockMemberAccount_'));
+  for (const forbidden of ['パスワードハッシュ', 'パスワードソルト', 'generateCredentialTempPassword_', 'hashPasswordCurrent_']) {
+    assert.ok(!body.includes(forbidden),
+      `パスワードに触れている（${forbidden}）。解除はロックだけを戻す機能である`);
+  }
+});
+
+test('ロック解除は管理者認証と排他制御を通す', () => {
+  const body = codeOnly(extractFunction('adminUnlockMemberAccount_'));
+  assert.ok(/checkAdminBySession_\(\)/.test(body), '管理者認証を確認していない');
+  assert.ok(/getScriptLock/.test(body), 'ロックを取得していない');
+  assert.ok(/削除済みの認証アカウント/.test(body), '削除済みアカウントを弾いていない');
+  assert.ok(/パスワード認証のアカウントではありません/.test(body), 'PASSWORD 以外を弾いていない');
+});
+
+test('ロック解除は監査ログに残す（秘密値は書かない）', () => {
+  const body = codeOnly(extractFunction('adminUnlockMemberAccount_'));
+  assert.ok(/ACCOUNT_UNLOCK/.test(body), '監査ログの操作種別が無い');
+  assert.ok(!/パスワード['"]?\s*[:+]/.test(body.replace(/パスワードは変更していない/g, '')),
+    '監査ログにパスワードを書いている');
+});
