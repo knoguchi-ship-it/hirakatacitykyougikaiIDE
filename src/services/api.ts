@@ -218,6 +218,8 @@ export interface ApiClient {
   // v376.65: 規程・重要事項マスタ
   listRegulations(): Promise<import('../types').Regulation[]>;
   saveRegulation(payload: Partial<import('../types').Regulation>): Promise<{ id: string; version: number; created: boolean }>;
+  // v376.86: 設定画面の一括保存（追加・更新・削除・並べ替えを 1 往復で反映する）
+  saveRegulationsBatch(changes: Array<{ op: 'upsert' | 'delete'; item: Partial<import('../types').Regulation> }>): Promise<{ applied: number; items: Array<{ id: string; op: string }> }>;
   deleteRegulation(id: string): Promise<{ id: string; deleted: boolean }>;
   listMailTemplates(category: string): Promise<{ templates: import('../types').EmailTemplate[] }>;
   saveMailTemplate(payload: { id?: string; category: string; name: string; subject: string; body: string }): Promise<import('../types').EmailTemplate>;
@@ -1040,6 +1042,10 @@ class GasApiClient implements ApiClient {
 
   async saveRegulation(payload: Partial<import('../types').Regulation>): Promise<{ id: string; version: number; created: boolean }> {
     return this.callAction('saveRegulation', payload);
+  }
+
+  async saveRegulationsBatch(changes: Array<{ op: 'upsert' | 'delete'; item: Partial<import('../types').Regulation> }>): Promise<{ applied: number; items: Array<{ id: string; op: string }> }> {
+    return this.callAction('saveRegulationsBatch', { changes });
   }
 
   async deleteRegulation(id: string): Promise<{ id: string; deleted: boolean }> {

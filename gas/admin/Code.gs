@@ -1207,6 +1207,7 @@ var ACTION_TO_MENU = {
   "exportTableCsv": "data-export",
   "listRegulations": "admin-settings",
   "saveRegulation": "admin-settings",
+  "saveRegulationsBatch": "admin-settings",
   "deleteRegulation": "admin-settings",
   "listMailTemplates": "admin-settings",
   "saveMailTemplate": "admin-settings",
@@ -1469,6 +1470,7 @@ var ADMIN_ACTION_PERMISSIONS = {
   'exportTableCsv': ['MASTER'],
   'listRegulations': ['MASTER','ADMIN'],
   'saveRegulation': ['MASTER','ADMIN'],
+  'saveRegulationsBatch': ['MASTER','ADMIN'],
   'deleteRegulation': ['MASTER','ADMIN'],
   'listMailTemplates': ['MASTER','ADMIN'],
   'saveMailTemplate': ['MASTER','ADMIN'],
@@ -1984,7 +1986,10 @@ function processApiRequest(action, payload) {
     if (action === 'listRegulations') {
       return JSON.stringify({ success: true, data: listRegulations_(null, false) });
     }
-    if (action === 'saveRegulation') {
+    if (action === 'saveRegulationsBatch') {
+    return JSON.stringify({ success: true, data: saveRegulationsBatch_(parsedPayload, adminSession && adminSession.loginId) });
+  }
+  if (action === 'saveRegulation') {
       return JSON.stringify({ success: true, data: saveRegulation_(parsedPayload, parsedPayload.__adminSession ? parsedPayload.__adminSession.loginId : '') });
     }
     if (action === 'deleteRegulation') {
@@ -7567,6 +7572,122 @@ function saveRegulation_(payload, operatorEmail) {
     return { id: id, version: nextVersion, created: false, versionBumped: contentChanged };
   }
   throw new Error('対象の規程が見つかりません: ' + id);
+}
+
+// v376.86: 規程の一括保存。設定画面の「一括保存」でまとめて反映するための入口。
+//
+// 以前は 1 件ごとに saveRegulation / deleteRegulation を呼んでいたため、
+// 並べ替え 1 回で 3 往復（保存 2 + 再読込 1）＝ 15〜20 秒かかり、操作のたびに待たされた。
+// GAS は 1 呼び出しあたり 1.8〜5 秒の固定オーバーヘッドがある（TRD 第1部 §6）ので、
+// 往復回数を減らすことがそのまま体感速度になる。
+//
+// changes: [{ op: 'upsert' | 'delete', item: {...} }] を順に適用し、シート書き込みは 1 回にまとめる。
+function saveRegulationsBatch_(payload, operatorEmail) {
+  var changes = payload && Array.isArray(payload.changes) ? payload.changes : [];
+  if (changes.length === 0) return { applied: 0, items: [] };
+  if (changes.length > 100) throw new Error('一度に保存できるのは 100 件までです。');
+
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var sheet = ss.getSheetByName('T_規程');
+    if (!sheet) throw new Error('T_規程 が初期化されていません。');
+    var cols = buildColumnIndex_(sheet);
+    requireColumns_(cols, ['規程ID', '区分コード', 'タイトル', '本文', '対象会員種別', '版数', '表示順', '公開フラグ', '削除フラグ', '更新日時']);
+    var lastRow = sheet.getLastRow();
+    var values = lastRow >= 2 ? sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues() : [];
+    var now = new Date().toISOString();
+    var email = String(operatorEmail || '');
+
+    // 新規採番の起点（既存の最大連番）
+    var maxSeq = 0;
+    for (var i = 0; i < values.length; i += 1) {
+      var m = /^REG-(\d+)$/.exec(String(values[i][cols['規程ID']] || ''));
+      if (m) maxSeq = Math.max(maxSeq, parseInt(m[1], 10) || 0);
+    }
+
+    var appended = [];
+    var result = [];
+    for (var c = 0; c < changes.length; c += 1) {
+      var ch = changes[c] || {};
+      var op = String(ch.op || 'upsert');
+      var item = ch.item || {};
+      var id = String(item.id || '').trim();
+
+      if (op === 'delete') {
+        if (!id) throw new Error('削除には規程IDが必要です。');
+        var deleted = false;
+        for (var d = 0; d < values.length; d += 1) {
+          if (String(values[d][cols['規程ID']] || '') !== id) continue;
+          values[d][cols['削除フラグ']] = true;
+          values[d][cols['公開フラグ']] = false;
+          values[d][cols['更新者メール']] = email;
+          values[d][cols['更新日時']] = now;
+          deleted = true;
+          break;
+        }
+        if (!deleted) throw new Error('削除対象の規程が見つかりません: ' + id);
+        result.push({ id: id, op: 'delete' });
+        continue;
+      }
+
+      var v = validateRegulationPayload_(item);
+      var sortOrder = Number(item.sortOrder || 0);
+      if (!isFinite(sortOrder) || sortOrder < 0 || sortOrder > 999) sortOrder = 0;
+      var published = item.published != null ? !!item.published : true;
+      var effectiveDate = String(item.effectiveDate || '').trim();
+
+      if (!id) {
+        maxSeq += 1;
+        var newId = 'REG-' + ('000' + maxSeq).slice(-3);
+        appended.push({
+          '規程ID': newId, '区分コード': v.kind, 'タイトル': v.title, '本文': v.body,
+          '外部リンクURL': v.linkUrl, '外部リンク文言': v.linkLabel, '対象会員種別': v.target,
+          '版数': 1, '施行日': effectiveDate, '表示順': sortOrder, '公開フラグ': published,
+          '更新者メール': email, '削除フラグ': false, '作成日時': now, '更新日時': now
+        });
+        result.push({ id: newId, op: 'create', version: 1 });
+        continue;
+      }
+
+      var found = false;
+      for (var u = 0; u < values.length; u += 1) {
+        if (String(values[u][cols['規程ID']] || '') !== id) continue;
+        // 版数は「本文が変わったとき」だけ上げる。並べ替えや公開切替では上げない。
+        var contentChanged = String(values[u][cols['タイトル']] || '') !== v.title
+          || String(values[u][cols['本文']] || '') !== v.body
+          || String(values[u][cols['外部リンクURL']] || '') !== v.linkUrl
+          || String(values[u][cols['外部リンク文言']] || '') !== v.linkLabel;
+        var nextVersion = Number(values[u][cols['版数']] || 1) + (contentChanged ? 1 : 0);
+        values[u][cols['区分コード']] = v.kind;
+        values[u][cols['タイトル']] = v.title;
+        values[u][cols['本文']] = v.body;
+        values[u][cols['外部リンクURL']] = v.linkUrl;
+        values[u][cols['外部リンク文言']] = v.linkLabel;
+        values[u][cols['対象会員種別']] = v.target;
+        values[u][cols['版数']] = nextVersion;
+        values[u][cols['施行日']] = effectiveDate;
+        values[u][cols['表示順']] = sortOrder;
+        values[u][cols['公開フラグ']] = published;
+        values[u][cols['更新者メール']] = email;
+        values[u][cols['更新日時']] = now;
+        result.push({ id: id, op: 'update', version: nextVersion, versionBumped: contentChanged });
+        found = true;
+        break;
+      }
+      if (!found) throw new Error('対象の規程が見つかりません: ' + id);
+    }
+
+    if (values.length > 0) sheet.getRange(2, 1, values.length, sheet.getLastColumn()).setValues(values);
+    if (appended.length > 0) appendRowsByHeaders_(ss, 'T_規程', appended);
+    SpreadsheetApp.flush();
+    clearAllDataCache_();
+    return { applied: result.length, items: result };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // soft delete（削除フラグ）。会員に紐づかないため cascade アーカイブの対象外。

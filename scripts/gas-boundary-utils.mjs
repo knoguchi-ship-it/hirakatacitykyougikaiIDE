@@ -158,6 +158,8 @@ export const ADMIN_ALLOWED_ACTIONS_LIST = [
   // v376.65（案C Phase 1）: 規程・重要事項マスタ CRUD
   'listRegulations',
   'saveRegulation',
+  // v376.86: 設定画面の一括保存（往復を 1 回にまとめる）
+  'saveRegulationsBatch',
   'deleteRegulation',
   'getBulkMailTemplates',
   'saveBulkMailTemplate',

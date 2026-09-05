@@ -510,6 +510,57 @@ const App: React.FC = () => {
   const [regulationsError, setRegulationsError] = useState<string | null>(null);
   const [regulationDraft, setRegulationDraft] = useState<Regulation | null>(null);
   const [regulationBusy, setRegulationBusy] = useState(false);
+  // v376.82: 既定は「公開中のみ」。運用でふだん見たいのは実際に申込画面へ出ている文面のため。
+  const [regulationShowHidden, setRegulationShowHidden] = useState(false);
+  // v376.86: 規程も設定画面の「一括保存」に載せる。
+  // 追加・編集・削除・並べ替えは画面上で完結させ、保存を押したときに 1 往復でまとめて送る。
+  // 以前は操作のたびに GAS を往復しており、並べ替え 1 回で 15〜20 秒待たされていた。
+  const [regulationsDraft, setRegulationsDraft] = useState<Regulation[] | null>(null);
+  const [regulationsDeleted, setRegulationsDeleted] = useState<string[]>([]);
+  // 画面に出すのは「編集中の内容」。未編集ならサーバーから読んだものをそのまま使う。
+  const regulationsView = regulationsDraft ?? regulations;
+  const regulationsHasChanges = regulationsDraft !== null || regulationsDeleted.length > 0;
+  // v376.82: 表示順を画面から入れ替える。同じ対象会員種別のなかで隣と表示順を交換する。
+  // 版数は内容が変わったときだけ上がる実装なので、並べ替えでは版数は増えない。
+  // 並べ替えは画面の中だけで完結させる（保存を押すまでサーバーへ送らない）。
+  // 同じ対象会員種別のなかで、隣と表示順を入れ替える。
+  const moveRegulation = (item: Regulation, direction: -1 | 1) => {
+    const base = regulationsView;
+    const siblings = base
+      .filter((r) => r.target === item.target)
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+    const index = siblings.findIndex((r) => r.id === item.id);
+    const swapWith = siblings[index + direction];
+    if (!swapWith) return;
+    setRegulationsDraft(base.map((r) => {
+      if (r.id === item.id) return { ...r, sortOrder: swapWith.sortOrder };
+      if (r.id === swapWith.id) return { ...r, sortOrder: item.sortOrder };
+      return r;
+    }));
+    setSettingsIsDirty(true);
+  };
+
+  // 編集モーダルの「保存」も画面の中だけ。実際の書き込みは一括保存でまとめて行う。
+  const commitRegulationDraft = (draft: Regulation) => {
+    const base = regulationsView;
+    const exists = base.some((r) => r.id === draft.id && draft.id);
+    setRegulationsDraft(exists
+      ? base.map((r) => (r.id === draft.id ? { ...draft } : r))
+      : [...base, { ...draft, id: draft.id || `new-${Date.now()}` }]);
+    setSettingsIsDirty(true);
+  };
+
+  const removeRegulationLocally = (item: Regulation) => {
+    setRegulationsDraft(regulationsView.filter((r) => r.id !== item.id));
+    // 既存行だけ削除対象に積む（画面で追加しただけの行はサーバーに無い）
+    if (!item.id.startsWith('new-')) setRegulationsDeleted((prev) => [...prev, item.id]);
+    setSettingsIsDirty(true);
+  };
+
+  const discardRegulationChanges = () => {
+    setRegulationsDraft(null);
+    setRegulationsDeleted([]);
+  };
   const loadRegulations = React.useCallback(async () => {
     setRegulationsLoading(true);
     setRegulationsError(null);
@@ -3615,16 +3666,33 @@ const App: React.FC = () => {
           {settingsSub === 'regulations' && <AdminSettingsSection
             id="settings-regulations"
             title="規程・重要事項"
-            description="公開ポータルの入会申込画面「事務局からのお願い」に出る文面と、定款などの規程リンクをここで管理します。ここが文面の正本です（従来はソースに直接書かれていました）。"
+            description="入会申込で会員種別を選んだ次に出る「注意事項」ステップの文面です。保存するとすぐ申込画面に反映されます。"
             badge="公開文面"
             defaultOpen
           >
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm text-slate-600">
-                  区分「重要事項」はカードとして並び、「規程・定款」は下部のリンク枠として表示されます。表示順の小さいものが先に出ます。
-                </p>
-                <div className="flex items-center gap-2">
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* v376.82: 既定は「公開中のみ」。ふだん見たいのは実際に申込画面へ出ている文面。 */}
+                  <div className="flex overflow-hidden rounded-full border border-slate-300">
+                    <button
+                      type="button"
+                      aria-pressed={!regulationShowHidden}
+                      onClick={() => setRegulationShowHidden(false)}
+                      className={`min-h-[44px] px-4 text-sm ${!regulationShowHidden ? 'bg-primary-600 font-semibold text-white' : 'bg-white text-slate-700 hover:bg-slate-50'}`}
+                    >
+                      公開中のみ
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={regulationShowHidden}
+                      onClick={() => setRegulationShowHidden(true)}
+                      className={`min-h-[44px] border-l border-slate-300 px-4 text-sm ${regulationShowHidden ? 'bg-primary-600 font-semibold text-white' : 'bg-white text-slate-700 hover:bg-slate-50'}`}
+                    >
+                      非公開も表示
+                    </button>
+                  </div>
                   <button
                     type="button"
                     onClick={() => { void loadRegulations(); }}
@@ -3637,7 +3705,9 @@ const App: React.FC = () => {
                     type="button"
                     onClick={() => setRegulationDraft({
                       id: '', kind: 'NOTICE', title: '', body: '', linkUrl: '', linkLabel: '',
-                      target: 'ALL', version: 1, effectiveDate: '', sortOrder: (regulations.length + 1) * 1, published: true,
+                      target: 'ALL', version: 1, effectiveDate: '',
+                    // 末尾に置く（同じ種別の中で最大 + 1）。並べ替えは ▲▼ で後から変えられる。
+                    sortOrder: Math.max(0, ...regulationsView.map((r) => r.sortOrder || 0)) + 1, published: true,
                     })}
                     className="min-h-[44px] rounded bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700"
                   >
@@ -3646,7 +3716,44 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              {regulationsError && (
+              {/* v376.81: 「知っている前提」で書かない。どこに出るか・何が変わるかを画面上で説明する。 */}
+              <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+                <p className="font-semibold text-slate-800">申込画面のどこに出るか</p>
+                <div className="mt-2 space-y-1 text-slate-600">
+                  <p>① 会員種別を選ぶ → <span className="font-semibold text-slate-800">② 注意事項</span> → ③ 基本情報 → ④ 住所・連絡先 → ⑤ 入力確認</p>
+                  <p>②の画面は上下 2 段です。上段に「すべての会員に出す」、下段に「選んだ種別にだけ出す」が並びます（下段は折りたたみ）。</p>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-lg border border-sky-200 bg-sky-50 p-3">
+                    <p className="text-xs font-semibold text-sky-800">重要事項（本文カード）</p>
+                    <p className="mt-1 text-xs text-slate-600">タイトルと本文がそのまま読み物として並びます。ふつうはこちらを使います。</p>
+                  </div>
+                  <div className="rounded-lg border border-violet-200 bg-violet-50 p-3">
+                    <p className="text-xs font-semibold text-violet-800">規程・定款（リンク枠）</p>
+                    <p className="mt-1 text-xs text-slate-600">外部ページへのボタン付きで、②の下部にまとめて出ます。定款など別サイトを見せたいときに使います。</p>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-slate-500">
+                  順番は各項目の <span className="font-semibold">▲▼</span> で入れ替えられます。<span className="font-semibold">非公開</span>にした文面は申込画面に出ません（消さずに一時的に隠せます）。
+                </p>
+              </div>
+
+              {regulationsHasChanges && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                <span>
+                  この画面に<span className="font-semibold">未保存の変更</span>があります。反映するには、画面下の「設定を保存」を押してください。
+                </span>
+                <button
+                  type="button"
+                  onClick={() => { discardRegulationChanges(); }}
+                  className="min-h-[44px] rounded border border-amber-400 bg-white px-3 text-sm text-amber-800 hover:bg-amber-100"
+                >
+                  変更を取り消す
+                </button>
+              </div>
+            )}
+
+            {regulationsError && (
                 <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{regulationsError}</p>
               )}
 
@@ -3656,88 +3763,184 @@ const App: React.FC = () => {
                 </p>
               )}
 
-              <div className="space-y-3">
-                {regulations.map((item) => (
-                  <div key={item.id} className="rounded-lg border border-slate-200 p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${item.kind === 'REGULATION' ? 'bg-violet-100 text-violet-700' : 'bg-sky-100 text-sky-700'}`}>
-                            {item.kind === 'REGULATION' ? '規程・定款' : '重要事項'}
-                          </span>
-                          <span className={`rounded-full px-2 py-0.5 text-xs ${item.published ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
-                            {item.published ? '公開中' : '非公開'}
-                          </span>
-                          <span className="text-xs text-slate-500">第 {item.version} 版</span>
-                          <span className="text-xs text-slate-400">表示順 {item.sortOrder}</span>
+          {/* v376.81: 一覧を「どの申込画面に出るか」でグループ分けする。
+              以前は種別の区別が画面に出ておらず、対象会員種別を知っている人にしか読めなかった。 */}
+          {(() => {
+            const GROUPS: Array<{ target: Regulation['target']; title: string; where: string; tone: string }> = [
+              { target: 'ALL',        title: 'すべての会員に出す', where: '個人・事業所・賛助の 3 種別すべての申込で表示されます', tone: 'border-slate-300 bg-slate-50' },
+              { target: 'INDIVIDUAL', title: '個人会員にだけ出す', where: '会員種別で「個人会員」を選んだときだけ表示されます', tone: 'border-sky-300 bg-sky-50' },
+              { target: 'BUSINESS',   title: '事業所会員にだけ出す', where: '会員種別で「事業所会員」を選んだときだけ表示されます', tone: 'border-amber-300 bg-amber-50' },
+              { target: 'SUPPORT',    title: '賛助会員にだけ出す', where: '会員種別で「賛助会員」を選んだときだけ表示されます', tone: 'border-emerald-300 bg-emerald-50' },
+            ];
+            return (
+              <div className="space-y-6">
+                {GROUPS.map((g) => {
+                  // 表示順で並べたうえで、非公開を隠すかどうかを適用する。
+                  // 順位（1 番目・2 番目）は「申込画面に出る順番」なので、公開中だけで数える。
+                  const all = regulationsView
+                    .filter((r) => r.target === g.target)
+                    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+                  const publishedOrder = all.filter((r) => r.published);
+                  const items = regulationShowHidden ? all : publishedOrder;
+                  const hiddenCount = all.length - publishedOrder.length;
+                  return (
+                    <section key={g.target} className={`rounded-xl border ${g.tone} p-4`}>
+                      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                        <div>
+                          <h4 className="text-sm font-bold text-slate-800">{g.title}</h4>
+                          <p className="mt-0.5 text-xs text-slate-600">{g.where}</p>
                         </div>
-                        <p className="mt-2 text-sm font-semibold text-slate-800">{item.title}</p>
-                        <p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-600">{item.body}</p>
-                        {item.linkUrl && (
-                          <p className="mt-1 break-all text-xs text-slate-500">{item.linkLabel || 'リンク'}: {item.linkUrl}</p>
-                        )}
+                        <span className="text-xs text-slate-500">
+                          {all.length === 0
+                            ? '登録なし'
+                            : `公開中 ${publishedOrder.length} 件${hiddenCount > 0 ? ` ／ 非公開 ${hiddenCount} 件` : ''}`}
+                        </span>
                       </div>
-                      <div className="flex shrink-0 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setRegulationDraft({ ...item })}
-                          className="min-h-[44px] rounded border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                        >
-                          編集
-                        </button>
-                        <button
-                          type="button"
-                          disabled={regulationBusy}
-                          onClick={async () => {
-                            if (!window.confirm(`「${item.title}」を削除します。よろしいですか。`)) return;
-                            try {
-                              setRegulationBusy(true);
-                              await api.deleteRegulation(item.id);
-                              await loadRegulations();
-                            } catch (e) {
-                              setRegulationsError(e instanceof Error ? e.message : '削除に失敗しました。');
-                            } finally {
-                              setRegulationBusy(false);
-                            }
-                          }}
-                          className="min-h-[44px] rounded border border-red-300 px-3 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
-                        >
-                          削除
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
 
+                      {items.length === 0 && (
+                        <p className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-4 text-center text-xs text-slate-500">
+                          この種別だけに出す文面はまだありません。「新規追加」で対象会員種別に「{g.title.replace('にだけ出す', '').replace('すべての会員に出す', 'すべての会員')}」を選ぶとここに入ります。
+                        </p>
+                      )}
+
+                      <div className="space-y-3">
+                        {items.map((item) => (
+                          <div key={item.id} className="rounded-lg border border-slate-200 bg-white p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${item.kind === 'REGULATION' ? 'bg-violet-100 text-violet-700' : 'bg-sky-100 text-sky-700'}`}>
+                                    {item.kind === 'REGULATION' ? '規程・定款（リンク枠）' : '重要事項（本文カード）'}
+                                  </span>
+                                  <span className={`rounded-full px-2 py-0.5 text-xs ${item.published ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
+                                    {item.published ? '公開中' : '非公開（申込画面に出ません）'}
+                                  </span>
+                                  <span className="text-xs text-slate-500">第 {item.version} 版</span>
+                                  {/* v376.82: 以前は表示順の内部値をそのまま「上から 103 番目」と出していた。
+                                      利用者に意味が無い数字なので、申込画面に出る実際の順番に直した。 */}
+                                  {item.published && (
+                                    <span className="text-xs text-slate-400">
+                                      申込画面で {publishedOrder.findIndex((r) => r.id === item.id) + 1} 番目に表示
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="mt-2 text-sm font-semibold text-slate-800">{item.title}</p>
+                                <p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-600">{item.body}</p>
+                                {/[{][{][^}]*[}][}]/.test(item.body) && (
+                                  <p className="mt-1 text-xs text-primary-700">
+                                    ⓘ 二重かっこの部分は、表示するときに実際の値へ置き換わります（例: 年会費）。
+                                  </p>
+                                )}
+                                {item.linkUrl && (
+                                  <p className="mt-1 break-all text-xs text-slate-500">{item.linkLabel || 'リンク'}: {item.linkUrl}</p>
+                                )}
+                              </div>
+                              <div className="flex shrink-0 gap-2">
+                                {/* v376.82: 表示順を画面から変えられるようにした。
+                                    同じ種別のなかで隣と入れ替える。端では押せない。 */}
+                                <div className="flex flex-col gap-1">
+                                  <button
+                                    type="button"
+                                    aria-label="ひとつ上へ"
+                                    title="ひとつ上へ"
+                                    disabled={all.findIndex((r) => r.id === item.id) === 0}
+                                    onClick={() => moveRegulation(item, -1)}
+                                    className="min-h-[22px] rounded border border-slate-300 px-2 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-30"
+                                  >
+                                    ▲
+                                  </button>
+                                  <button
+                                    type="button"
+                                    aria-label="ひとつ下へ"
+                                    title="ひとつ下へ"
+                                    disabled={all.findIndex((r) => r.id === item.id) === all.length - 1}
+                                    onClick={() => moveRegulation(item, 1)}
+                                    className="min-h-[22px] rounded border border-slate-300 px-2 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-30"
+                                  >
+                                    ▼
+                                  </button>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setRegulationDraft({ ...item })}
+                                  className="min-h-[44px] rounded border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                                >
+                                  編集
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (!window.confirm(`「${item.title}」を一覧から外します。\n実際に削除されるのは、画面下の「一括保存」を押したときです。`)) return;
+                                    removeRegulationLocally(item);
+                                  }}
+                                  className="min-h-[44px] rounded border border-red-300 px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+                                >
+                                  削除
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
+              {/* v376.82: 編集はモーダルで開く（UI/UX §7 の規約）。
+                  以前は一覧の下にフォームを出しており、一覧が長くなった結果
+                  「編集を押しても何も起きない」ように見えていた。 */}
               {regulationDraft && (
-                <div className="rounded-lg border-2 border-primary-200 bg-primary-50/40 p-4">
-                  <h4 className="mb-3 text-sm font-semibold text-slate-800">
-                    {regulationDraft.id ? '規程を編集' : '規程を追加'}
-                  </h4>
+                <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/45 p-4">
+                  <div
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label={regulationDraft.id ? '文面を編集' : '文面を追加'}
+                    className="my-8 w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-5 shadow-xl"
+                  >
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div>
+                      <h4 className="text-base font-bold text-slate-900">
+                        {regulationDraft.id ? '文面を編集' : '文面を追加'}
+                      </h4>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        保存すると、入会申込の「注意事項」ステップにすぐ反映されます。
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setRegulationDraft(null)}
+                      aria-label="閉じる"
+                      className="min-h-[44px] min-w-[44px] rounded-full border border-slate-300 px-3 text-sm text-slate-600 hover:bg-slate-50"
+                    >
+                      閉じる
+                    </button>
+                  </div>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700">区分</label>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">出し方</label>
                       <select
                         value={regulationDraft.kind}
                         onChange={(e) => setRegulationDraft({ ...regulationDraft, kind: e.target.value as Regulation['kind'] })}
                         className="w-full rounded border border-slate-300 bg-white px-3 py-2"
                       >
-                        <option value="NOTICE">重要事項（カード表示）</option>
-                        <option value="REGULATION">規程・定款（リンク枠）</option>
+                        <option value="NOTICE">重要事項（本文カード）— タイトルと本文をそのまま読ませる</option>
+                        <option value="REGULATION">規程・定款（リンク枠）— 外部ページへのボタンを出す</option>
                       </select>
                     </div>
                     <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700">対象会員種別</label>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">どの会員に出すか</label>
                       <select
                         value={regulationDraft.target}
                         onChange={(e) => setRegulationDraft({ ...regulationDraft, target: e.target.value as Regulation['target'] })}
                         className="w-full rounded border border-slate-300 bg-white px-3 py-2"
                       >
-                        <option value="ALL">すべての会員</option>
-                        <option value="INDIVIDUAL">個人会員</option>
-                        <option value="BUSINESS">事業所会員</option>
-                        <option value="SUPPORT">賛助会員</option>
+                        <option value="ALL">すべての会員 — 3 種別すべての申込に出す</option>
+                        <option value="INDIVIDUAL">個人会員だけ</option>
+                        <option value="BUSINESS">事業所会員だけ</option>
+                        <option value="SUPPORT">賛助会員だけ</option>
                       </select>
                     </div>
                     <div className="sm:col-span-2">
@@ -3818,23 +4021,13 @@ const App: React.FC = () => {
                   <div className="mt-4 flex flex-wrap gap-2">
                     <button
                       type="button"
-                      disabled={regulationBusy}
-                      onClick={async () => {
-                        try {
-                          setRegulationBusy(true);
-                          setRegulationsError(null);
-                          await api.saveRegulation(regulationDraft);
-                          setRegulationDraft(null);
-                          await loadRegulations();
-                        } catch (e) {
-                          setRegulationsError(e instanceof Error ? e.message : '保存に失敗しました。');
-                        } finally {
-                          setRegulationBusy(false);
-                        }
+                      onClick={() => {
+                        commitRegulationDraft(regulationDraft);
+                        setRegulationDraft(null);
                       }}
-                      className="min-h-[44px] rounded bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
+                      className="min-h-[44px] rounded bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700"
                     >
-                      {regulationBusy ? '保存中...' : 'この規程を保存'}
+                      内容を反映（保存は下の「一括保存」）
                     </button>
                     <button
                       type="button"
@@ -3843,6 +4036,7 @@ const App: React.FC = () => {
                     >
                       キャンセル
                     </button>
+                  </div>
                   </div>
                 </div>
               )}
@@ -5547,6 +5741,30 @@ const App: React.FC = () => {
                       setMemberUpdateConfirmEnabledInput(saved.memberUpdateConfirmEnabled ?? true);
                       setWithdrawalConfirmEnabledInput(saved.withdrawalConfirmEnabled ?? true);
                       setPasswordResetEnabledInput(saved.passwordResetEnabled ?? true);
+                      // v376.86: 規程の変更（追加・編集・削除・並べ替え）も同じ保存でまとめて送る。
+                      // GAS は 1 往復 1.8〜5 秒かかるため、件数によらず 1 回にまとめる。
+                      if (regulationsHasChanges) {
+                        const original = new Map<string, Regulation>(regulations.map((r) => [r.id, r] as [string, Regulation]));
+                        const upserts = regulationsView
+                          .filter((r) => {
+                            const before = original.get(r.id);
+                            if (!before) return true; // 画面で追加した行
+                            return before.title !== r.title || before.body !== r.body
+                              || before.kind !== r.kind || before.target !== r.target
+                              || before.sortOrder !== r.sortOrder || before.published !== r.published
+                              || before.linkUrl !== r.linkUrl || before.linkLabel !== r.linkLabel
+                              || before.effectiveDate !== r.effectiveDate;
+                          })
+                          .map((r) => ({
+                            op: 'upsert' as const,
+                            item: r.id.startsWith('new-') ? { ...r, id: '' } : r,
+                          }));
+                        const deletes = regulationsDeleted.map((id) => ({ op: 'delete' as const, item: { id } }));
+                        const changes = [...upserts, ...deletes];
+                        if (changes.length > 0) await api.saveRegulationsBatch(changes);
+                        discardRegulationChanges();
+                        await loadRegulations();
+                      }
                       setSettingsIsDirty(false);
                       alert('設定を保存しました。');
                     } catch (e) {

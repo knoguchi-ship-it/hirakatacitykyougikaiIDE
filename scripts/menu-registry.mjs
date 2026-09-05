@@ -134,6 +134,7 @@ export const ACTION_TO_MENU = {
   // v376.65（案C Phase 1）: 規程・重要事項マスタ CRUD
   listRegulations: 'admin-settings',
   saveRegulation: 'admin-settings',
+  saveRegulationsBatch: 'admin-settings', // v376.86: 規程の一括保存
   deleteRegulation: 'admin-settings',
   listMailTemplates: 'admin-settings',
   saveMailTemplate: 'admin-settings',
