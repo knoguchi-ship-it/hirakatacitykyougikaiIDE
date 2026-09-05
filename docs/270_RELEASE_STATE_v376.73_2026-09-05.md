@@ -118,7 +118,7 @@
 | 公開 a11y（live） | `npm run test:a11y` | **PASS**（違反 0）|
 | 公開 responsive（live） | 7 VP | **PASS**（延べ 21 view・不合格 0）|
 | 会員 responsive（live） | 7 VP | **PASS**（延べ 21 view・不合格 0）|
-| 管理 responsive（live） | 7 VP × 8 コンソール | **未実施**（§7）|
+| 管理 responsive（live） | 7 VP × 8 コンソール | **PASS**（延べ 56 view・不合格 0・consoleErrors 0）|
 
 live 検証で確認した内容:
 
@@ -142,7 +142,7 @@ live 検証で確認した内容:
 
 | # | 内容 | 状態 |
 |---|---|---|
-| 1 | 管理ポータルの responsive E2E | **未実施**。storageState が期限切れ（管理者セッションは約 1 時間）。`node .test-out/auth-bootstrap-admin-auto.mjs` の再実行後に流す |
+| 1 | ~~管理ポータルの responsive E2E~~ | **完了（2026-09-05）**。storageState 再取得後に実行し PASS。**3 ポータルすべての live E2E が揃った** |
 | 2 | `backfillKanaToFullwidth_APPLY()` の実行 | **operator 実行待ち**。既存データに半角カナ・ひらがなが残っていないかの確認と変換（§8）|
 | 3 | 恒久ロックの管理画面からの解除手段 | 未実装（SOW §8 U-26）|
 | 4 | 文書重複の機械検査 `test:docs-single-source` | 未実装（SOW §8 U-22）|

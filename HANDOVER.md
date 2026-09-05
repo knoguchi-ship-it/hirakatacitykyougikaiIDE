@@ -14,9 +14,7 @@
   **仕様書 5 文書の整合確認**（`docs/267` §4。実装との食い違い 4 件を修正・トレーサビリティ一覧 `docs/268` を新設）→
   **v376.72**（研修申込IDの採番統一・スキーマ変更なし。`docs/269`）→
   **v376.73**（入会申込フローの公開前是正。重大 2・中 3・軽微 1 を修正 ＋ カナ受理範囲の拡大。`docs/270`）。
-- **⚠️ 管理ポータルの responsive E2E だけ未実施**（v376.73）。storageState が期限切れ。
-  `! node .test-out/auth-bootstrap-admin-auto.mjs` の後に `npm run test:responsive:admin` を流すこと。
-  公開・会員は PASS 済み（`docs/270` §5・§7）。
+- **未検証は無い**。v376.73 は公開・会員・管理の 3 ポータルすべてで live E2E が PASS（`docs/270` §5）。
 - **operator 作業が 1 件残っている**: 既存データのカナ一括変換
   （admin エディタで `backfillKanaToFullwidth()` → `_APPLY()`。`docs/270` §8）。
 - **検証は 1 ページで見られる**: [`docs/portal/test-report.html`](docs/portal/test-report.html)
