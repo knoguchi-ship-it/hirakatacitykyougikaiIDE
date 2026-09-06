@@ -63,6 +63,7 @@
 | BR-16 | 保存時の検証: 事業所 | `npm run test:single-source` ／ サーバー側はレビュー | 同上 ＋ 事業所番号の検証 | ✅ |
 | BR-17 | パスワードの文字数規則 | `npm run test:login-lockout`（周辺）／ レビュー | 資格情報生成・パスワード変更の action | ⚠️ |
 | BR-18 | 最終判定は必ずサーバー側 | `npm run security:split-boundary` ／ レビュー | `processApiRequest` の認証・認可段 | ✅ |
+| BR-19 | 公開ポータルの本人確認（名義＋番号 1 つ・空値は不一致・15 分 5 回）| `npm run test:public-identity` | `src/shared/publicIdentity.ts` ／ `PUBLIC_IDENTITY_CREDENTIALS_` ／ `verifyMemberIdentityForPublic_` | ✅ |
 
 ## 3. 認証・認可（SOW §4 が正本）
 

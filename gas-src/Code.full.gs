@@ -2459,7 +2459,7 @@ function processApiRequest(action, payload) {
       return JSON.stringify({ success: true, data: listRegulations_(null, false) });
     }
     if (action === 'saveRegulationsBatch') {
-    return JSON.stringify({ success: true, data: saveRegulationsBatch_(parsedPayload, adminSession && adminSession.loginId) });
+    return JSON.stringify({ success: true, data: saveRegulationsBatch_(parsedPayload, parsedPayload.__adminSession ? parsedPayload.__adminSession.loginId : '') });
   }
   if (action === 'saveRegulation') {
       return JSON.stringify({ success: true, data: saveRegulation_(parsedPayload, parsedPayload.__adminSession ? parsedPayload.__adminSession.loginId : '') });
@@ -16825,6 +16825,25 @@ var PUBLIC_BUSINESS_UPDATE_ALLOWLIST_ = [
   'officeNumber',
 ];
 
+// 賛助会員: 個人会員と同じ項目から、介護支援専門員番号だけを外す。
+// 賛助会員は CM番号を持たない（入会フォームでも個人会員のときしか出さない）ため、
+// 変更対象に残すとログインIDを書き換える経路になってしまう。
+var PUBLIC_SUPPORT_UPDATE_ALLOWLIST_ = PUBLIC_INDIVIDUAL_UPDATE_ALLOWLIST_.filter(function(k) {
+  return k !== 'careManagerNumber';
+});
+
+// 種別 → allowlist。三項演算子で分岐を書くと、種別が増えたときに
+// 「INDIVIDUAL 以外＝事業所」と解釈されて賛助会員が事業所扱いになる。実際にそうなった。
+var PUBLIC_UPDATE_ALLOWLIST_BY_TYPE_ = {
+  INDIVIDUAL: PUBLIC_INDIVIDUAL_UPDATE_ALLOWLIST_,
+  BUSINESS: PUBLIC_BUSINESS_UPDATE_ALLOWLIST_,
+  SUPPORT: PUBLIC_SUPPORT_UPDATE_ALLOWLIST_,
+};
+
+function publicUpdateAllowlistFor_(memberType) {
+  return PUBLIC_UPDATE_ALLOWLIST_BY_TYPE_[String(memberType || '')] || PUBLIC_INDIVIDUAL_UPDATE_ALLOWLIST_;
+}
+
 // 後方互換: submitPublicMemberUpdate_ で参照される旧名称
 var PUBLIC_MEMBER_UPDATE_ALLOWLIST_ = PUBLIC_INDIVIDUAL_UPDATE_ALLOWLIST_;
 
@@ -17355,6 +17374,55 @@ function verifyPublicIdentityToken_(token) {
   }
 }
 
+// 電話番号の照合キー。数字だけを見る（ハイフン・空白・全角の揺れを吸収）。
+// 全角数字はそのままだと落ちるため、半角へ寄せてから数字以外を捨てる。
+function normalizePhoneForKey_(value) {
+  return String(value == null ? '' : value)
+    .replace(/[０-９]/g, function(ch) { return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0); })
+    .replace(/[^0-9]/g, '');
+}
+
+// v376.88: 公開ポータルの本人確認で使える照合項目。
+//
+// 以前は個人 = CM番号、事業所 = 事業所番号 の 1 本だけで、
+//   - 賛助会員は鍵が無く、変更・退会のどちらもできなかった（RD §2 は認めている）
+//   - 個人会員も CM番号が空の 20 名（187 名中）が通れなかった
+// という取りこぼしがあった。実データの充足率を数えたうえで、
+// 「氏名（事業所名）＋ 手元にある番号を 1 つ」へ広げる。
+//
+// 名義の照合は全種別で必須にする。事業所会員はこれまで番号だけで通っていたので、
+// この変更で強くなる。
+var PUBLIC_IDENTITY_CREDENTIALS_ = {
+  INDIVIDUAL: [
+    { key: 'cmNumber',    column: '介護支援専門員番号', normalize: normalizeCmNumberForKey_, label: '介護支援専門員番号' },
+    { key: 'phone',       column: '勤務先電話番号',     normalize: normalizePhoneForKey_,    label: '電話番号' },
+    { key: 'mobilePhone', column: '携帯電話番号',       normalize: normalizePhoneForKey_,    label: '携帯電話番号' },
+  ],
+  BUSINESS: [
+    { key: 'officeNumber', column: '事業所番号',     normalize: normalizeCmNumberForKey_, label: '事業所番号' },
+    { key: 'phone',        column: '勤務先電話番号', normalize: normalizePhoneForKey_,    label: '電話番号' },
+  ],
+  SUPPORT: [
+    { key: 'phone',       column: '勤務先電話番号', normalize: normalizePhoneForKey_, label: '電話番号' },
+    { key: 'mobilePhone', column: '携帯電話番号',   normalize: normalizePhoneForKey_, label: '携帯電話番号' },
+  ],
+};
+
+// 名義の一致を見る。表記の揺れ（前後空白・全角空白・大小文字）は吸収するが、
+// 文字そのものは変えない。事業所名は空白の入り方が揺れやすいのでこの正規化が要る。
+function matchesPublicIdentityName_(memberType, member, payload) {
+  if (memberType === 'BUSINESS') {
+    var inName = normalizeRosterKeyText_(payload.officeName);
+    if (!inName) return false;
+    return normalizeRosterKeyText_(member['勤務先名']) === inName;
+  }
+  var inLast = normalizeRosterKeyText_(payload.lastName);
+  var inFirst = normalizeRosterKeyText_(payload.firstName);
+  if (!inLast || !inFirst) return false;
+  return normalizeRosterKeyText_(member['姓']) === inLast
+    && normalizeRosterKeyText_(member['名']) === inFirst;
+}
+
 // 本人確認（OTP不要）: 入力情報でDB照合し、成功時にアクショントークンを発行。
 // 列挙防止: 照合失敗・未存在ともに同一エラーを返す。
 // contactEmail はDB照合に使わず、確認メール送信先として保存する。
@@ -17363,7 +17431,8 @@ function verifyMemberIdentityForPublic_(payload) {
   var purpose = String(payload.purpose || '').trim();
   var contactEmail = String(payload.contactEmail || '').trim();
 
-  if (memberType !== 'INDIVIDUAL' && memberType !== 'BUSINESS') {
+  var credentials = PUBLIC_IDENTITY_CREDENTIALS_[memberType];
+  if (!credentials) {
     return { verified: false, error: 'invalid_member_type' };
   }
   if (purpose !== 'update' && purpose !== 'withdrawal') {
@@ -17373,13 +17442,20 @@ function verifyMemberIdentityForPublic_(payload) {
     return { verified: false, error: '有効なメールアドレスを入力してください' };
   }
 
-  var cache = CacheService.getScriptCache();
-  var idKey = memberType === 'INDIVIDUAL'
-    ? normalizeCmNumberForKey_(payload.cmNumber)
-    : normalizeCmNumberForKey_(payload.officeNumber);
+  // 入力された照合項目はちょうど 1 つ。複数受け付けると、どれで通ったかが
+  // 分からなくなり、片方が空でも通る抜け道になる。
+  var supplied = credentials.filter(function(c) {
+    return c.normalize(payload[c.key]) !== '';
+  });
+  if (supplied.length !== 1) {
+    return { verified: false, error: '照合に使う番号を 1 つだけ入力してください。' };
+  }
+  var credential = supplied[0];
+  var idKey = credential.normalize(payload[credential.key]);
 
-  // レート制限（同一ID 15分以内5回まで）
-  var rlKey = 'pub_id_rl_' + memberType + '_' + idKey;
+  // レート制限（同一の照合値につき 15 分以内 5 回まで）
+  var cache = CacheService.getScriptCache();
+  var rlKey = 'pub_id_rl_' + memberType + '_' + credential.key + '_' + idKey;
   var rlRaw = cache.get(rlKey);
   var rl = rlRaw ? JSON.parse(rlRaw) : { count: 0 };
   if (rl.count >= 5) {
@@ -17393,27 +17469,16 @@ function verifyMemberIdentityForPublic_(payload) {
     if (toBoolean_(r['削除フラグ'])) return false;
     if (isInactiveMemberStatusForIdentity_(r['会員状態コード'])) return false;
     if (String(r['会員種別コード'] || '') !== memberType) return false;
-    if (memberType === 'INDIVIDUAL') {
-      return normalizeCmNumberForKey_(r['介護支援専門員番号']) === idKey;
-    }
-    return normalizeCmNumberForKey_(r['事業所番号']) === idKey;
+    // DB 側が空の行は、入力も空にすれば一致してしまう。空は必ず除く。
+    var dbValue = credential.normalize(r[credential.column]);
+    if (!dbValue || dbValue !== idKey) return false;
+    return matchesPublicIdentityName_(memberType, r, payload);
   });
 
   if (memberRows.length !== 1) {
     return { verified: false, error: '入力内容と一致する会員情報が見つかりませんでした。' };
   }
   var member = memberRows[0];
-
-  // 個人会員: 姓・名も照合
-  if (memberType === 'INDIVIDUAL') {
-    var dbLast = String(member['姓'] || '').trim();
-    var dbFirst = String(member['名'] || '').trim();
-    var inLast = String(payload.lastName || '').trim();
-    var inFirst = String(payload.firstName || '').trim();
-    if (!inLast || !inFirst || dbLast !== inLast || dbFirst !== inFirst) {
-      return { verified: false, error: '入力内容と一致する会員情報が見つかりませんでした。' };
-    }
-  }
 
   var memberId = String(member['会員ID'] || '');
   var applicantName = memberType === 'INDIVIDUAL'
@@ -17496,9 +17561,7 @@ function submitPublicChangeRequest_(payload) {
   }
 
   // 変更内容のallowlistフィルタ
-  var allowlist = stored.memberType === 'INDIVIDUAL'
-    ? PUBLIC_INDIVIDUAL_UPDATE_ALLOWLIST_
-    : PUBLIC_BUSINESS_UPDATE_ALLOWLIST_;
+  var allowlist = publicUpdateAllowlistFor_(stored.memberType);
 
   var sanitizedFields = {};
   if (payload.fields && typeof payload.fields === 'object') {
@@ -17704,7 +17767,7 @@ function approveAdminChangeRequest_(payload) {
     approvalResult = createMemberApplicationDirect_(changeData.applicationPayload || {});
   } else if (requestType === 'MEMBER_UPDATE') {
     var updatePayload = { id: memberId };
-    var allowlist = memberType === 'INDIVIDUAL' ? PUBLIC_INDIVIDUAL_UPDATE_ALLOWLIST_ : PUBLIC_BUSINESS_UPDATE_ALLOWLIST_;
+    var allowlist = publicUpdateAllowlistFor_(memberType);
     var fields = changeData.fields || {};
     for (var i = 0; i < allowlist.length; i++) {
       var fk = allowlist[i];

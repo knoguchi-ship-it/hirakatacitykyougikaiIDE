@@ -1,12 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { callApi } from '../../shared/api-base';
+import { IdentityVerifyStep, type IdentityPayload } from './IdentityVerifyStep';
+import type { PublicIdentityMemberType } from '../../shared/publicIdentity';
 import { normalizeKana } from '../../utils/kanaNormalize';
 
 interface Props {
   onBack: () => void;
 }
 
-type MemberType = 'INDIVIDUAL' | 'BUSINESS';
+type MemberType = PublicIdentityMemberType;
 type Step = 'member-type' | 'verify' | 'select-fields' | 'input-fields' | 'complete';
 
 // ── フィールドグループ定義 ─────────────────────────────────────────────────────
@@ -207,20 +209,12 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
   };
 
   // ── Step 2: 本人確認 ─────────────────────────────────────────────────────────
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleVerify = async (payload: IdentityPayload) => {
     setBusy(true);
     clearError();
     try {
-      const payload: Record<string, string> = { memberType, purpose: 'update', contactEmail };
-      if (memberType === 'INDIVIDUAL') {
-        payload.cmNumber = cmNumber;
-        payload.lastName = lastName;
-        payload.firstName = firstName;
-      } else {
-        payload.officeNumber = officeNumber;
-      }
-      const res = await callApi<{ verified: boolean; token: string; error?: string }>('verifyMemberIdentityForPublic', payload);
+      const res = await callApi<{ verified: boolean; token: string; error?: string }>(
+        'verifyMemberIdentityForPublic', { ...payload, purpose: 'update' });
       if (!res.verified) {
         setError(res.error || '入力内容と一致する会員情報が見つかりませんでした。');
         return;
@@ -276,9 +270,13 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
 
   // ── Step 4 → 送信 ────────────────────────────────────────────────────────────
   // v372.6: 変更内容ゼロを send 前に検出（送信ボタン disable に使う）
+  // 個人会員と賛助会員は入力欄の構成が同じ（賛助は CM番号を持たないだけ）。
+  // ここを memberType === 'INDIVIDUAL' で書くと賛助会員の入力が拾われない。
+  const isPersonType = memberType !== 'BUSINESS';
+
   const hasAnyInput = useMemo(() => {
-    // 個人会員
-    if (memberType === 'INDIVIDUAL') {
+    // 個人会員・賛助会員
+    if (isPersonType) {
       if (selected.has('name') && (indFields.lastName.trim() || indFields.firstName.trim() || indFields.lastKana.trim() || indFields.firstKana.trim())) return true;
       if (selected.has('contact') && (indFields.email.trim() || indFields.mobilePhone.trim())) return true;
       if (selected.has('officeContact') && (indFields.phone.trim() || indFields.fax.trim())) return true;
@@ -307,7 +305,7 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
       if (selected.has('staffUpdate') && staffUpdateCards.some((c) => c.selected && (c.lastName.trim() || c.firstName.trim() || c.lastKana.trim() || c.firstKana.trim() || c.email.trim() || (c.careManagerNumber.trim() && !c.original.careManagerNumberLocked)))) return true;
     }
     return false;
-  }, [memberType, selected, indFields, bizFields, staffAddCards, staffRemoveCards, staffUpdateCards]);
+  }, [memberType, isPersonType, selected, indFields, bizFields, staffAddCards, staffRemoveCards, staffUpdateCards]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -315,7 +313,7 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
     clearError();
     try {
       const fields: Record<string, string> = {};
-      if (memberType === 'INDIVIDUAL') {
+      if (isPersonType) {
         if (selected.has('name')) {
           if (indFields.lastName) fields.lastName = indFields.lastName;
           if (indFields.firstName) fields.firstName = indFields.firstName;
@@ -466,7 +464,12 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
     { key: 'staffRemove' as FieldGroup, label: '職員を除籍する', desc: '氏・名・介護支援専門員番号で照合します' },
     { key: 'staffUpdate' as FieldGroup, label: '職員情報を変更する', desc: '在籍中の職員の氏名・メール・CM番号を変更します（10桁特殊CM番号は管理者にご連絡ください）' },
   ];
-  const groups = memberType === 'INDIVIDUAL' ? INDIVIDUAL_GROUPS : BUSINESS_GROUPS;
+  // 賛助会員は個人会員と同じ構成から、持っていない介護支援専門員番号だけを外す。
+  // 「INDIVIDUAL 以外＝事業所」と書くと賛助会員に職員追加の欄が出てしまう。
+  const SUPPORT_GROUPS = INDIVIDUAL_GROUPS.filter(g => g.key !== 'careManagerNumber');
+  const groups = memberType === 'BUSINESS'
+    ? BUSINESS_GROUPS
+    : memberType === 'SUPPORT' ? SUPPORT_GROUPS : INDIVIDUAL_GROUPS;
 
   const stepLabels = ['会員種別', '本人確認', '変更項目の選択', '変更内容の入力', '完了'];
   const stepIndex = (['member-type', 'verify', 'select-fields', 'input-fields', 'complete'] as Step[]).indexOf(step);
@@ -489,94 +492,20 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
-      {/* Step 1: 会員種別選択 */}
-      {step === 'member-type' && (
-        <div className="rounded-[20px] border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="mb-5 text-lg font-semibold text-slate-800">会員の種別を選択してください</h3>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <button type="button" onClick={() => handleSelectType('INDIVIDUAL')}
-              className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-violet-200 bg-violet-50 p-6 text-center transition hover:border-violet-400 hover:bg-violet-100">
-              <span className="text-3xl">👤</span>
-              <div>
-                <p className="font-bold text-slate-900">個人会員</p>
-                <p className="mt-1 text-xs text-slate-500">介護支援専門員番号・氏名で確認</p>
-              </div>
-            </button>
-            <button type="button" onClick={() => handleSelectType('BUSINESS')}
-              className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-violet-200 bg-violet-50 p-6 text-center transition hover:border-violet-400 hover:bg-violet-100">
-              <span className="text-3xl">🏢</span>
-              <div>
-                <p className="font-bold text-slate-900">事業所会員</p>
-                <p className="mt-1 text-xs text-slate-500">事業所番号で確認</p>
-              </div>
-            </button>
-          </div>
-        </div>
+      {/* Step 1-2: 会員種別選択と本人確認（退会申込と共通） */}
+      {(step === 'member-type' || step === 'verify') && (
+        <IdentityVerifyStep
+          purpose="update"
+          step={step}
+          memberType={memberType}
+          busy={busy}
+          error={error}
+          onSelectType={handleSelectType}
+          onBackToTypeSelect={() => { setStep('member-type'); clearError(); }}
+          onSubmit={handleVerify}
+        />
       )}
 
-      {/* Step 2: 本人確認 */}
-      {step === 'verify' && (
-        <form onSubmit={handleVerify} className="rounded-[20px] border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 text-lg font-semibold text-slate-800">
-            {memberType === 'INDIVIDUAL' ? '個人会員の本人確認' : '事業所会員の本人確認'}
-          </h3>
-          <p className="mb-5 text-sm text-slate-600">
-            ご登録情報と照合して本人確認を行います。入力内容はDBに保存されません。
-          </p>
-
-          {memberType === 'INDIVIDUAL' ? (
-            <div className="space-y-4">
-              <div>
-                <label className={labelClass}>介護支援専門員番号{req}</label>
-                <input type="text" inputMode="numeric" pattern="\d{8}" maxLength={8} required
-                  value={cmNumber} onChange={e => setCmNumber(e.target.value.replace(/\D/g, ''))}
-                  placeholder="例: 12345678" className={inputClass} />
-                <p className="mt-1 text-xs text-slate-500">半角数字8桁</p>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelClass}>氏（姓）{req}</label>
-                  <input type="text" required value={lastName}
-                    onChange={e => setLastName(e.target.value)} placeholder="例: 山田" className={inputClass} />
-                </div>
-                <div>
-                  <label className={labelClass}>名{req}</label>
-                  <input type="text" required value={firstName}
-                    onChange={e => setFirstName(e.target.value)} placeholder="例: 太郎" className={inputClass} />
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div>
-              <label className={labelClass}>事業所番号{req}</label>
-              <input type="text" required value={officeNumber}
-                onChange={e => setOfficeNumber(e.target.value.trim())} placeholder="例: 2700123456" className={inputClass} />
-            </div>
-          )}
-
-          <div className="mt-4">
-            <label className={labelClass}>返信用メールアドレス{req}</label>
-            <input type="email" required value={contactEmail}
-              onChange={e => setContactEmail(e.target.value.trim())} placeholder="例: example@email.com" className={inputClass} />
-            <p className="mt-1 text-xs text-slate-500">
-              申請受付・処理結果の通知に使用します。会員登録情報とは紐づきません。
-            </p>
-          </div>
-
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-            <button type="button" onClick={() => { setStep('member-type'); clearError(); }}
-              className="flex-1 rounded-full border border-slate-300 bg-white px-6 py-3 text-sm font-medium text-slate-700 transition hover:border-slate-400">
-              ← 戻る
-            </button>
-            <button type="submit" disabled={busy}
-              className="flex-1 rounded-full bg-violet-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-300">
-              {busy ? '確認中...' : '確認して次へ'}
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* Step 3: 変更項目選択 */}
       {step === 'select-fields' && (
         <div className="rounded-[20px] border border-slate-200 bg-white p-6 shadow-sm">
           <h3 className="mb-2 text-lg font-semibold text-slate-800">変更する項目を選択</h3>
@@ -631,7 +560,7 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
           </div>
           <div className="space-y-6">
             {/* ── 個人会員フィールド ──────────────────────────────────── */}
-            {memberType === 'INDIVIDUAL' && (
+            {isPersonType && (
               <>
                 {selected.has('name') && (
                   <fieldset className="space-y-3 rounded-lg border border-slate-200 p-4">

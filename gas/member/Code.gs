@@ -6411,6 +6411,22 @@ var PUBLIC_BUSINESS_UPDATE_ALLOWLIST_ = [
   'officeNumber',
 ];
 
+// 賛助会員: 個人会員と同じ項目から、介護支援専門員番号だけを外す。
+// 賛助会員は CM番号を持たない（入会フォームでも個人会員のときしか出さない）ため、
+// 変更対象に残すとログインIDを書き換える経路になってしまう。
+var PUBLIC_SUPPORT_UPDATE_ALLOWLIST_ = PUBLIC_INDIVIDUAL_UPDATE_ALLOWLIST_.filter(function(k) {
+  return k !== 'careManagerNumber';
+});
+
+// 種別 → allowlist。三項演算子で分岐を書くと、種別が増えたときに
+// 「INDIVIDUAL 以外＝事業所」と解釈されて賛助会員が事業所扱いになる。実際にそうなった。
+var PUBLIC_UPDATE_ALLOWLIST_BY_TYPE_ = {
+  INDIVIDUAL: PUBLIC_INDIVIDUAL_UPDATE_ALLOWLIST_,
+  BUSINESS: PUBLIC_BUSINESS_UPDATE_ALLOWLIST_,
+  SUPPORT: PUBLIC_SUPPORT_UPDATE_ALLOWLIST_,
+};
+
+
 
 // v372.4: 介護支援専門員番号バリデーション + 大文字統一
 // 厳格: 8 桁の半角数字（公開ポータルでの基本ルール）
@@ -6463,6 +6479,12 @@ function isAllowedRelaxedCmNumber_(adminSession) {
 // ステートレストークン（HMAC-SHA256署名）: CacheService非依存。
 // キーは Script Properties の PUBLIC_TOKEN_SECRET（未設定時はフォールバック値）。
 
+
+// 電話番号の照合キー。数字だけを見る（ハイフン・空白・全角の揺れを吸収）。
+// 全角数字はそのままだと落ちるため、半角へ寄せてから数字以外を捨てる。
+
+// 名義の一致を見る。表記の揺れ（前後空白・全角空白・大小文字）は吸収するが、
+// 文字そのものは変えない。事業所名は空白の入り方が揺れやすいのでこの正規化が要る。
 
 // 本人確認（OTP不要）: 入力情報でDB照合し、成功時にアクショントークンを発行。
 // 列挙防止: 照合失敗・未存在ともに同一エラーを返す。

@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { callApi } from '../../shared/api-base';
+import { IdentityVerifyStep, type IdentityPayload } from './IdentityVerifyStep';
+import type { PublicIdentityMemberType } from '../../shared/publicIdentity';
 
 interface Props {
   onBack: () => void;
 }
 
-type MemberType = 'INDIVIDUAL' | 'BUSINESS';
+type MemberType = PublicIdentityMemberType;
 type Step = 'member-type' | 'verify' | 'confirm' | 'complete';
 
 const inputClass = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200';
@@ -15,11 +17,6 @@ const req = <span className="text-red-500"> *</span>;
 const WithdrawalRequestForm: React.FC<Props> = ({ onBack }) => {
   const [step, setStep] = useState<Step>('member-type');
   const [memberType, setMemberType] = useState<MemberType>('INDIVIDUAL');
-  const [cmNumber, setCmNumber] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [officeNumber, setOfficeNumber] = useState('');
-  const [contactEmail, setContactEmail] = useState('');
   const [token, setToken] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -32,20 +29,12 @@ const WithdrawalRequestForm: React.FC<Props> = ({ onBack }) => {
     clearError();
   };
 
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleVerify = async (payload: IdentityPayload) => {
     setBusy(true);
     clearError();
     try {
-      const payload: Record<string, string> = { memberType, purpose: 'withdrawal', contactEmail };
-      if (memberType === 'INDIVIDUAL') {
-        payload.cmNumber = cmNumber;
-        payload.lastName = lastName;
-        payload.firstName = firstName;
-      } else {
-        payload.officeNumber = officeNumber;
-      }
-      const res = await callApi<{ verified: boolean; token: string; error?: string }>('verifyMemberIdentityForPublic', payload);
+      const res = await callApi<{ verified: boolean; token: string; error?: string }>(
+        'verifyMemberIdentityForPublic', { ...payload, purpose: 'withdrawal' });
       if (!res.verified) {
         setError(res.error || '入力内容と一致する会員情報が見つかりませんでした。');
         return;
@@ -135,99 +124,29 @@ const WithdrawalRequestForm: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
-      {/* Step 1: 会員種別選択 */}
+      {/* Step 1-2: 会員種別選択と本人確認（登録情報変更と共通） */}
       {step === 'member-type' && (
-        <div className="rounded-[20px] border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-            <p className="text-sm font-semibold text-amber-800">退会前にご確認ください</p>
-            <ul className="mt-2 list-inside list-disc space-y-1 text-xs text-amber-700">
-              <li>退会は当年度末（3月31日）に適用されます</li>
-              <li>退会予定日までは会員マイページをご利用いただけます</li>
-              <li>退会を取り消す場合は会員マイページからお手続きください</li>
-            </ul>
-          </div>
-          <h3 className="mb-5 text-lg font-semibold text-slate-800">会員の種別を選択してください</h3>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <button type="button" onClick={() => handleSelectType('INDIVIDUAL')}
-              className="flex flex-col items-center gap-3 rounded-2xl border-2 border-amber-200 bg-amber-50 p-6 text-center transition hover:border-amber-400 hover:bg-amber-100">
-              <span className="text-3xl">👤</span>
-              <div>
-                <p className="font-bold text-slate-900">個人会員</p>
-                <p className="mt-1 text-xs text-slate-500">介護支援専門員番号・氏名で確認</p>
-              </div>
-            </button>
-            <button type="button" onClick={() => handleSelectType('BUSINESS')}
-              className="flex flex-col items-center gap-3 rounded-2xl border-2 border-amber-200 bg-amber-50 p-6 text-center transition hover:border-amber-400 hover:bg-amber-100">
-              <span className="text-3xl">🏢</span>
-              <div>
-                <p className="font-bold text-slate-900">事業所会員</p>
-                <p className="mt-1 text-xs text-slate-500">事業所番号で確認</p>
-              </div>
-            </button>
-          </div>
+        <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-sm font-semibold text-amber-800">退会前にご確認ください</p>
+          <ul className="mt-2 list-inside list-disc space-y-1 text-xs text-amber-700">
+            <li>退会は当年度末（3月31日）に適用されます</li>
+            <li>退会予定日までは会員マイページをご利用いただけます</li>
+            <li>退会を取り消す場合は会員マイページからお手続きください</li>
+          </ul>
         </div>
       )}
 
-      {/* Step 2: 本人確認 */}
-      {step === 'verify' && (
-        <form onSubmit={handleVerify} className="rounded-[20px] border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 text-lg font-semibold text-slate-800">
-            {memberType === 'INDIVIDUAL' ? '個人会員の本人確認' : '事業所会員の本人確認'}
-          </h3>
-          <p className="mb-5 text-sm text-slate-600">
-            ご登録情報と照合して本人確認を行います。入力内容はDBに保存されません。
-          </p>
-
-          {memberType === 'INDIVIDUAL' ? (
-            <div className="space-y-4">
-              <div>
-                <label className={labelClass}>介護支援専門員番号{req}</label>
-                <input type="text" inputMode="numeric" pattern="\d{8}" maxLength={8} required
-                  value={cmNumber} onChange={e => setCmNumber(e.target.value.replace(/\D/g, ''))}
-                  placeholder="12345678" className={inputClass} />
-                <p className="mt-1 text-xs text-slate-500">半角数字8桁</p>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelClass}>氏（姓）{req}</label>
-                  <input type="text" required value={lastName}
-                    onChange={e => setLastName(e.target.value)} placeholder="山田" className={inputClass} />
-                </div>
-                <div>
-                  <label className={labelClass}>名{req}</label>
-                  <input type="text" required value={firstName}
-                    onChange={e => setFirstName(e.target.value)} placeholder="太郎" className={inputClass} />
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div>
-              <label className={labelClass}>事業所番号{req}</label>
-              <input type="text" required value={officeNumber}
-                onChange={e => setOfficeNumber(e.target.value.trim())} placeholder="事業所番号を入力" className={inputClass} />
-            </div>
-          )}
-
-          <div className="mt-4">
-            <label className={labelClass}>返信用メールアドレス{req}</label>
-            <input type="email" required value={contactEmail}
-              onChange={e => setContactEmail(e.target.value.trim())} placeholder="example@email.com" className={inputClass} />
-            <p className="mt-1 text-xs text-slate-500">
-              申請受付・処理結果の通知に使用します。会員登録情報とは紐づきません。
-            </p>
-          </div>
-
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-            <button type="button" onClick={() => { setStep('member-type'); clearError(); }}
-              className="flex-1 rounded-full border border-slate-300 bg-white px-6 py-3 text-sm font-medium text-slate-700 transition hover:border-slate-400">
-              ← 戻る
-            </button>
-            <button type="submit" disabled={busy}
-              className="flex-1 rounded-full bg-amber-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:bg-slate-300">
-              {busy ? '確認中...' : '確認して次へ'}
-            </button>
-          </div>
-        </form>
+      {(step === 'member-type' || step === 'verify') && (
+        <IdentityVerifyStep
+          purpose="withdrawal"
+          step={step}
+          memberType={memberType}
+          busy={busy}
+          error={error}
+          onSelectType={handleSelectType}
+          onBackToTypeSelect={() => { setStep('member-type'); clearError(); }}
+          onSubmit={handleVerify}
+        />
       )}
 
       {/* Step 3: 退会確認 */}
