@@ -1,12 +1,12 @@
 # 開発引継ぎ（Current State）
 
-## ▶ 再開プラン（2026-09-04 時点・次の担当者はここから）
+## ▶ 再開プラン（2026-09-09 時点・次の担当者はここから）
 
 ### 0. 30 秒で現状
 
 - **本番**: public **@397×2** / member **@155** / admin **@252**（**v376.88**）。4 本すべて同期確認済。
   ロールバック先は public @396×2 / member @154 / admin @251（v376.87）。
-- **未 push・未デプロイの作業は無い**。**中断中の実装は無い**。
+- **U-27 の修正はローカルで実装・3 split 生成・境界検証済み。本番反映は未実施**。本番は引き続き v376.88。
 - 直近セッション（2026-09-06）でやったこと:
   **v376.87**（規程設定の一括保存が本番で 1 件も保存できていなかった不具合の修正 ＋ 再発防止の
   `test:action-dispatch` を新設）→
@@ -14,8 +14,7 @@
   **v376.88**（公開ポータルの本人確認を 3 種別へ拡張。**賛助会員が変更・退会のどちらもできなかった**
   仕様との食い違いを解消）。詳細は `docs/274`。
 - **検証で見つかった残課題は SOW §8 の U-27〜U-31 に登録済み**。
-  **最優先は U-27（旧 v261 系の公開 API 6 本の撤去）**。画面から呼ばれていないのに公開許可リストに残り、
-  弱い本人確認のまま**承認を経ずに `T_会員` を書き換えられる**。呼び出し元 0 件なので削除できる。
+  **U-27 は実装・生成物検証済みで、本番反映待ち**。次の優先作業は、承認を得たうえでの3 split deployment 同期と実地確認。
 - **中断した検証が 2 つある**（実装ではなく確認作業）:
   賛助会員の本人確認を実データで通す確認と、職員の追加・情報変更・除籍の実地検証。
   どちらも管理セッション切れとレート制限で止まっただけで、**コード側の懸念があるわけではない**。
@@ -39,7 +38,7 @@
 
 ### 2. 次にやること（優先度順）
 
-#### 【最優先】U-27 旧 v261 系の公開 API 6 本を撤去する
+#### 【本番反映待ち】U-27 旧 v261 系の公開 API 6 本を撤去する
 
 `lookupMemberForPublicUpdate` / `submitPublicMemberUpdate` / `submitPublicBusinessUpdate` /
 `addPublicStaffMember` / `removePublicStaffByCmNumber` / `submitPublicWithdrawalRequest` の 6 本。
@@ -57,9 +56,12 @@ v264 で本人確認が作り直された際、**画面からは切り離され�
 （`pub_tok_withdrawal_`）を見たままなので常に `token_expired` で落ちる。**壊れているおかげで**
 退会の即時反映は起きていない。他の 5 本は `lookupMemberForPublicUpdate` が発行するトークンで動く。
 
-**手順**: `scripts/gas-boundary-utils.mjs` の許可リスト、`processApiRequest` の分岐、
-関数本体の 3 箇所から削除する。呼び出し元は 0 件（`grep -rn '<action名>' src/` で確認済み）。
-`test:action-dispatch` に「許可リストの action は画面から呼ばれている」検査を足すと再発を止められる。
+**実装済み**: `scripts/gas-boundary-utils.mjs` の許可リスト、`processApiRequest` の分岐、
+関数本体を削除した。承認済み変更申請の職員追加は `addApprovedStaffMember_` に分離し、公開経路には残していない。
+`test:action-dispatch` は廃止 action が許可リスト・分岐・関数定義に残れば失敗する。`security:public-boundary` と
+3 split 生成物参照検査を通過済み。**次は prerelease → user 承認後に push/version/redeploy → deployment と実ブラウザ確認**。
+
+**GCP 移植メモ**: Cloud Run の公開 API でも同じ6 action を公開 allowlist に含めず、変更申請キュー経由だけを提供する。
 
 #### 【中断中】確認作業 2 件（実装は完了している）
 

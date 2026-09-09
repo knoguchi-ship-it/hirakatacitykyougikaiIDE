@@ -1872,13 +1872,7 @@ function processApiRequest(action, payload) {
 
 
 
-    // v260/v261: 公開ポータル 会員情報変更・退会申請
-
-
-
-
-
-
+    // v260: 公開ポータル OTP
 
 
     // v264: OTPなし本人確認フロー
@@ -12706,95 +12700,6 @@ function generatePublicActionToken_() {
 
 // OTP を検証し、成功時に単一使用アクショントークンを発行する。
 
-// アクショントークンを検証し、許可フィールドのみ会員情報を更新する。
-
-// アクショントークンを検証し、年度末退会申請を登録する。
-
-// ── v261: OTP なし照合フロー（個人: CM番号 / 事業所: 事業所番号）──────────────
-
-// CM番号または事業所番号でメンバーを検索し、アクショントークンを発行する。
-// token は pub_tok_update_<token> に memberType を含めて保存（30分・多用途）。
-
-// 事業所会員の基本情報変更 + スタッフ追加/除籍をまとめて処理する。
-// token は削除せず TTL 内で多用途使用を許容。
-
-// 事業所にスタッフを新規追加する。認証アカウントは別途管理者が発行する。
-function addPublicStaffMember_(payload) {
-  var token = String(payload.token || '').trim();
-  if (!token) return { success: false, error: 'invalid_token' };
-
-  var cache = CacheService.getScriptCache();
-  var tokenRaw = cache.get('pub_tok_update_' + token);
-  if (!tokenRaw) return { success: false, error: 'token_expired' };
-
-  var stored = JSON.parse(tokenRaw);
-  if (stored.memberType !== 'BUSINESS') return { success: false, error: '事業所会員専用の操作です' };
-  var memberId = stored.memberId;
-
-  var s = payload.staffData || {};
-  var lastName = String(s.lastName || '').trim();
-  var firstName = String(s.firstName || '').trim();
-  if (!lastName || !firstName) return { success: false, error: '姓と名は必須です' };
-
-  var ss = getOrCreateDatabase_();
-
-  // 職員数上限チェック
-  var memberSheet = ss.getSheetByName('T_会員');
-  var memberFound = memberSheet ? findRowByColumnValue_(memberSheet, '会員ID', memberId) : null;
-  if (memberFound) {
-    var limitVal = memberFound.row[memberFound.columns['職員数上限']];
-    var staffLimit = limitVal ? Number(limitVal) : 0;
-    if (staffLimit > 0) {
-      var currentCount = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) {
-        return !toBoolean_(r['削除フラグ']) &&
-               String(r['会員ID'] || '') === memberId &&
-               String(r['職員状態コード'] || '') === 'ENROLLED';
-      }).length;
-      if (currentCount >= staffLimit) {
-        return { success: false, error: '職員数上限（' + staffLimit + '名）に達しています' };
-      }
-    }
-  }
-
-  var careNum = normalizeCmNumberForKey_(s.careManagerNumber);
-  var now = new Date().toISOString();
-  var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
-  var newStaffId = 'S' + Date.now();
-  var fullName = [lastName, firstName].join(' ').trim();
-  var lastKana = String(s.lastKana || '').trim();
-  var firstKana = String(s.firstKana || '').trim();
-  var fullKana = [lastKana, firstKana].join(' ').trim();
-
-  appendRowsByHeaders_(ss, 'T_事業所職員', [{
-    職員ID: newStaffId,
-    会員ID: memberId,
-    姓: lastName,
-    名: firstName,
-    セイ: lastKana,
-    メイ: firstKana,
-    氏名: fullName,
-    フリガナ: fullKana,
-    メールアドレス: String(s.email || '').trim(),
-    職員権限コード: 'STAFF',
-    職員状態コード: 'ENROLLED',
-    入会日: today,
-    退会日: '',
-    介護支援専門員番号: careNum,
-    メール配信希望コード: 'YES',
-    作成日時: now,
-    更新日時: now,
-    削除フラグ: false,
-  }]);
-
-  clearAllDataCache_();
-  clearAdminDashboardCache_();
-  return { success: true, staffId: newStaffId };
-}
-
-// 事業所内のスタッフを介護支援専門員番号で検索して除籍する。
-
-// ── v260 公開ポータル OTP 認証フロー ここまで ────────────────────────────────
-
 // ── v264: OTPなし本人確認フロー + 変更申請キュー ─────────────────────────────
 
 // ステートレストークン（HMAC-SHA256署名）: CacheService非依存。
@@ -12942,7 +12847,7 @@ function approveAdminChangeRequest_(payload) {
     // MEMBER_UPDATE に含まれるスタッフ追加/除籍も適用（事業所会員の複合申請対応）
     var staffToAddMixed = changeData.staffAdd || [];
     for (var ja = 0; ja < staffToAddMixed.length; ja++) {
-      var mixedAddResult = addPublicStaffMember_({ token: 'ADMIN_APPROVED', staffData: staffToAddMixed[ja], _directMemberId: memberId });
+      var mixedAddResult = addApprovedStaffMember_(memberId, staffToAddMixed[ja]);
       if (!approvalResult.staffAddResults) approvalResult.staffAddResults = [];
       approvalResult.staffAddResults.push(mixedAddResult);
     }
@@ -13057,11 +12962,7 @@ function approveAdminChangeRequest_(payload) {
   } else if (requestType === 'STAFF_ADD') {
     var staffToAdd = changeData.staffAdd || [];
     for (var j = 0; j < staffToAdd.length; j++) {
-      var addResult = addPublicStaffMember_({
-        token: 'ADMIN_APPROVED',
-        staffData: staffToAdd[j],
-        _directMemberId: memberId,
-      });
+      var addResult = addApprovedStaffMember_(memberId, staffToAdd[j]);
       if (!approvalResult.staffAddResults) approvalResult.staffAddResults = [];
       approvalResult.staffAddResults.push(addResult);
     }
@@ -13209,13 +13110,11 @@ function rejectAdminChangeRequest_(payload) {
   return { success: true, requestId: requestId };
 }
 
-// addPublicStaffMember_ の管理者承認経由呼び出し対応（_directMemberId でトークン不要）
-var _origAddPublicStaffMember = addPublicStaffMember_;
-addPublicStaffMember_ = function(payload) {
-  if (payload._directMemberId) {
+// 管理者が承認した変更申請からのみ職員を追加する。
+function addApprovedStaffMember_(memberId, s) {
     var ss = getOrCreateDatabase_();
-    var memberId = payload._directMemberId;
-    var s = payload.staffData || {};
+    memberId = String(memberId || '');
+    s = s || {};
     var lastName = String(s.lastName || '').trim();
     var firstName = String(s.firstName || '').trim();
     if (!lastName || !firstName) return { success: false, error: '姓と名は必須です' };
@@ -13290,9 +13189,7 @@ addPublicStaffMember_ = function(payload) {
     }]);
     clearAllDataCache_();
     return { success: true };
-  }
-  return _origAddPublicStaffMember(payload);
-};
+}
 
 // ── v264 変更申請キュー ここまで ────────────────────────────────────────────
 

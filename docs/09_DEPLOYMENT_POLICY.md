@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-09-02
-Production: `v376.60` / integrated-public `@365` x2 / member split `@124` / admin split `@221`
+Updated: 2026-09-09
+Production: `v376.88` / integrated-public `@397` x2 / member split `@155` / admin split `@252`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -19,15 +19,15 @@ Production: `v376.60` / integrated-public `@365` x2 / member split `@124` / admi
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@389` (`v376.80`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@389` (`v376.80`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@397` (`v376.88`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@397` (`v376.88`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@148` (`v376.80`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@245` (`v376.80`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@155` (`v376.88`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@252` (`v376.88`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -144,7 +144,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-09-02 v376.62 ← current production
+### 2026-09-06 v376.88 ← current production
+
+- Scope: 公開ポータルの本人確認を3種別へ拡張し、賛助会員の登録情報変更・退会申請を現行の変更申請キュー経由で可能にした。スキーマ変更なし。
+- Fixed deployments: integrated/public @397 x2 / member @155 / admin @252.
+- Verification: prerelease 31 suites PASS、公開ポータルの3種別表示・本人確認を live 確認。詳細は `docs/274_RELEASE_STATE_v376.81-88_2026-09-06.md`。
+- Next release pending: U-27 の旧 v261 公開 API 6 本の撤去はローカル実装・生成物検証済み。本番反映には通常の3 split release 手順と operator 承認が必要。
+
+### 2026-09-02 v376.62
 - Scope: production defect fix. listMailTemplates failed for every category with
   "mailTemplateRecordFromRow_ is not defined" from v376.42 onward, because the
   build pruner counted only call syntax as a reference and therefore deleted a

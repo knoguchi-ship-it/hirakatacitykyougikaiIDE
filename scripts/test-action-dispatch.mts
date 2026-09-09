@@ -34,6 +34,17 @@ function extractDispatch(): string {
 
 const dispatch = extractDispatch();
 
+// U-27: v261 で残った公開 API は、本人確認が弱く承認を経ずに会員情報を書き換えられた。
+// 新しい変更申請キューへ移行済みで画面からの呼び出しもないため、復活を許可しない。
+const RETIRED_PUBLIC_ACTIONS = [
+  'lookupMemberForPublicUpdate',
+  'submitPublicMemberUpdate',
+  'submitPublicBusinessUpdate',
+  'addPublicStaffMember',
+  'removePublicStaffByCmNumber',
+  'submitPublicWithdrawalRequest',
+];
+
 test('action 分岐で管理者セッションは __adminSession から取る', () => {
   // 分岐の中で使ってよいのは parsedPayload.__adminSession（この関数のローカル）。
   // `adminSession` を裸で参照すると実行時 ReferenceError になる。
@@ -68,4 +79,16 @@ test('新しい action は権限表・分岐・許可リストの 3 箇所に揃
     [],
     `権限表にあるが processApiRequest に分岐が無い action: ${notDispatched.join(', ')}`
   );
+});
+
+test('廃止した v261 公開 API は許可リスト・分岐・実装のいずれにも残っていない', () => {
+  const publicActions = gas.match(/var PUBLIC_ALLOWED_ACTIONS = \{([\s\S]*?)\n\};/);
+  assert.ok(publicActions, 'PUBLIC_ALLOWED_ACTIONS が見つからない');
+
+  const remaining = RETIRED_PUBLIC_ACTIONS.filter((action) =>
+    new RegExp(`\\b${action}\\s*:`).test(publicActions[1])
+    || dispatch.includes(`action === '${action}'`)
+    || new RegExp(`function ${action}_\\s*\\(`).test(gas)
+  );
+  assert.deepEqual(remaining, [], `廃止済みの公開 API が残っている: ${remaining.join(', ')}`);
 });
