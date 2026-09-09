@@ -4,17 +4,10 @@
 
 ### 0. 30 秒で現状
 
-- **本番**: public **@397×2** / member **@155** / admin **@252**（**v376.88**）。4 本すべて同期確認済。
-  ロールバック先は public @396×2 / member @154 / admin @251（v376.87）。
-- **U-27 の修正はローカルで実装・3 split 生成・境界検証済み。本番反映は未実施**。本番は引き続き v376.88。
-- 直近セッション（2026-09-06）でやったこと:
-  **v376.87**（規程設定の一括保存が本番で 1 件も保存できていなかった不具合の修正 ＋ 再発防止の
-  `test:action-dispatch` を新設）→
-  **ポータル 3 フロー（入会・変更・退会）の実地検証**（送信 → 受理 → 承認/却下 → DB 反映まで実通し）→
-  **v376.88**（公開ポータルの本人確認を 3 種別へ拡張。**賛助会員が変更・退会のどちらもできなかった**
-  仕様との食い違いを解消）。詳細は `docs/274`。
-- **検証で見つかった残課題は SOW §8 の U-27〜U-31 に登録済み**。
-  **U-27 は実装・生成物検証済みで、本番反映待ち**。次の優先作業は、承認を得たうえでの3 split deployment 同期と実地確認。
+- **本番**: public **@398×2** / member **@156** / admin **@253**（**v376.89**）。4 本すべて同期確認済。
+  ロールバック先は public @397×2 / member @155 / admin @252（v376.88）。
+- **直近リリース（2026-09-09）**: U-27 の旧公開 API 6 本を許可リスト・dispatch・実装から撤去し、承認済み申請の職員追加は内部専用関数へ分離した。詳細は `docs/275`。
+- **検証で見つかった残課題は SOW §8 の U-28〜U-31 に登録済み**。U-27 は本番反映・deployment 同期・公開/管理 E2E まで完了。
 - **中断した検証が 2 つある**（実装ではなく確認作業）:
   賛助会員の本人確認を実データで通す確認と、職員の追加・情報変更・除籍の実地検証。
   どちらも管理セッション切れとレート制限で止まっただけで、**コード側の懸念があるわけではない**。
@@ -38,7 +31,7 @@
 
 ### 2. 次にやること（優先度順）
 
-#### 【本番反映待ち】U-27 旧 v261 系の公開 API 6 本を撤去する
+#### 【完了】U-27 旧 v261 系の公開 API 6 本を撤去する
 
 `lookupMemberForPublicUpdate` / `submitPublicMemberUpdate` / `submitPublicBusinessUpdate` /
 `addPublicStaffMember` / `removePublicStaffByCmNumber` / `submitPublicWithdrawalRequest` の 6 本。
@@ -59,7 +52,7 @@ v264 で本人確認が作り直された際、**画面からは切り離され�
 **実装済み**: `scripts/gas-boundary-utils.mjs` の許可リスト、`processApiRequest` の分岐、
 関数本体を削除した。承認済み変更申請の職員追加は `addApprovedStaffMember_` に分離し、公開経路には残していない。
 `test:action-dispatch` は廃止 action が許可リスト・分岐・関数定義に残れば失敗する。`security:public-boundary` と
-3 split 生成物参照検査を通過済み。**次は prerelease → user 承認後に push/version/redeploy → deployment と実ブラウザ確認**。
+3 split 生成物参照検査を通過済み。**v376.89 で 3 split push / version / fixed deployment 4 本同期まで完了**。
 
 **GCP 移植メモ**: Cloud Run の公開 API でも同じ6 action を公開 allowlist に含めず、変更申請キュー経由だけを提供する。
 

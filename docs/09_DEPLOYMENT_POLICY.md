@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-09-09
-Production: `v376.88` / integrated-public `@397` x2 / member split `@155` / admin split `@252`
+Production: `v376.89` / integrated-public `@398` x2 / member split `@156` / admin split `@253`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -19,15 +19,15 @@ Production: `v376.88` / integrated-public `@397` x2 / member split `@155` / admi
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@397` (`v376.88`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@397` (`v376.88`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@398` (`v376.89`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@398` (`v376.89`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@155` (`v376.88`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@252` (`v376.88`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@156` (`v376.89`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@253` (`v376.89`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -144,7 +144,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-09-06 v376.88 ← current production
+### 2026-09-09 v376.89 ← current production
+
+- Scope: U-27 の旧公開 API 6 本を公開許可リスト・dispatch・実装から撤去。承認済み変更申請の職員追加は内部専用関数へ分離。スキーマ変更なし。
+- Fixed deployments: integrated/public @398 x2 / member @156 / admin @253.
+- Verification: prerelease 31 suites PASS、deployment API で4本同期確認、公開 a11y 3 view 違反0、公開 responsive 7 viewport、管理 responsive 7 viewport × 8 console を実行（fatal / console error / 横スクロール / 24px未満の操作対象 0）。詳細は `docs/275_RELEASE_STATE_v376.89_2026-09-09.md`。
+- Rollback: integrated/public @397 x2 / member @155 / admin @252（v376.88）。
+
+### 2026-09-06 v376.88
 
 - Scope: 公開ポータルの本人確認を3種別へ拡張し、賛助会員の登録情報変更・退会申請を現行の変更申請キュー経由で可能にした。スキーマ変更なし。
 - Fixed deployments: integrated/public @397 x2 / member @155 / admin @252.

@@ -51,7 +51,8 @@ const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best
 const VIEWS = [
   { id: 'home',              label: 'ホーム（カードメニュー）',     trigger: null },
   { id: 'memberApplication', label: '新規入会申込フォーム',         trigger: { textIncludes: '新規入会を申し込む' } },
-  { id: 'noticeDialog',      label: '事務局からのお願いモーダル',   trigger: { textIncludes: '重要事項を確認する' } },
+  // v376.74: the former notice modal became the post-member-type notice step.
+  { id: 'noticeStep',        label: '注意事項ステップ（種別選択後）', trigger: { textIncludes: '個人会員' } },
 ];
 
 async function getAppFrame(page) {
@@ -69,6 +70,21 @@ async function getAppFrame(page) {
     }
   }
   throw new Error('App frame did not appear within 45s');
+}
+
+// The GAS frame appears before the portal finishes its settings request.
+// Waiting for the primary CTA prevents the view triggers below from producing
+// false "not found" results against the loading shell.
+async function waitForHomeReady(frame) {
+  for (let i = 0; i < 60; i++) {
+    try {
+      const ready = await frame.evaluate(() => Array.from(document.querySelectorAll('button'))
+        .some((button) => (button.innerText || '').includes('新規入会を申し込む')));
+      if (ready) return true;
+    } catch { /* frame navigating */ }
+    await frame.page().waitForTimeout(500);
+  }
+  return false;
 }
 
 async function runAxeOnFrame(page, frame) {
@@ -173,7 +189,9 @@ async function main() {
     process.stderr.write(`[test-a11y] navigating ${PORTAL_URL}\n`);
     await page.goto(PORTAL_URL, { waitUntil: 'domcontentloaded', timeout: 45000 });
     const frame = await getAppFrame(page);
-    await page.waitForTimeout(800);
+    if (!await waitForHomeReady(frame)) {
+      throw new Error('Public portal did not become ready within 30s');
+    }
 
     for (const view of VIEWS) {
       process.stderr.write(`[test-a11y] view: ${view.id}\n`);
