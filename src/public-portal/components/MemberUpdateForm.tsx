@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { callApi } from '../../shared/api-base';
 import { IdentityVerifyStep, type IdentityPayload } from './IdentityVerifyStep';
-import type { PublicIdentityMemberType } from '../../shared/publicIdentity';
+import { publicIdentityErrorMessage, type PublicIdentityMemberType } from '../../shared/publicIdentity';
 import { normalizeKana } from '../../utils/kanaNormalize';
 
 interface Props {
@@ -216,13 +216,13 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
       const res = await callApi<{ verified: boolean; token: string; error?: string }>(
         'verifyMemberIdentityForPublic', { ...payload, purpose: 'update' });
       if (!res.verified) {
-        setError(res.error || '入力内容と一致する会員情報が見つかりませんでした。');
+        setError(publicIdentityErrorMessage(res.error));
         return;
       }
       setToken(res.token);
       setStep('select-fields');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '確認に失敗しました。');
+      setError(publicIdentityErrorMessage(err));
     } finally {
       setBusy(false);
     }

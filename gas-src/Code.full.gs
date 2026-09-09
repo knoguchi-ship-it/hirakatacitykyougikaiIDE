@@ -17012,21 +17012,23 @@ function normalizePhoneForKey_(value) {
 //
 // 名義の照合は全種別で必須にする。事業所会員はこれまで番号だけで通っていたので、
 // この変更で強くなる。
-var PUBLIC_IDENTITY_CREDENTIALS_ = {
-  INDIVIDUAL: [
-    { key: 'cmNumber',    column: '介護支援専門員番号', normalize: normalizeCmNumberForKey_, label: '介護支援専門員番号' },
-    { key: 'phone',       column: '勤務先電話番号',     normalize: normalizePhoneForKey_,    label: '電話番号' },
-    { key: 'mobilePhone', column: '携帯電話番号',       normalize: normalizePhoneForKey_,    label: '携帯電話番号' },
-  ],
-  BUSINESS: [
-    { key: 'officeNumber', column: '事業所番号',     normalize: normalizeCmNumberForKey_, label: '事業所番号' },
-    { key: 'phone',        column: '勤務先電話番号', normalize: normalizePhoneForKey_,    label: '電話番号' },
-  ],
-  SUPPORT: [
-    { key: 'phone',       column: '勤務先電話番号', normalize: normalizePhoneForKey_, label: '電話番号' },
-    { key: 'mobilePhone', column: '携帯電話番号',   normalize: normalizePhoneForKey_, label: '携帯電話番号' },
-  ],
-};
+function getPublicIdentityCredentials_() {
+  return {
+    INDIVIDUAL: [
+      { key: 'cmNumber',    column: '介護支援専門員番号', normalize: normalizeCmNumberForKey_, label: '介護支援専門員番号' },
+      { key: 'phone',       column: '勤務先電話番号',     normalize: normalizePhoneForKey_,    label: '電話番号' },
+      { key: 'mobilePhone', column: '携帯電話番号',       normalize: normalizePhoneForKey_,    label: '携帯電話番号' },
+    ],
+    BUSINESS: [
+      { key: 'officeNumber', column: '事業所番号',     normalize: normalizeCmNumberForKey_, label: '事業所番号' },
+      { key: 'phone',        column: '勤務先電話番号', normalize: normalizePhoneForKey_,    label: '電話番号' },
+    ],
+    SUPPORT: [
+      { key: 'phone',       column: '勤務先電話番号', normalize: normalizePhoneForKey_, label: '電話番号' },
+      { key: 'mobilePhone', column: '携帯電話番号',   normalize: normalizePhoneForKey_, label: '携帯電話番号' },
+    ],
+  };
+}
 
 // 名義の一致を見る。表記の揺れ（前後空白・全角空白・大小文字）は吸収するが、
 // 文字そのものは変えない。事業所名は空白の入り方が揺れやすいのでこの正規化が要る。
@@ -17051,7 +17053,7 @@ function verifyMemberIdentityForPublic_(payload) {
   var purpose = String(payload.purpose || '').trim();
   var contactEmail = String(payload.contactEmail || '').trim();
 
-  var credentials = PUBLIC_IDENTITY_CREDENTIALS_[memberType];
+  var credentials = getPublicIdentityCredentials_()[memberType];
   if (!credentials) {
     return { verified: false, error: 'invalid_member_type' };
   }

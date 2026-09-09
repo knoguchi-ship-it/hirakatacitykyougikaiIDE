@@ -16,6 +16,7 @@ import {
   PUBLIC_IDENTITY_TYPE_CARDS,
   normalizeCredentialForKey,
   normalizePhoneForKey,
+  publicIdentityErrorMessage,
   type PublicIdentityMemberType,
 } from '../src/shared/publicIdentity.ts';
 
@@ -24,11 +25,11 @@ const gas = fs.readFileSync(path.join(ROOT, 'gas-src', 'Code.full.gs'), 'utf8');
 
 const TYPES: PublicIdentityMemberType[] = ['INDIVIDUAL', 'BUSINESS', 'SUPPORT'];
 
-/** サーバ側 PUBLIC_IDENTITY_CREDENTIALS_ から 種別 → key[] を読む */
+/** サーバ側の内部設定関数から 種別 → key[] を読む */
 function serverCredentials(): Record<string, string[]> {
-  const start = gas.indexOf('var PUBLIC_IDENTITY_CREDENTIALS_ = {');
+  const start = gas.indexOf('function getPublicIdentityCredentials_() {');
   assert.notEqual(start, -1, 'サーバ側の定義が見つからない');
-  const body = gas.slice(start, gas.indexOf('\n};', start));
+  const body = gas.slice(start, gas.indexOf('\n}\n', start));
   const out: Record<string, string[]> = {};
   for (const type of TYPES) {
     const block = body.slice(body.indexOf(`${type}: [`));
@@ -48,6 +49,24 @@ test('照合項目の顔ぶれが画面とサーバで一致する', () => {
       `${type} の照合項目が食い違っている`
     );
   }
+});
+
+test('公開生成物に本人確認設定と正規化関数が残る', () => {
+  const artifact = fs.readFileSync(path.join(ROOT, 'backend', 'Code.gs'), 'utf8');
+  assert.match(artifact, /function getPublicIdentityCredentials_\(\)/);
+  assert.match(artifact, /function normalizeCmNumberForKey_\(/);
+  assert.match(artifact, /function normalizePhoneForKey_\(value\)/);
+});
+
+test('本人確認の内部エラーを公開画面へ出さない', () => {
+  assert.equal(
+    publicIdentityErrorMessage(new Error('PUBLIC_IDENTITY_CREDENTIALS_ is not defined')),
+    '本人確認を完了できませんでした。時間をおいてもう一度お試しください。',
+  );
+  assert.equal(
+    publicIdentityErrorMessage('invalid_member_type'),
+    '入力内容を確認して、最初からやり直してください。',
+  );
 });
 
 test('3 種別すべてが本人確認に対応している', () => {

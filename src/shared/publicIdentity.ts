@@ -78,6 +78,23 @@ export const PUBLIC_IDENTITY_TYPE_CARDS: PublicIdentityTypeCard[] = [
   { type: 'SUPPORT', icon: '🤝', label: '賛助会員', desc: '氏名と、電話番号または携帯番号で確認' },
 ];
 
+const PUBLIC_IDENTITY_USER_ERRORS = new Set([
+  '有効なメールアドレスを入力してください',
+  '照合に使う番号を 1 つだけ入力してください。',
+  '試行回数が上限を超えました。しばらくお待ちください。',
+  '入力内容と一致する会員情報が見つかりませんでした。',
+]);
+
+/** 公開画面に内部例外や英語の実装名を出さない。 */
+export function publicIdentityErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error || '');
+  if (PUBLIC_IDENTITY_USER_ERRORS.has(message)) return message;
+  if (message === 'invalid_member_type' || message === 'invalid_purpose') {
+    return '入力内容を確認して、最初からやり直してください。';
+  }
+  return '本人確認を完了できませんでした。時間をおいてもう一度お試しください。';
+}
+
 /** 電話番号の比較キー。全角を半角に寄せ、数字だけを残す（サーバと同じ規則）。 */
 export function normalizePhoneForKey(value: string): string {
   return String(value ?? '')
