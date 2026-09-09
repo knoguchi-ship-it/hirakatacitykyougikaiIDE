@@ -471,7 +471,7 @@ const PublicApp: React.FC = () => {
               className="group rounded-[20px] border border-amber-200 bg-[linear-gradient(135deg,#fffbeb_0%,#ffffff_70%)] p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:rounded-[28px] sm:p-7"
             >
               {content.withdrawalBadgeEnabled && (
-                <div className="mb-5 inline-flex rounded-full bg-amber-600 px-3 py-1 text-xs font-semibold tracking-[0.12em] text-white">
+                <div className="mb-5 inline-flex rounded-full bg-amber-700 px-3 py-1 text-xs font-semibold tracking-[0.12em] text-white">
                   {content.withdrawalBadgeLabel}
                 </div>
               )}
