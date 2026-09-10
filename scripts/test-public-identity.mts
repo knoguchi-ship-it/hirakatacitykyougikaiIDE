@@ -40,6 +40,57 @@ function serverCredentials(): Record<string, string[]> {
   return out;
 }
 
+/** GAS 生成物から関数本体を取り出す。テスト側に本人確認ロジックを複製しない。 */
+function extractFunction(source: string, name: string): string {
+  const start = source.indexOf(`function ${name}(`);
+  assert.notEqual(start, -1, `${name} が公開生成物に存在しない`);
+  const bodyStart = source.indexOf('{', start);
+  let depth = 0;
+  for (let index = bodyStart; index < source.length; index++) {
+    if (source[index] === '{') depth++;
+    if (source[index] === '}' && --depth === 0) return source.slice(start, index + 1);
+  }
+  assert.fail(`${name} の関数終端が見つからない`);
+}
+
+/** 公開成果物そのものを、DB・Cache・token 発行だけを模擬して実行する。 */
+function createArtifactIdentityVerifier(rows: Record<string, unknown>[]) {
+  const artifact = fs.readFileSync(path.join(ROOT, 'backend', 'Code.gs'), 'utf8');
+  const functions = [
+    'normalizeCmNumberForKey_',
+    'normalizePhoneForKey_',
+    'normalizeRosterCellText_',
+    'normalizeRosterKeyText_',
+    'getPublicIdentityCredentials_',
+    'matchesPublicIdentityName_',
+    'verifyMemberIdentityForPublic_',
+  ].map((name) => extractFunction(artifact, name)).join('\n\n');
+  const cache = new Map<string, string>();
+  const factory = new Function('deps', `
+    const CacheService = deps.CacheService;
+    const getOrCreateDatabase_ = deps.getOrCreateDatabase_;
+    const getRowsAsObjects_ = deps.getRowsAsObjects_;
+    const toBoolean_ = deps.toBoolean_;
+    const isInactiveMemberStatusForIdentity_ = deps.isInactiveMemberStatusForIdentity_;
+    const createPublicIdentityToken_ = deps.createPublicIdentityToken_;
+    ${functions}
+    return verifyMemberIdentityForPublic_;
+  `) as (deps: Record<string, unknown>) => (payload: Record<string, unknown>) => Record<string, unknown>;
+  return factory({
+    CacheService: {
+      getScriptCache: () => ({
+        get: (key: string) => cache.get(key) || null,
+        put: (key: string, value: string) => cache.set(key, value),
+      }),
+    },
+    getOrCreateDatabase_: () => ({}),
+    getRowsAsObjects_: () => rows,
+    toBoolean_: () => false,
+    isInactiveMemberStatusForIdentity_: () => false,
+    createPublicIdentityToken_: () => 'test-public-identity-token',
+  });
+}
+
 test('照合項目の顔ぶれが画面とサーバで一致する', () => {
   const server = serverCredentials();
   for (const type of TYPES) {
@@ -67,6 +118,44 @@ test('本人確認の内部エラーを公開画面へ出さない', () => {
     publicIdentityErrorMessage('invalid_member_type'),
     '入力内容を確認して、最初からやり直してください。',
   );
+});
+
+test('公開生成物の本人確認は一致した会員を成功として扱う', () => {
+  const verify = createArtifactIdentityVerifier([{
+    '会員ID': 'test-member-id',
+    '会員種別コード': 'INDIVIDUAL',
+    '姓': '確認',
+    '名': '成功',
+    '介護支援専門員番号': '12345678',
+  }]);
+  assert.deepEqual(verify({
+    memberType: 'INDIVIDUAL',
+    purpose: 'withdrawal',
+    lastName: '確認',
+    firstName: '成功',
+    cmNumber: '12345678',
+    contactEmail: 'test@example.invalid',
+  }), { verified: true, token: 'test-public-identity-token' });
+});
+
+test('公開生成物の本人確認は不一致を安全な失敗として扱う', () => {
+  const verify = createArtifactIdentityVerifier([{
+    '会員ID': 'test-member-id',
+    '会員種別コード': 'INDIVIDUAL',
+    '姓': '確認',
+    '名': '成功',
+    '介護支援専門員番号': '12345678',
+  }]);
+  const result = verify({
+    memberType: 'INDIVIDUAL',
+    purpose: 'withdrawal',
+    lastName: '確認',
+    firstName: '失敗',
+    cmNumber: '12345678',
+    contactEmail: 'test@example.invalid',
+  });
+  assert.deepEqual(result, { verified: false, error: '入力内容と一致する会員情報が見つかりませんでした。' });
+  assert.equal(publicIdentityErrorMessage(result.error), result.error);
 });
 
 test('3 種別すべてが本人確認に対応している', () => {

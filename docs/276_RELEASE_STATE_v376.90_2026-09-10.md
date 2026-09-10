@@ -25,7 +25,7 @@
 ## 4. 検証
 
 - `npm run prerelease`: PASS
-- `npm run test:public-identity`: 12 件 PASS（公開生成物検査・内部例外非表示を含む）
+- `npm run test:public-identity`: 14 件 PASS（公開生成物検査・内部例外非表示・公開生成物から抽出した本人確認の成功／不一致失敗の実行を含む）
 - 公開 responsive: 320〜1920px の 7 viewport PASS
 - 退会申請の実送信は実施していない。
 
