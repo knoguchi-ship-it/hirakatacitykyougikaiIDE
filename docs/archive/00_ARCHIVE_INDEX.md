@@ -3,7 +3,7 @@
 > `docs/` から移した完了済みの記録。**削除はしていない**ので、過去の経緯はここで追える。
 > 現役の文書は [ドキュメント索引](../00_DOC_INDEX.md) を見ること。
 
-> 合計 **226 件**。
+> 合計 **228 件**。
 
 > 2026-09-04 追加: リリース記録 3 件（257 / 258 / 259 = v376.64〜.66）と、
 > 完了した一過性の記録 7 件（109・167・248 第三者評価／110・230 是正計画／111 分離の実装準備／247 テスト観点評価）を
@@ -23,12 +23,14 @@
 | [11_WITHDRAWAL_DELETION_POLICY.md](spec_history/11_WITHDRAWAL_DELETION_POLICY.md) | `spec/02_RD.md` §10 |
 | [63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md](spec_history/63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md) | `spec/01_SOW.md` ／ `spec/02_RD.md` ／ `spec/05_DATA_IF.md` |
 
-## リリース記録 — `release_history/`（158 件・実測）
+## リリース記録 — `release_history/`（160 件・実測）
 
 各リリースの詳細（バージョン・スコープ・検証・ロールバック先）。時系列の要約は `docs/release-notes-2026.md` にあるので、個別の詳細が要るときだけ開く。
 
 | 新しいもの順 |
 |---|
+| [274_RELEASE_STATE_v376.81-88_2026-09-06.md](release_history/274_RELEASE_STATE_v376.81-88_2026-09-06.md) |
+| [273_RELEASE_STATE_v376.80_2026-09-05.md](release_history/273_RELEASE_STATE_v376.80_2026-09-05.md) |
 | [272_RELEASE_STATE_v376.78-79_2026-09-05.md](release_history/272_RELEASE_STATE_v376.78-79_2026-09-05.md) |
 | [271_RELEASE_STATE_v376.74-77_2026-09-05.md](release_history/271_RELEASE_STATE_v376.74-77_2026-09-05.md) |
 | [270_RELEASE_STATE_v376.73_2026-09-05.md](release_history/270_RELEASE_STATE_v376.73_2026-09-05.md) |

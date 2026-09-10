@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-09-09
-Production: `v376.89` / integrated-public `@398` x2 / member split `@156` / admin split `@253`
+Updated: 2026-09-10
+Production: `v376.91` / integrated-public `@400` x2 / member split `@158` / admin split `@255`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -19,15 +19,15 @@ Production: `v376.89` / integrated-public `@398` x2 / member split `@156` / admi
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@398` (`v376.89`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@398` (`v376.89`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@400` (`v376.91`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@400` (`v376.91`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@156` (`v376.89`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@253` (`v376.89`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@158` (`v376.91`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@255` (`v376.91`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -144,7 +144,21 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-09-09 v376.89 ← current production
+### 2026-09-10 v376.91 ← current production
+
+- Scope: 公開ポータルの退会カード補助ラベルを `amber-700` に変更し、白文字とのコントラストを WCAG 2.2 AA に適合させた。スキーマ・認証方式・業務データの変更なし。
+- Fixed deployments: integrated/public @400 x2 / member @158 / admin @255.
+- Verification: prerelease PASS、公開 a11y 3 view は critical / serious / moderate / minor すべて 0、公開 responsive 7 viewport PASS。詳細は `docs/277_RELEASE_STATE_v376.91_2026-09-10.md`。
+- Rollback: integrated/public @399 x2 / member @157 / admin @254（v376.90）。
+
+### 2026-09-10 v376.90
+
+- Scope: 公開本人確認の設定を到達可能な関数へ移し、build pruner が設定と正規化関数を削除しないようにした。公開画面は内部例外を表示せず日本語の安全な案内へ変換する。スキーマ・認証方式・業務データの変更なし。
+- Fixed deployments: integrated/public @399 x2 / member @157 / admin @254.
+- Verification: prerelease PASS、本人確認の公開生成物検査と内部エラー非表示テストを追加。公開 responsive 7 viewport PASS。詳細は `docs/276_RELEASE_STATE_v376.90_2026-09-10.md`。
+- Rollback: integrated/public @398 x2 / member @156 / admin @253（v376.89）。
+
+### 2026-09-09 v376.89
 
 - Scope: U-27 の旧公開 API 6 本を公開許可リスト・dispatch・実装から撤去。承認済み変更申請の職員追加は内部専用関数へ分離。スキーマ変更なし。
 - Fixed deployments: integrated/public @398 x2 / member @156 / admin @253.
