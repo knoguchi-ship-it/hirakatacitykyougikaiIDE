@@ -14,8 +14,8 @@
  *   「9 + 8 桁」で自動採番する（BR-01）。
  *
  * ■ 実行前に operator が必ず行うこと
- *   1. 管理 → システム設定 → メール送信制御 で
- *      MAIL_GLOBAL_ENABLED=false もしくは配信方法を SUPPRESS にする。
+ *   1. 管理 → システム設定 → メール通知 → メール配信 で
+ *      配信状態を「停止」にする。
  *      申込の受付確認メールと、承認時のログイン情報メールが実際に飛ぶため。
  *   2. 本スクリプトは **本番 DB に変更申請（PENDING）を 1 件作る**。承認するまで会員にはならない。
  *
@@ -24,11 +24,11 @@
  *   4. 会員詳細 → パスワードのリセット で新しいパスワードを発行する
  *   5. ログイン ID と パスワードを .env.test の MEMBER_LOGIN_ID / MEMBER_PASSWORD に記入する
  *      （AGENTS.md §0: AI は値を見ない・出力しない・要求しない）
- *   6. メール送信制御を元の設定へ戻す
+ *   6. メール配信状態を元の設定へ戻す
  *
  * ■ 後片付け
  *   管理 → データ管理 → 会員削除（アーカイブ移動。削除バッチ単位で復元できる）。
- *   ※ deleteTestData_APPLY は demo- / DEMO- 始まりの行しか拾わないため、この会員は対象外。
+ *   ※ deleteTestData_APPLY は test-member-*.invalid を厳格一致で対象に含める。
  *
  * 使い方:
  *   node scripts/create-test-member.mjs             # dry-run（確認画面まで進めて送信しない）
@@ -40,6 +40,11 @@ import fs from 'node:fs/promises';
 
 const SUBMIT = process.argv.includes('--submit');
 const HEADED = process.argv.includes('--headed');
+const CONTACT_EMAIL_INDEX = process.argv.indexOf('--contact-email');
+const CONTACT_EMAIL = CONTACT_EMAIL_INDEX >= 0 ? String(process.argv[CONTACT_EMAIL_INDEX + 1] || '').trim() : '';
+if (CONTACT_EMAIL_INDEX >= 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(CONTACT_EMAIL)) {
+  throw new Error('--contact-email には送信先メールアドレスを指定してください。');
+}
 
 // .env.test があれば読む（値はログに出さない）
 try {
@@ -57,7 +62,7 @@ const PORTAL_URL = process.env.PORTAL_URL_PUBLIC
  * テストデータであることが一目で分かる値にする。
  * メールは RFC 6761 の予約 TLD `.invalid`（実在せず、誤送信しても外部へ届かない）。
  */
-const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
 const DATA = {
   lastName: 'テスト',
   firstName: `会員${stamp}`,
@@ -70,7 +75,8 @@ const DATA = {
   city: '枚方市',
   addressLine: 'テスト町1-1-1',
   mobilePhone: '090-0000-0000',
-  email: `test-member-${stamp}@example.invalid`,
+  // 指定時だけ実在の宛先へ受付メールを送る。未指定時は予約ドメインを維持する。
+  email: CONTACT_EMAIL || `test-member-${stamp}@example.invalid`,
 };
 
 const log = (...a) => console.log('[create-test-member]', ...a);
@@ -123,23 +129,21 @@ const run = async () => {
     // ホーム → 入会申込
     await root.getByRole('button', { name: /新規入会/ }).first().click();
 
-    // Step 0: 種別カードは「事務局からのお願い」を確認するまで disabled のまま。
-    // ダイアログを開く → 中のチェックボックスを入れる → 閉じる、の順でないと選べない。
-    await root.getByRole('button', { name: '重要事項を確認する' }).click();
-    const checkbox = root.locator('input[type="checkbox"]').first();
-    await checkbox.waitFor({ state: 'visible', timeout: 30000 });
-    await checkbox.check();
-    await root.getByRole('button', { name: /内容を確認して閉じる|閉じる/ }).last().click();
-    // カードが押せる状態（disabled が外れる）まで待つ
+    // Step 0: v376.74 以降、会員種別を先に選び、次の注意事項ステップで確認する。
+    // 種別カードは最初から選択できる（旧「重要事項を確認する」ダイアログは廃止）。
     await root.locator('button:not([disabled])', { hasText: '賛助会員' }).first()
       .waitFor({ state: 'visible', timeout: 30000 });
-    log('重要事項を確認済みにした');
-
-    // 種別カード（button）を選ぶ。見出しの <h4> ではなく、それを含む button を押す
     await root.locator('button', { hasText: '賛助会員' }).first().click();
     log('会員種別: 賛助会員');
 
-    // Step 1: 基本情報（placeholder で一意に特定する。label は input と兄弟でないため使わない）
+    // Step 1: 全体・種別ごとの注意事項を確認して同意する。
+    await root.getByText('事務局からのお願い', { exact: false }).waitFor({ timeout: 30000 });
+    const checkbox = root.locator('input[type="checkbox"]').first();
+    await checkbox.check();
+    await root.getByRole('button', { name: '次へ' }).click();
+    log('注意事項を確認済みにした');
+
+    // Step 2: 基本情報（placeholder で一意に特定する。label は input と兄弟でないため使わない）
     await root.getByPlaceholder('例: 山田').fill(DATA.lastName);
     await root.getByPlaceholder('例: 太郎').fill(DATA.firstName);
     await root.getByPlaceholder('例: ヤマダ').fill(DATA.lastKana);
@@ -182,7 +186,7 @@ const run = async () => {
     log('  1. 管理 → 変更申請管理 で「' + DATA.lastName + DATA.firstName + '」の申請を承認する');
     log('  2. 会員詳細 → パスワードのリセット で新しいパスワードを発行する');
     log('  3. ログインID と パスワードを .env.test に記入する（値は AI へ渡さない）');
-    log('  4. メール送信制御を元の設定へ戻す');
+    log('  4. メール配信状態を元の設定へ戻す');
   } finally {
     if (consoleErrors.length) log('console errors:', consoleErrors.length, consoleErrors.slice(0, 3));
     await browser.close();

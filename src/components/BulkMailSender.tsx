@@ -5,12 +5,13 @@ import { BulkMailRecipient, EmailSendLog } from '../shared/types';
 import { ApiClient } from '../services/api';
 import type { EmailTemplate } from '../types';
 import { matchesSearchQuery } from '../utils/search';
+import { resolveMailDeliveryState } from '../shared/mailDeliveryState';
 
 interface BulkMailSenderProps {
   api: ApiClient;
   settings: SystemSettings;
   adminPermissionLevel?: AdminPermissionLevel | null;
-  /** 「メール送信制御を開く」アクション（システム設定画面へ遷移）。未指定時はボタン非表示 */
+  /** 「メール配信を開く」アクション（システム設定画面へ遷移）。未指定時はボタン非表示 */
   onOpenMailSettings?: () => void;
 }
 
@@ -314,9 +315,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
 
   const hasFolder = Boolean(settings.bulkMailAutoAttachFolderId);
 
-  // 2026-07-03 メール誤集約事故の恒久是正: 配信モードが LIVE 以外なら常時警告する。
-  // REDIRECT は宛先が allowlist に差し替わり実宛先へ届かない（v376.50 で受信側の目印を
-  // 廃止したため、送信側 UI で必ず可視化する）。SUPPRESS/キルスイッチ OFF は送信されない。
+  // テスト集約は宛先が許可リストに差し替わるため、送信側で常時明示する。
   //
   // 表示ポリシー（2026-07-05 確定・ユーザビリティ最優先）:
   // - この警告は「管理者以上が使う送信コンソール」専用。member/公開ポータルや、
@@ -325,15 +324,15 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
   // - NN/g・Red Hat DS・Google Cloud Console 系のパターン準拠:
   //   sticky 常時表示 / 非 dismissible / 「何が起きるか+どうすれば直るか」明示 /
   //   解決アクションボタンは1つ / 設定権限が無いロールには連絡先案内へ出し分け。
-  const mailMode = String(settings.mailDeliveryMode || 'LIVE').toUpperCase();
-  const mailBlocked = settings.mailGlobalEnabled === false || mailMode === 'SUPPRESS';
-  const mailRedirected = !mailBlocked && mailMode === 'REDIRECT';
+  const mailDeliveryState = resolveMailDeliveryState(settings);
+  const mailBlocked = mailDeliveryState === 'STOPPED';
+  const mailRedirected = mailDeliveryState === 'REDIRECT';
   const canFixMailSettings = adminPermissionLevel === 'MASTER' || adminPermissionLevel === 'ADMIN';
   const mailModeTitle = mailBlocked
     ? 'メール送信は現在停止中です'
-    : mailRedirected ? 'テスト用モード（REDIRECT）で動作中です' : null;
+    : mailRedirected ? 'テスト集約で動作中です' : null;
   const mailModeBody = mailBlocked
-    ? 'キルスイッチ OFF または SUPPRESS モードのため、送信しても誰にも届きません。'
+    ? '配信状態が「停止」のため、送信しても誰にも届きません。'
     : mailRedirected
       ? `すべてのメールが検証用宛先（${settings.mailRedirectAllowlist || '未設定'}）に集約され、会員の実宛先には届きません。`
       : null;
@@ -366,7 +365,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
                   mailBlocked ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'
                 }`}
               >
-                メール送信制御を開く
+                メール配信を開く
               </button>
             )}
           </div>
@@ -823,7 +822,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
               )}
               {(sendResult.suppressedCount ?? 0) > 0 && (
                 <p role="alert" className="text-sm font-semibold text-red-800 bg-red-50 border border-red-300 rounded px-3 py-2">
-                  ⚠ {sendResult.suppressedCount}件は送信抑止されました（キルスイッチ/モード/カテゴリ設定）。
+                  ⚠ {sendResult.suppressedCount}件は設定により送信されませんでした（配信状態またはメール種別設定）。
                 </p>
               )}
               <p className="text-sm">

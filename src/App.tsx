@@ -31,6 +31,8 @@ import MailTemplateManager from './components/MailTemplateManager';
 import { MAIL_TEMPLATE_MERGE_TAGS } from './shared/mailTemplates';
 import { computeMemberFiscalStatus } from './shared/memberFiscalStatus.mjs';
 import { matchesSearchQuery } from './utils/search';
+import { DEFAULT_WITHDRAWAL_CONFIRMATION_ITEMS, normalizeWithdrawalConfirmationItems, type WithdrawalConfirmationItem } from './shared/withdrawalConfirmation';
+import { MAIL_DELIVERY_OPTIONS, resolveMailDeliveryState, type MailDeliveryState } from './shared/mailDeliveryState';
 
 type Role = 'ADMIN' | 'MEMBER';
 type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'roster-export' | 'mailing-list-export' | 'template-help' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings' | 'member-delete' | 'change-requests' | 'officer-management' | 'payment-history' | 'claim-management' | 'line-post' | 'data-export';
@@ -68,7 +70,6 @@ const DEFAULT_MEMBER_PAGE_SIZE = 50;
 const getFiscalYearForDate = (date: Date) => (date.getMonth() < 3 ? date.getFullYear() - 1 : date.getFullYear());
 const DEFAULT_MEMBER_FISCAL_YEAR_FILTER = getFiscalYearForDate(new Date()).toString();
 const DEFAULT_MEMBER_STATUS_FILTER: MemberStatusFilter = 'ACTIVE';
-
 const parseDateString = (value?: string): Date | null => {
   const text = String(value || '').trim();
   if (!text) return null;
@@ -308,7 +309,7 @@ const PUBLIC_PORTAL_DEFAULTS = {
   withdrawalTitleEnabled: true,
   withdrawalTitle: '退会を申し込む',
   withdrawalDescriptionEnabled: true,
-  withdrawalDescription: '退会申請を行います。退会は当年度末（3月31日）に適用されます。介護支援専門員番号でご本人確認を行います。',
+  withdrawalDescription: '退会申請を行います。年度末退会または即時退会を選択できます。介護支援専門員番号でご本人確認を行います。',
   withdrawalCtaLabel: '退会手続きへ進む',
 } as const;
 
@@ -589,7 +590,7 @@ const App: React.FC = () => {
       SUPPORT: String(fees?.SUPPORT ?? MEMBER_TYPE_ANNUAL_FEE_FALLBACK.SUPPORT),
     });
   }, []);
-  const [settingsSub, setSettingsSub] = useState<'basic' | 'fees' | 'regulations' | 'output' | 'email' | 'portal' | 'masters'>('basic');
+  const [settingsSub, setSettingsSub] = useState<'basic' | 'fees' | 'regulations' | 'output' | 'email' | 'chat' | 'portal' | 'masters'>('basic');
   // v376.65: 規程タブを開いたときに一覧を取得する（初回のみ・失敗時は再読込ボタン）
   React.useEffect(() => {
     if (settingsSub !== 'regulations') return;
@@ -668,6 +669,7 @@ const App: React.FC = () => {
   const [publicPortalWithdrawalDescriptionEnabledInput, setPublicPortalWithdrawalDescriptionEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled);
   const [publicPortalWithdrawalDescriptionInput, setPublicPortalWithdrawalDescriptionInput] = useState(PUBLIC_PORTAL_DEFAULTS.withdrawalDescription);
   const [publicPortalWithdrawalCtaLabelInput, setPublicPortalWithdrawalCtaLabelInput] = useState(PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel);
+  const [withdrawalConfirmationItemsInput, setWithdrawalConfirmationItemsInput] = useState<WithdrawalConfirmationItem[]>(DEFAULT_WITHDRAWAL_CONFIRMATION_ITEMS);
   // v265: 個人・賛助会員メール ON/OFF
   const [indSuppEmailEnabledInput, setIndSuppEmailEnabledInput] = useState(true);
   // v265: 事業所メール設定
@@ -691,10 +693,16 @@ const App: React.FC = () => {
   const [rejectionNotificationEnabledInput, setRejectionNotificationEnabledInput] = useState(true);
   const [rejectionNotificationSubjectInput, setRejectionNotificationSubjectInput] = useState(REJECTION_NOTIFICATION_SUBJECT_DEFAULT);
   const [rejectionNotificationBodyInput, setRejectionNotificationBodyInput] = useState('');
-  // v371: メール送信 4 階層ガード（GLOBAL / MODE / ALLOWLIST / CATEGORY）
-  // 初期値は false（safe-stop）— サーバ側設定が読み込まれるまでメール送信を止めて見せる
-  const [mailGlobalEnabledInput, setMailGlobalEnabledInput] = useState(false);
-  const [mailDeliveryModeInput, setMailDeliveryModeInput] = useState<'LIVE' | 'REDIRECT' | 'SUPPRESS'>('LIVE');
+  // Google Chat の接続先は UI / DB に保存しない。本文と通知種別だけをここで管理する。
+  const [chatMembershipNotificationEnabledInput, setChatMembershipNotificationEnabledInput] = useState(false);
+  const [chatMembershipRequestEnabledInput, setChatMembershipRequestEnabledInput] = useState(true);
+  const [chatMembershipFinalEnabledInput, setChatMembershipFinalEnabledInput] = useState(true);
+  const [chatMembershipAnomalyEnabledInput, setChatMembershipAnomalyEnabledInput] = useState(true);
+  const [chatMembershipRequestBodyInput, setChatMembershipRequestBodyInput] = useState('');
+  const [chatMembershipFinalBodyInput, setChatMembershipFinalBodyInput] = useState('');
+  const [chatMembershipAnomalyBodyInput, setChatMembershipAnomalyBodyInput] = useState('');
+  // メール配信状態は停止・通常送信・テスト集約の一つだけを正本にする。
+  const [mailDeliveryStateInput, setMailDeliveryStateInput] = useState<MailDeliveryState>('STOPPED');
   const [mailRedirectAllowlistInput, setMailRedirectAllowlistInput] = useState('');
   const [trainingApplyReceiptEnabledInput, setTrainingApplyReceiptEnabledInput] = useState(true);
   const [trainingReminderEnabledInput, setTrainingReminderEnabledInput] = useState(true);
@@ -844,6 +852,7 @@ const App: React.FC = () => {
     setPublicPortalWithdrawalDescriptionEnabledInput(systemSettings.publicPortalWithdrawalDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled);
     setPublicPortalWithdrawalDescriptionInput(systemSettings.publicPortalWithdrawalDescription ?? PUBLIC_PORTAL_DEFAULTS.withdrawalDescription);
     setPublicPortalWithdrawalCtaLabelInput(systemSettings.publicPortalWithdrawalCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel);
+    setWithdrawalConfirmationItemsInput(normalizeWithdrawalConfirmationItems(systemSettings.withdrawalConfirmationItems));
     // v265: 個人・賛助会員メール ON/OFF
     setIndSuppEmailEnabledInput(systemSettings.indSuppEmailEnabled ?? true);
     // v265: 事業所メール設定ロード
@@ -860,6 +869,13 @@ const App: React.FC = () => {
     setRejectionNotificationEnabledInput(systemSettings.rejectionNotificationEnabled ?? true);
     setRejectionNotificationSubjectInput(systemSettings.rejectionNotificationSubject ?? REJECTION_NOTIFICATION_SUBJECT_DEFAULT);
     setRejectionNotificationBodyInput(systemSettings.rejectionNotificationBody ?? '');
+    setChatMembershipNotificationEnabledInput(systemSettings.chatMembershipNotificationEnabled ?? false);
+    setChatMembershipRequestEnabledInput(systemSettings.chatMembershipRequestEnabled ?? true);
+    setChatMembershipFinalEnabledInput(systemSettings.chatMembershipFinalEnabled ?? true);
+    setChatMembershipAnomalyEnabledInput(systemSettings.chatMembershipAnomalyEnabled ?? true);
+    setChatMembershipRequestBodyInput(systemSettings.chatMembershipRequestBody ?? '');
+    setChatMembershipFinalBodyInput(systemSettings.chatMembershipFinalBody ?? '');
+    setChatMembershipAnomalyBodyInput(systemSettings.chatMembershipAnomalyBody ?? '');
     // v376.43 (Phase B): 従来ハードコード6メールの件名/本文ロード
     setTrainingApplyReceiptSubjectInput(systemSettings.trainingApplyReceiptSubject ?? TRAINING_APPLY_RECEIPT_SUBJECT_DEFAULT);
     setTrainingApplyReceiptBodyInput(systemSettings.trainingApplyReceiptBody ?? '');
@@ -882,9 +898,7 @@ const App: React.FC = () => {
     setStaffAddRepEmailEnabledInput(systemSettings.staffAddRepEmailEnabled ?? true);
     setStaffAddRepEmailSubjectInput(systemSettings.staffAddRepEmailSubject ?? STAFF_ADD_REP_SUBJECT_DEFAULT);
     setStaffAddRepEmailBodyInput(systemSettings.staffAddRepEmailBody ?? '');
-    // v371: メール送信 4 階層ガード ロード
-    setMailGlobalEnabledInput(systemSettings.mailGlobalEnabled ?? false);
-    setMailDeliveryModeInput((systemSettings.mailDeliveryMode as 'LIVE' | 'REDIRECT' | 'SUPPRESS') ?? 'LIVE');
+    setMailDeliveryStateInput(resolveMailDeliveryState(systemSettings));
     setMailRedirectAllowlistInput(systemSettings.mailRedirectAllowlist ?? '');
     setTrainingApplyReceiptEnabledInput(systemSettings.trainingApplyReceiptEnabled ?? true);
     setTrainingReminderEnabledInput(systemSettings.trainingReminderEnabled ?? true);
@@ -3573,7 +3587,8 @@ const App: React.FC = () => {
         { id: 'fees',    label: '会費設定',     desc: '種別ごとの年会費・納入案内' },
         { id: 'regulations', label: '規程・重要事項', desc: '入会申込画面の掲載文' },
         { id: 'output',  label: '帳票出力',     desc: 'テンプレート・Drive' },
-        { id: 'email',   label: 'メール通知',   desc: '入会メール・事業所メール' },
+        { id: 'email',   label: 'メール通知',   desc: '配信状態・文面・自動メール' },
+        { id: 'chat',    label: 'Google Chat',  desc: '会員手続き・異常通知' },
         { id: 'portal',  label: '公開ポータル', desc: 'カード設定・文言' },
         { id: 'masters', label: 'マスタ管理',   desc: '役員・事業所個別上限' },
       ];
@@ -3583,7 +3598,7 @@ const App: React.FC = () => {
           <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
             <div>
               <h2 className="text-2xl font-bold text-slate-900">設定</h2>
-              <p className="mt-0.5 text-xs text-slate-500">運用で使う共通値・メール・公開ポータル・マスタをここでまとめて管理します。</p>
+              <p className="mt-0.5 text-xs text-slate-500">運用で使う共通値、通知、公開ポータル、マスタを管理します。</p>
             </div>
             <div className="flex items-center gap-3">
               <span className={`rounded-full px-3 py-1 text-xs font-semibold ${settingsIsDirty ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
@@ -4551,12 +4566,49 @@ const App: React.FC = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">説明文</label>
-                      <textarea value={publicPortalWithdrawalDescriptionInput} onChange={(e) => { setPublicPortalWithdrawalDescriptionInput(e.target.value); setSettingsIsDirty(true); }} rows={3} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 退会申請を行います。退会は当年度末（3月31日）に適用されます。" />
+                      <textarea value={publicPortalWithdrawalDescriptionInput} onChange={(e) => { setPublicPortalWithdrawalDescriptionInput(e.target.value); setSettingsIsDirty(true); }} rows={3} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 退会申請を行います。年度末退会または即時退会を選択できます。" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">ボタン文言</label>
                       <input type="text" value={publicPortalWithdrawalCtaLabelInput} onChange={(e) => { setPublicPortalWithdrawalCtaLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 退会手続きへ進む" />
                     </div>
+                  </div>
+                  <div className="mt-5 border-t border-slate-200 pt-5">
+                    <h6 className="text-sm font-semibold text-slate-800">退会確認欄の表示内容</h6>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">退会方式の選択結果に応じて、会員に表示する5項目の表示・項目名・説明文を設定します。</p>
+                    <div className="mt-3 space-y-3">
+                      {withdrawalConfirmationItemsInput.map((item) => (
+                        <div key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                          <label className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={item.enabled}
+                              onChange={(e) => {
+                                setWithdrawalConfirmationItemsInput((items) => items.map((current) => current.id === item.id ? { ...current, enabled: e.target.checked } : current));
+                                setSettingsIsDirty(true);
+                              }}
+                              className="h-4 w-4 accent-primary-600"
+                            />
+                            この項目を表示する
+                          </label>
+                          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                            <label className="block text-sm text-slate-700">
+                              <span className="mb-1 block">項目名</span>
+                              <input type="text" value={item.label} maxLength={80} onChange={(e) => { setWithdrawalConfirmationItemsInput((items) => items.map((current) => current.id === item.id ? { ...current, label: e.target.value } : current)); setSettingsIsDirty(true); }} className="w-full rounded border border-slate-300 px-3 py-2" />
+                            </label>
+                            <label className="block text-sm text-slate-700">
+                              <span className="mb-1 block">年度末退会時の説明</span>
+                              <input type="text" value={item.fiscalYearEndText} maxLength={300} onChange={(e) => { setWithdrawalConfirmationItemsInput((items) => items.map((current) => current.id === item.id ? { ...current, fiscalYearEndText: e.target.value } : current)); setSettingsIsDirty(true); }} className="w-full rounded border border-slate-300 px-3 py-2" />
+                            </label>
+                            <label className="block text-sm text-slate-700">
+                              <span className="mb-1 block">即時退会時の説明</span>
+                              <input type="text" value={item.immediateText} maxLength={300} onChange={(e) => { setWithdrawalConfirmationItemsInput((items) => items.map((current) => current.id === item.id ? { ...current, immediateText: e.target.value } : current)); setSettingsIsDirty(true); }} className="w-full rounded border border-slate-300 px-3 py-2" />
+                            </label>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-slate-500">5項目は固定です。任意項目の追加・削除は、手続きに必要な説明との整合を確認してからの今後の検討事項とします。</p>
                   </div>
                 </div>
               </div>
@@ -4564,106 +4616,91 @@ const App: React.FC = () => {
 
           </AdminSettingsSection>}
 
-          {/* ── v371: メール送信制御（4 階層ガード）── */}
           {settingsSub === 'email' && <AdminSettingsSection
-            id="settings-mail-control"
-            title="メール送信制御（4段階の安全装置）"
-            description="全体停止スイッチ＋配信方法＋転送先の許可リスト＋種別ごとの有効／無効の 4 段階で守ります。テスト時は転送先を自分のメールアドレスに固定すると、全メールが自分宛にだけ集まります。"
-            badge="メール制御"
+            id="settings-mail-delivery"
+            title="メール配信"
+            description="メールを送る状態はここで一つだけ選びます。個別のメールを送るかどうかや文面は、下の通知カードで設定します。"
+            badge="配信状態"
             defaultOpen
           >
-            <div className="space-y-6">
-              {/* ─── [1] グローバルキルスイッチ ─── */}
-              <div className={`rounded-xl border-2 p-4 space-y-3 ${mailGlobalEnabledInput ? 'border-emerald-300 bg-emerald-50' : 'border-red-400 bg-red-50'}`}>
-                <p className="text-xs font-semibold tracking-wide text-slate-600">[1] 全体停止スイッチ</p>
-                <p className="text-xs text-slate-600">無効にすると、種別・配信方法に関わらず<strong>全メール送信を即時停止</strong>します。テスト環境では無効にしておくことを推奨します。</p>
-                <ToggleSwitch color={mailGlobalEnabledInput ? 'emerald' : 'slate'}
-                  enabled={mailGlobalEnabledInput}
-                  onToggle={() => { setMailGlobalEnabledInput(v => !v); setSettingsIsDirty(true); }}
-                  onLabel="メール送信を有効にする"
-                  offLabel="全メール停止中（無効）— 安全状態" />
-                {!mailGlobalEnabledInput && (
-                  <p className="text-xs text-red-700 font-semibold">⚠️ 現在すべてのメール送信が停止されています。動作確認や本番運用に必要なときだけ有効に切り替えてください。</p>
-                )}
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {MAIL_DELIVERY_OPTIONS.map((option) => (
+                  <label key={option.value} className={`flex min-h-[88px] cursor-pointer items-start gap-2 rounded-xl border-2 p-3 transition-colors ${mailDeliveryStateInput === option.value ? 'border-primary-500 bg-primary-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
+                    <input type="radio" name="mailDeliveryState" value={option.value} checked={mailDeliveryStateInput === option.value}
+                      onChange={() => { setMailDeliveryStateInput(option.value); setSettingsIsDirty(true); }} className="mt-1" />
+                    <span>
+                      <span className="block text-sm font-semibold text-slate-800">{option.label}</span>
+                      <span className="mt-1 block text-xs leading-5 text-slate-600">{option.description}</span>
+                    </span>
+                  </label>
+                ))}
               </div>
-
-              {/* ─── [2] 配信モード ─── */}
-              <div className="rounded-xl border-2 border-slate-300 bg-white p-4 space-y-3">
-                <p className="text-xs font-semibold tracking-wide text-slate-600">[2] 配信方法</p>
-                <p className="text-xs text-slate-500">全体停止スイッチが有効なときの、メールの扱い方を選びます。</p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {(['LIVE', 'REDIRECT', 'SUPPRESS'] as const).map((modeOpt) => (
-                    <label key={modeOpt} className={`flex items-start gap-2 p-3 rounded border cursor-pointer transition-colors min-h-[44px] ${mailDeliveryModeInput === modeOpt ? 'border-primary-500 bg-primary-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
-                      <input type="radio" name="mailDeliveryMode" value={modeOpt} checked={mailDeliveryModeInput === modeOpt}
-                        onChange={() => { setMailDeliveryModeInput(modeOpt); setSettingsIsDirty(true); }}
-                        className="mt-1" />
-                      <div>
-                        <p className="text-sm font-semibold text-slate-800">{
-                          modeOpt === 'LIVE' ? '通常送信'
-                          : modeOpt === 'REDIRECT' ? 'テスト集約'
-                          : '送信抑止'
-                        }<span className="ml-1 text-[11px] font-normal text-slate-400">{modeOpt}</span></p>
-                        <p className="text-xs text-slate-500">{
-                          modeOpt === 'LIVE' ? '実際の宛先へ送信します（種別ごとの設定に従う）'
-                          : modeOpt === 'REDIRECT' ? '全メールを下の転送先へ集約します（テスト用）'
-                          : '全種別の送信を止めます（記録だけ残す）'
-                        }</p>
-                      </div>
-                    </label>
-                  ))}
+              {mailDeliveryStateInput === 'STOPPED' && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">現在、すべての自動メールは停止しています。</p>}
+              {mailDeliveryStateInput === 'REDIRECT' && (
+                <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-4 space-y-2">
+                  <label className="block text-sm font-semibold text-slate-800">テスト集約先</label>
+                  <p className="text-xs leading-5 text-slate-600">指定した宛先だけへ集約して送信します。複数指定する場合はカンマで区切ります。</p>
+                  <input type="text" value={mailRedirectAllowlistInput}
+                    onChange={(e) => { setMailRedirectAllowlistInput(e.target.value); setSettingsIsDirty(true); }}
+                    className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                    placeholder="例: test@example.com" />
+                  {!mailRedirectAllowlistInput.trim() && <p className="text-xs font-medium text-red-700">テスト集約先が未入力です。保存前に入力してください。</p>}
                 </div>
-              </div>
+              )}
+            </div>
+          </AdminSettingsSection>}
 
-              {/* ─── [3] Redirect Allowlist ─── */}
-              <div className={`rounded-xl border-2 p-4 space-y-3 ${mailDeliveryModeInput === 'REDIRECT' ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
-                <p className="text-xs font-semibold tracking-wide text-slate-600">[3] 転送先の許可リスト（テスト集約用）</p>
-                <p className="text-xs text-slate-600">「テスト集約」を選んでいるとき、全メールがここに書いた宛先（複数可・カンマ区切り）へ集約されます。「通常送信」「送信抑止」のときは使われません。空欄のまま「テスト集約」にすると、実質「送信抑止」と同じ動きになります。</p>
-                <input type="text" value={mailRedirectAllowlistInput}
-                  onChange={(e) => { setMailRedirectAllowlistInput(e.target.value); setSettingsIsDirty(true); }}
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
-                  placeholder="例: kenta-noguchi@tadakayo.jp, test@example.com" />
-                {mailDeliveryModeInput === 'REDIRECT' && !mailRedirectAllowlistInput.trim() && (
-                  <p className="text-xs text-red-600">⚠️「テスト集約」を選んでいますが、転送先が空です。このままだとメールは送信されません。</p>
-                )}
+          {settingsSub === 'chat' && <AdminSettingsSection
+            id="settings-chat-membership"
+            title="Google Chat 通知"
+            description="会員手続きの受付・処理完了・要確認通知を管理します。Webhook接続は既に秘密設定で管理されており、この画面では編集しません。"
+            badge="会員手続き"
+            defaultOpen
+          >
+            <div className="space-y-4">
+              <div className="rounded-xl border-2 border-violet-200 bg-violet-50 p-4">
+                <ToggleSwitch color="violet" enabled={chatMembershipNotificationEnabledInput}
+                  onToggle={() => { setChatMembershipNotificationEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                  onLabel="Google Chat 通知を送信する（有効）"
+                  offLabel="Google Chat 通知を停止中（無効）" />
+                <p className="mt-2 text-xs leading-5 text-slate-600">受付通知と処理完了通知は、同じ申請IDのスレッドにまとめます。</p>
               </div>
-
-              {/* ─── [4] カテゴリ別 ON/OFF ─── */}
-              <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
-                <p className="text-xs font-semibold tracking-wide text-slate-600">[4] 種別ごとの有効／無効（補完分）</p>
-                <p className="text-xs text-slate-500">認証情報メール／事業所メール／変更申請の通知以外の種別です。1 件ずつ有効・無効を切り替えられます。</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
-                  <ToggleSwitch color="emerald" enabled={trainingApplyReceiptEnabledInput}
-                    onToggle={() => { setTrainingApplyReceiptEnabledInput(v => !v); setSettingsIsDirty(true); }}
-                    onLabel="研修申込確認メール（有効）" offLabel="研修申込確認メール（無効）" />
-                  <ToggleSwitch color="emerald" enabled={trainingReminderEnabledInput}
-                    onToggle={() => { setTrainingReminderEnabledInput(v => !v); setSettingsIsDirty(true); }}
-                    onLabel="研修リマインダーメール（有効）" offLabel="研修リマインダーメール（無効）" />
-                  <ToggleSwitch color="emerald" enabled={bulkMailEnabledInput}
-                    onToggle={() => { setBulkMailEnabledInput(v => !v); setSettingsIsDirty(true); }}
-                    onLabel="一括メール送信（有効）" offLabel="一括メール送信（無効）" />
-                  <ToggleSwitch color="emerald" enabled={authOtpEnabledInput}
-                    onToggle={() => { setAuthOtpEnabledInput(v => !v); setSettingsIsDirty(true); }}
-                    onLabel="公開ポータル 本人確認コード（OTP）メール（有効）" offLabel="公開ポータル 本人確認コード（OTP）メール（無効）" />
-                  <ToggleSwitch color="emerald" enabled={memberUpdateConfirmEnabledInput}
-                    onToggle={() => { setMemberUpdateConfirmEnabledInput(v => !v); setSettingsIsDirty(true); }}
-                    onLabel="会員情報変更確認メール（有効）" offLabel="会員情報変更確認メール（無効）" />
-                  <ToggleSwitch color="emerald" enabled={withdrawalConfirmEnabledInput}
-                    onToggle={() => { setWithdrawalConfirmEnabledInput(v => !v); setSettingsIsDirty(true); }}
-                    onLabel="退会申請受付確認メール（有効）" offLabel="退会申請受付確認メール（無効）" />
-                  <ToggleSwitch color="emerald" enabled={passwordResetEnabledInput}
-                    onToggle={() => { setPasswordResetEnabledInput(v => !v); setSettingsIsDirty(true); }}
-                    onLabel="パスワード再設定コードメール（有効）" offLabel="パスワード再設定コードメール（無効）" />
-                </div>
-                <p className="text-xs text-slate-500 mt-2">※既存の認証情報・事業所・変更申請ワークフローのメール設定は下の「入会・登録メール設定」セクションを使用してください。</p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <ToggleSwitch color="violet" enabled={chatMembershipRequestEnabledInput}
+                  onToggle={() => { setChatMembershipRequestEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                  onLabel="受付通知（有効）" offLabel="受付通知（無効）" />
+                <ToggleSwitch color="violet" enabled={chatMembershipFinalEnabledInput}
+                  onToggle={() => { setChatMembershipFinalEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                  onLabel="処理完了通知（有効）" offLabel="処理完了通知（無効）" />
+                <ToggleSwitch color="violet" enabled={chatMembershipAnomalyEnabledInput}
+                  onToggle={() => { setChatMembershipAnomalyEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                  onLabel="要確認通知（有効）" offLabel="要確認通知（無効）" />
               </div>
+              <p className="text-xs leading-5 text-slate-600">差し込みタグ: <code>{'{{通知種別}}'}</code> <code>{'{{手続種別}}'}</code> <code>{'{{会員種別}}'}</code> <code>{'{{会員名}}'}</code> <code>{'{{会員ID}}'}</code> <code>{'{{申請ID}}'}</code> <code>{'{{日時}}'}</code> <code>{'{{変更内容}}'}</code> <code>{'{{異常内容}}'}</code></p>
+              <label className="block text-sm font-medium text-slate-700">受付通知の本文
+                <textarea value={chatMembershipRequestBodyInput}
+                  onChange={(e) => { setChatMembershipRequestBodyInput(e.target.value); setSettingsIsDirty(true); }}
+                  rows={5} className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm" />
+              </label>
+              <label className="block text-sm font-medium text-slate-700">処理完了通知の本文
+                <textarea value={chatMembershipFinalBodyInput}
+                  onChange={(e) => { setChatMembershipFinalBodyInput(e.target.value); setSettingsIsDirty(true); }}
+                  rows={5} className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm" />
+              </label>
+              <label className="block text-sm font-medium text-slate-700">要確認通知の本文
+                <textarea value={chatMembershipAnomalyBodyInput}
+                  onChange={(e) => { setChatMembershipAnomalyBodyInput(e.target.value); setSettingsIsDirty(true); }}
+                  rows={5} className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm" />
+              </label>
             </div>
           </AdminSettingsSection>}
 
           {/* ── メール通知 ── */}
           {settingsSub === 'email' && <AdminSettingsSection
             id="settings-all-email"
-            title="入会・登録メール設定"
-            description="上部のメール送信制御が全メールの安全停止です。ここでは入会・登録と変更申請の通知ごとに、送信の有無・宛先ルール・件名・本文・テンプレートを設定します。"
+            title="メール通知の内容"
+            description="会員手続き、入会・登録、研修・認証など、個別の自動メールを設定します。"
             badge="メール設定"
             defaultOpen
           >
@@ -4674,7 +4711,7 @@ const App: React.FC = () => {
                 {/* ─── 入会・登録情報メールの共通スイッチ ─── */}
                 <div className="rounded-xl border-2 border-slate-300 bg-white p-4 space-y-3">
                   <p className="text-xs font-semibold text-slate-500 tracking-wide">入会・登録情報メールの共通スイッチ</p>
-                  <p className="text-xs text-slate-500">無効にすると、下の入会完了・事業所登録・職員追加メールが停止されます。受付・承認・却下などの変更申請通知は、それぞれのカードで設定します。全メールを止める場合は上部の「メール送信制御」を使用してください。</p>
+                  <p className="text-xs text-slate-500">無効にすると、下の入会完了・事業所登録・職員追加メールが停止されます。受付・承認・却下などの変更申請通知は、それぞれのカードで設定します。すべての自動メールを止める場合は、上部の「メール配信」で「停止」を選びます。</p>
                   <ToggleSwitch color="emerald"
                     enabled={credentialEmailEnabledInput}
                     onToggle={() => { setCredentialEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
@@ -4848,7 +4885,7 @@ const App: React.FC = () => {
                 {/* v376.43 (Phase B): その他の自動通知メール（従来ハードコード→差し込み化） */}
                 <div className="space-y-3">
                   <h4 className="text-sm font-semibold text-slate-700 border-b border-slate-200 pb-1">▍その他の自動通知メール（研修・本人確認コード・変更／退会確認・パスワード再設定）</h4>
-                  <p className="text-xs text-slate-500">送信の有無は上部「メール送信制御 → 種別ごとの有効／無効」と連動します。件名・本文を差し込みタグ付きで編集でき、テンプレート管理（上書き保存／新規保存）に対応します。<strong>本人確認コード・パスワード再設定コードは、本文から該当タグを消しても安全装置により既定の文面で必ず送信されます。</strong></p>
+                  <p className="text-xs text-slate-500">各カードで送信の有無、件名、本文を設定できます。本文は差し込みタグに対応し、テンプレート管理（上書き保存／新規保存）も利用できます。<strong>本人確認コード・パスワード再設定コードは、本文から該当タグを消しても安全装置により既定の文面で必ず送信されます。</strong></p>
 
                   <MergeTags items={MAIL_TEMPLATE_MERGE_TAGS.TRAINING_APPLY_RECEIPT} />
                   <EmailCard badge="研修申込確認" title="研修申込確認メール（外部申込者へ）"
@@ -5614,6 +5651,7 @@ const App: React.FC = () => {
                         publicPortalWithdrawalDescriptionEnabled: publicPortalWithdrawalDescriptionEnabledInput,
                         publicPortalWithdrawalDescription: publicPortalWithdrawalDescriptionInput,
                         publicPortalWithdrawalCtaLabel: publicPortalWithdrawalCtaLabelInput,
+                        withdrawalConfirmationItems: withdrawalConfirmationItemsInput,
                         // v265: 個人・賛助会員メール ON/OFF
                         indSuppEmailEnabled: indSuppEmailEnabledInput,
                         // v265: 事業所メール設定
@@ -5639,6 +5677,13 @@ const App: React.FC = () => {
                         rejectionNotificationEnabled: rejectionNotificationEnabledInput,
                         rejectionNotificationSubject: rejectionNotificationSubjectInput,
                         rejectionNotificationBody: rejectionNotificationBodyInput,
+                        chatMembershipNotificationEnabled: chatMembershipNotificationEnabledInput,
+                        chatMembershipRequestEnabled: chatMembershipRequestEnabledInput,
+                        chatMembershipFinalEnabled: chatMembershipFinalEnabledInput,
+                        chatMembershipAnomalyEnabled: chatMembershipAnomalyEnabledInput,
+                        chatMembershipRequestBody: chatMembershipRequestBodyInput,
+                        chatMembershipFinalBody: chatMembershipFinalBodyInput,
+                        chatMembershipAnomalyBody: chatMembershipAnomalyBodyInput,
                         // v376.43 (Phase B): 従来ハードコード6メールの件名/本文
                         trainingApplyReceiptSubject: trainingApplyReceiptSubjectInput,
                         trainingApplyReceiptBody: trainingApplyReceiptBodyInput,
@@ -5652,9 +5697,7 @@ const App: React.FC = () => {
                         withdrawalConfirmBody: withdrawalConfirmBodyInput,
                         passwordResetSubject: passwordResetSubjectInput,
                         passwordResetBody: passwordResetBodyInput,
-                        // v371: メール送信 4 階層ガード
-                        mailGlobalEnabled: mailGlobalEnabledInput,
-                        mailDeliveryMode: mailDeliveryModeInput,
+                        mailDeliveryState: mailDeliveryStateInput,
                         mailRedirectAllowlist: mailRedirectAllowlistInput,
                         trainingApplyReceiptEnabled: trainingApplyReceiptEnabledInput,
                         trainingReminderEnabled: trainingReminderEnabledInput,
@@ -5730,9 +5773,8 @@ const App: React.FC = () => {
                       setPublicPortalWithdrawalDescriptionEnabledInput(saved.publicPortalWithdrawalDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled);
                       setPublicPortalWithdrawalDescriptionInput(saved.publicPortalWithdrawalDescription ?? PUBLIC_PORTAL_DEFAULTS.withdrawalDescription);
                       setPublicPortalWithdrawalCtaLabelInput(saved.publicPortalWithdrawalCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel);
-                      // v371: メール送信 4 階層ガード
-                      setMailGlobalEnabledInput(saved.mailGlobalEnabled ?? false);
-                      setMailDeliveryModeInput((saved.mailDeliveryMode as 'LIVE' | 'REDIRECT' | 'SUPPRESS') ?? 'LIVE');
+                      setWithdrawalConfirmationItemsInput(normalizeWithdrawalConfirmationItems(saved.withdrawalConfirmationItems));
+                      setMailDeliveryStateInput(resolveMailDeliveryState(saved));
                       setMailRedirectAllowlistInput(saved.mailRedirectAllowlist ?? '');
                       setTrainingApplyReceiptEnabledInput(saved.trainingApplyReceiptEnabled ?? true);
                       setTrainingReminderEnabledInput(saved.trainingReminderEnabled ?? true);
@@ -5827,10 +5869,8 @@ const App: React.FC = () => {
         annualFeeTransferAccount: annualFeeTransferAccount,
         bulkMailAutoAttachFolderId: bulkMailAutoAttachFolderIdInput,
         emailLogViewerRole: emailLogViewerRoleInput,
-        // v376.53.2: REDIRECT/停止 警告バナー用（v376.53.1 で settings に含め漏れ → バナー不点灯バグ）。
-        // loadSystemSettings 時に保存値で初期化される state を渡す（bulk-mail 画面では編集されない）
-        mailGlobalEnabled: mailGlobalEnabledInput,
-        mailDeliveryMode: mailDeliveryModeInput,
+        // 一括メールの警告は、設定画面と同じ単一の配信状態を使う。
+        mailDeliveryState: mailDeliveryStateInput,
         mailRedirectAllowlist: mailRedirectAllowlistInput,
       };
       return (

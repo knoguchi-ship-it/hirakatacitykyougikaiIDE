@@ -222,6 +222,36 @@ test('賛助会員の変更 allowlist から CM番号が外れている', () => 
   assert.ok(/!==\s*'careManagerNumber'/.test(body), 'CM番号を除いていない');
 });
 
+test('賛助会員の連絡先変更でログインIDをCM番号として検証しない', () => {
+  // 承認時は saveMemberCore_ が既存値と申請値を統合する。ここで賛助会員の
+  // 自動採番ログインIDを CM 番号の代替にすると、CM番号を持たない賛助会員の
+  // 連絡先変更まで 8 桁検証で失敗する。生成元の保存処理を直接検査する。
+  const saveCore = extractFunction(gas, 'saveMemberCore_');
+  assert.match(
+    saveCore,
+    /storedCareManagerNumber\s*\|\|\s*\(memberTypeCode\s*===\s*'INDIVIDUAL'\s*\?\s*loginIdFallback\s*:\s*''\)/,
+    'ログインIDをCM番号の代替に使えるのは個人会員だけに限定してください',
+  );
+  const validate = extractFunction(gas, 'validateMemberPayload_');
+  assert.match(
+    validate,
+    /if\s*\(\s*!isSupport\s*&&\s*trim\(payload\.careManagerNumber\)\s*\)/,
+    '賛助会員の任意のCM番号を8桁書式検証してはいけません',
+  );
+
+  // 「賛助会員の自動採番ログインID」は 9 桁になり得る。保存前の実関数を
+  // 生成元から抽出して実行し、この値が連絡先変更を妨げないことを確認する。
+  const validateRuntime = new Function('isValidCmNumberRelaxed_', `${validate}\nreturn validateMemberPayload_;`)(
+    () => false,
+  ) as (payload: Record<string, unknown>, memberType: string, currentStatus: string) => void;
+  const supportPayload = {
+    lastName: '検証', firstName: '会員', lastKana: 'ケンショウ', firstKana: 'カイイン',
+    careManagerNumber: '900000000', mobilePhone: '09000000000', status: 'ACTIVE',
+  };
+  assert.doesNotThrow(() => validateRuntime(supportPayload, 'SUPPORT', 'ACTIVE'));
+  assert.throws(() => validateRuntime(supportPayload, 'INDIVIDUAL', 'ACTIVE'), /8桁/);
+});
+
 test('allowlist の種別分岐が三項演算子で書かれていない', () => {
   // 「INDIVIDUAL 以外＝事業所」と書くと賛助会員が事業所の allowlist を使う。
   // 実際にその状態だったので、表引きに寄せたことを固定する。

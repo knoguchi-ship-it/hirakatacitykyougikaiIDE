@@ -10,6 +10,7 @@ import MemberUpdateForm from './components/MemberUpdateForm';
 import WithdrawalRequestForm from './components/WithdrawalRequestForm';
 import { readDeepLink, consumeDeepLink } from '../utils/deepLink';
 import { resolveApplyCta } from '../shared/trainingOptions';
+import { DEFAULT_WITHDRAWAL_CONFIRMATION_ITEMS, normalizeWithdrawalConfirmationItems, type WithdrawalConfirmationItem } from '../shared/withdrawalConfirmation';
 
 type PublicPortalContentSettings = {
   regulations: import('../types').Regulation[];
@@ -61,6 +62,7 @@ type PublicPortalContentSettings = {
   withdrawalDescriptionEnabled: boolean;
   withdrawalDescription: string;
   withdrawalCtaLabel: string;
+  withdrawalConfirmationItems: WithdrawalConfirmationItem[];
 };
 
 type View =
@@ -143,8 +145,9 @@ const DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS: PublicPortalContentSettings = {
   withdrawalTitleEnabled: true,
   withdrawalTitle: '退会を申し込む',
   withdrawalDescriptionEnabled: true,
-  withdrawalDescription: '退会申請を行います。退会は当年度末（3月31日）に適用されます。介護支援専門員番号でご本人確認を行います。',
+  withdrawalDescription: '退会申請を行います。年度末退会または即時退会を選択できます。介護支援専門員番号でご本人確認を行います。',
   withdrawalCtaLabel: '退会手続きへ進む',
+  withdrawalConfirmationItems: DEFAULT_WITHDRAWAL_CONFIRMATION_ITEMS,
 };
 
 const PublicApp: React.FC = () => {
@@ -256,6 +259,7 @@ const PublicApp: React.FC = () => {
             withdrawalDescriptionEnabled: portalSettings.value.withdrawalDescriptionEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.withdrawalDescriptionEnabled,
             withdrawalDescription: portalSettings.value.withdrawalDescription || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.withdrawalDescription,
             withdrawalCtaLabel: portalSettings.value.withdrawalCtaLabel || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.withdrawalCtaLabel,
+            withdrawalConfirmationItems: normalizeWithdrawalConfirmationItems(portalSettings.value.withdrawalConfirmationItems),
           });
         } else {
           setTrainingMenuEnabled(true);
@@ -630,7 +634,7 @@ const PublicApp: React.FC = () => {
         )}
 
         {view === 'withdrawal-request' && (
-          <WithdrawalRequestForm onBack={handleBackToHome} />
+          <WithdrawalRequestForm onBack={handleBackToHome} confirmationItems={portalContentSettings?.withdrawalConfirmationItems} />
         )}
 
         {view === 'member-application' && (

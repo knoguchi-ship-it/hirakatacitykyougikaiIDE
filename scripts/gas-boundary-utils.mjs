@@ -18,6 +18,8 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   'inspectDryRunManifest_LOG',
   'deleteTestDataPreview_LOG',
   'deleteTestData_APPLY',
+  'previewStrictE2ETestMemberCleanup_LOG',
+  'executeStrictE2ETestMemberCleanup_APPLY',
   // v376.14: 研修管理 全機能ドライランテスト（operator 実行用）
   'dryRunTrainingManagement',
   'cleanupDryRunTrainingManagement',

@@ -203,6 +203,37 @@ function deleteTestData_APPLY() {
   return result;
 }
 
+function previewStrictE2ETestMemberCleanup_LOG() {
+  var targets = collectStrictE2ETestMemberTargets_(getOrCreateDatabase_());
+  var counts = {
+    auth: targets.auth.length,
+    members: targets.members.length,
+    staff: targets.staff.length,
+    changeRequests: targets.changeRequests.length,
+  };
+  Logger.log('=== previewStrictE2ETestMemberCleanup_LOG ===');
+  Logger.log(JSON.stringify({ counts: counts }));
+  return { counts: counts };
+}
+
+function executeStrictE2ETestMemberCleanup_APPLY() {
+  var ss = getOrCreateDatabase_();
+  var targets = collectStrictE2ETestMemberTargets_(ss);
+  var result = {
+    deleted: {
+      auth: dryRun_softDeleteByKey_(ss, 'T_認証アカウント', '認証ID', targets.auth.map(function(row) { return String(row['認証ID']); })),
+      members: dryRun_softDeleteByKey_(ss, 'T_会員', '会員ID', targets.members.map(function(row) { return String(row['会員ID']); })),
+      staff: dryRun_softDeleteByKey_(ss, 'T_事業所職員', '職員ID', targets.staff.map(function(row) { return String(row['職員ID']); })),
+      changeRequests: dryRun_softDeleteByKey_(ss, 'T_変更申請', '申請ID', targets.changeRequests.map(function(row) { return String(row['申請ID']); })),
+    },
+  };
+  clearAllDataCache_();
+  clearAdminDashboardCache_();
+  Logger.log('=== executeStrictE2ETestMemberCleanup_APPLY ===');
+  Logger.log(JSON.stringify(result));
+  return result;
+}
+
 function inspectDryRunManifest_LOG() {
   var raw = PropertiesService.getScriptProperties().getProperty(DRYRUN_MANIFEST_KEY);
   Logger.log('=== inspectDryRunManifest_LOG ===');

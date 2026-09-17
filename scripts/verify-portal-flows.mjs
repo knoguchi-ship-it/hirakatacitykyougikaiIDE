@@ -13,9 +13,6 @@ const STATE = '.test-out/auth-admin.json';
 const ADMIN_URL = process.env.PORTAL_URL_ADMIN
   || 'https://script.google.com/macros/s/AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os/exec';
 
-// 設定画面で拾いたいラベル。値そのものではなく、周辺テキストを塊で取って目視できる形にする。
-const WATCH = ['メール', '配信モード', '一斉停止', '退会', '登録情報変更'];
-
 async function openAdmin() {
   const browser = await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, storageState: STATE });
@@ -51,6 +48,15 @@ async function clickByText(frame, label) {
   }, label);
 }
 
+async function waitForSettingsLoaded(frame, page) {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const isLoading = await frame.evaluate(() => (document.body.innerText || '').includes('読み込み中'));
+    if (!isLoading) return true;
+    await page.waitForTimeout(1000);
+  }
+  return false;
+}
+
 // システム設定はタブ構成（基本設定 / 会費設定 / 規程・重要事項 / 帳票出力 /
 // メール通知 / 公開ポータル / マスタ管理）。タブ名を渡してその中身を読む。
 async function readSettings(tab) {
@@ -60,14 +66,20 @@ async function readSettings(tab) {
   const ok = await clickByText(frame, 'システム設定');
   console.log('システム設定を開いた:', ok);
   await page.waitForTimeout(3000);
+  const loaded = await waitForSettingsLoaded(frame, page);
+  if (!loaded) {
+    console.error('設定データの読み込みが完了しませんでした。');
+    await browser.close();
+    process.exit(1);
+  }
   if (tab) {
     const t = await clickByText(frame, tab);
     console.log(`タブ「${tab}」を開いた:`, t);
     await page.waitForTimeout(2500);
   }
 
-  // 設定画面はセクションが多い。まず見出しを出し、次に入力要素を全部（絞らず）書き出す。
-  // 絞り込みで探し物を取りこぼすより、量が出ても全体を見たほうが速い。
+  // 設定画面は、入力値を出力せず、見出しと入力種別だけを確認する。
+  // 設定値には送信先・本文などが含まれうるため、値そのものをログへ出してはならない。
   const dump = await frame.evaluate(() => {
     const headings = Array.from(document.querySelectorAll('h1,h2,h3,h4,summary,[role="tab"],button'))
       .map((h) => (h.innerText || '').replace(/\s+/g, ' ').trim())
@@ -75,19 +87,44 @@ async function readSettings(tab) {
     const fields = [];
     for (const el of Array.from(document.querySelectorAll('input, select, textarea'))) {
       const r = el.getBoundingClientRect();
-      const wrap = el.closest('label') || el.parentElement;
-      const near = ((wrap && wrap.innerText) || '').replace(/\s+/g, ' ').trim().slice(0, 90);
-      const value = el.type === 'checkbox' ? String(el.checked) : String(el.value || '').slice(0, 60);
-      fields.push({ near, name: el.name || el.id || '', type: el.type || el.tagName.toLowerCase(), value, visible: r.width > 0 && r.height > 0 });
+      const identifier = [el.getAttribute('name'), el.id, el.getAttribute('aria-label')]
+        .filter(Boolean).join(' ');
+      fields.push({
+        type: el.type || el.tagName.toLowerCase(),
+        visible: r.width > 0 && r.height > 0,
+        isWebhookLike: /webhook/i.test(identifier),
+      });
     }
-    return { headings: Array.from(new Set(headings)), fields };
+    const selectedMailDeliveryState = document.querySelector('input[name="mailDeliveryState"]:checked')?.getAttribute('value') || '';
+    return { headings: Array.from(new Set(headings)), fields, text: document.body.innerText || '', selectedMailDeliveryState };
   });
+
+  const requirements = tab === 'メール通知'
+    ? ['メール配信', '停止', '通常送信', 'テスト集約']
+    : tab === 'Google Chat'
+      ? ['Google Chat 通知', '受付通知', '処理完了通知', '要確認通知', '同じ申請IDのスレッド']
+      : [];
+  const forbidden = tab === 'メール通知'
+    ? ['送信抑止', '全メール停止スイッチ', '配信モード']
+    : tab === 'Google Chat'
+      ? ['Chat 接続設定']
+      : [];
+  const missing = requirements.filter((text) => !dump.text.includes(text));
+  const foundForbidden = forbidden.filter((text) => dump.text.includes(text));
+  const hasWebhookInput = tab === 'Google Chat' && dump.fields.some((field) => field.type === 'url' || field.isWebhookLike);
+  const expectedMailDeliveryState = process.argv.find((arg) => arg.startsWith('--expect-mail-state='))?.slice('--expect-mail-state='.length);
+  const hasExpectedMailDeliveryState = !expectedMailDeliveryState || dump.selectedMailDeliveryState === expectedMailDeliveryState;
 
   console.log('--- セクション/ボタン ---');
   console.log('  ' + dump.headings.join(' | '));
   console.log(`--- 入力要素 ${dump.fields.length} 件 ---`);
-  for (const f of dump.fields) console.log(`  [${f.type}]${f.visible ? '' : '(非表示)'} ${f.value}  ← ${f.near || f.name}`);
+  for (const f of dump.fields) console.log(`  [${f.type}]${f.visible ? '' : '(非表示)'}`);
   console.log('\nconsole errors:', errors.length ? errors : 'なし');
+  if (missing.length || foundForbidden.length || hasWebhookInput || !hasExpectedMailDeliveryState || errors.length) {
+    console.error(JSON.stringify({ missing, foundForbidden, hasWebhookInput, hasExpectedMailDeliveryState, consoleErrorCount: errors.length }));
+    await browser.close();
+    process.exit(1);
+  }
   await browser.close();
 }
 
@@ -288,10 +325,35 @@ async function decideChangeRequest(requestId, action, reason) {
   await browser.close();
 }
 
+// 指定した検証申請だけの状態を返す。会員情報・連絡先などは出力しない。
+async function getChangeRequestStatus(requestId) {
+  const { browser, page, frame, errors } = await openAdmin();
+  await clickByText(frame, '変更申請管理');
+  await frame.getByText(requestId).first().waitFor({ timeout: 90000 }).catch(() => {});
+  await page.waitForTimeout(3000);
+  const status = await frame.evaluate((id) => {
+    const body = document.body.innerText || '';
+    const buttons = Array.from(document.querySelectorAll('button'));
+    const approvalButton = buttons.find((button) => (button.innerText || '').trim() === '承認してDBに反映');
+    let approvalAvailableForRequest = false;
+    if (approvalButton) {
+      let node = approvalButton;
+      while (node && node !== document.body) {
+        if ((node.textContent || '').includes(id)) { approvalAvailableForRequest = true; break; }
+        node = node.parentElement;
+      }
+    }
+    return { found: body.includes(id), approvalAvailableForRequest };
+  }, requestId);
+  console.log(JSON.stringify({ requestId, ...status, consoleErrorCount: errors.length }));
+  await browser.close();
+}
+
 const cmd = process.argv[2] || 'read-settings';
 if (cmd === 'read-settings') await readSettings(process.argv[3]);
 else if (cmd === 'decide') await decideChangeRequest(process.argv[3], process.argv[4], process.argv[5]);
 else if (cmd === 'change-requests') await readChangeRequests();
+else if (cmd === 'request-status') await getChangeRequestStatus(process.argv[3]);
 else if (cmd === 'find-member') await findMember(process.argv[3], process.argv[4]);
 else if (cmd === 'set-portal-toggle') await setPortalToggle(process.argv[3], process.argv[4] === 'true');
 else { console.error(`unknown command: ${cmd}`); process.exit(1); }

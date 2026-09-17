@@ -322,7 +322,7 @@ var PUBLIC_PORTAL_DEFAULTS = {
   withdrawalTitleEnabled: true,
   withdrawalTitle: '退会を申し込む',
   withdrawalDescriptionEnabled: true,
-  withdrawalDescription: '退会申請を行います。退会は当年度末（3月31日）に適用されます。介護支援専門員番号でご本人確認を行います。',
+  withdrawalDescription: '退会申請を行います。年度末退会または即時退会を選択できます。介護支援専門員番号でご本人確認を行います。',
   withdrawalCtaLabel: '退会手続きへ進む',
 };
 
@@ -2045,18 +2045,39 @@ function processApiRequest(action, payload) {
       // v143: 管理者用 allowlist でサニタイズしてから委譲
       var sanitizedMemberPayload = sanitizeAdminMemberPayload_(parsedPayload);
       sanitizedMemberPayload.__adminSession = parsedPayload.__adminSession;
+      var adminUpdateResult = updateMember_(sanitizedMemberPayload);
+      notifyMembershipChatForMember_(getOrCreateDatabase_(), 'FINAL', sanitizedMemberPayload.id, {
+        '手続種別': '会員情報変更（管理者操作）',
+        '申請ID': '',
+        '変更内容': '管理画面から会員情報が更新されました。',
+        '異常内容': '',
+      });
       return JSON.stringify({
         success: true,
-        data: updateMember_(sanitizedMemberPayload),
+        data: adminUpdateResult,
       });
     }
 
     if (action === 'withdrawMember') {
-      return JSON.stringify({ success: true, data: withdrawMember_(parsedPayload) });
+      var adminWithdrawalResult = withdrawMember_(parsedPayload);
+      notifyMembershipChatForMember_(getOrCreateDatabase_(), 'FINAL', parsedPayload.memberId, {
+        '手続種別': '退会（管理者処理）',
+        '申請ID': '',
+        '変更内容': '管理画面から会員を退会処理しました。',
+        '異常内容': '',
+      });
+      return JSON.stringify({ success: true, data: adminWithdrawalResult });
     }
 
     if (action === 'removeStaffFromOffice') {
-      return JSON.stringify({ success: true, data: removeStaffFromOffice_(parsedPayload) });
+      var removeStaffResult = removeStaffFromOffice_(parsedPayload);
+      notifyMembershipChatForMember_(getOrCreateDatabase_(), 'FINAL', parsedPayload.memberId, {
+        '手続種別': '職員除籍（管理者操作）',
+        '申請ID': '',
+        '変更内容': '管理画面から職員を除籍しました。',
+        '異常内容': '',
+      });
+      return JSON.stringify({ success: true, data: removeStaffResult });
     }
 
     if (action === 'getAdminPersonList') {
@@ -2080,7 +2101,15 @@ function processApiRequest(action, payload) {
     }
 
     if (action === 'updateStaff') {
-      return JSON.stringify({ success: true, data: updateStaff_(parsedPayload) });
+      var updateStaffResult = updateStaff_(parsedPayload);
+      // memberId は更新済み職員レコードから確定した値を使う。呼出しpayloadの任意項目に依存しない。
+      notifyMembershipChatForMember_(getOrCreateDatabase_(), 'FINAL', updateStaffResult.memberId, {
+        '手続種別': '職員情報変更（管理者操作）',
+        '申請ID': '',
+        '変更内容': '管理画面から職員情報が更新されました。',
+        '異常内容': '',
+      });
+      return JSON.stringify({ success: true, data: updateStaffResult });
     }
 
     if (action === 'submitMemberApplication') {
@@ -5113,11 +5142,27 @@ function resolveMemberPrincipalPayload_(payload) {
 }
 
 function updateMemberSelfByPrincipal_(payload) {
-  return updateMemberSelf_(resolveMemberPrincipalPayload_(payload));
+  var resolved = resolveMemberPrincipalPayload_(payload);
+  var result = updateMemberSelf_(resolved);
+  notifyMembershipChatForMember_(getOrCreateDatabase_(), 'FINAL', resolved.id, {
+    '手続種別': '会員情報変更（本人操作）',
+    '申請ID': '',
+    '変更内容': '会員マイページから会員情報が更新されました。',
+    '異常内容': '',
+  });
+  return result;
 }
 
 function withdrawSelfByPrincipal_(payload) {
-  return withdrawSelf_(resolveMemberPrincipalPayload_(payload));
+  var resolved = resolveMemberPrincipalPayload_(payload);
+  var result = withdrawSelf_(resolved);
+  notifyMembershipChatForMember_(getOrCreateDatabase_(), 'FINAL', resolved.memberId, {
+    '手続種別': '退会申請（年度末）',
+    '申請ID': '',
+    '変更内容': '会員マイページから年度末退会が申請されました。',
+    '異常内容': '',
+  });
+  return result;
 }
 
 function cancelWithdrawalSelfByPrincipal_(payload) {
@@ -6430,11 +6475,55 @@ function saveSharedMemo_(payload) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// 公開ポータルの退会確認欄は、手続きに必要な5項目を固定し、表示と文言のみを設定化する。
+// 任意行の追加・削除は審査上の説明責任に影響するため、別途仕様化するまで受け付けない。
+var WITHDRAWAL_CONFIRMATION_ITEM_IDS_ = ['method', 'effectiveDate', 'memberPortal', 'cancellation', 'approval'];
+
+function normalizeWithdrawalConfirmationItems_(items) {
+  if (!Array.isArray(items)) throw new Error('退会確認項目の形式が不正です。');
+  var byId = {};
+  items.forEach(function(item) {
+    if (!item || typeof item !== 'object') throw new Error('退会確認項目の形式が不正です。');
+    var id = String(item.id || '');
+    if (WITHDRAWAL_CONFIRMATION_ITEM_IDS_.indexOf(id) === -1 || byId[id]) {
+      throw new Error('退会確認項目の識別子が不正です。');
+    }
+    var label = String(item.label == null ? '' : item.label).trim();
+    var fiscalYearEndText = String(item.fiscalYearEndText == null ? '' : item.fiscalYearEndText).trim();
+    var immediateText = String(item.immediateText == null ? '' : item.immediateText).trim();
+    if (typeof item.enabled !== 'boolean' || !label || !fiscalYearEndText || !immediateText ||
+        label.length > 80 || fiscalYearEndText.length > 300 || immediateText.length > 300) {
+      throw new Error('退会確認項目の入力内容が不正です。');
+    }
+    byId[id] = {
+      id: id,
+      enabled: item.enabled,
+      label: label,
+      fiscalYearEndText: fiscalYearEndText,
+      immediateText: immediateText,
+    };
+  });
+  return WITHDRAWAL_CONFIRMATION_ITEM_IDS_.map(function(id) {
+    if (!byId[id]) throw new Error('退会確認項目が不足しています。');
+    return byId[id];
+  });
+}
+
+function parseWithdrawalConfirmationItems_(raw) {
+  if (raw == null || String(raw).trim() === '') return null;
+  try {
+    return normalizeWithdrawalConfirmationItems_(JSON.parse(String(raw)));
+  } catch (e) {
+    return null;
+  }
+}
+
 function getSystemSettings_() {
   var ss = getOrCreateDatabase_();
   initializeSchemaIfNeeded_(ss);
   // 全設定を1回の読み込みで取得（N+1問題を解消）
   var m = getSystemSettingMap_(ss);
+  var mailDeliveryState = getMailDeliveryState_(m);
   var raw = Number(m['DEFAULT_BUSINESS_STAFF_LIMIT'] || 10);
   var lookbackRaw = Number(m['TRAINING_HISTORY_LOOKBACK_MONTHS'] || 18);
   var guidanceRaw = m['ANNUAL_FEE_PAYMENT_GUIDANCE'];
@@ -6580,6 +6669,7 @@ function getSystemSettings_() {
   var publicPortalWithdrawalDescriptionEnabled = withdrawalDescriptionEnabledRaw === undefined || withdrawalDescriptionEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled : String(withdrawalDescriptionEnabledRaw) !== 'false';
   var publicPortalWithdrawalDescription = String(m['PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalDescription;
   var publicPortalWithdrawalCtaLabel = String(m['PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel;
+  var withdrawalConfirmationItems = parseWithdrawalConfirmationItems_(m['PUBLIC_PORTAL_WITHDRAWAL_CONFIRMATION_ITEMS']);
   // v376.64: 会費設定（金額の正本は M_会員種別.年会費金額）
   var memberTypeAnnualFees = readMemberTypeAnnualFees_(ss);
   var membershipFeePublicVisibleRaw = m['MEMBERSHIP_FEE_PUBLIC_VISIBLE'];
@@ -6650,6 +6740,7 @@ function getSystemSettings_() {
     publicPortalWithdrawalDescriptionEnabled: publicPortalWithdrawalDescriptionEnabled,
     publicPortalWithdrawalDescription: publicPortalWithdrawalDescription,
     publicPortalWithdrawalCtaLabel: publicPortalWithdrawalCtaLabel,
+    withdrawalConfirmationItems: withdrawalConfirmationItems,
     trainingFileFolderId: String(m['TRAINING_FILE_FOLDER_ID'] || '').trim(),
     claimAttachmentFolderId: String(m['CLAIM_ATTACHMENT_FOLDER_ID'] || '').trim(),
     // v265: 個人・賛助会員 入会時メール ON/OFF
@@ -6690,9 +6781,10 @@ function getSystemSettings_() {
     withdrawalConfirmBody:        String(m['WITHDRAWAL_CONFIRM_BODY'] || '') || WITHDRAWAL_CONFIRM_DEFAULT_BODY,
     passwordResetSubject:         String(m['PASSWORD_RESET_SUBJECT'] || '') || PASSWORD_RESET_DEFAULT_SUBJECT,
     passwordResetBody:            String(m['PASSWORD_RESET_BODY'] || '') || PASSWORD_RESET_DEFAULT_BODY,
-    // v371: メール送信 4 階層ガード（GLOBAL / MODE / ALLOWLIST / CATEGORY 6 種）
-    mailGlobalEnabled:            (function(){ var v = m['MAIL_GLOBAL_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
-    mailDeliveryMode:             String(m['MAIL_DELIVERY_MODE'] || 'LIVE').toUpperCase(),
+    // メール配信状態は MAIL_DELIVERY_STATE を正本とする。旧3キーは既存クライアントとの互換用。
+    mailDeliveryState:            mailDeliveryState,
+    mailGlobalEnabled:            mailDeliveryState !== 'STOPPED',
+    mailDeliveryMode:             mailDeliveryState === 'REDIRECT' ? 'REDIRECT' : 'LIVE',
     mailRedirectAllowlist:        String(m['MAIL_REDIRECT_ALLOWLIST'] || ''),
     trainingApplyReceiptEnabled:  (function(){ var v = m['TRAINING_APPLY_RECEIPT_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
     trainingReminderEnabled:      (function(){ var v = m['TRAINING_REMINDER_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
@@ -6701,6 +6793,14 @@ function getSystemSettings_() {
     memberUpdateConfirmEnabled:   (function(){ var v = m['MEMBER_UPDATE_CONFIRM_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
     withdrawalConfirmEnabled:     (function(){ var v = m['WITHDRAWAL_CONFIRM_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
     passwordResetEnabled:         (function(){ var v = m['PASSWORD_RESET_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
+    // Google Chat 会員手続き通知。Webhook URL は Script Properties にのみ保持する。
+    chatMembershipNotificationEnabled: (function(){ var v = m['CHAT_MEMBERSHIP_NOTIFICATION_ENABLED']; return String(v) === 'true'; })(),
+    chatMembershipRequestEnabled:      (function(){ var v = m['CHAT_MEMBERSHIP_REQUEST_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
+    chatMembershipFinalEnabled:        (function(){ var v = m['CHAT_MEMBERSHIP_FINAL_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
+    chatMembershipAnomalyEnabled:      (function(){ var v = m['CHAT_MEMBERSHIP_ANOMALY_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
+    chatMembershipRequestBody: String(m['CHAT_MEMBERSHIP_REQUEST_BODY'] || '') || CHAT_MEMBERSHIP_REQUEST_DEFAULT_BODY,
+    chatMembershipFinalBody:   String(m['CHAT_MEMBERSHIP_FINAL_BODY'] || '') || CHAT_MEMBERSHIP_FINAL_DEFAULT_BODY,
+    chatMembershipAnomalyBody: String(m['CHAT_MEMBERSHIP_ANOMALY_BODY'] || '') || CHAT_MEMBERSHIP_ANOMALY_DEFAULT_BODY,
   };
 }
 
@@ -6939,6 +7039,9 @@ function updateSystemSettings_(request, callerPermLevel) {
   if (request.publicPortalWithdrawalCtaLabel != null) {
     updates.push({ key: 'PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL', value: String(request.publicPortalWithdrawalCtaLabel).trim() || PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel, description: '公開ポータル：退会カードボタン文言' });
   }
+  if (request.withdrawalConfirmationItems != null) {
+    updates.push({ key: 'PUBLIC_PORTAL_WITHDRAWAL_CONFIRMATION_ITEMS', value: JSON.stringify(normalizeWithdrawalConfirmationItems_(request.withdrawalConfirmationItems)), description: '公開ポータル：退会確認項目の表示・文言設定' });
+  }
   if (request.trainingFileFolderId != null) {
     updates.push({ key: 'TRAINING_FILE_FOLDER_ID', value: String(request.trainingFileFolderId || '').trim(), description: '研修ファイル保存先 Google Drive フォルダ ID' });
     // Script Properties にも保存
@@ -7055,14 +7158,23 @@ function updateSystemSettings_(request, callerPermLevel) {
   if (request.passwordResetBody != null) {
     updates.push({ key: 'PASSWORD_RESET_BODY', value: String(request.passwordResetBody) || PASSWORD_RESET_DEFAULT_BODY, description: 'パスワード再設定コードメール本文' });
   }
-  // v371: メール送信 4 階層ガード
-  if (request.mailGlobalEnabled != null) {
-    updates.push({ key: 'MAIL_GLOBAL_ENABLED', value: request.mailGlobalEnabled ? 'true' : 'false', description: 'メール送信のグローバルキルスイッチ（false で全停止）' });
-  }
-  if (request.mailDeliveryMode != null) {
-    var rawMode = String(request.mailDeliveryMode || 'LIVE').toUpperCase();
-    if (['LIVE', 'REDIRECT', 'SUPPRESS'].indexOf(rawMode) < 0) rawMode = 'LIVE';
-    updates.push({ key: 'MAIL_DELIVERY_MODE', value: rawMode, description: '配信モード: LIVE / REDIRECT / SUPPRESS' });
+  // メール配信状態は一つだけを正本とする。旧キーも同時更新し、ロールバック時も挙動を保つ。
+  if (request.mailDeliveryState != null) {
+    var mailDeliveryState = normalizeMailDeliveryState_(request.mailDeliveryState);
+    var legacyMailState = legacyMailDispatchValues_(mailDeliveryState);
+    updates.push({ key: 'MAIL_DELIVERY_STATE', value: mailDeliveryState, description: 'メール配信状態: 停止 / 通常送信 / テスト集約' });
+    updates.push({ key: 'MAIL_GLOBAL_ENABLED', value: legacyMailState.globalEnabled, description: '旧互換: メール送信全体状態' });
+    updates.push({ key: 'MAIL_DELIVERY_MODE', value: legacyMailState.deliveryMode, description: '旧互換: メール配信方法' });
+  } else {
+    // 旧クライアントからの更新を受ける間だけ、従来キーを受理する。
+    if (request.mailGlobalEnabled != null) {
+      updates.push({ key: 'MAIL_GLOBAL_ENABLED', value: request.mailGlobalEnabled ? 'true' : 'false', description: '旧互換: メール送信全体状態' });
+    }
+    if (request.mailDeliveryMode != null) {
+      var rawMode = String(request.mailDeliveryMode || 'LIVE').toUpperCase();
+      if (['LIVE', 'REDIRECT', 'SUPPRESS'].indexOf(rawMode) < 0) rawMode = 'LIVE';
+      updates.push({ key: 'MAIL_DELIVERY_MODE', value: rawMode, description: '旧互換: メール配信方法' });
+    }
   }
   if (request.mailRedirectAllowlist != null) {
     // 入力サニタイズ: トリム + カンマ区切り正規化
@@ -7091,6 +7203,29 @@ function updateSystemSettings_(request, callerPermLevel) {
   if (request.passwordResetEnabled != null) {
     updates.push({ key: 'PASSWORD_RESET_ENABLED', value: request.passwordResetEnabled ? 'true' : 'false', description: 'パスワード再設定確認コードメール送信ON/OFF' });
   }
+  if (request.chatMembershipNotificationEnabled != null) {
+    updates.push({ key: 'CHAT_MEMBERSHIP_NOTIFICATION_ENABLED', value: request.chatMembershipNotificationEnabled ? 'true' : 'false', description: 'Google Chat 会員手続き通知の全体有効化' });
+  }
+  if (request.chatMembershipRequestEnabled != null) {
+    updates.push({ key: 'CHAT_MEMBERSHIP_REQUEST_ENABLED', value: request.chatMembershipRequestEnabled ? 'true' : 'false', description: 'Google Chat 会員手続きの受付通知' });
+  }
+  if (request.chatMembershipFinalEnabled != null) {
+    updates.push({ key: 'CHAT_MEMBERSHIP_FINAL_ENABLED', value: request.chatMembershipFinalEnabled ? 'true' : 'false', description: 'Google Chat 会員手続きの確定通知' });
+  }
+  if (request.chatMembershipAnomalyEnabled != null) {
+    updates.push({ key: 'CHAT_MEMBERSHIP_ANOMALY_ENABLED', value: request.chatMembershipAnomalyEnabled ? 'true' : 'false', description: 'Google Chat 会員手続きの異常通知' });
+  }
+  var chatTemplateSettings = [
+    ['chatMembershipRequestBody', 'CHAT_MEMBERSHIP_REQUEST_BODY', CHAT_MEMBERSHIP_REQUEST_DEFAULT_BODY, 'Google Chat 会員手続きの受付通知本文'],
+    ['chatMembershipFinalBody', 'CHAT_MEMBERSHIP_FINAL_BODY', CHAT_MEMBERSHIP_FINAL_DEFAULT_BODY, 'Google Chat 会員手続きの確定通知本文'],
+    ['chatMembershipAnomalyBody', 'CHAT_MEMBERSHIP_ANOMALY_BODY', CHAT_MEMBERSHIP_ANOMALY_DEFAULT_BODY, 'Google Chat 会員手続きの異常通知本文'],
+  ];
+  chatTemplateSettings.forEach(function(item) {
+    if (request[item[0]] == null) return;
+    var template = String(request[item[0]] || '').trim() || item[2];
+    validateChatMembershipTemplate_(template);
+    updates.push({ key: item[1], value: template, description: item[3] });
+  });
   batchUpsertSystemSettings_(ss, updates);
   var scriptProperties = PropertiesService.getScriptProperties();
   scriptProperties.setProperty(DEFAULT_BUSINESS_STAFF_LIMIT_KEY, String(Math.floor(next))); // backward compatibility
@@ -8822,6 +8957,16 @@ function enqueueMemberApplicationChangeRequest_(payload) {
     requestType: 'MEMBER_APPLICATION',
     memberTypeLabel: memberTypeLabel_(memberType),
   });
+  notifyMembershipChatSafely_(ss, 'REQUEST', {
+    '手続種別': chatMembershipRequestTypeLabel_('MEMBER_APPLICATION'),
+    '会員名': applicantName,
+    '会員種別': memberTypeLabel_(memberType),
+    '会員ID': '',
+    '申請ID': requestId,
+    '日時': now,
+    '変更内容': '',
+    '異常内容': '',
+  });
   return { queued: true, success: true, requestId: requestId };
 }
 
@@ -9762,6 +9907,7 @@ function buildChangeSummaryText_(changeData, requestType) {
   };
   if (requestType === 'WITHDRAWAL') {
     lines.push('・退会申請');
+    lines.push('・退会方式: ' + (changeData.withdrawalMethod === 'IMMEDIATE' ? '即時退会（承認日に適用）' : '年度末退会'));
   } else if (requestType === 'MEMBER_APPLICATION') {
     lines.push('・新規入会申込');
   } else if (changeData.fields && typeof changeData.fields === 'object') {
@@ -10372,6 +10518,150 @@ function exportTableCsv_(payload, session) {
 
 
 // v368: 申込受付メール送信ヘルパー（公開ポータル申請受付時に使用）
+// ── Google Chat: 会員手続き通知 ────────────────────────────────────────────
+// Webhook URL は設定テーブルに保存しない。3 split の Script Properties に同じキーを設定する。
+var CHAT_MEMBERSHIP_WEBHOOK_URL_PROPERTY = 'CHAT_MEMBERSHIP_WEBHOOK_URL';
+var CHAT_MEMBERSHIP_REQUEST_DEFAULT_BODY = '【会員手続き受付】\n手続き: {{手続種別}}\n会員: {{会員名}}\n会員種別: {{会員種別}}\n申請ID: {{申請ID}}\n受付日時: {{日時}}\n{{変更内容}}';
+var CHAT_MEMBERSHIP_FINAL_DEFAULT_BODY = '【会員手続き確定】\n手続き: {{手続種別}}\n会員: {{会員名}}\n会員種別: {{会員種別}}\n申請ID: {{申請ID}}\n確定日時: {{日時}}\n{{変更内容}}';
+var CHAT_MEMBERSHIP_ANOMALY_DEFAULT_BODY = '【会員手続き 要確認】\n手続き: {{手続種別}}\n会員: {{会員名}}\n会員ID: {{会員ID}}\n申請ID: {{申請ID}}\n日時: {{日時}}\n内容: {{異常内容}}';
+var CHAT_MEMBERSHIP_TEMPLATE_TAGS = ['通知種別', '手続種別', '会員種別', '会員名', '会員ID', '申請ID', '日時', '変更内容', '異常内容'];
+
+function validateChatMembershipTemplate_(template) {
+  var text = String(template || '');
+  if (text.length > 2000) throw new Error('Google Chat 通知本文は 2000 文字以内で設定してください。');
+  var matches = text.match(/{{[^{}]+}}/g) || [];
+  for (var i = 0; i < matches.length; i++) {
+    var tag = matches[i].slice(2, -2).trim();
+    if (CHAT_MEMBERSHIP_TEMPLATE_TAGS.indexOf(tag) < 0) {
+      throw new Error('Google Chat 通知本文に使用できない差し込みタグがあります: ' + tag);
+    }
+  }
+  if (/{{|}}/.test(text.replace(/{{[^{}]+}}/g, ''))) {
+    throw new Error('Google Chat 通知本文の差し込みタグの書式が不正です。');
+  }
+}
+
+function getChatMembershipNotificationSettings_(ss) {
+  return {
+    enabled: String(getSystemSettingValue_(ss, 'CHAT_MEMBERSHIP_NOTIFICATION_ENABLED') || '') === 'true',
+    requestEnabled: isSystemSettingEnabled_(ss, 'CHAT_MEMBERSHIP_REQUEST_ENABLED', true),
+    finalEnabled: isSystemSettingEnabled_(ss, 'CHAT_MEMBERSHIP_FINAL_ENABLED', true),
+    anomalyEnabled: isSystemSettingEnabled_(ss, 'CHAT_MEMBERSHIP_ANOMALY_ENABLED', true),
+    requestBody: String(getSystemSettingValue_(ss, 'CHAT_MEMBERSHIP_REQUEST_BODY') || '') || CHAT_MEMBERSHIP_REQUEST_DEFAULT_BODY,
+    finalBody: String(getSystemSettingValue_(ss, 'CHAT_MEMBERSHIP_FINAL_BODY') || '') || CHAT_MEMBERSHIP_FINAL_DEFAULT_BODY,
+    anomalyBody: String(getSystemSettingValue_(ss, 'CHAT_MEMBERSHIP_ANOMALY_BODY') || '') || CHAT_MEMBERSHIP_ANOMALY_DEFAULT_BODY,
+  };
+}
+
+function renderChatMembershipTemplate_(template, context) {
+  var values = context || {};
+  return String(template || '').replace(/{{([^{}]+)}}/g, function(_, rawTag) {
+    var tag = String(rawTag || '').trim();
+    return Object.prototype.hasOwnProperty.call(values, tag) ? String(values[tag] || '') : '';
+  }).replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// 同じ申請IDの受付・処理完了を1スレッドへまとめる。申請IDは業務上の主キーであり、
+// 個人情報やWebhook応答の識別子をDBへ保存する必要がない。
+function buildMembershipChatThreadKey_(context) {
+  var requestId = String((context || {})['申請ID'] || '').trim();
+  if (!requestId) return '';
+  return ('membership-request-' + requestId).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 240);
+}
+
+function withChatWebhookQueryParameter_(url, key, value) {
+  var source = String(url || '');
+  var hashIndex = source.indexOf('#');
+  var hash = hashIndex >= 0 ? source.slice(hashIndex) : '';
+  var withoutHash = hashIndex >= 0 ? source.slice(0, hashIndex) : source;
+  var questionIndex = withoutHash.indexOf('?');
+  var path = questionIndex >= 0 ? withoutHash.slice(0, questionIndex) : withoutHash;
+  var query = questionIndex >= 0 ? withoutHash.slice(questionIndex + 1).split('&') : [];
+  var encodedKey = encodeURIComponent(key);
+  var filtered = query.filter(function(item) {
+    return item && item.split('=')[0] !== encodedKey;
+  });
+  filtered.push(encodedKey + '=' + encodeURIComponent(value));
+  return path + '?' + filtered.join('&') + hash;
+}
+
+function getMembershipChatMemberContext_(ss, memberId, fallback) {
+  var row = getRowsAsObjects_(ss, 'T_会員').filter(function(item) {
+    // 退会（年度途中を含む）直後も確定通知に会員表示名を使う。
+    return String(item['会員ID'] || '') === String(memberId || '');
+  })[0] || {};
+  var memberType = String(row['会員種別コード'] || (fallback && fallback.memberType) || '');
+  var memberName = memberType === 'BUSINESS'
+    ? String(row['勤務先名'] || (fallback && fallback.memberName) || '').trim()
+    : String(row['氏名'] || joinHumanNameParts_(row['姓'], row['名']) || (fallback && fallback.memberName) || '').trim();
+  return {
+    memberId: String(memberId || (fallback && fallback.memberId) || ''),
+    memberName: memberName || '（未設定）',
+    memberType: memberTypeLabel_(memberType) || '（未設定）',
+  };
+}
+
+function notifyMembershipChatSafely_(ss, eventType, context) {
+  try {
+    var settings = getChatMembershipNotificationSettings_(ss);
+    var eventKey = String(eventType || '');
+    if (!settings.enabled ||
+        (eventKey === 'REQUEST' && !settings.requestEnabled) ||
+        (eventKey === 'FINAL' && !settings.finalEnabled) ||
+        (eventKey === 'ANOMALY' && !settings.anomalyEnabled)) return { skipped: true };
+
+    var webhookUrl = PropertiesService.getScriptProperties().getProperty(CHAT_MEMBERSHIP_WEBHOOK_URL_PROPERTY);
+    if (!webhookUrl) {
+      Logger.log('Google Chat membership notification skipped: webhook property is not configured.');
+      return { skipped: true };
+    }
+    var bodyTemplate = eventKey === 'REQUEST' ? settings.requestBody : (eventKey === 'ANOMALY' ? settings.anomalyBody : settings.finalBody);
+    var notificationLabels = { REQUEST: '受付', FINAL: '確定', ANOMALY: '要確認' };
+    var values = context || {};
+    values['通知種別'] = notificationLabels[eventKey] || '通知';
+    values['日時'] = values['日時'] || Utilities.formatDate(new Date(), 'Asia/Tokyo', "yyyy-MM-dd HH:mm:ss");
+    var text = renderChatMembershipTemplate_(bodyTemplate, values);
+    if (!text) return { skipped: true };
+    var threadKey = buildMembershipChatThreadKey_(values);
+    var payload = { text: text };
+    if (threadKey) {
+      payload.thread = { threadKey: threadKey };
+      webhookUrl = withChatWebhookQueryParameter_(webhookUrl, 'messageReplyOption', 'REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD');
+    }
+    var response = UrlFetchApp.fetch(webhookUrl, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true,
+    });
+    var status = response.getResponseCode();
+    if (status < 200 || status >= 300) Logger.log('Google Chat membership notification failed: HTTP ' + status);
+    return { sent: status >= 200 && status < 300, status: status };
+  } catch (e) {
+    // 通知障害は会員の受付・確定処理を失敗させない。
+    Logger.log('Google Chat membership notification failed.');
+    return { sent: false };
+  }
+}
+
+function notifyMembershipChatForMember_(ss, eventType, memberId, details) {
+  var member = getMembershipChatMemberContext_(ss, memberId, details || {});
+  var context = details || {};
+  context['会員ID'] = member.memberId;
+  context['会員名'] = member.memberName;
+  context['会員種別'] = member.memberType;
+  return notifyMembershipChatSafely_(ss, eventType, context);
+}
+
+function chatMembershipRequestTypeLabel_(requestType, withdrawalMethod) {
+  var labels = {
+    MEMBER_APPLICATION: '入会申請', MEMBER_UPDATE: '会員情報変更',
+    WITHDRAWAL: withdrawalMethod === 'IMMEDIATE' ? '退会申請（即時）' : '退会申請（年度末）',
+    STAFF_ADD: '職員追加', STAFF_REMOVE: '職員除籍',
+  };
+  return labels[String(requestType || '')] || '会員手続き';
+}
+
 function sendApplicationReceiptMail_(ss, params) {
   // params: { contactEmail, applicantName, requestId, requestType, memberTypeLabel, receivedAt }
   if (!params || !params.contactEmail) return;
@@ -12826,7 +13116,11 @@ function saveMemberCore_(payload, options) {
     return idx != null ? row[idx] : '';
   }
   var loginIdFallback = String(fromPayloadOrCurrent('loginId', getAnyPasswordLoginIdByMemberId_(ss, String(payload.id))) || '');
-  var careManagerFallback = String(getCol('介護支援専門員番号') || loginIdFallback || '');
+  var storedCareManagerNumber = String(getCol('介護支援専門員番号') || '');
+  // 賛助会員のログインIDは CM 番号ではない（自動採番の 9 桁等）。
+  // これを CM 番号の代替値にすると、連絡先だけの変更承認でも 8 桁検証に失敗する。
+  // 賛助会員は DB に既に任意値があれば保全し、空欄なら空欄のままにする。
+  var careManagerFallback = storedCareManagerNumber || (memberTypeCode === 'INDIVIDUAL' ? loginIdFallback : '');
   var mergedPayload = {
     id: String(payload.id),
     type: memberTypeCode,
@@ -13006,7 +13300,9 @@ function validateMemberPayload_(payload, memberTypeCode, currentMemberStatus, op
     if (!trim(payload.firstKana)) throw new Error('メイは必須です。');
     // v376: 半角カナ制限を廃止。ひらがな/全角カナ/半角カナを許容し、保存時に normalizeAndValidateKana_ が全角カタカナに正規化する
     if (!isSupport && !trim(payload.careManagerNumber)) throw new Error('賛助会員以外は介護支援専門員番号が必須です。');
-    if (trim(payload.careManagerNumber)) {
+    // 賛助会員の CM 番号は任意。過去データに残る任意値（自動採番ログインID等）も
+    // 連絡先変更を妨げないため、必須・書式検証の対象外とする。
+    if (!isSupport && trim(payload.careManagerNumber)) {
       // v372.4: admin 例外（MASTER/ADMIN 権限）なら 1〜10 桁半角英数字を許可
       if (allowRelaxedCm) {
         if (!isEightDigits(payload.careManagerNumber) && !isValidCmNumberRelaxed_(payload.careManagerNumber)) {
@@ -15702,6 +15998,7 @@ function ensureSystemSettingsRows_(ss) {
     { key: 'PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION_ENABLED', value: PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled ? 'true' : 'false', desc: '公開ポータル：退会カード説明文を表示するか' },
     { key: 'PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION', value: PUBLIC_PORTAL_DEFAULTS.withdrawalDescription, desc: '公開ポータル：退会カード説明文' },
     { key: 'PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL', value: PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel, desc: '公開ポータル：退会カードボタン文言' },
+    { key: 'PUBLIC_PORTAL_WITHDRAWAL_CONFIRMATION_ITEMS', value: '', desc: '公開ポータル：退会確認項目の表示・文言設定' },
   ];
   publicPortalTextSettings.forEach(function(item) {
     if (!byKey[item.key]) {
@@ -15798,13 +16095,11 @@ function ensureSystemSettingsRows_(ss) {
     }
   });
 
-  // v371: メール送信 4 階層ガード（GLOBAL / MODE / ALLOWLIST / CATEGORY）
-  // safe-stop default: MAIL_GLOBAL_ENABLED='false' で初回デプロイ時は全メール停止状態で着地。
-  // 操作者がシステム設定 UI から true へ変更することで送信再開。
-  // 既存の T_システム設定 行があれば上書きしない（if !byKey ガード）。
+  // 旧キーは既存デプロイメントとの互換用。MAIL_DELIVERY_STATE は管理画面の保存時にだけ
+  // 作成する。ここで STOPPED を初期投入すると、既存環境の LIVE を誤って停止させるため。
   var mailGuardDefaults = [
     { key: 'MAIL_GLOBAL_ENABLED',         value: 'false', desc: 'メール送信のグローバルキルスイッチ（false で全停止）' },
-    { key: 'MAIL_DELIVERY_MODE',          value: 'LIVE',  desc: '配信モード: LIVE / REDIRECT / SUPPRESS' },
+    { key: 'MAIL_DELIVERY_MODE',          value: 'LIVE',  desc: '旧互換: 配信モード' },
     { key: 'MAIL_REDIRECT_ALLOWLIST',     value: '',      desc: 'REDIRECT モード時の送信先（カンマ区切り）' },
     { key: 'TRAINING_APPLY_RECEIPT_ENABLED', value: 'true', desc: '研修申込確認メール送信ON/OFF' },
     { key: 'TRAINING_REMINDER_ENABLED',   value: 'true', desc: '研修リマインダーメール送信ON/OFF' },
@@ -15821,6 +16116,24 @@ function ensureSystemSettingsRows_(ss) {
         設定値: item.value,
         説明: item.desc,
         更新日時: now,
+      }]);
+    }
+  });
+
+  // Google Chat の接続先は Script Properties 専用。ここには有効化と本文だけを保存する。
+  var chatMembershipDefaults = [
+    { key: 'CHAT_MEMBERSHIP_NOTIFICATION_ENABLED', value: 'false', desc: 'Google Chat 会員手続き通知の全体有効化（Webhook URL は Script Properties）' },
+    { key: 'CHAT_MEMBERSHIP_REQUEST_ENABLED', value: 'true', desc: 'Google Chat 会員手続きの受付通知' },
+    { key: 'CHAT_MEMBERSHIP_FINAL_ENABLED', value: 'true', desc: 'Google Chat 会員手続きの確定通知' },
+    { key: 'CHAT_MEMBERSHIP_ANOMALY_ENABLED', value: 'true', desc: 'Google Chat 会員手続きの異常通知' },
+    { key: 'CHAT_MEMBERSHIP_REQUEST_BODY', value: CHAT_MEMBERSHIP_REQUEST_DEFAULT_BODY, desc: 'Google Chat 会員手続きの受付通知本文' },
+    { key: 'CHAT_MEMBERSHIP_FINAL_BODY', value: CHAT_MEMBERSHIP_FINAL_DEFAULT_BODY, desc: 'Google Chat 会員手続きの確定通知本文' },
+    { key: 'CHAT_MEMBERSHIP_ANOMALY_BODY', value: CHAT_MEMBERSHIP_ANOMALY_DEFAULT_BODY, desc: 'Google Chat 会員手続きの異常通知本文' },
+  ];
+  chatMembershipDefaults.forEach(function(item) {
+    if (!byKey[item.key]) {
+      appendRowsByHeaders_(ss, 'T_システム設定', [{
+        設定キー: item.key, 設定値: item.value, 説明: item.desc, 更新日時: now,
       }]);
     }
   });
@@ -16258,6 +16571,7 @@ function getPublicPortalSettings_() {
   var ppWithdrawalDescriptionEnabled = ppWithdrawalDescriptionEnabledRaw === undefined || ppWithdrawalDescriptionEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled : String(ppWithdrawalDescriptionEnabledRaw) !== 'false';
   var ppWithdrawalDescription = String(map['PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalDescription;
   var ppWithdrawalCtaLabel = String(map['PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel;
+  var ppWithdrawalConfirmationItems = parseWithdrawalConfirmationItems_(map['PUBLIC_PORTAL_WITHDRAWAL_CONFIRMATION_ITEMS']);
   // v376.65（案C Phase 1）: 入会申込画面に出す規程・重要事項（公開フラグの立った行のみ）
   var ppRegulations = listRegulations_(db, true);
   // v376.64: 入会申込の会員種別カードに表示する年会費（正本は M_会員種別.年会費金額）
@@ -16321,6 +16635,7 @@ function getPublicPortalSettings_() {
       withdrawalDescriptionEnabled: ppWithdrawalDescriptionEnabled,
       withdrawalDescription: ppWithdrawalDescription,
       withdrawalCtaLabel: ppWithdrawalCtaLabel,
+      withdrawalConfirmationItems: ppWithdrawalConfirmationItems,
     }
   });
 }
@@ -17206,6 +17521,13 @@ function submitPublicChangeRequest_(payload) {
     staffRemove: [],
     staffUpdate: [], // v372.5: 既存職員の情報変更
   };
+  if (requestType === 'WITHDRAWAL') {
+    var withdrawalMethod = String(payload.withdrawalMethod || 'FISCAL_YEAR_END');
+    if (withdrawalMethod !== 'FISCAL_YEAR_END' && withdrawalMethod !== 'IMMEDIATE') {
+      return { success: false, error: 'invalid_withdrawal_method' };
+    }
+    changeData.withdrawalMethod = withdrawalMethod;
+  }
 
   // 事業所会員: スタッフ追加（必須フィールド検証）
   if (Array.isArray(payload.staffAdd)) {
@@ -17309,6 +17631,13 @@ function submitPublicChangeRequest_(payload) {
     requestType: requestType,
     memberTypeLabel: memberTypeLabel_(stored.memberType),
   });
+  notifyMembershipChatForMember_(ss, 'REQUEST', stored.memberId, {
+    '手続種別': chatMembershipRequestTypeLabel_(requestType, changeData.withdrawalMethod),
+    '申請ID': requestId,
+    '日時': now,
+    '変更内容': buildChangeSummaryText_(changeData, requestType),
+    '異常内容': '',
+  });
 
   return { success: true, requestId: requestId };
 }
@@ -17383,6 +17712,8 @@ function approveAdminChangeRequest_(payload) {
 
   var now = new Date().toISOString();
   var approvalResult = {};
+  // 受付済みデータを確定する段階の不整合だけを通知する。公開入力の検証失敗は通知しない。
+  var chatAnomalies = [];
 
   // ── 変更内容の適用 ────────────────────────────────────────────────────────
   if (requestType === 'MEMBER_APPLICATION') {
@@ -17475,12 +17806,17 @@ function approveAdminChangeRequest_(payload) {
                  String(r['会員ID'] || '') === memberId &&
                  String(r['職員状態コード'] || '') === 'ENROLLED';
         })[0];
-        if (!target) { Logger.log('staffUpdate skipped (not found / not belonging): ' + upd.staffId); continue; }
+        if (!target) {
+          Logger.log('staffUpdate skipped (not found / not belonging): ' + upd.staffId);
+          chatAnomalies.push('対象職員を確認できないため、職員情報の一部を適用しませんでした。');
+          continue;
+        }
         // 10 桁等の admin 緩和 CM 番号は公開ポータルからは更新不可（safeguard）
         var currentCm = String(target['介護支援専門員番号'] || '');
         if (Object.prototype.hasOwnProperty.call(upd, 'careManagerNumber') && currentCm && !/^\d{8}$/.test(currentCm)) {
           Logger.log('staffUpdate CM number protected (admin-relaxed): ' + upd.staffId);
           delete upd.careManagerNumber;
+          chatAnomalies.push('保護対象の資格番号が含まれていたため、その項目を適用しませんでした。');
         }
         var oldEmail = String(target['メールアドレス'] || '');
         // updateStaff_ 経由で適用（権限境界 skipAdminCheck はないので、adminSession 渡しでバイパス）
@@ -17504,6 +17840,7 @@ function approveAdminChangeRequest_(payload) {
           }
         } catch (eUpd) {
           Logger.log('staffUpdate apply failed for staffId=' + upd.staffId + ': ' + eUpd.message);
+          chatAnomalies.push('職員情報の一部を適用できませんでした。管理画面で申請内容を確認してください。');
         }
       }
       approvalResult.staffUpdateCount = staffUpdates.length;
@@ -17542,12 +17879,27 @@ function approveAdminChangeRequest_(payload) {
     }
 
   } else if (requestType === 'WITHDRAWAL') {
-    var today = new Date();
-    var month = today.getMonth() + 1;
-    var year = today.getFullYear();
-    var withdrawnYear = (month >= 4) ? year + 1 : year;
-    var withdrawnDate = withdrawnYear + '-03-31';
-    updateMember_({ id: memberId, status: 'WITHDRAWAL_SCHEDULED', withdrawnDate: withdrawnDate }, { skipAdminCheck: true });
+    var withdrawalMethod = String(changeData.withdrawalMethod || 'FISCAL_YEAR_END');
+    if (withdrawalMethod === 'IMMEDIATE') {
+      var immediateWithdrawalDate = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+      updateMember_({
+        id: memberId,
+        status: 'WITHDRAWN',
+        withdrawnDate: immediateWithdrawalDate,
+        withdrawalProcessDate: immediateWithdrawalDate,
+        midYearWithdrawal: true,
+      }, { skipAdminCheck: true, ss: ss });
+      disableAuthAccountsByMemberId_(ss, memberId);
+      approvalResult = { withdrawalMethod: withdrawalMethod, withdrawnDate: immediateWithdrawalDate };
+    } else {
+      var today = new Date();
+      var month = today.getMonth() + 1;
+      var year = today.getFullYear();
+      var withdrawnYear = (month >= 4) ? year + 1 : year;
+      var withdrawnDate = withdrawnYear + '-03-31';
+      updateMember_({ id: memberId, status: 'WITHDRAWAL_SCHEDULED', withdrawnDate: withdrawnDate }, { skipAdminCheck: true, ss: ss });
+      approvalResult = { withdrawalMethod: 'FISCAL_YEAR_END', withdrawnDate: withdrawnDate };
+    }
 
   } else if (requestType === 'STAFF_ADD') {
     var staffToAdd = changeData.staffAdd || [];
@@ -17650,6 +18002,29 @@ function approveAdminChangeRequest_(payload) {
     processorName: adminSession.displayName || adminSession.loginId || '事務局',
     changeSummary: buildChangeSummaryText_(changeData, requestType),
   });
+  var finalMemberId = requestType === 'MEMBER_APPLICATION'
+    ? String((approvalResult && approvalResult.memberId) || '')
+    : memberId;
+  notifyMembershipChatForMember_(ss, 'FINAL', finalMemberId, {
+    memberName: applicantName,
+    memberType: memberType,
+    '手続種別': chatMembershipRequestTypeLabel_(requestType, changeData.withdrawalMethod),
+    '申請ID': requestId,
+    '日時': now,
+    '変更内容': buildChangeSummaryText_(changeData, requestType),
+    '異常内容': '',
+  });
+  if (chatAnomalies.length > 0) {
+    notifyMembershipChatForMember_(ss, 'ANOMALY', finalMemberId, {
+      memberName: applicantName,
+      memberType: memberType,
+      '手続種別': chatMembershipRequestTypeLabel_(requestType, changeData.withdrawalMethod),
+      '申請ID': requestId,
+      '日時': now,
+      '変更内容': '',
+      '異常内容': chatAnomalies.join('\n'),
+    });
+  }
 
   return { success: true, requestId: requestId, result: approvalResult };
 }
@@ -17925,22 +18300,54 @@ function validateRequestedFromAddress_(from, ownerEmail) {
   return requested;
 }
 
-// ── v371: メール送信の 4 階層ガード（GLOBAL / MODE / ALLOWLIST / CATEGORY）──
-// 設計: docs/227_MAIL_KILL_SWITCH_2026-05-18.md
-//   [1] MAIL_GLOBAL_ENABLED         — 全停止スイッチ（default true: 既存挙動維持）
-//   [2] MAIL_DELIVERY_MODE          — LIVE / REDIRECT / SUPPRESS (default LIVE)
-//   [3] MAIL_REDIRECT_ALLOWLIST     — REDIRECT モード時の宛先 (CSV)
-//   [4] {category}_ENABLED          — カテゴリ別 ON/OFF (既存 9 + 補完 5)
+// ── メール配信状態（停止 / 通常送信 / テスト集約）─────────────────────────────
+// MAIL_DELIVERY_STATE が正本。旧3キーは既存リリースへ戻す場合だけの互換値であり、
+// 新しい画面・新しい実行判定ではこれらを個別に判断しない。
+var MAIL_DELIVERY_STATE_STOPPED_ = 'STOPPED';
+var MAIL_DELIVERY_STATE_LIVE_ = 'LIVE';
+var MAIL_DELIVERY_STATE_REDIRECT_ = 'REDIRECT';
+
+function normalizeMailDeliveryState_(value) {
+  var state = String(value || '').trim().toUpperCase();
+  return [MAIL_DELIVERY_STATE_STOPPED_, MAIL_DELIVERY_STATE_LIVE_, MAIL_DELIVERY_STATE_REDIRECT_].indexOf(state) >= 0
+    ? state
+    : MAIL_DELIVERY_STATE_STOPPED_;
+}
+
+function getMailDeliveryState_(settingsMap) {
+  var map = settingsMap || {};
+  var explicit = String(map['MAIL_DELIVERY_STATE'] || '').trim().toUpperCase();
+  var oldGlobal = String(map['MAIL_GLOBAL_ENABLED'] || '').trim().toLowerCase();
+  var oldMode = String(map['MAIL_DELIVERY_MODE'] || MAIL_DELIVERY_STATE_LIVE_).trim().toUpperCase();
+  // v376.95 初回版が追加した STOPPED と旧 LIVE/REDIRECT が矛盾する場合だけ、
+  // 旧設定を優先して既存運用を維持する。通常の「停止」保存では旧キーも false へ同期される。
+  var initialMigrationConflict = explicit === MAIL_DELIVERY_STATE_STOPPED_
+    && oldGlobal === 'true'
+    && oldMode !== 'SUPPRESS';
+  if ([MAIL_DELIVERY_STATE_STOPPED_, MAIL_DELIVERY_STATE_LIVE_, MAIL_DELIVERY_STATE_REDIRECT_].indexOf(explicit) >= 0 && !initialMigrationConflict) {
+    return explicit;
+  }
+  // 初回移行前の保存値を一度だけ読み替える。旧 SUPPRESS は停止へ正規化する。
+  if (oldGlobal === 'false') return MAIL_DELIVERY_STATE_STOPPED_;
+  if (oldMode === MAIL_DELIVERY_STATE_REDIRECT_) return MAIL_DELIVERY_STATE_REDIRECT_;
+  if (oldMode === 'SUPPRESS') return MAIL_DELIVERY_STATE_STOPPED_;
+  return MAIL_DELIVERY_STATE_LIVE_;
+}
+
+function legacyMailDispatchValues_(state) {
+  var normalized = normalizeMailDeliveryState_(state);
+  return {
+    globalEnabled: normalized === MAIL_DELIVERY_STATE_STOPPED_ ? 'false' : 'true',
+    deliveryMode: normalized === MAIL_DELIVERY_STATE_REDIRECT_ ? MAIL_DELIVERY_STATE_REDIRECT_ : MAIL_DELIVERY_STATE_LIVE_,
+  };
+}
+
 function mailDispatchPolicy_() {
   try {
     var ss = getOrCreateDatabase_();
-    var globalRaw = String(getSystemSettingValue_(ss, 'MAIL_GLOBAL_ENABLED') || '').trim();
-    var globalEnabled = globalRaw === '' ? true : globalRaw.toLowerCase() !== 'false';
-    if (!globalEnabled) return { mode: 'SUPPRESS', reason: 'global_disabled' };
-
-    var rawMode = String(getSystemSettingValue_(ss, 'MAIL_DELIVERY_MODE') || 'LIVE').trim().toUpperCase();
-    if (rawMode === 'SUPPRESS') return { mode: 'SUPPRESS', reason: 'mode_suppress' };
-    if (rawMode === 'REDIRECT') {
+    var state = getMailDeliveryState_(getSystemSettingMap_(ss));
+    if (state === MAIL_DELIVERY_STATE_STOPPED_) return { mode: 'SUPPRESS', reason: 'delivery_stopped' };
+    if (state === MAIL_DELIVERY_STATE_REDIRECT_) {
       var allowlist = String(getSystemSettingValue_(ss, 'MAIL_REDIRECT_ALLOWLIST') || '')
         .split(',')
         .map(function(s){ return s.trim(); })
@@ -20277,13 +20684,16 @@ function backfillKanaToFullwidth_APPLY() {
 //   - T_事業所職員: 上記認証に紐づく 職員ID + 上記会員に属する職員
 //   - T_外部申込者: 氏名 or フリガナ が「テスト」「ガイブ」「セイゴウカクニン」のいずれかを含む
 //   いずれも soft delete（削除フラグ=true）のみ。
+function isStrictE2ETestMemberEmail_(value) {
+  return /^test-member-[^@\s]+@example\.invalid$/i.test(String(value || '').trim());
+}
+
 function _collectTestDataTargets_(ss) {
   var rows = function (name) { return getRowsAsObjects_(ss, name); };
   var authAll = rows('T_認証アカウント');
   var memberAll = rows('T_会員');
   var staffAll = rows('T_事業所職員');
   var extAll = rows('T_外部申込者');
-
   var matchedAuth = authAll.filter(function (r) {
     return !toBoolean_(r['削除フラグ']) &&
            /^demo-/i.test(String(r['ログインID'] || ''));
@@ -20384,6 +20794,61 @@ function deleteTestData_APPLY() {
   try { clearAdminDashboardCache_(); } catch (e) {}
   Logger.log('=== deleteTestData_APPLY ===');
   Logger.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+// v376.93: 正規E2E用の test-member-*.invalid にのみ一致する専用クリーンアップ。
+// 既存の deleteTestData_APPLY（旧デモ／外部申込者を含む）とは分離し、今回の申請データ以外を巻き込まない。
+function collectStrictE2ETestMemberTargets_(ss) {
+  var rows = function(name) { return getRowsAsObjects_(ss, name); };
+  var auth = rows('T_認証アカウント').filter(function(row) {
+    return !toBoolean_(row['削除フラグ']) && isStrictE2ETestMemberEmail_(row['ログインID']);
+  });
+  var memberIdsFromAuth = {};
+  auth.forEach(function(row) { if (row['会員ID']) memberIdsFromAuth[String(row['会員ID'])] = true; });
+  var members = rows('T_会員').filter(function(row) {
+    return !toBoolean_(row['削除フラグ']) &&
+      (isStrictE2ETestMemberEmail_(row['代表メールアドレス']) || memberIdsFromAuth[String(row['会員ID'] || '')]);
+  });
+  var memberIds = {};
+  members.forEach(function(row) { memberIds[String(row['会員ID'])] = true; });
+  var staff = rows('T_事業所職員').filter(function(row) {
+    return !toBoolean_(row['削除フラグ']) && memberIds[String(row['会員ID'] || '')];
+  });
+  var changeRequests = rows('T_変更申請').filter(function(row) {
+    return !toBoolean_(row['削除フラグ']) && isStrictE2ETestMemberEmail_(row['連絡先メールアドレス']);
+  });
+  return { auth: auth, members: members, staff: staff, changeRequests: changeRequests };
+}
+
+function previewStrictE2ETestMemberCleanup_LOG() {
+  var targets = collectStrictE2ETestMemberTargets_(getOrCreateDatabase_());
+  var counts = {
+    auth: targets.auth.length,
+    members: targets.members.length,
+    staff: targets.staff.length,
+    changeRequests: targets.changeRequests.length,
+  };
+  Logger.log('=== previewStrictE2ETestMemberCleanup_LOG ===');
+  Logger.log(JSON.stringify({ counts: counts }));
+  return { counts: counts };
+}
+
+function executeStrictE2ETestMemberCleanup_APPLY() {
+  var ss = getOrCreateDatabase_();
+  var targets = collectStrictE2ETestMemberTargets_(ss);
+  var result = {
+    deleted: {
+      auth: dryRun_softDeleteByKey_(ss, 'T_認証アカウント', '認証ID', targets.auth.map(function(row) { return String(row['認証ID']); })),
+      members: dryRun_softDeleteByKey_(ss, 'T_会員', '会員ID', targets.members.map(function(row) { return String(row['会員ID']); })),
+      staff: dryRun_softDeleteByKey_(ss, 'T_事業所職員', '職員ID', targets.staff.map(function(row) { return String(row['職員ID']); })),
+      changeRequests: dryRun_softDeleteByKey_(ss, 'T_変更申請', '申請ID', targets.changeRequests.map(function(row) { return String(row['申請ID']); })),
+    },
+  };
+  clearAllDataCache_();
+  clearAdminDashboardCache_();
+  Logger.log('=== executeStrictE2ETestMemberCleanup_APPLY ===');
+  Logger.log(JSON.stringify(result));
   return result;
 }
 

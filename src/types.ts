@@ -1,4 +1,5 @@
 // SOW Section 3: Database Design Definitions
+import type { WithdrawalConfirmationItem } from './shared/withdrawalConfirmation';
 
 export enum MemberType {
   INDIVIDUAL = 'INDIVIDUAL',
@@ -248,6 +249,7 @@ export interface SystemSettings {
   publicPortalWithdrawalDescriptionEnabled?: boolean;
   publicPortalWithdrawalDescription?: string;
   publicPortalWithdrawalCtaLabel?: string;
+  withdrawalConfirmationItems?: WithdrawalConfirmationItem[];
   trainingFileFolderId?: string;
   claimAttachmentFolderId?: string;
   // v265: 個人・賛助会員入会時メール ON/OFF
@@ -275,6 +277,14 @@ export interface SystemSettings {
   rejectionNotificationEnabled?: boolean;
   rejectionNotificationSubject?: string;
   rejectionNotificationBody?: string;
+  // Google Chat 会員手続き通知（Webhook URL 自体は Script Properties のみで管理）
+  chatMembershipNotificationEnabled?: boolean;
+  chatMembershipRequestEnabled?: boolean;
+  chatMembershipFinalEnabled?: boolean;
+  chatMembershipAnomalyEnabled?: boolean;
+  chatMembershipRequestBody?: string;
+  chatMembershipFinalBody?: string;
+  chatMembershipAnomalyBody?: string;
   // v376.43 (Phase B): 従来ハードコード6メールの件名/本文（ON/OFF は下の *Enabled を流用）
   trainingApplyReceiptSubject?: string;
   trainingApplyReceiptBody?: string;
@@ -288,8 +298,11 @@ export interface SystemSettings {
   withdrawalConfirmBody?: string;
   passwordResetSubject?: string;
   passwordResetBody?: string;
-  // v371: メール送信 4 階層ガード（GLOBAL / MODE / ALLOWLIST / CATEGORY）
+  // メール配信状態の正本。旧プロパティは既存クライアントとの互換用。
+  mailDeliveryState?: 'STOPPED' | 'LIVE' | 'REDIRECT';
+  // @deprecated mailDeliveryState を使用する。
   mailGlobalEnabled?: boolean;
+  // @deprecated mailDeliveryState を使用する。
   mailDeliveryMode?: 'LIVE' | 'REDIRECT' | 'SUPPRESS';
   mailRedirectAllowlist?: string; // カンマ区切り
   trainingApplyReceiptEnabled?: boolean;

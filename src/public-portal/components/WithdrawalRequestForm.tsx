@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { callApi } from '../../shared/api-base';
 import { IdentityVerifyStep, type IdentityPayload } from './IdentityVerifyStep';
 import { publicIdentityErrorMessage, type PublicIdentityMemberType } from '../../shared/publicIdentity';
+import { DEFAULT_WITHDRAWAL_CONFIRMATION_ITEMS, normalizeWithdrawalConfirmationItems, type WithdrawalConfirmationItem, type WithdrawalMethod } from '../../shared/withdrawalConfirmation';
 
 interface Props {
   onBack: () => void;
+  confirmationItems?: WithdrawalConfirmationItem[];
 }
 
 type MemberType = PublicIdentityMemberType;
@@ -14,11 +16,12 @@ const inputClass = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm 
 const labelClass = 'mb-1 block text-sm font-medium text-slate-700';
 const req = <span className="text-red-500"> *</span>;
 
-const WithdrawalRequestForm: React.FC<Props> = ({ onBack }) => {
+const WithdrawalRequestForm: React.FC<Props> = ({ onBack, confirmationItems }) => {
   const [step, setStep] = useState<Step>('member-type');
   const [memberType, setMemberType] = useState<MemberType>('INDIVIDUAL');
   const [token, setToken] = useState('');
   const [confirmed, setConfirmed] = useState(false);
+  const [withdrawalMethod, setWithdrawalMethod] = useState<WithdrawalMethod>('FISCAL_YEAR_END');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const clearError = () => setError(null);
@@ -57,6 +60,7 @@ const WithdrawalRequestForm: React.FC<Props> = ({ onBack }) => {
       const res = await callApi<{ success: boolean; requestId?: string; error?: string }>('submitPublicChangeRequest', {
         token,
         requestType: 'WITHDRAWAL',
+        withdrawalMethod,
         fields: {},
         staffAdd: [],
         staffRemove: [],
@@ -85,6 +89,7 @@ const WithdrawalRequestForm: React.FC<Props> = ({ onBack }) => {
 
   const stepLabels = ['会員種別', '本人確認', '退会確認', '完了'];
   const stepIndex = (['member-type', 'verify', 'confirm', 'complete'] as Step[]).indexOf(step);
+  const confirmationRows = normalizeWithdrawalConfirmationItems(confirmationItems ?? DEFAULT_WITHDRAWAL_CONFIRMATION_ITEMS);
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -94,7 +99,7 @@ const WithdrawalRequestForm: React.FC<Props> = ({ onBack }) => {
       <h2 className="mb-2 text-2xl font-bold text-slate-900">退会を申し込む</h2>
       <p className="mb-6 text-sm text-slate-600">
         ご本人確認の後、退会申請を送信します。担当者が内容を確認後に処理します。
-        退会は当年度末（3月31日）に適用されます。
+        退会方式を選択後、管理者が申請内容を確認して処理します。
       </p>
 
       {/* ステップインジケーター */}
@@ -129,9 +134,9 @@ const WithdrawalRequestForm: React.FC<Props> = ({ onBack }) => {
         <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
           <p className="text-sm font-semibold text-amber-800">退会前にご確認ください</p>
           <ul className="mt-2 list-inside list-disc space-y-1 text-xs text-amber-700">
-            <li>退会は当年度末（3月31日）に適用されます</li>
-            <li>退会予定日までは会員マイページをご利用いただけます</li>
-            <li>退会を取り消す場合は会員マイページからお手続きください</li>
+            <li>年度末退会と即時退会から選べます</li>
+            <li>即時退会は、管理者の承認後に会員マイページを利用できなくなります</li>
+            <li>年度末退会は、会員マイページから年度末前まで取り消せます</li>
           </ul>
         </div>
       )}
@@ -154,27 +159,29 @@ const WithdrawalRequestForm: React.FC<Props> = ({ onBack }) => {
         <form onSubmit={handleWithdraw} className="rounded-[20px] border border-slate-200 bg-white p-6 shadow-sm">
           <h3 className="mb-4 text-lg font-semibold text-slate-800">退会内容の確認</h3>
 
+          <fieldset className="mb-5">
+            <legend className="mb-3 text-sm font-semibold text-slate-800">退会方式を選択してください</legend>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className={`cursor-pointer rounded-xl border p-4 ${withdrawalMethod === 'FISCAL_YEAR_END' ? 'border-amber-500 bg-amber-50 ring-1 ring-amber-300' : 'border-slate-200 bg-white'}`}>
+                <input className="sr-only" type="radio" name="withdrawal-method" value="FISCAL_YEAR_END" checked={withdrawalMethod === 'FISCAL_YEAR_END'} onChange={() => { setWithdrawalMethod('FISCAL_YEAR_END'); setConfirmed(false); }} />
+                <span className="block text-sm font-semibold text-slate-800">年度末退会</span>
+                <span className="mt-1 block text-xs leading-5 text-slate-600">当年度末（3月31日）に退会し、それまで会員マイページを利用できます。</span>
+              </label>
+              <label className={`cursor-pointer rounded-xl border p-4 ${withdrawalMethod === 'IMMEDIATE' ? 'border-amber-500 bg-amber-50 ring-1 ring-amber-300' : 'border-slate-200 bg-white'}`}>
+                <input className="sr-only" type="radio" name="withdrawal-method" value="IMMEDIATE" checked={withdrawalMethod === 'IMMEDIATE'} onChange={() => { setWithdrawalMethod('IMMEDIATE'); setConfirmed(false); }} />
+                <span className="block text-sm font-semibold text-slate-800">即時退会</span>
+                <span className="mt-1 block text-xs leading-5 text-slate-600">管理者の承認日に退会します。承認後は会員マイページを利用・取消できません。</span>
+              </label>
+            </div>
+          </fieldset>
+
           <div className="mb-5 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
-            <div className="flex justify-between">
-              <span className="text-slate-500">退会方式</span>
-              <span className="font-medium text-slate-800">年度末退会（自動計算）</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">適用タイミング</span>
-              <span className="font-medium text-slate-800">当年度末 3月31日</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">マイページ利用</span>
-              <span className="font-medium text-slate-800">退会予定日まで可能</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">取消</span>
-              <span className="font-medium text-slate-800">会員マイページから年度末前まで可能</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">承認</span>
-              <span className="font-medium text-slate-800">管理者が申請を確認後に反映</span>
-            </div>
+            {confirmationRows.filter((item) => item.enabled).map((item) => (
+              <div key={item.id} className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:gap-6">
+                <span className="text-slate-500">{item.label}</span>
+                <span className="font-medium text-slate-800 sm:text-right">{withdrawalMethod === 'IMMEDIATE' ? item.immediateText : item.fiscalYearEndText}</span>
+              </div>
+            ))}
           </div>
 
           <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4">
@@ -208,8 +215,11 @@ const WithdrawalRequestForm: React.FC<Props> = ({ onBack }) => {
           <p className="mt-3 text-sm leading-7 text-slate-600">
             ご入力の返信用メールアドレスに受付確認をお送りしました。<br />
             担当者が申請を確認後に処理いたします。<br />
-            退会予定日まで会員マイページをご利用いただけます。<br />
-            退会を取り消す場合は会員マイページからお手続きください。
+            {withdrawalMethod === 'IMMEDIATE' ? (
+              <>即時退会は承認日に適用され、承認後は会員マイページを利用・取消できません。</>
+            ) : (
+              <>退会予定日まで会員マイページをご利用いただけます。<br />退会を取り消す場合は会員マイページからお手続きください。</>
+            )}
           </p>
           <button onClick={onBack}
             className="mt-6 rounded-full bg-amber-600 px-8 py-3 text-sm font-semibold text-white transition hover:bg-amber-700">
