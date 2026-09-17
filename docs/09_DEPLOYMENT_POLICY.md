@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-09-10
-Production: `v376.91` / integrated-public `@400` x2 / member split `@158` / admin split `@255`
+Updated: 2026-09-16
+Production: `v376.95.1` / integrated-public `@405` x2 / member split `@163` / admin split `@260`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -19,15 +19,15 @@ Production: `v376.91` / integrated-public `@400` x2 / member split `@158` / admi
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@400` (`v376.91`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@400` (`v376.91`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@405` (`v376.95.1`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@405` (`v376.95.1`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@158` (`v376.91`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@255` (`v376.91`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@163` (`v376.95.1`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@260` (`v376.95.1`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -48,6 +48,12 @@ If the release changes password verifier / credential generation, confirm the fo
 - `PASSWORD_HASH_PEPPER_V1` is set in integrated/public, member split, and admin split Apps Script projects with the same strong random value.
 - The pepper value is not displayed, logged, pasted, or written to Git, docs, handover, generated files, terminal logs, or chat.
 - `.env` is not the Apps Script production runtime source of truth. If used locally, it remains uncommitted and no value is documented.
+
+If the release enables Google Chat membership notifications, confirm the following before enabling the setting in the admin UI:
+
+- `CHAT_MEMBERSHIP_WEBHOOK_URL` is set independently in integrated/public, member split, and admin split Apps Script projects. The value is never copied to `T_システム設定`, source code, generated files, logs, release notes, or chat.
+- The notification is first left globally disabled. After deployment and the property setup, enable it in the admin UI and perform one operator-controlled non-production-impacting verification.
+- A delivery failure must remain non-blocking: it may be logged only as a status, and must not fail a membership request or approval.
 
 If the release affects split projects, also run:
 
@@ -125,6 +131,7 @@ Real-browser verification is performed by the operator by default. The agent rec
 - `npm run security:public-boundary` passes for integrated/public artifacts.
 - `npm run security:split-boundary` passes for member/admin split artifacts when split projects are built or released.
 - Password verifier / credential generation releases include confirmed `PASSWORD_HASH_PEPPER_V1` setup in all 3 Apps Script projects without recording the value.
+- Google Chat membership notification releases include confirmed `CHAT_MEMBERSHIP_WEBHOOK_URL` setup in all 3 Apps Script projects without recording the value; the notification remains disabled until that setup is complete.
 - `npm run typecheck` passes.
 - Required build commands pass.
 - `clasp push`, `clasp version`, and `clasp redeploy` succeed.
@@ -144,7 +151,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-09-10 v376.91 ← current production
+### 2026-09-12 v376.92 ← current production
+
+- Scope: 退会申込の方式選択（年度末／即時）と管理可能な確認項目を追加。入退会・会員情報変更の申請受付時／確定時をGoogle Chatへ通知できる共通機構を追加。通知設定・本文は管理画面、Webhook は 3 project の Script Property で管理し、送信失敗は業務処理を止めない。
+- Fixed deployments: integrated/public @401 x2 / member @159 / admin @256.
+- Verification: prerelease PASS、専用の通知・退会方式機械検査 PASS、3 split 生成物検査 PASS、deployment API で4本同期確認。実Chat送信はWebhookを扱うため操作者確認待ち。詳細は `docs/278_RELEASE_STATE_v376.92_2026-09-12.md`。
+- Rollback: integrated/public @400 x2 / member @158 / admin @255（v376.91）。
+
+### 2026-09-10 v376.91
 
 - Scope: 公開ポータルの退会カード補助ラベルを `amber-700` に変更し、白文字とのコントラストを WCAG 2.2 AA に適合させた。スキーマ・認証方式・業務データの変更なし。
 - Fixed deployments: integrated/public @400 x2 / member @158 / admin @255.

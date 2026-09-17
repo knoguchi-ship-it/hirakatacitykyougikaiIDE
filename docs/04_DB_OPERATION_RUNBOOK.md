@@ -105,6 +105,15 @@ npx clasp run seedPerformanceTestData
   - 既存データを全面初期化しないため、本番環境でも投入自体は非破壊だが、件数増加により一覧系の表示負荷は上がる。
   - 生成されたデータは `負荷 ...` / `LTM-...` / `LTT-...` で識別する。
 
+## 5.2.2 正規 E2E 会員テストデータの削除（2026-09-14）
+
+- 対象: `test-member-*.invalid` に**完全一致**する正規 E2E 用データだけ。旧デモ、Dry-run、外部申込者、通常会員には一致しない。
+- 実行場所: admin split の Apps Script エディタ。
+  1. `previewStrictE2ETestMemberCleanup_LOG` を実行し、対象件数を確認する。
+  2. 対象が E2E テスト分だけであることを確認後、`executeStrictE2ETestMemberCleanup_APPLY` を実行する。
+- 対象表: `T_会員`、`T_認証アカウント`、`T_事業所職員`、`T_変更申請`。いずれも `削除フラグ=true` の soft delete で、物理削除はしない。
+- 禁止: `seedDemoData()`、`deleteTestData_APPLY` を今回の E2E テスト片付けに代用しない。
+
 ## 5.3 会費・研修表示の運用検証
 1. 会費
   - `T_年会費納入履歴` の最新年度が未納の会員で、振込先口座情報が表示されること
