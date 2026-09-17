@@ -41,7 +41,7 @@
 9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
 10. `HANDOVER.md` に記載された最新の release state 文書
 11. `docs/09_DEPLOYMENT_POLICY.md`
-12. `docs/spec/` の 5 文書（**仕様の正本**。SOW / RD / TRD / UI-UX / データIF）
+12. `docs/spec/README.md`（仕様書の入口）を読んだうえで、作業目的に対応する `docs/spec/` の正本を読む（全体レビュー時は 5 文書すべて。SOW / RD / TRD / UI-UX / データIF）
 13. `docs/04_DB_OPERATION_RUNBOOK.md`
 14. `docs/03_DATA_MODEL.md`
 15. `docs/archive/historical/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`（補足状態サマリ。正本は `HANDOVER.md`）

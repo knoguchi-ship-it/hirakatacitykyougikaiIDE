@@ -47,7 +47,7 @@
 <div class="wrap">
 <header>
   <h1>テスト結果レポート</h1>
-  <p class="sub">枚方市介護支援専門員連絡協議会 会員システム / 生成 2026-09-10 02:11:07 UTC</p>
+  <p class="sub">枚方市介護支援専門員連絡協議会 会員システム / 生成 2026-09-16 01:40:08 UTC</p>
 </header>
 
 <section>
@@ -62,8 +62,8 @@
 </section>
 
 <div class="cards">
-  <div class="card ok"><div class="n">31</div><div class="l">PASS</div></div>
-  <div class="card ng"><div class="n">0</div><div class="l">FAIL</div></div>
+  <div class="card ok"><div class="n">25</div><div class="l">PASS</div></div>
+  <div class="card ng"><div class="n">1</div><div class="l">FAIL</div></div>
   <div class="card warn"><div class="n">1</div><div class="l">要フォロー</div></div>
   <div class="card"><div class="n">0</div><div class="l">未実行</div></div>
 </div>
@@ -82,9 +82,9 @@
       </tr>
       <tr>
         <td><div class="name">レスポンシブ</div><div class="how">npm run test:responsive</div></td>
-        <td><span class="badge ok">PASS</span></td>
-        <td class="when">2026-09-09 23:29:19 UTC</td>
-        <td>7 ビューポート / 21 画面を計測。横スクロール 0 件・タップターゲット違反 0 件・console error 0 件</td>
+        <td><span class="badge ng">FAIL</span></td>
+        <td class="when">2026-09-10 05:35:48 UTC</td>
+        <td>7 ビューポート / 0 画面を計測。横スクロール 0 件・タップターゲット違反 0 件・console error 0 件 / 到達不可: 320x568_iPhoneSE, 360x640_AndroidS, 390x844_iPhone14, 414x896_iPhonePM, 768x1024_iPad, 1280x800_Laptop, 1920x1080_Desktop</td>
       </tr>
     </tbody>
   </table>
@@ -99,7 +99,7 @@
       <tr>
         <td><div class="name">レスポンシブ（ログイン込み）</div><div class="how">npm run test:responsive:member</div></td>
         <td><span class="badge ok">PASS</span></td>
-        <td class="when">2026-09-05 12:01:23 UTC</td>
+        <td class="when">2026-09-12 09:00:13 UTC</td>
         <td>7 ビューポート / 21 画面を計測。横スクロール 0 件・タップターゲット違反 0 件・console error 0 件</td>
       </tr>
     </tbody>
@@ -115,38 +115,8 @@
       <tr>
         <td><div class="name">レスポンシブ（8 コンソール）</div><div class="how">npm run test:responsive:admin</div></td>
         <td><span class="badge ok">PASS</span></td>
-        <td class="when">2026-09-09 04:39:10 UTC</td>
+        <td class="when">2026-09-16 01:14:37 UTC</td>
         <td>7 ビューポート / 56 画面を計測。横スクロール 0 件・タップターゲット違反 0 件・console error 0 件</td>
-      </tr>
-      <tr>
-        <td><div class="name">メール通知設定 E2E-01: Open system settings</div><div class="how">npm run test:mail-settings:e2e</div></td>
-        <td><span class="badge ok">PASS</span></td>
-        <td class="when">2026-09-03 08:52:15 UTC</td>
-        <td>非破壊（保存も送信もしない）</td>
-      </tr>
-      <tr>
-        <td><div class="name">メール通知設定 E2E-02: Open mail settings</div><div class="how">npm run test:mail-settings:e2e</div></td>
-        <td><span class="badge ok">PASS</span></td>
-        <td class="when">2026-09-03 08:52:15 UTC</td>
-        <td>非破壊（保存も送信もしない）</td>
-      </tr>
-      <tr>
-        <td><div class="name">メール通知設定 E2E-03: Receipt card remains editable while OFF</div><div class="how">npm run test:mail-settings:e2e</div></td>
-        <td><span class="badge ok">PASS</span></td>
-        <td class="when">2026-09-03 08:52:15 UTC</td>
-        <td>非破壊（保存も送信もしない）</td>
-      </tr>
-      <tr>
-        <td><div class="name">メール通知設定 E2E-04: Template manager remains accessible while OFF</div><div class="how">npm run test:mail-settings:e2e</div></td>
-        <td><span class="badge ok">PASS</span></td>
-        <td class="when">2026-09-03 08:52:15 UTC</td>
-        <td>非破壊（保存も送信もしない）</td>
-      </tr>
-      <tr>
-        <td><div class="name">メール通知設定 E2E-05: Shared automatic sender label is visible</div><div class="how">npm run test:mail-settings:e2e</div></td>
-        <td><span class="badge ok">PASS</span></td>
-        <td class="when">2026-09-03 08:52:15 UTC</td>
-        <td>非破壊（保存も送信もしない）</td>
       </tr>
     </tbody>
   </table>

@@ -23,6 +23,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SPEC_DIR = path.join(ROOT, 'docs', 'spec');
 const SPEC_FILES = ['01_SOW.md', '02_RD.md', '03_TRD.md', '04_UIUX.md', '05_DATA_IF.md'];
+const SPEC_GUIDE = 'docs/spec/README.md';
 const TRACEABILITY = 'docs/268_SPEC_TRACEABILITY_2026-09-04.md';
 
 const read = (p) => fs.readFileSync(p, 'utf8');
@@ -32,7 +33,32 @@ const warns = [];
 const docs = {};
 for (const f of SPEC_FILES) docs[f] = read(path.join(SPEC_DIR, f));
 const allSpec = Object.values(docs).join('\n');
+const specGuide = fs.existsSync(path.join(ROOT, SPEC_GUIDE)) ? read(path.join(ROOT, SPEC_GUIDE)) : null;
 const traceability = fs.existsSync(path.join(ROOT, TRACEABILITY)) ? read(path.join(ROOT, TRACEABILITY)) : null;
+
+if (!specGuide) errors.push(`仕様書の入口がありません: ${SPEC_GUIDE}`);
+
+// The guide is navigation only. It must retain every canonical document and traceability link.
+if (specGuide) {
+  for (const target of [...SPEC_FILES, '../268_SPEC_TRACEABILITY_2026-09-04.md']) {
+    if (!specGuide.includes(`](${target})`)) {
+      errors.push(`仕様書の入口から参照できません: ${target}`);
+    }
+  }
+}
+
+// A document has one title. Additional H1s make generated outlines ambiguous.
+for (const [file, text] of Object.entries(docs)) {
+  const h1s = text.match(/^# (?!#)/gm) || [];
+  if (h1s.length !== 1) errors.push(`${file} の H1 は 1 件でなければなりません（現在 ${h1s.length} 件）`);
+}
+
+// Screen detail headings are identifiers, so the same screen must not have two bodies.
+const screenDetailIds = [...docs['04_UIUX.md'].matchAll(/^### (SCR-\d+):/gm)].map((m) => m[1]);
+const duplicateScreenDetails = screenDetailIds.filter((id, index) => screenDetailIds.indexOf(id) !== index);
+if (duplicateScreenDetails.length) {
+  errors.push(`UI/UX の画面詳細が重複しています: ${[...new Set(duplicateScreenDetails)].join(', ')}`);
+}
 if (!traceability) errors.push(`トレーサビリティ一覧が無い: ${TRACEABILITY}`);
 
 /** 「| U-01 | …」の形で定義されている ID を拾う（表の 1 列目＝定義） */

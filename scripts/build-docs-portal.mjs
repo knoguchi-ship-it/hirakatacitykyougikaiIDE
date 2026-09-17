@@ -1360,6 +1360,7 @@ ${COMMON_NAV}
   <table>
     <thead><tr><th>カテゴリ</th><th>ファイル</th><th>用途</th></tr></thead>
     <tbody>
+      <tr><td>仕様書の入口</td><td><a href="../spec/README.md">docs/spec/README.md</a></td><td>目的別の読書ルート・正本の役割分担</td></tr>
       <tr><td>概要</td><td><a href="../spec/01_SOW.md">docs/spec/01_SOW.md</a></td><td>作業範囲・非機能目標</td></tr>
       <tr><td>要件</td><td><a href="../spec/02_RD.md">docs/spec/02_RD.md</a></td><td>業務ルール・ユースケース</td></tr>
       <tr><td>設計</td><td><a href="../spec/03_TRD.md">docs/spec/03_TRD.md</a></td><td>技術構成・実装方式（現行 GAS ／ GCP 移行後）</td></tr>
