@@ -19,15 +19,15 @@ Production: `v376.95.1` / integrated-public `@405` x2 / member split `@163` / ad
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@405` (`v376.95.1`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@405` (`v376.95.1`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@406` (`v376.96`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@406` (`v376.96`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@163` (`v376.95.1`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@260` (`v376.95.1`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@164` (`v376.96`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@261` (`v376.96`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -151,7 +151,35 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-09-12 v376.92 ← current production
+### 2026-09-18 v376.96 ← current production
+
+- Scope: 管理画面「システム設定 ＞ メール通知」の設定カードをカテゴリ別に色分け。色相＝カテゴリ、色の有無＝有効/無効、アイコン＝形による補強の 3 重符号化。「その他の自動通知メール」6 枚を 研修 / 認証・セキュリティ / 会員手続き の 3 グループへ分割。バックエンド・保存形式・送信挙動の変更なし。
+- Fixed deployments: integrated/public @406 x2 / member @164 / admin @261.
+- Verification: prerelease PASS（exit 0）、typecheck PASS、3 split 生成物を inflate して 6 色のカラーバーと新グループ見出しを確認、deployment API で4本同期確認。管理画面の本番レスポンシブ検査はブラウザ認証再取得待ちで未実施。詳細は `docs/282_RELEASE_STATE_v376.96_2026-09-18.md`。
+- Rollback: integrated/public @405 x2 / member @163 / admin @260（v376.95.1）。
+
+### 2026-09-16 v376.95.1
+
+- Scope: 通知設定をメール通知と Google Chat に分離。メール配信状態を STOPPED/LIVE/REDIRECT に正本化し、旧 `MAIL_GLOBAL_ENABLED` / `MAIL_DELIVERY_MODE` はロールバック互換のためだけに同期保持。Chat は申請IDごとの `threadKey` で受付・確定を同一スレッドへ集約。
+- Fixed deployments: integrated/public @405 x2 / member @163 / admin @260.
+- Verification: prerelease PASS、`test:mail-delivery-state` 4/4、`test:chat-membership-notifications` 5/5、管理画面 7 viewport レスポンシブ PASS、deployment API で4本同期確認。詳細は `docs/281_RELEASE_STATE_v376.95.1_2026-09-16.md`。
+- Rollback: integrated/public @403 x2 / member @161 / admin @258（v376.94）。
+
+### 2026-09-15 v376.94
+
+- Scope: 賛助会員の会員情報変更申請の承認で、自動採番ログインIDを介護支援専門員番号として検証していた不具合を修正。賛助会員では CM 番号を任意とする。
+- Fixed deployments: integrated/public @403 x2 / member @161 / admin @258.
+- Verification: prerelease PASS、`test:public-identity` 15/15、3 split 生成物検査、deployment API で4本同期確認。詳細は `docs/280_RELEASE_STATE_v376.94_2026-09-15.md`。
+- Rollback: integrated/public @402 x2 / member @160 / admin @257（v376.93）。
+
+### 2026-09-14 v376.93
+
+- Scope: E2E 会員テストデータの厳格 cleanup operator 関数を admin split に追加。`test-member-*.invalid` の完全一致のみを soft delete する。
+- Fixed deployments: integrated/public @402 x2 / member @160 / admin @257.
+- Verification: prerelease PASS、`test:test-data-cleanup` PASS、admin 生成物にのみ operator 関数が含まれることを確認。詳細は `docs/279_RELEASE_STATE_v376.93_2026-09-14.md`。
+- Rollback: integrated/public @401 x2 / member @159 / admin @256（v376.92）。
+
+### 2026-09-12 v376.92
 
 - Scope: 退会申込の方式選択（年度末／即時）と管理可能な確認項目を追加。入退会・会員情報変更の申請受付時／確定時をGoogle Chatへ通知できる共通機構を追加。通知設定・本文は管理画面、Webhook は 3 project の Script Property で管理し、送信失敗は業務処理を止めない。
 - Fixed deployments: integrated/public @401 x2 / member @159 / admin @256.
