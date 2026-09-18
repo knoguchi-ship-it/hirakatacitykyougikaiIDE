@@ -26,7 +26,7 @@ import { TRAINING_OPTIONAL_FIELD_DEFS } from './components/TrainingManagement';
 import { api, setApiPreviewReadOnly, type AdminLoginResult, type MemberLoginResult, type MemberPortalLookup } from './services/api';
 import { canAccessMenu, canUseLinePost, canManageLinePost } from './shared/rbac-util';
 import { callApi } from './shared/api-base';
-import { EmailCard, MasterOffBanner, MergeTags, ToggleSwitch } from './components/EmailSettingsCard';
+import { EmailCard, MailGroupHeader, MasterOffBanner, MergeTags, ToggleSwitch } from './components/EmailSettingsCard';
 import MailTemplateManager from './components/MailTemplateManager';
 import { MAIL_TEMPLATE_MERGE_TAGS } from './shared/mailTemplates';
 import { computeMemberFiscalStatus } from './shared/memberFiscalStatus.mjs';
@@ -4750,11 +4750,11 @@ const App: React.FC = () => {
 
                 {/* ─── 入会申し込み時のメール ─── */}
                 <div className="space-y-3">
-                  <h4 className="text-sm font-semibold text-slate-700 border-b border-slate-200 pb-1">▍入会申し込み時のメール</h4>
+                  <MailGroupHeader category="ENROLLMENT" title="入会申し込み時のメール" count={3} />
 
                   {/* 個人・賛助会員 */}
                   <MergeTags items={MAIL_TEMPLATE_MERGE_TAGS.CREDENTIAL} />
-                  <EmailCard badge="個人・賛助会員" title="個人会員・賛助会員向け"
+                  <EmailCard category="ENROLLMENT" badge="個人・賛助会員" title="個人会員・賛助会員向け"
                     enabled={indSuppEmailEnabledInput}
                     onToggle={() => { setIndSuppEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={credentialEmailSubjectInput}
@@ -4776,7 +4776,7 @@ const App: React.FC = () => {
                   {/* 事業所 代表者 */}
                   {/* v376.66: 事業所メールも 会員種別 / 年会費 の差し込みに対応 */}
                   <MergeTags items={MAIL_TEMPLATE_MERGE_TAGS.BIZ_REP} />
-                  <EmailCard badge="事業所・代表者" title="事業所会員 代表者向け"
+                  <EmailCard category="ENROLLMENT" badge="事業所・代表者" title="事業所会員 代表者向け"
                     enabled={bizRepEmailEnabledInput}
                     onToggle={() => { setBizRepEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={bizRepEmailSubjectInput}
@@ -4789,7 +4789,7 @@ const App: React.FC = () => {
                         subject={bizRepEmailSubjectInput} body={bizRepEmailBodyInput}
                         onLoad={(s, b) => { setBizRepEmailSubjectInput(s); setBizRepEmailBodyInput(b); setSettingsIsDirty(true); }} />
                     } />
-                  <EmailCard badge="事業所・メンバー" title="事業所会員 メンバー（代表者以外）向け"
+                  <EmailCard category="ENROLLMENT" badge="事業所・メンバー" title="事業所会員 メンバー（代表者以外）向け"
                     enabled={bizStaffEmailEnabledInput}
                     onToggle={() => { setBizStaffEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={bizStaffEmailSubjectInput}
@@ -4806,9 +4806,9 @@ const App: React.FC = () => {
 
                 {/* ─── 職員追加承認時のメール ─── */}
                 <div className="space-y-3">
-                  <h4 className="text-sm font-semibold text-slate-700 border-b border-slate-200 pb-1">▍職員追加申請 承認時のメール</h4>
+                  <MailGroupHeader category="STAFF" title="職員追加申請 承認時のメール" count={2} />
                   <MergeTags items={mergeTagUnion(MAIL_TEMPLATE_MERGE_TAGS.STAFF_ADD_STAFF, MAIL_TEMPLATE_MERGE_TAGS.STAFF_ADD_REP)} />
-                  <EmailCard badge="追加職員" title="追加された職員へのメール"
+                  <EmailCard category="STAFF" badge="追加職員" title="追加された職員へのメール"
                     enabled={staffAddStaffEmailEnabledInput}
                     onToggle={() => { setStaffAddStaffEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={staffAddStaffEmailSubjectInput}
@@ -4821,7 +4821,7 @@ const App: React.FC = () => {
                         subject={staffAddStaffEmailSubjectInput} body={staffAddStaffEmailBodyInput}
                         onLoad={(s, b) => { setStaffAddStaffEmailSubjectInput(s); setStaffAddStaffEmailBodyInput(b); setSettingsIsDirty(true); }} />
                     } />
-                  <EmailCard badge="代表者通知" title="事業所代表者への追加通知メール"
+                  <EmailCard category="STAFF" badge="代表者通知" title="事業所代表者への追加通知メール"
                     enabled={staffAddRepEmailEnabledInput}
                     onToggle={() => { setStaffAddRepEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={staffAddRepEmailSubjectInput}
@@ -4838,10 +4838,10 @@ const App: React.FC = () => {
 
                 {/* v369: ─── 変更申請ワークフロー (受付・承認・却下) のメール ─── */}
                 <div className="space-y-3">
-                  <h4 className="text-sm font-semibold text-slate-700 border-b border-slate-200 pb-1">▍変更申請ワークフロー（受付・承認・却下）のメール</h4>
+                  <MailGroupHeader category="WORKFLOW" title="変更申請ワークフロー（受付・承認・却下）のメール" count={3} />
                   <p className="text-xs text-slate-500">公開ポータルからの入会・変更・退会・職員追加/除籍の申請受付時、および管理者の承認/却下時に申請者へ送信されるメールです。差込変数: <code>{`{{氏名}}`}</code> <code>{`{{会員種別ラベル}}`}</code> <code>{`{{申請種別}}`}</code> <code>{`{{申請ID}}`}</code> <code>{`{{受付日時}}`}</code> <code>{`{{処理日時}}`}</code> <code>{`{{処理者名}}`}</code> <code>{`{{変更内容サマリー}}`}</code> <code>{`{{処理備考}}`}</code></p>
                   <MergeTags items={mergeTagUnion(MAIL_TEMPLATE_MERGE_TAGS.APPLICATION_RECEIPT, MAIL_TEMPLATE_MERGE_TAGS.APPROVAL_NOTIFICATION, MAIL_TEMPLATE_MERGE_TAGS.REJECTION_NOTIFICATION)} />
-                  <EmailCard badge="①受付確認" title="申請受付時：受付確認メール（申請者へ）"
+                  <EmailCard category="WORKFLOW" badge="①受付確認" title="申請受付時：受付確認メール（申請者へ）"
                     enabled={applicationReceiptEnabledInput}
                     onToggle={() => { setApplicationReceiptEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={applicationReceiptSubjectInput}
@@ -4854,7 +4854,7 @@ const App: React.FC = () => {
                         subject={applicationReceiptSubjectInput} body={applicationReceiptBodyInput}
                         onLoad={(s, b) => { setApplicationReceiptSubjectInput(s); setApplicationReceiptBodyInput(b); setSettingsIsDirty(true); }} />
                     } />
-                  <EmailCard badge="②承認通知" title="管理者承認時：承認通知メール（申請者へ）"
+                  <EmailCard category="WORKFLOW" badge="②承認通知" title="管理者承認時：承認通知メール（申請者へ）"
                     enabled={approvalNotificationEnabledInput}
                     onToggle={() => { setApprovalNotificationEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={approvalNotificationSubjectInput}
@@ -4867,7 +4867,7 @@ const App: React.FC = () => {
                         subject={approvalNotificationSubjectInput} body={approvalNotificationBodyInput}
                         onLoad={(s, b) => { setApprovalNotificationSubjectInput(s); setApprovalNotificationBodyInput(b); setSettingsIsDirty(true); }} />
                     } />
-                  <EmailCard badge="③却下通知" title="管理者却下時：却下通知メール（申請者へ）"
+                  <EmailCard category="WORKFLOW" badge="③却下通知" title="管理者却下時：却下通知メール（申請者へ）"
                     enabled={rejectionNotificationEnabledInput}
                     onToggle={() => { setRejectionNotificationEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={rejectionNotificationSubjectInput}
@@ -4882,13 +4882,15 @@ const App: React.FC = () => {
                     } />
                 </div>
 
-                {/* v376.43 (Phase B): その他の自動通知メール（従来ハードコード→差し込み化） */}
+                {/* v376.43 (Phase B): 従来ハードコードだった自動通知を差し込み化。
+                    「その他」1 グループ 6 枚では種類が読み取れなかったため、
+                    研修 / 認証・セキュリティ / 会員手続き の 3 グループへ分割した。 */}
                 <div className="space-y-3">
-                  <h4 className="text-sm font-semibold text-slate-700 border-b border-slate-200 pb-1">▍その他の自動通知メール（研修・本人確認コード・変更／退会確認・パスワード再設定）</h4>
-                  <p className="text-xs text-slate-500">各カードで送信の有無、件名、本文を設定できます。本文は差し込みタグに対応し、テンプレート管理（上書き保存／新規保存）も利用できます。<strong>本人確認コード・パスワード再設定コードは、本文から該当タグを消しても安全装置により既定の文面で必ず送信されます。</strong></p>
+                  <MailGroupHeader category="TRAINING" title="研修のメール" count={2} />
+                  <p className="text-xs text-slate-500">各カードで送信の有無、件名、本文を設定できます。本文は差し込みタグに対応し、テンプレート管理（上書き保存／新規保存）も利用できます。</p>
 
                   <MergeTags items={MAIL_TEMPLATE_MERGE_TAGS.TRAINING_APPLY_RECEIPT} />
-                  <EmailCard badge="研修申込確認" title="研修申込確認メール（外部申込者へ）"
+                  <EmailCard category="TRAINING" badge="研修申込確認" title="研修申込確認メール（外部申込者へ）"
                     enabled={trainingApplyReceiptEnabledInput}
                     onToggle={() => { setTrainingApplyReceiptEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={trainingApplyReceiptSubjectInput}
@@ -4903,7 +4905,7 @@ const App: React.FC = () => {
                     } />
 
                   <MergeTags items={MAIL_TEMPLATE_MERGE_TAGS.TRAINING_REMINDER} />
-                  <EmailCard badge="研修リマインダー" title="研修リマインダーメール（申込者へ）"
+                  <EmailCard category="TRAINING" badge="研修リマインダー" title="研修リマインダーメール（申込者へ）"
                     enabled={trainingReminderEnabledInput}
                     onToggle={() => { setTrainingReminderEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={trainingReminderSubjectInput}
@@ -4917,8 +4919,15 @@ const App: React.FC = () => {
                         onLoad={(s, b) => { setTrainingReminderSubjectInput(s); setTrainingReminderBodyInput(b); setSettingsIsDirty(true); }} />
                     } />
 
+                </div>
+
+                {/* ─── 認証・セキュリティのメール ─── */}
+                <div className="space-y-3">
+                  <MailGroupHeader category="SECURITY" title="認証・セキュリティのメール" count={2} />
+                  <p className="text-xs text-slate-500"><strong>本人確認コード・パスワード再設定コードは、本文から該当タグを消しても安全装置により既定の文面で必ず送信されます。</strong></p>
+
                   <MergeTags items={MAIL_TEMPLATE_MERGE_TAGS.AUTH_OTP} />
-                  <EmailCard badge="公開ポータルOTP" title="公開ポータル 本人確認コード（OTP）メール"
+                  <EmailCard category="SECURITY" badge="公開ポータルOTP" title="公開ポータル 本人確認コード（OTP）メール"
                     enabled={authOtpEnabledInput}
                     onToggle={() => { setAuthOtpEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={authOtpSubjectInput}
@@ -4932,8 +4941,28 @@ const App: React.FC = () => {
                         onLoad={(s, b) => { setAuthOtpSubjectInput(s); setAuthOtpBodyInput(b); setSettingsIsDirty(true); }} />
                     } />
 
+                  <MergeTags items={MAIL_TEMPLATE_MERGE_TAGS.PASSWORD_RESET} />
+                  <EmailCard category="SECURITY" badge="パスワード再設定" title="パスワード再設定コードメール（会員へ）"
+                    enabled={passwordResetEnabledInput}
+                    onToggle={() => { setPasswordResetEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    subject={passwordResetSubjectInput}
+                    onSubjectChange={v => { setPasswordResetSubjectInput(v); setSettingsIsDirty(true); }}
+                    defaultSubject={PASSWORD_RESET_SUBJECT_DEFAULT}
+                    body={passwordResetBodyInput}
+                    onBodyChange={v => { setPasswordResetBodyInput(v); setSettingsIsDirty(true); }}
+                    extra={
+                      <MailTemplateManager api={api} category="PASSWORD_RESET"
+                        subject={passwordResetSubjectInput} body={passwordResetBodyInput}
+                        onLoad={(s, b) => { setPasswordResetSubjectInput(s); setPasswordResetBodyInput(b); setSettingsIsDirty(true); }} />
+                    } />
+                </div>
+
+                {/* ─── 会員手続きの確認メール ─── */}
+                <div className="space-y-3">
+                  <MailGroupHeader category="MEMBER_PROCEDURE" title="会員手続きの確認メール" count={2} />
+
                   <MergeTags items={MAIL_TEMPLATE_MERGE_TAGS.MEMBER_UPDATE_CONFIRM} />
-                  <EmailCard badge="会員情報変更確認" title="会員情報変更確認メール（個人会員の自己変更時）"
+                  <EmailCard category="MEMBER_PROCEDURE" badge="会員情報変更確認" title="会員情報変更確認メール（個人会員の自己変更時）"
                     enabled={memberUpdateConfirmEnabledInput}
                     onToggle={() => { setMemberUpdateConfirmEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={memberUpdateConfirmSubjectInput}
@@ -4948,7 +4977,7 @@ const App: React.FC = () => {
                     } />
 
                   <MergeTags items={MAIL_TEMPLATE_MERGE_TAGS.WITHDRAWAL_CONFIRM} />
-                  <EmailCard badge="退会申請受付" title="退会申請受付確認メール（申請会員へ）"
+                  <EmailCard category="MEMBER_PROCEDURE" badge="退会申請受付" title="退会申請受付確認メール（申請会員へ）"
                     enabled={withdrawalConfirmEnabledInput}
                     onToggle={() => { setWithdrawalConfirmEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={withdrawalConfirmSubjectInput}
@@ -4962,20 +4991,6 @@ const App: React.FC = () => {
                         onLoad={(s, b) => { setWithdrawalConfirmSubjectInput(s); setWithdrawalConfirmBodyInput(b); setSettingsIsDirty(true); }} />
                     } />
 
-                  <MergeTags items={MAIL_TEMPLATE_MERGE_TAGS.PASSWORD_RESET} />
-                  <EmailCard badge="パスワード再設定" title="パスワード再設定コードメール（会員へ）"
-                    enabled={passwordResetEnabledInput}
-                    onToggle={() => { setPasswordResetEnabledInput(v => !v); setSettingsIsDirty(true); }}
-                    subject={passwordResetSubjectInput}
-                    onSubjectChange={v => { setPasswordResetSubjectInput(v); setSettingsIsDirty(true); }}
-                    defaultSubject={PASSWORD_RESET_SUBJECT_DEFAULT}
-                    body={passwordResetBodyInput}
-                    onBodyChange={v => { setPasswordResetBodyInput(v); setSettingsIsDirty(true); }}
-                    extra={
-                      <MailTemplateManager api={api} category="PASSWORD_RESET"
-                        subject={passwordResetSubjectInput} body={passwordResetBodyInput}
-                        onLoad={(s, b) => { setPasswordResetSubjectInput(s); setPasswordResetBodyInput(b); setSettingsIsDirty(true); }} />
-                    } />
                 </div>
               </div>
           </AdminSettingsSection>}

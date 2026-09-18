@@ -4,6 +4,74 @@
  * input/textarea のフォーカスが失われるため、モジュールレベルに抽出。
  */
 import React from 'react';
+import {
+  MAIL_CATEGORY_STYLES,
+  type MailCategoryIconKey,
+  type MailCategoryKey,
+} from '../shared/mailCategories';
+
+// ── カテゴリアイコン ───────────────────────────────────────────────────────────
+// 色だけに頼らず形でもカテゴリを判別できるようにする（WCAG 1.4.1）。
+const MAIL_CATEGORY_ICON_PATHS: Record<MailCategoryIconKey, string[]> = {
+  userPlus: [
+    'M15 19.5a6 6 0 0 0-12 0',
+    'M9 11.5a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5Z',
+    'M18 8.25v6',
+    'M21 11.25h-6',
+  ],
+  users: [
+    'M14 19.5a5 5 0 0 0-10 0',
+    'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z',
+    'M16.5 11.5a2.75 2.75 0 1 0 0-5.5',
+    'M17.5 19.5a4.5 4.5 0 0 0-2.4-3.98',
+  ],
+  cycle: [
+    'M4.5 12a7.5 7.5 0 0 1 12.8-5.3',
+    'M19.5 12a7.5 7.5 0 0 1-12.8 5.3',
+    'M17.3 3.5v3.2h-3.2',
+    'M6.7 20.5v-3.2h3.2',
+  ],
+  cap: [
+    'M12 4 2.5 9 12 14l9.5-5L12 4Z',
+    'M6.5 11.2V16c0 1.4 2.5 2.5 5.5 2.5s5.5-1.1 5.5-2.5v-4.8',
+  ],
+  clipboardCheck: [
+    'M9 4.5h6',
+    'M8.25 5.5H6.75A1.5 1.5 0 0 0 5.25 7v12.5A1.5 1.5 0 0 0 6.75 21h10.5a1.5 1.5 0 0 0 1.5-1.5V7a1.5 1.5 0 0 0-1.5-1.5h-1.5',
+    'M9.5 13.5l2 2 3.5-4',
+  ],
+  shield: [
+    'M12 3 5 6v5.5c0 4.2 2.9 8.1 7 9.5 4.1-1.4 7-5.3 7-9.5V6l-7-3Z',
+    'M12 10v3.5',
+  ],
+};
+
+export const MailCategoryIcon: React.FC<{ icon: MailCategoryIconKey; className?: string }> = ({
+  icon, className = 'h-4 w-4',
+}) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7}
+    strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+    {MAIL_CATEGORY_ICON_PATHS[icon].map(d => <path key={d} d={d} />)}
+  </svg>
+);
+
+// ── グループ見出し ─────────────────────────────────────────────────────────────
+// カテゴリ色の帯 + アイコンで、スクロール中でもどのグループを見ているか分かるようにする。
+// （`AdminSettingsSection` が overflow-hidden のため sticky は効かない。帯の強調で代替する）
+export const MailGroupHeader: React.FC<{
+  category: MailCategoryKey;
+  title: string;
+  count: number;
+}> = ({ category, title, count }) => {
+  const style = MAIL_CATEGORY_STYLES[category];
+  return (
+    <div className={`flex items-center gap-2 rounded-md px-3 py-2 ${style.groupBand}`}>
+      <MailCategoryIcon icon={style.icon} className={`h-5 w-5 shrink-0 ${style.groupIcon}`} />
+      <h4 className="text-sm font-bold">{title}</h4>
+      <span className="ml-auto text-xs font-medium opacity-80">{count} 件</span>
+    </div>
+  );
+};
 
 // ── トグルスイッチ ─────────────────────────────────────────────────────────────
 export interface ToggleSwitchProps {
@@ -12,12 +80,17 @@ export interface ToggleSwitchProps {
   onLabel: string;
   offLabel: string;
   color?: 'violet' | 'emerald' | 'slate';
+  /**
+   * 有効時の色を完成形クラス文字列で上書きする（例 'bg-teal-600'）。
+   * Tailwind v4 はクラス名を動的生成しないため、呼び出し側も文字列を結合しないこと。
+   */
+  enabledBgClass?: string;
 }
 export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
-  enabled, onToggle, onLabel, offLabel, color = 'violet',
+  enabled, onToggle, onLabel, offLabel, color = 'violet', enabledBgClass,
 }) => {
   const bg = enabled
-    ? color === 'emerald' ? 'bg-emerald-600' : 'bg-violet-600'
+    ? enabledBgClass ?? (color === 'emerald' ? 'bg-emerald-600' : 'bg-violet-600')
     : 'bg-slate-300';
   return (
     <label className="flex items-center gap-3 cursor-pointer">
@@ -55,6 +128,8 @@ export const MergeTags: React.FC<{ items: [string, string][] }> = ({ items }) =>
 
 // ── メール設定カード ───────────────────────────────────────────────────────────
 export interface EmailCardProps {
+  /** カテゴリ。左端のカラーバー・バッジ色・アイコンを決める。 */
+  category: MailCategoryKey;
   badge: string;
   title: string;
   enabled: boolean;
@@ -67,16 +142,25 @@ export interface EmailCardProps {
   extra?: React.ReactNode;
 }
 export const EmailCard: React.FC<EmailCardProps> = ({
-  badge, title, enabled, onToggle,
+  category, badge, title, enabled, onToggle,
   subject, onSubjectChange, defaultSubject,
   body, onBodyChange, extra,
-}) => (
-  <div className={`rounded-xl border p-4 space-y-3 ${enabled ? 'border-violet-200 bg-violet-50' : 'border-slate-200 bg-slate-50'}`}>
+}) => {
+  const style = MAIL_CATEGORY_STYLES[category];
+  return (
+  <div className={`rounded-xl p-4 space-y-3 ${enabled ? style.cardEnabled : style.cardDisabled}`}>
     <div className="flex items-center gap-2">
-      <span className="inline-flex rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-semibold text-violet-700">{badge}</span>
-      <span className="text-sm font-semibold text-slate-800">{title}</span>
+      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${enabled ? style.badgeEnabled : style.badgeDisabled}`}>
+        <MailCategoryIcon icon={style.icon} className="h-3.5 w-3.5" />
+        {badge}
+      </span>
+      <span className={`text-sm font-semibold ${enabled ? 'text-slate-800' : 'text-slate-500'}`}>{title}</span>
+      {!enabled && (
+        <span className="inline-flex rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[11px] font-medium text-slate-500">停止中</span>
+      )}
     </div>
-    <ToggleSwitch enabled={enabled} onToggle={onToggle} onLabel="送信する（有効）" offLabel="送信しない（無効）" />
+    <ToggleSwitch enabled={enabled} onToggle={onToggle} enabledBgClass={style.toggleOn}
+      onLabel="送信する（有効）" offLabel="送信しない（無効）" />
     <details className="rounded-lg border border-slate-200 bg-white p-3" open={enabled}>
       <summary className="cursor-pointer text-xs font-medium text-slate-600">
         {enabled ? 'メール内容・テンプレートを編集する' : '無効のままメール内容・テンプレートを編集する'}
@@ -115,4 +199,5 @@ export const EmailCard: React.FC<EmailCardProps> = ({
       </div>
     </details>
   </div>
-);
+  );
+};
