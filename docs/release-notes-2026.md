@@ -21,7 +21,7 @@
 - **整理**: 雑多だった「その他の自動通知メール」6 枚を 研修 / 認証・セキュリティ / 会員手続き の 3 グループへ分割し、全体を 6 グループ 14 枚にした。
 - **正本**: 配色は `src/shared/mailCategories.ts` に集約。Tailwind v4 が動的クラス名を生成しないため完成形の文字列だけを持つ。
 - バックエンド・保存形式・送信挙動の変更なし。
-- **検証**: prerelease PASS、3 split 生成物検査 PASS、fixed deployment 4本同期確認。管理画面の本番レスポンシブ検査は認証再取得待ちで未実施。
+- **検証**: prerelease PASS、3 split 生成物検査 PASS、fixed deployment 4本同期確認、管理画面の本番レスポンシブ 7 viewport × 8 view PASS、本番のメール通知タブを実画面確認。
 - 詳細は `docs/282_RELEASE_STATE_v376.96_2026-09-18.md`。
 
 ---

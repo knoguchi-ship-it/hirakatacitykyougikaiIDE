@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-09-16
-Production: `v376.95.1` / integrated-public `@405` x2 / member split `@163` / admin split `@260`
+Updated: 2026-09-18
+Production: `v376.96` / integrated-public `@406` x2 / member split `@164` / admin split `@261`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -155,7 +155,7 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 - Scope: 管理画面「システム設定 ＞ メール通知」の設定カードをカテゴリ別に色分け。色相＝カテゴリ、色の有無＝有効/無効、アイコン＝形による補強の 3 重符号化。「その他の自動通知メール」6 枚を 研修 / 認証・セキュリティ / 会員手続き の 3 グループへ分割。バックエンド・保存形式・送信挙動の変更なし。
 - Fixed deployments: integrated/public @406 x2 / member @164 / admin @261.
-- Verification: prerelease PASS（exit 0）、typecheck PASS、3 split 生成物を inflate して 6 色のカラーバーと新グループ見出しを確認、deployment API で4本同期確認。管理画面の本番レスポンシブ検査はブラウザ認証再取得待ちで未実施。詳細は `docs/282_RELEASE_STATE_v376.96_2026-09-18.md`。
+- Verification: prerelease PASS（exit 0）、typecheck PASS、3 split 生成物を inflate して 6 色のカラーバーと新グループ見出しを確認、deployment API で4本同期確認。管理画面の本番レスポンシブ検査 PASS（7 viewport × 8 view、error 0 / 横スクロール 0 / console error 0）、本番のメール通知タブを読み取り専用で開いて 6 グループの配色を実画面確認。詳細は `docs/282_RELEASE_STATE_v376.96_2026-09-18.md`。
 - Rollback: integrated/public @405 x2 / member @163 / admin @260（v376.95.1）。
 
 ### 2026-09-16 v376.95.1
