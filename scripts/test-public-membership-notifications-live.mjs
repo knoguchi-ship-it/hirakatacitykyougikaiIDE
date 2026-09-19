@@ -45,11 +45,17 @@ async function openAdmin() {
     if (/report-only Content Security Policy/i.test(text) && /frame-ancestors/i.test(text)) return;
     errors.push(text);
   });
-  page.on('dialog', async (dialog) => { await dialog.accept(); });
+  // ダイアログは accept しつつ必ず記録する。握りつぶすと、承認が実行されていなくても
+  // 画面上は成功に見える（HANDOVER「E2E でダイアログを一律に握りつぶす」の罠）。
+  const dialogs = [];
+  page.on('dialog', async (dialog) => {
+    dialogs.push(`${dialog.type()}: ${dialog.message().replace(/\s+/g, ' ').slice(0, 300)}`);
+    await dialog.accept();
+  });
   await page.goto(ADMIN_URL, { waitUntil: 'domcontentloaded', timeout: 90000 });
   const frame = await getAppFrame(page, /会員|管理|ダッシュボード/);
   await page.waitForTimeout(2500);
-  return { browser, context, page, frame, errors };
+  return { browser, context, page, frame, errors, dialogs };
 }
 
 async function clickText(frame, label) {
@@ -63,6 +69,25 @@ async function clickText(frame, label) {
   }, label);
 }
 
+// 会員詳細モーダルを閉じる。閉じるボタンを優先し、無ければ Escape で退避する。
+async function closeMemberDetailModal(session) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const open = await session.frame.evaluate(() => !!document.querySelector('[role="dialog"][aria-modal="true"]'));
+    if (!open) return true;
+    const closed = await session.frame.evaluate(() => {
+      const dialog = document.querySelector('[role="dialog"][aria-modal="true"]');
+      if (!dialog) return true;
+      const btn = Array.from(dialog.querySelectorAll('button'))
+        .find((b) => /閉じる|キャンセル|×|✕/.test((b.innerText || '').trim()));
+      if (btn) { btn.click(); return true; }
+      return false;
+    });
+    if (!closed) await session.page.keyboard.press('Escape');
+    await session.page.waitForTimeout(1200);
+  }
+  return !await session.frame.evaluate(() => !!document.querySelector('[role="dialog"][aria-modal="true"]'));
+}
+
 async function getTestMemberIdentity() {
   const session = await openAdmin();
   try {
@@ -71,6 +96,12 @@ async function getTestMemberIdentity() {
     await clickText(session.frame, '会員一覧');
     await session.page.waitForTimeout(6000);
     for (let candidateIndex = 0; candidateIndex < 10; candidateIndex += 1) {
+      // 会員状態の既定は「在籍中」。前回の実行が復元しきらずに退会予定で残っていると、
+      // 既定のままでは 0 件になり「テスト会員が見つかりません」と誤報して真因を隠す。
+      // 一覧へ戻るたびに既定へ戻るため、候補を見るたびに指定し直す。
+      const statusSelect = session.frame.locator('select').filter({ hasText: '退会予定' }).first();
+      if (await statusSelect.count()) await statusSelect.selectOption({ label: '全状態' });
+      await session.page.waitForTimeout(1500);
       const box = session.frame.getByPlaceholder(/キーワード|会員番号/).first();
       await box.fill('テスト 会員');
       await session.page.waitForTimeout(4000);
@@ -103,13 +134,21 @@ async function getTestMemberIdentity() {
         return { identity, consoleErrorCount: session.errors.length };
       } catch (error) {
         if (candidateIndex === 9) throw error;
+        // 会員詳細はモーダル（v363 以降、新タブでは開かない）。閉じずに一覧へ戻ろうとすると
+        // クリックがオーバーレイに吸われ、次の候補へ進めないままタイムアウトする。
+        await closeMemberDetailModal(session);
         await clickText(session.frame, '会員管理');
         await session.page.waitForTimeout(400);
         await clickText(session.frame, '会員一覧');
         await session.page.waitForTimeout(6000);
       }
     }
-    throw new Error('本人確認に使える連絡先を持つテスト会員が会員一覧に見つかりません。');
+    throw new Error(
+      '本人確認に使えるテスト会員が会員一覧に見つかりません。'
+      + '全状態で「テスト 会員」を検索しても、氏名が「テスト会員」始まり かつ メールが .invalid 終わり の'
+      + '会員が 1 件もありません。該当会員のメールが実アドレスに変わっている場合もここで落ちます。'
+      + 'node scripts/create-test-member.mjs で作り直してください。',
+    );
   } finally {
     await session.context.close();
     await session.browser.close();
@@ -179,7 +218,9 @@ async function approveNewestPendingRequest(memberId, requestLabel) {
   const session = await openAdmin();
   try {
     await clickText(session.frame, '変更申請管理');
-    await session.frame.getByRole('button', { name: '承認済', exact: true }).click();
+    // 承認対象は「未処理」タブにいる。「承認済」タブを開いてから未処理カードを探すと、
+    // ページ全体を含む祖先 div に「未処理」というタブ名が含まれるため誤ヒットする。
+    await session.frame.getByRole('button', { name: '未処理', exact: true }).click();
     await session.page.waitForTimeout(3000);
     const deadline = Date.now() + 90000;
     let requestId = '';
@@ -217,15 +258,16 @@ async function approveNewestPendingRequest(memberId, requestLabel) {
     await session.frame.locator('[data-live-test-request="true"]').getByRole('button', { name: '承認してDBに反映', exact: true }).click();
     const start = Date.now();
     while (Date.now() - start < 90000) {
-      const pending = await session.frame.evaluate((id) => {
-        const text = document.body.innerText || '';
-        const at = text.indexOf(id);
-        return at >= 0 && text.slice(Math.max(0, at - 500), at + 800).includes('承認してDBに反映');
-      }, requestId);
-      if (!pending) return { consoleErrorCount: session.errors.length };
+      // 「カードが視界から消えた」だけでは承認の証拠にならない（タブ切替や再描画でも消える）。
+      // 承認ハンドラが出す完了 alert を根拠にする。
+      const done = session.dialogs.some((d) => d.includes('承認処理が完了しました') && d.includes(requestId));
+      if (done) return { consoleErrorCount: session.errors.length, dialogs: session.dialogs.slice() };
       await session.page.waitForTimeout(1000);
     }
-    throw new Error('承認完了を確認できません。');
+    throw new Error(
+      `承認完了を確認できません（申請 ${requestId}）。`
+      + `観測したダイアログ: ${session.dialogs.length ? session.dialogs.join(' / ') : 'なし'}`,
+    );
   } finally {
     await session.context.close();
     await session.browser.close();
