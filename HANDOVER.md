@@ -179,6 +179,28 @@ npx clasp deployments                  # 4 本が同じ版を指しているこ�
 - メールの出口は `deliverMail_` の 1 本だけ。`MailApp`/`GmailApp` を他所から呼ばない
 - 仕様の正本は **`docs/spec/` の 5 文書**。旧 `01_PRD` などは `docs/archive/spec_history/` にあるが**参照しない**
 
+### 6. 手動実行の検証スクリプト（`package.json` に登録しないもの）
+
+本番へ書き込む・operator の判断が要るため、`npm run` からは呼べないようにしてある。
+実行前に対象と後片付けを決めること。認証は `.test-out/auth-admin.json`（§1 の 3 番で取得）。
+
+| スクリプト | 何をするか | 後片付け |
+|---|---|---|
+| `scripts/verify-portal-flows.mjs` | 管理画面の設定読み取り、変更申請の一覧・承認・却下、会員検索。サブコマンド制（`read-settings` / `change-requests` / `decide` / `request-status` / `find-member` / `set-portal-toggle`）| 読み取りのみなら不要。`decide` は本番反映 |
+| `scripts/verify-application-flow.mjs` | 公開ポータルの新規入会申込（個人会員）を通す | 入会申請が 1 件積まれる。**管理画面で却下する** |
+| `scripts/verify-member-update-flow.mjs` | 公開ポータルの登録情報変更を通す（事業所会員）| `T_変更申請` に PENDING 1 件。却下すれば元に戻る |
+| `scripts/verify-withdrawal-flow.mjs` | 公開ポータルの退会申込を通す（事業所会員）| 同上 |
+| `scripts/verify-staff-flow.mjs` | 職員の追加・情報変更・除籍（`add`/`update`/`remove` ＋ `--submit`）| 職員追加は認証アカウントを作る。計画してから実行する |
+| `scripts/submit-live-member-update-request.mjs` | テスト会員の変更／退会「申請だけ」を投入する（承認 API は呼ばない）| PENDING 申請が残る。管理画面で却下する |
+| `scripts/diagnose-identity-coverage.mjs` | 会員種別ごとに本人確認へ使える項目の充足件数を数える | 読み取りのみ。件数しか出さない |
+| `scripts/test-public-membership-notifications-live.mjs` | 公開ポータル経由の変更・退会を管理承認まで通す実通知検証 | スクリプトが同一セッションで復元する |
+| `scripts/test-membership-notification-live.mjs` | 会員マイページ経由の Chat 通知検証（`.env.test` の資格情報が要る）| 同上 |
+| `scripts/create-test-member.mjs` | 検証用のテスト会員を入会申込から作る（既定 dry-run）| §2【0】の手順で承認・パスワード発行まで行う |
+| `scripts/cleanup-live-test-members.mjs` / `run-e2e-test-cleanup.mjs` / `inventory-demo-data.mjs` | テストデータの棚卸しと片付け | 対象条件を確認してから実行する |
+
+**公開ポータルの本人確認は同一 ID につき 15 分 5 回**。連投すると `waitForSelector`
+のタイムアウトになり、セッション切れと区別がつかない。1 セッションで本人確認は 1 回に収める。
+
 ---
 
 ## 2026-09-04 仕様書作成プロンプト／テンプレートの改訂（v2.0 → v3.0）と、5 文書への反映
