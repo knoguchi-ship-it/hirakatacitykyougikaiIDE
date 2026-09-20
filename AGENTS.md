@@ -30,21 +30,26 @@
 - `AGENTS.md` と詳細ルールが衝突した場合は、詳細ルールを優先する。
 
 ## 2. 最初に読む順序
-1. `HANDOVER.md`
-2. `AGENTS.md`
-3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
-4. `GLOBAL_GROUND_RULES/docs/AI_RULES/00_OPERATING_MODEL.md`
-5. `GLOBAL_GROUND_RULES/docs/AI_RULES/10_WORKFLOW_AND_QUALITY.md`
-6. `GLOBAL_GROUND_RULES/docs/AI_RULES/20_SECURITY_APPROVALS.md`
-7. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
-8. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
-9. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-10. `HANDOVER.md` に記載された最新の release state 文書
-11. `docs/09_DEPLOYMENT_POLICY.md`
-12. `docs/spec/README.md`（仕様書の入口）を読んだうえで、作業目的に対応する `docs/spec/` の正本を読む（全体レビュー時は 5 文書すべて。SOW / RD / TRD / UI-UX / データIF）
-13. `docs/04_DB_OPERATION_RUNBOOK.md`
-14. `docs/03_DATA_MODEL.md`
-15. `docs/archive/historical/20_NEXT_INSTRUCTIONS_FOR_CLAUDECODE_2026-03-19.md`（補足状態サマリ。正本は `HANDOVER.md`）
+
+> §1 のとおり **入口は本書**。本書を読んだうえで、次の順に進む。
+> この順序が本リポジトリの唯一の正本であり、`README.md` や `docs/ONBOARDING.md` に別の順序を書かない。
+
+1. `HANDOVER.md`（現況・次の作業。本書の次に必ず読む）
+2. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
+3. `GLOBAL_GROUND_RULES/docs/AI_RULES/00_OPERATING_MODEL.md`
+4. `GLOBAL_GROUND_RULES/docs/AI_RULES/10_WORKFLOW_AND_QUALITY.md`
+5. `GLOBAL_GROUND_RULES/docs/AI_RULES/20_SECURITY_APPROVALS.md`
+6. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
+7. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
+8. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
+9. `HANDOVER.md` に記載された最新の release state 文書
+10. `docs/09_DEPLOYMENT_POLICY.md`
+11. `docs/spec/README.md`（仕様書の入口）を読んだうえで、作業目的に対応する `docs/spec/` の正本を読む（全体レビュー時は 5 文書すべて。SOW / RD / TRD / UI-UX / データIF）
+12. `docs/04_DB_OPERATION_RUNBOOK.md`
+13. `docs/03_DATA_MODEL.md`
+
+`docs/archive/` は過去の記録置き場であり、**現況・仕様の参照先にしない**（`HANDOVER.md` §5）。
+個別の経緯を追うときだけ `docs/archive/00_ARCHIVE_INDEX.md` から開く。
 
 ## 3. 行動原則
 - **実装・構成・デプロイに進む前に不明点を必ず確認する。** 複数の解釈が成立する場合は推測で実装せず、箇条書きで簡潔に質問し、YesNo または選択肢で答えられる形で確認を取る。この確認ステップを省略してよいのは、仕様・データ型・既存コードから100%確定できる場合のみ。詳細は `GLOBAL_GROUND_RULES/docs/AI_RULES/10_WORKFLOW_AND_QUALITY.md §実装開始前の必須確認` を参照。

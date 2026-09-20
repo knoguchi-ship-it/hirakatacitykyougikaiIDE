@@ -24,7 +24,8 @@
 
 1. [`AGENTS.md` §0 シークレット絶対ルール](../AGENTS.md) — 違反は即時是正 (5 分)
 2. [`HANDOVER.md` 現状](../HANDOVER.md) — 何がどう動いているか (5 分)
-3. [`docs/archive/spec_history/02_ARCHITECTURE.md`](archive/spec_history/02_ARCHITECTURE.md) — システム構造 (10 分)
+3. [`docs/spec/README.md`](spec/README.md) — 仕様 5 文書の役割分担 (5 分)
+4. [`docs/spec/03_TRD.md`](spec/03_TRD.md) 第1部 — 現行 GAS のシステム構造 (10 分)
 
 ### C. 開発環境セットアップ (30 分)
 
@@ -70,7 +71,7 @@ npm run security:split-boundary                # ✅ PASS
 
 ### B. 認証・認可 (Day 3)
 
-[`docs/archive/spec_history/05_AUTH_AND_ROLE_SPEC.md`](archive/spec_history/05_AUTH_AND_ROLE_SPEC.md):
+[`docs/spec/01_SOW.md`](spec/01_SOW.md) の認証・認可・ロール別可否マトリクス:
 
 - 3 境界 (public / member / admin) の役割と分離
 - 会員ログイン (ID/PW + PBKDF2 + pepper)
@@ -88,7 +89,7 @@ npm run security:split-boundary                # ✅ PASS
 
 ### D. 第三者評価とセキュリティ進化 (Day 5)
 
-- [`docs/archive/historical/109_THIRD_PARTY_ASSESSMENT_2026-04-20.md`](archive/historical/109_THIRD_PARTY_ASSESSMENT_2026-04-20.md) — 初回評価 (D / High Risk)
+- 初回の第三者評価 (D / High Risk) は `docs/archive/historical/109_THIRD_PARTY_ASSESSMENT_2026-04-20.md`。**経緯を知る目的でだけ開く**（現況の正本ではない）
 - v261-v263 の是正リリース (release-notes-2026.md 参照)
 - [`docs/172_DEFERRED_SECURITY_BACKLOG_SECRET_MANAGER_KDF_2026-05-01.md`](172_DEFERRED_SECURITY_BACKLOG_SECRET_MANAGER_KDF_2026-05-01.md) — 必須・破棄禁止 backlog
 - [`docs/244_WCAG_2.2_AA_CONFORMANCE_STATEMENT_2026-05-21.md`](244_WCAG_2.2_AA_CONFORMANCE_STATEMENT_2026-05-21.md) — 現行 a11y 状態

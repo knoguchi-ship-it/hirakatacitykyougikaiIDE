@@ -57,6 +57,7 @@
 |---|---|
 | [266_SPEC_AUTHORING_PROMPT_v3.md](266_SPEC_AUTHORING_PROMPT_v3.md) | **仕様書作成プロンプト v3.0**（Gem 本体の XML）。v2.0 からの変更理由つき |
 | [267_SPEC_AUTHORING_TEMPLATE_v3.md](267_SPEC_AUTHORING_TEMPLATE_v3.md) | **要件定義・設計テンプレート v3.0**（知識ファイル）。正本マトリクス方式 |
+| [261_SPEC_CODE_DIFF_2026-09-03.md](261_SPEC_CODE_DIFF_2026-09-03.md) | **仕様書巻き直しの作業台帳**（仕様⇄コード差分 D-xx／不足情報とタスク G-xx。判定は operator 記入） |
 
 ### ③-2 個別機能の設計記録（現役）
 
@@ -99,6 +100,7 @@
 | 文書 | 内容 |
 |---|---|
 | [portal/test-report.html](portal/test-report.html) | **テスト結果の実行記録（HTML）** |
+| [260_SINGLE_SOURCE_AUDIT_2026-09-03.md](260_SINGLE_SOURCE_AUDIT_2026-09-03.md) | **単一情報源（DRY）棚卸し監査**（v376.67・実測ベース。正本レジストリは AGENTS §3） |
 | [255_MAIL_SETTINGS_TEST_PLAN_2026-09-02.md](255_MAIL_SETTINGS_TEST_PLAN_2026-09-02.md) | メール設定のテスト計画（旧 248。番号衝突のため 255 に改番） |
 | [244_WCAG_2.2_AA_CONFORMANCE_STATEMENT_2026-05-21.md](244_WCAG_2.2_AA_CONFORMANCE_STATEMENT_2026-05-21.md) | WCAG 2.2 AA 適合声明 |
 | [245_UI_ACCESSIBILITY_REGRESSION_CHECKLIST_2026-05-21.md](245_UI_ACCESSIBILITY_REGRESSION_CHECKLIST_2026-05-21.md) | UI アクセシビリティ回帰チェックリスト |
@@ -118,15 +120,11 @@
 
 | 文書 | 内容 |
 |---|---|
-| [260_SINGLE_SOURCE_AUDIT_2026-09-03.md](260_SINGLE_SOURCE_AUDIT_2026-09-03.md) | **単一情報源（DRY）棚卸し監査**（v376.67・実測ベース。正本レジストリは AGENTS §3） |
 | [282_RELEASE_STATE_v376.96_2026-09-18.md](282_RELEASE_STATE_v376.96_2026-09-18.md) | **v376.96 メール通知設定のカテゴリ配色・グループ再編** |
 | [281_RELEASE_STATE_v376.95.1_2026-09-16.md](281_RELEASE_STATE_v376.95.1_2026-09-16.md) | **v376.95.1 通知設定の整理・Google Chat スレッド化・既存メール設定の互換修正** |
 | [280_RELEASE_STATE_v376.94_2026-09-15.md](280_RELEASE_STATE_v376.94_2026-09-15.md) | **v376.94 賛助会員の変更承認でCM番号検証を誤適用しない** |
-| [279_RELEASE_STATE_v376.93_2026-09-14.md](279_RELEASE_STATE_v376.93_2026-09-14.md) | **v376.93 正規E2Eテストデータの会員・申請を厳格条件で限定削除** |
 
-| [261_SPEC_CODE_DIFF_2026-09-03.md](261_SPEC_CODE_DIFF_2026-09-03.md) | **仕様書巻き直しの作業台帳**（仕様⇄コード差分 D-xx／不足情報とタスク G-xx。判定は operator 記入） |
-
-> **これ以前のリリース記録は [`archive/release_history/`](archive/00_ARCHIVE_INDEX.md) に移した**（143 件）。
+> **これ以前のリリース記録は [`archive/release_history/`](archive/00_ARCHIVE_INDEX.md) に移した**（165 件）。
 > 「いつ何が入ったか」は release-notes-2026.md を見れば足りる。個別の詳細が要るときだけアーカイブを開く。
 
 ---

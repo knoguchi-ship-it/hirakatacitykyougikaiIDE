@@ -1,137 +1,67 @@
-﻿# 枚方市介護支援専門員連絡協議会 会員管理システム
+# 枚方市介護支援専門員連絡協議会 会員管理システム
 
-## プロジェクト概要
-本プロジェクトは、枚方市介護支援専門員連絡協議会の会員管理、研修申込、および年会費管理を効率化するためのWebアプリケーションです。
-従来のアナログ（郵送・紙ベース）な管理体制から、デジタル（メール・Webシステム）への移行を促進し、事務局および会員双方の負担を軽減することを目的としています。
+会員管理・研修申込・年会費管理を行う Web システム。従来の郵送・紙ベースの運用をデジタルへ移行し、事務局と会員双方の負担を軽減することを目的とする。
+
+> **作業を始める人へ**: ルールと読む順序の正本は [`AGENTS.md`](AGENTS.md) です。**最初に `AGENTS.md` を読んでください。**
+> 本書はリポジトリの概要だけを扱い、手順・運用値・仕様は各正本へのリンクにとどめます（同じことを二重に書かない）。
 
 ## 主な機能
-- **会員マイページ**: 登録情報の確認・変更、年会費の納入状況確認
-- **研修管理**: 開催中の研修へのオンライン申込、受講履歴の確認
-- **事務局ダッシュボード**: 会員統計の可視化、会員データベースの管理
-- **AIアシスト**: Gemini APIを活用した、研修案内メール等の自動生成
+
+- **公開ポータル**（匿名）— 入会申込、研修申込、登録情報の変更申請、退会申請
+- **会員マイページ**（ログインID + パスワード）— 登録情報の確認・変更、年会費の納入状況、研修の受講履歴
+- **管理者ポータル**（Google アカウント + ホワイトリスト）— 会員データベース、変更申請の承認、研修管理、年会費・帳票、一括メール送信
+- **AI アシスト** — 研修案内メールの下書き生成（GAS サーバー側で Gemini API を呼ぶ。API キーは Script Properties 管理）
 
 ## 認証方針
-- 会員機能は **Googleアカウント不要**（ログインID + パスワード）
-- 管理者ページは **Googleアカウント認証** を使用
-- Googleログイン後、`T_管理者Googleホワイトリスト` との照合で管理権限を判定
-- 管理者ログイン中も会員マイページを利用可能（会員ID紐付け前提）
+
+- 会員機能は **Google アカウント不要**（ログインID + パスワード）
+- 管理者ポータルは **Google アカウント認証**。`Session.getActiveUser()` で取得したメールを `T_管理者Googleホワイトリスト` と照合して権限を判定する
+- **管理者と会員は完全に分離**する。管理者ポータルに会員マイページを表示しない（v250〜の確定事項。利便性を理由に覆さない）
+
+詳細の正本は [`docs/spec/01_SOW.md`](docs/spec/01_SOW.md)（認証・認可・ロール別可否マトリクス）。
 
 ## 技術スタック
-- **Frontend**: React 19, TypeScript, Vite
-- **Styling**: Tailwind CSS
-- **Charts**: Recharts
-- **AI Integration**: Google Gemini API (`@google/genai`)
-- **Backend**: Google Apps Script (GAS) + Google Spreadsheet
 
-## 作業開始前の確認順
-作業を始める前に、以下をこの順で確認してください。
+- **Frontend**: React 19 / TypeScript / Vite / Tailwind CSS v4 / Recharts
+- **Backend**: Google Apps Script（3 split 構成：統合・公開 / 会員 / 管理者）
+- **DB**: Google スプレッドシート
+- **配信**: fixed deployment 4 本（統合・公開 ×2、会員 ×1、管理者 ×1）を毎リリース同一バージョンへ同期する
 
-グランドルール:
-- 技術選定・仕様提案・運用判断の前に、必ず Web 検索で最新の一次ソースを確認し、根拠を示してください。
-- 技術選定・仕様提案では、ベストプラクティスを模索し、この案件に適した案として提案してください。
-- 外部ベストプラクティスと案件正本が衝突する場合は、案件正本を優先し、差分を記録してください。
+構成の正本は [`docs/spec/03_TRD.md`](docs/spec/03_TRD.md)。
 
-1. `HANDOVER.md`
-2. `AGENTS.md`
-3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
-4. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-5. `HANDOVER.md` に記載された最新の release state 文書
-6. `docs/09_DEPLOYMENT_POLICY.md`
-7. `docs/archive/spec_history/05_AUTH_AND_ROLE_SPEC.md`
-8. `docs/04_DB_OPERATION_RUNBOOK.md`
-9. `docs/03_DATA_MODEL.md`
+## セットアップ
 
-デプロイ、認証、DB整合、障害対応の判断は上記を正本とします。`README.md` は入口案内であり、運用判断の最上位ではありません。実際の再開時は `HANDOVER.md` の「最初に読むもの」を優先し、追加の深掘りが必要な場合のみ `docs/00_DOC_INDEX.md` から論点別に参照してください。
-
-## 開発環境のセットアップ
-
-### 1. 依存関係のインストール
 ```bash
 npm install
+npx clasp login          # 運用アカウント k.noguchi@hcm-n.org
 ```
 
-### 2. 環境変数の設定
-ルートディレクトリに `.env` ファイルを作成し、以下の変数を設定してください。
-```env
-# 必須: Gemini APIキー (AI機能用)
-GEMINI_API_KEY=your_gemini_api_key_here
-```
+認証は 1〜2 日で切れる。作業開始時にまとめて通す手順は [`HANDOVER.md`](HANDOVER.md) §1 を参照。
 
-### 3. 開発サーバーの起動
+## ビルドとリリース
+
+`npm run build`（vite のみ）は **GAS 用の生成物を更新しない**。3 split それぞれに専用のビルドがある。
+
 ```bash
-npm run dev
+npm run prerelease        # リリース前の全ゲート。exit 0 が必須
+npm run build:gas         # 統合・公開（backend/）
+npm run build:gas:member  # 会員 split（gas/member/）
+npm run build:gas:admin   # 管理者 split（gas/admin/）
 ```
 
-### 4. ローカル検証
-```bash
-npm run typecheck
-npm run build
-```
-
-`npm run build` は会員ポータルと公開ポータルの両方をビルドします。ローカルでは UI の疑似動作確認を行わず、構文・型・ビルド成立の確認に限定します。
-
-### 5. Build Preview 用ビルド
-Google AI Studio の静的確認が必要な場合のみ、以下を使用します。
-```bash
-npm run build:preview
-```
-このビルドは見た目確認用です。動作確認は GAS 上で行います。
-
-## GASへのデプロイ (clasp)
-本プロジェクトは `vite-plugin-singlefile` を使用しており、ビルドすると1つの `index.html` にJS/CSSがインライン化されます。
-
-1. `npm run clasp:login` でGoogleアカウントにログイン
-2. `npm run clasp:setup -- <GAS_SCRIPT_ID>` で `.clasp.json` を生成
-3. `npm run build:gas` で GAS 組み込み用HTMLを生成
-4. `cd backend && npx clasp push --force` でコードを反映
-5. `cd backend && npx clasp version "<release note>"` で新Versionを作成
-6. `npx clasp redeploy <deploymentId> --versionNumber <n> --description "..."` で固定2 Deployment ID を同じVersionへ同期
-7. `npx clasp deployments --json` で member / public の両 fixed deployment を確認
-
-重要:
-- `clasp deploy --deploymentId` は使用禁止です。
-- 本番運用は fixed deployment 2 本を同時更新します。
-- Apps Script UI の `Manage deployments` 手更新は障害復旧時の補助手段に限定します。
-- 正式な手順と禁止事項は `docs/09_DEPLOYMENT_POLICY.md` を参照してください。
-
-### DB(スプレッドシート)初期化
-GAS側にDBシートを自動作成するには、以下を実行します。
-```bash
-npx clasp run setupDatabase
-```
-この関数は Script Properties に `DB_SPREADSHEET_ID` を保存し、`Members` / `Trainings` シートを作成します。
-初回はデモ用データも投入されます。
+リリース手順の正本は [`docs/09_DEPLOYMENT_POLICY.md`](docs/09_DEPLOYMENT_POLICY.md)。
+**`clasp deploy` は全形式禁止**（URL が変わる）。固定 deployment の更新は `clasp redeploy` を使う。
 
 ## ドキュメント
-現行の正本一覧は `docs/00_DOC_INDEX.md` を参照してください。特に以下が重要です。
 
-- `HANDOVER.md`
-- `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-- `AGENTS.md`
-- `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
-- `docs/09_DEPLOYMENT_POLICY.md`
-- `docs/archive/spec_history/05_AUTH_AND_ROLE_SPEC.md`
-- `docs/04_DB_OPERATION_RUNBOOK.md`
-- `docs/03_DATA_MODEL.md`
+| 目的 | 参照先 |
+|---|---|
+| ルール・読む順序 | [`AGENTS.md`](AGENTS.md) ← **入口** |
+| 現況・次の作業・既知の罠 | [`HANDOVER.md`](HANDOVER.md) |
+| 文書の索引 | [`docs/00_DOC_INDEX.md`](docs/00_DOC_INDEX.md) |
+| 仕様の正本（5 文書） | [`docs/spec/README.md`](docs/spec/README.md) |
+| リリース履歴 | [`docs/release-notes-2026.md`](docs/release-notes-2026.md) |
+| ブラウザで読む資料 | [`docs/portal/index.html`](docs/portal/index.html) |
+| 新規参加者向け | [`docs/ONBOARDING.md`](docs/ONBOARDING.md) |
 
-## 運用メモ（2026-03-07追加）
-- 本番 `/exec` が 404 の場合は、まず `Manage deployments` で **Web app** デプロイになっているか確認してください。
-- 既定の切り分けは `npx clasp deployments` → `getWebAppEndpointInfo()` → `/exec` 疎通確認の順です。
-- 研修登録/変更では、任意項目のラベル横「非表示」で項目を隠せます（表示設定パネルで再表示可）。
-
-## デプロイ運用の公式ルール（2026-03-08以降）
-- 本番URLは固定運用です。新規Deploymentを毎回作成しません。
-- 手順は `docs/09_DEPLOYMENT_POLICY.md` を唯一の正本として参照してください。
-- SOW要件は `docs/archive/spec_history/10_SOW.md` に明記しています。
-
-## オンライン前提の開発フロー
-1. `HANDOVER.md` の「最初に読むもの」を上から順に確認する。
-2. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md` の開始チェックを実施する。
-3. `cd backend && npx clasp show-authorized-user` で運用アカウントを確認する。
-4. `npx clasp run healthCheck` と `npx clasp run getDbInfo` を実行し、オンライン疎通を確認する。
-5. 実装変更を行う。
-6. `npm run typecheck` と `npm run build` でローカル静的検証を行う。
-7. `npm run build:gas` → `cd backend && npx clasp push --force` → `npx clasp version "..."` を実行する。
-8. `npx clasp redeploy ... --versionNumber ...` で fixed deployment 2 本を同一Versionへ同期し、`npx clasp deployments --json` で確認する。
-9. 実ブラウザで `/exec` と `/exec?app=public` を確認し、最後に `npx clasp run healthCheck` を再実行する。
-10. `HANDOVER.md`、`docs/09_DEPLOYMENT_POLICY.md`、必要な release state 文書を同ターンで更新する。
+`docs/archive/` は過去の記録置き場であり、現況や仕様の参照先にしない。
