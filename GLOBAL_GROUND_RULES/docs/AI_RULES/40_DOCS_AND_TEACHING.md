@@ -17,15 +17,15 @@ AIは「実装したら終わり」ではなく、人間が理解・保守・監
 - PowerShell など環境依存の既定エンコーディングで文書を書き換えない。読み書き・検証時は必要に応じて UTF-8 を明示する。
 
 ## 必須文書
-- `docs/01_ARCHITECTURE/`
+- `GLOBAL_GROUND_RULES/docs/01_ARCHITECTURE/`
   - システム構成
   - データモデル
   - 状態遷移
   - 外部依存
   - 境界条件
-- `docs/03_ADR/`
+- `GLOBAL_GROUND_RULES/docs/03_ADR/`
   - 技術判断の記録
-- `docs/04_KNOWN_ERRORS.md`
+- `GLOBAL_GROUND_RULES/docs/04_KNOWN_ERRORS.md`
   - 既知エラーと復旧法
 
 ## 追加で重視する文書

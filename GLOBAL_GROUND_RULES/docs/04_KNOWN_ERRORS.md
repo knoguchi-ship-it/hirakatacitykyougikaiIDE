@@ -38,7 +38,7 @@
 - コード原因の調査や実装修正は、根源問題（外部サービス設定・権限境界）を切り分けた後に行う
 
 ### 関連情報
-- 関連ファイル: `docs/153_INCIDENT_DRIVE_PERMISSION_2026-04-27.md`, `docs/17_ROOT_CAUSE_ERROR_RESPONSE_PLAYBOOK.md`
+- 関連ファイル: `docs/archive/incidents/153_INCIDENT_DRIVE_PERMISSION_2026-04-27.md`, `docs/17_ROOT_CAUSE_ERROR_RESPONSE_PLAYBOOK.md`
 - 関連Issue/PR:
 - 関連ADR:
 - 一次ソース: Google Apps Script Drive Service / Google Apps Script standard Cloud project documentation
@@ -82,7 +82,7 @@ Google スプレッドシートの版歴（ファイル → 変更履歴）か�
 - テスト前に必ずスプレッドシートの版歴バックアップが取れることを確認すること
 
 ### 関連情報
-- 関連ファイル: `docs/42_SPEC_AUDIT_ADMIN_CONSOLE_2026-04-04.md`, `GLOBAL_GROUND_RULES/docs/AI_RULES/20_SECURITY_APPROVALS.md`
+- 関連ファイル: `docs/archive/historical/42_SPEC_AUDIT_ADMIN_CONSOLE_2026-04-04.md`, `GLOBAL_GROUND_RULES/docs/AI_RULES/20_SECURITY_APPROVALS.md`
 - 関連Issue/PR: コミット `599ba72`
 - 関連ADR: —
 - 一次ソース: `backend/Code.gs` `seedDemoData()` 行 1207

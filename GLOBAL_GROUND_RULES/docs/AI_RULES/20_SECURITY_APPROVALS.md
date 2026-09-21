@@ -50,7 +50,7 @@
 2026-04-03: Playwright テストのデータ準備として `npx clasp run seedDemoData` を実行した際、
 `T_会員` / `T_管理者Googleホワイトリスト` を含む 8 テーブルが全削除され、本番データがデモデータに置き換えられた。
 この操作は「テストデータ投入」として実施されたが、事前に影響範囲の説明と許可確認が行われなかった。
-詳細は `docs/42_SPEC_AUDIT_ADMIN_CONSOLE_2026-04-04.md` および `docs/04_KNOWN_ERRORS.md` を参照。
+詳細は `docs/archive/historical/42_SPEC_AUDIT_ADMIN_CONSOLE_2026-04-04.md` および `GLOBAL_GROUND_RULES/docs/04_KNOWN_ERRORS.md` を参照。
 
 ## 承認なしで進めてよい対象
 - ローカルの調査、検索、読解

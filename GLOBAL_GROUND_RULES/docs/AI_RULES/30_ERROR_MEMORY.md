@@ -6,7 +6,7 @@
 再発性の高い障害について、AIと人間が同じ知識を共有し、復旧時間を短縮する。
 
 ## エラー発生時の順序
-1. まず `docs/04_KNOWN_ERRORS.md` を検索する
+1. まず `GLOBAL_GROUND_RULES/docs/04_KNOWN_ERRORS.md` を検索する
 2. 類似事例があれば、その復旧手順を試す
 3. なければ、原因仮説を複数に分けて切り分ける
 4. 最新情報が必要なら一次ソースを調べる
@@ -42,7 +42,7 @@
 - tool contract mismatch
 - memory / context poisoning
 
-## `docs/04_KNOWN_ERRORS.md` に必ず残す項目
+## `GLOBAL_GROUND_RULES/docs/04_KNOWN_ERRORS.md` に必ず残す項目
 - 日付
 - 症状
 - 発生条件

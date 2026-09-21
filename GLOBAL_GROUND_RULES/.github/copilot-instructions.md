@@ -25,8 +25,8 @@ GitHub Copilot / Copilot coding agent は、このリポジトリを以下の方
 ## Source of truth
 - 実装の真実はコード、テスト、設定、README に置く。
 - 変動する外部情報は一次ソースで確認する。
-- 重要判断は `docs/03_ADR/` に残す。
-- 再発エラーは `docs/04_KNOWN_ERRORS.md` に残す。
+- 重要判断は `GLOBAL_GROUND_RULES/docs/03_ADR/` に残す。
+- 再発エラーは `GLOBAL_GROUND_RULES/docs/04_KNOWN_ERRORS.md` に残す。
 
 ## Security
 - 外部入力を信用しない。

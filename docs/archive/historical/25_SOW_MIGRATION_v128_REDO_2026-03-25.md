@@ -15,7 +15,7 @@
 - `_MIGRATION_SKIPPED`
 - `_CREDENTIALS_TEMP`
 - 実行時バックアップ `_BAK_*`
-- [v128 再移行 テーブル設計書](C:/VSCode/CloudePL/hirakatacitykyougikaiIDE/docs/24_TABLE_DESIGN_MIGRATION_v128_REDO_2026-03-25.md)
+- [v128 再移行 テーブル設計書](24_TABLE_DESIGN_MIGRATION_v128_REDO_2026-03-25.md)
 
 ## 3. スコープ
 

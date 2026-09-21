@@ -23,7 +23,9 @@
 このルールへの違反は、機能要件・スケジュール・他のグランドルールに優先して即時是正対象とする。
 
 ## 1. 入口の原則
-- 最初に読む入口は常にこの `AGENTS.md`。
+- 最初に読む入口は常にこの `AGENTS.md`（リポジトリ直下）。
+- 常設指示はリポジトリ直下の `AGENTS.md` と `CLAUDE.md` の 2 本だけ。
+  `GLOBAL_GROUND_RULES/` には**詳細ルールと知識ベースしか置かない**（常設指示の写しを増やさない）。
 - 詳細ルールは `GLOBAL_GROUND_RULES/docs/AI_RULES/` 配下を正とする。
 - システム仕様、運用値、固定値、現行状態は `HANDOVER.md` と `docs/*` の案件正本を正とする。
 - グランドルールには版依存の現況値を埋め込まず、現行 version、fixed deployment の向き先、最新 release state の参照先は `HANDOVER.md` を都度更新して管理する。
