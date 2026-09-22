@@ -155,7 +155,7 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 - Scope: ログインID変更・メールアドレス変更の通知を設定化（固定文の解消）。設定キーはあるのに送信箇所が無かった会員情報変更確認・退会申請受付の 2 枚を配線。公開ポータルから「変更するとログインIDも変わります」を削除。
 - Fixed deployments: integrated/public @410 x2 / member @168 / admin @265.
-- Verification: prerelease PASS（exit 0）、typecheck PASS、test:mail-merge-tags 9/9、GAS 構文チェック PASS、3 split 生成物検査、deployment API で4本同期確認。実画面確認はブラウザ認証再取得待ち。詳細は `docs/285_RELEASE_STATE_v376.99_2026-09-22.md`。
+- Verification: prerelease PASS（exit 0）、typecheck PASS、test:mail-merge-tags 9/9、GAS 構文チェック PASS、3 split 生成物検査、deployment API で4本同期確認。管理画面の本番レスポンシブ検査 PASS（7 viewport × 8 view）、本番の設定画面で新カード 2 枚と件数表示を実画面確認。詳細は `docs/285_RELEASE_STATE_v376.99_2026-09-22.md`。
 - Rollback: integrated/public @409 x2 / member @167 / admin @264（v376.98.1）。
 
 ### 2026-09-22 v376.98.1
