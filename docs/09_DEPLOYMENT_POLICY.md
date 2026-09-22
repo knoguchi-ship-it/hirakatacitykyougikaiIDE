@@ -155,7 +155,7 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 - Scope: 管理画面「システム設定 ＞ メール通知」の「メール通知の内容」を系統選択式にした。6 系統のボタンを先頭に置き、選んだ系統のカードだけを表示する。「メール配信」は独立したまま。バックエンド・保存形式・送信挙動の変更なし。
 - Fixed deployments: integrated/public @407 x2 / member @165 / admin @262.
-- Verification: prerelease PASS（exit 0）、typecheck PASS、3 split 生成物を inflate して系統選択の文言と 6 色のリングを確認、deployment API で4本同期確認。本番の実画面確認・レスポンシブ検査はブラウザ認証再取得待ちで未実施。詳細は `docs/283_RELEASE_STATE_v376.97_2026-09-22.md`。
+- Verification: prerelease PASS（exit 0）、typecheck PASS、3 split 生成物を inflate して系統選択の文言と 6 色のリングを確認、deployment API で4本同期確認。管理画面の本番レスポンシブ検査 PASS（7 viewport × 8 view、error 0 / 横スクロール 0 / console error 0）、本番のメール通知タブを読み取り専用で開いて系統選択の表示を実画面確認。詳細は `docs/283_RELEASE_STATE_v376.97_2026-09-22.md`。
 - Rollback: integrated/public @406 x2 / member @164 / admin @261（v376.96）。
 
 ### 2026-09-18 v376.96
