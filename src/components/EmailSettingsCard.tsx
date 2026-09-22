@@ -11,6 +11,7 @@ import {
   type MailCategoryIconKey,
   type MailCategoryKey,
 } from '../shared/mailCategories';
+import { MAIL_TEMPLATE_MERGE_TAGS, type MailTemplateCategory } from '../shared/mailTemplates';
 
 // ── カテゴリアイコン ───────────────────────────────────────────────────────────
 // 色だけに頼らず形でもカテゴリを判別できるようにする（WCAG 1.4.1）。
@@ -116,17 +117,59 @@ export const MasterOffBanner: React.FC<{ masterEnabled: boolean }> = ({ masterEn
   );
 };
 
-// ── マージタグ一覧 ─────────────────────────────────────────────────────────────
-export const MergeTags: React.FC<{ items: [string, string][] }> = ({ items }) => (
-  <p className="text-xs text-slate-500 mb-3">
-    マージタグ: {items.map(([tag, desc]) => (
-      <span key={tag} className="inline-flex items-center gap-0.5 mx-0.5">
-        <code className="bg-slate-100 text-violet-700 px-1 rounded text-[11px]">{tag}</code>
-        <span className="text-slate-400 text-[11px]">({desc})</span>
-      </span>
-    ))}
-  </p>
-);
+// ── 差し込みの挿入ボタン ───────────────────────────────────────────────────────
+// 以前は `マージタグ: {{氏名}} (氏名) {{ログインID}} (ログインID) …` と並べるだけで、
+// 利用者が手で打ち込む必要があった。説明の大半はタグ名の繰り返しで、読む価値もなかった。
+// ここではクリックでカーソル位置へ挿入する。説明はタグ名と意味が違うときだけ添える。
+export const MergeTagInserter: React.FC<{
+  items: [string, string][];
+  targetLabel: string;
+  onInsert: (tag: string) => void;
+  justInserted: string | null;
+}> = ({ items, targetLabel, onInsert, justInserted }) => {
+  if (!items.length) return null;
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+      <div className="mb-1.5 flex items-baseline gap-2">
+        <span className="text-xs font-medium text-slate-600">差し込み</span>
+        {/* 押した直後だけ結果を文で返す。ボタン側の文言を変えると幅が動いて押しにくくなる。 */}
+        <span className="text-[11px] text-slate-500" aria-live="polite">
+          {justInserted
+            ? <span className="font-semibold text-emerald-700">「{justInserted.replace(/[{}]/g, '')}」を{targetLabel}に入れました</span>
+            : <>押すと<strong className="font-semibold text-slate-700">{targetLabel}</strong>のカーソル位置に入ります</>}
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {items.map(([tag, desc]) => {
+          const label = tag.replace(/[{}]/g, '');
+          // 説明がタグ名の言い換えでしかないものは出さない。
+          // 「氏名／氏名」も「会員マイページURL／マイページURL」も情報が増えない。
+          // 「パスワード／初期パスワード」のように説明が意味を足すときだけ添える。
+          const hint = desc && !label.includes(desc) ? desc : '';
+          const flash = justInserted === tag;
+          return (
+            <button
+              key={tag}
+              type="button"
+              // mousedown で focus が移ると入力欄のカーソル位置を失う。既定動作を止めて保持する。
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => onInsert(tag)}
+              title={hint ? `${label}（${hint}）を挿入` : `${label} を挿入`}
+              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                flash
+                  ? 'border-emerald-500 bg-emerald-50 text-emerald-800'
+                  : 'border-slate-300 bg-slate-50 text-slate-700 hover:border-violet-400 hover:bg-violet-50 hover:text-violet-800'
+              }`}
+            >
+              <span className="font-medium">{label}</span>
+              {hint && <span className="text-[10px] text-slate-500">{hint}</span>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
 
 // ── 系統の選択 ─────────────────────────────────────────────────────────────────
 // 14 枚を一度に並べると画面が長くなりすぎるため、系統を選んでから
@@ -181,14 +224,48 @@ export interface EmailCardProps {
   defaultSubject: string;
   body: string;
   onBodyChange: (v: string) => void;
+  /**
+   * このメール種別。差し込みタグは `MAIL_TEMPLATE_MERGE_TAGS` から種別で引く。
+   * グループ単位で和集合を並べると、そのメールでは使えないタグまで出てしまう
+   * （v376.97 以前は受付確認に {{処理備考}} が出ていた）。
+   */
+  templateCategory: MailTemplateCategory;
   extra?: React.ReactNode;
 }
 export const EmailCard: React.FC<EmailCardProps> = ({
   category, badge, title, enabled, onToggle,
   subject, onSubjectChange, defaultSubject,
-  body, onBodyChange, extra,
+  body, onBodyChange, templateCategory, extra,
 }) => {
   const style = MAIL_CATEGORY_STYLES[category];
+  const subjectRef = React.useRef<HTMLInputElement>(null);
+  const bodyRef = React.useRef<HTMLTextAreaElement>(null);
+  const [target, setTarget] = React.useState<'subject' | 'body'>('body');
+  const [justInserted, setJustInserted] = React.useState<string | null>(null);
+  const flashTimer = React.useRef<number | null>(null);
+  React.useEffect(() => () => { if (flashTimer.current) window.clearTimeout(flashTimer.current); }, []);
+
+  const insertTag = (tag: string) => {
+    const el: HTMLInputElement | HTMLTextAreaElement | null =
+      target === 'subject' ? subjectRef.current : bodyRef.current;
+    const current = target === 'subject' ? subject : body;
+    const apply = target === 'subject' ? onSubjectChange : onBodyChange;
+    // 未フォーカスなら末尾に足す。カーソルがあればその位置へ差し込む（選択中なら置換）。
+    const start = el && el.selectionStart != null ? el.selectionStart : current.length;
+    const end = el && el.selectionEnd != null ? el.selectionEnd : current.length;
+    apply(current.slice(0, start) + tag + current.slice(end));
+    setJustInserted(tag);
+    if (flashTimer.current) window.clearTimeout(flashTimer.current);
+    flashTimer.current = window.setTimeout(() => setJustInserted(null), 1400);
+    // 値の反映後にカーソルを挿入直後へ戻す。続けて入力・挿入できるようにする。
+    window.requestAnimationFrame(() => {
+      if (!el) return;
+      el.focus();
+      const pos = start + tag.length;
+      el.setSelectionRange(pos, pos);
+    });
+  };
+
   return (
   <div className={`rounded-xl p-4 space-y-3 ${enabled ? style.cardEnabled : style.cardDisabled}`}>
     <div className="flex items-center gap-2">
@@ -213,9 +290,11 @@ export const EmailCard: React.FC<EmailCardProps> = ({
           <label className="block text-xs font-medium text-slate-600 mb-1">件名</label>
           <div className="flex gap-2">
             <input
+              ref={subjectRef}
               type="text"
               value={subject}
               onChange={e => onSubjectChange(e.target.value)}
+              onFocus={() => setTarget('subject')}
               className="flex-1 border border-slate-300 rounded px-3 py-1.5 text-sm bg-white"
             />
             <button
@@ -227,14 +306,22 @@ export const EmailCard: React.FC<EmailCardProps> = ({
             </button>
           </div>
         </div>
+        <MergeTagInserter
+          items={MAIL_TEMPLATE_MERGE_TAGS[templateCategory]}
+          targetLabel={target === 'subject' ? '件名' : '本文'}
+          onInsert={insertTag}
+          justInserted={justInserted}
+        />
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">本文</label>
           <textarea
+            ref={bodyRef}
             value={body}
             onChange={e => onBodyChange(e.target.value)}
+            onFocus={() => setTarget('body')}
             rows={7}
             className="w-full border border-slate-300 rounded px-3 py-2 text-sm font-mono leading-relaxed resize-y bg-white"
-            placeholder="メール本文（マージタグ使用可能）"
+            placeholder="メール本文（上の「差し込み」ボタンで会員名などを入れられます）"
           />
           {extra}
         </div>
