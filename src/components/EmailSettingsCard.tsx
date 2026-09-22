@@ -242,6 +242,13 @@ export const EmailCard: React.FC<EmailCardProps> = ({
   const bodyRef = React.useRef<HTMLTextAreaElement>(null);
   const [target, setTarget] = React.useState<'subject' | 'body'>('body');
   const [justInserted, setJustInserted] = React.useState<string | null>(null);
+  // 直近のカーソル位置を欄ごとに覚える。フォーカスが外れても selectionStart は残るが、
+  // 一度も触っていない欄は位置が無く、末尾に足すしかなくなる。覚えておけばその事故が減る。
+  const caretRef = React.useRef<{ subject: number | null; body: number | null }>({ subject: null, body: null });
+  const rememberCaret = (field: 'subject' | 'body') =>
+    (e: React.SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      caretRef.current[field] = e.currentTarget.selectionStart;
+    };
   const flashTimer = React.useRef<number | null>(null);
   React.useEffect(() => () => { if (flashTimer.current) window.clearTimeout(flashTimer.current); }, []);
 
@@ -250,19 +257,33 @@ export const EmailCard: React.FC<EmailCardProps> = ({
       target === 'subject' ? subjectRef.current : bodyRef.current;
     const current = target === 'subject' ? subject : body;
     const apply = target === 'subject' ? onSubjectChange : onBodyChange;
-    // 未フォーカスなら末尾に足す。カーソルがあればその位置へ差し込む（選択中なら置換）。
-    const start = el && el.selectionStart != null ? el.selectionStart : current.length;
-    const end = el && el.selectionEnd != null ? el.selectionEnd : current.length;
+    const hasFocus = !!el && document.activeElement === el;
+    const remembered = caretRef.current[target];
+    // 1) いま編集中ならそのカーソル位置（選択中なら置換）
+    // 2) 以前に触った欄なら最後のカーソル位置
+    // 3) 一度も触っていなければ末尾
+    const start = hasFocus && el && el.selectionStart != null ? el.selectionStart
+      : remembered != null ? Math.min(remembered, current.length)
+      : current.length;
+    const end = hasFocus && el && el.selectionEnd != null ? el.selectionEnd : start;
+    const scrollTop = el ? el.scrollTop : 0;
     apply(current.slice(0, start) + tag + current.slice(end));
     setJustInserted(tag);
     if (flashTimer.current) window.clearTimeout(flashTimer.current);
     flashTimer.current = window.setTimeout(() => setJustInserted(null), 1400);
-    // 値の反映後にカーソルを挿入直後へ戻す。続けて入力・挿入できるようにする。
     window.requestAnimationFrame(() => {
       if (!el) return;
-      el.focus();
       const pos = start + tag.length;
+      // 値を差し替えると選択位置が末尾へ戻る。ここで focus() を先に呼ぶと
+      // ブラウザがその末尾まで一気にスクロールし、編集していた場所を見失う。
+      // 必ず「位置を決める → 必要なら focus → 元の表示位置へ戻す」の順で行う。
       el.setSelectionRange(pos, pos);
+      // focus() は既定でカーソル位置まで一気にスクロールする。未フォーカスの欄に
+      // 末尾へ足したときは、それが「押したら一番下へ飛ぶ」現象になる。必ず抑止する。
+      if (!hasFocus) el.focus({ preventScroll: true });
+      // 押す前に見えていた範囲をそのまま保つ。編集中の場所を見失わせない。
+      el.scrollTop = scrollTop;
+      caretRef.current[target] = pos;
     });
   };
 
@@ -294,7 +315,10 @@ export const EmailCard: React.FC<EmailCardProps> = ({
               type="text"
               value={subject}
               onChange={e => onSubjectChange(e.target.value)}
-              onFocus={() => setTarget('subject')}
+              onFocus={(e) => { setTarget('subject'); rememberCaret('subject')(e); }}
+              onSelect={rememberCaret('subject')}
+              onKeyUp={rememberCaret('subject')}
+              onClick={rememberCaret('subject')}
               className="flex-1 border border-slate-300 rounded px-3 py-1.5 text-sm bg-white"
             />
             <button
@@ -318,7 +342,10 @@ export const EmailCard: React.FC<EmailCardProps> = ({
             ref={bodyRef}
             value={body}
             onChange={e => onBodyChange(e.target.value)}
-            onFocus={() => setTarget('body')}
+            onFocus={(e) => { setTarget('body'); rememberCaret('body')(e); }}
+            onSelect={rememberCaret('body')}
+            onKeyUp={rememberCaret('body')}
+            onClick={rememberCaret('body')}
             rows={7}
             className="w-full border border-slate-300 rounded px-3 py-2 text-sm font-mono leading-relaxed resize-y bg-white"
             placeholder="メール本文（上の「差し込み」ボタンで会員名などを入れられます）"
