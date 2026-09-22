@@ -23,12 +23,13 @@
 | [11_WITHDRAWAL_DELETION_POLICY.md](spec_history/11_WITHDRAWAL_DELETION_POLICY.md) | `spec/02_RD.md` §10 |
 | [63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md](spec_history/63_SOW_ROSTER_PDF_AND_BULK_MAIL_2026-04-10.md) | `spec/01_SOW.md` ／ `spec/02_RD.md` ／ `spec/05_DATA_IF.md` |
 
-## リリース記録 — `release_history/`（167 件・実測）
+## リリース記録 — `release_history/`（168 件・実測）
 
 各リリースの詳細（バージョン・スコープ・検証・ロールバック先）。時系列の要約は `docs/release-notes-2026.md` にあるので、個別の詳細が要るときだけ開く。
 
 | 新しいもの順 |
 |---|
+| [282_RELEASE_STATE_v376.96_2026-09-18.md](release_history/282_RELEASE_STATE_v376.96_2026-09-18.md) |
 | [281_RELEASE_STATE_v376.95.1_2026-09-16.md](release_history/281_RELEASE_STATE_v376.95.1_2026-09-16.md) |
 | [280_RELEASE_STATE_v376.94_2026-09-15.md](release_history/280_RELEASE_STATE_v376.94_2026-09-15.md) |
 | [279_RELEASE_STATE_v376.93_2026-09-14.md](release_history/279_RELEASE_STATE_v376.93_2026-09-14.md) |
