@@ -26,7 +26,8 @@ import { TRAINING_OPTIONAL_FIELD_DEFS } from './components/TrainingManagement';
 import { api, setApiPreviewReadOnly, type AdminLoginResult, type MemberLoginResult, type MemberPortalLookup } from './services/api';
 import { canAccessMenu, canUseLinePost, canManageLinePost } from './shared/rbac-util';
 import { callApi } from './shared/api-base';
-import { EmailCard, MailGroupHeader, MasterOffBanner, MergeTags, ToggleSwitch } from './components/EmailSettingsCard';
+import { EmailCard, MailCategoryPicker, MailGroupHeader, MasterOffBanner, MergeTags, ToggleSwitch } from './components/EmailSettingsCard';
+import type { MailCategoryKey } from './shared/mailCategories';
 import MailTemplateManager from './components/MailTemplateManager';
 import { MAIL_TEMPLATE_MERGE_TAGS } from './shared/mailTemplates';
 import { computeMemberFiscalStatus } from './shared/memberFiscalStatus.mjs';
@@ -591,6 +592,9 @@ const App: React.FC = () => {
     });
   }, []);
   const [settingsSub, setSettingsSub] = useState<'basic' | 'fees' | 'regulations' | 'output' | 'email' | 'chat' | 'portal' | 'masters'>('basic');
+  // メール通知タブは 14 枚のカードを持つ。全部並べると画面が長くなりすぎるため、
+  // 系統を選んでその系統だけ出す。切り替えても入力値は state に残り、保存は一括で行う。
+  const [emailCategoryTab, setEmailCategoryTab] = useState<MailCategoryKey>('ENROLLMENT');
   // v376.65: 規程タブを開いたときに一覧を取得する（初回のみ・失敗時は再読込ボタン）
   React.useEffect(() => {
     if (settingsSub !== 'regulations') return;
@@ -4708,18 +4712,24 @@ const App: React.FC = () => {
                 EmailSettingsCard.tsx に定義。App 内 IIFE での定義は
                 毎レンダーで新型が生成されフォーカスが失われるため禁止。 */}
             <div className="space-y-6">
-                {/* ─── 入会・登録情報メールの共通スイッチ ─── */}
-                <div className="rounded-xl border-2 border-slate-300 bg-white p-4 space-y-3">
-                  <p className="text-xs font-semibold text-slate-500 tracking-wide">入会・登録情報メールの共通スイッチ</p>
-                  <p className="text-xs text-slate-500">無効にすると、下の入会完了・事業所登録・職員追加メールが停止されます。受付・承認・却下などの変更申請通知は、それぞれのカードで設定します。すべての自動メールを止める場合は、上部の「メール配信」で「停止」を選びます。</p>
-                  <ToggleSwitch color="emerald"
-                    enabled={credentialEmailEnabledInput}
-                    onToggle={() => { setCredentialEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
-                    onLabel="入会・登録メールを送信する（有効）"
-                    offLabel="入会・登録情報メール停止中（無効）— 準備が整ったら有効へ戻してください" />
-                  {!credentialEmailEnabledInput && (
-                    <p className="text-xs text-red-600">現在は無効です。このグループの入会・登録情報メールは送信されません。</p>
-                  )}
+                {/* ─── 系統の選択 ─── */}
+                <div className="space-y-2">
+                  <p className="text-sm text-slate-600">
+                    設定したい系統を選びます。選んだ系統のカードだけを表示します。
+                    <span className="text-slate-500">系統を切り替えても入力中の内容は保持され、保存は下の「一括保存」でまとめて行います。</span>
+                  </p>
+                  <MailCategoryPicker
+                    value={emailCategoryTab}
+                    onChange={setEmailCategoryTab}
+                    counts={{
+                      ENROLLMENT: [[indSuppEmailEnabledInput, bizRepEmailEnabledInput, bizStaffEmailEnabledInput].filter(Boolean).length, 3],
+                      STAFF: [[staffAddStaffEmailEnabledInput, staffAddRepEmailEnabledInput].filter(Boolean).length, 2],
+                      WORKFLOW: [[applicationReceiptEnabledInput, approvalNotificationEnabledInput, rejectionNotificationEnabledInput].filter(Boolean).length, 3],
+                      TRAINING: [[trainingApplyReceiptEnabledInput, trainingReminderEnabledInput].filter(Boolean).length, 2],
+                      MEMBER_PROCEDURE: [[memberUpdateConfirmEnabledInput, withdrawalConfirmEnabledInput].filter(Boolean).length, 2],
+                      SECURITY: [[authOtpEnabledInput, passwordResetEnabledInput].filter(Boolean).length, 2],
+                    }}
+                  />
                 </div>
 
                 {/* ─── 送信元アドレス（共通） ─── */}
@@ -4746,9 +4756,30 @@ const App: React.FC = () => {
                   )}
                 </div>
 
+
+                {(emailCategoryTab === 'ENROLLMENT' || emailCategoryTab === 'STAFF') && (
+                <div className="space-y-4">
+                {/* ─── 入会・登録情報メールの共通スイッチ ─── */}
+                <div className="rounded-xl border-2 border-slate-300 bg-white p-4 space-y-3">
+                  <p className="text-xs font-semibold text-slate-500 tracking-wide">入会・登録情報メールの共通スイッチ</p>
+                  <p className="text-xs text-slate-500">無効にすると、下の入会完了・事業所登録・職員追加メールが停止されます。受付・承認・却下などの変更申請通知は、それぞれのカードで設定します。すべての自動メールを止める場合は、上部の「メール配信」で「停止」を選びます。</p>
+                  <ToggleSwitch color="emerald"
+                    enabled={credentialEmailEnabledInput}
+                    onToggle={() => { setCredentialEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    onLabel="入会・登録メールを送信する（有効）"
+                    offLabel="入会・登録情報メール停止中（無効）— 準備が整ったら有効へ戻してください" />
+                  {!credentialEmailEnabledInput && (
+                    <p className="text-xs text-red-600">現在は無効です。このグループの入会・登録情報メールは送信されません。</p>
+                  )}
+                </div>
+
                 <MasterOffBanner masterEnabled={credentialEmailEnabledInput} />
+                </div>
+                )}
+
 
                 {/* ─── 入会申し込み時のメール ─── */}
+                {emailCategoryTab === 'ENROLLMENT' && (
                 <div className="space-y-3">
                   <MailGroupHeader category="ENROLLMENT" title="入会申し込み時のメール" count={3} />
 
@@ -4803,8 +4834,10 @@ const App: React.FC = () => {
                         onLoad={(s, b) => { setBizStaffEmailSubjectInput(s); setBizStaffEmailBodyInput(b); setSettingsIsDirty(true); }} />
                     } />
                 </div>
+                )}
 
                 {/* ─── 職員追加承認時のメール ─── */}
+                {emailCategoryTab === 'STAFF' && (
                 <div className="space-y-3">
                   <MailGroupHeader category="STAFF" title="職員追加申請 承認時のメール" count={2} />
                   <MergeTags items={mergeTagUnion(MAIL_TEMPLATE_MERGE_TAGS.STAFF_ADD_STAFF, MAIL_TEMPLATE_MERGE_TAGS.STAFF_ADD_REP)} />
@@ -4835,8 +4868,10 @@ const App: React.FC = () => {
                         onLoad={(s, b) => { setStaffAddRepEmailSubjectInput(s); setStaffAddRepEmailBodyInput(b); setSettingsIsDirty(true); }} />
                     } />
                 </div>
+                )}
 
                 {/* v369: ─── 変更申請ワークフロー (受付・承認・却下) のメール ─── */}
+                {emailCategoryTab === 'WORKFLOW' && (
                 <div className="space-y-3">
                   <MailGroupHeader category="WORKFLOW" title="変更申請ワークフロー（受付・承認・却下）のメール" count={3} />
                   <p className="text-xs text-slate-500">公開ポータルからの入会・変更・退会・職員追加/除籍の申請受付時、および管理者の承認/却下時に申請者へ送信されるメールです。差込変数: <code>{`{{氏名}}`}</code> <code>{`{{会員種別ラベル}}`}</code> <code>{`{{申請種別}}`}</code> <code>{`{{申請ID}}`}</code> <code>{`{{受付日時}}`}</code> <code>{`{{処理日時}}`}</code> <code>{`{{処理者名}}`}</code> <code>{`{{変更内容サマリー}}`}</code> <code>{`{{処理備考}}`}</code></p>
@@ -4881,10 +4916,12 @@ const App: React.FC = () => {
                         onLoad={(s, b) => { setRejectionNotificationSubjectInput(s); setRejectionNotificationBodyInput(b); setSettingsIsDirty(true); }} />
                     } />
                 </div>
+                )}
 
                 {/* v376.43 (Phase B): 従来ハードコードだった自動通知を差し込み化。
                     「その他」1 グループ 6 枚では種類が読み取れなかったため、
                     研修 / 認証・セキュリティ / 会員手続き の 3 グループへ分割した。 */}
+                {emailCategoryTab === 'TRAINING' && (
                 <div className="space-y-3">
                   <MailGroupHeader category="TRAINING" title="研修のメール" count={2} />
                   <p className="text-xs text-slate-500">各カードで送信の有無、件名、本文を設定できます。本文は差し込みタグに対応し、テンプレート管理（上書き保存／新規保存）も利用できます。</p>
@@ -4920,8 +4957,10 @@ const App: React.FC = () => {
                     } />
 
                 </div>
+                )}
 
                 {/* ─── 認証・セキュリティのメール ─── */}
+                {emailCategoryTab === 'SECURITY' && (
                 <div className="space-y-3">
                   <MailGroupHeader category="SECURITY" title="認証・セキュリティのメール" count={2} />
                   <p className="text-xs text-slate-500"><strong>本人確認コード・パスワード再設定コードは、本文から該当タグを消しても安全装置により既定の文面で必ず送信されます。</strong></p>
@@ -4956,8 +4995,10 @@ const App: React.FC = () => {
                         onLoad={(s, b) => { setPasswordResetSubjectInput(s); setPasswordResetBodyInput(b); setSettingsIsDirty(true); }} />
                     } />
                 </div>
+                )}
 
                 {/* ─── 会員手続きの確認メール ─── */}
+                {emailCategoryTab === 'MEMBER_PROCEDURE' && (
                 <div className="space-y-3">
                   <MailGroupHeader category="MEMBER_PROCEDURE" title="会員手続きの確認メール" count={2} />
 
@@ -4992,6 +5033,7 @@ const App: React.FC = () => {
                     } />
 
                 </div>
+                )}
               </div>
           </AdminSettingsSection>}
 

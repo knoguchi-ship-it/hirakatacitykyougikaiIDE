@@ -5,7 +5,9 @@
  */
 import React from 'react';
 import {
+  MAIL_CATEGORY_ORDER,
   MAIL_CATEGORY_STYLES,
+  MAIL_CATEGORY_TAB_LABEL,
   type MailCategoryIconKey,
   type MailCategoryKey,
 } from '../shared/mailCategories';
@@ -124,6 +126,46 @@ export const MergeTags: React.FC<{ items: [string, string][] }> = ({ items }) =>
       </span>
     ))}
   </p>
+);
+
+// ── 系統の選択 ─────────────────────────────────────────────────────────────────
+// 14 枚を一度に並べると画面が長くなりすぎるため、系統を選んでから
+// その系統のカードだけを出す。件数と有効数をボタン上に出し、
+// 開かなくても「どこが止まっているか」が分かるようにする。
+export interface MailCategoryPickerProps {
+  value: MailCategoryKey;
+  onChange: (next: MailCategoryKey) => void;
+  /** 系統ごとの [有効数, 総数] */
+  counts: Record<MailCategoryKey, [number, number]>;
+}
+export const MailCategoryPicker: React.FC<MailCategoryPickerProps> = ({ value, onChange, counts }) => (
+  <div role="tablist" aria-label="メール通知の系統" className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+    {MAIL_CATEGORY_ORDER.map((key) => {
+      const style = MAIL_CATEGORY_STYLES[key];
+      const [on, total] = counts[key];
+      const selected = key === value;
+      return (
+        <button
+          key={key}
+          type="button"
+          role="tab"
+          aria-selected={selected}
+          onClick={() => onChange(key)}
+          className={`flex items-center gap-2 rounded-xl border-2 px-3 py-2.5 text-left transition-colors ${selected ? style.chipActive : style.chipIdle}`}
+        >
+          {/* 未選択でもカテゴリ色を残す。灰色にすると系統を色で見分けられなくなる。
+              選択の有無は枠線とリングで示す。 */}
+          <MailCategoryIcon icon={style.icon} className={`h-5 w-5 shrink-0 ${style.groupIcon}`} />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold">{MAIL_CATEGORY_TAB_LABEL[key]}</span>
+            <span className="block text-[11px] font-medium opacity-80">
+              {on === 0 ? `${total} 件すべて停止中` : `${total} 件中 ${on} 件が有効`}
+            </span>
+          </span>
+        </button>
+      );
+    })}
+  </div>
 );
 
 // ── メール設定カード ───────────────────────────────────────────────────────────

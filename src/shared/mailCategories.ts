@@ -54,6 +54,10 @@ export interface MailCategoryStyle {
   groupIcon: string;
   /** 有効時のトグルスイッチの色（「色がある＝有効」を補強する） */
   toggleOn: string;
+  /** 系統選択ボタン（選択中） */
+  chipActive: string;
+  /** 系統選択ボタン（未選択） */
+  chipIdle: string;
 }
 
 export const MAIL_CATEGORY_STYLES: Record<MailCategoryKey, MailCategoryStyle> = {
@@ -67,6 +71,8 @@ export const MAIL_CATEGORY_STYLES: Record<MailCategoryKey, MailCategoryStyle> = 
     groupBand: 'border-l-4 border-l-emerald-500 bg-emerald-100 text-emerald-900',
     groupIcon: 'text-emerald-700',
     toggleOn: 'bg-emerald-600',
+    chipActive: 'border-emerald-500 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-200',
+    chipIdle: 'border-slate-200 bg-white text-slate-600 hover:border-emerald-300 hover:bg-emerald-50',
   },
   STAFF: {
     label: '職員',
@@ -78,6 +84,8 @@ export const MAIL_CATEGORY_STYLES: Record<MailCategoryKey, MailCategoryStyle> = 
     groupBand: 'border-l-4 border-l-sky-500 bg-sky-100 text-sky-900',
     groupIcon: 'text-sky-700',
     toggleOn: 'bg-sky-600',
+    chipActive: 'border-sky-500 bg-sky-50 text-sky-900 ring-2 ring-sky-200',
+    chipIdle: 'border-slate-200 bg-white text-slate-600 hover:border-sky-300 hover:bg-sky-50',
   },
   WORKFLOW: {
     label: '申請ワークフロー',
@@ -89,6 +97,8 @@ export const MAIL_CATEGORY_STYLES: Record<MailCategoryKey, MailCategoryStyle> = 
     groupBand: 'border-l-4 border-l-amber-500 bg-amber-100 text-amber-900',
     groupIcon: 'text-amber-700',
     toggleOn: 'bg-amber-600',
+    chipActive: 'border-amber-500 bg-amber-50 text-amber-900 ring-2 ring-amber-200',
+    chipIdle: 'border-slate-200 bg-white text-slate-600 hover:border-amber-300 hover:bg-amber-50',
   },
   TRAINING: {
     label: '研修',
@@ -100,6 +110,8 @@ export const MAIL_CATEGORY_STYLES: Record<MailCategoryKey, MailCategoryStyle> = 
     groupBand: 'border-l-4 border-l-indigo-500 bg-indigo-100 text-indigo-900',
     groupIcon: 'text-indigo-700',
     toggleOn: 'bg-indigo-600',
+    chipActive: 'border-indigo-500 bg-indigo-50 text-indigo-900 ring-2 ring-indigo-200',
+    chipIdle: 'border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:bg-indigo-50',
   },
   MEMBER_PROCEDURE: {
     label: '会員手続き',
@@ -111,6 +123,8 @@ export const MAIL_CATEGORY_STYLES: Record<MailCategoryKey, MailCategoryStyle> = 
     groupBand: 'border-l-4 border-l-violet-500 bg-violet-100 text-violet-900',
     groupIcon: 'text-violet-700',
     toggleOn: 'bg-violet-600',
+    chipActive: 'border-violet-500 bg-violet-50 text-violet-900 ring-2 ring-violet-200',
+    chipIdle: 'border-slate-200 bg-white text-slate-600 hover:border-violet-300 hover:bg-violet-50',
   },
   SECURITY: {
     label: '認証・セキュリティ',
@@ -122,5 +136,29 @@ export const MAIL_CATEGORY_STYLES: Record<MailCategoryKey, MailCategoryStyle> = 
     groupBand: 'border-l-4 border-l-rose-500 bg-rose-100 text-rose-900',
     groupIcon: 'text-rose-700',
     toggleOn: 'bg-rose-600',
+    chipActive: 'border-rose-500 bg-rose-50 text-rose-900 ring-2 ring-rose-200',
+    chipIdle: 'border-slate-200 bg-white text-slate-600 hover:border-rose-300 hover:bg-rose-50',
   },
+};
+
+/**
+ * 系統選択ボタンの並び順。会員が受け取る順序（入会 → 職員 → 申請 → 研修 → 手続き → 認証）に沿わせる。
+ */
+export const MAIL_CATEGORY_ORDER: MailCategoryKey[] = [
+  'ENROLLMENT',
+  'STAFF',
+  'WORKFLOW',
+  'TRAINING',
+  'MEMBER_PROCEDURE',
+  'SECURITY',
+];
+
+/** 系統選択ボタンに出す見出し。カード上のバッジより短くする。 */
+export const MAIL_CATEGORY_TAB_LABEL: Record<MailCategoryKey, string> = {
+  ENROLLMENT: '入会申し込み',
+  STAFF: '職員追加',
+  WORKFLOW: '申請ワークフロー',
+  TRAINING: '研修',
+  MEMBER_PROCEDURE: '会員手続き',
+  SECURITY: '認証・セキュリティ',
 };
