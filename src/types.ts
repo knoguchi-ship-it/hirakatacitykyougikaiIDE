@@ -297,6 +297,11 @@ export interface SystemSettings {
   withdrawalConfirmSubject?: string;
   withdrawalConfirmBody?: string;
   passwordResetSubject?: string;
+  // v376.99: 固定文だった通知を設定化
+  loginIdChangedSubject?: string;
+  loginIdChangedBody?: string;
+  contactEmailChangedSubject?: string;
+  contactEmailChangedBody?: string;
   passwordResetBody?: string;
   // メール配信状態の正本。旧プロパティは既存クライアントとの互換用。
   mailDeliveryState?: 'STOPPED' | 'LIVE' | 'REDIRECT';
@@ -312,6 +317,8 @@ export interface SystemSettings {
   memberUpdateConfirmEnabled?: boolean;
   withdrawalConfirmEnabled?: boolean;
   passwordResetEnabled?: boolean;
+  loginIdChangedEnabled?: boolean;
+  contactEmailChangedEnabled?: boolean;
 }
 
 export interface AnnualFeeAdminRecord {

@@ -18,13 +18,17 @@ export type MailTemplateCategory =
   | 'AUTH_OTP'
   | 'MEMBER_UPDATE_CONFIRM'
   | 'WITHDRAWAL_CONFIRM'
-  | 'PASSWORD_RESET';
+  | 'PASSWORD_RESET'
+  // v376.99: 固定文だった通知を設定化
+  | 'LOGIN_ID_CHANGED'
+  | 'CONTACT_EMAIL_CHANGED';
 
 export const MAIL_TEMPLATE_CATEGORIES: MailTemplateCategory[] = [
   'CREDENTIAL', 'BIZ_REP', 'BIZ_STAFF', 'STAFF_ADD_STAFF', 'STAFF_ADD_REP',
   'APPLICATION_RECEIPT', 'APPROVAL_NOTIFICATION', 'REJECTION_NOTIFICATION',
   'TRAINING_APPLY_RECEIPT', 'TRAINING_REMINDER', 'AUTH_OTP',
   'MEMBER_UPDATE_CONFIRM', 'WITHDRAWAL_CONFIRM', 'PASSWORD_RESET',
+  'LOGIN_ID_CHANGED', 'CONTACT_EMAIL_CHANGED',
 ];
 
 // カテゴリ→利用可能マージタグ（[タグ, 説明][]）。UI のマージタグ凡例で使用。
@@ -47,6 +51,13 @@ export const MAIL_TEMPLATE_MERGE_TAGS: Record<MailTemplateCategory, [string, str
   TRAINING_REMINDER: [['{{研修名}}', '研修名'], ['{{開催日}}', '開催日'], ['{{会場}}', '会場']],
   AUTH_OTP: [['{{会員名}}', '会員名'], ['{{用途}}', '用途'], ['{{認証コード}}', '認証コード'], ['{{有効期限}}', '有効期限']],
   MEMBER_UPDATE_CONFIRM: [['{{氏名}}', '氏名']],
-  WITHDRAWAL_CONFIRM: [['{{会員名}}', '会員名'], ['{{退会予定日}}', '退会予定日'], ['{{会員マイページURL}}', 'マイページURL']],
+  // v376.99: 承認時に送るため退会日と方式が確定している。マイページURL は文面が参照していないため外した。
+  WITHDRAWAL_CONFIRM: [['{{会員名}}', '会員名'], ['{{退会予定日}}', '退会日'], ['{{退会方式}}', '年度末退会／即時退会']],
   PASSWORD_RESET: [['{{ユーザー名}}', 'ユーザー名'], ['{{確認コード}}', '確認コード'], ['{{有効期限}}', '有効期限'], ['{{会員マイページURL}}', 'マイページURL']],
+  // v376.99: 介護支援専門員番号・事業所番号の変更でログインIDが変わったときに送る。
+  // 画面に「変更するとログインIDも変わります」と書くのはやめ、変わった事実をメールで伝える。
+  LOGIN_ID_CHANGED: [['{{氏名}}', '氏名'], ['{{旧ログインID}}', '変更前'], ['{{新ログインID}}', '変更後'], ['{{会員マイページURL}}', 'マイページURL']],
+  // v376.99: 連絡先メールアドレスが変わったときに、旧・新の両方へ送る。
+  // {{宛先区分}} は「旧アドレス」「新アドレス」のどちらへ宛てた通知かを表す。
+  CONTACT_EMAIL_CHANGED: [['{{氏名}}', '氏名'], ['{{旧メールアドレス}}', '変更前'], ['{{新メールアドレス}}', '変更後'], ['{{宛先区分}}', '旧アドレス／新アドレス']],
 };

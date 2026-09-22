@@ -236,16 +236,53 @@ var MEMBER_UPDATE_CONFIRM_DEFAULT_BODY = [
   '枚方市介護支援専門員連絡協議会',
 ].join('\n');
 
+// v376.99: ログインIDが変わったことを伝える通知。
+// 以前は公開ポータルの画面に「⚠ 変更するとログインIDも変わります」と書いていたが、
+// 会員マイページを展開していない現状では読んでも行き場がなく、矛盾した案内になる。
+// 変わった事実を、変わった後にメールで伝える方式へ改めた。
+var LOGIN_ID_CHANGED_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】ログインIDの変更のお知らせ';
+var LOGIN_ID_CHANGED_DEFAULT_BODY = [
+  '{{氏名}} 様',
+  '',
+  'ご登録内容の変更にともない、ログインIDが変更されました。',
+  '',
+  '旧ログインID: {{旧ログインID}}',
+  '新ログインID: {{新ログインID}}',
+  '',
+  'パスワードは変更されていません。',
+  'お心当たりのない場合は、お早めに事務局までご連絡ください。',
+  '',
+  '枚方市介護支援専門員連絡協議会',
+].join('\n');
+
+// v376.99: 連絡先メールアドレス変更の通知。旧・新の両方へ送る（乗っ取り検知のため）。
+// 以前は職員情報変更の承認処理に固定文が直書きされており、管理画面から直せなかった。
+var CONTACT_EMAIL_CHANGED_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】登録メールアドレス変更のお知らせ';
+var CONTACT_EMAIL_CHANGED_DEFAULT_BODY = [
+  '{{氏名}} 様',
+  '',
+  'ご登録のメールアドレスが変更されました（この案内は{{宛先区分}}宛です）。',
+  '',
+  '旧アドレス: {{旧メールアドレス}}',
+  '新アドレス: {{新メールアドレス}}',
+  '',
+  '今後のご連絡は新アドレス宛てに送信されます。',
+  'お心当たりのない場合は、お早めに事務局までご連絡ください。',
+  '',
+  '枚方市介護支援専門員連絡協議会',
+].join('\n');
+
 var WITHDRAWAL_CONFIRM_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】退会申請受付のご確認';
+// v376.99: 「（年度末）」を直書きしていたため、v376.92 で入った即時退会でも
+// 年度末と書かれてしまっていた。方式は差し込みタグで出す。
 var WITHDRAWAL_CONFIRM_DEFAULT_BODY = [
   '{{会員名}} 様',
   '',
-  '退会申請を受け付けました。',
+  '退会のお手続きが完了しました。',
   '',
-  '退会予定日: {{退会予定日}}（年度末）',
+  '退会方式: {{退会方式}}',
+  '退会日: {{退会予定日}}',
   '',
-  '退会予定日までは引き続き会員マイページにログインできます。',
-  '退会を撤回される場合は、会員マイページよりお手続きください。',
   'お心当たりのない場合は事務局までご連絡ください。',
   '',
   '枚方市介護支援専門員連絡協議会',
@@ -3688,7 +3725,8 @@ var MAIL_TEMPLATE_CATEGORIES_ = [
   'CREDENTIAL', 'BIZ_REP', 'BIZ_STAFF', 'STAFF_ADD_STAFF', 'STAFF_ADD_REP',
   'APPLICATION_RECEIPT', 'APPROVAL_NOTIFICATION', 'REJECTION_NOTIFICATION',
   'TRAINING_APPLY_RECEIPT', 'TRAINING_REMINDER', 'AUTH_OTP',
-  'MEMBER_UPDATE_CONFIRM', 'WITHDRAWAL_CONFIRM', 'PASSWORD_RESET'
+  'MEMBER_UPDATE_CONFIRM', 'WITHDRAWAL_CONFIRM', 'PASSWORD_RESET',
+  'LOGIN_ID_CHANGED', 'CONTACT_EMAIL_CHANGED'
 ];
 
 
@@ -6103,6 +6141,10 @@ function ensureSystemSettingsRows_(ss) {
     { key: 'TRAINING_REMINDER_BODY',         value: TRAINING_REMINDER_DEFAULT_BODY,          desc: '研修リマインダーメール本文' },
     { key: 'AUTH_OTP_SUBJECT',               value: AUTH_OTP_DEFAULT_SUBJECT,                desc: '公開ポータルOTPメール件名' },
     { key: 'AUTH_OTP_BODY',                  value: AUTH_OTP_DEFAULT_BODY,                   desc: '公開ポータルOTPメール本文' },
+    { key: 'LOGIN_ID_CHANGED_SUBJECT',       value: LOGIN_ID_CHANGED_DEFAULT_SUBJECT,       desc: 'ログインID変更のお知らせ件名' },
+    { key: 'LOGIN_ID_CHANGED_BODY',          value: LOGIN_ID_CHANGED_DEFAULT_BODY,          desc: 'ログインID変更のお知らせ本文' },
+    { key: 'CONTACT_EMAIL_CHANGED_SUBJECT',  value: CONTACT_EMAIL_CHANGED_DEFAULT_SUBJECT,  desc: 'メールアドレス変更のお知らせ件名' },
+    { key: 'CONTACT_EMAIL_CHANGED_BODY',     value: CONTACT_EMAIL_CHANGED_DEFAULT_BODY,     desc: 'メールアドレス変更のお知らせ本文' },
     { key: 'MEMBER_UPDATE_CONFIRM_SUBJECT',  value: MEMBER_UPDATE_CONFIRM_DEFAULT_SUBJECT,   desc: '会員情報変更確認メール件名' },
     { key: 'MEMBER_UPDATE_CONFIRM_BODY',     value: MEMBER_UPDATE_CONFIRM_DEFAULT_BODY,      desc: '会員情報変更確認メール本文' },
     { key: 'WITHDRAWAL_CONFIRM_SUBJECT',     value: WITHDRAWAL_CONFIRM_DEFAULT_SUBJECT,      desc: '退会申請受付確認メール件名' },
@@ -6131,6 +6173,8 @@ function ensureSystemSettingsRows_(ss) {
     { key: 'TRAINING_REMINDER_ENABLED',   value: 'true', desc: '研修リマインダーメール送信ON/OFF' },
     { key: 'BULK_MAIL_ENABLED',           value: 'true', desc: '一括メール送信ON/OFF' },
     { key: 'AUTH_OTP_ENABLED',            value: 'true', desc: '公開ポータル OTP メール送信ON/OFF' },
+    { key: 'LOGIN_ID_CHANGED_ENABLED', value: 'true', desc: 'ログインID変更のお知らせ送信ON/OFF' },
+    { key: 'CONTACT_EMAIL_CHANGED_ENABLED', value: 'true', desc: 'メールアドレス変更のお知らせ送信ON/OFF' },
     { key: 'MEMBER_UPDATE_CONFIRM_ENABLED', value: 'true', desc: '会員情報変更確認メール送信ON/OFF' },
     { key: 'WITHDRAWAL_CONFIRM_ENABLED',  value: 'true', desc: '退会申請受付確認メール送信ON/OFF' },
     { key: 'PASSWORD_RESET_ENABLED',      value: 'true', desc: 'パスワード再設定確認コードメール送信ON/OFF' },
@@ -6813,6 +6857,8 @@ function isAutomatedMailCategory_(category) {
     TRAINING_APPLY_RECEIPT: true,
     TRAINING_REMINDER: true,
     AUTH_OTP: true,
+    LOGIN_ID_CHANGED: true,
+    CONTACT_EMAIL_CHANGED: true,
     MEMBER_UPDATE_CONFIRM: true,
     WITHDRAWAL_CONFIRM: true,
     PASSWORD_RESET: true,

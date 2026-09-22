@@ -236,16 +236,53 @@ var MEMBER_UPDATE_CONFIRM_DEFAULT_BODY = [
   '枚方市介護支援専門員連絡協議会',
 ].join('\n');
 
+// v376.99: ログインIDが変わったことを伝える通知。
+// 以前は公開ポータルの画面に「⚠ 変更するとログインIDも変わります」と書いていたが、
+// 会員マイページを展開していない現状では読んでも行き場がなく、矛盾した案内になる。
+// 変わった事実を、変わった後にメールで伝える方式へ改めた。
+var LOGIN_ID_CHANGED_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】ログインIDの変更のお知らせ';
+var LOGIN_ID_CHANGED_DEFAULT_BODY = [
+  '{{氏名}} 様',
+  '',
+  'ご登録内容の変更にともない、ログインIDが変更されました。',
+  '',
+  '旧ログインID: {{旧ログインID}}',
+  '新ログインID: {{新ログインID}}',
+  '',
+  'パスワードは変更されていません。',
+  'お心当たりのない場合は、お早めに事務局までご連絡ください。',
+  '',
+  '枚方市介護支援専門員連絡協議会',
+].join('\n');
+
+// v376.99: 連絡先メールアドレス変更の通知。旧・新の両方へ送る（乗っ取り検知のため）。
+// 以前は職員情報変更の承認処理に固定文が直書きされており、管理画面から直せなかった。
+var CONTACT_EMAIL_CHANGED_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】登録メールアドレス変更のお知らせ';
+var CONTACT_EMAIL_CHANGED_DEFAULT_BODY = [
+  '{{氏名}} 様',
+  '',
+  'ご登録のメールアドレスが変更されました（この案内は{{宛先区分}}宛です）。',
+  '',
+  '旧アドレス: {{旧メールアドレス}}',
+  '新アドレス: {{新メールアドレス}}',
+  '',
+  '今後のご連絡は新アドレス宛てに送信されます。',
+  'お心当たりのない場合は、お早めに事務局までご連絡ください。',
+  '',
+  '枚方市介護支援専門員連絡協議会',
+].join('\n');
+
 var WITHDRAWAL_CONFIRM_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】退会申請受付のご確認';
+// v376.99: 「（年度末）」を直書きしていたため、v376.92 で入った即時退会でも
+// 年度末と書かれてしまっていた。方式は差し込みタグで出す。
 var WITHDRAWAL_CONFIRM_DEFAULT_BODY = [
   '{{会員名}} 様',
   '',
-  '退会申請を受け付けました。',
+  '退会のお手続きが完了しました。',
   '',
-  '退会予定日: {{退会予定日}}（年度末）',
+  '退会方式: {{退会方式}}',
+  '退会日: {{退会予定日}}',
   '',
-  '退会予定日までは引き続き会員マイページにログインできます。',
-  '退会を撤回される場合は、会員マイページよりお手続きください。',
   'お心当たりのない場合は事務局までご連絡ください。',
   '',
   '枚方市介護支援専門員連絡協議会',
@@ -4392,6 +4429,10 @@ function getSystemSettings_() {
     trainingReminderBody:         String(m['TRAINING_REMINDER_BODY'] || '') || TRAINING_REMINDER_DEFAULT_BODY,
     authOtpSubject:               String(m['AUTH_OTP_SUBJECT'] || '') || AUTH_OTP_DEFAULT_SUBJECT,
     authOtpBody:                  String(m['AUTH_OTP_BODY'] || '') || AUTH_OTP_DEFAULT_BODY,
+    loginIdChangedSubject:        String(m['LOGIN_ID_CHANGED_SUBJECT'] || '') || LOGIN_ID_CHANGED_DEFAULT_SUBJECT,
+    loginIdChangedBody:           String(m['LOGIN_ID_CHANGED_BODY'] || '') || LOGIN_ID_CHANGED_DEFAULT_BODY,
+    contactEmailChangedSubject:   String(m['CONTACT_EMAIL_CHANGED_SUBJECT'] || '') || CONTACT_EMAIL_CHANGED_DEFAULT_SUBJECT,
+    contactEmailChangedBody:      String(m['CONTACT_EMAIL_CHANGED_BODY'] || '') || CONTACT_EMAIL_CHANGED_DEFAULT_BODY,
     memberUpdateConfirmSubject:   String(m['MEMBER_UPDATE_CONFIRM_SUBJECT'] || '') || MEMBER_UPDATE_CONFIRM_DEFAULT_SUBJECT,
     memberUpdateConfirmBody:      String(m['MEMBER_UPDATE_CONFIRM_BODY'] || '') || MEMBER_UPDATE_CONFIRM_DEFAULT_BODY,
     withdrawalConfirmSubject:     String(m['WITHDRAWAL_CONFIRM_SUBJECT'] || '') || WITHDRAWAL_CONFIRM_DEFAULT_SUBJECT,
@@ -4407,6 +4448,8 @@ function getSystemSettings_() {
     trainingReminderEnabled:      (function(){ var v = m['TRAINING_REMINDER_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
     bulkMailEnabled:              (function(){ var v = m['BULK_MAIL_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
     authOtpEnabled:               (function(){ var v = m['AUTH_OTP_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
+    loginIdChangedEnabled:        (function(){ var v = m['LOGIN_ID_CHANGED_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
+    contactEmailChangedEnabled:   (function(){ var v = m['CONTACT_EMAIL_CHANGED_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
     memberUpdateConfirmEnabled:   (function(){ var v = m['MEMBER_UPDATE_CONFIRM_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
     withdrawalConfirmEnabled:     (function(){ var v = m['WITHDRAWAL_CONFIRM_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
     passwordResetEnabled:         (function(){ var v = m['PASSWORD_RESET_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
@@ -4757,6 +4800,18 @@ function updateSystemSettings_(request, callerPermLevel) {
   if (request.authOtpBody != null) {
     updates.push({ key: 'AUTH_OTP_BODY', value: String(request.authOtpBody) || AUTH_OTP_DEFAULT_BODY, description: '公開ポータルOTPメール本文' });
   }
+  if (request.loginIdChangedSubject != null) {
+    updates.push({ key: 'LOGIN_ID_CHANGED_SUBJECT', value: String(request.loginIdChangedSubject).trim() || LOGIN_ID_CHANGED_DEFAULT_SUBJECT, description: 'ログインID変更のお知らせ件名' });
+  }
+  if (request.loginIdChangedBody != null) {
+    updates.push({ key: 'LOGIN_ID_CHANGED_BODY', value: String(request.loginIdChangedBody) || LOGIN_ID_CHANGED_DEFAULT_BODY, description: 'ログインID変更のお知らせ本文' });
+  }
+  if (request.contactEmailChangedSubject != null) {
+    updates.push({ key: 'CONTACT_EMAIL_CHANGED_SUBJECT', value: String(request.contactEmailChangedSubject).trim() || CONTACT_EMAIL_CHANGED_DEFAULT_SUBJECT, description: 'メールアドレス変更のお知らせ件名' });
+  }
+  if (request.contactEmailChangedBody != null) {
+    updates.push({ key: 'CONTACT_EMAIL_CHANGED_BODY', value: String(request.contactEmailChangedBody) || CONTACT_EMAIL_CHANGED_DEFAULT_BODY, description: 'メールアドレス変更のお知らせ本文' });
+  }
   if (request.memberUpdateConfirmSubject != null) {
     updates.push({ key: 'MEMBER_UPDATE_CONFIRM_SUBJECT', value: String(request.memberUpdateConfirmSubject).trim() || MEMBER_UPDATE_CONFIRM_DEFAULT_SUBJECT, description: '会員情報変更確認メール件名' });
   }
@@ -4810,6 +4865,12 @@ function updateSystemSettings_(request, callerPermLevel) {
   }
   if (request.authOtpEnabled != null) {
     updates.push({ key: 'AUTH_OTP_ENABLED', value: request.authOtpEnabled ? 'true' : 'false', description: '公開ポータル OTP メール送信ON/OFF' });
+  }
+  if (request.loginIdChangedEnabled != null) {
+    updates.push({ key: 'LOGIN_ID_CHANGED_ENABLED', value: request.loginIdChangedEnabled ? 'true' : 'false', description: 'ログインID変更のお知らせ送信ON/OFF' });
+  }
+  if (request.contactEmailChangedEnabled != null) {
+    updates.push({ key: 'CONTACT_EMAIL_CHANGED_ENABLED', value: request.contactEmailChangedEnabled ? 'true' : 'false', description: 'メールアドレス変更のお知らせ送信ON/OFF' });
   }
   if (request.memberUpdateConfirmEnabled != null) {
     updates.push({ key: 'MEMBER_UPDATE_CONFIRM_ENABLED', value: request.memberUpdateConfirmEnabled ? 'true' : 'false', description: '会員情報変更確認メール送信ON/OFF' });
@@ -8306,7 +8367,8 @@ var MAIL_TEMPLATE_CATEGORIES_ = [
   'CREDENTIAL', 'BIZ_REP', 'BIZ_STAFF', 'STAFF_ADD_STAFF', 'STAFF_ADD_REP',
   'APPLICATION_RECEIPT', 'APPROVAL_NOTIFICATION', 'REJECTION_NOTIFICATION',
   'TRAINING_APPLY_RECEIPT', 'TRAINING_REMINDER', 'AUTH_OTP',
-  'MEMBER_UPDATE_CONFIRM', 'WITHDRAWAL_CONFIRM', 'PASSWORD_RESET'
+  'MEMBER_UPDATE_CONFIRM', 'WITHDRAWAL_CONFIRM', 'PASSWORD_RESET',
+  'LOGIN_ID_CHANGED', 'CONTACT_EMAIL_CHANGED'
 ];
 
 function normalizeMailTemplateCategory_(category) {
@@ -12371,6 +12433,10 @@ function ensureSystemSettingsRows_(ss) {
     { key: 'TRAINING_REMINDER_BODY',         value: TRAINING_REMINDER_DEFAULT_BODY,          desc: '研修リマインダーメール本文' },
     { key: 'AUTH_OTP_SUBJECT',               value: AUTH_OTP_DEFAULT_SUBJECT,                desc: '公開ポータルOTPメール件名' },
     { key: 'AUTH_OTP_BODY',                  value: AUTH_OTP_DEFAULT_BODY,                   desc: '公開ポータルOTPメール本文' },
+    { key: 'LOGIN_ID_CHANGED_SUBJECT',       value: LOGIN_ID_CHANGED_DEFAULT_SUBJECT,       desc: 'ログインID変更のお知らせ件名' },
+    { key: 'LOGIN_ID_CHANGED_BODY',          value: LOGIN_ID_CHANGED_DEFAULT_BODY,          desc: 'ログインID変更のお知らせ本文' },
+    { key: 'CONTACT_EMAIL_CHANGED_SUBJECT',  value: CONTACT_EMAIL_CHANGED_DEFAULT_SUBJECT,  desc: 'メールアドレス変更のお知らせ件名' },
+    { key: 'CONTACT_EMAIL_CHANGED_BODY',     value: CONTACT_EMAIL_CHANGED_DEFAULT_BODY,     desc: 'メールアドレス変更のお知らせ本文' },
     { key: 'MEMBER_UPDATE_CONFIRM_SUBJECT',  value: MEMBER_UPDATE_CONFIRM_DEFAULT_SUBJECT,   desc: '会員情報変更確認メール件名' },
     { key: 'MEMBER_UPDATE_CONFIRM_BODY',     value: MEMBER_UPDATE_CONFIRM_DEFAULT_BODY,      desc: '会員情報変更確認メール本文' },
     { key: 'WITHDRAWAL_CONFIRM_SUBJECT',     value: WITHDRAWAL_CONFIRM_DEFAULT_SUBJECT,      desc: '退会申請受付確認メール件名' },
@@ -12399,6 +12465,8 @@ function ensureSystemSettingsRows_(ss) {
     { key: 'TRAINING_REMINDER_ENABLED',   value: 'true', desc: '研修リマインダーメール送信ON/OFF' },
     { key: 'BULK_MAIL_ENABLED',           value: 'true', desc: '一括メール送信ON/OFF' },
     { key: 'AUTH_OTP_ENABLED',            value: 'true', desc: '公開ポータル OTP メール送信ON/OFF' },
+    { key: 'LOGIN_ID_CHANGED_ENABLED', value: 'true', desc: 'ログインID変更のお知らせ送信ON/OFF' },
+    { key: 'CONTACT_EMAIL_CHANGED_ENABLED', value: 'true', desc: 'メールアドレス変更のお知らせ送信ON/OFF' },
     { key: 'MEMBER_UPDATE_CONFIRM_ENABLED', value: 'true', desc: '会員情報変更確認メール送信ON/OFF' },
     { key: 'WITHDRAWAL_CONFIRM_ENABLED',  value: 'true', desc: '退会申請受付確認メール送信ON/OFF' },
     { key: 'PASSWORD_RESET_ENABLED',      value: 'true', desc: 'パスワード再設定確認コードメール送信ON/OFF' },
@@ -13095,6 +13163,10 @@ function approveAdminChangeRequest_(payload) {
   var memberType = String(row[cols['会員種別コード']] || '');
   var requestType = String(row[cols['申請種別コード']] || '');
   var contactEmail = String(row[cols['連絡先メールアドレス']] || '');
+  // v376.99: ログインIDが実際に変わったときだけ、変わった後に本人へ知らせる。
+  // 分岐の内側で宣言すると、その分岐を通らない申請種別で未定義参照になりうるため関数先頭で持つ。
+  // 事業所職員の CM 番号変更ではログインIDを書き換えていないので、ここには入らない。
+  var loginIdChange = null;
   var applicantName = String(row[cols['申請者表示名']] || '');
   var changeData = {};
   try { changeData = JSON.parse(String(row[cols['申請内容JSON']] || '{}')); } catch(e) {}
@@ -13133,9 +13205,11 @@ function approveAdminChangeRequest_(payload) {
           if (authFound) {
             var authRow = authFound.row;
             var authCols = authFound.columns;
+            var prevLoginId = String(authRow[authCols['ログインID']] || '');
             authRow[authCols['ログインID']] = fields.careManagerNumber;
             authRow[authCols['更新日時']] = now;
             authSheet.getRange(authFound.rowNumber, 1, 1, authRow.length).setValues([authRow]);
+            loginIdChange = { before: prevLoginId, after: String(fields.careManagerNumber) };
           }
         }
       }
@@ -13148,9 +13222,11 @@ function approveAdminChangeRequest_(payload) {
         if (bizAuthFound) {
           var bizAuthRow = bizAuthFound.row;
           var bizAuthCols = bizAuthFound.columns;
+          var prevBizLoginId = String(bizAuthRow[bizAuthCols['ログインID']] || '');
           bizAuthRow[bizAuthCols['ログインID']] = fields.officeNumber;
           bizAuthRow[bizAuthCols['更新日時']] = now;
           bizAuthSheet.getRange(bizAuthFound.rowNumber, 1, 1, bizAuthRow.length).setValues([bizAuthRow]);
+          loginIdChange = { before: prevBizLoginId, after: String(fields.officeNumber) };
         }
       }
     }
@@ -13234,36 +13310,25 @@ function approveAdminChangeRequest_(payload) {
       }
       approvalResult.staffUpdateCount = staffUpdates.length;
       approvalResult.staffEmailNotifications = staffEmailNotifications.length;
-      // 通知メール送信（メール変更時のみ・旧アドレス + 新アドレス両方）
+      // 通知メール送信（メール変更時のみ・旧アドレス + 新アドレス両方）。
+      // v376.99: 以前はここに件名・本文を直書きしていたため管理画面から直せなかった。
+      // 他のメールと同じく設定の文面を描画して送る。
       staffEmailNotifications.forEach(function(n) {
-        var subject = '【枚方市介護支援専門員連絡協議会】登録メールアドレス変更のお知らせ';
-        var bodyOld = [
-          n.staffName + ' 様',
-          '',
-          'ご登録のメールアドレスが変更されました。',
-          '',
-          '旧アドレス: ' + n.oldEmail,
-          '新アドレス: ' + n.newEmail,
-          '',
-          '今後のご連絡は新アドレス宛てに送信されます。',
-          'お心当たりがない場合は、お早めに事務局までご連絡ください。',
-          '',
-          '枚方市介護支援専門員連絡協議会',
-        ].join('\n');
-        var bodyNew = [
-          n.staffName + ' 様',
-          '',
-          'こちらのメールアドレスが連絡先として新たに登録されました。',
-          '',
-          '旧アドレス: ' + n.oldEmail,
-          '新アドレス: ' + n.newEmail,
-          '',
-          'お心当たりがない場合は事務局までご連絡ください。',
-          '',
-          '枚方市介護支援専門員連絡協議会',
-        ].join('\n');
-        try { if (n.oldEmail) deliverMail_('MEMBER_UPDATE_CONFIRM', n.oldEmail, subject, bodyOld); } catch (e1) { Logger.log('staffUpdate notify old failed: ' + e1.message); }
-        try { if (n.newEmail) deliverMail_('MEMBER_UPDATE_CONFIRM', n.newEmail, subject, bodyNew); } catch (e2) { Logger.log('staffUpdate notify new failed: ' + e2.message); }
+        [{ to: n.oldEmail, kind: '旧アドレス' }, { to: n.newEmail, kind: '新アドレス' }].forEach(function(t) {
+          if (!t.to) return;
+          try {
+            var mail = renderConfiguredMail_(ss, 'CONTACT_EMAIL_CHANGED_SUBJECT', 'CONTACT_EMAIL_CHANGED_BODY',
+              CONTACT_EMAIL_CHANGED_DEFAULT_SUBJECT, CONTACT_EMAIL_CHANGED_DEFAULT_BODY, {
+                '氏名': n.staffName,
+                '旧メールアドレス': n.oldEmail,
+                '新メールアドレス': n.newEmail,
+                '宛先区分': t.kind,
+              });
+            deliverMail_('CONTACT_EMAIL_CHANGED', t.to, mail.subject, mail.body);
+          } catch (eNotify) {
+            Logger.log('staffUpdate notify failed (' + t.kind + '): ' + eNotify.message);
+          }
+        });
       });
     }
 
@@ -13380,6 +13445,52 @@ function approveAdminChangeRequest_(payload) {
 
   clearAllDataCache_();
   clearAdminDashboardCache_();
+
+  // v376.99: 退会の確認メール。設定キーはあるのに送信箇所が無く、管理画面で文面を
+  // 編集しても届かない状態だった（空回りのカード）。退会予定日は承認時にしか
+  // 確定しないため、受付時ではなくここで送る。
+  if (requestType === 'WITHDRAWAL' && contactEmail) {
+    try {
+      var wdMail = renderConfiguredMail_(ss, 'WITHDRAWAL_CONFIRM_SUBJECT', 'WITHDRAWAL_CONFIRM_BODY',
+        WITHDRAWAL_CONFIRM_DEFAULT_SUBJECT, WITHDRAWAL_CONFIRM_DEFAULT_BODY, {
+          '会員名': applicantName,
+          '退会予定日': String((approvalResult && approvalResult.withdrawnDate) || ''),
+          '退会方式': (approvalResult && approvalResult.withdrawalMethod) === 'IMMEDIATE' ? '即時退会' : '年度末退会',
+        });
+      deliverMail_('WITHDRAWAL_CONFIRM', contactEmail, wdMail.subject, wdMail.body);
+    } catch (eWd) {
+      Logger.log('withdrawalConfirm mail failed: ' + eWd.message);
+    }
+  }
+
+  // v376.99: 会員情報変更の確認メール。設定キーはあるのに送信箇所が無く、
+  // 管理画面で文面を編集しても届かない状態だった（空回りのカード）。承認時に送る。
+  if (requestType === 'MEMBER_UPDATE' && contactEmail) {
+    try {
+      var updMail = renderConfiguredMail_(ss, 'MEMBER_UPDATE_CONFIRM_SUBJECT', 'MEMBER_UPDATE_CONFIRM_BODY',
+        MEMBER_UPDATE_CONFIRM_DEFAULT_SUBJECT, MEMBER_UPDATE_CONFIRM_DEFAULT_BODY, {
+          '氏名': applicantName,
+        });
+      deliverMail_('MEMBER_UPDATE_CONFIRM', contactEmail, updMail.subject, updMail.body);
+    } catch (eUpdMail) {
+      Logger.log('memberUpdateConfirm mail failed: ' + eUpdMail.message);
+    }
+  }
+
+  // v376.99: ログインIDが実際に変わったときだけ知らせる。
+  if (loginIdChange && loginIdChange.after && loginIdChange.after !== loginIdChange.before && contactEmail) {
+    try {
+      var lidMail = renderConfiguredMail_(ss, 'LOGIN_ID_CHANGED_SUBJECT', 'LOGIN_ID_CHANGED_BODY',
+        LOGIN_ID_CHANGED_DEFAULT_SUBJECT, LOGIN_ID_CHANGED_DEFAULT_BODY, {
+          '氏名': applicantName,
+          '旧ログインID': loginIdChange.before,
+          '新ログインID': loginIdChange.after,
+        });
+      deliverMail_('LOGIN_ID_CHANGED', contactEmail, lidMail.subject, lidMail.body);
+    } catch (eLid) {
+      Logger.log('loginIdChanged mail failed: ' + eLid.message);
+    }
+  }
 
   // v368: 申請者への承認通知メール（テンプレ化・変更内容サマリー差込）
   sendApprovalNotificationMail_(ss, {
@@ -13829,6 +13940,8 @@ function isAutomatedMailCategory_(category) {
     TRAINING_APPLY_RECEIPT: true,
     TRAINING_REMINDER: true,
     AUTH_OTP: true,
+    LOGIN_ID_CHANGED: true,
+    CONTACT_EMAIL_CHANGED: true,
     MEMBER_UPDATE_CONFIRM: true,
     WITHDRAWAL_CONFIRM: true,
     PASSWORD_RESET: true,

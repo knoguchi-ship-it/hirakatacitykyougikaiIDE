@@ -700,6 +700,8 @@ const App: React.FC = () => {
   const [memberUpdateConfirmEnabledInput, setMemberUpdateConfirmEnabledInput] = useState(true);
   const [withdrawalConfirmEnabledInput, setWithdrawalConfirmEnabledInput] = useState(true);
   const [passwordResetEnabledInput, setPasswordResetEnabledInput] = useState(true);
+  const [loginIdChangedEnabledInput, setLoginIdChangedEnabledInput] = useState(true);
+  const [contactEmailChangedEnabledInput, setContactEmailChangedEnabledInput] = useState(true);
   // v376.43 (Phase B): 従来ハードコード6メールの件名/本文（差し込みタグ対応）。既定件名はサーバ既定と一致。
   const TRAINING_APPLY_RECEIPT_SUBJECT_DEFAULT = '【研修申込確認】{{研修名}}';
   const TRAINING_REMINDER_SUBJECT_DEFAULT = '【研修リマインド】{{研修名}}';
@@ -707,6 +709,8 @@ const App: React.FC = () => {
   const MEMBER_UPDATE_CONFIRM_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】会員登録情報変更のご確認';
   const WITHDRAWAL_CONFIRM_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】退会申請受付のご確認';
   const PASSWORD_RESET_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】パスワード再設定手続き';
+  const LOGIN_ID_CHANGED_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】ログインIDの変更のお知らせ';
+  const CONTACT_EMAIL_CHANGED_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】登録メールアドレス変更のお知らせ';
   const [trainingApplyReceiptSubjectInput, setTrainingApplyReceiptSubjectInput] = useState(TRAINING_APPLY_RECEIPT_SUBJECT_DEFAULT);
   const [trainingApplyReceiptBodyInput, setTrainingApplyReceiptBodyInput] = useState('');
   const [trainingReminderSubjectInput, setTrainingReminderSubjectInput] = useState(TRAINING_REMINDER_SUBJECT_DEFAULT);
@@ -719,6 +723,10 @@ const App: React.FC = () => {
   const [withdrawalConfirmBodyInput, setWithdrawalConfirmBodyInput] = useState('');
   const [passwordResetSubjectInput, setPasswordResetSubjectInput] = useState(PASSWORD_RESET_SUBJECT_DEFAULT);
   const [passwordResetBodyInput, setPasswordResetBodyInput] = useState('');
+  const [loginIdChangedSubjectInput, setLoginIdChangedSubjectInput] = useState(LOGIN_ID_CHANGED_SUBJECT_DEFAULT);
+  const [loginIdChangedBodyInput, setLoginIdChangedBodyInput] = useState('');
+  const [contactEmailChangedSubjectInput, setContactEmailChangedSubjectInput] = useState(CONTACT_EMAIL_CHANGED_SUBJECT_DEFAULT);
+  const [contactEmailChangedBodyInput, setContactEmailChangedBodyInput] = useState('');
   const [bizStaffEmailEnabledInput, setBizStaffEmailEnabledInput] = useState(true);
   const [bizStaffEmailSubjectInput, setBizStaffEmailSubjectInput] = useState(BIZ_STAFF_SUBJECT_DEFAULT);
   const [bizStaffEmailBodyInput, setBizStaffEmailBodyInput] = useState('');
@@ -878,6 +886,10 @@ const App: React.FC = () => {
     setWithdrawalConfirmBodyInput(systemSettings.withdrawalConfirmBody ?? '');
     setPasswordResetSubjectInput(systemSettings.passwordResetSubject ?? PASSWORD_RESET_SUBJECT_DEFAULT);
     setPasswordResetBodyInput(systemSettings.passwordResetBody ?? '');
+    setLoginIdChangedSubjectInput(systemSettings.loginIdChangedSubject ?? LOGIN_ID_CHANGED_SUBJECT_DEFAULT);
+    setLoginIdChangedBodyInput(systemSettings.loginIdChangedBody ?? '');
+    setContactEmailChangedSubjectInput(systemSettings.contactEmailChangedSubject ?? CONTACT_EMAIL_CHANGED_SUBJECT_DEFAULT);
+    setContactEmailChangedBodyInput(systemSettings.contactEmailChangedBody ?? '');
     setBizStaffEmailEnabledInput(systemSettings.bizStaffEmailEnabled ?? true);
     setBizStaffEmailSubjectInput(systemSettings.bizStaffEmailSubject ?? BIZ_STAFF_SUBJECT_DEFAULT);
     setBizStaffEmailBodyInput(systemSettings.bizStaffEmailBody ?? '');
@@ -896,6 +908,8 @@ const App: React.FC = () => {
     setMemberUpdateConfirmEnabledInput(systemSettings.memberUpdateConfirmEnabled ?? true);
     setWithdrawalConfirmEnabledInput(systemSettings.withdrawalConfirmEnabled ?? true);
     setPasswordResetEnabledInput(systemSettings.passwordResetEnabled ?? true);
+    setLoginIdChangedEnabledInput(systemSettings.loginIdChangedEnabled ?? true);
+    setContactEmailChangedEnabledInput(systemSettings.contactEmailChangedEnabled ?? true);
     setSettingsIsDirty(false);
     setSystemSettingsLoaded(true);
   };
@@ -4712,8 +4726,8 @@ const App: React.FC = () => {
                       STAFF: [[staffAddStaffEmailEnabledInput, staffAddRepEmailEnabledInput].filter(Boolean).length, 2],
                       WORKFLOW: [[applicationReceiptEnabledInput, approvalNotificationEnabledInput, rejectionNotificationEnabledInput].filter(Boolean).length, 3],
                       TRAINING: [[trainingApplyReceiptEnabledInput, trainingReminderEnabledInput].filter(Boolean).length, 2],
-                      MEMBER_PROCEDURE: [[memberUpdateConfirmEnabledInput, withdrawalConfirmEnabledInput].filter(Boolean).length, 2],
-                      SECURITY: [[authOtpEnabledInput, passwordResetEnabledInput].filter(Boolean).length, 2],
+                      MEMBER_PROCEDURE: [[memberUpdateConfirmEnabledInput, withdrawalConfirmEnabledInput, contactEmailChangedEnabledInput].filter(Boolean).length, 3],
+                      SECURITY: [[authOtpEnabledInput, passwordResetEnabledInput, loginIdChangedEnabledInput].filter(Boolean).length, 3],
                     }}
                   />
                 </div>
@@ -4944,7 +4958,7 @@ const App: React.FC = () => {
                 {/* ─── 認証・セキュリティのメール ─── */}
                 {emailCategoryTab === 'SECURITY' && (
                 <div className="space-y-3">
-                  <MailGroupHeader category="SECURITY" title="認証・セキュリティのメール" count={2} />
+                  <MailGroupHeader category="SECURITY" title="認証・セキュリティのメール" count={3} />
                   <p className="text-xs text-slate-500"><strong>本人確認コード・パスワード再設定コードは、本文から該当タグを消しても安全装置により既定の文面で必ず送信されます。</strong></p>
 
                   <EmailCard category="SECURITY" templateCategory="AUTH_OTP" badge="公開ポータルOTP" title="公開ポータル 本人確認コード（OTP）メール"
@@ -4974,13 +4988,27 @@ const App: React.FC = () => {
                         subject={passwordResetSubjectInput} body={passwordResetBodyInput}
                         onLoad={(s, b) => { setPasswordResetSubjectInput(s); setPasswordResetBodyInput(b); setSettingsIsDirty(true); }} />
                     } />
+
+                  <EmailCard category="SECURITY" templateCategory="LOGIN_ID_CHANGED" badge="ログインID変更" title="ログインID変更のお知らせ（本人へ）"
+                    enabled={loginIdChangedEnabledInput}
+                    onToggle={() => { setLoginIdChangedEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    subject={loginIdChangedSubjectInput}
+                    onSubjectChange={v => { setLoginIdChangedSubjectInput(v); setSettingsIsDirty(true); }}
+                    defaultSubject={LOGIN_ID_CHANGED_SUBJECT_DEFAULT}
+                    body={loginIdChangedBodyInput}
+                    onBodyChange={v => { setLoginIdChangedBodyInput(v); setSettingsIsDirty(true); }}
+                    extra={
+                      <MailTemplateManager api={api} category="LOGIN_ID_CHANGED"
+                        subject={loginIdChangedSubjectInput} body={loginIdChangedBodyInput}
+                        onLoad={(s, b) => { setLoginIdChangedSubjectInput(s); setLoginIdChangedBodyInput(b); setSettingsIsDirty(true); }} />
+                    } />
                 </div>
                 )}
 
                 {/* ─── 会員手続きの確認メール ─── */}
                 {emailCategoryTab === 'MEMBER_PROCEDURE' && (
                 <div className="space-y-3">
-                  <MailGroupHeader category="MEMBER_PROCEDURE" title="会員手続きの確認メール" count={2} />
+                  <MailGroupHeader category="MEMBER_PROCEDURE" title="会員手続きの確認メール" count={3} />
 
                   <EmailCard category="MEMBER_PROCEDURE" templateCategory="MEMBER_UPDATE_CONFIRM" badge="会員情報変更確認" title="会員情報変更確認メール（個人会員の自己変更時）"
                     enabled={memberUpdateConfirmEnabledInput}
@@ -5008,6 +5036,20 @@ const App: React.FC = () => {
                       <MailTemplateManager api={api} category="WITHDRAWAL_CONFIRM"
                         subject={withdrawalConfirmSubjectInput} body={withdrawalConfirmBodyInput}
                         onLoad={(s, b) => { setWithdrawalConfirmSubjectInput(s); setWithdrawalConfirmBodyInput(b); setSettingsIsDirty(true); }} />
+                    } />
+
+                  <EmailCard category="MEMBER_PROCEDURE" templateCategory="CONTACT_EMAIL_CHANGED" badge="メールアドレス変更" title="メールアドレス変更のお知らせ（旧・新の両方へ）"
+                    enabled={contactEmailChangedEnabledInput}
+                    onToggle={() => { setContactEmailChangedEnabledInput(v => !v); setSettingsIsDirty(true); }}
+                    subject={contactEmailChangedSubjectInput}
+                    onSubjectChange={v => { setContactEmailChangedSubjectInput(v); setSettingsIsDirty(true); }}
+                    defaultSubject={CONTACT_EMAIL_CHANGED_SUBJECT_DEFAULT}
+                    body={contactEmailChangedBodyInput}
+                    onBodyChange={v => { setContactEmailChangedBodyInput(v); setSettingsIsDirty(true); }}
+                    extra={
+                      <MailTemplateManager api={api} category="CONTACT_EMAIL_CHANGED"
+                        subject={contactEmailChangedSubjectInput} body={contactEmailChangedBodyInput}
+                        onLoad={(s, b) => { setContactEmailChangedSubjectInput(s); setContactEmailChangedBodyInput(b); setSettingsIsDirty(true); }} />
                     } />
 
                 </div>
@@ -5732,6 +5774,10 @@ const App: React.FC = () => {
                         withdrawalConfirmBody: withdrawalConfirmBodyInput,
                         passwordResetSubject: passwordResetSubjectInput,
                         passwordResetBody: passwordResetBodyInput,
+                        loginIdChangedSubject: loginIdChangedSubjectInput,
+                        loginIdChangedBody: loginIdChangedBodyInput,
+                        contactEmailChangedSubject: contactEmailChangedSubjectInput,
+                        contactEmailChangedBody: contactEmailChangedBodyInput,
                         mailDeliveryState: mailDeliveryStateInput,
                         mailRedirectAllowlist: mailRedirectAllowlistInput,
                         trainingApplyReceiptEnabled: trainingApplyReceiptEnabledInput,
@@ -5741,6 +5787,8 @@ const App: React.FC = () => {
                         memberUpdateConfirmEnabled: memberUpdateConfirmEnabledInput,
                         withdrawalConfirmEnabled: withdrawalConfirmEnabledInput,
                         passwordResetEnabled: passwordResetEnabledInput,
+                        loginIdChangedEnabled: loginIdChangedEnabledInput,
+                        contactEmailChangedEnabled: contactEmailChangedEnabledInput,
                       });
                       setDefaultBusinessStaffLimit(saved.defaultBusinessStaffLimit);
                       setGlobalLimitInput(String(saved.defaultBusinessStaffLimit));
@@ -5818,6 +5866,8 @@ const App: React.FC = () => {
                       setMemberUpdateConfirmEnabledInput(saved.memberUpdateConfirmEnabled ?? true);
                       setWithdrawalConfirmEnabledInput(saved.withdrawalConfirmEnabled ?? true);
                       setPasswordResetEnabledInput(saved.passwordResetEnabled ?? true);
+                      setLoginIdChangedEnabledInput(saved.loginIdChangedEnabled ?? true);
+                      setContactEmailChangedEnabledInput(saved.contactEmailChangedEnabled ?? true);
                       // v376.86: 規程の変更（追加・編集・削除・並べ替え）も同じ保存でまとめて送る。
                       // GAS は 1 往復 1.8〜5 秒かかるため、件数によらず 1 回にまとめる。
                       if (regulationsHasChanges) {

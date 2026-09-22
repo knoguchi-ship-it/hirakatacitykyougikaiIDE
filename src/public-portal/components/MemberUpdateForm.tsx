@@ -452,14 +452,14 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
     { key: 'officeContact' as FieldGroup, label: '勤務先電話番号・FAX番号', desc: '' },
     { key: 'officeAddress' as FieldGroup, label: '勤務先住所', desc: '〒・都道府県・市区町村・番地・建物名' },
     { key: 'homeAddress' as FieldGroup, label: '自宅住所', desc: '〒・都道府県・市区町村・番地・建物名' },
-    { key: 'careManagerNumber' as FieldGroup, label: '介護支援専門員番号', desc: '⚠ 変更するとログインIDも変わります', warn: true },
+    { key: 'careManagerNumber' as FieldGroup, label: '介護支援専門員番号', desc: '' },
     { key: 'mailingPreference' as FieldGroup, label: '通知方法', desc: 'メール通知 / 郵送通知の切り替え' },
     { key: 'preferredMailDestination' as FieldGroup, label: '郵送先区分', desc: '勤務先宛 / 自宅宛の切り替え' },
   ];
   const BUSINESS_GROUPS = [
     { key: 'officeBasic' as FieldGroup, label: '事業所基本情報', desc: '名称・メール・電話・FAX' },
     { key: 'bizAddress' as FieldGroup, label: '事業所住所', desc: '〒・都道府県・市区町村・番地・建物名' },
-    { key: 'officeNumber' as FieldGroup, label: '事業所番号', desc: '⚠ 変更するとログインIDも変わります', warn: true },
+    { key: 'officeNumber' as FieldGroup, label: '事業所番号', desc: '' },
     { key: 'staffAdd' as FieldGroup, label: '職員を追加する', desc: '追加可能な枠数分のカードを表示します' },
     { key: 'staffRemove' as FieldGroup, label: '職員を除籍する', desc: '氏・名・介護支援専門員番号で照合します' },
     { key: 'staffUpdate' as FieldGroup, label: '職員情報を変更する', desc: '在籍中の職員の氏名・メール・CM番号を変更します（10桁特殊CM番号は管理者にご連絡ください）' },
