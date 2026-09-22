@@ -120,11 +120,11 @@
 
 | 文書 | 内容 |
 |---|---|
+| [286_RELEASE_STATE_v376.100_2026-09-22.md](286_RELEASE_STATE_v376.100_2026-09-22.md) | **v376.100 職員のCM番号変更でログインIDを同期** |
 | [285_RELEASE_STATE_v376.99_2026-09-22.md](285_RELEASE_STATE_v376.99_2026-09-22.md) | **v376.99 ログインID・メールアドレス変更通知を設定化** |
 | [284_RELEASE_STATE_v376.98_2026-09-22.md](284_RELEASE_STATE_v376.98_2026-09-22.md) | **v376.98 差し込みタグをボタンで挿入（§6 に v376.98.1 の追補）** |
-| [283_RELEASE_STATE_v376.97_2026-09-22.md](283_RELEASE_STATE_v376.97_2026-09-22.md) | **v376.97 メール通知を系統選択式にする** |
 
-> **これ以前のリリース記録は [`archive/release_history/`](archive/00_ARCHIVE_INDEX.md) に移した**（168 件）。
+> **これ以前のリリース記録は [`archive/release_history/`](archive/00_ARCHIVE_INDEX.md) に移した**（169 件）。
 > 「いつ何が入ったか」は release-notes-2026.md を見れば足りる。個別の詳細が要るときだけアーカイブを開く。
 
 ---

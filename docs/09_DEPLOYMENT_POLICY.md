@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-09-22
-Production: `v376.99` / integrated-public `@410` x2 / member split `@168` / admin split `@265`
+Production: `v376.100` / integrated-public `@411` x2 / member split `@169` / admin split `@266`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -19,15 +19,15 @@ Production: `v376.99` / integrated-public `@410` x2 / member split `@168` / admi
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@410` (`v376.99`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@410` (`v376.99`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@411` (`v376.100`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@411` (`v376.100`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@168` (`v376.99`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@265` (`v376.99`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@169` (`v376.100`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@266` (`v376.100`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -151,7 +151,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-09-22 v376.99 ← current production
+### 2026-09-22 v376.100 ← current production
+
+- Scope: 事業所職員の介護支援専門員番号変更でログインIDを同期し、職員本人と申請者へ通知する。既存の不一致は触らない。
+- Fixed deployments: integrated/public @411 x2 / member @169 / admin @266.
+- Verification: prerelease PASS（exit 0）、test:staff-login-id-sync 6/6、GAS 構文チェック PASS、admin 生成物にのみ同期関数が含まれ public には漏れていないことを確認、deployment API で4本同期確認。実データ確認は未実施。詳細は `docs/286_RELEASE_STATE_v376.100_2026-09-22.md`。
+- Rollback: integrated/public @410 x2 / member @168 / admin @265（v376.99）。
+
+### 2026-09-22 v376.99
 
 - Scope: ログインID変更・メールアドレス変更の通知を設定化（固定文の解消）。設定キーはあるのに送信箇所が無かった会員情報変更確認・退会申請受付の 2 枚を配線。公開ポータルから「変更するとログインIDも変わります」を削除。
 - Fixed deployments: integrated/public @410 x2 / member @168 / admin @265.
