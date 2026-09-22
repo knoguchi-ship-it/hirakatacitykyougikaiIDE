@@ -11208,6 +11208,54 @@ function disableAuthAccountsByMemberId_(ss, memberId) {
 }
 
 // ── 職員IDに紐づく認証アカウントの有効フラグを false にする ──
+// v376.100: 職員の介護支援専門員番号を変えたときにログインIDを追従させる。
+// 個人会員（CM番号）・事業所会員（事業所番号）は以前からログインIDを書き換えており、
+// 職員だけが追従していなかった（v376.99 の調査で判明）。
+//
+// 既存の不一致は直さない。ここは「これから変えたとき」にだけ効く。
+// 一括で書き換えると、現に使われているログインIDを奪うことになるため。
+//
+// 戻り値: { changed: bool, before: string, after: string, staffEmail: string }
+function syncStaffLoginIdToCmNumber_(ss, staffId, newCmNumber) {
+  var result = { changed: false, before: '', after: '', staffEmail: '' };
+  var cm = String(newCmNumber || '').trim();
+  if (!cm) return result;
+  var authSheet = ss.getSheetByName('T_認証アカウント');
+  if (!authSheet || authSheet.getLastRow() < 2) return result;
+  var headers = authSheet.getRange(1, 1, 1, authSheet.getLastColumn()).getValues()[0];
+  var cols = {};
+  for (var i = 0; i < headers.length; i++) cols[headers[i]] = i;
+  if (cols['職員ID'] == null || cols['ログインID'] == null) return result;
+
+  var data = authSheet.getRange(2, 1, authSheet.getLastRow() - 1, authSheet.getLastColumn()).getValues();
+
+  // 既存ログインIDを集めて重複を避ける。退会者の行もログインIDを保持したまま残るため、
+  // 素朴に CM 番号をそのまま入れると衝突しうる（v376.73 で実際に起きた事故）。
+  var existing = [];
+  for (var e = 0; e < data.length; e++) {
+    var lid = String(data[e][cols['ログインID']] || '');
+    if (lid) existing.push(lid);
+  }
+
+  for (var r = 0; r < data.length; r++) {
+    if (String(data[r][cols['職員ID']] || '') !== String(staffId)) continue;
+    if (cols['削除フラグ'] != null && toBoolean_(data[r][cols['削除フラグ']])) continue;
+    var before = String(data[r][cols['ログインID']] || '');
+    // 自分自身は重複判定から外す
+    var others = existing.filter(function(v) { return v !== before; });
+    var after = generateCmBasedLoginId_(cm, others);
+    if (!after || after === before) return result;
+    data[r][cols['ログインID']] = after;
+    data[r][cols['更新日時']] = new Date().toISOString();
+    authSheet.getRange(r + 2, 1, 1, data[r].length).setValues([data[r]]);
+    result.changed = true;
+    result.before = before;
+    result.after = after;
+    return result;
+  }
+  return result;
+}
+
 function disableAuthAccountsByStaffId_(ss, staffId) {
   var authSheet = ss.getSheetByName('T_認証アカウント');
   if (!authSheet || authSheet.getLastRow() < 2) return;
@@ -17873,6 +17921,7 @@ function approveAdminChangeRequest_(payload) {
       var staffSheetU = ss.getSheetByName('T_事業所職員');
       var allStaffRowsU = getRowsAsObjects_(ss, 'T_事業所職員');
       var staffEmailNotifications = []; // [{staffId, oldEmail, newEmail, staffName}]
+      var staffLoginIdNotifications = []; // [{staffName, before, after, staffEmail}]
       for (var su = 0; su < staffUpdates.length; su++) {
         var upd = staffUpdates[su];
         // 対象職員の所属確認（セキュリティ: 申請の memberId と職員の所属 memberId が一致）
@@ -17905,6 +17954,27 @@ function approveAdminChangeRequest_(payload) {
           if (Object.prototype.hasOwnProperty.call(upd, 'email')) staffPayload.email = upd.email;
           if (Object.prototype.hasOwnProperty.call(upd, 'careManagerNumber')) staffPayload.careManagerNumber = upd.careManagerNumber;
           updateStaff_(staffPayload);
+          // v376.100: 介護支援専門員番号が変わったらログインIDも追従させる。
+          // 変えた本人がログインできる状態を保つため、updateStaff_ の直後に行う。
+          if (Object.prototype.hasOwnProperty.call(upd, 'careManagerNumber')
+              && String(upd.careManagerNumber || '').trim()
+              && String(upd.careManagerNumber).trim() !== currentCm) {
+            try {
+              var sync = syncStaffLoginIdToCmNumber_(ss, String(upd.staffId), String(upd.careManagerNumber).trim());
+              if (sync.changed) {
+                staffLoginIdNotifications.push({
+                  staffName: String(target['氏名'] || '').trim() || (String(target['姓'] || '') + ' ' + String(target['名'] || '')).trim(),
+                  before: sync.before,
+                  after: sync.after,
+                  // メール変更も同時に申請されていれば新アドレスへ送る
+                  staffEmail: (Object.prototype.hasOwnProperty.call(upd, 'email') && upd.email) ? String(upd.email) : oldEmail,
+                });
+              }
+            } catch (eSync) {
+              Logger.log('syncStaffLoginId failed for staffId=' + upd.staffId + ': ' + eSync.message);
+              chatAnomalies.push('職員のログインIDを更新できませんでした。管理画面で確認してください。');
+            }
+          }
           // メール変更があれば旧・新両方に通知メール（H 採用）
           if (Object.prototype.hasOwnProperty.call(upd, 'email') && upd.email && upd.email !== oldEmail) {
             staffEmailNotifications.push({
@@ -17919,6 +17989,28 @@ function approveAdminChangeRequest_(payload) {
           chatAnomalies.push('職員情報の一部を適用できませんでした。管理画面で申請内容を確認してください。');
         }
       }
+      // v376.100: ログインIDが変わった職員へ、設定の文面で知らせる。
+      // 宛先は本人と代表者（＝申請者）の両方。本人は実際にログインする側、
+      // 代表者は申請した側として結果を知る必要がある。
+      staffLoginIdNotifications.forEach(function(n) {
+        var targets = [];
+        if (n.staffEmail) targets.push(n.staffEmail);
+        if (contactEmail && contactEmail !== n.staffEmail) targets.push(contactEmail);
+        targets.forEach(function(to) {
+          try {
+            var m = renderConfiguredMail_(ss, 'LOGIN_ID_CHANGED_SUBJECT', 'LOGIN_ID_CHANGED_BODY',
+              LOGIN_ID_CHANGED_DEFAULT_SUBJECT, LOGIN_ID_CHANGED_DEFAULT_BODY, {
+                '氏名': n.staffName,
+                '旧ログインID': n.before,
+                '新ログインID': n.after,
+              });
+            deliverMail_('LOGIN_ID_CHANGED', to, m.subject, m.body);
+          } catch (eLidStaff) {
+            Logger.log('staff loginIdChanged mail failed: ' + eLidStaff.message);
+          }
+        });
+      });
+      approvalResult.staffLoginIdChanges = staffLoginIdNotifications.length;
       approvalResult.staffUpdateCount = staffUpdates.length;
       approvalResult.staffEmailNotifications = staffEmailNotifications.length;
       // 通知メール送信（メール変更時のみ・旧アドレス + 新アドレス両方）。
