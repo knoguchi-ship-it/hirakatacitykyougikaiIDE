@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-09-18
-Production: `v376.96` / integrated-public `@406` x2 / member split `@164` / admin split `@261`
+Updated: 2026-09-22
+Production: `v376.97` / integrated-public `@407` x2 / member split `@165` / admin split `@262`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -19,15 +19,15 @@ Production: `v376.96` / integrated-public `@406` x2 / member split `@164` / admi
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@406` (`v376.96`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@406` (`v376.96`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@407` (`v376.97`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@407` (`v376.97`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@164` (`v376.96`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@261` (`v376.96`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@165` (`v376.97`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@262` (`v376.97`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -151,7 +151,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-09-18 v376.96 ← current production
+### 2026-09-22 v376.97 ← current production
+
+- Scope: 管理画面「システム設定 ＞ メール通知」の「メール通知の内容」を系統選択式にした。6 系統のボタンを先頭に置き、選んだ系統のカードだけを表示する。「メール配信」は独立したまま。バックエンド・保存形式・送信挙動の変更なし。
+- Fixed deployments: integrated/public @407 x2 / member @165 / admin @262.
+- Verification: prerelease PASS（exit 0）、typecheck PASS、3 split 生成物を inflate して系統選択の文言と 6 色のリングを確認、deployment API で4本同期確認。本番の実画面確認・レスポンシブ検査はブラウザ認証再取得待ちで未実施。詳細は `docs/283_RELEASE_STATE_v376.97_2026-09-22.md`。
+- Rollback: integrated/public @406 x2 / member @164 / admin @261（v376.96）。
+
+### 2026-09-18 v376.96
 
 - Scope: 管理画面「システム設定 ＞ メール通知」の設定カードをカテゴリ別に色分け。色相＝カテゴリ、色の有無＝有効/無効、アイコン＝形による補強の 3 重符号化。「その他の自動通知メール」6 枚を 研修 / 認証・セキュリティ / 会員手続き の 3 グループへ分割。バックエンド・保存形式・送信挙動の変更なし。
 - Fixed deployments: integrated/public @406 x2 / member @164 / admin @261.

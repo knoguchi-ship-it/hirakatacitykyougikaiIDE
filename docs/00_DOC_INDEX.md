@@ -120,11 +120,11 @@
 
 | 文書 | 内容 |
 |---|---|
+| [283_RELEASE_STATE_v376.97_2026-09-22.md](283_RELEASE_STATE_v376.97_2026-09-22.md) | **v376.97 メール通知を系統選択式にする** |
 | [282_RELEASE_STATE_v376.96_2026-09-18.md](282_RELEASE_STATE_v376.96_2026-09-18.md) | **v376.96 メール通知設定のカテゴリ配色・グループ再編** |
 | [281_RELEASE_STATE_v376.95.1_2026-09-16.md](281_RELEASE_STATE_v376.95.1_2026-09-16.md) | **v376.95.1 通知設定の整理・Google Chat スレッド化・既存メール設定の互換修正** |
-| [280_RELEASE_STATE_v376.94_2026-09-15.md](280_RELEASE_STATE_v376.94_2026-09-15.md) | **v376.94 賛助会員の変更承認でCM番号検証を誤適用しない** |
 
-> **これ以前のリリース記録は [`archive/release_history/`](archive/00_ARCHIVE_INDEX.md) に移した**（165 件）。
+> **これ以前のリリース記録は [`archive/release_history/`](archive/00_ARCHIVE_INDEX.md) に移した**（166 件）。
 > 「いつ何が入ったか」は release-notes-2026.md を見れば足りる。個別の詳細が要るときだけアーカイブを開く。
 
 ---
