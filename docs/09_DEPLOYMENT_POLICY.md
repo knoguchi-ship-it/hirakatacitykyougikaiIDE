@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-09-22
-Production: `v376.97` / integrated-public `@407` x2 / member split `@165` / admin split `@262`
+Production: `v376.98` / integrated-public `@408` x2 / member split `@166` / admin split `@263`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -19,15 +19,15 @@ Production: `v376.97` / integrated-public `@407` x2 / member split `@165` / admi
 
 | Purpose | Deployment ID | Current version |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@407` (`v376.97`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@407` (`v376.97`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@408` (`v376.98`) |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@408` (`v376.98`) |
 
 ### Split projects
 
 | Purpose | Script ID | Deployment ID | Current version | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@165` (`v376.97`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@262` (`v376.97`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@166` (`v376.98`) | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@263` (`v376.98`) | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -151,7 +151,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-09-22 v376.97 ← current production
+### 2026-09-22 v376.98 ← current production
+
+- Scope: メール通知の差し込みを一覧表示からクリック挿入のボタンへ変更。あわせて表示タグと実際に使えるタグの不一致（事業所・メンバーのタグ未表示／職員追加・ワークフローで和集合を表示）を解消し、タグをカードのメール種別から引く形にした。バックエンド・タグカタログの変更なし。
+- Fixed deployments: integrated/public @408 x2 / member @166 / admin @263.
+- Verification: prerelease PASS（exit 0）、typecheck PASS、`test:mail-merge-tags` 9/9、3 split 生成物を inflate して旧表示が 0 件であることを確認、本番で実操作してカーソル位置への挿入を確認（保存なし）、管理レスポンシブ 7 viewport × 8 view PASS、deployment API で4本同期確認。詳細は `docs/284_RELEASE_STATE_v376.98_2026-09-22.md`。
+- Rollback: integrated/public @407 x2 / member @165 / admin @262（v376.97）。
+
+### 2026-09-22 v376.97
 
 - Scope: 管理画面「システム設定 ＞ メール通知」の「メール通知の内容」を系統選択式にした。6 系統のボタンを先頭に置き、選んだ系統のカードだけを表示する。「メール配信」は独立したまま。バックエンド・保存形式・送信挙動の変更なし。
 - Fixed deployments: integrated/public @407 x2 / member @165 / admin @262.
