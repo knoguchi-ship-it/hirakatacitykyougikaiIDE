@@ -66,6 +66,16 @@ try {
     console.log('PASS: 会員情報変更（本番マイページ経路・値は不変）');
   }
 
+  // 退会手続きは会員情報フォームの中にある。保存するとフォームが閉じて概要へ戻るため、
+  // 続けて退会を操作するには開き直す必要がある（開いていなければボタンは DOM に無い）。
+  if (await frame.getByRole('button', { name: '退会を申請する', exact: true }).count() === 0) {
+    await frame.getByRole('button', { name: /会員情報を確認・変更/ }).click();
+    await waitUntil(
+      () => frame.getByRole('button', { name: '退会を申請する', exact: true }).count().then(Boolean),
+      '会員情報フォームの再表示',
+    );
+  }
+
   // 年度末退会を申請した直後に取消す。取消しを finally にも置き、検証会員を退会予定のまま残さない。
   await frame.getByRole('button', { name: '退会を申請する', exact: true }).first().click();
   const withdrawalPassword = frame.locator('input[placeholder="現在のパスワード"]').first();
