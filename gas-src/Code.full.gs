@@ -351,7 +351,7 @@ var PUBLIC_PORTAL_DEFAULTS = {
   memberUpdateTitleEnabled: true,
   memberUpdateTitle: '会員登録情報を変更する',
   memberUpdateDescriptionEnabled: true,
-  memberUpdateDescription: '住所・電話番号・メールアドレスなど、ご登録情報の変更を申し込めます。介護支援専門員番号でご本人確認を行います。',
+  memberUpdateDescription: '住所・電話番号・メールアドレスなど、ご登録情報の変更を申し込めます。会員種別ごとに、氏名または事業所名と、番号または電話番号でご本人確認を行います。',
   memberUpdateCtaLabel: '変更手続きへ進む',
   withdrawalMenuEnabled: true,
   withdrawalBadgeEnabled: true,
@@ -359,7 +359,7 @@ var PUBLIC_PORTAL_DEFAULTS = {
   withdrawalTitleEnabled: true,
   withdrawalTitle: '退会を申し込む',
   withdrawalDescriptionEnabled: true,
-  withdrawalDescription: '退会申請を行います。年度末退会または即時退会を選択できます。介護支援専門員番号でご本人確認を行います。',
+  withdrawalDescription: '退会申請を行います。年度末退会または即時退会を選択できます。会員種別ごとに、氏名または事業所名と、番号または電話番号でご本人確認を行います。',
   withdrawalCtaLabel: '退会手続きへ進む',
 };
 
@@ -18588,6 +18588,34 @@ function stripUnresolvedMergeTags_(text, category, part) {
   return stripped;
 }
 
+// v376.102: メール送信の失敗を Chat の「要確認」へ流す。
+// 宛先・件名・本文は載せない。Chat は外部送信先であり、載せると会員の連絡先が外へ出る。
+// 載せるのは「どの種別が」「どの送信経路で」「どんなエラーで」落ちたかだけ。
+// 通知自体の失敗で業務処理を止めないため、全体を try で包む。
+function notifyMailFailureToChat_(category, options, error) {
+  try {
+    var ss = getOrCreateDatabase_();
+    var from = String((options && options.from) || '').trim();
+    // from が実行ユーザー以外だと GmailApp 経路になり、gmail.send の再承認と
+    // 「名前として送信」の登録が要る。どちらで落ちたかを切り分けられるようにする。
+    var route = from ? 'GmailApp（送信元エイリアス指定）' : 'MailApp（実行ユーザー送信）';
+    notifyMembershipChatSafely_(ss, 'ANOMALY', {
+      '手続種別': 'メール送信',
+      '申請ID': '',
+      '日時': new Date().toISOString(),
+      '変更内容': '',
+      '異常内容': [
+        'メールを送信できませんでした。',
+        'メール種別: ' + String(category || 'GENERAL'),
+        '送信経路: ' + route,
+        'エラー: ' + String((error && error.message) || error),
+      ].join('\n'),
+    });
+  } catch (notifyError) {
+    Logger.log('[notifyMailFailureToChat_] failed: ' + notifyError.message);
+  }
+}
+
 function deliverMail_(category, to, subject, body, options) {
   // [4] カテゴリ別フラグ
   if (category) {
@@ -18625,7 +18653,15 @@ function deliverMail_(category, to, subject, body, options) {
   if (isAutomatedMailCategory_(category) && !String(finalOptions.from || '').trim()) {
     finalOptions = buildAutomatedMailOptions_(getOrCreateDatabase_(), finalOptions);
   }
-  sendEmailWithValidatedFrom_(finalTo, finalSubject, finalBody, finalOptions);
+  // v376.102: 送信失敗は呼び出し側が Logger.log で握りつぶしており、画面にも DB にも
+  // 何も残らなかった。「Chat は届くのにメールだけ来ない」状態に誰も気づけない。
+  // 実際に届いている Chat の「要確認」へ流して、気づける状態にする。
+  try {
+    sendEmailWithValidatedFrom_(finalTo, finalSubject, finalBody, finalOptions);
+  } catch (sendError) {
+    notifyMailFailureToChat_(category, finalOptions, sendError);
+    throw sendError;   // 呼び出し側の従来の扱い（握りつぶし or ログ）は変えない
+  }
   return { sent: true, mode: policy.mode };
 }
 

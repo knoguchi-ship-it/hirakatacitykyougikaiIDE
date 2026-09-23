@@ -287,7 +287,7 @@ const PUBLIC_PORTAL_DEFAULTS = {
   memberUpdateTitleEnabled: true,
   memberUpdateTitle: '会員登録情報を変更する',
   memberUpdateDescriptionEnabled: true,
-  memberUpdateDescription: '住所・電話番号・メールアドレスなど、ご登録情報の変更を申し込めます。介護支援専門員番号でご本人確認を行います。',
+  memberUpdateDescription: '住所・電話番号・メールアドレスなど、ご登録情報の変更を申し込めます。会員種別ごとに、氏名または事業所名と、番号または電話番号でご本人確認を行います。',
   memberUpdateCtaLabel: '変更手続きへ進む',
   withdrawalMenuEnabled: true,
   withdrawalBadgeEnabled: true,
@@ -295,7 +295,7 @@ const PUBLIC_PORTAL_DEFAULTS = {
   withdrawalTitleEnabled: true,
   withdrawalTitle: '退会を申し込む',
   withdrawalDescriptionEnabled: true,
-  withdrawalDescription: '退会申請を行います。年度末退会または即時退会を選択できます。介護支援専門員番号でご本人確認を行います。',
+  withdrawalDescription: '退会申請を行います。年度末退会または即時退会を選択できます。会員種別ごとに、氏名または事業所名と、番号または電話番号でご本人確認を行います。',
   withdrawalCtaLabel: '退会手続きへ進む',
 } as const;
 
