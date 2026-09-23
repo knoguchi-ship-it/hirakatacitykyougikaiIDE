@@ -6,11 +6,10 @@ import { api } from '../services/api';
 import StaffTrainingView from './StaffTrainingView';
 import PostalCodeInput from './PostalCodeInput';
 import OfficerStatusCard from './OfficerStatusCard';
-import { normalizeKana } from '../utils/kanaNormalize';
+import { normalizeKana, isValidFullwidthKatakana } from '../utils/kanaNormalize';
 
 type DraftStaff = Staff & { isNew?: boolean };
 
-const HALF_WIDTH_KANA_RE = /^[ｦ-ﾟ\s]+$/u;
 // v376.67 DRY 是正: 検証パターンは src/shared/validators.ts が単一情報源
 const CARE_MANAGER_RE = CARE_MANAGER_NO_PATTERN;
 const POST_CODE_RE = POSTAL_CODE_PATTERN;
@@ -156,7 +155,11 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
     kana: buildFullName(staff.lastKana, staff.firstKana, staff.kana),
   });
   const normalizeCareManagerInput = (value: string) => value.replace(/\D/g, '').slice(0, 8);
-  const validateHalfWidthKana = (value: string) => !value.trim() || HALF_WIDTH_KANA_RE.test(value.trim());
+  // v376.101: 以前はここで半角カナを強制していた。v376.73 で受理規則が
+  // 「受理は緩く（ひらがな・半角カナ・全角カナ）、保存は全角カタカナへ正規化」に
+  // 統一されたのに、この画面だけが取り残されていた。判定を 2 箇所で定義しないため
+  // 正本（utils/kanaNormalize）へ委譲する。保存時の normalizeKana と対になる。
+  const validateKana = (value: string) => !value.trim() || isValidFullwidthKatakana(normalizeKana(value));
   const validateCareManagerNumber = (value: string) => !value.trim() || CARE_MANAGER_RE.test(value.trim());
   const validatePostCode = (value: string) => !value.trim() || POST_CODE_RE.test(value.trim());
   const validatePhone = (value: string) => !value.trim() || PHONE_RE.test(value.trim());
@@ -565,9 +568,9 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
       if (!ownStaff?.lastName?.trim() && !ownStaffInitialEmpty.has('lastName')) newErrors.staff_self_lastName = '氏は必須です';
       if (!ownStaff?.firstName?.trim() && !ownStaffInitialEmpty.has('firstName')) newErrors.staff_self_firstName = '名は必須です';
       if (!ownStaff?.lastKana?.trim() && !ownStaffInitialEmpty.has('lastKana')) newErrors.staff_self_lastKana = 'セイは必須です';
-      else if (ownStaff?.lastKana?.trim() && !validateHalfWidthKana(ownStaff.lastKana)) newErrors.staff_self_lastKana = 'セイは半角ｶﾅで入力してください';
+      else if (ownStaff?.lastKana?.trim() && !validateKana(ownStaff.lastKana)) newErrors.staff_self_lastKana = 'セイはカタカナで入力してください';
       if (!ownStaff?.firstKana?.trim() && !ownStaffInitialEmpty.has('firstKana')) newErrors.staff_self_firstKana = 'メイは必須です';
-      else if (ownStaff?.firstKana?.trim() && !validateHalfWidthKana(ownStaff.firstKana)) newErrors.staff_self_firstKana = 'メイは半角ｶﾅで入力してください';
+      else if (ownStaff?.firstKana?.trim() && !validateKana(ownStaff.firstKana)) newErrors.staff_self_firstKana = 'メイはカタカナで入力してください';
       setErrors(newErrors);
       return newErrors;
     }
@@ -578,13 +581,19 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
     if (!repProfile.lastName?.trim()) newErrors.lastName = '必須項目です';
     if (!repProfile.firstName?.trim()) newErrors.firstName = '必須項目です';
     if (!repProfile.lastKana?.trim()) newErrors.lastKana = '必須項目です';
-    else if (!validateHalfWidthKana(repProfile.lastKana)) newErrors.lastKana = 'セイは半角ｶﾅで入力してください';
+    else if (!validateKana(repProfile.lastKana)) newErrors.lastKana = 'セイはカタカナで入力してください';
     if (!repProfile.firstKana?.trim()) newErrors.firstKana = '必須項目です';
-    else if (!validateHalfWidthKana(repProfile.firstKana)) newErrors.firstKana = 'メイは半角ｶﾅで入力してください';
-    if (!isSupportMember && !repProfile.careManagerNumber?.trim()) {
-      newErrors.careManagerNumber = '賛助会員以外は必須です';
-    } else if (!validateCareManagerNumber(repProfile.careManagerNumber || '')) {
-      newErrors.careManagerNumber = '8桁の半角数字で入力してください';
+    else if (!validateKana(repProfile.firstKana)) newErrors.firstKana = 'メイはカタカナで入力してください';
+    // v376.101: 賛助会員は介護支援専門員番号を持たない（入会フォームでも入力欄を出さない）。
+    // 以前は必須判定だけ除外して書式検証は素通ししていたため、空でない既定値や
+    // 自動採番のログインIDが入っていると 8 桁検証で弾かれ、賛助会員が自分の情報を
+    // 保存できなかった。賛助会員では必須・書式のどちらも課さない。
+    if (!isSupportMember) {
+      if (!repProfile.careManagerNumber?.trim()) {
+        newErrors.careManagerNumber = '賛助会員以外は必須です';
+      } else if (!validateCareManagerNumber(repProfile.careManagerNumber)) {
+        newErrors.careManagerNumber = '8桁の半角数字で入力してください';
+      }
     }
 
     if (!m.phone?.trim() && !m.mobilePhone?.trim()) {
@@ -647,9 +656,9 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
           if (!staff.lastName?.trim()) newErrors[`${prefix}_lastName`] = '氏は必須です';
           if (!staff.firstName?.trim()) newErrors[`${prefix}_firstName`] = '名は必須です';
           if (!staff.lastKana?.trim()) newErrors[`${prefix}_lastKana`] = 'セイは必須です';
-          else if (!validateHalfWidthKana(staff.lastKana)) newErrors[`${prefix}_lastKana`] = 'セイは半角ｶﾅで入力してください';
+          else if (!validateKana(staff.lastKana)) newErrors[`${prefix}_lastKana`] = 'セイはカタカナで入力してください';
           if (!staff.firstKana?.trim()) newErrors[`${prefix}_firstKana`] = 'メイは必須です';
-          else if (!validateHalfWidthKana(staff.firstKana)) newErrors[`${prefix}_firstKana`] = 'メイは半角ｶﾅで入力してください';
+          else if (!validateKana(staff.firstKana)) newErrors[`${prefix}_firstKana`] = 'メイはカタカナで入力してください';
           if (!staff.email?.trim()) newErrors[`${prefix}_email`] = 'メールアドレスは必須です';
           else if (!EMAIL_RE.test(staff.email.trim())) newErrors[`${prefix}_email`] = 'メールアドレスの形式が正しくありません';
           if (!staff.careManagerNumber?.trim()) newErrors[`${prefix}_careManagerNumber`] = '介護支援専門員番号は必須です';
@@ -659,9 +668,9 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
           if (!staff.lastName?.trim() && !staffInitiallyEmpty.has('lastName')) newErrors[`${prefix}_lastName`] = '職員の氏は必須です';
           if (!staff.firstName?.trim() && !staffInitiallyEmpty.has('firstName')) newErrors[`${prefix}_firstName`] = '職員の名は必須です';
           if (!staff.lastKana?.trim() && !staffInitiallyEmpty.has('lastKana')) newErrors[`${prefix}_lastKana`] = '職員のセイは必須です';
-          else if (staff.lastKana?.trim() && !validateHalfWidthKana(staff.lastKana)) newErrors[`${prefix}_lastKana`] = '職員のセイは半角ｶﾅで入力してください';
+          else if (staff.lastKana?.trim() && !validateKana(staff.lastKana)) newErrors[`${prefix}_lastKana`] = '職員のセイはカタカナで入力してください';
           if (!staff.firstKana?.trim() && !staffInitiallyEmpty.has('firstKana')) newErrors[`${prefix}_firstKana`] = '職員のメイは必須です';
-          else if (staff.firstKana?.trim() && !validateHalfWidthKana(staff.firstKana)) newErrors[`${prefix}_firstKana`] = '職員のメイは半角ｶﾅで入力してください';
+          else if (staff.firstKana?.trim() && !validateKana(staff.firstKana)) newErrors[`${prefix}_firstKana`] = '職員のメイはカタカナで入力してください';
         }
         const joined = staff.joinedDate ? new Date(staff.joinedDate) : null;
         const withdrawn = staff.withdrawnDate ? new Date(staff.withdrawnDate) : null;
