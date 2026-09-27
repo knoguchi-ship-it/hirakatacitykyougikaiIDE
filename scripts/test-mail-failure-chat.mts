@@ -51,10 +51,10 @@ test('送信失敗は ANOMALY（要確認）として Chat へ流れる', () => 
   assert.match(calls[0].context['異常内容'], /boom/);
 });
 
-test('送信経路を書き分ける（GmailApp 経路の切り分けに要る）', () => {
+test('送信経路を書き分ける（エイリアス経路の切り分けに要る）', () => {
   const a = buildNotifier();
   a.fn('AUTH_OTP', { from: 'info@example.org' }, new Error('x'));
-  assert.match(a.calls[0].context['異常内容'], /GmailApp/);
+  assert.match(a.calls[0].context['異常内容'], /Gmail API/);
 
   const b = buildNotifier();
   b.fn('AUTH_OTP', {}, new Error('x'));

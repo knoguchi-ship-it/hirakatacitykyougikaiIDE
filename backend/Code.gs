@@ -5321,9 +5321,9 @@ function notifyMailFailureToChat_(category, options, error) {
   try {
     var ss = getOrCreateDatabase_();
     var from = String((options && options.from) || '').trim();
-    // from が実行ユーザー以外だと GmailApp 経路になり、gmail.send の再承認と
+    // from が実行ユーザー以外だと Gmail API 経路になり、gmail.send の承認と
     // 「名前として送信」の登録が要る。どちらで落ちたかを切り分けられるようにする。
-    var route = from ? 'GmailApp（送信元エイリアス指定）' : 'MailApp（実行ユーザー送信）';
+    var route = from ? 'Gmail API（送信元エイリアス指定）' : 'MailApp（実行ユーザー送信）';
     notifyMembershipChatSafely_(ss, 'ANOMALY', {
       '手続種別': 'メール送信',
       '申請ID': '',
@@ -5414,7 +5414,7 @@ function isAutomatedMailCategory_(category) {
 }
 
 // 既存 CREDENTIAL_EMAIL_FROM を「自動通知の共通送信元」として後方互換で利用する。
-// 空欄時は GAS の標準送信元を使う。指定済み alias が使えない場合は GmailApp が例外にし、
+// 空欄時は GAS の標準送信元を使う。指定済み alias が使えない場合は Gmail API が例外にし、
 // 実行者アドレスへ黙ってフォールバックさせない。
 function buildAutomatedMailOptions_(ss, options) {
   var configuredFrom = String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_FROM') || '').trim();
@@ -5451,13 +5451,107 @@ function sendEmailWithValidatedFrom_(to, subject, body, options) {
     return;
   }
 
-  // 送信エイリアス指定 → GmailApp（admin split での alias 送信用）
-  GmailApp.sendEmail(to, subject, body, {
-    from: from,
-    replyTo: replyTo,
-    name: name,
-    attachments: attachments,
+  // v376.103: 送信エイリアス指定 → Gmail REST API。
+  //
+  // 以前は GmailApp.sendEmail({from}) を使っていたが、GmailApp は送信前に
+  // 送信者のエイリアス一覧を照合するため mail.google.com / gmail.settings.basic /
+  // gmail.readonly / gmail.modify のいずれかを要求する。公開・会員 split は
+  // v263 のスコープ最小化でこれらを持たないため、公開ポータル発のメール
+  // （受付確認など）が送信時に落ちていた。失敗は握りつぶされ誰も気づけなかった。
+  //
+  // REST の users.messages.send は gmail.send だけで呼べる。エイリアスの「管理」には
+  // 設定系スコープが要るが、「送信」には要らない。From が送信者の検証済み
+  // エイリアスであれば Gmail が受け付ける。3 split とも gmail.send と
+  // script.external_request を持っているので、スコープ追加なしで送れる。
+  sendMailViaGmailApi_({
+    from: from, name: name, to: to, subject: subject,
+    body: body, replyTo: replyTo, attachments: attachments,
   });
+}
+
+// RFC 2047 の encoded-word。日本語の件名・表示名・添付ファイル名に使う。
+function encodeMimeWord_(text) {
+  var raw = String(text == null ? '' : text);
+  if (!raw) return '';
+  // ASCII だけなら素のまま通す（可読性を保つ）
+  if (!/[^\x20-\x7E]/.test(raw)) return raw;
+  return '=?UTF-8?B?' + Utilities.base64Encode(raw, Utilities.Charset.UTF_8) + '?=';
+}
+
+// base64 は 76 桁で折る。折らない実装を受け付けない MTA があるため。
+function wrapBase64_(encoded) {
+  var out = [];
+  for (var i = 0; i < encoded.length; i += 76) out.push(encoded.substring(i, i + 76));
+  return out.join('\r\n');
+}
+
+// RFC822 形式のメッセージを組み立てる。添付があれば multipart/mixed にする。
+function buildRfc822Message_(params) {
+  var attachments = params.attachments || [];
+  var fromHeader = params.name
+    ? encodeMimeWord_(params.name) + ' <' + params.from + '>'
+    : params.from;
+  var lines = [];
+  lines.push('From: ' + fromHeader);
+  lines.push('To: ' + params.to);
+  if (params.replyTo) lines.push('Reply-To: ' + params.replyTo);
+  lines.push('Subject: ' + encodeMimeWord_(params.subject));
+  lines.push('MIME-Version: 1.0');
+
+  var bodyB64 = wrapBase64_(Utilities.base64Encode(String(params.body == null ? '' : params.body), Utilities.Charset.UTF_8));
+
+  if (!attachments.length) {
+    lines.push('Content-Type: text/plain; charset="UTF-8"');
+    lines.push('Content-Transfer-Encoding: base64');
+    lines.push('');
+    lines.push(bodyB64);
+    return lines.join('\r\n');
+  }
+
+  var boundary = 'hcmn_' + Utilities.getUuid().replace(/-/g, '');
+  lines.push('Content-Type: multipart/mixed; boundary="' + boundary + '"');
+  lines.push('');
+  lines.push('--' + boundary);
+  lines.push('Content-Type: text/plain; charset="UTF-8"');
+  lines.push('Content-Transfer-Encoding: base64');
+  lines.push('');
+  lines.push(bodyB64);
+  for (var i = 0; i < attachments.length; i++) {
+    var blob = attachments[i];
+    var fileName = encodeMimeWord_(blob.getName() || ('attachment-' + (i + 1)));
+    lines.push('');
+    lines.push('--' + boundary);
+    lines.push('Content-Type: ' + (blob.getContentType() || 'application/octet-stream') + '; name="' + fileName + '"');
+    lines.push('Content-Transfer-Encoding: base64');
+    lines.push('Content-Disposition: attachment; filename="' + fileName + '"');
+    lines.push('');
+    lines.push(wrapBase64_(Utilities.base64Encode(blob.getBytes())));
+  }
+  lines.push('');
+  lines.push('--' + boundary + '--');
+  return lines.join('\r\n');
+}
+
+function sendMailViaGmailApi_(params) {
+  var message = buildRfc822Message_(params);
+  var response = UrlFetchApp.fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+    payload: JSON.stringify({ raw: Utilities.base64EncodeWebSafe(Utilities.newBlob(message).getBytes()) }),
+    muteHttpExceptions: true,
+  });
+  var code = response.getResponseCode();
+  if (code >= 200 && code < 300) return;
+  var detail = '';
+  try {
+    detail = String((((JSON.parse(response.getContentText() || '{}')).error) || {}).message || '').trim();
+  } catch (parseError) {}
+  // 失敗の切り分けに要るので、HTTP コードと Gmail のメッセージを両方残す。
+  // 呼び出し元（deliverMail_）がこれを Chat の「要確認」へ流す。
+  throw new Error('Gmail API 送信に失敗しました (HTTP ' + code + ')'
+    + (detail ? ': ' + detail : '')
+    + '。送信元エイリアスが「名前として送信」に登録済みか、gmail.send の承認が済んでいるか確認してください。');
 }
 
 

@@ -151,7 +151,27 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-09-22 v376.100 ← current production
+### 2026-09-27 v376.103 ← current production
+
+- Scope: 送信元エイリアス指定のメール送信を `GmailApp` から Gmail REST API（`users.messages.send`）へ切り替え。`GmailApp` はエイリアス照合のため `gmail.settings.basic` 等を要求し、これを持たない公開・会員 split からの送信が毎回落ちていた。REST は `gmail.send` だけで送れる。添付（一括メール）も同じ経路で扱い、二重実装を作らない。
+- Fixed deployments: integrated/public @414 x2 / member @172 / admin @269.
+- Verification: prerelease PASS（exit 0）、test:gmail-api-send 10/10（`GmailApp` へ戻せないことの固定を含む）、typecheck PASS、3 split 生成物に `sendMailViaGmailApi_` が入り `GmailApp.sendEmail(` が残っていないことを確認、deployment API で4本同期確認。**実データ確認（公開ポータルから 1 件申請して着信を見る）は未実施** — 管理 E2E 認証（`.test-out/auth-admin.json`）が期限切れのため。
+- Rollback: integrated/public @413 x2 / member @171 / admin @268（v376.102）。
+
+### 2026-09-23 v376.102
+
+- Scope: メール送信の失敗を Google Chat の「要確認」へ流す。宛先・件名・本文は載せず、種別・送信経路・エラーだけを出す。
+- Fixed deployments: integrated/public @413 x2 / member @171 / admin @268.
+- Verification: prerelease PASS、test:mail-failure-chat 5/5。この通知が入って v376.103 の根本原因が判明した。
+- Rollback: integrated/public @412 x2 / member @170 / admin @267（v376.101）。
+
+### 2026-09-23 v376.101
+
+- Scope: 会員マイページの入力検証を正本（`src/utils/kanaNormalize.ts` / 会員種別ごとの CM 番号規則）へ合わせ、賛助会員が保存できない不具合を解消。
+- Fixed deployments: integrated/public @412 x2 / member @170 / admin @267.
+- Rollback: integrated/public @411 x2 / member @169 / admin @266（v376.100）。
+
+### 2026-09-22 v376.100
 
 - Scope: 事業所職員の介護支援専門員番号変更でログインIDを同期し、職員本人と申請者へ通知する。既存の不一致は触らない。
 - Fixed deployments: integrated/public @411 x2 / member @169 / admin @266.
@@ -175,7 +195,7 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 - Scope: メール通知の差し込みを一覧表示からクリック挿入のボタンへ変更。あわせて表示タグと実際に使えるタグの不一致（事業所・メンバーのタグ未表示／職員追加・ワークフローで和集合を表示）を解消し、タグをカードのメール種別から引く形にした。バックエンド・タグカタログの変更なし。
 - Fixed deployments: integrated/public @408 x2 / member @166 / admin @263.
-- Verification: prerelease PASS（exit 0）、typecheck PASS、`test:mail-merge-tags` 9/9、3 split 生成物を inflate して旧表示が 0 件であることを確認、本番で実操作してカーソル位置への挿入を確認（保存なし）、管理レスポンシブ 7 viewport × 8 view PASS、deployment API で4本同期確認。詳細は `docs/284_RELEASE_STATE_v376.98_2026-09-22.md`。
+- Verification: prerelease PASS（exit 0）、typecheck PASS、`test:mail-merge-tags` 9/9、3 split 生成物を inflate して旧表示が 0 件であることを確認、本番で実操作してカーソル位置への挿入を確認（保存なし）、管理レスポンシブ 7 viewport × 8 view PASS、deployment API で4本同期確認。詳細は `docs/archive/release_history/284_RELEASE_STATE_v376.98_2026-09-22.md`。
 - Rollback: integrated/public @407 x2 / member @165 / admin @262（v376.97）。
 
 ### 2026-09-22 v376.97
