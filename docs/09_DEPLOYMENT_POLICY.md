@@ -151,7 +151,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-09-27 v376.104 ← current production
+### 2026-09-27 v376.105 ← current production
+
+- Scope: docs/288 §4 の二重実装をすべて解消。(1) 定期ジョブを dryrun.gs から jobs.gs へ分離（本番のトリガーが叩く関数を診断ツールと混ぜない）。(2) 自動通知の送信記録を T_メール送信ログ へ（宛先・件名・本文は載せない）。(3) 公開ポータルの入力検証を validators.ts へ。(4) 認証アカウントのログインID書き換えを updateAuthAccountLoginId_ へ集約し衝突時は据え置き。(5) build の pruner 3 重複を gas-boundary-utils.mjs へ一本化 — **公開ビルドだけ v292/v296 の修正が入っていなかった**。(6) 一括メールの差し込みタグをカタログへ。
+- Fixed deployments: integrated/public @416 x2 / member @174 / admin @271.
+- Verification: prerelease PASS（exit 0）、typecheck PASS、test:build-helper-single-source 4/4（新設）、test:mail-merge-tags 11/11（+2）、test:scheduled-jobs 8/8、test:staff-login-id-sync 6/6、audit-public-boundary PASS、deployment API で4本同期確認。**operator 手順（トリガーの削除と再作成）は v376.104 から継続して未了** — docs/289 §1-7。
+- Note: pruner 修正の副作用で公開ビルドにメニュー登録簿が残るようになったため、build-gas.mjs が空の登録簿を注入する。壊れた pruner が誤マッチで登録簿ごと削除していたことに依存していた。
+- Rollback: integrated/public @415 x2 / member @173 / admin @270（v376.104）。
+
+### 2026-09-27 v376.104
 
 - Scope: 定期ジョブのハンドラが build の pruning で 3 split すべての生成物から消えており、公開プロジェクトのトリガーが存在しない関数を 5 分ごとに叩き続けていた。ジョブを管理者 split へ移し（公開は匿名アクセスで任意のトップレベル関数を google.script.run から呼べるため）、心拍・失敗通知・遅れ通知を追加。warmUp と旧世代のサムネイル経路は廃止。あわせて 3 つに分かれていた研修申込の判定（同一人物の解決・重複・定員）を集約し、同じ人が申し込むたびに外部申込者が増えるバグを解消。
 - Fixed deployments: integrated/public @415 x2 / member @173 / admin @270.
@@ -182,7 +190,7 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 - Scope: 事業所職員の介護支援専門員番号変更でログインIDを同期し、職員本人と申請者へ通知する。既存の不一致は触らない。
 - Fixed deployments: integrated/public @411 x2 / member @169 / admin @266.
-- Verification: prerelease PASS（exit 0）、test:staff-login-id-sync 6/6、GAS 構文チェック PASS、admin 生成物にのみ同期関数が含まれ public には漏れていないことを確認、deployment API で4本同期確認。実データ確認は未実施。詳細は `docs/286_RELEASE_STATE_v376.100_2026-09-22.md`。
+- Verification: prerelease PASS（exit 0）、test:staff-login-id-sync 6/6、GAS 構文チェック PASS、admin 生成物にのみ同期関数が含まれ public には漏れていないことを確認、deployment API で4本同期確認。実データ確認は未実施。詳細は `docs/archive/release_history/286_RELEASE_STATE_v376.100_2026-09-22.md`。
 - Rollback: integrated/public @410 x2 / member @168 / admin @265（v376.99）。
 
 ### 2026-09-22 v376.99

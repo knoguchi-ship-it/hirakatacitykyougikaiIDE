@@ -40,7 +40,21 @@ function run(cmd, env = {}) {
 }
 
 function buildPublicCode(source) {
-  let code = injectMenuRegistryPlaceholders(source, serializeMenuRegistryForGas());
+  // 2026-09-27: 公開側はメニュー登録簿を空で注入する。登録簿は admin の権限判定用で、
+  // 公開の action registry は adminPermissions: {} なので一切使わない。
+  // admin 専用の action 名を公開の生成物に残さない（audit-public-boundary の禁止トークン検査）。
+  //
+  // v376.105 まではこれが要らなかった。壊れていた pruner が「文字列 'getDbInfo' を含む
+  // top-level 文」を誤って丸ごと削除しており、結果として登録簿ごと消えていたため（v292 の誤マッチ）。
+  // pruner を正しくしたら登録簿が残るようになり、本来必要だった処理が表に出た。
+  let code = injectMenuRegistryPlaceholders(source, [
+    'var MENU_REGISTRY = [];',
+    'var ACTION_TO_MENU = {};',
+    'var LEGACY_ROLE_TO_MENUS = {};',
+    'var LEGACY_ROLE_TRAINING_SCOPE = {};',
+    'var INITIAL_ROLE_DEFINITIONS = [];',
+    'var LEGACY_CODE_TO_INITIAL_ROLE_ID = {};',
+  ].join('\n'));
   code = injectMemberFiscalStatusPlaceholders(code, serializeMemberFiscalStatusForGas());
   code = injectMemberTypesPlaceholders(code, serializeMemberTypesForGas());
   code = code.replace("var APP_SECURITY_BOUNDARY = 'public';", "var APP_SECURITY_BOUNDARY = 'public';");

@@ -24,7 +24,8 @@ const gasSrc = read('gas-src/Code.full.gs');
 const artifacts = {
   public: read('backend/Code.gs'),
   member: read('gas/member/Code.gs'),
-  admin: read('gas/admin/Code.gs') + '\n' + read('gas/admin/dryrun.gs'),
+  // 本番の定期ジョブは jobs.gs、診断ツールは dryrun.gs。どちらも同一プロジェクトのグローバル。
+  admin: [read('gas/admin/Code.gs'), read('gas/admin/jobs.gs'), read('gas/admin/dryrun.gs')].join('\n'),
 };
 
 /** 廃止したトリガーハンドラ。生成物に残っていてはいけない。 */

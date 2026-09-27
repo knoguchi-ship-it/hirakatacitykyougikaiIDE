@@ -47,7 +47,9 @@ function buildSync(rows: Row[]) {
   const ss = { getSheetByName: (n: string) => (n === 'T_認証アカウント' ? sheet : null) };
   const fn = new Function(
     'toBoolean_', 'generateCmBasedLoginId_', 'Logger',
-    `${extractFunction('syncStaffLoginIdToCmNumber_')}; return syncStaffLoginIdToCmNumber_;`,
+    // 2026-09-27: シートを叩く部分は updateAuthAccountLoginId_ に集約した（3 箇所の直書きを解消）。
+    // 採番規則だけが syncStaffLoginIdToCmNumber_ に残るので、両方を読み込んで評価する。
+    `${extractFunction('updateAuthAccountLoginId_')}\n${extractFunction('syncStaffLoginIdToCmNumber_')}; return syncStaffLoginIdToCmNumber_;`,
   )(
     (v: unknown) => v === true || String(v).toLowerCase() === 'true',
     // 本体の採番規則（9 + CM番号）を模す。衝突時は末尾を繰り上げる。

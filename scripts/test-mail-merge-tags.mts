@@ -127,3 +127,40 @@ test('★カタログが事業所メールで案内するタグを送信側が�
     }
   }
 });
+
+// ── 一括メール（2026-09-27 追加）────────────────────────────────────
+// BulkMailSender.tsx がタグを自前で列挙しており、カタログを見ていなかった。
+// タグを足しても一括メールだけ古いまま残る形だったので、カタログへ移した。
+// 画面・カタログ・送信側の 3 つが揃っていることをここで固定する。
+test('★一括メールのタグはカタログが正本（画面が自前で列挙していない）', () => {
+  const ui = fs.readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'components', 'BulkMailSender.tsx'), 'utf8',
+  );
+  const decl = ui.split(/\r?\n/).find((l) => l.startsWith('const MERGE_TAGS'));
+  assert.ok(decl, 'MERGE_TAGS の宣言が見つからない');
+  assert.ok(decl.includes('BULK_MAIL_MERGE_TAGS'), '画面がカタログを参照していない');
+  assert.ok(!/\{\{/.test(decl), '画面にタグが直書きされている');
+});
+
+test('★一括メールでカタログが案内するタグを送信側が解決できる', () => {
+  const catalog = fs.readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'shared', 'mailTemplates.ts'), 'utf8',
+  );
+  const block = catalog.slice(catalog.indexOf('export const BULK_MAIL_MERGE_TAGS'));
+  const catalogTags = [...block.slice(0, block.indexOf('];')).matchAll(/\{\{([^}]+)\}\}/g)].map((m) => m[1]);
+  assert.ok(catalogTags.length > 0, 'カタログに一括メールのタグが無い');
+
+  // 送信側の実体: sendBulkMemberMail_ が組み立てる mergeVars
+  const bulk = extractFunction('sendBulkMemberMail_');
+  const varsLine = bulk.split(/\r?\n/).find((l) => l.includes('var mergeVars = {'));
+  assert.ok(varsLine, 'sendBulkMemberMail_ の mergeVars が見つからない');
+  for (const tag of catalogTags) {
+    assert.ok(varsLine.includes(`'${tag}'`),
+      `カタログは一括メールで {{${tag}}} を案内しているが、送信側の mergeVars に無い`);
+  }
+  // 逆向き: 送信側が渡しているのに画面で案内されていないタグも潰す
+  const sentKeys = [...varsLine.matchAll(/'([^']+)':/g)].map((m) => m[1]);
+  for (const key of sentKeys) {
+    assert.ok(catalogTags.includes(key), `送信側は {{${key}}} を解決できるのにカタログに無い`);
+  }
+});

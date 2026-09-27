@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { MEMBER_TYPE_LABELS } from '../shared/memberTypes.mjs';
 import { AdminPermissionLevel, SystemSettings } from '../types';
 import { BulkMailRecipient, EmailSendLog } from '../shared/types';
+import { BULK_MAIL_MERGE_TAGS } from '../shared/mailTemplates';
 import { ApiClient } from '../services/api';
 import type { EmailTemplate } from '../types';
 import { matchesSearchQuery } from '../utils/search';
@@ -17,7 +18,8 @@ interface BulkMailSenderProps {
 
 type AttachmentBlob = { name: string; mimeType: string; base64: string };
 
-const MERGE_TAGS = ['{{氏名}}', '{{事業所名}}', '{{会員番号}}'];
+// 差し込みタグの正本は src/shared/mailTemplates.ts（AGENTS §3）。ここで列挙しない。
+const MERGE_TAGS = BULK_MAIL_MERGE_TAGS.map(([tag]) => tag);
 
 const readFileAsBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {

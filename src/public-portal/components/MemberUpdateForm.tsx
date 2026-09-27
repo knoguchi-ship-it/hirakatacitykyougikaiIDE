@@ -3,6 +3,9 @@ import { callApi } from '../../shared/api-base';
 import { IdentityVerifyStep, type IdentityPayload } from './IdentityVerifyStep';
 import { publicIdentityErrorMessage, type PublicIdentityMemberType } from '../../shared/publicIdentity';
 import { normalizeKana } from '../../utils/kanaNormalize';
+// 入力書式の正本（AGENTS §3）。ここで独自に正規表現を書かない —
+// v376.101 は MemberForm が独自のカナ正規表現を持っていたせいで賛助会員が保存できなくなった。
+import { CARE_MANAGER_NO_PATTERN } from '../../shared/validators';
 
 interface Props {
   onBack: () => void;
@@ -300,8 +303,8 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
         if (a.postCode.trim() || a.prefecture.trim() || a.city.trim() || a.addressLine.trim() || a.addressLine2.trim()) return true;
       }
       if (selected.has('officeNumber') && bizFields.officeNumber.trim()) return true;
-      if (selected.has('staffAdd') && staffAddCards.some((c) => c.lastName.trim() && c.firstName.trim() && c.lastKana.trim() && c.firstKana.trim() && /^\d{8}$/.test(c.careManagerNumber) && c.email.trim())) return true;
-      if (selected.has('staffRemove') && staffRemoveCards.some((c) => c.lastName.trim() && c.firstName.trim() && /^\d{8}$/.test(c.careManagerNumber))) return true;
+      if (selected.has('staffAdd') && staffAddCards.some((c) => c.lastName.trim() && c.firstName.trim() && c.lastKana.trim() && c.firstKana.trim() && CARE_MANAGER_NO_PATTERN.test(c.careManagerNumber) && c.email.trim())) return true;
+      if (selected.has('staffRemove') && staffRemoveCards.some((c) => c.lastName.trim() && c.firstName.trim() && CARE_MANAGER_NO_PATTERN.test(c.careManagerNumber))) return true;
       if (selected.has('staffUpdate') && staffUpdateCards.some((c) => c.selected && (c.lastName.trim() || c.firstName.trim() || c.lastKana.trim() || c.firstKana.trim() || c.email.trim() || (c.careManagerNumber.trim() && !c.original.careManagerNumberLocked)))) return true;
     }
     return false;
@@ -376,12 +379,12 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
 
       const staffAdd = (selected.has('staffAdd') && memberType === 'BUSINESS')
         ? staffAddCards
-            .filter(c => c.lastName && c.firstName && c.lastKana && c.firstKana && /^\d{8}$/.test(c.careManagerNumber) && c.email)
+            .filter(c => c.lastName && c.firstName && c.lastKana && c.firstKana && CARE_MANAGER_NO_PATTERN.test(c.careManagerNumber) && c.email)
             // v376: kana 列を全角カタカナに正規化
             .map(c => ({ ...c, lastKana: normalizeKana(c.lastKana), firstKana: normalizeKana(c.firstKana) }))
         : [];
       const staffRemove = (selected.has('staffRemove') && memberType === 'BUSINESS')
-        ? staffRemoveCards.filter(c => c.lastName && c.firstName && /^\d{8}$/.test(c.careManagerNumber))
+        ? staffRemoveCards.filter(c => c.lastName && c.firstName && CARE_MANAGER_NO_PATTERN.test(c.careManagerNumber))
         : [];
       // v372.5: 職員情報変更 — 選択された職員のうち、変更入力されたフィールドだけ送る
       const staffUpdate = (selected.has('staffUpdate') && memberType === 'BUSINESS')

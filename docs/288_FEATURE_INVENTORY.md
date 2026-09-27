@@ -322,39 +322,47 @@
 超過したことを返して「定員そのものを広げてください」と画面に出す。
 **重複は入口を問わず必ず弾く。** 固定: `npm run test:training-apply-rules`。
 
-### 4-2. 公開ポータルの入力検証が正本を使っていない（**中**）
+### 4-2. 公開ポータルの入力検証が正本を使っていない — **解消済み（v376.105）**
 
-`src/public-portal/components/MemberUpdateForm.tsx` が CM 番号を `/^\d{8}$/` と**直書き**している（4 箇所）。
-正本は `src/shared/validators.ts` の `CARE_MANAGER_NO_PATTERN`。公開ポータルからは `validators.ts` を
-1 箇所も import していない。
+`MemberUpdateForm.tsx` が介護支援専門員番号を `/^d{8}$/` と直書きしていた（4 箇所）。
+公開ポータルからは `src/shared/validators.ts` を 1 箇所も import していなかった。
+v376.101 の不具合（`MemberForm.tsx` の独自カナ正規表現で賛助会員が保存できない）と同じ形。
+→ `CARE_MANAGER_NO_PATTERN` の import に置換。
 
-これは v376.101 で直した不具合（`MemberForm.tsx` が独自のカナ正規表現を持っていた）と**同じ形**。
-そのときは会員マイページで賛助会員が保存できなくなった。
+### 4-3. ログインID の書き換えが 3 箇所 — **解消済み（v376.105）**
 
-**寄せ先**: `validators.ts` を import して置き換える。差分は小さい。
+会員のCM番号 / 事業所番号 / 職員のCM番号で、3 箇所が別々に `T_認証アカウント` を叩いていた。
+**重複回避が入っていたのは職員だけ。**
 
-### 4-3. ログインID の書き換えが承認処理に直書き（**中**）
+→ 「行を探して書き戻す」機械的な部分だけを `updateAuthAccountLoginId_` に集約した。
+新しいIDを何にするかは呼び出し元に残す（CM番号は 8 桁で衝突時に先頭へ 1〜9、事業所番号は
+10 桁英数字をそのまま。規則が本質的に違うので混ぜない）。
+**衝突時は書き換えない**ようにもした（同じログインIDが 2 つできると双方ログイン不能。v376.73）。
 
-`approveAdminChangeRequest_` は会員・職員の更新を `updateMember_` / `updateStaff_` に委ねている一方、
-`T_認証アカウント` の行は `getRange().setValues()` で**直接**書いている（2 箇所）。
-`syncStaffLoginIdToCmNumber_`（v376.100 で新設）と役割が重なる。
+### 4-4. build pruner が 3 ファイルに複製 — **解消済み（v376.105）／実際に食い違っていた**
 
-**寄せ先**: 認証アカウント行の更新を 1 関数に集約する。
+コードには「Keep the three in step」と申し送りがあったが、**揃っていなかった**。
+`gas-boundary-utils.mjs` の `pruneUnreachableFunctionDeclarations` だけ v292/v296 の修正
+（文字列リテラルを除いてからマッチ）が入っておらず、それを import している
+**公開ビルドだけが古い pruner で生成されていた**。
 
-### 4-4. build pruner が 3 ファイルに複製（**低・既知**）
+→ 正本を修正版に揃え、2 つの build からローカル複製を削除して import に置換。
+pruner 7 本に加え `replaceObjectLiteral` 等 4 本も重複していたので同時に解消。
+申し送りコメントは守られないので `test:build-helper-single-source` で機械的に落とす。
 
-`scripts/build-admin-gas.mjs` / `build-member-gas.mjs` / `gas-boundary-utils.mjs` に
-同じ到達可能性解析が 3 つある。コード内にも申し送りのコメントがある
-（「Keep the three in step」）。v376.42〜v376.61 に本番の `listMailTemplates` が
-消えた事故は、この 3 つが揃っていなかったのが原因。
+### 4-5. 一括メールの差し込みタグがカタログ外 — **解消済み（v376.105）**
 
-**寄せ先**: `gas-boundary-utils.mjs` の 1 本に集約して 2 つの build から import する。
+`BulkMailSender.tsx` がタグを自前で列挙していた。一括メールは設定画面で編集する自動通知では
+ないので `MailTemplateCategory` には入れず、同じモジュールに `BULK_MAIL_MERGE_TAGS` を置いた。
+`test:mail-merge-tags` が、カタログと送信側 `sendBulkMemberMail_` の `mergeVars` の
+**双方向一致**を検査する（案内しているのに解決できない／解決できるのに案内していない、の両方）。
 
-### 4-5. 一括メールの差し込みタグがカタログを見ていない（**低・既知**）
+### 4-6. 自動通知に送信記録が残らない — **解消済み（v376.105）**
 
-`src/components/BulkMailSender.tsx` は挿入ボタンを持つが、タグを**自前で並べている**。
-他のメール設定カードは `src/shared/mailTemplates.ts` のカタログから引く（v376.98）。
-タグを足したとき一括メールだけ古いまま残る。
+`T_メール送信ログ` に書いていたのは一括メールだけだった。これが v376.103
+（公開ポータル発のメールが長期間 1 通も届いていない）に誰も気づけなかった構造的な理由。
+→ `deliverMail_` の 3 つの出口（抑止・失敗・成功）すべてで記録する。
+宛先・件名・本文は載せない（件名に `{{氏名}}` が入りうるため）。
 
 ## 5. 意図的に分けている（統合しない）
 

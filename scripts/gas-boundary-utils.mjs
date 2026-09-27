@@ -41,9 +41,27 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   'checkScheduledJobHealth',
 ];
 
-// gas/admin/dryrun.gs に分離する（editor で見つけやすくするため）。doGet / processApiRequest 以外の全て。
+// 2026-09-27: 本番で動く定期ジョブと、その設定・死活確認は gas/admin/jobs.gs へ分ける。
+// dryrun.gs は「診断 / dryRun / backfill」の置き場で、本番のトリガーが叩く関数を
+// そこに置くと役割を誤解する（消してよいものに見える）。実際、トリガーのハンドラが
+// pruning で生成物から消えていたことに長期間気づけなかった。
+export const ADMIN_SCHEDULED_JOB_FUNCTIONS = [
+  // 時間主導トリガーが叩くハンドラ
+  'dailyWithdrawalPolicyTrigger',
+  'processPendingThumbnails',
+  // トリガーを作り直す設定関数（editor から手動で 1 回実行）
+  'setupScheduledTriggers',
+  'setupPendingThumbnailsTrigger',
+  // 死活確認（editor から引数なしで実行）
+  'checkScheduledJobHealth',
+];
+
+// gas/admin/dryrun.gs に分離する（editor で見つけやすくするため）。
+// doGet / processApiRequest と、jobs.gs へ回す定期ジョブを除いた全て。
 export const ADMIN_OPERATOR_TOOL_FUNCTIONS = ADMIN_TOP_LEVEL_FUNCTIONS.filter(
-  (name) => name !== 'doGet' && name !== 'processApiRequest',
+  (name) => name !== 'doGet'
+    && name !== 'processApiRequest'
+    && ADMIN_SCHEDULED_JOB_FUNCTIONS.indexOf(name) === -1,
 );
 
 // 以前は build-admin-gas.mjs と audit-admin-boundary.mjs に同一配列が二重管理されていた。
@@ -510,7 +528,13 @@ export function collectReachableFunctions(source, seedNames) {
   const declaredNames = new Set(declarationByName.keys());
   const reachable = new Set(seedNames.filter((name) => declaredNames.has(name)));
   const queue = [...reachable];
-  // split and broke listMailTemplates in production from v376.42 to v376.61.
+  // 2026-09-27: この解析は build-admin-gas.mjs / build-member-gas.mjs にも複製されており、
+  // 「Keep the three in step」と申し送られていたが実際には揃っていなかった
+  // （公開ビルドだけ v292/v296 の修正が入っていなかった）。本ファイルへ一本化した。
+  //
+  // 値として渡される関数（rows.map(recordFromRow_) など）も本物の参照である。
+  // 呼び出し構文だけを数えると、そうした helper が全 split から消え、
+  // v376.42〜v376.61 の本番で listMailTemplates が動かなくなった。
   const callPattern = /\b([A-Za-z0-9_]+)\s*\(/g;
   const referencePattern = /(^|[^.\w$])([A-Za-z0-9_]+)\b(?!\s*\()/g;
 
@@ -606,9 +630,13 @@ export function pruneUnreachableFunctionDeclarations(source, seedNames, label) {
   const { declarations, reachable } = collectReachableFunctions(source, seedNames);
   const removable = declarations.filter((decl) => !reachable.has(decl.name));
   const removableNames = new Set(removable.map((decl) => decl.name));
-  const removableTopLevelStatements = collectTopLevelStatements(source, declarations).filter((statement) => (
-    [...removableNames].some((name) => new RegExp(`\\b${name}\\b`).test(statement.text))
-  ));
+  // 文字列リテラルを除去してからマッチ:
+  // - 'getDbInfo' のような文字列キーへの誤マッチを防ぐ（v292 修正）
+  // - = someFunc_ のような値参照も正しく検出する（v296 修正）
+  const removableTopLevelStatements = collectTopLevelStatements(source, declarations).filter((statement) => {
+    const stripped = statement.text.replace(/'[^']*'/g, "''").replace(/"[^"]*"/g, '""').replace(/`[^`]*`/g, '``');
+    return [...removableNames].some((name) => new RegExp(`\\b${name}\\b`).test(stripped));
+  });
   const rangesToRemove = [
     ...removable.map((decl) => ({ start: decl.start, end: decl.end })),
     ...removableTopLevelStatements.map((statement) => ({ start: statement.start, end: statement.end })),
@@ -623,6 +651,30 @@ export function pruneUnreachableFunctionDeclarations(source, seedNames, label) {
   }
   result += source.slice(cursor);
   console.log(`[${label}] Pruned ${removable.length} unreachable function declarations and ${removableTopLevelStatements.length} dependent top-level statements`);
+  return result;
+}
+
+export function removeTopLevelFunctionDeclarations(source, namesToRemove, label) {
+  const declarations = collectFunctionDeclarations(source);
+  const removeNames = new Set(namesToRemove);
+  const rangesToRemove = declarations
+    .filter((decl) => removeNames.has(decl.name))
+    .map((decl) => ({ start: decl.start, end: decl.end, name: decl.name }))
+    .sort((a, b) => a.start - b.start);
+
+  let result = '';
+  let cursor = 0;
+  const removed = [];
+  for (const range of rangesToRemove) {
+    if (range.start < cursor) continue;
+    result += source.slice(cursor, range.start);
+    cursor = range.end;
+    removed.push(range.name);
+  }
+  result += source.slice(cursor);
+  if (removed.length) {
+    console.log(`[${label}] Removed top-level functions: ${removed.join(', ')}`);
+  }
   return result;
 }
 

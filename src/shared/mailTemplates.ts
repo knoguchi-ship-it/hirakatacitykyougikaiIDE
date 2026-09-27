@@ -61,3 +61,19 @@ export const MAIL_TEMPLATE_MERGE_TAGS: Record<MailTemplateCategory, [string, str
   // {{宛先区分}} は「旧アドレス」「新アドレス」のどちらへ宛てた通知かを表す。
   CONTACT_EMAIL_CHANGED: [['{{氏名}}', '氏名'], ['{{旧メールアドレス}}', '変更前'], ['{{新メールアドレス}}', '変更後'], ['{{宛先区分}}', '旧アドレス／新アドレス']],
 };
+
+// 一括メールの差し込みタグ。
+//
+// 一括メールは「設定画面で文面を編集する自動通知」ではないので MailTemplateCategory には
+// 入れないが、タグの置き場をここ以外に作らない。2026-09-27 まで BulkMailSender.tsx が
+// 自前で列挙しており、タグを足しても一括メールだけ古いまま残る形になっていた
+// （v376.67 に App.tsx で起きたのと同じ二重管理）。
+//
+// 送信側の実体は gas-src の sendBulkMemberMail_ が組み立てる mergeVars。
+// ここと食い違うと「画面に出ているのに解決されないタグ」になるため、
+// npm run test:mail-merge-tags が両者の一致を検査する。
+export const BULK_MAIL_MERGE_TAGS: [string, string][] = [
+  ['{{氏名}}', '宛先の表示名'],
+  ['{{事業所名}}', '事業所名'],
+  ['{{会員番号}}', '会員番号'],
+];

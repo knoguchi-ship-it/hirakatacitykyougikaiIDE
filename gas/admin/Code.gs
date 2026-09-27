@@ -8740,44 +8740,73 @@ function disableAuthAccountsByMemberId_(ss, memberId) {
 // 一括で書き換えると、現に使われているログインIDを奪うことになるため。
 //
 // 戻り値: { changed: bool, before: string, after: string, staffEmail: string }
-function syncStaffLoginIdToCmNumber_(ss, staffId, newCmNumber) {
-  var result = { changed: false, before: '', after: '', staffEmail: '' };
-  var cm = String(newCmNumber || '').trim();
-  if (!cm) return result;
-  var authSheet = ss.getSheetByName('T_認証アカウント');
-  if (!authSheet || authSheet.getLastRow() < 2) return result;
-  var headers = authSheet.getRange(1, 1, 1, authSheet.getLastColumn()).getValues()[0];
+// T_認証アカウント のログインIDを書き換える唯一の場所（2026-09-27 集約）。
+//
+// 呼び出し元は「どの行か」と「新しいIDを何にするか」だけを決める。
+// 行の特定・重複の検出・更新日時・書き戻し・before/after の返却はここが持つ。
+// 以前は会員のCM番号・事業所番号・職員のCM番号で 3 箇所が別々にシートを叩いており、
+// 重複回避が入っているのは職員だけだった。
+//
+// resolveNewLoginId(before, otherLoginIds) が新しいIDを返す。
+// 空を返すか before と同じなら何もしない。
+// 返したIDが他の行と衝突する場合は **書き換えない**（同じログインIDが 2 つできると
+// どちらもログインできなくなる。v376.73 で実際に起きた）。衝突は collision で返す。
+function updateAuthAccountLoginId_(ss, matchColumn, matchValue, resolveNewLoginId) {
+  var result = { changed: false, before: '', after: '', collision: false };
+  var target = String(matchValue || '').trim();
+  if (!target) return result;
+
+  var sheet = ss.getSheetByName('T_認証アカウント');
+  if (!sheet || sheet.getLastRow() < 2) return result;
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   var cols = {};
-  for (var i = 0; i < headers.length; i++) cols[headers[i]] = i;
-  if (cols['職員ID'] == null || cols['ログインID'] == null) return result;
+  for (var h = 0; h < headers.length; h++) cols[headers[h]] = h;
+  if (cols[matchColumn] == null || cols['ログインID'] == null) return result;
 
-  var data = authSheet.getRange(2, 1, authSheet.getLastRow() - 1, authSheet.getLastColumn()).getValues();
+  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
 
-  // 既存ログインIDを集めて重複を避ける。退会者の行もログインIDを保持したまま残るため、
-  // 素朴に CM 番号をそのまま入れると衝突しうる（v376.73 で実際に起きた事故）。
-  var existing = [];
+  // 退会者の行もログインIDを保持したまま残るので、全行から集める。
+  var allLoginIds = [];
   for (var e = 0; e < data.length; e++) {
     var lid = String(data[e][cols['ログインID']] || '');
-    if (lid) existing.push(lid);
+    if (lid) allLoginIds.push(lid);
   }
 
   for (var r = 0; r < data.length; r++) {
-    if (String(data[r][cols['職員ID']] || '') !== String(staffId)) continue;
+    if (String(data[r][cols[matchColumn]] || '') !== target) continue;
     if (cols['削除フラグ'] != null && toBoolean_(data[r][cols['削除フラグ']])) continue;
+
     var before = String(data[r][cols['ログインID']] || '');
-    // 自分自身は重複判定から外す
-    var others = existing.filter(function(v) { return v !== before; });
-    var after = generateCmBasedLoginId_(cm, others);
+    var others = allLoginIds.filter(function(v) { return v !== before; });
+    var after = String(resolveNewLoginId(before, others) || '').trim();
     if (!after || after === before) return result;
+    if (others.indexOf(after) !== -1) {
+      result.collision = true;
+      result.before = before;
+      result.after = after;
+      Logger.log('[updateAuthAccountLoginId_] 衝突のため据え置き: ' + before + ' -> ' + after);
+      return result;
+    }
+
     data[r][cols['ログインID']] = after;
-    data[r][cols['更新日時']] = new Date().toISOString();
-    authSheet.getRange(r + 2, 1, 1, data[r].length).setValues([data[r]]);
+    if (cols['更新日時'] != null) data[r][cols['更新日時']] = new Date().toISOString();
+    sheet.getRange(r + 2, 1, 1, data[r].length).setValues([data[r]]);
     result.changed = true;
     result.before = before;
     result.after = after;
     return result;
   }
   return result;
+}
+
+function syncStaffLoginIdToCmNumber_(ss, staffId, newCmNumber) {
+  var cm = String(newCmNumber || '').trim();
+  if (!cm) return { changed: false, before: '', after: '', staffEmail: '' };
+  // 採番の方針だけをここに残す。CM 番号は 8 桁で、衝突したら先頭に 1〜9 を付けて避ける。
+  var updated = updateAuthAccountLoginId_(ss, '職員ID', staffId, function(before, others) {
+    return generateCmBasedLoginId_(cm, others);
+  });
+  return { changed: updated.changed, before: updated.before, after: updated.after, staffEmail: '' };
 }
 
 function disableAuthAccountsByStaffId_(ss, staffId) {
@@ -13635,39 +13664,26 @@ function approveAdminChangeRequest_(payload) {
 
     // 介護支援専門員番号変更の場合、T_認証アカウントのログインIDも更新
     if (memberType === 'INDIVIDUAL' && fields.careManagerNumber) {
-      var authSheet = ss.getSheetByName('T_認証アカウント');
-      if (authSheet) {
-        var authRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) {
-          return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
-        });
-        if (authRows.length > 0) {
-          var authFound = findRowByColumnValue_(authSheet, '会員ID', memberId);
-          if (authFound) {
-            var authRow = authFound.row;
-            var authCols = authFound.columns;
-            var prevLoginId = String(authRow[authCols['ログインID']] || '');
-            authRow[authCols['ログインID']] = fields.careManagerNumber;
-            authRow[authCols['更新日時']] = now;
-            authSheet.getRange(authFound.rowNumber, 1, 1, authRow.length).setValues([authRow]);
-            loginIdChange = { before: prevLoginId, after: String(fields.careManagerNumber) };
-          }
-        }
+      // 個人会員のログインIDは CM 番号。衝突したら先頭に 1〜9 を付けて避ける（職員と同じ規則）。
+      var cmLoginUpdate = updateAuthAccountLoginId_(ss, '会員ID', memberId, function(before, others) {
+        return generateCmBasedLoginId_(String(fields.careManagerNumber || ''), others);
+      });
+      if (cmLoginUpdate.changed) {
+        loginIdChange = { before: cmLoginUpdate.before, after: cmLoginUpdate.after };
       }
     }
     // 事業所番号変更の場合、T_認証アカウントのログインIDも更新
     if (memberType === 'BUSINESS' && fields.officeNumber) {
-      var bizAuthSheet = ss.getSheetByName('T_認証アカウント');
-      if (bizAuthSheet) {
-        var bizAuthFound = findRowByColumnValue_(bizAuthSheet, '会員ID', memberId);
-        if (bizAuthFound) {
-          var bizAuthRow = bizAuthFound.row;
-          var bizAuthCols = bizAuthFound.columns;
-          var prevBizLoginId = String(bizAuthRow[bizAuthCols['ログインID']] || '');
-          bizAuthRow[bizAuthCols['ログインID']] = fields.officeNumber;
-          bizAuthRow[bizAuthCols['更新日時']] = now;
-          bizAuthSheet.getRange(bizAuthFound.rowNumber, 1, 1, bizAuthRow.length).setValues([bizAuthRow]);
-          loginIdChange = { before: prevBizLoginId, after: String(fields.officeNumber) };
-        }
+      // 事業所会員のログインIDは事業所番号（10 桁英数字）。CM 番号の採番規則は使えないので
+      // そのまま入れる。衝突したら updateAuthAccountLoginId_ が据え置いて collision を返す。
+      var bizLoginUpdate = updateAuthAccountLoginId_(ss, '会員ID', memberId, function() {
+        return String(fields.officeNumber || '');
+      });
+      if (bizLoginUpdate.changed) {
+        loginIdChange = { before: bizLoginUpdate.before, after: bizLoginUpdate.after };
+      } else if (bizLoginUpdate.collision) {
+        notifyMailFailureToChat_('LOGIN_ID_COLLISION', {}, new Error(
+          '事業所番号 ' + bizLoginUpdate.after + ' は別のアカウントが使用中のため、ログインIDを変更しませんでした。'));
       }
     }
     // MEMBER_UPDATE に含まれるスタッフ追加/除籍も適用（事業所会員の複合申請対応）
@@ -14369,6 +14385,39 @@ function stripUnresolvedMergeTags_(text, category, part) {
   return stripped;
 }
 
+// 2026-09-27: 自動通知の送信記録。以前は T_メール送信ログ に一括メールしか書いておらず、
+// 受付確認などの自動通知は成功も失敗も何も残らなかった。だから「公開ポータル発のメールが
+// 半年近く 1 通も届いていない」ことに誰も気づけなかった（v376.103）。
+//
+// 個人情報は載せない。宛先も、差し込み済みの件名・本文も書かない
+// （件名には {{氏名}} が入りうる）。残すのは「いつ・どの種別が・どの経路で・どうなったか」だけ。
+// 一括メールは自前で明細付きの集計行を書くので、ここでは扱わない（二重記録を作らない）。
+function recordAutomatedMailLog_(category, outcome, options, detail) {
+  var categoryCode = String(category || 'GENERAL').toUpperCase();
+  if (categoryCode === 'BULK_MAIL') return;
+  try {
+    var from = String((options && options.from) || '').trim();
+    appendRowsByHeaders_(getLogSs_(), 'T_メール送信ログ', [{
+      'ログID': Utilities.getUuid(),
+      '送信日時': new Date().toISOString(),
+      // システム設定の送信元。個人の連絡先ではない。
+      '送信者メール': from,
+      // 差し込み済みの件名は載せない。種別が分かれば十分で、種別なら個人情報を含まない。
+      '件名テンプレート': categoryCode,
+      '宛先数': 1,
+      '成功数': outcome === 'SENT' ? 1 : 0,
+      'エラー数': outcome === 'FAILED' ? 1 : 0,
+      // SENT / FAILED / SUPPRESSED(理由) の別と、エイリアス送信かどうかを残す。
+      '送信種別': 'AUTO_' + outcome + (detail ? ':' + detail : '') + (from ? '/ALIAS' : '/DEFAULT'),
+      '研修ID': '',
+      '削除フラグ': false,
+    }]);
+  } catch (logError) {
+    // 記録できないことで業務処理を止めない。
+    Logger.log('[recordAutomatedMailLog_] ' + categoryCode + ': ' + logError.message);
+  }
+}
+
 // v376.102: メール送信の失敗を Chat の「要確認」へ流す。
 // 宛先・件名・本文は載せない。Chat は外部送信先であり、載せると会員の連絡先が外へ出る。
 // 載せるのは「どの種別が」「どの送信経路で」「どんなエラーで」落ちたかだけ。
@@ -14406,6 +14455,7 @@ function deliverMail_(category, to, subject, body, options) {
       var catEnabled = catRaw === '' ? true : catRaw.toLowerCase() !== 'false';
       if (!catEnabled) {
         Logger.log('[mail/category-disabled] category=' + category + ' to=' + to + ' subject=' + subject);
+        recordAutomatedMailLog_(category, 'SUPPRESSED', options, 'category_disabled');
         return { sent: false, suppressed: true, reason: 'category_disabled' };
       }
     } catch (e) {
@@ -14420,6 +14470,7 @@ function deliverMail_(category, to, subject, body, options) {
   var policy = mailDispatchPolicy_();
   if (policy.mode === 'SUPPRESS') {
     Logger.log('[mail/' + policy.reason + '] suppressed category=' + (category || 'GENERAL') + ' to=' + to + ' subject=' + subject);
+    recordAutomatedMailLog_(category, 'SUPPRESSED', options, policy.reason);
     return { sent: false, suppressed: true, reason: policy.reason };
   }
   var finalTo = to;
@@ -14440,9 +14491,11 @@ function deliverMail_(category, to, subject, body, options) {
   try {
     sendEmailWithValidatedFrom_(finalTo, finalSubject, finalBody, finalOptions);
   } catch (sendError) {
+    recordAutomatedMailLog_(category, 'FAILED', finalOptions, '');
     notifyMailFailureToChat_(category, finalOptions, sendError);
     throw sendError;   // 呼び出し側の従来の扱い（握りつぶし or ログ）は変えない
   }
+  recordAutomatedMailLog_(category, 'SENT', finalOptions, policy.mode === 'LIVE' ? '' : policy.mode);
   return { sent: true, mode: policy.mode };
 }
 

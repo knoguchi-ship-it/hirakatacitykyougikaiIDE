@@ -5,6 +5,7 @@ import {
   collectFunctionDeclarations,
   ADMIN_TOP_LEVEL_FUNCTIONS,
   ADMIN_OPERATOR_TOOL_FUNCTIONS,
+  ADMIN_SCHEDULED_JOB_FUNCTIONS,
   ADMIN_FORBIDDEN_TOP_LEVEL_FUNCTIONS,
   ADMIN_LOGIN_ACTIONS_LIST,
   ADMIN_ALLOWED_ACTIONS_LIST,
@@ -16,6 +17,8 @@ const codePath = join(root, 'gas', 'admin', 'Code.gs');
 // v376.55: operator ツールは dryrun.gs に分離（GAS は全 .gs がグローバルスコープ共有）。
 // 監査は「結合コード」に対して従来通り行い、加えてファイルごとの分離状態も検査する。
 const dryrunPath = join(root, 'gas', 'admin', 'dryrun.gs');
+// 2026-09-27: 本番の定期ジョブは jobs.gs へ分離（dryrun.gs は診断ツール専用）。
+const jobsPath = join(root, 'gas', 'admin', 'jobs.gs');
 const htmlPath = join(root, 'gas', 'admin', 'index.html');
 
 // v376.18: 許可 top-level リストは gas-boundary-utils.mjs の ADMIN_TOP_LEVEL_FUNCTIONS に
@@ -72,7 +75,8 @@ if (!existsSync(htmlPath)) fail('gas/admin/index.html is missing');
 
 const mainCode = existsSync(codePath) ? readFileSync(codePath, 'utf8') : '';
 const dryrunCode = existsSync(dryrunPath) ? readFileSync(dryrunPath, 'utf8') : '';
-const code = `${mainCode}\n${dryrunCode}`;
+const jobsCode = existsSync(jobsPath) ? readFileSync(jobsPath, 'utf8') : '';
+const code = `${mainCode}\n${jobsCode}\n${dryrunCode}`;
 const html = existsSync(htmlPath) ? readFileSync(htmlPath, 'utf8') : '';
 
 const topLevelFunctions = collectFunctionDeclarations(code)
@@ -84,11 +88,17 @@ compareSets(topLevelFunctions, allowedTopLevelFunctions, 'admin top-level functi
 const mainPublic = collectFunctionDeclarations(mainCode)
   .map((decl) => decl.name)
   .filter((name) => !name.endsWith('_'));
-compareSets(mainPublic, ['doGet', 'processApiRequest'], 'Code.gs public top-level (operator tools must live in dryrun.gs)');
+compareSets(mainPublic, ['doGet', 'processApiRequest'], 'Code.gs public top-level (operator tools must live in dryrun.gs / jobs.gs)');
 const dryrunPublic = collectFunctionDeclarations(dryrunCode)
   .map((decl) => decl.name)
   .filter((name) => !name.endsWith('_'));
 compareSets(dryrunPublic, ADMIN_OPERATOR_TOOL_FUNCTIONS, 'dryrun.gs operator tools');
+// 2026-09-27: 本番で動く定期ジョブは jobs.gs に置く。dryrun.gs（診断ツール）と混ぜると、
+// 本番のトリガーが叩く関数を「消してよいもの」と誤解する。
+const jobsPublic = collectFunctionDeclarations(jobsCode)
+  .map((decl) => decl.name)
+  .filter((name) => !name.endsWith('_'));
+compareSets(jobsPublic, ADMIN_SCHEDULED_JOB_FUNCTIONS, 'jobs.gs scheduled jobs');
 
 for (const name of forbiddenTopLevelFunctions) {
   if (new RegExp(`^function\\s+${name}\\s*\\(`, 'm').test(code)) {

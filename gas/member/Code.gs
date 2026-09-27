@@ -3815,6 +3815,18 @@ function generateTrainingApplyId_() {
 // 一括で書き換えると、現に使われているログインIDを奪うことになるため。
 //
 // 戻り値: { changed: bool, before: string, after: string, staffEmail: string }
+// T_認証アカウント のログインIDを書き換える唯一の場所（2026-09-27 集約）。
+//
+// 呼び出し元は「どの行か」と「新しいIDを何にするか」だけを決める。
+// 行の特定・重複の検出・更新日時・書き戻し・before/after の返却はここが持つ。
+// 以前は会員のCM番号・事業所番号・職員のCM番号で 3 箇所が別々にシートを叩いており、
+// 重複回避が入っているのは職員だけだった。
+//
+// resolveNewLoginId(before, otherLoginIds) が新しいIDを返す。
+// 空を返すか before と同じなら何もしない。
+// 返したIDが他の行と衝突する場合は **書き換えない**（同じログインIDが 2 つできると
+// どちらもログインできなくなる。v376.73 で実際に起きた）。衝突は collision で返す。
+
 
 
 // ── v127: 職員IDに紐づく認証アカウントの有効フラグを true に復旧する ──
@@ -6883,6 +6895,39 @@ function stripUnresolvedMergeTags_(text, category, part) {
   return stripped;
 }
 
+// 2026-09-27: 自動通知の送信記録。以前は T_メール送信ログ に一括メールしか書いておらず、
+// 受付確認などの自動通知は成功も失敗も何も残らなかった。だから「公開ポータル発のメールが
+// 半年近く 1 通も届いていない」ことに誰も気づけなかった（v376.103）。
+//
+// 個人情報は載せない。宛先も、差し込み済みの件名・本文も書かない
+// （件名には {{氏名}} が入りうる）。残すのは「いつ・どの種別が・どの経路で・どうなったか」だけ。
+// 一括メールは自前で明細付きの集計行を書くので、ここでは扱わない（二重記録を作らない）。
+function recordAutomatedMailLog_(category, outcome, options, detail) {
+  var categoryCode = String(category || 'GENERAL').toUpperCase();
+  if (categoryCode === 'BULK_MAIL') return;
+  try {
+    var from = String((options && options.from) || '').trim();
+    appendRowsByHeaders_(getLogSs_(), 'T_メール送信ログ', [{
+      'ログID': Utilities.getUuid(),
+      '送信日時': new Date().toISOString(),
+      // システム設定の送信元。個人の連絡先ではない。
+      '送信者メール': from,
+      // 差し込み済みの件名は載せない。種別が分かれば十分で、種別なら個人情報を含まない。
+      '件名テンプレート': categoryCode,
+      '宛先数': 1,
+      '成功数': outcome === 'SENT' ? 1 : 0,
+      'エラー数': outcome === 'FAILED' ? 1 : 0,
+      // SENT / FAILED / SUPPRESSED(理由) の別と、エイリアス送信かどうかを残す。
+      '送信種別': 'AUTO_' + outcome + (detail ? ':' + detail : '') + (from ? '/ALIAS' : '/DEFAULT'),
+      '研修ID': '',
+      '削除フラグ': false,
+    }]);
+  } catch (logError) {
+    // 記録できないことで業務処理を止めない。
+    Logger.log('[recordAutomatedMailLog_] ' + categoryCode + ': ' + logError.message);
+  }
+}
+
 // v376.102: メール送信の失敗を Chat の「要確認」へ流す。
 // 宛先・件名・本文は載せない。Chat は外部送信先であり、載せると会員の連絡先が外へ出る。
 // 載せるのは「どの種別が」「どの送信経路で」「どんなエラーで」落ちたかだけ。
@@ -6920,6 +6965,7 @@ function deliverMail_(category, to, subject, body, options) {
       var catEnabled = catRaw === '' ? true : catRaw.toLowerCase() !== 'false';
       if (!catEnabled) {
         Logger.log('[mail/category-disabled] category=' + category + ' to=' + to + ' subject=' + subject);
+        recordAutomatedMailLog_(category, 'SUPPRESSED', options, 'category_disabled');
         return { sent: false, suppressed: true, reason: 'category_disabled' };
       }
     } catch (e) {
@@ -6934,6 +6980,7 @@ function deliverMail_(category, to, subject, body, options) {
   var policy = mailDispatchPolicy_();
   if (policy.mode === 'SUPPRESS') {
     Logger.log('[mail/' + policy.reason + '] suppressed category=' + (category || 'GENERAL') + ' to=' + to + ' subject=' + subject);
+    recordAutomatedMailLog_(category, 'SUPPRESSED', options, policy.reason);
     return { sent: false, suppressed: true, reason: policy.reason };
   }
   var finalTo = to;
@@ -6954,9 +7001,11 @@ function deliverMail_(category, to, subject, body, options) {
   try {
     sendEmailWithValidatedFrom_(finalTo, finalSubject, finalBody, finalOptions);
   } catch (sendError) {
+    recordAutomatedMailLog_(category, 'FAILED', finalOptions, '');
     notifyMailFailureToChat_(category, finalOptions, sendError);
     throw sendError;   // 呼び出し側の従来の扱い（握りつぶし or ログ）は変えない
   }
+  recordAutomatedMailLog_(category, 'SENT', finalOptions, policy.mode === 'LIVE' ? '' : policy.mode);
   return { sent: true, mode: policy.mode };
 }
 
