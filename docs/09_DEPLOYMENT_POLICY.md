@@ -151,7 +151,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-09-27 v376.103 ← current production
+### 2026-09-27 v376.104 ← current production
+
+- Scope: 定期ジョブのハンドラが build の pruning で 3 split すべての生成物から消えており、公開プロジェクトのトリガーが存在しない関数を 5 分ごとに叩き続けていた。ジョブを管理者 split へ移し（公開は匿名アクセスで任意のトップレベル関数を google.script.run から呼べるため）、心拍・失敗通知・遅れ通知を追加。warmUp と旧世代のサムネイル経路は廃止。あわせて 3 つに分かれていた研修申込の判定（同一人物の解決・重複・定員）を集約し、同じ人が申し込むたびに外部申込者が増えるバグを解消。
+- Fixed deployments: integrated/public @415 x2 / member @173 / admin @270.
+- Verification: prerelease PASS（exit 0）、test:scheduled-jobs 8/8、test:training-apply-rules 10/10、typecheck PASS、3 split 生成物に定期ジョブが正しく入り公開・会員には入っていないことを確認、deployment API で4本同期確認。**operator 手順（トリガーの削除と再作成）が残っている** — docs/289 §1-7。
+- Rollback: integrated/public @414 x2 / member @172 / admin @269（v376.103）。
+
+### 2026-09-27 v376.103
 
 - Scope: 送信元エイリアス指定のメール送信を `GmailApp` から Gmail REST API（`users.messages.send`）へ切り替え。`GmailApp` はエイリアス照合のため `gmail.settings.basic` 等を要求し、これを持たない公開・会員 split からの送信が毎回落ちていた。REST は `gmail.send` だけで送れる。添付（一括メール）も同じ経路で扱い、二重実装を作らない。
 - Fixed deployments: integrated/public @414 x2 / member @172 / admin @269.
@@ -182,7 +189,7 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 - Scope: ログインID変更・メールアドレス変更の通知を設定化（固定文の解消）。設定キーはあるのに送信箇所が無かった会員情報変更確認・退会申請受付の 2 枚を配線。公開ポータルから「変更するとログインIDも変わります」を削除。
 - Fixed deployments: integrated/public @410 x2 / member @168 / admin @265.
-- Verification: prerelease PASS（exit 0）、typecheck PASS、test:mail-merge-tags 9/9、GAS 構文チェック PASS、3 split 生成物検査、deployment API で4本同期確認。管理画面の本番レスポンシブ検査 PASS（7 viewport × 8 view）、本番の設定画面で新カード 2 枚と件数表示を実画面確認。詳細は `docs/285_RELEASE_STATE_v376.99_2026-09-22.md`。
+- Verification: prerelease PASS（exit 0）、typecheck PASS、test:mail-merge-tags 9/9、GAS 構文チェック PASS、3 split 生成物検査、deployment API で4本同期確認。管理画面の本番レスポンシブ検査 PASS（7 viewport × 8 view）、本番の設定画面で新カード 2 枚と件数表示を実画面確認。詳細は `docs/archive/release_history/285_RELEASE_STATE_v376.99_2026-09-22.md`。
 - Rollback: integrated/public @409 x2 / member @167 / admin @264（v376.98.1）。
 
 ### 2026-09-22 v376.98.1

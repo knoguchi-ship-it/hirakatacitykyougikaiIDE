@@ -452,6 +452,26 @@ const StatCard: React.FC<{ label: string; value: number; sub?: string; color?: '
 };
 
 // ── ゲスト追加ダイアログ ───────────────────────────────────────────
+// 名簿追加の結果を利用者の言葉に直す。
+// 重複は失敗ではなく「もう入っている」なので、原因が分かる文言にする。
+const rosterAddErrorMessage = (code?: string) =>
+  code === 'already_applied'
+    ? 'この方は既にこの研修に申し込み済みです。名簿を確認してください。'
+    : code || '追加に失敗しました';
+
+// 定員を超えたことを黙って通さない。運用の基本は定員そのものを広げること。
+const warnIfCapacityExceeded = (res: { capacityExceeded?: boolean; capacity?: number; applicants?: number }) => {
+  if (!res.capacityExceeded) return;
+  window.alert(
+    [
+      '定員を超えて追加しました。',
+      `定員 ${res.capacity ?? '-'} 名 / 申込 ${res.applicants ?? '-'} 名`,
+      '',
+      '意図した追加であれば、研修の定員そのものを広げてください。',
+    ].join('\n'),
+  );
+};
+
 const GuestAddDialog: React.FC<{ trainingId: string; onClose: () => void; onAdded: () => void }> = ({ trainingId, onClose, onAdded }) => {
   const [name, setName] = useState('');
   const [kana, setKana] = useState('');
@@ -473,7 +493,8 @@ const GuestAddDialog: React.FC<{ trainingId: string; onClose: () => void; onAdde
         guest: { name: name.trim(), kana: normalizeKana(kana), email: email.trim(), phone: phone.trim(), officeName: officeName.trim() },
         memo: memo.trim(),
       });
-      if (!res.ok) { setErr(res.error || '追加に失敗しました'); return; }
+      if (!res.ok) { setErr(rosterAddErrorMessage(res.error)); return; }
+      warnIfCapacityExceeded(res);
       onAdded();
     } catch (e) {
       setErr(e instanceof Error ? e.message : '追加に失敗しました');
@@ -520,7 +541,8 @@ const MemberAddDialog: React.FC<{ trainingId: string; onClose: () => void; onAdd
       if (mode === 'member') payload.memberId = id.trim();
       else payload.staffId = id.trim();
       const res = await api.addRosterEntry(payload);
-      if (!res.ok) { setErr(res.error || '追加に失敗しました'); return; }
+      if (!res.ok) { setErr(rosterAddErrorMessage(res.error)); return; }
+      warnIfCapacityExceeded(res);
       onAdded();
     } catch (e) {
       setErr(e instanceof Error ? e.message : '追加に失敗しました');

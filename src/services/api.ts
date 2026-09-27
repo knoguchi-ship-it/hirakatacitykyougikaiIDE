@@ -161,8 +161,8 @@ export interface ApiClient {
   getTrainingRosterDetail(trainingId: string): Promise<{ applicants: TrainingRosterRow[] }>;
   saveAttendance(payload: { applyId: string; status: AttendanceStatus }): Promise<{ ok: boolean; recordedAt?: string; error?: string }>;
   saveAttendanceBatch(entries: Array<{ applyId: string; status: AttendanceStatus }>): Promise<{ results: any[] }>;
-  addRosterEntry(payload: { trainingId: string; memberId?: string; staffId?: string; memo?: string }): Promise<{ ok: boolean; applyId?: string; error?: string }>;
-  addGuestRosterEntry(payload: { trainingId: string; guest: { name: string; kana?: string; email?: string; phone?: string; officeName?: string }; memo?: string }): Promise<{ ok: boolean; applyId?: string; externalId?: string; error?: string }>;
+  addRosterEntry(payload: { trainingId: string; memberId?: string; staffId?: string; memo?: string }): Promise<{ ok: boolean; applyId?: string; error?: string; capacityExceeded?: boolean; capacity?: number; applicants?: number }>;
+  addGuestRosterEntry(payload: { trainingId: string; guest: { name: string; kana?: string; email?: string; phone?: string; officeName?: string }; memo?: string }): Promise<{ ok: boolean; applyId?: string; externalId?: string; error?: string; reusedExternal?: boolean; capacityExceeded?: boolean; capacity?: number; applicants?: number }>;
   cancelRosterEntry(payload: { applyId: string; reason?: string }): Promise<{ ok: boolean; error?: string }>;
   updateRosterEntry(payload: { applyId: string; adminMemo?: string }): Promise<{ ok: boolean; error?: string }>;
   getTrainingStats(trainingId: string): Promise<TrainingStats>;
@@ -903,10 +903,10 @@ class GasApiClient implements ApiClient {
     return this.callAction<{ results: any[] }>('saveAttendanceBatch', { entries });
   }
   addRosterEntry(payload: { trainingId: string; memberId?: string; staffId?: string; memo?: string }) {
-    return this.callAction<{ ok: boolean; applyId?: string; error?: string }>('addRosterEntry', payload);
+    return this.callAction<{ ok: boolean; applyId?: string; error?: string; capacityExceeded?: boolean; capacity?: number; applicants?: number }>('addRosterEntry', payload);
   }
   addGuestRosterEntry(payload: { trainingId: string; guest: { name: string; kana?: string; email?: string; phone?: string; officeName?: string }; memo?: string }) {
-    return this.callAction<{ ok: boolean; applyId?: string; externalId?: string; error?: string }>('addGuestRosterEntry', payload);
+    return this.callAction<{ ok: boolean; applyId?: string; externalId?: string; error?: string; reusedExternal?: boolean; capacityExceeded?: boolean; capacity?: number; applicants?: number }>('addGuestRosterEntry', payload);
   }
   cancelRosterEntry(payload: { applyId: string; reason?: string }) {
     return this.callAction<{ ok: boolean; error?: string }>('cancelRosterEntry', payload);

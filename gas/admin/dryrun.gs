@@ -25,6 +25,40 @@ function forceMarkSchemaInitializedToCurrent() {
   return out;
 }
 
+function checkScheduledJobHealth() {
+  var health = checkScheduledJobHealth_();
+  Logger.log(JSON.stringify(health, null, 2));
+  return JSON.stringify(health);
+}
+
+function dailyWithdrawalPolicyTrigger() {
+  return runScheduledJob_('dailyWithdrawalPolicyTrigger', function() {
+    applyWithdrawalDeletionPolicyIfNeeded_();
+  });
+}
+
+function setupScheduledTriggers() {
+  // build の pruner は文字列中の識別子も「参照」とみなすため、廃止したハンドラ名は
+  // 分割して書く。そのまま書くと、削除したはずの実体が生成物に復活する
+  // （feedback_build_pruner_regex_action_traps と同じ罠）。
+  var handled = {};
+  handled['dailyWithdrawalPolicyTrigger'] = true;
+  handled['warm' + 'Up'] = true;
+  handled['runThumbnail' + 'Generation'] = true;
+  var existing = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < existing.length; i++) {
+    if (handled[existing[i].getHandlerFunction()]) ScriptApp.deleteTrigger(existing[i]);
+  }
+  // 日次 退会ポリシー（毎日 02:00-03:00 JST）
+  ScriptApp.newTrigger('dailyWithdrawalPolicyTrigger').timeBased().everyDays(1).atHour(2).create();
+
+  var names = [];
+  var after = ScriptApp.getProjectTriggers();
+  for (var n = 0; n < after.length; n++) names.push(after[n].getHandlerFunction());
+  Logger.log('setupScheduledTriggers: 現在のトリガー = ' + names.join(', '));
+  return JSON.stringify({ triggers: names });
+}
+
 function processPendingThumbnails() {
   try {
     var ss = getOrCreateDatabase_();
@@ -55,8 +89,10 @@ function processPendingThumbnails() {
       clearAdminDashboardCache_();
       clearTrainingManagementCache_();
     }
+    recordJobHeartbeat_('processPendingThumbnails');
   } catch (e) {
     Logger.log('processPendingThumbnails: fatal ' + e.message);
+    notifyScheduledJobFailureToChat_('processPendingThumbnails', e);
   }
 }
 

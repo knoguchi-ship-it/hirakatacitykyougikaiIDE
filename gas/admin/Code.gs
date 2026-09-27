@@ -1672,6 +1672,9 @@ function processApiRequest(action, payload) {
         data: {
           dashboard: getAdminDashboardData_(),
           settings: getSystemSettings_(),
+          // 2026-09-27: 定期ジョブの死活をここで評価する。トリガーで見張ると
+          // 見張り役が死んだときに誰も気づけないため、人が開く経路に載せる。
+          scheduledJobs: reportOverdueScheduledJobs_(),
         },
       });
     }
@@ -10643,6 +10646,14 @@ function matchesSearchQuery_(query, values) {
   });
 }
 
+function shouldAutoDeleteOnNextApril_(withdrawnDateRaw, referenceDate) {
+  var normalized = normalizeDateInput_(withdrawnDateRaw);
+  if (!normalized) return false;
+  var parsed = new Date(normalized + 'T00:00:00+09:00');
+  if (isNaN(parsed.getTime())) return false;
+  var threshold = new Date(parsed.getFullYear() + 1, 3, 1, 0, 0, 0, 0); // next year 4/1
+  return referenceDate.getTime() >= threshold.getTime();
+}
 
 // v106: 年度開始日ユーティリティ（日本の会計年度: 4月1日〜翌年3月31日）
 function getFiscalYearStart_(referenceDate) {
@@ -10786,16 +10797,264 @@ function validateBusinessStaffRoleTransition_(ss, memberId, staffPayloadList, ad
   }
 }
 
+function applyWithdrawalDeletionPolicy_() {
+  var ss = getOrCreateDatabase_();
+  var now = new Date();
+
+  // ── Phase 1: 退会予定 → 退会確定（退会日を過ぎた WITHDRAWAL_SCHEDULED を WITHDRAWN に）──
+  promoteScheduledWithdrawals_(ss, now);
+
+  // ── Phase 2: 退会済みの削除フラグ付与（既存ロジック）──
+  markAutoDeletedRows_(ss, 'T_会員', '会員状態コード', 'WITHDRAWN', '退会日');
+  markAutoDeletedRows_(ss, 'T_事業所職員', '職員状態コード', 'LEFT', '退会日');
+
+  function markAutoDeletedRows_(spreadsheet, sheetName, statusCol, withdrawnCode, withdrawnDateCol) {
+    var sheet = spreadsheet.getSheetByName(sheetName);
+    if (!sheet || sheet.getLastRow() < 2) return;
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var cols = {};
+    for (var i = 0; i < headers.length; i += 1) cols[headers[i]] = i;
+    if (cols['削除フラグ'] == null || cols[statusCol] == null || cols[withdrawnDateCol] == null) return;
+
+    var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+    var updates = [];
+    for (var r = 0; r < rows.length; r += 1) {
+      var row = rows[r];
+      if (toBoolean_(row[cols['削除フラグ']])) continue;
+      if (String(row[cols[statusCol]] || '') !== withdrawnCode) continue;
+      if (!shouldAutoDeleteOnNextApril_(row[cols[withdrawnDateCol]], now)) continue;
+      row[cols['削除フラグ']] = true;
+      if (cols['更新日時'] != null) row[cols['更新日時']] = now.toISOString();
+      updates.push({ rowNumber: r + 2, row: row });
+    }
+    for (var u = 0; u < updates.length; u += 1) {
+      sheet.getRange(updates[u].rowNumber, 1, 1, updates[u].row.length).setValues([updates[u].row]);
+    }
+  }
+}
 
 // 退会予定日を過ぎた WITHDRAWAL_SCHEDULED を WITHDRAWN に昇格 + 認証アカウント無効化
+function promoteScheduledWithdrawals_(ss, now) {
+  var memberSheet = ss.getSheetByName('T_会員');
+  if (!memberSheet || memberSheet.getLastRow() < 2) return;
 
+  var headers = memberSheet.getRange(1, 1, 1, memberSheet.getLastColumn()).getValues()[0];
+  var cols = {};
+  for (var i = 0; i < headers.length; i += 1) cols[headers[i]] = i;
+  if (cols['会員状態コード'] == null || cols['退会日'] == null) return;
+
+  var todayStr = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy-MM-dd');
+  var rows = memberSheet.getRange(2, 1, memberSheet.getLastRow() - 1, memberSheet.getLastColumn()).getValues();
+  var memberUpdates = [];
+  var withdrawnMemberIds = [];
+
+  for (var r = 0; r < rows.length; r += 1) {
+    var row = rows[r];
+    if (toBoolean_(row[cols['削除フラグ']])) continue;
+    if (String(row[cols['会員状態コード']] || '') !== 'WITHDRAWAL_SCHEDULED') continue;
+
+    var withdrawnDate = normalizeDateInput_(row[cols['退会日']]);
+    if (!withdrawnDate || withdrawnDate > todayStr) continue;
+
+    // 退会日を過ぎている → WITHDRAWN に確定
+    row[cols['会員状態コード']] = 'WITHDRAWN';
+    row[cols['更新日時']] = now.toISOString();
+    memberUpdates.push({ rowNumber: r + 2, row: row });
+    withdrawnMemberIds.push(String(row[cols['会員ID']] || ''));
+  }
+
+  for (var u = 0; u < memberUpdates.length; u += 1) {
+    memberSheet.getRange(memberUpdates[u].rowNumber, 1, 1, memberUpdates[u].row.length).setValues([memberUpdates[u].row]);
+  }
+
+  // 対象会員の認証アカウントを無効化
+  if (withdrawnMemberIds.length === 0) return;
+  var authSheet = ss.getSheetByName('T_認証アカウント');
+  if (!authSheet || authSheet.getLastRow() < 2) return;
+
+  var authHeaders = authSheet.getRange(1, 1, 1, authSheet.getLastColumn()).getValues()[0];
+  var authCols = {};
+  for (var j = 0; j < authHeaders.length; j += 1) authCols[authHeaders[j]] = j;
+  if (authCols['会員ID'] == null || authCols['アカウント有効フラグ'] == null) return;
+
+  var authRows = authSheet.getRange(2, 1, authSheet.getLastRow() - 1, authSheet.getLastColumn()).getValues();
+  for (var a = 0; a < authRows.length; a += 1) {
+    var authRow = authRows[a];
+    var authMemberId = String(authRow[authCols['会員ID']] || '');
+    if (withdrawnMemberIds.indexOf(authMemberId) === -1) continue;
+    if (!toBoolean_(authRow[authCols['アカウント有効フラグ']])) continue;
+
+    authRow[authCols['アカウント有効フラグ']] = false;
+    if (authCols['更新日時'] != null) authRow[authCols['更新日時']] = now.toISOString();
+    authSheet.getRange(a + 2, 1, 1, authRow.length).setValues([authRow]);
+  }
+}
+
+function applyWithdrawalDeletionPolicyIfNeeded_() {
+  var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty(WITHDRAWAL_POLICY_LAST_APPLIED_DATE_KEY) === today) {
+    return;
+  }
+
+  var lock = LockService.getScriptLock();
+  lock.tryLock(5000);
+  try {
+    if (props.getProperty(WITHDRAWAL_POLICY_LAST_APPLIED_DATE_KEY) === today) {
+      return;
+    }
+    applyWithdrawalDeletionPolicy_();
+    props.setProperty(WITHDRAWAL_POLICY_LAST_APPLIED_DATE_KEY, today);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// ── 定期ジョブの登録簿・心拍・死活 ──────────────────────────────────────
+//
+// 2026-09-27: 定期ジョブのハンドラが build の pruning で 3 split すべての生成物から
+// 消えており、登録済みのトリガーが「存在しない関数」を叩き続けていた。
+// 退会予定→退会確定の昇格が動いていなかったが、誰も気づけなかった。
+// 失敗が見えない状態を作らないため、(1) ジョブを登録簿で持ち、
+// (2) 成功のたびに心拍を残し、(3) 遅れと失敗を Chat の「要確認」へ流す。
+//
+// ジョブは **管理者 split にだけ**置く。公開プロジェクトは匿名アクセスで、
+// トップレベル関数は google.script.run から誰でも呼べてしまう
+// （scripts/gas-boundary-utils.mjs の assertAllowedTopLevelFunctions が守っている境界）。
+var SCHEDULED_JOB_HEARTBEAT_PREFIX_ = 'JOB_HEARTBEAT_';
+var SCHEDULED_JOB_ALERT_PREFIX_ = 'JOB_ALERTED_';
+
+// ここが定期ジョブの正本。トリガーを足したら必ずここにも足す
+// （scripts/test-scheduled-jobs.mts が登録簿とトリガー宣言の食い違いで落ちる）。
+var SCHEDULED_JOBS_ = [
+  {
+    name: 'dailyWithdrawalPolicyTrigger',
+    label: '退会ポリシーの日次適用（退会予定→退会確定の昇格を含む）',
+    maxAgeMinutes: 26 * 60,
+  },
+  {
+    name: 'processPendingThumbnails',
+    label: '研修案内 PDF のサムネイル生成',
+    maxAgeMinutes: 60,
+  },
+];
+
+function scheduledJobProps_() {
+  return PropertiesService.getScriptProperties();
+}
+
+function recordJobHeartbeat_(jobName) {
+  try {
+    scheduledJobProps_().setProperty(SCHEDULED_JOB_HEARTBEAT_PREFIX_ + jobName, new Date().toISOString());
+  } catch (e) {
+    Logger.log('[recordJobHeartbeat_] ' + jobName + ': ' + e.message);
+  }
+}
+
+// 定期ジョブの共通ラッパー。成功したら心拍を残し、落ちたら Chat へ流す。
+// メール送信の失敗通知（v376.102）と同じ考え方で、例外は握りつぶさない。
+function runScheduledJob_(jobName, body) {
+  try {
+    var result = body();
+    recordJobHeartbeat_(jobName);
+    return result;
+  } catch (error) {
+    notifyScheduledJobFailureToChat_(jobName, error);
+    throw error;
+  }
+}
+
+function notifyScheduledJobFailureToChat_(jobName, error) {
+  try {
+    notifyMembershipChatSafely_(getOrCreateDatabase_(), 'ANOMALY', {
+      '手続種別': '定期ジョブ',
+      '申請ID': '',
+      '日時': new Date().toISOString(),
+      '変更内容': '',
+      '異常内容': [
+        '定期ジョブが失敗しました。',
+        'ジョブ: ' + jobName,
+        'エラー: ' + String((error && error.message) || error),
+      ].join('\n'),
+    });
+  } catch (notifyError) {
+    Logger.log('[notifyScheduledJobFailureToChat_] failed: ' + notifyError.message);
+  }
+}
+
+// 遅れているジョブを返す。心拍が無いものは「一度も成功していない」として遅れ扱いにする。
+// トリガーが作り直されていない状態を、黙って正常に見せないため。
+function checkScheduledJobHealth_() {
+  var props = scheduledJobProps_();
+  var now = new Date().getTime();
+  var jobs = [];
+  for (var i = 0; i < SCHEDULED_JOBS_.length; i += 1) {
+    var job = SCHEDULED_JOBS_[i];
+    var raw = '';
+    try { raw = String(props.getProperty(SCHEDULED_JOB_HEARTBEAT_PREFIX_ + job.name) || ''); } catch (e) {}
+    var ageMinutes = raw ? Math.floor((now - new Date(raw).getTime()) / 60000) : null;
+    jobs.push({
+      name: job.name,
+      label: job.label,
+      lastOkAt: raw,
+      ageMinutes: ageMinutes,
+      maxAgeMinutes: job.maxAgeMinutes,
+      overdue: ageMinutes === null || ageMinutes > job.maxAgeMinutes,
+    });
+  }
+  return { checkedAt: new Date().toISOString(), jobs: jobs };
+}
+
+// 管理画面を開いたときに評価する。**トリガーで見張らない**のが肝で、
+// 見張り役をトリガーにすると、それ自身が死んだときに誰も気づけない。
+// 人が管理画面を開く経路なら、トリガーが全滅していても届く。
+// 同じジョブについては 1 日 1 回までしか流さない。
+function reportOverdueScheduledJobs_() {
+  var health = checkScheduledJobHealth_();
+  var overdue = [];
+  for (var i = 0; i < health.jobs.length; i += 1) {
+    if (health.jobs[i].overdue) overdue.push(health.jobs[i]);
+  }
+  if (!overdue.length) return health;
+
+  var props = scheduledJobProps_();
+  var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+  var unreported = [];
+  for (var j = 0; j < overdue.length; j += 1) {
+    var key = SCHEDULED_JOB_ALERT_PREFIX_ + overdue[j].name;
+    var last = '';
+    try { last = String(props.getProperty(key) || ''); } catch (e) {}
+    if (last === today) continue;
+    unreported.push(overdue[j]);
+    try { props.setProperty(key, today); } catch (e) {}
+  }
+  if (!unreported.length) return health;
+
+  var lines = ['定期ジョブが動いていません。'];
+  for (var k = 0; k < unreported.length; k += 1) {
+    var u = unreported[k];
+    lines.push('・' + u.label + '（' + u.name + '）: '
+      + (u.lastOkAt ? '最終成功 ' + u.lastOkAt : '一度も成功していません')
+      + ' / 許容 ' + u.maxAgeMinutes + ' 分');
+  }
+  lines.push('管理者プロジェクトのスクリプトエディタで setupScheduledTriggers を実行すると作り直せます。');
+  try {
+    notifyMembershipChatSafely_(getOrCreateDatabase_(), 'ANOMALY', {
+      '手続種別': '定期ジョブ',
+      '申請ID': '',
+      '日時': new Date().toISOString(),
+      '変更内容': '',
+      '異常内容': lines.join('\n'),
+    });
+  } catch (notifyError) {
+    Logger.log('[reportOverdueScheduledJobs_] failed: ' + notifyError.message);
+  }
+  return health;
+}
+
+// operator が editor から引数なしで実行して状態を見る入口。
 
 // v150: 日次トリガーで退会削除ポリシーを実行（ホットパスから除外）
-
-// v150: ウォームアップトリガー（コールドスタート軽減）
-// v188: SpreadsheetApp接続確立 + キャッシュ投入でV8ランタイムとDBを同時に温める
-
-// v150: トリガー一括セットアップ（手動で1回実行）
 
 function syncBusinessStaffRows_(ss, memberId, memberTypeCode, staffPayloadList) {
   var sheet = ss.getSheetByName('T_事業所職員');
@@ -11279,7 +11538,151 @@ function saveTraining_(payload) {
  */
 
 
+function countAppliedApplicants_(ss, trainingId) {
+  return getTrainingApplicationRows_(ss, { appliedOnly: true, trainingId: String(trainingId || '') }).length;
+}
 
+// ── 研修申込の共通ルール ────────────────────────────────────────────────
+//
+// 2026-09-27: 申込の入口は 3 つある（会員マイページ / 公開ポータル / 管理画面の名簿追加）。
+// 以前はそれぞれが独自に判定しており、管理画面からの追加には重複検査も定員検査も無く、
+// 公開申込は同じメールの人でも申込のたびに T_外部申込者 を作り直していた。
+// 「どこから登録しても 1 人の申込は 1 人」を守るため、判定をここに集める。
+// 入口ごとの手続き（本人確認・権限・メール）は別物なので共通化しない。
+
+// 外部申込者の同一性はメールアドレスで見る。氏名は表記ゆれが避けられず、
+// 同姓同名もありうるので鍵にしない。メールが無い場合だけ新規に起こす。
+function normalizeApplicantEmailKey_(email) {
+  return String(email == null ? '' : email).trim().toLowerCase();
+}
+
+// 既存の外部申込者を返す。無ければ 1 件だけ作る。
+// 連絡先が変わっていれば最新で上書きする（同じ人を増やさない）。
+function resolveOrCreateExternalApplicant_(ss, info) {
+  var sheet = ss.getSheetByName('T_外部申込者');
+  if (!sheet) throw new Error('T_外部申込者 シートが見つかりません。');
+  var emailKey = normalizeApplicantEmailKey_(info && info.email);
+  var nowIso = new Date().toISOString();
+
+  if (emailKey) {
+    var found = null;
+    var rows = getRowsAsObjectsFromSheet_(sheet);
+    for (var i = 0; i < rows.length; i += 1) {
+      if (toBoolean_(rows[i]['削除フラグ'])) continue;
+      if (normalizeApplicantEmailKey_(rows[i]['メールアドレス']) !== emailKey) continue;
+      found = rows[i];
+      break;
+    }
+    if (found) {
+      var externalId = String(found['外部申込者ID'] || '');
+      updateExternalApplicantContact_(ss, externalId, info, nowIso);
+      return { externalId: externalId, created: false };
+    }
+  }
+
+  var newId = 'EXT-' + Utilities.getUuid().slice(0, 8).toUpperCase();
+  appendRowsByHeaders_(ss, 'T_外部申込者', [{
+    '外部申込者ID': newId,
+    '氏名': String((info && info.name) || ''),
+    'フリガナ': String((info && info.kana) || ''),
+    'メールアドレス': String((info && info.email) || ''),
+    '電話番号': String((info && info.phone) || ''),
+    '事業所名': String((info && info.officeName) || ''),
+    '同意日時': nowIso,
+    '作成日時': nowIso,
+    '更新日時': nowIso,
+    '削除フラグ': false,
+  }]);
+  return { externalId: newId, created: true };
+}
+
+// 既存の外部申込者の連絡先を、空でない値だけ更新する。
+// 空で上書きすると、管理画面のゲスト追加（メール任意）が既存の連絡先を消してしまう。
+function updateExternalApplicantContact_(ss, externalId, info, nowIso) {
+  try {
+    var sheet = ss.getSheetByName('T_外部申込者');
+    var found = findRowByColumnValue_(sheet, '外部申込者ID', String(externalId || ''));
+    if (!found) return;
+    var cols = found.columns;
+    var row = found.row;
+    var updates = {
+      '氏名': (info && info.name) || '',
+      'フリガナ': (info && info.kana) || '',
+      '電話番号': (info && info.phone) || '',
+      '事業所名': (info && info.officeName) || '',
+    };
+    var changed = false;
+    for (var key in updates) {
+      if (!Object.prototype.hasOwnProperty.call(updates, key)) continue;
+      var value = String(updates[key] || '').trim();
+      if (!value || cols[key] == null) continue;
+      if (String(row[cols[key]] || '') === value) continue;
+      row[cols[key]] = value;
+      changed = true;
+    }
+    if (!changed) return;
+    if (cols['更新日時'] != null) row[cols['更新日時']] = nowIso;
+    sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  } catch (e) {
+    Logger.log('[updateExternalApplicantContact_] ' + externalId + ': ' + e.message);
+  }
+}
+
+// 同じ研修に同じ人の有効な申込が既にあるか。無ければ null。
+// applicant: { kind: 'MEMBER'|'EXTERNAL', memberId, staffId, externalId }
+function findExistingTrainingApplication_(ss, trainingId, applicant) {
+  var rows = getTrainingApplicationRows_(ss, { appliedOnly: true, trainingId: String(trainingId || '') });
+  var kind = String((applicant && applicant.kind) || '');
+  for (var i = 0; i < rows.length; i += 1) {
+    var row = rows[i];
+    if (kind === 'MEMBER') {
+      if (isMemberApplicationRecord_(row, trainingId, applicant.memberId, applicant.staffId)) return row;
+      continue;
+    }
+    if (String(row['申込者区分コード'] || '') !== 'EXTERNAL') continue;
+    var target = String((applicant && applicant.externalId) || '');
+    if (!target) continue;
+    // 申込者ID と 外部申込者ID のどちらに入っているかは経路によって違う（申込者解決の 2 モデル）。
+    if (String(row['申込者ID'] || '') === target || String(row['外部申込者ID'] || '') === target) return row;
+  }
+  return null;
+}
+
+// 研修IDだけ分かっている呼び出し元（管理画面の名簿追加）向け。
+function evaluateTrainingCapacityForTraining_(ss, trainingId) {
+  var capacityValue = 0;
+  try {
+    var found = findRowByColumnValue_(ss.getSheetByName('T_研修'), '研修ID', String(trainingId || ''));
+    if (found && found.columns['定員'] != null) capacityValue = found.row[found.columns['定員']];
+  } catch (e) {
+    Logger.log('[evaluateTrainingCapacityForTraining_] ' + trainingId + ': ' + e.message);
+  }
+  return evaluateTrainingCapacity_(ss, trainingId, capacityValue);
+}
+
+// 定員の判定。数え方は countAppliedApplicants_ に一本化する。
+// 管理画面からは意図的に超過させられるが、超えたことは呼び出し元へ返して伝える
+// （運用の基本は定員そのものを広げること）。
+function evaluateTrainingCapacity_(ss, trainingId, capacityValue) {
+  var capacity = Number(capacityValue || 0);
+  var applicants = countAppliedApplicants_(ss, trainingId);
+  return {
+    capacity: capacity,
+    applicants: applicants,
+    isFull: capacity > 0 && applicants >= capacity,
+  };
+}
+
+function isMemberApplicationRecord_(rowObj, trainingId, memberId, staffId) {
+  if (String(rowObj['研修ID'] || '') !== String(trainingId || '')) return false;
+  if (String(rowObj['職員ID'] || '') !== String(staffId || '')) return false;
+  var applicantType = getApplicationApplicantType_(rowObj);
+  var applicantId = getApplicationApplicantId_(rowObj);
+  if (applicantType || applicantId) {
+    return applicantType === 'MEMBER' && applicantId === String(memberId || '');
+  }
+  return String(rowObj['会員ID'] || '') === String(memberId || '');
+}
 
 function backfillApplicationApplicantIdentity_(ss) {
   var appSheet = ss.getSheetByName('T_研修申込');
@@ -11901,17 +12304,6 @@ function trashFileFromUrlIfPossible_(url) {
 }
 
 // ── 研修案内PDF サムネイル バッチ生成（時間ベーストリガーで定期実行）──────────
-
-/**
- * トリガーから呼び出されるエントリーポイント（グローバル関数）。
- * サムネイルURLが空の研修を最大5件処理する。
- */
-
-/**
- * 案内状URLはあるがサムネイルURLが未設定の研修を検索し、
- * Drive のサムネイルが生成済みであれば取得・保存・更新する。
- * 1回の実行で最大 MAX_BATCH 件処理（GASタイムアウト防止）。
- */
 
 /**
  * GASが参照するDBスプレッドシートIDを明示設定する。
@@ -18529,6 +18921,19 @@ function addRosterEntry_(payload) {
   if (memberId && staffId) return { error: 'memberId and staffId are mutually exclusive' };
 
   var ss = getOrCreateDatabase_();
+
+  // 2026-09-27: 以前は重複検査も定員検査も無かった。入口が違っても
+  // 「1 人の申込は 1 人」は変わらないので、重複は必ず弾く。
+  var applicantKey = { kind: 'MEMBER', memberId: memberId, staffId: staffId };
+  var existing = findExistingTrainingApplication_(ss, trainingId, applicantKey);
+  if (existing) {
+    return { error: 'already_applied', applyId: String(existing['申込ID'] || '') };
+  }
+
+  // 定員は管理画面からなら越えられる（運用上そうすることがある）。ただし黙って
+  // 越えさせない。越えたことを返し、画面に「定員そのものを広げてください」と出す。
+  var capacityInfo = evaluateTrainingCapacityForTraining_(ss, trainingId);
+
   var operatorEmail = Session.getActiveUser().getEmail();
   var now = new Date().toISOString();
   var applyId = generateTrainingApplyId_();
@@ -18554,7 +18959,7 @@ function addRosterEntry_(payload) {
   };
   appendRowsByHeaders_(ss, 'T_研修申込', [row]);
   clearAllDataCache_();
-  return { ok: true, applyId: applyId };
+  return { ok: true, applyId: applyId, capacityExceeded: capacityInfo.isFull, capacity: capacityInfo.capacity, applicants: capacityInfo.applicants + 1 };
 }
 
 /**
@@ -18569,22 +18974,25 @@ function addGuestRosterEntry_(payload) {
   var ss = getOrCreateDatabase_();
   var operatorEmail = Session.getActiveUser().getEmail();
   var now = new Date().toISOString();
+  var trainingId = String(payload.trainingId);
 
-  // 1. T_外部申込者 へ追加
-  var externalId = 'EXT-' + Utilities.getUuid().slice(0, 8).toUpperCase();
-  var externalRow = {
-    '外部申込者ID': externalId,
-    '氏名': String(payload.guest.name),
-    'フリガナ': String(payload.guest.kana || ''),
-    'メールアドレス': String(payload.guest.email || ''),
-    '電話番号': String(payload.guest.phone || ''),
-    '事業所名': String(payload.guest.officeName || ''),
-    '同意日時': now,
-    '作成日時': now,
-    '更新日時': now,
-    '削除フラグ': false,
-  };
-  appendRowsByHeaders_(ss, 'T_外部申込者', [externalRow]);
+  // 1. 外部申込者を解決する。メールが一致する人が既にいればその人を使う。
+  //    2026-09-27 まではここで必ず新規作成しており、公開ポータルから申し込んだ人を
+  //    管理画面でゲスト追加すると同じ人が 2 人になっていた。
+  var resolvedGuest = resolveOrCreateExternalApplicant_(ss, {
+    name: String(payload.guest.name),
+    kana: String(payload.guest.kana || ''),
+    email: String(payload.guest.email || ''),
+    phone: String(payload.guest.phone || ''),
+    officeName: String(payload.guest.officeName || ''),
+  });
+  var externalId = resolvedGuest.externalId;
+
+  var existingGuestApply = findExistingTrainingApplication_(ss, trainingId, { kind: 'EXTERNAL', externalId: externalId });
+  if (existingGuestApply) {
+    return { error: 'already_applied', applyId: String(existingGuestApply['申込ID'] || ''), externalId: externalId };
+  }
+  var guestCapacity = evaluateTrainingCapacityForTraining_(ss, trainingId);
 
   // 2. T_研修申込 へ追加
   var applyId = generateTrainingApplyId_();
@@ -18610,7 +19018,7 @@ function addGuestRosterEntry_(payload) {
   };
   appendRowsByHeaders_(ss, 'T_研修申込', [applyRow]);
   clearAllDataCache_();
-  return { ok: true, applyId: applyId, externalId: externalId };
+  return { ok: true, applyId: applyId, externalId: externalId, reusedExternal: !resolvedGuest.created, capacityExceeded: guestCapacity.isFull, capacity: guestCapacity.capacity, applicants: guestCapacity.applicants + 1 };
 }
 
 /**

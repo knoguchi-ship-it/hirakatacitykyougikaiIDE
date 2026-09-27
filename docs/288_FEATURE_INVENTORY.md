@@ -220,7 +220,7 @@
 | `getSystemSettings` |  |  | ● | `getSystemSettings_` |
 | `updateSystemSettings` |  |  | ● | `updateSystemSettings_` |
 | `getAdminDashboardData` |  |  | ● | `getAdminDashboardData_` |
-| `getAdminInitData` |  |  | ● | `getAdminDashboardData_`<br>`getSystemSettings_` |
+| `getAdminInitData` |  |  | ● | `getAdminDashboardData_`<br>`getSystemSettings_`<br>`reportOverdueScheduledJobs_` |
 | `getPublicPortalSettings` | ● |  |  | `getPublicPortalSettings_` |
 | `getSharedMemo` |  |  | ● | `getSharedMemo_` |
 | `saveSharedMemo` |  |  | ● | `saveSharedMemo_` |
@@ -290,24 +290,37 @@
 
 優先度は「食い違うと利用者に見える度合い」で付けた。
 
-### 4-1. 研修の申込が 3 実装（**高**）
+### 4-1. 研修の申込が 3 実装 — **解消済み（2026-09-27 / v376.104）**
 
-同じ「研修に申し込む」が面ごとに別実装で、**判定が揃っていない**。
+同じ「研修に申し込む」が面ごとに別実装で、判定が揃っていなかった。
 
 | | 会員 `applyTraining_` | 公開 `applyTrainingExternal_` | 管理 `addRosterEntry_` / `addGuestRosterEntry_` |
 |---|---|---|---|
-| 行数 | 90 | 125 | 37 / 51 |
-| 定員チェック | `定員` 列 vs `申込者数` 列 | `countAppliedApplicants_()` で**実数え上げ** | **無し** |
 | 重複申込チェック | 有り | 有り | **無し** |
-| 行の組み立て | `appendRowsByHeaders_` | `テーブル定義.T_研修申込` から手組み | `appendRowsByHeaders_` |
+| 定員チェック | 有り | 有り | **無し** |
+| 同一人物の解決 | — | **毎回 `T_外部申込者` を新規作成**（既存を探したうえで無視していた）| **毎回新規作成** |
 | 受付メール | 送らない | `TRAINING_APPLY_RECEIPT` | 送らない |
 
-共有しているのは `generateTrainingApplyId_` と cache クリアだけで、**業務判定の中核が無い**。
-会員と公開で定員の数え方が違うので、`申込者数` 列がずれた時に片方だけ通る。
+いちばん重かったのは同一人物の扱いで、**同じ人が申し込むたびに外部申込者が増えていた**。
+名簿でも宛先でも 1 人が複数人に見える。`repairTrainingApplicationApplicantIds` という
+修復ツールが admin に存在するのは、この後始末のためだった。
 
-**寄せ先の案**: `applyTrainingCore_(ss, { trainingId, applicant, source, enforceCapacity, enforceDuplicate, sendReceipt })` を作り、
-3 経路をその薄い wrapper にする。管理からの追加は定員超過を許す運用かもしれないので、
-**`enforceCapacity` を落とすのは管理だけ**と明示的に書く（今は「書いていないから効いていない」）。
+（当初「定員の数え方が会員と公開で違う」と書いたが、これは誤り。
+`countAppliedApplicants_` は `getTrainingApplicationRows_` の薄い wrapper で、
+会員側のインライン集計と実質同じだった。重複していたのは実装であって挙動ではない。）
+
+**寄せ方**: 入口ごとの手続き（本人確認・権限・メール）は本質的に違うので共通化しない。
+**判定だけ**を `countAppliedApplicants_` の隣に集めた。
+
+| 共通ルール | 何を決めるか |
+|---|---|
+| `resolveOrCreateExternalApplicant_` | メールで同一人物を突き合わせ、居れば再利用する（1 人を 1 人に保つ）|
+| `findExistingTrainingApplication_` | 同じ研修に同じ人の申込が既にあるか。`申込者ID` / `外部申込者ID` の両方を見る |
+| `evaluateTrainingCapacity_` | 定員。数え上げはここだけ |
+
+**管理画面からは定員を超えられる**（operator 判断: 意図的な追加は許可する）。ただし黙っては通さず、
+超過したことを返して「定員そのものを広げてください」と画面に出す。
+**重複は入口を問わず必ず弾く。** 固定: `npm run test:training-apply-rules`。
 
 ### 4-2. 公開ポータルの入力検証が正本を使っていない（**中**）
 

@@ -2871,12 +2871,37 @@ var ADMIN_BATCH_PERSON_WRITABLE_STAFF_ = [
 // 退会予定日を過ぎた WITHDRAWAL_SCHEDULED を WITHDRAWN に昇格 + 認証アカウント無効化
 
 
+// ── 定期ジョブの登録簿・心拍・死活 ──────────────────────────────────────
+//
+// 2026-09-27: 定期ジョブのハンドラが build の pruning で 3 split すべての生成物から
+// 消えており、登録済みのトリガーが「存在しない関数」を叩き続けていた。
+// 退会予定→退会確定の昇格が動いていなかったが、誰も気づけなかった。
+// 失敗が見えない状態を作らないため、(1) ジョブを登録簿で持ち、
+// (2) 成功のたびに心拍を残し、(3) 遅れと失敗を Chat の「要確認」へ流す。
+//
+// ジョブは **管理者 split にだけ**置く。公開プロジェクトは匿名アクセスで、
+// トップレベル関数は google.script.run から誰でも呼べてしまう
+// （scripts/gas-boundary-utils.mjs の assertAllowedTopLevelFunctions が守っている境界）。
+var SCHEDULED_JOB_HEARTBEAT_PREFIX_ = 'JOB_HEARTBEAT_';
+var SCHEDULED_JOB_ALERT_PREFIX_ = 'JOB_ALERTED_';
+
+
+
+// 定期ジョブの共通ラッパー。成功したら心拍を残し、落ちたら Chat へ流す。
+// メール送信の失敗通知（v376.102）と同じ考え方で、例外は握りつぶさない。
+
+
+// 遅れているジョブを返す。心拍が無いものは「一度も成功していない」として遅れ扱いにする。
+// トリガーが作り直されていない状態を、黙って正常に見せないため。
+
+// 管理画面を開いたときに評価する。**トリガーで見張らない**のが肝で、
+// 見張り役をトリガーにすると、それ自身が死んだときに誰も気づけない。
+// 人が管理画面を開く経路なら、トリガーが全滅していても届く。
+// 同じジョブについては 1 日 1 回までしか流さない。
+
+// operator が editor から引数なしで実行して状態を見る入口。
+
 // v150: 日次トリガーで退会削除ポリシーを実行（ホットパスから除外）
-
-// v150: ウォームアップトリガー（コールドスタート軽減）
-// v188: SpreadsheetApp接続確立 + キャッシュ投入でV8ランタイムとDBを同時に温める
-
-// v150: トリガー一括セットアップ（手動で1回実行）
 
 
 
@@ -2966,6 +2991,137 @@ function countAppliedApplicants_(ss, trainingId) {
   return getTrainingApplicationRows_(ss, { appliedOnly: true, trainingId: String(trainingId || '') }).length;
 }
 
+// ── 研修申込の共通ルール ────────────────────────────────────────────────
+//
+// 2026-09-27: 申込の入口は 3 つある（会員マイページ / 公開ポータル / 管理画面の名簿追加）。
+// 以前はそれぞれが独自に判定しており、管理画面からの追加には重複検査も定員検査も無く、
+// 公開申込は同じメールの人でも申込のたびに T_外部申込者 を作り直していた。
+// 「どこから登録しても 1 人の申込は 1 人」を守るため、判定をここに集める。
+// 入口ごとの手続き（本人確認・権限・メール）は別物なので共通化しない。
+
+// 外部申込者の同一性はメールアドレスで見る。氏名は表記ゆれが避けられず、
+// 同姓同名もありうるので鍵にしない。メールが無い場合だけ新規に起こす。
+function normalizeApplicantEmailKey_(email) {
+  return String(email == null ? '' : email).trim().toLowerCase();
+}
+
+// 既存の外部申込者を返す。無ければ 1 件だけ作る。
+// 連絡先が変わっていれば最新で上書きする（同じ人を増やさない）。
+function resolveOrCreateExternalApplicant_(ss, info) {
+  var sheet = ss.getSheetByName('T_外部申込者');
+  if (!sheet) throw new Error('T_外部申込者 シートが見つかりません。');
+  var emailKey = normalizeApplicantEmailKey_(info && info.email);
+  var nowIso = new Date().toISOString();
+
+  if (emailKey) {
+    var found = null;
+    var rows = getRowsAsObjectsFromSheet_(sheet);
+    for (var i = 0; i < rows.length; i += 1) {
+      if (toBoolean_(rows[i]['削除フラグ'])) continue;
+      if (normalizeApplicantEmailKey_(rows[i]['メールアドレス']) !== emailKey) continue;
+      found = rows[i];
+      break;
+    }
+    if (found) {
+      var externalId = String(found['外部申込者ID'] || '');
+      updateExternalApplicantContact_(ss, externalId, info, nowIso);
+      return { externalId: externalId, created: false };
+    }
+  }
+
+  var newId = 'EXT-' + Utilities.getUuid().slice(0, 8).toUpperCase();
+  appendRowsByHeaders_(ss, 'T_外部申込者', [{
+    '外部申込者ID': newId,
+    '氏名': String((info && info.name) || ''),
+    'フリガナ': String((info && info.kana) || ''),
+    'メールアドレス': String((info && info.email) || ''),
+    '電話番号': String((info && info.phone) || ''),
+    '事業所名': String((info && info.officeName) || ''),
+    '同意日時': nowIso,
+    '作成日時': nowIso,
+    '更新日時': nowIso,
+    '削除フラグ': false,
+  }]);
+  return { externalId: newId, created: true };
+}
+
+// 既存の外部申込者の連絡先を、空でない値だけ更新する。
+// 空で上書きすると、管理画面のゲスト追加（メール任意）が既存の連絡先を消してしまう。
+function updateExternalApplicantContact_(ss, externalId, info, nowIso) {
+  try {
+    var sheet = ss.getSheetByName('T_外部申込者');
+    var found = findRowByColumnValue_(sheet, '外部申込者ID', String(externalId || ''));
+    if (!found) return;
+    var cols = found.columns;
+    var row = found.row;
+    var updates = {
+      '氏名': (info && info.name) || '',
+      'フリガナ': (info && info.kana) || '',
+      '電話番号': (info && info.phone) || '',
+      '事業所名': (info && info.officeName) || '',
+    };
+    var changed = false;
+    for (var key in updates) {
+      if (!Object.prototype.hasOwnProperty.call(updates, key)) continue;
+      var value = String(updates[key] || '').trim();
+      if (!value || cols[key] == null) continue;
+      if (String(row[cols[key]] || '') === value) continue;
+      row[cols[key]] = value;
+      changed = true;
+    }
+    if (!changed) return;
+    if (cols['更新日時'] != null) row[cols['更新日時']] = nowIso;
+    sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  } catch (e) {
+    Logger.log('[updateExternalApplicantContact_] ' + externalId + ': ' + e.message);
+  }
+}
+
+// 同じ研修に同じ人の有効な申込が既にあるか。無ければ null。
+// applicant: { kind: 'MEMBER'|'EXTERNAL', memberId, staffId, externalId }
+function findExistingTrainingApplication_(ss, trainingId, applicant) {
+  var rows = getTrainingApplicationRows_(ss, { appliedOnly: true, trainingId: String(trainingId || '') });
+  var kind = String((applicant && applicant.kind) || '');
+  for (var i = 0; i < rows.length; i += 1) {
+    var row = rows[i];
+    if (kind === 'MEMBER') {
+      if (isMemberApplicationRecord_(row, trainingId, applicant.memberId, applicant.staffId)) return row;
+      continue;
+    }
+    if (String(row['申込者区分コード'] || '') !== 'EXTERNAL') continue;
+    var target = String((applicant && applicant.externalId) || '');
+    if (!target) continue;
+    // 申込者ID と 外部申込者ID のどちらに入っているかは経路によって違う（申込者解決の 2 モデル）。
+    if (String(row['申込者ID'] || '') === target || String(row['外部申込者ID'] || '') === target) return row;
+  }
+  return null;
+}
+
+// 研修IDだけ分かっている呼び出し元（管理画面の名簿追加）向け。
+
+// 定員の判定。数え方は countAppliedApplicants_ に一本化する。
+// 管理画面からは意図的に超過させられるが、超えたことは呼び出し元へ返して伝える
+// （運用の基本は定員そのものを広げること）。
+function evaluateTrainingCapacity_(ss, trainingId, capacityValue) {
+  var capacity = Number(capacityValue || 0);
+  var applicants = countAppliedApplicants_(ss, trainingId);
+  return {
+    capacity: capacity,
+    applicants: applicants,
+    isFull: capacity > 0 && applicants >= capacity,
+  };
+}
+
+function isMemberApplicationRecord_(rowObj, trainingId, memberId, staffId) {
+  if (String(rowObj['研修ID'] || '') !== String(trainingId || '')) return false;
+  if (String(rowObj['職員ID'] || '') !== String(staffId || '')) return false;
+  var applicantType = getApplicationApplicantType_(rowObj);
+  var applicantId = getApplicationApplicantId_(rowObj);
+  if (applicantType || applicantId) {
+    return applicantType === 'MEMBER' && applicantId === String(memberId || '');
+  }
+  return String(rowObj['会員ID'] || '') === String(memberId || '');
+}
 
 function backfillApplicationApplicantIdentity_(ss) {
   var appSheet = ss.getSheetByName('T_研修申込');
@@ -3266,17 +3422,6 @@ function computeTrainingAvailability_(trainingRow, options) {
 
 
 // ── 研修案内PDF サムネイル バッチ生成（時間ベーストリガーで定期実行）──────────
-
-/**
- * トリガーから呼び出されるエントリーポイント（グローバル関数）。
- * サムネイルURLが空の研修を最大5件処理する。
- */
-
-/**
- * 案内状URLはあるがサムネイルURLが未設定の研修を検索し、
- * Drive のサムネイルが生成済みであれば取得・保存・更新する。
- * 1回の実行で最大 MAX_BATCH 件処理（GASタイムアウト防止）。
- */
 
 /**
  * GASが参照するDBスプレッドシートIDを明示設定する。
@@ -4564,47 +4709,25 @@ function applyTrainingExternal_(payload) {
       return JSON.stringify({ success: false, error: availability.applicationStatusReason || '申込受付期間外です' });
     }
 
-    if (training['定員'] && countAppliedApplicants_(db, trainingId) >= Number(training['定員'])) {
+    if (evaluateTrainingCapacity_(db, trainingId, training['定員']).isFull) {
       return JSON.stringify({ success: false, error: '定員に達しています' });
     }
 
     var applySheet = db.getSheetByName('T_研修申込');
-    var activeApplyRows = getTrainingApplicationRows_(db, { appliedOnly: true, trainingId: trainingId });
-    var externalSheet = db.getSheetByName('T_外部申込者');
-    var externalRows = getRowsAsObjectsFromSheet_(externalSheet);
 
-    var existingExternal = null;
-    for (var j = 0; j < externalRows.length; j += 1) {
-      if (String(externalRows[j]['メールアドレス'] || '') === email && !toBoolean_(externalRows[j]['削除フラグ'])) {
-        existingExternal = externalRows[j];
-        break;
-      }
-    }
-    if (existingExternal) {
-      for (var k = 0; k < activeApplyRows.length; k += 1) {
-        var ar = activeApplyRows[k];
-        if (String(ar['申込者区分コード'] || '') === 'EXTERNAL' &&
-            String(ar['申込者ID'] || '') === String(existingExternal['外部申込者ID'] || '')) {
-          return JSON.stringify({ success: false, error: '既に申込済みです' });
-        }
-      }
+    // 2026-09-27: 以前はここで既存の外部申込者を探したうえで、見つかっても必ず
+    // 新しい行を作っていた。同じ人が別の研修に申し込むたびに T_外部申込者 が増え、
+    // 名簿でも宛先でも 1 人が複数人に見えていた。同一性の判定は共通ルールに委ねる。
+    var resolvedExternal = resolveOrCreateExternalApplicant_(db, {
+      name: name, kana: furigana, email: email, phone: phone, officeName: office,
+    });
+    var externalId = resolvedExternal.externalId;
+
+    if (findExistingTrainingApplication_(db, trainingId, { kind: 'EXTERNAL', externalId: externalId })) {
+      return JSON.stringify({ success: false, error: '既に申込済みです' });
     }
 
     var nowStr = new Date().toISOString();
-    var externalId = Utilities.getUuid();
-    var newExternal = {
-      '外部申込者ID': externalId,
-      '氏名': name,
-      'フリガナ': furigana,
-      'メールアドレス': email,
-      '電話番号': phone,
-      '事業所名': office,
-      '同意日時': nowStr,
-      '作成日時': nowStr,
-      '更新日時': nowStr,
-      '削除フラグ': false,
-    };
-    appendRow_(externalSheet, テーブル定義.T_外部申込者, newExternal);
 
     var applyId = generateTrainingApplyId_();
     var applyColsAll = テーブル定義.T_研修申込;

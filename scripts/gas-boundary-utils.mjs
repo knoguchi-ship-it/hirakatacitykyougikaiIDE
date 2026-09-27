@@ -31,6 +31,14 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   'restoreLastArchiveBatch_APPLY',
   // v376.54 (GCP Phase B / docs/250 §10-6): GAS→Cloud Run 接続の事前診断（operator 実行用・token/pepper 値は出力しない）
   'dryRunGcpPhaseB_LOG',
+  // 2026-09-27: 定期ジョブは管理者 split に置く。
+  // 公開プロジェクトは匿名アクセスで、トップレベル関数は google.script.run から
+  // 誰でも呼べてしまうため、業務バッチを置いてはいけない（この配列が守っている境界）。
+  // 以前は統合/公開プロジェクトに warmUp と日次ジョブのトリガーが登録されていたが、
+  // ハンドラ本体が pruning で生成物から消えており、5 分ごとに失敗し続けていた。
+  'dailyWithdrawalPolicyTrigger',
+  'setupScheduledTriggers',
+  'checkScheduledJobHealth',
 ];
 
 // gas/admin/dryrun.gs に分離する（editor で見つけやすくするため）。doGet / processApiRequest 以外の全て。

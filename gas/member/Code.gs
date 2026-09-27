@@ -4789,12 +4789,52 @@ function validateBusinessStaffRoleTransition_(ss, memberId, staffPayloadList, ad
 // 退会予定日を過ぎた WITHDRAWAL_SCHEDULED を WITHDRAWN に昇格 + 認証アカウント無効化
 
 
+// ── 定期ジョブの登録簿・心拍・死活 ──────────────────────────────────────
+//
+// 2026-09-27: 定期ジョブのハンドラが build の pruning で 3 split すべての生成物から
+// 消えており、登録済みのトリガーが「存在しない関数」を叩き続けていた。
+// 退会予定→退会確定の昇格が動いていなかったが、誰も気づけなかった。
+// 失敗が見えない状態を作らないため、(1) ジョブを登録簿で持ち、
+// (2) 成功のたびに心拍を残し、(3) 遅れと失敗を Chat の「要確認」へ流す。
+//
+// ジョブは **管理者 split にだけ**置く。公開プロジェクトは匿名アクセスで、
+// トップレベル関数は google.script.run から誰でも呼べてしまう
+// （scripts/gas-boundary-utils.mjs の assertAllowedTopLevelFunctions が守っている境界）。
+var SCHEDULED_JOB_HEARTBEAT_PREFIX_ = 'JOB_HEARTBEAT_';
+var SCHEDULED_JOB_ALERT_PREFIX_ = 'JOB_ALERTED_';
+
+// ここが定期ジョブの正本。トリガーを足したら必ずここにも足す
+// （scripts/test-scheduled-jobs.mts が登録簿とトリガー宣言の食い違いで落ちる）。
+var SCHEDULED_JOBS_ = [
+  {
+    name: 'dailyWithdrawalPolicyTrigger',
+    label: '退会ポリシーの日次適用（退会予定→退会確定の昇格を含む）',
+    maxAgeMinutes: 26 * 60,
+  },
+  {
+    name: 'processPendingThumbnails',
+    label: '研修案内 PDF のサムネイル生成',
+    maxAgeMinutes: 60,
+  },
+];
+
+
+
+// 定期ジョブの共通ラッパー。成功したら心拍を残し、落ちたら Chat へ流す。
+// メール送信の失敗通知（v376.102）と同じ考え方で、例外は握りつぶさない。
+
+
+// 遅れているジョブを返す。心拍が無いものは「一度も成功していない」として遅れ扱いにする。
+// トリガーが作り直されていない状態を、黙って正常に見せないため。
+
+// 管理画面を開いたときに評価する。**トリガーで見張らない**のが肝で、
+// 見張り役をトリガーにすると、それ自身が死んだときに誰も気づけない。
+// 人が管理画面を開く経路なら、トリガーが全滅していても届く。
+// 同じジョブについては 1 日 1 回までしか流さない。
+
+// operator が editor から引数なしで実行して状態を見る入口。
+
 // v150: 日次トリガーで退会削除ポリシーを実行（ホットパスから除外）
-
-// v150: ウォームアップトリガー（コールドスタート軽減）
-// v188: SpreadsheetApp接続確立 + キャッシュ投入でV8ランタイムとDBを同時に温める
-
-// v150: トリガー一括セットアップ（手動で1回実行）
 
 function syncBusinessStaffRows_(ss, memberId, memberTypeCode, staffPayloadList) {
   var sheet = ss.getSheetByName('T_事業所職員');
@@ -5103,26 +5143,17 @@ function applyTraining_(payload) {
       throw new Error(availability.applicationStatusReason || 'この研修は受付期間外です。');
     }
 
-    var applicationRows = getTrainingApplicationRows_(ss, { appliedOnly: true });
-    var duplicate = applicationRows.find(function(r) {
-      return isMemberApplicationRecord_(r, trainingId, memberId, staffId);
-    });
+    // 重複・定員の判定は 3 経路で同じルールを使う（共通ルールは countAppliedApplicants_ の下）
+    var applicant = { kind: 'MEMBER', memberId: memberId, staffId: staffId };
+    var duplicate = findExistingTrainingApplication_(ss, trainingId, applicant);
     if (duplicate) {
-      var applicantsCountForDuplicate = applicationRows.filter(function(r) {
-        return String(r['研修ID'] || '') === trainingId;
-      }).length;
       return {
         applicationId: String(duplicate['申込ID'] || ''),
-        applicants: applicantsCountForDuplicate,
+        applicants: countAppliedApplicants_(ss, trainingId),
         duplicate: true,
       };
     }
-
-    var currentApplicants = applicationRows.filter(function(r) {
-      return String(r['研修ID'] || '') === trainingId;
-    }).length;
-    var capacity = Number(tRow[tCols['定員']] || 0);
-    if (capacity > 0 && currentApplicants >= capacity) {
+    if (evaluateTrainingCapacity_(ss, trainingId, tRow[tCols['定員']]).isFull) {
       throw new Error('定員に達したため、申し込みできません。');
     }
 
@@ -5251,6 +5282,58 @@ function isTrainingCancelable_(trainingRow, trainingCols) {
 
 function countAppliedApplicants_(ss, trainingId) {
   return getTrainingApplicationRows_(ss, { appliedOnly: true, trainingId: String(trainingId || '') }).length;
+}
+
+// ── 研修申込の共通ルール ────────────────────────────────────────────────
+//
+// 2026-09-27: 申込の入口は 3 つある（会員マイページ / 公開ポータル / 管理画面の名簿追加）。
+// 以前はそれぞれが独自に判定しており、管理画面からの追加には重複検査も定員検査も無く、
+// 公開申込は同じメールの人でも申込のたびに T_外部申込者 を作り直していた。
+// 「どこから登録しても 1 人の申込は 1 人」を守るため、判定をここに集める。
+// 入口ごとの手続き（本人確認・権限・メール）は別物なので共通化しない。
+
+// 外部申込者の同一性はメールアドレスで見る。氏名は表記ゆれが避けられず、
+// 同姓同名もありうるので鍵にしない。メールが無い場合だけ新規に起こす。
+
+// 既存の外部申込者を返す。無ければ 1 件だけ作る。
+// 連絡先が変わっていれば最新で上書きする（同じ人を増やさない）。
+
+// 既存の外部申込者の連絡先を、空でない値だけ更新する。
+// 空で上書きすると、管理画面のゲスト追加（メール任意）が既存の連絡先を消してしまう。
+
+// 同じ研修に同じ人の有効な申込が既にあるか。無ければ null。
+// applicant: { kind: 'MEMBER'|'EXTERNAL', memberId, staffId, externalId }
+function findExistingTrainingApplication_(ss, trainingId, applicant) {
+  var rows = getTrainingApplicationRows_(ss, { appliedOnly: true, trainingId: String(trainingId || '') });
+  var kind = String((applicant && applicant.kind) || '');
+  for (var i = 0; i < rows.length; i += 1) {
+    var row = rows[i];
+    if (kind === 'MEMBER') {
+      if (isMemberApplicationRecord_(row, trainingId, applicant.memberId, applicant.staffId)) return row;
+      continue;
+    }
+    if (String(row['申込者区分コード'] || '') !== 'EXTERNAL') continue;
+    var target = String((applicant && applicant.externalId) || '');
+    if (!target) continue;
+    // 申込者ID と 外部申込者ID のどちらに入っているかは経路によって違う（申込者解決の 2 モデル）。
+    if (String(row['申込者ID'] || '') === target || String(row['外部申込者ID'] || '') === target) return row;
+  }
+  return null;
+}
+
+// 研修IDだけ分かっている呼び出し元（管理画面の名簿追加）向け。
+
+// 定員の判定。数え方は countAppliedApplicants_ に一本化する。
+// 管理画面からは意図的に超過させられるが、超えたことは呼び出し元へ返して伝える
+// （運用の基本は定員そのものを広げること）。
+function evaluateTrainingCapacity_(ss, trainingId, capacityValue) {
+  var capacity = Number(capacityValue || 0);
+  var applicants = countAppliedApplicants_(ss, trainingId);
+  return {
+    capacity: capacity,
+    applicants: applicants,
+    isFull: capacity > 0 && applicants >= capacity,
+  };
 }
 
 function isMemberApplicationRecord_(rowObj, trainingId, memberId, staffId) {
@@ -5596,17 +5679,6 @@ function computeTrainingAvailability_(trainingRow, options) {
 
 
 // ── 研修案内PDF サムネイル バッチ生成（時間ベーストリガーで定期実行）──────────
-
-/**
- * トリガーから呼び出されるエントリーポイント（グローバル関数）。
- * サムネイルURLが空の研修を最大5件処理する。
- */
-
-/**
- * 案内状URLはあるがサムネイルURLが未設定の研修を検索し、
- * Drive のサムネイルが生成済みであれば取得・保存・更新する。
- * 1回の実行で最大 MAX_BATCH 件処理（GASタイムアウト防止）。
- */
 
 /**
  * GASが参照するDBスプレッドシートIDを明示設定する。
