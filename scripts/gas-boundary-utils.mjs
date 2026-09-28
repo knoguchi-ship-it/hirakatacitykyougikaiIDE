@@ -56,12 +56,40 @@ export const ADMIN_SCHEDULED_JOB_FUNCTIONS = [
   'checkScheduledJobHealth',
 ];
 
+// 2026-09-28: 本番データを書き換える保守ツールは gas/admin/maintenance.gs へ分ける。
+// dryrun.gs という名前は「試すだけ」に見えるが、deleteTestData_APPLY のような
+// 破壊的なツールが同居していた。ファイル名が役割を偽るのは、
+// トリガーハンドラが dryrun.gs に居たのと同じ形の危うさ。
+//
+// preview（_LOG）と apply（_APPLY）の対は、同じ機能なので分けずに同居させる。
+// 片方を別ファイルに置くと、実行前に確認するはずの preview を探しに行かなくなる。
+export const ADMIN_MAINTENANCE_TOOL_FUNCTIONS = [
+  // サムネイル backfill（引数なし実行で実際に生成・保存する）
+  'regenerateAllThumbnails',
+  // フリガナ backfill（無印は dryRun 既定 true、_APPLY が実書き込み）
+  'backfillKanaToFullwidth',
+  'backfillKanaToFullwidth_APPLY',
+  // スキーマ初期化フラグの救済（ScriptProperties を書き換える）
+  'forceMarkSchemaInitializedToCurrent',
+  // 会員系削除の cascade アーカイブ — 一覧と復元
+  'listArchiveBatches_LOG',
+  'restoreLastArchiveBatch_APPLY',
+  'diagnoseMemberDeleteDebt_LOG',
+  // テストデータの棚卸しと削除（本番 DB を soft delete する）
+  'deleteTestDataPreview_LOG',
+  'deleteTestData_APPLY',
+  'previewStrictE2ETestMemberCleanup_LOG',
+  'executeStrictE2ETestMemberCleanup_APPLY',
+];
+
 // gas/admin/dryrun.gs に分離する（editor で見つけやすくするため）。
-// doGet / processApiRequest と、jobs.gs へ回す定期ジョブを除いた全て。
+// doGet / processApiRequest と、jobs.gs / maintenance.gs へ回すものを除いた残り。
+// 残るのは dryRun E2E（作って自分で消す）と、読み取り専用の診断だけ。
 export const ADMIN_OPERATOR_TOOL_FUNCTIONS = ADMIN_TOP_LEVEL_FUNCTIONS.filter(
   (name) => name !== 'doGet'
     && name !== 'processApiRequest'
-    && ADMIN_SCHEDULED_JOB_FUNCTIONS.indexOf(name) === -1,
+    && ADMIN_SCHEDULED_JOB_FUNCTIONS.indexOf(name) === -1
+    && ADMIN_MAINTENANCE_TOOL_FUNCTIONS.indexOf(name) === -1,
 );
 
 // 以前は build-admin-gas.mjs と audit-admin-boundary.mjs に同一配列が二重管理されていた。

@@ -14,6 +14,7 @@ import {
   ADMIN_TOP_LEVEL_FUNCTIONS,
   ADMIN_OPERATOR_TOOL_FUNCTIONS,
   ADMIN_SCHEDULED_JOB_FUNCTIONS,
+  ADMIN_MAINTENANCE_TOOL_FUNCTIONS,
   ADMIN_FORBIDDEN_TOP_LEVEL_FUNCTIONS,
   ADMIN_LOGIN_ACTIONS_LIST,
   ADMIN_ALLOWED_ACTIONS_LIST,
@@ -109,13 +110,24 @@ const ADMIN_GAS_BUCKETS = [
     ],
   },
   {
+    file: 'maintenance.gs',
+    names: ADMIN_MAINTENANCE_TOOL_FUNCTIONS,
+    listName: 'ADMIN_MAINTENANCE_TOOL_FUNCTIONS',
+    title: 'maintenance.gs — 本番データを書き換える保守ツール（自動生成・手編集禁止）',
+    lines: [
+      '// **ここの関数は本番データを変える。** backfill / 復元 / テストデータ削除 / スキーマ救済。',
+      '// 実行前に必ず対になる preview（_LOG）を先に流して対象を確認すること。',
+      '// 試すだけのもの（dryRun E2E・読み取り専用の診断）は dryrun.gs にある。',
+    ],
+  },
+  {
     file: 'dryrun.gs',
     names: ADMIN_OPERATOR_TOOL_FUNCTIONS,
     listName: 'ADMIN_OPERATOR_TOOL_FUNCTIONS',
-    title: 'dryrun.gs — operator ツール集（自動生成・手編集禁止）',
+    title: 'dryrun.gs — dryRun E2E と読み取り専用の診断（自動生成・手編集禁止）',
     lines: [
-      '// Apps Script editor の関数ドロップダウンから ▶ 実行する診断 / dryRun / backfill ツール。',
-      '// 本番で定期実行されるものはここではなく jobs.gs にある。',
+      '// 自分で作って自分で消す dryRun E2E と、データを変えない診断だけ。',
+      '// 本番データを書き換えるものは maintenance.gs、定期実行されるものは jobs.gs。',
     ],
   },
 ];
@@ -187,6 +199,7 @@ for (const [fileName, contents] of Object.entries(adminSplitFiles)) {
 }
 console.log('Generated gas/admin/Code.gs + jobs.gs + dryrun.gs from gas-src/Code.full.gs with admin boundary, registry, and action handlers');
 console.log(`Scheduled jobs in jobs.gs: ${ADMIN_SCHEDULED_JOB_FUNCTIONS.join(', ')}`);
+console.log(`Maintenance tools in maintenance.gs: ${ADMIN_MAINTENANCE_TOOL_FUNCTIONS.join(', ')}`);
 console.log(`Operator tools in dryrun.gs: ${ADMIN_OPERATOR_TOOL_FUNCTIONS.join(', ')}`);
 
 // appsscript.json は gas/admin/ の固有設定ファイルを使用（backend からコピーしない）

@@ -151,7 +151,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-09-27 v376.105 ← current production
+### 2026-09-28 v376.106 ← current production
+
+- Scope: 管理者 split の生成物を役割で 4 ファイルに分けた。dryrun.gs に本番のトリガーが叩く関数と、deleteTestData_APPLY のような本番データを消す保守ツールが同居しており、ファイル名が役割を偽っていた。maintenance.gs を新設（backfill / 復元 / テストデータ削除 / スキーマ救済）。dryrun.gs は dryRun E2E と読み取り専用の診断だけに。preview(_LOG) と apply(_APPLY) の対は分けない。ADMIN_OPERATOR_TOOL_FUNCTIONS は残りとして導出（4 つ目の列挙を持たない）。動作は不変（GAS は全 .gs がグローバルスコープ共有）。
+- Fixed deployments: integrated/public @417 x2 / member @175 / admin @272.
+- Verification: prerelease PASS（exit 0）、audit-admin-boundary PASS（4 ファイル分離の検査を含む）、test:scheduled-jobs 8/8、deployment API で4本同期確認。
+- operator: warmUp トリガーの削除は完了（2026-09-28）。setupScheduledTriggers の実行が残っている（docs/289 §1-7）。
+- Rollback: integrated/public @416 x2 / member @174 / admin @271（v376.105）。
+
+### 2026-09-27 v376.105
 
 - Scope: docs/288 §4 の二重実装をすべて解消。(1) 定期ジョブを dryrun.gs から jobs.gs へ分離（本番のトリガーが叩く関数を診断ツールと混ぜない）。(2) 自動通知の送信記録を T_メール送信ログ へ（宛先・件名・本文は載せない）。(3) 公開ポータルの入力検証を validators.ts へ。(4) 認証アカウントのログインID書き換えを updateAuthAccountLoginId_ へ集約し衝突時は据え置き。(5) build の pruner 3 重複を gas-boundary-utils.mjs へ一本化 — **公開ビルドだけ v292/v296 の修正が入っていなかった**。(6) 一括メールの差し込みタグをカタログへ。
 - Fixed deployments: integrated/public @416 x2 / member @174 / admin @271.

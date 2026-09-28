@@ -13,6 +13,29 @@
 
 ---
 
+## v376.106 — 2026-09-28 🔧 管理者 split の `.gs` を役割で分ける（全3split @417×2 / @175 / @272）
+
+`dryrun.gs` に本番のトリガーが叩く関数と、`deleteTestData_APPLY` のような**本番データを消す**
+保守ツールが同居していた。「dryrun」という名前は試すだけに見えるが、中身の半分は本番を変える。
+**ファイル名が役割を偽る**状態で、`docs/289` の事故（トリガーハンドラが生成物から消えていた）と同じ形。
+
+- **`maintenance.gs` を新設**。backfill / 復元 / テストデータ削除 / スキーマ救済を移した。
+  残った `dryrun.gs` は dryRun E2E（作って自分で消す）と読み取り専用の診断だけ。
+- preview（`_LOG`）と apply（`_APPLY`）の対は分けない。片方を別ファイルに置くと、
+  実行前に確認するはずの preview を探しに行かなくなる。
+- `ADMIN_OPERATOR_TOOL_FUNCTIONS` は**残り**として導出する（4 つ目の列挙を持たない）。
+- `audit-admin-boundary` が 4 ファイルそれぞれの中身を検査する。
+- `gas/admin/README.md` を「どのファイルに何を置くか」の入口として書き直した。
+
+動作は変わらない（GAS は全 `.gs` がグローバルスコープ共有）。**分けているのは人が役割を取り違えないため。**
+
+**検証**: prerelease PASS、audit-admin-boundary PASS（4 ファイル分離）、test:scheduled-jobs 8/8。
+**operator**: `warmUp` トリガーの削除は完了。`setupScheduledTriggers` の実行が残っている（`docs/289` §1-7）。
+
+詳細は `docs/291_RELEASE_STATE_v376.106_2026-09-28.md`。
+
+---
+
 ## v376.105 — 2026-09-27 🔧 二重実装の解消と、自動通知の送信記録（全3split @416×2 / @174 / @271）
 
 `docs/288` §4 に挙げた二重実装をすべて解消し、v376.103 の教訓（失敗が見えない）を仕組みで塞いだ。
@@ -99,7 +122,7 @@
 - `test:gmail-api-send` 10 件を新設（`GmailApp` へ戻せないことの固定を含む）。
 - 📝 **機能一覧 `docs/288_FEATURE_INVENTORY.md` を新設**。公開 / 会員 / 管理の 3 面 × 全 action を 1 枚に。表は生成物（`npm run generate:inventory`）で、action を足して分類を書かないと `test:feature-inventory` が落ちる。残存する二重実装 5 件を §4 に記載。
 - **検証**: prerelease PASS、10/10、3 split 生成物検査、deployment API で 4 本同期確認。**実データ確認は未実施**（管理 E2E 認証が期限切れ）。
-- 詳細は `docs/287_RELEASE_STATE_v376.103_2026-09-27.md`。
+- 詳細は `docs/archive/release_history/287_RELEASE_STATE_v376.103_2026-09-27.md`。
 
 ---
 

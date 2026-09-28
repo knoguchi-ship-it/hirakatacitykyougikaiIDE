@@ -6,6 +6,7 @@ import {
   ADMIN_TOP_LEVEL_FUNCTIONS,
   ADMIN_OPERATOR_TOOL_FUNCTIONS,
   ADMIN_SCHEDULED_JOB_FUNCTIONS,
+  ADMIN_MAINTENANCE_TOOL_FUNCTIONS,
   ADMIN_FORBIDDEN_TOP_LEVEL_FUNCTIONS,
   ADMIN_LOGIN_ACTIONS_LIST,
   ADMIN_ALLOWED_ACTIONS_LIST,
@@ -19,6 +20,8 @@ const codePath = join(root, 'gas', 'admin', 'Code.gs');
 const dryrunPath = join(root, 'gas', 'admin', 'dryrun.gs');
 // 2026-09-27: 本番の定期ジョブは jobs.gs へ分離（dryrun.gs は診断ツール専用）。
 const jobsPath = join(root, 'gas', 'admin', 'jobs.gs');
+// 2026-09-28: 本番データを書き換える保守ツールは maintenance.gs（dryrun.gs は試すだけ）。
+const maintenancePath = join(root, 'gas', 'admin', 'maintenance.gs');
 const htmlPath = join(root, 'gas', 'admin', 'index.html');
 
 // v376.18: 許可 top-level リストは gas-boundary-utils.mjs の ADMIN_TOP_LEVEL_FUNCTIONS に
@@ -76,7 +79,8 @@ if (!existsSync(htmlPath)) fail('gas/admin/index.html is missing');
 const mainCode = existsSync(codePath) ? readFileSync(codePath, 'utf8') : '';
 const dryrunCode = existsSync(dryrunPath) ? readFileSync(dryrunPath, 'utf8') : '';
 const jobsCode = existsSync(jobsPath) ? readFileSync(jobsPath, 'utf8') : '';
-const code = `${mainCode}\n${jobsCode}\n${dryrunCode}`;
+const maintenanceCode = existsSync(maintenancePath) ? readFileSync(maintenancePath, 'utf8') : '';
+const code = `${mainCode}\n${jobsCode}\n${maintenanceCode}\n${dryrunCode}`;
 const html = existsSync(htmlPath) ? readFileSync(htmlPath, 'utf8') : '';
 
 const topLevelFunctions = collectFunctionDeclarations(code)
@@ -99,6 +103,10 @@ const jobsPublic = collectFunctionDeclarations(jobsCode)
   .map((decl) => decl.name)
   .filter((name) => !name.endsWith('_'));
 compareSets(jobsPublic, ADMIN_SCHEDULED_JOB_FUNCTIONS, 'jobs.gs scheduled jobs');
+const maintenancePublic = collectFunctionDeclarations(maintenanceCode)
+  .map((decl) => decl.name)
+  .filter((name) => !name.endsWith('_'));
+compareSets(maintenancePublic, ADMIN_MAINTENANCE_TOOL_FUNCTIONS, 'maintenance.gs maintenance tools');
 
 for (const name of forbiddenTopLevelFunctions) {
   if (new RegExp(`^function\\s+${name}\\s*\\(`, 'm').test(code)) {

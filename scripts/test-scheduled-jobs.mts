@@ -24,8 +24,10 @@ const gasSrc = read('gas-src/Code.full.gs');
 const artifacts = {
   public: read('backend/Code.gs'),
   member: read('gas/member/Code.gs'),
-  // 本番の定期ジョブは jobs.gs、診断ツールは dryrun.gs。どちらも同一プロジェクトのグローバル。
-  admin: [read('gas/admin/Code.gs'), read('gas/admin/jobs.gs'), read('gas/admin/dryrun.gs')].join('\n'),
+  // 役割でファイルを分けている（同一プロジェクトのグローバルなので動作は同じ）:
+  //   jobs.gs = 本番の定期ジョブ / maintenance.gs = 本番データを変える保守 / dryrun.gs = 試すだけ
+  admin: ['Code.gs', 'jobs.gs', 'maintenance.gs', 'dryrun.gs']
+    .map((file) => read(`gas/admin/${file}`)).join('\n'),
 };
 
 /** 廃止したトリガーハンドラ。生成物に残っていてはいけない。 */
