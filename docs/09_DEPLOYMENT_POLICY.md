@@ -151,7 +151,16 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-09-28 v376.106 ← current production
+### 2026-10-01 v376.107 ← current production
+
+- Scope: 個人・賛助会員が公開ポータルから勤務先（事業所名）を変更できるようにした。入会申込では必須で取るのに本人からは変更できず、転職すると「前職の事業所名 ＋ 現職の住所・電話」という行しか作れなかった。郵送先区分が勤務先のとき宛名を決めるのはこの項目（BR-04）なので郵便が前職へ届いていた。あわせて「現在は勤務していない」を新設し、勤務先名=勤務なし・勤務先の電話/FAX を消し郵送先を自宅へ切り替える。validateMemberPayload_ が「勤務なし」×「郵送先＝勤務先」を拒否する。判定の正本は src/shared/officeAffiliation.ts。
+- 改修前のリレーション確認: 勤務先名は外部キーではなく、会員まわりの辺はすべて ID で結ぶ。勤務先名で join するのは本人確認の名義照合と宛名リストだけで、どちらも BUSINESS 限定。個人会員の変更では壊れない。
+- Fixed deployments: integrated/public @418 x2 / member @176 / admin @273.
+- Verification: prerelease PASS（exit 0）、typecheck PASS、test:office-affiliation 10/10（新設）、3 split 生成物で validateMemberPayload_ と isNoOfficeAffiliation_ の定義・参照が揃うことを確認、deployment API で4本同期確認。**実データ確認は未実施**。
+- あわせて npm audit fix（新規勧告 4 件・すべて @google/clasp の推移的な開発依存・パッチ更新のみ・本番依存は影響なし）。
+- Rollback: integrated/public @417 x2 / member @175 / admin @272（v376.106）。
+
+### 2026-09-28 v376.106
 
 - Scope: 管理者 split の生成物を役割で 4 ファイルに分けた。dryrun.gs に本番のトリガーが叩く関数と、deleteTestData_APPLY のような本番データを消す保守ツールが同居しており、ファイル名が役割を偽っていた。maintenance.gs を新設（backfill / 復元 / テストデータ削除 / スキーマ救済）。dryrun.gs は dryRun E2E と読み取り専用の診断だけに。preview(_LOG) と apply(_APPLY) の対は分けない。ADMIN_OPERATOR_TOOL_FUNCTIONS は残りとして導出（4 つ目の列挙を持たない）。動作は不変（GAS は全 .gs がグローバルスコープ共有）。
 - Fixed deployments: integrated/public @417 x2 / member @175 / admin @272.
