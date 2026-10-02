@@ -6,6 +6,8 @@ import { normalizeKana } from '../../utils/kanaNormalize';
 // 入力書式の正本（AGENTS §3）。ここで独自に正規表現を書かない —
 // v376.101 は MemberForm が独自のカナ正規表現を持っていたせいで賛助会員が保存できなくなった。
 import { CARE_MANAGER_NO_PATTERN } from '../../shared/validators';
+// 勤務先なしの判定・予約語の正本（docs/spec/02_RD.md §479）
+import { NO_OFFICE_AFFILIATION_LABEL } from '../../shared/officeAffiliation';
 
 interface Props {
   onBack: () => void;
@@ -86,6 +88,8 @@ interface StaffUpdateCard {
 interface IndividualFields {
   lastName: string; firstName: string; lastKana: string; firstKana: string;
   email: string; mobilePhone: string;
+  officeName: string;
+  noOffice: boolean;   // 「現在は勤務していない」
   phone: string; fax: string;
   officeAddress: AddressValue;
   homeAddress: AddressValue;
@@ -96,6 +100,7 @@ interface IndividualFields {
 const INITIAL_INDIVIDUAL: IndividualFields = {
   lastName: '', firstName: '', lastKana: '', firstKana: '',
   email: '', mobilePhone: '',
+  officeName: '', noOffice: false,
   phone: '', fax: '',
   officeAddress: { ...EMPTY_ADDRESS },
   homeAddress: { ...EMPTY_ADDRESS },
@@ -282,7 +287,8 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
     if (isPersonType) {
       if (selected.has('name') && (indFields.lastName.trim() || indFields.firstName.trim() || indFields.lastKana.trim() || indFields.firstKana.trim())) return true;
       if (selected.has('contact') && (indFields.email.trim() || indFields.mobilePhone.trim())) return true;
-      if (selected.has('officeContact') && (indFields.phone.trim() || indFields.fax.trim())) return true;
+      if (selected.has('officeContact')
+        && (indFields.noOffice || indFields.officeName.trim() || indFields.phone.trim() || indFields.fax.trim())) return true;
       if (selected.has('officeAddress')) {
         const a = indFields.officeAddress;
         if (a.postCode.trim() || a.prefecture.trim() || a.city.trim() || a.addressLine.trim() || a.addressLine2.trim()) return true;
@@ -329,8 +335,19 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
           if (indFields.mobilePhone) fields.mobilePhone = indFields.mobilePhone;
         }
         if (selected.has('officeContact')) {
-          if (indFields.phone) fields.phone = indFields.phone;
-          if (indFields.fax) fields.fax = indFields.fax;
+          if (indFields.noOffice) {
+            // 退職した人。勤務先の連絡先も残さない。
+            // 郵送先が勤務先のままだと宛名が「勤務なし」の郵便が出るため、自宅へ寄せる
+            // （サーバ側 saveMemberCore_ もこの組み合わせを拒否する）。
+            fields.officeName = NO_OFFICE_AFFILIATION_LABEL;
+            fields.phone = '';
+            fields.fax = '';
+            fields.preferredMailDestination = 'HOME';
+          } else {
+            if (indFields.officeName) fields.officeName = indFields.officeName;
+            if (indFields.phone) fields.phone = indFields.phone;
+            if (indFields.fax) fields.fax = indFields.fax;
+          }
         }
         if (selected.has('officeAddress')) {
           const a = indFields.officeAddress;
@@ -452,7 +469,9 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
   const INDIVIDUAL_GROUPS = [
     { key: 'name' as FieldGroup, label: '氏名', desc: '氏・名・フリガナ（氏）・フリガナ（名）' },
     { key: 'contact' as FieldGroup, label: '連絡先メール・携帯電話番号', desc: '' },
-    { key: 'officeContact' as FieldGroup, label: '勤務先電話番号・FAX番号', desc: '' },
+    // 2026-10-01: 勤務先名をここへ入れた。別グループにすると、転職した人が
+    // 「名称」と「電話」を別々にチェックして片方を忘れる。
+    { key: 'officeContact' as FieldGroup, label: '勤務先（事業所）', desc: '事業所名・電話番号・FAX番号' },
     { key: 'officeAddress' as FieldGroup, label: '勤務先住所', desc: '〒・都道府県・市区町村・番地・建物名' },
     { key: 'homeAddress' as FieldGroup, label: '自宅住所', desc: '〒・都道府県・市区町村・番地・建物名' },
     { key: 'careManagerNumber' as FieldGroup, label: '介護支援専門員番号', desc: '' },
@@ -615,18 +634,50 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
                 )}
                 {selected.has('officeContact') && (
                   <fieldset className="space-y-3 rounded-lg border border-slate-200 p-4">
-                    <legend className="px-1 text-sm font-semibold text-slate-700">勤務先電話・FAX</legend>
+                    <legend className="px-1 text-sm font-semibold text-slate-700">勤務先（事業所）</legend>
+                    <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      <input type="checkbox" className="mt-0.5 h-4 w-4 accent-violet-600"
+                        checked={indFields.noOffice}
+                        onChange={e => {
+                          const checked = e.target.checked;
+                          setIndFields(f => ({ ...f, noOffice: checked }));
+                          // 郵送先が自宅へ切り替わるので、自宅住所の入力欄を出しておく。
+                          // 自宅住所が未登録のまま承認すると「自宅郵便番号が必須です」で
+                          // 承認が落ちる。会員側は自分の登録状況を見られない（公開ポータルは
+                          // 会員データを返さない）ので、ここで入力の機会を作る。
+                          // 既に登録済みなら空欄のままでよい（空欄＝変更なし）。
+                          if (checked) setSelected(prev => new Set(prev).add('homeAddress'));
+                        }} />
+                      <span>
+                        <span className="text-sm font-medium text-slate-800">現在は勤務していない</span>
+                        <span className="mt-0.5 block text-xs text-slate-500">
+                          退職された場合はこちら。勤務先の情報を消し、郵送先を自宅へ切り替えます。
+                          自宅住所の入力欄を下に表示しますので、<strong>未登録の方はご入力ください</strong>
+                          （登録済みであれば空欄のままで構いません）。
+                        </span>
+                      </span>
+                    </label>
+                    <div>
+                      <label className={labelClass}>事業所名</label>
+                      <input type="text" value={indFields.officeName} disabled={indFields.noOffice}
+                        onChange={e => setIndFields(f => ({ ...f, officeName: e.target.value }))}
+                        placeholder="例: ひらかた介護ステーション"
+                        className={indFields.noOffice ? inputClass + ' bg-slate-100 text-slate-400' : inputClass} />
+                      <p className="mt-1 text-xs text-slate-500">
+                        転職された場合は「勤務先住所」もあわせてお選びください。
+                      </p>
+                    </div>
                     <div>
                       <label className={labelClass}>勤務先電話番号</label>
-                      <input type="tel" value={indFields.phone}
+                      <input type="tel" value={indFields.phone} disabled={indFields.noOffice}
                         onChange={e => setIndFields(f => ({ ...f, phone: e.target.value }))}
-                        placeholder="" className={inputClass} />
+                        placeholder="" className={indFields.noOffice ? inputClass + ' bg-slate-100 text-slate-400' : inputClass} />
                     </div>
                     <div>
                       <label className={labelClass}>勤務先FAX番号</label>
-                      <input type="tel" value={indFields.fax}
+                      <input type="tel" value={indFields.fax} disabled={indFields.noOffice}
                         onChange={e => setIndFields(f => ({ ...f, fax: e.target.value }))}
-                        placeholder="" className={inputClass} />
+                        placeholder="" className={indFields.noOffice ? inputClass + ' bg-slate-100 text-slate-400' : inputClass} />
                     </div>
                   </fieldset>
                 )}

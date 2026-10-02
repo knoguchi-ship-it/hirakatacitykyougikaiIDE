@@ -4597,6 +4597,12 @@ function validateMemberPayload_(payload, memberTypeCode, currentMemberStatus, op
 
   if (requireOfficeInfo) {
     if (!trim(payload.officeName)) throw new Error('事業所情報: 勤務先名は必須です。');
+    // 2026-10-01: 「勤務なし」は非空文字なので上の必須チェックを素通りする。
+    // 郵送先が勤務先のまま勤務なしにすると、宛名が「勤務なし」の郵便が出る。
+    // 退職したなら郵送先は自宅であるはずなので、この組み合わせ自体を作らせない。
+    if (!isBusiness && isNoOfficeAffiliation_(payload.officeName)) {
+      throw new Error('勤務先が「勤務なし」のときは、郵送先区分を自宅にしてください。');
+    }
     if (isBusiness) {
       if (!trim(payload.officePostCode)) throw new Error('事業所情報: 郵便番号は必須です。');
       if (!trim(payload.officePrefecture)) throw new Error('事業所情報: 都道府県は必須です。');
@@ -6714,12 +6720,29 @@ function makePdfSvgPlaceholder_(name) {
 var PUBLIC_INDIVIDUAL_UPDATE_ALLOWLIST_ = [
   'lastName', 'firstName', 'lastKana', 'firstKana',
   'email', 'mobilePhone',
+  // 2026-10-01: 勤務先名を追加した。入会申込では必須で取るのに本人からは変更できず、
+  // 転職しても「前職の名前 ＋ 現職の住所・電話」という行しか作れなかった。
+  // 郵送先区分が勤務先のとき宛名を決めるのはこの項目（docs/spec/02_RD.md §591）なので、
+  // 変えられないままだと郵便が前職へ届く。認証には影響しない
+  // （個人会員のログインIDは介護支援専門員番号）。
+  'officeName',
   'phone', 'fax',
   'officePostCode', 'officePrefecture', 'officeCity', 'officeAddressLine', 'officeAddressLine2',
   'homePostCode', 'homePrefecture', 'homeCity', 'homeAddressLine', 'homeAddressLine2',
   'mailingPreference', 'preferredMailDestination',
   'careManagerNumber',
 ];
+
+// 勤務先なしを表す予約語と判定。正本の考え方は docs/spec/02_RD.md §479
+// 「勤務先名が空または 勤務なし の場合は勤務先なしとして扱う」。
+// フロント側の同一実装は src/shared/officeAffiliation.ts にあり、
+// npm run test:office-affiliation が両者の一致を検査する。
+var NO_OFFICE_AFFILIATION_LABEL_ = '勤務なし';
+
+function isNoOfficeAffiliation_(officeName) {
+  var name = String(officeName == null ? '' : officeName).trim();
+  return name === '' || name === NO_OFFICE_AFFILIATION_LABEL_;
+}
 
 // 事業所会員: 公開ポータル変更申請（管理者承認後に適用）で変更可能なフィールド allowlist
 var PUBLIC_BUSINESS_UPDATE_ALLOWLIST_ = [

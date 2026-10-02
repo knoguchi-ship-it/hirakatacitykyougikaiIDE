@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Member, MailingPreference, MailDestination, MemberType, PaymentStatus, Staff, StaffRole, Training, TransferAccountInfo } from '../types';
 import { EMAIL_PATTERN, CARE_MANAGER_NO_PATTERN, POSTAL_CODE_PATTERN, PHONE_PATTERN } from '../shared/validators';
+import { isNoOfficeAffiliation, NO_OFFICE_AFFILIATION_LABEL } from '../shared/officeAffiliation';
 import { AlertTriangleIcon, MailIcon, CheckCircleIcon, BookOpenIcon, UsersIcon, HomeIcon, PlusIcon, SparklesIcon } from './Icons';
 import { api } from '../services/api';
 import StaffTrainingView from './StaffTrainingView';
@@ -733,8 +734,9 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
         }),
     };
 
-    const officeNameText = (saveMember.officeName || '').trim();
-    const noOfficeAffiliation = !isBusiness && (officeNameText === '' || officeNameText === '勤務なし');
+    // 判定の正本は src/shared/officeAffiliation.ts（docs/spec/02_RD.md §479）。
+    // ここで '勤務なし' を直書きすると、公開ポータル・GAS と食い違う。
+    const noOfficeAffiliation = !isBusiness && isNoOfficeAffiliation(saveMember.officeName);
     const normalizedMemberBase = noOfficeAffiliation
       ? {
           ...saveMember,
@@ -1755,7 +1757,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   {isBusiness ? '事業所名' : '事業所名 (※)'} 
-                  {!isBusiness && <span className="text-xs text-red-500 ml-2">空白または「勤務なし」の場合は未勤務として扱います</span>}
+                  {!isBusiness && <span className="text-xs text-red-500 ml-2">空白または「{NO_OFFICE_AFFILIATION_LABEL}」の場合は未勤務として扱います</span>}
                 </label>
                 <input id={getFieldAnchorId('officeName')} disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="text" name="officeName" value={member.officeName} onChange={handleChange} className={getInputClass('officeName', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} />
                 {errors.officeName && <p className="text-xs text-red-500 mt-1">{errors.officeName}</p>}
