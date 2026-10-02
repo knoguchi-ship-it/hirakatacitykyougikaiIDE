@@ -17,6 +17,8 @@ type PublicPortalContentSettings = {
   membershipFees: { INDIVIDUAL: number; BUSINESS: number; SUPPORT: number };
   membershipFeeVisible: boolean;
   membershipFeeNote: string;
+  /** プライバシーポリシーの掲載先。空ならリンクを出さない。 */
+  privacyPolicyUrl: string;
   heroBadgeEnabled: boolean;
   heroBadgeLabel: string;
   heroTitle: string;
@@ -94,6 +96,8 @@ const DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS: PublicPortalContentSettings = {
   membershipFees: MEMBER_TYPE_ANNUAL_FEE_DEFAULTS,
   membershipFeeVisible: true,
   membershipFeeNote: '',
+  // 既定は空。URL はコードではなく設定（T_システム設定）で持つ。
+  privacyPolicyUrl: '',
   heroBadgeEnabled: false,
   heroBadgeLabel: 'お申込みポータル',
   heroTitle: '研修申込・申込取消・新規入会申込を受け付けています',
@@ -214,6 +218,8 @@ const PublicApp: React.FC = () => {
             },
             membershipFeeVisible: portalSettings.value.membershipFeeVisible ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipFeeVisible,
             membershipFeeNote: portalSettings.value.membershipFeeNote ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipFeeNote,
+            // 空文字を既定で上書きしない（|| ではなく ??）。空＝リンクを出さない、が設定の意思。
+            privacyPolicyUrl: portalSettings.value.privacyPolicyUrl ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.privacyPolicyUrl,
             heroBadgeEnabled: portalSettings.value.heroBadgeEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.heroBadgeEnabled,
             heroBadgeLabel: portalSettings.value.heroBadgeLabel || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.heroBadgeLabel,
             heroTitle: portalSettings.value.heroTitle || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.heroTitle,
@@ -590,6 +596,7 @@ const PublicApp: React.FC = () => {
             training={selectedTraining}
             onSuccess={handleApplySuccess}
             onCancel={handleBackToTrainingList}
+            privacyPolicyUrl={portalContentSettings?.privacyPolicyUrl ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.privacyPolicyUrl}
           />
         )}
 
@@ -667,9 +674,17 @@ const PublicApp: React.FC = () => {
           <p className="text-xs text-slate-500">
             &copy; 枚方市介護支援専門員連絡協議会
           </p>
-          <p className="text-xs text-slate-500">
-            プライバシーポリシーは本サイトに掲載しています。
-          </p>
+          {/* 設定が空ならリンク自体を出さない。押せるのにどこへも飛ばない状態を作らない。 */}
+          {(portalContentSettings?.privacyPolicyUrl ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.privacyPolicyUrl) && (
+            <p className="text-xs">
+              <a
+                href={portalContentSettings?.privacyPolicyUrl ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.privacyPolicyUrl}
+                target="_blank" rel="noopener noreferrer"
+                className="text-slate-500 underline underline-offset-2 hover:text-violet-700">
+                プライバシーポリシーについて
+              </a>
+            </p>
+          )}
         </div>
       </footer>
     </div>

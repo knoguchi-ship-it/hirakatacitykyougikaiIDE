@@ -245,6 +245,8 @@ const MEMBER_TYPE_FEE_FIELDS = (['INDIVIDUAL', 'BUSINESS', 'SUPPORT'] as const)
   .map((code) => ({ code, label: MEMBER_TYPE_LABELS[code] }));
 
 const PUBLIC_PORTAL_DEFAULTS = {
+  // 既定は空。URL はコードではなく設定（T_システム設定）で持つ。空ならリンクを出さない。
+  privacyPolicyUrl: '',
   heroBadgeEnabled: false,
   heroBadgeLabel: 'お申込みポータル',
   heroTitle: '研修申込・申込取消・新規入会申込を受け付けています',
@@ -614,6 +616,7 @@ const App: React.FC = () => {
   // v210: 公開ポータル メニュー表示設定
   const [publicPortalTrainingMenuEnabledInput, setPublicPortalTrainingMenuEnabledInput] = useState(true);
   const [publicPortalMembershipMenuEnabledInput, setPublicPortalMembershipMenuEnabledInput] = useState(true);
+  const [publicPortalPrivacyPolicyUrlInput, setPublicPortalPrivacyPolicyUrlInput] = useState(PUBLIC_PORTAL_DEFAULTS.privacyPolicyUrl);
   const [publicPortalHeroBadgeEnabledInput, setPublicPortalHeroBadgeEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.heroBadgeEnabled);
   const [publicPortalHeroBadgeLabelInput, setPublicPortalHeroBadgeLabelInput] = useState(PUBLIC_PORTAL_DEFAULTS.heroBadgeLabel);
   const [publicPortalHeroTitleInput, setPublicPortalHeroTitleInput] = useState(PUBLIC_PORTAL_DEFAULTS.heroTitle);
@@ -805,6 +808,7 @@ const App: React.FC = () => {
     // v210
     setPublicPortalTrainingMenuEnabledInput(systemSettings.publicPortalTrainingMenuEnabled ?? true);
     setPublicPortalMembershipMenuEnabledInput(systemSettings.publicPortalMembershipMenuEnabled ?? true);
+    setPublicPortalPrivacyPolicyUrlInput(systemSettings.publicPortalPrivacyPolicyUrl ?? PUBLIC_PORTAL_DEFAULTS.privacyPolicyUrl);
     setPublicPortalHeroBadgeEnabledInput(systemSettings.publicPortalHeroBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.heroBadgeEnabled);
     setPublicPortalHeroBadgeLabelInput(systemSettings.publicPortalHeroBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.heroBadgeLabel);
     setPublicPortalHeroTitleInput(systemSettings.publicPortalHeroTitle ?? PUBLIC_PORTAL_DEFAULTS.heroTitle);
@@ -4241,6 +4245,26 @@ const App: React.FC = () => {
           >
             <div className="space-y-4">
               <div>
+                <h4 className="text-sm font-semibold text-slate-800 mb-1">サイト情報</h4>
+                <p className="text-sm text-slate-600 mb-3">
+                  公開ポータル全体で使う外部リンクです。掲載先が変わったらここを直します（リリース不要）。
+                </p>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">プライバシーポリシーの掲載先 URL</label>
+                  <input
+                    type="url"
+                    value={publicPortalPrivacyPolicyUrlInput}
+                    onChange={(e) => { setPublicPortalPrivacyPolicyUrlInput(e.target.value); setSettingsIsDirty(true); }}
+                    className="w-full border border-slate-300 rounded px-3 py-2"
+                    placeholder="例: https://sites.google.com/view/starhirakata/privacy-policy"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    フッターと研修申込画面からリンクします。
+                    <strong>空にするとリンク自体を出しません</strong>（押せるのにどこへも飛ばない状態を作らないため）。
+                  </p>
+                </div>
+              </div>
+              <div>
                 <h4 className="text-sm font-semibold text-slate-800 mb-1">公開ポータル メニュー表示設定</h4>
                 <p className="text-sm text-slate-600 mb-3">
                   公開ポータルのトップページに表示するメニューカードを選択します。
@@ -5686,6 +5710,7 @@ const App: React.FC = () => {
                         publicPortalMembershipMenuEnabled: publicPortalMembershipMenuEnabledInput,
                         publicPortalHeroBadgeEnabled: publicPortalHeroBadgeEnabledInput,
                         publicPortalHeroBadgeLabel: publicPortalHeroBadgeLabelInput,
+                        publicPortalPrivacyPolicyUrl: publicPortalPrivacyPolicyUrlInput,
                         publicPortalHeroTitle: publicPortalHeroTitleInput,
                         publicPortalHeroDescriptionEnabled: publicPortalHeroDescriptionEnabledInput,
                         publicPortalHeroDescription: publicPortalHeroDescriptionInput,
@@ -5814,6 +5839,7 @@ const App: React.FC = () => {
                       setPublicPortalMembershipMenuEnabledInput(saved.publicPortalMembershipMenuEnabled ?? true);
                       setPublicPortalHeroBadgeEnabledInput(saved.publicPortalHeroBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.heroBadgeEnabled);
                       setPublicPortalHeroBadgeLabelInput(saved.publicPortalHeroBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.heroBadgeLabel);
+                      setPublicPortalPrivacyPolicyUrlInput(saved.publicPortalPrivacyPolicyUrl ?? PUBLIC_PORTAL_DEFAULTS.privacyPolicyUrl);
                       setPublicPortalHeroTitleInput(saved.publicPortalHeroTitle ?? PUBLIC_PORTAL_DEFAULTS.heroTitle);
                       setPublicPortalHeroDescriptionEnabledInput(saved.publicPortalHeroDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.heroDescriptionEnabled);
                       setPublicPortalHeroDescriptionInput(saved.publicPortalHeroDescription ?? PUBLIC_PORTAL_DEFAULTS.heroDescription);

@@ -309,6 +309,11 @@ var PASSWORD_RESET_DEFAULT_BODY = [
 ].join('\n');
 
 var PUBLIC_PORTAL_DEFAULTS = {
+  // 2026-10-02: プライバシーポリシーの掲載先。**既定は空**にする。
+  // URL は外部サイト（Google Sites）にあり移動しうるので、コードではなくデータで持つ。
+  // 空のときは画面にリンクを出さない（押せるのにどこへも飛ばない状態を作らない）。
+  // 定款の掲載先が変わってリンクが古くなった件（T_規程 REG-005）と同じ轍を踏まないため。
+  privacyPolicyUrl: '',
   heroBadgeEnabled: false,
   heroBadgeLabel: 'お申込みポータル',
   heroTitle: '研修申込・申込取消・新規入会申込を受け付けています',
@@ -4242,6 +4247,7 @@ function getSystemSettings_() {
     ? PUBLIC_PORTAL_DEFAULTS.heroBadgeEnabled
     : String(heroBadgeEnabledRaw) !== 'false';
   var publicPortalHeroBadgeLabel = String(m['PUBLIC_PORTAL_HERO_BADGE_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.heroBadgeLabel;
+  var publicPortalPrivacyPolicyUrl = String(m['PUBLIC_PORTAL_PRIVACY_POLICY_URL'] || '');
   var publicPortalHeroTitle = String(m['PUBLIC_PORTAL_HERO_TITLE'] || '') || PUBLIC_PORTAL_DEFAULTS.heroTitle;
   var heroDescriptionEnabledRaw = m['PUBLIC_PORTAL_HERO_DESCRIPTION_ENABLED'];
   var publicPortalHeroDescriptionEnabled = heroDescriptionEnabledRaw === undefined || heroDescriptionEnabledRaw === ''
@@ -4352,6 +4358,7 @@ function getSystemSettings_() {
     credentialEmailBody: credentialEmailBody,
     publicPortalTrainingMenuEnabled: publicPortalTrainingMenuEnabled,
     publicPortalMembershipMenuEnabled: publicPortalMembershipMenuEnabled,
+    publicPortalPrivacyPolicyUrl: publicPortalPrivacyPolicyUrl,
     publicPortalHeroBadgeEnabled: publicPortalHeroBadgeEnabled,
     publicPortalHeroBadgeLabel: publicPortalHeroBadgeLabel,
     publicPortalHeroTitle: publicPortalHeroTitle,
@@ -4575,6 +4582,10 @@ function updateSystemSettings_(request, callerPermLevel) {
   }
   if (request.publicPortalHeroBadgeLabel != null) {
     updates.push({ key: 'PUBLIC_PORTAL_HERO_BADGE_LABEL', value: String(request.publicPortalHeroBadgeLabel).trim() || PUBLIC_PORTAL_DEFAULTS.heroBadgeLabel, description: '公開ポータル：トップ補助ラベル文言' });
+  }
+  if (request.publicPortalPrivacyPolicyUrl != null) {
+    // 既定へ戻さない（|| を使わない）。空で保存＝リンクを出さない、という意思表示。
+    updates.push({ key: 'PUBLIC_PORTAL_PRIVACY_POLICY_URL', value: String(request.publicPortalPrivacyPolicyUrl).trim(), description: '公開ポータル：プライバシーポリシーの掲載先URL（空ならリンクを出さない）' });
   }
   if (request.publicPortalHeroTitle != null) {
     updates.push({ key: 'PUBLIC_PORTAL_HERO_TITLE', value: String(request.publicPortalHeroTitle).trim() || PUBLIC_PORTAL_DEFAULTS.heroTitle, description: '公開ポータル：トップ見出し' });
@@ -12787,6 +12798,7 @@ function ensureSystemSettingsRows_(ss) {
   var publicPortalTextSettings = [
     { key: 'PUBLIC_PORTAL_HERO_BADGE_ENABLED', value: PUBLIC_PORTAL_DEFAULTS.heroBadgeEnabled ? 'true' : 'false', desc: '公開ポータル：トップ補助ラベルを表示するか' },
     { key: 'PUBLIC_PORTAL_HERO_BADGE_LABEL', value: PUBLIC_PORTAL_DEFAULTS.heroBadgeLabel, desc: '公開ポータル：トップ補助ラベル文言' },
+    { key: 'PUBLIC_PORTAL_PRIVACY_POLICY_URL', value: PUBLIC_PORTAL_DEFAULTS.privacyPolicyUrl, desc: '公開ポータル：プライバシーポリシーの掲載先URL（空ならリンクを出さない）' },
     { key: 'PUBLIC_PORTAL_HERO_TITLE', value: PUBLIC_PORTAL_DEFAULTS.heroTitle, desc: '公開ポータル：トップ見出し' },
     { key: 'PUBLIC_PORTAL_HERO_DESCRIPTION_ENABLED', value: PUBLIC_PORTAL_DEFAULTS.heroDescriptionEnabled ? 'true' : 'false', desc: '公開ポータル：トップ説明文を表示するか' },
     { key: 'PUBLIC_PORTAL_HERO_DESCRIPTION', value: PUBLIC_PORTAL_DEFAULTS.heroDescription, desc: '公開ポータル：トップ説明文' },

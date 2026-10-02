@@ -206,6 +206,8 @@ export interface SystemSettings {
   publicPortalMembershipMenuEnabled?: boolean;
   publicPortalHeroBadgeEnabled?: boolean;
   publicPortalHeroBadgeLabel?: string;
+  /** プライバシーポリシーの掲載先URL。空ならリンクを出さない。 */
+  publicPortalPrivacyPolicyUrl?: string;
   publicPortalHeroTitle?: string;
   publicPortalHeroDescriptionEnabled?: boolean;
   publicPortalHeroDescription?: string;

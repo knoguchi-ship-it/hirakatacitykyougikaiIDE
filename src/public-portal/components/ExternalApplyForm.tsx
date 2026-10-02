@@ -6,9 +6,11 @@ interface Props {
   training: PublicTraining;
   onSuccess: (applyId: string) => void;
   onCancel: () => void;
+  /** プライバシーポリシーの掲載先。空ならリンクを出さない（設定: T_システム設定）。 */
+  privacyPolicyUrl?: string;
 }
 
-const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel }) => {
+const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel, privacyPolicyUrl }) => {
   const [name, setName] = useState('');
   const [furigana, setFurigana] = useState('');
   const [email, setEmail] = useState('');
@@ -55,7 +57,16 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel }) =
 
       <div className="bg-primary-50 border border-primary-100 rounded p-3 mb-4 text-sm text-primary-900">
         収集した個人情報は研修申込の受付・確認連絡のみに使用します。第三者への提供は行いません。
-        詳細は本サイトに掲載しているプライバシーポリシーを参照してください。
+        {privacyPolicyUrl && (
+          <>
+            {' '}詳しくは
+            <a href={privacyPolicyUrl} target="_blank" rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-violet-700">
+              プライバシーポリシー
+            </a>
+            をご確認ください。
+          </>
+        )}
       </div>
 
       {error && (
