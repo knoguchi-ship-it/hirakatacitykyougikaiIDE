@@ -187,3 +187,31 @@ setupScheduledTriggers: 現在のトリガー = dailyWithdrawalPolicyTrigger
 
 心拍は「ジョブが一度成功してから」記録されるため、`checkScheduledJobHealth` は
 日次ジョブが初回（翌 02:00）に走るまで `overdue: true` を返す。これは正常。
+
+## 8. 定期ジョブ復旧の完了確認（2026-10-02）
+
+operator 実行の記録。
+
+| 手順 | 時刻 | 結果 |
+|---|---|---|
+| 統合／公開の `warmUp` トリガー削除 | 09-28 | 完了 |
+| `setupScheduledTriggers` | 10-02 11:02 | `現在のトリガー = dailyWithdrawalPolicyTrigger` |
+| `setupPendingThumbnailsTrigger` | 10-02 11:04 | `trigger installed (every 10 min)` |
+| `checkScheduledJobHealth`（1 回目） | 10-02 11:04 | 両方 `lastOkAt: ""` / `overdue: true` |
+| `checkScheduledJobHealth`（2 回目） | 10-02 11:35 | **`processPendingThumbnails` に心拍** |
+
+```
+processPendingThumbnails     lastOkAt: 2026-10-02T02:35:51.683Z  ageMinutes: 0  overdue: false
+dailyWithdrawalPolicyTrigger lastOkAt: ""                        ageMinutes: null  overdue: true
+```
+
+**心拍の仕組みが実データで動くことを確認した。**
+トリガー発火 → ジョブ実行 → 心拍記録 → 死活チェックが読む → 遅れ判定の解除、まで一連で通った。
+v376.104 で入れた「黙って止まらないようにする」仕組みの実証。
+
+1 回目で両方 `overdue: true` だったのは設計どおり。心拍はジョブが一度成功してから記録されるので、
+トリガーを作り直していない状態を正常に見せない。
+
+`dailyWithdrawalPolicyTrigger` は毎日 02:00 が初回。それまでは `overdue: true` のままで、
+管理画面を開くたびに Chat へ 1 日 1 回「定期ジョブが動いていません」が流れる（実際にまだ走っていないので正しい）。
+翌 02:00 以降に止まる。

@@ -8,15 +8,12 @@
   ロールバック先は public @417×2 / member @175 / admin @272（v376.106）。
   ※ admin だけ @274（`script.scriptapp` スコープ追加の hotfix）。
 
-- **定期ジョブの復旧（`docs/archive/release_history/289` §1 / `docs/292` §7）**
-  1. ~~統合／公開プロジェクトの `warmUp` トリガーを削除~~ → **完了（2026-09-28）**
-  2. ~~管理者プロジェクトで `setupScheduledTriggers` を実行~~ → **完了（2026-10-02 11:02）**
-     **日次ジョブ（退会予定→退会確定の昇格）が復活した。**
-  3. `setupPendingThumbnailsTrigger` を 1 回実行 ← **残り**（サムネイル生成のトリガーが未登録）
-  4. `checkScheduledJobHealth` で心拍を確認 ← **残り**
-
-  いずれも `jobs.gs` にある。**心拍はジョブが一度成功してから記録される**ので、
-  日次ジョブは翌 02:00 までは `overdue: true` のまま。これは正常。
+- **定期ジョブの復旧 — 完了（2026-10-02）**（`docs/292` §8）
+  `warmUp` トリガー削除 → `setupScheduledTriggers` → `setupPendingThumbnailsTrigger` →
+  `checkScheduledJobHealth` まで operator が実行済み。**心拍の仕組みが実データで動くことを確認した**
+  （`processPendingThumbnails` に `lastOkAt` が付き `overdue: false` へ）。
+  `dailyWithdrawalPolicyTrigger` は毎日 02:00 が初回なので、それまで `overdue: true` のままで正常。
+  同じ理由で Chat へ 1 日 1 回「定期ジョブが動いていません」が流れるが、翌 02:00 以降に止まる。
 
 - **片付け（2026-09-28）**: 重複していた研修申込 1 件をキャンセル（会員 4539021 が T004 に 2 回。
   v376.104 で重複検査を入れる前のデータ）。**外部申込者の重複は 0 件**で、公開ポータルの研修申込が
