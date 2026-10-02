@@ -121,6 +121,7 @@
 
 | 文書 | 内容 |
 |---|---|
+| [297_RULES_INVENTORY_2026-10-02.md](297_RULES_INVENTORY_2026-10-02.md) | **常設指示 条文棚卸し 211 件（生成物・`node scripts/inventory-rules.mjs`）。落とす判断は operator** |
 | [296_RULES_ARCHITECTURE_DESIGN_2026-10-02.md](296_RULES_ARCHITECTURE_DESIGN_2026-10-02.md) | **グランドルール再構築の設計（強制=npm/Hook・想起=Skill・常設=AGENTS・能力=MCP の層分け）** |
 | [295_WORK_RECORD_2026-10-02.md](295_WORK_RECORD_2026-10-02.md) | **作業記録 v376.100→v376.110（繰り返し現れた 5 つの型。グランドルール見直しの材料）** |
 | [294_VALIDATION_AUDIT_2026-10-02.md](294_VALIDATION_AUDIT_2026-10-02.md) | **バリデーション検査表（51件）と DB リレーション検査（7件）— 仕様未達 6 件・図と実装のドリフト 0 件** |
