@@ -1,10 +1,29 @@
 # AGENTS.md
 # 枚方市介護支援専門員連絡協議会 会員システム
 
-> このファイルを唯一のグランドルール入口とする。
-> `CLAUDE.md` は後方互換用の案内のみとし、実体ルールはここへ集約する。
+> **本書がグランドルールの唯一の入口。** `CLAUDE.md` は後方互換の案内のみ。
+>
+> 2026-10-03 に層構造へ再構成した（`docs/296`）。**条文は 1 つも削除していない。**
+> 手順は Skill へ、方針は別冊へ移し、機械が守る規約は検査名だけを残した。
+> 棚卸し表は `docs/297`。
 
-## 0. 最優先・絶対ルール（シークレット保管）
+## 読み方
+
+| 層 | 性質 | 破ったらどうなるか |
+|---|---|---|
+| **L0** | 絶対 | **事故になる。** 他のすべてに優先して即時是正 |
+| **L1** | この案件の固定値 | 本番が壊れる・URL が変わる |
+| **L2** | 機械が守る規約 | **ゲートが落ちて先へ進めない**（条文を覚える必要はない） |
+| **L3** | 人が守る規約 | 品質が落ちる。レビューで見る |
+| **L4** | 入口と手順 | 迷う・読み落とす |
+
+---
+
+# L0 絶対
+
+**この層は本書の他のすべてのルールに優先する。何を犠牲にしても破ってはならない。**
+
+## L0.1 シークレット保管
 
 **このセクションは AGENTS.md 内の他のすべてのルールに優先する。他の何を犠牲にしてもこのルールを破ってはならない。**
 
@@ -22,7 +41,60 @@
 
 このルールへの違反は、機能要件・スケジュール・他のグランドルールに優先して即時是正対象とする。
 
-## 1. 入口の原則
+## L0.2 認証フロー（不変）
+
+- 会員ログインは `loginId + password` のみ。
+- 管理者ログインは Google アカウント + whitelist 検証。
+- demo login、mock member route、画面内 demo selector は復活させない。
+- business member の代表者情報は `staff.role='REPRESENTATIVE'` を正本とする。
+
+## L0.3 不可逆操作とセキュリティ運用
+
+- `seedDemoData` は production DB を破壊する操作として扱い、完全バックアップと明示承認なしでは実行しない（§6 不可逆操作 一般則の最頻 例外）。
+- **パスワード hash pepper の本番前提**: versioned PBKDF2-HMAC-SHA256 + verifier-side pepper を含む認証変更は、本番反映前に integrated/public・member split・admin split の全 Apps Script project へ同一の強乱数 Script Property `PASSWORD_HASH_PEPPER_V1` が設定済みであることを必須条件とする（値そのものの取扱いは §0 シークレット保管に準拠。`.env` は Apps Script 本番 runtime の正本にせず、必要な場合でも未コミットのローカル運用補助に限定）。未設定 project がある状態で push / version / redeploy してはならない。
+- **保留中だが必須の security backlog**: pepper を Script Properties から Google Cloud Secret Manager へ移行し、さらに Apps Script 内 PBKDF2 制約を解消する外部 KDF / managed identity の採否を決定するタスクは、保留にしてよいが破棄してはならない。次回以降のセキュリティ改善計画で必ず再開し、完了または明示的な代替設計決定まで `HANDOVER.md` と関連仕様に残す。
+
+## L0.4 承認と、確定済み境界への逆行禁止
+
+- 本番 deploy、DB 更新、権限変更、外部送信、不可逆操作は人間承認を前提とする（具体的破壊操作の運用注意は §4.3 参照）。
+- secret value の取扱いは §0 を絶対正本とする（pepper、token、鍵、認証情報、その他あらゆる秘密値）。
+- AI / agent 特有のリスクも通常のアプリケーションセキュリティと同じ優先度で扱う。
+- 外部入力は不信入力として扱い、モデル出力をそのまま shell、SQL、HTML、デプロイ設定へ流し込まない。
+- **セキュアコーディング 5 視点を基軸とする**: 新規実装・改修時は以下 5 視点を常に意識し、レビュー時もこの 5 軸で確認する:
+  1. **入力検証 (Input Validation)**: 外部入力（HTTP request / フォーム / ファイル / API 戻り値 / URL パラメータ）を信頼せず、許可リスト方式で型・範囲・長さ・形式を検証。未知の値は deny-by-default
+  2. **認証・認可 (Authentication & Authorization)**: 機能ごとに必要な権限を **server side で強制**（§4.2 認証フロー + RBAC `docs/246` 遵守）。frontend での UI 非表示は二重防御の一部であって単独防御にしない
+  3. **機密データ保護 (Data Protection)**: パスワードハッシュ・トークン・PII は最小権限で扱う、伝送・保存時に暗号化 / ハッシュ化（§0 シークレット保管 + §4.3 pepper 運用に従う）
+  4. **エラー処理・ログ (Error Handling & Logging)**: 例外情報の詳細を end user に露出しない、内部ログには秘密値を含めない（§0 シークレット保管）、例外時は fail close で deny-by-default
+     - **条件を確認できないときは、検証を飛ばして通してはならない（2026-10-02 確定）。**
+       参照先の行が見つからない・ID が空・シートが無い——いずれも「確認できなかった」であって
+       「条件を満たした」ではない。**確認できない旨を明示して止める**（fail-closed）。
+     - **入れ子の `if` で起きやすい。** 権限や存在のガードを `if (a) { if (b) { if (c) { throw ... } } }`
+       と書くと、a・b・c のどれが欠けても**何も検証せず素通り**する。
+       ガードは早期 return / 早期 throw で平らに書き、各条件が満たせないときの拒否理由を個別に出す。
+       実例: 事業所の退会申請「代表者のみ」が、認証アカウントに職員IDが無いと素通りしていた（v376.110 で是正）。
+  5. **セキュア通信・依存 (Secure Communication & Dependencies)**: HTTPS / TLS / signed token のみ使用、npm 依存は `npm audit --audit-level=high` で定期監査、外部ライブラリ採用前に `import.meta` 等の build trap を grep 確認（参考: MEMORY `feedback_pdfjs_dist_vite_singlefile_trap.md`）
+- **確定済みセキュリティ境界への逆行案提示禁止**: 第三者評価（`docs/109`）や設計決定（`docs/111`）で確定した認証境界・アクセス制御・プロジェクト分離に反する案を「選択肢の一つ」として対等に提示してはならない。利便性はセキュリティ境界を崩す理由にならない。やむを得ず言及する場合は「**非推奨・セキュリティリスクあり**」を冒頭に明示し、推奨しないことを基本姿勢とする。
+- **このプロジェクトの確定済み境界**: admin（DOMAIN・Google セッション・管理専用）/ member（匿名・ID/PW・会員専用）/ public（完全匿名・申込専用）。3境界の混在・統合提案は上記ルールに従う。
+
+---
+
+# L1 この案件の固定値
+
+版依存の現況値（現行 version・fixed deployment の向き先）は本書に書かない。
+正本は `HANDOVER.md`。
+
+## L1.1 Deploy SOP
+
+- **手順の正本は Skill `/release`。** ここには崩してはいけない固定だけを置く。
+- **fixed deployment は 4 本**（統合・公開 ×2 / member ×1 / admin ×1）。毎リリース同一版へ同期し、一部だけ更新しない。
+  本数と ID の正本は `docs/09_DEPLOYMENT_POLICY.md` §2、現行の向き先は `HANDOVER.md`。
+- **`clasp deploy` は全形式禁止**（新 ID が生成され固定 URL が変わる）。更新は `npx clasp redeploy`。
+  PreToolUse hook（`.claude/hooks/guard-bash.mjs`）が拒否する。
+- Apps Script UI の `Manage deployments` 手更新は障害復旧時の補助手段としてのみ扱う。
+- 認証・認可・DB 整合・deployment 検証は Apps Script 実行系で確認する。
+
+## L1.2 参照先の正本
+
 - 最初に読む入口は常にこの `AGENTS.md`（リポジトリ直下）。
 - 常設指示はリポジトリ直下の `AGENTS.md` と `CLAUDE.md` の 2 本だけ。
   `GLOBAL_GROUND_RULES/` には**詳細ルールと知識ベースしか置かない**（常設指示の写しを増やさない）。
@@ -31,36 +103,61 @@
 - グランドルールには版依存の現況値を埋め込まず、現行 version、fixed deployment の向き先、最新 release state の参照先は `HANDOVER.md` を都度更新して管理する。
 - `AGENTS.md` と詳細ルールが衝突した場合は、詳細ルールを優先する。
 
-## 2. 最初に読む順序
+---
 
-> §1 のとおり **入口は本書**。この分け方が本リポジトリの唯一の正本であり、
-> `README.md` や `docs/ONBOARDING.md` に別の順序を書かない。
+# L2 機械が守る規約
 
-**必ず読む 3 本**（2026-10-02 確定。13 本の通読は形骸化していたため絞った）
+**この層の条文を覚える必要はない。逸脱すればゲートが落ちる。**
+落ちたときに「何を守らせたかったのか」を読む場所として残す。
 
-1. 本書 `AGENTS.md`
-2. `HANDOVER.md` — 現況・次の作業・現行 version・残課題
-3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md` — 本案件の固定運用
-
-**作業に応じて開く**（読まずに触らない。該当する作業に入る前に必ず開く）
-
-| 作業 | 開く文書 |
+| 守らせたいこと | 検査 |
 |---|---|
-| リリース・デプロイ | `docs/09_DEPLOYMENT_POLICY.md`、`HANDOVER.md` 記載の最新 release state |
-| 仕様の確認・変更 | `docs/spec/README.md` → 対象の正本（全体レビュー時は SOW / RD / TRD / UI-UX / データIF の 5 文書） |
-| DB・スキーマ | `docs/03_DATA_MODEL.md`、`docs/04_DB_OPERATION_RUNBOOK.md` |
-| 新機能の追加 | `docs/288_FEATURE_INVENTORY.md`（二重実装の確認） |
-| セキュリティ・承認 | `GLOBAL_GROUND_RULES/docs/AI_RULES/20_SECURITY_APPROVALS.md` |
-| 品質・ワークフロー | `GLOBAL_GROUND_RULES/docs/AI_RULES/10_WORKFLOW_AND_QUALITY.md` |
-| 過去の失敗を踏まないため | `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`、MEMORY のフィードバック |
-| 文書の書き方 | `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md` |
-| 日次運用 | `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md` |
-| 体制・役割 | `GLOBAL_GROUND_RULES/docs/AI_RULES/00_OPERATING_MODEL.md` |
+| 入力検証・会員種別・会計年度判定などの単一情報源 | `npm run test:single-source` |
+| 業務ルール BR-xx が実際に効いていること | `npm run test:validation-matrix` |
+| DB の参照整合性・ER 図と実装の一致 | `npm run test:db-relations` / `test:er-sync` |
+| 3 split 生成物が gas-src と同期していること | `npm run test:gas-build-sync` |
+| 生成物の内部で参照が解決すること | `npm run test:gas-artifact-refs` |
+| 3 split の境界（公開に業務バッチを置かない等） | `npm run security:public-boundary` ほか 2 本 |
+| build ヘルパの複製禁止 | `npm run test:build-helper-single-source` |
+| 新規文書の索引登録・要件 ID のトレーサビリティ | `npm run test:docs-single-source` |
+| action の分類漏れ（二重実装の検出） | `npm run test:feature-inventory` |
+| `clasp deploy` の直叩き・資格情報ファイルへの書き込み・ゲート未通過の push | PreToolUse hook（`.claude/hooks/`） |
 
-`docs/archive/` は過去の記録置き場であり、**現況・仕様の参照先にしない**（`HANDOVER.md` §5）。
-個別の経緯を追うときだけ `docs/archive/00_ARCHIVE_INDEX.md` から開く。
+すべて `npm run prerelease` に連なる。**exit 0 でなければリリースに進めない。**
 
-## 3. 行動原則
+## L2.1 単一情報源のレジストリ
+
+逸脱は `npm run test:single-source` が検出して落とす。**新しい画面・機能でローカルに再定義しない。**
+
+| 対象 | 正本 | GAS への共有方法 |
+|---|---|---|
+| 入力検証パターン（メール/電話/郵便番号/介護支援専門員番号/カナ/事業所番号） | `src/shared/validators.ts` | GAS 側は各関数内ローカル（regex の build pruner 罠のため。変更時は同時更新） |
+| 会員種別ラベル・年会費既定値・年会費整形 | `src/shared/memberTypes.mjs` | build 注入（`__MEMBER_TYPES_BUILD_INJECT_*`） |
+| 会計年度の在籍判定 | `src/shared/memberFiscalStatus.mjs` | build 注入 |
+| メール差し込みタグのカタログ | `src/shared/mailTemplates.ts` | UI は必ず参照（直書き禁止） |
+| RBAC の action→menu | `scripts/menu-registry.mjs` | build 注入 |
+| メール送信の出口 | `deliverMail_`（→ `sendEmailWithValidatedFrom_`） | 直接 `MailApp`/`GmailApp` を呼ばない |
+| メール本文の差し込み描画 | `renderMergeTags_` / `renderConfiguredMail_` | 独自の置換実装を書かない |
+| 会員種別ごとの年会費の実値 | DB `M_会員種別.年会費金額` | `readMemberTypeAnnualFees_` 経由 |
+
+（2026-09-03 監査で確立・`docs/260`）
+
+## L2.2 ドキュメント形式
+
+- **文書を書く・直す・整理する手順は Skill `/doc` が正本。** docs を触る前に呼ぶ。
+  ER 図の自動生成（手書き禁止）、docs/portal の再生成、置き場所とアーカイブ、索引登録、
+  文字コードと改行コードの扱いを含む。（2026-10-02 に本節から移送。`docs/296`）
+- ER 図の正本は `gas-src` のテーブル定義 ＋ `docs/er-metadata.json`。ドリフトは `npm run test:er-sync` が落とす。
+- 新規文書は `docs/00_DOC_INDEX.md` へ登録する。未登録は `npm run test:docs-single-source` が落とす。
+
+---
+
+# L3 人が守る規約
+
+機械では測れないもの。**根拠（どの事故から来たか）を併記する。**
+
+## L3.1 進め方
+
 - **確認は「設計判断が分岐する点」だけに絞る（2026-10-02 確定・operator 指示）。**
   - **作業の都度は確認しない。** ファイルアクセス・書き換え・コマンド実行の一つ一つで止まらず、
     ひと段落するまで一気に進める（MEMORY のユーザー設定を優先する）。
@@ -112,30 +209,7 @@
 - **文書作成・更新時の文字コード統一は絶対ルールとする。** 今後作成・更新する Markdown / HTML / text 系ドキュメントは、現在正常に日本語表示できている既存正本文書と同じ文字コード（原則 UTF-8）で保存する。PowerShell 等の既定エンコーディングに依存した読み書きを避け、保存後は文字化けがないことを確認する。文字化けが疑われる場合は、その文書の更新を完了扱いにせず、先に復旧する。
 - 文字化け、参照切れ、版ずれ、古い入口があれば先に直す。
 
-## 4. この案件で崩してはいけない固定運用
-
-### 4.1 Deploy SOP
-
-- **手順の正本は Skill `/release`。** ここには崩してはいけない固定だけを置く。
-- **fixed deployment は 4 本**（統合・公開 ×2 / member ×1 / admin ×1）。毎リリース同一版へ同期し、一部だけ更新しない。
-  本数と ID の正本は `docs/09_DEPLOYMENT_POLICY.md` §2、現行の向き先は `HANDOVER.md`。
-- **`clasp deploy` は全形式禁止**（新 ID が生成され固定 URL が変わる）。更新は `npx clasp redeploy`。
-  PreToolUse hook（`.claude/hooks/guard-bash.mjs`）が拒否する。
-- Apps Script UI の `Manage deployments` 手更新は障害復旧時の補助手段としてのみ扱う。
-- 認証・認可・DB 整合・deployment 検証は Apps Script 実行系で確認する。
-
-### 4.2 認証フロー（不変）
-- 会員ログインは `loginId + password` のみ。
-- 管理者ログインは Google アカウント + whitelist 検証。
-- demo login、mock member route、画面内 demo selector は復活させない。
-- business member の代表者情報は `staff.role='REPRESENTATIVE'` を正本とする。
-
-### 4.3 セキュリティ運用
-- `seedDemoData` は production DB を破壊する操作として扱い、完全バックアップと明示承認なしでは実行しない（§6 不可逆操作 一般則の最頻 例外）。
-- **パスワード hash pepper の本番前提**: versioned PBKDF2-HMAC-SHA256 + verifier-side pepper を含む認証変更は、本番反映前に integrated/public・member split・admin split の全 Apps Script project へ同一の強乱数 Script Property `PASSWORD_HASH_PEPPER_V1` が設定済みであることを必須条件とする（値そのものの取扱いは §0 シークレット保管に準拠。`.env` は Apps Script 本番 runtime の正本にせず、必要な場合でも未コミットのローカル運用補助に限定）。未設定 project がある状態で push / version / redeploy してはならない。
-- **保留中だが必須の security backlog**: pepper を Script Properties から Google Cloud Secret Manager へ移行し、さらに Apps Script 内 PBKDF2 制約を解消する外部 KDF / managed identity の採否を決定するタスクは、保留にしてよいが破棄してはならない。次回以降のセキュリティ改善計画で必ず再開し、完了または明示的な代替設計決定まで `HANDOVER.md` と関連仕様に残す。
-
-### 4.3.1 DB 制約の限界（2026-10-02 確定）
+## L3.2 DB 制約の限界
 
 - **シートの入力規則（`入力規則定義`）は検証の代わりにならない。**
   止められるのは人が手でセルを編集するときだけで、**Apps Script の `setValues` は素通りする**。
@@ -147,7 +221,7 @@
   **強制されない参照を増やすと落ちる**。増やすのは意識的な判断であるべき。
 - 規約の正本は `docs/spec/02_RD.md` BR-18 / BR-20。
 
-### 4.4 UI/UX 規約
+## L3.3 UI/UX 規約
 
 - **画面表示は日本語を既定とする（2026-09-02 operator 決定・英語のデフォルト化禁止）**: 本システムの利用者は日本語話者の会員・事務局であり、**画面に出る文字列は日本語を第一言語とする**。
   1. **装飾目的の英語を置かない**: 見出し上の英字ラベル（例: 画面タイトル「設定」の上に `SYSTEM SETTINGS`）のような、情報を増やさない英字は追加しない。既存分は見つけ次第削除する。
@@ -174,7 +248,7 @@
   7. **完了条件**: モバイル幅（360〜414px）で実機またはブラウザ devtools により表示・操作確認したことを最低条件とする。スマホ未確認のまま「完了」と報告しない。
   - 上記いずれかが満たされない実装は不完全とみなし、完了条件を満たさない。
 
-### 4.5 ランタイム契約
+## L3.4 ランタイム契約
 
 - **boot loader 契約（v375〜確定）**: `scripts/compress-html.mjs` が admin / member / public 3 split の HTML に注入する起動ローダーは以下 6 要素を必ず備えること。1 つでも欠落させてはならない（Safari iOS 初回ホワイトアウト再発防止のため）。
   1. **CSS-only loading splash**: `<body>` 直後に `<div id="__boot_splash__">` を注入。spinner + 進捗ラベル + サブラベルを HTML/CSS のみで描画。JS 評価開始前から可視であること。
@@ -186,85 +260,49 @@
   - 上記契約はリリース判定の必須条件とする。compress-html.mjs を編集する際は本契約を破らないこと。違反した実装は不完全とみなし、完了条件を満たさない。
   - v375 以前（v374 までの単純 IIFE）には決して戻さない。
 
-### 4.6 ドキュメント形式規約
+---
 
-- **文書を書く・直す・整理する手順は Skill `/doc` が正本。** docs を触る前に呼ぶ。
-  ER 図の自動生成（手書き禁止）、docs/portal の再生成、置き場所とアーカイブ、索引登録、
-  文字コードと改行コードの扱いを含む。（2026-10-02 に本節から移送。`docs/296`）
-- ER 図の正本は `gas-src` のテーブル定義 ＋ `docs/er-metadata.json`。ドリフトは `npm run test:er-sync` が落とす。
-- 新規文書は `docs/00_DOC_INDEX.md` へ登録する。未登録は `npm run test:docs-single-source` が落とす。
+# L4 入口と手順
 
-### 4.7 開発拠点（2026-09-02 operator 決定で保守モード解除）
+## L4.1 最初に読むもの
 
-- **保守モードは 2026-09-02 に解除した**（operator 決定）。理由: 運用を継続しなければならず、**GCP へ移し終えるまでの間は本リポジトリ（GAS 本番）側での新規実装も必要**になったため。
-  以後、本リポジトリは**通常開発モード**とし、新規機能追加・改修を通常のリリースフローで受ける。2026-08-02〜2026-09-02 の「受けない（新規の大型機能追加・大規模リファクタ）」制限は**撤廃**する。
-- **ただし GCP 移行コストへの配慮は残す（禁止ではなく判断材料）**: 本リポジトリへ write 系機能を追加すると `docs/250` §6.1 の未移行 write（現状 66 method）が増え、Phase 4〜5 のコストが膨らむ。
-  **大型の新規 write 機能に着手する前に、①GAS 側に実装するか GCP 側で先に作るか、②GCP へ二重実装する前提と工数、を operator に提示して方針を確認する**。小〜中規模の実装・障害修正・運用要求は確認不要で進めてよい。
-- **GCP 移行作業は 2026-09-03 に一旦中断**（operator 決定）。当面の新規仕様は本リポジトリ（GAS）側で実装する。
-  ただし**移行は再開前提**であり、新規仕様には **§4.8 GCP 移植可能性ゲート**（GCP で実装できない仕様は採用しない）が必ず適用される。
-- **GCP 作業場は引き続き存在する（作業は中断中）**: `C:\VSCode\CloudePL\hirakatacitykyougikaiGCP`（独立 Git・GitHub private `knoguchi-ship-it/hirakatacitykyougikaiGCP`）。移行作業の正本は同作業場。本リポジトリと GCP 作業場のどちらで作業するかは案件ごとに operator と決める。
-- 本番 GAS 3 split は全業務機能の**唯一の稼働系**であり、いつでもリリースできる状態を維持する。したがって以下は従来どおり必須とする:
-  - §5 の完了条件（prerelease 全ゲート → 3 split 生成物 grep → push/version/redeploy → live E2E → 正本更新）。規模の大小で簡略化してよい、は成立しない。
-  - `HANDOVER.md` §1 の fixed deployment 4 本の同期維持と、ロールバック先 version の把握。
-- **凍結（変更禁止）への移行時期**: `docs/250` §5 Phase 6 の「旧 GAS URL の JS 自動転送化」＝GAS アプリ本体の廃止と同時に判断する。転送化後も現行 fixed deployment は一定期間 fallback として残すため、**Phase 6 到達までは凍結しない**。
-- **正本の所在（二重管理しない）**: GCP 側の実装状態・再開手順は GCP 作業場 `README.md` と `docs/*` を正本とし、本リポジトリ `HANDOVER.md` には「存在と参照」だけを書く。逆に移行計画全体（`docs/250`）と本番 GAS の現況は本リポジトリを正本とする。
+> §1 のとおり **入口は本書**。この分け方が本リポジトリの唯一の正本であり、
+> `README.md` や `docs/ONBOARDING.md` に別の順序を書かない。
 
-### 4.8 GCP 移植可能性ゲート（2026-09-03 operator 決定・両プロジェクト共通の基本指針）
+**必ず読む 3 本**（2026-10-02 確定。13 本の通読は形骸化していたため絞った）
 
-**GCP 移行作業は一旦中断し、当面の新規仕様は本リポジトリ（GAS）側で実装する。**
-ただし移行は破棄ではなく再開前提であるため、**これ以降に実装する仕様は「GCP の確定構成でも同等に実装できること」を必須要件**とする。
+1. 本書 `AGENTS.md`
+2. `HANDOVER.md` — 現況・次の作業・現行 version・残課題
+3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md` — 本案件の固定運用
 
-- **GAS では実現できるが GCP へ移行できない仕様は採用しない（NG）。**
-  実現したい要件がその形でしか満たせない場合は、実装前に停止し、代替設計を提示して operator の判断を仰ぐ。
-- この指針は**本リポジトリ（`hirakatacitykyougikaiIDE`）と GCP 作業場（`hirakatacitykyougikaiGCP`）の両方に等しく適用**する。
-  正本は本節とし、GCP 作業場 `AGENTS.md` にも同一の節を置いて同期する。
-- 移行先の確定構成は `docs/250` §12（DB=Firestore／認証=IAP(admin)+Firebase Auth カスタムトークン(member)+匿名&App Check(public)／
-  hosting=Firebase Hosting／API=Cloud Run／ファイル=Cloud Storage／定期実行=Cloud Scheduler + Cloud Run Job）。
+**作業に応じて開く**（読まずに触らない。該当する作業に入る前に必ず開く）
 
-#### 4.8.1 設計時の必須手順（仕様を決める前にやる）
+| 作業 | 開く文書 |
+|---|---|
+| リリース・デプロイ | `docs/09_DEPLOYMENT_POLICY.md`、`HANDOVER.md` 記載の最新 release state |
+| 仕様の確認・変更 | `docs/spec/README.md` → 対象の正本（全体レビュー時は SOW / RD / TRD / UI-UX / データIF の 5 文書） |
+| DB・スキーマ | `docs/03_DATA_MODEL.md`、`docs/04_DB_OPERATION_RUNBOOK.md` |
+| 新機能の追加 | `docs/288_FEATURE_INVENTORY.md`（二重実装の確認） |
+| セキュリティ・承認 | `GLOBAL_GROUND_RULES/docs/AI_RULES/20_SECURITY_APPROVALS.md` |
+| 品質・ワークフロー | `GLOBAL_GROUND_RULES/docs/AI_RULES/10_WORKFLOW_AND_QUALITY.md` |
+| 過去の失敗を踏まないため | `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`、MEMORY のフィードバック |
+| 文書の書き方 | `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md` |
+| 日次運用 | `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md` |
+| 体制・役割 | `GLOBAL_GROUND_RULES/docs/AI_RULES/00_OPERATING_MODEL.md` |
 
-1. **移行先を 1 行で書く**: 「この機能は GCP では何で実装するか」（例: `Firestore コレクション regulations / Cloud Run portal-api の read action`）を
-   設計メモまたは release state 文書に必ず書く。書けない機能は設計が未確定とみなす。
-2. **§4.8.2 の NG パターンに触れていないか確認する。** 触れる場合は代替案とセットで operator へ提示し、承認を得るまで実装しない。
-3. **データ構造を Firestore に写せる形にする**: ドキュメント指向（ID をキーにした JSON）で表現でき、行番号・セル位置に依存しないこと。
-4. **新規 write を追加したら `docs/250` §6.1 の未移行 write 棚卸しに追記する**（移行コストを可視化するため）。
-5. リリース時は release state 文書に「**GCP 移植メモ**」の節を設け、移行先・移行時に必要な作業・注意点を残す。
+`docs/archive/` は過去の記録置き場であり、**現況・仕様の参照先にしない**（`HANDOVER.md` §5）。
+個別の経緯を追うときだけ `docs/archive/00_ARCHIVE_INDEX.md` から開く。
 
-#### 4.8.2 移行可否の対応表（判断の基準）
+## L4.2 手順は Skill が正本
 
-| 領域 | GAS の実装 | GCP の移行先 | 判断 |
-|---|---|---|---|
-| データ保存 | Spreadsheet のシート・行 | Firestore のコレクション・ドキュメント | **OK**（ID 列を業務キーにすること） |
-| 画面 | HtmlService + `google.script.run` | Firebase Hosting + Cloud Run の REST API | **OK**（呼び出しは transport 抽象 `createApiClient` を必ず通す） |
-| 管理者認証 | `Session.getActiveUser()` + whitelist | IAP + Cloud Run | **OK** |
-| 会員認証 | loginId + password（PBKDF2） | Firebase Auth カスタムトークン（`hcmn-member-auth`） | **OK** |
-| 公開（匿名） | 匿名アクセス | 匿名 + App Check | **OK** |
-| ファイル・添付 | Drive | Cloud Storage + 署名付き URL | **OK**（Drive 固有機能に依存しないこと。§4.8.3） |
-| メール送信 | GmailApp / MailApp | Gmail API（委任）または外部メール API | **OK**（送信元エイリアス運用は移行時に要再設計） |
-| 定期実行 | 時間主導トリガー | Cloud Scheduler + Cloud Run Job | **OK**（1 実行を短く保つ） |
-| 排他制御 | `LockService` | Firestore トランザクション | **OK**（全体ロック前提の設計は避ける） |
-| 帳票 PDF | Google Docs/Sheets のテンプレ変換 | HTML → PDF（Cloud Run） | **要注意**（Docs 差し込み前提の設計は NG） |
-| 集計 | シート数式・QUERY 関数 | アプリ側集計 / Firestore クエリ | **NG**（数式を機能の一部にしない） |
+| Skill | いつ呼ぶか |
+|---|---|
+| `/release` | リリース・デプロイ・本番反映・ロールバック |
+| `/doc` | docs を書く・直す・整理する、ER 図・portal の再生成 |
 
-#### 4.8.3 採用しない（NG）パターン
+**Skill はセッション開始時に読み込まれる。** 作成直後の同一セッションでは呼べない。
 
-1. **シートのセル数式・条件付き書式・ピボット・QUERY を機能の一部にする。** 計算はコードで行い、シートは値の置き場に留める。
-2. **行番号・A1 参照を業務キーにする。** キーは必ず ID 列（`*ID`）とする。
-3. **Drive 固有機能への依存**（`thumbnailLink`、Docs へのテンプレ差し込み変換、フォルダ共有設定を権限制御に使う等）。
-4. **`google.script.run` を UI から直接呼ぶ。** 必ず `services/api.ts` の transport 抽象を経由する（v376.57 で分離済み）。
-5. **Apps Script 固有 UI**（`SpreadsheetApp.getUi()`、カスタムメニュー、サイドバー、コンテナバインドのイベント）を業務フローに組み込む。
-6. **operator がシートを直接編集することを前提にした運用。** 必要な操作は管理 UI として実装する。
-7. **6 分の実行時間制限を前提にした長時間バッチ**。Cloud Run Job に載せ替えられる粒度（再開可能・冪等）で作る。
-8. **Apps Script の Script Properties を業務データの保存先にする。** 業務データは DB（将来 Firestore）へ置く。
-
-#### 4.8.4 運用
-
-- 判断に迷う場合は「NG 寄り」に倒し、operator に確認する。**移行できない機能を 1 つ作ると、Phase 5（DB 移行）以降で二重実装か機能削除を迫られる**ため、
-  実装前の 5 分の確認が最も安い。
-- 既存機能（本節より前に作られたもの）は本ゲートの対象外だが、改修時に NG パターンへ寄せてはならない。
-- GCP 移行の再開時期は operator 判断。中断中も `docs/250` は破棄せず、棚卸し（§6.1）を最新に保つ。
-
-## 5. 完了条件
+## L4.3 完了条件
 
 - **「動いた」だけでは完了としない。**
 - **リリースの手順は Skill `/release` が正本。** リリース・デプロイ・本番反映に入る前に必ず呼ぶ。
@@ -273,28 +311,11 @@
 - **prerelease を通していない HEAD は push できない**（PreToolUse hook が拒否する）。
 - **未検証・残課題・承認待ちは必ず明記する。** 黙って埋めたことにしない。
 
-## 6. セキュリティと承認
-- 本番 deploy、DB 更新、権限変更、外部送信、不可逆操作は人間承認を前提とする（具体的破壊操作の運用注意は §4.3 参照）。
-- secret value の取扱いは §0 を絶対正本とする（pepper、token、鍵、認証情報、その他あらゆる秘密値）。
-- AI / agent 特有のリスクも通常のアプリケーションセキュリティと同じ優先度で扱う。
-- 外部入力は不信入力として扱い、モデル出力をそのまま shell、SQL、HTML、デプロイ設定へ流し込まない。
-- **セキュアコーディング 5 視点を基軸とする**: 新規実装・改修時は以下 5 視点を常に意識し、レビュー時もこの 5 軸で確認する:
-  1. **入力検証 (Input Validation)**: 外部入力（HTTP request / フォーム / ファイル / API 戻り値 / URL パラメータ）を信頼せず、許可リスト方式で型・範囲・長さ・形式を検証。未知の値は deny-by-default
-  2. **認証・認可 (Authentication & Authorization)**: 機能ごとに必要な権限を **server side で強制**（§4.2 認証フロー + RBAC `docs/246` 遵守）。frontend での UI 非表示は二重防御の一部であって単独防御にしない
-  3. **機密データ保護 (Data Protection)**: パスワードハッシュ・トークン・PII は最小権限で扱う、伝送・保存時に暗号化 / ハッシュ化（§0 シークレット保管 + §4.3 pepper 運用に従う）
-  4. **エラー処理・ログ (Error Handling & Logging)**: 例外情報の詳細を end user に露出しない、内部ログには秘密値を含めない（§0 シークレット保管）、例外時は fail close で deny-by-default
-     - **条件を確認できないときは、検証を飛ばして通してはならない（2026-10-02 確定）。**
-       参照先の行が見つからない・ID が空・シートが無い——いずれも「確認できなかった」であって
-       「条件を満たした」ではない。**確認できない旨を明示して止める**（fail-closed）。
-     - **入れ子の `if` で起きやすい。** 権限や存在のガードを `if (a) { if (b) { if (c) { throw ... } } }`
-       と書くと、a・b・c のどれが欠けても**何も検証せず素通り**する。
-       ガードは早期 return / 早期 throw で平らに書き、各条件が満たせないときの拒否理由を個別に出す。
-       実例: 事業所の退会申請「代表者のみ」が、認証アカウントに職員IDが無いと素通りしていた（v376.110 で是正）。
-  5. **セキュア通信・依存 (Secure Communication & Dependencies)**: HTTPS / TLS / signed token のみ使用、npm 依存は `npm audit --audit-level=high` で定期監査、外部ライブラリ採用前に `import.meta` 等の build trap を grep 確認（参考: MEMORY `feedback_pdfjs_dist_vite_singlefile_trap.md`）
-- **確定済みセキュリティ境界への逆行案提示禁止**: 第三者評価（`docs/109`）や設計決定（`docs/111`）で確定した認証境界・アクセス制御・プロジェクト分離に反する案を「選択肢の一つ」として対等に提示してはならない。利便性はセキュリティ境界を崩す理由にならない。やむを得ず言及する場合は「**非推奨・セキュリティリスクあり**」を冒頭に明示し、推奨しないことを基本姿勢とする。
-- **このプロジェクトの確定済み境界**: admin（DOMAIN・Google セッション・管理専用）/ member（匿名・ID/PW・会員専用）/ public（完全匿名・申込専用）。3境界の混在・統合提案は上記ルールに従う。
+## L4.4 補助参照
 
-## 7. 補助参照
 - 文書索引: `docs/00_DOC_INDEX.md`
 - 現況の正本: `HANDOVER.md`
 - 日次運用: `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
+- 条文棚卸し: `docs/297_RULES_INVENTORY_2026-10-02.md`（生成物）
+- 再構成の設計: `docs/296_RULES_ARCHITECTURE_DESIGN_2026-10-02.md`
+- 開発拠点・GCP 移植ゲート（方針）: `docs/298_POLICY_WORKSPACE_AND_GCP_GATE_2026-10-03.md`
