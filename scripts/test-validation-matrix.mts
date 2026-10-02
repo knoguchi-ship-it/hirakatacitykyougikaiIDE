@@ -112,15 +112,12 @@ const ROWS: Row[] = [
     expect: 'accept' },
 
   // ── BR-15 書式（仕様: 電話は半角数字とハイフン） ───────────────────────
-  { br: 'BR-15', what: '携帯電話に日本語', patch: { mobilePhone: 'でんわばんごう' }, expect: 'reject',
-    gap: 'サーバ側に電話番号の書式検証が無い。画面の PHONE_PATTERN だけが頼り（BR-18 違反）' },
-  { br: 'BR-15', what: '勤務先電話に記号', patch: { mobilePhone: '', phone: '!!!!!!' }, expect: 'reject',
-    gap: 'サーバ側に電話番号の書式検証が無い' },
+  { br: 'BR-15', what: '携帯電話に日本語', patch: { mobilePhone: 'でんわばんごう' }, expect: 'reject' },
+  { br: 'BR-15', what: '勤務先電話に記号', patch: { mobilePhone: '', phone: '!!!!!!' }, expect: 'reject' },
   { br: 'BR-15', what: '自宅郵便番号が数字でない',
     patch: { preferredMailDestination: 'HOME', homePostCode: 'あいうえお', homePrefecture: '大阪府', homeCity: '枚方市', homeAddressLine: '1-1' },
-    expect: 'reject', gap: 'サーバ側に郵便番号の書式検証が無い' },
-  { br: 'BR-15', what: 'メールアドレスが@を含まない', patch: { email: 'not-an-email' }, expect: 'reject',
-    gap: 'サーバ側にメールアドレスの書式検証が無い' },
+    expect: 'reject' },
+  { br: 'BR-15', what: 'メールアドレスが@を含まない', patch: { email: 'not-an-email' }, expect: 'reject' },
 
   // ── BR-04 勤務先なし ────────────────────────────────────────────────────
   { br: 'BR-04', what: '勤務なし × 郵送先＝勤務先',
@@ -167,8 +164,7 @@ const ROWS: Row[] = [
     expect: 'accept' },
   { br: 'BR-16', what: '事業所: 事業所番号が10桁でない',
     type: 'BUSINESS', patch: { officeNumber: 'ABC', officePostCode: '573-0000', officePrefecture: '大阪府', officeCity: '枚方市', officeAddressLine: '1-1', phone: '072-000-0000' },
-    expect: 'reject',
-    gap: 'validateMemberPayload_ は事業所番号を見ていない（公開申込フォーム側でのみ検証）' },
+    expect: 'reject' },
 ];
 
 // ── 検査表の実行 ────────────────────────────────────────────────────────────
@@ -273,13 +269,10 @@ test('BR-02 代表者は常に 1 名（0 名も 2 名も拒否）', () => {
   assert.match(two.message, /代表者は1名のみ/);
 });
 
-test('★未達 BR-06 ADMIN が自分自身のロールを変更できてしまう', () => {
-  // 仕様: 「ADMIN は…自分自身のロールも変更できない」
-  // 実装: 代表者がらみの遷移しか見ていないため、ADMIN → STAFF の自己降格が通る。
-  // 権限昇格ではないが、仕様どおりではない。docs/294 に未達として記録する。
+test('BR-06 ADMIN は自分自身のロールを変更できない', () => {
   const v = roleVerdict({ staffId: 'S-ADM' }, { 'S-ADM': 'STAFF' });
-  assert.equal(v.ok, true,
-    '仕様どおり拒否されるようになった。この test と docs/294 の未達記録を外すこと');
+  assert.equal(v.ok, false, 'ADMIN が自分を降格できてしまう');
+  assert.match(v.message, /自分自身のロールは変更できません/);
 });
 
 // ── 書き換え制限（allowlist）────────────────────────────────────────────────

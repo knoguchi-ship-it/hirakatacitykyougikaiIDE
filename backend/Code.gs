@@ -884,34 +884,6 @@ var ARCHIVE_SOURCE_TABLES = [
   'T_研修申込', 'T_年会費納入履歴', 'T_年会費更新履歴', 'T_役員',
   'T_振込口座', 'T_支払い', 'T_支払い明細', 'T_請求', 'T_変更申請',
 ];
-for (var archiveSrcIdx = 0; archiveSrcIdx < ARCHIVE_SOURCE_TABLES.length; archiveSrcIdx += 1) {
-  var archiveSrcName = ARCHIVE_SOURCE_TABLES[archiveSrcIdx];
-  テーブル定義[archiveSrcName + '_archive'] = テーブル定義[archiveSrcName].slice().concat(ARCHIVE_SURROGATE_COLUMNS);
-}
-
-var 入力規則定義 = [
-  ['T_会員', '会員種別コード', 'M_会員種別'],
-  ['T_会員', '会員状態コード', 'M_会員状態'],
-  ['T_会員', '発送方法コード', 'M_発送方法'],
-  ['T_会員', '郵送先区分コード', 'M_郵送先区分'],
-  ['T_事業所職員', '職員権限コード', 'M_職員権限'],
-  ['T_事業所職員', '職員状態コード', 'M_職員状態'],
-  ['T_認証アカウント', 'システムロールコード', 'M_システムロール'],
-  ['T_研修', '研修状態コード', 'M_研修状態'],
-  ['T_研修申込', '申込状態コード', 'M_申込状態'],
-  ['T_研修申込', '申込者区分コード', 'M_申込者区分'],
-  ['T_年会費納入履歴', '会費納入状態コード', 'M_会費納入状態'],
-  ['T_画面項目権限', 'システムロールコード', 'M_システムロール'],
-  ['T_管理者Googleホワイトリスト', '権限コード', 'M_管理者権限'],
-  // v295: 役員管理FK検証
-  ['T_役員',       '役職コード', 'M_役職マスタ'],
-  ['T_役員',       '組織コード', 'M_組織マスタ'],
-  ['T_支払い明細', '種別コード', 'M_支払い種別マスタ'],
-  ['T_支払い明細', '組織コード', 'M_組織マスタ'],
-  ['T_請求',       '種別コード', 'M_支払い種別マスタ'],
-  ['T_請求',       '業務分類コード', 'M_業務分類'],
-  ['T_請求',       '組織コード', 'M_組織マスタ'],
-];
 
 var DEMO_TRANSFER_ACCOUNT = {
   bankName: 'ゆうちょ銀行',
@@ -4674,6 +4646,12 @@ var PUBLIC_INDIVIDUAL_UPDATE_ALLOWLIST_ = [
 // npm run test:office-affiliation が両者の一致を検査する。
 var NO_OFFICE_AFFILIATION_LABEL_ = '勤務なし';
 
+
+// 2026-10-02: マスタに実在するコードかを確かめる（docs/294 §2-6）。
+// シートの入力規則（入力規則定義）は人が手で入力するときしか効かず、
+// Apps Script の setValues は素通りする。コード側で突き合わせないと守れない。
+// 主キー列はマスタごとに違う（M_出欠状態 は『コード』、M_役職マスタ は『役職コード』）ので
+// マスタ定義の先頭列を使う。
 
 // 事業所会員: 公開ポータル変更申請（管理者承認後に適用）で変更可能なフィールド allowlist
 var PUBLIC_BUSINESS_UPDATE_ALLOWLIST_ = [

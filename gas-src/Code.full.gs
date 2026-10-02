@@ -911,6 +911,14 @@ var 入力規則定義 = [
   ['T_請求',       '種別コード', 'M_支払い種別マスタ'],
   ['T_請求',       '業務分類コード', 'M_業務分類'],
   ['T_請求',       '組織コード', 'M_組織マスタ'],
+  // 2026-10-02: マスタを参照しているのに宣言が漏れていた分（docs/294 §2-6）。
+  // 入力規則は人がシートを直接編集するときにしか効かない（setValues は素通りする）。
+  // 実効的な検証は isKnownMasterCode_ 側で行い、ここは手編集に対する保険として足す。
+  ['T_研修申込',   '出欠状態コード', 'M_出欠状態'],
+  ['T_請求',       '役職コード', 'M_役職マスタ'],
+  ['T_支払い明細', '役職コード', 'M_役職マスタ'],
+  ['M_役職マスタ', '組織コード', 'M_組織マスタ'],
+  ['M_業務分類',   '組織コード', 'M_組織マスタ'],
 ];
 
 var DEMO_TRANSFER_ACCOUNT = {
@@ -12524,20 +12532,20 @@ function withdrawSelf_(payload) {
   if (currentStatus === 'WITHDRAWN') throw new Error('この会員は既に退会済みです。');
   if (currentStatus === 'WITHDRAWAL_SCHEDULED') throw new Error('既に退会申請済みです。');
 
-  // 事業所会員の場合、代表者のみ退会申請可能
+  // 事業所会員の場合、代表者のみ退会申請可能（BR-11）。
+  // 2026-10-02: 以前は if を入れ子にしており、職員IDが空・職員シートが無い・職員行が
+  // 見つからない のいずれでも**何も検証せず素通り**していた（docs/294 §2-4）。
+  // 代表者であることを確かめられないなら、通さずに止める（fail-closed）。
   if (memberType === 'BUSINESS') {
-    var staffId = String(authRow[authCols['職員ID']] || '');
-    if (staffId) {
-      var staffSheet = ss.getSheetByName('T_事業所職員');
-      if (staffSheet) {
-        var staffFound = findRowByColumnValue_(staffSheet, '職員ID', staffId);
-        if (staffFound) {
-          var staffRole = String(staffFound.row[staffFound.columns['職員権限コード']] || '');
-          if (staffRole !== 'REPRESENTATIVE') {
-            throw new Error('事業所の退会申請は代表者のみ実行できます。');
-          }
-        }
-      }
+    var staffId = String(authRow[authCols['職員ID']] || '').trim();
+    if (!staffId) throw new Error('事業所の退会申請は代表者のみ実行できます。');
+    var staffSheet = ss.getSheetByName('T_事業所職員');
+    if (!staffSheet) throw new Error('職員情報を確認できないため、退会申請を受け付けられません。');
+    var staffFound = findRowByColumnValue_(staffSheet, '職員ID', staffId);
+    if (!staffFound) throw new Error('職員情報を確認できないため、退会申請を受け付けられません。');
+    var staffRole = String(staffFound.row[staffFound.columns['職員権限コード']] || '');
+    if (staffRole !== 'REPRESENTATIVE') {
+      throw new Error('事業所の退会申請は代表者のみ実行できます。');
     }
   }
 
@@ -13325,7 +13333,20 @@ function saveMemberCore_(payload, options) {
 
   // v372.4: admin 権限（MASTER/ADMIN）の場合のみ CM 番号緩和を許可
   var allowRelaxedCm = isAllowedRelaxedCmNumber_(adminSession);
-  validateMemberPayload_(mergedPayload, memberTypeCode, currentMemberStatus, { allowRelaxedCmNumber: allowRelaxedCm });
+  // 2026-10-02: 書式検証は「値を変えるときだけ」効かせる。今 DB にある値をそのまま
+  // 持ち回る保存（別項目だけの変更）は、過去データが書式に合わなくても通す。
+  validateMemberPayload_(mergedPayload, memberTypeCode, currentMemberStatus, {
+    allowRelaxedCmNumber: allowRelaxedCm,
+    stored: {
+      mobilePhone: getCol('携帯電話番号'),
+      phone: getCol('勤務先電話番号'),
+      fax: getCol('勤務先FAX番号'),
+      homePostCode: getCol('自宅郵便番号'),
+      officePostCode: getCol('勤務先郵便番号'),
+      email: getCol('代表メールアドレス'),
+      officeNumber: getCol('事業所番号'),
+    },
+  });
   // v372.4: DB 保存前に CM 番号を大文字化（既存純数字データは影響なし）
   if (mergedPayload.careManagerNumber) {
     mergedPayload.careManagerNumber = normalizeCmNumberForStorage_(mergedPayload.careManagerNumber);
@@ -13450,6 +13471,30 @@ function validateMemberPayload_(payload, memberTypeCode, currentMemberStatus, op
   function trim(v) { return String(v || '').trim(); }
   function isHalfWidthKana(v) { return /^[ｦ-ﾟ\s]+$/u.test(trim(v)); }
   function isEightDigits(v) { return /^\d{8}$/.test(trim(v)); }
+
+  // 2026-10-02: 書式検証をサーバ側へ。BR-18「画面側の検証は入力の手助けであり、
+  // 最終判定はサーバーで行う」。これまで書式を見ていたのは画面だけで、公開ポータルの
+  // 変更申請は allowlist と trim を通るだけだったため、API を直接叩けば
+  // 「でんわばんごう」が携帯電話番号として保存できた（docs/294 §2-1）。
+  //
+  // 正本は src/shared/validators.ts。GAS へ regex を build 注入すると pruner の罠を踏むため
+  // （feedback_build_pruner_regex_action_traps）、ここにローカルで持ち、
+  // npm run test:validation-matrix が両者の一致を検査する。
+  var FORMAT_PHONE = /^[0-9+\-() ー−]{6,}$/;
+  var FORMAT_POSTAL = /^\d{3}-?\d{4}$/;
+  var FORMAT_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  var FORMAT_OFFICE_NO = /^[A-Za-z0-9]{10}$/;
+
+  // 既存データを人質にしない。保存される値が今 DB にある値と同じなら書式を見ない。
+  // 本番には `573 -1191`（空白混入）や事業所番号 `0` が実在し、無条件に弾くと
+  // その会員は無関係な項目すら直せなくなる。**変更しようとしたときだけ**書式を見る。
+  var storedValues = opts.stored || {};
+  function checkFormat(key, pattern, label) {
+    var value = trim(payload[key]);
+    if (!value) return;
+    if (trim(storedValues[key]) === value) return;
+    if (!pattern.test(value)) throw new Error(label);
+  }
   function toDate(v) {
     var text = trim(v);
     if (!text) return null;
@@ -13531,6 +13576,18 @@ function validateMemberPayload_(payload, memberTypeCode, currentMemberStatus, op
     if (!trim(payload.homePrefecture)) throw new Error('個人会員は自宅都道府県が必須です。');
     if (!trim(payload.homeCity)) throw new Error('個人会員は自宅市区町村が必須です。');
     if (!trim(payload.homeAddressLine)) throw new Error('個人会員は自宅住所が必須です。');
+  }
+
+  // 書式検証（入力がある項目だけ・値を変えるときだけ）。BR-15 / BR-16 / BR-18。
+  // 退会済みも対象にする。履歴として残す値であっても、壊れた値を新たに書く理由は無い。
+  checkFormat('mobilePhone', FORMAT_PHONE, '携帯電話番号は半角数字とハイフンで入力してください。');
+  checkFormat('phone', FORMAT_PHONE, '電話番号は半角数字とハイフンで入力してください。');
+  checkFormat('fax', FORMAT_PHONE, 'FAX番号は半角数字とハイフンで入力してください。');
+  checkFormat('homePostCode', FORMAT_POSTAL, '自宅郵便番号は 123-4567 の形式で入力してください。');
+  checkFormat('officePostCode', FORMAT_POSTAL, '勤務先郵便番号は 123-4567 の形式で入力してください。');
+  checkFormat('email', FORMAT_EMAIL, 'メールアドレスの形式が正しくありません。');
+  if (isBusiness) {
+    checkFormat('officeNumber', FORMAT_OFFICE_NO, '事業所番号は半角英数字 10 文字で入力してください。');
   }
 
   // 日付形式と順序チェックはステータスに関係なく維持
@@ -13694,6 +13751,12 @@ function validateBusinessStaffRoleTransition_(ss, memberId, staffPayloadList, ad
       nextRepIds[existingId] = true;
     }
     if (!isSystemAdmin && actorStaffRole !== 'REPRESENTATIVE') {
+      // BR-06「ADMIN は…自分自身のロールも変更できない」。
+      // 2026-10-02: 代表者がらみの遷移しか見ておらず、ADMIN の自己降格が通っていた
+      // （docs/294 §2-3）。昇格は代表者ガードが止めるが、仕様どおりではなかった。
+      if (actorStaffId && existingId === actorStaffId && nextRole !== currentRole) {
+        throw new Error('自分自身のロールは変更できません。代表者にご依頼ください。');
+      }
       if (currentRole === 'REPRESENTATIVE' && nextRole !== 'REPRESENTATIVE') {
         throw new Error('代表者ロールは代表者または管理者のみ変更できます。');
       }
@@ -17467,6 +17530,25 @@ var NO_OFFICE_AFFILIATION_LABEL_ = '勤務なし';
 function isNoOfficeAffiliation_(officeName) {
   var name = String(officeName == null ? '' : officeName).trim();
   return name === '' || name === NO_OFFICE_AFFILIATION_LABEL_;
+}
+
+// 2026-10-02: マスタに実在するコードかを確かめる（docs/294 §2-6）。
+// シートの入力規則（入力規則定義）は人が手で入力するときしか効かず、
+// Apps Script の setValues は素通りする。コード側で突き合わせないと守れない。
+// 主キー列はマスタごとに違う（M_出欠状態 は『コード』、M_役職マスタ は『役職コード』）ので
+// マスタ定義の先頭列を使う。
+function isKnownMasterCode_(ss, masterName, code) {
+  var value = String(code == null ? '' : code).trim();
+  if (!value) return false;
+  var columns = マスタ定義[masterName];
+  if (!columns || !columns.length) return false;
+  var sheet = ss.getSheetByName(masterName);
+  if (!sheet) return false;
+  var found = findRowByColumnValue_(sheet, columns[0], value);
+  if (!found) return false;
+  if (found.columns['削除フラグ'] != null && toBoolean_(found.row[found.columns['削除フラグ']])) return false;
+  if (found.columns['有効フラグ'] != null && !toBoolean_(found.row[found.columns['有効フラグ']])) return false;
+  return true;
 }
 
 // 事業所会員: 公開ポータル変更申請（管理者承認後に適用）で変更可能なフィールド allowlist
@@ -28079,6 +28161,28 @@ function saveClaim_(payload) {
   var selectableOrgs = getOfficerSelectableOrganizationCodes_(memberId, staffId, ss);
   if (!selectableOrgs[orgCode]) throw new Error('選択できない活動部です。');
 
+  // 2026-10-02: 役職コードを payload のまま T_請求 へ書いていた（docs/294 §2-6）。
+  if (roleCode && !isKnownMasterCode_(ss, 'M_役職マスタ', roleCode)) {
+    throw new Error('指定された役職が見つかりません。');
+  }
+
+  // 2026-10-02: 添付は件数しか見ておらず、アップロード済みのファイルに対応しているか
+  // 確かめていなかった（docs/294 §2-5）。BR-09 は「保存時にサーバー側でも添付の有無を
+  // 検証する」と定めており、件数だけでは成立しない。実体を引けるかどうかで判定する。
+  if (claimType === 'EXPENSE_CLAIM') {
+    var declared = (payload.attachmentsJson && Array.isArray(payload.attachmentsJson))
+      ? payload.attachmentsJson : [];
+    for (var ai = 0; ai < declared.length; ai += 1) {
+      var fileId = String((declared[ai] && declared[ai].fileId) || '').trim();
+      if (!fileId) throw new Error('添付ファイルの情報が不正です。アップロードし直してください。');
+      try {
+        DriveApp.getFileById(fileId);
+      } catch (attachErr) {
+        throw new Error('添付ファイルが見つかりません。アップロードし直してください。');
+      }
+    }
+  }
+
   if (claimType === 'ACTIVITY_REPORT') {
     if (!categoryCode) throw new Error('業務分類は必須です。');
     var category = findRowByColumnValue_(ss.getSheetByName('M_業務分類'), '業務分類コード', categoryCode);
@@ -28659,6 +28763,13 @@ function saveAttendance_(payload) {
   var cols = {};
   for (var i = 0; i < headers.length; i++) cols[String(headers[i] || '')] = i;
   if (cols['申込ID'] == null || cols['出欠状態コード'] == null) return { error: 'columns missing' };
+  // 2026-10-02: payload.status を無検証でセルに書いていた（docs/294 §2-6）。
+  // シートの入力規則は setValues を止めないので、ここで M_出欠状態 と突き合わせる。
+  var attendanceStatus = String((payload && payload.status) || '').trim();
+  if (!attendanceStatus) return { error: '出欠状態コードが未指定です' };
+  if (!isKnownMasterCode_(ss, 'M_出欠状態', attendanceStatus)) {
+    return { error: '未知の出欠状態コードです: ' + attendanceStatus };
+  }
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return { error: 'no data' };
   var data = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
