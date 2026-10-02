@@ -64,6 +64,7 @@
 | BR-17 | パスワードの文字数規則 | `npm run test:login-lockout`（周辺）／ レビュー | 資格情報生成・パスワード変更の action | ⚠️ |
 | BR-18 | 最終判定は必ずサーバー側 | `npm run security:split-boundary` ／ レビュー | `processApiRequest` の認証・認可段 | ✅ |
 | BR-19 | 公開ポータルの本人確認（名義＋番号 1 つ・空値は不一致・15 分 5 回）| `npm run test:public-identity` | `src/shared/publicIdentity.ts` ／ `PUBLIC_IDENTITY_CREDENTIALS_` ／ `verifyMemberIdentityForPublic_` | ✅ |
+| BR-20 | DB の参照整合性（ER 図と実装の一致・入力規則の健全性・強制されない ID 参照 24 箇所の固定）| `npm run test:db-relations` | `入力規則定義` ／ `isKnownMasterCode_` ／ `docs/er-metadata.json` | ✅ |
 
 ## 3. 認証・認可（SOW §4 が正本）
 
