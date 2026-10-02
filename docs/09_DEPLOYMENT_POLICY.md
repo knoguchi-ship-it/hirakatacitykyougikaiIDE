@@ -151,7 +151,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-02 v376.107.1 ← current production
+### 2026-10-02 v376.108 ← current production
+
+- Scope: 退職（勤務なし）を選んだとき、サーバが必須にする項目（携帯電話番号／自宅の〒・都道府県・市区町村・番地）と連絡先メールをフロントが先に集め、満たすまで送信させない。operator 指示「管理者の手元に来た時点で、承認ができる状態のデータしか確認へ飛ばしてはならない」。止め方は 3 重（ボタン無効化＋不足一覧／handleSubmit の再確認／退職中は連絡先・自宅住所のグループを外せない）。フロントは勝手なルールを作らず、サーバの必須ルールの写しであることを test:office-affiliation が検査する。
+- Fixed deployments: integrated/public @419 x2 / member @177 / admin @275.
+- Verification: prerelease PASS（exit 0）、test:office-affiliation 16/16、deployment API で4本同期確認。**実データで全経路を確認済み**（A 事業所名変更の承認／B-1 不完全な退職がフロントで止まる／B-2 完全な退職の承認／C-1・C-2 サーバ側ガード）。テスト会員は復元済み。docs/292 §10-11。
+- Rollback: integrated/public @418 x2 / member @176 / admin @274（v376.107.1）。
+
+### 2026-10-02 v376.107.1
 
 - Scope: 管理者 split の appsscript.json に `script.scriptapp` を追加。oauthScopes を明記すると確定リストになり GAS の自動検出が効かないため、ScriptApp.getProjectTriggers / newTrigger / deleteTrigger が権限不足で落ちていた（3 split のどれにも入っていなかった＝ setupScheduledTriggers はそもそも一度も実行できなかった）。トリガーを持たない公開・会員 split には広げない。
 - Fixed deployments: integrated/public @418 x2 / member @176 / **admin @274**（admin のみ更新）。
