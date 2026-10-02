@@ -35,6 +35,7 @@ dist-ssr
 .claude/*
 !.claude/settings.json
 !.claude/hooks/
+!.claude/skills/
 .tmp/
 Dust/
 dist-public

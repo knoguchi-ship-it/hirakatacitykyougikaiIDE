@@ -331,12 +331,43 @@ DENY  古い記録で push             DENY  .clasprc.json / .clasp.json
 
 検査が機能することを、**先に落として**確認した（刻印前は 4 件すべて fail）。
 
+## 実施 3 — Skill 2 本（2026-10-02 完了）
+
+形式は公式ドキュメントで確認した: `.claude/skills/<name>/SKILL.md`、
+frontmatter の `name`（ディレクトリ名と一致）と `description`（1,536 字まで。
+Claude が呼び出しを判断する材料なので、利用者が自然に言う語を含める）。
+
+| Skill | 移送元 | 本文 |
+|---|---|---|
+| `/release` | §5 完了条件 ＋ §4.1 Deploy SOP | 4,512 字 |
+| `/doc` | §4.6 ドキュメント形式規約 | 2,648 字 |
+
+`.gitignore` に `!.claude/skills/` を追加して追跡対象にした。
+
+### AGENTS.md に残した形
+
+移送元には **1 行の呼び出し指示と、崩してはいけない固定だけ**を残した。
+
+```
+§4.1  手順の正本は Skill /release。ここには固定だけを置く
+      （fixed deployment 4 本 / clasp deploy 禁止 / UI 手更新は復旧時のみ）
+§5    リリースの手順は Skill /release が正本。入る前に必ず呼ぶ
+      prerelease を通していない HEAD は push できない（hook が拒否）
+§4.6  文書の手順は Skill /doc が正本。docs を触る前に呼ぶ
+```
+
+**24,562 字 → 19,913 字（4,649 字減）。1 条も削除していない。**
+
+### 運用上の注意（実測）
+
+**Skill はセッション開始時に読み込まれる。** 作成した直後の同一セッションでは
+`/release` を呼んでも `Unknown skill` になる。次回セッションから有効。
+既存セッションの途中で Skill を足した場合は、その場では使えないと分かったうえで進めること。
+
 ## 残り
 
 | | 内容 |
 |---|---|
-| 3 | Skill 2 本（`/release` `/doc`） |
 | 4 | 条文棚卸し表（242 件） |
-| 5 | `AGENTS.md` 再構成 ＋ 別冊化 |
+| 5 | `AGENTS.md` 再構成 ＋ 別冊化（§4.7 §4.8 の別冊化を含む） |
 | 6 | Skill 2 本（`/spec-change` `/dbops`） |
-

@@ -115,12 +115,14 @@
 ## 4. この案件で崩してはいけない固定運用
 
 ### 4.1 Deploy SOP
-- 現行本番 version と fixed deployment の向き先は `HANDOVER.md` と `docs/09_DEPLOYMENT_POLICY.md` を正とし、この文書には固定で埋め込まない。
+
+- **手順の正本は Skill `/release`。** ここには崩してはいけない固定だけを置く。
 - **fixed deployment は 4 本**（統合・公開 ×2 / member ×1 / admin ×1）。毎リリース同一版へ同期し、一部だけ更新しない。
-  本数と ID の正本は `docs/09_DEPLOYMENT_POLICY.md` §2。
-- production の fixed deployment 同期は `npx clasp redeploy` を標準とし、Apps Script UI の `Manage deployments` 手更新は障害復旧時の補助手段としてのみ扱う。
-- `npx clasp create-version` / `npx clasp redeploy` / `npx clasp list-deployments` / `npx clasp run ...` など Apps Script API に到達する本番系コマンドは、同じネットワーク失敗を避けるため、最初から承認済みの安定した実行経路で流す。失敗してから通常経路→昇格経路の二度打ちを標準にしない。
-- 認証、認可、DB 整合、deployment 検証は Apps Script 実行系で確認する。
+  本数と ID の正本は `docs/09_DEPLOYMENT_POLICY.md` §2、現行の向き先は `HANDOVER.md`。
+- **`clasp deploy` は全形式禁止**（新 ID が生成され固定 URL が変わる）。更新は `npx clasp redeploy`。
+  PreToolUse hook（`.claude/hooks/guard-bash.mjs`）が拒否する。
+- Apps Script UI の `Manage deployments` 手更新は障害復旧時の補助手段としてのみ扱う。
+- 認証・認可・DB 整合・deployment 検証は Apps Script 実行系で確認する。
 
 ### 4.2 認証フロー（不変）
 - 会員ログインは `loginId + password` のみ。
@@ -186,26 +188,11 @@
 
 ### 4.6 ドキュメント形式規約
 
-- **ER 図は単一情報源から自動生成（v376.37〜・手書き禁止）**: `docs/03_DATA_MODEL.md` の最初の `mermaid` ER ブロックは **`gas-src テーブル定義`（列の存在/順序＝正本）＋ `docs/er-metadata.json`（型/PK/FK/コメント/リレーション/分類）から自動生成**される（`AUTO-GENERATED` バナー付）。**この ER ブロックを手書き編集してはならない**。
-  - スキーマ変更（`テーブル定義`/`マスタ定義` のカラム追加・列順変更）時の手順（**同ターン**・§3 同期則）:
-    1. `gas-src/Code.full.gs` の `テーブル定義`/`マスタ定義` を更新（列の正本）
-    2. 必要なら `docs/er-metadata.json` に新列の型/キー/コメント・リレーションを追記（未設定は `string` 既定）
-    3. `npm run build:docs-portal`（内部で `scripts/generate-er.mjs` が ER 再生成 → portal 生成）
-    4. `npm run test:er-sync`（ドリフトゲート: stale メタ/不正リレーションを FAIL）を確認し同コミットに含める
-  - `### v305 ER Supplement` 等の**補助 mermaid ブロック**（概念図）は自動生成対象外で手書き可。
-- **テーブル設計書も HTML 併設**: 上記から `docs/portal/tables.html` / `er-diagram.html` / `schema.dbml` を生成（Mermaid/DBML）。
-- **人間可読版の同時保存**: AI が読む用の構造化 Markdown と、人間がブラウザで読みやすい HTML を併設する。本案件では `docs/portal/` がそのエントリ:
-  - `docs/portal/index.html` — TOC + 主要原典へのリンク集
-  - `docs/portal/er-diagram.html` — Mermaid ER 図（自動生成）
-  - `docs/portal/specifications.html` — PRD / アーキテクチャ / 認証 / RBAC / デプロイ / セキュリティのサマリ
-  - `docs/portal/test-report.html` — テスト結果レポート（自動テスト＋dry-run＋本番実測を統合。`npm run report:tests` で再生成）
-- **文書の整理ルール（2026-09-02 全面整理）**: `docs/` 直下は**現役の文書だけ**を置く。完了した一過性の記録
-  （リリース記録・インシデント・修正記録・旧引継ぎ・旧世代の学習ノート）は `docs/archive/` の該当サブフォルダへ移し、
-  [`docs/00_DOC_INDEX.md`](docs/00_DOC_INDEX.md) と [`docs/archive/00_ARCHIVE_INDEX.md`](docs/archive/00_ARCHIVE_INDEX.md)
-  を同ターンで更新する。**リリース記録は直近 3 件だけを直下に残す**。同種の文書が増えたら統合を検討する
-  （例: 決定記録 5 件 → `06_DECISION_RECORDS.md`、テスト記録 → `docs/portal/test-report.html`）。
-- **再生成コマンド**: `npm run build:docs-portal`（`scripts/generate-er.mjs` で docs/03 ER を再生成後、`scripts/build-docs-portal.mjs` が `docs/portal/` を生成）。スキーマ・仕様を更新したら必ず実行し、`npm run test:er-sync` で ER とテーブル定義の整合を確認する。
-- **文字コードと文字化け**: §3 の「文書作成・更新時の文字コード統一」「文字化け復旧優先」が本 subsection 配下のドキュメント全てに適用される（HTML / Markdown / text 全て UTF-8）。
+- **文書を書く・直す・整理する手順は Skill `/doc` が正本。** docs を触る前に呼ぶ。
+  ER 図の自動生成（手書き禁止）、docs/portal の再生成、置き場所とアーカイブ、索引登録、
+  文字コードと改行コードの扱いを含む。（2026-10-02 に本節から移送。`docs/296`）
+- ER 図の正本は `gas-src` のテーブル定義 ＋ `docs/er-metadata.json`。ドリフトは `npm run test:er-sync` が落とす。
+- 新規文書は `docs/00_DOC_INDEX.md` へ登録する。未登録は `npm run test:docs-single-source` が落とす。
 
 ### 4.7 開発拠点（2026-09-02 operator 決定で保守モード解除）
 
@@ -278,34 +265,13 @@
 - GCP 移行の再開時期は operator 判断。中断中も `docs/250` は破棄せず、棚卸し（§6.1）を最新に保つ。
 
 ## 5. 完了条件
-- 「動いた」だけでは完了としない。
-- release 完了条件は `build -> push -> version -> fixed deployment sync -> verification -> document update`。
-- **新機能実装・既存機能改修・リファクタの release では E2E 回帰テストを必須とする（既存挙動を壊さないことの担保）。** 「新機能が動く」だけでなく「既存機能が壊れていない」ことを E2E で確認するまで完了としない。最低限、以下を実施し結果を完了報告に明記する:
-  1. **全ゲート**: `npm run prerelease`（security audit / boundary×3 / typecheck / 各 unit test / er-sync / menu-registry）を PASS させる。送信・描画・変換など純ロジックを変更した場合は、その回帰を機械検証する unit test（`scripts/test-*.mts`）を追加し prerelease 連鎖に組み込む。
-  2. **公開 E2E（live・認証不要）**: デプロイ後に `npm run test:a11y`（違反 0）と `npm run test:responsive`（全 VP）を実行し、公開ポータルが起動・描画・操作可能で非破壊であることを確認する。**初回はコールドスタートのスキーマ初期化で 45〜60s 超のタイムアウトが起こり得るため、ウォーム後に再実行して判定する**（タイムアウト＝即失敗とみなさない）。
-  3. **会員/管理の書込フロー E2E（必須・漏れ厳禁）**: admin/member の作成・更新・削除など**書込フローを変更・新設した場合**、storageState が用意できる時は `test:responsive:member` / `test:responsive:admin` を実行する。**storageState が無く Playwright E2E を実行できない場合は、その書込フローを通す backend dryRun（保存→取得→削除を実 DB で検証する `dryRun*_LOG`）を必ず用意し、operator が editor から実行して検証する**。「公開ポータルの a11y/responsive だけ実行して admin/member 書込を未検証のまま完了」とするのは禁止（v376.44 の LINE 投稿保存不可の見逃し再発防止）。
-  4. **GAS 送信系・スキーマ系・DB 状態起因の E2E**: 実送信を伴うものは非送信の dryRun（例 `dryRun*_LOG`）を用意し operator が実行できる状態にする。**シートのヘッダー欠落・列ドリフト等の「DB 状態起因」バグはコード単体テストでは捕捉できないため、実 DB に対する dryRun E2E（行を作って読んで消す）で必ずカバーする**。実送信検証は `MAIL_GLOBAL_ENABLED=false` / `REDIRECT` 下でのみ行う。
-  5. **3 split 生成物の健全性（デプロイ前必須）**: gas-src を変更したら `build:gas` / `build:gas:member` / `build:gas:admin` 後に、トップレベル定義（例 `var テーブル定義 = {`、`processApiRequest` 等の seed callable）と新規追加関数が **public・member・admin の 3 つの生成 Code.gs すべてに残存**することを grep で確認してから push する（build pruner による誤削除の早期検知。`feedback_build_pruning_bug` 参照）。
-  - E2E 回帰でデプロイ後に重大な不具合（白画面・`ReferenceError`・認証/送信不能）を検知した場合は、原因調査より先に **`npx clasp redeploy ... --versionNumber <直前の正常版>` で即時ロールバックして本番を復旧**し、その後に修正する。
-- **push 前に `git diff` で作業ツリー全体を確認し、自分の変更以外の未コミット変更が存在する場合はその影響範囲を評価する。** 問題がある場合はファイル単位で push 範囲を限定するかユーザーに確認してから進む。
-- **`git status --short` で未追跡ファイルが出た場合は、追跡対象か例外かを必ず判定する。** 追跡対象なら同ターンで追加・記録し、未追跡でよい場合はその根拠を `.gitignore` または案件正本へ明示する。
-- fixed deployment sync は既知の deployment ID に対する `npx clasp redeploy <deploymentId> -V <version>` を正とし、結果は `npx clasp list-deployments` で確認する（**`--json` オプションは存在しない**）。
-- 毎回更新する文書は `HANDOVER.md`、`docs/09_DEPLOYMENT_POLICY.md`、必要に応じた release state 文書とし、`AGENTS.md` や案件固定ルールは運用原則が変わった場合にのみ更新する。
-- 実ブラウザ確認が未実施でも、コード上の検証結果と確認待ち範囲を必ず明記し、操作者による確認に引き継げる状態で完了報告する。
-- password verifier / credential generation を変更する release では、`PASSWORD_HASH_PEPPER_V1` が integrated/public・member split・admin split の Script Properties に同一値で設定済みであることを、値を表示・記録せず確認する。
-- **業務ルール（`docs/spec/02_RD.md` の BR-xx）を新設・変更したら、それを実行して確かめる検査を同時に作る。**
-  検査の正本は `npm run test:validation-matrix`（BR を実行して受理／拒否を突き合わせる）と
-  `npm run test:db-relations`（参照整合性）。仕様書の「検証方法」欄と
-  `docs/268` のトレーサビリティ一覧へ必ず登録する（`test:docs-single-source` が未登録を検出して落とす）。
-  - **未検証を残してよい。ただし必ず明示する。** 仕様書の検証方法欄に「**未検証**」と書き、
-    何がなぜ検証できていないかを完了報告にも残す。黙って埋めたことにしない。
-- **検証を厳格化する変更は、本番データを事前スキャンしてから入れる。**
-  新しい規則を既存の全行に当て、違反件数と該当行を数える。違反があるとき、
-  **既存データを人質にしない**——無関係な項目すら直せなくなる状態を作らない。
-  とる手段は「値を変えるときだけ検証する」「保存前に正規化する」「先にデータを直す」のいずれかで、
-  選んだ理由を release state 文書に残す（実例: v376.110 の `opts.stored`。
-  本番に `573 -1191` と事業所番号 `0` が実在し、無条件に弾くと 2 会員が保存不能になるところだった）。
-- 未検証、残課題、承認待ちは必ず明記する。
+
+- **「動いた」だけでは完了としない。**
+- **リリースの手順は Skill `/release` が正本。** リリース・デプロイ・本番反映に入る前に必ず呼ぶ。
+  build → push → version → fixed deployment 4 本同期 → 検証 → 文書更新、E2E 回帰、ロールバック手順を含む。
+  （2026-10-02 に本節から移送。毎ターン読む必要が無い手順のため。`docs/296`）
+- **prerelease を通していない HEAD は push できない**（PreToolUse hook が拒否する）。
+- **未検証・残課題・承認待ちは必ず明記する。** 黙って埋めたことにしない。
 
 ## 6. セキュリティと承認
 - 本番 deploy、DB 更新、権限変更、外部送信、不可逆操作は人間承認を前提とする（具体的破壊操作の運用注意は §4.3 参照）。
