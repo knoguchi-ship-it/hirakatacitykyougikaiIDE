@@ -21,8 +21,9 @@ type Step = 'member-type' | 'verify' | 'select-fields' | 'input-fields' | 'compl
 type FieldGroup =
   | 'name'            // 氏・名・フリガナ
   | 'contact'         // メール・携帯電話
-  | 'officeContact'   // 勤務先電話・FAX
-  | 'officeAddress'   // 勤務先住所
+  // 2026-10-02: 勤務先住所をここへ統合した。別グループだと「名称だけ変えて住所は前職のまま」
+  // という行が作れてしまう（v376.107 で直した「前職の名称 ＋ 現職の住所」の裏返し）。
+  | 'officeContact'   // 勤務先: 事業所名・電話・FAX・住所
   | 'homeAddress'     // 自宅住所
   | 'careManagerNumber' // CM番号（ログインIDに影響）
   | 'mailingPreference'
@@ -308,15 +309,75 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
     return missing;
   }, [isPersonType, selected, indFields]);
 
+  // 空白だけの入力は受け付けない（operator 判断・2026-10-02）。
+  // 空欄は「現在の登録内容を据え置く」意味なので、空白だけの入力も結果は同じ据え置きになる。
+  // ただし本人は「入力した」つもりでいるため、黙って無視せず名指しで差し戻す。
+  const blankOnlyFields = useMemo(() => {
+    const blankOnly = (v: string) => v !== '' && v.trim() === '';
+    const found: string[] = [];
+    const check = (label: string, v: string) => { if (blankOnly(v)) found.push(label); };
+    const checkAddress = (prefix: string, a: AddressValue) => {
+      check(prefix + 'の郵便番号', a.postCode);
+      check(prefix + 'の都道府県', a.prefecture);
+      check(prefix + 'の市区町村', a.city);
+      check(prefix + 'の番地', a.addressLine);
+      check(prefix + 'の建物名', a.addressLine2);
+    };
+    if (isPersonType) {
+      if (selected.has('name')) {
+        check('姓', indFields.lastName); check('名', indFields.firstName);
+        check('フリガナ（氏）', indFields.lastKana); check('フリガナ（名）', indFields.firstKana);
+      }
+      if (selected.has('contact')) {
+        check('連絡先メールアドレス', indFields.email); check('携帯電話番号', indFields.mobilePhone);
+      }
+      if (selected.has('officeContact') && !indFields.noOffice) {
+        check('事業所名', indFields.officeName);
+        check('勤務先電話番号', indFields.phone); check('勤務先FAX番号', indFields.fax);
+        checkAddress('勤務先住所', indFields.officeAddress);
+      }
+      if (selected.has('homeAddress')) checkAddress('自宅住所', indFields.homeAddress);
+      if (selected.has('careManagerNumber')) check('介護支援専門員番号', indFields.careManagerNumber);
+    }
+    if (memberType === 'BUSINESS') {
+      if (selected.has('officeBasic')) {
+        check('事業所名', bizFields.officeName); check('メールアドレス', bizFields.email);
+        check('電話番号', bizFields.phone); check('FAX番号', bizFields.fax);
+      }
+      if (selected.has('bizAddress')) checkAddress('事業所住所', bizFields.bizAddress);
+      if (selected.has('officeNumber')) check('事業所番号', bizFields.officeNumber);
+    }
+    return found;
+  }, [memberType, isPersonType, selected, indFields, bizFields]);
+
+  // 事業所名を入力したのに、勤務先の電話・FAX・住所を空欄のまま出そうとしている項目。
+  // 公開ポータルは会員データを返さないため「変更前の事業所名」を知らない。
+  // そこで「事業所名を入力した＝勤務先を変えるつもり」と見なし、据え置きになる項目を
+  // 送信前に読み上げて確認してもらう（必須にはしない。正式名称へ直すだけの用途があるため）。
+  const officeCarryOver = useMemo(() => {
+    if (!isPersonType || !selected.has('officeContact')) return [];
+    if (indFields.noOffice || !indFields.officeName.trim()) return [];
+    const a = indFields.officeAddress;
+    const carry: string[] = [];
+    if (!indFields.phone.trim()) carry.push('勤務先電話番号');
+    if (!indFields.fax.trim()) carry.push('勤務先FAX番号');
+    if (!a.postCode.trim()) carry.push('勤務先の郵便番号');
+    if (!a.prefecture.trim()) carry.push('勤務先の都道府県');
+    if (!a.city.trim()) carry.push('勤務先の市区町村');
+    if (!a.addressLine.trim()) carry.push('勤務先の番地');
+    return carry;
+  }, [isPersonType, selected, indFields]);
+
+  const [confirmCarryOver, setConfirmCarryOver] = useState(false);
+
   const hasAnyInput = useMemo(() => {
     // 個人会員・賛助会員
     if (isPersonType) {
       if (selected.has('name') && (indFields.lastName.trim() || indFields.firstName.trim() || indFields.lastKana.trim() || indFields.firstKana.trim())) return true;
       if (selected.has('contact') && (indFields.email.trim() || indFields.mobilePhone.trim())) return true;
-      if (selected.has('officeContact')
-        && (indFields.noOffice || indFields.officeName.trim() || indFields.phone.trim() || indFields.fax.trim())) return true;
-      if (selected.has('officeAddress')) {
+      if (selected.has('officeContact')) {
         const a = indFields.officeAddress;
+        if (indFields.noOffice || indFields.officeName.trim() || indFields.phone.trim() || indFields.fax.trim()) return true;
         if (a.postCode.trim() || a.prefecture.trim() || a.city.trim() || a.addressLine.trim() || a.addressLine2.trim()) return true;
       }
       if (selected.has('homeAddress')) {
@@ -343,13 +404,28 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
   }, [memberType, isPersonType, selected, indFields, bizFields, staffAddCards, staffRemoveCards, staffUpdateCards]);
 
   const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     // ボタンの disabled だけに頼らない（Enter キー・支援技術・将来の改修）。
     if (retirementMissing.length > 0) {
-      e.preventDefault();
       setError('退職（勤務なし）の手続きには ' + retirementMissing.join('・') + ' の入力が必要です。');
       return;
     }
-    e.preventDefault();
+    if (blankOnlyFields.length > 0) {
+      setError('空白だけが入力されている項目があります（' + blankOnlyFields.join('・')
+        + '）。変更後の内容を入力するか、空欄にしてください。空欄の項目は現在の登録内容のまま変わりません。');
+      return;
+    }
+    // 勤務先を変えるのに住所・電話が空欄のまま。据え置きでよいか確認してから送る。
+    if (officeCarryOver.length > 0) {
+      clearError();
+      setConfirmCarryOver(true);
+      return;
+    }
+    await doSubmit();
+  };
+
+  const doSubmit = async () => {
+    setConfirmCarryOver(false);
     setBusy(true);
     clearError();
     try {
@@ -371,23 +447,25 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
             // 退職した人。勤務先の連絡先も残さない。
             // 郵送先が勤務先のままだと宛名が「勤務なし」の郵便が出るため、自宅へ寄せる
             // （サーバ側 saveMemberCore_ もこの組み合わせを拒否する）。
+            // 勤務先の電話・FAX・住所はここで消さない。承認は空文字を適用しないので、
+            // 空文字を送っても消えなかった（2026-10-02 に発覚）。勤務先名が「勤務なし」なら
+            // サーバの saveMemberCore_ が不変条件として消す。
             fields.officeName = NO_OFFICE_AFFILIATION_LABEL;
-            fields.phone = '';
-            fields.fax = '';
             fields.preferredMailDestination = 'HOME';
           } else {
-            if (indFields.officeName) fields.officeName = indFields.officeName;
-            if (indFields.phone) fields.phone = indFields.phone;
-            if (indFields.fax) fields.fax = indFields.fax;
+            // 空欄＝現在の登録内容を据え置く（サーバの承認も空文字は適用しない）。
+            // 空白だけの入力は trim すると空になるので、ここでは据え置き扱いになる。
+            // 「空白だけ」をそのまま通さないのは blankOnlyFields が送信前に弾くため。
+            if (indFields.officeName.trim()) fields.officeName = indFields.officeName.trim();
+            if (indFields.phone.trim()) fields.phone = indFields.phone.trim();
+            if (indFields.fax.trim()) fields.fax = indFields.fax.trim();
+            const a = indFields.officeAddress;
+            if (a.postCode.trim()) fields.officePostCode = a.postCode.trim();
+            if (a.prefecture.trim()) fields.officePrefecture = a.prefecture.trim();
+            if (a.city.trim()) fields.officeCity = a.city.trim();
+            if (a.addressLine.trim()) fields.officeAddressLine = a.addressLine.trim();
+            if (a.addressLine2.trim()) fields.officeAddressLine2 = a.addressLine2.trim();
           }
-        }
-        if (selected.has('officeAddress')) {
-          const a = indFields.officeAddress;
-          if (a.postCode) fields.officePostCode = a.postCode;
-          if (a.prefecture) fields.officePrefecture = a.prefecture;
-          if (a.city) fields.officeCity = a.city;
-          if (a.addressLine) fields.officeAddressLine = a.addressLine;
-          if (a.addressLine2) fields.officeAddressLine2 = a.addressLine2;
         }
         if (selected.has('homeAddress')) {
           const a = indFields.homeAddress;
@@ -503,8 +581,8 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
     { key: 'contact' as FieldGroup, label: '連絡先メール・携帯電話番号', desc: '' },
     // 2026-10-01: 勤務先名をここへ入れた。別グループにすると、転職した人が
     // 「名称」と「電話」を別々にチェックして片方を忘れる。
-    { key: 'officeContact' as FieldGroup, label: '勤務先（事業所）', desc: '事業所名・電話番号・FAX番号' },
-    { key: 'officeAddress' as FieldGroup, label: '勤務先住所', desc: '〒・都道府県・市区町村・番地・建物名' },
+    // 2026-10-02: 住所も同じ理由でここへ統合した（旧「勤務先住所」グループは廃止）。
+    { key: 'officeContact' as FieldGroup, label: '勤務先（事業所）', desc: '事業所名・電話番号・FAX番号・住所' },
     { key: 'homeAddress' as FieldGroup, label: '自宅住所', desc: '〒・都道府県・市区町村・番地・建物名' },
     { key: 'careManagerNumber' as FieldGroup, label: '介護支援専門員番号', desc: '' },
     { key: 'mailingPreference' as FieldGroup, label: '通知方法', desc: 'メール通知 / 郵送通知の切り替え' },
@@ -609,6 +687,7 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
             <ul className="ml-5 list-disc text-xs leading-relaxed">
               <li><strong>空欄 = 変更なし</strong>（現在の登録内容がそのまま維持されます）</li>
               <li>少なくとも 1 項目以上の入力が必要です（全て空欄のままでは送信できません）</li>
+              <li>空白（スペース）だけの入力は受け付けません。変更しない項目は空欄にしてください</li>
               <li>職員追加 / 職員除籍欄は、追加・除籍を行う場合のみ全項目入力してください</li>
             </ul>
           </div>
@@ -697,7 +776,7 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
                         placeholder="例: ひらかた介護ステーション"
                         className={indFields.noOffice ? inputClass + ' bg-slate-100 text-slate-400' : inputClass} />
                       <p className="mt-1 text-xs text-slate-500">
-                        転職された場合は「勤務先住所」もあわせてお選びください。
+                        転職された場合は、下の電話番号・住所もあわせてご入力ください。
                       </p>
                     </div>
                     <div>
@@ -712,11 +791,11 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
                         onChange={e => setIndFields(f => ({ ...f, fax: e.target.value }))}
                         placeholder="" className={indFields.noOffice ? inputClass + ' bg-slate-100 text-slate-400' : inputClass} />
                     </div>
+                    {!indFields.noOffice && (
+                      <AddressInput label="勤務先住所" value={indFields.officeAddress}
+                        onChange={a => setIndFields(f => ({ ...f, officeAddress: a }))} />
+                    )}
                   </fieldset>
-                )}
-                {selected.has('officeAddress') && (
-                  <AddressInput label="勤務先住所" value={indFields.officeAddress}
-                    onChange={a => setIndFields(f => ({ ...f, officeAddress: a }))} />
                 )}
                 {selected.has('homeAddress') && (
                   <AddressInput label="自宅住所" value={indFields.homeAddress}
@@ -1032,11 +1111,13 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
               ← 項目選択に戻る
             </button>
             <div className="flex-1">
-              <button type="submit" disabled={busy || !hasAnyInput || retirementMissing.length > 0}
-                aria-disabled={busy || !hasAnyInput || retirementMissing.length > 0}
+              <button type="submit" disabled={busy || !hasAnyInput || retirementMissing.length > 0 || blankOnlyFields.length > 0}
+                aria-disabled={busy || !hasAnyInput || retirementMissing.length > 0 || blankOnlyFields.length > 0}
                 title={retirementMissing.length > 0
                   ? '退職（勤務なし）の場合は、連絡先と自宅住所の入力が必要です'
-                  : (!hasAnyInput ? '変更したい項目に入力してください（全て空欄では申請できません）' : '')}
+                  : blankOnlyFields.length > 0
+                    ? '空白だけが入力されている項目があります'
+                    : (!hasAnyInput ? '変更したい項目に入力してください（全て空欄では申請できません）' : '')}
                 className="w-full rounded-full bg-violet-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500">
                 {busy ? '送信中...' : '変更を申請する'}
               </button>
@@ -1051,6 +1132,17 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
                     すでにご登録済みの内容と同じでも、お手数ですがご入力ください。
                   </p>
                 </div>
+              ) : blankOnlyFields.length > 0 ? (
+                <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900" role="alert">
+                  <p className="font-semibold">空白だけが入力されている項目があります</p>
+                  <ul className="mt-1 list-inside list-disc">
+                    {blankOnlyFields.map(label => <li key={label}>{label}</li>)}
+                  </ul>
+                  <p className="mt-1">
+                    変更後の内容をご入力いただくか、空欄にしてください。
+                    空欄の項目は、現在ご登録の内容のまま変わりません。
+                  </p>
+                </div>
               ) : !hasAnyInput && (
                 <p className="mt-2 text-center text-xs text-slate-500" role="status">
                   変更したい項目に入力すると送信できます
@@ -1059,6 +1151,41 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
             </div>
           </div>
         </form>
+      )}
+
+      {/* 勤務先を変えるのに住所・電話が空欄のとき、据え置きでよいか確認する。
+          焦点を奪う useEffect は置かない（v376.33: onClose 依存の effect で入力不能になった）。
+          確認ボタンの autoFocus だけで足りる。 */}
+      {confirmCarryOver && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4"
+          role="dialog" aria-modal="true" aria-labelledby="carryover-title">
+          <div className="w-full max-w-md rounded-[20px] border border-slate-200 bg-white p-6 shadow-xl">
+            <h3 id="carryover-title" className="text-base font-semibold text-slate-900">
+              勤務先の次の項目は、変更されません
+            </h3>
+            <p className="mt-2 text-sm text-slate-600">
+              事業所名を変更されますが、下の項目は空欄のため
+              <strong>現在ご登録の内容のまま</strong>になります。
+            </p>
+            <ul className="mt-3 list-inside list-disc rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              {officeCarryOver.map(label => <li key={label}>{label}</li>)}
+            </ul>
+            <p className="mt-3 text-sm text-slate-600">
+              事業所名の表記を直すだけでしたら、このまま申請してください。
+              <strong>転職など勤務先そのものが変わった場合</strong>は、戻って住所・電話番号もご入力ください。
+            </p>
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row-reverse">
+              <button type="button" autoFocus onClick={() => { void doSubmit(); }}
+                className="flex-1 rounded-full bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-700">
+                このまま申請する
+              </button>
+              <button type="button" onClick={() => setConfirmCarryOver(false)}
+                className="flex-1 rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-400">
+                戻って入力する
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Step 5: 完了 */}

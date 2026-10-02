@@ -10419,6 +10419,26 @@ function saveMemberCore_(payload, options) {
     statusNote: fromPayloadOrCurrent('statusNote', String(getCol('ステータスメモ') || '')),
     midYearWithdrawal: fromPayloadOrCurrent('midYearWithdrawal', false),
   };
+  // 2026-10-02: 勤務先が「勤務なし」なら、前職の連絡先と住所を会員行に残さない。
+  //
+  // 変更申請の承認は空文字を適用しない（空欄＝据え置きが仕様）。そのため退職の届け出で
+  // phone:'' を送っても消えず、「勤務先名＝勤務なし ＋ 前職の電話・FAX・住所」という
+  // 嘘の行ができていた。承認側に空文字の例外を作ると「空欄＝据え置き」が崩れるので、
+  // 保存の正本であるここで不変条件として落とす（管理画面からの編集にも効く）。
+  //
+  // 空の勤務先名は対象にしない。isNoOfficeAffiliation_ は空も「勤務なし」と見なすが、
+  // 空は単に未入力の古い行でもありうる。無関係な編集の巻き添えで住所を消さない。
+  if (memberTypeCode !== 'BUSINESS'
+      && String(mergedPayload.officeName || '').trim() === NO_OFFICE_AFFILIATION_LABEL_) {
+    mergedPayload.phone = '';
+    mergedPayload.fax = '';
+    mergedPayload.officePostCode = '';
+    mergedPayload.officePrefecture = '';
+    mergedPayload.officeCity = '';
+    mergedPayload.officeAddressLine = '';
+    mergedPayload.officeAddressLine2 = '';
+  }
+
   // v372.4: admin 権限（MASTER/ADMIN）の場合のみ CM 番号緩和を許可
   var allowRelaxedCm = isAllowedRelaxedCmNumber_(adminSession);
   validateMemberPayload_(mergedPayload, memberTypeCode, currentMemberStatus, { allowRelaxedCmNumber: allowRelaxedCm });

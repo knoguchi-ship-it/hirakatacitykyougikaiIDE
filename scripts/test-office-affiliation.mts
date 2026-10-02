@@ -108,8 +108,9 @@ test('★「現在は勤務していない」は郵送先を自宅へ寄せる',
   const block = publicForm.slice(start, start + 600);
   assert.ok(block.includes('NO_OFFICE_AFFILIATION_LABEL'), '予約語を直書きしている');
   assert.ok(block.includes("fields.preferredMailDestination = 'HOME'"), '郵送先を自宅へ切り替えていない');
-  assert.ok(block.includes("fields.phone = ''"), '勤務先の電話を残している');
-  assert.ok(block.includes("fields.fax = ''"), '勤務先の FAX を残している');
+  // 2026-10-02: 勤務先の電話・FAX・住所を消すのはサーバ側。
+  // 承認は空文字を適用しないので、フロントから phone:'' を送っても消えなかった。
+  // 検査は「「勤務なし」なら保存時に前職の連絡先・住所を消す」で行う。
 });
 
 test('★サーバが「勤務なし」×「郵送先＝勤務先」を拒否する', () => {
@@ -159,7 +160,7 @@ test('★退職を選んだら、サーバが必須にする項目をフロン�
 
 test('★不足があれば送信ボタンを押せない', () => {
   assert.ok(
-    publicForm.includes('disabled={busy || !hasAnyInput || retirementMissing.length > 0}'),
+    publicForm.includes('disabled={busy || !hasAnyInput || retirementMissing.length > 0 || blankOnlyFields.length > 0}'),
     '不足があっても送信できてしまう',
   );
 });
@@ -193,4 +194,101 @@ test('フロントが要求する項目はサーバの必須ルールと対応�
     'サーバの電話必須ルールが消えている（フロントの要求根拠が無くなる）');
   assert.ok(validator.includes('個人会員は自宅郵便番号が必須です'),
     'サーバの自宅住所必須ルールが消えている');
+});
+
+// ── 2026-10-02: 勤務先グループの統合・空白のみ拒否・据え置き確認 ──────────────
+
+test('勤務先住所は勤務先グループに統合されている', () => {
+  // 別グループだと「名称だけ変えて住所は前職のまま」という行が作れてしまう。
+  assert.ok(
+    !/\{ key: 'officeAddress' as FieldGroup/.test(publicForm),
+    '「勤務先住所」が独立グループのまま残っている',
+  );
+  assert.ok(
+    publicForm.includes("label: '勤務先（事業所）', desc: '事業所名・電話番号・FAX番号・住所'"),
+    '勤務先グループの説明に住所が入っていない',
+  );
+  assert.ok(
+    !/selected\.has\('officeAddress'\)/.test(publicForm),
+    '廃止したグループキーがまだ参照されている',
+  );
+});
+
+test('勤務先の入力はすべて trim してから送る（空白だけなら送らない）', () => {
+  const start = publicForm.indexOf("if (selected.has('officeContact')) {");
+  assert.notEqual(start, -1, '勤務先グループの payload 組み立てが見つからない');
+  const block = stripLineComments(publicForm.slice(start, start + 1600));
+  for (const f of ['officeName', 'phone', 'fax']) {
+    assert.ok(
+      new RegExp(`indFields\.${f}\.trim\(\)`).test(block),
+      `${f} を trim していない（空白だけの値が登録されうる）`,
+    );
+  }
+  for (const f of ['postCode', 'prefecture', 'city', 'addressLine', 'addressLine2']) {
+    assert.ok(
+      new RegExp(`a\.${f}\.trim\(\)`).test(block),
+      `勤務先住所の ${f} を trim していない`,
+    );
+  }
+});
+
+test('空白だけの入力は送信前に弾く', () => {
+  assert.ok(publicForm.includes('const blankOnlyFields = useMemo'), '空白のみ検査が無い');
+  const start = publicForm.indexOf('const blankOnlyFields = useMemo');
+  const block = publicForm.slice(start, publicForm.indexOf('}, [memberType, isPersonType, selected, indFields, bizFields]);', start));
+  assert.ok(block.includes("v !== '' && v.trim() === ''"), '「空白だけ」の判定になっていない');
+
+  // 3 重で止める（v376.108 と同じ考え方）。disabled 属性だけに頼らない。
+  assert.ok(
+    publicForm.includes('disabled={busy || !hasAnyInput || retirementMissing.length > 0 || blankOnlyFields.length > 0}'),
+    '送信ボタンが無効化されていない',
+  );
+  const submit = publicForm.slice(publicForm.indexOf('const handleSubmit = async'), publicForm.indexOf('const doSubmit = async'));
+  assert.ok(submit.includes('blankOnlyFields.length > 0'), 'handleSubmit で再確認していない');
+  assert.ok(submit.includes('e.preventDefault()'), '送信を止めていない');
+});
+
+test('事業所名を変えて住所が空欄なら、送信前に据え置きを確認する', () => {
+  // operator 判断（2026-10-02）: 正式名称への直しもあるため住所は必須にしない。
+  // 代わりに「変わらない項目」を読み上げて確認してもらう。
+  const start = publicForm.indexOf('const officeCarryOver = useMemo');
+  assert.notEqual(start, -1, '据え置き確認の算出が無い');
+  const block = stripLineComments(publicForm.slice(start, publicForm.indexOf('}, [isPersonType, selected, indFields]);', start)));
+  assert.ok(block.includes('indFields.noOffice || !indFields.officeName.trim()'),
+    '事業所名を入力したときだけに絞れていない');
+  for (const label of ['勤務先電話番号', '勤務先の郵便番号', '勤務先の都道府県', '勤務先の市区町村', '勤務先の番地']) {
+    assert.ok(block.includes(label), `確認対象に ${label} が無い`);
+  }
+  // 確認を経ないと送信されない
+  const submit = publicForm.slice(publicForm.indexOf('const handleSubmit = async'), publicForm.indexOf('const doSubmit = async'));
+  assert.ok(submit.includes('setConfirmCarryOver(true)'), '確認ダイアログを出していない');
+  assert.ok(/officeCarryOver\.length > 0[\s\S]{0,200}setConfirmCarryOver\(true\)/.test(submit),
+    '据え置きがあるときに確認へ回していない');
+  assert.ok(publicForm.includes('aria-modal="true"'), 'ダイアログが modal として宣言されていない');
+});
+
+test('「勤務なし」なら保存時に前職の連絡先・住所を消す', () => {
+  // 承認は空文字を適用しない（空欄＝据え置き）ため、フロントから phone:'' を送っても
+  // 消えなかった。保存の正本で不変条件として落とす。
+  const core = stripLineComments(extractLargeFunction('saveMemberCore_'));
+  const idx = core.indexOf("String(mergedPayload.officeName || '').trim() === NO_OFFICE_AFFILIATION_LABEL_");
+  assert.notEqual(idx, -1, '「勤務なし」のときに勤務先を消す処理が無い');
+  const block = core.slice(idx, idx + 600);
+  for (const f of ['phone', 'fax', 'officePostCode', 'officePrefecture', 'officeCity', 'officeAddressLine', 'officeAddressLine2']) {
+    assert.ok(new RegExp(`mergedPayload\.${f} = '';`).test(block), `${f} を消していない`);
+  }
+  assert.ok(core.indexOf('validateMemberPayload_(mergedPayload') > idx,
+    '検証より後に消すと、消した値が検証を通らない順序になる');
+  // 空の勤務先名では消さない（未入力の古い行を巻き添えにしない）
+  assert.ok(!block.includes('isNoOfficeAffiliation_(mergedPayload.officeName)'),
+    '空欄まで「勤務なし」と見なすと、無関係な編集で住所が消える');
+});
+
+test('フロントは消えない空文字を送らない', () => {
+  // 送っても効かないのに送っていたのが、不具合に気づけなかった理由。
+  const start = publicForm.indexOf('if (indFields.noOffice) {');
+  const block = stripLineComments(publicForm.slice(start, publicForm.indexOf('} else {', start)));
+  assert.ok(block.includes('fields.officeName = NO_OFFICE_AFFILIATION_LABEL'), '勤務なしを送っていない');
+  assert.ok(!/fields\.phone = ''/.test(block), "効かない phone:'' をまだ送っている");
+  assert.ok(!/fields\.fax = ''/.test(block), "効かない fax:'' をまだ送っている");
 });
