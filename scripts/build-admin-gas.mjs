@@ -33,7 +33,10 @@ import {
   removeIfBlock,
   removeTopLevelFunctionDeclarations,
   replaceObjectLiteral,
+  buildInputFingerprint,
+  stampBuildFingerprint,
 } from './gas-boundary-utils.mjs';
+import { createHash } from 'node:crypto';
 import { serializeMenuRegistryForGas } from './menu-registry.mjs';
 import { serializeMemberFiscalStatusForGas } from '../src/shared/memberFiscalStatus.mjs';
 import { serializeMemberTypesForGas } from '../src/shared/memberTypes.mjs';
@@ -191,9 +194,18 @@ ensureAdminGasDir();
 run('npx vite build', { VITE_APP: 'admin' });
 run('node scripts/compress-html.mjs');
 
+
+// 生成物の鮮度を刻む（docs/296 §4.1）。入力は gas-src 本体・このビルドスクリプト・共通変形ヘルパ。
+// test:gas-build-sync が同じ入力を再ハッシュして突き合わせ、build 忘れを検出する。
+const buildFingerprint = buildInputFingerprint(createHash, [
+  readFileSync(fullSourcePath, 'utf8'),
+  readFileSync(new URL(import.meta.url), 'utf8'),
+  readFileSync(new URL('./gas-boundary-utils.mjs', import.meta.url), 'utf8'),
+]);
+
 const backendCode = readFileSync(fullSourcePath, 'utf8');
 const { main: adminMainCode, files: adminSplitFiles } = splitAdminBuckets(buildAdminCode(backendCode));
-writeFileSync(join(adminGasDir, 'Code.gs'), adminMainCode, 'utf8');
+writeFileSync(join(adminGasDir, 'Code.gs'), stampBuildFingerprint(adminMainCode, buildFingerprint), 'utf8');
 for (const [fileName, contents] of Object.entries(adminSplitFiles)) {
   writeFileSync(join(adminGasDir, fileName), contents, 'utf8');
 }

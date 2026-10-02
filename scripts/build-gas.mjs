@@ -16,7 +16,10 @@ import {
   replaceObjectLiteral,
   replaceScriptRoutesWithPublicOnly,
   PUBLIC_ALLOWED_ACTIONS_LIST,
+  buildInputFingerprint,
+  stampBuildFingerprint,
 } from './gas-boundary-utils.mjs';
+import { createHash } from 'node:crypto';
 import { serializeMenuRegistryForGas } from './menu-registry.mjs';
 import { serializeMemberFiscalStatusForGas } from '../src/shared/memberFiscalStatus.mjs';
 import { serializeMemberTypesForGas } from '../src/shared/memberTypes.mjs';
@@ -103,8 +106,17 @@ run('npx vite build', { VITE_APP: 'admin' });
 // 圧縮: deflate-raw + base64 でインライン JS を圧縮（new Function() で実行、GAS CSP 互換）
 run('node scripts/compress-html.mjs', {});
 
+
+// 生成物の鮮度を刻む（docs/296 §4.1）。入力は gas-src 本体・このビルドスクリプト・共通変形ヘルパ。
+// test:gas-build-sync が同じ入力を再ハッシュして突き合わせ、build 忘れを検出する。
+const buildFingerprint = buildInputFingerprint(createHash, [
+  readFileSync(fullSourcePath, 'utf8'),
+  readFileSync(new URL(import.meta.url), 'utf8'),
+  readFileSync(new URL('./gas-boundary-utils.mjs', import.meta.url), 'utf8'),
+]);
+
 const fullSource = readFileSync(fullSourcePath, 'utf8');
-writeFileSync(join(backendDir, 'Code.gs'), buildPublicCode(fullSource), 'utf8');
+writeFileSync(join(backendDir, 'Code.gs'), stampBuildFingerprint(buildPublicCode(fullSource), buildFingerprint), 'utf8');
 console.log('Generated backend/Code.gs from gas-src/Code.full.gs with public-only boundary');
 
 copyFileSync(join(root, 'dist-public', 'index_public.html'), join(backendDir, 'index_public.html'));

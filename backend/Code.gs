@@ -1,3 +1,4 @@
+// BUILD_INPUT_SHA256: f88ca1fb69fbb5835bf3440b7d27aabfe13995333e29631f121fa2dcf1db1635
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の

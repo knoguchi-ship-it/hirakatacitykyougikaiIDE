@@ -258,3 +258,85 @@ L4 入口と手順の呼び出し
 | Skill が呼ばれず手順が飛ぶ | 重要な手順は Hook と対にする（`/release` ↔ H3） |
 | 再構成で条文が失われる | 棚卸し表を作り、落とす判断は operator。廃止ログに残す |
 | `test:gas-build-sync` が遅い | Code.gs のみ比較し、HTML（vite）は対象外にする |
+
+---
+
+# 実装記録
+
+## 実施 1 — Hook 4 本（2026-10-02 完了）
+
+### 配置と Git 管理
+
+`.gitignore` が `.claude/` をディレクトリごと除外しており、**Hook を置いても共有されない**状態だった。
+Git はディレクトリを除外すると配下を再包含できないため、`.claude/*` 形式へ変更して
+`settings.json` と `hooks/` だけを追跡対象にした（個人設定 `settings.local.json` は除外のまま）。
+
+```
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+```
+
+### 実装
+
+| ファイル | 内容 |
+|---|---|
+| `.claude/settings.json` | `PreToolUse` を Bash と Edit/Write/NotebookEdit に登録 |
+| `.claude/hooks/guard-bash.mjs` | H1（`clasp deploy`）/ H3（push ゲート）/ H4（破壊的 `clasp run`） |
+| `.claude/hooks/guard-write.mjs` | H2（資格情報ファイル） |
+| `scripts/write-prerelease-marker.mjs` | `prerelease` 成功時に `.tmp/prerelease-ok.json` へ HEAD を記録 |
+
+**ガード自身は fail-open にした。** ガードの不具合で作業が止まるほうが害が大きく、
+止めるべき操作は npm 側にも検査を置いて二重化する方針のため。
+
+### 誤検知対策 — ヒアドキュメントを除外
+
+素朴に文字列照合すると、**ドキュメントに `npx clasp deploy` と「書く」行為まで拒否**してしまう
+（実際に本リポジトリの docs にこの文字列がある）。
+`guard-bash.mjs` はヒアドキュメント本文を落としてから、`&&` `;` `|` 改行で区切り、
+**コマンドの先頭に来ている語**だけを見る。`npx` / 環境変数代入 / `sudo` は剥がす。
+
+### 検証結果
+
+```
+── 止める ──                      ── 通す ──
+DENY  npx clasp deploy            通過  npx clasp redeploy ... -V 421
+DENY  clasp create-deployment     通過  npx clasp create-version
+DENY  cd backend && npx clasp deploy  通過  npx clasp list-deployments
+ASK   clasp run seedDemoData      通過  npx clasp delete-deployment
+                                  通過  npx clasp run healthCheck
+                                  通過  npm run build:gas
+                                  通過  heredoc 内の clasp deploy（文書に書くだけ）
+
+── push ゲート ──                 ── 資格情報 ──
+DENY  記録なしで push             DENY  .env / .env.test / .env.production
+DENY  古い記録で push             DENY  .clasprc.json / .clasp.json
+通過  現 HEAD の記録で push       DENY  .test-out/auth-admin.json / storageState.json
+通過  git push --dry-run          通過  .env.example / .env.test.template
+通過  git status                  通過  通常のソース・文書
+```
+
+実装中に 1 件直した: `.test-out/` の判定が先頭スラッシュを必須にしており、
+相対パス `.test-out/auth-admin.json` が素通りしていた。
+
+## 実施 2 — `test:gas-build-sync`（2026-10-02 完了）
+
+ビルドの入力をハッシュし、生成物の先頭へ `// BUILD_INPUT_SHA256: <64 桁>` を刻む。
+検査側で再計算して突き合わせる。ヘルパは `scripts/gas-boundary-utils.mjs`
+（build ヘルパの正本。`test:build-helper-single-source` が複製を禁じている）へ追加した。
+
+入力に含めたもの: `gas-src/Code.full.gs` / 各ビルドスクリプト / `gas-boundary-utils.mjs`。
+**menu-registry や `src/shared` の注入元は含めていない**——含めすぎると誤検知が増え、
+ゲートが信用されなくなる。この限界はテストの冒頭に明記した。
+
+検査が機能することを、**先に落として**確認した（刻印前は 4 件すべて fail）。
+
+## 残り
+
+| | 内容 |
+|---|---|
+| 3 | Skill 2 本（`/release` `/doc`） |
+| 4 | 条文棚卸し表（242 件） |
+| 5 | `AGENTS.md` 再構成 ＋ 別冊化 |
+| 6 | Skill 2 本（`/spec-change` `/dbops`） |
+

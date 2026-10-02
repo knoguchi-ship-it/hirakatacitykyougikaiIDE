@@ -30,7 +30,11 @@ dist-ssr
 .clasp.json
 .clasprc.json
 
-.claude/
+# .claude は既定で除外。ただし Hook は「強制」の実体なので共有する。
+# ディレクトリごと除外すると配下を再包含できないため `/*` 形式にしている。
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
 .tmp/
 Dust/
 dist-public

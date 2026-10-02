@@ -778,3 +778,42 @@ export function replaceScriptRoutesWithPublicOnly(source) {
   }
   return source.replace(pattern, replacement);
 }
+
+// ── 生成物の鮮度（2026-10-02 新設）────────────────────────────────────────────
+// gas-src を編集したまま build を忘れて push する事故を防ぐ。
+// 2026-10-02 に実際に踏んだ: gas-src を編集した状態で prerelease が exit 0 で通り、
+// backend/Code.gs 等は古いままだった。既存の test:gas-artifact-refs は
+// 「生成物の内部で参照が解決するか」を見ており、入力とのずれは誰も見ていない。
+//
+// 方式: ビルドの入力をハッシュし、生成物の先頭に 1 行刻む。
+// test:gas-build-sync が入力を再ハッシュして突き合わせる。
+
+export const BUILD_FINGERPRINT_PREFIX = '// BUILD_INPUT_SHA256: ';
+
+const FINGERPRINT_ESCAPED = BUILD_FINGERPRINT_PREFIX.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** 入力文字列の配列から指紋を作る（順序も内容の一部として扱う） */
+export function buildInputFingerprint(createHash, inputs) {
+  const h = createHash('sha256');
+  for (const value of inputs) {
+    h.update(String(value ?? ''));
+    h.update('-- --'); // 連結の境界を混ぜない
+  }
+  return h.digest('hex');
+}
+
+/** 既存の指紋行を落とす。member/admin は backend/Code.gs を入力にするため混入する */
+export function stripBuildFingerprint(code) {
+  return String(code).replace(new RegExp('^' + FINGERPRINT_ESCAPED + '[0-9a-f]{64}\\r?\\n', 'gm'), '');
+}
+
+/** 生成物の先頭に指紋を刻む */
+export function stampBuildFingerprint(code, fingerprint) {
+  return BUILD_FINGERPRINT_PREFIX + fingerprint + '\n' + stripBuildFingerprint(code);
+}
+
+/** 生成物から指紋を読む。無ければ null */
+export function readBuildFingerprint(code) {
+  const m = String(code).match(new RegExp('^' + FINGERPRINT_ESCAPED + '([0-9a-f]{64})', 'm'));
+  return m ? m[1] : null;
+}

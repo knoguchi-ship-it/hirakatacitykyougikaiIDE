@@ -23,7 +23,10 @@ import {
   removeIfBlock,
   removeTopLevelFunctionDeclarations,
   replaceObjectLiteral,
+  buildInputFingerprint,
+  stampBuildFingerprint,
 } from './gas-boundary-utils.mjs';
+import { createHash } from 'node:crypto';
 import { serializeMenuRegistryForGas } from './menu-registry.mjs';
 import { serializeMemberFiscalStatusForGas } from '../src/shared/memberFiscalStatus.mjs';
 import { serializeMemberTypesForGas } from '../src/shared/memberTypes.mjs';
@@ -99,10 +102,19 @@ ensureMemberGasDir();
 run('npx vite build', { VITE_APP: 'member' });
 run('node scripts/compress-html.mjs');
 
+
+// 生成物の鮮度を刻む（docs/296 §4.1）。入力は gas-src 本体・このビルドスクリプト・共通変形ヘルパ。
+// test:gas-build-sync が同じ入力を再ハッシュして突き合わせ、build 忘れを検出する。
+const buildFingerprint = buildInputFingerprint(createHash, [
+  readFileSync(fullSourcePath, 'utf8'),
+  readFileSync(new URL(import.meta.url), 'utf8'),
+  readFileSync(new URL('./gas-boundary-utils.mjs', import.meta.url), 'utf8'),
+]);
+
 const backendCode = readFileSync(fullSourcePath, 'utf8');
 writeFileSync(
   join(memberGasDir, 'Code.gs'),
-  buildMemberCode(backendCode),
+  stampBuildFingerprint(buildMemberCode(backendCode), buildFingerprint),
   'utf8',
 );
 console.log('Generated gas/member/Code.gs from gas-src/Code.full.gs with member boundary, registry, and action handlers');
