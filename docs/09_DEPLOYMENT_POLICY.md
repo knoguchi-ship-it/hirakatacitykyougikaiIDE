@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-10-02
-Production: `v376.109` / integrated-public `@420` x2 / member split `@178` / admin split `@276`
+Production: `v376.110` / integrated-public `@421` x2 / member split `@179` / admin split `@277`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -151,7 +151,16 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-02 v376.109 ← current production
+### 2026-10-02 v376.110 ← current production
+
+- Scope: （入力）サーバー側の書式検証を新設（電話・郵便番号・メール・事業所番号）。**値を変えるときだけ効かせる**（`opts.stored`）— 本番に `573 -1191` と事業所番号 `0` が実在し、無条件に弾くとその 2 会員が保存不能になるため。（書き換え）退会申請の代表者ガードを fail-closed へ、ADMIN の自己ロール変更を禁止、添付の実在を Drive で確認、出欠状態・役職コードをマスタと照合（`isKnownMasterCode_`）。（画面）公開ポータルの「勤務先」と「勤務先住所」を 1 グループへ統合、空白のみの入力を拒否、事業所名変更時に据え置きを確認するダイアログ。（修正）「勤務なし」の承認で前職の電話・FAX・住所が消えていなかった不具合。
+- Fixed deployments: integrated/public @421 x2 / member @179 / admin @277.
+- Verification: prerelease PASS（exit 0）、test:validation-matrix 51/51（検査表 38 ケースが全て仕様どおり・未達 0）、test:db-relations 7/7、test:office-affiliation 22/22、deployment API で 4 本同期確認。**実 DB の参照整合性を確認済**（20 参照・稼働中の行に孤児 0）。docs/294。
+- 仕様書: `docs/spec/02_RD.md` 1.8（BR-15/16/18 更新、BR-20 新設）、`docs/268` トレーサビリティに BR-20 を登録。
+- 未実施: 公開ポータルからの送信を伴う E2E（operator 操作領域）。
+- Rollback: integrated/public @420 x2 / member @178 / admin @276（v376.109）。
+
+### 2026-10-02 v376.109
 
 - Scope: 公開ポータルのフッターと研修の外部申込フォームで「プライバシーポリシーについて」をリンク化。URL は `T_システム設定` の `PUBLIC_PORTAL_PRIVACY_POLICY_URL` に持たせ、管理画面の公開ポータルタブに新設した「サイト情報」見出しから編集する。ScriptProperties を採らなかったのは GAS プロジェクト単位で 3 重登録になるため。既定値は空で、空ならリンク要素ごと出さない（ハードコードされた既定値が定款リンクを腐らせたため）。あわせて「本サイトに掲載しています」の文言を 2 か所から削除。
 - Fixed deployments: integrated/public @420 x2 / member @178 / admin @276.
