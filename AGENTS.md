@@ -33,28 +33,42 @@
 
 ## 2. 最初に読む順序
 
-> §1 のとおり **入口は本書**。本書を読んだうえで、次の順に進む。
-> この順序が本リポジトリの唯一の正本であり、`README.md` や `docs/ONBOARDING.md` に別の順序を書かない。
+> §1 のとおり **入口は本書**。この分け方が本リポジトリの唯一の正本であり、
+> `README.md` や `docs/ONBOARDING.md` に別の順序を書かない。
 
-1. `HANDOVER.md`（現況・次の作業。本書の次に必ず読む）
-2. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md`
-3. `GLOBAL_GROUND_RULES/docs/AI_RULES/00_OPERATING_MODEL.md`
-4. `GLOBAL_GROUND_RULES/docs/AI_RULES/10_WORKFLOW_AND_QUALITY.md`
-5. `GLOBAL_GROUND_RULES/docs/AI_RULES/20_SECURITY_APPROVALS.md`
-6. `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`
-7. `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md`
-8. `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md`
-9. `HANDOVER.md` に記載された最新の release state 文書
-10. `docs/09_DEPLOYMENT_POLICY.md`
-11. `docs/spec/README.md`（仕様書の入口）を読んだうえで、作業目的に対応する `docs/spec/` の正本を読む（全体レビュー時は 5 文書すべて。SOW / RD / TRD / UI-UX / データIF）
-12. `docs/04_DB_OPERATION_RUNBOOK.md`
-13. `docs/03_DATA_MODEL.md`
+**必ず読む 3 本**（2026-10-02 確定。13 本の通読は形骸化していたため絞った）
+
+1. 本書 `AGENTS.md`
+2. `HANDOVER.md` — 現況・次の作業・現行 version・残課題
+3. `GLOBAL_GROUND_RULES/docs/AI_RULES/05_PROJECT_RULES_HIRAKATA.md` — 本案件の固定運用
+
+**作業に応じて開く**（読まずに触らない。該当する作業に入る前に必ず開く）
+
+| 作業 | 開く文書 |
+|---|---|
+| リリース・デプロイ | `docs/09_DEPLOYMENT_POLICY.md`、`HANDOVER.md` 記載の最新 release state |
+| 仕様の確認・変更 | `docs/spec/README.md` → 対象の正本（全体レビュー時は SOW / RD / TRD / UI-UX / データIF の 5 文書） |
+| DB・スキーマ | `docs/03_DATA_MODEL.md`、`docs/04_DB_OPERATION_RUNBOOK.md` |
+| 新機能の追加 | `docs/288_FEATURE_INVENTORY.md`（二重実装の確認） |
+| セキュリティ・承認 | `GLOBAL_GROUND_RULES/docs/AI_RULES/20_SECURITY_APPROVALS.md` |
+| 品質・ワークフロー | `GLOBAL_GROUND_RULES/docs/AI_RULES/10_WORKFLOW_AND_QUALITY.md` |
+| 過去の失敗を踏まないため | `GLOBAL_GROUND_RULES/docs/AI_RULES/30_ERROR_MEMORY.md`、MEMORY のフィードバック |
+| 文書の書き方 | `GLOBAL_GROUND_RULES/docs/AI_RULES/40_DOCS_AND_TEACHING.md` |
+| 日次運用 | `docs/44_DEVELOPMENT_HANDOVER_PLAYBOOK_2026-04-04.md` |
+| 体制・役割 | `GLOBAL_GROUND_RULES/docs/AI_RULES/00_OPERATING_MODEL.md` |
 
 `docs/archive/` は過去の記録置き場であり、**現況・仕様の参照先にしない**（`HANDOVER.md` §5）。
 個別の経緯を追うときだけ `docs/archive/00_ARCHIVE_INDEX.md` から開く。
 
 ## 3. 行動原則
-- **実装・構成・デプロイに進む前に不明点を必ず確認する。** 複数の解釈が成立する場合は推測で実装せず、箇条書きで簡潔に質問し、YesNo または選択肢で答えられる形で確認を取る。この確認ステップを省略してよいのは、仕様・データ型・既存コードから100%確定できる場合のみ。詳細は `GLOBAL_GROUND_RULES/docs/AI_RULES/10_WORKFLOW_AND_QUALITY.md §実装開始前の必須確認` を参照。
+- **確認は「設計判断が分岐する点」だけに絞る（2026-10-02 確定・operator 指示）。**
+  - **作業の都度は確認しない。** ファイルアクセス・書き換え・コマンド実行の一つ一つで止まらず、
+    ひと段落するまで一気に進める（MEMORY のユーザー設定を優先する）。
+  - **不明点があれば必ず確認する。** 複数の解釈が成立し、**どちらを採るかで成果物が変わる**ときは
+    推測で実装しない。箇条書きで簡潔に、YesNo または選択肢で答えられる形にする。
+  - 判断が分岐しない作業（調査・実装の細部・検証手順）は自分で決めて進め、
+    採った前提を完了報告に明記する。
+  - 詳細は `GLOBAL_GROUND_RULES/docs/AI_RULES/10_WORKFLOW_AND_QUALITY.md §実装開始前の必須確認` を参照。
 - まず関連ファイルだけを読む。推測で壊さない。
 - 技術、法務、セキュリティ、運用の提案前に、必要なら Web で最新の一次ソースを確認する。
 - 外部標準は採用するが、案件正本と衝突する場合は案件正本を優先し、差分を記録する。
@@ -77,8 +91,19 @@
 - **「同じことを別ルートで決めていないか」を実装前に確認する**: 値やラベル、判定を書く前に上表と grep で正本を探す。
   無ければ**まず正本を作ってから**使う。過去の本番障害（v376.46 の在籍中人数のぶれ、v376.66 の事業所メールだけ
   タグ未置換、v376.67 の研修リマインダーのカテゴリ誤り）はいずれもこの確認を飛ばしたことが原因。
-- **テストにミラー実装を書かない**: 「本体と同一ロジック」をテスト側で再実装すると、本体を直してもテストが
-  古い挙動を守り続ける。`gas-src` の関数は**実ソースから抽出して評価**する（`scripts/test-*.mts` の既存パターン）。
+- **テストが本体と関わる方法は 3 通りしかなく、使い分けを固定する（2026-10-02 確定）。**
+  1. **ミラー（テスト側で同じロジックを再実装）— 禁止。** 確かめているのはコピーの挙動で、
+     本体を直してもテストは古い挙動を守り続ける。
+  2. **文字列照合（ソースを grep して含まれるかを見る）— 構造の確認に限る。**
+     「allowlist に入っている」「3 split すべてに定義が残っている」など**配置・配線**にだけ使う。
+     **判定の正しさを文字列照合で代用しない。**
+  3. **実行（本体を取り出して動かす）— 判定ロジックには必須。** `gas-src` の関数は実ソースから
+     抽出して評価し、入力 → 受理／拒否 を突き合わせる（`scripts/test-validation-matrix.mts` の方式）。
+
+  **1 と 2 は対で塞ぐ。** ミラーだけを禁じると逃げ場が文字列照合しか残らず、
+  「そう書いてある」ことを確かめて満足するテストが量産される。実例: `test:office-affiliation` は
+  `fields.phone = ''` を送ると**書いてある**ことを検査して緑を保ち続けたが、その空文字は承認側で
+  黙って捨てられており、退職しても前職の電話が消えない不具合が本番に居続けた（v376.110 で発覚）。
 - **ハードコーディング原則禁止**: 識別子（URL / ID / メールアドレス / パス / マジック数値・文字列）はソースコード本体に直接埋め込まない。定数化・設定経由・環境変数のいずれかとし、やむを得ず本体に書く場合は事前にユーザー確認を取る。**シークレットは確認の有無に関わらず絶対にハードコーディングしない**（§0 シークレット保管に従い、`.env*` / Script Properties / Secret Manager 経由のみ。GitHub には絶対に出さない）。
 - **影響範囲の事前確認 + 既存挙動を破壊しないことの保証**: 変更前に grep / typecheck / 関連 unit test の実行で影響範囲を可視化する。変更後は完了条件 §5 のチェックリストで既存挙動が破壊されていないことを最終確認する。「コミットしてから問題発覚」を許容しない。
 - Git 管理の原則は「追跡すべきものは全て追跡する」。未追跡のまま許容してよいのは、生成物・ローカルメモ・資格情報・一時ファイルなど、案件ルールまたは `.gitignore` / 正本文書で例外として明示されたものだけとする。
@@ -91,9 +116,10 @@
 
 ### 4.1 Deploy SOP
 - 現行本番 version と fixed deployment の向き先は `HANDOVER.md` と `docs/09_DEPLOYMENT_POLICY.md` を正とし、この文書には固定で埋め込まない。
-- fixed deployment 2 本運用を維持し、片系だけ更新しない。
+- **fixed deployment は 4 本**（統合・公開 ×2 / member ×1 / admin ×1）。毎リリース同一版へ同期し、一部だけ更新しない。
+  本数と ID の正本は `docs/09_DEPLOYMENT_POLICY.md` §2。
 - production の fixed deployment 同期は `npx clasp redeploy` を標準とし、Apps Script UI の `Manage deployments` 手更新は障害復旧時の補助手段としてのみ扱う。
-- `npx clasp version` / `npx clasp redeploy` / `npx clasp deployments --json` / `npx clasp run ...` など Apps Script API に到達する本番系コマンドは、同じネットワーク失敗を避けるため、最初から承認済みの安定した実行経路で流す。失敗してから通常経路→昇格経路の二度打ちを標準にしない。
+- `npx clasp create-version` / `npx clasp redeploy` / `npx clasp list-deployments` / `npx clasp run ...` など Apps Script API に到達する本番系コマンドは、同じネットワーク失敗を避けるため、最初から承認済みの安定した実行経路で流す。失敗してから通常経路→昇格経路の二度打ちを標準にしない。
 - 認証、認可、DB 整合、deployment 検証は Apps Script 実行系で確認する。
 
 ### 4.2 認証フロー（不変）
@@ -106,6 +132,18 @@
 - `seedDemoData` は production DB を破壊する操作として扱い、完全バックアップと明示承認なしでは実行しない（§6 不可逆操作 一般則の最頻 例外）。
 - **パスワード hash pepper の本番前提**: versioned PBKDF2-HMAC-SHA256 + verifier-side pepper を含む認証変更は、本番反映前に integrated/public・member split・admin split の全 Apps Script project へ同一の強乱数 Script Property `PASSWORD_HASH_PEPPER_V1` が設定済みであることを必須条件とする（値そのものの取扱いは §0 シークレット保管に準拠。`.env` は Apps Script 本番 runtime の正本にせず、必要な場合でも未コミットのローカル運用補助に限定）。未設定 project がある状態で push / version / redeploy してはならない。
 - **保留中だが必須の security backlog**: pepper を Script Properties から Google Cloud Secret Manager へ移行し、さらに Apps Script 内 PBKDF2 制約を解消する外部 KDF / managed identity の採否を決定するタスクは、保留にしてよいが破棄してはならない。次回以降のセキュリティ改善計画で必ず再開し、完了または明示的な代替設計決定まで `HANDOVER.md` と関連仕様に残す。
+
+### 4.3.1 DB 制約の限界（2026-10-02 確定）
+
+- **シートの入力規則（`入力規則定義`）は検証の代わりにならない。**
+  止められるのは人が手でセルを編集するときだけで、**Apps Script の `setValues` は素通りする**。
+  入力規則だけで値域を縛る設計にしない。
+- マスタを参照するコード値は、**保存する関数側でマスタに実在するかを確かめる**（`isKnownMasterCode_`）。
+  入力規則は手編集に対する保険として併用する。
+- **ID 参照（会員ID・職員ID・研修ID など）に外部キー制約は張れない。** 整合はコードの責任。
+  どこが保証されていないかは `npm run test:db-relations` が一覧として固定しており、
+  **強制されない参照を増やすと落ちる**。増やすのは意識的な判断であるべき。
+- 規約の正本は `docs/spec/02_RD.md` BR-18 / BR-20。
 
 ### 4.4 UI/UX 規約
 
@@ -251,10 +289,22 @@
   - E2E 回帰でデプロイ後に重大な不具合（白画面・`ReferenceError`・認証/送信不能）を検知した場合は、原因調査より先に **`npx clasp redeploy ... --versionNumber <直前の正常版>` で即時ロールバックして本番を復旧**し、その後に修正する。
 - **push 前に `git diff` で作業ツリー全体を確認し、自分の変更以外の未コミット変更が存在する場合はその影響範囲を評価する。** 問題がある場合はファイル単位で push 範囲を限定するかユーザーに確認してから進む。
 - **`git status --short` で未追跡ファイルが出た場合は、追跡対象か例外かを必ず判定する。** 追跡対象なら同ターンで追加・記録し、未追跡でよい場合はその根拠を `.gitignore` または案件正本へ明示する。
-- fixed deployment sync は既知の deployment ID に対する `npx clasp redeploy ... --versionNumber ...` を正とし、結果は `npx clasp deployments --json` で確認する。
+- fixed deployment sync は既知の deployment ID に対する `npx clasp redeploy <deploymentId> -V <version>` を正とし、結果は `npx clasp list-deployments` で確認する（**`--json` オプションは存在しない**）。
 - 毎回更新する文書は `HANDOVER.md`、`docs/09_DEPLOYMENT_POLICY.md`、必要に応じた release state 文書とし、`AGENTS.md` や案件固定ルールは運用原則が変わった場合にのみ更新する。
 - 実ブラウザ確認が未実施でも、コード上の検証結果と確認待ち範囲を必ず明記し、操作者による確認に引き継げる状態で完了報告する。
 - password verifier / credential generation を変更する release では、`PASSWORD_HASH_PEPPER_V1` が integrated/public・member split・admin split の Script Properties に同一値で設定済みであることを、値を表示・記録せず確認する。
+- **業務ルール（`docs/spec/02_RD.md` の BR-xx）を新設・変更したら、それを実行して確かめる検査を同時に作る。**
+  検査の正本は `npm run test:validation-matrix`（BR を実行して受理／拒否を突き合わせる）と
+  `npm run test:db-relations`（参照整合性）。仕様書の「検証方法」欄と
+  `docs/268` のトレーサビリティ一覧へ必ず登録する（`test:docs-single-source` が未登録を検出して落とす）。
+  - **未検証を残してよい。ただし必ず明示する。** 仕様書の検証方法欄に「**未検証**」と書き、
+    何がなぜ検証できていないかを完了報告にも残す。黙って埋めたことにしない。
+- **検証を厳格化する変更は、本番データを事前スキャンしてから入れる。**
+  新しい規則を既存の全行に当て、違反件数と該当行を数える。違反があるとき、
+  **既存データを人質にしない**——無関係な項目すら直せなくなる状態を作らない。
+  とる手段は「値を変えるときだけ検証する」「保存前に正規化する」「先にデータを直す」のいずれかで、
+  選んだ理由を release state 文書に残す（実例: v376.110 の `opts.stored`。
+  本番に `573 -1191` と事業所番号 `0` が実在し、無条件に弾くと 2 会員が保存不能になるところだった）。
 - 未検証、残課題、承認待ちは必ず明記する。
 
 ## 6. セキュリティと承認
@@ -267,6 +317,13 @@
   2. **認証・認可 (Authentication & Authorization)**: 機能ごとに必要な権限を **server side で強制**（§4.2 認証フロー + RBAC `docs/246` 遵守）。frontend での UI 非表示は二重防御の一部であって単独防御にしない
   3. **機密データ保護 (Data Protection)**: パスワードハッシュ・トークン・PII は最小権限で扱う、伝送・保存時に暗号化 / ハッシュ化（§0 シークレット保管 + §4.3 pepper 運用に従う）
   4. **エラー処理・ログ (Error Handling & Logging)**: 例外情報の詳細を end user に露出しない、内部ログには秘密値を含めない（§0 シークレット保管）、例外時は fail close で deny-by-default
+     - **条件を確認できないときは、検証を飛ばして通してはならない（2026-10-02 確定）。**
+       参照先の行が見つからない・ID が空・シートが無い——いずれも「確認できなかった」であって
+       「条件を満たした」ではない。**確認できない旨を明示して止める**（fail-closed）。
+     - **入れ子の `if` で起きやすい。** 権限や存在のガードを `if (a) { if (b) { if (c) { throw ... } } }`
+       と書くと、a・b・c のどれが欠けても**何も検証せず素通り**する。
+       ガードは早期 return / 早期 throw で平らに書き、各条件が満たせないときの拒否理由を個別に出す。
+       実例: 事業所の退会申請「代表者のみ」が、認証アカウントに職員IDが無いと素通りしていた（v376.110 で是正）。
   5. **セキュア通信・依存 (Secure Communication & Dependencies)**: HTTPS / TLS / signed token のみ使用、npm 依存は `npm audit --audit-level=high` で定期監査、外部ライブラリ採用前に `import.meta` 等の build trap を grep 確認（参考: MEMORY `feedback_pdfjs_dist_vite_singlefile_trap.md`）
 - **確定済みセキュリティ境界への逆行案提示禁止**: 第三者評価（`docs/109`）や設計決定（`docs/111`）で確定した認証境界・アクセス制御・プロジェクト分離に反する案を「選択肢の一つ」として対等に提示してはならない。利便性はセキュリティ境界を崩す理由にならない。やむを得ず言及する場合は「**非推奨・セキュリティリスクあり**」を冒頭に明示し、推奨しないことを基本姿勢とする。
 - **このプロジェクトの確定済み境界**: admin（DOMAIN・Google セッション・管理専用）/ member（匿名・ID/PW・会員専用）/ public（完全匿名・申込専用）。3境界の混在・統合提案は上記ルールに従う。

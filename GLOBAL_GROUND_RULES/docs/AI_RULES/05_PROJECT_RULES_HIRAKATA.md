@@ -41,11 +41,11 @@
 - 認証、認可、DB 整合、deployment 検証は static mock ではなく Apps Script 実行系で確認する。
 - 会員ログインは `loginId + password` のみ。
 - 管理者ログインは Google アカウント + whitelist 検証。
-- 本番 URL は fixed deployment 2 本で管理し、`docs/09_DEPLOYMENT_POLICY.md` に従う。
+- 本番 URL は **fixed deployment 4 本**（統合・公開 ×2 / member ×1 / admin ×1）で管理し、`docs/09_DEPLOYMENT_POLICY.md` に従う。
 - 本番の fixed deployment 更新は `npx clasp redeploy` を標準とし、Apps Script UI の `Manage deployments` 手更新は障害復旧または緊急迂回時だけに限定する。
-- `npx clasp version` / `npx clasp redeploy` / `npx clasp deployments --json` / `npx clasp run ...` などの Apps Script API 到達コマンドは、既知のネットワーク失敗を避けるため、最初から承認済みの安定経路で実行する。通常経路で一度失敗してから再実行する流れを標準運用にしない。
+- `npx clasp create-version` / `npx clasp redeploy` / `npx clasp list-deployments` / `npx clasp run ...` などの Apps Script API 到達コマンドは、既知のネットワーク失敗を避けるため、最初から承認済みの安定経路で実行する。通常経路で一度失敗してから再実行する流れを標準運用にしない。
 - release 完了条件は `build -> push -> version -> fixed deployment sync -> verification -> document update`。
-- fixed deployment sync の確認は `npx clasp deployments --json` を正とする。
+- fixed deployment sync の確認は `npx clasp list-deployments` を正とする（**`--json` オプションは存在しない**）。
 - versioned PBKDF2-HMAC-SHA256 + verifier-side pepper を含む認証変更は、本番反映前に integrated/public・member split・admin split の全 Apps Script project へ同一の強乱数 Script Property `PASSWORD_HASH_PEPPER_V1` が設定済みであることを必須条件とする。値は表示・記録しない。`.env` は Apps Script 本番 runtime の正本にせず、必要な場合でも未コミットのローカル運用補助に限定する。
 - pepper の Google Cloud Secret Manager 化、および Apps Script 内 PBKDF2 制約を解消する外部 KDF / managed identity の採否決定は、保留中でも必須の security backlog として扱う。破棄・完了扱い・正本文書からの削除は禁止し、完了または明示的な代替設計決定まで `HANDOVER.md` と関連仕様へ残す。
 - 毎回更新する文書は `HANDOVER.md`、`docs/09_DEPLOYMENT_POLICY.md`、必要に応じた release state 文書とし、この固定ルール文書は運用原則変更時のみ更新する。
@@ -76,10 +76,10 @@ cd backend
 npx clasp show-authorized-user
 npx clasp run healthCheck
 npx clasp run getDbInfo
-npx clasp deployments --json
+npx clasp list-deployments
 ```
 
 期待値:
 - authorized user が運用アカウント
 - health check が成功
-- fixed deployment 2 本が `HANDOVER.md` 記載の現行 target version を向いている
+- fixed deployment 4 本が `HANDOVER.md` 記載の現行 target version を向いている
