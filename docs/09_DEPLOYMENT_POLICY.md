@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-09-22
-Production: `v376.100` / integrated-public `@411` x2 / member split `@169` / admin split `@266`
+Updated: 2026-10-02
+Production: `v376.109` / integrated-public `@420` x2 / member split `@178` / admin split `@276`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -151,7 +151,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-02 v376.108 ← current production
+### 2026-10-02 v376.109 ← current production
+
+- Scope: 公開ポータルのフッターと研修の外部申込フォームで「プライバシーポリシーについて」をリンク化。URL は `T_システム設定` の `PUBLIC_PORTAL_PRIVACY_POLICY_URL` に持たせ、管理画面の公開ポータルタブに新設した「サイト情報」見出しから編集する。ScriptProperties を採らなかったのは GAS プロジェクト単位で 3 重登録になるため。既定値は空で、空ならリンク要素ごと出さない（ハードコードされた既定値が定款リンクを腐らせたため）。あわせて「本サイトに掲載しています」の文言を 2 か所から削除。
+- Fixed deployments: integrated/public @420 x2 / member @178 / admin @276.
+- Verification: prerelease PASS（exit 0）、test:privacy-policy-link 7/7（新設）、deployment API で 4 本同期確認。**実データ確認済**：設定保存は巻き添え変更 0 件、公開ポータル実画面でフッターの href / target=_blank / rel=noopener noreferrer / 旧文言消滅を確認。入会申込の「定款を確認する」が新しい掲載先を指すことも確認。docs/293。
+- 注意: `updateSystemSettings` は **部分更新できない**（`validateAnnualFeeTransferAccount_` が無条件に走る）。この API を叩くツールは必ず read-modify-write にすること。
+- Rollback: integrated/public @419 x2 / member @177 / admin @275（v376.108）。
+
+### 2026-10-02 v376.108
 
 - Scope: 退職（勤務なし）を選んだとき、サーバが必須にする項目（携帯電話番号／自宅の〒・都道府県・市区町村・番地）と連絡先メールをフロントが先に集め、満たすまで送信させない。operator 指示「管理者の手元に来た時点で、承認ができる状態のデータしか確認へ飛ばしてはならない」。止め方は 3 重（ボタン無効化＋不足一覧／handleSubmit の再確認／退職中は連絡先・自宅住所のグループを外せない）。フロントは勝手なルールを作らず、サーバの必須ルールの写しであることを test:office-affiliation が検査する。
 - Fixed deployments: integrated/public @419 x2 / member @177 / admin @275.
