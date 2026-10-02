@@ -150,6 +150,28 @@ test('ジョブの失敗と遅れが Chat へ流れる配線がある', () => {
   assert.ok(block.includes('reportOverdueScheduledJobs_()'), '管理画面の初期読み込みで死活を評価していない');
 });
 
+test('管理者 split が ScriptApp のトリガー操作スコープを持つ', () => {
+  // 2026-10-02: setupScheduledTriggers が
+  // 「Specified permissions are not sufficient to call ScriptApp.getProjectTriggers」で落ちた。
+  // appsscript.json に oauthScopes を明記するとそれが確定リストになり、
+  // GAS の自動検出は効かない。トリガーを作る／消す側だけがこのスコープを要る。
+  const manifest = JSON.parse(read('gas/admin/appsscript.json')) as { oauthScopes: string[] };
+  assert.ok(
+    manifest.oauthScopes.includes('https://www.googleapis.com/auth/script.scriptapp'),
+    'script.scriptapp が無いと jobs.gs のトリガー設定関数が実行時に落ちる',
+  );
+});
+
+test('トリガーを持たない split に script.scriptapp を広げない', () => {
+  for (const file of ['backend/appsscript.json', 'gas/member/appsscript.json']) {
+    const manifest = JSON.parse(read(file)) as { oauthScopes: string[] };
+    assert.ok(
+      !manifest.oauthScopes.includes('https://www.googleapis.com/auth/script.scriptapp'),
+      `${file} に不要なスコープが入っている（定期ジョブは管理者 split にだけ置く）`,
+    );
+  }
+});
+
 test('死活確認は管理者 split の生成物から引数なしで実行できる', () => {
   assert.ok(hasFunction(artifacts.admin, 'checkScheduledJobHealth'), 'operator 用の入口が admin に無い');
   assert.ok(hasFunction(artifacts.admin, 'setupScheduledTriggers'), 'トリガー再作成の入口が admin に無い');

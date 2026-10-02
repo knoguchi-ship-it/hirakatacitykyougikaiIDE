@@ -138,3 +138,52 @@ operator 指示の「事業所会員の権限者から」は**既に実装済み
 - 整合性ガードを置いた場所は `saveMemberCore_` ではなく **`validateMemberPayload_`** だった
   （検証ロジックは別関数に分かれている）。テストの記述を実態に合わせ、あわせて
   「`saveMemberCore_` が検証を必ず呼ぶ」ことも固定した（迂回経路を作らせない）。
+
+## 7. v376.107.1 — `script.scriptapp` スコープ追加（2026-10-02）
+
+### 症状
+
+operator が `jobs.gs` の `setupScheduledTriggers` を実行したところ:
+
+```
+Exception: Specified permissions are not sufficient to call ScriptApp.getProjectTriggers.
+Required permissions: https://www.googleapis.com/auth/script.scriptapp
+setupScheduledTriggers @ jobs.gs:30
+```
+
+### 原因
+
+**`appsscript.json` に `oauthScopes` を明記すると、それが確定リストになり GAS の自動検出は効かない。**
+`ScriptApp.getProjectTriggers()` / `newTrigger()` / `deleteTrigger()` に必要な
+`https://www.googleapis.com/auth/script.scriptapp` が **3 split のどれにも入っていなかった**。
+
+つまり **`setupScheduledTriggers` はそもそも一度も実行できなかった**。
+既存のトリガー（`warmUp` 等）は Apps Script の画面から手で作られたものと考えられる。
+
+§1（`docs/archive/release_history/289`）では「pruning でハンドラが生成物から消えていた」ことを
+原因として書いたが、**仮にハンドラが残っていてもこの関数は権限不足で落ちていた**。
+原因は 2 つ重なっていた。
+
+### 対処
+
+- `gas/admin/appsscript.json` に `script.scriptapp` を追加（**管理者 split のみ**）。
+- `test:scheduled-jobs` に 2 件追加:
+  - 管理者 split がこのスコープを持つ
+  - **トリガーを持たない公開・会員 split には広げない**（定期ジョブは管理者 split だけ、を機械で守る）
+
+Web App への影響は無い。管理画面のコードは `ScriptApp` のトリガー API を使わず、
+既存の grant のまま動く（スコープ追加で grant は自動失効しない）。
+
+### 結果
+
+admin @274 へ反映後、`setupScheduledTriggers` が成功:
+
+```
+setupScheduledTriggers: 現在のトリガー = dailyWithdrawalPolicyTrigger
+```
+
+**日次ジョブ（退会予定→退会確定の昇格）が復活した。**
+`processPendingThumbnails` は登録されていなかったので `setupPendingThumbnailsTrigger` を別途実行する。
+
+心拍は「ジョブが一度成功してから」記録されるため、`checkScheduledJobHealth` は
+日次ジョブが初回（翌 02:00）に走るまで `overdue: true` を返す。これは正常。

@@ -151,7 +151,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-01 v376.107 ← current production
+### 2026-10-02 v376.107.1 ← current production
+
+- Scope: 管理者 split の appsscript.json に `script.scriptapp` を追加。oauthScopes を明記すると確定リストになり GAS の自動検出が効かないため、ScriptApp.getProjectTriggers / newTrigger / deleteTrigger が権限不足で落ちていた（3 split のどれにも入っていなかった＝ setupScheduledTriggers はそもそも一度も実行できなかった）。トリガーを持たない公開・会員 split には広げない。
+- Fixed deployments: integrated/public @418 x2 / member @176 / **admin @274**（admin のみ更新）。
+- Verification: test:scheduled-jobs 10/10（スコープの有無を両方向で検査）、audit-admin-boundary PASS。**operator が setupScheduledTriggers の実行に成功し、dailyWithdrawalPolicyTrigger が復活したことを確認**（2026-10-02 11:02）。
+- Rollback: admin @273（v376.107）。
+
+### 2026-10-01 v376.107
 
 - Scope: 個人・賛助会員が公開ポータルから勤務先（事業所名）を変更できるようにした。入会申込では必須で取るのに本人からは変更できず、転職すると「前職の事業所名 ＋ 現職の住所・電話」という行しか作れなかった。郵送先区分が勤務先のとき宛名を決めるのはこの項目（BR-04）なので郵便が前職へ届いていた。あわせて「現在は勤務していない」を新設し、勤務先名=勤務なし・勤務先の電話/FAX を消し郵送先を自宅へ切り替える。validateMemberPayload_ が「勤務なし」×「郵送先＝勤務先」を拒否する。判定の正本は src/shared/officeAffiliation.ts。
 - 改修前のリレーション確認: 勤務先名は外部キーではなく、会員まわりの辺はすべて ID で結ぶ。勤務先名で join するのは本人確認の名義照合と宛名リストだけで、どちらも BUSINESS 限定。個人会員の変更では壊れない。

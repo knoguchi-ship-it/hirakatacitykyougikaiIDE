@@ -13,6 +13,19 @@
 
 ---
 
+## v376.107.1 — 2026-10-02 🔒 トリガー設定に必要なスコープを追加（admin @274）
+
+`setupScheduledTriggers` が `Specified permissions are not sufficient to call ScriptApp.getProjectTriggers` で落ちた。
+
+- **`appsscript.json` に `oauthScopes` を明記すると、それが確定リストになり GAS の自動検出は効かない。**
+  `script.scriptapp` が **3 split のどれにも入っておらず**、`setupScheduledTriggers` は
+  **そもそも一度も実行できなかった**（既存のトリガーは画面から手で作られたもの）。
+  v376.104 で「pruning でハンドラが消えていた」と書いたが、原因は 2 つ重なっていた。
+- 管理者 split にだけ追加。`test:scheduled-jobs` が「管理者は持つ／公開・会員には広げない」を両方向で検査する。
+- **結果**: operator の実行が成功し、日次ジョブ（退会予定→退会確定の昇格）が復活した。
+
+---
+
 ## v376.107 — 2026-10-01 🐛 勤務先（所属）を本人が変更できるようにする（全3split @418×2 / @176 / @273）
 
 個人・賛助会員は**勤務先の事業所名を変更できなかった**。入会申込では必須で取るのに、公開ポータルの
