@@ -139,3 +139,58 @@ test('画面が「勤務なし」を直書きしていない（3 箇所の食い
     assert.deepEqual(offenders, [], `${label} が予約語を直書きしている: ${offenders.join(' / ')}`);
   }
 });
+
+// ── 退職時にフロントで止める（2026-10-02 operator 指示）─────────────
+// 「管理者の手元に来た時点で、承認ができる状態のデータしか確認へ飛ばしてはならない」。
+// サーバの必須ルールをフロントが先に満たさせる。満たすまで送信させない。
+
+test('★退職を選んだら、サーバが必須にする項目をフロントが要求する', () => {
+  const start = publicForm.indexOf('const retirementMissing = useMemo(');
+  assert.notEqual(start, -1, '退職時の不足チェックが無い');
+  const block = publicForm.slice(start, publicForm.indexOf('}, [', start));
+  // 勤務先電話を消すので携帯が要る（サーバ: 勤務先電話番号または携帯電話番号のどちらか）
+  assert.ok(block.includes('mobilePhone'), '携帯電話番号を要求していない');
+  // 郵送先が自宅になるので自宅住所一式が要る
+  for (const key of ['postCode', 'prefecture', 'city', 'addressLine']) {
+    assert.ok(block.includes(key), `自宅住所の ${key} を要求していない`);
+  }
+  assert.ok(block.includes('email'), '連絡先メールを要求していない');
+});
+
+test('★不足があれば送信ボタンを押せない', () => {
+  assert.ok(
+    publicForm.includes('disabled={busy || !hasAnyInput || retirementMissing.length > 0}'),
+    '不足があっても送信できてしまう',
+  );
+});
+
+test('★ボタン以外の経路でも送信を止める', () => {
+  // Enter キー・支援技術・将来の改修で disabled が外れても通さない。
+  const start = publicForm.indexOf('const handleSubmit = async');
+  const block = publicForm.slice(start, start + 500);
+  assert.ok(block.includes('retirementMissing.length > 0'), 'handleSubmit で確かめていない');
+  assert.ok(block.includes('e.preventDefault()'), '送信を止めていない');
+});
+
+test('退職中は連絡先・自宅住所のグループを外せない', () => {
+  const start = publicForm.indexOf('const toggle = (g: FieldGroup)');
+  const block = publicForm.slice(start, publicForm.indexOf('});', start));
+  assert.ok(block.includes('indNoOffice'), '退職中かを見ていない');
+  assert.ok(block.includes("'contact'") && block.includes("'homeAddress'"), '外せないようにする対象が足りない');
+});
+
+test('退職を選ぶと必要なグループが自動で開く', () => {
+  assert.ok(
+    publicForm.includes("new Set(prev).add('homeAddress').add('contact')"),
+    '自宅住所・連絡先の入力欄が出ないと、必須を満たしようがない',
+  );
+});
+
+test('フロントが要求する項目はサーバの必須ルールと対応している', () => {
+  // サーバ側がこれらを必須にしている限り、フロントの要求は過不足ない。
+  const validator = extractLargeFunction('validateMemberPayload_');
+  assert.ok(validator.includes('勤務先電話番号または携帯電話番号のどちらかを入力してください'),
+    'サーバの電話必須ルールが消えている（フロントの要求根拠が無くなる）');
+  assert.ok(validator.includes('個人会員は自宅郵便番号が必須です'),
+    'サーバの自宅住所必須ルールが消えている');
+});

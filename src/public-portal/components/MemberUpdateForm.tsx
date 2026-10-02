@@ -190,7 +190,11 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
 
   // フィールド選択
   const [selected, setSelected] = useState<Set<FieldGroup>>(new Set());
+  // 退職（勤務なし）を選んでいる間は、連絡先と自宅住所を外させない。
+  // 外せると入力欄が消え、必須の値を入れられないまま送信しようとして詰まる。
+  const [indNoOffice, setIndNoOffice] = useState(false);
   const toggle = (g: FieldGroup) => setSelected(prev => {
+    if (indNoOffice && (g === 'contact' || g === 'homeAddress') && prev.has(g)) return prev;
     const next = new Set(prev);
     next.has(g) ? next.delete(g) : next.add(g);
     return next;
@@ -282,6 +286,28 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
   // ここを memberType === 'INDIVIDUAL' で書くと賛助会員の入力が拾われない。
   const isPersonType = memberType !== 'BUSINESS';
 
+  // 退職（勤務なし）を選ぶと、勤務先の電話を消し郵送先を自宅へ切り替える。
+  // サーバはそのとき次を必須にする（gas-src の validateMemberPayload_）:
+  //   - 勤務先電話番号または携帯電話番号のどちらか  → 勤務先を消すので携帯が要る
+  //   - 郵送先＝自宅なら 自宅の 〒・都道府県・市区町村・番地
+  // 連絡先メールはサーバ必須ではないが、勤務先が無くなると連絡手段が携帯とメールだけに
+  // なるため必須にする（operator 判断・2026-10-02）。
+  //
+  // **ここで止めないと、管理者に「承認できない申請」が届く。** 承認時に落ちると
+  // 申請は PENDING のまま残り、会員へ連絡して出し直してもらうことになる。
+  const retirementMissing = useMemo(() => {
+    if (!isPersonType || !selected.has('officeContact') || !indFields.noOffice) return [];
+    const missing: string[] = [];
+    if (!indFields.mobilePhone.trim()) missing.push('携帯電話番号');
+    if (!indFields.email.trim()) missing.push('連絡先メールアドレス');
+    const a = indFields.homeAddress;
+    if (!a.postCode.trim()) missing.push('自宅の郵便番号');
+    if (!a.prefecture.trim()) missing.push('自宅の都道府県');
+    if (!a.city.trim()) missing.push('自宅の市区町村');
+    if (!a.addressLine.trim()) missing.push('自宅の番地');
+    return missing;
+  }, [isPersonType, selected, indFields]);
+
   const hasAnyInput = useMemo(() => {
     // 個人会員・賛助会員
     if (isPersonType) {
@@ -317,6 +343,12 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
   }, [memberType, isPersonType, selected, indFields, bizFields, staffAddCards, staffRemoveCards, staffUpdateCards]);
 
   const handleSubmit = async (e: React.FormEvent) => {
+    // ボタンの disabled だけに頼らない（Enter キー・支援技術・将来の改修）。
+    if (retirementMissing.length > 0) {
+      e.preventDefault();
+      setError('退職（勤務なし）の手続きには ' + retirementMissing.join('・') + ' の入力が必要です。');
+      return;
+    }
     e.preventDefault();
     setBusy(true);
     clearError();
@@ -641,12 +673,13 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
                         onChange={e => {
                           const checked = e.target.checked;
                           setIndFields(f => ({ ...f, noOffice: checked }));
+                          setIndNoOffice(checked);
                           // 郵送先が自宅へ切り替わるので、自宅住所の入力欄を出しておく。
                           // 自宅住所が未登録のまま承認すると「自宅郵便番号が必須です」で
                           // 承認が落ちる。会員側は自分の登録状況を見られない（公開ポータルは
                           // 会員データを返さない）ので、ここで入力の機会を作る。
                           // 既に登録済みなら空欄のままでよい（空欄＝変更なし）。
-                          if (checked) setSelected(prev => new Set(prev).add('homeAddress'));
+                          if (checked) setSelected(prev => new Set(prev).add('homeAddress').add('contact'));
                         }} />
                       <span>
                         <span className="text-sm font-medium text-slate-800">現在は勤務していない</span>
@@ -999,13 +1032,26 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
               ← 項目選択に戻る
             </button>
             <div className="flex-1">
-              <button type="submit" disabled={busy || !hasAnyInput}
-                aria-disabled={busy || !hasAnyInput}
-                title={!hasAnyInput ? '変更したい項目に入力してください（全て空欄では申請できません）' : ''}
+              <button type="submit" disabled={busy || !hasAnyInput || retirementMissing.length > 0}
+                aria-disabled={busy || !hasAnyInput || retirementMissing.length > 0}
+                title={retirementMissing.length > 0
+                  ? '退職（勤務なし）の場合は、連絡先と自宅住所の入力が必要です'
+                  : (!hasAnyInput ? '変更したい項目に入力してください（全て空欄では申請できません）' : '')}
                 className="w-full rounded-full bg-violet-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500">
                 {busy ? '送信中...' : '変更を申請する'}
               </button>
-              {!hasAnyInput && (
+              {retirementMissing.length > 0 ? (
+                <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900" role="alert">
+                  <p className="font-semibold">退職（勤務なし）の手続きには、次の入力が必要です</p>
+                  <ul className="mt-1 list-inside list-disc">
+                    {retirementMissing.map(label => <li key={label}>{label}</li>)}
+                  </ul>
+                  <p className="mt-1">
+                    勤務先の情報が無くなるため、ご連絡とお届け物の宛先として必要です。
+                    すでにご登録済みの内容と同じでも、お手数ですがご入力ください。
+                  </p>
+                </div>
+              ) : !hasAnyInput && (
                 <p className="mt-2 text-center text-xs text-slate-500" role="status">
                   変更したい項目に入力すると送信できます
                 </p>
