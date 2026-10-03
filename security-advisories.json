@@ -1,0 +1,21 @@
+{
+  "$comment": [
+    "脆弱性勧告の受容リスト。scripts/security-audit.mjs が読む。",
+    "ここに載せることは『無視する』ではなく『評価した。期限までに再審査する』という意味。",
+    "本番依存（package.json の dependencies 側）に出た勧告は、ここに書いても落ちる。",
+    "reviewBy を過ぎた項目も落ちる。受容を永久放置にしないため。"
+  ],
+  "accepted": [
+    {
+      "id": "GHSA-vfj7-8cjw-p6xm",
+      "packages": ["braces", "micromatch", "@google/clasp", "vite-plugin-singlefile"],
+      "severity": "high",
+      "scope": "dev",
+      "reason": "braces の stack 枯渇 DoS（CVSS 7.5）。到達経路は @google/clasp@3.4.1 → micromatch@4.0.8 → braces@3.0.3 で、ビルドと CLI でしか動かない。braces に渡るのは .claspignore のパターンと自リポジトリのファイルパスだけで、外部入力が無い。出荷物には含まれない（npm audit --omit=dev は 0 件）。",
+      "whyNotFixed": "上流に修正版が存在しない。勧告の対象は braces <=3.0.3 で、3.0.3 が公開されている最新版。npm の提示する修正は @google/clasp 2.5.0 と vite-plugin-singlefile 0.9.0 へのメジャーダウングレードのみ。clasp 2.x は固定 deployment の更新コマンドが `clasp deploy -i` で、これは PreToolUse hook が拒否する操作にあたり、/release Skill・AGENTS L1・docs/09 の記述もすべて不整合になる。vite-plugin-singlefile 0.9.0 は 2021 年頃の版で boot loader 契約（AGENTS L3.4）と patches/ の前提が崩れる。",
+      "acceptedOn": "2026-10-03",
+      "reviewBy": "2027-01-31",
+      "recheck": "braces に 3.0.4 以降が出ていないか / @google/clasp が micromatch 依存を外していないかを確認する"
+    }
+  ]
+}
