@@ -226,11 +226,18 @@ test('賛助会員の連絡先変更でログインIDをCM番号として検証�
   // 承認時は saveMemberCore_ が既存値と申請値を統合する。ここで賛助会員の
   // 自動採番ログインIDを CM 番号の代替にすると、CM番号を持たない賛助会員の
   // 連絡先変更まで 8 桁検証で失敗する。生成元の保存処理を直接検査する。
+  // 2026-10-04: 個人会員への限定ではなく、**どの種別でも代替に使わない**ことへ強めた。
+  // 本番の個人会員 19 名が CM 番号を持たないままログインID（9 桁自動採番）だけを持っており、
+  // 管理画面の保存 1 回で「登録されていない CM 番号」が捏造されていたため（docs/299）。
   const saveCore = extractFunction(gas, 'saveMemberCore_');
   assert.match(
     saveCore,
-    /storedCareManagerNumber\s*\|\|\s*\(memberTypeCode\s*===\s*'INDIVIDUAL'\s*\?\s*loginIdFallback\s*:\s*''\)/,
-    'ログインIDをCM番号の代替に使えるのは個人会員だけに限定してください',
+    /var careManagerFallback = storedCareManagerNumber;/,
+    'CM 番号の既定値は保存済みの値だけにしてください（ログインIDで埋めない）',
+  );
+  assert.ok(
+    !/careManagerFallback\s*=\s*storedCareManagerNumber\s*\|\|/.test(saveCore),
+    'ログインIDへのフォールバックが残っています',
   );
   const validate = extractFunction(gas, 'validateMemberPayload_');
   assert.match(

@@ -121,6 +121,7 @@
 
 | 文書 | 内容 |
 |---|---|
+| [299_SAVE_PATH_DEFECTS_2026-10-04.md](299_SAVE_PATH_DEFECTS_2026-10-04.md) | **保存経路の欠陥 2 件（事業所番号が書かれない／空のCM番号にログインIDを捏造）** |
 | [298_POLICY_WORKSPACE_AND_GCP_GATE_2026-10-03.md](298_POLICY_WORKSPACE_AND_GCP_GATE_2026-10-03.md) | **開発拠点と GCP 移植可能性ゲート（方針）。AGENTS.md §4.7/§4.8 から移送** |
 | [297_RULES_INVENTORY_2026-10-02.md](297_RULES_INVENTORY_2026-10-02.md) | **常設指示 条文棚卸し 211 件（生成物・`node scripts/inventory-rules.mjs`）。落とす判断は operator** |
 | [296_RULES_ARCHITECTURE_DESIGN_2026-10-02.md](296_RULES_ARCHITECTURE_DESIGN_2026-10-02.md) | **グランドルール再構築の設計（強制=npm/Hook・想起=Skill・常設=AGENTS・能力=MCP の層分け）** |

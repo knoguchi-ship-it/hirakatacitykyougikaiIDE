@@ -32,6 +32,20 @@ function fnSource(name: string): string {
   return gasSrc.slice(start, end + 3);
 }
 
+/**
+ * 次のトップレベル宣言までを 1 関数の本体とみなす。
+ * `saveMemberCore_` のような巨大な関数は内部に行頭 `}` を含み、`\n}\n` 探索では途中で切れる。
+ */
+function extractLargeFunction(name: string): string {
+  const start = gasSrc.indexOf(`function ${name}(`);
+  assert.notEqual(start, -1, `${name} が gas-src に見つからない`);
+  const next = gasSrc.indexOf('\nfunction ', start + 1);
+  return gasSrc.slice(start, next === -1 ? undefined : next);
+}
+
+/** 行コメントを落とす（説明文に書いた語をコード本体と誤認しないため） */
+const stripLineComments = (text: string) => text.replace(/^\s*\/\/.*$/gm, '');
+
 // ── 会員保存の検証を実際に動かす ────────────────────────────────────────────
 const validateMemberPayload = new Function(`
   ${fnSource('validateMemberPayload_')}
@@ -332,4 +346,50 @@ test('BR-18 承認時の適用も allowlist を通る（申請に何が入って
     '承認時に allowlist を引いていない');
   assert.match(head, /hasOwnProperty\.call\(fields, fk\)/,
     'allowlist を回さず申請の中身をそのまま適用している');
+});
+
+// ── 2026-10-04: 保存時に値を捏造しない・書けるはずの列を書く（docs/299）──────
+
+test('BR-15 既に空の CM 番号は、空のまま保存できる', () => {
+  // 本番に CM 番号が空の個人会員が 19 名いる。全員ログインID（9 桁自動採番）は持っている。
+  // 以前は保存のたびにログインIDが CM 番号欄へ書き込まれ、**登録されていない番号が捏造**されていた。
+  const v = verdict({ ...OK_INDIVIDUAL, careManagerNumber: '' }, 'INDIVIDUAL', 'ACTIVE',
+    { allowBlankCareManagerNumber: true });
+  assert.equal(v.ok, true, '既に空の行が保存できない（管理画面から一切編集できなくなる）');
+});
+
+test('BR-15 新規は CM 番号必須のまま（許可フラグが無ければ拒否）', () => {
+  const v = verdict({ ...OK_INDIVIDUAL, careManagerNumber: '' }, 'INDIVIDUAL');
+  assert.equal(v.ok, false, '新規作成で CM 番号が空でも通ってしまう');
+  assert.match(v.message, /介護支援専門員番号が必須/);
+});
+
+test('★捏造しない: 空の CM 番号をログインIDで埋めない', () => {
+  const core = stripLineComments(extractLargeFunction('saveMemberCore_'));
+  assert.ok(!/careManagerFallback\s*=\s*storedCareManagerNumber\s*\|\|/.test(core),
+    'ログインIDへのフォールバックが残っている。空の CM 番号に「登録されていない番号」が入る');
+  assert.ok(/var careManagerFallback = storedCareManagerNumber;/.test(core),
+    '保存されている値をそのまま使う形になっていない');
+  assert.ok(/allowBlankCareManagerNumber: !storedCareManagerNumber/.test(core),
+    'DB 側が空のときだけ空を許す、という受け渡しが無い');
+});
+
+test('★空振りしない: 事業所番号は読むだけでなく書かれる', () => {
+  // updateMember が success を返しながら列が変わらない、という無言の空振りだった。
+  const core = stripLineComments(extractLargeFunction('saveMemberCore_'));
+  assert.ok(/officeNumber: fromPayloadOrCurrent\('officeNumber'/.test(core),
+    'mergedPayload が payload の officeNumber を拾っていない');
+  assert.ok(/setCol\('事業所番号', mergedPayload\.officeNumber/.test(core),
+    '事業所番号を書き込んでいない（API は成功を返すのに DB は変わらない）');
+});
+
+test('★管理者 allowlist と保存の実装が食い違っていない', () => {
+  // allowlist で許可しているのに保存側が見ていない項目があると、
+  // 今回の事業所番号と同じ「成功を返して何もしない」が起きる。
+  const allow = arrayLiteral('ADMIN_MEMBER_WRITABLE_FIELDS_');
+  const core = stripLineComments(extractLargeFunction('saveMemberCore_'));
+  // 保存側でそのキー名が一切登場しないものを拾う
+  const notMerged = allow.filter((f) => !core.includes(f));
+  assert.deepEqual(notMerged, [],
+    '保存側がまったく参照していない allowlist 項目: ' + notMerged.join(' / '));
 });

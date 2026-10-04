@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 0849a5c603b1e12f111f489591c73df4bc3ffefc777c8e66d60ba5e7aa467279
+// BUILD_INPUT_SHA256: 799e3016e7a3f7642925acc9e617daf4b1f6c885b447cf9e8e7b247313972e9b
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -10394,7 +10394,11 @@ function saveMemberCore_(payload, options) {
   // 賛助会員のログインIDは CM 番号ではない（自動採番の 9 桁等）。
   // これを CM 番号の代替値にすると、連絡先だけの変更承認でも 8 桁検証に失敗する。
   // 賛助会員は DB に既に任意値があれば保全し、空欄なら空欄のままにする。
-  var careManagerFallback = storedCareManagerNumber || (memberTypeCode === 'INDIVIDUAL' ? loginIdFallback : '');
+  // 2026-10-04: 空の CM 番号をログインIDで埋めるのをやめた（docs/299）。
+  // ログインIDは CM 番号が無い会員に自動採番される 9 桁（BR-01）で、**CM 番号ではない**。
+  // 埋めると「登録されていない CM 番号」を捏造することになり、本番で 19 名が
+  // 管理画面の編集 1 回で汚染される状態だった。空は空のまま持ち回る。
+  var careManagerFallback = storedCareManagerNumber;
   var mergedPayload = {
     id: String(payload.id),
     type: memberTypeCode,
@@ -10406,6 +10410,7 @@ function saveMemberCore_(payload, options) {
     email: fromPayloadOrCurrent('email', String(getCol('代表メールアドレス') || '')),
     mobilePhone: fromPayloadOrCurrent('mobilePhone', String(getCol('携帯電話番号') || '')),
     officeName: fromPayloadOrCurrent('officeName', String(getCol('勤務先名') || '')),
+    officeNumber: fromPayloadOrCurrent('officeNumber', String(getCol('事業所番号') || '')),
     officePostCode: fromPayloadOrCurrent('officePostCode', String(getCol('勤務先郵便番号') || '')),
     officePrefecture: fromPayloadOrCurrent('officePrefecture', String(getCol('勤務先都道府県') || '')),
     officeCity: fromPayloadOrCurrent('officeCity', String(getCol('勤務先市区町村') || '')),
@@ -10454,6 +10459,8 @@ function saveMemberCore_(payload, options) {
   // 持ち回る保存（別項目だけの変更）は、過去データが書式に合わなくても通す。
   validateMemberPayload_(mergedPayload, memberTypeCode, currentMemberStatus, {
     allowRelaxedCmNumber: allowRelaxedCm,
+    // DB 側が既に空なら、空のまま保存することを許す（捏造しないための対）
+    allowBlankCareManagerNumber: !storedCareManagerNumber,
     stored: {
       mobilePhone: getCol('携帯電話番号'),
       phone: getCol('勤務先電話番号'),
@@ -10462,6 +10469,7 @@ function saveMemberCore_(payload, options) {
       officePostCode: getCol('勤務先郵便番号'),
       email: getCol('代表メールアドレス'),
       officeNumber: getCol('事業所番号'),
+      careManagerNumber: storedCareManagerNumber,
     },
   });
   // v372.4: DB 保存前に CM 番号を大文字化（既存純数字データは影響なし）
@@ -10513,6 +10521,10 @@ function saveMemberCore_(payload, options) {
   setCol('代表メールアドレス', mergedPayload.email || '');
   setCol('携帯電話番号', sharedMobile);
   setCol('勤務先名', mergedPayload.officeName || '');
+  // 2026-10-04: 事業所番号を書いていなかった。mergedPayload には載っていて
+  // 管理者 allowlist にも入っているのに setCol が無く、updateMember が
+  // success を返しながら列は変わらないという無言の空振りになっていた（docs/299）。
+  setCol('事業所番号', mergedPayload.officeNumber || '');
   setCol('勤務先郵便番号', mergedPayload.officePostCode || '');
   setCol('勤務先都道府県', mergedPayload.officePrefecture || '');
   setCol('勤務先市区町村', mergedPayload.officeCity || '');
@@ -10630,7 +10642,11 @@ function validateMemberPayload_(payload, memberTypeCode, currentMemberStatus, op
     if (!trim(payload.lastKana)) throw new Error('セイは必須です。');
     if (!trim(payload.firstKana)) throw new Error('メイは必須です。');
     // v376: 半角カナ制限を廃止。ひらがな/全角カナ/半角カナを許容し、保存時に normalizeAndValidateKana_ が全角カタカナに正規化する
-    if (!isSupport && !trim(payload.careManagerNumber)) throw new Error('賛助会員以外は介護支援専門員番号が必須です。');
+    // 2026-10-04: 既に空の行は空のまま保存できる（AGENTS L3.3 既存データを人質にしない）。
+    // 新規作成では従来どおり必須。saveMemberCore_ が「DB 側も空だった」ときだけ許可を渡す。
+    if (!isSupport && !trim(payload.careManagerNumber) && opts.allowBlankCareManagerNumber !== true) {
+      throw new Error('賛助会員以外は介護支援専門員番号が必須です。');
+    }
     // 賛助会員の CM 番号は任意。過去データに残る任意値（自動採番ログインID等）も
     // 連絡先変更を妨げないため、必須・書式検証の対象外とする。
     if (!isSupport && trim(payload.careManagerNumber)) {
