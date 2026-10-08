@@ -393,3 +393,64 @@ test('★管理者 allowlist と保存の実装が食い違っていない', () 
   assert.deepEqual(notMerged, [],
     '保存側がまったく参照していない allowlist 項目: ' + notMerged.join(' / '));
 });
+
+// ── 2026-10-08: 職員の追加・変更・除籍（docs/300）────────────────────────────
+
+test('BR-16 職員追加はサーバ側でも 6 項目を必須にする', () => {
+  // 公開ポータルのフォームは 6 項目そろった行だけ送るが、画面を経由しない経路では
+  // 空のまま職員行が作れていた。v376.110 で潰したのと同じ「画面でしか守られていない」型。
+  const fn = stripLineComments(extractLargeFunction('addApprovedStaffMember_'));
+  for (const [label, msg] of [
+    ['姓・名', '姓と名は必須です'],
+    ['セイ・メイ', 'セイとメイは必須です'],
+    ['メールアドレス', '職員のメールアドレスは必須です'],
+    ['介護支援専門員番号', '職員の介護支援専門員番号は必須です'],
+  ] as const) {
+    assert.ok(fn.includes(msg), `${label} を必須にしていない`);
+  }
+});
+
+test('★職員数上限は個別が無ければ全体既定を使う', () => {
+  // 以前は個別上限が空だと 0 扱いで、上限が一切効かなかった（RD §136 / §205）。
+  const fn = stripLineComments(extractLargeFunction('addApprovedStaffMember_'));
+  assert.ok(/DEFAULT_BUSINESS_STAFF_LIMIT/.test(fn),
+    '全体既定の上限を参照していない');
+  assert.ok(/if \(!staffLimit\)/.test(fn),
+    '個別上限が未設定のときに既定へ落ちる分岐が無い');
+});
+
+test('★職員追加で認証アカウントを作る（RD §224）', () => {
+  const fn = stripLineComments(extractLargeFunction('addApprovedStaffMember_'));
+  assert.ok(/ensureStaffAuthAccount_\(/.test(fn), '認証アカウントを作っていない');
+  const ensure = stripLineComments(extractLargeFunction('ensureStaffAuthAccount_'));
+  assert.ok(/generateCmBasedLoginId_\(/.test(ensure),
+    'ログインIDを CM 番号から採番していない（BR-15: 職員の CM 番号がログインID）');
+  assert.ok(/collectExistingLoginIds_\(/.test(ensure),
+    '既存ログインIDとの重複を見ていない');
+  assert.ok(/hashPasswordCurrent_\(/.test(ensure), 'パスワードをハッシュ化していない');
+  // 再承認・再実行で重複アカウントを作らない
+  assert.ok(/職員ID'\] \|\| ''\) === String\(staffId\)/.test(ensure),
+    '同じ職員の既存アカウントを検出していない（重複が生まれる）');
+  // 通知はここで送らない（送信可否は設定が決める）
+  assert.ok(!/deliverMail_\(/.test(ensure), 'アカウント作成の中でメールを送っている');
+});
+
+test('★代表者の絞り込みに正しい列名を使う', () => {
+  // T_事業所職員 に「権限コード」は無い。誤った列名で絞ると常に空になり、
+  // 代表者への職員追加通知が届かない。
+  const gas = gasSrc;
+  const staffRepFilters = gas.split('\n')
+    .map((l, i) => ({ l, i }))
+    .filter(({ l }) => /=== 'REPRESENTATIVE'/.test(l) && /\['権限コード'\]/.test(l));
+  assert.deepEqual(staffRepFilters.map(x => x.i + 1), [],
+    '職員を「権限コード」で絞っている行がある（正しくは 職員権限コード）');
+});
+
+test('BR-02 代表者は除籍できない', () => {
+  const fn = stripLineComments(extractLargeFunction('removeStaffFromOffice_'));
+  assert.ok(fn.includes('代表者は除籍できません'), '代表者の除籍を止めていない');
+  assert.ok(/職員状態コード'\]\] = 'LEFT'/.test(fn), '除籍状態にしていない');
+  assert.ok(/disableAuthAccountsByStaffId_\(/.test(fn), '認証アカウントを無効化していない');
+  // BR-12: 当年度は履歴を残す＝削除フラグは立てない
+  assert.ok(!/削除フラグ'\]\] = true/.test(fn), '除籍で削除フラグを立てている（BR-12 違反）');
+});

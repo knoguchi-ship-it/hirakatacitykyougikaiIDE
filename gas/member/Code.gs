@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 2c390407d6b00d3d188f39cf80a7d01b93f69600d72fbe2d79e340cfdabc2650
+// BUILD_INPUT_SHA256: 53c6b11b2b0705fa81037d9aea97af7be26b6d5fc8f8d1a798cfcb12cbdc43ba
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -6963,6 +6963,12 @@ function isAllowedRelaxedCmNumber_(adminSession) {
 // ── 管理者: 変更申請を却下 ──────────────────────────────────────────────────
 
 // 管理者が承認した変更申請からのみ職員を追加する。
+
+/**
+ * 職員の認証アカウントを作る。ログインIDは介護支援専門員番号から採番する（BR-15）。
+ * 既に同じ職員IDのアカウントがあれば何もしない（再承認や再実行で重複させない）。
+ * 初期パスワードは乱数。**通知はここでは送らない**——送るかどうかは設定が決める。
+ */
 
 // ── v264 変更申請キュー ここまで ────────────────────────────────────────────
 

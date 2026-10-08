@@ -18417,7 +18417,10 @@ function approveAdminChangeRequest_(payload) {
         return !toBoolean_(r['削除フラグ']) &&
                String(r['会員ID'] || '') === memberId &&
                String(r['職員状態コード'] || '') === 'ENROLLED' &&
-               String(r['権限コード'] || '') === 'REPRESENTATIVE';
+               // 2026-10-08: 列名が誤っていた。T_事業所職員 に「権限コード」は無く
+               // 「職員権限コード」が正しい。この絞り込みは常に空を返しており、
+               // 代表者への職員追加通知が一度も届いていなかった（docs/300）。
+               String(r['職員権限コード'] || '') === 'REPRESENTATIVE';
       })[0] || null;
       var repEmail = repStaffRow ? String(repStaffRow['メールアドレス'] || '') : '';
       var repName = repStaffRow ? (String(repStaffRow['姓'] || '') + ' ' + String(repStaffRow['名'] || '')).trim() : '';
@@ -18622,11 +18625,29 @@ function addApprovedStaffMember_(memberId, s) {
     var lastName = String(s.lastName || '').trim();
     var firstName = String(s.firstName || '').trim();
     if (!lastName || !firstName) return { success: false, error: '姓と名は必須です' };
+    // 2026-10-08: BR-16「入力を始めた行は 氏/名/セイ/メイ/メール/介護支援専門員番号 を必須」を
+    // サーバ側でも効かせる。公開ポータルのフォームは 6 項目そろった行だけを送るが、
+    // 画面を経由しない経路では空のまま職員行が作れていた（docs/300）。
+    if (!String(s.lastKana || '').trim() || !String(s.firstKana || '').trim()) {
+      return { success: false, error: 'セイとメイは必須です' };
+    }
+    if (!String(s.email || '').trim()) {
+      return { success: false, error: '職員のメールアドレスは必須です' };
+    }
+    if (!String(s.careManagerNumber || '').trim()) {
+      return { success: false, error: '職員の介護支援専門員番号は必須です（ログインIDになります）' };
+    }
     var memberSheet = ss.getSheetByName('T_会員');
     var memberFound = memberSheet ? findRowByColumnValue_(memberSheet, '会員ID', memberId) : null;
     if (memberFound) {
+      // 2026-10-08: 事業所ごとの個別上限が未設定なら全体既定を使う（RD §136 / §205）。
+      // 以前は個別上限が空だと 0 として扱われ、**上限が一切効かなかった**。
       var limitVal = memberFound.row[memberFound.columns['職員数上限']];
       var staffLimit = limitVal ? Number(limitVal) : 0;
+      if (!staffLimit) {
+        var defaultLimit = Number(getSystemSettingValue_(ss, 'DEFAULT_BUSINESS_STAFF_LIMIT') || 0);
+        if (isFinite(defaultLimit) && defaultLimit > 0) staffLimit = Math.floor(defaultLimit);
+      }
       if (staffLimit > 0) {
         var currentCount = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) {
           return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId && String(r['職員状態コード'] || '') === 'ENROLLED';
@@ -18671,8 +18692,9 @@ function addApprovedStaffMember_(memberId, s) {
         return { success: true, converted: true, action: 'STAFF_TO_STAFF', staffId: transferred.newStaffId };
       }
     }
+    var newStaffId = 'S' + Date.now();
     appendRowsByHeaders_(ss, 'T_事業所職員', [{
-      職員ID: 'S' + Date.now(),
+      職員ID: newStaffId,
       会員ID: memberId,
       姓: lastName,
       名: firstName,
@@ -18691,8 +18713,66 @@ function addApprovedStaffMember_(memberId, s) {
       更新日時: now,
       削除フラグ: false,
     }]);
+    // 2026-10-08: 認証アカウントを同時に作る（RD §224「職員追加 → 職員レコードと認証アカウントを作成する」）。
+    // 以前は職員行を足すだけで、アカウントは管理者が adminIssueMemberCredential_ を
+    // 手で実行するまで存在しなかった。通知を送るかどうかは従来どおり
+    // STAFF_ADD_STAFF_EMAIL_ENABLED 設定が決める（ここでは送信しない）。
+    var createdLoginId = '';
+    try {
+      createdLoginId = ensureStaffAuthAccount_(ss, memberId, newStaffId, careNum);
+    } catch (authErr) {
+      // 職員行は既に作成済み。アカウント作成だけ失敗したことを呼び出し元へ伝える。
+      Logger.log('staff auth account creation failed for ' + newStaffId + ': ' + authErr.message);
+      clearAllDataCache_();
+      return { success: true, staffId: newStaffId, authAccountCreated: false, authError: authErr.message };
+    }
     clearAllDataCache_();
-    return { success: true };
+    return { success: true, staffId: newStaffId, authAccountCreated: true, loginId: createdLoginId };
+}
+
+/**
+ * 職員の認証アカウントを作る。ログインIDは介護支援専門員番号から採番する（BR-15）。
+ * 既に同じ職員IDのアカウントがあれば何もしない（再承認や再実行で重複させない）。
+ * 初期パスワードは乱数。**通知はここでは送らない**——送るかどうかは設定が決める。
+ */
+function ensureStaffAuthAccount_(ss, memberId, staffId, careManagerNumber) {
+  var authSheet = ss.getSheetByName('T_認証アカウント');
+  if (!authSheet) throw new Error('T_認証アカウント シートが見つかりません。');
+
+  var existing = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) && String(r['職員ID'] || '') === String(staffId);
+  })[0];
+  if (existing) return String(existing['ログインID'] || '');
+
+  var existingLoginIds = collectExistingLoginIds_(ss);
+  var loginId = generateCmBasedLoginId_(String(careManagerNumber || ''), existingLoginIds);
+  var password = generateRandomPassword_();
+  var salt = generateSalt_();
+  var hashed = hashPasswordCurrent_(password, salt);
+  var now = new Date().toISOString();
+
+  var authRow = テーブル定義.T_認証アカウント.map(function(col) {
+    switch (col) {
+      case '認証ID': return Utilities.getUuid();
+      case '認証方式': return 'PASSWORD';
+      case 'ログインID': return loginId;
+      case 'パスワードハッシュ': return hashed;
+      case 'パスワードソルト': return salt;
+      case 'システムロールコード': return 'MEMBER';
+      case '会員ID': return String(memberId);
+      case '職員ID': return String(staffId);
+      case 'パスワード更新日時': return now;
+      case 'アカウント有効フラグ': return true;
+      case 'ログイン失敗回数': return 0;
+      case 'ロック状態': return false;
+      case '作成日時': return now;
+      case '更新日時': return now;
+      case '削除フラグ': return false;
+      default: return '';
+    }
+  });
+  authSheet.appendRow(authRow);
+  return loginId;
 }
 
 // ── v264 変更申請キュー ここまで ────────────────────────────────────────────

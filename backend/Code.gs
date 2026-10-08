@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 3b5e81487dcfd69c0c7558091116907bf31e87e2f1564bc4a4a0abc46e9ded0b
+// BUILD_INPUT_SHA256: e63de9d219d3df5e971c2380969e715f375dbdba5fd5705e31a8fa5df3ee0195
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -5185,6 +5185,12 @@ function submitPublicChangeRequest_(payload) {
 // ── 管理者: 変更申請を却下 ──────────────────────────────────────────────────
 
 // 管理者が承認した変更申請からのみ職員を追加する。
+
+/**
+ * 職員の認証アカウントを作る。ログインIDは介護支援専門員番号から採番する（BR-15）。
+ * 既に同じ職員IDのアカウントがあれば何もしない（再承認や再実行で重複させない）。
+ * 初期パスワードは乱数。**通知はここでは送らない**——送るかどうかは設定が決める。
+ */
 
 // ── v264 変更申請キュー ここまで ────────────────────────────────────────────
 
