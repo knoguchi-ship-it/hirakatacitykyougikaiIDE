@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-10-02
-Production: `v376.110` / integrated-public `@421` x2 / member split `@179` / admin split `@277`
+Production: `v376.111` / integrated-public `@422` x2 / member split `@180` / admin split `@278`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -151,7 +151,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-02 v376.110 ← current production
+### 2026-10-08 v376.111 ← current production
+
+- Scope: 保存経路の欠陥 2 件を修正（docs/299）。① 事業所番号が書き込まれない（allowlist にあり mergedPayload に無く setCol も無い。updateMember が success を返しながら列が変わらない無言の空振り）。② 空の CM 番号にログインID を書き込んでいた（個人会員 181 名中 19 名が対象。ログインID は 9 桁自動採番で CM 番号ではなく、「登録されていない番号」の捏造にあたる）。あわせて「贊助会員以外は CM 番号必須」を DB 側が既に空のときだけ通す（AGENTS L3.3 既存データを人質にしない）。
+- Fixed deployments: integrated/public @422 x2 / member @180 / admin @278.
+- Verification: prerelease PASS（exit 0）、テスト **422 件 pass**、test:validation-matrix 56/56、deployment API で 4 本同期確認。**実データ確認済**: 会員 36562151 の事業所番号 `0` → `2772411076`、**巻き添え 0 件**（35 列中 2 列のみ）。
+- 再発防止: allowlist で許可しているのに保存側が一切参照していない項目が無いことを test:validation-matrix が検査する。
+- Rollback: integrated/public @421 x2 / member @179 / admin @277（v376.110）。
+
+### 2026-10-02 v376.110
 
 - Scope: （入力）サーバー側の書式検証を新設（電話・郵便番号・メール・事業所番号）。**値を変えるときだけ効かせる**（`opts.stored`）— 本番に `573 -1191` と事業所番号 `0` が実在し、無条件に弾くとその 2 会員が保存不能になるため。（書き換え）退会申請の代表者ガードを fail-closed へ、ADMIN の自己ロール変更を禁止、添付の実在を Drive で確認、出欠状態・役職コードをマスタと照合（`isKnownMasterCode_`）。（画面）公開ポータルの「勤務先」と「勤務先住所」を 1 グループへ統合、空白のみの入力を拒否、事業所名変更時に据え置きを確認するダイアログ。（修正）「勤務なし」の承認で前職の電話・FAX・住所が消えていなかった不具合。
 - Fixed deployments: integrated/public @421 x2 / member @179 / admin @277.
