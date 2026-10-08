@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-10-02
-Production: `v376.111` / integrated-public `@422` x2 / member split `@180` / admin split `@278`
+Production: `v376.112` / integrated-public `@423` x2 / member split `@181` / admin split `@279`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -151,7 +151,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-08 v376.111 ← current production
+### 2026-10-08 v376.112 ← current production
+
+- Scope: 職員の追加・変更・除籍の仕様照合で見つかった 4 件を修正（`docs/300`）。① 職員追加で**認証アカウントを作成**（RD §224。従来は職員行だけで、アカウントは管理者が手で発行するまで存在しなかった）。② 代表者の絞り込みが存在しない列 `権限コード` を見ており**代表者への職員追加通知が一度も届いていなかった**（正しくは `職員権限コード`）。③ 職員追加の必須検査をサーバー側へ（氏/名/セイ/メイ/メール/CM番号。従来は姓・名のみ）。④ 職員数上限に全体既定 `DEFAULT_BUSINESS_STAFF_LIMIT` を効かせる（個別上限が空だと無制限だった）。あわせて仕様書 RD 1.9 で BR-02 の「代表者情報を会員レコードへ自動同期」を撤回（実装が v131 以降ブランク強制で、読み手が 1 つも無いため）。
+- Fixed deployments: integrated/public @423 x2 / member @181 / admin @279.
+- Verification: prerelease PASS（exit 0）、テスト **427 件 pass**、test:validation-matrix 61/61。**実地検証済**（会員 4539021 ケアプランセンターうぐいすの里）: 職員追加 → 認証アカウント作成 `loginId=27999001`／除籍 → `LEFT`＋退会日＋認証無効化／代表者の除籍は拒否／上限は残枠 4 名表示。**メールは全停止（mailDeliveryState=STOPPED）で実施し 1 通も送信せず、検証後 LIVE へ復元**。後片付け完了（バッチID `6423f003-d02f-4e68-8cfc-d559db37d53e`）。docs/300。
+- Rollback: integrated/public @422 x2 / member @180 / admin @278（v376.111）。
+
+### 2026-10-08 v376.111
 
 - Scope: 保存経路の欠陥 2 件を修正（docs/299）。① 事業所番号が書き込まれない（allowlist にあり mergedPayload に無く setCol も無い。updateMember が success を返しながら列が変わらない無言の空振り）。② 空の CM 番号にログインID を書き込んでいた（個人会員 181 名中 19 名が対象。ログインID は 9 桁自動採番で CM 番号ではなく、「登録されていない番号」の捏造にあたる）。あわせて「贊助会員以外は CM 番号必須」を DB 側が既に空のときだけ通す（AGENTS L3.3 既存データを人質にしない）。
 - Fixed deployments: integrated/public @422 x2 / member @180 / admin @278.
