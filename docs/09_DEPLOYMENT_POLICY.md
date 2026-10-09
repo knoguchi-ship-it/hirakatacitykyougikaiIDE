@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-10-02
-Production: `v376.112` / integrated-public `@423` x2 / member split `@181` / admin split `@279`
+Updated: 2026-10-09
+Production: `v376.113` / integrated-public `@424` x2 / member split `@182` / admin split `@280`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -151,7 +151,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-08 v376.112 ← current production
+### 2026-10-09 v376.113 ← current production
+
+- Scope: 読み込み遅延の是正（`docs/301`）。① `heic2any` を文字列で同梱し HEIC 変換時だけ評価（起動のたびに 1.3MB の Worker が 2 つ起動していた）。② 会員ビルドから管理画面、管理ビルドから会員マイページをビルド時定数で除去。③ `checkAdminBySession_` が管理 API ごとに `T_ログイン履歴` へ成功を書いていたのを、ログイン操作だけに（**失敗は全経路で記録を継続**）。表示名を 5 分キャッシュ。④ ダッシュボード・会員マイページの取得で同じシートを 2 回読んでいたのを 1 回へ。⑤ 管理画面の起動で認証と初期データを並行取得、テンプレート一覧は設定画面で取得。
+- Fixed deployments: integrated/public @424 x2 / member @182 / admin @280.
+- Verification: prerelease PASS（exit 0）、新設 test:load-performance 8/8（修正前ソースで 4 件 FAIL を確認）、test:a11y 違反 0、test:responsive 7 VP。本番実測（中央値）: 会員 HTML 935→754KB、起動時 Worker 2→0、スプラッシュ消失 3.87→3.25 秒、CPU 4 倍遅延時のブラウザ側処理 2.48→1.69 秒。
+- 未検証: 管理画面の実測（認証切れ）、ログイン後の会員マイページ（E2E 会員が無効）。docs/301 §4。
+- Rollback: integrated/public @423 x2 / member @181 / admin @279（v376.112）。
+
+### 2026-10-08 v376.112
 
 - Scope: 職員の追加・変更・除籍の仕様照合で見つかった 4 件を修正（`docs/300`）。① 職員追加で**認証アカウントを作成**（RD §224。従来は職員行だけで、アカウントは管理者が手で発行するまで存在しなかった）。② 代表者の絞り込みが存在しない列 `権限コード` を見ており**代表者への職員追加通知が一度も届いていなかった**（正しくは `職員権限コード`）。③ 職員追加の必須検査をサーバー側へ（氏/名/セイ/メイ/メール/CM番号。従来は姓・名のみ）。④ 職員数上限に全体既定 `DEFAULT_BUSINESS_STAFF_LIMIT` を効かせる（個別上限が空だと無制限だった）。あわせて仕様書 RD 1.9 で BR-02 の「代表者情報を会員レコードへ自動同期」を撤回（実装が v131 以降ブランク強制で、読み手が 1 つも無いため）。
 - Fixed deployments: integrated/public @423 x2 / member @181 / admin @279.
