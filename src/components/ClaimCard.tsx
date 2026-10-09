@@ -2,8 +2,8 @@
  * ClaimCard — 役員の活動報告・経費請求提出と履歴表示（会員マイページ用）
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import heic2any from 'heic2any';
 import { api } from '../services/api';
+import { loadHeic2any } from '../lib/heic2anyLoader';
 import {
   ClaimAttachment,
   ClaimRecord,
@@ -79,6 +79,7 @@ function isHeicFile(file: File): boolean {
 
 async function normalizeAttachmentFile(file: File): Promise<File> {
   if (!isHeicFile(file)) return file;
+  const heic2any = loadHeic2any();
   const converted = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 });
   const blob = Array.isArray(converted) ? converted[0] : converted;
   const jpgName = file.name.replace(/\.(heic|heif)$/i, '.jpg');

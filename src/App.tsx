@@ -798,13 +798,6 @@ const App: React.FC = () => {
     setCredentialEmailFromInput(systemSettings.credentialEmailFrom ?? '');
     setCredentialEmailSubjectInput(systemSettings.credentialEmailSubject ?? CREDENTIAL_EMAIL_DEFAULT_SUBJECT);
     setCredentialEmailBodyInput(systemSettings.credentialEmailBody ?? CREDENTIAL_EMAIL_DEFAULT_BODY);
-    // v219: テンプレート一覧をバックグラウンド取得（設定ロード時に並行）
-    if (!templateListLoaded) {
-      api.getCredentialEmailTemplates().then(ts => {
-        setEmailTemplates(ts);
-        setTemplateListLoaded(true);
-      }).catch(() => {});
-    }
     // v210
     setPublicPortalTrainingMenuEnabledInput(systemSettings.publicPortalTrainingMenuEnabled ?? true);
     setPublicPortalMembershipMenuEnabledInput(systemSettings.publicPortalMembershipMenuEnabled ?? true);
@@ -930,6 +923,21 @@ const App: React.FC = () => {
       setCredentialEmailAliasLoading(false);
     }
   }, []);
+
+  // v219 のテンプレート一覧は設定画面でしか使わない。以前は設定の読込直後に取得しており、
+  // 管理画面の起動が「認証 → 初期データ → テンプレート」の 3 段直列になっていた。設定画面を開いたときに取る。
+  const templateListRequestedRef = useRef(false);
+  useEffect(() => {
+    if (!isAuthenticated || userRole !== 'ADMIN' || currentView !== 'admin-settings') return;
+    if (templateListLoaded || templateListRequestedRef.current) return;
+    templateListRequestedRef.current = true;
+    api.getCredentialEmailTemplates().then(ts => {
+      setEmailTemplates(ts);
+      setTemplateListLoaded(true);
+    }).catch(() => {
+      templateListRequestedRef.current = false;
+    });
+  }, [isAuthenticated, userRole, currentView, templateListLoaded]);
 
   useEffect(() => {
     if (!isAuthenticated || userRole !== 'ADMIN' || currentView !== 'admin-settings') return;
@@ -1230,7 +1238,11 @@ const App: React.FC = () => {
         try {
           setAdminDashboardLoading(true);
           setAdminDashboardError(null);
-          const { dashboard, settings } = await api.getAdminInitData();
+          // 起動時に先行取得した結果があれば 1 回だけ使う。失敗（権限なし等）なら通常どおり取り直し、
+          // エラーはこちらの呼び出しで表に出す。
+          const prefetched = adminInitPrefetchRef.current;
+          adminInitPrefetchRef.current = null;
+          const { dashboard, settings } = (prefetched && await prefetched) || await api.getAdminInitData();
           setAdminDashboardData(dashboard);
           applySystemSettings(settings);
         } catch (error) {
@@ -1794,11 +1806,16 @@ const App: React.FC = () => {
 
   // 管理者 shell: ページロード時にGoogle セッションを自動確認し認証を試みる。
   // 成功 → 管理ダッシュボードへ即遷移。失敗 → 404 表示（管理機能の存在を隠蔽）。
+  // 管理者 shell の起動では、認証確認と同時に初期データ（ダッシュボード＋設定）を先行取得する。
+  // 初期データ API はサーバ側で毎回認証・認可を通すため、先に投げても権限の無い人には何も返らない。
+  // 直列（認証 → 初期データ）だと呼び出し 1 回分（約 2 秒の固定費）だけ表示が遅れていた。
+  const adminInitPrefetchRef = useRef<Promise<Awaited<ReturnType<typeof api.getAdminInitData>> | null> | null>(null);
   useEffect(() => {
     if (!isAdminShell) return;
     let cancelled = false;
     const attemptAutoAuth = async () => {
       try {
+        adminInitPrefetchRef.current = api.getAdminInitData().catch(() => null);
         const auth = await api.checkAdminBySession();
         if (cancelled) return;
         setFullDataLoaded(false);
@@ -1826,12 +1843,17 @@ const App: React.FC = () => {
         } else {
           setAdminSessionRbac(null);
         }
-        if (permLevel === 'GENERAL' || !auth.canAccessAdminPage) {
+        const initialView = permLevel === 'GENERAL' || !auth.canAccessAdminPage
+          ? null
+          : pickInitialAdminView(auth.isMaster, auth.allowedMenus, permLevel);
+        // 先行取得はダッシュボードで始まる人のためのもの。それ以外では後で古い結果を使わないよう捨てる。
+        if (initialView !== 'admin') adminInitPrefetchRef.current = null;
+        if (initialView === null) {
           setUserRole('MEMBER');
           setCurrentView('profile');
         } else {
           setUserRole('ADMIN');
-          setCurrentView(pickInitialAdminView(auth.isMaster, auth.allowedMenus, permLevel));
+          setCurrentView(initialView);
         }
         setIsAuthenticated(true);
         setAuthError(null);
@@ -3498,6 +3520,13 @@ const App: React.FC = () => {
           <p>必要なデータを読み込み中です...</p>
         </div>
       );
+    }
+
+    // 会員 split は管理画面へ到達しない（管理者ログインを出さず、サーバも管理 action を持たない）。
+    // ビルド時に定数へ置き換わる条件でここを閉じると、以降の管理画面の分岐と管理用コンポーネントが
+    // 会員バンドルから落ちる（会員と管理で同じ 2.4MB を配信していた）。
+    if (import.meta.env.VITE_APP === 'member') {
+      return renderMemberView();
     }
 
     if (currentView === 'admin') {
@@ -6075,6 +6104,17 @@ const App: React.FC = () => {
       return <ChangeRequestConsole />;
     }
 
+    return renderMemberView();
+  };
+
+  // 会員マイページの表示（研修申込・プロフィール）。会員 split はここだけを描く。
+  const renderMemberView = () => {
+    // 管理 split は会員マイページを表示しない（v250 確定・管理と会員の完全分離）。
+    // 管理 split には会員データ取得の API が無く、ここへ来ても表示できない。
+    // ビルド時の定数で閉じると、会員マイページ一式（HEIC 変換 1.3MB を含む）が管理バンドルから落ちる。
+    if (import.meta.env.VITE_APP === 'admin') {
+      return <div className="p-8 text-center text-slate-500">会員マイページは会員用の URL からご利用ください。</div>;
+    }
     if (currentView === 'training-apply') {
       if (!currentUser) {
         return <div className="p-8 text-center text-slate-500">会員データが見つかりません。</div>;

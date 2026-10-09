@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 53c6b11b2b0705fa81037d9aea97af7be26b6d5fc8f8d1a798cfcb12cbdc43ba
+// BUILD_INPUT_SHA256: bf15353ff9aba0d0039eebde5d8a7d6ba2f550e7b47da71dfd52e5c5ab6df0bd
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -1952,6 +1952,17 @@ function buildTrainingApplicationRelationContextFromRows_(rowsBySheet) {
 // 後方互換: loginId のみ指定時は T_認証アカウントから解決。memberId のみ指定（旧形式）も引き続き動作。
 function getMemberPortalData_(payload) {
   var ss = getOrCreateDatabase_();
+  // 必要なシートを 1 回ずつだけ読む。以前は T_認証アカウント を 2 回、研修申込の妥当性検査で
+  // T_会員・T_研修・T_事業所職員をもう 1 回ずつ読んでいた（このデータはキャッシュされず毎回読む）。
+  var portalRowsBySheet = getRowsAsObjectsBatch_(ss, [
+    'T_認証アカウント',
+    'T_会員',
+    'T_事業所職員',
+    'T_研修',
+    'T_研修申込',
+    'T_年会費納入履歴',
+    'T_外部申込者',
+  ]);
   var memberId = '';
   var staffId = '';
   var resolvedByLoginId = false;
@@ -1959,7 +1970,7 @@ function getMemberPortalData_(payload) {
   var loginId = String(payload && payload.loginId || '').trim();
   if (loginId) {
     // loginId から現在の有効な認証アカウントを解決する（セッションアンカー方式）
-    var authRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) {
+    var authRows = portalRowsBySheet['T_認証アカウント'].filter(function(r) {
       return !toBoolean_(r['削除フラグ'])
         && toBoolean_(r['アカウント有効フラグ'])
         && String(r['ログインID'] || '').trim() === loginId
@@ -1980,26 +1991,31 @@ function getMemberPortalData_(payload) {
     throw new Error('loginId または memberId が未指定です。');
   }
 
-  var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(r) {
+  var memberRows = portalRowsBySheet['T_会員'].filter(function(r) {
     return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
   });
   if (!memberRows.length) {
     throw new Error('対象会員が見つかりません（memberId: ' + memberId + '）。');
   }
-  var staffRows = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) {
+  var staffRows = portalRowsBySheet['T_事業所職員'].filter(function(r) {
     return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
   });
-  var memberAuthRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) {
+  var memberAuthRows = portalRowsBySheet['T_認証アカウント'].filter(function(r) {
     return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
   });
-  var applicationRows = getTrainingApplicationRows_(ss, { appliedOnly: true, memberId: memberId });
+  var applicationRows = getTrainingApplicationRows_(ss, {
+    appliedOnly: true,
+    memberId: memberId,
+    rows: portalRowsBySheet['T_研修申込'],
+    context: buildTrainingApplicationRelationContextFromRows_(portalRowsBySheet),
+  });
   // B-01: 申し込み済み研修IDセットを事前構築し、全件スキャンを回避する
   var appliedIdSet = {};
   for (var ai = 0; ai < applicationRows.length; ai++) {
     appliedIdSet[String(applicationRows[ai]['研修ID'] || '')] = true;
   }
   var nowTs = Date.now();
-  var trainingRows = getRowsAsObjects_(ss, 'T_研修').filter(function(r) {
+  var trainingRows = portalRowsBySheet['T_研修'].filter(function(r) {
     if (toBoolean_(r['削除フラグ'])) return false;
     // 申し込み済みは必ず含める（履歴表示のため）
     if (appliedIdSet[String(r['研修ID'] || '')]) return true;
@@ -2008,7 +2024,7 @@ function getMemberPortalData_(payload) {
     if (availability.isApplicationOpen || availability.applicationStatus === 'NOT_STARTED') return true;
     return false;
   });
-  var feeRows = getRowsAsObjects_(ss, 'T_年会費納入履歴').filter(function(r) {
+  var feeRows = portalRowsBySheet['T_年会費納入履歴'].filter(function(r) {
     return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
   });
   var memberTypeFeeMap = getAnnualFeeAmountMap_(ss);

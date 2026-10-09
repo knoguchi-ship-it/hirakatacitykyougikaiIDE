@@ -2205,7 +2205,7 @@ function processApiRequest(action, payload) {
     }
 
     if (action === 'checkAdminBySession') {
-      return JSON.stringify({ success: true, data: checkAdminBySession_() });
+      return JSON.stringify({ success: true, data: checkAdminBySession_({ recordLogin: true }) });
     }
 
     if (action === 'getSystemSettings') {
@@ -4438,6 +4438,17 @@ function fetchAllDataFromDbFresh_() {
 // 後方互換: loginId のみ指定時は T_認証アカウントから解決。memberId のみ指定（旧形式）も引き続き動作。
 function getMemberPortalData_(payload) {
   var ss = getOrCreateDatabase_();
+  // 必要なシートを 1 回ずつだけ読む。以前は T_認証アカウント を 2 回、研修申込の妥当性検査で
+  // T_会員・T_研修・T_事業所職員をもう 1 回ずつ読んでいた（このデータはキャッシュされず毎回読む）。
+  var portalRowsBySheet = getRowsAsObjectsBatch_(ss, [
+    'T_認証アカウント',
+    'T_会員',
+    'T_事業所職員',
+    'T_研修',
+    'T_研修申込',
+    'T_年会費納入履歴',
+    'T_外部申込者',
+  ]);
   var memberId = '';
   var staffId = '';
   var resolvedByLoginId = false;
@@ -4445,7 +4456,7 @@ function getMemberPortalData_(payload) {
   var loginId = String(payload && payload.loginId || '').trim();
   if (loginId) {
     // loginId から現在の有効な認証アカウントを解決する（セッションアンカー方式）
-    var authRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) {
+    var authRows = portalRowsBySheet['T_認証アカウント'].filter(function(r) {
       return !toBoolean_(r['削除フラグ'])
         && toBoolean_(r['アカウント有効フラグ'])
         && String(r['ログインID'] || '').trim() === loginId
@@ -4466,26 +4477,31 @@ function getMemberPortalData_(payload) {
     throw new Error('loginId または memberId が未指定です。');
   }
 
-  var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(r) {
+  var memberRows = portalRowsBySheet['T_会員'].filter(function(r) {
     return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
   });
   if (!memberRows.length) {
     throw new Error('対象会員が見つかりません（memberId: ' + memberId + '）。');
   }
-  var staffRows = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) {
+  var staffRows = portalRowsBySheet['T_事業所職員'].filter(function(r) {
     return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
   });
-  var memberAuthRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) {
+  var memberAuthRows = portalRowsBySheet['T_認証アカウント'].filter(function(r) {
     return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
   });
-  var applicationRows = getTrainingApplicationRows_(ss, { appliedOnly: true, memberId: memberId });
+  var applicationRows = getTrainingApplicationRows_(ss, {
+    appliedOnly: true,
+    memberId: memberId,
+    rows: portalRowsBySheet['T_研修申込'],
+    context: buildTrainingApplicationRelationContextFromRows_(portalRowsBySheet),
+  });
   // B-01: 申し込み済み研修IDセットを事前構築し、全件スキャンを回避する
   var appliedIdSet = {};
   for (var ai = 0; ai < applicationRows.length; ai++) {
     appliedIdSet[String(applicationRows[ai]['研修ID'] || '')] = true;
   }
   var nowTs = Date.now();
-  var trainingRows = getRowsAsObjects_(ss, 'T_研修').filter(function(r) {
+  var trainingRows = portalRowsBySheet['T_研修'].filter(function(r) {
     if (toBoolean_(r['削除フラグ'])) return false;
     // 申し込み済みは必ず含める（履歴表示のため）
     if (appliedIdSet[String(r['研修ID'] || '')]) return true;
@@ -4494,7 +4510,7 @@ function getMemberPortalData_(payload) {
     if (availability.isApplicationOpen || availability.applicationStatus === 'NOT_STARTED') return true;
     return false;
   });
-  var feeRows = getRowsAsObjects_(ss, 'T_年会費納入履歴').filter(function(r) {
+  var feeRows = portalRowsBySheet['T_年会費納入履歴'].filter(function(r) {
     return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
   });
   var memberTypeFeeMap = getAnnualFeeAmountMap_(ss);
@@ -4732,17 +4748,27 @@ function getAdminDashboardData_() {
 
   var ss = getOrCreateDatabase_();
   initializeSchemaIfNeeded_(ss);
-  var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(r) {
+  // 必要なシートを 1 回ずつだけ読む。以前は研修申込の妥当性検査が T_会員・T_研修・T_事業所職員を
+  // 読み直しており、キャッシュが切れるたびに同じシートを 2 回ずつ読んでいた。
+  var dashboardRowsBySheet = getRowsAsObjectsBatch_(ss, [
+    'T_会員',
+    'T_研修',
+    'T_年会費納入履歴',
+    'T_研修申込',
+    'T_事業所職員',
+    'T_外部申込者',
+  ]);
+  var memberRows = dashboardRowsBySheet['T_会員'].filter(function(r) {
     return !toBoolean_(r['削除フラグ']);
   });
   var memberById = {};
   for (var memberMapIdx = 0; memberMapIdx < memberRows.length; memberMapIdx += 1) {
     memberById[String(memberRows[memberMapIdx]['会員ID'] || '')] = memberRows[memberMapIdx];
   }
-  var trainingRows = getRowsAsObjects_(ss, 'T_研修').filter(function(r) {
+  var trainingRows = dashboardRowsBySheet['T_研修'].filter(function(r) {
     return !toBoolean_(r['削除フラグ']);
   });
-  var feeRows = getRowsAsObjects_(ss, 'T_年会費納入履歴').filter(function(r) {
+  var feeRows = dashboardRowsBySheet['T_年会費納入履歴'].filter(function(r) {
     return !toBoolean_(r['削除フラグ']);
   });
 
@@ -4762,7 +4788,11 @@ function getAdminDashboardData_() {
   }
 
   // 研修申込データから会員別の今年度参加数を集計（会計年度 4/1〜翌3/31）
-  var applicationRows = getTrainingApplicationRows_(ss, { appliedOnly: true });
+  var applicationRows = getTrainingApplicationRows_(ss, {
+    appliedOnly: true,
+    rows: dashboardRowsBySheet['T_研修申込'],
+    context: buildTrainingApplicationRelationContextFromRows_(dashboardRowsBySheet),
+  });
   var currentFiscalYear = getCurrentFiscalYear_();
   var fyStart = new Date(currentFiscalYear, 3, 1);      // 4月1日
   var fyEnd   = new Date(currentFiscalYear + 1, 2, 31); // 翌3月31日
@@ -4787,7 +4817,7 @@ function getAdminDashboardData_() {
   }
 
   // 事業所職員データ — v143: カラム名を正しい「職員状態コード」に修正
-  var staffRows = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) {
+  var staffRows = dashboardRowsBySheet['T_事業所職員'].filter(function(r) {
     return !toBoolean_(r['削除フラグ']);
   });
   // v143: 在籍中（ENROLLED）の職員のみカウント
@@ -6159,7 +6189,12 @@ function mapAdminPermissionLabel_(permCode) {
  * Session.getActiveUser() は google.script.run 呼び出し元のメールを返す（Execute as: Me でも）。
  * 権限コードに応じた adminPermissionLevel を返す。
  */
-function checkAdminBySession_() {
+function checkAdminBySession_(options) {
+  // options.recordLogin: 成功をログイン履歴へ残すのは「ログイン操作」（action checkAdminBySession）だけ。
+  //   管理 API はすべて認可のためにこの関数を通るため、毎回記録すると API 1 回ごとに
+  //   ログ用スプレッドシートを開いて appendRow する（実測で 1 回 2 秒の固定費に上乗せされていた）。
+  //   失敗は不正アクセスの痕跡なので、どの経路でも従来どおり必ず記録する。
+  var recordLogin = !!(options && options.recordLogin);
   var email = Session.getActiveUser().getEmail();
   if (!email) {
     throw new Error('Googleアカウントでログインされていません。組織のGoogleアカウントでブラウザにログインしてください。');
@@ -6239,9 +6274,14 @@ function checkAdminBySession_() {
     throw new Error('管理者に会員IDが紐付いていません。');
   }
 
-  // 表示名: fetchAllDataFromDb_ キャッシュを優先利用（T_会員の直接読み込みを回避）
+  // 表示名: 名前キャッシュ → fetchAllDataFromDb_ キャッシュ → T_会員 の順に引く。
+  // 管理 split では fetchAllData のキャッシュがほぼ作られないため、名前キャッシュが無いと
+  // 管理 API を呼ぶたびに表示名のためだけに T_会員 を全件読んでいた。
   var memberName = '';
-  var cachedAllData = getChunkedCache_(cache, getAllDataCacheKey_());
+  var nameCacheKey = 'admin_name_v1:' + memberId;
+  var cachedName = cache.get(nameCacheKey);
+  if (cachedName) memberName = cachedName;
+  var cachedAllData = memberName ? null : getChunkedCache_(cache, getAllDataCacheKey_());
   if (cachedAllData && cachedAllData.members) {
     for (var ci = 0; ci < cachedAllData.members.length; ci += 1) {
       if (cachedAllData.members[ci].id === memberId) {
@@ -6260,10 +6300,15 @@ function checkAdminBySession_() {
       }
     }
   }
+  if (memberName && !cachedName) {
+    try { cache.put(nameCacheKey, memberName, 300); } catch (e) {}
+  }
   var derivedDisplayName = memberName ? memberName + '（' + mapAdminPermissionLabel_(permCode) + '）' : mapAdminPermissionLabel_(permCode);
 
   var nowIso = new Date().toISOString();
-  appendLoginHistory_(ss, authId, email, 'GOOGLE', 'SUCCESS', '管理者セッション認証成功（' + permCode + '）');
+  if (recordLogin) {
+    appendLoginHistory_(ss, authId, email, 'GOOGLE', 'SUCCESS', '管理者セッション認証成功（' + permCode + '）');
+  }
 
   // docs/246 Phase 1-A: menu-based 認可向けの追加フィールド。
   // 既存 adminPermissionLevel は後方互換のため維持。
