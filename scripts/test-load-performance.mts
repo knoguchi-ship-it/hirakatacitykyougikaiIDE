@@ -230,3 +230,11 @@ test('会員 split は管理画面へ、管理 split は会員マイページへ
   assert.match(app, /if \(import\.meta\.env\.VITE_APP === 'member'\) \{\s*return renderMemberView\(\);/);
   assert.match(app, /const renderMemberView = \(\) => \{\s*(\/\/[^\n]*\n\s*)*if \(import\.meta\.env\.VITE_APP === 'admin'\)/);
 });
+
+test('ダッシュボードの初期データは入場 1 回だけ取る（設定の反映で effect が再実行されても取り直さない）', () => {
+  const app = fs.readFileSync(path.join(ROOT, 'src', 'App.tsx'), 'utf8');
+  // applySystemSettings が systemSettingsLoaded を立て、それが effect の依存に入っている。
+  // ガードが無いと、取得 → 反映 → 再実行 → 読み込み中表示で取り直し、になる（v376.113 の本番実測で発見）。
+  assert.match(app, /setSystemSettingsLoaded\(true\)/);
+  assert.match(app, /if \(userRole === 'ADMIN' && currentView === 'admin'\) \{\s*if \(adminInitFetchedRef\.current\) return;\s*adminInitFetchedRef\.current = true;/);
+});

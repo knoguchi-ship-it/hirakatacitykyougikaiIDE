@@ -1224,15 +1224,26 @@ const App: React.FC = () => {
   };
 
 
+  // ダッシュボードの初期データは「ダッシュボードに入ったとき 1 回」だけ取る。
+  // 下の effect は systemSettingsLoaded など多くの値に依存しており、取得結果を反映した
+  // （applySystemSettings が systemSettingsLoaded を true にする）だけで再実行される。
+  // 以前はそこで読み込み中表示に戻して同じ 221KB を取り直し、表示が毎回約 5 秒遅れていた（docs/301）。
+  const adminInitFetchedRef = useRef(false);
   useEffect(() => {
     if (!isAuthenticated) {
+      adminInitFetchedRef.current = false;
       return;
+    }
+    if (currentView !== 'admin') {
+      adminInitFetchedRef.current = false;
     }
     const activeIdentities = buildLoginIdentities(members);
     const activeIdentity = activeIdentities.find((identity) => identity.id === selectedIdentityId) || activeIdentities[0];
     const activeMemberId = activeIdentity?.memberId || authenticatedContext?.memberId;
 
     if (userRole === 'ADMIN' && currentView === 'admin') {
+      if (adminInitFetchedRef.current) return;
+      adminInitFetchedRef.current = true;
       // v150: 統合APIで1回のround-tripでdashboard+settingsを取得
       (async () => {
         try {
