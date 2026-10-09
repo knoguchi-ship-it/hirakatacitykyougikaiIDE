@@ -122,6 +122,7 @@
 | 新規文書の索引登録・要件 ID のトレーサビリティ | `npm run test:docs-single-source` |
 | action の分類漏れ（二重実装の検出） | `npm run test:feature-inventory` |
 | `clasp deploy` の直叩き・資格情報ファイルへの書き込み・ゲート未通過の push | PreToolUse hook（`.claude/hooks/`） |
+| Skill が実在しないコマンド・ファイル・関数を指していないこと | `npm run test:skills` |
 | 依存の脆弱性（**出荷物は常に厳格**／開発依存は期限つき受容） | `npm run security:audit` |
 
 すべて `npm run prerelease` に連なる。**exit 0 でなければリリースに進めない。**
@@ -330,7 +331,10 @@
 
 **`/dbops` はテストのときだけの話ではない。** operator 依頼の 1 セル修正も同じ手順を通す。
 
-**Skill はセッション開始時に読み込まれる。** 作成直後の同一セッションでは呼べない。
+**Skill はセッション開始時に読み込まれる。** 作成直後の同一セッションでは呼べない
+（`Unknown skill` が返るのは「作りが悪い」ではなく「未読み込み」）。
+中身の妥当性は `npm run test:skills` が検査する——**呼ばれたときに初めて読まれるので、
+間違っていても普段は誰も気づかない。気づくのはリリース中にコマンドを打って失敗したとき**になる。
 
 ## L4.3 完了条件
 
