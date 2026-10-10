@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-10-10
-Production: `v376.116` / integrated-public `@427` x2 / member split `@185` / admin split `@283`
+Production: `v376.117` / integrated-public `@428` x2 / member split `@186` / admin split `@284`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -151,7 +151,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-10 v376.116 ← current production
+### 2026-10-10 v376.117 ← current production
+
+- Scope: 最初の読み込みが返らないときの自動再試行（`docs/302` §2）。v376.116 直後に管理画面が「認証を確認しています…」のまま 3 分以上止まった（同じ呼び出しを呼び直すと 4 秒で応答）。`src/shared/connectionRetry.ts` に 15 秒 × 最大 5 回の再試行・案内文・状態を集約し、表示は共通部品 `ConnectionRetryNotice`。管理（認証・初期データ）・会員（マイページのデータ）・公開（研修一覧・設定）の最初の読み込みを包む。サーバーが返したエラーは再試行しない。**書き込み（保存・承認・送信）は二重実行のおそれがあるため対象外。** あきらめたら「時間をおいてアクセスしてみてください」＋［再読み込みする］（exec URL を最上位で開き直す）。
+- Fixed deployments: integrated/public @428 x2 / member @186 / admin @284.
+- Verification: prerelease PASS（exit 0）、新設 test:connection-retry 9/9。応答しない偽環境で管理・公開を起動 → 17 秒で「再試行しています（2/5）」、79 秒で案内＋再読み込み（呼び出しは 2 本 × 5 回で停止）。通常の偽環境で 3 画面ともエラー 0。本番デプロイ直後の管理画面は 11.4 秒で表示（今回は止まらず再試行は発生せず）。
+- Rollback: integrated/public @427 x2 / member @185 / admin @283（v376.116）。
+
+### 2026-10-10 v376.116
 
 - Scope: ① **ロール視点プレビューを「そのロールの権限で実際に操作する」方式へ**（operator 判断・`docs/246` §11）。以前はブラウザで書き込みを止める「閲覧のみ」で、しかも `callApi` 直呼びの変更申請の承認・却下は止まらず MASTER として実行されていた。全呼び出しに `__previewRoleId` を載せ（`withPreviewRole`）、サーバーは実際の操作者が MASTER のときだけ受け付けてそのロールの許可メニュー・研修編集範囲・旧来コードで判定・実行（`buildPreviewAdminSession_`）。書き込みは `T_監査ログ` に `ROLE_PREVIEW_ACTION`。② 研修の編集モーダルで申込開始日・締切日が空欄に見えていた不具合（API の `yyyy-MM-dd HH:mm` を `<input type=date>` が表示しない）を画面側で日付へ整えて修正。
 - Fixed deployments: integrated/public @427 x2 / member @185 / admin @283.
