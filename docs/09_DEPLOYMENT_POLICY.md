@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-10-10
-Production: `v376.118` / integrated-public `@429` x2 / member split `@187` / admin split `@285`
+Production: `v376.119` / integrated-public `@430` x2 / member split `@188` / admin split `@286`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -151,7 +151,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-10 v376.118 ← current production
+### 2026-10-10 v376.119 ← current production
+
+- Scope: サイドバーに本人の名前を出す。管理者は常に「システム管理者」「A」、会員は「M」の固定表記で、誰のアカウントか画面から分からなかった（管理画面は会員データを読まないため名前が無かった）。認証の応答に名前だけの `personName` を追加（`displayName`「名前（権限）」は記録・通知用のまま）。サイドバーは名前とその 1 文字目のアイコンを出し、名前が無いときだけ従来の表記。プレビュー中も本人の名前のまま、下の行がプレビュー中のロールになる。
+- Fixed deployments: integrated/public @430 x2 / member @188 / admin @286.
+- Verification: prerelease PASS（exit 0）、新設 test:sidebar-identity 3/3（実部品を react-dom/server で描画・修正前ソースで 2 FAIL）、test:load-performance 11/11。本番: 名前・アイコン・権限行・プレビュー中・360px を確認。
+- **未解明**: デプロイ直後の 1 回目、管理画面が「認証を確認しています…」のまま 2 分以上止まり、**v376.117 の再試行の帯も案内も出なかった**（配信物は v376.119 と一致）。同じ生成物は応答しない偽環境で 17 秒に帯・79 秒に案内を出す。開き直すと 6 秒で表示。ブラウザのメインスレッドが固まっていた可能性があるが未確認（`docs/302` §2）。
+- Rollback: integrated/public @429 x2 / member @187 / admin @285（v376.118）。
+
+### 2026-10-10 v376.118
 
 - Scope: 事業所会員の職員として紐付いた管理者の表示名が権限名だけ（「マスター」）になっていたのを修正（`docs/302` §2）。`checkAdminBySession_` が `T_会員` の姓・名（事業所会員は空・v131）から名前を取っていた。職員IDがあれば `T_事業所職員` の姓・名（無ければ氏名）を先に引く。名前キャッシュの鍵に職員IDを含める（`admin_name_v2`）。フリガナ検証で例外を投げる `normalizeStaffNameFields_` は認証経路で使わない。影響していた箇所: LINE 投稿の作成者名、共有メモの編集者名、承認・却下通知メールの `{{処理者名}}`。過去の記録は書き換えない。
 - Fixed deployments: integrated/public @429 x2 / member @187 / admin @285.
