@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { MEMBER_TYPE_ANNUAL_FEE_DEFAULTS } from '../shared/memberTypes.mjs';
 import { PublicTraining } from '../shared/types';
 import { callApi } from '../shared/api-base';
+import { callWithConnectionRetry } from '../shared/connectionRetry';
+import ConnectionRetryNotice from '../components/ConnectionRetryNotice';
 import MemberApplicationForm from '../components/application/MemberApplicationForm';
 import PublicTrainingList from './components/PublicTrainingList';
 import ExternalApplyForm from './components/ExternalApplyForm';
@@ -196,8 +198,8 @@ const PublicApp: React.FC = () => {
     const load = async () => {
       try {
         const [trainingsData, portalSettings] = await Promise.allSettled([
-          callApi<PublicTraining[]>('getPublicTrainings'),
-          callApi<{ trainingMenuEnabled: boolean; membershipMenuEnabled: boolean } & PublicPortalContentSettings>('getPublicPortalSettings'),
+          callWithConnectionRetry(() => callApi<PublicTraining[]>('getPublicTrainings')),
+          callWithConnectionRetry(() => callApi<{ trainingMenuEnabled: boolean; membershipMenuEnabled: boolean } & PublicPortalContentSettings>('getPublicPortalSettings')),
         ]);
         if (trainingsData.status === 'fulfilled') {
           setTrainings(trainingsData.value ?? []);
@@ -560,6 +562,7 @@ const PublicApp: React.FC = () => {
 
   return (
     <div className="min-h-[100dvh] overflow-x-hidden bg-[linear-gradient(180deg,#f8fbff_0%,#eef5f7_45%,#f8fafc_100%)]">
+      <ConnectionRetryNotice />
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-sky-700 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white focus:shadow-lg"

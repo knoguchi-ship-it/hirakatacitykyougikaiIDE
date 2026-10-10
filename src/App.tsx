@@ -26,6 +26,8 @@ import { TRAINING_OPTIONAL_FIELD_DEFS } from './components/TrainingManagement';
 import { api, type AdminLoginResult, type MemberLoginResult, type MemberPortalLookup } from './services/api';
 import { canAccessMenu, canUseLinePost, canManageLinePost } from './shared/rbac-util';
 import { callApi, setApiPreviewRole } from './shared/api-base';
+import { callWithConnectionRetry, isConnectionGaveUp } from './shared/connectionRetry';
+import ConnectionRetryNotice from './components/ConnectionRetryNotice';
 import { EmailCard, MailCategoryPicker, MailGroupHeader, MasterOffBanner, ToggleSwitch } from './components/EmailSettingsCard';
 import type { MailCategoryKey } from './shared/mailCategories';
 import MailTemplateManager from './components/MailTemplateManager';
@@ -1029,7 +1031,7 @@ const App: React.FC = () => {
       try {
         setIsLoading(true);
         setInitError(null);
-        const next = await api.getMemberPortalData(lookup);
+        const next = await callWithConnectionRetry(() => api.getMemberPortalData(lookup));
         setMembers(next.members);
         setTrainings(next.trainings);
         setMemberPortalLoaded(true);
@@ -1253,7 +1255,7 @@ const App: React.FC = () => {
           // エラーはこちらの呼び出しで表に出す。
           const prefetched = adminInitPrefetchRef.current;
           adminInitPrefetchRef.current = null;
-          const { dashboard, settings } = (prefetched && await prefetched) || await api.getAdminInitData();
+          const { dashboard, settings } = (prefetched && await prefetched) || await callWithConnectionRetry(() => api.getAdminInitData());
           setAdminDashboardData(dashboard);
           applySystemSettings(settings);
         } catch (error) {
@@ -1826,8 +1828,8 @@ const App: React.FC = () => {
     let cancelled = false;
     const attemptAutoAuth = async () => {
       try {
-        adminInitPrefetchRef.current = api.getAdminInitData().catch(() => null);
-        const auth = await api.checkAdminBySession();
+        adminInitPrefetchRef.current = callWithConnectionRetry(() => api.getAdminInitData()).catch(() => null);
+        const auth = await callWithConnectionRetry(() => api.checkAdminBySession());
         if (cancelled) return;
         setFullDataLoaded(false);
         setMemberPortalLoaded(false);
@@ -1868,7 +1870,9 @@ const App: React.FC = () => {
         }
         setIsAuthenticated(true);
         setAuthError(null);
-      } catch {
+      } catch (error) {
+        // 接続をあきらめた場合は 404（管理機能の隠蔽）を出さず、ConnectionRetryNotice の案内に任せる。
+        if (isConnectionGaveUp(error)) return;
         if (!cancelled) setAdminAutoAuthFailed(true);
       } finally {
         if (!cancelled) setAdminAutoAuthDone(true);
@@ -1893,7 +1897,7 @@ const App: React.FC = () => {
     try {
       setAuthBusy(true);
       setAuthError(null);
-      const auth = await api.checkAdminBySession();
+      const auth = await callWithConnectionRetry(() => api.checkAdminBySession());
       setFullDataLoaded(false);
       setMemberPortalLoaded(false);
       setAdminDashboardData(null);
@@ -6167,6 +6171,7 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-slate-50 font-sans">
+      <ConnectionRetryNotice />
       {/* docs/246 View-as-role: MASTER 本人のみ表示（プレビュー中も実 isMaster を見るので退出可能） */}
       {isAuthenticated && isAdminShell && userRole === 'ADMIN' && !!adminSessionRbac?.isMaster && (
         <RolePreviewBar
