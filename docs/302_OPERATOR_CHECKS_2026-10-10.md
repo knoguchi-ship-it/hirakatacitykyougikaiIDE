@@ -42,11 +42,12 @@
 | 重要度 | 内容 | 根拠 |
 |---|---|---|
 | ~~高（セキュリティ）~~ **v376.115 で対応済み** | **管理 split の保守ツール 24 本中 22 本が、呼び出し元を確かめない**（実際は既存ガード 2 本も何も止めておらず 24 本すべて）。 認可は `processApiRequest` の入口にしかなく、`google.script.run.<関数名>()` で直接呼べる。管理 web app は `DOMAIN` 公開なので、**ホワイトリスト外の hcm-n.org アカウントでも** `deleteTestData_APPLY` / `restoreLastArchiveBatch_APPLY` / `executeStrictE2ETestMemberCleanup_APPLY` / `setupScheduledTriggers` 等を実行できる | 本確認で `listArchiveBatches_LOG` / `diagnoseMemberDeleteDebt_LOG` を web app から直接実行できた。ガードがあるのは `dryRunApplicationScenarios` / `previewDryRunApplicationCleanup` の 2 本だけ |
-| 中（セキュリティ） | ロール視点プレビューの書き込み遮断は `api.*` だけを包む。`callApi()` を直接呼ぶ **変更申請の承認・却下**（`ChangeRequestConsole`）と **研修フォルダ作成**（`setupTrainingFileFolder`）はプレビュー中でも実行される | `src/services/api.ts` `installPreviewWriteGuard` |
-| 中 | **研修の編集モーダルで申込開始日・締切日が空欄に見える。** 値が `2026-03-15 00:00` で `<input type=date>` の形式（yyyy-MM-dd）に合わず、ブラウザが表示しない | コンソール警告 `The specified value "2026-03-15 00:00" does not conform...` |
+| ~~中~~ **v376.116 で対応（方式ごと改訂・`docs/246` §11）** | ロール視点プレビューの書き込み遮断は `api.*` だけを包む。`callApi()` を直接呼ぶ **変更申請の承認・却下**（`ChangeRequestConsole`）と **研修フォルダ作成**（`setupTrainingFileFolder`）はプレビュー中でも実行される | `src/services/api.ts` `installPreviewWriteGuard` |
+| ~~中~~ **v376.116 で対応済み** | **研修の編集モーダルで申込開始日・締切日が空欄に見える。** 値が `2026-03-15 00:00` で `<input type=date>` の形式（yyyy-MM-dd）に合わず、ブラウザが表示しない | コンソール警告 `The specified value "2026-03-15 00:00" does not conform...` |
 | 低 | 事業所会員の職員に紐付いた管理者の表示名が、権限名（「マスター」）だけになる。名前を `T_会員` の姓名から引くが、事業所会員は姓名が空（v131）。LINE 投稿依頼の作成者名などに残る | `checkAdminBySession_`。**v376.113 の変更前からの挙動** |
 | 低（設定） | テスト集約（REDIRECT）の宛先許可リストが旧アカウント `k.noguchi@uguisunosato.or.jp`（2026-04-15 移行済み）のまま | `getSystemSettings.mailRedirectAllowlist` |
 | 低 | 「一般」ロールのプレビューが「必要なデータを読み込み中です...」のまま止まる（管理 split は会員データを取れない） | 以前からの挙動 |
 | 低 | LINE 投稿の本文テンプレートと研修一覧に開催日が `2026-06-20T14:00` の生の形式で出る | 表示のみ |
 | 観察 | 管理画面が「展開中...」のまま 1 分以上止まったことが 1 回あった（タブは表示状態）。再現していない | 起動ローダーの解凍段階 |
+| 中 | **デプロイ直後の初回、管理画面が「認証を確認しています…」のまま止まる。** 2026-10-10 の v376.116 直後に 3 分以上（v376.115 直後も 80 秒超）。その時点で API を直接呼ぶと 4 秒で応答し、開き直すと 6〜8 秒で表示された。最初の認証呼び出しが返らず、画面側に待ち時間の上限も再試行も無い | 管理 shell の自動認証（`App.tsx` `attemptAutoAuth`） |
 | 資料 | §2-1 が参照する dryRun 関数 4 本（`dryRunDeleteCascadeV376_52_LOG` 等）は 2026-07-08 の整理で削除済み | `gas/admin/dryrun.gs` |

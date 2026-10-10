@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-10-10
-Production: `v376.115` / integrated-public `@426` x2 / member split `@184` / admin split `@282`
+Production: `v376.116` / integrated-public `@427` x2 / member split `@185` / admin split `@283`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -151,7 +151,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-10 v376.115 ← current production
+### 2026-10-10 v376.116 ← current production
+
+- Scope: ① **ロール視点プレビューを「そのロールの権限で実際に操作する」方式へ**（operator 判断・`docs/246` §11）。以前はブラウザで書き込みを止める「閲覧のみ」で、しかも `callApi` 直呼びの変更申請の承認・却下は止まらず MASTER として実行されていた。全呼び出しに `__previewRoleId` を載せ（`withPreviewRole`）、サーバーは実際の操作者が MASTER のときだけ受け付けてそのロールの許可メニュー・研修編集範囲・旧来コードで判定・実行（`buildPreviewAdminSession_`）。書き込みは `T_監査ログ` に `ROLE_PREVIEW_ACTION`。② 研修の編集モーダルで申込開始日・締切日が空欄に見えていた不具合（API の `yyyy-MM-dd HH:mm` を `<input type=date>` が表示しない）を画面側で日付へ整えて修正。
+- Fixed deployments: integrated/public @427 x2 / member @185 / admin @283.
+- Verification: prerelease PASS（exit 0）、新設 test:role-preview 10/10、test:training-time 7/7（修正前ソースで FAIL）。本番: 研修管理者として研修データ取得可・会員一覧と変更申請承認はサーバーが `insufficient_permission`・ログイン操作は MASTER のまま・不明ロール拒否／編集モーダルに申込日表示／バーの警告表示。
+- 観察: デプロイ直後の初回、管理画面が「認証を確認しています…」のまま 3 分以上止まった（API を直接呼ぶと 4 秒で応答・開き直すと 6〜8 秒で表示）。画面側に待ち時間の上限が無い（`docs/302` §2 に追記）。
+- Rollback: integrated/public @426 x2 / member @184 / admin @282（v376.115）。
+
+### 2026-10-10 v376.115
 
 - Scope: 🔒 管理 split の保守ツールを MASTER 限定に（`docs/302` §2）。Apps Script は `_` で終わらないトップレベル関数を `google.script.run` へ公開し、管理 web app は DOMAIN 公開・デプロイした人の権限で動くため、**管理者リスト外の hcm-n.org アカウントでも保守ツール 24 本を直接実行できた**（認可は `processApiRequest` の入口だけ）。既存の `dryRun_assertAdminOperator_` は何も止めていなかった。`doGet` / `processApiRequest` 以外の全公開関数の先頭に `assertMasterOperator_`（管理者リスト照合＋MASTER 以外は拒否・ログイン履歴に記録）。トリガーのハンドラ 2 本は `triggerUid` が実在トリガーと一致すれば通す（`assertTriggerOrMasterOperator_`）。画面の操作は変更なし。
 - Fixed deployments: integrated/public @426 x2 / member @184 / admin @282.

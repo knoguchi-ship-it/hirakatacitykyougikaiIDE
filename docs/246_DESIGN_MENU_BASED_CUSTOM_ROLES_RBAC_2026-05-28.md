@@ -261,3 +261,38 @@ operator が admin split @181 (Logger.log 追加版) で migration スクリプ�
 - frontend `api.ts` 呼び出し ↔ backend dispatch の codegen 連動（今回スコープ外）。
 - メニュー × 操作（CRUD）粒度への拡張（今回は研修の OWN スコープのみ。将来必要なら権限値を拡張）。
 - ABAC/ReBAC（事業所スコープ等）への発展余地。
+
+## 11. ロール視点プレビュー（2026-10-10 改訂・v376.116）
+
+MASTER が他のロールの画面を確かめるための仕組み。**そのロールの権限で、実際に操作する。**
+
+| | 以前（〜v376.115） | 現在（v376.116〜） |
+|---|---|---|
+| 画面 | そのロールのメニューだけ表示 | 同じ |
+| 書き込み | ブラウザで止める「閲覧のみ」 | **実際に実行する**（本番データ・メールに反映） |
+| サーバーの判定 | MASTER のまま | **そのロールの許可メニュー・研修編集範囲・旧来の権限コード** |
+
+**改訂の理由（operator 判断・2026-10-10）**: 他のロールの動きを実際に行えなければ、プレビューの意味がない。
+あわせて、以前の「閲覧のみ」は `api.*` しか止めておらず、`callApi` を直接使う変更申請の承認・却下は
+プレビュー中も MASTER として実行されていた（`docs/302` §2）。
+
+### 仕組み
+
+- ブラウザ: すべての呼び出しに `__previewRoleId` を載せる（`src/shared/api-base.ts` `withPreviewRole`）。
+- サーバー: `processApiRequest` の `requiredPerms` ブロック内で `buildPreviewAdminSession_` が受け付ける。
+  - **実際の操作者が MASTER のときだけ**（権限を下げる方向にしか働かない）。
+  - その 1 回の処理の間、`checkAdminBySession_()` はなりすましたセッションを返す
+    （処理の中で呼び直しても MASTER に戻らない）。ログイン操作（`recordLogin`）は対象外。
+  - 旧来の権限コードは `LEGACY_CODE_TO_INITIAL_ROLE_ID` を逆に引く。カスタムロールは `ADMIN`。
+  - `loginId` は実際の操作者のまま。表示名は「〇〇（研修管理者としてプレビュー）」。
+  - 書き込み系（get/list/search/fetch/check/load/preview 以外）は `T_監査ログ` に
+    `ROLE_PREVIEW_ACTION`（操作者メール・action・ロールID・ロール名）を残す。許可されずに拒否された試行も残る。
+- 公開・会員 split には `requiredPerms` ブロックごと入らない（境界は不変）。
+
+### 再現しきれないもの
+
+- **研修編集範囲が「自分の研修のみ（OWN）」のロール**は、「自分」が MASTER 本人になる。
+  研修登録者として、MASTER が登録した研修を編集できる。
+- 切り替える前に MASTER として読み込んだ画面データは、読み直すまで残る。
+
+検査: `npm run test:role-preview`。
