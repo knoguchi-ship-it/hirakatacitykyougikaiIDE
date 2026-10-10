@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-10-10
-Production: `v376.119` / integrated-public `@430` x2 / member split `@188` / admin split `@286`
+Updated: 2026-10-11
+Production: `v376.120` / integrated-public `@431` x2 / member split `@189` / admin split `@288`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -151,7 +151,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-10 v376.119 ← current production
+### 2026-10-11 v376.120 ← current production
+
+- Scope: 開ける管理画面が無いロールで、読み込み中のまま止まらないようにした（`docs/302` §2）。一般ロール（許可メニューは `common-shared` のみ）のプレビューで、行き先の判定 `pickInitialAdminView` が候補なしで `'profile'`（会員マイページ）を返し、会員データを読まない管理画面で「必要なデータを読み込み中です...」が続いていた。画面メニューを全部外したカスタムロールの実際の管理者も、ログイン後に同じく止まっていた（サーバーが拒否するのは一般のみ）。行き先なしは新しい画面 `no-admin-access` へ。プレビュー中は「このロールは管理画面に入れず、本番では会員マイページを使う」＋［プレビューを終了］、実ログインは「MASTER に問い合わせ」＋［ログアウト］。この画面からのロール切り替え・プレビュー終了で画面を選び直す。会員データの読み込み中表示は会員マイページの中へ移し、管理バンドルから落とした（会員バンドルには案内画面が入らない）。
+- Fixed deployments: integrated/public @431 x2 / member @189 / admin @288.
+- **admin @287 は使っていない**: push が一時的に失敗した状態で作られ、v376.119 のコードのまま。push をやり直して @288 を作成した。
+- Verification: prerelease PASS（exit 0）、test:role-preview 14/14（追加 4 件・修正前ソースで 4 FAIL）。生成物: 管理バンドルに案内あり・読み込み中表示なし／会員バンドルは逆。偽 API でローカル起動し、一般を選ぶ → 案内／研修管理者へ切り替え → 研修管理／［プレビューを終了］→ ダッシュボード、エラー 0。**本番のブラウザ確認は未実施**（MCP のブラウザが別セッションに占有され起動できなかった）。
+- Rollback: integrated/public @430 x2 / member @188 / admin @286（v376.119）。
+
+### 2026-10-10 v376.119
 
 - Scope: サイドバーに本人の名前を出す。管理者は常に「システム管理者」「A」、会員は「M」の固定表記で、誰のアカウントか画面から分からなかった（管理画面は会員データを読まないため名前が無かった）。認証の応答に名前だけの `personName` を追加（`displayName`「名前（権限）」は記録・通知用のまま）。サイドバーは名前とその 1 文字目のアイコンを出し、名前が無いときだけ従来の表記。プレビュー中も本人の名前のまま、下の行がプレビュー中のロールになる。
 - Fixed deployments: integrated/public @430 x2 / member @188 / admin @286.
