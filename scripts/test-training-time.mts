@@ -76,3 +76,36 @@ test('★回帰固定: シート列から作る endTime は必ず formatTimeOnly
   }
   assert.doesNotMatch(source, /endTime\s*:\s*String\(/, 'endTime を String() で素通ししている箇所がある');
 });
+
+// ── 2026-10-10: 申込開始日・締切日（<input type="date">）の正規化（docs/302 §2）─────────
+// API は日付だけの列も "yyyy-MM-dd HH:mm" で返す。type="date" は yyyy-MM-dd 以外を受け付けず、
+// 編集モーダルで空欄に見えていた（endTime と同じ形の不具合）。画面側で日付の部分へ整える。
+import { stripTypeScriptTypes } from 'node:module';
+
+const TM_SRC = fs.readFileSync(
+  path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'components', 'TrainingManagement.tsx'),
+  'utf8',
+);
+
+function loadNormalizeDateOnly(): (v: string | undefined) => string {
+  const start = TM_SRC.indexOf('const normalizeDateOnly = ');
+  assert.notEqual(start, -1, 'normalizeDateOnly が TrainingManagement.tsx に見つからない');
+  const end = TM_SRC.indexOf('\n  };', start) + '\n  };'.length;
+  const js = stripTypeScriptTypes(TM_SRC.slice(start, end));
+  return new Function(`${js}; return normalizeDateOnly;`)() as (v: string | undefined) => string;
+}
+
+test('申込日: API の "yyyy-MM-dd HH:mm" を type="date" が表示できる yyyy-MM-dd に整える', () => {
+  const normalizeDateOnly = loadNormalizeDateOnly();
+  assert.equal(normalizeDateOnly('2026-03-15 00:00'), '2026-03-15');
+  assert.equal(normalizeDateOnly('2026-04-25'), '2026-04-25');
+  assert.equal(normalizeDateOnly(''), '');
+  assert.equal(normalizeDateOnly(undefined), '');
+});
+
+test('申込日: 編集モーダルへの読み込みと保存後の反映の両方で正規化している', () => {
+  const uses = TM_SRC.match(/applicationOpenDate: normalizeDateOnly\(/g) || [];
+  const usesClose = TM_SRC.match(/applicationCloseDate: normalizeDateOnly\(/g) || [];
+  assert.equal(uses.length, 2, 'loadTraining と保存後の setForm の 2 箇所');
+  assert.equal(usesClose.length, 2, 'loadTraining と保存後の setForm の 2 箇所');
+});

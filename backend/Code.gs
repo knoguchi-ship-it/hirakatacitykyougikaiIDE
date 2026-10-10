@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: c7be56305b5bf19fe7e35b5ffbb0e96243e2c8567a873b699c793547f1eb4d41
+// BUILD_INPUT_SHA256: 95736c961ccbdd6cc76e7f736e4eaef385dbaacadb7d2b575b0f30652c2f0b1a
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -1099,6 +1099,9 @@ function processApiRequest(action, payload) {
   try {
     var parsedPayload = parsePayload_(payload) || {};
     var actionRegistry = getActionRegistryForCurrentApp_();
+    // ロール視点プレビューのロールID。業務処理へは渡さない。
+    var previewRoleId = String(parsedPayload.__previewRoleId || '').trim();
+    delete parsedPayload.__previewRoleId;
     var isPublicAction = !!actionRegistry.publicActions[action];
     var isMemberAction = !!actionRegistry.memberActions[action];
     var isAdminLoginAction = !!actionRegistry.adminLoginActions[action];
@@ -1554,11 +1557,6 @@ var LOGIN_LOCKOUT_POLICY = {
  * 管理者権限コードを日本語ラベルに変換する。
  */
 
-/**
- * google.script.run 経由で呼び出し元の Google セッションを検証し、管理者認証を行う。
- * Session.getActiveUser() は google.script.run 呼び出し元のメールを返す（Execute as: Me でも）。
- * 権限コードに応じた adminPermissionLevel を返す。
- */
 
 // ─── 保守ツールの実行者確認（2026-10-10・docs/302 §2） ─────────────────────
 // 管理 split のトップレベル関数は google.script.run から直接呼べる（Apps Script の仕様:
@@ -1576,6 +1574,23 @@ var LOGIN_LOCKOUT_POLICY = {
 // イベントの triggerUid がこのプロジェクトに実在するトリガーかで確かめる。
 // クライアントは引数を偽れるため、triggerUid が付いているだけでは信用しない。
 // トリガー以外（エディタ・google.script.run）からの起動は MASTER に限る。
+
+// ─── ロール視点プレビュー（docs/246 改訂 2026-10-10・docs/302 §2） ─────────────────
+// MASTER が他のロールの画面を、そのロールの権限で実際に操作して確かめるための仕組み。
+// 以前はクライアントで書き込みを止める「閲覧のみ」だったが、それではそのロールで本当に
+// 操作できるかを確かめられず、しかも callApi を直接使う画面（変更申請の承認・却下）は止まっていなかった。
+//
+// - 受け付けるのは実際の操作者が MASTER のときだけ（権限を下げる方向にしか働かない）
+// - サーバーの判定もそのロールの許可メニュー・研修編集範囲・旧来の権限コードで行う
+// - loginId は実際の操作者のまま。記録上の操作者を偽らない
+// - 書き込み系の操作は T_監査ログ に「誰が・どのロールとして・何を」を残す
+// 旧来の権限コードは、初期ロールとの対応表（scripts/menu-registry.mjs の
+// LEGACY_CODE_TO_INITIAL_ROLE_ID・build 注入）を逆に引く。カスタムロールは管理者リストで
+// 権限コードが空のときと同じ既定値（ADMIN）として扱う。
+var PREVIEW_READ_ACTION_PREFIXES = ['get', 'list', 'search', 'fetch', 'check', 'load', 'preview'];
+
+
+
 
 
 // ─── docs/246 Phase 1-B: T_権限ロール 関連ヘルパー ─────────────────────────

@@ -208,6 +208,15 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
     return v;
   };
 
+  // 申込開始日・締切日は日付だけの列だが、API は他の日付列と同じ "yyyy-MM-dd HH:mm" で返す。
+  // <input type="date"> は yyyy-MM-dd 以外を受け付けず空欄で表示するため、管理者には
+  // 未設定に見えていた（docs/302 §2）。読み込むときに日付の部分だけへ整える。
+  const normalizeDateOnly = (v: string | undefined) => {
+    if (!v) return '';
+    const m = /^(\d{4}-\d{2}-\d{2})/.exec(String(v));
+    return m ? m[1] : String(v);
+  };
+
   const startNew = () => {
     setForm(buildEmptyForm(effectiveDefault));
     setPendingNewForm(null); // v376.16: 明示的な新規開始では退避中の入力も破棄
@@ -227,6 +236,8 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
     setForm({
       ...training,
       date: normalizeDateTime(training.date),
+      applicationOpenDate: normalizeDateOnly(training.applicationOpenDate),
+      applicationCloseDate: normalizeDateOnly(training.applicationCloseDate),
       fees: training.fees && training.fees.length > 0 ? training.fees : DEFAULT_FEES.map((f) => ({ ...f })),
       fieldConfig: training.fieldConfig ?? { ...effectiveDefault },
       // 旧データ後方互換: inquiryPhone/Email が未設定なら inquiryContactValue から復元
@@ -449,7 +460,12 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
         if (fileInputRef.current) fileInputRef.current.value = '';
       } else {
         // 既存更新（モーダル）はモーダルを開いたまま最新値を反映
-        setForm({ ...saved, date: normalizeDateTime(saved.date) });
+        setForm({
+          ...saved,
+          date: normalizeDateTime(saved.date),
+          applicationOpenDate: normalizeDateOnly(saved.applicationOpenDate),
+          applicationCloseDate: normalizeDateOnly(saved.applicationCloseDate),
+        });
       }
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);

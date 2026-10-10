@@ -18,7 +18,7 @@ import {
   LinePostAttachmentUploadResult,
 } from '../shared/types';
 import { EMAIL_PATTERN, PHONE_PATTERN, CARE_MANAGER_NO_PATTERN } from '../shared/validators';
-import { callGcpApi } from '../shared/api-base';
+import { callGcpApi, withPreviewRole } from '../shared/api-base';
 import { AdminDashboardData, AdminPermissionData, AnnualFeeAdminData, AnnualFeeAdminRecord, RoleDefinition, MenuRegistryEntry } from '../types';
 
 export interface TrainingMailPayload {
@@ -474,7 +474,7 @@ class GasApiClient implements ApiClient {
         .withFailureHandler((error: Error) => {
           reject(error);
         })
-        .processApiRequest('fetchAllData', null);
+        .processApiRequest('fetchAllData', withPreviewRole(null));
     });
   }
 
@@ -505,7 +505,7 @@ class GasApiClient implements ApiClient {
           }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getMemberPortalData', JSON.stringify({ ...lookup, ...this.memberSessionPayload() }));
+        .processApiRequest('getMemberPortalData', withPreviewRole(JSON.stringify({ ...lookup, ...this.memberSessionPayload() })));
     });
   }
 
@@ -539,7 +539,7 @@ class GasApiClient implements ApiClient {
           }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getAdminDashboardData', null);
+        .processApiRequest('getAdminDashboardData', withPreviewRole(null));
     });
   }
 
@@ -569,7 +569,7 @@ class GasApiClient implements ApiClient {
           }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getTrainingManagementData', null);
+        .processApiRequest('getTrainingManagementData', withPreviewRole(null));
     });
   }
 
@@ -618,7 +618,7 @@ class GasApiClient implements ApiClient {
           }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getSystemSettings', null);
+        .processApiRequest('getSystemSettings', withPreviewRole(null));
     });
   }
 
@@ -639,7 +639,7 @@ class GasApiClient implements ApiClient {
           }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('updateSystemSettings', JSON.stringify(settings));
+        .processApiRequest('updateSystemSettings', withPreviewRole(JSON.stringify(settings)));
     });
   }
 
@@ -663,7 +663,7 @@ class GasApiClient implements ApiClient {
           }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getAnnualFeeAdminData', JSON.stringify({ year }));
+        .processApiRequest('getAnnualFeeAdminData', withPreviewRole(JSON.stringify({ year })));
     });
   }
 
@@ -725,7 +725,7 @@ class GasApiClient implements ApiClient {
           }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getAdminPermissionData', null);
+        .processApiRequest('getAdminPermissionData', withPreviewRole(null));
     });
   }
 
@@ -813,7 +813,7 @@ class GasApiClient implements ApiClient {
           }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getFileThumbnail', JSON.stringify({ fileUrl, size: size || 0, ...this.memberSessionPayload() }));
+        .processApiRequest('getFileThumbnail', withPreviewRole(JSON.stringify({ fileUrl, size: size || 0, ...this.memberSessionPayload() })));
     });
   }
 
@@ -842,7 +842,7 @@ class GasApiClient implements ApiClient {
           }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getTrainingApplicants', JSON.stringify({ trainingId }));
+        .processApiRequest('getTrainingApplicants', withPreviewRole(JSON.stringify({ trainingId })));
     });
   }
 
@@ -863,7 +863,7 @@ class GasApiClient implements ApiClient {
           }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getAdminEmailAliases', null);
+        .processApiRequest('getAdminEmailAliases', withPreviewRole(null));
     });
   }
 
@@ -889,7 +889,7 @@ class GasApiClient implements ApiClient {
           }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest(action, payload === null ? null : JSON.stringify(payload));
+        .processApiRequest(action, withPreviewRole(payload === null ? null : JSON.stringify(payload)));
     });
   }
 
@@ -1191,7 +1191,7 @@ class GasApiClient implements ApiClient {
           catch { reject(new Error('Failed to parse response from GAS')); }
         })
         .withFailureHandler((error: Error) => reject(error))
-        .processApiRequest('getPaymentHistory', JSON.stringify(payload || {}));
+        .processApiRequest('getPaymentHistory', withPreviewRole(JSON.stringify(payload || {})));
     });
   }
 
@@ -1235,7 +1235,7 @@ class GasApiClient implements ApiClient {
       google.script.run
         .withSuccessHandler((r: string) => { try { const p = JSON.parse(r); if (p.success) resolve(p.data); else reject(new Error(p.error || 'API Error')); } catch { reject(new Error('Failed to parse response from GAS')); } })
         .withFailureHandler((e: Error) => reject(e))
-        .processApiRequest('getClaims', JSON.stringify(payload || {}));
+        .processApiRequest('getClaims', withPreviewRole(JSON.stringify(payload || {})));
     });
   }
 
@@ -1396,45 +1396,9 @@ export function createApiClient(config?: AppRuntimeConfig): ApiClient {
 // ローカルモック運用は廃止済みのため、GAS 実行環境外では従来どおり実行時エラーとなる。
 export const api: ApiClient = createApiClient(typeof window !== 'undefined' ? window.__APP_CONFIG__ : undefined);
 
-// ── ロール視点プレビュー（MASTER 専用）の閲覧専用ガード ───────────────────────
-// docs/246 View-as-role: MASTER が他ロールの見え方をプレビュー中は、サーバー権限は
-// MASTER のまま（フロント描画のみ模擬）だが、ベストプラクティス「誤操作防止＝閲覧優先」に
-// 従い、書込系 API をクライアント側で遮断して "閲覧のみ" を担保する。
-//
-// 方式: 読取接頭辞（get/list/search/fetch/check/load/preview）以外の API メソッドを
-// preview 中ブロックする deny-by-default。新規追加された書込 API も自動的にブロックされ、
-// keep-list 的なドリフト（feedback_admin_editor_keep_list）を起こさない。
-// private dispatch / 同期ヘルパーだけは決して包まない（読取系も巻き添えにしないため）。
-let previewReadOnlyActive = false;
-export function setApiPreviewReadOnly(on: boolean): void { previewReadOnlyActive = on; }
-export function isApiPreviewReadOnly(): boolean { return previewReadOnlyActive; }
-export const PREVIEW_READONLY_MESSAGE =
-  'ロール視点プレビュー中は閲覧のみです（保存・送信・削除は実行されません）。プレビューを終了してから操作してください。';
-
-const PREVIEW_READ_PREFIXES = ['get', 'list', 'search', 'fetch', 'check', 'load', 'preview'];
-// 包んではいけない非書込メンバー（同期 setter / private dispatch / private ヘルパー）。
-const PREVIEW_NEVER_GUARD = new Set([
-  'constructor',
-  'setMemberSessionToken',
-  'memberSessionPayload',
-  'runAction',
-  'callAction',
-]);
-
-(function installPreviewWriteGuard(): void {
-  const proto = Object.getPrototypeOf(api) as Record<string, unknown>;
-  for (const name of Object.getOwnPropertyNames(proto)) {
-    if (PREVIEW_NEVER_GUARD.has(name)) continue;
-    const original = proto[name];
-    if (typeof original !== 'function') continue;
-    // 読取系（get/list/... 接頭辞）は preview 中も常に許可。
-    if (PREVIEW_READ_PREFIXES.some((p) => name.startsWith(p))) continue;
-    const fn = original as (...args: unknown[]) => unknown;
-    (api as unknown as Record<string, unknown>)[name] = function previewGuardedApiMethod(this: unknown, ...args: unknown[]) {
-      if (previewReadOnlyActive) {
-        return Promise.reject(new Error(PREVIEW_READONLY_MESSAGE));
-      }
-      return fn.apply(this, args);
-    };
-  }
-})();
+// ── ロール視点プレビュー（MASTER 専用） ───────────────────────────────────
+// 2026-10-10: 以前はここで書き込み系 API をクライアント側で止める「閲覧のみ」だった。
+// プレビューはそのロールで実際に操作して確かめるためのものなので、止めるのをやめ、
+// サーバーがそのロールの権限で判定・実行する方式へ改めた（shared/api-base.ts withPreviewRole /
+// gas-src buildPreviewAdminSession_）。callApi を直接使う画面は止められておらず、
+// 「閲覧のみ」と表示しながら変更申請の承認が実行されていた（docs/302 §2）。

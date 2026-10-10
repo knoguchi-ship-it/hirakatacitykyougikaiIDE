@@ -23,9 +23,9 @@ import MemberDetailAdmin from './components/MemberDetailAdmin';
 import StaffDetailAdmin from './components/StaffDetailAdmin';
 import { AdminDashboardData, AdminDashboardMemberRow, AdminDashboardStaffRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, Staff, StaffRole, SystemSettings, Training, TrainingFieldConfig, DEFAULT_FIELD_CONFIG, RoleDefinition, MenuRegistryEntry, Regulation } from './types';
 import { TRAINING_OPTIONAL_FIELD_DEFS } from './components/TrainingManagement';
-import { api, setApiPreviewReadOnly, type AdminLoginResult, type MemberLoginResult, type MemberPortalLookup } from './services/api';
+import { api, type AdminLoginResult, type MemberLoginResult, type MemberPortalLookup } from './services/api';
 import { canAccessMenu, canUseLinePost, canManageLinePost } from './shared/rbac-util';
-import { callApi } from './shared/api-base';
+import { callApi, setApiPreviewRole } from './shared/api-base';
 import { EmailCard, MailCategoryPicker, MailGroupHeader, MasterOffBanner, ToggleSwitch } from './components/EmailSettingsCard';
 import type { MailCategoryKey } from './shared/mailCategories';
 import MailTemplateManager from './components/MailTemplateManager';
@@ -2153,11 +2153,11 @@ const App: React.FC = () => {
       .finally(() => setPreviewRolesLoading(false));
   };
 
-  // ロール選択（null=MASTER 復帰＝プレビュー終了）。書込ガードの ON/OFF と、
-  // 許可外 view にいた場合の許可内 view への退避を行う。
+  // ロール選択（null=MASTER 復帰＝プレビュー終了）。以降のサーバー呼び出しにロールIDを載せ
+  // （サーバーがそのロールの権限で判定・実行する）、許可外 view にいた場合は許可内 view へ退避する。
   const handleSelectPreviewRole = (roleId: string | null) => {
     setPreviewRoleId(roleId);
-    setApiPreviewReadOnly(!!roleId);
+    setApiPreviewRole(roleId);
     if (roleId && previewRoles) {
       const role = previewRoles.find((r) => r.roleId === roleId && !r.isMaster);
       if (role) {
@@ -2169,11 +2169,11 @@ const App: React.FC = () => {
     }
   };
 
-  // ログアウト・非 MASTER 化でプレビューと書込ガードを必ず解除（module フラグの取り残し防止）。
+  // ログアウト・非 MASTER 化でプレビューを必ず解除（module 変数の取り残し防止）。
   useEffect(() => {
     if (!isAuthenticated || userRole !== 'ADMIN' || !adminSessionRbac?.isMaster) {
       if (previewRoleId !== null) setPreviewRoleId(null);
-      setApiPreviewReadOnly(false);
+      setApiPreviewRole(null);
     }
   }, [isAuthenticated, userRole, adminSessionRbac?.isMaster, previewRoleId]);
 

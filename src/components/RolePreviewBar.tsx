@@ -6,9 +6,10 @@ import { RoleDefinition } from '../types';
  *
  * MASTER が「各ロール/権限ごとの見え方」に切り替えて確認するための上部固定バー。
  * - サーバー権限は MASTER のまま不変（フロント描画のみ模擬＝なりすましではない）。
- * - プレビュー中は API 書込が遮断され「閲覧のみ」（src/services/api.ts setApiPreviewReadOnly）。
+ * - プレビュー中の操作は、そのロールの権限でサーバーが実際に実行する（2026-10-10 改訂。
+ *   以前は書き込みを止める「閲覧のみ」だった）。本番データの変更・メール送信が起きる。
  * - ベストプラクティス準拠: 常時表示バナー / ワンクリック退出 / 可視・非表示サマリー /
- *   閲覧のみ明示 / a11y(role=status, aria-live) / レスポンシブ(360px〜) / 44px タップtarget。
+ *   実操作の警告表示 / a11y(role=status, aria-live) / レスポンシブ(360px〜) / 44px タップtarget。
  */
 export interface RolePreviewBarProps {
   /** 選択可能ロール（null = 未ロード）。MASTER 行は内部で除外する。 */
@@ -109,13 +110,13 @@ const RolePreviewBar: React.FC<RolePreviewBarProps> = ({
                 表示メニュー {visibleCount} 件
                 {hiddenCount !== null && <span className="opacity-80">／非表示 {hiddenCount} 件</span>}
               </span>
-              <span className="inline-flex items-center rounded border border-amber-700 bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-900">
-                閲覧のみ（保存・送信は無効）
+              <span className="inline-flex items-center rounded border border-red-700 bg-red-50 px-1.5 py-0.5 text-[11px] font-semibold text-red-800">
+                このロールの権限で実際に操作します（本番データの変更・メール送信が行われます）
               </span>
             </>
           ) : (
             <span className="text-[11px] text-slate-400">
-              MASTER のみ表示・ロールを選ぶと見え方を切替（閲覧のみ）
+              MASTER のみ表示・ロールを選ぶとそのロールの権限で操作（本番に反映）
             </span>
           )}
         </span>

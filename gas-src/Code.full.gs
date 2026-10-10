@@ -1980,6 +1980,9 @@ function processApiRequest(action, payload) {
   try {
     var parsedPayload = parsePayload_(payload) || {};
     var actionRegistry = getActionRegistryForCurrentApp_();
+    // ロール視点プレビューのロールID。業務処理へは渡さない。
+    var previewRoleId = String(parsedPayload.__previewRoleId || '').trim();
+    delete parsedPayload.__previewRoleId;
     var isPublicAction = !!actionRegistry.publicActions[action];
     var isMemberAction = !!actionRegistry.memberActions[action];
     var isAdminLoginAction = !!actionRegistry.adminLoginActions[action];
@@ -1988,6 +1991,13 @@ function processApiRequest(action, payload) {
       return JSON.stringify({ success: false, error: 'unsupported_action' });
     }
     if (requiredPerms) {
+      // ロール視点プレビュー: 以降の判定と処理はすべてそのロールの権限で行う（buildPreviewAdminSession_）。
+      // このブロックは公開・会員 split のビルドで丸ごと削られるので、管理 split でしか効かない。
+      _previewAdminSession = null;
+      if (previewRoleId) {
+        _previewAdminSession = buildPreviewAdminSession_(previewRoleId);
+        if (!isPreviewReadAction_(action)) appendPreviewAuditLog_(_previewAdminSession, action);
+      }
       var sessionResult = checkAdminBySession_();
       if (!sessionResult) {
         return JSON.stringify({ success: false, error: 'unauthorized' });
@@ -6189,7 +6199,15 @@ function mapAdminPermissionLabel_(permCode) {
  * Session.getActiveUser() は google.script.run 呼び出し元のメールを返す（Execute as: Me でも）。
  * 権限コードに応じた adminPermissionLevel を返す。
  */
+// ロール視点プレビュー中は、この 1 回の処理（processApiRequest）の間だけ、
+// なりすましたロールのセッションを返す。処理の中で checkAdminBySession_ を呼び直しても
+// MASTER の権限に戻らないようにするため（呼び直している処理が 20 箇所ほどある）。
+// processApiRequest が毎回先頭で null に戻す。
+var _previewAdminSession = null;
+
 function checkAdminBySession_(options) {
+  // ログイン操作はプレビューの対象外。返すとクライアントが自分をそのロールだと思い込む。
+  if (_previewAdminSession && !(options && options.recordLogin)) return _previewAdminSession;
   // options.recordLogin: 成功をログイン履歴へ残すのは「ログイン操作」（action checkAdminBySession）だけ。
   //   管理 API はすべて認可のためにこの関数を通るため、毎回記録すると API 1 回ごとに
   //   ログ用スプレッドシートを開いて appendRow する（実測で 1 回 2 秒の固定費に上乗せされていた）。
@@ -6395,6 +6413,87 @@ function assertTriggerOrMasterOperator_(e, toolName) {
     if (String(triggers[i].getUniqueId()) === triggerUid) return null;
   }
   throw new Error('このプロジェクトに無いトリガーからの実行は拒否しました（' + toolName + '）。');
+}
+
+// ─── ロール視点プレビュー（docs/246 改訂 2026-10-10・docs/302 §2） ─────────────────
+// MASTER が他のロールの画面を、そのロールの権限で実際に操作して確かめるための仕組み。
+// 以前はクライアントで書き込みを止める「閲覧のみ」だったが、それではそのロールで本当に
+// 操作できるかを確かめられず、しかも callApi を直接使う画面（変更申請の承認・却下）は止まっていなかった。
+//
+// - 受け付けるのは実際の操作者が MASTER のときだけ（権限を下げる方向にしか働かない）
+// - サーバーの判定もそのロールの許可メニュー・研修編集範囲・旧来の権限コードで行う
+// - loginId は実際の操作者のまま。記録上の操作者を偽らない
+// - 書き込み系の操作は T_監査ログ に「誰が・どのロールとして・何を」を残す
+// 旧来の権限コードは、初期ロールとの対応表（scripts/menu-registry.mjs の
+// LEGACY_CODE_TO_INITIAL_ROLE_ID・build 注入）を逆に引く。カスタムロールは管理者リストで
+// 権限コードが空のときと同じ既定値（ADMIN）として扱う。
+function previewLegacyLevelForRole_(role) {
+  if (role.isMaster) return 'MASTER';
+  var map = LEGACY_CODE_TO_INITIAL_ROLE_ID || {};
+  for (var code in map) {
+    if (Object.prototype.hasOwnProperty.call(map, code) && map[code] === role.roleId) return code;
+  }
+  return 'ADMIN';
+}
+var PREVIEW_READ_ACTION_PREFIXES = ['get', 'list', 'search', 'fetch', 'check', 'load', 'preview'];
+
+function buildPreviewAdminSession_(previewRoleId) {
+  var real = checkAdminBySession_();
+  if (!real || !real.isMaster) {
+    throw new Error('ロール視点プレビューは MASTER のみ利用できます。');
+  }
+  var role = getRoleByIdCached_(getOrCreateDatabase_(), String(previewRoleId || ''));
+  if (!role) {
+    throw new Error('プレビュー対象のロールが見つかりません。');
+  }
+  var isMaster = !!role.isMaster;
+  var level = previewLegacyLevelForRole_(role);
+  return {
+    authMethod: real.authMethod,
+    loginId: real.loginId,
+    memberId: real.memberId,
+    staffId: real.staffId,
+    roleCode: real.roleCode,
+    canAccessAdminPage: level !== 'GENERAL',
+    adminPermissionLevel: level,
+    roleId: role.roleId,
+    roleName: role.roleName,
+    isMaster: isMaster,
+    allowedMenus: isMaster
+      ? (MENU_REGISTRY || []).map(function(m) { return m.id; })
+      : (role.allowedMenus || []).slice(),
+    trainingEditScope: String(role.trainingEditScope || 'ALL').toUpperCase(),
+    displayName: String(real.displayName || '') + '（' + role.roleName + 'としてプレビュー）',
+    authenticatedAt: real.authenticatedAt,
+    previewRoleId: role.roleId,
+    previewActorLoginId: real.loginId,
+  };
+}
+
+function isPreviewReadAction_(actionName) {
+  var name = String(actionName || '');
+  for (var i = 0; i < PREVIEW_READ_ACTION_PREFIXES.length; i += 1) {
+    if (name.indexOf(PREVIEW_READ_ACTION_PREFIXES[i]) === 0) return true;
+  }
+  return false;
+}
+
+function appendPreviewAuditLog_(previewSession, actionName) {
+  try {
+    var sheet = getLogSs_().getSheetByName('T_監査ログ');
+    if (!sheet) return;
+    sheet.appendRow([
+      Utilities.getUuid(),
+      new Date().toISOString(),
+      String(previewSession.previewActorLoginId || ''),
+      'ROLE_PREVIEW_ACTION',
+      '',
+      String(actionName || ''),
+      String(previewSession.previewRoleId || ''),
+      '',
+      String(previewSession.roleName || ''),
+    ]);
+  } catch (e) { /* 記録の失敗で操作を止めない */ }
 }
 
 function clearAdminPermissionCaches_() {

@@ -50,6 +50,32 @@ export async function callGcpApi<T>(action: string, payload: unknown, config: Ap
   throw new Error((parsed && parsed.error) || 'API error');
 }
 
+// ロール視点プレビュー（docs/246 改訂 2026-10-10）。MASTER が選んだロールの ID を、
+// サーバーへのすべての呼び出しに __previewRoleId として載せる。サーバーは実際の操作者が
+// MASTER のときだけ受け付け、そのロールの権限で判定・実行する（buildPreviewAdminSession_）。
+// 呼び出しは必ず withPreviewRole を通す。載せ忘れは test:role-preview が落とす。
+let previewRoleId: string | null = null;
+
+export function setApiPreviewRole(roleId: string | null): void {
+  previewRoleId = roleId || null;
+}
+
+export function getApiPreviewRole(): string | null {
+  return previewRoleId;
+}
+
+/** processApiRequest へ渡す JSON 文字列（または null）に、プレビュー中のロールIDを足す。 */
+export function withPreviewRole(payload: string | null | undefined): string | null {
+  const base = payload ?? null;
+  if (!previewRoleId) return base;
+  let obj: unknown = {};
+  if (base) {
+    try { obj = JSON.parse(base); } catch { return base; }
+  }
+  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return base;
+  return JSON.stringify({ ...(obj as Record<string, unknown>), __previewRoleId: previewRoleId });
+}
+
 export function callApi<T>(action: string, payload?: unknown): Promise<T> {
   const config = typeof window !== 'undefined' ? window.__APP_CONFIG__ : undefined;
   if (config?.apiRuntime === 'gcp') {
@@ -74,6 +100,6 @@ export function callApi<T>(action: string, payload?: unknown): Promise<T> {
         }
       })
       .withFailureHandler((err: Error) => reject(err))
-      .processApiRequest(action, JSON.stringify(payload ?? {}));
+      .processApiRequest(action, withPreviewRole(JSON.stringify(payload ?? {})));
   });
 }
