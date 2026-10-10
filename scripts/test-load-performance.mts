@@ -144,8 +144,9 @@ test('表示名はキャッシュし、2 回目以降は T_会員 を読まな�
 
 test('事業所会員の職員として紐付いた管理者は、職員の行から名前を取る（権限名だけにならない）', () => {
   const { fn, ss } = buildAdminSession({ email: 'admin@example.org', asStaff: true });
-  const first = fn();
+  const first = fn() as { displayName: string; personName?: string };
   assert.equal(first.displayName, '野口 健太（MASTER）');
+  assert.equal(first.personName, '野口 健太', '画面に出す名前は権限名を含まない');
   const second = fn();
   assert.equal(second.displayName, first.displayName);
   assert.equal(ss.reads['T_事業所職員'], 1, '2 回目は名前キャッシュから引く');
@@ -154,7 +155,9 @@ test('事業所会員の職員として紐付いた管理者は、職員の行�
 
 test('個人会員として紐付いた管理者は従来どおり会員の行から取る', () => {
   const { fn, ss } = buildAdminSession({ email: 'admin@example.org' });
-  assert.equal(fn().displayName, '山田 花子（MASTER）');
+  const s1 = fn() as { displayName: string; personName?: string };
+  assert.equal(s1.displayName, '山田 花子（MASTER）');
+  assert.equal(s1.personName, '山田 花子');
   assert.equal(ss.reads['T_事業所職員'] || 0, 0);
 });
 

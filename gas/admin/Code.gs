@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 014ac5ac2642f233fa92bd2b7cca4352dcea41ac8dc39e54e5d1bd45df5e722d
+// BUILD_INPUT_SHA256: 118a7f12c30b24d3956cb867dcda327df584a093c20651916d38b4450001e008
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -4012,7 +4012,9 @@ function checkAdminBySession_(options) {
     isMaster: isMaster,
     allowedMenus: allowedMenus,
     trainingEditScope: trainingEditScope,
+    // displayName は記録・通知用（「名前（権限）」）。personName は画面に出す本人の名前だけ。
     displayName: derivedDisplayName,
+    personName: memberName,
     authenticatedAt: nowIso,
   };
 }
@@ -4104,6 +4106,7 @@ function buildPreviewAdminSession_(previewRoleId) {
       : (role.allowedMenus || []).slice(),
     trainingEditScope: String(role.trainingEditScope || 'ALL').toUpperCase(),
     displayName: String(real.displayName || '') + '（' + role.roleName + 'としてプレビュー）',
+    personName: real.personName,
     authenticatedAt: real.authenticatedAt,
     previewRoleId: role.roleId,
     previewActorLoginId: real.loginId,

@@ -427,6 +427,7 @@ const App: React.FC = () => {
     allowedMenus: string[];
     roleName?: string;
     trainingEditScope?: 'ALL' | 'OWN';
+    personName?: string;
   } | null>(null);
   // docs/246 View-as-role: MASTER 専用「ロール視点プレビュー」。サーバー権限は MASTER のまま、
   // フロント描画（Sidebar / routing / 機能可視）だけを選択ロールの見え方に切替える。
@@ -1736,6 +1737,7 @@ const App: React.FC = () => {
       allowedMenus?: string[];
       roleName?: string;
       trainingEditScope?: 'ALL' | 'OWN';
+      personName?: string;
     },
     availableMembers: Member[] = members,
   ) => {
@@ -1758,6 +1760,7 @@ const App: React.FC = () => {
         allowedMenus: ctx.allowedMenus,
         roleName: ctx.roleName,
         trainingEditScope: ctx.trainingEditScope,
+        personName: ctx.personName,
       });
     } else {
       setAdminSessionRbac(null);
@@ -1852,6 +1855,7 @@ const App: React.FC = () => {
             allowedMenus: auth.allowedMenus,
             roleName: auth.roleName,
             trainingEditScope: auth.trainingEditScope,
+            personName: auth.personName,
           });
         } else {
           setAdminSessionRbac(null);
@@ -6202,6 +6206,7 @@ const App: React.FC = () => {
           isMaster={effectiveRbac?.isMaster}
           allowedMenus={effectiveRbac?.allowedMenus}
           roleName={effectiveRbac?.roleName}
+          adminPersonName={adminSessionRbac?.personName}
           pendingChangeRequestCount={pendingChangeRequestCount}
           onLogout={handleLogoutClick}
           mobileOpen={mobileMenuOpen}

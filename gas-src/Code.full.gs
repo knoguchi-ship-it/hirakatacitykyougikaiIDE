@@ -6386,7 +6386,9 @@ function checkAdminBySession_(options) {
     isMaster: isMaster,
     allowedMenus: allowedMenus,
     trainingEditScope: trainingEditScope,
+    // displayName は記録・通知用（「名前（権限）」）。personName は画面に出す本人の名前だけ。
     displayName: derivedDisplayName,
+    personName: memberName,
     authenticatedAt: nowIso,
   };
 }
@@ -6478,6 +6480,7 @@ function buildPreviewAdminSession_(previewRoleId) {
       : (role.allowedMenus || []).slice(),
     trainingEditScope: String(role.trainingEditScope || 'ALL').toUpperCase(),
     displayName: String(real.displayName || '') + '（' + role.roleName + 'としてプレビュー）',
+    personName: real.personName,
     authenticatedAt: real.authenticatedAt,
     previewRoleId: role.roleId,
     previewActorLoginId: real.loginId,

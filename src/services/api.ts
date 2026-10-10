@@ -59,6 +59,8 @@ export interface AdminLoginResult {
   allowedMenus?: string[];
   trainingEditScope?: 'ALL' | 'OWN';
   displayName?: string;
+  /** 本人の名前だけ（画面表示用）。displayName は「名前（権限）」で記録・通知用。 */
+  personName?: string;
   authenticatedAt: string;
 }
 

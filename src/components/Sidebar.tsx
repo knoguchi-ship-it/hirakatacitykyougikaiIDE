@@ -29,6 +29,8 @@ interface SidebarProps {
   isMaster?: boolean;
   allowedMenus?: string[];
   roleName?: string;
+  /** 管理者本人の名前（認証の personName）。管理画面は会員データを読まないので、名前はここから出す。 */
+  adminPersonName?: string;
   /** Mobile drawer state. md+ ignores this and always shows the sidebar. */
   mobileOpen?: boolean;
   onMobileClose?: () => void;
@@ -79,6 +81,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   isMaster: isMasterProp,
   allowedMenus,
   roleName,
+  adminPersonName,
   mobileOpen = false,
   onMobileClose,
 }) => {
@@ -210,12 +213,17 @@ const Sidebar: React.FC<SidebarProps> = ({
     return level ? map[level] || '' : '';
   };
 
-  const getUserDisplayName = () => {
+  // 本人の名前。取れないときだけ汎用の表記にする（アイコンの文字もこれに合わせる）。
+  const getPersonName = () => {
     if (currentStaffName) return currentStaffName;
     if (currentUser) return `${currentUser.lastName} ${currentUser.firstName}`.trim();
-    if (role === 'ADMIN') return 'システム管理者';
-    return 'ゲスト';
+    if (role === 'ADMIN' && adminPersonName) return adminPersonName.trim();
+    return '';
   };
+
+  const getUserDisplayName = () => getPersonName() || (role === 'ADMIN' ? 'システム管理者' : 'ゲスト');
+
+  const getAvatarLabel = () => getPersonName().charAt(0) || (role === 'ADMIN' ? 'A' : 'M');
 
   const getUserDisplayDetail = () => {
     if (role === 'ADMIN' && adminPermissionLevel) {
@@ -271,7 +279,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               role === 'ADMIN' ? 'bg-primary-500' : 'bg-emerald-500'
             }`}
           >
-            {role === 'ADMIN' ? 'A' : 'M'}
+            {getAvatarLabel()}
           </div>
           <div className="min-w-0">
             <p className="text-xs font-semibold text-white truncate">{getUserDisplayName()}</p>
