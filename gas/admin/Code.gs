@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 3d6d8ade7859742d1cc7aaa8516898c08e9632c7274ed2c1e54305dbdada1536
+// BUILD_INPUT_SHA256: 014ac5ac2642f233fa92bd2b7cca4352dcea41ac8dc39e54e5d1bd45df5e722d
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -3918,18 +3918,32 @@ function checkAdminBySession_(options) {
     throw new Error('管理者に会員IDが紐付いていません。');
   }
 
-  // 表示名: 名前キャッシュ → fetchAllDataFromDb_ キャッシュ → T_会員 の順に引く。
+  // 表示名: 名前キャッシュ → 職員の行 → fetchAllDataFromDb_ キャッシュ → T_会員 の順に引く。
   // 管理 split では fetchAllData のキャッシュがほぼ作られないため、名前キャッシュが無いと
   // 管理 API を呼ぶたびに表示名のためだけに T_会員 を全件読んでいた。
+  // 2026-10-10: 事業所会員の職員として紐付いた管理者は、会員の行の姓・名が空（事業所会員は
+  // 個人名を職員の行に持つ・v131）なので、表示名が権限名だけ（「マスター」）になっていた。
+  // 職員IDがあれば職員の行から引く。フリガナ検証を伴う normalizeStaffNameFields_ は使わない
+  // （職員の行に不備が 1 つあるだけで管理者がログインできなくなるため）。
   var memberName = '';
-  var nameCacheKey = 'admin_name_v1:' + memberId;
+  var nameCacheKey = 'admin_name_v2:' + memberId + ':' + staffId;
   var cachedName = cache.get(nameCacheKey);
   if (cachedName) memberName = cachedName;
+  if (!memberName && staffId) {
+    var staffRowsForName = getRowsAsObjects_(ss, 'T_事業所職員');
+    for (var si = 0; si < staffRowsForName.length; si += 1) {
+      var staffRowForName = staffRowsForName[si];
+      if (String(staffRowForName['職員ID'] || '') !== staffId || toBoolean_(staffRowForName['削除フラグ'])) continue;
+      memberName = joinHumanNameParts_(staffRowForName['姓'], staffRowForName['名'])
+        || String(staffRowForName['氏名'] || '').trim();
+      break;
+    }
+  }
   var cachedAllData = memberName ? null : getChunkedCache_(cache, getAllDataCacheKey_());
   if (cachedAllData && cachedAllData.members) {
     for (var ci = 0; ci < cachedAllData.members.length; ci += 1) {
       if (cachedAllData.members[ci].id === memberId) {
-        memberName = ((cachedAllData.members[ci].lastName || '') + ' ' + (cachedAllData.members[ci].firstName || '')).trim();
+        memberName = joinHumanNameParts_(cachedAllData.members[ci].lastName, cachedAllData.members[ci].firstName);
         break;
       }
     }
@@ -3939,7 +3953,7 @@ function checkAdminBySession_(options) {
     var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
     for (var k = 0; k < memberRows.length; k += 1) {
       if (String(memberRows[k]['会員ID'] || '') === memberId) {
-        memberName = (String(memberRows[k]['姓'] || '') + ' ' + String(memberRows[k]['名'] || '')).trim();
+        memberName = joinHumanNameParts_(memberRows[k]['姓'], memberRows[k]['名']);
         break;
       }
     }

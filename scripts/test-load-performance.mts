@@ -70,15 +70,22 @@ function fakeCache() {
 }
 
 // ── 1〜3: checkAdminBySession_ ───────────────────────────────
-function buildAdminSession(opts: { email: string }) {
+// asStaff: 事業所会員の職員として紐付いた管理者（会員の行は姓・名が空・v131）
+function buildAdminSession(opts: { email: string; asStaff?: boolean }) {
   const ss = fakeSpreadsheet({
     T_管理者Googleホワイトリスト: [
       { Googleメール: 'admin@example.org', 権限コード: 'MASTER', 紐付け認証ID: 'AUTH-1', 紐付け会員ID: 'M1', ロールID: '', 有効フラグ: true, 削除フラグ: false },
     ],
     T_認証アカウント: [
-      { 認証ID: 'AUTH-1', 会員ID: 'M1', 職員ID: '', システムロールコード: 'ADMIN', 削除フラグ: false },
+      { 認証ID: 'AUTH-1', 会員ID: 'M1', 職員ID: opts.asStaff ? 'S1' : '', システムロールコード: 'ADMIN', 削除フラグ: false },
     ],
-    T_会員: [{ 会員ID: 'M1', 姓: '山田', 名: '花子', 削除フラグ: false }],
+    T_会員: opts.asStaff
+      ? [{ 会員ID: 'M1', 姓: '', 名: '', 削除フラグ: false }]
+      : [{ 会員ID: 'M1', 姓: '山田', 名: '花子', 削除フラグ: false }],
+    T_事業所職員: [
+      { 職員ID: 'S0', 会員ID: 'M1', 姓: '削除', 名: '済み', 氏名: '', 削除フラグ: true },
+      { 職員ID: 'S1', 会員ID: 'M1', 姓: '野口', 名: '健太', 氏名: '', 削除フラグ: false },
+    ],
   });
   const cache = fakeCache();
   const history: Array<{ result: string; reason: string }> = [];
@@ -90,6 +97,7 @@ function buildAdminSession(opts: { email: string }) {
     function getRowsAsObjects_(ss, name) { return ${'getRowsAsObjectsFromSheet_'}(ss.getSheetByName(name)); }
     ${extractFunction('getRowsAsObjectsFromSheet_')}
     ${extractFunction('toBoolean_')}
+    ${extractFunction('joinHumanNameParts_')}
     function getChunkedCache_() { return null; }
     function getAllDataCacheKey_() { return 'fetchAllData:test'; }
     function mapAdminPermissionLabel_(c) { return c; }
@@ -132,6 +140,22 @@ test('表示名はキャッシュし、2 回目以降は T_会員 を読まな�
   assert.match(first.displayName, /山田 花子/);
   assert.equal(second.displayName, first.displayName);
   assert.equal(ss.reads['T_会員'], 1);
+});
+
+test('事業所会員の職員として紐付いた管理者は、職員の行から名前を取る（権限名だけにならない）', () => {
+  const { fn, ss } = buildAdminSession({ email: 'admin@example.org', asStaff: true });
+  const first = fn();
+  assert.equal(first.displayName, '野口 健太（MASTER）');
+  const second = fn();
+  assert.equal(second.displayName, first.displayName);
+  assert.equal(ss.reads['T_事業所職員'], 1, '2 回目は名前キャッシュから引く');
+  assert.equal(ss.reads['T_会員'] || 0, 0, '職員の行で見つかれば会員の行は読まない');
+});
+
+test('個人会員として紐付いた管理者は従来どおり会員の行から取る', () => {
+  const { fn, ss } = buildAdminSession({ email: 'admin@example.org' });
+  assert.equal(fn().displayName, '山田 花子（MASTER）');
+  assert.equal(ss.reads['T_事業所職員'] || 0, 0);
 });
 
 // ── 4: 同じシートを 2 回読まない ─────────────────────────────
