@@ -41,7 +41,7 @@
 
 | 重要度 | 内容 | 根拠 |
 |---|---|---|
-| **高（セキュリティ）** | **管理 split の保守ツール 24 本中 22 本が、呼び出し元を確かめない。** 認可は `processApiRequest` の入口にしかなく、`google.script.run.<関数名>()` で直接呼べる。管理 web app は `DOMAIN` 公開なので、**ホワイトリスト外の hcm-n.org アカウントでも** `deleteTestData_APPLY` / `restoreLastArchiveBatch_APPLY` / `executeStrictE2ETestMemberCleanup_APPLY` / `setupScheduledTriggers` 等を実行できる | 本確認で `listArchiveBatches_LOG` / `diagnoseMemberDeleteDebt_LOG` を web app から直接実行できた。ガードがあるのは `dryRunApplicationScenarios` / `previewDryRunApplicationCleanup` の 2 本だけ |
+| ~~高（セキュリティ）~~ **v376.115 で対応済み** | **管理 split の保守ツール 24 本中 22 本が、呼び出し元を確かめない**（実際は既存ガード 2 本も何も止めておらず 24 本すべて）。 認可は `processApiRequest` の入口にしかなく、`google.script.run.<関数名>()` で直接呼べる。管理 web app は `DOMAIN` 公開なので、**ホワイトリスト外の hcm-n.org アカウントでも** `deleteTestData_APPLY` / `restoreLastArchiveBatch_APPLY` / `executeStrictE2ETestMemberCleanup_APPLY` / `setupScheduledTriggers` 等を実行できる | 本確認で `listArchiveBatches_LOG` / `diagnoseMemberDeleteDebt_LOG` を web app から直接実行できた。ガードがあるのは `dryRunApplicationScenarios` / `previewDryRunApplicationCleanup` の 2 本だけ |
 | 中（セキュリティ） | ロール視点プレビューの書き込み遮断は `api.*` だけを包む。`callApi()` を直接呼ぶ **変更申請の承認・却下**（`ChangeRequestConsole`）と **研修フォルダ作成**（`setupTrainingFileFolder`）はプレビュー中でも実行される | `src/services/api.ts` `installPreviewWriteGuard` |
 | 中 | **研修の編集モーダルで申込開始日・締切日が空欄に見える。** 値が `2026-03-15 00:00` で `<input type=date>` の形式（yyyy-MM-dd）に合わず、ブラウザが表示しない | コンソール警告 `The specified value "2026-03-15 00:00" does not conform...` |
 | 低 | 事業所会員の職員に紐付いた管理者の表示名が、権限名（「マスター」）だけになる。名前を `T_会員` の姓名から引くが、事業所会員は姓名が空（v131）。LINE 投稿依頼の作成者名などに残る | `checkAdminBySession_`。**v376.113 の変更前からの挙動** |

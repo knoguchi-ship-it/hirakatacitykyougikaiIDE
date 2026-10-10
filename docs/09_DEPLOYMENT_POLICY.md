@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-10-09
-Production: `v376.114` / integrated-public `@425` x2 / member split `@183` / admin split `@281`
+Updated: 2026-10-10
+Production: `v376.115` / integrated-public `@426` x2 / member split `@184` / admin split `@282`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -151,7 +151,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-09 v376.114 ← current production
+### 2026-10-10 v376.115 ← current production
+
+- Scope: 🔒 管理 split の保守ツールを MASTER 限定に（`docs/302` §2）。Apps Script は `_` で終わらないトップレベル関数を `google.script.run` へ公開し、管理 web app は DOMAIN 公開・デプロイした人の権限で動くため、**管理者リスト外の hcm-n.org アカウントでも保守ツール 24 本を直接実行できた**（認可は `processApiRequest` の入口だけ）。既存の `dryRun_assertAdminOperator_` は何も止めていなかった。`doGet` / `processApiRequest` 以外の全公開関数の先頭に `assertMasterOperator_`（管理者リスト照合＋MASTER 以外は拒否・ログイン履歴に記録）。トリガーのハンドラ 2 本は `triggerUid` が実在トリガーと一致すれば通す（`assertTriggerOrMasterOperator_`）。画面の操作は変更なし。
+- Fixed deployments: integrated/public @426 x2 / member @184 / admin @282.
+- Verification: prerelease PASS（exit 0）、新設 test:operator-tool-guard 9/9（修正前ソースで 9/9 FAIL）。本番: MASTER で保守ツール実行可／偽 triggerUid は拒否／サムネイル生成トリガーが push 後に成功（lastOkAt 03:25:50Z）／画面の API 4 種 success。MASTER 以外の拒否は該当アカウントが無く本番未検証（単体テストで実行確認）。
+- Rollback: integrated/public @425 x2 / member @183 / admin @281（v376.114）。
+
+### 2026-10-09 v376.114
 
 - Scope: 管理画面のダッシュボード初期データ（`getAdminInitData`・221KB）を入場 1 回だけ取得（`docs/301` §5）。取得結果の反映で `systemSettingsLoaded` が立ち、それを依存に持つ effect が再実行されて取り直していた（v376.113 以前からの不具合）。
 - Fixed deployments: integrated/public @425 x2 / member @183 / admin @281.
