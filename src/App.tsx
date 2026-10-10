@@ -37,7 +37,7 @@ import { DEFAULT_WITHDRAWAL_CONFIRMATION_ITEMS, normalizeWithdrawalConfirmationI
 import { MAIL_DELIVERY_OPTIONS, resolveMailDeliveryState, type MailDeliveryState } from './shared/mailDeliveryState';
 
 type Role = 'ADMIN' | 'MEMBER';
-type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'roster-export' | 'mailing-list-export' | 'template-help' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings' | 'member-delete' | 'change-requests' | 'officer-management' | 'payment-history' | 'claim-management' | 'line-post' | 'data-export';
+type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'roster-export' | 'mailing-list-export' | 'template-help' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings' | 'member-delete' | 'change-requests' | 'officer-management' | 'payment-history' | 'claim-management' | 'line-post' | 'data-export' | 'no-admin-access';
 type AuthTab = 'member' | 'admin';
 type PendingAnnualFeeAction = { type: 'view'; view: View } | { type: 'logout' } | null;
 type MemberListFilter = 'ALL' | MemberType;
@@ -325,6 +325,7 @@ const BREADCRUMB_MAP: Record<string, { group: string; label: string }> = {
   'system-permissions': { group: 'システム',   label: '権限管理' },
   'member-delete':      { group: 'システム',   label: 'データ管理' },
   'data-export':        { group: 'システム',   label: 'データ出力（CSV）' },
+  'no-admin-access':    { group: '管理画面',   label: '利用できる画面がありません' },
 };
 
 type AdminSettingsSectionProps = {
@@ -1278,7 +1279,7 @@ const App: React.FC = () => {
       loadSystemSettings(false).catch(() => undefined);
     }
 
-    if (currentView === 'annual-fee-manage' || currentView === 'member-detail' || currentView === 'staff-detail' || currentView === 'officer-management') {
+    if (currentView === 'annual-fee-manage' || currentView === 'member-detail' || currentView === 'staff-detail' || currentView === 'officer-management' || currentView === 'no-admin-access') {
       return;
     }
 
@@ -1765,10 +1766,11 @@ const App: React.FC = () => {
     } else {
       setAdminSessionRbac(null);
     }
-    // docs/246 Phase 3-B: 初期 view を allowedMenus に基づいて選択（許可されないと profile fallback）
+    // docs/246 Phase 3-B: 初期 view を allowedMenus に基づいて選択。管理画面を使えない人は、
+    // 管理 shell では「使える画面なし」、それ以外（統合 shell）では会員マイページへ。
     if (permLevel === 'GENERAL' || !ctx.canAccessAdminPage) {
       setUserRole('MEMBER');
-      setCurrentView('profile');
+      setCurrentView(isAdminShell ? 'no-admin-access' : 'profile');
     } else {
       setUserRole('ADMIN');
       const initial = pickInitialAdminView(ctx.isMaster, ctx.allowedMenus, permLevel);
@@ -1779,7 +1781,7 @@ const App: React.FC = () => {
   };
 
   // docs/246 Phase 3-B: ログイン直後の初期 view 選択。
-  // 優先度: members-list（admin） → training-manage → admin-settings → 最初の許可メニュー → 'profile'。
+  // 優先度: members-list（admin） → training-manage → admin-settings → 最初の許可メニュー → 'no-admin-access'（開ける画面が無い）。
   // session に allowedMenus が無い場合は legacy 二択 fallback。
   function pickInitialAdminView(
     isMaster: boolean | undefined,
@@ -1813,7 +1815,9 @@ const App: React.FC = () => {
       for (const m of allowedMenus) {
         if (menuToView[m]) return menuToView[m];
       }
-      return 'profile';
+      // 開ける管理画面が 1 つも無いロール（一般・画面メニューを外したカスタムロール）。
+      // 以前は 'profile'（会員マイページ）を返し、会員データを読まない管理画面で読み込み中のまま止まっていた。
+      return 'no-admin-access';
     }
     // legacy fallback
     if (legacyLevel === 'TRAINING_MANAGER' || legacyLevel === 'TRAINING_REGISTRAR') return 'training-manage';
@@ -1861,17 +1865,12 @@ const App: React.FC = () => {
           setAdminSessionRbac(null);
         }
         const initialView = permLevel === 'GENERAL' || !auth.canAccessAdminPage
-          ? null
+          ? 'no-admin-access'
           : pickInitialAdminView(auth.isMaster, auth.allowedMenus, permLevel);
         // 先行取得はダッシュボードで始まる人のためのもの。それ以外では後で古い結果を使わないよう捨てる。
         if (initialView !== 'admin') adminInitPrefetchRef.current = null;
-        if (initialView === null) {
-          setUserRole('MEMBER');
-          setCurrentView('profile');
-        } else {
-          setUserRole('ADMIN');
-          setCurrentView(initialView);
-        }
+        setUserRole('ADMIN');
+        setCurrentView(initialView as View);
         setIsAuthenticated(true);
         setAuthError(null);
       } catch (error) {
@@ -2166,14 +2165,19 @@ const App: React.FC = () => {
   const handleSelectPreviewRole = (roleId: string | null) => {
     setPreviewRoleId(roleId);
     setApiPreviewRole(roleId);
+    // 「使える画面なし」はロールに依存する画面なので、ロールが変われば必ず選び直す。
+    const onNoAccess = currentView === 'no-admin-access';
     if (roleId && previewRoles) {
       const role = previewRoles.find((r) => r.roleId === roleId && !r.isMaster);
       if (role) {
         const menuId = viewToMenuId[currentView];
-        if (menuId && role.allowedMenus.indexOf(menuId) === -1) {
+        if (onNoAccess || (menuId && role.allowedMenus.indexOf(menuId) === -1)) {
           setCurrentView(pickInitialAdminView(false, role.allowedMenus, adminPermissionLevel) as View);
         }
       }
+    } else if (!roleId && onNoAccess && adminSessionRbac) {
+      // プレビュー終了: MASTER 本人の画面へ戻す
+      setCurrentView(pickInitialAdminView(adminSessionRbac.isMaster, adminSessionRbac.allowedMenus, adminPermissionLevel) as View);
     }
   };
 
@@ -3532,20 +3536,17 @@ const App: React.FC = () => {
       return <div className="text-red-500 p-4 border border-red-200 bg-red-50 rounded">{initError}</div>;
     }
 
-    if ((currentView === 'training-apply' || currentView === 'profile') && !memberPortalLoaded) {
-      return (
-        <div className="flex flex-col items-center justify-center h-64 text-slate-500">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-500 mb-4"></div>
-          <p>必要なデータを読み込み中です...</p>
-        </div>
-      );
-    }
-
     // 会員 split は管理画面へ到達しない（管理者ログインを出さず、サーバも管理 action を持たない）。
     // ビルド時に定数へ置き換わる条件でここを閉じると、以降の管理画面の分岐と管理用コンポーネントが
     // 会員バンドルから落ちる（会員と管理で同じ 2.4MB を配信していた）。
     if (import.meta.env.VITE_APP === 'member') {
       return renderMemberView();
+    }
+
+    // 管理画面で開ける画面が無いとき。会員 split には来ないので、上の早期 return より後ろに置く
+    // （会員バンドルからこの表示を落とすため）。
+    if (currentView === 'no-admin-access') {
+      return renderNoAdminAccess();
     }
 
     if (currentView === 'admin') {
@@ -6126,13 +6127,49 @@ const App: React.FC = () => {
     return renderMemberView();
   };
 
+  // 管理画面で開ける画面が 1 つも無いとき（一般ロール・画面メニューを外したロール）。
+  // 読み込み中のまま止めず、理由と次の操作を示す。プレビュー中は本番でどう見えるかも伝える。
+  const renderNoAdminAccess = () => {
+    const inPreview = previewRoleId !== null;
+    return (
+      <div className="mx-auto max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-sm" role="status">
+        <h2 className="text-lg font-bold text-slate-900">利用できる管理画面がありません</h2>
+        {inPreview ? (
+          <p className="mt-3 text-sm leading-7 text-slate-700">
+            「{previewedRole?.roleName || 'このロール'}」ロールで使える管理画面はありません。
+            本番では、このロールの人は管理画面に入れず、会員マイページ（ログインID・パスワード）を使います。
+          </p>
+        ) : (
+          <p className="mt-3 text-sm leading-7 text-slate-700">
+            このアカウントで使える管理画面はありません。権限の設定については、管理者（MASTER）にお問い合わせください。
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={inPreview ? () => handleSelectPreviewRole(null) : handleLogoutClick}
+          className="mt-5 inline-flex min-h-[44px] items-center rounded-full bg-slate-800 px-5 text-sm font-semibold text-white hover:bg-slate-700"
+        >
+          {inPreview ? 'プレビューを終了' : 'ログアウト'}
+        </button>
+      </div>
+    );
+  };
+
   // 会員マイページの表示（研修申込・プロフィール）。会員 split はここだけを描く。
   const renderMemberView = () => {
     // 管理 split は会員マイページを表示しない（v250 確定・管理と会員の完全分離）。
     // 管理 split には会員データ取得の API が無く、ここへ来ても表示できない。
     // ビルド時の定数で閉じると、会員マイページ一式（HEIC 変換 1.3MB を含む）が管理バンドルから落ちる。
     if (import.meta.env.VITE_APP === 'admin') {
-      return <div className="p-8 text-center text-slate-500">会員マイページは会員用の URL からご利用ください。</div>;
+      return renderNoAdminAccess();
+    }
+    if (!memberPortalLoaded) {
+      return (
+        <div className="flex flex-col items-center justify-center h-64 text-slate-500">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-500 mb-4"></div>
+          <p>必要なデータを読み込み中です...</p>
+        </div>
+      );
     }
     if (currentView === 'training-apply') {
       if (!currentUser) {

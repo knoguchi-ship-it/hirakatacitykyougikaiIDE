@@ -179,3 +179,57 @@ test('withPreviewRole: プレビュー中だけロールIDを足し、元の項�
   assert.deepEqual(JSON.parse(withPreviewRole('{"a":1}') as string), { a: 1, __previewRoleId: 'role-training-manager-initial' });
   setApiPreviewRole(null);
 });
+
+// ── 2026-10-11: 開ける管理画面が無いロール（一般・画面メニューを外したロール）─────────────
+// 以前は行き先が 'profile'（会員マイページ）になり、会員データを読まない管理画面で
+// 「必要なデータを読み込み中です...」のまま止まっていた。
+import { stripTypeScriptTypes } from 'node:module';
+import { canAccessMenu } from '../src/shared/rbac-util.ts';
+
+const APP = fs.readFileSync(path.join(ROOT, 'src', 'App.tsx'), 'utf8');
+
+function extractTsxFunction(src: string, signature: string): string {
+  const start = src.indexOf(signature);
+  assert.notEqual(start, -1, `${signature} が見つからない`);
+  let depth = 0;
+  let i = src.indexOf('{', src.indexOf(')', start));
+  for (; i < src.length; i += 1) {
+    if (src[i] === '{') depth += 1;
+    else if (src[i] === '}') {
+      depth -= 1;
+      if (depth === 0) return src.slice(start, i + 1);
+    }
+  }
+  throw new Error(`${signature} の終端が見つからない`);
+}
+
+const pickInitialAdminView = new Function(
+  'canAccessMenu',
+  `${stripTypeScriptTypes(extractTsxFunction(APP, 'function pickInitialAdminView('))}; return pickInitialAdminView;`,
+)(canAccessMenu) as (isMaster: boolean, menus: string[], level: string | null) => string;
+
+test('開ける管理画面が無いロールの行き先は「使える画面なし」（会員マイページへ落とさない）', () => {
+  assert.equal(pickInitialAdminView(false, ['common-shared'], 'GENERAL'), 'no-admin-access');
+  assert.equal(pickInitialAdminView(false, [], 'ADMIN'), 'no-admin-access');
+  assert.equal(pickInitialAdminView(false, ['training-manage', 'bulk-mail'], 'TRAINING_MANAGER'), 'training-manage');
+  assert.equal(pickInitialAdminView(true, [], 'MASTER'), 'admin');
+});
+
+test('「使える画面なし」は読み込み中表示より先に扱い、読み込み中表示は会員マイページの中にだけある', () => {
+  const render = extractTsxFunction(APP, 'const renderContent = () =>');
+  assert.match(render, /if \(currentView === 'no-admin-access'\) \{\s*return renderNoAdminAccess\(\);/);
+  assert.doesNotMatch(render, /必要なデータを読み込み中です/);
+  const member = extractTsxFunction(APP, 'const renderMemberView = () =>');
+  assert.match(member, /if \(import\.meta\.env\.VITE_APP === 'admin'\) \{\s*return renderNoAdminAccess\(\);\s*\}\s*if \(!memberPortalLoaded\)/);
+});
+
+test('管理 shell は管理画面を使えない人を会員マイページへ落とさない', () => {
+  assert.match(APP, /setCurrentView\(isAdminShell \? 'no-admin-access' : 'profile'\);/);
+  assert.match(APP, /permLevel === 'GENERAL' \|\| !auth\.canAccessAdminPage\s*\?\s*'no-admin-access'/);
+});
+
+test('プレビューの切り替え: 「使える画面なし」から別ロール・終了のどちらでも画面を選び直す', () => {
+  const fn = extractTsxFunction(APP, 'const handleSelectPreviewRole = (roleId: string | null) =>');
+  assert.match(fn, /if \(onNoAccess \|\| \(menuId && role\.allowedMenus\.indexOf\(menuId\) === -1\)\)/);
+  assert.match(fn, /else if \(!roleId && onNoAccess && adminSessionRbac\)/);
+});
