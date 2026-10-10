@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-10-10
-Production: `v376.117` / integrated-public `@428` x2 / member split `@186` / admin split `@284`
+Production: `v376.118` / integrated-public `@429` x2 / member split `@187` / admin split `@285`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -151,7 +151,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-10 v376.117 ← current production
+### 2026-10-10 v376.118 ← current production
+
+- Scope: 事業所会員の職員として紐付いた管理者の表示名が権限名だけ（「マスター」）になっていたのを修正（`docs/302` §2）。`checkAdminBySession_` が `T_会員` の姓・名（事業所会員は空・v131）から名前を取っていた。職員IDがあれば `T_事業所職員` の姓・名（無ければ氏名）を先に引く。名前キャッシュの鍵に職員IDを含める（`admin_name_v2`）。フリガナ検証で例外を投げる `normalizeStaffNameFields_` は認証経路で使わない。影響していた箇所: LINE 投稿の作成者名、共有メモの編集者名、承認・却下通知メールの `{{処理者名}}`。過去の記録は書き換えない。
+- Fixed deployments: integrated/public @429 x2 / member @187 / admin @285.
+- Verification: prerelease PASS（exit 0）、test:load-performance 11/11（職員紐付けの名前を追加・修正前ソースで FAIL）。本番: 認証の表示名が「（職員の名前）（マスター）」になったことを確認。
+- Rollback: integrated/public @428 x2 / member @186 / admin @284（v376.117）。
+
+### 2026-10-10 v376.117
 
 - Scope: 最初の読み込みが返らないときの自動再試行（`docs/302` §2）。v376.116 直後に管理画面が「認証を確認しています…」のまま 3 分以上止まった（同じ呼び出しを呼び直すと 4 秒で応答）。`src/shared/connectionRetry.ts` に 15 秒 × 最大 5 回の再試行・案内文・状態を集約し、表示は共通部品 `ConnectionRetryNotice`。管理（認証・初期データ）・会員（マイページのデータ）・公開（研修一覧・設定）の最初の読み込みを包む。サーバーが返したエラーは再試行しない。**書き込み（保存・承認・送信）は二重実行のおそれがあるため対象外。** あきらめたら「時間をおいてアクセスしてみてください」＋［再読み込みする］（exec URL を最上位で開き直す）。
 - Fixed deployments: integrated/public @428 x2 / member @186 / admin @284.

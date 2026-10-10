@@ -44,8 +44,8 @@
 | ~~高（セキュリティ）~~ **v376.115 で対応済み** | **管理 split の保守ツール 24 本中 22 本が、呼び出し元を確かめない**（実際は既存ガード 2 本も何も止めておらず 24 本すべて）。 認可は `processApiRequest` の入口にしかなく、`google.script.run.<関数名>()` で直接呼べる。管理 web app は `DOMAIN` 公開なので、**ホワイトリスト外の hcm-n.org アカウントでも** `deleteTestData_APPLY` / `restoreLastArchiveBatch_APPLY` / `executeStrictE2ETestMemberCleanup_APPLY` / `setupScheduledTriggers` 等を実行できる | 本確認で `listArchiveBatches_LOG` / `diagnoseMemberDeleteDebt_LOG` を web app から直接実行できた。ガードがあるのは `dryRunApplicationScenarios` / `previewDryRunApplicationCleanup` の 2 本だけ |
 | ~~中~~ **v376.116 で対応（方式ごと改訂・`docs/246` §11）** | ロール視点プレビューの書き込み遮断は `api.*` だけを包む。`callApi()` を直接呼ぶ **変更申請の承認・却下**（`ChangeRequestConsole`）と **研修フォルダ作成**（`setupTrainingFileFolder`）はプレビュー中でも実行される | `src/services/api.ts` `installPreviewWriteGuard` |
 | ~~中~~ **v376.116 で対応済み** | **研修の編集モーダルで申込開始日・締切日が空欄に見える。** 値が `2026-03-15 00:00` で `<input type=date>` の形式（yyyy-MM-dd）に合わず、ブラウザが表示しない | コンソール警告 `The specified value "2026-03-15 00:00" does not conform...` |
-| 低 | 事業所会員の職員に紐付いた管理者の表示名が、権限名（「マスター」）だけになる。名前を `T_会員` の姓名から引くが、事業所会員は姓名が空（v131）。LINE 投稿依頼の作成者名などに残る | `checkAdminBySession_`。**v376.113 の変更前からの挙動** |
-| 低（設定） | テスト集約（REDIRECT）の宛先許可リストが旧アカウント `k.noguchi@uguisunosato.or.jp`（2026-04-15 移行済み）のまま | `getSystemSettings.mailRedirectAllowlist` |
+| ~~低~~ **v376.118 で対応済み** | 事業所会員の職員に紐付いた管理者の表示名が、権限名（「マスター」）だけになる。名前を `T_会員` の姓名から引くが、事業所会員は姓名が空（v131）。LINE 投稿依頼の作成者名などに残る | `checkAdminBySession_`。**v376.113 の変更前からの挙動** |
+| ~~低（設定）~~ **問題なし（operator 確認・2026-10-10）** | テスト集約（REDIRECT）の宛先許可リストが `k.noguchi@uguisunosato.or.jp`。clasp 運用アカウントは移行済みだが、**このアドレスも operator 本人のもので、宛先として使ってよい** | `getSystemSettings.mailRedirectAllowlist` |
 | 低 | 「一般」ロールのプレビューが「必要なデータを読み込み中です...」のまま止まる（管理 split は会員データを取れない） | 以前からの挙動 |
 | 低 | LINE 投稿の本文テンプレートと研修一覧に開催日が `2026-06-20T14:00` の生の形式で出る | 表示のみ |
 | 観察 | 管理画面が「展開中...」のまま 1 分以上止まったことが 1 回あった（タブは表示状態）。再現していない | 起動ローダーの解凍段階 |
