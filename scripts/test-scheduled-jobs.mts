@@ -126,10 +126,13 @@ test('setupScheduledTriggers は廃止ハンドラのトリガーも掃除し、
     },
     newTrigger: chain,
   };
-  const fn = new Function('ScriptApp', 'Logger', `${source}; return setupScheduledTriggers;`)(
-    ScriptApp, { log: () => {} },
+  // 2026-10-10: 保守ツールは先頭で実行者（MASTER）を確かめる。判定そのものは test:operator-tool-guard が見る。
+  const guarded: string[] = [];
+  const fn = new Function('ScriptApp', 'Logger', 'assertMasterOperator_', `${source}; return setupScheduledTriggers;`)(
+    ScriptApp, { log: () => {} }, (name: string) => { guarded.push(name); },
   ) as () => string;
   fn();
+  assert.deepEqual(guarded, ['setupScheduledTriggers'], '実行者の確認を通っていない');
 
   for (const name of RETIRED_HANDLERS) {
     assert.ok(deleted.includes(name), `廃止した ${name} のトリガーを消していない（本番に残り続ける）`);

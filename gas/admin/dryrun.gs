@@ -6,6 +6,7 @@
 // 許可リストの正本: scripts/gas-boundary-utils.mjs ADMIN_OPERATOR_TOOL_FUNCTIONS
 // ============================================================
 function inspectDryRunManifest_LOG() {
+  assertMasterOperator_('inspectDryRunManifest_LOG');
   var raw = PropertiesService.getScriptProperties().getProperty(DRYRUN_MANIFEST_KEY);
   Logger.log('=== inspectDryRunManifest_LOG ===');
   if (!raw) {
@@ -46,6 +47,7 @@ function inspectDryRunManifest_LOG() {
 }
 
 function healthCheckPasswordPepper() {
+  assertMasterOperator_('healthCheckPasswordPepper');
   var report = [];
   var fpProps = '';
   var fpSm = '';
@@ -85,6 +87,7 @@ function healthCheckPasswordPepper() {
 }
 
 function dryRunGcpPhaseB_LOG() {
+  assertMasterOperator_('dryRunGcpPhaseB_LOG');
   var report = { passed: true, checks: [] };
 
   // 1. identity token payload（値そのものは出力しない）
@@ -178,6 +181,7 @@ function dryRunGcpPhaseB_LOG() {
 }
 
 function dryRunTrainingManagement() {
+  assertMasterOperator_('dryRunTrainingManagement');
   var ss = getOrCreateDatabase_();
   var stamp = String(Date.now()).slice(-6);
   var report = { startedAt: new Date().toISOString(), results: [], passed: 0, failed: 0, manifest: {} };
@@ -403,6 +407,7 @@ function dryRunTrainingManagement() {
 }
 
 function cleanupDryRunTrainingManagement() {
+  assertMasterOperator_('cleanupDryRunTrainingManagement');
   var ss = getOrCreateDatabase_();
 
   // 1. manifest（最新 run）から ID 収集
@@ -566,6 +571,7 @@ function previewDryRunApplicationCleanup() {
 }
 
 function executeDryRunApplicationCleanup() {
+  assertMasterOperator_('executeDryRunApplicationCleanup');
   dryRun_assertAdminOperator_();
   var manifestJson = PropertiesService.getScriptProperties().getProperty(DRYRUN_MANIFEST_KEY);
   if (!manifestJson) return { success: false, error: 'manifest 未保存' };

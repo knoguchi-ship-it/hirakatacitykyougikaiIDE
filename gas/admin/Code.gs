@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 8ba271632f957feb9f21c9c72b29613962459f95a8d6db92c9864743b8703e56
+// BUILD_INPUT_SHA256: 3cf6747820ed16630856aa1448c2dfeecd8844c69a328124481b875c3aa2e9ba
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -3983,6 +3983,44 @@ function checkAdminBySession_(options) {
     displayName: derivedDisplayName,
     authenticatedAt: nowIso,
   };
+}
+
+// ─── 保守ツールの実行者確認（2026-10-10・docs/302 §2） ─────────────────────
+// 管理 split のトップレベル関数は google.script.run から直接呼べる（Apps Script の仕様:
+// 名前が `_` で終わらない関数はすべてクライアントへ公開される）。管理 web app は DOMAIN 公開なので、
+// 管理者リストに無い組織アカウントでも、ページを開いて開発者ツールから保守ツールを実行できていた。
+// 認可は processApiRequest の入口にしか無く、保守ツールはそこを通らない。
+// 関数はデプロイした人の権限で動くため、Google 側では誰が呼んでも止まらない。
+//
+// そこで保守ツールは先頭で「呼び出した人が管理者リスト上の MASTER か」を確かめる。
+// エディタの ▶ 実行・clasp run でも呼び出した人は MASTER 本人なので、運用は変わらない。
+// 一覧の正本は scripts/gas-boundary-utils.mjs の ADMIN_TOP_LEVEL_FUNCTIONS。
+// 入れ忘れは test:operator-tool-guard が落とす。
+function assertMasterOperator_(toolName) {
+  // 管理者リスト外はここで例外になり、ログイン履歴に失敗が残る。
+  var session = checkAdminBySession_();
+  if (!session || !session.isMaster) {
+    try {
+      appendLoginHistory_(null, '', String(session && session.loginId || ''), 'GOOGLE', 'FAILURE',
+        '保守ツールの実行を拒否（MASTER 以外）: ' + toolName);
+    } catch (e) {}
+    throw new Error('この保守ツール（' + toolName + '）は MASTER のみ実行できます。');
+  }
+  return session;
+}
+
+// 時間主導トリガーのハンドラ用。トリガーから起動されたときは呼び出した人が居ないので、
+// イベントの triggerUid がこのプロジェクトに実在するトリガーかで確かめる。
+// クライアントは引数を偽れるため、triggerUid が付いているだけでは信用しない。
+// トリガー以外（エディタ・google.script.run）からの起動は MASTER に限る。
+function assertTriggerOrMasterOperator_(e, toolName) {
+  var triggerUid = e && e.triggerUid ? String(e.triggerUid) : '';
+  if (!triggerUid) return assertMasterOperator_(toolName);
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i += 1) {
+    if (String(triggers[i].getUniqueId()) === triggerUid) return null;
+  }
+  throw new Error('このプロジェクトに無いトリガーからの実行は拒否しました（' + toolName + '）。');
 }
 
 function clearAdminPermissionCaches_() {
@@ -19516,19 +19554,13 @@ function dryRun_physicalDeleteRowsByKey_(ss, sheetName, keyColumn, ids) {
 }
 
 function dryRun_assertAdminOperator_() {
-  // 設計判断: clasp run 経由でのみ呼ばれる関数のため、admin ホワイトリスト照合より
-  // 厳しい「Apps Script editor 権限 + project-scoped OAuth」が既に gating 条件として
-  // 効いている。userinfo.email スコープ非搭載でも安全に実行可能なよう、
-  // checkAdminBySession_() を呼ばず effective user で代用する。
-  var operatorEmail = '';
-  try { operatorEmail = Session.getEffectiveUser().getEmail() || ''; } catch (e) {}
-  if (!operatorEmail) {
-    try { operatorEmail = Session.getActiveUser().getEmail() || ''; } catch (e) {}
-  }
+  // 2026-10-10: 以前は「clasp run からしか呼ばれない」前提で実行ユーザーを返すだけで、何も止めていなかった。
+  // web app 経由では実行ユーザー＝デプロイした人なので常に通っていた（docs/302 §2）。
+  var session = assertMasterOperator_('dryRun');
   return {
-    loginId: operatorEmail || 'clasp-run-operator',
-    permissionCode: 'CLASP_EDITOR',
-    displayName: operatorEmail ? operatorEmail + '（clasp editor）' : 'DryRunOperator',
+    loginId: session.loginId,
+    permissionCode: session.adminPermissionLevel,
+    displayName: session.displayName,
   };
 }
 

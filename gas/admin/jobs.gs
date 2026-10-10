@@ -8,18 +8,21 @@
 // 許可リストの正本: scripts/gas-boundary-utils.mjs ADMIN_SCHEDULED_JOB_FUNCTIONS
 // ============================================================
 function checkScheduledJobHealth() {
+  assertMasterOperator_('checkScheduledJobHealth');
   var health = checkScheduledJobHealth_();
   Logger.log(JSON.stringify(health, null, 2));
   return JSON.stringify(health);
 }
 
-function dailyWithdrawalPolicyTrigger() {
+function dailyWithdrawalPolicyTrigger(e) {
+  assertTriggerOrMasterOperator_(e, 'dailyWithdrawalPolicyTrigger');
   return runScheduledJob_('dailyWithdrawalPolicyTrigger', function() {
     applyWithdrawalDeletionPolicyIfNeeded_();
   });
 }
 
 function setupScheduledTriggers() {
+  assertMasterOperator_('setupScheduledTriggers');
   // build の pruner は文字列中の識別子も「参照」とみなすため、廃止したハンドラ名は
   // 分割して書く。そのまま書くと、削除したはずの実体が生成物に復活する
   // （feedback_build_pruner_regex_action_traps と同じ罠）。
@@ -41,7 +44,8 @@ function setupScheduledTriggers() {
   return JSON.stringify({ triggers: names });
 }
 
-function processPendingThumbnails() {
+function processPendingThumbnails(e) {
+  assertTriggerOrMasterOperator_(e, 'processPendingThumbnails');
   try {
     var ss = getOrCreateDatabase_();
     var folder = getOrCreateTrainingFolder_(ss);
@@ -79,6 +83,7 @@ function processPendingThumbnails() {
 }
 
 function setupPendingThumbnailsTrigger() {
+  assertMasterOperator_('setupPendingThumbnailsTrigger');
   ScriptApp.getProjectTriggers().forEach(function(t) {
     if (t.getHandlerFunction() === 'processPendingThumbnails') {
       ScriptApp.deleteTrigger(t);

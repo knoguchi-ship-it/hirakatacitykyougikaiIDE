@@ -7,6 +7,7 @@
 // 許可リストの正本: scripts/gas-boundary-utils.mjs ADMIN_MAINTENANCE_TOOL_FUNCTIONS
 // ============================================================
 function forceMarkSchemaInitializedToCurrent() {
+  assertMasterOperator_('forceMarkSchemaInitializedToCurrent');
   var props = PropertiesService.getScriptProperties();
   var before = {
     DB_SCHEMA_INITIALIZED: props.getProperty('DB_SCHEMA_INITIALIZED'),
@@ -28,6 +29,7 @@ function forceMarkSchemaInitializedToCurrent() {
 }
 
 function regenerateAllThumbnails(payload) {
+  assertMasterOperator_('regenerateAllThumbnails');
   var opts = payload || {};
   var trainingId = String(opts.trainingId || '').trim();
   var force = !!opts.force;
@@ -99,10 +101,12 @@ function regenerateAllThumbnails(payload) {
 }
 
 function backfillKanaToFullwidth_APPLY() {
+  assertMasterOperator_('backfillKanaToFullwidth_APPLY');
   return backfillKanaToFullwidth({ dryRun: false });
 }
 
 function deleteTestDataPreview_LOG() {
+  assertMasterOperator_('deleteTestDataPreview_LOG');
   var ss = getOrCreateDatabase_();
   var t = _collectTestDataTargets_(ss);
   var summary = {
@@ -131,6 +135,7 @@ function deleteTestDataPreview_LOG() {
 }
 
 function deleteTestData_APPLY() {
+  assertMasterOperator_('deleteTestData_APPLY');
   var ss = getOrCreateDatabase_();
   var t = _collectTestDataTargets_(ss);
   var authIds = t.auth.map(function (r) { return String(r['認証ID']); });
@@ -160,6 +165,7 @@ function deleteTestData_APPLY() {
 }
 
 function previewStrictE2ETestMemberCleanup_LOG() {
+  assertMasterOperator_('previewStrictE2ETestMemberCleanup_LOG');
   var targets = collectStrictE2ETestMemberTargets_(getOrCreateDatabase_());
   var counts = {
     auth: targets.auth.length,
@@ -173,6 +179,7 @@ function previewStrictE2ETestMemberCleanup_LOG() {
 }
 
 function executeStrictE2ETestMemberCleanup_APPLY() {
+  assertMasterOperator_('executeStrictE2ETestMemberCleanup_APPLY');
   var ss = getOrCreateDatabase_();
   var targets = collectStrictE2ETestMemberTargets_(ss);
   var result = {
@@ -191,6 +198,7 @@ function executeStrictE2ETestMemberCleanup_APPLY() {
 }
 
 function backfillKanaToFullwidth(options) {
+  assertMasterOperator_('backfillKanaToFullwidth');
   var opts = options || {};
   var dryRun = opts.dryRun !== false; // 既定 dryRun=true（安全側）
   var ss = getOrCreateDatabase_();
@@ -295,6 +303,7 @@ function backfillKanaToFullwidth(options) {
 }
 
 function restoreLastArchiveBatch_APPLY() {
+  assertMasterOperator_('restoreLastArchiveBatch_APPLY');
   var ss = getOrCreateDatabase_();
   var logs = getRowsAsObjects_(ss, 'T_削除ログ');
   if (logs.length === 0) throw new Error('T_削除ログ が空です（復元対象なし）。');
@@ -305,6 +314,7 @@ function restoreLastArchiveBatch_APPLY() {
 }
 
 function listArchiveBatches_LOG() {
+  assertMasterOperator_('listArchiveBatches_LOG');
   var ss = getOrCreateDatabase_();
   var byBatch = {};
   for (var i = 0; i < ARCHIVE_SOURCE_TABLES.length; i++) {
@@ -332,6 +342,7 @@ function listArchiveBatches_LOG() {
 }
 
 function diagnoseMemberDeleteDebt_LOG() {
+  assertMasterOperator_('diagnoseMemberDeleteDebt_LOG');
   var ss = getOrCreateDatabase_();
   var members = getRowsAsObjects_(ss, 'T_会員');
   var staffs = getRowsAsObjects_(ss, 'T_事業所職員');

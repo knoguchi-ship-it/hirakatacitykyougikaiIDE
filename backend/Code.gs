@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 7aaf329755feae44d91bf27f3609c1ef69a55e349e8c4284680e39c2bd42ccc1
+// BUILD_INPUT_SHA256: c7be56305b5bf19fe7e35b5ffbb0e96243e2c8567a873b699c793547f1eb4d41
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -1559,6 +1559,23 @@ var LOGIN_LOCKOUT_POLICY = {
  * Session.getActiveUser() は google.script.run 呼び出し元のメールを返す（Execute as: Me でも）。
  * 権限コードに応じた adminPermissionLevel を返す。
  */
+
+// ─── 保守ツールの実行者確認（2026-10-10・docs/302 §2） ─────────────────────
+// 管理 split のトップレベル関数は google.script.run から直接呼べる（Apps Script の仕様:
+// 名前が `_` で終わらない関数はすべてクライアントへ公開される）。管理 web app は DOMAIN 公開なので、
+// 管理者リストに無い組織アカウントでも、ページを開いて開発者ツールから保守ツールを実行できていた。
+// 認可は processApiRequest の入口にしか無く、保守ツールはそこを通らない。
+// 関数はデプロイした人の権限で動くため、Google 側では誰が呼んでも止まらない。
+//
+// そこで保守ツールは先頭で「呼び出した人が管理者リスト上の MASTER か」を確かめる。
+// エディタの ▶ 実行・clasp run でも呼び出した人は MASTER 本人なので、運用は変わらない。
+// 一覧の正本は scripts/gas-boundary-utils.mjs の ADMIN_TOP_LEVEL_FUNCTIONS。
+// 入れ忘れは test:operator-tool-guard が落とす。
+
+// 時間主導トリガーのハンドラ用。トリガーから起動されたときは呼び出した人が居ないので、
+// イベントの triggerUid がこのプロジェクトに実在するトリガーかで確かめる。
+// クライアントは引数を偽れるため、triggerUid が付いているだけでは信用しない。
+// トリガー以外（エディタ・google.script.run）からの起動は MASTER に限る。
 
 
 // ─── docs/246 Phase 1-B: T_権限ロール 関連ヘルパー ─────────────────────────

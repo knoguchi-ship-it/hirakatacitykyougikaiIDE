@@ -6359,6 +6359,44 @@ function checkAdminBySession_(options) {
   };
 }
 
+// ─── 保守ツールの実行者確認（2026-10-10・docs/302 §2） ─────────────────────
+// 管理 split のトップレベル関数は google.script.run から直接呼べる（Apps Script の仕様:
+// 名前が `_` で終わらない関数はすべてクライアントへ公開される）。管理 web app は DOMAIN 公開なので、
+// 管理者リストに無い組織アカウントでも、ページを開いて開発者ツールから保守ツールを実行できていた。
+// 認可は processApiRequest の入口にしか無く、保守ツールはそこを通らない。
+// 関数はデプロイした人の権限で動くため、Google 側では誰が呼んでも止まらない。
+//
+// そこで保守ツールは先頭で「呼び出した人が管理者リスト上の MASTER か」を確かめる。
+// エディタの ▶ 実行・clasp run でも呼び出した人は MASTER 本人なので、運用は変わらない。
+// 一覧の正本は scripts/gas-boundary-utils.mjs の ADMIN_TOP_LEVEL_FUNCTIONS。
+// 入れ忘れは test:operator-tool-guard が落とす。
+function assertMasterOperator_(toolName) {
+  // 管理者リスト外はここで例外になり、ログイン履歴に失敗が残る。
+  var session = checkAdminBySession_();
+  if (!session || !session.isMaster) {
+    try {
+      appendLoginHistory_(null, '', String(session && session.loginId || ''), 'GOOGLE', 'FAILURE',
+        '保守ツールの実行を拒否（MASTER 以外）: ' + toolName);
+    } catch (e) {}
+    throw new Error('この保守ツール（' + toolName + '）は MASTER のみ実行できます。');
+  }
+  return session;
+}
+
+// 時間主導トリガーのハンドラ用。トリガーから起動されたときは呼び出した人が居ないので、
+// イベントの triggerUid がこのプロジェクトに実在するトリガーかで確かめる。
+// クライアントは引数を偽れるため、triggerUid が付いているだけでは信用しない。
+// トリガー以外（エディタ・google.script.run）からの起動は MASTER に限る。
+function assertTriggerOrMasterOperator_(e, toolName) {
+  var triggerUid = e && e.triggerUid ? String(e.triggerUid) : '';
+  if (!triggerUid) return assertMasterOperator_(toolName);
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i += 1) {
+    if (String(triggers[i].getUniqueId()) === triggerUid) return null;
+  }
+  throw new Error('このプロジェクトに無いトリガーからの実行は拒否しました（' + toolName + '）。');
+}
+
 function clearAdminPermissionCaches_() {
   try {
     var cache = CacheService.getScriptCache();
@@ -6465,6 +6503,7 @@ function seedInitialPermissionRoles_(ss) {
  * 書込み: PropertiesService の 2 キーのみ。シートは触らない（破壊なし）。
  */
 function forceMarkSchemaInitializedToCurrent() {
+  assertMasterOperator_('forceMarkSchemaInitializedToCurrent');
   var props = PropertiesService.getScriptProperties();
   var before = {
     DB_SCHEMA_INITIALIZED: props.getProperty('DB_SCHEMA_INITIALIZED'),
@@ -14128,13 +14167,15 @@ function reportOverdueScheduledJobs_() {
 
 // operator が editor から引数なしで実行して状態を見る入口。
 function checkScheduledJobHealth() {
+  assertMasterOperator_('checkScheduledJobHealth');
   var health = checkScheduledJobHealth_();
   Logger.log(JSON.stringify(health, null, 2));
   return JSON.stringify(health);
 }
 
 // v150: 日次トリガーで退会削除ポリシーを実行（ホットパスから除外）
-function dailyWithdrawalPolicyTrigger() {
+function dailyWithdrawalPolicyTrigger(e) {
+  assertTriggerOrMasterOperator_(e, 'dailyWithdrawalPolicyTrigger');
   return runScheduledJob_('dailyWithdrawalPolicyTrigger', function() {
     applyWithdrawalDeletionPolicyIfNeeded_();
   });
@@ -14154,6 +14195,7 @@ function dailyWithdrawalPolicyTrigger() {
 // その rebuildDatabaseSchema はどの生成物にも入っていない（＝もう作られない）。
 // 過去に作られたトリガーだけが、存在しない関数を叩き続けて残りうる。
 function setupScheduledTriggers() {
+  assertMasterOperator_('setupScheduledTriggers');
   // build の pruner は文字列中の識別子も「参照」とみなすため、廃止したハンドラ名は
   // 分割して書く。そのまま書くと、削除したはずの実体が生成物に復活する
   // （feedback_build_pruner_regex_action_traps と同じ罠）。
@@ -15700,7 +15742,8 @@ function regenerateThumbnailForTraining_(payload) {
  * Drive が 5 分以上かけて生成する大きい PDF も時間経過で hasThumbnail=true に
  * なるため、繰り返し trigger で最終的に救済される。
  */
-function processPendingThumbnails() {
+function processPendingThumbnails(e) {
+  assertTriggerOrMasterOperator_(e, 'processPendingThumbnails');
   try {
     var ss = getOrCreateDatabase_();
     var folder = getOrCreateTrainingFolder_(ss);
@@ -15743,6 +15786,7 @@ function processPendingThumbnails() {
  * admin の Apps Script editor から 1 回手動実行する想定。
  */
 function setupPendingThumbnailsTrigger() {
+  assertMasterOperator_('setupPendingThumbnailsTrigger');
   ScriptApp.getProjectTriggers().forEach(function(t) {
     if (t.getHandlerFunction() === 'processPendingThumbnails') {
       ScriptApp.deleteTrigger(t);
@@ -15862,6 +15906,7 @@ function generateAndSaveThumbnailForPdf_(pdfFileId, folder) {
  * から不可視 (Drive REST 404) のものはスキップして失敗扱い + 理由をログへ。
  */
 function regenerateAllThumbnails(payload) {
+  assertMasterOperator_('regenerateAllThumbnails');
   var opts = payload || {};
   var trainingId = String(opts.trainingId || '').trim();
   var force = !!opts.force;
@@ -21507,6 +21552,7 @@ function normalizeStaffNameFields_(rowLike) {
 //   Plan A: T_変更申請 の pending レコードは正規化対象外（承認時に approveAdminChangeRequest_ → 各 save 関数で正規化される）。
 // v376.2: editor 1-click 本実行用ラッパー（dryRun:false 固定）。引数指定が editor から面倒なため。
 function backfillKanaToFullwidth_APPLY() {
+  assertMasterOperator_('backfillKanaToFullwidth_APPLY');
   return backfillKanaToFullwidth({ dryRun: false });
 }
 
@@ -21574,6 +21620,7 @@ function _collectTestDataTargets_(ss) {
 }
 
 function deleteTestDataPreview_LOG() {
+  assertMasterOperator_('deleteTestDataPreview_LOG');
   var ss = getOrCreateDatabase_();
   var t = _collectTestDataTargets_(ss);
   var summary = {
@@ -21602,6 +21649,7 @@ function deleteTestDataPreview_LOG() {
 }
 
 function deleteTestData_APPLY() {
+  assertMasterOperator_('deleteTestData_APPLY');
   var ss = getOrCreateDatabase_();
   var t = _collectTestDataTargets_(ss);
   var authIds = t.auth.map(function (r) { return String(r['認証ID']); });
@@ -21655,6 +21703,7 @@ function collectStrictE2ETestMemberTargets_(ss) {
 }
 
 function previewStrictE2ETestMemberCleanup_LOG() {
+  assertMasterOperator_('previewStrictE2ETestMemberCleanup_LOG');
   var targets = collectStrictE2ETestMemberTargets_(getOrCreateDatabase_());
   var counts = {
     auth: targets.auth.length,
@@ -21668,6 +21717,7 @@ function previewStrictE2ETestMemberCleanup_LOG() {
 }
 
 function executeStrictE2ETestMemberCleanup_APPLY() {
+  assertMasterOperator_('executeStrictE2ETestMemberCleanup_APPLY');
   var ss = getOrCreateDatabase_();
   var targets = collectStrictE2ETestMemberTargets_(ss);
   var result = {
@@ -21687,6 +21737,7 @@ function executeStrictE2ETestMemberCleanup_APPLY() {
 
 // v376.3: editor で実行結果を Logger.log に出すラッパー（previewDryRunApplicationCleanup は return のみで log しない仕様）。
 function inspectDryRunManifest_LOG() {
+  assertMasterOperator_('inspectDryRunManifest_LOG');
   var raw = PropertiesService.getScriptProperties().getProperty(DRYRUN_MANIFEST_KEY);
   Logger.log('=== inspectDryRunManifest_LOG ===');
   if (!raw) {
@@ -21727,6 +21778,7 @@ function inspectDryRunManifest_LOG() {
 }
 
 function backfillKanaToFullwidth(options) {
+  assertMasterOperator_('backfillKanaToFullwidth');
   var opts = options || {};
   var dryRun = opts.dryRun !== false; // 既定 dryRun=true（安全側）
   var ss = getOrCreateDatabase_();
@@ -26287,6 +26339,7 @@ function restoreArchiveBatch_(batchId) {
 
 // operator 実行（▶ 引数なし）: 直近の削除バッチ（T_削除ログ 最終行）を復元する
 function restoreLastArchiveBatch_APPLY() {
+  assertMasterOperator_('restoreLastArchiveBatch_APPLY');
   var ss = getOrCreateDatabase_();
   var logs = getRowsAsObjects_(ss, 'T_削除ログ');
   if (logs.length === 0) throw new Error('T_削除ログ が空です（復元対象なし）。');
@@ -26298,6 +26351,7 @@ function restoreLastArchiveBatch_APPLY() {
 
 // operator 実行（▶ 引数なし）: archive 内の削除バッチ一覧（バッチID別件数 + 削除ログ情報）
 function listArchiveBatches_LOG() {
+  assertMasterOperator_('listArchiveBatches_LOG');
   var ss = getOrCreateDatabase_();
   var byBatch = {};
   for (var i = 0; i < ARCHIVE_SOURCE_TABLES.length; i++) {
@@ -26328,6 +26382,7 @@ function listArchiveBatches_LOG() {
 // 旧削除実装（in-place soft delete）で live に残った削除済み会員/職員と、
 // それらを参照して取り残された子テーブル行（孤児候補）を計測する。非破壊。
 function diagnoseMemberDeleteDebt_LOG() {
+  assertMasterOperator_('diagnoseMemberDeleteDebt_LOG');
   var ss = getOrCreateDatabase_();
   var members = getRowsAsObjects_(ss, 'T_会員');
   var staffs = getRowsAsObjects_(ss, 'T_事業所職員');
@@ -27093,6 +27148,7 @@ function fetchPepperFromSecretManager_() {
  * admin split のみ top-level callable として残す（member/public からは pruning）。
  */
 function healthCheckPasswordPepper() {
+  assertMasterOperator_('healthCheckPasswordPepper');
   var report = [];
   var fpProps = '';
   var fpSm = '';
@@ -27143,6 +27199,7 @@ function healthCheckPasswordPepper() {
  *      identity token 認証での HTTP status を確認（未設定なら skip・失敗扱いにしない）
  */
 function dryRunGcpPhaseB_LOG() {
+  assertMasterOperator_('dryRunGcpPhaseB_LOG');
   var report = { passed: true, checks: [] };
 
   // 1. identity token payload（値そのものは出力しない）
@@ -29275,6 +29332,7 @@ var DRYRUN_TRAINING_MGMT_MANIFEST_KEY = 'DRYRUN_TRAINING_MGMT_MANIFEST_V1';
 // ============================================================================
 
 function dryRunTrainingManagement() {
+  assertMasterOperator_('dryRunTrainingManagement');
   var ss = getOrCreateDatabase_();
   var stamp = String(Date.now()).slice(-6);
   var report = { startedAt: new Date().toISOString(), results: [], passed: 0, failed: 0, manifest: {} };
@@ -29503,6 +29561,7 @@ function dryRunTrainingManagement() {
 // v376.14.2: manifest だけでなく DRYRUN_ プレフィックスの研修・外部申込者を sweep し、
 //   過去 run の孤児データ（manifest 上書きで参照が外れた分）も含めて確実に削除する。
 function cleanupDryRunTrainingManagement() {
+  assertMasterOperator_('cleanupDryRunTrainingManagement');
   var ss = getOrCreateDatabase_();
 
   // 1. manifest（最新 run）から ID 収集
@@ -29573,19 +29632,13 @@ function dryRun_physicalDeleteRowsByKey_(ss, sheetName, keyColumn, ids) {
 }
 
 function dryRun_assertAdminOperator_() {
-  // 設計判断: clasp run 経由でのみ呼ばれる関数のため、admin ホワイトリスト照合より
-  // 厳しい「Apps Script editor 権限 + project-scoped OAuth」が既に gating 条件として
-  // 効いている。userinfo.email スコープ非搭載でも安全に実行可能なよう、
-  // checkAdminBySession_() を呼ばず effective user で代用する。
-  var operatorEmail = '';
-  try { operatorEmail = Session.getEffectiveUser().getEmail() || ''; } catch (e) {}
-  if (!operatorEmail) {
-    try { operatorEmail = Session.getActiveUser().getEmail() || ''; } catch (e) {}
-  }
+  // 2026-10-10: 以前は「clasp run からしか呼ばれない」前提で実行ユーザーを返すだけで、何も止めていなかった。
+  // web app 経由では実行ユーザー＝デプロイした人なので常に通っていた（docs/302 §2）。
+  var session = assertMasterOperator_('dryRun');
   return {
-    loginId: operatorEmail || 'clasp-run-operator',
-    permissionCode: 'CLASP_EDITOR',
-    displayName: operatorEmail ? operatorEmail + '（clasp editor）' : 'DryRunOperator',
+    loginId: session.loginId,
+    permissionCode: session.adminPermissionLevel,
+    displayName: session.displayName,
   };
 }
 
@@ -30185,6 +30238,7 @@ function dryRun_softDeleteByKey_(ss, sheetName, keyColumn, ids) {
 }
 
 function executeDryRunApplicationCleanup() {
+  assertMasterOperator_('executeDryRunApplicationCleanup');
   dryRun_assertAdminOperator_();
   var manifestJson = PropertiesService.getScriptProperties().getProperty(DRYRUN_MANIFEST_KEY);
   if (!manifestJson) return { success: false, error: 'manifest 未保存' };
