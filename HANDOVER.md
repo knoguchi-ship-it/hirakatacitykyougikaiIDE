@@ -11,7 +11,7 @@
 |---|---|---|
 | ~~①~~ | ~~ログイン後の会員マイページを実測する~~ → **保留（operator 判断・2026-10-09）**。今後必要になったら E2E 用会員を再整備して計測する | — |
 | **②** | 会員 60115713 の介護支援専門員番号を空にする | **operator**（DB 直接編集） |
-| **③** | `previewDryRunApplicationCleanup` の取りこぼしを直す | AI（指示待ち） |
+| ~~③~~ | ~~`previewDryRunApplicationCleanup` の取りこぼし~~ → **v376.121 で解消**（後片付けを物理削除 1 つに統合・旧ツールは削除） | — |
 | ~~⑤~~ | ~~保守ツールの認可漏れを塞ぐ~~ → **v376.115 で対応済み（2026-10-10）** | — |
 | ~~④~~ | ~~HEIC 対応を残すか~~ → **残す（operator 決定・2026-10-09）**。会員の配信 HTML 754KB の大半は HEIC 変換ライブラリ本体だが、起動時には評価しない | — |
 
@@ -58,8 +58,14 @@ npm run test:skills      # 8/8
 
 ### 0. 30 秒で現状
 
-- **本番**: public **@431×2** / member **@189** / admin **@288**（**v376.120**）。4 本を同一リリースへ切替済み。
-  ロールバック先は public @430×2 / member @188 / admin @286（v376.119）。**admin @287 は使わない**（push 失敗時に作られた旧コード）。
+- **本番**: public **@432×2** / member **@190** / admin **@289**（**v376.121**）。4 本を同一リリースへ切替済み。
+  ロールバック先は public @431×2 / member @189 / admin @288（v376.120）。**admin @287 は使わない**（push 失敗時に作られた旧コード）。
+
+- **🆕 直近リリース（2026-10-11 / v376.121）: テストデータのルールと物理削除**（`docs/303`）
+  会員マイページは実データで確認し、テスト会員は**名前の先頭に★＋メール @example.invalid** で作る（両方そろったものだけがテストデータ）。
+  終わったら admin エディタで `previewTestDataPurge_LOG` → `executeTestDataPurge_APPLY`（MASTER・30 分以内・同じ人・同じ内容）。
+  本番の表・アーカイブ・ログ・請求添付まで消え、監査ログだけ残る。**AI が実行するときは毎回 operator 承認。**
+  本番で確認ツールを実行し、印の付いたデータ 0 件・旧ツール非公開を確認済み。
 
 - **🐛 直近リリース（2026-10-11 / v376.120）: 開ける管理画面が無いロールで止まらない**（一般のプレビュー・メニューが空のロール）
   本番でプレビューの流れ（案内・切り替え・終了・360px）を確認済み（2026-10-11）。
@@ -148,10 +154,9 @@ npm run test:skills      # 8/8
   **代表者の除籍は拒否**／上限は残枠 4 名表示。**長年の宿題だった実地検証はこれで完了。**
   - **メールは全停止（`mailDeliveryState=STOPPED`）で実施し 1 通も送っていない。** 検証後 LIVE へ復元済み。
   - 後片付け済（バッチID `6423f003-d02f-4e68-8cfc-d559db37d53e`）。会員 218 / 職員 156 で検証前と一致。
-- **⚠️ 未修正: `previewDryRunApplicationCleanup` が残骸を取りこぼす**（`docs/300` §6）
-  `members: 0` と答えるのに実際は会員 1 件が残った。`executeDryRunApplicationCleanup` も同様で、
-  個別に `executeDeleteMember` で消す必要があった。
-  **あわせて `dryRunApplicationScenarios` は名前に反して本番 DB に書き込む。** 実行前に確認すること。
+- **✅ 解消（v376.121）: 旧 `previewDryRunApplicationCleanup` の取りこぼし**（`docs/300` §6）
+  後片付けを印（★＋@example.invalid）による物理削除 1 つに統合し、旧ツールは削除した（`docs/303`）。
+  **`dryRunApplicationScenarios` は今も本番 DB に書き込む**（★DRYRUN_ の印付きで作る）。実行前に `/dbops` を確認すること。
 - **前回リリース（2026-10-08 / v376.111）**: 保存経路の欠陥 2 件を修正（`docs/299`）。
   ① **事業所番号が管理画面から一度も書けなかった**（allowlist にあるのに `setCol` が無く、
   `updateMember` は success を返しながら列が変わらない無言の空振り）。
@@ -273,12 +278,10 @@ DB スプレッドシート `T_会員` / 会員ID `60115713` / `介護支援専�
 **API からは戻せない**（現在値が非空なので必須チェックに掛かる）。
 v376.111 以降、以後の保存で再び埋まることはない。
 
-#### 【AI・指示待ち】`previewDryRunApplicationCleanup` の取りこぼし
+#### 【完了】`previewDryRunApplicationCleanup` の取りこぼし（v376.121・2026-10-11）
 
-`members: 0` と答えるのに実際は会員 1 件が残った（`docs/300` §6）。
-`executeDryRunApplicationCleanup` も同様で、個別に `executeDeleteMember` で消す必要があった。
-**あわせて `dryRunApplicationScenarios` は名前に反して本番 DB に書き込む。**
-触る前に `/dbops` を呼ぶこと。
+後片付けを `previewTestDataPurge_LOG` → `executeTestDataPurge_APPLY`（物理削除）に統合し、旧ツールは削除した。
+テストデータのルールと設計は `docs/303`、手順は `/dbops`。
 
 #### 【完了】U-27 旧 v261 系の公開 API 6 本を撤去する
 

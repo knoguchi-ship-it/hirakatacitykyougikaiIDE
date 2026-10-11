@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-10-11
-Production: `v376.120` / integrated-public `@431` x2 / member split `@189` / admin split `@288`
+Production: `v376.121` / integrated-public `@432` x2 / member split `@190` / admin split `@289`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -151,7 +151,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-11 v376.120 ← current production
+### 2026-10-11 v376.121 ← current production
+
+- Scope: テストデータのルール化と物理削除（`docs/303`）。印は「名前の先頭に★」＋「メール @example.invalid」の両方（個人・賛助は姓、事業所は勤務先名、職員は姓/氏名、外部申込者は氏名、承認前の入会申込は申請者表示名）。`previewTestDataPurge_LOG` → `executeTestDataPurge_APPLY`（MASTER・30 分以内・同じ人・指紋一致）で、会員連動 13 表（本番＋`*_archive`）・外部申込者・ログイン履歴・メール送信明細・削除ログ／人物統合ログ（対象がすべてテスト）・請求添付（フォルダ内のみ）・旧 dryRun 記録を物理削除。監査ログ・メール送信ログ・実在事業所の変更申請は残す。申込中・実在代表者に印があれば止まる。全 28 表の扱いを `TEST_DATA_PURGE_TABLE_POLICY` で分類（未分類はテストが落とす）。行削除を `takeRowsByMatch_` に共通化し空行も削除（アーカイブ移動・ログイン履歴削除も共有）。監査ログの書き込みを `appendAuditLogEntries_` に集約。旧後片付け 7 本・補助 4 本・スクリプト 3 本を削除（`docs/300` §6 の取りこぼしを解消）。create-test-member.mjs と dryRun は印付きで作る。
+- Fixed deployments: integrated/public @432 x2 / member @190 / admin @289.
+- Verification: prerelease PASS（exit 0）、新設 test:test-data-purge 13/13（偽 DB で確認→実行し、テストデータ 0 行・実データ減少 0 を確認）。本番: 旧ツールは google.script.run に非公開・新 2 本のみ／`previewTestDataPurge_LOG` で印付きデータ 0 件・削除対象 0 行・ブロッカー無し。デプロイ直後の初回表示 10.8 秒・長時間タスク最大 425ms（止まる現象は再現せず）。`executeTestDataPurge_APPLY` は本番未実行（対象 0 件・実行は都度 operator 承認）。
+- Rollback: integrated/public @431 x2 / member @189 / admin @288（v376.120）。
+
+### 2026-10-11 v376.120
 
 - Scope: 開ける管理画面が無いロールで、読み込み中のまま止まらないようにした（`docs/302` §2）。一般ロール（許可メニューは `common-shared` のみ）のプレビューで、行き先の判定 `pickInitialAdminView` が候補なしで `'profile'`（会員マイページ）を返し、会員データを読まない管理画面で「必要なデータを読み込み中です...」が続いていた。画面メニューを全部外したカスタムロールの実際の管理者も、ログイン後に同じく止まっていた（サーバーが拒否するのは一般のみ）。行き先なしは新しい画面 `no-admin-access` へ。プレビュー中は「このロールは管理画面に入れず、本番では会員マイページを使う」＋［プレビューを終了］、実ログインは「MASTER に問い合わせ」＋［ログアウト］。この画面からのロール切り替え・プレビュー終了で画面を選び直す。会員データの読み込み中表示は会員マイページの中へ移し、管理バンドルから落とした（会員バンドルには案内画面が入らない）。
 - Fixed deployments: integrated/public @431 x2 / member @189 / admin @288.
