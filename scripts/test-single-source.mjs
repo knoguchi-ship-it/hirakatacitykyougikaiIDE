@@ -151,3 +151,31 @@ test('★<CAT>_SUBJECT/BODY を描画したメールは同じ <CAT> で送信し
   assert.deepEqual(mismatches, [],
     `テンプレートと送信カテゴリの不一致: ${mismatches.join(' / ')} — カテゴリ別 ON/OFF と送信ログが噛み合わない`);
 });
+
+// ── 7) 監査ログの書き込みは appendAuditLogEntries_ だけ ──────────
+// 2026-10-11: 監査ログの書き手が 8 つあり、それぞれ 9 列を個別に組み立てていた。
+// そのうちパスワード再発行・認証アカウント発行の 2 つは実行者を adminSession.email から取っており、
+// その項目は存在しない（loginId が正）ため、**実行者が空欄の監査ログ**を書き続けていた。
+test('★監査ログ（T_監査ログ）へ書くのは appendAuditLogEntries_ だけ', () => {
+  const opens = [...GAS.matchAll(/getSheetByName\('T_監査ログ'\)/g)].map((m) => GAS.slice(0, m.index).split('\n').length);
+  const writer = GAS.indexOf('function appendAuditLogEntries_(');
+  assert.ok(writer >= 0, 'appendAuditLogEntries_ が無い');
+  const writerLine = GAS.slice(0, writer).split('\n').length;
+  const outside = opens.filter((line) => line < writerLine || line > writerLine + 15);
+  assert.deepEqual(outside, [],
+    `appendAuditLogEntries_ の外で T_監査ログ を開いている（line ${outside.join(', ')}）— appendAuditLogEntries_ を使うこと`);
+});
+
+// ── 8) 管理者セッションの本人は loginId ────────────────────
+// checkAdminBySession_ / assertMasterOperator_ の戻り値に email は無い（MEMORY feedback_admin_session_loginId）。
+test('★管理者セッションから .email を読んでいない（loginId が正）', () => {
+  const vars = new Set([...GAS.matchAll(/var (\w+) = (?:checkAdminBySession_|assertMasterOperator_|dryRun_assertAdminOperator_)\(/g)]
+    .map((m) => m[1]));
+  const bad = [];
+  for (const v of vars) {
+    for (const m of GAS.matchAll(new RegExp(`\\b${v}\\.email\\b`, 'g'))) {
+      bad.push(`${v}.email (line ${GAS.slice(0, m.index).split('\n').length})`);
+    }
+  }
+  assert.deepEqual(bad, [], `存在しない項目を読んでいる: ${bad.join(', ')} — loginId を使うこと`);
+});

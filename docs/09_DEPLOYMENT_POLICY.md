@@ -17,17 +17,17 @@ Production: `v376.121` / integrated-public `@432` x2 / member split `@190` / adm
 
 ### Integrated public project
 
-| Purpose | Deployment ID | Current version |
+| Purpose | Deployment ID | Current version（正本は `HANDOVER.md`。ここは更新しない） |
 |---|---|---|
-| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | `@411` (`v376.100`) |
-| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | `@411` (`v376.100`) |
+| Legacy member portal deployment | `AKfycbywpWoYxij6A-ZunIeBjG1Q8qX78PMMTsT3frx1cM5PJ2nAuZpz81KruXb5LIvWgbQx` | → `HANDOVER.md` |
+| Public portal | `AKfycbxyuUXgK1oHUDMahQjluiL-gcrMK0qV0FWLFYaYBqGxlRSg9NhvmbyQRyf0dvaqg7Zp` | → `HANDOVER.md` |
 
 ### Split projects
 
-| Purpose | Script ID | Deployment ID | Current version | Access |
+| Purpose | Script ID | Deployment ID | Current version（正本は `HANDOVER.md`） | Access |
 |---|---|---|---|---|
-| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | `@169` (`v376.100`) | `ANYONE_ANONYMOUS` |
-| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | `@266` (`v376.100`) | `DOMAIN` |
+| member | `1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ` | `AKfycbxd_6HlH5aWLhxYOtLUHehI3ODiHg4fpc5SCzNdEBIDbDpaBuU3KTuqDRbeBmhWZxSQ_g` | → `HANDOVER.md` | `ANYONE_ANONYMOUS` |
+| admin | `1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi` | `AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9egRGqWcx4Os` | → `HANDOVER.md` | `DOMAIN` |
 
 ## 3. Standard Release Steps
 
@@ -85,19 +85,22 @@ When a release adds, inserts, removes, or renames columns in any table or master
 
 ### Push and Version
 
-Use the project-specific directory for the target artifact.
+**Push all three first, then version.** Do not interleave push and version per project.
+On 2026-10-10 the admin push failed unnoticed, `create-version` still ran, and admin `@287` was
+created from old code (never used). Since 2026-10-11 this is enforced:
 
 ```bash
-npx clasp push --force
-npx clasp version "<release note>"
+npm run release:push   # pushes public → member → admin; records success only if all three pushed
+```
 
-cd gas/member
-npx clasp push --force
-npx clasp version "<release note>"
+- Direct `clasp push` is denied by the PreToolUse hook (`.claude/hooks/guard-bash.mjs` H5).
+- `clasp create-version` is denied unless the files match the push record for **all three** projects (H6).
+- The script also requires prerelease to have passed on HEAD and the generated files to be committed.
 
-cd ../admin
-npx clasp push --force
-npx clasp version "<release note>"
+```bash
+npx clasp create-version "<release note>"                      # repo root = integrated/public
+cd gas/member && npx clasp create-version "<release note>"
+cd gas/admin  && npx clasp create-version "<release note>"
 ```
 
 ### Fixed Deployment Sync
@@ -115,11 +118,14 @@ npx clasp redeploy AKfycbwSCTTyvWY_cFG764XawdbqA8r0qxYbav4aDZ-BK9rRmvXHoUXrKQnQ9
 
 ### Verification
 
+After redeploying and updating `HANDOVER.md`:
+
 ```bash
-npx clasp deployments --json
-cd gas/member && npx clasp deployments --json
-cd ../admin && npx clasp deployments --json
+npm run release:verify   # reads the 4 fixed deployments and checks they match HANDOVER.md's 本番 line
 ```
+
+The deployment IDs used by the scripts and hooks are defined once in `scripts/release-config.mjs`;
+`npm run test:guards` fails if they drift from the table in §2.
 
 Real-browser verification is performed by the operator by default. The agent records code-level verification, build results, Apps Script command results, and browser-side confirmation points.
 

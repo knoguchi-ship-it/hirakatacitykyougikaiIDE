@@ -16,6 +16,9 @@ description: 本番リリースの手順。build → push → version → fixed 
 npx clasp show-authorized-user   # k.noguchi@hcm-n.org であること
 ```
 
+- **clasp の認証は 1〜2 日で切れる**（`invalid_rapt` / `invalid_grant`）。AI はログインできないので、
+  operator に `! npx clasp login` を頼む。切れたまま push すると途中で失敗する。
+
 - 現行 version と fixed deployment の向き先は `HANDOVER.md` と `docs/09_DEPLOYMENT_POLICY.md` が正本。
   この手順書には固定値を書かない。
 - **fixed deployment は 4 本**（統合・公開 ×2 / member ×1 / admin ×1）。
@@ -70,23 +73,29 @@ build pruner による誤削除の早期検知（`feedback_build_pruning_bug`）
 
 ## 4. push → version → 4 本同期
 
+**3 つとも push に成功してから version を作る。** push と version を交互にしない。
+
 ```bash
-# push（3 プロジェクト）
-cd backend        && npx clasp push -f
-cd gas/member     && npx clasp push -f
-cd gas/admin      && npx clasp push -f
+# 1) push（3 プロジェクトを順に。全部成功したときだけ記録が残る）
+npm run release:push
 
-# version（3 プロジェクトそれぞれ）
+# 2) version（リポジトリ直下 = 統合・公開 / gas/member / gas/admin）
 npx clasp create-version "<vX.Y 要約>"
+cd gas/member && npx clasp create-version "<vX.Y 要約>"
+cd gas/admin  && npx clasp create-version "<vX.Y 要約>"
 
-# fixed deployment 4 本を同じ版へ
+# 3) fixed deployment 4 本を同じリリースへ（ID は docs/09 §2）
 npx clasp redeploy <deploymentId> -V <version> -d "<vX.Y 要約>"
 ```
 
-- **`clasp deploy` は全形式禁止**（新 ID が生成され固定 URL が変わる）。
-  PreToolUse hook が拒否する。
-- 確認は `npx clasp list-deployments`（**`--json` オプションは無い**）。
+- **直接の `clasp push` は hook が拒否する。** `release:push` は prerelease 通過済みの HEAD・
+  生成物がコミット済みであることを確かめ、clasp の成功文言まで見てから記録を残す。
+- **記録と手元のファイルが 3 つとも一致しない `create-version` は hook が拒否する。**
+  2026-10-10 に admin の push 失敗に気づかず version を作り、古いコードの admin @287 ができた（使わない版）。
+- **`clasp deploy` は全形式禁止**（新 ID が生成され固定 URL が変わる）。hook が拒否する。
+- 一覧は `npx clasp list-deployments`（**`--json` オプションは無い**）。
 - `create-version` が `The service is currently unavailable.` を返すことがある。再実行でよい。
+- **`npm run prerelease` と `git push` はリポジトリ直下から**打つ（`cd gas/admin` の後に続けない）。
 
 ## 5. デプロイ後の検証
 
@@ -102,7 +111,7 @@ npx clasp redeploy <deploymentId> -V <version> -d "<vX.Y 要約>"
    シートのヘッダー欠落・列ドリフト等は**実 DB に対する dryRun E2E（行を作って読んで消す）で必ずカバー**。
    実送信検証は `MAIL_GLOBAL_ENABLED=false` / `REDIRECT` 下でのみ。
 4. **実データ確認**: 認証済みブラウザ（Playwright MCP）から `google.script.run` で
-   読み取り専用 action を叩き、**変更前後を全列で突き合わせる**。
+   読み取り専用 action を叩き、**変更前後を全列で突き合わせる**（手順は `/prodcheck`）。
    「意図した列だけが変わり、巻き添えが 0 であること」を数字で示す。
 
 ### 不具合を検知したら
@@ -124,6 +133,8 @@ npx clasp redeploy <deploymentId> -V <直前の正常版> -d "rollback"
 | `docs/release-notes-2026.md` | 時系列エントリ（🆕🔧🐛🔒📝🎉 の凡例に従う） |
 | `docs/2XX_RELEASE_STATE_*.md` | 背景・設計判断・検証結果。`docs/00_DOC_INDEX.md` へ登録 |
 
+- **HANDOVER を更新したら `npm run release:verify`。** 本番の 4 本の向き先を読み、
+  HANDOVER の「本番」行と一致すること（4 本がそろっていること・文書の更新漏れ）を確かめる。
 - **未検証・残課題・承認待ちは必ず明記する。** 黙って埋めたことにしない。
 - 実ブラウザ確認が未実施でも、コード上の検証結果と確認待ち範囲を明記し、
   operator が引き継げる状態で完了報告する。

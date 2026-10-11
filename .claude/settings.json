@@ -14,6 +14,17 @@
         ]
       },
       {
+        "matcher": "mcp__playwright__browser_evaluate|mcp__playwright__browser_run_code",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/guard-browser.mjs\"",
+            "timeout": 15,
+            "statusMessage": "ブラウザから本番を書き換えないか確認しています"
+          }
+        ]
+      },
+      {
         "matcher": "Edit|Write|NotebookEdit",
         "hooks": [
           {

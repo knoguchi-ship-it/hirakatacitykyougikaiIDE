@@ -5,21 +5,10 @@
  * AGENTS.md §0: テスト・開発で必要な認証情報は gitignored ファイルに**ユーザー自身が記入**する。
  * AI は書かない。これまで文章でしか守られていなかった。
  *
- * 契約と fail-open の方針は guard-bash.mjs と同じ。
- * 設計の正本: docs/296_RULES_ARCHITECTURE_DESIGN_2026-10-02.md §3.3
+ * 共通部品と契約: ./hook-shared.mjs ／ 設計の正本: docs/296 §3.3 ／ 検査: npm run test:guards
  */
 import path from 'node:path';
-
-function deny(reason) {
-  process.stdout.write(JSON.stringify({
-    hookSpecificOutput: {
-      hookEventName: 'PreToolUse',
-      permissionDecision: 'deny',
-      permissionDecisionReason: reason,
-    },
-  }));
-  process.exit(0);
-}
+import { deny, runHook } from './hook-shared.mjs';
 
 /** テンプレートは対象外。これらは秘密を含まない前提で追跡される */
 const TEMPLATE_SUFFIXES = ['.example', '.sample', '.template', '.dist'];
@@ -46,24 +35,15 @@ function isSecretFile(filePath) {
   return null;
 }
 
-let raw = '';
-process.stdin.on('data', (c) => { raw += c; });
-process.stdin.on('end', () => {
-  try {
-    const input = JSON.parse(raw || '{}');
-    const filePath = (input.tool_input && (input.tool_input.file_path || input.tool_input.notebook_path)) || '';
-    if (filePath) {
-      const why = isSecretFile(filePath);
-      if (why) {
-        deny(
-          `${why}。AI はこのファイルを書きません（AGENTS.md §0）。`
-          + '必要な値は operator が手で記入してください。'
-          + '記入をお願いする場合は、ファイル名とキー名だけを伝え、値は会話に残さないこと。',
-        );
-      }
-    }
-  } catch {
-    // ガード自身の不具合で作業を止めない
+runHook((input) => {
+  const filePath = (input.tool_input && (input.tool_input.file_path || input.tool_input.notebook_path)) || '';
+  if (!filePath) return;
+  const why = isSecretFile(filePath);
+  if (why) {
+    deny(
+      `${why}。AI はこのファイルを書きません（AGENTS.md L0.1）。`
+      + '必要な値は operator が手で記入してください。'
+      + '記入をお願いする場合は、ファイル名とキー名だけを伝え、値は会話に残さないこと。',
+    );
   }
-  process.exit(0);
 });

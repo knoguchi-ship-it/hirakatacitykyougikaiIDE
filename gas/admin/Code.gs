@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 2563c474e7637aa089b9a61688879753a15d641afa18bff11ca0016951fa618d
+// BUILD_INPUT_SHA256: 8360519b0df3bb93c5ddbc0f45eed06ac58eb9553ae4d2cb45ee9d0b0fae3c43
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -3512,20 +3512,10 @@ function adminUnlockMemberAccount_(payload) {
 
     // 監査ログ（ログインIDは記録するが、パスワード等の秘密値は扱わない）
     try {
-      var logSheet = getLogSs_().getSheetByName('T_監査ログ');
-      if (logSheet) {
-        logSheet.appendRow([
-          Utilities.getUuid(),
-          nowIso,
-          String(adminSession.loginId || ''),
-          'ACCOUNT_UNLOCK',
-          'T_認証アカウント',
-          authIdInput,
-          'ログインロックの解除',
-          'ロック状態=' + wasLocked + ' / 失敗回数=' + failedBefore,
-          'ロック状態=false / 失敗回数=0（パスワードは変更していない）',
-        ]);
-      }
+      appendAuditLogEntries_([{ operatorEmail: adminSession.loginId, operation: 'ACCOUNT_UNLOCK',
+        tableName: 'T_認証アカウント', recordId: authIdInput, fieldName: 'ログインロックの解除',
+        oldValue: 'ロック状態=' + wasLocked + ' / 失敗回数=' + failedBefore,
+        newValue: 'ロック状態=false / 失敗回数=0（パスワードは変更していない）' }]);
     } catch (auditErr) {
       try { Logger.log('[adminUnlockMemberAccount_] audit log failed: ' + auditErr.message); } catch (e) {}
     }
@@ -3600,20 +3590,10 @@ function adminResetMemberPassword_(payload) {
 
   // 監査ログ（T_監査ログ）— 平文・ハッシュとも記録しない（AGENTS §0）
   try {
-    var logSheet = getLogSs_().getSheetByName('T_監査ログ');
-    if (logSheet) {
-      logSheet.appendRow([
-        Utilities.getUuid(),
-        nowIso,
-        String(adminSession.email || ''),
-        'PASSWORD_RESET',
-        'T_認証アカウント',
-        String(authId),
-        'パスワード',
-        '(リセット実行)',
-        '(新パスワード発行・値は非記録)',
-      ]);
-    }
+    // 実行者は loginId（adminSession に email は無い。以前は空欄で記録されていた）
+    appendAuditLogEntries_([{ operatorEmail: adminSession.loginId, operation: 'PASSWORD_RESET',
+      tableName: 'T_認証アカウント', recordId: authId, fieldName: 'パスワード',
+      oldValue: '(リセット実行)', newValue: '(新パスワード発行・値は非記録)' }]);
   } catch (auditErr) {
     // 監査ログ失敗はリセット本体を止めない（値は出さない）
     try { Logger.log('[adminResetMemberPassword_] audit log failed: ' + auditErr.message); } catch (e) {}
@@ -3798,20 +3778,10 @@ function adminIssueMemberCredential_(payload) {
 
     // 監査ログ（値は記録しない）
     try {
-      var logSheet = getLogSs_().getSheetByName('T_監査ログ');
-      if (logSheet) {
-        logSheet.appendRow([
-          Utilities.getUuid(),
-          nowIso,
-          String(adminSession.email || ''),
-          'CREDENTIAL_ISSUE',
-          'T_認証アカウント',
-          String(authId),
-          '認証アカウント発行',
-          '(なし)',
-          '(ログインID発番・新パスワード発行・値は非記録)',
-        ]);
-      }
+      // 実行者は loginId（adminSession に email は無い。以前は空欄で記録されていた）
+      appendAuditLogEntries_([{ operatorEmail: adminSession.loginId, operation: 'CREDENTIAL_ISSUE',
+        tableName: 'T_認証アカウント', recordId: authId, fieldName: '認証アカウント発行',
+        oldValue: '(なし)', newValue: '(ログインID発番・新パスワード発行・値は非記録)' }]);
     } catch (auditErr) {
       try { Logger.log('[adminIssueMemberCredential_] audit log failed: ' + auditErr.message); } catch (e) {}
     }

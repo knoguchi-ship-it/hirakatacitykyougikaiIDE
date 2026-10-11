@@ -52,6 +52,9 @@
 
 - `seedDemoData` は production DB を破壊する操作として扱い、完全バックアップと明示承認なしでは実行しない（§6 不可逆操作 一般則の最頻 例外）。
 - **パスワード hash pepper の本番前提**: versioned PBKDF2-HMAC-SHA256 + verifier-side pepper を含む認証変更は、本番反映前に integrated/public・member split・admin split の全 Apps Script project へ同一の強乱数 Script Property `PASSWORD_HASH_PEPPER_V1` が設定済みであることを必須条件とする（値そのものの取扱いは §0 シークレット保管に準拠。`.env` は Apps Script 本番 runtime の正本にせず、必要な場合でも未コミットのローカル運用補助に限定）。未設定 project がある状態で push / version / redeploy してはならない。
+- **テストデータは印（名前の先頭に★＋メール `@example.invalid`）を付けて作り、物理削除で片付ける（2026-10-11 operator 決定・`docs/303`）。**
+  物理削除 `executeTestDataPurge_APPLY` は本番 DB の不可逆操作であり、**AI が実行するときは毎回 operator の承認を取る**。
+  印の無いデータを ID 指定で物理削除しない（印の 2 条件という安全装置を迂回するため）。手順は Skill `/dbops`。
 - **保留中だが必須の security backlog**: pepper を Script Properties から Google Cloud Secret Manager へ移行し、さらに Apps Script 内 PBKDF2 制約を解消する外部 KDF / managed identity の採否を決定するタスクは、保留にしてよいが破棄してはならない。次回以降のセキュリティ改善計画で必ず再開し、完了または明示的な代替設計決定まで `HANDOVER.md` と関連仕様に残す。
 
 ## L0.4 承認と、確定済み境界への逆行禁止
@@ -90,6 +93,10 @@
   本数と ID の正本は `docs/09_DEPLOYMENT_POLICY.md` §2、現行の向き先は `HANDOVER.md`。
 - **`clasp deploy` は全形式禁止**（新 ID が生成され固定 URL が変わる）。更新は `npx clasp redeploy`。
   PreToolUse hook（`.claude/hooks/guard-bash.mjs`）が拒否する。
+- **3 プロジェクトとも push に成功してから version を作る**（2026-10-11 確定）。push は `npm run release:push`、
+  直接の `clasp push` と、push 記録と一致しない `clasp create-version` は hook が拒否する。
+  2026-10-10 に admin の push 失敗に気づかず version を作り、古いコードの admin @287 ができた。
+- リリース後は `npm run release:verify` で本番 4 本の向き先と `HANDOVER.md` の一致を確かめる。
 - Apps Script UI の `Manage deployments` 手更新は障害復旧時の補助手段としてのみ扱う。
 - 認証・認可・DB 整合・deployment 検証は Apps Script 実行系で確認する。
 
@@ -122,6 +129,14 @@
 | 新規文書の索引登録・要件 ID のトレーサビリティ | `npm run test:docs-single-source` |
 | action の分類漏れ（二重実装の検出） | `npm run test:feature-inventory` |
 | `clasp deploy` の直叩き・資格情報ファイルへの書き込み・ゲート未通過の push | PreToolUse hook（`.claude/hooks/`） |
+| 3 つとも push に成功する前の version 作成・直接の `clasp push` | PreToolUse hook（2026-10-11） |
+| 本番を書き換えうる `clasp run`・ブラウザからの `google.script.run` は operator 確認 | PreToolUse hook（ask・2026-10-11 にブラウザ経路を追加） |
+| hook 自体が止めるべきものを止め、通すべきものを通すこと | `npm run test:guards` |
+| 管理 split の公開関数は先頭で実行者（MASTER／実在トリガー）を確かめる | `npm run test:operator-tool-guard` |
+| ロール視点プレビューはそのロールの権限でサーバーが判定する | `npm run test:role-preview` |
+| 最初の読み込みの自動再試行（15 秒 × 5 回）を管理・会員・公開で共有 | `npm run test:connection-retry` |
+| テストデータの印・物理削除でゴミが残らない・実データを消さない | `npm run test:test-data-purge` |
+| 読み込みを遅くする実装（起動時の重いライブラリ・二重取得など）を戻さない | `npm run test:load-performance` |
 | Skill が実在しないコマンド・ファイル・関数を指していないこと | `npm run test:skills` |
 | 依存の脆弱性（**出荷物は常に厳格**／開発依存は期限つき受容） | `npm run security:audit` |
 
@@ -166,8 +181,16 @@
 | メール送信の出口 | `deliverMail_`（→ `sendEmailWithValidatedFrom_`） | 直接 `MailApp`/`GmailApp` を呼ばない |
 | メール本文の差し込み描画 | `renderMergeTags_` / `renderConfiguredMail_` | 独自の置換実装を書かない |
 | 会員種別ごとの年会費の実値 | DB `M_会員種別.年会費金額` | `readMemberTypeAnnualFees_` 経由 |
+| 監査ログの書き込み | `appendAuditLogEntries_` | 直接 `T_監査ログ` を開かない（2026-10-11） |
+| 管理者セッションの本人 | `checkAdminBySession_` の `loginId` | `email` という項目は無い（2026-10-11 に空欄記録を是正） |
+| 保守ツールの実行者確認 | `assertMasterOperator_` / `assertTriggerOrMasterOperator_` | 公開関数の最初の文 |
+| action が読むだけか | `PREVIEW_READ_ACTION_PREFIXES`（`get` `list` …） | プレビューの権限判定と hook が共有 |
+| テストデータの判定 | `TEST_DATA_NAME_PREFIX` / `TEST_DATA_EMAIL_DOMAIN`・`isTestMemberRow_` ほか | 作成スクリプト・dryRun も同じ印 |
+| 行の物理削除（空行も消す） | `takeRowsByMatch_` | アーカイブ移動・ログイン履歴削除・テストデータ削除が共有 |
+| 最初の読み込みの再試行 | `src/shared/connectionRetry.ts` | 管理・会員・公開が同じ実装を使う |
+| 固定 deployment の ID | `scripts/release-config.mjs` | release スクリプトと hook が読む。docs/09 §2 とのずれは `test:guards` |
 
-（2026-09-03 監査で確立・`docs/260`）
+（2026-09-03 監査で確立・`docs/260`。2026-10-11 に 8 行追加）
 
 ## L2.2 ドキュメント形式
 
@@ -193,25 +216,16 @@
   - 判断が分岐しない作業（調査・実装の細部・検証手順）は自分で決めて進め、
     採った前提を完了報告に明記する。
   - 詳細は `GLOBAL_GROUND_RULES/docs/AI_RULES/10_WORKFLOW_AND_QUALITY.md §実装開始前の必須確認` を参照。
+- **破壊的な修正は着手前に operator へ声を掛ける（2026-10-09 operator 指示）。**
+  関数・機能・画面・データの削除、既存の挙動を取り去る変更、本番データを変える操作が該当する。
+  何を消すか・なぜか・戻せるかを示してから進める。
 - まず関連ファイルだけを読む。推測で壊さない。
 - 技術、法務、セキュリティ、運用の提案前に、必要なら Web で最新の一次ソースを確認する。
 - 外部標準は採用するが、案件正本と衝突する場合は案件正本を優先し、差分を記録する。
 - 既存コード、prompt、運用手順の修正は差分修正を原則とする。
 - **DRY 原則を実装の基本とする**: 同一処理・同一定数の繰り返しは禁止し、共通関数・共通モジュール・共通定数に集約する。新規追加時は既存の共通化候補を必ず先に grep で探す。ただし「本質的に異なる処理」を無理に共通化して分岐だらけにすることは避ける（判断軸は MEMORY フィードバック `feedback_consolidation_philosophy.md` 参照）。
-- **単一情報源のレジストリ（2026-09-03 監査で確立・`docs/260`）**: 次の値・判定は**必ず下記の正本を経由**する。
-  新しい画面・機能でローカルに再定義してはならない（`npm run test:single-source` が検出して落とす）。
-
-  | 対象 | 正本 | GAS への共有方法 |
-  |---|---|---|
-  | 入力検証パターン（メール/電話/郵便番号/介護支援専門員番号/カナ/事業所番号） | `src/shared/validators.ts` | GAS 側は各関数内ローカル（regex の build pruner 罠のため。変更時は同時更新） |
-  | 会員種別ラベル・年会費既定値・年会費整形 | `src/shared/memberTypes.mjs` | build 注入（`__MEMBER_TYPES_BUILD_INJECT_*`） |
-  | 会計年度の在籍判定 | `src/shared/memberFiscalStatus.mjs` | build 注入 |
-  | メール差し込みタグのカタログ | `src/shared/mailTemplates.ts` | UI は必ず参照（直書き禁止） |
-  | RBAC の action→menu | `scripts/menu-registry.mjs` | build 注入 |
-  | メール送信の出口 | `deliverMail_`（→ `sendEmailWithValidatedFrom_`） | 直接 `MailApp`/`GmailApp` を呼ばない |
-  | メール本文の差し込み描画 | `renderMergeTags_` / `renderConfiguredMail_` | 独自の置換実装を書かない |
-  | 会員種別ごとの年会費の実値 | DB `M_会員種別.年会費金額` | `readMemberTypeAnnualFees_` 経由 |
-
+- **単一情報源のレジストリは L2.1 の表が正本**（2026-09-03 監査で確立・`docs/260`）。
+  表の値・判定は必ず正本を経由し、新しい画面・機能でローカルに再定義しない（`npm run test:single-source` が落とす）。
 - **「同じことを別ルートで決めていないか」を実装前に確認する**: 値やラベル、判定を書く前に上表と grep で正本を探す。
   無ければ**まず正本を作ってから**使う。過去の本番障害（v376.46 の在籍中人数のぶれ、v376.66 の事業所メールだけ
   タグ未置換、v376.67 の研修リマインダーのカテゴリ誤り）はいずれもこの確認を飛ばしたことが原因。
@@ -249,6 +263,12 @@
 - 規約の正本は `docs/spec/02_RD.md` BR-18 / BR-20。
 
 ## L3.3 UI/UX 規約
+
+- **ユーザビリティを後回しにしない（2026-10-10 operator 指摘）。** 使いやすさが損なわれるなら機能の実装を見合わせる。
+  直すときは、その変更で利用者に見える表記（サイドバー・見出し・ボタン・メッセージ）まで**同じ変更で**直す。
+  分けるなら実装前に理由を示して了承を取る。実例: 管理者の表示名を直したのにサイドバーが「マスター」のままだった（v376.118→119）。
+- **処理が止まったように見せない。** 読み込みが終わらない・開ける画面が無いときは、理由と次の行動（再読み込み・
+  プレビュー終了・ログアウト）を画面に出す（v376.117 の再試行・v376.120 の「開ける管理画面がありません」）。
 
 - **画面表示は日本語を既定とする（2026-09-02 operator 決定・英語のデフォルト化禁止）**: 本システムの利用者は日本語話者の会員・事務局であり、**画面に出る文字列は日本語を第一言語とする**。
   1. **装飾目的の英語を置かない**: 見出し上の英字ラベル（例: 画面タイトル「設定」の上に `SYSTEM SETTINGS`）のような、情報を増やさない英字は追加しない。既存分は見つけ次第削除する。
@@ -328,6 +348,9 @@
 | `/doc` | docs を書く・直す・整理する、ER 図・portal の再生成 |
 | `/spec-change` | 業務ルール（BR-xx）を新設・変更・撤回する。仕様と実装の食い違いを直す |
 | `/dbops` | **本番 DB に書き込む**。データ修正・変更申請の承認・テストデータ・dryRun・実データ検証 |
+| `/gas-admin-tool` | 管理者向けの関数（保守ツール `_LOG`/`_APPLY`・定期ジョブ・管理 action）を足す・消す |
+| `/prodcheck` | Playwright MCP のログイン済みブラウザで本番を確かめる・計測する |
+| `/handoff` | 作業の区切りで引き継ぐ。HANDOVER の書き直し、決まったルールの置き場所（hook / 検査 / Skill / AGENTS） |
 
 **`/dbops` はテストのときだけの話ではない。** operator 依頼の 1 セル修正も同じ手順を通す。
 

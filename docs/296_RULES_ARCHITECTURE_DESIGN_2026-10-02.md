@@ -389,3 +389,23 @@ Claude が呼び出しを判断する材料なので、利用者が自然に言�
 |---|---|
 | 5 | `AGENTS.md` 再構成 ＋ 別冊化（§4.7 §4.8 の別冊化を含む） |
 | 6 | Skill 2 本（`/spec-change` `/dbops`） |
+
+## 追補 — 2026-10-11 のハンドオフで足したもの
+
+v376.113〜121 のセッションで決まったルールと踏んだ事故を、§2 の割り当て規則に沿って置いた。
+
+| 置いた層 | もの | 由来 |
+|---|---|---|
+| 強制B（hook） | **H5** 直接の `clasp push` を拒否 → `npm run release:push` | 2026-10-10 admin の push 失敗に気づかず version @287 を作った |
+| 強制B（hook） | **H6** push の記録（3 プロジェクトのファイルの指紋）と一致しない `clasp create-version` を拒否 | 同上 |
+| 強制B（hook） | **H7** ブラウザ（Playwright）の `google.script.run` で、書き込みうる関数・action は ask（`guard-browser.mjs`） | §3.5 の限界「管理画面経由は止まらない」を塞ぐ。読むだけかは名前で決める（関数は `_LOG`、action は `PREVIEW_READ_ACTION_PREFIXES`） |
+| 強制B（hook） | H3 の記録をリポジトリ直下で読む | サブディレクトリから push すると誤って拒否していた |
+| 強制A（npm） | `test:guards` — hook を実際に起動して判断を突き合わせる（16 件） | hook は fail-open なので壊れても気づかない |
+| 強制A（npm） | `test:single-source` に 2 件（監査ログの出口・管理者セッションの `.email`） | 監査ログに実行者が空欄で記録されていた（未リリースの修正と同時） |
+| 強制A（手動） | `npm run release:verify` — 本番 4 本の向き先と HANDOVER の照合 | 版のずれ・文書の更新漏れ |
+| 想起（Skill） | `/gas-admin-tool` `/prodcheck` `/handoff` を新設、`/release` `/dbops` を更新 | 管理者向け関数の公開事故（v376.115）・Playwright 確認の定型化・引き継ぎ |
+| 常設（AGENTS） | L0.3 テストデータの物理削除は毎回承認／L1.1 push してから version／L3.1 破壊的な修正は声掛け／L3.3 ユーザビリティ | operator 指示（2026-10-09〜11） |
+
+hook・release スクリプトが共有する定義は 1 か所に置いた: 固定 deployment の ID は `scripts/release-config.mjs`、
+hook の共通部品は `.claude/hooks/hook-shared.mjs`、書き込み関数の一覧は `scripts/gas-boundary-utils.mjs` から導く。
+

@@ -82,7 +82,9 @@ payload に無い列も不変条件に合わせて書き換わる。既知のも
 件数を自分で数える。基準値（会員 218 / 職員 156 など）と突き合わせる。
 テストデータの物理削除（下記）は、実行後に同じ判定でもう一度数え、残りが 0 であることを返す。
 
-### 8. 削除は論理削除で、バッチ ID を記録する
+### 8. 実データの削除は論理削除で、バッチ ID を記録する
+
+印の付いたテストデータだけは物理削除する（下の「テストデータを作る場合」）。
 
 ```
 previewDeleteMember → 対象と件数を確認
@@ -137,7 +139,12 @@ executeTestDataPurge_APPLY  確認から 30 分以内・同じ人・同じ内容
 
 ## Hook との関係
 
-破壊的な `clasp run`（`seedDemoData` / `executeTestDataPurge_APPLY` など）は
-PreToolUse hook が `ask` を出す。**手順を飛ばしても最後の砦が残る。**
-ただし**管理画面経由（`google.script.run`）は Bash を通らないので止まらない。**
-そちらはこの手順で担保する。
+本番を書き換えうる呼び出しには PreToolUse hook が `ask` を出す。**手順を飛ばしても最後の砦が残る。**
+
+| 経路 | hook | 確認が出るもの |
+|---|---|---|
+| `clasp run` | `guard-bash.mjs` | 管理 split の公開関数のうち、名前が `_LOG` で終わらないもの・`seedDemoData` など |
+| ブラウザの `google.script.run`（2026-10-11〜） | `guard-browser.mjs` | 同上 ＋ `processApiRequest` の action が `get*` `list*` などで始まらないもの |
+
+**止まらないもの: 画面のボタンをクリックする操作。** 保存・承認・送信ボタンを押す確認は、この手順で担保する。
+ブラウザでの確認の進め方は `/prodcheck`。

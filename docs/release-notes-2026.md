@@ -13,6 +13,16 @@
 
 ---
 
+## 未リリース — 2026-10-11 ルールの整備（ハンドオフ）と監査ログの修正
+
+- 🐛 パスワード再発行・認証アカウント発行の監査ログに**実行者が空欄で記録されていた**（存在しない `adminSession.email` を読んでいた）。
+  監査ログの書き手 3 つを `appendAuditLogEntries_` へまとめて是正。**次のリリースで本番に入る。**
+- 🔒 hook を拡張: 直接の `clasp push` を拒否し `npm run release:push`（3 つとも成功したときだけ記録）へ。
+  記録と一致しない `clasp create-version` を拒否。ブラウザ（Playwright）から本番の書き込みを呼ぶときも operator 確認。
+- 📝 `test:guards`（hook の判断 16 件）・`npm run release:verify`（本番 4 本と HANDOVER の照合）を新設。
+  `test:single-source` に監査ログの出口・管理者セッションの本人の 2 件を追加。
+- 📝 Skill `/gas-admin-tool` `/prodcheck` `/handoff` を新設、`/release` `/dbops` と AGENTS.md・docs/09 を更新（`docs/296` 追補）。
+
 ## v376.121 — 2026-10-11 🆕 テストデータのルールと物理削除（全3split @432×2 / @190 / @289）
 
 - 🆕 テストデータは**名前の先頭に★、メールは @example.invalid**。両方そろったものだけをテストデータとみなす。
