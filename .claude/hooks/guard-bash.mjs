@@ -73,8 +73,7 @@ function invocationTokens(segment) {
 const DESTRUCTIVE_RUN_TARGETS = new Set([
   'seedDemoData',
   'rebuildDatabaseSchema',
-  'deleteTestData_APPLY',
-  'executeStrictE2ETestMemberCleanup_APPLY',
+  'executeTestDataPurge_APPLY',
   'backfillKanaToFullwidth_APPLY',
   'restoreLastArchiveBatch_APPLY',
   'forceMarkSchemaInitializedToCurrent',

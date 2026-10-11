@@ -105,98 +105,6 @@ function backfillKanaToFullwidth_APPLY() {
   return backfillKanaToFullwidth({ dryRun: false });
 }
 
-function deleteTestDataPreview_LOG() {
-  assertMasterOperator_('deleteTestDataPreview_LOG');
-  var ss = getOrCreateDatabase_();
-  var t = _collectTestDataTargets_(ss);
-  var summary = {
-    counts: {
-      auth: t.auth.length,
-      members: t.members.length,
-      staff: t.staff.length,
-      external: t.external.length,
-    },
-    auth: t.auth.map(function (r) {
-      return { 認証ID: r['認証ID'], ログインID: r['ログインID'], 会員ID: r['会員ID'], 職員ID: r['職員ID'] };
-    }),
-    members: t.members.map(function (r) {
-      return { 会員ID: r['会員ID'], 姓: r['姓'], 名: r['名'], セイ: r['セイ'], 勤務先名: r['勤務先名'] };
-    }),
-    staff: t.staff.map(function (r) {
-      return { 職員ID: r['職員ID'], 会員ID: r['会員ID'], 姓: r['姓'], 名: r['名'] };
-    }),
-    external: t.external.map(function (r) {
-      return { 外部申込者ID: r['外部申込者ID'], 氏名: r['氏名'], フリガナ: r['フリガナ'] };
-    }),
-  };
-  Logger.log('=== deleteTestDataPreview_LOG ===');
-  Logger.log(JSON.stringify(summary, null, 2));
-  return summary;
-}
-
-function deleteTestData_APPLY() {
-  assertMasterOperator_('deleteTestData_APPLY');
-  var ss = getOrCreateDatabase_();
-  var t = _collectTestDataTargets_(ss);
-  var authIds = t.auth.map(function (r) { return String(r['認証ID']); });
-  var memberIds = t.members.map(function (r) { return String(r['会員ID']); });
-  var staffIds = t.staff.map(function (r) { return String(r['職員ID']); });
-  var extIds = t.external.map(function (r) { return String(r['外部申込者ID']); });
-
-  var result = {
-    deleted: {
-      auth: dryRun_softDeleteByKey_(ss, 'T_認証アカウント', '認証ID', authIds),
-      members: dryRun_softDeleteByKey_(ss, 'T_会員', '会員ID', memberIds),
-      staff: dryRun_softDeleteByKey_(ss, 'T_事業所職員', '職員ID', staffIds),
-      external: dryRun_softDeleteByKey_(ss, 'T_外部申込者', '外部申込者ID', extIds),
-    },
-    appliedIds: {
-      auth: authIds,
-      members: memberIds,
-      staff: staffIds,
-      external: extIds,
-    },
-  };
-  try { clearAllDataCache_(); } catch (e) {}
-  try { clearAdminDashboardCache_(); } catch (e) {}
-  Logger.log('=== deleteTestData_APPLY ===');
-  Logger.log(JSON.stringify(result, null, 2));
-  return result;
-}
-
-function previewStrictE2ETestMemberCleanup_LOG() {
-  assertMasterOperator_('previewStrictE2ETestMemberCleanup_LOG');
-  var targets = collectStrictE2ETestMemberTargets_(getOrCreateDatabase_());
-  var counts = {
-    auth: targets.auth.length,
-    members: targets.members.length,
-    staff: targets.staff.length,
-    changeRequests: targets.changeRequests.length,
-  };
-  Logger.log('=== previewStrictE2ETestMemberCleanup_LOG ===');
-  Logger.log(JSON.stringify({ counts: counts }));
-  return { counts: counts };
-}
-
-function executeStrictE2ETestMemberCleanup_APPLY() {
-  assertMasterOperator_('executeStrictE2ETestMemberCleanup_APPLY');
-  var ss = getOrCreateDatabase_();
-  var targets = collectStrictE2ETestMemberTargets_(ss);
-  var result = {
-    deleted: {
-      auth: dryRun_softDeleteByKey_(ss, 'T_認証アカウント', '認証ID', targets.auth.map(function(row) { return String(row['認証ID']); })),
-      members: dryRun_softDeleteByKey_(ss, 'T_会員', '会員ID', targets.members.map(function(row) { return String(row['会員ID']); })),
-      staff: dryRun_softDeleteByKey_(ss, 'T_事業所職員', '職員ID', targets.staff.map(function(row) { return String(row['職員ID']); })),
-      changeRequests: dryRun_softDeleteByKey_(ss, 'T_変更申請', '申請ID', targets.changeRequests.map(function(row) { return String(row['申請ID']); })),
-    },
-  };
-  clearAllDataCache_();
-  clearAdminDashboardCache_();
-  Logger.log('=== executeStrictE2ETestMemberCleanup_APPLY ===');
-  Logger.log(JSON.stringify(result));
-  return result;
-}
-
 function backfillKanaToFullwidth(options) {
   assertMasterOperator_('backfillKanaToFullwidth');
   var opts = options || {};
@@ -300,6 +208,91 @@ function backfillKanaToFullwidth(options) {
   }
 
   return report;
+}
+
+function previewTestDataPurge_LOG() {
+  var session = assertMasterOperator_('previewTestDataPurge_LOG');
+  var plan = buildTestDataPurgePlan_(getOrCreateDatabase_());
+  PropertiesService.getScriptProperties().setProperty(TEST_DATA_PURGE_PLAN_KEY, JSON.stringify({
+    fingerprint: plan.fingerprint,
+    at: Date.now(),
+    loginId: session.loginId,
+  }));
+  Logger.log('=== テストデータの物理削除: 確認 ===\n' + formatTestDataPurgePlan_(plan)
+    + (plan.isEmpty ? '\n削除するものはありません。'
+      : plan.blockers.length ? '' : '\n内容を確認のうえ、30 分以内に executeTestDataPurge_APPLY を実行してください。'));
+  return '__PURGE_JSON__' + JSON.stringify(plan);
+}
+
+function executeTestDataPurge_APPLY() {
+  var session = assertMasterOperator_('executeTestDataPurge_APPLY');
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error('ほかの処理が実行中です。少し待ってからやり直してください。');
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var recorded = null;
+    try { recorded = JSON.parse(props.getProperty(TEST_DATA_PURGE_PLAN_KEY) || 'null'); } catch (e) { recorded = null; }
+    if (!recorded || !recorded.fingerprint) {
+      throw new Error('先に previewTestDataPurge_LOG を実行して、削除する内容を確認してください。');
+    }
+    if (Date.now() - Number(recorded.at || 0) > TEST_DATA_PURGE_PLAN_TTL_MS) {
+      throw new Error('確認から 30 分を過ぎました。previewTestDataPurge_LOG をもう一度実行してください。');
+    }
+    if (recorded.loginId !== session.loginId) {
+      throw new Error('確認した人と実行する人が違います。実行する人が previewTestDataPurge_LOG を実行してください。');
+    }
+
+    var ss = getOrCreateDatabase_();
+    var plan = buildTestDataPurgePlan_(ss);
+    if (plan.blockers.length > 0) throw new Error('削除できません:\n' + plan.blockers.join('\n'));
+    if (plan.fingerprint !== recorded.fingerprint) {
+      throw new Error('確認したあとにデータが変わりました。previewTestDataPurge_LOG をもう一度実行してください。');
+    }
+    if (plan.isEmpty) {
+      props.deleteProperty(TEST_DATA_PURGE_PLAN_KEY);
+      return '__PURGE_JSON__' + JSON.stringify({ removed: {}, message: '削除するものはありませんでした。' });
+    }
+
+    var memberIdSet = idSetOf_(plan.memberIds);
+    var staffIdSet = idSetOf_(plan.staffIds);
+    var externalIdSet = idSetOf_(plan.externalIds);
+    var removed = { drive: trashClaimAttachmentFiles_(ss, plan.claimFileIds) };
+    getTestDataPurgeMatchers_(memberIdSet, staffIdSet, idSetOf_(plan.paymentIds), externalIdSet).forEach(function(pair) {
+      removed[pair[0]] = takeRowsByMatch_(ss.getSheetByName(pair[0]), pair[1]).length;
+      if (ss.getSheetByName(pair[0] + '_archive')) {
+        removed[pair[0] + '_archive'] = takeRowsByMatch_(ss.getSheetByName(pair[0] + '_archive'), pair[1]).length;
+      }
+    });
+    removed['T_ログイン履歴'] = purgeLoginHistoryByAuthIds_(idSetOf_(plan.authIds));
+    var logMatchers = getTestDataPurgeLogMatchers_(memberIdSet, staffIdSet, externalIdSet);
+    removed['T_メール送信明細'] = takeRowsByMatch_(getLogSs_().getSheetByName('T_メール送信明細'), logMatchers['T_メール送信明細']).length;
+    removed['T_削除ログ'] = takeRowsByMatch_(ss.getSheetByName('T_削除ログ'), logMatchers['T_削除ログ']).length;
+    removed['T_人物統合ログ'] = takeRowsByMatch_(ss.getSheetByName('T_人物統合ログ'), logMatchers['T_人物統合ログ']).length;
+    // 2026-10-11 に廃止した dryRun 後片付けの記録（読む側がもう無い）
+    if (props.getProperty(DRYRUN_MANIFEST_KEY)) {
+      props.deleteProperty(DRYRUN_MANIFEST_KEY);
+      removed.legacyDryRunManifest = 1;
+    }
+
+    clearAllDataCache_();
+    clearAdminDashboardCache_();
+    clearTrainingManagementCache_();
+    clearAdminPermissionCaches_();
+
+    var after = buildTestDataPurgePlan_(ss);
+    appendAuditLogEntries_([{
+      operatorEmail: session.loginId,
+      operation: 'TEST_DATA_PURGE',
+      recordId: plan.fingerprint,
+      fieldName: 'removed',
+      newValue: JSON.stringify({ members: plan.memberIds, staff: plan.staffIds, externals: plan.externalIds, removed: removed }),
+    }]);
+    props.deleteProperty(TEST_DATA_PURGE_PLAN_KEY);
+    Logger.log('=== テストデータの物理削除: 完了 ===\n' + JSON.stringify(removed) + '\n削除後の残り: ' + after.totalRows + ' 行');
+    return '__PURGE_JSON__' + JSON.stringify({ removed: removed, remainingRows: after.totalRows });
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function restoreLastArchiveBatch_APPLY() {

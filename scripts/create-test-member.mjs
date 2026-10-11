@@ -26,9 +26,10 @@
  *      （AGENTS.md §0: AI は値を見ない・出力しない・要求しない）
  *   6. メール配信状態を元の設定へ戻す
  *
- * ■ 後片付け
- *   管理 → データ管理 → 会員削除（アーカイブ移動。削除バッチ単位で復元できる）。
- *   ※ deleteTestData_APPLY は test-member-*.invalid を厳格一致で対象に含める。
+ * ■ 後片付け（物理削除・docs/303）
+ *   admin split のエディタで previewTestDataPurge_LOG → executeTestDataPurge_APPLY。
+ *   名前の★とメールの @example.invalid の両方で判定するので、--contact-email で
+ *   実在のアドレスを指定した会員は対象にならない（手で片付ける）。
  *
  * 使い方:
  *   node scripts/create-test-member.mjs             # dry-run（確認画面まで進めて送信しない）
@@ -44,6 +45,9 @@ const CONTACT_EMAIL_INDEX = process.argv.indexOf('--contact-email');
 const CONTACT_EMAIL = CONTACT_EMAIL_INDEX >= 0 ? String(process.argv[CONTACT_EMAIL_INDEX + 1] || '').trim() : '';
 if (CONTACT_EMAIL_INDEX >= 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(CONTACT_EMAIL)) {
   throw new Error('--contact-email には送信先メールアドレスを指定してください。');
+}
+if (CONTACT_EMAIL && !CONTACT_EMAIL.toLowerCase().endsWith('@example.invalid')) {
+  console.warn('[create-test-member] 注意: 実在のアドレスを指定したので、テストデータの印がそろわず物理削除（executeTestDataPurge_APPLY）の対象になりません。作った会員は手で片付けてください。');
 }
 
 // .env.test があれば読む（値はログに出さない）
@@ -64,11 +68,12 @@ const PORTAL_URL = process.env.PORTAL_URL_PUBLIC
  */
 const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
 const DATA = {
-  lastName: 'テスト',
+  // テストデータの印（docs/303）: 名前の先頭に★、メールは @example.invalid。物理削除はこの両方で判定する。
+  lastName: '★テスト',
   firstName: `会員${stamp}`,
   lastKana: 'テスト',
   firstKana: 'カイイン',
-  officeName: `[テスト]検証用事業所${stamp}`,
+  officeName: `★テスト事業所${stamp}`,
   postCode3: '573',
   postCode4: '0027',
   prefecture: '大阪府',

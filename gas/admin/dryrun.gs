@@ -5,47 +5,6 @@
 // helper / 定数は Code.gs 側に残っており、同一プロジェクトのグローバルスコープで参照される。
 // 許可リストの正本: scripts/gas-boundary-utils.mjs ADMIN_OPERATOR_TOOL_FUNCTIONS
 // ============================================================
-function inspectDryRunManifest_LOG() {
-  assertMasterOperator_('inspectDryRunManifest_LOG');
-  var raw = PropertiesService.getScriptProperties().getProperty(DRYRUN_MANIFEST_KEY);
-  Logger.log('=== inspectDryRunManifest_LOG ===');
-  if (!raw) {
-    Logger.log('DRYRUN_MANIFEST: 未保存（dryRunApplicationScenarios 未実行 / すでに cleanup 済）');
-    return null;
-  }
-  try {
-    var parsed = JSON.parse(raw);
-    var runs = (parsed && parsed.runs) || [];
-    var memberSet = {}, staffSet = {}, authSet = {}, requestSet = {};
-    for (var i = 0; i < runs.length; i++) {
-      (runs[i].memberIds || []).forEach(function (id) { memberSet[id] = true; });
-      (runs[i].staffIds || []).forEach(function (id) { staffSet[id] = true; });
-      (runs[i].authIds || []).forEach(function (id) { authSet[id] = true; });
-      (runs[i].requestIds || []).forEach(function (id) { requestSet[id] = true; });
-    }
-    var summary = {
-      runs: runs.length,
-      counts: {
-        members: Object.keys(memberSet).length,
-        staff: Object.keys(staffSet).length,
-        auth: Object.keys(authSet).length,
-        changeRequests: Object.keys(requestSet).length,
-      },
-      sampleMemberIds: Object.keys(memberSet).slice(0, 10),
-      sampleAuthIds: Object.keys(authSet).slice(0, 10),
-      runsTimeline: runs.map(function (r) {
-        return { runId: r.runId, startedAt: r.startedAt, finishedAt: r.finishedAt };
-      }),
-    };
-    Logger.log(JSON.stringify(summary, null, 2));
-    return summary;
-  } catch (e) {
-    Logger.log('parse 失敗: ' + (e && e.message));
-    Logger.log('raw: ' + raw);
-    return null;
-  }
-}
-
 function healthCheckPasswordPepper() {
   assertMasterOperator_('healthCheckPasswordPepper');
   var report = [];
@@ -473,7 +432,6 @@ function dryRunApplicationScenarios() {
       passedCount: 0,
       failedCount: 0,
       scenarios: [],
-      manifestKey: DRYRUN_MANIFEST_KEY,
     },
     manifest: {
       memberIds: {},
@@ -518,87 +476,8 @@ function dryRunApplicationScenarios() {
     changeRequests: Object.keys(state.manifest.requestIds).length,
   };
 
-  // Manifest を ScriptProperties に保存（cleanup 用）
-  var existingManifestJson = PropertiesService.getScriptProperties().getProperty(DRYRUN_MANIFEST_KEY);
-  var manifestAccumulator = { runs: [] };
-  if (existingManifestJson) {
-    try { manifestAccumulator = JSON.parse(existingManifestJson); } catch (e) {}
-    if (!manifestAccumulator.runs) manifestAccumulator.runs = [];
-  }
-  manifestAccumulator.runs.push({
-    runId: state.report.runId,
-    startedAt: startedAt,
-    finishedAt: state.report.finishedAt,
-    memberIds: Object.keys(state.manifest.memberIds),
-    staffIds: Object.keys(state.manifest.staffIds),
-    authIds: Object.keys(state.manifest.authIds),
-    requestIds: Object.keys(state.manifest.requestIds),
-  });
-  PropertiesService.getScriptProperties().setProperty(DRYRUN_MANIFEST_KEY, JSON.stringify(manifestAccumulator));
-
   Logger.log('dryRunApplicationScenarios: ' + JSON.stringify(state.report));
   // clasp run は util.inspect で出力するためネストが [Object]/[Array] に省略される。
   // 文字列で返すことで全データを取り出せるようにする。
   return '__DRYRUN_JSON__' + JSON.stringify(state.report);
-}
-
-function previewDryRunApplicationCleanup() {
-  dryRun_assertAdminOperator_();
-  var manifestJson = PropertiesService.getScriptProperties().getProperty(DRYRUN_MANIFEST_KEY);
-  if (!manifestJson) return '__DRYRUN_JSON__' + JSON.stringify({ runs: 0, totalRows: 0, message: 'manifest 未保存（dryRunApplicationScenarios 未実行）' });
-  var manifest;
-  try { manifest = JSON.parse(manifestJson); } catch (e) { return '__DRYRUN_JSON__' + JSON.stringify({ error: 'manifest parse 失敗: ' + e.message }); }
-  var runs = (manifest && manifest.runs) || [];
-  var memberSet = {}, staffSet = {}, authSet = {}, requestSet = {};
-  for (var r = 0; r < runs.length; r++) {
-    (runs[r].memberIds || []).forEach(function(id) { memberSet[id] = true; });
-    (runs[r].staffIds || []).forEach(function(id) { staffSet[id] = true; });
-    (runs[r].authIds || []).forEach(function(id) { authSet[id] = true; });
-    (runs[r].requestIds || []).forEach(function(id) { requestSet[id] = true; });
-  }
-  var out = {
-    runs: runs.length,
-    counts: {
-      members: Object.keys(memberSet).length,
-      staff: Object.keys(staffSet).length,
-      auth: Object.keys(authSet).length,
-      changeRequests: Object.keys(requestSet).length,
-    },
-    sampleMemberIds: Object.keys(memberSet).slice(0, 5),
-    note: 'soft delete (削除フラグ=true) のみ。executeDryRunApplicationCleanup で実行。',
-  };
-  return '__DRYRUN_JSON__' + JSON.stringify(out);
-}
-
-function executeDryRunApplicationCleanup() {
-  assertMasterOperator_('executeDryRunApplicationCleanup');
-  dryRun_assertAdminOperator_();
-  var manifestJson = PropertiesService.getScriptProperties().getProperty(DRYRUN_MANIFEST_KEY);
-  if (!manifestJson) return { success: false, error: 'manifest 未保存' };
-  var manifest;
-  try { manifest = JSON.parse(manifestJson); } catch (e) { return { success: false, error: 'manifest parse 失敗: ' + e.message }; }
-  var ss = getOrCreateDatabase_();
-  var runs = (manifest && manifest.runs) || [];
-  var memberSet = {}, staffSet = {}, authSet = {}, requestSet = {};
-  for (var r = 0; r < runs.length; r++) {
-    (runs[r].memberIds || []).forEach(function(id) { memberSet[id] = true; });
-    (runs[r].staffIds || []).forEach(function(id) { staffSet[id] = true; });
-    (runs[r].authIds || []).forEach(function(id) { authSet[id] = true; });
-    (runs[r].requestIds || []).forEach(function(id) { requestSet[id] = true; });
-  }
-  var result = {
-    success: true,
-    deleted: {
-      members: dryRun_softDeleteByKey_(ss, 'T_会員', '会員ID', Object.keys(memberSet)),
-      staff: dryRun_softDeleteByKey_(ss, 'T_事業所職員', '職員ID', Object.keys(staffSet)),
-      auth: dryRun_softDeleteByKey_(ss, 'T_認証アカウント', '認証ID', Object.keys(authSet)),
-      changeRequests: dryRun_softDeleteByKey_(ss, 'T_変更申請', '申請ID', Object.keys(requestSet)),
-    },
-  };
-  // manifest クリア（冪等性のため）
-  PropertiesService.getScriptProperties().deleteProperty(DRYRUN_MANIFEST_KEY);
-  clearAllDataCache_();
-  clearAdminDashboardCache_();
-  Logger.log('executeDryRunApplicationCleanup: ' + JSON.stringify(result));
-  return '__DRYRUN_JSON__' + JSON.stringify(result);
 }

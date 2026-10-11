@@ -447,7 +447,7 @@ npx clasp deployments                  # 4 本が同じ版を指しているこ�
 | `scripts/test-public-membership-notifications-live.mjs` | 公開ポータル経由の変更・退会を管理承認まで通す実通知検証 | スクリプトが同一セッションで復元する |
 | `scripts/test-membership-notification-live.mjs` | 会員マイページ経由の Chat 通知検証（`.env.test` の資格情報が要る）| 同上 |
 | `scripts/create-test-member.mjs` | 検証用のテスト会員を入会申込から作る（既定 dry-run）| §2【0】の手順で承認・パスワード発行まで行う |
-| `scripts/cleanup-live-test-members.mjs` / `run-e2e-test-cleanup.mjs` / `inventory-demo-data.mjs` | テストデータの棚卸しと片付け | 対象条件を確認してから実行する |
+| admin split の `previewTestDataPurge_LOG` → `executeTestDataPurge_APPLY` | テストデータ（★＋@example.invalid）の物理削除 | 確認から 30 分以内・同じ人・同じ内容のときだけ消える。手順は Skill `/dbops`・docs/303（2026-10-11 に旧スクリプト 3 本を置き換え） |
 
 **公開ポータルの本人確認は同一 ID につき 15 分 5 回**。連投すると `waitForSelector`
 のタイムアウトになり、セッション切れと区別がつかない。1 セッションで本人確認は 1 回に収める。

@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 8f300b7df945de2d03404530b5d856cee6a51324185be8f68af1255ce0fcc236
+// BUILD_INPUT_SHA256: 189bc832df90151ff09899b493360bd1699c40f09dbc44616715ee2a8c87b4a1
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -885,6 +885,15 @@ var ARCHIVE_SOURCE_TABLES = [
   'T_研修申込', 'T_年会費納入履歴', 'T_年会費更新履歴', 'T_役員',
   'T_振込口座', 'T_支払い', 'T_支払い明細', 'T_請求', 'T_変更申請',
 ];
+var TEST_DATA_EMAIL_DOMAIN = '@example.invalid';
+
+
+
+// 個人会員・賛助会員は姓、事業所会員は事業所名（T_会員.勤務先名）に印を付ける。
+
+
+
+// 承認前の入会申込は会員IDを持たないので、申請者名（氏名・事業所名）と連絡先で判定する。
 
 var DEMO_TRANSFER_ACCOUNT = {
   bankName: 'ゆうちょ銀行',
@@ -1707,6 +1716,7 @@ var MASTER_ONLY_SETTING_KEYS = ['EMAIL_LOG_VIEWER_ROLE'];
 
 // T_システム設定のスネークアッパーケースキーを camelCase に変換する
 // 例: 'EMAIL_LOG_VIEWER_ROLE' → 'emailLogViewerRole'
+
 
 
 
@@ -5838,19 +5848,6 @@ function normalizeStaffNameFields_(rowLike) {
   };
 }
 
-// v376.4: 過去運用で投入されたデモアカウント + T_外部申込者 テスト 3 件の棚卸し・soft delete。
-//   対象（保守的に ID 厳格マッチ）:
-//   - T_認証アカウント: ログインID が demo- で始まる
-//   - T_会員: 上記認証に紐づく 会員ID + 'DEMO-' プレフィックス
-//   - T_事業所職員: 上記認証に紐づく 職員ID + 上記会員に属する職員
-//   - T_外部申込者: 氏名 or フリガナ が「テスト」「ガイブ」「セイゴウカクニン」のいずれかを含む
-//   いずれも soft delete（削除フラグ=true）のみ。
-
-
-
-
-
-
 
 function backfillBusinessStaffNameColumns_(ss) {
   var targetSs = ss || getOrCreateDatabase_();
@@ -6137,12 +6134,29 @@ var LINE_POST_ATTACHMENT_KIND_PDF = 'PDF';
 
 // テーブル → 「live 行が削除対象会員系に属するか」の一致条件（cascade と診断の共通定義）
 
+// シートから matchFn に一致する行を取り除き、取り除いた行（オブジェクト）を返す。
+// beforeRemove(taken) は行を取り除く前に呼ぶ（アーカイブへの書き込みなど。失敗すれば何も消さない）。
+// 残す行を詰め直したあと、空いた末尾の行はシートから削除する。中身だけ消すと空行が残り、
+// シートの容量が減らない（2026-10-11 まではそうだった）。
+
 // 共通ムーバ: matchFn に一致する行を live から除去し <table>_archive へ append する。
 // archive シートのヘッダー欠落（列数0）は自己修復する。戻り値は移動件数。
 
 // 削除対象認証IDのログイン履歴を log スプレッドシートから物理削除する（docs/249: purge 確定）
 
 // cascade オーケストレータ: 支払いID/認証ID を移動前に解決 → 13テーブル移動 → ログイン履歴 purge
+var TEST_DATA_PURGE_PLAN_TTL_MS = 30 * 60 * 1000;
+
+
+
+// ログ系の表（T_削除ログ はメイン DB、ほかはログ用スプレッドシート）の消す条件。
+
+// 請求の添付（[{ fileId, url, ... }] の JSON）からファイルIDを取り出す。
+
+
+
+
+
 
 // 復元: 各 archive から 削除バッチID 一致行を live へ戻す（サロゲート3列は落とす）
 
@@ -6423,8 +6437,7 @@ var CLAIM_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
  * payload: { memberId? | staffId? | externalId? }
  */
 
-var DRYRUN_EMAIL_DOMAIN = '@example.invalid';  // RFC 2606 reserved
-var DRYRUN_MANIFEST_KEY = 'DRYRUN_APPLICATION_MANIFEST_V1';
+var DRYRUN_EMAIL_DOMAIN = TEST_DATA_EMAIL_DOMAIN;
 var DRYRUN_TRAINING_MGMT_MANIFEST_KEY = 'DRYRUN_TRAINING_MGMT_MANIFEST_V1';
 
 // テストで作成した training / 申込 / 外部申込者 を物理削除（行削除）。
@@ -6458,6 +6471,4 @@ var DRYRUN_TRAINING_MGMT_MANIFEST_KEY = 'DRYRUN_TRAINING_MGMT_MANIFEST_V1';
 
 
 // ── メインエントリ ───────────────────────────────────────────────────────
-
-
 

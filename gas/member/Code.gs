@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 90b898218ea1d68474163562c2fcc11403b0ae4ba3d08f3d1059a6ed7601daa4
+// BUILD_INPUT_SHA256: 420fb620b7e19d2f5dd732825cfc2240d5e25d4eb753f886a364b673130d3914
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -885,10 +885,15 @@ var ARCHIVE_SOURCE_TABLES = [
   'T_研修申込', 'T_年会費納入履歴', 'T_年会費更新履歴', 'T_役員',
   'T_振込口座', 'T_支払い', 'T_支払い明細', 'T_請求', 'T_変更申請',
 ];
-for (var archiveSrcIdx = 0; archiveSrcIdx < ARCHIVE_SOURCE_TABLES.length; archiveSrcIdx += 1) {
-  var archiveSrcName = ARCHIVE_SOURCE_TABLES[archiveSrcIdx];
-  テーブル定義[archiveSrcName + '_archive'] = テーブル定義[archiveSrcName].slice().concat(ARCHIVE_SURROGATE_COLUMNS);
-}
+var TEST_DATA_EMAIL_DOMAIN = '@example.invalid';
+
+
+
+// 個人会員・賛助会員は姓、事業所会員は事業所名（T_会員.勤務先名）に印を付ける。
+
+
+
+// 承認前の入会申込は会員IDを持たないので、申請者名（氏名・事業所名）と連絡先で判定する。
 
 var 入力規則定義 = [
   ['T_会員', '会員種別コード', 'M_会員種別'],
@@ -3110,6 +3115,23 @@ var MASTER_ONLY_SETTING_KEYS = ['EMAIL_LOG_VIEWER_ROLE'];
  * T_監査ログ にロール CRUD を追記する。
  * appendAdminAuditLog_ は T_会員 専用なので別関数とする。
  */
+// 監査ログ（T_監査ログ）への書き込みの唯一の出口。まとめて 1 回で書く。
+// entries: [{ operatorEmail, operation, tableName, recordId, fieldName, oldValue, newValue }]
+// 監査ログのシートが無い（スキーマ未整備）ときは何もしない。
+function appendAuditLogEntries_(entries) {
+  if (!entries || entries.length === 0) return 0;
+  var sheet = getLogSs_().getSheetByName('T_監査ログ');
+  if (!sheet) return 0;
+  var now = new Date().toISOString();
+  var text = function(v) { return v === null || v === undefined ? '' : String(v); };
+  var rows = entries.map(function(e) {
+    return [Utilities.getUuid(), now, text(e.operatorEmail), text(e.operation), text(e.tableName),
+      text(e.recordId), text(e.fieldName), text(e.oldValue), text(e.newValue)];
+  });
+  sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
+  return rows.length;
+}
+
 
 /**
  * T_権限ロール 全件 + メニュー定義 + 各ロールの assignedCount を返す。
@@ -4175,23 +4197,10 @@ function mergeSelfServiceBusinessStaffPayload_(base, incoming, allowedFields) {
 // v259: ログSSが設定されている場合はそちらに書き込む
 function appendAdminAuditLog_(ss, adminEmail, memberId, changes) {
   if (!changes || changes.length === 0) return;
-  var sheet = getLogSs_().getSheetByName('T_監査ログ');
-  if (!sheet) return; // スキーマ未反映時はサイレントスキップ
-  var now = new Date().toISOString();
-  for (var i = 0; i < changes.length; i++) {
-    var c = changes[i];
-    sheet.appendRow([
-      Utilities.getUuid(),   // 監査ログID
-      now,                   // 操作日時
-      adminEmail || '',      // 操作者メール
-      'ADMIN_EDIT',          // 操作種別
-      'T_会員',              // 対象テーブル
-      String(memberId),      // 対象レコードID
-      c.field,               // フィールド名
-      String(c.oldValue),    // 旧値
-      String(c.newValue),    // 新値
-    ]);
-  }
+  appendAuditLogEntries_(changes.map(function(c) {
+    return { operatorEmail: adminEmail, operation: 'ADMIN_EDIT', tableName: 'T_会員',
+      recordId: memberId, fieldName: c.field, oldValue: c.oldValue, newValue: c.newValue };
+  }));
 }
 
 
@@ -7625,19 +7634,6 @@ function normalizeStaffNameFields_(rowLike) {
   };
 }
 
-// v376.4: 過去運用で投入されたデモアカウント + T_外部申込者 テスト 3 件の棚卸し・soft delete。
-//   対象（保守的に ID 厳格マッチ）:
-//   - T_認証アカウント: ログインID が demo- で始まる
-//   - T_会員: 上記認証に紐づく 会員ID + 'DEMO-' プレフィックス
-//   - T_事業所職員: 上記認証に紐づく 職員ID + 上記会員に属する職員
-//   - T_外部申込者: 氏名 or フリガナ が「テスト」「ガイブ」「セイゴウカクニン」のいずれかを含む
-//   いずれも soft delete（削除フラグ=true）のみ。
-
-
-
-
-
-
 
 function backfillBusinessStaffNameColumns_(ss) {
   var targetSs = ss || getOrCreateDatabase_();
@@ -7924,12 +7920,29 @@ var LINE_POST_ATTACHMENT_KIND_PDF = 'PDF';
 
 // テーブル → 「live 行が削除対象会員系に属するか」の一致条件（cascade と診断の共通定義）
 
+// シートから matchFn に一致する行を取り除き、取り除いた行（オブジェクト）を返す。
+// beforeRemove(taken) は行を取り除く前に呼ぶ（アーカイブへの書き込みなど。失敗すれば何も消さない）。
+// 残す行を詰め直したあと、空いた末尾の行はシートから削除する。中身だけ消すと空行が残り、
+// シートの容量が減らない（2026-10-11 まではそうだった）。
+
 // 共通ムーバ: matchFn に一致する行を live から除去し <table>_archive へ append する。
 // archive シートのヘッダー欠落（列数0）は自己修復する。戻り値は移動件数。
 
 // 削除対象認証IDのログイン履歴を log スプレッドシートから物理削除する（docs/249: purge 確定）
 
 // cascade オーケストレータ: 支払いID/認証ID を移動前に解決 → 13テーブル移動 → ログイン履歴 purge
+var TEST_DATA_PURGE_PLAN_TTL_MS = 30 * 60 * 1000;
+
+
+
+// ログ系の表（T_削除ログ はメイン DB、ほかはログ用スプレッドシート）の消す条件。
+
+// 請求の添付（[{ fileId, url, ... }] の JSON）からファイルIDを取り出す。
+
+
+
+
+
 
 // 復元: 各 archive から 削除バッチID 一致行を live へ戻す（サロゲート3列は落とす）
 
@@ -8925,8 +8938,7 @@ function removeClaimAttachment_(payload) {
  * payload: { memberId? | staffId? | externalId? }
  */
 
-var DRYRUN_EMAIL_DOMAIN = '@example.invalid';  // RFC 2606 reserved
-var DRYRUN_MANIFEST_KEY = 'DRYRUN_APPLICATION_MANIFEST_V1';
+var DRYRUN_EMAIL_DOMAIN = TEST_DATA_EMAIL_DOMAIN;
 var DRYRUN_TRAINING_MGMT_MANIFEST_KEY = 'DRYRUN_TRAINING_MGMT_MANIFEST_V1';
 
 // テストで作成した training / 申込 / 外部申込者 を物理削除（行削除）。
@@ -8960,6 +8972,4 @@ var DRYRUN_TRAINING_MGMT_MANIFEST_KEY = 'DRYRUN_TRAINING_MGMT_MANIFEST_V1';
 
 
 // ── メインエントリ ───────────────────────────────────────────────────────
-
-
 

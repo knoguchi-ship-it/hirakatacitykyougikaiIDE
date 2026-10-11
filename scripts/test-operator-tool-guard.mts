@@ -48,13 +48,17 @@ const TRIGGER_HANDLERS = ['dailyWithdrawalPolicyTrigger', 'processPendingThumbna
 // ── 1. 配線 ─────────────────────────────────────────────
 test('公開されるトップレベル関数は、doGet と processApiRequest 以外すべて先頭で実行者を確かめる', () => {
   const exposed = ADMIN_TOP_LEVEL_FUNCTIONS.filter((n: string) => n !== 'doGet' && n !== 'processApiRequest');
-  assert.ok(exposed.length >= 20, '一覧が想定より少ない');
+  // 一覧が空になる事故を防ぐ下限。2026-10-11 に後片付けの 7 本を物理削除の 2 本へ統合し、22 → 17 本になった。
+  assert.ok(exposed.length >= 10, '一覧が想定より少ない');
   const missing: string[] = [];
   for (const name of exposed) {
     const first = firstStatement(name);
     const ok = TRIGGER_HANDLERS.includes(name)
       ? first === `assertTriggerOrMasterOperator_(e, '${name}');`
-      : first === `assertMasterOperator_('${name}');` || /^(var \w+ = )?dryRun_assertAdminOperator_\(\);$/.test(first);
+      // 判定の結果（実行者のセッション）を変数に受ける形も、先頭で確かめていることに変わりはない
+      : first === `assertMasterOperator_('${name}');`
+        || first === `var session = assertMasterOperator_('${name}');`
+        || /^(var \w+ = )?dryRun_assertAdminOperator_\(\);$/.test(first);
     if (!ok) missing.push(`${name}: ${first}`);
   }
   assert.deepEqual(missing, [], '先頭に実行者確認が無い関数がある');
@@ -106,7 +110,7 @@ const ADMIN: Session = { loginId: 'admin@example.org', isMaster: false, adminPer
 
 test('管理者リスト外の組織アカウントは止まる', () => {
   const { api } = buildGuard({ whitelisted: false });
-  assert.throws(() => api.assertMasterOperator_('deleteTestData_APPLY'), /管理者権限がありません/);
+  assert.throws(() => api.assertMasterOperator_('executeTestDataPurge_APPLY'), /管理者権限がありません/);
 });
 
 test('MASTER 以外の管理者は止まり、拒否がログイン履歴に残る', () => {

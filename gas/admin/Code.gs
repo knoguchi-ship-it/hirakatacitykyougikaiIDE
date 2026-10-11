@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 118a7f12c30b24d3956cb867dcda327df584a093c20651916d38b4450001e008
+// BUILD_INPUT_SHA256: 2563c474e7637aa089b9a61688879753a15d641afa18bff11ca0016951fa618d
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -889,6 +889,83 @@ for (var archiveSrcIdx = 0; archiveSrcIdx < ARCHIVE_SOURCE_TABLES.length; archiv
   var archiveSrcName = ARCHIVE_SOURCE_TABLES[archiveSrcIdx];
   テーブル定義[archiveSrcName + '_archive'] = テーブル定義[archiveSrcName].slice().concat(ARCHIVE_SURROGATE_COLUMNS);
 }
+
+// ─── テストデータの印（2026-10-11・docs/303） ─────────────────────────────
+// テストで作る会員・職員・外部申込者は、名前の先頭に★を付け、メールアドレスを
+// @example.invalid（RFC 6761 の予約ドメイン。どこにも届かない）にする。
+// **両方を満たすものだけ**をテストデータとみなす。片方だけでは消さない
+// （実在の会員の名前に★が入っても、メールアドレスが本物なら対象にならない）。
+// 判定はこの関数群が正本。作成（scripts/create-test-member.mjs・dryRun）と
+// 物理削除（previewTestDataPurge_LOG / executeTestDataPurge_APPLY）が同じものを使う。
+var TEST_DATA_NAME_PREFIX = '★';
+var TEST_DATA_EMAIL_DOMAIN = '@example.invalid';
+
+function isTestDataName_(value) {
+  return String(value || '').trim().indexOf(TEST_DATA_NAME_PREFIX) === 0;
+}
+
+function isTestDataEmail_(value) {
+  var email = String(value || '').trim().toLowerCase();
+  return email.length > TEST_DATA_EMAIL_DOMAIN.length
+    && email.slice(email.length - TEST_DATA_EMAIL_DOMAIN.length) === TEST_DATA_EMAIL_DOMAIN;
+}
+
+// 個人会員・賛助会員は姓、事業所会員は事業所名（T_会員.勤務先名）に印を付ける。
+function isTestMemberRow_(row) {
+  var nameField = String(row['会員種別コード'] || '') === 'BUSINESS' ? row['勤務先名'] : row['姓'];
+  return isTestDataName_(nameField) && isTestDataEmail_(row['代表メールアドレス']);
+}
+
+function isTestStaffRow_(row) {
+  var name = String(row['姓'] || '').trim() || String(row['氏名'] || '').trim();
+  return isTestDataName_(name) && isTestDataEmail_(row['メールアドレス']);
+}
+
+function isTestExternalApplicantRow_(row) {
+  return isTestDataName_(row['氏名']) && isTestDataEmail_(row['メールアドレス']);
+}
+
+// 承認前の入会申込は会員IDを持たないので、申請者名（氏名・事業所名）と連絡先で判定する。
+function isTestChangeRequestRow_(row) {
+  return isTestDataName_(row['申請者表示名']) && isTestDataEmail_(row['連絡先メールアドレス']);
+}
+
+// 物理削除で、テーブルごとにどう扱うか（ゴミを残さないための分類）。
+// テーブル定義に表を足したら、ここにも分類を足す。未分類は test:test-data-purge が落とす。
+//   CASCADE  getCascadeMatchers_ の会員・職員の連動。本番の表と *_archive の両方から消す
+//   PURGE    表ごとの条件で消す（buildTestDataPurgePlan_ / getTestDataPurgeLogMatchers_）
+//   KEEP     消さない
+//   NONE     会員・職員・外部申込者と結び付かない
+var TEST_DATA_PURGE_TABLE_POLICY = {
+  'T_会員': 'CASCADE',
+  'T_事業所職員': 'CASCADE',
+  'T_認証アカウント': 'CASCADE',
+  'T_管理者Googleホワイトリスト': 'CASCADE',
+  'T_研修申込': 'CASCADE',          // ＋テストの外部申込者の申込
+  'T_年会費納入履歴': 'CASCADE',
+  'T_年会費更新履歴': 'CASCADE',
+  'T_役員': 'CASCADE',
+  'T_振込口座': 'CASCADE',
+  'T_支払い': 'CASCADE',
+  'T_支払い明細': 'CASCADE',
+  'T_請求': 'CASCADE',              // 添付ファイル（Drive）は請求添付フォルダ内のものだけゴミ箱へ
+  'T_変更申請': 'CASCADE',          // ＋承認前のテストの入会申込（isTestChangeRequestRow_）
+  'T_外部申込者': 'PURGE',          // isTestExternalApplicantRow_
+  'T_ログイン履歴': 'PURGE',        // 消す認証アカウントのもの（ログ用スプレッドシート）
+  'T_メール送信明細': 'PURGE',      // 受信者が消す会員・職員・外部申込者のもの（ログ用スプレッドシート）
+  'T_削除ログ': 'PURGE',            // 対象がすべて消す会員・職員のもの。スナップショットに個人データを持つ
+  'T_人物統合ログ': 'PURGE',        // 新旧のIDがすべて消す会員・職員のもの
+  'T_監査ログ': 'KEEP',             // 操作の記録。IDだけで個人データを持たない。物理削除そのものもここに残す
+  'T_メール送信ログ': 'KEEP',       // 送信のまとまり（件数）だけ。宛先は明細側にある
+  'T_研修': 'NONE',
+  'T_システム設定': 'NONE',
+  'T_権限ロール': 'NONE',
+  'T_メールテンプレート': 'NONE',
+  'T_画面項目権限': 'NONE',
+  'T_規程': 'NONE',
+  'T_共有メモ': 'NONE',
+  'T_LINE投稿依頼': 'NONE',
+};
 
 var 入力規則定義 = [
   ['T_会員', '会員種別コード', 'M_会員種別'],
@@ -4123,19 +4200,8 @@ function isPreviewReadAction_(actionName) {
 
 function appendPreviewAuditLog_(previewSession, actionName) {
   try {
-    var sheet = getLogSs_().getSheetByName('T_監査ログ');
-    if (!sheet) return;
-    sheet.appendRow([
-      Utilities.getUuid(),
-      new Date().toISOString(),
-      String(previewSession.previewActorLoginId || ''),
-      'ROLE_PREVIEW_ACTION',
-      '',
-      String(actionName || ''),
-      String(previewSession.previewRoleId || ''),
-      '',
-      String(previewSession.roleName || ''),
-    ]);
+    appendAuditLogEntries_([{ operatorEmail: previewSession.previewActorLoginId, operation: 'ROLE_PREVIEW_ACTION',
+      recordId: actionName, fieldName: previewSession.previewRoleId, newValue: previewSession.roleName }]);
   } catch (e) { /* 記録の失敗で操作を止めない */ }
 }
 
@@ -5321,21 +5387,28 @@ function deleteAdminPermission_(payload) {
  * T_監査ログ にロール CRUD を追記する。
  * appendAdminAuditLog_ は T_会員 専用なので別関数とする。
  */
+// 監査ログ（T_監査ログ）への書き込みの唯一の出口。まとめて 1 回で書く。
+// entries: [{ operatorEmail, operation, tableName, recordId, fieldName, oldValue, newValue }]
+// 監査ログのシートが無い（スキーマ未整備）ときは何もしない。
+function appendAuditLogEntries_(entries) {
+  if (!entries || entries.length === 0) return 0;
+  var sheet = getLogSs_().getSheetByName('T_監査ログ');
+  if (!sheet) return 0;
+  var now = new Date().toISOString();
+  var text = function(v) { return v === null || v === undefined ? '' : String(v); };
+  var rows = entries.map(function(e) {
+    return [Utilities.getUuid(), now, text(e.operatorEmail), text(e.operation), text(e.tableName),
+      text(e.recordId), text(e.fieldName), text(e.oldValue), text(e.newValue)];
+  });
+  sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
+  return rows.length;
+}
+
 function appendRoleAuditLog_(adminEmail, roleId, op, fieldName, oldValue, newValue) {
   try {
-    var sheet = getLogSs_().getSheetByName('T_監査ログ');
-    if (!sheet) return;
-    sheet.appendRow([
-      Utilities.getUuid(),
-      new Date().toISOString(),
-      adminEmail || '',
-      op, // 'ROLE_CREATE' / 'ROLE_UPDATE' / 'ROLE_DELETE' / 'ROLE_DUPLICATE'
-      'T_権限ロール',
-      roleId,
-      fieldName,
-      oldValue == null ? '' : String(oldValue),
-      newValue == null ? '' : String(newValue),
-    ]);
+    // op: 'ROLE_CREATE' / 'ROLE_UPDATE' / 'ROLE_DELETE' / 'ROLE_DUPLICATE'
+    appendAuditLogEntries_([{ operatorEmail: adminEmail, operation: op, tableName: 'T_権限ロール',
+      recordId: roleId, fieldName: fieldName, oldValue: oldValue, newValue: newValue }]);
   } catch (e) { /* schema 未整備時は silent skip */ }
 }
 
@@ -8216,19 +8289,9 @@ function csvEscapeCell_(value) {
 // 中身は残さず、テーブル名・行数・条件のみ記録する（持ち出し記録が目的）。
 function appendExportAuditLog_(adminEmail, tableName, rowCount, includeDeleted, truncated) {
   try {
-    var sheet = getLogSs_().getSheetByName('T_監査ログ');
-    if (!sheet) return;
-    sheet.appendRow([
-      Utilities.getUuid(),
-      new Date().toISOString(),
-      adminEmail || '',
-      'EXPORT_TABLE_CSV',
-      tableName,
-      '',
-      'rowCount',
-      '',
-      JSON.stringify({ rows: rowCount, includeDeleted: !!includeDeleted, truncated: !!truncated }),
-    ]);
+    appendAuditLogEntries_([{ operatorEmail: adminEmail, operation: 'EXPORT_TABLE_CSV', tableName: tableName,
+      fieldName: 'rowCount',
+      newValue: JSON.stringify({ rows: rowCount, includeDeleted: !!includeDeleted, truncated: !!truncated }) }]);
   } catch (e) { /* schema 未整備時は silent skip */ }
 }
 
@@ -10238,23 +10301,10 @@ function sanitizeAdminMemberPayload_(payload) {
 // v259: ログSSが設定されている場合はそちらに書き込む
 function appendAdminAuditLog_(ss, adminEmail, memberId, changes) {
   if (!changes || changes.length === 0) return;
-  var sheet = getLogSs_().getSheetByName('T_監査ログ');
-  if (!sheet) return; // スキーマ未反映時はサイレントスキップ
-  var now = new Date().toISOString();
-  for (var i = 0; i < changes.length; i++) {
-    var c = changes[i];
-    sheet.appendRow([
-      Utilities.getUuid(),   // 監査ログID
-      now,                   // 操作日時
-      adminEmail || '',      // 操作者メール
-      'ADMIN_EDIT',          // 操作種別
-      'T_会員',              // 対象テーブル
-      String(memberId),      // 対象レコードID
-      c.field,               // フィールド名
-      String(c.oldValue),    // 旧値
-      String(c.newValue),    // 新値
-    ]);
-  }
+  appendAuditLogEntries_(changes.map(function(c) {
+    return { operatorEmail: adminEmail, operation: 'ADMIN_EDIT', tableName: 'T_会員',
+      recordId: memberId, fieldName: c.field, oldValue: c.oldValue, newValue: c.newValue };
+  }));
 }
 
 
@@ -15537,99 +15587,6 @@ function normalizeStaffNameFields_(rowLike) {
 //   Plan A: T_変更申請 の pending レコードは正規化対象外（承認時に approveAdminChangeRequest_ → 各 save 関数で正規化される）。
 // v376.2: editor 1-click 本実行用ラッパー（dryRun:false 固定）。引数指定が editor から面倒なため。
 
-// v376.4: 過去運用で投入されたデモアカウント + T_外部申込者 テスト 3 件の棚卸し・soft delete。
-//   対象（保守的に ID 厳格マッチ）:
-//   - T_認証アカウント: ログインID が demo- で始まる
-//   - T_会員: 上記認証に紐づく 会員ID + 'DEMO-' プレフィックス
-//   - T_事業所職員: 上記認証に紐づく 職員ID + 上記会員に属する職員
-//   - T_外部申込者: 氏名 or フリガナ が「テスト」「ガイブ」「セイゴウカクニン」のいずれかを含む
-//   いずれも soft delete（削除フラグ=true）のみ。
-function isStrictE2ETestMemberEmail_(value) {
-  return /^test-member-[^@\s]+@example\.invalid$/i.test(String(value || '').trim());
-}
-
-function _collectTestDataTargets_(ss) {
-  var rows = function (name) { return getRowsAsObjects_(ss, name); };
-  var authAll = rows('T_認証アカウント');
-  var memberAll = rows('T_会員');
-  var staffAll = rows('T_事業所職員');
-  var extAll = rows('T_外部申込者');
-  var matchedAuth = authAll.filter(function (r) {
-    return !toBoolean_(r['削除フラグ']) &&
-           /^demo-/i.test(String(r['ログインID'] || ''));
-  });
-  var memberIdsFromAuth = {};
-  var staffIdsFromAuth = {};
-  matchedAuth.forEach(function (r) {
-    if (r['会員ID']) memberIdsFromAuth[String(r['会員ID'])] = true;
-    if (r['職員ID']) staffIdsFromAuth[String(r['職員ID'])] = true;
-  });
-
-  var matchedMembers = memberAll.filter(function (r) {
-    if (toBoolean_(r['削除フラグ'])) return false;
-    var id = String(r['会員ID'] || '');
-    if (/^DEMO-/i.test(id)) return true;
-    if (memberIdsFromAuth[id]) return true;
-    return false;
-  });
-  var memberIdSet = {};
-  matchedMembers.forEach(function (m) { memberIdSet[String(m['会員ID'])] = true; });
-
-  var matchedStaff = staffAll.filter(function (r) {
-    if (toBoolean_(r['削除フラグ'])) return false;
-    var sid = String(r['職員ID'] || '');
-    var mid = String(r['会員ID'] || '');
-    if (staffIdsFromAuth[sid]) return true;
-    if (memberIdSet[mid]) return true; // demo 会員に属する全職員
-    return false;
-  });
-
-  var matchedExt = extAll.filter(function (r) {
-    if (toBoolean_(r['削除フラグ'])) return false;
-    var name = String(r['氏名'] || '');
-    var kana = String(r['フリガナ'] || '');
-    return /テスト|ガイブ|セイゴウカクニン/.test(name) ||
-           /テスト|ガイブ|セイゴウカクニン/.test(kana);
-  });
-
-  return {
-    auth: matchedAuth,
-    members: matchedMembers,
-    staff: matchedStaff,
-    external: matchedExt,
-  };
-}
-
-
-
-// v376.93: 正規E2E用の test-member-*.invalid にのみ一致する専用クリーンアップ。
-// 既存の deleteTestData_APPLY（旧デモ／外部申込者を含む）とは分離し、今回の申請データ以外を巻き込まない。
-function collectStrictE2ETestMemberTargets_(ss) {
-  var rows = function(name) { return getRowsAsObjects_(ss, name); };
-  var auth = rows('T_認証アカウント').filter(function(row) {
-    return !toBoolean_(row['削除フラグ']) && isStrictE2ETestMemberEmail_(row['ログインID']);
-  });
-  var memberIdsFromAuth = {};
-  auth.forEach(function(row) { if (row['会員ID']) memberIdsFromAuth[String(row['会員ID'])] = true; });
-  var members = rows('T_会員').filter(function(row) {
-    return !toBoolean_(row['削除フラグ']) &&
-      (isStrictE2ETestMemberEmail_(row['代表メールアドレス']) || memberIdsFromAuth[String(row['会員ID'] || '')]);
-  });
-  var memberIds = {};
-  members.forEach(function(row) { memberIds[String(row['会員ID'])] = true; });
-  var staff = rows('T_事業所職員').filter(function(row) {
-    return !toBoolean_(row['削除フラグ']) && memberIds[String(row['会員ID'] || '')];
-  });
-  var changeRequests = rows('T_変更申請').filter(function(row) {
-    return !toBoolean_(row['削除フラグ']) && isStrictE2ETestMemberEmail_(row['連絡先メールアドレス']);
-  });
-  return { auth: auth, members: members, staff: staff, changeRequests: changeRequests };
-}
-
-
-
-// v376.3: editor で実行結果を Logger.log に出すラッパー（previewDryRunApplicationCleanup は return のみで log しない仕様）。
-
 
 function backfillBusinessStaffNameColumns_(ss) {
   var targetSs = ss || getOrCreateDatabase_();
@@ -17578,6 +17535,34 @@ function getCascadeMatchers_(memberIdSet, staffIdSet, paymentIdSet) {
   ];
 }
 
+// シートから matchFn に一致する行を取り除き、取り除いた行（オブジェクト）を返す。
+// beforeRemove(taken) は行を取り除く前に呼ぶ（アーカイブへの書き込みなど。失敗すれば何も消さない）。
+// 残す行を詰め直したあと、空いた末尾の行はシートから削除する。中身だけ消すと空行が残り、
+// シートの容量が減らない（2026-10-11 まではそうだった）。
+function takeRowsByMatch_(sheet, matchFn, beforeRemove) {
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  var lastCol = sheet.getLastColumn();
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, lastCol).getValues();
+  var keepRows = [];
+  var taken = [];
+  for (var r = 0; r < data.length; r++) {
+    var obj = {};
+    for (var c = 0; c < headers.length; c++) obj[headers[c]] = data[r][c];
+    if (matchFn(obj)) taken.push(obj);
+    else keepRows.push(data[r]);
+  }
+  if (taken.length === 0) return [];
+  if (beforeRemove) beforeRemove(taken);
+  sheet.getRange(2, 1, data.length, lastCol).clearContent();
+  if (keepRows.length > 0) sheet.getRange(2, 1, keepRows.length, lastCol).setValues(keepRows);
+  // 固定行（見出し）だけが残る形にはできないので、そのときは 1 行だけ空行を残す。
+  var deletable = taken.length;
+  if (sheet.getMaxRows() - deletable <= sheet.getFrozenRows()) deletable -= 1;
+  if (deletable > 0) sheet.deleteRows(keepRows.length + 2, deletable);
+  return taken;
+}
+
 // 共通ムーバ: matchFn に一致する行を live から除去し <table>_archive へ append する。
 // archive シートのヘッダー欠落（列数0）は自己修復する。戻り値は移動件数。
 function moveRowsToArchiveByMatch_(ss, tableName, matchFn, batchId, nowIso) {
@@ -17587,53 +17572,22 @@ function moveRowsToArchiveByMatch_(ss, tableName, matchFn, batchId, nowIso) {
   var dstSheet = ss.getSheetByName(dstName);
   if (!dstSheet) dstSheet = ss.insertSheet(dstName);
   if (dstSheet.getLastColumn() < 1) writeSheetHeaders_(dstSheet, テーブル定義[dstName]);
-
-  var lastCol = srcSheet.getLastColumn();
-  var headers = srcSheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  var data = srcSheet.getRange(2, 1, srcSheet.getLastRow() - 1, lastCol).getValues();
-  var keepRows = [];
-  var movedObjs = [];
-  for (var r = 0; r < data.length; r++) {
-    var obj = {};
-    for (var c = 0; c < headers.length; c++) obj[headers[c]] = data[r][c];
-    if (matchFn(obj)) {
-      obj['アーカイブID'] = Utilities.getUuid();
-      obj['削除バッチID'] = batchId;
-      obj['アーカイブ日時'] = nowIso;
-      movedObjs.push(obj);
-    } else {
-      keepRows.push(data[r]);
+  var moved = takeRowsByMatch_(srcSheet, matchFn, function(taken) {
+    for (var i = 0; i < taken.length; i++) {
+      taken[i]['アーカイブID'] = Utilities.getUuid();
+      taken[i]['削除バッチID'] = batchId;
+      taken[i]['アーカイブ日時'] = nowIso;
     }
-  }
-  if (movedObjs.length === 0) return 0;
-  appendRowsByHeaders_(ss, dstName, movedObjs);
-  srcSheet.getRange(2, 1, data.length, lastCol).clearContent();
-  if (keepRows.length > 0) srcSheet.getRange(2, 1, keepRows.length, lastCol).setValues(keepRows);
-  return movedObjs.length;
+    appendRowsByHeaders_(ss, dstName, taken);
+  });
+  return moved.length;
 }
 
 // 削除対象認証IDのログイン履歴を log スプレッドシートから物理削除する（docs/249: purge 確定）
 function purgeLoginHistoryByAuthIds_(authIdSet) {
-  var authIds = Object.keys(authIdSet || {});
-  if (authIds.length === 0) return 0;
-  var logSs = getLogSs_();
-  var sheet = logSs.getSheetByName('T_ログイン履歴');
-  if (!sheet || sheet.getLastRow() < 2) return 0;
-  var lastCol = sheet.getLastColumn();
-  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  var authCol = headers.indexOf('認証ID');
-  if (authCol < 0) return 0;
-  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, lastCol).getValues();
-  var keepRows = [];
-  var purged = 0;
-  for (var r = 0; r < data.length; r++) {
-    if (authIdSet[String(data[r][authCol] || '')]) { purged++; continue; }
-    keepRows.push(data[r]);
-  }
-  if (purged === 0) return 0;
-  sheet.getRange(2, 1, data.length, lastCol).clearContent();
-  if (keepRows.length > 0) sheet.getRange(2, 1, keepRows.length, lastCol).setValues(keepRows);
-  return purged;
+  if (Object.keys(authIdSet || {}).length === 0) return 0;
+  var sheet = getLogSs_().getSheetByName('T_ログイン履歴');
+  return takeRowsByMatch_(sheet, function(row) { return !!authIdSet[String(row['認証ID'] || '')]; }).length;
 }
 
 // cascade オーケストレータ: 支払いID/認証ID を移動前に解決 → 13テーブル移動 → ログイン履歴 purge
@@ -17664,6 +17618,252 @@ function runDeleteCascade_(ss, memberIdSet, staffIdSet, batchId, nowIso) {
   var purgedLoginHistory = purgeLoginHistoryByAuthIds_(authIdSet);
   return { batchId: batchId, moved: moved, purgedLoginHistory: purgedLoginHistory };
 }
+
+// ─── テストデータの物理削除（2026-10-11・docs/303） ─────────────────────────
+// 印（★＋@example.invalid）の付いた会員・職員・外部申込者と、それに結び付く行を物理削除する。
+// 論理削除やアーカイブ移動と違い、本番の表・*_archive・ログ用スプレッドシートから行ごと消える。
+// 手順（エディタの ▶・MASTER のみ）:
+//   1. previewTestDataPurge_LOG   対象と表ごとの件数を確認する。確認した内容を 30 分間記録する
+//   2. executeTestDataPurge_APPLY 確認時と同じ内容のときだけ消す（データが変わっていたら止まる）
+var TEST_DATA_PURGE_PLAN_KEY = 'TEST_DATA_PURGE_PLAN_V1';
+var TEST_DATA_PURGE_PLAN_TTL_MS = 30 * 60 * 1000;
+
+function readRowsWithArchive_(ss, tableName) {
+  var rows = getRowsAsObjects_(ss, tableName);
+  if (ss.getSheetByName(tableName + '_archive')) rows = rows.concat(getRowsAsObjects_(ss, tableName + '_archive'));
+  return rows;
+}
+
+function idSetOf_(ids) {
+  var set = {};
+  for (var i = 0; i < ids.length; i++) if (ids[i]) set[String(ids[i])] = true;
+  return set;
+}
+
+// 会員・職員の連動（getCascadeMatchers_）に、テストデータだけが持つ結び付きを足したもの。
+function getTestDataPurgeMatchers_(memberIdSet, staffIdSet, paymentIdSet, externalIdSet) {
+  return getCascadeMatchers_(memberIdSet, staffIdSet, paymentIdSet).map(function(pair) {
+    var tableName = pair[0];
+    var cascadeMatch = pair[1];
+    if (tableName === 'T_研修申込') {
+      return [tableName, function(row) { return cascadeMatch(row) || !!externalIdSet[String(row['外部申込者ID'] || '')]; }];
+    }
+    if (tableName === 'T_変更申請') {
+      return [tableName, function(row) { return cascadeMatch(row) || isTestChangeRequestRow_(row); }];
+    }
+    return pair;
+  }).concat([
+    ['T_外部申込者', function(row) { return !!externalIdSet[String(row['外部申込者ID'] || '')]; }],
+  ]);
+}
+
+// ログ系の表（T_削除ログ はメイン DB、ほかはログ用スプレッドシート）の消す条件。
+function getTestDataPurgeLogMatchers_(memberIdSet, staffIdSet, externalIdSet) {
+  var isPurgedPerson = function(id) { return !!memberIdSet[id] || !!staffIdSet[id]; };
+  return {
+    'T_メール送信明細': function(row) {
+      var id = String(row['受信者ID'] || '');
+      return isPurgedPerson(id) || !!externalIdSet[id];
+    },
+    // 対象会員IDリストは "member:<会員ID>,staff:<職員ID>"。すべてが消す相手のときだけ消す。
+    'T_削除ログ': function(row) {
+      var keys = String(row['対象会員IDリスト'] || '').split(',').map(function(k) { return k.trim(); }).filter(Boolean);
+      if (keys.length === 0) return false;
+      return keys.every(function(key) {
+        var sep = key.indexOf(':');
+        var kind = key.slice(0, sep);
+        var id = key.slice(sep + 1);
+        if (kind === 'member') return !!memberIdSet[id];
+        if (kind === 'staff') return !!staffIdSet[id];
+        return false;
+      });
+    },
+    'T_人物統合ログ': function(row) {
+      var ids = ['旧会員ID', '旧職員ID', '新会員ID', '新職員ID']
+        .map(function(col) { return String(row[col] || ''); }).filter(Boolean);
+      return ids.length > 0 && ids.every(isPurgedPerson);
+    },
+  };
+}
+
+// 請求の添付（[{ fileId, url, ... }] の JSON）からファイルIDを取り出す。
+function parseClaimAttachmentFileIds_(value) {
+  var text = String(value || '').trim();
+  if (!text) return [];
+  try {
+    var parsed = JSON.parse(text);
+    return (Array.isArray(parsed) ? parsed : [parsed])
+      .map(function(a) { return a && a.fileId ? String(a.fileId) : ''; })
+      .filter(Boolean);
+  } catch (e) {
+    return [];
+  }
+}
+
+function buildTestDataPurgePlan_(ss) {
+  var blockers = [];
+  var memberRows = readRowsWithArchive_(ss, 'T_会員');
+  var memberIdSet = {};
+  var memberTypeCounts = {};
+  memberRows.forEach(function(row) {
+    var id = String(row['会員ID'] || '');
+    if (!id || memberIdSet[id] || !isTestMemberRow_(row)) return;
+    memberIdSet[id] = true;
+    var type = String(row['会員種別コード'] || '');
+    memberTypeCounts[type] = (memberTypeCounts[type] || 0) + 1;
+  });
+
+  // テスト事業所の職員は、職員側の印が無くても事業所と一緒に消す。
+  // 実在の事業所に属するテスト職員は職員だけを消す（代表者は単独では消さない）。
+  var staffIdSet = {};
+  var staffOnlyParents = {};
+  readRowsWithArchive_(ss, 'T_事業所職員').forEach(function(row) {
+    var staffId = String(row['職員ID'] || '');
+    var memberId = String(row['会員ID'] || '');
+    if (!staffId) return;
+    if (memberIdSet[memberId]) { staffIdSet[staffId] = true; return; }
+    if (!isTestStaffRow_(row)) return;
+    if (String(row['職員権限コード'] || '') === 'REPRESENTATIVE') {
+      blockers.push('実在の事業所（会員ID ' + memberId + '）の代表者（職員ID ' + staffId + '）にテストの印があります。代表者は単独では削除できません。');
+      return;
+    }
+    staffIdSet[staffId] = true;
+    staffOnlyParents[memberId] = true;
+  });
+
+  var externalIdSet = {};
+  getRowsAsObjects_(ss, 'T_外部申込者').forEach(function(row) {
+    var id = String(row['外部申込者ID'] || '');
+    if (id && isTestExternalApplicantRow_(row)) externalIdSet[id] = true;
+  });
+
+  var authIdSet = {};
+  readRowsWithArchive_(ss, 'T_認証アカウント').forEach(function(row) {
+    if (memberIdSet[String(row['会員ID'] || '')] || staffIdSet[String(row['職員ID'] || '')]) {
+      var authId = String(row['認証ID'] || '');
+      if (authId) authIdSet[authId] = true;
+    }
+  });
+  var paymentIdSet = {};
+  readRowsWithArchive_(ss, 'T_支払い').forEach(function(row) {
+    if (memberIdSet[String(row['会員ID'] || '')]) {
+      var paymentId = String(row['支払いID'] || '');
+      if (paymentId) paymentIdSet[paymentId] = true;
+    }
+  });
+
+  var matchers = getTestDataPurgeMatchers_(memberIdSet, staffIdSet, paymentIdSet, externalIdSet);
+  var counts = {};
+  var claimFileIds = [];
+  matchers.forEach(function(pair) {
+    var tableName = pair[0];
+    var match = pair[1];
+    var live = getRowsAsObjects_(ss, tableName).filter(match);
+    counts[tableName] = live.length;
+    var archive = [];
+    if (ss.getSheetByName(tableName + '_archive')) {
+      archive = getRowsAsObjects_(ss, tableName + '_archive').filter(match);
+      counts[tableName + '_archive'] = archive.length;
+    }
+    if (tableName === 'T_研修申込') {
+      // 申込中のまま消すと T_研修.申込者数 がずれるので、先に取り消してもらう。
+      live.forEach(function(row) {
+        if (!toBoolean_(row['削除フラグ']) && String(row['申込状態コード'] || '') === 'APPLIED') {
+          blockers.push('研修（研修ID ' + String(row['研修ID'] || '') + '）に申込中のテストデータがあります（申込ID '
+            + String(row['申込ID'] || '') + '）。先に申込を取り消してください。');
+        }
+      });
+    }
+    if (tableName === 'T_請求') {
+      live.concat(archive).forEach(function(row) {
+        claimFileIds = claimFileIds.concat(parseClaimAttachmentFileIds_(row['添付ファイルURL']));
+      });
+    }
+  });
+
+  var logMatchers = getTestDataPurgeLogMatchers_(memberIdSet, staffIdSet, externalIdSet);
+  var logSs = getLogSs_();
+  var countIn = function(book, tableName, match) {
+    return book.getSheetByName(tableName) ? getRowsAsObjects_(book, tableName).filter(match).length : 0;
+  };
+  counts['T_ログイン履歴'] = countIn(logSs, 'T_ログイン履歴', function(row) { return !!authIdSet[String(row['認証ID'] || '')]; });
+  counts['T_メール送信明細'] = countIn(logSs, 'T_メール送信明細', logMatchers['T_メール送信明細']);
+  counts['T_削除ログ'] = countIn(ss, 'T_削除ログ', logMatchers['T_削除ログ']);
+  counts['T_人物統合ログ'] = countIn(ss, 'T_人物統合ログ', logMatchers['T_人物統合ログ']);
+
+  // 実在の事業所に残る、テスト職員に触れた変更申請（実在会員の記録なので消さない・知らせるだけ）
+  var staffOnlyIds = Object.keys(staffIdSet).filter(function(id) { return !!id; });
+  var remainingChangeRequests = 0;
+  if (Object.keys(staffOnlyParents).length > 0) {
+    getRowsAsObjects_(ss, 'T_変更申請').forEach(function(row) {
+      if (!staffOnlyParents[String(row['会員ID'] || '')] || isTestChangeRequestRow_(row)) return;
+      var body = String(row['申請内容JSON'] || '');
+      if (staffOnlyIds.some(function(id) { return body.indexOf(id) !== -1; })) remainingChangeRequests += 1;
+    });
+  }
+
+  var sorted = function(set) { return Object.keys(set).sort(); };
+  var plan = {
+    memberIds: sorted(memberIdSet),
+    staffIds: sorted(staffIdSet),
+    externalIds: sorted(externalIdSet),
+    authIds: sorted(authIdSet),
+    paymentIds: sorted(paymentIdSet),
+    memberTypeCounts: memberTypeCounts,
+    counts: counts,
+    claimFileIds: claimFileIds.sort(),
+    remainingChangeRequests: remainingChangeRequests,
+    blockers: blockers,
+  };
+  plan.totalRows = Object.keys(counts).reduce(function(sum, key) { return sum + counts[key]; }, 0);
+  plan.isEmpty = plan.totalRows === 0 && plan.claimFileIds.length === 0;
+  plan.fingerprint = bytesToHex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, JSON.stringify([
+    plan.memberIds, plan.staffIds, plan.externalIds, plan.authIds, plan.paymentIds, plan.counts, plan.claimFileIds,
+  ])));
+  return plan;
+}
+
+function formatTestDataPurgePlan_(plan) {
+  var lines = [];
+  lines.push('対象: 会員 ' + plan.memberIds.length + ' 件 ' + JSON.stringify(plan.memberTypeCounts)
+    + ' / 職員 ' + plan.staffIds.length + ' 件 / 外部申込者 ' + plan.externalIds.length + ' 件'
+    + ' / 認証アカウント ' + plan.authIds.length + ' 件');
+  Object.keys(plan.counts).forEach(function(key) {
+    if (plan.counts[key] > 0) lines.push('  ' + key + ': ' + plan.counts[key] + ' 行');
+  });
+  lines.push('  Drive（請求の添付）: ' + plan.claimFileIds.length + ' ファイル');
+  lines.push('合計 ' + plan.totalRows + ' 行');
+  if (plan.remainingChangeRequests > 0) {
+    lines.push('残るもの: 実在の事業所の変更申請のうち、テスト職員に触れたもの ' + plan.remainingChangeRequests
+      + ' 件（実在会員の記録なので消さない）');
+  }
+  if (plan.blockers.length > 0) {
+    lines.push('【削除できません】');
+    plan.blockers.forEach(function(b) { lines.push('  - ' + b); });
+  }
+  return lines.join('\n');
+}
+
+
+function trashClaimAttachmentFiles_(ss, fileIds) {
+  var result = { trashed: 0, skipped: 0 };
+  if (!fileIds || fileIds.length === 0) return result;
+  // 請求添付フォルダ内のファイルだけをゴミ箱へ移す（フォルダ外のファイルには触らない）。
+  var folderId = String(getSystemSettingValue_(ss, 'CLAIM_ATTACHMENT_FOLDER_ID') || '').trim();
+  fileIds.forEach(function(fileId) {
+    try {
+      var file = DriveApp.getFileById(fileId);
+      var parents = file.getParents();
+      var inFolder = false;
+      while (parents.hasNext()) { if (parents.next().getId() === folderId) inFolder = true; }
+      if (folderId && inFolder) { file.setTrashed(true); result.trashed += 1; } else { result.skipped += 1; }
+    } catch (e) {
+      result.skipped += 1;
+    }
+  });
+  return result;
+}
+
 
 // 復元: 各 archive から 削除バッチID 一致行を live へ戻す（サロゲート3列は落とす）
 function restoreArchiveBatch_(batchId) {
@@ -19617,22 +19817,25 @@ function getTrainingStats_(payload) {
 // 検証する synthetic transaction フレームワーク。
 //
 // 設計原則:
-//   - Unique prefix isolation: 全フィクスチャに `DRYRUN_` / `dryrun-*@example.invalid`
-//   - Track-then-cleanup: 作成行 ID を ScriptProperties manifest に蓄積、別関数で
-//     preview → soft delete (削除フラグ=true)
+//   - テストデータの印: 全フィクスチャの名前に `★DRYRUN_`、メールは `@example.invalid`
+//   - 後片付け: previewTestDataPurge_LOG → executeTestDataPurge_APPLY で物理削除する
+//     （2026-10-11 までの manifest + 論理削除の方式は取りこぼしがあり廃止）
 //   - AAA pattern: Arrange (payload 作成) → Act (関数呼出) → Assert (DB 副作用検証)
 //   - Email isolation: CREDENTIAL_EMAIL_ENABLED を一時 false 化 + @example.invalid
 //   - Independence: 各シナリオ独立、任意順序で実行可
 //   - Idempotency: cleanup は同 runId に対し冪等
 //
 // 呼び出し:
-//   1. dryRunApplicationScenarios()    — 全シナリオ実行（admin 認証必須）
-//   2. previewDryRunApplicationCleanup() — 削除対象件数を返す
-//   3. executeDryRunApplicationCleanup() — soft delete 実行
+//   1. dryRunApplicationScenarios()    — 全シナリオ実行（MASTER のみ）
+//   2. previewTestDataPurge_LOG()        — 削除対象と件数を確認する
+//   3. executeTestDataPurge_APPLY()      — 物理削除する
 // ============================================================================
 
-var DRYRUN_PREFIX = 'DRYRUN_';
-var DRYRUN_EMAIL_DOMAIN = '@example.invalid';  // RFC 2606 reserved
+// 名前の先頭に★、メールアドレスは @example.invalid（テストデータの印・isTestMemberRow_ ほか）。
+// 作ったデータは executeTestDataPurge_APPLY で物理削除する。
+var DRYRUN_PREFIX = TEST_DATA_NAME_PREFIX + 'DRYRUN_';
+var DRYRUN_EMAIL_DOMAIN = TEST_DATA_EMAIL_DOMAIN;
+// 2026-10-11 に廃止した後片付けの記録。残っていれば executeTestDataPurge_APPLY が消す。
 var DRYRUN_MANIFEST_KEY = 'DRYRUN_APPLICATION_MANIFEST_V1';
 var DRYRUN_TRAINING_MGMT_MANIFEST_KEY = 'DRYRUN_TRAINING_MGMT_MANIFEST_V1';
 
@@ -20127,34 +20330,4 @@ function dryRun_scenario_memberTypeChange_(state, ss, adminSession) {
 }
 
 // ── メインエントリ ───────────────────────────────────────────────────────
-
-
-function dryRun_softDeleteByKey_(ss, sheetName, keyColumn, ids) {
-  if (!ids || ids.length === 0) return 0;
-  var sheet = ss.getSheetByName(sheetName);
-  if (!sheet || sheet.getLastRow() < 2) return 0;
-  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  var keyIdx = -1, delIdx = -1, updIdx = -1;
-  for (var i = 0; i < headers.length; i++) {
-    if (String(headers[i]) === keyColumn) keyIdx = i;
-    if (String(headers[i]) === '削除フラグ') delIdx = i;
-    if (String(headers[i]) === '更新日時') updIdx = i;
-  }
-  if (keyIdx === -1 || delIdx === -1) return 0;
-  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
-  var idSet = {};
-  ids.forEach(function(id) { idSet[String(id)] = true; });
-  var now = new Date().toISOString();
-  var changed = 0;
-  for (var r = 0; r < data.length; r++) {
-    var key = String(data[r][keyIdx] || '');
-    if (!key || !idSet[key]) continue;
-    if (data[r][delIdx] === true) continue;
-    data[r][delIdx] = true;
-    if (updIdx !== -1) data[r][updIdx] = now;
-    sheet.getRange(r + 2, 1, 1, data[r].length).setValues([data[r]]);
-    changed++;
-  }
-  return changed;
-}
 

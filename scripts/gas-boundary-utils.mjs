@@ -8,18 +8,14 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   'setupPendingThumbnailsTrigger',
   // 2026-05-17: dryRun synthetic transaction test runner（clasp run 専用）
   'dryRunApplicationScenarios',
-  'previewDryRunApplicationCleanup',
-  'executeDryRunApplicationCleanup',
   // v373.5: Secret Manager 連携ヘルスチェック（operator 実行用）
   'healthCheckPasswordPepper',
   // v376.1〜.4: フリガナ backfill + テストデータ棚卸し（kana form 前検証が入るまで再利用）
   'backfillKanaToFullwidth',
   'backfillKanaToFullwidth_APPLY',
-  'inspectDryRunManifest_LOG',
-  'deleteTestDataPreview_LOG',
-  'deleteTestData_APPLY',
-  'previewStrictE2ETestMemberCleanup_LOG',
-  'executeStrictE2ETestMemberCleanup_APPLY',
+  // 2026-10-11: テストデータ（★＋@example.invalid）の物理削除。後片付けの旧ツール 7 本を置き換えた（docs/303）
+  'previewTestDataPurge_LOG',
+  'executeTestDataPurge_APPLY',
   // v376.14: 研修管理 全機能ドライランテスト（operator 実行用）
   'dryRunTrainingManagement',
   'cleanupDryRunTrainingManagement',
@@ -75,11 +71,9 @@ export const ADMIN_MAINTENANCE_TOOL_FUNCTIONS = [
   'listArchiveBatches_LOG',
   'restoreLastArchiveBatch_APPLY',
   'diagnoseMemberDeleteDebt_LOG',
-  // テストデータの棚卸しと削除（本番 DB を soft delete する）
-  'deleteTestDataPreview_LOG',
-  'deleteTestData_APPLY',
-  'previewStrictE2ETestMemberCleanup_LOG',
-  'executeStrictE2ETestMemberCleanup_APPLY',
+  // テストデータ（★＋@example.invalid）の物理削除（確認 → 実行）
+  'previewTestDataPurge_LOG',
+  'executeTestDataPurge_APPLY',
 ];
 
 // gas/admin/dryrun.gs に分離する（editor で見つけやすくするため）。
