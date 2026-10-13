@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useRevealOnChange, FIRST_ERROR_SELECTOR } from '../../shared/useRevealOnChange';
 import { MEMBER_TYPE_LABELS, MEMBER_TYPE_ANNUAL_FEE_DEFAULTS, memberTypeLabel, formatAnnualFee } from '../../shared/memberTypes.mjs';
 import { EMAIL_PATTERN, CARE_MANAGER_NO_PATTERN, OFFICE_NO_PATTERN, POSTAL_CODE_PATTERN, PHONE_PATTERN } from '../../shared/validators';
 import {
@@ -383,6 +384,19 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
   // v376.75 で折りたたみを入れた時点では、読まれないままチェックされる懸念から開いた状態にしていた。
   // 実物を見て、共通項目だけでも縦に長く、開いたままでは②全体が読み飛ばされやすいと判断した。
   const [memberTypeNoticeOpen, setMemberTypeNoticeOpen] = useState(false);
+  // ラベル・補足文・エラー文を入力欄に結び付ける id。見えているだけで結び付いていないと
+  // 支援技術には「名前の無い入力欄」になる。同じ画面に 2 つ出ても衝突しないよう useId を使う。
+  const uid = React.useId();
+  const fid = (key: string) => `${uid}-${key}`;
+  const eid = (key: string) => `${uid}-${key}-err`;
+  // aria-describedby は「補足文 → エラー文」の順。エラーが無いときは存在しない id を指さない
+  const desc = (key: string, ...extra: (string | false | undefined)[]) =>
+    [...extra, errors[key] ? eid(key) : ''].filter(Boolean).join(' ') || undefined;
+  // 「次へ」は画面下、エラーは上（職員カード 10 枚の上など）に出るため、押しても何も起きないように見える。
+  // 検証で止めたら最初の誤り項目へスクロールしてフォーカスを移す。
+  const stepRef = useRef<HTMLDivElement>(null);
+  const [errorRevealSeq, setErrorRevealSeq] = useState(0);
+  useRevealOnChange(errorRevealSeq, stepRef, { selector: FIRST_ERROR_SELECTOR });
   // v376.74: 注意事項ステップは 2 段構成。
   //   上段 = 全種別共通（対象 ALL）… 従来の重要事項ダイアログと同じ見せ方
   //   下段 = 選んだ種別あて（対象 INDIVIDUAL / BUSINESS / SUPPORT）
@@ -460,6 +474,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
     }
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
+      setErrorRevealSeq(n => n + 1);
       return;
     }
     setErrors({});
@@ -506,7 +521,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
 
   const handleSubmit = async () => {
     const errs = validateStep(step, form);
-    if (Object.keys(errs).length > 0) { setErrors(errs); return; }
+    if (Object.keys(errs).length > 0) { setErrors(errs); setErrorRevealSeq(n => n + 1); return; }
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -528,6 +543,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
       setResult(res);
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : '申込処理に失敗しました。');
+      setErrorRevealSeq(n => n + 1);
     } finally {
       setSubmitting(false);
     }
@@ -639,7 +655,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
               ご自身に該当する種別をお選びください。選択すると、種別ごとのご案内が表示されます。
             </p>
           </div>
-          {errors.memberType && <p className={errorClass + ' text-center'}>{errors.memberType}</p>}
+          {errors.memberType && <p data-reveal-error tabIndex={-1} role="alert" className={errorClass + ' text-center'}>{errors.memberType}</p>}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {([
               { type: 'INDIVIDUAL' as const, label: MEMBER_TYPE_LABELS.INDIVIDUAL, desc: '介護支援専門員として個人で入会される方', icon: '👤' },
@@ -787,6 +803,8 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
             <input
               type="checkbox"
               checked={noticeAccepted}
+              aria-invalid={!!errors._notice}
+              aria-describedby={desc('_notice')}
               onChange={e => {
                 setNoticeAccepted(e.target.checked);
                 setErrors(prev => {
@@ -804,7 +822,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
               上記の注意事項（全体および会員種別ごと）を確認し、内容を理解しました。
             </span>
           </label>
-          {errors._notice && <p className={errorClass}>{errors._notice}</p>}
+          {errors._notice && <p id={eid('_notice')} role="alert" className={errorClass}>{errors._notice}</p>}
         </div>
       );
     }
@@ -816,31 +834,31 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
           <h3 className="text-lg font-bold text-slate-800">基本情報</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className={labelClass}>姓{requiredBadge}</label>
-              <input className={fieldClass} value={form.lastName} onChange={e => set('lastName', e.target.value)} placeholder="例: 山田" />
-              {errors.lastName && <p className={errorClass}>{errors.lastName}</p>}
+              <label htmlFor={fid('lastName')} className={labelClass}>姓{requiredBadge}</label>
+              <input id={fid('lastName')} aria-invalid={!!errors.lastName} aria-describedby={desc('lastName')} className={fieldClass} value={form.lastName} onChange={e => set('lastName', e.target.value)} placeholder="例: 山田" />
+              {errors.lastName && <p id={eid('lastName')} className={errorClass}>{errors.lastName}</p>}
             </div>
             <div>
-              <label className={labelClass}>名{requiredBadge}</label>
-              <input className={fieldClass} value={form.firstName} onChange={e => set('firstName', e.target.value)} placeholder="例: 太郎" />
-              {errors.firstName && <p className={errorClass}>{errors.firstName}</p>}
+              <label htmlFor={fid('firstName')} className={labelClass}>名{requiredBadge}</label>
+              <input id={fid('firstName')} aria-invalid={!!errors.firstName} aria-describedby={desc('firstName')} className={fieldClass} value={form.firstName} onChange={e => set('firstName', e.target.value)} placeholder="例: 太郎" />
+              {errors.firstName && <p id={eid('firstName')} className={errorClass}>{errors.firstName}</p>}
             </div>
             <div>
-              <label className={labelClass}>セイ{requiredBadge}</label>
-              <input className={fieldClass} value={form.lastKana} onChange={e => set('lastKana', e.target.value)} placeholder="例: ヤマダ" />
-              {errors.lastKana && <p className={errorClass}>{errors.lastKana}</p>}
+              <label htmlFor={fid('lastKana')} className={labelClass}>セイ{requiredBadge}</label>
+              <input id={fid('lastKana')} aria-invalid={!!errors.lastKana} aria-describedby={desc('lastKana')} className={fieldClass} value={form.lastKana} onChange={e => set('lastKana', e.target.value)} placeholder="例: ヤマダ" />
+              {errors.lastKana && <p id={eid('lastKana')} className={errorClass}>{errors.lastKana}</p>}
             </div>
             <div>
-              <label className={labelClass}>メイ{requiredBadge}</label>
-              <input className={fieldClass} value={form.firstKana} onChange={e => set('firstKana', e.target.value)} placeholder="例: タロウ" />
-              {errors.firstKana && <p className={errorClass}>{errors.firstKana}</p>}
+              <label htmlFor={fid('firstKana')} className={labelClass}>メイ{requiredBadge}</label>
+              <input id={fid('firstKana')} aria-invalid={!!errors.firstKana} aria-describedby={desc('firstKana')} className={fieldClass} value={form.firstKana} onChange={e => set('firstKana', e.target.value)} placeholder="例: タロウ" />
+              {errors.firstKana && <p id={eid('firstKana')} className={errorClass}>{errors.firstKana}</p>}
             </div>
             {form.memberType === 'INDIVIDUAL' && (
               <div className="md:col-span-2">
-                <label className={labelClass}>介護支援専門員番号（8桁）{requiredBadge}</label>
-                <input className={fieldClass} inputMode="numeric" value={form.careManagerNumber} onChange={e => set('careManagerNumber', e.target.value)} placeholder="例: 12345678" maxLength={8} />
-                <p className="text-xs text-slate-400 mt-1">この番号がログインIDとなります。</p>
-                {errors.careManagerNumber && <p className={errorClass}>{errors.careManagerNumber}</p>}
+                <label htmlFor={fid('careManagerNumber')} className={labelClass}>介護支援専門員番号（8桁）{requiredBadge}</label>
+                <input id={fid('careManagerNumber')} aria-invalid={!!errors.careManagerNumber} aria-describedby={desc('careManagerNumber', fid('careManagerNumber-hint'))} className={fieldClass} inputMode="numeric" value={form.careManagerNumber} onChange={e => set('careManagerNumber', e.target.value)} placeholder="例: 12345678" maxLength={8} />
+                <p id={fid('careManagerNumber-hint')} className="text-xs text-slate-400 mt-1">この番号がログインIDとなります。</p>
+                {errors.careManagerNumber && <p id={eid('careManagerNumber')} className={errorClass}>{errors.careManagerNumber}</p>}
               </div>
             )}
           </div>
@@ -866,18 +884,20 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
               <p className="text-sm text-slate-500 mt-1">勤務先を郵送先にする場合、この事業所名を送付先名として使用します。</p>
             </div>
             <div>
-              <label className={labelClass}>
+              <label htmlFor={fid('officeName')} className={labelClass}>
                 事業所名{isOfficeDest ? requiredBadge : optionalBadge}
               </label>
               <input
+                id={fid('officeName')}
                 className={fieldClass}
                 value={form.officeName}
                 onChange={e => set('officeName', e.target.value)}
                 placeholder="例: ひらかた介護ステーション"
                 aria-required={isOfficeDest}
                 aria-invalid={!!errors.officeName}
+                aria-describedby={desc('officeName')}
               />
-              {errors.officeName && <p className={errorClass} role="alert">{errors.officeName}</p>}
+              {errors.officeName && <p id={eid('officeName')} className={errorClass} role="alert">{errors.officeName}</p>}
             </div>
           </div>
 
@@ -955,68 +975,79 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
               {/* 郵便番号・都道府県 */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className={labelClass}>
+                  <label htmlFor={fid('officePostCode')} className={labelClass}>
                     郵便番号{isOfficeDest ? requiredBadge : optionalBadge}
                   </label>
                   <PostalCodeInput
+                    id={fid('officePostCode')}
+                    firstInputLabel="勤務先 郵便番号 上3桁"
+                    secondInputLabel="勤務先 郵便番号 下4桁"
                     value={form.officePostCode}
                     onChange={value => set('officePostCode', value)}
                     required={isOfficeDest}
                     invalid={!!errors.officePostCode}
+                    describedBy={desc('officePostCode')}
                     inputClassName={fieldClass}
                   />
-                  {errors.officePostCode && <p className={errorClass} role="alert">{errors.officePostCode}</p>}
+                  {errors.officePostCode && <p id={eid('officePostCode')} className={errorClass} role="alert">{errors.officePostCode}</p>}
                 </div>
                 <div>
-                  <label className={labelClass}>
+                  <label htmlFor={fid('officePrefecture')} className={labelClass}>
                     都道府県{isOfficeDest ? requiredBadge : optionalBadge}
                   </label>
                   <select
+                    id={fid('officePrefecture')}
                     className={fieldClass}
                     value={form.officePrefecture}
                     onChange={e => set('officePrefecture', e.target.value)}
                     aria-required={isOfficeDest}
                     aria-invalid={!!errors.officePrefecture}
+                    aria-describedby={desc('officePrefecture')}
                   >
                     <option value="">選択してください</option>
                     {PREFECTURES.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
-                  {errors.officePrefecture && <p className={errorClass} role="alert">{errors.officePrefecture}</p>}
+                  {errors.officePrefecture && <p id={eid('officePrefecture')} className={errorClass} role="alert">{errors.officePrefecture}</p>}
                 </div>
               </div>
               {/* 市区町村・住所 */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className={labelClass}>
+                  <label htmlFor={fid('officeCity')} className={labelClass}>
                     市区町村{isOfficeDest ? requiredBadge : optionalBadge}
                   </label>
                   <input
+                    id={fid('officeCity')}
                     className={fieldClass}
                     value={form.officeCity}
                     onChange={e => set('officeCity', e.target.value)}
                     placeholder="例: 枚方市"
                     aria-required={isOfficeDest}
                     aria-invalid={!!errors.officeCity}
+                    aria-describedby={desc('officeCity')}
                   />
-                  {errors.officeCity && <p className={errorClass} role="alert">{errors.officeCity}</p>}
+                  {errors.officeCity && <p id={eid('officeCity')} className={errorClass} role="alert">{errors.officeCity}</p>}
                 </div>
                 <div>
-                  <label className={labelClass}>
+                  <label htmlFor={fid('officeAddressLine')} className={labelClass}>
                     住所（番地）{isOfficeDest ? requiredBadge : optionalBadge}
                   </label>
                   <input
+                    id={fid('officeAddressLine')}
                     className={fieldClass}
                     value={form.officeAddressLine}
                     onChange={e => set('officeAddressLine', e.target.value)}
                     placeholder="例: 津田元町1-1-1"
                     aria-required={isOfficeDest}
                     aria-invalid={!!errors.officeAddressLine}
+                    aria-describedby={desc('officeAddressLine')}
                   />
-                  {errors.officeAddressLine && <p className={errorClass} role="alert">{errors.officeAddressLine}</p>}
+                  {errors.officeAddressLine && <p id={eid('officeAddressLine')} className={errorClass} role="alert">{errors.officeAddressLine}</p>}
                 </div>
                 <div className="sm:col-span-2">
-                  <label className={labelClass}>建物名・部屋番号{optionalBadge}</label>
+                  <label htmlFor={fid('officeAddressLine2')} className={labelClass}>建物名・部屋番号{optionalBadge}</label>
                   <input
+                    id={fid('officeAddressLine2')}
                     className={fieldClass}
                     value={form.officeAddressLine2}
                     onChange={e => set('officeAddressLine2', e.target.value)}
@@ -1040,65 +1071,76 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className={labelClass}>
+                <label htmlFor={fid('homePostCode')} className={labelClass}>
                   郵便番号{isHomeDest ? requiredBadge : optionalBadge}
                 </label>
                 <PostalCodeInput
+                  id={fid('homePostCode')}
+                  firstInputLabel="自宅 郵便番号 上3桁"
+                  secondInputLabel="自宅 郵便番号 下4桁"
                   value={form.homePostCode}
                   onChange={value => set('homePostCode', value)}
                   required={isHomeDest}
                   invalid={!!errors.homePostCode}
+                  describedBy={desc('homePostCode')}
                   inputClassName={fieldClass}
                 />
-                {errors.homePostCode && <p className={errorClass} role="alert">{errors.homePostCode}</p>}
+                {errors.homePostCode && <p id={eid('homePostCode')} className={errorClass} role="alert">{errors.homePostCode}</p>}
               </div>
               <div>
-                <label className={labelClass}>
+                <label htmlFor={fid('homePrefecture')} className={labelClass}>
                   都道府県{isHomeDest ? requiredBadge : optionalBadge}
                 </label>
                 <select
+                  id={fid('homePrefecture')}
                   className={fieldClass}
                   value={form.homePrefecture}
                   onChange={e => set('homePrefecture', e.target.value)}
                   aria-required={isHomeDest}
                   aria-invalid={!!errors.homePrefecture}
+                  aria-describedby={desc('homePrefecture')}
                 >
                   <option value="">選択してください</option>
                   {PREFECTURES.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
-                {errors.homePrefecture && <p className={errorClass} role="alert">{errors.homePrefecture}</p>}
+                {errors.homePrefecture && <p id={eid('homePrefecture')} className={errorClass} role="alert">{errors.homePrefecture}</p>}
               </div>
               <div>
-                <label className={labelClass}>
+                <label htmlFor={fid('homeCity')} className={labelClass}>
                   市区町村{isHomeDest ? requiredBadge : optionalBadge}
                 </label>
                 <input
+                  id={fid('homeCity')}
                   className={fieldClass}
                   value={form.homeCity}
                   onChange={e => set('homeCity', e.target.value)}
                   placeholder="例: 枚方市"
                   aria-required={isHomeDest}
                   aria-invalid={!!errors.homeCity}
+                  aria-describedby={desc('homeCity')}
                 />
-                {errors.homeCity && <p className={errorClass} role="alert">{errors.homeCity}</p>}
+                {errors.homeCity && <p id={eid('homeCity')} className={errorClass} role="alert">{errors.homeCity}</p>}
               </div>
               <div>
-                <label className={labelClass}>
+                <label htmlFor={fid('homeAddressLine')} className={labelClass}>
                   住所（番地）{isHomeDest ? requiredBadge : optionalBadge}
                 </label>
                 <input
+                  id={fid('homeAddressLine')}
                   className={fieldClass}
                   value={form.homeAddressLine}
                   onChange={e => set('homeAddressLine', e.target.value)}
                   placeholder="例: 津田元町1-1-1"
                   aria-required={isHomeDest}
                   aria-invalid={!!errors.homeAddressLine}
+                  aria-describedby={desc('homeAddressLine')}
                 />
-                {errors.homeAddressLine && <p className={errorClass} role="alert">{errors.homeAddressLine}</p>}
+                {errors.homeAddressLine && <p id={eid('homeAddressLine')} className={errorClass} role="alert">{errors.homeAddressLine}</p>}
               </div>
               <div className="sm:col-span-2">
-                <label className={labelClass}>建物名・部屋番号{optionalBadge}</label>
+                <label htmlFor={fid('homeAddressLine2')} className={labelClass}>建物名・部屋番号{optionalBadge}</label>
                 <input
+                  id={fid('homeAddressLine2')}
                   className={fieldClass}
                   value={form.homeAddressLine2}
                   onChange={e => set('homeAddressLine2', e.target.value)}
@@ -1115,60 +1157,67 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
             {/* 電話番号グループ */}
             {errors._phone && (
               <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2">
-                <p className="text-xs text-red-600" role="alert">{errors._phone}</p>
+                <p id={eid('_phone')} className="text-xs text-red-600" role="alert">{errors._phone}</p>
               </div>
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className={labelClass}>
+                <label htmlFor={fid('phone')} className={labelClass}>
                   電話番号
                   <span className="ml-1.5 text-xs font-normal text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">どちらか一方必須</span>
                 </label>
                 <input
+                  id={fid('phone')}
                   className={fieldClass}
                   value={form.phone}
                   onChange={e => set('phone', e.target.value)}
                   placeholder="例: 072-000-0000"
                   inputMode="tel"
                   aria-invalid={!!errors.phone || !!errors._phone}
+                  aria-describedby={desc('phone', !!errors._phone && eid('_phone'))}
                 />
-                {errors.phone && <p className={errorClass} role="alert">{errors.phone}</p>}
+                {errors.phone && <p id={eid('phone')} className={errorClass} role="alert">{errors.phone}</p>}
               </div>
               <div>
-                <label className={labelClass}>
+                <label htmlFor={fid('mobilePhone')} className={labelClass}>
                   携帯電話番号
                   <span className="ml-1.5 text-xs font-normal text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">どちらか一方必須</span>
                 </label>
                 <input
+                  id={fid('mobilePhone')}
                   className={fieldClass}
                   value={form.mobilePhone}
                   onChange={e => set('mobilePhone', e.target.value)}
                   placeholder="例: 090-0000-0000"
                   inputMode="tel"
                   aria-invalid={!!errors.mobilePhone || !!errors._phone}
+                  aria-describedby={desc('mobilePhone', !!errors._phone && eid('_phone'))}
                 />
-                {errors.mobilePhone && <p className={errorClass} role="alert">{errors.mobilePhone}</p>}
+                {errors.mobilePhone && <p id={eid('mobilePhone')} className={errorClass} role="alert">{errors.mobilePhone}</p>}
               </div>
               <div>
-                <label className={labelClass}>FAX番号{optionalBadge}</label>
+                <label htmlFor={fid('fax')} className={labelClass}>FAX番号{optionalBadge}</label>
                 <input
+                  id={fid('fax')}
                   className={fieldClass}
                   value={form.fax}
                   onChange={e => set('fax', e.target.value)}
                   inputMode="tel"
                   aria-invalid={!!errors.fax}
+                  aria-describedby={desc('fax')}
                 />
-                {errors.fax && <p className={errorClass} role="alert">{errors.fax}</p>}
+                {errors.fax && <p id={eid('fax')} className={errorClass} role="alert">{errors.fax}</p>}
               </div>
             </div>
 
             {/* メールアドレス — 目立つカード */}
             <div className="border-t border-slate-100 pt-4">
               <div className="rounded-xl border-2 border-primary-200 bg-gradient-to-br from-primary-50 to-white p-4">
-                <label className="block text-sm font-semibold text-primary-900 mb-1.5">
+                <label htmlFor={fid('email')} className="block text-sm font-semibold text-primary-900 mb-1.5">
                   メールアドレス{requiredBadge}
                 </label>
                 <input
+                  id={fid('email')}
                   className="w-full border border-primary-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors bg-white"
                   type="email"
                   value={form.email}
@@ -1178,12 +1227,13 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
                   autoComplete="email"
                   aria-required="true"
                   aria-invalid={!!errors.email}
+                  aria-describedby={desc('email', fid('email-hint'))}
                 />
-                <p className="text-xs text-primary-700 mt-1.5 flex items-center gap-1">
-                  <span>📨</span>
+                <p id={fid('email-hint')} className="text-xs text-primary-700 mt-1.5 flex items-center gap-1">
+                  <span aria-hidden="true">📨</span>
                   <span>ログイン情報・各種お知らせの送付先です</span>
                 </p>
-                {errors.email && <p className={errorClass} role="alert">{errors.email}</p>}
+                {errors.email && <p id={eid('email')} className={errorClass} role="alert">{errors.email}</p>}
               </div>
             </div>
           </div>
@@ -1238,14 +1288,17 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
           <h3 className="text-lg font-bold text-slate-800">事業所情報</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
-              <label className={labelClass}>事業所名{requiredBadge}</label>
-              <input className={fieldClass} value={form.officeName} onChange={e => set('officeName', e.target.value)} placeholder="例: ひらかた介護ステーション" />
-              {errors.officeName && <p className={errorClass}>{errors.officeName}</p>}
+              <label htmlFor={fid('officeName')} className={labelClass}>事業所名{requiredBadge}</label>
+              <input id={fid('officeName')} aria-invalid={!!errors.officeName} aria-describedby={desc('officeName')} className={fieldClass} value={form.officeName} onChange={e => set('officeName', e.target.value)} placeholder="例: ひらかた介護ステーション" />
+              {errors.officeName && <p id={eid('officeName')} className={errorClass}>{errors.officeName}</p>}
             </div>
             <div>
-              <label className={labelClass}>事業所番号{requiredBadge}</label>
-              <p className="mb-1 text-xs text-slate-500">半角英数字10文字で入力してください。</p>
+              <label htmlFor={fid('officeNumber')} className={labelClass}>事業所番号{requiredBadge}</label>
+              <p id={fid('officeNumber-hint')} className="mb-1 text-xs text-slate-500">半角英数字10文字で入力してください。</p>
               <input
+                id={fid('officeNumber')}
+                aria-invalid={!!errors.officeNumber}
+                aria-describedby={desc('officeNumber', fid('officeNumber-hint'))}
                 className={fieldClass}
                 inputMode="text"
                 maxLength={10}
@@ -1256,49 +1309,54 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
                 onChange={e => set('officeNumber', e.target.value)}
                 placeholder="例: 2770100001"
               />
-              {errors.officeNumber && <p className={errorClass}>{errors.officeNumber}</p>}
+              {errors.officeNumber && <p id={eid('officeNumber')} className={errorClass}>{errors.officeNumber}</p>}
             </div>
             <div>
-              <label className={labelClass}>郵便番号{requiredBadge}</label>
+              <label htmlFor={fid('officePostCode')} className={labelClass}>郵便番号{requiredBadge}</label>
               <PostalCodeInput
+                id={fid('officePostCode')}
                 value={form.officePostCode}
                 onChange={value => set('officePostCode', value)}
                 required
                 invalid={!!errors.officePostCode}
+                describedBy={desc('officePostCode')}
                 inputClassName={fieldClass}
               />
-              {errors.officePostCode && <p className={errorClass}>{errors.officePostCode}</p>}
+              {errors.officePostCode && <p id={eid('officePostCode')} className={errorClass}>{errors.officePostCode}</p>}
             </div>
             <div>
-              <label className={labelClass}>都道府県{requiredBadge}</label>
-              <select className={fieldClass} value={form.officePrefecture} onChange={e => set('officePrefecture', e.target.value)}>
+              <label htmlFor={fid('officePrefecture')} className={labelClass}>都道府県{requiredBadge}</label>
+              <select id={fid('officePrefecture')} aria-invalid={!!errors.officePrefecture} aria-describedby={desc('officePrefecture')} className={fieldClass} value={form.officePrefecture} onChange={e => set('officePrefecture', e.target.value)}>
                 <option value="">選択してください</option>
                 {PREFECTURES.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
-              {errors.officePrefecture && <p className={errorClass}>{errors.officePrefecture}</p>}
+              {errors.officePrefecture && <p id={eid('officePrefecture')} className={errorClass}>{errors.officePrefecture}</p>}
             </div>
             <div>
-              <label className={labelClass}>市区町村{requiredBadge}</label>
-              <input className={fieldClass} value={form.officeCity} onChange={e => set('officeCity', e.target.value)} />
-              {errors.officeCity && <p className={errorClass}>{errors.officeCity}</p>}
+              <label htmlFor={fid('officeCity')} className={labelClass}>市区町村{requiredBadge}</label>
+              <input id={fid('officeCity')} aria-invalid={!!errors.officeCity} aria-describedby={desc('officeCity')} className={fieldClass} value={form.officeCity} onChange={e => set('officeCity', e.target.value)} />
+              {errors.officeCity && <p id={eid('officeCity')} className={errorClass}>{errors.officeCity}</p>}
             </div>
             <div>
-              <label className={labelClass}>住所{requiredBadge}</label>
-              <input className={fieldClass} value={form.officeAddressLine} onChange={e => set('officeAddressLine', e.target.value)} placeholder="例: 津田元町1-1-1" />
-              {errors.officeAddressLine && <p className={errorClass}>{errors.officeAddressLine}</p>}
+              <label htmlFor={fid('officeAddressLine')} className={labelClass}>住所{requiredBadge}</label>
+              <input id={fid('officeAddressLine')} aria-invalid={!!errors.officeAddressLine} aria-describedby={desc('officeAddressLine')} className={fieldClass} value={form.officeAddressLine} onChange={e => set('officeAddressLine', e.target.value)} placeholder="例: 津田元町1-1-1" />
+              {errors.officeAddressLine && <p id={eid('officeAddressLine')} className={errorClass}>{errors.officeAddressLine}</p>}
             </div>
             <div>
-              <label className={labelClass}>建物名・部屋番号{optionalBadge}</label>
-              <input className={fieldClass} value={form.officeAddressLine2} onChange={e => set('officeAddressLine2', e.target.value)} placeholder="例: ○○ビル 3F" />
+              <label htmlFor={fid('officeAddressLine2')} className={labelClass}>建物名・部屋番号{optionalBadge}</label>
+              <input id={fid('officeAddressLine2')} className={fieldClass} value={form.officeAddressLine2} onChange={e => set('officeAddressLine2', e.target.value)} placeholder="例: ○○ビル 3F" />
             </div>
             <div>
-              <label className={labelClass}>電話番号{requiredBadge}</label>
-              <input className={fieldClass} value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="例: 072-000-0000" />
-              {errors.phone && <p className={errorClass}>{errors.phone}</p>}
+              <label htmlFor={fid('phone')} className={labelClass}>電話番号{requiredBadge}</label>
+              <input id={fid('phone')} aria-invalid={!!errors.phone} aria-describedby={desc('phone')} className={fieldClass} value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="例: 072-000-0000" />
+              {errors.phone && <p id={eid('phone')} className={errorClass}>{errors.phone}</p>}
             </div>
             <div>
-              <label className={labelClass}>FAX番号（任意）</label>
-              <input className={fieldClass} value={form.fax} onChange={e => set('fax', e.target.value)} />
+              <label htmlFor={fid('fax')} className={labelClass}>FAX番号（任意）</label>
+              {/* validateBusinessOffice は FAX の形式も検査するのに、従来はエラー文を出していなかった
+                  （「次へ」を押しても何も表示されず先へ進めない）。他の欄と同じく表示する。 */}
+              <input id={fid('fax')} aria-invalid={!!errors.fax} aria-describedby={desc('fax')} className={fieldClass} value={form.fax} onChange={e => set('fax', e.target.value)} />
+              {errors.fax && <p id={eid('fax')} className={errorClass}>{errors.fax}</p>}
             </div>
           </div>
         </div>
@@ -1314,8 +1372,8 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
             <p className="text-sm text-slate-500 mt-1">最低1名の登録が必要です。代表者は必ず1名指定してください。</p>
             <p className="text-sm text-slate-500 mt-1">登録は{BUSINESS_STAFF_LIMIT}名までです。{BUSINESS_STAFF_LIMIT + 1}名以上職員登録を希望の方は、別途事務局までお問い合わせください。</p>
           </div>
-          {errors._staff && <p className={errorClass}>{errors._staff}</p>}
-          {errors._staffRep && <p className={errorClass}>{errors._staffRep}</p>}
+          {errors._staff && <p data-reveal-error tabIndex={-1} role="alert" className={errorClass}>{errors._staff}</p>}
+          {errors._staffRep && <p data-reveal-error tabIndex={-1} role="alert" className={errorClass}>{errors._staffRep}</p>}
 
           {form.staff.map((s, i) => (
             <div key={s.tempId} className="bg-white p-5 rounded-xl border border-slate-200 relative">
@@ -1327,48 +1385,50 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {/* id は errors のキー（staff_{i}_項目）と同じ形にして、エラー文との対応を取り違えないようにする */}
                 <div>
-                  <label className={labelClass}>姓{requiredBadge}</label>
-                  <input className={fieldClass} value={s.lastName} onChange={e => updateStaff(i, 'lastName', e.target.value)} placeholder="例: 山田" />
-                  {errors[`staff_${i}_lastName`] && <p className={errorClass}>{errors[`staff_${i}_lastName`]}</p>}
+                  <label htmlFor={fid(`staff_${i}_lastName`)} className={labelClass}>姓{requiredBadge}</label>
+                  <input id={fid(`staff_${i}_lastName`)} aria-invalid={!!errors[`staff_${i}_lastName`]} aria-describedby={desc(`staff_${i}_lastName`)} className={fieldClass} value={s.lastName} onChange={e => updateStaff(i, 'lastName', e.target.value)} placeholder="例: 山田" />
+                  {errors[`staff_${i}_lastName`] && <p id={eid(`staff_${i}_lastName`)} className={errorClass}>{errors[`staff_${i}_lastName`]}</p>}
                 </div>
                 <div>
-                  <label className={labelClass}>名{requiredBadge}</label>
-                  <input className={fieldClass} value={s.firstName} onChange={e => updateStaff(i, 'firstName', e.target.value)} />
-                  {errors[`staff_${i}_firstName`] && <p className={errorClass}>{errors[`staff_${i}_firstName`]}</p>}
+                  <label htmlFor={fid(`staff_${i}_firstName`)} className={labelClass}>名{requiredBadge}</label>
+                  <input id={fid(`staff_${i}_firstName`)} aria-invalid={!!errors[`staff_${i}_firstName`]} aria-describedby={desc(`staff_${i}_firstName`)} className={fieldClass} value={s.firstName} onChange={e => updateStaff(i, 'firstName', e.target.value)} />
+                  {errors[`staff_${i}_firstName`] && <p id={eid(`staff_${i}_firstName`)} className={errorClass}>{errors[`staff_${i}_firstName`]}</p>}
                 </div>
                 <div>
-                  <label className={labelClass}>区分{requiredBadge}</label>
-                  <select className={fieldClass} value={s.role} onChange={e => updateStaff(i, 'role', e.target.value)}>
+                  <label htmlFor={fid(`staff_${i}_role`)} className={labelClass}>区分{requiredBadge}</label>
+                  <select id={fid(`staff_${i}_role`)} className={fieldClass} value={s.role} onChange={e => updateStaff(i, 'role', e.target.value)}>
                     <option value="REPRESENTATIVE">代表者</option>
                     <option value="ADMIN">管理者</option>
                     <option value="STAFF">メンバー</option>
                   </select>
                 </div>
                 <div>
-                  <label className={labelClass}>セイ{requiredBadge}</label>
-                  <input className={fieldClass} value={s.lastKana} onChange={e => updateStaff(i, 'lastKana', e.target.value)} placeholder="例: ヤマダ" />
-                  {errors[`staff_${i}_lastKana`] && <p className={errorClass}>{errors[`staff_${i}_lastKana`]}</p>}
+                  <label htmlFor={fid(`staff_${i}_lastKana`)} className={labelClass}>セイ{requiredBadge}</label>
+                  <input id={fid(`staff_${i}_lastKana`)} aria-invalid={!!errors[`staff_${i}_lastKana`]} aria-describedby={desc(`staff_${i}_lastKana`)} className={fieldClass} value={s.lastKana} onChange={e => updateStaff(i, 'lastKana', e.target.value)} placeholder="例: ヤマダ" />
+                  {errors[`staff_${i}_lastKana`] && <p id={eid(`staff_${i}_lastKana`)} className={errorClass}>{errors[`staff_${i}_lastKana`]}</p>}
                 </div>
                 <div>
-                  <label className={labelClass}>メイ{requiredBadge}</label>
-                  <input className={fieldClass} value={s.firstKana} onChange={e => updateStaff(i, 'firstKana', e.target.value)} />
-                  {errors[`staff_${i}_firstKana`] && <p className={errorClass}>{errors[`staff_${i}_firstKana`]}</p>}
+                  <label htmlFor={fid(`staff_${i}_firstKana`)} className={labelClass}>メイ{requiredBadge}</label>
+                  <input id={fid(`staff_${i}_firstKana`)} aria-invalid={!!errors[`staff_${i}_firstKana`]} aria-describedby={desc(`staff_${i}_firstKana`)} className={fieldClass} value={s.firstKana} onChange={e => updateStaff(i, 'firstKana', e.target.value)} />
+                  {errors[`staff_${i}_firstKana`] && <p id={eid(`staff_${i}_firstKana`)} className={errorClass}>{errors[`staff_${i}_firstKana`]}</p>}
                 </div>
                 <div>
-                  <label className={labelClass}>介護支援専門員番号（8桁）{requiredBadge}</label>
-                  <input className={fieldClass} inputMode="numeric" value={s.careManagerNumber} onChange={e => updateStaff(i, 'careManagerNumber', e.target.value)} maxLength={8} />
-                  <p className="text-xs text-slate-400 mt-0.5">この番号がログインIDとなります。</p>
-                  {errors[`staff_${i}_careManagerNumber`] && <p className={errorClass}>{errors[`staff_${i}_careManagerNumber`]}</p>}
+                  <label htmlFor={fid(`staff_${i}_careManagerNumber`)} className={labelClass}>介護支援専門員番号（8桁）{requiredBadge}</label>
+                  <input id={fid(`staff_${i}_careManagerNumber`)} aria-invalid={!!errors[`staff_${i}_careManagerNumber`]} aria-describedby={desc(`staff_${i}_careManagerNumber`, fid(`staff_${i}_careManagerNumber-hint`))} className={fieldClass} inputMode="numeric" value={s.careManagerNumber} onChange={e => updateStaff(i, 'careManagerNumber', e.target.value)} maxLength={8} />
+                  <p id={fid(`staff_${i}_careManagerNumber-hint`)} className="text-xs text-slate-400 mt-0.5">この番号がログインIDとなります。</p>
+                  {errors[`staff_${i}_careManagerNumber`] && <p id={eid(`staff_${i}_careManagerNumber`)} className={errorClass}>{errors[`staff_${i}_careManagerNumber`]}</p>}
                 </div>
                 <div>
-                  <label className={labelClass}>メールアドレス{requiredBadge}</label>
-                  <input className={fieldClass} type="email" value={s.email} onChange={e => updateStaff(i, 'email', e.target.value)} />
-                  {errors[`staff_${i}_email`] && <p className={errorClass}>{errors[`staff_${i}_email`]}</p>}
+                  <label htmlFor={fid(`staff_${i}_email`)} className={labelClass}>メールアドレス{requiredBadge}</label>
+                  <input id={fid(`staff_${i}_email`)} aria-invalid={!!errors[`staff_${i}_email`]} aria-describedby={desc(`staff_${i}_email`)} className={fieldClass} type="email" value={s.email} onChange={e => updateStaff(i, 'email', e.target.value)} />
+                  {errors[`staff_${i}_email`] && <p id={eid(`staff_${i}_email`)} className={errorClass}>{errors[`staff_${i}_email`]}</p>}
                 </div>
                 <div className="flex items-end pb-1">
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={s.receiveEmail} onChange={e => updateStaff(i, 'receiveEmail', e.target.checked)} className="rounded border-slate-300" />
+                    {/* 職員カード 10 枚とも同じ文言なので、読み上げでは何番目の職員かを区別する */}
+                    <input type="checkbox" aria-label={`職員 ${i + 1} のメール配信を受け取る`} checked={s.receiveEmail} onChange={e => updateStaff(i, 'receiveEmail', e.target.checked)} className="rounded border-slate-300" />
                     <span className="text-sm text-slate-700">メール配信を受け取る</span>
                   </label>
                 </div>
@@ -1478,7 +1538,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
             </div>
           )}
 
-          {submitError && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">{submitError}</div>}
+          {submitError && <div data-reveal-error tabIndex={-1} role="alert" className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 focus:outline-none">{submitError}</div>}
         </div>
       );
     }
@@ -1515,7 +1575,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
       )}
 
       {/* ステップ内容 */}
-      <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200">
+      <div ref={stepRef} className="bg-slate-50 rounded-2xl p-6 border border-slate-200">
         {renderStep()}
       </div>
 

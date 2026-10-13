@@ -121,6 +121,9 @@
 
 | 文書 | 内容 |
 |---|---|
+| [306_TEST_VIEWPOINT_UNLINKED_AND_SILENT_2026-10-13.md](306_TEST_VIEWPOINT_UNLINKED_AND_SILENT_2026-10-13.md) | **観点表「表示されているのに結び付いていない／黙って失敗する」と全体調査・修正計画。緊急 7 件（研修申込の例外・Drive ファイル削除・他事業所の職員書き換え 等）** |
+| [305_TEST_PUBLIC_STAFF_PRIVACY_2026-10-13.md](305_TEST_PUBLIC_STAFF_PRIVACY_2026-10-13.md) | **公開ポータル 職員の照合方式のテスト観点表と結果（Playwright MCP・31 項目すべて合格。テスト中に見つけた不具合 8 件を修正。本番確認はリリース後）** |
+| [304_THIRD_PARTY_EVALUATION_2026-10-12.md](304_THIRD_PARTY_EVALUATION_2026-10-12.md) | **第三者評価（v376.121・会員管理／メール送信／認証認可）。High 3・Medium 6・Low 8。公開本人確認が公開情報で通る・会員状態の監査ログ欠落 等** |
 | [303_TEST_DATA_RULE_AND_PURGE_2026-10-11.md](303_TEST_DATA_RULE_AND_PURGE_2026-10-11.md) | **テストデータのルール（★＋@example.invalid）と物理削除の設計。全 28 表の扱い・止まる条件・置き換えた旧ツール** |
 | [302_OPERATOR_CHECKS_2026-10-10.md](302_OPERATOR_CHECKS_2026-10-10.md) | **操作者確認の棚卸し（Playwright MCP・16 項目 PASS）と、見つかった不具合 9 件（保守ツールの認可漏れ 等）** |
 | [301_RELEASE_STATE_v376.113_2026-10-09.md](301_RELEASE_STATE_v376.113_2026-10-09.md) | **v376.113 / v376.114 読み込み遅延の是正（HEIC 変換を遅延評価・会員/管理バンドルの分離・管理 API ごとのログ書込停止・シート重複読込の解消）** |

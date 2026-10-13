@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { useRevealOnChange } from '../../shared/useRevealOnChange';
 import { callApi } from '../../shared/api-base';
 
 interface Props {
@@ -11,6 +12,12 @@ const CancelForm: React.FC<Props> = ({ onCancel }) => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [busy, setBusy] = useState(false);
+  // ラベル・エラー文と入力欄を結び付ける id
+  const uid = React.useId();
+  const errorId = `${uid}-error`;
+  // 取消の失敗（ID とメールの不一致など）は 2 つの欄どちらにも関わるので、両方からエラー文を指す
+  const errorRef = useRef<HTMLDivElement>(null);
+  useRevealOnChange(error, errorRef);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,17 +63,20 @@ const CancelForm: React.FC<Props> = ({ onCancel }) => {
       </p>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded p-3 mb-4 text-sm text-red-700">
+        <div ref={errorRef} id={errorId} tabIndex={-1} role="alert" className="bg-red-50 border border-red-200 rounded p-3 mb-4 text-sm text-red-700 focus:outline-none">
           {error}
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor={`${uid}-applyId`} className="block text-sm font-medium text-gray-700 mb-1">
             申込ID <span className="text-red-500">*</span>
           </label>
           <input
+            id={`${uid}-applyId`}
+            aria-invalid={!!error}
+            aria-describedby={error ? errorId : undefined}
             type="text"
             required
             value={applyId}
@@ -77,10 +87,13 @@ const CancelForm: React.FC<Props> = ({ onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor={`${uid}-email`} className="block text-sm font-medium text-gray-700 mb-1">
             メールアドレス <span className="text-red-500">*</span>
           </label>
           <input
+            id={`${uid}-email`}
+            aria-invalid={!!error}
+            aria-describedby={error ? errorId : undefined}
             type="email"
             required
             value={email}

@@ -88,6 +88,8 @@ const buildEmptyForm = (fieldConfig: TrainingFieldConfig): Training => {
 type PanelView = 'form' | 'mail' | 'roster';
 
 const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRestore, defaultFieldConfig }) => {
+  // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
+  const uid = React.useId();
   const effectiveDefault = defaultFieldConfig ?? DEFAULT_FIELD_CONFIG;
   const [form, setForm] = useState<Training>(() => buildEmptyForm(effectiveDefault));
   const [isNew, setIsNew] = useState(true);
@@ -352,9 +354,15 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
     }
   };
 
-  const renderFieldHeader = (label: string, key: keyof TrainingFieldConfig) => (
+  // 項目見出しと入力欄を結び付ける id。入力欄が 1 つの項目は label の htmlFor で、
+  // 複数の部品から成る項目（費用の行・ファイル選択）は見出しを group の名前にする（label にすると結び付く欄が無い）。
+  const fieldId = (key: keyof TrainingFieldConfig) => `${uid}-field-${key}`;
+  const fieldHeaderId = (key: keyof TrainingFieldConfig) => `${uid}-field-${key}-label`;
+  const renderFieldHeader = (label: string, key: keyof TrainingFieldConfig, asGroup = false) => (
     <div className="mb-1 flex items-center justify-between gap-2">
-      <label className="block text-sm font-medium text-slate-700">{label}</label>
+      {asGroup || !isFieldOn(key)
+        ? <p id={fieldHeaderId(key)} className="block text-sm font-medium text-slate-700">{label}</p>
+        : <label id={fieldHeaderId(key)} htmlFor={fieldId(key)} className="block text-sm font-medium text-slate-700">{label}</label>}
       <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
         <span className={`text-[11px] font-semibold ${isFieldOn(key) ? 'text-emerald-700' : 'text-slate-500'}`}>
           {isFieldOn(key) ? '有効' : '無効'}
@@ -445,6 +453,10 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
     try {
       const saved = await onSave({
         ...form,
+        // 2026-10-13: 申込開始日・締切日を「無効」にしたら空で保存する。以前は古い日付が残り、
+        // 画面に出ない締切日で受付の判定が続いていた（「締切なし」のつもりでも受付が閉じた）。
+        applicationOpenDate: isFieldOn('applicationOpenDate') ? form.applicationOpenDate : '',
+        applicationCloseDate: isFieldOn('applicationCloseDate') ? form.applicationCloseDate : '',
         inquiryPerson,
         inquiryPhone,
         inquiryEmail,
@@ -528,36 +540,36 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">研修タイトル <span className="text-red-500">*</span></label>
-        <input className={inputCls} name="title" value={form.title} onChange={handleChange} />
+        <label htmlFor={`${uid}-f1`} className="block text-sm font-medium text-slate-700 mb-1">研修タイトル <span className="text-red-500">*</span></label>
+        <input id={`${uid}-f1`} className={inputCls} name="title" value={form.title} onChange={handleChange} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">開催日時(開始) <span className="text-red-500">*</span></label>
-          <input className={inputCls} type="datetime-local" name="date" value={form.date} onChange={handleChange} />
+          <label htmlFor={`${uid}-f2`} className="block text-sm font-medium text-slate-700 mb-1">開催日時(開始) <span className="text-red-500">*</span></label>
+          <input id={`${uid}-f2`} className={inputCls} type="datetime-local" name="date" value={form.date} onChange={handleChange} />
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">終了時刻</label>
-          <input className={inputCls} type="time" name="endTime" value={form.endTime || ''} onChange={handleChange} placeholder="例: 12:00" />
+          <label htmlFor={`${uid}-f3`} className="block text-sm font-medium text-slate-700 mb-1">終了時刻</label>
+          <input id={`${uid}-f3`} className={inputCls} type="time" name="endTime" value={form.endTime || ''} onChange={handleChange} placeholder="例: 12:00" />
         </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">主催者 <span className="text-red-500">*</span></label>
-          <input className={inputCls} name="organizer" value={form.organizer || ''} onChange={handleChange} />
+          <label htmlFor={`${uid}-f4`} className="block text-sm font-medium text-slate-700 mb-1">主催者 <span className="text-red-500">*</span></label>
+          <input id={`${uid}-f4`} className={inputCls} name="organizer" value={form.organizer || ''} onChange={handleChange} />
         </div>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">研修概要 <span className="text-red-500">*</span></label>
-        <textarea className={inputCls} name="summary" value={form.summary || ''} onChange={handleChange} rows={2} />
+        <label htmlFor={`${uid}-f5`} className="block text-sm font-medium text-slate-700 mb-1">研修概要 <span className="text-red-500">*</span></label>
+        <textarea id={`${uid}-f5`} className={inputCls} name="summary" value={form.summary || ''} onChange={handleChange} rows={2} />
       </div>
 
       <div>
         {renderFieldHeader('詳細説明', 'description')}
         {isFieldOn('description') ? (
-          <textarea className={inputCls} name="description" value={form.description || ''} onChange={handleChange} rows={4} />
+          <textarea id={fieldId('description')} className={inputCls} name="description" value={form.description || ''} onChange={handleChange} rows={4} />
         ) : (
           renderOffHint()
         )}
@@ -565,27 +577,28 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">開催場所 <span className="text-red-500">*</span></label>
-          <input className={inputCls} name="location" value={form.location} onChange={handleChange} />
+          <label htmlFor={`${uid}-f6`} className="block text-sm font-medium text-slate-700 mb-1">開催場所 <span className="text-red-500">*</span></label>
+          <input id={`${uid}-f6`} className={inputCls} name="location" value={form.location} onChange={handleChange} />
         </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">定員 <span className="text-red-500">*</span></label>
-          <input className={inputCls} type="number" min={0} name="capacity" value={form.capacity} onChange={handleChange} />
+          <label htmlFor={`${uid}-f7`} className="block text-sm font-medium text-slate-700 mb-1">定員 <span className="text-red-500">*</span></label>
+          <input id={`${uid}-f7`} className={inputCls} type="number" min={0} name="capacity" value={form.capacity} onChange={handleChange} />
         </div>
       </div>
 
       <div>
-        {renderFieldHeader('研修費用', 'fees')}
+        {renderFieldHeader('研修費用', 'fees', true)}
         {isFieldOn('fees') ? (
-          <div className="space-y-2">
+          <div role="group" aria-labelledby={fieldHeaderId('fees')} className="space-y-2">
             {(form.fees ?? []).map((fee, idx) => (
               <div key={idx} className="flex items-center gap-2">
                 <input
                   className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-40"
                   placeholder="費用名"
+                  aria-label={`費用 ${idx + 1} の名称`}
                   value={fee.label}
                   onChange={(e) => handleFeeChange(idx, 'label', e.target.value)}
                 />
@@ -594,6 +607,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
                   type="number"
                   min={0}
                   value={fee.amount}
+                  aria-label={`費用 ${idx + 1} の金額（円）`}
                   onChange={(e) => handleFeeChange(idx, 'amount', e.target.value)}
                 />
                 <span className="text-sm text-slate-500">円</span>
@@ -624,7 +638,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
         <div>
           {renderFieldHeader('申込開始日', 'applicationOpenDate')}
           {isFieldOn('applicationOpenDate') ? (
-            <input className={inputCls} type="date" name="applicationOpenDate" value={form.applicationOpenDate || ''} onChange={handleChange} />
+            <input id={fieldId('applicationOpenDate')} className={inputCls} type="date" name="applicationOpenDate" value={form.applicationOpenDate || ''} onChange={handleChange} />
           ) : (
             renderOffHint()
           )}
@@ -632,7 +646,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
         <div>
           {renderFieldHeader('申込締切日', 'applicationCloseDate')}
           {isFieldOn('applicationCloseDate') ? (
-            <input className={inputCls} type="date" name="applicationCloseDate" value={form.applicationCloseDate || ''} onChange={handleChange} />
+            <input id={fieldId('applicationCloseDate')} className={inputCls} type="date" name="applicationCloseDate" value={form.applicationCloseDate || ''} onChange={handleChange} />
           ) : (
             renderOffHint()
           )}
@@ -642,19 +656,20 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
       <div>
         {renderFieldHeader('講師', 'instructor')}
         {isFieldOn('instructor') ? (
-          <input className={inputCls} name="instructor" value={form.instructor || ''} onChange={handleChange} />
+          <input id={fieldId('instructor')} className={inputCls} name="instructor" value={form.instructor || ''} onChange={handleChange} />
         ) : (
           renderOffHint()
         )}
       </div>
 
       <div>
-        {renderFieldHeader('案内PDF(最大5MB)', 'guidePdfUrl')}
+        {renderFieldHeader('案内PDF(最大5MB)', 'guidePdfUrl', true)}
         {isFieldOn('guidePdfUrl') ? (
-          <div className="flex items-center gap-3">
-            <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-700 hover:bg-slate-50">
+          <div role="group" aria-labelledby={fieldHeaderId('guidePdfUrl')} className="flex items-center gap-3">
+            {/* input を display:none（hidden）にするとキーボードでは選べない。sr-only で Tab 到達可能にし、枠にフォーカスを表示する */}
+            <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-700 hover:bg-slate-50 focus-within:ring-2 focus-within:ring-primary-400">
               {uploading ? 'アップロード中...' : 'ファイルを選択'}
-              <input ref={fileInputRef} type="file" accept=".pdf,image/*" className="hidden" onChange={handleFileChange} disabled={uploading} />
+              <input ref={fileInputRef} type="file" accept=".pdf,image/*" className="sr-only" aria-label="案内PDF・画像を選択" onChange={handleFileChange} disabled={uploading} />
             </label>
             {(uploadedFileName || form.guidePdfUrl) && (
               <div className="space-y-2">
@@ -744,6 +759,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
         {isFieldOn('applicationUrl') ? (
           <>
             <input
+              id={fieldId('applicationUrl')}
               type="url"
               className={inputCls}
               name="applicationUrl"
@@ -776,25 +792,25 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
         <p className="text-xs font-semibold text-slate-600 tracking-wide">問い合わせ窓口</p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">担当者 <span className="text-red-500">*</span></label>
-            <input className={inputCls} name="inquiryPerson" value={form.inquiryPerson || ''} onChange={handleChange} placeholder="例: 事務局 田中" />
+            <label htmlFor={`${uid}-f8`} className="block text-sm font-medium text-slate-700 mb-1">担当者 <span className="text-red-500">*</span></label>
+            <input id={`${uid}-f8`} className={inputCls} name="inquiryPerson" value={form.inquiryPerson || ''} onChange={handleChange} placeholder="例: 事務局 田中" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label htmlFor={`${uid}-f9`} className="block text-sm font-medium text-slate-700 mb-1">
               電話番号 <span className="text-slate-400 text-xs">(どちらか必須)</span>
             </label>
-            <input className={inputCls} type="tel" name="inquiryPhone" value={form.inquiryPhone || ''} onChange={handleChange} placeholder="072-000-0000" />
+            <input id={`${uid}-f9`} className={inputCls} type="tel" name="inquiryPhone" value={form.inquiryPhone || ''} onChange={handleChange} placeholder="072-000-0000" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label htmlFor={`${uid}-f10`} className="block text-sm font-medium text-slate-700 mb-1">
               メールアドレス <span className="text-slate-400 text-xs">(どちらか必須)</span>
             </label>
-            <input className={inputCls} type="email" name="inquiryEmail" value={form.inquiryEmail || ''} onChange={handleChange} placeholder="support@example.com" />
+            <input id={`${uid}-f10`} className={inputCls} type="email" name="inquiryEmail" value={form.inquiryEmail || ''} onChange={handleChange} placeholder="support@example.com" />
           </div>
         </div>
       </div>
 
-      {saveError && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">{saveError}</div>}
+      {saveError && <div role="alert" className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">{saveError}</div>}
       {saveSuccess && <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg p-3">保存しました。</div>}
 
       <div className="flex justify-end pt-2">

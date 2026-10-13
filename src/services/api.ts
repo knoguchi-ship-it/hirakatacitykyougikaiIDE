@@ -30,7 +30,15 @@ export interface TrainingMailPayload {
   commonAttachBase64?: string;
   commonAttachFilename?: string;
   commonAttachMime?: string;
-  individualFolderUrl?: string;
+}
+
+/** 研修メール送信の結果。sent は実際に送った件数（抑止・失敗は含まない） */
+export interface TrainingMailResult {
+  sent: number;
+  suppressed?: number;        // 配信停止・カテゴリ無効で送らなかった件数
+  suppressedReason?: string;  // 抑止の理由コード（category_disabled 等）
+  notFound?: number;          // 選んだが見つからなかった申込の件数
+  errors: string[];
 }
 
 export interface MemberLoginResult {
@@ -158,7 +166,7 @@ export interface ApiClient {
   cancelTraining(request: { trainingId: string; memberId: string; staffId?: string }): Promise<{ canceled: boolean; applicants: number }>;
   getTrainingApplicants(trainingId: string): Promise<TrainingApplicantRow[]>;
   getAdminEmailAliases(): Promise<AdminEmailAliasesResult>;
-  sendTrainingMail(payload: TrainingMailPayload): Promise<{ sent: number; errors: string[] }>;
+  sendTrainingMail(payload: TrainingMailPayload): Promise<TrainingMailResult>;
   // ── v360: 研修名簿・出欠・受講履歴・一括メール明細 ────────────────
   getTrainingRosterDetail(trainingId: string): Promise<{ applicants: TrainingRosterRow[] }>;
   saveAttendance(payload: { applyId: string; status: AttendanceStatus }): Promise<{ ok: boolean; recordedAt?: string; error?: string }>;
@@ -204,7 +212,7 @@ export interface ApiClient {
     staffStatus?: string;
     mailingFilter?: string;
     excludeNoEmail?: boolean;
-  }): Promise<{ sent: number; total: number; errors: string[]; autoAttachMissed: string[]; logId: string; deliveryMode?: string; suppressedCount?: number }>;
+  }): Promise<{ sent: number; total: number; errors: string[]; autoAttachMissed: string[]; logId: string; deliveryMode?: string; suppressedCount?: number; excludedCount?: number }>;
   getEmailSendLog(): Promise<EmailSendLog[]>;
   // v207: 宛名リスト Excel 出力
   getMailingListTargets(payload: { filterType: MailingListFilterType; year?: number }): Promise<MailingListTargetsResult>;
@@ -341,6 +349,8 @@ export interface MemberDeletePreview {
   retainedCounts: Record<string, number>;
   totalRows: number;
   totalUpdatedRows: number;
+  unpaidClaimCount?: number;          // 申請中・承認済みの請求（一緒にアーカイブへ移る）
+  pendingChangeRequestCount?: number; // 未処理の変更申請（一緒にアーカイブへ移る）
 }
 
 export interface MemberDeleteResult {
@@ -869,7 +879,7 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async sendTrainingMail(payload: TrainingMailPayload): Promise<{ sent: number; errors: string[] }> {
+  async sendTrainingMail(payload: TrainingMailPayload): Promise<TrainingMailResult> {
     return this.callAction('sendTrainingMail', payload);
   }
 

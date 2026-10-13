@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { TrainingApplicantRow } from '../shared/types';
-import { api, TrainingMailPayload } from '../services/api';
+import { api, TrainingMailPayload, TrainingMailResult } from '../services/api';
 import { TrashIcon } from './Icons';
 
 interface Props {
@@ -14,15 +14,17 @@ const replaceMailTags = (template: string, row: TrainingApplicantRow): string =>
   template.replace(/\{\{氏名\}\}/g, row.name).replace(/\{\{事業所名\}\}/g, row.officeName || '');
 
 const TrainingMailSender: React.FC<Props> = ({ trainingId, trainingTitle, onBack }) => {
+  // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
+  const uid = React.useId();
   const [applicants, setApplicants] = useState<TrainingApplicantRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [aliases, setAliases] = useState<string[]>([]);
+  const [aliasWarning, setAliasWarning] = useState('');
   const [from, setFrom] = useState('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
-  const [individualFolderUrl, setIndividualFolderUrl] = useState('');
 
   const [commonAttachFile, setCommonAttachFile] = useState<File | null>(null);
   const [commonAttachBase64, setCommonAttachBase64] = useState('');
@@ -34,18 +36,21 @@ const TrainingMailSender: React.FC<Props> = ({ trainingId, trainingTitle, onBack
 
   const [preview, setPreview] = useState<TrainingApplicantRow | null>(null);
   const [sending, setSending] = useState(false);
-  const [sendResult, setSendResult] = useState<{ sent: number; errors: string[] } | null>(null);
+  const [sendResult, setSendResult] = useState<TrainingMailResult | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [rows, aliasList] = await Promise.all([
+        const [rows, aliasResult] = await Promise.all([
           api.getTrainingApplicants(trainingId),
           api.getAdminEmailAliases(),
         ]);
         setApplicants(rows);
+        // 2026-10-13: 戻り値は { aliases, warning }。以前は配列として扱い、選択肢が出なかった。
+        const aliasList = Array.isArray(aliasResult?.aliases) ? aliasResult.aliases : [];
         setAliases(aliasList);
+        setAliasWarning(String(aliasResult?.warning || ''));
         setFrom(aliasList[0] || '');
       } catch (e) {
         setLoadError(e instanceof Error ? e.message : '申込者一覧の取得に失敗しました。');
@@ -139,6 +144,9 @@ const TrainingMailSender: React.FC<Props> = ({ trainingId, trainingTitle, onBack
       return;
     }
 
+    // 2026-10-13: 以前は確認なしで 1 クリックで全員に送っていた
+    if (!window.confirm(`${effectiveTargets.length} 名に「${subject.trim()}」を送信します。よろしいですか？`)) return;
+
     const payload: TrainingMailPayload = {
       trainingId,
       targetApplyIds: effectiveTargets.map((r) => r.applyId),
@@ -148,7 +156,6 @@ const TrainingMailSender: React.FC<Props> = ({ trainingId, trainingTitle, onBack
       ...(commonAttachBase64 && commonAttachFile
         ? { commonAttachBase64, commonAttachFilename: commonAttachFile.name, commonAttachMime: commonAttachFile.type }
         : {}),
-      ...(individualFolderUrl.trim() ? { individualFolderUrl: individualFolderUrl.trim() } : {}),
     };
 
     setSending(true);
@@ -220,7 +227,6 @@ const TrainingMailSender: React.FC<Props> = ({ trainingId, trainingTitle, onBack
                     <th className="px-3 py-2 text-left text-xs text-slate-500 font-medium">事業所名</th>
                     <th className="px-3 py-2 text-left text-xs text-slate-500 font-medium">区分</th>
                     <th className="px-3 py-2 text-left text-xs text-slate-500 font-medium">メール</th>
-                    <th className="px-3 py-2 text-left text-xs text-slate-500 font-medium">個別添付</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -231,6 +237,7 @@ const TrainingMailSender: React.FC<Props> = ({ trainingId, trainingTitle, onBack
                           type="checkbox"
                           checked={isChecked(row.applyId)}
                           onChange={() => toggleSelect(row.applyId)}
+                          aria-label={`${row.name} を送信対象にする`}
                           className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                         />
                       </td>
@@ -246,10 +253,7 @@ const TrainingMailSender: React.FC<Props> = ({ trainingId, trainingTitle, onBack
                           {row.applicantType === 'MEMBER' ? '会員' : row.applicantType === 'STAFF' ? '事業所職員' : '非会員'}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-xs text-slate-500 truncate max-w-[120px]">{row.email}</td>
-                      <td className="px-3 py-2 text-xs text-slate-400">
-                        {individualFolderUrl ? '照合待ち' : '—'}
-                      </td>
+                      <td className="px-3 py-2 text-xs text-slate-500 truncate max-w-[120px]">{row.email || '（未登録）'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -266,29 +270,30 @@ const TrainingMailSender: React.FC<Props> = ({ trainingId, trainingTitle, onBack
           <div className="p-5 space-y-4">
             {/* 送信元 */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label htmlFor={`${uid}-from`} className="block text-sm font-medium text-slate-700 mb-1">
                 送信元アドレス <span className="text-red-500">*</span>
               </label>
               {aliases.length > 0 ? (
-                <select className={inputCls} value={from} onChange={(e) => setFrom(e.target.value)}>
+                <select id={`${uid}-from`} aria-describedby={`${uid}-from-note`} className={inputCls} value={from} onChange={(e) => setFrom(e.target.value)}>
                   {aliases.map((a) => (
                     <option key={a} value={a}>{a}</option>
                   ))}
                 </select>
               ) : (
-                <input className={inputCls} value={from} onChange={(e) => setFrom(e.target.value)} placeholder="送信元メールアドレス" />
+                <input id={`${uid}-from`} aria-describedby={`${uid}-from-note`} className={inputCls} value={from} onChange={(e) => setFrom(e.target.value)} placeholder="送信元メールアドレス" />
               )}
-              <p className="text-xs text-slate-400 mt-1">
-                Reply-To には現在ログイン中の管理者メールアドレスが自動設定されます。
+              {aliasWarning && <p className="text-xs text-amber-700 mt-1">{aliasWarning}</p>}
+              <p id={`${uid}-from-note`} className="text-xs text-slate-400 mt-1">
+                返信先（Reply-To）は送信元アドレスになります。
               </p>
             </div>
 
             {/* 件名 */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label htmlFor={`${uid}-f1`} className="block text-sm font-medium text-slate-700 mb-1">
                 件名 <span className="text-red-500">*</span>
               </label>
-              <input
+              <input id={`${uid}-f1`}
                 className={inputCls}
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
@@ -298,10 +303,10 @@ const TrainingMailSender: React.FC<Props> = ({ trainingId, trainingTitle, onBack
 
             {/* 本文 */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label htmlFor={`${uid}-f2`} className="block text-sm font-medium text-slate-700 mb-1">
                 本文 <span className="text-red-500">*</span>
               </label>
-              <textarea
+              <textarea id={`${uid}-f2`}
                 className={inputCls}
                 rows={8}
                 value={body}
@@ -316,7 +321,8 @@ const TrainingMailSender: React.FC<Props> = ({ trainingId, trainingTitle, onBack
 
             {/* 共通添付 */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">共通添付ファイル（全員に添付）</label>
+              {/* 見出しは添付操作のまとまりの名前（選択後は入力欄が消えるため label ではなく見出しにする） */}
+              <p className="block text-sm font-medium text-slate-700 mb-1">共通添付ファイル（全員に添付）</p>
               {commonAttachFile ? (
                 <div className="flex items-center gap-2 text-sm text-slate-700 border border-slate-200 rounded-lg px-3 py-2">
                   <span className="truncate flex-1">{commonAttachFile.name}</span>
@@ -325,37 +331,27 @@ const TrainingMailSender: React.FC<Props> = ({ trainingId, trainingTitle, onBack
                   </button>
                 </div>
               ) : (
-                <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-700 hover:bg-slate-50">
+                <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-700 hover:bg-slate-50 focus-within:ring-2 focus-within:ring-primary-400">
                   ファイルを選択
+                  {/* input を display:none（hidden）にするとキーボードでは選べない。sr-only で Tab 到達可能にし、枠にフォーカスを表示する */}
                   <input
                     ref={fileInputRef}
                     type="file"
-                    className="hidden"
+                    className="sr-only"
+                    aria-label="共通添付ファイル（全員に添付）を選択"
                     onChange={handleAttachChange}
                   />
                 </label>
               )}
             </div>
 
-            {/* 個別添付フォルダ */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">個別添付フォルダ（Drive URL または ID）</label>
-              <input
-                className={inputCls}
-                value={individualFolderUrl}
-                onChange={(e) => setIndividualFolderUrl(e.target.value)}
-                placeholder="https://drive.google.com/drive/folders/..."
-              />
-              <p className="text-xs text-slate-400 mt-1">
-                フォルダ内のファイル名（拡張子除く）が申込者の氏名と一致する場合、自動で個別添付されます。
-              </p>
-            </div>
+            {/* 2026-10-13: 「個別添付フォルダ」はサーバ側の照合が実装されておらず、入力しても添付されなかったため外した */}
 
             {/* プレビュー */}
             {applicants.length > 0 && (
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">送信プレビュー</label>
-                <select
+                <label htmlFor={`${uid}-f3`} className="block text-sm font-medium text-slate-700 mb-1">送信プレビュー</label>
+                <select id={`${uid}-f3`}
                   className={inputCls}
                   value={preview?.applyId || ''}
                   onChange={(e) => setPreview(applicants.find((r) => r.applyId === e.target.value) || null)}
@@ -380,10 +376,20 @@ const TrainingMailSender: React.FC<Props> = ({ trainingId, trainingTitle, onBack
               <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">{sendError}</div>
             )}
             {sendResult && (
-              <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg p-3">
-                {sendResult.sent} 件送信完了。
+              <div className={`text-sm rounded-lg p-3 border ${sendResult.sent > 0 ? 'text-green-700 bg-green-50 border-green-200' : 'text-amber-800 bg-amber-50 border-amber-300'}`} role="status">
+                <p>{sendResult.sent} 件送信しました。</p>
+                {(sendResult.suppressed || 0) > 0 && (
+                  <p className="mt-1 text-amber-800">
+                    {sendResult.suppressed} 件は送っていません（{sendResult.suppressedReason === 'category_disabled'
+                      ? 'システム設定で研修メールが無効になっています'
+                      : 'メールの配信が停止中です'}）。
+                  </p>
+                )}
+                {(sendResult.notFound || 0) > 0 && (
+                  <p className="mt-1 text-amber-800">{sendResult.notFound} 件は申込が見つからず送っていません（取消・削除された可能性があります）。</p>
+                )}
                 {sendResult.errors.length > 0 && (
-                  <p className="mt-1 text-red-600">エラー: {sendResult.errors.join(', ')}</p>
+                  <p className="mt-1 text-red-600">送れなかった宛先: {sendResult.errors.join('、')}</p>
                 )}
               </div>
             )}

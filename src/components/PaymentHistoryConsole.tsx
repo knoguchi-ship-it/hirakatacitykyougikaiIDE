@@ -15,8 +15,13 @@ import {
   PaymentRecord,
 } from '../shared/types';
 
+/** 請求管理から渡される請求。支払い登録の明細に結び付け、保存時にサーバが請求を「支払い済み」にする */
+interface InitialClaim { claimId: string; memberId: string; amount: number; typeCode: string }
+
 interface PaymentHistoryConsoleProps {
   api: ApiClient;
+  initialClaim?: InitialClaim | null;
+  onInitialClaimConsumed?: () => void;
 }
 
 // ── スタイル定数 ──────────────────────────────────────────────────────────────
@@ -48,6 +53,7 @@ function formatYen(n: number): string {
 
 interface LineItemDraft {
   _key: string;        // UI 内部 key
+  claimId?: string;    // 請求に対する支払いのとき（保存で請求が支払い済みになる）
   typeCode: string;
   roleCode: string;
   organizationCode: string;
@@ -78,7 +84,9 @@ interface FormErrors {
 
 // ── メインコンポーネント ──────────────────────────────────────────────────────
 
-const PaymentHistoryConsole: React.FC<PaymentHistoryConsoleProps> = ({ api }) => {
+const PaymentHistoryConsole: React.FC<PaymentHistoryConsoleProps> = ({ api, initialClaim, onInitialClaimConsumed }) => {
+  // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
+  const uid = React.useId();
   const [masterData, setMasterData] = useState<OfficerMasterData | null>(null);
   const [officerData, setOfficerData] = useState<OfficerManagementData | null>(null);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
@@ -95,6 +103,14 @@ const PaymentHistoryConsole: React.FC<PaymentHistoryConsoleProps> = ({ api }) =>
 
   // フォーム表示フラグ
   const [formVisible, setFormVisible] = useState(false);
+  // 請求管理から渡された請求。受け取ったらフォームを開き、App 側の受け渡し状態は消す。
+  const [formClaim, setFormClaim] = useState<InitialClaim | null>(null);
+  useEffect(() => {
+    if (!initialClaim) return;
+    setFormClaim(initialClaim);
+    setFormVisible(true);
+    onInitialClaimConsumed?.();
+  }, [initialClaim, onInitialClaimConsumed]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -185,8 +201,9 @@ const PaymentHistoryConsole: React.FC<PaymentHistoryConsoleProps> = ({ api }) =>
       {/* フィルターバー */}
       <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex-1 min-w-40">
-          <label className="mb-1 block text-xs font-medium text-slate-600">役員で絞り込み</label>
+          <label htmlFor={`${uid}-f1`} className="mb-1 block text-xs font-medium text-slate-600">役員で絞り込み</label>
           <select
+            id={`${uid}-f1`}
             value={filterMemberId}
             onChange={e => setFilterMemberId(e.target.value)}
             className={inputCls}
@@ -198,12 +215,12 @@ const PaymentHistoryConsole: React.FC<PaymentHistoryConsoleProps> = ({ api }) =>
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">支払い日（開始）</label>
-          <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className={inputCls} />
+          <label htmlFor={`${uid}-f2`} className="mb-1 block text-xs font-medium text-slate-600">支払い日（開始）</label>
+          <input id={`${uid}-f2`} type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className={inputCls} />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">支払い日（終了）</label>
-          <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className={inputCls} />
+          <label htmlFor={`${uid}-f3`} className="mb-1 block text-xs font-medium text-slate-600">支払い日（終了）</label>
+          <input id={`${uid}-f3`} type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className={inputCls} />
         </div>
         {(filterMemberId || filterDateFrom || filterDateTo) && (
           <button
@@ -228,15 +245,18 @@ const PaymentHistoryConsole: React.FC<PaymentHistoryConsoleProps> = ({ api }) =>
       {/* 新規支払いフォーム */}
       {formVisible && masterData && officerData && (
         <PaymentForm
+          key={formClaim?.claimId || 'new'}
           masterData={masterData}
           officerData={officerData}
           activeOfficers={activeOfficers}
           api={api}
+          initialClaim={formClaim}
           onSaved={async () => {
             setFormVisible(false);
+            setFormClaim(null);
             await load();
           }}
-          onCancel={() => setFormVisible(false)}
+          onCancel={() => { setFormVisible(false); setFormClaim(null); }}
         />
       )}
 
@@ -460,14 +480,19 @@ const PaymentForm: React.FC<{
   officerData: OfficerManagementData;
   activeOfficers: OfficerManagementData['officers'];
   api: ApiClient;
+  initialClaim?: InitialClaim | null;
   onSaved: () => void;
   onCancel: () => void;
-}> = ({ masterData, officerData, activeOfficers, api, onSaved, onCancel }) => {
-  const [memberId, setMemberId] = useState('');
+}> = ({ masterData, officerData, activeOfficers, api, initialClaim, onSaved, onCancel }) => {
+  // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
+  const uid = React.useId();
+  const [memberId, setMemberId] = useState(initialClaim?.memberId || '');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const [paymentMethod, setPaymentMethod] = useState('振込');
   const [formNote, setFormNote] = useState('');
-  const [lines, setLines] = useState<LineItemDraft[]>([newLine()]);
+  const [lines, setLines] = useState<LineItemDraft[]>(() => initialClaim
+    ? [{ ...newLine(), claimId: initialClaim.claimId, typeCode: initialClaim.typeCode, amount: initialClaim.amount ? String(initialClaim.amount) : '', note: '請求 ' + initialClaim.claimId + ' の支払い' }]
+    : [newLine()]);
   const [errors, setErrors] = useState<FormErrors>({});
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -557,6 +582,7 @@ const PaymentForm: React.FC<{
           periodFrom: l.periodFrom || undefined,
           periodTo: l.periodTo || undefined,
           note: l.note || undefined,
+          claimId: l.claimId || undefined,
         })),
       });
       onSaved();
@@ -572,14 +598,20 @@ const PaymentForm: React.FC<{
   return (
     <div className="rounded-xl border border-primary-200 bg-primary-50/40 p-6 space-y-6">
       <h3 className="text-base font-semibold text-primary-800">新規支払い登録</h3>
+      {initialClaim && (
+        <p className="rounded-lg border border-primary-200 bg-white px-3 py-2 text-sm text-primary-800">
+          請求 {initialClaim.claimId} に対する支払いです。保存すると、この請求は「支払い済み」になります。
+        </p>
+      )}
 
       {/* 基本情報 */}
       <div className="grid gap-4 sm:grid-cols-3">
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700">
+          <label htmlFor={`${uid}-f4`} className="mb-1 block text-xs font-medium text-slate-700">
             受取人（役員）<span className="ml-0.5 text-red-500">*</span>
           </label>
           <select
+            id={`${uid}-f4`} aria-invalid={!!errors.memberId} aria-describedby={errors.memberId ? `${uid}-f4-err` : undefined}
             value={memberId}
             onChange={e => handleMemberChange(e.target.value)}
             className={fi(errors.memberId)}
@@ -589,35 +621,37 @@ const PaymentForm: React.FC<{
               <option key={o.会員ID} value={o.会員ID}>{o.表示名}（{o.会員ID}）</option>
             ))}
           </select>
-          {errors.memberId && <p className="mt-1 text-xs text-red-600" role="alert">{errors.memberId}</p>}
+          {errors.memberId && <p id={`${uid}-f4-err`} className="mt-1 text-xs text-red-600" role="alert">{errors.memberId}</p>}
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700">
+          <label htmlFor={`${uid}-f5`} className="mb-1 block text-xs font-medium text-slate-700">
             支払い日<span className="ml-0.5 text-red-500">*</span>
           </label>
           <input
+            id={`${uid}-f5`} aria-invalid={!!errors.paymentDate} aria-describedby={errors.paymentDate ? `${uid}-f5-err` : undefined}
             type="date"
             value={paymentDate}
             onChange={e => setPaymentDate(e.target.value)}
             max={todayStr}
             className={fi(errors.paymentDate)}
           />
-          {errors.paymentDate && <p className="mt-1 text-xs text-red-600" role="alert">{errors.paymentDate}</p>}
+          {errors.paymentDate && <p id={`${uid}-f5-err`} className="mt-1 text-xs text-red-600" role="alert">{errors.paymentDate}</p>}
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700">
+          <label htmlFor={`${uid}-f6`} className="mb-1 block text-xs font-medium text-slate-700">
             支払い方法<span className="ml-0.5 text-red-500">*</span>
           </label>
           <select
+            id={`${uid}-f6`} aria-invalid={!!errors.paymentMethod} aria-describedby={errors.paymentMethod ? `${uid}-f6-err` : undefined}
             value={paymentMethod}
             onChange={e => setPaymentMethod(e.target.value)}
             className={fi(errors.paymentMethod)}
           >
             {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
-          {errors.paymentMethod && <p className="mt-1 text-xs text-red-600" role="alert">{errors.paymentMethod}</p>}
+          {errors.paymentMethod && <p id={`${uid}-f6-err`} className="mt-1 text-xs text-red-600" role="alert">{errors.paymentMethod}</p>}
         </div>
       </div>
 
@@ -656,10 +690,11 @@ const PaymentForm: React.FC<{
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">
+                    <label htmlFor={`${uid}-line${idx}-f7`} className="mb-1 block text-xs font-medium text-slate-600">
                       種別<span className="ml-0.5 text-red-500">*</span>
                     </label>
                     <select
+                      id={`${uid}-line${idx}-f7`} aria-invalid={!!le?.typeCode} aria-describedby={le?.typeCode ? `${uid}-line${idx}-f7-err` : undefined}
                       value={line.typeCode}
                       onChange={e => updateLine(line._key, { typeCode: e.target.value })}
                       className={fi(le?.typeCode)}
@@ -667,14 +702,15 @@ const PaymentForm: React.FC<{
                       <option value="">-- 選択 --</option>
                       {activeTypes.map(t => <option key={t.種別コード} value={t.種別コード}>{t.種別名}</option>)}
                     </select>
-                    {le?.typeCode && <p className="mt-0.5 text-[11px] text-red-600" role="alert">{le.typeCode}</p>}
+                    {le?.typeCode && <p id={`${uid}-line${idx}-f7-err`} className="mt-0.5 text-[11px] text-red-600" role="alert">{le.typeCode}</p>}
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">
+                    <label htmlFor={`${uid}-line${idx}-f8`} className="mb-1 block text-xs font-medium text-slate-600">
                       金額（円）<span className="ml-0.5 text-red-500">*</span>
                     </label>
                     <input
+                      id={`${uid}-line${idx}-f8`} aria-invalid={!!le?.amount} aria-describedby={le?.amount ? `${uid}-line${idx}-f8-err` : undefined}
                       type="text"
                       inputMode="numeric"
                       value={line.amount}
@@ -682,12 +718,13 @@ const PaymentForm: React.FC<{
                       placeholder="例: 10000"
                       className={fi(le?.amount)}
                     />
-                    {le?.amount && <p className="mt-0.5 text-[11px] text-red-600" role="alert">{le.amount}</p>}
+                    {le?.amount && <p id={`${uid}-line${idx}-f8-err`} className="mt-0.5 text-[11px] text-red-600" role="alert">{le.amount}</p>}
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">役職</label>
+                    <label htmlFor={`${uid}-line${idx}-f9`} className="mb-1 block text-xs font-medium text-slate-600">役職</label>
                     <select
+                      id={`${uid}-line${idx}-f9`}
                       value={line.roleCode}
                       onChange={e => {
                         const role = activeRoles.find(r => r.役職コード === e.target.value);
@@ -709,8 +746,9 @@ const PaymentForm: React.FC<{
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">摘要</label>
+                    <label htmlFor={`${uid}-line${idx}-f10`} className="mb-1 block text-xs font-medium text-slate-600">摘要</label>
                     <input
+                      id={`${uid}-line${idx}-f10`}
                       type="text"
                       value={line.note}
                       onChange={e => updateLine(line._key, { note: e.target.value })}
@@ -721,8 +759,9 @@ const PaymentForm: React.FC<{
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">対象期間（開始）</label>
+                    <label htmlFor={`${uid}-line${idx}-f11`} className="mb-1 block text-xs font-medium text-slate-600">対象期間（開始）</label>
                     <input
+                      id={`${uid}-line${idx}-f11`}
                       type="date"
                       value={line.periodFrom}
                       onChange={e => updateLine(line._key, { periodFrom: e.target.value })}
@@ -731,8 +770,9 @@ const PaymentForm: React.FC<{
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">対象期間（終了）</label>
+                    <label htmlFor={`${uid}-line${idx}-f12`} className="mb-1 block text-xs font-medium text-slate-600">対象期間（終了）</label>
                     <input
+                      id={`${uid}-line${idx}-f12`}
                       type="date"
                       value={line.periodTo}
                       onChange={e => updateLine(line._key, { periodTo: e.target.value })}
@@ -754,8 +794,9 @@ const PaymentForm: React.FC<{
 
       {/* 備考 */}
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-700">備考</label>
+        <label htmlFor={`${uid}-f13`} className="mb-1 block text-xs font-medium text-slate-700">備考</label>
         <input
+          id={`${uid}-f13`}
           type="text"
           value={formNote}
           onChange={e => setFormNote(e.target.value)}

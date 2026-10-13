@@ -179,3 +179,18 @@ test('★管理者セッションから .email を読んでいない（loginId �
   }
   assert.deepEqual(bad, [], `存在しない項目を読んでいる: ${bad.join(', ')} — loginId を使うこと`);
 });
+
+// 2026-10-13: 上の検査は checkAdminBySession_ の戻り値を直接受けた変数しか見ておらず、
+// `effectiveAdminSession = adminSession || payload.__adminSession` のように受け直した変数をすり抜けた。
+// そのため会員状態・入会日・退会日の変更（saveMemberCore_）が監査ログに一度も残っていなかった（docs/304 H2）。
+// 変数名を問わず「〜Session.email」と、セッションを { email: ... } で組み立てる書き方を落とす。
+test('★セッションを受け直した変数でも .email を読まず、{ email: } で組み立てない', () => {
+  const bad = [];
+  for (const m of GAS.matchAll(/\b\w*[Ss]ession\.email\b/g)) {
+    bad.push(`${m[0]} (line ${GAS.slice(0, m.index).split('\n').length})`);
+  }
+  for (const m of GAS.matchAll(/\b\w*[Ss]ession\s*:\s*\{\s*email\s*:/g)) {
+    bad.push(`${m[0]} (line ${GAS.slice(0, m.index).split('\n').length})`);
+  }
+  assert.deepEqual(bad, [], `存在しない項目を使っている: ${bad.join(', ')} — loginId を使うこと`);
+});

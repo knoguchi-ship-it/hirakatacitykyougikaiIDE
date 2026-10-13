@@ -160,7 +160,7 @@ test('★退職を選んだら、サーバが必須にする項目をフロン�
 
 test('★不足があれば送信ボタンを押せない', () => {
   assert.ok(
-    publicForm.includes('disabled={busy || !hasAnyInput || retirementMissing.length > 0 || blankOnlyFields.length > 0}'),
+    publicForm.includes('disabled={busy || !hasAnyInput || retirementMissing.length > 0 || blankOnlyFields.length > 0 || pendingStaffCards.length > 0}'),
     '不足があっても送信できてしまう',
   );
 });
@@ -240,7 +240,7 @@ test('空白だけの入力は送信前に弾く', () => {
 
   // 3 重で止める（v376.108 と同じ考え方）。disabled 属性だけに頼らない。
   assert.ok(
-    publicForm.includes('disabled={busy || !hasAnyInput || retirementMissing.length > 0 || blankOnlyFields.length > 0}'),
+    publicForm.includes('disabled={busy || !hasAnyInput || retirementMissing.length > 0 || blankOnlyFields.length > 0 || pendingStaffCards.length > 0}'),
     '送信ボタンが無効化されていない',
   );
   const submit = publicForm.slice(publicForm.indexOf('const handleSubmit = async'), publicForm.indexOf('const doSubmit = async'));

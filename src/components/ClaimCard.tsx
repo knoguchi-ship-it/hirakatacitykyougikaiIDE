@@ -128,6 +128,8 @@ const AttachmentList: React.FC<{
 };
 
 const ClaimCard: React.FC<ClaimCardProps> = ({ activeRoles }) => {
+  // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
+  const uid = React.useId();
   const [masterData, setMasterData] = useState<OfficerMasterData | null>(null);
   const [claims, setClaims] = useState<ClaimRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -386,14 +388,15 @@ const ClaimCard: React.FC<ClaimCardProps> = ({ activeRoles }) => {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">活動日 <span className="text-red-500">*</span></label>
-              <input type="date" value={form.activityDate} onChange={e => setForm(f => ({ ...f, activityDate: e.target.value }))} max={todayStr} className={fi(formErrors.activityDate)} />
+              <label htmlFor={`${uid}-f1`} className="mb-1 block text-xs font-medium text-slate-700">活動日 <span className="text-red-500">*</span></label>
+              <input id={`${uid}-f1`} type="date" value={form.activityDate} onChange={e => setForm(f => ({ ...f, activityDate: e.target.value }))} max={todayStr} className={fi(formErrors.activityDate)} />
               {formErrors.activityDate && <p className="mt-0.5 text-xs text-red-600" role="alert">{formErrors.activityDate}</p>}
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">活動部 <span className="text-red-500">*</span></label>
+              <label htmlFor={`${uid}-f2`} className="mb-1 block text-xs font-medium text-slate-700">活動部 <span className="text-red-500">*</span></label>
               <select
+                id={`${uid}-f2`}
                 value={form.organizationCode}
                 onChange={e => setForm(f => ({ ...f, organizationCode: e.target.value, workCategoryCode: '' }))}
                 className={fi(formErrors.organizationCode)}
@@ -407,16 +410,17 @@ const ClaimCard: React.FC<ClaimCardProps> = ({ activeRoles }) => {
             {form.claimType === 'ACTIVITY_REPORT' ? (
               <>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-700">業務分類 <span className="text-red-500">*</span></label>
-                  <select value={form.workCategoryCode} onChange={e => setForm(f => ({ ...f, workCategoryCode: e.target.value }))} className={fi(formErrors.workCategoryCode)}>
+                  <label htmlFor={`${uid}-f3`} className="mb-1 block text-xs font-medium text-slate-700">業務分類 <span className="text-red-500">*</span></label>
+                  <select id={`${uid}-f3`} value={form.workCategoryCode} onChange={e => setForm(f => ({ ...f, workCategoryCode: e.target.value }))} className={fi(formErrors.workCategoryCode)}>
                     <option value="">-- 選択してください --</option>
                     {activeWorkCategories.map(c => <option key={c.業務分類コード} value={c.業務分類コード}>{c.業務分類名}</option>)}
                   </select>
                   {formErrors.workCategoryCode && <p className="mt-0.5 text-xs text-red-600" role="alert">{formErrors.workCategoryCode}</p>}
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-700">単価</label>
-                  <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800">
+                  {/* 単価は入力欄ではなく表示だけ。label にすると「結び付く欄」があるように見えるため見出し文字にする */}
+                  <p id={`${uid}-unit-price`} className="mb-1 block text-xs font-medium text-slate-700">単価</p>
+                  <div aria-labelledby={`${uid}-unit-price`} role="group" className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800">
                     ¥{Number(selectedCategory?.単価 || 0).toLocaleString('ja-JP')}
                   </div>
                   <p className="mt-1 text-xs text-slate-500">数量は1件固定です。</p>
@@ -425,24 +429,24 @@ const ClaimCard: React.FC<ClaimCardProps> = ({ activeRoles }) => {
             ) : (
               <>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-700">請求金額（円）<span className="text-red-500">*</span></label>
-                  <input type="text" inputMode="numeric" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value.replace(/[^\d]/g, '') }))} placeholder="例: 3000" className={fi(formErrors.amount)} />
+                  <label htmlFor={`${uid}-f4`} className="mb-1 block text-xs font-medium text-slate-700">請求金額（円）<span className="text-red-500">*</span></label>
+                  <input id={`${uid}-f4`} type="text" inputMode="numeric" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value.replace(/[^\d]/g, '') }))} placeholder="例: 3000" className={fi(formErrors.amount)} />
                   {formErrors.amount && <p className="mt-0.5 text-xs text-red-600" role="alert">{formErrors.amount}</p>}
                 </div>
                 <div className="sm:col-span-2">
-                  <label className="mb-1 block text-xs font-medium text-slate-700">請求内容 <span className="text-red-500">*</span></label>
-                  <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3} maxLength={200} placeholder="例: 会議資料印刷代、交通費など" className={`${fi(formErrors.description)} resize-none`} />
+                  <label htmlFor={`${uid}-f5`} className="mb-1 block text-xs font-medium text-slate-700">請求内容 <span className="text-red-500">*</span></label>
+                  <textarea id={`${uid}-f5`} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3} maxLength={200} placeholder="例: 会議資料印刷代、交通費など" className={`${fi(formErrors.description)} resize-none`} />
                   <p className="mt-0.5 text-right text-[11px] text-slate-400">{form.description.length}/200</p>
                   {formErrors.description && <p className="mt-0.5 text-xs text-red-600" role="alert">{formErrors.description}</p>}
                 </div>
-                <div className="sm:col-span-2">
-                  <label className="mb-1 block text-xs font-medium text-slate-700">添付ファイル（領収書等）<span className="text-red-500">*</span></label>
+                <div role="group" aria-labelledby={`${uid}-attach-label`} aria-describedby={`${uid}-attach-hint`} className="sm:col-span-2">
+                  <p id={`${uid}-attach-label`} className="mb-1 block text-xs font-medium text-slate-700">添付ファイル（領収書等）<span className="text-red-500">*</span></p>
                   <AttachmentList attachments={formAttachments} canRemove removing={removingFile} onRemove={handleRemoveFormFile} />
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploadingFile} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
                       {uploadingFile ? 'アップロード中…' : '＋ ファイルを追加'}
                     </button>
-                    <span className="text-xs text-slate-500">PDF / JPG / PNG / HEIC、10MB以内</span>
+                    <span id={`${uid}-attach-hint`} className="text-xs text-slate-500">PDF / JPG / PNG / HEIC、10MB以内</span>
                     <input ref={fileInputRef} type="file" accept={ALLOWED_EXTENSIONS} onChange={handleFileSelect} className="hidden" aria-label="添付ファイルを選択" />
                   </div>
                   {formErrors.attachments && <p className="mt-1 text-xs text-red-600" role="alert">{formErrors.attachments}</p>}

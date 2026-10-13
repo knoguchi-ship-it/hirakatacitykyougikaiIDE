@@ -341,7 +341,8 @@ test('BR-15 賛助会員の allowlist から CM番号が外れている（ログ
 
 test('BR-18 承認時の適用も allowlist を通る（申請に何が入っていても）', () => {
   const approve = gasSrc.slice(gasSrc.indexOf('function approveAdminChangeRequest_('));
-  const head = approve.slice(0, 4000);
+  // 2026-10-13: 関数の先頭に承認前の検査（上限・番号の重なり・代表者の除籍）を足したので、関数全体を見る
+  const head = approve.slice(0, approve.indexOf('\n}\n'));
   assert.match(head, /publicUpdateAllowlistFor_\(memberType\)/,
     '承認時に allowlist を引いていない');
   assert.match(head, /hasOwnProperty\.call\(fields, fk\)/,
@@ -412,7 +413,10 @@ test('BR-16 職員追加はサーバ側でも 6 項目を必須にする', () =>
 
 test('★職員数上限は個別が無ければ全体既定を使う', () => {
   // 以前は個別上限が空だと 0 扱いで、上限が一切効かなかった（RD §136 / §205）。
-  const fn = stripLineComments(extractLargeFunction('addApprovedStaffMember_'));
+  // 2026-10-13: 上限の算出は getBusinessStaffLimitInfo_ に集約（承認前の申請全体の確認と共用）。
+  const add = stripLineComments(extractLargeFunction('addApprovedStaffMember_'));
+  assert.ok(/getBusinessStaffLimitInfo_\(ss, memberId\)/.test(add), '職員追加が上限を確かめていない');
+  const fn = stripLineComments(extractLargeFunction('getBusinessStaffLimitInfo_'));
   assert.ok(/DEFAULT_BUSINESS_STAFF_LIMIT/.test(fn),
     '全体既定の上限を参照していない');
   assert.ok(/if \(!staffLimit\)/.test(fn),

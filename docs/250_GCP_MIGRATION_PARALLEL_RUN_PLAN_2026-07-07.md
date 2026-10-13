@@ -474,8 +474,7 @@ GCP API は GAS API を無理に永続化しない。ただし移行期は front
 | getPublicTrainings | **✅済（v376.58）** | portal-api allowlist・shadow 済 |
 | getPublicPortalSettings | **✅済（v376.58）** | 同上 |
 | verifyMemberIdentityForPublic | P4-write（公開） | 本人確認 token 発行。DoW ゲート §11-1 前提 |
-| getPublicAvailableStaffSlots | P3-shadow (public) | token 必須 read |
-| getPublicEnrolledStaffList | P3-shadow (public) | token 必須 read |
+| checkPublicStaffMatch | P3-shadow (public) | token 必須 read。一致したかどうかだけを返す（2026-10-13 新設。旧 getPublicAvailableStaffSlots / getPublicEnrolledStaffList は登録内容を返していたため廃止） |
 | submitPublicChangeRequest | P4-write（公開） | DoW ゲート前提 |
 | applyTrainingExternal | P4-write（公開） | DoW ゲート前提 |
 | cancelTrainingExternal | P4-write（公開） | DoW ゲート前提 |

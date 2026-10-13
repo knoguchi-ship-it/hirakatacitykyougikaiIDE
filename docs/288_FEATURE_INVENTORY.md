@@ -31,7 +31,7 @@
 
 > この節は `npm run generate:inventory` の生成物。**手で編集しない。**
 > 出典: 許可リスト `scripts/gas-boundary-utils.mjs` ＋ dispatcher `gas-src/Code.full.gs`。
-> action 合計 **147** 件（公開 12 / 会員 19 / 管理 119、重複含む）。
+> action 合計 **146** 件（公開 11 / 会員 19 / 管理 119、重複含む）。
 
 ### 入会・申込受付
 
@@ -74,8 +74,7 @@
 |---|:--:|:--:|:--:|---|
 | `updateStaff` |  |  | ● | `updateStaff_`<br>`notifyMembershipChatForMember_` |
 | `removeStaffFromOffice` |  |  | ● | `removeStaffFromOffice_`<br>`notifyMembershipChatForMember_` |
-| `getPublicAvailableStaffSlots` | ● |  |  | `getPublicAvailableStaffSlots_` |
-| `getPublicEnrolledStaffList` | ● |  |  | `getPublicEnrolledStaffList_` |
+| `checkPublicStaffMatch` | ● |  |  | `checkPublicStaffMatch_` |
 | `repairDuplicateStaffRecords` |  |  | ● | `repairDuplicateStaffRecords_` |
 
 ### 認証・パスワード

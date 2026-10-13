@@ -240,6 +240,8 @@ const Pagination: React.FC<{
 );
 
 const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpenMember, adminPermissionLevel }) => {
+  // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
+  const uid = React.useId();
   const [data, setData] = useState<AnnualFeeAdminData>(createEmptyData);
   const [loading, setLoading] = useState(true);
   const [batchSaving, setBatchSaving] = useState(false);
@@ -653,8 +655,9 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
           <div className="flex flex-wrap gap-3 items-end">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">対象年度</label>
+              <label htmlFor={`${uid}-f1`} className="block text-sm font-medium text-slate-700 mb-1">対象年度</label>
               <select
+                id={`${uid}-f1`}
                 className="border border-slate-300 rounded px-3 py-2 bg-white"
                 value={selectedYear}
                 onChange={(e) => requestYearChange(Number(e.target.value))}
@@ -665,8 +668,9 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">納入状況</label>
+              <label htmlFor={`${uid}-f2`} className="block text-sm font-medium text-slate-700 mb-1">納入状況</label>
               <select
+                id={`${uid}-f2`}
                 className="border border-slate-300 rounded px-3 py-2 bg-white"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
@@ -677,8 +681,9 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">会員種別</label>
+              <label htmlFor={`${uid}-f3`} className="block text-sm font-medium text-slate-700 mb-1">会員種別</label>
               <select
+                id={`${uid}-f3`}
                 className="border border-slate-300 rounded px-3 py-2 bg-white"
                 value={memberTypeFilter}
                 onChange={(e) => setMemberTypeFilter(e.target.value as MemberTypeFilter)}
@@ -690,8 +695,9 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
               </select>
             </div>
             <div className="flex-1 min-w-[220px]">
-              <label className="block text-sm font-medium text-slate-700 mb-1">会員検索</label>
+              <label htmlFor={`${uid}-f4`} className="block text-sm font-medium text-slate-700 mb-1">会員検索</label>
               <input
+                id={`${uid}-f4`}
                 className="w-full border border-slate-300 rounded px-3 py-2"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -699,8 +705,9 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">表示件数</label>
+              <label htmlFor={`${uid}-f5`} className="block text-sm font-medium text-slate-700 mb-1">表示件数</label>
               <select
+                id={`${uid}-f5`}
                 className="border border-slate-300 rounded px-3 py-2 bg-white"
                 value={pageSize}
                 onChange={(e) => setPageSize(Number(e.target.value))}
@@ -906,9 +913,12 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
                           </span>
                         </td>
                         <td className="px-3 py-2.5 text-sm align-top">
+                          {/* 表の見出し（列の th）は欄と結び付かないため、行ごとに誰の何の欄かを名前で持たせる */}
                           <select
                             className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-sm"
                             value={draft.status}
+                            aria-label={`${record.displayName} の納入状況`}
+                            aria-describedby={draft.status === WITHDRAW_ACTION ? `${uid}-${key}-withdraw-note` : undefined}
                             disabled={isBusy}
                             onChange={(e) => {
                               const newStatus = e.target.value as AnnualFeeDraftStatus;
@@ -929,7 +939,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
                             <option value={WITHDRAW_ACTION}>前年度末退会</option>
                           </select>
                           {draft.status === WITHDRAW_ACTION && (
-                            <p className="mt-1 text-xs text-rose-700">
+                            <p id={`${uid}-${key}-withdraw-note`} className="mt-1 text-xs text-rose-700">
                               保存時に会員を前年度末退会として処理し、この年度の年会費対象外にします。
                             </p>
                           )}
@@ -942,6 +952,9 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
                                 dateErrors[key] ? 'border-red-400 bg-red-50' : 'border-slate-300'
                               }`}
                               value={rawDateTexts[key] !== undefined ? rawDateTexts[key] : toSlashDate(draft.confirmedDate)}
+                              aria-label={`${record.displayName} の入金日`}
+                              aria-invalid={!!dateErrors[key]}
+                              aria-describedby={dateErrors[key] ? `${uid}-${key}-date-err` : undefined}
                               disabled={draft.status !== PaymentStatus.PAID || isBusy}
                               placeholder="YYYY/MM/DD"
                               onChange={(e) => {
@@ -1004,6 +1017,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
                                 tabIndex={-1}
                                 value={draft.confirmedDate}
                                 title="カレンダーから選択"
+                                aria-label={`${record.displayName} の入金日をカレンダーから選択`}
                                 onChange={(e) => {
                                   setDateErrors((prev) => {
                                     const next = { ...prev };
@@ -1020,7 +1034,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
                               />
                             </div>
                           </div>
-                          {dateErrors[key] && <p className="text-xs text-red-500 mt-0.5">{dateErrors[key]}</p>}
+                          {dateErrors[key] && <p id={`${uid}-${key}-date-err`} className="text-xs text-red-500 mt-0.5">{dateErrors[key]}</p>}
                         </td>
                         <td className="px-3 py-2.5 text-sm text-slate-700 align-top tabular-nums">{formatCurrency(record.amount)}</td>
                         <td className="px-3 py-2.5 text-sm align-top">
@@ -1031,6 +1045,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
                             disabled={isBusy}
                             onChange={(e) => updateDraft(record, { note: e.target.value })}
                             placeholder="確認メモ"
+                            aria-label={`${record.displayName} の確認メモ`}
                           />
                         </td>
                       </tr>

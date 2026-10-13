@@ -555,7 +555,7 @@ export interface Member {
   id: string; // 8-digit registration number
   loginId?: string;
   careManagerNumber?: string;
-  staffLimit?: number;
+  staffLimit?: number | null; // null = 個別上限を解除して全体の既定を使う（送信時に消えないよう undefined にしない）
   
   // Name Split (For Individual: The Person / For Business: The Representative)
   lastName: string;

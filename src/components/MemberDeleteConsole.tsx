@@ -28,6 +28,12 @@ const TABLE_LABEL: Record<string, string> = {
   'T_年会費納入履歴': '年会費納入履歴',
   'T_年会費更新履歴': '年会費更新履歴',
   'T_研修申込': '研修申込',
+  'T_役員': '役員',
+  'T_振込口座': '振込口座',
+  'T_支払い': '支払い',
+  'T_支払い明細': '支払い明細',
+  'T_請求': '請求',
+  'T_変更申請': '変更申請',
 };
 
 const UPDATED_TABLE_ORDER = [
@@ -36,11 +42,18 @@ const UPDATED_TABLE_ORDER = [
   'T_認証アカウント',
   'T_管理者Googleホワイトリスト',
 ];
+// 2026-10-13: 役員・口座・支払い・請求・変更申請を追加（削除の実行時に一緒にアーカイブへ移るのに、出ていなかった）
 const RETAINED_TABLE_ORDER = [
   'T_ログイン履歴',
   'T_年会費納入履歴',
   'T_年会費更新履歴',
   'T_研修申込',
+  'T_役員',
+  'T_振込口座',
+  'T_支払い',
+  'T_支払い明細',
+  'T_請求',
+  'T_変更申請',
 ];
 
 const renderTargetMeta = (target: MemberDeleteSearchResult | MemberDeletePreview['targets'][number]) => {
@@ -58,6 +71,8 @@ const renderTargetMeta = (target: MemberDeleteSearchResult | MemberDeletePreview
 };
 
 const MemberDeleteConsole: React.FC = () => {
+  // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
+  const uid = React.useId();
   const [step, setStep] = useState<Step>('search');
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<MemberDeleteSearchResult[]>([]);
@@ -240,7 +255,7 @@ const MemberDeleteConsole: React.FC = () => {
         <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm">
           <div className="space-y-1">
             <h3 className="font-semibold text-slate-900">手順1: 削除対象を検索</h3>
-            <p className="text-xs text-slate-500">
+            <p id={`${uid}-search-hint`} className="text-xs text-slate-500">
               会員ID、職員ID、氏名、事業所名、ログインID、メールアドレス、事業所番号で部分一致検索します。
             </p>
           </div>
@@ -249,6 +264,8 @@ const MemberDeleteConsole: React.FC = () => {
             <input
               type="text"
               className="flex-1 border border-slate-300 rounded-xl px-4 py-2.5 text-sm"
+              aria-label="削除する会員・職員を検索"
+              aria-describedby={`${uid}-search-hint`}
               placeholder="例: 2770100001 / 山田 / ひらかた / demo-ind-001"
               value={query}
               onChange={e => setQuery(e.target.value)}
@@ -409,6 +426,14 @@ const MemberDeleteConsole: React.FC = () => {
               </table>
             </div>
 
+            {((preview.unpaidClaimCount || 0) > 0 || (preview.pendingChangeRequestCount || 0) > 0) && (
+              <div role="alert" className="rounded-2xl border border-red-300 bg-red-50 p-4 text-sm text-red-800 space-y-1">
+                <p className="font-semibold">処理中のものが一緒に移されます</p>
+                {(preview.unpaidClaimCount || 0) > 0 && <p>まだ支払っていない請求（申請中・承認済み）が {preview.unpaidClaimCount} 件あります。</p>}
+                {(preview.pendingChangeRequestCount || 0) > 0 && <p>未処理の変更申請が {preview.pendingChangeRequestCount} 件あります。</p>}
+                <p>先に処理してから削除することをお勧めします。</p>
+              </div>
+            )}
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
               <h4 className="font-semibold text-slate-900">関連履歴（アーカイブへ移動 / ログイン履歴は削除）</h4>
               <table className="w-full text-sm">
@@ -467,10 +492,11 @@ const MemberDeleteConsole: React.FC = () => {
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">
+            <label htmlFor={`${uid}-f1`} className="block text-sm font-medium text-slate-700">
               実行するには <code className="bg-red-100 text-red-800 px-1.5 py-0.5 rounded">論理削除</code> と入力してください。
             </label>
             <input
+              id={`${uid}-f1`}
               type="text"
               className="w-full border border-red-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
               placeholder="論理削除"

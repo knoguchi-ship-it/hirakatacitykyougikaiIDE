@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { useRevealOnChange } from '../../shared/useRevealOnChange';
 import { PublicTraining, ExternalApplyPayload } from '../../shared/types';
 import { callApi } from '../../shared/api-base';
 
@@ -10,6 +11,8 @@ interface Props {
   privacyPolicyUrl?: string;
 }
 
+const CONSENT_ERROR = '個人情報の取り扱いへの同意が必要です。';
+
 const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel, privacyPolicyUrl }) => {
   const [name, setName] = useState('');
   const [furigana, setFurigana] = useState('');
@@ -20,11 +23,16 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel, pri
   const [honeypot, setHoneypot] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // ラベルと入力欄を結び付ける id（見えているだけでは支援技術に名前が伝わらない）
+  const uid = React.useId();
+  // エラーはフォームの上に出るが「申込する」は下にあるため、出たら見える位置へ移す
+  const errorRef = useRef<HTMLDivElement>(null);
+  useRevealOnChange(error, errorRef);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!consent) {
-      setError('個人情報の取り扱いへの同意が必要です。');
+      setError(CONSENT_ERROR);
       return;
     }
     setBusy(true);
@@ -70,7 +78,7 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel, pri
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded p-3 mb-4 text-sm text-red-700">
+        <div ref={errorRef} id={`${uid}-error`} tabIndex={-1} role="alert" className="bg-red-50 border border-red-200 rounded p-3 mb-4 text-sm text-red-700 focus:outline-none">
           {error}
         </div>
       )}
@@ -89,10 +97,11 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel, pri
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor={`${uid}-name`} className="block text-sm font-medium text-gray-700 mb-1">
             氏名 <span className="text-red-500">*</span>
           </label>
           <input
+            id={`${uid}-name`}
             type="text"
             required
             maxLength={100}
@@ -104,10 +113,11 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel, pri
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor={`${uid}-furigana`} className="block text-sm font-medium text-gray-700 mb-1">
             フリガナ
           </label>
           <input
+            id={`${uid}-furigana`}
             type="text"
             maxLength={100}
             value={furigana}
@@ -118,10 +128,11 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel, pri
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor={`${uid}-email`} className="block text-sm font-medium text-gray-700 mb-1">
             メールアドレス <span className="text-red-500">*</span>
           </label>
           <input
+            id={`${uid}-email`}
             type="email"
             required
             maxLength={254}
@@ -133,10 +144,11 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel, pri
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor={`${uid}-phone`} className="block text-sm font-medium text-gray-700 mb-1">
             電話番号 <span className="text-red-500">*</span>
           </label>
           <input
+            id={`${uid}-phone`}
             type="tel"
             required
             maxLength={20}
@@ -148,10 +160,11 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel, pri
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor={`${uid}-officeName`} className="block text-sm font-medium text-gray-700 mb-1">
             事業所名
           </label>
           <input
+            id={`${uid}-officeName`}
             type="text"
             maxLength={100}
             value={officeName}
@@ -168,6 +181,8 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel, pri
               required
               checked={consent}
               onChange={(e) => setConsent(e.target.checked)}
+              aria-invalid={error === CONSENT_ERROR}
+              aria-describedby={error === CONSENT_ERROR ? `${uid}-error` : undefined}
               className="mt-0.5"
             />
             <span className="text-sm text-gray-700">

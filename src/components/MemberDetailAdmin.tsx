@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useRevealOnChange } from '../shared/useRevealOnChange';
 import { EMAIL_PATTERN, CARE_MANAGER_NO_PATTERN, CARE_MANAGER_NO_RELAXED_PATTERN, POSTAL_CODE_PATTERN, PHONE_PATTERN } from '../shared/validators';
 import { AnnualFeeRecord, Member, MemberType, PaymentStatus, Staff, StaffRole, AdminDashboardMemberRow, ConvertMemberTypePayload } from '../types';
 import { api } from '../services/api';
 import PostalCodeInput from './PostalCodeInput';
 import { matchesSearchQuery } from '../utils/search';
-import { normalizeKana } from '../utils/kanaNormalize';
+import { isValidFullwidthKatakana, normalizeKana } from '../utils/kanaNormalize';
 
 type EditableStaff = Staff & { isNew?: boolean };
 type EditableMemberForm = Record<string, any> & { staff?: EditableStaff[] };
@@ -54,7 +55,6 @@ const EDITABLE_MEMBER_FIELDS = [
   'statusNote',
 ] as const;
 
-const HALF_WIDTH_KANA_RE = /^[ｦ-ﾟ\s]+$/u;
 // v372.4: admin 例外運用 — 厳格 (8 桁半角数字) または 緩和 (1〜10 桁半角英数字) を許容
 // v376.67 DRY 是正: 検証パターンは src/shared/validators.ts が単一情報源
 const CARE_MANAGER_RE = CARE_MANAGER_NO_PATTERN;
@@ -94,7 +94,10 @@ const toHalfWidthKana_DEPRECATED_v376 = (value: string): string => {
 };
 // v372.4: admin 例外運用 — 半角英数字を許容 (10 桁まで切詰、大文字化)
 const normalizeCareManagerInput = (value: string) => value.replace(/[^A-Za-z0-9]/g, '').slice(0, 10).toUpperCase();
-const validateHalfWidthKana = (value: string) => !value.trim() || HALF_WIDTH_KANA_RE.test(value.trim());
+// 2026-10-13: カナは保存時に全角カタカナへ正規化する（normalizeKana）。以前は正規化した後で
+// 「半角ｶﾅのみ」を検査しており、この画面から職員を新規追加できなかった。
+// 半角カナ・ひらがな・全角カナのどれで入れても、正規化後に全角カタカナになれば通す（他の画面と同じ規則）。
+const validateKanaInput = (value: string) => !value.trim() || isValidFullwidthKatakana(normalizeKana(value));
 // v372.4: admin 画面は厳格 (8 桁数字) または緩和 (1〜10 桁英数字) のどちらかを許容
 const validateCareManagerNumber = (value: string) => {
   const s = value.trim();
@@ -252,6 +255,8 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     );
   }
 
+  // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
+  const uid = React.useId();
   const [form, setForm] = useState<EditableMemberForm>({ ...(member as EditableMemberForm) });
   const [initialSnapshot, setInitialSnapshot] = useState(() => normalizeEditableMember(member as EditableMemberForm));
   const [annualFeeDrafts, setAnnualFeeDrafts] = useState<AnnualFeeEditDraft[]>(() => normalizeAnnualFeeDrafts(member.annualFeeHistory || []));
@@ -260,6 +265,13 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
   const [annualFeeErrors, setAnnualFeeErrors] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // エラー枠は画面上部、保存ボタンは約 700 行下にある。下で押して失敗すると何も起きないように見えるため、
+  // エラーが出るたびに枠を見える位置へ移す（同じ文言が続けて出ても反応するよう連番で知らせる）。
+  // 項目単位の誤り（focusField でその欄へ移すもの）は欄の方へ移すので、こちらは使わない。
+  const errorBannerRef = useRef<HTMLDivElement>(null);
+  const [errorRevealSeq, setErrorRevealSeq] = useState(0);
+  useRevealOnChange(errorRevealSeq, errorBannerRef);
+  const showError = (message: string) => { setError(message); setErrorRevealSeq((n) => n + 1); };
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   // v376.55/56: パスワード管理 — 認証アカウント一覧（発行済/未発行）/ 発行・リセット結果モーダル
@@ -393,8 +405,8 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     if (isIndividualLike && individualRequiredFields[key] && !value.trim()) {
       return `${individualRequiredFields[key]}は必須です。`;
     }
-    if ((key === 'lastKana' || key === 'firstKana') && value.trim() && !validateHalfWidthKana(value)) {
-      return `${fieldLabels[key]}は半角ｶﾅで入力してください。`;
+    if ((key === 'lastKana' || key === 'firstKana') && value.trim() && !validateKanaInput(value)) {
+      return `${fieldLabels[key]}はカタカナ（全角・半角・ひらがな可）で入力してください。`;
     }
     if (key === 'email' && value.trim() && !validateEmail(value)) {
       return 'メールアドレスの形式が不正です。';
@@ -479,9 +491,9 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     if (!lastName) errors.lastName = '氏は必須です。';
     if (!firstName) errors.firstName = '名は必須です。';
     if (!lastKana) errors.lastKana = 'セイは必須です。';
-    else if (!validateHalfWidthKana(lastKana)) errors.lastKana = 'セイは半角ｶﾅで入力してください。';
+    else if (!validateKanaInput(lastKana)) errors.lastKana = 'セイはカタカナ（全角・半角・ひらがな可）で入力してください。';
     if (!firstKana) errors.firstKana = 'メイは必須です。';
-    else if (!validateHalfWidthKana(firstKana)) errors.firstKana = 'メイは半角ｶﾅで入力してください。';
+    else if (!validateKanaInput(firstKana)) errors.firstKana = 'メイはカタカナ（全角・半角・ひらがな可）で入力してください。';
     if (!email) {
       errors.email = 'メールアドレスは必須です。';
     } else if (!validateEmail(email)) {
@@ -580,7 +592,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     const nextDraftStaffErrors = collectDraftStaffErrors(normalizedStaff);
     setDraftStaffErrors(nextDraftStaffErrors);
     if (Object.keys(nextDraftStaffErrors).length > 0) {
-      setError(getFirstDraftStaffErrorMessage(normalizedStaff));
+      showError(getFirstDraftStaffErrorMessage(normalizedStaff));
       return;
     }
     const nextErrors = validateAllRequired(convertedForm);
@@ -596,44 +608,44 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
         const s = draftStaff[i];
         if (isBlankDraftStaff(s)) continue;
         if (!String(s.lastName || '').trim()) {
-          setError(`職員 ${i + 1} 行目の氏が未入力です。`);
+          showError(`職員 ${i + 1} 行目の氏が未入力です。`);
           return;
         }
         if (!String(s.firstName || '').trim()) {
-          setError(`職員 ${i + 1} 行目の名が未入力です。`);
+          showError(`職員 ${i + 1} 行目の名が未入力です。`);
           return;
         }
         if (!String(s.lastKana || '').trim()) {
-          setError(`職員 ${i + 1} 行目のセイが未入力です。`);
+          showError(`職員 ${i + 1} 行目のセイが未入力です。`);
           return;
         }
-        if (!validateHalfWidthKana(String(s.lastKana || '').trim())) {
-          setError(`職員 ${i + 1} 行目のセイは半角ｶﾅで入力してください。`);
+        if (!validateKanaInput(String(s.lastKana || '').trim())) {
+          showError(`職員 ${i + 1} 行目のセイはカタカナ（全角・半角・ひらがな可）で入力してください。`);
           return;
         }
         if (!String(s.firstKana || '').trim()) {
-          setError(`職員 ${i + 1} 行目のメイが未入力です。`);
+          showError(`職員 ${i + 1} 行目のメイが未入力です。`);
           return;
         }
-        if (!validateHalfWidthKana(String(s.firstKana || '').trim())) {
-          setError(`職員 ${i + 1} 行目のメイは半角ｶﾅで入力してください。`);
+        if (!validateKanaInput(String(s.firstKana || '').trim())) {
+          showError(`職員 ${i + 1} 行目のメイはカタカナ（全角・半角・ひらがな可）で入力してください。`);
           return;
         }
         const email = String(s.email || '').trim();
         if (!email) {
-          setError(`職員 ${i + 1} 行目のメールアドレスが未入力です。`);
+          showError(`職員 ${i + 1} 行目のメールアドレスが未入力です。`);
           return;
         }
         if (!validateEmail(email)) {
-          setError(`職員 ${i + 1} 行目のメールアドレスの形式が不正です。`);
+          showError(`職員 ${i + 1} 行目のメールアドレスの形式が不正です。`);
           return;
         }
         if (!String(s.careManagerNumber || '').trim()) {
-          setError(`職員 ${i + 1} 番目の介護支援専門員番号が未入力です。`);
+          showError(`職員 ${i + 1} 番目の介護支援専門員番号が未入力です。`);
           return;
         }
         if (!validateCareManagerNumber(String(s.careManagerNumber || ''))) {
-          setError(`職員 ${i + 1} 番目の介護支援専門員番号は 8 桁の半角数字、または例外として 1〜10 桁の半角英数字で入力してください。`);
+          showError(`職員 ${i + 1} 番目の介護支援専門員番号は 8 桁の半角数字、または例外として 1〜10 桁の半角英数字で入力してください。`);
           return;
         }
       }
@@ -644,7 +656,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     const payload: EditableMemberForm = { ...nextForm };
     const statusNote = String(payload.statusNote || '');
     if (statusNote.length > STATUS_NOTE_MAX_LENGTH) {
-      setError(`ステータスメモは ${STATUS_NOTE_MAX_LENGTH} 文字以内で入力してください。`);
+      showError(`ステータスメモは ${STATUS_NOTE_MAX_LENGTH} 文字以内で入力してください。`);
       return;
     }
     if (isBusiness) {
@@ -664,7 +676,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       setSuccessMsg('会員情報を更新しました。');
       onSaved(nextForm);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '保存に失敗しました。');
+      showError(e instanceof Error ? e.message : '保存に失敗しました。');
     } finally {
       setSaving(false);
     }
@@ -757,7 +769,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       const accounts = await api.getMemberAuthAccounts(String(form.id));
       setAuthAccounts(accounts);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '認証アカウントの取得に失敗しました。');
+      showError(e instanceof Error ? e.message : '認証アカウントの取得に失敗しました。');
     } finally {
       setAuthAccountsLoading(false);
     }
@@ -773,7 +785,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       // 一覧のロック状態表示を更新（再取得）
       await handleLoadAuthAccounts();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'パスワードリセットに失敗しました。');
+      showError(e instanceof Error ? e.message : 'パスワードリセットに失敗しました。');
     } finally {
       setActionLoading(null);
     }
@@ -790,7 +802,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       await api.adminUnlockMemberAccount(authId);
       await handleLoadAuthAccounts();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'ロックの解除に失敗しました。');
+      showError(e instanceof Error ? e.message : 'ロックの解除に失敗しました。');
     } finally {
       setActionLoading(null);
     }
@@ -806,7 +818,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       setResetResult({ loginId: res.loginId, newPassword: res.newPassword, issued: true });
       await handleLoadAuthAccounts();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '認証アカウントの発行に失敗しました。');
+      showError(e instanceof Error ? e.message : '認証アカウントの発行に失敗しました。');
     } finally {
       setActionLoading(null);
     }
@@ -823,7 +835,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       onSaved();
       onBack();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '退会処理に失敗しました。');
+      showError(e instanceof Error ? e.message : '退会処理に失敗しました。');
     } finally {
       setActionLoading(null);
     }
@@ -851,7 +863,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       onSaved();
       onBack();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '退会予約に失敗しました。');
+      showError(e instanceof Error ? e.message : '退会予約に失敗しました。');
     } finally {
       setActionLoading(null);
     }
@@ -868,7 +880,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       onSaved();
       onBack();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '退会キャンセルに失敗しました。');
+      showError(e instanceof Error ? e.message : '退会キャンセルに失敗しました。');
     } finally {
       setActionLoading(null);
     }
@@ -885,7 +897,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       onSaved();
       onBack();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '除籍処理に失敗しました。');
+      showError(e instanceof Error ? e.message : '除籍処理に失敗しました。');
     } finally {
       setActionLoading(null);
     }
@@ -893,7 +905,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
 
   // ── 個人→事業所メンバー転籍（個人会員ページから） ──
   const handleConvertToStaff = async () => {
-    if (!convertTargetOfficeId) { setError('転籍先の事業所を選択してください。'); return; }
+    if (!convertTargetOfficeId) { showError('転籍先の事業所を選択してください。'); return; }
     // 賛助会員で介護支援専門員番号がない場合は入力必須
     if (isSupport && !String(form.careManagerNumber || '').trim()) {
       const cm = String(convertCareManagerNumber || '').trim();
@@ -921,7 +933,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       onSaved();
       onBack();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '転籍処理に失敗しました。');
+      showError(e instanceof Error ? e.message : '転籍処理に失敗しました。');
     } finally {
       setActionLoading(null);
     }
@@ -929,7 +941,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
 
   // ── 既存個人会員を転籍（事業所会員ページから） ──
   const handleConvertFromIndividualToThisOffice = async () => {
-    if (!convertFromIndividualId) { setError('転籍する会員を選択してください。'); return; }
+    if (!convertFromIndividualId) { showError('転籍する会員を選択してください。'); return; }
     const srcMember = individualMembers?.find(m => m.memberId === convertFromIndividualId);
     const isSelectedSupport = srcMember?.memberType === MemberType.SUPPORT;
     if (isSelectedSupport) {
@@ -958,7 +970,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       onSaved();
       onBack();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '転籍処理に失敗しました。');
+      showError(e instanceof Error ? e.message : '転籍処理に失敗しました。');
     } finally {
       setActionLoading(null);
     }
@@ -974,7 +986,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     const isLastEnrolled = isRep && otherEnrolled.length === 0;
 
     if (isRep && !isLastEnrolled && !convertNewRepStaffId) {
-      setError('代表者を転換する場合は後任代表者を選択してください。');
+      showError('代表者を転換する場合は後任代表者を選択してください。');
       return;
     }
     const confirmMsg = isLastEnrolled
@@ -997,7 +1009,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       onSaved();
       onBack();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '転換処理に失敗しました。');
+      showError(e instanceof Error ? e.message : '転換処理に失敗しました。');
     } finally {
       setActionLoading(null);
     }
@@ -1064,7 +1076,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       setInitialSnapshot(normalizeEditableMember(nextForm));
       onSaved({ ...(nextForm as Member), staff: sanitizeStaffList((nextForm.staff as EditableStaff[]) || []) });
     } catch (e) {
-      setError(e instanceof Error ? e.message : `${staff.name}の更新に失敗しました。`);
+      showError(e instanceof Error ? e.message : `${staff.name}の更新に失敗しました。`);
     } finally {
       setInlineSaving(prev => ({ ...prev, [saveKey]: false }));
     }
@@ -1150,7 +1162,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
           <button onClick={() => onDismissStaffSaveToast?.()} className="text-green-500 hover:text-green-700 ml-4" aria-label="閉じる">&times;</button>
         </div>
       )}
-      {error && <div className="bg-red-50 border border-red-200 rounded p-3 text-sm text-red-700">{error}</div>}
+      {error && <div ref={errorBannerRef} tabIndex={-1} role="alert" className="bg-red-50 border border-red-200 rounded p-3 text-sm text-red-700 focus:outline-none">{error}</div>}
       {errorSummaryEntries.length > 0 && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4" role="alert" aria-live="polite">
           <p className="text-sm font-semibold text-red-700">修正が必要な項目があります。</p>
@@ -1185,8 +1197,8 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
         <h3 className="text-lg font-bold text-slate-800 mb-4">基本情報</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className={labelClass}>会員種別</label>
-            <select className={fieldClass()} value={form.type || 'INDIVIDUAL'} disabled>
+            <label htmlFor={`${uid}-f1`} className={labelClass}>会員種別</label>
+            <select id={`${uid}-f1`} className={fieldClass()} value={form.type || 'INDIVIDUAL'} disabled>
               <option value="INDIVIDUAL">個人会員</option>
               <option value="BUSINESS">事業所会員</option>
               <option value="SUPPORT">賛助会員</option>
@@ -1196,15 +1208,15 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
           {!isBusiness && (
             <>
               <div>
-                <label className={labelClass}>姓</label>
-                <input className={fieldClass()} value={form.lastName || ''} onChange={e => set('lastName', e.target.value)} />
+                <label htmlFor={`${uid}-f2`} className={labelClass}>姓</label>
+                <input id={`${uid}-f2`} className={fieldClass()} value={form.lastName || ''} onChange={e => set('lastName', e.target.value)} />
               </div>
               <div>
-                <label className={labelClass}>名</label>
-                <input className={fieldClass()} value={form.firstName || ''} onChange={e => set('firstName', e.target.value)} />
+                <label htmlFor={`${uid}-f3`} className={labelClass}>名</label>
+                <input id={`${uid}-f3`} className={fieldClass()} value={form.firstName || ''} onChange={e => set('firstName', e.target.value)} />
               </div>
               <div>
-                <label className={labelClass}>セイ</label>
+                <label htmlFor={getFieldAnchorId('lastKana')} className={labelClass}>セイ</label>
                 <input
                   id={getFieldAnchorId('lastKana')}
                   className={fieldClass('lastKana')}
@@ -1218,7 +1230,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                 <FieldError fieldKey="lastKana" />
               </div>
               <div>
-                <label className={labelClass}>メイ</label>
+                <label htmlFor={getFieldAnchorId('firstKana')} className={labelClass}>メイ</label>
                 <input
                   id={getFieldAnchorId('firstKana')}
                   className={fieldClass('firstKana')}
@@ -1232,7 +1244,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                 <FieldError fieldKey="firstKana" />
               </div>
               <div>
-                <label className={labelClass}>介護支援専門員番号{!isSupport && <span aria-hidden="true" className="text-red-500 ml-0.5">*</span>}</label>
+                <label htmlFor={getFieldAnchorId('careManagerNumber')} className={labelClass}>介護支援専門員番号{!isSupport && <span aria-hidden="true" className="text-red-500 ml-0.5">*</span>}</label>
                 <input
                   id={getFieldAnchorId('careManagerNumber')}
                   className={fieldClass('careManagerNumber')}
@@ -1266,7 +1278,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="md:col-span-2">
-            <label className={labelClass}>事業所名{isRequired('officeName') && <RequiredMark />}</label>
+            <label htmlFor={getFieldAnchorId('officeName')} className={labelClass}>事業所名{isRequired('officeName') && <RequiredMark />}</label>
             <input
               id={getFieldAnchorId('officeName')}
               className={fieldClass('officeName')}
@@ -1281,8 +1293,9 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
           </div>
           {isBusiness && (
             <div>
-              <label className={labelClass}>事業所番号{isRequired('officeNumber') && <RequiredMark />}</label>
+              <label htmlFor={`${uid}-f8`} className={labelClass}>事業所番号{isRequired('officeNumber') && <RequiredMark />}</label>
               <input
+                id={`${uid}-f8`}
                 className={fieldClass('officeNumber')}
                 value={form.officeNumber || ''}
                 onChange={e => set('officeNumber', e.target.value)}
@@ -1295,7 +1308,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
             </div>
           )}
           <div>
-            <label className={labelClass}>郵便番号{isRequired('officePostCode') && <RequiredMark />}</label>
+            <label htmlFor={getFieldAnchorId('officePostCode')} className={labelClass}>郵便番号{isRequired('officePostCode') && <RequiredMark />}</label>
             <PostalCodeInput
               id={getFieldAnchorId('officePostCode')}
               value={form.officePostCode || ''}
@@ -1309,8 +1322,9 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
             <FieldError fieldKey="officePostCode" />
           </div>
           <div>
-            <label className={labelClass}>都道府県{isRequired('officePrefecture') && <RequiredMark />}</label>
+            <label htmlFor={`${uid}-f9`} className={labelClass}>都道府県{isRequired('officePrefecture') && <RequiredMark />}</label>
             <input
+              id={`${uid}-f9`}
               className={fieldClass('officePrefecture')}
               value={form.officePrefecture || ''}
               onChange={e => set('officePrefecture', e.target.value)}
@@ -1322,8 +1336,9 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
             <FieldError fieldKey="officePrefecture" />
           </div>
           <div>
-            <label className={labelClass}>市区町村{isRequired('officeCity') && <RequiredMark />}</label>
+            <label htmlFor={`${uid}-f10`} className={labelClass}>市区町村{isRequired('officeCity') && <RequiredMark />}</label>
             <input
+              id={`${uid}-f10`}
               className={fieldClass('officeCity')}
               value={form.officeCity || ''}
               onChange={e => set('officeCity', e.target.value)}
@@ -1335,8 +1350,9 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
             <FieldError fieldKey="officeCity" />
           </div>
           <div>
-            <label className={labelClass}>番地{isRequired('officeAddressLine') && <RequiredMark />}</label>
+            <label htmlFor={`${uid}-f11`} className={labelClass}>番地{isRequired('officeAddressLine') && <RequiredMark />}</label>
             <input
+              id={`${uid}-f11`}
               className={fieldClass('officeAddressLine')}
               value={form.officeAddressLine || ''}
               onChange={e => set('officeAddressLine', e.target.value)}
@@ -1349,8 +1365,9 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
             <FieldError fieldKey="officeAddressLine" />
           </div>
           <div>
-            <label className={labelClass}>建物名・部屋番号（任意）</label>
+            <label htmlFor={`${uid}-f12`} className={labelClass}>建物名・部屋番号（任意）</label>
             <input
+              id={`${uid}-f12`}
               className={fieldClass()}
               value={form.officeAddressLine2 || ''}
               onChange={e => set('officeAddressLine2', e.target.value)}
@@ -1358,7 +1375,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
             />
           </div>
           <div>
-            <label className={labelClass}>{isBusiness ? '電話番号' : '勤務先電話番号'}{isRequired('phone') && <RequiredMark />}</label>
+            <label htmlFor={getFieldAnchorId('phone')} className={labelClass}>{isBusiness ? '電話番号' : '勤務先電話番号'}{isRequired('phone') && <RequiredMark />}</label>
             <input
               id={getFieldAnchorId('phone')}
               className={fieldClass('phone')}
@@ -1373,7 +1390,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
             <FieldError fieldKey="phone" />
           </div>
           <div>
-            <label className={labelClass}>FAX番号（任意）</label>
+            <label htmlFor={getFieldAnchorId('fax')} className={labelClass}>FAX番号（任意）</label>
             <input
               id={getFieldAnchorId('fax')}
               className={fieldClass('fax')}
@@ -1395,7 +1412,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
           <h3 className="text-lg font-bold text-slate-800 mb-4">自宅情報</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className={labelClass}>郵便番号{isRequired('homePostCode') && <RequiredMark />}</label>
+              <label htmlFor={getFieldAnchorId('homePostCode')} className={labelClass}>郵便番号{isRequired('homePostCode') && <RequiredMark />}</label>
               <PostalCodeInput
                 id={getFieldAnchorId('homePostCode')}
                 value={form.homePostCode || ''}
@@ -1409,7 +1426,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
               <FieldError fieldKey="homePostCode" />
             </div>
             <div>
-              <label className={labelClass}>都道府県{isRequired('homePrefecture') && <RequiredMark />}</label>
+              <label htmlFor={getFieldAnchorId('homePrefecture')} className={labelClass}>都道府県{isRequired('homePrefecture') && <RequiredMark />}</label>
               <input
                 id={getFieldAnchorId('homePrefecture')}
                 className={fieldClass('homePrefecture')}
@@ -1423,7 +1440,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
               <FieldError fieldKey="homePrefecture" />
             </div>
             <div>
-              <label className={labelClass}>市区町村{isRequired('homeCity') && <RequiredMark />}</label>
+              <label htmlFor={getFieldAnchorId('homeCity')} className={labelClass}>市区町村{isRequired('homeCity') && <RequiredMark />}</label>
               <input
                 id={getFieldAnchorId('homeCity')}
                 className={fieldClass('homeCity')}
@@ -1437,7 +1454,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
               <FieldError fieldKey="homeCity" />
             </div>
             <div>
-              <label className={labelClass}>番地{isRequired('homeAddressLine') && <RequiredMark />}</label>
+              <label htmlFor={getFieldAnchorId('homeAddressLine')} className={labelClass}>番地{isRequired('homeAddressLine') && <RequiredMark />}</label>
               <input
                 id={getFieldAnchorId('homeAddressLine')}
                 className={fieldClass('homeAddressLine')}
@@ -1452,11 +1469,11 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
               <FieldError fieldKey="homeAddressLine" />
             </div>
             <div>
-              <label className={labelClass}>建物名・部屋番号（任意）</label>
-              <input className={fieldClass()} value={form.homeAddressLine2 || ''} onChange={e => set('homeAddressLine2', e.target.value)} placeholder="例: ○○マンション 101号室" />
+              <label htmlFor={`${uid}-f18`} className={labelClass}>建物名・部屋番号（任意）</label>
+              <input id={`${uid}-f18`} className={fieldClass()} value={form.homeAddressLine2 || ''} onChange={e => set('homeAddressLine2', e.target.value)} placeholder="例: ○○マンション 101号室" />
             </div>
             <div>
-              <label className={labelClass}>携帯電話番号{isRequired('mobilePhone') && <RequiredMark />}</label>
+              <label htmlFor={getFieldAnchorId('mobilePhone')} className={labelClass}>携帯電話番号{isRequired('mobilePhone') && <RequiredMark />}</label>
               <input
                 id={getFieldAnchorId('mobilePhone')}
                 className={fieldClass('mobilePhone')}
@@ -1480,8 +1497,9 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
           <h3 className="text-lg font-bold text-slate-800 mb-4">連絡設定</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className={labelClass}>メールアドレス</label>
+              <label htmlFor={`${uid}-f20`} className={labelClass}>メールアドレス</label>
               <input
+                id={`${uid}-f20`}
                 className={fieldClass('email')}
                 type="email"
                 value={form.email || ''}
@@ -1493,15 +1511,15 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
               <FieldError fieldKey="email" />
             </div>
             <div>
-              <label className={labelClass}>発送方法</label>
-              <select className={fieldClass()} value={form.mailingPreference || 'EMAIL'} onChange={e => set('mailingPreference', e.target.value)}>
+              <label htmlFor={`${uid}-f21`} className={labelClass}>発送方法</label>
+              <select id={`${uid}-f21`} className={fieldClass()} value={form.mailingPreference || 'EMAIL'} onChange={e => set('mailingPreference', e.target.value)}>
                 <option value="EMAIL">メール配信</option>
                 <option value="POST">郵送希望</option>
               </select>
             </div>
             <div>
-              <label className={labelClass}>郵送先区分</label>
-              <select className={fieldClass()} value={form.preferredMailDestination || 'OFFICE'} onChange={e => set('preferredMailDestination', e.target.value)}>
+              <label htmlFor={`${uid}-f22`} className={labelClass}>郵送先区分</label>
+              <select id={`${uid}-f22`} className={fieldClass()} value={form.preferredMailDestination || 'OFFICE'} onChange={e => set('preferredMailDestination', e.target.value)}>
                 <option value="OFFICE">勤務先</option>
                 <option value="HOME">自宅</option>
               </select>
@@ -1515,8 +1533,8 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
         <h3 className="text-lg font-bold text-slate-800 mb-4">ステータス</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
-            <label className={labelClass}>会員状態</label>
-            <select className={fieldClass()} value={form.status || 'ACTIVE'} onChange={e => set('status', e.target.value)}>
+            <label htmlFor={`${uid}-f23`} className={labelClass}>会員状態</label>
+            <select id={`${uid}-f23`} className={fieldClass()} value={form.status || 'ACTIVE'} onChange={e => set('status', e.target.value)}>
               <option value="ACTIVE">在籍中</option>
               <option value="WITHDRAWAL_SCHEDULED">退会予定</option>
               <option value="WITHDRAWN">退会済</option>
@@ -1524,20 +1542,21 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
             </select>
           </div>
           <div>
-            <label className={labelClass}>入会日</label>
-            <input className={fieldClass()} type="date" value={form.joinedDate || ''} onChange={e => set('joinedDate', e.target.value)} />
+            <label htmlFor={`${uid}-f24`} className={labelClass}>入会日</label>
+            <input id={`${uid}-f24`} className={fieldClass()} type="date" value={form.joinedDate || ''} onChange={e => set('joinedDate', e.target.value)} />
           </div>
           <div>
-            <label className={labelClass}>退会日</label>
-            <input className={fieldClass()} type="date" value={form.withdrawnDate || ''} onChange={e => set('withdrawnDate', e.target.value)} />
+            <label htmlFor={`${uid}-f25`} className={labelClass}>退会日</label>
+            <input id={`${uid}-f25`} className={fieldClass()} type="date" value={form.withdrawnDate || ''} onChange={e => set('withdrawnDate', e.target.value)} />
           </div>
           <div>
-            <label className={labelClass}>退会処理日</label>
-            <input className={fieldClass()} type="date" value={form.withdrawalProcessDate || ''} onChange={e => set('withdrawalProcessDate', e.target.value)} />
+            <label htmlFor={`${uid}-f26`} className={labelClass}>退会処理日</label>
+            <input id={`${uid}-f26`} className={fieldClass()} type="date" value={form.withdrawalProcessDate || ''} onChange={e => set('withdrawalProcessDate', e.target.value)} />
           </div>
           <div className="md:col-span-2 lg:col-span-4">
-            <label className={labelClass}>ステータスメモ（管理者のみ）</label>
+            <label htmlFor={`${uid}-f27`} className={labelClass}>ステータスメモ（管理者のみ）</label>
             <textarea
+              id={`${uid}-f27`}
               className={`${fieldClass()} h-auto min-h-[112px] resize-y leading-relaxed`}
               value={form.statusNote || ''}
               maxLength={STATUS_NOTE_MAX_LENGTH}
@@ -1693,8 +1712,9 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                   {/* 行1: 氏名・カナ・メール */}
                   <div className="grid grid-cols-2 md:grid-cols-[1fr_1fr_1fr_1fr_2fr] gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">姓<span className="text-red-500 ml-0.5">*</span></label>
+                      <label htmlFor={`${uid}-f28-${staff.id}`} className="block text-xs font-medium text-slate-600 mb-1">姓<span className="text-red-500 ml-0.5">*</span></label>
                       <input
+                        id={`${uid}-f28-${staff.id}`}
                         value={staff.lastName || ''}
                         onChange={(e) => updateDraftStaff(staff.id, { lastName: e.target.value })}
                         className={getDraftStaffFieldClass(staff.id, 'lastName')}
@@ -1703,8 +1723,9 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">名<span className="text-red-500 ml-0.5">*</span></label>
+                      <label htmlFor={`${uid}-f29-${staff.id}`} className="block text-xs font-medium text-slate-600 mb-1">名<span className="text-red-500 ml-0.5">*</span></label>
                       <input
+                        id={`${uid}-f29-${staff.id}`}
                         value={staff.firstName || ''}
                         onChange={(e) => updateDraftStaff(staff.id, { firstName: e.target.value })}
                         className={getDraftStaffFieldClass(staff.id, 'firstName')}
@@ -1713,8 +1734,9 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">セイ<span className="text-red-500 ml-0.5">*</span></label>
+                      <label htmlFor={`${uid}-f30-${staff.id}`} className="block text-xs font-medium text-slate-600 mb-1">セイ<span className="text-red-500 ml-0.5">*</span></label>
                       <input
+                        id={`${uid}-f30-${staff.id}`}
                         value={staff.lastKana || ''}
                         onChange={(e) => updateDraftStaff(staff.id, { lastKana: e.target.value })}
                         className={getDraftStaffFieldClass(staff.id, 'lastKana')}
@@ -1723,8 +1745,9 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">メイ<span className="text-red-500 ml-0.5">*</span></label>
+                      <label htmlFor={`${uid}-f31-${staff.id}`} className="block text-xs font-medium text-slate-600 mb-1">メイ<span className="text-red-500 ml-0.5">*</span></label>
                       <input
+                        id={`${uid}-f31-${staff.id}`}
                         value={staff.firstKana || ''}
                         onChange={(e) => updateDraftStaff(staff.id, { firstKana: e.target.value })}
                         className={getDraftStaffFieldClass(staff.id, 'firstKana')}
@@ -1733,8 +1756,9 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                       />
                     </div>
                     <div className="col-span-2 md:col-span-1">
-                      <label className="block text-xs font-medium text-slate-600 mb-1">メールアドレス<span className="text-red-500 ml-0.5">*</span></label>
+                      <label htmlFor={`${uid}-f32-${staff.id}`} className="block text-xs font-medium text-slate-600 mb-1">メールアドレス<span className="text-red-500 ml-0.5">*</span></label>
                       <input
+                        id={`${uid}-f32-${staff.id}`}
                         type="email"
                         value={staff.email || ''}
                         onChange={(e) => updateDraftStaff(staff.id, { email: e.target.value })}
@@ -1747,10 +1771,11 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                   {/* 行2: 介護支援専門員番号・役割・取消 */}
                   <div className="flex flex-wrap items-end gap-3">
                     <div className="flex-1 min-w-[200px]">
-                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                      <label htmlFor={`${uid}-f33-${staff.id}`} className="block text-xs font-medium text-slate-600 mb-1">
                         介護支援専門員番号<span className="text-red-500 ml-0.5">*</span>
                       </label>
                       <input
+                        id={`${uid}-f33-${staff.id}`}
                         value={staff.careManagerNumber || ''}
                         onChange={(e) => updateDraftStaff(staff.id, { careManagerNumber: normalizeCareManagerInput(e.target.value) })}
                         className={getDraftStaffFieldClass(staff.id, 'careManagerNumber')}
@@ -1765,8 +1790,9 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                       </p>
                     </div>
                     <div className="min-w-[140px]">
-                      <label className="block text-xs font-medium text-slate-600 mb-1">役割</label>
+                      <label htmlFor={`${uid}-f34-${staff.id}`} className="block text-xs font-medium text-slate-600 mb-1">役割</label>
                       <select
+                        id={`${uid}-f34-${staff.id}`}
                         value={staff.role}
                         onChange={(e) => updateDraftStaff(staff.id, { role: e.target.value as Staff['role'] })}
                         className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
@@ -2087,12 +2113,14 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
             {/* 賛助会員で介護支援専門員番号がない場合は入力必須 */}
             {isSupport && !String(form.careManagerNumber || '').trim() && (
               <div>
-                <label className={labelClass}>
+                <label htmlFor={`${uid}-convert-cm`} className={labelClass}>
                   介護支援専門員番号
                   <span className="text-red-500 ml-0.5" aria-hidden="true">*</span>
                   <span className="ml-2 text-xs text-amber-600">賛助会員のため転籍前に入力が必要です</span>
                 </label>
                 <input
+                  id={`${uid}-convert-cm`}
+                  aria-describedby={convertCareManagerNumberError ? `${uid}-convert-cm-err` : undefined}
                   value={convertCareManagerNumber}
                   onChange={e => { setConvertCareManagerNumber(normalizeCareManagerInput(e.target.value)); setConvertCareManagerNumberError(''); }}
                   className={`w-full border rounded px-3 py-2 text-sm ${convertCareManagerNumberError ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
@@ -2103,13 +2131,13 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                   aria-invalid={!!convertCareManagerNumberError}
                 />
                 {convertCareManagerNumberError && (
-                  <p className="text-xs text-red-600 mt-1" role="alert">{convertCareManagerNumberError}</p>
+                  <p id={`${uid}-convert-cm-err`} className="text-xs text-red-600 mt-1" role="alert">{convertCareManagerNumberError}</p>
                 )}
               </div>
             )}
             <div>
-              <label className={labelClass}>転籍先の事業所</label>
-              <select className={fieldClass()} value={convertTargetOfficeId} onChange={e => setConvertTargetOfficeId(e.target.value)}>
+              <label htmlFor={`${uid}-f35`} className={labelClass}>転籍先の事業所</label>
+              <select id={`${uid}-f35`} className={fieldClass()} value={convertTargetOfficeId} onChange={e => setConvertTargetOfficeId(e.target.value)}>
                 <option value="">-- 選択してください --</option>
                 {(businessMembers || [])
                   .filter(b => b.memberType === MemberType.BUSINESS && b.status !== 'WITHDRAWN' && b.status !== 'TRANSFERRED')
@@ -2119,8 +2147,8 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
               </select>
             </div>
             <div>
-              <label className={labelClass}>権限</label>
-              <select className={fieldClass()} value={convertStaffRole} onChange={e => setConvertStaffRole(e.target.value as 'ADMIN' | 'STAFF')}>
+              <label htmlFor={`${uid}-f36`} className={labelClass}>権限</label>
+              <select id={`${uid}-f36`} className={fieldClass()} value={convertStaffRole} onChange={e => setConvertStaffRole(e.target.value as 'ADMIN' | 'STAFF')}>
                 <option value="STAFF">メンバー</option>
                 <option value="ADMIN">管理者</option>
               </select>
@@ -2150,11 +2178,12 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
               登録済みの個人会員または賛助会員を、この事業所の職員として転籍します。転籍元は退会扱いになります。
             </p>
             <div>
-              <label className={labelClass}>
+              <label htmlFor={`${uid}-f37`} className={labelClass}>
                 転籍する会員
                 <span className="text-red-500 ml-0.5" aria-hidden="true">*</span>
               </label>
               <input
+                id={`${uid}-f37`}
                 type="text"
                 placeholder="名前・会員番号で検索..."
                 value={convertFromIndividualSearch}
@@ -2162,6 +2191,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                 className="w-full border border-slate-300 rounded px-3 py-2 text-sm mb-2"
               />
               <select
+                aria-label="転籍する会員の候補"
                 className={fieldClass()}
                 value={convertFromIndividualId}
                 onChange={e => { setConvertFromIndividualId(e.target.value); setConvertFromIndividualCareNum(''); setConvertFromIndividualCareNumError(''); }}
@@ -2184,12 +2214,14 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
             {/* 賛助会員選択時は介護支援専門員番号入力必須 */}
             {convertFromIndividualId && individualMembers?.find(m => m.memberId === convertFromIndividualId)?.memberType === MemberType.SUPPORT && (
               <div>
-                <label className={labelClass}>
+                <label htmlFor={`${uid}-convert-from-cm`} className={labelClass}>
                   介護支援専門員番号
                   <span className="text-red-500 ml-0.5" aria-hidden="true">*</span>
                   <span className="ml-2 text-xs text-amber-600">賛助会員のため転籍前に入力が必要です</span>
                 </label>
                 <input
+                  id={`${uid}-convert-from-cm`}
+                  aria-describedby={convertFromIndividualCareNumError ? `${uid}-convert-from-cm-err` : undefined}
                   value={convertFromIndividualCareNum}
                   onChange={e => { setConvertFromIndividualCareNum(normalizeCareManagerInput(e.target.value)); setConvertFromIndividualCareNumError(''); }}
                   className={`w-full border rounded px-3 py-2 text-sm ${convertFromIndividualCareNumError ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
@@ -2200,13 +2232,13 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                   aria-invalid={!!convertFromIndividualCareNumError}
                 />
                 {convertFromIndividualCareNumError && (
-                  <p className="text-xs text-red-600 mt-1" role="alert">{convertFromIndividualCareNumError}</p>
+                  <p id={`${uid}-convert-from-cm-err`} className="text-xs text-red-600 mt-1" role="alert">{convertFromIndividualCareNumError}</p>
                 )}
               </div>
             )}
             <div>
-              <label className={labelClass}>権限</label>
-              <select className={fieldClass()} value={convertFromIndividualRole} onChange={e => setConvertFromIndividualRole(e.target.value as 'ADMIN' | 'STAFF')}>
+              <label htmlFor={`${uid}-f38`} className={labelClass}>権限</label>
+              <select id={`${uid}-f38`} className={fieldClass()} value={convertFromIndividualRole} onChange={e => setConvertFromIndividualRole(e.target.value as 'ADMIN' | 'STAFF')}>
                 <option value="STAFF">メンバー</option>
                 <option value="ADMIN">管理者</option>
               </select>
@@ -2254,8 +2286,8 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
               )}
               {isConvertSourceRep && !isLastEnrolledInModal && (
                 <div>
-                  <label className={labelClass}>後任の代表者（必須）</label>
-                  <select className={fieldClass()} value={convertNewRepStaffId} onChange={e => setConvertNewRepStaffId(e.target.value)}>
+                  <label htmlFor={`${uid}-f39`} className={labelClass}>後任の代表者（必須）</label>
+                  <select id={`${uid}-f39`} className={fieldClass()} value={convertNewRepStaffId} onChange={e => setConvertNewRepStaffId(e.target.value)}>
                     <option value="">-- 選択してください --</option>
                     {otherEnrolledInModal.map(s => (
                       <option key={s.id} value={s.id}>{s.name} ({roleLabel(s.role)})</option>

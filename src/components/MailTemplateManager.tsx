@@ -45,6 +45,7 @@ const MailTemplateManager: React.FC<MailTemplateManagerProps> = ({
   }, [api, category]);
 
   const loadedTemplate = templates.find((t) => t.id === loadedId) || null;
+  const overwriteReasonId = `${React.useId()}-overwrite-reason`;
 
   const handleOverwrite = async () => {
     if (!loadedTemplate) return;
@@ -93,6 +94,7 @@ const MailTemplateManager: React.FC<MailTemplateManagerProps> = ({
             disabled={!loadedTemplate || saving}
             className="text-xs px-2 py-1 rounded border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-40"
             title={loadedTemplate ? `「${loadedTemplate.name}」を上書き` : '先にテンプレートを読み込むと上書きできます'}
+            aria-describedby={loadedTemplate ? undefined : overwriteReasonId}
             onClick={handleOverwrite}
           >{saving ? '保存中…' : '上書き保存'}</button>
           <button
@@ -103,6 +105,10 @@ const MailTemplateManager: React.FC<MailTemplateManagerProps> = ({
         </div>
       </div>
 
+      {/* 上書き保存が押せない理由を画面に出す（title はタッチ操作では見えない） */}
+      {!loadedTemplate && (
+        <p id={overwriteReasonId} className="text-[11px] text-slate-500 mb-2">上書き保存は、保存済みのテンプレートを「読み込む」と使えます。</p>
+      )}
       {loadedTemplate && (
         <p className="text-[11px] text-emerald-700 mb-2">編集中のテンプレート: <span className="font-semibold">{loadedTemplate.name}</span>。画面下部の「設定を保存」でこの通知へ適用されます。</p>
       )}
@@ -112,6 +118,7 @@ const MailTemplateManager: React.FC<MailTemplateManagerProps> = ({
           <input
             type="text" value={newName} onChange={(e) => setNewName(e.target.value)}
             placeholder="新しいテンプレート名" maxLength={50}
+            aria-label="新しいテンプレート名"
             className="flex-1 min-w-[160px] border border-slate-300 rounded px-2 py-1 text-xs"
           />
           <button

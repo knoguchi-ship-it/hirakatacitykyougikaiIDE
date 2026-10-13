@@ -78,10 +78,32 @@ export const IdentityVerifyStep: React.FC<Props> = ({
   const nameFilled = nameKind === 'office'
     ? name.officeName.trim() !== ''
     : name.lastName.trim() !== '' && name.firstName.trim() !== '';
-  const canSubmit = nameFilled
-    && normalizeCredentialForKey(credentialKey, credentialValue) !== ''
-    && contactEmail.trim() !== ''
-    && !busy;
+  const credentialFilled = normalizeCredentialForKey(credentialKey, credentialValue) !== '';
+  const emailFilled = contactEmail.trim() !== '';
+  const canSubmit = nameFilled && credentialFilled && emailFilled && !busy;
+  // ボタンが押せない理由を画面に出す（灰色のボタンだけでは何が足りないのか分からない）
+  const missing = [
+    !nameFilled && (nameKind === 'office' ? '事業所名' : '氏名（姓・名）'),
+    !credentialFilled && credential.label,
+    !emailFilled && '返信用メールアドレス',
+  ].filter(Boolean) as string[];
+
+  // この部品は登録情報変更と退会の両方で使う。固定の id だと同じページに 2 つ出たとき衝突するため useId
+  const uid = React.useId();
+  const ids = {
+    officeName: `${uid}-office-name`,
+    lastName: `${uid}-last-name`,
+    firstName: `${uid}-first-name`,
+    credential: `${uid}-credential`,
+    credentialHint: `${uid}-credential-hint`,
+    email: `${uid}-email`,
+    emailHint: `${uid}-email-hint`,
+    error: `${uid}-error`,
+    reason: `${uid}-disabled-reason`,
+  };
+  // 照合エラー（登録情報と一致しない等）は特定の 1 欄ではなく入力全体に関わるので、各欄から指す
+  const errorDescId = error ? ids.error : '';
+  const describe = (...extra: string[]) => [...extra, errorDescId].filter(Boolean).join(' ') || undefined;
 
   const handleSelectType = (t: PublicIdentityMemberType) => {
     // 種別が変わると選べる番号も変わる。前の種別の入力を持ち越さない。
@@ -134,22 +156,22 @@ export const IdentityVerifyStep: React.FC<Props> = ({
       <div className="space-y-4">
         {nameKind === 'office' ? (
           <div>
-            <label className={labelClass} htmlFor="iv-office-name">事業所名{req}</label>
-            <input id="iv-office-name" type="text" required value={name.officeName}
+            <label className={labelClass} htmlFor={ids.officeName}>事業所名{req}</label>
+            <input id={ids.officeName} aria-describedby={describe()} type="text" required value={name.officeName}
               onChange={(e) => setName((v) => ({ ...v, officeName: e.target.value }))}
               placeholder="例: ひらかた介護ステーション" className={inputClass} />
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelClass} htmlFor="iv-last-name">氏（姓）{req}</label>
-              <input id="iv-last-name" type="text" required value={name.lastName}
+              <label className={labelClass} htmlFor={ids.lastName}>氏（姓）{req}</label>
+              <input id={ids.lastName} aria-describedby={describe()} type="text" required value={name.lastName}
                 onChange={(e) => setName((v) => ({ ...v, lastName: e.target.value }))}
                 placeholder="例: 山田" className={inputClass} />
             </div>
             <div>
-              <label className={labelClass} htmlFor="iv-first-name">名{req}</label>
-              <input id="iv-first-name" type="text" required value={name.firstName}
+              <label className={labelClass} htmlFor={ids.firstName}>名{req}</label>
+              <input id={ids.firstName} aria-describedby={describe()} type="text" required value={name.firstName}
                 onChange={(e) => setName((v) => ({ ...v, firstName: e.target.value }))}
                 placeholder="例: 太郎" className={inputClass} />
             </div>
@@ -174,26 +196,26 @@ export const IdentityVerifyStep: React.FC<Props> = ({
               </button>
             ))}
           </div>
-          <label className={labelClass} htmlFor="iv-credential">{credential.label}</label>
-          <input id="iv-credential" type="text" required value={credentialValue}
+          <label className={labelClass} htmlFor={ids.credential}>{credential.label}</label>
+          <input id={ids.credential} aria-describedby={describe(ids.credentialHint)} type="text" required value={credentialValue}
             onChange={(e) => setCredentialValue(e.target.value)}
             placeholder={credential.placeholder} className={inputClass} />
-          <p className="mt-1 text-xs text-slate-500">{credential.hint}</p>
+          <p id={ids.credentialHint} className="mt-1 text-xs text-slate-500">{credential.hint}</p>
         </fieldset>
 
         <div>
-          <label className={labelClass} htmlFor="iv-email">返信用メールアドレス{req}</label>
-          <input id="iv-email" type="email" required value={contactEmail}
+          <label className={labelClass} htmlFor={ids.email}>返信用メールアドレス{req}</label>
+          <input id={ids.email} aria-describedby={describe(ids.emailHint)} type="email" required value={contactEmail}
             onChange={(e) => setContactEmail(e.target.value.trim())}
             placeholder="例: example@email.com" className={inputClass} />
-          <p className="mt-1 text-xs text-slate-500">
+          <p id={ids.emailHint} className="mt-1 text-xs text-slate-500">
             申請受付・処理結果の通知に使用します。会員登録情報とは紐づきません。
           </p>
         </div>
       </div>
 
       {error && (
-        <p className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">
+        <p id={ids.error} className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">
           {error}
         </p>
       )}
@@ -203,11 +225,16 @@ export const IdentityVerifyStep: React.FC<Props> = ({
           className="min-h-[44px] flex-1 rounded-full border border-slate-300 bg-white px-6 py-3 text-sm font-medium text-slate-700 transition hover:border-slate-400">
           ← 戻る
         </button>
-        <button type="submit" disabled={!canSubmit}
+        <button type="submit" disabled={!canSubmit} aria-describedby={!busy && missing.length > 0 ? ids.reason : undefined}
           className={`min-h-[44px] flex-1 rounded-full px-6 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:bg-slate-300 ${tone.submit}`}>
           {busy ? '確認中...' : '確認して次へ'}
         </button>
       </div>
+      {!busy && missing.length > 0 && (
+        <p id={ids.reason} className="mt-2 text-xs text-slate-500 sm:text-right">
+          未入力の項目があります: {missing.join('、')}
+        </p>
+      )}
     </form>
   );
 };

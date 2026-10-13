@@ -7,7 +7,8 @@
  * - 承認済み → 支払い履歴コンソールへの連携誘導
  * - WCAG 2.2: テキスト+アイコン+aria-label のステータスバッジ
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRevealOnChange } from '../shared/useRevealOnChange';
 import { ApiClient } from '../services/api';
 import {
   ClaimAttachment,
@@ -17,7 +18,7 @@ import {
 
 interface ClaimManagementConsoleProps {
   api: ApiClient;
-  onOpenPaymentConsole?: (claimId: string, memberId: string) => void;
+  onOpenPaymentConsole?: (claim: { claimId: string; memberId: string; amount: number; typeCode: string }) => void;
 }
 
 // ── 定数 ────────────────────────────────────────────────────────────────────
@@ -81,6 +82,8 @@ const StatusBadge: React.FC<{ status: ClaimRecord['請求状態'] }> = ({ status
 // ── メインコンポーネント ──────────────────────────────────────────────────────
 
 const ClaimManagementConsole: React.FC<ClaimManagementConsoleProps> = ({ api, onOpenPaymentConsole }) => {
+  // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
+  const uid = React.useId();
   const [masterData, setMasterData] = useState<OfficerMasterData | null>(null);
   const [claims, setClaims] = useState<ClaimRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,6 +105,10 @@ const ClaimManagementConsole: React.FC<ClaimManagementConsoleProps> = ({ api, on
   const [rejectTarget, setRejectTarget] = useState<ClaimRecord | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [rejectError, setRejectError] = useState('');
+  // 却下フォームは一覧の「上」に開く。下の行で「却下」を押すと画面外に開いて何も起きないように見えるため、
+  // 開いたら理由欄を見える位置へ移してフォーカスする
+  const rejectPanelRef = useRef<HTMLDivElement>(null);
+  useRevealOnChange(rejectTarget, rejectPanelRef, { selector: 'textarea' });
   const [rejectSaving, setRejectSaving] = useState(false);
 
   // 操作状態
@@ -253,39 +260,39 @@ const ClaimManagementConsole: React.FC<ClaimManagementConsoleProps> = ({ api, on
       {/* フィルターバー */}
       <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4">
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">区分</label>
-          <select value={filterClaimType} onChange={e => setFilterClaimType(e.target.value)} className={inputCls}>
+          <label htmlFor={`${uid}-f1`} className="mb-1 block text-xs font-medium text-slate-600">区分</label>
+          <select id={`${uid}-f1`} value={filterClaimType} onChange={e => setFilterClaimType(e.target.value)} className={inputCls}>
             {CLAIM_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">状態</label>
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={inputCls}>
+          <label htmlFor={`${uid}-f2`} className="mb-1 block text-xs font-medium text-slate-600">状態</label>
+          <select id={`${uid}-f2`} value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={inputCls}>
             {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">会員</label>
-          <select value={filterMemberId} onChange={e => setFilterMemberId(e.target.value)} className={inputCls}>
+          <label htmlFor={`${uid}-f3`} className="mb-1 block text-xs font-medium text-slate-600">会員</label>
+          <select id={`${uid}-f3`} value={filterMemberId} onChange={e => setFilterMemberId(e.target.value)} className={inputCls}>
             <option value="">すべての会員</option>
             {uniqueMembers.map(m => <option key={m.id} value={m.id}>{m.name}（{m.id}）</option>)}
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">業務分類/種別</label>
-          <select value={filterTypeCode} onChange={e => setFilterTypeCode(e.target.value)} className={inputCls}>
+          <label htmlFor={`${uid}-f4`} className="mb-1 block text-xs font-medium text-slate-600">業務分類/種別</label>
+          <select id={`${uid}-f4`} value={filterTypeCode} onChange={e => setFilterTypeCode(e.target.value)} className={inputCls}>
             <option value="">すべて</option>
             {(masterData?.workCategories ?? []).filter(c => !c.削除フラグ).map(c => <option key={c.業務分類コード} value={c.業務分類コード}>活動: {c.業務分類名}</option>)}
             {(masterData?.paymentTypes ?? []).filter(t => !t.削除フラグ).map(t => <option key={t.種別コード} value={t.種別コード}>経費: {t.種別名}</option>)}
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">活動日（開始）</label>
-          <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className={inputCls} />
+          <label htmlFor={`${uid}-f5`} className="mb-1 block text-xs font-medium text-slate-600">活動日（開始）</label>
+          <input id={`${uid}-f5`} type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className={inputCls} />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">活動日（終了）</label>
-          <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className={inputCls} />
+          <label htmlFor={`${uid}-f6`} className="mb-1 block text-xs font-medium text-slate-600">活動日（終了）</label>
+          <input id={`${uid}-f6`} type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className={inputCls} />
         </div>
         {isFiltered && (
           <button type="button" onClick={clearFilters} className={btnSec}>クリア</button>
@@ -308,13 +315,14 @@ const ClaimManagementConsole: React.FC<ClaimManagementConsoleProps> = ({ api, on
 
       {/* 却下フォーム */}
       {rejectTarget && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-3">
+        <div ref={rejectPanelRef} className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-3">
           <p className="text-sm font-semibold text-red-800">
             却下処理 — {rejectTarget.表示名}（{getClaimType(rejectTarget) === 'ACTIVITY_REPORT' ? '活動報告' : '経費請求'} ¥{Number(rejectTarget.請求金額 || 0).toLocaleString('ja-JP')}）
           </p>
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-700">却下理由 <span className="text-red-500">*</span>（5文字以上）</label>
+            <label htmlFor={`${uid}-f7`} className="mb-1 block text-xs font-medium text-slate-700">却下理由 <span className="text-red-500">*</span>（5文字以上）</label>
             <textarea
+              id={`${uid}-f7`} aria-invalid={!!rejectError} aria-describedby={rejectError ? `${uid}-f7-err` : undefined}
               value={rejectReason}
               onChange={e => { setRejectReason(e.target.value); setRejectError(''); }}
               rows={3}
@@ -322,7 +330,7 @@ const ClaimManagementConsole: React.FC<ClaimManagementConsoleProps> = ({ api, on
               placeholder="例: 領収書の添付が必要です。再申請してください。"
               className="w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-400 resize-none"
             />
-            {rejectError && <p className="mt-0.5 text-xs text-red-600" role="alert">{rejectError}</p>}
+            {rejectError && <p id={`${uid}-f7-err`} className="mt-0.5 text-xs text-red-600" role="alert">{rejectError}</p>}
           </div>
           <div className="flex gap-2">
             <button type="button" onClick={handleReject} disabled={rejectSaving} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">
@@ -412,7 +420,7 @@ const ClaimManagementConsole: React.FC<ClaimManagementConsoleProps> = ({ api, on
                           {claim.請求状態 === '承認済み' && onOpenPaymentConsole && (
                             <button
                               type="button"
-                              onClick={() => onOpenPaymentConsole(claim.請求ID, claim.会員ID)}
+                              onClick={() => onOpenPaymentConsole({ claimId: claim.請求ID, memberId: claim.会員ID, amount: Number(claim.請求金額 || 0), typeCode: claim.種別コード || '' })}
                               className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100"
                               title="支払い履歴コンソールで支払い登録"
                             >

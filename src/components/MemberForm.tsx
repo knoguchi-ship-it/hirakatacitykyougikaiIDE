@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useRevealOnChange } from '../shared/useRevealOnChange';
 import { Member, MailingPreference, MailDestination, MemberType, PaymentStatus, Staff, StaffRole, Training, TransferAccountInfo } from '../types';
 import { EMAIL_PATTERN, CARE_MANAGER_NO_PATTERN, POSTAL_CODE_PATTERN, PHONE_PATTERN } from '../shared/validators';
 import { isNoOfficeAffiliation, NO_OFFICE_AFFILIATION_LABEL } from '../shared/officeAffiliation';
@@ -64,11 +65,17 @@ interface MemberFormProps {
   annualFeePaymentGuidance: string;
   annualFeeTransferAccount: TransferAccountInfo;
   trainings: Training[];
-  onSave: (member: Member) => void;
+  onSave: (member: Member) => void | Promise<boolean | void>; // 管理画面・マイページは保存できたかを返す
   onLogout?: () => void;
 }
 
 const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, activeStaffRole, loginId, isAdmin, defaultBusinessStaffLimit, historyLookbackMonths, annualFeePaymentGuidance, annualFeeTransferAccount, trainings, onSave, onLogout }) => {
+  // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
+  const uid = React.useId();
+  // 保存で止めたとき、最上部の「修正が必要な項目」一覧を見える位置へ移す（保存ボタンは最下部にある）
+  const errorSummaryRef = useRef<HTMLDivElement>(null);
+  const [errorRevealSeq, setErrorRevealSeq] = useState(0);
+  useRevealOnChange(errorRevealSeq, errorSummaryRef);
   const [member, setMember] = useState<Member>(initialMember);
   const [warning, setWarning] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null); // UX: Success feedback
@@ -694,7 +701,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
     return newErrors;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isReadOnly && !isBusinessStaffSelfMode) return;
 
@@ -702,11 +709,9 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
     const nextErrors = validate();
     if (Object.keys(nextErrors).length > 0) {
         setWarning("入力内容に不備があります。赤枠の項目を確認し、必須事項を入力してください。");
-        const firstErrorField = Object.keys(nextErrors)[0];
-        if (firstErrorField) {
-          setTimeout(() => focusField(firstErrorField), 0);
-        }
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        // 以前は「先頭へスクロール」と「最初の誤り項目へスクロール」を同時に走らせて競合していた。
+        // 誤りの一覧（各項目へのリンク付き）へ 1 回だけ移し、そこから項目へ飛べるようにする。
+        setErrorRevealSeq((n) => n + 1);
         return;
     }
     setWarning(null);
@@ -760,8 +765,11 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
           preferredMailDestination: MailDestination.OFFICE,
         })
       : normalizedMemberBase;
+    // 2026-10-13: 保存の完了を待ってから知らせる。以前は待たずに「更新しました」と出し、
+    // 失敗しても画面の値はそのまま残っていた。
+    const saved = await onSave(normalizedMember);
+    if (saved === false) return; // 失敗は onSave 側で知らせ、値を戻している
     setMember(normalizedMember);
-    onSave(normalizedMember);
     setProfileEditModalOpen(false);
     alert("登録情報を更新しました。");
   };
@@ -833,10 +841,17 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
   const getFieldAnchorId = (fieldName: string) => `member-form-${fieldName}`;
   const errorSummaryEntries = Object.entries(errors);
   const focusField = (fieldName: string) => {
-    const target = document.getElementById(getFieldAnchorId(fieldName)) as HTMLElement | null;
+    // 事業所職員の本人編集のエラーは staff_self_* で出る。画面上の欄は staff_{行番号}_* なので読み替える
+    let anchorName = fieldName;
+    const selfMatch = /^staff_self_(\w+)$/.exec(fieldName);
+    if (selfMatch) {
+      const ownIndex = (member.staff || []).findIndex((s) => s.id === operatingStaffId);
+      if (ownIndex >= 0) anchorName = `staff_${ownIndex}_${selfMatch[1]}`;
+    }
+    const target = document.getElementById(getFieldAnchorId(anchorName)) as HTMLElement | null;
     if (!target) return;
     target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    if ('focus' in target) target.focus();
+    if ('focus' in target) target.focus({ preventScroll: true });
   };
 
   const readOnlyDisplayClass = "w-full min-h-[42px] rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-700 flex items-center";
@@ -990,8 +1005,8 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
         <div className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-1">ログインID（介護支援専門員番号 / 賛助会員は9始まり9桁）</label>
-              <input type="text" value={currentLoginId} disabled className="w-full rounded-md shadow-sm border p-2 bg-slate-100 text-slate-600 font-mono" />
+              <label htmlFor={`${uid}-f1`} className="block text-sm font-medium text-slate-700 mb-1">ログインID（介護支援専門員番号 / 賛助会員は9始まり9桁）</label>
+              <input id={`${uid}-f1`} type="text" value={currentLoginId} disabled className="w-full rounded-md shadow-sm border p-2 bg-slate-100 text-slate-600 font-mono" />
             </div>
             <div className="md:col-span-2 flex items-center justify-between">
               <div>
@@ -1325,7 +1340,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
             </div>
         )}
         {errorSummaryEntries.length > 0 && (
-          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4">
+          <div ref={errorSummaryRef} tabIndex={-1} role="alert" className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 focus:outline-none">
             <p className="text-sm font-bold text-red-700">修正が必要な項目があります</p>
             <ul className="mt-2 space-y-1 text-sm text-red-700">
               {errorSummaryEntries.map(([fieldName, message]) => (
@@ -1354,35 +1369,35 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                     {isBusiness && <h4 className="font-bold text-sm text-slate-800 mb-2">代表者情報</h4>}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">氏 (姓) (※)</label>
-                            <input disabled={isBusiness ? !canEditRepresentativeFields : isReadOnly} type="text" name="lastName" value={representativeProfile.lastName} onChange={isBusiness ? (e) => handleRepresentativeFieldChange('lastName', e.target.value) : handleChange} className={getInputClass('lastName', isBusiness ? !canEditRepresentativeFields : isReadOnly)} />
-                            {errors.lastName && <p className="text-xs text-red-500 mt-1">{errors.lastName}</p>}
+                            <label htmlFor={getFieldAnchorId('lastName')} className="block text-sm font-medium text-slate-700 mb-1">氏 (姓) (※)</label>
+                            <input id={getFieldAnchorId('lastName')} aria-invalid={!!errors.lastName} aria-describedby={errors.lastName ? `${getFieldAnchorId('lastName')}-err` : undefined} disabled={isBusiness ? !canEditRepresentativeFields : isReadOnly} type="text" name="lastName" value={representativeProfile.lastName} onChange={isBusiness ? (e) => handleRepresentativeFieldChange('lastName', e.target.value) : handleChange} className={getInputClass('lastName', isBusiness ? !canEditRepresentativeFields : isReadOnly)} />
+                            {errors.lastName && <p id={`${getFieldAnchorId('lastName')}-err`} className="text-xs text-red-500 mt-1">{errors.lastName}</p>}
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">名 (名) (※)</label>
-                            <input disabled={isBusiness ? !canEditRepresentativeFields : isReadOnly} type="text" name="firstName" value={representativeProfile.firstName} onChange={isBusiness ? (e) => handleRepresentativeFieldChange('firstName', e.target.value) : handleChange} className={getInputClass('firstName', isBusiness ? !canEditRepresentativeFields : isReadOnly)} />
-                            {errors.firstName && <p className="text-xs text-red-500 mt-1">{errors.firstName}</p>}
+                            <label htmlFor={getFieldAnchorId('firstName')} className="block text-sm font-medium text-slate-700 mb-1">名 (名) (※)</label>
+                            <input id={getFieldAnchorId('firstName')} aria-invalid={!!errors.firstName} aria-describedby={errors.firstName ? `${getFieldAnchorId('firstName')}-err` : undefined} disabled={isBusiness ? !canEditRepresentativeFields : isReadOnly} type="text" name="firstName" value={representativeProfile.firstName} onChange={isBusiness ? (e) => handleRepresentativeFieldChange('firstName', e.target.value) : handleChange} className={getInputClass('firstName', isBusiness ? !canEditRepresentativeFields : isReadOnly)} />
+                            {errors.firstName && <p id={`${getFieldAnchorId('firstName')}-err`} className="text-xs text-red-500 mt-1">{errors.firstName}</p>}
                         </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">フリガナ (セイ) (※)</label>
-                            <input id={getFieldAnchorId('lastKana')} disabled={isBusiness ? !canEditRepresentativeFields : isReadOnly} type="text" name="lastKana" value={representativeProfile.lastKana} onChange={isBusiness ? (e) => handleRepresentativeFieldChange('lastKana', e.target.value) : handleChange} className={getInputClass('lastKana', isBusiness ? !canEditRepresentativeFields : isReadOnly)} />
-                            {errors.lastKana && <p className="text-xs text-red-500 mt-1">{errors.lastKana}</p>}
+                            <label htmlFor={getFieldAnchorId('lastKana')} className="block text-sm font-medium text-slate-700 mb-1">フリガナ (セイ) (※)</label>
+                            <input id={getFieldAnchorId('lastKana')} aria-invalid={!!errors.lastKana} aria-describedby={errors.lastKana ? `${getFieldAnchorId('lastKana')}-err` : undefined} disabled={isBusiness ? !canEditRepresentativeFields : isReadOnly} type="text" name="lastKana" value={representativeProfile.lastKana} onChange={isBusiness ? (e) => handleRepresentativeFieldChange('lastKana', e.target.value) : handleChange} className={getInputClass('lastKana', isBusiness ? !canEditRepresentativeFields : isReadOnly)} />
+                            {errors.lastKana && <p id={`${getFieldAnchorId('lastKana')}-err`} className="text-xs text-red-500 mt-1">{errors.lastKana}</p>}
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">フリガナ (メイ) (※)</label>
-                            <input id={getFieldAnchorId('firstKana')} disabled={isBusiness ? !canEditRepresentativeFields : isReadOnly} type="text" name="firstKana" value={representativeProfile.firstKana} onChange={isBusiness ? (e) => handleRepresentativeFieldChange('firstKana', e.target.value) : handleChange} className={getInputClass('firstKana', isBusiness ? !canEditRepresentativeFields : isReadOnly)} />
-                            {errors.firstKana && <p className="text-xs text-red-500 mt-1">{errors.firstKana}</p>}
+                            <label htmlFor={getFieldAnchorId('firstKana')} className="block text-sm font-medium text-slate-700 mb-1">フリガナ (メイ) (※)</label>
+                            <input id={getFieldAnchorId('firstKana')} aria-invalid={!!errors.firstKana} aria-describedby={errors.firstKana ? `${getFieldAnchorId('firstKana')}-err` : undefined} disabled={isBusiness ? !canEditRepresentativeFields : isReadOnly} type="text" name="firstKana" value={representativeProfile.firstKana} onChange={isBusiness ? (e) => handleRepresentativeFieldChange('firstKana', e.target.value) : handleChange} className={getInputClass('firstKana', isBusiness ? !canEditRepresentativeFields : isReadOnly)} />
+                            {errors.firstKana && <p id={`${getFieldAnchorId('firstKana')}-err`} className="text-xs text-red-500 mt-1">{errors.firstKana}</p>}
                         </div>
                     </div>
                     <div className="mt-4">
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                        <label htmlFor={getFieldAnchorId('careManagerNumber')} className="block text-sm font-medium text-slate-700 mb-1">
                             介護支援専門員番号
                             {member.type !== MemberType.SUPPORT && <span className="text-red-500 ml-1">(※)</span>}
                         </label>
                         <input
-                            id={getFieldAnchorId('careManagerNumber')}
+                            id={getFieldAnchorId('careManagerNumber')} aria-invalid={!!errors.careManagerNumber} aria-describedby={errors.careManagerNumber ? `${getFieldAnchorId('careManagerNumber')}-err` : undefined}
                             disabled={true}
                             type="text"
                             name="careManagerNumber"
@@ -1392,7 +1407,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                             placeholder={member.type === MemberType.SUPPORT ? '賛助会員は任意' : '賛助会員以外は必須'}
                         />
                         {!isAdmin && <p className="text-xs text-slate-400 mt-1">ログインIDと連動しているため、この画面では変更できません。</p>}
-                        {errors.careManagerNumber && <p className="text-xs text-red-500 mt-1">{errors.careManagerNumber}</p>}
+                        {errors.careManagerNumber && <p id={`${getFieldAnchorId('careManagerNumber')}-err`} className="text-xs text-red-500 mt-1">{errors.careManagerNumber}</p>}
                     </div>
                     {isBusiness && !canEditRepresentativeFields && (
                       <p className="mt-3 text-xs text-slate-500">
@@ -1409,19 +1424,19 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">会員ステータス</label>
+                            <p className="block text-sm font-medium text-slate-700 mb-1">会員ステータス</p>
                             <div aria-readonly="true" className={readOnlyDisplayClass}>
                               {memberStatusLabel}
                             </div>
                             <p className="text-xs text-slate-500 mt-1">この画面では変更できません。</p>
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">入会日</label>
+                            <p className="block text-sm font-medium text-slate-700 mb-1">入会日</p>
                             <div aria-readonly="true" className={readOnlyDisplayClass}>
                               {member.joinedDate || '未設定'}
                             </div>
                             <p className="text-xs text-slate-500 mt-1">この画面では変更できません。</p>
-                            {errors.joinedDate && <p className="text-xs text-red-500 mt-1">{errors.joinedDate}</p>}
+                            {errors.joinedDate && <p id={`${getFieldAnchorId('joinedDate')}-err`} className="text-xs text-red-500 mt-1">{errors.joinedDate}</p>}
                           </div>
                         </div>
                       </div>
@@ -1494,10 +1509,13 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                     {/* 氏名 / フリガナ */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                       <div>
-                                        <label className="block text-xs font-medium text-slate-600 mb-1">
+                                        <label htmlFor={getFieldAnchorId(`staff_${staffIndex}_lastName`)} className="block text-xs font-medium text-slate-600 mb-1">
                                           氏{draftStaff.isNew && <span className="text-red-500 ml-1">*</span>}
                                         </label>
                                         <input
+                                          id={getFieldAnchorId(`staff_${staffIndex}_lastName`)}
+                                          aria-invalid={!!errLastName}
+                                          aria-describedby={errLastName ? `${getFieldAnchorId(`staff_${staffIndex}_lastName`)}-err` : undefined}
                                           disabled={nameDisabled}
                                           type="text"
                                           value={staff.lastName || ''}
@@ -1505,14 +1523,17 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                           className={nameDisabled ? inputDisabled : errLastName ? inputError : inputNormal}
                                           placeholder="例: 佐藤"
                                         />
-                                        {errLastName && <p className="text-xs text-red-500 mt-1">{errLastName}</p>}
+                                        {errLastName && <p id={`${getFieldAnchorId(`staff_${staffIndex}_lastName`)}-err`} className="text-xs text-red-500 mt-1">{errLastName}</p>}
                                         {isRepresentativeRow && <p className="text-xs text-slate-400 mt-1">代表者情報から自動反映</p>}
                                       </div>
                                       <div>
-                                        <label className="block text-xs font-medium text-slate-600 mb-1">
+                                        <label htmlFor={getFieldAnchorId(`staff_${staffIndex}_firstName`)} className="block text-xs font-medium text-slate-600 mb-1">
                                           名{draftStaff.isNew && <span className="text-red-500 ml-1">*</span>}
                                         </label>
                                         <input
+                                          id={getFieldAnchorId(`staff_${staffIndex}_firstName`)}
+                                          aria-invalid={!!errFirstName}
+                                          aria-describedby={errFirstName ? `${getFieldAnchorId(`staff_${staffIndex}_firstName`)}-err` : undefined}
                                           disabled={nameDisabled}
                                           type="text"
                                           value={staff.firstName || ''}
@@ -1520,14 +1541,17 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                           className={nameDisabled ? inputDisabled : errFirstName ? inputError : inputNormal}
                                           placeholder="例: 次郎"
                                         />
-                                        {errFirstName && <p className="text-xs text-red-500 mt-1">{errFirstName}</p>}
+                                        {errFirstName && <p id={`${getFieldAnchorId(`staff_${staffIndex}_firstName`)}-err`} className="text-xs text-red-500 mt-1">{errFirstName}</p>}
                                         {isRepresentativeRow && <p className="text-xs text-slate-400 mt-1">代表者情報から自動反映</p>}
                                       </div>
                                       <div>
-                                        <label className="block text-xs font-medium text-slate-600 mb-1">
+                                        <label htmlFor={getFieldAnchorId(`staff_${staffIndex}_lastKana`)} className="block text-xs font-medium text-slate-600 mb-1">
                                           セイ{draftStaff.isNew && <span className="text-red-500 ml-1">*</span>}
                                         </label>
                                         <input
+                                          id={getFieldAnchorId(`staff_${staffIndex}_lastKana`)}
+                                          aria-invalid={!!errLastKana}
+                                          aria-describedby={errLastKana ? `${getFieldAnchorId(`staff_${staffIndex}_lastKana`)}-err` : undefined}
                                           disabled={nameDisabled}
                                           type="text"
                                           value={staff.lastKana || ''}
@@ -1535,14 +1559,17 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                           className={nameDisabled ? inputDisabled : errLastKana ? inputError : inputNormal}
                                           placeholder="ｻﾄｳ"
                                         />
-                                        {errLastKana && <p className="text-xs text-red-500 mt-1">{errLastKana}</p>}
+                                        {errLastKana && <p id={`${getFieldAnchorId(`staff_${staffIndex}_lastKana`)}-err`} className="text-xs text-red-500 mt-1">{errLastKana}</p>}
                                         {isRepresentativeRow && <p className="text-xs text-slate-400 mt-1">代表者情報から自動反映</p>}
                                       </div>
                                       <div>
-                                        <label className="block text-xs font-medium text-slate-600 mb-1">
+                                        <label htmlFor={getFieldAnchorId(`staff_${staffIndex}_firstKana`)} className="block text-xs font-medium text-slate-600 mb-1">
                                           メイ{draftStaff.isNew && <span className="text-red-500 ml-1">*</span>}
                                         </label>
                                         <input
+                                          id={getFieldAnchorId(`staff_${staffIndex}_firstKana`)}
+                                          aria-invalid={!!errFirstKana}
+                                          aria-describedby={errFirstKana ? `${getFieldAnchorId(`staff_${staffIndex}_firstKana`)}-err` : undefined}
                                           disabled={nameDisabled}
                                           type="text"
                                           value={staff.firstKana || ''}
@@ -1550,17 +1577,20 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                           className={nameDisabled ? inputDisabled : errFirstKana ? inputError : inputNormal}
                                           placeholder="ｼﾞﾛｳ"
                                         />
-                                        {errFirstKana && <p className="text-xs text-red-500 mt-1">{errFirstKana}</p>}
+                                        {errFirstKana && <p id={`${getFieldAnchorId(`staff_${staffIndex}_firstKana`)}-err`} className="text-xs text-red-500 mt-1">{errFirstKana}</p>}
                                         {isRepresentativeRow && <p className="text-xs text-slate-400 mt-1">代表者情報から自動反映</p>}
                                       </div>
                                     </div>
 
                                     {/* メールアドレス（全幅） */}
                                     <div>
-                                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                                      <label htmlFor={getFieldAnchorId(`staff_${staffIndex}_email`)} className="block text-xs font-medium text-slate-600 mb-1">
                                         メールアドレス{draftStaff.isNew && <span className="text-red-500 ml-1">*</span>}
                                       </label>
                                       <input
+                                        id={getFieldAnchorId(`staff_${staffIndex}_email`)}
+                                        aria-invalid={!!errEmail}
+                                        aria-describedby={errEmail ? `${getFieldAnchorId(`staff_${staffIndex}_email`)}-err` : undefined}
                                         disabled={emailDisabled}
                                         type="email"
                                         value={staff.email}
@@ -1568,18 +1598,26 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                         className={emailDisabled ? inputDisabled : errEmail ? inputError : inputNormal}
                                         placeholder="staff@example.com"
                                       />
-                                      {errEmail && <p className="text-xs text-red-500 mt-1">{errEmail}</p>}
+                                      {errEmail && <p id={`${getFieldAnchorId(`staff_${staffIndex}_email`)}-err`} className="text-xs text-red-500 mt-1">{errEmail}</p>}
                                     </div>
 
                                     {/* 介護支援専門員番号 / 状態・権限 */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                       <div>
-                                        <label className="block text-xs font-medium text-slate-600 mb-1">
-                                          介護支援専門員番号{draftStaff.isNew && <span className="text-red-500 ml-1">*</span>}
-                                        </label>
+                                        {/* 入力欄があるのは新規行だけ。既存行は表示のみなので label にしない（結び付く欄が無い） */}
+                                        {draftStaff.isNew ? (
+                                          <label htmlFor={getFieldAnchorId(`staff_${staffIndex}_careManagerNumber`)} className="block text-xs font-medium text-slate-600 mb-1">
+                                            介護支援専門員番号<span className="text-red-500 ml-1">*</span>
+                                          </label>
+                                        ) : (
+                                          <p className="block text-xs font-medium text-slate-600 mb-1">介護支援専門員番号</p>
+                                        )}
                                         {draftStaff.isNew ? (
                                           <>
                                             <input
+                                              id={getFieldAnchorId(`staff_${staffIndex}_careManagerNumber`)}
+                                              aria-invalid={!!errCm}
+                                              aria-describedby={errCm ? `${getFieldAnchorId(`staff_${staffIndex}_careManagerNumber`)}-err` : undefined}
                                               type="text"
                                               inputMode="numeric"
                                               maxLength={8}
@@ -1588,7 +1626,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                               className={errCm ? inputError : inputNormal}
                                               placeholder="12345678（8桁）"
                                             />
-                                            {errCm && <p className="text-xs text-red-500 mt-1">{errCm}</p>}
+                                            {errCm && <p id={`${getFieldAnchorId(`staff_${staffIndex}_careManagerNumber`)}-err`} className="text-xs text-red-500 mt-1">{errCm}</p>}
                                           </>
                                         ) : (
                                           <p className={`text-sm px-3 py-2 rounded border border-slate-200 bg-slate-100 ${staff.careManagerNumber ? 'text-slate-700' : 'text-slate-400'}`}>
@@ -1599,8 +1637,9 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                       {!draftStaff.isNew && (
                                       <div className="grid grid-cols-2 gap-2">
                                         <div>
-                                          <label className="block text-xs font-medium text-slate-600 mb-1">状態</label>
+                                          <label htmlFor={getFieldAnchorId(`staff_${staffIndex}_status`)} className="block text-xs font-medium text-slate-600 mb-1">状態</label>
                                           <select
+                                            id={getFieldAnchorId(`staff_${staffIndex}_status`)}
                                             disabled={!canEditThisStatus}
                                             value={staff.status || 'ENROLLED'}
                                             onChange={(e) => handleStaffChange(staff.id, 'status', e.target.value)}
@@ -1612,8 +1651,9 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                           {isRepresentativeRow && <p className="text-xs text-slate-400 mt-1">変更不可</p>}
                                         </div>
                                         <div>
-                                          <label className="block text-xs font-medium text-slate-600 mb-1">権限</label>
+                                          <label htmlFor={getFieldAnchorId(`staff_${staffIndex}_role`)} className="block text-xs font-medium text-slate-600 mb-1">権限</label>
                                           <select
+                                            id={getFieldAnchorId(`staff_${staffIndex}_role`)}
                                             disabled={!canEditThisRole}
                                             value={staff.role}
                                             onChange={(e) => handleStaffChange(staff.id, 'role', e.target.value as StaffRole)}
@@ -1679,11 +1719,12 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                 </h3>
                 <div className="pl-8 grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                    <label htmlFor={getFieldAnchorId('homePostCode')} className="block text-sm font-medium text-slate-700 mb-1">
                         郵便番号 {member.preferredMailDestination === MailDestination.HOME && <span className="text-red-500">(※)</span>}
                     </label>
                     <PostalCodeInput
                       id={getFieldAnchorId('homePostCode')}
+                      describedBy={errors.homePostCode ? `${getFieldAnchorId('homePostCode')}-err` : undefined}
                       value={member.homePostCode}
                       onChange={(value) => handlePostalCodeChange('homePostCode', value)}
                       disabled={isReadOnly}
@@ -1691,39 +1732,39 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                       invalid={!!errors.homePostCode}
                       inputClassName={getInputClass('homePostCode')}
                     />
-                    {errors.homePostCode && <p className="text-xs text-red-500 mt-1">{errors.homePostCode}</p>}
+                    {errors.homePostCode && <p id={`${getFieldAnchorId('homePostCode')}-err`} className="text-xs text-red-500 mt-1">{errors.homePostCode}</p>}
                 </div>
                 <div className="md:col-span-2 grid grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                        <label htmlFor={getFieldAnchorId('homePrefecture')} className="block text-sm font-medium text-slate-700 mb-1">
                             都道府県 {member.preferredMailDestination === MailDestination.HOME && <span className="text-red-500">(※)</span>}
                         </label>
-                        <input id={getFieldAnchorId('homePrefecture')} disabled={isReadOnly} type="text" name="homePrefecture" value={member.homePrefecture} onChange={handleChange} className={getInputClass('homePrefecture')} />
-                        {errors.homePrefecture && <p className="text-xs text-red-500 mt-1">{errors.homePrefecture}</p>}
+                        <input id={getFieldAnchorId('homePrefecture')} aria-invalid={!!errors.homePrefecture} aria-describedby={errors.homePrefecture ? `${getFieldAnchorId('homePrefecture')}-err` : undefined} disabled={isReadOnly} type="text" name="homePrefecture" value={member.homePrefecture} onChange={handleChange} className={getInputClass('homePrefecture')} />
+                        {errors.homePrefecture && <p id={`${getFieldAnchorId('homePrefecture')}-err`} className="text-xs text-red-500 mt-1">{errors.homePrefecture}</p>}
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                        <label htmlFor={getFieldAnchorId('homeCity')} className="block text-sm font-medium text-slate-700 mb-1">
                             市区町村 {member.preferredMailDestination === MailDestination.HOME && <span className="text-red-500">(※)</span>}
                         </label>
-                        <input id={getFieldAnchorId('homeCity')} disabled={isReadOnly} type="text" name="homeCity" value={member.homeCity} onChange={handleChange} className={getInputClass('homeCity')} />
-                        {errors.homeCity && <p className="text-xs text-red-500 mt-1">{errors.homeCity}</p>}
+                        <input id={getFieldAnchorId('homeCity')} aria-invalid={!!errors.homeCity} aria-describedby={errors.homeCity ? `${getFieldAnchorId('homeCity')}-err` : undefined} disabled={isReadOnly} type="text" name="homeCity" value={member.homeCity} onChange={handleChange} className={getInputClass('homeCity')} />
+                        {errors.homeCity && <p id={`${getFieldAnchorId('homeCity')}-err`} className="text-xs text-red-500 mt-1">{errors.homeCity}</p>}
                     </div>
                     <div className="col-span-2">
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                        <label htmlFor={getFieldAnchorId('homeAddressLine')} className="block text-sm font-medium text-slate-700 mb-1">
                             番地 {member.preferredMailDestination === MailDestination.HOME && <span className="text-red-500">(※)</span>}
                         </label>
-                        <input id={getFieldAnchorId('homeAddressLine')} disabled={isReadOnly} type="text" name="homeAddressLine" value={member.homeAddressLine} onChange={handleChange} className={getInputClass('homeAddressLine')} placeholder="例: 1-2-3" />
-                        {errors.homeAddressLine && <p className="text-xs text-red-500 mt-1">{errors.homeAddressLine}</p>}
+                        <input id={getFieldAnchorId('homeAddressLine')} aria-invalid={!!errors.homeAddressLine} aria-describedby={errors.homeAddressLine ? `${getFieldAnchorId('homeAddressLine')}-err` : undefined} disabled={isReadOnly} type="text" name="homeAddressLine" value={member.homeAddressLine} onChange={handleChange} className={getInputClass('homeAddressLine')} placeholder="例: 1-2-3" />
+                        {errors.homeAddressLine && <p id={`${getFieldAnchorId('homeAddressLine')}-err`} className="text-xs text-red-500 mt-1">{errors.homeAddressLine}</p>}
                     </div>
                     <div className="col-span-2">
-                        <label className="block text-sm font-medium text-slate-700 mb-1">建物名・部屋番号（任意）</label>
-                        <input disabled={isReadOnly} type="text" name="homeAddressLine2" value={member.homeAddressLine2 || ''} onChange={handleChange} className={getInputClass('homeAddressLine2')} placeholder="例: ○○マンション 101号室" />
+                        <label htmlFor={`${uid}-f17`} className="block text-sm font-medium text-slate-700 mb-1">建物名・部屋番号（任意）</label>
+                        <input id={`${uid}-f17`} disabled={isReadOnly} type="text" name="homeAddressLine2" value={member.homeAddressLine2 || ''} onChange={handleChange} className={getInputClass('homeAddressLine2')} placeholder="例: ○○マンション 101号室" />
                     </div>
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">携帯電話番号 {(!member.phone?.trim()) && <span className="text-red-500">(※ いずれか必須)</span>}</label>
-                    <input id={getFieldAnchorId('mobilePhone')} disabled={isReadOnly} type="tel" name="mobilePhone" value={member.mobilePhone || ''} onChange={handleChange} className={getInputClass('mobilePhone')} placeholder="090-0000-0000" />
-                    {errors.mobilePhone && <p className="text-xs text-red-500 mt-1">{errors.mobilePhone}</p>}
+                    <label htmlFor={getFieldAnchorId('mobilePhone')} className="block text-sm font-medium text-slate-700 mb-1">携帯電話番号 {(!member.phone?.trim()) && <span className="text-red-500">(※ いずれか必須)</span>}</label>
+                    <input id={getFieldAnchorId('mobilePhone')} aria-invalid={!!errors.mobilePhone} aria-describedby={errors.mobilePhone ? `${getFieldAnchorId('mobilePhone')}-err` : undefined} disabled={isReadOnly} type="tel" name="mobilePhone" value={member.mobilePhone || ''} onChange={handleChange} className={getInputClass('mobilePhone')} placeholder="090-0000-0000" />
+                    {errors.mobilePhone && <p id={`${getFieldAnchorId('mobilePhone')}-err`} className="text-xs text-red-500 mt-1">{errors.mobilePhone}</p>}
                     {isBusiness && !isReadOnly && (
                       <button
                         type="button"
@@ -1755,28 +1796,29 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
             )}
             <div className="pl-8 grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label htmlFor={getFieldAnchorId('officeName')} className="block text-sm font-medium text-slate-700 mb-1">
                   {isBusiness ? '事業所名' : '事業所名 (※)'} 
                   {!isBusiness && <span className="text-xs text-red-500 ml-2">空白または「{NO_OFFICE_AFFILIATION_LABEL}」の場合は未勤務として扱います</span>}
                 </label>
-                <input id={getFieldAnchorId('officeName')} disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="text" name="officeName" value={member.officeName} onChange={handleChange} className={getInputClass('officeName', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} />
-                {errors.officeName && <p className="text-xs text-red-500 mt-1">{errors.officeName}</p>}
+                <input id={getFieldAnchorId('officeName')} aria-invalid={!!errors.officeName} aria-describedby={errors.officeName ? `${getFieldAnchorId('officeName')}-err` : undefined} disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="text" name="officeName" value={member.officeName} onChange={handleChange} className={getInputClass('officeName', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} />
+                {errors.officeName && <p id={`${getFieldAnchorId('officeName')}-err`} className="text-xs text-red-500 mt-1">{errors.officeName}</p>}
               </div>
 
               {isBusiness && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">事業所番号 <span className="text-red-500">(※)</span></label>
-                  <input id={getFieldAnchorId('officeNumber')} disabled={!canEditBusinessOfficeFields} type="text" name="officeNumber" value={member.officeNumber || ""} onChange={handleChange} className={getInputClass('officeNumber', !canEditBusinessOfficeFields)} placeholder="0000000000" />
-                  {errors.officeNumber && <p className="text-xs text-red-500 mt-1">{errors.officeNumber}</p>}
+                  <label htmlFor={getFieldAnchorId('officeNumber')} className="block text-sm font-medium text-slate-700 mb-1">事業所番号 <span className="text-red-500">(※)</span></label>
+                  <input id={getFieldAnchorId('officeNumber')} aria-invalid={!!errors.officeNumber} aria-describedby={errors.officeNumber ? `${getFieldAnchorId('officeNumber')}-err` : undefined} disabled={!canEditBusinessOfficeFields} type="text" name="officeNumber" value={member.officeNumber || ""} onChange={handleChange} className={getInputClass('officeNumber', !canEditBusinessOfficeFields)} placeholder="0000000000" />
+                  {errors.officeNumber && <p id={`${getFieldAnchorId('officeNumber')}-err`} className="text-xs text-red-500 mt-1">{errors.officeNumber}</p>}
                 </div>
               )}
 
                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                  <label htmlFor={getFieldAnchorId('officePostCode')} className="block text-sm font-medium text-slate-700 mb-1">
                     郵便番号 {(isBusiness || member.preferredMailDestination === MailDestination.OFFICE) && <span className="text-red-500">(※)</span>}
                   </label>
                   <PostalCodeInput
                     id={getFieldAnchorId('officePostCode')}
+                    describedBy={errors.officePostCode ? `${getFieldAnchorId('officePostCode')}-err` : undefined}
                     value={member.officePostCode}
                     onChange={(value) => handlePostalCodeChange('officePostCode', value)}
                     disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly}
@@ -1784,45 +1826,45 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                     invalid={!!errors.officePostCode}
                     inputClassName={getInputClass('officePostCode', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)}
                   />
-                  {errors.officePostCode && <p className="text-xs text-red-500 mt-1">{errors.officePostCode}</p>}
+                  {errors.officePostCode && <p id={`${getFieldAnchorId('officePostCode')}-err`} className="text-xs text-red-500 mt-1">{errors.officePostCode}</p>}
                </div>
                <div className="md:col-span-2 grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                    <label htmlFor={getFieldAnchorId('officePrefecture')} className="block text-sm font-medium text-slate-700 mb-1">
                         都道府県 {(isBusiness || member.preferredMailDestination === MailDestination.OFFICE) && <span className="text-red-500">(※)</span>}
                     </label>
-                    <input id={getFieldAnchorId('officePrefecture')} disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="text" name="officePrefecture" value={member.officePrefecture} onChange={handleChange} className={getInputClass('officePrefecture', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} />
-                    {errors.officePrefecture && <p className="text-xs text-red-500 mt-1">{errors.officePrefecture}</p>}
+                    <input id={getFieldAnchorId('officePrefecture')} aria-invalid={!!errors.officePrefecture} aria-describedby={errors.officePrefecture ? `${getFieldAnchorId('officePrefecture')}-err` : undefined} disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="text" name="officePrefecture" value={member.officePrefecture} onChange={handleChange} className={getInputClass('officePrefecture', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} />
+                    {errors.officePrefecture && <p id={`${getFieldAnchorId('officePrefecture')}-err`} className="text-xs text-red-500 mt-1">{errors.officePrefecture}</p>}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                    <label htmlFor={getFieldAnchorId('officeCity')} className="block text-sm font-medium text-slate-700 mb-1">
                         市区町村 {(isBusiness || member.preferredMailDestination === MailDestination.OFFICE) && <span className="text-red-500">(※)</span>}
                     </label>
-                    <input id={getFieldAnchorId('officeCity')} disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="text" name="officeCity" value={member.officeCity} onChange={handleChange} className={getInputClass('officeCity', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} />
-                    {errors.officeCity && <p className="text-xs text-red-500 mt-1">{errors.officeCity}</p>}
+                    <input id={getFieldAnchorId('officeCity')} aria-invalid={!!errors.officeCity} aria-describedby={errors.officeCity ? `${getFieldAnchorId('officeCity')}-err` : undefined} disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="text" name="officeCity" value={member.officeCity} onChange={handleChange} className={getInputClass('officeCity', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} />
+                    {errors.officeCity && <p id={`${getFieldAnchorId('officeCity')}-err`} className="text-xs text-red-500 mt-1">{errors.officeCity}</p>}
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                    <label htmlFor={getFieldAnchorId('officeAddressLine')} className="block text-sm font-medium text-slate-700 mb-1">
                         番地 {(isBusiness || member.preferredMailDestination === MailDestination.OFFICE) && <span className="text-red-500">(※)</span>}
                     </label>
-                    <input id={getFieldAnchorId('officeAddressLine')} disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="text" name="officeAddressLine" value={member.officeAddressLine} onChange={handleChange} className={getInputClass('officeAddressLine', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} placeholder="例: 1-2-3" />
-                    {errors.officeAddressLine && <p className="text-xs text-red-500 mt-1">{errors.officeAddressLine}</p>}
+                    <input id={getFieldAnchorId('officeAddressLine')} aria-invalid={!!errors.officeAddressLine} aria-describedby={errors.officeAddressLine ? `${getFieldAnchorId('officeAddressLine')}-err` : undefined} disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="text" name="officeAddressLine" value={member.officeAddressLine} onChange={handleChange} className={getInputClass('officeAddressLine', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} placeholder="例: 1-2-3" />
+                    {errors.officeAddressLine && <p id={`${getFieldAnchorId('officeAddressLine')}-err`} className="text-xs text-red-500 mt-1">{errors.officeAddressLine}</p>}
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">建物名・部屋番号（任意）</label>
-                    <input disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="text" name="officeAddressLine2" value={member.officeAddressLine2 || ''} onChange={handleChange} className={getInputClass('officeAddressLine2', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} placeholder="例: ○○ビル 3F" />
+                    <label htmlFor={`${uid}-f23`} className="block text-sm font-medium text-slate-700 mb-1">建物名・部屋番号（任意）</label>
+                    <input id={`${uid}-f23`} disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="text" name="officeAddressLine2" value={member.officeAddressLine2 || ''} onChange={handleChange} className={getInputClass('officeAddressLine2', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} placeholder="例: ○○ビル 3F" />
                   </div>
                </div>
               
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">勤務先電話番号 {(!member.mobilePhone?.trim()) && <span className="text-red-500">(※ いずれか必須)</span>}</label>
-                <input id={getFieldAnchorId('phone')} disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="tel" name="phone" value={member.phone} onChange={handleChange} className={getInputClass('phone', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} />
-                {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
+                <label htmlFor={getFieldAnchorId('phone')} className="block text-sm font-medium text-slate-700 mb-1">勤務先電話番号 {(!member.mobilePhone?.trim()) && <span className="text-red-500">(※ いずれか必須)</span>}</label>
+                <input id={getFieldAnchorId('phone')} aria-invalid={!!errors.phone} aria-describedby={errors.phone ? `${getFieldAnchorId('phone')}-err` : undefined} disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="tel" name="phone" value={member.phone} onChange={handleChange} className={getInputClass('phone', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} />
+                {errors.phone && <p id={`${getFieldAnchorId('phone')}-err`} className="text-xs text-red-500 mt-1">{errors.phone}</p>}
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">FAX番号（任意）</label>
-                <input id={getFieldAnchorId('fax')} disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="tel" name="fax" value={member.fax} onChange={handleChange} className={getInputClass('fax', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} placeholder="任意" />
-                {errors.fax && <p className="text-xs text-red-500 mt-1">{errors.fax}</p>}
+                <label htmlFor={getFieldAnchorId('fax')} className="block text-sm font-medium text-slate-700 mb-1">FAX番号（任意）</label>
+                <input id={getFieldAnchorId('fax')} aria-invalid={!!errors.fax} aria-describedby={errors.fax ? `${getFieldAnchorId('fax')}-err` : undefined} disabled={isBusiness ? !canEditBusinessOfficeFields : isReadOnly} type="tel" name="fax" value={member.fax} onChange={handleChange} className={getInputClass('fax', isBusiness ? !canEditBusinessOfficeFields : isReadOnly)} placeholder="任意" />
+                {errors.fax && <p id={`${getFieldAnchorId('fax')}-err`} className="text-xs text-red-500 mt-1">{errors.fax}</p>}
               </div>
             </div>
           </div>
@@ -1910,8 +1952,9 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                       
                       {member.mailingPreference === MailingPreference.EMAIL && (
                         <div className="mt-4 bg-primary-50 p-6 rounded-lg border border-primary-100 animate-fadeIn">
-                          <label className="block text-sm font-bold text-primary-900 mb-1">メールアドレス (※必須)</label>
+                          <label htmlFor={getFieldAnchorId('email')} className="block text-sm font-bold text-primary-900 mb-1">メールアドレス (※必須)</label>
                           <input
+                            id={getFieldAnchorId('email')} aria-invalid={!!errors.email} aria-describedby={errors.email ? `${getFieldAnchorId('email')}-err` : undefined}
                             disabled={isReadOnly}
                             type="email"
                             name="email"
@@ -1920,7 +1963,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                             className={getInputClass('email')}
                             placeholder="user@example.com"
                           />
-                          {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
+                          {errors.email && <p id={`${getFieldAnchorId('email')}-err`} className="text-xs text-red-500 mt-1">{errors.email}</p>}
                         </div>
                       )}
                   </div>
@@ -2077,6 +2120,8 @@ const getFiscalYearEndLabel = (): string => {
 };
 
 const WithdrawalSection: React.FC<WithdrawalSectionProps> = (props) => {
+  // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
+  const uid = React.useId();
   const {
     member, loginId,
     withdrawalPassword, setWithdrawalPassword,
@@ -2146,12 +2191,15 @@ const WithdrawalSection: React.FC<WithdrawalSectionProps> = (props) => {
           退会日までは引き続きマイページをご利用いただけます。
         </p>
         <div className="bg-white rounded-lg p-4 border border-amber-200">
-          <p className="text-sm font-medium text-slate-700 mb-3">退会申請を取り消す場合は、パスワードを入力してください。</p>
+          <p id={`${uid}-cancel-withdrawal-label`} className="text-sm font-medium text-slate-700 mb-3">退会申請を取り消す場合は、パスワードを入力してください。</p>
           <div className="flex items-end gap-3">
             <div className="flex-1">
               <input
                 type="password"
                 placeholder="現在のパスワード"
+                aria-labelledby={`${uid}-cancel-withdrawal-label`}
+                aria-invalid={!!cancelWithdrawalError}
+                aria-describedby={cancelWithdrawalError ? `${uid}-cancel-withdrawal-err` : undefined}
                 value={cancelWithdrawalPassword}
                 onChange={(e) => { setCancelWithdrawalPassword(e.target.value); setCancelWithdrawalError(null); }}
                 className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
@@ -2167,7 +2215,7 @@ const WithdrawalSection: React.FC<WithdrawalSectionProps> = (props) => {
               {cancelWithdrawalSubmitting ? '処理中...' : '退会を取り消す'}
             </button>
           </div>
-          {cancelWithdrawalError && <p className="mt-2 text-sm text-red-600">{cancelWithdrawalError}</p>}
+          {cancelWithdrawalError && <p id={`${uid}-cancel-withdrawal-err`} className="mt-2 text-sm text-red-600">{cancelWithdrawalError}</p>}
         </div>
       </div>
     );
@@ -2199,8 +2247,11 @@ const WithdrawalSection: React.FC<WithdrawalSectionProps> = (props) => {
           <p className="text-xs text-red-600 mb-3">{fiscalYearEnd} をもって退会となります。年度末までは取り消し可能です。</p>
           <div className="flex items-end gap-3">
             <div className="flex-1">
-              <label className="block text-xs font-medium text-slate-600 mb-1">確認のためパスワードを入力</label>
+              <label htmlFor={`${uid}-f27`} className="block text-xs font-medium text-slate-600 mb-1">確認のためパスワードを入力</label>
               <input
+                id={`${uid}-f27`}
+                aria-invalid={!!withdrawalError}
+                aria-describedby={withdrawalError ? `${uid}-withdrawal-err` : undefined}
                 type="password"
                 placeholder="現在のパスワード"
                 value={withdrawalPassword}
@@ -2226,7 +2277,7 @@ const WithdrawalSection: React.FC<WithdrawalSectionProps> = (props) => {
               キャンセル
             </button>
           </div>
-          {withdrawalError && <p className="mt-2 text-sm text-red-600">{withdrawalError}</p>}
+          {withdrawalError && <p id={`${uid}-withdrawal-err`} className="mt-2 text-sm text-red-600">{withdrawalError}</p>}
         </div>
       )}
     </div>

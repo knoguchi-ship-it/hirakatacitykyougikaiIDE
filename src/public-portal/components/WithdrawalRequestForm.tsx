@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { useRevealOnChange } from '../../shared/useRevealOnChange';
 import { callApi } from '../../shared/api-base';
 import { IdentityVerifyStep, type IdentityPayload } from './IdentityVerifyStep';
 import { publicIdentityErrorMessage, type PublicIdentityMemberType } from '../../shared/publicIdentity';
@@ -25,6 +26,14 @@ const WithdrawalRequestForm: React.FC<Props> = ({ onBack, confirmationItems }) =
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const clearError = () => setError(null);
+  // 本人確認の段では IdentityVerifyStep がボタンの直前に同じエラーを出す。ここでも出すと二重表示になり、
+  // 上へスクロールさせると利用者の目線を入力欄から引き離すため、その段では上の枠を出さない。
+  const showTopError = !!error && step !== 'verify';
+  // 退会確認の送信エラーはフォームの上に出る（送信ボタンは下）。出たら見える位置へ移す
+  const errorRef = useRef<HTMLDivElement>(null);
+  useRevealOnChange(showTopError ? error : null, errorRef);
+  const uid = React.useId();
+  const errorId = `${uid}-error`;
 
   const handleSelectType = (t: MemberType) => {
     setMemberType(t);
@@ -123,8 +132,8 @@ const WithdrawalRequestForm: React.FC<Props> = ({ onBack, confirmationItems }) =
         </ol>
       </nav>
 
-      {error && (
-        <div role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      {showTopError && (
+        <div ref={errorRef} id={errorId} tabIndex={-1} role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 focus:outline-none">
           {error}
         </div>
       )}
@@ -186,6 +195,7 @@ const WithdrawalRequestForm: React.FC<Props> = ({ onBack, confirmationItems }) =
 
           <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4">
             <input type="checkbox" className="mt-0.5 h-4 w-4 accent-amber-600"
+              aria-describedby={showTopError ? errorId : undefined}
               checked={confirmed} onChange={e => { setConfirmed(e.target.checked); clearError(); }} required />
             <span className="text-sm text-slate-700">
               上記の内容を確認し、退会を申し込むことに同意します。

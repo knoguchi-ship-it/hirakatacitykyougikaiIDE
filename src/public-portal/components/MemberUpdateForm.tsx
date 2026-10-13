@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { callApi } from '../../shared/api-base';
 import { IdentityVerifyStep, type IdentityPayload } from './IdentityVerifyStep';
 import { publicIdentityErrorMessage, type PublicIdentityMemberType } from '../../shared/publicIdentity';
@@ -54,36 +54,63 @@ interface StaffAddCard {
 }
 const EMPTY_STAFF_ADD: StaffAddCard = { lastName: '', firstName: '', lastKana: '', firstKana: '', careManagerNumber: '', email: '' };
 
-interface StaffRemoveCard {
+// 2026-10-13: 公開ポータルは登録済みの個人情報を一切表示しない（operator 判断）。
+// 除籍・情報変更の対象職員は、申請者が「今の氏名と介護支援専門員番号」を入力して特定する。
+// サーバは一致したかどうかだけを返す（checkPublicStaffMatch）。
+type StaffMatchState = 'idle' | 'checking' | 'matched' | 'unmatched';
+interface StaffIdentity {
   lastName: string;
   firstName: string;
   careManagerNumber: string;
+  match: StaffMatchState;
 }
-const EMPTY_STAFF_REMOVE: StaffRemoveCard = { lastName: '', firstName: '', careManagerNumber: '' };
+const EMPTY_STAFF_IDENTITY: StaffIdentity = { lastName: '', firstName: '', careManagerNumber: '', match: 'idle' };
+const staffIdentityFilled = (s: StaffIdentity) =>
+  !!s.lastName.trim() || !!s.firstName.trim() || !!s.careManagerNumber.trim();
+const staffIdentityComplete = (s: StaffIdentity) =>
+  !!s.lastName.trim() && !!s.firstName.trim() && CARE_MANAGER_NO_PATTERN.test(s.careManagerNumber);
 
-// v372.5: 既存職員情報の変更カード
-interface StaffUpdateOriginal {
-  staffId: string;
-  lastName: string;
-  firstName: string;
-  lastKana: string;
-  firstKana: string;
-  email: string;
-  careManagerNumber: string;
-  role: string;
-  careManagerNumberLocked: boolean; // 10桁等の admin 緩和入力時は編集不可
+/** 職員追加カードの 6 項目がそろっているか（サーバの受付条件と同じ） */
+const staffAddComplete = (c: StaffAddCard) =>
+  !!c.lastName.trim() && !!c.firstName.trim() && !!c.lastKana.trim() && !!c.firstKana.trim()
+  && CARE_MANAGER_NO_PATTERN.test(c.careManagerNumber) && !!c.email.trim();
+
+type StaffRemoveCard = StaffIdentity;
+const EMPTY_STAFF_REMOVE: StaffRemoveCard = { ...EMPTY_STAFF_IDENTITY };
+
+// v372.5: 既存職員情報の変更カード。特定（StaffIdentity）→ 変更する項目を選ぶ → 変更後の値を入力。
+type StaffUpdateField = 'name' | 'kana' | 'email' | 'careManagerNumber';
+const STAFF_UPDATE_FIELDS: { key: StaffUpdateField; label: string }[] = [
+  { key: 'name', label: '氏名' },
+  { key: 'kana', label: 'フリガナ' },
+  { key: 'email', label: 'メールアドレス' },
+  { key: 'careManagerNumber', label: '介護支援専門員番号' },
+];
+interface StaffUpdateCard extends StaffIdentity {
+  changes: StaffUpdateField[];
+  // 変更後の値（選んだ項目だけ使う）
+  newLastName: string;
+  newFirstName: string;
+  newLastKana: string;
+  newFirstKana: string;
+  newEmail: string;
+  newCareManagerNumber: string;
 }
-interface StaffUpdateCard {
-  staffId: string;
-  original: StaffUpdateOriginal;
-  selected: boolean; // 「変更する」チェックボックス
-  // 入力値（空欄 = 変更なし）
-  lastName: string;
-  firstName: string;
-  lastKana: string;
-  firstKana: string;
-  email: string;
-  careManagerNumber: string;
+const EMPTY_STAFF_UPDATE: StaffUpdateCard = {
+  ...EMPTY_STAFF_IDENTITY, changes: [],
+  newLastName: '', newFirstName: '', newLastKana: '', newFirstKana: '', newEmail: '', newCareManagerNumber: '',
+};
+/** 選んだ項目のうち、変更後の値が入っているもの（空欄は送らない） */
+function staffUpdateEntry(c: StaffUpdateCard): Record<string, string> {
+  const e: Record<string, string> = {};
+  const has = (k: StaffUpdateField) => c.changes.includes(k);
+  if (has('name') && c.newLastName.trim()) e.lastName = c.newLastName.trim();
+  if (has('name') && c.newFirstName.trim()) e.firstName = c.newFirstName.trim();
+  if (has('kana') && c.newLastKana.trim()) e.lastKana = normalizeKana(c.newLastKana);
+  if (has('kana') && c.newFirstKana.trim()) e.firstKana = normalizeKana(c.newFirstKana);
+  if (has('email') && c.newEmail.trim()) e.email = c.newEmail.trim();
+  if (has('careManagerNumber') && CARE_MANAGER_NO_PATTERN.test(c.newCareManagerNumber)) e.careManagerNumber = c.newCareManagerNumber;
+  return e;
 }
 
 interface IndividualFields {
@@ -133,26 +160,70 @@ const req = <span className="text-red-500"> *</span>;
 const AddressInput: React.FC<{
   label: string; value: AddressValue; onChange: (v: AddressValue) => void;
 }> = ({ label, value, onChange }) => {
+  const fid = React.useId();
   const up = (f: keyof AddressValue) => (e: React.ChangeEvent<HTMLInputElement>) =>
     onChange({ ...value, [f]: e.target.value });
   return (
     <fieldset className="space-y-3 rounded-lg border border-slate-200 p-4">
       <legend className="px-1 text-sm font-semibold text-slate-700">{label}</legend>
-      <div><label className={labelClass}>郵便番号</label>
-        <input type="text" value={value.postCode} onChange={up('postCode')} placeholder="例: 123-4567" maxLength={8} className={inputClass} /></div>
-      <div><label className={labelClass}>都道府県</label>
-        <input type="text" value={value.prefecture} onChange={up('prefecture')} placeholder="例: 大阪府" maxLength={10} className={inputClass} /></div>
-      <div><label className={labelClass}>市区町村</label>
-        <input type="text" value={value.city} onChange={up('city')} placeholder="例: 枚方市" className={inputClass} /></div>
-      <div><label className={labelClass}>番地</label>
-        <input type="text" value={value.addressLine} onChange={up('addressLine')} placeholder="例: ○○町1-2-3" className={inputClass} /></div>
-      <div><label className={labelClass}>建物名・部屋番号</label>
-        <input type="text" value={value.addressLine2} onChange={up('addressLine2')} placeholder="例: ○○ビル101" className={inputClass} /></div>
+      <div><label htmlFor={`${fid}-postCode`} className={labelClass}>郵便番号</label>
+        <input id={`${fid}-postCode`} type="text" value={value.postCode} onChange={up('postCode')} placeholder="例: 123-4567" maxLength={8} className={inputClass} /></div>
+      <div><label htmlFor={`${fid}-prefecture`} className={labelClass}>都道府県</label>
+        <input id={`${fid}-prefecture`} type="text" value={value.prefecture} onChange={up('prefecture')} placeholder="例: 大阪府" maxLength={10} className={inputClass} /></div>
+      <div><label htmlFor={`${fid}-city`} className={labelClass}>市区町村</label>
+        <input id={`${fid}-city`} type="text" value={value.city} onChange={up('city')} placeholder="例: 枚方市" className={inputClass} /></div>
+      <div><label htmlFor={`${fid}-addressLine`} className={labelClass}>番地</label>
+        <input id={`${fid}-addressLine`} type="text" value={value.addressLine} onChange={up('addressLine')} placeholder="例: ○○町1-2-3" className={inputClass} /></div>
+      <div><label htmlFor={`${fid}-addressLine2`} className={labelClass}>建物名・部屋番号</label>
+        <input id={`${fid}-addressLine2`} type="text" value={value.addressLine2} onChange={up('addressLine2')} placeholder="例: ○○ビル101" className={inputClass} /></div>
     </fieldset>
   );
 };
 
 // ── ステップインジケーター ─────────────────────────────────────────────────────
+// 職員の特定欄（今の氏名と介護支援専門員番号 ＋ 照合ボタン）。除籍と情報変更で共通。
+// 照合結果は「一致した／しない」だけを示す。登録内容は表示しない。
+const StaffIdentityFields: React.FC<{
+  value: StaffIdentity;
+  onChange: (patch: Partial<StaffIdentity>) => void;
+  onCheck: () => void;
+}> = ({ value, onChange, onCheck }) => {
+  const id = React.useId();
+  return (
+  <div className="space-y-3">
+    <div className="grid grid-cols-2 gap-3">
+      <div>
+        <label htmlFor={`${id}-last`} className={labelClass}>氏（姓）{req}</label>
+        <input id={`${id}-last`} type="text" value={value.lastName} onChange={e => onChange({ lastName: e.target.value })} className={inputClass} />
+      </div>
+      <div>
+        <label htmlFor={`${id}-first`} className={labelClass}>名{req}</label>
+        <input id={`${id}-first`} type="text" value={value.firstName} onChange={e => onChange({ firstName: e.target.value })} className={inputClass} />
+      </div>
+    </div>
+    <div>
+      <label htmlFor={`${id}-cm`} className={labelClass}>介護支援専門員番号{req}</label>
+      <input id={`${id}-cm`} type="text" inputMode="numeric" pattern="\d{8}" maxLength={8} value={value.careManagerNumber}
+        onChange={e => onChange({ careManagerNumber: e.target.value.replace(/\D/g, '') })} className={inputClass} />
+      <p className="mt-1 text-xs text-slate-500">半角数字8桁</p>
+    </div>
+    <div className="flex flex-wrap items-center gap-3">
+      <button type="button" onClick={onCheck}
+        disabled={!staffIdentityComplete(value) || value.match === 'checking' || value.match === 'matched'}
+        className="min-h-[44px] rounded-full border border-violet-300 bg-white px-5 text-sm font-medium text-violet-700 transition hover:border-violet-500 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400">
+        {value.match === 'checking' ? '照合中...' : '職員を照合する'}
+      </button>
+      <span aria-live="polite" className="text-sm">
+        {value.match === 'matched' && <span className="font-semibold text-green-700">✓ 在籍職員と一致しました</span>}
+        {value.match === 'unmatched' && (
+          <span className="text-red-700">一致する在籍職員が見つかりません。氏名と番号を確かめてください。</span>
+        )}
+      </span>
+    </div>
+  </div>
+  );
+};
+
 const StepIndicator: React.FC<{ labels: string[]; current: number }> = ({ labels, current }) => (
   <nav aria-label="手続きの進行状況" className="mb-8">
     <ol className="flex flex-wrap items-center gap-1">
@@ -175,12 +246,22 @@ const StepIndicator: React.FC<{ labels: string[]; current: number }> = ({ labels
 
 // ── メインコンポーネント ───────────────────────────────────────────────────────
 const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
+  // ラベルと入力欄を結び付ける id の接頭辞（支援技術が項目名を読めるように）
+  const uid = React.useId();
   const [step, setStep] = useState<Step>('member-type');
   const [memberType, setMemberType] = useState<MemberType>('INDIVIDUAL');
   const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const clearError = () => setError(null);
+  // 2026-10-13: エラーは画面上端に出る。スマホ幅で下端の送信ボタンを押すと見えなかったため、
+  // 出たときに画面内へ移してフォーカスを当てる（支援技術にも届く）。
+  const errorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!error || !errorRef.current) return;
+    errorRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    errorRef.current.focus({ preventScroll: true });
+  }, [error]);
 
   // verify 入力
   const [cmNumber, setCmNumber] = useState('');
@@ -205,13 +286,12 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
   const [indFields, setIndFields] = useState<IndividualFields>(INITIAL_INDIVIDUAL);
   // 事業所会員フィールド値
   const [bizFields, setBizFields] = useState<BusinessFields>(INITIAL_BUSINESS);
-  // スタッフ追加カード
-  const [availableSlots, setAvailableSlots] = useState(1);
+  // スタッフ追加カード（上限は承認時に事務局が確かめる。在籍人数は公開ポータルに出さない）
   const [staffAddCards, setStaffAddCards] = useState<StaffAddCard[]>([{ ...EMPTY_STAFF_ADD }]);
   // スタッフ除籍カード
   const [staffRemoveCards, setStaffRemoveCards] = useState<StaffRemoveCard[]>([{ ...EMPTY_STAFF_REMOVE }]);
-  // v372.5: 職員情報変更カード（在籍職員一覧から自動生成）
-  const [staffUpdateCards, setStaffUpdateCards] = useState<StaffUpdateCard[]>([]);
+  // v372.5: 職員情報変更カード（2026-10-13: 一覧は出さず、今の氏名と番号で特定する）
+  const [staffUpdateCards, setStaffUpdateCards] = useState<StaffUpdateCard[]>([{ ...EMPTY_STAFF_UPDATE }]);
 
   // ── Step 1: 会員種別選択 ─────────────────────────────────────────────────────
   const handleSelectType = (t: MemberType) => {
@@ -242,44 +322,75 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
   };
 
   // ── Step 3 → Step 4: フィールド選択確定 ─────────────────────────────────────
-  const handleSelectConfirm = async () => {
+  // 2026-10-13: 以前はここで在籍職員一覧と追加可能人数を取得していた。登録内容を返さない方針で廃止。
+  const handleSelectConfirm = () => {
     if (selected.size === 0) { setError('変更する項目を1つ以上選択してください。'); return; }
     clearError();
-    // 事業所会員でスタッフ追加選択時: 追加可能数を取得してカード枚数を決める
-    if (memberType === 'BUSINESS' && selected.has('staffAdd')) {
-      setBusy(true);
-      try {
-        const res = await callApi<{ availableSlots: number; error?: string }>('getPublicAvailableStaffSlots', { token });
-        const slots = res.availableSlots ?? 1;
-        setAvailableSlots(Math.max(1, slots));
-        setStaffAddCards(Array.from({ length: Math.max(1, slots) }, () => ({ ...EMPTY_STAFF_ADD })));
-      } catch {
-        setAvailableSlots(1);
-        setStaffAddCards([{ ...EMPTY_STAFF_ADD }]);
-      } finally {
-        setBusy(false);
-      }
-    }
-    // v372.5: 職員情報変更選択時: 在籍職員一覧を取得してカード初期化
-    if (memberType === 'BUSINESS' && selected.has('staffUpdate')) {
-      setBusy(true);
-      try {
-        const res = await callApi<{ staff?: StaffUpdateOriginal[]; error?: string }>('getPublicEnrolledStaffList', { token });
-        const list = res.staff || [];
-        setStaffUpdateCards(list.map((s) => ({
-          staffId: s.staffId,
-          original: s,
-          selected: false,
-          lastName: '', firstName: '', lastKana: '', firstKana: '', email: '', careManagerNumber: '',
-        })));
-      } catch {
-        setStaffUpdateCards([]);
-      } finally {
-        setBusy(false);
-      }
-    }
     setStep('input-fields');
   };
+
+  // 職員の照合。返ってくるのは一致したかどうかだけ。
+  const checkStaffMatch = async (who: StaffIdentity): Promise<StaffMatchState> => {
+    const expired = 'セッションの有効期限が切れました（30分）。最初からやり直してください。';
+    try {
+      const res = await callApi<{ matched?: boolean; error?: string }>('checkPublicStaffMatch', {
+        token, lastName: who.lastName.trim(), firstName: who.firstName.trim(), careManagerNumber: who.careManagerNumber,
+      });
+      if (res.error) {
+        setError(res.error === 'token_expired' ? expired : res.error);
+        return 'idle';
+      }
+      return res.matched ? 'matched' : 'unmatched';
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '';
+      setError(msg === 'token_expired' ? expired : '照合できませんでした。時間をおいてもう一度お試しください。');
+      return 'idle';
+    }
+  };
+  const runRemoveMatch = async (idx: number) => {
+    const card = staffRemoveCards[idx];
+    if (!card || !staffIdentityComplete(card)) return;
+    clearError();
+    setStaffRemoveCards((cards) => cards.map((c, i) => i === idx ? { ...c, match: 'checking' } : c));
+    const result = await checkStaffMatch(card);
+    setStaffRemoveCards((cards) => cards.map((c, i) => i === idx ? { ...c, match: result } : c));
+  };
+  const runUpdateMatch = async (idx: number) => {
+    const card = staffUpdateCards[idx];
+    if (!card || !staffIdentityComplete(card)) return;
+    clearError();
+    setStaffUpdateCards((cards) => cards.map((c, i) => i === idx ? { ...c, match: 'checking' } : c));
+    const result = await checkStaffMatch(card);
+    setStaffUpdateCards((cards) => cards.map((c, i) => i === idx ? { ...c, match: result } : c));
+  };
+  // 照合済みのあとで氏名・番号を書き換えたら、照合をやり直してもらう。
+  const patchRemoveIdentity = (idx: number, patch: Partial<StaffIdentity>) =>
+    setStaffRemoveCards((cards) => cards.map((c, i) => i === idx ? { ...c, ...patch, match: 'idle' } : c));
+  const patchUpdateIdentity = (idx: number, patch: Partial<StaffIdentity>) =>
+    setStaffUpdateCards((cards) => cards.map((c, i) => i === idx ? { ...c, ...patch, match: 'idle' } : c));
+  const patchUpdateCard = (idx: number, patch: Partial<StaffUpdateCard>) =>
+    setStaffUpdateCards((cards) => cards.map((c, i) => i === idx ? { ...c, ...patch } : c));
+
+  // 入力を始めたのに済んでいない職員カード（送信前に止める）。
+  // 2026-10-13: 職員追加カードは、途中まで入力したものが申請から**黙って外れていた**
+  // （送信時の絞り込みで落ちる）。申請者は追加を申請したつもりになるため、ここで名指しして止める。
+  const pendingStaffCards = useMemo(() => {
+    if (memberType !== 'BUSINESS') return [] as string[];
+    const out: string[] = [];
+    if (selected.has('staffAdd')) {
+      staffAddCards.forEach((c, i) => {
+        const filled = !!(c.lastName.trim() || c.firstName.trim() || c.lastKana.trim() || c.firstKana.trim() || c.careManagerNumber.trim() || c.email.trim());
+        if (filled && !staffAddComplete(c)) out.push('追加職員 ' + (i + 1) + '：未入力または形式が正しくない項目があります');
+      });
+    }
+    if (selected.has('staffRemove')) {
+      staffRemoveCards.forEach((c, i) => { if (staffIdentityFilled(c) && c.match !== 'matched') out.push('除籍する職員 ' + (i + 1) + '：照合が済んでいません'); });
+    }
+    if (selected.has('staffUpdate')) {
+      staffUpdateCards.forEach((c, i) => { if (staffIdentityFilled(c) && c.match !== 'matched') out.push('変更する職員 ' + (i + 1) + '：照合が済んでいません'); });
+    }
+    return out;
+  }, [memberType, selected, staffAddCards, staffRemoveCards, staffUpdateCards]);
 
   // ── Step 4 → 送信 ────────────────────────────────────────────────────────────
   // v372.6: 変更内容ゼロを send 前に検出（送信ボタン disable に使う）
@@ -396,9 +507,9 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
         if (a.postCode.trim() || a.prefecture.trim() || a.city.trim() || a.addressLine.trim() || a.addressLine2.trim()) return true;
       }
       if (selected.has('officeNumber') && bizFields.officeNumber.trim()) return true;
-      if (selected.has('staffAdd') && staffAddCards.some((c) => c.lastName.trim() && c.firstName.trim() && c.lastKana.trim() && c.firstKana.trim() && CARE_MANAGER_NO_PATTERN.test(c.careManagerNumber) && c.email.trim())) return true;
-      if (selected.has('staffRemove') && staffRemoveCards.some((c) => c.lastName.trim() && c.firstName.trim() && CARE_MANAGER_NO_PATTERN.test(c.careManagerNumber))) return true;
-      if (selected.has('staffUpdate') && staffUpdateCards.some((c) => c.selected && (c.lastName.trim() || c.firstName.trim() || c.lastKana.trim() || c.firstKana.trim() || c.email.trim() || (c.careManagerNumber.trim() && !c.original.careManagerNumberLocked)))) return true;
+      if (selected.has('staffAdd') && staffAddCards.some(staffAddComplete)) return true;
+      if (selected.has('staffRemove') && staffRemoveCards.some((c) => c.match === 'matched')) return true;
+      if (selected.has('staffUpdate') && staffUpdateCards.some((c) => c.match === 'matched' && Object.keys(staffUpdateEntry(c)).length > 0)) return true;
     }
     return false;
   }, [memberType, isPersonType, selected, indFields, bizFields, staffAddCards, staffRemoveCards, staffUpdateCards]);
@@ -408,6 +519,11 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
     // ボタンの disabled だけに頼らない（Enter キー・支援技術・将来の改修）。
     if (retirementMissing.length > 0) {
       setError('退職（勤務なし）の手続きには ' + retirementMissing.join('・') + ' の入力が必要です。');
+      return;
+    }
+    if (pendingStaffCards.length > 0) {
+      setError('入力が済んでいない職員カードがあります（' + pendingStaffCards.join('・')
+        + '）。使わないカードは、削除するか入力を消してください。');
       return;
     }
     if (blankOnlyFields.length > 0) {
@@ -506,32 +622,24 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
 
       const staffAdd = (selected.has('staffAdd') && memberType === 'BUSINESS')
         ? staffAddCards
-            .filter(c => c.lastName && c.firstName && c.lastKana && c.firstKana && CARE_MANAGER_NO_PATTERN.test(c.careManagerNumber) && c.email)
+            .filter(staffAddComplete)
             // v376: kana 列を全角カタカナに正規化
             .map(c => ({ ...c, lastKana: normalizeKana(c.lastKana), firstKana: normalizeKana(c.firstKana) }))
         : [];
       const staffRemove = (selected.has('staffRemove') && memberType === 'BUSINESS')
-        ? staffRemoveCards.filter(c => c.lastName && c.firstName && CARE_MANAGER_NO_PATTERN.test(c.careManagerNumber))
+        ? staffRemoveCards.filter((c) => c.match === 'matched')
+            .map((c) => ({ lastName: c.lastName.trim(), firstName: c.firstName.trim(), careManagerNumber: c.careManagerNumber }))
         : [];
-      // v372.5: 職員情報変更 — 選択された職員のうち、変更入力されたフィールドだけ送る
+      // v372.5: 職員情報変更 — 照合できた職員について、選んだ項目の変更後の値だけ送る。
+      // 対象は target（今の氏名・番号）で示し、職員IDはサーバが引く。
       const staffUpdate = (selected.has('staffUpdate') && memberType === 'BUSINESS')
         ? staffUpdateCards
-            .filter((c) => c.selected)
-            .map((c) => {
-              const entry: Record<string, string> = { staffId: c.staffId };
-              if (c.lastName.trim()) entry.lastName = c.lastName.trim();
-              if (c.firstName.trim()) entry.firstName = c.firstName.trim();
-              // v376: kana 列を全角カタカナに正規化
-              if (c.lastKana.trim()) entry.lastKana = normalizeKana(c.lastKana);
-              if (c.firstKana.trim()) entry.firstKana = normalizeKana(c.firstKana);
-              if (c.email.trim()) entry.email = c.email.trim();
-              // 10桁等の緩和入力は公開ポータルで編集不可 (UI でも disable)
-              if (c.careManagerNumber.trim() && !c.original.careManagerNumberLocked) {
-                entry.careManagerNumber = c.careManagerNumber.trim();
-              }
-              return entry;
-            })
-            .filter((e) => Object.keys(e).length > 1) // staffId 以外に何か変更がある場合のみ
+            .filter((c) => c.match === 'matched')
+            .map((c) => ({
+              target: { lastName: c.lastName.trim(), firstName: c.firstName.trim(), careManagerNumber: c.careManagerNumber },
+              ...staffUpdateEntry(c),
+            }))
+            .filter((e) => Object.keys(e).length > 1) // target 以外に何か変更がある場合のみ
         : [];
 
       // v372.6 fix: 全空チェック（フロント側でも弾く・WCAG SC 3.3.1/3.3.3 inline validation）
@@ -592,9 +700,9 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
     { key: 'officeBasic' as FieldGroup, label: '事業所基本情報', desc: '名称・メール・電話・FAX' },
     { key: 'bizAddress' as FieldGroup, label: '事業所住所', desc: '〒・都道府県・市区町村・番地・建物名' },
     { key: 'officeNumber' as FieldGroup, label: '事業所番号', desc: '' },
-    { key: 'staffAdd' as FieldGroup, label: '職員を追加する', desc: '追加可能な枠数分のカードを表示します' },
-    { key: 'staffRemove' as FieldGroup, label: '職員を除籍する', desc: '氏・名・介護支援専門員番号で照合します' },
-    { key: 'staffUpdate' as FieldGroup, label: '職員情報を変更する', desc: '在籍中の職員の氏名・メール・CM番号を変更します（10桁特殊CM番号は管理者にご連絡ください）' },
+    { key: 'staffAdd' as FieldGroup, label: '職員を追加する', desc: '追加する職員の氏名・フリガナ・介護支援専門員番号・メールを入力します' },
+    { key: 'staffRemove' as FieldGroup, label: '職員を除籍する', desc: '氏名と介護支援専門員番号で職員を照合します' },
+    { key: 'staffUpdate' as FieldGroup, label: '職員情報を変更する', desc: '氏名と介護支援専門員番号で職員を照合し、変更する項目を選びます（HN・HS 等の特殊な番号の職員は事務局へご連絡ください）' },
   ];
   // 賛助会員は個人会員と同じ構成から、持っていない介護支援専門員番号だけを外す。
   // 「INDIVIDUAL 以外＝事業所」と書くと賛助会員に職員追加の欄が出てしまう。
@@ -618,8 +726,10 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
 
       <StepIndicator labels={stepLabels} current={stepIndex} />
 
-      {error && (
-        <div role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      {/* 本人確認の段では IdentityVerifyStep がボタンの直前に同じエラーを出す。ここでも出すと二重表示になり、
+          上へスクロールさせると入力欄から目線が離れるため、その段では上の枠を出さない（退会申込と同じ扱い）。 */}
+      {error && step !== 'verify' && (
+        <div ref={errorRef} tabIndex={-1} role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 focus:outline-none">
           {error}
         </div>
       )}
@@ -700,26 +810,26 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
                     <legend className="px-1 text-sm font-semibold text-slate-700">氏名</legend>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className={labelClass}>氏（姓）</label>
-                        <input type="text" value={indFields.lastName}
+                        <label htmlFor={`${uid}-ind-lastName`} className={labelClass}>氏（姓）</label>
+                        <input id={`${uid}-ind-lastName`} type="text" value={indFields.lastName}
                           onChange={e => setIndFields(f => ({ ...f, lastName: e.target.value }))}
                           placeholder="" className={inputClass} />
                       </div>
                       <div>
-                        <label className={labelClass}>名</label>
-                        <input type="text" value={indFields.firstName}
+                        <label htmlFor={`${uid}-ind-firstName`} className={labelClass}>名</label>
+                        <input id={`${uid}-ind-firstName`} type="text" value={indFields.firstName}
                           onChange={e => setIndFields(f => ({ ...f, firstName: e.target.value }))}
                           placeholder="" className={inputClass} />
                       </div>
                       <div>
-                        <label className={labelClass}>フリガナ（氏）</label>
-                        <input type="text" value={indFields.lastKana}
+                        <label htmlFor={`${uid}-ind-lastKana`} className={labelClass}>フリガナ（氏）</label>
+                        <input id={`${uid}-ind-lastKana`} type="text" value={indFields.lastKana}
                           onChange={e => setIndFields(f => ({ ...f, lastKana: e.target.value }))}
                           placeholder="" className={inputClass} />
                       </div>
                       <div>
-                        <label className={labelClass}>フリガナ（名）</label>
-                        <input type="text" value={indFields.firstKana}
+                        <label htmlFor={`${uid}-ind-firstKana`} className={labelClass}>フリガナ（名）</label>
+                        <input id={`${uid}-ind-firstKana`} type="text" value={indFields.firstKana}
                           onChange={e => setIndFields(f => ({ ...f, firstKana: e.target.value }))}
                           placeholder="" className={inputClass} />
                       </div>
@@ -730,14 +840,14 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
                   <fieldset className="space-y-3 rounded-lg border border-slate-200 p-4">
                     <legend className="px-1 text-sm font-semibold text-slate-700">連絡先</legend>
                     <div>
-                      <label className={labelClass}>メールアドレス</label>
-                      <input type="email" value={indFields.email}
+                      <label htmlFor={`${uid}-ind-email`} className={labelClass}>メールアドレス</label>
+                      <input id={`${uid}-ind-email`} type="email" value={indFields.email}
                         onChange={e => setIndFields(f => ({ ...f, email: e.target.value }))}
                         placeholder="" className={inputClass} />
                     </div>
                     <div>
-                      <label className={labelClass}>携帯電話番号</label>
-                      <input type="tel" value={indFields.mobilePhone}
+                      <label htmlFor={`${uid}-ind-mobilePhone`} className={labelClass}>携帯電話番号</label>
+                      <input id={`${uid}-ind-mobilePhone`} type="tel" value={indFields.mobilePhone}
                         onChange={e => setIndFields(f => ({ ...f, mobilePhone: e.target.value }))}
                         placeholder="" className={inputClass} />
                     </div>
@@ -770,8 +880,8 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
                       </span>
                     </label>
                     <div>
-                      <label className={labelClass}>事業所名</label>
-                      <input type="text" value={indFields.officeName} disabled={indFields.noOffice}
+                      <label htmlFor={`${uid}-ind-officeName`} className={labelClass}>事業所名</label>
+                      <input id={`${uid}-ind-officeName`} type="text" value={indFields.officeName} disabled={indFields.noOffice}
                         onChange={e => setIndFields(f => ({ ...f, officeName: e.target.value }))}
                         placeholder="例: ひらかた介護ステーション"
                         className={indFields.noOffice ? inputClass + ' bg-slate-100 text-slate-400' : inputClass} />
@@ -780,14 +890,14 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
                       </p>
                     </div>
                     <div>
-                      <label className={labelClass}>勤務先電話番号</label>
-                      <input type="tel" value={indFields.phone} disabled={indFields.noOffice}
+                      <label htmlFor={`${uid}-ind-phone`} className={labelClass}>勤務先電話番号</label>
+                      <input id={`${uid}-ind-phone`} type="tel" value={indFields.phone} disabled={indFields.noOffice}
                         onChange={e => setIndFields(f => ({ ...f, phone: e.target.value }))}
                         placeholder="" className={indFields.noOffice ? inputClass + ' bg-slate-100 text-slate-400' : inputClass} />
                     </div>
                     <div>
-                      <label className={labelClass}>勤務先FAX番号</label>
-                      <input type="tel" value={indFields.fax} disabled={indFields.noOffice}
+                      <label htmlFor={`${uid}-ind-fax`} className={labelClass}>勤務先FAX番号</label>
+                      <input id={`${uid}-ind-fax`} type="tel" value={indFields.fax} disabled={indFields.noOffice}
                         onChange={e => setIndFields(f => ({ ...f, fax: e.target.value }))}
                         placeholder="" className={indFields.noOffice ? inputClass + ' bg-slate-100 text-slate-400' : inputClass} />
                     </div>
@@ -806,8 +916,8 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
                     <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
                       <strong>注意:</strong> 介護支援専門員番号を変更すると、ログインIDも変更されます。
                     </div>
-                    <label className={labelClass}>新しい介護支援専門員番号</label>
-                    <input type="text" inputMode="numeric" pattern="\d{8}" maxLength={8}
+                    <label htmlFor={`${uid}-ind-careManagerNumber`} className={labelClass}>新しい介護支援専門員番号</label>
+                    <input id={`${uid}-ind-careManagerNumber`} type="text" inputMode="numeric" pattern="\d{8}" maxLength={8}
                       value={indFields.careManagerNumber}
                       onChange={e => setIndFields(f => ({ ...f, careManagerNumber: e.target.value.replace(/\D/g, '') }))}
                       placeholder="" className={inputClass} />
@@ -816,8 +926,8 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
                 )}
                 {selected.has('mailingPreference') && (
                   <div>
-                    <label className={labelClass}>通知方法</label>
-                    <select value={indFields.mailingPreference}
+                    <label htmlFor={`${uid}-ind-mailingPreference`} className={labelClass}>通知方法</label>
+                    <select id={`${uid}-ind-mailingPreference`} value={indFields.mailingPreference}
                       onChange={e => setIndFields(f => ({ ...f, mailingPreference: e.target.value }))}
                       className={inputClass}>
                       <option value="">-- 選択してください --</option>
@@ -828,8 +938,8 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
                 )}
                 {selected.has('preferredMailDestination') && (
                   <div>
-                    <label className={labelClass}>郵送先区分</label>
-                    <select value={indFields.preferredMailDestination}
+                    <label htmlFor={`${uid}-ind-preferredMailDestination`} className={labelClass}>郵送先区分</label>
+                    <select id={`${uid}-ind-preferredMailDestination`} value={indFields.preferredMailDestination}
                       onChange={e => setIndFields(f => ({ ...f, preferredMailDestination: e.target.value }))}
                       className={inputClass}>
                       <option value="">-- 選択してください --</option>
@@ -848,26 +958,26 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
                   <fieldset className="space-y-3 rounded-lg border border-slate-200 p-4">
                     <legend className="px-1 text-sm font-semibold text-slate-700">事業所基本情報</legend>
                     <div>
-                      <label className={labelClass}>事業所名</label>
-                      <input type="text" value={bizFields.officeName}
+                      <label htmlFor={`${uid}-biz-officeName`} className={labelClass}>事業所名</label>
+                      <input id={`${uid}-biz-officeName`} type="text" value={bizFields.officeName}
                         onChange={e => setBizFields(f => ({ ...f, officeName: e.target.value }))}
                         placeholder="" className={inputClass} />
                     </div>
                     <div>
-                      <label className={labelClass}>メールアドレス</label>
-                      <input type="email" value={bizFields.email}
+                      <label htmlFor={`${uid}-biz-email`} className={labelClass}>メールアドレス</label>
+                      <input id={`${uid}-biz-email`} type="email" value={bizFields.email}
                         onChange={e => setBizFields(f => ({ ...f, email: e.target.value }))}
                         placeholder="" className={inputClass} />
                     </div>
                     <div>
-                      <label className={labelClass}>電話番号</label>
-                      <input type="tel" value={bizFields.phone}
+                      <label htmlFor={`${uid}-biz-phone`} className={labelClass}>電話番号</label>
+                      <input id={`${uid}-biz-phone`} type="tel" value={bizFields.phone}
                         onChange={e => setBizFields(f => ({ ...f, phone: e.target.value }))}
                         placeholder="" className={inputClass} />
                     </div>
                     <div>
-                      <label className={labelClass}>FAX番号</label>
-                      <input type="tel" value={bizFields.fax}
+                      <label htmlFor={`${uid}-biz-fax`} className={labelClass}>FAX番号</label>
+                      <input id={`${uid}-biz-fax`} type="tel" value={bizFields.fax}
                         onChange={e => setBizFields(f => ({ ...f, fax: e.target.value }))}
                         placeholder="" className={inputClass} />
                     </div>
@@ -882,8 +992,8 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
                     <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
                       <strong>注意:</strong> 事業所番号を変更すると、ログインIDも変更されます。
                     </div>
-                    <label className={labelClass}>新しい事業所番号</label>
-                    <input type="text" value={bizFields.officeNumber}
+                    <label htmlFor={`${uid}-biz-officeNumber`} className={labelClass}>新しい事業所番号</label>
+                    <input id={`${uid}-biz-officeNumber`} type="text" value={bizFields.officeNumber}
                       onChange={e => setBizFields(f => ({ ...f, officeNumber: e.target.value.trim() }))}
                       placeholder="" className={inputClass} />
                   </div>
@@ -892,11 +1002,10 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
                 {/* 職員追加カード */}
                 {selected.has('staffAdd') && (
                   <div>
-                    <h4 className="mb-2 text-sm font-semibold text-slate-800">
-                      職員追加（追加可能: {availableSlots}名）
-                    </h4>
+                    <h4 className="mb-2 text-sm font-semibold text-slate-800">職員追加</h4>
                     <p className="mb-4 text-xs text-slate-500">
                       追加する職員の情報をすべて入力してください。空欄のカードは無視されます。
+                      事業所の職員数の上限を超える場合は、事務局の確認で差し戻しとなります。
                     </p>
                     <div className="space-y-4">
                       {staffAddCards.map((card, idx) => (
@@ -905,47 +1014,59 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
                           <div className="mt-2 space-y-3">
                             <div className="grid grid-cols-2 gap-3">
                               <div>
-                                <label className={labelClass}>氏（姓）{req}</label>
-                                <input type="text" value={card.lastName}
+                                <label htmlFor={`${uid}-add-${idx}-lastName`} className={labelClass}>氏（姓）{req}</label>
+                                <input id={`${uid}-add-${idx}-lastName`} type="text" value={card.lastName}
                                   onChange={e => setStaffAddCards(cards => cards.map((c, i) => i === idx ? { ...c, lastName: e.target.value } : c))}
                                   placeholder="" className={inputClass} />
                               </div>
                               <div>
-                                <label className={labelClass}>名{req}</label>
-                                <input type="text" value={card.firstName}
+                                <label htmlFor={`${uid}-add-${idx}-firstName`} className={labelClass}>名{req}</label>
+                                <input id={`${uid}-add-${idx}-firstName`} type="text" value={card.firstName}
                                   onChange={e => setStaffAddCards(cards => cards.map((c, i) => i === idx ? { ...c, firstName: e.target.value } : c))}
                                   placeholder="" className={inputClass} />
                               </div>
                               <div>
-                                <label className={labelClass}>フリガナ（氏）{req}</label>
-                                <input type="text" value={card.lastKana}
+                                <label htmlFor={`${uid}-add-${idx}-lastKana`} className={labelClass}>フリガナ（氏）{req}</label>
+                                <input id={`${uid}-add-${idx}-lastKana`} type="text" value={card.lastKana}
                                   onChange={e => setStaffAddCards(cards => cards.map((c, i) => i === idx ? { ...c, lastKana: e.target.value } : c))}
                                   placeholder="" className={inputClass} />
                               </div>
                               <div>
-                                <label className={labelClass}>フリガナ（名）{req}</label>
-                                <input type="text" value={card.firstKana}
+                                <label htmlFor={`${uid}-add-${idx}-firstKana`} className={labelClass}>フリガナ（名）{req}</label>
+                                <input id={`${uid}-add-${idx}-firstKana`} type="text" value={card.firstKana}
                                   onChange={e => setStaffAddCards(cards => cards.map((c, i) => i === idx ? { ...c, firstKana: e.target.value } : c))}
                                   placeholder="" className={inputClass} />
                               </div>
                             </div>
                             <div>
-                              <label className={labelClass}>介護支援専門員番号{req}</label>
-                              <input type="text" inputMode="numeric" pattern="\d{8}" maxLength={8}
+                              <label htmlFor={`${uid}-add-${idx}-careManagerNumber`} className={labelClass}>介護支援専門員番号{req}</label>
+                              <input id={`${uid}-add-${idx}-careManagerNumber`} type="text" inputMode="numeric" pattern="\d{8}" maxLength={8}
                                 value={card.careManagerNumber}
                                 onChange={e => setStaffAddCards(cards => cards.map((c, i) => i === idx ? { ...c, careManagerNumber: e.target.value.replace(/\D/g, '') } : c))}
                                 placeholder="" className={inputClass} />
                               <p className="mt-1 text-xs text-slate-500">半角数字8桁</p>
                             </div>
                             <div>
-                              <label className={labelClass}>メールアドレス{req}</label>
-                              <input type="email" value={card.email}
+                              <label htmlFor={`${uid}-add-${idx}-email`} className={labelClass}>メールアドレス{req}</label>
+                              <input id={`${uid}-add-${idx}-email`} type="email" value={card.email}
                                 onChange={e => setStaffAddCards(cards => cards.map((c, i) => i === idx ? { ...c, email: e.target.value } : c))}
                                 placeholder="" className={inputClass} />
                             </div>
                           </div>
+                          {staffAddCards.length > 1 && (
+                            <button type="button"
+                              onClick={() => setStaffAddCards(cards => cards.filter((_, i) => i !== idx))}
+                              className="mt-3 text-xs text-red-600 hover:underline">
+                              このカードを削除
+                            </button>
+                          )}
                         </fieldset>
                       ))}
+                      <button type="button"
+                        onClick={() => setStaffAddCards(cards => [...cards, { ...EMPTY_STAFF_ADD }])}
+                        className="w-full rounded-lg border-2 border-dashed border-slate-300 py-2 text-sm text-slate-500 hover:border-slate-400">
+                        + 追加する職員を増やす
+                      </button>
                     </div>
                   </div>
                 )}
@@ -955,35 +1076,17 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
                   <div>
                     <h4 className="mb-2 text-sm font-semibold text-slate-800">職員除籍</h4>
                     <p className="mb-4 text-xs text-slate-500">
-                      除籍する職員の氏・名・介護支援専門員番号を入力してください。
+                      除籍する職員の氏・名・介護支援専門員番号を入力し、「職員を照合する」を押してください。
+                      一致した職員だけが申請に含まれます。
                     </p>
                     <div className="space-y-3">
                       {staffRemoveCards.map((card, idx) => (
                         <fieldset key={idx} className="rounded-lg border border-amber-200 p-4 bg-amber-50">
-                          <legend className="px-1 text-xs font-semibold text-amber-700">除籍職員 {idx + 1}</legend>
-                          <div className="mt-2 space-y-3">
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <label className={labelClass}>氏（姓）{req}</label>
-                                <input type="text" value={card.lastName}
-                                  onChange={e => setStaffRemoveCards(cards => cards.map((c, i) => i === idx ? { ...c, lastName: e.target.value } : c))}
-                                  placeholder="" className={inputClass} />
-                              </div>
-                              <div>
-                                <label className={labelClass}>名{req}</label>
-                                <input type="text" value={card.firstName}
-                                  onChange={e => setStaffRemoveCards(cards => cards.map((c, i) => i === idx ? { ...c, firstName: e.target.value } : c))}
-                                  placeholder="" className={inputClass} />
-                              </div>
-                            </div>
-                            <div>
-                              <label className={labelClass}>介護支援専門員番号{req}</label>
-                              <input type="text" inputMode="numeric" pattern="\d{8}" maxLength={8}
-                                value={card.careManagerNumber}
-                                onChange={e => setStaffRemoveCards(cards => cards.map((c, i) => i === idx ? { ...c, careManagerNumber: e.target.value.replace(/\D/g, '') } : c))}
-                                placeholder="" className={inputClass} />
-                              <p className="mt-1 text-xs text-slate-500">半角数字8桁</p>
-                            </div>
+                          <legend className="px-1 text-xs font-semibold text-amber-700">除籍する職員 {idx + 1}</legend>
+                          <div className="mt-2">
+                            <StaffIdentityFields value={card}
+                              onChange={(patch) => patchRemoveIdentity(idx, patch)}
+                              onCheck={() => { void runRemoveMatch(idx); }} />
                           </div>
                           {staffRemoveCards.length > 1 && (
                             <button type="button"
@@ -997,108 +1100,105 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
                       <button type="button"
                         onClick={() => setStaffRemoveCards(cards => [...cards, { ...EMPTY_STAFF_REMOVE }])}
                         className="w-full rounded-lg border-2 border-dashed border-slate-300 py-2 text-sm text-slate-500 hover:border-slate-400">
-                        + 除籍職員を追加
+                        + 除籍する職員を増やす
                       </button>
                     </div>
                   </div>
                 )}
 
-                {/* v372.5: 職員情報変更 */}
+                {/* v372.5: 職員情報変更（2026-10-13: 一覧は出さず、今の氏名と番号で特定する） */}
                 {selected.has('staffUpdate') && (
                   <div>
                     <h4 className="mb-2 text-sm font-semibold text-slate-800">職員情報の変更</h4>
                     <p className="mb-4 text-xs text-slate-500">
-                      変更したい職員の「変更する」にチェックを入れ、変更したい項目のみ入力してください（空欄は変更なし）。
+                      変更したい職員の氏・名・介護支援専門員番号を入力して照合し、一致したら変更する項目を選んで変更後の内容を入力してください。
+                      HN・HS 等の特殊な番号の職員は、事務局へご連絡ください。
                     </p>
-                    {staffUpdateCards.length === 0 ? (
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                        在籍中の職員が見つかりませんでした。
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {staffUpdateCards.map((card, idx) => {
-                          const o = card.original;
-                          const isCmLocked = card.original.careManagerNumberLocked;
-                          const cmWillChange = card.selected && card.careManagerNumber.trim() && card.careManagerNumber.trim() !== o.careManagerNumber;
-                          return (
-                            <fieldset key={card.staffId} className={`rounded-lg border p-4 ${card.selected ? 'border-violet-300 bg-violet-50' : 'border-slate-200 bg-white'}`}>
-                              <legend className="px-1 text-xs font-semibold text-slate-700">
-                                {o.lastName} {o.firstName}（CM番号: {o.careManagerNumber || '-'}）
-                              </legend>
-                              <div className="mt-2 space-y-3">
-                                <label className="flex items-center gap-2 text-sm font-medium text-slate-700 min-h-[44px] cursor-pointer">
-                                  <input type="checkbox" checked={card.selected}
-                                    onChange={(e) => setStaffUpdateCards((cards) => cards.map((c, i) => i === idx ? { ...c, selected: e.target.checked } : c))} />
-                                  この職員の情報を変更する
-                                </label>
-                                {card.selected && (
-                                  <>
-                                    <div className="grid grid-cols-2 gap-3">
-                                      <div>
-                                        <label className={labelClass}>氏（姓）<span className="text-xs text-slate-400">（空欄=変更なし）</span></label>
-                                        <input type="text" value={card.lastName} placeholder={o.lastName}
-                                          onChange={(e) => setStaffUpdateCards((cards) => cards.map((c, i) => i === idx ? { ...c, lastName: e.target.value } : c))}
-                                          className={inputClass} />
-                                      </div>
-                                      <div>
-                                        <label className={labelClass}>名<span className="text-xs text-slate-400">（空欄=変更なし）</span></label>
-                                        <input type="text" value={card.firstName} placeholder={o.firstName}
-                                          onChange={(e) => setStaffUpdateCards((cards) => cards.map((c, i) => i === idx ? { ...c, firstName: e.target.value } : c))}
-                                          className={inputClass} />
-                                      </div>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                      <div>
-                                        <label className={labelClass}>フリガナ（姓）<span className="text-xs text-slate-400">（空欄=変更なし）</span></label>
-                                        <input type="text" value={card.lastKana} placeholder={o.lastKana}
-                                          onChange={(e) => setStaffUpdateCards((cards) => cards.map((c, i) => i === idx ? { ...c, lastKana: e.target.value } : c))}
-                                          className={inputClass} />
-                                      </div>
-                                      <div>
-                                        <label className={labelClass}>フリガナ（名）<span className="text-xs text-slate-400">（空欄=変更なし）</span></label>
-                                        <input type="text" value={card.firstKana} placeholder={o.firstKana}
-                                          onChange={(e) => setStaffUpdateCards((cards) => cards.map((c, i) => i === idx ? { ...c, firstKana: e.target.value } : c))}
-                                          className={inputClass} />
-                                      </div>
-                                    </div>
-                                    <div>
-                                      <label className={labelClass}>メールアドレス<span className="text-xs text-slate-400">（空欄=変更なし）</span></label>
-                                      <input type="email" value={card.email} placeholder={o.email}
-                                        onChange={(e) => setStaffUpdateCards((cards) => cards.map((c, i) => i === idx ? { ...c, email: e.target.value } : c))}
-                                        className={inputClass} />
-                                    </div>
-                                    <div>
-                                      <label className={labelClass}>
-                                        介護支援専門員番号
-                                        <span className="text-xs text-slate-400">（空欄=変更なし）</span>
+                    <div className="space-y-3">
+                      {staffUpdateCards.map((card, idx) => {
+                        const has = (k: StaffUpdateField) => card.changes.includes(k);
+                        const toggleChange = (k: StaffUpdateField) => patchUpdateCard(idx, {
+                          changes: has(k) ? card.changes.filter((x) => x !== k) : [...card.changes, k],
+                        });
+                        return (
+                          <fieldset key={idx} className={`rounded-lg border p-4 ${card.match === 'matched' ? 'border-violet-300 bg-violet-50' : 'border-slate-200 bg-white'}`}>
+                            <legend className="px-1 text-xs font-semibold text-slate-700">変更する職員 {idx + 1}</legend>
+                            <div className="mt-2 space-y-4">
+                              <StaffIdentityFields value={card}
+                                onChange={(patch) => patchUpdateIdentity(idx, patch)}
+                                onCheck={() => { void runUpdateMatch(idx); }} />
+                              {card.match === 'matched' && (
+                                <div className="space-y-3 border-t border-violet-200 pt-4">
+                                  <p className="text-sm font-medium text-slate-700">変更する項目</p>
+                                  <div className="flex flex-wrap gap-x-5">
+                                    {STAFF_UPDATE_FIELDS.map((f) => (
+                                      <label key={f.key} className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm text-slate-700">
+                                        <input type="checkbox" checked={has(f.key)} onChange={() => toggleChange(f.key)} />
+                                        {f.label}
                                       </label>
-                                      <input type="text" inputMode="numeric" pattern="\d{8}" maxLength={8}
-                                        value={card.careManagerNumber} placeholder={o.careManagerNumber}
-                                        disabled={isCmLocked}
-                                        onChange={(e) => setStaffUpdateCards((cards) => cards.map((c, i) => i === idx ? { ...c, careManagerNumber: e.target.value.replace(/\D/g, '') } : c))}
-                                        className={isCmLocked ? `${inputClass} bg-slate-100 cursor-not-allowed` : inputClass} />
-                                      {isCmLocked ? (
-                                        <p className="mt-1 text-xs text-amber-700">
-                                          ⚠ 現在のCM番号は管理者専用形式（HN/HS等）のため、ここでは変更できません。変更が必要な場合は事務局までご連絡ください。
-                                        </p>
-                                      ) : (
-                                        <p className="mt-1 text-xs text-slate-500">半角数字 8 桁</p>
-                                      )}
-                                      {cmWillChange && !isCmLocked && (
-                                        <p className="mt-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
-                                          ⚠ CM番号を変更すると、この職員の<strong>会員マイページのログインID</strong>も新しいCM番号に変わります。
-                                          変更後は新しいCM番号でログインしてください。
-                                        </p>
-                                      )}
+                                    ))}
+                                  </div>
+                                  {has('name') && (
+                                    <div className="grid grid-cols-2 gap-3">
+                                      <div>
+                                        <label htmlFor={`staff-update-${idx}-newLastName`} className={labelClass}>新しい氏（姓）<span className="text-xs text-slate-400">（空欄=変更なし）</span></label>
+                                        <input id={`staff-update-${idx}-newLastName`} type="text" value={card.newLastName} onChange={(e) => patchUpdateCard(idx, { newLastName: e.target.value })} className={inputClass} />
+                                      </div>
+                                      <div>
+                                        <label htmlFor={`staff-update-${idx}-newFirstName`} className={labelClass}>新しい名<span className="text-xs text-slate-400">（空欄=変更なし）</span></label>
+                                        <input id={`staff-update-${idx}-newFirstName`} type="text" value={card.newFirstName} onChange={(e) => patchUpdateCard(idx, { newFirstName: e.target.value })} className={inputClass} />
+                                      </div>
                                     </div>
-                                  </>
-                                )}
-                              </div>
-                            </fieldset>
-                          );
-                        })}
-                      </div>
-                    )}
+                                  )}
+                                  {has('kana') && (
+                                    <div className="grid grid-cols-2 gap-3">
+                                      <div>
+                                        <label htmlFor={`staff-update-${idx}-newLastKana`} className={labelClass}>新しいフリガナ（姓）<span className="text-xs text-slate-400">（空欄=変更なし）</span></label>
+                                        <input id={`staff-update-${idx}-newLastKana`} type="text" value={card.newLastKana} onChange={(e) => patchUpdateCard(idx, { newLastKana: e.target.value })} className={inputClass} />
+                                      </div>
+                                      <div>
+                                        <label htmlFor={`staff-update-${idx}-newFirstKana`} className={labelClass}>新しいフリガナ（名）<span className="text-xs text-slate-400">（空欄=変更なし）</span></label>
+                                        <input id={`staff-update-${idx}-newFirstKana`} type="text" value={card.newFirstKana} onChange={(e) => patchUpdateCard(idx, { newFirstKana: e.target.value })} className={inputClass} />
+                                      </div>
+                                    </div>
+                                  )}
+                                  {has('email') && (
+                                    <div>
+                                      <label htmlFor={`staff-update-${idx}-newEmail`} className={labelClass}>新しいメールアドレス</label>
+                                      <input id={`staff-update-${idx}-newEmail`} type="email" value={card.newEmail} onChange={(e) => patchUpdateCard(idx, { newEmail: e.target.value })} className={inputClass} />
+                                    </div>
+                                  )}
+                                  {has('careManagerNumber') && (
+                                    <div>
+                                      <label htmlFor={`staff-update-${idx}-newCareManagerNumber`} className={labelClass}>新しい介護支援専門員番号</label>
+                                      <input id={`staff-update-${idx}-newCareManagerNumber`} type="text" inputMode="numeric" pattern="\d{8}" maxLength={8} value={card.newCareManagerNumber}
+                                        onChange={(e) => patchUpdateCard(idx, { newCareManagerNumber: e.target.value.replace(/\D/g, '') })} className={inputClass} />
+                                      <p className="mt-1 text-xs text-slate-500">半角数字 8 桁</p>
+                                      <p className="mt-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+                                        ⚠ 番号を変更すると、この職員の<strong>会員マイページのログインID</strong>も新しい番号に変わります。
+                                        変更後は新しい番号でログインしてください。
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            {staffUpdateCards.length > 1 && (
+                              <button type="button"
+                                onClick={() => setStaffUpdateCards(cards => cards.filter((_, i) => i !== idx))}
+                                className="mt-3 text-xs text-red-600 hover:underline">
+                                このカードを削除
+                              </button>
+                            )}
+                          </fieldset>
+                        );
+                      })}
+                      <button type="button"
+                        onClick={() => setStaffUpdateCards(cards => [...cards, { ...EMPTY_STAFF_UPDATE }])}
+                        className="w-full rounded-lg border-2 border-dashed border-slate-300 py-2 text-sm text-slate-500 hover:border-slate-400">
+                        + 変更する職員を増やす
+                      </button>
+                    </div>
                   </div>
                 )}
               </>
@@ -1111,13 +1211,15 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
               ← 項目選択に戻る
             </button>
             <div className="flex-1">
-              <button type="submit" disabled={busy || !hasAnyInput || retirementMissing.length > 0 || blankOnlyFields.length > 0}
-                aria-disabled={busy || !hasAnyInput || retirementMissing.length > 0 || blankOnlyFields.length > 0}
+              <button type="submit" disabled={busy || !hasAnyInput || retirementMissing.length > 0 || blankOnlyFields.length > 0 || pendingStaffCards.length > 0}
+                aria-disabled={busy || !hasAnyInput || retirementMissing.length > 0 || blankOnlyFields.length > 0 || pendingStaffCards.length > 0}
                 title={retirementMissing.length > 0
                   ? '退職（勤務なし）の場合は、連絡先と自宅住所の入力が必要です'
                   : blankOnlyFields.length > 0
                     ? '空白だけが入力されている項目があります'
-                    : (!hasAnyInput ? '変更したい項目に入力してください（全て空欄では申請できません）' : '')}
+                    : pendingStaffCards.length > 0
+                      ? '入力が済んでいない職員カードがあります'
+                      : (!hasAnyInput ? '変更したい項目に入力してください（全て空欄では申請できません）' : '')}
                 className="w-full rounded-full bg-violet-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500">
                 {busy ? '送信中...' : '変更を申請する'}
               </button>
@@ -1141,6 +1243,17 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
                   <p className="mt-1">
                     変更後の内容をご入力いただくか、空欄にしてください。
                     空欄の項目は、現在ご登録の内容のまま変わりません。
+                  </p>
+                </div>
+              ) : pendingStaffCards.length > 0 ? (
+                <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900" role="alert">
+                  <p className="font-semibold">入力が済んでいない職員カードがあります</p>
+                  <ul className="mt-1 list-inside list-disc">
+                    {pendingStaffCards.map(label => <li key={label}>{label}</li>)}
+                  </ul>
+                  <p className="mt-1">
+                    追加する職員は全項目を入力してください。除籍・変更する職員は「職員を照合する」を押して一致を確かめてください。
+                    使わないカードは、削除するか入力を消してください。
                   </p>
                 </div>
               ) : !hasAnyInput && (

@@ -9,7 +9,7 @@
 //   - 削除時 assignedCount>0 は無効化（再割当を促す）
 //   - server-side でも requireMasterForRoleWrite_ により MASTER 限定（特権昇格防止）
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { api } from '../services/api';
 import { RoleDefinition, MenuRegistryEntry, AdminPermissionLevel } from '../types';
 
@@ -34,6 +34,8 @@ function emptyEditor(): EditorState {
 }
 
 export function RoleManagementPanel({ initialRoles, initialMenuRegistry, currentPermissionLevel, onChanged }: Props) {
+  // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
+  const uid = useId();
   const [roles, setRoles] = useState<RoleDefinition[]>(initialRoles || []);
   const [menuRegistry, setMenuRegistry] = useState<MenuRegistryEntry[]>(initialMenuRegistry || []);
   const [loading, setLoading] = useState(false);
@@ -150,6 +152,14 @@ export function RoleManagementPanel({ initialRoles, initialMenuRegistry, current
     }
   }
 
+  // 編集・削除ボタンが押せない理由（行ごと）。マスター以外の場合は画面上部の注意書きで伝えているので出さない
+  const rowLockReason = (role: RoleDefinition): string => {
+    if (!isMasterCaller) return '';
+    if (role.isBuiltIn) return '組込ロールは編集・削除できません。';
+    if (role.assignedCount > 0) return `${role.assignedCount} 件に割当中のため削除できません。先に再割当してください。`;
+    return '';
+  };
+
   return (
     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -234,8 +244,13 @@ export function RoleManagementPanel({ initialRoles, initialMenuRegistry, current
                       disabled={role.isBuiltIn || role.assignedCount > 0 || !isMasterCaller}
                       onClick={() => handleDelete(role)}
                       title={role.assignedCount > 0 ? `${role.assignedCount} 件に割当中のため削除不可` : ''}
+                      aria-describedby={rowLockReason(role) ? `${uid}-lock-${role.roleId}` : undefined}
                     >削除</button>
                   </div>
+                  {/* 押せない理由を画面に出す（title はマウスを載せないと見えず、タッチ操作では出ない） */}
+                  {rowLockReason(role) && (
+                    <p id={`${uid}-lock-${role.roleId}`} className="mt-1 text-[11px] text-slate-500">{rowLockReason(role)}</p>
+                  )}
                 </td>
               </tr>
             ))}
@@ -255,8 +270,9 @@ export function RoleManagementPanel({ initialRoles, initialMenuRegistry, current
             </div>
             <div className="px-6 py-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">ロール名 <span className="text-red-500">*</span></label>
+                <label htmlFor={`${uid}-f1`} className="block text-sm font-medium text-slate-700 mb-1">ロール名 <span className="text-red-500">*</span></label>
                 <input
+                  id={`${uid}-f1`}
                   type="text"
                   value={editor.roleName}
                   onChange={(e) => setEditor({ ...editor, roleName: e.target.value })}
@@ -265,8 +281,9 @@ export function RoleManagementPanel({ initialRoles, initialMenuRegistry, current
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">説明</label>
+                <label htmlFor={`${uid}-f2`} className="block text-sm font-medium text-slate-700 mb-1">説明</label>
                 <input
+                  id={`${uid}-f2`}
                   type="text"
                   value={editor.description}
                   onChange={(e) => setEditor({ ...editor, description: e.target.value })}
@@ -275,8 +292,9 @@ export function RoleManagementPanel({ initialRoles, initialMenuRegistry, current
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">研修編集スコープ</label>
-                <div className="flex gap-4 text-sm">
+                {/* 見出しは特定の 1 欄ではなく選択肢の組の名前。label ではなく group の名前として結び付ける */}
+                <p id={`${uid}-scope-label`} className="block text-sm font-medium text-slate-700 mb-1">研修編集スコープ</p>
+                <div role="radiogroup" aria-labelledby={`${uid}-scope-label`} aria-describedby={`${uid}-scope-note`} className="flex gap-4 text-sm">
                   <label className="flex items-center gap-2">
                     <input
                       type="radio"
@@ -294,12 +312,12 @@ export function RoleManagementPanel({ initialRoles, initialMenuRegistry, current
                     /> 自分が登録した研修のみ
                   </label>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">※「研修管理」メニュー（training-manage）を付与した場合のみ意味を持ちます。</p>
+                <p id={`${uid}-scope-note`} className="text-xs text-slate-500 mt-1">※「研修管理」メニュー（training-manage）を付与した場合のみ意味を持ちます。</p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">許可メニュー</label>
-                <div className="space-y-3">
+                <p id={`${uid}-menus-label`} className="block text-sm font-medium text-slate-700 mb-2">許可メニュー</p>
+                <div role="group" aria-labelledby={`${uid}-menus-label`} className="space-y-3">
                   {menusByGroup.map((g) => (
                     <div key={g.group} className="border border-slate-200 rounded p-3">
                       <div className="text-xs font-semibold text-slate-600 mb-2">{g.group}</div>

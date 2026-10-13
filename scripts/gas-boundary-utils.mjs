@@ -108,8 +108,7 @@ export const PUBLIC_ALLOWED_ACTIONS_LIST = [
   'verifyPublicOtp',
   'verifyMemberIdentityForPublic',
   'submitPublicChangeRequest',
-  'getPublicAvailableStaffSlots',
-  'getPublicEnrolledStaffList',
+  'checkPublicStaffMatch',
 ];
 
 export const MEMBER_ALLOWED_ACTIONS_LIST = [
@@ -656,7 +655,12 @@ export function pruneUnreachableFunctionDeclarations(source, seedNames, label) {
   // - 'getDbInfo' のような文字列キーへの誤マッチを防ぐ（v292 修正）
   // - = someFunc_ のような値参照も正しく検出する（v296 修正）
   const removableTopLevelStatements = collectTopLevelStatements(source, declarations).filter((statement) => {
-    const stripped = statement.text.replace(/'[^']*'/g, "''").replace(/"[^"]*"/g, '""').replace(/`[^`]*`/g, '``');
+    // 2026-10-13: コメントも除く。以前は配列の中のコメントに除去対象の関数名が書かれていると
+    // （例: 入力規則定義 のコメント「isKnownMasterCode_ 側で行い」）、配列ごと消えていた。
+    // 公開 split で 入力規則定義 が消え、applyDataValidationRules_ が ReferenceError になっていた
+    // （test:gas-integrity で検出）。文字列を先に潰すので、文字列中の // は誤って拾わない。
+    const stripped = statement.text.replace(/'[^']*'/g, "''").replace(/"[^"]*"/g, '""').replace(/`[^`]*`/g, '``')
+      .replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ');
     return [...removableNames].some((name) => new RegExp(`\\b${name}\\b`).test(stripped));
   });
   const rangesToRemove = [

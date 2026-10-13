@@ -63,6 +63,7 @@ function createArtifactIdentityVerifier(rows: Record<string, unknown>[]) {
     'normalizeRosterKeyText_',
     'getPublicIdentityCredentials_',
     'matchesPublicIdentityName_',
+    'assertPublicPortalIntakeOpen_',
     'verifyMemberIdentityForPublic_',
   ].map((name) => extractFunction(artifact, name)).join('\n\n');
   const cache = new Map<string, string>();
@@ -73,6 +74,7 @@ function createArtifactIdentityVerifier(rows: Record<string, unknown>[]) {
     const toBoolean_ = deps.toBoolean_;
     const isInactiveMemberStatusForIdentity_ = deps.isInactiveMemberStatusForIdentity_;
     const createPublicIdentityToken_ = deps.createPublicIdentityToken_;
+    const getSystemSettingValue_ = deps.getSystemSettingValue_;
     ${functions}
     return verifyMemberIdentityForPublic_;
   `) as (deps: Record<string, unknown>) => (payload: Record<string, unknown>) => Record<string, unknown>;
@@ -88,8 +90,12 @@ function createArtifactIdentityVerifier(rows: Record<string, unknown>[]) {
     toBoolean_: () => false,
     isInactiveMemberStatusForIdentity_: () => false,
     createPublicIdentityToken_: () => 'test-public-identity-token',
+    getSystemSettingValue_: (_ss: unknown, key: string) => intakeSettings[key] ?? '',
   });
 }
+
+// 受付メニューの設定（テストごとに切り替える）
+const intakeSettings: Record<string, string> = {};
 
 test('照合項目の顔ぶれが画面とサーバで一致する', () => {
   const server = serverCredentials();
@@ -266,4 +272,213 @@ test('allowlist の種別分岐が三項演算子で書かれていない', () =
     '三項演算子での分岐が残っている');
   assert.equal((gas.match(/publicUpdateAllowlistFor_\(/g) || []).length >= 3, true,
     '表引き関数が使われていない');
+});
+
+// ── 2026-10-13 公開ポータルは登録済みの個人情報を返さない（operator 判断・docs/304） ──
+
+const STAFF_ROWS = [
+  { '会員ID': 'office-1', '職員ID': 'S1', '姓': '照合', '名': '一郎', '介護支援専門員番号': '11111111',
+    'セイ': 'ショウゴウ', 'メイ': 'イチロウ', 'メールアドレス': 'ichiro@example.invalid', '職員状態コード': 'ENROLLED' },
+  { '会員ID': 'office-1', '職員ID': 'S2', '姓': '退職', '名': '次郎', '介護支援専門員番号': '22222222',
+    '職員状態コード': 'LEFT' },
+  { '会員ID': 'office-2', '職員ID': 'S3', '姓': '他所', '名': '三郎', '介護支援専門員番号': '33333333',
+    '職員状態コード': 'ENROLLED' },
+];
+
+/** 公開成果物の checkPublicStaffMatch_ を、DB・Cache・token 検証だけ模擬して実行する。 */
+function createArtifactStaffMatcher(memberType = 'BUSINESS') {
+  const artifact = fs.readFileSync(path.join(ROOT, 'backend', 'Code.gs'), 'utf8');
+  const functions = [
+    'normalizeCmNumberForKey_',
+    'findPublicEnrolledStaffByIdentity_',
+    'consumePublicStaffMatchQuota_',
+    'checkPublicStaffMatch_',
+  ].map((name) => extractFunction(artifact, name)).join('\n\n');
+  const cache = new Map<string, string>();
+  const factory = new Function('deps', `
+    const CacheService = deps.CacheService;
+    const getOrCreateDatabase_ = deps.getOrCreateDatabase_;
+    const getRowsAsObjects_ = deps.getRowsAsObjects_;
+    const toBoolean_ = deps.toBoolean_;
+    const verifyPublicIdentityToken_ = deps.verifyPublicIdentityToken_;
+    ${functions}
+    return checkPublicStaffMatch_;
+  `) as (deps: Record<string, unknown>) => (payload: Record<string, unknown>) => Record<string, unknown>;
+  return factory({
+    CacheService: {
+      getScriptCache: () => ({
+        get: (key: string) => cache.get(key) || null,
+        put: (key: string, value: string) => cache.set(key, value),
+      }),
+    },
+    getOrCreateDatabase_: () => ({}),
+    getRowsAsObjects_: () => STAFF_ROWS,
+    toBoolean_: (v: unknown) => v === true || v === 'TRUE',
+    verifyPublicIdentityToken_: (token: string) => token === 'ok' ? { memberId: 'office-1', memberType } : null,
+  });
+}
+
+test('★職員照合は一致したかどうかだけを返し、登録内容を返さない', () => {
+  const check = createArtifactStaffMatcher();
+  assert.deepEqual(check({ token: 'ok', lastName: '照合', firstName: '一郎', careManagerNumber: '11111111' }), { matched: true });
+  // 番号違い・退職者・他事業所の職員は一致しない
+  assert.deepEqual(check({ token: 'ok', lastName: '照合', firstName: '一郎', careManagerNumber: '11111112' }), { matched: false });
+  assert.deepEqual(check({ token: 'ok', lastName: '退職', firstName: '次郎', careManagerNumber: '22222222' }), { matched: false });
+  assert.deepEqual(check({ token: 'ok', lastName: '他所', firstName: '三郎', careManagerNumber: '33333333' }), { matched: false });
+  assert.deepEqual(check({ token: 'bad', lastName: '照合', firstName: '一郎', careManagerNumber: '11111111' }), { error: 'token_expired' });
+});
+
+test('★職員照合は事業所会員だけ・回数に上限がある', () => {
+  assert.ok(createArtifactStaffMatcher('INDIVIDUAL')({ token: 'ok' }).error, '個人会員で照合できてしまう');
+  const check = createArtifactStaffMatcher();
+  const probe = { token: 'ok', lastName: '照合', firstName: '一郎', careManagerNumber: '11111111' };
+  for (let i = 0; i < 20; i++) assert.deepEqual(check(probe), { matched: true });
+  const over = check(probe);
+  assert.equal(over.matched, undefined, '上限を超えても照合結果を返している');
+  assert.ok(over.error, '上限超過がエラーにならない');
+});
+
+test('★公開ポータルに職員一覧・在籍人数を返す action が無い', () => {
+  const artifact = fs.readFileSync(path.join(ROOT, 'backend', 'Code.gs'), 'utf8');
+  for (const name of ['getPublicEnrolledStaffList', 'getPublicAvailableStaffSlots']) {
+    assert.ok(!gas.includes(`  ${name}: true,`), `${name} が公開 allowlist に残っている`);
+    assert.ok(!artifact.includes(`function ${name}_(`), `${name}_ が公開成果物に残っている`);
+    assert.ok(!artifact.includes(`action === '${name}'`), `${name} の dispatcher が公開成果物に残っている`);
+  }
+  const portal = fs.readFileSync(path.join(ROOT, 'src', 'public-portal', 'components', 'MemberUpdateForm.tsx'), 'utf8');
+  assert.ok(!/getPublicEnrolledStaffList|getPublicAvailableStaffSlots/.test(portal), '画面が廃止した action を呼んでいる');
+});
+
+test('★職員の変更申請は画面から職員IDを受け取らず、サーバが氏名と番号で特定する', () => {
+  const submit = extractFunction(gas, 'submitPublicChangeRequest_');
+  assert.ok(!/\b(?:s|us|payload)\.staffId\b/.test(submit), '画面から送られた職員IDを使っている');
+  assert.match(submit, /findPublicEnrolledStaffByIdentity_\(staffRowsForMatch, stored\.memberId, updateTarget\)/);
+  assert.match(submit, /findPublicEnrolledStaffByIdentity_\(staffRowsForMatch, stored\.memberId, removeTarget\)/);
+});
+
+test('★職員数の上限は承認時に、何かを書き込む前に申請全体で確かめる', () => {
+  const approve = extractFunction(gas, 'approveAdminChangeRequest_');
+  const check = approve.indexOf('getBusinessStaffLimitInfo_(ss, memberId)');
+  const firstWrite = approve.indexOf('// ── 変更内容の適用');
+  assert.ok(check !== -1 && firstWrite !== -1 && check < firstWrite, '上限の確認が適用より後にある');
+
+  const admin = fs.readFileSync(path.join(ROOT, 'gas', 'admin', 'Code.gs'), 'utf8');
+  const info = new Function('deps', `
+    const findRowByColumnValue_ = deps.findRowByColumnValue_;
+    const getSystemSettingValue_ = deps.getSystemSettingValue_;
+    const getRowsAsObjects_ = deps.getRowsAsObjects_;
+    const toBoolean_ = deps.toBoolean_;
+    ${extractFunction(admin, 'getBusinessStaffLimitInfo_')}
+    return getBusinessStaffLimitInfo_;
+  `)({
+    findRowByColumnValue_: (_s: unknown, _c: string, id: string) =>
+      id === 'office-1' ? { row: [''], columns: { '職員数上限': 0 } } : null,
+    getSystemSettingValue_: () => '3',
+    getRowsAsObjects_: () => STAFF_ROWS,
+    toBoolean_: () => false,
+  }) as (ss: unknown, memberId: string) => { limit: number; enrolled: number };
+  const ss = { getSheetByName: () => ({}) };
+  // 個別上限が空なら全体既定（3）。在籍は ENROLLED の 1 名だけ
+  assert.deepEqual(info(ss, 'office-1'), { limit: 3, enrolled: 1 });
+  assert.deepEqual(info(ss, 'missing'), { limit: 0, enrolled: 0 });
+});
+
+test('★職員の追加も事業所会員だけが申請できる', () => {
+  const submit = extractFunction(gas, 'submitPublicChangeRequest_');
+  const guard = submit.indexOf("payload.staffAdd.length > 0 && stored.memberType !== 'BUSINESS'");
+  const handle = submit.indexOf('payload.staffAdd.forEach(');
+  assert.ok(guard !== -1 && guard < handle, '個人・賛助会員の申請でも職員追加を受け付けている');
+});
+
+test('★承認時に職員の追加・除籍ができなかったら黙って飛ばさない', () => {
+  const approve = extractFunction(gas, 'approveAdminChangeRequest_');
+  // 追加は混在申請（登録情報変更）・STAFF_ADD の両方とも共通関数を通る
+  assert.equal((approve.match(/applyApprovedStaffAdds_\(ss, memberId, applicantName, changeData\.staffAdd \|\| \[\], approvalResult, chatAnomalies\)/g) || []).length, 2,
+    '職員追加の経路が共通関数を通っていない');
+  // 除籍の対象が特定できない（混在申請・STAFF_REMOVE の両方）
+  assert.equal((approve.match(/除籍する職員を特定できなかったため/g) || []).length, 2,
+    '除籍の対象が見つからないときに知らせていない');
+  // 反映できなかった内容は画面へ返し、申請者への承認メールを止める
+  assert.match(approve, /warnings: chatAnomalies, memberMailHeld: memberMailHeld/);
+  assert.match(approve, /if \(!memberMailHeld\) sendApprovalNotificationMail_\(/);
+});
+
+/** 管理生成物の applyApprovedStaffAdds_ を、追加結果とメール送信だけ模擬して実行する */
+function runStaffAdds(addResults: Array<Record<string, unknown>>) {
+  const admin = fs.readFileSync(path.join(ROOT, 'gas', 'admin', 'Code.gs'), 'utf8');
+  const sent: Array<{ category: string; to: string; body: string }> = [];
+  let call = 0;
+  const fn = new Function('deps', `
+    const addApprovedStaffMember_ = deps.addApprovedStaffMember_;
+    const getSystemSettingValue_ = () => '';
+    const getBizEmailSettings_ = () => ({ staffAddStaffEmailEnabled: true, staffAddRepEmailEnabled: true,
+      staffAddStaffEmailBody: 'ID={{ログインID}}', staffAddStaffEmailSubject: 's', staffAddRepEmailBody: '{{追加職員氏名}}', staffAddRepEmailSubject: 'r' });
+    const getRowsAsObjects_ = (ss, t) => t === 'T_事業所職員'
+      ? [{ 会員ID: 'B1', 職員状態コード: 'ENROLLED', 職員権限コード: 'REPRESENTATIVE', メールアドレス: 'rep@example.invalid', 姓: '代表', 名: '者' }]
+      : [{ 会員ID: 'B1', 勤務先名: '★事業所' }];
+    const toBoolean_ = () => false;
+    const renderMergeTags_ = (t, v) => t.replace(/\\{\\{(.+?)\\}\\}/g, (_, k) => String(v[k] ?? ''));
+    const deliverMail_ = deps.deliverMail_;
+    const Logger = { log() {} };
+    const MEMBER_PORTAL_URL = 'https://example.invalid';
+    ${extractFunction(admin, 'applyApprovedStaffAdds_')}
+    return applyApprovedStaffAdds_;
+  `)({
+    addApprovedStaffMember_: () => addResults[call++],
+    deliverMail_: (category: string, to: string, _s: string, body: string) => { sent.push({ category, to, body }); },
+  }) as (...a: unknown[]) => void;
+  const anomalies: string[] = [];
+  const staff = addResults.map((_, i) => ({ lastName: '職員', firstName: String(i + 1), email: `s${i + 1}@example.invalid`, careManagerNumber: `1000000${i}` }));
+  fn({}, 'B1', '★事業所', staff, {}, anomalies);
+  return { sent, anomalies };
+}
+
+test('★職員追加の通知メールは追加できた職員にだけ送り、実際のログインIDで案内する', () => {
+  const { sent, anomalies } = runStaffAdds([
+    { success: true, authAccountCreated: true, loginId: '210000000' }, // 衝突回避で先頭に数字が付いた
+    { success: false, error: '職員数上限に達しています' },
+    { success: true, authAccountCreated: false, authError: 'x' },     // アカウントを作れなかった
+  ]);
+  const staffMails = sent.filter((m) => m.category === 'STAFF_ADD_STAFF_EMAIL');
+  assert.deepEqual(staffMails.map((m) => m.to), ['s1@example.invalid'], '追加できなかった職員にも案内を送っている');
+  assert.equal(staffMails[0].body, 'ID=210000000', '申請の番号ではなく実際のログインIDで案内すること');
+  const rep = sent.filter((m) => m.category === 'STAFF_ADD_REP_EMAIL');
+  assert.equal(rep.length, 1);
+  assert.equal(rep[0].body, '職員 1', '代表者への通知に追加できなかった職員の名前が入っている');
+  assert.equal(anomalies.length, 2, '失敗とアカウント未作成を管理者へ知らせていない');
+});
+
+test('★公開の変更申請: 入力途中の職員カードで送信させず、エラーは画面内に出す', () => {
+  const form = fs.readFileSync(path.join(ROOT, 'src', 'public-portal', 'components', 'MemberUpdateForm.tsx'), 'utf8');
+  const pending = form.slice(form.indexOf('const pendingStaffCards = useMemo'), form.indexOf('}, [memberType, selected, staffAddCards, staffRemoveCards, staffUpdateCards]);'));
+  assert.ok(pending.includes("selected.has('staffAdd')") && pending.includes('staffAddComplete(c)'), '途中まで入力した職員追加カードが黙って外れる');
+  assert.ok(form.includes('pendingStaffCards.length > 0}'), '送信ボタンを止めていない');
+  assert.match(form, /errorRef\.current\.scrollIntoView\(/, 'エラーを画面内へ移していない');
+  assert.match(form, /<div ref=\{errorRef\} tabIndex=\{-1\} role="alert"/, 'エラーにフォーカスできない');
+});
+
+test('★公開の変更申請: 項目名のラベルはすべて入力欄に結び付いている', () => {
+  // 2026-10-13 まで 28 か所が結び付いておらず、スクリーンリーダーで項目名が読まれなかった。
+  const form = fs.readFileSync(path.join(ROOT, 'src', 'public-portal', 'components', 'MemberUpdateForm.tsx'), 'utf8');
+  assert.equal((form.match(/<label className=\{labelClass\}>/g) || []).length, 0, 'htmlFor の無い項目名ラベルがある');
+});
+
+test('★受付を停止した公開メニューは、サーバでも受け付けない', () => {
+  const verify = createArtifactIdentityVerifier([{
+    '会員ID': 'test-member-id', '会員種別コード': 'INDIVIDUAL', '姓': '確認', '名': '成功', '介護支援専門員番号': '12345678',
+  }]);
+  const payload = { memberType: 'INDIVIDUAL', lastName: '確認', firstName: '成功', cmNumber: '12345678', contactEmail: 'test@example.invalid' };
+  intakeSettings['PUBLIC_PORTAL_WITHDRAWAL_MENU_ENABLED'] = 'false';
+  try {
+    assert.throws(() => verify({ ...payload, purpose: 'withdrawal' }), /停止/, '退会の受付を止めても本人確認が通る');
+    assert.deepEqual(verify({ ...payload, purpose: 'update' }), { verified: true, token: 'test-public-identity-token' });
+  } finally {
+    delete intakeSettings['PUBLIC_PORTAL_WITHDRAWAL_MENU_ENABLED'];
+  }
+  // 研修・入会・変更申請の入口でも同じ検査を通す
+  for (const fn of ['applyTrainingExternal_', 'cancelTrainingExternal_', 'submitMemberApplication_', 'submitPublicChangeRequest_']) {
+    assert.match(extractFunction(gas, fn), /assertPublicPortalIntakeOpen_\(/, fn + ' が受付停止を見ていない');
+  }
+  // 変更用のトークンで退会申請を出せない
+  assert.match(extractFunction(gas, 'submitPublicChangeRequest_'), /String\(stored\.purpose \|\| ''\) !== expectedPurpose/);
 });

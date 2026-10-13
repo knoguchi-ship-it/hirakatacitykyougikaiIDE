@@ -182,6 +182,22 @@ const RoleList: React.FC<{ roles: MemberActiveRole[] }> = ({ roles }) => (
 
 // ── 振込口座サブコンポーネント ────────────────────────────────────────────────
 
+// 入力欄 1 つ分の枠（ラベル + 入力欄 + 補足 / エラー）。
+// 以前は BankAccountSection の中で定義していたため描画のたびに別部品として作り直され、
+// 1 文字入力するごとに入力欄が作り直されてフォーカスが外れていた。外に出して同一の部品にする。
+const Field: React.FC<{ id: string; label: string; required?: boolean; hint?: string; error?: string; children: React.ReactNode }> = ({
+  id, label, required, hint, error, children,
+}) => (
+  <div>
+    <label htmlFor={id} className="mb-1 block text-sm font-medium text-slate-700">
+      {label}{required && <span className="ml-0.5 text-red-500">*</span>}
+    </label>
+    {children}
+    {hint && !error && <p id={`${id}-hint`} className="mt-0.5 text-xs text-slate-400">{hint}</p>}
+    {error && <p id={`${id}-err`} className="mt-0.5 text-xs text-red-600" role="alert">{error}</p>}
+  </div>
+);
+
 const BankAccountSection: React.FC<{
   initialAccount: BankAccount | null;
   onSaved: (updated: BankAccount) => void;
@@ -248,18 +264,12 @@ const BankAccountSection: React.FC<{
     }
   };
 
-  const Field: React.FC<{ label: string; required?: boolean; hint?: string; error?: string; children: React.ReactNode }> = ({
-    label, required, hint, error, children,
-  }) => (
-    <div>
-      <label className="mb-1 block text-sm font-medium text-slate-700">
-        {label}{required && <span className="ml-0.5 text-red-500">*</span>}
-      </label>
-      {children}
-      {hint && !error && <p className="mt-0.5 text-xs text-slate-400">{hint}</p>}
-      {error && <p className="mt-0.5 text-xs text-red-600" role="alert">{error}</p>}
-    </div>
-  );
+  // ラベル・補足文・エラー文と入力欄を結び付ける id（Field 側の id 規則と揃える）
+  const uid = React.useId();
+  const bid = (key: keyof BankFormFields) => `${uid}-${key}`;
+  // Field が出す補足文（エラーが無いとき）／エラー文（あるとき）の id
+  const bdesc = (key: keyof BankFormFields, hasHint = false) =>
+    errors[key as keyof BankFormErrors] ? `${bid(key)}-err` : hasHint ? `${bid(key)}-hint` : undefined;
 
   return (
     <div>
@@ -317,24 +327,30 @@ const BankAccountSection: React.FC<{
           </p>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="金融機関名" required error={errors.bankName}>
+            <Field id={bid('bankName')} label="金融機関名" required error={errors.bankName}>
               <input
+                id={bid('bankName')}
+                aria-invalid={!!errors.bankName}
+                aria-describedby={bdesc('bankName')}
                 value={form.bankName}
                 onChange={e => setForm(f => ({ ...f, bankName: e.target.value }))}
                 maxLength={50}
                 placeholder="例: ゆうちょ銀行"
-                aria-describedby={errors.bankName ? 'err-bankName' : undefined}
                 className={fi(errors.bankName)}
               />
             </Field>
 
             <Field
+              id={bid('bankCode')}
               label="金融機関コード（4桁）"
               required
               hint="半角数字4桁で入力してください。"
               error={errors.bankCode}
             >
               <input
+                id={bid('bankCode')}
+                aria-invalid={!!errors.bankCode}
+                aria-describedby={bdesc('bankCode', true)}
                 value={form.bankCode}
                 onChange={e => setForm(f => ({ ...f, bankCode: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
                 maxLength={4}
@@ -344,8 +360,11 @@ const BankAccountSection: React.FC<{
               />
             </Field>
 
-            <Field label="支店名" required error={errors.branchName}>
+            <Field id={bid('branchName')} label="支店名" required error={errors.branchName}>
               <input
+                id={bid('branchName')}
+                aria-invalid={!!errors.branchName}
+                aria-describedby={bdesc('branchName')}
                 value={form.branchName}
                 onChange={e => setForm(f => ({ ...f, branchName: e.target.value }))}
                 maxLength={50}
@@ -355,12 +374,16 @@ const BankAccountSection: React.FC<{
             </Field>
 
             <Field
+              id={bid('branchCode')}
               label="支店コード（3桁）"
               required
               hint="半角数字3桁で入力してください。"
               error={errors.branchCode}
             >
               <input
+                id={bid('branchCode')}
+                aria-invalid={!!errors.branchCode}
+                aria-describedby={bdesc('branchCode', true)}
                 value={form.branchCode}
                 onChange={e => setForm(f => ({ ...f, branchCode: e.target.value.replace(/\D/g, '').slice(0, 3) }))}
                 maxLength={3}
@@ -370,8 +393,11 @@ const BankAccountSection: React.FC<{
               />
             </Field>
 
-            <Field label="口座種別" required error={errors.accountType}>
+            <Field id={bid('accountType')} label="口座種別" required error={errors.accountType}>
               <select
+                id={bid('accountType')}
+                aria-invalid={!!errors.accountType}
+                aria-describedby={bdesc('accountType')}
                 value={form.accountType}
                 onChange={e => setForm(f => ({ ...f, accountType: e.target.value }))}
                 className={fi(errors.accountType)}
@@ -381,12 +407,16 @@ const BankAccountSection: React.FC<{
             </Field>
 
             <Field
+              id={bid('accountNumber')}
               label="口座番号（7桁以内）"
               required
               hint="半角数字で入力してください（例: 1234567）。"
               error={errors.accountNumber}
             >
               <input
+                id={bid('accountNumber')}
+                aria-invalid={!!errors.accountNumber}
+                aria-describedby={bdesc('accountNumber', true)}
                 value={form.accountNumber}
                 onChange={e => setForm(f => ({ ...f, accountNumber: e.target.value.replace(/\D/g, '').slice(0, 7) }))}
                 maxLength={7}
@@ -397,12 +427,16 @@ const BankAccountSection: React.FC<{
             </Field>
 
             <Field
+              id={bid('accountHolderKana')}
               label="口座名義カナ"
               required
               hint="全角カタカナで入力してください（例: ヤマダ タロウ）。30文字以内。"
               error={errors.accountHolderKana}
             >
               <input
+                id={bid('accountHolderKana')}
+                aria-invalid={!!errors.accountHolderKana}
+                aria-describedby={bdesc('accountHolderKana', true)}
                 value={form.accountHolderKana}
                 onChange={e => setForm(f => ({ ...f, accountHolderKana: e.target.value }))}
                 maxLength={30}
@@ -412,8 +446,9 @@ const BankAccountSection: React.FC<{
               />
             </Field>
 
-            <Field label="備考">
+            <Field id={bid('note')} label="備考">
               <input
+                id={bid('note')}
                 value={form.note ?? ''}
                 onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
                 maxLength={200}

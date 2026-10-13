@@ -1,4 +1,5 @@
-import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useRevealOnChange } from './shared/useRevealOnChange';
 import { memberTypeLabel } from './/shared/memberTypes.mjs';
 import { api } from './services/api';
 import { AdminPersonRow, AdminPersonType, MailDestination, MailingPreference } from './types';
@@ -136,6 +137,8 @@ const isDirty = (person: AdminPersonRow, draft: EditablePerson): boolean => {
 };
 
 const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) => {
+  // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
+  const uid = React.useId();
   const [persons, setPersons] = useState<AdminPersonRow[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -175,11 +178,10 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
     return () => clearTimeout(timer);
   }, [success]);
 
-  useEffect(() => {
-    if (!error) return;
-    const timer = setTimeout(() => setError(null), MESSAGE_AUTO_CLEAR_MS * 2);
-    return () => clearTimeout(timer);
-  }, [error]);
+  // エラーは自動で消さない（読む前に消えると、保存できなかったことに気付けない）。
+  // 一覧の下の方で保存して失敗するとエラー枠は画面外（上）に出るため、見える位置へ移す。
+  const errorRef = useRef<HTMLDivElement>(null);
+  useRevealOnChange(error, errorRef);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -384,9 +386,9 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
       </div>
 
       {error && (
-        <div className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div ref={errorRef} tabIndex={-1} role="alert" className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 focus:outline-none">
           <span>{error}</span>
-          <button type="button" onClick={() => setError(null)} className="text-red-400 hover:text-red-600">&times;</button>
+          <button type="button" onClick={() => setError(null)} aria-label="エラー表示を閉じる" className="text-red-400 hover:text-red-600">&times;</button>
         </div>
       )}
       {success && (
@@ -398,8 +400,9 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
 
       <div className="flex flex-wrap items-end gap-3">
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">人物種別</label>
+          <label htmlFor={`${uid}-f1`} className="block text-xs font-medium text-slate-600 mb-1">人物種別</label>
           <select
+            id={`${uid}-f1`}
             className="border border-slate-300 rounded px-3 py-2 bg-white text-sm"
             value={personTypeFilter}
             onChange={(e) => setPersonTypeFilter(e.target.value as PersonTypeFilter)}
@@ -411,8 +414,9 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">状態</label>
+          <label htmlFor={`${uid}-f2`} className="block text-xs font-medium text-slate-600 mb-1">状態</label>
           <select
+            id={`${uid}-f2`}
             className="border border-slate-300 rounded px-3 py-2 bg-white text-sm"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
@@ -424,8 +428,9 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
           </select>
         </div>
         <div className="min-w-[240px] flex-1">
-          <label className="block text-xs font-medium text-slate-600 mb-1">検索</label>
+          <label htmlFor={`${uid}-f3`} className="block text-xs font-medium text-slate-600 mb-1">検索</label>
           <input
+            id={`${uid}-f3`}
             className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -433,8 +438,9 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">表示件数</label>
+          <label htmlFor={`${uid}-f4`} className="block text-xs font-medium text-slate-600 mb-1">表示件数</label>
           <select
+            id={`${uid}-f4`}
             className="border border-slate-300 rounded px-3 py-2 bg-white text-sm"
             value={pageSize}
             onChange={(e) => setPageSize(Number(e.target.value))}
@@ -559,6 +565,7 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
                         type="email"
                         className="w-full min-w-[180px] border border-slate-300 rounded px-2 py-1.5 text-sm"
                         value={draft.email}
+                        aria-label={`${person.displayName} のメール`}
                         disabled={isBusy}
                         onChange={(e) => updateDraft(person.personKey, { email: e.target.value })}
                       />
@@ -570,6 +577,7 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
                         <select
                           className="w-full min-w-[120px] border border-slate-300 rounded px-2 py-1.5 bg-white text-sm"
                           value={draft.mailingPreference}
+                          aria-label={`${person.displayName} の発送方法`}
                           disabled={isBusy}
                           onChange={(e) => updateDraft(person.personKey, { mailingPreference: e.target.value })}
                         >
@@ -585,6 +593,7 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
                         <select
                           className="w-full min-w-[110px] border border-slate-300 rounded px-2 py-1.5 bg-white text-sm"
                           value={draft.preferredMailDestination}
+                          aria-label={`${person.displayName} の郵送先`}
                           disabled={isBusy}
                           onChange={(e) => updateDraft(person.personKey, { preferredMailDestination: e.target.value })}
                         >
@@ -597,6 +606,7 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
                       <select
                         className="w-full min-w-[130px] border border-slate-300 rounded px-2 py-1.5 bg-white text-sm"
                         value={draft.status}
+                        aria-label={`${person.displayName} の状態`}
                         disabled={isBusy}
                         onChange={(e) => {
                           const nextStatus = e.target.value;
@@ -625,6 +635,7 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
                         type="date"
                         className="w-full min-w-[140px] border border-slate-300 rounded px-2 py-1.5 text-sm"
                         value={draft.joinedDate}
+                        aria-label={`${person.displayName} の入会日`}
                         disabled={isBusy}
                         onChange={(e) => updateDraft(person.personKey, { joinedDate: e.target.value })}
                       />
@@ -634,6 +645,7 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
                         type="date"
                         className="w-full min-w-[140px] border border-slate-300 rounded px-2 py-1.5 text-sm disabled:bg-slate-100 disabled:text-slate-400"
                         value={draft.withdrawnDate}
+                        aria-label={`${person.displayName} の退会日`}
                         disabled={(draft.status === 'ACTIVE' || draft.status === 'ENROLLED') || isBusy}
                         onChange={(e) => updateDraft(person.personKey, { withdrawnDate: e.target.value })}
                       />

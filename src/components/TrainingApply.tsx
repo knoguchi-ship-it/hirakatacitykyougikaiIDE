@@ -1,9 +1,10 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpenIcon, CheckCircleIcon, PlusIcon, SparklesIcon } from './Icons';
 import { Member, MemberType, Training } from '../types';
 import PdfThumbnail from './PdfThumbnail';
 import PdfPreviewModal from './PdfPreviewModal';
 import { api } from '../services/api';
+import { useRevealOnChange } from '../shared/useRevealOnChange';
 
 interface TrainingApplyProps {
   member: Member;
@@ -58,6 +59,16 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
   const [cancelTargetTraining, setCancelTargetTraining] = useState<Training | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // 確認モーダルを開いたまま申込・キャンセルが失敗すると、エラーはモーダルの裏（ページ上部）に出て
+  // 見えなかった。モーダルが開いている間はモーダルの中に出し、閉じているときはページ上部の枠を見える位置へ移す。
+  const modalOpen = !!confirmTraining || !!cancelTargetTraining;
+  const pageErrorRef = useRef<HTMLDivElement>(null);
+  const modalErrorRef = useRef<HTMLDivElement>(null);
+  useRevealOnChange(modalOpen ? null : errorMsg, pageErrorRef);
+  useRevealOnChange(modalOpen ? errorMsg : null, modalErrorRef);
+  // モーダルの中で見せたエラーはその操作に対するもの。閉じたら持ち越さない（ページ上部に残ると別の失敗に見える）
+  const closeConfirm = () => { setConfirmTraining(null); setErrorMsg(null); };
+  const closeCancelTarget = () => { setCancelTargetTraining(null); setErrorMsg(null); };
 
   const isBusiness = member.type === MemberType.BUSINESS;
   const currentStaff = isBusiness ? member.staff?.find((s) => s.id === activeStaffId) : null;
@@ -130,6 +141,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
       void handleApply(training);
       return;
     }
+    setErrorMsg(null);
     setConfirmTraining(training);
   };
 
@@ -191,8 +203,8 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
         </div>
       )}
 
-      {errorMsg && (
-        <div className="bg-red-50 px-6 py-3 border border-red-200 rounded-lg text-red-700 text-sm font-bold">{errorMsg}</div>
+      {errorMsg && !modalOpen && (
+        <div ref={pageErrorRef} tabIndex={-1} role="alert" className="bg-red-50 px-6 py-3 border border-red-200 rounded-lg text-red-700 text-sm font-bold focus:outline-none">{errorMsg}</div>
       )}
 
       <div className="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
@@ -498,7 +510,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                 <div className="pt-2 border-t border-slate-200 flex justify-end">
                   <button
                     type="button"
-                    onClick={() => setCancelTargetTraining(selectedHistoryTraining)}
+                    onClick={() => { setErrorMsg(null); setCancelTargetTraining(selectedHistoryTraining); }}
                     disabled={submittingTrainingId !== null}
                     className="px-4 py-2 rounded-lg border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-50"
                   >
@@ -513,7 +525,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
 
       {confirmTraining && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4" role="dialog" aria-modal="true" aria-label="研修費用確認">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmTraining(null)} />
+          <div className="absolute inset-0 bg-black/40" onClick={closeConfirm} />
           <div className="relative w-full max-w-lg bg-white rounded-xl shadow-2xl border border-slate-200 p-6 space-y-4">
             <h4 className="text-lg font-bold text-slate-900">研修申込の確認</h4>
             <p className="text-sm text-slate-700">
@@ -552,8 +564,12 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
               </div>
             </div>
 
+            {errorMsg && (
+              <div ref={modalErrorRef} tabIndex={-1} role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold text-red-700 focus:outline-none">{errorMsg}</div>
+            )}
+
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setConfirmTraining(null)} className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50">閉じる</button>
+              <button type="button" onClick={closeConfirm} className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50">閉じる</button>
               <button
                 type="button"
                 onClick={() => handleApply(confirmTraining)}
@@ -569,12 +585,16 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
 
       {cancelTargetTraining && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4" role="dialog" aria-modal="true" aria-label="申込キャンセル確認">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setCancelTargetTraining(null)} />
+          <div className="absolute inset-0 bg-black/40" onClick={closeCancelTarget} />
           <div className="relative w-full max-w-md bg-white rounded-xl shadow-2xl border border-slate-200 p-6 space-y-4">
             <h4 className="text-lg font-bold text-slate-900">申込キャンセルの確認</h4>
             <p className="text-sm text-slate-700">「{cancelTargetTraining.title}」の申し込みをキャンセルします。よろしいですか？</p>
+            {errorMsg && (
+              <div ref={modalErrorRef} tabIndex={-1} role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold text-red-700 focus:outline-none">{errorMsg}</div>
+            )}
+
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setCancelTargetTraining(null)} className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50">戻る</button>
+              <button type="button" onClick={closeCancelTarget} className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50">戻る</button>
               <button
                 type="button"
                 onClick={() => handleCancelApply(cancelTargetTraining)}

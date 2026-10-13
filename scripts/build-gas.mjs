@@ -87,7 +87,11 @@ function buildPublicCode(source) {
     .replace(/\n\s*clearAdminDashboardCache_\(\);\n/g, '\n')
     .replace(/\n\s*clearTrainingManagementCache_\(\);\n/g, '\n')
     .replace(/\n\s*clearRecentAnnualFeeAdminCaches_\(\);\n/g, '\n');
-  code = code.replace(/rebuildDatabaseSchema\(\)/g, 'schema maintenance');
+  // 2026-10-13: 関数宣言そのもの（function rebuildDatabaseSchema()）は書き換えない。以前は宣言まで
+  // 「function schema maintenance {」という不正な文に変わり、たまたまコメント経由で丸ごと除去されて
+  // いたため表に出なかった（除去規則がコメントを無視するようにした時点で、公開生成物が構文エラーになった）。
+  // 宣言は未使用として下の prune で消える。ここで書き換えるのはコメント等の言及だけ。
+  code = code.replace(/(?<!function )rebuildDatabaseSchema\(\)/g, 'schema maintenance');
   code = code.replace(/[ \t]+$/gm, '');
   code = pruneUnreachableFunctionDeclarations(code, ['doGet', 'processApiRequest', 'healthCheck'], 'build-gas-public');
   assertAllowedTopLevelFunctions(code, ['doGet', 'processApiRequest', 'healthCheck'], 'build-gas-public');

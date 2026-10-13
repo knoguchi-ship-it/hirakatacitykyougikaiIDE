@@ -371,6 +371,8 @@ const AdminSettingsSection: React.FC<AdminSettingsSectionProps> = ({
 );
 
 const App: React.FC = () => {
+  // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
+  const uid = React.useId();
   const appShellMode: AppShellMode = import.meta.env.VITE_APP === 'admin'
     ? 'admin'
     : import.meta.env.VITE_APP === 'member'
@@ -449,6 +451,11 @@ const App: React.FC = () => {
       }
     : adminSessionRbac;
   const [systemSettingsLoaded, setSystemSettingsLoaded] = useState(false);
+  // 請求管理の「支払い登録へ」から渡す請求（支払い登録で明細に結び付ける）
+  const [paymentInitialClaim, setPaymentInitialClaim] = useState<{ claimId: string; memberId: string; amount: number; typeCode: string } | null>(null);
+  // 2026-10-13: システム設定の取得失敗。以前は既定値で埋めて「読み込み済み」にしており、
+  // その画面で一度保存すると配信状態を含む全項目が既定値で上書きされた。失敗したら保存させない。
+  const [systemSettingsError, setSystemSettingsError] = useState<string | null>(null);
   const annualFeeLeaveDialogRef = useRef<HTMLDialogElement | null>(null);
   const appDataRequestRef = useRef<Promise<{ members: Member[]; trainings: Training[] }> | null>(null);
   const memberPortalRequestRef = useRef<Promise<{ members: Member[]; trainings: Training[] }> | null>(null);
@@ -982,7 +989,10 @@ const App: React.FC = () => {
         const [{ members: nextMembers, trainings: nextTrainings }, systemSettings] = await Promise.all([
           api.fetchAllData(),
           includeAdminSettings
-            ? api.getSystemSettings().catch(() => ({ defaultBusinessStaffLimit: 10, trainingHistoryLookbackMonths: 18, annualFeePaymentGuidance: '', annualFeeTransferAccount: emptyAnnualFeeTransferAccount }))
+            ? api.getSystemSettings().catch((e: unknown) => {
+                setSystemSettingsError(e instanceof Error ? e.message : 'システム設定を取得できませんでした。');
+                return null;
+              })
             : Promise.resolve(null),
         ]);
         setMembers(nextMembers);
@@ -993,6 +1003,7 @@ const App: React.FC = () => {
         }
         setTrainingManagementLoaded(true);
         if (systemSettings) {
+          setSystemSettingsError(null);
           applySystemSettings(systemSettings);
         }
         return { members: nextMembers, trainings: nextTrainings };
@@ -1178,13 +1189,14 @@ const App: React.FC = () => {
     if (systemSettingsLoaded && !force) {
       return;
     }
-    const settings = await api.getSystemSettings().catch(() => ({
-      defaultBusinessStaffLimit: 10,
-      trainingHistoryLookbackMonths: 18,
-      annualFeePaymentGuidance: '',
-      annualFeeTransferAccount: emptyAnnualFeeTransferAccount,
-    }));
-    applySystemSettings(settings);
+    try {
+      const settings = await api.getSystemSettings();
+      setSystemSettingsError(null);
+      applySystemSettings(settings);
+    } catch (e) {
+      // 既定値で埋めない（systemSettingsLoaded が false のままなので保存ボタンは押せない）
+      setSystemSettingsError(e instanceof Error ? e.message : 'システム設定を取得できませんでした。');
+    }
   };
 
   useEffect(() => {
@@ -2053,7 +2065,10 @@ const App: React.FC = () => {
     await refreshAllData();
   };
 
-  const handleMemberSave = async (updatedMember: Member) => {
+  // 2026-10-13: 保存できたかを返す。以前はエラーを中で握りつぶしていたため、呼び出し側が
+  // 失敗の後に「保存しました」と出し、画面の値も保存されていないまま残っていた。
+  const handleMemberSave = async (updatedMember: Member): Promise<boolean> => {
+    const previous = members.find((m) => m.id === updatedMember.id);
     setMembers((prev) => prev.map((m) => (m.id === updatedMember.id ? updatedMember : m)));
     try {
       if (userRole === 'ADMIN') {
@@ -2066,9 +2081,13 @@ const App: React.FC = () => {
         }
         await api.updateMemberSelf(updatedMember, memberPortalLoginId);
       }
+      return true;
     } catch (e) {
       console.error('Sync failed:', e);
-      alert('保存に失敗しました。');
+      // 画面の値を保存前に戻す（保存されていない値を保存済みに見せない）
+      if (previous) setMembers((prev) => prev.map((m) => (m.id === previous.id ? previous : m)));
+      alert('保存に失敗しました。' + (e instanceof Error && e.message ? '\n' + e.message : ''));
+      return false;
     }
   };
 
@@ -2361,8 +2380,9 @@ const App: React.FC = () => {
         <h3 className="text-lg font-bold text-slate-800 mb-4">管理者権限を追加</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Googleメールアドレス</label>
+            <label htmlFor={`${uid}-f1`} className="block text-sm font-medium text-slate-700 mb-1">Googleメールアドレス</label>
             <input
+              id={`${uid}-f1`}
               type="email"
               value={newAdminPermission.googleEmail}
               onChange={(e) => setNewAdminPermission((prev) => ({ ...prev, googleEmail: e.target.value }))}
@@ -2371,8 +2391,9 @@ const App: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">紐づく会員アカウント</label>
+            <label htmlFor={`${uid}-f2`} className="block text-sm font-medium text-slate-700 mb-1">紐づく会員アカウント</label>
             <input
+              id={`${uid}-f2`}
               type="text"
               value={newPermissionIdentitySearch}
               onChange={(e) => {
@@ -2407,9 +2428,10 @@ const App: React.FC = () => {
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">ロール</label>
+            <label htmlFor={`${uid}-new-admin-role`} className="block text-sm font-medium text-slate-700 mb-1">ロール</label>
             {adminPermissionData?.roles && adminPermissionData.roles.length > 0 ? (
               <select
+                id={`${uid}-new-admin-role`}
                 value={newAdminPermission.roleId || ''}
                 onChange={(e) => {
                   const roleId = e.target.value;
@@ -2439,6 +2461,7 @@ const App: React.FC = () => {
             ) : (
               // Phase 1-A 互換 fallback: roles データが取得できない場合は legacy permissionLevel ドロップダウン
               <select
+                id={`${uid}-new-admin-role`}
                 value={newAdminPermission.permissionLevel}
                 onChange={(e) => setNewAdminPermission((prev) => ({ ...prev, permissionLevel: e.target.value as AdminPermissionLevel }))}
                 className="w-full border border-slate-300 rounded px-3 py-2"
@@ -2503,6 +2526,7 @@ const App: React.FC = () => {
             </div>
             <input
               value={adminPermissionQuery}
+              aria-label="管理者アカウントを検索"
               onChange={(e) => setAdminPermissionQuery(e.target.value)}
               className="w-full md:w-64 border border-slate-300 rounded px-3 py-2 text-sm"
               placeholder="メール・表示名・紐付け先で検索"
@@ -2510,8 +2534,9 @@ const App: React.FC = () => {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
-              <label className="text-xs text-slate-600 whitespace-nowrap">権限</label>
+              <label htmlFor={`${uid}-f3`} className="text-xs text-slate-600 whitespace-nowrap">権限</label>
               <select
+                id={`${uid}-f3`}
                 value={adminPermissionFilterLevel}
                 onChange={(e) => setAdminPermissionFilterLevel(e.target.value as AdminPermissionLevel | 'ALL')}
                 className="border border-slate-300 rounded px-2 py-1 text-sm"
@@ -2523,8 +2548,9 @@ const App: React.FC = () => {
               </select>
             </div>
             <div className="flex items-center gap-2">
-              <label className="text-xs text-slate-600 whitespace-nowrap">並び順</label>
+              <label htmlFor={`${uid}-f4`} className="text-xs text-slate-600 whitespace-nowrap">並び順</label>
               <select
+                id={`${uid}-f4`}
                 value={adminPermissionSortKey}
                 onChange={(e) => setAdminPermissionSortKey(e.target.value as 'googleEmail' | 'permissionLevel' | 'updatedByAt')}
                 className="border border-slate-300 rounded px-2 py-1 text-sm"
@@ -2639,8 +2665,9 @@ const App: React.FC = () => {
                           <td colSpan={8} className="px-4 py-4">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Googleメールアドレス</label>
+                                <label htmlFor={`${uid}-f5-${entry.id}`} className="block text-sm font-medium text-slate-700 mb-1">Googleメールアドレス</label>
                                 <input
+                                  id={`${uid}-f5-${entry.id}`}
                                   type="email"
                                   value={draft.googleEmail}
                                   onChange={(e) => updateAdminPermissionDraft(entry.id, { googleEmail: e.target.value })}
@@ -2648,8 +2675,9 @@ const App: React.FC = () => {
                                 />
                               </div>
                               <div className="relative">
-                                <label className="block text-sm font-medium text-slate-700 mb-1">紐づく会員アカウント</label>
+                                <label htmlFor={`${uid}-f6-${entry.id}`} className="block text-sm font-medium text-slate-700 mb-1">紐づく会員アカウント</label>
                                 <input
+                                  id={`${uid}-f6-${entry.id}`}
                                   type="text"
                                   value={editSearch || (draft.linkedAuthId ? adminPermissionOptionLabel(draft.linkedAuthId) : '')}
                                   onChange={(e) => {
@@ -2684,9 +2712,10 @@ const App: React.FC = () => {
                                 )}
                               </div>
                               <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">ロール</label>
+                                <label htmlFor={`${uid}-admin-role-${entry.id}`} className="block text-sm font-medium text-slate-700 mb-1">ロール</label>
                                 {adminPermissionData?.roles && adminPermissionData.roles.length > 0 ? (
                                   <select
+                                    id={`${uid}-admin-role-${entry.id}`}
                                     value={draft.roleId || ''}
                                     onChange={(e) => {
                                       const roleId = e.target.value;
@@ -2714,6 +2743,7 @@ const App: React.FC = () => {
                                   </select>
                                 ) : (
                                   <select
+                                    id={`${uid}-admin-role-${entry.id}`}
                                     value={draft.permissionLevel}
                                     onChange={(e) => updateAdminPermissionDraft(entry.id, { permissionLevel: e.target.value as AdminPermissionLevel })}
                                     className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
@@ -2813,8 +2843,8 @@ const App: React.FC = () => {
       <div className="flex flex-wrap items-end gap-3 mb-4">
         {adminMemberViewMode === 'all' && (
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">会員種別</label>
-            <select className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={memberListFilter} onChange={(e) => setMemberListFilter(e.target.value as MemberListFilter)}>
+            <label htmlFor={`${uid}-f7`} className="block text-xs font-medium text-slate-600 mb-1">会員種別</label>
+            <select id={`${uid}-f7`} className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={memberListFilter} onChange={(e) => setMemberListFilter(e.target.value as MemberListFilter)}>
               <option value="ALL">全種別</option>
               <option value={MemberType.INDIVIDUAL}>個人会員</option>
               <option value={MemberType.BUSINESS}>事業所会員</option>
@@ -2825,8 +2855,8 @@ const App: React.FC = () => {
         {adminMemberViewMode === 'business' ? (
           <>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">区分</label>
-              <select className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={businessStaffRoleFilter} onChange={(e) => setBusinessStaffRoleFilter(e.target.value as BusinessStaffRoleFilter)}>
+              <label htmlFor={`${uid}-f8`} className="block text-xs font-medium text-slate-600 mb-1">区分</label>
+              <select id={`${uid}-f8`} className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={businessStaffRoleFilter} onChange={(e) => setBusinessStaffRoleFilter(e.target.value as BusinessStaffRoleFilter)}>
                 <option value="ALL">全区分</option>
                 <option value="REPRESENTATIVE">代表者</option>
                 <option value="ADMIN">管理者</option>
@@ -2834,8 +2864,8 @@ const App: React.FC = () => {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">在籍状況</label>
-              <select className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={businessStaffStatusFilter} onChange={(e) => setBusinessStaffStatusFilter(e.target.value as BusinessStaffStatusFilter)}>
+              <label htmlFor={`${uid}-f9`} className="block text-xs font-medium text-slate-600 mb-1">在籍状況</label>
+              <select id={`${uid}-f9`} className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={businessStaffStatusFilter} onChange={(e) => setBusinessStaffStatusFilter(e.target.value as BusinessStaffStatusFilter)}>
                 <option value="ALL">全状態</option>
                 <option value="ENROLLED">在籍</option>
                 <option value="LEFT">除籍</option>
@@ -2844,8 +2874,8 @@ const App: React.FC = () => {
           </>
         ) : (
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">会員状態</label>
-            <select className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={memberListStatusFilter} onChange={(e) => setMemberListStatusFilter(e.target.value as MemberStatusFilter)}>
+            <label htmlFor={`${uid}-f10`} className="block text-xs font-medium text-slate-600 mb-1">会員状態</label>
+            <select id={`${uid}-f10`} className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={memberListStatusFilter} onChange={(e) => setMemberListStatusFilter(e.target.value as MemberStatusFilter)}>
               <option value="ALL">全状態</option>
               <option value="ACTIVE">在籍中</option>
               <option value="WITHDRAWAL_SCHEDULED">退会予定</option>
@@ -2855,15 +2885,16 @@ const App: React.FC = () => {
           </div>
         )}
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">対象年度</label>
-          <select className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={memberListFiscalYearFilter} onChange={(e) => setMemberListFiscalYearFilter(e.target.value)}>
+          <label htmlFor={`${uid}-f11`} className="block text-xs font-medium text-slate-600 mb-1">対象年度</label>
+          <select id={`${uid}-f11`} className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={memberListFiscalYearFilter} onChange={(e) => setMemberListFiscalYearFilter(e.target.value)}>
             <option value="ALL">全年度</option>
             {availableFiscalYears.map(y => <option key={y} value={String(y)}>{y}年度</option>)}
           </select>
         </div>
         <div className="min-w-[240px]">
-          <label className="block text-xs font-medium text-slate-600 mb-1">キーワード検索</label>
+          <label htmlFor={`${uid}-f12`} className="block text-xs font-medium text-slate-600 mb-1">キーワード検索</label>
           <input
+            id={`${uid}-f12`}
             className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
             value={adminMemberViewMode === 'business' ? businessMemberQuery : memberListQuery}
             onChange={(e) => adminMemberViewMode === 'business' ? setBusinessMemberQuery(e.target.value) : setMemberListQuery(e.target.value)}
@@ -2871,8 +2902,8 @@ const App: React.FC = () => {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">表示件数</label>
-          <select className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={memberListPageSize} onChange={(e) => setMemberListPageSize(Number(e.target.value))}>
+          <label htmlFor={`${uid}-f13`} className="block text-xs font-medium text-slate-600 mb-1">表示件数</label>
+          <select id={`${uid}-f13`} className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={memberListPageSize} onChange={(e) => setMemberListPageSize(Number(e.target.value))}>
             <option value={25}>25 件</option>
             <option value={50}>50 件</option>
             <option value={100}>100 件</option>
@@ -3690,11 +3721,20 @@ const App: React.FC = () => {
             {/* 右コンテンツ */}
             <div className="flex-1 min-w-0 space-y-5">
 
-          {!systemSettingsLoaded && (
+          {!systemSettingsLoaded && (systemSettingsError ? (
+            <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700 shadow-sm">
+              <p className="font-semibold">システム設定を読み込めませんでした。保存はできません。</p>
+              <p className="mt-1">{systemSettingsError}</p>
+              <button type="button" onClick={() => { setSystemSettingsError(null); void loadSystemSettings(true); }}
+                className="mt-3 rounded-full border border-red-300 bg-white px-4 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100">
+                もう一度読み込む
+              </button>
+            </div>
+          ) : (
             <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-500 shadow-sm">
               システム設定を読み込み中です...
             </div>
-          )}
+          ))}
 
           {/* ── 基本設定 ── */}
           {settingsSub === 'basic' && <AdminSettingsSection
@@ -3706,12 +3746,12 @@ const App: React.FC = () => {
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">全体デフォルト上限</label>
-                <input type="number" min={1} max={200} value={globalLimitInput} onChange={(e) => { setGlobalLimitInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" />
+                <label htmlFor={`${uid}-f14`} className="block text-sm font-medium text-slate-700 mb-1">全体デフォルト上限</label>
+                <input id={`${uid}-f14`} type="number" min={1} max={200} value={globalLimitInput} onChange={(e) => { setGlobalLimitInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">研修履歴の表示期間（月）</label>
-                <input type="number" min={1} max={60} value={historyLookbackInput} onChange={(e) => { setHistoryLookbackInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" />
+                <label htmlFor={`${uid}-f15`} className="block text-sm font-medium text-slate-700 mb-1">研修履歴の表示期間（月）</label>
+                <input id={`${uid}-f15`} type="number" min={1} max={60} value={historyLookbackInput} onChange={(e) => { setHistoryLookbackInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" />
               </div>
             </div>
             <div>
@@ -3991,8 +4031,9 @@ const App: React.FC = () => {
                   </div>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700">出し方</label>
+                      <label htmlFor={`${uid}-f16`} className="mb-1 block text-sm font-medium text-slate-700">出し方</label>
                       <select
+                        id={`${uid}-f16`}
                         value={regulationDraft.kind}
                         onChange={(e) => setRegulationDraft({ ...regulationDraft, kind: e.target.value as Regulation['kind'] })}
                         className="w-full rounded border border-slate-300 bg-white px-3 py-2"
@@ -4002,8 +4043,9 @@ const App: React.FC = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700">どの会員に出すか</label>
+                      <label htmlFor={`${uid}-f17`} className="mb-1 block text-sm font-medium text-slate-700">どの会員に出すか</label>
                       <select
+                        id={`${uid}-f17`}
                         value={regulationDraft.target}
                         onChange={(e) => setRegulationDraft({ ...regulationDraft, target: e.target.value as Regulation['target'] })}
                         className="w-full rounded border border-slate-300 bg-white px-3 py-2"
@@ -4015,8 +4057,9 @@ const App: React.FC = () => {
                       </select>
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="mb-1 block text-sm font-medium text-slate-700">タイトル</label>
+                      <label htmlFor={`${uid}-f18`} className="mb-1 block text-sm font-medium text-slate-700">タイトル</label>
                       <input
+                        id={`${uid}-f18`}
                         type="text"
                         value={regulationDraft.title}
                         onChange={(e) => setRegulationDraft({ ...regulationDraft, title: e.target.value })}
@@ -4025,8 +4068,9 @@ const App: React.FC = () => {
                       />
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="mb-1 block text-sm font-medium text-slate-700">本文</label>
+                      <label htmlFor={`${uid}-f19`} className="mb-1 block text-sm font-medium text-slate-700">本文</label>
                       <textarea
+                        id={`${uid}-f19`}
                         value={regulationDraft.body}
                         onChange={(e) => setRegulationDraft({ ...regulationDraft, body: e.target.value })}
                         rows={5}
@@ -4035,8 +4079,9 @@ const App: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700">外部リンク（任意・https のみ）</label>
+                      <label htmlFor={`${uid}-f20`} className="mb-1 block text-sm font-medium text-slate-700">外部リンク（任意・https のみ）</label>
                       <input
+                        id={`${uid}-f20`}
                         type="text"
                         value={regulationDraft.linkUrl}
                         onChange={(e) => setRegulationDraft({ ...regulationDraft, linkUrl: e.target.value })}
@@ -4045,8 +4090,9 @@ const App: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700">リンクのボタン文言</label>
+                      <label htmlFor={`${uid}-f21`} className="mb-1 block text-sm font-medium text-slate-700">リンクのボタン文言</label>
                       <input
+                        id={`${uid}-f21`}
                         type="text"
                         value={regulationDraft.linkLabel}
                         onChange={(e) => setRegulationDraft({ ...regulationDraft, linkLabel: e.target.value })}
@@ -4055,8 +4101,9 @@ const App: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700">施行日（任意）</label>
+                      <label htmlFor={`${uid}-f22`} className="mb-1 block text-sm font-medium text-slate-700">施行日（任意）</label>
                       <input
+                        id={`${uid}-f22`}
                         type="date"
                         value={regulationDraft.effectiveDate}
                         onChange={(e) => setRegulationDraft({ ...regulationDraft, effectiveDate: e.target.value })}
@@ -4064,8 +4111,9 @@ const App: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700">表示順</label>
+                      <label htmlFor={`${uid}-f23`} className="mb-1 block text-sm font-medium text-slate-700">表示順</label>
                       <input
+                        id={`${uid}-f23`}
                         type="number"
                         min={0}
                         max={999}
@@ -4130,9 +4178,10 @@ const App: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {MEMBER_TYPE_FEE_FIELDS.map(({ code, label }) => (
                   <div key={code}>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+                    <label htmlFor={`${uid}-fee-${code}`} className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
                     <div className="flex items-center gap-2">
                       <input
+                        id={`${uid}-fee-${code}`}
                         type="number"
                         min={0}
                         max={1000000}
@@ -4155,8 +4204,9 @@ const App: React.FC = () => {
                   offLabel="入会申込画面に年会費を表示しない"
                 />
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">入会申込画面に添える補足</label>
+                  <label htmlFor={`${uid}-f24`} className="block text-sm font-medium text-slate-700 mb-1">入会申込画面に添える補足</label>
                   <input
+                    id={`${uid}-f24`}
                     type="text"
                     value={membershipFeeNoteInput}
                     onChange={(e) => { setMembershipFeeNoteInput(e.target.value); setSettingsIsDirty(true); }}
@@ -4168,8 +4218,9 @@ const App: React.FC = () => {
               </div>
             </div>
             <div className="mb-4">
-              <label className="block text-sm font-medium text-slate-700 mb-1">年会費の納入案内</label>
+              <label htmlFor={`${uid}-f25`} className="block text-sm font-medium text-slate-700 mb-1">年会費の納入案内</label>
               <textarea
+                id={`${uid}-f25`}
                 value={annualFeePaymentGuidanceInput}
                 onChange={(e) => { setAnnualFeePaymentGuidanceInput(e.target.value); setSettingsIsDirty(true); }}
                 rows={5}
@@ -4184,8 +4235,9 @@ const App: React.FC = () => {
               <h4 className="text-sm font-semibold text-slate-800 mb-3">年会費の共通振込先</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">銀行名</label>
+                  <label htmlFor={`${uid}-f26`} className="block text-sm font-medium text-slate-700 mb-1">銀行名</label>
                   <input
+                    id={`${uid}-f26`}
                     type="text"
                     value={annualFeeTransferAccountInput.bankName}
                     onChange={(e) => { setAnnualFeeTransferAccountInput((prev) => ({ ...prev, bankName: e.target.value })); setSettingsIsDirty(true); }}
@@ -4193,8 +4245,9 @@ const App: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">支店名</label>
+                  <label htmlFor={`${uid}-f27`} className="block text-sm font-medium text-slate-700 mb-1">支店名</label>
                   <input
+                    id={`${uid}-f27`}
                     type="text"
                     value={annualFeeTransferAccountInput.branchName}
                     onChange={(e) => { setAnnualFeeTransferAccountInput((prev) => ({ ...prev, branchName: e.target.value })); setSettingsIsDirty(true); }}
@@ -4202,8 +4255,9 @@ const App: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">口座種別</label>
+                  <label htmlFor={`${uid}-f28`} className="block text-sm font-medium text-slate-700 mb-1">口座種別</label>
                   <select
+                    id={`${uid}-f28`}
                     value={annualFeeTransferAccountInput.accountType}
                     onChange={(e) => { setAnnualFeeTransferAccountInput((prev) => ({ ...prev, accountType: e.target.value as '普通' | '当座' })); setSettingsIsDirty(true); }}
                     className="w-full border border-slate-300 rounded px-3 py-2"
@@ -4213,8 +4267,9 @@ const App: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">口座番号</label>
+                  <label htmlFor={`${uid}-f29`} className="block text-sm font-medium text-slate-700 mb-1">口座番号</label>
                   <input
+                    id={`${uid}-f29`}
                     type="text"
                     value={annualFeeTransferAccountInput.accountNumber}
                     onChange={(e) => { setAnnualFeeTransferAccountInput((prev) => ({ ...prev, accountNumber: e.target.value })); setSettingsIsDirty(true); }}
@@ -4222,8 +4277,9 @@ const App: React.FC = () => {
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">口座名義</label>
+                  <label htmlFor={`${uid}-f30`} className="block text-sm font-medium text-slate-700 mb-1">口座名義</label>
                   <input
+                    id={`${uid}-f30`}
                     type="text"
                     value={annualFeeTransferAccountInput.accountName}
                     onChange={(e) => { setAnnualFeeTransferAccountInput((prev) => ({ ...prev, accountName: e.target.value })); setSettingsIsDirty(true); }}
@@ -4231,8 +4287,9 @@ const App: React.FC = () => {
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">補足</label>
+                  <label htmlFor={`${uid}-f31`} className="block text-sm font-medium text-slate-700 mb-1">補足</label>
                   <textarea
+                    id={`${uid}-f31`}
                     value={annualFeeTransferAccountInput.note || ''}
                     onChange={(e) => { setAnnualFeeTransferAccountInput((prev) => ({ ...prev, note: e.target.value })); setSettingsIsDirty(true); }}
                     rows={3}
@@ -4257,8 +4314,9 @@ const App: React.FC = () => {
             {/* v373.6 (S5): 旧テンプレートライブラリ UI 撤去（外部 Google Sheets テンプレ依存型）。新名簿 Visual Designer に統合済み。 */}
             <div className="border-t border-slate-200 pt-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">一括メール自動添付DriveフォルダID</label>
+                <label htmlFor={`${uid}-f32`} className="block text-sm font-medium text-slate-700 mb-1">一括メール自動添付DriveフォルダID</label>
                 <input
+                  id={`${uid}-f32`}
                   type="text"
                   value={bulkMailAutoAttachFolderIdInput}
                   onChange={(e) => { setBulkMailAutoAttachFolderIdInput(e.target.value); setSettingsIsDirty(true); }}
@@ -4269,8 +4327,9 @@ const App: React.FC = () => {
               </div>
               {adminPermissionLevel === 'MASTER' && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">メール送信ログ閲覧権限</label>
+                  <label htmlFor={`${uid}-f33`} className="block text-sm font-medium text-slate-700 mb-1">メール送信ログ閲覧権限</label>
                   <select
+                    id={`${uid}-f33`}
                     value={emailLogViewerRoleInput}
                     onChange={(e) => { setEmailLogViewerRoleInput(e.target.value); setSettingsIsDirty(true); }}
                     className="border border-slate-300 rounded px-3 py-2 text-sm"
@@ -4299,8 +4358,9 @@ const App: React.FC = () => {
                   公開ポータル全体で使う外部リンクです。掲載先が変わったらここを直します（リリース不要）。
                 </p>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">プライバシーポリシーの掲載先 URL</label>
+                  <label htmlFor={`${uid}-f34`} className="block text-sm font-medium text-slate-700 mb-1">プライバシーポリシーの掲載先 URL</label>
                   <input
+                    id={`${uid}-f34`}
                     type="url"
                     value={publicPortalPrivacyPolicyUrlInput}
                     onChange={(e) => { setPublicPortalPrivacyPolicyUrlInput(e.target.value); setSettingsIsDirty(true); }}
@@ -4421,8 +4481,9 @@ const App: React.FC = () => {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">トップ補助ラベル</label>
+                    <label htmlFor={`${uid}-f35`} className="block text-sm font-medium text-slate-700 mb-1">トップ補助ラベル</label>
                     <input
+                      id={`${uid}-f35`}
                       type="text"
                       value={publicPortalHeroBadgeLabelInput}
                       onChange={(e) => { setPublicPortalHeroBadgeLabelInput(e.target.value); setSettingsIsDirty(true); }}
@@ -4431,8 +4492,9 @@ const App: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">トップ見出し</label>
+                    <label htmlFor={`${uid}-f36`} className="block text-sm font-medium text-slate-700 mb-1">トップ見出し</label>
                     <input
+                      id={`${uid}-f36`}
                       type="text"
                       value={publicPortalHeroTitleInput}
                       onChange={(e) => { setPublicPortalHeroTitleInput(e.target.value); setSettingsIsDirty(true); }}
@@ -4442,8 +4504,9 @@ const App: React.FC = () => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">トップ説明文</label>
+                  <label htmlFor={`${uid}-f37`} className="block text-sm font-medium text-slate-700 mb-1">トップ説明文</label>
                   <textarea
+                    id={`${uid}-f37`}
                     value={publicPortalHeroDescriptionInput}
                     onChange={(e) => { setPublicPortalHeroDescriptionInput(e.target.value); setSettingsIsDirty(true); }}
                     rows={3}
@@ -4482,8 +4545,9 @@ const App: React.FC = () => {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">入会カードの補助ラベル</label>
+                    <label htmlFor={`${uid}-f38`} className="block text-sm font-medium text-slate-700 mb-1">入会カードの補助ラベル</label>
                     <input
+                      id={`${uid}-f38`}
                       type="text"
                       value={publicPortalMembershipBadgeLabelInput}
                       onChange={(e) => { setPublicPortalMembershipBadgeLabelInput(e.target.value); setSettingsIsDirty(true); }}
@@ -4492,8 +4556,9 @@ const App: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">入会カードの見出し</label>
+                    <label htmlFor={`${uid}-f39`} className="block text-sm font-medium text-slate-700 mb-1">入会カードの見出し</label>
                     <input
+                      id={`${uid}-f39`}
                       type="text"
                       value={publicPortalMembershipTitleInput}
                       onChange={(e) => { setPublicPortalMembershipTitleInput(e.target.value); setSettingsIsDirty(true); }}
@@ -4504,8 +4569,9 @@ const App: React.FC = () => {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">入会カードの説明文</label>
+                    <label htmlFor={`${uid}-f40`} className="block text-sm font-medium text-slate-700 mb-1">入会カードの説明文</label>
                     <textarea
+                      id={`${uid}-f40`}
                       value={publicPortalMembershipDescriptionInput}
                       onChange={(e) => { setPublicPortalMembershipDescriptionInput(e.target.value); setSettingsIsDirty(true); }}
                       rows={3}
@@ -4514,8 +4580,9 @@ const App: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">入会カードのボタン文言</label>
+                    <label htmlFor={`${uid}-f41`} className="block text-sm font-medium text-slate-700 mb-1">入会カードのボタン文言</label>
                     <input
+                      id={`${uid}-f41`}
                       type="text"
                       value={publicPortalMembershipCtaLabelInput}
                       onChange={(e) => { setPublicPortalMembershipCtaLabelInput(e.target.value); setSettingsIsDirty(true); }}
@@ -4547,22 +4614,22 @@ const App: React.FC = () => {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">補助ラベル</label>
-                      <input type="text" value={publicPortalTrainingBadgeLabelInput} onChange={(e) => { setPublicPortalTrainingBadgeLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 研修申込" />
+                      <label htmlFor={`${uid}-f42`} className="block text-sm font-medium text-slate-700 mb-1">補助ラベル</label>
+                      <input id={`${uid}-f42`} type="text" value={publicPortalTrainingBadgeLabelInput} onChange={(e) => { setPublicPortalTrainingBadgeLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 研修申込" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">見出し</label>
-                      <input type="text" value={publicPortalTrainingTitleInput} onChange={(e) => { setPublicPortalTrainingTitleInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 研修を申し込む" />
+                      <label htmlFor={`${uid}-f43`} className="block text-sm font-medium text-slate-700 mb-1">見出し</label>
+                      <input id={`${uid}-f43`} type="text" value={publicPortalTrainingTitleInput} onChange={(e) => { setPublicPortalTrainingTitleInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 研修を申し込む" />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">説明文</label>
-                      <textarea value={publicPortalTrainingDescriptionInput} onChange={(e) => { setPublicPortalTrainingDescriptionInput(e.target.value); setSettingsIsDirty(true); }} rows={3} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 受付中の研修一覧を確認し、そのまま申込できます。" />
+                      <label htmlFor={`${uid}-f44`} className="block text-sm font-medium text-slate-700 mb-1">説明文</label>
+                      <textarea id={`${uid}-f44`} value={publicPortalTrainingDescriptionInput} onChange={(e) => { setPublicPortalTrainingDescriptionInput(e.target.value); setSettingsIsDirty(true); }} rows={3} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 受付中の研修一覧を確認し、そのまま申込できます。" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">ボタン文言</label>
-                      <input type="text" value={publicPortalTrainingCtaLabelInput} onChange={(e) => { setPublicPortalTrainingCtaLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 進む" />
+                      <label htmlFor={`${uid}-f45`} className="block text-sm font-medium text-slate-700 mb-1">ボタン文言</label>
+                      <input id={`${uid}-f45`} type="text" value={publicPortalTrainingCtaLabelInput} onChange={(e) => { setPublicPortalTrainingCtaLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 進む" />
                     </div>
                   </div>
                 </div>
@@ -4589,22 +4656,22 @@ const App: React.FC = () => {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">補助ラベル</label>
-                      <input type="text" value={publicPortalMemberUpdateBadgeLabelInput} onChange={(e) => { setPublicPortalMemberUpdateBadgeLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 登録情報変更" />
+                      <label htmlFor={`${uid}-f46`} className="block text-sm font-medium text-slate-700 mb-1">補助ラベル</label>
+                      <input id={`${uid}-f46`} type="text" value={publicPortalMemberUpdateBadgeLabelInput} onChange={(e) => { setPublicPortalMemberUpdateBadgeLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 登録情報変更" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">見出し</label>
-                      <input type="text" value={publicPortalMemberUpdateTitleInput} onChange={(e) => { setPublicPortalMemberUpdateTitleInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 会員登録情報を変更する" />
+                      <label htmlFor={`${uid}-f47`} className="block text-sm font-medium text-slate-700 mb-1">見出し</label>
+                      <input id={`${uid}-f47`} type="text" value={publicPortalMemberUpdateTitleInput} onChange={(e) => { setPublicPortalMemberUpdateTitleInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 会員登録情報を変更する" />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">説明文</label>
-                      <textarea value={publicPortalMemberUpdateDescriptionInput} onChange={(e) => { setPublicPortalMemberUpdateDescriptionInput(e.target.value); setSettingsIsDirty(true); }} rows={3} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 住所・電話番号・メールアドレスなど、ご登録情報の変更を申し込めます。" />
+                      <label htmlFor={`${uid}-f48`} className="block text-sm font-medium text-slate-700 mb-1">説明文</label>
+                      <textarea id={`${uid}-f48`} value={publicPortalMemberUpdateDescriptionInput} onChange={(e) => { setPublicPortalMemberUpdateDescriptionInput(e.target.value); setSettingsIsDirty(true); }} rows={3} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 住所・電話番号・メールアドレスなど、ご登録情報の変更を申し込めます。" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">ボタン文言</label>
-                      <input type="text" value={publicPortalMemberUpdateCtaLabelInput} onChange={(e) => { setPublicPortalMemberUpdateCtaLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 変更手続きへ進む" />
+                      <label htmlFor={`${uid}-f49`} className="block text-sm font-medium text-slate-700 mb-1">ボタン文言</label>
+                      <input id={`${uid}-f49`} type="text" value={publicPortalMemberUpdateCtaLabelInput} onChange={(e) => { setPublicPortalMemberUpdateCtaLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 変更手続きへ進む" />
                     </div>
                   </div>
                 </div>
@@ -4631,22 +4698,22 @@ const App: React.FC = () => {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">補助ラベル</label>
-                      <input type="text" value={publicPortalWithdrawalBadgeLabelInput} onChange={(e) => { setPublicPortalWithdrawalBadgeLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 退会" />
+                      <label htmlFor={`${uid}-f50`} className="block text-sm font-medium text-slate-700 mb-1">補助ラベル</label>
+                      <input id={`${uid}-f50`} type="text" value={publicPortalWithdrawalBadgeLabelInput} onChange={(e) => { setPublicPortalWithdrawalBadgeLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 退会" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">見出し</label>
-                      <input type="text" value={publicPortalWithdrawalTitleInput} onChange={(e) => { setPublicPortalWithdrawalTitleInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 退会を申し込む" />
+                      <label htmlFor={`${uid}-f51`} className="block text-sm font-medium text-slate-700 mb-1">見出し</label>
+                      <input id={`${uid}-f51`} type="text" value={publicPortalWithdrawalTitleInput} onChange={(e) => { setPublicPortalWithdrawalTitleInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 退会を申し込む" />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">説明文</label>
-                      <textarea value={publicPortalWithdrawalDescriptionInput} onChange={(e) => { setPublicPortalWithdrawalDescriptionInput(e.target.value); setSettingsIsDirty(true); }} rows={3} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 退会申請を行います。年度末退会または即時退会を選択できます。" />
+                      <label htmlFor={`${uid}-f52`} className="block text-sm font-medium text-slate-700 mb-1">説明文</label>
+                      <textarea id={`${uid}-f52`} value={publicPortalWithdrawalDescriptionInput} onChange={(e) => { setPublicPortalWithdrawalDescriptionInput(e.target.value); setSettingsIsDirty(true); }} rows={3} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 退会申請を行います。年度末退会または即時退会を選択できます。" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">ボタン文言</label>
-                      <input type="text" value={publicPortalWithdrawalCtaLabelInput} onChange={(e) => { setPublicPortalWithdrawalCtaLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 退会手続きへ進む" />
+                      <label htmlFor={`${uid}-f53`} className="block text-sm font-medium text-slate-700 mb-1">ボタン文言</label>
+                      <input id={`${uid}-f53`} type="text" value={publicPortalWithdrawalCtaLabelInput} onChange={(e) => { setPublicPortalWithdrawalCtaLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 退会手続きへ進む" />
                     </div>
                   </div>
                   <div className="mt-5 border-t border-slate-200 pt-5">
@@ -4715,9 +4782,9 @@ const App: React.FC = () => {
               {mailDeliveryStateInput === 'STOPPED' && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">現在、すべての自動メールは停止しています。</p>}
               {mailDeliveryStateInput === 'REDIRECT' && (
                 <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-4 space-y-2">
-                  <label className="block text-sm font-semibold text-slate-800">テスト集約先</label>
-                  <p className="text-xs leading-5 text-slate-600">指定した宛先だけへ集約して送信します。複数指定する場合はカンマで区切ります。</p>
-                  <input type="text" value={mailRedirectAllowlistInput}
+                  <label htmlFor={`${uid}-redirect-allowlist`} className="block text-sm font-semibold text-slate-800">テスト集約先</label>
+                  <p id={`${uid}-redirect-allowlist-hint`} className="text-xs leading-5 text-slate-600">指定した宛先だけへ集約して送信します。複数指定する場合はカンマで区切ります。</p>
+                  <input id={`${uid}-redirect-allowlist`} aria-describedby={`${uid}-redirect-allowlist-hint`} type="text" value={mailRedirectAllowlistInput}
                     onChange={(e) => { setMailRedirectAllowlistInput(e.target.value); setSettingsIsDirty(true); }}
                     className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
                     placeholder="例: test@example.com" />
@@ -4808,7 +4875,7 @@ const App: React.FC = () => {
                 {/* ─── 送信元アドレス（共通） ─── */}
                 <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
                   <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold text-slate-500 tracking-wide">自動通知の送信元アドレス（共通）</p>
+                  <p id={`${uid}-notice-from-label`} className="text-xs font-semibold text-slate-500 tracking-wide">自動通知の送信元アドレス（共通）</p>
                     <button type="button" onClick={() => { void loadCredentialEmailAliases(); }}
                       disabled={credentialEmailAliasLoading}
                       className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 disabled:opacity-50">
@@ -4816,7 +4883,7 @@ const App: React.FC = () => {
                     </button>
                   </div>
                   <p className="text-xs text-slate-500">受付・承認・却下・入会完了・本人確認コードなどの自動通知に共通で使います。Gmail の「送信元アドレス（Send mail as）」に登録済みのアドレスから選べます。一括メールは送信画面で個別に選択します。</p>
-                  <select value={credentialEmailFromInput}
+                  <select aria-labelledby={`${uid}-notice-from-label`} value={credentialEmailFromInput}
                     onChange={(e) => { setCredentialEmailFromInput(e.target.value); setSettingsIsDirty(true); }}
                     className="w-full border border-slate-300 rounded px-3 py-2 text-sm bg-white"
                     disabled={credentialEmailAliasLoading && credentialEmailFromOptions.length === 0}>
@@ -5011,7 +5078,7 @@ const App: React.FC = () => {
                         onLoad={(s, b) => { setTrainingApplyReceiptSubjectInput(s); setTrainingApplyReceiptBodyInput(b); setSettingsIsDirty(true); }} />
                     } />
 
-                  <EmailCard category="TRAINING" templateCategory="TRAINING_REMINDER" badge="研修リマインダー" title="研修リマインダーメール（申込者へ）"
+                  <EmailCard category="TRAINING" templateCategory="TRAINING_REMINDER" badge="研修リマインダー" title="研修リマインダー・研修管理からのメール（申込者へ）※無効にすると研修管理の「メール送信」も止まります"
                     enabled={trainingReminderEnabledInput}
                     onToggle={() => { setTrainingReminderEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={trainingReminderSubjectInput}
@@ -5156,7 +5223,7 @@ const App: React.FC = () => {
                     <span className="text-sm font-medium text-slate-700">「今後のご案内」ブロックを表示する</span>
                   </label>
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                    <label htmlFor={`${uid}-guidance-on`} className="block text-xs font-medium text-slate-600 mb-1">
                       <span className="inline-flex items-center gap-1">
                         <span className="w-2 h-2 rounded-full bg-primary-500 inline-block"></span>
                         送信ON時の案内文
@@ -5164,6 +5231,7 @@ const App: React.FC = () => {
                     </label>
                     <div className="flex gap-2 items-start">
                       <textarea
+                        id={`${uid}-guidance-on`}
                         value={publicPortalCompletionGuidanceBodyWhenCredentialSentInput}
                         onChange={(e) => { setPublicPortalCompletionGuidanceBodyWhenCredentialSentInput(e.target.value); setSettingsIsDirty(true); }}
                         rows={4}
@@ -5178,7 +5246,7 @@ const App: React.FC = () => {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                    <label htmlFor={`${uid}-guidance-off`} className="block text-xs font-medium text-slate-600 mb-1">
                       <span className="inline-flex items-center gap-1">
                         <span className="w-2 h-2 rounded-full bg-slate-400 inline-block"></span>
                         送信OFF時の案内文
@@ -5186,6 +5254,7 @@ const App: React.FC = () => {
                     </label>
                     <div className="flex gap-2 items-start">
                       <textarea
+                        id={`${uid}-guidance-off`}
                         value={publicPortalCompletionGuidanceBodyWhenCredentialNotSentInput}
                         onChange={(e) => { setPublicPortalCompletionGuidanceBodyWhenCredentialNotSentInput(e.target.value); setSettingsIsDirty(true); }}
                         rows={4}
@@ -5237,9 +5306,10 @@ const App: React.FC = () => {
                     OFF の場合はログインID・パスワードを画面に表示せず、メール送信状況のみ案内します。会員ページ公開時に ON へ戻してください。
                   </p>
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">メール送信ON時の補足本文</label>
+                    <label htmlFor={`${uid}-logininfo-on`} className="block text-xs font-medium text-slate-600 mb-1">メール送信ON時の補足本文</label>
                     <div className="flex gap-2 items-start">
                       <textarea
+                        id={`${uid}-logininfo-on`}
                         value={publicPortalCompletionLoginInfoBodyWhenCredentialSentInput}
                         onChange={(e) => { setPublicPortalCompletionLoginInfoBodyWhenCredentialSentInput(e.target.value); setSettingsIsDirty(true); }}
                         rows={3}
@@ -5254,9 +5324,10 @@ const App: React.FC = () => {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">メール送信OFF時の補足本文</label>
+                    <label htmlFor={`${uid}-logininfo-off`} className="block text-xs font-medium text-slate-600 mb-1">メール送信OFF時の補足本文</label>
                     <div className="flex gap-2 items-start">
                       <textarea
+                        id={`${uid}-logininfo-off`}
                         value={publicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput}
                         onChange={(e) => { setPublicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput(e.target.value); setSettingsIsDirty(true); }}
                         rows={3}
@@ -5274,7 +5345,7 @@ const App: React.FC = () => {
               </div>
               <div className="hidden">
                 <div className="flex items-center justify-between gap-3 mb-1">
-                  <label className="block text-sm font-medium text-slate-700">送信元メールアドレス</label>
+                  <label htmlFor={`${uid}-legacy-from`} className="block text-sm font-medium text-slate-700">送信元メールアドレス</label>
                   <button
                     type="button"
                     onClick={() => { void loadCredentialEmailAliases(); }}
@@ -5288,6 +5359,7 @@ const App: React.FC = () => {
                   Gmail の「メールアドレスを追加」「Send mail as」に登録済みの主メールアドレス・送信エイリアスから選択します。
                 </p>
                 <select
+                  id={`${uid}-legacy-from`}
                   value={credentialEmailFromInput}
                   onChange={(e) => { setCredentialEmailFromInput(e.target.value); setSettingsIsDirty(true); }}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm bg-white"
@@ -5308,9 +5380,10 @@ const App: React.FC = () => {
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">メール件名</label>
+                <label htmlFor={`${uid}-credential-subject`} className="block text-sm font-medium text-slate-700 mb-1">メール件名</label>
                 <div className="flex gap-2 items-start">
                   <input
+                    id={`${uid}-credential-subject`}
                     type="text"
                     value={credentialEmailSubjectInput}
                     onChange={(e) => { setCredentialEmailSubjectInput(e.target.value); setSettingsIsDirty(true); }}
@@ -5325,7 +5398,7 @@ const App: React.FC = () => {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">メール本文</label>
+                <label htmlFor={`${uid}-credential-body`} className="block text-sm font-medium text-slate-700 mb-1">メール本文</label>
                 <p className="text-xs text-slate-500 mb-2">
                   利用可能なマージタグ：
                   {[
@@ -5351,6 +5424,7 @@ const App: React.FC = () => {
                   <span className="text-slate-400 ml-1">（クリックで本文末尾に挿入）</span>
                 </p>
                 <textarea
+                  id={`${uid}-credential-body`}
                   value={credentialEmailBodyInput}
                   onChange={(e) => { setCredentialEmailBodyInput(e.target.value); setSettingsIsDirty(true); }}
                   rows={12}
@@ -5372,6 +5446,7 @@ const App: React.FC = () => {
                       <input
                         type="text"
                         value={templateSaveNameInput}
+                        aria-label="テンプレート名"
                         onChange={e => setTemplateSaveNameInput(e.target.value)}
                         placeholder="テンプレート名（例：基本テンプレート）"
                         className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs"
@@ -5505,17 +5580,17 @@ const App: React.FC = () => {
                   {enabled && (
                     <>
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">件名</label>
+                        <label htmlFor={`${uid}-email-${badge}-subject`} className="block text-sm font-medium text-slate-700 mb-1">件名</label>
                         <div className="flex gap-2">
-                          <input type="text" value={subject} onChange={e => onSubjectChange(e.target.value)}
+                          <input id={`${uid}-email-${badge}-subject`} type="text" value={subject} onChange={e => onSubjectChange(e.target.value)}
                             className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm" placeholder="メール件名" />
                           <button type="button" onClick={() => onSubjectChange(defaultSubject)}
                             className="px-2 py-2 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 whitespace-nowrap">デフォルト</button>
                         </div>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">本文</label>
-                        <textarea value={body} onChange={e => onBodyChange(e.target.value)} rows={8}
+                        <label htmlFor={`${uid}-email-${badge}-body`} className="block text-sm font-medium text-slate-700 mb-1">本文</label>
+                        <textarea id={`${uid}-email-${badge}-body`} value={body} onChange={e => onBodyChange(e.target.value)} rows={8}
                           className="w-full border border-slate-300 rounded px-3 py-2 text-sm font-mono leading-relaxed resize-y"
                           placeholder="メール本文（マージタグ使用可能）" />
                       </div>
@@ -5578,12 +5653,14 @@ const App: React.FC = () => {
           >
             <div className="space-y-4 mt-2">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">保存先フォルダ ID</label>
-                <p className="text-xs text-slate-500 mb-2">
+                <label htmlFor={`${uid}-training-folder`} className="block text-sm font-medium text-slate-700 mb-1">保存先フォルダ ID</label>
+                <p id={`${uid}-training-folder-hint`} className="text-xs text-slate-500 mb-2">
                   Google Drive のフォルダURLの末尾の文字列（例: <code className="bg-slate-100 px-1 rounded">1abc...xyz</code>）を入力、または下のボタンで自動作成してください。
                 </p>
                 <div className="flex gap-2">
                   <input
+                    id={`${uid}-training-folder`}
+                    aria-describedby={`${uid}-training-folder-hint`}
                     type="text"
                     value={trainingFileFolderIdInput}
                     onChange={e => { setTrainingFileFolderIdInput(e.target.value); setSettingsIsDirty(true); }}
@@ -5686,18 +5763,18 @@ const App: React.FC = () => {
                           <p className="text-xs text-slate-500">会員ID: {m.id} / 現在有効上限: {effective}</p>
                         </div>
                         <div>
-                          <label className="block text-xs text-slate-600 mb-1">個別上限（空で全体適用）</label>
-                          <input type="number" min={1} max={200} defaultValue={m.staffLimit ?? ''} className="w-full border border-slate-300 rounded px-2 py-1 text-sm" onBlur={(e) => {
+                          <label htmlFor={`${uid}-f55-${m.id}`} className="block text-xs text-slate-600 mb-1">個別上限（空で全体適用）</label>
+                          <input id={`${uid}-f55-${m.id}`} type="number" min={1} max={200} defaultValue={m.staffLimit ?? ''} className="w-full border border-slate-300 rounded px-2 py-1 text-sm" onBlur={(e) => {
                             const raw = e.target.value.trim();
-                            const nextMember: Member = { ...m, staffLimit: raw ? Math.floor(Number(raw)) : undefined };
+                            // 空欄は null（undefined だと送信時に項目が消え、サーバは前の値を残していた）
+                            const nextMember: Member = { ...m, staffLimit: raw ? Math.floor(Number(raw)) : null };
                             setMembers((prev) => prev.map((x) => (x.id === m.id ? nextMember : x)));
                           }} />
                         </div>
                         <div>
                           <button type="button" className="px-3 py-2 rounded bg-slate-100 hover:bg-slate-200 text-sm" onClick={async () => {
                             const target = members.find((x) => x.id === m.id) || m;
-                            await handleMemberSave(target);
-                            alert('事業所個別上限を保存しました。');
+                            if (await handleMemberSave(target)) alert('事業所個別上限を保存しました。');
                           }}>個別設定を保存</button>
                         </div>
                       </div>
@@ -6086,7 +6163,7 @@ const App: React.FC = () => {
       if (userRole !== 'ADMIN' || !['MASTER', 'ADMIN'].includes(adminPermissionLevel || '')) {
         return <div className="text-red-500 p-4">管理者ページへのアクセス権限がありません。</div>;
       }
-      return <PaymentHistoryConsole api={api} />;
+      return <PaymentHistoryConsole api={api} initialClaim={paymentInitialClaim} onInitialClaimConsumed={() => setPaymentInitialClaim(null)} />;
     }
 
     if (currentView === 'claim-management') {
@@ -6096,7 +6173,9 @@ const App: React.FC = () => {
       return (
         <ClaimManagementConsole
           api={api}
-          onOpenPaymentConsole={() => setCurrentView('payment-history')}
+          // 2026-10-13: 請求を支払い登録へ渡す。以前は請求IDを捨てており、支払っても請求が
+          // 「承認済み」のまま残った（二重払いの恐れ）。
+          onOpenPaymentConsole={(claim) => { setPaymentInitialClaim(claim); setCurrentView('payment-history'); }}
         />
       );
     }

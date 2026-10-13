@@ -138,6 +138,7 @@ const DataExportConsole: React.FC = () => {
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder="テーブル名で絞り込み"
+            aria-label="テーブル名で絞り込み"
             className="min-h-[44px] rounded border border-slate-300 px-3 py-2 text-sm"
           />
           <button

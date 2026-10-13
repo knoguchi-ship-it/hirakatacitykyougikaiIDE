@@ -116,6 +116,8 @@ const OrganizationSection: React.FC<{
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
+  const uid = React.useId();
 
   const openAdd = () => { setEditing(null); setForm(empty); setFormVisible(true); setError(null); };
   const openEdit = (org: Organization) => {
@@ -185,8 +187,9 @@ const OrganizationSection: React.FC<{
           <p className="text-xs font-semibold text-primary-800">{editing ? '組織を編集' : '新しい組織を追加'}</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">組織コード *</label>
+              <label htmlFor={`${uid}-f1`} className="mb-1 block text-xs font-medium text-slate-600">組織コード *</label>
               <input
+                id={`${uid}-f1`}
                 value={form.code}
                 onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
                 disabled={!!editing}
@@ -197,8 +200,9 @@ const OrganizationSection: React.FC<{
               {!editing && <p className="mt-0.5 text-[10px] text-slate-400">英大文字・数字・アンダースコアのみ。変更不可。</p>}
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">組織名 *</label>
+              <label htmlFor={`${uid}-f2`} className="mb-1 block text-xs font-medium text-slate-600">組織名 *</label>
               <input
+                id={`${uid}-f2`}
                 value={form.name}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                 placeholder="例: 新設委員会"
@@ -207,8 +211,9 @@ const OrganizationSection: React.FC<{
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">組織種別</label>
+              <label htmlFor={`${uid}-f3`} className="mb-1 block text-xs font-medium text-slate-600">組織種別</label>
               <select
+                id={`${uid}-f3`}
                 value={form.type}
                 onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
                 className={inputCls}
@@ -217,8 +222,9 @@ const OrganizationSection: React.FC<{
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">表示順</label>
+              <label htmlFor={`${uid}-f4`} className="mb-1 block text-xs font-medium text-slate-600">表示順</label>
               <input
+                id={`${uid}-f4`}
                 type="number"
                 value={form.order}
                 onChange={e => setForm(f => ({ ...f, order: e.target.value }))}
@@ -337,6 +343,8 @@ const RoleSection: React.FC<{
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
+  const uid = React.useId();
 
   const openAdd = () => { setEditing(null); setForm({ ...empty, orgCode: defaultOrg }); setFormVisible(true); setError(null); };
   const openEdit = (role: OfficerRole) => {
@@ -401,8 +409,9 @@ const RoleSection: React.FC<{
           <p className="text-xs font-semibold text-primary-800">{editing ? '役職を編集' : '新しい役職を追加'}</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">役職コード *</label>
+              <label htmlFor={`${uid}-f5`} className="mb-1 block text-xs font-medium text-slate-600">役職コード *</label>
               <input
+                id={`${uid}-f5`}
                 value={form.code}
                 onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
                 disabled={!!editing}
@@ -412,8 +421,9 @@ const RoleSection: React.FC<{
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">役職名 *</label>
+              <label htmlFor={`${uid}-f6`} className="mb-1 block text-xs font-medium text-slate-600">役職名 *</label>
               <input
+                id={`${uid}-f6`}
                 value={form.name}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                 placeholder="例: 新設委員"
@@ -422,8 +432,9 @@ const RoleSection: React.FC<{
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">組織 *</label>
+              <label htmlFor={`${uid}-f7`} className="mb-1 block text-xs font-medium text-slate-600">組織 *</label>
               <select
+                id={`${uid}-f7`}
                 value={form.orgCode}
                 onChange={e => setForm(f => ({ ...f, orgCode: e.target.value }))}
                 className={inputCls}
@@ -433,8 +444,9 @@ const RoleSection: React.FC<{
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">表示順</label>
+              <label htmlFor={`${uid}-f8`} className="mb-1 block text-xs font-medium text-slate-600">表示順</label>
               <input
+                id={`${uid}-f8`}
                 type="number"
                 value={form.order}
                 onChange={e => setForm(f => ({ ...f, order: e.target.value }))}
@@ -560,6 +572,8 @@ const PaymentTypeSection: React.FC<{
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
+  const uid = React.useId();
 
   const openAdd = () => { setEditing(null); setForm(empty); setFormVisible(true); setError(null); };
   const openEdit = (pt: PaymentType) => {
@@ -621,8 +635,9 @@ const PaymentTypeSection: React.FC<{
           <p className="text-xs font-semibold text-primary-800">{editing ? '種別を編集' : '新しい種別を追加'}</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">種別コード *</label>
+              <label htmlFor={`${uid}-f9`} className="mb-1 block text-xs font-medium text-slate-600">種別コード *</label>
               <input
+                id={`${uid}-f9`}
                 value={form.code}
                 onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
                 disabled={!!editing}
@@ -632,8 +647,9 @@ const PaymentTypeSection: React.FC<{
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">種別名 *</label>
+              <label htmlFor={`${uid}-f10`} className="mb-1 block text-xs font-medium text-slate-600">種別名 *</label>
               <input
+                id={`${uid}-f10`}
                 value={form.name}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                 placeholder="例: 食事代"
@@ -642,8 +658,9 @@ const PaymentTypeSection: React.FC<{
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">対象区分</label>
+              <label htmlFor={`${uid}-f11`} className="mb-1 block text-xs font-medium text-slate-600">対象区分</label>
               <select
+                id={`${uid}-f11`}
                 value={form.scope}
                 onChange={e => setForm(f => ({ ...f, scope: e.target.value }))}
                 className={inputCls}
@@ -652,8 +669,9 @@ const PaymentTypeSection: React.FC<{
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">表示順</label>
+              <label htmlFor={`${uid}-f12`} className="mb-1 block text-xs font-medium text-slate-600">表示順</label>
               <input
+                id={`${uid}-f12`}
                 type="number"
                 value={form.order}
                 onChange={e => setForm(f => ({ ...f, order: e.target.value }))}
@@ -759,6 +777,8 @@ const WorkCategorySection: React.FC<{
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
+  const uid = React.useId();
 
   const openAdd = () => { setEditing(null); setForm({ ...empty, orgCode: defaultOrg }); setFormVisible(true); setError(null); };
   const openEdit = (category: WorkCategory) => {
@@ -837,8 +857,9 @@ const WorkCategorySection: React.FC<{
           <p className="text-xs font-semibold text-primary-800">{editing ? '業務分類を編集' : '新しい業務分類を追加'}</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">分類コード *</label>
+              <label htmlFor={`${uid}-f13`} className="mb-1 block text-xs font-medium text-slate-600">分類コード *</label>
               <input
+                id={`${uid}-f13`}
                 value={form.code}
                 onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
                 disabled={!!editing}
@@ -848,8 +869,9 @@ const WorkCategorySection: React.FC<{
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">分類名 *</label>
+              <label htmlFor={`${uid}-f14`} className="mb-1 block text-xs font-medium text-slate-600">分類名 *</label>
               <input
+                id={`${uid}-f14`}
                 value={form.name}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                 placeholder="例: 会議出席"
@@ -858,14 +880,15 @@ const WorkCategorySection: React.FC<{
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">組織 *</label>
-              <select value={form.orgCode} onChange={e => setForm(f => ({ ...f, orgCode: e.target.value }))} className={inputCls}>
+              <label htmlFor={`${uid}-f15`} className="mb-1 block text-xs font-medium text-slate-600">組織 *</label>
+              <select id={`${uid}-f15`} value={form.orgCode} onChange={e => setForm(f => ({ ...f, orgCode: e.target.value }))} className={inputCls}>
                 {activeOrgs.map(o => <option key={o.組織コード} value={o.組織コード}>{o.組織名}</option>)}
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">単価 *</label>
+              <label htmlFor={`${uid}-f16`} className="mb-1 block text-xs font-medium text-slate-600">単価 *</label>
               <input
+                id={`${uid}-f16`}
                 type="text"
                 inputMode="numeric"
                 value={form.unitPrice}
@@ -875,8 +898,9 @@ const WorkCategorySection: React.FC<{
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">表示順</label>
+              <label htmlFor={`${uid}-f17`} className="mb-1 block text-xs font-medium text-slate-600">表示順</label>
               <input
+                id={`${uid}-f17`}
                 type="number"
                 value={form.order}
                 onChange={e => setForm(f => ({ ...f, order: e.target.value }))}

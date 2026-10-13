@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: d56cd12c1f66e8a3af1e5a3dc9b2a34579fa13af756e554ff0c268ac90d53934
+// BUILD_INPUT_SHA256: 17cec84fe71ed79ad9f426aa9063c23841150eddd9a1ccac561fceec5292defc
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -885,6 +885,19 @@ var ARCHIVE_SOURCE_TABLES = [
   'T_研修申込', 'T_年会費納入履歴', 'T_年会費更新履歴', 'T_役員',
   'T_振込口座', 'T_支払い', 'T_支払い明細', 'T_請求', 'T_変更申請',
 ];
+for (var archiveSrcIdx = 0; archiveSrcIdx < ARCHIVE_SOURCE_TABLES.length; archiveSrcIdx += 1) {
+  var archiveSrcName = ARCHIVE_SOURCE_TABLES[archiveSrcIdx];
+  テーブル定義[archiveSrcName + '_archive'] = テーブル定義[archiveSrcName].slice().concat(ARCHIVE_SURROGATE_COLUMNS);
+}
+
+// ─── テストデータの印（2026-10-11・docs/303） ─────────────────────────────
+// テストで作る会員・職員・外部申込者は、名前の先頭に★を付け、メールアドレスを
+// @example.invalid（RFC 6761 の予約ドメイン。どこにも届かない）にする。
+// **両方を満たすものだけ**をテストデータとみなす。片方だけでは消さない
+// （実在の会員の名前に★が入っても、メールアドレスが本物なら対象にならない）。
+// 判定はこの関数群が正本。作成（scripts/create-test-member.mjs・dryRun）と
+// 物理削除（previewTestDataPurge_LOG / executeTestDataPurge_APPLY）が同じものを使う。
+var TEST_DATA_NAME_PREFIX = '★';
 var TEST_DATA_EMAIL_DOMAIN = '@example.invalid';
 
 
@@ -894,6 +907,43 @@ var TEST_DATA_EMAIL_DOMAIN = '@example.invalid';
 
 
 // 承認前の入会申込は会員IDを持たないので、申請者名（氏名・事業所名）と連絡先で判定する。
+
+// 物理削除で、テーブルごとにどう扱うか（ゴミを残さないための分類）。
+// テーブル定義に表を足したら、ここにも分類を足す。未分類は test:test-data-purge が落とす。
+//   CASCADE  getCascadeMatchers_ の会員・職員の連動。本番の表と *_archive の両方から消す
+//   PURGE    表ごとの条件で消す（buildTestDataPurgePlan_ / getTestDataPurgeLogMatchers_）
+//   KEEP     消さない
+//   NONE     会員・職員・外部申込者と結び付かない
+var TEST_DATA_PURGE_TABLE_POLICY = {
+  'T_会員': 'CASCADE',
+  'T_事業所職員': 'CASCADE',
+  'T_認証アカウント': 'CASCADE',
+  'T_管理者Googleホワイトリスト': 'CASCADE',
+  'T_研修申込': 'CASCADE',          // ＋テストの外部申込者の申込
+  'T_年会費納入履歴': 'CASCADE',
+  'T_年会費更新履歴': 'CASCADE',
+  'T_役員': 'CASCADE',
+  'T_振込口座': 'CASCADE',
+  'T_支払い': 'CASCADE',
+  'T_支払い明細': 'CASCADE',
+  'T_請求': 'CASCADE',              // 添付ファイル（Drive）は請求添付フォルダ内のものだけゴミ箱へ
+  'T_変更申請': 'CASCADE',          // ＋承認前のテストの入会申込（isTestChangeRequestRow_）
+  'T_外部申込者': 'PURGE',          // isTestExternalApplicantRow_
+  'T_ログイン履歴': 'PURGE',        // 消す認証アカウントのもの（ログ用スプレッドシート）
+  'T_メール送信明細': 'PURGE',      // 受信者が消す会員・職員・外部申込者のもの（ログ用スプレッドシート）
+  'T_削除ログ': 'PURGE',            // 対象がすべて消す会員・職員のもの。スナップショットに個人データを持つ
+  'T_人物統合ログ': 'PURGE',        // 新旧のIDがすべて消す会員・職員のもの
+  'T_監査ログ': 'KEEP',             // 操作の記録。IDだけで個人データを持たない。物理削除そのものもここに残す
+  'T_メール送信ログ': 'KEEP',       // 送信のまとまり（件数）だけ。宛先は明細側にある
+  'T_研修': 'NONE',
+  'T_システム設定': 'NONE',
+  'T_権限ロール': 'NONE',
+  'T_メールテンプレート': 'NONE',
+  'T_画面項目権限': 'NONE',
+  'T_規程': 'NONE',
+  'T_共有メモ': 'NONE',
+  'T_LINE投稿依頼': 'NONE',
+};
 
 var 入力規則定義 = [
   ['T_会員', '会員種別コード', 'M_会員種別'],
@@ -1054,12 +1104,37 @@ function sanitizeDeepLinkValue_(raw) {
  */
 
 /**
+ * スプレッドシートDBを作成し、マスタ/テーブルを初期化する。
+ * 不要シート（定義外シート）もあわせて削除する。
+ * clasp run setupDatabase から実行想定。
+ */
+
+/**
+ * T_会員 に 勤務先住所2 / 自宅住所2 列を追加するマイグレーション。
+ * 既にカラムが存在する場合はスキップする（冪等）。
+ * 実行後は rebuildDatabaseSchema() のヘッダー保護を再適用することを推奨。
+ */
+
+/**
  * DBスキーマを再構築する。
  * 既存の定義外シートは削除し、定義シートのヘッダー/入力規則/保護を再適用する。
  */
 
 
 
+
+/**
+ * 既存ホワイトリストの権限コードをマイグレーションする。
+ * k.noguchi@uguisunosato.or.jp → MASTER、他 → ADMIN。
+ * 使い方: npx clasp run migrateAdminPermissions
+ */
+
+/**
+ * ホワイトリストのデータ列ズレを修復する（v118 スキーマ移行用）。
+ * writeSheetHeaders_ がヘッダーだけ上書きしデータ行を移動しなかったため、
+ * 旧列位置のデータを新列位置にリマップする。
+ * 使い方: npx clasp run repairWhitelistData
+ */
 
 /**
  * 定義外シートのみを削除する。
@@ -1071,6 +1146,26 @@ function sanitizeDeepLinkValue_(raw) {
  */
 
 // スコープ不要の疎通確認用。Execution API経路の切り分けに使う。
+
+/**
+ * v209: T_システム設定 に認証情報メール設定キーを追加する（ワンタイム実行）
+ * 実行: npx clasp run insertSystemSettingKeysForV209
+ */
+
+/**
+ * v210: T_システム設定 に公開ポータルメニュー表示設定キーを追加する（ワンタイム実行）
+ * 実行: npx clasp run insertSystemSettingKeysForV210
+ */
+
+/**
+ * v194 Phase 1: T_システム設定 に3新設定キーを追加する（ワンタイム実行）
+ * 実行: npx clasp run insertSystemSettingKeysForV194
+ */
+
+/**
+ * v194 Phase 1: T_メール送信ログ シートを DB に新設する（ワンタイム実行）
+ * 実行: npx clasp run createEmailLogSheet
+ */
 
 /**
  * Web App公開状態の確認用。
@@ -1465,6 +1560,18 @@ var LEGACY_CODE_TO_INITIAL_ROLE_ID = {
   "TRAINING_REGISTRAR": "role-training-registrar-initial",
   "GENERAL": "role-general-initial"
 };
+// __MENU_REGISTRY_BUILD_INJECT_END__
+
+// docs/246 Phase 1-A: action 認可判定（legacy 権限コード ベース）。
+// Phase 2 hotfix v376.28.2: 主要パスは isActionAllowedForSession_ へ移行。
+// この関数は snapshot test / fallback パス用に残置（直接呼び出し非推奨）。
+
+// docs/246 Phase 2 hotfix v376.28.2: 認可は checkAdminBySession_ で解決済の
+// session (isMaster + allowedMenus) を直接参照する。これにより:
+//   - whitelist.ロールID が埋まっていれば T_権限ロール の値が authoritative
+//   - 無ければ legacy 権限コードからの fallback（Phase 1-B fallback chain と整合）
+//   - カスタムロールの allowedMenus が実トラフィックの認可判定に反映される
+// MASTER は session.isMaster=true により従来通り全許可（user 確認済の設計意図）。
 
 var ADMIN_ACTION_PERMISSIONS = {};
 
@@ -1694,7 +1801,8 @@ function processApiRequest(action, payload) {
       return JSON.stringify({ success: true, data: cancelWithdrawalSelfByPrincipal_(parsedPayload) });
     }
 
-    return JSON.stringify({ success: true, data: { message: '未実装アクションです' } });
+    // 2026-10-13: 許可リストにあるのに処理の分岐が無い action を「成功」と返していた。失敗として返す。
+    return JSON.stringify({ success: false, error: '未実装アクションです: ' + action });
   } catch (error) {
     Logger.log('[processApiRequest catch] action=' + action + ' error=' + (error && error.message ? error.message : String(error)));
     return JSON.stringify({
@@ -1755,6 +1863,13 @@ function formatTimeOnly_(val) {
 
 
 
+
+/**
+ * 会員ログインE2Eのため、代表的な会員認証アカウントのみを安全に再作成する。
+ * - 既存データ全削除は行わない（seedDemoData は呼ばない）
+ * - 対象: 個人会員2件 + 事業所管理者1件
+ * - パスワードは一括で demo1234 に再設定する
+ */
 
 
 
@@ -2550,6 +2665,49 @@ function changePassword_(request) {
   };
 }
 
+/**
+ * v376.55: 管理者による会員パスワードリセット。
+ * 会員がパスワードを失念し OTP 経路も使えない場合の救済、およびテスト会員の資格情報整備に使う。
+ *
+ * 特徴:
+ * - 現行パスワードの入力は不要（admin 権限で強制リセット）。RBAC は processApiRequest 側 + 本関数内 checkAdminBySession_ で二重防御。
+ * - 新パスワードは generateCredentialTempPassword_（安全乱数 15 文字）で自動生成し、hashPasswordCurrent_ で現行方式ハッシュ化。
+ *   → ARGON2_ENABLED の状態に自動追従（false=PBKDF2 / true=Argon2id）。
+ * - リセットと同時に ロック状態=false / ログイン失敗回数=0 に戻す。
+ * - 平文パスワードは戻り値で 1 度だけ返す（呼び出し元が画面に表示）。ログ・監査には平文・ハッシュとも一切記録しない（AGENTS §0）。
+ *
+ * 対象特定: **認証ID（内部一意キー）必須**。会員種別・会員IDからの推測は一切しない（誤リセット防止・operator 指摘 2026-07-08）。
+ * operator は getMemberAuthAccounts_ が返す認証アカウント一覧から対象を選び、その行の認証IDで本関数を呼ぶ。
+ * ログインID は顧客に見える表示用、認証ID はシステム内部の一意キー。書込対象の特定は必ず認証IDで行う。
+ * 認証方式は PASSWORD のみリセット可（Google 認証等は対象外）。
+ */
+// v376.78: ログインロックの解除（パスワードは変えない）。
+//
+// v376.71 で時限ロックを入れたが、連続 20 回失敗で到達する恒久ロックには
+// 「資格情報の再発行」しか解除手段が無く、**パスワードまで変わってしまう**（SOW §8 U-26）。
+// 正当な利用者は成功でカウントが 0 に戻るため恒久ロックには到達しないが、
+// ログイン ID が介護支援専門員番号で推測できる以上、第三者に狙われて到達させられる可能性は残る。
+// その復旧を事務局が自力でできるようにする。
+//
+// GCP 移行後は別実装として再検討する（ランニングコストの観点。operator 判断・2026-09-05）。
+// 詳細は docs/272 の GCP 移植メモ。
+
+
+/**
+ * v376.55/56: 会員に紐づく認証アカウント一覧（read 専用）。
+ * 会員種別からの推測をせず、実データ（T_認証アカウント の 会員ID 一致）で紐付きを列挙する。
+ * v376.56: 認証アカウントが「未発行」のユニット（個人/賛助=会員本人、事業所=各職員）も列挙する。
+ *   issued=true は adminResetMemberPassword_（認証ID）でリセット、issued=false は adminIssueMemberCredential_ で発行。
+ * パスワードハッシュ・ソルト等の機密は返さない（AGENTS §0）。
+ * 返り値: [{ issued, authId, loginId, method, active, locked, unit:'MEMBER'|'STAFF', memberId, staffId, personName }]
+ */
+
+/**
+ * v376.56: 認証アカウントが無い会員本人/事業所職員へ、ログインID+初期パスワードを新規発行する。
+ * 既に PASSWORD 認証がある対象は発行不可（adminResetMemberPassword_ を使う）。
+ * 会員種別からの推測はせず、個人/賛助=会員本人（staffId なし）、事業所=職員（staffId 必須）を明示指定。
+ * 平文は戻り値で 1 度だけ返す。ログ・監査に平文/ハッシュは記録しない（AGENTS §0）。
+ */
 
 var PASSWORD_RESET_CODE_TTL_SECONDS = 30 * 60;
 var PASSWORD_RESET_CODE_TTL_MINUTES = 30;
@@ -2991,6 +3149,17 @@ function memberLogin_(request) {
  * 管理者権限コードを日本語ラベルに変換する。
  */
 
+/**
+ * google.script.run 経由で呼び出し元の Google セッションを検証し、管理者認証を行う。
+ * Session.getActiveUser() は google.script.run 呼び出し元のメールを返す（Execute as: Me でも）。
+ * 権限コードに応じた adminPermissionLevel を返す。
+ */
+// ロール視点プレビュー中は、この 1 回の処理（processApiRequest）の間だけ、
+// なりすましたロールのセッションを返す。処理の中で checkAdminBySession_ を呼び直しても
+// MASTER の権限に戻らないようにするため（呼び直している処理が 20 箇所ほどある）。
+// processApiRequest が毎回先頭で null に戻す。
+var _previewAdminSession = null;
+
 
 // ─── 保守ツールの実行者確認（2026-10-10・docs/302 §2） ─────────────────────
 // 管理 split のトップレベル関数は google.script.run から直接呼べる（Apps Script の仕様:
@@ -3357,6 +3526,16 @@ function clearAnnualFeeAdminCache_(year) {
   removeChunkedCache_(CacheService.getScriptCache(), getAnnualFeeAdminCacheKey_(year));
 }
 
+// 2026-10-13: 公開ポータルの受付メニュー（研修・入会・登録情報変更・退会）が有効か。
+// 以前は設定で「受付停止」にしても画面がメニューを隠すだけで、サーバは受け付け続けていた。
+// 既定値は画面の表示（PUBLIC_PORTAL_DEFAULTS / 未設定は表示）と同じ。
+// 2026-10-13: 公開の受付（研修申込・入会申込・変更申請）の回数制限。以前は無く、
+// ①申込済みかどうかを総当たりで確かめられる ②架空の申込で定員を埋められる
+// ③任意の宛先へ受付メールを送らせ、1 日の送信上限を使い切ってシステム全体のメールを止められた。
+// GAS では送信元 IP が取れないので、「宛先（メール・会員）ごと」と「全体の 1 時間あたり」の 2 段で抑える。
+// kind: 'TRAINING' / 'APPLICATION' / 'CHANGE_REQUEST'。key: メールアドレスや会員ID。
+
+
 function getSystemSettingValue_(ss, key) {
   var sheet = ss.getSheetByName('T_システム設定');
   if (!sheet) return '';
@@ -3463,12 +3642,19 @@ function getAnyPasswordLoginIdByMemberId_(ss, memberId) {
 // ── 入会申込処理（統合フォーム用）──────────────────────────
 
 
+// v376.73: 入会承認の本体。呼び出し側（approveAdminChangeRequest_）は 1 度に 1 件しか
+// 処理しないが、事務局が複数人で同時に承認すると会員ID・ログインIDの採番が競合するため
+// ScriptLock で直列化する（管理画面の資格情報発行 adminIssueMemberCredential_ と同じ扱い）。
 
 
 
+// 2026-10-13 operator 判断: 申込・追加された介護支援専門員番号が、既存の会員・職員と重なるときは
+// **承認で止める**。以前は番号だけを根拠に既存者を自動で移し（個人→職員・他事業所→自事業所）、
+// メールを申請者の値で上書きしていた。他人の番号で申し込めば、その人の会員資格とメールを奪えた。
+// 同一人物の移籍なら、事務局が会員の移行機能で手動で行う。
+// 戻り値: 重なりの説明（承認者向け）の配列。重なりが無ければ空配列。
 
-
-
+var CARE_MANAGER_CONFLICT_GUIDANCE_ = '同一人物かを確認し、移籍であれば会員の移行機能で手動で処理してください。この申請は差し戻してください。';
 
 
 
@@ -3662,6 +3848,9 @@ var EXPORT_MAX_ROWS_ = 20000;
 
 // CSV の 1 セルをエスケープする（RFC 4180）。
 // 先頭が = + - @ の場合は数式として解釈されないよう ' を前置する（CSV インジェクション対策）。
+
+// 出力の事実を T_監査ログ へ残す（列構成は既存の appendRoleAuditLog_ と同一）。
+// 中身は残さず、テーブル名・行数・条件のみ記録する（持ち出し記録が目的）。
 
 // 指定テーブルを CSV 文字列で返す。
 
@@ -3878,6 +4067,10 @@ function generateTrainingApplyId_() {
   return 'AP-' + Utilities.getUuid().replace(/-/g, '').substring(0, 10).toUpperCase();
 }
 
+// v376.73: 事業所会員の職員数上限（全体既定）の取得をここに集約する。
+// 以前は getSystemSettings_ が `Number(m['DEFAULT_BUSINESS_STAFF_LIMIT'] || 10)` で読み、
+// 入会承認は 10 をリテラルで書いていたため、設定を変えても新規申込に反映されなかった。
+
 // v376.73: 認証アカウントの現在のログインID一覧。採番の重複回避に使う。
 // 削除フラグや有効フラグで絞らない — 無効な行でもログインIDは占有され続けるため
 // （findRowByColumnValue_ は先頭一致の 1 行しか返さない。重複すると後から作られた側が
@@ -4093,6 +4286,17 @@ function cancelWithdrawalSelf_(payload) {
 
   if (currentStatus !== 'WITHDRAWAL_SCHEDULED') {
     throw new Error('退会申請中ではありません。');
+  }
+
+  // 2026-10-13: 事業所会員の退会の取り消しも代表者のみ（退会申請 withdrawSelf_ と同じ規則・BR-11）。
+  // 以前は検査が無く、一般職員でも事業所の退会予約を取り消せた。確かめられなければ止める（fail-closed）。
+  if (String(mRow[mCols['会員種別コード']] || '') === 'BUSINESS') {
+    var cancelStaffId = String(authRow[authCols['職員ID']] || '').trim();
+    var cancelStaffSheet = ss.getSheetByName('T_事業所職員');
+    var cancelStaffFound = (cancelStaffId && cancelStaffSheet) ? findRowByColumnValue_(cancelStaffSheet, '職員ID', cancelStaffId) : null;
+    if (!cancelStaffFound || String(cancelStaffFound.row[cancelStaffFound.columns['職員権限コード']] || '') !== 'REPRESENTATIVE') {
+      throw new Error('事業所の退会の取り消しは代表者のみ実行できます。');
+    }
   }
 
   // ── T_会員 更新（ACTIVE に戻す）──
@@ -4325,6 +4529,7 @@ function updateMemberSelf_(payload) {
         }
       }
     } else if (callerStaffRole === 'ADMIN' || callerStaffRole === 'REPRESENTATIVE') {
+      var otherOfficeStaffIds = null; // 他の事業所の職員ID（必要になったときだけ読む）
       for (var submittedIndex = 0; submittedIndex < submittedStaff.length; submittedIndex += 1) {
         var submitted = submittedStaff[submittedIndex];
         if (!submitted.id) continue;
@@ -4354,6 +4559,22 @@ function updateMemberSelf_(payload) {
           continue;
         }
 
+        // 2026-10-13: 自分の事業所に無い職員IDは「新しい職員」に限る。以前は保存処理（upsertStaffRow_）が
+        // シート全体から職員IDで行を探すため、他の事業所の職員を自分の事業所へ移し、メールを差し替えられた。
+        if (!currentSnapshotById) {
+          if (!otherOfficeStaffIds) {
+            otherOfficeStaffIds = {};
+            getRowsAsObjects_(ss, 'T_事業所職員').forEach(function(r) {
+              if (String(r['会員ID'] || '') !== String(payload.id || '')) otherOfficeStaffIds[String(r['職員ID'] || '')] = true;
+            });
+          }
+          if (otherOfficeStaffIds[submitted.id]) throw new Error('他の事業所の職員は変更できません。');
+        }
+        // 2026-10-13: 画面の権限の選択肢は「管理者／一般」だけ。代表者への変更は事務局が行う。
+        // 以前はそのまま保存しており、事業所の管理者が同僚を代表者にできた。
+        if (normalizeBusinessStaffRole_(submitted.role) === 'REPRESENTATIVE' && currentRole !== 'REPRESENTATIVE') {
+          throw new Error('代表者の変更は事務局へご連絡ください。');
+        }
         normalizedStaff.push(submitted);
       }
 
@@ -4397,6 +4618,7 @@ function saveMemberCore_(payload, options) {
   var skipCacheClear = false;
   var enableAdminRoleValidation = false;
   var enableAdminAudit = false;
+  var auditActor = '';
   if (typeof options === 'boolean') {
     skipAdminCheck = options;
   } else if (options && typeof options === 'object') {
@@ -4406,6 +4628,7 @@ function saveMemberCore_(payload, options) {
     skipCacheClear = options.skipCacheClear === true;
     enableAdminRoleValidation = options.enableAdminRoleValidation === true;
     enableAdminAudit = options.enableAdminAudit === true;
+    auditActor = String(options.auditActor || '');
   }
   if (!ss) {
     ss = getOrCreateDatabase_();
@@ -4612,8 +4835,11 @@ function saveMemberCore_(payload, options) {
   }
 
   // v143: 管理者操作の監査ログ出力
+  // 2026-10-13: 以前は受け直したセッションの email 項目を見ていたが、管理者セッションに email は無い（loginId が正）。
+  // 条件が常に偽で、会員状態・入会日・退会日の変更が監査ログに一度も残っていなかった（docs/304 H2）。
   var effectiveAdminSession = adminSession || (payload.__adminSession || null);
-  if (enableAdminAudit && effectiveAdminSession && effectiveAdminSession.email) {
+  var auditOperator = auditActor || String((effectiveAdminSession && effectiveAdminSession.loginId) || '');
+  if (enableAdminAudit && auditOperator) {
     var auditChanges = [];
     var newJoinedDate = String(normalizeDateInput_(mergedPayload.joinedDate) || '');
     var newWithdrawnDate = String(normalizeDateInput_(mergedPayload.withdrawnDate) || '');
@@ -4634,7 +4860,7 @@ function saveMemberCore_(payload, options) {
     if (newStatusNote !== prevStatusNote) {
       auditChanges.push({ field: 'ステータスメモ', oldValue: prevStatusNote, newValue: newStatusNote });
     }
-    appendAdminAuditLog_(ss, effectiveAdminSession.email, payload.id, auditChanges);
+    appendAdminAuditLog_(ss, auditOperator, payload.id, auditChanges);
   }
 
   if (!skipCacheClear) {
@@ -5016,6 +5242,21 @@ var SCHEDULED_JOBS_ = [
 
 // v150: 日次トリガーで退会削除ポリシーを実行（ホットパスから除外）
 
+// トリガー一括セットアップ（editor から手動で 1 回実行）。
+//
+// 2026-09-27: warmUp（5 分間隔のキャッシュ暖機）は廃止した。暖める CacheService は
+// プロジェクトごとに別で、公開プロジェクトに置かないと意味がない。しかしそこへ置くと
+// 匿名の利用者が google.script.run から重い DB 全読みを叩けてしまう。
+// 実際 pruning で消えたまま長期間動いておらず、体感の悪化も報告されていない。
+// 旧 warmUp トリガーが残っていればここで消す。
+//
+// runThumbnailGeneration も同様に片付ける。これは processPendingThumbnails
+// （v351 のサムネイル pipeline）に置き換わった旧世代で、作成元の
+// setupThumbnailGenerationTrigger_ はスキーマ再構築（管理者の保守ツール）からしか呼ばれず、
+// その保守ツールはどの生成物にも入っていない（＝もう作られない）。
+// ※ 公開生成物に保守ツールの関数名を出さない（security:public-boundary）ので、ここでは名前を書かない。
+// 過去に作られたトリガーだけが、存在しない関数を叩き続けて残りうる。
+
 function syncBusinessStaffRows_(ss, memberId, memberTypeCode, staffPayloadList) {
   var sheet = ss.getSheetByName('T_事業所職員');
   if (!sheet) return;
@@ -5355,7 +5596,10 @@ function applyTraining_(payload) {
       '削除フラグ': false,
     }]);
 
-    var nextApplicants = currentApplicants + 1;
+    // 2026-10-13: 以前は未定義の currentApplicants + 1 を書いており、申込行を書いた直後に
+    // 必ず ReferenceError で落ちていた（2026-09-27 の定員判定の共通化で宣言だけが消えた）。
+    // 件数は申込行から数え直す（他経路と同じ数え方）。
+    var nextApplicants = countAppliedApplicants_(ss, trainingId);
     trainingSheet.getRange(found.rowNumber, tCols['申込者数'] + 1).setValue(nextApplicants);
     if (tCols['更新日時'] != null) {
       trainingSheet.getRange(found.rowNumber, tCols['更新日時'] + 1).setValue(nowIso);
@@ -5457,7 +5701,12 @@ function isTrainingCancelable_(trainingRow, trainingCols) {
   var idx = trainingCols['項目設定JSON'];
   if (idx == null) return false;
   var options = parseTrainingOptions_(trainingRow[idx]);
-  return options.cancelAllowed === true;
+  if (options.cancelAllowed !== true) return false;
+  // 2026-10-13: 開催日時を過ぎた研修は取り消せない（以前は開催後でも取り消せ、受講済みの記録が「取消」に変わった）。
+  var dateIdx = trainingCols['開催日'];
+  var eventDate = dateIdx == null ? null : parseTrainingDateTime_(trainingRow[dateIdx]);
+  if (eventDate && new Date().getTime() > eventDate.getTime()) return false;
+  return true;
 }
 
 function countAppliedApplicants_(ss, trainingId) {
@@ -5564,6 +5813,30 @@ function backfillApplicationApplicantIdentity_(ss) {
   }
   return updated;
 }
+
+// ============================================================
+// 【申込者解決ヘルパーの使い分け — 重要・v376.21 ガードレール】
+//
+// 申込者の解決には用途の異なる 2 モデルが併存する。混同禁止:
+//
+//  (1) getCanonicalApplicantRef_  … v360 正本・STAFF を独立 type として返す。
+//      「実際に申込んだのは誰か（送信先メール・名簿表示・本人解決）」を求める用途は
+//      必ずこちら。STAFF 申込を職員個人として正しく解決する。
+//
+//  (2) getApplicationApplicantType_ / getApplicationApplicantId_ /
+//      getMemberIdFromApplication_  … legacy「MEMBER + 別途 職員ID」モデル。
+//      整合性検証 (getTrainingApplicationIntegrityIssues_) と会員申込フィルタが
+//      この前提で組まれているため温存している。STAFF 申込を独立解決しない。
+//
+// ⚠️ 禁止: (2) を「送信先・名簿・本人」の解決に使わないこと。STAFF 申込が
+//    会員として誤解決され、事業所代表メールへ誤送信される（v376.12 で実際に発生）。
+//    送信先・表示・本人解決は必ず (1) getCanonicalApplicantRef_ を使う。
+// ============================================================
+/**
+ * @deprecated v376.52〜（docs/248 是正）。legacy「MEMBER + 別途 職員ID」モデル。
+ * 用途は整合性検証・会員申込フィルタに限定（上記ガードレール参照）。
+ * 送信先・名簿・本人解決に使うことは禁止。新規呼出は追加しない（v377 で撤去予定）。
+ */
 function getApplicationApplicantType_(rowObj) {
   // legacy モデル: 3-FK XOR を優先評価し、空ならば legacy 申込者区分コードへフォールバック。
   // STAFF を独立解決しない（送信先・名簿解決には使わない / 上記ガードレール参照）。
@@ -5585,6 +5858,9 @@ function getApplicationApplicantId_(rowObj) {
 
 // v360: 申込者の正本参照を取得（3-FK XOR 優先・STAFF を独立 type として返す）。
 // 送信先メール・名簿表示・本人解決はすべてこの関数を使うこと（上記ガードレール参照）。
+
+// legacy モデル: 会員申込フィルタ専用（MEMBER 以外は '' を返す）。
+// 送信先・名簿・本人解決には使わない（getCanonicalApplicantRef_ を使う / 上記ガードレール参照）。
 function getMemberIdFromApplication_(rowObj) {
   var applicantType = getApplicationApplicantType_(rowObj);
   if (applicantType !== 'MEMBER') return '';
@@ -5838,6 +6114,12 @@ function computeTrainingAvailability_(trainingRow, options) {
  */
 
 /**
+ * v350: processPendingThumbnails を 10 分ごとに走らせるトリガーを登録する。
+ * 既存の同名トリガーを削除して再登録（冪等）。
+ * admin の Apps Script editor から 1 回手動実行する想定。
+ */
+
+/**
  * v349: 既存 PDF (Drive 上の fileId) から 1 ページ目のサムネイル PNG を生成し、
  * 同フォルダに ANYONE_WITH_LINK の PNG ファイルとして保存して URL を返す。
  *
@@ -5854,6 +6136,28 @@ function computeTrainingAvailability_(trainingRow, options) {
  *
  * Ref: Tanaike, 2023 ("Converting All Pages in PDF File to PNG Images using Google
  *      Apps Script") — multi-page splitting 部分は不要なので簡素化した形を採用。
+ */
+
+/**
+ * v349: URL から fileId を抽出して Drive 上のファイルを trashed にする。
+ * 想定: 研修案内 PDF / サムネイル PNG の差し替え時に旧ファイルを GC する。
+ * fileId が抽出できない / 既に trashed / 権限不足 等は黙って無視する。
+ */
+/**
+ * v349 backfill: 既存研修のサムネイル PNG を一括生成する MASTER 専用ツール。
+ * clasp run regenerateAllThumbnails --params '[{ ... }]' から呼ぶ。
+ *
+ * payload:
+ *   - trainingId?: string  特定の研修だけ対象。未指定で全件
+ *   - force?: boolean      既にサムネイル URL がある研修も上書きする
+ *   - dryRun?: boolean     生成は行わず対象数だけ報告
+ *
+ * 返却: { dryRun, processed, succeeded, skipped, failed: [{id,name,reason}] }
+ *
+ * セキュリティ: clasp run は OAuth 認証済の deployer (k.noguchi@hcm-n.org) として
+ * 実行されるため、ここでは MASTER 確認を行わない。Apps Script editor から
+ * 誤って呼ばれても damage は「サムネイル再生成」だけで非破壊。元 PDF が現 deployer
+ * から不可視 (Drive REST 404) のものはスキップして失敗扱い + 理由をログへ。
  */
 
 
@@ -5905,6 +6209,18 @@ function getLogSs_() {
     return getOrCreateDatabase_();
   }
 }
+
+/**
+ * 初期化順序の不変条件 (v342, docs/204 再発防止):
+ *   1. createMasterSheets_ は writeSheetHeaders_ の name-based shift により、
+ *      master sheet の列追加でデータ列が残存していても安全に migrate される。
+ *   2. ensureTableSheetsExist_ は欠落シートのみ追加。既存シートのヘッダーは触らない。
+ *   3. normalizeTableColumns_ が各 T_* テーブルの name-based shift を実施する。
+ *   4. auditDeleteFlagColumns_ は migration 後の sanity check (read-only) であり、
+ *      schema-drift の取りこぼしを Logger.log で警告する。
+ * createTableSheets_ は v340 以降 initializeSchema_ から外している。既存シートの
+ * ヘッダー上書きより前に name-based migration を走らせる目的。
+ */
 function initializeSchema_(ss) {
   // v376.31: 各 step を try/catch + Logger.log で計装。
   //   - "critical" step（migration / 列追加 / seed）はエラーを伝播してロールバック (markSchemaInitialized_ 未到達)
@@ -6708,6 +7024,36 @@ function cleanupNonSchemaSheets_(ss) {
 // ─── 公開ポータル API ─────────────────────────────────────────────────────────
 
 // v210: 公開ポータルの表示設定（認証不要・公開API）
+
+// v345: Google Drive ファイルのサムネイルを base64 data URL で返す。
+//
+// 真因の経緯:
+//   - v272 で DriveApp.getFileById(id).getThumbnail() を使用していたが、これは
+//     PDF に対し常に null を返す Apps Script の既知制約があり、PDF サムネイルが
+//     一切表示できない状態だった（issuetracker / forums 多数）。
+//   - v345 で Google Drive の公開 thumbnail endpoint
+//     `https://drive.google.com/thumbnail?id=<id>&sz=w400` を UrlFetchApp で取得し、
+//     bytes を base64 へ変換するアプローチへ切替。Drive の thumbnail CDN が PDF→
+//     画像変換を裏で実行するため、PDF にもサムネイルが返る。
+//   - <img src> 直接参照では rate limit / 多枚問題が起きるが、サーバー側で取得して
+//     base64 化すればクライアントは data: URL を読むだけなので回避できる。
+//   - ANYONE_WITH_LINK 共有ファイルは無認証 UrlFetchApp で取得可能（member split は
+//     drive scope 無しだが script.external_request はあるため動作する）。
+//   - CacheService で 1 時間キャッシュ（item size limit 100KB を考慮し、超える
+//     payload はキャッシュをスキップ）。
+/**
+ * v349: 引数で渡される URL は「PDF の URL」ではなく **「事前生成済み PNG サムネイル」
+ * の Drive URL** である前提（uploadTrainingFile_ が生成して T_研修.案内状サムネイルURL
+ * に保存している）。実行ユーザー所有の PNG なので DriveApp.getBlob() で確実に取れる。
+ *
+ * v358: payload.size でリサイズ指示を受け付ける。
+ *   - 未指定 / 0: 既存の DriveApp.getBlob() (元 PNG をそのまま返却、低解像度サムネ用)
+ *   - 数値 (例: 2000): Drive thumbnailLink を w<N> で再取得して高解像度 PNG を返す
+ *     （lightbox 拡大表示用）
+ *
+ * 想定外（fileId 抽出不可 / 取得例外 / image 以外）の場合は SVG プレースホルダを返却し、
+ * 画面が空にならないようにする。
+ */
 function getFileThumbnail_(payload) {
   var fileUrl = String((payload && payload.fileUrl) || '').trim();
   if (!fileUrl) return { thumbnail: null };
@@ -6875,6 +7221,9 @@ function makePdfSvgPlaceholder_(name) {
 }
 
 
+// 研修の申込方法: 'none'（申込URL トグル無効＝閲覧のみ）/ 'external'（URL あり）/ 'internal'（URL 空）。
+// 画面の resolveApplyCta（src/shared/trainingOptions.ts）と同じ規則。項目設定JSON が読めなければ既定（有効）。
+
 
 
 // ── v260/v261: 公開ポータル 会員情報変更・退会申請 ────────────────────────────
@@ -7006,10 +7355,19 @@ function isAllowedRelaxedCmNumber_(adminSession) {
 // 列挙防止: 照合失敗・未存在ともに同一エラーを返す。
 // contactEmail はDB照合に使わず、確認メール送信先として保存する。
 
-// v372.5: 事業所会員の在籍職員一覧を取得（公開ポータル staffUpdate フロー用）
-// HMAC token 経由で BUSINESS 会員のみアクセス可。最小限の情報のみ返却。
+// 2026-10-13 operator 判断: 公開ポータルは登録済みの個人情報を一切返さない。
+// 以前は在籍職員の一覧（氏名・フリガナ・メール・介護支援専門員番号）と在籍人数を返していた。
+// 職員の変更・除籍は、申請者が入力した「今の氏名と介護支援専門員番号」で職員を特定する。
 
-// 事業所会員の追加可能スタッフ数を返す。メンバーデータは漏らさない。
+// 入力された氏名と介護支援専門員番号の 3 つがそろって一致する、その事業所の在籍職員を返す。
+// 戻り値はサーバ内部でだけ使う。公開ポータルへは「一致したかどうか」以外を返さない。
+// 照合規則は申請受付・照合ボタン・承認時で共通（ここが唯一の定義）。
+
+// 職員の照合回数を数える。照合は「その氏名と番号の職員が在籍しているか」を確かめられてしまうので、
+// トークンの有効期間（30 分）に 20 回までとする。照合ボタンと申請受付で同じ枠を使う。
+
+// 事業所会員が入力した氏名と介護支援専門員番号で、在籍職員がちょうど 1 人に特定できるかを返す。
+// 返すのは matched（真偽）だけ。職員ID・氏名・連絡先などは返さない。
 
 // 変更申請をT_変更申請に書き込む。DBは変更しない。管理者承認後に適用される。
 
@@ -7020,6 +7378,16 @@ function isAllowedRelaxedCmNumber_(adminSession) {
 // ── 管理者: 変更申請を却下 ──────────────────────────────────────────────────
 
 // 管理者が承認した変更申請からのみ職員を追加する。
+// 承認した職員追加を適用し、追加できた職員だけに案内メールを送る（変更申請の承認から呼ぶ）。
+// 2026-10-13: 職員追加だけの申請（STAFF_ADD）と、登録情報変更に含まれる職員追加で処理が分かれており、
+// 後者は案内メールを送っていなかった。失敗した職員にも「追加しました」と送っていた。
+// - 追加に失敗した職員・ログイン用アカウントを作れなかった職員は chatAnomalies に積み、メールを送らない
+// - 案内のログインIDは、実際に作られたもの（衝突回避で先頭に数字が付くことがある）を使う
+
+// 事業所会員の職員数上限と在籍人数。上限 0 は「上限なし」（会員行が無い場合も 0）。
+// 2026-10-08: 事業所ごとの個別上限が未設定なら全体既定を使う（RD §136 / §205）。
+// 以前は個別上限が空だと 0 として扱われ、**上限が一切効かなかった**。
+
 
 /**
  * 職員の認証アカウントを作る。ログインIDは介護支援専門員番号から採番する（BR-15）。
@@ -7507,6 +7875,12 @@ var MIGRATION_LOCK_WAIT_MS = 30000;
 
 
 
+/**
+ * WL-001 の Googleメール を k.noguchi@hcm-n.org に更新する（ワンタイム実行）。
+ * 紐付け認証ID / 紐付け会員ID / MASTER 権限はそのまま維持する。
+ * 実行: npx clasp run updateWL001EmailToHcmN
+ */
+
 
 // ── ソース読み取りとパース ──
 
@@ -7633,6 +8007,12 @@ function normalizeStaffNameFields_(rowLike) {
     kana: fullKana,
   };
 }
+
+// v376: 既存 DB のフリガナ列を全角カタカナへ一括正規化する migration 関数。
+//   対象: T_会員 (セイ/メイ) / T_事業所職員 (セイ/メイ/フリガナ) / T_外部申込者 (フリガナ)
+//   実行: admin editor から手動 Run。最初に dryRun=true で件数確認、ユーザー承認後 dryRun=false で本実行。
+//   Plan A: T_変更申請 の pending レコードは正規化対象外（承認時に approveAdminChangeRequest_ → 各 save 関数で正規化される）。
+// v376.2: editor 1-click 本実行用ラッパー（dryRun:false 固定）。引数指定が editor から面倒なため。
 
 
 function backfillBusinessStaffNameColumns_(ss) {
@@ -7778,15 +8158,45 @@ function backfillBusinessStaffNameColumns_(ss) {
 
 
 
+// ── v131 補正関数 ──
+
+/**
+ * ソース V列の入会日を _MIGRATION_MAP 経由で T_会員.入会日 に補正する（dry-run 対応）
+ * 呼び出し: clasp run repairJoinedDateFromSourceJson
+ */
+
 
 
 /**
  * 入会日が不明な会員のリストを返す
  */
 
+/**
+ * T_事業所職員の介護支援専門員番号をソース M列から補正する（dry-run）
+ * マッチ方式: K列(勤務先) = T_会員.勤務先名 AND 職員の姓がL列/N列(氏名)に含まれる
+ * 呼び出し: clasp run repairStaffCareManagerNumberFromSourceJson
+ */
+
+/**
+ * v133: 既存の T_事業所職員 の メール配信希望コード が空のレコードを 'YES' で埋める。
+ * 呼び出し: clasp run backfillStaffMailingPreferenceJson
+ */
 
 
 
+/**
+ * T_事業所職員の入会日をソース V列から補正する（dry-run）
+ * マッチ方式: ソースK列(勤務先) = T_会員.勤務先名 AND 職員の姓がソースL列(氏名)に含まれる
+ * 呼び出し: clasp run repairStaffJoinedDateFromSourceJson
+ */
+
+
+
+/**
+ * 事業所会員の個人属性フィールドをブランクに補正する（dry-run 対応）
+ * 対象: 姓/名/セイ/メイ/介護支援専門員番号/発送方法コード/郵送先区分コード
+ * 呼び出し: clasp run repairBusinessMemberFieldsJson
+ */
 
 
 
@@ -7896,6 +8306,8 @@ var LINE_POST_ATTACHMENT_KIND_PDF = 'PDF';
 
 
 
+// v376.45: 投稿依頼登録の通知メール（saveLinePostRequest_ の submitRequest と transition 'request' で共用）。
+
 
 
 
@@ -7931,9 +8343,19 @@ var LINE_POST_ATTACHMENT_KIND_PDF = 'PDF';
 // 削除対象認証IDのログイン履歴を log スプレッドシートから物理削除する（docs/249: purge 確定）
 
 // cascade オーケストレータ: 支払いID/認証ID を移動前に解決 → 13テーブル移動 → ログイン履歴 purge
+
+// ─── テストデータの物理削除（2026-10-11・docs/303） ─────────────────────────
+// 印（★＋@example.invalid）の付いた会員・職員・外部申込者と、それに結び付く行を物理削除する。
+// 論理削除やアーカイブ移動と違い、本番の表・*_archive・ログ用スプレッドシートから行ごと消える。
+// 手順（エディタの ▶・MASTER のみ）:
+//   1. previewTestDataPurge_LOG   対象と表ごとの件数を確認する。確認した内容を 30 分間記録する
+//   2. executeTestDataPurge_APPLY 確認時と同じ内容のときだけ消す（データが変わっていたら止まる）
+var TEST_DATA_PURGE_PLAN_KEY = 'TEST_DATA_PURGE_PLAN_V1';
 var TEST_DATA_PURGE_PLAN_TTL_MS = 30 * 60 * 1000;
 
 
+
+// 会員・職員の連動（getCascadeMatchers_）に、テストデータだけが持つ結び付きを足したもの。
 
 // ログ系の表（T_削除ログ はメイン DB、ほかはログ用スプレッドシート）の消す条件。
 
@@ -7967,10 +8389,32 @@ var DRYRUN_CASCADE_TAG = 'DRYRUN_CASCADE';
 
 
 
+// ============================================================
+// v259: ログSS分離・アーカイブ関連
+// ============================================================
+
+/**
+ * ログスプレッドシートをセットアップする（初回1回だけ実行）。
+ * 新規スプレッドシートを作成し、Script Properties に LOG_SPREADSHEET_ID を保存。
+ * その後 rebuildLogDatabaseSchema() でシートを作成してから
+ * migrateLogsToLogSpreadsheet() で既存ログを移行する。
+ */
+
 /**
  * ログSSのスキーマを再構築する（既存ログSSのシートが壊れた場合など）。
  */
 
+
+/**
+ * メインSSのログデータをログSSに移行する（一回実行専用）。
+ * 実行前に setupLogSpreadsheet() でログSSを作成済みであること。
+ */
+
+/**
+ * 退会済み会員（指定年数以上前）をアーカイブシートに移動する（定期実行用）。
+ * デフォルトは退会から3年以上経過した会員をアーカイブ対象とする。
+ * 実行前に rebuildDatabaseSchema() でアーカイブシートが作成済みであること。
+ */
 
 // v376.36: 退会済み行を archive へ「移動」（追記 + ソースから物理削除）。
 //   - keyCol（会員ID/職員ID）で冪等化: 既に archive 済みの key は二重追記せずソースから除去（自己修復）
@@ -7981,6 +8425,14 @@ var DRYRUN_CASCADE_TAG = 'DRYRUN_CASCADE';
  * LOG_SPREADSHEET_ID をこのプロジェクトのスクリプトプロパティに設定する。
  * admin/member split に同じログSSIDを適用するために使用する。
  */
+
+// ---------------------------------------------------------------------------
+// Password hashing (PBKDF2 + verifier-side pepper)
+// ---------------------------------------------------------------------------
+
+// v332: パスワード長制約（8〜20 文字 — user-supplied）
+// generateCredentialTempPassword_ で生成する初期パスワードは PASSWORD_GENERATED_LENGTH（15）固定。
+var PASSWORD_MIN_LENGTH = 8;
 var PASSWORD_MAX_LENGTH = 20;
 var PASSWORD_GENERATED_LENGTH = 15;
 // v331: 許可文字 — ASCII 英数 + 安全記号のみ。エスケープ可能な記号
@@ -8649,15 +9101,33 @@ function saveClaim_(payload) {
   if (claimType === 'EXPENSE_CLAIM') {
     var declared = (payload.attachmentsJson && Array.isArray(payload.attachmentsJson))
       ? payload.attachmentsJson : [];
+    // 2026-10-13: 存在するかだけでなく、請求の添付フォルダにあるファイルかを確かめる。
+    // 以前は画面から送られた任意の fileId（他人の領収書・無関係なファイル）を付けられた。
+    var claimFolderId = declared.length > 0 ? getOrCreateClaimAttachmentFolder_(getOrCreateDatabase_()).getId() : '';
+    var verifiedAttachments = [];
     for (var ai = 0; ai < declared.length; ai += 1) {
       var fileId = String((declared[ai] && declared[ai].fileId) || '').trim();
       if (!fileId) throw new Error('添付ファイルの情報が不正です。アップロードし直してください。');
+      var inClaimFolder = false;
+      var claimFile = null;
       try {
-        DriveApp.getFileById(fileId);
+        claimFile = DriveApp.getFileById(fileId);
+        var parents = claimFile.getParents();
+        while (parents.hasNext()) { if (parents.next().getId() === claimFolderId) { inClaimFolder = true; break; } }
       } catch (attachErr) {
         throw new Error('添付ファイルが見つかりません。アップロードし直してください。');
       }
+      if (!inClaimFolder) throw new Error('添付ファイルが見つかりません。アップロードし直してください。');
+      // URL・形式は画面の値ではなく Drive の実体から取る（任意の URL を保存させない）
+      verifiedAttachments.push({
+        name: String(declared[ai].name || claimFile.getName()),
+        url: claimFile.getUrl(),
+        fileId: fileId,
+        mimeType: claimFile.getMimeType(),
+        uploadedAt: String(declared[ai].uploadedAt || ''),
+      });
     }
+    attachmentsJson = verifiedAttachments.length > 0 ? JSON.stringify(verifiedAttachments) : '';
   }
 
   if (claimType === 'ACTIVITY_REPORT') {
@@ -8805,8 +9275,26 @@ function uploadClaimAttachment_(payload) {
     throw new Error('ファイルサイズが 10MB を超えています。');
   }
 
-  var blob = Utilities.newBlob(bytes, mimeType, filename);
+  // 2026-10-13: 役員かどうか・請求の所有者かどうかを、ファイルを作る前に確かめる。
+  // 以前は役員の検査が無く（ログインできる会員なら誰でも公開リンクのファイルを置けた）、
+  // 所有者の確認もファイルを作った後だった。
+  if (!memberId && !staffId) throw new Error('ログインが必要です。');
   var ss = getOrCreateDatabase_();
+  if (!isActiveOfficer_(memberId, staffId, ss)) throw new Error('役員のみ添付ファイルをアップロードできます。');
+  var claimSheet = null;
+  var claimFound = null;
+  if (claimId) {
+    claimSheet = ss.getSheetByName('T_請求');
+    claimFound = claimSheet ? findRowByColumnValue_(claimSheet, '請求ID', claimId) : null;
+    if (!claimFound || toBoolean_(claimFound.row[claimFound.columns['削除フラグ']])) throw new Error('請求が見つかりません。');
+    var claimM = String(claimFound.row[claimFound.columns['会員ID']] || '');
+    var claimS = String(claimFound.row[claimFound.columns['職員ID'] != null ? claimFound.columns['職員ID'] : -1] || '');
+    var ownsClaim = (memberId && !staffId && claimM === memberId) || (staffId && claimS === staffId);
+    if (!ownsClaim) throw new Error('他の会員の請求にはファイルを追加できません。');
+    if (String(claimFound.row[claimFound.columns['請求状態']] || '') !== '申請中') throw new Error('申請中以外の請求にはファイルを追加できません。');
+  }
+
+  var blob = Utilities.newBlob(bytes, mimeType, filename);
   var folder = getOrCreateClaimAttachmentFolder_(ss);
   var file = folder.createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
@@ -8819,19 +9307,11 @@ function uploadClaimAttachment_(payload) {
     uploadedAt: new Date().toISOString(),
   };
 
-  // 既存請求への紐づけ更新
-  if (claimId) {
-    var sheet = ss.getSheetByName('T_請求');
-    var found = findRowByColumnValue_(sheet, '請求ID', claimId);
-    if (found && !toBoolean_(found.row[found.columns['削除フラグ']])) {
-      // 所有者チェック（会員/職員側の場合のみ）
-      if (memberId || staffId) {
-        var claimM = String(found.row[found.columns['会員ID']] || '');
-        var claimS = String(found.row[found.columns['職員ID'] != null ? found.columns['職員ID'] : -1] || '');
-        var owns = (memberId && !staffId && claimM === memberId) || (staffId && claimS === staffId);
-        if (!owns) throw new Error('他の会員の請求にはファイルを追加できません。');
-        if (String(found.row[found.columns['請求状態']] || '') !== '申請中') throw new Error('申請中以外の請求にはファイルを追加できません。');
-      }
+  // 既存請求への紐づけ更新（所有者の確認は上で済ませた）
+  if (claimFound) {
+    var sheet = claimSheet;
+    var found = claimFound;
+    {
       var existingJson = String(found.row[found.columns['添付ファイルURL']] || '');
       var attachments = [];
       if (existingJson) { try { attachments = JSON.parse(existingJson); } catch (e) { attachments = []; } }
@@ -8858,21 +9338,25 @@ function removeClaimAttachment_(payload) {
   var found = findRowByColumnValue_(sheet, '請求ID', claimId);
   if (!found || toBoolean_(found.row[found.columns['削除フラグ']])) throw new Error('請求が見つかりません。');
 
-  if (memberId || staffId) {
-    var cM = String(found.row[found.columns['会員ID']] || '');
-    var cS = String(found.row[found.columns['職員ID'] != null ? found.columns['職員ID'] : -1] || '');
-    var owns = (memberId && !staffId && cM === memberId) || (staffId && cS === staffId);
-    if (!owns) throw new Error('他の会員の請求からはファイルを削除できません。');
-    if (String(found.row[found.columns['請求状態']] || '') !== '申請中') throw new Error('申請中以外の請求からはファイルを削除できません。');
-  }
-
-  // Drive からゴミ箱へ移動
-  try { DriveApp.getFileById(fileId).setTrashed(true); } catch (e) { Logger.log('removeClaimAttachment_: Drive file not found: ' + fileId); }
+  // 2026-10-13: 会員セッションが無いときに所有確認を飛ばしていた（if (memberId || staffId)）。
+  // この関数は会員マイページからしか呼ばれないので、セッションが無ければ拒否する。
+  if (!memberId && !staffId) throw new Error('ログインが必要です。');
+  var cM = String(found.row[found.columns['会員ID']] || '');
+  var cS = String(found.row[found.columns['職員ID'] != null ? found.columns['職員ID'] : -1] || '');
+  var owns = (memberId && !staffId && cM === memberId) || (staffId && cS === staffId);
+  if (!owns) throw new Error('他の会員の請求からはファイルを削除できません。');
+  if (String(found.row[found.columns['請求状態']] || '') !== '申請中') throw new Error('申請中以外の請求からはファイルを削除できません。');
 
   // 添付JSON から除去
   var existingJson = String(found.row[found.columns['添付ファイルURL']] || '');
   var attachments = [];
   if (existingJson) { try { attachments = JSON.parse(existingJson); } catch (e) { attachments = []; } }
+  // 2026-10-13: 以前は fileId がこの請求の添付かを確かめる前に Drive のファイルをゴミ箱へ移していた。
+  // 会員側はデプロイした人の権限（Drive 全権限）で動くため、任意のファイル（DB を含む）を消せた。
+  // この請求の添付一覧にある fileId だけを消す。
+  var isOwnAttachment = attachments.some(function(a) { return a && a.fileId === fileId; });
+  if (!isOwnAttachment) throw new Error('この請求の添付ファイルではありません。');
+  try { DriveApp.getFileById(fileId).setTrashed(true); } catch (e) { Logger.log('removeClaimAttachment_: Drive file not found: ' + fileId); }
   attachments = attachments.filter(function(a) { return a.fileId !== fileId; });
 
   var row = found.row.slice();
@@ -8892,6 +9376,30 @@ function removeClaimAttachment_(payload) {
  * T_請求 の過去レコードは元の紐づけのまま保持（履歴として有効）。
  */
 
+/**
+ * 職員が退職（LEFT）になった時に現職の役員レコードを自動退任させる。
+ * updateStaff_ から呼び出される。
+ */
+
+// ─── v309: T_共有メモ シート追加（ワンタイム移行） ─────────────────────────────
+
+/**
+ * v309 移行: T_共有メモ シートをDBスプレッドシートに作成する。
+ * Apps Script エディタ（admin split）から手動で1回だけ実行すること。
+ * saveSharedMemo_ も初回書き込み時に自動作成するため、
+ * 本関数は事前に確実にシートを用意したい場合の補助として使用する。
+ */
+// ─── v370.1: PENDING 入会申込の partial データ診断とクリーンアップ ────────────
+// v368 で導入したバグ（srcMemberId reference error）により、事業所入会申込承認時に
+// 事業所会員 + 代表者 1 名のみが部分登録され、残職員と申請ステータス更新が中断された。
+// 以下は (1) 安全な read-only 診断と (2) 確認後の soft-delete クリーンアップ関数。
+
+
+
+
+
+
+
 
 /**
  * T_研修申込 の既存行を 2-FK 化:
@@ -8901,6 +9409,20 @@ function removeClaimAttachment_(payload) {
 
 /**
  * 既存 T_研修申込 行の 出欠状態コード を UNRECORDED で backfill。
+ */
+
+// v373.7 (S5 Phase 2): migrateRosterTemplateLibraryCategoryForV360_ 撤去（操作者確認済み）
+
+/**
+ * T_研修申込 の 3-FK XOR 違反を検出（v360 以降の不変条件）。
+ * Strict-XOR は外部申込者ID/会員ID/職員ID のいずれか1つだけ non-empty。
+ * legacy 行（外部申込者ID 空 + 申込者ID 持ち）は warning 扱い。
+ */
+// ─── v360: 研修名簿管理 API ─────────────────────────────────────────────
+
+/**
+ * 研修詳細名簿取得（管理者専用）。
+ * 既存 getTrainingApplicants_ を拡張し、出欠状態・事務局メモ・申込者サブ種別情報を追加する。
  */
 
 /**
@@ -8938,8 +9460,43 @@ function removeClaimAttachment_(payload) {
  * payload: { memberId? | staffId? | externalId? }
  */
 
+
+// ============================================================================
+// DRYRUN APPLICATION SCENARIOS (2026-05-17)
+//
+// 本番 DB に DRYRUN_ プレフィックス付きで投入し、申込→承認→転籍経路を end-to-end
+// 検証する synthetic transaction フレームワーク。
+//
+// 設計原則:
+//   - テストデータの印: 全フィクスチャの名前に `★DRYRUN_`、メールは `@example.invalid`
+//   - 後片付け: previewTestDataPurge_LOG → executeTestDataPurge_APPLY で物理削除する
+//     （2026-10-11 までの manifest + 論理削除の方式は取りこぼしがあり廃止）
+//   - AAA pattern: Arrange (payload 作成) → Act (関数呼出) → Assert (DB 副作用検証)
+//   - Email isolation: CREDENTIAL_EMAIL_ENABLED を一時 false 化 + @example.invalid
+//   - Independence: 各シナリオ独立、任意順序で実行可
+//   - Idempotency: cleanup は同 runId に対し冪等
+//
+// 呼び出し:
+//   1. dryRunApplicationScenarios()    — 全シナリオ実行（MASTER のみ）
+//   2. previewTestDataPurge_LOG()        — 削除対象と件数を確認する
+//   3. executeTestDataPurge_APPLY()      — 物理削除する
+// ============================================================================
+
+// 名前の先頭に★、メールアドレスは @example.invalid（テストデータの印・isTestMemberRow_ ほか）。
+// 作ったデータは executeTestDataPurge_APPLY で物理削除する。
+var DRYRUN_PREFIX = TEST_DATA_NAME_PREFIX + 'DRYRUN_';
 var DRYRUN_EMAIL_DOMAIN = TEST_DATA_EMAIL_DOMAIN;
+// 2026-10-11 に廃止した後片付けの記録。残っていれば executeTestDataPurge_APPLY が消す。
+var DRYRUN_MANIFEST_KEY = 'DRYRUN_APPLICATION_MANIFEST_V1';
 var DRYRUN_TRAINING_MGMT_MANIFEST_KEY = 'DRYRUN_TRAINING_MGMT_MANIFEST_V1';
+
+// ============================================================================
+// v376.14: 研修管理 全機能ドライランテスト（operator が Apps Script editor から実行）
+//   dryRunTrainingManagement()        — 全機能テスト実行 + Logger 出力 + manifest 保存
+//   cleanupDryRunTrainingManagement() — テストで作成したデータを物理削除
+//   いずれもメール送信は行わない（getTrainingApplicants_ の対象解決のみ検証）。
+// ============================================================================
+
 
 // テストで作成した training / 申込 / 外部申込者 を物理削除（行削除）。
 // v376.14.2: manifest だけでなく DRYRUN_ プレフィックスの研修・外部申込者を sweep し、

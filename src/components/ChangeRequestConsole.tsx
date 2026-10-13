@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MEMBER_TYPE_LABELS } from '../shared/memberTypes.mjs';
 import { callApi } from '../shared/api-base';
 
@@ -6,12 +6,20 @@ import { callApi } from '../shared/api-base';
 
 interface ChangeData {
   applicationPayload?: Record<string, any>;
+  withdrawalMethod?: string; // 退会申請: FISCAL_YEAR_END（年度末）/ IMMEDIATE（即時）
   fields?: Record<string, string>;
   staffAdd?: Array<{
     lastName: string; firstName: string; lastKana: string; firstKana: string;
     careManagerNumber: string; email: string;
   }>;
   staffRemove?: Array<{ lastName: string; firstName: string; careManagerNumber: string }>;
+  // v372.5 職員情報変更。target は申請者が入力した今の氏名・番号（2026-10-13 以降の申請）。
+  staffUpdate?: Array<{
+    staffId: string;
+    target?: { lastName: string; firstName: string; careManagerNumber: string };
+    lastName?: string; firstName?: string; lastKana?: string; firstKana?: string;
+    email?: string; careManagerNumber?: string;
+  }>;
 }
 
 interface ChangeRequest {
@@ -37,6 +45,11 @@ const REQUEST_TYPE_LABEL: Record<string, string> = {
   WITHDRAWAL: '退会申請',
   STAFF_ADD: '職員追加',
   STAFF_REMOVE: '職員除籍',
+};
+const STAFF_ROLE_LABEL: Record<string, string> = {
+  REPRESENTATIVE: '代表者',
+  ADMIN: '管理者',
+  STAFF: '一般',
 };
 const STATUS_LABEL: Record<string, string> = {
   PENDING: '未処理',
@@ -73,6 +86,7 @@ const ChangeDataView: React.FC<{ data: ChangeData; requestType: string }> = ({ d
   const fields = data.fields || {};
   const staffAdd = data.staffAdd || [];
   const staffRemove = data.staffRemove || [];
+  const staffUpdate = data.staffUpdate || [];
   const fieldEntries = Object.entries(fields).filter(([, v]) => v !== '');
 
   return (
@@ -91,19 +105,26 @@ const ChangeDataView: React.FC<{ data: ChangeData; requestType: string }> = ({ d
         </div>
       )}
 
-      {requestType === 'WITHDRAWAL' && fieldEntries.length === 0 && (
+      {/* 2026-10-13: 以前は退会方式を見ずに常に「年度末退会」と表示していた。
+          即時退会の申請を年度末のつもりで承認すると、その日のうちに退会・ログイン停止になる。 */}
+      {requestType === 'WITHDRAWAL' && (data.withdrawalMethod === 'IMMEDIATE' ? (
+        <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <p className="font-semibold">即時退会の申請です</p>
+          <p className="mt-1">承認したその日に退会となり、会員マイページにログインできなくなります。</p>
+        </div>
+      ) : (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           年度末退会申請（当年度末 3月31日に適用）
         </div>
-      )}
+      ))}
 
       {requestType === 'MEMBER_APPLICATION' && data.applicationPayload && (
         <div>
           <p className="mb-2 text-xs font-semibold tracking-wide text-slate-500">入会申込内容</p>
           <dl className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
+            {/* 2026-10-13: 以前は 24 項目で打ち切っていた（承認の判断材料が欠ける） */}
             {Object.entries(data.applicationPayload)
-              .filter(([, value]) => value !== '' && value !== null && value !== undefined && !Array.isArray(value))
-              .slice(0, 24)
+              .filter(([, value]) => value !== '' && value !== null && value !== undefined && !Array.isArray(value) && typeof value !== 'object')
               .map(([k, v]) => (
                 <div key={k} className="flex items-start gap-3 px-4 py-2 text-sm">
                   <dt className="w-48 shrink-0 text-slate-500">{FIELD_LABEL[k] || k}</dt>
@@ -111,8 +132,24 @@ const ChangeDataView: React.FC<{ data: ChangeData; requestType: string }> = ({ d
                 </div>
               ))}
           </dl>
+          {/* 2026-10-13: 以前は「職員: N名」だけで、誰にどの権限のアカウントを発行するか見えないまま承認していた */}
           {Array.isArray(data.applicationPayload.staff) && data.applicationPayload.staff.length > 0 && (
-            <p className="mt-2 text-sm text-slate-600">職員: {data.applicationPayload.staff.length}名</p>
+            <div className="mt-3">
+              <p className="mb-2 text-xs font-semibold tracking-wide text-slate-500">職員（{data.applicationPayload.staff.length}名）</p>
+              <div className="space-y-2">
+                {data.applicationPayload.staff.map((st: Record<string, any>, i: number) => (
+                  <div key={i} className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm">
+                    <div className="font-semibold text-slate-800">
+                      {st.lastName} {st.firstName}（{st.lastKana} {st.firstKana}）
+                      <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{STAFF_ROLE_LABEL[String(st.role || 'STAFF')] || st.role}</span>
+                    </div>
+                    <div className="mt-1 text-slate-600">
+                      CM番号: {st.careManagerNumber}　メール: {st.email}　メール配信: {st.receiveEmail === false ? '受け取らない' : '受け取る'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -144,6 +181,36 @@ const ChangeDataView: React.FC<{ data: ChangeData; requestType: string }> = ({ d
           </div>
         </div>
       )}
+
+      {/* 以前は職員情報変更を表示しておらず、内容を見ずに承認する形になっていた（2026-10-13） */}
+      {staffUpdate.length > 0 && (
+        <div>
+          <p className="mb-2 text-xs font-semibold tracking-wide text-slate-500">職員情報変更（{staffUpdate.length}名）</p>
+          <div className="space-y-2">
+            {staffUpdate.map((s, i) => {
+              const changes = (['lastName', 'firstName', 'lastKana', 'firstKana', 'email', 'careManagerNumber'] as const)
+                .filter((k) => s[k]);
+              return (
+                <div key={i} className="rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm">
+                  <div className="font-semibold text-slate-800">
+                    {s.target
+                      ? `${s.target.lastName} ${s.target.firstName}（CM番号: ${s.target.careManagerNumber}）`
+                      : `職員ID: ${s.staffId}`}
+                  </div>
+                  <dl className="mt-1 space-y-0.5 text-slate-600">
+                    {changes.map((k) => (
+                      <div key={k} className="flex gap-2">
+                        <dt className="shrink-0">{FIELD_LABEL[k] || k} →</dt>
+                        <dd className="font-medium text-slate-800 break-all">{s[k]}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -159,6 +226,16 @@ const ChangeRequestConsole: React.FC = () => {
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<Record<string, string>>({});
   const [actionError, setActionError] = useState<Record<string, string>>({});
+  // 2026-10-13: 承認で反映できなかった内容。以前は Chat にしか出ず、画面は常に「完了」と表示していた。
+  const [approvalNotice, setApprovalNotice] = useState<{ requestId: string; warnings: string[]; memberMailHeld: boolean } | null>(null);
+  const noticeRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!approvalNotice || !noticeRef.current) return;
+    noticeRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    noticeRef.current.focus({ preventScroll: true });
+  }, [approvalNotice]);
+  // 変更内容を一度でも開いた申請。開かずに承認させない（中身を見ずに承認する事故を防ぐ）。
+  const [viewed, setViewed] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -178,6 +255,7 @@ const ChangeRequestConsole: React.FC = () => {
   useEffect(() => { load(); }, [load]);
 
   const toggleExpand = (id: string) => setExpanded(prev => {
+    setViewed(v => (v.has(id) ? v : new Set(v).add(id)));
     const next = new Set(prev);
     next.has(id) ? next.delete(id) : next.add(id);
     return next;
@@ -196,7 +274,13 @@ const ChangeRequestConsole: React.FC = () => {
       }
       // v376.6: 承認結果 JSON 表示は廃止（alert で完了通知済）。busy 解除は finally のみで、
       //         API 完了→load 開始の隙間で再押下されないよう load 完了まで保持する。
-      window.alert(`承認処理が完了しました。\n申請ID: ${req.requestId}`);
+      const warnings: string[] = Array.isArray(result?.warnings) ? result.warnings : [];
+      if (warnings.length > 0) {
+        setApprovalNotice({ requestId: req.requestId, warnings, memberMailHeld: !!result?.memberMailHeld });
+      } else {
+        setApprovalNotice(null);
+        window.alert(`承認処理が完了しました。\n申請ID: ${req.requestId}`);
+      }
       await load();
     } catch (e) {
       setActionError(prev => ({ ...prev, [req.requestId]: e instanceof Error ? e.message : '承認に失敗しました' }));
@@ -256,6 +340,22 @@ const ChangeRequestConsole: React.FC = () => {
         </div>
       )}
 
+      {approvalNotice && (
+        <div ref={noticeRef} tabIndex={-1} role="alert" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 focus:outline-none">
+          <p className="font-semibold">承認しましたが、反映できなかった内容があります（申請ID: {approvalNotice.requestId}）</p>
+          <ul className="mt-2 list-inside list-disc space-y-0.5">
+            {approvalNotice.warnings.map((w, i) => <li key={i}>{w}</li>)}
+          </ul>
+          {approvalNotice.memberMailHeld && (
+            <p className="mt-2">申請者への承認メールは送っていません。内容を確かめてから申請者へご連絡ください。</p>
+          )}
+          <button type="button" onClick={() => setApprovalNotice(null)}
+            className="mt-3 rounded-full border border-amber-400 bg-white px-4 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100">
+            確認しました
+          </button>
+        </div>
+      )}
+
       {/* 一覧 */}
       {!loading && requests.length === 0 && !loadError && (
         <div className="rounded-2xl border border-slate-200 bg-white py-12 text-center text-slate-500">
@@ -308,20 +408,26 @@ const ChangeRequestConsole: React.FC = () => {
             {req.status === 'PENDING' && (
               <div className="border-t border-slate-100 px-5 py-4">
                 <div className="mb-3">
-                  <label className="mb-1 block text-xs font-medium text-slate-600">
+                  <label htmlFor={`cr-note-${req.requestId}`} className="mb-1 block text-xs font-medium text-slate-600">
                     備考・却下理由（却下時は必須）
                   </label>
-                  <input type="text"
+                  <input id={`cr-note-${req.requestId}`} type="text"
+                    aria-invalid={!!actionError[req.requestId]}
+                    aria-describedby={actionError[req.requestId] ? `cr-note-${req.requestId}-err` : undefined}
                     value={note[req.requestId] || ''}
                     onChange={e => setNote(prev => ({ ...prev, [req.requestId]: e.target.value }))}
                     placeholder="例: 書類確認済・内容相違のため却下"
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-200" />
                 </div>
                 {actionError[req.requestId] && (
-                  <p className="mb-3 text-xs text-red-600">{actionError[req.requestId]}</p>
+                  <p id={`cr-note-${req.requestId}-err`} role="alert" className="mb-3 text-xs text-red-600">{actionError[req.requestId]}</p>
+                )}
+                {!viewed.has(req.requestId) && (
+                  <p id={`cr-approve-reason-${req.requestId}`} className="mb-3 text-xs text-slate-600">「▼ 変更内容を確認」で内容を開くと、承認できるようになります。</p>
                 )}
                 <div className="flex flex-wrap gap-3">
-                  <button onClick={() => handleApprove(req)} disabled={busy === req.requestId}
+                  <button onClick={() => handleApprove(req)} disabled={busy === req.requestId || !viewed.has(req.requestId)}
+                    aria-describedby={!viewed.has(req.requestId) ? `cr-approve-reason-${req.requestId}` : undefined}
                     className="rounded-full bg-green-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-slate-300">
                     {busy === req.requestId ? '処理中...' : '承認してDBに反映'}
                   </button>

@@ -238,6 +238,8 @@ export const EmailCard: React.FC<EmailCardProps> = ({
   body, onBodyChange, templateCategory, extra,
 }) => {
   const style = MAIL_CATEGORY_STYLES[category];
+  // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
+  const uid = React.useId();
   const subjectRef = React.useRef<HTMLInputElement>(null);
   const bodyRef = React.useRef<HTMLTextAreaElement>(null);
   const [target, setTarget] = React.useState<'subject' | 'body'>('body');
@@ -308,9 +310,10 @@ export const EmailCard: React.FC<EmailCardProps> = ({
       {!enabled && <p className="mt-2 text-xs text-slate-500">送信を無効にしたまま文面の準備、保存済みテンプレートの読込・編集ができます。実際に送信するには、この通知を有効にしてください。</p>}
       <div className="mt-3 space-y-3">
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">件名</label>
+          <label htmlFor={`${uid}-subject`} className="block text-xs font-medium text-slate-600 mb-1">件名</label>
           <div className="flex gap-2">
             <input
+              id={`${uid}-subject`}
               ref={subjectRef}
               type="text"
               value={subject}
@@ -337,8 +340,9 @@ export const EmailCard: React.FC<EmailCardProps> = ({
           justInserted={justInserted}
         />
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">本文</label>
+          <label htmlFor={`${uid}-f1`} className="block text-xs font-medium text-slate-600 mb-1">本文</label>
           <textarea
+            id={`${uid}-f1`}
             ref={bodyRef}
             value={body}
             onChange={e => onBodyChange(e.target.value)}

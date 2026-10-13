@@ -295,6 +295,7 @@ const SharedMemoPanel: React.FC<Props> = ({ api, adminPermissionLevel, sticky = 
               onFocus={() => { isFocused.current = true; }}
               onBlur={() => { isFocused.current = false; }}
               placeholder="申し送り事項をメモしてください（全管理者で共有されます）"
+              aria-label="共有メモ（申し送り事項）"
               className="w-full min-h-[80px] resize-y border border-amber-300 rounded-lg px-3 py-2 text-sm text-slate-800 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 leading-relaxed"
               disabled={saving}
             />

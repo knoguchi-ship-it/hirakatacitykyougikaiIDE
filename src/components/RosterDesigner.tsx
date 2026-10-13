@@ -477,6 +477,8 @@ const SortableColumnShell: React.FC<{
 
 const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
   // タブ
+  // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
+  const uid = React.useId();
   const [activeTab, setActiveTab] = useState<'design' | 'export'>('design');
 
   // 辞書とテンプレ
@@ -677,6 +679,14 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredRows, selectedIds, excludedIds]);
+
+  // 出力ボタンが押せないときの理由（灰色のボタンだけでは何を直せばよいか分からない）
+  const exportDisabledReason = working.columns.length === 0
+    ? '列が 1 つもないため出力できません。「テンプレ設計」で列を追加してください。'
+    : effectiveRows.length === 0
+      ? '出力対象が 0 件のため出力できません。絞り込み条件や選択を見直してください。'
+      : '';
+  const exportReasonIds = { excel: `${uid}-excel-reason`, export: `${uid}-export-reason` };
 
   // --- フィールド絞り込み（出力単位 + 検索） ---
   const visibleDictionary = useMemo(() => {
@@ -953,7 +963,7 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
           <section className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
             <h3 className="text-base font-semibold text-slate-700">テンプレート</h3>
             <div className="flex flex-wrap gap-2 items-center">
-              <select className={inputCls + ' max-w-xs'} value={selectedTemplateId}
+              <select aria-label="テンプレート" className={inputCls + ' max-w-xs'} value={selectedTemplateId}
                 onChange={(e) => selectTemplate(e.target.value)}>
                 <option value="">(新規・未保存)</option>
                 {templates.map((t) => (
@@ -969,13 +979,13 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-600">名称</label>
-                <input className={inputCls} value={working.name}
+                <label htmlFor={`${uid}-f1`} className="mb-1 block text-sm font-medium text-slate-600">名称</label>
+                <input id={`${uid}-f1`} className={inputCls} value={working.name}
                   onChange={(e) => { setWorking((w) => ({ ...w, name: e.target.value })); setDirty(true); }} />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-600">説明（任意）</label>
-                <input className={inputCls} value={working.description || ''}
+                <label htmlFor={`${uid}-f2`} className="mb-1 block text-sm font-medium text-slate-600">説明（任意）</label>
+                <input id={`${uid}-f2`} className={inputCls} value={working.description || ''}
                   onChange={(e) => { setWorking((w) => ({ ...w, description: e.target.value })); setDirty(true); }} />
               </div>
             </div>
@@ -1020,6 +1030,7 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                   <input
                     type="search"
                     value={fieldSearch}
+                    aria-label="フィールドを検索"
                     onChange={(e) => setFieldSearch(e.target.value)}
                     placeholder="🔍 フィールドを検索…"
                     className="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-sm" />
@@ -1117,6 +1128,7 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                       <div className="flex items-center gap-2">
                         <input className="flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-sm min-w-0"
                           value={col.label}
+                          aria-label={`${idx + 1}番目の列の見出し`}
                           onChange={(e) => updateColumn(col.id, { label: e.target.value })} />
                         <button type="button" onClick={() => moveColumn(col.id, -1)}
                           disabled={idx === 0}
@@ -1136,6 +1148,7 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                         <span className="ml-auto shrink-0">配置:</span>
                         <select className="rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
                           value={col.align || 'left'}
+                          aria-label={`${col.label || '列'}の配置`}
                           onChange={(e) => updateColumn(col.id, { align: e.target.value as 'left' | 'center' | 'right' })}>
                           <option value="left">左</option>
                           <option value="center">中央</option>
@@ -1324,7 +1337,8 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                                           ) : ruleType === 'enum' ? (
                                             <select className="flex-1 min-w-[120px] rounded border border-slate-300 bg-white px-1.5 py-1 text-xs"
                                               value={rule.value || ''}
-                                              onChange={(e) => updateRule({ value: e.target.value })}>
+                                              onChange={(e) => updateRule({ value: e.target.value })}
+                                              aria-label="条件の値">
                                               <option value="">選択</option>
                                               {ruleEnumOpts.map(([k, lbl]) => <option key={k} value={k}>{lbl}</option>)}
                                             </select>
@@ -1334,7 +1348,8 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                                               className="flex-1 min-w-[100px] rounded border border-slate-300 bg-white px-1.5 py-1 text-xs"
                                               value={rule.value || ''}
                                               onChange={(e) => updateRule({ value: e.target.value })}
-                                              placeholder="値" />
+                                              placeholder="値"
+                                              aria-label="条件の値" />
                                           )
                                         )}
                                         {ruleVk === 'double' && (
@@ -1363,14 +1378,16 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                                                 className="flex-1 min-w-[80px] rounded border border-slate-300 bg-white px-1.5 py-1 text-xs"
                                                 value={rule.value || ''}
                                                 onChange={(e) => updateRule({ value: e.target.value })}
-                                                placeholder="下限" />
+                                                placeholder="下限"
+                                                aria-label="条件の下限" />
                                               <span className="text-slate-400">〜</span>
                                               <input
                                                 type={ruleType === 'number' ? 'number' : ruleType === 'date' ? 'date' : 'text'}
                                                 className="flex-1 min-w-[80px] rounded border border-slate-300 bg-white px-1.5 py-1 text-xs"
                                                 value={rule.value2 || ''}
                                                 onChange={(e) => updateRule({ value2: e.target.value })}
-                                                placeholder="上限" />
+                                                placeholder="上限"
+                                                aria-label="条件の上限" />
                                             </>
                                           )
                                         )}
@@ -1520,7 +1537,8 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                               className="flex-1 min-w-[100px] rounded border border-slate-300 bg-white px-2 py-1 text-xs min-h-[28px]"
                               value={rf.value || ''}
                               onChange={(e) => updateColumn(col.id, { rowFilter: { ...rf, value: e.target.value } as RowFilterDef })}
-                              placeholder="値" />
+                              placeholder="値"
+                              aria-label="絞り込みの値" />
                           )}
                           {rf?.operator && valKind === 'double' && (
                             <>
@@ -1529,14 +1547,16 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                                 className="flex-1 min-w-[80px] rounded border border-slate-300 bg-white px-2 py-1 text-xs min-h-[28px]"
                                 value={rf.value || ''}
                                 onChange={(e) => updateColumn(col.id, { rowFilter: { ...rf, value: e.target.value } as RowFilterDef })}
-                                placeholder="下限" />
+                                placeholder="下限"
+                                aria-label="絞り込みの下限" />
                               <span className="text-slate-400">〜</span>
                               <input
                                 type={fieldType === 'number' ? 'number' : fieldType === 'date' ? 'date' : 'text'}
                                 className="flex-1 min-w-[80px] rounded border border-slate-300 bg-white px-2 py-1 text-xs min-h-[28px]"
                                 value={rf.value2 || ''}
                                 onChange={(e) => updateColumn(col.id, { rowFilter: { ...rf, value2: e.target.value } as RowFilterDef })}
-                                placeholder="上限" />
+                                placeholder="上限"
+                                aria-label="絞り込みの上限" />
                             </>
                           )}
                         </div>
@@ -1610,6 +1630,7 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                 出力件数を表示する
               </label>
               <select className={inputCls + ' max-w-[160px]'}
+                aria-label="出力件数の表示位置"
                 value={working.layout?.recordCountPosition || 'header'}
                 disabled={!(working.layout?.showRecordCount ?? true)}
                 onChange={(e) => { setWorking((w) => ({ ...w, layout: { ...w.layout, recordCountPosition: e.target.value as 'header' | 'footer' | 'both' } })); setDirty(true); }}>
@@ -1618,6 +1639,7 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                 <option value="both">ヘッダとフッタ</option>
               </select>
               <input className={inputCls + ' max-w-md'}
+                aria-label="出力件数の表示書式"
                 value={working.layout?.recordCountFormat || ''}
                 disabled={!(working.layout?.showRecordCount ?? true)}
                 onChange={(e) => { setWorking((w) => ({ ...w, layout: { ...w.layout, recordCountFormat: e.target.value } })); setDirty(true); }}
@@ -1661,16 +1683,16 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-600">在籍判定年度</label>
-                <select className={inputCls} value={filterYear} onChange={(e) => setFilterYear(Number(e.target.value))}>
+                <label htmlFor={`${uid}-f3`} className="mb-1 block text-sm font-medium text-slate-600">在籍判定年度</label>
+                <select id={`${uid}-f3`} className={inputCls} value={filterYear} onChange={(e) => setFilterYear(Number(e.target.value))}>
                   {(availableYears.length > 0 ? availableYears : [currentFY]).map((y) => (
                     <option key={y} value={y}>{y}年度</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-600">在籍状態</label>
-                <select className={inputCls} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                <label htmlFor={`${uid}-f4`} className="mb-1 block text-sm font-medium text-slate-600">在籍状態</label>
+                <select id={`${uid}-f4`} className={inputCls} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
                   <option value="ACTIVE">在籍中のみ</option>
                   <option value="INCLUDING_SCHEDULED">退会予定を含む</option>
                   <option value="ALL">すべて</option>
@@ -1793,18 +1815,25 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
           {/* 出力ボタン */}
           <section className="rounded-xl border border-primary-200 bg-primary-50 p-5 flex flex-wrap items-center gap-3">
             <button className={`${btnCls} bg-emerald-600 text-white hover:bg-emerald-700`}
-              onClick={exportCsv} disabled={working.columns.length === 0 || effectiveRows.length === 0}>
+              onClick={exportCsv} disabled={working.columns.length === 0 || effectiveRows.length === 0}
+              aria-describedby={exportDisabledReason ? exportReasonIds.export : undefined}>
               CSV ダウンロード
             </button>
             <button className={`${btnCls} bg-sky-600 text-white hover:bg-sky-700`}
               onClick={() => window.print()}
               disabled={working.columns.length === 0 || effectiveRows.length === 0}
+              aria-describedby={exportDisabledReason ? exportReasonIds.export : undefined}
               title="ブラウザの印刷ダイアログを開きます。「PDF として保存」を選択してください。">
               PDF 出力
             </button>
-            <button className={`${btnCls} bg-slate-300 text-slate-500 cursor-not-allowed`} disabled title="S5 で実装予定">
+            <button className={`${btnCls} bg-slate-300 text-slate-500 cursor-not-allowed`} disabled title="S5 で実装予定" aria-describedby={exportReasonIds.excel}>
               Excel ダウンロード（S5）
             </button>
+            {/* 灰色のボタンだけでは「押せない理由」が分からないため、理由を文字で出す（title は補助として残す） */}
+            <span id={exportReasonIds.excel} className="text-xs text-slate-500">Excel 出力はまだ使えません（準備中）。</span>
+            {exportDisabledReason && (
+              <span id={exportReasonIds.export} className="w-full text-xs text-amber-700">{exportDisabledReason}</span>
+            )}
             <span className="ml-auto text-xs text-slate-500">
               S2: drag-drop / S3: 計算式 / S4: PDF / S5: Excel
             </span>

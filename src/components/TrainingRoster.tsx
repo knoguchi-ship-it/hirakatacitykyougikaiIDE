@@ -1,5 +1,6 @@
 // v360: 研修名簿管理コンポーネント
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useRevealOnChange } from '../shared/useRevealOnChange';
 import { api } from '../services/api';
 import { normalizeKana } from '../utils/kanaNormalize';
 import { TrainingRosterRow, TrainingStats, AttendanceStatus, ApplicantType } from '../shared/types';
@@ -31,6 +32,12 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
   const [stats, setStats] = useState<TrainingStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // 出欠保存などのエラーは長い名簿の最上部に出る。下の方の行で失敗すると見えないため、出るたびに見える位置へ移す。
+  // 同じ文言が続けて出ても反応するよう連番も持つ
+  const [errorSeq, setErrorSeq] = useState(0);
+  const errorRef = useRef<HTMLDivElement>(null);
+  useRevealOnChange(errorSeq, errorRef);
+  const showError = (message: string) => { setError(message); setErrorSeq((n) => n + 1); };
   const [filterText, setFilterText] = useState('');
   const [filterAttendance, setFilterAttendance] = useState<AttendanceStatus | 'ALL'>('ALL');
   const [filterType, setFilterType] = useState<ApplicantType | 'ALL'>('ALL');
@@ -53,7 +60,7 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
       setRows(rosterRes.applicants || []);
       setStats(statsRes);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '名簿の取得に失敗しました');
+      showError(e instanceof Error ? e.message : '名簿の取得に失敗しました');
     } finally {
       setLoading(false);
     }
@@ -89,14 +96,14 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
       const res = await api.saveAttendance({ applyId, status });
       if (!res.ok) {
         setRows(before);
-        setError(res.error || '出欠保存に失敗しました');
+        showError(res.error || '出欠保存に失敗しました');
       } else {
         setNotice(`${ATTENDANCE_LABEL[status]} に更新しました`);
         setTimeout(() => setNotice(null), 2000);
       }
     } catch (e) {
       setRows(before);
-      setError(e instanceof Error ? e.message : '出欠保存に失敗しました');
+      showError(e instanceof Error ? e.message : '出欠保存に失敗しました');
     }
   };
 
@@ -108,11 +115,14 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
     setBusy(true);
     try {
       const entries = targets.map((r) => ({ applyId: r.applyId, status }));
-      await api.saveAttendanceBatch(entries);
+      const res = await api.saveAttendanceBatch(entries);
+      // 2026-10-13: 1 件ごとの失敗を見ていなかった（一部が保存されなくても成功に見えた）。
+      const failed = (res?.results || []).filter((x: { ok?: boolean }) => !x || !x.ok).length;
       setSelectedIds(new Set());
       await load();
+      if (failed > 0) showError(`${targets.length} 名中 ${failed} 名の出欠を保存できませんでした。一覧を確認してください。`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '一括更新に失敗しました');
+      showError(e instanceof Error ? e.message : '一括更新に失敗しました');
     } finally {
       setBusy(false);
     }
@@ -156,10 +166,12 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
     if (reason === null) return;
     setBusy(true);
     try {
-      await api.cancelRosterEntry({ applyId, reason });
+      // 2026-10-13: サーバは失敗を { error } で返す（例外にならない）。以前は結果を見ずに成功扱いだった。
+      const res = await api.cancelRosterEntry({ applyId, reason });
+      if (!res?.ok) { showError(res?.error || 'キャンセルに失敗しました'); return; }
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'キャンセルに失敗しました');
+      showError(e instanceof Error ? e.message : 'キャンセルに失敗しました');
     } finally {
       setBusy(false);
     }
@@ -168,12 +180,15 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
   const editMemo = async (row: TrainingRosterRow) => {
     const memo = prompt(`${row.name} の事務局メモを編集（最大 1000 文字、管理者専用）:`, row.adminMemo);
     if (memo === null) return;
+    // 2026-10-13: サーバは 1000 文字を超えた分を黙って切り詰める。保存する前に知らせる。
+    if (memo.length > 1000) { showError(`事務局メモは 1000 文字までです（${memo.length} 文字）。短くしてから保存してください。`); return; }
     setBusy(true);
     try {
-      await api.updateRosterEntry({ applyId: row.applyId, adminMemo: memo });
+      const res = await api.updateRosterEntry({ applyId: row.applyId, adminMemo: memo });
+      if (!res?.ok) { showError(res?.error || 'メモ保存に失敗しました'); return; }
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'メモ保存に失敗しました');
+      showError(e instanceof Error ? e.message : 'メモ保存に失敗しました');
     } finally {
       setBusy(false);
     }
@@ -208,7 +223,7 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
         </button>
       </div>
 
-      {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800" role="alert">{error}</div>}
+      {error && <div ref={errorRef} tabIndex={-1} className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800 focus:outline-none" role="alert">{error}</div>}
       {notice && <div className="p-2 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800" role="status">{notice}</div>}
 
       {/* 集計カード（圧縮版） */}

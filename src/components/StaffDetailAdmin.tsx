@@ -55,6 +55,8 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
     );
   }
 
+  // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
+  const uid = React.useId();
   const [form, setForm] = useState({
     lastName: staff.lastName || '',
     firstName: staff.firstName || '',
@@ -223,8 +225,8 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
         <h3 className="text-lg font-bold text-slate-800 mb-4">所属情報</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">所属事業所</label>
-            <input className={readOnlyClass} value={officeName} disabled readOnly />
+            <label htmlFor={`${uid}-f1`} className="block text-sm font-medium text-slate-700 mb-1">所属事業所</label>
+            <input id={`${uid}-f1`} className={readOnlyClass} value={officeName} disabled readOnly />
           </div>
           <div>
             <label htmlFor="staff-role" className="block text-sm font-medium text-slate-700 mb-1">
@@ -264,8 +266,8 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
           </div>
           {staff.status === 'LEFT' && staff.withdrawnDate && (
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">除籍日</label>
-              <input className={readOnlyClass} value={staff.withdrawnDate} disabled readOnly />
+              <label htmlFor={`${uid}-f2`} className="block text-sm font-medium text-slate-700 mb-1">除籍日</label>
+              <input id={`${uid}-f2`} className={readOnlyClass} value={staff.withdrawnDate} disabled readOnly />
             </div>
           )}
         </div>

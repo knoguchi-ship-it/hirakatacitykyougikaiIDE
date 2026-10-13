@@ -426,7 +426,8 @@ function dryRunApplicationScenarios() {
     report: {
       runId: 'DRYRUN_' + runStamp + '_' + Utilities.getUuid().substring(0, 8),
       operator: adminSession.loginId,
-      permissionCode: adminSession.permissionCode,
+      // 2026-10-13: セッションに permissionCode は無い（adminPermissionLevel）。以前は常に空だった。
+      permissionCode: adminSession.adminPermissionLevel,
       startedAt: startedAt,
       finishedAt: null,
       passedCount: 0,

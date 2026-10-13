@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { memberTypeLabel } from '../shared/memberTypes.mjs';
 import { ApiClient } from '../services/api';
 import {
@@ -9,6 +9,7 @@ import {
   SaveBankAccountPayload,
 } from '../shared/types';
 import { matchesSearchQuery } from '../utils/search';
+import { useRevealOnChange } from '../shared/useRevealOnChange';
 
 interface OfficerManagementProps {
   api: ApiClient;
@@ -182,6 +183,10 @@ const OfficerListTab: React.FC<{
   const [editSaving, setEditSaving] = useState(false);
   const [editServerError, setEditServerError] = useState<string | null>(null);
 
+  // ラベル・エラー文と入力欄を結び付ける id
+  const uid = React.useId();
+  const fid = (key: string) => `${uid}-${key}`;
+
   const orgMap = useMemo(
     () => Object.fromEntries(officerData.organizations.map(o => [o.組織コード, o.組織名])),
     [officerData.organizations],
@@ -222,6 +227,17 @@ const OfficerListTab: React.FC<{
   const [linkageSelected, setLinkageSelected] = useState<OfficerCandidate | null>(null);
   const [linkageSaving, setLinkageSaving] = useState(false);
   const [linkageError, setLinkageError] = useState<string | null>(null);
+
+  // 割当て・退任・編集・紐づけ変更のフォームは一覧の「上」に開く。一覧の下の方の行で押すと
+  // 画面外に開いて何も起きないように見えるため、開いたらフォームを見える位置へ移す。
+  const assignPanelRef = useRef<HTMLDivElement>(null);
+  const resignPanelRef = useRef<HTMLDivElement>(null);
+  const editPanelRef = useRef<HTMLDivElement>(null);
+  const linkagePanelRef = useRef<HTMLDivElement>(null);
+  useRevealOnChange(assignVisible, assignPanelRef);
+  useRevealOnChange(resignTarget, resignPanelRef);
+  useRevealOnChange(editTarget, editPanelRef);
+  useRevealOnChange(linkageTarget, linkagePanelRef);
 
   const filteredLinkagePersons = useMemo(() => {
     if (!linkageSearch.trim()) return allSearchablePersons.slice(0, 80);
@@ -378,6 +394,7 @@ const OfficerListTab: React.FC<{
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-wrap gap-2">
           <select
+            aria-label="組織で絞り込み"
             value={filterOrg}
             onChange={e => setFilterOrg(e.target.value)}
             className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:outline-none"
@@ -386,6 +403,7 @@ const OfficerListTab: React.FC<{
             {activeOrgs.map(o => <option key={o.組織コード} value={o.組織コード}>{o.組織名}</option>)}
           </select>
           <select
+            aria-label="役職で絞り込み"
             value={filterRole}
             onChange={e => setFilterRole(e.target.value)}
             className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:outline-none"
@@ -414,15 +432,18 @@ const OfficerListTab: React.FC<{
 
       {/* 割当てフォーム */}
       {assignVisible && (
-        <div className="rounded-xl border border-primary-200 bg-primary-50 p-5 space-y-4">
+        <div ref={assignPanelRef} tabIndex={-1} className="rounded-xl border border-primary-200 bg-primary-50 p-5 space-y-4 focus:outline-none">
           <h3 className="text-sm font-semibold text-primary-800">新しい役員を割当てる</h3>
           <div className="grid gap-4 sm:grid-cols-2">
             {/* 会員検索 */}
             <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-slate-700">
+              <label htmlFor={fid('assign-member')} className="mb-1 block text-xs font-medium text-slate-700">
                 会員 <span className="text-red-500">*</span>
               </label>
               <input
+                id={fid('assign-member')}
+                aria-invalid={!!assignErrors.memberId}
+                aria-describedby={assignErrors.memberId ? fid('assign-member-err') : undefined}
                 type="text"
                 value={assignForm.memberSearch}
                 onChange={e => setAssignForm(f => ({ ...f, memberSearch: e.target.value, memberId: '', staffId: '' }))}
@@ -454,15 +475,18 @@ const OfficerListTab: React.FC<{
               {(assignForm.memberId || assignForm.staffId) && (
                 <p className="mt-1 text-[11px] text-emerald-600">✓ 選択済み: {assignForm.memberSearch}</p>
               )}
-              {assignErrors.memberId && <p className="mt-1 text-xs text-red-600">{assignErrors.memberId}</p>}
+              {assignErrors.memberId && <p id={fid('assign-member-err')} className="mt-1 text-xs text-red-600">{assignErrors.memberId}</p>}
             </div>
 
             {/* 役職 */}
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">
+              <label htmlFor={fid('assign-role')} className="mb-1 block text-xs font-medium text-slate-700">
                 役職 <span className="text-red-500">*</span>
               </label>
               <select
+                id={fid('assign-role')}
+                aria-invalid={!!assignErrors.roleCode}
+                aria-describedby={assignErrors.roleCode ? fid('assign-role-err') : undefined}
                 value={assignForm.roleCode}
                 onChange={e => setAssignForm(f => ({ ...f, roleCode: e.target.value }))}
                 className={fieldInput(!!assignErrors.roleCode)}
@@ -478,13 +502,16 @@ const OfficerListTab: React.FC<{
                   );
                 })}
               </select>
-              {assignErrors.roleCode && <p className="mt-1 text-xs text-red-600">{assignErrors.roleCode}</p>}
+              {assignErrors.roleCode && <p id={fid('assign-role-err')} className="mt-1 text-xs text-red-600">{assignErrors.roleCode}</p>}
             </div>
 
             {/* 就任日 */}
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">就任日</label>
+              <label htmlFor={fid('assign-appointed')} className="mb-1 block text-xs font-medium text-slate-700">就任日</label>
               <input
+                id={fid('assign-appointed')}
+                aria-invalid={!!assignErrors.appointedDate}
+                aria-describedby={fid('assign-appointed-note')}
                 type="date"
                 value={assignForm.appointedDate}
                 onChange={e => setAssignForm(f => ({ ...f, appointedDate: e.target.value }))}
@@ -492,14 +519,15 @@ const OfficerListTab: React.FC<{
                 className={fieldInput(!!assignErrors.appointedDate)}
               />
               {assignErrors.appointedDate
-                ? <p className="mt-1 text-xs text-red-600">{assignErrors.appointedDate}</p>
-                : <p className="mt-1 text-[11px] text-slate-400">省略可。空欄の場合は就任日なしとして登録します。</p>}
+                ? <p id={fid('assign-appointed-note')} className="mt-1 text-xs text-red-600">{assignErrors.appointedDate}</p>
+                : <p id={fid('assign-appointed-note')} className="mt-1 text-[11px] text-slate-400">省略可。空欄の場合は就任日なしとして登録します。</p>}
             </div>
 
             {/* 備考 */}
             <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-slate-700">備考</label>
+              <label htmlFor={fid('assign-note')} className="mb-1 block text-xs font-medium text-slate-700">備考</label>
               <input
+                id={fid('assign-note')}
                 type="text"
                 value={assignForm.note}
                 onChange={e => setAssignForm(f => ({ ...f, note: e.target.value }))}
@@ -526,15 +554,18 @@ const OfficerListTab: React.FC<{
 
       {/* 退任フォーム */}
       {resignTarget && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+        <div ref={resignPanelRef} tabIndex={-1} className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3 focus:outline-none">
           <h3 className="text-sm font-semibold text-amber-800">
             退任処理 — {resignTarget.表示名}（{roleMap[resignTarget.役職コード] ?? resignTarget.役職コード}）
           </h3>
           <div className="max-w-xs">
-            <label className="mb-1 block text-xs font-medium text-slate-700">
+            <label htmlFor={fid('resign-date')} className="mb-1 block text-xs font-medium text-slate-700">
               退任日 <span className="text-red-500">*</span>
             </label>
             <input
+              id={fid('resign-date')}
+              aria-invalid={!!resignDateError}
+              aria-describedby={resignDateError ? fid('resign-date-err') : undefined}
               type="date"
               value={resignDate}
               onChange={e => { setResignDate(e.target.value); setResignDateError(''); }}
@@ -542,7 +573,7 @@ const OfficerListTab: React.FC<{
               max={todayStr}
               className={resignDateError ? inputErrCls : inputCls}
             />
-            {resignDateError && <p className="mt-1 text-xs text-red-600">{resignDateError}</p>}
+            {resignDateError && <p id={fid('resign-date-err')} className="mt-1 text-xs text-red-600">{resignDateError}</p>}
           </div>
           <div className="flex gap-2">
             <button type="button" onClick={handleResign} disabled={resignSaving} className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50">
@@ -556,7 +587,7 @@ const OfficerListTab: React.FC<{
       )}
 
       {editTarget && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+        <div ref={editPanelRef} tabIndex={-1} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4 focus:outline-none">
           <div>
             <h3 className="text-sm font-semibold text-slate-800">
               役員情報を編集 — {editTarget.表示名}
@@ -565,10 +596,13 @@ const OfficerListTab: React.FC<{
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">
+              <label htmlFor={fid('edit-role')} className="mb-1 block text-xs font-medium text-slate-700">
                 役職 <span className="text-red-500">*</span>
               </label>
               <select
+                id={fid('edit-role')}
+                aria-invalid={!!editErrors.roleCode}
+                aria-describedby={editErrors.roleCode ? fid('edit-role-err') : undefined}
                 value={editForm.roleCode}
                 onChange={e => setEditForm(f => ({ ...f, roleCode: e.target.value }))}
                 className={fieldInput(!!editErrors.roleCode)}
@@ -584,12 +618,13 @@ const OfficerListTab: React.FC<{
                   );
                 })}
               </select>
-              {editErrors.roleCode && <p className="mt-1 text-xs text-red-600">{editErrors.roleCode}</p>}
+              {editErrors.roleCode && <p id={fid('edit-role-err')} className="mt-1 text-xs text-red-600">{editErrors.roleCode}</p>}
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">状態</label>
+              <label htmlFor={fid('edit-status')} className="mb-1 block text-xs font-medium text-slate-700">状態</label>
               <select
+                id={fid('edit-status')}
                 value={editForm.status}
                 onChange={e => setEditForm(f => ({
                   ...f,
@@ -604,22 +639,28 @@ const OfficerListTab: React.FC<{
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">就任日</label>
+              <label htmlFor={fid('edit-appointed')} className="mb-1 block text-xs font-medium text-slate-700">就任日</label>
               <input
+                id={fid('edit-appointed')}
+                aria-invalid={!!editErrors.appointedDate}
+                aria-describedby={editErrors.appointedDate ? fid('edit-appointed-err') : undefined}
                 type="date"
                 value={editForm.appointedDate}
                 onChange={e => setEditForm(f => ({ ...f, appointedDate: e.target.value }))}
                 max={todayStr}
                 className={fieldInput(!!editErrors.appointedDate)}
               />
-              {editErrors.appointedDate && <p className="mt-1 text-xs text-red-600">{editErrors.appointedDate}</p>}
+              {editErrors.appointedDate && <p id={fid('edit-appointed-err')} className="mt-1 text-xs text-red-600">{editErrors.appointedDate}</p>}
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">
+              <label htmlFor={fid('edit-resign')} className="mb-1 block text-xs font-medium text-slate-700">
                 退任日 {editForm.status === 'RESIGNED' && <span className="text-red-500">*</span>}
               </label>
               <input
+                id={fid('edit-resign')}
+                aria-invalid={!!editErrors.resignationDate}
+                aria-describedby={editErrors.resignationDate ? fid('edit-resign-err') : undefined}
                 type="date"
                 value={editForm.resignationDate}
                 onChange={e => setEditForm(f => ({ ...f, resignationDate: e.target.value }))}
@@ -628,12 +669,13 @@ const OfficerListTab: React.FC<{
                 max={todayStr}
                 className={fieldInput(!!editErrors.resignationDate)}
               />
-              {editErrors.resignationDate && <p className="mt-1 text-xs text-red-600">{editErrors.resignationDate}</p>}
+              {editErrors.resignationDate && <p id={fid('edit-resign-err')} className="mt-1 text-xs text-red-600">{editErrors.resignationDate}</p>}
             </div>
 
             <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-slate-700">備考</label>
+              <label htmlFor={fid('edit-note')} className="mb-1 block text-xs font-medium text-slate-700">備考</label>
               <input
+                id={fid('edit-note')}
                 type="text"
                 value={editForm.note}
                 onChange={e => setEditForm(f => ({ ...f, note: e.target.value }))}
@@ -659,14 +701,14 @@ const OfficerListTab: React.FC<{
 
       {/* 紐づけ変更フォーム */}
       {linkageTarget && (
-        <div className="rounded-xl border border-sky-200 bg-sky-50/60 p-5 space-y-3">
+        <div ref={linkagePanelRef} tabIndex={-1} className="rounded-xl border border-sky-200 bg-sky-50/60 p-5 space-y-3 focus:outline-none">
           <h3 className="text-sm font-semibold text-sky-800">
             紐づけ変更 — {linkageTarget.表示名}（{roleMap[linkageTarget.役職コード] ?? linkageTarget.役職コード}）
           </h3>
           <p className="text-xs text-slate-600">会員種別が変わった場合（個人↔事業所職員）に紐づけを更新します。振込口座も同時に移行されます。</p>
           <div className="max-w-lg">
-            <label className="mb-1 block text-xs font-medium text-slate-700">新しい担当者</label>
-            <input type="text" value={linkageSearch} onChange={e => { setLinkageSearch(e.target.value); setLinkageSelected(null); }}
+            <label htmlFor={fid('linkage-search')} className="mb-1 block text-xs font-medium text-slate-700">新しい担当者</label>
+            <input id={fid('linkage-search')} type="text" value={linkageSearch} onChange={e => { setLinkageSearch(e.target.value); setLinkageSelected(null); }}
               placeholder="氏名・事業所名で検索" className={inputCls} />
             {linkageSearch && !linkageSelected && (
               <div className="mt-1 max-h-40 overflow-auto rounded-lg border border-slate-200 bg-white shadow-md">
@@ -853,6 +895,19 @@ function validateBankForm(form: BankFormState): BankFormErrors {
   return errs;
 }
 
+// 入力欄 1 つ分の枠（ラベル + 入力欄 + エラー文）。
+// 以前は BankAccountTab の中で定義していたため、描画のたびに別の部品として作り直され、
+// 1 文字入力するごとに入力欄が作り直されてフォーカスが外れていた。外に出して同一の部品にする。
+const Field: React.FC<{ id: string; label: string; required?: boolean; error?: string; children: React.ReactNode }> = ({ id, label, required, error, children }) => (
+  <div>
+    <label htmlFor={id} className="mb-1 block text-xs font-medium text-slate-700">
+      {label}{required && <span className="ml-0.5 text-red-500">*</span>}
+    </label>
+    {children}
+    {error && <p id={`${id}-err`} className="mt-1 text-xs text-red-600">{error}</p>}
+  </div>
+);
+
 const BankAccountTab: React.FC<{
   officerData: OfficerManagementData;
   api: ApiClient;
@@ -983,15 +1038,11 @@ const BankAccountTab: React.FC<{
     }
   };
 
-  const Field: React.FC<{ label: string; required?: boolean; error?: string; children: React.ReactNode }> = ({ label, required, error, children }) => (
-    <div>
-      <label className="mb-1 block text-xs font-medium text-slate-700">
-        {label}{required && <span className="ml-0.5 text-red-500">*</span>}
-      </label>
-      {children}
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
-    </div>
-  );
+  // 口座フォームの id（Field の htmlFor と入力欄の id を揃える）
+  const uid = React.useId();
+  const bid = (key: string) => `${uid}-bank-${key}`;
+  const bdesc = (key: keyof BankFormErrors, hint?: string) =>
+    [hint, formErrors[key] ? `${bid(key)}-err` : ''].filter(Boolean).join(' ') || undefined;
 
   return (
     <div className="space-y-5">
@@ -1000,6 +1051,8 @@ const BankAccountTab: React.FC<{
         <h3 className="text-sm font-semibold text-slate-800">対象役員の選択</h3>
         <div className="max-w-sm">
           <select
+            aria-label="対象役員"
+            aria-describedby={bid('subject-hint')}
             value={selectedSubjectKey}
             onChange={e => handleSelectSubject(e.target.value)}
             className={inputCls}
@@ -1011,7 +1064,7 @@ const BankAccountTab: React.FC<{
               </option>
             ))}
           </select>
-          <p className="mt-1 text-[11px] text-slate-400">現職の役員のみ表示しています。</p>
+          <p id={bid('subject-hint')} className="mt-1 text-[11px] text-slate-400">現職の役員のみ表示しています。</p>
         </div>
       </div>
 
@@ -1072,8 +1125,11 @@ const BankAccountTab: React.FC<{
           {formVisible && (
             <div className="space-y-4 pt-2">
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="金融機関名" required error={formErrors.bankName}>
+                <Field id={bid('bankName')} label="金融機関名" required error={formErrors.bankName}>
                   <input
+                    id={bid('bankName')}
+                    aria-invalid={!!formErrors.bankName}
+                    aria-describedby={bdesc('bankName')}
                     value={form.bankName}
                     onChange={e => setForm(f => ({ ...f, bankName: e.target.value }))}
                     maxLength={50}
@@ -1081,8 +1137,11 @@ const BankAccountTab: React.FC<{
                     className={fieldInput(!!formErrors.bankName)}
                   />
                 </Field>
-                <Field label="金融機関コード（4桁）" required error={formErrors.bankCode}>
+                <Field id={bid('bankCode')} label="金融機関コード（4桁）" required error={formErrors.bankCode}>
                   <input
+                    id={bid('bankCode')}
+                    aria-invalid={!!formErrors.bankCode}
+                    aria-describedby={bdesc('bankCode')}
                     value={form.bankCode}
                     onChange={e => setForm(f => ({ ...f, bankCode: e.target.value.replace(/\D/g, '') }))}
                     maxLength={4}
@@ -1091,8 +1150,11 @@ const BankAccountTab: React.FC<{
                     inputMode="numeric"
                   />
                 </Field>
-                <Field label="支店名" required error={formErrors.branchName}>
+                <Field id={bid('branchName')} label="支店名" required error={formErrors.branchName}>
                   <input
+                    id={bid('branchName')}
+                    aria-invalid={!!formErrors.branchName}
+                    aria-describedby={bdesc('branchName')}
                     value={form.branchName}
                     onChange={e => setForm(f => ({ ...f, branchName: e.target.value }))}
                     maxLength={50}
@@ -1100,8 +1162,11 @@ const BankAccountTab: React.FC<{
                     className={fieldInput(!!formErrors.branchName)}
                   />
                 </Field>
-                <Field label="支店コード（3桁）" required error={formErrors.branchCode}>
+                <Field id={bid('branchCode')} label="支店コード（3桁）" required error={formErrors.branchCode}>
                   <input
+                    id={bid('branchCode')}
+                    aria-invalid={!!formErrors.branchCode}
+                    aria-describedby={bdesc('branchCode')}
                     value={form.branchCode}
                     onChange={e => setForm(f => ({ ...f, branchCode: e.target.value.replace(/\D/g, '') }))}
                     maxLength={3}
@@ -1110,8 +1175,11 @@ const BankAccountTab: React.FC<{
                     inputMode="numeric"
                   />
                 </Field>
-                <Field label="口座種別" required error={formErrors.accountType}>
+                <Field id={bid('accountType')} label="口座種別" required error={formErrors.accountType}>
                   <select
+                    id={bid('accountType')}
+                    aria-invalid={!!formErrors.accountType}
+                    aria-describedby={bdesc('accountType')}
                     value={form.accountType}
                     onChange={e => setForm(f => ({ ...f, accountType: e.target.value }))}
                     className={fieldInput(!!formErrors.accountType)}
@@ -1119,8 +1187,11 @@ const BankAccountTab: React.FC<{
                     {ACCOUNT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </Field>
-                <Field label="口座番号（7桁以内の数字）" required error={formErrors.accountNumber}>
+                <Field id={bid('accountNumber')} label="口座番号（7桁以内の数字）" required error={formErrors.accountNumber}>
                   <input
+                    id={bid('accountNumber')}
+                    aria-invalid={!!formErrors.accountNumber}
+                    aria-describedby={bdesc('accountNumber')}
                     value={form.accountNumber}
                     onChange={e => setForm(f => ({ ...f, accountNumber: e.target.value.replace(/\D/g, '') }))}
                     maxLength={7}
@@ -1129,8 +1200,11 @@ const BankAccountTab: React.FC<{
                     inputMode="numeric"
                   />
                 </Field>
-                <Field label="口座名義カナ（全角カタカナ）" required error={formErrors.accountHolderKana}>
+                <Field id={bid('accountHolderKana')} label="口座名義カナ（全角カタカナ）" required error={formErrors.accountHolderKana}>
                   <input
+                    id={bid('accountHolderKana')}
+                    aria-invalid={!!formErrors.accountHolderKana}
+                    aria-describedby={bdesc('accountHolderKana', bid('accountHolderKana-hint'))}
                     value={form.accountHolderKana}
                     onChange={e => setForm(f => ({ ...f, accountHolderKana: e.target.value }))}
                     maxLength={30}
@@ -1138,10 +1212,12 @@ const BankAccountTab: React.FC<{
                     className={fieldInput(!!formErrors.accountHolderKana)}
                     lang="ja"
                   />
-                  <p className="mt-0.5 text-[11px] text-slate-400">全角カタカナのみ。スペースで区切り可。</p>
+                  <p id={bid('accountHolderKana-hint')} className="mt-0.5 text-[11px] text-slate-400">全角カタカナのみ。スペースで区切り可。</p>
                 </Field>
-                <Field label="備考" error={formErrors.note}>
+                <Field id={bid('note')} label="備考" error={formErrors.note}>
                   <input
+                    id={bid('note')}
+                    aria-describedby={bdesc('note')}
                     value={form.note}
                     onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
                     maxLength={200}

@@ -22,7 +22,7 @@ export const DOMAINS = [
   ['入会・申込受付', ['submitMemberApplication', 'getAdminChangeRequests', 'approveAdminChangeRequest', 'rejectAdminChangeRequest']],
   ['会員情報の照会・更新', ['getMemberPortalData', 'updateMemberSelf', 'updateMember', 'fetchAllData', 'getAdminPersonList', 'updatePersonsBatch', 'convertMemberType', 'submitPublicChangeRequest', 'verifyMemberIdentityForPublic', 'sendPublicOtp', 'verifyPublicOtp']],
   ['退会', ['withdrawSelf', 'cancelWithdrawalSelf', 'withdrawMember', 'scheduleWithdrawMember', 'cancelScheduledWithdraw']],
-  ['事業所職員', ['updateStaff', 'removeStaffFromOffice', 'getPublicAvailableStaffSlots', 'getPublicEnrolledStaffList', 'repairDuplicateStaffRecords']],
+  ['事業所職員', ['updateStaff', 'removeStaffFromOffice', 'checkPublicStaffMatch', 'repairDuplicateStaffRecords']],
   ['認証・パスワード', ['memberLogin', 'changePassword', 'requestPasswordReset', 'completePasswordReset', 'getMemberAuthAccounts', 'adminResetMemberPassword', 'adminUnlockMemberAccount', 'adminIssueMemberCredential']],
   ['研修（公開・申込）', ['getPublicTrainings', 'applyTrainingExternal', 'cancelTrainingExternal', 'applyTraining', 'cancelTraining']],
   ['研修（管理）', ['saveTraining', 'softDeleteTraining', 'restoreTraining', 'uploadTrainingFile', 'setupTrainingFileFolder', 'getTrainingManagementData', 'getTrainingApplicants', 'getTrainingStats', 'repairTrainingApplicationApplicantIds']],

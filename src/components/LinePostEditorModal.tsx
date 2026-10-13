@@ -3,6 +3,7 @@ import { ApiClient } from '../services/api';
 import { Training } from '../types';
 import { LinePostTargetType, LinePostAttachmentKind } from '../shared/types';
 import { buildPublicTrainingApplyUrl } from '../config/publicPortal';
+import { useRevealOnChange } from '../shared/useRevealOnChange';
 
 // v376.39: 公式LINE投稿依頼の編集モーダルを LinePostConsole から抽出し、
 // 研修管理画面（文脈起点の作成）とコンソールで共用する（DRY）。
@@ -179,6 +180,9 @@ const LinePostEditorModal: React.FC<LinePostEditorModalProps> = ({ api, training
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  // エラーはモーダルの先頭、保存ボタンは下に固定。本文を下までスクロールした状態で失敗すると見えないため、出たら見える位置へ移す
+  const editErrorRef = useRef<HTMLDivElement>(null);
+  useRevealOnChange(editError, editErrorRef);
 
   // 研修ピッカー候補: 削除済を除外し、開催日が過ぎた研修を非表示にする。
   // ただし現在選択中の研修は（過去・削除済でも）候補に残し、表示が消えないようにする。
@@ -293,7 +297,7 @@ const LinePostEditorModal: React.FC<LinePostEditorModalProps> = ({ api, training
         </div>
         <div className="p-5 space-y-4">
           {editError && (
-            <div className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{editError}</div>
+            <div ref={editErrorRef} tabIndex={-1} role="alert" className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 focus:outline-none">{editError}</div>
           )}
 
           {/* 対象種別 */}
@@ -378,10 +382,11 @@ const LinePostEditorModal: React.FC<LinePostEditorModalProps> = ({ api, training
           </div>
 
           {/* 添付ファイル */}
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700">
+          {/* 見出しは 1 つの入力欄ではなく添付操作のまとまりの名前。label ではなく group の名前にする */}
+          <div role="group" aria-labelledby="line-post-attach-label" className="space-y-1">
+            <p id="line-post-attach-label" className="text-sm font-medium text-slate-700">
               添付ファイル（任意・画像 or PDF・10MB 以内）
-            </label>
+            </p>
             {editing.attachmentUrl ? (
               <div className="flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-3 py-2">
                 <span className="text-sm">{editing.attachmentKind === 'IMAGE' ? '🖼' : '📄'} {editing.attachmentName}</span>
@@ -410,14 +415,15 @@ const LinePostEditorModal: React.FC<LinePostEditorModalProps> = ({ api, training
               >
                 <p className="text-sm text-slate-600">ここにファイルをドラッグ&ドロップ</p>
                 <p className="mt-0.5 text-xs text-slate-400">または</p>
-                <label className="mt-2 inline-block cursor-pointer rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 min-h-[44px]">
+                {/* input を display:none（hidden）にするとキーボードでは選べない。sr-only で Tab 到達可能にし、枠にフォーカスを表示する */}
+                <label className="mt-2 inline-block cursor-pointer rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 min-h-[44px] focus-within:ring-2 focus-within:ring-sky-400">
                   ファイルを選択
                   <input
                     type="file"
                     accept="image/*,application/pdf"
                     onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f); e.target.value = ''; }}
                     disabled={uploading}
-                    className="hidden"
+                    className="sr-only"
                     aria-label="添付ファイルをアップロード"
                   />
                 </label>

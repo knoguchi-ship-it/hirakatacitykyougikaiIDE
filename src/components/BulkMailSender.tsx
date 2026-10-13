@@ -39,6 +39,8 @@ const btnCls =
 
 const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPermissionLevel, onOpenMailSettings }) => {
   // ── フィルタ状態 ────────────────────────────────────────────
+  // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
+  const uid = React.useId();
   const [filterTypes, setFilterTypes]           = useState<string[]>(['INDIVIDUAL', 'BUSINESS', 'SUPPORT']);
   const [filterMemberStatus, setFilterMemberStatus] = useState('ACTIVE');
   const [filterStaffStatus, setFilterStaffStatus]   = useState('ENROLLED');
@@ -75,7 +77,11 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
   const [sending, setSending]                   = useState(false);
   const [sendResult, setSendResult]             = useState<{
     sent: number; total: number; errors: string[]; autoAttachMissed: string[]; logId: string;
+    deliveryMode?: string; suppressedCount?: number; excludedCount?: number;
   } | null>(null);
+  // 2026-10-13: 宛先を読み込んだ時の絞り込み条件。送信時、サーバは「今の条件」で宛先を取り直し、
+  // 一致しない宛先を外す。読み込み後に条件を変えると、画面の宛先と実際の宛先が食い違っていた。
+  const [loadedFilterKey, setLoadedFilterKey]   = useState('');
   const [sendError, setSendError]               = useState<string | null>(null);
 
   // ── 宛先表示の追加絞り込み ───────────────────────────────────
@@ -159,6 +165,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
         excludeNoEmail: filterNoEmail,
       });
       setRecipients(data);
+      setLoadedFilterKey(JSON.stringify([filterTypes, filterMemberStatus, filterStaffStatus, filterMailing, filterNoEmail]));
       setHasLoaded(true);
     } catch (e: any) {
       setLoadError(e.message || '宛先の取得に失敗しました。');
@@ -316,6 +323,17 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
     setFilterTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
 
   const hasFolder = Boolean(settings.bulkMailAutoAttachFolderId);
+  const recipientsStale = hasLoaded
+    && loadedFilterKey !== JSON.stringify([filterTypes, filterMemberStatus, filterStaffStatus, filterMailing, filterNoEmail]);
+  // 2026-10-13: 一括メールの有効設定（システム設定）が無効なら、送っても止まる。配信状態と別に知らせる。
+  const bulkMailDisabled = settings.bulkMailEnabled === false;
+  // 送信ボタンが押せない理由（以前は「宛先を選択」しか出なかった）
+  const sendBlockReasons: string[] = [];
+  if (effectiveTargets.length === 0) sendBlockReasons.push('宛先を選択してください');
+  if (!from.trim()) sendBlockReasons.push('送信元アドレスを入力してください');
+  if (!subject.trim()) sendBlockReasons.push('件名を入力してください');
+  if (!body.trim()) sendBlockReasons.push('本文を入力してください');
+  if (recipientsStale) sendBlockReasons.push('絞り込み条件が変わりました。「宛先を読み込む」で読み込み直してください');
 
   // テスト集約は宛先が許可リストに差し替わるため、送信側で常時明示する。
   //
@@ -399,8 +417,8 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {/* 在籍状態（個人・賛助） */}
           <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">在籍状態（個人・賛助）</label>
-            <select className={inputCls} value={filterMemberStatus} onChange={e => setFilterMemberStatus(e.target.value)}>
+            <label htmlFor={`${uid}-f1`} className="block text-sm font-medium text-slate-600 mb-1">在籍状態（個人・賛助）</label>
+            <select id={`${uid}-f1`} className={inputCls} value={filterMemberStatus} onChange={e => setFilterMemberStatus(e.target.value)}>
               <option value="ACTIVE">在籍中のみ</option>
               <option value="ALL">すべて</option>
             </select>
@@ -408,8 +426,8 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
 
           {/* 在籍状態（事業所職員） */}
           <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">在籍状態（事業所職員）</label>
-            <select className={inputCls} value={filterStaffStatus} onChange={e => setFilterStaffStatus(e.target.value)}>
+            <label htmlFor={`${uid}-f2`} className="block text-sm font-medium text-slate-600 mb-1">在籍状態（事業所職員）</label>
+            <select id={`${uid}-f2`} className={inputCls} value={filterStaffStatus} onChange={e => setFilterStaffStatus(e.target.value)}>
               <option value="ENROLLED">在籍中のみ</option>
               <option value="ALL">すべて</option>
             </select>
@@ -417,8 +435,8 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
 
           {/* メール配信希望 */}
           <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">メール配信希望（事業所職員）</label>
-            <select className={inputCls} value={filterMailing} onChange={e => setFilterMailing(e.target.value)}>
+            <label htmlFor={`${uid}-f3`} className="block text-sm font-medium text-slate-600 mb-1">メール配信希望（事業所職員）</label>
+            <select id={`${uid}-f3`} className={inputCls} value={filterMailing} onChange={e => setFilterMailing(e.target.value)}>
               <option value="OPT_IN">希望者のみ（推奨）</option>
               <option value="ALL">全員（オプトアウト含む）</option>
             </select>
@@ -473,8 +491,9 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
           </div>
 
           <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/70">
-            <label className="block text-sm font-medium text-slate-600 mb-1">人を絞り込む</label>
+            <label htmlFor={`${uid}-f4`} className="block text-sm font-medium text-slate-600 mb-1">人を絞り込む</label>
             <input
+              id={`${uid}-f4`}
               type="text"
               className={inputCls}
               value={recipientQuery}
@@ -560,8 +579,8 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
 
           {/* 送信元 */}
           <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">送信元アドレス</label>
-            <select className={inputCls} value={from} onChange={e => setFrom(e.target.value)}>
+            <label htmlFor={`${uid}-f5`} className="block text-sm font-medium text-slate-600 mb-1">送信元アドレス</label>
+            <select id={`${uid}-f5`} className={inputCls} value={from} onChange={e => setFrom(e.target.value)}>
               {aliases.map(a => <option key={a} value={a}>{a}</option>)}
               {aliases.length === 0 && <option value="">（取得中…）</option>}
             </select>
@@ -573,7 +592,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
           {/* 件名 */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-sm font-medium text-slate-600">件名</label>
+              <label htmlFor={`${uid}-subject`} className="text-sm font-medium text-slate-600">件名</label>
               <div className="flex gap-1">
                 {MERGE_TAGS.map(tag => (
                   <button key={tag} type="button" onClick={() => insertTag(tag, 'subject')}
@@ -584,6 +603,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
               </div>
             </div>
             <input
+              id={`${uid}-subject`}
               ref={subjectRef}
               type="text"
               className={inputCls}
@@ -596,7 +616,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
           {/* 本文 */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-sm font-medium text-slate-600">本文</label>
+              <label htmlFor={`${uid}-body`} className="text-sm font-medium text-slate-600">本文</label>
               <div className="flex gap-1">
                 {MERGE_TAGS.map(tag => (
                   <button key={tag} type="button" onClick={() => insertTag(tag, 'body')}
@@ -607,6 +627,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
               </div>
             </div>
             <textarea
+              id={`${uid}-body`}
               ref={bodyRef}
               className={`${inputCls} h-48 resize-y font-mono`}
               value={body}
@@ -629,6 +650,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
                 <input
                   type="text"
                   value={templateSaveNameInput}
+                  aria-label="テンプレート名"
                   onChange={e => setTemplateSaveNameInput(e.target.value)}
                   placeholder="テンプレート名（例：定例案内）"
                   className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs"
@@ -709,10 +731,11 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
 
           {/* 共通添付 */}
           <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">共通添付ファイル</label>
-            <label className={`inline-flex cursor-pointer items-center gap-1 text-sm text-primary-600 hover:underline`}>
+            {/* 見出しは「＋ファイルを追加」の入力欄に直接結び付ける（見出しだけ浮いていると読み上げで関係が伝わらない） */}
+            <label htmlFor={`${uid}-common-attach`} className="block text-sm font-medium text-slate-600 mb-1">共通添付ファイル</label>
+            <label className={`inline-flex cursor-pointer items-center gap-1 text-sm text-primary-600 hover:underline focus-within:ring-2 focus-within:ring-primary-400`}>
               ＋ファイルを追加
-              <input type="file" multiple className="sr-only" onChange={handleCommonAttach} />
+              <input id={`${uid}-common-attach`} type="file" multiple className="sr-only" onChange={handleCommonAttach} />
             </label>
             {commonAttachments.length > 0 && (
               <ul className="mt-2 space-y-1">
@@ -758,14 +781,19 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
         <div className="flex items-center gap-4">
           <button
             type="button"
-            disabled={effectiveTargets.length === 0 || !from.trim() || !subject.trim() || !body.trim() || sending}
+            disabled={sendBlockReasons.length > 0 || sending}
             onClick={() => setShowConfirm(true)}
             className={`${btnCls} bg-primary-600 text-white hover:bg-primary-700`}
           >
             {sending ? '送信中…' : `${effectiveTargets.length}名に送信する`}
           </button>
-          {effectiveTargets.length === 0 && (
-            <span className="text-sm text-slate-400">宛先を選択してください</span>
+          {sendBlockReasons.length > 0 && (
+            <ul className="text-sm text-slate-600 list-disc list-inside" role="status">
+              {sendBlockReasons.map((r) => <li key={r}>{r}</li>)}
+            </ul>
+          )}
+          {bulkMailDisabled && (
+            <span className="text-sm font-semibold text-red-700">システム設定で一括メールが無効になっているため、送信しても届きません。</span>
           )}
         </div>
       )}
@@ -825,6 +853,11 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
               {(sendResult.suppressedCount ?? 0) > 0 && (
                 <p role="alert" className="text-sm font-semibold text-red-800 bg-red-50 border border-red-300 rounded px-3 py-2">
                   ⚠ {sendResult.suppressedCount}件は設定により送信されませんでした（配信状態またはメール種別設定）。
+                </p>
+              )}
+              {(sendResult.excludedCount ?? 0) > 0 && (
+                <p role="alert" className="text-sm font-semibold text-amber-900 bg-amber-50 border border-amber-300 rounded px-3 py-2">
+                  ⚠ 選んだ宛先のうち {sendResult.excludedCount}名は、送信時の条件に合わなくなっていたため送っていません（退会などで条件から外れた可能性があります）。
                 </p>
               )}
               <p className="text-sm">
