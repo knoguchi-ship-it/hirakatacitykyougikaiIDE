@@ -9412,6 +9412,17 @@ function createMemberApplicationDirectLocked_(payload) {
   var existingLoginIds = collectExistingLoginIds_(ss);
   var businessStaffLimit = resolveDefaultBusinessStaffLimit_(ss);
 
+  // 番号の重なりは、会員行を書き込む前に申込全体で確かめる（承認で止める）。
+  // 重なった相手（氏名・会員ID）を承認者に示す。2026-10-14 の本番確認で、個人の申込は下の分岐が先に
+  // 相手を示さない文言で止めていたのが分かったので、この検査を前に置いた。
+  var applicationCareManagerNumbers = isBusiness
+    ? (Array.isArray(payload.staff) ? payload.staff.map(function(st) { return st && st.careManagerNumber; }) : [])
+    : [payload.careManagerNumber];
+  var careManagerConflicts = findCareManagerRegistrationConflicts_(registrationIndex, applicationCareManagerNumbers);
+  if (careManagerConflicts.length > 0) {
+    throw new Error(careManagerConflicts.join('\n') + '\n' + CARE_MANAGER_CONFLICT_GUIDANCE_);
+  }
+
   if (!isBusiness) {
     var applicantCareManagerNumber = String(payload.careManagerNumber || '').trim();
     if (applicantCareManagerNumber) {
@@ -9432,15 +9443,6 @@ function createMemberApplicationDirectLocked_(payload) {
         throw new Error('この介護支援専門員番号は既存の事業所職員として登録済みです。' + CARE_MANAGER_CONFLICT_GUIDANCE_);
       }
     }
-  }
-
-  // 番号の重なりは、会員行を書き込む前に申込全体で確かめる（承認で止める）。
-  var applicationCareManagerNumbers = isBusiness
-    ? (Array.isArray(payload.staff) ? payload.staff.map(function(st) { return st && st.careManagerNumber; }) : [])
-    : [payload.careManagerNumber];
-  var careManagerConflicts = findCareManagerRegistrationConflicts_(registrationIndex, applicationCareManagerNumbers);
-  if (careManagerConflicts.length > 0) {
-    throw new Error(careManagerConflicts.join('\n') + '\n' + CARE_MANAGER_CONFLICT_GUIDANCE_);
   }
 
   if (isBusiness) {

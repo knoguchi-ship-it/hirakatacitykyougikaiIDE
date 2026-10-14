@@ -182,3 +182,36 @@ test('事業所会員: 職員のカナ・番号・メールを検証する', () 
   assert.throws(() => validate({ staff: staff({ email: '' }) }, 'BUSINESS'), /メールアドレス/);
   assert.throws(() => validate({ staff: staff({ firstKana: '花子' }) }, 'BUSINESS'), /メイ/);
 });
+
+// ── 番号の重なり（2026-10-14 本番確認）──────────────────────────────
+// 個人の申込は、相手を示さない古い検査が先に止めていた（承認者に誰と重なったかが見えない）。
+const conflictApi = new Function(`
+  ${extractFunction('joinHumanNameParts_')}
+  ${extractFunction('findCareManagerRegistrationConflicts_')}
+  return { findCareManagerRegistrationConflicts_ };
+`)() as { findCareManagerRegistrationConflicts_: (index: unknown, cms: string[]) => string[] };
+
+test('★番号の重なりは、重なった相手の氏名と会員IDを示す', () => {
+  const index = {
+    activeMembersByCareManager: { '11111111': [{ memberId: 'M1', member: { '姓': '既存', '名': '会員' } }] },
+    activeStaffByCareManager: { '22222222': [{ memberId: 'B1', staff: { '姓': '既存', '名': '職員' }, member: { '勤務先名': 'テスト事業所' } }] },
+  };
+  const [m] = conflictApi.findCareManagerRegistrationConflicts_(index, ['11111111']);
+  assert.match(m, /既存 会員/);
+  assert.match(m, /会員ID: M1/);
+  const [s] = conflictApi.findCareManagerRegistrationConflicts_(index, ['22222222']);
+  assert.match(s, /テスト事業所/);
+  assert.match(s, /既存 職員/);
+  assert.match(s, /会員ID: B1/);
+  assert.deepEqual(conflictApi.findCareManagerRegistrationConflicts_(index, ['33333333']), []);
+});
+
+test('★入会申込の承認は、相手を示す検査を個人・事業所の分岐より先に通す', () => {
+  const body = codeOnly(extractFunction('createMemberApplicationDirectLocked_'));
+  const detailedAt = body.indexOf('findCareManagerRegistrationConflicts_(');
+  const individualAt = body.indexOf('if (!isBusiness) {');
+  assert.notEqual(detailedAt, -1, '相手を示す検査が無い');
+  assert.notEqual(individualAt, -1, '個人の分岐が見つからない');
+  assert.ok(detailedAt < individualAt, '相手を示さない個人の分岐が先に止めてしまう');
+  assert.ok(detailedAt < body.indexOf('memberSheet.appendRow'), '番号の検査が会員行の書き込みより後');
+});

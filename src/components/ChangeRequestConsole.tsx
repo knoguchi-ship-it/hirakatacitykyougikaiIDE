@@ -72,7 +72,17 @@ const FIELD_LABEL: Record<string, string> = {
   homeAddressLine: '自宅番地', homeAddressLine2: '自宅建物名',
   careManagerNumber: '介護支援専門員番号', officeNumber: '事業所番号', officeName: '事業所名',
   mailingPreference: '通知方法', preferredMailDestination: '郵送先区分',
+  memberType: '会員種別',
 };
+
+// 2026-10-14: 本番確認で、入会申込の内容が「memberType: BUSINESS」「EMAIL」「HOME」とコードのまま出ていた。
+// 会員の登録画面（MemberDetailAdmin）と同じ表記に揃える。
+const FIELD_VALUE_LABEL: Record<string, Record<string, string>> = {
+  memberType: MEMBER_TYPE_LABELS as Record<string, string>,
+  mailingPreference: { EMAIL: 'メール配信', POST: '郵送希望' },
+  preferredMailDestination: { OFFICE: '勤務先', HOME: '自宅' },
+};
+const formatFieldValue = (key: string, value: unknown) => FIELD_VALUE_LABEL[key]?.[String(value)] ?? String(value);
 
 function formatDate(iso: string) {
   if (!iso) return '';
@@ -98,7 +108,7 @@ const ChangeDataView: React.FC<{ data: ChangeData; requestType: string }> = ({ d
             {fieldEntries.map(([k, v]) => (
               <div key={k} className="flex items-start gap-3 px-4 py-2 text-sm">
                 <dt className="w-48 shrink-0 text-slate-500">{FIELD_LABEL[k] || k}</dt>
-                <dd className="font-medium text-slate-800 break-all">{v}</dd>
+                <dd className="font-medium text-slate-800 break-all">{formatFieldValue(k, v)}</dd>
               </div>
             ))}
           </dl>
@@ -128,7 +138,7 @@ const ChangeDataView: React.FC<{ data: ChangeData; requestType: string }> = ({ d
               .map(([k, v]) => (
                 <div key={k} className="flex items-start gap-3 px-4 py-2 text-sm">
                   <dt className="w-48 shrink-0 text-slate-500">{FIELD_LABEL[k] || k}</dt>
-                  <dd className="font-medium text-slate-800 break-all">{String(v)}</dd>
+                  <dd className="font-medium text-slate-800 break-all">{formatFieldValue(k, v)}</dd>
                 </div>
               ))}
           </dl>

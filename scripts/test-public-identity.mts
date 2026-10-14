@@ -482,3 +482,18 @@ test('★受付を停止した公開メニューは、サーバでも受け付�
   // 変更用のトークンで退会申請を出せない
   assert.match(extractFunction(gas, 'submitPublicChangeRequest_'), /String\(stored\.purpose \|\| ''\) !== expectedPurpose/);
 });
+
+test('★承認画面: 入会申込の項目名・値をコードのまま出さない', () => {
+  const consoleSrc = fs.readFileSync(path.join(ROOT, 'src', 'components', 'ChangeRequestConsole.tsx'), 'utf8');
+  const typesSrc = fs.readFileSync(path.join(ROOT, 'src', 'components', 'application', 'types.ts'), 'utf8');
+  const form = typesSrc.slice(typesSrc.indexOf('export interface ApplicationFormData'));
+  const keys = [...form.slice(0, form.indexOf('\n}')).matchAll(/^\s+(\w+):\s*(?!ApplicationStaffEntry)/gm)].map((m) => m[1]).filter((k) => k !== 'staff');
+  assert.ok(keys.length > 15, '申込の項目を読み取れていない');
+  const labelBlock = consoleSrc.slice(consoleSrc.indexOf('const FIELD_LABEL'), consoleSrc.indexOf('};', consoleSrc.indexOf('const FIELD_LABEL')));
+  const missing = keys.filter((k) => !new RegExp('\\b' + k + ':').test(labelBlock));
+  assert.deepEqual(missing, [], '承認画面で英語のキー名のまま出る項目がある（2026-10-14 本番で memberType が出ていた）');
+  for (const k of ['memberType', 'mailingPreference', 'preferredMailDestination']) {
+    assert.match(consoleSrc, new RegExp(k + ':\\s*(MEMBER_TYPE_LABELS|\\{)'), k + ' の値がコードのまま出る');
+  }
+  assert.match(consoleSrc, /formatFieldValue\(k, v\)/);
+});
