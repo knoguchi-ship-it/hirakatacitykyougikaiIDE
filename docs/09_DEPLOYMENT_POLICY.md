@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-10-11
-Production: `v376.121` / integrated-public `@432` x2 / member split `@190` / admin split `@289`
+Updated: 2026-10-14
+Production: `v376.122` / integrated-public `@433` x2 / member split `@191` / admin split `@290`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -157,7 +157,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-11 v376.121 ← current production
+### 2026-10-14 v376.122 ← current production
+
+- Scope: 公開ポータルで職員の個人情報を一切見せない形へ（職員の変更・除籍は氏名＋介護支援専門員番号で照合 `checkPublicStaffMatch`・照合は 30 分 20 回まで。在籍職員一覧・空き枠の action を廃止）。承認時に書き込む前に止める: 介護支援専門員番号の重なり（自動移籍の処理は削除）・職員の上限・代表者の除籍。反映できなかった内容は承認画面に出し、申請者への承認メールを止める。登録情報変更と一緒の職員追加でも案内メール（`applyApprovedStaffAdds_`）。公開ポータルの受付停止・回数制限・研修の申込方法と取消条件をサーバでも判定。会員マイページの研修申込が必ず失敗していた ReferenceError、請求添付の削除範囲、他事業所の職員の上書き、配信希望の無視など `docs/306` の全項目。build の未使用除去がコメント中の関数名で `入力規則定義` を公開 split から消していたのを是正。全画面のラベルを入力欄に結び付けた。
+- Fixed deployments: integrated/public @433 x2 / member @191 / admin @290.
+- Verification: prerelease PASS（exit 0・新設 test:gas-integrity / test:label-association を含む）。本番: test:a11y 違反 0、test:responsive 7 VP。公開: 初回 4.2 秒、廃止した 2 action は unsupported_action、研修の受付停止（研修メニュー OFF）で applyTrainingExternal が「現在、この受付は停止しています。」、規程に updatedBy なし。管理: getAdminChangeRequests 20 件（未処理 0）、7 画面（変更申請・研修・一括メール・請求・支払い・設定・データ管理）でエラー 0・表示中の入力欄 54 個すべて名前あり。**デプロイ直後の初回、管理画面が 3 分半以上表示されなかった**（外側のページが空・アプリの iframe が届かない）。開き直すと 9.2 秒。test:responsive:admin は storageState 切れで未実行。**承認時の止め方（番号の重なり・上限・代表者の除籍）は未処理の申請が無く本番未確認**（テスト申請の作成は /dbops 承認待ち）。
+- Rollback: integrated/public @432 x2 / member @190 / admin @289（v376.121）。
+
+### 2026-10-11 v376.121
 
 - Scope: テストデータのルール化と物理削除（`docs/303`）。印は「名前の先頭に★」＋「メール @example.invalid」の両方（個人・賛助は姓、事業所は勤務先名、職員は姓/氏名、外部申込者は氏名、承認前の入会申込は申請者表示名）。`previewTestDataPurge_LOG` → `executeTestDataPurge_APPLY`（MASTER・30 分以内・同じ人・指紋一致）で、会員連動 13 表（本番＋`*_archive`）・外部申込者・ログイン履歴・メール送信明細・削除ログ／人物統合ログ（対象がすべてテスト）・請求添付（フォルダ内のみ）・旧 dryRun 記録を物理削除。監査ログ・メール送信ログ・実在事業所の変更申請は残す。申込中・実在代表者に印があれば止まる。全 28 表の扱いを `TEST_DATA_PURGE_TABLE_POLICY` で分類（未分類はテストが落とす）。行削除を `takeRowsByMatch_` に共通化し空行も削除（アーカイブ移動・ログイン履歴削除も共有）。監査ログの書き込みを `appendAuditLogEntries_` に集約。旧後片付け 7 本・補助 4 本・スクリプト 3 本を削除（`docs/300` §6 の取りこぼしを解消）。create-test-member.mjs と dryRun は印付きで作る。
 - Fixed deployments: integrated/public @432 x2 / member @190 / admin @289.
