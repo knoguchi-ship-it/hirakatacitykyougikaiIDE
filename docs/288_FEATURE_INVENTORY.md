@@ -39,8 +39,8 @@
 |---|:--:|:--:|:--:|---|
 | `submitMemberApplication` | ● |  |  | `submitMemberApplication_` |
 | `getAdminChangeRequests` |  |  | ● | `getAdminChangeRequests_` |
-| `approveAdminChangeRequest` |  |  | ● | `approveAdminChangeRequest_` |
-| `rejectAdminChangeRequest` |  |  | ● | `rejectAdminChangeRequest_` |
+| `approveAdminChangeRequest` |  |  | ● | `withChangeRequestDecisionLock_`<br>`approveAdminChangeRequest_` |
+| `rejectAdminChangeRequest` |  |  | ● | `withChangeRequestDecisionLock_`<br>`rejectAdminChangeRequest_` |
 
 ### 会員情報の照会・更新
 

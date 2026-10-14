@@ -122,6 +122,7 @@
 | 文書 | 内容 |
 |---|---|
 | [306_TEST_VIEWPOINT_UNLINKED_AND_SILENT_2026-10-13.md](306_TEST_VIEWPOINT_UNLINKED_AND_SILENT_2026-10-13.md) | **観点表「表示されているのに結び付いていない／黙って失敗する」と全体調査・修正計画。緊急 7 件（研修申込の例外・Drive ファイル削除・他事業所の職員書き換え 等）** |
+| [307_REMAINING_FINDINGS_INVENTORY_2026-10-14.md](307_REMAINING_FINDINGS_INVENTORY_2026-10-14.md) | **調査で見つけたものの残り 50 件＋新規 9 件の全件一覧と仕分け（黙って失敗する・画面の誤解・境界）。承認の排他なし・退会後もログインが残る 等** |
 | [305_TEST_PUBLIC_STAFF_PRIVACY_2026-10-13.md](305_TEST_PUBLIC_STAFF_PRIVACY_2026-10-13.md) | **公開ポータル 職員の照合方式のテスト観点表と結果（Playwright MCP・31 項目すべて合格。テスト中に見つけた不具合 8 件を修正。本番確認はリリース後）** |
 | [304_THIRD_PARTY_EVALUATION_2026-10-12.md](304_THIRD_PARTY_EVALUATION_2026-10-12.md) | **第三者評価（v376.121・会員管理／メール送信／認証認可）。High 3・Medium 6・Low 8。公開本人確認が公開情報で通る・会員状態の監査ログ欠落 等** |
 | [303_TEST_DATA_RULE_AND_PURGE_2026-10-11.md](303_TEST_DATA_RULE_AND_PURGE_2026-10-11.md) | **テストデータのルール（★＋@example.invalid）と物理削除の設計。全 28 表の扱い・止まる条件・置き換えた旧ツール** |

@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: a12a8bd20cccab7f60c21c9e20c76d98a224dabad836ea1065c386880c7e6183
+// BUILD_INPUT_SHA256: 9658722abcc8e8b6175e9e82877e10ea5ae5d0f545a0374d89349224f4e08b84
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -2281,7 +2281,6 @@ function submitMemberApplication_(payload) {
 // v376.73: 入会承認の本体。呼び出し側（approveAdminChangeRequest_）は 1 度に 1 件しか
 // 処理しないが、事務局が複数人で同時に承認すると会員ID・ログインIDの採番が競合するため
 // ScriptLock で直列化する（管理画面の資格情報発行 adminIssueMemberCredential_ と同じ扱い）。
-
 
 
 // 2026-10-13 operator 判断: 申込・追加された介護支援専門員番号が、既存の会員・職員と重なるときは
@@ -5365,7 +5364,8 @@ function verifyPublicIdentityToken_(token) {
     // v372.6 fix: HMAC sign 時と verify 時で charset を統一（UTF-8）
     var expectedSigBytes = Utilities.computeHmacSha256Signature(encoded, secret, Utilities.Charset.UTF_8);
     var expectedSig = Utilities.base64EncodeWebSafe(expectedSigBytes);
-    if (sig !== expectedSig) return null;
+    // 2026-10-14（docs/307 E1）: 署名は時間一定で比べる（!== は最初に違った文字で止まり、かかる時間から署名を推測されうる）
+    if (!secureCompareString_(sig, expectedSig)) return null;
     var decoded = Utilities.newBlob(Utilities.base64DecodeWebSafe(encoded)).getDataAsString();
     var obj = JSON.parse(decoded);
     if (!obj.exp || obj.exp < Date.now()) return null;
@@ -5749,6 +5749,12 @@ function submitPublicChangeRequest_(payload) {
 // ── 管理者: 変更申請一覧取得 ──────────────────────────────────────────────────
 
 // ── 管理者: 変更申請を承認し変更を適用 ─────────────────────────────────────────
+// 変更申請の承認・却下は 1 件ずつ順に処理する（2026-10-14・docs/307 SX）。
+// 以前は排他が無く、二人の管理者が同じ申請をほぼ同時に承認すると、どちらも「未処理」を読んで
+// 二重に反映しえた（職員の二重追加・認証アカウントの二重発行）。状態の確認から書き込みまでをロックの中で行う。
+// 入会申込の作成（createMemberApplicationDirectLocked_）は承認からしか呼ばれないので、ロックはここで一度だけ取る
+// （同じスクリプトロックを内側でもう一度取って解放すると、外側のロックまで外れる）。
+
 
 // ── 管理者: 変更申請を却下 ──────────────────────────────────────────────────
 
@@ -6859,6 +6865,18 @@ var PASSWORD_HASH_PEPPER_CACHE_TTL_SECONDS = 300; // 5 min
 var PBKDF2_ITERATIONS = 10000;
 
 
+function secureCompareString_(a, b) {
+  a = String(a || '');
+  b = String(b || '');
+  var maxLen = Math.max(a.length, b.length);
+  var diff = a.length ^ b.length;
+  for (var i = 0; i < maxLen; i += 1) {
+    var ca = i < a.length ? a.charCodeAt(i) : 0;
+    var cb = i < b.length ? b.charCodeAt(i) : 0;
+    diff |= ca ^ cb;
+  }
+  return diff === 0;
+}
 
 /**
  * v373.5: パスワード pepper を Secret Manager 優先で取得する。

@@ -2492,14 +2492,14 @@ function processApiRequest(action, payload) {
     if (action === 'approveAdminChangeRequest') {
       // v367: inner が {success:false, error:...} を返した場合は outer に伝播し
       // client 側で正しく失敗として扱えるようにする（旧: 常に success:true で包んでいた）
-      var approveResult = approveAdminChangeRequest_(parsedPayload);
+      var approveResult = withChangeRequestDecisionLock_(function() { return approveAdminChangeRequest_(parsedPayload); });
       if (approveResult && approveResult.success === false) {
         return JSON.stringify({ success: false, error: approveResult.error || 'approve failed' });
       }
       return JSON.stringify({ success: true, data: approveResult });
     }
     if (action === 'rejectAdminChangeRequest') {
-      var rejectResult = rejectAdminChangeRequest_(parsedPayload);
+      var rejectResult = withChangeRequestDecisionLock_(function() { return rejectAdminChangeRequest_(parsedPayload); });
       if (rejectResult && rejectResult.success === false) {
         return JSON.stringify({ success: false, error: rejectResult.error || 'reject failed' });
       }
@@ -9347,16 +9347,6 @@ function submitMemberApplication_(payload) {
 // v376.73: 入会承認の本体。呼び出し側（approveAdminChangeRequest_）は 1 度に 1 件しか
 // 処理しないが、事務局が複数人で同時に承認すると会員ID・ログインIDの採番が競合するため
 // ScriptLock で直列化する（管理画面の資格情報発行 adminIssueMemberCredential_ と同じ扱い）。
-function createMemberApplicationDirect_(payload) {
-  var lock = LockService.getScriptLock();
-  lock.waitLock(15000);
-  try {
-    return createMemberApplicationDirectLocked_(payload);
-  } finally {
-    lock.releaseLock();
-  }
-}
-
 function createMemberApplicationDirectLocked_(payload) {
   if (!payload) throw new Error('ペイロードが空です。');
   var memberTypeCode = String(payload.memberType || '');
@@ -13914,7 +13904,8 @@ function promoteScheduledWithdrawals_(ss, now) {
   var headers = memberSheet.getRange(1, 1, 1, memberSheet.getLastColumn()).getValues()[0];
   var cols = {};
   for (var i = 0; i < headers.length; i += 1) cols[headers[i]] = i;
-  if (cols['会員状態コード'] == null || cols['退会日'] == null) return;
+  // 会員ID が無いと、退会にした会員のログインを特定できない（何も書かずに戻る）
+  if (cols['会員状態コード'] == null || cols['退会日'] == null || cols['会員ID'] == null) return;
 
   var todayStr = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy-MM-dd');
   var rows = memberSheet.getRange(2, 1, memberSheet.getLastRow() - 1, memberSheet.getLastColumn()).getValues();
@@ -13936,20 +13927,30 @@ function promoteScheduledWithdrawals_(ss, now) {
     withdrawnMemberIds.push(String(row[cols['会員ID']] || ''));
   }
 
+  if (memberUpdates.length === 0) return;
+
+  // 2026-10-14（docs/307 S37）: 以前は会員を「退会」に書き換えた後で認証の表を探し、表や列が無ければ
+  // 黙って戻っていた。退会が確定したのにログインできる状態が残り、ジョブは成功扱いになる。
+  // 認証の表と列を先に確かめ、無ければ何も書かずに止める（runScheduledJob_ が Chat に知らせ、翌日もやり直す）。
+  var authSheet = ss.getSheetByName('T_認証アカウント');
+  if (!authSheet) {
+    throw new Error('T_認証アカウント が見つからないため、退会の確定を止めました（' + memberUpdates.length + ' 名）。ログインを止められないためです。');
+  }
+  var authCols = {};
+  if (authSheet.getLastColumn() > 0) {
+    var authHeaders = authSheet.getRange(1, 1, 1, authSheet.getLastColumn()).getValues()[0];
+    for (var j = 0; j < authHeaders.length; j += 1) authCols[authHeaders[j]] = j;
+  }
+  if (authCols['会員ID'] == null || authCols['アカウント有効フラグ'] == null) {
+    throw new Error('T_認証アカウント に 会員ID・アカウント有効フラグ の列が無いため、退会の確定を止めました（' + memberUpdates.length + ' 名）。ログインを止められないためです。');
+  }
+
   for (var u = 0; u < memberUpdates.length; u += 1) {
     memberSheet.getRange(memberUpdates[u].rowNumber, 1, 1, memberUpdates[u].row.length).setValues([memberUpdates[u].row]);
   }
 
-  // 対象会員の認証アカウントを無効化
-  if (withdrawnMemberIds.length === 0) return;
-  var authSheet = ss.getSheetByName('T_認証アカウント');
-  if (!authSheet || authSheet.getLastRow() < 2) return;
-
-  var authHeaders = authSheet.getRange(1, 1, 1, authSheet.getLastColumn()).getValues()[0];
-  var authCols = {};
-  for (var j = 0; j < authHeaders.length; j += 1) authCols[authHeaders[j]] = j;
-  if (authCols['会員ID'] == null || authCols['アカウント有効フラグ'] == null) return;
-
+  // 対象会員の認証アカウントを無効化（認証の行がまだ 1 件も無いときは、止めるログインも無い）
+  if (authSheet.getLastRow() < 2) return;
   var authRows = authSheet.getRange(2, 1, authSheet.getLastRow() - 1, authSheet.getLastColumn()).getValues();
   for (var a = 0; a < authRows.length; a += 1) {
     var authRow = authRows[a];
@@ -17867,7 +17868,8 @@ function verifyPublicIdentityToken_(token) {
     // v372.6 fix: HMAC sign 時と verify 時で charset を統一（UTF-8）
     var expectedSigBytes = Utilities.computeHmacSha256Signature(encoded, secret, Utilities.Charset.UTF_8);
     var expectedSig = Utilities.base64EncodeWebSafe(expectedSigBytes);
-    if (sig !== expectedSig) return null;
+    // 2026-10-14（docs/307 E1）: 署名は時間一定で比べる（!== は最初に違った文字で止まり、かかる時間から署名を推測されうる）
+    if (!secureCompareString_(sig, expectedSig)) return null;
     var decoded = Utilities.newBlob(Utilities.base64DecodeWebSafe(encoded)).getDataAsString();
     var obj = JSON.parse(decoded);
     if (!obj.exp || obj.exp < Date.now()) return null;
@@ -18289,6 +18291,23 @@ function getAdminChangeRequests_(payload) {
 }
 
 // ── 管理者: 変更申請を承認し変更を適用 ─────────────────────────────────────────
+// 変更申請の承認・却下は 1 件ずつ順に処理する（2026-10-14・docs/307 SX）。
+// 以前は排他が無く、二人の管理者が同じ申請をほぼ同時に承認すると、どちらも「未処理」を読んで
+// 二重に反映しえた（職員の二重追加・認証アカウントの二重発行）。状態の確認から書き込みまでをロックの中で行う。
+// 入会申込の作成（createMemberApplicationDirectLocked_）は承認からしか呼ばれないので、ロックはここで一度だけ取る
+// （同じスクリプトロックを内側でもう一度取って解放すると、外側のロックまで外れる）。
+function withChangeRequestDecisionLock_(fn) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) {
+    return { success: false, error: 'ほかの承認・却下を処理しています。少し待ってから、もう一度お試しください。' };
+  }
+  try {
+    return fn();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function approveAdminChangeRequest_(payload) {
   var requestId = String(payload.requestId || '').trim();
   if (!requestId) return { success: false, error: '申請IDが必要です' };
@@ -18361,7 +18380,8 @@ function approveAdminChangeRequest_(payload) {
 
   // ── 変更内容の適用 ────────────────────────────────────────────────────────
   if (requestType === 'MEMBER_APPLICATION') {
-    approvalResult = createMemberApplicationDirect_(changeData.applicationPayload || {});
+    // 承認のロック（withChangeRequestDecisionLock_）の中で呼ばれる
+    approvalResult = createMemberApplicationDirectLocked_(changeData.applicationPayload || {});
   } else if (requestType === 'MEMBER_UPDATE') {
     var updatePayload = { id: memberId };
     var allowlist = publicUpdateAllowlistFor_(memberType);
@@ -30094,10 +30114,12 @@ function dryRun_runScenario_(state, scenarioName, fn) {
 function dryRun_submitAndApprove_(payload, adminSession) {
   var enqueue = submitMemberApplication_(payload);
   if (!enqueue || !enqueue.requestId) throw new Error('enqueue 失敗: ' + JSON.stringify(enqueue));
-  var approveResult = approveAdminChangeRequest_({
-    requestId: enqueue.requestId,
-    note: 'DRYRUN approval',
-    __adminSession: adminSession,
+  var approveResult = withChangeRequestDecisionLock_(function() {
+    return approveAdminChangeRequest_({
+      requestId: enqueue.requestId,
+      note: 'DRYRUN approval',
+      __adminSession: adminSession,
+    });
   });
   if (!approveResult || approveResult.success !== true) {
     throw new Error('approve 失敗: ' + JSON.stringify(approveResult));

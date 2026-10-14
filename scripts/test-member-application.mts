@@ -81,10 +81,13 @@ test('承認経路が採番関数を通している（会員ID直書きに戻し
 });
 
 // ── 排他制御と部分書き込み（重大2）──────────────────────────────
-test('承認は ScriptLock で直列化する', () => {
-  const wrapper = codeOnly(extractFunction('createMemberApplicationDirect_'));
+test('承認は ScriptLock で直列化する（ロックは承認の入口で 1 回だけ取る・2026-10-14）', () => {
+  const wrapper = codeOnly(extractFunction('withChangeRequestDecisionLock_'));
   assert.ok(/LockService\.getScriptLock\(\)/.test(wrapper), 'ロックを取得していない');
   assert.ok(/releaseLock\(\)/.test(wrapper), 'ロックを解放していない');
+  // 内側で同じスクリプトロックを取り直すと、その解放で外側のロックまで外れる
+  assert.ok(!/LockService/.test(codeOnly(extractFunction('createMemberApplicationDirectLocked_'))), '入会申込の作成の中でロックを取っている');
+  assert.match(codeOnly(extractFunction('approveAdminChangeRequest_')), /createMemberApplicationDirectLocked_\(/);
 });
 
 test('事業所は全職員を検証してから書き込む（部分書き込みを避ける）', () => {

@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: b36f2415560509a5ad4ac733d87082886395bea69513924c620b804f97fbcc19
+// BUILD_INPUT_SHA256: 4c0bff62af478221ec9ab943b3308b0e4707a1669da1573503ef3f2bffac19fa
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -3645,7 +3645,6 @@ function getAnyPasswordLoginIdByMemberId_(ss, memberId) {
 // v376.73: 入会承認の本体。呼び出し側（approveAdminChangeRequest_）は 1 度に 1 件しか
 // 処理しないが、事務局が複数人で同時に承認すると会員ID・ログインIDの採番が競合するため
 // ScriptLock で直列化する（管理画面の資格情報発行 adminIssueMemberCredential_ と同じ扱い）。
-
 
 
 // 2026-10-13 operator 判断: 申込・追加された介護支援専門員番号が、既存の会員・職員と重なるときは
@@ -7374,6 +7373,12 @@ function isAllowedRelaxedCmNumber_(adminSession) {
 // ── 管理者: 変更申請一覧取得 ──────────────────────────────────────────────────
 
 // ── 管理者: 変更申請を承認し変更を適用 ─────────────────────────────────────────
+// 変更申請の承認・却下は 1 件ずつ順に処理する（2026-10-14・docs/307 SX）。
+// 以前は排他が無く、二人の管理者が同じ申請をほぼ同時に承認すると、どちらも「未処理」を読んで
+// 二重に反映しえた（職員の二重追加・認証アカウントの二重発行）。状態の確認から書き込みまでをロックの中で行う。
+// 入会申込の作成（createMemberApplicationDirectLocked_）は承認からしか呼ばれないので、ロックはここで一度だけ取る
+// （同じスクリプトロックを内側でもう一度取って解放すると、外側のロックまで外れる）。
+
 
 // ── 管理者: 変更申請を却下 ──────────────────────────────────────────────────
 
