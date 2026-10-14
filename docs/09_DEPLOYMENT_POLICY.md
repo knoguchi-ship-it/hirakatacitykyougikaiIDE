@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-10-14
-Production: `v376.122` / integrated-public `@433` x2 / member split `@191` / admin split `@290`
+Production: `v376.123` / integrated-public `@434` x2 / member split `@192` / admin split `@291`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -157,11 +157,18 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-14 v376.122 ← current production
+### 2026-10-14 v376.123 ← current production
+
+- Scope: v376.122 の本番確認で見つけた 2 件。① 個人の入会申込で介護支援専門員番号が既存の職員と重なると、相手（氏名・会員ID）を示さない古い検査が先に止めていた → 相手を示す検査を個人・事業所の分岐より前へ。② 承認画面の入会申込内容で `memberType` という英語のキー名と `BUSINESS` `EMAIL` `HOME` のコード値がそのまま出ていた → 日本語の項目名・値に。
+- Fixed deployments: integrated/public @434 x2 / member @192 / admin @291.
+- Verification: prerelease PASS。新しい検査 2 本（test:member-application・test:public-identity）は修正前のコードで落ちることを確認。本番: デプロイ直後の管理画面 11.2 秒（止まらず）。★テスト事業所を作り、同じ番号の★個人申込を承認 → 「事業所『★テスト事業所』の職員『★テスト 代表』（会員ID: …）」で停止し、画面のボタン上に role=alert で表示。入会申込内容は 会員種別「個人会員」・通知方法「メール配信」・郵送先区分「自宅」。テストデータは物理削除（会員 241・職員 190・変更申請 20 に戻り、印付き 0）、設定 123 項目は元と差分 0、実送信 0。
+- Rollback: integrated/public @433 x2 / member @191 / admin @290（v376.122）。
+
+### 2026-10-14 v376.122
 
 - Scope: 公開ポータルで職員の個人情報を一切見せない形へ（職員の変更・除籍は氏名＋介護支援専門員番号で照合 `checkPublicStaffMatch`・照合は 30 分 20 回まで。在籍職員一覧・空き枠の action を廃止）。承認時に書き込む前に止める: 介護支援専門員番号の重なり（自動移籍の処理は削除）・職員の上限・代表者の除籍。反映できなかった内容は承認画面に出し、申請者への承認メールを止める。登録情報変更と一緒の職員追加でも案内メール（`applyApprovedStaffAdds_`）。公開ポータルの受付停止・回数制限・研修の申込方法と取消条件をサーバでも判定。会員マイページの研修申込が必ず失敗していた ReferenceError、請求添付の削除範囲、他事業所の職員の上書き、配信希望の無視など `docs/306` の全項目。build の未使用除去がコメント中の関数名で `入力規則定義` を公開 split から消していたのを是正。全画面のラベルを入力欄に結び付けた。
 - Fixed deployments: integrated/public @433 x2 / member @191 / admin @290.
-- Verification: prerelease PASS（exit 0・新設 test:gas-integrity / test:label-association を含む）。本番: test:a11y 違反 0、test:responsive 7 VP。公開: 初回 4.2 秒、廃止した 2 action は unsupported_action、研修の受付停止（研修メニュー OFF）で applyTrainingExternal が「現在、この受付は停止しています。」、規程に updatedBy なし。管理: getAdminChangeRequests 20 件（未処理 0）、7 画面（変更申請・研修・一括メール・請求・支払い・設定・データ管理）でエラー 0・表示中の入力欄 54 個すべて名前あり。**デプロイ直後の初回、管理画面が 3 分半以上表示されなかった**（外側のページが空・アプリの iframe が届かない）。開き直すと 9.2 秒。test:responsive:admin は storageState 切れで未実行。**承認時の止め方（番号の重なり・上限・代表者の除籍）は未処理の申請が無く本番未確認**（テスト申請の作成は /dbops 承認待ち）。
+- Verification: prerelease PASS（exit 0・新設 test:gas-integrity / test:label-association を含む）。本番: test:a11y 違反 0、test:responsive 7 VP。公開: 初回 4.2 秒、廃止した 2 action は unsupported_action、研修の受付停止（研修メニュー OFF）で applyTrainingExternal が「現在、この受付は停止しています。」、規程に updatedBy なし。管理: getAdminChangeRequests 20 件（未処理 0）、7 画面（変更申請・研修・一括メール・請求・支払い・設定・データ管理）でエラー 0・表示中の入力欄 54 個すべて名前あり。**デプロイ直後の初回、管理画面が 3 分半以上表示されなかった**（外側のページが空・アプリの iframe が届かない）。開き直すと 9.2 秒。test:responsive:admin は storageState 切れで未実行。承認時の止め方は同日に★テストデータで本番確認した（v376.123 の項・`docs/306` §5.6）。
 - Rollback: integrated/public @432 x2 / member @190 / admin @289（v376.121）。
 
 ### 2026-10-11 v376.121
