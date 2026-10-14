@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-10-14
-Production: `v376.123` / integrated-public `@434` x2 / member split `@192` / admin split `@291`
+Production: `v376.124` / integrated-public `@435` x2 / member split `@193` / admin split `@292`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -157,7 +157,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-14 v376.123 ← current production
+### 2026-10-14 v376.124 ← current production
+
+- Scope: `docs/307` §4-1。SX 変更申請の承認・却下を 1 本のスクリプトロックで直列化（状態の確認から書き込みまで。入会申込の作成の中にあったロックは外へ移した）。S37 退会の確定で、認証の表・列が無いときは会員を書き換える前に止める（定期ジョブが Chat に通知）。E1 公開トークンの署名を `secureCompareString_` で時間一定に比較。
+- Fixed deployments: integrated/public @435 x2 / member @193 / admin @292.
+- Verification: prerelease PASS。新設 test:decision-integrity 8 件（★6 件は修正前のコードで FAIL を確認）。本番（書き込みなし）: 存在しない申請IDの承認・却下がロックを通って「申請が見つかりません」、偽造トークンは token_expired、デプロイ直後の管理画面 12.2 秒。**正しいトークンでの申請・ロック下の入会申込の承認は本番未確認**（★テストデータが要る・承認待ち）。
+- Rollback: integrated/public @434 x2 / member @192 / admin @291（v376.123）。
+
+### 2026-10-14 v376.123
 
 - Scope: v376.122 の本番確認で見つけた 2 件。① 個人の入会申込で介護支援専門員番号が既存の職員と重なると、相手（氏名・会員ID）を示さない古い検査が先に止めていた → 相手を示す検査を個人・事業所の分岐より前へ。② 承認画面の入会申込内容で `memberType` という英語のキー名と `BUSINESS` `EMAIL` `HOME` のコード値がそのまま出ていた → 日本語の項目名・値に。
 - Fixed deployments: integrated/public @434 x2 / member @192 / admin @291.
