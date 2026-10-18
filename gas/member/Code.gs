@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 4c0bff62af478221ec9ab943b3308b0e4707a1669da1573503ef3f2bffac19fa
+// BUILD_INPUT_SHA256: c8545215fcadfb33e1e05f2b54988a2f984e90401718a1fb92cc590f0eda9980
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -25,7 +25,7 @@ var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var LOCK_WAIT_TIMEOUT_MS = 10000; // AGENTS §3: LockService 待機の共通タイムアウト
 var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
-var DB_SCHEMA_VERSION = '2026-09-04-login-lockout-v376.71';
+var DB_SCHEMA_VERSION = '2026-10-18-training-membership-v376.125';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
 // AGENTS §3: Script Properties の MEMBER_PORTAL_URL_OVERRIDE で上書き可能（deployment 変更時にコード改変不要）
@@ -710,6 +710,11 @@ var テーブル定義 = {
     '出欠記録日時',
     '出欠記録者メール',
     '事務局メモ',
+    // 2026-10-18 BR-21: 公開ポータル申込の会員照合（末尾追加）
+    '会員照合結果コード',
+    '照合会員ID',
+    '照合職員ID',
+    '申告介護支援専門員番号',
   ],
   T_外部申込者: [
     '外部申込者ID',
@@ -1903,6 +1908,7 @@ function parseTrainingOptions_(raw) {
     inquiryContactValue: '',
     inquiryPhone: '',
     inquiryEmail: '',
+    askMemberNumber: null,
   };
   var text = String(raw || '').trim();
   if (!text) return defaultResult;
@@ -1926,6 +1932,8 @@ function parseTrainingOptions_(raw) {
         inquiryContactValue: contactValue,
         inquiryPhone: phone,
         inquiryEmail: email,
+        // BR-21: 真偽で入っているときだけ持つ。null は「未設定（費用から決める）」
+        askMemberNumber: typeof parsed.askMemberNumber === 'boolean' ? parsed.askMemberNumber : null,
       };
     }
     // 旧形式（fieldConfigオブジェクトのみ）
@@ -1937,6 +1945,7 @@ function parseTrainingOptions_(raw) {
       inquiryContactValue: '',
       inquiryPhone: '',
       inquiryEmail: '',
+      askMemberNumber: null,
     };
   } catch (e) {
     return defaultResult;
@@ -2373,6 +2382,8 @@ function mapTrainingRowsForApi_(trainingRows) {
       inquiryContactValue: trainingOptions.inquiryContactValue,
       inquiryPhone: trainingOptions.inquiryPhone,
       inquiryEmail: trainingOptions.inquiryEmail,
+      // BR-21: 判定済みの値を渡す（画面は費用から自分で決めない）
+      askMemberNumber: resolveTrainingAsksMemberNumber_(t),
     };
   });
 }
@@ -7222,6 +7233,33 @@ function makePdfSvgPlaceholder_(name) {
 
 // 研修の申込方法: 'none'（申込URL トグル無効＝閲覧のみ）/ 'external'（URL あり）/ 'internal'（URL 空）。
 // 画面の resolveApplyCta（src/shared/trainingOptions.ts）と同じ規則。項目設定JSON が読めなければ既定（有効）。
+
+// 2026-10-18 BR-21: 公開ポータルの研修申込で介護支援専門員番号を尋ねるか。
+// 項目設定JSON の askMemberNumber が真偽で入っていればそれに従う。入っていない（この設定より前の研修）ときは
+// 費用から決める: 金額が 2 通り以上ある＝会員と非会員で違う研修だけ尋ねる。
+// 画面はこの関数の結果（API の askMemberNumber）を受け取るだけで、自分では判定しない。
+function resolveTrainingAsksMemberNumber_(trainingRow) {
+  try {
+    var opts = JSON.parse(String((trainingRow && trainingRow['項目設定JSON']) || '') || '{}');
+    if (opts && typeof opts.askMemberNumber === 'boolean') return opts.askMemberNumber;
+    // 研修費用を「無効」にした研修は参加費無料として案内している（会員と非会員の違いが無い）
+    if (opts && opts.fieldConfig && opts.fieldConfig.fees === false) return false;
+  } catch (e) { /* 壊れた JSON は費用から決める */ }
+  var fees = [];
+  try { fees = JSON.parse(String((trainingRow && trainingRow['費用JSON']) || '') || '[]'); } catch (e2) { fees = []; }
+  if (!Array.isArray(fees)) return false;
+  var amounts = {};
+  fees.forEach(function(f) { if (f && f.amount !== undefined && f.amount !== '') amounts[String(Number(f.amount))] = true; });
+  return Object.keys(amounts).length >= 2;
+}
+
+// 2026-10-18 BR-21: 公開ポータルの研修申込者が会員かどうかを、氏名と介護支援専門員番号で照合する。
+// 対象は在籍中の個人会員と、在籍中の事業所会員の在籍職員。賛助会員は含めない（研修申込の可否が U-16 で未確定）。
+// 戻り値の code:
+//   MEMBER    … 番号と氏名がそろって 1 人に一致した（memberId / staffId を返す）
+//   UNMATCHED … 番号は入力されたが一致しない・2 人以上に一致した（非会員として扱う）
+//   NONE      … 番号が空白（非会員として扱う）
+// 結果はサーバ内部と管理画面でだけ使う。公開ポータルへは返さない（会員かどうかを外から探れないようにする）。
 
 
 
