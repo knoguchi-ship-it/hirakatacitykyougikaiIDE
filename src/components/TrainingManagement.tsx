@@ -303,6 +303,14 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
     setForm((prev) => ({ ...prev, fees: (prev.fees ?? []).filter((_, i) => i !== idx) }));
   };
 
+  // 2026-10-18 BR-21: 会員番号を尋ねるか。触っていない間は費用から提案する（会員と非会員で金額が違えば尋ねる）。
+  // 一度でも切り替えたら、その値を保存する。
+  const suggestedAskMemberNumber = isFieldOn('fees')
+    && new Set((form.fees ?? []).map((f) => Number(f.amount))).size >= 2;
+  const effectiveAskMemberNumber = typeof form.askMemberNumber === 'boolean'
+    ? form.askMemberNumber
+    : suggestedAskMemberNumber;
+
   const readFileAsBase64 = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -462,6 +470,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
         inquiryEmail,
         inquiryContactValue: primaryContact,
         inquiryContactType: primaryType,
+        askMemberNumber: effectiveAskMemberNumber,
       });
       if (wasNew) {
         // v376.16: 新規作成（inline 右ペイン）成功後は空の新規フォームへ戻し、次の登録に備える。
@@ -786,6 +795,27 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
           className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
         />
         <label htmlFor="cancelAllowed" className="text-sm text-slate-700">この研修は申込キャンセルを許可する</label>
+      </div>
+
+      <div>
+        <div className="flex items-center gap-3">
+          <input
+            type="checkbox"
+            id={`${uid}-askMemberNumber`}
+            checked={effectiveAskMemberNumber}
+            onChange={(e) => setForm((prev) => ({ ...prev, askMemberNumber: e.target.checked }))}
+            aria-describedby={`${uid}-askMemberNumber-help`}
+            className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+          />
+          <label htmlFor={`${uid}-askMemberNumber`} className="text-sm text-slate-700">
+            申込フォームで介護支援専門員番号を尋ねる（会員かどうかを確かめる）
+          </label>
+        </div>
+        <p id={`${uid}-askMemberNumber-help`} className="text-xs text-slate-500 mt-1 ml-7">
+          {typeof form.askMemberNumber === 'boolean'
+            ? '番号と氏名が会員と一致した申込は、名簿で「会員」と表示されます。空欄・不一致は非会員です。'
+            : `費用から自動で${suggestedAskMemberNumber ? '「尋ねる」' : '「尋ねない」'}にしています（会員と非会員で金額が違うときに尋ねます）。`}
+        </p>
       </div>
 
       <div className="border border-slate-200 rounded-lg p-4 bg-slate-50 space-y-3">

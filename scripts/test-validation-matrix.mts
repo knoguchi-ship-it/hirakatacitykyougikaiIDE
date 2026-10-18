@@ -458,3 +458,102 @@ test('BR-02 代表者は除籍できない', () => {
   // BR-12: 当年度は履歴を残す＝削除フラグは立てない
   assert.ok(!/削除フラグ'\]\] = true/.test(fn), '除籍で削除フラグを立てている（BR-12 違反）');
 });
+
+// ── BR-21 公開ポータルの研修申込: 会員かどうかの照合 ─────────────────────────
+// 照合関数と「番号を尋ねるか」の判定を gas-src から取り出して実際に動かす。
+const membershipFns = new Function(`
+  ${fnSource('toBoolean_')}
+  ${fnSource('isInactiveMemberStatusForIdentity_')}
+  ${fnSource('normalizeCmNumberForKey_')}
+  ${fnSource('normalizeRosterCellText_')}
+  ${fnSource('normalizeRosterKeyText_')}
+  ${fnSource('normalizeNameKey_')}
+  ${fnSource('matchTrainingApplicantMembership_')}
+  ${fnSource('resolveTrainingAsksMemberNumber_')}
+  return { match: matchTrainingApplicantMembership_, asks: resolveTrainingAsksMemberNumber_ };
+`)() as {
+  match: (m: Member[], s: Member[], name: string, cm: string) => { code: string; memberId: string; staffId: string };
+  asks: (t: Member) => boolean;
+};
+
+const MEMBERS: Member[] = [
+  { 会員ID: 'M1', 会員種別コード: 'INDIVIDUAL', 会員状態コード: 'ACTIVE', 姓: '野口', 名: '太郎', 介護支援専門員番号: '12345678', 削除フラグ: false },
+  { 会員ID: 'M2', 会員種別コード: 'INDIVIDUAL', 会員状態コード: 'WITHDRAWN', 姓: '退会', 名: '花子', 介護支援専門員番号: '22222222', 削除フラグ: false },
+  { 会員ID: 'M3', 会員種別コード: 'SUPPORT', 会員状態コード: 'ACTIVE', 姓: '賛助', 名: '一郎', 介護支援専門員番号: '33333333', 削除フラグ: false },
+  { 会員ID: 'M4', 会員種別コード: 'BUSINESS', 会員状態コード: 'ACTIVE', 勤務先名: 'ひらかた事業所', 介護支援専門員番号: '', 削除フラグ: false },
+  { 会員ID: 'M5', 会員種別コード: 'INDIVIDUAL', 会員状態コード: 'ACTIVE', 姓: '番号', 名: 'なし', 介護支援専門員番号: '', 削除フラグ: false },
+  { 会員ID: 'M6', 会員種別コード: 'INDIVIDUAL', 会員状態コード: 'ACTIVE', 姓: '英字', 名: '番号', 介護支援専門員番号: 'HN12345678', 削除フラグ: false },
+  { 会員ID: 'M7', 会員種別コード: 'BUSINESS', 会員状態コード: 'WITHDRAWN', 勤務先名: '退会事業所', 介護支援専門員番号: '', 削除フラグ: false },
+];
+const STAFF: Member[] = [
+  { 職員ID: 'S1', 会員ID: 'M4', 職員状態コード: 'ENROLLED', 姓: '職員', 名: '次郎', 介護支援専門員番号: '44444444', 削除フラグ: false },
+  { 職員ID: 'S2', 会員ID: 'M4', 職員状態コード: 'LEFT', 姓: '退職', 名: '三郎', 介護支援専門員番号: '55555555', 削除フラグ: false },
+  { 職員ID: 'S3', 会員ID: 'M7', 職員状態コード: 'ENROLLED', 姓: '退会先', 名: '四郎', 介護支援専門員番号: '66666666', 削除フラグ: false },
+];
+
+const MEMBERSHIP_ROWS: { what: string; name: string; cm: string; code: string; memberId?: string; staffId?: string }[] = [
+  { what: '番号が空白なら非会員', name: '野口 太郎', cm: '', code: 'NONE' },
+  { what: '空白だけの番号も空白扱い', name: '野口 太郎', cm: '   ', code: 'NONE' },
+  { what: '個人会員の番号と氏名が一致', name: '野口 太郎', cm: '12345678', code: 'MEMBER', memberId: 'M1', staffId: '' },
+  { what: '氏名の空白（全角・無し）は吸収する', name: '野口　太郎', cm: '12345678', code: 'MEMBER', memberId: 'M1' },
+  { what: '氏名の空白無しでも一致', name: '野口太郎', cm: '12345678', code: 'MEMBER', memberId: 'M1' },
+  { what: '番号は合うが氏名が違えば非会員', name: '山田 太郎', cm: '12345678', code: 'UNMATCHED' },
+  { what: '氏名が空なら照合しない', name: '', cm: '12345678', code: 'UNMATCHED' },
+  { what: '存在しない番号', name: '野口 太郎', cm: '99999999', code: 'UNMATCHED' },
+  { what: '退会済みの会員は会員にしない', name: '退会 花子', cm: '22222222', code: 'UNMATCHED' },
+  { what: '賛助会員は対象外（U-16）', name: '賛助 一郎', cm: '33333333', code: 'UNMATCHED' },
+  { what: '登録側が空の番号とは一致しない', name: '番号 なし', cm: '', code: 'NONE' },
+  { what: '英字付きの番号（大小文字を吸収）', name: '英字 番号', cm: 'hn12345678', code: 'MEMBER', memberId: 'M6' },
+  { what: '事業所の在籍職員は会員', name: '職員 次郎', cm: '44444444', code: 'MEMBER', memberId: 'M4', staffId: 'S1' },
+  { what: '退職した職員は会員にしない', name: '退職 三郎', cm: '55555555', code: 'UNMATCHED' },
+  { what: '退会した事業所の職員は会員にしない', name: '退会先 四郎', cm: '66666666', code: 'UNMATCHED' },
+];
+
+for (const r of MEMBERSHIP_ROWS) {
+  test(`BR-21 ${r.what}`, () => {
+    const got = membershipFns.match(MEMBERS, STAFF, r.name, r.cm);
+    assert.equal(got.code, r.code);
+    if (r.memberId !== undefined) assert.equal(got.memberId, r.memberId);
+    if (r.staffId !== undefined) assert.equal(got.staffId, r.staffId);
+    if (r.code !== 'MEMBER') assert.equal(got.memberId, '', '非会員なのに会員IDを返している');
+  });
+}
+
+test('BR-21 同じ番号と氏名が 2 人に一致したら会員にしない（特定できない）', () => {
+  const dup = [...MEMBERS, { ...MEMBERS[0], 会員ID: 'M1b' }];
+  assert.equal(membershipFns.match(dup, STAFF, '野口 太郎', '12345678').code, 'UNMATCHED');
+});
+
+test('BR-21 削除フラグの立った会員は会員にしない', () => {
+  const deleted = [{ ...MEMBERS[0], 削除フラグ: true }];
+  assert.equal(membershipFns.match(deleted, [], '野口 太郎', '12345678').code, 'UNMATCHED');
+});
+
+const fees = (a: number, b: number) => JSON.stringify([{ label: '会員', amount: a }, { label: '非会員', amount: b }]);
+const ASK_ROWS: { what: string; row: Member; expect: boolean }[] = [
+  { what: '明示の「尋ねる」に従う', row: { 項目設定JSON: JSON.stringify({ fieldConfig: null, askMemberNumber: true }), 費用JSON: fees(0, 0) }, expect: true },
+  { what: '明示の「尋ねない」に従う（金額が違っても）', row: { 項目設定JSON: JSON.stringify({ fieldConfig: null, askMemberNumber: false }), 費用JSON: fees(0, 2000) }, expect: false },
+  { what: '未設定で会員と非会員の金額が違えば尋ねる', row: { 項目設定JSON: '', 費用JSON: fees(0, 2000) }, expect: true },
+  { what: '未設定で金額が同じなら尋ねない', row: { 項目設定JSON: '', 費用JSON: fees(1000, 1000) }, expect: false },
+  { what: '未設定で費用が無ければ尋ねない', row: { 項目設定JSON: '', 費用JSON: '' }, expect: false },
+  { what: '研修費用を無効（参加費無料）にした研修は尋ねない',
+    row: { 項目設定JSON: JSON.stringify({ fieldConfig: { fees: false } }), 費用JSON: fees(0, 2000) }, expect: false },
+  { what: '壊れた費用JSON は尋ねない', row: { 項目設定JSON: '', 費用JSON: '{' }, expect: false },
+];
+for (const r of ASK_ROWS) {
+  test(`BR-21 番号を尋ねるか: ${r.what}`, () => {
+    assert.equal(membershipFns.asks(r.row), r.expect);
+  });
+}
+
+test('BR-21 公開の申込は照合結果を応答に出さない・尋ねない研修では照合しない', () => {
+  const fn = stripLineComments(extractLargeFunction('applyTrainingExternal_'));
+  assert.ok(/resolveTrainingAsksMemberNumber_\(training\)/.test(fn), '研修ごとの「尋ねるか」を見ていない');
+  assert.ok(/matchTrainingApplicantMembership_\(/.test(fn), '照合していない');
+  // 応答は applyId だけ。membership を返すと会員かどうかを外から探れる
+  const responses = fn.match(/success: true, data: \{[^}]*\}/g) || [];
+  assert.ok(responses.length > 0, '成功応答が見つからない');
+  for (const r of responses) assert.ok(!/membership|会員照合/.test(r), `応答に照合結果が入っている: ${r}`);
+  // スキーマ移行前のシートに黙って書かない
+  assert.ok(/indexOf\('会員照合結果コード'\) < 0/.test(fn), '照合列が無いシートへの書き込みを止めていない');
+});

@@ -315,6 +315,10 @@ erDiagram
     datetime 出欠記録日時 "v360新規"
     string 出欠記録者メール "v360新規"
     string 事務局メモ "v360新規 管理者専用"
+    string 会員照合結果コード "BR-21 公開申込の会員照合 MEMBER/UNMATCHED/NONE/NOT_ASKED（空=照合前）"
+    string 照合会員ID "BR-21 照合で一致した会員（外部申込のみ・申込者とは別）"
+    string 照合職員ID "BR-21 照合で一致した事業所職員"
+    string 申告介護支援専門員番号 "BR-21 申込者が入力した番号（管理画面での確認用）"
   }
 
   T_外部申込者 {
@@ -598,6 +602,10 @@ erDiagram
     datetime 出欠記録日時 "v360新規"
     string 出欠記録者メール "v360新規"
     string 事務局メモ "v360新規 管理者専用"
+    string 会員照合結果コード
+    string 照合会員ID
+    string 照合職員ID
+    string 申告介護支援専門員番号
     string アーカイブID PK "行個別の一意キー(UUID)"
     string 削除バッチID FK "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
     datetime アーカイブ日時

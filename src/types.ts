@@ -735,6 +735,11 @@ export interface Training {
   // v376.30: 外部申込フォーム URL（Google フォーム等、optional）
   applicationUrl?: string;
   fieldConfig?: TrainingFieldConfig;
+  /**
+   * 2026-10-18 BR-21: 公開ポータルの申込で介護支援専門員番号を尋ねるか。
+   * 既存の研修はサーバーが判定済みの真偽を返す。新規登録の入力中で未操作のときは undefined（費用から提案する）。
+   */
+  askMemberNumber?: boolean;
   cancelAllowed?: boolean;
   inquiryPerson?: string;
   inquiryContactType?: 'PHONE' | 'EMAIL';

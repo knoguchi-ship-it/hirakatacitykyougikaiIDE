@@ -1234,6 +1234,26 @@
         "type": "boolean",
         "key": "",
         "comment": ""
+      },
+      "会員照合結果コード": {
+        "type": "string",
+        "key": "",
+        "comment": "BR-21 公開申込の会員照合 MEMBER/UNMATCHED/NONE/NOT_ASKED（空=照合前）"
+      },
+      "照合会員ID": {
+        "type": "string",
+        "key": "",
+        "comment": "BR-21 照合で一致した会員（外部申込のみ・申込者とは別）"
+      },
+      "照合職員ID": {
+        "type": "string",
+        "key": "",
+        "comment": "BR-21 照合で一致した事業所職員"
+      },
+      "申告介護支援専門員番号": {
+        "type": "string",
+        "key": "",
+        "comment": "BR-21 申込者が入力した番号（管理画面での確認用）"
       }
     },
     "T_外部申込者": {

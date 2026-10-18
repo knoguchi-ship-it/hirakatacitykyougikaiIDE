@@ -147,7 +147,10 @@ test('★閾値がベタ書きで残っていない（単一情報源）', () =>
 
 test('スキーマに ロック解除予定日時 があり、スキーマ版数が上がっている', () => {
   assert.ok(gas.includes("'ロック解除予定日時',"), 'テーブル定義に列が無い');
-  assert.match(gas, /DB_SCHEMA_VERSION = '2026-09-04-login-lockout-v376\.71'/);
+  // 版数は後のスキーマ変更でも上がる。列を足した v376.71（2026-09-04）以降の版であることを見る
+  const version = gas.match(/DB_SCHEMA_VERSION = '(\d{4}-\d{2}-\d{2})-/);
+  assert.ok(version, 'DB_SCHEMA_VERSION が「日付-名前」の形でない');
+  assert.ok(version[1] >= '2026-09-04', `スキーマ版数が v376.71 より古い: ${version[1]}`);
 });
 
 // ── v376.78: 管理画面からのロック解除（SOW U-26）──────────────

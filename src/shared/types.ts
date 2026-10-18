@@ -20,6 +20,8 @@ export interface PublicTraining {
   applicationUrl?: string;
   organizer: string;
   fieldConfig: string;
+  /** 2026-10-18 BR-21: 申込フォームで介護支援専門員番号を尋ねるか（サーバーが判定済み） */
+  askMemberNumber?: boolean;
 }
 
 export interface ExternalApplicant {
@@ -38,6 +40,8 @@ export interface ExternalApplyPayload {
   email: string;
   phone: string;
   officeName: string;
+  /** 2026-10-18 BR-21: 会員の照合に使う。空なら非会員として受け付ける */
+  careManagerNumber?: string;
   consent: boolean;
   honeypot?: string;
 }
@@ -76,7 +80,18 @@ export interface TrainingRosterRow {
   attendanceRecordedBy: string;
   adminMemo: string;
   remarks: string;
+  /**
+   * 2026-10-18 BR-21: 会員かどうか。会員・職員として記録された申込は 'MEMBER'。
+   * 外部申込は公開ポータルでの照合結果（MEMBER / UNMATCHED / NONE / NOT_ASKED）。照合前の申込は ''。
+   */
+  membershipCode?: TrainingMembershipCode;
+  matchedMemberId?: string;
+  matchedStaffId?: string;
+  /** 申込者が入力した介護支援専門員番号（照合の確認用・管理画面だけ） */
+  declaredCmNumber?: string;
 }
+
+export type TrainingMembershipCode = 'MEMBER' | 'UNMATCHED' | 'NONE' | 'NOT_ASKED' | '';
 
 export interface TrainingStats {
   trainingId: string;

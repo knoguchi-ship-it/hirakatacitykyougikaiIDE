@@ -27,6 +27,17 @@ const APPLICANT_TYPE_LABEL: Record<ApplicantType, string> = {
   EXTERNAL: '非会員',
 };
 
+// 2026-10-18 BR-21: 区分欄。公開ポータルからの申込（EXTERNAL）は、会員番号の照合結果で会員か非会員かを出す
+const membershipLabel = (r: TrainingRosterRow): string => {
+  if (r.applicantType !== 'EXTERNAL') return APPLICANT_TYPE_LABEL[r.applicantType];
+  switch (r.membershipCode) {
+    case 'MEMBER': return r.matchedStaffId ? '事業所職員（番号照合）' : '会員（番号照合）';
+    case 'UNMATCHED': return `非会員（番号不一致: ${r.declaredCmNumber || '-'}）`;
+    case 'NOT_ASKED': return '区別なし';
+    default: return '非会員';
+  }
+};
+
 const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDate, onBack }) => {
   const [rows, setRows] = useState<TrainingRosterRow[]>([]);
   const [stats, setStats] = useState<TrainingStats | null>(null);
@@ -154,7 +165,7 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
   const exportCsv = () => {
     const header = ['連番', '申込ID', '氏名', '事業所', '区分', 'メール', '電話', '申込状態', '出欠状態', '事務局メモ', '申込日'];
     const data = filtered.map((r, i) => [
-      i + 1, r.applyId, r.name, r.officeName, APPLICANT_TYPE_LABEL[r.applicantType],
+      i + 1, r.applyId, r.name, r.officeName, membershipLabel(r),
       r.email, r.phone, r.status === 'APPLIED' ? '申込済' : '取消',
       ATTENDANCE_LABEL[r.attendanceStatus], r.adminMemo, r.applyDate,
     ]);
@@ -390,7 +401,7 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
                   <td className="px-2 py-2 text-slate-500">{i + 1}</td>
                   <td className="px-2 py-2 font-medium text-slate-800">{r.name}</td>
                   <td className="px-2 py-2 text-slate-700">{r.officeName}</td>
-                  <td className="px-2 py-2 text-xs text-slate-600">{APPLICANT_TYPE_LABEL[r.applicantType]}</td>
+                  <td className={`px-2 py-2 text-xs ${r.membershipCode === 'UNMATCHED' ? 'text-amber-700' : 'text-slate-600'}`}>{membershipLabel(r)}</td>
                   <td className="px-2 py-2 text-xs break-all text-slate-600">
                     {r.email && <div>{r.email}</div>}
                     {r.phone && <div className="text-slate-400">{r.phone}</div>}

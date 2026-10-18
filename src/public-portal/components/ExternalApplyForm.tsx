@@ -19,6 +19,8 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel, pri
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [officeName, setOfficeName] = useState('');
+  const [careManagerNumber, setCareManagerNumber] = useState('');
+  const askMemberNumber = training.askMemberNumber === true;
   const [consent, setConsent] = useState(false);
   const [honeypot, setHoneypot] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +47,8 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel, pri
         email,
         phone,
         officeName,
+        // 尋ねない研修では送らない（サーバーも受け取らない）
+        careManagerNumber: askMemberNumber ? careManagerNumber : '',
         consent,
         honeypot,
       };
@@ -64,7 +68,7 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel, pri
       <p className="text-sm text-gray-600 mb-4">{training.name}</p>
 
       <div className="bg-primary-50 border border-primary-100 rounded p-3 mb-4 text-sm text-primary-900">
-        収集した個人情報は研修申込の受付・確認連絡のみに使用します。第三者への提供は行いません。
+        収集した個人情報は研修申込の受付・確認連絡{askMemberNumber && '・会員かどうかの確認'}のみに使用します。第三者への提供は行いません。
         {privacyPolicyUrl && (
           <>
             {' '}詳しくは
@@ -111,6 +115,30 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel, pri
             placeholder="山田 太郎"
           />
         </div>
+
+        {/* 2026-10-18 BR-21: 会員と非会員で扱いが違う研修だけ尋ねる。照合の結果はここには出さない */}
+        {askMemberNumber && (
+          <div>
+            <label htmlFor={`${uid}-cmNumber`} className="block text-sm font-medium text-gray-700 mb-1">
+              介護支援専門員番号（会員の方）
+            </label>
+            <input
+              id={`${uid}-cmNumber`}
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={10}
+              value={careManagerNumber}
+              onChange={(e) => setCareManagerNumber(e.target.value)}
+              aria-describedby={`${uid}-cmNumber-help`}
+              className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              placeholder="12345678"
+            />
+            <p id={`${uid}-cmNumber-help`} className="mt-1 text-xs text-gray-500">
+              会員の方は、登録している氏名と介護支援専門員番号を入力してください。空欄の場合は非会員としてお受けします。
+            </p>
+          </div>
+        )}
 
         <div>
           <label htmlFor={`${uid}-furigana`} className="block text-sm font-medium text-gray-700 mb-1">
