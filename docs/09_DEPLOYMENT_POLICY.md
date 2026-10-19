@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-10-19
-Production: `v376.125` / integrated-public `@436` x2 / member split `@194` / admin split `@293`
+Production: `v376.126` / integrated-public `@437` x2 / member split `@195` / admin split `@294`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -157,7 +157,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-19 v376.125 ← current production
+### 2026-10-19 v376.126 ← current production
+
+- Scope: M_ マスタ全表の選択肢・名称・許可値を DB から引く（GAS `readAllMasterOptions_`・画面 `src/shared/masterOptions.ts`）。公開ポータルの発送方法 `MAIL` 不具合。会員種別の検査・画面。ER の参照 5 本・DBML Ref。詳細は `docs/310`・`docs/309` §8。
+- Schema: `DB_SCHEMA_VERSION` 据え置き。DB 書き込みなし。
+- Fixed deployments: integrated/public @437 x2 / member @195 / admin @294.
+- Verification: prerelease PASS（test:master-options 7・test:master-hardcode・test:member-type-master 8）。公開 a11y 違反 0・responsive 7 VP。本番読み取り: 公開 `masters` 6 表・属性なし、管理 17 表、管理画面がマスタの名称で表示、`MAIL` 0 件。**test:responsive:admin は storageState 切れで未実行。MASTER/ADMIN 以外の権限での表示は未確認。**
+- Rollback: integrated/public @436 x2 / member @194 / admin @293（v376.125）。DB 変化なし。
+
+### 2026-10-19 v376.125
 
 - Scope: BR-21（公開ポータルの研修申込を氏名＋介護支援専門員番号で会員照合・`T_研修申込` に 4 列）と `docs/307` S18（`normalizeTableColumns_` が定義に無い列を黙って消していた → 末尾追加は見出しだけ書く・消える列があれば止める・作り直しは書式を先に移す）。保守ツール `rehearseSchemaMigrationOnCopy_APPLY` を新設。詳細は `docs/308`。
 - Order: S18 の修正とリハーサルを、スキーマの版を据え置いて先に push → 本番 DB のコピーでリハーサル OK → 版を上げてリリース（push したコードはトリガーが即座に使うため）。
