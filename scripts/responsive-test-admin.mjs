@@ -31,11 +31,15 @@ const CONSOLES = [
 async function expandGroupIfNeeded(frame, leafLabel, groupLabel) {
   if (!groupLabel) return;
   // If the leaf nav item is already visible, no need to expand.
+  // 未処理件数のバッジが付く項目（変更申請管理 など）は innerText が「名前＋件数」になる。
+  // 完全一致で見ると「見えていない」と誤判定し、開いているグループを閉じてしまう。
+  // 前方一致にすると「研修管理コンソールを開く」まで拾うので、後ろは件数（数字）だけを許す。
   const visible = await frame.evaluate((l) => {
     return Array.from(document.querySelectorAll('button, a, [role="button"]')).some((b) => {
       const t = (b.innerText || '').trim();
       const r = b.getBoundingClientRect();
-      return t === l && r.width > 0 && r.height > 0;
+      const isNavLabel = t === l || (t.startsWith(l) && /^\d+$/.test(t.slice(l.length).trim()));
+      return isNavLabel && r.width > 0 && r.height > 0;
     });
   }, leafLabel);
   if (visible) return;
@@ -52,8 +56,11 @@ async function expandGroupIfNeeded(frame, leafLabel, groupLabel) {
 async function clickConsole(frame, label) {
   return await frame.evaluate((l) => {
     const cands = Array.from(document.querySelectorAll('button, a, [role="button"]'));
-    // Prefer exact innerText match
-    let target = cands.find((b) => (b.innerText || '').trim() === l);
+    // Prefer exact innerText match（件数バッジ付きの項目は「名前＋数字」も完全一致とみなす）
+    let target = cands.find((b) => {
+      const t = (b.innerText || '').trim();
+      return t === l || (t.startsWith(l) && /^\d+$/.test(t.slice(l.length).trim()));
+    });
     if (!target) target = cands.find((b) => (b.innerText || '').includes(l));
     if (target) { target.click(); return true; }
     return false;
