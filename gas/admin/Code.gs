@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 9e3f49ca8085189ede2336c576d3403fda64af41bca6fe9643bf1fa0476ab8e4
+// BUILD_INPUT_SHA256: e4ff615fbcfdc00503ad31256174d7c441994deb607ef93fced21295baaffb7c
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -4441,6 +4441,52 @@ function diffSpreadsheetSnapshotsForRehearsal_(before, after) {
     if (changed) out.changedTables.push(name);
   });
   return out;
+}
+
+// 2026-10-19: DB が守らない ID 参照（docs/294 §3.2）。[子テーブル, 列, 親テーブル]。親の主キーは親の先頭列。
+// docs/er-metadata.json の関係と一致することを test:db-state が確かめる（増減したら両方を直す）。
+var DB_STATE_ID_REFERENCES_ = [
+  ['T_事業所職員', '会員ID', 'T_会員'],
+  ['T_認証アカウント', '会員ID', 'T_会員'],
+  ['T_認証アカウント', '職員ID', 'T_事業所職員'],
+  ['T_管理者Googleホワイトリスト', '紐付け認証ID', 'T_認証アカウント'],
+  ['T_管理者Googleホワイトリスト', '紐付け会員ID', 'T_会員'],
+  ['T_研修申込', '研修ID', 'T_研修'],
+  ['T_研修申込', '会員ID', 'T_会員'],
+  ['T_研修申込', '職員ID', 'T_事業所職員'],
+  ['T_研修申込', '外部申込者ID', 'T_外部申込者'],
+  ['T_研修申込', '照合会員ID', 'T_会員'],
+  ['T_研修申込', '照合職員ID', 'T_事業所職員'],
+  ['T_メール送信明細', 'ログID', 'T_メール送信ログ'],
+  ['T_メール送信明細', '研修ID', 'T_研修'],
+  ['T_年会費納入履歴', '会員ID', 'T_会員'],
+  ['T_年会費更新履歴', '年会費履歴ID', 'T_年会費納入履歴'],
+  ['T_年会費更新履歴', '会員ID', 'T_会員'],
+  ['T_役員', '会員ID', 'T_会員'],
+  ['T_役員', '職員ID', 'T_事業所職員'],
+  ['T_振込口座', '会員ID', 'T_会員'],
+  ['T_振込口座', '職員ID', 'T_事業所職員'],
+  ['T_支払い', '会員ID', 'T_会員'],
+  ['T_支払い明細', '支払いID', 'T_支払い'],
+  ['T_支払い明細', '請求ID', 'T_請求'],
+  ['T_請求', '会員ID', 'T_会員'],
+  ['T_請求', '職員ID', 'T_事業所職員'],
+  ['T_ログイン履歴', '認証ID', 'T_認証アカウント'],
+];
+
+// ログ系はログ用スプレッドシートにある（getLogSs_ の書き込み先）
+var DB_STATE_LOG_TABLES_ = ['T_監査ログ', 'T_ログイン履歴', 'T_メール送信ログ', 'T_メール送信明細'];
+
+// 2026-10-19: DB の今の状態を数えるだけの診断（読むだけ・書き込みなし・監査ログにも書かない）。
+// シートごとの行数・削除済み・定義との差（planTableColumnNormalization_ の方針）と、ID 参照の孤児の件数。
+// セルの値は返さない（件数と列名だけ）。
+
+function readSheetForDbState_(sheet) {
+  var lastCol = sheet.getLastColumn();
+  var lastRow = sheet.getLastRow();
+  if (lastCol < 1) return { headers: [], rows: [] };
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function(h) { return String(h == null ? '' : h); });
+  return { headers: headers, rows: lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, lastCol).getValues() : [] };
 }
 
 // 整備後のコピーで、定義の全列を持つ行を 1 行書いて読み戻す（列のずれ・書けない列を見つける）。

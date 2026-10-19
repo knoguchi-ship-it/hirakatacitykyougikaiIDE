@@ -5,6 +5,74 @@
 // helper / 定数は Code.gs 側に残っており、同一プロジェクトのグローバルスコープで参照される。
 // 許可リストの正本: scripts/gas-boundary-utils.mjs ADMIN_OPERATOR_TOOL_FUNCTIONS
 // ============================================================
+function describeDatabaseState_LOG() {
+  assertMasterOperator_('describeDatabaseState_LOG');
+  var main = getOrCreateDatabase_();
+  var logSs = getLogSs_();
+  var books = [{ label: 'main', ss: main }];
+  if (logSs.getId() !== main.getId()) books.push({ label: 'log', ss: logSs });
+
+  var cache = {};
+  var result = { schemaVersion: DB_SCHEMA_VERSION, books: [], references: [], notes: [] };
+  books.forEach(function(book) {
+    var sheets = book.ss.getSheets().map(function(sheet) {
+      var name = sheet.getName();
+      var snap = readSheetForDbState_(sheet);
+      cache[book.label + ':' + name] = snap;
+      var kind = テーブル定義[name] ? 'table' : (マスタ定義[name] ? 'master' : 'other');
+      var info = { name: name, kind: kind, rows: snap.rows.length, cols: snap.headers.length };
+      var delIdx = snap.headers.indexOf('削除フラグ');
+      if (delIdx >= 0) info.deleted = snap.rows.filter(function(r) { return toBoolean_(r[delIdx]); }).length;
+      var target = テーブル定義[name] || マスタ定義[name];
+      if (target && kind === 'table') {
+        var hasData = snap.headers.map(function(_, c) { return snap.rows.some(function(r) { return r[c] !== '' && r[c] !== null; }); });
+        var plan = planTableColumnNormalization_(snap.headers, target, hasData);
+        info.schema = plan.mode;
+        if (plan.added.length) info.missingColumns = plan.added;
+        if (plan.dropped.length) info.extraColumns = plan.dropped;
+      }
+      return info;
+    });
+    result.books.push({ label: book.label, sheets: sheets });
+  });
+
+  function snapOf(tableName) {
+    var preferLog = DB_STATE_LOG_TABLES_.indexOf(tableName) >= 0 && books.length > 1;
+    return cache[(preferLog ? 'log' : 'main') + ':' + tableName] || null;
+  }
+  DB_STATE_ID_REFERENCES_.forEach(function(ref) {
+    var child = snapOf(ref[0]);
+    var parent = snapOf(ref[2]);
+    var out = { child: ref[0], column: ref[1], parent: ref[2] };
+    if (!child || !parent) { out.skipped = !child ? '子のシートが無い' : '親のシートが無い'; result.references.push(out); return; }
+    var col = child.headers.indexOf(ref[1]);
+    var pkName = (テーブル定義[ref[2]] || [])[0];
+    var pk = parent.headers.indexOf(pkName);
+    if (col < 0 || pk < 0) { out.skipped = col < 0 ? '子に列が無い' : '親に主キー列が無い'; result.references.push(out); return; }
+    var parentDel = parent.headers.indexOf('削除フラグ');
+    var parentIds = {};
+    parent.rows.forEach(function(r) {
+      var id = String(r[pk] == null ? '' : r[pk]).trim();
+      if (id) parentIds[id] = parentDel >= 0 && toBoolean_(r[parentDel]) ? 'deleted' : 'active';
+    });
+    var childDel = child.headers.indexOf('削除フラグ');
+    out.withValue = 0; out.orphanActive = 0; out.orphanDeleted = 0; out.activeToDeletedParent = 0;
+    child.rows.forEach(function(r) {
+      var v = String(r[col] == null ? '' : r[col]).trim();
+      if (!v) return;
+      out.withValue += 1;
+      var childDeleted = childDel >= 0 && toBoolean_(r[childDel]);
+      if (!parentIds[v]) { if (childDeleted) out.orphanDeleted += 1; else out.orphanActive += 1; }
+      else if (!childDeleted && parentIds[v] === 'deleted') out.activeToDeletedParent += 1;
+    });
+    result.references.push(out);
+  });
+
+  var out = JSON.stringify(result, null, 2);
+  Logger.log('=== DB の状態（件数のみ）===\n' + out);
+  return out;
+}
+
 function healthCheckPasswordPepper() {
   assertMasterOperator_('healthCheckPasswordPepper');
   var report = [];
