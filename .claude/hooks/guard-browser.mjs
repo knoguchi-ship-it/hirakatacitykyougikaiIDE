@@ -30,9 +30,16 @@ runHook(async (input) => {
 
   if (/processApiRequest/.test(code)) {
     const prefixes = loadReadActionPrefixes(root);
-    const actions = [...code.matchAll(/action\\?["']?\s*:\s*\\?["'`]([A-Za-z]+)/g)].map((m) => m[1]);
-    if (!actions.length) {
-      ask('processApiRequest の action を読み取れません。書き込み操作でないことを確かめられないため確認します。');
+    // 2026-10-19: 実際の呼び方 processApiRequest('getX', payload)（第 1 引数の文字列）も読む。
+    // 以前は { action: 'getX' } の形しか読めず、読み取りでも毎回確認が出ていた。
+    const objectActions = [...code.matchAll(/action\\?["']?\s*:\s*\\?["'`]([A-Za-z]+)/g)].map((m) => m[1]);
+    const positionalActions = [...code.matchAll(/processApiRequest\(\s*\\?["'`]([A-Za-z]+)\\?["'`]/g)].map((m) => m[1]);
+    const actions = [...objectActions, ...positionalActions];
+    // 呼び出しごとに action が読めること。1 つでも変数で渡していれば確かめられない
+    const callSites = [...code.matchAll(/processApiRequest\s*\(/g)].length;
+    if (!actions.length || actions.length < callSites) {
+      ask('processApiRequest の action を読み取れません（変数で渡している呼び出しがある）。'
+        + '書き込み操作でないことを確かめられないため確認します。action 名は文字列で直接書いてください。');
     }
     const writesActions = [...new Set(actions.filter((a) => !prefixes.some((p) => a.startsWith(p))))];
     if (writesActions.length) {

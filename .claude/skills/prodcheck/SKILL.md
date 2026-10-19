@@ -35,6 +35,8 @@ async (page) => {
 - 起動直後は 10〜30 秒かかる（コールドスタート）。タイムアウトをすぐ失敗とみなさない。
 - `processApiRequest` は管理画面と同じ payload で呼べる。**action の名前が `get*` `list*` などで始まるものだけが読み取り**
   （`PREVIEW_READ_ACTION_PREFIXES`）。それ以外は書き込みとして扱う。
+- **action 名は文字列で直接書く**（`processApiRequest('getTrainingManagementData', null)`）。
+  補助関数に変数で渡すと hook が action を読めず、読み取りでも確認が出る（2026-10-19）。
 - **確認ダイアログ（confirm / alert）は MCP が自動で閉じる。** ダイアログの先にある操作は、
   同じ API を直接呼んで確かめる（2026-10-10 の LINE 投稿依頼で実施）。
 

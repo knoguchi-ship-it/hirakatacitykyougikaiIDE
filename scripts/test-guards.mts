@@ -126,6 +126,12 @@ test('processApiRequest は読むだけの action なら通し、それ以外・
   assert.equal(browser("() => google.script.run.processApiRequest(JSON.stringify({ action: 'listRoles' }))"), 'none');
   assert.equal(browser("() => google.script.run.processApiRequest({ action: 'approveAdminChangeRequest', id: 1 })"), 'ask');
   assert.equal(browser('(p) => google.script.run.processApiRequest(p)'), 'ask');
+  // 2026-10-19: 第 1 引数の文字列（実際の呼び方）も読む
+  assert.equal(browser("() => google.script.run.processApiRequest('getTrainingManagementData', null)"), 'none');
+  assert.equal(browser('() => google.script.run.processApiRequest("getTrainingRosterDetail", JSON.stringify({ trainingId: "T1" }))'), 'none');
+  assert.equal(browser("() => google.script.run.processApiRequest('saveTraining', '{}')"), 'ask');
+  // 読める呼び出しと変数で渡す呼び出しが混ざっていたら ask
+  assert.equal(browser("(a) => { google.script.run.processApiRequest('getX', null); google.script.run.processApiRequest(a, null); }"), 'ask');
 });
 
 test('google.script.run を使わない evaluate は判断しない', () => {

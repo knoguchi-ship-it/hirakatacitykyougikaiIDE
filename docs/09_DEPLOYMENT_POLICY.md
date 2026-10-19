@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-10-14
-Production: `v376.124` / integrated-public `@435` x2 / member split `@193` / admin split `@292`
+Updated: 2026-10-19
+Production: `v376.125` / integrated-public `@436` x2 / member split `@194` / admin split `@293`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -157,7 +157,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-14 v376.124 ← current production
+### 2026-10-19 v376.125 ← current production
+
+- Scope: BR-21（公開ポータルの研修申込を氏名＋介護支援専門員番号で会員照合・`T_研修申込` に 4 列）と `docs/307` S18（`normalizeTableColumns_` が定義に無い列を黙って消していた → 末尾追加は見出しだけ書く・消える列があれば止める・作り直しは書式を先に移す）。保守ツール `rehearseSchemaMigrationOnCopy_APPLY` を新設。詳細は `docs/308`。
+- Order: S18 の修正とリハーサルを、スキーマの版を据え置いて先に push → 本番 DB のコピーでリハーサル OK → 版を上げてリリース（push したコードはトリガーが即座に使うため）。
+- Fixed deployments: integrated/public @436 x2 / member @194 / admin @293.
+- Verification: prerelease PASS（新設 test:schema-normalization 15 件）。リハーサル（リリース前・後とも）: 既存データの変化 0・2 回目の変化 0・書いて読む 22 列。本番 `T_研修申込` は append（シートを作り直さない）。公開 a11y 違反 0・responsive 7 VP（初回はスキーマ整備でタイムアウト、ウォーム後 PASS）。管理画面の初回表示 約 60 秒（整備を含む）。研修 5 件の askMemberNumber が真偽で返り、名簿に照合 4 項目。**test:responsive:admin は storageState 切れで未実行。BR-21 の★申込 E2E は承認待ち。**
+- Rollback: integrated/public @435 x2 / member @193 / admin @292（v376.124）。**旧コードのスキーマ整備は BR-21 の 4 列を消す**（照合結果ができた後は `T_研修申込` を退避してから）。
+
+### 2026-10-14 v376.124
 
 - Scope: `docs/307` §4-1。SX 変更申請の承認・却下を 1 本のスクリプトロックで直列化（状態の確認から書き込みまで。入会申込の作成の中にあったロックは外へ移した）。S37 退会の確定で、認証の表・列が無いときは会員を書き換える前に止める（定期ジョブが Chat に通知）。E1 公開トークンの署名を `secureCompareString_` で時間一定に比較。
 - Fixed deployments: integrated/public @435 x2 / member @193 / admin @292.
