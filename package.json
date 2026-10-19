@@ -86,6 +86,7 @@
     "test:decision-integrity": "node --experimental-strip-types --no-warnings --test scripts/test-decision-integrity.mts",
     "test:schema-normalization": "node --experimental-strip-types --no-warnings --test scripts/test-schema-normalization.mts",
     "test:db-state": "node --experimental-strip-types --no-warnings --test scripts/test-db-state.mts",
+    "audit:master-hardcode": "node scripts/audit-master-hardcode.mjs",
     "test:member-type-master": "node --experimental-strip-types --no-warnings --test scripts/test-member-type-master.mts",
     "test:db-relations": "node --experimental-strip-types --no-warnings --test scripts/test-db-relations.mts",
     "test:gas-build-sync": "node --experimental-strip-types --no-warnings --test scripts/test-gas-build-sync.mts",
