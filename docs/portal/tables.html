@@ -327,7 +327,7 @@ footer {
 <div class="hero">
   <h1>📊 テーブル設計書（理路整然版）</h1>
   <p>各テーブルの列定義 + FK 関係を整理された形式で表示します。Mermaid ER 図の線が絡まる問題を回避した、参照用の正規ビューです。</p>
-  <p style="margin-top: 8px; font-size: 0.88em; opacity: 0.85;">📌 全 58 テーブル | 全 64 リレーション</p>
+  <p style="margin-top: 8px; font-size: 0.88em; opacity: 0.85;">📌 全 58 テーブル | 全 69 リレーション</p>
 </div>
 
 <section class="card">
@@ -415,7 +415,7 @@ footer {
     </tr></tbody>
       </table>
       <div class="tbl-rel-section">
-        <h5>📥 このテーブルを参照する側 (2)</h5>
+        <h5>📥 このテーブルを参照する側 (3)</h5>
         <span class="tbl-rel-item">
       <a href="#tbl-T_会員">T_会員</a>
       <span class="card">}o--||</span>
@@ -424,6 +424,10 @@ footer {
       <a href="#tbl-T_規程">T_規程</a>
       <span class="card">}o--o|</span>
       <span class="lbl">対象会員種別</span>
+    </span><span class="tbl-rel-item">
+      <a href="#tbl-T_変更申請">T_変更申請</a>
+      <span class="card">}o--||</span>
+      <span class="lbl">会員種別コード</span>
     </span>
       </div>
       <div class="tbl-rel-section">
@@ -863,8 +867,12 @@ footer {
     </tr></tbody>
       </table>
       <div class="tbl-rel-section">
-        <h5>📥 このテーブルを参照する側 (0)</h5>
-        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+        <h5>📥 このテーブルを参照する側 (1)</h5>
+        <span class="tbl-rel-item">
+      <a href="#tbl-T_管理者Googleホワイトリスト">T_管理者Googleホワイトリスト</a>
+      <span class="card">}o--o|</span>
+      <span class="lbl">権限コード(legacy)</span>
+    </span>
       </div>
       <div class="tbl-rel-section">
         <h5>📤 このテーブルが参照する側 (0)</h5>
@@ -1338,7 +1346,7 @@ footer {
     </tr></tbody>
       </table>
       <div class="tbl-rel-section">
-        <h5>📥 このテーブルを参照する側 (11)</h5>
+        <h5>📥 このテーブルを参照する側 (12)</h5>
         <span class="tbl-rel-item">
       <a href="#tbl-T_事業所職員">T_事業所職員</a>
       <span class="card">}o--||</span>
@@ -1383,6 +1391,10 @@ footer {
       <a href="#tbl-T_請求">T_請求</a>
       <span class="card">}o--o|</span>
       <span class="lbl">会員ID</span>
+    </span><span class="tbl-rel-item">
+      <a href="#tbl-T_変更申請">T_変更申請</a>
+      <span class="card">}o--o|</span>
+      <span class="lbl">会員ID(新規入会は空)</span>
     </span>
       </div>
       <div class="tbl-rel-section">
@@ -1678,11 +1690,11 @@ footer {
     </tr><tr>
       <td class="col-name">権限コード</td>
       <td class="col-type">string</td>
-      <td></td>
+      <td><span class="key-fk">FK</span></td>
     </tr><tr>
       <td class="col-name">ロールID</td>
       <td class="col-type">string</td>
-      <td></td>
+      <td><span class="key-fk">FK</span></td>
     </tr><tr>
       <td class="col-name">有効フラグ</td>
       <td class="col-type">boolean</td>
@@ -1714,7 +1726,7 @@ footer {
         <span style="color: var(--muted); font-size: 0.85em;">なし</span>
       </div>
       <div class="tbl-rel-section">
-        <h5>📤 このテーブルが参照する側 (2)</h5>
+        <h5>📤 このテーブルが参照する側 (4)</h5>
         <span class="tbl-rel-item">
       <span class="card">}o--o|</span>
       <a href="#tbl-T_認証アカウント">T_認証アカウント</a>
@@ -1723,6 +1735,14 @@ footer {
       <span class="card">}o--o|</span>
       <a href="#tbl-T_会員">T_会員</a>
       <span class="lbl">紐付け会員ID</span>
+    </span><span class="tbl-rel-item">
+      <span class="card">}o--o|</span>
+      <a href="#tbl-M_管理者権限">M_管理者権限</a>
+      <span class="lbl">権限コード(legacy)</span>
+    </span><span class="tbl-rel-item">
+      <span class="card">}o--o|</span>
+      <a href="#tbl-T_権限ロール">T_権限ロール</a>
+      <span class="lbl">ロールID(docs/246)</span>
     </span>
       </div>
     </div>
@@ -1834,7 +1854,7 @@ footer {
     </tr></tbody>
       </table>
       <div class="tbl-rel-section">
-        <h5>📥 このテーブルを参照する側 (2)</h5>
+        <h5>📥 このテーブルを参照する側 (3)</h5>
         <span class="tbl-rel-item">
       <a href="#tbl-T_研修申込">T_研修申込</a>
       <span class="card">}o--||</span>
@@ -1843,6 +1863,10 @@ footer {
       <a href="#tbl-T_メール送信明細">T_メール送信明細</a>
       <span class="card">}o--o|</span>
       <span class="lbl">研修ID(v360新規)</span>
+    </span><span class="tbl-rel-item">
+      <a href="#tbl-T_メール送信ログ">T_メール送信ログ</a>
+      <span class="card">}o--o|</span>
+      <span class="lbl">研修ID(v360拡張 nullable)</span>
     </span>
       </div>
       <div class="tbl-rel-section">
@@ -4296,8 +4320,12 @@ footer {
     </span>
       </div>
       <div class="tbl-rel-section">
-        <h5>📤 このテーブルが参照する側 (0)</h5>
-        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+        <h5>📤 このテーブルが参照する側 (1)</h5>
+        <span class="tbl-rel-item">
+      <span class="card">}o--o|</span>
+      <a href="#tbl-T_研修">T_研修</a>
+      <span class="lbl">研修ID(v360拡張 nullable)</span>
+    </span>
       </div>
     </div>
   </div>
@@ -4427,8 +4455,12 @@ footer {
     </tr></tbody>
       </table>
       <div class="tbl-rel-section">
-        <h5>📥 このテーブルを参照する側 (0)</h5>
-        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+        <h5>📥 このテーブルを参照する側 (1)</h5>
+        <span class="tbl-rel-item">
+      <a href="#tbl-T_管理者Googleホワイトリスト">T_管理者Googleホワイトリスト</a>
+      <span class="card">}o--o|</span>
+      <span class="lbl">ロールID(docs/246)</span>
+    </span>
       </div>
       <div class="tbl-rel-section">
         <h5>📤 このテーブルが参照する側 (0)</h5>
@@ -4599,11 +4631,11 @@ footer {
     </tr><tr>
       <td class="col-name">会員ID</td>
       <td class="col-type">string</td>
-      <td></td>
+      <td><span class="key-fk">FK</span></td>
     </tr><tr>
       <td class="col-name">会員種別コード</td>
       <td class="col-type">string</td>
-      <td></td>
+      <td><span class="key-fk">FK</span></td>
     </tr><tr>
       <td class="col-name">申請種別コード</td>
       <td class="col-type">string</td>
@@ -4659,8 +4691,16 @@ footer {
         <span style="color: var(--muted); font-size: 0.85em;">なし</span>
       </div>
       <div class="tbl-rel-section">
-        <h5>📤 このテーブルが参照する側 (0)</h5>
-        <span style="color: var(--muted); font-size: 0.85em;">なし</span>
+        <h5>📤 このテーブルが参照する側 (2)</h5>
+        <span class="tbl-rel-item">
+      <span class="card">}o--o|</span>
+      <a href="#tbl-T_会員">T_会員</a>
+      <span class="lbl">会員ID(新規入会は空)</span>
+    </span><span class="tbl-rel-item">
+      <span class="card">}o--||</span>
+      <a href="#tbl-M_会員種別">M_会員種別</a>
+      <span class="lbl">会員種別コード</span>
+    </span>
       </div>
     </div>
   </div>

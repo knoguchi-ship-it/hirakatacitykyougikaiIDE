@@ -556,8 +556,8 @@ erDiagram
     string Googleメール
     string 紐付け認証ID FK
     string 紐付け会員ID FK
-    string 権限コード
-    string ロールID
+    string 権限コード FK
+    string ロールID FK
     boolean 有効フラグ
     string 変更者メール
     datetime 変更日時
@@ -580,8 +580,8 @@ erDiagram
   }
   T_変更申請 {
     string 申請ID PK
-    string 会員ID
-    string 会員種別コード
+    string 会員ID FK
+    string 会員種別コード FK
     string 申請種別コード
     string 申請状態コード
     string 申請内容JSON
@@ -729,6 +729,9 @@ erDiagram
   T_削除ログ {
     string id PK
   }
+  M_管理者権限 {
+    string id PK
+  }
 
   T_事業所職員 }o--|| T_会員 : &quot;会員ID&quot;
   T_認証アカウント }o--|| T_会員 : &quot;会員ID&quot;
@@ -736,6 +739,8 @@ erDiagram
   T_管理者Googleホワイトリスト }o--o| T_認証アカウント : &quot;紐付け認証ID&quot;
   T_管理者Googleホワイトリスト }o--o| T_会員 : &quot;紐付け会員ID&quot;
   T_ログイン履歴 }o--o| T_認証アカウント : &quot;認証ID&quot;
+  T_変更申請 }o--o| T_会員 : &quot;会員ID(新規入会は空)&quot;
+  T_管理者Googleホワイトリスト }o--o| T_権限ロール : &quot;ロールID(docs/246)&quot;
   T_会員 }o--|| M_会員種別 : &quot;会員種別コード&quot;
   T_会員 }o--|| M_会員状態 : &quot;会員状態コード&quot;
   T_会員 }o--o| M_発送方法 : &quot;発送方法コード&quot;
@@ -757,7 +762,9 @@ erDiagram
   T_請求 }o--o| T_会員 : &quot;会員ID&quot;
   T_請求 }o--o| T_事業所職員 : &quot;職員ID&quot;
   T_会員_archive }o--o| T_削除ログ : &quot;削除バッチID&quot;
-  T_事業所職員_archive }o--o| T_削除ログ : &quot;削除バッチID&quot;</pre>
+  T_事業所職員_archive }o--o| T_削除ログ : &quot;削除バッチID&quot;
+  T_変更申請 }o--|| M_会員種別 : &quot;会員種別コード&quot;
+  T_管理者Googleホワイトリスト }o--o| M_管理者権限 : &quot;権限コード(legacy)&quot;</pre>
         </div>
       </section>
   
@@ -894,6 +901,7 @@ erDiagram
   T_研修申込 }o--o| T_外部申込者 : &quot;外部申込者ID(v360 2-FK 新規)&quot;
   T_メール送信明細 }o--|| T_メール送信ログ : &quot;ログID(v360新規)&quot;
   T_メール送信明細 }o--o| T_研修 : &quot;研修ID(v360新規)&quot;
+  T_メール送信ログ }o--o| T_研修 : &quot;研修ID(v360拡張 nullable)&quot;
   T_研修申込 }o--o| T_会員 : &quot;会員ID(v360 2-FK)&quot;
   T_研修申込 }o--o| T_事業所職員 : &quot;職員ID(v360 2-FK)&quot;
   T_研修申込 }o--o| T_会員 : &quot;照合会員ID(BR-21 照合結果)&quot;
@@ -1364,6 +1372,12 @@ erDiagram
   T_規程 {
     string id PK
   }
+  T_変更申請 {
+    string id PK
+  }
+  T_管理者Googleホワイトリスト {
+    string id PK
+  }
 
   M_役職マスタ }o--|| M_組織マスタ : &quot;組織コード&quot;
   M_業務分類 }o--|| M_組織マスタ : &quot;組織コード&quot;
@@ -1389,7 +1403,9 @@ erDiagram
   T_請求 }o--|| M_支払い種別マスタ : &quot;種別コード&quot;
   T_請求 }o--o| M_業務分類 : &quot;業務分類コード&quot;
   T_画面項目権限 }o--|| M_システムロール : &quot;システムロールコード&quot;
-  T_規程 }o--o| M_会員種別 : &quot;対象会員種別&quot;</pre>
+  T_規程 }o--o| M_会員種別 : &quot;対象会員種別&quot;
+  T_変更申請 }o--|| M_会員種別 : &quot;会員種別コード&quot;
+  T_管理者Googleホワイトリスト }o--o| M_管理者権限 : &quot;権限コード(legacy)&quot;</pre>
         </div>
       </section>
   

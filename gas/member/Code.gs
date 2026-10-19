@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 0d7cf9446f26f84caf9b18a48bc5a239b9a6a01545190128f6dcfb08ad4dd1df
+// BUILD_INPUT_SHA256: 5a6dbb4a57047b0a8aa87a2abdfd8452df85fa99f6babf2c5f31892f94c37057
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -3307,6 +3307,9 @@ var DB_STATE_ID_REFERENCES_ = [
   ['T_請求', '会員ID', 'T_会員'],
   ['T_請求', '職員ID', 'T_事業所職員'],
   ['T_ログイン履歴', '認証ID', 'T_認証アカウント'],
+  ['T_変更申請', '会員ID', 'T_会員'],
+  ['T_管理者Googleホワイトリスト', 'ロールID', 'T_権限ロール'],
+  ['T_メール送信ログ', '研修ID', 'T_研修'],
 ];
 
 // ログ系はログ用スプレッドシートにある（getLogSs_ の書き込み先）

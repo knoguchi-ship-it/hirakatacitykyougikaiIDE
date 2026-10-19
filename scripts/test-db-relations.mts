@@ -80,7 +80,9 @@ test('マスタコード FK は入力規則として宣言されている（手�
   // 入力規則は張れないが、コードで検証しているもの。
   // T_規程.対象会員種別 の選択肢は M_会員種別 + 'ALL' で、マスタそのままでは表せない。
   // REGULATION_TARGETS に無ければ throw するのを確認済み。
-  const VALIDATED_IN_CODE = new Set(['T_規程.対象会員種別→M_会員種別']);
+  // T_変更申請.会員種別コード は、新規入会なら INDIVIDUAL/BUSINESS/SUPPORT 以外を弾き、
+  // 変更申請なら T_会員 の値（入力規則あり）を写す。行は画面から入力されない。
+  const VALIDATED_IN_CODE = new Set(['T_規程.対象会員種別→M_会員種別', 'T_変更申請.会員種別コード→M_会員種別']);
   const undeclared: string[] = [];
   for (const r of relationships) {
     if (!r.right.startsWith('M_')) continue;
@@ -121,7 +123,8 @@ test('ID による参照は DB では守られない — 一覧を固定する',
   for (const line of unique) console.log('  ' + line);
   // 件数を固定する。増えたらこのテストが落ち、「守られない参照をまた増やした」と気づける。
   // 2026-10-19: 26（BR-21 の照合会員ID・照合職員ID を足した）
-  assert.equal(unique.length, 26,
+  // 2026-10-19: 29（ER の書き漏れ T_変更申請.会員ID・ホワイトリスト.ロールID・メール送信ログ.研修ID）
+  assert.equal(unique.length, 29,
     '守られない ID 参照の数が変わった。docs/294 §3 の一覧と突き合わせて更新すること');
 });
 

@@ -259,8 +259,8 @@ erDiagram
     string Googleメール
     string 紐付け認証ID FK
     string 紐付け会員ID FK
-    string 権限コード
-    string ロールID
+    string 権限コード FK "legacy（ロールID が空のときの fallback）"
+    string ロールID FK "docs/246 RBAC。空なら 権限コード を使う"
     boolean 有効フラグ
     string 変更者メール
     datetime 変更日時
@@ -851,8 +851,8 @@ erDiagram
 
   T_変更申請 {
     string 申請ID PK
-    string 会員ID
-    string 会員種別コード
+    string 会員ID FK "新規入会の申請は空（会員がまだ無い）"
+    string 会員種別コード FK "新規入会は INDIVIDUAL/BUSINESS/SUPPORT をコードで検査、変更申請は T_会員 の値を写す"
     string 申請種別コード
     string 申請状態コード
     string 申請内容JSON
@@ -987,6 +987,11 @@ erDiagram
   T_請求_archive }o--o| T_削除ログ : "削除バッチID"
   T_変更申請_archive }o--o| T_削除ログ : "削除バッチID"
   T_規程 }o--o| M_会員種別 : "対象会員種別"
+  T_変更申請 }o--o| T_会員 : "会員ID(新規入会は空)"
+  T_変更申請 }o--|| M_会員種別 : "会員種別コード"
+  T_管理者Googleホワイトリスト }o--o| M_管理者権限 : "権限コード(legacy)"
+  T_管理者Googleホワイトリスト }o--o| T_権限ロール : "ロールID(docs/246)"
+  T_メール送信ログ }o--o| T_研修 : "研修ID(v360拡張 nullable)"
 ```
 
 ---

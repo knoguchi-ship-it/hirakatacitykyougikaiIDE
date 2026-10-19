@@ -1,6 +1,6 @@
 // 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能
 // 元: docs/03_DATA_MODEL.md
-// 生成日時: 2026-10-19T02:32:28.591Z
+// 生成日時: 2026-10-19T03:59:51.150Z
 
 Project hcmn_member_system {
   database_type: "Google Spreadsheet (logical)"
@@ -392,8 +392,8 @@ Table "T_削除ログ" {
 
 Table "T_変更申請" {
   "申請ID" varchar [pk]
-  "会員ID" varchar
-  "会員種別コード" varchar
+  "会員ID" varchar [note: 'FK']
+  "会員種別コード" varchar [note: 'FK']
   "申請種別コード" varchar
   "申請状態コード" varchar
   "申請内容JSON" varchar
@@ -757,8 +757,8 @@ Table "T_管理者Googleホワイトリスト" {
   "Googleメール" varchar
   "紐付け認証ID" varchar [note: 'FK']
   "紐付け会員ID" varchar [note: 'FK']
-  "権限コード" varchar
-  "ロールID" varchar
+  "権限コード" varchar [note: 'FK']
+  "ロールID" varchar [note: 'FK']
   "有効フラグ" boolean
   "変更者メール" varchar
   "変更日時" timestamp
@@ -969,3 +969,8 @@ Ref: "T_支払い明細_archive"."削除バッチID" > "T_削除ログ"."ログI
 Ref: "T_請求_archive"."削除バッチID" > "T_削除ログ"."ログID" // 削除バッチID
 Ref: "T_変更申請_archive"."削除バッチID" > "T_削除ログ"."ログID" // 削除バッチID
 Ref: "T_規程"."対象会員種別" > "M_会員種別"."コード" // 対象会員種別
+Ref: "T_変更申請"."会員ID" > "T_会員"."会員ID" // 会員ID(新規入会は空)
+Ref: "T_変更申請"."会員種別コード" > "M_会員種別"."コード" // 会員種別コード
+Ref: "T_管理者Googleホワイトリスト"."権限コード" > "M_管理者権限"."コード" // 権限コード(legacy)
+Ref: "T_管理者Googleホワイトリスト"."ロールID" > "T_権限ロール"."ロールID" // ロールID(docs/246)
+Ref: "T_メール送信ログ"."研修ID" > "T_研修"."研修ID" // 研修ID(v360拡張 nullable)

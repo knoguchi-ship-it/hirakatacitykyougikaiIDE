@@ -325,7 +325,7 @@ footer {
     <button class="copy-btn" onclick="copyDbml()">📋 全文コピー</button>
     <pre id="dbml-src">// 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能
 // 元: docs/03_DATA_MODEL.md
-// 生成日時: 2026-10-19T02:32:28.587Z
+// 生成日時: 2026-10-19T03:59:51.146Z
 
 Project hcmn_member_system {
   database_type: &quot;Google Spreadsheet (logical)&quot;
@@ -717,8 +717,8 @@ Table &quot;T_削除ログ&quot; {
 
 Table &quot;T_変更申請&quot; {
   &quot;申請ID&quot; varchar [pk]
-  &quot;会員ID&quot; varchar
-  &quot;会員種別コード&quot; varchar
+  &quot;会員ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;会員種別コード&quot; varchar [note: &#39;FK&#39;]
   &quot;申請種別コード&quot; varchar
   &quot;申請状態コード&quot; varchar
   &quot;申請内容JSON&quot; varchar
@@ -1082,8 +1082,8 @@ Table &quot;T_管理者Googleホワイトリスト&quot; {
   &quot;Googleメール&quot; varchar
   &quot;紐付け認証ID&quot; varchar [note: &#39;FK&#39;]
   &quot;紐付け会員ID&quot; varchar [note: &#39;FK&#39;]
-  &quot;権限コード&quot; varchar
-  &quot;ロールID&quot; varchar
+  &quot;権限コード&quot; varchar [note: &#39;FK&#39;]
+  &quot;ロールID&quot; varchar [note: &#39;FK&#39;]
   &quot;有効フラグ&quot; boolean
   &quot;変更者メール&quot; varchar
   &quot;変更日時&quot; timestamp
@@ -1293,9 +1293,14 @@ Ref: &quot;T_支払い_archive&quot;.&quot;削除バッチID&quot; &gt; &quot;T_
 Ref: &quot;T_支払い明細_archive&quot;.&quot;削除バッチID&quot; &gt; &quot;T_削除ログ&quot;.&quot;ログID&quot; // 削除バッチID
 Ref: &quot;T_請求_archive&quot;.&quot;削除バッチID&quot; &gt; &quot;T_削除ログ&quot;.&quot;ログID&quot; // 削除バッチID
 Ref: &quot;T_変更申請_archive&quot;.&quot;削除バッチID&quot; &gt; &quot;T_削除ログ&quot;.&quot;ログID&quot; // 削除バッチID
-Ref: &quot;T_規程&quot;.&quot;対象会員種別&quot; &gt; &quot;M_会員種別&quot;.&quot;コード&quot; // 対象会員種別</pre>
+Ref: &quot;T_規程&quot;.&quot;対象会員種別&quot; &gt; &quot;M_会員種別&quot;.&quot;コード&quot; // 対象会員種別
+Ref: &quot;T_変更申請&quot;.&quot;会員ID&quot; &gt; &quot;T_会員&quot;.&quot;会員ID&quot; // 会員ID(新規入会は空)
+Ref: &quot;T_変更申請&quot;.&quot;会員種別コード&quot; &gt; &quot;M_会員種別&quot;.&quot;コード&quot; // 会員種別コード
+Ref: &quot;T_管理者Googleホワイトリスト&quot;.&quot;権限コード&quot; &gt; &quot;M_管理者権限&quot;.&quot;コード&quot; // 権限コード(legacy)
+Ref: &quot;T_管理者Googleホワイトリスト&quot;.&quot;ロールID&quot; &gt; &quot;T_権限ロール&quot;.&quot;ロールID&quot; // ロールID(docs/246)
+Ref: &quot;T_メール送信ログ&quot;.&quot;研修ID&quot; &gt; &quot;T_研修&quot;.&quot;研修ID&quot; // 研修ID(v360拡張 nullable)</pre>
   </div>
-  <p style="font-size: 0.85em; color: var(--muted);">行数: 971 / 容量: 18.8 KB</p>
+  <p style="font-size: 0.85em; color: var(--muted);">行数: 976 / 容量: 19.2 KB</p>
 </section>
 
 <section class="card">

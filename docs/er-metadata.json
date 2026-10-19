@@ -1003,13 +1003,13 @@
       },
       "権限コード": {
         "type": "string",
-        "key": "",
-        "comment": ""
+        "key": "FK",
+        "comment": "legacy（ロールID が空のときの fallback）"
       },
       "ロールID": {
         "type": "string",
-        "key": "",
-        "comment": ""
+        "key": "FK",
+        "comment": "docs/246 RBAC。空なら 権限コード を使う"
       },
       "変更者メール": {
         "type": "string",
@@ -2514,13 +2514,13 @@
       },
       "会員ID": {
         "type": "string",
-        "key": "",
-        "comment": ""
+        "key": "FK",
+        "comment": "新規入会の申請は空（会員がまだ無い）"
       },
       "会員種別コード": {
         "type": "string",
-        "key": "",
-        "comment": ""
+        "key": "FK",
+        "comment": "新規入会は INDIVIDUAL/BUSINESS/SUPPORT をコードで検査、変更申請は T_会員 の値を写す"
       },
       "申請種別コード": {
         "type": "string",
@@ -4181,6 +4181,36 @@
       "cardinality": "}o--o|",
       "right": "M_会員種別",
       "label": "対象会員種別"
+    },
+    {
+      "left": "T_変更申請",
+      "cardinality": "}o--o|",
+      "right": "T_会員",
+      "label": "会員ID(新規入会は空)"
+    },
+    {
+      "left": "T_変更申請",
+      "cardinality": "}o--||",
+      "right": "M_会員種別",
+      "label": "会員種別コード"
+    },
+    {
+      "left": "T_管理者Googleホワイトリスト",
+      "cardinality": "}o--o|",
+      "right": "M_管理者権限",
+      "label": "権限コード(legacy)"
+    },
+    {
+      "left": "T_管理者Googleホワイトリスト",
+      "cardinality": "}o--o|",
+      "right": "T_権限ロール",
+      "label": "ロールID(docs/246)"
+    },
+    {
+      "left": "T_メール送信ログ",
+      "cardinality": "}o--o|",
+      "right": "T_研修",
+      "label": "研修ID(v360拡張 nullable)"
     }
   ]
 }
