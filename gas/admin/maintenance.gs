@@ -28,6 +28,57 @@ function forceMarkSchemaInitializedToCurrent() {
   return out;
 }
 
+function rehearseSchemaMigrationOnCopy_APPLY() {
+  var session = assertMasterOperator_('rehearseSchemaMigrationOnCopy_APPLY');
+  var source = getOrCreateDatabase_();
+  var stamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd-HHmmss');
+  var copyFile = DriveApp.getFileById(source.getId()).makeCopy('__スキーマ整備リハーサル_' + stamp + '（自動でゴミ箱へ移します）');
+  var result = { operator: session.loginId, schemaVersion: DB_SCHEMA_VERSION, plans: {}, firstRun: null, secondRun: null, writeRead: null, verdict: '' };
+  try {
+    var copy = SpreadsheetApp.openById(copyFile.getId());
+    Object.keys(テーブル定義).forEach(function(tableName) {
+      var sheet = copy.getSheetByName(tableName);
+      if (!sheet) { result.plans[tableName] = { mode: 'missing' }; return; }
+      var snap = snapshotSheetForRehearsal_(sheet);
+      var hasData = snap.headers.map(function(_, c) {
+        return snap.rows.some(function(row) { return row[c] !== ''; });
+      });
+      var plan = planTableColumnNormalization_(snap.headers, テーブル定義[tableName], hasData);
+      if (plan.mode !== 'same') result.plans[tableName] = plan;
+    });
+
+    var before = snapshotSpreadsheetForRehearsal_(copy);
+    var firstError = '';
+    try { initializeSchema_(copy); } catch (e) { firstError = e && e.message ? e.message : String(e); }
+    var after = snapshotSpreadsheetForRehearsal_(copy);
+    result.firstRun = diffSpreadsheetSnapshotsForRehearsal_(before, after);
+    result.firstRun.error = firstError;
+
+    if (!firstError) {
+      var secondError = '';
+      try { initializeSchema_(copy); } catch (e2) { secondError = e2 && e2.message ? e2.message : String(e2); }
+      var again = snapshotSpreadsheetForRehearsal_(copy);
+      result.secondRun = diffSpreadsheetSnapshotsForRehearsal_(after, again);
+      result.secondRun.error = secondError;
+      result.writeRead = rehearseTableWriteRead_(copy);
+    }
+
+    var problems = [];
+    if (firstError) problems.push('1 回目の整備が止まった');
+    if (result.firstRun.issues.length) problems.push('1 回目で既存データが変わった ' + result.firstRun.issues.length + ' 件');
+    if (result.secondRun && (result.secondRun.error || result.secondRun.issues.length || result.secondRun.changedTables.length)) {
+      problems.push('2 回目でも変化があった（整備が収束しない）');
+    }
+    if (result.writeRead && result.writeRead.failures.length) problems.push('書いて読む確認が ' + result.writeRead.failures.length + ' 件失敗');
+    result.verdict = problems.length ? 'NG: ' + problems.join(' / ') : 'OK: 既存データの変化 0・2 回目の変化 0・書いて読む確認 ' + (result.writeRead ? result.writeRead.checked : 0) + ' 件';
+  } finally {
+    copyFile.setTrashed(true);
+  }
+  var out = JSON.stringify(result, null, 2);
+  Logger.log('=== スキーマ整備のリハーサル（本番 DB のコピー）===\n' + out);
+  return out;
+}
+
 function regenerateAllThumbnails(payload) {
   assertMasterOperator_('regenerateAllThumbnails');
   var opts = payload || {};

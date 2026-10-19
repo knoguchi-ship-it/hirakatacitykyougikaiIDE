@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: c8545215fcadfb33e1e05f2b54988a2f984e90401718a1fb92cc590f0eda9980
+// BUILD_INPUT_SHA256: 51e6c483bf51dc97ae5c8d65088e876e27fd1f47e82bda87a0740282c15349d2
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -25,7 +25,9 @@ var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var LOCK_WAIT_TIMEOUT_MS = 10000; // AGENTS §3: LockService 待機の共通タイムアウト
 var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
-var DB_SCHEMA_VERSION = '2026-10-18-training-membership-v376.125';
+// 2026-10-19: BR-21 の列追加（2026-10-18-training-membership-v376.125）は、rehearseSchemaMigrationOnCopy_APPLY が
+// 本番 DB のコピーで OK を返してから上げる。push するとトリガーが最新のコードで動くため、先に上げると本番で整備が走る。
+var DB_SCHEMA_VERSION = '2026-09-04-login-lockout-v376.71';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
 // AGENTS §3: Script Properties の MEMBER_PORTAL_URL_OVERRIDE で上書き可能（deployment 変更時にコード改変不要）
@@ -3264,6 +3266,20 @@ function seedInitialPermissionRoles_(ss) {
  * 書込み: PropertiesService の 2 キーのみ。シートは触らない（破壊なし）。
  */
 
+// 2026-10-19 docs/307 S18: スキーマ整備（initializeSchema_）を本番 DB の「コピー」で通しで流し、
+// 全シートの全セルを前後で突き合わせる。本番 DB には書き込まない（コピーを作って最後にゴミ箱へ移す）。
+// スキーマの版を上げるリリースの前に実行し、巻き添えが 0 であることを確かめる。
+// 出力にセルの値は出さない（型と件数だけ。個人情報を実行ログやチャットへ出さない）。
+
+
+
+// 値を型付きの文字列にする。'0123'（文字列）と 123（数値）、日付と同じ見た目の文字列を区別する
+
+// 前後のスナップショットを列名で突き合わせる。issues は「あってはならない変化」だけ。
+
+// 整備後のコピーで、定義の全列を持つ行を 1 行書いて読み戻す（列のずれ・書けない列を見つける）。
+// 書くのはコピーだけ。値は列名から作るので、どの列に入ったかが読み戻しで分かる。
+
 
 
 // ─── v309: 共有メモ（申し送りホワイトボード）────────────────────────────────
@@ -6350,34 +6366,99 @@ function auditDeleteFlagColumns_(ss) {
   }
 }
 
+// 2026-10-19 docs/307 S18: 列の整え方を決める（シートには触らない）。
+//   same    … 定義と同じ。何もしない
+//   append  … 今の列が定義の先頭と同じで、末尾に足すだけ。見出しのセルを書き足す（行・書式・入力規則に触らない）
+//   rebuild … 並べ替えが要る。消える列は無い
+//   blocked … 定義に無い列・名前の重なった列・見出しの無い列にデータがある。消さずに止める
+// columnHasData[i] は今の i 列目に（見出しを除いて）値が 1 つでもあるか。
+function planTableColumnNormalization_(currentHeaders, targetHeaders, columnHasData) {
+  var current = [];
+  for (var i = 0; i < currentHeaders.length; i += 1) current.push(String(currentHeaders[i] == null ? '' : currentHeaders[i]));
+  // 末尾の、見出しもデータも無い列は数えない（getLastColumn が書式だけの列を含むことがある）
+  while (current.length > 0 && current[current.length - 1] === '' && !(columnHasData && columnHasData[current.length - 1])) {
+    current.pop();
+  }
+  var target = [];
+  var targetSet = {};
+  for (var t = 0; t < targetHeaders.length; t += 1) {
+    target.push(String(targetHeaders[t]));
+    targetSet[String(targetHeaders[t])] = true;
+  }
+
+  var dropped = [];
+  var seen = {};
+  for (var c = 0; c < current.length; c += 1) {
+    var name = current[c];
+    var hasData = !!(columnHasData && columnHasData[c]);
+    if (name === '') {
+      if (hasData) dropped.push('（見出しなし・' + (c + 1) + '列目）');
+      continue;
+    }
+    if (seen[name]) { dropped.push(name + '（重複・' + (c + 1) + '列目）'); continue; }
+    seen[name] = true;
+    if (!targetSet[name]) dropped.push(name);
+  }
+  var added = [];
+  for (var a = 0; a < target.length; a += 1) {
+    if (!seen[target[a]]) added.push(target[a]);
+  }
+  if (dropped.length > 0) return { mode: 'blocked', added: added, dropped: dropped };
+
+  var isPrefix = current.length <= target.length;
+  for (var p = 0; isPrefix && p < current.length; p += 1) {
+    if (current[p] !== target[p]) isPrefix = false;
+  }
+  if (isPrefix && current.length === target.length) return { mode: 'same', added: [], dropped: [] };
+  if (isPrefix) return { mode: 'append', added: target.slice(current.length), dropped: [] };
+  return { mode: 'rebuild', added: added, dropped: [] };
+}
+
 function normalizeTableColumns_(ss, tableName) {
   var targetHeaders = テーブル定義[tableName];
-  if (!targetHeaders || targetHeaders.length === 0) return;
+  if (!targetHeaders || targetHeaders.length === 0) return { mode: 'same', added: [], dropped: [] };
 
   var sheet = ss.getSheetByName(tableName);
-  if (!sheet) return;
+  if (!sheet) return { mode: 'same', added: [], dropped: [] };
   var lastCol = Math.max(1, sheet.getLastColumn());
   var currentHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-
-  var same = currentHeaders.length === targetHeaders.length;
-  if (same) {
-    for (var i = 0; i < targetHeaders.length; i += 1) {
-      if (String(currentHeaders[i] || '') !== String(targetHeaders[i])) {
-        same = false;
-        break;
-      }
-    }
-  }
-  if (same) return;
 
   var oldRows = [];
   if (sheet.getLastRow() > 1) {
     oldRows = sheet.getRange(2, 1, sheet.getLastRow() - 1, lastCol).getValues();
   }
+  var columnHasData = [];
+  for (var ch = 0; ch < lastCol; ch += 1) {
+    var has = false;
+    for (var rr = 0; rr < oldRows.length && !has; rr += 1) {
+      var cell = oldRows[rr][ch];
+      if (cell !== '' && cell !== null && cell !== undefined) has = true;
+    }
+    columnHasData.push(has);
+  }
+
+  var plan = planTableColumnNormalization_(currentHeaders, targetHeaders, columnHasData);
+  if (plan.mode === 'same') return plan;
+  if (plan.mode === 'blocked') {
+    // 消さずに止める。critical step なので initializeSchema_ ごと止まり、初期化済みの印も付かない
+    Logger.log('[normalizeTableColumns_][BLOCKED] ' + tableName + ' dropped=' + JSON.stringify(plan.dropped));
+    throw new Error('スキーマ整備を止めました: ' + tableName + ' の列 ' + plan.dropped.join('・') +
+      ' は定義に無いため、データを消さずに止めました。列名を定義へ足すか、データを移してから列を外してください。');
+  }
+  if (plan.mode === 'append') {
+    var startCol = targetHeaders.length - plan.added.length + 1;
+    if (sheet.getMaxColumns() < targetHeaders.length) {
+      sheet.insertColumnsAfter(sheet.getMaxColumns(), targetHeaders.length - sheet.getMaxColumns());
+    }
+    sheet.getRange(1, startCol, 1, plan.added.length).setValues([plan.added]);
+    Logger.log('[normalizeTableColumns_][APPEND] ' + tableName + ' added=' + JSON.stringify(plan.added));
+    return plan;
+  }
 
   var oldHeaderIndex = {};
   for (var h = 0; h < currentHeaders.length; h += 1) {
-    oldHeaderIndex[String(currentHeaders[h] || '')] = h;
+    var headerKey = String(currentHeaders[h] || '');
+    if (headerKey && oldHeaderIndex[headerKey] == null) oldHeaderIndex[headerKey] = h;
   }
 
   var tempName = '__TMP_' + tableName + '_' + Utilities.getUuid().substring(0, 8);
@@ -6385,20 +6466,26 @@ function normalizeTableColumns_(ss, tableName) {
   tempSheet.getRange(1, 1, 1, targetHeaders.length).setValues([targetHeaders]);
 
   if (oldRows.length > 0) {
-    var migrated = oldRows.map(function(row) {
+    var mapRow = function(row, fill) {
       return targetHeaders.map(function(header) {
         var idx = oldHeaderIndex[String(header || '')];
-        return idx == null ? '' : row[idx];
+        return idx == null ? fill : row[idx];
       });
-    });
-    tempSheet.getRange(2, 1, migrated.length, targetHeaders.length).setValues(migrated);
+    };
+    // 書式を先に移す。書式の無いセルへ文字列を書くと '0123' が数値 123 になる
+    var oldFormats = sheet.getRange(2, 1, oldRows.length, lastCol).getNumberFormats();
+    var dataRange = tempSheet.getRange(2, 1, oldRows.length, targetHeaders.length);
+    dataRange.setNumberFormats(oldFormats.map(function(row) { return mapRow(row, 'General'); }));
+    dataRange.setValues(oldRows.map(function(row) { return mapRow(row, ''); }));
   }
+  Logger.log('[normalizeTableColumns_][REBUILD] ' + tableName + ' added=' + JSON.stringify(plan.added));
 
   var oldIndex = sheet.getIndex();
   ss.deleteSheet(sheet);
   tempSheet.setName(tableName);
   ss.setActiveSheet(tempSheet);
   ss.moveActiveSheet(oldIndex);
+  return plan;
 }
 
 function markSchemaInitialized_() {
