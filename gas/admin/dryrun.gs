@@ -68,6 +68,9 @@ function describeDatabaseState_LOG() {
     result.references.push(out);
   });
 
+  result.authOfDeletedPeople = countAuthOfDeletedPeople_(snapOf('T_認証アカウント'), snapOf('T_会員'), snapOf('T_事業所職員'));
+  result.credentialsTemp = countCredentialsTempExposure_(cache['main:_CREDENTIALS_TEMP'] || null, snapOf('T_認証アカウント'));
+
   var out = JSON.stringify(result, null, 2);
   Logger.log('=== DB の状態（件数のみ）===\n' + out);
   return out;

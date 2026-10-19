@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 25ed606048fe8f2886e1783f45b1de7f4e008a8bdfaafcad0867afb6ca80fa5c
+// BUILD_INPUT_SHA256: c4a7fd0916c35a59952ea1d4c92dfe9e414ccec151222198fa407a8749d6fc10
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -1969,6 +1969,13 @@ var DB_STATE_LOG_TABLES_ = ['T_監査ログ', 'T_ログイン履歴', 'T_メー�
 // 2026-10-19: DB の今の状態を数えるだけの診断（読むだけ・書き込みなし・監査ログにも書かない）。
 // シートごとの行数・削除済み・定義との差（planTableColumnNormalization_ の方針）と、ID 参照の孤児の件数。
 // セルの値は返さない（件数と列名だけ）。
+
+
+
+// 削除済みの会員・職員に結び付いたまま、削除されていない認証アカウント。有効なものはログインできる
+
+// _CREDENTIALS_TEMP（2026-03 移行時の認証情報台帳）に平文の初期パスワードが残っているか。
+// 値は読むが返さない。台帳の日時より後にパスワードが変わっていない有効なアカウントを「まだ使えうる」と数える
 
 
 // 整備後のコピーで、定義の全列を持つ行を 1 行書いて読み戻す（列のずれ・書けない列を見つける）。
