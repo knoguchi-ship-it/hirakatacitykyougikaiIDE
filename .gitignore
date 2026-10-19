@@ -63,3 +63,6 @@ token*.json
 credentials*.json
 *.key
 *.pem
+
+# Claude 設定フォルダの誤展開（CLAUDE_CONFIG_DIR が $HOME のまま渡ったときにできる）
+$HOME/
