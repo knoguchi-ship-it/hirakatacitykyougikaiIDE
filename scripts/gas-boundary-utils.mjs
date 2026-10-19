@@ -29,6 +29,8 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   'restoreLastArchiveBatch_APPLY',
   // v376.54 (GCP Phase B / docs/250 §10-6): GAS→Cloud Run 接続の事前診断（operator 実行用・token/pepper 値は出力しない）
   'dryRunGcpPhaseB_LOG',
+  // 2026-10-19: DB の状態（行数・定義との差・ID 参照の孤児）を数えるだけの診断（読むだけ）
+  'describeDatabaseState_LOG',
   // 2026-09-27: 定期ジョブは管理者 split に置く。
   // 公開プロジェクトは匿名アクセスで、トップレベル関数は google.script.run から
   // 誰でも呼べてしまうため、業務バッチを置いてはいけない（この配列が守っている境界）。

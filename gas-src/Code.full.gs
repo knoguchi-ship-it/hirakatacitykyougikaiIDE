@@ -6836,6 +6836,119 @@ function diffSpreadsheetSnapshotsForRehearsal_(before, after) {
   return out;
 }
 
+// 2026-10-19: DB が守らない ID 参照（docs/294 §3.2）。[子テーブル, 列, 親テーブル]。親の主キーは親の先頭列。
+// docs/er-metadata.json の関係と一致することを test:db-state が確かめる（増減したら両方を直す）。
+var DB_STATE_ID_REFERENCES_ = [
+  ['T_事業所職員', '会員ID', 'T_会員'],
+  ['T_認証アカウント', '会員ID', 'T_会員'],
+  ['T_認証アカウント', '職員ID', 'T_事業所職員'],
+  ['T_管理者Googleホワイトリスト', '紐付け認証ID', 'T_認証アカウント'],
+  ['T_管理者Googleホワイトリスト', '紐付け会員ID', 'T_会員'],
+  ['T_研修申込', '研修ID', 'T_研修'],
+  ['T_研修申込', '会員ID', 'T_会員'],
+  ['T_研修申込', '職員ID', 'T_事業所職員'],
+  ['T_研修申込', '外部申込者ID', 'T_外部申込者'],
+  ['T_研修申込', '照合会員ID', 'T_会員'],
+  ['T_研修申込', '照合職員ID', 'T_事業所職員'],
+  ['T_メール送信明細', 'ログID', 'T_メール送信ログ'],
+  ['T_メール送信明細', '研修ID', 'T_研修'],
+  ['T_年会費納入履歴', '会員ID', 'T_会員'],
+  ['T_年会費更新履歴', '年会費履歴ID', 'T_年会費納入履歴'],
+  ['T_年会費更新履歴', '会員ID', 'T_会員'],
+  ['T_役員', '会員ID', 'T_会員'],
+  ['T_役員', '職員ID', 'T_事業所職員'],
+  ['T_振込口座', '会員ID', 'T_会員'],
+  ['T_振込口座', '職員ID', 'T_事業所職員'],
+  ['T_支払い', '会員ID', 'T_会員'],
+  ['T_支払い明細', '支払いID', 'T_支払い'],
+  ['T_支払い明細', '請求ID', 'T_請求'],
+  ['T_請求', '会員ID', 'T_会員'],
+  ['T_請求', '職員ID', 'T_事業所職員'],
+  ['T_ログイン履歴', '認証ID', 'T_認証アカウント'],
+];
+
+// ログ系はログ用スプレッドシートにある（getLogSs_ の書き込み先）
+var DB_STATE_LOG_TABLES_ = ['T_監査ログ', 'T_ログイン履歴', 'T_メール送信ログ', 'T_メール送信明細'];
+
+// 2026-10-19: DB の今の状態を数えるだけの診断（読むだけ・書き込みなし・監査ログにも書かない）。
+// シートごとの行数・削除済み・定義との差（planTableColumnNormalization_ の方針）と、ID 参照の孤児の件数。
+// セルの値は返さない（件数と列名だけ）。
+function describeDatabaseState_LOG() {
+  assertMasterOperator_('describeDatabaseState_LOG');
+  var main = getOrCreateDatabase_();
+  var logSs = getLogSs_();
+  var books = [{ label: 'main', ss: main }];
+  if (logSs.getId() !== main.getId()) books.push({ label: 'log', ss: logSs });
+
+  var cache = {};
+  var result = { schemaVersion: DB_SCHEMA_VERSION, books: [], references: [], notes: [] };
+  books.forEach(function(book) {
+    var sheets = book.ss.getSheets().map(function(sheet) {
+      var name = sheet.getName();
+      var snap = readSheetForDbState_(sheet);
+      cache[book.label + ':' + name] = snap;
+      var kind = テーブル定義[name] ? 'table' : (マスタ定義[name] ? 'master' : 'other');
+      var info = { name: name, kind: kind, rows: snap.rows.length, cols: snap.headers.length };
+      var delIdx = snap.headers.indexOf('削除フラグ');
+      if (delIdx >= 0) info.deleted = snap.rows.filter(function(r) { return toBoolean_(r[delIdx]); }).length;
+      var target = テーブル定義[name] || マスタ定義[name];
+      if (target && kind === 'table') {
+        var hasData = snap.headers.map(function(_, c) { return snap.rows.some(function(r) { return r[c] !== '' && r[c] !== null; }); });
+        var plan = planTableColumnNormalization_(snap.headers, target, hasData);
+        info.schema = plan.mode;
+        if (plan.added.length) info.missingColumns = plan.added;
+        if (plan.dropped.length) info.extraColumns = plan.dropped;
+      }
+      return info;
+    });
+    result.books.push({ label: book.label, sheets: sheets });
+  });
+
+  function snapOf(tableName) {
+    var preferLog = DB_STATE_LOG_TABLES_.indexOf(tableName) >= 0 && books.length > 1;
+    return cache[(preferLog ? 'log' : 'main') + ':' + tableName] || null;
+  }
+  DB_STATE_ID_REFERENCES_.forEach(function(ref) {
+    var child = snapOf(ref[0]);
+    var parent = snapOf(ref[2]);
+    var out = { child: ref[0], column: ref[1], parent: ref[2] };
+    if (!child || !parent) { out.skipped = !child ? '子のシートが無い' : '親のシートが無い'; result.references.push(out); return; }
+    var col = child.headers.indexOf(ref[1]);
+    var pkName = (テーブル定義[ref[2]] || [])[0];
+    var pk = parent.headers.indexOf(pkName);
+    if (col < 0 || pk < 0) { out.skipped = col < 0 ? '子に列が無い' : '親に主キー列が無い'; result.references.push(out); return; }
+    var parentDel = parent.headers.indexOf('削除フラグ');
+    var parentIds = {};
+    parent.rows.forEach(function(r) {
+      var id = String(r[pk] == null ? '' : r[pk]).trim();
+      if (id) parentIds[id] = parentDel >= 0 && toBoolean_(r[parentDel]) ? 'deleted' : 'active';
+    });
+    var childDel = child.headers.indexOf('削除フラグ');
+    out.withValue = 0; out.orphanActive = 0; out.orphanDeleted = 0; out.activeToDeletedParent = 0;
+    child.rows.forEach(function(r) {
+      var v = String(r[col] == null ? '' : r[col]).trim();
+      if (!v) return;
+      out.withValue += 1;
+      var childDeleted = childDel >= 0 && toBoolean_(r[childDel]);
+      if (!parentIds[v]) { if (childDeleted) out.orphanDeleted += 1; else out.orphanActive += 1; }
+      else if (!childDeleted && parentIds[v] === 'deleted') out.activeToDeletedParent += 1;
+    });
+    result.references.push(out);
+  });
+
+  var out = JSON.stringify(result, null, 2);
+  Logger.log('=== DB の状態（件数のみ）===\n' + out);
+  return out;
+}
+
+function readSheetForDbState_(sheet) {
+  var lastCol = sheet.getLastColumn();
+  var lastRow = sheet.getLastRow();
+  if (lastCol < 1) return { headers: [], rows: [] };
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function(h) { return String(h == null ? '' : h); });
+  return { headers: headers, rows: lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, lastCol).getValues() : [] };
+}
+
 // 整備後のコピーで、定義の全列を持つ行を 1 行書いて読み戻す（列のずれ・書けない列を見つける）。
 // 書くのはコピーだけ。値は列名から作るので、どの列に入ったかが読み戻しで分かる。
 function rehearseTableWriteRead_(copy) {
