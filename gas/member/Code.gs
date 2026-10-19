@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 51e6c483bf51dc97ae5c8d65088e876e27fd1f47e82bda87a0740282c15349d2
+// BUILD_INPUT_SHA256: 1b3812d503582d9b3b0ab56c54f1926f1ff33879596a6ea17fa163716a35b1dc
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -25,9 +25,10 @@ var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
 var LOCK_WAIT_TIMEOUT_MS = 10000; // AGENTS §3: LockService 待機の共通タイムアウト
 var ALL_DATA_CACHE_TTL_SECONDS = 600;
 var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
-// 2026-10-19: BR-21 の列追加（2026-10-18-training-membership-v376.125）は、rehearseSchemaMigrationOnCopy_APPLY が
-// 本番 DB のコピーで OK を返してから上げる。push するとトリガーが最新のコードで動くため、先に上げると本番で整備が走る。
-var DB_SCHEMA_VERSION = '2026-09-04-login-lockout-v376.71';
+// 版を上げるリリースの前に rehearseSchemaMigrationOnCopy_APPLY を本番 DB のコピーで流し、OK を確かめてから上げる。
+// push するとトリガーが最新のコードで動くため、先に上げて push すると確かめる前に本番で整備が走る。
+// 2026-10-19: BR-21 の 4 列。リハーサル OK（既存データの変化 0・2 回目の変化 0・書いて読む 22 列）
+var DB_SCHEMA_VERSION = '2026-10-18-training-membership-v376.125';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
 // AGENTS §3: Script Properties の MEMBER_PORTAL_URL_OVERRIDE で上書き可能（deployment 変更時にコード改変不要）
