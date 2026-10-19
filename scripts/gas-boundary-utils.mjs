@@ -21,6 +21,8 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   'cleanupDryRunTrainingManagement',
   // v376.30: スキーマ初期化フラグの救済ツール（汎用・再利用）
   'forceMarkSchemaInitializedToCurrent',
+  // 2026-10-19 docs/307 S18: スキーマ整備を本番 DB のコピーで流し、全セルを前後で突き合わせる
+  'rehearseSchemaMigrationOnCopy_APPLY',
   // v376.52: 会員系削除 cascade アーカイブ（docs/249）— 診断/バッチ一覧/復元/dryRun E2E/掃除
   'diagnoseMemberDeleteDebt_LOG',
   'listArchiveBatches_LOG',
@@ -67,6 +69,8 @@ export const ADMIN_MAINTENANCE_TOOL_FUNCTIONS = [
   'backfillKanaToFullwidth_APPLY',
   // スキーマ初期化フラグの救済（ScriptProperties を書き換える）
   'forceMarkSchemaInitializedToCurrent',
+  // 2026-10-19 docs/307 S18: スキーマ整備を本番 DB のコピーで流し、全セルを前後で突き合わせる
+  'rehearseSchemaMigrationOnCopy_APPLY',
   // 会員系削除の cascade アーカイブ — 一覧と復元
   'listArchiveBatches_LOG',
   'restoreLastArchiveBatch_APPLY',
