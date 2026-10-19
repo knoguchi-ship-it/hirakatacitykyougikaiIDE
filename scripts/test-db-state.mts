@@ -33,6 +33,9 @@ function extractVar(source: string, name: string): string {
   return source.slice(start, source.indexOf('];', start) + 2);
 }
 
+const HELPERS = ['dbStateIndex_', 'dbStateTime_', 'countAuthOfDeletedPeople_', 'countCredentialsTempExposure_']
+  .map((n) => extractFunction(adminArtifact, n)).join('\n');
+
 const refs = new Function(`${extractVar(gas, 'DB_STATE_ID_REFERENCES_')} return DB_STATE_ID_REFERENCES_;`)() as string[][];
 
 // BR-21 の照合列は ER に関係として描いていない（照合の結果であって入力ではない）。ここで明示して許す
@@ -68,6 +71,7 @@ test('describeDatabaseState_LOG: 孤児を子の削除状態で分け、削除�
     'assertMasterOperator_', 'getOrCreateDatabase_', 'getLogSs_', 'Logger', 'toBoolean_', `
     ${extractFunction(adminArtifact, 'planTableColumnNormalization_')}
     ${extractFunction(adminArtifact, 'readSheetForDbState_')}
+    ${HELPERS}
     ${extractFunction(adminArtifact, 'describeDatabaseState_LOG')}
     return describeDatabaseState_LOG;`)(
     { T_会員: ['会員ID', '削除フラグ'], T_事業所職員: ['職員ID', '会員ID', '削除フラグ'] }, {}, 'v',
@@ -83,6 +87,43 @@ test('describeDatabaseState_LOG: 孤児を子の削除状態で分け、削除�
   const staff = out.books[0].sheets.find((s: any) => s.name === 'T_事業所職員');
   assert.deepEqual(staff, { name: 'T_事業所職員', kind: 'table', rows: 5, cols: 3, deleted: 1, schema: 'same' });
   assert.doesNotMatch(JSON.stringify(out), /S1|S2|M9/, 'セルの値を返している');
+});
+
+test('平文の初期パスワード台帳: 変わっていない有効アカウントを数え、値は返さない', () => {
+  const fn = new Function('toBoolean_', `${HELPERS} return { countCredentialsTempExposure_, countAuthOfDeletedPeople_ };`)(
+    (v: unknown) => v === true || v === 'true',
+  );
+  const ledger = {
+    headers: ['ログインID', '初期パスワード', '認証ID', '再発行日時', '更新日時'],
+    rows: [
+      ['u1', 'Secret-1', 'A1', '', '2026-03-25T00:00:00Z'],
+      ['u2', 'Secret-2', 'A2', '', '2026-03-25T00:00:00Z'],
+      ['u3', 'Secret-3', 'A3', '', '2026-03-25T00:00:00Z'],
+      ['u4', '', 'A4', '', '2026-03-25T00:00:00Z'],
+      ['u5', 'Secret-5', 'AX', '', '2026-03-25T00:00:00Z'],
+    ],
+  };
+  const auth = {
+    headers: ['認証ID', 'ログインID', '会員ID', '職員ID', 'パスワード更新日時', '最終ログイン日時', 'アカウント有効フラグ', 'ロック状態', '削除フラグ'],
+    rows: [
+      ['A1', 'u1', 'M1', '', '', '', true, false, false],
+      ['A2', 'u2', 'M2', '', '2026-05-01T00:00:00Z', '2026-05-01T00:00:00Z', true, false, false],
+      ['A3', 'u3', 'M3', '', '', '', false, false, false],
+      ['A4', 'u4', 'M4', '', '', '', true, false, false],
+    ],
+  };
+  const out = fn.countCredentialsTempExposure_(ledger, auth);
+  assert.equal(out.withPlainPassword, 4);
+  assert.equal(out.matchedAuth, 3);
+  assert.equal(out.enabledAndUnchanged, 1);
+  assert.equal(out.enabledAndChanged, 1);
+  assert.equal(out.disabledOrDeleted, 1);
+  assert.equal(out.neverLoggedIn, 1);
+  assert.doesNotMatch(JSON.stringify(out), /Secret|u1|A1/);
+
+  const members = { headers: ['会員ID', '削除フラグ'], rows: [['M1', true], ['M2', false], ['M3', true]] };
+  const staff = { headers: ['職員ID', '削除フラグ'], rows: [] };
+  assert.deepEqual(fn.countAuthOfDeletedPeople_(auth, members, staff), { total: 2, enabled: 1, disabled: 1, locked: 0 });
 });
 
 test('describeDatabaseState_LOG は読むだけ（MASTER 限定・書き込みなし・監査ログに書かない）', () => {

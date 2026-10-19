@@ -6936,8 +6936,71 @@ function describeDatabaseState_LOG() {
     result.references.push(out);
   });
 
+  result.authOfDeletedPeople = countAuthOfDeletedPeople_(snapOf('T_認証アカウント'), snapOf('T_会員'), snapOf('T_事業所職員'));
+  result.credentialsTemp = countCredentialsTempExposure_(cache['main:_CREDENTIALS_TEMP'] || null, snapOf('T_認証アカウント'));
+
   var out = JSON.stringify(result, null, 2);
   Logger.log('=== DB の状態（件数のみ）===\n' + out);
+  return out;
+}
+
+function dbStateIndex_(snap) {
+  var idx = {};
+  if (snap) snap.headers.forEach(function(h, i) { if (h && idx[h] == null) idx[h] = i; });
+  return idx;
+}
+
+function dbStateTime_(v) {
+  if (v === '' || v === null || v === undefined) return 0;
+  var t = Object.prototype.toString.call(v) === '[object Date]' ? v.getTime() : new Date(String(v)).getTime();
+  return isNaN(t) ? 0 : t;
+}
+
+// 削除済みの会員・職員に結び付いたまま、削除されていない認証アカウント。有効なものはログインできる
+function countAuthOfDeletedPeople_(auth, members, staff) {
+  if (!auth || !members || !staff) return { skipped: 'シートが無い' };
+  var a = dbStateIndex_(auth), m = dbStateIndex_(members), s = dbStateIndex_(staff);
+  var deletedMember = {}, deletedStaff = {};
+  members.rows.forEach(function(r) { if (toBoolean_(r[m['削除フラグ']])) deletedMember[String(r[m['会員ID']])] = true; });
+  staff.rows.forEach(function(r) { if (toBoolean_(r[s['削除フラグ']])) deletedStaff[String(r[s['職員ID']])] = true; });
+  var out = { total: 0, enabled: 0, disabled: 0, locked: 0 };
+  auth.rows.forEach(function(r) {
+    if (toBoolean_(r[a['削除フラグ']])) return;
+    var mid = String(r[a['会員ID']] || ''), sid = String(r[a['職員ID']] || '');
+    if (!(deletedMember[mid] || (sid && deletedStaff[sid]))) return;
+    out.total += 1;
+    if (toBoolean_(r[a['アカウント有効フラグ']])) out.enabled += 1; else out.disabled += 1;
+    if (toBoolean_(r[a['ロック状態']])) out.locked += 1;
+  });
+  return out;
+}
+
+// _CREDENTIALS_TEMP（2026-03 移行時の認証情報台帳）に平文の初期パスワードが残っているか。
+// 値は読むが返さない。台帳の日時より後にパスワードが変わっていない有効なアカウントを「まだ使えうる」と数える
+function countCredentialsTempExposure_(ledger, auth) {
+  if (!ledger) return { exists: false };
+  var l = dbStateIndex_(ledger);
+  var out = { exists: true, rows: ledger.rows.length, columns: ledger.headers.filter(function(h) { return h; }),
+    withPlainPassword: 0, matchedAuth: 0, enabledAndUnchanged: 0, enabledAndChanged: 0, disabledOrDeleted: 0, neverLoggedIn: 0 };
+  if (l['初期パスワード'] == null) return out;
+  var a = dbStateIndex_(auth);
+  var authById = {}, authByLogin = {};
+  if (auth) auth.rows.forEach(function(r) {
+    authById[String(r[a['認証ID']] || '')] = r;
+    authByLogin[String(r[a['ログインID']] || '')] = r;
+  });
+  ledger.rows.forEach(function(r) {
+    if (String(r[l['初期パスワード']] == null ? '' : r[l['初期パスワード']]) === '') return;
+    out.withPlainPassword += 1;
+    var row = (l['認証ID'] != null && authById[String(r[l['認証ID']] || '')]) || authByLogin[String(r[l['ログインID']] || '')];
+    if (!row) return;
+    out.matchedAuth += 1;
+    if (toBoolean_(row[a['削除フラグ']]) || !toBoolean_(row[a['アカウント有効フラグ']])) { out.disabledOrDeleted += 1; return; }
+    var issuedAt = Math.max(dbStateTime_(l['再発行日時'] != null ? r[l['再発行日時']] : ''), dbStateTime_(l['更新日時'] != null ? r[l['更新日時']] : ''));
+    var changedAt = dbStateTime_(row[a['パスワード更新日時']]);
+    if (changedAt && issuedAt && changedAt > issuedAt) out.enabledAndChanged += 1; else out.enabledAndUnchanged += 1;
+    if (!dbStateTime_(row[a['最終ログイン日時']])) out.neverLoggedIn += 1;
+  });
   return out;
 }
 
