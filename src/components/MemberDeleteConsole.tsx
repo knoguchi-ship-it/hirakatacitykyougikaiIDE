@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { MEMBER_TYPE_LABELS } from '../shared/memberTypes.mjs';
+import { memberTypeMasterLabel } from '../shared/memberTypeMaster';
 import { api, MemberDeleteSearchResult, MemberDeletePreview, DeleteLogEntry } from '../services/api';
 
 type Step = 'search' | 'preview' | 'confirm' | 'done';
@@ -65,7 +65,7 @@ const renderTargetMeta = (target: MemberDeleteSearchResult | MemberDeletePreview
     ].join('・');
   }
   return [
-    MEMBER_TYPE_LABELS[target.memberType] || target.memberType,
+    memberTypeMasterLabel(target.memberType),
     MEMBER_STATUS_LABEL[target.memberStatus] || target.memberStatus,
   ].join('・');
 };

@@ -111,8 +111,9 @@ test('未設定（空欄・非数値）のときだけ既定値を補完する',
 
 // ── ソース契約 ────────────────────────────────────────────
 test('★正本は M_会員種別.年会費金額 の 1 箇所（公開 API も同じ読み出しを使う）', () => {
-  assert.match(source, /function readMemberTypeAnnualFees_\(ss\)/, '共通読み出しが無い');
-  assert.match(source, /membershipFees: ppMembershipFees/, '公開ポータル設定に会費が乗っていない');
+  // 2026-10-19: 共通読み出しは readMemberTypeMaster_（種別の一覧と年会費を一緒に返す）
+  assert.match(source, /function readMemberTypeMaster_\(ss\)/, '共通読み出しが無い');
+  assert.match(source, /memberTypes: ppMemberTypes/, '公開ポータル設定に会費が乗っていない');
   assert.match(source, /memberTypeAnnualFees: memberTypeAnnualFees/, '管理設定に会費が乗っていない');
   // 会費を T_システム設定 側に二重で持たない（金額キーを増やさない）
   assert.doesNotMatch(source, /MEMBERSHIP_FEE_(INDIVIDUAL|BUSINESS|SUPPORT)/, '会費金額を設定キーに二重定義している');

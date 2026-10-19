@@ -1007,7 +1007,12 @@ erDiagram
   - `SUPPORT`（賛助会員, 5,000円）
 - `年会費金額` は**年会費の唯一の正本**。管理画面 設定 → 会費設定 から変更でき、
   公開ポータルの入会申込カード表示・年会費請求・メール差し込みがすべてこの列を読む
-  （`readMemberTypeAnnualFees_` / `getAnnualFeeAmountMap_`）。
+  （`readMemberTypeMaster_` / `getAnnualFeeAmountMap_`）。
+- **会員種別の一覧そのものもこの表が正本**（2026-10-19）。有効フラグの立った行を表示順に並べたものが、
+  入会の検査（`isKnownMasterCode_`）・規程の対象種別・一括メールと名簿の既定・画面の選択肢と会費欄・
+  入会フォームの種別カードになる（GAS `readMemberTypeMaster_` → 画面 `src/shared/memberTypeMaster.ts`）。
+  種別を止めるときは行の有効フラグを落とす。種別ごとの入力の流れ（事業所の職員登録など）はコード側にあるため、
+  行を足すだけでは入会フォームに出ない（`test:member-type-master`）。
 - 関連する `T_システム設定` キー: `MEMBERSHIP_FEE_PUBLIC_VISIBLE`（入会申込画面に年会費を出すか）、
   `MEMBERSHIP_FEE_NOTE`（同画面に添える補足・200 文字以内）。**金額はここに二重で持たない**。
 

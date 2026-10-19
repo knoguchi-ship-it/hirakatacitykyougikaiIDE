@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRevealOnChange } from '../shared/useRevealOnChange';
+import { useMemberTypeMaster, memberTypeMasterLabel, memberTypeOptionsIncluding } from '../shared/memberTypeMaster';
 import { EMAIL_PATTERN, CARE_MANAGER_NO_PATTERN, CARE_MANAGER_NO_RELAXED_PATTERN, POSTAL_CODE_PATTERN, PHONE_PATTERN } from '../shared/validators';
 import { AnnualFeeRecord, Member, MemberType, PaymentStatus, Staff, StaffRole, AdminDashboardMemberRow, ConvertMemberTypePayload } from '../types';
 import { api } from '../services/api';
@@ -258,6 +259,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
   // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
   const uid = React.useId();
   const [form, setForm] = useState<EditableMemberForm>({ ...(member as EditableMemberForm) });
+  const memberTypeOptions = useMemberTypeMaster();
   const [initialSnapshot, setInitialSnapshot] = useState(() => normalizeEditableMember(member as EditableMemberForm));
   const [annualFeeDrafts, setAnnualFeeDrafts] = useState<AnnualFeeEditDraft[]>(() => normalizeAnnualFeeDrafts(member.annualFeeHistory || []));
   const [initialAnnualFeeSnapshot, setInitialAnnualFeeSnapshot] = useState(() => normalizeAnnualFeeSnapshot(normalizeAnnualFeeDrafts(member.annualFeeHistory || [])));
@@ -1199,9 +1201,9 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
           <div>
             <label htmlFor={`${uid}-f1`} className={labelClass}>会員種別</label>
             <select id={`${uid}-f1`} className={fieldClass()} value={form.type || 'INDIVIDUAL'} disabled>
-              <option value="INDIVIDUAL">個人会員</option>
-              <option value="BUSINESS">事業所会員</option>
-              <option value="SUPPORT">賛助会員</option>
+              {memberTypeOptionsIncluding(memberTypeOptions, form.type || 'INDIVIDUAL').map((t) => (
+                <option key={t.code} value={t.code}>{t.label}</option>
+              ))}
             </select>
           </div>
           {/* v131: 事業所会員は姓/名/セイ/メイ/介護支援専門員番号を非表示 */}
@@ -2206,7 +2208,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                   .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ja'))
                   .map(m => (
                     <option key={m.memberId} value={m.memberId}>
-                      {m.displayName}（{m.memberType === MemberType.SUPPORT ? '賛助' : '個人'}・{m.memberId}）
+                      {m.displayName}（{memberTypeMasterLabel(m.memberType)}・{m.memberId}）
                     </option>
                   ))}
               </select>

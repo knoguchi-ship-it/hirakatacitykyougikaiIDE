@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { memberTypeLabel } from '../shared/memberTypes.mjs';
+import { getMemberTypeMaster, useMemberTypeMaster, memberTypeMasterLabel } from '../shared/memberTypeMaster';
 import { api } from '../services/api';
 import {
   AdminPermissionLevel,
@@ -49,11 +49,11 @@ const CURRENT_YEAR = (() => { const d = new Date(); return d.getMonth() < 3 ? d.
 const MESSAGE_AUTO_CLEAR_MS = 4000;
 
 const WITHDRAW_ACTION = 'WITHDRAW' as const;
-const MEMBER_TYPES = [MemberType.INDIVIDUAL, MemberType.BUSINESS, MemberType.SUPPORT] as const;
-const MEMBER_TYPE_ORDER: Record<MemberType, number> = {
-  [MemberType.INDIVIDUAL]: 0,
-  [MemberType.BUSINESS]: 1,
-  [MemberType.SUPPORT]: 2,
+// 種別の並びは M_会員種別（表示順）。コードに種別を並べない
+const memberTypeCodes = (): MemberType[] => getMemberTypeMaster().map((t) => t.code as MemberType);
+const memberTypeOrder = (memberType: string): number => {
+  const i = getMemberTypeMaster().findIndex((t) => t.code === memberType);
+  return i < 0 ? 99 : i;
 };
 const YEN_FORMATTER = new Intl.NumberFormat('ja-JP');
 
@@ -94,7 +94,7 @@ const createEmptySummary = (): AnnualFeeAdminSummary => ({
   unpaidCount: 0,
   paidAmount: 0,
   unpaidAmount: 0,
-  memberTypeBreakdown: MEMBER_TYPES.map((memberType) => createEmptySummaryByType(memberType)),
+  memberTypeBreakdown: memberTypeCodes().map((memberType) => createEmptySummaryByType(memberType)),
 });
 
 const normalizeSummary = (summary?: AnnualFeeAdminSummary | null): AnnualFeeAdminSummary => {
@@ -105,7 +105,7 @@ const normalizeSummary = (summary?: AnnualFeeAdminSummary | null): AnnualFeeAdmi
     unpaidCount: Number(summary?.unpaidCount || 0),
     paidAmount: Number(summary?.paidAmount || 0),
     unpaidAmount: Number(summary?.unpaidAmount || 0),
-    memberTypeBreakdown: MEMBER_TYPES.map((memberType) => ({
+    memberTypeBreakdown: memberTypeCodes().map((memberType) => ({
       ...createEmptySummaryByType(memberType),
       ...(lookup.get(memberType) || {}),
       memberType,
@@ -121,8 +121,8 @@ const createEmptyData = (): AnnualFeeAdminData => ({
   summary: createEmptySummary(),
 });
 
-// v376.67: 会員種別ラベルの単一情報源（src/shared/memberTypes.mjs）
-const toMemberTypeLabel = (memberType: MemberType): string => memberTypeLabel(memberType);
+// 種別の名称は M_会員種別.名称（src/shared/memberTypeMaster.ts）
+const toMemberTypeLabel = (memberType: MemberType): string => memberTypeMasterLabel(memberType);
 
 const memberTypeBadge = (memberType: MemberType): string => {
   if (memberType === MemberType.BUSINESS) return 'bg-violet-100 text-violet-700';
@@ -250,6 +250,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
   const [selectedYear, setSelectedYear] = useState<number>(CURRENT_YEAR);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('UNPAID');
   const [memberTypeFilter, setMemberTypeFilter] = useState<MemberTypeFilter>('ALL');
+  const memberTypeOptions = useMemberTypeMaster();
   const [query, setQuery] = useState('');
   const [pageSize, setPageSize] = useState<number>(50);
   const [currentPage, setCurrentPage] = useState(1);
@@ -380,7 +381,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
           comparison = a.displayName.localeCompare(b.displayName, 'ja');
           break;
         case 'memberType':
-          comparison = (MEMBER_TYPE_ORDER[a.memberType] ?? 9) - (MEMBER_TYPE_ORDER[b.memberType] ?? 9);
+          comparison = memberTypeOrder(a.memberType) - memberTypeOrder(b.memberType);
           break;
         case 'status': {
           const statusOrder: Record<string, number> = { UNPAID: 0, PAID: 1, WITHDRAW: 2 };
@@ -689,9 +690,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
                 onChange={(e) => setMemberTypeFilter(e.target.value as MemberTypeFilter)}
               >
                 <option value="ALL">すべて</option>
-                <option value={MemberType.INDIVIDUAL}>個人会員</option>
-                <option value={MemberType.BUSINESS}>事業所会員</option>
-                <option value={MemberType.SUPPORT}>賛助会員</option>
+                {memberTypeOptions.map((t) => <option key={t.code} value={t.code}>{t.label}</option>)}
               </select>
             </div>
             <div className="flex-1 min-w-[220px]">
@@ -751,7 +750,7 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-            {MEMBER_TYPES.map((memberType) => {
+            {memberTypeOptions.map(({ code }) => code as MemberType).map((memberType) => {
               const memberSummary = getSummaryByType(summary, memberType);
               return (
                 <div key={memberType} className="rounded-lg border border-slate-200 bg-white px-4 py-4">

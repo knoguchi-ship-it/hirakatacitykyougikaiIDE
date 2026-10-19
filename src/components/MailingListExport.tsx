@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { MEMBER_TYPE_LABELS } from '../shared/memberTypes.mjs';
+import { useMemberTypeMaster, memberTypeMasterLabel } from '../shared/memberTypeMaster';
 import { ApiClient } from '../services/api';
 import {
   MailingListFilterType,
@@ -68,6 +68,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
   const [year, setYear] = useState(currentFiscalYear);
   const [keyword, setKeyword] = useState('');
   const [columnFilters, setColumnFilters] = useState<ColumnFilters>(INITIAL_COLUMN_FILTERS);
+  const memberTypeOptions = useMemberTypeMaster();
   const [feeConditions, setFeeConditions] = useState<FeeCondition[]>([]);
   const [loadingTargets, setLoadingTargets] = useState(false);
   const [targetsError, setTargetsError] = useState<string | null>(null);
@@ -141,7 +142,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
           target.kana || '', // v362: フリガナ検索（ひらがな/全角カナ/半角カナ いずれもヒット）
           target.memberId,
           target.officeName,
-          MEMBER_TYPE_LABELS[target.memberType] || target.memberType,
+          memberTypeMasterLabel(target.memberType),
           MEMBER_STATUS_LABELS[target.memberStatus]?.label || target.memberStatus,
           FEE_STATUS_LABELS[target.annualFeeStatus]?.label || target.annualFeeStatus,
         ])) return false;
@@ -249,7 +250,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
   if (columnFilters.memberType) {
     activeChips.push({
       key: 'memberType',
-      label: `種別: ${MEMBER_TYPE_LABELS[columnFilters.memberType] ?? columnFilters.memberType}`,
+      label: `種別: ${memberTypeMasterLabel(columnFilters.memberType)}`,
       onRemove: () => setColumnFilters((f) => ({ ...f, memberType: '' })),
     });
   }
@@ -580,9 +581,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
                   className={selectCls}
                 >
                   <option value="">すべて</option>
-                  <option value="BUSINESS">事業所会員</option>
-                  <option value="INDIVIDUAL">個人会員</option>
-                  <option value="SUPPORT">賛助会員</option>
+                  {memberTypeOptions.map((t) => <option key={t.code} value={t.code}>{t.label}</option>)}
                 </select>
               </div>
 
@@ -759,7 +758,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
                           </div>
                         </td>
                         <td className="px-3 py-3 align-top text-slate-700">
-                          {MEMBER_TYPE_LABELS[target.memberType] || target.memberType}
+                          {memberTypeMasterLabel(target.memberType)}
                         </td>
                         <td className="px-3 py-3 align-top">{renderStatusBadge(target)}</td>
                         <td className="px-3 py-3 align-top text-slate-700">

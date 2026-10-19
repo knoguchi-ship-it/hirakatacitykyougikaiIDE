@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { MEMBER_TYPE_ANNUAL_FEE_DEFAULTS } from '../shared/memberTypes.mjs';
+import { setMemberTypeMaster } from '../shared/memberTypeMaster';
 import { PublicTraining } from '../shared/types';
 import { callApi } from '../shared/api-base';
 import { callWithConnectionRetry } from '../shared/connectionRetry';
@@ -16,7 +16,6 @@ import { DEFAULT_WITHDRAWAL_CONFIRMATION_ITEMS, normalizeWithdrawalConfirmationI
 
 type PublicPortalContentSettings = {
   regulations: import('../types').Regulation[];
-  membershipFees: { INDIVIDUAL: number; BUSINESS: number; SUPPORT: number };
   membershipFeeVisible: boolean;
   membershipFeeNote: string;
   /** プライバシーポリシーの掲載先。空ならリンクを出さない。 */
@@ -95,7 +94,6 @@ const PAGE_PARAM_TO_VIEW: Partial<Record<string, View>> = {
 
 const DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS: PublicPortalContentSettings = {
   regulations: [],
-  membershipFees: MEMBER_TYPE_ANNUAL_FEE_DEFAULTS,
   membershipFeeVisible: true,
   membershipFeeNote: '',
   // 既定は空。URL はコードではなく設定（T_システム設定）で持つ。
@@ -199,7 +197,7 @@ const PublicApp: React.FC = () => {
       try {
         const [trainingsData, portalSettings] = await Promise.allSettled([
           callWithConnectionRetry(() => callApi<PublicTraining[]>('getPublicTrainings')),
-          callWithConnectionRetry(() => callApi<{ trainingMenuEnabled: boolean; membershipMenuEnabled: boolean } & PublicPortalContentSettings>('getPublicPortalSettings')),
+          callWithConnectionRetry(() => callApi<{ trainingMenuEnabled: boolean; membershipMenuEnabled: boolean; memberTypes?: unknown } & PublicPortalContentSettings>('getPublicPortalSettings')),
         ]);
         if (trainingsData.status === 'fulfilled') {
           setTrainings(trainingsData.value ?? []);
@@ -211,13 +209,10 @@ const PublicApp: React.FC = () => {
         if (portalSettings.status === 'fulfilled' && portalSettings.value) {
           setTrainingMenuEnabled(portalSettings.value.trainingMenuEnabled !== false);
           setMembershipMenuEnabled(portalSettings.value.membershipMenuEnabled !== false);
+          // 会員種別（名称・年会費・表示順）は M_会員種別。入会フォームはこの一覧から種別カードを描く
+          setMemberTypeMaster(portalSettings.value.memberTypes);
           setPortalContentSettings({
             regulations: Array.isArray(portalSettings.value.regulations) ? portalSettings.value.regulations : [],
-            membershipFees: {
-              INDIVIDUAL: Number(portalSettings.value.membershipFees?.INDIVIDUAL ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipFees.INDIVIDUAL),
-              BUSINESS: Number(portalSettings.value.membershipFees?.BUSINESS ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipFees.BUSINESS),
-              SUPPORT: Number(portalSettings.value.membershipFees?.SUPPORT ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipFees.SUPPORT),
-            },
             membershipFeeVisible: portalSettings.value.membershipFeeVisible ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipFeeVisible,
             membershipFeeNote: portalSettings.value.membershipFeeNote ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipFeeNote,
             // 空文字を既定で上書きしない（|| ではなく ??）。空＝リンクを出さない、が設定の意思。
@@ -650,7 +645,6 @@ const PublicApp: React.FC = () => {
         {view === 'member-application' && (
           <MemberApplicationForm
             regulations={portalContentSettings?.regulations ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.regulations}
-            memberTypeFees={portalContentSettings?.membershipFees ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipFees}
             showMemberTypeFees={portalContentSettings?.membershipFeeVisible ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipFeeVisible}
             memberTypeFeeNote={portalContentSettings?.membershipFeeNote ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipFeeNote}
             onBack={handleBackToHome}

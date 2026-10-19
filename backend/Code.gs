@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: ee277aef9a878b78ff3b1c81d0e2cd6218ceca305f9eccca32f11061e7c6d585
+// BUILD_INPUT_SHA256: 214d87ad91f0a49dfa76db13ff7d23d3db760b08a047e6d6496876871350db37
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -2109,17 +2109,6 @@ function buildColumnIndex_(sheet) {
 
 
 
-function getAnnualFeeAmountMap_(ss) {
-  var rows = getRowsAsObjects_(ss, 'M_会員種別');
-  var result = {};
-  for (var i = 0; i < rows.length; i += 1) {
-    var row = rows[i];
-    var code = String(row['コード'] || '');
-    if (!code) continue;
-    result[code] = Number(row['年会費金額'] || 0);
-  }
-  return result;
-}
 
 // v376.67: 会員種別の【単一情報源】。ラベル・年会費既定値・整形関数を
 // src/shared/memberTypes.mjs から build 時に注入する（フロントと同一ロジック）。
@@ -2144,17 +2133,6 @@ var MEMBERSHIP_FEE_DEFAULTS = {
 };
 
 // 会員種別ごとの年会費を、公開・管理どちらでも同じ形（コード→金額）で返す。
-function readMemberTypeAnnualFees_(ss) {
-  var map = getAnnualFeeAmountMap_(ss);
-  var result = {};
-  var codes = Object.keys(MEMBER_TYPE_ANNUAL_FEE_DEFAULTS);
-  for (var i = 0; i < codes.length; i += 1) {
-    var code = codes[i];
-    var amount = Number(map[code]);
-    result[code] = isFinite(amount) && amount >= 0 ? Math.floor(amount) : MEMBER_TYPE_ANNUAL_FEE_DEFAULTS[code];
-  }
-  return result;
-}
 
 
 
@@ -4811,7 +4789,8 @@ function getPublicPortalSettings_() {
   // v376.65（案C Phase 1）: 入会申込画面に出す規程・重要事項（公開フラグの立った行のみ）
   var ppRegulations = listRegulations_(db, true);
   // v376.64: 入会申込の会員種別カードに表示する年会費（正本は M_会員種別.年会費金額）
-  var ppMembershipFees = readMemberTypeAnnualFees_(db);
+  // 種別ごとの年会費は memberTypes[].annualFee に乗る（入会フォームの種別カードはこの一覧から描く）
+  var ppMemberTypes = readMemberTypeMaster_(db);
   var ppMembershipFeeVisibleRaw = map['MEMBERSHIP_FEE_PUBLIC_VISIBLE'];
   var ppMembershipFeeVisible = ppMembershipFeeVisibleRaw === undefined || ppMembershipFeeVisibleRaw === ''
     ? MEMBERSHIP_FEE_DEFAULTS.publicVisible
@@ -4821,7 +4800,7 @@ function getPublicPortalSettings_() {
     success: true,
     data: {
       regulations: ppRegulations,
-      membershipFees: ppMembershipFees,
+      memberTypes: ppMemberTypes,
       membershipFeeVisible: ppMembershipFeeVisible,
       membershipFeeNote: ppMembershipFeeNote,
       trainingMenuEnabled: publicPortalTrainingMenuEnabled,
@@ -5421,8 +5400,25 @@ function isKnownMasterCode_(ss, masterName, code) {
   return true;
 }
 
-// 会員種別コードの正本は M_会員種別（有効フラグの立った行・表示順）。
-// 種別の検査と「全種別」の既定値はここから引き、コードに種別を並べない。
+// 会員種別の正本は M_会員種別（有効フラグの立った行・表示順）。
+// 種別の検査・「全種別」の既定値・画面の選択肢と会費欄はすべてここから引き、コードに種別を並べない。
+// 名称が空ならコード側の既定ラベル、金額が不正ならコード側の既定額（どちらも src/shared/memberTypes.mjs）。
+function readMemberTypeMaster_(ss) {
+  return getRowsAsObjects_(ss, 'M_会員種別')
+    .filter(function(r) { return String(r['コード'] || '').trim() && toBoolean_(r['有効フラグ']); })
+    .sort(function(a, b) { return Number(a['表示順'] || 0) - Number(b['表示順'] || 0); })
+    .map(function(r) {
+      var code = String(r['コード']).trim();
+      var amount = Number(r['年会費金額']);
+      return {
+        code: code,
+        label: String(r['名称'] || '').trim() || memberTypeLabel_(code),
+        order: Number(r['表示順'] || 0),
+        annualFee: isFinite(amount) && amount >= 0 ? Math.floor(amount) : Number(MEMBER_TYPE_ANNUAL_FEE_DEFAULTS[code] || 0),
+      };
+    });
+}
+
 
 // 事業所会員: 公開ポータル変更申請（管理者承認後に適用）で変更可能なフィールド allowlist
 var PUBLIC_BUSINESS_UPDATE_ALLOWLIST_ = [

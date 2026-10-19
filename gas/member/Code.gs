@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 8ebbba13160fb298a437f1fb9a9c6eef2e65b038427fb9fd1f8e06d19448469a
+// BUILD_INPUT_SHA256: c5a1a3d3754b99ca5fdbfa7ed016e709d23887cfba5ccf611df38aeb97a4fcd8
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -7450,8 +7450,10 @@ function isKnownMasterCode_(ss, masterName, code) {
   return true;
 }
 
-// 会員種別コードの正本は M_会員種別（有効フラグの立った行・表示順）。
-// 種別の検査と「全種別」の既定値はここから引き、コードに種別を並べない。
+// 会員種別の正本は M_会員種別（有効フラグの立った行・表示順）。
+// 種別の検査・「全種別」の既定値・画面の選択肢と会費欄はすべてここから引き、コードに種別を並べない。
+// 名称が空ならコード側の既定ラベル、金額が不正ならコード側の既定額（どちらも src/shared/memberTypes.mjs）。
+
 
 // 事業所会員: 公開ポータル変更申請（管理者承認後に適用）で変更可能なフィールド allowlist
 var PUBLIC_BUSINESS_UPDATE_ALLOWLIST_ = [

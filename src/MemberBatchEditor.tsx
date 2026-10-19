@@ -1,6 +1,6 @@
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useRevealOnChange } from './shared/useRevealOnChange';
-import { memberTypeLabel } from './/shared/memberTypes.mjs';
+import { useMemberTypeMaster, memberTypeMasterLabel } from './shared/memberTypeMaster';
 import { api } from './services/api';
 import { AdminPersonRow, AdminPersonType, MailDestination, MailingPreference } from './types';
 
@@ -70,7 +70,7 @@ const MESSAGE_AUTO_CLEAR_MS = 4000;
 // v376.67: 会員種別ラベルは共有モジュールが単一情報源。
 // この画面は「人物単位」の一覧のため、事業所だけは会員ではなく職員として表記する。
 const toPersonTypeLabel = (t: AdminPersonType): string => (
-  t === 'OFFICE_STAFF' ? '事業所職員' : memberTypeLabel(t)
+  t === 'OFFICE_STAFF' ? '事業所職員' : memberTypeMasterLabel(t)
 );
 
 const toPersonTypeBadge = (t: AdminPersonType): string => {
@@ -144,6 +144,8 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
   const [loading, setLoading] = useState(false);
 
   const [personTypeFilter, setPersonTypeFilter] = useState<PersonTypeFilter>('ALL');
+  // 人物単位の一覧なので、事業所会員は会員ではなく職員（OFFICE_STAFF）として選ぶ
+  const personTypeOptions = useMemberTypeMaster().filter((t) => t.code !== 'BUSINESS');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [query, setQuery] = useState('');
   const [pageSize, setPageSize] = useState<number>(25);
@@ -408,8 +410,7 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
             onChange={(e) => setPersonTypeFilter(e.target.value as PersonTypeFilter)}
           >
             <option value="ALL">全種別</option>
-            <option value="INDIVIDUAL">個人会員</option>
-            <option value="SUPPORT">賛助会員</option>
+            {personTypeOptions.map((t) => <option key={t.code} value={t.code}>{t.label}</option>)}
             <option value="OFFICE_STAFF">事業所職員</option>
           </select>
         </div>

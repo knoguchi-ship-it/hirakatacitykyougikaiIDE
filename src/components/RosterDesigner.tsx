@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { MEMBER_TYPE_LABELS } from '../shared/memberTypes.mjs';
+import { useMemberTypeMaster, memberTypeMasterLabel } from '../shared/memberTypeMaster';
 import { createPortal } from 'react-dom';
 import {
   closestCenter,
@@ -492,7 +492,8 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
 
   // フィルタ
   const currentFY = useMemo(calcCurrentFY, []);
-  const [filterTypes, setFilterTypes] = useState<string[]>(['INDIVIDUAL', 'BUSINESS', 'SUPPORT']);
+  const memberTypeOptions = useMemberTypeMaster();
+  const [filterTypes, setFilterTypes] = useState<string[]>(() => memberTypeOptions.map((t) => t.code));
   const [filterStatus, setFilterStatus] = useState('ACTIVE');
   const [filterYear, setFilterYear] = useState(currentFY);
   const [availableYears, setAvailableYears] = useState<number[]>([]);
@@ -1671,12 +1672,12 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
             <div>
               <p className="mb-2 text-sm font-medium text-slate-600">会員種別</p>
               <div className="flex flex-wrap gap-4">
-                {(['INDIVIDUAL', 'BUSINESS', 'SUPPORT'] as const).map((mt) => (
+                {memberTypeOptions.map(({ code: mt, label }) => (
                   <label key={mt} className="flex cursor-pointer items-center gap-2 text-sm min-h-[44px]">
                     <input type="checkbox" className="h-4 w-4 rounded border-slate-300"
                       checked={filterTypes.includes(mt)}
                       onChange={() => setFilterTypes((p) => p.includes(mt) ? p.filter((x) => x !== mt) : [...p, mt])} />
-                    {MEMBER_TYPE_LABELS[mt]}
+                    {label}
                   </label>
                 ))}
               </div>
@@ -1792,7 +1793,7 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                     {filteredRows.map((r) => {
                       const id = rowKey(r);
                       const cat = String(r.outputCategory || '');
-                      const catLabel = cat === 'STAFF' ? '事業所職員' : MEMBER_TYPE_LABELS[String(r.memberType)] || String(r.memberType);
+                      const catLabel = cat === 'STAFF' ? '事業所職員' : memberTypeMasterLabel(String(r.memberType));
                       const nameDisplay = cat === 'STAFF' ? (r.staffFullName || r.staffId) : r.displayName;
                       return (
                         <tr key={id} className="even:bg-slate-50">

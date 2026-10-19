@@ -18,7 +18,12 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const form = fs.readFileSync(path.join(ROOT, 'src', 'components', 'application', 'MemberApplicationForm.tsx'), 'utf8');
 const gas = fs.readFileSync(path.join(ROOT, 'gas-src', 'Code.full.gs'), 'utf8');
 
-const FEES = { INDIVIDUAL: 3000, BUSINESS: 8000, SUPPORT: 5000 };
+// 種別の一覧は M_会員種別（画面は memberTypeMaster から受け取る）。並びは表示順
+const FEES = [
+  { code: 'INDIVIDUAL', label: '個人会員', order: 1, annualFee: 3000 },
+  { code: 'BUSINESS', label: '事業所会員', order: 2, annualFee: 8000 },
+  { code: 'SUPPORT', label: '賛助会員', order: 3, annualFee: 5000 },
+];
 
 // ── 1. ステップ構成 ────────────────────────────────────────────
 test('注意事項は会員種別の次に置かれる（3 種別とも）', () => {
@@ -112,4 +117,14 @@ test('確認チェックの文言に、無くなった項目名を列挙して�
   const label = jsx.slice(at, at + 120);
   assert.ok(label.includes('全体および会員種別ごと'), '新しい文言になっていない');
   assert.ok(!/変更・退会手続き|退会期限|定款確認導線/.test(jsx), '再編で無くなった項目名が画面に残っている');
+});
+test('★差し込みはマスタの種別で決まる（名称で指定できる・無効にした種別は空）', () => {
+  const master = [
+    { code: 'SUPPORT', label: '賛助会員', order: 1, annualFee: 5000 },
+    { code: 'NEWTYPE', label: '学生会員', order: 2, annualFee: 1000 },
+  ];
+  assert.equal(renderRegulationBody('{{学生会員の年会費}}', 'SUPPORT', master), '1,000円');
+  assert.equal(renderRegulationBody('{{年会費}}', '', master), '5,000円', '未選択なら表示順の先頭');
+  assert.equal(renderRegulationBody('[{{個人会費}}]', 'SUPPORT', master), '[]', 'マスタに無い種別の金額を出している');
+  assert.equal(renderRegulationBody('{{会員種別}}', 'NEWTYPE', master), '学生会員');
 });

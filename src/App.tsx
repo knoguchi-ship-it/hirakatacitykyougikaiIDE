@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue } from 'react';
-import { MEMBER_TYPE_LABELS, MEMBER_TYPE_ANNUAL_FEE_DEFAULTS, memberTypeLabel as sharedMemberTypeLabel } from './shared/memberTypes.mjs';
+import { memberTypeLabel as sharedMemberTypeLabel } from './shared/memberTypes.mjs';
+import { setMemberTypeMaster, getMemberTypeMaster, useMemberTypeMaster } from './shared/memberTypeMaster';
 import Sidebar from './components/Sidebar';
 import RolePreviewBar from './components/RolePreviewBar';
 import MemberBatchEditor from './MemberBatchEditor';
@@ -40,7 +41,7 @@ type Role = 'ADMIN' | 'MEMBER';
 type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'roster-export' | 'mailing-list-export' | 'template-help' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings' | 'member-delete' | 'change-requests' | 'officer-management' | 'payment-history' | 'claim-management' | 'line-post' | 'data-export' | 'no-admin-access';
 type AuthTab = 'member' | 'admin';
 type PendingAnnualFeeAction = { type: 'view'; view: View } | { type: 'logout' } | null;
-type MemberListFilter = 'ALL' | MemberType;
+type MemberListFilter = 'ALL' | string;
 type MemberStatusFilter = 'ALL' | 'ACTIVE' | 'WITHDRAWAL_SCHEDULED' | 'WITHDRAWN' | 'TRANSFERRED';
 type MemberSortKey = 'memberId' | 'displayName' | 'memberType' | 'trainingCount' | 'tenure' | 'status';
 type MemberSortDir = 'asc' | 'desc';
@@ -241,10 +242,7 @@ const buildLoginIdentities = (members: Member[]): LoginIdentity[] =>
 
 // v376.64: 会費設定（画面入力の初期値。実値は GAS の M_会員種別.年会費金額 が正本）
 
-// v376.67: 会費既定値・種別ラベルは src/shared/memberTypes.mjs が単一情報源
-const MEMBER_TYPE_ANNUAL_FEE_FALLBACK = MEMBER_TYPE_ANNUAL_FEE_DEFAULTS;
-const MEMBER_TYPE_FEE_FIELDS = (['INDIVIDUAL', 'BUSINESS', 'SUPPORT'] as const)
-  .map((code) => ({ code, label: MEMBER_TYPE_LABELS[code] }));
+// 2026-10-19: 会費欄の種別・名称・既定額は M_会員種別（src/shared/memberTypeMaster.ts）から描く
 
 const PUBLIC_PORTAL_DEFAULTS = {
   // 既定は空。URL はコードではなく設定（T_システム設定）で持つ。空ならリンクを出さない。
@@ -574,7 +572,7 @@ const App: React.FC = () => {
     }
   }, []);
   // v376.64: 会費設定（金額の正本は M_会員種別.年会費金額）
-  const [memberTypeAnnualFeesInput, setMemberTypeAnnualFeesInput] = useState<Record<'INDIVIDUAL' | 'BUSINESS' | 'SUPPORT', string>>({ INDIVIDUAL: '', BUSINESS: '', SUPPORT: '' });
+  const [memberTypeAnnualFeesInput, setMemberTypeAnnualFeesInput] = useState<Record<string, string>>({});
   const [membershipFeePublicVisibleInput, setMembershipFeePublicVisibleInput] = useState(true);
   const [membershipFeeNoteInput, setMembershipFeeNoteInput] = useState('');
   const [trainingDefaultFieldConfig, setTrainingDefaultFieldConfig] = useState<TrainingFieldConfig>({ ...DEFAULT_FIELD_CONFIG });
@@ -583,11 +581,9 @@ const App: React.FC = () => {
   const [settingsIsDirty, setSettingsIsDirty] = useState(false);
   // v317: システム設定サブナビ
   const applyMemberTypeAnnualFeesToInputs = React.useCallback((fees: SystemSettings['memberTypeAnnualFees']) => {
-    setMemberTypeAnnualFeesInput({
-      INDIVIDUAL: String(fees?.INDIVIDUAL ?? MEMBER_TYPE_ANNUAL_FEE_FALLBACK.INDIVIDUAL),
-      BUSINESS: String(fees?.BUSINESS ?? MEMBER_TYPE_ANNUAL_FEE_FALLBACK.BUSINESS),
-      SUPPORT: String(fees?.SUPPORT ?? MEMBER_TYPE_ANNUAL_FEE_FALLBACK.SUPPORT),
-    });
+    setMemberTypeAnnualFeesInput(Object.fromEntries(
+      getMemberTypeMaster().map((t) => [t.code, String(fees?.[t.code] ?? t.annualFee)]),
+    ));
   }, []);
   const [settingsSub, setSettingsSub] = useState<'basic' | 'fees' | 'regulations' | 'output' | 'email' | 'chat' | 'portal' | 'masters'>('basic');
   // メール通知タブは 14 枚のカードを持つ。全部並べると画面が長くなりすぎるため、
@@ -753,6 +749,7 @@ const App: React.FC = () => {
   const [adminMemberViewMode, setAdminMemberViewMode] = useState<AdminMemberViewMode>('all');
   const [memberListQuery, setMemberListQuery] = useState('');
   const [memberListFilter, setMemberListFilter] = useState<MemberListFilter>('ALL');
+  const memberTypeOptions = useMemberTypeMaster();
   const [memberListStatusFilter, setMemberListStatusFilter] = useState<MemberStatusFilter>(DEFAULT_MEMBER_STATUS_FILTER);
   const [memberListFiscalYearFilter, setMemberListFiscalYearFilter] = useState<string>(DEFAULT_MEMBER_FISCAL_YEAR_FILTER);
   const [memberListPage, setMemberListPage] = useState(1);
@@ -795,6 +792,7 @@ const App: React.FC = () => {
     setAnnualFeePaymentGuidanceInput(guidance);
     setAnnualFeeTransferAccount(transferAccount);
     setAnnualFeeTransferAccountInput(transferAccount);
+    setMemberTypeMaster(systemSettings.memberTypes);
     applyMemberTypeAnnualFeesToInputs(systemSettings.memberTypeAnnualFees);
     setMembershipFeePublicVisibleInput(systemSettings.membershipFeePublicVisible ?? true);
     setMembershipFeeNoteInput(systemSettings.membershipFeeNote ?? '');
@@ -2846,9 +2844,7 @@ const App: React.FC = () => {
             <label htmlFor={`${uid}-f7`} className="block text-xs font-medium text-slate-600 mb-1">会員種別</label>
             <select id={`${uid}-f7`} className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={memberListFilter} onChange={(e) => setMemberListFilter(e.target.value as MemberListFilter)}>
               <option value="ALL">全種別</option>
-              <option value={MemberType.INDIVIDUAL}>個人会員</option>
-              <option value={MemberType.BUSINESS}>事業所会員</option>
-              <option value={MemberType.SUPPORT}>賛助会員</option>
+              {memberTypeOptions.map((t) => <option key={t.code} value={t.code}>{t.label}</option>)}
             </select>
           </div>
         )}
@@ -3877,11 +3873,13 @@ const App: React.FC = () => {
           {/* v376.81: 一覧を「どの申込画面に出るか」でグループ分けする。
               以前は種別の区別が画面に出ておらず、対象会員種別を知っている人にしか読めなかった。 */}
           {(() => {
+            // 種別の並びと名称は M_会員種別。色は表示順で割り当てる（種別に意味を持たせない）
+            const TONES = ['border-sky-300 bg-sky-50', 'border-amber-300 bg-amber-50', 'border-emerald-300 bg-emerald-50', 'border-violet-300 bg-violet-50', 'border-rose-300 bg-rose-50'];
             const GROUPS: Array<{ target: Regulation['target']; title: string; where: string; tone: string }> = [
-              { target: 'ALL',        title: 'すべての会員に出す', where: '個人・事業所・賛助の 3 種別すべての申込で表示されます', tone: 'border-slate-300 bg-slate-50' },
-              { target: 'INDIVIDUAL', title: '個人会員にだけ出す', where: '会員種別で「個人会員」を選んだときだけ表示されます', tone: 'border-sky-300 bg-sky-50' },
-              { target: 'BUSINESS',   title: '事業所会員にだけ出す', where: '会員種別で「事業所会員」を選んだときだけ表示されます', tone: 'border-amber-300 bg-amber-50' },
-              { target: 'SUPPORT',    title: '賛助会員にだけ出す', where: '会員種別で「賛助会員」を選んだときだけ表示されます', tone: 'border-emerald-300 bg-emerald-50' },
+              { target: 'ALL', title: 'すべての会員に出す', where: `${memberTypeOptions.map((t) => t.label).join('・')}の ${memberTypeOptions.length} 種別すべての申込で表示されます`, tone: 'border-slate-300 bg-slate-50' },
+              ...memberTypeOptions.map((t, i) => ({
+                target: t.code, title: `${t.label}にだけ出す`, where: `会員種別で「${t.label}」を選んだときだけ表示されます`, tone: TONES[i % TONES.length],
+              })),
             ];
             return (
               <div className="space-y-6">
@@ -4050,10 +4048,8 @@ const App: React.FC = () => {
                         onChange={(e) => setRegulationDraft({ ...regulationDraft, target: e.target.value as Regulation['target'] })}
                         className="w-full rounded border border-slate-300 bg-white px-3 py-2"
                       >
-                        <option value="ALL">すべての会員 — 3 種別すべての申込に出す</option>
-                        <option value="INDIVIDUAL">個人会員だけ</option>
-                        <option value="BUSINESS">事業所会員だけ</option>
-                        <option value="SUPPORT">賛助会員だけ</option>
+                        <option value="ALL">すべての会員 — {memberTypeOptions.length} 種別すべての申込に出す</option>
+                        {memberTypeOptions.map((t) => <option key={t.code} value={t.code}>{t.label}だけ</option>)}
                       </select>
                     </div>
                     <div className="sm:col-span-2">
@@ -4176,7 +4172,7 @@ const App: React.FC = () => {
                 ここで保存した金額が、公開ポータルの入会申込画面・年会費請求・メール差し込みのすべてで使われます（保存先はマスタ「M_会員種別」の年会費金額）。
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {MEMBER_TYPE_FEE_FIELDS.map(({ code, label }) => (
+                {memberTypeOptions.map(({ code, label }) => (
                   <div key={code}>
                     <label htmlFor={`${uid}-fee-${code}`} className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
                     <div className="flex items-center gap-2">
@@ -4186,7 +4182,7 @@ const App: React.FC = () => {
                         min={0}
                         max={1000000}
                         step={100}
-                        value={memberTypeAnnualFeesInput[code]}
+                        value={memberTypeAnnualFeesInput[code] ?? ''}
                         onChange={(e) => { setMemberTypeAnnualFeesInput((prev) => ({ ...prev, [code]: e.target.value })); setSettingsIsDirty(true); }}
                         className="w-full border border-slate-300 rounded px-3 py-2"
                       />
@@ -5818,11 +5814,9 @@ const App: React.FC = () => {
                         trainingHistoryLookbackMonths: Number(historyLookbackInput || 18),
                         annualFeePaymentGuidance: annualFeePaymentGuidanceInput,
                         annualFeeTransferAccount: annualFeeTransferAccountInput,
-                        memberTypeAnnualFees: {
-                          INDIVIDUAL: Number(memberTypeAnnualFeesInput.INDIVIDUAL || 0),
-                          BUSINESS: Number(memberTypeAnnualFeesInput.BUSINESS || 0),
-                          SUPPORT: Number(memberTypeAnnualFeesInput.SUPPORT || 0),
-                        },
+                        memberTypeAnnualFees: Object.fromEntries(
+                          memberTypeOptions.map((t) => [t.code, Number(memberTypeAnnualFeesInput[t.code] || 0)]),
+                        ),
                         membershipFeePublicVisible: membershipFeePublicVisibleInput,
                         membershipFeeNote: membershipFeeNoteInput,
                         trainingDefaultFieldConfig: trainingDefaultFieldConfigInput,
@@ -5949,6 +5943,7 @@ const App: React.FC = () => {
                       setAnnualFeePaymentGuidanceInput(saved.annualFeePaymentGuidance);
                       setAnnualFeeTransferAccount(saved.annualFeeTransferAccount);
                       setAnnualFeeTransferAccountInput(saved.annualFeeTransferAccount);
+                      setMemberTypeMaster(saved.memberTypes);
                       applyMemberTypeAnnualFeesToInputs(saved.memberTypeAnnualFees);
                       setMembershipFeePublicVisibleInput(saved.membershipFeePublicVisible ?? true);
                       setMembershipFeeNoteInput(saved.membershipFeeNote ?? '');

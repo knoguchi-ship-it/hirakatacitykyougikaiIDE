@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { MEMBER_TYPE_LABELS } from '../shared/memberTypes.mjs';
+import { memberTypeMasterLabel } from '../shared/memberTypeMaster';
 import { callApi } from '../shared/api-base';
 
 // ── 型定義 ────────────────────────────────────────────────────────────────────
@@ -78,11 +78,12 @@ const FIELD_LABEL: Record<string, string> = {
 // 2026-10-14: 本番確認で、入会申込の内容が「memberType: BUSINESS」「EMAIL」「HOME」とコードのまま出ていた。
 // 会員の登録画面（MemberDetailAdmin）と同じ表記に揃える。
 const FIELD_VALUE_LABEL: Record<string, Record<string, string>> = {
-  memberType: MEMBER_TYPE_LABELS as Record<string, string>,
   mailingPreference: { EMAIL: 'メール配信', POST: '郵送希望' },
   preferredMailDestination: { OFFICE: '勤務先', HOME: '自宅' },
 };
-const formatFieldValue = (key: string, value: unknown) => FIELD_VALUE_LABEL[key]?.[String(value)] ?? String(value);
+// 会員種別の名称は M_会員種別.名称（src/shared/memberTypeMaster.ts）
+const formatFieldValue = (key: string, value: unknown) =>
+  key === 'memberType' ? memberTypeMasterLabel(String(value)) : FIELD_VALUE_LABEL[key]?.[String(value)] ?? String(value);
 
 function formatDate(iso: string) {
   if (!iso) return '';
@@ -385,7 +386,7 @@ const ChangeRequestConsole: React.FC = () => {
                     {STATUS_LABEL[req.status] || req.status}
                   </span>
                   <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                    {MEMBER_TYPE_LABELS[req.memberType] || req.memberType}
+                    {memberTypeMasterLabel(req.memberType)}
                   </span>
                   <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-medium text-violet-700">
                     {REQUEST_TYPE_LABEL[req.requestType] || req.requestType}

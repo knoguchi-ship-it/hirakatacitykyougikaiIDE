@@ -1,5 +1,6 @@
 // SOW Section 3: Database Design Definitions
 import type { WithdrawalConfirmationItem } from './shared/withdrawalConfirmation';
+import type { MemberTypeOption } from './shared/memberTypeMaster';
 
 export enum MemberType {
   INDIVIDUAL = 'INDIVIDUAL',
@@ -157,7 +158,8 @@ export interface EmailTemplate {
 
 // v376.65（案C Phase 1）: 規程・重要事項（正本は GAS の T_規程）
 export type RegulationKind = 'NOTICE' | 'REGULATION';
-export type RegulationTarget = 'ALL' | 'INDIVIDUAL' | 'BUSINESS' | 'SUPPORT';
+// 'ALL' か M_会員種別 の有効なコード（GAS の validateRegulationPayload_ が検査する）
+export type RegulationTarget = string;
 
 export interface Regulation {
   id: string;
@@ -175,11 +177,8 @@ export interface Regulation {
   updatedAt?: string;
 }
 
-export type MemberTypeAnnualFees = {
-  INDIVIDUAL: number;
-  BUSINESS: number;
-  SUPPORT: number;
-};
+// 会員種別コード → 年会費（種別の一覧は M_会員種別）
+export type MemberTypeAnnualFees = Record<string, number>;
 
 export interface SystemSettings {
   defaultBusinessStaffLimit: number;
@@ -188,6 +187,8 @@ export interface SystemSettings {
   annualFeeTransferAccount: TransferAccountInfo;
   // v376.64: 会費設定（金額の正本は M_会員種別.年会費金額）
   memberTypeAnnualFees?: MemberTypeAnnualFees;
+  // 2026-10-19: 有効な会員種別（M_会員種別・表示順）。画面の選択肢はここから描く
+  memberTypes?: MemberTypeOption[];
   membershipFeePublicVisible?: boolean;
   membershipFeeNote?: string;
   trainingDefaultFieldConfig?: TrainingFieldConfig | null;

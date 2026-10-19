@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { MEMBER_TYPE_LABELS } from '../shared/memberTypes.mjs';
+import { useMemberTypeMaster, memberTypeMasterLabel } from '../shared/memberTypeMaster';
 import { AdminPermissionLevel, SystemSettings } from '../types';
 import { BulkMailRecipient, EmailSendLog } from '../shared/types';
 import { BULK_MAIL_MERGE_TAGS } from '../shared/mailTemplates';
@@ -41,7 +41,8 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
   // ── フィルタ状態 ────────────────────────────────────────────
   // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
   const uid = React.useId();
-  const [filterTypes, setFilterTypes]           = useState<string[]>(['INDIVIDUAL', 'BUSINESS', 'SUPPORT']);
+  const memberTypeOptions = useMemberTypeMaster();
+  const [filterTypes, setFilterTypes]           = useState<string[]>(() => memberTypeOptions.map((t) => t.code));
   const [filterMemberStatus, setFilterMemberStatus] = useState('ACTIVE');
   const [filterStaffStatus, setFilterStaffStatus]   = useState('ENROLLED');
   const [filterMailing, setFilterMailing]       = useState('OPT_IN');
@@ -400,7 +401,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
         <div>
           <p className="text-sm font-medium text-slate-600 mb-2">会員種別</p>
           <div className="flex gap-4 flex-wrap">
-            {(['INDIVIDUAL', 'BUSINESS', 'SUPPORT'] as const).map(t => (
+            {memberTypeOptions.map(({ code: t, label }) => (
               <label key={t} className="flex items-center gap-2 cursor-pointer select-none text-sm">
                 <input
                   type="checkbox"
@@ -408,7 +409,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
                   checked={filterTypes.includes(t)}
                   onChange={() => toggleType(t)}
                 />
-                {MEMBER_TYPE_LABELS[t]}
+                {label}
               </label>
             ))}
           </div>
@@ -540,7 +541,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
                           <span className="ml-1 text-xs text-amber-600">⚠配信停止希望</span>
                         )}
                       </td>
-                      <td className="px-4 py-2 text-slate-600">{MEMBER_TYPE_LABELS[r.memberType] ?? r.memberType}</td>
+                      <td className="px-4 py-2 text-slate-600">{memberTypeMasterLabel(r.memberType)}</td>
                       <td className="px-4 py-2 text-slate-600">{r.officeName || '—'}</td>
                       <td className="px-4 py-2 text-slate-500 font-mono text-xs">{r.email || <span className="text-red-400">未登録</span>}</td>
                       <td className="px-4 py-2 text-slate-500 text-xs">

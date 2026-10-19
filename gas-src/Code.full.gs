@@ -2366,7 +2366,7 @@ function processApiRequest(action, payload) {
     // v373.7 (S5 Phase 2): 旧 v316 RosterTemplate dispatcher 撤去
     // v372: 名簿出力 全面刷新（Visual Template Designer）
     if (action === 'getRosterFieldDictionary') {
-      return JSON.stringify({ success: true, data: getRosterFieldDictionary_() });
+      return JSON.stringify({ success: true, data: getRosterFieldDictionary_(getOrCreateDatabase_()) });
     }
     if (action === 'getRosterDesignerData') {
       return JSON.stringify({ success: true, data: getRosterDesignerData_(parsedPayload) });
@@ -7319,7 +7319,8 @@ function getSystemSettings_() {
   var publicPortalWithdrawalCtaLabel = String(m['PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel;
   var withdrawalConfirmationItems = parseWithdrawalConfirmationItems_(m['PUBLIC_PORTAL_WITHDRAWAL_CONFIRMATION_ITEMS']);
   // v376.64: 会費設定（金額の正本は M_会員種別.年会費金額）
-  var memberTypeAnnualFees = readMemberTypeAnnualFees_(ss);
+  var memberTypeMaster = readMemberTypeMaster_(ss);
+  var memberTypeAnnualFees = annualFeesByMemberType_(memberTypeMaster);
   var membershipFeePublicVisibleRaw = m['MEMBERSHIP_FEE_PUBLIC_VISIBLE'];
   var membershipFeePublicVisible = membershipFeePublicVisibleRaw === undefined || membershipFeePublicVisibleRaw === ''
     ? MEMBERSHIP_FEE_DEFAULTS.publicVisible
@@ -7331,6 +7332,7 @@ function getSystemSettings_() {
     annualFeePaymentGuidance: guidance,
     annualFeeTransferAccount: transferAccount,
     memberTypeAnnualFees: memberTypeAnnualFees,
+    memberTypes: memberTypeMaster,
     membershipFeePublicVisible: membershipFeePublicVisible,
     membershipFeeNote: membershipFeeNote,
     trainingDefaultFieldConfig: trainingDefaultFieldConfig,
@@ -9247,15 +9249,9 @@ var MEMBERSHIP_FEE_DEFAULTS = {
 };
 
 // 会員種別ごとの年会費を、公開・管理どちらでも同じ形（コード→金額）で返す。
-function readMemberTypeAnnualFees_(ss) {
-  var map = getAnnualFeeAmountMap_(ss);
+function annualFeesByMemberType_(memberTypes) {
   var result = {};
-  var codes = Object.keys(MEMBER_TYPE_ANNUAL_FEE_DEFAULTS);
-  for (var i = 0; i < codes.length; i += 1) {
-    var code = codes[i];
-    var amount = Number(map[code]);
-    result[code] = isFinite(amount) && amount >= 0 ? Math.floor(amount) : MEMBER_TYPE_ANNUAL_FEE_DEFAULTS[code];
-  }
+  memberTypes.forEach(function(t) { result[t.code] = t.annualFee; });
   return result;
 }
 
@@ -17532,7 +17528,8 @@ function getPublicPortalSettings_() {
   // v376.65（案C Phase 1）: 入会申込画面に出す規程・重要事項（公開フラグの立った行のみ）
   var ppRegulations = listRegulations_(db, true);
   // v376.64: 入会申込の会員種別カードに表示する年会費（正本は M_会員種別.年会費金額）
-  var ppMembershipFees = readMemberTypeAnnualFees_(db);
+  // 種別ごとの年会費は memberTypes[].annualFee に乗る（入会フォームの種別カードはこの一覧から描く）
+  var ppMemberTypes = readMemberTypeMaster_(db);
   var ppMembershipFeeVisibleRaw = map['MEMBERSHIP_FEE_PUBLIC_VISIBLE'];
   var ppMembershipFeeVisible = ppMembershipFeeVisibleRaw === undefined || ppMembershipFeeVisibleRaw === ''
     ? MEMBERSHIP_FEE_DEFAULTS.publicVisible
@@ -17542,7 +17539,7 @@ function getPublicPortalSettings_() {
     success: true,
     data: {
       regulations: ppRegulations,
-      membershipFees: ppMembershipFees,
+      memberTypes: ppMemberTypes,
       membershipFeeVisible: ppMembershipFeeVisible,
       membershipFeeNote: ppMembershipFeeNote,
       trainingMenuEnabled: publicPortalTrainingMenuEnabled,
@@ -18200,13 +18197,27 @@ function isKnownMasterCode_(ss, masterName, code) {
   return true;
 }
 
-// 会員種別コードの正本は M_会員種別（有効フラグの立った行・表示順）。
-// 種別の検査と「全種別」の既定値はここから引き、コードに種別を並べない。
-function getActiveMemberTypeCodes_(ss) {
+// 会員種別の正本は M_会員種別（有効フラグの立った行・表示順）。
+// 種別の検査・「全種別」の既定値・画面の選択肢と会費欄はすべてここから引き、コードに種別を並べない。
+// 名称が空ならコード側の既定ラベル、金額が不正ならコード側の既定額（どちらも src/shared/memberTypes.mjs）。
+function readMemberTypeMaster_(ss) {
   return getRowsAsObjects_(ss, 'M_会員種別')
     .filter(function(r) { return String(r['コード'] || '').trim() && toBoolean_(r['有効フラグ']); })
     .sort(function(a, b) { return Number(a['表示順'] || 0) - Number(b['表示順'] || 0); })
-    .map(function(r) { return String(r['コード']).trim(); });
+    .map(function(r) {
+      var code = String(r['コード']).trim();
+      var amount = Number(r['年会費金額']);
+      return {
+        code: code,
+        label: String(r['名称'] || '').trim() || memberTypeLabel_(code),
+        order: Number(r['表示順'] || 0),
+        annualFee: isFinite(amount) && amount >= 0 ? Math.floor(amount) : Number(MEMBER_TYPE_ANNUAL_FEE_DEFAULTS[code] || 0),
+      };
+    });
+}
+
+function getActiveMemberTypeCodes_(ss) {
+  return readMemberTypeMaster_(ss).map(function(t) { return t.code; });
 }
 
 // 事業所会員: 公開ポータル変更申請（管理者承認後に適用）で変更可能なフィールド allowlist
@@ -25612,7 +25623,9 @@ function getEmailSendLog_(payload) {
  * フロントエンドはこの辞書からチェックボックスを生成し、出力列に追加可能。
  * 新フィールド追加時はこの辞書のみ更新すればフロント改修不要。
  */
-function getRosterFieldDictionary_() {
+function getRosterFieldDictionary_(ss) {
+  var memberTypeLabels = {};
+  readMemberTypeMaster_(ss).forEach(function(t) { memberTypeLabels[t.code] = t.label; });
   // applicableUnits: 'MEMBER' | 'STAFF' のどちらの出力単位で意味があるか
   // - 'MEMBER': 会員行（個人/賛助/事業所会員）で値が入る
   // - 'STAFF':  事業所職員行で値が入る
@@ -25628,7 +25641,7 @@ function getRosterFieldDictionary_() {
 
     // === 会員（個人/賛助/事業所すべての会員行）===
     { key: 'memberId',                label: '会員ID',                  group: 'member', type: 'string', sample: 'M0123456789', applicableUnits: ['MEMBER', 'STAFF'] },
-    { key: 'memberType',              label: '会員種別',                group: 'member', type: 'enum', enumLabels: { INDIVIDUAL: '個人会員', BUSINESS: '事業所会員', SUPPORT: '賛助会員' }, sample: '個人会員', applicableUnits: ['MEMBER', 'STAFF'] },
+    { key: 'memberType',              label: '会員種別',                group: 'member', type: 'enum', enumLabels: memberTypeLabels, sample: '個人会員', applicableUnits: ['MEMBER', 'STAFF'] },
     { key: 'memberStatus',            label: '会員状態',                group: 'member', type: 'enum', enumLabels: { ACTIVE: '在籍中', WITHDRAWAL_SCHEDULED: '退会予定', WITHDRAWN: '年度内退会' }, sample: '在籍中', applicableUnits: ['MEMBER', 'STAFF'] },
     { key: 'joinedDate',              label: '会員入会日',              group: 'member', type: 'date', sample: '2024-04-01', applicableUnits: ['MEMBER', 'STAFF'] },
     { key: 'withdrawnDate',           label: '会員退会日',              group: 'member', type: 'date', sample: '', applicableUnits: ['MEMBER', 'STAFF'] },

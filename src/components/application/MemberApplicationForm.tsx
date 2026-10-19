@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useRevealOnChange, FIRST_ERROR_SELECTOR } from '../../shared/useRevealOnChange';
-import { MEMBER_TYPE_LABELS, MEMBER_TYPE_ANNUAL_FEE_DEFAULTS, memberTypeLabel, formatAnnualFee } from '../../shared/memberTypes.mjs';
+import { formatAnnualFee } from '../../shared/memberTypes.mjs';
+import { useMemberTypeMaster, memberTypeMasterLabel } from '../../shared/memberTypeMaster';
 import { EMAIL_PATTERN, CARE_MANAGER_NO_PATTERN, OFFICE_NO_PATTERN, POSTAL_CODE_PATTERN, PHONE_PATTERN } from '../../shared/validators';
 import {
   ApplicationFormData,
@@ -19,8 +20,6 @@ import { renderRegulationBody } from '../../shared/regulationText';
 interface MemberApplicationFormProps {
   // v376.65: 規程・重要事項（正本は T_規程。空配列のときは従来のハードコード文面へフォールバック）
   regulations?: import('../../types').Regulation[];
-  // v376.64: 会員種別カードに表示する年会費（設定画面「会費設定」で変更可能）
-  memberTypeFees?: { INDIVIDUAL: number; BUSINESS: number; SUPPORT: number };
   showMemberTypeFees?: boolean;
   memberTypeFeeNote?: string;
   onBack: () => void;
@@ -52,8 +51,14 @@ function getStepLabels(type: ApplicationMemberType | ''): string[] {
   return STEPS_INDIVIDUAL;
 }
 
-// v376.67: 会費既定値・種別ラベルは src/shared/memberTypes.mjs が単一情報源
-const DEFAULT_MEMBER_TYPE_FEES = MEMBER_TYPE_ANNUAL_FEE_DEFAULTS;
+// 2026-10-19: 種別カードの並び・名称・年会費は M_会員種別（src/shared/memberTypeMaster.ts）。
+// 説明文とアイコンは、この画面が入力の流れを持っている種別の分だけ持つ（種別ごとの入力項目は仕様でありマスタに移せない）。
+// マスタで無効にした種別はカードに出ない。マスタに足しても、ここに流れが無い種別は申し込めないので出さない。
+const APPLICATION_TYPE_UI: Record<ApplicationMemberType, { desc: string; icon: string }> = {
+  INDIVIDUAL: { desc: '介護支援専門員として個人で入会される方', icon: '👤' },
+  BUSINESS: { desc: '事業所単位で入会される方（複数名登録可）', icon: '🏢' },
+  SUPPORT: { desc: '当協議会の活動を支援してくださる方', icon: '🤝' },
+};
 const formatFeeAmount = (amount: number): string => formatAnnualFee(amount) || '—';
 
 // v376.67 DRY 是正: 検証パターンは src/shared/validators.ts が単一情報源。
@@ -347,7 +352,6 @@ function validateConfirmation(_form: ApplicationFormData, errs: ValidationErrors
 // ─── メインコンポーネント ────────────────────────────────
 const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
   regulations,
-  memberTypeFees,
   showMemberTypeFees = true,
   memberTypeFeeNote = '',
   onBack,
@@ -366,7 +370,9 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
   completionNoCredentialNotice = 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
   completionCredentialNotice = 'ログイン情報をご登録のメールアドレスに送信しました。',
 }) => {
-  const fees = { ...DEFAULT_MEMBER_TYPE_FEES, ...(memberTypeFees || {}) };
+  const applicationTypes = useMemberTypeMaster()
+    .filter((t) => Object.prototype.hasOwnProperty.call(APPLICATION_TYPE_UI, t.code))
+    .map((t) => ({ ...t, type: t.code as ApplicationMemberType, ...APPLICATION_TYPE_UI[t.code as ApplicationMemberType] }));
   // 規程は T_規程 が正本。取得できないとき（初回同期前・通信失敗）だけ従来の文面を出す。
   const regulationList = (regulations && regulations.length > 0)
     ? regulations
@@ -657,11 +663,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
           </div>
           {errors.memberType && <p data-reveal-error tabIndex={-1} role="alert" className={errorClass + ' text-center'}>{errors.memberType}</p>}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {([
-              { type: 'INDIVIDUAL' as const, label: MEMBER_TYPE_LABELS.INDIVIDUAL, desc: '介護支援専門員として個人で入会される方', icon: '👤' },
-              { type: 'BUSINESS' as const, label: MEMBER_TYPE_LABELS.BUSINESS, desc: '事業所単位で入会される方（複数名登録可）', icon: '🏢' },
-              { type: 'SUPPORT' as const, label: MEMBER_TYPE_LABELS.SUPPORT, desc: '当協議会の活動を支援してくださる方', icon: '🤝' },
-            ]).map(item => (
+            {applicationTypes.map(item => (
               <button
                 key={item.type}
                 onClick={() => handleSelectType(item.type)}
@@ -677,7 +679,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
                 {showMemberTypeFees && (
                   <p className="mt-3 border-t border-slate-200 pt-2 text-sm font-semibold text-primary-700">
                     <span className="mr-1 text-xs font-medium text-slate-500">年会費</span>
-                    {formatFeeAmount(fees[item.type])}
+                    {formatFeeAmount(item.annualFee)}
                   </p>
                 )}
               </button>
@@ -713,7 +715,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
               <div key={item.id} className="rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5">
                 <p className="text-sm font-semibold text-slate-900">{item.title}</p>
                 <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-600">
-                  {renderRegulationBody(item.body, form.memberType, fees)}
+                  {renderRegulationBody(item.body, form.memberType, applicationTypes)}
                 </p>
                 {item.effectiveDate && (
                   <p className="mt-2 text-xs text-slate-400">{item.effectiveDate} 施行（第 {item.version} 版）</p>
@@ -738,7 +740,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
                 <div>
                   <p className="text-sm font-semibold text-slate-900">{item.title}</p>
                   <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-600">
-                    {renderRegulationBody(item.body, form.memberType, fees)}
+                    {renderRegulationBody(item.body, form.memberType, applicationTypes)}
                   </p>
                   {item.effectiveDate && (
                     <p className="mt-2 text-xs text-slate-400">{item.effectiveDate} 施行（第 {item.version} 版）</p>
@@ -769,7 +771,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
                 className="flex w-full min-h-[44px] items-center justify-between rounded-xl px-1 py-2 text-left hover:bg-slate-50"
               >
                 <span className="text-base font-bold text-slate-900">
-                  {form.memberType ? `${memberTypeLabel(form.memberType)}について` : '会員種別ごとのご案内'}
+                  {form.memberType ? `${memberTypeMasterLabel(form.memberType)}について` : '会員種別ごとのご案内'}
                 </span>
                 <span className="ml-3 shrink-0 text-sm font-medium text-primary-700">
                   {memberTypeNoticeOpen ? '閉じる ▲' : '開く ▼'}
@@ -779,7 +781,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
                 <section key={item.id} className="rounded-2xl border border-slate-200 bg-white p-5">
                   <p className="text-sm font-semibold text-slate-900">{item.title}</p>
                   <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-700">
-                    {renderRegulationBody(item.body, form.memberType, fees)}
+                    {renderRegulationBody(item.body, form.memberType, applicationTypes)}
                   </p>
                   {item.effectiveDate && (
                     <p className="mt-2 text-xs text-slate-400">{item.effectiveDate} 施行（第 {item.version} 版）</p>
@@ -1443,7 +1445,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
     const isConfirmStep = step === totalSteps - 1;
     if (isConfirmStep) {
       const roleLabel = (r: string) => r === 'REPRESENTATIVE' ? '代表者' : r === 'ADMIN' ? '管理者' : 'メンバー';
-      const typeLabel = memberTypeLabel(form.memberType);
+      const typeLabel = memberTypeMasterLabel(form.memberType);
       const destLabel = form.preferredMailDestination === 'HOME' ? '自宅' : '勤務先';
       const hasOfficeAddress = !!form.officeAddressLine.trim();
       const hasHomeAddress = !!form.homeAddressLine.trim();
