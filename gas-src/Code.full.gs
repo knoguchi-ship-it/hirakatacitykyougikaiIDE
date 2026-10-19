@@ -6836,7 +6836,7 @@ function diffSpreadsheetSnapshotsForRehearsal_(before, after) {
   return out;
 }
 
-// 2026-10-19: DB が守らない ID 参照（docs/294 §3.2）。[子テーブル, 列, 親テーブル]。親の主キーは親の先頭列。
+// 2026-10-19: DB が守らない ID 参照（docs/294 §3.2 の 24 本＋BR-21 の 2 本）。[子テーブル, 列, 親テーブル]。親の主キーは親の先頭列。
 // docs/er-metadata.json の関係と一致することを test:db-state が確かめる（増減したら両方を直す）。
 var DB_STATE_ID_REFERENCES_ = [
   ['T_事業所職員', '会員ID', 'T_会員'],

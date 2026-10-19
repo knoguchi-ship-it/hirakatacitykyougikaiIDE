@@ -38,8 +38,6 @@ const HELPERS = ['dbStateIndex_', 'dbStateTime_', 'countAuthOfDeletedPeople_', '
 
 const refs = new Function(`${extractVar(gas, 'DB_STATE_ID_REFERENCES_')} return DB_STATE_ID_REFERENCES_;`)() as string[][];
 
-// BR-21 の照合列は ER に関係として描いていない（照合の結果であって入力ではない）。ここで明示して許す
-const EXTRA_ALLOWED = ['T_研修申込.照合会員ID', 'T_研修申込.照合職員ID'];
 
 test('ID 参照の一覧が ER の ID 参照（マスタ・archive 以外）と一致する', () => {
   const meta = JSON.parse(read('docs/er-metadata.json'));
@@ -47,9 +45,7 @@ test('ID 参照の一覧が ER の ID 参照（マスタ・archive 以外）と�
     .filter((r) => !r.right.startsWith('M_') && !r.left.endsWith('_archive'))
     .map((r) => `${r.left}.${r.label.split('(')[0].trim()}→${r.right}`)
     .sort();
-  const mine = refs.map(([c, col, p]) => `${c}.${col}→${p}`)
-    .filter((k) => !EXTRA_ALLOWED.some((e) => k.startsWith(e + '→')))
-    .sort();
+  const mine = refs.map(([c, col, p]) => `${c}.${col}→${p}`).sort();
   assert.deepEqual(mine, er);
 });
 

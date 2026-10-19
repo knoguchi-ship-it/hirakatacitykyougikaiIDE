@@ -120,7 +120,8 @@ test('ID による参照は DB では守られない — 一覧を固定する',
   console.log(`\n── DB では強制されない ID 参照 ${unique.length} 件 ──`);
   for (const line of unique) console.log('  ' + line);
   // 件数を固定する。増えたらこのテストが落ち、「守られない参照をまた増やした」と気づける。
-  assert.equal(unique.length, 24,
+  // 2026-10-19: 26（BR-21 の照合会員ID・照合職員ID を足した）
+  assert.equal(unique.length, 26,
     '守られない ID 参照の数が変わった。docs/294 §3 の一覧と突き合わせて更新すること');
 });
 

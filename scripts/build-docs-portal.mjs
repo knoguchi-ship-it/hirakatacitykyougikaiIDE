@@ -789,6 +789,16 @@ function exportToDbml(entities, relationships) {
       continue;
     }
 
+    // 2026-10-19: ラベルは子の FK 列名（er-metadata.json の label。"(v360 …)" の注記は除く）。
+    // 名前の推測より先に使う。以前は 紐付け認証ID・削除バッチID・対象会員種別 が推測できず 16 本が Ref から抜けていた
+    const labelColumn = String(r.label || '').split('(')[0].trim();
+    const labelFk = child.columns.find((c) => c.name === labelColumn);
+    const parentPk = parent.columns.find((c) => c.key === 'PK' || c.key === 'PK,FK' || c.key === 'FK,PK');
+    if (labelFk && parentPk) {
+      lines.push(`Ref: "${child.name}"."${labelFk.name}" ${op} "${parent.name}"."${parentPk.name}" // ${r.label}`);
+      continue;
+    }
+
     const match = findFkColumn(parent, child);
     if (match) {
       // 子.FK > 親.PK

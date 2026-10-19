@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: c4a7fd0916c35a59952ea1d4c92dfe9e414ccec151222198fa407a8749d6fc10
+// BUILD_INPUT_SHA256: 958aca29a064c90df36bcf92e762036d42e614e40f65a6b2cfc996eb3b712279
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -1932,7 +1932,7 @@ function seedInitialPermissionRoles_(ss) {
 
 // 前後のスナップショットを列名で突き合わせる。issues は「あってはならない変化」だけ。
 
-// 2026-10-19: DB が守らない ID 参照（docs/294 §3.2）。[子テーブル, 列, 親テーブル]。親の主キーは親の先頭列。
+// 2026-10-19: DB が守らない ID 参照（docs/294 §3.2 の 24 本＋BR-21 の 2 本）。[子テーブル, 列, 親テーブル]。親の主キーは親の先頭列。
 // docs/er-metadata.json の関係と一致することを test:db-state が確かめる（増減したら両方を直す）。
 var DB_STATE_ID_REFERENCES_ = [
   ['T_事業所職員', '会員ID', 'T_会員'],

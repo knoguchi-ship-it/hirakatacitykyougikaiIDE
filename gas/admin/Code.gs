@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: dfcac5fafbb921174cfa1b957f41de342c05e8e515565293a527fd40a58bbce0
+// BUILD_INPUT_SHA256: 0723f01d84919f24bc5dc1a74983b69994dcbcab9b9c453744b4d02041d1af9a
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -4443,7 +4443,7 @@ function diffSpreadsheetSnapshotsForRehearsal_(before, after) {
   return out;
 }
 
-// 2026-10-19: DB が守らない ID 参照（docs/294 §3.2）。[子テーブル, 列, 親テーブル]。親の主キーは親の先頭列。
+// 2026-10-19: DB が守らない ID 参照（docs/294 §3.2 の 24 本＋BR-21 の 2 本）。[子テーブル, 列, 親テーブル]。親の主キーは親の先頭列。
 // docs/er-metadata.json の関係と一致することを test:db-state が確かめる（増減したら両方を直す）。
 var DB_STATE_ID_REFERENCES_ = [
   ['T_事業所職員', '会員ID', 'T_会員'],

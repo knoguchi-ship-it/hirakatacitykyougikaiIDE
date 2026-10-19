@@ -2,6 +2,7 @@
 //   正本 = gas-src テーブル定義（列）。docs/er-metadata.json は型/キー/コメント/リレーション。
 //   ドリフトをビルドで検出: stale メタ（正本に無いテーブル/列を参照）/ 存在しないテーブルへのリレーション → FAIL。
 //   正本にあってメタ未整備（型なし・順序未掲載）→ WARN。
+import fs from 'node:fs';
 import { extractTableDefs, loadMetadata } from './lib/er-model.mjs';
 
 const defs = extractTableDefs('gas-src/Code.full.gs');
@@ -20,6 +21,14 @@ for (const t of Object.keys(meta.columns || {})) {
 for (const r of meta.relationships || []) {
   if (!defs[r.left]) errors.push(`relationship: 左テーブル "${r.left}" が テーブル定義 に存在しない`);
   if (!defs[r.right]) errors.push(`relationship: 右テーブル "${r.right}" が テーブル定義 に存在しない`);
+}
+// 2026-10-19: 生成済みの DBML がリレーションを漏れなく Ref にしているか（FK 列の推定に失敗すると黙って抜けていた）
+const dbml = fs.readFileSync('docs/portal/schema.dbml', 'utf8');
+const refLines = dbml.split('\n').filter((l) => l.startsWith('Ref: '));
+const failedLines = dbml.split('\n').filter((l) => l.includes('自動推定失敗'));
+if (failedLines.length) errors.push(`dbml: Ref を作れなかったリレーション ${failedLines.length} 本（${failedLines[0].trim()} ほか）`);
+if (refLines.length !== (meta.relationships || []).length) {
+  errors.push(`dbml: Ref ${refLines.length} 本 / リレーション ${(meta.relationships || []).length} 本。npm run build:docs-portal で再生成すること`);
 }
 // WARN: 正本にあってメタ未整備
 for (const t of Object.keys(defs)) {

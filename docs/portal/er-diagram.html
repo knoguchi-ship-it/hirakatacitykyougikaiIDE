@@ -745,6 +745,8 @@ erDiagram
   T_認証アカウント }o--|| M_システムロール : &quot;システムロールコード&quot;
   T_研修申込 }o--o| T_会員 : &quot;会員ID(v360 2-FK)&quot;
   T_研修申込 }o--o| T_事業所職員 : &quot;職員ID(v360 2-FK)&quot;
+  T_研修申込 }o--o| T_会員 : &quot;照合会員ID(BR-21 照合結果)&quot;
+  T_研修申込 }o--o| T_事業所職員 : &quot;照合職員ID(BR-21 照合結果)&quot;
   T_年会費納入履歴 }o--|| T_会員 : &quot;会員ID&quot;
   T_年会費更新履歴 }o--|| T_会員 : &quot;会員ID&quot;
   T_役員 }o--o| T_会員 : &quot;会員ID&quot;
@@ -894,6 +896,8 @@ erDiagram
   T_メール送信明細 }o--o| T_研修 : &quot;研修ID(v360新規)&quot;
   T_研修申込 }o--o| T_会員 : &quot;会員ID(v360 2-FK)&quot;
   T_研修申込 }o--o| T_事業所職員 : &quot;職員ID(v360 2-FK)&quot;
+  T_研修申込 }o--o| T_会員 : &quot;照合会員ID(BR-21 照合結果)&quot;
+  T_研修申込 }o--o| T_事業所職員 : &quot;照合職員ID(BR-21 照合結果)&quot;
   T_研修申込 }o--|| M_出欠状態 : &quot;出欠状態コード(v360新規)&quot;
   T_研修申込 }o--|| M_申込者区分 : &quot;申込者区分コード(deprecated v360)&quot;
   T_研修申込 }o--o| M_申込状態 : &quot;申込状態コード&quot;
@@ -1402,7 +1406,7 @@ erDiagram
 </section>
 
 <footer>
-  生成: 2026-10-18 | scripts/build-docs-portal.mjs より自動生成 | AGENTS.md §4.6 準拠
+  生成: 2026-10-19 | scripts/build-docs-portal.mjs より自動生成 | AGENTS.md §4.6 準拠
 </footer>
 
 </div>
