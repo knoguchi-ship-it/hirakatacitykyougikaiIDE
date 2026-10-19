@@ -173,10 +173,9 @@ export interface MailingListTargetsResult {
   selectedYear: number;
   years: number[];
   targets: MailingListTarget[];
+  // 会員種別コード → 件数（種別の一覧は M_会員種別）
   counts: {
-    business: number;
-    individual: number;
-    support: number;
+    byType: Record<string, number>;
     invalid: number;
   };
 }
@@ -184,10 +183,9 @@ export interface MailingListTargetsResult {
 export interface MailingListExcelResult {
   base64: string;
   filename: string;
+  // 会員種別コード → 件数（種別の一覧は M_会員種別）
   counts: {
-    business: number;
-    individual: number;
-    support: number;
+    byType: Record<string, number>;
     invalid: number;
   };
 }

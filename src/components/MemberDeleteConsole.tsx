@@ -1,24 +1,10 @@
 import React, { useState, useCallback } from 'react';
 import { memberTypeMasterLabel } from '../shared/memberTypeMaster';
+import { masterLabel } from '../shared/masterOptions';
 import { api, MemberDeleteSearchResult, MemberDeletePreview, DeleteLogEntry } from '../services/api';
 
 type Step = 'search' | 'preview' | 'confirm' | 'done';
 
-const MEMBER_STATUS_LABEL: Record<string, string> = {
-  ACTIVE: '有効',
-  WITHDRAWAL_SCHEDULED: '退会予定',
-  WITHDRAWN: '退会済',
-  TRANSFERRED: '移行済み',
-};
-const STAFF_STATUS_LABEL: Record<string, string> = {
-  ENROLLED: '在籍',
-  LEFT: '退職',
-};
-const STAFF_ROLE_LABEL: Record<string, string> = {
-  REPRESENTATIVE: '代表者',
-  ADMIN: '管理者',
-  STAFF: 'メンバー',
-};
 const TABLE_LABEL: Record<string, string> = {
   'T_会員': '会員レコード',
   'T_事業所職員': '事業所職員レコード',
@@ -59,14 +45,14 @@ const RETAINED_TABLE_ORDER = [
 const renderTargetMeta = (target: MemberDeleteSearchResult | MemberDeletePreview['targets'][number]) => {
   if (target.targetKind === 'STAFF') {
     return [
-      '事業所会員メンバー',
-      STAFF_ROLE_LABEL[target.staffRole || 'STAFF'] || target.staffRole || 'メンバー',
-      STAFF_STATUS_LABEL[target.staffStatus || 'ENROLLED'] || target.staffStatus || '在籍',
+      memberTypeMasterLabel('BUSINESS') + 'の職員',
+      masterLabel('M_職員権限', target.staffRole || 'STAFF'),
+      masterLabel('M_職員状態', target.staffStatus || 'ENROLLED'),
     ].join('・');
   }
   return [
     memberTypeMasterLabel(target.memberType),
-    MEMBER_STATUS_LABEL[target.memberStatus] || target.memberStatus,
+    masterLabel('M_会員状態', target.memberStatus),
   ].join('・');
 };
 

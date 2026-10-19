@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: ba443748d558428253a01c318a48b79e1dfa7f94bed25c3e02bfe18623a0c8b5
+// BUILD_INPUT_SHA256: b325cc58dd9ecb59716ff47d605f6838c013b7b6feb0a1ce4d713c37545c2a52
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -1941,7 +1941,13 @@ function processApiRequest(action, payload) {
 
 
     if (action === 'checkAdminBySession') {
-      return JSON.stringify({ success: true, data: checkAdminBySession_({ recordLogin: true }) });
+      var adminLogin = checkAdminBySession_({ recordLogin: true });
+      // マスタの選択肢・名称はログインの応答で渡す（getSystemSettings は MASTER/ADMIN だけなので、研修管理者などに届かない）。
+      // セッションのオブジェクトは書き換えない（キャッシュされ、他の API の認可にも使われる）
+      var adminLoginData = adminLogin && typeof adminLogin === 'object'
+        ? Object.assign({}, adminLogin, { masters: masterOptionsForClient_(null, 'ADMIN') })
+        : adminLogin;
+      return JSON.stringify({ success: true, data: adminLoginData });
     }
 
     if (action === 'getSystemSettings') {
@@ -2588,7 +2594,6 @@ function createPasswordAuthRow_(authId, loginId, roleCode, memberId, staffId, pl
     削除フラグ: false,
   };
 }
-
 
 
 function generateCredentialTempPassword_() {
@@ -3926,17 +3931,6 @@ function clearLoginLockout_(sheet, rowNumber, columns) {
 /**
  * 管理者権限コードを日本語ラベルに変換する。
  */
-function mapAdminPermissionLabel_(permCode) {
-  var map = {
-    'MASTER': 'マスター',
-    'ADMIN': '管理者',
-    'TRAINING_MANAGER': '研修管理者',
-    'TRAINING_REGISTRAR': '研修登録者',
-    'GENERAL': '一般',
-  };
-  return map[permCode] || permCode;
-}
-
 /**
  * google.script.run 経由で呼び出し元の Google セッションを検証し、管理者認証を行う。
  * Session.getActiveUser() は google.script.run 呼び出し元のメールを返す（Execute as: Me でも）。
@@ -4078,7 +4072,7 @@ function checkAdminBySession_(options) {
   if (memberName && !cachedName) {
     try { cache.put(nameCacheKey, memberName, 300); } catch (e) {}
   }
-  var derivedDisplayName = memberName ? memberName + '（' + mapAdminPermissionLabel_(permCode) + '）' : mapAdminPermissionLabel_(permCode);
+  var derivedDisplayName = memberName ? memberName + '（' + masterLabel_(ss, 'M_管理者権限', permCode) + '）' : masterLabel_(ss, 'M_管理者権限', permCode);
 
   var nowIso = new Date().toISOString();
   if (recordLogin) {
@@ -4870,6 +4864,8 @@ function getSystemSettings_() {
     annualFeeTransferAccount: transferAccount,
     memberTypeAnnualFees: memberTypeAnnualFees,
     memberTypes: memberTypeMaster,
+    // マスタ定義 の全表の選択肢（画面の選択肢・名称の正本）。マスタを足せば自動で乗る
+    masters: masterOptionsForClient_(ss, 'ADMIN'),
     membershipFeePublicVisible: membershipFeePublicVisible,
     membershipFeeNote: membershipFeeNote,
     trainingDefaultFieldConfig: trainingDefaultFieldConfig,
@@ -5493,9 +5489,8 @@ function saveAdminPermission_(payload) {
   if (!linkedAuthId) throw new Error('紐付け認証IDは必須です。');
 
   // 権限コード検証
-  var validPerms = ['MASTER', 'ADMIN', 'TRAINING_MANAGER', 'TRAINING_REGISTRAR', 'GENERAL'];
   var permissionLevel = String(payload.permissionLevel || 'ADMIN').trim();
-  if (validPerms.indexOf(permissionLevel) === -1) {
+  if (!isKnownMasterCode_(ss, 'M_管理者権限', permissionLevel)) {
     throw new Error('無効な権限コードです: ' + permissionLevel);
   }
 
@@ -5918,7 +5913,7 @@ function getAdminPermissionEntries_(ss) {
           personName = (String(staffRow['姓'] || '') + ' ' + String(staffRow['名'] || '')).trim();
         }
       }
-      var derivedDisplayName = personName ? personName + '（' + mapAdminPermissionLabel_(permLevel) + '）' : mapAdminPermissionLabel_(permLevel);
+      var derivedDisplayName = personName ? personName + '（' + masterLabel_(ss, 'M_管理者権限', permLevel) + '）' : masterLabel_(ss, 'M_管理者権限', permLevel);
       return {
         id: String(row['ホワイトリストID'] || ''),
         googleEmail: String(row['Googleメール'] || '').trim().toLowerCase(),
@@ -5927,7 +5922,7 @@ function getAdminPermissionEntries_(ss) {
         linkedMemberId: linkedMemberId,
         linkedStaffId: linkedStaffId,
         linkedRoleCode: String((linkedAuth && linkedAuth['システムロールコード']) || ''),
-        linkedIdentityLabel: buildAdminPermissionIdentityLabel_(memberMap[linkedMemberId], staffMap[linkedStaffId], linkedAuth),
+        linkedIdentityLabel: buildAdminPermissionIdentityLabel_(ss, memberMap[linkedMemberId], staffMap[linkedStaffId], linkedAuth),
         permissionLevel: permLevel,
         roleId: String(row['ロールID'] || ''), // docs/246 Phase 2-A 追加
         enabled: toBoolean_(row['有効フラグ']),
@@ -5969,7 +5964,7 @@ function getAdminPermissionIdentityOptions_(ss) {
       memberId: optionMemberId,
       staffId: optionStaffId,
       roleCode: String(authRow['システムロールコード'] || ''),
-      label: buildAdminPermissionIdentityLabel_(memberMap[optionMemberId], staffMap[optionStaffId], authRow),
+      label: buildAdminPermissionIdentityLabel_(ss, memberMap[optionMemberId], staffMap[optionStaffId], authRow),
     });
   }
   options.sort(function(a, b) {
@@ -5978,7 +5973,7 @@ function getAdminPermissionIdentityOptions_(ss) {
   return options;
 }
 
-function buildAdminPermissionIdentityLabel_(memberRow, staffRow, authRow) {
+function buildAdminPermissionIdentityLabel_(ss, memberRow, staffRow, authRow) {
   if (!authRow) return '紐付け先不明';
   var base = buildAnnualFeeDisplayName_(memberRow);
   if (staffRow) {
@@ -5986,20 +5981,10 @@ function buildAdminPermissionIdentityLabel_(memberRow, staffRow, authRow) {
   }
   var suffix = [];
   var roleCode = String(authRow['システムロールコード'] || '');
-  if (roleCode) suffix.push(mapSystemRoleLabel_(roleCode));
+  if (roleCode) suffix.push(masterLabel_(ss, 'M_システムロール', roleCode));
   var loginId = String(authRow['ログインID'] || '');
   if (loginId) suffix.push('ログインID: ' + loginId);
   return suffix.length ? base + ' (' + suffix.join(' / ') + ')' : base;
-}
-
-function mapSystemRoleLabel_(roleCode) {
-  switch (String(roleCode || '')) {
-    case 'OFFICE_ADMIN': return '事務局管理者';
-    case 'INDIVIDUAL_MEMBER': return '個人会員';
-    case 'BUSINESS_ADMIN': return '事業所管理者';
-    case 'BUSINESS_MEMBER': return '事業所メンバー';
-    default: return String(roleCode || '');
-  }
 }
 
 function getCurrentFiscalYear_() {
@@ -7171,6 +7156,7 @@ function createMemberApplicationDirectLocked_(payload) {
     throw new Error('会員種別が不正です: ' + memberTypeCode);
   }
   payload = clearUnusedIndividualApplicationAddressDefaults_(payload, memberTypeCode);
+  if (memberTypeCode !== 'BUSINESS') assertMemberMailingCodes_(ss, payload.mailingPreference, payload.preferredMailDestination);
 
   var now = new Date().toISOString();
   var joinedDate = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
@@ -7387,7 +7373,7 @@ function createMemberApplicationDirectLocked_(payload) {
       var cmNumber = String(s.careManagerNumber || '').trim();
       var staffEmail = String(s.email || '').trim();
       var staffRole = String(s.role || 'STAFF');
-      if (['REPRESENTATIVE', 'ADMIN', 'STAFF'].indexOf(staffRole) === -1) staffRole = 'STAFF';
+      if (!hasMasterOption_(ss, 'M_職員権限', staffRole)) staffRole = 'STAFF';
 
       // 未入力・リスト内重複・カナの検査は上の事前検証で済んでいる（書き込み前に落とすため）
 
@@ -9296,8 +9282,8 @@ function updateStaff_(payload) {
   var statusChanged = false;
   if (payload.status != null) {
     var newStatus = String(payload.status).trim();
-    if (['ENROLLED', 'LEFT'].indexOf(newStatus) === -1) {
-      throw new Error('職員状態は ENROLLED または LEFT のみ指定可能です。');
+    if (!hasMasterOption_(null, 'M_職員状態', newStatus)) {
+      throw new Error('職員状態の値が不正です: ' + newStatus);
     }
     if (newStatus !== currentStatus) {
       row[cols['職員状態コード']] = newStatus;
@@ -9785,7 +9771,7 @@ function convertIndividualToStaff_(ss, payload) {
   var staffRole = String(payload.staffRole || 'STAFF');
   if (!sourceMemberId) throw new Error('sourceMemberId は必須です。');
   if (!targetOfficeMemberId) throw new Error('targetOfficeMemberId は必須です。');
-  if (['REPRESENTATIVE', 'ADMIN', 'STAFF'].indexOf(staffRole) === -1) staffRole = 'STAFF';
+  if (!hasMasterOption_(ss, 'M_職員権限', staffRole)) staffRole = 'STAFF';
 
   // 1. 個人会員の存在確認
   var memberSheet = ss.getSheetByName('T_会員');
@@ -10478,8 +10464,8 @@ function updatePersonsBatch_(payload) {
       if (preType === 'OFFICE_STAFF') {
         if (!String(pre.staffId || '')) throw new Error('レコード ' + (pi + 1) + ': staffId が未指定です。');
         // 以前は不正な状態値を黙って ENROLLED（在籍）に書き換えて成功と返していた。
-        if (Object.prototype.hasOwnProperty.call(pre, 'status') && ['ENROLLED', 'LEFT'].indexOf(String(pre.status || '')) === -1) {
-          throw new Error('レコード ' + (pi + 1) + ': 職員の状態は ENROLLED（在籍）か LEFT（退職）で指定してください（' + String(pre.status || '空') + '）。');
+        if (Object.prototype.hasOwnProperty.call(pre, 'status') && !hasMasterOption_(null, 'M_職員状態', pre.status)) {
+          throw new Error('レコード ' + (pi + 1) + ': 職員の状態の値が不正です（' + String(pre.status || '空') + '）。');
         }
       }
     }
@@ -10768,8 +10754,8 @@ function saveMemberCore_(payload, options) {
   setCol('メイ', normalizeAndValidateKana_(mergedPayload.firstKana || '', '会員のメイ'));
   // v143: MASTER/ADMIN は全有効ステータスへ遷移可能（復旧・強制退会を含む）
   var rawStatus = String(mergedPayload.status || 'ACTIVE');
-  var VALID_MEMBER_STATUSES = ['ACTIVE', 'WITHDRAWAL_SCHEDULED', 'WITHDRAWN'];
-  if (VALID_MEMBER_STATUSES.indexOf(rawStatus) === -1) {
+  // 値は M_会員状態。TRANSFERRED（移行済み）は同一人物の移行処理だけが付ける状態なので、ここからは付けさせない
+  if (!isKnownMasterCode_(ss, 'M_会員状態', rawStatus) || rawStatus === 'TRANSFERRED') {
     throw new Error('無効な会員状態コードです: ' + rawStatus);
   }
   var nextStatus = rawStatus;
@@ -10806,6 +10792,9 @@ function saveMemberCore_(payload, options) {
   setCol('自宅市区町村', mergedPayload.homeCity || '');
   setCol('自宅住所', mergedPayload.homeAddressLine || '');
   setCol('自宅住所2', mergedPayload.homeAddressLine2 || '');
+  if (memberTypeCode !== 'BUSINESS') {
+    assertMemberMailingCodes_(ss, mergedPayload.mailingPreference, mergedPayload.preferredMailDestination);
+  }
   setCol('発送方法コード', mergedPayload.mailingPreference || 'EMAIL');
   setCol('郵送先区分コード', mergedPayload.preferredMailDestination || 'OFFICE');
   if (cols['職員数上限'] != null) {
@@ -11079,7 +11068,7 @@ function getFiscalYearStart_(referenceDate) {
 
 function normalizeBusinessStaffRole_(value) {
   var role = String(value || 'STAFF');
-  return ['REPRESENTATIVE', 'ADMIN', 'STAFF'].indexOf(role) !== -1 ? role : 'STAFF';
+  return hasMasterOption_(null, 'M_職員権限', role) ? role : 'STAFF';
 }
 
 function getBusinessStaffRowsByMember_(ss, memberId) {
@@ -12886,6 +12875,8 @@ function initializeSchema_(ss) {
   post('cleanupNonSchemaSheets_',                function() { cleanupNonSchemaSheets_(ss); });
   post('backfillBusinessStaffNameColumns_',      function() { backfillBusinessStaffNameColumns_(ss); });
   post('auditDeleteFlagColumns_',                function() { auditDeleteFlagColumns_(ss); });
+  // マスタの初期値・列の整備を書いたかもしれないので、選択肢のキャッシュを捨てる
+  post('invalidateMasterOptionsCache_',          function() { invalidateMasterOptionsCache_(); });
 
   Logger.log('[initializeSchema_] passed=' + passed + ' criticalFailed=' + critFailed.length + ' postFailed=' + postFailed.length +
     (postFailed.length > 0 ? ' (post detail: ' + JSON.stringify(postFailed) + ')' : ''));
@@ -13150,7 +13141,10 @@ function ensureMemberTypeAnnualFeeAmounts_(ss) {
     row[cols['年会費金額']] = Number(MEMBER_TYPE_ANNUAL_FEE_DEFAULTS[code]);
     changed = true;
   }
-  if (changed) sheet.getRange(2, 1, rows.length, sheet.getLastColumn()).setValues(rows);
+  if (changed) {
+    sheet.getRange(2, 1, rows.length, sheet.getLastColumn()).setValues(rows);
+    invalidateMasterOptionsCache_();
+  }
 }
 
 // 会員種別ごとの年会費を M_会員種別 に書き込む（設定画面「会費設定」から呼ばれる）。
@@ -13170,7 +13164,10 @@ function setMemberTypeAnnualFeeAmounts_(ss, feeMap) {
     row[cols['年会費金額']] = normalizeAnnualFeeAmount_(feeMap[code], code);
     changed = true;
   }
-  if (changed) sheet.getRange(2, 1, rows.length, sheet.getLastColumn()).setValues(rows);
+  if (changed) {
+    sheet.getRange(2, 1, rows.length, sheet.getLastColumn()).setValues(rows);
+    invalidateMasterOptionsCache_();
+  }
 }
 
 function normalizeAnnualFeeAmount_(raw, code) {
@@ -14042,23 +14039,118 @@ function isKnownMasterCode_(ss, masterName, code) {
   return true;
 }
 
-// 会員種別の正本は M_会員種別（有効フラグの立った行・表示順）。
-// 種別の検査・「全種別」の既定値・画面の選択肢と会費欄はすべてここから引き、コードに種別を並べない。
-// 名称が空ならコード側の既定ラベル、金額が不正ならコード側の既定額（どちらも src/shared/memberTypes.mjs）。
-function readMemberTypeMaster_(ss) {
-  return getRowsAsObjects_(ss, 'M_会員種別')
-    .filter(function(r) { return String(r['コード'] || '').trim() && toBoolean_(r['有効フラグ']); })
+// ── マスタの選択肢（2026-10-19・operator 指示: DRY／ハードコード禁止／マスタは今後も増える） ──
+// マスタ定義 にある M_ 表すべてを、同じ形で読む。1 列目がコード、2 列目が名称（どのマスタも同じ並び）。
+// 有効フラグが false・削除フラグが true の行を除き、表示順に並べる。
+// 画面の選択肢・名称、GAS の名称表はすべてここから引く。マスタ定義 に表を足せば、コードを変えずに乗る。
+// 書き込みの検査は isKnownMasterCode_（シートを直接読む）を使う。こちらはキャッシュを通すため。
+var MASTER_OPTIONS_CACHE_KEY_ = 'master_options_v1';
+var MASTER_OPTIONS_CACHE_TTL_ = 600;
+var MASTER_BOOKKEEPING_COLUMNS_ = ['表示順', '有効フラグ', '削除フラグ', '作成日時', '更新日時'];
+
+function masterOptionsFromRows_(masterName, rows) {
+  var columns = マスタ定義[masterName] || [];
+  var codeCol = columns[0];
+  var labelCol = columns[1];
+  var extraCols = columns.slice(2).filter(function(c) { return MASTER_BOOKKEEPING_COLUMNS_.indexOf(c) < 0; });
+  return rows
+    .filter(function(r) {
+      if (!String(r[codeCol] || '').trim()) return false;
+      if (r['削除フラグ'] !== undefined && toBoolean_(r['削除フラグ'])) return false;
+      if (r['有効フラグ'] !== undefined && !toBoolean_(r['有効フラグ'])) return false;
+      return true;
+    })
     .sort(function(a, b) { return Number(a['表示順'] || 0) - Number(b['表示順'] || 0); })
     .map(function(r) {
-      var code = String(r['コード']).trim();
-      var amount = Number(r['年会費金額']);
-      return {
-        code: code,
-        label: String(r['名称'] || '').trim() || memberTypeLabel_(code),
-        order: Number(r['表示順'] || 0),
-        annualFee: isFinite(amount) && amount >= 0 ? Math.floor(amount) : Number(MEMBER_TYPE_ANNUAL_FEE_DEFAULTS[code] || 0),
-      };
+      var code = String(r[codeCol]).trim();
+      var attrs = {};
+      extraCols.forEach(function(c) { attrs[c] = r[c] === undefined ? '' : r[c]; });
+      return { code: code, label: String(r[labelCol] || '').trim() || code, order: Number(r['表示順'] || 0), attrs: attrs };
     });
+}
+
+/** マスタ名 → 選択肢の配列（マスタ定義 の全表）。スクリプトキャッシュを通す */
+// 1 回の実行の中では読んだ結果を覚えておく（行ごとの正規化で何度呼ばれてもキャッシュを引き直さない）
+var MASTER_OPTIONS_MEMO_ = null;
+function readAllMasterOptions_(ss) {
+  if (MASTER_OPTIONS_MEMO_) return MASTER_OPTIONS_MEMO_;
+  var cache = CacheService.getScriptCache();
+  var cached = getChunkedCache_(cache, MASTER_OPTIONS_CACHE_KEY_);
+  if (cached) {
+    MASTER_OPTIONS_MEMO_ = cached;
+    return cached;
+  }
+  var db = ss || getOrCreateDatabase_();
+  var result = {};
+  Object.keys(マスタ定義).forEach(function(name) {
+    result[name] = masterOptionsFromRows_(name, getRowsAsObjects_(db, name));
+  });
+  putChunkedCache_(cache, MASTER_OPTIONS_CACHE_KEY_, result, MASTER_OPTIONS_CACHE_TTL_);
+  MASTER_OPTIONS_MEMO_ = result;
+  return result;
+}
+
+/** 有効なコードか（キャッシュを通す。行ごとの正規化向け。1 件の書き込みの検査は isKnownMasterCode_） */
+function hasMasterOption_(ss, masterName, code) {
+  var value = String(code == null ? '' : code);
+  return readMasterOptions_(ss, masterName).some(function(o) { return o.code === value; });
+}
+
+// 会員の発送方法・郵送先区分を、マスタに無い値のまま保存しない。
+// 2026-10-19: 公開ポータルの変更申請が 'MAIL'（M_発送方法 に無い）を送り、承認でそのまま書かれていた。
+function assertMemberMailingCodes_(ss, mailingCode, destinationCode) {
+  if (mailingCode && !isKnownMasterCode_(ss, 'M_発送方法', mailingCode)) {
+    throw new Error('発送方法の値が不正です: ' + mailingCode);
+  }
+  if (destinationCode && !isKnownMasterCode_(ss, 'M_郵送先区分', destinationCode)) {
+    throw new Error('郵送先区分の値が不正です: ' + destinationCode);
+  }
+}
+
+function readMasterOptions_(ss, masterName) {
+  return readAllMasterOptions_(ss)[masterName] || [];
+}
+
+/** コードの表示名（マスタの名称）。マスタに無い・無効なコードはコードのまま返す */
+function masterLabel_(ss, masterName, code) {
+  var value = String(code == null ? '' : code);
+  var hit = readMasterOptions_(ss, masterName).filter(function(o) { return o.code === value; })[0];
+  return hit ? hit.label : value;
+}
+
+/** マスタのシートを書き換えた関数は必ず呼ぶ（test:master-options が書き換える関数を見つけて確かめる） */
+function invalidateMasterOptionsCache_() {
+  MASTER_OPTIONS_MEMO_ = null;
+  removeChunkedCache_(CacheService.getScriptCache(), MASTER_OPTIONS_CACHE_KEY_);
+}
+
+/**
+ * 画面へ渡すマスタ。管理は全表（属性つき）、公開・会員は名前を許可した表だけ・属性なし。
+ * 公開側に属性（M_業務分類.単価 など）を出さないための許可リスト。新しいマスタは管理には自動で乗る。
+ */
+var PUBLIC_MASTER_NAMES_ = ['M_会員種別', 'M_発送方法', 'M_郵送先区分', 'M_職員権限', 'M_職員状態', 'M_会員状態'];
+function masterOptionsForClient_(ss, scope) {
+  var all = readAllMasterOptions_(ss);
+  if (scope === 'ADMIN') return all;
+  var result = {};
+  PUBLIC_MASTER_NAMES_.forEach(function(name) {
+    result[name] = (all[name] || []).map(function(o) { return { code: o.code, label: o.label, order: o.order }; });
+  });
+  return result;
+}
+
+// 会員種別の正本は M_会員種別。種別の検査・「全種別」の既定値・画面の会費欄と入会カードはここから引く。
+// 金額が不正なときだけコード側の既定額（src/shared/memberTypes.mjs）。
+function readMemberTypeMaster_(ss) {
+  return readMasterOptions_(ss, 'M_会員種別').map(function(o) {
+    var amount = Number(o.attrs['年会費金額']);
+    return {
+      code: o.code,
+      label: o.label,
+      order: o.order,
+      annualFee: isFinite(amount) && amount >= 0 ? Math.floor(amount) : Number(MEMBER_TYPE_ANNUAL_FEE_DEFAULTS[o.code] || 0),
+    };
+  });
 }
 
 function getActiveMemberTypeCodes_(ss) {
@@ -16450,12 +16542,12 @@ function buildMailingListCandidates_(payload) {
   };
 }
 
+// 件数は会員種別コードごと（種別の一覧は M_会員種別。画面はマスタの表示順で並べる）
 function summarizeMailingListCandidates_(candidates) {
-  var counts = { business: 0, individual: 0, support: 0, invalid: 0 };
+  var counts = { byType: {}, invalid: 0 };
   (candidates || []).forEach(function(c) {
-    if (c.memberType === 'BUSINESS') counts.business += 1;
-    else if (c.memberType === 'INDIVIDUAL') counts.individual += 1;
-    else if (c.memberType === 'SUPPORT') counts.support += 1;
+    var type = String(c.memberType || '');
+    counts.byType[type] = (counts.byType[type] || 0) + 1;
     if (c.addressInvalidItems && c.addressInvalidItems.length > 0) counts.invalid += 1;
   });
   return counts;
@@ -16521,25 +16613,21 @@ function generateMailingListExcel_(payload) {
   var HEADERS_IND_SUP = ['名前', '郵便番号', '住所', '建物名', '勤務先名'];
   var HEADERS_INVALID = ['名前', '会員種別', '住所不備の項目'];
 
-  var rowsBiz     = [];
-  var rowsInd     = [];
-  var rowsSup     = [];
+  // シートは会員種別ごと（M_会員種別 の表示順・名称）。事業所会員は宛名が事業所なので勤務先名の列を持たない
+  var memberTypes = readMemberTypeMaster_(null);
+  var rowsByType  = {};
   var rowsInvalid = [];
 
   selectedCandidates.forEach(function(c) {
     if (c.addressInvalidItems.length > 0) {
-      var mtypeLabel = memberTypeLabel_(c.memberType);
-      rowsInvalid.push([c.displayName, mtypeLabel, c.addressInvalidItems.join('、')]);
+      rowsInvalid.push([c.displayName, masterLabel_(null, 'M_会員種別', c.memberType), c.addressInvalidItems.join('、')]);
       return;
     }
-
-    if (c.memberType === 'BUSINESS') {
-      rowsBiz.push([c.displayName, c.postCode, c.address1, c.address2]);
-    } else if (c.memberType === 'INDIVIDUAL') {
-      rowsInd.push([c.displayName, c.postCode, c.address1, c.address2, c.officeName]);
-    } else if (c.memberType === 'SUPPORT') {
-      rowsSup.push([c.displayName, c.postCode, c.address1, c.address2, c.officeName]);
-    }
+    var type = String(c.memberType || '');
+    if (!rowsByType[type]) rowsByType[type] = [];
+    rowsByType[type].push(type === 'BUSINESS'
+      ? [c.displayName, c.postCode, c.address1, c.address2]
+      : [c.displayName, c.postCode, c.address1, c.address2, c.officeName]);
   });
 
   // 一時スプレッドシート作成
@@ -16550,18 +16638,16 @@ function generateMailingListExcel_(payload) {
   var tempSsId  = tempSs.getId();
 
   try {
-    var sheet1 = tempSs.getActiveSheet();
-    sheet1.setName('事業所会員');
-    _fillMailingSheet_(sheet1, HEADERS_BIZ, rowsBiz);
+    var firstSheet = tempSs.getActiveSheet();
+    memberTypes.forEach(function(t, ti) {
+      var typeSheet = ti === 0 ? firstSheet : tempSs.insertSheet(t.label);
+      if (ti === 0) typeSheet.setName(t.label);
+      _fillMailingSheet_(typeSheet, t.code === 'BUSINESS' ? HEADERS_BIZ : HEADERS_IND_SUP, rowsByType[t.code] || []);
+    });
 
-    var sheet2 = tempSs.insertSheet('個人会員');
-    _fillMailingSheet_(sheet2, HEADERS_IND_SUP, rowsInd);
-
-    var sheet3 = tempSs.insertSheet('賛助会員');
-    _fillMailingSheet_(sheet3, HEADERS_IND_SUP, rowsSup);
-
-    var sheet4 = tempSs.insertSheet('住所不備');
-    _fillMailingSheet_(sheet4, HEADERS_INVALID, rowsInvalid);
+    var invalidSheet = memberTypes.length ? tempSs.insertSheet('住所不備') : firstSheet;
+    if (!memberTypes.length) invalidSheet.setName('住所不備');
+    _fillMailingSheet_(invalidSheet, HEADERS_INVALID, rowsInvalid);
 
     // GAS の setValues() 書き込みバッファを強制フラッシュ。
     // flush() なしでは UrlFetchApp の HTTP エクスポートが古いサーバー状態を返す場合がある。
@@ -16588,10 +16674,8 @@ function generateMailingListExcel_(payload) {
       base64:   base64,
       filename: filename,
       counts: {
-        business:  rowsBiz.length,
-        individual: rowsInd.length,
-        support:   rowsSup.length,
-        invalid:   rowsInvalid.length,
+        byType: Object.keys(rowsByType).reduce(function(acc, type) { acc[type] = rowsByType[type].length; return acc; }, {}),
+        invalid: rowsInvalid.length,
       },
     };
   } finally {
@@ -16846,8 +16930,12 @@ function getEmailSendLog_(payload) {
  * 新フィールド追加時はこの辞書のみ更新すればフロント改修不要。
  */
 function getRosterFieldDictionary_(ss) {
-  var memberTypeLabels = {};
-  readMemberTypeMaster_(ss).forEach(function(t) { memberTypeLabels[t.code] = t.label; });
+  // 選択肢つき項目の名称は、それぞれのマスタの名称（コード → 名称）
+  var labelsOf = function(masterName) {
+    var labels = {};
+    readMasterOptions_(ss, masterName).forEach(function(o) { labels[o.code] = o.label; });
+    return labels;
+  };
   // applicableUnits: 'MEMBER' | 'STAFF' のどちらの出力単位で意味があるか
   // - 'MEMBER': 会員行（個人/賛助/事業所会員）で値が入る
   // - 'STAFF':  事業所職員行で値が入る
@@ -16863,8 +16951,8 @@ function getRosterFieldDictionary_(ss) {
 
     // === 会員（個人/賛助/事業所すべての会員行）===
     { key: 'memberId',                label: '会員ID',                  group: 'member', type: 'string', sample: 'M0123456789', applicableUnits: ['MEMBER', 'STAFF'] },
-    { key: 'memberType',              label: '会員種別',                group: 'member', type: 'enum', enumLabels: memberTypeLabels, sample: '個人会員', applicableUnits: ['MEMBER', 'STAFF'] },
-    { key: 'memberStatus',            label: '会員状態',                group: 'member', type: 'enum', enumLabels: { ACTIVE: '在籍中', WITHDRAWAL_SCHEDULED: '退会予定', WITHDRAWN: '年度内退会' }, sample: '在籍中', applicableUnits: ['MEMBER', 'STAFF'] },
+    { key: 'memberType',              label: '会員種別',                group: 'member', type: 'enum', enumLabels: labelsOf('M_会員種別'), sample: '個人会員', applicableUnits: ['MEMBER', 'STAFF'] },
+    { key: 'memberStatus',            label: '会員状態',                group: 'member', type: 'enum', enumLabels: labelsOf('M_会員状態'), sample: '在籍中', applicableUnits: ['MEMBER', 'STAFF'] },
     { key: 'joinedDate',              label: '会員入会日',              group: 'member', type: 'date', sample: '2024-04-01', applicableUnits: ['MEMBER', 'STAFF'] },
     { key: 'withdrawnDate',           label: '会員退会日',              group: 'member', type: 'date', sample: '', applicableUnits: ['MEMBER', 'STAFF'] },
 
@@ -16878,8 +16966,8 @@ function getRosterFieldDictionary_(ss) {
     { key: 'email',                   label: '代表メールアドレス',      group: 'individual', type: 'string', sample: 'taro@example.jp', applicableUnits: ['MEMBER'] },
     { key: 'mobilePhone',             label: '携帯電話番号',            group: 'individual', type: 'string', sample: '090-1234-5678', applicableUnits: ['MEMBER'] },
     { key: 'careManagerNumber',       label: '介護支援専門員番号（会員）', group: 'individual', type: 'string', sample: '27000001', applicableUnits: ['MEMBER'] },
-    { key: 'mailingPreference',       label: '発送方法',                group: 'individual', type: 'enum', enumLabels: { EMAIL: 'メール', POST: '郵送' }, sample: 'メール', applicableUnits: ['MEMBER'] },
-    { key: 'preferredMailDestination', label: '郵送先区分',              group: 'individual', type: 'enum', enumLabels: { OFFICE: '勤務先', HOME: '自宅' }, sample: '勤務先', applicableUnits: ['MEMBER'] },
+    { key: 'mailingPreference',       label: '発送方法',                group: 'individual', type: 'enum', enumLabels: labelsOf('M_発送方法'), sample: 'メール', applicableUnits: ['MEMBER'] },
+    { key: 'preferredMailDestination', label: '郵送先区分',              group: 'individual', type: 'enum', enumLabels: labelsOf('M_郵送先区分'), sample: '勤務先', applicableUnits: ['MEMBER'] },
     { key: 'homePostCode',            label: '自宅郵便番号',            group: 'individual', type: 'string', sample: '573-0000', applicableUnits: ['MEMBER'] },
     { key: 'homePrefecture',          label: '自宅都道府県',            group: 'individual', type: 'string', sample: '大阪府', applicableUnits: ['MEMBER'] },
     { key: 'homeCity',                label: '自宅市区町村',            group: 'individual', type: 'string', sample: '枚方市', applicableUnits: ['MEMBER'] },
@@ -16910,14 +16998,14 @@ function getRosterFieldDictionary_(ss) {
     { key: 'staffFullKana',           label: '職員フリガナ',            group: 'staff', type: 'string', sample: 'サトウ ジロウ', applicableUnits: ['STAFF'] },
     { key: 'staffEmail',              label: '職員メールアドレス',      group: 'staff', type: 'string', sample: 'jiro@example.jp', applicableUnits: ['STAFF'] },
     { key: 'staffCareManagerNumber',  label: '職員CM番号',              group: 'staff', type: 'string', sample: '27000123', applicableUnits: ['STAFF'] },
-    { key: 'staffRole',               label: '職員権限',                group: 'staff', type: 'enum', enumLabels: { REPRESENTATIVE: '代表者', ADMIN: '管理者', STAFF: '職員' }, sample: '代表者', applicableUnits: ['STAFF'] },
-    { key: 'staffStatus',             label: '職員状態',                group: 'staff', type: 'enum', enumLabels: { ENROLLED: '在籍', LEFT: '退職' }, sample: '在籍', applicableUnits: ['STAFF'] },
+    { key: 'staffRole',               label: '職員権限',                group: 'staff', type: 'enum', enumLabels: labelsOf('M_職員権限'), sample: '代表者', applicableUnits: ['STAFF'] },
+    { key: 'staffStatus',             label: '職員状態',                group: 'staff', type: 'enum', enumLabels: labelsOf('M_職員状態'), sample: '在籍', applicableUnits: ['STAFF'] },
     { key: 'staffJoinedDate',         label: '職員入会日',              group: 'staff', type: 'date', sample: '2024-04-01', applicableUnits: ['STAFF'] },
     { key: 'staffWithdrawnDate',      label: '職員退会日',              group: 'staff', type: 'date', sample: '', applicableUnits: ['STAFF'] },
     { key: 'staffMailingOptOut',      label: '職員メール配信希望',      group: 'staff', type: 'enum', enumLabels: { YES: '配信希望', NO: '配信停止' }, sample: '配信希望', applicableUnits: ['STAFF'] },
 
     // === 年会費 ===
-    { key: 'annualFeeStatus',         label: '年会費状態（選択年度）',  group: 'fee', type: 'enum', enumLabels: { PAID: '納入済み', UNPAID: '未納' }, sample: '納入済み', applicableUnits: ['MEMBER', 'STAFF'] },
+    { key: 'annualFeeStatus',         label: '年会費状態（選択年度）',  group: 'fee', type: 'enum', enumLabels: labelsOf('M_会費納入状態'), sample: '納入済み', applicableUnits: ['MEMBER', 'STAFF'] },
     { key: 'annualFeeYear',           label: '年会費対象年度',          group: 'fee', type: 'number', sample: '2026', applicableUnits: ['MEMBER', 'STAFF'], valuePicker: 'year' },
   ];
 }
@@ -18915,6 +19003,7 @@ function saveOrganization_(payload) {
       '削除フラグ': false, '作成日時': nowIso, '更新日時': nowIso,
     }]);
   }
+  invalidateMasterOptionsCache_();
   return { organizationCode: id };
 }
 
@@ -18943,6 +19032,7 @@ function deleteOrganization_(payload) {
   row[found.columns['削除フラグ']] = true;
   row[found.columns['更新日時']]   = new Date().toISOString();
   sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  invalidateMasterOptionsCache_();
   return { deleted: true, organizationCode: id };
 }
 
@@ -18985,6 +19075,7 @@ function saveOfficerRole_(payload) {
       '削除フラグ': false, '作成日時': nowIso, '更新日時': nowIso,
     }]);
   }
+  invalidateMasterOptionsCache_();
   return { roleCode: id };
 }
 
@@ -19009,6 +19100,7 @@ function deleteOfficerRole_(payload) {
   row[found.columns['削除フラグ']] = true;
   row[found.columns['更新日時']]   = new Date().toISOString();
   sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  invalidateMasterOptionsCache_();
   return { deleted: true, roleCode: id };
 }
 
@@ -19044,6 +19136,7 @@ function savePaymentType_(payload) {
       '削除フラグ': false, '作成日時': nowIso, '更新日時': nowIso,
     }]);
   }
+  invalidateMasterOptionsCache_();
   return { typeCode: id };
 }
 
@@ -19067,6 +19160,7 @@ function deletePaymentType_(payload) {
   row[found.columns['削除フラグ']] = true;
   row[found.columns['更新日時']]   = new Date().toISOString();
   sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  invalidateMasterOptionsCache_();
   return { deleted: true, typeCode: id };
 }
 
@@ -19115,6 +19209,7 @@ function saveWorkCategory_(payload) {
       '更新日時': nowIso,
     }]);
   }
+  invalidateMasterOptionsCache_();
   return { categoryCode: id };
 }
 
@@ -19139,6 +19234,7 @@ function deleteWorkCategory_(payload) {
   row[found.columns['削除フラグ']] = true;
   row[found.columns['更新日時']] = new Date().toISOString();
   sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  invalidateMasterOptionsCache_();
   return { deleted: true, categoryCode: id };
 }
 
@@ -19971,9 +20067,8 @@ function getTrainingRosterDetail_(payload) {
 function saveAttendance_(payload) {
   if (!checkAdminBySession_()) return { error: 'unauthorized' };
   if (!payload || !payload.applyId || !payload.status) return { error: 'invalid payload' };
-  var validStatus = ['UNRECORDED', 'PRESENT', 'ABSENT', 'LATE', 'SAMEDAY_CANCEL'];
-  if (validStatus.indexOf(payload.status) < 0) return { error: 'invalid status' };
   var ss = getOrCreateDatabase_();
+  if (!isKnownMasterCode_(ss, 'M_出欠状態', payload.status)) return { error: 'invalid status' };
   var sheet = ss.getSheetByName('T_研修申込');
   if (!sheet) return { error: 'sheet missing' };
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
@@ -20220,7 +20315,9 @@ function getTrainingStats_(payload) {
 
   var applied = applicants.filter(function(a) { return a.status === 'APPLIED'; });
   var typeBreakdown = { MEMBER: 0, STAFF: 0, EXTERNAL: 0 };
-  var attendanceBreakdown = { UNRECORDED: 0, PRESENT: 0, ABSENT: 0, LATE: 0, SAMEDAY_CANCEL: 0 };
+  // 出欠ごとの件数。出欠の一覧は M_出欠状態（出席率などの計算で使うコードは仕様としてコードに持つ）
+  var attendanceBreakdown = {};
+  readMasterOptions_(null, 'M_出欠状態').forEach(function(o) { attendanceBreakdown[o.code] = 0; });
   var officeBreakdown = {};
   applied.forEach(function(a) {
     typeBreakdown[a.applicantType] = (typeBreakdown[a.applicantType] || 0) + 1;
@@ -20231,8 +20328,8 @@ function getTrainingStats_(payload) {
   var officeList = Object.keys(officeBreakdown).map(function(k) { return { officeName: k, count: officeBreakdown[k] }; });
   officeList.sort(function(a, b) { return b.count - a.count; });
 
-  var recorded = applied.length - attendanceBreakdown.UNRECORDED;
-  var attended = attendanceBreakdown.PRESENT + attendanceBreakdown.LATE;
+  var recorded = applied.length - (attendanceBreakdown.UNRECORDED || 0);
+  var attended = (attendanceBreakdown.PRESENT || 0) + (attendanceBreakdown.LATE || 0);
   return {
     trainingId: trainingId,
     capacity: capacity,
@@ -20242,7 +20339,7 @@ function getTrainingStats_(payload) {
     typeBreakdown: typeBreakdown,
     attendanceBreakdown: attendanceBreakdown,
     attendanceRate: recorded > 0 ? Math.round((attended / recorded) * 1000) / 10 : null,
-    cancellationRate: recorded > 0 ? Math.round((attendanceBreakdown.SAMEDAY_CANCEL / recorded) * 1000) / 10 : null,
+    cancellationRate: recorded > 0 ? Math.round(((attendanceBreakdown.SAMEDAY_CANCEL || 0) / recorded) * 1000) / 10 : null,
     officeBreakdown: officeList,
   };
 }

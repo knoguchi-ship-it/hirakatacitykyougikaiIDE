@@ -22,6 +22,9 @@ const out = await esbuild.build({
       import React from 'react';
       import { renderToStaticMarkup } from 'react-dom/server';
       import Sidebar from './src/components/Sidebar';
+      import { setMasterOptions } from './src/shared/masterOptions';
+      // 権限の名称は M_管理者権限（ログインの応答で届く）
+      setMasterOptions({ M_管理者権限: [{ code: 'MASTER', label: 'マスター', order: 1 }] });
       export function render(props) {
         return renderToStaticMarkup(React.createElement(Sidebar, {
           currentView: 'admin', onChangeView() {}, onLogout() {}, memberPageTypeLabel: '',

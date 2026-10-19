@@ -492,10 +492,10 @@ test('★承認画面: 入会申込の項目名・値をコードのまま出さ
   const labelBlock = consoleSrc.slice(consoleSrc.indexOf('const FIELD_LABEL'), consoleSrc.indexOf('};', consoleSrc.indexOf('const FIELD_LABEL')));
   const missing = keys.filter((k) => !new RegExp('\\b' + k + ':').test(labelBlock));
   assert.deepEqual(missing, [], '承認画面で英語のキー名のまま出る項目がある（2026-10-14 本番で memberType が出ていた）');
-  for (const k of ['mailingPreference', 'preferredMailDestination']) {
-    assert.match(consoleSrc, new RegExp(k + ':\\s*\\{'), k + ' の値がコードのまま出る');
-  }
+  // 値の名称はそれぞれのマスタ（2026-10-19・masterOptions）
+  assert.match(consoleSrc, /mailingPreference: 'M_発送方法'/, 'mailingPreference の値がコードのまま出る');
+  assert.match(consoleSrc, /preferredMailDestination: 'M_郵送先区分'/, 'preferredMailDestination の値がコードのまま出る');
   // 会員種別の名称は M_会員種別（2026-10-19・memberTypeMaster）
-  assert.match(consoleSrc, /key === 'memberType' \? memberTypeMasterLabel\(String\(value\)\)/, 'memberType の値がコードのまま出る');
+  assert.match(consoleSrc, /if \(key === 'memberType'\) return memberTypeMasterLabel\(String\(value\)\)/, 'memberType の値がコードのまま出る');
   assert.match(consoleSrc, /formatFieldValue\(k, v\)/);
 });

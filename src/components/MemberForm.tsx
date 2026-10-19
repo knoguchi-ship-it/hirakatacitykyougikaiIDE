@@ -5,6 +5,9 @@ import { EMAIL_PATTERN, CARE_MANAGER_NO_PATTERN, POSTAL_CODE_PATTERN, PHONE_PATT
 import { isNoOfficeAffiliation, NO_OFFICE_AFFILIATION_LABEL } from '../shared/officeAffiliation';
 import { AlertTriangleIcon, MailIcon, CheckCircleIcon, BookOpenIcon, UsersIcon, HomeIcon, PlusIcon, SparklesIcon } from './Icons';
 import { api } from '../services/api';
+import { masterLabel } from '../shared/masterOptions';
+import { memberTypeMasterLabel } from '../shared/memberTypeMaster';
+import MasterOptionList from './MasterOptionList';
 import StaffTrainingView from './StaffTrainingView';
 import PostalCodeInput from './PostalCodeInput';
 import OfficerStatusCard from './OfficerStatusCard';
@@ -68,6 +71,9 @@ interface MemberFormProps {
   onSave: (member: Member) => void | Promise<boolean | void>; // 管理画面・マイページは保存できたかを返す
   onLogout?: () => void;
 }
+
+// マイページからは代表者を付けられない（代表者の交代は事務局の操作）。選ばせない値なのでコードに持つ
+const MEMBER_EDITABLE_ROLE_EXCLUDED = ['REPRESENTATIVE'] as const;
 
 const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, activeStaffRole, loginId, isAdmin, defaultBusinessStaffLimit, historyLookbackMonths, annualFeePaymentGuidance, annualFeeTransferAccount, trainings, onSave, onLogout }) => {
   // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
@@ -867,7 +873,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                 現在の会員ステータス
             </h2>
             <span className={`px-3 py-1 rounded-full text-xs font-bold ${member.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : member.status === 'WITHDRAWAL_SCHEDULED' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'}`}>
-                {member.status === 'ACTIVE' ? '有効会員' : member.status === 'WITHDRAWAL_SCHEDULED' ? '退会予定' : '退会済み'}
+                {masterLabel('M_会員状態', member.status)}
             </span>
         </div>
         <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -878,7 +884,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                 <div>
                     <p className="text-sm text-slate-500 font-bold mb-1">会員種別</p>
                     <p className="text-lg font-bold text-slate-800">
-                        {isBusiness ? '正会員 (事業所)' : (member.type === MemberType.SUPPORT ? '賛助会員' : '正会員 (個人)')}
+                        {memberTypeMasterLabel(member.type)}
                     </p>
                     <p className="text-xs text-slate-400 mt-1">登録番号: {member.id}</p>
                 </div>
@@ -892,7 +898,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                     <p className="text-lg font-bold text-slate-800">{currentDisplayName}</p>
                     {isBusiness && currentStaff?.role && (
                         <p className="text-xs text-slate-400 mt-1">
-                            {currentStaff.role === 'REPRESENTATIVE' ? '代表者' : currentStaff.role === 'ADMIN' ? '管理者' : 'メンバー'}
+                            {masterLabel('M_職員権限', currentStaff.role)}
                         </p>
                     )}
                 </div>
@@ -1645,8 +1651,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                             onChange={(e) => handleStaffChange(staff.id, 'status', e.target.value)}
                                             className={`w-full text-sm border rounded px-2 py-2 ${!canEditThisStatus ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'border-slate-300 bg-white'}`}
                                           >
-                                            <option value="ENROLLED">在籍</option>
-                                            <option value="LEFT">退職</option>
+                                            <MasterOptionList master="M_職員状態" current={staff.status || 'ENROLLED'} />
                                           </select>
                                           {isRepresentativeRow && <p className="text-xs text-slate-400 mt-1">変更不可</p>}
                                         </div>
@@ -1659,8 +1664,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                                             onChange={(e) => handleStaffChange(staff.id, 'role', e.target.value as StaffRole)}
                                             className={`w-full text-sm border rounded px-2 py-2 ${!canEditThisRole ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'border-slate-300 bg-white'}`}
                                           >
-                                            <option value="ADMIN">管理者</option>
-                                            <option value="STAFF">一般</option>
+                                            <MasterOptionList master="M_職員権限" current={staff.role} exclude={MEMBER_EDITABLE_ROLE_EXCLUDED} />
                                           </select>
                                         </div>
                                       </div>

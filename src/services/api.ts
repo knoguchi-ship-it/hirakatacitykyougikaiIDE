@@ -19,6 +19,7 @@ import {
 } from '../shared/types';
 import { EMAIL_PATTERN, PHONE_PATTERN, CARE_MANAGER_NO_PATTERN } from '../shared/validators';
 import { callGcpApi, withPreviewRole } from '../shared/api-base';
+import { setMasterOptions } from '../shared/masterOptions';
 import { AdminDashboardData, AdminPermissionData, AnnualFeeAdminData, AnnualFeeAdminRecord, RoleDefinition, MenuRegistryEntry } from '../types';
 
 export interface TrainingMailPayload {
@@ -472,6 +473,7 @@ class GasApiClient implements ApiClient {
             const parsed = JSON.parse(result);
             if (parsed.success) {
               const data = parsed.data || { members: [], trainings: [] };
+              setMasterOptions(data.masters);
               resolve({
                 members: normalizeMemberLoginIds(data.members || []),
                 trainings: data.trainings || [],
@@ -503,6 +505,7 @@ class GasApiClient implements ApiClient {
             const parsed = JSON.parse(result);
             if (parsed.success) {
               const data = parsed.data || { members: [], trainings: [] };
+              setMasterOptions(data.masters);
               resolve({
                 members: normalizeMemberLoginIds(data.members || []),
                 trainings: data.trainings || [],
@@ -623,7 +626,11 @@ class GasApiClient implements ApiClient {
         .withSuccessHandler((result: string) => {
           try {
             const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data || { defaultBusinessStaffLimit: 10, trainingHistoryLookbackMonths: 18, annualFeePaymentGuidance: '' });
+            if (parsed.success) {
+              // マスタの選択肢・名称はここで受け取り、画面は masterOptions から引く
+              setMasterOptions(parsed.data?.masters);
+              resolve(parsed.data || { defaultBusinessStaffLimit: 10, trainingHistoryLookbackMonths: 18, annualFeePaymentGuidance: '' });
+            }
             else reject(new Error(parsed.error || 'API Error'));
           } catch {
             reject(new Error('Failed to parse response from GAS'));
@@ -644,7 +651,11 @@ class GasApiClient implements ApiClient {
         .withSuccessHandler((result: string) => {
           try {
             const parsed = JSON.parse(result);
-            if (parsed.success) resolve(parsed.data || { defaultBusinessStaffLimit: 10, trainingHistoryLookbackMonths: 18, annualFeePaymentGuidance: '' });
+            if (parsed.success) {
+              // マスタの選択肢・名称はここで受け取り、画面は masterOptions から引く
+              setMasterOptions(parsed.data?.masters);
+              resolve(parsed.data || { defaultBusinessStaffLimit: 10, trainingHistoryLookbackMonths: 18, annualFeePaymentGuidance: '' });
+            }
             else reject(new Error(parsed.error || 'API Error'));
           } catch {
             reject(new Error('Failed to parse response from GAS'));
@@ -714,7 +725,10 @@ class GasApiClient implements ApiClient {
   }
 
   async checkAdminBySession(): Promise<AdminLoginResult> {
-    return this.callAction('checkAdminBySession', null);
+    const result = await this.callAction<AdminLoginResult & { masters?: unknown }>('checkAdminBySession', null);
+    // ログインの応答に乗るマスタ（全権限に届く。getSystemSettings は MASTER/ADMIN だけ）
+    setMasterOptions(result?.masters);
+    return result;
   }
 
   async getAdminPermissionData(): Promise<AdminPermissionData> {

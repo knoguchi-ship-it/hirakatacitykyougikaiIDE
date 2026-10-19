@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useMemberTypeMaster, memberTypeMasterLabel } from '../shared/memberTypeMaster';
+import { masterLabel } from '../shared/masterOptions';
+
+// 宛先の在籍状態の表示。事業所会員は職員の状態（M_職員状態）、それ以外は会員の状態（M_会員状態）
+const recipientStateLabel = (r: BulkMailRecipient): string => (r.memberType === 'BUSINESS'
+  ? masterLabel('M_職員状態', r.staffStatus || '')
+  : masterLabel('M_会員状態', r.memberStatus || ''));
 import { AdminPermissionLevel, SystemSettings } from '../types';
 import { BulkMailRecipient, EmailSendLog } from '../shared/types';
 import { BULK_MAIL_MERGE_TAGS } from '../shared/mailTemplates';
@@ -106,9 +112,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
 
   const visibleRecipients = useMemo<BulkMailRecipient[]>(() => {
     return recipients.filter(r => {
-      const stateLabel = r.memberType === 'BUSINESS'
-        ? (r.staffStatus === 'ENROLLED' ? '在籍' : '退職')
-        : (r.memberStatus === 'ACTIVE' ? '在籍' : r.memberStatus === 'WITHDRAWAL_SCHEDULED' ? '退会予定' : '退会');
+      const stateLabel = recipientStateLabel(r);
       return matchesSearchQuery(recipientQuery, [
         r.displayName,
         r.kana || '', // v362: フリガナ検索（ひらがな/全角カナ/半角カナ いずれもヒット）
@@ -420,7 +424,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
           <div>
             <label htmlFor={`${uid}-f1`} className="block text-sm font-medium text-slate-600 mb-1">在籍状態（個人・賛助）</label>
             <select id={`${uid}-f1`} className={inputCls} value={filterMemberStatus} onChange={e => setFilterMemberStatus(e.target.value)}>
-              <option value="ACTIVE">在籍中のみ</option>
+              <option value="ACTIVE">{masterLabel('M_会員状態', 'ACTIVE')}のみ</option>
               <option value="ALL">すべて</option>
             </select>
           </div>
@@ -429,7 +433,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
           <div>
             <label htmlFor={`${uid}-f2`} className="block text-sm font-medium text-slate-600 mb-1">在籍状態（事業所職員）</label>
             <select id={`${uid}-f2`} className={inputCls} value={filterStaffStatus} onChange={e => setFilterStaffStatus(e.target.value)}>
-              <option value="ENROLLED">在籍中のみ</option>
+              <option value="ENROLLED">{masterLabel('M_職員状態', 'ENROLLED')}のみ</option>
               <option value="ALL">すべて</option>
             </select>
           </div>
@@ -545,7 +549,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
                       <td className="px-4 py-2 text-slate-600">{r.officeName || '—'}</td>
                       <td className="px-4 py-2 text-slate-500 font-mono text-xs">{r.email || <span className="text-red-400">未登録</span>}</td>
                       <td className="px-4 py-2 text-slate-500 text-xs">
-                        {r.memberType === 'BUSINESS' ? (r.staffStatus === 'ENROLLED' ? '在籍' : '退職') : (r.memberStatus === 'ACTIVE' ? '在籍' : r.memberStatus === 'WITHDRAWAL_SCHEDULED' ? '退会予定' : '退会')}
+                        {recipientStateLabel(r)}
                       </td>
                       <td className="px-4 py-2" onClick={e => e.stopPropagation()}>
                         <label className="cursor-pointer text-xs text-primary-600 hover:underline">

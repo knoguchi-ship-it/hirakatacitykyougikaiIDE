@@ -12,6 +12,7 @@ import {
 } from './Icons';
 import { Member, MemberType, AdminPermissionLevel } from '../types';
 import { canAccessMenu } from '../shared/rbac-util';
+import { masterLabel } from '../shared/masterOptions';
 
 interface SidebarProps {
   currentView: string;
@@ -202,16 +203,8 @@ const Sidebar: React.FC<SidebarProps> = ({
     });
   };
 
-  const permissionLabel = (level?: AdminPermissionLevel | null) => {
-    const map: Record<string, string> = {
-      MASTER: 'マスター',
-      ADMIN: '管理者',
-      TRAINING_MANAGER: '研修管理者',
-      TRAINING_REGISTRAR: '研修登録者',
-      GENERAL: '一般',
-    };
-    return level ? map[level] || '' : '';
-  };
+  // 権限の名称は M_管理者権限
+  const permissionLabel = (level?: AdminPermissionLevel | null) => (level ? masterLabel('M_管理者権限', level) : '');
 
   // 本人の名前。取れないときだけ汎用の表記にする（アイコンの文字もこれに合わせる）。
   const getPersonName = () => {

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMemberTypeMaster, memberTypeMasterLabel } from '../shared/memberTypeMaster';
+import { masterLabel } from '../shared/masterOptions';
 import { createPortal } from 'react-dom';
 import {
   closestCenter,
@@ -1694,8 +1695,8 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
               <div>
                 <label htmlFor={`${uid}-f4`} className="mb-1 block text-sm font-medium text-slate-600">在籍状態</label>
                 <select id={`${uid}-f4`} className={inputCls} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-                  <option value="ACTIVE">在籍中のみ</option>
-                  <option value="INCLUDING_SCHEDULED">退会予定を含む</option>
+                  <option value="ACTIVE">{masterLabel('M_会員状態', 'ACTIVE')}のみ</option>
+                  <option value="INCLUDING_SCHEDULED">{masterLabel('M_会員状態', 'WITHDRAWAL_SCHEDULED')}を含む</option>
                   <option value="ALL">すべて</option>
                 </select>
               </div>

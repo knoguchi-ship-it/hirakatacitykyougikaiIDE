@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { setMemberTypeMaster } from '../shared/memberTypeMaster';
+import { setMasterOptions } from '../shared/masterOptions';
 import { PublicTraining } from '../shared/types';
 import { callApi } from '../shared/api-base';
 import { callWithConnectionRetry } from '../shared/connectionRetry';
@@ -197,7 +198,7 @@ const PublicApp: React.FC = () => {
       try {
         const [trainingsData, portalSettings] = await Promise.allSettled([
           callWithConnectionRetry(() => callApi<PublicTraining[]>('getPublicTrainings')),
-          callWithConnectionRetry(() => callApi<{ trainingMenuEnabled: boolean; membershipMenuEnabled: boolean; memberTypes?: unknown } & PublicPortalContentSettings>('getPublicPortalSettings')),
+          callWithConnectionRetry(() => callApi<{ trainingMenuEnabled: boolean; membershipMenuEnabled: boolean; memberTypes?: unknown; masters?: unknown } & PublicPortalContentSettings>('getPublicPortalSettings')),
         ]);
         if (trainingsData.status === 'fulfilled') {
           setTrainings(trainingsData.value ?? []);
@@ -211,6 +212,7 @@ const PublicApp: React.FC = () => {
           setMembershipMenuEnabled(portalSettings.value.membershipMenuEnabled !== false);
           // 会員種別（名称・年会費・表示順）は M_会員種別。入会フォームはこの一覧から種別カードを描く
           setMemberTypeMaster(portalSettings.value.memberTypes);
+          setMasterOptions(portalSettings.value.masters);
           setPortalContentSettings({
             regulations: Array.isArray(portalSettings.value.regulations) ? portalSettings.value.regulations : [],
             membershipFeeVisible: portalSettings.value.membershipFeeVisible ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipFeeVisible,

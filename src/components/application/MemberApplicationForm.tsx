@@ -2,6 +2,8 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useRevealOnChange, FIRST_ERROR_SELECTOR } from '../../shared/useRevealOnChange';
 import { formatAnnualFee } from '../../shared/memberTypes.mjs';
 import { useMemberTypeMaster, memberTypeMasterLabel } from '../../shared/memberTypeMaster';
+import { masterLabel, useMasterOptions } from '../../shared/masterOptions';
+import MasterOptionList from '../MasterOptionList';
 import { EMAIL_PATTERN, CARE_MANAGER_NO_PATTERN, OFFICE_NO_PATTERN, POSTAL_CODE_PATTERN, PHONE_PATTERN } from '../../shared/validators';
 import {
   ApplicationFormData,
@@ -54,6 +56,17 @@ function getStepLabels(type: ApplicationMemberType | ''): string[] {
 // 2026-10-19: 種別カードの並び・名称・年会費は M_会員種別（src/shared/memberTypeMaster.ts）。
 // 説明文とアイコンは、この画面が入力の流れを持っている種別の分だけ持つ（種別ごとの入力項目は仕様でありマスタに移せない）。
 // マスタで無効にした種別はカードに出ない。マスタに足しても、ここに流れが無い種別は申し込めないので出さない。
+// 郵送先・発送方法のカードの説明文とアイコン（見た目）。並び・名称は M_郵送先区分 / M_発送方法
+const MAIL_DESTINATION_UI: Record<string, { sub: string; icon: string }> = {
+  OFFICE: { sub: '事業所の住所に郵送', icon: '🏢' },
+  HOME: { sub: '自宅の住所に郵送', icon: '🏠' },
+};
+const MAILING_METHOD_UI: Record<string, { sub: string; icon: string }> = {
+  EMAIL: { sub: 'メールアドレスに送信します', icon: '📧' },
+  POST: { sub: '選択した住所に郵送します', icon: '✉️' },
+};
+const NO_UI = { sub: '', icon: '' };
+
 const APPLICATION_TYPE_UI: Record<ApplicationMemberType, { desc: string; icon: string }> = {
   INDIVIDUAL: { desc: '介護支援専門員として個人で入会される方', icon: '👤' },
   BUSINESS: { desc: '事業所単位で入会される方（複数名登録可）', icon: '🏢' },
@@ -370,6 +383,8 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
   completionNoCredentialNotice = 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
   completionCredentialNotice = 'ログイン情報をご登録のメールアドレスに送信しました。',
 }) => {
+  const mailDestinationMaster = useMasterOptions('M_郵送先区分');
+  const mailingMethodMaster = useMasterOptions('M_発送方法');
   const applicationTypes = useMemberTypeMaster()
     .filter((t) => Object.prototype.hasOwnProperty.call(APPLICATION_TYPE_UI, t.code))
     .map((t) => ({ ...t, type: t.code as ApplicationMemberType, ...APPLICATION_TYPE_UI[t.code as ApplicationMemberType] }));
@@ -914,10 +929,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
               aria-label="郵送先の選択"
               className="grid grid-cols-2 gap-3"
             >
-              {([
-                { value: 'OFFICE' as const, label: '勤務先', sub: '事業所の住所に郵送', icon: '🏢' },
-                { value: 'HOME' as const, label: '自宅', sub: '自宅の住所に郵送', icon: '🏠' },
-              ]).map(opt => (
+              {mailDestinationMaster.map((o) => ({ value: o.code as ApplicationFormData['preferredMailDestination'], label: o.label, ...(MAIL_DESTINATION_UI[o.code] || NO_UI) })).map(opt => (
                 <button
                   key={opt.value}
                   type="button"
@@ -1248,10 +1260,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
               aria-label="発送方法の選択"
               className="grid grid-cols-1 sm:grid-cols-2 gap-3"
             >
-              {([
-                { value: 'EMAIL' as const, label: 'メール配信', sub: 'メールアドレスに送信します', icon: '📧' },
-                { value: 'POST' as const, label: '郵送希望', sub: '選択した住所に郵送します', icon: '✉️' },
-              ]).map(opt => (
+              {mailingMethodMaster.map((o) => ({ value: o.code as ApplicationFormData['mailingPreference'], label: o.label, ...(MAILING_METHOD_UI[o.code] || NO_UI) })).map(opt => (
                 <button
                   key={opt.value}
                   type="button"
@@ -1382,8 +1391,8 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-slate-700">職員 {i + 1}</span>
-                  {s.role === 'REPRESENTATIVE' && <span className="px-2 py-0.5 text-xs font-bold bg-amber-100 text-amber-700 rounded">代表者</span>}
-                  {s.role === 'ADMIN' && <span className="px-2 py-0.5 text-xs font-bold bg-primary-100 text-primary-700 rounded">管理者</span>}
+                  {s.role === 'REPRESENTATIVE' && <span className="px-2 py-0.5 text-xs font-bold bg-amber-100 text-amber-700 rounded">{masterLabel('M_職員権限', s.role)}</span>}
+                  {s.role === 'ADMIN' && <span className="px-2 py-0.5 text-xs font-bold bg-primary-100 text-primary-700 rounded">{masterLabel('M_職員権限', s.role)}</span>}
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -1401,9 +1410,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
                 <div>
                   <label htmlFor={fid(`staff_${i}_role`)} className={labelClass}>区分{requiredBadge}</label>
                   <select id={fid(`staff_${i}_role`)} className={fieldClass} value={s.role} onChange={e => updateStaff(i, 'role', e.target.value)}>
-                    <option value="REPRESENTATIVE">代表者</option>
-                    <option value="ADMIN">管理者</option>
-                    <option value="STAFF">メンバー</option>
+                    <MasterOptionList master="M_職員権限" current={s.role} />
                   </select>
                 </div>
                 <div>
@@ -1444,9 +1451,9 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
     // ── 入力確認（全種別共通: 最終ステップ）─────────────────────
     const isConfirmStep = step === totalSteps - 1;
     if (isConfirmStep) {
-      const roleLabel = (r: string) => r === 'REPRESENTATIVE' ? '代表者' : r === 'ADMIN' ? '管理者' : 'メンバー';
+      const roleLabel = (r: string) => masterLabel('M_職員権限', r);
       const typeLabel = memberTypeMasterLabel(form.memberType);
-      const destLabel = form.preferredMailDestination === 'HOME' ? '自宅' : '勤務先';
+      const destLabel = masterLabel('M_郵送先区分', form.preferredMailDestination);
       const hasOfficeAddress = !!form.officeAddressLine.trim();
       const hasHomeAddress = !!form.homeAddressLine.trim();
       return (
@@ -1508,7 +1515,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
               <h4 className="font-bold text-slate-700">連絡先・発送設定</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                 <div className="sm:col-span-2"><span className="text-slate-500">メール:</span> {form.email}</div>
-                <div><span className="text-slate-500">発送方法:</span> {form.mailingPreference === 'EMAIL' ? 'メール配信' : '郵送希望'}</div>
+                <div><span className="text-slate-500">発送方法:</span> {masterLabel('M_発送方法', form.mailingPreference)}</div>
                 <div><span className="text-slate-500">郵送先:</span> {destLabel}</div>
               </div>
             </div>

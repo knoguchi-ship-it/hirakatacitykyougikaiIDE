@@ -1,6 +1,7 @@
 ﻿import React, { useState } from 'react';
 import { Staff, StaffRole } from '../types';
 import { api } from '../services/api';
+import MasterOptionList from './MasterOptionList';
 import { normalizeKana } from '../utils/kanaNormalize';
 
 interface StaffDetailAdminProps {
@@ -27,16 +28,6 @@ const FieldError: React.FC<{ id: string; message: string }> = ({ id, message }) 
   );
 };
 
-const roleOptions: { value: StaffRole; label: string }[] = [
-  { value: 'REPRESENTATIVE', label: '代表者' },
-  { value: 'ADMIN', label: '管理者' },
-  { value: 'STAFF', label: '一般職員' },
-];
-
-const statusOptions: { value: string; label: string }[] = [
-  { value: 'ENROLLED', label: '在籍' },
-  { value: 'LEFT', label: '除籍' },
-];
 
 const joinNameParts = (lastName: string, firstName: string) => {
   const last = lastName.trim();
@@ -239,9 +230,7 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
               onChange={e => set('role', e.target.value)}
               disabled={isLeft}
             >
-              {roleOptions.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
+              <MasterOptionList master="M_職員権限" current={form.role} />
             </select>
             {form.role !== staff.role && staff.role === 'REPRESENTATIVE' && (
               <p className="mt-1 text-xs text-amber-600">
@@ -259,9 +248,7 @@ const StaffDetailAdmin: React.FC<StaffDetailAdminProps> = ({ staff, memberId, of
               value={form.status}
               onChange={e => handleStatusChange(e.target.value)}
             >
-              {statusOptions.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
+              <MasterOptionList master="M_職員状態" current={form.status} />
             </select>
           </div>
           {staff.status === 'LEFT' && staff.withdrawnDate && (

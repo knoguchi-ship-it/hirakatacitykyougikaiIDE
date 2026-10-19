@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getMemberTypeMaster, useMemberTypeMaster, memberTypeMasterLabel } from '../shared/memberTypeMaster';
+import { getMasterOptions } from '../shared/masterOptions';
 import { api } from '../services/api';
 import {
   AdminPermissionLevel,
@@ -51,6 +52,10 @@ const MESSAGE_AUTO_CLEAR_MS = 4000;
 const WITHDRAW_ACTION = 'WITHDRAW' as const;
 // 種別の並びは M_会員種別（表示順）。コードに種別を並べない
 const memberTypeCodes = (): MemberType[] => getMemberTypeMaster().map((t) => t.code as MemberType);
+const feeStatusOrder = (status: string): number => {
+  const i = getMasterOptions('M_会費納入状態').findIndex((o) => o.code === status);
+  return i < 0 ? 99 : i;
+};
 const memberTypeOrder = (memberType: string): number => {
   const i = getMemberTypeMaster().findIndex((t) => t.code === memberType);
   return i < 0 ? 99 : i;
@@ -384,8 +389,8 @@ const AnnualFeeManagement: React.FC<Props> = ({ onChanged, onDirtyChange, onOpen
           comparison = memberTypeOrder(a.memberType) - memberTypeOrder(b.memberType);
           break;
         case 'status': {
-          const statusOrder: Record<string, number> = { UNPAID: 0, PAID: 1, WITHDRAW: 2 };
-          comparison = (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9);
+          // 納入状態の並びは M_会費納入状態 の表示順。WITHDRAW（退会で対象外）はマスタに無い画面の区分なので最後
+          comparison = feeStatusOrder(a.status) - feeStatusOrder(b.status);
           break;
         }
         case 'confirmedDate':

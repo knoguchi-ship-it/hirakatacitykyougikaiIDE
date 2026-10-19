@@ -224,6 +224,8 @@ const validateRoleTransition = new Function(`
   ${fnSource('validateBusinessStaffRoleTransition_')}
   ${fnSource('normalizeBusinessStaffRole_')}
   function getBusinessStaffRowsByMember_(ss) { return ss.__rows; }
+  // M_職員権限 の中身（本番はマスタのキャッシュを引く。test:master-options）
+  function hasMasterOption_(ss, master, code) { return ['REPRESENTATIVE', 'ADMIN', 'STAFF'].indexOf(String(code)) >= 0; }
   return validateBusinessStaffRoleTransition_;
 `)() as (ss: unknown, memberId: string, payload: unknown[], session: unknown) => void;
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { memberTypeMasterLabel } from '../shared/memberTypeMaster';
+import { masterLabel } from '../shared/masterOptions';
 import { callApi } from '../shared/api-base';
 
 // ── 型定義 ────────────────────────────────────────────────────────────────────
@@ -46,11 +47,6 @@ const REQUEST_TYPE_LABEL: Record<string, string> = {
   STAFF_ADD: '職員追加',
   STAFF_REMOVE: '職員除籍',
 };
-const STAFF_ROLE_LABEL: Record<string, string> = {
-  REPRESENTATIVE: '代表者',
-  ADMIN: '管理者',
-  STAFF: '一般',
-};
 const STATUS_LABEL: Record<string, string> = {
   PENDING: '未処理',
   APPROVED: '承認済',
@@ -77,13 +73,15 @@ const FIELD_LABEL: Record<string, string> = {
 
 // 2026-10-14: 本番確認で、入会申込の内容が「memberType: BUSINESS」「EMAIL」「HOME」とコードのまま出ていた。
 // 会員の登録画面（MemberDetailAdmin）と同じ表記に揃える。
-const FIELD_VALUE_LABEL: Record<string, Record<string, string>> = {
-  mailingPreference: { EMAIL: 'メール配信', POST: '郵送希望' },
-  preferredMailDestination: { OFFICE: '勤務先', HOME: '自宅' },
+// 2026-10-19: 値の名称はそれぞれのマスタ（src/shared/masterOptions.ts）。項目 → マスタの対応だけをここに持つ
+const FIELD_VALUE_MASTER: Record<string, string> = {
+  mailingPreference: 'M_発送方法',
+  preferredMailDestination: 'M_郵送先区分',
 };
-// 会員種別の名称は M_会員種別.名称（src/shared/memberTypeMaster.ts）
-const formatFieldValue = (key: string, value: unknown) =>
-  key === 'memberType' ? memberTypeMasterLabel(String(value)) : FIELD_VALUE_LABEL[key]?.[String(value)] ?? String(value);
+const formatFieldValue = (key: string, value: unknown) => {
+  if (key === 'memberType') return memberTypeMasterLabel(String(value));
+  return FIELD_VALUE_MASTER[key] ? masterLabel(FIELD_VALUE_MASTER[key], String(value)) : String(value);
+};
 
 function formatDate(iso: string) {
   if (!iso) return '';
@@ -152,7 +150,7 @@ const ChangeDataView: React.FC<{ data: ChangeData; requestType: string }> = ({ d
                   <div key={i} className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm">
                     <div className="font-semibold text-slate-800">
                       {st.lastName} {st.firstName}（{st.lastKana} {st.firstKana}）
-                      <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{STAFF_ROLE_LABEL[String(st.role || 'STAFF')] || st.role}</span>
+                      <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{masterLabel('M_職員権限', String(st.role || 'STAFF'))}</span>
                     </div>
                     <div className="mt-1 text-slate-600">
                       CM番号: {st.careManagerNumber}　メール: {st.email}　メール配信: {st.receiveEmail === false ? '受け取らない' : '受け取る'}

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { callApi } from '../../shared/api-base';
+import MasterOptionList from '../../components/MasterOptionList';
 import { IdentityVerifyStep, type IdentityPayload } from './IdentityVerifyStep';
 import { publicIdentityErrorMessage, type PublicIdentityMemberType } from '../../shared/publicIdentity';
 import { normalizeKana } from '../../utils/kanaNormalize';
@@ -931,8 +932,7 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
                       onChange={e => setIndFields(f => ({ ...f, mailingPreference: e.target.value }))}
                       className={inputClass}>
                       <option value="">-- 選択してください --</option>
-                      <option value="EMAIL">メール</option>
-                      <option value="MAIL">郵送</option>
+                      <MasterOptionList master="M_発送方法" />
                     </select>
                   </div>
                 )}
@@ -943,8 +943,7 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
                       onChange={e => setIndFields(f => ({ ...f, preferredMailDestination: e.target.value }))}
                       className={inputClass}>
                       <option value="">-- 選択してください --</option>
-                      <option value="OFFICE">勤務先</option>
-                      <option value="HOME">自宅</option>
+                      <MasterOptionList master="M_郵送先区分" />
                     </select>
                   </div>
                 )}

@@ -100,7 +100,7 @@ function buildAdminSession(opts: { email: string; asStaff?: boolean }) {
     ${extractFunction('joinHumanNameParts_')}
     function getChunkedCache_() { return null; }
     function getAllDataCacheKey_() { return 'fetchAllData:test'; }
-    function mapAdminPermissionLabel_(c) { return c; }
+    function masterLabel_(ss, master, c) { return c; }
     function getRoleByIdCached_() { return null; }
     function appendLoginHistory_(ss, authId, loginId, method, result, reason) { deps.history.push({ result: result, reason: reason }); }
     ${extractFunction('checkAdminBySession_')}
@@ -197,6 +197,8 @@ test('会員マイページの取得は各シートを 1 回ずつしか読ま�
     function getAnnualFeeAmountMap_() { return {}; }
     function mapMembersForApi_(ss, members) { return members; }
     function mapTrainingRowsForApi_(rows) { return rows; }
+    // マスタはスクリプトキャッシュから読む（シートを読む回数の検査は test:master-options）
+    function masterOptionsForClient_() { return {}; }
     ${extractFunction('getMemberPortalData_')}
     return getMemberPortalData_;
   `)({ ss }) as (p: { loginId: string }) => { members: Row[]; trainings: Row[]; resolvedMemberId: string };

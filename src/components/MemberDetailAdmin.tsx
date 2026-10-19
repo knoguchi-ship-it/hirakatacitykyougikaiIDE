@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRevealOnChange } from '../shared/useRevealOnChange';
 import { useMemberTypeMaster, memberTypeMasterLabel, memberTypeOptionsIncluding } from '../shared/memberTypeMaster';
+import { masterLabel } from '../shared/masterOptions';
+import MasterOptionList from './MasterOptionList';
 import { EMAIL_PATTERN, CARE_MANAGER_NO_PATTERN, CARE_MANAGER_NO_RELAXED_PATTERN, POSTAL_CODE_PATTERN, PHONE_PATTERN } from '../shared/validators';
 import { AnnualFeeRecord, Member, MemberType, PaymentStatus, Staff, StaffRole, AdminDashboardMemberRow, ConvertMemberTypePayload } from '../types';
 import { api } from '../services/api';
@@ -245,6 +247,9 @@ interface MemberDetailAdminProps {
   staffSaveToast?: string | null;
   onDismissStaffSaveToast?: () => void;
 }
+
+// 移行で作る職員は代表者にしない（代表者の交代は別の操作）。選ばせない値なのでコードに持つ
+const CONVERT_EXCLUDED_ROLES = ['REPRESENTATIVE'] as const;
 
 const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessMembers, individualMembers, onBack, onSaved, onOpenStaffDetail, staffSaveToast, onDismissStaffSaveToast }) => {
   if (!member) {
@@ -1023,11 +1028,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     setShowConvertToIndividualModal(true);
   };
 
-  const roleLabel = (role: string) => {
-    if (role === 'REPRESENTATIVE') return '代表者';
-    if (role === 'ADMIN') return '管理者';
-    return 'メンバー';
-  };
+  const roleLabel = (role: string) => masterLabel('M_職員権限', role);
 
   // ── インライン職員更新（区分・状態の即時保存） ──
   const [inlineSaving, setInlineSaving] = useState<Record<string, boolean>>({});
@@ -1515,15 +1516,13 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
             <div>
               <label htmlFor={`${uid}-f21`} className={labelClass}>発送方法</label>
               <select id={`${uid}-f21`} className={fieldClass()} value={form.mailingPreference || 'EMAIL'} onChange={e => set('mailingPreference', e.target.value)}>
-                <option value="EMAIL">メール配信</option>
-                <option value="POST">郵送希望</option>
+                <MasterOptionList master="M_発送方法" current={form.mailingPreference || 'EMAIL'} />
               </select>
             </div>
             <div>
               <label htmlFor={`${uid}-f22`} className={labelClass}>郵送先区分</label>
               <select id={`${uid}-f22`} className={fieldClass()} value={form.preferredMailDestination || 'OFFICE'} onChange={e => set('preferredMailDestination', e.target.value)}>
-                <option value="OFFICE">勤務先</option>
-                <option value="HOME">自宅</option>
+                <MasterOptionList master="M_郵送先区分" current={form.preferredMailDestination || 'OFFICE'} />
               </select>
             </div>
           </div>
@@ -1537,10 +1536,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
           <div>
             <label htmlFor={`${uid}-f23`} className={labelClass}>会員状態</label>
             <select id={`${uid}-f23`} className={fieldClass()} value={form.status || 'ACTIVE'} onChange={e => set('status', e.target.value)}>
-              <option value="ACTIVE">在籍中</option>
-              <option value="WITHDRAWAL_SCHEDULED">退会予定</option>
-              <option value="WITHDRAWN">退会済</option>
-              <option value="TRANSFERRED">移行済み</option>
+              <MasterOptionList master="M_会員状態" current={form.status || 'ACTIVE'} />
             </select>
           </div>
           <div>
@@ -1799,9 +1795,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                         onChange={(e) => updateDraftStaff(staff.id, { role: e.target.value as Staff['role'] })}
                         className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                       >
-                        <option value="REPRESENTATIVE">代表者</option>
-                        <option value="ADMIN">管理者</option>
-                        <option value="STAFF">メンバー</option>
+                        <MasterOptionList master="M_職員権限" current={staff.role} />
                       </select>
                     </div>
                     <button
@@ -1857,9 +1851,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                       className="border border-slate-300 rounded px-2 py-1 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:outline-none disabled:opacity-50"
                       aria-label={`${s.name} の区分`}
                     >
-                      <option value="REPRESENTATIVE">代表者</option>
-                      <option value="ADMIN">管理者</option>
-                      <option value="STAFF">メンバー</option>
+                      <MasterOptionList master="M_職員権限" current={s.role} />
                     </select>
                     {inlineSaving[`${s.id}-role`] && <span className="ml-1 text-xs text-primary-500">保存中...</span>}
                   </td>
@@ -1873,8 +1865,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                       }`}
                       aria-label={`${s.name} の状態`}
                     >
-                      <option value="ENROLLED">在籍</option>
-                      <option value="LEFT">除籍</option>
+                      <MasterOptionList master="M_職員状態" current={s.status} />
                     </select>
                     {inlineSaving[`${s.id}-status`] && <span className="ml-1 text-xs text-primary-500">保存中...</span>}
                   </td>
@@ -2151,8 +2142,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
             <div>
               <label htmlFor={`${uid}-f36`} className={labelClass}>権限</label>
               <select id={`${uid}-f36`} className={fieldClass()} value={convertStaffRole} onChange={e => setConvertStaffRole(e.target.value as 'ADMIN' | 'STAFF')}>
-                <option value="STAFF">メンバー</option>
-                <option value="ADMIN">管理者</option>
+                <MasterOptionList master="M_職員権限" current={convertStaffRole} exclude={CONVERT_EXCLUDED_ROLES} />
               </select>
             </div>
             <div className="flex gap-3 pt-2">
@@ -2241,8 +2231,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
             <div>
               <label htmlFor={`${uid}-f38`} className={labelClass}>権限</label>
               <select id={`${uid}-f38`} className={fieldClass()} value={convertFromIndividualRole} onChange={e => setConvertFromIndividualRole(e.target.value as 'ADMIN' | 'STAFF')}>
-                <option value="STAFF">メンバー</option>
-                <option value="ADMIN">管理者</option>
+                <MasterOptionList master="M_職員権限" current={convertFromIndividualRole} exclude={CONVERT_EXCLUDED_ROLES} />
               </select>
             </div>
             <div className="flex gap-3 pt-2">

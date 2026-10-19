@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue } from 'react';
 import { memberTypeLabel as sharedMemberTypeLabel } from './shared/memberTypes.mjs';
 import { setMemberTypeMaster, getMemberTypeMaster, useMemberTypeMaster } from './shared/memberTypeMaster';
+import { masterLabel, useMasterOptions } from './shared/masterOptions';
 import Sidebar from './components/Sidebar';
 import RolePreviewBar from './components/RolePreviewBar';
 import MemberBatchEditor from './MemberBatchEditor';
@@ -160,13 +161,9 @@ const isActiveMemberIdentity = (member: Member): boolean => member.status !== 'W
 
 const isActiveStaffIdentity = (staff: NonNullable<Member['staff']>[number]): boolean => staff.status !== 'LEFT';
 
-const businessStaffRoleLabel = (role: StaffRole): string => {
-  if (role === 'REPRESENTATIVE') return '代表者';
-  if (role === 'ADMIN') return '管理者';
-  return 'メンバー';
-};
-
-const businessStaffStatusLabel = (status: StaffStatus): string => (status === 'LEFT' ? '除籍' : '在籍');
+// 名称は M_職員権限 / M_職員状態（src/shared/masterOptions.ts）
+const businessStaffRoleLabel = (role: StaffRole): string => masterLabel('M_職員権限', role);
+const businessStaffStatusLabel = (status: StaffStatus): string => masterLabel('M_職員状態', status);
 const businessStaffMailingPreferenceLabel = (preference: string): string => (preference === 'NO' ? '配信しない' : '配信する');
 
 const normalizeBusinessStaffDraft = (staff: Staff): BusinessStaffDraft => ({
@@ -232,7 +229,7 @@ const buildLoginIdentities = (members: Member[]): LoginIdentity[] =>
     }
     return (member.staff || []).filter(isActiveStaffIdentity).map((staff) => ({
       id: `${member.id}-${staff.id}`,
-      label: `事業所会員: ${member.officeName} - ${staff.name} (${staff.role === 'REPRESENTATIVE' ? '代表者' : staff.role === 'ADMIN' ? '管理者' : 'メンバー'})`,
+      label: `${sharedMemberTypeLabel(MemberType.BUSINESS)}: ${member.officeName} - ${staff.name} (${businessStaffRoleLabel(staff.role)})`,
       memberId: member.id,
       staffId: staff.id,
       staffRole: staff.role,
@@ -750,6 +747,10 @@ const App: React.FC = () => {
   const [memberListQuery, setMemberListQuery] = useState('');
   const [memberListFilter, setMemberListFilter] = useState<MemberListFilter>('ALL');
   const memberTypeOptions = useMemberTypeMaster();
+  const memberStatusMaster = useMasterOptions('M_会員状態');
+  const staffRoleMaster = useMasterOptions('M_職員権限');
+  const staffStatusMaster = useMasterOptions('M_職員状態');
+  const adminPermissionMaster = useMasterOptions('M_管理者権限');
   const [memberListStatusFilter, setMemberListStatusFilter] = useState<MemberStatusFilter>(DEFAULT_MEMBER_STATUS_FILTER);
   const [memberListFiscalYearFilter, setMemberListFiscalYearFilter] = useState<string>(DEFAULT_MEMBER_FISCAL_YEAR_FILTER);
   const [memberListPage, setMemberListPage] = useState(1);
@@ -1720,7 +1721,7 @@ const App: React.FC = () => {
     if (!currentIdentity) return '未選択';
     let label = sharedMemberTypeLabel(currentIdentity.type);
     if (currentIdentity.type === MemberType.BUSINESS) {
-      label = currentIdentity.staffRole === 'REPRESENTATIVE' ? '事業所会員（代表者）' : currentIdentity.staffRole === 'ADMIN' ? '事業所会員（管理者）' : '事業所会員（メンバー）';
+      label = `${label}（${businessStaffRoleLabel(currentIdentity.staffRole || 'STAFF')}）`;
     }
     return label;
   }, [currentIdentity]);
@@ -2261,7 +2262,8 @@ const App: React.FC = () => {
           .includes(normalized)
       );
     }
-    const permOrder: Record<string, number> = { MASTER: 1, ADMIN: 2, TRAINING_MANAGER: 3, TRAINING_REGISTRAR: 4, GENERAL: 5 };
+    // 権限の並びは M_管理者権限 の表示順
+    const permOrder: Record<string, number> = Object.fromEntries(adminPermissionMaster.map((o, i) => [o.code, i + 1]));
     const sorted = [...list].sort((a, b) => {
       let cmp = 0;
       if (adminPermissionSortKey === 'googleEmail') {
@@ -2274,7 +2276,7 @@ const App: React.FC = () => {
       return adminPermissionSortDir === 'asc' ? cmp : -cmp;
     });
     return sorted;
-  }, [adminPermissionData, adminPermissionQuery, adminPermissionFilterLevel, adminPermissionSortKey, adminPermissionSortDir]);
+  }, [adminPermissionData, adminPermissionQuery, adminPermissionFilterLevel, adminPermissionSortKey, adminPermissionSortDir, adminPermissionMaster]);
 
   const adminPermissionOptionLabel = (authId: string) =>
     adminPermissionData?.identityOptions.find((option) => option.authId === authId)?.label || '';
@@ -2313,14 +2315,10 @@ const App: React.FC = () => {
     await loadAdminPermissionData({ force: true });
   };
 
-  const permissionLevelLabel = (level: AdminPermissionLevel) => {
-    const map: Record<AdminPermissionLevel, string> = {
-      MASTER: 'マスター', ADMIN: '管理者', TRAINING_MANAGER: '研修管理者', TRAINING_REGISTRAR: '研修登録者', GENERAL: '一般',
-    };
-    return map[level] || level;
-  };
+  // 権限の選択肢と名称は M_管理者権限（表示順）
+  const permissionLevelLabel = (level: AdminPermissionLevel) => masterLabel('M_管理者権限', level);
 
-  const permissionLevelOptions: AdminPermissionLevel[] = ['MASTER', 'ADMIN', 'TRAINING_MANAGER', 'TRAINING_REGISTRAR', 'GENERAL'];
+  const permissionLevelOptions = adminPermissionMaster.map((o) => o.code as AdminPermissionLevel);
 
   const filterIdentityOptions = (query: string) => {
     const opts = adminPermissionData?.identityOptions || [];
@@ -2854,17 +2852,14 @@ const App: React.FC = () => {
               <label htmlFor={`${uid}-f8`} className="block text-xs font-medium text-slate-600 mb-1">区分</label>
               <select id={`${uid}-f8`} className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={businessStaffRoleFilter} onChange={(e) => setBusinessStaffRoleFilter(e.target.value as BusinessStaffRoleFilter)}>
                 <option value="ALL">全区分</option>
-                <option value="REPRESENTATIVE">代表者</option>
-                <option value="ADMIN">管理者</option>
-                <option value="STAFF">メンバー</option>
+                {staffRoleMaster.map((o) => <option key={o.code} value={o.code}>{o.label}</option>)}
               </select>
             </div>
             <div>
               <label htmlFor={`${uid}-f9`} className="block text-xs font-medium text-slate-600 mb-1">在籍状況</label>
               <select id={`${uid}-f9`} className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={businessStaffStatusFilter} onChange={(e) => setBusinessStaffStatusFilter(e.target.value as BusinessStaffStatusFilter)}>
                 <option value="ALL">全状態</option>
-                <option value="ENROLLED">在籍</option>
-                <option value="LEFT">除籍</option>
+                {staffStatusMaster.map((o) => <option key={o.code} value={o.code}>{o.label}</option>)}
               </select>
             </div>
           </>
@@ -2873,10 +2868,7 @@ const App: React.FC = () => {
             <label htmlFor={`${uid}-f10`} className="block text-xs font-medium text-slate-600 mb-1">会員状態</label>
             <select id={`${uid}-f10`} className="border border-slate-300 rounded px-3 py-2 bg-white text-sm" value={memberListStatusFilter} onChange={(e) => setMemberListStatusFilter(e.target.value as MemberStatusFilter)}>
               <option value="ALL">全状態</option>
-              <option value="ACTIVE">在籍中</option>
-              <option value="WITHDRAWAL_SCHEDULED">退会予定</option>
-              <option value="WITHDRAWN">退会済</option>
-              <option value="TRANSFERRED">移行済み</option>
+              {memberStatusMaster.map((o) => <option key={o.code} value={o.code}>{o.label}</option>)}
             </select>
           </div>
         )}
@@ -2919,13 +2911,7 @@ const App: React.FC = () => {
           )}
           {adminMemberViewMode === 'all' && memberListStatusFilter !== 'ALL' && (
             <span className="inline-flex items-center gap-1 bg-primary-50 text-primary-700 text-xs px-2 py-1 rounded-full">
-              {memberListStatusFilter === 'ACTIVE'
-                ? '在籍中'
-                : memberListStatusFilter === 'WITHDRAWAL_SCHEDULED'
-                  ? '退会予定'
-                  : memberListStatusFilter === 'TRANSFERRED'
-                    ? '移行済み'
-                    : '退会済'}
+              {masterLabel('M_会員状態', memberListStatusFilter)}
               <button onClick={() => setMemberListStatusFilter('ALL')} className="hover:text-primary-900">&times;</button>
             </span>
           )}
@@ -3059,9 +3045,7 @@ const App: React.FC = () => {
                           aria-label={`${member.officeName || '事業所'} ${staff.id} 区分`}
                           onChange={(e) => updateBusinessStaffDraft(member.id, staff, { role: e.target.value as StaffRole })}
                         >
-                          <option value="REPRESENTATIVE">代表者</option>
-                          <option value="ADMIN">管理者</option>
-                          <option value="STAFF">メンバー</option>
+                          {staffRoleMaster.map((o) => <option key={o.code} value={o.code}>{o.label}</option>)}
                         </select>
                       </td>
                       <td className="px-4 py-3 text-sm min-w-[120px]">
@@ -3071,8 +3055,7 @@ const App: React.FC = () => {
                           aria-label={`${member.officeName || '事業所'} ${staff.id} 在籍状況`}
                           onChange={(e) => updateBusinessStaffDraft(member.id, staff, { status: e.target.value as StaffStatus })}
                         >
-                          <option value="ENROLLED">在籍</option>
-                          <option value="LEFT">除籍</option>
+                          {staffStatusMaster.map((o) => <option key={o.code} value={o.code}>{o.label}</option>)}
                         </select>
                       </td>
                       <td className="px-4 py-3 text-sm min-w-[140px]">
@@ -3140,13 +3123,11 @@ const App: React.FC = () => {
                 <td className="px-4 py-3 text-sm text-slate-600">{member.joinedDate ? `${computeTenure(member.joinedDate)}年` : '-'}</td>
                 <td className="px-4 py-3 text-sm">{(() => {
                   const displayStatus = getDisplayMemberStatus(member) || member.status;
-                  return displayStatus === 'WITHDRAWN'
-                    ? <span className="text-red-500">退会済</span>
-                    : displayStatus === 'WITHDRAWAL_SCHEDULED'
-                      ? <span className="text-amber-600">退会予定</span>
-                      : displayStatus === 'TRANSFERRED'
-                        ? <span className="text-slate-500">移行済み</span>
-                      : <span className="text-green-600">在籍中</span>;
+                  // 色は状態ごとの見た目（コード側）、文字は M_会員状態 の名称
+                  const tone = displayStatus === 'WITHDRAWN' ? 'text-red-500'
+                    : displayStatus === 'WITHDRAWAL_SCHEDULED' ? 'text-amber-600'
+                      : displayStatus === 'TRANSFERRED' ? 'text-slate-500' : 'text-green-600';
+                  return <span className={tone}>{masterLabel('M_会員状態', displayStatus)}</span>;
                 })()}</td>
               </tr>
             ))}

@@ -6,7 +6,11 @@ operator 指示「ハードコード部分かつ DB に M として存在する�
 - 再実行: `npm run audit:master-hardcode`（件数）／ `npm run audit:master-hardcode -- --list`（全件）
 - マスタの値は gas-src の `マスタ初期値` を評価して得る。対象はマスタ 16 表。`M_申込者区分` は v360 で廃止済みのため除外した。
 - 検索範囲は `gas-src/Code.full.gs` と `src/**/*.{ts,tsx,mjs}`。コメント行と初期値の定義自体は数えていない。
-- 本書の数字は `aba49e2` 時点。
+- 本書 §1〜§7 の数字は `aba49e2` 時点（棚卸し）。**対応の結果は §8**（2026-10-19 同日に全件対応）。
+
+> **2026-10-19 追記（対応済み）**: §6 の形で全マスタを直した。マスタは今後も増える前提で、
+> マスタ定義 に表を足せばコードを変えずに選択肢・名称・検査に乗る。直書きは prerelease の
+> `test:master-hardcode` が落とす（直す前のソースでは 121 件で落ちることを確認）。§8。
 
 ## 1. 結論
 
@@ -160,3 +164,71 @@ operator 指示「ハードコード部分かつ DB に M として存在する�
    - (b) マスタの名称のまま寄せる
 2. **作業の順番**: §3 の不具合を先に単独で出すか、§6 の全体と一緒に出すか。
 3. **本番の `MAIL` の確認**: 読むだけの確認を行ってよいか。
+
+## 8. 対応の結果（2026-10-19）
+
+operator 指示「ハードコード部分は直す。マスタが追加される可能性も考慮する」。
+
+### 8.1 しくみ
+
+| 層 | 正本の引き方 | 場所 |
+|---|---|---|
+| GAS（読む） | `readAllMasterOptions_(ss)` が **マスタ定義 の全表** を同じ形で読む。1 列目=コード・2 列目=名称、有効フラグ false と削除フラグ true の行を除き表示順に並べる。残りの列は `attrs` | `gas-src/Code.full.gs` |
+| GAS（名称・判定） | `masterLabel_(ss, マスタ名, コード)` / `hasMasterOption_`（キャッシュを通す。行ごとの正規化向け）/ `isKnownMasterCode_`（シートを直接読む。1 件の書き込みの検査） | 同上 |
+| キャッシュ | スクリプトキャッシュ 600 秒 ＋ 実行中のメモ。**マスタのシートを書き換える関数は `invalidateMasterOptionsCache_()` を呼ぶ**（スキーマ整備の後も呼ぶ）。シートを手で直したときは最大 10 分遅れる | 同上 |
+| 画面へ渡す | 管理: ログインの応答（`checkAdminBySession`・全権限）と `getSystemSettings`（全表・属性つき）。会員: `getMemberPortalData`。公開: `getPublicPortalSettings`（`PUBLIC_MASTER_NAMES_` の表だけ・属性なし） | 同上 |
+| 画面 | `src/shared/masterOptions.ts`（`useMasterOptions` / `masterLabel` / `useMasterLabel`）と `src/components/MasterOptionList.tsx`（`<option>` を描く）。会員種別は `src/shared/memberTypeMaster.ts`（年会費つき） | `src/` |
+
+### 8.2 直したもの
+
+- **不具合（§3）**: 公開ポータルの変更申請の選択肢を `M_発送方法` から描くようにした（`MAIL` が出ない）。
+  GAS は会員の保存（`saveMemberCore_`・`createMember_`・`createMemberApplicationDirectLocked_`）で
+  `assertMemberMailingCodes_` が発送方法・郵送先区分をマスタと突き合わせる。
+  **すでに `MAIL` が入っている会員は、次に保存するときに「発送方法の値が不正です: MAIL」で止まる**（画面で選び直せば保存できる）。本番の件数は未確認（読むだけの確認は承認待ち）。
+- **選択肢**: §5.1 をすべて `MasterOptionList` / `useMasterOptions` に置き換えた。
+- **名称表**: §5.2 の GAS の関数 3 本（`resolveMemberTypeLabel_`・`mapAdminPermissionLabel_`・`mapSystemRoleLabel_`）を消して `masterLabel_` にした。名簿の項目辞書もマスタから引く。§5.3 の画面の名称表もすべてマスタの名称にした。
+- **許可値**: §5.4 をすべて `isKnownMasterCode_` / `hasMasterOption_` にした（権限の保存 `saveAdminPermission_` の `validPerms` も同じ）。
+- **一覧と件数**: 宛名リストの件数（GAS・画面）と Excel のシートを、会員種別ごと（マスタの表示順・名称）にした。研修名簿の出欠の集計の初期値も `M_出欠状態` から作る。権限・年会費状態の並び替えはマスタの表示順。
+
+### 8.3 画面の表記が変わったところ
+
+名称はマスタの値になる（§4 の (b)）。表記を変えたいときは、**コードではなく M_ 表の「名称」列を直す**。
+
+| コード | 以前の画面の表記（例） | いまの表記（マスタの初期値） |
+|---|---|---|
+| 会員状態 `ACTIVE` / `WITHDRAWN` | 在籍中・有効会員 / 退会済・年度内退会 | 有効 / 退会 |
+| 職員状態 `LEFT` | 除籍・退職済 | 退職 |
+| 職員権限 `STAFF` | メンバー・一般職員 | 一般 |
+| 発送方法 `EMAIL` / `POST` | メール配信 / 郵送希望 | メール / 郵送 |
+| 郵送先区分 `OFFICE` | 事業所（宛名リスト） | 勤務先 |
+| 会費納入状態 `PAID` | 納入済み | 納入済 |
+| 会員種別（会員マイページ） | 正会員 (個人)・正会員 (事業所) | 個人会員・事業所会員 |
+
+### 8.4 マスタを足すとき（今後）
+
+1. `gas-src` の `マスタ定義` に表を足す（1 列目=コード、2 列目=名称、`表示順`・`有効フラグ` を持たせる）。初期値があれば `マスタ初期値` にも足す。
+2. それだけで、管理画面には `masters` として届き、`useMasterOptions('M_新しい表')` / `masterLabel_` で引ける。直書き検査（`test:master-hardcode`）の対象にも自動で入る（初期値の無い表は「値をソースと照合できない」と表示される）。
+3. 公開ポータル・会員マイページで使うときだけ、`PUBLIC_MASTER_NAMES_` に表の名前を足す（公開してよい表かを判断する場所）。
+4. 表を参照する列があれば、`docs/er-metadata.json` のリレーションと `入力規則定義` に足す（`test:er-sync`・`test:db-relations`）。
+5. その表を書き換える関数を作るときは `invalidateMasterOptionsCache_()` を呼ぶ（`test:master-options` が書き換える関数を見つけて確かめる）。
+
+### 8.5 残したもの（許可リスト）
+
+`scripts/audit-master-hardcode.mjs` の `ALLOWED` に理由つきで載せている。要点は §5.5 のとおり。
+- 種別・状態ごとの振る舞いの分岐とその文言
+- 色だけを決める表（バッジの色。文字はマスタ）
+- 絞り込みの値（`ACTIVE` / `ALL` など。GAS 側の仕様）。表示名はマスタから引く
+- 権限の方針（`ADMIN_ACTION_PERMISSIONS`、画面の `['MASTER','ADMIN'].includes`）
+- マスタではない同じ語（LINE 投稿の状態、申込者区分の `STAFF`、締切日から計算した受付状態 `OPEN`/`CLOSED`）
+
+### 8.6 確認
+
+- `test:master-hardcode`: 直書き 0 件で PASS。直す前のソースでは 121 件で FAIL。
+- `test:master-options`（新設・7 件）:
+  - 全表の読み出し（列名の違う表・新しい表も含む）
+  - 公開側に属性と許可外の表を出さないこと
+  - キャッシュとメモ、invalidate の後に読み直すこと
+  - マスタを書き換える関数がすべてキャッシュを捨てること
+  - 画面への受け渡し
+  - 発送方法の検査
+- prerelease 全体 PASS。**実画面・本番での確認はリリース後**（管理 E2E は operator の再ログインが要る）。

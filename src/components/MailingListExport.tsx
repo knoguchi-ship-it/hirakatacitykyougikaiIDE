@@ -1,5 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMemberTypeMaster, memberTypeMasterLabel } from '../shared/memberTypeMaster';
+import { masterLabel } from '../shared/masterOptions';
+import MasterOptionList from './MasterOptionList';
+
+// 宛名リストの対象は発送対象の会員だけ（移行済みは元の会員行なので出さない）。選ばせない値なのでコードに持つ
+const MAILING_STATUS_EXCLUDED = ['TRANSFERRED'] as const;
 import { ApiClient } from '../services/api';
 import {
   MailingListFilterType,
@@ -13,21 +18,18 @@ interface MailingListExportProps {
   api: ApiClient;
 }
 
-const MEMBER_STATUS_LABELS: Record<string, { label: string; cls: string }> = {
-  ACTIVE: { label: '在籍中', cls: 'bg-emerald-50 text-emerald-700' },
-  WITHDRAWAL_SCHEDULED: { label: '退会予定', cls: 'bg-amber-50 text-amber-700' },
-  WITHDRAWN: { label: '年度内退会', cls: 'bg-slate-100 text-slate-600' },
+// 名称は M_会員状態 / M_会費納入状態 / M_郵送先区分（src/shared/masterOptions.ts）。ここは色だけ
+const MEMBER_STATUS_TONE: Record<string, string> = {
+  ACTIVE: 'bg-emerald-50 text-emerald-700',
+  WITHDRAWAL_SCHEDULED: 'bg-amber-50 text-amber-700',
+  WITHDRAWN: 'bg-slate-100 text-slate-600',
 };
 
-const FEE_STATUS_LABELS: Record<string, { label: string; cls: string }> = {
-  PAID:   { label: '納入済み', cls: 'bg-emerald-50 text-emerald-700' },
-  UNPAID: { label: '未納',    cls: 'bg-rose-50   text-rose-700'    },
+const FEE_STATUS_TONE: Record<string, string> = {
+  PAID:   'bg-emerald-50 text-emerald-700',
+  UNPAID: 'bg-rose-50   text-rose-700',
 };
-
-const MAILING_DESTINATION_LABELS: Record<string, string> = {
-  HOME: '自宅',
-  OFFICE: '事業所',
-};
+const DEFAULT_TONE = 'bg-slate-100 text-slate-600';
 
 const calcCurrentFiscalYear = (): number => {
   const now = new Date();
@@ -143,8 +145,8 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
           target.memberId,
           target.officeName,
           memberTypeMasterLabel(target.memberType),
-          MEMBER_STATUS_LABELS[target.memberStatus]?.label || target.memberStatus,
-          FEE_STATUS_LABELS[target.annualFeeStatus]?.label || target.annualFeeStatus,
+          masterLabel('M_会員状態', target.memberStatus),
+          masterLabel('M_会費納入状態', target.annualFeeStatus),
         ])) return false;
       }
       // 年度別年会費 AND フィルター（レコードなしは UNPAID 扱い）
@@ -175,11 +177,9 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
 
   // カウントバッジは「表示中かつ選択済み」件数を反映（Q1=B）
   const selectedCounts = useMemo(() => {
-    const counts = { business: 0, individual: 0, support: 0, invalid: 0 };
+    const counts: { byType: Record<string, number>; invalid: number } = { byType: {}, invalid: 0 };
     filteredSelectedTargets.forEach((target) => {
-      if (target.memberType === 'BUSINESS') counts.business += 1;
-      if (target.memberType === 'INDIVIDUAL') counts.individual += 1;
-      if (target.memberType === 'SUPPORT') counts.support += 1;
+      counts.byType[target.memberType] = (counts.byType[target.memberType] || 0) + 1;
       if (target.addressInvalidItems.length > 0) counts.invalid += 1;
     });
     return counts;
@@ -240,7 +240,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
   }
   feeConditions.forEach((cond, i) => {
     if (cond.year === '' || cond.status === '') return;
-    const statusLabel = cond.status === 'PAID' ? '納入済み' : '未納';
+    const statusLabel = masterLabel('M_会費納入状態', cond.status);
     activeChips.push({
       key: `fee-${i}`,
       label: `年会費 ${cond.year}年度: ${statusLabel}`,
@@ -257,7 +257,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
   if (columnFilters.memberStatus) {
     activeChips.push({
       key: 'memberStatus',
-      label: `状態: ${MEMBER_STATUS_LABELS[columnFilters.memberStatus]?.label ?? columnFilters.memberStatus}`,
+      label: `状態: ${masterLabel('M_会員状態', columnFilters.memberStatus)}`,
       onRemove: () => setColumnFilters((f) => ({ ...f, memberStatus: '' })),
     });
   }
@@ -265,7 +265,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
     const destLabel =
       columnFilters.mailingDest === '__EMPTY__'
         ? '未設定'
-        : (MAILING_DESTINATION_LABELS[columnFilters.mailingDest] ?? columnFilters.mailingDest);
+        : masterLabel('M_郵送先区分', columnFilters.mailingDest);
     activeChips.push({
       key: 'mailingDest',
       label: `郵送先: ${destLabel}`,
@@ -320,19 +320,13 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
   };
 
   const renderStatusBadge = (target: MailingListTarget) => {
-    const status = MEMBER_STATUS_LABELS[target.memberStatus] ?? {
-      label: target.memberStatus || '-',
-      cls: 'bg-slate-100 text-slate-600',
-    };
-    return <span className={badgeClass(status.cls)}>{status.label}</span>;
+    const label = target.memberStatus ? masterLabel('M_会員状態', target.memberStatus) : '-';
+    return <span className={badgeClass(MEMBER_STATUS_TONE[target.memberStatus] || DEFAULT_TONE)}>{label}</span>;
   };
 
   const renderFeeBadge = (target: MailingListTarget) => {
-    const status = FEE_STATUS_LABELS[target.annualFeeStatus] ?? {
-      label: target.annualFeeStatus || '-',
-      cls: 'bg-slate-100 text-slate-600',
-    };
-    return <span className={badgeClass(status.cls)}>{status.label}</span>;
+    const label = target.annualFeeStatus ? masterLabel('M_会費納入状態', target.annualFeeStatus) : '-';
+    return <span className={badgeClass(FEE_STATUS_TONE[target.annualFeeStatus] || DEFAULT_TONE)}>{label}</span>;
   };
 
   return (
@@ -467,18 +461,12 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
               />
             </label>
             <div className="grid grid-cols-4 gap-2 text-xs lg:min-w-[360px]">
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
-                <p className="text-slate-500">事業所</p>
-                <p className="text-lg font-bold text-slate-800">{selectedCounts.business}</p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
-                <p className="text-slate-500">個人</p>
-                <p className="text-lg font-bold text-slate-800">{selectedCounts.individual}</p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
-                <p className="text-slate-500">賛助</p>
-                <p className="text-lg font-bold text-slate-800">{selectedCounts.support}</p>
-              </div>
+              {memberTypeOptions.map((t) => (
+                <div key={t.code} className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                  <p className="text-slate-500">{t.label}</p>
+                  <p className="text-lg font-bold text-slate-800">{selectedCounts.byType[t.code] || 0}</p>
+                </div>
+              ))}
               <div
                 className={`rounded-lg border p-2 ${
                   selectedCounts.invalid > 0
@@ -537,8 +525,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
                       aria-label={`年会費条件${i + 1} 状態`}
                     >
                       <option value="">状態を選択</option>
-                      <option value="UNPAID">未納</option>
-                      <option value="PAID">納入済み</option>
+                      <MasterOptionList master="M_会費納入状態" />
                     </select>
                     <button
                       type="button"
@@ -598,9 +585,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
                   className={selectCls}
                 >
                   <option value="">すべて</option>
-                  <option value="ACTIVE">在籍中</option>
-                  <option value="WITHDRAWAL_SCHEDULED">退会予定</option>
-                  <option value="WITHDRAWN">年度内退会</option>
+                  <MasterOptionList master="M_会員状態" exclude={MAILING_STATUS_EXCLUDED} />
                 </select>
               </div>
 
@@ -617,8 +602,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
                   className={selectCls}
                 >
                   <option value="">すべて</option>
-                  <option value="OFFICE">事業所</option>
-                  <option value="HOME">自宅</option>
+                  <MasterOptionList master="M_郵送先区分" />
                   {hasEmptyMailingDest && <option value="__EMPTY__">未設定</option>}
                 </select>
               </div>
@@ -762,9 +746,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
                         </td>
                         <td className="px-3 py-3 align-top">{renderStatusBadge(target)}</td>
                         <td className="px-3 py-3 align-top text-slate-700">
-                          {MAILING_DESTINATION_LABELS[target.mailingDestination] ||
-                            target.mailingDestination ||
-                            '-'}
+                          {target.mailingDestination ? masterLabel('M_郵送先区分', target.mailingDestination) : '-'}
                         </td>
                         <td className="px-3 py-3 align-top">
                           {target.addressInvalidItems.length > 0 ? (
@@ -806,27 +788,15 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
         <div className="space-y-2 rounded-xl border border-green-200 bg-green-50 p-4">
           <p className="text-sm font-semibold text-green-800">出力完了 — {result.filename}</p>
           <div className="grid grid-cols-2 gap-2 text-xs text-green-700 md:grid-cols-4">
-            <div className="rounded-lg border border-green-200 bg-white p-3">
-              <p className="text-slate-500">事業所会員</p>
-              <p className="text-xl font-bold text-slate-800">
-                {result.counts.business}
-                <span className="ml-1 text-sm font-normal">件</span>
-              </p>
-            </div>
-            <div className="rounded-lg border border-green-200 bg-white p-3">
-              <p className="text-slate-500">個人会員</p>
-              <p className="text-xl font-bold text-slate-800">
-                {result.counts.individual}
-                <span className="ml-1 text-sm font-normal">件</span>
-              </p>
-            </div>
-            <div className="rounded-lg border border-green-200 bg-white p-3">
-              <p className="text-slate-500">賛助会員</p>
-              <p className="text-xl font-bold text-slate-800">
-                {result.counts.support}
-                <span className="ml-1 text-sm font-normal">件</span>
-              </p>
-            </div>
+            {memberTypeOptions.map((t) => (
+              <div key={t.code} className="rounded-lg border border-green-200 bg-white p-3">
+                <p className="text-slate-500">{t.label}</p>
+                <p className="text-xl font-bold text-slate-800">
+                  {result.counts.byType?.[t.code] || 0}
+                  <span className="ml-1 text-sm font-normal">件</span>
+                </p>
+              </div>
+            ))}
             <div
               className={`rounded-lg border bg-white p-3 ${
                 result.counts.invalid > 0 ? 'border-amber-300' : 'border-green-200'

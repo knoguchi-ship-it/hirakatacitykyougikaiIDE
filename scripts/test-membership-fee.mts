@@ -90,6 +90,7 @@ function runEnsure(rows: Array<[string, unknown]>): { written: Array<[string, un
     `${DEFAULTS_SRC}
      function buildColumnIndex_() { return { 'コード': 0, '年会費金額': 4 }; }
      function requireColumns_() {}
+     function invalidateMasterOptionsCache_() {}
      ${extractFunction('ensureMemberTypeAnnualFeeAmounts_')}
      return ensureMemberTypeAnnualFeeAmounts_(ss);`,
   );

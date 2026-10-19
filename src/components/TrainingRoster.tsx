@@ -5,7 +5,9 @@ import { api } from '../services/api';
 import { normalizeKana } from '../utils/kanaNormalize';
 import { TrainingRosterRow, TrainingStats, AttendanceStatus, ApplicantType } from '../shared/types';
 import { downloadAsCsv } from '../lib/xlsx';
+import { masterLabel, useMasterOptions } from '../shared/masterOptions';
 import { TrashIcon } from './Icons';
+import MasterOptionList from './MasterOptionList';
 
 interface Props {
   trainingId: string;
@@ -14,13 +16,9 @@ interface Props {
   onBack: () => void;
 }
 
-const ATTENDANCE_LABEL: Record<AttendanceStatus, string> = {
-  UNRECORDED: '未記録',
-  PRESENT: '出席',
-  ABSENT: '欠席',
-  LATE: '遅刻',
-  SAMEDAY_CANCEL: '当日キャンセル',
-};
+// 出欠・申込状態の名称は M_出欠状態 / M_申込状態（src/shared/masterOptions.ts）
+const attendanceLabel = (status: string): string => masterLabel('M_出欠状態', status);
+const applicationStatusLabel = (status: string): string => masterLabel('M_申込状態', status);
 const APPLICANT_TYPE_LABEL: Record<ApplicantType, string> = {
   MEMBER: '会員',
   STAFF: '事業所職員',
@@ -51,6 +49,7 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
   const showError = (message: string) => { setError(message); setErrorSeq((n) => n + 1); };
   const [filterText, setFilterText] = useState('');
   const [filterAttendance, setFilterAttendance] = useState<AttendanceStatus | 'ALL'>('ALL');
+  const attendanceMaster = useMasterOptions('M_出欠状態');
   const [filterType, setFilterType] = useState<ApplicantType | 'ALL'>('ALL');
   const [showGuestDialog, setShowGuestDialog] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -109,7 +108,7 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
         setRows(before);
         showError(res.error || '出欠保存に失敗しました');
       } else {
-        setNotice(`${ATTENDANCE_LABEL[status]} に更新しました`);
+        setNotice(`${attendanceLabel(status)} に更新しました`);
         setTimeout(() => setNotice(null), 2000);
       }
     } catch (e) {
@@ -122,7 +121,7 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
   const bulkSetSelected = async (status: AttendanceStatus) => {
     const targets = filtered.filter((r) => selectedIds.has(r.applyId) && r.status === 'APPLIED');
     if (targets.length === 0) return;
-    if (!confirm(`選択中の ${targets.length} 名を「${ATTENDANCE_LABEL[status]}」に変更します。よろしいですか？`)) return;
+    if (!confirm(`選択中の ${targets.length} 名を「${attendanceLabel(status)}」に変更します。よろしいですか？`)) return;
     setBusy(true);
     try {
       const entries = targets.map((r) => ({ applyId: r.applyId, status }));
@@ -166,8 +165,8 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
     const header = ['連番', '申込ID', '氏名', '事業所', '区分', 'メール', '電話', '申込状態', '出欠状態', '事務局メモ', '申込日'];
     const data = filtered.map((r, i) => [
       i + 1, r.applyId, r.name, r.officeName, membershipLabel(r),
-      r.email, r.phone, r.status === 'APPLIED' ? '申込済' : '取消',
-      ATTENDANCE_LABEL[r.attendanceStatus], r.adminMemo, r.applyDate,
+      r.email, r.phone, applicationStatusLabel(r.status),
+      attendanceLabel(r.attendanceStatus), r.adminMemo, r.applyDate,
     ]);
     downloadAsCsv([header, ...data], `roster_${trainingId}_${new Date().toISOString().slice(0, 10)}.csv`);
   };
@@ -241,9 +240,9 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <StatCard label="申込" value={stats.applicantCount} sub={`残 ${stats.remainingSlots}`} />
-          <StatCard label="出席" value={stats.attendanceBreakdown.PRESENT} color="green" />
-          <StatCard label="欠席" value={stats.attendanceBreakdown.ABSENT} color="yellow" />
-          <StatCard label="未記録" value={stats.attendanceBreakdown.UNRECORDED} color="red" />
+          <StatCard label={attendanceLabel('PRESENT')} value={stats.attendanceBreakdown.PRESENT || 0} color="green" />
+          <StatCard label={attendanceLabel('ABSENT')} value={stats.attendanceBreakdown.ABSENT || 0} color="yellow" />
+          <StatCard label={attendanceLabel('UNRECORDED')} value={stats.attendanceBreakdown.UNRECORDED || 0} color="red" />
         </div>
       )}
 
@@ -316,14 +315,7 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-slate-500 mr-1">出欠:</span>
-          {([
-            { v: 'ALL', label: 'すべて' },
-            { v: 'UNRECORDED', label: '未記録' },
-            { v: 'PRESENT', label: '出席' },
-            { v: 'ABSENT', label: '欠席' },
-            { v: 'LATE', label: '遅刻' },
-            { v: 'SAMEDAY_CANCEL', label: '当日キャンセル' },
-          ] as { v: AttendanceStatus | 'ALL'; label: string }[]).map((opt) => (
+          {([{ v: 'ALL', label: 'すべて' }, ...attendanceMaster.map((o) => ({ v: o.code, label: o.label }))] as { v: AttendanceStatus | 'ALL'; label: string }[]).map((opt) => (
             <button key={opt.v} type="button"
               onClick={() => setFilterAttendance(opt.v)}
               className={`${segBase} ${filterAttendance === opt.v ? segActive : segInactive}`}
@@ -342,11 +334,11 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
           <div className="flex gap-2 ml-auto">
             <button onClick={() => bulkSetSelected('PRESENT')} disabled={busy}
               className="px-3 py-2 min-h-[36px] bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-xs font-medium disabled:opacity-50">
-              選択中を出席に
+              選択中を{attendanceLabel('PRESENT')}に
             </button>
             <button onClick={() => bulkSetSelected('ABSENT')} disabled={busy}
               className="px-3 py-2 min-h-[36px] bg-amber-600 hover:bg-amber-700 text-white rounded-md text-xs font-medium disabled:opacity-50">
-              選択中を欠席に
+              選択中を{attendanceLabel('ABSENT')}に
             </button>
             <button onClick={() => setSelectedIds(new Set())}
               className="px-3 py-2 min-h-[36px] bg-white hover:bg-slate-50 border border-slate-300 rounded-md text-xs text-slate-600">
@@ -406,7 +398,7 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
                     {r.email && <div>{r.email}</div>}
                     {r.phone && <div className="text-slate-400">{r.phone}</div>}
                   </td>
-                  <td className="px-2 py-2 text-xs">{r.status === 'APPLIED' ? <span className="text-emerald-700">申込済</span> : <span className="text-slate-400">取消</span>}</td>
+                  <td className="px-2 py-2 text-xs"><span className={r.status === 'APPLIED' ? 'text-emerald-700' : 'text-slate-400'}>{applicationStatusLabel(r.status)}</span></td>
                   <td className="px-2 py-2">
                     {r.status === 'APPLIED' ? (
                       <select
@@ -415,9 +407,7 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
                         className="min-h-[36px] px-2 py-1 border border-slate-300 rounded-md text-xs bg-white"
                         aria-label={`${r.name} の出欠`}
                       >
-                        {(Object.keys(ATTENDANCE_LABEL) as AttendanceStatus[]).map((s) => (
-                          <option key={s} value={s}>{ATTENDANCE_LABEL[s]}</option>
-                        ))}
+                        <MasterOptionList master="M_出欠状態" current={r.attendanceStatus} />
                       </select>
                     ) : (
                       <span className="text-xs text-slate-400">-</span>

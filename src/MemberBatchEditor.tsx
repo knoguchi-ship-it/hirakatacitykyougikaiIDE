@@ -2,6 +2,8 @@ import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'r
 import { useRevealOnChange } from './shared/useRevealOnChange';
 import { useMemberTypeMaster, memberTypeMasterLabel } from './shared/memberTypeMaster';
 import { api } from './services/api';
+import { masterLabel, useMasterOptions } from './shared/masterOptions';
+import MasterOptionList from './components/MasterOptionList';
 import { AdminPersonRow, AdminPersonType, MailDestination, MailingPreference } from './types';
 
 interface MemberBatchEditorProps {
@@ -9,7 +11,10 @@ interface MemberBatchEditorProps {
 }
 
 type PersonTypeFilter = 'ALL' | AdminPersonType;
-type StatusFilter = 'ALL' | 'ACTIVE' | 'ENROLLED' | 'WITHDRAWN' | 'LEFT';
+// 'ALL' か、M_会員状態（会員）・M_職員状態（事業所職員）のコード
+type StatusFilter = string;
+// 移行済みは同一人物の移行処理だけが付ける状態。一括編集では選ばせない
+const BATCH_MEMBER_STATUS_EXCLUDED = ['TRANSFERRED'] as const;
 
 // v376.69: 一括編集の対象を 6 項目から拡張（docs/261 T-07 B）。
 // 追加分は **個人・賛助会員のみ**。事業所職員は電話・住所の列を持たないため対象外。
@@ -79,15 +84,6 @@ const toPersonTypeBadge = (t: AdminPersonType): string => {
   return 'bg-indigo-100 text-indigo-700';
 };
 
-const toStatusLabel = (status: string): string => {
-  if (status === 'ACTIVE') return '在籍中';
-  if (status === 'ENROLLED') return '在籍中';
-  if (status === 'WITHDRAWAL_SCHEDULED') return '退会予定';
-  if (status === 'WITHDRAWN') return '退会済';
-  if (status === 'LEFT') return '退職済';
-  return status;
-};
-
 const buildEditableRows = (persons: AdminPersonRow[]): Record<string, EditablePerson> => {
   const next: Record<string, EditablePerson> = {};
   persons.forEach((p) => {
@@ -147,6 +143,8 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
   // 人物単位の一覧なので、事業所会員は会員ではなく職員（OFFICE_STAFF）として選ぶ
   const personTypeOptions = useMemberTypeMaster().filter((t) => t.code !== 'BUSINESS');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const memberStatusMaster = useMasterOptions('M_会員状態');
+  const staffStatusMaster = useMasterOptions('M_職員状態');
   const [query, setQuery] = useState('');
   const [pageSize, setPageSize] = useState<number>(25);
   const [currentPage, setCurrentPage] = useState(1);
@@ -198,10 +196,7 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
     return sortedPersons.filter((p) => {
       if (personTypeFilter !== 'ALL' && p.personType !== personTypeFilter) return false;
       if (statusFilter !== 'ALL') {
-        if (statusFilter === 'ACTIVE' && p.status !== 'ACTIVE' && p.status !== 'ENROLLED') return false;
-        if (statusFilter === 'ENROLLED' && p.status !== 'ENROLLED') return false;
-        if (statusFilter === 'WITHDRAWN' && p.status !== 'WITHDRAWN') return false;
-        if (statusFilter === 'LEFT' && p.status !== 'LEFT') return false;
+        if (p.status !== statusFilter) return false;
       }
       if (!normalizedQuery) return true;
       return [p.displayName, p.kana, p.officeName, p.memberId, p.email]
@@ -236,10 +231,7 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
     dirty: dirtyPersons.filter((p) => {
       if (personTypeFilter !== 'ALL' && p.personType !== personTypeFilter) return false;
       if (statusFilter !== 'ALL') {
-        if (statusFilter === 'ACTIVE' && p.status !== 'ACTIVE' && p.status !== 'ENROLLED') return false;
-        if (statusFilter === 'ENROLLED' && p.status !== 'ENROLLED') return false;
-        if (statusFilter === 'WITHDRAWN' && p.status !== 'WITHDRAWN') return false;
-        if (statusFilter === 'LEFT' && p.status !== 'LEFT') return false;
+        if (p.status !== statusFilter) return false;
       }
       return true;
     }).length,
@@ -317,20 +309,6 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
 
   const isStaff = (p: AdminPersonRow) => p.personType === 'OFFICE_STAFF';
 
-  // 職員の状態選択肢
-  const statusOptions = (personType: AdminPersonType, currentStatus: string) => {
-    if (personType === 'OFFICE_STAFF') {
-      return [
-        { value: 'ENROLLED', label: '在籍中' },
-        { value: 'LEFT', label: '退職済' },
-      ];
-    }
-    return [
-      { value: 'ACTIVE', label: '在籍中' },
-      { value: 'WITHDRAWAL_SCHEDULED', label: '退会予定' },
-      { value: 'WITHDRAWN', label: '退会済' },
-    ];
-  };
 
   if (!loaded) {
     return (
@@ -423,9 +401,12 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
             onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
           >
             <option value="ALL">全状態</option>
-            <option value="ACTIVE">在籍中</option>
-            <option value="WITHDRAWN">退会済</option>
-            <option value="LEFT">退職済</option>
+            <optgroup label="会員">
+              {memberStatusMaster.map((o) => <option key={o.code} value={o.code}>{o.label}</option>)}
+            </optgroup>
+            <optgroup label="事業所職員">
+              {staffStatusMaster.map((o) => <option key={o.code} value={o.code}>{o.label}</option>)}
+            </optgroup>
           </select>
         </div>
         <div className="min-w-[240px] flex-1">
@@ -541,7 +522,7 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
                             {isOfficeStaff ? person.officeName : person.memberId}
                           </div>
                           {isOfficeStaff && person.staffRole && (
-                            <div className="text-xs text-slate-400">{person.staffRole === 'REPRESENTATIVE' ? '代表者' : person.staffRole === 'ADMIN' ? '管理者' : 'メンバー'}</div>
+                            <div className="text-xs text-slate-400">{masterLabel('M_職員権限', person.staffRole)}</div>
                           )}
                         </button>
                       ) : (
@@ -551,7 +532,7 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
                             {isOfficeStaff ? person.officeName : person.memberId}
                           </div>
                           {isOfficeStaff && person.staffRole && (
-                            <div className="text-xs text-slate-400">{person.staffRole === 'REPRESENTATIVE' ? '代表者' : person.staffRole === 'ADMIN' ? '管理者' : 'メンバー'}</div>
+                            <div className="text-xs text-slate-400">{masterLabel('M_職員権限', person.staffRole)}</div>
                           )}
                         </>
                       )}
@@ -582,8 +563,7 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
                           disabled={isBusy}
                           onChange={(e) => updateDraft(person.personKey, { mailingPreference: e.target.value })}
                         >
-                          <option value="EMAIL">メール配信</option>
-                          <option value="POST">郵送希望</option>
+                          <MasterOptionList master="M_発送方法" current={draft.mailingPreference} />
                         </select>
                       )}
                     </td>
@@ -598,8 +578,7 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
                           disabled={isBusy}
                           onChange={(e) => updateDraft(person.personKey, { preferredMailDestination: e.target.value })}
                         >
-                          <option value="OFFICE">勤務先</option>
-                          <option value="HOME">自宅</option>
+                          <MasterOptionList master="M_郵送先区分" current={draft.preferredMailDestination} />
                         </select>
                       )}
                     </td>
@@ -626,9 +605,9 @@ const MemberBatchEditor: React.FC<MemberBatchEditorProps> = ({ onOpenDetail }) =
                           updateDraft(person.personKey, patch);
                         }}
                       >
-                        {statusOptions(person.personType, draft.status).map((opt) => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
+                        {person.personType === 'OFFICE_STAFF'
+                          ? <MasterOptionList master="M_職員状態" current={draft.status} />
+                          : <MasterOptionList master="M_会員状態" current={draft.status} exclude={BATCH_MEMBER_STATUS_EXCLUDED} />}
                       </select>
                     </td>
                     <td className="px-3 py-2.5 text-sm align-top">

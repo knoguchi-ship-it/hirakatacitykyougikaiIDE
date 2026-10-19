@@ -49,12 +49,26 @@ const ss = { getSheetByName: (name: string) => (name === 'M_会員種別' ? make
 const toBoolean = (v: unknown) => v === true || String(v).toLowerCase() === 'true';
 const マスタ定義 = { M_会員種別: ['コード', '名称', '表示順', '有効フラグ', '年会費金額'] };
 
-const SHARED = ['isKnownMasterCode_', 'findRowByColumnValue_', 'getRowsAsObjects_', 'getRowsAsObjectsFromSheet_',
-  'readMemberTypeMaster_', 'getActiveMemberTypeCodes_', 'annualFeesByMemberType_']
-  .map(extractFunction).join('\n');
-// build が src/shared/memberTypes.mjs から注入する既定値の代わり
+function extractVarLine(name: string): string {
+  const start = gas.indexOf(`var ${name} = `);
+  assert.notEqual(start, -1, `${name} が見つからない`);
+  return gas.slice(start, gas.indexOf(';', start) + 1);
+}
+
+// 会員種別はマスタ共通の読み出し（readAllMasterOptions_）を通る。キャッシュは空として動かす
+const SHARED = [
+  extractVarLine('MASTER_OPTIONS_CACHE_KEY_'), extractVarLine('MASTER_OPTIONS_CACHE_TTL_'),
+  extractVarLine('MASTER_BOOKKEEPING_COLUMNS_'), extractVarLine('MASTER_OPTIONS_MEMO_'),
+  ...['isKnownMasterCode_', 'findRowByColumnValue_', 'getRowsAsObjects_', 'getRowsAsObjectsFromSheet_',
+    'masterOptionsFromRows_', 'readAllMasterOptions_', 'readMasterOptions_',
+    'readMemberTypeMaster_', 'getActiveMemberTypeCodes_', 'annualFeesByMemberType_'].map(extractFunction),
+].join('\n');
+// build が src/shared/memberTypes.mjs から注入する既定値と、キャッシュの代わり
 const INJECTED = `var MEMBER_TYPE_ANNUAL_FEE_DEFAULTS = { INDIVIDUAL: 3000 };
-  function memberTypeLabel_(code) { return code; }`;
+  function memberTypeLabel_(code) { return code; }
+  var CacheService = { getScriptCache: function() { return {}; } };
+  function getChunkedCache_() { return null; }
+  function putChunkedCache_() {}`;
 
 /** 種別の検査を通ったら、その次に呼ばれる関数で止めて PASSED を投げる */
 function runUntilPassed(fnName: string, nextCall: string, payload: Record<string, unknown>): string {
@@ -66,8 +80,8 @@ function runUntilPassed(fnName: string, nextCall: string, payload: Record<string
 }
 
 test('readMemberTypeMaster_: 有効な種別だけを表示順で、名称・年会費つきで返す（画面へ渡す一覧の正本）', () => {
-  const fns = new Function('toBoolean_', `${INJECTED}\n${SHARED}
-    return { readMemberTypeMaster_, getActiveMemberTypeCodes_, annualFeesByMemberType_ };`)(toBoolean);
+  const fns = new Function('toBoolean_', 'マスタ定義', `${INJECTED}\n${SHARED}
+    return { readMemberTypeMaster_, getActiveMemberTypeCodes_, annualFeesByMemberType_ };`)(toBoolean, マスタ定義);
   assert.deepEqual(fns.getActiveMemberTypeCodes_(ss), ['INDIVIDUAL', 'SUPPORT', 'NEWTYPE']);
   const list = fns.readMemberTypeMaster_(ss);
   assert.deepEqual(list.map((t: { label: string }) => t.label), ['個人会員', '賛助会員', '新設した種別']);
@@ -79,7 +93,7 @@ test('管理の設定・公開ポータル設定・名簿の項目辞書が M_�
   assert.match(settings, /memberTypes: memberTypeMaster/);
   assert.equal((settings.match(/readMemberTypeMaster_\(/g) || []).length, 1, 'マスタを 2 回読んでいる');
   assert.match(gas, /memberTypes: ppMemberTypes/);
-  assert.match(extractFunction('getRosterFieldDictionary_'), /enumLabels: memberTypeLabels/);
+  assert.match(extractFunction('getRosterFieldDictionary_'), /enumLabels: labelsOf\('M_会員種別'\)/);
 });
 
 const CASES: Array<[string, string, string]> = [
