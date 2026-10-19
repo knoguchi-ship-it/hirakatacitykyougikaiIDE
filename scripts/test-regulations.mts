@@ -45,12 +45,23 @@ function extractArrayVar(name: string): string {
   return source.slice(start, end + 2);
 }
 
-const validate = new Function(
+const validateWith = new Function(
   `${extractArrayVar('REGULATION_KINDS')}
-   ${extractArrayVar('REGULATION_TARGETS')}
+   ${source.slice(source.indexOf('var REGULATION_TARGET_ALL = '), source.indexOf(';', source.indexOf('var REGULATION_TARGET_ALL = ')) + 1)}
    ${extractFunction('validateRegulationPayload_')}
    return validateRegulationPayload_;`,
-)() as (p: Record<string, unknown>) => Record<string, string>;
+)() as (p: Record<string, unknown>, memberTypeCodes: string[]) => Record<string, string>;
+// 対象会員種別の許可値は M_会員種別 の有効なコード（呼び出し側が getActiveMemberTypeCodes_ で渡す）
+const MASTER_CODES = ['INDIVIDUAL', 'BUSINESS', 'SUPPORT'];
+const validate = (p: Record<string, unknown>) => validateWith(p, MASTER_CODES);
+
+test('★対象会員種別は M_会員種別 の有効なコードで決まる（コードに種別を並べない）', () => {
+  assert.equal(validateWith({ title: 't', body: '', target: 'NEWTYPE' }, ['INDIVIDUAL', 'NEWTYPE']).target, 'NEWTYPE');
+  assert.throws(() => validateWith({ title: 't', body: '', target: 'SUPPORT' }, ['INDIVIDUAL']), /対象会員種別/);
+  assert.equal(validateWith({ title: 't', body: '', target: 'ALL' }, []).target, 'ALL');
+  assert.match(extractFunction('saveRegulation_'), /validateRegulationPayload_\(payload, getActiveMemberTypeCodes_\(ss\)\)/);
+  assert.match(extractFunction('saveRegulationsBatch_'), /getActiveMemberTypeCodes_\(ss\)/);
+});
 
 // ── 入力検証 ──────────────────────────────────────────────
 test('正常な入力はそのまま通る（前後の空白は落とす）', () => {

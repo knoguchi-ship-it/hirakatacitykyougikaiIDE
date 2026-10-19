@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 571d17c248cdde2d24638060657329297e9b29e672d516922033c562e68a05d9
+// BUILD_INPUT_SHA256: 2cd4213c427547a6b5cba995b85c197f0dab3c2eb232658930634d92947b6bfd
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -7093,7 +7093,8 @@ function validateMemberApplicationPayload_(payload, memberType) {
 function enqueueMemberApplicationChangeRequest_(payload) {
   payload = payload || {};
   var memberType = String(payload.memberType || '').trim();
-  if (['INDIVIDUAL', 'BUSINESS', 'SUPPORT'].indexOf(memberType) === -1) {
+  var ss = getOrCreateDatabase_();
+  if (!isKnownMasterCode_(ss, 'M_会員種別', memberType)) {
     throw new Error('会員種別が不正です。');
   }
   // 受付確認・承認・却下の連絡先は、事業所会員では代表者を正本とする。
@@ -7116,7 +7117,6 @@ function enqueueMemberApplicationChangeRequest_(payload) {
     : joinHumanNameParts_(payload.lastName, payload.firstName).trim();
   var requestId = 'CR' + Date.now() + '_' + generatePublicActionToken_().slice(0, 8);
   var now = new Date().toISOString();
-  var ss = getOrCreateDatabase_();
   if (!ss.getSheetByName('T_変更申請')) {
     var newSheet = getOrCreateSheet_(ss, 'T_変更申請');
     writeSheetHeaders_(newSheet, テーブル定義['T_変更申請']);
@@ -7170,12 +7170,12 @@ function submitMemberApplication_(payload) {
 function createMemberApplicationDirectLocked_(payload) {
   if (!payload) throw new Error('ペイロードが空です。');
   var memberTypeCode = String(payload.memberType || '');
-  if (['INDIVIDUAL', 'BUSINESS', 'SUPPORT'].indexOf(memberTypeCode) === -1) {
+  var ss = getOrCreateDatabase_();
+  if (!isKnownMasterCode_(ss, 'M_会員種別', memberTypeCode)) {
     throw new Error('会員種別が不正です: ' + memberTypeCode);
   }
   payload = clearUnusedIndividualApplicationAddressDefaults_(payload, memberTypeCode);
 
-  var ss = getOrCreateDatabase_();
   var now = new Date().toISOString();
   var joinedDate = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
   var memberId = generateMemberId_();
@@ -7866,7 +7866,8 @@ function isSystemSettingEnabled_(ss, key, defaultValue) {
 // ============================================================
 
 var REGULATION_KINDS = ['NOTICE', 'REGULATION'];
-var REGULATION_TARGETS = ['ALL', 'INDIVIDUAL', 'BUSINESS', 'SUPPORT'];
+// 対象会員種別は 'ALL' か M_会員種別 の有効なコード（getActiveMemberTypeCodes_）
+var REGULATION_TARGET_ALL = 'ALL';
 
 // 初期 seed（従来フロントにハードコードされていた文面をそのまま移行する）。
 // 既に行があるときは何もしない＝事務局の改定を上書きしない。
@@ -7956,7 +7957,7 @@ function listRegulations_(ss, publishedOnly) {
   return list;
 }
 
-function validateRegulationPayload_(payload) {
+function validateRegulationPayload_(payload, memberTypeCodes) {
   var title = String((payload && payload.title) || '').trim();
   var body = String((payload && payload.body) || '');
   var kind = String((payload && payload.kind) || 'NOTICE');
@@ -7967,7 +7968,9 @@ function validateRegulationPayload_(payload) {
   if (title.length > 100) throw new Error('タイトルは 100 文字以内で入力してください。');
   if (body.length > 20000) throw new Error('本文は 20,000 文字以内で入力してください。');
   if (REGULATION_KINDS.indexOf(kind) < 0) throw new Error('区分の値が不正です。');
-  if (REGULATION_TARGETS.indexOf(targetType) < 0) throw new Error('対象会員種別の値が不正です。');
+  if (targetType !== REGULATION_TARGET_ALL && (memberTypeCodes || []).indexOf(targetType) < 0) {
+    throw new Error('対象会員種別の値が不正です。');
+  }
   if (linkUrl && linkUrl.indexOf('https://') !== 0) throw new Error('外部リンクは https:// で始まる URL を入力してください。');
   if (linkUrl.length > 500) throw new Error('外部リンクは 500 文字以内で入力してください。');
   if (linkLabel.length > 40) throw new Error('外部リンクの文言は 40 文字以内で入力してください。');
@@ -7977,9 +7980,9 @@ function validateRegulationPayload_(payload) {
 // 新規追加 / 既存更新。本文・タイトル・リンクが変わったときだけ版数を +1 する
 // （Phase 2 の同意記録が「どの版に同意したか」を指せるようにするため）。
 function saveRegulation_(payload, operatorEmail) {
-  var v = validateRegulationPayload_(payload);
   var ss = getOrCreateDatabase_();
   initializeSchemaIfNeeded_(ss);
+  var v = validateRegulationPayload_(payload, getActiveMemberTypeCodes_(ss));
   var sheet = ss.getSheetByName('T_規程');
   if (!sheet) throw new Error('T_規程 が初期化されていません。');
   var now = new Date().toISOString();
@@ -8071,6 +8074,7 @@ function saveRegulationsBatch_(payload, operatorEmail) {
     var values = lastRow >= 2 ? sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues() : [];
     var now = new Date().toISOString();
     var email = String(operatorEmail || '');
+    var memberTypeCodes = getActiveMemberTypeCodes_(ss);
 
     // 新規採番の起点（既存の最大連番）
     var maxSeq = 0;
@@ -8104,7 +8108,7 @@ function saveRegulationsBatch_(payload, operatorEmail) {
         continue;
       }
 
-      var v = validateRegulationPayload_(item);
+      var v = validateRegulationPayload_(item, memberTypeCodes);
       var sortOrder = Number(item.sortOrder || 0);
       if (!isFinite(sortOrder) || sortOrder < 0 || sortOrder > 999) sortOrder = 0;
       var published = item.published != null ? !!item.published : true;
@@ -14042,6 +14046,15 @@ function isKnownMasterCode_(ss, masterName, code) {
   return true;
 }
 
+// 会員種別コードの正本は M_会員種別（有効フラグの立った行・表示順）。
+// 種別の検査と「全種別」の既定値はここから引き、コードに種別を並べない。
+function getActiveMemberTypeCodes_(ss) {
+  return getRowsAsObjects_(ss, 'M_会員種別')
+    .filter(function(r) { return String(r['コード'] || '').trim() && toBoolean_(r['有効フラグ']); })
+    .sort(function(a, b) { return Number(a['表示順'] || 0) - Number(b['表示順'] || 0); })
+    .map(function(r) { return String(r['コード']).trim(); });
+}
+
 // 事業所会員: 公開ポータル変更申請（管理者承認後に適用）で変更可能なフィールド allowlist
 var PUBLIC_BUSINESS_UPDATE_ALLOWLIST_ = [
   'officeName',
@@ -16152,7 +16165,7 @@ function generateTrainingEmailWithAI_(payload) {
  * BUSINESS: T_事業所職員（ENROLLED + メール配信希望コード ≠ 'NO'）
  *
  * payload:
- *   memberTypes?    – ['INDIVIDUAL','BUSINESS','SUPPORT']  デフォルト全種別
+ *   memberTypes?    – 会員種別コードの配列。省略時は M_会員種別 の有効な全種別
  *   memberStatus?   – 'ACTIVE' | 'ALL'  (T_会員.会員状態コード)   デフォルト 'ACTIVE'
  *   staffStatus?    – 'ENROLLED' | 'ALL' (T_事業所職員.職員状態コード) デフォルト 'ENROLLED'
  *   mailingFilter?  – 'OPT_IN' | 'ALL'  (メール配信希望コード)    デフォルト 'OPT_IN'
@@ -16161,7 +16174,7 @@ function generateTrainingEmailWithAI_(payload) {
 function getMembersForBulkMail_(payload) {
   var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
   var p = payload || {};
-  var memberTypes   = p.memberTypes   || ['INDIVIDUAL', 'BUSINESS', 'SUPPORT'];
+  var memberTypes   = p.memberTypes   || getActiveMemberTypeCodes_(ss);
   var memberStatus  = String(p.memberStatus  || 'ACTIVE');
   var staffStatus   = String(p.staffStatus   || 'ENROLLED');
   var mailingFilter = String(p.mailingFilter || 'OPT_IN');
@@ -16621,7 +16634,7 @@ function sendBulkMemberMail_(payload) {
 
   // ── 全宛先リストを再取得（セキュリティ: フロント送信値を信用しない） ──
   var filterPayload = {
-    memberTypes:    payload.memberTypes    || ['INDIVIDUAL', 'BUSINESS', 'SUPPORT'],
+    memberTypes:    payload.memberTypes,   // 省略時は getMembersForBulkMail_ が M_会員種別 の全種別にする
     memberStatus:   payload.memberStatus   || 'ACTIVE',
     staffStatus:    payload.staffStatus    || 'ENROLLED',
     mailingFilter:  'ALL',  // 送信時は全員対象（フロント側で絞り込み済みキーを送る）
@@ -16904,7 +16917,8 @@ function getRosterFieldDictionary_() {
  */
 function getRosterDesignerData_(payload) {
   var p = payload || {};
-  var memberTypes  = p.memberTypes  || ['INDIVIDUAL', 'BUSINESS', 'SUPPORT'];
+  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var memberTypes  = p.memberTypes  || getActiveMemberTypeCodes_(ss);
   var memberStatusFilter = String(p.memberStatus || 'ACTIVE');
   var outputUnit = String(p.outputUnit || 'MEMBER').toUpperCase();
   if (['MEMBER', 'STAFF', 'MIXED'].indexOf(outputUnit) < 0) outputUnit = 'MEMBER';
@@ -16914,7 +16928,6 @@ function getRosterDesignerData_(payload) {
   var year = Number(p.year || 0);
   if (!year || !isFinite(year)) year = currentFY;
 
-  var ss = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
   var memberSheet = ss.getSheetByName('T_会員');
   var staffSheet  = ss.getSheetByName('T_事業所職員');
   var feeSheet    = ss.getSheetByName('T_年会費納入履歴');

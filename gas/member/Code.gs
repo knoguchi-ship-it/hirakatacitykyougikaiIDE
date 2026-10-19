@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 5a6dbb4a57047b0a8aa87a2abdfd8452df85fa99f6babf2c5f31892f94c37057
+// BUILD_INPUT_SHA256: 8ebbba13160fb298a437f1fb9a9c6eef2e65b038427fb9fd1f8e06d19448469a
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -3812,7 +3812,8 @@ function isSystemSettingEnabled_(ss, key, defaultValue) {
 // ============================================================
 
 var REGULATION_KINDS = ['NOTICE', 'REGULATION'];
-var REGULATION_TARGETS = ['ALL', 'INDIVIDUAL', 'BUSINESS', 'SUPPORT'];
+// 対象会員種別は 'ALL' か M_会員種別 の有効なコード（getActiveMemberTypeCodes_）
+var REGULATION_TARGET_ALL = 'ALL';
 
 // 初期 seed（従来フロントにハードコードされていた文面をそのまま移行する）。
 // 既に行があるときは何もしない＝事務局の改定を上書きしない。
@@ -7449,6 +7450,9 @@ function isKnownMasterCode_(ss, masterName, code) {
   return true;
 }
 
+// 会員種別コードの正本は M_会員種別（有効フラグの立った行・表示順）。
+// 種別の検査と「全種別」の既定値はここから引き、コードに種別を並べない。
+
 // 事業所会員: 公開ポータル変更申請（管理者承認後に適用）で変更可能なフィールド allowlist
 var PUBLIC_BUSINESS_UPDATE_ALLOWLIST_ = [
   'officeName',
@@ -8393,7 +8397,7 @@ function backfillBusinessStaffNameColumns_(ss) {
  * BUSINESS: T_事業所職員（ENROLLED + メール配信希望コード ≠ 'NO'）
  *
  * payload:
- *   memberTypes?    – ['INDIVIDUAL','BUSINESS','SUPPORT']  デフォルト全種別
+ *   memberTypes?    – 会員種別コードの配列。省略時は M_会員種別 の有効な全種別
  *   memberStatus?   – 'ACTIVE' | 'ALL'  (T_会員.会員状態コード)   デフォルト 'ACTIVE'
  *   staffStatus?    – 'ENROLLED' | 'ALL' (T_事業所職員.職員状態コード) デフォルト 'ENROLLED'
  *   mailingFilter?  – 'OPT_IN' | 'ALL'  (メール配信希望コード)    デフォルト 'OPT_IN'

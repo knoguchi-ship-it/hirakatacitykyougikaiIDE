@@ -79,9 +79,9 @@ test('マスタコード FK は入力規則として宣言されている（手�
   const declared = new Set(入力規則定義.map(([t, c, m]) => `${t}.${c}→${m}`));
   // 入力規則は張れないが、コードで検証しているもの。
   // T_規程.対象会員種別 の選択肢は M_会員種別 + 'ALL' で、マスタそのままでは表せない。
-  // REGULATION_TARGETS に無ければ throw するのを確認済み。
-  // T_変更申請.会員種別コード は、新規入会なら INDIVIDUAL/BUSINESS/SUPPORT 以外を弾き、
-  // 変更申請なら T_会員 の値（入力規則あり）を写す。行は画面から入力されない。
+  // 'ALL' でも M_会員種別 の有効なコードでもなければ throw する（test:regulations）。
+  // T_変更申請.会員種別コード は、新規入会なら M_会員種別 に無いコードを弾き（isKnownMasterCode_・
+  // test:member-type-master）、変更申請なら T_会員 の値（入力規則あり）を写す。行は画面から入力されない。
   const VALIDATED_IN_CODE = new Set(['T_規程.対象会員種別→M_会員種別', 'T_変更申請.会員種別コード→M_会員種別']);
   const undeclared: string[] = [];
   for (const r of relationships) {

@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 5cc73ad3f3fdc44977651bf093ae984bc6c82829638a46fbce36f02398b16eb8
+// BUILD_INPUT_SHA256: ee277aef9a878b78ff3b1c81d0e2cd6218ceca305f9eccca32f11061e7c6d585
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -2282,7 +2282,8 @@ function validateMemberApplicationPayload_(payload, memberType) {
 function enqueueMemberApplicationChangeRequest_(payload) {
   payload = payload || {};
   var memberType = String(payload.memberType || '').trim();
-  if (['INDIVIDUAL', 'BUSINESS', 'SUPPORT'].indexOf(memberType) === -1) {
+  var ss = getOrCreateDatabase_();
+  if (!isKnownMasterCode_(ss, 'M_会員種別', memberType)) {
     throw new Error('会員種別が不正です。');
   }
   // 受付確認・承認・却下の連絡先は、事業所会員では代表者を正本とする。
@@ -2305,7 +2306,6 @@ function enqueueMemberApplicationChangeRequest_(payload) {
     : joinHumanNameParts_(payload.lastName, payload.firstName).trim();
   var requestId = 'CR' + Date.now() + '_' + generatePublicActionToken_().slice(0, 8);
   var now = new Date().toISOString();
-  var ss = getOrCreateDatabase_();
   if (!ss.getSheetByName('T_変更申請')) {
     var newSheet = getOrCreateSheet_(ss, 'T_変更申請');
     writeSheetHeaders_(newSheet, テーブル定義['T_変更申請']);
@@ -2510,7 +2510,8 @@ function isSystemSettingEnabled_(ss, key, defaultValue) {
 // ============================================================
 
 var REGULATION_KINDS = ['NOTICE', 'REGULATION'];
-var REGULATION_TARGETS = ['ALL', 'INDIVIDUAL', 'BUSINESS', 'SUPPORT'];
+// 対象会員種別は 'ALL' か M_会員種別 の有効なコード（getActiveMemberTypeCodes_）
+var REGULATION_TARGET_ALL = 'ALL';
 
 // 初期 seed（従来フロントにハードコードされていた文面をそのまま移行する）。
 // 既に行があるときは何もしない＝事務局の改定を上書きしない。
@@ -5406,6 +5407,22 @@ var NO_OFFICE_AFFILIATION_LABEL_ = '勤務なし';
 // Apps Script の setValues は素通りする。コード側で突き合わせないと守れない。
 // 主キー列はマスタごとに違う（M_出欠状態 は『コード』、M_役職マスタ は『役職コード』）ので
 // マスタ定義の先頭列を使う。
+function isKnownMasterCode_(ss, masterName, code) {
+  var value = String(code == null ? '' : code).trim();
+  if (!value) return false;
+  var columns = マスタ定義[masterName];
+  if (!columns || !columns.length) return false;
+  var sheet = ss.getSheetByName(masterName);
+  if (!sheet) return false;
+  var found = findRowByColumnValue_(sheet, columns[0], value);
+  if (!found) return false;
+  if (found.columns['削除フラグ'] != null && toBoolean_(found.row[found.columns['削除フラグ']])) return false;
+  if (found.columns['有効フラグ'] != null && !toBoolean_(found.row[found.columns['有効フラグ']])) return false;
+  return true;
+}
+
+// 会員種別コードの正本は M_会員種別（有効フラグの立った行・表示順）。
+// 種別の検査と「全種別」の既定値はここから引き、コードに種別を並べない。
 
 // 事業所会員: 公開ポータル変更申請（管理者承認後に適用）で変更可能なフィールド allowlist
 var PUBLIC_BUSINESS_UPDATE_ALLOWLIST_ = [
@@ -6831,7 +6848,7 @@ function backfillBusinessStaffNameColumns_(ss) {
  * BUSINESS: T_事業所職員（ENROLLED + メール配信希望コード ≠ 'NO'）
  *
  * payload:
- *   memberTypes?    – ['INDIVIDUAL','BUSINESS','SUPPORT']  デフォルト全種別
+ *   memberTypes?    – 会員種別コードの配列。省略時は M_会員種別 の有効な全種別
  *   memberStatus?   – 'ACTIVE' | 'ALL'  (T_会員.会員状態コード)   デフォルト 'ACTIVE'
  *   staffStatus?    – 'ENROLLED' | 'ALL' (T_事業所職員.職員状態コード) デフォルト 'ENROLLED'
  *   mailingFilter?  – 'OPT_IN' | 'ALL'  (メール配信希望コード)    デフォルト 'OPT_IN'
