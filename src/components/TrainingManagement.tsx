@@ -118,6 +118,8 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // v376.7: 一覧フィルター（admin のみ）
+  // 受付状態（OPEN/CLOSED）は締切日から計算した値で M_研修状態 ではない。一覧の表示とフィルターの名称をここ 1 つから描く
+  const ACCEPT_STATUS_LABEL: Record<string, string> = { OPEN: '申込受付中', CLOSED: '締切済' };
   const [filterYear, setFilterYear] = useState<number | 'ALL'>(() => currentFiscalYear());
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'OPEN' | 'CLOSED' | 'DELETED'>('ALL');
   const [filterKeyword, setFilterKeyword] = useState('');
@@ -785,7 +787,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
         )}
       </div>
 
-      <div className="flex items-center gap-3">
+      <label className="flex items-center gap-3 text-sm text-slate-700 cursor-pointer">
         <input
           type="checkbox"
           id="cancelAllowed"
@@ -794,11 +796,11 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
           onChange={handleChange}
           className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
         />
-        <label htmlFor="cancelAllowed" className="text-sm text-slate-700">この研修は申込キャンセルを許可する</label>
-      </div>
+        この研修は申込キャンセルを許可する
+      </label>
 
       <div>
-        <div className="flex items-center gap-3">
+        <label className="flex items-center gap-3 text-sm text-slate-700 cursor-pointer">
           <input
             type="checkbox"
             id={`${uid}-askMemberNumber`}
@@ -807,10 +809,8 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
             aria-describedby={`${uid}-askMemberNumber-help`}
             className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
           />
-          <label htmlFor={`${uid}-askMemberNumber`} className="text-sm text-slate-700">
-            申込フォームで介護支援専門員番号を尋ねる（会員かどうかを確かめる）
-          </label>
-        </div>
+          申込フォームで介護支援専門員番号を尋ねる（会員かどうかを確かめる）
+        </label>
         <p id={`${uid}-askMemberNumber-help`} className="text-xs text-slate-500 mt-1 ml-7">
           {typeof form.askMemberNumber === 'boolean'
             ? '番号と氏名が会員と一致した申込は、名簿で「会員」と表示されます。空欄・不一致は非会員です。'
@@ -998,8 +998,8 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
                   aria-label="状態フィルター"
                 >
                   <option value="ALL">すべて</option>
-                  <option value="OPEN">申込受付中</option>
-                  <option value="CLOSED">締切済</option>
+                  <option value="OPEN">{ACCEPT_STATUS_LABEL.OPEN}</option>
+                  <option value="CLOSED">{ACCEPT_STATUS_LABEL.CLOSED}</option>
                   <option value="DELETED">削除済</option>
                 </select>
               </div>
@@ -1032,7 +1032,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
                     {t.isDeleted && <span className="inline-block mr-1 px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[10px] align-middle">削除済</span>}
                     {t.title}
                   </p>
-                  <p className="text-xs text-slate-500 mt-0.5">{normalizeDateTime(t.date)} / {t.status}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{normalizeDateTime(t.date)} / {ACCEPT_STATUS_LABEL[t.status] ?? t.status}</p>
                 </button>
               </li>
             ))}
