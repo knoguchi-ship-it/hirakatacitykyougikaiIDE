@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-10-19
-Production: `v376.126` / integrated-public `@437` x2 / member split `@195` / admin split `@294`
+Production: `v376.127` / integrated-public `@438` x2 / member split `@196` / admin split `@295`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -157,7 +157,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-19 v376.126 ← current production
+### 2026-10-20 v376.127 ← current production
+
+- Scope: 研修管理の一覧で受付状態がコード（`CLOSED`）のまま出ていたのを名称へ。研修フォームのチェックボックス 2 個（申込キャンセル許可・介護支援専門員番号を尋ねる）を label で包む。詳細は `docs/310` §5。
+- Schema: `DB_SCHEMA_VERSION` 据え置き。DB 書き込みなし。
+- Fixed deployments: integrated/public @438 x2 / member @196 / admin @295.
+- Verification: prerelease PASS。公開 a11y 違反 0・responsive 7 VP。本番の研修管理で一覧が「締切済」、チェックボックスが label の中（Playwright MCP・読むだけ）。**test:responsive:admin は storageState 切れで未実行（7 VP とも画面が出る前に止まる）。**
+- Rollback: integrated/public @437 x2 / member @195 / admin @294（v376.126）。DB 変化なし。
+
+### 2026-10-19 v376.126
 
 - Scope: M_ マスタ全表の選択肢・名称・許可値を DB から引く（GAS `readAllMasterOptions_`・画面 `src/shared/masterOptions.ts`）。公開ポータルの発送方法 `MAIL` 不具合。会員種別の検査・画面。ER の参照 5 本・DBML Ref。詳細は `docs/310`・`docs/309` §8。
 - Schema: `DB_SCHEMA_VERSION` 据え置き。DB 書き込みなし。

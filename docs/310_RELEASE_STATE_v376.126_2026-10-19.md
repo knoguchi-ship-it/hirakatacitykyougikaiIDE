@@ -63,3 +63,20 @@
 
 - v376.125 へ戻しても DB は変わらない（スキーマの版は同じ）。
 - 戻すと、公開ポータルの変更申請の `MAIL` 不具合も戻る。
+
+## 5. 追補: v376.127（2026-10-20）
+
+本番: public @438×2 / member @196 / admin @295。ロールバック先は v376.126（@437×2 / @195 / @294）。DB 書き込みなし・スキーマの版は据え置き。
+
+| | 内容 |
+|---|---|
+| 🐛 | 研修管理の一覧の受付状態がコードのまま（§2.2 で発見）。`TrainingManagement.tsx` の名称表 `ACCEPT_STATUS_LABEL` 1 つから一覧とフィルターを描く |
+| 🔧 | 研修フォームのチェックボックス 2 個を label で包む（§2.1 の FAIL）。押せる範囲は文字を含む幅 611px・高さ 20px |
+
+| 確認 | 結果 |
+|---|---|
+| prerelease | PASS |
+| 公開 a11y / responsive | 違反 0・7 VP PASS |
+| 本番の研修管理（Playwright MCP・読むだけ） | 一覧 4 件とも「… / 締切済」、コードの表示 0。チェックボックス 2 個とも label の中 |
+| 管理画面の起動 | デプロイ直後の 1 回目で 20 秒（HANDOVER ③ の「初回 2 分以上」は再現せず・再試行の帯なし） |
+| test:responsive:admin | **未実行扱い**。7 VP とも「App frame did not appear within 50s」。同じ時刻に MCP のブラウザでは 20 秒で出たので、`.test-out/auth-admin.json` のログイン切れとみる。operator が `node scripts/auth-bootstrap-admin-auto.mjs` で取り直してから再実行する |
