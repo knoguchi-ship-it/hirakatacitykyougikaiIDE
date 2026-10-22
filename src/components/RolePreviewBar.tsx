@@ -93,7 +93,6 @@ const RolePreviewBar: React.FC<RolePreviewBarProps> = ({
             {selectable.map((r) => (
               <option key={r.roleId} value={r.roleId}>
                 {r.roleName}
-                {r.isBuiltIn ? '（組込）' : '（カスタム）'}
               </option>
             ))}
           </select>
