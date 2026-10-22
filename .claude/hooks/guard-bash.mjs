@@ -3,7 +3,7 @@
  * PreToolUse(Bash) ガード — 文章でしか守れていなかったルールを、実行前に止める。
  *
  *   H1  `clasp deploy` を拒否（固定 URL が変わる）
- *   H3  prerelease 未通過の `git push` を拒否（記録はリポジトリ直下）
+ *   H3  prerelease 未通過の `git push` を拒否（記録はリポジトリ直下）。同じコマンドで commit 等の後の push も拒否（2026-10-22）
  *   H4  本番 DB を変えうる `clasp run` は ask
  *   H5  直接の `clasp push` を拒否 → `npm run release:push`（3 つとも成功したときだけ記録が残る）（2026-10-11）
  *   H6  push の記録と一致しないファイルでの `clasp create-version` を拒否（2026-10-11・admin @287 の再発防止）
@@ -106,12 +106,23 @@ async function checkClasp(tokens, ctx) {
   }
 }
 
+// H3 で HEAD を進める git の操作。同じコマンドの中で push より前にあると、実行前の HEAD での判定が意味をなさない
+const HEAD_MOVING_GIT = new Set(['commit', 'merge', 'rebase', 'pull', 'cherry-pick', 'revert', 'reset', 'am', 'checkout', 'switch']);
+
 // H3
 function checkGitPush(tokens, ctx) {
   if (tokens[0] !== 'git') return;
   const rest = tokens.slice(1);
+  if (HEAD_MOVING_GIT.has(rest[0])) { ctx.headMoved = true; return; }
   if (!rest.includes('push')) return;
   if (rest.includes('--dry-run') || rest.includes('-n')) return;
+
+  // 判定はコマンドを実行する前に 1 回だけ行う。commit と push を 1 つのコマンドにすると、
+  // 実行前の（検証済みの）HEAD で通り、その後にできた未検証の HEAD が push される（2026-10-22 に実際に起きた）
+  if (ctx.headMoved) {
+    deny('同じコマンドの中で、push の前に HEAD を進める git の操作（commit など）があります。'
+      + 'commit → `npm run prerelease` → `git push` は別々のコマンドで実行してください。正本: AGENTS.md L4.3');
+  }
 
   const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ctx.dir, encoding: 'utf8' }).trim();
   // 記録はリポジトリ直下に置く（サブディレクトリから push しても同じ記録を見る）
@@ -131,6 +142,7 @@ runHook(async (input) => {
   let dir = input.cwd || process.cwd();
   let root;
   try { root = repoRoot(dir); } catch { return; } // リポジトリ外は判断しない
+  let headMoved = false;
   for (const segment of commandSegments(command)) {
     const tokens = invocationTokens(segment);
     if (!tokens.length) continue;
@@ -143,8 +155,9 @@ runHook(async (input) => {
       dir = path.resolve(dir, resolved);
       continue;
     }
-    const ctx = { root, dir };
+    const ctx = { root, dir, headMoved };
     await checkClasp(tokens, ctx);
     checkGitPush(tokens, ctx);
+    headMoved = ctx.headMoved;
   }
 });

@@ -110,6 +110,16 @@ test('prerelease 未通過・HEAD 不一致の git push は拒否、一致すれ
   assert.equal(bash('git push --dry-run'), 'none');
 });
 
+test('★1 つのコマンドで commit してから push するのは拒否（判定は実行前の HEAD を見るため、2026-10-22 に未検証の HEAD が push された）', () => {
+  writeState(path.join('.tmp', 'prerelease-ok.json'), { head: HEAD });
+  assert.equal(bash('git commit -m x && npm run prerelease; git push origin main'), 'deny');
+  assert.equal(bash('git add a && git commit -q -F - <<EOF\nmsg\nEOF\ngit push -q origin main'), 'deny');
+  assert.equal(bash('git pull --rebase && git push'), 'deny');
+  // push の後に commit するのは判定に影響しない。commit だけ・push だけは従来どおり
+  assert.equal(bash('git push origin main && git commit -m x'), 'none');
+  assert.equal(bash('git commit -m x'), 'none');
+});
+
 test('サブディレクトリから push しても、リポジトリ直下の記録を見る（2026-10-11 に cwd 相対で誤拒否していた）', () => {
   writeState(path.join('.tmp', 'prerelease-ok.json'), { head: HEAD });
   assert.equal(bash('git push origin main', path.join(ROOT, 'gas', 'admin')), 'none');
