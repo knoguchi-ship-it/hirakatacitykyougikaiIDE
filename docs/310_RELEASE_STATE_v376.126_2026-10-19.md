@@ -79,4 +79,4 @@
 | 公開 a11y / responsive | 違反 0・7 VP PASS |
 | 本番の研修管理（Playwright MCP・読むだけ） | 一覧 4 件とも「… / 締切済」、コードの表示 0。チェックボックス 2 個とも label の中 |
 | 管理画面の起動 | デプロイ直後の 1 回目で 20 秒（HANDOVER ③ の「初回 2 分以上」は再現せず・再試行の帯なし） |
-| test:responsive:admin | **未実行扱い**。7 VP とも「App frame did not appear within 50s」。同じ時刻に MCP のブラウザでは 20 秒で出たので、`.test-out/auth-admin.json` のログイン切れとみる。operator が `node scripts/auth-bootstrap-admin-auto.mjs` で取り直してから再実行する |
+| test:responsive:admin | **56/56 PASS（2026-10-22・operator が storageState を取り直して再実行）**。7 VP × 8 画面、横スクロール 0・24px 未満 0・console エラー 0。研修管理の FAIL は解消。リリース直後の停止（7 VP とも「App frame did not appear within 50s」）はログイン切れだった（同時刻に MCP のブラウザでは 20 秒で表示） |

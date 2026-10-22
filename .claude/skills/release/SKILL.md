@@ -107,6 +107,11 @@ npx clasp redeploy <deploymentId> -V <version> -d "<vX.Y 要約>"
    実行できない場合は、そのフローを通す backend dryRun（`dryRun*_LOG`）を用意し operator が実行する。
    **公開ポータルの a11y/responsive だけ実行して admin/member 書込を未検証のまま完了するのは禁止**
    （v376.44 の LINE 投稿保存不可の見逃し再発防止）。
+   - **管理の storageState（`.test-out/auth-admin.json`）は 1 日ほどで切れる。** リリース前に operator へ
+     別ターミナルで `node scripts/auth-bootstrap-admin-auto.mjs` を頼む（ENTER 不要版。`auth-bootstrap-admin.mjs` は
+     `!` で実行すると ENTER 待ちで固まる）。
+   - 7 VP とも `App frame did not appear within 50s` なら、まず MCP のブラウザで開いて時間を計る。
+     そちらで出ればログイン切れ（v376.127 で実例）。出なければアプリの不具合としてロールバックを検討する。
 3. **送信系・スキーマ系・DB 状態起因**: 実送信は非送信 dryRun を用意。
    シートのヘッダー欠落・列ドリフト等は**実 DB に対する dryRun E2E（行を作って読んで消す）で必ずカバー**。
    実送信検証は `MAIL_GLOBAL_ENABLED=false` / `REDIRECT` 下でのみ。

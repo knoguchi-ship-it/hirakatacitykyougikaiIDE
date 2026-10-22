@@ -48,6 +48,21 @@ async (page) => {
 
 **ロール視点プレビュー中の操作は、そのロールの権限で本番を変え、メールも送る**（`docs/246` §11）。
 
+## 2.5 MASTER 以外の権限で見る（2026-10-20 確定）
+
+- **「ロール視点プレビュー」で見る。** 管理画面上部の選択欄でロールを選ぶと、サーバーの判定もそのロールで行う
+  （`buildPreviewAdminSession_`）。選択欄は押したときにロール一覧を読む（`dispatchEvent('mousedown')` で出る）。
+  **プレビュー中にボタンを押すと、そのロールで本番を変え、メールも送る。** 読むだけにする。
+- **自分の権限を下げて試さない。** `saveAdminPermission_` に「最後の MASTER を下げる」を止める仕組みが無く、
+  権限管理は MASTER しか開けないので、画面から戻せず締め出される。
+- 別の Google アカウントを同じブラウザに足しても、Apps Script は 1 つ目のアカウントで開く。
+
+## 2.6 ブラウザが開けないとき
+
+- `Failed to launch the browser process`・「既存のブラウザ セッションで開いています」は、Playwright 用の Chrome 画面が
+  MCP との接続が切れたまま残っている。`--user-data-dir=...mcp-chrome-...` の Chrome を閉じてから開き直す
+  （ログインはプロファイルに残る）。operator のふだんの Chrome は閉じない。
+
 ## 3. 画面の確認
 
 - スマホ幅: `browser_resize` で 360×800。横スクロールが無いこと（`document.documentElement.scrollWidth <= innerWidth`）。
