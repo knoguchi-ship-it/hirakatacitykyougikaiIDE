@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-10-19
-Production: `v376.127` / integrated-public `@438` x2 / member split `@196` / admin split `@295`
+Production: `v376.128` / integrated-public `@439` x2 / member split `@197` / admin split `@296`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -157,7 +157,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-20 v376.127 ← current production
+### 2026-10-23 v376.128 ← current production
+
+- Scope: 研修の日付表記を `src/shared/trainingDate.mjs` の 1 か所に（令和8年6月20日(土) 14:00〜16:30。画面・受付メール・リマインダー・LINE 下書き・AI 下書き。GAS は build 注入）。ロール視点プレビューの「（カスタム）」を外す。B-15: 会員マイページは事業所の一般職員に自分の行だけ返す（`limitPortalStaffToCaller_`）。詳細は `docs/310` §6。
+- Schema: `DB_SCHEMA_VERSION` 据え置き。DB 書き込みなし（同日に operator が M_ 3 表の表示順 5 セルを直接書き換え・`docs/310` §3）。
+- Fixed deployments: integrated/public @439 x2 / member @197 / admin @296.
+- Verification: prerelease PASS（test:training-date 5・test:portal-staff-visibility 6）。公開 a11y 違反 0・responsive 7 VP。本番の研修管理の一覧が和暦表記・プレビューの選択肢に「（カスタム）」無し（Playwright MCP・読むだけ）。admin の redeploy は 1 回目 `Requested entity was not found.`、再実行で成功。**メール本文・LINE 下書き・会員画面（B-15）は本番で未確認**（送信を伴う／会員マイページ未公開）。
+- Rollback: integrated/public @438 x2 / member @196 / admin @295（v376.127）。DB 変化なし。
+
+### 2026-10-20 v376.127
 
 - Scope: 研修管理の一覧で受付状態がコード（`CLOSED`）のまま出ていたのを名称へ。研修フォームのチェックボックス 2 個（申込キャンセル許可・介護支援専門員番号を尋ねる）を label で包む。詳細は `docs/310` §5。
 - Schema: `DB_SCHEMA_VERSION` 据え置き。DB 書き込みなし。

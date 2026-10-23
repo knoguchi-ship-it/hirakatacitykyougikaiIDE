@@ -100,3 +100,20 @@
 | 本番の研修管理（Playwright MCP・読むだけ） | 一覧 4 件とも「… / 締切済」、コードの表示 0。チェックボックス 2 個とも label の中 |
 | 管理画面の起動 | デプロイ直後の 1 回目で 20 秒（HANDOVER ③ の「初回 2 分以上」は再現せず・再試行の帯なし） |
 | test:responsive:admin | **56/56 PASS（2026-10-22・operator が storageState を取り直して再実行）**。7 VP × 8 画面、横スクロール 0・24px 未満 0・console エラー 0。研修管理の FAIL は解消。リリース直後の停止（7 VP とも「App frame did not appear within 50s」）はログイン切れだった（同時刻に MCP のブラウザでは 20 秒で表示） |
+
+## 6. 追補: v376.128（2026-10-23）
+
+| 中身 | 内容 |
+|---|---|
+| 研修の日付表記 | `src/shared/trainingDate.mjs` の `formatTrainingDateJa` 1 か所に。令和8年6月20日(土) 14:00〜16:30／終了時刻なし「14:00〜」／時刻なしは日付だけ。GAS は build が `formatTrainingDateJa_` を注入（公開・管理 split）。`test:training-date` |
+| プレビューの「（カスタム）」 | 組込はマスターだけで、選択欄はマスターを除くので全行に付いていた。外した |
+| B-15 | 会員マイページは事業所の一般職員（権限が代表者・管理者以外・自分の行が無いときも）に自分の行とログインだけを返す（`limitPortalStaffToCaller_`・会員 split のみ）。画面は一般職員に代表者情報を出さない。保存は `updateMemberSelf_` が同僚の行を DB の値のまま残す。`test:portal-staff-visibility` |
+
+- 固定 deployment: public @439×2 / member @197 / admin @296。admin の redeploy は 1 回目に `Requested entity was not found.`（deployment も version も存在）、再実行で成功。
+- 本番で確かめたこと（2026-10-23・Playwright MCP・読むだけ）
+  - 管理の研修管理の一覧: 「令和8年6月20日(土) 14:00〜16:30 / 締切済」ほか 4 件が和暦表記。`2026-06-20 14:00` の形は 0 件。管理画面は 8 秒で表示。
+  - ロール視点プレビューの選択肢: MASTER（自分・通常表示）・管理者・研修管理者・研修登録者・一般・会計・会長・副会長。「（カスタム）」無し。
+  - 公開: a11y 違反 0・responsive 7 VP。研修一覧は受付中の研修が 0 件のため日付は見られなかった。
+- 本番で確かめていないこと
+  - 受付メール・リマインダーの本文、LINE 下書き、AI 下書き: 送信を伴うか研修を作る操作になる。生成物の関数を動かす `test:training-date` で担保。
+  - B-15 の会員画面: 会員マイページは未公開で、テスト会員のログイン（`.env.test`）が通らない。公開前に一般職員で確認する。
