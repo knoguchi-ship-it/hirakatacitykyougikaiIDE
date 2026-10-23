@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: b325cc58dd9ecb59716ff47d605f6838c013b7b6feb0a1ce4d713c37545c2a52
+// BUILD_INPUT_SHA256: 7eb806794f5c5ff3453de2cf39675b2da0d83975fed68f8a6c70020bec3f13b3
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -2410,7 +2410,7 @@ function sendTrainingReminder_(request) {
     var remMail = renderConfiguredMail_(getOrCreateDatabase_(), 'TRAINING_REMINDER_SUBJECT', 'TRAINING_REMINDER_BODY',
       TRAINING_REMINDER_DEFAULT_SUBJECT, TRAINING_REMINDER_DEFAULT_BODY, {
         '研修名': String(training.title || ''),
-        '開催日': formatTrainingDate_(training.date),
+        '開催日': formatTrainingDate_(training.date, training.endTime),
         '会場': String(training.location || ''),
       });
     if (!subject) subject = remMail.subject;
@@ -2505,18 +2505,60 @@ function collectTrainingRecipients_(members, trainingId) {
 }
 
 
-function formatTrainingDate_(rawDate) {
+// 研修の日付表記の単一情報源 src/shared/trainingDate.mjs::formatTrainingDateJa を
+// build（injectTrainingDatePlaceholders）が下記マーカー間へ formatTrainingDateJa_ として注入する。
+// __TRAINING_DATE_BUILD_INJECT_START__
+function formatTrainingDateJa_(dateStr, endTime) {
+  var raw = String(dateStr == null ? '' : dateStr).trim();
+  if (!raw) return '';
+  var sep = raw.indexOf('T') !== -1 ? 'T' : ' ';
+  var datePart = raw.split(sep)[0].split('/').join('-');
+  var timePart = raw.indexOf(sep) !== -1 ? raw.slice(raw.indexOf(sep) + 1) : '';
+  var ymd = datePart.split('-');
+  if (ymd.length !== 3) return raw;
+  var y = Number(ymd[0]);
+  var m = Number(ymd[1]);
+  var d = Number(ymd[2]);
+  if (!(y > 0) || !(m >= 1 && m <= 12) || !(d >= 1 && d <= 31)) return raw;
+
+  function hhmm(value) {
+    var s = String(value == null ? '' : value).trim();
+    var parts = s.split(':');
+    if (parts.length < 2) return '';
+    var h = Number(parts[0]);
+    var mi = Number(parts[1].slice(0, 2));
+    if (parts[0] === '' || isNaN(h) || isNaN(mi) || h < 0 || h > 23 || mi < 0 || mi > 59) return '';
+    return h + ':' + (mi < 10 ? '0' : '') + mi;
+  }
+
+  var key = y * 10000 + m * 100 + d;
+  var era;
+  if (key >= 20190501) era = '令和' + (y - 2018 === 1 ? '元' : String(y - 2018));
+  else if (key >= 19890108) era = '平成' + (y - 1988 === 1 ? '元' : String(y - 1988));
+  else era = String(y);
+  // 曜日は暦の上の日付から求める（端末のタイムゾーンに左右されない）
+  var weekday = '日月火水木金土'.charAt(new Date(Date.UTC(y, m - 1, d)).getUTCDay());
+  var text = era + '年' + m + '月' + d + '日(' + weekday + ')';
+
+  var start = hhmm(timePart);
+  if (start) {
+    var end = hhmm(endTime);
+    text += ' ' + start + '〜' + end;
+  }
+  return text;
+}
+// __TRAINING_DATE_BUILD_INJECT_END__
+
+/**
+ * メール・LINE・一覧の見出しに出す研修の日付（令和8年6月20日(土) 14:00〜16:30）。
+ * セルの Date はここで文字列にする。文字列は new Date に通さない（日付だけの値が UTC 解釈で 9:00 になるため）。
+ */
+function formatTrainingDate_(rawDate, endTime) {
   if (!rawDate) return '';
-  if (Object.prototype.toString.call(rawDate) === '[object Date]') {
-    return Utilities.formatDate(rawDate, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm');
-  }
-  if (typeof rawDate === 'string') {
-    var parsedDate = new Date(rawDate);
-    if (!isNaN(parsedDate.getTime())) {
-      return Utilities.formatDate(parsedDate, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm');
-    }
-  }
-  return String(rawDate);
+  var text = Object.prototype.toString.call(rawDate) === '[object Date]'
+    ? Utilities.formatDate(rawDate, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm')
+    : String(rawDate);
+  return formatTrainingDateJa_(text, formatTimeOnly_(endTime));
 }
 
 function formatDateForApi_(rawDate) {
@@ -16219,7 +16261,7 @@ function generateTrainingEmailWithAI_(payload) {
     '以下の研修に参加申し込みをした会員に向けて、開催3日前のリマインドメールを作成してください。\n\n' +
     '【研修情報】\n' +
     '研修名: ' + String(training.title || '') + '\n' +
-    '開催日: ' + String(training.date || '') + '\n' +
+    '開催日: ' + formatTrainingDate_(training.date, training.endTime) + '\n' +
     '場所: ' + String(training.location || '-') + '\n\n' +
     '【要件】\n' +
     '- 件名は分かりやすく簡潔に。\n' +
@@ -17430,7 +17472,7 @@ function getLinePostRequest_(payload) {
         var trainings = getRowsAsObjects_(ss, 'T_研修');
         for (var j = 0; j < trainings.length; j++) {
           if (String(trainings[j]['研修ID']) === item.targetId) {
-            item.targetLabel = String(trainings[j]['研修名'] || '') + (trainings[j]['開催日'] ? ' (' + trainings[j]['開催日'] + ')' : '');
+            item.targetLabel = String(trainings[j]['研修名'] || '') + (trainings[j]['開催日'] ? ' (' + formatTrainingDate_(trainings[j]['開催日'], trainings[j]['開催終了時刻']) + ')' : '');
             break;
           }
         }

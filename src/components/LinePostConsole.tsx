@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ApiClient } from '../services/api';
 import { Training } from '../types';
+import { formatTrainingDateJa } from '../shared/trainingDate.mjs';
 import {
   LinePostRequest,
   LinePostStatus,
@@ -77,7 +78,7 @@ const LinePostConsole: React.FC<LinePostConsoleProps> = ({ api, trainings, canMa
 
   const trainingLabel = useCallback((id: string): string => {
     const t = trainings.find((x) => x.id === id);
-    return t ? `${t.title}${t.date ? ` (${t.date})` : ''}` : `(削除済み研修: ${id})`;
+    return t ? `${t.title}${t.date ? ` (${formatTrainingDateJa(t.date, t.endTime)})` : ''}` : `(削除済み研修: ${id})`;
   }, [trainings]);
 
   const openNew = () => {

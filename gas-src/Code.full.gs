@@ -2833,7 +2833,7 @@ function sendTrainingReminder_(request) {
     var remMail = renderConfiguredMail_(getOrCreateDatabase_(), 'TRAINING_REMINDER_SUBJECT', 'TRAINING_REMINDER_BODY',
       TRAINING_REMINDER_DEFAULT_SUBJECT, TRAINING_REMINDER_DEFAULT_BODY, {
         '研修名': String(training.title || ''),
-        '開催日': formatTrainingDate_(training.date),
+        '開催日': formatTrainingDate_(training.date, training.endTime),
         '会場': String(training.location || ''),
       });
     if (!subject) subject = remMail.subject;
@@ -2928,7 +2928,7 @@ function collectTrainingRecipients_(members, trainingId) {
 }
 
 function buildTrainingReminderBody_(training) {
-  var trainingDate = formatTrainingDate_(training.date);
+  var trainingDate = formatTrainingDate_(training.date, training.endTime);
   var lines = [];
   lines.push('会員各位');
   lines.push('');
@@ -2954,18 +2954,24 @@ function buildTrainingReminderBody_(training) {
   return lines.join('\n');
 }
 
-function formatTrainingDate_(rawDate) {
+// 研修の日付表記の単一情報源 src/shared/trainingDate.mjs::formatTrainingDateJa を
+// build（injectTrainingDatePlaceholders）が下記マーカー間へ formatTrainingDateJa_ として注入する。
+// __TRAINING_DATE_BUILD_INJECT_START__
+function formatTrainingDateJa_(dateStr, endTime) {
+  throw new Error('formatTrainingDateJa_ is not injected — run build:gas (injectTrainingDatePlaceholders)');
+}
+// __TRAINING_DATE_BUILD_INJECT_END__
+
+/**
+ * メール・LINE・一覧の見出しに出す研修の日付（令和8年6月20日(土) 14:00〜16:30）。
+ * セルの Date はここで文字列にする。文字列は new Date に通さない（日付だけの値が UTC 解釈で 9:00 になるため）。
+ */
+function formatTrainingDate_(rawDate, endTime) {
   if (!rawDate) return '';
-  if (Object.prototype.toString.call(rawDate) === '[object Date]') {
-    return Utilities.formatDate(rawDate, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm');
-  }
-  if (typeof rawDate === 'string') {
-    var parsedDate = new Date(rawDate);
-    if (!isNaN(parsedDate.getTime())) {
-      return Utilities.formatDate(parsedDate, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm');
-    }
-  }
-  return String(rawDate);
+  var text = Object.prototype.toString.call(rawDate) === '[object Date]'
+    ? Utilities.formatDate(rawDate, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm')
+    : String(rawDate);
+  return formatTrainingDateJa_(text, formatTimeOnly_(endTime));
 }
 
 function formatDateForApi_(rawDate) {
@@ -18071,7 +18077,7 @@ function applyTrainingExternal_(payload) {
         TRAINING_APPLY_RECEIPT_DEFAULT_SUBJECT, TRAINING_APPLY_RECEIPT_DEFAULT_BODY, {
           '申込者名': name,
           '研修名': String(training['研修名'] || ''),
-          '開催日': formatDateForApi_(training['開催日']),
+          '開催日': formatTrainingDate_(training['開催日'], training['開催終了時刻']),
           '申込ID': applyId,
         });
       deliverMail_('TRAINING_APPLY_RECEIPT', email, applyMail.subject, applyMail.body);
@@ -24993,7 +24999,7 @@ function generateTrainingEmailWithAI_(payload) {
     '以下の研修に参加申し込みをした会員に向けて、開催3日前のリマインドメールを作成してください。\n\n' +
     '【研修情報】\n' +
     '研修名: ' + String(training.title || '') + '\n' +
-    '開催日: ' + String(training.date || '') + '\n' +
+    '開催日: ' + formatTrainingDate_(training.date, training.endTime) + '\n' +
     '場所: ' + String(training.location || '-') + '\n\n' +
     '【要件】\n' +
     '- 件名は分かりやすく簡潔に。\n' +
@@ -26204,7 +26210,7 @@ function getLinePostRequest_(payload) {
         var trainings = getRowsAsObjects_(ss, 'T_研修');
         for (var j = 0; j < trainings.length; j++) {
           if (String(trainings[j]['研修ID']) === item.targetId) {
-            item.targetLabel = String(trainings[j]['研修名'] || '') + (trainings[j]['開催日'] ? ' (' + trainings[j]['開催日'] + ')' : '');
+            item.targetLabel = String(trainings[j]['研修名'] || '') + (trainings[j]['開催日'] ? ' (' + formatTrainingDate_(trainings[j]['開催日'], trainings[j]['開催終了時刻']) + ')' : '');
             break;
           }
         }

@@ -10,6 +10,7 @@ import TrainingDetailModal from './TrainingDetailModal';
 import LinePostEditorModal, { LinePostEditorForm } from './LinePostEditorModal';
 import { buildPublicTrainingApplyUrl } from '../config/publicPortal';
 import { buildTrainingLinePostDraft } from '../shared/lineTemplate';
+import { formatTrainingDateJa } from '../shared/trainingDate.mjs';
 import { EMAIL_PATTERN, PHONE_PATTERN } from '../shared/validators';
 
 interface Props {
@@ -878,7 +879,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
       targetId: form.id,
       // v376.45: 研修の申込URL→無ければ公開申込ディープリンクを自動入力
       trainingApplyUrl: String(form.applicationUrl || '').trim() || buildPublicTrainingApplyUrl(form.id),
-      text: buildTrainingLinePostDraft({ title: form.title, date: form.date, location: form.location }),
+      text: buildTrainingLinePostDraft({ title: form.title, date: formatTrainingDateJa(form.date, form.endTime), location: form.location }),
     });
   };
 
@@ -1032,7 +1033,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
                     {t.isDeleted && <span className="inline-block mr-1 px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[10px] align-middle">削除済</span>}
                     {t.title}
                   </p>
-                  <p className="text-xs text-slate-500 mt-0.5">{normalizeDateTime(t.date)} / {ACCEPT_STATUS_LABEL[t.status] ?? t.status}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{formatTrainingDateJa(t.date, t.endTime)} / {ACCEPT_STATUS_LABEL[t.status] ?? t.status}</p>
                 </button>
               </li>
             ))}
@@ -1065,7 +1066,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
             <TrainingRoster
               trainingId={form.id}
               trainingTitle={form.title}
-              trainingDate={form.date}
+              trainingDate={formatTrainingDateJa(form.date, form.endTime)}
               onBack={() => setPanelView('form')}
             />
           ) : panelView === 'mail' ? (

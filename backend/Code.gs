@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 695a16ac5d879602cb0d8d872f96b651cf0b69286be3746f229dc015dbf9fa64
+// BUILD_INPUT_SHA256: 7fd42f81a9f5f32d6816153b05d69102569f9b0179a6d897375a038427bc20ca
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -1424,6 +1424,61 @@ function processApiRequest(action, payload) {
 
 
 
+// 研修の日付表記の単一情報源 src/shared/trainingDate.mjs::formatTrainingDateJa を
+// build（injectTrainingDatePlaceholders）が下記マーカー間へ formatTrainingDateJa_ として注入する。
+// __TRAINING_DATE_BUILD_INJECT_START__
+function formatTrainingDateJa_(dateStr, endTime) {
+  var raw = String(dateStr == null ? '' : dateStr).trim();
+  if (!raw) return '';
+  var sep = raw.indexOf('T') !== -1 ? 'T' : ' ';
+  var datePart = raw.split(sep)[0].split('/').join('-');
+  var timePart = raw.indexOf(sep) !== -1 ? raw.slice(raw.indexOf(sep) + 1) : '';
+  var ymd = datePart.split('-');
+  if (ymd.length !== 3) return raw;
+  var y = Number(ymd[0]);
+  var m = Number(ymd[1]);
+  var d = Number(ymd[2]);
+  if (!(y > 0) || !(m >= 1 && m <= 12) || !(d >= 1 && d <= 31)) return raw;
+
+  function hhmm(value) {
+    var s = String(value == null ? '' : value).trim();
+    var parts = s.split(':');
+    if (parts.length < 2) return '';
+    var h = Number(parts[0]);
+    var mi = Number(parts[1].slice(0, 2));
+    if (parts[0] === '' || isNaN(h) || isNaN(mi) || h < 0 || h > 23 || mi < 0 || mi > 59) return '';
+    return h + ':' + (mi < 10 ? '0' : '') + mi;
+  }
+
+  var key = y * 10000 + m * 100 + d;
+  var era;
+  if (key >= 20190501) era = '令和' + (y - 2018 === 1 ? '元' : String(y - 2018));
+  else if (key >= 19890108) era = '平成' + (y - 1988 === 1 ? '元' : String(y - 1988));
+  else era = String(y);
+  // 曜日は暦の上の日付から求める（端末のタイムゾーンに左右されない）
+  var weekday = '日月火水木金土'.charAt(new Date(Date.UTC(y, m - 1, d)).getUTCDay());
+  var text = era + '年' + m + '月' + d + '日(' + weekday + ')';
+
+  var start = hhmm(timePart);
+  if (start) {
+    var end = hhmm(endTime);
+    text += ' ' + start + '〜' + end;
+  }
+  return text;
+}
+// __TRAINING_DATE_BUILD_INJECT_END__
+
+/**
+ * メール・LINE・一覧の見出しに出す研修の日付（令和8年6月20日(土) 14:00〜16:30）。
+ * セルの Date はここで文字列にする。文字列は new Date に通さない（日付だけの値が UTC 解釈で 9:00 になるため）。
+ */
+function formatTrainingDate_(rawDate, endTime) {
+  if (!rawDate) return '';
+  var text = Object.prototype.toString.call(rawDate) === '[object Date]'
+    ? Utilities.formatDate(rawDate, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm')
+    : String(rawDate);
+  return formatTrainingDateJa_(text, formatTimeOnly_(endTime));
+}
 
 function formatDateForApi_(rawDate) {
   if (!rawDate) return '';
@@ -5324,7 +5379,7 @@ function applyTrainingExternal_(payload) {
         TRAINING_APPLY_RECEIPT_DEFAULT_SUBJECT, TRAINING_APPLY_RECEIPT_DEFAULT_BODY, {
           '申込者名': name,
           '研修名': String(training['研修名'] || ''),
-          '開催日': formatDateForApi_(training['開催日']),
+          '開催日': formatTrainingDate_(training['開催日'], training['開催終了時刻']),
           '申込ID': applyId,
         });
       deliverMail_('TRAINING_APPLY_RECEIPT', email, applyMail.subject, applyMail.body);

@@ -5,6 +5,7 @@ import PdfThumbnail from './PdfThumbnail';
 import PdfPreviewModal from './PdfPreviewModal';
 import { api } from '../services/api';
 import { useRevealOnChange } from '../shared/useRevealOnChange';
+import { formatTrainingDateJa } from '../shared/trainingDate.mjs';
 
 interface TrainingApplyProps {
   member: Member;
@@ -16,25 +17,9 @@ interface TrainingApplyProps {
   onRefresh?: () => Promise<void>;
 }
 
-const formatDateTime = (raw: string) => {
-  if (!raw) return '-';
-  const d = new Date(raw);
-  if (Number.isNaN(d.getTime())) return raw;
-  return d.toLocaleString('ja-JP', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
-
-const formatDateOnly = (raw?: string) => {
-  if (!raw) return '-';
-  const d = new Date(raw);
-  if (Number.isNaN(d.getTime())) return raw;
-  return d.toLocaleDateString('ja-JP');
-};
+// 研修の日付表記は src/shared/trainingDate.mjs が正本（令和8年6月20日(土) 14:00〜16:30）
+const trainingWhen = (t: Pick<Training, 'date' | 'endTime'>) => formatTrainingDateJa(t.date, t.endTime) || '-';
+const formatDateOnly = (raw?: string) => formatTrainingDateJa(raw || '') || '-';
 
 const formatYen = (amount: number) =>
   new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(amount || 0);
@@ -230,7 +215,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                     {/* ヘッダー: 受付中バッジ + 開催日時 */}
                     <header className="flex flex-wrap items-center gap-3 px-4 py-3 bg-gradient-to-r from-primary-50 to-white border-b border-slate-100">
                       <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-1">受付中</span>
-                      <span className="text-sm font-medium text-slate-700">{formatDateTime(training.date)}</span>
+                      <span className="text-sm font-medium text-slate-700">{trainingWhen(training)}</span>
                     </header>
 
                     <div className="flex flex-col sm:flex-row gap-5 p-4 sm:p-6">
@@ -280,7 +265,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
                           <div className="flex gap-2">
                             <dt className="font-medium text-slate-500 whitespace-nowrap min-w-[5rem]">開催日時</dt>
-                            <dd className="text-slate-800 break-words">{formatDateTime(training.date)}</dd>
+                            <dd className="text-slate-800 break-words">{trainingWhen(training)}</dd>
                           </div>
                           <div className="flex gap-2">
                             <dt className="font-medium text-slate-500 whitespace-nowrap min-w-[5rem]">会場</dt>
@@ -386,7 +371,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
                       className={`${selectedHistoryTrainingId === t.id ? 'bg-primary-50/50' : ''} cursor-pointer`}
                       onClick={() => setSelectedHistoryTrainingId(t.id)}
                     >
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-500">{formatDateTime(t.date)}</td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-500">{trainingWhen(t)}</td>
                       <td className="px-4 py-4 text-sm font-medium text-slate-900">{t.title}</td>
                       <td className="px-4 py-4 whitespace-nowrap">
                         <button type="button" onClick={() => setSelectedHistoryTrainingId(t.id)} className="inline-flex min-h-[44px] items-center rounded-md px-2 text-sm font-medium text-primary-700 hover:bg-primary-50 hover:text-primary-900 hover:underline">詳細を見る</button>
@@ -416,7 +401,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 <div>
                   <p className="text-xs text-slate-500">開催日時</p>
-                  <p className="text-slate-800">{formatDateTime(selectedHistoryTraining.date)}</p>
+                  <p className="text-slate-800">{trainingWhen(selectedHistoryTraining)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-500">場所</p>
@@ -536,7 +521,7 @@ const TrainingApply: React.FC<TrainingApplyProps> = ({ member, activeStaffId, tr
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm border border-slate-200 rounded-lg p-3">
               <div>
                 <p className="text-xs text-slate-500">開催日時</p>
-                <p className="text-slate-800">{formatDateTime(confirmTraining.date)}</p>
+                <p className="text-slate-800">{trainingWhen(confirmTraining)}</p>
               </div>
               <div>
                 <p className="text-xs text-slate-500">場所</p>

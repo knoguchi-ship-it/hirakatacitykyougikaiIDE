@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: fb65612d300f065d2c8ba34fea2aa6ef3f793c21edddb04d2982fae0f9ab57ea
+// BUILD_INPUT_SHA256: 8da2fd5484ecdb7d00d993f891d576d71cb451dfc9013e4c6a7224a29490e942
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -1827,6 +1827,15 @@ function processApiRequest(action, payload) {
 
 
 
+// 研修の日付表記の単一情報源 src/shared/trainingDate.mjs::formatTrainingDateJa を
+// build（injectTrainingDatePlaceholders）が下記マーカー間へ formatTrainingDateJa_ として注入する。
+// __TRAINING_DATE_BUILD_INJECT_START__
+// __TRAINING_DATE_BUILD_INJECT_END__
+
+/**
+ * メール・LINE・一覧の見出しに出す研修の日付（令和8年6月20日(土) 14:00〜16:30）。
+ * セルの Date はここで文字列にする。文字列は new Date に通さない（日付だけの値が UTC 解釈で 9:00 になるため）。
+ */
 
 function formatDateForApi_(rawDate) {
   if (!rawDate) return '';

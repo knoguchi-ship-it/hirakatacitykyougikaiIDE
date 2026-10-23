@@ -37,6 +37,7 @@ import { computeMemberFiscalStatus } from './shared/memberFiscalStatus.mjs';
 import { matchesSearchQuery } from './utils/search';
 import { DEFAULT_WITHDRAWAL_CONFIRMATION_ITEMS, normalizeWithdrawalConfirmationItems, type WithdrawalConfirmationItem } from './shared/withdrawalConfirmation';
 import { MAIL_DELIVERY_OPTIONS, resolveMailDeliveryState, type MailDeliveryState } from './shared/mailDeliveryState';
+import { formatTrainingDateJa } from './shared/trainingDate.mjs';
 
 type Role = 'ADMIN' | 'MEMBER';
 type View = 'profile' | 'training-apply' | 'admin' | 'annual-fee-manage' | 'training-manage' | 'bulk-mail' | 'roster-export' | 'mailing-list-export' | 'template-help' | 'member-detail' | 'staff-detail' | 'system-permissions' | 'admin-settings' | 'member-delete' | 'change-requests' | 'officer-management' | 'payment-history' | 'claim-management' | 'line-post' | 'data-export' | 'no-admin-access';
@@ -3192,7 +3193,7 @@ const App: React.FC = () => {
             {(adminDashboardData?.trainingRows || []).map((training) => (
               <tr key={training.trainingId}>
                 <td className="px-4 py-3 text-sm text-slate-900">{training.title}</td>
-                <td className="px-4 py-3 text-sm text-slate-600">{training.date || '-'}</td>
+                <td className="px-4 py-3 text-sm text-slate-600">{formatTrainingDateJa(training.date, training.endTime) || '-'}</td>
                 <td className="px-4 py-3 text-sm text-slate-600">{(training.isApplicationOpen ?? training.status === 'OPEN') ? '受付中' : '受付終了'}</td>
                 <td className="px-4 py-3 text-sm text-slate-600">{training.applicants} / {training.capacity}</td>
               </tr>

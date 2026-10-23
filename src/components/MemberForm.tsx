@@ -12,6 +12,7 @@ import StaffTrainingView from './StaffTrainingView';
 import PostalCodeInput from './PostalCodeInput';
 import OfficerStatusCard from './OfficerStatusCard';
 import { normalizeKana, isValidFullwidthKatakana } from '../utils/kanaNormalize';
+import { formatTrainingDateJa } from '../shared/trainingDate.mjs';
 
 type DraftStaff = Staff & { isNew?: boolean };
 
@@ -1145,7 +1146,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                             <div className="mb-4 sm:mb-0">
                                 <div className="flex items-center gap-2 mb-2">
                                     <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded">受付中</span>
-                                    <span className="text-sm text-slate-500">{training.date} 開催</span>
+                                    <span className="text-sm text-slate-500">{formatTrainingDateJa(training.date, training.endTime)} 開催</span>
                                 </div>
                                 <h3 className="font-bold text-slate-800 text-lg mb-1">{training.title}</h3>
                                 {training.summary && (
@@ -1246,7 +1247,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                               className={`cursor-pointer ${selectedHistoryTrainingId === t.id ? 'bg-primary-50/60' : ''} ${successMsg && t.id === trainingHistory[trainingHistory.length-1].id ? 'bg-green-50/50 transition-colors duration-1000' : ''}`}
                               onClick={() => setSelectedHistoryTrainingId(t.id)}
                             >
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{t.date}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{formatTrainingDateJa(t.date, t.endTime)}</td>
                                 <td className="px-6 py-4 text-sm font-medium text-slate-900 underline decoration-dotted">{t.title}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{t.location || '-'}</td>
                                 <td className="px-6 py-4 whitespace-nowrap">
@@ -1274,7 +1275,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
               </div>
               <div>
                 <p className="text-xs text-slate-500">開催日</p>
-                <p className="text-slate-800">{selectedHistoryTraining.date}</p>
+                <p className="text-slate-800">{formatTrainingDateJa(selectedHistoryTraining.date, selectedHistoryTraining.endTime)}</p>
               </div>
               <div>
                 <p className="text-xs text-slate-500">開催場所</p>

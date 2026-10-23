@@ -15,6 +15,7 @@ import {
   collectFunctionDeclarations,
   injectMenuRegistryPlaceholders,
   injectMemberFiscalStatusPlaceholders,
+  injectTrainingDatePlaceholders,
   injectMemberTypesPlaceholders,
   // 2026-09-27: pruner とコード変形は gas-boundary-utils.mjs に一本化（3 箇所の複製を解消）。
   assertAllowedTopLevelFunctions,
@@ -29,6 +30,7 @@ import {
 import { createHash } from 'node:crypto';
 import { serializeMenuRegistryForGas } from './menu-registry.mjs';
 import { serializeMemberFiscalStatusForGas } from '../src/shared/memberFiscalStatus.mjs';
+import { serializeTrainingDateForGas } from '../src/shared/trainingDate.mjs';
 import { serializeMemberTypesForGas } from '../src/shared/memberTypes.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -64,6 +66,7 @@ function run(cmd, env = {}) {
 function buildMemberCode(source) {
   let code = injectMenuRegistryPlaceholders(source, serializeMenuRegistryForGas());
   code = injectMemberFiscalStatusPlaceholders(code, serializeMemberFiscalStatusForGas());
+  code = injectTrainingDatePlaceholders(code, serializeTrainingDateForGas());
   code = injectMemberTypesPlaceholders(code, serializeMemberTypesForGas());
   code = code.replace("var APP_SECURITY_BOUNDARY = 'public';", "var APP_SECURITY_BOUNDARY = 'member';");
   code = replaceObjectLiteral(code, 'PUBLIC_ALLOWED_ACTIONS', '{}');

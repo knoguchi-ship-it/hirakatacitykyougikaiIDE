@@ -4,6 +4,7 @@ import PdfThumbnail from '../../components/PdfThumbnail';
 import PdfPreviewModal from '../../components/PdfPreviewModal';
 import { callApi } from '../../shared/api-base';
 import { isTrainingFieldEnabled, resolveApplyCta } from '../../shared/trainingOptions';
+import { formatTrainingDateJa } from '../../shared/trainingDate.mjs';
 
 const fetchPublicThumbnail = (fileUrl: string): Promise<string | null> =>
   callApi<{ thumbnail: string | null }>('getFileThumbnail', { fileUrl })
@@ -18,35 +19,6 @@ const fetchPublicHighResImage = (fileUrl: string): Promise<string | null> =>
 interface Props {
   trainings: PublicTraining[];
   onApply: (training: PublicTraining) => void;
-}
-
-/** ISO日付文字列 ("yyyy-MM-dd HH:mm") を和暦に変換する */
-function toWareki(dateStr: string): string {
-  if (!dateStr) return '';
-  const d = new Date(dateStr.replace(' ', 'T'));
-  if (isNaN(d.getTime())) return dateStr;
-  const year = d.getFullYear();
-  const month = d.getMonth() + 1;
-  const day = d.getDate();
-  if (d >= new Date('2019-05-01')) {
-    return `令和${year - 2018}年${month}月${day}日`;
-  }
-  if (d >= new Date('1989-01-08')) {
-    return `平成${year - 1988}年${month}月${day}日`;
-  }
-  return dateStr;
-}
-
-/** ISO日付文字列から時刻部分 "HH:mm" を抽出する */
-function extractTime(dateStr: string): string {
-  if (!dateStr) return '';
-  const m = dateStr.match(/(\d{2}:\d{2})$/);
-  return m ? m[1] : '';
-}
-
-/** "HH:mm" 形式かどうかを検証する */
-function isTimeStr(s: string): boolean {
-  return /^\d{2}:\d{2}$/.test(s.trim());
 }
 
 /** 費用JSONを表示文字列に変換する */
@@ -88,17 +60,9 @@ const PublicTrainingList: React.FC<Props> = ({ trainings, onApply }) => {
   return (
     <div className="space-y-6">
       {trainings.map((t) => {
-        const dateWareki = toWareki(t.date);
-        const startTime = extractTime(t.date);
-        const endTimeStr = t.endTime && isTimeStr(t.endTime) ? t.endTime.trim() : '';
-        let dateDisplay = dateWareki;
-        if (startTime) {
-          dateDisplay += ` ${startTime}`;
-          if (endTimeStr) dateDisplay += `〜${endTimeStr}`;
-          else dateDisplay += '〜';
-        }
+        const dateDisplay = formatTrainingDateJa(t.date, t.endTime);
 
-        const endDateWareki = t.endDate ? toWareki(t.endDate) : '';
+        const endDateWareki = t.endDate ? formatTrainingDateJa(t.endDate) : '';
         const costs = parseCost(t.cost);
         const inquiry = parseInquiry(t.fieldConfig);
         const isFull = false; // サーバー側で判定済み
@@ -122,7 +86,7 @@ const PublicTrainingList: React.FC<Props> = ({ trainings, onApply }) => {
               <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-1">
                 受付中
               </span>
-              {dateWareki && (
+              {dateDisplay && (
                 <span className="text-sm font-medium text-slate-700">
                   {dateDisplay}
                 </span>
@@ -181,7 +145,7 @@ const PublicTrainingList: React.FC<Props> = ({ trainings, onApply }) => {
 
                 {/* 主要メタ情報グリッド */}
                 <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
-                  {dateWareki && (
+                  {dateDisplay && (
                     <div className="flex gap-2">
                       <dt className="font-medium text-slate-500 whitespace-nowrap min-w-[4rem]">開催日時</dt>
                       <dd className="text-slate-800 break-words">{dateDisplay}</dd>

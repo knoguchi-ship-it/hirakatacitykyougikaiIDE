@@ -4,6 +4,7 @@ import { Training } from '../types';
 import { LinePostTargetType, LinePostAttachmentKind } from '../shared/types';
 import { buildPublicTrainingApplyUrl } from '../config/publicPortal';
 import { useRevealOnChange } from '../shared/useRevealOnChange';
+import { formatTrainingDateJa } from '../shared/trainingDate.mjs';
 
 // v376.39: 公式LINE投稿依頼の編集モーダルを LinePostConsole から抽出し、
 // 研修管理画面（文脈起点の作成）とコンソールで共用する（DRY）。
@@ -48,19 +49,9 @@ interface LinePostEditorModalProps {
   onSaved: () => void;
 }
 
-// 研修開催日時（datetime-local 形式 "2026-06-15T14:00" 等）を表示用に整形。
-const formatTrainingDate = (s: string): string => {
-  if (!s) return '';
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return s;
-  const hasTime = /T\d/.test(s);
-  return d.toLocaleString('ja-JP', hasTime
-    ? { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }
-    : { year: 'numeric', month: '2-digit', day: '2-digit' });
-};
 
 const trainingPickerLabel = (t: Training): string => {
-  const d = formatTrainingDate(t.date);
+  const d = formatTrainingDateJa(t.date, t.endTime);
   return d ? `${t.title}（${d}）` : t.title;
 };
 

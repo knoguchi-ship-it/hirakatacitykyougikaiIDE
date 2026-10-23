@@ -321,6 +321,17 @@ export function injectMemberFiscalStatusPlaceholders(source, serialized) {
   );
 }
 
+// 研修の日付表記（src/shared/trainingDate.mjs の formatTrainingDateJa）を formatTrainingDateJa_ として注入する
+export function injectTrainingDatePlaceholders(source, serialized) {
+  return injectMarkerBlock(
+    source,
+    '// __TRAINING_DATE_BUILD_INJECT_START__',
+    '// __TRAINING_DATE_BUILD_INJECT_END__',
+    serialized,
+    'TRAINING_DATE',
+  );
+}
+
 export function injectMemberTypesPlaceholders(source, serialized) {
   return injectMarkerBlock(
     source,

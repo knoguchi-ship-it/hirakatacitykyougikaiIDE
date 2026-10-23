@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Training } from '../types';
 import { generateTrainingEmail } from '../services/geminiService';
 import { SparklesIcon, MailIcon } from './Icons';
+import { formatTrainingDateJa } from '../shared/trainingDate.mjs';
 
 interface TrainingListProps {
   trainings: Training[];
@@ -35,7 +36,7 @@ const TrainingList: React.FC<TrainingListProps> = ({ trainings }) => {
                 <span className={`px-3 py-1 rounded-full text-xs font-bold ${(training.isApplicationOpen ?? training.status === 'OPEN') ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
                   {(training.isApplicationOpen ?? training.status === 'OPEN') ? '受付中' : '受付終了'}
                 </span>
-                <span className="text-slate-500 text-sm">{training.date}</span>
+                <span className="text-slate-500 text-sm">{formatTrainingDateJa(training.date, training.endTime)}</span>
               </div>
               <h3 className="text-xl font-bold text-slate-900">{training.title}</h3>
               <p className="text-sm text-slate-600 mt-1">

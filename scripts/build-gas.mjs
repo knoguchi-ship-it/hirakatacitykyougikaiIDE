@@ -9,6 +9,7 @@ import {
   assertAllowedTopLevelFunctions,
   injectMenuRegistryPlaceholders,
   injectMemberFiscalStatusPlaceholders,
+  injectTrainingDatePlaceholders,
   injectMemberTypesPlaceholders,
   pruneUnreachableFunctionDeclarations,
   removeDisallowedActionHandlers,
@@ -22,6 +23,7 @@ import {
 import { createHash } from 'node:crypto';
 import { serializeMenuRegistryForGas } from './menu-registry.mjs';
 import { serializeMemberFiscalStatusForGas } from '../src/shared/memberFiscalStatus.mjs';
+import { serializeTrainingDateForGas } from '../src/shared/trainingDate.mjs';
 import { serializeMemberTypesForGas } from '../src/shared/memberTypes.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -59,6 +61,7 @@ function buildPublicCode(source) {
     'var LEGACY_CODE_TO_INITIAL_ROLE_ID = {};',
   ].join('\n'));
   code = injectMemberFiscalStatusPlaceholders(code, serializeMemberFiscalStatusForGas());
+  code = injectTrainingDatePlaceholders(code, serializeTrainingDateForGas());
   code = injectMemberTypesPlaceholders(code, serializeMemberTypesForGas());
   code = code.replace("var APP_SECURITY_BOUNDARY = 'public';", "var APP_SECURITY_BOUNDARY = 'public';");
   code = replaceScriptRoutesWithPublicOnly(code);

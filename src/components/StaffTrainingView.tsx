@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Staff, Training } from '../types';
 import { BookOpenIcon, CheckCircleIcon, SparklesIcon } from './Icons';
 import { api } from '../services/api';
+import { formatTrainingDateJa } from '../shared/trainingDate.mjs';
 
 interface StaffTrainingViewProps {
   staff: Staff;
@@ -120,7 +121,7 @@ const StaffTrainingView: React.FC<StaffTrainingViewProps> = ({
                 <div key={t.id} className="border border-slate-200 rounded-lg p-3 flex justify-between items-center">
                   <div>
                     <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded mr-2">受付中</span>
-                    <span className="text-sm text-slate-500">{t.date}</span>
+                    <span className="text-sm text-slate-500">{formatTrainingDateJa(t.date, t.endTime)}</span>
                     <p className="font-bold text-slate-800 mt-1">{t.title}</p>
                   </div>
                   {canOperate && (
@@ -159,7 +160,7 @@ const StaffTrainingView: React.FC<StaffTrainingViewProps> = ({
                       <span className={`text-xs font-bold px-2 py-0.5 rounded mr-2 ${isOpen ? 'bg-primary-100 text-primary-700' : 'bg-slate-100 text-slate-500'}`}>
                         {isOpen ? '申込済' : '終了'}
                       </span>
-                      <span className="text-sm text-slate-500">{t.date}</span>
+                      <span className="text-sm text-slate-500">{formatTrainingDateJa(t.date, t.endTime)}</span>
                       <p className="font-medium text-slate-700 mt-1">{t.title}</p>
                     </div>
                     {canCancel && (
