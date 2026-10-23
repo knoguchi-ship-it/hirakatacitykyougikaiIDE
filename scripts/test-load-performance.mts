@@ -199,6 +199,7 @@ test('会員マイページの取得は各シートを 1 回ずつしか読ま�
     function mapTrainingRowsForApi_(rows) { return rows; }
     // マスタはスクリプトキャッシュから読む（シートを読む回数の検査は test:master-options）
     function masterOptionsForClient_() { return {}; }
+    ${extractFunction('limitPortalStaffToCaller_')}
     ${extractFunction('getMemberPortalData_')}
     return getMemberPortalData_;
   `)({ ss }) as (p: { loginId: string }) => { members: Row[]; trainings: Row[]; resolvedMemberId: string };
