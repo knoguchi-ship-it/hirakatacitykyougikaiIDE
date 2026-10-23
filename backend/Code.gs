@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 7fd42f81a9f5f32d6816153b05d69102569f9b0179a6d897375a038427bc20ca
+// BUILD_INPUT_SHA256: 767a23f3beca60da4b61c5b3b3226e8ace82c8dd72794b4769e5fb0265d187dc
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -1753,6 +1753,11 @@ function buildTrainingApplicationRelationContextFromRows_(rowsBySheet) {
 // v235: loginId をセッションアンカーとして受け取り、T_認証アカウントから現在の memberId/staffId を解決する。
 // ロール変換後にフロントエンドのセッションが古い memberId を持っていても自動補正される。
 // 後方互換: loginId のみ指定時は T_認証アカウントから解決。memberId のみ指定（旧形式）も引き続き動作。
+
+// B-15（2026-10-23）: 事業所の一般職員には同僚の行（氏名・メール・CM 番号＝ログイン ID）を返さない。
+// docs/03 §3.5「STAFF は自分の情報のみ閲覧」。以前は全員分を返し、画面にも出ていた。
+// 代表者・管理者は職員を管理するので全員分。それ以外の権限・自分の行が無いときは自分だけ（閉じる側に倒す）。
+// 保存は updateMemberSelf_ が送られなかった職員を DB の値のまま残すので、自分の行だけで足りる。
 
 
 

@@ -1367,12 +1367,14 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
           <div>
             <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center border-b pb-2">
               <span className="w-6 h-6 bg-slate-200 text-slate-700 rounded-full flex items-center justify-center mr-2 text-sm font-bold">1</span>
-              {isBusiness ? '代表者情報・所属職員' : '基本情報'}
+              {isBusinessStaffSelfMode ? '職員情報' : isBusiness ? '代表者情報・所属職員' : '基本情報'}
             </h3>
             
             <div className="pl-8 space-y-8">
                 {/* Representative Name */}
                 <div>
+                    {/* B-15: 一般職員には代表者の行が届かない（自分の情報だけ）ので代表者情報は出さない */}
+                    {!isBusinessStaffSelfMode && (<>
                     {isBusiness && <h4 className="font-bold text-sm text-slate-800 mb-2">代表者情報</h4>}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                         <div>
@@ -1421,6 +1423,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                         代表者情報は代表者本人のみ変更できます。
                       </p>
                     )}
+                    </>)}
                     {isBusiness && (
                       <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
                         <div className="mb-4">
@@ -1457,7 +1460,7 @@ const MemberForm: React.FC<MemberFormProps> = ({ initialMember, activeStaffId, a
                         <div className="flex justify-between items-center mb-3">
                             <h4 className="font-bold text-sm text-slate-800 flex items-center">
                                 <UsersIcon className="w-4 h-4 mr-1 text-slate-500"/>
-                                所属職員一覧 (ケアマネジャー)
+                                {isBusinessStaffSelfMode ? 'あなたの職員情報' : '所属職員一覧 (ケアマネジャー)'}
                             </h4>
                             {!isReadOnly && (
                                 <button type="button" onClick={addStaff} className="text-xs bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-3 py-1 rounded flex items-center">

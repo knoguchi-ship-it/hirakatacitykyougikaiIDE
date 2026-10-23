@@ -4595,6 +4595,9 @@ function getMemberPortalData_(payload) {
   var memberAuthRows = portalRowsBySheet['T_認証アカウント'].filter(function(r) {
     return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === memberId;
   });
+  var visibleStaff = limitPortalStaffToCaller_(staffRows, memberAuthRows, staffId);
+  staffRows = visibleStaff.staffRows;
+  memberAuthRows = visibleStaff.authRows;
   var applicationRows = getTrainingApplicationRows_(ss, {
     appliedOnly: true,
     memberId: memberId,
@@ -4635,6 +4638,22 @@ function getMemberPortalData_(payload) {
   }
 
   return result;
+}
+
+// B-15（2026-10-23）: 事業所の一般職員には同僚の行（氏名・メール・CM 番号＝ログイン ID）を返さない。
+// docs/03 §3.5「STAFF は自分の情報のみ閲覧」。以前は全員分を返し、画面にも出ていた。
+// 代表者・管理者は職員を管理するので全員分。それ以外の権限・自分の行が無いときは自分だけ（閉じる側に倒す）。
+// 保存は updateMemberSelf_ が送られなかった職員を DB の値のまま残すので、自分の行だけで足りる。
+function limitPortalStaffToCaller_(staffRows, authRows, callerStaffId) {
+  var ownId = String(callerStaffId || '').trim();
+  if (!ownId) return { staffRows: staffRows, authRows: authRows }; // 個人・賛助会員
+  var own = staffRows.filter(function(r) { return String(r['職員ID'] || '').trim() === ownId; });
+  var role = own.length ? String(own[0]['職員権限コード'] || '').trim() : '';
+  if (role === 'REPRESENTATIVE' || role === 'ADMIN') return { staffRows: staffRows, authRows: authRows };
+  return {
+    staffRows: own,
+    authRows: authRows.filter(function(r) { return String(r['職員ID'] || '').trim() === ownId; }),
+  };
 }
 
 function mapMembersForApi_(ss, memberRows, staffRows, authRows, applicationRows, feeRows, memberTypeFeeMap, options) {
