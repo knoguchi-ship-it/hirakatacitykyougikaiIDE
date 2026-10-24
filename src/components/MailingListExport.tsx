@@ -460,7 +460,9 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
               />
             </label>
-            <div className="grid grid-cols-4 gap-2 text-xs lg:min-w-[360px]">
+            <div className="lg:min-w-[360px]">
+            <p className="mb-1 text-xs text-slate-500">表示中の選択の内訳</p>
+            <div className="grid grid-cols-4 gap-2 text-xs">
               {memberTypeOptions.map((t) => (
                 <div key={t.code} className="rounded-lg border border-slate-200 bg-slate-50 p-2">
                   <p className="text-slate-500">{t.label}</p>
@@ -484,6 +486,7 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
                 </p>
               </div>
             </div>
+            </div>
           </div>
 
           {/* 絞り込みフィルター */}
@@ -498,7 +501,8 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
                   <p className="text-xs text-slate-400">条件なし（すべて表示）</p>
                 )}
                 {feeConditions.map((cond, i) => (
-                  <div key={i} className="flex items-center gap-2">
+                  <div key={i}>
+                  <div className="flex items-center gap-2">
                     <select
                       value={cond.year}
                       onChange={(e) =>
@@ -535,6 +539,13 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
                     >
                       <XIcon />
                     </button>
+                  </div>
+                  {/* docs/307 F52（2026-10-25）: 以前は片方だけの条件を黙って外していた */}
+                  {(cond.year === '') !== (cond.status === '') && (
+                    <p className="mt-1 text-xs text-slate-500">
+                      {cond.year === '' ? '年度' : '状態'}を選ぶまで、この条件は絞り込みに使われません。
+                    </p>
+                  )}
                   </div>
                 ))}
                 <div className="flex items-center gap-3 pt-0.5">
@@ -813,6 +824,23 @@ const MailingListExport: React.FC<MailingListExportProps> = ({ api }) => {
               </p>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* docs/307 F51/E8（2026-10-25）: 内訳は表示中の選択だけを数え、出力は隠れている選択も含む。
+          以前はその差を示さず、内訳と出力件数が合わなかった。絞り込みを替えて選び足す使い方があるので出力の範囲は変えない。 */}
+      {selectedCount > filteredSelectedCount && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <p>
+            選択 {selectedCount} 件のうち <strong>{selectedCount - filteredSelectedCount} 件</strong>は、今の絞り込みでは表示されていませんが出力に含まれます。
+          </p>
+          <button
+            type="button"
+            onClick={() => setSelectedKeys(new Set(filteredSelectedTargets.map((t) => t.targetKey)))}
+            className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100"
+          >
+            表示されていない選択を外す
+          </button>
         </div>
       )}
 
