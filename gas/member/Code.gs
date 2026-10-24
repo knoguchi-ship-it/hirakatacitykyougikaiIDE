@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: fd0ce57f4474fbfb5a9ed7157a5c538350f73242e57b36e4de66da7033dfa71b
+// BUILD_INPUT_SHA256: aed06854619d3c342827a7e24645bfbcc6185881024b0d98f75f1234aeb583a0
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -7646,6 +7646,26 @@ var PUBLIC_UPDATE_ALLOWLIST_BY_TYPE_ = {
   BUSINESS: PUBLIC_BUSINESS_UPDATE_ALLOWLIST_,
   SUPPORT: PUBLIC_SUPPORT_UPDATE_ALLOWLIST_,
 };
+
+// docs/307 F21（2026-10-25）: 承認画面に今の値を並べるための、変更申請の項目 → 列。
+// 会員一覧（mapMembersForApi_）の対応と同じであることを test:change-request-current が確かめる。
+var PUBLIC_UPDATE_FIELD_COLUMN_ = {
+  lastName: '姓', firstName: '名', lastKana: 'セイ', firstKana: 'メイ',
+  email: '代表メールアドレス', mobilePhone: '携帯電話番号', officeName: '勤務先名',
+  phone: '勤務先電話番号', fax: '勤務先FAX番号',
+  officePostCode: '勤務先郵便番号', officePrefecture: '勤務先都道府県', officeCity: '勤務先市区町村',
+  officeAddressLine: '勤務先住所', officeAddressLine2: '勤務先住所2',
+  homePostCode: '自宅郵便番号', homePrefecture: '自宅都道府県', homeCity: '自宅市区町村',
+  homeAddressLine: '自宅住所', homeAddressLine2: '自宅住所2',
+  mailingPreference: '発送方法コード', preferredMailDestination: '郵送先区分コード',
+  careManagerNumber: '介護支援専門員番号', officeNumber: '事業所番号',
+};
+var STAFF_UPDATE_FIELD_COLUMN_ = {
+  lastName: '姓', firstName: '名', lastKana: 'セイ', firstKana: 'メイ',
+  email: 'メールアドレス', careManagerNumber: '介護支援専門員番号',
+};
+
+// 未処理の申請が変えようとしている項目の今の値（会員の項目と、職員情報変更の職員ごと）
 
 
 

@@ -18370,6 +18370,47 @@ var PUBLIC_UPDATE_ALLOWLIST_BY_TYPE_ = {
   SUPPORT: PUBLIC_SUPPORT_UPDATE_ALLOWLIST_,
 };
 
+// docs/307 F21（2026-10-25）: 承認画面に今の値を並べるための、変更申請の項目 → 列。
+// 会員一覧（mapMembersForApi_）の対応と同じであることを test:change-request-current が確かめる。
+var PUBLIC_UPDATE_FIELD_COLUMN_ = {
+  lastName: '姓', firstName: '名', lastKana: 'セイ', firstKana: 'メイ',
+  email: '代表メールアドレス', mobilePhone: '携帯電話番号', officeName: '勤務先名',
+  phone: '勤務先電話番号', fax: '勤務先FAX番号',
+  officePostCode: '勤務先郵便番号', officePrefecture: '勤務先都道府県', officeCity: '勤務先市区町村',
+  officeAddressLine: '勤務先住所', officeAddressLine2: '勤務先住所2',
+  homePostCode: '自宅郵便番号', homePrefecture: '自宅都道府県', homeCity: '自宅市区町村',
+  homeAddressLine: '自宅住所', homeAddressLine2: '自宅住所2',
+  mailingPreference: '発送方法コード', preferredMailDestination: '郵送先区分コード',
+  careManagerNumber: '介護支援専門員番号', officeNumber: '事業所番号',
+};
+var STAFF_UPDATE_FIELD_COLUMN_ = {
+  lastName: '姓', firstName: '名', lastKana: 'セイ', firstKana: 'メイ',
+  email: 'メールアドレス', careManagerNumber: '介護支援専門員番号',
+};
+
+// 未処理の申請が変えようとしている項目の今の値（会員の項目と、職員情報変更の職員ごと）
+function buildChangeRequestCurrentValues_(changeData, memberRow, staffById) {
+  var cellText = function(row, col) { return row[col] == null ? '' : String(row[col]); };
+  var fields = {};
+  var requested = changeData.fields || {};
+  if (memberRow) {
+    Object.keys(requested).forEach(function(k) {
+      if (PUBLIC_UPDATE_FIELD_COLUMN_[k]) fields[k] = cellText(memberRow, PUBLIC_UPDATE_FIELD_COLUMN_[k]);
+    });
+  }
+  var staff = {};
+  (changeData.staffUpdate || []).forEach(function(u) {
+    var staffRow = u && staffById[String(u.staffId || '')];
+    if (!staffRow) return;
+    var cur = {};
+    Object.keys(STAFF_UPDATE_FIELD_COLUMN_).forEach(function(k) {
+      if (u[k]) cur[k] = cellText(staffRow, STAFF_UPDATE_FIELD_COLUMN_[k]);
+    });
+    staff[String(u.staffId)] = cur;
+  });
+  return { fields: fields, staff: staff };
+}
+
 function publicUpdateAllowlistFor_(memberType) {
   return PUBLIC_UPDATE_ALLOWLIST_BY_TYPE_[String(memberType || '')] || PUBLIC_INDIVIDUAL_UPDATE_ALLOWLIST_;
 }
@@ -18957,10 +18998,26 @@ function getAdminChangeRequests_(payload) {
     return String(b['申請日時'] || '') > String(a['申請日時'] || '') ? 1 : -1;
   });
 
+  // docs/307 F21（2026-10-25）: 未処理の変更には今の値を付ける。以前は変更後の値しか出ず、何が何に変わるか分からなかった。
+  // 処理済みの申請には付けない（今の値は既に変更後になっている）。
+  var isPendingChange = function(r) {
+    return String(r['申請状態コード'] || '') === 'PENDING' && String(r['申請種別コード'] || '') !== 'MEMBER_APPLICATION';
+  };
+  var membersById = {};
+  var staffById = {};
+  if (rows.some(isPendingChange)) {
+    getRowsAsObjects_(ss, 'T_会員').forEach(function(m) { membersById[String(m['会員ID'] || '')] = m; });
+    getRowsAsObjects_(ss, 'T_事業所職員').forEach(function(s) { staffById[String(s['職員ID'] || '')] = s; });
+  }
+
   return rows.map(function(r) {
     var changeData = {};
     try { changeData = JSON.parse(String(r['申請内容JSON'] || '{}')); } catch(e) {}
+    var current = isPendingChange(r)
+      ? buildChangeRequestCurrentValues_(changeData, membersById[String(r['会員ID'] || '')], staffById)
+      : null;
     return {
+      current: current,
       requestId: String(r['申請ID'] || ''),
       memberId: String(r['会員ID'] || ''),
       memberType: String(r['会員種別コード'] || ''),

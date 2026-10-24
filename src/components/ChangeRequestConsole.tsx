@@ -36,6 +36,13 @@ interface ChangeRequest {
   processedByEmail: string;
   processNote: string;
   changeData: ChangeData;
+  // docs/307 F21: 未処理の変更申請だけに付く今の値（処理済み・入会申込は null）
+  current?: ChangeCurrentValues | null;
+}
+
+interface ChangeCurrentValues {
+  fields: Record<string, string>;
+  staff: Record<string, Record<string, string>>;
 }
 
 // ── ラベル定義 ────────────────────────────────────────────────────────────────
@@ -83,6 +90,22 @@ const formatFieldValue = (key: string, value: unknown) => {
   return FIELD_VALUE_MASTER[key] ? masterLabel(FIELD_VALUE_MASTER[key], String(value)) : String(value);
 };
 
+// 承認するとログインIDも変わる項目（承認の処理 approveAdminChangeRequest_ と同じ規則）。
+// 個人会員は介護支援専門員番号、事業所会員は事業所番号、事業所職員は介護支援専門員番号がログインID。
+const changesLoginId = (memberType: string, key: string) =>
+  (memberType === 'INDIVIDUAL' && key === 'careManagerNumber') || (memberType === 'BUSINESS' && key === 'officeNumber');
+const LOGIN_ID_NOTE = '承認するとログインIDも変わります';
+
+/** 今の値 → 変更後。今の値が無い（処理済みの申請など）ときは変更後だけ */
+const BeforeAfter: React.FC<{ fieldKey: string; before?: string; after: string }> = ({ fieldKey, before, after }) => (
+  <>
+    {before !== undefined && (
+      <span className="text-slate-500">{before === '' ? '（空欄）' : formatFieldValue(fieldKey, before)} → </span>
+    )}
+    <span className="font-medium text-slate-800">{formatFieldValue(fieldKey, after)}</span>
+  </>
+);
+
 function formatDate(iso: string) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -91,7 +114,7 @@ function formatDate(iso: string) {
 
 // ── 変更内容表示コンポーネント ────────────────────────────────────────────────
 
-const ChangeDataView: React.FC<{ data: ChangeData; requestType: string }> = ({ data, requestType }) => {
+const ChangeDataView: React.FC<{ data: ChangeData; requestType: string; memberType: string; current?: ChangeCurrentValues | null }> = ({ data, requestType, memberType, current }) => {
   const fields = data.fields || {};
   const staffAdd = data.staffAdd || [];
   const staffRemove = data.staffRemove || [];
@@ -102,12 +125,15 @@ const ChangeDataView: React.FC<{ data: ChangeData; requestType: string }> = ({ d
     <div className="space-y-4">
       {fieldEntries.length > 0 && (
         <div>
-          <p className="mb-2 text-xs font-semibold tracking-wide text-slate-500">変更フィールド</p>
+          <p className="mb-2 text-xs font-semibold tracking-wide text-slate-500">{current ? '変更する項目（今の値 → 変更後）' : '変更した項目'}</p>
           <dl className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
             {fieldEntries.map(([k, v]) => (
               <div key={k} className="flex items-start gap-3 px-4 py-2 text-sm">
                 <dt className="w-48 shrink-0 text-slate-500">{FIELD_LABEL[k] || k}</dt>
-                <dd className="font-medium text-slate-800 break-all">{formatFieldValue(k, v)}</dd>
+                <dd className="min-w-0 break-all">
+                  <BeforeAfter fieldKey={k} before={current?.fields[k]} after={v} />
+                  {current && changesLoginId(memberType, k) && <p className="mt-0.5 text-xs text-amber-700">{LOGIN_ID_NOTE}</p>}
+                </dd>
               </div>
             ))}
           </dl>
@@ -199,6 +225,7 @@ const ChangeDataView: React.FC<{ data: ChangeData; requestType: string }> = ({ d
             {staffUpdate.map((s, i) => {
               const changes = (['lastName', 'firstName', 'lastKana', 'firstKana', 'email', 'careManagerNumber'] as const)
                 .filter((k) => s[k]);
+              const staffCurrent = current?.staff[s.staffId];
               return (
                 <div key={i} className="rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm">
                   <div className="font-semibold text-slate-800">
@@ -209,8 +236,11 @@ const ChangeDataView: React.FC<{ data: ChangeData; requestType: string }> = ({ d
                   <dl className="mt-1 space-y-0.5 text-slate-600">
                     {changes.map((k) => (
                       <div key={k} className="flex gap-2">
-                        <dt className="shrink-0">{FIELD_LABEL[k] || k} →</dt>
-                        <dd className="font-medium text-slate-800 break-all">{s[k]}</dd>
+                        <dt className="shrink-0">{FIELD_LABEL[k] || k}:</dt>
+                        <dd className="min-w-0 break-all">
+                          <BeforeAfter fieldKey={k} before={staffCurrent?.[k]} after={String(s[k])} />
+                          {current && k === 'careManagerNumber' && <p className="mt-0.5 text-xs text-amber-700">{LOGIN_ID_NOTE}</p>}
+                        </dd>
                       </div>
                     ))}
                   </dl>
@@ -409,7 +439,7 @@ const ChangeRequestConsole: React.FC = () => {
             {/* 変更内容詳細 */}
             {expanded.has(req.requestId) && (
               <div className="border-t border-slate-100 px-5 py-4">
-                <ChangeDataView data={req.changeData} requestType={req.requestType} />
+                <ChangeDataView data={req.changeData} requestType={req.requestType} memberType={req.memberType} current={req.current} />
               </div>
             )}
 
