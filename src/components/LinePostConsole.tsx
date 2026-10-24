@@ -119,7 +119,8 @@ const LinePostConsole: React.FC<LinePostConsoleProps> = ({ api, trainings, canMa
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('この依頼を削除しますか？（論理削除のため復元可能）')) return;
+    // docs/307 F23 と同じ型（2026-10-25）: 以前は「復元可能」と書いていたが、復元の操作はどこにも無い
+    if (!window.confirm('この依頼を削除しますか？削除すると画面からは元に戻せません。')) return;
     try {
       await api.deleteLinePostRequest(id);
       await loadList();

@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 150d9b439d9f8b2f42d0746875559358ca899b34bd980aa95ab6889412ce4f15
+// BUILD_INPUT_SHA256: b4347c8de4a4ed884746af96f7b53da7222e4dcb15facbe27ff39cd036bf2037
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -332,21 +332,21 @@ var PUBLIC_PORTAL_DEFAULTS = {
   membershipCtaLabel: '入会申込へ進む',
   completionGuidanceVisible: true,
   completionGuidanceBodyWhenCredentialSent: [
-    'ログイン情報をご登録のメールアドレスに送信しました。',
+    '申込内容を事務局で確認し、承認後にログイン情報をご登録のメールアドレスへお送りします。',
     '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
-    '申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。'
+    '追加確認が必要な場合のみ、事務局からご連絡します。'
   ].join('\n'),
   completionGuidanceBodyWhenCredentialNotSent: [
     'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
     '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
-    '申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。'
+    '追加確認が必要な場合のみ、事務局からご連絡します。'
   ].join('\n'),
   completionLoginInfoBlockVisible: true,
   completionLoginInfoVisible: true,
   completionLoginInfoBodyWhenCredentialSent: 'ログイン情報は画面に表示していません。登録済みのメールをご確認ください。',
   completionLoginInfoBodyWhenCredentialNotSent: 'ログイン情報メールは現在送信していません。公開準備後にご案内します。',
   completionNoCredentialNotice: 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
-  completionCredentialNotice: 'ログイン情報をご登録のメールアドレスに送信しました。',
+  completionCredentialNotice: '申込内容を事務局で確認し、承認後にログイン情報をご登録のメールアドレスへお送りします。',
   trainingBadgeEnabled: true,
   trainingBadgeLabel: '研修申込',
   trainingTitleEnabled: true,
@@ -4836,12 +4836,12 @@ function getPublicPortalSettings_() {
   var publicPortalCompletionGuidanceBodyWhenCredentialSent = String(map['PUBLIC_PORTAL_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_SENT'] || '') || [
     legacyCompletionCredentialNotice,
     '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
-    '申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。'
+    '追加確認が必要な場合のみ、事務局からご連絡します。'
   ].join('\n');
   var publicPortalCompletionGuidanceBodyWhenCredentialNotSent = String(map['PUBLIC_PORTAL_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_NOT_SENT'] || '') || [
     legacyCompletionNoCredentialNotice,
     '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
-    '申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。'
+    '追加確認が必要な場合のみ、事務局からご連絡します。'
   ].join('\n');
   var publicPortalCompletionLoginInfoBodyWhenCredentialSent = String(map['PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_SENT'] || '') || PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialSent;
   var publicPortalCompletionLoginInfoBodyWhenCredentialNotSent = String(map['PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_NOT_SENT'] || '') || PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialNotSent;

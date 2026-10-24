@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: aed06854619d3c342827a7e24645bfbcc6185881024b0d98f75f1234aeb583a0
+// BUILD_INPUT_SHA256: f3aeb071564ab60c8de9f41d3f83375e680a78834fa7f35a168e79982c0f892c
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -332,21 +332,21 @@ var PUBLIC_PORTAL_DEFAULTS = {
   membershipCtaLabel: '入会申込へ進む',
   completionGuidanceVisible: true,
   completionGuidanceBodyWhenCredentialSent: [
-    'ログイン情報をご登録のメールアドレスに送信しました。',
+    '申込内容を事務局で確認し、承認後にログイン情報をご登録のメールアドレスへお送りします。',
     '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
-    '申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。'
+    '追加確認が必要な場合のみ、事務局からご連絡します。'
   ].join('\n'),
   completionGuidanceBodyWhenCredentialNotSent: [
     'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
     '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
-    '申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。'
+    '追加確認が必要な場合のみ、事務局からご連絡します。'
   ].join('\n'),
   completionLoginInfoBlockVisible: true,
   completionLoginInfoVisible: true,
   completionLoginInfoBodyWhenCredentialSent: 'ログイン情報は画面に表示していません。登録済みのメールをご確認ください。',
   completionLoginInfoBodyWhenCredentialNotSent: 'ログイン情報メールは現在送信していません。公開準備後にご案内します。',
   completionNoCredentialNotice: 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
-  completionCredentialNotice: 'ログイン情報をご登録のメールアドレスに送信しました。',
+  completionCredentialNotice: '申込内容を事務局で確認し、承認後にログイン情報をご登録のメールアドレスへお送りします。',
   trainingBadgeEnabled: true,
   trainingBadgeLabel: '研修申込',
   trainingTitleEnabled: true,

@@ -114,14 +114,14 @@ const FALLBACK_REGULATIONS: import('../../types').Regulation[] = [
   { id: 'FB-005', kind: 'REGULATION', title: '協議会の定款', body: '入会前に、協議会の基本規程も確認できます。', linkUrl: INCORPORATION_URL, linkLabel: '定款を確認する', target: 'ALL', version: 1, effectiveDate: '', sortOrder: 5, published: true },
 ];
 const DEFAULT_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_SENT = [
-  'ログイン情報をご登録のメールアドレスに送信しました。',
+  '申込内容を事務局で確認し、承認後にログイン情報をご登録のメールアドレスへお送りします。',
   '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
-  '申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。',
+  '追加確認が必要な場合のみ、事務局からご連絡します。',
 ].join('\n');
 const DEFAULT_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_NOT_SENT = [
   'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
   '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
-  '申込内容を事務局で確認し、追加確認が必要な場合のみご連絡します。',
+  '追加確認が必要な場合のみ、事務局からご連絡します。',
 ].join('\n');
 const DEFAULT_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_SENT = 'ログイン情報は画面に表示していません。登録済みのメールをご確認ください。';
 const DEFAULT_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_NOT_SENT = 'ログイン情報メールは現在送信していません。公開準備後にご案内します。';
@@ -381,7 +381,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
   completionLoginInfoBodyWhenCredentialSent = DEFAULT_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_SENT,
   completionLoginInfoBodyWhenCredentialNotSent = DEFAULT_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_NOT_SENT,
   completionNoCredentialNotice = 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
-  completionCredentialNotice = 'ログイン情報をご登録のメールアドレスに送信しました。',
+  completionCredentialNotice = '申込内容を事務局で確認し、承認後にログイン情報をご登録のメールアドレスへお送りします。',
 }) => {
   const mailDestinationMaster = useMasterOptions('M_郵送先区分');
   const mailingMethodMaster = useMasterOptions('M_発送方法');

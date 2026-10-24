@@ -232,7 +232,7 @@ const MemberDeleteConsole: React.FC = () => {
         <p className="text-sm leading-6 text-slate-700">
           個人会員、賛助会員、事業所会員、事業所会員メンバーを検索し、
           <strong className="mx-1 text-slate-900">会員系関連レコードのアーカイブ移動（単一化）+ 認証無効化</strong>
-          を一括で実行します。対象の関連レコードは live から各アーカイブへ移動し（削除バッチ単位で復元可能）、
+          を一括で実行します。対象の関連レコードは live から各アーカイブへ移動し、
           ログイン履歴は削除されます。`T_削除ログ` に操作前スナップショットを残します。
         </p>
       </div>
@@ -369,7 +369,7 @@ const MemberDeleteConsole: React.FC = () => {
             <h3 className="font-semibold text-slate-900">手順2: 削除内容の確認</h3>
             <p className="text-sm text-slate-600">
               更新対象 {preview.totalUpdatedRows} 件、関連履歴 {Object.values(preview.retainedCounts).reduce<number>((sum, value) => sum + Number(value || 0), 0)} 件を確認します。
-              関連レコードは live からアーカイブへ移動します（削除バッチ単位で復元可能）。ログイン履歴は削除されます。
+              関連レコードは live からアーカイブへ移動します。ログイン履歴は削除されます。<strong className="text-slate-900">この画面からは元に戻せません。</strong>
             </p>
           </div>
 
@@ -471,7 +471,9 @@ const MemberDeleteConsole: React.FC = () => {
           </div>
 
           <div className="rounded-2xl bg-red-50 border border-red-200 p-4 text-sm text-red-800 space-y-1">
-            <p>・関連レコードは各アーカイブシートへ移動し、削除バッチ単位で復元できます（ログイン履歴のみ削除・復元不可）。</p>
+            {/* docs/307 F23（2026-10-25）: 以前は「削除バッチ単位で復元できます」と書いていたが、画面に復元の操作は無い。
+                戻せるのは直近の 1 回分だけで、Apps Script エディタの restoreLastArchiveBatch_APPLY（MASTER）から行う。 */}
+            <p>・<strong>この画面からは元に戻せません。</strong>戻せるのは直近の 1 回分だけで、システム管理者が Apps Script エディタから行います。ログイン履歴は削除され、戻りません。</p>
             <p>・代表者職員は単体では論理削除できません。必要な場合は事業所会員全体を対象にしてください。</p>
             <p>・対象: <strong>{preview.targets.map(target => target.displayName).join('、')}</strong></p>
             <p>・更新レコード合計: <strong>{preview.totalUpdatedRows} 件</strong></p>
