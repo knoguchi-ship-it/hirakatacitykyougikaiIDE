@@ -7,15 +7,18 @@
   ],
   "accepted": [
     {
-      "id": "GHSA-vfj7-8cjw-p6xm",
-      "packages": ["braces", "micromatch", "@google/clasp", "vite-plugin-singlefile"],
+      "id": "GHSA-mrhx-c7xc-m3w5",
+      "packages": [
+        "zod",
+        "@google/clasp"
+      ],
       "severity": "high",
       "scope": "dev",
-      "reason": "braces の stack 枯渇 DoS（CVSS 7.5）。到達経路は @google/clasp@3.4.1 → micromatch@4.0.8 → braces@3.0.3 で、ビルドと CLI でしか動かない。braces に渡るのは .claspignore のパターンと自リポジトリのファイルパスだけで、外部入力が無い。出荷物には含まれない（npm audit --omit=dev は 0 件）。",
-      "whyNotFixed": "上流に修正版が存在しない。勧告の対象は braces <=3.0.3 で、3.0.3 が公開されている最新版。npm の提示する修正は @google/clasp 2.5.0 と vite-plugin-singlefile 0.9.0 へのメジャーダウングレードのみ。clasp 2.x は固定 deployment の更新コマンドが `clasp deploy -i` で、これは PreToolUse hook が拒否する操作にあたり、/release Skill・AGENTS L1・docs/09 の記述もすべて不整合になる。vite-plugin-singlefile 0.9.0 は 2021 年頃の版で boot loader 契約（AGENTS L3.4）と patches/ の前提が崩れる。",
-      "acceptedOn": "2026-10-03",
+      "reason": "zod の大きすぎる制約付きコレクションの検証でメモリを使い切る DoS。到達経路は @google/clasp@3.4.1 → zod@3.25.76 で、clasp のうち zod を読み込むのは build/src/mcp/server.js（clasp mcp サブコマンド）だけ。本案件は clasp mcp を起動しない（clasp は push・create-version・redeploy・list-deployments・run のみ）。外部入力が zod に渡る経路が無い。出荷物には含まれない（npm audit --omit=dev は 0 件）。",
+      "whyNotFixed": "修正は zod 4.6.6 以降だが、clasp 3.4.1 は zod ^3.25.76 に固定している。npm の提示する修正は @google/clasp 2.5.0 へのメジャーダウングレードのみで、clasp 2.x は固定 deployment の更新が clasp deploy -i になり、PreToolUse hook が拒否する操作・/release Skill・docs/09 と不整合になる。",
+      "acceptedOn": "2026-10-24",
       "reviewBy": "2027-01-31",
-      "recheck": "braces に 3.0.4 以降が出ていないか / @google/clasp が micromatch 依存を外していないかを確認する"
+      "recheck": "@google/clasp が zod 4 系へ上げていないか / clasp mcp を使い始めていないかを確認する"
     }
   ]
 }
