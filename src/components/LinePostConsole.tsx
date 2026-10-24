@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ApiClient } from '../services/api';
 import { Training } from '../types';
 import { formatTrainingDateJa } from '../shared/trainingDate.mjs';
+import { linePostNotNotifiedMessage } from '../shared/linePostNotice';
 import {
   LinePostRequest,
   LinePostStatus,
@@ -107,9 +108,11 @@ const LinePostConsole: React.FC<LinePostConsoleProps> = ({ api, trainings, canMa
     const labels = { request: '投稿依頼中に変更', post: '投稿済みに変更', withdraw: '取り下げて作成中に戻す' };
     if (!window.confirm(`「${labels[action]}」を実行しますか？`)) return;
     try {
-      await api.transitionLinePostRequest({ id, action });
+      const res = await api.transitionLinePostRequest({ id, action });
       await loadList();
       setDetailItem(null);
+      const notNotified = linePostNotNotifiedMessage(res?.notification);
+      if (notNotified) alert(notNotified);
     } catch (e) {
       alert(e instanceof Error ? e.message : '状態変更に失敗しました');
     }

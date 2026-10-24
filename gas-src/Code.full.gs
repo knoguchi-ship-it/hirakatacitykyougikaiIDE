@@ -9342,13 +9342,14 @@ function getSystemSettingMap_(ss) {
 }
 
 // 複数の設定を一括書き込み：読み2回＋書き1回で完結（N+1問題を解消）
+// docs/307 S41（2026-10-24）: シートや列が無ければ止める。以前は黙って戻り、呼び出し元は「保存しました」と返した。
 function batchUpsertSystemSettings_(ss, updates) {
   if (!updates || updates.length === 0) return;
   var sheet = ss.getSheetByName('T_システム設定');
-  if (!sheet) return;
+  if (!sheet) throw new Error('T_システム設定 シートが無いため、設定を保存できませんでした。');
   var lastRow = sheet.getLastRow();
   var lastCol = sheet.getLastColumn();
-  if (lastCol < 1) return;
+  if (lastCol < 1) throw new Error('T_システム設定 に見出しが無いため、設定を保存できませんでした。');
   var headerValues = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
   var columns = {};
   for (var i = 0; i < headerValues.length; i++) {
@@ -9358,7 +9359,9 @@ function batchUpsertSystemSettings_(ss, updates) {
   var valueCol = columns['設定値'];
   var descCol = columns['説明'];
   var updatedAtCol = columns['更新日時'];
-  if (keyCol === undefined) return;
+  if (keyCol === undefined || valueCol === undefined) {
+    throw new Error('T_システム設定 に「設定キー」「設定値」の列が無いため、設定を保存できませんでした。');
+  }
   var data = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, lastCol).getValues() : [];
   // key → row index マップ
   var keyToIndex = {};
@@ -9868,8 +9871,14 @@ function createMemberApplicationDirectLocked_(payload) {
     memberId: memberId,
     loginId: null,
     staffCredentials: null,
+    // docs/307 S11（2026-10-24）: 送ったものだけを数える。以前は配信停止で抑止されたものも「送信済み」に数えた。
     emailsSent: 0,
+    emailsSuppressed: 0,
     transitionSummary: transitionSummary,
+  };
+  var countMailOutcome = function(outcome) {
+    if (outcome && outcome.sent) result.emailsSent++;
+    else result.emailsSuppressed++;
   };
 
   if (isBusiness) {
@@ -10058,14 +10067,12 @@ function createMemberApplicationDirectLocked_(payload) {
           if (staffRole === 'REPRESENTATIVE') {
             if (bizEmailSettings.bizRepEmailEnabled) {
               var repBody = renderMergeTags_(bizEmailSettings.bizRepEmailBody, bizVars);
-              deliverMail_('BIZ_REP_EMAIL', staffEmail, bizEmailSettings.bizRepEmailSubject, repBody, { from: fromAddr });
-              result.emailsSent++;
+              countMailOutcome(deliverMail_('BIZ_REP_EMAIL', staffEmail, bizEmailSettings.bizRepEmailSubject, repBody, { from: fromAddr }));
             }
           } else {
             if (bizEmailSettings.bizStaffEmailEnabled) {
               var memberBody = renderMergeTags_(bizEmailSettings.bizStaffEmailBody, bizVars);
-              deliverMail_('BIZ_STAFF_EMAIL', staffEmail, bizEmailSettings.bizStaffEmailSubject, memberBody, { from: fromAddr });
-              result.emailsSent++;
+              countMailOutcome(deliverMail_('BIZ_STAFF_EMAIL', staffEmail, bizEmailSettings.bizStaffEmailSubject, memberBody, { from: fromAddr }));
             }
           }
         } catch (e) {
@@ -10133,8 +10140,7 @@ function createMemberApplicationDirectLocked_(payload) {
     if (email && credEmailEnabled && indSuppEmailEnabled) {
       try {
         var memberName = String(payload.lastName || '') + ' ' + String(payload.firstName || '');
-        sendCredentialEmail_(email, loginId, defaultPassword, memberName.trim(), credEmailOpts);
-        result.emailsSent++;
+        countMailOutcome(sendCredentialEmail_(email, loginId, defaultPassword, memberName.trim(), credEmailOpts));
       } catch (e) {
         Logger.log('sendCredentialEmail_ failed for ' + email + ': ' + e.message);
       }
@@ -11191,7 +11197,7 @@ function sendCredentialEmail_(toEmail, loginId, password, memberName, opts) {
   // replyTo は from が設定されている場合のみ設定する。
   // Session.getEffectiveUser() は userinfo.email スコープが必要で、
   // 統合・会員 split では v263 スコープ削減により使用不可。
-  deliverMail_('CREDENTIAL_EMAIL', toEmail, subject, body, {
+  return deliverMail_('CREDENTIAL_EMAIL', toEmail, subject, body, {
     from: from,
     replyTo: from || '',
     name: '枚方市介護支援専門員連絡協議会',
@@ -11551,22 +11557,30 @@ function removeStaffFromOffice_(payload) {
 }
 
 // ── 会員IDに紐づく全認証アカウントの有効フラグを false にする ──
+// docs/307 S42（2026-10-24）: シートや列が無ければ止め、無効にした件数を返す。
+// 以前は黙って戻り、退会・削除なのにログインが有効なまま「完了」になりえた。
 function disableAuthAccountsByMemberId_(ss, memberId) {
   var authSheet = ss.getSheetByName('T_認証アカウント');
-  if (!authSheet || authSheet.getLastRow() < 2) return;
+  if (!authSheet) throw new Error('T_認証アカウント シートが無いため、ログインを止められませんでした。');
+  if (authSheet.getLastRow() < 2) return 0;
   var headers = authSheet.getRange(1, 1, 1, authSheet.getLastColumn()).getValues()[0];
   var cols = {};
   for (var i = 0; i < headers.length; i++) cols[headers[i]] = i;
-  if (cols['会員ID'] == null || cols['アカウント有効フラグ'] == null) return;
+  if (cols['会員ID'] == null || cols['アカウント有効フラグ'] == null) {
+    throw new Error('T_認証アカウント に「会員ID」「アカウント有効フラグ」の列が無いため、ログインを止められませんでした。');
+  }
 
   var data = authSheet.getRange(2, 1, authSheet.getLastRow() - 1, authSheet.getLastColumn()).getValues();
+  var disabled = 0;
   for (var r = 0; r < data.length; r++) {
     if (String(data[r][cols['会員ID']] || '') === memberId) {
       data[r][cols['アカウント有効フラグ']] = false;
-      data[r][cols['更新日時']] = new Date().toISOString();
+      if (cols['更新日時'] != null) data[r][cols['更新日時']] = new Date().toISOString();
       authSheet.getRange(r + 2, 1, 1, data[r].length).setValues([data[r]]);
+      disabled++;
     }
   }
+  return disabled;
 }
 
 // ── 職員IDに紐づく認証アカウントの有効フラグを false にする ──
@@ -18769,8 +18783,9 @@ function submitPublicChangeRequest_(payload) {
   if (Array.isArray(payload.staffAdd) && payload.staffAdd.length > 0 && stored.memberType !== 'BUSINESS') {
     return { success: false, error: '事業所会員専用の操作です' };
   }
+  var staffAddProblems = [];
   if (Array.isArray(payload.staffAdd)) {
-    payload.staffAdd.forEach(function(s) {
+    payload.staffAdd.forEach(function(s, si) {
       var lastName = String(s.lastName || '').trim();
       var firstName = String(s.firstName || '').trim();
       // v376: kana を normalize + validate（不正なら throw → このエントリは弾かれない代わりに申請自体が失敗）
@@ -18778,11 +18793,20 @@ function submitPublicChangeRequest_(payload) {
       var firstKana = normalizeAndValidateKana_(s.firstKana || '', '職員のメイ');
       var careManagerNumber = normalizeCmNumberForKey_(s.careManagerNumber);
       var email = String(s.email || '').trim();
-      if (!lastName || !firstName || !lastKana || !firstKana || !/^\d{8}$/.test(careManagerNumber) || !email) {
+      // docs/307 S9（2026-10-24）: 以前は欠けた行を黙って捨て、受付完了と返していた。
+      var addProblem = !lastName || !firstName || !lastKana || !firstKana ? '氏名とフリガナを入力してください。'
+        : !/^\d{8}$/.test(careManagerNumber) ? '介護支援専門員番号は 8 桁の半角数字で入力してください。'
+        : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? 'メールアドレスの形式が正しくありません。'
+        : '';
+      if (addProblem) {
+        staffAddProblems.push('追加する職員 ' + (si + 1) + ' 人目: ' + addProblem);
         return;
       }
       changeData.staffAdd.push({ lastName: lastName, firstName: firstName, lastKana: lastKana, firstKana: firstKana, careManagerNumber: careManagerNumber, email: email });
     });
+  }
+  if (staffAddProblems.length > 0) {
+    return { success: false, error: staffAddProblems.join('\n') };
   }
 
   // 事業所会員: 職員の除籍と情報変更は、入力された「今の氏名と介護支援専門員番号」で職員を特定する。
@@ -18842,10 +18866,11 @@ function submitPublicChangeRequest_(payload) {
       if (!Object.prototype.hasOwnProperty.call(us, f)) continue;
       var v = String(us[f] || '').trim();
       if (v === '') continue; // 空欄 = 変更なし
+      // docs/307 S10（2026-10-24）: 以前は形式違いの番号・メールを黙って外し、受付完了と返していた。
       if (f === 'careManagerNumber') {
-        if (!/^\d{8}$/.test(v)) continue;
+        if (!/^\d{8}$/.test(v)) return { success: false, error: '情報を変更する職員 ' + (ui + 1) + ' 人目: 変更後の介護支援専門員番号は 8 桁の半角数字で入力してください。' };
       } else if (f === 'email') {
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) continue;
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return { success: false, error: '情報を変更する職員 ' + (ui + 1) + ' 人目: 変更後のメールアドレスの形式が正しくありません。' };
       } else if (f === 'lastKana' || f === 'firstKana') {
         // v376: kana 列は全角カタカナに正規化（不正文字は throw）
         v = normalizeAndValidateKana_(v, f === 'lastKana' ? '職員のセイ' : '職員のメイ');
@@ -19108,6 +19133,7 @@ function approveAdminChangeRequest_(payload) {
       var allStaffRowsU = getRowsAsObjects_(ss, 'T_事業所職員');
       var staffEmailNotifications = []; // [{staffId, oldEmail, newEmail, staffName}]
       var staffLoginIdNotifications = []; // [{staffName, before, after, staffEmail}]
+      var appliedStaffUpdates = 0; // docs/307 E6: 実際に反映した人数だけを数える
       for (var su = 0; su < staffUpdates.length; su++) {
         var upd = staffUpdates[su];
         // 対象職員の所属確認（セキュリティ: 申請の memberId と職員の所属 memberId が一致）
@@ -19140,6 +19166,7 @@ function approveAdminChangeRequest_(payload) {
           if (Object.prototype.hasOwnProperty.call(upd, 'email')) staffPayload.email = upd.email;
           if (Object.prototype.hasOwnProperty.call(upd, 'careManagerNumber')) staffPayload.careManagerNumber = upd.careManagerNumber;
           updateStaff_(staffPayload);
+          appliedStaffUpdates++;
           // v376.100: 介護支援専門員番号が変わったらログインIDも追従させる。
           // 変えた本人がログインできる状態を保つため、updateStaff_ の直後に行う。
           if (Object.prototype.hasOwnProperty.call(upd, 'careManagerNumber')
@@ -19197,7 +19224,9 @@ function approveAdminChangeRequest_(payload) {
         });
       });
       approvalResult.staffLoginIdChanges = staffLoginIdNotifications.length;
-      approvalResult.staffUpdateCount = staffUpdates.length;
+      // 以前は対象が見つからなかった分・反映に失敗した分も含めて申請の件数を返していた。
+      approvalResult.staffUpdateCount = appliedStaffUpdates;
+      approvalResult.staffUpdateSkipped = staffUpdates.length - appliedStaffUpdates;
       approvalResult.staffEmailNotifications = staffEmailNotifications.length;
       // 通知メール送信（メール変更時のみ・旧アドレス + 新アドレス両方）。
       // v376.99: 以前はここに件名・本文を直書きしていたため管理画面から直せなかった。
@@ -26331,10 +26360,9 @@ function saveLinePostRequest_(payload) {
       '投稿マーク者名': '',
     };
     appendRowsByHeaders_(ss, 'T_LINE投稿依頼', [newRow]);
-    if (doSubmit) {
-      try { notifyLinePostRequest_(ss, newId, newRow, caller); } catch (e) { Logger.log('[saveLinePostRequest_] notify failed: ' + e.message); }
-    }
-    return getLinePostRequest_({ id: newId });
+    var saved = getLinePostRequest_({ id: newId });
+    if (doSubmit) saved.notification = linePostNotifyOutcome_(ss, newId, newRow, caller);
+    return saved;
   }
 }
 
@@ -26370,9 +26398,11 @@ function uploadLinePostAttachment_(payload) {
 }
 
 // v376.45: 投稿依頼登録の通知メール（saveLinePostRequest_ の submitRequest と transition 'request' で共用）。
+// docs/307 S30/31（2026-10-24）: 結果を返す。以前は通知先が未設定・送信抑止でも黙って「依頼済み」になり、
+// 依頼者は担当者に伝わったと思い込んだ。呼び出し元は戻り値を画面へ返す（linePostNotifyOutcome_）。
 function notifyLinePostRequest_(ss, id, row, caller) {
   var notifyEmail = String(getSystemSettingValue_(ss, 'LINE_POST_NOTIFY_EMAIL') || '').trim();
-  if (!notifyEmail) return;
+  if (!notifyEmail) return { notified: false, reason: 'not_configured' };
   var now = new Date().toISOString();
   var subject = '【LINE投稿依頼】新規依頼が登録されました';
   var body = '公式LINE への投稿依頼が登録されました。\n\n'
@@ -26382,7 +26412,17 @@ function notifyLinePostRequest_(ss, id, row, caller) {
     + '----- 本文 -----\n' + String(row['テキスト'] || '') + '\n\n'
     + (String(row['研修申込リンク'] || '') ? '【研修申込リンク】' + String(row['研修申込リンク']) + '\n' : '')
     + (String(row['添付ファイルURL'] || '') ? '【添付ファイル】' + String(row['添付ファイル名'] || '') + '\n' + String(row['添付ファイルURL']) + '\n' : '');
-  deliverMail_('LINE_POST_REQUEST', notifyEmail, subject, body, {});
+  var sent = deliverMail_('LINE_POST_REQUEST', notifyEmail, subject, body, {});
+  return sent && sent.sent ? { notified: true } : { notified: false, reason: 'suppressed' };
+}
+
+function linePostNotifyOutcome_(ss, id, row, caller) {
+  try {
+    return notifyLinePostRequest_(ss, id, row, caller);
+  } catch (e) {
+    Logger.log('[notifyLinePostRequest_] failed: ' + e.message);
+    return { notified: false, reason: 'failed' };
+  }
 }
 
 function transitionLinePostRequest_(payload) {
@@ -26420,7 +26460,6 @@ function transitionLinePostRequest_(payload) {
     }
     updates['ステータス'] = LINE_POST_STATUS_REQUESTED;
     updates['投稿依頼日時'] = now;
-    try { notifyLinePostRequest_(ss, id, found, caller); } catch (mailErr) { Logger.log('[transitionLinePostRequest_] notify failed: ' + mailErr.message); }
   } else if (transAction === 'post') {
     if (currentStatus !== LINE_POST_STATUS_REQUESTED) {
       throw new Error('投稿依頼中（REQUESTED）の依頼のみ「投稿済み」に移行できます。');
@@ -26440,7 +26479,10 @@ function transitionLinePostRequest_(payload) {
   }
   var transSheet = ss.getSheetByName('T_LINE投稿依頼');
   updateRowByKey_(transSheet, テーブル定義['T_LINE投稿依頼'], '投稿依頼ID', id, updates);
-  return getLinePostRequest_({ id: id });
+  var transitioned = getLinePostRequest_({ id: id });
+  // docs/307 S44: 通知は状態を保存してから送る（以前は先に送り、保存に失敗しても通知だけ届いた）
+  if (transAction === 'request') transitioned.notification = linePostNotifyOutcome_(ss, id, found, caller);
+  return transitioned;
 }
 
 function deleteLinePostRequest_(payload) {

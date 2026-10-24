@@ -20,6 +20,7 @@ import {
 import { EMAIL_PATTERN, PHONE_PATTERN, CARE_MANAGER_NO_PATTERN } from '../shared/validators';
 import { callGcpApi, withPreviewRole } from '../shared/api-base';
 import { setMasterOptions } from '../shared/masterOptions';
+import type { LinePostNotification } from '../shared/linePostNotice';
 import { AdminDashboardData, AdminPermissionData, AnnualFeeAdminData, AnnualFeeAdminRecord, RoleDefinition, MenuRegistryEntry } from '../types';
 
 export interface TrainingMailPayload {
@@ -313,9 +314,9 @@ export interface ApiClient {
     memo?: string;
     clearAttachment?: boolean;
     submitRequest?: boolean;
-  }): Promise<{ item: LinePostRequest }>;
+  }): Promise<{ item: LinePostRequest; notification?: LinePostNotification }>;
   uploadLinePostAttachment(payload: { base64: string; mimeType: string; fileName: string }): Promise<LinePostAttachmentUploadResult>;
-  transitionLinePostRequest(payload: { id: string; action: 'request' | 'post' | 'withdraw' }): Promise<{ item: LinePostRequest }>;
+  transitionLinePostRequest(payload: { id: string; action: 'request' | 'post' | 'withdraw' }): Promise<{ item: LinePostRequest; notification?: LinePostNotification }>;
   deleteLinePostRequest(id: string): Promise<{ ok: boolean; id: string }>;
 }
 
@@ -1322,13 +1323,13 @@ class GasApiClient implements ApiClient {
     clearAttachment?: boolean;
     submitRequest?: boolean;
   }) {
-    return this.callAction<{ item: LinePostRequest }>('saveLinePostRequest', payload);
+    return this.callAction<{ item: LinePostRequest; notification?: LinePostNotification }>('saveLinePostRequest', payload);
   }
   async uploadLinePostAttachment(payload: { base64: string; mimeType: string; fileName: string }) {
     return this.callAction<LinePostAttachmentUploadResult>('uploadLinePostAttachment', payload);
   }
   async transitionLinePostRequest(payload: { id: string; action: 'request' | 'post' | 'withdraw' }) {
-    return this.callAction<{ item: LinePostRequest }>('transitionLinePostRequest', payload);
+    return this.callAction<{ item: LinePostRequest; notification?: LinePostNotification }>('transitionLinePostRequest', payload);
   }
   async deleteLinePostRequest(id: string) {
     return this.callAction<{ ok: boolean; id: string }>('deleteLinePostRequest', { id });

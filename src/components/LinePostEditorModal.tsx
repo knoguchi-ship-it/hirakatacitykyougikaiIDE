@@ -5,6 +5,7 @@ import { LinePostTargetType, LinePostAttachmentKind } from '../shared/types';
 import { buildPublicTrainingApplyUrl } from '../config/publicPortal';
 import { useRevealOnChange } from '../shared/useRevealOnChange';
 import { formatTrainingDateJa } from '../shared/trainingDate.mjs';
+import { linePostNotNotifiedMessage } from '../shared/linePostNotice';
 
 // v376.39: 公式LINE投稿依頼の編集モーダルを LinePostConsole から抽出し、
 // 研修管理画面（文脈起点の作成）とコンソールで共用する（DRY）。
@@ -209,7 +210,7 @@ const LinePostEditorModal: React.FC<LinePostEditorModalProps> = ({ api, training
     setSaving(true);
     setEditError(null);
     try {
-      await api.saveLinePostRequest({
+      const res = await api.saveLinePostRequest({
         id: editing.id || undefined,
         text: editing.text,
         trainingApplyUrl: editing.trainingApplyUrl,
@@ -222,6 +223,8 @@ const LinePostEditorModal: React.FC<LinePostEditorModalProps> = ({ api, training
         clearAttachment: editing.clearAttachment,
         submitRequest: submit && !editing.id,
       });
+      const notNotified = linePostNotNotifiedMessage(res?.notification);
+      if (notNotified) alert(notNotified);
       onSaved();
     } catch (e) {
       setEditError(e instanceof Error ? e.message : '保存に失敗しました');

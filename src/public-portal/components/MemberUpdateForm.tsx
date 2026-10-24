@@ -6,7 +6,7 @@ import { publicIdentityErrorMessage, type PublicIdentityMemberType } from '../..
 import { normalizeKana } from '../../utils/kanaNormalize';
 // 入力書式の正本（AGENTS §3）。ここで独自に正規表現を書かない —
 // v376.101 は MemberForm が独自のカナ正規表現を持っていたせいで賛助会員が保存できなくなった。
-import { CARE_MANAGER_NO_PATTERN } from '../../shared/validators';
+import { CARE_MANAGER_NO_PATTERN, EMAIL_PATTERN } from '../../shared/validators';
 // 勤務先なしの判定・予約語の正本（docs/spec/02_RD.md §479）
 import { NO_OFFICE_AFFILIATION_LABEL } from '../../shared/officeAffiliation';
 
@@ -74,7 +74,7 @@ const staffIdentityComplete = (s: StaffIdentity) =>
 /** 職員追加カードの 6 項目がそろっているか（サーバの受付条件と同じ） */
 const staffAddComplete = (c: StaffAddCard) =>
   !!c.lastName.trim() && !!c.firstName.trim() && !!c.lastKana.trim() && !!c.firstKana.trim()
-  && CARE_MANAGER_NO_PATTERN.test(c.careManagerNumber) && !!c.email.trim();
+  && CARE_MANAGER_NO_PATTERN.test(c.careManagerNumber) && EMAIL_PATTERN.test(c.email.trim());
 
 type StaffRemoveCard = StaffIdentity;
 const EMPTY_STAFF_REMOVE: StaffRemoveCard = { ...EMPTY_STAFF_IDENTITY };
@@ -112,6 +112,16 @@ function staffUpdateEntry(c: StaffUpdateCard): Record<string, string> {
   if (has('email') && c.newEmail.trim()) e.email = c.newEmail.trim();
   if (has('careManagerNumber') && CARE_MANAGER_NO_PATTERN.test(c.newCareManagerNumber)) e.careManagerNumber = c.newCareManagerNumber;
   return e;
+}
+/** docs/307 F22（2026-10-24）: 選んだのに空欄・形式違いの項目。以前は黙って送信から外していた */
+function staffUpdateProblems(c: StaffUpdateCard): string[] {
+  const out: string[] = [];
+  const has = (k: StaffUpdateField) => c.changes.includes(k);
+  if (has('name') && (!c.newLastName.trim() || !c.newFirstName.trim())) out.push('変更後の氏名');
+  if (has('kana') && (!c.newLastKana.trim() || !c.newFirstKana.trim())) out.push('変更後のフリガナ');
+  if (has('email') && !EMAIL_PATTERN.test(c.newEmail.trim())) out.push('変更後のメールアドレス');
+  if (has('careManagerNumber') && !CARE_MANAGER_NO_PATTERN.test(c.newCareManagerNumber)) out.push('変更後の介護支援専門員番号（8 桁の半角数字）');
+  return out;
 }
 
 interface IndividualFields {
@@ -388,7 +398,11 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
       staffRemoveCards.forEach((c, i) => { if (staffIdentityFilled(c) && c.match !== 'matched') out.push('除籍する職員 ' + (i + 1) + '：照合が済んでいません'); });
     }
     if (selected.has('staffUpdate')) {
-      staffUpdateCards.forEach((c, i) => { if (staffIdentityFilled(c) && c.match !== 'matched') out.push('変更する職員 ' + (i + 1) + '：照合が済んでいません'); });
+      staffUpdateCards.forEach((c, i) => {
+        if (staffIdentityFilled(c) && c.match !== 'matched') out.push('変更する職員 ' + (i + 1) + '：照合が済んでいません');
+        const bad = c.match === 'matched' ? staffUpdateProblems(c) : [];
+        if (bad.length) out.push('変更する職員 ' + (i + 1) + '：' + bad.join('・') + 'を確かめてください');
+      });
     }
     return out;
   }, [memberType, selected, staffAddCards, staffRemoveCards, staffUpdateCards]);

@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 3943d6e68bdcd64da5984e20ae6a1be127c001f1cbe24b6df670da7300bf3c82
+// BUILD_INPUT_SHA256: fd0ce57f4474fbfb5a9ed7157a5c538350f73242e57b36e4de66da7033dfa71b
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -3701,13 +3701,14 @@ function getSystemSettingMap_(ss) {
 }
 
 // 複数の設定を一括書き込み：読み2回＋書き1回で完結（N+1問題を解消）
+// docs/307 S41（2026-10-24）: シートや列が無ければ止める。以前は黙って戻り、呼び出し元は「保存しました」と返した。
 function batchUpsertSystemSettings_(ss, updates) {
   if (!updates || updates.length === 0) return;
   var sheet = ss.getSheetByName('T_システム設定');
-  if (!sheet) return;
+  if (!sheet) throw new Error('T_システム設定 シートが無いため、設定を保存できませんでした。');
   var lastRow = sheet.getLastRow();
   var lastCol = sheet.getLastColumn();
-  if (lastCol < 1) return;
+  if (lastCol < 1) throw new Error('T_システム設定 に見出しが無いため、設定を保存できませんでした。');
   var headerValues = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
   var columns = {};
   for (var i = 0; i < headerValues.length; i++) {
@@ -3717,7 +3718,9 @@ function batchUpsertSystemSettings_(ss, updates) {
   var valueCol = columns['設定値'];
   var descCol = columns['説明'];
   var updatedAtCol = columns['更新日時'];
-  if (keyCol === undefined) return;
+  if (keyCol === undefined || valueCol === undefined) {
+    throw new Error('T_システム設定 に「設定キー」「設定値」の列が無いため、設定を保存できませんでした。');
+  }
   var data = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, lastCol).getValues() : [];
   // key → row index マップ
   var keyToIndex = {};
@@ -4221,6 +4224,8 @@ function generateTrainingApplyId_() {
 // T_事業所職員の状態を LEFT に変更し、T_認証アカウントの有効フラグを false にする
 
 // ── 会員IDに紐づく全認証アカウントの有効フラグを false にする ──
+// docs/307 S42（2026-10-24）: シートや列が無ければ止め、無効にした件数を返す。
+// 以前は黙って戻り、退会・削除なのにログインが有効なまま「完了」になりえた。
 
 // ── 職員IDに紐づく認証アカウントの有効フラグを false にする ──
 // v376.100: 職員の介護支援専門員番号を変えたときにログインIDを追従させる。
@@ -8658,6 +8663,9 @@ var LINE_POST_ATTACHMENT_KIND_PDF = 'PDF';
 
 
 // v376.45: 投稿依頼登録の通知メール（saveLinePostRequest_ の submitRequest と transition 'request' で共用）。
+// docs/307 S30/31（2026-10-24）: 結果を返す。以前は通知先が未設定・送信抑止でも黙って「依頼済み」になり、
+// 依頼者は担当者に伝わったと思い込んだ。呼び出し元は戻り値を画面へ返す（linePostNotifyOutcome_）。
+
 
 
 

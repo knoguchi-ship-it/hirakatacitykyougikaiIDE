@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 767a23f3beca60da4b61c5b3b3226e8ace82c8dd72794b4769e5fb0265d187dc
+// BUILD_INPUT_SHA256: 2edfabd25c1084a8bbf1209b25da8360f024926274283ef957628bbfb8072f00
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -2295,6 +2295,7 @@ function getSystemSettingMap_(ss) {
 }
 
 // 複数の設定を一括書き込み：読み2回＋書き1回で完結（N+1問題を解消）
+// docs/307 S41（2026-10-24）: シートや列が無ければ止める。以前は黙って戻り、呼び出し元は「保存しました」と返した。
 
 
 
@@ -2991,6 +2992,8 @@ function generateTrainingApplyId_() {
 // T_事業所職員の状態を LEFT に変更し、T_認証アカウントの有効フラグを false にする
 
 // ── 会員IDに紐づく全認証アカウントの有効フラグを false にする ──
+// docs/307 S42（2026-10-24）: シートや列が無ければ止め、無効にした件数を返す。
+// 以前は黙って戻り、退会・削除なのにログインが有効なまま「完了」になりえた。
 
 // ── 職員IDに紐づく認証アカウントの有効フラグを false にする ──
 // v376.100: 職員の介護支援専門員番号を変えたときにログインIDを追従させる。
@@ -6019,8 +6022,9 @@ function submitPublicChangeRequest_(payload) {
   if (Array.isArray(payload.staffAdd) && payload.staffAdd.length > 0 && stored.memberType !== 'BUSINESS') {
     return { success: false, error: '事業所会員専用の操作です' };
   }
+  var staffAddProblems = [];
   if (Array.isArray(payload.staffAdd)) {
-    payload.staffAdd.forEach(function(s) {
+    payload.staffAdd.forEach(function(s, si) {
       var lastName = String(s.lastName || '').trim();
       var firstName = String(s.firstName || '').trim();
       // v376: kana を normalize + validate（不正なら throw → このエントリは弾かれない代わりに申請自体が失敗）
@@ -6028,11 +6032,20 @@ function submitPublicChangeRequest_(payload) {
       var firstKana = normalizeAndValidateKana_(s.firstKana || '', '職員のメイ');
       var careManagerNumber = normalizeCmNumberForKey_(s.careManagerNumber);
       var email = String(s.email || '').trim();
-      if (!lastName || !firstName || !lastKana || !firstKana || !/^\d{8}$/.test(careManagerNumber) || !email) {
+      // docs/307 S9（2026-10-24）: 以前は欠けた行を黙って捨て、受付完了と返していた。
+      var addProblem = !lastName || !firstName || !lastKana || !firstKana ? '氏名とフリガナを入力してください。'
+        : !/^\d{8}$/.test(careManagerNumber) ? '介護支援専門員番号は 8 桁の半角数字で入力してください。'
+        : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? 'メールアドレスの形式が正しくありません。'
+        : '';
+      if (addProblem) {
+        staffAddProblems.push('追加する職員 ' + (si + 1) + ' 人目: ' + addProblem);
         return;
       }
       changeData.staffAdd.push({ lastName: lastName, firstName: firstName, lastKana: lastKana, firstKana: firstKana, careManagerNumber: careManagerNumber, email: email });
     });
+  }
+  if (staffAddProblems.length > 0) {
+    return { success: false, error: staffAddProblems.join('\n') };
   }
 
   // 事業所会員: 職員の除籍と情報変更は、入力された「今の氏名と介護支援専門員番号」で職員を特定する。
@@ -6092,10 +6105,11 @@ function submitPublicChangeRequest_(payload) {
       if (!Object.prototype.hasOwnProperty.call(us, f)) continue;
       var v = String(us[f] || '').trim();
       if (v === '') continue; // 空欄 = 変更なし
+      // docs/307 S10（2026-10-24）: 以前は形式違いの番号・メールを黙って外し、受付完了と返していた。
       if (f === 'careManagerNumber') {
-        if (!/^\d{8}$/.test(v)) continue;
+        if (!/^\d{8}$/.test(v)) return { success: false, error: '情報を変更する職員 ' + (ui + 1) + ' 人目: 変更後の介護支援専門員番号は 8 桁の半角数字で入力してください。' };
       } else if (f === 'email') {
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) continue;
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return { success: false, error: '情報を変更する職員 ' + (ui + 1) + ' 人目: 変更後のメールアドレスの形式が正しくありません。' };
       } else if (f === 'lastKana' || f === 'firstKana') {
         // v376: kana 列は全角カタカナに正規化（不正文字は throw）
         v = normalizeAndValidateKana_(v, f === 'lastKana' ? '職員のセイ' : '職員のメイ');
@@ -7115,6 +7129,9 @@ var LINE_POST_ATTACHMENT_KIND_PDF = 'PDF';
 
 
 // v376.45: 投稿依頼登録の通知メール（saveLinePostRequest_ の submitRequest と transition 'request' で共用）。
+// docs/307 S30/31（2026-10-24）: 結果を返す。以前は通知先が未設定・送信抑止でも黙って「依頼済み」になり、
+// 依頼者は担当者に伝わったと思い込んだ。呼び出し元は戻り値を画面へ返す（linePostNotifyOutcome_）。
+
 
 
 
