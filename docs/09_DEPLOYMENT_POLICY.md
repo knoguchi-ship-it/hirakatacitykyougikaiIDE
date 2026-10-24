@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-10-19
-Production: `v376.128` / integrated-public `@439` x2 / member split `@197` / admin split `@296`
+Production: `v376.129` / integrated-public `@440` x2 / member split `@198` / admin split `@297`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -157,7 +157,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-23 v376.128 ← current production
+### 2026-10-24 v376.129 ← current production
+
+- Scope: `docs/307` §4-3「黙って成功と言う」。公開の変更申請は職員追加・職員情報変更の欠け・形式違いを「N 人目」で止める（S9・S10/F22）。入会承認のメール件数は実際に送った分だけ（S11・`emailsSuppressed`）。LINE 投稿依頼は通知が届かなかったら理由を返し画面に出す・状態を保存してから通知（S30/31・S44）。設定保存・ログイン停止はシート・列が無ければ止める（S41・S42）。職員更新人数は反映分だけ（E6）。公開ポータルのエラー枠が改行を出すように。
+- Schema: `DB_SCHEMA_VERSION` 据え置き。DB 書き込みなし。
+- Fixed deployments: integrated/public @440 x2 / member @198 / admin @297.
+- Verification: prerelease PASS（test:silent-success 9）。公開 a11y 違反 0・responsive 7 VP×3 画面で横スクロール 0。デプロイ直後の管理画面の初回表示 17.2 秒（再試行の帯なし）。管理 API 5 本（設定・ダッシュボード・LINE 投稿依頼・研修管理・変更申請）成功（Playwright MCP・読むだけ）。admin の redeploy は 1 回目 `Requested entity was not found.`、再実行で成功。**test:responsive:admin は storageState 切れで未実行。LINE 通知の画面表示・職員追加のエラーは本番で未確認**（書き込み・送信を伴う）。
+- Rollback: integrated/public @439 x2 / member @197 / admin @296（v376.128）。DB 変化なし。
+
+### 2026-10-23 v376.128
 
 - Scope: 研修の日付表記を `src/shared/trainingDate.mjs` の 1 か所に（令和8年6月20日(土) 14:00〜16:30。画面・受付メール・リマインダー・LINE 下書き・AI 下書き。GAS は build 注入）。ロール視点プレビューの「（カスタム）」を外す。B-15: 会員マイページは事業所の一般職員に自分の行だけ返す（`limitPortalStaffToCaller_`）。詳細は `docs/310` §6。
 - Schema: `DB_SCHEMA_VERSION` 据え置き。DB 書き込みなし（同日に operator が M_ 3 表の表示順 5 セルを直接書き換え・`docs/310` §3）。
