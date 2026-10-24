@@ -68,6 +68,7 @@ export interface ApplicationResult {
     email: string;
   }>; // 事業所の場合
   emailsSent: number;
+  emailsSuppressed?: number; // 配信停止などで送らなかった件数（docs/307 S11）
   converted?: boolean;
   transitionSummary?: string[];
 }

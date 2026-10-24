@@ -744,7 +744,7 @@ const MemberUpdateForm: React.FC<Props> = ({ onBack }) => {
       {/* 本人確認の段では IdentityVerifyStep がボタンの直前に同じエラーを出す。ここでも出すと二重表示になり、
           上へスクロールさせると入力欄から目線が離れるため、その段では上の枠を出さない（退会申込と同じ扱い）。 */}
       {error && step !== 'verify' && (
-        <div ref={errorRef} tabIndex={-1} role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 focus:outline-none">
+        <div ref={errorRef} tabIndex={-1} role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 whitespace-pre-line focus:outline-none">
           {error}
         </div>
       )}
