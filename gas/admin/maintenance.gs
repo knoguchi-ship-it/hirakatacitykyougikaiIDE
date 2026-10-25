@@ -70,7 +70,10 @@ function rehearseSchemaMigrationOnCopy_APPLY() {
       problems.push('2 回目でも変化があった（整備が収束しない）');
     }
     if (result.writeRead && result.writeRead.failures.length) problems.push('書いて読む確認が ' + result.writeRead.failures.length + ' 件失敗');
-    result.verdict = problems.length ? 'NG: ' + problems.join(' / ') : 'OK: 既存データの変化 0・2 回目の変化 0・書いて読む確認 ' + (result.writeRead ? result.writeRead.checked : 0) + ' 件';
+    var textConvertedCount = 0;
+    Object.keys(result.firstRun.textConverted || {}).forEach(function(k) { textConvertedCount += result.firstRun.textConverted[k]; });
+    result.verdict = problems.length ? 'NG: ' + problems.join(' / ') : 'OK: 既存データの変化 0・2 回目の変化 0・書いて読む確認 ' + (result.writeRead ? result.writeRead.checked : 0) + ' 件'
+      + (textConvertedCount ? '・書式なしテキストへ（同じ数字の文字列に）' + textConvertedCount + ' セル' : '');
   } finally {
     copyFile.setTrashed(true);
   }
