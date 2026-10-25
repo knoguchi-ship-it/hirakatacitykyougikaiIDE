@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 1d9813d1da346f46a1bbfc31c7f40b1ddaf8e5e78baf29af9f6d665c3d047982
+// BUILD_INPUT_SHA256: 751e5e7be84a8aefa79932ab65619b79c3077992c00c96674a8a5dff0aee38fd
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -18534,7 +18534,7 @@ function trashClaimAttachmentFiles_(ss, fileIds) {
 
 // ─── 2026-10-25: 先頭の 0 が消えた電話番号を戻す（docs/311 §5.5） ─────────────────────
 // 列が書式なしテキストになる前（v376.132 より前）に数値として保存され、0 が落ちた値を直す。
-// 日本の電話番号は 0 で始まる。数字だけで 9 桁（固定電話・0120 の 0 抜け）か、10 桁で 5・7・8・9 から始まる
+// 日本の電話番号は 0 で始まる。数字だけで 9 桁（固定電話・0120 の 0 抜け）か、10 桁で 50 / 70 / 80 / 90 から始まる
 // （050 / 070 / 080 / 090 の 0 抜け）値だけに 0 を足す。ハイフン付き・0 始まり・それ以外の桁数には触れない。
 // セル単位で書き、行の他の列（更新日時を含む）には触れない。確認 → 実行の 2 段（テストデータの物理削除と同じ照合）。
 var PHONE_ZERO_REPAIR_COLUMNS_ = {
@@ -18552,7 +18552,9 @@ function repairedPhoneLeadingZero_(value) {
     if (s.charAt(i) < '0' || s.charAt(i) > '9') return '';
   }
   if (s.length === 9) return '0' + s;
-  if (s.length === 10 && '5789'.indexOf(s.charAt(0)) >= 0) return '0' + s;
+  // 携帯・IP 電話は 0X0（090 / 080 / 070 / 050）。0 が落ちると「X0」で始まる 10 桁になる。
+  // 2026-10-25 の本番確認で「999…」の 10 桁があった（0 を足すと 11 桁で番号にならない）。2 桁目が 0 のものだけ直す
+  if (s.length === 10 && '5789'.indexOf(s.charAt(0)) >= 0 && s.charAt(1) === '0') return '0' + s;
   return '';
 }
 
