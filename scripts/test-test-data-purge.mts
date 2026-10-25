@@ -202,7 +202,7 @@ function buildDb() {
 }
 
 type Server = {
-  isTestMemberRow_: (r: Record<string, unknown>) => boolean;
+  isTestMemberRow_: (r: Record<string, unknown>, representativeEmail?: string) => boolean;
   isTestStaffRow_: (r: Record<string, unknown>) => boolean;
   isTestExternalApplicantRow_: (r: Record<string, unknown>) => boolean;
   isTestChangeRequestRow_: (r: Record<string, unknown>) => boolean;
@@ -289,6 +289,12 @@ test('印は「★で始まる名前」と「@example.invalid」の両方がそ�
   // 事業所は事業所名（勤務先名）で見る。姓に★があっても事業所名に無ければ対象外
   assert.equal(srv.isTestMemberRow_({ 会員種別コード: 'BUSINESS', 勤務先名: '★テスト事業所', 代表メールアドレス: 'a' + T }), true);
   assert.equal(srv.isTestMemberRow_({ 会員種別コード: 'BUSINESS', 勤務先名: '実在事業所', 姓: '★', 代表メールアドレス: 'a' + T }), false);
+  // 申込から作った事業所は代表メールアドレスが空。空のときだけ代表者の職員のメールで見る（2026-10-25）
+  assert.equal(srv.isTestMemberRow_({ 会員種別コード: 'BUSINESS', 勤務先名: '★申込事業所', 代表メールアドレス: '' }, 'r' + T), true);
+  assert.equal(srv.isTestMemberRow_({ 会員種別コード: 'BUSINESS', 勤務先名: '★申込事業所', 代表メールアドレス: '' }, 'r@example.org'), false, '代表者のメールが本物');
+  assert.equal(srv.isTestMemberRow_({ 会員種別コード: 'BUSINESS', 勤務先名: '★事業所', 代表メールアドレス: 'office@example.org' }, 'r' + T), false, '代表メールアドレスがあればそれで見る');
+  assert.equal(srv.isTestMemberRow_({ 会員種別コード: 'BUSINESS', 勤務先名: '★申込事業所', 代表メールアドレス: '' }), false, '代表者がいない');
+  assert.equal(srv.isTestMemberRow_({ 会員種別コード: 'INDIVIDUAL', 姓: '★テスト', 代表メールアドレス: '' }, 'r' + T), false, '個人は代表者を見ない');
   assert.equal(srv.isTestStaffRow_({ 姓: '', 氏名: '★氏名', メールアドレス: 's' + T }), true, '姓が空なら氏名');
   assert.equal(srv.isTestExternalApplicantRow_({ 氏名: '★外部', メールアドレス: 'e' + T }), true);
   assert.equal(srv.isTestChangeRequestRow_({ 申請者表示名: '★未承認', 連絡先メールアドレス: 'n' + T }), true);
@@ -431,6 +437,19 @@ test('実在の事業所の代表者に印があれば止まる', () => {
   const plan = buildServer(env).buildTestDataPurgePlan_(env.db);
   assert.equal(plan.blockers.length, 1);
   assert.match(plan.blockers[0], /代表者は単独では削除できません/);
+});
+
+test('申込から作った★事業所（代表メールアドレスが空）は、代表者ごと事業所として消す（止まらない）', () => {
+  const env = buildDb();
+  env.db.getSheetByName('T_会員')!.rows.push(['M-TAPP', 'BUSINESS', '', '', '★申込事業所', '', '']);
+  env.db.getSheetByName('T_事業所職員')!.rows.push(
+    ['S-TAPP1', 'M-TAPP', '★テスト', '代表', '', 'a1' + T, 'REPRESENTATIVE', ''],
+    ['S-TAPP2', 'M-TAPP', '★テスト', '職員', '', 'a2' + T, 'STAFF', ''],
+  );
+  const plan = buildServer(env).buildTestDataPurgePlan_(env.db);
+  assert.deepEqual(plan.blockers, [], '以前は「実在の事業所の代表者に印」で止まった');
+  assert.ok(plan.memberIds.includes('M-TAPP'));
+  assert.ok(plan.staffIds.includes('S-TAPP1') && plan.staffIds.includes('S-TAPP2'));
 });
 
 test('takeRowsByMatch_: 取り除く前の処理が失敗したら何も消さない', () => {

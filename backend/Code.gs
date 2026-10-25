@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 426c467a4c5b78772a66b3c2c025533e28b833da45329ee6edf3763a1ba03ed8
+// BUILD_INPUT_SHA256: f1f6f6331607b8531b580614503bc16845055757c8b7c4d39746c2806ee59a5b
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -915,6 +915,8 @@ var TEST_DATA_EMAIL_DOMAIN = '@example.invalid';
 
 
 // 個人会員・賛助会員は姓、事業所会員は事業所名（T_会員.勤務先名）に印を付ける。
+// 事業所会員は入会申込の承認で代表メールアドレスが空になる（連絡先は代表者の職員が持つ）。
+// 空のときだけ、代表者の職員のメールアドレスで見る（2026-10-25 の本番確認で、申込から作った★事業所が消せなかった）。
 
 
 
@@ -1795,6 +1797,13 @@ function appendRowsByHeaders_(ss, sheetName, objectRows) {
   var targetRange = sheet.getRange(startRow, 1, rows.length, headers.length);
   // シード投入時は既存入力規則に阻害されないよう、投入範囲の検証だけ解除してから書き込む。
   targetRange.clearDataValidations();
+  // 数字だけの文字列の列は書く前に書式なしテキストにする（足した行・作り直した表の新しい行は書式を持たない）
+  var baseName = String(sheetName);
+  if (baseName.slice(-8) === '_archive') baseName = baseName.slice(0, -8);
+  (TEXT_FORMAT_COLUMNS_[baseName] || []).forEach(function(column) {
+    var index = headers.indexOf(column);
+    if (index >= 0) sheet.getRange(startRow, index + 1, rows.length, 1).setNumberFormat('@');
+  });
   targetRange.setValues(rows);
 }
 
@@ -3877,6 +3886,35 @@ function getLogSs_() {
  * createTableSheets_ は v340 以降 initializeSchema_ から外している。既存シートの
  * ヘッダー上書きより前に name-based migration を走らせる目的。
  */
+// 2026-10-25: 数字だけの文字列を入れる列は、書式を「書式なしテキスト」にする。
+// 書式の無いセルへ '0005' を書くと、シートが数値の 5 に変える（振込口座の金融機関コード・口座番号、
+// 0 始まりの電話番号）。書き込みの経路は多い（appendRowsByHeaders_・行ごとの setValues）ので、列の書式で守る。
+// アーカイブ（*_archive）も同じ列を持つ。足すときは audit:db-model が「〜番号」などの列の漏れを落とす。
+var TEXT_FORMAT_COLUMNS_ = {
+  'T_会員': ['携帯電話番号', '勤務先郵便番号', '勤務先電話番号', '勤務先FAX番号', '自宅郵便番号', '介護支援専門員番号', '事業所番号'],
+  'T_事業所職員': ['介護支援専門員番号'],
+  'T_認証アカウント': ['ログインID'],
+  'T_研修申込': ['申告介護支援専門員番号'],
+  'T_外部申込者': ['電話番号'],
+  'T_人物統合ログ': ['介護支援専門員番号'],
+  'T_振込口座': ['金融機関コード', '支店コード', '口座番号'],
+};
+
+// 既に数値になったセルは書式を変えても数値のまま（値は書き換えない）。新しく書く値から守られる。
+function applyTextColumnFormats_(ss) {
+  Object.keys(TEXT_FORMAT_COLUMNS_).forEach(function(tableName) {
+    [tableName, tableName + '_archive'].forEach(function(sheetName) {
+      var sheet = ss.getSheetByName(sheetName);
+      if (!sheet || sheet.getLastColumn() < 1) return;
+      var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(function(h) { return String(h); });
+      TEXT_FORMAT_COLUMNS_[tableName].forEach(function(column) {
+        var index = headers.indexOf(column);
+        if (index >= 0) sheet.getRange(1, index + 1, sheet.getMaxRows(), 1).setNumberFormat('@');
+      });
+    });
+  });
+}
+
 function initializeSchema_(ss) {
   // v376.31: 各 step を try/catch + Logger.log で計装。
   //   - "critical" step（migration / 列追加 / seed）はエラーを伝播してロールバック (markSchemaInitialized_ 未到達)
@@ -3945,6 +3983,7 @@ function initializeSchema_(ss) {
 
   // ── post: 補助処理（失敗してもスキーマ整合は保たれるためログのみで続行）─────
   post('applyDataValidationRules_',              function() { applyDataValidationRules_(ss); });
+  post('applyTextColumnFormats_',                function() { applyTextColumnFormats_(ss); });
   post('protectHeaderRows_',                     function() { protectHeaderRows_(ss); });
   post('cleanupNonSchemaSheets_',                function() { cleanupNonSchemaSheets_(ss); });
   post('backfillBusinessStaffNameColumns_',      function() { backfillBusinessStaffNameColumns_(ss); });

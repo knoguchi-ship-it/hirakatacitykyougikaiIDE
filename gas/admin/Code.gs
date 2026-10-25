@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 458d350b4f448cf3d30cfefb77a01b2d8bd900ab291ebf89244f40f7067866a3
+// BUILD_INPUT_SHA256: d4083e7ccfb5a2fd30db9a8af2fe8d675567574fa40d75b91045f6a5db6d3d26
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -923,9 +923,14 @@ function isTestDataEmail_(value) {
 }
 
 // 個人会員・賛助会員は姓、事業所会員は事業所名（T_会員.勤務先名）に印を付ける。
-function isTestMemberRow_(row) {
-  var nameField = String(row['会員種別コード'] || '') === 'BUSINESS' ? row['勤務先名'] : row['姓'];
-  return isTestDataName_(nameField) && isTestDataEmail_(row['代表メールアドレス']);
+// 事業所会員は入会申込の承認で代表メールアドレスが空になる（連絡先は代表者の職員が持つ）。
+// 空のときだけ、代表者の職員のメールアドレスで見る（2026-10-25 の本番確認で、申込から作った★事業所が消せなかった）。
+function isTestMemberRow_(row, representativeEmail) {
+  var isBusiness = String(row['会員種別コード'] || '') === 'BUSINESS';
+  var nameField = isBusiness ? row['勤務先名'] : row['姓'];
+  var email = String(row['代表メールアドレス'] || '').trim();
+  if (isBusiness && !email) email = String(representativeEmail || '');
+  return isTestDataName_(nameField) && isTestDataEmail_(email);
 }
 
 function isTestStaffRow_(row) {
@@ -3531,6 +3536,13 @@ function appendRowsByHeaders_(ss, sheetName, objectRows) {
   var targetRange = sheet.getRange(startRow, 1, rows.length, headers.length);
   // シード投入時は既存入力規則に阻害されないよう、投入範囲の検証だけ解除してから書き込む。
   targetRange.clearDataValidations();
+  // 数字だけの文字列の列は書く前に書式なしテキストにする（足した行・作り直した表の新しい行は書式を持たない）
+  var baseName = String(sheetName);
+  if (baseName.slice(-8) === '_archive') baseName = baseName.slice(0, -8);
+  (TEXT_FORMAT_COLUMNS_[baseName] || []).forEach(function(column) {
+    var index = headers.indexOf(column);
+    if (index >= 0) sheet.getRange(startRow, index + 1, rows.length, 1).setNumberFormat('@');
+  });
   targetRange.setValues(rows);
 }
 
@@ -4602,17 +4614,20 @@ function readSheetForDbState_(sheet) {
 // 書くのはコピーだけ。値は列名から作るので、どの列に入ったかが読み戻しで分かる。
 function rehearseTableWriteRead_(copy) {
   var result = { checked: 0, failures: [] };
-  ['T_研修申込', 'T_支払い'].forEach(function(tableName) {
+  // 数字だけの文字列の列（TEXT_FORMAT_COLUMNS_）は 0 始まりの数字を書き、先頭の 0 が残ることを見る
+  ['T_研修申込', 'T_支払い', 'T_振込口座', 'T_会員'].forEach(function(tableName) {
     try {
       var headers = テーブル定義[tableName];
+      var textColumns = TEXT_FORMAT_COLUMNS_[tableName] || [];
+      var expected = function(h, i) { return textColumns.indexOf(h) >= 0 ? '0' + String(100000 + i) : '★rehearsal-' + i; };
       var row = {};
-      headers.forEach(function(h, i) { row[h] = '★rehearsal-' + i; });
+      headers.forEach(function(h, i) { row[h] = expected(h, i); });
       appendRowsByHeaders_(copy, tableName, [row]);
       var rows = getRowsAsObjects_(copy, tableName);
       var last = rows[rows.length - 1] || {};
       headers.forEach(function(h, i) {
         result.checked += 1;
-        if (String(last[h]) !== '★rehearsal-' + i) result.failures.push(tableName + '.' + h);
+        if (String(last[h]) !== expected(h, i)) result.failures.push(tableName + '.' + h);
       });
     } catch (e) {
       result.failures.push(tableName + ': ' + (e && e.message ? e.message : String(e)));
@@ -12869,6 +12884,35 @@ function getLogSs_() {
  * createTableSheets_ は v340 以降 initializeSchema_ から外している。既存シートの
  * ヘッダー上書きより前に name-based migration を走らせる目的。
  */
+// 2026-10-25: 数字だけの文字列を入れる列は、書式を「書式なしテキスト」にする。
+// 書式の無いセルへ '0005' を書くと、シートが数値の 5 に変える（振込口座の金融機関コード・口座番号、
+// 0 始まりの電話番号）。書き込みの経路は多い（appendRowsByHeaders_・行ごとの setValues）ので、列の書式で守る。
+// アーカイブ（*_archive）も同じ列を持つ。足すときは audit:db-model が「〜番号」などの列の漏れを落とす。
+var TEXT_FORMAT_COLUMNS_ = {
+  'T_会員': ['携帯電話番号', '勤務先郵便番号', '勤務先電話番号', '勤務先FAX番号', '自宅郵便番号', '介護支援専門員番号', '事業所番号'],
+  'T_事業所職員': ['介護支援専門員番号'],
+  'T_認証アカウント': ['ログインID'],
+  'T_研修申込': ['申告介護支援専門員番号'],
+  'T_外部申込者': ['電話番号'],
+  'T_人物統合ログ': ['介護支援専門員番号'],
+  'T_振込口座': ['金融機関コード', '支店コード', '口座番号'],
+};
+
+// 既に数値になったセルは書式を変えても数値のまま（値は書き換えない）。新しく書く値から守られる。
+function applyTextColumnFormats_(ss) {
+  Object.keys(TEXT_FORMAT_COLUMNS_).forEach(function(tableName) {
+    [tableName, tableName + '_archive'].forEach(function(sheetName) {
+      var sheet = ss.getSheetByName(sheetName);
+      if (!sheet || sheet.getLastColumn() < 1) return;
+      var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(function(h) { return String(h); });
+      TEXT_FORMAT_COLUMNS_[tableName].forEach(function(column) {
+        var index = headers.indexOf(column);
+        if (index >= 0) sheet.getRange(1, index + 1, sheet.getMaxRows(), 1).setNumberFormat('@');
+      });
+    });
+  });
+}
+
 function initializeSchema_(ss) {
   // v376.31: 各 step を try/catch + Logger.log で計装。
   //   - "critical" step（migration / 列追加 / seed）はエラーを伝播してロールバック (markSchemaInitialized_ 未到達)
@@ -12937,6 +12981,7 @@ function initializeSchema_(ss) {
 
   // ── post: 補助処理（失敗してもスキーマ整合は保たれるためログのみで続行）─────
   post('applyDataValidationRules_',              function() { applyDataValidationRules_(ss); });
+  post('applyTextColumnFormats_',                function() { applyTextColumnFormats_(ss); });
   post('protectHeaderRows_',                     function() { protectHeaderRows_(ss); });
   post('cleanupNonSchemaSheets_',                function() { cleanupNonSchemaSheets_(ss); });
   post('backfillBusinessStaffNameColumns_',      function() { backfillBusinessStaffNameColumns_(ss); });
@@ -18310,11 +18355,19 @@ function parseClaimAttachmentFileIds_(value) {
 function buildTestDataPurgePlan_(ss) {
   var blockers = [];
   var memberRows = readRowsWithArchive_(ss, 'T_会員');
+  var staffRows = readRowsWithArchive_(ss, 'T_事業所職員');
+  // 代表メールアドレスが空の事業所は、代表者の職員のメールで判定する（isTestMemberRow_）
+  var representativeEmailByMemberId = {};
+  staffRows.forEach(function(row) {
+    if (String(row['職員権限コード'] || '') !== 'REPRESENTATIVE') return;
+    var parentId = String(row['会員ID'] || '');
+    if (parentId && !representativeEmailByMemberId[parentId]) representativeEmailByMemberId[parentId] = String(row['メールアドレス'] || '');
+  });
   var memberIdSet = {};
   var memberTypeCounts = {};
   memberRows.forEach(function(row) {
     var id = String(row['会員ID'] || '');
-    if (!id || memberIdSet[id] || !isTestMemberRow_(row)) return;
+    if (!id || memberIdSet[id] || !isTestMemberRow_(row, representativeEmailByMemberId[id])) return;
     memberIdSet[id] = true;
     var type = String(row['会員種別コード'] || '');
     memberTypeCounts[type] = (memberTypeCounts[type] || 0) + 1;
@@ -18324,7 +18377,7 @@ function buildTestDataPurgePlan_(ss) {
   // 実在の事業所に属するテスト職員は職員だけを消す（代表者は単独では消さない）。
   var staffIdSet = {};
   var staffOnlyParents = {};
-  readRowsWithArchive_(ss, 'T_事業所職員').forEach(function(row) {
+  staffRows.forEach(function(row) {
     var staffId = String(row['職員ID'] || '');
     var memberId = String(row['会員ID'] || '');
     if (!staffId) return;
@@ -19655,6 +19708,10 @@ function saveBankAccount_(payload) {
   var memberId = String(payload.memberId || '').trim();
   var staffId  = String(payload.staffId  || '').trim();
   if (!memberId && !staffId) throw new Error('会員IDまたは職員IDが必要です。');
+  // 画面（OfficerManagement）と同じ形を確かめる。画面の検査だけを防御にしない（AGENTS §6）
+  if (!/^\d{4}$/.test(String(payload.bankCode || '').trim())) throw new Error('金融機関コードは4桁の数字で入力してください。');
+  if (!/^\d{3}$/.test(String(payload.branchCode || '').trim())) throw new Error('支店コードは3桁の数字で入力してください。');
+  if (!/^\d{1,7}$/.test(String(payload.accountNumber || '').trim())) throw new Error('口座番号は1〜7桁の数字で入力してください。');
 
   var ss    = getOrCreateDatabase_();
   initializeSchemaIfNeeded_(ss);

@@ -134,6 +134,19 @@ for (const [t, c, m] of inputRules) {
   if (!rels.some((r) => r.left === t && r.label === c && r.right === m)) add('入力規則', `入力規則 ${t}.${c} → ${m} が ER の関係に無い`);
 }
 
+// ── 8. 数字だけの文字列を入れる列は、書式なしテキストの対象か（先頭の 0 が消える） ──
+// 2026-10-25: 振込口座の金融機関コード '0000' が数値の 0 になった。電話・郵便番号・〜番号・ログインID も同じ。
+const textColumns = literal('var TEXT_FORMAT_COLUMNS_ = ');
+const NOT_TEXT_FORMATTED = {
+  'T_ログイン履歴.ログインID': 'ログ用スプレッドシートの記録（整備の対象外）。照合は 認証ID で行う',
+};
+for (const t of tables) {
+  for (const c of defs[t]) {
+    if (!/電話|FAX|郵便番号|番号$|ログインID$|金融機関コード|支店コード/.test(c) || NOT_TEXT_FORMATTED[`${t}.${c}`]) continue;
+    if (!(textColumns[t] || []).includes(c)) add('書式なしテキスト', `${t}.${c} は数字だけの文字列を入れる列だが TEXT_FORMAT_COLUMNS_ に無い（先頭の 0 が消える）`);
+  }
+}
+
 // ── 出力 ───────────────────────────────────────────────────────────────
 const byKind = {};
 for (const f of findings) (byKind[f.kind] ||= []).push(f.msg);

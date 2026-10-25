@@ -122,6 +122,19 @@ test('役員の判定: 職員のセッションは自分の職員ID の役職だ
   assert.equal(g.isActiveOfficer_('B1', 'S2', db), false, '退任済み');
 });
 
+test('口座: サーバも画面と同じ形（金融機関 4 桁・支店 3 桁・口座 1〜7 桁の数字）を確かめ、0 始まりは文字列のまま渡す', () => {
+  const db = fakeDb({ T_振込口座: [BANK_H] });
+  const g = load(admin, [...HELPERS, 'saveBankAccount_'])(db);
+  const ok = { staffId: 'S1', bankName: '★銀行', bankCode: '0005', branchName: '★支店', branchCode: '012', accountNumber: '0123456', accountHolderKana: 'テスト' };
+  g.saveBankAccount_(ok);
+  const [a] = rowsOf(db, 'T_振込口座');
+  assert.deepEqual([a['金融機関コード'], a['支店コード'], a['口座番号']], ['0005', '012', '0123456']);
+  assert.throws(() => g.saveBankAccount_({ ...ok, bankCode: '5' }), /金融機関コードは4桁/);
+  assert.throws(() => g.saveBankAccount_({ ...ok, branchCode: '12a' }), /支店コードは3桁/);
+  assert.throws(() => g.saveBankAccount_({ ...ok, accountNumber: '12345678' }), /口座番号は1〜7桁/);
+  assert.equal(rowsOf(db, 'T_振込口座').length, 1, '形の違う値は書かない');
+});
+
 // ── 3. 支払い: 職員の役員を受取人にできる ──────────────────────────────────
 test('支払い: 事業所職員の役員を受取人にでき、本人の口座を写す', () => {
   const db = fakeDb({
