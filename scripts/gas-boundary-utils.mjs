@@ -16,6 +16,9 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   // 2026-10-11: テストデータ（★＋@example.invalid）の物理削除。後片付けの旧ツール 7 本を置き換えた（docs/303）
   'previewTestDataPurge_LOG',
   'executeTestDataPurge_APPLY',
+  // 2026-10-25: 先頭の 0 が消えた電話番号を戻す（確認 → 実行・docs/311 §5.5）
+  'previewPhoneZeroRepair_LOG',
+  'executePhoneZeroRepair_APPLY',
   // v376.14: 研修管理 全機能ドライランテスト（operator 実行用）
   'dryRunTrainingManagement',
   'cleanupDryRunTrainingManagement',
@@ -80,6 +83,9 @@ export const ADMIN_MAINTENANCE_TOOL_FUNCTIONS = [
   // テストデータ（★＋@example.invalid）の物理削除（確認 → 実行）
   'previewTestDataPurge_LOG',
   'executeTestDataPurge_APPLY',
+  // 先頭の 0 が消えた電話番号を戻す（確認 → 実行）
+  'previewPhoneZeroRepair_LOG',
+  'executePhoneZeroRepair_APPLY',
 ];
 
 // gas/admin/dryrun.gs に分離する（editor で見つけやすくするため）。

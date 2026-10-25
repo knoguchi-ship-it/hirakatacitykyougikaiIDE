@@ -27384,6 +27384,116 @@ function executeTestDataPurge_APPLY() {
   }
 }
 
+// ─── 2026-10-25: 先頭の 0 が消えた電話番号を戻す（docs/311 §5.5） ─────────────────────
+// 列が書式なしテキストになる前（v376.132 より前）に数値として保存され、0 が落ちた値を直す。
+// 日本の電話番号は 0 で始まる。数字だけで 9 桁（固定電話・0120 の 0 抜け）か、10 桁で 5・7・8・9 から始まる
+// （050 / 070 / 080 / 090 の 0 抜け）値だけに 0 を足す。ハイフン付き・0 始まり・それ以外の桁数には触れない。
+// セル単位で書き、行の他の列（更新日時を含む）には触れない。確認 → 実行の 2 段（テストデータの物理削除と同じ照合）。
+var PHONE_ZERO_REPAIR_COLUMNS_ = {
+  'T_会員': ['携帯電話番号', '勤務先電話番号', '勤務先FAX番号'],
+  'T_外部申込者': ['電話番号'],
+};
+var PHONE_ZERO_REPAIR_ID_COLUMNS_ = { 'T_会員': '会員ID', 'T_外部申込者': '外部申込者ID' };
+var PHONE_ZERO_REPAIR_PLAN_KEY = 'PHONE_ZERO_REPAIR_PLAN_V1';
+
+// 0 を足した値。直す対象でなければ ''
+function repairedPhoneLeadingZero_(value) {
+  var s = String(value == null ? '' : value).trim();
+  if (!s || s.charAt(0) === '0') return '';
+  for (var i = 0; i < s.length; i += 1) {
+    if (s.charAt(i) < '0' || s.charAt(i) > '9') return '';
+  }
+  if (s.length === 9) return '0' + s;
+  if (s.length === 10 && '5789'.indexOf(s.charAt(0)) >= 0) return '0' + s;
+  return '';
+}
+
+// 画面・ログに出すときは真ん中を伏せる（例: 072****34）
+function maskPhoneForLog_(value) {
+  var s = String(value || '');
+  return s.length <= 5 ? s : s.slice(0, 3) + new Array(s.length - 4).join('*') + s.slice(-2);
+}
+
+function buildPhoneZeroRepairPlan_(ss) {
+  var items = [];
+  Object.keys(PHONE_ZERO_REPAIR_COLUMNS_).forEach(function(tableName) {
+    [tableName, tableName + '_archive'].forEach(function(sheetName) {
+      var sheet = ss.getSheetByName(sheetName);
+      if (!sheet || sheet.getLastRow() < 2 || sheet.getLastColumn() < 1) return;
+      var values = sheet.getRange(1, 1, sheet.getLastRow(), sheet.getLastColumn()).getValues();
+      var headers = values[0].map(function(h) { return String(h); });
+      var idIndex = headers.indexOf(PHONE_ZERO_REPAIR_ID_COLUMNS_[tableName]);
+      PHONE_ZERO_REPAIR_COLUMNS_[tableName].forEach(function(column) {
+        var c = headers.indexOf(column);
+        if (c < 0) return;
+        for (var r = 1; r < values.length; r += 1) {
+          var after = repairedPhoneLeadingZero_(values[r][c]);
+          if (!after) continue;
+          items.push({ sheet: sheetName, row: r + 1, col: c + 1, id: idIndex >= 0 ? String(values[r][idIndex] || '') : '',
+            column: column, before: String(values[r][c]), after: after });
+        }
+      });
+    });
+  });
+  return {
+    items: items,
+    fingerprint: bytesToHex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, JSON.stringify(items))),
+  };
+}
+
+function maskedPhoneZeroRepairItems_(items) {
+  return items.map(function(it) {
+    return { sheet: it.sheet, row: it.row, id: it.id, column: it.column, before: maskPhoneForLog_(it.before), after: maskPhoneForLog_(it.after) };
+  });
+}
+
+function previewPhoneZeroRepair_LOG() {
+  var session = assertMasterOperator_('previewPhoneZeroRepair_LOG');
+  var plan = buildPhoneZeroRepairPlan_(getOrCreateDatabase_());
+  PropertiesService.getScriptProperties().setProperty(PHONE_ZERO_REPAIR_PLAN_KEY, JSON.stringify({
+    fingerprint: plan.fingerprint, at: Date.now(), loginId: session.loginId,
+  }));
+  var shown = maskedPhoneZeroRepairItems_(plan.items);
+  Logger.log('=== 電話番号の先頭の 0: 確認 ===\n' + (shown.length ? shown.map(function(it) {
+    return it.sheet + ' ' + it.row + '行目（' + it.id + '）' + it.column + ': ' + it.before + ' → ' + it.after;
+  }).join('\n') + '\n内容を確認のうえ、30 分以内に executePhoneZeroRepair_APPLY を実行してください。' : '直すものはありません。'));
+  return '__PHONE_JSON__' + JSON.stringify({ count: plan.items.length, items: shown, fingerprint: plan.fingerprint });
+}
+
+function executePhoneZeroRepair_APPLY() {
+  var session = assertMasterOperator_('executePhoneZeroRepair_APPLY');
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error('ほかの処理が実行中です。少し待ってからやり直してください。');
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var recorded = null;
+    try { recorded = JSON.parse(props.getProperty(PHONE_ZERO_REPAIR_PLAN_KEY) || 'null'); } catch (e) { recorded = null; }
+    if (!recorded || !recorded.fingerprint) throw new Error('先に previewPhoneZeroRepair_LOG を実行して、直す内容を確認してください。');
+    if (Date.now() - Number(recorded.at || 0) > TEST_DATA_PURGE_PLAN_TTL_MS) throw new Error('確認から 30 分を過ぎました。previewPhoneZeroRepair_LOG をもう一度実行してください。');
+    if (recorded.loginId !== session.loginId) throw new Error('確認した人と実行する人が違います。実行する人が previewPhoneZeroRepair_LOG を実行してください。');
+
+    var ss = getOrCreateDatabase_();
+    var plan = buildPhoneZeroRepairPlan_(ss);
+    if (plan.fingerprint !== recorded.fingerprint) throw new Error('確認したあとにデータが変わりました。previewPhoneZeroRepair_LOG をもう一度実行してください。');
+    plan.items.forEach(function(it) {
+      ss.getSheetByName(it.sheet).getRange(it.row, it.col).setNumberFormat('@').setValue(it.after);
+    });
+    if (plan.items.length) {
+      appendAuditLogEntries_(plan.items.map(function(it) {
+        return { operatorEmail: session.loginId, operation: 'PHONE_ZERO_REPAIR', tableName: it.sheet, recordId: it.id,
+          fieldName: it.column, oldValue: it.before, newValue: it.after };
+      }));
+      clearAllDataCache_();
+    }
+    props.deleteProperty(PHONE_ZERO_REPAIR_PLAN_KEY);
+    var after = buildPhoneZeroRepairPlan_(ss);
+    Logger.log('=== 電話番号の先頭の 0: 完了 === ' + plan.items.length + ' セル・残り ' + after.items.length);
+    return '__PHONE_JSON__' + JSON.stringify({ repaired: plan.items.length, remaining: after.items.length, items: maskedPhoneZeroRepairItems_(plan.items) });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 // 復元: 各 archive から 削除バッチID 一致行を live へ戻す（サロゲート3列は落とす）
 function restoreArchiveBatch_(batchId) {
   var targetBatchId = String(batchId || '');

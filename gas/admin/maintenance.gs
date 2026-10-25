@@ -349,6 +349,53 @@ function executeTestDataPurge_APPLY() {
   }
 }
 
+function previewPhoneZeroRepair_LOG() {
+  var session = assertMasterOperator_('previewPhoneZeroRepair_LOG');
+  var plan = buildPhoneZeroRepairPlan_(getOrCreateDatabase_());
+  PropertiesService.getScriptProperties().setProperty(PHONE_ZERO_REPAIR_PLAN_KEY, JSON.stringify({
+    fingerprint: plan.fingerprint, at: Date.now(), loginId: session.loginId,
+  }));
+  var shown = maskedPhoneZeroRepairItems_(plan.items);
+  Logger.log('=== 電話番号の先頭の 0: 確認 ===\n' + (shown.length ? shown.map(function(it) {
+    return it.sheet + ' ' + it.row + '行目（' + it.id + '）' + it.column + ': ' + it.before + ' → ' + it.after;
+  }).join('\n') + '\n内容を確認のうえ、30 分以内に executePhoneZeroRepair_APPLY を実行してください。' : '直すものはありません。'));
+  return '__PHONE_JSON__' + JSON.stringify({ count: plan.items.length, items: shown, fingerprint: plan.fingerprint });
+}
+
+function executePhoneZeroRepair_APPLY() {
+  var session = assertMasterOperator_('executePhoneZeroRepair_APPLY');
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error('ほかの処理が実行中です。少し待ってからやり直してください。');
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var recorded = null;
+    try { recorded = JSON.parse(props.getProperty(PHONE_ZERO_REPAIR_PLAN_KEY) || 'null'); } catch (e) { recorded = null; }
+    if (!recorded || !recorded.fingerprint) throw new Error('先に previewPhoneZeroRepair_LOG を実行して、直す内容を確認してください。');
+    if (Date.now() - Number(recorded.at || 0) > TEST_DATA_PURGE_PLAN_TTL_MS) throw new Error('確認から 30 分を過ぎました。previewPhoneZeroRepair_LOG をもう一度実行してください。');
+    if (recorded.loginId !== session.loginId) throw new Error('確認した人と実行する人が違います。実行する人が previewPhoneZeroRepair_LOG を実行してください。');
+
+    var ss = getOrCreateDatabase_();
+    var plan = buildPhoneZeroRepairPlan_(ss);
+    if (plan.fingerprint !== recorded.fingerprint) throw new Error('確認したあとにデータが変わりました。previewPhoneZeroRepair_LOG をもう一度実行してください。');
+    plan.items.forEach(function(it) {
+      ss.getSheetByName(it.sheet).getRange(it.row, it.col).setNumberFormat('@').setValue(it.after);
+    });
+    if (plan.items.length) {
+      appendAuditLogEntries_(plan.items.map(function(it) {
+        return { operatorEmail: session.loginId, operation: 'PHONE_ZERO_REPAIR', tableName: it.sheet, recordId: it.id,
+          fieldName: it.column, oldValue: it.before, newValue: it.after };
+      }));
+      clearAllDataCache_();
+    }
+    props.deleteProperty(PHONE_ZERO_REPAIR_PLAN_KEY);
+    var after = buildPhoneZeroRepairPlan_(ss);
+    Logger.log('=== 電話番号の先頭の 0: 完了 === ' + plan.items.length + ' セル・残り ' + after.items.length);
+    return '__PHONE_JSON__' + JSON.stringify({ repaired: plan.items.length, remaining: after.items.length, items: maskedPhoneZeroRepairItems_(plan.items) });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function restoreLastArchiveBatch_APPLY() {
   assertMasterOperator_('restoreLastArchiveBatch_APPLY');
   var ss = getOrCreateDatabase_();
