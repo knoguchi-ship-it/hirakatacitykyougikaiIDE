@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: f59b2f9b6d4f655c96d3e7b0b2dc89b0846f96be25a8c4636002f565bf2e8cfb
+// BUILD_INPUT_SHA256: d7a4fe61c61d0b3cd81a471e253553f54a9afc494b4f68f2dfe2beae03a8f0d0
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -373,6 +373,148 @@ var PUBLIC_PORTAL_DEFAULTS = {
   withdrawalDescription: '退会申請を行います。年度末退会または即時退会を選択できます。会員種別ごとに、氏名または事業所名と、番号または電話番号でご本人確認を行います。',
   withdrawalCtaLabel: '退会手続きへ進む',
 };
+// 2026-10-25 docs/313: 上の文面は初期データ（新しく DB を作るとき・移し替え）にだけ使う。読むときに補わない。
+
+// 2026-10-25 docs/313: 案内文（長い文章）は T_画面文テンプレート から選ぶ。設定には選んだ定型文の ID だけを持つ。
+// legacyKey は v376.134 までの本文の設定キー。移し替えの元にだけ使い、書き換えない（前の版へ戻したとき、旧いコードが本文として読む）。
+// legacyNoticeKey は、旧い本文が空のときの補完に使っていた 1 行目（設定画面には出ていなかった）。
+var SCREEN_TEXT_TEMPLATE_PURPOSES_ = [
+  { code: 'COMPLETION_GUIDANCE_SENT', label: '今後のご案内（ログイン情報メールを送る設定のとき）',
+    settingKey: 'PUBLIC_PORTAL_COMPLETION_GUIDANCE_TEMPLATE_ID_WHEN_CREDENTIAL_SENT',
+    requestKey: 'publicPortalCompletionGuidanceTemplateIdWhenCredentialSent',
+    bodyField: 'publicPortalCompletionGuidanceBodyWhenCredentialSent', publicField: 'completionGuidanceBodyWhenCredentialSent',
+    legacyKey: 'PUBLIC_PORTAL_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_SENT',
+    legacyNoticeKey: 'PUBLIC_PORTAL_COMPLETION_CREDENTIAL_NOTICE', defaultKey: 'completionGuidanceBodyWhenCredentialSent' },
+  { code: 'COMPLETION_GUIDANCE_NOT_SENT', label: '今後のご案内（ログイン情報メールを送らない設定のとき）',
+    settingKey: 'PUBLIC_PORTAL_COMPLETION_GUIDANCE_TEMPLATE_ID_WHEN_CREDENTIAL_NOT_SENT',
+    requestKey: 'publicPortalCompletionGuidanceTemplateIdWhenCredentialNotSent',
+    bodyField: 'publicPortalCompletionGuidanceBodyWhenCredentialNotSent', publicField: 'completionGuidanceBodyWhenCredentialNotSent',
+    legacyKey: 'PUBLIC_PORTAL_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_NOT_SENT',
+    legacyNoticeKey: 'PUBLIC_PORTAL_COMPLETION_NO_CREDENTIAL_NOTICE', defaultKey: 'completionGuidanceBodyWhenCredentialNotSent' },
+  { code: 'COMPLETION_LOGIN_INFO_SENT', label: 'ログイン情報の補足（ログイン情報メールを送る設定のとき）',
+    settingKey: 'PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_TEMPLATE_ID_WHEN_CREDENTIAL_SENT',
+    requestKey: 'publicPortalCompletionLoginInfoTemplateIdWhenCredentialSent',
+    bodyField: 'publicPortalCompletionLoginInfoBodyWhenCredentialSent', publicField: 'completionLoginInfoBodyWhenCredentialSent',
+    legacyKey: 'PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_SENT',
+    legacyNoticeKey: '', defaultKey: 'completionLoginInfoBodyWhenCredentialSent' },
+  { code: 'COMPLETION_LOGIN_INFO_NOT_SENT', label: 'ログイン情報の補足（ログイン情報メールを送らない設定のとき）',
+    settingKey: 'PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_TEMPLATE_ID_WHEN_CREDENTIAL_NOT_SENT',
+    requestKey: 'publicPortalCompletionLoginInfoTemplateIdWhenCredentialNotSent',
+    bodyField: 'publicPortalCompletionLoginInfoBodyWhenCredentialNotSent', publicField: 'completionLoginInfoBodyWhenCredentialNotSent',
+    legacyKey: 'PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_NOT_SENT',
+    legacyNoticeKey: '', defaultKey: 'completionLoginInfoBodyWhenCredentialNotSent' },
+];
+
+// 2026-10-25 docs/313: 見出し・説明・ボタン名。空欄では保存できない（読むときに補わない）。
+var PUBLIC_PORTAL_REQUIRED_TEXTS_ = [
+  { key: 'PUBLIC_PORTAL_HERO_BADGE_LABEL', requestKey: 'publicPortalHeroBadgeLabel', defaultKey: 'heroBadgeLabel', label: 'トップの補助ラベル' },
+  { key: 'PUBLIC_PORTAL_HERO_TITLE', requestKey: 'publicPortalHeroTitle', defaultKey: 'heroTitle', label: 'トップの見出し' },
+  { key: 'PUBLIC_PORTAL_HERO_DESCRIPTION', requestKey: 'publicPortalHeroDescription', defaultKey: 'heroDescription', label: 'トップの説明文' },
+  { key: 'PUBLIC_PORTAL_MEMBERSHIP_BADGE_LABEL', requestKey: 'publicPortalMembershipBadgeLabel', defaultKey: 'membershipBadgeLabel', label: '入会カードの補助ラベル' },
+  { key: 'PUBLIC_PORTAL_MEMBERSHIP_TITLE', requestKey: 'publicPortalMembershipTitle', defaultKey: 'membershipTitle', label: '入会カードの見出し' },
+  { key: 'PUBLIC_PORTAL_MEMBERSHIP_DESCRIPTION', requestKey: 'publicPortalMembershipDescription', defaultKey: 'membershipDescription', label: '入会カードの説明文' },
+  { key: 'PUBLIC_PORTAL_MEMBERSHIP_CTA_LABEL', requestKey: 'publicPortalMembershipCtaLabel', defaultKey: 'membershipCtaLabel', label: '入会カードのボタン名' },
+  { key: 'PUBLIC_PORTAL_TRAINING_BADGE_LABEL', requestKey: 'publicPortalTrainingBadgeLabel', defaultKey: 'trainingBadgeLabel', label: '研修カードの補助ラベル' },
+  { key: 'PUBLIC_PORTAL_TRAINING_TITLE', requestKey: 'publicPortalTrainingTitle', defaultKey: 'trainingTitle', label: '研修カードの見出し' },
+  { key: 'PUBLIC_PORTAL_TRAINING_DESCRIPTION', requestKey: 'publicPortalTrainingDescription', defaultKey: 'trainingDescription', label: '研修カードの説明文' },
+  { key: 'PUBLIC_PORTAL_TRAINING_CTA_LABEL', requestKey: 'publicPortalTrainingCtaLabel', defaultKey: 'trainingCtaLabel', label: '研修カードのボタン名' },
+  { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_BADGE_LABEL', requestKey: 'publicPortalMemberUpdateBadgeLabel', defaultKey: 'memberUpdateBadgeLabel', label: '登録情報変更カードの補助ラベル' },
+  { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_TITLE', requestKey: 'publicPortalMemberUpdateTitle', defaultKey: 'memberUpdateTitle', label: '登録情報変更カードの見出し' },
+  { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_DESCRIPTION', requestKey: 'publicPortalMemberUpdateDescription', defaultKey: 'memberUpdateDescription', label: '登録情報変更カードの説明文' },
+  { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_CTA_LABEL', requestKey: 'publicPortalMemberUpdateCtaLabel', defaultKey: 'memberUpdateCtaLabel', label: '登録情報変更カードのボタン名' },
+  { key: 'PUBLIC_PORTAL_WITHDRAWAL_BADGE_LABEL', requestKey: 'publicPortalWithdrawalBadgeLabel', defaultKey: 'withdrawalBadgeLabel', label: '退会カードの補助ラベル' },
+  { key: 'PUBLIC_PORTAL_WITHDRAWAL_TITLE', requestKey: 'publicPortalWithdrawalTitle', defaultKey: 'withdrawalTitle', label: '退会カードの見出し' },
+  { key: 'PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION', requestKey: 'publicPortalWithdrawalDescription', defaultKey: 'withdrawalDescription', label: '退会カードの説明文' },
+  { key: 'PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL', requestKey: 'publicPortalWithdrawalCtaLabel', defaultKey: 'withdrawalCtaLabel', label: '退会カードのボタン名' },
+];
+
+
+
+// v376.134 までの読み方そのまま（移し替えの元）。本文が空なら、旧い 1 行目＋2 行の組み立て、または既定の文面。
+function legacyScreenTextBody_(map, purpose) {
+  var raw = String(map[purpose.legacyKey] || '');
+  if (raw.trim()) return raw;
+  if (purpose.legacyNoticeKey) {
+    var noticeDefault = purpose.code === 'COMPLETION_GUIDANCE_SENT'
+      ? PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice : PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice;
+    var notice = String(map[purpose.legacyNoticeKey] || '').trim() || noticeDefault;
+    return [notice, '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。', '追加確認が必要な場合のみ、事務局からご連絡します。'].join('\n');
+  }
+  return PUBLIC_PORTAL_DEFAULTS[purpose.defaultKey];
+}
+
+function screenTextTemplateRowToObject_(row) {
+  return {
+    id: String(row['テンプレートID'] || ''),
+    purpose: String(row['用途コード'] || ''),
+    name: String(row['名前'] || ''),
+    body: String(row['本文'] || ''),
+    sortOrder: Number(row['表示順'] || 0),
+    updatedAt: String(row['更新日時'] || ''),
+  };
+}
+
+function listScreenTextTemplates_(ss) {
+  if (!ss.getSheetByName('T_画面文テンプレート')) return [];
+  return getRowsAsObjects_(ss, 'T_画面文テンプレート')
+    .filter(function(row) { return String(row['テンプレートID'] || '') && !toBoolean_(row['削除フラグ']); })
+    .map(screenTextTemplateRowToObject_)
+    .sort(function(a, b) { return a.sortOrder - b.sortOrder || (a.id < b.id ? -1 : 1); });
+}
+
+// 設定の ID から本文を引く。見つからなければ空（補わない）。warnings は管理画面に出す。
+function resolveScreenTextTemplates_(ss, map) {
+  var templates = listScreenTextTemplates_(ss);
+  var byId = {};
+  templates.forEach(function(t) { byId[t.id] = t; });
+  var out = { templates: templates, ids: {}, bodies: {}, warnings: [] };
+  SCREEN_TEXT_TEMPLATE_PURPOSES_.forEach(function(p) {
+    var id = String(map[p.settingKey] || '');
+    var t = byId[id];
+    out.ids[p.code] = id;
+    if (t && t.purpose === p.code) {
+      out.bodies[p.code] = t.body;
+    } else {
+      out.bodies[p.code] = '';
+      out.warnings.push('「' + p.label + '」の定型文が選ばれていないか、見つかりません。公開ポータルではこの枠を表示していません。');
+    }
+  });
+  return out;
+}
+
+// スキーマ整備（critical）: 定型文が無い用途に今の表示と同じ文面を 1 件作って選ぶ。見出しの空欄を今の表示で埋める。
+// 2 回流しても増えない。
+function seedScreenTextTemplates_(ss) {
+  var sheet = ss.getSheetByName('T_画面文テンプレート');
+  if (!sheet) return;
+  var map = getSystemSettingMap_(ss);
+  var templates = listScreenTextTemplates_(ss);
+  var now = new Date().toISOString();
+  var appended = [];
+  var updates = [];
+  SCREEN_TEXT_TEMPLATE_PURPOSES_.forEach(function(p) {
+    var own = templates.filter(function(t) { return t.purpose === p.code; });
+    var selected = String(map[p.settingKey] || '');
+    if (own.length === 0) {
+      var id = 'STT-' + Utilities.getUuid().substring(0, 8);
+      appended.push({ 'テンプレートID': id, '用途コード': p.code, '名前': '移行時の文面', '本文': legacyScreenTextBody_(map, p),
+        '表示順': 1, '作成日時': now, '更新日時': now, '削除フラグ': false });
+      if (!selected) updates.push({ key: p.settingKey, value: id, description: '公開ポータル：入会完了画面・' + p.label + 'に使う定型文（T_画面文テンプレート）' });
+    } else if (!selected) {
+      updates.push({ key: p.settingKey, value: own[0].id, description: '公開ポータル：入会完了画面・' + p.label + 'に使う定型文（T_画面文テンプレート）' });
+    }
+  });
+  PUBLIC_PORTAL_REQUIRED_TEXTS_.forEach(function(item) {
+    if (String(map[item.key] || '').trim()) return;
+    updates.push({ key: item.key, value: PUBLIC_PORTAL_DEFAULTS[item.defaultKey], description: '公開ポータル：' + item.label });
+  });
+  if (appended.length) appendRowsByHeaders_(ss, 'T_画面文テンプレート', appended);
+  if (updates.length) batchUpsertSystemSettings_(ss, updates);
+}
+
+
+
+// 設定の保存で、選んだ定型文の ID を確かめる（存在する・削除済みでない・同じ用途）
 
 var マスタ定義 = {
   M_会員種別: ['コード', '名称', '表示順', '有効フラグ', '年会費金額'],
@@ -819,6 +961,11 @@ var テーブル定義 = {
   '版数', '施行日', '表示順', '公開フラグ',
   '更新者メール', '削除フラグ', '作成日時', '更新日時',
 ];
+// 2026-10-25 docs/313: 公開ポータルの案内文の定型文。設定（T_システム設定）には選んだテンプレートID だけを持つ。
+// 用途コードは SCREEN_TEXT_TEMPLATE_PURPOSES_。選択中・用途の最後の 1 件は削除できない（サーバーで止める）。
+テーブル定義['T_画面文テンプレート'] = [
+  'テンプレートID', '用途コード', '名前', '本文', '表示順', '作成日時', '更新日時', '削除フラグ',
+];
 テーブル定義['T_変更申請'] = [
   '申請ID', '会員ID', '会員種別コード', '申請種別コード', '申請状態コード',
   '申請内容JSON', '連絡先メールアドレス', '申請者表示名', '申請日時',
@@ -956,6 +1103,7 @@ var TEST_DATA_PURGE_TABLE_POLICY = {
   'T_メールテンプレート': 'NONE',
   'T_画面項目権限': 'NONE',
   'T_規程': 'NONE',
+  'T_画面文テンプレート': 'NONE',
   'T_共有メモ': 'NONE',
   'T_LINE投稿依頼': 'NONE',
 };
@@ -1310,6 +1458,7 @@ function processApiRequest(action, payload) {
 
 
 
+    // 2026-10-25 docs/313: 公開ポータルの案内文の定型文
 
 
 
@@ -2311,6 +2460,61 @@ function getSystemSettingMap_(ss) {
 
 // 複数の設定を一括書き込み：読み2回＋書き1回で完結（N+1問題を解消）
 // docs/307 S41（2026-10-24）: シートや列が無ければ止める。以前は黙って戻り、呼び出し元は「保存しました」と返した。
+function batchUpsertSystemSettings_(ss, updates) {
+  if (!updates || updates.length === 0) return;
+  var sheet = ss.getSheetByName('T_システム設定');
+  if (!sheet) throw new Error('T_システム設定 シートが無いため、設定を保存できませんでした。');
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastCol < 1) throw new Error('T_システム設定 に見出しが無いため、設定を保存できませんでした。');
+  var headerValues = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var columns = {};
+  for (var i = 0; i < headerValues.length; i++) {
+    columns[String(headerValues[i] || '')] = i;
+  }
+  var keyCol = columns['設定キー'];
+  var valueCol = columns['設定値'];
+  var descCol = columns['説明'];
+  var updatedAtCol = columns['更新日時'];
+  if (keyCol === undefined || valueCol === undefined) {
+    throw new Error('T_システム設定 に「設定キー」「設定値」の列が無いため、設定を保存できませんでした。');
+  }
+  var data = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, lastCol).getValues() : [];
+  // key → row index マップ
+  var keyToIndex = {};
+  for (var r = 0; r < data.length; r++) {
+    var k = String(data[r][keyCol] || '');
+    if (k) keyToIndex[k] = r;
+  }
+  var now = new Date().toISOString();
+  var modified = false;
+  var toAppend = [];
+  for (var u = 0; u < updates.length; u++) {
+    var upd = updates[u];
+    if (keyToIndex[upd.key] !== undefined) {
+      var ri = keyToIndex[upd.key];
+      if (valueCol !== undefined) data[ri][valueCol] = upd.value;
+      if (descCol !== undefined) data[ri][descCol] = upd.description || '';
+      if (updatedAtCol !== undefined) data[ri][updatedAtCol] = now;
+      modified = true;
+    } else {
+      toAppend.push(upd);
+    }
+  }
+  // 変更行を一括書き戻し（1回の setValues）
+  if (modified && data.length > 0) {
+    sheet.getRange(2, 1, data.length, lastCol).setValues(data);
+  }
+  // 新規行はアペンド
+  for (var ap = 0; ap < toAppend.length; ap++) {
+    appendRowsByHeaders_(ss, 'T_システム設定', [{
+      '設定キー': toAppend[ap].key,
+      '設定値': toAppend[ap].value,
+      '説明': toAppend[ap].description || '',
+      '更新日時': now,
+    }]);
+  }
+}
 
 
 
@@ -3981,6 +4185,9 @@ function initializeSchema_(ss) {
   critical('normalize T_支払い明細',              function() { normalizeTableColumns_(ss, 'T_支払い明細'); });
   critical('normalize T_請求',                    function() { normalizeTableColumns_(ss, 'T_請求'); });
   critical('ensureSystemSettingsRows_',           function() { ensureSystemSettingsRows_(ss); });
+  // 2026-10-25 docs/313: 案内文の定型文。設定行がそろってから、今の表示と同じ文面を移す
+  critical('normalize T_画面文テンプレート',      function() { normalizeTableColumns_(ss, 'T_画面文テンプレート'); });
+  critical('seedScreenTextTemplates_',            function() { seedScreenTextTemplates_(ss); });
   critical('seedPermissionMatrixIfNeeded_',       function() { seedPermissionMatrixIfNeeded_(ss); });
 
   // ── post: 補助処理（失敗してもスキーマ整合は保たれるためログのみで続行）─────
@@ -4382,14 +4589,9 @@ function ensureSystemSettingsRows_(ss) {
     { key: 'PUBLIC_PORTAL_MEMBERSHIP_DESCRIPTION', value: PUBLIC_PORTAL_DEFAULTS.membershipDescription, desc: '公開ポータル：入会カード説明文' },
     { key: 'PUBLIC_PORTAL_MEMBERSHIP_CTA_LABEL', value: PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel, desc: '公開ポータル：入会カードボタン文言' },
     { key: 'PUBLIC_PORTAL_COMPLETION_GUIDANCE_VISIBLE', value: PUBLIC_PORTAL_DEFAULTS.completionGuidanceVisible ? 'true' : 'false', desc: '公開ポータル：入会完了画面の今後のご案内ブロックを表示するか' },
-    { key: 'PUBLIC_PORTAL_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_SENT', value: PUBLIC_PORTAL_DEFAULTS.completionGuidanceBodyWhenCredentialSent, desc: '公開ポータル：入会完了画面・今後のご案内（メール送信ON時）' },
-    { key: 'PUBLIC_PORTAL_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_NOT_SENT', value: PUBLIC_PORTAL_DEFAULTS.completionGuidanceBodyWhenCredentialNotSent, desc: '公開ポータル：入会完了画面・今後のご案内（メール送信OFF時）' },
+    // 2026-10-25 docs/313: 案内文の本文 4 つと旧い補完 2 つは定型文（T_画面文テンプレート）へ移した。seedScreenTextTemplates_ が入れる
     { key: 'PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BLOCK_VISIBLE', value: PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBlockVisible ? 'true' : 'false', desc: '公開ポータル：入会完了画面のログイン情報ブロックを表示するか' },
     { key: 'PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_VISIBLE', value: PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible ? 'true' : 'false', desc: '公開ポータル：入会完了画面のログイン情報を表示するか' },
-    { key: 'PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_SENT', value: PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialSent, desc: '公開ポータル：入会完了画面・ログイン情報補足本文（メール送信ON時）' },
-    { key: 'PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_NOT_SENT', value: PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialNotSent, desc: '公開ポータル：入会完了画面・ログイン情報補足本文（メール送信OFF時）' },
-    { key: 'PUBLIC_PORTAL_COMPLETION_NO_CREDENTIAL_NOTICE', value: PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice, desc: '公開ポータル：入会完了画面・ログイン情報未送信時の案内文' },
-    { key: 'PUBLIC_PORTAL_COMPLETION_CREDENTIAL_NOTICE', value: PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice, desc: '公開ポータル：入会完了画面・ログイン情報送信済み時の案内文' },
     { key: 'PUBLIC_PORTAL_TRAINING_BADGE_ENABLED', value: PUBLIC_PORTAL_DEFAULTS.trainingBadgeEnabled ? 'true' : 'false', desc: '公開ポータル：研修カード補助ラベルを表示するか' },
     { key: 'PUBLIC_PORTAL_TRAINING_BADGE_LABEL', value: PUBLIC_PORTAL_DEFAULTS.trainingBadgeLabel, desc: '公開ポータル：研修カード補助ラベル文言' },
     { key: 'PUBLIC_PORTAL_TRAINING_TITLE_ENABLED', value: PUBLIC_PORTAL_DEFAULTS.trainingTitleEnabled ? 'true' : 'false', desc: '公開ポータル：研修カード見出しを表示するか' },
@@ -4841,30 +5043,30 @@ function getPublicPortalSettings_() {
   var publicPortalHeroBadgeEnabled = heroBadgeEnabledRaw === undefined || heroBadgeEnabledRaw === ''
     ? PUBLIC_PORTAL_DEFAULTS.heroBadgeEnabled
     : String(heroBadgeEnabledRaw) !== 'false';
-  var publicPortalHeroBadgeLabel = String(map['PUBLIC_PORTAL_HERO_BADGE_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.heroBadgeLabel;
+  var publicPortalHeroBadgeLabel = String(map['PUBLIC_PORTAL_HERO_BADGE_LABEL'] || '');
   var publicPortalPrivacyPolicyUrl = String(map['PUBLIC_PORTAL_PRIVACY_POLICY_URL'] || '');
-  var publicPortalHeroTitle = String(map['PUBLIC_PORTAL_HERO_TITLE'] || '') || PUBLIC_PORTAL_DEFAULTS.heroTitle;
+  var publicPortalHeroTitle = String(map['PUBLIC_PORTAL_HERO_TITLE'] || '');
   var heroDescriptionEnabledRaw = map['PUBLIC_PORTAL_HERO_DESCRIPTION_ENABLED'];
   var publicPortalHeroDescriptionEnabled = heroDescriptionEnabledRaw === undefined || heroDescriptionEnabledRaw === ''
     ? PUBLIC_PORTAL_DEFAULTS.heroDescriptionEnabled
     : String(heroDescriptionEnabledRaw) !== 'false';
-  var publicPortalHeroDescription = String(map['PUBLIC_PORTAL_HERO_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.heroDescription;
+  var publicPortalHeroDescription = String(map['PUBLIC_PORTAL_HERO_DESCRIPTION'] || '');
   var membershipBadgeEnabledRaw = map['PUBLIC_PORTAL_MEMBERSHIP_BADGE_ENABLED'];
   var publicPortalMembershipBadgeEnabled = membershipBadgeEnabledRaw === undefined || membershipBadgeEnabledRaw === ''
     ? PUBLIC_PORTAL_DEFAULTS.membershipBadgeEnabled
     : String(membershipBadgeEnabledRaw) !== 'false';
-  var publicPortalMembershipBadgeLabel = String(map['PUBLIC_PORTAL_MEMBERSHIP_BADGE_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.membershipBadgeLabel;
+  var publicPortalMembershipBadgeLabel = String(map['PUBLIC_PORTAL_MEMBERSHIP_BADGE_LABEL'] || '');
   var membershipTitleEnabledRaw = map['PUBLIC_PORTAL_MEMBERSHIP_TITLE_ENABLED'];
   var publicPortalMembershipTitleEnabled = membershipTitleEnabledRaw === undefined || membershipTitleEnabledRaw === ''
     ? PUBLIC_PORTAL_DEFAULTS.membershipTitleEnabled
     : String(membershipTitleEnabledRaw) !== 'false';
-  var publicPortalMembershipTitle = String(map['PUBLIC_PORTAL_MEMBERSHIP_TITLE'] || '') || PUBLIC_PORTAL_DEFAULTS.membershipTitle;
+  var publicPortalMembershipTitle = String(map['PUBLIC_PORTAL_MEMBERSHIP_TITLE'] || '');
   var membershipDescriptionEnabledRaw = map['PUBLIC_PORTAL_MEMBERSHIP_DESCRIPTION_ENABLED'];
   var publicPortalMembershipDescriptionEnabled = membershipDescriptionEnabledRaw === undefined || membershipDescriptionEnabledRaw === ''
     ? PUBLIC_PORTAL_DEFAULTS.membershipDescriptionEnabled
     : String(membershipDescriptionEnabledRaw) !== 'false';
-  var publicPortalMembershipDescription = String(map['PUBLIC_PORTAL_MEMBERSHIP_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.membershipDescription;
-  var publicPortalMembershipCtaLabel = String(map['PUBLIC_PORTAL_MEMBERSHIP_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel;
+  var publicPortalMembershipDescription = String(map['PUBLIC_PORTAL_MEMBERSHIP_DESCRIPTION'] || '');
+  var publicPortalMembershipCtaLabel = String(map['PUBLIC_PORTAL_MEMBERSHIP_CTA_LABEL'] || '');
   var completionGuidanceVisibleRaw = map['PUBLIC_PORTAL_COMPLETION_GUIDANCE_VISIBLE'];
   var publicPortalCompletionGuidanceVisible = completionGuidanceVisibleRaw === undefined || completionGuidanceVisibleRaw === ''
     ? PUBLIC_PORTAL_DEFAULTS.completionGuidanceVisible
@@ -4877,60 +5079,50 @@ function getPublicPortalSettings_() {
   var publicPortalCompletionLoginInfoBlockVisible = completionLoginInfoBlockVisibleRaw === undefined || completionLoginInfoBlockVisibleRaw === ''
     ? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBlockVisible
     : String(completionLoginInfoBlockVisibleRaw) !== 'false';
-  var legacyCompletionNoCredentialNotice = String(map['PUBLIC_PORTAL_COMPLETION_NO_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice;
-  var legacyCompletionCredentialNotice = String(map['PUBLIC_PORTAL_COMPLETION_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice;
-  var publicPortalCompletionGuidanceBodyWhenCredentialSent = String(map['PUBLIC_PORTAL_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_SENT'] || '') || [
-    legacyCompletionCredentialNotice,
-    '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
-    '追加確認が必要な場合のみ、事務局からご連絡します。'
-  ].join('\n');
-  var publicPortalCompletionGuidanceBodyWhenCredentialNotSent = String(map['PUBLIC_PORTAL_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_NOT_SENT'] || '') || [
-    legacyCompletionNoCredentialNotice,
-    '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
-    '追加確認が必要な場合のみ、事務局からご連絡します。'
-  ].join('\n');
-  var publicPortalCompletionLoginInfoBodyWhenCredentialSent = String(map['PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_SENT'] || '') || PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialSent;
-  var publicPortalCompletionLoginInfoBodyWhenCredentialNotSent = String(map['PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_NOT_SENT'] || '') || PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialNotSent;
-  var publicPortalCompletionNoCredentialNotice = String(map['PUBLIC_PORTAL_COMPLETION_NO_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice;
-  var publicPortalCompletionCredentialNotice = String(map['PUBLIC_PORTAL_COMPLETION_CREDENTIAL_NOTICE'] || '') || PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice;
+  // 2026-10-25 docs/313: 案内文は選んだ定型文（T_画面文テンプレート）の本文。見つからなければ空（補わない）
+  var screenText = resolveScreenTextTemplates_(db, map);
+  var publicPortalCompletionGuidanceBodyWhenCredentialSent = screenText.bodies.COMPLETION_GUIDANCE_SENT;
+  var publicPortalCompletionGuidanceBodyWhenCredentialNotSent = screenText.bodies.COMPLETION_GUIDANCE_NOT_SENT;
+  var publicPortalCompletionLoginInfoBodyWhenCredentialSent = screenText.bodies.COMPLETION_LOGIN_INFO_SENT;
+  var publicPortalCompletionLoginInfoBodyWhenCredentialNotSent = screenText.bodies.COMPLETION_LOGIN_INFO_NOT_SENT;
   var credentialEmailEnabledRaw = map['CREDENTIAL_EMAIL_ENABLED'];
   var credentialEmailEnabled = credentialEmailEnabledRaw === '' || credentialEmailEnabledRaw === null
     ? true
     : String(credentialEmailEnabledRaw) !== 'false';
   var ppTrainingBadgeEnabledRaw = map['PUBLIC_PORTAL_TRAINING_BADGE_ENABLED'];
   var ppTrainingBadgeEnabled = ppTrainingBadgeEnabledRaw === undefined || ppTrainingBadgeEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.trainingBadgeEnabled : String(ppTrainingBadgeEnabledRaw) !== 'false';
-  var ppTrainingBadgeLabel = String(map['PUBLIC_PORTAL_TRAINING_BADGE_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.trainingBadgeLabel;
+  var ppTrainingBadgeLabel = String(map['PUBLIC_PORTAL_TRAINING_BADGE_LABEL'] || '');
   var ppTrainingTitleEnabledRaw = map['PUBLIC_PORTAL_TRAINING_TITLE_ENABLED'];
   var ppTrainingTitleEnabled = ppTrainingTitleEnabledRaw === undefined || ppTrainingTitleEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.trainingTitleEnabled : String(ppTrainingTitleEnabledRaw) !== 'false';
-  var ppTrainingTitle = String(map['PUBLIC_PORTAL_TRAINING_TITLE'] || '') || PUBLIC_PORTAL_DEFAULTS.trainingTitle;
+  var ppTrainingTitle = String(map['PUBLIC_PORTAL_TRAINING_TITLE'] || '');
   var ppTrainingDescriptionEnabledRaw = map['PUBLIC_PORTAL_TRAINING_DESCRIPTION_ENABLED'];
   var ppTrainingDescriptionEnabled = ppTrainingDescriptionEnabledRaw === undefined || ppTrainingDescriptionEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.trainingDescriptionEnabled : String(ppTrainingDescriptionEnabledRaw) !== 'false';
-  var ppTrainingDescription = String(map['PUBLIC_PORTAL_TRAINING_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.trainingDescription;
-  var ppTrainingCtaLabel = String(map['PUBLIC_PORTAL_TRAINING_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.trainingCtaLabel;
+  var ppTrainingDescription = String(map['PUBLIC_PORTAL_TRAINING_DESCRIPTION'] || '');
+  var ppTrainingCtaLabel = String(map['PUBLIC_PORTAL_TRAINING_CTA_LABEL'] || '');
   var ppMemberUpdateMenuEnabledRaw = map['PUBLIC_PORTAL_MEMBER_UPDATE_MENU_ENABLED'];
   var ppMemberUpdateMenuEnabled = ppMemberUpdateMenuEnabledRaw === undefined || ppMemberUpdateMenuEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.memberUpdateMenuEnabled : String(ppMemberUpdateMenuEnabledRaw) !== 'false';
   var ppMemberUpdateBadgeEnabledRaw = map['PUBLIC_PORTAL_MEMBER_UPDATE_BADGE_ENABLED'];
   var ppMemberUpdateBadgeEnabled = ppMemberUpdateBadgeEnabledRaw === undefined || ppMemberUpdateBadgeEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeEnabled : String(ppMemberUpdateBadgeEnabledRaw) !== 'false';
-  var ppMemberUpdateBadgeLabel = String(map['PUBLIC_PORTAL_MEMBER_UPDATE_BADGE_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeLabel;
+  var ppMemberUpdateBadgeLabel = String(map['PUBLIC_PORTAL_MEMBER_UPDATE_BADGE_LABEL'] || '');
   var ppMemberUpdateTitleEnabledRaw = map['PUBLIC_PORTAL_MEMBER_UPDATE_TITLE_ENABLED'];
   var ppMemberUpdateTitleEnabled = ppMemberUpdateTitleEnabledRaw === undefined || ppMemberUpdateTitleEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.memberUpdateTitleEnabled : String(ppMemberUpdateTitleEnabledRaw) !== 'false';
-  var ppMemberUpdateTitle = String(map['PUBLIC_PORTAL_MEMBER_UPDATE_TITLE'] || '') || PUBLIC_PORTAL_DEFAULTS.memberUpdateTitle;
+  var ppMemberUpdateTitle = String(map['PUBLIC_PORTAL_MEMBER_UPDATE_TITLE'] || '');
   var ppMemberUpdateDescriptionEnabledRaw = map['PUBLIC_PORTAL_MEMBER_UPDATE_DESCRIPTION_ENABLED'];
   var ppMemberUpdateDescriptionEnabled = ppMemberUpdateDescriptionEnabledRaw === undefined || ppMemberUpdateDescriptionEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.memberUpdateDescriptionEnabled : String(ppMemberUpdateDescriptionEnabledRaw) !== 'false';
-  var ppMemberUpdateDescription = String(map['PUBLIC_PORTAL_MEMBER_UPDATE_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.memberUpdateDescription;
-  var ppMemberUpdateCtaLabel = String(map['PUBLIC_PORTAL_MEMBER_UPDATE_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.memberUpdateCtaLabel;
+  var ppMemberUpdateDescription = String(map['PUBLIC_PORTAL_MEMBER_UPDATE_DESCRIPTION'] || '');
+  var ppMemberUpdateCtaLabel = String(map['PUBLIC_PORTAL_MEMBER_UPDATE_CTA_LABEL'] || '');
   var ppWithdrawalMenuEnabledRaw = map['PUBLIC_PORTAL_WITHDRAWAL_MENU_ENABLED'];
   var ppWithdrawalMenuEnabled = ppWithdrawalMenuEnabledRaw === undefined || ppWithdrawalMenuEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalMenuEnabled : String(ppWithdrawalMenuEnabledRaw) !== 'false';
   var ppWithdrawalBadgeEnabledRaw = map['PUBLIC_PORTAL_WITHDRAWAL_BADGE_ENABLED'];
   var ppWithdrawalBadgeEnabled = ppWithdrawalBadgeEnabledRaw === undefined || ppWithdrawalBadgeEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeEnabled : String(ppWithdrawalBadgeEnabledRaw) !== 'false';
-  var ppWithdrawalBadgeLabel = String(map['PUBLIC_PORTAL_WITHDRAWAL_BADGE_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeLabel;
+  var ppWithdrawalBadgeLabel = String(map['PUBLIC_PORTAL_WITHDRAWAL_BADGE_LABEL'] || '');
   var ppWithdrawalTitleEnabledRaw = map['PUBLIC_PORTAL_WITHDRAWAL_TITLE_ENABLED'];
   var ppWithdrawalTitleEnabled = ppWithdrawalTitleEnabledRaw === undefined || ppWithdrawalTitleEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalTitleEnabled : String(ppWithdrawalTitleEnabledRaw) !== 'false';
-  var ppWithdrawalTitle = String(map['PUBLIC_PORTAL_WITHDRAWAL_TITLE'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalTitle;
+  var ppWithdrawalTitle = String(map['PUBLIC_PORTAL_WITHDRAWAL_TITLE'] || '');
   var ppWithdrawalDescriptionEnabledRaw = map['PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION_ENABLED'];
   var ppWithdrawalDescriptionEnabled = ppWithdrawalDescriptionEnabledRaw === undefined || ppWithdrawalDescriptionEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled : String(ppWithdrawalDescriptionEnabledRaw) !== 'false';
-  var ppWithdrawalDescription = String(map['PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalDescription;
-  var ppWithdrawalCtaLabel = String(map['PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL'] || '') || PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel;
+  var ppWithdrawalDescription = String(map['PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION'] || '');
+  var ppWithdrawalCtaLabel = String(map['PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL'] || '');
   var ppWithdrawalConfirmationItems = parseWithdrawalConfirmationItems_(map['PUBLIC_PORTAL_WITHDRAWAL_CONFIRMATION_ITEMS']);
   // v376.65（案C Phase 1）: 入会申込画面に出す規程・重要事項（公開フラグの立った行のみ）
   var ppRegulations = listRegulations_(db, true);
@@ -4972,8 +5164,6 @@ function getPublicPortalSettings_() {
       completionLoginInfoVisible: publicPortalCompletionLoginInfoVisible,
       completionLoginInfoBodyWhenCredentialSent: publicPortalCompletionLoginInfoBodyWhenCredentialSent,
       completionLoginInfoBodyWhenCredentialNotSent: publicPortalCompletionLoginInfoBodyWhenCredentialNotSent,
-      completionNoCredentialNotice: publicPortalCompletionNoCredentialNotice,
-      completionCredentialNotice: publicPortalCompletionCredentialNotice,
       credentialEmailEnabled: credentialEmailEnabled,
       trainingBadgeEnabled: ppTrainingBadgeEnabled,
       trainingBadgeLabel: ppTrainingBadgeLabel,

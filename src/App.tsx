@@ -23,9 +23,10 @@ import ChangeRequestConsole from './components/ChangeRequestConsole';
 import { RoleManagementPanel } from './components/RoleManagementPanel';
 import MemberDetailAdmin from './components/MemberDetailAdmin';
 import StaffDetailAdmin from './components/StaffDetailAdmin';
-import { AdminDashboardData, AdminDashboardMemberRow, AdminDashboardStaffRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, Staff, StaffRole, SystemSettings, Training, TrainingFieldConfig, DEFAULT_FIELD_CONFIG, RoleDefinition, MenuRegistryEntry, Regulation } from './types';
+import { AdminDashboardData, AdminDashboardMemberRow, AdminDashboardStaffRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, Staff, StaffRole, SystemSettings, Training, TrainingFieldConfig, DEFAULT_FIELD_CONFIG, RoleDefinition, MenuRegistryEntry, Regulation, ScreenTextTemplate } from './types';
 import { TRAINING_OPTIONAL_FIELD_DEFS } from './components/TrainingManagement';
 import { api, type AdminLoginResult, type MemberLoginResult, type MemberPortalLookup } from './services/api';
+import ScreenTextTemplatePicker from './components/ScreenTextTemplatePicker';
 import { canAccessMenu, canUseLinePost, canManageLinePost } from './shared/rbac-util';
 import { callApi, setApiPreviewRole } from './shared/api-base';
 import { callWithConnectionRetry, isConnectionGaveUp } from './shared/connectionRetry';
@@ -242,61 +243,30 @@ const buildLoginIdentities = (members: Member[]): LoginIdentity[] =>
 
 // 2026-10-19: 会費欄の種別・名称・既定額は M_会員種別（src/shared/memberTypeMaster.ts）から描く
 
+// 2026-10-25 docs/313: 文面（見出し・説明・ボタン名・案内文）の既定は持たない。DB が正本で、見出しは空欄で保存できない・案内文は定型文から選ぶ。
+// ここにあるのは表示する・しないの初期値だけ。
 const PUBLIC_PORTAL_DEFAULTS = {
   // 既定は空。URL はコードではなく設定（T_システム設定）で持つ。空ならリンクを出さない。
   privacyPolicyUrl: '',
   heroBadgeEnabled: false,
-  heroBadgeLabel: 'お申込みポータル',
-  heroTitle: '研修申込・申込取消・新規入会申込を受け付けています',
   heroDescriptionEnabled: false,
-  heroDescription: 'ご希望の手続きを選択し、そのまま申込画面へ進んでください。',
   membershipBadgeEnabled: true,
-  membershipBadgeLabel: '入会申込',
   membershipTitleEnabled: true,
-  membershipTitle: '新規入会を申し込む',
   membershipDescriptionEnabled: true,
-  membershipDescription: '個人会員・事業所会員・賛助会員の入会申込を受け付けています。',
-  membershipCtaLabel: '入会申込へ進む',
   completionGuidanceVisible: true,
-  completionGuidanceBodyWhenCredentialSent: [
-    '申込内容を事務局で確認し、承認後にログイン情報をご登録のメールアドレスへお送りします。',
-    '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
-    '追加確認が必要な場合のみ、事務局からご連絡します。',
-  ].join('\n'),
-  completionGuidanceBodyWhenCredentialNotSent: [
-    'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
-    '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
-    '追加確認が必要な場合のみ、事務局からご連絡します。',
-  ].join('\n'),
   completionLoginInfoBlockVisible: true,
   completionLoginInfoVisible: true,
-  completionLoginInfoBodyWhenCredentialSent: 'ログイン情報は画面に表示していません。登録済みのメールをご確認ください。',
-  completionLoginInfoBodyWhenCredentialNotSent: 'ログイン情報メールは現在送信していません。公開準備後にご案内します。',
-  completionNoCredentialNotice: 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
-  completionCredentialNotice: '申込内容を事務局で確認し、承認後にログイン情報をご登録のメールアドレスへお送りします。',
   trainingBadgeEnabled: true,
-  trainingBadgeLabel: '研修申込',
   trainingTitleEnabled: true,
-  trainingTitle: '研修を申し込む',
   trainingDescriptionEnabled: true,
-  trainingDescription: '受付中の研修一覧を確認し、そのまま申込できます。申込後の取消も研修ページから行えます。',
-  trainingCtaLabel: '進む',
   memberUpdateMenuEnabled: true,
   memberUpdateBadgeEnabled: true,
-  memberUpdateBadgeLabel: '登録情報変更',
   memberUpdateTitleEnabled: true,
-  memberUpdateTitle: '会員登録情報を変更する',
   memberUpdateDescriptionEnabled: true,
-  memberUpdateDescription: '住所・電話番号・メールアドレスなど、ご登録情報の変更を申し込めます。会員種別ごとに、氏名または事業所名と、番号または電話番号でご本人確認を行います。',
-  memberUpdateCtaLabel: '変更手続きへ進む',
   withdrawalMenuEnabled: true,
   withdrawalBadgeEnabled: true,
-  withdrawalBadgeLabel: '退会',
   withdrawalTitleEnabled: true,
-  withdrawalTitle: '退会を申し込む',
   withdrawalDescriptionEnabled: true,
-  withdrawalDescription: '退会申請を行います。年度末退会または即時退会を選択できます。会員種別ごとに、氏名または事業所名と、番号または電話番号でご本人確認を行います。',
-  withdrawalCtaLabel: '退会手続きへ進む',
 } as const;
 
 const ADMIN_SETTINGS_SECTION_CLASS = 'rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden';
@@ -623,49 +593,50 @@ const App: React.FC = () => {
   const [publicPortalMembershipMenuEnabledInput, setPublicPortalMembershipMenuEnabledInput] = useState(true);
   const [publicPortalPrivacyPolicyUrlInput, setPublicPortalPrivacyPolicyUrlInput] = useState(PUBLIC_PORTAL_DEFAULTS.privacyPolicyUrl);
   const [publicPortalHeroBadgeEnabledInput, setPublicPortalHeroBadgeEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.heroBadgeEnabled);
-  const [publicPortalHeroBadgeLabelInput, setPublicPortalHeroBadgeLabelInput] = useState(PUBLIC_PORTAL_DEFAULTS.heroBadgeLabel);
-  const [publicPortalHeroTitleInput, setPublicPortalHeroTitleInput] = useState(PUBLIC_PORTAL_DEFAULTS.heroTitle);
+  const [publicPortalHeroBadgeLabelInput, setPublicPortalHeroBadgeLabelInput] = useState('');
+  const [publicPortalHeroTitleInput, setPublicPortalHeroTitleInput] = useState('');
   const [publicPortalHeroDescriptionEnabledInput, setPublicPortalHeroDescriptionEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.heroDescriptionEnabled);
-  const [publicPortalHeroDescriptionInput, setPublicPortalHeroDescriptionInput] = useState(PUBLIC_PORTAL_DEFAULTS.heroDescription);
+  const [publicPortalHeroDescriptionInput, setPublicPortalHeroDescriptionInput] = useState('');
   const [publicPortalMembershipBadgeEnabledInput, setPublicPortalMembershipBadgeEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.membershipBadgeEnabled);
-  const [publicPortalMembershipBadgeLabelInput, setPublicPortalMembershipBadgeLabelInput] = useState(PUBLIC_PORTAL_DEFAULTS.membershipBadgeLabel);
+  const [publicPortalMembershipBadgeLabelInput, setPublicPortalMembershipBadgeLabelInput] = useState('');
   const [publicPortalMembershipTitleEnabledInput, setPublicPortalMembershipTitleEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.membershipTitleEnabled);
-  const [publicPortalMembershipTitleInput, setPublicPortalMembershipTitleInput] = useState(PUBLIC_PORTAL_DEFAULTS.membershipTitle);
+  const [publicPortalMembershipTitleInput, setPublicPortalMembershipTitleInput] = useState('');
   const [publicPortalMembershipDescriptionEnabledInput, setPublicPortalMembershipDescriptionEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.membershipDescriptionEnabled);
-  const [publicPortalMembershipDescriptionInput, setPublicPortalMembershipDescriptionInput] = useState(PUBLIC_PORTAL_DEFAULTS.membershipDescription);
-  const [publicPortalMembershipCtaLabelInput, setPublicPortalMembershipCtaLabelInput] = useState(PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel);
+  const [publicPortalMembershipDescriptionInput, setPublicPortalMembershipDescriptionInput] = useState('');
+  const [publicPortalMembershipCtaLabelInput, setPublicPortalMembershipCtaLabelInput] = useState('');
   const [publicPortalCompletionGuidanceVisibleInput, setPublicPortalCompletionGuidanceVisibleInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionGuidanceVisible);
-  const [publicPortalCompletionGuidanceBodyWhenCredentialSentInput, setPublicPortalCompletionGuidanceBodyWhenCredentialSentInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionGuidanceBodyWhenCredentialSent);
-  const [publicPortalCompletionGuidanceBodyWhenCredentialNotSentInput, setPublicPortalCompletionGuidanceBodyWhenCredentialNotSentInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionGuidanceBodyWhenCredentialNotSent);
+  const [publicPortalCompletionGuidanceTemplateIdWhenCredentialSentInput, setPublicPortalCompletionGuidanceTemplateIdWhenCredentialSentInput] = useState('');
+  const [publicPortalCompletionGuidanceTemplateIdWhenCredentialNotSentInput, setPublicPortalCompletionGuidanceTemplateIdWhenCredentialNotSentInput] = useState('');
   const [publicPortalCompletionLoginInfoBlockVisibleInput, setPublicPortalCompletionLoginInfoBlockVisibleInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBlockVisible);
   const [publicPortalCompletionLoginInfoVisibleInput, setPublicPortalCompletionLoginInfoVisibleInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible);
-  const [publicPortalCompletionLoginInfoBodyWhenCredentialSentInput, setPublicPortalCompletionLoginInfoBodyWhenCredentialSentInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialSent);
-  const [publicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput, setPublicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialNotSent);
-  const [publicPortalCompletionNoCredentialNoticeInput, setPublicPortalCompletionNoCredentialNoticeInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice);
-  const [publicPortalCompletionCredentialNoticeInput, setPublicPortalCompletionCredentialNoticeInput] = useState(PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice);
+  const [publicPortalCompletionLoginInfoTemplateIdWhenCredentialSentInput, setPublicPortalCompletionLoginInfoTemplateIdWhenCredentialSentInput] = useState('');
+  const [publicPortalCompletionLoginInfoTemplateIdWhenCredentialNotSentInput, setPublicPortalCompletionLoginInfoTemplateIdWhenCredentialNotSentInput] = useState('');
+  // 2026-10-25 docs/313: 案内文の定型文の一覧（選ぶ・追加・編集・削除）と、選んだ定型文が見つからないときの警告
+  const [screenTextTemplates, setScreenTextTemplates] = useState<ScreenTextTemplate[]>([]);
+  const [screenTextTemplateWarnings, setScreenTextTemplateWarnings] = useState<string[]>([]);
   const [publicPortalTrainingBadgeEnabledInput, setPublicPortalTrainingBadgeEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.trainingBadgeEnabled);
-  const [publicPortalTrainingBadgeLabelInput, setPublicPortalTrainingBadgeLabelInput] = useState(PUBLIC_PORTAL_DEFAULTS.trainingBadgeLabel);
+  const [publicPortalTrainingBadgeLabelInput, setPublicPortalTrainingBadgeLabelInput] = useState('');
   const [publicPortalTrainingTitleEnabledInput, setPublicPortalTrainingTitleEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.trainingTitleEnabled);
-  const [publicPortalTrainingTitleInput, setPublicPortalTrainingTitleInput] = useState(PUBLIC_PORTAL_DEFAULTS.trainingTitle);
+  const [publicPortalTrainingTitleInput, setPublicPortalTrainingTitleInput] = useState('');
   const [publicPortalTrainingDescriptionEnabledInput, setPublicPortalTrainingDescriptionEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.trainingDescriptionEnabled);
-  const [publicPortalTrainingDescriptionInput, setPublicPortalTrainingDescriptionInput] = useState(PUBLIC_PORTAL_DEFAULTS.trainingDescription);
-  const [publicPortalTrainingCtaLabelInput, setPublicPortalTrainingCtaLabelInput] = useState(PUBLIC_PORTAL_DEFAULTS.trainingCtaLabel);
+  const [publicPortalTrainingDescriptionInput, setPublicPortalTrainingDescriptionInput] = useState('');
+  const [publicPortalTrainingCtaLabelInput, setPublicPortalTrainingCtaLabelInput] = useState('');
   const [publicPortalMemberUpdateMenuEnabledInput, setPublicPortalMemberUpdateMenuEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.memberUpdateMenuEnabled);
   const [publicPortalMemberUpdateBadgeEnabledInput, setPublicPortalMemberUpdateBadgeEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeEnabled);
-  const [publicPortalMemberUpdateBadgeLabelInput, setPublicPortalMemberUpdateBadgeLabelInput] = useState(PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeLabel);
+  const [publicPortalMemberUpdateBadgeLabelInput, setPublicPortalMemberUpdateBadgeLabelInput] = useState('');
   const [publicPortalMemberUpdateTitleEnabledInput, setPublicPortalMemberUpdateTitleEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.memberUpdateTitleEnabled);
-  const [publicPortalMemberUpdateTitleInput, setPublicPortalMemberUpdateTitleInput] = useState(PUBLIC_PORTAL_DEFAULTS.memberUpdateTitle);
+  const [publicPortalMemberUpdateTitleInput, setPublicPortalMemberUpdateTitleInput] = useState('');
   const [publicPortalMemberUpdateDescriptionEnabledInput, setPublicPortalMemberUpdateDescriptionEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.memberUpdateDescriptionEnabled);
-  const [publicPortalMemberUpdateDescriptionInput, setPublicPortalMemberUpdateDescriptionInput] = useState(PUBLIC_PORTAL_DEFAULTS.memberUpdateDescription);
-  const [publicPortalMemberUpdateCtaLabelInput, setPublicPortalMemberUpdateCtaLabelInput] = useState(PUBLIC_PORTAL_DEFAULTS.memberUpdateCtaLabel);
+  const [publicPortalMemberUpdateDescriptionInput, setPublicPortalMemberUpdateDescriptionInput] = useState('');
+  const [publicPortalMemberUpdateCtaLabelInput, setPublicPortalMemberUpdateCtaLabelInput] = useState('');
   const [publicPortalWithdrawalMenuEnabledInput, setPublicPortalWithdrawalMenuEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.withdrawalMenuEnabled);
   const [publicPortalWithdrawalBadgeEnabledInput, setPublicPortalWithdrawalBadgeEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeEnabled);
-  const [publicPortalWithdrawalBadgeLabelInput, setPublicPortalWithdrawalBadgeLabelInput] = useState(PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeLabel);
+  const [publicPortalWithdrawalBadgeLabelInput, setPublicPortalWithdrawalBadgeLabelInput] = useState('');
   const [publicPortalWithdrawalTitleEnabledInput, setPublicPortalWithdrawalTitleEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.withdrawalTitleEnabled);
-  const [publicPortalWithdrawalTitleInput, setPublicPortalWithdrawalTitleInput] = useState(PUBLIC_PORTAL_DEFAULTS.withdrawalTitle);
+  const [publicPortalWithdrawalTitleInput, setPublicPortalWithdrawalTitleInput] = useState('');
   const [publicPortalWithdrawalDescriptionEnabledInput, setPublicPortalWithdrawalDescriptionEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled);
-  const [publicPortalWithdrawalDescriptionInput, setPublicPortalWithdrawalDescriptionInput] = useState(PUBLIC_PORTAL_DEFAULTS.withdrawalDescription);
-  const [publicPortalWithdrawalCtaLabelInput, setPublicPortalWithdrawalCtaLabelInput] = useState(PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel);
+  const [publicPortalWithdrawalDescriptionInput, setPublicPortalWithdrawalDescriptionInput] = useState('');
+  const [publicPortalWithdrawalCtaLabelInput, setPublicPortalWithdrawalCtaLabelInput] = useState('');
   const [withdrawalConfirmationItemsInput, setWithdrawalConfirmationItemsInput] = useState<WithdrawalConfirmationItem[]>(DEFAULT_WITHDRAWAL_CONFIRMATION_ITEMS);
   // v265: 個人・賛助会員メール ON/OFF
   const [indSuppEmailEnabledInput, setIndSuppEmailEnabledInput] = useState(true);
@@ -814,49 +785,49 @@ const App: React.FC = () => {
     setPublicPortalMembershipMenuEnabledInput(systemSettings.publicPortalMembershipMenuEnabled ?? true);
     setPublicPortalPrivacyPolicyUrlInput(systemSettings.publicPortalPrivacyPolicyUrl ?? PUBLIC_PORTAL_DEFAULTS.privacyPolicyUrl);
     setPublicPortalHeroBadgeEnabledInput(systemSettings.publicPortalHeroBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.heroBadgeEnabled);
-    setPublicPortalHeroBadgeLabelInput(systemSettings.publicPortalHeroBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.heroBadgeLabel);
-    setPublicPortalHeroTitleInput(systemSettings.publicPortalHeroTitle ?? PUBLIC_PORTAL_DEFAULTS.heroTitle);
+    setPublicPortalHeroBadgeLabelInput(systemSettings.publicPortalHeroBadgeLabel ?? '');
+    setPublicPortalHeroTitleInput(systemSettings.publicPortalHeroTitle ?? '');
     setPublicPortalHeroDescriptionEnabledInput(systemSettings.publicPortalHeroDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.heroDescriptionEnabled);
-    setPublicPortalHeroDescriptionInput(systemSettings.publicPortalHeroDescription ?? PUBLIC_PORTAL_DEFAULTS.heroDescription);
+    setPublicPortalHeroDescriptionInput(systemSettings.publicPortalHeroDescription ?? '');
     setPublicPortalMembershipBadgeEnabledInput(systemSettings.publicPortalMembershipBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.membershipBadgeEnabled);
-    setPublicPortalMembershipBadgeLabelInput(systemSettings.publicPortalMembershipBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.membershipBadgeLabel);
+    setPublicPortalMembershipBadgeLabelInput(systemSettings.publicPortalMembershipBadgeLabel ?? '');
     setPublicPortalMembershipTitleEnabledInput(systemSettings.publicPortalMembershipTitleEnabled ?? PUBLIC_PORTAL_DEFAULTS.membershipTitleEnabled);
-    setPublicPortalMembershipTitleInput(systemSettings.publicPortalMembershipTitle ?? PUBLIC_PORTAL_DEFAULTS.membershipTitle);
+    setPublicPortalMembershipTitleInput(systemSettings.publicPortalMembershipTitle ?? '');
     setPublicPortalMembershipDescriptionEnabledInput(systemSettings.publicPortalMembershipDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.membershipDescriptionEnabled);
-    setPublicPortalMembershipDescriptionInput(systemSettings.publicPortalMembershipDescription ?? PUBLIC_PORTAL_DEFAULTS.membershipDescription);
-    setPublicPortalMembershipCtaLabelInput(systemSettings.publicPortalMembershipCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel);
+    setPublicPortalMembershipDescriptionInput(systemSettings.publicPortalMembershipDescription ?? '');
+    setPublicPortalMembershipCtaLabelInput(systemSettings.publicPortalMembershipCtaLabel ?? '');
     setPublicPortalCompletionGuidanceVisibleInput(systemSettings.publicPortalCompletionGuidanceVisible ?? PUBLIC_PORTAL_DEFAULTS.completionGuidanceVisible);
-    setPublicPortalCompletionGuidanceBodyWhenCredentialSentInput(systemSettings.publicPortalCompletionGuidanceBodyWhenCredentialSent ?? PUBLIC_PORTAL_DEFAULTS.completionGuidanceBodyWhenCredentialSent);
-    setPublicPortalCompletionGuidanceBodyWhenCredentialNotSentInput(systemSettings.publicPortalCompletionGuidanceBodyWhenCredentialNotSent ?? PUBLIC_PORTAL_DEFAULTS.completionGuidanceBodyWhenCredentialNotSent);
+    setPublicPortalCompletionGuidanceTemplateIdWhenCredentialSentInput(systemSettings.publicPortalCompletionGuidanceTemplateIdWhenCredentialSent ?? '');
+    setPublicPortalCompletionGuidanceTemplateIdWhenCredentialNotSentInput(systemSettings.publicPortalCompletionGuidanceTemplateIdWhenCredentialNotSent ?? '');
     setPublicPortalCompletionLoginInfoBlockVisibleInput(systemSettings.publicPortalCompletionLoginInfoBlockVisible ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBlockVisible);
     setPublicPortalCompletionLoginInfoVisibleInput(systemSettings.publicPortalCompletionLoginInfoVisible ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible);
-    setPublicPortalCompletionLoginInfoBodyWhenCredentialSentInput(systemSettings.publicPortalCompletionLoginInfoBodyWhenCredentialSent ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialSent);
-    setPublicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput(systemSettings.publicPortalCompletionLoginInfoBodyWhenCredentialNotSent ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialNotSent);
-    setPublicPortalCompletionNoCredentialNoticeInput(systemSettings.publicPortalCompletionNoCredentialNotice ?? PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice);
-    setPublicPortalCompletionCredentialNoticeInput(systemSettings.publicPortalCompletionCredentialNotice ?? PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice);
+    setPublicPortalCompletionLoginInfoTemplateIdWhenCredentialSentInput(systemSettings.publicPortalCompletionLoginInfoTemplateIdWhenCredentialSent ?? '');
+    setPublicPortalCompletionLoginInfoTemplateIdWhenCredentialNotSentInput(systemSettings.publicPortalCompletionLoginInfoTemplateIdWhenCredentialNotSent ?? '');
+    setScreenTextTemplates(systemSettings.screenTextTemplates ?? []);
+    setScreenTextTemplateWarnings(systemSettings.screenTextTemplateWarnings ?? []);
     setPublicPortalTrainingBadgeEnabledInput(systemSettings.publicPortalTrainingBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.trainingBadgeEnabled);
-    setPublicPortalTrainingBadgeLabelInput(systemSettings.publicPortalTrainingBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.trainingBadgeLabel);
+    setPublicPortalTrainingBadgeLabelInput(systemSettings.publicPortalTrainingBadgeLabel ?? '');
     setPublicPortalTrainingTitleEnabledInput(systemSettings.publicPortalTrainingTitleEnabled ?? PUBLIC_PORTAL_DEFAULTS.trainingTitleEnabled);
-    setPublicPortalTrainingTitleInput(systemSettings.publicPortalTrainingTitle ?? PUBLIC_PORTAL_DEFAULTS.trainingTitle);
+    setPublicPortalTrainingTitleInput(systemSettings.publicPortalTrainingTitle ?? '');
     setPublicPortalTrainingDescriptionEnabledInput(systemSettings.publicPortalTrainingDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.trainingDescriptionEnabled);
-    setPublicPortalTrainingDescriptionInput(systemSettings.publicPortalTrainingDescription ?? PUBLIC_PORTAL_DEFAULTS.trainingDescription);
-    setPublicPortalTrainingCtaLabelInput(systemSettings.publicPortalTrainingCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.trainingCtaLabel);
+    setPublicPortalTrainingDescriptionInput(systemSettings.publicPortalTrainingDescription ?? '');
+    setPublicPortalTrainingCtaLabelInput(systemSettings.publicPortalTrainingCtaLabel ?? '');
     setPublicPortalMemberUpdateMenuEnabledInput(systemSettings.publicPortalMemberUpdateMenuEnabled ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateMenuEnabled);
     setPublicPortalMemberUpdateBadgeEnabledInput(systemSettings.publicPortalMemberUpdateBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeEnabled);
-    setPublicPortalMemberUpdateBadgeLabelInput(systemSettings.publicPortalMemberUpdateBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeLabel);
+    setPublicPortalMemberUpdateBadgeLabelInput(systemSettings.publicPortalMemberUpdateBadgeLabel ?? '');
     setPublicPortalMemberUpdateTitleEnabledInput(systemSettings.publicPortalMemberUpdateTitleEnabled ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateTitleEnabled);
-    setPublicPortalMemberUpdateTitleInput(systemSettings.publicPortalMemberUpdateTitle ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateTitle);
+    setPublicPortalMemberUpdateTitleInput(systemSettings.publicPortalMemberUpdateTitle ?? '');
     setPublicPortalMemberUpdateDescriptionEnabledInput(systemSettings.publicPortalMemberUpdateDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateDescriptionEnabled);
-    setPublicPortalMemberUpdateDescriptionInput(systemSettings.publicPortalMemberUpdateDescription ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateDescription);
-    setPublicPortalMemberUpdateCtaLabelInput(systemSettings.publicPortalMemberUpdateCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateCtaLabel);
+    setPublicPortalMemberUpdateDescriptionInput(systemSettings.publicPortalMemberUpdateDescription ?? '');
+    setPublicPortalMemberUpdateCtaLabelInput(systemSettings.publicPortalMemberUpdateCtaLabel ?? '');
     setPublicPortalWithdrawalMenuEnabledInput(systemSettings.publicPortalWithdrawalMenuEnabled ?? PUBLIC_PORTAL_DEFAULTS.withdrawalMenuEnabled);
     setPublicPortalWithdrawalBadgeEnabledInput(systemSettings.publicPortalWithdrawalBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeEnabled);
-    setPublicPortalWithdrawalBadgeLabelInput(systemSettings.publicPortalWithdrawalBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeLabel);
+    setPublicPortalWithdrawalBadgeLabelInput(systemSettings.publicPortalWithdrawalBadgeLabel ?? '');
     setPublicPortalWithdrawalTitleEnabledInput(systemSettings.publicPortalWithdrawalTitleEnabled ?? PUBLIC_PORTAL_DEFAULTS.withdrawalTitleEnabled);
-    setPublicPortalWithdrawalTitleInput(systemSettings.publicPortalWithdrawalTitle ?? PUBLIC_PORTAL_DEFAULTS.withdrawalTitle);
+    setPublicPortalWithdrawalTitleInput(systemSettings.publicPortalWithdrawalTitle ?? '');
     setPublicPortalWithdrawalDescriptionEnabledInput(systemSettings.publicPortalWithdrawalDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled);
-    setPublicPortalWithdrawalDescriptionInput(systemSettings.publicPortalWithdrawalDescription ?? PUBLIC_PORTAL_DEFAULTS.withdrawalDescription);
-    setPublicPortalWithdrawalCtaLabelInput(systemSettings.publicPortalWithdrawalCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel);
+    setPublicPortalWithdrawalDescriptionInput(systemSettings.publicPortalWithdrawalDescription ?? '');
+    setPublicPortalWithdrawalCtaLabelInput(systemSettings.publicPortalWithdrawalCtaLabel ?? '');
     setWithdrawalConfirmationItemsInput(normalizeWithdrawalConfirmationItems(systemSettings.withdrawalConfirmationItems));
     // v265: 個人・賛助会員メール ON/OFF
     setIndSuppEmailEnabledInput(systemSettings.indSuppEmailEnabled ?? true);
@@ -5183,6 +5154,11 @@ const App: React.FC = () => {
           >
             <div className="space-y-4">
               <div>
+                {screenTextTemplateWarnings.length > 0 && (
+                  <div role="alert" className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    {screenTextTemplateWarnings.map((w) => <p key={w}>{w}</p>)}
+                  </div>
+                )}
                 {/* ① 入会完了画面 - 今後のご案内 */}
                 <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 space-y-3">
                   <p className="text-xs font-semibold text-slate-500 tracking-wide">② 入会完了画面 — 今後のご案内</p>
@@ -5200,52 +5176,24 @@ const App: React.FC = () => {
                     </div>
                     <span className="text-sm font-medium text-slate-700">「今後のご案内」ブロックを表示する</span>
                   </label>
-                  <div>
-                    <label htmlFor={`${uid}-guidance-on`} className="block text-xs font-medium text-slate-600 mb-1">
-                      <span className="inline-flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-primary-500 inline-block"></span>
-                        送信ON時の案内文
-                      </span>
-                    </label>
-                    <div className="flex gap-2 items-start">
-                      <textarea
-                        id={`${uid}-guidance-on`}
-                        value={publicPortalCompletionGuidanceBodyWhenCredentialSentInput}
-                        onChange={(e) => { setPublicPortalCompletionGuidanceBodyWhenCredentialSentInput(e.target.value); setSettingsIsDirty(true); }}
-                        rows={4}
-                        className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm resize-y"
-                        placeholder="送信済みの場合に表示する本文"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => { setPublicPortalCompletionGuidanceBodyWhenCredentialSentInput(PUBLIC_PORTAL_DEFAULTS.completionGuidanceBodyWhenCredentialSent); setSettingsIsDirty(true); }}
-                        className="px-2 py-2 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 whitespace-nowrap"
-                      >デフォルトに戻す</button>
-                    </div>
-                  </div>
-                  <div>
-                    <label htmlFor={`${uid}-guidance-off`} className="block text-xs font-medium text-slate-600 mb-1">
-                      <span className="inline-flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-slate-400 inline-block"></span>
-                        送信OFF時の案内文
-                      </span>
-                    </label>
-                    <div className="flex gap-2 items-start">
-                      <textarea
-                        id={`${uid}-guidance-off`}
-                        value={publicPortalCompletionGuidanceBodyWhenCredentialNotSentInput}
-                        onChange={(e) => { setPublicPortalCompletionGuidanceBodyWhenCredentialNotSentInput(e.target.value); setSettingsIsDirty(true); }}
-                        rows={4}
-                        className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm resize-y"
-                        placeholder="未送信の場合に表示する本文"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => { setPublicPortalCompletionGuidanceBodyWhenCredentialNotSentInput(PUBLIC_PORTAL_DEFAULTS.completionGuidanceBodyWhenCredentialNotSent); setSettingsIsDirty(true); }}
-                        className="px-2 py-2 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 whitespace-nowrap"
-                      >デフォルトに戻す</button>
-                    </div>
-                  </div>
+                  <ScreenTextTemplatePicker
+                    id={`${uid}-guidance-on`}
+                    purpose="COMPLETION_GUIDANCE_SENT"
+                    label="送信ON時の案内文（定型文から選ぶ）"
+                    templates={screenTextTemplates}
+                    selectedId={publicPortalCompletionGuidanceTemplateIdWhenCredentialSentInput}
+                    onSelect={(value) => { setPublicPortalCompletionGuidanceTemplateIdWhenCredentialSentInput(value); setSettingsIsDirty(true); }}
+                    onTemplatesChange={setScreenTextTemplates}
+                  />
+                  <ScreenTextTemplatePicker
+                    id={`${uid}-guidance-off`}
+                    purpose="COMPLETION_GUIDANCE_NOT_SENT"
+                    label="送信OFF時の案内文（定型文から選ぶ）"
+                    templates={screenTextTemplates}
+                    selectedId={publicPortalCompletionGuidanceTemplateIdWhenCredentialNotSentInput}
+                    onSelect={(value) => { setPublicPortalCompletionGuidanceTemplateIdWhenCredentialNotSentInput(value); setSettingsIsDirty(true); }}
+                    onTemplatesChange={setScreenTextTemplates}
+                  />
                 </div>
 
                 {/* ③ ログイン情報カードの表示・非表示 */}
@@ -5283,42 +5231,24 @@ const App: React.FC = () => {
                   <p className="mt-2 text-xs text-slate-500">
                     OFF の場合はログインID・パスワードを画面に表示せず、メール送信状況のみ案内します。会員ページ公開時に ON へ戻してください。
                   </p>
-                  <div>
-                    <label htmlFor={`${uid}-logininfo-on`} className="block text-xs font-medium text-slate-600 mb-1">メール送信ON時の補足本文</label>
-                    <div className="flex gap-2 items-start">
-                      <textarea
-                        id={`${uid}-logininfo-on`}
-                        value={publicPortalCompletionLoginInfoBodyWhenCredentialSentInput}
-                        onChange={(e) => { setPublicPortalCompletionLoginInfoBodyWhenCredentialSentInput(e.target.value); setSettingsIsDirty(true); }}
-                        rows={3}
-                        className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm resize-y"
-                        placeholder="ログイン情報ブロック内の補足本文"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => { setPublicPortalCompletionLoginInfoBodyWhenCredentialSentInput(PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialSent); setSettingsIsDirty(true); }}
-                        className="px-2 py-2 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 whitespace-nowrap"
-                      >デフォルトに戻す</button>
-                    </div>
-                  </div>
-                  <div>
-                    <label htmlFor={`${uid}-logininfo-off`} className="block text-xs font-medium text-slate-600 mb-1">メール送信OFF時の補足本文</label>
-                    <div className="flex gap-2 items-start">
-                      <textarea
-                        id={`${uid}-logininfo-off`}
-                        value={publicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput}
-                        onChange={(e) => { setPublicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput(e.target.value); setSettingsIsDirty(true); }}
-                        rows={3}
-                        className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm resize-y"
-                        placeholder="ログイン情報未送信時の補足本文"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => { setPublicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput(PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialNotSent); setSettingsIsDirty(true); }}
-                        className="px-2 py-2 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 whitespace-nowrap"
-                      >デフォルトに戻す</button>
-                    </div>
-                  </div>
+                  <ScreenTextTemplatePicker
+                    id={`${uid}-logininfo-on`}
+                    purpose="COMPLETION_LOGIN_INFO_SENT"
+                    label="メール送信ON時の補足本文（定型文から選ぶ）"
+                    templates={screenTextTemplates}
+                    selectedId={publicPortalCompletionLoginInfoTemplateIdWhenCredentialSentInput}
+                    onSelect={(value) => { setPublicPortalCompletionLoginInfoTemplateIdWhenCredentialSentInput(value); setSettingsIsDirty(true); }}
+                    onTemplatesChange={setScreenTextTemplates}
+                  />
+                  <ScreenTextTemplatePicker
+                    id={`${uid}-logininfo-off`}
+                    purpose="COMPLETION_LOGIN_INFO_NOT_SENT"
+                    label="メール送信OFF時の補足本文（定型文から選ぶ）"
+                    templates={screenTextTemplates}
+                    selectedId={publicPortalCompletionLoginInfoTemplateIdWhenCredentialNotSentInput}
+                    onSelect={(value) => { setPublicPortalCompletionLoginInfoTemplateIdWhenCredentialNotSentInput(value); setSettingsIsDirty(true); }}
+                    onTemplatesChange={setScreenTextTemplates}
+                  />
                 </div>
               </div>
               <div className="hidden">
@@ -5824,14 +5754,12 @@ const App: React.FC = () => {
                         publicPortalMembershipDescription: publicPortalMembershipDescriptionInput,
                         publicPortalMembershipCtaLabel: publicPortalMembershipCtaLabelInput,
                         publicPortalCompletionGuidanceVisible: publicPortalCompletionGuidanceVisibleInput,
-                        publicPortalCompletionGuidanceBodyWhenCredentialSent: publicPortalCompletionGuidanceBodyWhenCredentialSentInput,
-                        publicPortalCompletionGuidanceBodyWhenCredentialNotSent: publicPortalCompletionGuidanceBodyWhenCredentialNotSentInput,
+                        publicPortalCompletionGuidanceTemplateIdWhenCredentialSent: publicPortalCompletionGuidanceTemplateIdWhenCredentialSentInput,
+                        publicPortalCompletionGuidanceTemplateIdWhenCredentialNotSent: publicPortalCompletionGuidanceTemplateIdWhenCredentialNotSentInput,
                         publicPortalCompletionLoginInfoBlockVisible: publicPortalCompletionLoginInfoBlockVisibleInput,
                         publicPortalCompletionLoginInfoVisible: publicPortalCompletionLoginInfoVisibleInput,
-                        publicPortalCompletionLoginInfoBodyWhenCredentialSent: publicPortalCompletionLoginInfoBodyWhenCredentialSentInput,
-                        publicPortalCompletionLoginInfoBodyWhenCredentialNotSent: publicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput,
-                        publicPortalCompletionNoCredentialNotice: publicPortalCompletionNoCredentialNoticeInput,
-                        publicPortalCompletionCredentialNotice: publicPortalCompletionCredentialNoticeInput,
+                        publicPortalCompletionLoginInfoTemplateIdWhenCredentialSent: publicPortalCompletionLoginInfoTemplateIdWhenCredentialSentInput,
+                        publicPortalCompletionLoginInfoTemplateIdWhenCredentialNotSent: publicPortalCompletionLoginInfoTemplateIdWhenCredentialNotSentInput,
                         publicPortalTrainingBadgeEnabled: publicPortalTrainingBadgeEnabledInput,
                         publicPortalTrainingBadgeLabel: publicPortalTrainingBadgeLabelInput,
                         publicPortalTrainingTitleEnabled: publicPortalTrainingTitleEnabledInput,
@@ -5941,50 +5869,50 @@ const App: React.FC = () => {
                       setPublicPortalTrainingMenuEnabledInput(saved.publicPortalTrainingMenuEnabled ?? true);
                       setPublicPortalMembershipMenuEnabledInput(saved.publicPortalMembershipMenuEnabled ?? true);
                       setPublicPortalHeroBadgeEnabledInput(saved.publicPortalHeroBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.heroBadgeEnabled);
-                      setPublicPortalHeroBadgeLabelInput(saved.publicPortalHeroBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.heroBadgeLabel);
+                      setPublicPortalHeroBadgeLabelInput(saved.publicPortalHeroBadgeLabel ?? '');
                       setPublicPortalPrivacyPolicyUrlInput(saved.publicPortalPrivacyPolicyUrl ?? PUBLIC_PORTAL_DEFAULTS.privacyPolicyUrl);
-                      setPublicPortalHeroTitleInput(saved.publicPortalHeroTitle ?? PUBLIC_PORTAL_DEFAULTS.heroTitle);
+                      setPublicPortalHeroTitleInput(saved.publicPortalHeroTitle ?? '');
                       setPublicPortalHeroDescriptionEnabledInput(saved.publicPortalHeroDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.heroDescriptionEnabled);
-                      setPublicPortalHeroDescriptionInput(saved.publicPortalHeroDescription ?? PUBLIC_PORTAL_DEFAULTS.heroDescription);
+                      setPublicPortalHeroDescriptionInput(saved.publicPortalHeroDescription ?? '');
                       setPublicPortalMembershipBadgeEnabledInput(saved.publicPortalMembershipBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.membershipBadgeEnabled);
-                      setPublicPortalMembershipBadgeLabelInput(saved.publicPortalMembershipBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.membershipBadgeLabel);
+                      setPublicPortalMembershipBadgeLabelInput(saved.publicPortalMembershipBadgeLabel ?? '');
                       setPublicPortalMembershipTitleEnabledInput(saved.publicPortalMembershipTitleEnabled ?? PUBLIC_PORTAL_DEFAULTS.membershipTitleEnabled);
-                      setPublicPortalMembershipTitleInput(saved.publicPortalMembershipTitle ?? PUBLIC_PORTAL_DEFAULTS.membershipTitle);
+                      setPublicPortalMembershipTitleInput(saved.publicPortalMembershipTitle ?? '');
                       setPublicPortalMembershipDescriptionEnabledInput(saved.publicPortalMembershipDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.membershipDescriptionEnabled);
-                      setPublicPortalMembershipDescriptionInput(saved.publicPortalMembershipDescription ?? PUBLIC_PORTAL_DEFAULTS.membershipDescription);
-                      setPublicPortalMembershipCtaLabelInput(saved.publicPortalMembershipCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.membershipCtaLabel);
+                      setPublicPortalMembershipDescriptionInput(saved.publicPortalMembershipDescription ?? '');
+                      setPublicPortalMembershipCtaLabelInput(saved.publicPortalMembershipCtaLabel ?? '');
                       setPublicPortalCompletionGuidanceVisibleInput(saved.publicPortalCompletionGuidanceVisible ?? PUBLIC_PORTAL_DEFAULTS.completionGuidanceVisible);
-                      setPublicPortalCompletionGuidanceBodyWhenCredentialSentInput(saved.publicPortalCompletionGuidanceBodyWhenCredentialSent ?? PUBLIC_PORTAL_DEFAULTS.completionGuidanceBodyWhenCredentialSent);
-                      setPublicPortalCompletionGuidanceBodyWhenCredentialNotSentInput(saved.publicPortalCompletionGuidanceBodyWhenCredentialNotSent ?? PUBLIC_PORTAL_DEFAULTS.completionGuidanceBodyWhenCredentialNotSent);
+                      setPublicPortalCompletionGuidanceTemplateIdWhenCredentialSentInput(saved.publicPortalCompletionGuidanceTemplateIdWhenCredentialSent ?? '');
+                      setPublicPortalCompletionGuidanceTemplateIdWhenCredentialNotSentInput(saved.publicPortalCompletionGuidanceTemplateIdWhenCredentialNotSent ?? '');
                       setPublicPortalCompletionLoginInfoBlockVisibleInput(saved.publicPortalCompletionLoginInfoBlockVisible ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBlockVisible);
                       setPublicPortalCompletionLoginInfoVisibleInput(saved.publicPortalCompletionLoginInfoVisible ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible);
-                      setPublicPortalCompletionLoginInfoBodyWhenCredentialSentInput(saved.publicPortalCompletionLoginInfoBodyWhenCredentialSent ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialSent);
-                      setPublicPortalCompletionLoginInfoBodyWhenCredentialNotSentInput(saved.publicPortalCompletionLoginInfoBodyWhenCredentialNotSent ?? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBodyWhenCredentialNotSent);
-                      setPublicPortalCompletionNoCredentialNoticeInput(saved.publicPortalCompletionNoCredentialNotice ?? PUBLIC_PORTAL_DEFAULTS.completionNoCredentialNotice);
-                      setPublicPortalCompletionCredentialNoticeInput(saved.publicPortalCompletionCredentialNotice ?? PUBLIC_PORTAL_DEFAULTS.completionCredentialNotice);
+                      setPublicPortalCompletionLoginInfoTemplateIdWhenCredentialSentInput(saved.publicPortalCompletionLoginInfoTemplateIdWhenCredentialSent ?? '');
+                      setPublicPortalCompletionLoginInfoTemplateIdWhenCredentialNotSentInput(saved.publicPortalCompletionLoginInfoTemplateIdWhenCredentialNotSent ?? '');
+                      setScreenTextTemplates(saved.screenTextTemplates ?? []);
+                      setScreenTextTemplateWarnings(saved.screenTextTemplateWarnings ?? []);
                       setPublicPortalTrainingBadgeEnabledInput(saved.publicPortalTrainingBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.trainingBadgeEnabled);
-                      setPublicPortalTrainingBadgeLabelInput(saved.publicPortalTrainingBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.trainingBadgeLabel);
+                      setPublicPortalTrainingBadgeLabelInput(saved.publicPortalTrainingBadgeLabel ?? '');
                       setPublicPortalTrainingTitleEnabledInput(saved.publicPortalTrainingTitleEnabled ?? PUBLIC_PORTAL_DEFAULTS.trainingTitleEnabled);
-                      setPublicPortalTrainingTitleInput(saved.publicPortalTrainingTitle ?? PUBLIC_PORTAL_DEFAULTS.trainingTitle);
+                      setPublicPortalTrainingTitleInput(saved.publicPortalTrainingTitle ?? '');
                       setPublicPortalTrainingDescriptionEnabledInput(saved.publicPortalTrainingDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.trainingDescriptionEnabled);
-                      setPublicPortalTrainingDescriptionInput(saved.publicPortalTrainingDescription ?? PUBLIC_PORTAL_DEFAULTS.trainingDescription);
-                      setPublicPortalTrainingCtaLabelInput(saved.publicPortalTrainingCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.trainingCtaLabel);
+                      setPublicPortalTrainingDescriptionInput(saved.publicPortalTrainingDescription ?? '');
+                      setPublicPortalTrainingCtaLabelInput(saved.publicPortalTrainingCtaLabel ?? '');
                       setPublicPortalMemberUpdateMenuEnabledInput(saved.publicPortalMemberUpdateMenuEnabled ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateMenuEnabled);
                       setPublicPortalMemberUpdateBadgeEnabledInput(saved.publicPortalMemberUpdateBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeEnabled);
-                      setPublicPortalMemberUpdateBadgeLabelInput(saved.publicPortalMemberUpdateBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeLabel);
+                      setPublicPortalMemberUpdateBadgeLabelInput(saved.publicPortalMemberUpdateBadgeLabel ?? '');
                       setPublicPortalMemberUpdateTitleEnabledInput(saved.publicPortalMemberUpdateTitleEnabled ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateTitleEnabled);
-                      setPublicPortalMemberUpdateTitleInput(saved.publicPortalMemberUpdateTitle ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateTitle);
+                      setPublicPortalMemberUpdateTitleInput(saved.publicPortalMemberUpdateTitle ?? '');
                       setPublicPortalMemberUpdateDescriptionEnabledInput(saved.publicPortalMemberUpdateDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateDescriptionEnabled);
-                      setPublicPortalMemberUpdateDescriptionInput(saved.publicPortalMemberUpdateDescription ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateDescription);
-                      setPublicPortalMemberUpdateCtaLabelInput(saved.publicPortalMemberUpdateCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.memberUpdateCtaLabel);
+                      setPublicPortalMemberUpdateDescriptionInput(saved.publicPortalMemberUpdateDescription ?? '');
+                      setPublicPortalMemberUpdateCtaLabelInput(saved.publicPortalMemberUpdateCtaLabel ?? '');
                       setPublicPortalWithdrawalMenuEnabledInput(saved.publicPortalWithdrawalMenuEnabled ?? PUBLIC_PORTAL_DEFAULTS.withdrawalMenuEnabled);
                       setPublicPortalWithdrawalBadgeEnabledInput(saved.publicPortalWithdrawalBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeEnabled);
-                      setPublicPortalWithdrawalBadgeLabelInput(saved.publicPortalWithdrawalBadgeLabel ?? PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeLabel);
+                      setPublicPortalWithdrawalBadgeLabelInput(saved.publicPortalWithdrawalBadgeLabel ?? '');
                       setPublicPortalWithdrawalTitleEnabledInput(saved.publicPortalWithdrawalTitleEnabled ?? PUBLIC_PORTAL_DEFAULTS.withdrawalTitleEnabled);
-                      setPublicPortalWithdrawalTitleInput(saved.publicPortalWithdrawalTitle ?? PUBLIC_PORTAL_DEFAULTS.withdrawalTitle);
+                      setPublicPortalWithdrawalTitleInput(saved.publicPortalWithdrawalTitle ?? '');
                       setPublicPortalWithdrawalDescriptionEnabledInput(saved.publicPortalWithdrawalDescriptionEnabled ?? PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled);
-                      setPublicPortalWithdrawalDescriptionInput(saved.publicPortalWithdrawalDescription ?? PUBLIC_PORTAL_DEFAULTS.withdrawalDescription);
-                      setPublicPortalWithdrawalCtaLabelInput(saved.publicPortalWithdrawalCtaLabel ?? PUBLIC_PORTAL_DEFAULTS.withdrawalCtaLabel);
+                      setPublicPortalWithdrawalDescriptionInput(saved.publicPortalWithdrawalDescription ?? '');
+                      setPublicPortalWithdrawalCtaLabelInput(saved.publicPortalWithdrawalCtaLabel ?? '');
                       setWithdrawalConfirmationItemsInput(normalizeWithdrawalConfirmationItems(saved.withdrawalConfirmationItems));
                       setMailDeliveryStateInput(resolveMailDeliveryState(saved));
                       setMailRedirectAllowlistInput(saved.mailRedirectAllowlist ?? '');

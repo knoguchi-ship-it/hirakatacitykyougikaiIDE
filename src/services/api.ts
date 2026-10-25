@@ -233,6 +233,9 @@ export interface ApiClient {
   // v376.86: 設定画面の一括保存（追加・更新・削除・並べ替えを 1 往復で反映する）
   saveRegulationsBatch(changes: Array<{ op: 'upsert' | 'delete'; item: Partial<import('../types').Regulation> }>): Promise<{ applied: number; items: Array<{ id: string; op: string }> }>;
   deleteRegulation(id: string): Promise<{ id: string; deleted: boolean }>;
+  // 2026-10-25 docs/313: 公開ポータルの案内文の定型文。結果には保存後の一覧が入る
+  saveScreenTextTemplate(payload: { id?: string; purpose: import('../types').ScreenTextTemplatePurpose; name: string; body: string; sortOrder?: number }): Promise<{ id: string; templates: import('../types').ScreenTextTemplate[] }>;
+  deleteScreenTextTemplate(id: string): Promise<{ id: string; deleted: boolean; templates: import('../types').ScreenTextTemplate[] }>;
   listMailTemplates(category: string): Promise<{ templates: import('../types').EmailTemplate[] }>;
   saveMailTemplate(payload: { id?: string; category: string; name: string; subject: string; body: string }): Promise<import('../types').EmailTemplate>;
   deleteMailTemplate(id: string): Promise<{ deletedId: string }>;
@@ -1077,6 +1080,14 @@ class GasApiClient implements ApiClient {
 
   async deleteRegulation(id: string): Promise<{ id: string; deleted: boolean }> {
     return this.callAction('deleteRegulation', { id });
+  }
+
+  async saveScreenTextTemplate(payload: { id?: string; purpose: import('../types').ScreenTextTemplatePurpose; name: string; body: string; sortOrder?: number }): Promise<{ id: string; templates: import('../types').ScreenTextTemplate[] }> {
+    return this.callAction('saveScreenTextTemplate', payload);
+  }
+
+  async deleteScreenTextTemplate(id: string): Promise<{ id: string; deleted: boolean; templates: import('../types').ScreenTextTemplate[] }> {
+    return this.callAction('deleteScreenTextTemplate', { id });
   }
 
   async listMailTemplates(category: string): Promise<{ templates: import('../types').EmailTemplate[] }> {

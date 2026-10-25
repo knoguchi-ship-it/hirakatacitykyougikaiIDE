@@ -158,6 +158,8 @@ export const ADMIN_ALLOWED_ACTIONS_LIST = [
   'getDbInfo',
   'getSystemSettings',
   'updateSystemSettings',
+  'saveScreenTextTemplate',
+  'deleteScreenTextTemplate',
   'getAdminPermissionData',
   'saveAdminPermission',
   'deleteAdminPermission',

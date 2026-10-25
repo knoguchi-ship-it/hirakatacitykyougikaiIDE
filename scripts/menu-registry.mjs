@@ -168,6 +168,8 @@ export const ACTION_TO_MENU = {
   getDbInfo: 'admin-settings',
   getSystemSettings: 'admin-settings',
   updateSystemSettings: 'admin-settings',
+  saveScreenTextTemplate: 'admin-settings', // 2026-10-25 docs/313
+  deleteScreenTextTemplate: 'admin-settings',
   getAdminDashboardData: 'admin-settings',
   getAdminInitData: 'admin-settings',
   // system-permissions（MASTER 専用メニュー — Phase 1-A では legacy ADMIN も継続アクセス）

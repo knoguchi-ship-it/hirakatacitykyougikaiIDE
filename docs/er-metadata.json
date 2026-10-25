@@ -57,7 +57,8 @@
     "T_変更申請",
     "T_人物統合ログ",
     "T_LINE投稿依頼",
-    "T_規程"
+    "T_規程",
+    "T_画面文テンプレート"
   ],
   "sectionByTable": {
     "M_会員種別": "マスタ",
@@ -117,7 +118,8 @@
     "T_支払い明細_archive": "アーカイブシート（メインDB内・削除cascade退避先。元テーブルと同スキーマ + サロゲート3列。docs/249）",
     "T_請求_archive": "アーカイブシート（メインDB内・削除cascade退避先。元テーブルと同スキーマ + サロゲート3列。docs/249）",
     "T_変更申請_archive": "アーカイブシート（メインDB内・削除cascade退避先。元テーブルと同スキーマ + サロゲート3列。docs/249）",
-    "T_規程": "その他"
+    "T_規程": "その他",
+    "T_画面文テンプレート": "その他"
   },
   "columns": {
     "M_会員種別": {
@@ -3804,6 +3806,48 @@
         "type": "datetime",
         "key": "",
         "comment": ""
+      }
+    },
+    "T_画面文テンプレート": {
+      "テンプレートID": {
+        "type": "string",
+        "key": "PK",
+        "comment": "STT- ＋ UUID 先頭 8 桁"
+      },
+      "用途コード": {
+        "type": "string",
+        "key": "",
+        "comment": "COMPLETION_GUIDANCE_SENT / _NOT_SENT / COMPLETION_LOGIN_INFO_SENT / _NOT_SENT（SCREEN_TEXT_TEMPLATE_PURPOSES_・docs/313）"
+      },
+      "名前": {
+        "type": "string",
+        "key": "",
+        "comment": "一覧で見分ける名前（必須）"
+      },
+      "本文": {
+        "type": "string",
+        "key": "",
+        "comment": "公開ポータルに出す文章（必須・空白だけは不可・2000 文字以内）"
+      },
+      "表示順": {
+        "type": "int",
+        "key": "",
+        "comment": ""
+      },
+      "作成日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "更新日時": {
+        "type": "datetime",
+        "key": "",
+        "comment": ""
+      },
+      "削除フラグ": {
+        "type": "boolean",
+        "key": "",
+        "comment": "選択中・用途の最後の 1 件は削除できない"
       }
     }
   },

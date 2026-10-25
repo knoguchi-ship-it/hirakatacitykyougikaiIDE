@@ -925,6 +925,17 @@ erDiagram
     datetime 更新日時
   }
 
+  T_画面文テンプレート {
+    string テンプレートID PK "STT- ＋ UUID 先頭 8 桁"
+    string 用途コード "COMPLETION_GUIDANCE_SENT / _NOT_SENT / COMPLETION_LOGIN_INFO_SENT / _NOT_SENT（SCREEN_TEXT_TEMPLATE_PURPOSES_・docs/313）"
+    string 名前 "一覧で見分ける名前（必須）"
+    string 本文 "公開ポータルに出す文章（必須・空白だけは不可・2000 文字以内）"
+    int 表示順
+    datetime 作成日時
+    datetime 更新日時
+    boolean 削除フラグ "選択中・用途の最後の 1 件は削除できない"
+  }
+
   T_会員 }o--|| M_会員種別 : "会員種別コード"
   T_会員 }o--|| M_会員状態 : "会員状態コード"
   T_会員 }o--o| M_発送方法 : "発送方法コード"

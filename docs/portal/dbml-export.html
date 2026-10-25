@@ -325,7 +325,7 @@ footer {
     <button class="copy-btn" onclick="copyDbml()">📋 全文コピー</button>
     <pre id="dbml-src">// 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能
 // 元: docs/03_DATA_MODEL.md
-// 生成日時: 2026-10-25T01:38:29.573Z
+// 生成日時: 2026-10-25T10:44:32.697Z
 
 Project hcmn_member_system {
   database_type: &quot;Google Spreadsheet (logical)&quot;
@@ -973,6 +973,17 @@ Table &quot;T_権限ロール&quot; {
   &quot;削除フラグ&quot; boolean
 }
 
+Table &quot;T_画面文テンプレート&quot; {
+  &quot;テンプレートID&quot; varchar [pk]
+  &quot;用途コード&quot; varchar
+  &quot;名前&quot; varchar
+  &quot;本文&quot; varchar
+  &quot;表示順&quot; int
+  &quot;作成日時&quot; timestamp
+  &quot;更新日時&quot; timestamp
+  &quot;削除フラグ&quot; boolean
+}
+
 Table &quot;T_画面項目権限&quot; {
   &quot;権限定義ID&quot; varchar [pk]
   &quot;システムロールコード&quot; varchar [note: &#39;FK&#39;]
@@ -1303,7 +1314,7 @@ Ref: &quot;T_管理者Googleホワイトリスト&quot;.&quot;権限コード&qu
 Ref: &quot;T_管理者Googleホワイトリスト&quot;.&quot;ロールID&quot; &gt; &quot;T_権限ロール&quot;.&quot;ロールID&quot; // ロールID(docs/246)
 Ref: &quot;T_メール送信ログ&quot;.&quot;研修ID&quot; &gt; &quot;T_研修&quot;.&quot;研修ID&quot; // 研修ID(v360拡張 nullable)</pre>
   </div>
-  <p style="font-size: 0.85em; color: var(--muted);">行数: 979 / 容量: 19.3 KB</p>
+  <p style="font-size: 0.85em; color: var(--muted);">行数: 990 / 容量: 19.5 KB</p>
 </section>
 
 <section class="card">

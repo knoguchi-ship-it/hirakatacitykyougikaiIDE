@@ -37,8 +37,6 @@ interface MemberApplicationFormProps {
   credentialEmailEnabled?: boolean;
   completionLoginInfoBodyWhenCredentialSent?: string;
   completionLoginInfoBodyWhenCredentialNotSent?: string;
-  completionNoCredentialNotice?: string;
-  completionCredentialNotice?: string;
 }
 
 // v376.74: 会員種別を選んだ直後に「注意事項」ステップを置く。
@@ -113,18 +111,7 @@ const FALLBACK_REGULATIONS: import('../../types').Regulation[] = [
   { id: 'FB-004', kind: 'NOTICE', title: '退会の締切', body: '退会は年度切替前の3月末までに完了してください。手続きがない場合は継続扱いとなり、当該年度の会費納入が必要です。', linkUrl: '', linkLabel: '', target: 'ALL', version: 1, effectiveDate: '', sortOrder: 4, published: true },
   { id: 'FB-005', kind: 'REGULATION', title: '協議会の定款', body: '入会前に、協議会の基本規程も確認できます。', linkUrl: INCORPORATION_URL, linkLabel: '定款を確認する', target: 'ALL', version: 1, effectiveDate: '', sortOrder: 5, published: true },
 ];
-const DEFAULT_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_SENT = [
-  '申込内容を事務局で確認し、承認後にログイン情報をご登録のメールアドレスへお送りします。',
-  '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
-  '追加確認が必要な場合のみ、事務局からご連絡します。',
-].join('\n');
-const DEFAULT_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_NOT_SENT = [
-  'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
-  '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
-  '追加確認が必要な場合のみ、事務局からご連絡します。',
-].join('\n');
-const DEFAULT_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_SENT = 'ログイン情報は画面に表示していません。登録済みのメールをご確認ください。';
-const DEFAULT_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_NOT_SENT = 'ログイン情報メールは現在送信していません。公開準備後にご案内します。';
+// 2026-10-25 docs/313: 完了画面の案内文はここに持たない（T_画面文テンプレート が正本。空なら枠を出さない）。
 
 // ─── バリデーション ───────────────────────────────────
 const BUSINESS_STAFF_LIMIT = 10;
@@ -373,15 +360,13 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
   backLabel = '戻る',
   completeLabel = '閉じる',
   showCompletionGuidance = true,
-  completionGuidanceBodyWhenCredentialSent = DEFAULT_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_SENT,
-  completionGuidanceBodyWhenCredentialNotSent = DEFAULT_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_NOT_SENT,
+  completionGuidanceBodyWhenCredentialSent = '',
+  completionGuidanceBodyWhenCredentialNotSent = '',
   showCompletionLoginInfoBlock = true,
   showCompletionLoginInfo = true,
   credentialEmailEnabled = true,
-  completionLoginInfoBodyWhenCredentialSent = DEFAULT_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_SENT,
-  completionLoginInfoBodyWhenCredentialNotSent = DEFAULT_COMPLETION_LOGIN_INFO_BODY_WHEN_CREDENTIAL_NOT_SENT,
-  completionNoCredentialNotice = 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
-  completionCredentialNotice = '申込内容を事務局で確認し、承認後にログイン情報をご登録のメールアドレスへお送りします。',
+  completionLoginInfoBodyWhenCredentialSent = '',
+  completionLoginInfoBodyWhenCredentialNotSent = '',
 }) => {
   const mailDestinationMaster = useMasterOptions('M_郵送先区分');
   const mailingMethodMaster = useMasterOptions('M_発送方法');
@@ -584,13 +569,11 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
     const completionLoginInfoBody = credentialEmailEnabled
       ? completionLoginInfoBodyWhenCredentialSent
       : completionLoginInfoBodyWhenCredentialNotSent;
-    const legacyLoginInfoNotice = credentialEmailEnabled
-      ? completionCredentialNotice
-      : completionNoCredentialNotice;
-    const effectiveCompletionGuidanceBody = completionGuidanceBody || legacyLoginInfoNotice;
-    const effectiveCompletionLoginInfoBody = completionLoginInfoBody || legacyLoginInfoNotice;
+    // 2026-10-25 docs/313: 以前は空なら旧い 1 行の案内で補っていた。空（定型文が見つからない）なら出さない
+    const effectiveCompletionGuidanceBody = completionGuidanceBody.trim() ? completionGuidanceBody : '';
+    const effectiveCompletionLoginInfoBody = completionLoginInfoBody.trim() ? completionLoginInfoBody : '';
     const renderMultilineText = (text: string, className: string) => (
-      <p className={className} style={{ whiteSpace: 'pre-line' }}>{text}</p>
+      text ? <p className={className} style={{ whiteSpace: 'pre-line' }}>{text}</p> : null
     );
     return (
       <div className="max-w-2xl mx-auto py-12 px-4">
@@ -620,7 +603,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
               </div>
             </div>
           )}
-          {showCompletionGuidance && (
+          {showCompletionGuidance && effectiveCompletionGuidanceBody && (
             <div className="bg-sky-50 border border-sky-100 rounded-lg p-4 text-left">
               <p className="text-sm text-sky-900 font-medium mb-2">今後のご案内</p>
               {renderMultilineText(effectiveCompletionGuidanceBody, 'text-sm text-sky-800')}

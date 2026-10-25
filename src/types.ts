@@ -180,6 +180,17 @@ export interface Regulation {
 // 会員種別コード → 年会費（種別の一覧は M_会員種別）
 export type MemberTypeAnnualFees = Record<string, number>;
 
+// 2026-10-25 docs/313: 公開ポータルの案内文の定型文（T_画面文テンプレート）
+export type ScreenTextTemplatePurpose = 'COMPLETION_GUIDANCE_SENT' | 'COMPLETION_GUIDANCE_NOT_SENT' | 'COMPLETION_LOGIN_INFO_SENT' | 'COMPLETION_LOGIN_INFO_NOT_SENT';
+export interface ScreenTextTemplate {
+  id: string;
+  purpose: ScreenTextTemplatePurpose;
+  name: string;
+  body: string;
+  sortOrder: number;
+  updatedAt?: string;
+}
+
 export interface SystemSettings {
   defaultBusinessStaffLimit: number;
   trainingHistoryLookbackMonths: number;
@@ -226,8 +237,13 @@ export interface SystemSettings {
   publicPortalCompletionLoginInfoVisible?: boolean;
   publicPortalCompletionLoginInfoBodyWhenCredentialSent?: string;
   publicPortalCompletionLoginInfoBodyWhenCredentialNotSent?: string;
-  publicPortalCompletionNoCredentialNotice?: string;
-  publicPortalCompletionCredentialNotice?: string;
+  // 2026-10-25 docs/313: 案内文は定型文（T_画面文テンプレート）から選ぶ。上の 4 つの本文は選んだ定型文の本文（読むだけ）
+  publicPortalCompletionGuidanceTemplateIdWhenCredentialSent?: string;
+  publicPortalCompletionGuidanceTemplateIdWhenCredentialNotSent?: string;
+  publicPortalCompletionLoginInfoTemplateIdWhenCredentialSent?: string;
+  publicPortalCompletionLoginInfoTemplateIdWhenCredentialNotSent?: string;
+  screenTextTemplates?: ScreenTextTemplate[];
+  screenTextTemplateWarnings?: string[];
   publicPortalCredentialEmailEnabled?: boolean;
   publicPortalTrainingBadgeEnabled?: boolean;
   publicPortalTrainingBadgeLabel?: string;

@@ -40,8 +40,6 @@ type PublicPortalContentSettings = {
   completionLoginInfoVisible: boolean;
   completionLoginInfoBodyWhenCredentialSent: string;
   completionLoginInfoBodyWhenCredentialNotSent: string;
-  completionNoCredentialNotice: string;
-  completionCredentialNotice: string;
   credentialEmailEnabled: boolean;
   trainingBadgeEnabled: boolean;
   trainingBadgeLabel: string;
@@ -93,6 +91,8 @@ const PAGE_PARAM_TO_VIEW: Partial<Record<string, View>> = {
   'cancel': 'training-cancel',
 };
 
+// 2026-10-25 docs/313: 文面（見出し・説明・ボタン名・案内文）はここに持たない。DB（T_システム設定・T_画面文テンプレート）が正本で、
+// 読み込むまでは描画しない。ここにあるのは表示する・しないの初期の形だけ。
 const DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS: PublicPortalContentSettings = {
   regulations: [],
   membershipFeeVisible: true,
@@ -100,58 +100,48 @@ const DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS: PublicPortalContentSettings = {
   // 既定は空。URL はコードではなく設定（T_システム設定）で持つ。
   privacyPolicyUrl: '',
   heroBadgeEnabled: false,
-  heroBadgeLabel: 'お申込みポータル',
-  heroTitle: '研修申込・申込取消・新規入会申込を受け付けています',
+  heroBadgeLabel: '',
+  heroTitle: '',
   heroDescriptionEnabled: false,
-  heroDescription: 'ご希望の手続きを選択し、そのまま申込画面へ進んでください。',
+  heroDescription: '',
   membershipBadgeEnabled: true,
-  membershipBadgeLabel: '入会申込',
+  membershipBadgeLabel: '',
   membershipTitleEnabled: true,
-  membershipTitle: '新規入会を申し込む',
+  membershipTitle: '',
   membershipDescriptionEnabled: true,
-  membershipDescription: '個人会員・事業所会員・賛助会員の入会申込を受け付けています。',
-  membershipCtaLabel: '入会申込へ進む',
+  membershipDescription: '',
+  membershipCtaLabel: '',
   completionGuidanceVisible: true,
-  completionGuidanceBodyWhenCredentialSent: [
-    '申込内容を事務局で確認し、承認後にログイン情報をご登録のメールアドレスへお送りします。',
-    '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
-    '追加確認が必要な場合のみ、事務局からご連絡します。',
-  ].join('\n'),
-  completionGuidanceBodyWhenCredentialNotSent: [
-    'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
-    '年会費や振込先などのご案内は、登録メールアドレスをご確認ください。',
-    '追加確認が必要な場合のみ、事務局からご連絡します。',
-  ].join('\n'),
+  completionGuidanceBodyWhenCredentialSent: '',
+  completionGuidanceBodyWhenCredentialNotSent: '',
   completionLoginInfoBlockVisible: true,
   completionLoginInfoVisible: true,
-  completionLoginInfoBodyWhenCredentialSent: 'ログイン情報は画面に表示していません。登録済みのメールをご確認ください。',
-  completionLoginInfoBodyWhenCredentialNotSent: 'ログイン情報メールは現在送信していません。公開準備後にご案内します。',
-  completionNoCredentialNotice: 'ログイン情報メールは現在送信していません。会員ページの公開準備後にご案内します。',
-  completionCredentialNotice: '申込内容を事務局で確認し、承認後にログイン情報をご登録のメールアドレスへお送りします。',
+  completionLoginInfoBodyWhenCredentialSent: '',
+  completionLoginInfoBodyWhenCredentialNotSent: '',
   credentialEmailEnabled: true,
   trainingBadgeEnabled: true,
-  trainingBadgeLabel: '研修申込',
+  trainingBadgeLabel: '',
   trainingTitleEnabled: true,
-  trainingTitle: '研修を申し込む',
+  trainingTitle: '',
   trainingDescriptionEnabled: true,
-  trainingDescription: '受付中の研修一覧を確認し、そのまま申込できます。申込後の取消も研修ページから行えます。',
-  trainingCtaLabel: '進む',
+  trainingDescription: '',
+  trainingCtaLabel: '',
   memberUpdateMenuEnabled: true,
   memberUpdateBadgeEnabled: true,
-  memberUpdateBadgeLabel: '登録情報変更',
+  memberUpdateBadgeLabel: '',
   memberUpdateTitleEnabled: true,
-  memberUpdateTitle: '会員登録情報を変更する',
+  memberUpdateTitle: '',
   memberUpdateDescriptionEnabled: true,
-  memberUpdateDescription: '住所・電話番号・メールアドレスなど、ご登録情報の変更を申し込めます。会員種別ごとに、氏名または事業所名と、番号または電話番号でご本人確認を行います。',
-  memberUpdateCtaLabel: '変更手続きへ進む',
+  memberUpdateDescription: '',
+  memberUpdateCtaLabel: '',
   withdrawalMenuEnabled: true,
   withdrawalBadgeEnabled: true,
-  withdrawalBadgeLabel: '退会',
+  withdrawalBadgeLabel: '',
   withdrawalTitleEnabled: true,
-  withdrawalTitle: '退会を申し込む',
+  withdrawalTitle: '',
   withdrawalDescriptionEnabled: true,
-  withdrawalDescription: '退会申請を行います。年度末退会または即時退会を選択できます。会員種別ごとに、氏名または事業所名と、番号または電話番号でご本人確認を行います。',
-  withdrawalCtaLabel: '退会手続きへ進む',
+  withdrawalDescription: '',
+  withdrawalCtaLabel: '',
   withdrawalConfirmationItems: DEFAULT_WITHDRAWAL_CONFIRMATION_ITEMS,
 };
 
@@ -169,6 +159,7 @@ const PublicApp: React.FC = () => {
   const [trainingMenuEnabled, setTrainingMenuEnabled] = useState<boolean | null>(null);
   const [membershipMenuEnabled, setMembershipMenuEnabled] = useState<boolean | null>(null);
   const [portalContentSettings, setPortalContentSettings] = useState<PublicPortalContentSettings | null>(null);
+  const [settingsLoadFailed, setSettingsLoadFailed] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
   const isFirstRender = useRef(true);
 
@@ -220,56 +211,53 @@ const PublicApp: React.FC = () => {
             // 空文字を既定で上書きしない（|| ではなく ??）。空＝リンクを出さない、が設定の意思。
             privacyPolicyUrl: portalSettings.value.privacyPolicyUrl ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.privacyPolicyUrl,
             heroBadgeEnabled: portalSettings.value.heroBadgeEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.heroBadgeEnabled,
-            heroBadgeLabel: portalSettings.value.heroBadgeLabel || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.heroBadgeLabel,
-            heroTitle: portalSettings.value.heroTitle || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.heroTitle,
+            heroBadgeLabel: portalSettings.value.heroBadgeLabel ?? '',
+            heroTitle: portalSettings.value.heroTitle ?? '',
             heroDescriptionEnabled: portalSettings.value.heroDescriptionEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.heroDescriptionEnabled,
-            heroDescription: portalSettings.value.heroDescription || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.heroDescription,
+            heroDescription: portalSettings.value.heroDescription ?? '',
             membershipBadgeEnabled: portalSettings.value.membershipBadgeEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipBadgeEnabled,
-            membershipBadgeLabel: portalSettings.value.membershipBadgeLabel || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipBadgeLabel,
+            membershipBadgeLabel: portalSettings.value.membershipBadgeLabel ?? '',
             membershipTitleEnabled: portalSettings.value.membershipTitleEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipTitleEnabled,
-            membershipTitle: portalSettings.value.membershipTitle || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipTitle,
+            membershipTitle: portalSettings.value.membershipTitle ?? '',
             membershipDescriptionEnabled: portalSettings.value.membershipDescriptionEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipDescriptionEnabled,
-            membershipDescription: portalSettings.value.membershipDescription || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipDescription,
-            membershipCtaLabel: portalSettings.value.membershipCtaLabel || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.membershipCtaLabel,
+            membershipDescription: portalSettings.value.membershipDescription ?? '',
+            membershipCtaLabel: portalSettings.value.membershipCtaLabel ?? '',
             completionGuidanceVisible: portalSettings.value.completionGuidanceVisible ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionGuidanceVisible,
-            completionGuidanceBodyWhenCredentialSent: portalSettings.value.completionGuidanceBodyWhenCredentialSent || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionGuidanceBodyWhenCredentialSent,
-            completionGuidanceBodyWhenCredentialNotSent: portalSettings.value.completionGuidanceBodyWhenCredentialNotSent || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionGuidanceBodyWhenCredentialNotSent,
+            completionGuidanceBodyWhenCredentialSent: portalSettings.value.completionGuidanceBodyWhenCredentialSent ?? '',
+            completionGuidanceBodyWhenCredentialNotSent: portalSettings.value.completionGuidanceBodyWhenCredentialNotSent ?? '',
             completionLoginInfoBlockVisible: portalSettings.value.completionLoginInfoBlockVisible ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionLoginInfoBlockVisible,
             completionLoginInfoVisible: portalSettings.value.completionLoginInfoVisible ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionLoginInfoVisible,
-            completionLoginInfoBodyWhenCredentialSent: portalSettings.value.completionLoginInfoBodyWhenCredentialSent || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionLoginInfoBodyWhenCredentialSent,
-            completionLoginInfoBodyWhenCredentialNotSent: portalSettings.value.completionLoginInfoBodyWhenCredentialNotSent || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionLoginInfoBodyWhenCredentialNotSent,
-            completionNoCredentialNotice: portalSettings.value.completionNoCredentialNotice || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionNoCredentialNotice,
-            completionCredentialNotice: portalSettings.value.completionCredentialNotice || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionCredentialNotice,
+            completionLoginInfoBodyWhenCredentialSent: portalSettings.value.completionLoginInfoBodyWhenCredentialSent ?? '',
+            completionLoginInfoBodyWhenCredentialNotSent: portalSettings.value.completionLoginInfoBodyWhenCredentialNotSent ?? '',
             credentialEmailEnabled: portalSettings.value.credentialEmailEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.credentialEmailEnabled,
             trainingBadgeEnabled: portalSettings.value.trainingBadgeEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.trainingBadgeEnabled,
-            trainingBadgeLabel: portalSettings.value.trainingBadgeLabel || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.trainingBadgeLabel,
+            trainingBadgeLabel: portalSettings.value.trainingBadgeLabel ?? '',
             trainingTitleEnabled: portalSettings.value.trainingTitleEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.trainingTitleEnabled,
-            trainingTitle: portalSettings.value.trainingTitle || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.trainingTitle,
+            trainingTitle: portalSettings.value.trainingTitle ?? '',
             trainingDescriptionEnabled: portalSettings.value.trainingDescriptionEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.trainingDescriptionEnabled,
-            trainingDescription: portalSettings.value.trainingDescription || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.trainingDescription,
-            trainingCtaLabel: portalSettings.value.trainingCtaLabel || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.trainingCtaLabel,
+            trainingDescription: portalSettings.value.trainingDescription ?? '',
+            trainingCtaLabel: portalSettings.value.trainingCtaLabel ?? '',
             memberUpdateMenuEnabled: portalSettings.value.memberUpdateMenuEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.memberUpdateMenuEnabled,
             memberUpdateBadgeEnabled: portalSettings.value.memberUpdateBadgeEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.memberUpdateBadgeEnabled,
-            memberUpdateBadgeLabel: portalSettings.value.memberUpdateBadgeLabel || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.memberUpdateBadgeLabel,
+            memberUpdateBadgeLabel: portalSettings.value.memberUpdateBadgeLabel ?? '',
             memberUpdateTitleEnabled: portalSettings.value.memberUpdateTitleEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.memberUpdateTitleEnabled,
-            memberUpdateTitle: portalSettings.value.memberUpdateTitle || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.memberUpdateTitle,
+            memberUpdateTitle: portalSettings.value.memberUpdateTitle ?? '',
             memberUpdateDescriptionEnabled: portalSettings.value.memberUpdateDescriptionEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.memberUpdateDescriptionEnabled,
-            memberUpdateDescription: portalSettings.value.memberUpdateDescription || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.memberUpdateDescription,
-            memberUpdateCtaLabel: portalSettings.value.memberUpdateCtaLabel || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.memberUpdateCtaLabel,
+            memberUpdateDescription: portalSettings.value.memberUpdateDescription ?? '',
+            memberUpdateCtaLabel: portalSettings.value.memberUpdateCtaLabel ?? '',
             withdrawalMenuEnabled: portalSettings.value.withdrawalMenuEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.withdrawalMenuEnabled,
             withdrawalBadgeEnabled: portalSettings.value.withdrawalBadgeEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.withdrawalBadgeEnabled,
-            withdrawalBadgeLabel: portalSettings.value.withdrawalBadgeLabel || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.withdrawalBadgeLabel,
+            withdrawalBadgeLabel: portalSettings.value.withdrawalBadgeLabel ?? '',
             withdrawalTitleEnabled: portalSettings.value.withdrawalTitleEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.withdrawalTitleEnabled,
-            withdrawalTitle: portalSettings.value.withdrawalTitle || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.withdrawalTitle,
+            withdrawalTitle: portalSettings.value.withdrawalTitle ?? '',
             withdrawalDescriptionEnabled: portalSettings.value.withdrawalDescriptionEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.withdrawalDescriptionEnabled,
-            withdrawalDescription: portalSettings.value.withdrawalDescription || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.withdrawalDescription,
-            withdrawalCtaLabel: portalSettings.value.withdrawalCtaLabel || DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.withdrawalCtaLabel,
+            withdrawalDescription: portalSettings.value.withdrawalDescription ?? '',
+            withdrawalCtaLabel: portalSettings.value.withdrawalCtaLabel ?? '',
             withdrawalConfirmationItems: normalizeWithdrawalConfirmationItems(portalSettings.value.withdrawalConfirmationItems),
           });
         } else {
-          setTrainingMenuEnabled(true);
-          setMembershipMenuEnabled(true);
-          setPortalContentSettings(DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS);
+          // 2026-10-25 docs/313: 以前は既定の文面で全メニューを出していた（fail-open）。文面の正本は DB なので、出さずに知らせる
+          setSettingsLoadFailed(true);
         }
       } finally {
         setIsLoading(false);
@@ -345,6 +333,13 @@ const PublicApp: React.FC = () => {
     // portalContentSettings が null の間はデフォルト値を一切表示しない（FOIC防止）
     const settingsReady = portalContentSettings !== null;
     const content = portalContentSettings ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS;
+    if (settingsLoadFailed) {
+      return (
+        <section role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm leading-7 text-red-700">
+          画面の設定を読み込めませんでした。時間をおいてから、このページを再読み込みしてください。
+        </section>
+      );
+    }
     return (
     <div className="space-y-8">
       <section className="rounded-[20px] border border-slate-200 bg-white px-5 py-6 shadow-sm sm:rounded-[28px] sm:px-6 sm:py-8 md:px-10">
@@ -661,8 +656,6 @@ const PublicApp: React.FC = () => {
             showCompletionLoginInfo={portalContentSettings?.completionLoginInfoVisible ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionLoginInfoVisible}
             completionLoginInfoBodyWhenCredentialSent={portalContentSettings?.completionLoginInfoBodyWhenCredentialSent ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionLoginInfoBodyWhenCredentialSent}
             completionLoginInfoBodyWhenCredentialNotSent={portalContentSettings?.completionLoginInfoBodyWhenCredentialNotSent ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionLoginInfoBodyWhenCredentialNotSent}
-            completionNoCredentialNotice={portalContentSettings?.completionNoCredentialNotice ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionNoCredentialNotice}
-            completionCredentialNotice={portalContentSettings?.completionCredentialNotice ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.completionCredentialNotice}
             credentialEmailEnabled={portalContentSettings?.credentialEmailEnabled ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.credentialEmailEnabled}
           />
         )}
