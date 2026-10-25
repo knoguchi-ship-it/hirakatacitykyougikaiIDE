@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-10-19
-Production: `v376.132` / integrated-public `@442` x2 / member split `@200` / admin split `@299`
+Production: `v376.134` / integrated-public `@444` x2 / member split `@202` / admin split `@301`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -157,7 +157,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-25 v376.132 ← current production
+### 2026-10-25 v376.134 ← current production
+
+- Scope: 先頭の 0 が消えた電話番号を戻す保守ツール（previewPhoneZeroRepair_LOG / executePhoneZeroRepair_APPLY・docs/04 §5.2.3）。v376.133（@443×2 / @201 / @300）で入れたが、本番の確認で 10 桁の判定がゆるい（999… の 10 桁が対象）と分かり、実行せずに v376.134 で 50 / 70 / 80 / 90 始まりに絞った。
+- Schema: 据え置き（2026-10-25-text-columns-v376.132）。
+- Fixed deployments: integrated/public @444 x2 / member @202 / admin @301. admin の redeploy は v376.133・v376.134 とも 1 回目 `Requested entity was not found.`、再実行で成功。
+- Verification: prerelease PASS（test:phone-zero-repair 3）。本番で確認 14 セル → 実行 14・残り 0。会員 218 件の全項目を前後で比べ、変わったのは対象の 10 項目だけ（残る 3 セルは一覧に出ない論理削除済みの会員、1 セルはアーカイブ。ツールの数え直しで残り 0）。
+- Rollback: integrated/public @442 x2 / member @200 / admin @299（v376.132）。直した値はそのまま残る（監査ログ PHONE_ZERO_REPAIR に変更前後）。
+
+### 2026-10-25 v376.132
 
 - Scope: 数字の文字列の列（TEXT_FORMAT_COLUMNS_: 振込口座のコード・口座番号、電話 / FAX / 郵便番号 / CM 番号 / 事業所番号 / ログインID）を書式なしテキストに（先頭の 0 が消えていた）。口座の桁数をサーバでも確かめる。申込から作った★テスト事業所を物理削除の対象に（docs/311 §5.5）。
 - Schema: `DB_SCHEMA_VERSION` = 2026-10-25-text-columns-v376.132。リリース前に本番 DB のコピーでリハーサル OK（変化 0・2 回目 0・書いて読む 83 列・同じ数字の文字列へ 797 セル。1 回目は比較の誤りで NG → 比較を直して OK）。初回の管理画面表示 約 91 秒（再試行の帯なし）。
