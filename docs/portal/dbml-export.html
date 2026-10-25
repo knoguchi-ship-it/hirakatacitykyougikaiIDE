@@ -325,7 +325,7 @@ footer {
     <button class="copy-btn" onclick="copyDbml()">📋 全文コピー</button>
     <pre id="dbml-src">// 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能
 // 元: docs/03_DATA_MODEL.md
-// 生成日時: 2026-10-19T05:10:03.636Z
+// 生成日時: 2026-10-24T23:58:01.419Z
 
 Project hcmn_member_system {
   database_type: &quot;Google Spreadsheet (logical)&quot;
@@ -903,6 +903,7 @@ Table &quot;T_支払い&quot; {
   &quot;削除フラグ&quot; boolean
   &quot;作成日時&quot; timestamp
   &quot;更新日時&quot; timestamp
+  &quot;職員ID&quot; varchar [note: &#39;FK&#39;]
 }
 
 Table &quot;T_支払い_archive&quot; {
@@ -917,6 +918,7 @@ Table &quot;T_支払い_archive&quot; {
   &quot;削除フラグ&quot; boolean
   &quot;作成日時&quot; timestamp
   &quot;更新日時&quot; timestamp
+  &quot;職員ID&quot; varchar
   &quot;アーカイブID&quot; varchar [pk]
   &quot;削除バッチID&quot; varchar [note: &#39;FK&#39;]
   &quot;アーカイブ日時&quot; timestamp
@@ -1267,6 +1269,7 @@ Ref: &quot;T_役員&quot;.&quot;組織コード&quot; &gt; &quot;M_組織マス�
 Ref: &quot;T_振込口座&quot;.&quot;会員ID&quot; &gt; &quot;T_会員&quot;.&quot;会員ID&quot; // 会員ID
 Ref: &quot;T_振込口座&quot;.&quot;職員ID&quot; &gt; &quot;T_事業所職員&quot;.&quot;職員ID&quot; // 職員ID
 Ref: &quot;T_支払い&quot;.&quot;会員ID&quot; &gt; &quot;T_会員&quot;.&quot;会員ID&quot; // 会員ID
+Ref: &quot;T_支払い&quot;.&quot;職員ID&quot; &gt; &quot;T_事業所職員&quot;.&quot;職員ID&quot; // 職員ID
 Ref: &quot;T_支払い明細&quot;.&quot;支払いID&quot; &gt; &quot;T_支払い&quot;.&quot;支払いID&quot; // 支払いID
 Ref: &quot;T_支払い明細&quot;.&quot;請求ID&quot; &gt; &quot;T_請求&quot;.&quot;請求ID&quot; // 請求ID
 Ref: &quot;T_支払い明細&quot;.&quot;役職コード&quot; &gt; &quot;M_役職マスタ&quot;.&quot;役職コード&quot; // 役職コード
@@ -1300,7 +1303,7 @@ Ref: &quot;T_管理者Googleホワイトリスト&quot;.&quot;権限コード&qu
 Ref: &quot;T_管理者Googleホワイトリスト&quot;.&quot;ロールID&quot; &gt; &quot;T_権限ロール&quot;.&quot;ロールID&quot; // ロールID(docs/246)
 Ref: &quot;T_メール送信ログ&quot;.&quot;研修ID&quot; &gt; &quot;T_研修&quot;.&quot;研修ID&quot; // 研修ID(v360拡張 nullable)</pre>
   </div>
-  <p style="font-size: 0.85em; color: var(--muted);">行数: 976 / 容量: 19.2 KB</p>
+  <p style="font-size: 0.85em; color: var(--muted);">行数: 979 / 容量: 19.3 KB</p>
 </section>
 
 <section class="card">
@@ -1355,7 +1358,7 @@ Ref: &quot;T_メール送信ログ&quot;.&quot;研修ID&quot; &gt; &quot;T_研�
 
 
 <footer>
-  生成: 2026-10-19 | scripts/build-docs-portal.mjs より自動生成 | AGENTS.md §4.6 準拠
+  生成: 2026-10-24 | scripts/build-docs-portal.mjs より自動生成 | AGENTS.md §4.6 準拠
 </footer>
 
 </div>

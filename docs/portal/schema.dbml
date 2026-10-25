@@ -1,6 +1,6 @@
 // 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能
 // 元: docs/03_DATA_MODEL.md
-// 生成日時: 2026-10-19T05:10:03.641Z
+// 生成日時: 2026-10-24T23:58:01.423Z
 
 Project hcmn_member_system {
   database_type: "Google Spreadsheet (logical)"
@@ -578,6 +578,7 @@ Table "T_支払い" {
   "削除フラグ" boolean
   "作成日時" timestamp
   "更新日時" timestamp
+  "職員ID" varchar [note: 'FK']
 }
 
 Table "T_支払い_archive" {
@@ -592,6 +593,7 @@ Table "T_支払い_archive" {
   "削除フラグ" boolean
   "作成日時" timestamp
   "更新日時" timestamp
+  "職員ID" varchar
   "アーカイブID" varchar [pk]
   "削除バッチID" varchar [note: 'FK']
   "アーカイブ日時" timestamp
@@ -942,6 +944,7 @@ Ref: "T_役員"."組織コード" > "M_組織マスタ"."組織コード" // 組
 Ref: "T_振込口座"."会員ID" > "T_会員"."会員ID" // 会員ID
 Ref: "T_振込口座"."職員ID" > "T_事業所職員"."職員ID" // 職員ID
 Ref: "T_支払い"."会員ID" > "T_会員"."会員ID" // 会員ID
+Ref: "T_支払い"."職員ID" > "T_事業所職員"."職員ID" // 職員ID
 Ref: "T_支払い明細"."支払いID" > "T_支払い"."支払いID" // 支払いID
 Ref: "T_支払い明細"."請求ID" > "T_請求"."請求ID" // 請求ID
 Ref: "T_支払い明細"."役職コード" > "M_役職マスタ"."役職コード" // 役職コード

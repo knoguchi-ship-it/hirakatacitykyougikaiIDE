@@ -758,7 +758,8 @@ erDiagram
   T_役員 }o--o| T_事業所職員 : &quot;職員ID&quot;
   T_振込口座 }o--o| T_会員 : &quot;会員ID&quot;
   T_振込口座 }o--o| T_事業所職員 : &quot;職員ID&quot;
-  T_支払い }o--|| T_会員 : &quot;会員ID&quot;
+  T_支払い }o--o| T_会員 : &quot;会員ID&quot;
+  T_支払い }o--o| T_事業所職員 : &quot;職員ID&quot;
   T_請求 }o--o| T_会員 : &quot;会員ID&quot;
   T_請求 }o--o| T_事業所職員 : &quot;職員ID&quot;
   T_会員_archive }o--o| T_削除ログ : &quot;削除バッチID&quot;
@@ -978,6 +979,7 @@ erDiagram
     boolean 削除フラグ
     datetime 作成日時
     datetime 更新日時
+    string 職員ID FK
   }
   T_支払い明細 {
     string 明細ID PK
@@ -1044,7 +1046,8 @@ erDiagram
   T_役員 }o--|| M_組織マスタ : &quot;組織コード&quot;
   T_振込口座 }o--o| T_会員 : &quot;会員ID&quot;
   T_振込口座 }o--o| T_事業所職員 : &quot;職員ID&quot;
-  T_支払い }o--|| T_会員 : &quot;会員ID&quot;
+  T_支払い }o--o| T_会員 : &quot;会員ID&quot;
+  T_支払い }o--o| T_事業所職員 : &quot;職員ID&quot;
   T_支払い明細 }o--|| M_役職マスタ : &quot;役職コード&quot;
   T_支払い明細 }o--|| M_組織マスタ : &quot;組織コード&quot;
   T_支払い明細 }o--|| M_支払い種別マスタ : &quot;種別コード&quot;
@@ -1422,7 +1425,7 @@ erDiagram
 </section>
 
 <footer>
-  生成: 2026-10-19 | scripts/build-docs-portal.mjs より自動生成 | AGENTS.md §4.6 準拠
+  生成: 2026-10-24 | scripts/build-docs-portal.mjs より自動生成 | AGENTS.md §4.6 準拠
 </footer>
 
 </div>

@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: f3aeb071564ab60c8de9f41d3f83375e680a78834fa7f35a168e79982c0f892c
+// BUILD_INPUT_SHA256: eb780c5d81f26155193ef4a52cfa2a8b63e0a6810cec8cf92d58dc7dfdd09ce4
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -843,11 +843,14 @@ var テーブル定義 = {
   '口座種別', '口座番号', '口座名義カナ', '備考',
   '削除フラグ', '作成日時', '更新日時',
 ];
+// 2026-10-25: 職員ID を末尾に追加（事業所職員の役員にも支払う。受取人は役員本人・operator 決定）。
+// 会員ID（個人・賛助会員）と職員ID（事業所職員）はXOR — T_役員・T_振込口座・T_請求 と同じ人物の参照。
 テーブル定義['T_支払い'] = [
   '支払いID', '会員ID',
   '支払い日', '支払い方法', '合計金額',
   '振込先口座JSON', '登録者メール', '備考',
   '削除フラグ', '作成日時', '更新日時',
+  '職員ID',
 ];
 テーブル定義['T_支払い明細'] = [
   '明細ID', '支払いID', '請求ID',
@@ -3365,6 +3368,7 @@ var DB_STATE_ID_REFERENCES_ = [
   ['T_振込口座', '会員ID', 'T_会員'],
   ['T_振込口座', '職員ID', 'T_事業所職員'],
   ['T_支払い', '会員ID', 'T_会員'],
+  ['T_支払い', '職員ID', 'T_事業所職員'],
   ['T_支払い明細', '支払いID', 'T_支払い'],
   ['T_支払い明細', '請求ID', 'T_請求'],
   ['T_請求', '会員ID', 'T_会員'],
@@ -9236,14 +9240,50 @@ function getOfficerMasterData_() {
 
 // ---------- 役員ステータス確認ヘルパー ----------
 
+// 役員まわりで人物（会員ID か 職員ID）を参照する表。紐づけ変更・人物の統合はこの 4 表をまとめて付け替える。
+var OFFICER_PERSON_TABLES_ = ['T_役員', 'T_振込口座', 'T_請求', 'T_支払い'];
+
+// 2026-10-25: 役員まわり（T_役員・T_振込口座・T_請求・T_支払い）の人物の参照を 1 か所で決める。
+// 個人・賛助会員は会員ID、事業所職員は職員ID だけで人を指す（XOR）。事業所職員のセッションは会員ID に
+// 事業所の会員ID も持つが、人を決めるのは職員ID。以前は約 20 の関数がこの判定を個別に書き、
+// 支払いだけ職員を扱えなかった（docs/307 F31）。判定はここを通す（test:officer-person が直書きを落とす）。
+function officerPersonRef_(memberId, staffId) {
+  var sid = String(staffId || '').trim();
+  if (sid) return { memberId: '', staffId: sid };
+  return { memberId: String(memberId || '').trim(), staffId: '' };
+}
+
+function officerPersonKey_(memberId, staffId) {
+  var ref = officerPersonRef_(memberId, staffId);
+  if (ref.staffId) return 'staff:' + ref.staffId;
+  return ref.memberId ? 'member:' + ref.memberId : '';
+}
+
+// 行（会員ID・職員ID 列を持つ）がこの人物のものか
+function rowBelongsToOfficerPerson_(row, memberId, staffId) {
+  var key = officerPersonKey_(memberId, staffId);
+  return !!key && officerPersonKey_(row['会員ID'], row['職員ID']) === key;
+}
+
+// シートの見出しでの列の位置（無ければ -1）
+
+// findRowByColumnValue_ の結果（row 配列 + columns）がこの人物の請求か
+function claimRowBelongsTo_(found, memberId, staffId) {
+  var cols = found.columns;
+  return rowBelongsToOfficerPerson_({
+    '会員ID': cols['会員ID'] != null ? found.row[cols['会員ID']] : '',
+    '職員ID': cols['職員ID'] != null ? found.row[cols['職員ID']] : '',
+  }, memberId, staffId);
+}
+
+// 人物の表示名と所属（会員・職員の行から引く）
+
 // v297: memberId（個人/賛助）または staffId（事業所職員）のいずれかでチェック
 function isActiveOfficer_(memberId, staffId, ss) {
   var officers = getRowsAsObjects_(ss, 'T_役員').filter(function(r) {
     if (toBoolean_(r['削除フラグ'])) return false;
     if (r['退任日'] && String(r['退任日'] || '') !== '') return false;
-    if (memberId && !staffId && String(r['会員ID'] || '') === String(memberId)) return true;
-    if (staffId && String(r['職員ID'] || '') === String(staffId)) return true;
-    return false;
+    return rowBelongsToOfficerPerson_(r, memberId, staffId);
   });
   return officers.length > 0;
 }
@@ -9262,10 +9302,7 @@ function getBankAccount_(payload) {
   var ss = getOrCreateDatabase_();
   initializeSchemaIfNeeded_(ss);
   var rows = getRowsAsObjects_(ss, 'T_振込口座').filter(function(r) {
-    if (toBoolean_(r['削除フラグ'])) return false;
-    if (staffId  && String(r['職員ID'] || '') === staffId)  return true;
-    if (memberId && !staffId && String(r['会員ID'] || '') === memberId) return true;
-    return false;
+    return !toBoolean_(r['削除フラグ']) && rowBelongsToOfficerPerson_(r, memberId, staffId);
   });
   return rows.length > 0 ? rows[0] : null;
 }
@@ -9284,15 +9321,14 @@ function saveBankAccount_(payload) {
   var found = null;
   for (var i = 0; i < existing.length; i += 1) {
     if (toBoolean_(existing[i]['削除フラグ'])) continue;
-    var matchM = memberId && !staffId && String(existing[i]['会員ID'] || '') === memberId;
-    var matchS = staffId  && String(existing[i]['職員ID'] || '') === staffId;
-    if (matchM || matchS) { found = findRowByColumnValue_(sheet, '口座ID', existing[i]['口座ID']); break; }
+    if (rowBelongsToOfficerPerson_(existing[i], memberId, staffId)) { found = findRowByColumnValue_(sheet, '口座ID', existing[i]['口座ID']); break; }
   }
+  var person = officerPersonRef_(memberId, staffId);
 
   var nowIso    = new Date().toISOString();
   var accountId = found ? String(found.row[found.columns['口座ID']] || '') : Utilities.getUuid();
   var newData   = {
-    '口座ID': accountId, '会員ID': staffId ? '' : memberId, '職員ID': staffId,
+    '口座ID': accountId, '会員ID': person.memberId, '職員ID': person.staffId,
     '金融機関名':   String(payload.bankName          || '').trim(),
     '金融機関コード': String(payload.bankCode        || '').trim(),
     '支店名':       String(payload.branchName        || '').trim(),
@@ -9334,9 +9370,7 @@ function getMemberOfficerStatus_(payload) {
     var officers = getRowsAsObjects_(ss, 'T_役員').filter(function(r) {
       if (toBoolean_(r['削除フラグ'])) return false;
       if (r['退任日'] && String(r['退任日'] || '') !== '') return false;
-      if (memberId && !staffId && String(r['会員ID'] || '') === memberId) return true;
-      if (staffId  && String(r['職員ID'] || '') === staffId) return true;
-      return false;
+      return rowBelongsToOfficerPerson_(r, memberId, staffId);
     });
     var roleMap = {};
     getRowsAsObjects_(ss, 'M_役職マスタ').forEach(function(r) { roleMap[String(r['役職コード'] || '')] = r; });
@@ -9357,7 +9391,7 @@ function getMemberOfficerStatus_(payload) {
     });
   }
 
-  var bankAccount = isOfficer ? getBankAccount_({ memberId: staffId ? '' : memberId, staffId: staffId }) : null;
+  var bankAccount = isOfficer ? getBankAccount_(officerPersonRef_(memberId, staffId)) : null;
   return { isOfficer: isOfficer, activeRoles: activeRoles, bankAccount: bankAccount };
 }
 
@@ -9366,10 +9400,7 @@ function getOfficerSelectableOrganizationCodes_(memberId, staffId, ss) {
   getRowsAsObjects_(ss, 'T_役員').forEach(function(r) {
     if (toBoolean_(r['削除フラグ'])) return;
     if (r['退任日'] && String(r['退任日'] || '') !== '') return;
-    var owns = false;
-    if (memberId && !staffId && String(r['会員ID'] || '') === memberId) owns = true;
-    if (staffId && String(r['職員ID'] || '') === staffId) owns = true;
-    if (owns && r['組織コード']) codes[String(r['組織コード'])] = true;
+    if (rowBelongsToOfficerPerson_(r, memberId, staffId) && r['組織コード']) codes[String(r['組織コード'])] = true;
   });
   getRowsAsObjects_(ss, 'M_組織マスタ').forEach(function(o) {
     if (toBoolean_(o['削除フラグ']) || !toBoolean_(o['有効フラグ'])) return;
@@ -9395,7 +9426,7 @@ function saveMemberBankAccount_(payload) {
   var ss = getOrCreateDatabase_();
   initializeSchemaIfNeeded_(ss);
   if (!isActiveOfficer_(memberId, staffId, ss)) throw new Error('役員のみ口座情報を登録できます。');
-  return saveBankAccount_(Object.assign({}, payload, { memberId: staffId ? '' : memberId, staffId: staffId }));
+  return saveBankAccount_(Object.assign({}, payload, officerPersonRef_(memberId, staffId)));
 }
 
 // ---------- T_支払い / T_支払い明細 / T_請求 管理 ----------
@@ -9536,10 +9567,7 @@ function saveClaim_(payload) {
     var found = findRowByColumnValue_(sheet, '請求ID', claimId);
     if (!found || toBoolean_(found.row[found.columns['削除フラグ']])) throw new Error('請求が見つかりません。');
     // 所有者チェック（会員IDまたは職員IDで照合）
-    var claimMember = String(found.row[found.columns['会員ID']] || '');
-    var claimStaff  = String(found.row[found.columns['職員ID'] != null ? found.columns['職員ID'] : -1] || '');
-    var ownerMatch = (memberId && !staffId && claimMember === memberId) || (staffId && claimStaff === staffId);
-    if (!ownerMatch) throw new Error('他の会員の請求は編集できません。');
+    if (!claimRowBelongsTo_(found, memberId, staffId)) throw new Error('他の会員の請求は編集できません。');
     var status = String(found.row[found.columns['請求状態']] || '');
     if (status !== '申請中') throw new Error('申請中以外の請求は編集できません。');
 
@@ -9562,8 +9590,8 @@ function saveClaim_(payload) {
     claimId = Utilities.getUuid();
     appendRowsByHeaders_(ss, 'T_請求', [{
       '請求ID':       claimId,
-      '会員ID':       staffId ? '' : memberId,
-      '職員ID':       staffId,
+      '会員ID':       officerPersonRef_(memberId, staffId).memberId,
+      '職員ID':       officerPersonRef_(memberId, staffId).staffId,
       '役職コード':   roleCode,
       '組織コード':   orgCode,
       '種別コード':   typeCode,
@@ -9597,10 +9625,7 @@ function getMyClaims_(payload) {
   initializeSchemaIfNeeded_(ss);
 
   var claims = getRowsAsObjects_(ss, 'T_請求').filter(function(r) {
-    if (toBoolean_(r['削除フラグ'])) return false;
-    if (staffId  && String(r['職員ID'] || '') === staffId)  return true;
-    if (memberId && !staffId && String(r['会員ID'] || '') === memberId) return true;
-    return false;
+    return !toBoolean_(r['削除フラグ']) && rowBelongsToOfficerPerson_(r, memberId, staffId);
   });
   return claims.map(normalizeClaimRecord_).sort(function(a, b) { return (b['作成日時'] || '').localeCompare(a['作成日時'] || ''); });
 }
@@ -9619,10 +9644,7 @@ function deleteMyClaim_(payload) {
   var sheet = ss.getSheetByName('T_請求');
   var found = findRowByColumnValue_(sheet, '請求ID', claimId);
   if (!found || toBoolean_(found.row[found.columns['削除フラグ']])) throw new Error('請求が見つかりません。');
-  var claimMember = String(found.row[found.columns['会員ID']] || '');
-  var claimStaff = String(found.row[found.columns['職員ID'] != null ? found.columns['職員ID'] : -1] || '');
-  var ownerMatch = (memberId && !staffId && claimMember === memberId) || (staffId && claimStaff === staffId);
-  if (!ownerMatch) throw new Error('他の会員の請求は削除できません。');
+  if (!claimRowBelongsTo_(found, memberId, staffId)) throw new Error('他の会員の請求は削除できません。');
   if (String(found.row[found.columns['請求状態']] || '') !== '申請中') throw new Error('申請中の請求のみ取り下げできます。');
 
   var row = found.row.slice();
@@ -9666,10 +9688,7 @@ function uploadClaimAttachment_(payload) {
     claimSheet = ss.getSheetByName('T_請求');
     claimFound = claimSheet ? findRowByColumnValue_(claimSheet, '請求ID', claimId) : null;
     if (!claimFound || toBoolean_(claimFound.row[claimFound.columns['削除フラグ']])) throw new Error('請求が見つかりません。');
-    var claimM = String(claimFound.row[claimFound.columns['会員ID']] || '');
-    var claimS = String(claimFound.row[claimFound.columns['職員ID'] != null ? claimFound.columns['職員ID'] : -1] || '');
-    var ownsClaim = (memberId && !staffId && claimM === memberId) || (staffId && claimS === staffId);
-    if (!ownsClaim) throw new Error('他の会員の請求にはファイルを追加できません。');
+    if (!claimRowBelongsTo_(claimFound, memberId, staffId)) throw new Error('他の会員の請求にはファイルを追加できません。');
     if (String(claimFound.row[claimFound.columns['請求状態']] || '') !== '申請中') throw new Error('申請中以外の請求にはファイルを追加できません。');
   }
 
@@ -9720,10 +9739,7 @@ function removeClaimAttachment_(payload) {
   // 2026-10-13: 会員セッションが無いときに所有確認を飛ばしていた（if (memberId || staffId)）。
   // この関数は会員マイページからしか呼ばれないので、セッションが無ければ拒否する。
   if (!memberId && !staffId) throw new Error('ログインが必要です。');
-  var cM = String(found.row[found.columns['会員ID']] || '');
-  var cS = String(found.row[found.columns['職員ID'] != null ? found.columns['職員ID'] : -1] || '');
-  var owns = (memberId && !staffId && cM === memberId) || (staffId && cS === staffId);
-  if (!owns) throw new Error('他の会員の請求からはファイルを削除できません。');
+  if (!claimRowBelongsTo_(found, memberId, staffId)) throw new Error('他の会員の請求からはファイルを削除できません。');
   if (String(found.row[found.columns['請求状態']] || '') !== '申請中') throw new Error('申請中以外の請求からはファイルを削除できません。');
 
   // 添付JSON から除去
@@ -9751,8 +9767,9 @@ function removeClaimAttachment_(payload) {
 
 /**
  * 役員の紐づけを変更する（個人会員↔事業所職員の双方向対応）。
- * T_振込口座 の linkage も同時に更新する。
- * T_請求 の過去レコードは元の紐づけのまま保持（履歴として有効）。
+ * 2026-10-25: 人単位で、役員まわり 4 表（役職・振込口座・請求・支払い）をまとめて付け替える。
+ * 以前は T_請求 を元の紐づけのまま残していたが、それでは本人のマイページに過去の請求が出ず、
+ * 古い会員を削除すると請求も一緒にアーカイブへ移った。人物の統合（migratePersonOwnedReferences_）と同じ扱いにする。
  */
 
 /**

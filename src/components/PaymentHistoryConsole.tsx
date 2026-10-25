@@ -14,9 +14,10 @@ import {
   PaymentLine,
   PaymentRecord,
 } from '../shared/types';
+import { officerPersonKey, officerPersonRefFromKey } from '../shared/officerPerson';
 
 /** 請求管理から渡される請求。支払い登録の明細に結び付け、保存時にサーバが請求を「支払い済み」にする */
-interface InitialClaim { claimId: string; memberId: string; amount: number; typeCode: string }
+interface InitialClaim { claimId: string; memberId: string; staffId?: string; amount: number; typeCode: string }
 
 interface PaymentHistoryConsoleProps {
   api: ApiClient;
@@ -133,21 +134,17 @@ const PaymentHistoryConsole: React.FC<PaymentHistoryConsoleProps> = ({ api, init
 
   useEffect(() => { void load(); }, [load]);
 
-  // docs/307 F31（2026-10-25）: 支払いは会員ID でしか持てない（T_支払い に職員ID の列が無い）。
-  // 事業所職員の役員は会員ID が空で、以前は値が空の選択肢になり「選択してください」と同じ扱いになって登録できなかった。
-  // 受取人に選べるのは会員ID のある役員だけにし、職員の役員は選べない理由を添えて別に出す。役職を 2 つ持つ人は 1 回だけ。
+  // docs/307 F31（2026-10-25）: 受取人は役員本人。事業所職員の役員は会員ID が空なので、人は人物キー
+  // （個人・賛助は会員ID、職員は職員ID）で区別する。以前は会員ID で区別し、職員の役員を選ぶと値が空になって登録できなかった。
+  // 役職を 2 つ持つ人は 1 回だけ出す。
   const activeOfficers = useMemo(
-    () => uniqueOfficers((officerData?.officers ?? []).filter(o => !o.退任日 && o.会員ID), o => o.会員ID),
-    [officerData],
-  );
-  const staffOfficers = useMemo(
-    () => uniqueOfficers((officerData?.officers ?? []).filter(o => !o.退任日 && !o.会員ID && o.職員ID), o => o.職員ID),
+    () => uniqueOfficers((officerData?.officers ?? []).filter(o => !o.退任日 && officerPersonKey(o.会員ID, o.職員ID))),
     [officerData],
   );
 
   const filteredPayments = useMemo(() => {
     return payments.filter(p => {
-      if (filterMemberId && p.会員ID !== filterMemberId) return false;
+      if (filterMemberId && officerPersonKey(p.会員ID, p.職員ID) !== filterMemberId) return false;
       if (filterDateFrom && p.支払い日 < filterDateFrom) return false;
       if (filterDateTo && p.支払い日 > filterDateTo) return false;
       return true;
@@ -215,7 +212,7 @@ const PaymentHistoryConsole: React.FC<PaymentHistoryConsoleProps> = ({ api, init
           >
             <option value="">すべての役員</option>
             {activeOfficers.map(o => (
-              <option key={o.会員ID} value={o.会員ID}>{o.表示名}（{o.会員ID}）</option>
+              <option key={officerPersonKey(o.会員ID, o.職員ID)} value={officerPersonKey(o.会員ID, o.職員ID)}>{officerOptionLabel(o)}</option>
             ))}
           </select>
         </div>
@@ -254,7 +251,6 @@ const PaymentHistoryConsole: React.FC<PaymentHistoryConsoleProps> = ({ api, init
           masterData={masterData}
           officerData={officerData}
           activeOfficers={activeOfficers}
-          staffOfficers={staffOfficers}
           api={api}
           initialClaim={formClaim}
           onSaved={async () => {
@@ -362,7 +358,7 @@ const PaymentRow: React.FC<{
         </td>
         <td className="px-3 py-3">
           <p className="font-semibold text-slate-800">{payment.表示名}</p>
-          <p className="text-xs text-slate-400">会員番号: {payment.会員ID}</p>
+          <p className="text-xs text-slate-400">{payment.職員ID ? '事業所職員' : `会員番号: ${payment.会員ID}`}</p>
         </td>
         <td className="px-3 py-3 text-slate-700">{payment.支払い日 || '—'}</td>
         <td className="px-3 py-3">
@@ -482,26 +478,32 @@ const LineItemsDetail: React.FC<{
 const PAYMENT_METHODS = ['振込', '現金', 'その他'];
 
 type OfficerRow = OfficerManagementData['officers'][number];
-function uniqueOfficers(rows: OfficerRow[], keyOf: (o: OfficerRow) => string): OfficerRow[] {
+function uniqueOfficers(rows: OfficerRow[]): OfficerRow[] {
   const seen = new Set<string>();
   return rows
-    .filter(o => { const k = keyOf(o); if (seen.has(k)) return false; seen.add(k); return true; })
+    .filter(o => { const k = officerPersonKey(o.会員ID, o.職員ID); if (seen.has(k)) return false; seen.add(k); return true; })
     .sort((a, b) => a.表示名.localeCompare(b.表示名, 'ja'));
+}
+
+/** 個人・賛助会員は会員ID、事業所職員は事業所名を添える（同姓同名を見分ける） */
+function officerOptionLabel(o: OfficerRow): string {
+  if (o.職員ID) return o.所属名 ? `${o.表示名}（${o.所属名}）` : o.表示名;
+  return `${o.表示名}（${o.会員ID}）`;
 }
 
 const PaymentForm: React.FC<{
   masterData: OfficerMasterData;
   officerData: OfficerManagementData;
   activeOfficers: OfficerManagementData['officers'];
-  staffOfficers: OfficerManagementData['officers'];
   api: ApiClient;
   initialClaim?: InitialClaim | null;
   onSaved: () => void;
   onCancel: () => void;
-}> = ({ masterData, officerData, activeOfficers, staffOfficers, api, initialClaim, onSaved, onCancel }) => {
+}> = ({ masterData, officerData, activeOfficers, api, initialClaim, onSaved, onCancel }) => {
   // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
   const uid = React.useId();
-  const [memberId, setMemberId] = useState(initialClaim?.memberId || '');
+  // 受取人の人物キー（officerPersonKey）。保存時に { memberId } か { staffId } へ戻す
+  const [memberId, setMemberId] = useState(initialClaim ? officerPersonKey(initialClaim.memberId, initialClaim.staffId) : '');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const [paymentMethod, setPaymentMethod] = useState('振込');
   const [formNote, setFormNote] = useState('');
@@ -519,7 +521,7 @@ const PaymentForm: React.FC<{
   // 選択会員の役職一覧（役職・組織の既定値自動入力に使用）
   const memberRoles = useMemo(() => {
     if (!memberId) return [];
-    return officerData.officers.filter(o => o.会員ID === memberId && !o.退任日);
+    return officerData.officers.filter(o => officerPersonKey(o.会員ID, o.職員ID) === memberId && !o.退任日);
   }, [memberId, officerData]);
 
   const totalAmount = useMemo(
@@ -548,7 +550,7 @@ const PaymentForm: React.FC<{
   const handleMemberChange = (id: string) => {
     setMemberId(id);
     if (!id) return;
-    const roles = officerData.officers.filter(o => o.会員ID === id && !o.退任日);
+    const roles = officerData.officers.filter(o => officerPersonKey(o.会員ID, o.職員ID) === id && !o.退任日);
     if (roles[0]) {
       setLines(prev => prev.map((l, i) =>
         i === 0 ? { ...l, roleCode: roles[0].役職コード, organizationCode: roles[0].組織コード } : l
@@ -584,7 +586,7 @@ const PaymentForm: React.FC<{
     setServerError(null);
     try {
       await api.savePayment({
-        memberId,
+        ...officerPersonRefFromKey(memberId),
         paymentDate,
         paymentMethod,
         totalAmount,
@@ -633,19 +635,9 @@ const PaymentForm: React.FC<{
           >
             <option value="">-- 選択してください --</option>
             {activeOfficers.map(o => (
-              <option key={o.会員ID} value={o.会員ID}>{o.表示名}（{o.会員ID}）</option>
+              <option key={officerPersonKey(o.会員ID, o.職員ID)} value={officerPersonKey(o.会員ID, o.職員ID)}>{officerOptionLabel(o)}</option>
             ))}
-            {staffOfficers.length > 0 && (
-              <optgroup label="事業所職員の役員（支払い登録は未対応）">
-                {staffOfficers.map(o => (
-                  <option key={o.職員ID} value={'staff:' + o.職員ID} disabled>{o.表示名}{o.所属名 ? `（${o.所属名}）` : ''}</option>
-                ))}
-              </optgroup>
-            )}
           </select>
-          {staffOfficers.length > 0 && (
-            <p className="mt-1 text-xs text-slate-500">事業所職員の役員（{staffOfficers.length} 名）は、まだ受取人に選べません。</p>
-          )}
           {errors.memberId && <p id={`${uid}-f4-err`} className="mt-1 text-xs text-red-600" role="alert">{errors.memberId}</p>}
         </div>
 

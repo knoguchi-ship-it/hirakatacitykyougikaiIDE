@@ -402,6 +402,7 @@ erDiagram
     boolean 削除フラグ
     datetime 作成日時
     datetime 更新日時
+    string 職員ID FK "事業所職員の役員への支払い（会員ID と XOR・2026-10-25）"
   }
 
   T_支払い明細 {
@@ -691,6 +692,7 @@ erDiagram
     boolean 削除フラグ
     datetime 作成日時
     datetime 更新日時
+    string 職員ID
     string アーカイブID PK "行個別の一意キー(UUID)"
     string 削除バッチID FK "T_削除ログ.ログID。会員単位復元のバッチキー(docs/249)"
     datetime アーカイブ日時
@@ -959,7 +961,8 @@ erDiagram
   T_役員 }o--|| M_組織マスタ : "組織コード"
   T_振込口座 }o--o| T_会員 : "会員ID"
   T_振込口座 }o--o| T_事業所職員 : "職員ID"
-  T_支払い }o--|| T_会員 : "会員ID"
+  T_支払い }o--o| T_会員 : "会員ID"
+  T_支払い }o--o| T_事業所職員 : "職員ID"
   T_支払い明細 }o--|| T_支払い : "支払いID"
   T_支払い明細 }o--o| T_請求 : "請求ID"
   T_支払い明細 }o--|| M_役職マスタ : "役職コード"

@@ -9,6 +9,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRevealOnChange } from '../shared/useRevealOnChange';
+import { officerPersonKey, officerPersonRef } from '../shared/officerPerson';
 import { ApiClient } from '../services/api';
 import {
   ClaimAttachment,
@@ -18,7 +19,7 @@ import {
 
 interface ClaimManagementConsoleProps {
   api: ApiClient;
-  onOpenPaymentConsole?: (claim: { claimId: string; memberId: string; amount: number; typeCode: string }) => void;
+  onOpenPaymentConsole?: (claim: { claimId: string; memberId: string; staffId?: string; amount: number; typeCode: string }) => void;
 }
 
 // ── 定数 ────────────────────────────────────────────────────────────────────
@@ -139,11 +140,14 @@ const ClaimManagementConsole: React.FC<ClaimManagementConsoleProps> = ({ api, on
   const roleMap = useMemo(() => Object.fromEntries((masterData?.roles ?? []).map(r => [r.役職コード, r.役職名])), [masterData]);
   const categoryMap = useMemo(() => Object.fromEntries((masterData?.workCategories ?? []).map(c => [c.業務分類コード, c])), [masterData]);
 
-  // 会員ドロップダウン用（重複排除）
+  // 請求者ドロップダウン用（人物で重複排除）。2026-10-25: 以前は会員ID で区別し、
+  // 会員ID が空の事業所職員の役員が全員 1 つ（空）にまとまって絞り込めなかった。
   const uniqueMembers = useMemo(() => {
     const seen = new Set<string>();
-    return claims.filter(c => { if (seen.has(c.会員ID)) return false; seen.add(c.会員ID); return true; })
-      .map(c => ({ id: c.会員ID, name: c.表示名 ?? c.会員ID }))
+    return claims
+      // 表示名は事業所職員なら「氏名（事業所名）」。個人・賛助会員は同姓同名を見分けられるよう会員ID を添える
+      .map(c => ({ id: officerPersonKey(c.会員ID, c.職員ID), name: c.職員ID ? (c.表示名 || c.職員ID) : `${c.表示名 || c.会員ID}（${c.会員ID}）` }))
+      .filter(p => { if (!p.id || seen.has(p.id)) return false; seen.add(p.id); return true; })
       .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
   }, [claims]);
 
@@ -151,7 +155,7 @@ const ClaimManagementConsole: React.FC<ClaimManagementConsoleProps> = ({ api, on
     return claims.filter(c => {
       if (filterClaimType && getClaimType(c) !== filterClaimType) return false;
       if (filterStatus && c.請求状態 !== filterStatus) return false;
-      if (filterMemberId && c.会員ID !== filterMemberId) return false;
+      if (filterMemberId && officerPersonKey(c.会員ID, c.職員ID) !== filterMemberId) return false;
       if (filterTypeCode && (c.業務分類コード || c.種別コード) !== filterTypeCode) return false;
       if (filterDateFrom && c.活動日 < filterDateFrom) return false;
       if (filterDateTo && c.活動日 > filterDateTo) return false;
@@ -275,7 +279,7 @@ const ClaimManagementConsole: React.FC<ClaimManagementConsoleProps> = ({ api, on
           <label htmlFor={`${uid}-f3`} className="mb-1 block text-xs font-medium text-slate-600">会員</label>
           <select id={`${uid}-f3`} value={filterMemberId} onChange={e => setFilterMemberId(e.target.value)} className={inputCls}>
             <option value="">すべての会員</option>
-            {uniqueMembers.map(m => <option key={m.id} value={m.id}>{m.name}（{m.id}）</option>)}
+            {uniqueMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </div>
         <div>
@@ -420,7 +424,7 @@ const ClaimManagementConsole: React.FC<ClaimManagementConsoleProps> = ({ api, on
                           {claim.請求状態 === '承認済み' && onOpenPaymentConsole && (
                             <button
                               type="button"
-                              onClick={() => onOpenPaymentConsole({ claimId: claim.請求ID, memberId: claim.会員ID, amount: Number(claim.請求金額 || 0), typeCode: claim.種別コード || '' })}
+                              onClick={() => onOpenPaymentConsole({ claimId: claim.請求ID, ...officerPersonRef(claim.会員ID, claim.職員ID), amount: Number(claim.請求金額 || 0), typeCode: claim.種別コード || '' })}
                               className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100"
                               title="支払い履歴コンソールで支払い登録"
                             >

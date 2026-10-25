@@ -448,7 +448,7 @@ const App: React.FC = () => {
     : adminSessionRbac;
   const [systemSettingsLoaded, setSystemSettingsLoaded] = useState(false);
   // 請求管理の「支払い登録へ」から渡す請求（支払い登録で明細に結び付ける）
-  const [paymentInitialClaim, setPaymentInitialClaim] = useState<{ claimId: string; memberId: string; amount: number; typeCode: string } | null>(null);
+  const [paymentInitialClaim, setPaymentInitialClaim] = useState<{ claimId: string; memberId: string; staffId?: string; amount: number; typeCode: string } | null>(null);
   // 2026-10-13: システム設定の取得失敗。以前は既定値で埋めて「読み込み済み」にしており、
   // その画面で一度保存すると配信状態を含む全項目が既定値で上書きされた。失敗したら保存させない。
   const [systemSettingsError, setSystemSettingsError] = useState<string | null>(null);

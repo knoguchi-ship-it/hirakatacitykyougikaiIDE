@@ -705,7 +705,12 @@ const OfficerListTab: React.FC<{
           <h3 className="text-sm font-semibold text-sky-800">
             紐づけ変更 — {linkageTarget.表示名}（{roleMap[linkageTarget.役職コード] ?? linkageTarget.役職コード}）
           </h3>
-          <p className="text-xs text-slate-600">会員種別が変わった場合（個人↔事業所職員）に紐づけを更新します。振込口座も同時に移行されます。</p>
+          {/* 2026-10-25: 紐づけ変更は人単位。以前はこの役職の 1 行だけを変え、同じ人の他の役職は古いまま口座だけ移っていた */}
+          <p className="text-xs text-slate-600">
+            同じ人の会員種別が変わった場合（個人↔事業所職員）や、職員として別の事業所へ移った場合に使います。
+            <strong className="text-slate-800">この人のすべての役職と、振込口座・請求・支払いの記録</strong>をまとめて新しい紐づけへ移します。
+            別の人に役職を引き継ぐときは、退任と新しい割当てを使ってください。
+          </p>
           <div className="max-w-lg">
             <label htmlFor={fid('linkage-search')} className="mb-1 block text-xs font-medium text-slate-700">新しい担当者</label>
             <input id={fid('linkage-search')} type="text" value={linkageSearch} onChange={e => { setLinkageSearch(e.target.value); setLinkageSelected(null); }}

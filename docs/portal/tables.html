@@ -327,7 +327,7 @@ footer {
 <div class="hero">
   <h1>📊 テーブル設計書（理路整然版）</h1>
   <p>各テーブルの列定義 + FK 関係を整理された形式で表示します。Mermaid ER 図の線が絡まる問題を回避した、参照用の正規ビューです。</p>
-  <p style="margin-top: 8px; font-size: 0.88em; opacity: 0.85;">📌 全 58 テーブル | 全 69 リレーション</p>
+  <p style="margin-top: 8px; font-size: 0.88em; opacity: 0.85;">📌 全 58 テーブル | 全 70 リレーション</p>
 </div>
 
 <section class="card">
@@ -1385,7 +1385,7 @@ footer {
       <span class="lbl">会員ID</span>
     </span><span class="tbl-rel-item">
       <a href="#tbl-T_支払い">T_支払い</a>
-      <span class="card">}o--||</span>
+      <span class="card">}o--o|</span>
       <span class="lbl">会員ID</span>
     </span><span class="tbl-rel-item">
       <a href="#tbl-T_請求">T_請求</a>
@@ -1502,7 +1502,7 @@ footer {
     </tr></tbody>
       </table>
       <div class="tbl-rel-section">
-        <h5>📥 このテーブルを参照する側 (6)</h5>
+        <h5>📥 このテーブルを参照する側 (7)</h5>
         <span class="tbl-rel-item">
       <a href="#tbl-T_認証アカウント">T_認証アカウント</a>
       <span class="card">}o--o|</span>
@@ -1521,6 +1521,10 @@ footer {
       <span class="lbl">職員ID</span>
     </span><span class="tbl-rel-item">
       <a href="#tbl-T_振込口座">T_振込口座</a>
+      <span class="card">}o--o|</span>
+      <span class="lbl">職員ID</span>
+    </span><span class="tbl-rel-item">
+      <a href="#tbl-T_支払い">T_支払い</a>
       <span class="card">}o--o|</span>
       <span class="lbl">職員ID</span>
     </span><span class="tbl-rel-item">
@@ -2390,7 +2394,7 @@ footer {
   <div class="tbl-card" id="tbl-T_支払い">
     <div class="tbl-card-head">
       <h4>T_支払い</h4>
-      <span class="col-count">11 列</span>
+      <span class="col-count">12 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -2439,6 +2443,10 @@ footer {
       <td class="col-name">更新日時</td>
       <td class="col-type">datetime</td>
       <td></td>
+    </tr><tr>
+      <td class="col-name">職員ID</td>
+      <td class="col-type">string</td>
+      <td><span class="key-fk">FK</span></td>
     </tr></tbody>
       </table>
       <div class="tbl-rel-section">
@@ -2450,11 +2458,15 @@ footer {
     </span>
       </div>
       <div class="tbl-rel-section">
-        <h5>📤 このテーブルが参照する側 (1)</h5>
+        <h5>📤 このテーブルが参照する側 (2)</h5>
         <span class="tbl-rel-item">
-      <span class="card">}o--||</span>
+      <span class="card">}o--o|</span>
       <a href="#tbl-T_会員">T_会員</a>
       <span class="lbl">会員ID</span>
+    </span><span class="tbl-rel-item">
+      <span class="card">}o--o|</span>
+      <a href="#tbl-T_事業所職員">T_事業所職員</a>
+      <span class="lbl">職員ID</span>
     </span>
       </div>
     </div>
@@ -3761,7 +3773,7 @@ footer {
   <div class="tbl-card" id="tbl-T_支払い_archive">
     <div class="tbl-card-head">
       <h4>T_支払い_archive</h4>
-      <span class="col-count">14 列</span>
+      <span class="col-count">15 列</span>
     </div>
     <div class="tbl-card-body">
       <table>
@@ -3809,6 +3821,10 @@ footer {
     </tr><tr>
       <td class="col-name">更新日時</td>
       <td class="col-type">datetime</td>
+      <td></td>
+    </tr><tr>
+      <td class="col-name">職員ID</td>
+      <td class="col-type">string</td>
       <td></td>
     </tr><tr>
       <td class="col-name">アーカイブID</td>
@@ -4960,7 +4976,7 @@ footer {
 
 
 <footer>
-  生成: 2026-10-19 | scripts/build-docs-portal.mjs より自動生成 | AGENTS.md §4.6 準拠
+  生成: 2026-10-24 | scripts/build-docs-portal.mjs より自動生成 | AGENTS.md §4.6 準拠
 </footer>
 
 </div>

@@ -122,6 +122,7 @@
 | 文書 | 内容 |
 |---|---|
 | [308_RELEASE_STATE_v376.125_2026-10-19.md](308_RELEASE_STATE_v376.125_2026-10-19.md) | **v376.125: BR-21 研修申込の会員照合・S18 スキーマ整備が列を消さない形へ。本番 DB のコピーでのリハーサル結果とリリース順序** |
+| [311_OFFICER_PERSON_REFERENCE_2026-10-25.md](311_OFFICER_PERSON_REFERENCE_2026-10-25.md) | **役員まわり 4 表（役員・口座・請求・支払い）の人物の参照をそろえる。T_支払い に職員ID・紐づけ変更を人単位に・影響範囲の一覧（docs/307 F31 本対応）** |
 | [310_RELEASE_STATE_v376.126_2026-10-19.md](310_RELEASE_STATE_v376.126_2026-10-19.md) | **v376.126〜.128: M_ マスタの値を DB から引く・研修の日付表記の統一・B-15・公開ポータルの発送方法 MAIL 不具合・ER 参照。本番確認の結果と表記・並び順の変化** |
 | [309_MASTER_HARDCODE_INVENTORY_2026-10-19.md](309_MASTER_HARDCODE_INVENTORY_2026-10-19.md) | **M_ マスタの値の直書き棚卸し（選択肢 27 群・名称表・許可値）。公開ポータルの発送方法 `MAIL` 不具合。再実行は `npm run audit:master-hardcode`** |
 | [306_TEST_VIEWPOINT_UNLINKED_AND_SILENT_2026-10-13.md](306_TEST_VIEWPOINT_UNLINKED_AND_SILENT_2026-10-13.md) | **観点表「表示されているのに結び付いていない／黙って失敗する」と全体調査・修正計画。緊急 7 件（研修申込の例外・Drive ファイル削除・他事業所の職員書き換え 等）** |

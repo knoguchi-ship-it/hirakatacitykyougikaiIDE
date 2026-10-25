@@ -252,6 +252,7 @@ export interface OfficerRecord {
   役員ID: string;
   会員ID: string;
   職員ID: string;         // 事業所職員の場合のみ non-empty（個人/賛助は空）
+  人物キー?: string;      // 2026-10-25: officerPersonKey と同じ（役職を 2 つ持つ人も 1 人として数える）
   表示名: string;
   所属名: string;         // 事業所名 or 所属先
   会員種別コード: string; // 個人/賛助は MemberType、事業所職員は 'BUSINESS_STAFF'
@@ -329,6 +330,7 @@ export interface PaymentLine {
 export interface PaymentRecord {
   支払いID: string;
   会員ID: string;
+  職員ID?: string;        // 2026-10-25: 事業所職員の役員への支払い
   表示名: string;
   支払い日: string;
   支払い方法: string;
@@ -354,7 +356,9 @@ export interface SavePaymentLinePayload {
 }
 
 export interface SavePaymentPayload {
-  memberId: string;
+  // 受取人（役員本人）。個人・賛助会員は memberId、事業所職員は staffId（どちらか一方）
+  memberId?: string;
+  staffId?: string;
   paymentDate: string;
   paymentMethod: string;
   totalAmount: number;
@@ -403,6 +407,7 @@ export interface SaveClaimPayload {
 export interface ClaimRecord {
   請求ID: string;
   会員ID: string;
+  職員ID?: string;            // 事業所職員の役員の請求
   表示名?: string;            // getClaims_ で付与
   役職コード: string;
   組織コード: string;

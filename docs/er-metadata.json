@@ -1591,6 +1591,11 @@
         "type": "datetime",
         "key": "",
         "comment": ""
+      },
+      "職員ID": {
+        "type": "string",
+        "key": "FK",
+        "comment": "事業所職員の役員への支払い（会員ID と XOR・2026-10-25）"
       }
     },
     "T_支払い明細": {
@@ -3407,6 +3412,11 @@
         "key": "",
         "comment": ""
       },
+      "職員ID": {
+        "type": "string",
+        "key": "",
+        "comment": ""
+      },
       "アーカイブID": {
         "type": "string",
         "key": "PK",
@@ -4016,9 +4026,15 @@
     },
     {
       "left": "T_支払い",
-      "cardinality": "}o--||",
+      "cardinality": "}o--o|",
       "right": "T_会員",
       "label": "会員ID"
+    },
+    {
+      "left": "T_支払い",
+      "cardinality": "}o--o|",
+      "right": "T_事業所職員",
+      "label": "職員ID"
     },
     {
       "left": "T_支払い明細",

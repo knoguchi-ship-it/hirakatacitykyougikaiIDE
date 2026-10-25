@@ -272,7 +272,7 @@ export interface ApiClient {
   saveAdminBankAccount(payload: import('../shared/types').SaveBankAccountPayload): Promise<{ accountId: string }>;
   deleteAdminBankAccount(payload: { memberId?: string; staffId?: string }): Promise<{ deleted: boolean }>;
   // v295: 支払い履歴管理
-  getPaymentHistory(payload?: { memberId?: string }): Promise<import('../shared/types').PaymentRecord[]>;
+  getPaymentHistory(payload?: { memberId?: string; staffId?: string }): Promise<import('../shared/types').PaymentRecord[]>;
   savePayment(payload: import('../shared/types').SavePaymentPayload): Promise<{ paymentId: string; totalAmount: number }>;
   deletePayment(payload: { paymentId: string }): Promise<{ deleted: boolean; paymentId: string }>;
   // v295: 会員自己サービス（役員のみ）— sessionToken は API クライアントが自動付与
@@ -285,7 +285,7 @@ export interface ApiClient {
   uploadClaimAttachment(payload: { claimId?: string; base64: string; filename: string; mimeType: string }): Promise<import('../shared/types').ClaimAttachment>;
   removeClaimAttachment(payload: { claimId: string; fileId: string }): Promise<{ removed: boolean; fileId: string }>;
   // v296: 請求管理（管理者）
-  getClaims(payload?: { status?: string; memberId?: string }): Promise<import('../shared/types').ClaimRecord[]>;
+  getClaims(payload?: { status?: string; memberId?: string; staffId?: string }): Promise<import('../shared/types').ClaimRecord[]>;
   approveClaim(payload: { claimId: string }): Promise<{ approved: boolean; claimId: string }>;
   rejectClaim(payload: { claimId: string; reason: string }): Promise<{ rejected: boolean; claimId: string }>;
   adminDeleteClaim(payload: { claimId: string }): Promise<{ deleted: boolean; claimId: string }>;
@@ -1209,7 +1209,7 @@ class GasApiClient implements ApiClient {
 
   // ---- v295: 支払い履歴管理 ----
 
-  async getPaymentHistory(payload?: { memberId?: string }): Promise<import('../shared/types').PaymentRecord[]> {
+  async getPaymentHistory(payload?: { memberId?: string; staffId?: string }): Promise<import('../shared/types').PaymentRecord[]> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
       google.script.run
@@ -1256,7 +1256,7 @@ class GasApiClient implements ApiClient {
     return this.callAction('removeClaimAttachment', { ...payload, ...this.memberSessionPayload() });
   }
 
-  async getClaims(payload?: { status?: string; memberId?: string }): Promise<import('../shared/types').ClaimRecord[]> {
+  async getClaims(payload?: { status?: string; memberId?: string; staffId?: string }): Promise<import('../shared/types').ClaimRecord[]> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) { reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE)); return; }
       google.script.run
