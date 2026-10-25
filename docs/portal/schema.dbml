@@ -1,6 +1,6 @@
 // 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能
 // 元: docs/03_DATA_MODEL.md
-// 生成日時: 2026-10-24T23:58:01.423Z
+// 生成日時: 2026-10-25T01:38:29.579Z
 
 Project hcmn_member_system {
   database_type: "Google Spreadsheet (logical)"
@@ -721,8 +721,8 @@ Table "T_研修申込" {
   "出欠記録者メール" varchar
   "事務局メモ" varchar
   "会員照合結果コード" varchar
-  "照合会員ID" varchar
-  "照合職員ID" varchar
+  "照合会員ID" varchar [note: 'FK']
+  "照合職員ID" varchar [note: 'FK']
   "申告介護支援専門員番号" varchar
 }
 

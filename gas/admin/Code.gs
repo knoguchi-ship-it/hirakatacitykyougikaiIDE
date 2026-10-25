@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: bdaded61b3bc9e5a331459d7ae22f1c057469b0627a367eddce6d329431edf6a
+// BUILD_INPUT_SHA256: 458d350b4f448cf3d30cfefb77a01b2d8bd900ab291ebf89244f40f7067866a3
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -28,7 +28,8 @@ var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
 // 版を上げるリリースの前に rehearseSchemaMigrationOnCopy_APPLY を本番 DB のコピーで流し、OK を確かめてから上げる。
 // push するとトリガーが最新のコードで動くため、先に上げて push すると確かめる前に本番で整備が走る。
 // 2026-10-19: BR-21 の 4 列。リハーサル OK（既存データの変化 0・2 回目の変化 0・書いて読む 22 列）
-var DB_SCHEMA_VERSION = '2026-10-18-training-membership-v376.125';
+// 2026-10-25: T_支払い.職員ID（末尾）。リハーサル OK（既存データの変化 0・2 回目の変化 0・書いて読む 34 列・docs/311）
+var DB_SCHEMA_VERSION = '2026-10-25-officer-payment-staff-v376.131';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
 // AGENTS §3: Script Properties の MEMBER_PORTAL_URL_OVERRIDE で上書き可能（deployment 変更時にコード改変不要）

@@ -325,7 +325,7 @@ footer {
     <button class="copy-btn" onclick="copyDbml()">📋 全文コピー</button>
     <pre id="dbml-src">// 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能
 // 元: docs/03_DATA_MODEL.md
-// 生成日時: 2026-10-24T23:58:01.419Z
+// 生成日時: 2026-10-25T01:38:29.573Z
 
 Project hcmn_member_system {
   database_type: &quot;Google Spreadsheet (logical)&quot;
@@ -1046,8 +1046,8 @@ Table &quot;T_研修申込&quot; {
   &quot;出欠記録者メール&quot; varchar
   &quot;事務局メモ&quot; varchar
   &quot;会員照合結果コード&quot; varchar
-  &quot;照合会員ID&quot; varchar
-  &quot;照合職員ID&quot; varchar
+  &quot;照合会員ID&quot; varchar [note: &#39;FK&#39;]
+  &quot;照合職員ID&quot; varchar [note: &#39;FK&#39;]
   &quot;申告介護支援専門員番号&quot; varchar
 }
 
@@ -1358,7 +1358,7 @@ Ref: &quot;T_メール送信ログ&quot;.&quot;研修ID&quot; &gt; &quot;T_研�
 
 
 <footer>
-  生成: 2026-10-24 | scripts/build-docs-portal.mjs より自動生成 | AGENTS.md §4.6 準拠
+  生成: 2026-10-25 | scripts/build-docs-portal.mjs より自動生成 | AGENTS.md §4.6 準拠
 </footer>
 
 </div>
