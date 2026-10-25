@@ -157,7 +157,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-24 v376.129 ← current production
+### 2026-10-25 v376.131 ← current production
+
+- Scope: 役員まわり 4 表（T_役員・T_振込口座・T_請求・T_支払い）の人物の参照をそろえる。`T_支払い` 末尾に職員ID（受取人は役職者本人）・判定を共通関数へ・紐づけ変更を人単位に（`docs/311`）。`docs/307` §4-4（F21 承認画面に今の値・F23 復元できない旨・F26 完了画面の既定文面・F51/E8・F52 宛名リスト）。DB モデル監査 `audit:db-model`（`docs/312`）。v376.130 は欠番（§4-4 をこの版にまとめた）。
+- Schema: `DB_SCHEMA_VERSION` = 2026-10-25-officer-payment-staff-v376.131。リリース前に本番 DB のコピーでリハーサル OK（既存データの変化 0・2 回目 0・書いて読む 34 列）。初回の管理画面表示で整備が走った（103 秒・再試行の帯あり）。
+- Fixed deployments: integrated/public @441 x2 / member @199 / admin @298. admin の redeploy は 2 回 `Requested entity was not found.`、3 回目で成功。
+- Verification: prerelease PASS（test:officer-person 10・test:change-request-current 4・test:completion-defaults 2・audit:db-model 0）。公開 a11y 違反 0・responsive 7 VP×3 画面。本番（読むだけ）: 現役役員 7 名（職員 5）全員が支払いの受取人・絞り込みに出る・支払い 0／請求 0・設定とダッシュボード成功。**test:responsive:admin は storageState 切れで未実行。リリース後のリハーサル再実行は未完了（ブラウザ切断）。支払い登録・紐づけ変更の本番書き込みは未確認。**
+- Rollback: integrated/public @440 x2 / member @198 / admin @297（v376.129）。**先に T_支払い と T_支払い_archive の「職員ID」見出し（空列）を消す**。v376.129 の整備は定義に無い列で止まり（S18 の保護）、管理画面が開かなくなる。または 3 プロジェクトのスクリプトプロパティ DB_SCHEMA_INITIALIZED_VERSION を 2026-10-18-training-membership-v376.125 に戻す。職員への支払いが記録された後は、戻すと失われる。
+
+### 2026-10-24 v376.129
 
 - Scope: `docs/307` §4-3「黙って成功と言う」。公開の変更申請は職員追加・職員情報変更の欠け・形式違いを「N 人目」で止める（S9・S10/F22）。入会承認のメール件数は実際に送った分だけ（S11・`emailsSuppressed`）。LINE 投稿依頼は通知が届かなかったら理由を返し画面に出す・状態を保存してから通知（S30/31・S44）。設定保存・ログイン停止はシート・列が無ければ止める（S41・S42）。職員更新人数は反映分だけ（E6）。公開ポータルのエラー枠が改行を出すように。
 - Schema: `DB_SCHEMA_VERSION` 据え置き。DB 書き込みなし。
