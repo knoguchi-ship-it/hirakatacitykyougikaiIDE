@@ -6769,7 +6769,10 @@ function rehearseSchemaMigrationOnCopy_APPLY() {
       problems.push('2 回目でも変化があった（整備が収束しない）');
     }
     if (result.writeRead && result.writeRead.failures.length) problems.push('書いて読む確認が ' + result.writeRead.failures.length + ' 件失敗');
-    result.verdict = problems.length ? 'NG: ' + problems.join(' / ') : 'OK: 既存データの変化 0・2 回目の変化 0・書いて読む確認 ' + (result.writeRead ? result.writeRead.checked : 0) + ' 件';
+    var textConvertedCount = 0;
+    Object.keys(result.firstRun.textConverted || {}).forEach(function(k) { textConvertedCount += result.firstRun.textConverted[k]; });
+    result.verdict = problems.length ? 'NG: ' + problems.join(' / ') : 'OK: 既存データの変化 0・2 回目の変化 0・書いて読む確認 ' + (result.writeRead ? result.writeRead.checked : 0) + ' 件'
+      + (textConvertedCount ? '・書式なしテキストへ（同じ数字の文字列に）' + textConvertedCount + ' セル' : '');
   } finally {
     copyFile.setTrashed(true);
   }
@@ -6841,16 +6844,21 @@ function diffSpreadsheetSnapshotsForRehearsal_(before, after) {
         return;
       }
       var mismatch = 0;
+      var converted = 0;
       var example = '';
       var n = Math.min(a.rows.length, b.rows.length);
+      // 書式なしテキストの列（applyTextColumnFormats_）は、数値のセルが同じ数字の文字列になる。値は変わらないので別に数える
+      var isTextColumn = (TEXT_FORMAT_COLUMNS_[name.slice(-8) === '_archive' ? name.slice(0, -8) : name] || []).indexOf(h) >= 0;
       for (var r = 0; r < n; r += 1) {
         var bv = b.rows[r][bi];
         var av = a.rows[r][ai] == null ? '' : a.rows[r][ai];
         if (bv !== av) {
+          if (isTextColumn && String(bv).indexOf('number:') === 0 && av === 'string:' + String(bv).slice(7)) { converted += 1; continue; }
           mismatch += 1;
           if (!example) example = (r + 2) + '行目 ' + String(bv).split(':')[0] + '→' + String(av).split(':')[0];
         }
       }
+      if (converted > 0) { changed = true; (out.textConverted = out.textConverted || {})[name + '.' + h] = converted; }
       if (mismatch > 0) { changed = true; out.issues.push(name + ': 列「' + h + '」の値が ' + mismatch + ' 件変わった（例: ' + example + '）'); }
     });
 
@@ -16476,7 +16484,8 @@ var TEXT_FORMAT_COLUMNS_ = {
   'T_振込口座': ['金融機関コード', '支店コード', '口座番号'],
 };
 
-// 既に数値になったセルは書式を変えても数値のまま（値は書き換えない）。新しく書く値から守られる。
+// 既に数値になっていたセルは、同じ数字の文字列になる（27012345 → '27012345'。リハーサルで確かめる。
+// 消えた先頭の 0 は戻らない）。新しく書く値は 0 始まりのまま残る。
 function applyTextColumnFormats_(ss) {
   Object.keys(TEXT_FORMAT_COLUMNS_).forEach(function(tableName) {
     [tableName, tableName + '_archive'].forEach(function(sheetName) {

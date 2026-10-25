@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: d4083e7ccfb5a2fd30db9a8af2fe8d675567574fa40d75b91045f6a5db6d3d26
+// BUILD_INPUT_SHA256: 0c05c75334d46901adcda08a7e1fd6cd817d1e20f54f9b8339a9685e5a82e727
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -4476,16 +4476,21 @@ function diffSpreadsheetSnapshotsForRehearsal_(before, after) {
         return;
       }
       var mismatch = 0;
+      var converted = 0;
       var example = '';
       var n = Math.min(a.rows.length, b.rows.length);
+      // 書式なしテキストの列（applyTextColumnFormats_）は、数値のセルが同じ数字の文字列になる。値は変わらないので別に数える
+      var isTextColumn = (TEXT_FORMAT_COLUMNS_[name.slice(-8) === '_archive' ? name.slice(0, -8) : name] || []).indexOf(h) >= 0;
       for (var r = 0; r < n; r += 1) {
         var bv = b.rows[r][bi];
         var av = a.rows[r][ai] == null ? '' : a.rows[r][ai];
         if (bv !== av) {
+          if (isTextColumn && String(bv).indexOf('number:') === 0 && av === 'string:' + String(bv).slice(7)) { converted += 1; continue; }
           mismatch += 1;
           if (!example) example = (r + 2) + '行目 ' + String(bv).split(':')[0] + '→' + String(av).split(':')[0];
         }
       }
+      if (converted > 0) { changed = true; (out.textConverted = out.textConverted || {})[name + '.' + h] = converted; }
       if (mismatch > 0) { changed = true; out.issues.push(name + ': 列「' + h + '」の値が ' + mismatch + ' 件変わった（例: ' + example + '）'); }
     });
 
@@ -12898,7 +12903,8 @@ var TEXT_FORMAT_COLUMNS_ = {
   'T_振込口座': ['金融機関コード', '支店コード', '口座番号'],
 };
 
-// 既に数値になったセルは書式を変えても数値のまま（値は書き換えない）。新しく書く値から守られる。
+// 既に数値になっていたセルは、同じ数字の文字列になる（27012345 → '27012345'。リハーサルで確かめる。
+// 消えた先頭の 0 は戻らない）。新しく書く値は 0 始まりのまま残る。
 function applyTextColumnFormats_(ss) {
   Object.keys(TEXT_FORMAT_COLUMNS_).forEach(function(tableName) {
     [tableName, tableName + '_archive'].forEach(function(sheetName) {

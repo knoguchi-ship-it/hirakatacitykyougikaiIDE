@@ -154,8 +154,8 @@ test('rebuild: 書式を値より先に移す', () => {
 });
 
 // ── リハーサルの差分 ─────────────────────────────────────────────
-const diff = new Function('テーブル定義', `${extractFunction(adminArtifact, 'diffSpreadsheetSnapshotsForRehearsal_')}
-  return diffSpreadsheetSnapshotsForRehearsal_;`)({ T_研修申込: [] }) as (b: any, a: any) => any;
+const diff = new Function('テーブル定義', 'TEXT_FORMAT_COLUMNS_', `${extractFunction(adminArtifact, 'diffSpreadsheetSnapshotsForRehearsal_')}
+  return diffSpreadsheetSnapshotsForRehearsal_;`)({ T_研修申込: [] }, { T_会員: ['電話'] }) as (b: any, a: any) => any;
 const cellKey = new Function(`${extractFunction(adminArtifact, 'rehearsalCellKey_')} return rehearsalCellKey_;`)() as (v: unknown) => string;
 
 test('リハーサル: 列の追加だけなら issues 0', () => {
@@ -174,6 +174,16 @@ test('リハーサル: 文字列が数値に変わったら issues に出す（�
   assert.equal(r.issues.length, 1);
   assert.match(r.issues[0], /2行目 string→number/);
   assert.doesNotMatch(r.issues[0], /0123/);
+});
+
+test('リハーサル: 書式なしテキストの列で数値が同じ数字の文字列になるのは別に数える（それ以外の変化は issues）', () => {
+  const before = { T_会員: { headers: ['電話', '他'], rows: [[cellKey(728401234), cellKey(5)], [cellKey(27012345), '']] }, T_会員_archive: { headers: ['電話'], rows: [[cellKey(1)]] } };
+  const after = { T_会員: { headers: ['電話', '他'], rows: [[cellKey('728401234'), cellKey('5')], [cellKey('027012345'), '']] }, T_会員_archive: { headers: ['電話'], rows: [[cellKey('1')]] } };
+  const r = diff(before, after);
+  assert.deepEqual(r.textConverted, { 'T_会員.電話': 1, 'T_会員_archive.電話': 1 });
+  assert.equal(r.issues.length, 2, '数字が変わった（027…）・対象でない列の型変化');
+  assert.ok(r.issues.some((s: string) => s.includes('列「電話」の値が 1 件')));
+  assert.ok(r.issues.some((s: string) => s.includes('列「他」の値が 1 件')));
 });
 
 test('リハーサル: 列が消えた・行が減った・テーブルのシートが消えたら issues', () => {

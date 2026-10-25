@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 766f7d7d8e50a59893b6832b4850fcbd248ce65407394a3b5609f05b2e40004a
+// BUILD_INPUT_SHA256: 5f0b91cfa4a502737b8bac11a35149f4cdff8daafe22c36bce2d3c236d152c68
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -6396,7 +6396,8 @@ var TEXT_FORMAT_COLUMNS_ = {
   'T_振込口座': ['金融機関コード', '支店コード', '口座番号'],
 };
 
-// 既に数値になったセルは書式を変えても数値のまま（値は書き換えない）。新しく書く値から守られる。
+// 既に数値になっていたセルは、同じ数字の文字列になる（27012345 → '27012345'。リハーサルで確かめる。
+// 消えた先頭の 0 は戻らない）。新しく書く値は 0 始まりのまま残る。
 function applyTextColumnFormats_(ss) {
   Object.keys(TEXT_FORMAT_COLUMNS_).forEach(function(tableName) {
     [tableName, tableName + '_archive'].forEach(function(sheetName) {
