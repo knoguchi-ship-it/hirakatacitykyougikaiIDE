@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-10-19
-Production: `v376.131` / integrated-public `@441` x2 / member split `@199` / admin split `@298`
+Production: `v376.132` / integrated-public `@442` x2 / member split `@200` / admin split `@299`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -157,7 +157,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-25 v376.131 ← current production
+### 2026-10-25 v376.132 ← current production
+
+- Scope: 数字の文字列の列（TEXT_FORMAT_COLUMNS_: 振込口座のコード・口座番号、電話 / FAX / 郵便番号 / CM 番号 / 事業所番号 / ログインID）を書式なしテキストに（先頭の 0 が消えていた）。口座の桁数をサーバでも確かめる。申込から作った★テスト事業所を物理削除の対象に（docs/311 §5.5）。
+- Schema: `DB_SCHEMA_VERSION` = 2026-10-25-text-columns-v376.132。リリース前に本番 DB のコピーでリハーサル OK（変化 0・2 回目 0・書いて読む 83 列・同じ数字の文字列へ 797 セル。1 回目は比較の誤りで NG → 比較を直して OK）。初回の管理画面表示 約 91 秒（再試行の帯なし）。
+- Fixed deployments: integrated/public @442 x2 / member @200 / admin @299.
+- Verification: prerelease PASS（test:text-column-format 5・test:officer-person 11・test:test-data-purge 14・test:schema-normalization 16・audit:db-model 観点 8）。本番（読むだけ）: 会員 218・CM 番号 / ログインID / 事業所番号の桁数の分布がリリース前と同じ（すべて文字列）・役員 8・支払い 0・メール配信 LIVE / Chat 通知 ON のまま。リリース後のリハーサル（整備済みの本番 DB のコピー）OK: 変化 0・2 回目 0・書いて読む 83 列・同じ数字の文字列への変換 0（本番で整備済み）。公開 a11y 違反 0・responsive 7 VP×3 画面（初回はコールドスタートで 1 VP タイムアウト、再実行で 0）。**test:responsive:admin は storageState 切れで未実行。**
+- Rollback: integrated/public @441 x2 / member @199 / admin @298（v376.131）。列の追加は無いので見出しの事前処理は不要。書式なしテキストになった列はそのまま残る（古いコードでも文字列として読む）。
+
+### 2026-10-25 v376.131
 
 - Scope: 役員まわり 4 表（T_役員・T_振込口座・T_請求・T_支払い）の人物の参照をそろえる。`T_支払い` 末尾に職員ID（受取人は役職者本人）・判定を共通関数へ・紐づけ変更を人単位に（`docs/311`）。`docs/307` §4-4（F21 承認画面に今の値・F23 復元できない旨・F26 完了画面の既定文面・F51/E8・F52 宛名リスト）。DB モデル監査 `audit:db-model`（`docs/312`）。v376.130 は欠番（§4-4 をこの版にまとめた）。
 - Schema: `DB_SCHEMA_VERSION` = 2026-10-25-officer-payment-staff-v376.131。リリース前に本番 DB のコピーでリハーサル OK（既存データの変化 0・2 回目 0・書いて読む 34 列）。初回の管理画面表示で整備が走った（103 秒・再試行の帯あり）。
