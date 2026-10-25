@@ -28,7 +28,8 @@ var ANNUAL_FEE_CACHE_TTL_SECONDS = 600;
 // push するとトリガーが最新のコードで動くため、先に上げて push すると確かめる前に本番で整備が走る。
 // 2026-10-19: BR-21 の 4 列。リハーサル OK（既存データの変化 0・2 回目の変化 0・書いて読む 22 列）
 // 2026-10-25: T_支払い.職員ID（末尾）。リハーサル OK（既存データの変化 0・2 回目の変化 0・書いて読む 34 列・docs/311）
-var DB_SCHEMA_VERSION = '2026-10-25-officer-payment-staff-v376.131';
+// 2026-10-25: 数字の文字列の列を書式なしテキストに（TEXT_FORMAT_COLUMNS_）。リハーサル OK（変化 0・書いて読む 83 列・同じ数字の文字列へ 797 セル・docs/311 §5.5）
+var DB_SCHEMA_VERSION = '2026-10-25-text-columns-v376.132';
 
 // v251: 会員専用 split プロジェクト URL を正本とする（scriptId ベースルーティング移行）
 // AGENTS §3: Script Properties の MEMBER_PORTAL_URL_OVERRIDE で上書き可能（deployment 変更時にコード改変不要）
