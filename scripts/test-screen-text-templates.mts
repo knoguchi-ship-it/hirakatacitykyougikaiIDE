@@ -137,6 +137,17 @@ test('移し替え: 定型文が無い用途に、今の画面に出ている文
   assert.equal(JSON.stringify(db.tables), before, '2 回目は何も変わらない');
 });
 
+test('移し替え: 前の版へ戻してまた上げたとき（シートが消え、設定に古い ID だけ残る）も、作った 1 件に付け替える', () => {
+  // 旧い版の整備（cleanupNonSchemaSheets_）は定義に無いシートを消す。設定の ID 4 行は残る
+  const db = fakeDb({ [KEY.GS]: 'STT-OLD1', [KEY.GN]: 'STT-OLD2', [KEY.LS]: 'STT-OLD3', [KEY.LN]: 'STT-OLD4',
+    PUBLIC_PORTAL_COMPLETION_GUIDANCE_BODY_WHEN_CREDENTIAL_SENT: '旧い本文（戻している間も表示されていた）' });
+  const g = load(db);
+  g.seedScreenTextTemplates_(db);
+  const r = g.resolveScreenTextTemplates_(db, settingsOf(db));
+  assert.deepEqual(r.warnings, [], '古い ID のまま残さない');
+  assert.equal(r.bodies.COMPLETION_GUIDANCE_SENT, '旧い本文（戻している間も表示されていた）');
+});
+
 test('移し替え: 定型文はあるのに選ばれていない用途は、その用途の 1 件目を選ぶ（新しく作らない）', () => {
   const db = fakeDb({}, [tpl('STT-A', 'COMPLETION_GUIDANCE_SENT', 'A', '本文A')]);
   const g = load(db);

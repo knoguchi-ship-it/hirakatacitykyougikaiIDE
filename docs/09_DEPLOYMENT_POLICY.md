@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-10-19
-Production: `v376.134` / integrated-public `@444` x2 / member split `@202` / admin split `@301`
+Production: `v376.136` / integrated-public `@446` x2 / member split `@204` / admin split `@303`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -157,7 +157,22 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-25 v376.134 ← current production
+### 2026-10-25 v376.136 ← current production
+
+- Scope: v376.135 の移し替え（seedScreenTextTemplates_）の穴を塞ぐ。前の版へ戻すと旧い整備が `T_画面文テンプレート` を定義に無いシートとして消し、設定には古い ID だけが残る。その後また上げたとき、作り直した定型文に付け替えず案内文が空になっていた。定型文が 1 件も無い用途は、必ず作った 1 件に付け替える（test:screen-text-templates 11・修正前の生成物では落ちる）。
+- Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。本番は整備済みで、今回の修正は次に整備が走るときだけ効く。
+- Fixed deployments: integrated/public @446 x2 / member @204 / admin @303.
+- Rollback: integrated/public @445 x2 / member @203 / admin @302（v376.135）。
+
+### 2026-10-25 v376.135
+
+- Scope: docs/313（docs/307 F26 の本対応）。入会完了画面の案内文 4 用途を `T_画面文テンプレート` から選ぶ（設定には ID だけ）。見出し・説明・ボタン名 19 項目は空欄で保存できない・読むときの補完をやめた。画面側の既定の文面 3 か所を削除。公開ポータルは設定の取得に失敗したら再読み込みの案内。
+- Schema: `DB_SCHEMA_VERSION` = 2026-10-25-screen-text-templates-v376.135。リリース前に本番 DB のコピーでリハーサル OK（既存データの変化 0・2 回目 0・シート 1 追加・設定 4 行追加・書いて読む 83 列）。初回の管理画面表示 114 秒（再試行の帯なし）。
+- Fixed deployments: integrated/public @445 x2 / member @203 / admin @302.
+- Verification: prerelease PASS（test:screen-text-templates 10・audit:db-model 表 46 / 食い違い 0）。本番: 表示される文言 23 項目（案内文 4・見出しなど 19）がリリース前と完全一致・定型文 4 件（各用途 1 件・選択済み）・警告 0。__POST__
+- Rollback: integrated/public @444 x2 / member @202 / admin @301（v376.134）。旧い本文のキーは書き換えていないので、前の版はそのまま旧い文面を読む（表示は変わらない）。**ただし前の版の整備（cleanupNonSchemaSheets_）は `T_画面文テンプレート` を定義に無いシートとして消す**ので、リリース後に追加・編集した定型文は失われる。また上げるときは v376.136 以降で（移し替えが作り直して付け替える）。
+
+### 2026-10-25 v376.134
 
 - Scope: 先頭の 0 が消えた電話番号を戻す保守ツール（previewPhoneZeroRepair_LOG / executePhoneZeroRepair_APPLY・docs/04 §5.2.3）。v376.133（@443×2 / @201 / @300）で入れたが、本番の確認で 10 桁の判定がゆるい（999… の 10 桁が対象）と分かり、実行せずに v376.134 で 50 / 70 / 80 / 90 始まりに絞った。
 - Schema: 据え置き（2026-10-25-text-columns-v376.132）。

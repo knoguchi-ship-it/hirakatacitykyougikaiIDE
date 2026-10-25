@@ -510,7 +510,9 @@ function seedScreenTextTemplates_(ss) {
       var id = 'STT-' + Utilities.getUuid().substring(0, 8);
       appended.push({ 'テンプレートID': id, '用途コード': p.code, '名前': '移行時の文面', '本文': legacyScreenTextBody_(map, p),
         '表示順': 1, '作成日時': now, '更新日時': now, '削除フラグ': false });
-      if (!selected) updates.push({ key: p.settingKey, value: id, description: '公開ポータル：入会完了画面・' + p.label + 'に使う定型文（T_画面文テンプレート）' });
+      // 定型文が 1 件も無いのに ID が入っているのは、前の版へ戻したとき（旧い整備が定義に無いシートを消す）。
+      // その ID はもう無いので、作った 1 件に必ず付け替える（付け替えないと案内文が空になる）。
+      updates.push({ key: p.settingKey, value: id, description: '公開ポータル：入会完了画面・' + p.label + 'に使う定型文（T_画面文テンプレート）' });
     } else if (!selected) {
       updates.push({ key: p.settingKey, value: own[0].id, description: '公開ポータル：入会完了画面・' + p.label + 'に使う定型文（T_画面文テンプレート）' });
     }

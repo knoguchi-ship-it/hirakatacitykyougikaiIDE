@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 086ba42085e9a529371e56c4a792a1a1d02049efebbfbf623687d13b4e4ca795
+// BUILD_INPUT_SHA256: 500b2b223e2c4bbe53a70341a4ac764fa8e079b6eec42fe8c37e8f3667331f1d
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -482,7 +482,9 @@ function seedScreenTextTemplates_(ss) {
       var id = 'STT-' + Utilities.getUuid().substring(0, 8);
       appended.push({ 'テンプレートID': id, '用途コード': p.code, '名前': '移行時の文面', '本文': legacyScreenTextBody_(map, p),
         '表示順': 1, '作成日時': now, '更新日時': now, '削除フラグ': false });
-      if (!selected) updates.push({ key: p.settingKey, value: id, description: '公開ポータル：入会完了画面・' + p.label + 'に使う定型文（T_画面文テンプレート）' });
+      // 定型文が 1 件も無いのに ID が入っているのは、前の版へ戻したとき（旧い整備が定義に無いシートを消す）。
+      // その ID はもう無いので、作った 1 件に必ず付け替える（付け替えないと案内文が空になる）。
+      updates.push({ key: p.settingKey, value: id, description: '公開ポータル：入会完了画面・' + p.label + 'に使う定型文（T_画面文テンプレート）' });
     } else if (!selected) {
       updates.push({ key: p.settingKey, value: own[0].id, description: '公開ポータル：入会完了画面・' + p.label + 'に使う定型文（T_画面文テンプレート）' });
     }
