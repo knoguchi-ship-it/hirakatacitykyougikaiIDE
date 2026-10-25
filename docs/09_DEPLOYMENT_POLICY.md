@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-10-19
-Production: `v376.129` / integrated-public `@440` x2 / member split `@198` / admin split `@297`
+Production: `v376.131` / integrated-public `@441` x2 / member split `@199` / admin split `@298`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
