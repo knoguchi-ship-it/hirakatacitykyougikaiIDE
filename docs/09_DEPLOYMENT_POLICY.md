@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-10-19
-Production: `v376.136` / integrated-public `@446` x2 / member split `@204` / admin split `@303`
+Production: `v376.137` / integrated-public `@447` x2 / member split `@205` / admin split `@304`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -157,7 +157,16 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-25 v376.136 ← current production
+### 2026-10-26 v376.137 ← current production
+
+- Scope: F26（docs/313）の実装の見直しで見つけた 6 件。①設定の保存（updateSystemSettings_）は、すべて確かめてから書く（以前は年会費・スクリプトプロパティ 2 つを検証の途中で書き、後の検証で止まっても一部だけ変わった）②見出しなど 19 項目の空欄はまとめて 1 回で知らせ、「表示する」の切り替えがある項目にだけ「チェックを外す」と案内。管理画面に（必須）とその場の指摘 ③定型文の編集がすぐ公開ポータルに出ることを画面に明示（operator 決定・案 (a)）④「使用中」（保存済み）と「選択中（未保存）」を分け、どちらも削除不可 ⑤定型文の保存・削除と設定の保存をスクリプトのロックの中で ⑥同じ用途に同じ名前の定型文は不可。設定の同時保存は後勝ち（operator 決定・docs/313 §4.1）。
+- Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。表・列の変更なし。
+- Fixed deployments: integrated/public @447 x2 / member @205 / admin @304.
+- Verification: prerelease PASS（test:screen-text-templates 13。新しい 2 件は直す前の 3 関数に差し替えると落ちる）。公開 a11y 違反 0。公開 responsive 7 VP×3 画面で横スクロール 0。ただし「プライバシーポリシーについて」のリンクが高さ 15px でタップ対象の基準（24px）未満と出る（公開ポータルは今回変えていない＝以前から。HANDOVER の残課題）。test:responsive:admin 56/56・console エラー 0。
+- 未確認: 設定の保存・定型文の追加・編集・削除の本番操作（書き込み）。
+- Rollback: integrated/public @446 x2 / member @204 / admin @303（v376.136）。スキーマが同じなので事前処理は不要。
+
+### 2026-10-25 v376.136
 
 - Scope: v376.135 の移し替え（seedScreenTextTemplates_）の穴を塞ぐ。前の版へ戻すと旧い整備が `T_画面文テンプレート` を定義に無いシートとして消し、設定には古い ID だけが残る。その後また上げたとき、作り直した定型文に付け替えず案内文が空になっていた。定型文が 1 件も無い用途は、必ず作った 1 件に付け替える（test:screen-text-templates 11・修正前の生成物では落ちる）。
 - Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。本番は整備済みで、今回の修正は次に整備が走るときだけ効く。
