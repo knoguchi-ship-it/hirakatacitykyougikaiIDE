@@ -162,7 +162,7 @@ Real-browser verification is performed by the operator by default. The agent rec
 - Scope: v376.135 の移し替え（seedScreenTextTemplates_）の穴を塞ぐ。前の版へ戻すと旧い整備が `T_画面文テンプレート` を定義に無いシートとして消し、設定には古い ID だけが残る。その後また上げたとき、作り直した定型文に付け替えず案内文が空になっていた。定型文が 1 件も無い用途は、必ず作った 1 件に付け替える（test:screen-text-templates 11・修正前の生成物では落ちる）。
 - Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。本番は整備済みで、今回の修正は次に整備が走るときだけ効く。
 - Fixed deployments: integrated/public @446 x2 / member @204 / admin @303.
-- Verification: prerelease PASS（test:screen-text-templates 11）。公開 a11y 違反 0・responsive 7 VP×3 画面（1 回目はコールドスタートで 1 VP タイムアウト、再実行で 0）。**test:responsive:admin は storageState 切れで未実行。**
+- Verification: prerelease PASS（test:screen-text-templates 11）。公開 a11y 違反 0・responsive 7 VP×3 画面（1 回目はコールドスタートで 1 VP タイムアウト、再実行で 0）。test:responsive:admin 56/56 PASS（2026-10-26・storageState 取り直し後）。管理画面「システム設定 → 公開ポータル → 入会完了画面の文言設定」に定型文の選択 4 つ（各「移行時の文面」・本文の表示あり・警告なし）、360px で横スクロールなし（MCP・読むだけ）。
 - Rollback: integrated/public @445 x2 / member @203 / admin @302（v376.135）。
 
 ### 2026-10-25 v376.135
