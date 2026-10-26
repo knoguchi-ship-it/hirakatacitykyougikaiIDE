@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 500b2b223e2c4bbe53a70341a4ac764fa8e079b6eec42fe8c37e8f3667331f1d
+// BUILD_INPUT_SHA256: 51fd532ef70ffe10da2094521266a6336c72a5e1c42e23851b85f3a30bd1b997
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -407,28 +407,30 @@ var SCREEN_TEXT_TEMPLATE_PURPOSES_ = [
 ];
 
 // 2026-10-25 docs/313: 見出し・説明・ボタン名。空欄では保存できない（読むときに補わない）。
+// toggle は「表示する」の切り替えがあるか（トップの見出しとボタン名には無い）。description は設定の行の説明。
 var PUBLIC_PORTAL_REQUIRED_TEXTS_ = [
-  { key: 'PUBLIC_PORTAL_HERO_BADGE_LABEL', requestKey: 'publicPortalHeroBadgeLabel', defaultKey: 'heroBadgeLabel', label: 'トップの補助ラベル' },
-  { key: 'PUBLIC_PORTAL_HERO_TITLE', requestKey: 'publicPortalHeroTitle', defaultKey: 'heroTitle', label: 'トップの見出し' },
-  { key: 'PUBLIC_PORTAL_HERO_DESCRIPTION', requestKey: 'publicPortalHeroDescription', defaultKey: 'heroDescription', label: 'トップの説明文' },
-  { key: 'PUBLIC_PORTAL_MEMBERSHIP_BADGE_LABEL', requestKey: 'publicPortalMembershipBadgeLabel', defaultKey: 'membershipBadgeLabel', label: '入会カードの補助ラベル' },
-  { key: 'PUBLIC_PORTAL_MEMBERSHIP_TITLE', requestKey: 'publicPortalMembershipTitle', defaultKey: 'membershipTitle', label: '入会カードの見出し' },
-  { key: 'PUBLIC_PORTAL_MEMBERSHIP_DESCRIPTION', requestKey: 'publicPortalMembershipDescription', defaultKey: 'membershipDescription', label: '入会カードの説明文' },
-  { key: 'PUBLIC_PORTAL_MEMBERSHIP_CTA_LABEL', requestKey: 'publicPortalMembershipCtaLabel', defaultKey: 'membershipCtaLabel', label: '入会カードのボタン名' },
-  { key: 'PUBLIC_PORTAL_TRAINING_BADGE_LABEL', requestKey: 'publicPortalTrainingBadgeLabel', defaultKey: 'trainingBadgeLabel', label: '研修カードの補助ラベル' },
-  { key: 'PUBLIC_PORTAL_TRAINING_TITLE', requestKey: 'publicPortalTrainingTitle', defaultKey: 'trainingTitle', label: '研修カードの見出し' },
-  { key: 'PUBLIC_PORTAL_TRAINING_DESCRIPTION', requestKey: 'publicPortalTrainingDescription', defaultKey: 'trainingDescription', label: '研修カードの説明文' },
-  { key: 'PUBLIC_PORTAL_TRAINING_CTA_LABEL', requestKey: 'publicPortalTrainingCtaLabel', defaultKey: 'trainingCtaLabel', label: '研修カードのボタン名' },
-  { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_BADGE_LABEL', requestKey: 'publicPortalMemberUpdateBadgeLabel', defaultKey: 'memberUpdateBadgeLabel', label: '登録情報変更カードの補助ラベル' },
-  { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_TITLE', requestKey: 'publicPortalMemberUpdateTitle', defaultKey: 'memberUpdateTitle', label: '登録情報変更カードの見出し' },
-  { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_DESCRIPTION', requestKey: 'publicPortalMemberUpdateDescription', defaultKey: 'memberUpdateDescription', label: '登録情報変更カードの説明文' },
-  { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_CTA_LABEL', requestKey: 'publicPortalMemberUpdateCtaLabel', defaultKey: 'memberUpdateCtaLabel', label: '登録情報変更カードのボタン名' },
-  { key: 'PUBLIC_PORTAL_WITHDRAWAL_BADGE_LABEL', requestKey: 'publicPortalWithdrawalBadgeLabel', defaultKey: 'withdrawalBadgeLabel', label: '退会カードの補助ラベル' },
-  { key: 'PUBLIC_PORTAL_WITHDRAWAL_TITLE', requestKey: 'publicPortalWithdrawalTitle', defaultKey: 'withdrawalTitle', label: '退会カードの見出し' },
-  { key: 'PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION', requestKey: 'publicPortalWithdrawalDescription', defaultKey: 'withdrawalDescription', label: '退会カードの説明文' },
-  { key: 'PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL', requestKey: 'publicPortalWithdrawalCtaLabel', defaultKey: 'withdrawalCtaLabel', label: '退会カードのボタン名' },
+  { key: 'PUBLIC_PORTAL_HERO_BADGE_LABEL', requestKey: 'publicPortalHeroBadgeLabel', defaultKey: 'heroBadgeLabel', label: 'トップの補助ラベル', toggle: true, description: '公開ポータル：トップ補助ラベル文言' },
+  { key: 'PUBLIC_PORTAL_HERO_TITLE', requestKey: 'publicPortalHeroTitle', defaultKey: 'heroTitle', label: 'トップの見出し', toggle: false, description: '公開ポータル：トップ見出し' },
+  { key: 'PUBLIC_PORTAL_HERO_DESCRIPTION', requestKey: 'publicPortalHeroDescription', defaultKey: 'heroDescription', label: 'トップの説明文', toggle: true, description: '公開ポータル：トップ説明文' },
+  { key: 'PUBLIC_PORTAL_MEMBERSHIP_BADGE_LABEL', requestKey: 'publicPortalMembershipBadgeLabel', defaultKey: 'membershipBadgeLabel', label: '入会カードの補助ラベル', toggle: true, description: '公開ポータル：入会カード補助ラベル文言' },
+  { key: 'PUBLIC_PORTAL_MEMBERSHIP_TITLE', requestKey: 'publicPortalMembershipTitle', defaultKey: 'membershipTitle', label: '入会カードの見出し', toggle: true, description: '公開ポータル：入会カード見出し' },
+  { key: 'PUBLIC_PORTAL_MEMBERSHIP_DESCRIPTION', requestKey: 'publicPortalMembershipDescription', defaultKey: 'membershipDescription', label: '入会カードの説明文', toggle: true, description: '公開ポータル：入会カード説明文' },
+  { key: 'PUBLIC_PORTAL_MEMBERSHIP_CTA_LABEL', requestKey: 'publicPortalMembershipCtaLabel', defaultKey: 'membershipCtaLabel', label: '入会カードのボタン名', toggle: false, description: '公開ポータル：入会カードボタン文言' },
+  { key: 'PUBLIC_PORTAL_TRAINING_BADGE_LABEL', requestKey: 'publicPortalTrainingBadgeLabel', defaultKey: 'trainingBadgeLabel', label: '研修カードの補助ラベル', toggle: true, description: '公開ポータル：研修カード補助ラベル文言' },
+  { key: 'PUBLIC_PORTAL_TRAINING_TITLE', requestKey: 'publicPortalTrainingTitle', defaultKey: 'trainingTitle', label: '研修カードの見出し', toggle: true, description: '公開ポータル：研修カード見出し' },
+  { key: 'PUBLIC_PORTAL_TRAINING_DESCRIPTION', requestKey: 'publicPortalTrainingDescription', defaultKey: 'trainingDescription', label: '研修カードの説明文', toggle: true, description: '公開ポータル：研修カード説明文' },
+  { key: 'PUBLIC_PORTAL_TRAINING_CTA_LABEL', requestKey: 'publicPortalTrainingCtaLabel', defaultKey: 'trainingCtaLabel', label: '研修カードのボタン名', toggle: false, description: '公開ポータル：研修カードボタン文言' },
+  { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_BADGE_LABEL', requestKey: 'publicPortalMemberUpdateBadgeLabel', defaultKey: 'memberUpdateBadgeLabel', label: '登録情報変更カードの補助ラベル', toggle: true, description: '公開ポータル：登録情報変更カード補助ラベル文言' },
+  { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_TITLE', requestKey: 'publicPortalMemberUpdateTitle', defaultKey: 'memberUpdateTitle', label: '登録情報変更カードの見出し', toggle: true, description: '公開ポータル：登録情報変更カード見出し' },
+  { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_DESCRIPTION', requestKey: 'publicPortalMemberUpdateDescription', defaultKey: 'memberUpdateDescription', label: '登録情報変更カードの説明文', toggle: true, description: '公開ポータル：登録情報変更カード説明文' },
+  { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_CTA_LABEL', requestKey: 'publicPortalMemberUpdateCtaLabel', defaultKey: 'memberUpdateCtaLabel', label: '登録情報変更カードのボタン名', toggle: false, description: '公開ポータル：登録情報変更カードボタン文言' },
+  { key: 'PUBLIC_PORTAL_WITHDRAWAL_BADGE_LABEL', requestKey: 'publicPortalWithdrawalBadgeLabel', defaultKey: 'withdrawalBadgeLabel', label: '退会カードの補助ラベル', toggle: true, description: '公開ポータル：退会カード補助ラベル文言' },
+  { key: 'PUBLIC_PORTAL_WITHDRAWAL_TITLE', requestKey: 'publicPortalWithdrawalTitle', defaultKey: 'withdrawalTitle', label: '退会カードの見出し', toggle: true, description: '公開ポータル：退会カード見出し' },
+  { key: 'PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION', requestKey: 'publicPortalWithdrawalDescription', defaultKey: 'withdrawalDescription', label: '退会カードの説明文', toggle: true, description: '公開ポータル：退会カード説明文' },
+  { key: 'PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL', requestKey: 'publicPortalWithdrawalCtaLabel', defaultKey: 'withdrawalCtaLabel', label: '退会カードのボタン名', toggle: false, description: '公開ポータル：退会カードボタン文言' },
 ];
 
+// 設定の保存: 送られてきた見出しなどを確かめて、保存する行にする。空欄はまとめて 1 回で知らせる（1 項目ずつ直させない）。
 
 
 // v376.134 までの読み方そのまま（移し替えの元）。本文が空なら、旧い 1 行目＋2 行の組み立て、または既定の文面。
@@ -491,7 +493,7 @@ function seedScreenTextTemplates_(ss) {
   });
   PUBLIC_PORTAL_REQUIRED_TEXTS_.forEach(function(item) {
     if (String(map[item.key] || '').trim()) return;
-    updates.push({ key: item.key, value: PUBLIC_PORTAL_DEFAULTS[item.defaultKey], description: '公開ポータル：' + item.label });
+    updates.push({ key: item.key, value: PUBLIC_PORTAL_DEFAULTS[item.defaultKey], description: item.description });
   });
   if (appended.length) appendRowsByHeaders_(ss, 'T_画面文テンプレート', appended);
   if (updates.length) batchUpsertSystemSettings_(ss, updates);

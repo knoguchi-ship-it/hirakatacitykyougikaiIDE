@@ -85,17 +85,51 @@ const ENV = `
     });
   }
   var Utilities = { getUuid: function() { return 'uuid' + String(++deps.seq).padStart(4, '0') + '-xxxx'; } };
+  var LOCK_WAIT_TIMEOUT_MS = 10000;
+  var LockService = { getScriptLock: function() { return {
+    waitLock: function() { deps.events.push('lock'); }, releaseLock: function() { deps.events.push('unlock'); } }; } };
 `;
-const FNS = ['requiredPublicPortalText_', 'findScreenTextTemplatePurpose_', 'legacyScreenTextBody_', 'screenTextTemplateRowToObject_',
+const FNS = ['collectRequiredPublicPortalTexts_', 'findScreenTextTemplatePurpose_', 'legacyScreenTextBody_', 'screenTextTemplateRowToObject_',
   'listScreenTextTemplates_', 'resolveScreenTextTemplates_', 'seedScreenTextTemplates_', 'saveScreenTextTemplate_',
   'deleteScreenTextTemplate_', 'validateScreenTextTemplateSelection_'];
 const VARS = ['PUBLIC_PORTAL_DEFAULTS', 'SCREEN_TEXT_TEMPLATE_PURPOSES_', 'PUBLIC_PORTAL_REQUIRED_TEXTS_'];
-function load(db: ReturnType<typeof fakeDb>) {
+function load(db: ReturnType<typeof fakeDb>, events: string[] = []) {
   const body = ENV + VARS.map((v) => block(admin, `var ${v} = `) + ';').join('\n') + '\n'
     + FNS.map((n) => block(admin, `function ${n}(`)).join('\n')
     + `\nreturn { ${[...FNS, ...VARS].join(', ')} };`;
-  return new Function(body)({ db, rowsOf, settingsOf, seq: 0 }) as Record<string, any>;
+  return new Function(body)({ db, rowsOf, settingsOf, seq: 0, events }) as Record<string, any>;
 }
+
+// 設定の保存（updateSystemSettings_）そのものを動かす。書き込みはすべて events に記録する
+function loadSettingsSave(db: ReturnType<typeof fakeDb>) {
+  const events: string[] = [];
+  const stubs = `
+  var MASTER_ONLY_SETTING_KEYS = [];
+  function convertSettingKeyToCamel_(k) { return k; }
+  function validateAnnualFeeTransferAccount_() { return {}; }
+  function initializeSchema_() {}
+  function getSystemSettingValue_() { return ''; }
+  var DB_SCHEMA_VERSION = 'test';
+  var DEFAULT_BUSINESS_STAFF_LIMIT_KEY = 'DEFAULT_BUSINESS_STAFF_LIMIT';
+  var TRAINING_HISTORY_LOOKBACK_MONTHS_KEY = 'TRAINING_HISTORY_LOOKBACK_MONTHS';
+  var CHAT_MEMBERSHIP_REQUEST_DEFAULT_BODY = '', CHAT_MEMBERSHIP_FINAL_DEFAULT_BODY = '', CHAT_MEMBERSHIP_ANOMALY_DEFAULT_BODY = '';
+  function setMemberTypeAnnualFeeAmounts_(ss, fees) { deps.events.push('fees:' + JSON.stringify(fees)); }
+  var PropertiesService = { getScriptProperties: function() { return { setProperty: function(k) { deps.events.push('prop:' + k); } }; } };
+  function getSystemSettings_() { return { ok: true }; }
+  var realUpsert = batchUpsertSystemSettings_;
+  batchUpsertSystemSettings_ = function(ss, updates) { deps.events.push('upsert:' + updates.length); realUpsert(ss, updates); };
+`;
+  const fns = [...FNS, 'normalizeAnnualFeeAmount_', 'updateSystemSettings_'];
+  const body = ENV + VARS.map((v) => block(admin, `var ${v} = `) + ';').join('\n') + '\n'
+    + fns.map((n) => block(admin, `function ${n}(`)).join('\n') + stubs
+    + '\nreturn { updateSystemSettings_: updateSystemSettings_ };';
+  const g = new Function(body)({ db, rowsOf, settingsOf, seq: 0, events }) as Record<string, any>;
+  return { g, events };
+}
+const filledTexts = (over: Record<string, string> = {}) => {
+  const g = load(fakeDb({}));
+  return { ...Object.fromEntries(g.PUBLIC_PORTAL_REQUIRED_TEXTS_.map((item: any) => [item.requestKey, `文言 ${item.key}`])), ...over };
+};
 const KEY = {
   GS: 'PUBLIC_PORTAL_COMPLETION_GUIDANCE_TEMPLATE_ID_WHEN_CREDENTIAL_SENT',
   GN: 'PUBLIC_PORTAL_COMPLETION_GUIDANCE_TEMPLATE_ID_WHEN_CREDENTIAL_NOT_SENT',
@@ -217,15 +251,79 @@ test('設定の保存: 空・存在しない・削除済み・別の用途の ID
   assert.throws(() => g.validateScreenTextTemplateSelection_(db, p, 'STT-L'), /この用途の定型文/);
 });
 
-test('見出し・説明・ボタン名は空欄で保存できない（19 項目すべて保存処理が通る）', () => {
+test('見出し・説明・ボタン名は空欄で保存できない（空欄はまとめて 1 回で知らせる・19 項目すべて保存できる）', () => {
   const g = load(fakeDb({}));
-  assert.throws(() => g.requiredPublicPortalText_('  ', 'トップの見出し'), /「トップの見出し」は空欄にできません/);
-  assert.equal(g.requiredPublicPortalText_(' 見出し ', 'x'), '見出し');
-  const update = block(admin, 'function updateSystemSettings_(');
   assert.equal(g.PUBLIC_PORTAL_REQUIRED_TEXTS_.length, 19);
+  const all = g.collectRequiredPublicPortalTexts_(filledTexts({ publicPortalHeroTitle: '  見出し  ' }));
+  assert.equal(all.length, 19, '19 項目すべて保存する行になる');
+  assert.equal(all.find((u: any) => u.key === 'PUBLIC_PORTAL_HERO_TITLE').value, '見出し', '前後の空白は落とす');
+  assert.ok(all.every((u: any) => /^公開ポータル：/.test(u.description)), '設定の行の説明が付く');
+  assert.deepEqual(g.collectRequiredPublicPortalTexts_({}), [], '送られていない項目には触れない');
+
+  // 「表示する」の切り替えが無い項目（トップの見出し・ボタン名）だけが空なら、切り替えの案内を出さない
+  const noToggle = () => g.collectRequiredPublicPortalTexts_(filledTexts({ publicPortalHeroTitle: ' ', publicPortalTrainingCtaLabel: '' }));
+  assert.throws(noToggle, (e: Error) => e.message.includes('「トップの見出し」、「研修カードのボタン名」') && !e.message.includes('チェックを外して'));
+  // 切り替えのある項目が含まれれば、文言を残したままオフにする案内を出す
+  assert.throws(() => g.collectRequiredPublicPortalTexts_(filledTexts({ publicPortalWithdrawalTitle: '' })),
+    /「退会カードの見出し」。\n表示したくない項目は、文言を残したまま「表示する」のチェックを外してください。/);
+  // 切り替えのある・無いの区別が、管理画面の入力欄に出す案内と一致する（ボタン名とトップの見出しだけが切り替え無し）
+  const noToggleKeys = g.PUBLIC_PORTAL_REQUIRED_TEXTS_.filter((item: any) => !item.toggle).map((item: any) => item.key);
+  assert.deepEqual(noToggleKeys, ['PUBLIC_PORTAL_HERO_TITLE', 'PUBLIC_PORTAL_MEMBERSHIP_CTA_LABEL', 'PUBLIC_PORTAL_TRAINING_CTA_LABEL',
+    'PUBLIC_PORTAL_MEMBER_UPDATE_CTA_LABEL', 'PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL']);
   for (const item of g.PUBLIC_PORTAL_REQUIRED_TEXTS_) {
-    assert.ok(update.includes(`value: requiredPublicPortalText_(request.${item.requestKey}, '${item.label}')`), item.key);
+    const toggleKey = item.key.replace(/_LABEL$/, '') + '_ENABLED'; // 補助ラベルは …_BADGE_ENABLED・ボタン名の …_CTA_ENABLED は無い
+    assert.equal(admin.includes(`'${toggleKey}'`), item.toggle, `${item.key}: 切り替えの有無が実際の設定キー（${toggleKey}）と違う`);
   }
+  const appSrc = read('src/App.tsx');
+  for (const item of g.PUBLIC_PORTAL_REQUIRED_TEXTS_) {
+    const state = item.requestKey + 'Input';
+    const hint = new RegExp(`\\{systemSettingsLoaded && !${state}\\.trim\\(\\) && <p[^>]*>([^<]+)</p>\\}`).exec(appSrc);
+    assert.ok(hint, `管理画面: ${state} に空欄の指摘が無い`);
+    assert.equal(hint![1].includes('チェックを外して'), item.toggle, `管理画面: ${state} の案内が切り替えの有無と合わない`);
+  }
+});
+
+test('設定の保存: 確かめ終えてから書く（見出しが空なら、年会費・フォルダ・設定のどれも書かない）', () => {
+  const db = fakeDb({}, [tpl('STT-A', 'COMPLETION_GUIDANCE_SENT', 'A', '本文A')]);
+  const before = JSON.stringify(db.tables);
+  const { g, events } = loadSettingsSave(db);
+  const base = { defaultBusinessStaffLimit: 10, trainingHistoryLookbackMonths: 18, memberTypeAnnualFees: { INDIVIDUAL: 3000 },
+    trainingFileFolderId: 'F1', claimAttachmentFolderId: 'F2' };
+  assert.throws(() => g.updateSystemSettings_({ ...base, ...filledTexts({ publicPortalHeroTitle: '' }) }, 'MASTER'), /「トップの見出し」/);
+  assert.deepEqual(events, [], '止めたときは何も書かない（以前は年会費とフォルダだけ書いていた）');
+  assert.throws(() => g.updateSystemSettings_({ ...base, memberTypeAnnualFees: { INDIVIDUAL: -1 } }, 'MASTER'), /年会費/);
+  assert.deepEqual(events, [], '年会費の値が正しくないときも、ほかを書く前に止める');
+  // 定型文の選択はロックの中で確かめる。止めたら書かずにロックを放す
+  assert.throws(() => g.updateSystemSettings_({ ...base, publicPortalCompletionGuidanceTemplateIdWhenCredentialSent: 'STT-GONE' }, 'MASTER'), /見つかりません/);
+  assert.deepEqual(events, ['lock', 'unlock']);
+  assert.equal(JSON.stringify(db.tables), before);
+
+  events.length = 0;
+  assert.deepEqual(g.updateSystemSettings_({ ...base, ...filledTexts(), publicPortalCompletionGuidanceTemplateIdWhenCredentialSent: 'STT-A' }, 'MASTER'), { ok: true });
+  assert.deepEqual(events.map((e) => e.replace(/:.*$/, '')), ['lock', 'fees', 'upsert', 'prop', 'prop', 'prop', 'prop', 'unlock'], '書くのはロックの中だけ');
+  assert.ok(events.includes('prop:TRAINING_FILE_FOLDER_ID') && events.includes('prop:CLAIM_ATTACHMENT_FOLDER_ID'));
+  const st = settingsOf(db);
+  assert.equal(st.PUBLIC_PORTAL_COMPLETION_GUIDANCE_TEMPLATE_ID_WHEN_CREDENTIAL_SENT, 'STT-A');
+  assert.equal(st.PUBLIC_PORTAL_HERO_TITLE, '文言 PUBLIC_PORTAL_HERO_TITLE');
+});
+
+test('定型文: 同じ用途に同じ名前は付けられない・保存と削除はロックの中で行い、止めてもロックを放す', () => {
+  const events: string[] = [];
+  const db = fakeDb({ [KEY.GS]: 'STT-A' }, [
+    tpl('STT-A', 'COMPLETION_GUIDANCE_SENT', '標準', '本文A'),
+    tpl('STT-B', 'COMPLETION_GUIDANCE_SENT', '別案', '本文B'),
+    tpl('STT-L', 'COMPLETION_LOGIN_INFO_SENT', '標準', '本文L'),
+  ]);
+  const g = load(db, events);
+  assert.throws(() => g.saveScreenTextTemplate_({ purpose: 'COMPLETION_GUIDANCE_SENT', name: ' 標準 ', body: 'x' }), /すでにあります/);
+  assert.throws(() => g.saveScreenTextTemplate_({ id: 'STT-B', purpose: 'COMPLETION_GUIDANCE_SENT', name: '標準', body: 'x' }), /すでにあります/);
+  assert.deepEqual(events, ['lock', 'unlock', 'lock', 'unlock'], '止めてもロックを放す');
+  // 自分自身の名前のまま直す・別の用途に同じ名前、は通す
+  g.saveScreenTextTemplate_({ id: 'STT-A', purpose: 'COMPLETION_GUIDANCE_SENT', name: '標準', body: '本文A2' });
+  g.saveScreenTextTemplate_({ purpose: 'COMPLETION_LOGIN_INFO_NOT_SENT', name: '標準', body: '本文N' });
+  events.length = 0;
+  assert.throws(() => g.deleteScreenTextTemplate_({ id: 'STT-A' }), /使われています/);
+  assert.deepEqual(events, ['lock', 'unlock']);
 });
 
 // ── 4. 既定の文面を持たない・補わない ─────────────────────────

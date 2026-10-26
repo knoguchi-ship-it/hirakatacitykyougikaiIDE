@@ -23,7 +23,7 @@ import ChangeRequestConsole from './components/ChangeRequestConsole';
 import { RoleManagementPanel } from './components/RoleManagementPanel';
 import MemberDetailAdmin from './components/MemberDetailAdmin';
 import StaffDetailAdmin from './components/StaffDetailAdmin';
-import { AdminDashboardData, AdminDashboardMemberRow, AdminDashboardStaffRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, Staff, StaffRole, SystemSettings, Training, TrainingFieldConfig, DEFAULT_FIELD_CONFIG, RoleDefinition, MenuRegistryEntry, Regulation, ScreenTextTemplate } from './types';
+import { AdminDashboardData, AdminDashboardMemberRow, AdminDashboardStaffRow, AdminPermissionData, AdminPermissionEntry, AdminPermissionLevel, Member, MemberType, Staff, StaffRole, SystemSettings, Training, TrainingFieldConfig, DEFAULT_FIELD_CONFIG, RoleDefinition, MenuRegistryEntry, Regulation, ScreenTextTemplate, ScreenTextTemplatePurpose } from './types';
 import { TRAINING_OPTIONAL_FIELD_DEFS } from './components/TrainingManagement';
 import { api, type AdminLoginResult, type MemberLoginResult, type MemberPortalLookup } from './services/api';
 import ScreenTextTemplatePicker from './components/ScreenTextTemplatePicker';
@@ -242,6 +242,14 @@ const buildLoginIdentities = (members: Member[]): LoginIdentity[] =>
 // v376.64: 会費設定（画面入力の初期値。実値は GAS の M_会員種別.年会費金額 が正本）
 
 // 2026-10-19: 会費欄の種別・名称・既定額は M_会員種別（src/shared/memberTypeMaster.ts）から描く
+
+// 2026-10-26: 設定から、用途ごとに選ばれている定型文の ID を取り出す（保存済みの選択）
+const screenTextTemplateIdsOf = (src: Partial<SystemSettings>): Record<ScreenTextTemplatePurpose, string> => ({
+  COMPLETION_GUIDANCE_SENT: src.publicPortalCompletionGuidanceTemplateIdWhenCredentialSent ?? '',
+  COMPLETION_GUIDANCE_NOT_SENT: src.publicPortalCompletionGuidanceTemplateIdWhenCredentialNotSent ?? '',
+  COMPLETION_LOGIN_INFO_SENT: src.publicPortalCompletionLoginInfoTemplateIdWhenCredentialSent ?? '',
+  COMPLETION_LOGIN_INFO_NOT_SENT: src.publicPortalCompletionLoginInfoTemplateIdWhenCredentialNotSent ?? '',
+});
 
 // 2026-10-25 docs/313: 文面（見出し・説明・ボタン名・案内文）の既定は持たない。DB が正本で、見出しは空欄で保存できない・案内文は定型文から選ぶ。
 // ここにあるのは表示する・しないの初期値だけ。
@@ -614,6 +622,8 @@ const App: React.FC = () => {
   // 2026-10-25 docs/313: 案内文の定型文の一覧（選ぶ・追加・編集・削除）と、選んだ定型文が見つからないときの警告
   const [screenTextTemplates, setScreenTextTemplates] = useState<ScreenTextTemplate[]>([]);
   const [screenTextTemplateWarnings, setScreenTextTemplateWarnings] = useState<string[]>([]);
+  // 2026-10-26: 保存済みの選択（公開ポータルに今出ているもの）。選択部品の「使用中」に使う
+  const [savedScreenTextTemplateIds, setSavedScreenTextTemplateIds] = useState(() => screenTextTemplateIdsOf({}));
   const [publicPortalTrainingBadgeEnabledInput, setPublicPortalTrainingBadgeEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.trainingBadgeEnabled);
   const [publicPortalTrainingBadgeLabelInput, setPublicPortalTrainingBadgeLabelInput] = useState('');
   const [publicPortalTrainingTitleEnabledInput, setPublicPortalTrainingTitleEnabledInput] = useState(PUBLIC_PORTAL_DEFAULTS.trainingTitleEnabled);
@@ -804,6 +814,7 @@ const App: React.FC = () => {
     setPublicPortalCompletionLoginInfoTemplateIdWhenCredentialSentInput(systemSettings.publicPortalCompletionLoginInfoTemplateIdWhenCredentialSent ?? '');
     setPublicPortalCompletionLoginInfoTemplateIdWhenCredentialNotSentInput(systemSettings.publicPortalCompletionLoginInfoTemplateIdWhenCredentialNotSent ?? '');
     setScreenTextTemplates(systemSettings.screenTextTemplates ?? []);
+    setSavedScreenTextTemplateIds(screenTextTemplateIdsOf(systemSettings));
     setScreenTextTemplateWarnings(systemSettings.screenTextTemplateWarnings ?? []);
     setPublicPortalTrainingBadgeEnabledInput(systemSettings.publicPortalTrainingBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.trainingBadgeEnabled);
     setPublicPortalTrainingBadgeLabelInput(systemSettings.publicPortalTrainingBadgeLabel ?? '');
@@ -4430,38 +4441,44 @@ const App: React.FC = () => {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor={`${uid}-f35`} className="block text-sm font-medium text-slate-700 mb-1">トップ補助ラベル</label>
+                    <label htmlFor={`${uid}-f35`} className="block text-sm font-medium text-slate-700 mb-1">トップ補助ラベル<span className="ml-1 text-xs font-normal text-red-700">（必須）</span></label>
                     <input
                       id={`${uid}-f35`}
                       type="text"
                       value={publicPortalHeroBadgeLabelInput}
+                      aria-invalid={systemSettingsLoaded && !publicPortalHeroBadgeLabelInput.trim()}
                       onChange={(e) => { setPublicPortalHeroBadgeLabelInput(e.target.value); setSettingsIsDirty(true); }}
                       className="w-full border border-slate-300 rounded px-3 py-2"
                       placeholder="例: お申込みポータル"
                     />
+                    {systemSettingsLoaded && !publicPortalHeroBadgeLabelInput.trim() && <p className="mt-1 text-xs text-red-700">空欄にできません。表示しない場合は、文言を残したまま「表示する」のチェックを外してください。</p>}
                   </div>
                   <div>
-                    <label htmlFor={`${uid}-f36`} className="block text-sm font-medium text-slate-700 mb-1">トップ見出し</label>
+                    <label htmlFor={`${uid}-f36`} className="block text-sm font-medium text-slate-700 mb-1">トップ見出し<span className="ml-1 text-xs font-normal text-red-700">（必須）</span></label>
                     <input
                       id={`${uid}-f36`}
                       type="text"
                       value={publicPortalHeroTitleInput}
+                      aria-invalid={systemSettingsLoaded && !publicPortalHeroTitleInput.trim()}
                       onChange={(e) => { setPublicPortalHeroTitleInput(e.target.value); setSettingsIsDirty(true); }}
                       className="w-full border border-slate-300 rounded px-3 py-2"
                       placeholder="例: 研修申込・申込取消・新規入会申込を受け付けています"
                     />
+                    {systemSettingsLoaded && !publicPortalHeroTitleInput.trim() && <p className="mt-1 text-xs text-red-700">空欄にできません。</p>}
                   </div>
                 </div>
                 <div>
-                  <label htmlFor={`${uid}-f37`} className="block text-sm font-medium text-slate-700 mb-1">トップ説明文</label>
+                  <label htmlFor={`${uid}-f37`} className="block text-sm font-medium text-slate-700 mb-1">トップ説明文<span className="ml-1 text-xs font-normal text-red-700">（必須）</span></label>
                   <textarea
                     id={`${uid}-f37`}
                     value={publicPortalHeroDescriptionInput}
+                    aria-invalid={systemSettingsLoaded && !publicPortalHeroDescriptionInput.trim()}
                     onChange={(e) => { setPublicPortalHeroDescriptionInput(e.target.value); setSettingsIsDirty(true); }}
                     rows={3}
                     className="w-full border border-slate-300 rounded px-3 py-2"
                     placeholder="例: ご希望の手続きを選択し、そのまま申込画面へ進んでください。"
                   />
+                  {systemSettingsLoaded && !publicPortalHeroDescriptionInput.trim() && <p className="mt-1 text-xs text-red-700">空欄にできません。表示しない場合は、文言を残したまま「表示する」のチェックを外してください。</p>}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <label className="flex items-center gap-3 cursor-pointer">
@@ -4494,50 +4511,58 @@ const App: React.FC = () => {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor={`${uid}-f38`} className="block text-sm font-medium text-slate-700 mb-1">入会カードの補助ラベル</label>
+                    <label htmlFor={`${uid}-f38`} className="block text-sm font-medium text-slate-700 mb-1">入会カードの補助ラベル<span className="ml-1 text-xs font-normal text-red-700">（必須）</span></label>
                     <input
                       id={`${uid}-f38`}
                       type="text"
                       value={publicPortalMembershipBadgeLabelInput}
+                      aria-invalid={systemSettingsLoaded && !publicPortalMembershipBadgeLabelInput.trim()}
                       onChange={(e) => { setPublicPortalMembershipBadgeLabelInput(e.target.value); setSettingsIsDirty(true); }}
                       className="w-full border border-slate-300 rounded px-3 py-2"
                       placeholder="例: 入会申込"
                     />
+                    {systemSettingsLoaded && !publicPortalMembershipBadgeLabelInput.trim() && <p className="mt-1 text-xs text-red-700">空欄にできません。表示しない場合は、文言を残したまま「表示する」のチェックを外してください。</p>}
                   </div>
                   <div>
-                    <label htmlFor={`${uid}-f39`} className="block text-sm font-medium text-slate-700 mb-1">入会カードの見出し</label>
+                    <label htmlFor={`${uid}-f39`} className="block text-sm font-medium text-slate-700 mb-1">入会カードの見出し<span className="ml-1 text-xs font-normal text-red-700">（必須）</span></label>
                     <input
                       id={`${uid}-f39`}
                       type="text"
                       value={publicPortalMembershipTitleInput}
+                      aria-invalid={systemSettingsLoaded && !publicPortalMembershipTitleInput.trim()}
                       onChange={(e) => { setPublicPortalMembershipTitleInput(e.target.value); setSettingsIsDirty(true); }}
                       className="w-full border border-slate-300 rounded px-3 py-2"
                       placeholder="例: 新規入会を申し込む"
                     />
+                    {systemSettingsLoaded && !publicPortalMembershipTitleInput.trim() && <p className="mt-1 text-xs text-red-700">空欄にできません。表示しない場合は、文言を残したまま「表示する」のチェックを外してください。</p>}
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor={`${uid}-f40`} className="block text-sm font-medium text-slate-700 mb-1">入会カードの説明文</label>
+                    <label htmlFor={`${uid}-f40`} className="block text-sm font-medium text-slate-700 mb-1">入会カードの説明文<span className="ml-1 text-xs font-normal text-red-700">（必須）</span></label>
                     <textarea
                       id={`${uid}-f40`}
                       value={publicPortalMembershipDescriptionInput}
+                      aria-invalid={systemSettingsLoaded && !publicPortalMembershipDescriptionInput.trim()}
                       onChange={(e) => { setPublicPortalMembershipDescriptionInput(e.target.value); setSettingsIsDirty(true); }}
                       rows={3}
                       className="w-full border border-slate-300 rounded px-3 py-2"
                       placeholder="例: 個人会員・事業所会員・賛助会員の入会申込を受け付けています。"
                     />
+                    {systemSettingsLoaded && !publicPortalMembershipDescriptionInput.trim() && <p className="mt-1 text-xs text-red-700">空欄にできません。表示しない場合は、文言を残したまま「表示する」のチェックを外してください。</p>}
                   </div>
                   <div>
-                    <label htmlFor={`${uid}-f41`} className="block text-sm font-medium text-slate-700 mb-1">入会カードのボタン文言</label>
+                    <label htmlFor={`${uid}-f41`} className="block text-sm font-medium text-slate-700 mb-1">入会カードのボタン文言<span className="ml-1 text-xs font-normal text-red-700">（必須）</span></label>
                     <input
                       id={`${uid}-f41`}
                       type="text"
                       value={publicPortalMembershipCtaLabelInput}
+                      aria-invalid={systemSettingsLoaded && !publicPortalMembershipCtaLabelInput.trim()}
                       onChange={(e) => { setPublicPortalMembershipCtaLabelInput(e.target.value); setSettingsIsDirty(true); }}
                       className="w-full border border-slate-300 rounded px-3 py-2"
                       placeholder="例: 入会申込へ進む"
                     />
+                    {systemSettingsLoaded && !publicPortalMembershipCtaLabelInput.trim() && <p className="mt-1 text-xs text-red-700">空欄にできません。</p>}
                   </div>
                 </div>
 
@@ -4563,22 +4588,26 @@ const App: React.FC = () => {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label htmlFor={`${uid}-f42`} className="block text-sm font-medium text-slate-700 mb-1">補助ラベル</label>
-                      <input id={`${uid}-f42`} type="text" value={publicPortalTrainingBadgeLabelInput} onChange={(e) => { setPublicPortalTrainingBadgeLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 研修申込" />
+                      <label htmlFor={`${uid}-f42`} className="block text-sm font-medium text-slate-700 mb-1">補助ラベル<span className="ml-1 text-xs font-normal text-red-700">（必須）</span></label>
+                      <input id={`${uid}-f42`} type="text" value={publicPortalTrainingBadgeLabelInput} aria-invalid={systemSettingsLoaded && !publicPortalTrainingBadgeLabelInput.trim()} onChange={(e) => { setPublicPortalTrainingBadgeLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 研修申込" />
+                      {systemSettingsLoaded && !publicPortalTrainingBadgeLabelInput.trim() && <p className="mt-1 text-xs text-red-700">空欄にできません。表示しない場合は、文言を残したまま「表示する」のチェックを外してください。</p>}
                     </div>
                     <div>
-                      <label htmlFor={`${uid}-f43`} className="block text-sm font-medium text-slate-700 mb-1">見出し</label>
-                      <input id={`${uid}-f43`} type="text" value={publicPortalTrainingTitleInput} onChange={(e) => { setPublicPortalTrainingTitleInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 研修を申し込む" />
+                      <label htmlFor={`${uid}-f43`} className="block text-sm font-medium text-slate-700 mb-1">見出し<span className="ml-1 text-xs font-normal text-red-700">（必須）</span></label>
+                      <input id={`${uid}-f43`} type="text" value={publicPortalTrainingTitleInput} aria-invalid={systemSettingsLoaded && !publicPortalTrainingTitleInput.trim()} onChange={(e) => { setPublicPortalTrainingTitleInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 研修を申し込む" />
+                      {systemSettingsLoaded && !publicPortalTrainingTitleInput.trim() && <p className="mt-1 text-xs text-red-700">空欄にできません。表示しない場合は、文言を残したまま「表示する」のチェックを外してください。</p>}
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
                     <div>
-                      <label htmlFor={`${uid}-f44`} className="block text-sm font-medium text-slate-700 mb-1">説明文</label>
-                      <textarea id={`${uid}-f44`} value={publicPortalTrainingDescriptionInput} onChange={(e) => { setPublicPortalTrainingDescriptionInput(e.target.value); setSettingsIsDirty(true); }} rows={3} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 受付中の研修一覧を確認し、そのまま申込できます。" />
+                      <label htmlFor={`${uid}-f44`} className="block text-sm font-medium text-slate-700 mb-1">説明文<span className="ml-1 text-xs font-normal text-red-700">（必須）</span></label>
+                      <textarea id={`${uid}-f44`} value={publicPortalTrainingDescriptionInput} aria-invalid={systemSettingsLoaded && !publicPortalTrainingDescriptionInput.trim()} onChange={(e) => { setPublicPortalTrainingDescriptionInput(e.target.value); setSettingsIsDirty(true); }} rows={3} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 受付中の研修一覧を確認し、そのまま申込できます。" />
+                      {systemSettingsLoaded && !publicPortalTrainingDescriptionInput.trim() && <p className="mt-1 text-xs text-red-700">空欄にできません。表示しない場合は、文言を残したまま「表示する」のチェックを外してください。</p>}
                     </div>
                     <div>
-                      <label htmlFor={`${uid}-f45`} className="block text-sm font-medium text-slate-700 mb-1">ボタン文言</label>
-                      <input id={`${uid}-f45`} type="text" value={publicPortalTrainingCtaLabelInput} onChange={(e) => { setPublicPortalTrainingCtaLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 進む" />
+                      <label htmlFor={`${uid}-f45`} className="block text-sm font-medium text-slate-700 mb-1">ボタン文言<span className="ml-1 text-xs font-normal text-red-700">（必須）</span></label>
+                      <input id={`${uid}-f45`} type="text" value={publicPortalTrainingCtaLabelInput} aria-invalid={systemSettingsLoaded && !publicPortalTrainingCtaLabelInput.trim()} onChange={(e) => { setPublicPortalTrainingCtaLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 進む" />
+                      {systemSettingsLoaded && !publicPortalTrainingCtaLabelInput.trim() && <p className="mt-1 text-xs text-red-700">空欄にできません。</p>}
                     </div>
                   </div>
                 </div>
@@ -4605,22 +4634,26 @@ const App: React.FC = () => {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label htmlFor={`${uid}-f46`} className="block text-sm font-medium text-slate-700 mb-1">補助ラベル</label>
-                      <input id={`${uid}-f46`} type="text" value={publicPortalMemberUpdateBadgeLabelInput} onChange={(e) => { setPublicPortalMemberUpdateBadgeLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 登録情報変更" />
+                      <label htmlFor={`${uid}-f46`} className="block text-sm font-medium text-slate-700 mb-1">補助ラベル<span className="ml-1 text-xs font-normal text-red-700">（必須）</span></label>
+                      <input id={`${uid}-f46`} type="text" value={publicPortalMemberUpdateBadgeLabelInput} aria-invalid={systemSettingsLoaded && !publicPortalMemberUpdateBadgeLabelInput.trim()} onChange={(e) => { setPublicPortalMemberUpdateBadgeLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 登録情報変更" />
+                      {systemSettingsLoaded && !publicPortalMemberUpdateBadgeLabelInput.trim() && <p className="mt-1 text-xs text-red-700">空欄にできません。表示しない場合は、文言を残したまま「表示する」のチェックを外してください。</p>}
                     </div>
                     <div>
-                      <label htmlFor={`${uid}-f47`} className="block text-sm font-medium text-slate-700 mb-1">見出し</label>
-                      <input id={`${uid}-f47`} type="text" value={publicPortalMemberUpdateTitleInput} onChange={(e) => { setPublicPortalMemberUpdateTitleInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 会員登録情報を変更する" />
+                      <label htmlFor={`${uid}-f47`} className="block text-sm font-medium text-slate-700 mb-1">見出し<span className="ml-1 text-xs font-normal text-red-700">（必須）</span></label>
+                      <input id={`${uid}-f47`} type="text" value={publicPortalMemberUpdateTitleInput} aria-invalid={systemSettingsLoaded && !publicPortalMemberUpdateTitleInput.trim()} onChange={(e) => { setPublicPortalMemberUpdateTitleInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 会員登録情報を変更する" />
+                      {systemSettingsLoaded && !publicPortalMemberUpdateTitleInput.trim() && <p className="mt-1 text-xs text-red-700">空欄にできません。表示しない場合は、文言を残したまま「表示する」のチェックを外してください。</p>}
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
                     <div>
-                      <label htmlFor={`${uid}-f48`} className="block text-sm font-medium text-slate-700 mb-1">説明文</label>
-                      <textarea id={`${uid}-f48`} value={publicPortalMemberUpdateDescriptionInput} onChange={(e) => { setPublicPortalMemberUpdateDescriptionInput(e.target.value); setSettingsIsDirty(true); }} rows={3} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 住所・電話番号・メールアドレスなど、ご登録情報の変更を申し込めます。" />
+                      <label htmlFor={`${uid}-f48`} className="block text-sm font-medium text-slate-700 mb-1">説明文<span className="ml-1 text-xs font-normal text-red-700">（必須）</span></label>
+                      <textarea id={`${uid}-f48`} value={publicPortalMemberUpdateDescriptionInput} aria-invalid={systemSettingsLoaded && !publicPortalMemberUpdateDescriptionInput.trim()} onChange={(e) => { setPublicPortalMemberUpdateDescriptionInput(e.target.value); setSettingsIsDirty(true); }} rows={3} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 住所・電話番号・メールアドレスなど、ご登録情報の変更を申し込めます。" />
+                      {systemSettingsLoaded && !publicPortalMemberUpdateDescriptionInput.trim() && <p className="mt-1 text-xs text-red-700">空欄にできません。表示しない場合は、文言を残したまま「表示する」のチェックを外してください。</p>}
                     </div>
                     <div>
-                      <label htmlFor={`${uid}-f49`} className="block text-sm font-medium text-slate-700 mb-1">ボタン文言</label>
-                      <input id={`${uid}-f49`} type="text" value={publicPortalMemberUpdateCtaLabelInput} onChange={(e) => { setPublicPortalMemberUpdateCtaLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 変更手続きへ進む" />
+                      <label htmlFor={`${uid}-f49`} className="block text-sm font-medium text-slate-700 mb-1">ボタン文言<span className="ml-1 text-xs font-normal text-red-700">（必須）</span></label>
+                      <input id={`${uid}-f49`} type="text" value={publicPortalMemberUpdateCtaLabelInput} aria-invalid={systemSettingsLoaded && !publicPortalMemberUpdateCtaLabelInput.trim()} onChange={(e) => { setPublicPortalMemberUpdateCtaLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 変更手続きへ進む" />
+                      {systemSettingsLoaded && !publicPortalMemberUpdateCtaLabelInput.trim() && <p className="mt-1 text-xs text-red-700">空欄にできません。</p>}
                     </div>
                   </div>
                 </div>
@@ -4647,22 +4680,26 @@ const App: React.FC = () => {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label htmlFor={`${uid}-f50`} className="block text-sm font-medium text-slate-700 mb-1">補助ラベル</label>
-                      <input id={`${uid}-f50`} type="text" value={publicPortalWithdrawalBadgeLabelInput} onChange={(e) => { setPublicPortalWithdrawalBadgeLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 退会" />
+                      <label htmlFor={`${uid}-f50`} className="block text-sm font-medium text-slate-700 mb-1">補助ラベル<span className="ml-1 text-xs font-normal text-red-700">（必須）</span></label>
+                      <input id={`${uid}-f50`} type="text" value={publicPortalWithdrawalBadgeLabelInput} aria-invalid={systemSettingsLoaded && !publicPortalWithdrawalBadgeLabelInput.trim()} onChange={(e) => { setPublicPortalWithdrawalBadgeLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 退会" />
+                      {systemSettingsLoaded && !publicPortalWithdrawalBadgeLabelInput.trim() && <p className="mt-1 text-xs text-red-700">空欄にできません。表示しない場合は、文言を残したまま「表示する」のチェックを外してください。</p>}
                     </div>
                     <div>
-                      <label htmlFor={`${uid}-f51`} className="block text-sm font-medium text-slate-700 mb-1">見出し</label>
-                      <input id={`${uid}-f51`} type="text" value={publicPortalWithdrawalTitleInput} onChange={(e) => { setPublicPortalWithdrawalTitleInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 退会を申し込む" />
+                      <label htmlFor={`${uid}-f51`} className="block text-sm font-medium text-slate-700 mb-1">見出し<span className="ml-1 text-xs font-normal text-red-700">（必須）</span></label>
+                      <input id={`${uid}-f51`} type="text" value={publicPortalWithdrawalTitleInput} aria-invalid={systemSettingsLoaded && !publicPortalWithdrawalTitleInput.trim()} onChange={(e) => { setPublicPortalWithdrawalTitleInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 退会を申し込む" />
+                      {systemSettingsLoaded && !publicPortalWithdrawalTitleInput.trim() && <p className="mt-1 text-xs text-red-700">空欄にできません。表示しない場合は、文言を残したまま「表示する」のチェックを外してください。</p>}
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
                     <div>
-                      <label htmlFor={`${uid}-f52`} className="block text-sm font-medium text-slate-700 mb-1">説明文</label>
-                      <textarea id={`${uid}-f52`} value={publicPortalWithdrawalDescriptionInput} onChange={(e) => { setPublicPortalWithdrawalDescriptionInput(e.target.value); setSettingsIsDirty(true); }} rows={3} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 退会申請を行います。年度末退会または即時退会を選択できます。" />
+                      <label htmlFor={`${uid}-f52`} className="block text-sm font-medium text-slate-700 mb-1">説明文<span className="ml-1 text-xs font-normal text-red-700">（必須）</span></label>
+                      <textarea id={`${uid}-f52`} value={publicPortalWithdrawalDescriptionInput} aria-invalid={systemSettingsLoaded && !publicPortalWithdrawalDescriptionInput.trim()} onChange={(e) => { setPublicPortalWithdrawalDescriptionInput(e.target.value); setSettingsIsDirty(true); }} rows={3} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 退会申請を行います。年度末退会または即時退会を選択できます。" />
+                      {systemSettingsLoaded && !publicPortalWithdrawalDescriptionInput.trim() && <p className="mt-1 text-xs text-red-700">空欄にできません。表示しない場合は、文言を残したまま「表示する」のチェックを外してください。</p>}
                     </div>
                     <div>
-                      <label htmlFor={`${uid}-f53`} className="block text-sm font-medium text-slate-700 mb-1">ボタン文言</label>
-                      <input id={`${uid}-f53`} type="text" value={publicPortalWithdrawalCtaLabelInput} onChange={(e) => { setPublicPortalWithdrawalCtaLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 退会手続きへ進む" />
+                      <label htmlFor={`${uid}-f53`} className="block text-sm font-medium text-slate-700 mb-1">ボタン文言<span className="ml-1 text-xs font-normal text-red-700">（必須）</span></label>
+                      <input id={`${uid}-f53`} type="text" value={publicPortalWithdrawalCtaLabelInput} aria-invalid={systemSettingsLoaded && !publicPortalWithdrawalCtaLabelInput.trim()} onChange={(e) => { setPublicPortalWithdrawalCtaLabelInput(e.target.value); setSettingsIsDirty(true); }} className="w-full border border-slate-300 rounded px-3 py-2" placeholder="例: 退会手続きへ進む" />
+                      {systemSettingsLoaded && !publicPortalWithdrawalCtaLabelInput.trim() && <p className="mt-1 text-xs text-red-700">空欄にできません。</p>}
                     </div>
                   </div>
                   <div className="mt-5 border-t border-slate-200 pt-5">
@@ -5182,6 +5219,7 @@ const App: React.FC = () => {
                     label="送信ON時の案内文（定型文から選ぶ）"
                     templates={screenTextTemplates}
                     selectedId={publicPortalCompletionGuidanceTemplateIdWhenCredentialSentInput}
+                    savedSelectedId={savedScreenTextTemplateIds.COMPLETION_GUIDANCE_SENT}
                     onSelect={(value) => { setPublicPortalCompletionGuidanceTemplateIdWhenCredentialSentInput(value); setSettingsIsDirty(true); }}
                     onTemplatesChange={setScreenTextTemplates}
                   />
@@ -5191,6 +5229,7 @@ const App: React.FC = () => {
                     label="送信OFF時の案内文（定型文から選ぶ）"
                     templates={screenTextTemplates}
                     selectedId={publicPortalCompletionGuidanceTemplateIdWhenCredentialNotSentInput}
+                    savedSelectedId={savedScreenTextTemplateIds.COMPLETION_GUIDANCE_NOT_SENT}
                     onSelect={(value) => { setPublicPortalCompletionGuidanceTemplateIdWhenCredentialNotSentInput(value); setSettingsIsDirty(true); }}
                     onTemplatesChange={setScreenTextTemplates}
                   />
@@ -5237,6 +5276,7 @@ const App: React.FC = () => {
                     label="メール送信ON時の補足本文（定型文から選ぶ）"
                     templates={screenTextTemplates}
                     selectedId={publicPortalCompletionLoginInfoTemplateIdWhenCredentialSentInput}
+                    savedSelectedId={savedScreenTextTemplateIds.COMPLETION_LOGIN_INFO_SENT}
                     onSelect={(value) => { setPublicPortalCompletionLoginInfoTemplateIdWhenCredentialSentInput(value); setSettingsIsDirty(true); }}
                     onTemplatesChange={setScreenTextTemplates}
                   />
@@ -5246,6 +5286,7 @@ const App: React.FC = () => {
                     label="メール送信OFF時の補足本文（定型文から選ぶ）"
                     templates={screenTextTemplates}
                     selectedId={publicPortalCompletionLoginInfoTemplateIdWhenCredentialNotSentInput}
+                    savedSelectedId={savedScreenTextTemplateIds.COMPLETION_LOGIN_INFO_NOT_SENT}
                     onSelect={(value) => { setPublicPortalCompletionLoginInfoTemplateIdWhenCredentialNotSentInput(value); setSettingsIsDirty(true); }}
                     onTemplatesChange={setScreenTextTemplates}
                   />
@@ -5889,6 +5930,7 @@ const App: React.FC = () => {
                       setPublicPortalCompletionLoginInfoTemplateIdWhenCredentialSentInput(saved.publicPortalCompletionLoginInfoTemplateIdWhenCredentialSent ?? '');
                       setPublicPortalCompletionLoginInfoTemplateIdWhenCredentialNotSentInput(saved.publicPortalCompletionLoginInfoTemplateIdWhenCredentialNotSent ?? '');
                       setScreenTextTemplates(saved.screenTextTemplates ?? []);
+                      setSavedScreenTextTemplateIds(screenTextTemplateIdsOf(saved));
                       setScreenTextTemplateWarnings(saved.screenTextTemplateWarnings ?? []);
                       setPublicPortalTrainingBadgeEnabledInput(saved.publicPortalTrainingBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.trainingBadgeEnabled);
                       setPublicPortalTrainingBadgeLabelInput(saved.publicPortalTrainingBadgeLabel ?? '');

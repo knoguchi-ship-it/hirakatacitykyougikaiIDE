@@ -1,6 +1,8 @@
 // 2026-10-25 docs/313: 公開ポータルの案内文は定型文（T_画面文テンプレート）から選ぶ。
 // 選択は設定の保存で確定する。定型文そのものの追加・編集・削除はその場で保存する（一覧を最新に入れ替える）。
 // 選ばれている定型文・その用途の最後の 1 件は削除できない（サーバーも止める）。
+// 2026-10-26: 「使用中」は保存済みの選択（公開ポータルに今出ているもの）。画面で選んだだけ（未保存）のものは「選択中（未保存）」。
+// どちらも削除できない。使用中の定型文を直すと、「設定を保存」を待たずに公開ポータルへ出る（operator 決定 2026-10-26・その旨を画面に出す）。
 import React, { useState } from 'react';
 import { api } from '../services/api';
 import type { ScreenTextTemplate, ScreenTextTemplatePurpose } from '../types';
@@ -11,13 +13,14 @@ type Props = {
   label: string;
   templates: ScreenTextTemplate[];
   selectedId: string;
+  savedSelectedId: string;
   onSelect: (id: string) => void;
   onTemplatesChange: (templates: ScreenTextTemplate[]) => void;
 };
 
 type Draft = { id?: string; name: string; body: string };
 
-const ScreenTextTemplatePicker: React.FC<Props> = ({ id, purpose, label, templates, selectedId, onSelect, onTemplatesChange }) => {
+const ScreenTextTemplatePicker: React.FC<Props> = ({ id, purpose, label, templates, selectedId, savedSelectedId, onSelect, onTemplatesChange }) => {
   const own = templates.filter((t) => t.purpose === purpose);
   const selected = own.find((t) => t.id === selectedId) || null;
   const [editorOpen, setEditorOpen] = useState(false);
@@ -88,19 +91,24 @@ const ScreenTextTemplatePicker: React.FC<Props> = ({ id, purpose, label, templat
         <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-3">
           <ul className="space-y-2">
             {own.map((t) => {
-              const inUse = t.id === selectedId;
+              const live = t.id === savedSelectedId;
+              const pending = !live && t.id === selectedId;
               const last = own.length <= 1;
               return (
                 <li key={t.id} className="rounded border border-slate-200 px-3 py-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-sm font-medium text-slate-800">
-                      {t.name}{inUse && <span className="ml-2 rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800">使用中</span>}
+                      {t.name}
+                      {live && <span className="ml-2 rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800">使用中</span>}
+                      {pending && <span className="ml-2 rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">選択中（未保存）</span>}
                     </span>
                     <span className="flex gap-2">
                       <button type="button" disabled={!!busy} onClick={() => { setDraft({ id: t.id, name: t.name, body: t.body }); setError(''); }}
                         className="min-h-[44px] rounded border border-slate-300 px-3 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50">編集</button>
-                      <button type="button" disabled={!!busy || inUse || last} onClick={() => { void remove(t); }}
-                        title={inUse ? '使用中の定型文は削除できません。先に別の定型文を選んで保存してください。' : last ? 'この用途の最後の 1 件は削除できません。' : undefined}
+                      <button type="button" disabled={!!busy || live || pending || last} onClick={() => { void remove(t); }}
+                        title={live ? '使用中の定型文は削除できません。先に別の定型文を選んで保存してください。'
+                          : pending ? '選択中の定型文は削除できません。別の定型文を選んでください。'
+                          : last ? 'この用途の最後の 1 件は削除できません。' : undefined}
                         className="min-h-[44px] rounded border border-red-200 px-3 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50">
                         {busy === t.id ? '削除中…' : '削除'}
                       </button>
@@ -111,9 +119,17 @@ const ScreenTextTemplatePicker: React.FC<Props> = ({ id, purpose, label, templat
               );
             })}
           </ul>
-          <p className="text-xs text-slate-500">使用中の定型文と、この用途の最後の 1 件は削除できません。</p>
+          <p className="text-xs text-slate-500">
+            定型文の追加・編集・削除は、ここのボタンを押したときに保存されます（画面下の「設定を保存」とは別です）。
+            使用中・選択中の定型文と、この用途の最後の 1 件は削除できません。
+          </p>
           {draft ? (
             <div className="space-y-2 rounded border border-primary-200 bg-primary-50/40 p-3">
+              {draft.id && draft.id === savedSelectedId && (
+                <p role="note" className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  この定型文は使用中です。保存すると、「設定を保存」を押さなくても、すぐに公開ポータルの表示が変わります。
+                </p>
+              )}
               <label htmlFor={`${id}-draft-name`} className="block text-xs font-medium text-slate-600">名前</label>
               <input id={`${id}-draft-name`} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })}
                 className="w-full rounded border border-slate-300 px-3 py-2 text-sm" maxLength={100} />

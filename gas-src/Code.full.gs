@@ -406,32 +406,48 @@ var SCREEN_TEXT_TEMPLATE_PURPOSES_ = [
 ];
 
 // 2026-10-25 docs/313: 見出し・説明・ボタン名。空欄では保存できない（読むときに補わない）。
+// toggle は「表示する」の切り替えがあるか（トップの見出しとボタン名には無い）。description は設定の行の説明。
 var PUBLIC_PORTAL_REQUIRED_TEXTS_ = [
-  { key: 'PUBLIC_PORTAL_HERO_BADGE_LABEL', requestKey: 'publicPortalHeroBadgeLabel', defaultKey: 'heroBadgeLabel', label: 'トップの補助ラベル' },
-  { key: 'PUBLIC_PORTAL_HERO_TITLE', requestKey: 'publicPortalHeroTitle', defaultKey: 'heroTitle', label: 'トップの見出し' },
-  { key: 'PUBLIC_PORTAL_HERO_DESCRIPTION', requestKey: 'publicPortalHeroDescription', defaultKey: 'heroDescription', label: 'トップの説明文' },
-  { key: 'PUBLIC_PORTAL_MEMBERSHIP_BADGE_LABEL', requestKey: 'publicPortalMembershipBadgeLabel', defaultKey: 'membershipBadgeLabel', label: '入会カードの補助ラベル' },
-  { key: 'PUBLIC_PORTAL_MEMBERSHIP_TITLE', requestKey: 'publicPortalMembershipTitle', defaultKey: 'membershipTitle', label: '入会カードの見出し' },
-  { key: 'PUBLIC_PORTAL_MEMBERSHIP_DESCRIPTION', requestKey: 'publicPortalMembershipDescription', defaultKey: 'membershipDescription', label: '入会カードの説明文' },
-  { key: 'PUBLIC_PORTAL_MEMBERSHIP_CTA_LABEL', requestKey: 'publicPortalMembershipCtaLabel', defaultKey: 'membershipCtaLabel', label: '入会カードのボタン名' },
-  { key: 'PUBLIC_PORTAL_TRAINING_BADGE_LABEL', requestKey: 'publicPortalTrainingBadgeLabel', defaultKey: 'trainingBadgeLabel', label: '研修カードの補助ラベル' },
-  { key: 'PUBLIC_PORTAL_TRAINING_TITLE', requestKey: 'publicPortalTrainingTitle', defaultKey: 'trainingTitle', label: '研修カードの見出し' },
-  { key: 'PUBLIC_PORTAL_TRAINING_DESCRIPTION', requestKey: 'publicPortalTrainingDescription', defaultKey: 'trainingDescription', label: '研修カードの説明文' },
-  { key: 'PUBLIC_PORTAL_TRAINING_CTA_LABEL', requestKey: 'publicPortalTrainingCtaLabel', defaultKey: 'trainingCtaLabel', label: '研修カードのボタン名' },
-  { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_BADGE_LABEL', requestKey: 'publicPortalMemberUpdateBadgeLabel', defaultKey: 'memberUpdateBadgeLabel', label: '登録情報変更カードの補助ラベル' },
-  { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_TITLE', requestKey: 'publicPortalMemberUpdateTitle', defaultKey: 'memberUpdateTitle', label: '登録情報変更カードの見出し' },
-  { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_DESCRIPTION', requestKey: 'publicPortalMemberUpdateDescription', defaultKey: 'memberUpdateDescription', label: '登録情報変更カードの説明文' },
-  { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_CTA_LABEL', requestKey: 'publicPortalMemberUpdateCtaLabel', defaultKey: 'memberUpdateCtaLabel', label: '登録情報変更カードのボタン名' },
-  { key: 'PUBLIC_PORTAL_WITHDRAWAL_BADGE_LABEL', requestKey: 'publicPortalWithdrawalBadgeLabel', defaultKey: 'withdrawalBadgeLabel', label: '退会カードの補助ラベル' },
-  { key: 'PUBLIC_PORTAL_WITHDRAWAL_TITLE', requestKey: 'publicPortalWithdrawalTitle', defaultKey: 'withdrawalTitle', label: '退会カードの見出し' },
-  { key: 'PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION', requestKey: 'publicPortalWithdrawalDescription', defaultKey: 'withdrawalDescription', label: '退会カードの説明文' },
-  { key: 'PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL', requestKey: 'publicPortalWithdrawalCtaLabel', defaultKey: 'withdrawalCtaLabel', label: '退会カードのボタン名' },
+  { key: 'PUBLIC_PORTAL_HERO_BADGE_LABEL', requestKey: 'publicPortalHeroBadgeLabel', defaultKey: 'heroBadgeLabel', label: 'トップの補助ラベル', toggle: true, description: '公開ポータル：トップ補助ラベル文言' },
+  { key: 'PUBLIC_PORTAL_HERO_TITLE', requestKey: 'publicPortalHeroTitle', defaultKey: 'heroTitle', label: 'トップの見出し', toggle: false, description: '公開ポータル：トップ見出し' },
+  { key: 'PUBLIC_PORTAL_HERO_DESCRIPTION', requestKey: 'publicPortalHeroDescription', defaultKey: 'heroDescription', label: 'トップの説明文', toggle: true, description: '公開ポータル：トップ説明文' },
+  { key: 'PUBLIC_PORTAL_MEMBERSHIP_BADGE_LABEL', requestKey: 'publicPortalMembershipBadgeLabel', defaultKey: 'membershipBadgeLabel', label: '入会カードの補助ラベル', toggle: true, description: '公開ポータル：入会カード補助ラベル文言' },
+  { key: 'PUBLIC_PORTAL_MEMBERSHIP_TITLE', requestKey: 'publicPortalMembershipTitle', defaultKey: 'membershipTitle', label: '入会カードの見出し', toggle: true, description: '公開ポータル：入会カード見出し' },
+  { key: 'PUBLIC_PORTAL_MEMBERSHIP_DESCRIPTION', requestKey: 'publicPortalMembershipDescription', defaultKey: 'membershipDescription', label: '入会カードの説明文', toggle: true, description: '公開ポータル：入会カード説明文' },
+  { key: 'PUBLIC_PORTAL_MEMBERSHIP_CTA_LABEL', requestKey: 'publicPortalMembershipCtaLabel', defaultKey: 'membershipCtaLabel', label: '入会カードのボタン名', toggle: false, description: '公開ポータル：入会カードボタン文言' },
+  { key: 'PUBLIC_PORTAL_TRAINING_BADGE_LABEL', requestKey: 'publicPortalTrainingBadgeLabel', defaultKey: 'trainingBadgeLabel', label: '研修カードの補助ラベル', toggle: true, description: '公開ポータル：研修カード補助ラベル文言' },
+  { key: 'PUBLIC_PORTAL_TRAINING_TITLE', requestKey: 'publicPortalTrainingTitle', defaultKey: 'trainingTitle', label: '研修カードの見出し', toggle: true, description: '公開ポータル：研修カード見出し' },
+  { key: 'PUBLIC_PORTAL_TRAINING_DESCRIPTION', requestKey: 'publicPortalTrainingDescription', defaultKey: 'trainingDescription', label: '研修カードの説明文', toggle: true, description: '公開ポータル：研修カード説明文' },
+  { key: 'PUBLIC_PORTAL_TRAINING_CTA_LABEL', requestKey: 'publicPortalTrainingCtaLabel', defaultKey: 'trainingCtaLabel', label: '研修カードのボタン名', toggle: false, description: '公開ポータル：研修カードボタン文言' },
+  { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_BADGE_LABEL', requestKey: 'publicPortalMemberUpdateBadgeLabel', defaultKey: 'memberUpdateBadgeLabel', label: '登録情報変更カードの補助ラベル', toggle: true, description: '公開ポータル：登録情報変更カード補助ラベル文言' },
+  { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_TITLE', requestKey: 'publicPortalMemberUpdateTitle', defaultKey: 'memberUpdateTitle', label: '登録情報変更カードの見出し', toggle: true, description: '公開ポータル：登録情報変更カード見出し' },
+  { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_DESCRIPTION', requestKey: 'publicPortalMemberUpdateDescription', defaultKey: 'memberUpdateDescription', label: '登録情報変更カードの説明文', toggle: true, description: '公開ポータル：登録情報変更カード説明文' },
+  { key: 'PUBLIC_PORTAL_MEMBER_UPDATE_CTA_LABEL', requestKey: 'publicPortalMemberUpdateCtaLabel', defaultKey: 'memberUpdateCtaLabel', label: '登録情報変更カードのボタン名', toggle: false, description: '公開ポータル：登録情報変更カードボタン文言' },
+  { key: 'PUBLIC_PORTAL_WITHDRAWAL_BADGE_LABEL', requestKey: 'publicPortalWithdrawalBadgeLabel', defaultKey: 'withdrawalBadgeLabel', label: '退会カードの補助ラベル', toggle: true, description: '公開ポータル：退会カード補助ラベル文言' },
+  { key: 'PUBLIC_PORTAL_WITHDRAWAL_TITLE', requestKey: 'publicPortalWithdrawalTitle', defaultKey: 'withdrawalTitle', label: '退会カードの見出し', toggle: true, description: '公開ポータル：退会カード見出し' },
+  { key: 'PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION', requestKey: 'publicPortalWithdrawalDescription', defaultKey: 'withdrawalDescription', label: '退会カードの説明文', toggle: true, description: '公開ポータル：退会カード説明文' },
+  { key: 'PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL', requestKey: 'publicPortalWithdrawalCtaLabel', defaultKey: 'withdrawalCtaLabel', label: '退会カードのボタン名', toggle: false, description: '公開ポータル：退会カードボタン文言' },
 ];
 
-function requiredPublicPortalText_(value, label) {
-  var text = String(value == null ? '' : value).trim();
-  if (!text) throw new Error('「' + label + '」は空欄にできません。表示しない場合は「表示する」をオフにしてください。');
-  return text;
+// 設定の保存: 送られてきた見出しなどを確かめて、保存する行にする。空欄はまとめて 1 回で知らせる（1 項目ずつ直させない）。
+function collectRequiredPublicPortalTexts_(request) {
+  var updates = [];
+  var blank = [];
+  PUBLIC_PORTAL_REQUIRED_TEXTS_.forEach(function(item) {
+    if (request[item.requestKey] == null) return;
+    var text = String(request[item.requestKey]).trim();
+    if (!text) { blank.push(item); return; }
+    updates.push({ key: item.key, value: text, description: item.description });
+  });
+  if (blank.length) {
+    var message = '次の項目は空欄にできません: ' + blank.map(function(item) { return '「' + item.label + '」'; }).join('、') + '。';
+    // 「表示する」をオフにしても文言は要る（オンに戻したときに出す文言になる）
+    if (blank.some(function(item) { return item.toggle; })) {
+      message += '\n表示したくない項目は、文言を残したまま「表示する」のチェックを外してください。';
+    }
+    throw new Error(message);
+  }
+  return updates;
 }
 
 function findScreenTextTemplatePurpose_(code) {
@@ -519,7 +535,7 @@ function seedScreenTextTemplates_(ss) {
   });
   PUBLIC_PORTAL_REQUIRED_TEXTS_.forEach(function(item) {
     if (String(map[item.key] || '').trim()) return;
-    updates.push({ key: item.key, value: PUBLIC_PORTAL_DEFAULTS[item.defaultKey], description: '公開ポータル：' + item.label });
+    updates.push({ key: item.key, value: PUBLIC_PORTAL_DEFAULTS[item.defaultKey], description: item.description });
   });
   if (appended.length) appendRowsByHeaders_(ss, 'T_画面文テンプレート', appended);
   if (updates.length) batchUpsertSystemSettings_(ss, updates);
@@ -542,24 +558,34 @@ function saveScreenTextTemplate_(payload) {
   initializeSchemaIfNeeded_(ss);
   var sheet = ss.getSheetByName('T_画面文テンプレート');
   if (!sheet) throw new Error('T_画面文テンプレート が初期化されていません。');
-  var now = new Date().toISOString();
-  var id = String(payload.id || '').trim();
-  if (!id) {
-    id = 'STT-' + Utilities.getUuid().substring(0, 8);
-    appendRowsByHeaders_(ss, 'T_画面文テンプレート', [{ 'テンプレートID': id, '用途コード': purpose.code, '名前': name, '本文': body,
-      '表示順': sortOrder, '作成日時': now, '更新日時': now, '削除フラグ': false }]);
-    return { id: id, created: true, templates: listScreenTextTemplates_(ss) };
+  // 2026-10-26: 削除・設定の保存と食い違わないよう、確かめてから書くまでをロックの中で行う（initializeSchemaIfNeeded_ も同じロックを取るので、その後に取る）
+  var lock = LockService.getScriptLock();
+  lock.waitLock(LOCK_WAIT_TIMEOUT_MS);
+  try {
+    var now = new Date().toISOString();
+    var id = String(payload.id || '').trim();
+    // 選ぶときに見分けられるよう、同じ用途の中で同じ名前は付けない
+    var sameName = listScreenTextTemplates_(ss).some(function(t) { return t.purpose === purpose.code && t.id !== id && t.name.trim() === name; });
+    if (sameName) throw new Error('この用途には「' + name + '」という名前の定型文がすでにあります。別の名前にしてください。');
+    if (!id) {
+      id = 'STT-' + Utilities.getUuid().substring(0, 8);
+      appendRowsByHeaders_(ss, 'T_画面文テンプレート', [{ 'テンプレートID': id, '用途コード': purpose.code, '名前': name, '本文': body,
+        '表示順': sortOrder, '作成日時': now, '更新日時': now, '削除フラグ': false }]);
+      return { id: id, created: true, templates: listScreenTextTemplates_(ss) };
+    }
+    var found = findRowByColumnValue_(sheet, 'テンプレートID', id);
+    if (!found || toBoolean_(found.row[found.columns['削除フラグ']])) throw new Error('対象の定型文が見つかりません。');
+    if (String(found.row[found.columns['用途コード']] || '') !== purpose.code) throw new Error('定型文の用途は変えられません。');
+    var row = found.row.slice();
+    row[found.columns['名前']] = name;
+    row[found.columns['本文']] = body;
+    row[found.columns['表示順']] = sortOrder;
+    row[found.columns['更新日時']] = now;
+    sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+    return { id: id, updated: true, templates: listScreenTextTemplates_(ss) };
+  } finally {
+    lock.releaseLock();
   }
-  var found = findRowByColumnValue_(sheet, 'テンプレートID', id);
-  if (!found || toBoolean_(found.row[found.columns['削除フラグ']])) throw new Error('対象の定型文が見つかりません。');
-  if (String(found.row[found.columns['用途コード']] || '') !== purpose.code) throw new Error('定型文の用途は変えられません。');
-  var row = found.row.slice();
-  row[found.columns['名前']] = name;
-  row[found.columns['本文']] = body;
-  row[found.columns['表示順']] = sortOrder;
-  row[found.columns['更新日時']] = now;
-  sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
-  return { id: id, updated: true, templates: listScreenTextTemplates_(ss) };
 }
 
 function deleteScreenTextTemplate_(payload) {
@@ -569,23 +595,30 @@ function deleteScreenTextTemplate_(payload) {
   initializeSchemaIfNeeded_(ss);
   var sheet = ss.getSheetByName('T_画面文テンプレート');
   if (!sheet) throw new Error('T_画面文テンプレート が初期化されていません。');
-  var found = findRowByColumnValue_(sheet, 'テンプレートID', id);
-  if (!found || toBoolean_(found.row[found.columns['削除フラグ']])) throw new Error('対象の定型文が見つかりません。');
-  var purpose = findScreenTextTemplatePurpose_(found.row[found.columns['用途コード']]);
-  var map = getSystemSettingMap_(ss);
-  // 書き込む前に止める: 選ばれている定型文・その用途の最後の 1 件
-  for (var i = 0; i < SCREEN_TEXT_TEMPLATE_PURPOSES_.length; i += 1) {
-    if (String(map[SCREEN_TEXT_TEMPLATE_PURPOSES_[i].settingKey] || '') === id) {
-      throw new Error('この定型文は「' + SCREEN_TEXT_TEMPLATE_PURPOSES_[i].label + '」で使われています。先に別の定型文を選んで保存してください。');
+  // 2026-10-26: 2 人が同じ用途の別の定型文を同時に消して 0 件になる・設定の保存と同時に選ばれた定型文を消す、を防ぐ
+  var lock = LockService.getScriptLock();
+  lock.waitLock(LOCK_WAIT_TIMEOUT_MS);
+  try {
+    var found = findRowByColumnValue_(sheet, 'テンプレートID', id);
+    if (!found || toBoolean_(found.row[found.columns['削除フラグ']])) throw new Error('対象の定型文が見つかりません。');
+    var purpose = findScreenTextTemplatePurpose_(found.row[found.columns['用途コード']]);
+    var map = getSystemSettingMap_(ss);
+    // 書き込む前に止める: 選ばれている定型文・その用途の最後の 1 件
+    for (var i = 0; i < SCREEN_TEXT_TEMPLATE_PURPOSES_.length; i += 1) {
+      if (String(map[SCREEN_TEXT_TEMPLATE_PURPOSES_[i].settingKey] || '') === id) {
+        throw new Error('この定型文は「' + SCREEN_TEXT_TEMPLATE_PURPOSES_[i].label + '」で使われています。先に別の定型文を選んで保存してください。');
+      }
     }
+    var sameKind = listScreenTextTemplates_(ss).filter(function(t) { return purpose && t.purpose === purpose.code; });
+    if (sameKind.length <= 1) throw new Error('この用途の定型文は最後の 1 件なので削除できません。');
+    var row = found.row.slice();
+    row[found.columns['削除フラグ']] = true;
+    row[found.columns['更新日時']] = new Date().toISOString();
+    sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+    return { id: id, deleted: true, templates: listScreenTextTemplates_(ss) };
+  } finally {
+    lock.releaseLock();
   }
-  var sameKind = listScreenTextTemplates_(ss).filter(function(t) { return purpose && t.purpose === purpose.code; });
-  if (sameKind.length <= 1) throw new Error('この用途の定型文は最後の 1 件なので削除できません。');
-  var row = found.row.slice();
-  row[found.columns['削除フラグ']] = true;
-  row[found.columns['更新日時']] = new Date().toISOString();
-  sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
-  return { id: id, deleted: true, templates: listScreenTextTemplates_(ss) };
 }
 
 // 設定の保存で、選んだ定型文の ID を確かめる（存在する・削除済みでない・同じ用途）
@@ -7804,7 +7837,8 @@ function updateSystemSettings_(request, callerPermLevel) {
     updates.push({ key: 'MEMBERSHIP_FEE_NOTE', value: feeNote, description: '入会申込画面に表示する会費の補足説明' });
   }
   if (request.memberTypeAnnualFees != null) {
-    setMemberTypeAnnualFeeAmounts_(ss, request.memberTypeAnnualFees);
+    // 2026-10-26: ここでは確かめるだけ。書くのは最後（以前はここで書いていたため、後の検証で止まっても金額だけ変わった）
+    Object.keys(request.memberTypeAnnualFees).forEach(function(code) { normalizeAnnualFeeAmount_(request.memberTypeAnnualFees[code], code); });
   }
   // v194: PDF名簿出力 & 一括メール設定（MASTER/ADMIN 共通可変）
   // v373.7 (S5 Phase 2): rosterTemplateSsId / reminderTemplateSsId pass-through 撤去
@@ -7848,53 +7882,27 @@ function updateSystemSettings_(request, callerPermLevel) {
   if (request.publicPortalHeroBadgeEnabled != null) {
     updates.push({ key: 'PUBLIC_PORTAL_HERO_BADGE_ENABLED', value: request.publicPortalHeroBadgeEnabled ? 'true' : 'false', description: '公開ポータル：トップ補助ラベルを表示するか' });
   }
-  if (request.publicPortalHeroBadgeLabel != null) {
-    updates.push({ key: 'PUBLIC_PORTAL_HERO_BADGE_LABEL', value: requiredPublicPortalText_(request.publicPortalHeroBadgeLabel, 'トップの補助ラベル'), description: '公開ポータル：トップ補助ラベル文言' });
-  }
+  // 2026-10-26: 見出し・説明・ボタン名 19 項目（空欄はまとめて知らせる）。項目の一覧は PUBLIC_PORTAL_REQUIRED_TEXTS_
+  updates = updates.concat(collectRequiredPublicPortalTexts_(request));
   if (request.publicPortalPrivacyPolicyUrl != null) {
     // 既定へ戻さない（|| を使わない）。空で保存＝リンクを出さない、という意思表示。
     updates.push({ key: 'PUBLIC_PORTAL_PRIVACY_POLICY_URL', value: String(request.publicPortalPrivacyPolicyUrl).trim(), description: '公開ポータル：プライバシーポリシーの掲載先URL（空ならリンクを出さない）' });
   }
-  if (request.publicPortalHeroTitle != null) {
-    updates.push({ key: 'PUBLIC_PORTAL_HERO_TITLE', value: requiredPublicPortalText_(request.publicPortalHeroTitle, 'トップの見出し'), description: '公開ポータル：トップ見出し' });
-  }
   if (request.publicPortalHeroDescriptionEnabled != null) {
     updates.push({ key: 'PUBLIC_PORTAL_HERO_DESCRIPTION_ENABLED', value: request.publicPortalHeroDescriptionEnabled ? 'true' : 'false', description: '公開ポータル：トップ説明文を表示するか' });
-  }
-  if (request.publicPortalHeroDescription != null) {
-    updates.push({ key: 'PUBLIC_PORTAL_HERO_DESCRIPTION', value: requiredPublicPortalText_(request.publicPortalHeroDescription, 'トップの説明文'), description: '公開ポータル：トップ説明文' });
   }
   if (request.publicPortalMembershipBadgeEnabled != null) {
     updates.push({ key: 'PUBLIC_PORTAL_MEMBERSHIP_BADGE_ENABLED', value: request.publicPortalMembershipBadgeEnabled ? 'true' : 'false', description: '公開ポータル：入会カード補助ラベルを表示するか' });
   }
-  if (request.publicPortalMembershipBadgeLabel != null) {
-    updates.push({ key: 'PUBLIC_PORTAL_MEMBERSHIP_BADGE_LABEL', value: requiredPublicPortalText_(request.publicPortalMembershipBadgeLabel, '入会カードの補助ラベル'), description: '公開ポータル：入会カード補助ラベル文言' });
-  }
   if (request.publicPortalMembershipTitleEnabled != null) {
     updates.push({ key: 'PUBLIC_PORTAL_MEMBERSHIP_TITLE_ENABLED', value: request.publicPortalMembershipTitleEnabled ? 'true' : 'false', description: '公開ポータル：入会カード見出しを表示するか' });
-  }
-  if (request.publicPortalMembershipTitle != null) {
-    updates.push({ key: 'PUBLIC_PORTAL_MEMBERSHIP_TITLE', value: requiredPublicPortalText_(request.publicPortalMembershipTitle, '入会カードの見出し'), description: '公開ポータル：入会カード見出し' });
   }
   if (request.publicPortalMembershipDescriptionEnabled != null) {
     updates.push({ key: 'PUBLIC_PORTAL_MEMBERSHIP_DESCRIPTION_ENABLED', value: request.publicPortalMembershipDescriptionEnabled ? 'true' : 'false', description: '公開ポータル：入会カード説明文を表示するか' });
   }
-  if (request.publicPortalMembershipDescription != null) {
-    updates.push({ key: 'PUBLIC_PORTAL_MEMBERSHIP_DESCRIPTION', value: requiredPublicPortalText_(request.publicPortalMembershipDescription, '入会カードの説明文'), description: '公開ポータル：入会カード説明文' });
-  }
-  if (request.publicPortalMembershipCtaLabel != null) {
-    updates.push({ key: 'PUBLIC_PORTAL_MEMBERSHIP_CTA_LABEL', value: requiredPublicPortalText_(request.publicPortalMembershipCtaLabel, '入会カードのボタン名'), description: '公開ポータル：入会カードボタン文言' });
-  }
   if (request.publicPortalCompletionGuidanceVisible != null) {
     updates.push({ key: 'PUBLIC_PORTAL_COMPLETION_GUIDANCE_VISIBLE', value: request.publicPortalCompletionGuidanceVisible ? 'true' : 'false', description: '公開ポータル：入会完了画面の今後のご案内ブロックを表示するか' });
   }
-  // 2026-10-25 docs/313: 案内文は定型文の ID だけを保存する（存在する・削除済みでない・同じ用途であること）。
-  // 旧い本文のキーは書き換えない（前の版へ戻したとき、旧いコードが本文として読む）。
-  SCREEN_TEXT_TEMPLATE_PURPOSES_.forEach(function(purpose) {
-    if (request[purpose.requestKey] == null) return;
-    updates.push({ key: purpose.settingKey, value: validateScreenTextTemplateSelection_(ss, purpose, request[purpose.requestKey]),
-      description: '公開ポータル：入会完了画面・' + purpose.label + 'に使う定型文（T_画面文テンプレート）' });
-  });
   if (request.publicPortalCompletionLoginInfoBlockVisible != null) {
     updates.push({ key: 'PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BLOCK_VISIBLE', value: request.publicPortalCompletionLoginInfoBlockVisible ? 'true' : 'false', description: '公開ポータル：入会完了画面のログイン情報ブロックを表示するか' });
   }
@@ -7904,23 +7912,11 @@ function updateSystemSettings_(request, callerPermLevel) {
   if (request.publicPortalTrainingBadgeEnabled != null) {
     updates.push({ key: 'PUBLIC_PORTAL_TRAINING_BADGE_ENABLED', value: request.publicPortalTrainingBadgeEnabled ? 'true' : 'false', description: '公開ポータル：研修カード補助ラベルを表示するか' });
   }
-  if (request.publicPortalTrainingBadgeLabel != null) {
-    updates.push({ key: 'PUBLIC_PORTAL_TRAINING_BADGE_LABEL', value: requiredPublicPortalText_(request.publicPortalTrainingBadgeLabel, '研修カードの補助ラベル'), description: '公開ポータル：研修カード補助ラベル文言' });
-  }
   if (request.publicPortalTrainingTitleEnabled != null) {
     updates.push({ key: 'PUBLIC_PORTAL_TRAINING_TITLE_ENABLED', value: request.publicPortalTrainingTitleEnabled ? 'true' : 'false', description: '公開ポータル：研修カード見出しを表示するか' });
   }
-  if (request.publicPortalTrainingTitle != null) {
-    updates.push({ key: 'PUBLIC_PORTAL_TRAINING_TITLE', value: requiredPublicPortalText_(request.publicPortalTrainingTitle, '研修カードの見出し'), description: '公開ポータル：研修カード見出し' });
-  }
   if (request.publicPortalTrainingDescriptionEnabled != null) {
     updates.push({ key: 'PUBLIC_PORTAL_TRAINING_DESCRIPTION_ENABLED', value: request.publicPortalTrainingDescriptionEnabled ? 'true' : 'false', description: '公開ポータル：研修カード説明文を表示するか' });
-  }
-  if (request.publicPortalTrainingDescription != null) {
-    updates.push({ key: 'PUBLIC_PORTAL_TRAINING_DESCRIPTION', value: requiredPublicPortalText_(request.publicPortalTrainingDescription, '研修カードの説明文'), description: '公開ポータル：研修カード説明文' });
-  }
-  if (request.publicPortalTrainingCtaLabel != null) {
-    updates.push({ key: 'PUBLIC_PORTAL_TRAINING_CTA_LABEL', value: requiredPublicPortalText_(request.publicPortalTrainingCtaLabel, '研修カードのボタン名'), description: '公開ポータル：研修カードボタン文言' });
   }
   if (request.publicPortalMemberUpdateMenuEnabled != null) {
     updates.push({ key: 'PUBLIC_PORTAL_MEMBER_UPDATE_MENU_ENABLED', value: request.publicPortalMemberUpdateMenuEnabled ? 'true' : 'false', description: '公開ポータル：登録情報変更メニューを表示するか' });
@@ -7928,23 +7924,11 @@ function updateSystemSettings_(request, callerPermLevel) {
   if (request.publicPortalMemberUpdateBadgeEnabled != null) {
     updates.push({ key: 'PUBLIC_PORTAL_MEMBER_UPDATE_BADGE_ENABLED', value: request.publicPortalMemberUpdateBadgeEnabled ? 'true' : 'false', description: '公開ポータル：登録情報変更カード補助ラベルを表示するか' });
   }
-  if (request.publicPortalMemberUpdateBadgeLabel != null) {
-    updates.push({ key: 'PUBLIC_PORTAL_MEMBER_UPDATE_BADGE_LABEL', value: requiredPublicPortalText_(request.publicPortalMemberUpdateBadgeLabel, '登録情報変更カードの補助ラベル'), description: '公開ポータル：登録情報変更カード補助ラベル文言' });
-  }
   if (request.publicPortalMemberUpdateTitleEnabled != null) {
     updates.push({ key: 'PUBLIC_PORTAL_MEMBER_UPDATE_TITLE_ENABLED', value: request.publicPortalMemberUpdateTitleEnabled ? 'true' : 'false', description: '公開ポータル：登録情報変更カード見出しを表示するか' });
   }
-  if (request.publicPortalMemberUpdateTitle != null) {
-    updates.push({ key: 'PUBLIC_PORTAL_MEMBER_UPDATE_TITLE', value: requiredPublicPortalText_(request.publicPortalMemberUpdateTitle, '登録情報変更カードの見出し'), description: '公開ポータル：登録情報変更カード見出し' });
-  }
   if (request.publicPortalMemberUpdateDescriptionEnabled != null) {
     updates.push({ key: 'PUBLIC_PORTAL_MEMBER_UPDATE_DESCRIPTION_ENABLED', value: request.publicPortalMemberUpdateDescriptionEnabled ? 'true' : 'false', description: '公開ポータル：登録情報変更カード説明文を表示するか' });
-  }
-  if (request.publicPortalMemberUpdateDescription != null) {
-    updates.push({ key: 'PUBLIC_PORTAL_MEMBER_UPDATE_DESCRIPTION', value: requiredPublicPortalText_(request.publicPortalMemberUpdateDescription, '登録情報変更カードの説明文'), description: '公開ポータル：登録情報変更カード説明文' });
-  }
-  if (request.publicPortalMemberUpdateCtaLabel != null) {
-    updates.push({ key: 'PUBLIC_PORTAL_MEMBER_UPDATE_CTA_LABEL', value: requiredPublicPortalText_(request.publicPortalMemberUpdateCtaLabel, '登録情報変更カードのボタン名'), description: '公開ポータル：登録情報変更カードボタン文言' });
   }
   if (request.publicPortalWithdrawalMenuEnabled != null) {
     updates.push({ key: 'PUBLIC_PORTAL_WITHDRAWAL_MENU_ENABLED', value: request.publicPortalWithdrawalMenuEnabled ? 'true' : 'false', description: '公開ポータル：退会申込メニューを表示するか' });
@@ -7952,36 +7936,22 @@ function updateSystemSettings_(request, callerPermLevel) {
   if (request.publicPortalWithdrawalBadgeEnabled != null) {
     updates.push({ key: 'PUBLIC_PORTAL_WITHDRAWAL_BADGE_ENABLED', value: request.publicPortalWithdrawalBadgeEnabled ? 'true' : 'false', description: '公開ポータル：退会カード補助ラベルを表示するか' });
   }
-  if (request.publicPortalWithdrawalBadgeLabel != null) {
-    updates.push({ key: 'PUBLIC_PORTAL_WITHDRAWAL_BADGE_LABEL', value: requiredPublicPortalText_(request.publicPortalWithdrawalBadgeLabel, '退会カードの補助ラベル'), description: '公開ポータル：退会カード補助ラベル文言' });
-  }
   if (request.publicPortalWithdrawalTitleEnabled != null) {
     updates.push({ key: 'PUBLIC_PORTAL_WITHDRAWAL_TITLE_ENABLED', value: request.publicPortalWithdrawalTitleEnabled ? 'true' : 'false', description: '公開ポータル：退会カード見出しを表示するか' });
   }
-  if (request.publicPortalWithdrawalTitle != null) {
-    updates.push({ key: 'PUBLIC_PORTAL_WITHDRAWAL_TITLE', value: requiredPublicPortalText_(request.publicPortalWithdrawalTitle, '退会カードの見出し'), description: '公開ポータル：退会カード見出し' });
-  }
   if (request.publicPortalWithdrawalDescriptionEnabled != null) {
     updates.push({ key: 'PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION_ENABLED', value: request.publicPortalWithdrawalDescriptionEnabled ? 'true' : 'false', description: '公開ポータル：退会カード説明文を表示するか' });
-  }
-  if (request.publicPortalWithdrawalDescription != null) {
-    updates.push({ key: 'PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION', value: requiredPublicPortalText_(request.publicPortalWithdrawalDescription, '退会カードの説明文'), description: '公開ポータル：退会カード説明文' });
-  }
-  if (request.publicPortalWithdrawalCtaLabel != null) {
-    updates.push({ key: 'PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL', value: requiredPublicPortalText_(request.publicPortalWithdrawalCtaLabel, '退会カードのボタン名'), description: '公開ポータル：退会カードボタン文言' });
   }
   if (request.withdrawalConfirmationItems != null) {
     updates.push({ key: 'PUBLIC_PORTAL_WITHDRAWAL_CONFIRMATION_ITEMS', value: JSON.stringify(normalizeWithdrawalConfirmationItems_(request.withdrawalConfirmationItems)), description: '公開ポータル：退会確認項目の表示・文言設定' });
   }
   if (request.trainingFileFolderId != null) {
     updates.push({ key: 'TRAINING_FILE_FOLDER_ID', value: String(request.trainingFileFolderId || '').trim(), description: '研修ファイル保存先 Google Drive フォルダ ID' });
-    // Script Properties にも保存
-    PropertiesService.getScriptProperties().setProperty('TRAINING_FILE_FOLDER_ID', String(request.trainingFileFolderId || '').trim());
+    // Script Properties にも保存（書くのは最後）
   }
   // v296: 請求添付ファイル保存先フォルダ
   if (request.claimAttachmentFolderId != null) {
     updates.push({ key: 'CLAIM_ATTACHMENT_FOLDER_ID', value: String(request.claimAttachmentFolderId || '').trim(), description: '請求添付ファイル保存先 Google Drive フォルダ ID' });
-    PropertiesService.getScriptProperties().setProperty('CLAIM_ATTACHMENT_FOLDER_ID', String(request.claimAttachmentFolderId || '').trim());
   }
   // v265: 個人・賛助会員 入会時メール ON/OFF
   if (request.indSuppEmailEnabled != null) {
@@ -8175,10 +8145,35 @@ function updateSystemSettings_(request, callerPermLevel) {
     validateChatMembershipTemplate_(template);
     updates.push({ key: item[1], value: template, description: item[3] });
   });
-  batchUpsertSystemSettings_(ss, updates);
-  var scriptProperties = PropertiesService.getScriptProperties();
-  scriptProperties.setProperty(DEFAULT_BUSINESS_STAFF_LIMIT_KEY, String(Math.floor(next))); // backward compatibility
-  scriptProperties.setProperty(TRAINING_HISTORY_LOOKBACK_MONTHS_KEY, String(Math.floor(lookback))); // backward compatibility
+  // 2026-10-26: ここまでで確かめ終え、書くのはこの下だけ（途中で止まって一部だけ保存されるのを防ぐ）。
+  // 定型文の選択は、削除と食い違わないようロックの中で確かめる。
+  // 2 人が同時に保存したときは、後から保存した方の内容になる（後勝ち・operator 決定 2026-10-26・docs/313 §4）。
+  var lock = LockService.getScriptLock();
+  lock.waitLock(LOCK_WAIT_TIMEOUT_MS);
+  try {
+    // 2026-10-25 docs/313: 案内文は定型文の ID だけを保存する（存在する・削除済みでない・同じ用途であること）。
+    // 旧い本文のキーは書き換えない（前の版へ戻したとき、旧いコードが本文として読む）。
+    SCREEN_TEXT_TEMPLATE_PURPOSES_.forEach(function(purpose) {
+      if (request[purpose.requestKey] == null) return;
+      updates.push({ key: purpose.settingKey, value: validateScreenTextTemplateSelection_(ss, purpose, request[purpose.requestKey]),
+        description: '公開ポータル：入会完了画面・' + purpose.label + 'に使う定型文（T_画面文テンプレート）' });
+    });
+    if (request.memberTypeAnnualFees != null) {
+      setMemberTypeAnnualFeeAmounts_(ss, request.memberTypeAnnualFees);
+    }
+    batchUpsertSystemSettings_(ss, updates);
+    var scriptProperties = PropertiesService.getScriptProperties();
+    if (request.trainingFileFolderId != null) {
+      scriptProperties.setProperty('TRAINING_FILE_FOLDER_ID', String(request.trainingFileFolderId || '').trim());
+    }
+    if (request.claimAttachmentFolderId != null) {
+      scriptProperties.setProperty('CLAIM_ATTACHMENT_FOLDER_ID', String(request.claimAttachmentFolderId || '').trim());
+    }
+    scriptProperties.setProperty(DEFAULT_BUSINESS_STAFF_LIMIT_KEY, String(Math.floor(next))); // backward compatibility
+    scriptProperties.setProperty(TRAINING_HISTORY_LOOKBACK_MONTHS_KEY, String(Math.floor(lookback))); // backward compatibility
+  } finally {
+    lock.releaseLock();
+  }
   return getSystemSettings_();
 }
 
