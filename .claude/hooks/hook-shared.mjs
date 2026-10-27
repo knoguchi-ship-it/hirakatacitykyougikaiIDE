@@ -19,7 +19,24 @@ export function decide(permissionDecision, permissionDecisionReason) {
   process.exit(0);
 }
 export const deny = (reason) => decide('deny', reason);
-export const ask = (reason) => decide('ask', reason);
+/**
+ * Claude Code は PreToolUse の `ask` を人間への確認として扱う。一方、Codex の
+ * PreToolUse は `ask` を未サポートとして fail-open にする。Codex 用ラッパーでは
+ * `ask` を出力せず、`.codex/rules/production.rules` の native approval に委ねる。
+ * PreToolUse payload の未文書フィールドを承認根拠にしてはならない。ブラウザ MCP の
+ * 書込みは同じ prompt 経路を持たないため、guard-browser が deny する。
+ */
+export const ask = (reason) => {
+  if (process.env.CODEX_HOOK_RUNTIME === '1') {
+    if (process.env.CODEX_GUARD_KIND === 'guard-browser.mjs') {
+      return deny(`${reason}\nCodex はブラウザ MCP 経由の本番書込みを許可しません。承認済みの clasp run 経路を使ってください。`);
+    }
+    // Codex の本番 CLI は `.codex/rules/production.rules` の prompt を評価する。
+    // ここで allow/ask を返すと、未サポートの ask が fail-open になるため何も返さない。
+    return;
+  }
+  return decide('ask', reason);
+};
 
 /** stdin の JSON を読んで handler(input) を呼ぶ。handler が判断しなければ「判断しない」で終わる */
 export function runHook(handler) {

@@ -1175,3 +1175,11 @@ npm run build:docs-portal                  # docs/portal/*.html + schema.dbml �
 ---
 
 **お知らせ**: ドキュメント体系は 2026-05-21 に Diátaxis フレームワークに沿って刷新済み。本書 (`HANDOVER.md`) は「現状」のみ、`docs/00_DOC_INDEX.md` が全体索引、`docs/ONBOARDING.md` が新規参加者向けチュートリアル。
+# Cross-agent entry (ClaudeCode / Codex)
+
+1. Start with `AGENTS.md`, then this file; this is the shared latest-state route.
+2. Procedures are canonical in `.claude/skills/`. Codex adapters in `.agents/skills/` delegate there and must not fork the procedure.
+3. Codex uses `.codex/config.toml`, `hooks.json`, and `rules/production.rules`. After pulling these changes in a real Codex client, restart it and approve the repository hooks in `/hooks` before any work. Until that one-time trust step, Codex does not execute project hooks.
+4. Run `npm run test:agent-surface-sync` (included in `npm run prerelease`) whenever either agent's skills, safeguards, or entry settings change.
+5. Codex deliberately denies browser-MCP production writes; use the normal approval-gated `clasp run` route instead.
+6. Codex prompts for every `clasp run`, including read-only functions. This is intentionally stricter than ClaudeCode's write-candidate-only confirmation.

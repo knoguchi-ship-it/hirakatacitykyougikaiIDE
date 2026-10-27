@@ -1,0 +1,7 @@
+# ClaudeCode から移行した、このリポジトリ専用の Codex 基礎設定。
+# 本番・DB 更新は必ず operator が確認する。個人設定を上書きするのは承認経路だけ。
+approval_policy = "on-request"
+approvals_reviewer = "user"
+
+[features]
+hooks = true

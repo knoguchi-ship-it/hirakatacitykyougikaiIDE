@@ -1,0 +1,58 @@
+# 本番・外部到達コマンドは、Codex の native approval を毎回要求する。
+# ClaudeCode は同じ操作を .claude/hooks/ で確認する。ここを allow に変えてはならない。
+
+prefix_rule(
+    pattern = ["npx", "clasp", "run"],
+    decision = "prompt",
+    justification = "Apps Script 関数は読取り名でも副作用の可能性があるため、operator が確認する。",
+    match = ["npx clasp run healthCheck", "npx clasp run seedDemoData"],
+)
+
+prefix_rule(
+    pattern = ["clasp", "run"],
+    decision = "prompt",
+    justification = "Apps Script 関数は読取り名でも副作用の可能性があるため、operator が確認する。",
+    match = ["clasp run healthCheck", "clasp run seedDemoData"],
+)
+
+prefix_rule(
+    pattern = ["npx", "clasp", "create-version"],
+    decision = "prompt",
+    justification = "Apps Script の版作成は本番リリース操作のため、operator が確認する。",
+    match = ["npx clasp create-version release"],
+)
+
+prefix_rule(
+    pattern = ["clasp", "create-version"],
+    decision = "prompt",
+    justification = "Apps Script の版作成は本番リリース操作のため、operator が確認する。",
+    match = ["clasp create-version release"],
+)
+
+prefix_rule(
+    pattern = ["npx", "clasp", "redeploy"],
+    decision = "prompt",
+    justification = "fixed deployment の更新は本番リリース操作のため、operator が確認する。",
+    match = ["npx clasp redeploy deployment-id -V 1"],
+)
+
+prefix_rule(
+    pattern = ["clasp", "redeploy"],
+    decision = "prompt",
+    justification = "fixed deployment の更新は本番リリース操作のため、operator が確認する。",
+    match = ["clasp redeploy deployment-id -V 1"],
+)
+
+prefix_rule(
+    pattern = ["npm", "run", "release:push"],
+    decision = "prompt",
+    justification = "3 split の Apps Script project へ push するため、operator が確認する。",
+    match = ["npm run release:push"],
+)
+
+prefix_rule(
+    pattern = ["git", "push"],
+    decision = "prompt",
+    justification = "共有リポジトリへの外部送信は、prerelease 通過後も operator が確認する。",
+    match = ["git push origin main"],
+)

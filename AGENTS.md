@@ -1,4 +1,14 @@
 # AGENTS.md
+
+## Cross-agent continuity
+
+Both ClaudeCode and Codex start here, then read `HANDOVER.md` before acting.
+ClaudeCode procedures in `.claude/skills/` are canonical; Codex uses the
+matching `.agents/skills/` adapters, which must only delegate to that canonical
+source. Codex project approval, hook, and native rule settings live in
+`.codex/`. Keep this surface synchronized with `npm run test:agent-surface-sync`;
+it is part of `npm run prerelease`.
+
 # 枚方市介護支援専門員連絡協議会 会員システム
 
 > **本書がグランドルールの唯一の入口。** `CLAUDE.md` は後方互換の案内のみ。
