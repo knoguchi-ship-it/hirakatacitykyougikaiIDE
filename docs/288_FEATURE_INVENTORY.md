@@ -31,7 +31,7 @@
 
 > この節は `npm run generate:inventory` の生成物。**手で編集しない。**
 > 出典: 許可リスト `scripts/gas-boundary-utils.mjs` ＋ dispatcher `gas-src/Code.full.gs`。
-> action 合計 **148** 件（公開 11 / 会員 19 / 管理 121、重複含む）。
+> action 合計 **149** 件（公開 11 / 会員 19 / 管理 122、重複含む）。
 
 ### 入会・申込受付
 
@@ -217,6 +217,7 @@
 |---|:--:|:--:|:--:|---|
 | `getDbInfo` |  |  | ● | `getDbInfo_` |
 | `getSystemSettings` |  |  | ● | `getSystemSettings_` |
+| `checkSystemSettingsPatch` |  |  | ● | `checkSystemSettingsPatch_` |
 | `updateSystemSettings` |  |  | ● | `updateSystemSettings_` |
 | `saveScreenTextTemplate` |  |  | ● | `saveScreenTextTemplate_` |
 | `deleteScreenTextTemplate` |  |  | ● | `deleteScreenTextTemplate_` |

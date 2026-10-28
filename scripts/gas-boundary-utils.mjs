@@ -157,6 +157,7 @@ export const ADMIN_LOGIN_ACTIONS_LIST = [
 export const ADMIN_ALLOWED_ACTIONS_LIST = [
   'getDbInfo',
   'getSystemSettings',
+  'checkSystemSettingsPatch',
   'updateSystemSettings',
   'saveScreenTextTemplate',
   'deleteScreenTextTemplate',

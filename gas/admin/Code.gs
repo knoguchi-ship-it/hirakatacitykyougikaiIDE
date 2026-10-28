@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: a26d9cb0a9b9a44dfe2ff56f2a91d6eb55d2d5cc0f4574d2dafc1ffe96a6d7fc
+// BUILD_INPUT_SHA256: d8494d42e0befa4e2b421de684b8c23702b5c17a9f608b302393afcb3d045e33
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -1695,6 +1695,7 @@ var ACTION_TO_MENU = {
   "updateOfficerRecord": "officer-management",
   "getDbInfo": "admin-settings",
   "getSystemSettings": "admin-settings",
+  "checkSystemSettingsPatch": "admin-settings",
   "updateSystemSettings": "admin-settings",
   "saveScreenTextTemplate": "admin-settings",
   "deleteScreenTextTemplate": "admin-settings",
@@ -1873,6 +1874,7 @@ function isActionAllowedForSession_(action, sessionResult) {
 var ADMIN_ACTION_PERMISSIONS = {
   'getDbInfo': ['MASTER','ADMIN'],
   'getSystemSettings': ['MASTER','ADMIN'],
+  'checkSystemSettingsPatch': ['MASTER','ADMIN'],
   'updateSystemSettings': ['MASTER','ADMIN'],
   'saveScreenTextTemplate': ['MASTER','ADMIN'],
   'deleteScreenTextTemplate': ['MASTER','ADMIN'],
@@ -2233,6 +2235,13 @@ function processApiRequest(action, payload) {
 
     if (action === 'getSystemSettings') {
       return JSON.stringify({ success: true, data: getSystemSettings_() });
+    }
+
+    if (action === 'checkSystemSettingsPatch') {
+      var checkSettingsPermLevel = parsedPayload.__adminSession
+        ? String(parsedPayload.__adminSession.adminPermissionLevel || 'ADMIN')
+        : 'ADMIN';
+      return JSON.stringify({ success: true, data: checkSystemSettingsPatch_(parsedPayload, checkSettingsPermLevel) });
     }
 
     if (action === 'updateSystemSettings') {
@@ -5098,8 +5107,8 @@ function getSystemSettings_() {
     ? true
     : String(credentialEmailEnabledRaw) !== 'false';
   var credentialEmailFrom = String(m['CREDENTIAL_EMAIL_FROM'] || '').trim() || ownerEmail;
-  var credentialEmailSubject = String(m['CREDENTIAL_EMAIL_SUBJECT'] || '') || CREDENTIAL_EMAIL_DEFAULT_SUBJECT;
-  var credentialEmailBody = String(m['CREDENTIAL_EMAIL_BODY'] || '') || CREDENTIAL_EMAIL_DEFAULT_BODY;
+  var credentialEmailSubject = String(m['CREDENTIAL_EMAIL_SUBJECT'] || '');
+  var credentialEmailBody = String(m['CREDENTIAL_EMAIL_BODY'] || '');
   // v210: 公開ポータル メニュー表示設定
   var trainingMenuEnabledRaw = m['PUBLIC_PORTAL_TRAINING_MENU_ENABLED'];
   var publicPortalTrainingMenuEnabled = !trainingMenuEnabledRaw
@@ -5276,44 +5285,44 @@ function getSystemSettings_() {
     indSuppEmailEnabled: (function(){ var v = m['IND_SUPP_EMAIL_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
     // v265: 事業所入会・職員追加メール設定
     bizRepEmailEnabled:        String(m['BIZ_REP_EMAIL_ENABLED'] || '') !== 'false',
-    bizRepEmailSubject:        String(m['BIZ_REP_EMAIL_SUBJECT'] || '') || BIZ_REP_EMAIL_DEFAULT_SUBJECT,
-    bizRepEmailBody:           String(m['BIZ_REP_EMAIL_BODY'] || '') || BIZ_REP_EMAIL_DEFAULT_BODY,
+    bizRepEmailSubject:        String(m['BIZ_REP_EMAIL_SUBJECT'] || ''),
+    bizRepEmailBody:           String(m['BIZ_REP_EMAIL_BODY'] || ''),
     bizStaffEmailEnabled:      (function(){ var v = m['BIZ_STAFF_EMAIL_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
-    bizStaffEmailSubject:      String(m['BIZ_STAFF_EMAIL_SUBJECT'] || '') || BIZ_STAFF_EMAIL_DEFAULT_SUBJECT,
-    bizStaffEmailBody:         String(m['BIZ_STAFF_EMAIL_BODY'] || '') || BIZ_STAFF_EMAIL_DEFAULT_BODY,
+    bizStaffEmailSubject:      String(m['BIZ_STAFF_EMAIL_SUBJECT'] || ''),
+    bizStaffEmailBody:         String(m['BIZ_STAFF_EMAIL_BODY'] || ''),
     staffAddStaffEmailEnabled: (function(){ var v = m['STAFF_ADD_STAFF_EMAIL_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
-    staffAddStaffEmailSubject: String(m['STAFF_ADD_STAFF_EMAIL_SUBJECT'] || '') || STAFF_ADD_STAFF_EMAIL_DEFAULT_SUBJECT,
-    staffAddStaffEmailBody:    String(m['STAFF_ADD_STAFF_EMAIL_BODY'] || '') || STAFF_ADD_STAFF_EMAIL_DEFAULT_BODY,
+    staffAddStaffEmailSubject: String(m['STAFF_ADD_STAFF_EMAIL_SUBJECT'] || ''),
+    staffAddStaffEmailBody:    String(m['STAFF_ADD_STAFF_EMAIL_BODY'] || ''),
     staffAddRepEmailEnabled:   (function(){ var v = m['STAFF_ADD_REP_EMAIL_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
-    staffAddRepEmailSubject:   String(m['STAFF_ADD_REP_EMAIL_SUBJECT'] || '') || STAFF_ADD_REP_EMAIL_DEFAULT_SUBJECT,
-    staffAddRepEmailBody:      String(m['STAFF_ADD_REP_EMAIL_BODY'] || '') || STAFF_ADD_REP_EMAIL_DEFAULT_BODY,
+    staffAddRepEmailSubject:   String(m['STAFF_ADD_REP_EMAIL_SUBJECT'] || ''),
+    staffAddRepEmailBody:      String(m['STAFF_ADD_REP_EMAIL_BODY'] || ''),
     // v368: 変更申請ワークフローメール
     applicationReceiptEnabled:    (function(){ var v = m['APPLICATION_RECEIPT_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
-    applicationReceiptSubject:    String(m['APPLICATION_RECEIPT_SUBJECT'] || '') || APPLICATION_RECEIPT_DEFAULT_SUBJECT,
-    applicationReceiptBody:       String(m['APPLICATION_RECEIPT_BODY'] || '') || APPLICATION_RECEIPT_DEFAULT_BODY,
+    applicationReceiptSubject:    String(m['APPLICATION_RECEIPT_SUBJECT'] || ''),
+    applicationReceiptBody:       String(m['APPLICATION_RECEIPT_BODY'] || ''),
     approvalNotificationEnabled:  (function(){ var v = m['APPROVAL_NOTIFICATION_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
-    approvalNotificationSubject:  String(m['APPROVAL_NOTIFICATION_SUBJECT'] || '') || APPROVAL_NOTIFICATION_DEFAULT_SUBJECT,
-    approvalNotificationBody:     String(m['APPROVAL_NOTIFICATION_BODY'] || '') || APPROVAL_NOTIFICATION_DEFAULT_BODY,
+    approvalNotificationSubject:  String(m['APPROVAL_NOTIFICATION_SUBJECT'] || ''),
+    approvalNotificationBody:     String(m['APPROVAL_NOTIFICATION_BODY'] || ''),
     rejectionNotificationEnabled: (function(){ var v = m['REJECTION_NOTIFICATION_ENABLED']; return (v===''||v===null||v===undefined)?true:String(v)!=='false'; })(),
-    rejectionNotificationSubject: String(m['REJECTION_NOTIFICATION_SUBJECT'] || '') || REJECTION_NOTIFICATION_DEFAULT_SUBJECT,
-    rejectionNotificationBody:    String(m['REJECTION_NOTIFICATION_BODY'] || '') || REJECTION_NOTIFICATION_DEFAULT_BODY,
+    rejectionNotificationSubject: String(m['REJECTION_NOTIFICATION_SUBJECT'] || ''),
+    rejectionNotificationBody:    String(m['REJECTION_NOTIFICATION_BODY'] || ''),
     // v376.43 (Phase B): 従来ハードコード6メールの件名/本文
-    trainingApplyReceiptSubject:  String(m['TRAINING_APPLY_RECEIPT_SUBJECT'] || '') || TRAINING_APPLY_RECEIPT_DEFAULT_SUBJECT,
-    trainingApplyReceiptBody:     String(m['TRAINING_APPLY_RECEIPT_BODY'] || '') || TRAINING_APPLY_RECEIPT_DEFAULT_BODY,
-    trainingReminderSubject:      String(m['TRAINING_REMINDER_SUBJECT'] || '') || TRAINING_REMINDER_DEFAULT_SUBJECT,
-    trainingReminderBody:         String(m['TRAINING_REMINDER_BODY'] || '') || TRAINING_REMINDER_DEFAULT_BODY,
-    authOtpSubject:               String(m['AUTH_OTP_SUBJECT'] || '') || AUTH_OTP_DEFAULT_SUBJECT,
-    authOtpBody:                  String(m['AUTH_OTP_BODY'] || '') || AUTH_OTP_DEFAULT_BODY,
-    loginIdChangedSubject:        String(m['LOGIN_ID_CHANGED_SUBJECT'] || '') || LOGIN_ID_CHANGED_DEFAULT_SUBJECT,
-    loginIdChangedBody:           String(m['LOGIN_ID_CHANGED_BODY'] || '') || LOGIN_ID_CHANGED_DEFAULT_BODY,
-    contactEmailChangedSubject:   String(m['CONTACT_EMAIL_CHANGED_SUBJECT'] || '') || CONTACT_EMAIL_CHANGED_DEFAULT_SUBJECT,
-    contactEmailChangedBody:      String(m['CONTACT_EMAIL_CHANGED_BODY'] || '') || CONTACT_EMAIL_CHANGED_DEFAULT_BODY,
-    memberUpdateConfirmSubject:   String(m['MEMBER_UPDATE_CONFIRM_SUBJECT'] || '') || MEMBER_UPDATE_CONFIRM_DEFAULT_SUBJECT,
-    memberUpdateConfirmBody:      String(m['MEMBER_UPDATE_CONFIRM_BODY'] || '') || MEMBER_UPDATE_CONFIRM_DEFAULT_BODY,
-    withdrawalConfirmSubject:     String(m['WITHDRAWAL_CONFIRM_SUBJECT'] || '') || WITHDRAWAL_CONFIRM_DEFAULT_SUBJECT,
-    withdrawalConfirmBody:        String(m['WITHDRAWAL_CONFIRM_BODY'] || '') || WITHDRAWAL_CONFIRM_DEFAULT_BODY,
-    passwordResetSubject:         String(m['PASSWORD_RESET_SUBJECT'] || '') || PASSWORD_RESET_DEFAULT_SUBJECT,
-    passwordResetBody:            String(m['PASSWORD_RESET_BODY'] || '') || PASSWORD_RESET_DEFAULT_BODY,
+    trainingApplyReceiptSubject:  String(m['TRAINING_APPLY_RECEIPT_SUBJECT'] || ''),
+    trainingApplyReceiptBody:     String(m['TRAINING_APPLY_RECEIPT_BODY'] || ''),
+    trainingReminderSubject:      String(m['TRAINING_REMINDER_SUBJECT'] || ''),
+    trainingReminderBody:         String(m['TRAINING_REMINDER_BODY'] || ''),
+    authOtpSubject:               String(m['AUTH_OTP_SUBJECT'] || ''),
+    authOtpBody:                  String(m['AUTH_OTP_BODY'] || ''),
+    loginIdChangedSubject:        String(m['LOGIN_ID_CHANGED_SUBJECT'] || ''),
+    loginIdChangedBody:           String(m['LOGIN_ID_CHANGED_BODY'] || ''),
+    contactEmailChangedSubject:   String(m['CONTACT_EMAIL_CHANGED_SUBJECT'] || ''),
+    contactEmailChangedBody:      String(m['CONTACT_EMAIL_CHANGED_BODY'] || ''),
+    memberUpdateConfirmSubject:   String(m['MEMBER_UPDATE_CONFIRM_SUBJECT'] || ''),
+    memberUpdateConfirmBody:      String(m['MEMBER_UPDATE_CONFIRM_BODY'] || ''),
+    withdrawalConfirmSubject:     String(m['WITHDRAWAL_CONFIRM_SUBJECT'] || ''),
+    withdrawalConfirmBody:        String(m['WITHDRAWAL_CONFIRM_BODY'] || ''),
+    passwordResetSubject:         String(m['PASSWORD_RESET_SUBJECT'] || ''),
+    passwordResetBody:            String(m['PASSWORD_RESET_BODY'] || ''),
     // メール配信状態は MAIL_DELIVERY_STATE を正本とする。旧3キーは既存クライアントとの互換用。
     mailDeliveryState:            mailDeliveryState,
     mailGlobalEnabled:            mailDeliveryState !== 'STOPPED',
@@ -5348,8 +5357,47 @@ function convertSettingKeyToCamel_(key) {
   return key.toLowerCase().replace(/_([a-z])/g, function(_, c) { return c.toUpperCase(); });
 }
 
+// メールの既定文面は初期データを投入するときだけ使う。設定の保存・読取り・送信では
+// 空欄を既定文面で補わず、事務局が保存した内容を唯一の文面として扱う。
+function requireConfiguredMailText_(value, label, trimValue) {
+  var text = value == null ? '' : String(value);
+  var stored = trimValue ? text.trim() : text;
+  if (!stored.trim()) throw new Error('「' + label + '」は空欄にできません。');
+  return stored;
+}
+
+function hasOwnSettingField_(value, key) {
+  return !!value && Object.prototype.hasOwnProperty.call(value, key);
+}
+
+// `clasp run` の引数長に依存せず、現在の本番設定を機能群ごとに検証するための正本。
+// 戻り値は件数だけで、設定値・メール本文・送信元などは返さない。
+var SYSTEM_SETTINGS_VERIFICATION_SUITES_ = {
+  core: ['defaultBusinessStaffLimit', 'trainingHistoryLookbackMonths', 'annualFeePaymentGuidance', 'annualFeeTransferAccount', 'memberTypeAnnualFees', 'membershipFeePublicVisible', 'membershipFeeNote', 'trainingDefaultFieldConfig', 'bulkMailAutoAttachFolderId', 'emailLogViewerRole', 'trainingFileFolderId', 'claimAttachmentFolderId'],
+  publicPortal: ['publicPortalTrainingMenuEnabled', 'publicPortalMembershipMenuEnabled', 'publicPortalHeroBadgeEnabled', 'publicPortalHeroBadgeLabel', 'publicPortalPrivacyPolicyUrl', 'publicPortalHeroTitle', 'publicPortalHeroDescriptionEnabled', 'publicPortalHeroDescription', 'publicPortalMembershipBadgeEnabled', 'publicPortalMembershipBadgeLabel', 'publicPortalMembershipTitleEnabled', 'publicPortalMembershipTitle', 'publicPortalMembershipDescriptionEnabled', 'publicPortalMembershipDescription', 'publicPortalMembershipCtaLabel', 'publicPortalCompletionGuidanceVisible', 'publicPortalCompletionGuidanceTemplateIdWhenCredentialSent', 'publicPortalCompletionGuidanceTemplateIdWhenCredentialNotSent', 'publicPortalCompletionLoginInfoBlockVisible', 'publicPortalCompletionLoginInfoVisible', 'publicPortalCompletionLoginInfoTemplateIdWhenCredentialSent', 'publicPortalCompletionLoginInfoTemplateIdWhenCredentialNotSent', 'publicPortalTrainingBadgeEnabled', 'publicPortalTrainingBadgeLabel', 'publicPortalTrainingTitleEnabled', 'publicPortalTrainingTitle', 'publicPortalTrainingDescriptionEnabled', 'publicPortalTrainingDescription', 'publicPortalTrainingCtaLabel', 'publicPortalMemberUpdateMenuEnabled', 'publicPortalMemberUpdateBadgeEnabled', 'publicPortalMemberUpdateBadgeLabel', 'publicPortalMemberUpdateTitleEnabled', 'publicPortalMemberUpdateTitle', 'publicPortalMemberUpdateDescriptionEnabled', 'publicPortalMemberUpdateDescription', 'publicPortalMemberUpdateCtaLabel', 'publicPortalWithdrawalMenuEnabled', 'publicPortalWithdrawalBadgeEnabled', 'publicPortalWithdrawalBadgeLabel', 'publicPortalWithdrawalTitleEnabled', 'publicPortalWithdrawalTitle', 'publicPortalWithdrawalDescriptionEnabled', 'publicPortalWithdrawalDescription', 'publicPortalWithdrawalCtaLabel', 'withdrawalConfirmationItems'],
+  mail: ['credentialEmailEnabled', 'credentialEmailFrom', 'credentialEmailSubject', 'credentialEmailBody', 'indSuppEmailEnabled', 'bizRepEmailEnabled', 'bizRepEmailSubject', 'bizRepEmailBody', 'bizStaffEmailEnabled', 'bizStaffEmailSubject', 'bizStaffEmailBody', 'staffAddStaffEmailEnabled', 'staffAddStaffEmailSubject', 'staffAddStaffEmailBody', 'staffAddRepEmailEnabled', 'staffAddRepEmailSubject', 'staffAddRepEmailBody', 'applicationReceiptEnabled', 'applicationReceiptSubject', 'applicationReceiptBody', 'approvalNotificationEnabled', 'approvalNotificationSubject', 'approvalNotificationBody', 'rejectionNotificationEnabled', 'rejectionNotificationSubject', 'rejectionNotificationBody', 'trainingApplyReceiptSubject', 'trainingApplyReceiptBody', 'trainingReminderSubject', 'trainingReminderBody', 'authOtpSubject', 'authOtpBody', 'loginIdChangedSubject', 'loginIdChangedBody', 'contactEmailChangedSubject', 'contactEmailChangedBody', 'memberUpdateConfirmSubject', 'memberUpdateConfirmBody', 'withdrawalConfirmSubject', 'withdrawalConfirmBody', 'passwordResetSubject', 'passwordResetBody', 'mailDeliveryState', 'mailRedirectAllowlist', 'trainingApplyReceiptEnabled', 'trainingReminderEnabled', 'bulkMailEnabled', 'authOtpEnabled', 'memberUpdateConfirmEnabled', 'withdrawalConfirmEnabled', 'passwordResetEnabled', 'loginIdChangedEnabled', 'contactEmailChangedEnabled'],
+  chat: ['chatMembershipNotificationEnabled', 'chatMembershipRequestEnabled', 'chatMembershipFinalEnabled', 'chatMembershipAnomalyEnabled', 'chatMembershipRequestBody', 'chatMembershipFinalBody', 'chatMembershipAnomalyBody'],
+};
+
+function checkSystemSettingsPatch_(payload, callerPermLevel) {
+  var suite = String((payload && payload.suite) || '').trim();
+  var fields = SYSTEM_SETTINGS_VERIFICATION_SUITES_[suite];
+  if (!fields) throw new Error('確認対象の機能群が正しくありません。');
+  var current = getSystemSettings_();
+  var request = { __dryRun: true };
+  fields.forEach(function(field) { request[field] = current[field]; });
+  var plan = updateSystemSettings_(request, callerPermLevel);
+  return { suite: suite, valid: true, checkedFieldCount: fields.length, plannedSettingCount: plan.plannedSettingCount, plannedMemberFeeCodeCount: plan.plannedMemberFeeCodeCount, writes: 0 };
+}
+
 function updateSystemSettings_(request, callerPermLevel) {
   if (!request) throw new Error('settings が空です。');
+  var isDryRun = request.__dryRun === true;
+  if (isDryRun) {
+    request = Object.assign({}, request);
+    delete request.__dryRun;
+  }
+  if (Object.keys(request).length === 0) throw new Error('変更する設定がありません。');
   // MASTER 限定キーのチェック
   var effectivePermLevel = callerPermLevel || 'ADMIN';
   var masterOnlyRequested = MASTER_ONLY_SETTING_KEYS.some(function(k) {
@@ -5358,16 +5406,14 @@ function updateSystemSettings_(request, callerPermLevel) {
   if (masterOnlyRequested && effectivePermLevel !== 'MASTER') {
     throw new Error('この設定はマスター権限のみ変更できます。');
   }
-  var next = Number(request.defaultBusinessStaffLimit || 0);
-  var lookbackRaw = request.trainingHistoryLookbackMonths;
+  // 差分 API: 送られなかった項目は現在値を使って検証するが、更新配列には入れない。
+  // これにより同時編集の未変更項目を上書きせず、`clasp run` の引数も小さく保てる。
+  var currentSettings = getSystemSettings_();
+  var next = hasOwnSettingField_(request, 'defaultBusinessStaffLimit') ? Number(request.defaultBusinessStaffLimit) : Number(currentSettings.defaultBusinessStaffLimit);
+  var lookbackRaw = hasOwnSettingField_(request, 'trainingHistoryLookbackMonths') ? request.trainingHistoryLookbackMonths : currentSettings.trainingHistoryLookbackMonths;
   var lookback = Number(lookbackRaw);
-  var guidance = request.annualFeePaymentGuidance == null ? '' : String(request.annualFeePaymentGuidance);
-  var transferAccount = validateAnnualFeeTransferAccount_(request.annualFeeTransferAccount);
-  if (lookbackRaw == null || lookbackRaw === '') {
-    var ssForDefault = getOrCreateDatabase_();
-    initializeSchema_(ssForDefault);
-    lookback = Number(getSystemSettingValue_(ssForDefault, 'TRAINING_HISTORY_LOOKBACK_MONTHS') || 18);
-  }
+  var guidance = hasOwnSettingField_(request, 'annualFeePaymentGuidance') ? String(request.annualFeePaymentGuidance == null ? '' : request.annualFeePaymentGuidance) : String(currentSettings.annualFeePaymentGuidance == null ? '' : currentSettings.annualFeePaymentGuidance);
+  var transferAccount = validateAnnualFeeTransferAccount_(hasOwnSettingField_(request, 'annualFeeTransferAccount') ? request.annualFeeTransferAccount : currentSettings.annualFeeTransferAccount);
   if (!isFinite(next) || next < 1 || next > 200) {
     throw new Error('事業所メンバー上限（全体）は 1〜200 の範囲で設定してください。');
   }
@@ -5380,13 +5426,11 @@ function updateSystemSettings_(request, callerPermLevel) {
   var ss = getOrCreateDatabase_();
   initializeSchemaIfNeeded_(ss);
   // 全更新を1配列に収集し batchUpsertSystemSettings_ で一括書き込み（N+1問題解消）
-  var updates = [
-    { key: 'DEFAULT_BUSINESS_STAFF_LIMIT', value: String(Math.floor(next)), description: '事業所会員メンバー上限（全体デフォルト）' },
-    { key: 'TRAINING_HISTORY_LOOKBACK_MONTHS', value: String(Math.floor(lookback)), description: '研修履歴の表示期間（月）' },
-    { key: 'ANNUAL_FEE_PAYMENT_GUIDANCE', value: guidance, description: '年会費未納時の会員向け納入案内' },
-    { key: 'ANNUAL_FEE_TRANSFER_ACCOUNT', value: JSON.stringify(transferAccount), description: '年会費未納時の共通振込先' },
-    { key: 'DB_SCHEMA_VERSION', value: DB_SCHEMA_VERSION, description: 'DBスキーマバージョン' },
-  ];
+  var updates = [];
+  if (hasOwnSettingField_(request, 'defaultBusinessStaffLimit')) updates.push({ key: 'DEFAULT_BUSINESS_STAFF_LIMIT', value: String(Math.floor(next)), description: '事業所会員メンバー上限（全体デフォルト）' });
+  if (hasOwnSettingField_(request, 'trainingHistoryLookbackMonths')) updates.push({ key: 'TRAINING_HISTORY_LOOKBACK_MONTHS', value: String(Math.floor(lookback)), description: '研修履歴の表示期間（月）' });
+  if (hasOwnSettingField_(request, 'annualFeePaymentGuidance')) updates.push({ key: 'ANNUAL_FEE_PAYMENT_GUIDANCE', value: guidance, description: '年会費未納時の会員向け納入案内' });
+  if (hasOwnSettingField_(request, 'annualFeeTransferAccount')) updates.push({ key: 'ANNUAL_FEE_TRANSFER_ACCOUNT', value: JSON.stringify(transferAccount), description: '年会費未納時の共通振込先' });
   if (request.trainingDefaultFieldConfig != null) {
     updates.push({ key: 'TRAINING_DEFAULT_FIELD_CONFIG', value: JSON.stringify(request.trainingDefaultFieldConfig), description: '研修フォームのデフォルト表示項目設定' });
   }
@@ -5427,14 +5471,10 @@ function updateSystemSettings_(request, callerPermLevel) {
     updates.push({ key: 'CREDENTIAL_EMAIL_FROM', value: validatedFrom === ownerEmail ? '' : validatedFrom, description: '自動通知メール共通の送信元アドレス' });
   }
   if (request.credentialEmailSubject != null) {
-    var subj = String(request.credentialEmailSubject).trim();
-    if (!subj) subj = CREDENTIAL_EMAIL_DEFAULT_SUBJECT;
-    updates.push({ key: 'CREDENTIAL_EMAIL_SUBJECT', value: subj, description: '入会時認証情報メールの件名' });
+    updates.push({ key: 'CREDENTIAL_EMAIL_SUBJECT', value: requireConfiguredMailText_(request.credentialEmailSubject, '入会時認証情報メールの件名', true), description: '入会時認証情報メールの件名' });
   }
   if (request.credentialEmailBody != null) {
-    var bodyVal = String(request.credentialEmailBody);
-    if (!bodyVal.trim()) bodyVal = CREDENTIAL_EMAIL_DEFAULT_BODY;
-    updates.push({ key: 'CREDENTIAL_EMAIL_BODY', value: bodyVal, description: '入会時認証情報メールの本文（マージタグ: {{氏名}} {{ログインID}} {{パスワード}} {{会員マイページURL}}）' });
+    updates.push({ key: 'CREDENTIAL_EMAIL_BODY', value: requireConfiguredMailText_(request.credentialEmailBody, '入会時認証情報メールの本文', false), description: '入会時認証情報メールの本文（マージタグ: {{氏名}} {{ログインID}} {{パスワード}} {{会員マイページURL}}）' });
   }
   // v210: 公開ポータル メニュー表示設定
   if (request.publicPortalTrainingMenuEnabled != null) {
@@ -5526,114 +5566,114 @@ function updateSystemSettings_(request, callerPermLevel) {
     updates.push({ key: 'BIZ_REP_EMAIL_ENABLED', value: request.bizRepEmailEnabled ? 'true' : 'false', description: '事業所入会時：代表者メール送信ON/OFF' });
   }
   if (request.bizRepEmailSubject != null) {
-    updates.push({ key: 'BIZ_REP_EMAIL_SUBJECT', value: String(request.bizRepEmailSubject).trim() || BIZ_REP_EMAIL_DEFAULT_SUBJECT, description: '事業所入会時：代表者メール件名' });
+    updates.push({ key: 'BIZ_REP_EMAIL_SUBJECT', value: requireConfiguredMailText_(request.bizRepEmailSubject, '事業所入会時：代表者メール件名', true), description: '事業所入会時：代表者メール件名' });
   }
   if (request.bizRepEmailBody != null) {
-    updates.push({ key: 'BIZ_REP_EMAIL_BODY', value: String(request.bizRepEmailBody) || BIZ_REP_EMAIL_DEFAULT_BODY, description: '事業所入会時：代表者メール本文' });
+    updates.push({ key: 'BIZ_REP_EMAIL_BODY', value: requireConfiguredMailText_(request.bizRepEmailBody, '事業所入会時：代表者メール本文', false), description: '事業所入会時：代表者メール本文' });
   }
   if (request.bizStaffEmailEnabled != null) {
     updates.push({ key: 'BIZ_STAFF_EMAIL_ENABLED', value: request.bizStaffEmailEnabled ? 'true' : 'false', description: '事業所入会時：メンバーメール送信ON/OFF' });
   }
   if (request.bizStaffEmailSubject != null) {
-    updates.push({ key: 'BIZ_STAFF_EMAIL_SUBJECT', value: String(request.bizStaffEmailSubject).trim() || BIZ_STAFF_EMAIL_DEFAULT_SUBJECT, description: '事業所入会時：メンバーメール件名' });
+    updates.push({ key: 'BIZ_STAFF_EMAIL_SUBJECT', value: requireConfiguredMailText_(request.bizStaffEmailSubject, '事業所入会時：メンバーメール件名', true), description: '事業所入会時：メンバーメール件名' });
   }
   if (request.bizStaffEmailBody != null) {
-    updates.push({ key: 'BIZ_STAFF_EMAIL_BODY', value: String(request.bizStaffEmailBody) || BIZ_STAFF_EMAIL_DEFAULT_BODY, description: '事業所入会時：メンバーメール本文' });
+    updates.push({ key: 'BIZ_STAFF_EMAIL_BODY', value: requireConfiguredMailText_(request.bizStaffEmailBody, '事業所入会時：メンバーメール本文', false), description: '事業所入会時：メンバーメール本文' });
   }
   if (request.staffAddStaffEmailEnabled != null) {
     updates.push({ key: 'STAFF_ADD_STAFF_EMAIL_ENABLED', value: request.staffAddStaffEmailEnabled ? 'true' : 'false', description: '職員追加承認時：追加職員メール送信ON/OFF' });
   }
   if (request.staffAddStaffEmailSubject != null) {
-    updates.push({ key: 'STAFF_ADD_STAFF_EMAIL_SUBJECT', value: String(request.staffAddStaffEmailSubject).trim() || STAFF_ADD_STAFF_EMAIL_DEFAULT_SUBJECT, description: '職員追加承認時：追加職員メール件名' });
+    updates.push({ key: 'STAFF_ADD_STAFF_EMAIL_SUBJECT', value: requireConfiguredMailText_(request.staffAddStaffEmailSubject, '職員追加承認時：追加職員メール件名', true), description: '職員追加承認時：追加職員メール件名' });
   }
   if (request.staffAddStaffEmailBody != null) {
-    updates.push({ key: 'STAFF_ADD_STAFF_EMAIL_BODY', value: String(request.staffAddStaffEmailBody) || STAFF_ADD_STAFF_EMAIL_DEFAULT_BODY, description: '職員追加承認時：追加職員メール本文' });
+    updates.push({ key: 'STAFF_ADD_STAFF_EMAIL_BODY', value: requireConfiguredMailText_(request.staffAddStaffEmailBody, '職員追加承認時：追加職員メール本文', false), description: '職員追加承認時：追加職員メール本文' });
   }
   if (request.staffAddRepEmailEnabled != null) {
     updates.push({ key: 'STAFF_ADD_REP_EMAIL_ENABLED', value: request.staffAddRepEmailEnabled ? 'true' : 'false', description: '職員追加承認時：代表者通知メール送信ON/OFF' });
   }
   if (request.staffAddRepEmailSubject != null) {
-    updates.push({ key: 'STAFF_ADD_REP_EMAIL_SUBJECT', value: String(request.staffAddRepEmailSubject).trim() || STAFF_ADD_REP_EMAIL_DEFAULT_SUBJECT, description: '職員追加承認時：代表者通知メール件名' });
+    updates.push({ key: 'STAFF_ADD_REP_EMAIL_SUBJECT', value: requireConfiguredMailText_(request.staffAddRepEmailSubject, '職員追加承認時：代表者通知メール件名', true), description: '職員追加承認時：代表者通知メール件名' });
   }
   if (request.staffAddRepEmailBody != null) {
-    updates.push({ key: 'STAFF_ADD_REP_EMAIL_BODY', value: String(request.staffAddRepEmailBody) || STAFF_ADD_REP_EMAIL_DEFAULT_BODY, description: '職員追加承認時：代表者通知メール本文' });
+    updates.push({ key: 'STAFF_ADD_REP_EMAIL_BODY', value: requireConfiguredMailText_(request.staffAddRepEmailBody, '職員追加承認時：代表者通知メール本文', false), description: '職員追加承認時：代表者通知メール本文' });
   }
   // v368: 変更申請ワークフローメール 3 種 × ENABLED/SUBJECT/BODY
   if (request.applicationReceiptEnabled != null) {
     updates.push({ key: 'APPLICATION_RECEIPT_ENABLED', value: request.applicationReceiptEnabled ? 'true' : 'false', description: '公開ポータル申請受付時：受付確認メール送信ON/OFF' });
   }
   if (request.applicationReceiptSubject != null) {
-    updates.push({ key: 'APPLICATION_RECEIPT_SUBJECT', value: String(request.applicationReceiptSubject).trim() || APPLICATION_RECEIPT_DEFAULT_SUBJECT, description: '公開ポータル申請受付時：受付確認メール件名' });
+    updates.push({ key: 'APPLICATION_RECEIPT_SUBJECT', value: requireConfiguredMailText_(request.applicationReceiptSubject, '公開ポータル申請受付時：受付確認メール件名', true), description: '公開ポータル申請受付時：受付確認メール件名' });
   }
   if (request.applicationReceiptBody != null) {
-    updates.push({ key: 'APPLICATION_RECEIPT_BODY', value: String(request.applicationReceiptBody) || APPLICATION_RECEIPT_DEFAULT_BODY, description: '公開ポータル申請受付時：受付確認メール本文' });
+    updates.push({ key: 'APPLICATION_RECEIPT_BODY', value: requireConfiguredMailText_(request.applicationReceiptBody, '公開ポータル申請受付時：受付確認メール本文', false), description: '公開ポータル申請受付時：受付確認メール本文' });
   }
   if (request.approvalNotificationEnabled != null) {
     updates.push({ key: 'APPROVAL_NOTIFICATION_ENABLED', value: request.approvalNotificationEnabled ? 'true' : 'false', description: '管理者承認時：承認通知メール送信ON/OFF' });
   }
   if (request.approvalNotificationSubject != null) {
-    updates.push({ key: 'APPROVAL_NOTIFICATION_SUBJECT', value: String(request.approvalNotificationSubject).trim() || APPROVAL_NOTIFICATION_DEFAULT_SUBJECT, description: '管理者承認時：承認通知メール件名' });
+    updates.push({ key: 'APPROVAL_NOTIFICATION_SUBJECT', value: requireConfiguredMailText_(request.approvalNotificationSubject, '管理者承認時：承認通知メール件名', true), description: '管理者承認時：承認通知メール件名' });
   }
   if (request.approvalNotificationBody != null) {
-    updates.push({ key: 'APPROVAL_NOTIFICATION_BODY', value: String(request.approvalNotificationBody) || APPROVAL_NOTIFICATION_DEFAULT_BODY, description: '管理者承認時：承認通知メール本文' });
+    updates.push({ key: 'APPROVAL_NOTIFICATION_BODY', value: requireConfiguredMailText_(request.approvalNotificationBody, '管理者承認時：承認通知メール本文', false), description: '管理者承認時：承認通知メール本文' });
   }
   if (request.rejectionNotificationEnabled != null) {
     updates.push({ key: 'REJECTION_NOTIFICATION_ENABLED', value: request.rejectionNotificationEnabled ? 'true' : 'false', description: '管理者却下時：却下通知メール送信ON/OFF' });
   }
   if (request.rejectionNotificationSubject != null) {
-    updates.push({ key: 'REJECTION_NOTIFICATION_SUBJECT', value: String(request.rejectionNotificationSubject).trim() || REJECTION_NOTIFICATION_DEFAULT_SUBJECT, description: '管理者却下時：却下通知メール件名' });
+    updates.push({ key: 'REJECTION_NOTIFICATION_SUBJECT', value: requireConfiguredMailText_(request.rejectionNotificationSubject, '管理者却下時：却下通知メール件名', true), description: '管理者却下時：却下通知メール件名' });
   }
   if (request.rejectionNotificationBody != null) {
-    updates.push({ key: 'REJECTION_NOTIFICATION_BODY', value: String(request.rejectionNotificationBody) || REJECTION_NOTIFICATION_DEFAULT_BODY, description: '管理者却下時：却下通知メール本文' });
+    updates.push({ key: 'REJECTION_NOTIFICATION_BODY', value: requireConfiguredMailText_(request.rejectionNotificationBody, '管理者却下時：却下通知メール本文', false), description: '管理者却下時：却下通知メール本文' });
   }
   // v376.43 (Phase B): 従来ハードコード6メールの件名/本文
   if (request.trainingApplyReceiptSubject != null) {
-    updates.push({ key: 'TRAINING_APPLY_RECEIPT_SUBJECT', value: String(request.trainingApplyReceiptSubject).trim() || TRAINING_APPLY_RECEIPT_DEFAULT_SUBJECT, description: '研修申込確認メール件名' });
+    updates.push({ key: 'TRAINING_APPLY_RECEIPT_SUBJECT', value: requireConfiguredMailText_(request.trainingApplyReceiptSubject, '研修申込確認メール件名', true), description: '研修申込確認メール件名' });
   }
   if (request.trainingApplyReceiptBody != null) {
-    updates.push({ key: 'TRAINING_APPLY_RECEIPT_BODY', value: String(request.trainingApplyReceiptBody) || TRAINING_APPLY_RECEIPT_DEFAULT_BODY, description: '研修申込確認メール本文' });
+    updates.push({ key: 'TRAINING_APPLY_RECEIPT_BODY', value: requireConfiguredMailText_(request.trainingApplyReceiptBody, '研修申込確認メール本文', false), description: '研修申込確認メール本文' });
   }
   if (request.trainingReminderSubject != null) {
-    updates.push({ key: 'TRAINING_REMINDER_SUBJECT', value: String(request.trainingReminderSubject).trim() || TRAINING_REMINDER_DEFAULT_SUBJECT, description: '研修リマインダーメール件名' });
+    updates.push({ key: 'TRAINING_REMINDER_SUBJECT', value: requireConfiguredMailText_(request.trainingReminderSubject, '研修リマインダーメール件名', true), description: '研修リマインダーメール件名' });
   }
   if (request.trainingReminderBody != null) {
-    updates.push({ key: 'TRAINING_REMINDER_BODY', value: String(request.trainingReminderBody) || TRAINING_REMINDER_DEFAULT_BODY, description: '研修リマインダーメール本文' });
+    updates.push({ key: 'TRAINING_REMINDER_BODY', value: requireConfiguredMailText_(request.trainingReminderBody, '研修リマインダーメール本文', false), description: '研修リマインダーメール本文' });
   }
   if (request.authOtpSubject != null) {
-    updates.push({ key: 'AUTH_OTP_SUBJECT', value: String(request.authOtpSubject).trim() || AUTH_OTP_DEFAULT_SUBJECT, description: '公開ポータルOTPメール件名' });
+    updates.push({ key: 'AUTH_OTP_SUBJECT', value: requireConfiguredMailText_(request.authOtpSubject, '公開ポータルOTPメール件名', true), description: '公開ポータルOTPメール件名' });
   }
   if (request.authOtpBody != null) {
-    updates.push({ key: 'AUTH_OTP_BODY', value: String(request.authOtpBody) || AUTH_OTP_DEFAULT_BODY, description: '公開ポータルOTPメール本文' });
+    updates.push({ key: 'AUTH_OTP_BODY', value: requireConfiguredMailText_(request.authOtpBody, '公開ポータルOTPメール本文', false), description: '公開ポータルOTPメール本文' });
   }
   if (request.loginIdChangedSubject != null) {
-    updates.push({ key: 'LOGIN_ID_CHANGED_SUBJECT', value: String(request.loginIdChangedSubject).trim() || LOGIN_ID_CHANGED_DEFAULT_SUBJECT, description: 'ログインID変更のお知らせ件名' });
+    updates.push({ key: 'LOGIN_ID_CHANGED_SUBJECT', value: requireConfiguredMailText_(request.loginIdChangedSubject, 'ログインID変更のお知らせ件名', true), description: 'ログインID変更のお知らせ件名' });
   }
   if (request.loginIdChangedBody != null) {
-    updates.push({ key: 'LOGIN_ID_CHANGED_BODY', value: String(request.loginIdChangedBody) || LOGIN_ID_CHANGED_DEFAULT_BODY, description: 'ログインID変更のお知らせ本文' });
+    updates.push({ key: 'LOGIN_ID_CHANGED_BODY', value: requireConfiguredMailText_(request.loginIdChangedBody, 'ログインID変更のお知らせ本文', false), description: 'ログインID変更のお知らせ本文' });
   }
   if (request.contactEmailChangedSubject != null) {
-    updates.push({ key: 'CONTACT_EMAIL_CHANGED_SUBJECT', value: String(request.contactEmailChangedSubject).trim() || CONTACT_EMAIL_CHANGED_DEFAULT_SUBJECT, description: 'メールアドレス変更のお知らせ件名' });
+    updates.push({ key: 'CONTACT_EMAIL_CHANGED_SUBJECT', value: requireConfiguredMailText_(request.contactEmailChangedSubject, 'メールアドレス変更のお知らせ件名', true), description: 'メールアドレス変更のお知らせ件名' });
   }
   if (request.contactEmailChangedBody != null) {
-    updates.push({ key: 'CONTACT_EMAIL_CHANGED_BODY', value: String(request.contactEmailChangedBody) || CONTACT_EMAIL_CHANGED_DEFAULT_BODY, description: 'メールアドレス変更のお知らせ本文' });
+    updates.push({ key: 'CONTACT_EMAIL_CHANGED_BODY', value: requireConfiguredMailText_(request.contactEmailChangedBody, 'メールアドレス変更のお知らせ本文', false), description: 'メールアドレス変更のお知らせ本文' });
   }
   if (request.memberUpdateConfirmSubject != null) {
-    updates.push({ key: 'MEMBER_UPDATE_CONFIRM_SUBJECT', value: String(request.memberUpdateConfirmSubject).trim() || MEMBER_UPDATE_CONFIRM_DEFAULT_SUBJECT, description: '会員情報変更確認メール件名' });
+    updates.push({ key: 'MEMBER_UPDATE_CONFIRM_SUBJECT', value: requireConfiguredMailText_(request.memberUpdateConfirmSubject, '会員情報変更確認メール件名', true), description: '会員情報変更確認メール件名' });
   }
   if (request.memberUpdateConfirmBody != null) {
-    updates.push({ key: 'MEMBER_UPDATE_CONFIRM_BODY', value: String(request.memberUpdateConfirmBody) || MEMBER_UPDATE_CONFIRM_DEFAULT_BODY, description: '会員情報変更確認メール本文' });
+    updates.push({ key: 'MEMBER_UPDATE_CONFIRM_BODY', value: requireConfiguredMailText_(request.memberUpdateConfirmBody, '会員情報変更確認メール本文', false), description: '会員情報変更確認メール本文' });
   }
   if (request.withdrawalConfirmSubject != null) {
-    updates.push({ key: 'WITHDRAWAL_CONFIRM_SUBJECT', value: String(request.withdrawalConfirmSubject).trim() || WITHDRAWAL_CONFIRM_DEFAULT_SUBJECT, description: '退会申請受付確認メール件名' });
+    updates.push({ key: 'WITHDRAWAL_CONFIRM_SUBJECT', value: requireConfiguredMailText_(request.withdrawalConfirmSubject, '退会申請受付確認メール件名', true), description: '退会申請受付確認メール件名' });
   }
   if (request.withdrawalConfirmBody != null) {
-    updates.push({ key: 'WITHDRAWAL_CONFIRM_BODY', value: String(request.withdrawalConfirmBody) || WITHDRAWAL_CONFIRM_DEFAULT_BODY, description: '退会申請受付確認メール本文' });
+    updates.push({ key: 'WITHDRAWAL_CONFIRM_BODY', value: requireConfiguredMailText_(request.withdrawalConfirmBody, '退会申請受付確認メール本文', false), description: '退会申請受付確認メール本文' });
   }
   if (request.passwordResetSubject != null) {
-    updates.push({ key: 'PASSWORD_RESET_SUBJECT', value: String(request.passwordResetSubject).trim() || PASSWORD_RESET_DEFAULT_SUBJECT, description: 'パスワード再設定コードメール件名' });
+    updates.push({ key: 'PASSWORD_RESET_SUBJECT', value: requireConfiguredMailText_(request.passwordResetSubject, 'パスワード再設定コードメール件名', true), description: 'パスワード再設定コードメール件名' });
   }
   if (request.passwordResetBody != null) {
-    updates.push({ key: 'PASSWORD_RESET_BODY', value: String(request.passwordResetBody) || PASSWORD_RESET_DEFAULT_BODY, description: 'パスワード再設定コードメール本文' });
+    updates.push({ key: 'PASSWORD_RESET_BODY', value: requireConfiguredMailText_(request.passwordResetBody, 'パスワード再設定コードメール本文', false), description: 'パスワード再設定コードメール本文' });
   }
   // メール配信状態は一つだけを正本とする。旧キーも同時更新し、ロールバック時も挙動を保つ。
   if (request.mailDeliveryState != null) {
@@ -5722,6 +5762,12 @@ function updateSystemSettings_(request, callerPermLevel) {
       updates.push({ key: purpose.settingKey, value: validateScreenTextTemplateSelection_(ss, purpose, request[purpose.requestKey]),
         description: '公開ポータル：入会完了画面・' + purpose.label + 'に使う定型文（T_画面文テンプレート）' });
     });
+    if (isDryRun) {
+      return {
+        plannedSettingCount: updates.length,
+        plannedMemberFeeCodeCount: request.memberTypeAnnualFees == null ? 0 : Object.keys(request.memberTypeAnnualFees).length,
+      };
+    }
     if (request.memberTypeAnnualFees != null) {
       setMemberTypeAnnualFeeAmounts_(ss, request.memberTypeAnnualFees);
     }
@@ -5733,8 +5779,8 @@ function updateSystemSettings_(request, callerPermLevel) {
     if (request.claimAttachmentFolderId != null) {
       scriptProperties.setProperty('CLAIM_ATTACHMENT_FOLDER_ID', String(request.claimAttachmentFolderId || '').trim());
     }
-    scriptProperties.setProperty(DEFAULT_BUSINESS_STAFF_LIMIT_KEY, String(Math.floor(next))); // backward compatibility
-    scriptProperties.setProperty(TRAINING_HISTORY_LOOKBACK_MONTHS_KEY, String(Math.floor(lookback))); // backward compatibility
+    if (hasOwnSettingField_(request, 'defaultBusinessStaffLimit')) scriptProperties.setProperty(DEFAULT_BUSINESS_STAFF_LIMIT_KEY, String(Math.floor(next))); // backward compatibility
+    if (hasOwnSettingField_(request, 'trainingHistoryLookbackMonths')) scriptProperties.setProperty(TRAINING_HISTORY_LOOKBACK_MONTHS_KEY, String(Math.floor(lookback))); // backward compatibility
   } finally {
     lock.releaseLock();
   }
@@ -7487,8 +7533,8 @@ function createMemberApplicationDirectLocked_(payload) {
   }
   var credEmailOpts = {
     from: String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_FROM') || '').trim(),
-    subject: String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_SUBJECT') || '') || CREDENTIAL_EMAIL_DEFAULT_SUBJECT,
-    body: String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_BODY') || '') || CREDENTIAL_EMAIL_DEFAULT_BODY,
+    subject: String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_SUBJECT') || ''),
+    body: String(getSystemSettingValue_(ss, 'CREDENTIAL_EMAIL_BODY') || ''),
     memberTypeLabel: memberTypeLabelForEmail,
     annualFee: annualFeeForEmail,
   };
@@ -8031,19 +8077,17 @@ function renderMergeTags_(template, vars) {
   return result;
 }
 
-// v376.43 (Phase B): T_システム設定の <CAT>_SUBJECT/BODY（無ければ既定）を読み、差し込み置換して返す。
-// requiredValue 指定時（OTP/確認コード等）、置換後の本文にその値が含まれなければ既定本文へフォールバックし、
-// 管理者が誤って差し込みタグを消しても認証コードが欠落しないことを保証する（安全ガード）。
+// T_システム設定の <CAT>_SUBJECT/BODY を読み、差し込み置換して返す。
+// 初期文面はスキーマ整備時だけ投入する。保存済みの設定が空・認証コードを欠く場合は送らずに止める。
 function renderConfiguredMail_(ss, subjectKey, bodyKey, defaultSubject, defaultBody, vars, requiredValue) {
   var map = {};
-  try { map = getSystemSettingMap_(ss); } catch (e) { map = {}; }
-  var subjTpl = String(map[subjectKey] || '') || defaultSubject;
-  var bodyTpl = String(map[bodyKey] || '') || defaultBody;
+  try { map = getSystemSettingMap_(ss); } catch (e) { throw new Error('メール設定を読み込めません。'); }
+  var subjTpl = requireConfiguredMailText_(map[subjectKey], 'メールの件名', true);
+  var bodyTpl = requireConfiguredMailText_(map[bodyKey], 'メールの本文', false);
   var subject = renderMergeTags_(subjTpl, vars);
   var body = renderMergeTags_(bodyTpl, vars);
   if (requiredValue && body.indexOf(String(requiredValue)) < 0) {
-    subject = renderMergeTags_(defaultSubject, vars);
-    body = renderMergeTags_(defaultBody, vars);
+    throw new Error('認証コードを含むメール本文を設定してください。');
   }
   return { subject: subject, body: body };
 }
@@ -8812,8 +8856,8 @@ function sendApplicationReceiptMail_(ss, params) {
   // params: { contactEmail, applicantName, requestId, requestType, memberTypeLabel, receivedAt }
   if (!params || !params.contactEmail) return;
   if (!isSystemSettingEnabled_(ss, 'APPLICATION_RECEIPT_ENABLED', true)) return;
-  var subjectTpl = String(getSystemSettingValue_(ss, 'APPLICATION_RECEIPT_SUBJECT') || '') || APPLICATION_RECEIPT_DEFAULT_SUBJECT;
-  var bodyTpl = String(getSystemSettingValue_(ss, 'APPLICATION_RECEIPT_BODY') || '') || APPLICATION_RECEIPT_DEFAULT_BODY;
+  var subjectTpl = requireConfiguredMailText_(getSystemSettingValue_(ss, 'APPLICATION_RECEIPT_SUBJECT'), '公開ポータル申請受付時：受付確認メール件名', true);
+  var bodyTpl = requireConfiguredMailText_(getSystemSettingValue_(ss, 'APPLICATION_RECEIPT_BODY'), '公開ポータル申請受付時：受付確認メール本文', false);
   var vars = {
     '氏名': params.applicantName || '',
     '会員種別ラベル': params.memberTypeLabel || '',
@@ -8833,8 +8877,8 @@ function sendApprovalNotificationMail_(ss, params) {
   // params: { contactEmail, applicantName, requestId, requestType, processedAt, processorName, changeSummary }
   if (!params || !params.contactEmail) return;
   if (!isSystemSettingEnabled_(ss, 'APPROVAL_NOTIFICATION_ENABLED', true)) return;
-  var subjectTpl = String(getSystemSettingValue_(ss, 'APPROVAL_NOTIFICATION_SUBJECT') || '') || APPROVAL_NOTIFICATION_DEFAULT_SUBJECT;
-  var bodyTpl = String(getSystemSettingValue_(ss, 'APPROVAL_NOTIFICATION_BODY') || '') || APPROVAL_NOTIFICATION_DEFAULT_BODY;
+  var subjectTpl = requireConfiguredMailText_(getSystemSettingValue_(ss, 'APPROVAL_NOTIFICATION_SUBJECT'), '管理者承認時：承認通知メール件名', true);
+  var bodyTpl = requireConfiguredMailText_(getSystemSettingValue_(ss, 'APPROVAL_NOTIFICATION_BODY'), '管理者承認時：承認通知メール本文', false);
   var vars = {
     '氏名': params.applicantName || '',
     '会員種別ラベル': params.memberTypeLabel || '',
@@ -8856,8 +8900,8 @@ function sendRejectionNotificationMail_(ss, params) {
   // params: { contactEmail, applicantName, requestId, requestType, processedAt, processorName, note }
   if (!params || !params.contactEmail) return;
   if (!isSystemSettingEnabled_(ss, 'REJECTION_NOTIFICATION_ENABLED', true)) return;
-  var subjectTpl = String(getSystemSettingValue_(ss, 'REJECTION_NOTIFICATION_SUBJECT') || '') || REJECTION_NOTIFICATION_DEFAULT_SUBJECT;
-  var bodyTpl = String(getSystemSettingValue_(ss, 'REJECTION_NOTIFICATION_BODY') || '') || REJECTION_NOTIFICATION_DEFAULT_BODY;
+  var subjectTpl = requireConfiguredMailText_(getSystemSettingValue_(ss, 'REJECTION_NOTIFICATION_SUBJECT'), '管理者却下時：却下通知メール件名', true);
+  var bodyTpl = requireConfiguredMailText_(getSystemSettingValue_(ss, 'REJECTION_NOTIFICATION_BODY'), '管理者却下時：却下通知メール本文', false);
   var vars = {
     '氏名': params.applicantName || '',
     '会員種別ラベル': params.memberTypeLabel || '',
@@ -8883,25 +8927,25 @@ function getBizEmailSettings_(ss) {
   };
   return {
     bizRepEmailEnabled:      toB('BIZ_REP_EMAIL_ENABLED', true),
-    bizRepEmailSubject:      String(m['BIZ_REP_EMAIL_SUBJECT'] || '') || BIZ_REP_EMAIL_DEFAULT_SUBJECT,
-    bizRepEmailBody:         String(m['BIZ_REP_EMAIL_BODY'] || '') || BIZ_REP_EMAIL_DEFAULT_BODY,
+    bizRepEmailSubject:      String(m['BIZ_REP_EMAIL_SUBJECT'] || ''),
+    bizRepEmailBody:         String(m['BIZ_REP_EMAIL_BODY'] || ''),
     bizStaffEmailEnabled:    toB('BIZ_STAFF_EMAIL_ENABLED', true),
-    bizStaffEmailSubject:    String(m['BIZ_STAFF_EMAIL_SUBJECT'] || '') || BIZ_STAFF_EMAIL_DEFAULT_SUBJECT,
-    bizStaffEmailBody:       String(m['BIZ_STAFF_EMAIL_BODY'] || '') || BIZ_STAFF_EMAIL_DEFAULT_BODY,
+    bizStaffEmailSubject:    String(m['BIZ_STAFF_EMAIL_SUBJECT'] || ''),
+    bizStaffEmailBody:       String(m['BIZ_STAFF_EMAIL_BODY'] || ''),
     staffAddStaffEmailEnabled: toB('STAFF_ADD_STAFF_EMAIL_ENABLED', true),
-    staffAddStaffEmailSubject: String(m['STAFF_ADD_STAFF_EMAIL_SUBJECT'] || '') || STAFF_ADD_STAFF_EMAIL_DEFAULT_SUBJECT,
-    staffAddStaffEmailBody:    String(m['STAFF_ADD_STAFF_EMAIL_BODY'] || '') || STAFF_ADD_STAFF_EMAIL_DEFAULT_BODY,
+    staffAddStaffEmailSubject: String(m['STAFF_ADD_STAFF_EMAIL_SUBJECT'] || ''),
+    staffAddStaffEmailBody:    String(m['STAFF_ADD_STAFF_EMAIL_BODY'] || ''),
     staffAddRepEmailEnabled:   toB('STAFF_ADD_REP_EMAIL_ENABLED', true),
-    staffAddRepEmailSubject:   String(m['STAFF_ADD_REP_EMAIL_SUBJECT'] || '') || STAFF_ADD_REP_EMAIL_DEFAULT_SUBJECT,
-    staffAddRepEmailBody:      String(m['STAFF_ADD_REP_EMAIL_BODY'] || '') || STAFF_ADD_REP_EMAIL_DEFAULT_BODY,
+    staffAddRepEmailSubject:   String(m['STAFF_ADD_REP_EMAIL_SUBJECT'] || ''),
+    staffAddRepEmailBody:      String(m['STAFF_ADD_REP_EMAIL_BODY'] || ''),
   };
 }
 
 function sendCredentialEmail_(toEmail, loginId, password, memberName, opts) {
   opts = opts || {};
   var from = String(opts.from || '').trim();
-  var subject = (opts.subject && opts.subject.trim()) ? opts.subject : CREDENTIAL_EMAIL_DEFAULT_SUBJECT;
-  var bodyTemplate = (opts.body && opts.body.trim()) ? opts.body : CREDENTIAL_EMAIL_DEFAULT_BODY;
+  var subject = requireConfiguredMailText_(opts.subject, '入会時認証情報メールの件名', true);
+  var bodyTemplate = requireConfiguredMailText_(opts.body, '入会時認証情報メールの本文', false);
   // v219: 年会費を「3,000円」形式にフォーマット（v376.66 で共通関数化）
   var annualFeeStr = formatAnnualFee_(opts.annualFee);
   var body = bodyTemplate
@@ -21396,4 +21440,3 @@ function dryRun_scenario_memberTypeChange_(state, ss, adminSession) {
 }
 
 // ── メインエントリ ───────────────────────────────────────────────────────
-

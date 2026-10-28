@@ -221,7 +221,6 @@ export interface EmailCardProps {
   onToggle: () => void;
   subject: string;
   onSubjectChange: (v: string) => void;
-  defaultSubject: string;
   body: string;
   onBodyChange: (v: string) => void;
   /**
@@ -234,7 +233,7 @@ export interface EmailCardProps {
 }
 export const EmailCard: React.FC<EmailCardProps> = ({
   category, badge, title, enabled, onToggle,
-  subject, onSubjectChange, defaultSubject,
+  subject, onSubjectChange,
   body, onBodyChange, templateCategory, extra,
 }) => {
   const style = MAIL_CATEGORY_STYLES[category];
@@ -310,8 +309,8 @@ export const EmailCard: React.FC<EmailCardProps> = ({
       {!enabled && <p className="mt-2 text-xs text-slate-500">送信を無効にしたまま文面の準備、保存済みテンプレートの読込・編集ができます。実際に送信するには、この通知を有効にしてください。</p>}
       <div className="mt-3 space-y-3">
         <div>
-          <label htmlFor={`${uid}-subject`} className="block text-xs font-medium text-slate-600 mb-1">件名</label>
-          <div className="flex gap-2">
+          <label htmlFor={`${uid}-subject`} className="block text-xs font-medium text-slate-600 mb-1">件名（必須）</label>
+          <div>
             <input
               id={`${uid}-subject`}
               ref={subjectRef}
@@ -324,13 +323,6 @@ export const EmailCard: React.FC<EmailCardProps> = ({
               onClick={rememberCaret('subject')}
               className="flex-1 border border-slate-300 rounded px-3 py-1.5 text-sm bg-white"
             />
-            <button
-              type="button"
-              onClick={() => onSubjectChange(defaultSubject)}
-              className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 whitespace-nowrap bg-white"
-            >
-              デフォルト
-            </button>
           </div>
         </div>
         <MergeTagInserter
@@ -340,7 +332,7 @@ export const EmailCard: React.FC<EmailCardProps> = ({
           justInserted={justInserted}
         />
         <div>
-          <label htmlFor={`${uid}-f1`} className="block text-xs font-medium text-slate-600 mb-1">本文</label>
+          <label htmlFor={`${uid}-f1`} className="block text-xs font-medium text-slate-600 mb-1">本文（必須）</label>
           <textarea
             id={`${uid}-f1`}
             ref={bodyRef}
@@ -354,6 +346,7 @@ export const EmailCard: React.FC<EmailCardProps> = ({
             className="w-full border border-slate-300 rounded px-3 py-2 text-sm font-mono leading-relaxed resize-y bg-white"
             placeholder="メール本文（上の「差し込み」ボタンで会員名などを入れられます）"
           />
+          <p className="mt-1 text-xs text-slate-500">件名と本文は空欄で保存できません。初期文面はシステム作成時にだけ登録されます。</p>
           {extra}
         </div>
       </div>

@@ -1,0 +1,6 @@
+{
+  "name": "メール設定",
+  "action": "checkSystemSettingsPatch",
+  "params": { "suite": "mail" },
+  "expect": { "valid": true, "writes": 0 }
+}

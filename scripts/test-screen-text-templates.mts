@@ -115,11 +115,11 @@ function loadSettingsSave(db: ReturnType<typeof fakeDb>) {
   var CHAT_MEMBERSHIP_REQUEST_DEFAULT_BODY = '', CHAT_MEMBERSHIP_FINAL_DEFAULT_BODY = '', CHAT_MEMBERSHIP_ANOMALY_DEFAULT_BODY = '';
   function setMemberTypeAnnualFeeAmounts_(ss, fees) { deps.events.push('fees:' + JSON.stringify(fees)); }
   var PropertiesService = { getScriptProperties: function() { return { setProperty: function(k) { deps.events.push('prop:' + k); } }; } };
-  function getSystemSettings_() { return { ok: true }; }
+  function getSystemSettings_() { return { defaultBusinessStaffLimit: 10, trainingHistoryLookbackMonths: 18, annualFeePaymentGuidance: '', annualFeeTransferAccount: {} }; }
   var realUpsert = batchUpsertSystemSettings_;
   batchUpsertSystemSettings_ = function(ss, updates) { deps.events.push('upsert:' + updates.length); realUpsert(ss, updates); };
 `;
-  const fns = [...FNS, 'normalizeAnnualFeeAmount_', 'updateSystemSettings_'];
+  const fns = [...FNS, 'normalizeAnnualFeeAmount_', 'requireConfiguredMailText_', 'hasOwnSettingField_', 'updateSystemSettings_'];
   const body = ENV + VARS.map((v) => block(admin, `var ${v} = `) + ';').join('\n') + '\n'
     + fns.map((n) => block(admin, `function ${n}(`)).join('\n') + stubs
     + '\nreturn { updateSystemSettings_: updateSystemSettings_ };';
@@ -289,6 +289,11 @@ test('設定の保存: 確かめ終えてから書く（見出しが空なら、
   const { g, events } = loadSettingsSave(db);
   const base = { defaultBusinessStaffLimit: 10, trainingHistoryLookbackMonths: 18, memberTypeAnnualFees: { INDIVIDUAL: 3000 },
     trainingFileFolderId: 'F1', claimAttachmentFolderId: 'F2' };
+  assert.throws(
+    () => g.updateSystemSettings_({ ...base, ...filledTexts(), credentialEmailSubject: '   ' }, 'MASTER'),
+    /空欄/,
+  );
+  assert.deepEqual(events, [], 'メール件名が空欄なら、設定の書込みを始めない');
   assert.throws(() => g.updateSystemSettings_({ ...base, ...filledTexts({ publicPortalHeroTitle: '' }) }, 'MASTER'), /「トップの見出し」/);
   assert.deepEqual(events, [], '止めたときは何も書かない（以前は年会費とフォルダだけ書いていた）');
   assert.throws(() => g.updateSystemSettings_({ ...base, memberTypeAnnualFees: { INDIVIDUAL: -1 } }, 'MASTER'), /年会費/);
@@ -299,12 +304,29 @@ test('設定の保存: 確かめ終えてから書く（見出しが空なら、
   assert.equal(JSON.stringify(db.tables), before);
 
   events.length = 0;
-  assert.deepEqual(g.updateSystemSettings_({ ...base, ...filledTexts(), publicPortalCompletionGuidanceTemplateIdWhenCredentialSent: 'STT-A' }, 'MASTER'), { ok: true });
+  assert.equal(g.updateSystemSettings_({ ...base, ...filledTexts(), publicPortalCompletionGuidanceTemplateIdWhenCredentialSent: 'STT-A' }, 'MASTER').defaultBusinessStaffLimit, 10);
   assert.deepEqual(events.map((e) => e.replace(/:.*$/, '')), ['lock', 'fees', 'upsert', 'prop', 'prop', 'prop', 'prop', 'unlock'], '書くのはロックの中だけ');
   assert.ok(events.includes('prop:TRAINING_FILE_FOLDER_ID') && events.includes('prop:CLAIM_ATTACHMENT_FOLDER_ID'));
   const st = settingsOf(db);
   assert.equal(st.PUBLIC_PORTAL_COMPLETION_GUIDANCE_TEMPLATE_ID_WHEN_CREDENTIAL_SENT, 'STT-A');
   assert.equal(st.PUBLIC_PORTAL_HERO_TITLE, '文言 PUBLIC_PORTAL_HERO_TITLE');
+});
+
+test('設定の保存: 差分だけを検証・保存し、dryRun はシートも Script Properties も書き換えない', () => {
+  const db = fakeDb({}, [tpl('STT-A', 'COMPLETION_GUIDANCE_SENT', 'A', '本文A')]);
+  const { g, events } = loadSettingsSave(db);
+  const before = JSON.stringify(db.tables);
+  const plan = g.updateSystemSettings_({ __dryRun: true, publicPortalHeroTitle: '差分検証' }, 'MASTER');
+  assert.deepEqual(plan, { plannedSettingCount: 1, plannedMemberFeeCodeCount: 0 });
+  assert.deepEqual(events, ['lock', 'unlock']);
+  assert.equal(JSON.stringify(db.tables), before, 'dryRun は設定表を書き換えない');
+
+  events.length = 0;
+  g.updateSystemSettings_({ publicPortalHeroTitle: '差分保存' }, 'MASTER');
+  assert.deepEqual(events.map((e) => e.replace(/:.*$/, '')), ['lock', 'upsert', 'unlock']);
+  const st = settingsOf(db);
+  assert.equal(st.PUBLIC_PORTAL_HERO_TITLE, '差分保存');
+  assert.equal(st.DEFAULT_BUSINESS_STAFF_LIMIT, undefined, '送っていない基本設定を作成・上書きしない');
 });
 
 test('定型文: 同じ用途に同じ名前は付けられない・保存と削除はロックの中で行い、止めてもロックを放す', () => {

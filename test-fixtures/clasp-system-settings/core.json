@@ -1,0 +1,6 @@
+{
+  "name": "基本設定",
+  "action": "checkSystemSettingsPatch",
+  "params": { "suite": "core" },
+  "expect": { "valid": true, "writes": 0 }
+}

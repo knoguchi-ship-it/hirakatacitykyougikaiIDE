@@ -1,0 +1,6 @@
+{
+  "name": "Google Chat 通知設定",
+  "action": "checkSystemSettingsPatch",
+  "params": { "suite": "chat" },
+  "expect": { "valid": true, "writes": 0 }
+}

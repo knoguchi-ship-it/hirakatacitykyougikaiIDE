@@ -167,6 +167,7 @@ export const ACTION_TO_MENU = {
   // admin-settings（MA 専有: write 系 + 設定系 read）
   getDbInfo: 'admin-settings',
   getSystemSettings: 'admin-settings',
+  checkSystemSettingsPatch: 'admin-settings',
   updateSystemSettings: 'admin-settings',
   saveScreenTextTemplate: 'admin-settings', // 2026-10-25 docs/313
   deleteScreenTextTemplate: 'admin-settings',

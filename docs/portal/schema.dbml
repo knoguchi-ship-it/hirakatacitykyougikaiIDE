@@ -1,6 +1,6 @@
 // 自動生成 DBML — dbdiagram.io / ChartDB / DbSchema 等で import 可能
 // 元: docs/03_DATA_MODEL.md
-// 生成日時: 2026-10-25T10:44:32.708Z
+// 生成日時: 2026-10-28T05:52:48.092Z
 
 Project hcmn_member_system {
   database_type: "Google Spreadsheet (logical)"

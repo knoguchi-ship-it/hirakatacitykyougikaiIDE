@@ -63,6 +63,24 @@ npm run build:gas:admin
 npm run security:split-boundary
 ```
 
+### Regression repair production verification
+
+When a previously passing local regression test fails for a reason other than the Windows
+`clasp run --params` JSON-size limit, do not close the repair after the local fix. After the
+relevant local tests, generated-artifact checks, and `npm run prerelease` pass, deploy through
+the normal approval-gated release process and verify the affected behavior in production.
+
+- Default to a read-only or dry-run production verification. A setting-save path may use the
+  `checkSystemSettingsPatch` fixture runner only when the detailed conditions in `docs/314`
+  are met; its required result is `writes=0`.
+- If a write is indispensable, follow `/dbops`: operator approval, before/after snapshots,
+  marked ★ test data, and cleanup are mandatory.
+- If production verification cannot be performed, record it as unverified in `HANDOVER.md` and
+  the release record. It is not a completed repair or release.
+
+The JSON-size-specific diagnostic design, fixture contract, and result interpretation are the
+single source of truth in `docs/314_SYSTEM_SETTINGS_PATCH_VERIFICATION_2026-10-28.md`.
+
 ### Schema migration step (mandatory when DB schema columns change)
 
 When a release adds, inserts, removes, or renames columns in any table or master sheet

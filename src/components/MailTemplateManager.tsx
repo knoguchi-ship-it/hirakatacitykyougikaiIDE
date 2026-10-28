@@ -20,13 +20,11 @@ interface MailTemplateManagerProps {
   /** テンプレート読込時に呼ぶ。件名・本文を呼出側 state へ反映する。 */
   onLoad: (subject: string, body: string) => void;
   /** 任意: 「デフォルトに戻す」で本文をこの値へ戻す（未指定ならボタン非表示） */
-  defaultBody?: string;
   /** 任意: 「デフォルトに戻す」で件名もこの値へ戻す */
-  defaultSubject?: string;
 }
 
 const MailTemplateManager: React.FC<MailTemplateManagerProps> = ({
-  api, category, subject, body, onLoad, defaultBody, defaultSubject,
+  api, category, subject, body, onLoad,
 }) => {
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [loadedId, setLoadedId] = useState<string>('');
@@ -161,18 +159,6 @@ const MailTemplateManager: React.FC<MailTemplateManagerProps> = ({
         </ul>
       )}
 
-      {(defaultBody !== undefined || defaultSubject !== undefined) && (
-        <div className="flex justify-end mt-1">
-          <button
-            type="button"
-            onClick={() => {
-              onLoad(defaultSubject !== undefined ? defaultSubject : subject, defaultBody !== undefined ? defaultBody : body);
-              setLoadedId('');
-            }}
-            className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50"
-          >デフォルトに戻す</button>
-        </div>
-      )}
     </div>
   );
 };

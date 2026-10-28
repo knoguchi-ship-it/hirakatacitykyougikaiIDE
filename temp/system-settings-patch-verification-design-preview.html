@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>プレビュー: システム設定の差分保存と clasp run 切り分け設計</title>
+  <style>
+    :root { color-scheme: light; --ink:#172033; --muted:#526176; --line:#d6deea; --panel:#f7f9fc; --blue:#075fba; --warn:#9a4b00; --red:#ab2430; --green:#16704b; }
+    * { box-sizing:border-box } body { margin:0; background:#eef2f7; color:var(--ink); font:15px/1.7 system-ui,-apple-system,"Segoe UI","Noto Sans JP",sans-serif; }
+    main { max-width:1040px; margin:32px auto 80px; padding:0 24px; } article { background:#fff; border:1px solid var(--line); border-radius:14px; padding:42px 52px; box-shadow:0 6px 24px #18243b12; }
+    h1 { font-size:29px; line-height:1.35; margin:0 0 8px; } h2 { margin:42px 0 12px; padding-bottom:7px; border-bottom:2px solid #bad5f1; font-size:21px; } h3 { font-size:17px; margin:27px 0 7px; } p { margin:8px 0; } ul,ol { padding-left:1.5em; } li { margin:4px 0; }
+    .eyebrow { color:var(--blue); font-weight:700; letter-spacing:.06em; font-size:12px; } .lead { font-size:17px; color:#33455f; } .note { background:#edf6ff; border-left:4px solid #2587de; padding:13px 16px; border-radius:4px; } .warning { background:#fff6e8; border-left:4px solid #dc8500; padding:13px 16px; border-radius:4px; } .danger { background:#fff0f1; border-left:4px solid #d8424d; padding:13px 16px; border-radius:4px; }
+    code { font:13px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace; background:#f0f3f7; border-radius:4px; padding:1px 4px; overflow-wrap:anywhere; } pre { margin:10px 0; padding:15px; overflow:auto; border-radius:8px; background:#182235; color:#edf4ff; font:13px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace; } table { width:100%; border-collapse:collapse; margin:12px 0; } th,td { text-align:left; vertical-align:top; border:1px solid var(--line); padding:9px 11px; } th { background:#f1f5fa; } .flow { display:flex; gap:8px; align-items:stretch; margin:16px 0; flex-wrap:wrap; } .flow div { flex:1 1 170px; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:11px; text-align:center; } .arrow { flex:0 0 auto !important; align-self:center; border:0!important; background:transparent!important; color:var(--blue); font-size:24px; padding:0!important; } .status { display:inline-block; margin:4px 5px 0 0; padding:2px 8px; border-radius:20px; font-weight:700; font-size:12px; } .ok { background:#e5f6ed;color:var(--green) }.ng { background:#ffe9eb;color:var(--red)}
+    @media (max-width:680px) { main { margin-top:0;padding:0 } article { padding:25px 18px;border-radius:0 } h1 { font-size:24px } table { font-size:13px } }
+  </style>
+</head>
+<body><main><article>
+  <div class="eyebrow">参照用HTML — 正式文書と索引へ反映済み</div>
+  <h1>システム設定の差分保存と<br>clasp run 切り分け設計</h1>
+  <p class="lead">Windows のコマンド行上限により、約31KBの設定JSONを <code>clasp run --params</code> で渡せない問題を、差分保存と機能群別・無書込みの診断JSONで解消する設計です。</p>
+  <p><span class="status ng">未リリース</span><span class="status ng">prerelease完走待ち</span> ローカル対象テストとGAS生成物は復旧済みですが、現在の作業ツリーをリリース可能と宣言するものではありません。</p>
+
+  <h2>1. 目的と適用範囲</h2>
+  <table><thead><tr><th>目的</th><th>設計上の回答</th></tr></thead><tbody>
+    <tr><td>保存JSONを小さくする</td><td>管理画面は読込み時の基準値と比較し、変更されたキーだけを送る。</td></tr>
+    <tr><td>保存前に全体の妥当性を保つ</td><td>サーバーは未送信キーを現在値として補い、同じ検証経路で全項目を確認する。ただし未送信キーは書き込まない。</td></tr>
+    <tr><td>Windows由来の失敗を切り分ける</td><td>設定値を含まない小さなJSONを、<code>core</code> / <code>publicPortal</code> / <code>mail</code> / <code>chat</code> ごとに実行する。</td></tr>
+    <tr><td>誤って本番を書き換えない</td><td>診断actionはdry-run固定で、書込み数 <code>0</code> 以外を失敗とする。</td></tr>
+  </tbody></table>
+  <p><strong>範囲外:</strong> 楽観ロック、設定の履歴化、設定値を外部へ出す診断、通常リリース時の本番書込みテスト。これらは本設計では導入しません。</p>
+
+  <h2>2. 保存のアーキテクチャ</h2>
+  <div class="flow"><div>管理画面<br>基準値を保持</div><div class="arrow">→</div><div>基準値との差分<br>だけを生成</div><div class="arrow">→</div><div><code>updateSystemSettings</code></div><div class="arrow">→</div><div>全項目を検証後<br>差分だけ一括保存</div></div>
+  <h3>2.1 クライアントの契約</h3>
+  <ul><li>設定取得直後の値を基準値として保持する。</li><li>「設定を保存」時、候補値と基準値の差分だけを送信する。</li><li>保存成功時だけ、サーバーから返った設定値を新しい基準値に置き換える。</li><li>同じキーを二人が編集した場合は後から保存した値が残る。異なるキーなら、互いの未変更値は上書きしない。</li></ul>
+  <h3>2.2 サーバーの契約</h3>
+  <ul><li>送信されたキーだけを更新候補へ入れる。</li><li>送信されなかったキーはDBの現在値で検証するが、更新候補へは入れない。</li><li>すべての入力・参照・権限を検証してから、ロックの中で一括保存する。</li><li>検証不能、空欄禁止、存在しない定型文IDなどは理由を示して拒否し、保存はゼロ件とする。</li></ul>
+  <div class="note">メール件名・本文を含む必須項目は、保存時・読取り時・送信時のいずれでも既定文面で補いません。初期データ投入時だけ既定文面を使い、以後は空欄をfail-closedで止めます。</div>
+
+  <h2>3. 診断actionの設計</h2>
+  <p>管理者専用action <code>checkSystemSettingsPatch</code> を追加します。権限は <code>MASTER</code> / <code>ADMIN</code> とし、通常の設定保存と同じ検証関数を <code>__dryRun: true</code> で通します。</p>
+  <pre>入力（fixtureが渡す値）
+{ "suite": "mail" }
+
+成功時の返却（設定値・本文・送信元は返さない）
+{ "suite": "mail", "valid": true,
+  "checkedFieldCount": 45, "plannedSettingCount": 0,
+  "plannedMemberFeeCodeCount": 0, "writes": 0 }</pre>
+  <table><thead><tr><th>suite</th><th>検証対象</th><th>JSONファイル</th></tr></thead><tbody>
+    <tr><td><code>core</code></td><td>基本設定、年会費、フォルダ、研修履歴など</td><td><code>test-fixtures/clasp-system-settings/core.json</code></td></tr>
+    <tr><td><code>publicPortal</code></td><td>公開ポータルの表示設定、入会完了画面設定など</td><td><code>…/public-portal.json</code></td></tr>
+    <tr><td><code>mail</code></td><td>メール有効状態、件名・本文、送信制御など</td><td><code>…/mail.json</code></td></tr>
+    <tr><td><code>chat</code></td><td>Google Chat通知の有効状態と本文</td><td><code>…/chat.json</code></td></tr>
+  </tbody></table>
+  <p>fixtureには機能群名・期待する <code>valid</code> と <code>writes: 0</code> だけを書き、設定値・メール本文・送信元・認証情報を置かない。</p>
+
+  <h2>4. 使う条件と判断フロー</h2>
+  <div class="warning"><strong>通常のリリース前検査には含めない。</strong> fixtureは、ローカルで再現できない実行経路を小さく切り分けるための運用診断であり、全設定保存の代替テストではありません。</div>
+  <ol>
+    <li>変更に対応するローカルテスト（例: <code>test:screen-text-templates</code>、<code>test:mailrender</code>）と生成物同期テストを先に成功させる。失敗している間はfixtureを実行しない。</li>
+    <li>全設定JSONを渡す通常の <code>clasp run</code> 確認が、Windowsの引数長・JSON引用符崩れ・Execution API経路で失敗または実行不能になった場合に限り、fixtureを使う。</li>
+    <li><code>npm run test:clasp-settings-fixtures</code> を実行する。特定群だけなら末尾に <code>mail</code> 等を指定する。</li>
+    <li>全群成功なら「アプリ側検証は通り、巨大JSONのWindows運搬だけが問題」と判定する。設定値は変更しない。</li>
+    <li>一群でも失敗なら、その群のサーバー検証・認可・Execution APIを調査する。失敗を回避するために設定値やfixtureを大きくしない。</li>
+  </ol>
+  <table><thead><tr><th>状態</th><th>判定</th><th>次の行動</th></tr></thead><tbody>
+    <tr><td>ローカルテスト失敗（JSONサイズ以外）</td><td>実装またはテストが未完成</td><td>先にローカル失敗を直す。修正後は承認済みリリース後の本番検証まで必須。</td></tr>
+    <tr><td>ローカル成功、巨大JSONだけ失敗</td><td>Windows引数長・引用符・Execution API経路の疑い</td><td>機能群fixtureで分割診断する。</td></tr>
+    <tr><td>fixture全件成功</td><td>機能群ごとのサーバー検証は成功</td><td>巨大JSONを再送しない。Windows経路の制約として記録する。</td></tr>
+    <tr><td>fixture失敗</td><td>対象群のサーバー経路または認証が未確認</td><td>レスポンスの秘密値を出さず、action・suite・エラー種別だけで調査する。</td></tr>
+  </tbody></table>
+
+  <h3>4.1 JSONサイズ以外の回帰失敗を直した後の本番検証</h3>
+  <div class="danger"><strong>必須の完了条件:</strong> 以前は通っていたローカル回帰テストが、WindowsのJSON引数長以外の理由で失敗した場合は、ローカル修正だけで完了にしない。関連するローカルテストと <code>npm run prerelease</code> を成功させ、承認済みリリース後に、影響した本番機能を必ず検証する。</div>
+  <ol>
+    <li>失敗の原因を、実装・生成物・テストハーネス・環境に分類して記録する。</li>
+    <li>ローカルで修正し、失敗したテスト、関連テスト、生成物同期、prereleaseを成功させる。</li>
+    <li>通常の承認済みリリース手順で対象コードを本番へ反映する。AIは承認なしにdeployしない。</li>
+    <li>影響した本番機能を確認する。既定は読取りまたはdry-runで、設定保存経路は該当fixtureを用いて <code>writes=0</code> を確認する。</li>
+    <li>書込みでしか確認できない場合だけ、既存のDB操作手順に従い、operator承認・前後スナップショット・★テストデータ・後片付けをそろえる。</li>
+  </ol>
+  <p>本番検証を行えない場合は「未検証」としてリリース状態に残し、修正完了・リリース完了とは扱わない。</p>
+
+  <h2>5. 安全性の境界</h2>
+  <ul><li>fixture actionは読み取り・dry-runのみ。書込みactionを指定したfixtureはランナーが拒否する。</li><li>成功条件は <code>success=true</code>、<code>valid=true</code>、<code>writes=0</code> のすべて。</li><li>ランナーの標準出力は機能群名と件数だけ。設定値、メール本文、送信元、tokenを出力しない。</li><li><code>clasp run</code> は本プロジェクトの承認対象であり、診断であってもoperatorの確認を経て実行する。</li><li>fixtureはGit管理対象にできるが、機密値を置かない。値を必要とする検証はローカルのgitignore設定経由に分離する。</li></ul>
+
+  <h2>6. テストと完了条件</h2>
+  <table><thead><tr><th>層</th><th>確認すること</th><th>状態</th></tr></thead><tbody>
+    <tr><td>型</td><td><code>npm run typecheck</code></td><td>成功済み</td></tr>
+    <tr><td>保存の回帰</td><td>空欄拒否・途中失敗時ゼロ書込み・差分保存・dry-runゼロ書込み</td><td><code>test:screen-text-templates</code> 14/14 PASS</td></tr>
+    <tr><td>生成物</td><td>公開・会員・管理のGASが正本から生成されていること</td><td><code>test:gas-build-sync</code> 4/4 PASS</td></tr>
+    <tr><td>機能目録</td><td>新actionを含む <code>docs/288_FEATURE_INVENTORY.md</code></td><td><code>test:feature-inventory</code> 4/4 PASS</td></tr>
+    <tr><td>実行経路</td><td>ローカル成功後だけfixtureで <code>writes=0</code> を確認</td><td>本番は未リリースのため4件とも <code>UNSUPPORTED_ACTION</code>（書込み0）</td></tr>
+  </tbody></table>
+  <p>完了は、<code>npm run prerelease</code> の完走、承認済みリリース、4 fixtureすべての <code>FIXTURE_OK</code> と <code>writes=0</code> の確認後です。fixtureの実行結果は、通常テストに混ぜず、実行日時・suite・成功/失敗・書込み0のみを運用記録に残します。</p>
+
+  <h2>7. 正式化時に更新する文書</h2>
+  <table><thead><tr><th>文書</th><th>更新内容</th></tr></thead><tbody>
+    <tr><td>新規: <code>docs/314_SYSTEM_SETTINGS_PATCH_VERIFICATION_2026-10-28.md</code></td><td>本プレビューの設計本文、API契約、fixture契約、判断フロー、安全境界、回帰修正後の本番検証必須条件を正本として追加。</td></tr>
+    <tr><td><code>docs/313_SCREEN_TEXT_TEMPLATES_2026-10-25.md</code></td><td>§4.2は要約に留め、新規設計書への参照とメール文面の必須・fail-closed境界を記載。</td></tr>
+    <tr><td><code>docs/09_DEPLOYMENT_POLICY.md</code></td><td>設定変更を含むリリースで、巨大JSONの直接確認がWindows制約で失敗した場合の診断手順へのリンクを追加。通常手順・本番書込み試験の置換ではないことを明記。</td></tr>
+    <tr><td><code>docs/00_DOC_INDEX.md</code></td><td>新規設計書を「運用・手順」へ索引登録。</td></tr>
+    <tr><td><code>HANDOVER.md</code></td><td>実装・検証の実際の状態だけを更新。prerelease・リリース後検証が未完なら「完了」と記載しない。</td></tr>
+  </tbody></table>
+  <div class="note"><strong>反映済みの運用判断:</strong> fixtureを使う契機は、<em>ローカル成功後かつ巨大JSONの通常 <code>clasp run</code> が失敗／実行不能なときのみ</em>です。さらに、JSONサイズ以外の回帰失敗を修正したときは、承認済みリリース後の本番検証を必須とします。</div>
+</article></main></body></html>

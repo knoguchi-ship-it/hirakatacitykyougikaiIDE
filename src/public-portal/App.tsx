@@ -672,7 +672,7 @@ const PublicApp: React.FC = () => {
               <a
                 href={portalContentSettings?.privacyPolicyUrl ?? DEFAULT_PUBLIC_PORTAL_CONTENT_SETTINGS.privacyPolicyUrl}
                 target="_blank" rel="noopener noreferrer"
-                className="text-slate-500 underline underline-offset-2 hover:text-violet-700">
+                className="inline-flex min-h-6 items-center py-1 text-slate-500 underline underline-offset-2 hover:text-violet-700">
                 プライバシーポリシーについて
               </a>
             </p>

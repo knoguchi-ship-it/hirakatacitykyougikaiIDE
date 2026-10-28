@@ -33,10 +33,14 @@ const renderMergeTags_ = new Function(
   `${extractFunction('renderMergeTags_')}; return renderMergeTags_;`,
 )() as (tpl: string, vars: Record<string, string>) => string;
 
+const requireConfiguredMailText_ = new Function(
+  `${extractFunction('requireConfiguredMailText_')}; return requireConfiguredMailText_;`,
+)() as (value: unknown, label: string, trimValue: boolean) => string;
+
 // renderConfiguredMail_ は設定読み出し（getSystemSettingMap_）を伴うため、
 // 実ソースを抽出したうえで settings map だけスタブして評価する。
 const renderConfiguredMailRaw = new Function(
-  'getSystemSettingMap_', 'renderMergeTags_',
+  'getSystemSettingMap_', 'renderMergeTags_', 'requireConfiguredMailText_',
   `${extractFunction('renderConfiguredMail_')}; return renderConfiguredMail_;`,
 );
 
@@ -45,7 +49,7 @@ function renderConfiguredMail_(
   defaultSubject: string, defaultBody: string,
   vars: Record<string, string>, requiredValue?: string,
 ): { subject: string; body: string } {
-  const fn = renderConfiguredMailRaw(() => map, renderMergeTags_);
+  const fn = renderConfiguredMailRaw(() => map, renderMergeTags_, requireConfiguredMailText_);
   return fn({}, subjectKey, bodyKey, defaultSubject, defaultBody, vars, requiredValue);
 }
 
@@ -63,34 +67,26 @@ test('タグ置換: 設定テンプレが全タグを含む場合は設定値を
   assert.ok(m.body.includes('123456'));
 });
 
-test('安全ガード: 設定テンプレが認証コードタグを欠く場合はデフォルト文面へフォールバックしコードが必ず入る', () => {
+test('安全ガード: 認証コードタグを欠く本文では送信を止める', () => {
   // 管理者が誤って {{認証コード}} を消したテンプレ
   const map = { AUTH_OTP_SUBJECT: '【確認】', AUTH_OTP_BODY: 'コードは画面に表示されます' };
-  const m = renderConfiguredMail_(map, 'AUTH_OTP_SUBJECT', 'AUTH_OTP_BODY', OTP_DEFAULT_SUBJECT, OTP_DEFAULT_BODY,
-    { '会員名': '山田太郎', '用途': '会員情報変更', '認証コード': '999999', '有効期限': '10分間' }, '999999');
-  assert.ok(m.body.includes('999999'), 'フォールバックで認証コードが本文に含まれること');
-  assert.ok(m.body.includes('山田太郎'));
+  assert.throws(() => renderConfiguredMail_(map, 'AUTH_OTP_SUBJECT', 'AUTH_OTP_BODY', OTP_DEFAULT_SUBJECT, OTP_DEFAULT_BODY,
+    { '会員名': '山田太郎', '用途': '会員情報変更', '認証コード': '999999', '有効期限': '10分間' }, '999999'), /認証コード/);
 });
 
-test('安全ガード: パスワード再設定の確認コード欠落時もデフォルトで必ずコードが入る', () => {
+test('安全ガード: パスワード再設定の確認コードを欠く本文では送信を止める', () => {
   const map = { PASSWORD_RESET_BODY: 'パスワードを再設定してください' };
-  const m = renderConfiguredMail_(map, 'PASSWORD_RESET_SUBJECT', 'PASSWORD_RESET_BODY', PW_DEFAULT_SUBJECT, PW_DEFAULT_BODY,
-    { 'ユーザー名': '山田太郎', '確認コード': '654321', '有効期限': '30分', '会員マイページURL': 'https://example.com' }, '654321');
-  assert.ok(m.body.includes('654321'), 'フォールバックで確認コードが本文に含まれること');
+  assert.throws(() => renderConfiguredMail_(map, 'PASSWORD_RESET_SUBJECT', 'PASSWORD_RESET_BODY', PW_DEFAULT_SUBJECT, PW_DEFAULT_BODY,
+    { 'ユーザー名': '山田太郎', '確認コード': '654321', '有効期限': '30分', '会員マイページURL': 'https://example.com' }, '654321'), /メールの件名/);
 });
 
-test('未設定キーはデフォルトを使用する', () => {
-  const m = renderConfiguredMail_({}, 'AUTH_OTP_SUBJECT', 'AUTH_OTP_BODY', OTP_DEFAULT_SUBJECT, OTP_DEFAULT_BODY,
-    { '会員名': '佐藤花子', '用途': '退会申請', '認証コード': '111222', '有効期限': '10分間' }, '111222');
-  assert.ok(m.subject.includes('退会申請'));
-  assert.ok(m.body.includes('111222'));
-  assert.ok(m.body.includes('佐藤花子'));
+test('未設定キーは既定文面で補わず送信を止める', () => {
+  assert.throws(() => renderConfiguredMail_({}, 'AUTH_OTP_SUBJECT', 'AUTH_OTP_BODY', OTP_DEFAULT_SUBJECT, OTP_DEFAULT_BODY,
+    { '会員名': '佐藤花子', '用途': '退会申請', '認証コード': '111222', '有効期限': '10分間' }, '111222'), /メールの件名/);
 });
 
-test('requiredValue 未指定の通常メールは設定テンプレをそのまま描画（フォールバックしない）', () => {
+test('通常メールも件名・本文を両方設定しなければ送信を止める', () => {
   const map = { WITHDRAWAL_CONFIRM_BODY: '{{会員名}} 様 退会予定日:{{退会予定日}}' };
-  const m = renderConfiguredMail_(map, 'WITHDRAWAL_CONFIRM_SUBJECT', 'WITHDRAWAL_CONFIRM_BODY',
-    '退会受付', '既定本文', { '会員名': '山田太郎', '退会予定日': '2027-03-31' });
-  assert.equal(m.body, '山田太郎 様 退会予定日:2027-03-31');
-  assert.equal(m.subject, '退会受付'); // subject 設定なし→デフォルト
+  assert.throws(() => renderConfiguredMail_(map, 'WITHDRAWAL_CONFIRM_SUBJECT', 'WITHDRAWAL_CONFIRM_BODY',
+    '退会受付', '既定本文', { '会員名': '山田太郎', '退会予定日': '2027-03-31' }), /メールの件名/);
 });

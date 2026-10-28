@@ -113,7 +113,7 @@ export interface ApiClient {
   requestPasswordReset(loginId: string, email: string): Promise<{ message: string; expiresInMinutes: number }>;
   completePasswordReset(loginId: string, code: string, newPassword: string): Promise<{ message: string; updatedAt: string }>;
   getSystemSettings(): Promise<SystemSettings>;
-  updateSystemSettings(settings: SystemSettings): Promise<SystemSettings>;
+  updateSystemSettings(settings: Partial<SystemSettings>): Promise<SystemSettings>;
   getAnnualFeeAdminData(year?: number): Promise<AnnualFeeAdminData>;
   saveAnnualFeeRecord(record: {
     id?: string;
@@ -645,7 +645,7 @@ class GasApiClient implements ApiClient {
     });
   }
 
-  async updateSystemSettings(settings: SystemSettings): Promise<SystemSettings> {
+  async updateSystemSettings(settings: Partial<SystemSettings>): Promise<SystemSettings> {
     return new Promise((resolve, reject) => {
       if (typeof google === 'undefined' || !google.script) {
         reject(new Error(GAS_RUNTIME_REQUIRED_MESSAGE));

@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: d39c2b55dedc3dc756c354c217b20204997f0c80fe2e2569aa188c1bdfb62d25
+// BUILD_INPUT_SHA256: 6f24ac16b2a7bc7a17270147e031059cdc0fd60572af4284f4909ae8b6a7c47e
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -1463,6 +1463,7 @@ function processApiRequest(action, payload) {
 
 
 
+
     // 2026-10-25 docs/313: 公開ポータルの案内文の定型文
 
 
@@ -2304,6 +2305,26 @@ var MASTER_ONLY_SETTING_KEYS = ['EMAIL_LOG_VIEWER_ROLE'];
 // T_システム設定のスネークアッパーケースキーを camelCase に変換する
 // 例: 'EMAIL_LOG_VIEWER_ROLE' → 'emailLogViewerRole'
 
+// メールの既定文面は初期データを投入するときだけ使う。設定の保存・読取り・送信では
+// 空欄を既定文面で補わず、事務局が保存した内容を唯一の文面として扱う。
+function requireConfiguredMailText_(value, label, trimValue) {
+  var text = value == null ? '' : String(value);
+  var stored = trimValue ? text.trim() : text;
+  if (!stored.trim()) throw new Error('「' + label + '」は空欄にできません。');
+  return stored;
+}
+
+
+// `clasp run` の引数長に依存せず、現在の本番設定を機能群ごとに検証するための正本。
+// 戻り値は件数だけで、設定値・メール本文・送信元などは返さない。
+var SYSTEM_SETTINGS_VERIFICATION_SUITES_ = {
+  core: ['defaultBusinessStaffLimit', 'trainingHistoryLookbackMonths', 'annualFeePaymentGuidance', 'annualFeeTransferAccount', 'memberTypeAnnualFees', 'membershipFeePublicVisible', 'membershipFeeNote', 'trainingDefaultFieldConfig', 'bulkMailAutoAttachFolderId', 'emailLogViewerRole', 'trainingFileFolderId', 'claimAttachmentFolderId'],
+  publicPortal: ['publicPortalTrainingMenuEnabled', 'publicPortalMembershipMenuEnabled', 'publicPortalHeroBadgeEnabled', 'publicPortalHeroBadgeLabel', 'publicPortalPrivacyPolicyUrl', 'publicPortalHeroTitle', 'publicPortalHeroDescriptionEnabled', 'publicPortalHeroDescription', 'publicPortalMembershipBadgeEnabled', 'publicPortalMembershipBadgeLabel', 'publicPortalMembershipTitleEnabled', 'publicPortalMembershipTitle', 'publicPortalMembershipDescriptionEnabled', 'publicPortalMembershipDescription', 'publicPortalMembershipCtaLabel', 'publicPortalCompletionGuidanceVisible', 'publicPortalCompletionGuidanceTemplateIdWhenCredentialSent', 'publicPortalCompletionGuidanceTemplateIdWhenCredentialNotSent', 'publicPortalCompletionLoginInfoBlockVisible', 'publicPortalCompletionLoginInfoVisible', 'publicPortalCompletionLoginInfoTemplateIdWhenCredentialSent', 'publicPortalCompletionLoginInfoTemplateIdWhenCredentialNotSent', 'publicPortalTrainingBadgeEnabled', 'publicPortalTrainingBadgeLabel', 'publicPortalTrainingTitleEnabled', 'publicPortalTrainingTitle', 'publicPortalTrainingDescriptionEnabled', 'publicPortalTrainingDescription', 'publicPortalTrainingCtaLabel', 'publicPortalMemberUpdateMenuEnabled', 'publicPortalMemberUpdateBadgeEnabled', 'publicPortalMemberUpdateBadgeLabel', 'publicPortalMemberUpdateTitleEnabled', 'publicPortalMemberUpdateTitle', 'publicPortalMemberUpdateDescriptionEnabled', 'publicPortalMemberUpdateDescription', 'publicPortalMemberUpdateCtaLabel', 'publicPortalWithdrawalMenuEnabled', 'publicPortalWithdrawalBadgeEnabled', 'publicPortalWithdrawalBadgeLabel', 'publicPortalWithdrawalTitleEnabled', 'publicPortalWithdrawalTitle', 'publicPortalWithdrawalDescriptionEnabled', 'publicPortalWithdrawalDescription', 'publicPortalWithdrawalCtaLabel', 'withdrawalConfirmationItems'],
+  mail: ['credentialEmailEnabled', 'credentialEmailFrom', 'credentialEmailSubject', 'credentialEmailBody', 'indSuppEmailEnabled', 'bizRepEmailEnabled', 'bizRepEmailSubject', 'bizRepEmailBody', 'bizStaffEmailEnabled', 'bizStaffEmailSubject', 'bizStaffEmailBody', 'staffAddStaffEmailEnabled', 'staffAddStaffEmailSubject', 'staffAddStaffEmailBody', 'staffAddRepEmailEnabled', 'staffAddRepEmailSubject', 'staffAddRepEmailBody', 'applicationReceiptEnabled', 'applicationReceiptSubject', 'applicationReceiptBody', 'approvalNotificationEnabled', 'approvalNotificationSubject', 'approvalNotificationBody', 'rejectionNotificationEnabled', 'rejectionNotificationSubject', 'rejectionNotificationBody', 'trainingApplyReceiptSubject', 'trainingApplyReceiptBody', 'trainingReminderSubject', 'trainingReminderBody', 'authOtpSubject', 'authOtpBody', 'loginIdChangedSubject', 'loginIdChangedBody', 'contactEmailChangedSubject', 'contactEmailChangedBody', 'memberUpdateConfirmSubject', 'memberUpdateConfirmBody', 'withdrawalConfirmSubject', 'withdrawalConfirmBody', 'passwordResetSubject', 'passwordResetBody', 'mailDeliveryState', 'mailRedirectAllowlist', 'trainingApplyReceiptEnabled', 'trainingReminderEnabled', 'bulkMailEnabled', 'authOtpEnabled', 'memberUpdateConfirmEnabled', 'withdrawalConfirmEnabled', 'passwordResetEnabled', 'loginIdChangedEnabled', 'contactEmailChangedEnabled'],
+  chat: ['chatMembershipNotificationEnabled', 'chatMembershipRequestEnabled', 'chatMembershipFinalEnabled', 'chatMembershipAnomalyEnabled', 'chatMembershipRequestBody', 'chatMembershipFinalBody', 'chatMembershipAnomalyBody'],
+};
+
+
 
 
 
@@ -2686,19 +2707,17 @@ function renderMergeTags_(template, vars) {
   return result;
 }
 
-// v376.43 (Phase B): T_システム設定の <CAT>_SUBJECT/BODY（無ければ既定）を読み、差し込み置換して返す。
-// requiredValue 指定時（OTP/確認コード等）、置換後の本文にその値が含まれなければ既定本文へフォールバックし、
-// 管理者が誤って差し込みタグを消しても認証コードが欠落しないことを保証する（安全ガード）。
+// T_システム設定の <CAT>_SUBJECT/BODY を読み、差し込み置換して返す。
+// 初期文面はスキーマ整備時だけ投入する。保存済みの設定が空・認証コードを欠く場合は送らずに止める。
 function renderConfiguredMail_(ss, subjectKey, bodyKey, defaultSubject, defaultBody, vars, requiredValue) {
   var map = {};
-  try { map = getSystemSettingMap_(ss); } catch (e) { map = {}; }
-  var subjTpl = String(map[subjectKey] || '') || defaultSubject;
-  var bodyTpl = String(map[bodyKey] || '') || defaultBody;
+  try { map = getSystemSettingMap_(ss); } catch (e) { throw new Error('メール設定を読み込めません。'); }
+  var subjTpl = requireConfiguredMailText_(map[subjectKey], 'メールの件名', true);
+  var bodyTpl = requireConfiguredMailText_(map[bodyKey], 'メールの本文', false);
   var subject = renderMergeTags_(subjTpl, vars);
   var body = renderMergeTags_(bodyTpl, vars);
   if (requiredValue && body.indexOf(String(requiredValue)) < 0) {
-    subject = renderMergeTags_(defaultSubject, vars);
-    body = renderMergeTags_(defaultBody, vars);
+    throw new Error('認証コードを含むメール本文を設定してください。');
   }
   return { subject: subject, body: body };
 }
@@ -3099,8 +3118,8 @@ function sendApplicationReceiptMail_(ss, params) {
   // params: { contactEmail, applicantName, requestId, requestType, memberTypeLabel, receivedAt }
   if (!params || !params.contactEmail) return;
   if (!isSystemSettingEnabled_(ss, 'APPLICATION_RECEIPT_ENABLED', true)) return;
-  var subjectTpl = String(getSystemSettingValue_(ss, 'APPLICATION_RECEIPT_SUBJECT') || '') || APPLICATION_RECEIPT_DEFAULT_SUBJECT;
-  var bodyTpl = String(getSystemSettingValue_(ss, 'APPLICATION_RECEIPT_BODY') || '') || APPLICATION_RECEIPT_DEFAULT_BODY;
+  var subjectTpl = requireConfiguredMailText_(getSystemSettingValue_(ss, 'APPLICATION_RECEIPT_SUBJECT'), '公開ポータル申請受付時：受付確認メール件名', true);
+  var bodyTpl = requireConfiguredMailText_(getSystemSettingValue_(ss, 'APPLICATION_RECEIPT_BODY'), '公開ポータル申請受付時：受付確認メール本文', false);
   var vars = {
     '氏名': params.applicantName || '',
     '会員種別ラベル': params.memberTypeLabel || '',
@@ -7942,4 +7961,3 @@ var DRYRUN_TRAINING_MGMT_MANIFEST_KEY = 'DRYRUN_TRAINING_MGMT_MANIFEST_V1';
 
 
 // ── メインエントリ ───────────────────────────────────────────────────────
-

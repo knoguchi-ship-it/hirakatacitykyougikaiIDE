@@ -98,6 +98,18 @@ const getFiscalYearBounds = (fiscalYear: number) => ({
   end: new Date(fiscalYear + 1, 2, 31, 12, 0, 0, 0),
 });
 
+// システム設定は画面で編集したキーだけを送る。未変更キーを同時編集で上書きしないため、
+// 比較対象は最後にサーバーから取得・保存した設定だけに限定する。
+const buildSystemSettingsPatch = (baseline: SystemSettings | null, candidate: SystemSettings): Partial<SystemSettings> => {
+  const patch: Partial<SystemSettings> = {};
+  (Object.keys(candidate) as Array<keyof SystemSettings>).forEach((key) => {
+    if (!baseline || JSON.stringify(candidate[key]) !== JSON.stringify(baseline[key])) {
+      patch[key] = candidate[key] as never;
+    }
+  });
+  return patch;
+};
+
 // 日付文字列を 'YYYY-MM-DD'（不正/空は ''）へ正規化。単一情報源 computeMemberFiscalStatus 入力用。
 const toIsoDateString = (value?: string): string => {
   const d = parseDateString(value);
@@ -425,6 +437,7 @@ const App: React.FC = () => {
       }
     : adminSessionRbac;
   const [systemSettingsLoaded, setSystemSettingsLoaded] = useState(false);
+  const [systemSettingsBaseline, setSystemSettingsBaseline] = useState<SystemSettings | null>(null);
   // 請求管理の「支払い登録へ」から渡す請求（支払い登録で明細に結び付ける）
   const [paymentInitialClaim, setPaymentInitialClaim] = useState<{ claimId: string; memberId: string; staffId?: string; amount: number; typeCode: string } | null>(null);
   // 2026-10-13: システム設定の取得失敗。以前は既定値で埋めて「読み込み済み」にしており、
@@ -580,12 +593,10 @@ const App: React.FC = () => {
   const [bulkMailAutoAttachFolderIdInput, setBulkMailAutoAttachFolderIdInput] = useState('');
   const [emailLogViewerRoleInput, setEmailLogViewerRoleInput] = useState('MASTER');
   // v209: 入会時認証情報メール設定
-  const CREDENTIAL_EMAIL_DEFAULT_SUBJECT = '【枚方市介護支援専門員連絡協議会】会員登録完了のお知らせ';
-  const CREDENTIAL_EMAIL_DEFAULT_BODY = '{{氏名}} 様\n\n会員登録が完了しました。\n以下のログイン情報で会員マイページにアクセスできます。\n\nログインID: {{ログインID}}\n初期パスワード: {{パスワード}}\n\n会員マイページURL:\n{{会員マイページURL}}\n\n初回ログイン後、パスワードの変更をお勧めします。\n\n※このメールに心当たりがない場合は、お手数ですが削除してください。\n─────────────────────────────\n枚方市介護支援専門員連絡協議会\n';
   const [credentialEmailEnabledInput, setCredentialEmailEnabledInput] = useState(true);
   const [credentialEmailFromInput, setCredentialEmailFromInput] = useState('');
-  const [credentialEmailSubjectInput, setCredentialEmailSubjectInput] = useState(CREDENTIAL_EMAIL_DEFAULT_SUBJECT);
-  const [credentialEmailBodyInput, setCredentialEmailBodyInput] = useState(CREDENTIAL_EMAIL_DEFAULT_BODY);
+  const [credentialEmailSubjectInput, setCredentialEmailSubjectInput] = useState('');
+  const [credentialEmailBodyInput, setCredentialEmailBodyInput] = useState('');
   const [credentialEmailAliases, setCredentialEmailAliases] = useState<string[]>([]);
   const [credentialEmailAliasWarning, setCredentialEmailAliasWarning] = useState<string | null>(null);
   const [credentialEmailAliasLoading, setCredentialEmailAliasLoading] = useState(false);
@@ -651,25 +662,18 @@ const App: React.FC = () => {
   // v265: 個人・賛助会員メール ON/OFF
   const [indSuppEmailEnabledInput, setIndSuppEmailEnabledInput] = useState(true);
   // v265: 事業所メール設定
-  const BIZ_REP_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】事業所会員登録完了のお知らせ（代表者）';
-  const BIZ_STAFF_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】事業所会員登録完了のお知らせ';
-  const STAFF_ADD_STAFF_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】事業所会員メンバー追加のお知らせ';
-  const STAFF_ADD_REP_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】新メンバー追加のお知らせ';
   const [bizRepEmailEnabledInput, setBizRepEmailEnabledInput] = useState(true);
-  const [bizRepEmailSubjectInput, setBizRepEmailSubjectInput] = useState(BIZ_REP_SUBJECT_DEFAULT);
+  const [bizRepEmailSubjectInput, setBizRepEmailSubjectInput] = useState('');
   const [bizRepEmailBodyInput, setBizRepEmailBodyInput] = useState('');
   // v369: 変更申請ワークフローメール（受付確認・承認通知・却下通知）
-  const APPLICATION_RECEIPT_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】{{申請種別}}を受け付けました';
-  const APPROVAL_NOTIFICATION_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】{{申請種別}}が承認されました';
-  const REJECTION_NOTIFICATION_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】{{申請種別}}について';
   const [applicationReceiptEnabledInput, setApplicationReceiptEnabledInput] = useState(true);
-  const [applicationReceiptSubjectInput, setApplicationReceiptSubjectInput] = useState(APPLICATION_RECEIPT_SUBJECT_DEFAULT);
+  const [applicationReceiptSubjectInput, setApplicationReceiptSubjectInput] = useState('');
   const [applicationReceiptBodyInput, setApplicationReceiptBodyInput] = useState('');
   const [approvalNotificationEnabledInput, setApprovalNotificationEnabledInput] = useState(true);
-  const [approvalNotificationSubjectInput, setApprovalNotificationSubjectInput] = useState(APPROVAL_NOTIFICATION_SUBJECT_DEFAULT);
+  const [approvalNotificationSubjectInput, setApprovalNotificationSubjectInput] = useState('');
   const [approvalNotificationBodyInput, setApprovalNotificationBodyInput] = useState('');
   const [rejectionNotificationEnabledInput, setRejectionNotificationEnabledInput] = useState(true);
-  const [rejectionNotificationSubjectInput, setRejectionNotificationSubjectInput] = useState(REJECTION_NOTIFICATION_SUBJECT_DEFAULT);
+  const [rejectionNotificationSubjectInput, setRejectionNotificationSubjectInput] = useState('');
   const [rejectionNotificationBodyInput, setRejectionNotificationBodyInput] = useState('');
   // Google Chat の接続先は UI / DB に保存しない。本文と通知種別だけをここで管理する。
   const [chatMembershipNotificationEnabledInput, setChatMembershipNotificationEnabledInput] = useState(false);
@@ -692,38 +696,30 @@ const App: React.FC = () => {
   const [loginIdChangedEnabledInput, setLoginIdChangedEnabledInput] = useState(true);
   const [contactEmailChangedEnabledInput, setContactEmailChangedEnabledInput] = useState(true);
   // v376.43 (Phase B): 従来ハードコード6メールの件名/本文（差し込みタグ対応）。既定件名はサーバ既定と一致。
-  const TRAINING_APPLY_RECEIPT_SUBJECT_DEFAULT = '【研修申込確認】{{研修名}}';
-  const TRAINING_REMINDER_SUBJECT_DEFAULT = '【研修リマインド】{{研修名}}';
-  const AUTH_OTP_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】{{用途}} 確認コード';
-  const MEMBER_UPDATE_CONFIRM_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】会員登録情報変更のご確認';
-  const WITHDRAWAL_CONFIRM_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】退会申請受付のご確認';
-  const PASSWORD_RESET_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】パスワード再設定手続き';
-  const LOGIN_ID_CHANGED_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】ログインIDの変更のお知らせ';
-  const CONTACT_EMAIL_CHANGED_SUBJECT_DEFAULT = '【枚方市介護支援専門員連絡協議会】登録メールアドレス変更のお知らせ';
-  const [trainingApplyReceiptSubjectInput, setTrainingApplyReceiptSubjectInput] = useState(TRAINING_APPLY_RECEIPT_SUBJECT_DEFAULT);
+  const [trainingApplyReceiptSubjectInput, setTrainingApplyReceiptSubjectInput] = useState('');
   const [trainingApplyReceiptBodyInput, setTrainingApplyReceiptBodyInput] = useState('');
-  const [trainingReminderSubjectInput, setTrainingReminderSubjectInput] = useState(TRAINING_REMINDER_SUBJECT_DEFAULT);
+  const [trainingReminderSubjectInput, setTrainingReminderSubjectInput] = useState('');
   const [trainingReminderBodyInput, setTrainingReminderBodyInput] = useState('');
-  const [authOtpSubjectInput, setAuthOtpSubjectInput] = useState(AUTH_OTP_SUBJECT_DEFAULT);
+  const [authOtpSubjectInput, setAuthOtpSubjectInput] = useState('');
   const [authOtpBodyInput, setAuthOtpBodyInput] = useState('');
-  const [memberUpdateConfirmSubjectInput, setMemberUpdateConfirmSubjectInput] = useState(MEMBER_UPDATE_CONFIRM_SUBJECT_DEFAULT);
+  const [memberUpdateConfirmSubjectInput, setMemberUpdateConfirmSubjectInput] = useState('');
   const [memberUpdateConfirmBodyInput, setMemberUpdateConfirmBodyInput] = useState('');
-  const [withdrawalConfirmSubjectInput, setWithdrawalConfirmSubjectInput] = useState(WITHDRAWAL_CONFIRM_SUBJECT_DEFAULT);
+  const [withdrawalConfirmSubjectInput, setWithdrawalConfirmSubjectInput] = useState('');
   const [withdrawalConfirmBodyInput, setWithdrawalConfirmBodyInput] = useState('');
-  const [passwordResetSubjectInput, setPasswordResetSubjectInput] = useState(PASSWORD_RESET_SUBJECT_DEFAULT);
+  const [passwordResetSubjectInput, setPasswordResetSubjectInput] = useState('');
   const [passwordResetBodyInput, setPasswordResetBodyInput] = useState('');
-  const [loginIdChangedSubjectInput, setLoginIdChangedSubjectInput] = useState(LOGIN_ID_CHANGED_SUBJECT_DEFAULT);
+  const [loginIdChangedSubjectInput, setLoginIdChangedSubjectInput] = useState('');
   const [loginIdChangedBodyInput, setLoginIdChangedBodyInput] = useState('');
-  const [contactEmailChangedSubjectInput, setContactEmailChangedSubjectInput] = useState(CONTACT_EMAIL_CHANGED_SUBJECT_DEFAULT);
+  const [contactEmailChangedSubjectInput, setContactEmailChangedSubjectInput] = useState('');
   const [contactEmailChangedBodyInput, setContactEmailChangedBodyInput] = useState('');
   const [bizStaffEmailEnabledInput, setBizStaffEmailEnabledInput] = useState(true);
-  const [bizStaffEmailSubjectInput, setBizStaffEmailSubjectInput] = useState(BIZ_STAFF_SUBJECT_DEFAULT);
+  const [bizStaffEmailSubjectInput, setBizStaffEmailSubjectInput] = useState('');
   const [bizStaffEmailBodyInput, setBizStaffEmailBodyInput] = useState('');
   const [staffAddStaffEmailEnabledInput, setStaffAddStaffEmailEnabledInput] = useState(true);
-  const [staffAddStaffEmailSubjectInput, setStaffAddStaffEmailSubjectInput] = useState(STAFF_ADD_STAFF_SUBJECT_DEFAULT);
+  const [staffAddStaffEmailSubjectInput, setStaffAddStaffEmailSubjectInput] = useState('');
   const [staffAddStaffEmailBodyInput, setStaffAddStaffEmailBodyInput] = useState('');
   const [staffAddRepEmailEnabledInput, setStaffAddRepEmailEnabledInput] = useState(true);
-  const [staffAddRepEmailSubjectInput, setStaffAddRepEmailSubjectInput] = useState(STAFF_ADD_REP_SUBJECT_DEFAULT);
+  const [staffAddRepEmailSubjectInput, setStaffAddRepEmailSubjectInput] = useState('');
   const [staffAddRepEmailBodyInput, setStaffAddRepEmailBodyInput] = useState('');
   const [adminMemberViewMode, setAdminMemberViewMode] = useState<AdminMemberViewMode>('all');
   const [memberListQuery, setMemberListQuery] = useState('');
@@ -788,8 +784,8 @@ const App: React.FC = () => {
     // v209
     setCredentialEmailEnabledInput(systemSettings.credentialEmailEnabled ?? true);
     setCredentialEmailFromInput(systemSettings.credentialEmailFrom ?? '');
-    setCredentialEmailSubjectInput(systemSettings.credentialEmailSubject ?? CREDENTIAL_EMAIL_DEFAULT_SUBJECT);
-    setCredentialEmailBodyInput(systemSettings.credentialEmailBody ?? CREDENTIAL_EMAIL_DEFAULT_BODY);
+    setCredentialEmailSubjectInput(systemSettings.credentialEmailSubject ?? '');
+    setCredentialEmailBodyInput(systemSettings.credentialEmailBody ?? '');
     // v210
     setPublicPortalTrainingMenuEnabledInput(systemSettings.publicPortalTrainingMenuEnabled ?? true);
     setPublicPortalMembershipMenuEnabledInput(systemSettings.publicPortalMembershipMenuEnabled ?? true);
@@ -844,17 +840,17 @@ const App: React.FC = () => {
     setIndSuppEmailEnabledInput(systemSettings.indSuppEmailEnabled ?? true);
     // v265: 事業所メール設定ロード
     setBizRepEmailEnabledInput(systemSettings.bizRepEmailEnabled ?? true);
-    setBizRepEmailSubjectInput(systemSettings.bizRepEmailSubject ?? BIZ_REP_SUBJECT_DEFAULT);
+    setBizRepEmailSubjectInput(systemSettings.bizRepEmailSubject ?? '');
     setBizRepEmailBodyInput(systemSettings.bizRepEmailBody ?? '');
     // v369: 変更申請ワークフローメール
     setApplicationReceiptEnabledInput(systemSettings.applicationReceiptEnabled ?? true);
-    setApplicationReceiptSubjectInput(systemSettings.applicationReceiptSubject ?? APPLICATION_RECEIPT_SUBJECT_DEFAULT);
+    setApplicationReceiptSubjectInput(systemSettings.applicationReceiptSubject ?? '');
     setApplicationReceiptBodyInput(systemSettings.applicationReceiptBody ?? '');
     setApprovalNotificationEnabledInput(systemSettings.approvalNotificationEnabled ?? true);
-    setApprovalNotificationSubjectInput(systemSettings.approvalNotificationSubject ?? APPROVAL_NOTIFICATION_SUBJECT_DEFAULT);
+    setApprovalNotificationSubjectInput(systemSettings.approvalNotificationSubject ?? '');
     setApprovalNotificationBodyInput(systemSettings.approvalNotificationBody ?? '');
     setRejectionNotificationEnabledInput(systemSettings.rejectionNotificationEnabled ?? true);
-    setRejectionNotificationSubjectInput(systemSettings.rejectionNotificationSubject ?? REJECTION_NOTIFICATION_SUBJECT_DEFAULT);
+    setRejectionNotificationSubjectInput(systemSettings.rejectionNotificationSubject ?? '');
     setRejectionNotificationBodyInput(systemSettings.rejectionNotificationBody ?? '');
     setChatMembershipNotificationEnabledInput(systemSettings.chatMembershipNotificationEnabled ?? false);
     setChatMembershipRequestEnabledInput(systemSettings.chatMembershipRequestEnabled ?? true);
@@ -864,30 +860,30 @@ const App: React.FC = () => {
     setChatMembershipFinalBodyInput(systemSettings.chatMembershipFinalBody ?? '');
     setChatMembershipAnomalyBodyInput(systemSettings.chatMembershipAnomalyBody ?? '');
     // v376.43 (Phase B): 従来ハードコード6メールの件名/本文ロード
-    setTrainingApplyReceiptSubjectInput(systemSettings.trainingApplyReceiptSubject ?? TRAINING_APPLY_RECEIPT_SUBJECT_DEFAULT);
+    setTrainingApplyReceiptSubjectInput(systemSettings.trainingApplyReceiptSubject ?? '');
     setTrainingApplyReceiptBodyInput(systemSettings.trainingApplyReceiptBody ?? '');
-    setTrainingReminderSubjectInput(systemSettings.trainingReminderSubject ?? TRAINING_REMINDER_SUBJECT_DEFAULT);
+    setTrainingReminderSubjectInput(systemSettings.trainingReminderSubject ?? '');
     setTrainingReminderBodyInput(systemSettings.trainingReminderBody ?? '');
-    setAuthOtpSubjectInput(systemSettings.authOtpSubject ?? AUTH_OTP_SUBJECT_DEFAULT);
+    setAuthOtpSubjectInput(systemSettings.authOtpSubject ?? '');
     setAuthOtpBodyInput(systemSettings.authOtpBody ?? '');
-    setMemberUpdateConfirmSubjectInput(systemSettings.memberUpdateConfirmSubject ?? MEMBER_UPDATE_CONFIRM_SUBJECT_DEFAULT);
+    setMemberUpdateConfirmSubjectInput(systemSettings.memberUpdateConfirmSubject ?? '');
     setMemberUpdateConfirmBodyInput(systemSettings.memberUpdateConfirmBody ?? '');
-    setWithdrawalConfirmSubjectInput(systemSettings.withdrawalConfirmSubject ?? WITHDRAWAL_CONFIRM_SUBJECT_DEFAULT);
+    setWithdrawalConfirmSubjectInput(systemSettings.withdrawalConfirmSubject ?? '');
     setWithdrawalConfirmBodyInput(systemSettings.withdrawalConfirmBody ?? '');
-    setPasswordResetSubjectInput(systemSettings.passwordResetSubject ?? PASSWORD_RESET_SUBJECT_DEFAULT);
+    setPasswordResetSubjectInput(systemSettings.passwordResetSubject ?? '');
     setPasswordResetBodyInput(systemSettings.passwordResetBody ?? '');
-    setLoginIdChangedSubjectInput(systemSettings.loginIdChangedSubject ?? LOGIN_ID_CHANGED_SUBJECT_DEFAULT);
+    setLoginIdChangedSubjectInput(systemSettings.loginIdChangedSubject ?? '');
     setLoginIdChangedBodyInput(systemSettings.loginIdChangedBody ?? '');
-    setContactEmailChangedSubjectInput(systemSettings.contactEmailChangedSubject ?? CONTACT_EMAIL_CHANGED_SUBJECT_DEFAULT);
+    setContactEmailChangedSubjectInput(systemSettings.contactEmailChangedSubject ?? '');
     setContactEmailChangedBodyInput(systemSettings.contactEmailChangedBody ?? '');
     setBizStaffEmailEnabledInput(systemSettings.bizStaffEmailEnabled ?? true);
-    setBizStaffEmailSubjectInput(systemSettings.bizStaffEmailSubject ?? BIZ_STAFF_SUBJECT_DEFAULT);
+    setBizStaffEmailSubjectInput(systemSettings.bizStaffEmailSubject ?? '');
     setBizStaffEmailBodyInput(systemSettings.bizStaffEmailBody ?? '');
     setStaffAddStaffEmailEnabledInput(systemSettings.staffAddStaffEmailEnabled ?? true);
-    setStaffAddStaffEmailSubjectInput(systemSettings.staffAddStaffEmailSubject ?? STAFF_ADD_STAFF_SUBJECT_DEFAULT);
+    setStaffAddStaffEmailSubjectInput(systemSettings.staffAddStaffEmailSubject ?? '');
     setStaffAddStaffEmailBodyInput(systemSettings.staffAddStaffEmailBody ?? '');
     setStaffAddRepEmailEnabledInput(systemSettings.staffAddRepEmailEnabled ?? true);
-    setStaffAddRepEmailSubjectInput(systemSettings.staffAddRepEmailSubject ?? STAFF_ADD_REP_SUBJECT_DEFAULT);
+    setStaffAddRepEmailSubjectInput(systemSettings.staffAddRepEmailSubject ?? '');
     setStaffAddRepEmailBodyInput(systemSettings.staffAddRepEmailBody ?? '');
     setMailDeliveryStateInput(resolveMailDeliveryState(systemSettings));
     setMailRedirectAllowlistInput(systemSettings.mailRedirectAllowlist ?? '');
@@ -900,6 +896,7 @@ const App: React.FC = () => {
     setPasswordResetEnabledInput(systemSettings.passwordResetEnabled ?? true);
     setLoginIdChangedEnabledInput(systemSettings.loginIdChangedEnabled ?? true);
     setContactEmailChangedEnabledInput(systemSettings.contactEmailChangedEnabled ?? true);
+    setSystemSettingsBaseline(systemSettings);
     setSettingsIsDirty(false);
     setSystemSettingsLoaded(true);
   };
@@ -4915,7 +4912,6 @@ const App: React.FC = () => {
                     onToggle={() => { setIndSuppEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={credentialEmailSubjectInput}
                     onSubjectChange={v => { setCredentialEmailSubjectInput(v); setSettingsIsDirty(true); }}
-                    defaultSubject={CREDENTIAL_EMAIL_DEFAULT_SUBJECT}
                     body={credentialEmailBodyInput}
                     onBodyChange={v => { setCredentialEmailBodyInput(v); setSettingsIsDirty(true); }}
                     extra={
@@ -4925,7 +4921,6 @@ const App: React.FC = () => {
                         subject={credentialEmailSubjectInput}
                         body={credentialEmailBodyInput}
                         onLoad={(s, b) => { setCredentialEmailSubjectInput(s); setCredentialEmailBodyInput(b); setSettingsIsDirty(true); }}
-                        defaultBody={CREDENTIAL_EMAIL_DEFAULT_BODY}
                       />
                     } />
 
@@ -4936,7 +4931,6 @@ const App: React.FC = () => {
                     onToggle={() => { setBizRepEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={bizRepEmailSubjectInput}
                     onSubjectChange={v => { setBizRepEmailSubjectInput(v); setSettingsIsDirty(true); }}
-                    defaultSubject={BIZ_REP_SUBJECT_DEFAULT}
                     body={bizRepEmailBodyInput}
                     onBodyChange={v => { setBizRepEmailBodyInput(v); setSettingsIsDirty(true); }}
                     extra={
@@ -4949,7 +4943,6 @@ const App: React.FC = () => {
                     onToggle={() => { setBizStaffEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={bizStaffEmailSubjectInput}
                     onSubjectChange={v => { setBizStaffEmailSubjectInput(v); setSettingsIsDirty(true); }}
-                    defaultSubject={BIZ_STAFF_SUBJECT_DEFAULT}
                     body={bizStaffEmailBodyInput}
                     onBodyChange={v => { setBizStaffEmailBodyInput(v); setSettingsIsDirty(true); }}
                     extra={
@@ -4969,7 +4962,6 @@ const App: React.FC = () => {
                     onToggle={() => { setStaffAddStaffEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={staffAddStaffEmailSubjectInput}
                     onSubjectChange={v => { setStaffAddStaffEmailSubjectInput(v); setSettingsIsDirty(true); }}
-                    defaultSubject={STAFF_ADD_STAFF_SUBJECT_DEFAULT}
                     body={staffAddStaffEmailBodyInput}
                     onBodyChange={v => { setStaffAddStaffEmailBodyInput(v); setSettingsIsDirty(true); }}
                     extra={
@@ -4982,7 +4974,6 @@ const App: React.FC = () => {
                     onToggle={() => { setStaffAddRepEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={staffAddRepEmailSubjectInput}
                     onSubjectChange={v => { setStaffAddRepEmailSubjectInput(v); setSettingsIsDirty(true); }}
-                    defaultSubject={STAFF_ADD_REP_SUBJECT_DEFAULT}
                     body={staffAddRepEmailBodyInput}
                     onBodyChange={v => { setStaffAddRepEmailBodyInput(v); setSettingsIsDirty(true); }}
                     extra={
@@ -5005,7 +4996,6 @@ const App: React.FC = () => {
                     onToggle={() => { setApplicationReceiptEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={applicationReceiptSubjectInput}
                     onSubjectChange={v => { setApplicationReceiptSubjectInput(v); setSettingsIsDirty(true); }}
-                    defaultSubject={APPLICATION_RECEIPT_SUBJECT_DEFAULT}
                     body={applicationReceiptBodyInput}
                     onBodyChange={v => { setApplicationReceiptBodyInput(v); setSettingsIsDirty(true); }}
                     extra={
@@ -5018,7 +5008,6 @@ const App: React.FC = () => {
                     onToggle={() => { setApprovalNotificationEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={approvalNotificationSubjectInput}
                     onSubjectChange={v => { setApprovalNotificationSubjectInput(v); setSettingsIsDirty(true); }}
-                    defaultSubject={APPROVAL_NOTIFICATION_SUBJECT_DEFAULT}
                     body={approvalNotificationBodyInput}
                     onBodyChange={v => { setApprovalNotificationBodyInput(v); setSettingsIsDirty(true); }}
                     extra={
@@ -5031,7 +5020,6 @@ const App: React.FC = () => {
                     onToggle={() => { setRejectionNotificationEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={rejectionNotificationSubjectInput}
                     onSubjectChange={v => { setRejectionNotificationSubjectInput(v); setSettingsIsDirty(true); }}
-                    defaultSubject={REJECTION_NOTIFICATION_SUBJECT_DEFAULT}
                     body={rejectionNotificationBodyInput}
                     onBodyChange={v => { setRejectionNotificationBodyInput(v); setSettingsIsDirty(true); }}
                     extra={
@@ -5055,7 +5043,6 @@ const App: React.FC = () => {
                     onToggle={() => { setTrainingApplyReceiptEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={trainingApplyReceiptSubjectInput}
                     onSubjectChange={v => { setTrainingApplyReceiptSubjectInput(v); setSettingsIsDirty(true); }}
-                    defaultSubject={TRAINING_APPLY_RECEIPT_SUBJECT_DEFAULT}
                     body={trainingApplyReceiptBodyInput}
                     onBodyChange={v => { setTrainingApplyReceiptBodyInput(v); setSettingsIsDirty(true); }}
                     extra={
@@ -5069,7 +5056,6 @@ const App: React.FC = () => {
                     onToggle={() => { setTrainingReminderEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={trainingReminderSubjectInput}
                     onSubjectChange={v => { setTrainingReminderSubjectInput(v); setSettingsIsDirty(true); }}
-                    defaultSubject={TRAINING_REMINDER_SUBJECT_DEFAULT}
                     body={trainingReminderBodyInput}
                     onBodyChange={v => { setTrainingReminderBodyInput(v); setSettingsIsDirty(true); }}
                     extra={
@@ -5085,14 +5071,13 @@ const App: React.FC = () => {
                 {emailCategoryTab === 'SECURITY' && (
                 <div className="space-y-3">
                   <MailGroupHeader category="SECURITY" title="認証・セキュリティのメール" count={3} />
-                  <p className="text-xs text-slate-500"><strong>本人確認コード・パスワード再設定コードは、本文から該当タグを消しても安全装置により既定の文面で必ず送信されます。</strong></p>
+                  <p className="text-xs text-slate-500"><strong>本人確認コード・パスワード再設定コードの本文には、該当する差し込みタグを残してください。設定が不完全なメールは送信せずに止まります。</strong></p>
 
                   <EmailCard category="SECURITY" templateCategory="AUTH_OTP" badge="公開ポータルOTP" title="公開ポータル 本人確認コード（OTP）メール"
                     enabled={authOtpEnabledInput}
                     onToggle={() => { setAuthOtpEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={authOtpSubjectInput}
                     onSubjectChange={v => { setAuthOtpSubjectInput(v); setSettingsIsDirty(true); }}
-                    defaultSubject={AUTH_OTP_SUBJECT_DEFAULT}
                     body={authOtpBodyInput}
                     onBodyChange={v => { setAuthOtpBodyInput(v); setSettingsIsDirty(true); }}
                     extra={
@@ -5106,7 +5091,6 @@ const App: React.FC = () => {
                     onToggle={() => { setPasswordResetEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={passwordResetSubjectInput}
                     onSubjectChange={v => { setPasswordResetSubjectInput(v); setSettingsIsDirty(true); }}
-                    defaultSubject={PASSWORD_RESET_SUBJECT_DEFAULT}
                     body={passwordResetBodyInput}
                     onBodyChange={v => { setPasswordResetBodyInput(v); setSettingsIsDirty(true); }}
                     extra={
@@ -5120,7 +5104,6 @@ const App: React.FC = () => {
                     onToggle={() => { setLoginIdChangedEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={loginIdChangedSubjectInput}
                     onSubjectChange={v => { setLoginIdChangedSubjectInput(v); setSettingsIsDirty(true); }}
-                    defaultSubject={LOGIN_ID_CHANGED_SUBJECT_DEFAULT}
                     body={loginIdChangedBodyInput}
                     onBodyChange={v => { setLoginIdChangedBodyInput(v); setSettingsIsDirty(true); }}
                     extra={
@@ -5141,7 +5124,6 @@ const App: React.FC = () => {
                     onToggle={() => { setMemberUpdateConfirmEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={memberUpdateConfirmSubjectInput}
                     onSubjectChange={v => { setMemberUpdateConfirmSubjectInput(v); setSettingsIsDirty(true); }}
-                    defaultSubject={MEMBER_UPDATE_CONFIRM_SUBJECT_DEFAULT}
                     body={memberUpdateConfirmBodyInput}
                     onBodyChange={v => { setMemberUpdateConfirmBodyInput(v); setSettingsIsDirty(true); }}
                     extra={
@@ -5155,7 +5137,6 @@ const App: React.FC = () => {
                     onToggle={() => { setWithdrawalConfirmEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={withdrawalConfirmSubjectInput}
                     onSubjectChange={v => { setWithdrawalConfirmSubjectInput(v); setSettingsIsDirty(true); }}
-                    defaultSubject={WITHDRAWAL_CONFIRM_SUBJECT_DEFAULT}
                     body={withdrawalConfirmBodyInput}
                     onBodyChange={v => { setWithdrawalConfirmBodyInput(v); setSettingsIsDirty(true); }}
                     extra={
@@ -5169,7 +5150,6 @@ const App: React.FC = () => {
                     onToggle={() => { setContactEmailChangedEnabledInput(v => !v); setSettingsIsDirty(true); }}
                     subject={contactEmailChangedSubjectInput}
                     onSubjectChange={v => { setContactEmailChangedSubjectInput(v); setSettingsIsDirty(true); }}
-                    defaultSubject={CONTACT_EMAIL_CHANGED_SUBJECT_DEFAULT}
                     body={contactEmailChangedBodyInput}
                     onBodyChange={v => { setContactEmailChangedBodyInput(v); setSettingsIsDirty(true); }}
                     extra={
@@ -5339,11 +5319,6 @@ const App: React.FC = () => {
                     className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm"
                     placeholder="メール件名を入力"
                   />
-                  <button
-                    type="button"
-                    onClick={() => { setCredentialEmailSubjectInput(CREDENTIAL_EMAIL_DEFAULT_SUBJECT); setSettingsIsDirty(true); }}
-                    className="px-2 py-2 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 whitespace-nowrap"
-                  >デフォルトに戻す</button>
                 </div>
               </div>
               <div>
@@ -5468,13 +5443,6 @@ const App: React.FC = () => {
                     </ul>
                   )}
                 </div>
-                <div className="flex justify-end mt-1">
-                  <button
-                    type="button"
-                    onClick={() => { setCredentialEmailBodyInput(CREDENTIAL_EMAIL_DEFAULT_BODY); setSettingsIsDirty(true); }}
-                    className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50"
-                  >デフォルトに戻す</button>
-                </div>
               </div>
             </div>
           </AdminSettingsSection>}
@@ -5514,10 +5482,10 @@ const App: React.FC = () => {
                   <span className="text-sm text-slate-700">{label}</span>
                 </label>
               );
-              const EmailBlock = ({ title, badge, enabled, onToggle, subject, onSubjectChange, body, onBodyChange, defaultSubject }: {
+              const EmailBlock = ({ title, badge, enabled, onToggle, subject, onSubjectChange, body, onBodyChange }: {
                 title: string; badge: string; enabled: boolean; onToggle: () => void;
                 subject: string; onSubjectChange: (v: string) => void;
-                body: string; onBodyChange: (v: string) => void; defaultSubject: string;
+                body: string; onBodyChange: (v: string) => void;
                 tags?: string[][];
               }) => (
                 <div className="border border-slate-200 rounded-xl p-4 space-y-4">
@@ -5529,16 +5497,12 @@ const App: React.FC = () => {
                   {enabled && (
                     <>
                       <div>
-                        <label htmlFor={`${uid}-email-${badge}-subject`} className="block text-sm font-medium text-slate-700 mb-1">件名</label>
-                        <div className="flex gap-2">
-                          <input id={`${uid}-email-${badge}-subject`} type="text" value={subject} onChange={e => onSubjectChange(e.target.value)}
-                            className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm" placeholder="メール件名" />
-                          <button type="button" onClick={() => onSubjectChange(defaultSubject)}
-                            className="px-2 py-2 text-xs rounded border border-slate-300 text-slate-500 hover:bg-slate-50 whitespace-nowrap">デフォルト</button>
-                        </div>
+                        <label htmlFor={`${uid}-email-${badge}-subject`} className="block text-sm font-medium text-slate-700 mb-1">件名（必須）</label>
+                        <input id={`${uid}-email-${badge}-subject`} type="text" value={subject} onChange={e => onSubjectChange(e.target.value)}
+                          className="w-full border border-slate-300 rounded px-3 py-2 text-sm" placeholder="メール件名" />
                       </div>
                       <div>
-                        <label htmlFor={`${uid}-email-${badge}-body`} className="block text-sm font-medium text-slate-700 mb-1">本文</label>
+                        <label htmlFor={`${uid}-email-${badge}-body`} className="block text-sm font-medium text-slate-700 mb-1">本文（必須）</label>
                         <textarea id={`${uid}-email-${badge}-body`} value={body} onChange={e => onBodyChange(e.target.value)} rows={8}
                           className="w-full border border-slate-300 rounded px-3 py-2 text-sm font-mono leading-relaxed resize-y"
                           placeholder="メール本文（マージタグ使用可能）" />
@@ -5563,12 +5527,12 @@ const App: React.FC = () => {
                         onToggle={() => { setBizRepEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
                         subject={bizRepEmailSubjectInput} onSubjectChange={v => { setBizRepEmailSubjectInput(v); setSettingsIsDirty(true); }}
                         body={bizRepEmailBodyInput} onBodyChange={v => { setBizRepEmailBodyInput(v); setSettingsIsDirty(true); }}
-                        defaultSubject={BIZ_REP_SUBJECT_DEFAULT} />
+                        />
                       <EmailBlock title="メンバー（代表者以外）向けメール" badge="メンバー" enabled={bizStaffEmailEnabledInput}
                         onToggle={() => { setBizStaffEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
                         subject={bizStaffEmailSubjectInput} onSubjectChange={v => { setBizStaffEmailSubjectInput(v); setSettingsIsDirty(true); }}
                         body={bizStaffEmailBodyInput} onBodyChange={v => { setBizStaffEmailBodyInput(v); setSettingsIsDirty(true); }}
-                        defaultSubject={BIZ_STAFF_SUBJECT_DEFAULT} />
+                        />
                     </div>
                   </div>
 
@@ -5580,12 +5544,12 @@ const App: React.FC = () => {
                         onToggle={() => { setStaffAddStaffEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
                         subject={staffAddStaffEmailSubjectInput} onSubjectChange={v => { setStaffAddStaffEmailSubjectInput(v); setSettingsIsDirty(true); }}
                         body={staffAddStaffEmailBodyInput} onBodyChange={v => { setStaffAddStaffEmailBodyInput(v); setSettingsIsDirty(true); }}
-                        defaultSubject={STAFF_ADD_STAFF_SUBJECT_DEFAULT} />
+                        />
                       <EmailBlock title="代表者への追加通知メール" badge="代表者通知" enabled={staffAddRepEmailEnabledInput}
                         onToggle={() => { setStaffAddRepEmailEnabledInput(v => !v); setSettingsIsDirty(true); }}
                         subject={staffAddRepEmailSubjectInput} onSubjectChange={v => { setStaffAddRepEmailSubjectInput(v); setSettingsIsDirty(true); }}
                         body={staffAddRepEmailBodyInput} onBodyChange={v => { setStaffAddRepEmailBodyInput(v); setSettingsIsDirty(true); }}
-                        defaultSubject={STAFF_ADD_REP_SUBJECT_DEFAULT} />
+                        />
                     </div>
                   </div>
                 </div>
@@ -5760,7 +5724,7 @@ const App: React.FC = () => {
                   onClick={async () => {
                     try {
                       setSettingsBusy(true);
-                      const saved = await api.updateSystemSettings({
+                      const candidate: SystemSettings = {
                         trainingFileFolderId: trainingFileFolderIdInput,
                         claimAttachmentFolderId: claimAttachmentFolderIdInput,
                         defaultBusinessStaffLimit: Number(globalLimitInput || 10),
@@ -5885,7 +5849,9 @@ const App: React.FC = () => {
                         passwordResetEnabled: passwordResetEnabledInput,
                         loginIdChangedEnabled: loginIdChangedEnabledInput,
                         contactEmailChangedEnabled: contactEmailChangedEnabledInput,
-                      });
+                      };
+                      const saved = await api.updateSystemSettings(buildSystemSettingsPatch(systemSettingsBaseline, candidate));
+                      setSystemSettingsBaseline(saved);
                       setDefaultBusinessStaffLimit(saved.defaultBusinessStaffLimit);
                       setGlobalLimitInput(String(saved.defaultBusinessStaffLimit));
                       setTrainingHistoryLookbackMonths(saved.trainingHistoryLookbackMonths);
@@ -5905,8 +5871,8 @@ const App: React.FC = () => {
                       setEmailLogViewerRoleInput(saved.emailLogViewerRole ?? 'MASTER');
                       setCredentialEmailEnabledInput(saved.credentialEmailEnabled ?? true);
                       setCredentialEmailFromInput(saved.credentialEmailFrom ?? '');
-                      setCredentialEmailSubjectInput(saved.credentialEmailSubject ?? CREDENTIAL_EMAIL_DEFAULT_SUBJECT);
-                      setCredentialEmailBodyInput(saved.credentialEmailBody ?? CREDENTIAL_EMAIL_DEFAULT_BODY);
+                      setCredentialEmailSubjectInput(saved.credentialEmailSubject ?? '');
+                      setCredentialEmailBodyInput(saved.credentialEmailBody ?? '');
                       setPublicPortalTrainingMenuEnabledInput(saved.publicPortalTrainingMenuEnabled ?? true);
                       setPublicPortalMembershipMenuEnabledInput(saved.publicPortalMembershipMenuEnabled ?? true);
                       setPublicPortalHeroBadgeEnabledInput(saved.publicPortalHeroBadgeEnabled ?? PUBLIC_PORTAL_DEFAULTS.heroBadgeEnabled);

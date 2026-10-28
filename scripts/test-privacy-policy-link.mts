@@ -88,6 +88,14 @@ test('リンクは新しいタブで安全に開く', () => {
   }
 });
 
+test('公開ポータルのプライバシーポリシーリンクは 24px 以上のタップ領域を持つ', () => {
+  const i = portalApp.indexOf('プライバシーポリシーについて');
+  assert.notEqual(i, -1, 'フッターの文言が無い');
+  const block = portalApp.slice(Math.max(0, i - 450), i + 120);
+  assert.match(block, /min-h-6/, '最小高さ 24px を指定していない');
+  assert.match(block, /py-1/, '上下のタップ余白を指定していない');
+});
+
 test('管理画面から編集できる', () => {
   assert.ok(adminApp.includes('publicPortalPrivacyPolicyUrlInput'), '入力欄の state が無い');
   assert.ok(adminApp.includes('publicPortalPrivacyPolicyUrl: publicPortalPrivacyPolicyUrlInput'),

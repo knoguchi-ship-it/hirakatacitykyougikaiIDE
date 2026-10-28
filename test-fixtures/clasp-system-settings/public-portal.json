@@ -1,0 +1,6 @@
+{
+  "name": "公開ポータル設定",
+  "action": "checkSystemSettingsPatch",
+  "params": { "suite": "publicPortal" },
+  "expect": { "valid": true, "writes": 0 }
+}
