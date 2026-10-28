@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-10-19
-Production: `v376.137` / integrated-public `@447` x2 / member split `@205` / admin split `@304`
+Updated: 2026-10-28
+Production: `v376.138` / integrated-public `@448` x2 / member split `@206` / admin split `@305`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -175,7 +175,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-10-26 v376.137 ← current production
+### 2026-10-28 v376.138 ← current production
+
+- Scope: 管理のシステム設定を全量ではなく差分だけ保存する。異なるキーの同時編集は互いを上書きせず、同じキーは後勝ち。メール件名・本文の空欄を保存・読取り・送信の各経路で拒否し、既定文面での補完を廃止。管理専用・無書込みの `checkSystemSettingsPatch` と Windows の JSON 引用符を保つ fixture ランナーを追加。公開ポータルのプライバシーポリシーリンクは 24px 以上のタップ領域にした。
+- Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。表・列の変更なし。
+- Fixed deployments: integrated/public @448 x2 / member @206 / admin @305.
+- Verification: 4 段階ビルド、`npm run prerelease`、GAS 生成物同期・設定回帰・action配線・文書整合を通過。公開 a11y は違反 0、公開 responsive は 7 viewport × 3 画面で横スクロール 0・24px 未満ターゲット 0・console error 0。無書込み fixture はoperator承認のうえ実行したが、4群とも `FIXTURE_RESPONSE_INVALID`（clasp 3.4.1出力の解析不整合）で、妥当性・`writes=0` は未確認。管理・会員 E2E は未実施。
+- Rollback: integrated/public @447 x2 / member @205 / admin @304（v376.137）。スキーマが同じなので事前処理は不要。
+
+### 2026-10-26 v376.137
 
 - Scope: F26（docs/313）の実装の見直しで見つけた 6 件。①設定の保存（updateSystemSettings_）は、すべて確かめてから書く（以前は年会費・スクリプトプロパティ 2 つを検証の途中で書き、後の検証で止まっても一部だけ変わった）②見出しなど 19 項目の空欄はまとめて 1 回で知らせ、「表示する」の切り替えがある項目にだけ「チェックを外す」と案内。管理画面に（必須）とその場の指摘 ③定型文の編集がすぐ公開ポータルに出ることを画面に明示（operator 決定・案 (a)）④「使用中」（保存済み）と「選択中（未保存）」を分け、どちらも削除不可 ⑤定型文の保存・削除と設定の保存をスクリプトのロックの中で ⑥同じ用途に同じ名前の定型文は不可。設定の同時保存は後勝ち（operator 決定・docs/313 §4.1）。
 - Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。表・列の変更なし。

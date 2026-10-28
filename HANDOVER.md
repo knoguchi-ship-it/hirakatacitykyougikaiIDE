@@ -4,18 +4,20 @@
 
 ### 0.0 再開の最初の 5 分
 
-**本番は v376.137（2026-10-26）: 統合・公開 @447×2 / member @205 / admin @304。ロールバック先 v376.136（@446×2 / @204 / @303・スキーマ同じ・事前処理不要）。**
-スキーマ版 2026-10-25-screen-text-templates-v376.135（本番整備済み）。**ローカルには未コミット・未リリースの変更がある。deploy・本番設定の書込みは行っていない。**
+**本番は v376.138（2026-10-28）: 統合・公開 @448×2 / member @206 / admin @305。ロールバック先 v376.137（@447×2 / @205 / @304・スキーマ同じ・事前処理不要）。**
+スキーマ版 2026-10-25-screen-text-templates-v376.135（本番整備済み）。**v376.138 は fixed deployment 4 本まで同期済み。公開ブラウザ検証は済み、設定の無書込み fixture は応答解析の不整合で未検証として残す。**
 
 - 設定の保存（`updateSystemSettings_`）は**すべて確かめてから書く**。書くのはスクリプトのロックの中だけ（以前は年会費などを検証の途中で書いていた）。
 - 見出しなど 19 項目の空欄は**まとめて知らせる**。管理画面に（必須）とその場の指摘。
 - 定型文: 編集はその場で保存され、使用中ならすぐ公開ポータルに出る（画面に明示・operator 決定 (a)）。「使用中」と「選択中（未保存）」を分け、どちらも削除不可。同じ用途に同じ名前は不可。保存・削除はロックの中。
 - **基本ルール（operator 決定 2026-10-26）: 設定画面を 2 人が同時に保存したら後勝ち。** 不具合として扱わない（`docs/313` §4.1・`docs/307` D 節）。
-- 今回の未リリース変更: メール文面の空欄禁止、設定の差分保存、`checkSystemSettingsPatch`（機能群別の無書込み診断）、24px以上のプライバシーポリシーリンク、WindowsでJSON引用符を失わないfixtureランナー。詳細は `docs/314`。
+- v376.138 の変更: メール文面の空欄禁止、設定の差分保存、`checkSystemSettingsPatch`（機能群別の無書込み診断）、24px以上のプライバシーポリシーリンク、WindowsでJSON引用符を失わないfixtureランナー。詳細は `docs/314`。
 - ローカル確認済み: `test:screen-text-templates` 14/14、`test:gas-build-sync` 4/4、`test:feature-inventory` 4/4、`test:action-dispatch` 4/4、`test:docs-single-source` PASS、`git diff --check` PASS。
-- **確認済み（2026-10-28）**: `npm run prerelease` を、4段階のビルドと生成物同期テストの後に exit 0 まで再完走した。本番の4 fixtureは現行v376.137にactionが無いため全件 `UNSUPPORTED_ACTION`。書込み0。
-- **確認済み（2026-10-28）**: 固定 deployment 4 本は v376.137（統合・公開 @447×2 / member @205 / admin @304）で `HANDOVER.md` の記録と一致した。`release:verify` の一括 API 呼出しは途中で接続が切れたため、3 project の `npx clasp list-deployments` を個別に読み取り照合した。
-- 未追跡だが今回の変更セットに含めるファイル: `docs/314_SYSTEM_SETTINGS_PATCH_VERIFICATION_2026-10-28.md`、`scripts/run-clasp-system-settings-fixtures.mjs`、`test-fixtures/clasp-system-settings/*.json`、`temp/system-settings-patch-verification-design-preview.html`。prerelease完走後に追跡・コミットする。
+- **確認済み（2026-10-28）**: `npm run prerelease` を、4段階のビルドと生成物同期テストの後に exit 0 まで再完走した。リリース前の本番4 fixtureは v376.137 にactionが無いため全件 `UNSUPPORTED_ACTION`（書込み0）であり、v376.138 の確認には使わない。
+- **確認済み（2026-10-28・リリース前）**: 固定 deployment 4 本は v376.137（統合・公開 @447×2 / member @205 / admin @304）で `HANDOVER.md` の記録と一致した。
+- **v376.138 リリース後の公開確認（2026-10-28）**: a11y は critical / serious / moderate / minor すべて 0。7 viewport × 3 画面で横スクロール 0・24px 未満ターゲット 0・console error 0。プライバシーポリシーリンクは 24px で基準を満たすが、44px 推奨は未達。管理・会員 E2E は未実施。
+- **無書込み fixture（2026-10-28）**: operator承認のうえ4群を実行したが、すべて `FIXTURE_RESPONSE_INVALID`。`clasp` 3.4.1 の出力をランナーがJSONとして読めず、設定値は出力していない。サーバー検証結果と `writes=0` は確認できていないため、設定の正常性・無書込みは未検証として扱う。
+- 今回の変更セット（`docs/314`、fixture ランナー、fixture、設計プレビューを含む）は commit `90d9ee3` に記録済み。
 
 **⚠ v376.134 以前へ戻すと、旧い整備が `T_画面文テンプレート` を消す**（表示は旧い本文のキーで変わらない・リリース後に編集した定型文は失われる）。また上げるのは v376.136 以降で。
 
@@ -33,11 +35,11 @@
 | ~~1~~ | ~~`npm run prerelease` を**exit 0まで**完走する。~~ → 2026-10-28に4段階のビルド、生成物同期テスト、関連回帰テストの後で exit 0 まで再完走。 | 完了 |
 | ~~2~~ | ~~operatorが `! npx clasp login` を行い、`npm run release:verify` を再実行する。~~ → 2026-10-28に3 project の `npx clasp list-deployments` で個別照合し、固定 deployment 4 本が v376.137 と一致。 | 完了 |
 | ~~3~~ | ~~`git diff` と関連テストで未リリース変更を最終確認する。~~ → `docs/314`、`docs/313`、`docs/09`、`docs/288`、文書portal、`HANDOVER.md` と生成物・関連テストの一致を確認。 | 完了 |
-| 4 | prereleaseとrelease:verify後、operator承認を得てSkill `/release` で3 projectをpushし、固定deployment 4本を同じ版へ同期する。リリース前に `clasp deploy` を使わない。 | **operator承認 → AI** |
-| 5 | リリース後、`npm run test:clasp-settings-fixtures` を本番で実行し、4群すべて `FIXTURE_OK`・`writes=0` を確認する。現行本番の `UNSUPPORTED_ACTION` は未リリースゆえ正常な事前結果であり、成功確認ではない。 | **operator承認 → AI** |
+| ~~4~~ | ~~prereleaseとrelease:verify後、operator承認を得てSkill `/release` で3 projectをpushし、固定deployment 4本を同じ版へ同期する。~~ → 2026-10-28に v376.138 へ 3 project push・version作成（@448 / @206 / @305）・fixed deployment 4本同期完了。 | 完了 |
+| 5 | fixture ランナーを clasp 3.4.1 の応答形式に合わせ、設定値を出さずに成功応答だけを解析できるよう直す。関連テスト・prerelease後、operator承認を得て4群を再実行し、すべて `FIXTURE_OK`・`writes=0` を確認する。今回の実行は4群とも `FIXTURE_RESPONSE_INVALID` で未検証。 | **AI → operator承認 → AI** |
 | 6 | 画面の差分保存は、全量約31KBのJSONを `clasp run` へ再送して確認しない。必要な書込み確認は `/dbops` の承認・前後全キー差分手順で、★検証用または安全な変更なし保存として別途実施する。 | **operator承認 → AI** |
-| 7 | 公開ポータルの「プライバシーポリシーについて」のリンクを 24px 以上のタップ領域へ修正済み（`test:privacy-policy-link` PASS）。未リリース | AI |
-| 8 | `docs/307` D1: 「空欄禁止＋既定は初期データだけ」の実装・生成物・対象回帰テストはローカルで復旧済み。release後に `docs/314` の本番検証を必須とする。 | AI / operator |
+| ~~7~~ | ~~公開ポータルの「プライバシーポリシーについて」のリンクを 24px 以上のタップ領域へ修正。~~ → v376.138 で本番へ。公開 responsive で 7 viewport とも 24px 未満 0。 | 完了 |
+| 8 | `docs/307` D1: 「空欄禁止＋既定は初期データだけ」は v376.138 で本番へ。`docs/314` の無書込み本番検証は上の 5 が成功するまで未完了。 | AI / operator |
 | 9 | `docs/307` §4-5 以降の残り。operator の指示は「1 つずつ」。直す前に実装を読み、規定どおりでない点は振り返って修正案を出す。設計レベルの修正が要るものはその場限りで直さない（operator 指示 2026-10-26） | AI |
 | 10 | BR-21 の★本番確認（研修のポータル申込を CM 番号で照合）。本番にテスト用の研修を作るかの判断が要る（下の 2026-10-14 表の 8 と同じ） | **operator** → AI |
 | 11 | Drive に「__スキーマ整備リハーサル_20261025-…」というコピーが残っている可能性（`docs/311` §5 の 1 回目のリハーサルで MCP が途中で切れた）。あれば削除 | **operator** |
@@ -187,8 +189,8 @@ npm run test:guards      # hook 16/16
 
 ### 0. 30 秒で現状
 
-- **本番**: public **@447×2** / member **@205** / admin **@304**（**v376.137**）。4 本を同一リリースへ切替済み。
-  直前の版は public @446×2 / member @204 / admin @303（v376.136・スキーマ同じ・事前処理不要）。以下は古い記録: ロールバック先は public @440×2 / member @198 / admin @297（v376.129）。**戻す前に T_支払い / T_支払い_archive の「職員ID」見出しを消す（§0.0 参照）**。その前は public @439×2 / member @197 / admin @296（v376.128）、その前は public @438×2 / member @196 / admin @295（v376.127）、 public @437×2 / member @195 / admin @294（v376.126）、 public @436×2 / member @194 / admin @293（v376.125）、 public @435×2 / member @193 / admin @292（v376.124）。**admin @287 は使わない**（push 失敗時に作られた旧コード）。
+- **本番**: public **@448×2** / member **@206** / admin **@305**（**v376.138**）。4 本を同一リリースへ切替済み。
+  直前の版は public @447×2 / member @205 / admin @304（v376.137・スキーマ同じ・事前処理不要）。以下は古い記録: ロールバック先は public @440×2 / member @198 / admin @297（v376.129）。**戻す前に T_支払い / T_支払い_archive の「職員ID」見出しを消す（§0.0 参照）**。その前は public @439×2 / member @197 / admin @296（v376.128）、その前は public @438×2 / member @196 / admin @295（v376.127）、 public @437×2 / member @195 / admin @294（v376.126）、 public @436×2 / member @194 / admin @293（v376.125）、 public @435×2 / member @193 / admin @292（v376.124）。**admin @287 は使わない**（push 失敗時に作られた旧コード）。
   **⚠ v376.124 へ戻すと、旧コードのスキーマ整備が `T_研修申込` を作り直し、BR-21 の 4 列（会員照合の結果）を消す。**
   照合結果の入った申込ができた後に戻すときは、先に `T_研修申込` を退避する（旧コードは S18 の修正前）。
 

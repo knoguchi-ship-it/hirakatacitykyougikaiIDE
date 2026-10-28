@@ -116,7 +116,7 @@ fixtureはGit管理できるが、機能群名と期待する真偽・書込み�
 
 ## 9. 現在の導入状態
 
-この設計は未リリースである。2026-10-28時点で、次をローカルで復旧した。
+この設計は v376.138（public @448×2 / member @206 / admin @305）として2026-10-28にリリース済みである。リリース前に、次をローカルで確認した。
 
 - `test:screen-text-templates` 14/14 PASS
 - `test:gas-build-sync` 4/4 PASS（公開・会員・管理の生成物を正本から再生成）
@@ -124,9 +124,9 @@ fixtureはGit管理できるが、機能群名と期待する真偽・書込み�
 - `test:action-dispatch` 4/4 PASS、`test:docs-single-source` PASS、`git diff --check` PASS
 - fixtureランナーを、Windowsの `cmd.exe` / `npx.cmd` を通さずローカルclasp entrypointをNodeから直接起動する方式へ修正
 
-本番へ4 fixtureを無書込みで実行した結果は、すべて `UNSUPPORTED_ACTION` だった。これは現行本番に
-`checkSystemSettingsPatch` がまだ未リリースであることを示す期待どおりの事前結果であり、設定は変更していない。
+リリース前の本番へ4 fixtureを無書込みで実行した結果は、すべて `UNSUPPORTED_ACTION` だった。これは当時の本番に
+`checkSystemSettingsPatch` が未リリースだったことを示す事前結果であり、v376.138 の成功確認ではない。
 
 **確認済み（2026-10-28）:** `npm run build`、`npm run build:gas`、`npm run build:gas:member`、`npm run build:gas:admin` の後に、生成物同期・関連回帰テストと `npm run prerelease` を exit 0 まで完走した。
 
-**未検証:** operator承認を得たリリース後の本番 fixture。4 fixtureすべてで `FIXTURE_OK` と `writes=0` を確認して初めて導入完了とする。
+**リリース後の実行結果（2026-10-28）:** operator承認を得て4 fixtureを実行したが、すべて `FIXTURE_RESPONSE_INVALID` だった。`clasp` 3.4.1 の標準出力をランナーがJSONとして解析できず、設定値・秘密値は出力していない。レスポンスを読めなかったため、サーバーの妥当性判定と `writes=0` は確認できない。ランナーを出力形式に合わせて修正し、関連テスト・`npm run prerelease` の後にあらためてoperator承認を得て実行する。4 fixtureすべてで `FIXTURE_OK` と `writes=0` を確認して初めて、この経路を導入完了とする。
