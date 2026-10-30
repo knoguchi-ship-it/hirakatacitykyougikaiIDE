@@ -174,7 +174,9 @@ const LinePostEditorModal: React.FC<LinePostEditorModalProps> = ({ api, training
   const [dragOver, setDragOver] = useState(false);
   // エラーはモーダルの先頭、保存ボタンは下に固定。本文を下までスクロールした状態で失敗すると見えないため、出たら見える位置へ移す
   const editErrorRef = useRef<HTMLDivElement>(null);
-  useRevealOnChange(editError, editErrorRef);
+  const [editErrorSeq, setEditErrorSeq] = useState(0);
+  useRevealOnChange(editErrorSeq, editErrorRef);
+  const showEditError = (message: string) => { setEditError(message); setEditErrorSeq(n => n + 1); };
 
   // 研修ピッカー候補: 削除済を除外し、開催日が過ぎた研修を非表示にする。
   // ただし現在選択中の研修は（過去・削除済でも）候補に残し、表示が消えないようにする。
@@ -203,9 +205,9 @@ const LinePostEditorModal: React.FC<LinePostEditorModalProps> = ({ api, training
 
   // v376.45: submit=true で新規を即「投稿依頼中」にする（既存編集時は submit 無効＝下書き更新のみ）。
   const handleSave = async (submit: boolean) => {
-    if (!editing.text.trim()) { setEditError('テキストを入力してください。'); return; }
-    if (editing.text.length > LINE_POST_TEXT_MAX) { setEditError(`テキストは${LINE_POST_TEXT_MAX}文字以内で入力してください。`); return; }
-    if (editing.targetType === 'TRAINING' && !editing.targetId) { setEditError('対象研修を選択してください。'); return; }
+    if (!editing.text.trim()) { showEditError('テキストを入力してください。'); return; }
+    if (editing.text.length > LINE_POST_TEXT_MAX) { showEditError(`テキストは${LINE_POST_TEXT_MAX}文字以内で入力してください。`); return; }
+    if (editing.targetType === 'TRAINING' && !editing.targetId) { showEditError('対象研修を選択してください。'); return; }
     if (submit && !editing.id && !window.confirm('この内容で投稿依頼をします。よろしいですか？')) return;
     setSaving(true);
     setEditError(null);
@@ -227,17 +229,17 @@ const LinePostEditorModal: React.FC<LinePostEditorModalProps> = ({ api, training
       if (notNotified) alert(notNotified);
       onSaved();
     } catch (e) {
-      setEditError(e instanceof Error ? e.message : '保存に失敗しました');
+      showEditError(e instanceof Error ? e.message : '保存に失敗しました');
     } finally {
       setSaving(false);
     }
   };
 
   const handleFile = async (file: File) => {
-    if (file.size > ATTACH_MAX_BYTES) { setEditError('ファイルサイズが上限（10MB）を超えています'); return; }
+    if (file.size > ATTACH_MAX_BYTES) { showEditError('ファイルサイズが上限（10MB）を超えています'); return; }
     const isImage = /^image\//.test(file.type);
     const isPdf = file.type === 'application/pdf';
-    if (!isImage && !isPdf) { setEditError('画像（jpg/png/gif/webp）または PDF のみ添付可能です'); return; }
+    if (!isImage && !isPdf) { showEditError('画像（jpg/png/gif/webp）または PDF のみ添付可能です'); return; }
     setUploading(true);
     setEditError(null);
     try {
@@ -260,7 +262,7 @@ const LinePostEditorModal: React.FC<LinePostEditorModalProps> = ({ api, training
         clearAttachment: false,
       }));
     } catch (e) {
-      setEditError(e instanceof Error ? e.message : 'アップロードに失敗しました');
+      showEditError(e instanceof Error ? e.message : 'アップロードに失敗しました');
     } finally {
       setUploading(false);
     }

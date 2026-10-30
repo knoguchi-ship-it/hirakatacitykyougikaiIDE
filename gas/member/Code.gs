@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: c118586e150941a1b2545a0cbb453adbe364671829ed95ed296803fc5459ce58
+// BUILD_INPUT_SHA256: e1d5d3ede8fc7257fbee6c2f1b0e95dba07a550b9c4cad27e9f718c0e95479b9
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -4443,6 +4443,9 @@ function generateTrainingApplyId_() {
 
 
 
+// 移行の書込み前に、参照の付け替えに必要な構造を検証する。
+// 対象行が 0 件でも、表・列の不在は「確認不能」として区別する。
+
 
 
 
@@ -7675,6 +7678,7 @@ function resolveTrainingAsksMemberNumber_(trainingRow) {
 //   UNMATCHED … 番号は入力されたが一致しない・2 人以上に一致した（非会員として扱う）
 //   NONE      … 番号が空白（非会員として扱う）
 // 結果はサーバ内部と管理画面でだけ使う。公開ポータルへは返さない（会員かどうかを外から探れないようにする）。
+
 
 
 

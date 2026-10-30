@@ -73,6 +73,7 @@
 | [249_DESIGN_MEMBER_DELETE_CASCADE_ARCHIVE_2026-07-02.md](249_DESIGN_MEMBER_DELETE_CASCADE_ARCHIVE_2026-07-02.md) | 会員系削除の cascade アーカイブ |
 | [251_DESIGN_LINE_POST_REQUEST_2026-05-21.md](251_DESIGN_LINE_POST_REQUEST_2026-05-21.md) | 公式 LINE 投稿依頼（旧 246。番号衝突のため 251 に改番） |
 | [314_SYSTEM_SETTINGS_PATCH_VERIFICATION_2026-10-28.md](314_SYSTEM_SETTINGS_PATCH_VERIFICATION_2026-10-28.md) | **システム設定の差分保存と `clasp run` 切り分け**。機能群別・無書込みfixture、Windowsの巨大JSON制約、回帰修正後の本番検証必須条件 |
+| [316_MEMBER_CONVERSION_INTEGRATED_DESIGN_2026-10-30.md](316_MEMBER_CONVERSION_INTEGRATED_DESIGN_2026-10-30.md) | **会員・職員の移行全体設計案**。後勝ち、データ異常の既存 Chat 通知、一括更新と失敗時の復旧、検証条件 |
 | [315_RELEASE_STATE_v376.138_2026-10-28.md](315_RELEASE_STATE_v376.138_2026-10-28.md) | **v376.138 リリース記録**。差分設定保存・メール文面の空欄禁止・無書込み診断の検証と本番確認 |
 
 ## ④ 運用・手順

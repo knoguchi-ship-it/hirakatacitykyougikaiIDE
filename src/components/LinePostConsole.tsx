@@ -47,6 +47,7 @@ const formatDate = (s: string): string => {
 
 const LinePostConsole: React.FC<LinePostConsoleProps> = ({ api, trainings, canManage = false }) => {
   const [items, setItems] = useState<LinePostRequest[]>([]);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<LinePostStatus | ''>('');
@@ -68,6 +69,7 @@ const LinePostConsole: React.FC<LinePostConsoleProps> = ({ api, trainings, canMa
         limit: 200,
       });
       setItems(r.items);
+      setHasMore(r.hasMore === true);
     } catch (e) {
       setError(e instanceof Error ? e.message : '一覧取得に失敗しました');
     } finally {
@@ -195,6 +197,7 @@ const LinePostConsole: React.FC<LinePostConsoleProps> = ({ api, trainings, canMa
       <section className="rounded-xl border border-slate-200 bg-white overflow-hidden">
         <div className="px-4 py-2 border-b border-slate-200 text-sm text-slate-500">
           {loading ? '読み込み中…' : `${filteredCount} 件`}
+          {!loading && hasMore && <p className="mt-1 text-amber-700">新しい順に一部を表示しています。条件を絞ると、ほかの投稿依頼も確認できます。</p>}
         </div>
         {filteredCount === 0 && !loading ? (
           <p className="px-4 py-12 text-center text-sm text-slate-400">該当する投稿依頼はありません</p>

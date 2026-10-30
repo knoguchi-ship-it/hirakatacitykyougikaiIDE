@@ -13,8 +13,10 @@ const fixtureDir = path.join(root, 'test-fixtures', 'clasp-system-settings');
 const requested = process.argv.slice(2);
 const names = requested.length ? requested : fs.readdirSync(fixtureDir).filter((name) => name.endsWith('.json')).sort();
 
-function classifyRunFailure(result) {
+export function classifyRunFailure(result) {
   const detail = `${result.stderr || ''}\n${result.stdout || ''}`;
+  if (/invalid_rapt|invalid_grant|reauth|re-authentication/i.test(detail)) return 'AUTH_RELOGIN_REQUIRED';
+  if (/unknown option/i.test(detail)) return 'CLASP_OPTION_INVALID';
   if (/Unexpected token|valid JSON/i.test(detail)) return 'PARAMS_JSON_INVALID';
   if (/oauth2\.googleapis\.com\/token|token failed/i.test(detail)) return 'AUTH_TOKEN_REQUEST_FAILED';
   if (/EACCES|ECONNREFUSED|ENOTFOUND|ETIMEDOUT/i.test(detail)) return 'NETWORK_OR_EXECUTION_UNAVAILABLE';
@@ -27,6 +29,27 @@ function buildClaspParams(action, params) {
   return JSON.stringify([action, params]);
 }
 
+export function parseClaspResponse(stdout) {
+  let envelope;
+  try { envelope = JSON.parse(stdout); } catch { throw new Error('ENVELOPE_JSON_INVALID'); }
+  if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) throw new Error('ENVELOPE_INVALID');
+  if (envelope.error) {
+    const detail = JSON.stringify(envelope.error);
+    if (envelope.error.code === 3 && /PERMISSION_DENIED/i.test(detail)) throw new Error('CLASP_EXECUTION_PERMISSION_DENIED');
+    if (/permission denied|does not have permission|PERMISSION_DENIED/i.test(detail)) throw new Error('CLASP_PERMISSION_DENIED');
+    if (/requested entity was not found|NOT_FOUND|script not found/i.test(detail)) throw new Error('CLASP_TARGET_NOT_FOUND');
+    if (/function.*not found|script function not found/i.test(detail)) throw new Error('CLASP_FUNCTION_NOT_FOUND');
+    if (/api.*not.*enabled|has not been used|accessNotConfigured/i.test(detail)) throw new Error('CLASP_API_DISABLED');
+    throw new Error('CLASP_API_ERROR');
+  }
+  if (typeof envelope.response !== 'string') throw new Error('RESPONSE_NOT_STRING');
+  let response;
+  try { response = JSON.parse(envelope.response); } catch { throw new Error('RESPONSE_JSON_INVALID'); }
+  if (!response || typeof response !== 'object' || Array.isArray(response)) throw new Error('RESPONSE_INVALID');
+  return response;
+}
+
+export function runFixtures() {
 let failed = false;
 for (const name of names) {
   const file = name.endsWith('.json') ? name : `${name}.json`;
@@ -44,7 +67,7 @@ for (const name of names) {
   }
   const params = buildClaspParams(fixture.action, fixture.params || {});
   const claspEntry = path.join(root, 'node_modules', '@google', 'clasp', 'build', 'src', 'index.js');
-  const result = spawnSync(process.execPath, [claspEntry, 'run', 'processApiRequest', '--params', params], {
+  const result = spawnSync(process.execPath, [claspEntry, 'run', 'processApiRequest', '--params', params, '--json'], {
     cwd: path.join(root, 'gas', 'admin'), encoding: 'utf8', shell: false,
   });
   if (result.status !== 0) {
@@ -56,14 +79,14 @@ for (const name of names) {
   }
   let response;
   try {
-    response = JSON.parse(result.stdout);
-  } catch {
-    console.error(`FIXTURE_RESPONSE_INVALID ${fixture.name || file}`);
+    response = parseClaspResponse(result.stdout);
+  } catch (error) {
+    console.error(`FIXTURE_RESPONSE_INVALID ${fixture.name || file} reason=${error.message}`);
     failed = true;
     continue;
   }
   const data = response && response.data;
-  if (!response.success || !data || data.valid !== fixture.expect.valid || data.writes !== fixture.expect.writes) {
+  if (response.success !== true || !data || data.valid !== fixture.expect.valid || data.writes !== fixture.expect.writes) {
     const reason = response && response.error === 'unsupported_action' ? 'UNSUPPORTED_ACTION' : 'REMOTE_RESPONSE_REJECTED';
     console.error(`FIXTURE_ASSERTION_FAILED ${fixture.name || file} reason=${reason}`);
     failed = true;
@@ -71,4 +94,9 @@ for (const name of names) {
   }
   console.log(`FIXTURE_OK ${fixture.name || file} checked=${data.checkedFieldCount} planned=${data.plannedSettingCount}`);
 }
-process.exit(failed ? 1 : 0);
+return failed ? 1 : 0;
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  process.exitCode = runFixtures();
+}

@@ -383,6 +383,36 @@ test('★職員数の上限は承認時に、何かを書き込む前に申請�
   assert.deepEqual(info(ss, 'missing'), { limit: 0, enrolled: 0 });
 });
 
+test('個人会員の転籍も個別上限または全体既定を使い、上限で書込み前に止まる', () => {
+  let individualLimit = '';
+  let defaultLimit = '1';
+  const convert = new Function('deps', `
+    const hasMasterOption_ = () => true;
+    const findRowByColumnValue_ = deps.find;
+    const getRowsAsObjects_ = deps.rows;
+    const getSystemSettingValue_ = deps.setting;
+    const toBoolean_ = (v) => Boolean(v);
+    ${extractFunction(gas, 'getBusinessStaffLimitInfo_')}
+    ${extractFunction(gas, 'convertIndividualToStaff_')}
+    return convertIndividualToStaff_;
+  `)({
+    find: (_sheet: unknown, _column: string, id: string) => id === 'source'
+      ? { row: ['SUPPORT', ''], columns: { '会員種別コード': 0, '介護支援専門員番号': 1 } }
+      : { row: ['BUSINESS', '', individualLimit], columns: { '会員種別コード': 0, '会員状態コード': 1, '職員数上限': 2 } },
+    rows: () => [{ '会員ID': 'office', '職員状態コード': 'ENROLLED', '削除フラグ': false }],
+    setting: () => defaultLimit,
+  });
+  assert.throws(() => convert({ getSheetByName: () => ({}) }, { sourceMemberId: 'source', targetOfficeMemberId: 'office' }), /職員数上限（1名）/);
+  individualLimit = '2';
+  assert.throws(() => convert({ getSheetByName: () => ({}) }, { sourceMemberId: 'source', targetOfficeMemberId: 'office' }), /介護支援専門員番号が必要/);
+  individualLimit = '1';
+  defaultLimit = '3';
+  assert.throws(() => convert({ getSheetByName: () => ({}) }, { sourceMemberId: 'source', targetOfficeMemberId: 'office' }), /職員数上限（1名）/);
+  individualLimit = '';
+  defaultLimit = '';
+  assert.throws(() => convert({ getSheetByName: () => ({}) }, { sourceMemberId: 'source', targetOfficeMemberId: 'office' }), /職員数上限を確認できません/);
+});
+
 test('★職員の追加も事業所会員だけが申請できる', () => {
   const submit = extractFunction(gas, 'submitPublicChangeRequest_');
   const guard = submit.indexOf("payload.staffAdd.length > 0 && stored.memberType !== 'BUSINESS'");

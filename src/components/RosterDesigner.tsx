@@ -348,6 +348,7 @@ const normalizeColumnFilter_ = (rf: RowFilterDef | undefined): RowFilterDef | un
 };
 const normalizeTemplate_ = (t: RosterTemplateV2): RosterTemplateV2 => ({
   ...t,
+  layout: { ...t.layout, showRecordCount: t.layout?.showRecordCount ?? DEFAULT_LAYOUT.showRecordCount },
   columns: (t.columns || []).map((c) => c.rowFilter ? { ...c, rowFilter: normalizeColumnFilter_(c.rowFilter) } : c),
 });
 const operatorsFor = (type?: string) => OPERATORS_BY_TYPE[type || 'string'] || OPERATORS_BY_TYPE.string;
@@ -1849,7 +1850,7 @@ const RosterDesigner: React.FC<RosterDesignerProps> = ({ api }) => {
                 <div className="roster-print-header">
                   <h1>{working.name || '名簿'}</h1>
                   <div className="meta">
-                    出力日時: {new Date().toLocaleString('ja-JP')} ／ 出力対象: {effectiveRows.length} 名
+                    出力日時: {new Date().toLocaleString('ja-JP')}
                     {working.description ? ` ／ ${working.description}` : ''}
                   </div>
                 </div>

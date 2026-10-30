@@ -1437,8 +1437,9 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
       const roleLabel = (r: string) => masterLabel('M_職員権限', r);
       const typeLabel = memberTypeMasterLabel(form.memberType);
       const destLabel = masterLabel('M_郵送先区分', form.preferredMailDestination);
-      const hasOfficeAddress = !!form.officeAddressLine.trim();
-      const hasHomeAddress = !!form.homeAddressLine.trim();
+      const confirmedForm = stripUnusedAddressDefaults(form);
+      const hasOfficeAddress = !!(form.officeAddressLine.trim() || form.officeAddressLine2.trim());
+      const hasHomeAddress = !!(form.homeAddressLine.trim() || form.homeAddressLine2.trim());
       return (
         <div className="space-y-6">
           <h3 className="text-lg font-bold text-slate-800">入力内容の確認</h3>
@@ -1471,7 +1472,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                 {form.officeName.trim() && <div><span className="text-slate-500">事業所名:</span> {form.officeName}</div>}
                 {form.officeNumber && <div><span className="text-slate-500">事業所番号:</span> {form.officeNumber}</div>}
-                {hasOfficeAddress && <div className="sm:col-span-2"><span className="text-slate-500">{form.memberType === 'BUSINESS' ? '住所:' : '勤務先住所:'}</span> 〒{form.officePostCode} {form.officePrefecture}{form.officeCity}{form.officeAddressLine}</div>}
+                {hasOfficeAddress && <div className="sm:col-span-2"><span className="text-slate-500">{form.memberType === 'BUSINESS' ? '住所:' : '勤務先住所:'}</span> {confirmedForm.officePostCode && <>〒{confirmedForm.officePostCode} </>}{confirmedForm.officePrefecture}{confirmedForm.officeCity}{confirmedForm.officeAddressLine}{confirmedForm.officeAddressLine2 && <> {confirmedForm.officeAddressLine2}</>}</div>}
                 {form.phone && <div><span className="text-slate-500">電話:</span> {form.phone}</div>}
                 {form.fax && <div><span className="text-slate-500">FAX:</span> {form.fax}</div>}
               </div>
@@ -1487,7 +1488,7 @@ const MemberApplicationForm: React.FC<MemberApplicationFormProps> = ({
                 )}
               </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                <div className="sm:col-span-2"><span className="text-slate-500">住所:</span> 〒{form.homePostCode} {form.homePrefecture}{form.homeCity}{form.homeAddressLine}</div>
+                <div className="sm:col-span-2"><span className="text-slate-500">住所:</span> {confirmedForm.homePostCode && <>〒{confirmedForm.homePostCode} </>}{confirmedForm.homePrefecture}{confirmedForm.homeCity}{confirmedForm.homeAddressLine}{confirmedForm.homeAddressLine2 && <> {confirmedForm.homeAddressLine2}</>}</div>
                 {form.mobilePhone && <div><span className="text-slate-500">携帯:</span> {form.mobilePhone}</div>}
               </div>
             </div>

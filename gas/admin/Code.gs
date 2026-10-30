@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: d8494d42e0befa4e2b421de684b8c23702b5c17a9f608b302393afcb3d045e33
+// BUILD_INPUT_SHA256: 22fe1e1afd5969f087d72d3908a2d5c4d7fdb3fb088a5d5f821bbc3bb6a401b8
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -9840,15 +9840,17 @@ function rebindPersonReferenceTable_(ss, tableName, oldMemberId, oldStaffId, new
   if (cols['会員ID'] == null && cols['職員ID'] == null) return 0;
 
   var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  var targetPerson = officerPersonRef_(newMemberId, newStaffId);
   var updated = 0;
   for (var r = 0; r < data.length; r += 1) {
     if (cols['削除フラグ'] != null && toBoolean_(data[r][cols['削除フラグ']])) continue;
-    var memberMatches = oldMemberId && cols['会員ID'] != null && String(data[r][cols['会員ID']] || '') === String(oldMemberId || '');
-    var staffMatches = oldStaffId && cols['職員ID'] != null && String(data[r][cols['職員ID']] || '') === String(oldStaffId || '');
-    if (!memberMatches && !staffMatches) continue;
+    if (!rowBelongsToOfficerPerson_({
+      '会員ID': cols['会員ID'] != null ? data[r][cols['会員ID']] : '',
+      '職員ID': cols['職員ID'] != null ? data[r][cols['職員ID']] : '',
+    }, oldMemberId, oldStaffId)) continue;
 
-    if (cols['会員ID'] != null) data[r][cols['会員ID']] = newMemberId || '';
-    if (cols['職員ID'] != null) data[r][cols['職員ID']] = newStaffId || '';
+    if (cols['会員ID'] != null) data[r][cols['会員ID']] = targetPerson.memberId;
+    if (cols['職員ID'] != null) data[r][cols['職員ID']] = targetPerson.staffId;
     if (cols['更新日時'] != null) data[r][cols['更新日時']] = now;
     sheet.getRange(r + 2, 1, 1, data[r].length).setValues([data[r]]);
     updated += 1;
@@ -9878,14 +9880,51 @@ function migratePersonOwnedReferences_(ss, opts) {
 }
 
 
+// 移行の書込み前に、参照の付け替えに必要な構造を検証する。
+// 対象行が 0 件でも、表・列の不在は「確認不能」として区別する。
+function inspectMemberConversionData_(ss) {
+  var requirements = [
+    { table: 'T_研修申込', columns: ['会員ID', '職員ID', '申込者ID', '削除フラグ'] },
+    { table: 'T_認証アカウント', columns: ['認証ID', '会員ID', '職員ID', 'システムロールコード', 'アカウント有効フラグ', '削除フラグ'] },
+  ];
+  for (var i = 0; i < requirements.length; i += 1) {
+    var requirement = requirements[i];
+    var sheet = ss.getSheetByName(requirement.table);
+    if (!sheet || sheet.getLastColumn() < 1) {
+      return { code: 'MISSING_TABLE', table: requirement.table };
+    }
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+    for (var c = 0; c < requirement.columns.length; c += 1) {
+      if (headers.indexOf(requirement.columns[c]) < 0) {
+        return { code: 'MISSING_COLUMN', table: requirement.table, column: requirement.columns[c] };
+      }
+    }
+  }
+  return null;
+}
+
 function convertMemberType_(payload) {
   if (!payload || !payload.direction) throw new Error('direction が未指定です。');
   var direction = String(payload.direction);
+  if (direction !== 'STAFF_TO_INDIVIDUAL' && direction !== 'INDIVIDUAL_TO_STAFF') {
+    throw new Error('不明な direction: ' + direction);
+  }
 
   var ss = getOrCreateDatabase_();
   var lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
+    var anomaly = inspectMemberConversionData_(ss);
+    if (anomaly) {
+      var message = anomaly.code === 'MISSING_TABLE'
+        ? '移行に必要な表「' + anomaly.table + '」を確認できません。'
+        : '表「' + anomaly.table + '」の列「' + anomaly.column + '」を確認できません。';
+      notifyMembershipChatSafely_(ss, 'ANOMALY', {
+        '手続種別': '会員種別の移行',
+        '異常内容': message + ' 管理者がデータ構造を確認してください。',
+      });
+      throw new Error('移行に必要なデータ構造を確認できません。' + message + ' 管理者に連絡してください。');
+    }
     if (direction === 'STAFF_TO_INDIVIDUAL') {
       return convertStaffToIndividual_(ss, payload);
     } else if (direction === 'INDIVIDUAL_TO_STAFF') {
@@ -10150,13 +10189,12 @@ function convertIndividualToStaff_(ss, payload) {
   }
 
   // 3. 事業所の職員数上限チェック
-  var allEnrolledStaff = getRowsAsObjects_(ss, 'T_事業所職員').filter(function(r) {
-    return !toBoolean_(r['削除フラグ']) && String(r['会員ID'] || '') === targetOfficeMemberId
-      && String(r['職員状態コード'] || '') === 'ENROLLED';
-  });
-  var staffLimit = Number(officeFound.row[officeFound.columns['職員数上限']] || 50);
-  if (allEnrolledStaff.length >= staffLimit) {
-    throw new Error('転籍先の事業所は職員数上限（' + staffLimit + '名）に達しています。');
+  var staffLimitInfo = getBusinessStaffLimitInfo_(ss, targetOfficeMemberId);
+  if (!(staffLimitInfo.limit > 0)) {
+    throw new Error('転籍先の職員数上限を確認できません。事業所または全体の上限設定を確認してください。');
+  }
+  if (staffLimitInfo.enrolled >= staffLimitInfo.limit) {
+    throw new Error('転籍先の事業所は職員数上限（' + staffLimitInfo.limit + '名）に達しています。');
   }
 
   // 3.5. 介護支援専門員番号の解決（賛助会員でペイロードから受け取る場合を含む）
@@ -14373,6 +14411,7 @@ function resolveTrainingAsksMemberNumber_(trainingRow) {
 
 
 
+
 // ── v260/v261: 公開ポータル 会員情報変更・退会申請 ────────────────────────────
 
 // 個人会員: 公開ポータル変更申請（管理者承認後に適用）で変更可能なフィールド allowlist
@@ -17845,8 +17884,9 @@ function listLinePostRequests_(payload) {
   }
   // 作成日時降順
   items.sort(function (a, b) { return (a.createdAt < b.createdAt) ? 1 : (a.createdAt > b.createdAt ? -1 : 0); });
+  var hasMore = items.length > limit;
   if (items.length > limit) items = items.slice(0, limit);
-  return { items: items, total: items.length, statusFilter: statusFilter, targetTypeFilter: targetTypeFilter, canManage: canManage };
+  return { items: items, total: items.length, hasMore: hasMore, statusFilter: statusFilter, targetTypeFilter: targetTypeFilter, canManage: canManage };
 }
 
 function getLinePostRequest_(payload) {

@@ -5,7 +5,7 @@ import { callApi } from '../../shared/api-base';
 
 interface Props {
   training: PublicTraining;
-  onSuccess: (applyId: string) => void;
+  onSuccess: (applyId: string, confirmationMailSent: boolean) => void;
   onCancel: () => void;
   /** プライバシーポリシーの掲載先。空ならリンクを出さない（設定: T_システム設定）。 */
   privacyPolicyUrl?: string;
@@ -29,12 +29,14 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel, pri
   const uid = React.useId();
   // エラーはフォームの上に出るが「申込する」は下にあるため、出たら見える位置へ移す
   const errorRef = useRef<HTMLDivElement>(null);
-  useRevealOnChange(error, errorRef);
+  const [errorSeq, setErrorSeq] = useState(0);
+  useRevealOnChange(errorSeq, errorRef);
+  const showError = (message: string) => { setError(message); setErrorSeq(n => n + 1); };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!consent) {
-      setError(CONSENT_ERROR);
+      showError(CONSENT_ERROR);
       return;
     }
     setBusy(true);
@@ -52,11 +54,11 @@ const ExternalApplyForm: React.FC<Props> = ({ training, onSuccess, onCancel, pri
         consent,
         honeypot,
       };
-      const result = await callApi<{ applyId: string }>('applyTrainingExternal', payload);
-      onSuccess(result.applyId);
+      const result = await callApi<{ applyId: string; confirmationMailSent?: boolean }>('applyTrainingExternal', payload);
+      onSuccess(result.applyId, result.confirmationMailSent === true);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      setError(msg || '申込に失敗しました。');
+      showError(msg || '申込に失敗しました。');
     } finally {
       setBusy(false);
     }

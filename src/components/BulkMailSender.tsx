@@ -74,6 +74,8 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
   const [useAutoAttach, setUseAutoAttach]       = useState(false);
   const [indvAttachments, setIndvAttachments]   = useState<Record<string, AttachmentBlob>>({});
   const [templates, setTemplates]               = useState<EmailTemplate[]>([]);
+  const [templateLoadState, setTemplateLoadState] = useState<'loading' | 'loaded' | 'error'>('loading');
+  const [templateLoadAttempt, setTemplateLoadAttempt] = useState(0);
   const [showTemplateSaveForm, setShowTemplateSaveForm] = useState(false);
   const [templateSaveNameInput, setTemplateSaveNameInput] = useState('');
   const [templateSaving, setTemplateSaving]     = useState(false);
@@ -145,10 +147,17 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
   }, [api]);
 
   useEffect(() => {
+    let active = true;
+    setTemplateLoadState('loading');
     api.getBulkMailTemplates()
-      .then(setTemplates)
-      .catch(() => {});
-  }, [api]);
+      .then((loaded) => {
+        if (!active) return;
+        setTemplates(loaded);
+        setTemplateLoadState('loaded');
+      })
+      .catch(() => { if (active) setTemplateLoadState('error'); });
+    return () => { active = false; };
+  }, [api, templateLoadAttempt]);
 
   // ── 宛先読み込み ─────────────────────────────────────────────
   const loadRecipients = useCallback(async () => {
@@ -663,7 +672,7 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
                 />
                 <button
                   type="button"
-                  disabled={templateSaving || !templateSaveNameInput.trim()}
+                  disabled={templateSaving || templateLoadState === 'loading' || !templateSaveNameInput.trim()}
                   className="px-3 py-1 text-xs rounded bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 whitespace-nowrap"
                   onClick={async () => {
                     if (!templateSaveNameInput.trim()) return;
@@ -694,7 +703,14 @@ const BulkMailSender: React.FC<BulkMailSenderProps> = ({ api, settings, adminPer
                 >キャンセル</button>
               </div>
             )}
-            {templates.length === 0 ? (
+            {templateLoadState === 'loading' ? (
+              <p className="text-xs text-slate-500" role="status">テンプレートを読み込んでいます</p>
+            ) : templateLoadState === 'error' ? (
+              <div className="text-xs text-red-700" role="alert">
+                <p>テンプレート一覧を取得できませんでした。</p>
+                <button type="button" disabled={templateSaving} className="mt-1 min-h-6 px-2 underline disabled:opacity-50" onClick={() => setTemplateLoadAttempt(n => n + 1)}>再読み込み</button>
+              </div>
+            ) : templates.length === 0 ? (
               <p className="text-xs text-slate-400">保存済みテンプレートはありません</p>
             ) : (
               <ul className="space-y-1">

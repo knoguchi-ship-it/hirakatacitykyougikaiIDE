@@ -2313,6 +2313,12 @@ const App: React.FC = () => {
     return true;
   };
 
+  const missingNewAdminFields = [
+    !newAdminPermission.googleEmail.trim() && 'Googleメールアドレス',
+    !newAdminPermission.linkedAuthId && '紐づく会員アカウント',
+    adminPermissionData?.roles && adminPermissionData.roles.length > 0 && !newAdminPermission.roleId && 'ロール',
+  ].filter(Boolean);
+
   const renderSystemPermissionPage = () => (
     <div className="space-y-6">
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
@@ -2461,8 +2467,8 @@ const App: React.FC = () => {
           <button
             type="button"
             className="px-4 py-2 rounded bg-slate-800 text-white disabled:opacity-50"
-            disabled={!newAdminPermission.googleEmail.trim() || !newAdminPermission.linkedAuthId
-              || (adminPermissionData?.roles && adminPermissionData.roles.length > 0 && !newAdminPermission.roleId)}
+            disabled={missingNewAdminFields.length > 0}
+            aria-describedby={missingNewAdminFields.length > 0 ? `${uid}-new-admin-required` : undefined}
             onClick={async () => {
               try {
                 await saveAdminPermission({
@@ -2489,6 +2495,9 @@ const App: React.FC = () => {
             管理者権限を追加
           </button>
         </div>
+        {missingNewAdminFields.length > 0 && (
+          <p id={`${uid}-new-admin-required`} className="mt-2 text-sm text-slate-600">追加するには、{missingNewAdminFields.join('・')}を入力または選択してください。</p>
+        )}
       </div>
 
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">

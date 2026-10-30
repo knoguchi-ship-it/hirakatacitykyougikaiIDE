@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 6f24ac16b2a7bc7a17270147e031059cdc0fd60572af4284f4909ae8b6a7c47e
+// BUILD_INPUT_SHA256: 505685bf39fe9da67bd11d839b380b61bb1c1de44ecf901ca098febbb58e4039
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -3285,6 +3285,9 @@ function isInactiveMemberStatusForIdentity_(status) {
 
 
 
+// 移行の書込み前に、参照の付け替えに必要な構造を検証する。
+// 対象行が 0 件でも、表・列の不在は「確認不能」として区別する。
+
 
 
 
@@ -5529,6 +5532,23 @@ function matchTrainingApplicantMembership_(memberRows, staffRows, name, cmNumber
   return { code: 'MEMBER', memberId: hits[0].memberId, staffId: hits[0].staffId };
 }
 
+function sendTrainingApplicationReceipt_(db, email, name, training, applyId) {
+  try {
+    var applyMail = renderConfiguredMail_(db, 'TRAINING_APPLY_RECEIPT_SUBJECT', 'TRAINING_APPLY_RECEIPT_BODY',
+      TRAINING_APPLY_RECEIPT_DEFAULT_SUBJECT, TRAINING_APPLY_RECEIPT_DEFAULT_BODY, {
+        '申込者名': name,
+        '研修名': String(training['研修名'] || ''),
+        '開催日': formatTrainingDate_(training['開催日'], training['開催終了時刻']),
+        '申込ID': applyId,
+      });
+    var result = deliverMail_('TRAINING_APPLY_RECEIPT', email, applyMail.subject, applyMail.body);
+    return !!(result && result.sent === true && result.mode === 'LIVE');
+  } catch (e) {
+    Logger.log('申込確認メール送信失敗');
+    return false;
+  }
+}
+
 function applyTrainingExternal_(payload) {
   assertPublicPortalIntakeOpen_(getOrCreateDatabase_(), 'TRAINING');
   if (!payload) return JSON.stringify({ success: false, error: 'invalid_request' });
@@ -5641,21 +5661,8 @@ function applyTrainingExternal_(payload) {
     updateTrainingApplicantCount_(db, trainingId);
     clearAllDataCache_();
 
-    try {
-      // v376.43: 件名/本文を設定値（無ければ既定）から差し込み描画。
-      var applyMail = renderConfiguredMail_(db, 'TRAINING_APPLY_RECEIPT_SUBJECT', 'TRAINING_APPLY_RECEIPT_BODY',
-        TRAINING_APPLY_RECEIPT_DEFAULT_SUBJECT, TRAINING_APPLY_RECEIPT_DEFAULT_BODY, {
-          '申込者名': name,
-          '研修名': String(training['研修名'] || ''),
-          '開催日': formatTrainingDate_(training['開催日'], training['開催終了時刻']),
-          '申込ID': applyId,
-        });
-      deliverMail_('TRAINING_APPLY_RECEIPT', email, applyMail.subject, applyMail.body);
-    } catch (e) {
-      Logger.log('申込確認メール送信失敗: ' + e.message);
-    }
-
-    return JSON.stringify({ success: true, data: { applyId: applyId } });
+    var confirmationMailSent = sendTrainingApplicationReceipt_(db, email, name, training, applyId);
+    return JSON.stringify({ success: true, data: { applyId: applyId, confirmationMailSent: confirmationMailSent } });
   } finally {
     lock.releaseLock();
   }

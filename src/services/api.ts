@@ -303,7 +303,7 @@ export interface ApiClient {
   deleteRosterTemplateV2(id: string): Promise<{ ok: boolean; templates: import('../types').RosterTemplateV2[] }>;
   duplicateRosterTemplateV2(id: string): Promise<{ ok: boolean; templates: import('../types').RosterTemplateV2[] }>;
   // v374.1: 公式LINE投稿依頼
-  listLinePostRequests(payload: { status?: LinePostStatus | ''; targetType?: LinePostTargetType | ''; keyword?: string; limit?: number }): Promise<{ items: LinePostRequest[]; total: number; canManage?: boolean }>;
+  listLinePostRequests(payload: { status?: LinePostStatus | ''; targetType?: LinePostTargetType | ''; keyword?: string; limit?: number }): Promise<{ items: LinePostRequest[]; total: number; hasMore?: boolean; canManage?: boolean }>;
   getLinePostRequest(id: string): Promise<{ item: LinePostRequest }>;
   saveLinePostRequest(payload: {
     id?: string;
@@ -1316,7 +1316,7 @@ class GasApiClient implements ApiClient {
 
   // v374.1: 公式LINE投稿依頼
   async listLinePostRequests(payload: { status?: LinePostStatus | ''; targetType?: LinePostTargetType | ''; keyword?: string; limit?: number }) {
-    return this.callAction<{ items: LinePostRequest[]; total: number; canManage?: boolean }>('listLinePostRequests', payload);
+    return this.callAction<{ items: LinePostRequest[]; total: number; hasMore?: boolean; canManage?: boolean }>('listLinePostRequests', payload);
   }
   async getLinePostRequest(id: string) {
     return this.callAction<{ item: LinePostRequest }>('getLinePostRequest', { id });

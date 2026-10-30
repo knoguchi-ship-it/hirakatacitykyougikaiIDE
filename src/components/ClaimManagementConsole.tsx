@@ -10,6 +10,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRevealOnChange } from '../shared/useRevealOnChange';
 import { officerPersonKey, officerPersonRef } from '../shared/officerPerson';
+import { formatClaimUnitQuantity } from '../shared/claimFormat';
 import { ApiClient } from '../services/api';
 import {
   ClaimAttachment,
@@ -446,7 +447,7 @@ const ClaimManagementConsole: React.FC<ClaimManagementConsoleProps> = ({ api, on
                             <p><span className="font-medium">内容:</span> {claimType === 'ACTIVITY_REPORT' ? (category?.業務分類名 ?? claim.活動内容) : claim.活動内容}</p>
                             {claim.組織コード && <p><span className="font-medium">組織:</span> {orgMap[claim.組織コード] ?? claim.組織コード}</p>}
                             {claimType === 'ACTIVITY_REPORT' && (
-                              <p><span className="font-medium">単価/数量:</span> ¥{Number(claim.単価 || claim.請求金額 || 0).toLocaleString('ja-JP')} × 1</p>
+                              <p><span className="font-medium">単価/数量:</span> {formatClaimUnitQuantity(claim)}</p>
                             )}
                             {claim.請求状態 === '却下' && claim.却下理由 && (
                               <p className="rounded bg-red-50 px-2 py-1 text-red-700"><span className="font-medium">却下理由:</span> {claim.却下理由}</p>

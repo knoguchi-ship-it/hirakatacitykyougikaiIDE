@@ -521,7 +521,7 @@ const MemberDeleteConsole: React.FC = () => {
         <div className="bg-white border border-green-300 rounded-2xl p-5 space-y-3 shadow-sm">
           <h3 className="font-semibold text-green-800">論理削除完了</h3>
           <p className="text-sm text-slate-700">
-            {execResult.count} 件の対象に対して退会・退職と認証無効化を適用しました。
+            {execResult.count} 件の対象と関連レコードをアーカイブへ移動しました。ログイン履歴は削除されました。
           </p>
           <p className="text-xs text-slate-500">削除ログID: {execResult.logId}</p>
           <button

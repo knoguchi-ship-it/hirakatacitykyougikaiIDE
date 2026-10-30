@@ -4,6 +4,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../services/api';
 import { loadHeic2any } from '../lib/heic2anyLoader';
+import { formatClaimUnitQuantity } from '../shared/claimFormat';
 import {
   ClaimAttachment,
   ClaimRecord,
@@ -515,7 +516,7 @@ const ClaimCard: React.FC<ClaimCardProps> = ({ activeRoles }) => {
                     {claimType === 'ACTIVITY_REPORT' ? (
                       <>
                         <p><span className="font-medium text-slate-600">業務分類: </span><span className="text-slate-700">{category?.業務分類名 ?? claim.業務分類コード}</span></p>
-                        <p><span className="font-medium text-slate-600">単価/数量: </span><span className="text-slate-700">¥{Number(claim.単価 || claim.請求金額 || 0).toLocaleString('ja-JP')} × 1</span></p>
+                        <p><span className="font-medium text-slate-600">単価/数量: </span><span className="text-slate-700">{formatClaimUnitQuantity(claim)}</span></p>
                       </>
                     ) : (
                       <>

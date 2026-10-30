@@ -398,7 +398,16 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
                     {r.email && <div>{r.email}</div>}
                     {r.phone && <div className="text-slate-400">{r.phone}</div>}
                   </td>
-                  <td className="px-2 py-2 text-xs"><span className={r.status === 'APPLIED' ? 'text-emerald-700' : 'text-slate-400'}>{applicationStatusLabel(r.status)}</span></td>
+                  <td className="px-2 py-2 text-xs">
+                    <span className={r.status === 'APPLIED' ? 'text-emerald-700' : 'text-slate-500'}>{applicationStatusLabel(r.status)}</span>
+                    {r.status === 'CANCELED' && (r.cancelDate || r.remarks) && (
+                      <details className="mt-1 text-slate-700">
+                        <summary className="cursor-pointer min-h-6">取消情報</summary>
+                        {r.cancelDate && <p>取消日時: {Number.isNaN(Date.parse(r.cancelDate)) ? r.cancelDate : new Date(r.cancelDate).toLocaleString('ja-JP')}</p>}
+                        {r.remarks && <p className="whitespace-pre-wrap break-words">備考: {r.remarks}</p>}
+                      </details>
+                    )}
+                  </td>
                   <td className="px-2 py-2">
                     {r.status === 'APPLIED' ? (
                       <select

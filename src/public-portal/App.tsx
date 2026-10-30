@@ -150,6 +150,7 @@ const PublicApp: React.FC = () => {
   const [trainings, setTrainings] = useState<PublicTraining[]>([]);
   const [selectedTraining, setSelectedTraining] = useState<PublicTraining | null>(null);
   const [completedApplyId, setCompletedApplyId] = useState<string>('');
+  const [trainingConfirmationMailSent, setTrainingConfirmationMailSent] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
@@ -306,14 +307,16 @@ const PublicApp: React.FC = () => {
     setView('training-apply');
   };
 
-  const handleApplySuccess = (applyId: string) => {
+  const handleApplySuccess = (applyId: string, confirmationMailSent: boolean) => {
     setCompletedApplyId(applyId);
+    setTrainingConfirmationMailSent(confirmationMailSent);
     setView('training-complete');
   };
 
   const handleBackToHome = () => {
     setSelectedTraining(null);
     setCompletedApplyId('');
+    setTrainingConfirmationMailSent(false);
     setView('home');
   };
 
@@ -606,7 +609,9 @@ const PublicApp: React.FC = () => {
             </div>
             <h2 className="text-2xl font-bold text-slate-900">研修申込が完了しました</h2>
             <p className="mt-3 text-sm leading-7 text-slate-600">
-              ご登録のメールアドレスに確認メールをお送りしました。
+              {trainingConfirmationMailSent
+                ? 'ご登録のメールアドレスに確認メールをお送りしました。'
+                : '申込は受け付けましたが、確認メールをお送りできませんでした。再申込せず、申込IDを控えて事務局へお問い合わせください。'}
             </p>
             {completedApplyId && (
               <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm">

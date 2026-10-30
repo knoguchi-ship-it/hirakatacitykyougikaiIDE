@@ -1023,6 +1023,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
   };
 
   const openConvertToIndividual = (staffId: string) => {
+    setError(null);
     setConvertSourceStaffId(staffId);
     setConvertNewRepStaffId('');
     setShowConvertToIndividualModal(true);
@@ -1151,6 +1152,9 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     return false;
   };
 
+  const conversionDialogOpen = showConvertToStaffModal || showConvertFromIndividualModal || showConvertToIndividualModal;
+  const errorBanner = error && <div ref={errorBannerRef} tabIndex={-1} role="alert" className="bg-red-50 border border-red-200 rounded p-3 text-sm text-red-700 focus:outline-none">{error}</div>;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -1165,7 +1169,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
           <button onClick={() => onDismissStaffSaveToast?.()} className="text-green-500 hover:text-green-700 ml-4" aria-label="閉じる">&times;</button>
         </div>
       )}
-      {error && <div ref={errorBannerRef} tabIndex={-1} role="alert" className="bg-red-50 border border-red-200 rounded p-3 text-sm text-red-700 focus:outline-none">{error}</div>}
+      {!conversionDialogOpen && errorBanner}
       {errorSummaryEntries.length > 0 && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4" role="alert" aria-live="polite">
           <p className="text-sm font-semibold text-red-700">修正が必要な項目があります。</p>
@@ -1689,7 +1693,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => { setShowConvertFromIndividualModal(true); setConvertFromIndividualId(''); setConvertFromIndividualCareNum(''); setConvertFromIndividualCareNumError(''); }}
+                onClick={() => { setError(null); setShowConvertFromIndividualModal(true); setConvertFromIndividualId(''); setConvertFromIndividualCareNum(''); setConvertFromIndividualCareNumError(''); }}
                 className="px-3 py-2 rounded-lg border border-purple-300 text-purple-700 text-sm font-medium hover:bg-purple-50"
               >
                 既存会員を転籍
@@ -1972,7 +1976,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
           {!isBusiness && (
             <div className="flex items-center gap-4">
               <button
-                onClick={() => setShowConvertToStaffModal(true)}
+                onClick={() => { setError(null); setShowConvertToStaffModal(true); }}
                 className="px-4 py-2 rounded-lg border border-purple-300 text-purple-600 font-medium hover:bg-purple-50"
               >
                 事業所メンバーに転籍
@@ -2049,6 +2053,9 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                         >
                           {actionLoading === 'reset-' + acc.authId ? '処理中...' : 'パスワードリセット'}
                         </button>
+                        {acc.method !== 'PASSWORD' && (
+                          <p className="w-full text-xs text-slate-600">パスワード認証以外のアカウントは、パスワードのリセットやロック解除ができません。</p>
+                        )}
                       </div>
                     ) : (
                       <button
@@ -2100,6 +2107,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md space-y-4">
             <h3 className="text-lg font-bold text-slate-800">事業所メンバーに転籍</h3>
+            {errorBanner}
             <p className="text-sm text-slate-600">
               {form.lastName} {form.firstName} を事業所のメンバーとして登録します。個人会員としてのステータスは退会になります。
             </p>
@@ -2166,6 +2174,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md space-y-4">
             <h3 className="text-lg font-bold text-slate-800">既存個人会員を職員として転籍</h3>
+            {errorBanner}
             <p className="text-sm text-slate-600">
               登録済みの個人会員または賛助会員を、この事業所の職員として転籍します。転籍元は退会扱いになります。
             </p>
@@ -2261,6 +2270,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
           <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
             <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md space-y-4">
               <h3 className="text-lg font-bold text-slate-800">個人会員に転換</h3>
+              {errorBanner}
               {isLastEnrolledInModal ? (
                 <div className="bg-amber-50 border border-amber-300 rounded-lg p-3">
                   <p className="text-sm text-amber-800 font-medium">
