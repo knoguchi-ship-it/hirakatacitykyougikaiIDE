@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 35164b871aa530129dae207a8ba8daf6fce2f5a1890db3b0ece0cf19a5f82e85
+// BUILD_INPUT_SHA256: 406813e5e87f85bb5d135c6fe088312ddc66f017dd2e88d30843cd3c9794e2cd
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -3568,6 +3568,62 @@ var SHEETS_PROBE_FILE_PREFIX_ = '★E2E移行検証_';
 
 // スナップショットで、列 idHeader が id の行の番号（0 始まり・見出しを除く）
 
+
+// ── 2026-10-31 docs/317 E: 会員・職員移行の隔離 E2E ─────────────────────────────────
+// 一時スプレッドシートに合成データ（★・@example.invalid）だけを入れ、本物の移行（convertMemberTypeOn_）と
+// 本物の一括更新を通す。前後の全表を API で読み（P0: 同じ実行の SpreadsheetApp は古い内容を返す）、
+// 変わったセルと追加行が、シナリオごとの期待差分と完全に一致するかで判定する。本番 DB・ログ用 DB は開かない。
+//
+// 2 回に分けて実行する（同じ関数をもう一度 ▶）。
+//   1 回目: E1〜E6・E8〜E11 と、往復（E7）の行き・応答喪失（E10）の 1 回目
+//   2 回目: 往復の戻りと、E10 と同じ操作IDの再送
+// 同じ実行の中では API で書いた内容が SpreadsheetApp に見えないので、画面の操作と同じく別の実行で確かめる。
+// 1 回目と 2 回目の間は、往復用の一時ファイルの ID だけをスクリプトプロパティに置く（2 回目の最初に消す）。
+// 出力は判定・件数・型・時間と合成データの ID だけ。
+var MEMBER_CONVERSION_E2E_TABLES_ = ['T_会員', 'T_事業所職員', 'T_認証アカウント', 'T_管理者Googleホワイトリスト', 'T_研修申込',
+  'T_役員', 'T_振込口座', 'T_請求', 'T_支払い', 'T_変更申請', 'T_人物統合ログ'];
+var MEMBER_CONVERSION_E2E_PENDING_KEY_ = 'E2E_MEMBER_CONVERSION_PENDING';
+// 人物の参照を持つ表の主キー列
+var MEMBER_CONVERSION_E2E_REF_ID_HEADERS_ = { T_役員: '役員ID', T_振込口座: '口座ID', T_請求: '請求ID', T_支払い: '支払いID' };
+
+
+
+// 合成データの ID（1 回目と 2 回目で同じ値を使う）
+
+// 人物（会員・職員）。auth: 認証ID、apps: 研修申込ID、refs: 役員まわり 4 表の行ID、whitelist: ホワイトリストID
+
+// 合成データを既存の書き方（appendRowsByHeaders_ = setValues）だけで入れる。本番と同じ型になる
+// （8 桁の会員ID は数値、yyyy-MM-dd は日付、書式なしテキスト列は文字列）。
+
+
+
+// 1 回目の実行で作った一時ファイルを開く（2 回目。別の実行なので 1 回目の書込みが見える）
+
+
+
+
+
+
+
+// 1 シナリオ: 一時ファイル（spec.target か、source/base の複製）で移行を 1 回実行し、前後を API で読んで判定する
+
+// 期待差分の 1 セル: m は { any } 変わっていればよい / { key } 型付きの値 / { id } ID（文字列か、数字だけなら数値）/ { today } 今日の日付
+
+// 8 桁の会員ID は既存の書き方（setValues）で数値になる。文字列と数値のどちらでも同じ ID とみなす（型の一致は別に確かめる）
+
+
+
+// 前後のスナップショットと期待差分を突き合わせる。
+// - 変わったセル（probeChangedCells_）が「変わるべきセル」と完全に一致する（それ以外は 1 つも変わらない）
+// - 期待値が前の値と同じセルは「変わってはならないセル」になる
+// - 追加行の数と値、書いた値の型が既存の行（既存の書き方で入れた行）と同じ、同じ ID の型が表によって違わない
+
+
+
+// 個人→職員の期待差分。opts.reuseStaff: 使い直す職員（無ければ新しい職員行を 1 行足す）
+
+// 職員→個人の期待差分。opts.reuseMember: 使い直す個人会員（無ければ新しい会員行を 1 行足す）
+// opts.successorId: 後任の代表者 / opts.officeWithdrawnId: 最後の 1 名で退会になる事業所
 
 // 2026-10-19: DB の今の状態を数えるだけの診断（読むだけ・書き込みなし・監査ログにも書かない）。
 // シートごとの行数・削除済み・定義との差（planTableColumnNormalization_ の方針）と、ID 参照の孤児の件数。

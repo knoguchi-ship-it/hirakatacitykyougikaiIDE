@@ -31,6 +31,62 @@ function probeSheetsBatchUpdate_APPLY() {
   return out;
 }
 
+function e2eMemberConversionIsolated_APPLY() {
+  var session = assertMasterOperator_('e2eMemberConversionIsolated_APPLY');
+  var started = Date.now();
+  var props = PropertiesService.getScriptProperties();
+  var pendingRaw = props.getProperty(MEMBER_CONVERSION_E2E_PENDING_KEY_);
+  var ctx = {
+    stamp: Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd-HHmmss'),
+    today: Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd'),
+    deadline: started + 300000, // GAS の上限 6 分より前に打ち切る（残りは時間切れとして不合格にする）
+    files: [], batchCalls: 0, inject: '',
+  };
+  var report = { operator: session.loginId, startedAt: new Date(started).toISOString(), phase: pendingRaw ? '2/2' : '1/2',
+    scenarios: [], observations: {}, files: { created: 0, opened: 0, trashed: 0, kept: 0, trashErrors: [] }, next: '', verdict: '' };
+  var savedMemo = MASTER_OPTIONS_MEMO_;
+  var realBatch = sheetsApiBatchUpdate_;
+  var keepForPhase2 = false;
+  // 一括更新の呼び出しを数え、シナリオが指定したときだけ失敗を混ぜる・応答を捨てる（本体には試験用の分岐を入れない）
+  sheetsApiBatchUpdate_ = function(spreadsheetId, requests) { return memberConversionE2eBatch_(ctx, realBatch, spreadsheetId, requests); };
+  // 移行が読むマスタ（M_職員権限）は、この実行の中だけ固定値にする。
+  // 一時ファイルの空のマスタを読んで、本番と共有のスクリプトキャッシュへ入れないため。
+  MASTER_OPTIONS_MEMO_ = { M_職員権限: [{ code: 'STAFF', label: '一般' }, { code: 'ADMIN', label: '管理者' }, { code: 'REPRESENTATIVE', label: '代表者' }] };
+  try {
+    if (pendingRaw) {
+      props.deleteProperty(MEMBER_CONVERSION_E2E_PENDING_KEY_); // 2 回目が途中で止まっても、次の実行は 1 回目からやり直す
+      runMemberConversionE2ePhase2_(ctx, report, JSON.parse(pendingRaw));
+    } else {
+      var pending = runMemberConversionE2ePhase1_(ctx, report);
+      props.setProperty(MEMBER_CONVERSION_E2E_PENDING_KEY_, JSON.stringify(pending));
+      keepForPhase2 = true;
+      report.next = 'もう一度 e2eMemberConversionIsolated_APPLY を実行してください（2/2: 往復の戻りと同じ操作IDの再送）。';
+    }
+  } catch (e) {
+    report.scenarios.push({ id: 'ABORT', passed: false, problems: [String(e && e.message ? e.message : e)] });
+  } finally {
+    sheetsApiBatchUpdate_ = realBatch;
+    MASTER_OPTIONS_MEMO_ = savedMemo;
+    ctx.files.forEach(function(f) {
+      if (f.created) report.files.created += 1; else report.files.opened += 1;
+      if (keepForPhase2 && f.keep) { report.files.kept += 1; return; }
+      try {
+        DriveApp.getFileById(f.id).setTrashed(true);
+        report.files.trashed += 1;
+      } catch (e2) {
+        report.files.trashErrors.push(String(e2 && e2.message ? e2.message : e2));
+      }
+    });
+  }
+  report.elapsedMs = Date.now() - started;
+  var failed = report.scenarios.filter(function(s) { return !s.passed; }).map(function(s) { return s.id; });
+  report.verdict = (failed.length ? 'NG: ' + failed.join(', ') : 'OK: ' + report.scenarios.length + ' 件すべて合格')
+    + '（' + report.phase + (keepForPhase2 ? '・続きあり' : '') + '）';
+  var out = JSON.stringify(report, null, 2);
+  Logger.log('=== 会員・職員移行の隔離 E2E（一時スプレッドシート）===\n' + out);
+  return out;
+}
+
 function describeDatabaseState_LOG() {
   assertMasterOperator_('describeDatabaseState_LOG');
   var main = getOrCreateDatabase_();

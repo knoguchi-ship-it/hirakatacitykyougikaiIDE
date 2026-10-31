@@ -301,10 +301,13 @@ function individualToStaffCase(changeRows: Table = []) {
     function clearTrainingManagementCache_() {}
     ${NOTIFY_RECORD}
     var Logger = { log: function() {} };
+    function normalizeStaffNameFields_(row) { return { name: row['氏名'], kana: row['フリガナ'], lastName: row['姓'], firstName: row['名'], lastKana: row['セイ'], firstKana: row['メイ'] }; }
   `;
+  // 往復（個人→職員→個人）を同じ DB で確かめるため、職員→個人も読み込む
   const names = [...HELPERS, ...CONVERSION_CHECK, 'getBusinessStaffLimitInfo_', 'isInactiveMemberStatusForIdentity_', 'inspectMemberConversionData_',
     'rebindAuthPrincipal_', 'syncWhitelistMemberLinkByAuthIds_', 'migrateTrainingApplications_', 'rebindPersonReferenceTable_',
-    'migratePersonOwnedReferences_', 'appendPersonMergeLog_', 'convertIndividualToStaff_', 'convertMemberTypeOn_', 'convertMemberType_', ...TX_FUNCS];
+    'migratePersonOwnedReferences_', 'appendPersonMergeLog_', 'convertIndividualToStaff_', 'convertStaffToIndividual_', 'dbStateTime_',
+    'convertMemberTypeOn_', 'convertMemberType_', ...TX_FUNCS];
   const run = (over: Record<string, unknown> = {}) => load(source, names, CONVERSION_REQUIRED + TX_ENV + extra)(db).convertMemberType_({ direction: 'INDIVIDUAL_TO_STAFF', sourceMemberId: 'M1', targetOfficeMemberId: 'B1', staffRole: 'STAFF', ...over });
   return { db, run };
 }
@@ -356,7 +359,7 @@ function staffToIndividualCase(changeRows: Table = []) {
   `;
   const names = [...HELPERS, ...CONVERSION_CHECK, 'inspectMemberConversionData_', 'rebindAuthPrincipal_', 'syncWhitelistMemberLinkByAuthIds_',
     'migrateTrainingApplications_', 'rebindPersonReferenceTable_', 'migratePersonOwnedReferences_', 'appendPersonMergeLog_',
-    'convertStaffToIndividual_', 'convertMemberTypeOn_', 'convertMemberType_', ...TX_FUNCS];
+    'convertStaffToIndividual_', 'dbStateTime_', 'convertMemberTypeOn_', 'convertMemberType_', ...TX_FUNCS];
   const run = (over: Record<string, unknown> = {}) => load(source, names, CONVERSION_REQUIRED + TX_ENV + extra)(db).convertMemberType_({ direction: 'STAFF_TO_INDIVIDUAL', sourceMemberId: 'B1', sourceStaffId: 'S1', ...over });
   return { db, run };
 }
@@ -377,6 +380,40 @@ test('事業所職員から個人会員への転換は本人だけの認証・�
   assert.deepEqual(rowsOf(db, 'T_研修申込').map(r => [r['会員ID'], r['職員ID'], r['申込者ID']]), [['M1', '', 'M1'], ['B1', 'S2', 'B1']]);
   assert.deepEqual(rowsOf(db, 'T_役員').map(r => [r['会員ID'], r['職員ID']]), [['M1', ''], ['', 'S2'], ['B1', '']]);
   assert.deepEqual([rowsOf(db, 'T_会員')[0], rowsOf(db, 'T_事業所職員')[1], rowsOf(db, 'T_研修申込')[1], rowsOf(db, 'T_役員')[1], rowsOf(db, 'T_役員')[2]], untouchedBefore);
+});
+
+// 2026-10-31 operator 決定（docs/317 E7）: 移行済み（TRANSFERRED）の個人行も使い直す。
+// 以前は退会（WITHDRAWN）の行だけで、個人→職員→個人と戻すたびに新しい会員IDの行ができ、年会費の履歴が古い会員IDに残った。
+test('往復: 個人→職員→個人と戻すと、行を増やさず同じ会員IDに戻り、本人の参照もすべて元の会員IDへ戻る', () => {
+  const { db, run } = individualToStaffCase();
+  const memberCount = rowsOf(db, 'T_会員').length;
+  const toStaff = run({ operationId: 'op-rt-00001' });
+  const back = run({ direction: 'STAFF_TO_INDIVIDUAL', sourceMemberId: 'B1', sourceStaffId: toStaff.newStaffId, operationId: 'op-rt-00002' });
+  assert.equal(back.newMemberId, 'M1', '元の会員IDに戻る');
+  assert.equal(rowsOf(db, 'T_会員').length, memberCount, '会員の行は増えない');
+  const m1 = rowsOf(db, 'T_会員')[0];
+  assert.deepEqual([m1['会員状態コード'], m1['移行日'], m1['退会日'] ?? ''], ['ACTIVE', '', ''], '移行済みから有効へ・移行日は空に');
+  assert.deepEqual(rowsOf(db, 'T_認証アカウント').map(r => [r['会員ID'], r['職員ID']]), [['M1', '']]);
+  assert.deepEqual(rowsOf(db, 'T_研修申込').map(r => [r['会員ID'], r['職員ID'], r['申込者ID']]), [['M1', '', 'M1'], ['B1', 'S2', 'B1']]);
+  assert.deepEqual(rowsOf(db, 'T_役員').map(r => [r['会員ID'], r['職員ID']]), [['M1', ''], ['', 'S2']]);
+  assert.equal(db.directWrites.count, 0);
+  assert.equal(db.batchCalls, 2, '1 回の移行につき一括更新 1 回');
+});
+
+test('使い直す個人行は、退会日・移行日がいちばん新しい行（日付のセルが Date で読めても曜日の綴りで並べない）', () => {
+  for (const [label, rows, expected] of [
+    // 文字列にして比べると "Sun Mar 31 2024" > "Fri Mar 28 2025" で古い方を選んでしまう組み合わせ
+    ['退会どうし', [['M-old', 'WITHDRAWN', new Date('2024-03-31T00:00:00Z'), ''], ['M-new', 'WITHDRAWN', new Date('2025-03-28T00:00:00Z'), '']], 'M-new'],
+    ['退会より後の移行済み', [['M-old', 'WITHDRAWN', new Date('2024-03-31T00:00:00Z'), ''], ['M-new', 'TRANSFERRED', '', new Date('2025-03-28T00:00:00Z')]], 'M-new'],
+  ] as const) {
+    const { db, run } = staffToIndividualCase();
+    const members = db.sheets['T_会員'].values as unknown[][];
+    members.splice(2); // B1 だけ残す
+    for (const [id, status, left, moved] of rows) members.push([id, 'INDIVIDUAL', status, '12345678', '', left, moved, '★試験', '太郎', 'シケン', 'タロウ', 'member@example.invalid', '', false]);
+    const result = run({ operationId: 'op-sort-0001' });
+    assert.equal(result.newMemberId, expected, label);
+    assert.equal(rowsOf(db, 'T_会員').length, 3, `${label}: 新しい行は作らない`);
+  }
 });
 
 // docs/316 C（2026-10-31 operator 決定）: 本人に処理待ちの変更申請があれば、1 件も書かずに止める。
