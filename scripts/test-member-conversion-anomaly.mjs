@@ -9,11 +9,33 @@ function extract(name) {
   const end = source.indexOf('\nfunction ', start + 1);
   return source.slice(start, end < 0 ? source.length : end);
 }
+function extractVar(name) {
+  const start = source.indexOf(`var ${name} = [`);
+  assert.ok(start >= 0, `${name} が見つからない`);
+  const end = source.indexOf('\n];', start);
+  assert.ok(end > start, `${name} の終端が見つからない`);
+  return source.slice(start, end + 3);
+}
 
-const tables = {
-  'T_研修申込': ['会員ID', '職員ID', '申込者ID', '削除フラグ'],
-  'T_認証アカウント': ['認証ID', '会員ID', '職員ID', 'システムロールコード', 'アカウント有効フラグ', '削除フラグ'],
-};
+// 構造確認の一覧は実ソースの定数をそのまま使う（テスト側に複製しない）
+const requiredDecl = extractVar('MEMBER_CONVERSION_REQUIRED_COLUMNS_');
+const required = new Function(`${requiredDecl}\nreturn MEMBER_CONVERSION_REQUIRED_COLUMNS_;`)();
+const tables = Object.fromEntries(required.map(r => [r.table, r.columns.slice()]));
+
+// テーブル定義の列（`  T_x: [ ... ]` と `テーブル定義['T_x'] = [ ... ]` の両形式）
+function definedColumns(table) {
+  const markers = [`\n  ${table}: [`, `テーブル定義['${table}'] = [`];
+  for (const marker of markers) {
+    const start = source.indexOf(marker);
+    if (start < 0) continue;
+    const end = source.indexOf(']', start + marker.length);
+    const body = source.slice(start + marker.length, end)
+      .split('\n').map(line => line.replace(/\/\/.*$/, '')).join('\n');
+    return [...body.matchAll(/'([^']+)'/g)].map(m => m[1]);
+  }
+  return null;
+}
+
 const makeDb = (defs) => ({ getSheetByName: name => {
   const headers = defs[name];
   return headers ? { getLastColumn: () => headers.length, getRange: () => ({ getValues: () => [headers] }) } : null;
@@ -28,6 +50,7 @@ function runner(defs, send) {
     const notifyMembershipChatSafely_ = deps.send;
     const convertStaffToIndividual_ = () => ++deps.converted;
     const convertIndividualToStaff_ = () => ++deps.converted;
+    ${requiredDecl}
     ${extract('inspectMemberConversionData_')}
     ${extract('convertMemberType_')}
     return convertMemberType_;
@@ -69,4 +92,41 @@ test('通知が無効または送信に失敗しても、異常を検出した�
     assert.throws(() => t.run({ direction: 'STAFF_TO_INDIVIDUAL' }), /移行に必要なデータ構造を確認できません/);
     assert.equal(t.converted(), 0);
   }
+});
+
+test('必要な列はすべてテーブル定義に存在する（無い列を求めて移行が常に止まることがない）', () => {
+  assert.ok(required.length >= 9, '書込み対象の全表を列挙する');
+  for (const { table, columns } of required) {
+    const defined = definedColumns(table);
+    assert.ok(defined, `${table} がテーブル定義に無い`);
+    for (const column of columns) assert.ok(defined.includes(column), `${table}.${column} がテーブル定義に無い`);
+  }
+});
+test('書込み対象の各表について、表の欠落と列の欠落を個別に検知して止まる', () => {
+  for (const { table, columns } of required) {
+    for (const defs of [{ ...tables, [table]: undefined }, { ...tables, [table]: columns.slice(1) }]) {
+      const notifications = [];
+      const t = runner(defs, (...args) => notifications.push(args));
+      assert.throws(() => t.run({ direction: 'STAFF_TO_INDIVIDUAL' }), /移行に必要なデータ構造を確認できません/, table);
+      assert.equal(t.converted(), 0, table);
+      assert.equal(notifications.length, 1, table);
+      assert.match(String(notifications[0][2]['異常内容']), new RegExp(table), table);
+    }
+  }
+});
+test('移行で書く表はすべて構造確認の一覧に載っている', () => {
+  const body = [
+    'convertStaffToIndividual_', 'convertIndividualToStaff_', 'migratePersonOwnedReferences_',
+    'rebindAuthPrincipal_', 'syncWhitelistMemberLinkByAuthIds_', 'migrateTrainingApplications_',
+  ].map(extract).join('\n');
+  const officer = source.match(/var OFFICER_PERSON_TABLES_ = \[([^\]]*)\]/)[1];
+  const written = new Set([...(body + officer).matchAll(/'(T_[^'\s]+)'/g)].map(m => m[1]));
+  assert.ok(written.size >= 9, '抽出できている');
+  written.delete('T_人物統合ログ'); // 無ければ appendPersonMergeLog_ が作る
+  written.delete('T_年会費納入履歴'); // 会員→会員のときだけ（この 2 方向では通らない）
+  written.delete('T_年会費更新履歴');
+  for (const table of written) assert.ok(tables[table], `${table} を書くが構造確認の一覧に無い`);
+});
+test('照合会員ID・照合職員IDは申込時点の記録として付け替えない（2026-10-31 operator 決定）', () => {
+  assert.doesNotMatch(extract('migrateTrainingApplications_'), /cols\['照合(会員|職員)ID'\]/);
 });

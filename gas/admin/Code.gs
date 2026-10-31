@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 22fe1e1afd5969f087d72d3908a2d5c4d7fdb3fb088a5d5f821bbc3bb6a401b8
+// BUILD_INPUT_SHA256: a33e78b88ba718afe106df25d725aa15c474503be4a7bac208166c7a3143f80d
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -9882,11 +9882,94 @@ function migratePersonOwnedReferences_(ss, opts) {
 
 // 移行の書込み前に、参照の付け替えに必要な構造を検証する。
 // 対象行が 0 件でも、表・列の不在は「確認不能」として区別する。
+// 2026-10-31: 移行が書き込む全表と、無条件に読み書きする列（docs/316 §2・A）。
+// 以前は 2 表だけで、役員まわり・ホワイトリストは表や列が無いと 0 件として素通りしていた。
+// T_人物統合ログ は無ければ appendPersonMergeLog_ が作るので含めない。
+// 列はテーブル定義に存在すること（test:officer-person が確かめる）。
+var MEMBER_CONVERSION_REQUIRED_COLUMNS_ = [
+  { table: 'T_会員', columns: ['会員ID', '会員種別コード', '会員状態コード', '入会日', '退会日', '介護支援専門員番号', '更新日時', '削除フラグ'] },
+  { table: 'T_事業所職員', columns: ['職員ID', '会員ID', '職員権限コード', '職員状態コード', '入会日', '退会日', '介護支援専門員番号', '更新日時', '削除フラグ'] },
+  { table: 'T_認証アカウント', columns: ['認証ID', '会員ID', '職員ID', 'システムロールコード', 'アカウント有効フラグ', '削除フラグ'] },
+  { table: 'T_管理者Googleホワイトリスト', columns: ['紐付け認証ID', '紐付け会員ID', '削除フラグ'] },
+  { table: 'T_研修申込', columns: ['会員ID', '職員ID', '申込者ID', '削除フラグ'] },
+  { table: 'T_役員', columns: ['会員ID', '職員ID', '削除フラグ'] },
+  { table: 'T_振込口座', columns: ['会員ID', '職員ID', '削除フラグ'] },
+  { table: 'T_請求', columns: ['会員ID', '職員ID', '削除フラグ'] },
+  { table: 'T_支払い', columns: ['会員ID', '職員ID', '削除フラグ'] },
+  // 書かないが、処理待ちの申請を確かめるために読む（docs/316 C）
+  { table: 'T_変更申請', columns: ['申請ID', '会員ID', '申請種別コード', '申請状態コード', '申請内容JSON', '削除フラグ'] },
+];
+
+// 2026-10-31 operator 決定（docs/316 C）: 本人に処理待ちの変更申請があれば、書き込む前に移行を止める。
+// 申請は移行前の会員ID・職員IDを指すため、移行後に承認すると別の人・退会済みの行に効いてしまう。
+// 管理者が申請を承認か却下してから移行をやり直し、必要なら本人が移行後に申請し直す。
+// 本人の申請: (a) 個人・賛助会員としての申請（会員ID 一致）
+//            (b) 事業所の申請のうち、この人を職員の追加・情報変更・除籍の対象に含むもの
+//                （情報変更は職員ID、追加・除籍は介護支援専門員番号で人を指す）
+// 申請内容が読めない申請は本人のものか確かめられないので、データ異常として止める。
+// 処理待ちの申請があるのは通常の業務状態なので、Chat の異常通知は出さない。
+function findConversionPendingChangeRequests_(ss, person) {
+  var memberId = String(person.memberId || '').trim();
+  var officeMemberId = String(person.officeMemberId || '').trim();
+  var staffId = String(person.staffId || '').trim();
+  var careNum = normalizeCmNumberForKey_(person.careManagerNumber);
+  var result = { pendingIds: [], unreadableIds: [] };
+  getRowsAsObjects_(ss, 'T_変更申請').forEach(function(r) {
+    if (toBoolean_(r['削除フラグ'])) return;
+    if (String(r['申請状態コード'] || '') !== 'PENDING') return;
+    if (String(r['申請種別コード'] || '') === 'MEMBER_APPLICATION') return;
+    var requestId = String(r['申請ID'] || '');
+    var rowMemberId = String(r['会員ID'] || '').trim();
+    if (memberId && rowMemberId === memberId) {
+      result.pendingIds.push(requestId);
+      return;
+    }
+    if (!officeMemberId || rowMemberId !== officeMemberId) return;
+    var data;
+    try {
+      data = JSON.parse(String(r['申請内容JSON'] || '{}'));
+    } catch (e) {
+      data = null;
+    }
+    if (!data || typeof data !== 'object') {
+      result.unreadableIds.push(requestId);
+      return;
+    }
+    var refersToPerson = function(entry) {
+      if (!entry || typeof entry !== 'object') return false;
+      if (staffId && String(entry.staffId || '').trim() === staffId) return true;
+      var target = entry.target && typeof entry.target === 'object' ? entry.target : entry;
+      return !!careNum && normalizeCmNumberForKey_(target.careManagerNumber) === careNum;
+    };
+    var entries = [].concat(
+      Array.isArray(data.staffAdd) ? data.staffAdd : [],
+      Array.isArray(data.staffRemove) ? data.staffRemove : [],
+      Array.isArray(data.staffUpdate) ? data.staffUpdate : []
+    );
+    if (entries.some(refersToPerson)) result.pendingIds.push(requestId);
+  });
+  return result;
+}
+
+// 処理待ちの申請があれば止める（書き込みの前に呼ぶ）
+function assertNoConversionPendingChangeRequests_(ss, person) {
+  var found = findConversionPendingChangeRequests_(ss, person);
+  if (found.unreadableIds.length > 0) {
+    notifyMembershipChatSafely_(ss, 'ANOMALY', {
+      '手続種別': '会員種別の移行',
+      '異常内容': '変更申請の内容を読み取れません（申請ID: ' + found.unreadableIds.join(', ') + '）。管理者が申請を確認してください。',
+    });
+    throw new Error('変更申請の内容を読み取れないため、移行できません（申請ID: ' + found.unreadableIds.join(', ') + '）。管理者に連絡してください。');
+  }
+  if (found.pendingIds.length > 0) {
+    throw new Error('この方に処理待ちの変更申請があるため、移行できません（申請ID: ' + found.pendingIds.join(', ') + '）。'
+      + '変更申請の画面で承認または却下してから、もう一度移行してください。'
+      + '移行後も変更が必要な場合は、ご本人に申請し直していただいてください。');
+  }
+}
+
 function inspectMemberConversionData_(ss) {
-  var requirements = [
-    { table: 'T_研修申込', columns: ['会員ID', '職員ID', '申込者ID', '削除フラグ'] },
-    { table: 'T_認証アカウント', columns: ['認証ID', '会員ID', '職員ID', 'システムロールコード', 'アカウント有効フラグ', '削除フラグ'] },
-  ];
+  var requirements = MEMBER_CONVERSION_REQUIRED_COLUMNS_;
   for (var i = 0; i < requirements.length; i += 1) {
     var requirement = requirements[i];
     var sheet = ss.getSheetByName(requirement.table);
@@ -9981,6 +10064,13 @@ function convertStaffToIndividual_(ss, payload) {
       throw new Error('介護支援専門員番号 ' + staffCareNumPre + ' の在籍職員が他事業所に存在します（職員ID: ' + otherEnrolledSameCM.map(function(r) { return String(r['職員ID'] || ''); }).join(', ') + '）。重複を解消してから再度お試しください。');
     }
   }
+
+  // 2.6. 処理待ちの変更申請があれば書き込む前に止める（docs/316 C）
+  assertNoConversionPendingChangeRequests_(ss, {
+    officeMemberId: sourceMemberId,
+    staffId: sourceStaffId,
+    careManagerNumber: staffCareNumPre,
+  });
 
   // 3. 代表者チェック（v127: 最後の1名の場合は事業所自動退会）
   var isRepresentative = String(sRow[sCols['職員権限コード']] || '') === 'REPRESENTATIVE';
@@ -10084,27 +10174,24 @@ function convertStaffToIndividual_(ss, payload) {
     while (findRowByColumnValue_(memberSheet, '会員ID', newMemberId)) {
       newMemberId = generateMemberId_();
     }
-    var columns = テーブル定義.T_会員;
-    var newRow = columns.map(function(col) {
-      switch (col) {
-        case '会員ID': return newMemberId;
-        case '会員種別コード': return 'INDIVIDUAL';
-        case '会員状態コード': return 'ACTIVE';
-        case '入会日': return today;
-        case '退会日': return '';
-        case '姓': return lastName;
-        case '名': return firstName;
-        case 'セイ': return lastKana;
-        case 'メイ': return firstKana;
-        case '代表メールアドレス': return staffEmail;
-        case '介護支援専門員番号': return staffCareNum;
-        case '作成日時': return now;
-        case '更新日時': return now;
-        case '削除フラグ': return false;
-        default: return '';
-      }
-    });
-    memberSheet.appendRow(newRow);
+    // 2026-10-31: シートの実際の見出しで並べる（以前は テーブル定義 の列順で appendRow しており、
+    // 列順がずれたシートでは別の列に書き、番号の先頭 0 を守る書式も通らなかった）。
+    appendRowsByHeaders_(ss, 'T_会員', [{
+      会員ID: newMemberId,
+      会員種別コード: 'INDIVIDUAL',
+      会員状態コード: 'ACTIVE',
+      入会日: today,
+      退会日: '',
+      姓: lastName,
+      名: firstName,
+      セイ: lastKana,
+      メイ: firstKana,
+      代表メールアドレス: staffEmail,
+      介護支援専門員番号: staffCareNum,
+      作成日時: now,
+      更新日時: now,
+      削除フラグ: false,
+    }]);
   }
 
   // 6. T_事業所職員を LEFT + 削除フラグ
@@ -10238,6 +10325,14 @@ function convertIndividualToStaff_(ss, payload) {
       throw new Error('介護支援専門員番号 ' + srcCareNum + ' の在籍職員が既に存在します（職員ID: ' + enrolledSameCMStaff.map(function(r) { return String(r['職員ID'] || ''); }).join(', ') + '）。重複を解消してから再度お試しください。');
     }
   }
+
+  // 3.7. 処理待ちの変更申請があれば書き込む前に止める（docs/316 C）。
+  // 本人の申請と、転籍先の事業所がこの人を職員として追加・変更・除籍する申請。
+  assertNoConversionPendingChangeRequests_(ss, {
+    memberId: sourceMemberId,
+    officeMemberId: targetOfficeMemberId,
+    careManagerNumber: srcCareNum,
+  });
 
   // 4. 職員レコード: 同一CM番号 × 同一事業所の既存 LEFT 行を再活性化、なければ新規作成
   // 再活性化により往復変換でのレコード蓄積を防ぐ。
@@ -10374,6 +10469,8 @@ function convertIndividualToStaff_(ss, payload) {
 }
 
 // ── 研修申込の会員ID/職員ID/申込者IDを移行する ──
+// 照合会員ID・照合職員ID（外部申込を会員と突き合わせた結果）は申込時点の記録なので付け替えない
+// （2026-10-31 operator 決定・docs/316 B）。移行後に削除済みの職員IDを指していても誤りではない。
 // 申込者IDは常に会員IDと一致させる（getTrainingApplicationIntegrityIssues_ の不変条件）。
 // 更新対象: 削除フラグ=false のレコードのみ。
 function migrateTrainingApplications_(ss, oldMemberId, oldStaffId, newMemberId, newStaffId) {

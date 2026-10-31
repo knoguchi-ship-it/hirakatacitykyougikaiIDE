@@ -212,9 +212,20 @@ test('個人会員から職員への付け替えは、職員IDだけを人物の
   assert.deepEqual([row['会員ID'], row['職員ID']], ['', 'S1']);
 });
 
-test('個人会員から事業所職員への転籍は本人の会員・認証・研修・役員参照を一貫して移す', () => {
-  const memberHeaders = ['会員ID', '会員種別コード', '会員状態コード', '職員数上限', '介護支援専門員番号', '姓', '名', 'セイ', 'メイ', '代表メールアドレス', '更新日時', '削除フラグ', '移行日'];
-  const staffHeaders = ['職員ID', '会員ID', '職員状態コード', '介護支援専門員番号', '姓', '名', 'セイ', 'メイ', '氏名', 'フリガナ', 'メールアドレス', '職員権限コード', '削除フラグ'];
+// 移行の構造確認の一覧（実ソースの定数をそのまま注入する）
+const CONVERSION_REQUIRED = block(source, 'var MEMBER_CONVERSION_REQUIRED_COLUMNS_ = ') + ';\n';
+const WHITELIST_H = ['ホワイトリストID', '紐付け認証ID', '紐付け会員ID', '削除フラグ'];
+const CHANGE_H = ['申請ID', '会員ID', '会員種別コード', '申請種別コード', '申請状態コード', '申請内容JSON', '削除フラグ'];
+const change = (id: string, memberId: string, type: string, data: unknown, status = 'PENDING', deleted = false) =>
+  [id, memberId, '', type, status, typeof data === 'string' ? data : JSON.stringify(data), deleted];
+const CONVERSION_CHECK = ['normalizeCmNumberForKey_', 'findConversionPendingChangeRequests_', 'assertNoConversionPendingChangeRequests_'];
+// 異常通知は db.notified に記録する（正常時・処理待ちの申請では 0 件のはず）
+const NOTIFY_RECORD = `function notifyMembershipChatSafely_(ss, kind, values) { ss.notified.push([kind, values]); return { sent: true }; }`;
+const snapshot = (db: ReturnType<typeof fakeDb>) => JSON.stringify(Object.fromEntries(Object.entries(db.sheets).map(([k, s]: [string, any]) => [k, s.values])));
+
+function individualToStaffCase(changeRows: Table = []) {
+  const memberHeaders = ['会員ID', '会員種別コード', '会員状態コード', '職員数上限', '介護支援専門員番号', '姓', '名', 'セイ', 'メイ', '代表メールアドレス', '更新日時', '削除フラグ', '移行日', '入会日', '退会日'];
+  const staffHeaders = ['職員ID', '会員ID', '職員状態コード', '介護支援専門員番号', '姓', '名', 'セイ', 'メイ', '氏名', 'フリガナ', 'メールアドレス', '職員権限コード', '削除フラグ', '入会日', '退会日', '更新日時'];
   const authHeaders = ['認証ID', '会員ID', '職員ID', 'システムロールコード', 'アカウント有効フラグ', '削除フラグ', '更新日時'];
   const appHeaders = ['申込ID', '会員ID', '職員ID', '申込者ID', '削除フラグ', '更新日時'];
   const db = fakeDb({
@@ -225,7 +236,10 @@ test('個人会員から事業所職員への転籍は本人の会員・認証�
     T_役員: [OFFICER_H, officer('O1', 'M1', '', 'DIRECTOR'), officer('O2', '', 'S2', 'DIRECTOR')],
     T_振込口座: [BANK_H], T_請求: [CLAIM_H], T_支払い: [PAY_H],
     T_人物統合ログ: [['ログID', '処理種別', '旧会員ID', '新会員ID', '新職員ID']],
+    T_管理者Googleホワイトリスト: [WHITELIST_H],
+    T_変更申請: [CHANGE_H, ...changeRows],
   });
+  (db as any).notified = [];
   const extra = `
     var OFFICER_PERSON_TABLES_ = ['T_役員', 'T_振込口座', 'T_請求', 'T_支払い'];
     function getSystemSettingValue_() { return '3'; }
@@ -233,14 +247,26 @@ test('個人会員から事業所職員への転籍は本人の会員・認証�
     function uniqueStrings_(xs) { return Array.from(new Set(xs)); }
     function clearAdminDashboardCache_() {}
     function clearTrainingManagementCache_() {}
-    function notifyMembershipChatSafely_() { throw new Error('正常時は通知しない'); }
+    ${NOTIFY_RECORD}
     var Logger = { log: function() {} };
   `;
-  const names = [...HELPERS, 'getBusinessStaffLimitInfo_', 'isInactiveMemberStatusForIdentity_', 'inspectMemberConversionData_',
+  const names = [...HELPERS, ...CONVERSION_CHECK, 'getBusinessStaffLimitInfo_', 'isInactiveMemberStatusForIdentity_', 'inspectMemberConversionData_',
     'rebindAuthPrincipal_', 'syncWhitelistMemberLinkByAuthIds_', 'migrateTrainingApplications_', 'rebindPersonReferenceTable_',
     'migratePersonOwnedReferences_', 'appendPersonMergeLog_', 'convertIndividualToStaff_', 'convertMemberType_'];
+  const run = () => load(source, names, CONVERSION_REQUIRED + extra)(db).convertMemberType_({ direction: 'INDIVIDUAL_TO_STAFF', sourceMemberId: 'M1', targetOfficeMemberId: 'B1', staffRole: 'STAFF' });
+  return { db, run };
+}
+
+test('個人会員から事業所職員への転籍は本人の会員・認証・研修・役員参照を一貫して移す', () => {
+  const { db, run } = individualToStaffCase([
+    change('CR-other', 'M9', 'MEMBER_UPDATE', { fields: { email: 'x@example.invalid' } }),
+    change('CR-done', 'M1', 'MEMBER_UPDATE', { fields: {} }, 'APPROVED'),
+    change('CR-del', 'M1', 'MEMBER_UPDATE', { fields: {} }, 'PENDING', true),
+    change('CR-office', 'B1', 'MEMBER_UPDATE', { staffUpdate: [{ staffId: 'S2', target: { careManagerNumber: '87654321' }, email: 'y@example.invalid' }] }),
+  ]);
   const untouchedBefore = [rowsOf(db, 'T_会員')[1], rowsOf(db, 'T_事業所職員')[0], rowsOf(db, 'T_研修申込')[1], rowsOf(db, 'T_役員')[1]];
-  const result = load(source, names, extra)(db).convertMemberType_({ direction: 'INDIVIDUAL_TO_STAFF', sourceMemberId: 'M1', targetOfficeMemberId: 'B1', staffRole: 'STAFF' });
+  const result = run();
+  assert.equal((db as any).notified.length, 0, '正常時は通知しない');
   assert.equal(result.converted, true);
   const staffId = result.newStaffId;
   assert.ok(staffId);
@@ -251,9 +277,9 @@ test('個人会員から事業所職員への転籍は本人の会員・認証�
   assert.deepEqual([rowsOf(db, 'T_会員')[1], rowsOf(db, 'T_事業所職員')[0], rowsOf(db, 'T_研修申込')[1], rowsOf(db, 'T_役員')[1]], untouchedBefore);
 });
 
-test('事業所職員から個人会員への転換は本人だけの認証・研修・役員参照を移す', () => {
+function staffToIndividualCase(changeRows: Table = []) {
   const memberHeaders = ['会員ID', '会員種別コード', '会員状態コード', '介護支援専門員番号', '入会日', '退会日', '移行日', '姓', '名', 'セイ', 'メイ', '代表メールアドレス', '更新日時', '削除フラグ'];
-  const staffHeaders = ['職員ID', '会員ID', '職員状態コード', '介護支援専門員番号', '姓', '名', 'セイ', 'メイ', '氏名', 'フリガナ', 'メールアドレス', '職員権限コード', '退会日', '更新日時', '削除フラグ'];
+  const staffHeaders = ['職員ID', '会員ID', '職員状態コード', '介護支援専門員番号', '姓', '名', 'セイ', 'メイ', '氏名', 'フリガナ', 'メールアドレス', '職員権限コード', '退会日', '更新日時', '削除フラグ', '入会日'];
   const authHeaders = ['認証ID', '会員ID', '職員ID', 'システムロールコード', 'アカウント有効フラグ', '削除フラグ', '更新日時'];
   const appHeaders = ['申込ID', '会員ID', '職員ID', '申込者ID', '削除フラグ', '更新日時'];
   const db = fakeDb({
@@ -264,20 +290,34 @@ test('事業所職員から個人会員への転換は本人だけの認証・�
     T_役員: [OFFICER_H, officer('O1', '', 'S1', 'DIRECTOR'), officer('O2', '', 'S2', 'DIRECTOR'), officer('O3', 'B1', '', 'AUDITOR')],
     T_振込口座: [BANK_H], T_請求: [CLAIM_H], T_支払い: [PAY_H],
     T_人物統合ログ: [['ログID', '処理種別', '旧会員ID', '旧職員ID', '新会員ID']],
+    T_管理者Googleホワイトリスト: [WHITELIST_H],
+    T_変更申請: [CHANGE_H, ...changeRows],
   });
+  (db as any).notified = [];
   const extra = `
     var OFFICER_PERSON_TABLES_ = ['T_役員', 'T_振込口座', 'T_請求', 'T_支払い'];
     function uniqueStrings_(xs) { return Array.from(new Set(xs)); }
     function clearAdminDashboardCache_() {}
     function clearTrainingManagementCache_() {}
-    function notifyMembershipChatSafely_() { throw new Error('正常時は通知しない'); }
+    ${NOTIFY_RECORD}
     function normalizeStaffNameFields_(row) { return { name: row['氏名'], kana: row['フリガナ'], lastName: row['姓'], firstName: row['名'], lastKana: row['セイ'], firstKana: row['メイ'] }; }
   `;
-  const names = [...HELPERS, 'inspectMemberConversionData_', 'rebindAuthPrincipal_', 'syncWhitelistMemberLinkByAuthIds_',
+  const names = [...HELPERS, ...CONVERSION_CHECK, 'inspectMemberConversionData_', 'rebindAuthPrincipal_', 'syncWhitelistMemberLinkByAuthIds_',
     'migrateTrainingApplications_', 'rebindPersonReferenceTable_', 'migratePersonOwnedReferences_', 'appendPersonMergeLog_',
     'convertStaffToIndividual_', 'convertMemberType_'];
+  const run = () => load(source, names, CONVERSION_REQUIRED + extra)(db).convertMemberType_({ direction: 'STAFF_TO_INDIVIDUAL', sourceMemberId: 'B1', sourceStaffId: 'S1' });
+  return { db, run };
+}
+
+test('事業所職員から個人会員への転換は本人だけの認証・研修・役員参照を移す', () => {
+  const { db, run } = staffToIndividualCase([
+    // 同じ事業所でも、別の職員だけを対象にする申請・事業所の項目だけの申請では止まらない
+    change('CR-other-staff', 'B1', 'MEMBER_UPDATE', { staffUpdate: [{ staffId: 'S2', target: { careManagerNumber: '87654321' } }] }),
+    change('CR-office-field', 'B1', 'MEMBER_UPDATE', { fields: { officeName: '★新名称' } }),
+  ]);
   const untouchedBefore = [rowsOf(db, 'T_会員')[0], rowsOf(db, 'T_事業所職員')[1], rowsOf(db, 'T_研修申込')[1], rowsOf(db, 'T_役員')[1], rowsOf(db, 'T_役員')[2]];
-  const result = load(source, names, extra)(db).convertMemberType_({ direction: 'STAFF_TO_INDIVIDUAL', sourceMemberId: 'B1', sourceStaffId: 'S1' });
+  const result = run();
+  assert.equal((db as any).notified.length, 0, '正常時は通知しない');
   assert.equal(result.newMemberId, 'M1');
   assert.equal(rowsOf(db, 'T_会員')[1]['会員状態コード'], 'ACTIVE');
   assert.equal(rowsOf(db, 'T_事業所職員')[0]['職員状態コード'], 'LEFT');
@@ -285,6 +325,34 @@ test('事業所職員から個人会員への転換は本人だけの認証・�
   assert.deepEqual(rowsOf(db, 'T_研修申込').map(r => [r['会員ID'], r['職員ID'], r['申込者ID']]), [['M1', '', 'M1'], ['B1', 'S2', 'B1']]);
   assert.deepEqual(rowsOf(db, 'T_役員').map(r => [r['会員ID'], r['職員ID']]), [['M1', ''], ['', 'S2'], ['B1', '']]);
   assert.deepEqual([rowsOf(db, 'T_会員')[0], rowsOf(db, 'T_事業所職員')[1], rowsOf(db, 'T_研修申込')[1], rowsOf(db, 'T_役員')[1], rowsOf(db, 'T_役員')[2]], untouchedBefore);
+});
+
+// docs/316 C（2026-10-31 operator 決定）: 本人に処理待ちの変更申請があれば、1 件も書かずに止める。
+test('処理待ちの変更申請がある移行は、書き込む前に止まり画面に申請IDと次の手順を返す（異常通知なし）', () => {
+  const cases: [string, () => { db: ReturnType<typeof fakeDb>; run: () => any }][] = [
+    ['個人→職員: 本人の申請', () => individualToStaffCase([change('CR1', 'M1', 'MEMBER_UPDATE', { fields: { email: 'a@example.invalid' } })])],
+    ['個人→職員: 本人の退会申請', () => individualToStaffCase([change('CR1', 'M1', 'WITHDRAWAL', {})])],
+    ['個人→職員: 転籍先がこの人を職員に追加する申請', () => individualToStaffCase([change('CR1', 'B1', 'MEMBER_UPDATE', { staffAdd: [{ lastName: '★試験', careManagerNumber: '12345678' }] })])],
+    ['職員→個人: 事業所がこの人の情報を変更する申請', () => staffToIndividualCase([change('CR1', 'B1', 'MEMBER_UPDATE', { staffUpdate: [{ staffId: 'S1', target: { careManagerNumber: '12345678' }, email: 'b@example.invalid' }] })])],
+    ['職員→個人: 事業所がこの人を除籍する申請', () => staffToIndividualCase([change('CR1', 'B1', 'STAFF_REMOVE', { staffRemove: [{ lastName: '★試験', firstName: '太郎', careManagerNumber: ' 12345678 ' }] })])],
+  ];
+  for (const [label, make] of cases) {
+    const { db, run } = make();
+    const before = snapshot(db);
+    assert.throws(run, (e: Error) => /処理待ちの変更申請/.test(e.message) && /CR1/.test(e.message) && /承認または却下/.test(e.message), label);
+    assert.equal(snapshot(db), before, `${label}: DB は 1 件も変わらない`);
+    assert.equal((db as any).notified.length, 0, `${label}: 業務上の状態なので異常通知しない`);
+  }
+});
+
+test('申請内容が読めない事業所の申請があれば、確かめられないので止めてデータ異常として通知する', () => {
+  const { db, run } = staffToIndividualCase([change('CR-bad', 'B1', 'MEMBER_UPDATE', '{壊れた')]);
+  const before = snapshot(db);
+  assert.throws(run, /変更申請の内容を読み取れない/);
+  assert.equal(snapshot(db), before);
+  assert.equal((db as any).notified.length, 1);
+  assert.equal((db as any).notified[0][0], 'ANOMALY');
+  assert.match((db as any).notified[0][1]['異常内容'], /CR-bad/);
 });
 
 test('紐づけ変更: その人のすべての役職と口座・請求・支払いをまとめて付け替え、他の人には触れない', () => {
