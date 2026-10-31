@@ -275,16 +275,15 @@ async function main() {
   md.push(``);
   md.push(`## 合否サマリ`);
   md.push(``);
-  md.push(`| Viewport | ホーム | 入会申込 | モーダル | コメント |`);
+  md.push(`| Viewport | ホーム | 入会申込 | 注意事項 | コメント |`);
   md.push(`|---|---|---|---|---|`);
   for (const r of results) {
     const home = score(r.views.home);
     const app = score(r.views.memberApplication);
-    const dlg = score(r.views.noticeDialog);
-    const dlgExtra = r.views.noticeDialog?.dialogCheck;
+    // 2026-11-01: 要約は注意事項ステップ（noticeStep）を見る。廃止済みの noticeDialog を読み、詳細が全件合格でも常に ❌ だった
+    const dlg = score(r.views.noticeStep);
     let comment = '';
     if (r.fatal) comment = `致命的エラー: ${r.fatal.slice(0, 80)}`;
-    else if (dlgExtra && dlgExtra.dialogFound === false) comment = 'モーダル未表示（テストスキップ）';
     md.push(`| **${r.vp}** | ${home.pass ? '✅' : '❌'} | ${app.pass ? '✅' : '❌'} | ${dlg.pass ? '✅' : '❌'} | ${comment} |`);
   }
   md.push(``);
