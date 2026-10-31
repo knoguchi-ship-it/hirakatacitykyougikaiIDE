@@ -175,6 +175,20 @@ test('渡された ss で移行し、入口と同じ判定をする', () => {
   assert.throws(() => run({ ...makeDb({ ...tables, 'T_会員': undefined }), name: 'isolated' }, { direction: 'STAFF_TO_INDIVIDUAL' }), /移行に必要なデータ構造/);
 });
 
+// docs/317 §9.1 P0（実測）: Sheets API で書いた直後の同じ実行の SpreadsheetApp は古い内容を返す。
+// 一括更新の後に DB を読んで判定・再計算すると誤る。後で読むなら API 経由（confirmConversionAppliedViaApi_）。
+test('一括更新の後は SpreadsheetApp で DB を読まない・書かない（P0）', () => {
+  const body = extract('convertMemberTypeOn_');
+  const commitAt = body.indexOf('txCommit_(tx)');
+  assert.ok(commitAt > 0, 'txCommit_ が無い');
+  const after = body.slice(commitAt);
+  assert.doesNotMatch(after, /getRowsAsObjects_\(|getSheetByName\(|getRange\(|findRowByColumnValue_\(|findMemberConversionRecord_\(|appendRowsByHeaders_\(/);
+  // 移行本体（予約するだけ）にもその場の書込みが無い
+  for (const name of ['convertStaffToIndividual_', 'convertIndividualToStaff_']) {
+    assert.doesNotMatch(extract(name), /\.setValues\(|appendRowsByHeaders_\(|\.appendRow\(/, name);
+  }
+});
+
 test('照合会員ID・照合職員IDは申込時点の記録として付け替えない（2026-10-31 operator 決定）', () => {
   assert.doesNotMatch(extract('migrateTrainingApplications_'), /cols\['照合(会員|職員)ID'\]/);
 });

@@ -145,6 +145,7 @@ it is part of `npm run prerelease`.
 | 管理 split の公開関数は先頭で実行者（MASTER／実在トリガー）を確かめる | `npm run test:operator-tool-guard` |
 | ロール視点プレビューはそのロールの権限でサーバーが判定する | `npm run test:role-preview` |
 | 最初の読み込みの自動再試行（15 秒 × 5 回）を管理・会員・公開で共有 | `npm run test:connection-retry` |
+| 会員・職員の移行は書く前に全部確かめ、1 回の一括更新で書く（その場の書込み 0・同じ操作IDは二度実行しない・書いた後に SpreadsheetApp で読まない） | `npm run test:officer-person`（2026-10-31・docs/316・docs/317） |
 | テストデータの印・物理削除でゴミが残らない・実データを消さない | `npm run test:test-data-purge` |
 | 読み込みを遅くする実装（起動時の重いライブラリ・二重取得など）を戻さない | `npm run test:load-performance` |
 | Skill が実在しないコマンド・ファイル・関数を指していないこと | `npm run test:skills` |
