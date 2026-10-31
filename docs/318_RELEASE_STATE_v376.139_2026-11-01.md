@@ -33,11 +33,11 @@
 | 公開 responsive | 7 VP × 3 画面すべて合格（横スクロール 0） |
 | 管理画面の初回表示（MCP・デプロイ直後） | 15.9 秒・再試行の帯なし・console エラー 0 |
 | 管理の読み取り API（MCP） | `getAdminDashboardData`・`getAdminInitData`・`getAdminPersonList`・`getOfficerManagementData`・`getAnnualFeeAdminData`・`getAdminChangeRequests` の 6 本とも success（3.9〜6.5 秒） |
+| `test:responsive:admin` | **56/56 合格**（7 VP × 8 画面・横スクロール 0・24px 未満 0・はみ出し 0。2026-11-01 operator の再ログイン後） |
 | 会員ポータルのログイン画面 | デプロイ直後の初回 88 秒、その後 4.7 秒・3.1 秒（初回だけ遅い既知の現象・`docs/302` §2） |
 
 ## 4. 未検証（完了に混ぜない）
 
 - **会員移行の本番 DB での実行**（`docs/317` §10.2 S）。★テストデータで行い、作成と物理削除は毎回 operator 承認（`/dbops`）。
 - 移行画面の「結果を確認できませんでした」表示の実ブラウザ確認。
-- `test:responsive:admin`（管理の storageState が 2026-10-26 のままで切れている。operator の再ログインが必要）。
 - `docs/307` 修正分の本番画面での確認（F57・F58 ほか、各項目の「本番画面は未確認」）。

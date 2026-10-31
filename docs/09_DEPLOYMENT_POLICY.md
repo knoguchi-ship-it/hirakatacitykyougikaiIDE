@@ -180,7 +180,7 @@ Real-browser verification is performed by the operator by default. The agent rec
 - Scope: 会員・職員の移行（S46）を作り直した（全表の構造確認・処理待ち変更申請での停止・Sheets API の 1 回の一括更新・操作IDで二重実行防止・往復で同じ会員IDに戻る・往復前の入会日を移行の記録に残す）。会員IDの生成を 1 始まりに。`docs/307` のローカル修正（F24・F44・F45・F47・F50・F53・F54・F57・F58・E7・S45・S33・人物参照）。詳細 `docs/318`。
 - Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。表・列の変更なし。
 - Fixed deployments: integrated/public @449 x2 / member @207 / admin @306.
-- Verification: prerelease PASS。隔離 E2E（実 GAS・一時スプレッドシート）20/20。公開 a11y 違反 0・responsive 7 VP×3 画面合格。管理画面の初回 15.9 秒・読み取り API 6 本 success。会員ログイン画面は初回 88 秒・以後 3〜5 秒。未検証: 移行の本番画面 E2E（S）・test:responsive:admin（storageState 切れ）。
+- Verification: prerelease PASS。隔離 E2E（実 GAS・一時スプレッドシート）20/20。公開 a11y 違反 0・responsive 7 VP×3 画面合格。管理画面の初回 15.9 秒・読み取り API 6 本 success。会員ログイン画面は初回 88 秒・以後 3〜5 秒。test:responsive:admin 56/56。未検証: 移行の本番画面 E2E（S）。
 - Rollback: integrated/public @448 x2 / member @206 / admin @305（v376.138）。スキーマが同じなので事前処理は不要。
 
 ### 2026-10-28 v376.138
