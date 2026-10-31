@@ -256,7 +256,7 @@ const CONVERSION_REQUIRED = block(source, 'var MEMBER_CONVERSION_REQUIRED_COLUMN
 // 一括更新（tx）の部品と、GAS の Sheets API・UrlFetchApp の差し替え
 const TX_FUNCS = ['rehearsalCellKey_', 'createSheetWriteTx_', 'txHeaders_', 'txUpdateRow_', 'txAppend_', 'isPlainDateString_', 'isPlainNumberString_',
   'dateStringToSheetSerial_', 'sheetsApiUserEnteredCell_', 'txBuildRequests_', 'txCommit_', 'normalizeConversionOperationId_',
-  'findMemberConversionRecord_', 'memberConversionResultFromRecord_', 'confirmConversionAppliedViaApi_'];
+  'findMemberConversionRecord_', 'memberConversionResultFromRecord_', 'confirmConversionAppliedViaApi_', 'normalizeDateInput_'];
 const TX_ENV = block(source, 'var TEXT_FORMAT_COLUMNS_ = ') + `;
   var SpreadsheetApp = { flush: function() {} };
   var ScriptApp = { getOAuthToken: function() { return 'token'; } };
@@ -287,7 +287,7 @@ function individualToStaffCase(changeRows: Table = []) {
     T_研修申込: [appHeaders, ['T1', 'M1', '', 'M1', false, ''], ['T2', 'B1', 'S2', 'B1', false, '']],
     T_役員: [OFFICER_H, officer('O1', 'M1', '', 'DIRECTOR'), officer('O2', '', 'S2', 'DIRECTOR')],
     T_振込口座: [BANK_H], T_請求: [CLAIM_H], T_支払い: [PAY_H],
-    T_人物統合ログ: [['ログID', '処理種別', '旧会員ID', '新会員ID', '新職員ID']],
+    T_人物統合ログ: [['ログID', '処理種別', '旧会員ID', '新会員ID', '新職員ID', '詳細JSON']],
     T_管理者Googleホワイトリスト: [WHITELIST_H],
     T_変更申請: [CHANGE_H, ...changeRows],
   });
@@ -400,6 +400,23 @@ test('往復: 個人→職員→個人と戻すと、行を増やさず同じ会
   assert.equal(db.batchCalls, 2, '1 回の移行につき一括更新 1 回');
 });
 
+// 2026-11-01 operator 決定 A（docs/316 §2-6）: 入会日は年度の在籍判定に使うので戻した日に書き換える。
+// 上書きする前の入会日と元の行の入会日は T_人物統合ログ の詳細JSON に残し、最初の入会日をたどれるようにする。
+test('往復: 使い直した行の上書き前の入会日と、元の行の入会日を移行の記録に残す', () => {
+  const { db, run } = individualToStaffCase();
+  const members = db.sheets['T_会員'].values as unknown[][];
+  members[1][members[0].indexOf('入会日')] = '2020-04-01';
+  const toStaff = run({ operationId: 'op-jd-00001' });
+  run({ direction: 'STAFF_TO_INDIVIDUAL', sourceMemberId: 'B1', sourceStaffId: toStaff.newStaffId, operationId: 'op-jd-00002' });
+  const logs = rowsOf(db, 'T_人物統合ログ').map((r) => [r['処理種別'], JSON.parse(String(r['詳細JSON'])).joinedDates]);
+  assert.deepEqual(logs, [
+    ['INDIVIDUAL_TO_STAFF', { source: '2020-04-01', reusedBefore: '' }],
+    ['STAFF_TO_INDIVIDUAL', { source: '2026-10-30', reusedBefore: '2020-04-01' }],
+  ]);
+  // 一括更新では日付のセルとして（シリアル値で）書く。元の入会日のままではないこと
+  assert.notEqual(rowsOf(db, 'T_会員')[0]['入会日'], '2020-04-01', '入会日は戻した日（在籍判定のため）');
+});
+
 test('使い直す個人行は、退会日・移行日がいちばん新しい行（日付のセルが Date で読めても曜日の綴りで並べない）', () => {
   for (const [label, rows, expected] of [
     // 文字列にして比べると "Sun Mar 31 2024" > "Fri Mar 28 2025" で古い方を選んでしまう組み合わせ
@@ -416,7 +433,19 @@ test('使い直す個人行は、退会日・移行日がいちばん新しい�
   }
 });
 
+// docs/317 §9.3 E7b-2: 会員IDは 1 始まりの 8 桁だけ（0 始まりは数値で保存されて先頭の 0 が消える）
+test('会員IDの生成: 1 始まりの 8 桁だけを作る（0 始まりを作らない）', () => {
+  let n = 0;
+  const gen = new Function('Utilities', `${fn(source, 'generateMemberId_')} return generateMemberId_;`)({
+    getUuid: () => { n += 1; return (n * 2654435761 % 4294967296).toString(16).padStart(8, '0') + '-' + n.toString(36) + '-4aaa-8bbb-' + (n * 40503).toString(16).padStart(12, '0'); },
+  });
+  const ids = Array.from({ length: 20000 }, () => gen());
+  assert.ok(ids.every((id: string) => /^[1-9]\d{7}$/.test(id)), ids.find((id: string) => !/^[1-9]\d{7}$/.test(id)));
+  assert.ok(new Set(ids).size > 19000, 'ほぼ重ならない');
+});
+
 // docs/316 C（2026-10-31 operator 決定）: 本人に処理待ちの変更申請があれば、1 件も書かずに止める。
+
 test('処理待ちの変更申請がある移行は、書き込む前に止まり画面に申請IDと次の手順を返す（異常通知なし）', () => {
   const cases: [string, () => { db: ReturnType<typeof fakeDb>; run: () => any }][] = [
     ['個人→職員: 本人の申請', () => individualToStaffCase([change('CR1', 'M1', 'MEMBER_UPDATE', { fields: { email: 'a@example.invalid' } })])],

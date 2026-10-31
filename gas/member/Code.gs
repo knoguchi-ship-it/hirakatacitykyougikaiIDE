@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 406813e5e87f85bb5d135c6fe088312ddc66f017dd2e88d30843cd3c9794e2cd
+// BUILD_INPUT_SHA256: 74edbcb440102fa1ebf70209ba19585eeb93e4ea04c8a768ae3520ab6eb7c772
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -3632,6 +3632,10 @@ var MEMBER_CONVERSION_E2E_REF_ID_HEADERS_ = { T_役員: '役員ID', T_振込口�
 
 
 // 削除済みの会員・職員に結び付いたまま、削除されていない認証アカウント。有効なものはログインできる
+
+// 2026-11-01: 先頭の 0 が消えて 8 桁未満になった会員ID（docs/317 §9.3 E7b-2）。件数だけ返す。
+// - loginIsZeroPadded: 認証アカウントのログインIDが 0 を補った 8 桁のまま（ログインIDの列は文字列）＝会員IDと食い違う
+// - references: 会員ID を持つ表で、0 を補った 8 桁の文字列で持っている行（数値の会員IDと一致しない）
 
 // _CREDENTIALS_TEMP（2026-03 移行時の認証情報台帳）に平文の初期パスワードが残っているか。
 // 値は読むが返さない。台帳の日時より後にパスワードが変わっていない有効なアカウントを「まだ使えうる」と数える

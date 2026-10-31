@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: aa4de7fcd3a4a5fe2dafc1bc8ae9462fa44503284bc2baba2464e5ccdb462555
+// BUILD_INPUT_SHA256: 73c59d3be1cee152f783d4dc2c44b3eae544eb7c9bd30ac288a561887bef9db9
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -5853,6 +5853,56 @@ function countAuthOfDeletedPeople_(auth, members, staff) {
   return out;
 }
 
+// 2026-11-01: 先頭の 0 が消えて 8 桁未満になった会員ID（docs/317 §9.3 E7b-2）。件数だけ返す。
+// - loginIsZeroPadded: 認証アカウントのログインIDが 0 を補った 8 桁のまま（ログインIDの列は文字列）＝会員IDと食い違う
+// - references: 会員ID を持つ表で、0 を補った 8 桁の文字列で持っている行（数値の会員IDと一致しない）
+function countShortMemberIds_(members, auth, refs) {
+  if (!members) return { skipped: 'シートが無い' };
+  var m = dbStateIndex_(members);
+  var out = { total: 0, numericCell: 0, byType: {}, byStatus: {}, deleted: 0, auth: 0, loginIsMemberId: 0, loginIsZeroPadded: 0, references: [] };
+  var shortIds = {};
+  members.rows.forEach(function(r) {
+    var raw = r[m['会員ID']];
+    var id = String(raw == null ? '' : raw).trim();
+    if (!id || id.length >= 8) return;
+    shortIds[id] = true;
+    out.total += 1;
+    if (typeof raw === 'number') out.numericCell += 1;
+    var type = String(r[m['会員種別コード']] || '');
+    var status = String(r[m['会員状態コード']] || '');
+    out.byType[type] = (out.byType[type] || 0) + 1;
+    out.byStatus[status] = (out.byStatus[status] || 0) + 1;
+    if (toBoolean_(r[m['削除フラグ']])) out.deleted += 1;
+  });
+  var pad8 = function(id) { var t = id; while (t.length < 8) t = '0' + t; return t; };
+  if (auth) {
+    var a = dbStateIndex_(auth);
+    auth.rows.forEach(function(r) {
+      var mid = String(r[a['会員ID']] == null ? '' : r[a['会員ID']]).trim();
+      if (!shortIds[mid] || toBoolean_(r[a['削除フラグ']])) return;
+      out.auth += 1;
+      var login = String(r[a['ログインID']] == null ? '' : r[a['ログインID']]).trim();
+      if (login === mid) out.loginIsMemberId += 1;
+      else if (login === pad8(mid)) out.loginIsZeroPadded += 1;
+    });
+  }
+  var padded = {};
+  Object.keys(shortIds).forEach(function(id) { padded[pad8(id)] = true; });
+  (refs || []).forEach(function(ref) {
+    var item = { table: ref.table, column: ref.column, shortId: 0, zeroPadded: 0 };
+    if (!ref.snap) { item.skipped = 'シートが無い'; out.references.push(item); return; }
+    var c = dbStateIndex_(ref.snap)[ref.column];
+    if (c == null) { item.skipped = '列が無い'; out.references.push(item); return; }
+    ref.snap.rows.forEach(function(r) {
+      var v = String(r[c] == null ? '' : r[c]).trim();
+      if (shortIds[v]) item.shortId += 1;
+      else if (padded[v]) item.zeroPadded += 1;
+    });
+    out.references.push(item);
+  });
+  return out;
+}
+
 // _CREDENTIALS_TEMP（2026-03 移行時の認証情報台帳）に平文の初期パスワードが残っているか。
 // 値は読むが返さない。台帳の日時より後にパスワードが変わっていない有効なアカウントを「まだ使えうる」と数える
 function countCredentialsTempExposure_(ledger, auth) {
@@ -10186,7 +10236,10 @@ function generateMemberId_() {
   for (var i = 0; i < uuid.length; i++) {
     hash = ((hash << 5) - hash + uuid.charCodeAt(i)) >>> 0;
   }
-  return String(hash % 100000000).padStart(8, '0');
+  // 2026-11-01: 1 始まりの 8 桁に限る（10000000〜99999999）。以前は約 1 割が 0 始まりになり、
+  // 会員ID の列が数値で保存されて先頭の 0 が消え、作った番号で探せなかった（docs/317 §9.3 E7b-2）。
+  // 賛助会員などでは会員ID がログインIDを兼ねる（ログインIDの列は文字列なので 0 が残り、食い違う）。
+  return String(10000000 + (hash % 90000000));
 }
 
 // v376.72: T_研修申込.申込ID の採番はこの 1 関数に集約する（AGENTS.md §3 の DRY 原則）。
@@ -11464,7 +11517,11 @@ function convertStaffToIndividual_(ss, payload, tx, logId) {
     oldStaffId: sourceStaffId,
     newMemberId: newMemberId,
     newStaffId: '',
-    details: { officeWithdrawn: officeWithdrawn, migrated: migrateCounts },
+    // 2026-11-01（operator 決定 A）: 入会日は「この記録で在籍が始まった日」（年度の在籍判定に使う）なので、
+    // 使い直した行は戻した日に書き換える。上書きする前の入会日と元の行の入会日をここに残す（最初の入会日をたどれるように）。
+    details: { officeWithdrawn: officeWithdrawn, migrated: migrateCounts,
+      joinedDates: { source: normalizeDateInput_(sRow[sCols['入会日']]),
+        reusedBefore: reuseFound ? normalizeDateInput_(reuseFound.row[reuseFound.columns['入会日']]) : '' } },
     executedAt: now,
   }, tx);
   // post-check は廃止: 再活性化パターン + 事前チェック（step 2.5）で整合性を保証するため不要
@@ -11693,7 +11750,10 @@ function convertIndividualToStaff_(ss, payload, tx, logId) {
     oldStaffId: '',
     newMemberId: targetOfficeMemberId,
     newStaffId: newStaffId,
-    details: { migrated: migrateCounts2 },
+    // 2026-11-01（operator 決定 A）: 上書きする前の入会日と元の行の入会日を残す（上の STAFF_TO_INDIVIDUAL と同じ）
+    details: { migrated: migrateCounts2,
+      joinedDates: { source: normalizeDateInput_(srcRow[srcCols['入会日']]),
+        reusedBefore: reuseStaffFound ? normalizeDateInput_(reuseStaffFound.row[reuseStaffFound.columns['入会日']]) : '' } },
     executedAt: now,
   }, tx);
   // キャッシュの消去は一括更新の反映を確かめてから convertMemberTypeOn_ が行う

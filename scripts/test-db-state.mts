@@ -33,7 +33,7 @@ function extractVar(source: string, name: string): string {
   return source.slice(start, source.indexOf('];', start) + 2);
 }
 
-const HELPERS = ['dbStateIndex_', 'dbStateTime_', 'countAuthOfDeletedPeople_', 'countCredentialsTempExposure_']
+const HELPERS = ['dbStateIndex_', 'dbStateTime_', 'countAuthOfDeletedPeople_', 'countCredentialsTempExposure_', 'countShortMemberIds_']
   .map((n) => extractFunction(adminArtifact, n)).join('\n');
 
 const refs = new Function(`${extractVar(gas, 'DB_STATE_ID_REFERENCES_')} return DB_STATE_ID_REFERENCES_;`)() as string[][];
@@ -120,6 +120,40 @@ test('平文の初期パスワード台帳: 変わっていない有効アカウ
   const members = { headers: ['会員ID', '削除フラグ'], rows: [['M1', true], ['M2', false], ['M3', true]] };
   const staff = { headers: ['職員ID', '削除フラグ'], rows: [] };
   assert.deepEqual(fn.countAuthOfDeletedPeople_(auth, members, staff), { total: 2, enabled: 1, disabled: 1, locked: 0 });
+});
+
+// 2026-11-01（docs/317 §9.3 E7b-2）: 先頭の 0 が消えた会員ID と、0 を補った 8 桁のまま残る参照を数える
+test('先頭の 0 が消えた会員ID: 件数・種別・ログインIDの食い違い・参照の持ち方を数え、値は返さない', () => {
+  const fn = new Function('toBoolean_', `${HELPERS} return { countShortMemberIds_ };`)(
+    (v: unknown) => v === true || v === 'true',
+  );
+  const members = {
+    headers: ['会員ID', '会員種別コード', '会員状態コード', '削除フラグ'],
+    rows: [
+      [3335641, 'SUPPORT', 'ACTIVE', false],      // 数値で保存されて 7 桁
+      ['0712345', 'INDIVIDUAL', 'WITHDRAWN', true], // 文字列でも 7 桁
+      ['12345678', 'INDIVIDUAL', 'ACTIVE', false],
+    ],
+  };
+  const auth = {
+    headers: ['会員ID', 'ログインID', '削除フラグ'],
+    rows: [[3335641, '03335641', false], ['0712345', '0712345', false], ['12345678', '11112222', false], [3335641, 'x', true]],
+  };
+  const fees = { headers: ['会員ID'], rows: [[3335641], ['03335641'], ['12345678']] };
+  const out = fn.countShortMemberIds_(members, auth, [
+    { table: 'T_年会費納入履歴', column: '会員ID', snap: fees },
+    { table: 'T_請求', column: '会員ID', snap: null },
+  ]);
+  assert.deepEqual(out, {
+    total: 2, numericCell: 1, byType: { SUPPORT: 1, INDIVIDUAL: 1 }, byStatus: { ACTIVE: 1, WITHDRAWN: 1 }, deleted: 1,
+    auth: 2, loginIsMemberId: 1, loginIsZeroPadded: 1,
+    references: [
+      { table: 'T_年会費納入履歴', column: '会員ID', shortId: 1, zeroPadded: 1 },
+      { table: 'T_請求', column: '会員ID', shortId: 0, zeroPadded: 0, skipped: 'シートが無い' },
+    ],
+  });
+  assert.doesNotMatch(JSON.stringify(out), /3335641|712345/, 'セルの値を返している');
+  assert.deepEqual(fn.countShortMemberIds_(null, auth, []), { skipped: 'シートが無い' });
 });
 
 test('describeDatabaseState_LOG は読むだけ（MASTER 限定・書き込みなし・監査ログに書かない）', () => {

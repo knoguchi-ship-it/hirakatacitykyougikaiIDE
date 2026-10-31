@@ -152,6 +152,9 @@ function describeDatabaseState_LOG() {
 
   result.authOfDeletedPeople = countAuthOfDeletedPeople_(snapOf('T_認証アカウント'), snapOf('T_会員'), snapOf('T_事業所職員'));
   result.credentialsTemp = countCredentialsTempExposure_(cache['main:_CREDENTIALS_TEMP'] || null, snapOf('T_認証アカウント'));
+  result.shortMemberIds = countShortMemberIds_(snapOf('T_会員'), snapOf('T_認証アカウント'),
+    DB_STATE_ID_REFERENCES_.filter(function(ref) { return ref[2] === 'T_会員'; })
+      .map(function(ref) { return { table: ref[0], column: ref[1], snap: snapOf(ref[0]) }; }));
 
   var out = JSON.stringify(result, null, 2);
   Logger.log('=== DB の状態（件数のみ）===\n' + out);
