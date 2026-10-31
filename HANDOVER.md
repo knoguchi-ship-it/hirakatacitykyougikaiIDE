@@ -5,13 +5,12 @@
 ### 0.0 再開の最初の 5 分
 
 **閉じた状態（2026-10-31）**: コードと文書は整合し、`npm run prerelease` は exit 0。**本番は v376.138 のまま**（下記・`release:verify` で一致を確認済み）。
-v376.138 以降の変更はすべて**未リリース**（Git の `main` にある）。Apps Script の 3 project の HEAD は `489f749b`（2026-11-01 に E の実行のため push・隔離 E2E ツールまで）。
-`ed3f928` は文書だけ。version と fixed deployment は変えていない。
+v376.138 以降の変更はすべて**未リリース**（Git の `main` にある）。Apps Script の 3 project の HEAD は `2eab0ad8`（2026-11-01 午後に E の再実行のため push）。version と fixed deployment は変えていない。
 
 **本番は v376.138（2026-10-28）: 統合・公開 @448×2 / member @206 / admin @305。ロールバック先 v376.137（@447×2 / @205 / @304・スキーマ同じ・事前処理不要）。**
 スキーマ版 2026-10-25-screen-text-templates-v376.135（本番整備済み）。**⚠ v376.134 以前へ戻すと、旧い整備が `T_画面文テンプレート` を消す。また上げるのは v376.136 以降で。**
 
-#### 2026-11-01 午後（未リリース・Apps Script へ未 push）
+#### 2026-11-01 午後（未リリース・Apps Script の 3 project は `2eab0ad8` に push 済み・version と deployment は変えていない）
 
 - 前のセッションの後に PC が落ちた疑い → 調査の結果、最後のコミット（`ed3f928`）の後に作業は無く、失われたものは無い。
 - **会員IDを 1 始まりの 8 桁に**（`generateMemberId_`。operator 決定）。既存の会員ID・ログインIDは変えない。
@@ -45,7 +44,7 @@ v376.138 以降の変更はすべて**未リリース**（Git の `main` にあ�
 
 | 順 | 担当 | やること・完了条件 |
 |---|---|---|
-| 1 | operator 承認 → AI | **会員IDの先頭 0（2026-11-01 operator 決定: 生成を 1 始まりに・ローカル実装済み）**: `prerelease` → `release:push`（version・deployment は変えない）→ E を 2 回実行し直し（`clasp -u run run e2eMemberConversionIsolated_APPLY`）、E7b-2 を含め全件合格を確認。あわせて `describeDatabaseState_LOG` の `shortMemberIds`（読むだけ）で、本番の 8 桁未満の会員ID・ログインIDが 0 付き 8 桁のまま食い違う件数を数え、既存分の扱いを operator が決める（`docs/317` §9.3・§10.4）。 |
+| 1 | operator | **会員IDの先頭 0**: 生成は 1 始まりに直し、Apps Script に push 済み（`2eab0ad8`）。**E を再実行して 20/20 合格**。本番の診断（読むだけ）: 8 桁未満の会員ID 30 件、ログインID・参照との食い違い 0 件（`docs/317` §10.4）。既存の 30 件を直すかどうかは operator 判断（AI の推奨: そのまま）。 |
 | ~~2~~ | 完了 | ~~往復の入会日~~ → 2026-11-01 operator 決定 A: 入会日は戻した日（在籍判定のため）、上書き前と元の行の入会日を `T_人物統合ログ.詳細JSON` の `joinedDates` に残す（`docs/316` §2-6・ローカル実装済み）。 |
 | 3 | operator 承認 → AI | **リリース**（`/release`）: v376.138 以降の未リリース変更をまとめて出す。中身は `docs/307` のローカル修正（F24・F44・F45・F47・F50・F53・F54・F57・F58・E7・S45・S33・人物参照）と会員移行（S46）。E 合格が前提。 |
 | 4 | AI → operator 承認 | **S: 本番画面の E2E**（`docs/317` §10.2）。★テストデータの作成と物理削除は `/dbops`・毎回承認。 |
